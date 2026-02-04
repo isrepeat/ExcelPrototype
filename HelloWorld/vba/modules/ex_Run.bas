@@ -1,26 +1,16 @@
 Attribute VB_Name = "ex_Run"
 Option Explicit
 
-' ============================================================================
-' ex_Run
-' ----------------------------------------------------------------------------
-' Главный управляющий модуль.
-'
-' Используется как точка входа:
-' - кнопка на листе
-' - хоткей
-' - ручной запуск
-'
-' Здесь НЕТ логики данных и отображения —
-' только связывание модулей.
-' ============================================================================
-
-Public Sub RunQuery()
-    Dim tableData As Variant
+Public Sub TestCompareOldNew()
+    Dim resultTable As Variant
     
-    ' Получаем данные
-    tableData = ex_QueryRunner.GetResultTable()
+    ex_TestData.GenerateTestTables
     
-    ' Выводим результат на лист Result
-    ex_ResultWriter.WriteTableToResultSheet tableData
+    resultTable = ex_TableComparer.CompareSheets( _
+        "Old", _
+        "New", _
+        "Id" _
+    )
+    
+    ex_ResultWriter.WriteTableToResultSheet resultTable
 End Sub

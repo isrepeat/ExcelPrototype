@@ -1,20 +1,28 @@
 Attribute VB_Name = "ex_ResultWriter"
 Option Explicit
 
-' ============================================================================
+' =============================================================================
 ' ex_ResultWriter
-' ----------------------------------------------------------------------------
-' Модуль отображения результата.
+' =============================================================================
+' Purpose:
+'   Render compare result into worksheet "Result" with a dark UI theme.
 '
-' Отвечает за:
-' - создание / получение листа Result
-' - очистку листа
-' - запись таблицы данных
-' - форматирование (шапка, автоширина, фильтры, Freeze Panes)
-' - подсветку строк по статусу
+' Responsibilities:
+'   - Create / get "Result" worksheet
+'   - Clear old content and write a 2D Variant array to cells
+'   - Apply base formatting (header row, filters, autofit, freeze panes)
+'   - Apply dark background to the whole visible area (plus extra margin)
+'   - Highlight ONLY 3 statuses by row color:
+'         Added   -> green
+'         Changed -> purple
+'         Removed -> red
+'     Any other status (OK / Error) stays with default dark background.
+'   - Draw full grid borders (like Excel menu "All Borders") on dark background
 '
-' НЕ занимается получением данных.
-' ============================================================================
+' Notes about Excel limitations:
+'   Excel has no "sheet background color" like a UI canvas.
+'   We simulate it by filling a big cell range and restricting scroll area.
+' =============================================================================
 
 Public Sub WriteTableToResultSheet(ByVal tableData As Variant)
     Dim ws As Worksheet
@@ -22,60 +30,54 @@ Public Sub WriteTableToResultSheet(ByVal tableData As Variant)
     Dim colCount As Long
     Dim targetRange As Range
     
-    ' Получаем лист Result или создаём его, если его нет
+    ' Get or create Result sheet
     Set ws = GetOrCreateWorksheet("Result")
     
-    ' Полностью очищаем лист
+    ' Clear previous content and reset scroll area
     ws.Cells.Clear
+    ws.ScrollArea = ""
     
-    ' Определяем размер таблицы
+    ' Determine table size from 2D array
     rowCount = UBound(tableData, 1)
     colCount = UBound(tableData, 2)
     
-    ' Записываем данные одним присваиванием (быстро)
+    ' Write data in one operation (fast)
     Set targetRange = ws.Range(ws.Cells(1, 1), ws.Cells(rowCount, colCount))
     targetRange.Value = tableData
     
-    ' Базовое форматирование таблицы
+    ' Base table formatting (fonts, header, filters, freeze panes)
     FormatAsTable _
         ws, _
         rowCount, _
         colCount
     
-    ' Подсветка строк по колонке Status
-    ApplyStatusHighlight _
+    ' Apply unified dark theme + status highlighting
+    ex_SheetTheme.ApplyDarkThemeToSheet _
         ws, _
-        rowCount, _
-        colCount
+        True
 End Sub
 
-' ----------------------------------------------------------------------------
-' Получает лист по имени или создаёт новый, если его нет
-' ----------------------------------------------------------------------------
+
 Private Function GetOrCreateWorksheet(ByVal sheetName As String) As Worksheet
     Dim ws As Worksheet
+    Dim fullName As String
+    
+    ' Add g_ prefix to sheet names
+    fullName = "g_" & sheetName
     
     For Each ws In ThisWorkbook.Worksheets
-        If StrComp(ws.Name, sheetName, vbTextCompare) = 0 Then
+        If StrComp(ws.Name, fullName, vbTextCompare) = 0 Then
             Set GetOrCreateWorksheet = ws
             Exit Function
         End If
     Next ws
     
-    ' Если лист не найден — создаём новый
     Set ws = ThisWorkbook.Worksheets.Add(After:=ThisWorkbook.Worksheets(ThisWorkbook.Worksheets.Count))
-    ws.Name = sheetName
+    ws.Name = fullName
     
     Set GetOrCreateWorksheet = ws
 End Function
 
-' ----------------------------------------------------------------------------
-' Приводит диапазон к "табличному" виду:
-' - жирная шапка
-' - автоширина колонок
-' - автофильтр
-' - закрепление первой строки
-' ----------------------------------------------------------------------------
 Private Sub FormatAsTable( _
     ByVal ws As Worksheet, _
     ByVal rowCount As Long, _
@@ -87,23 +89,56 @@ Private Sub FormatAsTable( _
     Set headerRange = ws.Range(ws.Cells(1, 1), ws.Cells(1, colCount))
     Set allRange = ws.Range(ws.Cells(1, 1), ws.Cells(rowCount, colCount))
     
+    allRange.Font.Name = "Segoe UI"
+    allRange.Font.Size = 10
+    
     headerRange.Font.Bold = True
+    
+    allRange.HorizontalAlignment = xlCenter
+    headerRange.HorizontalAlignment = xlCenter
     
     allRange.EntireColumn.AutoFit
     allRange.AutoFilter
     
-    ' Закрепляем строку заголовков
     ws.Activate
     ws.Range("A2").Select
     ActiveWindow.FreezePanes = True
-    
-    allRange.HorizontalAlignment = xlCenter
-    headerRange.HorizontalAlignment = xlCenter
 End Sub
 
-' ----------------------------------------------------------------------------
-' Подсвечивает строки по значению в колонке "Status"
-' ----------------------------------------------------------------------------
+Private Sub ApplyDarkSheetBackground( _
+    ByVal ws As Worksheet, _
+    ByVal rowCount As Long, _
+    ByVal colCount As Long _
+)
+    Dim visibleRange As Range
+    Dim lastRow As Long
+    Dim lastCol As Long
+    Dim bgRange As Range
+    
+    ws.Activate
+    Set visibleRange = ActiveWindow.VisibleRange
+    
+    lastRow = visibleRange.Row + visibleRange.Rows.Count - 1 + 200
+    lastCol = visibleRange.Column + visibleRange.Columns.Count - 1 + 30
+    
+    If lastRow < rowCount + 200 Then
+        lastRow = rowCount + 200
+    End If
+    
+    If lastCol < colCount + 10 Then
+        lastCol = colCount + 10
+    End If
+    
+    Set bgRange = ws.Range(ws.Cells(1, 1), ws.Cells(lastRow, lastCol))
+    
+    bgRange.Interior.Pattern = xlSolid
+    bgRange.Interior.Color = RGB(30, 30, 30)
+    bgRange.Font.Color = RGB(235, 235, 235)
+    
+    ActiveWindow.DisplayGridlines = False
+    ws.ScrollArea = bgRange.Address
+End Sub
+
 Private Sub ApplyStatusHighlight( _
     ByVal ws As Worksheet, _
     ByVal rowCount As Long, _
@@ -114,35 +149,56 @@ Private Sub ApplyStatusHighlight( _
     Dim statusValue As String
     Dim rowRange As Range
     
-    ' Находим индекс колонки Status
     statusCol = FindColumnIndex(ws, colCount, "Status")
     If statusCol = 0 Then
         Exit Sub
     End If
     
-    ' Проходим по строкам данных
     For r = 2 To rowCount
         statusValue = CStr(ws.Cells(r, statusCol).Value)
         Set rowRange = ws.Range(ws.Cells(r, 1), ws.Cells(r, colCount))
         
-        If statusValue = "Added" Then
-            rowRange.Interior.Color = RGB(198, 239, 206)
-        ElseIf statusValue = "Changed" Then
-            rowRange.Interior.Color = RGB(255, 235, 156)
-        ElseIf statusValue = "Removed" Then
-            rowRange.Interior.Color = RGB(255, 199, 206)
-        ElseIf statusValue = "Error" Then
-            rowRange.Interior.Color = RGB(244, 176, 132)
-        Else
-            ' Для остальных статусов — без заливки
-            rowRange.Interior.Pattern = xlNone
-        End If
+        Select Case LCase$(statusValue)
+            Case "added"
+                rowRange.Interior.Pattern = xlSolid
+                rowRange.Interior.Color = RGB(46, 125, 50)
+            Case "changed"
+                rowRange.Interior.Pattern = xlSolid
+                rowRange.Interior.Color = RGB(123, 31, 162)
+            Case "removed"
+                rowRange.Interior.Pattern = xlSolid
+                rowRange.Interior.Color = RGB(183, 28, 28)
+            Case Else
+                rowRange.Interior.Pattern = xlSolid
+                rowRange.Interior.Color = RGB(30, 30, 30)
+        End Select
+        
+        rowRange.Font.Color = RGB(235, 235, 235)
     Next r
 End Sub
 
-' ----------------------------------------------------------------------------
-' Ищет колонку по имени заголовка
-' ----------------------------------------------------------------------------
+Private Sub ApplyAllBordersToRange(ByVal targetRange As Range)
+    With targetRange
+        .Borders(xlEdgeLeft).LineStyle = xlContinuous
+        .Borders(xlEdgeTop).LineStyle = xlContinuous
+        .Borders(xlEdgeBottom).LineStyle = xlContinuous
+        .Borders(xlEdgeRight).LineStyle = xlContinuous
+        
+        .Borders(xlInsideVertical).LineStyle = xlContinuous
+        .Borders(xlInsideHorizontal).LineStyle = xlContinuous
+        
+        .Borders(xlEdgeLeft).Weight = xlThin
+        .Borders(xlEdgeTop).Weight = xlThin
+        .Borders(xlEdgeBottom).Weight = xlThin
+        .Borders(xlEdgeRight).Weight = xlThin
+        
+        .Borders(xlInsideVertical).Weight = xlThin
+        .Borders(xlInsideHorizontal).Weight = xlThin
+        
+        .Borders.Color = RGB(80, 80, 80)
+    End With
+End Sub
+
 Private Function FindColumnIndex( _
     ByVal ws As Worksheet, _
     ByVal colCount As Long, _
@@ -153,7 +209,7 @@ Private Function FindColumnIndex( _
     
     For c = 1 To colCount
         v = CStr(ws.Cells(1, c).Value)
-        If LCase$(v) = LCase$(headerName) Then
+        If StrComp(v, headerName, vbTextCompare) = 0 Then
             FindColumnIndex = c
             Exit Function
         End If
