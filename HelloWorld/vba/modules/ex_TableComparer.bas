@@ -24,15 +24,32 @@ Private Function CompareRanges( _
     ByVal newRange As Range, _
     ByVal keyColumnName As String _
 ) As Variant
+    ' ------------------------------------------------------------------
+    ' Сравнивает два диапазона (Old / New) по ключевому столбцу и формирует
+    ' выходной 2D-массив с колонками:
+    '   [Key, Status, <все колонки New в порядке заголовков>]
+    '
+    ' Основная логика:
+    ' 1) Считать заголовки и найти индекс ключевой колонки в каждом листе
+    ' 2) Построить словари строк: ключ -> массив строковых значений
+    ' 3) Выделить выходной массив заранее (заголовок + все ключи из New +
+    '    отсутствующие в New ключи из Old)
+    ' 4) Перебрать ключи New: пометить как Added / Changed / OK и записать значения
+    ' 5) Перебрать ключи Old, отсутствующие в New: пометить как Removed
+    ' 6) Вернуть готовый массив для записи в лист Result
+    ' ------------------------------------------------------------------
     Dim oldHeaders As Variant
     Dim newHeaders As Variant
     
+    ' Индексы ключевых колонок (порядок в массивах header'ов)
     Dim oldKeyCol As Long
     Dim newKeyCol As Long
     
+    ' Словари строк (ключ -> массив значений)
     Dim oldDict As Object
     Dim newDict As Object
     
+    ' Выходной массив и вспомогательные переменные
     Dim outData() As Variant
     Dim outRow As Long
     Dim outColCount As Long
@@ -56,11 +73,11 @@ Private Function CompareRanges( _
     Set newDict = BuildRowDict(newRange, newKeyCol)
     
     ' ------------------------------------------------------------------
-    ' Allocate output array ONCE (no ReDim Preserve on 2D arrays!)
-    ' Rows count:
-    '   1 header
-    '   + all New keys (OK/Changed/Added)
-    '   + Old keys missing in New (Removed)
+    ' Выделение выходного массива ОДИН раз (ReDim Preserve не работает для 2D)
+    ' Количество строк:
+    '   1 - заголовок
+    '   + все ключи из New (OK/Changed/Added)
+    '   + ключи из Old, отсутствующие в New (Removed)
     ' ------------------------------------------------------------------
     Dim totalRows As Long
     
@@ -79,7 +96,7 @@ Private Function CompareRanges( _
     outColCount = 2 + UBound(newHeaders)
     ReDim outData(1 To totalRows, 1 To outColCount)
     
-    ' Header row
+    ' Строка заголовка
     outData(1, 1) = keyColumnName
     outData(1, 2) = "Status"
     
@@ -90,7 +107,7 @@ Private Function CompareRanges( _
     outRow = 1
     
     ' ------------------------------------------------------------------
-    ' Added / Changed / OK (iterate New)
+    ' Добавлено / Изменено / OK (перебор New)
     ' ------------------------------------------------------------------
     For Each key In newDict.Keys
         keyValue = CStr(key)
@@ -115,7 +132,7 @@ Private Function CompareRanges( _
     Next key
     
     ' ------------------------------------------------------------------
-    ' Removed (iterate Old keys not in New)
+    ' Удалено (перебор ключей Old, отсутствующих в New)
     ' ------------------------------------------------------------------
     For Each key In oldDict.Keys
         keyValue = CStr(key)
@@ -137,7 +154,7 @@ Private Function CompareRanges( _
 End Function
 
 ' -----------------------------------------------------------------------------
-' Helpers
+' Помощники
 ' -----------------------------------------------------------------------------
 Private Function ReadHeaderRow(ByVal dataRange As Range) As Variant
     Dim colCount As Long
@@ -183,7 +200,7 @@ Private Function BuildRowDict(ByVal dataRange As Range, ByVal keyCol As Long) As
     rowCount = dataRange.Rows.Count
     colCount = dataRange.Columns.Count
     
-    ' Determine last non-empty header column to avoid stray empty columns in UsedRange
+    ' Определяем последний ненулевой столбец заголовков, чтобы избежать лишних пустых столбцов в UsedRange
     effectiveColCount = 0
     For c = colCount To 1 Step -1
         If Len(CStr(dataRange.Cells(1, c).Value)) > 0 Then
@@ -213,6 +230,9 @@ End Function
 Private Function RowsAreDifferent(ByVal oldRow As Variant, ByVal newRow As Variant) As Boolean
     Dim i As Long
     
+    ' Если массивы разной длины — считаем, что строки отличаются.
+    ' Это покрывает случаи, когда одна из строк содержит дополнительные
+    ' столбцы (например, из-за лишних заголовков в UsedRange).
     If UBound(oldRow) <> UBound(newRow) Then
         RowsAreDifferent = True
         Exit Function
@@ -228,7 +248,7 @@ Private Function RowsAreDifferent(ByVal oldRow As Variant, ByVal newRow As Varia
     RowsAreDifferent = False
 End Function
 
-' Diagnostic helper - prints row values for a given key to Immediate window
+' Диагностический хелпер - печатает значения строки для заданного ключа в Immediate Window
 Public Sub DebugCompareKey(ByVal keyValue As String, ByVal oldSheetName As String, ByVal newSheetName As String)
     Dim wsOld As Worksheet
     Dim wsNew As Worksheet

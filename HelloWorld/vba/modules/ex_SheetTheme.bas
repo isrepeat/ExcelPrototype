@@ -4,22 +4,22 @@ Option Explicit
 ' =============================================================================
 ' ex_SheetTheme
 ' =============================================================================
-' Purpose:
-'   Apply unified dark theme to any worksheet:
-'   - dark background for visible area
-'   - light font
-'   - visible grid borders ("All Borders" style)
-'   - optional status highlighting (Added / Changed / Removed)
+' Назначение:
+'   Применить единый тёмный стиль к любому листу:
+'   - тёмный фон для видимой области
+'   - светлый шрифт
+'   - видимые сеточные границы (стиль "All Borders")
+'   - опциональная подсветка по статусу (Added / Changed / Removed)
 '
-' This module contains NO data logic.
+' В этом модуле НЕТ логики работы с данными.
 ' =============================================================================
 
 ' -----------------------------------------------------------------------------
-' Public API
+' Публичный API
 ' -----------------------------------------------------------------------------
 
-' Apply full dark theme to a worksheet.
-' If hasStatusColumn = True, Status-based coloring will be applied.
+' Применить полный тёмный стиль к листу.
+' Если hasStatusColumn = True, будет применена подсветка по статусу.
 Public Sub ApplyDarkThemeToSheet( _
     ByVal ws As Worksheet, _
     Optional ByVal hasStatusColumn As Boolean = False _
@@ -45,7 +45,7 @@ Public Sub ApplyDarkThemeToSheet( _
 End Sub
 
 ' -----------------------------------------------------------------------------
-' Dark background for visible area + margin
+' Тёмный фон для видимой области + запас
 ' -----------------------------------------------------------------------------
 Private Sub ApplyDarkBackground( _
     ByVal ws As Worksheet, _
@@ -82,7 +82,7 @@ Private Sub ApplyDarkBackground( _
 End Sub
 
 ' -----------------------------------------------------------------------------
-' Draw full grid borders (like "All Borders")
+' Нарисовать полные сеточные границы (как "All Borders")
 ' -----------------------------------------------------------------------------
 Private Sub ApplyGridBorders( _
     ByVal ws As Worksheet, _
@@ -108,7 +108,7 @@ Private Sub ApplyGridBorders( _
 End Sub
 
 ' -----------------------------------------------------------------------------
-' Status-based row coloring (ONLY for Result sheet)
+' Подсветка строк по статусу (ТОЛЬКО для листа Result)
 ' -----------------------------------------------------------------------------
 Private Sub ApplyStatusHighlight( _
     ByVal ws As Worksheet, _
@@ -145,7 +145,7 @@ Private Sub ApplyStatusHighlight( _
 End Sub
 
 ' -----------------------------------------------------------------------------
-' Utilities
+' Утилиты
 ' -----------------------------------------------------------------------------
 Private Function FindColumnIndex( _
     ByVal ws As Worksheet, _

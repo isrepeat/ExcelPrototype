@@ -4,54 +4,62 @@ Option Explicit
 ' =============================================================================
 ' ex_ResultWriter
 ' =============================================================================
-' Purpose:
-'   Render compare result into worksheet "Result" with a dark UI theme.
+' Назначение:
+'   Отрисовать результат сравнения на листе "Result" с тёмной темой интерфейса.
 '
-' Responsibilities:
-'   - Create / get "Result" worksheet
-'   - Clear old content and write a 2D Variant array to cells
-'   - Apply base formatting (header row, filters, autofit, freeze panes)
-'   - Apply dark background to the whole visible area (plus extra margin)
-'   - Highlight ONLY 3 statuses by row color:
-'         Added   -> green
-'         Changed -> purple
-'         Removed -> red
-'     Any other status (OK / Error) stays with default dark background.
-'   - Draw full grid borders (like Excel menu "All Borders") on dark background
+' Обязанности:
+'   - Создать / получить лист "Result"
+'   - Очистить старое содержимое и записать 2D-массив Variant в ячейки
+'   - Применить базовое форматирование (заголовок, фильтры, автоширина, закрепление)
+'   - Применить тёмный фон для видимой области (с дополнительным запасом)
+'   - Подсветить ТОЛЬКО 3 статуса цветом строки:
+'         Added   -> зелёный
+'         Changed -> фиолетовый
+'         Removed -> красный
+'     Любой другой статус (OK / Error) остаётся с тёмным фоном.
+'   - Нарисовать сеточные границы (как "All Borders") на тёмном фоне
 '
-' Notes about Excel limitations:
-'   Excel has no "sheet background color" like a UI canvas.
-'   We simulate it by filling a big cell range and restricting scroll area.
+' Примечание о ограничениях Excel:
+'   Excel не имеет фонового цвета листа как у UI-канвы.
+'   Мы симулируем это заполнением большого диапазона и ограничением области прокрутки.
 ' =============================================================================
 
 Public Sub WriteTableToResultSheet(ByVal tableData As Variant)
+    ' Записывает 2D-массив результата сравнения на лист `g_Result` и применяет
+    ' оформление и тему. Порядок действий:
+    ' 1) Получить/создать лист
+    ' 2) Очистить старое содержимое и область прокрутки
+    ' 3) Записать весь массив за одну операцию (быстро)
+    ' 4) Применить базовое форматирование таблицы (шрифты, заголовок, фильтры,
+    '    авторазмер колонок, закрепление)
+    ' 5) Применить тёмную тему и подсветку по статусу (Added/Changed/Removed)
     Dim ws As Worksheet
     Dim rowCount As Long
     Dim colCount As Long
     Dim targetRange As Range
     
-    ' Get or create Result sheet
+    ' Получить или создать лист Result
     Set ws = GetOrCreateWorksheet("Result")
     
-    ' Clear previous content and reset scroll area
+    ' Очистить предыдущее содержимое и сбросить область прокрутки
     ws.Cells.Clear
     ws.ScrollArea = ""
     
-    ' Determine table size from 2D array
+    ' Определить размер таблицы по 2D-массиву
     rowCount = UBound(tableData, 1)
     colCount = UBound(tableData, 2)
     
-    ' Write data in one operation (fast)
+    ' Записать данные за одну операцию (быстро)
     Set targetRange = ws.Range(ws.Cells(1, 1), ws.Cells(rowCount, colCount))
     targetRange.Value = tableData
     
-    ' Base table formatting (fonts, header, filters, freeze panes)
+    ' Базовое форматирование таблицы (шрифты, заголовок, фильтры, закрепление)
     FormatAsTable _
         ws, _
         rowCount, _
         colCount
     
-    ' Apply unified dark theme + status highlighting
+    ' Применить общую тёмную тему + подсветку по статусу
     ex_SheetTheme.ApplyDarkThemeToSheet _
         ws, _
         True
@@ -62,7 +70,7 @@ Private Function GetOrCreateWorksheet(ByVal sheetName As String) As Worksheet
     Dim ws As Worksheet
     Dim fullName As String
     
-    ' Add g_ prefix to sheet names
+    ' Добавить префикс g_ к имени листа
     fullName = "g_" & sheetName
     
     For Each ws In ThisWorkbook.Worksheets
@@ -86,20 +94,26 @@ Private Sub FormatAsTable( _
     Dim headerRange As Range
     Dim allRange As Range
     
+    ' headerRange — заголовочная строка, allRange — весь диапазон таблицы
     Set headerRange = ws.Range(ws.Cells(1, 1), ws.Cells(1, colCount))
     Set allRange = ws.Range(ws.Cells(1, 1), ws.Cells(rowCount, colCount))
     
+    ' Общие настройки шрифта для таблицы
     allRange.Font.Name = "Segoe UI"
     allRange.Font.Size = 10
     
+    ' Выделить заголовок жирным
     headerRange.Font.Bold = True
     
+    ' Выравнивание: заголовок по центру, остальные ячейки тоже
     allRange.HorizontalAlignment = xlCenter
     headerRange.HorizontalAlignment = xlCenter
     
+    ' Авторазмер колонок и включение фильтров для удобства
     allRange.EntireColumn.AutoFit
     allRange.AutoFilter
     
+    ' Показать лист, выбрать первую строку данных и закрепить панель
     ws.Activate
     ws.Range("A2").Select
     ActiveWindow.FreezePanes = True

@@ -4,12 +4,12 @@ Option Explicit
 ' =============================================================================
 ' ex_SheetManager
 ' =============================================================================
-' Purpose:
-'   Manage lifecycle of temporary working sheets (g_Old, g_New, g_Result)
+' Назначение:
+'   Управление жизненным циклом временных рабочих листов (g_Old, g_New, g_Result)
 '
-' Responsibilities:
-'   - Delete temporary worksheets
-'   - Provide utility functions for sheet operations
+' Обязанности:
+'   - Удалять временные листы
+'   - Предоставлять утилиты для операций с листами
 ' =============================================================================
 
 Public Sub DeleteResultSheets()

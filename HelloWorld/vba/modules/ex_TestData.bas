@@ -15,7 +15,7 @@ Public Sub GenerateTestTables()
     WriteHeaders wsNew
     
     ' -----------------------------
-    ' OLD
+    ' СТАРЫЕ ДАННЫЕ (Old)
     ' -----------------------------
     ' Id | Name   | Value
     wsOld.Cells(2, 1).Value = "1"
@@ -35,29 +35,39 @@ Public Sub GenerateTestTables()
     wsOld.Cells(5, 3).Value = "40"
     
     ' -----------------------------
-    ' NEW
+    ' НОВЫЕ ДАННЫЕ (New)
     ' -----------------------------
-    ' 1 stays OK
+    ' 1 остается без изменений
     wsNew.Cells(2, 1).Value = "1"
     wsNew.Cells(2, 2).Value = "Alpha"
     wsNew.Cells(2, 3).Value = "10"
     
-    ' 2 changed value
+    ' 2 изменено значение
     wsNew.Cells(3, 1).Value = "2"
     wsNew.Cells(3, 2).Value = "Beta"
     wsNew.Cells(3, 3).Value = "25"
     
-    ' 3 removed (missing in New)
+    ' 3 удалено (отсутствует в New)
     
-    ' 4 changed name
+    ' 4 изменено имя
     wsNew.Cells(4, 1).Value = "4"
     wsNew.Cells(4, 2).Value = "DeltaX"
     wsNew.Cells(4, 3).Value = "40"
     
-    ' 5 added
+    ' 5 добавлено
     wsNew.Cells(5, 1).Value = "5"
     wsNew.Cells(5, 2).Value = "Epsilon"
     wsNew.Cells(5, 3).Value = "50"
+
+     ' 6 added
+    wsNew.Cells(6, 1).Value = "6"
+    wsNew.Cells(6, 2).Value = "Zetta"
+    wsNew.Cells(6, 3).Value = "60"
+
+    ' 7 added
+    wsNew.Cells(7, 1).Value = "7"
+    wsNew.Cells(7, 2).Value = "Tetta"
+    wsNew.Cells(7, 3).Value = "70"
     
     wsOld.Columns.AutoFit
     wsNew.Columns.AutoFit
