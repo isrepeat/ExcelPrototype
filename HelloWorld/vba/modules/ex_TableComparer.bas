@@ -172,6 +172,7 @@ Private Function BuildRowDict(ByVal dataRange As Range, ByVal keyCol As Long) As
     Dim r As Long
     Dim rowCount As Long
     Dim colCount As Long
+    Dim effectiveColCount As Long
     
     Dim keyValue As String
     Dim rowArr() As Variant
@@ -182,13 +183,23 @@ Private Function BuildRowDict(ByVal dataRange As Range, ByVal keyCol As Long) As
     rowCount = dataRange.Rows.Count
     colCount = dataRange.Columns.Count
     
+    ' Determine last non-empty header column to avoid stray empty columns in UsedRange
+    effectiveColCount = 0
+    For c = colCount To 1 Step -1
+        If Len(CStr(dataRange.Cells(1, c).Value)) > 0 Then
+            effectiveColCount = c
+            Exit For
+        End If
+    Next c
+    If effectiveColCount = 0 Then effectiveColCount = colCount
+    
     For r = 2 To rowCount
         keyValue = CStr(dataRange.Cells(r, keyCol).Value)
         
         If Len(keyValue) > 0 Then
-            ReDim rowArr(1 To colCount)
+            ReDim rowArr(1 To effectiveColCount)
             
-            For c = 1 To colCount
+            For c = 1 To effectiveColCount
                 rowArr(c) = CStr(dataRange.Cells(r, c).Value)
             Next c
             
@@ -216,3 +227,44 @@ Private Function RowsAreDifferent(ByVal oldRow As Variant, ByVal newRow As Varia
     
     RowsAreDifferent = False
 End Function
+
+' Diagnostic helper - prints row values for a given key to Immediate window
+Public Sub DebugCompareKey(ByVal keyValue As String, ByVal oldSheetName As String, ByVal newSheetName As String)
+    Dim wsOld As Worksheet
+    Dim wsNew As Worksheet
+    Dim oldDict As Object
+    Dim newDict As Object
+    Dim rowArr As Variant
+    Dim i As Long
+    
+    Set wsOld = ThisWorkbook.Worksheets("g_" & oldSheetName)
+    Set wsNew = ThisWorkbook.Worksheets("g_" & newSheetName)
+    
+    Set oldDict = BuildRowDict(wsOld.UsedRange, FindHeaderIndex(ReadHeaderRow(wsOld.UsedRange), "Id"))
+    Set newDict = BuildRowDict(wsNew.UsedRange, FindHeaderIndex(ReadHeaderRow(wsNew.UsedRange), "Id"))
+    
+    Debug.Print "DebugCompareKey: key=" & keyValue
+    If oldDict.Exists(keyValue) Then
+        rowArr = oldDict(keyValue)
+        Debug.Print "Old row:";
+        For i = LBound(rowArr) To UBound(rowArr)
+            Debug.Print " [" & i & "]='" & rowArr(i) & "'";
+        Next i
+        Debug.Print ""
+    Else
+        Debug.Print "Old row: MISSING"
+    End If
+    
+    If newDict.Exists(keyValue) Then
+        rowArr = newDict(keyValue)
+        Debug.Print "New row:";
+        For i = LBound(rowArr) To UBound(rowArr)
+            Debug.Print " [" & i & "]='" & rowArr(i) & "'";
+        Next i
+        Debug.Print ""
+    Else
+        Debug.Print "New row: MISSING"
+    End If
+    
+    Debug.Print "RowsAreDifferent=" & RowsAreDifferent(oldDict(keyValue), newDict(keyValue))
+End Sub
