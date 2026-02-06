@@ -26,3 +26,10 @@ Public Sub DeleteResultSheets()
     Next i
     On Error GoTo 0
 End Sub
+
+Public Sub ex_ApplyDefaultSheetView(ws As Worksheet)
+
+    ws.Activate
+    ActiveWindow.Zoom = 115
+
+End Sub

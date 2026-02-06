@@ -139,6 +139,7 @@ Private Function GetOrCreateWorksheetByFullName(ByVal fullName As String) As Wor
 
     Set ws = ThisWorkbook.Worksheets.Add(After:=ThisWorkbook.Worksheets(ThisWorkbook.Worksheets.Count))
     ws.Name = fullName
+    Call ex_ApplyDefaultSheetView(ws)
 
     Set GetOrCreateWorksheetByFullName = ws
 End Function

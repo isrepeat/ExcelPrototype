@@ -82,6 +82,7 @@ Private Function GetOrCreateWorksheet(ByVal sheetName As String) As Worksheet
     
     Set ws = ThisWorkbook.Worksheets.Add(After:=ThisWorkbook.Worksheets(ThisWorkbook.Worksheets.Count))
     ws.Name = fullName
+    Call ex_ApplyDefaultSheetView(ws)
     
     Set GetOrCreateWorksheet = ws
 End Function

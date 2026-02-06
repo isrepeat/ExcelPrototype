@@ -74,11 +74,10 @@ Private Sub ApplyDarkBackground( _
     Set bgRange = ws.Range(ws.Cells(1, 1), ws.Cells(lastRow, lastCol))
     
     bgRange.Interior.Pattern = xlSolid
-    bgRange.Interior.Color = RGB(30, 30, 30)
+    bgRange.Interior.Color = RGB(38, 38, 38)
     bgRange.Font.Color = RGB(235, 235, 235)
     
     ActiveWindow.DisplayGridlines = False
-    ws.ScrollArea = bgRange.Address
 End Sub
 
 ' -----------------------------------------------------------------------------
@@ -102,7 +101,7 @@ Private Sub ApplyGridBorders( _
         .Borders(xlInsideVertical).LineStyle = xlContinuous
         .Borders(xlInsideHorizontal).LineStyle = xlContinuous
         
-        .Borders.Color = RGB(80, 80, 80)
+        .Borders.Color = RGB(0, 0, 0)
         .Borders.Weight = xlThin
     End With
 End Sub
