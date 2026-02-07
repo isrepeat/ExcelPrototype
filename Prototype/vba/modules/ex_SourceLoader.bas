@@ -30,6 +30,38 @@ Public Sub LoadOldNewFromConfigToInternalSheets()
     ImportTableToInternal newPath, newTableName, "New"
 End Sub
 
+Public Sub LoadStateEventsFromConfigToInternalSheets()
+
+    Dim statePath As String
+    Dim stateTableName As String
+    Dim eventsPath As String
+    Dim eventsTableName As String
+
+    statePath = ResolvePath(GetConfigValueSafe("StateFilePath"))
+    stateTableName = Trim$(GetConfigValueSafe("StateTableName"))
+
+    eventsPath = ResolvePath(GetConfigValueSafe("EventsFilePath"))
+    eventsTableName = Trim$(GetConfigValueSafe("EventsTableName"))
+
+    If Len(statePath) = 0 Or Len(stateTableName) = 0 Or Len(eventsPath) = 0 Or Len(eventsTableName) = 0 Then
+        Err.Raise vbObjectError + 530, "ex_SourceLoader", _
+            "Конфиг не заполнен. Нужны StateFilePath/StateTableName/EventsFilePath/EventsTableName."
+    End If
+
+    If Dir(statePath) = vbNullString Then
+        Err.Raise vbObjectError + 531, "ex_SourceLoader", "StateFilePath не найден: " & statePath
+    End If
+
+    If Dir(eventsPath) = vbNullString Then
+        Err.Raise vbObjectError + 532, "ex_SourceLoader", "EventsFilePath не найден: " & eventsPath
+    End If
+
+    ImportTableToInternal statePath, stateTableName, "State"
+    ImportTableToInternal eventsPath, eventsTableName, "Events"
+
+End Sub
+
+
 ' =============================================================================
 ' Internal
 ' =============================================================================

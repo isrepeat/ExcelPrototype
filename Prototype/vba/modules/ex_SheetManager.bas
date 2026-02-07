@@ -13,18 +13,22 @@ Option Explicit
 ' =============================================================================
 
 Public Sub DeleteResultSheets()
-    Dim sheetNames As Variant
+    Dim ws As Worksheet
     Dim i As Long
     
-    sheetNames = Array("g_Old", "g_New", "g_Result")
-    
+    Application.DisplayAlerts = False
     On Error Resume Next
-    For i = LBound(sheetNames) To UBound(sheetNames)
-        Application.DisplayAlerts = False
-        ThisWorkbook.Worksheets(sheetNames(i)).Delete
-        Application.DisplayAlerts = True
+    
+    ' Проходим по листам в обратном порядке, чтобы не пропустить при удалении
+    For i = ThisWorkbook.Worksheets.Count To 1 Step -1
+        Set ws = ThisWorkbook.Worksheets(i)
+        If Left(ws.Name, 2) = "g_" Then
+            ws.Delete
+        End If
     Next i
+    
     On Error GoTo 0
+    Application.DisplayAlerts = True
 End Sub
 
 Public Sub ex_ApplyDefaultSheetView(ws As Worksheet)
