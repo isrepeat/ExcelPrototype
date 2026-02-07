@@ -1,0 +1,15 @@
+<customUI xmlns="http://schemas.microsoft.com/office/2009/07/customui" onLoad="Ribbon_OnLoad">
+  <ribbon>
+    <tabs>
+      <tab id="tabCustomTools" label="Custom">
+        <group id="grpCompare" label="Compare">
+          <button id="btnRun" label="Run" size="large" onAction="OnRunClicked"/>
+          <button id="btnClear" label="Clear" size="large" onAction="OnClearClicked"/>
+          <button id="btnUpdate" label="Update Code" size="large"
+                  onAction="OnUpdateCodeClicked"
+                  getVisible="GetDevVisible"/>
+        </group>
+      </tab>
+    </tabs>
+  </ribbon>
+</customUI>
