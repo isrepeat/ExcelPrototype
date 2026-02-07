@@ -1,7 +1,7 @@
 Attribute VB_Name = "ex_TableComparer"
 Option Explicit
 
-Public Function CompareSheets( _
+Public Function m_CompareSheets( _
     ByVal oldSheetName As String, _
     ByVal newSheetName As String, _
     ByVal keyColumnName As String _
@@ -12,14 +12,14 @@ Public Function CompareSheets( _
     Set wsOld = ThisWorkbook.Worksheets("g_" & oldSheetName)
     Set wsNew = ThisWorkbook.Worksheets("g_" & newSheetName)
     
-    CompareSheets = CompareRanges( _
+    m_CompareSheets = mp_CompareRanges( _
         wsOld.UsedRange, _
         wsNew.UsedRange, _
         keyColumnName _
     )
 End Function
 
-Private Function CompareRanges( _
+Private Function mp_CompareRanges( _
     ByVal oldRange As Range, _
     ByVal newRange As Range, _
     ByVal keyColumnName As String _
@@ -59,18 +59,18 @@ Private Function CompareRanges( _
     Dim key As Variant
     Dim rowArr As Variant
     
-    oldHeaders = ReadHeaderRow(oldRange)
-    newHeaders = ReadHeaderRow(newRange)
-    
-    oldKeyCol = FindHeaderIndex(oldHeaders, keyColumnName)
-    newKeyCol = FindHeaderIndex(newHeaders, keyColumnName)
+    oldHeaders = mp_ReadHeaderRow(oldRange)
+    newHeaders = mp_ReadHeaderRow(newRange)
+
+    oldKeyCol = mp_FindHeaderIndex(oldHeaders, keyColumnName)
+    newKeyCol = mp_FindHeaderIndex(newHeaders, keyColumnName)
     
     If oldKeyCol = 0 Or newKeyCol = 0 Then
         Err.Raise vbObjectError + 1, "CompareRanges", "Key column not found: " & keyColumnName
     End If
     
-    Set oldDict = BuildRowDict(oldRange, oldKeyCol)
-    Set newDict = BuildRowDict(newRange, newKeyCol)
+    Set oldDict = mp_BuildRowDict(oldRange, oldKeyCol)
+    Set newDict = mp_BuildRowDict(newRange, newKeyCol)
     
     ' ------------------------------------------------------------------
     ' Выделение выходного массива ОДИН раз (ReDim Preserve не работает для 2D)
@@ -118,7 +118,7 @@ Private Function CompareRanges( _
         If Not oldDict.Exists(keyValue) Then
             outData(outRow, 2) = "Added"
         Else
-            If RowsAreDifferent(oldDict(keyValue), newDict(keyValue)) Then
+            If mp_RowsAreDifferent(oldDict(keyValue), newDict(keyValue)) Then
                 outData(outRow, 2) = "Changed"
             Else
                 outData(outRow, 2) = "OK"
@@ -150,13 +150,13 @@ Private Function CompareRanges( _
         End If
     Next key
     
-    CompareRanges = outData
+    mp_CompareRanges = outData
 End Function
 
 ' -----------------------------------------------------------------------------
 ' Помощники
 ' -----------------------------------------------------------------------------
-Private Function ReadHeaderRow(ByVal dataRange As Range) As Variant
+Private Function mp_ReadHeaderRow(ByVal dataRange As Range) As Variant
     Dim colCount As Long
     Dim headers() As Variant
     Dim c As Long
@@ -168,23 +168,23 @@ Private Function ReadHeaderRow(ByVal dataRange As Range) As Variant
         headers(c) = CStr(dataRange.Cells(1, c).Value)
     Next c
     
-    ReadHeaderRow = headers
+    mp_ReadHeaderRow = headers
 End Function
 
-Private Function FindHeaderIndex(ByVal headers As Variant, ByVal name As String) As Long
+Private Function mp_FindHeaderIndex(ByVal headers As Variant, ByVal name As String) As Long
     Dim i As Long
     
     For i = LBound(headers) To UBound(headers)
         If StrComp(CStr(headers(i)), name, vbTextCompare) = 0 Then
-            FindHeaderIndex = i
+            mp_FindHeaderIndex = i
             Exit Function
         End If
     Next i
-    
-    FindHeaderIndex = 0
+
+    mp_FindHeaderIndex = 0
 End Function
 
-Private Function BuildRowDict(ByVal dataRange As Range, ByVal keyCol As Long) As Object
+Private Function mp_BuildRowDict(ByVal dataRange As Range, ByVal keyCol As Long) As Object
     Dim dict As Object
     Dim r As Long
     Dim rowCount As Long
@@ -224,10 +224,10 @@ Private Function BuildRowDict(ByVal dataRange As Range, ByVal keyCol As Long) As
         End If
     Next r
     
-    Set BuildRowDict = dict
+    Set mp_BuildRowDict = dict
 End Function
 
-Private Function RowsAreDifferent(ByVal oldRow As Variant, ByVal newRow As Variant) As Boolean
+Private Function mp_RowsAreDifferent(ByVal oldRow As Variant, ByVal newRow As Variant) As Boolean
     Dim i As Long
     
     ' Если массивы разной длины — считаем, что строки отличаются.
@@ -245,11 +245,11 @@ Private Function RowsAreDifferent(ByVal oldRow As Variant, ByVal newRow As Varia
         End If
     Next i
     
-    RowsAreDifferent = False
+    mp_RowsAreDifferent = False
 End Function
 
 ' Диагностический хелпер - печатает значения строки для заданного ключа в Immediate Window
-Public Sub DebugCompareKey(ByVal keyValue As String, ByVal oldSheetName As String, ByVal newSheetName As String)
+Public Sub m_DebugCompareKey(ByVal keyValue As String, ByVal oldSheetName As String, ByVal newSheetName As String)
     Dim wsOld As Worksheet
     Dim wsNew As Worksheet
     Dim oldDict As Object
@@ -260,8 +260,8 @@ Public Sub DebugCompareKey(ByVal keyValue As String, ByVal oldSheetName As Strin
     Set wsOld = ThisWorkbook.Worksheets("g_" & oldSheetName)
     Set wsNew = ThisWorkbook.Worksheets("g_" & newSheetName)
     
-    Set oldDict = BuildRowDict(wsOld.UsedRange, FindHeaderIndex(ReadHeaderRow(wsOld.UsedRange), "Id"))
-    Set newDict = BuildRowDict(wsNew.UsedRange, FindHeaderIndex(ReadHeaderRow(wsNew.UsedRange), "Id"))
+    Set oldDict = mp_BuildRowDict(wsOld.UsedRange, mp_FindHeaderIndex(mp_ReadHeaderRow(wsOld.UsedRange), "Id"))
+    Set newDict = mp_BuildRowDict(wsNew.UsedRange, mp_FindHeaderIndex(mp_ReadHeaderRow(wsNew.UsedRange), "Id"))
     
     Debug.Print "DebugCompareKey: key=" & keyValue
     If oldDict.Exists(keyValue) Then
@@ -286,5 +286,5 @@ Public Sub DebugCompareKey(ByVal keyValue As String, ByVal oldSheetName As Strin
         Debug.Print "New row: MISSING"
     End If
     
-    Debug.Print "RowsAreDifferent=" & RowsAreDifferent(oldDict(keyValue), newDict(keyValue))
+    Debug.Print "RowsAreDifferent=" & mp_RowsAreDifferent(oldDict(keyValue), newDict(keyValue))
 End Sub

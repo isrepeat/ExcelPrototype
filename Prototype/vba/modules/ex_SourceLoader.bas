@@ -1,17 +1,17 @@
 Attribute VB_Name = "ex_SourceLoader"
 Option Explicit
 
-Public Sub LoadOldNewFromConfigToInternalSheets()
+Public Sub m_LoadOldNewFromConfigToInternalSheets()
     Dim oldPath As String
     Dim oldTableName As String
     Dim newPath As String
     Dim newTableName As String
 
-    oldPath = ResolvePath(GetConfigValueSafe("OldFilePath"))
-    oldTableName = Trim$(GetConfigValueSafe("OldTableName"))
+    oldPath = mp_ResolvePath(mp_GetConfigValueSafe("OldFilePath"))
+    oldTableName = Trim$(mp_GetConfigValueSafe("OldTableName"))
 
-    newPath = ResolvePath(GetConfigValueSafe("NewFilePath"))
-    newTableName = Trim$(GetConfigValueSafe("NewTableName"))
+    newPath = mp_ResolvePath(mp_GetConfigValueSafe("NewFilePath"))
+    newTableName = Trim$(mp_GetConfigValueSafe("NewTableName"))
 
     If Len(oldPath) = 0 Or Len(oldTableName) = 0 Or Len(newPath) = 0 Or Len(newTableName) = 0 Then
         Err.Raise vbObjectError + 500, "ex_SourceLoader", _
@@ -26,22 +26,22 @@ Public Sub LoadOldNewFromConfigToInternalSheets()
         Err.Raise vbObjectError + 502, "ex_SourceLoader", "NewFilePath не найден: " & newPath
     End If
 
-    ImportTableToInternal oldPath, oldTableName, "Old"
-    ImportTableToInternal newPath, newTableName, "New"
+    mp_ImportTableToInternal oldPath, oldTableName, "Old"
+    mp_ImportTableToInternal newPath, newTableName, "New"
 End Sub
 
-Public Sub LoadStateEventsFromConfigToInternalSheets()
+Public Sub m_LoadStateEventsFromConfigToInternalSheets()
 
     Dim statePath As String
     Dim stateTableName As String
     Dim eventsPath As String
     Dim eventsTableName As String
 
-    statePath = ResolvePath(GetConfigValueSafe("StateFilePath"))
-    stateTableName = Trim$(GetConfigValueSafe("StateTableName"))
+    statePath = mp_ResolvePath(mp_GetConfigValueSafe("StateFilePath"))
+    stateTableName = Trim$(mp_GetConfigValueSafe("StateTableName"))
 
-    eventsPath = ResolvePath(GetConfigValueSafe("EventsFilePath"))
-    eventsTableName = Trim$(GetConfigValueSafe("EventsTableName"))
+    eventsPath = mp_ResolvePath(mp_GetConfigValueSafe("EventsFilePath"))
+    eventsTableName = Trim$(mp_GetConfigValueSafe("EventsTableName"))
 
     If Len(statePath) = 0 Or Len(stateTableName) = 0 Or Len(eventsPath) = 0 Or Len(eventsTableName) = 0 Then
         Err.Raise vbObjectError + 530, "ex_SourceLoader", _
@@ -56,8 +56,8 @@ Public Sub LoadStateEventsFromConfigToInternalSheets()
         Err.Raise vbObjectError + 532, "ex_SourceLoader", "EventsFilePath не найден: " & eventsPath
     End If
 
-    ImportTableToInternal statePath, stateTableName, "State"
-    ImportTableToInternal eventsPath, eventsTableName, "Events"
+    mp_ImportTableToInternal statePath, stateTableName, "State"
+    mp_ImportTableToInternal eventsPath, eventsTableName, "Events"
 
 End Sub
 
@@ -66,7 +66,7 @@ End Sub
 ' Internal
 ' =============================================================================
 
-Private Sub ImportTableToInternal( _
+Private Sub mp_ImportTableToInternal( _
     ByVal sourceWorkbookPath As String, _
     ByVal sourceTableName As String, _
     ByVal targetBaseName As String _
@@ -91,7 +91,7 @@ Private Sub ImportTableToInternal( _
         UpdateLinks:=0 _
     )
 
-    Set srcListObject = FindListObjectByName(wbSrc, sourceTableName)
+    Set srcListObject = mp_FindListObjectByName(wbSrc, sourceTableName)
     If srcListObject Is Nothing Then
         Err.Raise vbObjectError + 510, "ex_SourceLoader", _
             "Таблица '" & sourceTableName & "' не найдена в файле: " & sourceWorkbookPath
@@ -100,7 +100,7 @@ Private Sub ImportTableToInternal( _
     ' Range таблицы с заголовками
     Set srcRange = srcListObject.Range
 
-    Set wsDst = GetOrCreateWorksheetByFullName(fullDstName)
+    Set wsDst = mp_GetOrCreateWorksheetByFullName(fullDstName)
     wsDst.Cells.Clear
 
     Set dstRange = wsDst.Range( _
@@ -111,7 +111,7 @@ Private Sub ImportTableToInternal( _
     dstRange.Value = srcRange.Value
     wsDst.Columns.AutoFit
 
-    ex_SheetTheme.ApplyDarkThemeToSheet wsDst
+    ex_SheetTheme.m_ApplyDarkThemeToSheet wsDst
 
 Cleanup:
     On Error Resume Next
@@ -140,7 +140,7 @@ EH:
     Err.Raise vbObjectError + 520, "ex_SourceLoader", errText
 End Sub
 
-Private Function FindListObjectByName( _
+Private Function mp_FindListObjectByName( _
     ByVal wbSrc As Workbook, _
     ByVal tableName As String _
 ) As ListObject
@@ -150,50 +150,49 @@ Private Function FindListObjectByName( _
     For Each ws In wbSrc.Worksheets
         For Each lo In ws.ListObjects
             If StrComp(lo.Name, tableName, vbTextCompare) = 0 Then
-                Set FindListObjectByName = lo
+                Set mp_FindListObjectByName = lo
                 Exit Function
             End If
         Next lo
     Next ws
-
-    Set FindListObjectByName = Nothing
+    Set mp_FindListObjectByName = Nothing
 End Function
 
-Private Function GetOrCreateWorksheetByFullName(ByVal fullName As String) As Worksheet
+Private Function mp_GetOrCreateWorksheetByFullName(ByVal fullName As String) As Worksheet
     Dim ws As Worksheet
 
     For Each ws In ThisWorkbook.Worksheets
         If StrComp(ws.Name, fullName, vbTextCompare) = 0 Then
-            Set GetOrCreateWorksheetByFullName = ws
+            Set mp_GetOrCreateWorksheetByFullName = ws
             Exit Function
         End If
     Next ws
 
     Set ws = ThisWorkbook.Worksheets.Add(After:=ThisWorkbook.Worksheets(ThisWorkbook.Worksheets.Count))
     ws.Name = fullName
-    Call ex_ApplyDefaultSheetView(ws)
+    Call m_ApplyDefaultSheetView(ws)
 
-    Set GetOrCreateWorksheetByFullName = ws
+    Set mp_GetOrCreateWorksheetByFullName = ws
 End Function
 
-Private Function ResolvePath(ByVal inputPath As String) As String
+Private Function mp_ResolvePath(ByVal inputPath As String) As String
     Dim basePath As String
 
     inputPath = Trim$(inputPath)
 
     If Len(inputPath) = 0 Then
-        ResolvePath = vbNullString
+        mp_ResolvePath = vbNullString
         Exit Function
     End If
 
     If Left$(inputPath, 2) = "\\" Or InStr(1, inputPath, ":\", vbTextCompare) > 0 Then
-        ResolvePath = inputPath
+        mp_ResolvePath = inputPath
         Exit Function
     End If
 
     basePath = ThisWorkbook.Path
     If Len(basePath) = 0 Then
-        ResolvePath = inputPath
+        mp_ResolvePath = inputPath
         Exit Function
     End If
 
@@ -201,20 +200,19 @@ Private Function ResolvePath(ByVal inputPath As String) As String
         basePath = basePath & "\"
     End If
 
-    ResolvePath = basePath & inputPath
+    mp_ResolvePath = basePath & inputPath
 End Function
 
-Private Function GetConfigValueSafe(ByVal keyName As String) As String
+Private Function mp_GetConfigValueSafe(ByVal keyName As String) As String
     On Error GoTo Fallback
-
-    GetConfigValueSafe = ex_Config.GetConfigValue(keyName, vbNullString)
+    mp_GetConfigValueSafe = ex_Config.m_GetConfigValue(keyName, vbNullString)
     Exit Function
 
 Fallback:
-    GetConfigValueSafe = GetConfigValueFromDevFallback(keyName)
+    mp_GetConfigValueSafe = mp_GetConfigValueFromDevFallback(keyName)
 End Function
 
-Private Function GetConfigValueFromDevFallback(ByVal keyName As String) As String
+Private Function mp_GetConfigValueFromDevFallback(ByVal keyName As String) As String
     Dim wsDev As Worksheet
     Dim rng As Range
     Dim foundCell As Range
@@ -230,9 +228,9 @@ Private Function GetConfigValueFromDevFallback(ByVal keyName As String) As Strin
     )
 
     If foundCell Is Nothing Then
-        GetConfigValueFromDevFallback = vbNullString
+        mp_GetConfigValueFromDevFallback = vbNullString
         Exit Function
     End If
 
-    GetConfigValueFromDevFallback = CStr(wsDev.Cells(foundCell.Row, foundCell.Column + 1).Value)
+    mp_GetConfigValueFromDevFallback = CStr(wsDev.Cells(foundCell.Row, foundCell.Column + 1).Value)
 End Function

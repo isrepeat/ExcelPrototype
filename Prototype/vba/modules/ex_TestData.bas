@@ -1,18 +1,18 @@
 Attribute VB_Name = "ex_TestData"
 Option Explicit
 
-Public Sub GenerateTestTables()
+Public Sub m_GenerateTestTables()
     Dim wsOld As Worksheet
     Dim wsNew As Worksheet
     
-    Set wsOld = GetOrCreateWorksheet("Old")
-    Set wsNew = GetOrCreateWorksheet("New")
+    Set wsOld = mp_GetOrCreateWorksheet("Old")
+    Set wsNew = mp_GetOrCreateWorksheet("New")
     
     wsOld.Cells.Clear
     wsNew.Cells.Clear
     
-    WriteHeaders wsOld
-    WriteHeaders wsNew
+    mp_WriteHeaders wsOld
+    mp_WriteHeaders wsNew
     
     ' -----------------------------
     ' СТАРЫЕ ДАННЫЕ (Old)
@@ -72,17 +72,17 @@ Public Sub GenerateTestTables()
     wsOld.Columns.AutoFit
     wsNew.Columns.AutoFit
 
-    ex_SheetTheme.ApplyDarkThemeToSheet wsOld
-    ex_SheetTheme.ApplyDarkThemeToSheet wsNew
+    Call m_ApplyDefaultSheetView(wsOld)
+    Call m_ApplyDefaultSheetView(wsNew)
 End Sub
 
-Private Sub WriteHeaders(ByVal ws As Worksheet)
+Private Sub mp_WriteHeaders(ByVal ws As Worksheet)
     ws.Cells(1, 1).Value = "Id"
     ws.Cells(1, 2).Value = "Name"
     ws.Cells(1, 3).Value = "Value"
 End Sub
 
-Private Function GetOrCreateWorksheet(ByVal sheetName As String) As Worksheet
+Private Function mp_GetOrCreateWorksheet(ByVal sheetName As String) As Worksheet
     Dim ws As Worksheet
     Dim fullName As String
     
@@ -91,14 +91,14 @@ Private Function GetOrCreateWorksheet(ByVal sheetName As String) As Worksheet
     
     For Each ws In ThisWorkbook.Worksheets
         If StrComp(ws.Name, fullName, vbTextCompare) = 0 Then
-            Set GetOrCreateWorksheet = ws
+            Set mp_GetOrCreateWorksheet = ws
             Exit Function
         End If
     Next ws
     
     Set ws = ThisWorkbook.Worksheets.Add(After:=ThisWorkbook.Worksheets(ThisWorkbook.Worksheets.Count))
     ws.Name = fullName
-    Call ex_ApplyDefaultSheetView(ws)
+    Call m_ApplyDefaultSheetView(ws)
     
-    Set GetOrCreateWorksheet = ws
+    Set mp_GetOrCreateWorksheet = ws
 End Function

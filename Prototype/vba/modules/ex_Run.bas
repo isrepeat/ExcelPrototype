@@ -1,37 +1,37 @@
 Attribute VB_Name = "ex_Run"
 Option Explicit
 
-Public Sub Run()
+Public Sub m_Run()
     Dim resultTable As Variant
     Dim keyColumnName As String
 
     On Error GoTo EH
 
-    keyColumnName = GetKeyColumnFromConfig()
+    keyColumnName = mp_GetKeyColumnFromConfig()
     If Len(keyColumnName) = 0 Then
         keyColumnName = "Id"
     End If
 
     ' 1) Загружаем внешние таблицы в g_Old / g_New
-    ex_SourceLoader.LoadOldNewFromConfigToInternalSheets
+    ex_SourceLoader.m_LoadOldNewFromConfigToInternalSheets
 
     ' 2) Сравниваем как раньше (движок тот же)
-    resultTable = ex_TableComparer.CompareSheets( _
+    resultTable = ex_TableComparer.m_CompareSheets( _
         "Old", _
         "New", _
         keyColumnName _
     )
 
     ' 3) Пишем результат как раньше
-    ex_ResultWriter.WriteTableToResultSheet resultTable
+    ex_ResultWriter.m_WriteTableToResultSheet resultTable
     Exit Sub
 
 EH:
     MsgBox "Run error: " & Err.Description, vbExclamation
 End Sub
 
-Public Sub Clear()
-    ex_SheetManager.DeleteResultSheets
+Public Sub m_Clear()
+    ex_SheetManager.m_DeleteResultSheets
 End Sub
 
 ' -----------------------------------------------------------------------------
@@ -51,12 +51,12 @@ End Sub
 '    ex_ResultWriter.WriteTableToResultSheet resultTable
 'End Sub
 
-Private Function GetKeyColumnFromConfig() As String
+Private Function mp_GetKeyColumnFromConfig() As String
     On Error GoTo Fallback
 
-    GetKeyColumnFromConfig = ex_Config.GetConfigValue("KeyColumnName", "Id")
+    mp_GetKeyColumnFromConfig = ex_Config.m_GetConfigValue("KeyColumnName", "Id")
     Exit Function
 
 Fallback:
-    GetKeyColumnFromConfig = "Id"
+    mp_GetKeyColumnFromConfig = "Id"
 End Function
