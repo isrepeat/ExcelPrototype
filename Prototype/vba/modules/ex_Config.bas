@@ -32,37 +32,19 @@ Private Const COLOR_BORDER As Long = &H505050
 ' Public API
 ' =============================================================================
 
-Public Sub OpenConfigOnDev()
+Public Sub m_OpenConfigOnDev()
     Dim wsDev As Worksheet
 
-    Set wsDev = EnsureDevSheet()
+        Set wsDev = mp_EnsureDevSheet()
     EnsureConfigArea wsDev
 
     wsDev.Activate
     wsDev.Cells(CONFIG_TOP + 2, CONFIG_LEFT + 1).Select
 End Sub
 
-Public Function GetOldFilePath() As String
-    GetOldFilePath = NormalizePath(GetConfigValue("OldFilePath"))
-End Function
+'' Helper wrappers removed. Use m_GetConfigValue and mp_NormalizePath directly.
 
-Public Function GetOldTableName() As String
-    GetOldTableName = GetConfigValue("OldTableName")
-End Function
-
-Public Function GetNewFilePath() As String
-    GetNewFilePath = NormalizePath(GetConfigValue("NewFilePath"))
-End Function
-
-Public Function GetNewTableName() As String
-    GetNewTableName = GetConfigValue("NewTableName")
-End Function
-
-Public Function GetKeyColumnName() As String
-    GetKeyColumnName = GetConfigValue("KeyColumnName", "Id")
-End Function
-
-Public Function GetConfigValue( _
+Public Function m_GetConfigValue( _
     ByVal keyName As String, _
     Optional ByVal defaultValue As String = vbNullString _
 ) As String
@@ -71,9 +53,9 @@ Public Function GetConfigValue( _
     Dim foundCell As Range
     Dim valueText As String
 
-    Set wsDev = EnsureDevSheet()
-    EnsureConfigArea wsDev
-    Set cfgRange = GetConfigRange(wsDev)
+        Set wsDev = mp_EnsureDevSheet()
+    mp_EnsureConfigArea wsDev
+        Set cfgRange = mp_GetConfigRange(wsDev)
 
     Set foundCell = cfgRange.Columns(1).Find( _
         What:=keyName, _
@@ -83,15 +65,15 @@ Public Function GetConfigValue( _
     )
 
     If foundCell Is Nothing Then
-        GetConfigValue = defaultValue
+        m_GetConfigValue = defaultValue
         Exit Function
     End If
 
     valueText = CStr(wsDev.Cells(foundCell.Row, foundCell.Column + 1).Value)
     If Len(valueText) = 0 Then
-        GetConfigValue = defaultValue
+        m_GetConfigValue = defaultValue
     Else
-        GetConfigValue = valueText
+        m_GetConfigValue = valueText
     End If
 End Function
 
@@ -99,12 +81,12 @@ End Function
 ' Internal
 ' =============================================================================
 
-Private Function EnsureDevSheet() As Worksheet
+Private Function mp_EnsureDevSheet() As Worksheet
     Dim ws As Worksheet
 
     For Each ws In ThisWorkbook.Worksheets
         If StrComp(ws.Name, DEV_SHEET_NAME, vbTextCompare) = 0 Then
-            Set EnsureDevSheet = ws
+                Set mp_EnsureDevSheet = ws
             Exit Function
         End If
     Next ws
@@ -113,21 +95,21 @@ Private Function EnsureDevSheet() As Worksheet
         "Лист '" & DEV_SHEET_NAME & "' не найден."
 End Function
 
-Private Sub EnsureConfigArea(ByVal wsDev As Worksheet)
+Private Sub mp_EnsureConfigArea(ByVal wsDev As Worksheet)
     If Trim$(CStr(wsDev.Cells(CONFIG_TOP + 1, CONFIG_LEFT).Value)) = "Key" And _
        Trim$(CStr(wsDev.Cells(CONFIG_TOP + 1, CONFIG_LEFT + 1).Value)) = "Value" Then
         Exit Sub
     End If
 
-    RenderConfigArea wsDev
+    mp_RenderConfigArea wsDev
 End Sub
 
-Private Sub RenderConfigArea(ByVal wsDev As Worksheet)
+Private Sub mp_RenderConfigArea(ByVal wsDev As Worksheet)
     Dim rng As Range
     Dim titleRange As Range
     Dim headerRange As Range
 
-    Set rng = GetConfigRange(wsDev)
+        Set rng = mp_GetConfigRange(wsDev)
     rng.Clear
 
     ' Title
@@ -156,17 +138,17 @@ Private Sub RenderConfigArea(ByVal wsDev As Worksheet)
     rng.Columns(1).ColumnWidth = 18
     rng.Columns(2).ColumnWidth = 50
 
-    ApplyDarkThemeToRange rng
+    mp_ApplyDarkThemeToRange rng
 End Sub
 
-Private Function GetConfigRange(ByVal wsDev As Worksheet) As Range
-    Set GetConfigRange = wsDev.Range( _
+Private Function mp_GetConfigRange(ByVal wsDev As Worksheet) As Range
+    Set mp_GetConfigRange = wsDev.Range( _
         wsDev.Cells(CONFIG_TOP, CONFIG_LEFT), _
         wsDev.Cells(CONFIG_TOP + CONFIG_ROWS - 1, CONFIG_LEFT + CONFIG_COLS - 1) _
     )
 End Function
 
-Private Sub ApplyDarkThemeToRange(ByVal target As Range)
+Private Sub mp_ApplyDarkThemeToRange(ByVal target As Range)
     With target
         .Interior.Pattern = xlSolid
         .Interior.Color = COLOR_BG
@@ -179,24 +161,24 @@ Private Sub ApplyDarkThemeToRange(ByVal target As Range)
     End With
 End Sub
 
-Private Function NormalizePath(ByVal inputPath As String) As String
+Private Function mp_NormalizePath(ByVal inputPath As String) As String
     Dim basePath As String
 
     inputPath = Trim$(inputPath)
     If Len(inputPath) = 0 Then
-        NormalizePath = vbNullString
+        mp_NormalizePath = vbNullString
         Exit Function
     End If
 
     ' Абсолютный или UNC
     If Left$(inputPath, 2) = "\\" Or InStr(1, inputPath, ":\", vbTextCompare) > 0 Then
-        NormalizePath = inputPath
+        mp_NormalizePath = inputPath
         Exit Function
     End If
 
     basePath = ThisWorkbook.Path
     If Len(basePath) = 0 Then
-        NormalizePath = inputPath
+        mp_NormalizePath = inputPath
         Exit Function
     End If
 
@@ -204,5 +186,5 @@ Private Function NormalizePath(ByVal inputPath As String) As String
         basePath = basePath & "\"
     End If
 
-    NormalizePath = basePath & inputPath
+    mp_NormalizePath = basePath & inputPath
 End Function

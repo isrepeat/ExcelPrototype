@@ -12,7 +12,7 @@ Option Explicit
 '   - Предоставлять утилиты для операций с листами
 ' =============================================================================
 
-Public Sub DeleteResultSheets()
+Public Sub m_DeleteResultSheets()
     Dim ws As Worksheet
     Dim i As Long
     
@@ -31,9 +31,7 @@ Public Sub DeleteResultSheets()
     Application.DisplayAlerts = True
 End Sub
 
-Public Sub ex_ApplyDefaultSheetView(ws As Worksheet)
-
+Public Sub m_ApplyDefaultSheetView(ws As Worksheet)
     ws.Activate
     ActiveWindow.Zoom = 115
-
 End Sub

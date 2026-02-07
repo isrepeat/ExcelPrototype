@@ -24,7 +24,7 @@ Option Explicit
 '   Мы симулируем это заполнением большого диапазона и ограничением области прокрутки.
 ' =============================================================================
 
-Public Sub WriteTableToResultSheet(ByVal tableData As Variant)
+Public Sub m_WriteTableToResultSheet(ByVal tableData As Variant)
     ' Записывает 2D-массив результата сравнения на лист `g_Result` и применяет
     ' оформление и тему. Порядок действий:
     ' 1) Получить/создать лист
@@ -39,7 +39,7 @@ Public Sub WriteTableToResultSheet(ByVal tableData As Variant)
     Dim targetRange As Range
     
     ' Получить или создать лист Result
-    Set ws = GetOrCreateWorksheet("Result")
+    Set ws = mp_GetOrCreateWorksheet("Result")
     
     ' Очистить предыдущее содержимое и сбросить область прокрутки
     ws.Cells.Clear
@@ -54,19 +54,19 @@ Public Sub WriteTableToResultSheet(ByVal tableData As Variant)
     targetRange.Value = tableData
     
     ' Базовое форматирование таблицы (шрифты, заголовок, фильтры, закрепление)
-    FormatAsTable _
+    mp_FormatAsTable _
         ws, _
         rowCount, _
         colCount
     
     ' Применить общую тёмную тему + подсветку по статусу
-    ex_SheetTheme.ApplyDarkThemeToSheet _
+    ex_SheetTheme.m_ApplyDarkThemeToSheet _
         ws, _
         True
 End Sub
 
 
-Private Function GetOrCreateWorksheet(ByVal sheetName As String) As Worksheet
+Private Function mp_GetOrCreateWorksheet(ByVal sheetName As String) As Worksheet
     Dim ws As Worksheet
     Dim fullName As String
     
@@ -75,19 +75,19 @@ Private Function GetOrCreateWorksheet(ByVal sheetName As String) As Worksheet
     
     For Each ws In ThisWorkbook.Worksheets
         If StrComp(ws.Name, fullName, vbTextCompare) = 0 Then
-            Set GetOrCreateWorksheet = ws
+            Set mp_GetOrCreateWorksheet = ws
             Exit Function
         End If
     Next ws
-    
+
     Set ws = ThisWorkbook.Worksheets.Add(After:=ThisWorkbook.Worksheets(ThisWorkbook.Worksheets.Count))
     ws.Name = fullName
-    Call ex_ApplyDefaultSheetView(ws)
-    
-    Set GetOrCreateWorksheet = ws
+    Call m_ApplyDefaultSheetView(ws)
+
+    Set mp_GetOrCreateWorksheet = ws
 End Function
 
-Private Sub FormatAsTable( _
+Private Sub mp_FormatAsTable( _
     ByVal ws As Worksheet, _
     ByVal rowCount As Long, _
     ByVal colCount As Long _
@@ -120,7 +120,7 @@ Private Sub FormatAsTable( _
     ActiveWindow.FreezePanes = True
 End Sub
 
-Private Sub ApplyDarkSheetBackground( _
+Private Sub mp_ApplyDarkSheetBackground( _
     ByVal ws As Worksheet, _
     ByVal rowCount As Long, _
     ByVal colCount As Long _
@@ -154,7 +154,7 @@ Private Sub ApplyDarkSheetBackground( _
     ws.ScrollArea = bgRange.Address
 End Sub
 
-Private Sub ApplyStatusHighlight( _
+Private Sub mp_ApplyStatusHighlight( _
     ByVal ws As Worksheet, _
     ByVal rowCount As Long, _
     ByVal colCount As Long _
@@ -164,7 +164,7 @@ Private Sub ApplyStatusHighlight( _
     Dim statusValue As String
     Dim rowRange As Range
     
-    statusCol = FindColumnIndex(ws, colCount, "Status")
+    statusCol = mp_FindColumnIndex(ws, colCount, "Status")
     If statusCol = 0 Then
         Exit Sub
     End If
@@ -192,7 +192,7 @@ Private Sub ApplyStatusHighlight( _
     Next r
 End Sub
 
-Private Sub ApplyAllBordersToRange(ByVal targetRange As Range)
+Private Sub mp_ApplyAllBordersToRange(ByVal targetRange As Range)
     With targetRange
         .Borders(xlEdgeLeft).LineStyle = xlContinuous
         .Borders(xlEdgeTop).LineStyle = xlContinuous
@@ -214,7 +214,7 @@ Private Sub ApplyAllBordersToRange(ByVal targetRange As Range)
     End With
 End Sub
 
-Private Function FindColumnIndex( _
+Private Function mp_FindColumnIndex( _
     ByVal ws As Worksheet, _
     ByVal colCount As Long, _
     ByVal headerName As String _
@@ -225,10 +225,9 @@ Private Function FindColumnIndex( _
     For c = 1 To colCount
         v = CStr(ws.Cells(1, c).Value)
         If StrComp(v, headerName, vbTextCompare) = 0 Then
-            FindColumnIndex = c
+            mp_FindColumnIndex = c
             Exit Function
         End If
     Next c
-    
-    FindColumnIndex = 0
+    mp_FindColumnIndex = 0
 End Function

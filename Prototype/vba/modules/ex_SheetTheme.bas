@@ -20,7 +20,7 @@ Option Explicit
 
 ' Применить полный тёмный стиль к листу.
 ' Если hasStatusColumn = True, будет применена подсветка по статусу.
-Public Sub ApplyDarkThemeToSheet( _
+Public Sub m_ApplyDarkThemeToSheet( _
     ByVal ws As Worksheet, _
     Optional ByVal hasStatusColumn As Boolean = False _
 )
@@ -36,18 +36,18 @@ Public Sub ApplyDarkThemeToSheet( _
     rowCount = usedRange.Rows.Count
     colCount = usedRange.Columns.Count
     
-    ApplyDarkBackground ws, rowCount, colCount
-    ApplyGridBorders ws, rowCount, colCount
+    mp_ApplyDarkBackground ws, rowCount, colCount
+    mp_ApplyGridBorders ws, rowCount, colCount
     
     If hasStatusColumn Then
-        ApplyStatusHighlight ws, rowCount, colCount
+        mp_ApplyStatusHighlight ws, rowCount, colCount
     End If
 End Sub
 
 ' -----------------------------------------------------------------------------
 ' Тёмный фон для видимой области + запас
 ' -----------------------------------------------------------------------------
-Private Sub ApplyDarkBackground( _
+Private Sub mp_ApplyDarkBackground( _
     ByVal ws As Worksheet, _
     ByVal rowCount As Long, _
     ByVal colCount As Long _
@@ -83,7 +83,7 @@ End Sub
 ' -----------------------------------------------------------------------------
 ' Нарисовать полные сеточные границы (как "All Borders")
 ' -----------------------------------------------------------------------------
-Private Sub ApplyGridBorders( _
+Private Sub mp_ApplyGridBorders( _
     ByVal ws As Worksheet, _
     ByVal rowCount As Long, _
     ByVal colCount As Long _
@@ -109,7 +109,7 @@ End Sub
 ' -----------------------------------------------------------------------------
 ' Подсветка строк по статусу (ТОЛЬКО для листа Result)
 ' -----------------------------------------------------------------------------
-Private Sub ApplyStatusHighlight( _
+Private Sub mp_ApplyStatusHighlight( _
     ByVal ws As Worksheet, _
     ByVal rowCount As Long, _
     ByVal colCount As Long _
@@ -146,7 +146,7 @@ End Sub
 ' -----------------------------------------------------------------------------
 ' Утилиты
 ' -----------------------------------------------------------------------------
-Private Function FindColumnIndex( _
+Private Function mp_FindColumnIndex( _
     ByVal ws As Worksheet, _
     ByVal colCount As Long, _
     ByVal headerName As String _
@@ -155,10 +155,10 @@ Private Function FindColumnIndex( _
     
     For c = 1 To colCount
         If StrComp(CStr(ws.Cells(1, c).Value), headerName, vbTextCompare) = 0 Then
-            FindColumnIndex = c
+            mp_FindColumnIndex = c
             Exit Function
         End If
     Next c
-    
-    FindColumnIndex = 0
+
+    mp_FindColumnIndex = 0
 End Function

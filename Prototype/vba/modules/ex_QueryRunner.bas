@@ -19,7 +19,7 @@ Option Explicit
 '   (строки, колонки)
 ' ============================================================================
 
-Public Function GetResultTable() As Variant
+Public Function m_GetResultTable() As Variant
     ' Тестовые данные (HelloWorld),
     ' чтобы проверить весь pipeline
     
@@ -58,5 +58,5 @@ Public Function GetResultTable() As Variant
     data(6, 4) = 50
     
     ' Возвращаем таблицу вызывающему коду
-    GetResultTable = data
+    m_GetResultTable = data
 End Function
