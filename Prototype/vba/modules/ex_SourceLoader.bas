@@ -108,7 +108,18 @@ Private Sub mp_ImportTableToInternal( _
         wsDst.Cells(srcRange.Rows.Count, srcRange.Columns.Count) _
     )
 
-    dstRange.Value = srcRange.Value
+    ' Копируем значения с преобразованием в текст
+    Dim r As Long
+    Dim c As Long
+    Dim cellValue As String
+    
+    For r = 1 To srcRange.Rows.Count
+        For c = 1 To srcRange.Columns.Count
+            cellValue = CStr(srcRange.Cells(r, c).Value)
+            dstRange.Cells(r, c).Value = "'" & cellValue
+        Next c
+    Next r
+    
     wsDst.Columns.AutoFit
 
     ex_SheetTheme.m_ApplyDarkThemeToSheet wsDst
