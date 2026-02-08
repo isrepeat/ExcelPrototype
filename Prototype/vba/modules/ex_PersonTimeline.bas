@@ -3,13 +3,9 @@ Option Explicit
 Public Sub m_ShowPersonTimeline_UI()
 
     Dim fio As String
-    ' Ввод ФИО через UI закомментирован — читаем из конфига.
-    ' fio = InputBox("Enter Full Name (exact match):", "Timeline by Full Name")
 
     fio = Trim$(ex_Config.m_GetConfigValue("PersonFIO", vbNullString))
     If fio = vbNullString Then
-        ' При отсутствии в конфиге можно раскомментировать fallback ниже:
-        ' fio = Trim$(InputBox("Enter Full Name (exact match):", "Timeline by Full Name"))
         Exit Sub
     End If
 
@@ -21,6 +17,9 @@ Public Sub m_ShowPersonTimeline(ByVal fio As String)
 
     On Error GoTo EH
 
+    mp_LogInit
+    mp_Log "Timeline", "Start: fio='" & fio & "'"
+
     ' 1) Load external tables into internal sheets based on dev config
     ex_SourceLoader.m_LoadStateEventsFromConfigToInternalSheets
 
@@ -30,6 +29,10 @@ Public Sub m_ShowPersonTimeline(ByVal fio As String)
 
     Set wsState = ThisWorkbook.Worksheets("g_State")
     Set wsEvents = ThisWorkbook.Worksheets("g_Events")
+
+    mp_Log "Timeline", "Sheets: g_State='" & wsState.Name & "', g_Events='" & wsEvents.Name & "'"
+    mp_Log "Timeline", "g_Events UsedRange=" & wsEvents.UsedRange.Address
+    mp_Log "Timeline", "g_Events Header row 1: " & mp_DebugHeadersRow(wsEvents, 1)
 
     ' 3) Create output sheet
     Dim wsOut As Worksheet
@@ -46,9 +49,11 @@ Public Sub m_ShowPersonTimeline(ByVal fio As String)
     rowIndex = mp_WriteEventsTimeline_FromSheet(wsOut, wsEvents, fio, rowIndex + 2)
 
     wsOut.Columns.AutoFit
+    mp_Log "Timeline", "Done"
     Exit Sub
 
 EH:
+    mp_Log "ERROR", "Err=" & CStr(Err.Number) & " Desc='" & Err.Description & "'"
     MsgBox "Error: " & Err.Description, vbExclamation, "m_ShowPersonTimeline"
 
 End Sub
@@ -71,80 +76,120 @@ End Function
 
 Private Function mp_WriteStateCard_FromSheet(ByVal wsOut As Worksheet, ByVal wsState As Worksheet, ByVal fio As String, ByVal rowIndex As Long) As Long
 
-    Dim colFio As Long
-    Dim colBirth As Long
-    Dim colCity As Long
-    Dim colPhone As Long
+    Dim stateLayout As Variant
+    stateLayout = mp_GetFieldIdList("Layout.State")
 
-    colFio = mp_FindHeaderColumn(wsState, 1, "FIO")
-    colBirth = mp_FindHeaderColumn(wsState, 1, "BirthDate")
-    colCity = mp_FindHeaderColumn(wsState, 1, "City")
-    colPhone = mp_FindHeaderColumn(wsState, 1, "Phone")
+    If mp_IsEmptyVariantArray(stateLayout) Then
+        Err.Raise vbObjectError + 601, "ex_PersonTimeline", "Layout.State is empty"
+    End If
 
-    If colFio = 0 Then
-        Err.Raise vbObjectError + 601, "ex_PersonTimeline", "g_State: column 'FIO' not found"
+    Dim keyFieldId As String
+    keyFieldId = Trim$(ex_Config.m_GetConfigValue("KeyField.State", "State.FIO"))
+
+    Dim mapKey As String
+    mapKey = "Map." & keyFieldId
+
+    Dim headerName As String
+    headerName = Trim$(ex_Config.m_GetConfigValue(mapKey, vbNullString))
+
+    mp_Log "State", "KeyField.State='" & keyFieldId & "'"
+    mp_Log "State", "Config '" & mapKey & "'='" & headerName & "' (len=" & Len(headerName) & ")"
+    mp_Log "State", "Header row 1: " & mp_DebugHeadersRow(wsState, 1)
+
+    Dim colKey As Long
+    colKey = mp_TryGetColumnByFieldId(wsState, 1, keyFieldId)
+
+    mp_Log "State", "mp_TryGetColumnByFieldId(row=1, fieldId='" & keyFieldId & "') => " & CStr(colKey)
+
+    If colKey = 0 Then
+        Err.Raise vbObjectError + 602, "ex_PersonTimeline", "g_State: key column not found or not mapped for " & keyFieldId
     End If
 
     wsOut.Cells(rowIndex, 1).Value = "State"
     wsOut.Cells(rowIndex, 1).Font.Bold = True
 
     Dim foundRow As Long
-    foundRow = mp_FindRowByKey(wsState, colFio, fio)
+    foundRow = mp_FindRowByKey(wsState, colKey, fio)
 
-    Dim r As Long
-    r = rowIndex + 1
+    mp_Log "State", "FindRowByKey => " & CStr(foundRow)
 
-    wsOut.Cells(r, 1).Value = "FIO"
-    wsOut.Cells(r, 2).Value = fio
+    Dim outRow As Long
+    outRow = rowIndex + 1
 
-    wsOut.Cells(r + 1, 1).Value = "BirthDate"
-    wsOut.Cells(r + 2, 1).Value = "City"
-    wsOut.Cells(r + 3, 1).Value = "Phone"
+    Dim i As Long
+    For i = LBound(stateLayout) To UBound(stateLayout)
 
-    wsOut.Range(wsOut.Cells(r, 1), wsOut.Cells(r + 3, 1)).Font.Bold = True
+        Dim fieldId As String
+        fieldId = CStr(stateLayout(i))
 
-    If foundRow = 0 Then
-        wsOut.Cells(r + 1, 2).Value = "(not found in TableState)"
-        mp_WriteStateCard_FromSheet = r + 3
-        Exit Function
-    End If
+        Dim labelText As String
+        labelText = mp_GetLabel(fieldId)
 
-    If colBirth > 0 Then
-        wsOut.Cells(r + 1, 2).Value = "'" & CStr(wsState.Cells(foundRow, colBirth).Value)
-    End If
+        wsOut.Cells(outRow, 1).Value = labelText
+        wsOut.Cells(outRow, 1).Font.Bold = True
 
-    If colCity > 0 Then
-        wsOut.Cells(r + 2, 2).Value = "'" & CStr(wsState.Cells(foundRow, colCity).Value)
-    End If
+        If StrComp(fieldId, keyFieldId, vbTextCompare) = 0 Then
+            wsOut.Cells(outRow, 2).Value = "'" & fio
+            outRow = outRow + 1
+            GoTo ContinueLoop
+        End If
 
-    If colPhone > 0 Then
-        wsOut.Cells(r + 3, 2).Value = "'" & CStr(wsState.Cells(foundRow, colPhone).Value)
-    End If
+        If foundRow = 0 Then
+            wsOut.Cells(outRow, 2).Value = "(not found in TableState)"
+            outRow = outRow + 1
+            GoTo ContinueLoop
+        End If
 
-    mp_WriteStateCard_FromSheet = r + 3
+        Dim colVal As Long
+        colVal = mp_TryGetColumnByFieldId(wsState, 1, fieldId)
+
+        If colVal = 0 Then
+            wsOut.Cells(outRow, 2).Value = "(column not mapped)"
+        Else
+            wsOut.Cells(outRow, 2).Value = "'" & CStr(wsState.Cells(foundRow, colVal).Value)
+        End If
+
+        outRow = outRow + 1
+
+ContinueLoop:
+    Next i
+
+    mp_WriteStateCard_FromSheet = outRow - 1
 
 End Function
 
 Private Function mp_WriteEventsTimeline_FromSheet(ByVal wsOut As Worksheet, ByVal wsEvents As Worksheet, ByVal fio As String, ByVal rowIndex As Long) As Long
 
-    Dim colFio As Long
-    Dim colDate As Long
-    Dim colType As Long
-    Dim colDept As Long
-    Dim colPos As Long
-    Dim colSalary As Long
-    Dim colRecordNo As Long
+    Dim eventsLayout As Variant
+    eventsLayout = mp_GetFieldIdList("Layout.Events")
 
-    colFio = mp_FindHeaderColumn(wsEvents, 1, "FIO")
-    colDate = mp_FindHeaderColumn(wsEvents, 1, "EventDate")
-    colType = mp_FindHeaderColumn(wsEvents, 1, "EventType")
-    colDept = mp_FindHeaderColumn(wsEvents, 1, "Department")
-    colPos = mp_FindHeaderColumn(wsEvents, 1, "Position")
-    colSalary = mp_FindHeaderColumn(wsEvents, 1, "Salary")
-    colRecordNo = mp_FindHeaderColumn(wsEvents, 1, "RecordNo")
+    If mp_IsEmptyVariantArray(eventsLayout) Then
+        Err.Raise vbObjectError + 610, "ex_PersonTimeline", "Layout.Events is empty"
+    End If
 
-    If colFio = 0 Then
-        Err.Raise vbObjectError + 602, "ex_PersonTimeline", "g_Events: column 'FIO' not found"
+    mp_Log "Events", "Layout.Events count=" & CStr(UBound(eventsLayout) - LBound(eventsLayout) + 1)
+
+    Dim keyFieldId As String
+    keyFieldId = Trim$(ex_Config.m_GetConfigValue("KeyField.Events", "Events.FIO"))
+
+    mp_Log "Events", "KeyField.Events='" & keyFieldId & "'"
+
+    Dim mapKey As String
+    mapKey = "Map." & keyFieldId
+
+    Dim headerName As String
+    headerName = Trim$(ex_Config.m_GetConfigValue(mapKey, vbNullString))
+
+    mp_Log "Events", "Config '" & mapKey & "'='" & headerName & "' (len=" & Len(headerName) & ")"
+    mp_Log "Events", "Header row 1: " & mp_DebugHeadersRow(wsEvents, 1)
+
+    Dim colKey As Long
+    colKey = mp_TryGetColumnByFieldId(wsEvents, 1, keyFieldId)
+
+    mp_Log "Events", "mp_TryGetColumnByFieldId(row=1, fieldId='" & keyFieldId & "') => " & CStr(colKey)
+
+    If colKey = 0 Then
+        Err.Raise vbObjectError + 611, "ex_PersonTimeline", "g_Events: key column not found or not mapped for " & keyFieldId
     End If
 
     wsOut.Cells(rowIndex, 1).Value = "Events (Timeline)"
@@ -153,17 +198,16 @@ Private Function mp_WriteEventsTimeline_FromSheet(ByVal wsOut As Worksheet, ByVa
     Dim outTop As Long
     outTop = rowIndex + 1
 
-    wsOut.Cells(outTop, 1).Value = "RecordNo"
-    wsOut.Cells(outTop, 2).Value = "EventDate"
-    wsOut.Cells(outTop, 3).Value = "EventType"
-    wsOut.Cells(outTop, 4).Value = "Department"
-    wsOut.Cells(outTop, 5).Value = "Position"
-    wsOut.Cells(outTop, 6).Value = "Salary"
+    ' Header row
+    Dim i As Long
+    For i = LBound(eventsLayout) To UBound(eventsLayout)
+        wsOut.Cells(outTop, 1 + i).Value = mp_GetLabel(CStr(eventsLayout(i)))
+        wsOut.Cells(outTop, 1 + i).Font.Bold = True
+    Next i
 
-    wsOut.Range(wsOut.Cells(outTop, 1), wsOut.Cells(outTop, 6)).Font.Bold = True
-
+    ' Output rows
     Dim lastRow As Long
-    lastRow = wsEvents.Cells(wsEvents.Rows.Count, colFio).End(xlUp).Row
+    lastRow = wsEvents.Cells(wsEvents.Rows.Count, colKey).End(xlUp).Row
 
     Dim outRow As Long
     outRow = outTop + 1
@@ -171,31 +215,23 @@ Private Function mp_WriteEventsTimeline_FromSheet(ByVal wsOut As Worksheet, ByVa
     Dim r As Long
     For r = 2 To lastRow
 
-        If CStr(wsEvents.Cells(r, colFio).Value) = fio Then
+        If CStr(wsEvents.Cells(r, colKey).Value) = fio Then
 
-            If colRecordNo > 0 Then
-                wsOut.Cells(outRow, 1).Value = "'" & CStr(wsEvents.Cells(r, colRecordNo).Value)
-            End If
+            For i = LBound(eventsLayout) To UBound(eventsLayout)
 
-            If colDate > 0 Then
-                wsOut.Cells(outRow, 2).Value = "'" & CStr(wsEvents.Cells(r, colDate).Value)
-            End If
+                Dim fieldId As String
+                fieldId = CStr(eventsLayout(i))
 
-            If colType > 0 Then
-                wsOut.Cells(outRow, 3).Value = "'" & CStr(wsEvents.Cells(r, colType).Value)
-            End If
+                Dim colVal As Long
+                colVal = mp_TryGetColumnByFieldId(wsEvents, 1, fieldId)
 
-            If colDept > 0 Then
-                wsOut.Cells(outRow, 4).Value = "'" & CStr(wsEvents.Cells(r, colDept).Value)
-            End If
+                If colVal > 0 Then
+                    wsOut.Cells(outRow, 1 + i).Value = "'" & CStr(wsEvents.Cells(r, colVal).Value)
+                Else
+                    wsOut.Cells(outRow, 1 + i).Value = vbNullString
+                End If
 
-            If colPos > 0 Then
-                wsOut.Cells(outRow, 5).Value = "'" & CStr(wsEvents.Cells(r, colPos).Value)
-            End If
-
-            If colSalary > 0 Then
-                wsOut.Cells(outRow, 6).Value = "'" & CStr(wsEvents.Cells(r, colSalary).Value)
-            End If
+            Next i
 
             outRow = outRow + 1
 
@@ -204,32 +240,42 @@ Private Function mp_WriteEventsTimeline_FromSheet(ByVal wsOut As Worksheet, ByVa
     Next r
 
     If outRow = outTop + 1 Then
-        wsOut.Cells(outTop + 1, 1).Value = "(no events found for this FIO)"
+        wsOut.Cells(outTop + 1, 1).Value = "(no events found for this person)"
         mp_WriteEventsTimeline_FromSheet = outTop + 1
         Exit Function
     End If
 
-    If colRecordNo > 0 Then
-        mp_SortRangeByFirstColumn wsOut, wsOut.Range(wsOut.Cells(outTop, 1), wsOut.Cells(outRow - 1, 6))
+    ' Optional sort (only if SortField.Events is present in layout)
+    Dim sortFieldId As String
+    sortFieldId = Trim$(ex_Config.m_GetConfigValue("SortField.Events", vbNullString))
+
+    If Len(sortFieldId) > 0 Then
+
+        Dim sortIndex As Long
+        sortIndex = -1
+
+        For i = LBound(eventsLayout) To UBound(eventsLayout)
+            If StrComp(CStr(eventsLayout(i)), sortFieldId, vbTextCompare) = 0 Then
+                sortIndex = i
+                Exit For
+            End If
+        Next i
+
+        If sortIndex >= 0 Then
+            Dim sortRange As Range
+            Set sortRange = wsOut.Range( _
+                wsOut.Cells(outTop, 1), _
+                wsOut.Cells(outRow - 1, 1 + UBound(eventsLayout)) _
+            )
+
+            mp_SortRangeByColumnIndex wsOut, sortRange, 1 + sortIndex
+        End If
+
     End If
 
     mp_WriteEventsTimeline_FromSheet = outRow - 1
 
 End Function
-
-Private Sub mp_SortRangeByFirstColumn(ByVal ws As Worksheet, ByVal rng As Range)
-
-    With ws.Sort
-        .SortFields.Clear
-        .SortFields.Add Key:=rng.Columns(1), SortOn:=xlSortOnValues, Order:=xlAscending, DataOption:=xlSortNormal
-        .SetRange rng
-        .Header = xlYes
-        .MatchCase = False
-        .Orientation = xlTopToBottom
-        .Apply
-    End With
-
-End Sub
 
 ' ========================================================
 ' Helper Functions
@@ -238,10 +284,8 @@ End Sub
 Private Function mp_CreateOrClearSheet(ByVal sheetName As String) As Worksheet
 
     Dim ws As Worksheet
-
     Dim fullName As String
 
-    ' Ensure sheet names created by code use g_ prefix
     If Left$(sheetName, 2) = "g_" Then
         fullName = sheetName
     Else
@@ -260,63 +304,21 @@ Private Function mp_CreateOrClearSheet(ByVal sheetName As String) As Worksheet
         ws.Cells.Clear
     End If
 
-    ' Apply dark theme so timeline matches g_State appearance
     ex_SheetTheme.m_ApplyDarkThemeToSheet ws
-
-    ' Format all cells as text
     ws.Cells.NumberFormat = "@"
 
     Set mp_CreateOrClearSheet = ws
 
 End Function
 
-Private Function mp_BuildTimelineSheetName(ByVal fio As String) As String
+Private Function mp_NormalizeHeader(ByVal s As String) As String
 
-    Dim safeName As String
-    Dim prefix As String
-    Dim maxLen As Long
-    Dim i As Long
-    Dim char As String
+    s = CStr(s)
+    s = Replace$(s, ChrW(160), " ")
+    s = Trim$(s)
+    s = LCase$(s)
 
-    prefix = "Timeline_"
-    maxLen = 31 - Len(prefix)  ' Excel limit: 31 chars for sheet names
-
-    safeName = fio
-
-    ' Заменить все невалидные символы Excel на подчёркивание
-    safeName = Replace$(safeName, ":", "_")
-    safeName = Replace$(safeName, "\", "_")
-    safeName = Replace$(safeName, "/", "_")
-    safeName = Replace$(safeName, "?", "_")
-    safeName = Replace$(safeName, "*", "_")
-    safeName = Replace$(safeName, "[", "_")
-    safeName = Replace$(safeName, "]", "_")
-    safeName = Replace$(safeName, "'", "_")  ' одинарная кавычка
-    safeName = Replace$(safeName, """", "_")  ' двойная кавычка
-    safeName = Replace$(safeName, ";", "_")
-
-    ' Удалить повторяющиеся подчёркивания
-    Do While InStr(safeName, "__") > 0
-        safeName = Replace$(safeName, "__", "_")
-    Loop
-
-    safeName = Trim$(safeName)
-    ' Удалить ведущие и хвостовые подчёркивания
-    While Left$(safeName, 1) = "_"
-        safeName = Mid$(safeName, 2)
-    Wend
-    While Right$(safeName, 1) = "_"
-        safeName = Left$(safeName, Len(safeName) - 1)
-    Wend
-
-    safeName = Trim$(safeName)
-    If Len(safeName) = 0 Then
-        safeName = "Timeline"
-    ElseIf Len(safeName) > maxLen Then
-        safeName = Left$(safeName, maxLen)
-    End If
-
-    mp_BuildTimelineSheetName = prefix & safeName
+    mp_NormalizeHeader = s
 
 End Function
 
@@ -327,7 +329,7 @@ Private Function mp_FindHeaderColumn(ByVal ws As Worksheet, ByVal headerRow As L
 
     Dim c As Long
     For c = 1 To lastCol
-        If StrComp(CStr(ws.Cells(headerRow, c).Value), headerName, vbTextCompare) = 0 Then
+        If mp_NormalizeHeader(ws.Cells(headerRow, c).Value) = mp_NormalizeHeader(headerName) Then
             mp_FindHeaderColumn = c
             Exit Function
         End If
@@ -336,6 +338,135 @@ Private Function mp_FindHeaderColumn(ByVal ws As Worksheet, ByVal headerRow As L
     mp_FindHeaderColumn = 0
 
 End Function
+
+Private Function mp_IsEmptyVariantArray(ByVal arr As Variant) As Boolean
+
+    On Error GoTo EH
+
+    If IsArray(arr) = False Then
+        mp_IsEmptyVariantArray = True
+        Exit Function
+    End If
+
+    If LBound(arr) > UBound(arr) Then
+        mp_IsEmptyVariantArray = True
+        Exit Function
+    End If
+
+    mp_IsEmptyVariantArray = False
+    Exit Function
+
+EH:
+    mp_IsEmptyVariantArray = True
+
+End Function
+
+Private Function mp_GetFieldIdList(ByVal configKey As String) As Variant
+
+    Dim raw As String
+    raw = Trim$(ex_Config.m_GetConfigValue(configKey, vbNullString))
+
+    If Len(raw) = 0 Then
+        mp_GetFieldIdList = Array()
+        Exit Function
+    End If
+
+    raw = Replace$(raw, vbCr, vbNullString)
+    raw = Replace$(raw, vbLf, vbNullString)
+
+    raw = Replace$(raw, ",", ";")
+
+    Dim parts() As String
+    parts = Split(raw, ";")
+
+    Dim cleaned() As String
+    Dim i As Long
+    Dim n As Long
+    n = 0
+
+    ReDim cleaned(0 To UBound(parts))
+
+    For i = LBound(parts) To UBound(parts)
+
+        Dim item As String
+        item = Trim$(parts(i))
+
+        If Len(item) > 0 Then
+            cleaned(n) = item
+            n = n + 1
+        End If
+
+    Next i
+
+    If n = 0 Then
+        mp_GetFieldIdList = Array()
+        Exit Function
+    End If
+
+    ReDim Preserve cleaned(0 To n - 1)
+    mp_GetFieldIdList = cleaned
+
+End Function
+
+Private Function mp_GetMappedSourceHeader(ByVal fieldId As String) As String
+
+    Dim k As String
+    k = "Map." & fieldId
+
+    mp_GetMappedSourceHeader = Trim$(ex_Config.m_GetConfigValue(k, vbNullString))
+
+End Function
+
+Private Function mp_GetLabel(ByVal fieldId As String) As String
+
+    Dim k As String
+    k = "Label." & fieldId
+
+    Dim lbl As String
+    lbl = Trim$(ex_Config.m_GetConfigValue(k, vbNullString))
+
+    If Len(lbl) > 0 Then
+        mp_GetLabel = lbl
+        Exit Function
+    End If
+
+    Dim p As Long
+    p = InStrRev(fieldId, ".")
+    If p > 0 Then
+        mp_GetLabel = Mid$(fieldId, p + 1)
+    Else
+        mp_GetLabel = fieldId
+    End If
+
+End Function
+
+Private Function mp_TryGetColumnByFieldId(ByVal ws As Worksheet, ByVal headerRow As Long, ByVal fieldId As String) As Long
+
+    Dim headerName As String
+    headerName = mp_GetMappedSourceHeader(fieldId)
+
+    If Len(headerName) = 0 Then
+        mp_TryGetColumnByFieldId = 0
+        Exit Function
+    End If
+
+    mp_TryGetColumnByFieldId = mp_FindHeaderColumn(ws, headerRow, headerName)
+
+End Function
+
+Private Sub mp_SortRangeByColumnIndex(ByVal ws As Worksheet, ByVal rng As Range, ByVal columnIndex As Long)
+
+    With ws.Sort
+        .SortFields.Clear
+        .SortFields.Add Key:=rng.Columns(columnIndex), SortOn:=xlSortOnValues, Order:=xlAscending, DataOption:=xlSortNormal
+        .SetRange rng
+        .Header = xlYes
+        .MatchCase = False
+        .Orientation = xlTopToBottom
+        .Apply
+    End With
+
+End Sub
 
 Private Function mp_FindRowByKey(ByVal ws As Worksheet, ByVal keyCol As Long, ByVal keyValue As String) As Long
 
@@ -351,5 +482,68 @@ Private Function mp_FindRowByKey(ByVal ws As Worksheet, ByVal keyCol As Long, By
     Next r
 
     mp_FindRowByKey = 0
+
+End Function
+
+' ========================================================
+' Logging (g_Log sheet)
+' ========================================================
+
+Private Sub mp_LogInit()
+
+    Dim ws As Worksheet
+
+    On Error Resume Next
+    Set ws = ThisWorkbook.Worksheets("g_Log")
+    On Error GoTo 0
+
+    If ws Is Nothing Then
+        Set ws = ThisWorkbook.Worksheets.Add(After:=ThisWorkbook.Worksheets(ThisWorkbook.Worksheets.Count))
+        ws.Name = "g_Log"
+    Else
+        ws.Cells.Clear
+    End If
+
+    ws.Cells(1, 1).Value = "Time"
+    ws.Cells(1, 2).Value = "Module"
+    ws.Cells(1, 3).Value = "Message"
+    ws.Rows(1).Font.Bold = True
+
+    ws.Columns(1).ColumnWidth = 22
+    ws.Columns(2).ColumnWidth = 18
+    ws.Columns(3).ColumnWidth = 140
+
+    ex_SheetTheme.m_ApplyDarkThemeToSheet ws
+    ws.Cells.NumberFormat = "@"
+
+End Sub
+
+Private Sub mp_Log(ByVal moduleName As String, ByVal message As String)
+
+    Dim ws As Worksheet
+    Set ws = ThisWorkbook.Worksheets("g_Log")
+
+    Dim r As Long
+    r = ws.Cells(ws.Rows.Count, 1).End(xlUp).Row + 1
+
+    ws.Cells(r, 1).Value = Now
+    ws.Cells(r, 2).Value = moduleName
+    ws.Cells(r, 3).Value = message
+
+End Sub
+
+Private Function mp_DebugHeadersRow(ByVal ws As Worksheet, ByVal headerRow As Long) As String
+
+    Dim lastCol As Long
+    lastCol = ws.Cells(headerRow, ws.Columns.Count).End(xlToLeft).Column
+
+    Dim c As Long
+    Dim s As String
+
+    For c = 1 To lastCol
+        s = s & "[" & c & "]{" & Len(CStr(ws.Cells(headerRow, c).Value)) & "}='" & CStr(ws.Cells(headerRow, c).Value) & "' "
+    Next c
+
+    mp_DebugHeadersRow = s
 
 End Function
