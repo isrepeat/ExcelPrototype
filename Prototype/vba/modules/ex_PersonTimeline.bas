@@ -352,27 +352,58 @@ Private Function mp_GetMappedSourceHeader(ByVal fieldId As String) As String
     Dim k As String
     k = "Map." & fieldId
 
-    mp_GetMappedSourceHeader = Trim$(ex_Config.m_GetConfigValue(k, vbNullString))
+    Dim raw As String
+    raw = Trim$(ex_Config.m_GetConfigValue(k, vbNullString))
+
+    If Len(raw) = 0 Then
+        mp_GetMappedSourceHeader = vbNullString
+        Exit Function
+    End If
+
+    Dim p As Long
+    p = InStr(1, raw, "|", vbBinaryCompare)
+
+    If p > 0 Then
+        mp_GetMappedSourceHeader = Trim$(Left$(raw, p - 1))
+    Else
+        mp_GetMappedSourceHeader = raw
+    End If
 
 End Function
 
 Private Function mp_GetLabel(ByVal fieldId As String) As String
 
     Dim k As String
-    k = "Label." & fieldId
+    k = "Map." & fieldId
 
-    Dim lbl As String
-    lbl = Trim$(ex_Config.m_GetConfigValue(k, vbNullString))
+    Dim raw As String
+    raw = Trim$(ex_Config.m_GetConfigValue(k, vbNullString))
 
-    If Len(lbl) > 0 Then
-        mp_GetLabel = lbl
-        Exit Function
+    If Len(raw) > 0 Then
+
+        Dim p As Long
+        p = InStr(1, raw, "|", vbBinaryCompare)
+
+        If p > 0 Then
+
+            Dim lbl As String
+            lbl = Trim$(Mid$(raw, p + 1))
+
+            If Len(lbl) > 0 Then
+                mp_GetLabel = lbl
+                Exit Function
+            End If
+
+        End If
+
     End If
 
-    Dim p As Long
-    p = InStr(fieldId, "_")
-    If p > 0 Then
-        mp_GetLabel = Mid$(fieldId, p + 1)
+    ' Fallback: use the field id itself (prefer the suffix after "state_" / "events_")
+    Dim u As Long
+    u = InStr(1, fieldId, "_", vbBinaryCompare)
+
+    If u > 0 Then
+        mp_GetLabel = Mid$(fieldId, u + 1)
     Else
         mp_GetLabel = fieldId
     End If
