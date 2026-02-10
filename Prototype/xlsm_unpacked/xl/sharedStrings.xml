@@ -64,13 +64,13 @@
     <t>Model.Events.Key</t>
   </si>
   <si>
-    <t>events_FIO</t>
+    <t>e_FIO</t>
   </si>
   <si>
     <t>Model.Events.Sort</t>
   </si>
   <si>
-    <t>events_RecordNo</t>
+    <t>e_RecordNo</t>
   </si>
   <si>
     <t>Map.state_FIO</t>
@@ -79,13 +79,13 @@
     <t>Map.state_BirthDate</t>
   </si>
   <si>
-    <t>Map.events_RecordNo</t>
+    <t>Map.e_RecordNo</t>
   </si>
   <si>
-    <t>Map.events_EventDate</t>
+    <t>Map.e_EventDate</t>
   </si>
   <si>
-    <t>events_RecordNo; events_EventDate; events_EventType; events_Department; events_Position; events_Salary</t>
+    <t>e_RecordNo; e_EventDate; e_EventType; e_Department; e_Position; e_Salary</t>
   </si>
   <si>
     <t>Map.state_City</t>
@@ -94,19 +94,19 @@
     <t>Map.state_Phone</t>
   </si>
   <si>
-    <t>Map.events_FIO</t>
+    <t>Map.e_FIO</t>
   </si>
   <si>
-    <t>Map.events_EventType</t>
+    <t>Map.e_EventType</t>
   </si>
   <si>
-    <t>Map.events_Department</t>
+    <t>Map.e_Department</t>
   </si>
   <si>
-    <t>Map.events_Position</t>
+    <t>Map.e_Position</t>
   </si>
   <si>
-    <t>Map.events_Salary</t>
+    <t>Map.e_Salary</t>
   </si>
   <si>
     <t>Ключ</t>

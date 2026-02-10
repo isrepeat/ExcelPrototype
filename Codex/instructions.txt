@@ -14,6 +14,7 @@ Excel структура
   - /workspaces/ExcelPrototype/Prototype/scripts/xlsm_pack.sh
   - /workspaces/ExcelPrototype/Prototype/scripts/xlsm_unpack.sh
 - Правило: при запросе "добавить/изменить что-то в Excel" правим структуру в xlsm_unpacked, затем по запросу пользователя пересобираем файл через скрипт упаковки в Prototype_repacked.xlsm.
+- Правило: после любых внесенных мной изменений в xlsm_unpacked я сразу упаковываю их в Prototype_repacked.xlsm.
 
 Триггеры
 - Если пользователь пишет "срезюмируй" или "срезюмирую сессию", нужно записать резюме последней сессии в `Codex/session_summary.txt`.

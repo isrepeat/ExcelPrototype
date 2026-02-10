@@ -46,10 +46,26 @@ Public Sub m_ShowPersonTimeline(ByVal fio As String)
     Dim rowIndex As Long
     rowIndex = 1
 
-    rowIndex = mp_WriteHeader(wsOut, fio, rowIndex)
+    Dim mode As OutputMode
+    mode = ex_Settings.m_GetOutputMode()
+
+    mp_Log "Timeline", "Mode=" & ex_Settings.m_GetOutputModeDisplay()
+
+    rowIndex = mp_WriteHeader(wsOut, fio, rowIndex, mode)
     rowIndex = rowIndex + 1
-    rowIndex = mp_WriteStateCard_FromSheet(wsOut, wsState, fio, rowIndex + 1)
-    rowIndex = mp_WriteEventsTimeline_FromSheet(wsOut, wsEvents, fio, rowIndex + 2)
+
+    Select Case mode
+        Case PersonTimeline
+            rowIndex = mp_WriteStateCard_FromSheet(wsOut, wsState, fio, rowIndex + 1)
+            rowIndex = mp_WriteEventsTimeline_FromSheet(wsOut, wsEvents, fio, rowIndex + 2)
+        Case StateTableOnly
+            rowIndex = mp_WriteStateCard_FromSheet(wsOut, wsState, fio, rowIndex + 1)
+        Case EventsTableOnly
+            rowIndex = mp_WriteEventsTimeline_FromSheet(wsOut, wsEvents, fio, rowIndex + 1)
+        Case Else
+            rowIndex = mp_WriteStateCard_FromSheet(wsOut, wsState, fio, rowIndex + 1)
+            rowIndex = mp_WriteEventsTimeline_FromSheet(wsOut, wsEvents, fio, rowIndex + 2)
+    End Select
 
     wsOut.Columns.AutoFit
     ex_SheetTheme.m_ApplyDarkThemeToSheet wsOut
@@ -62,9 +78,21 @@ EH:
 
 End Sub
 
-Private Function mp_WriteHeader(ByVal ws As Worksheet, ByVal fio As String, ByVal rowIndex As Long) As Long
+Private Function mp_WriteHeader(ByVal ws As Worksheet, ByVal fio As String, ByVal rowIndex As Long, ByVal mode As OutputMode) As Long
 
-    ws.Cells(rowIndex, 1).Value = "Timeline by Full Name"
+    Dim title As String
+    Select Case mode
+        Case PersonTimeline
+            title = "Timeline by Full Name"
+        Case StateTableOnly
+            title = "State by Full Name"
+        Case EventsTableOnly
+            title = "Events by Full Name"
+        Case Else
+            title = "Timeline by Full Name"
+    End Select
+
+    ws.Cells(rowIndex, 1).Value = title
     ws.Cells(rowIndex, 2).Value = fio
 
     ws.Cells(rowIndex, 1).Font.Bold = True
