@@ -1,0 +1,25 @@
+Краткие инструкции / подсказки для новой сессии
+
+Контекст
+- Проект: /workspaces/ExcelPrototype
+- Текущая директория: /workspaces/ExcelPrototype
+- Скриншоты: /workspaces/ExcelPrototype/screenshots
+  - Если пользователь пишет "посмотри скрин" или "на скрине", нужно просмотреть все изображения в папке screenshots.
+
+Excel структура
+- Источник истины: /workspaces/ExcelPrototype/Prototype/xlsm_unpacked
+- Исходный файл (старый): /workspaces/ExcelPrototype/Prototype/Prototype.xlsm (не трогать)
+- Результат сборки: /workspaces/ExcelPrototype/Prototype/Prototype_repacked.xlsm
+- Пересборка: использовать скрипты:
+  - /workspaces/ExcelPrototype/Prototype/scripts/xlsm_pack.sh
+  - /workspaces/ExcelPrototype/Prototype/scripts/xlsm_unpack.sh
+- Правило: при запросе "добавить/изменить что-то в Excel" правим структуру в xlsm_unpacked, затем по запросу пользователя пересобираем файл через скрипт упаковки в Prototype_repacked.xlsm.
+
+Триггеры
+- Если пользователь пишет "срезюмируй" или "срезюмирую сессию", нужно записать резюме последней сессии в `Codex/session_summary.txt`.
+- Если пользователь пишет "очисти скрины", нужно удалить все файлы из папки `screenshots`.
+
+Что делать в начале сессии
+- Прочитать Codex/instructions.txt
+- Прочитать Codex/session_summary.txt
+- Уточнить следующую задачу
