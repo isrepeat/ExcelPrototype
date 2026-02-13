@@ -3,17 +3,17 @@
   <xdr:twoCellAnchor editAs="absolute">
     <xdr:from>
       <xdr:col>3</xdr:col>
-      <xdr:colOff>952500</xdr:colOff>
-      <xdr:row>1</xdr:row>
-      <xdr:rowOff>47625</xdr:rowOff>
+      <xdr:colOff>514349</xdr:colOff>
+      <xdr:row>6</xdr:row>
+      <xdr:rowOff>38100</xdr:rowOff>
     </xdr:from>
     <xdr:to>
-      <xdr:col>4</xdr:col>
-      <xdr:colOff>209550</xdr:colOff>
-      <xdr:row>4</xdr:row>
-      <xdr:rowOff>180974</xdr:rowOff>
+      <xdr:col>3</xdr:col>
+      <xdr:colOff>2494349</xdr:colOff>
+      <xdr:row>9</xdr:row>
+      <xdr:rowOff>158025</xdr:rowOff>
     </xdr:to>
-    <xdr:sp macro="[0]!UpdateCode" textlink="">
+    <xdr:sp macro="[0]!dev_UpdateCode" textlink="">
       <xdr:nvSpPr>
         <xdr:cNvPr id="3" name="Прямокутник 2">
           <a:extLst>
@@ -26,8 +26,8 @@
       </xdr:nvSpPr>
       <xdr:spPr>
         <a:xfrm>
-          <a:off x="13449300" y="247650"/>
-          <a:ext cx="1971675" cy="733424"/>
+          <a:off x="13011149" y="1238250"/>
+          <a:ext cx="1980000" cy="720000"/>
         </a:xfrm>
         <a:prstGeom prst="rect">
           <a:avLst/>
@@ -68,16 +68,16 @@
   </xdr:twoCellAnchor>
   <xdr:twoCellAnchor editAs="absolute">
     <xdr:from>
-      <xdr:col>3</xdr:col>
-      <xdr:colOff>962025</xdr:colOff>
-      <xdr:row>5</xdr:row>
-      <xdr:rowOff>66675</xdr:rowOff>
+      <xdr:col>4</xdr:col>
+      <xdr:colOff>28575</xdr:colOff>
+      <xdr:row>10</xdr:row>
+      <xdr:rowOff>85725</xdr:rowOff>
     </xdr:from>
     <xdr:to>
-      <xdr:col>4</xdr:col>
-      <xdr:colOff>228600</xdr:colOff>
-      <xdr:row>9</xdr:row>
-      <xdr:rowOff>19050</xdr:rowOff>
+      <xdr:col>6</xdr:col>
+      <xdr:colOff>638175</xdr:colOff>
+      <xdr:row>14</xdr:row>
+      <xdr:rowOff>5625</xdr:rowOff>
     </xdr:to>
     <xdr:sp macro="[0]!Run" textlink="">
       <xdr:nvSpPr>
@@ -92,8 +92,8 @@
       </xdr:nvSpPr>
       <xdr:spPr>
         <a:xfrm>
-          <a:off x="13458825" y="1066800"/>
-          <a:ext cx="1981200" cy="752475"/>
+          <a:off x="15240000" y="2085975"/>
+          <a:ext cx="1981200" cy="720000"/>
         </a:xfrm>
         <a:prstGeom prst="rect">
           <a:avLst/>
@@ -130,15 +130,15 @@
   <xdr:twoCellAnchor editAs="absolute">
     <xdr:from>
       <xdr:col>3</xdr:col>
-      <xdr:colOff>962025</xdr:colOff>
-      <xdr:row>14</xdr:row>
-      <xdr:rowOff>0</xdr:rowOff>
+      <xdr:colOff>504825</xdr:colOff>
+      <xdr:row>10</xdr:row>
+      <xdr:rowOff>85725</xdr:rowOff>
     </xdr:from>
     <xdr:to>
-      <xdr:col>4</xdr:col>
-      <xdr:colOff>228600</xdr:colOff>
-      <xdr:row>17</xdr:row>
-      <xdr:rowOff>142875</xdr:rowOff>
+      <xdr:col>3</xdr:col>
+      <xdr:colOff>2486025</xdr:colOff>
+      <xdr:row>14</xdr:row>
+      <xdr:rowOff>5625</xdr:rowOff>
     </xdr:to>
     <xdr:sp macro="[0]!m_DeleteResultSheets" textlink="">
       <xdr:nvSpPr>
@@ -153,8 +153,8 @@
       </xdr:nvSpPr>
       <xdr:spPr>
         <a:xfrm>
-          <a:off x="13458825" y="2800350"/>
-          <a:ext cx="1981200" cy="742950"/>
+          <a:off x="13001625" y="2085975"/>
+          <a:ext cx="1981200" cy="720000"/>
         </a:xfrm>
         <a:prstGeom prst="rect">
           <a:avLst/>
@@ -191,16 +191,16 @@
   </xdr:twoCellAnchor>
   <xdr:twoCellAnchor editAs="absolute">
     <xdr:from>
-      <xdr:col>3</xdr:col>
-      <xdr:colOff>952500</xdr:colOff>
-      <xdr:row>9</xdr:row>
-      <xdr:rowOff>114300</xdr:rowOff>
+      <xdr:col>4</xdr:col>
+      <xdr:colOff>19050</xdr:colOff>
+      <xdr:row>6</xdr:row>
+      <xdr:rowOff>47625</xdr:rowOff>
     </xdr:from>
     <xdr:to>
-      <xdr:col>4</xdr:col>
-      <xdr:colOff>219075</xdr:colOff>
-      <xdr:row>13</xdr:row>
-      <xdr:rowOff>104774</xdr:rowOff>
+      <xdr:col>6</xdr:col>
+      <xdr:colOff>627450</xdr:colOff>
+      <xdr:row>9</xdr:row>
+      <xdr:rowOff>167550</xdr:rowOff>
     </xdr:to>
     <xdr:sp macro="[0]!m_ShowPersonTimeline_UI" textlink="">
       <xdr:nvSpPr>
@@ -215,8 +215,8 @@
       </xdr:nvSpPr>
       <xdr:spPr>
         <a:xfrm>
-          <a:off x="13449300" y="1914525"/>
-          <a:ext cx="1981200" cy="790574"/>
+          <a:off x="15230475" y="1247775"/>
+          <a:ext cx="1980000" cy="720000"/>
         </a:xfrm>
         <a:prstGeom prst="rect">
           <a:avLst/>
@@ -257,78 +257,16 @@
   </xdr:twoCellAnchor>
   <xdr:twoCellAnchor editAs="absolute">
     <xdr:from>
-      <xdr:col>3</xdr:col>
-      <xdr:colOff>940859</xdr:colOff>
-      <xdr:row>14</xdr:row>
-      <xdr:rowOff>0</xdr:rowOff>
+      <xdr:col>4</xdr:col>
+      <xdr:colOff>9525</xdr:colOff>
+      <xdr:row>3</xdr:row>
+      <xdr:rowOff>57150</xdr:rowOff>
     </xdr:from>
     <xdr:to>
-      <xdr:col>4</xdr:col>
-      <xdr:colOff>207434</xdr:colOff>
-      <xdr:row>17</xdr:row>
-      <xdr:rowOff>142875</xdr:rowOff>
-    </xdr:to>
-    <xdr:sp macro="[0]!m_DeleteResultSheets" textlink="">
-      <xdr:nvSpPr>
-        <xdr:cNvPr id="6" name="Прямокутник 5">
-          <a:extLst>
-            <a:ext uri="{FF2B5EF4-FFF2-40B4-BE49-F238E27FC236}">
-              <a16:creationId xmlns:a16="http://schemas.microsoft.com/office/drawing/2014/main" id="{502FC937-8A43-EB9F-F169-9E4C66E4289A}"/>
-            </a:ext>
-          </a:extLst>
-        </xdr:cNvPr>
-        <xdr:cNvSpPr/>
-      </xdr:nvSpPr>
-      <xdr:spPr>
-        <a:xfrm>
-          <a:off x="13437659" y="2815167"/>
-          <a:ext cx="1986492" cy="746125"/>
-        </a:xfrm>
-        <a:prstGeom prst="rect">
-          <a:avLst/>
-        </a:prstGeom>
-      </xdr:spPr>
-      <xdr:style>
-        <a:lnRef idx="1">
-          <a:schemeClr val="dk1"/>
-        </a:lnRef>
-        <a:fillRef idx="2">
-          <a:schemeClr val="dk1"/>
-        </a:fillRef>
-        <a:effectRef idx="1">
-          <a:schemeClr val="dk1"/>
-        </a:effectRef>
-        <a:fontRef idx="minor">
-          <a:schemeClr val="dk1"/>
-        </a:fontRef>
-      </xdr:style>
-      <xdr:txBody>
-        <a:bodyPr vertOverflow="clip" horzOverflow="clip" rtlCol="0" anchor="ctr"/>
-        <a:lstStyle/>
-        <a:p>
-          <a:pPr algn="ctr"/>
-          <a:r>
-            <a:rPr lang="en-US" sz="2000"/>
-            <a:t>Clear</a:t>
-          </a:r>
-          <a:endParaRPr lang="uk-UA" sz="2000"/>
-        </a:p>
-      </xdr:txBody>
-    </xdr:sp>
-    <xdr:clientData/>
-  </xdr:twoCellAnchor>
-  <xdr:twoCellAnchor editAs="absolute">
-    <xdr:from>
-      <xdr:col>3</xdr:col>
-      <xdr:colOff>952500</xdr:colOff>
-      <xdr:row>28</xdr:row>
-      <xdr:rowOff>85725</xdr:rowOff>
-    </xdr:from>
-    <xdr:to>
-      <xdr:col>4</xdr:col>
-      <xdr:colOff>209550</xdr:colOff>
-      <xdr:row>30</xdr:row>
-      <xdr:rowOff>152400</xdr:rowOff>
+      <xdr:col>6</xdr:col>
+      <xdr:colOff>609600</xdr:colOff>
+      <xdr:row>5</xdr:row>
+      <xdr:rowOff>123825</xdr:rowOff>
     </xdr:to>
     <xdr:sp macro="[0]!m_SwitchMode_OnClick" textlink="">
       <xdr:nvSpPr>
@@ -343,14 +281,14 @@
       </xdr:nvSpPr>
       <xdr:spPr>
         <a:xfrm>
-          <a:off x="13449300" y="5711825"/>
+          <a:off x="15220950" y="657225"/>
           <a:ext cx="1971675" cy="466725"/>
         </a:xfrm>
         <a:prstGeom prst="roundRect">
           <a:avLst/>
         </a:prstGeom>
         <a:solidFill>
-          <a:srgbClr val="C07000"/>
+          <a:srgbClr val="47AD70"/>
         </a:solidFill>
       </xdr:spPr>
       <xdr:style>
@@ -400,11 +338,68 @@
               <a:ea typeface="+mn-ea"/>
               <a:cs typeface="+mn-cs"/>
             </a:rPr>
-            <a:t>ModeButton [Timeline]</a:t>
+            <a:t>ModeButton [State]</a:t>
           </a:r>
         </a:p>
       </xdr:txBody>
     </xdr:sp>
     <xdr:clientData/>
   </xdr:twoCellAnchor>
+  <mc:AlternateContent xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006">
+    <mc:Choice xmlns:a14="http://schemas.microsoft.com/office/drawing/2010/main" Requires="a14">
+      <xdr:twoCellAnchor editAs="oneCell">
+        <xdr:from>
+          <xdr:col>4</xdr:col>
+          <xdr:colOff>57150</xdr:colOff>
+          <xdr:row>0</xdr:row>
+          <xdr:rowOff>47625</xdr:rowOff>
+        </xdr:from>
+        <xdr:to>
+          <xdr:col>6</xdr:col>
+          <xdr:colOff>457200</xdr:colOff>
+          <xdr:row>1</xdr:row>
+          <xdr:rowOff>95250</xdr:rowOff>
+        </xdr:to>
+        <xdr:sp macro="" textlink="">
+          <xdr:nvSpPr>
+            <xdr:cNvPr id="1025" name="ddProfile" hidden="1">
+              <a:extLst>
+                <a:ext uri="{63B3BB69-23CF-44E3-9099-C40C66FF867C}">
+                  <a14:compatExt spid="_x0000_s1025"/>
+                </a:ext>
+                <a:ext uri="{FF2B5EF4-FFF2-40B4-BE49-F238E27FC236}">
+                  <a16:creationId xmlns:a16="http://schemas.microsoft.com/office/drawing/2014/main" id="{00000000-0008-0000-0000-000001040000}"/>
+                </a:ext>
+              </a:extLst>
+            </xdr:cNvPr>
+            <xdr:cNvSpPr/>
+          </xdr:nvSpPr>
+          <xdr:spPr bwMode="auto">
+            <a:xfrm>
+              <a:off x="0" y="0"/>
+              <a:ext cx="0" cy="0"/>
+            </a:xfrm>
+            <a:prstGeom prst="rect">
+              <a:avLst/>
+            </a:prstGeom>
+            <a:noFill/>
+            <a:ln w="9525">
+              <a:miter lim="800000"/>
+              <a:headEnd/>
+              <a:tailEnd/>
+            </a:ln>
+            <a:extLst>
+              <a:ext uri="{909E8E84-426E-40DD-AFC4-6F175D3DCCD1}">
+                <a14:hiddenFill>
+                  <a:noFill/>
+                </a14:hiddenFill>
+              </a:ext>
+            </a:extLst>
+          </xdr:spPr>
+        </xdr:sp>
+        <xdr:clientData/>
+      </xdr:twoCellAnchor>
+    </mc:Choice>
+    <mc:Fallback/>
+  </mc:AlternateContent>
 </xdr:wsDr>

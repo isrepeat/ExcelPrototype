@@ -170,7 +170,7 @@ Public Sub m_UpdateModeButton()
     
     ' Получаем фигуру с листа Dev
     Dim ws As Worksheet
-    Set ws = ThisWorkbook.Worksheets("Dev")
+    Set ws = ws_Dev
     
     Dim btn As Shape
     Dim i As Integer

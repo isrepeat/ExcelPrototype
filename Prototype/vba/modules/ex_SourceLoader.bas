@@ -228,7 +228,7 @@ Private Function mp_GetConfigValueFromDevFallback(ByVal keyName As String) As St
     Dim rng As Range
     Dim foundCell As Range
 
-    Set wsDev = ThisWorkbook.Worksheets("Dev")
+    Set wsDev = ws_Dev
     Set rng = wsDev.Range("A1:B200")
 
     Set foundCell = rng.Columns(1).Find( _
