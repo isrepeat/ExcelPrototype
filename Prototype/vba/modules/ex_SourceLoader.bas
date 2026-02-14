@@ -120,9 +120,9 @@ Private Sub mp_ImportTableToInternal( _
         Next c
     Next r
     
-    wsDst.Columns.AutoFit
-
-    ex_SheetTheme.m_ApplyDarkThemeToSheet wsDst
+    ' Disabled for performance tests:
+    ' wsDst.Columns.AutoFit
+    ' ex_SheetTheme.m_ApplyDarkThemeToSheet wsDst
 
 Cleanup:
     On Error Resume Next
