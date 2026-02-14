@@ -424,9 +424,22 @@ Private Function mp_GetLabel(ByVal fieldId As String) As String
 
         End If
 
+        ' Fallback #1: if display label is missing, use source header name.
+        Dim srcHeader As String
+        If p > 0 Then
+            srcHeader = Trim$(Left$(raw, p - 1))
+        Else
+            srcHeader = raw
+        End If
+
+        If Len(srcHeader) > 0 Then
+            mp_GetLabel = srcHeader
+            Exit Function
+        End If
+
     End If
 
-    ' Fallback: use the field id itself (prefer the suffix after "state_" / "events_")
+    ' Fallback #2: use the field id itself (prefer the suffix after "state_" / "events_")
     Dim u As Long
     u = InStr(1, fieldId, "_", vbBinaryCompare)
 
