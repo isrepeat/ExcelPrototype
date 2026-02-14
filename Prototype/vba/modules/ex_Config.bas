@@ -324,10 +324,10 @@ Private Sub mp_RenderConfigArea(ByVal wsDev As Worksheet)
     wsDev.Cells(CONFIG_TOP + 6, CONFIG_LEFT + DEV_COL_VALUE - 1).Value = "Id"
     wsDev.Cells(CONFIG_TOP + 7, CONFIG_LEFT + DEV_COL_KEY - 1).Value = "PersonFIO"
 
-    rng.Columns(DEV_COL_MARKER).ColumnWidth = 4
-    rng.Columns(DEV_COL_KEY).ColumnWidth = 24
-    rng.Columns(DEV_COL_VALUE).ColumnWidth = 50
-    rng.Columns(DEV_COL_NOTE).ColumnWidth = 36
+    rng.EntireColumn.AutoFit
+    If rng.Columns(DEV_COL_MARKER).ColumnWidth < 4 Then
+        rng.Columns(DEV_COL_MARKER).ColumnWidth = 4
+    End If
 
     mp_ApplyDarkThemeToRange rng
 End Sub

@@ -1114,10 +1114,10 @@ Private Sub mp_ApplyConfigTableDarkTheme(ByVal tbl As ListObject)
 
     tbl.HeaderRowRange.Font.Bold = True
     tbl.HeaderRowRange.Cells(1, DEV_CONFIG_NOTE_COL).Font.Color = DEV_COLOR_TEXT
-    tbl.ListColumns(DEV_CONFIG_MARKER_COL).Range.ColumnWidth = 4
-    tbl.ListColumns(DEV_CONFIG_KEY_COL).Range.ColumnWidth = 24
-    tbl.ListColumns(DEV_CONFIG_VALUE_COL).Range.ColumnWidth = 50
-    tbl.ListColumns(DEV_CONFIG_NOTE_COL).Range.EntireColumn.AutoFit
+    tbl.Range.EntireColumn.AutoFit
+    If tbl.ListColumns(DEV_CONFIG_MARKER_COL).Range.ColumnWidth < 4 Then
+        tbl.ListColumns(DEV_CONFIG_MARKER_COL).Range.ColumnWidth = 4
+    End If
 End Sub
 
 Private Function mp_GetProfilesFilePath() As String

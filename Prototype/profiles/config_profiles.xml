@@ -1,59 +1,74 @@
 ﻿<?xml version="1.0" standalone="yes"?>
 <presets version="1" xmlns="urn:excelprototype:presets">
 	<profile name="Default">
-		<v key="StateFilePath">.\TESTS\GetReferences\PeopleStateUA.xlsx</v>
-		<v key="StateTableName">TableState</v>
-		<v key="EventsFilePath">.\TESTS\GetReferences\PeopleEventsUA.xlsx</v>
-		<v key="EventsTableName">TableEvents</v>
-		<v key="PersonFIO">Іванов Іван Іванович</v>
-		<v type="#" key="State Table"/>
-		<v key="Model.State.Key" note="Ключ">state_FIO</v>
-		<v key="Model.State.Fields" note="Алиасы колонок">state_FIO; state_BirthDate; state_City; state_Phone</v>
+		<v key="Source.Main.FilePath">.\TESTS\GetReferences\PeopleStateUA.xlsx</v>
+		<v key="Source.Main.TablesAliases">StateMain</v>
+		<v key="Source.Events.FilePath">.\TESTS\GetReferences\PeopleEventsUA.xlsx</v>
+		<v key="Source.Events.TablesAliases">EventsMain</v>
+		<v key="Context.PersonValue">Іванов Іван Іванович</v>
+		<v type="#" key="StateMain"/>
+		<v key="Main.Table[StateMain].Type">State</v>
+		<v key="Main.Table[StateMain].Name">TableState</v>
+		<v key="Main.Table[StateMain].Key">FIO</v>
+		<v key="Main.Table[StateMain].FieldsAliases">FIO; BirthDate; City; Phone</v>
+		<v key="Main.Table[StateMain].Map[FIO]">ПІБ</v>
+		<v key="Main.Table[StateMain].Map[BirthDate]">Дата народження</v>
+		<v key="Main.Table[StateMain].Map[City]">Місто</v>
+		<v key="Main.Table[StateMain].Map[Phone]">Телефон</v>
+		<v type="#" key="EventsMain"/>
+		<v key="Events.Table[EventsMain].Type">Events</v>
+		<v key="Events.Table[EventsMain].Name">TableEvents</v>
+		<v key="Events.Table[EventsMain].Key">FIO</v>
+		<v key="Events.Table[EventsMain].FieldsAliases">RecordNo; EventDate; EventType; Department; Position; Salary</v>
+		<v key="Events.Table[EventsMain].Sort">RecordNo</v>
+		<v key="Events.Table[EventsMain].Map[FIO]">ПІБ</v>
+		<v key="Events.Table[EventsMain].Map[RecordNo]">№</v>
+		<v key="Events.Table[EventsMain].Map[EventDate]">Дата події</v>
+		<v key="Events.Table[EventsMain].Map[EventType]">Тип події</v>
+		<v key="Events.Table[EventsMain].Map[Department]">Відділ</v>
+		<v key="Events.Table[EventsMain].Map[Position]">Посада</v>
+		<v key="Events.Table[EventsMain].Map[Salary]">Оклад</v>
 		<v key=""/>
-		<v key="Map.state_FIO" note="Связывание алиасов с реальными названиями колонок">ПІБ</v>
-		<v key="Map.state_BirthDate">Дата народження</v>
-		<v key="Map.state_City">Місто</v>
-		<v key="Map.state_Phone">Телефон</v>
-		<v type="#" key="Events Table"/>
-		<v key="Model.Events.Key" note="Ключ">e_FIO</v>
-		<v key="Model.Events.Fields" note="Алиасы колонок">e_RecordNo; e_EventDate; e_EventType; e_Department; e_Position; e_Salary</v>
-		<v key="Model.Events.Sort">e_RecordNo</v>
-		<v key=""/>
-		<v key="Map.e_FIO" note="Связывание алиасов с реальными названиями колонок">ПІБ</v>
-		<v key="Map.e_RecordNo">№</v>
-		<v key="Map.e_EventDate">Дата події</v>
-		<v key="Map.e_EventType">Тип події</v>
-		<v key="Map.e_Department">Відділ</v>
-		<v key="Map.e_Position">Посада</v>
-		<v key="Map.e_Salary">Оклад</v>
-		<v type="#" key=""/>
-		<v key="SortField.Events">Events.RecordNo</v>
+		<v key="Output.Tables">StateMain; EventsMain</v>
 	</profile>
 	<profile name="Test">
-		<v key="StateFilePath">..\dsc_State.xlsx</v>
-		<v key="StateTableName">XОС</v>
-		<v key="EventsFilePath">..\dsc_Events.xlsx</v>
-		<v key="EventsTableName">ВІДСУТНІ</v>
-		<v key="PersonFIO">XXXX</v>
-		<v type="#" key="State Table"/>
-		<v key="Model.State.Key" note="Ключ">state_FIO</v>
-		<v key="Model.State.Fields" note="Алиасы колонок">state_FIO; state_IPN; state_ZV; state_Position</v>
+		<v key="Source.Main.FilePath">..\dsc_StateSrc.xlsx</v>
+		<v key="Source.Main.TablesAliases">StateMain</v>
+		<v key="Source.Events.FilePath">..\dsc_EventsSrc.xlsx</v>
+		<v key="Source.Events.TablesAliases">EventsIn; EventsOut</v>
+		<v key="Context.PersonValue">PLACEHOLDER</v>
+		<v type="#" key="StateMain"/>
+		<v key="Main.Table[StateMain].Type">State</v>
+		<v key="Main.Table[StateMain].Name">XОС</v>
+		<v key="Main.Table[StateMain].Key">FIO</v>
+		<v key="Main.Table[StateMain].FieldsAliases">FIO; IPN; ZV; Position</v>
+		<v key="Main.Table[StateMain].Map[FIO]">Прізвище, ім’я, по батькові</v>
+		<v key="Main.Table[StateMain].Map[IPN]">ІПН</v>
+		<v key="Main.Table[StateMain].Map[ZV]">Військове звання</v>
+		<v key="Main.Table[StateMain].Map[Position]">Повна назва посади</v>
+		<v type="#" key="EventsIn"/>
+		<v key="Events.Table[EventsIn].Type">Events</v>
+		<v key="Events.Table[EventsIn].Name">ВІДСУТНІ28</v>
+		<v key="Events.Table[EventsIn].FieldsAliases">ZV; FIO; ComesFrom;</v>
+		<v key="Events.Table[EventsIn].Key">FIO</v>
+		<v key="Events.Table[EventsIn].Sort">FIO</v>
+		<v key="Events.Table[EventsIn].Map[ZV]">55|Звання</v>
+		<v key="Events.Table[EventsIn].Map[FIO]">56|ПІБ</v>
+		<v key="Events.Table[EventsIn].Map[ComesFrom]">58|Звідки прибув</v>
+		<v type="#" key="EventsOut"/>
+		<v key="Events.Table[EventsOut].Type">Events</v>
+		<v key="Events.Table[EventsOut].Name">ВІДСУТНІ</v>
+		<v key="Events.Table[EventsOut].FieldsAliases">ZV; FIO; EventReason; City; Date; Note; Ticket</v>
+		<v key="Events.Table[EventsOut].Key">FIO</v>
+		<v key="Events.Table[EventsOut].Sort">Date</v>
+		<v key="Events.Table[EventsOut].Map[ZV]">65|Звання</v>
+		<v key="Events.Table[EventsOut].Map[FIO]">66|ПІБ</v>
+		<v key="Events.Table[EventsOut].Map[EventReason]">68|Причинна вибуття</v>
+		<v key="Events.Table[EventsOut].Map[City]">69|Місце вибуття</v>
+		<v key="Events.Table[EventsOut].Map[Date]">71 (А)|Дата наказу</v>
+		<v key="Events.Table[EventsOut].Map[Note]">76|Замітки</v>
+		<v key="Events.Table[EventsOut].Map[Ticket]">Стовпець1|Номер квитка</v>
 		<v key=""/>
-		<v key="Map.state_FIO" note="Связывание алиасов с реальными названиями колонок">Прізвище, ім’я, по батькові</v>
-		<v key="Map.state_IPN">ІПН</v>
-		<v key="Map.state_ZV">Військове звання</v>
-		<v key="Map.state_Position">Повна назва посади</v>
-		<v type="#" key="Events Table"/>
-		<v key="Model.Events.Key" note="Ключ">e_FIO</v>
-		<v key="Model.Events.Fields" note="Алиасы колонок">e_ZV; e_FIO; e_EventReason; e_City; e_Date; e_Note; e_Ticket</v>
-		<v key="Model.Events.Sort">e_Date</v>
-		<v key=""/>
-		<v key="Map.e_ZV">65|Звання</v>
-		<v key="Map.e_FIO" note="Связывание алиасов с реальными названиями колонок">66|ПІБ</v>
-		<v key="Map.e_EventReason">68|Причинна вибуття</v>
-		<v key="Map.e_City">69|Місце вибуття</v>
-		<v key="Map.e_Date">71 (А)|Дата наказу</v>
-		<v key="Map.e_Note">76|Замітки</v>
-		<v key="Map.e_Ticket">Стовпець1|Номер квитка</v>
+		<v key="Output.Tables">StateMain; EventsOut; EventsIn</v>
 	</profile>
 </presets>

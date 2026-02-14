@@ -1,61 +1,7 @@
 <?xml version="1.0" encoding="UTF-8" standalone="yes"?>
-<sst xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" count="59" uniqueCount="53">
+<sst xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" count="78" uniqueCount="71">
   <si>
     <t>Key</t>
-  </si>
-  <si>
-    <t>StateFilePath</t>
-  </si>
-  <si>
-    <t>StateTableName</t>
-  </si>
-  <si>
-    <t>EventsFilePath</t>
-  </si>
-  <si>
-    <t>EventsTableName</t>
-  </si>
-  <si>
-    <t>TableState</t>
-  </si>
-  <si>
-    <t>TableEvents</t>
-  </si>
-  <si>
-    <t>PersonFIO</t>
-  </si>
-  <si>
-    <t>Model.State.Fields</t>
-  </si>
-  <si>
-    <t>Model.State.Key</t>
-  </si>
-  <si>
-    <t>state_FIO; state_BirthDate; state_City; state_Phone</t>
-  </si>
-  <si>
-    <t>state_FIO</t>
-  </si>
-  <si>
-    <t>Map.state_FIO</t>
-  </si>
-  <si>
-    <t>Map.state_BirthDate</t>
-  </si>
-  <si>
-    <t>Map.state_City</t>
-  </si>
-  <si>
-    <t>Map.state_Phone</t>
-  </si>
-  <si>
-    <t>Ключ</t>
-  </si>
-  <si>
-    <t>Алиасы колонок</t>
-  </si>
-  <si>
-    <t>State Table</t>
   </si>
   <si>
     <t>..</t>
@@ -67,96 +13,204 @@
     <t>#</t>
   </si>
   <si>
-    <t>Связывание алиасов с реальными названиями колонок</t>
+    <t>Source.Main.FilePath</t>
   </si>
   <si>
-    <t>.\TESTS\GetReferences\PeopleStateUA.xlsx</t>
+    <t>Source.Main.TablesAliases</t>
   </si>
   <si>
-    <t>Config [profile = Default]</t>
+    <t>StateMain</t>
   </si>
   <si>
-    <t>Events Table</t>
+    <t>Source.Events.FilePath</t>
   </si>
   <si>
-    <t>Model.Events.Key</t>
+    <t>Source.Events.TablesAliases</t>
   </si>
   <si>
-    <t>e_FIO</t>
+    <t>Context.PersonValue</t>
   </si>
   <si>
-    <t>Model.Events.Fields</t>
+    <t>Main.Table[StateMain].Type</t>
   </si>
   <si>
-    <t>e_RecordNo; e_EventDate; e_EventType; e_Department; e_Position; e_Salary</t>
+    <t>State</t>
   </si>
   <si>
-    <t>Model.Events.Sort</t>
+    <t>Main.Table[StateMain].Name</t>
   </si>
   <si>
-    <t>e_RecordNo</t>
+    <t>Main.Table[StateMain].Key</t>
   </si>
   <si>
-    <t>Map.e_FIO</t>
+    <t>FIO</t>
   </si>
   <si>
-    <t>Map.e_RecordNo</t>
+    <t>Main.Table[StateMain].FieldsAliases</t>
   </si>
   <si>
-    <t>Map.e_EventDate</t>
+    <t>Main.Table[StateMain].Map[FIO]</t>
   </si>
   <si>
-    <t>Map.e_EventType</t>
+    <t>Events</t>
   </si>
   <si>
-    <t>Map.e_Department</t>
+    <t>Output.Tables</t>
   </si>
   <si>
-    <t>Map.e_Position</t>
+    <t>Config [profile = Test]</t>
   </si>
   <si>
-    <t>Map.e_Salary</t>
+    <t>..\dsc_StateSrc.xlsx</t>
   </si>
   <si>
-    <t>SortField.Events</t>
+    <t>..\dsc_EventsSrc.xlsx</t>
   </si>
   <si>
-    <t>Events.RecordNo</t>
+    <t>XОС</t>
   </si>
   <si>
-    <t>ПІБ</t>
+    <t>FIO; IPN; ZV; Position</t>
   </si>
   <si>
-    <t>Місто</t>
+    <t>Прізвище, ім’я, по батькові</t>
   </si>
   <si>
-    <t>Телефон</t>
+    <t>Main.Table[StateMain].Map[IPN]</t>
   </si>
   <si>
-    <t>Дата події</t>
+    <t>ІПН</t>
   </si>
   <si>
-    <t>№</t>
+    <t>Main.Table[StateMain].Map[ZV]</t>
   </si>
   <si>
-    <t>Відділ</t>
+    <t>Військове звання</t>
   </si>
   <si>
-    <t>Посада</t>
+    <t>Main.Table[StateMain].Map[Position]</t>
   </si>
   <si>
-    <t>Оклад</t>
+    <t>Повна назва посади</t>
   </si>
   <si>
-    <t>.\TESTS\GetReferences\PeopleEventsUA.xlsx</t>
+    <t>EventsIn</t>
   </si>
   <si>
-    <t>Іванов Іван Іванович</t>
+    <t>Events.Table[EventsIn].Type</t>
   </si>
   <si>
-    <t>Дата народження</t>
+    <t>Events.Table[EventsIn].Name</t>
   </si>
   <si>
-    <t>Тип події</t>
+    <t>ВІДСУТНІ28</t>
+  </si>
+  <si>
+    <t>Events.Table[EventsIn].FieldsAliases</t>
+  </si>
+  <si>
+    <t>ZV; FIO; ComesFrom;</t>
+  </si>
+  <si>
+    <t>Events.Table[EventsIn].Key</t>
+  </si>
+  <si>
+    <t>Events.Table[EventsIn].Sort</t>
+  </si>
+  <si>
+    <t>Events.Table[EventsIn].Map[ZV]</t>
+  </si>
+  <si>
+    <t>65|Звання</t>
+  </si>
+  <si>
+    <t>Events.Table[EventsIn].Map[FIO]</t>
+  </si>
+  <si>
+    <t>66|ПІБ</t>
+  </si>
+  <si>
+    <t>Events.Table[EventsIn].Map[ComesFrom]</t>
+  </si>
+  <si>
+    <t>58|Звідки прибув</t>
+  </si>
+  <si>
+    <t>EventsOut</t>
+  </si>
+  <si>
+    <t>Events.Table[EventsOut].Type</t>
+  </si>
+  <si>
+    <t>Events.Table[EventsOut].Name</t>
+  </si>
+  <si>
+    <t>ВІДСУТНІ</t>
+  </si>
+  <si>
+    <t>Events.Table[EventsOut].FieldsAliases</t>
+  </si>
+  <si>
+    <t>ZV; FIO; EventReason; City; Date; Note; Ticket</t>
+  </si>
+  <si>
+    <t>Events.Table[EventsOut].Key</t>
+  </si>
+  <si>
+    <t>Events.Table[EventsOut].Sort</t>
+  </si>
+  <si>
+    <t>Date</t>
+  </si>
+  <si>
+    <t>Events.Table[EventsOut].Map[ZV]</t>
+  </si>
+  <si>
+    <t>Events.Table[EventsOut].Map[FIO]</t>
+  </si>
+  <si>
+    <t>Events.Table[EventsOut].Map[EventReason]</t>
+  </si>
+  <si>
+    <t>68|Причинна вибуття</t>
+  </si>
+  <si>
+    <t>Events.Table[EventsOut].Map[City]</t>
+  </si>
+  <si>
+    <t>69|Місце вибуття</t>
+  </si>
+  <si>
+    <t>Events.Table[EventsOut].Map[Date]</t>
+  </si>
+  <si>
+    <t>71 (А)|Дата наказу</t>
+  </si>
+  <si>
+    <t>Events.Table[EventsOut].Map[Note]</t>
+  </si>
+  <si>
+    <t>76|Замітки</t>
+  </si>
+  <si>
+    <t>Events.Table[EventsOut].Map[Ticket]</t>
+  </si>
+  <si>
+    <t>Стовпець1|Номер квитка</t>
+  </si>
+  <si>
+    <t>StateMain; EventsOut; EventsIn</t>
+  </si>
+  <si>
+    <t>EventsIn; EventsOut</t>
+  </si>
+  <si>
+    <t>55|Звання</t>
+  </si>
+  <si>
+    <t>56|ПІБ</t>
+  </si>
+  <si>
+    <t>СТАДНИК Юрій Олексійович</t>
   </si>
 </sst>

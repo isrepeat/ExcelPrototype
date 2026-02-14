@@ -3,13 +3,13 @@
   <xdr:twoCellAnchor editAs="absolute">
     <xdr:from>
       <xdr:col>5</xdr:col>
-      <xdr:colOff>133349</xdr:colOff>
+      <xdr:colOff>3390899</xdr:colOff>
       <xdr:row>3</xdr:row>
       <xdr:rowOff>180975</xdr:rowOff>
     </xdr:from>
     <xdr:to>
       <xdr:col>5</xdr:col>
-      <xdr:colOff>2113349</xdr:colOff>
+      <xdr:colOff>5370899</xdr:colOff>
       <xdr:row>7</xdr:row>
       <xdr:rowOff>100875</xdr:rowOff>
     </xdr:to>
@@ -69,13 +69,13 @@
   <xdr:twoCellAnchor editAs="absolute">
     <xdr:from>
       <xdr:col>5</xdr:col>
-      <xdr:colOff>2362200</xdr:colOff>
+      <xdr:colOff>5619750</xdr:colOff>
       <xdr:row>8</xdr:row>
       <xdr:rowOff>28575</xdr:rowOff>
     </xdr:from>
     <xdr:to>
-      <xdr:col>6</xdr:col>
-      <xdr:colOff>609600</xdr:colOff>
+      <xdr:col>5</xdr:col>
+      <xdr:colOff>7600950</xdr:colOff>
       <xdr:row>11</xdr:row>
       <xdr:rowOff>148500</xdr:rowOff>
     </xdr:to>
@@ -130,13 +130,13 @@
   <xdr:twoCellAnchor editAs="absolute">
     <xdr:from>
       <xdr:col>5</xdr:col>
-      <xdr:colOff>123825</xdr:colOff>
+      <xdr:colOff>3381375</xdr:colOff>
       <xdr:row>8</xdr:row>
       <xdr:rowOff>28575</xdr:rowOff>
     </xdr:from>
     <xdr:to>
       <xdr:col>5</xdr:col>
-      <xdr:colOff>2105025</xdr:colOff>
+      <xdr:colOff>5362575</xdr:colOff>
       <xdr:row>11</xdr:row>
       <xdr:rowOff>148500</xdr:rowOff>
     </xdr:to>
@@ -192,13 +192,13 @@
   <xdr:twoCellAnchor editAs="absolute">
     <xdr:from>
       <xdr:col>5</xdr:col>
-      <xdr:colOff>2352675</xdr:colOff>
+      <xdr:colOff>5610225</xdr:colOff>
       <xdr:row>3</xdr:row>
       <xdr:rowOff>190500</xdr:rowOff>
     </xdr:from>
     <xdr:to>
-      <xdr:col>6</xdr:col>
-      <xdr:colOff>598875</xdr:colOff>
+      <xdr:col>5</xdr:col>
+      <xdr:colOff>7590225</xdr:colOff>
       <xdr:row>7</xdr:row>
       <xdr:rowOff>110400</xdr:rowOff>
     </xdr:to>
@@ -258,13 +258,13 @@
   <xdr:twoCellAnchor editAs="absolute">
     <xdr:from>
       <xdr:col>5</xdr:col>
-      <xdr:colOff>2343150</xdr:colOff>
+      <xdr:colOff>5600700</xdr:colOff>
       <xdr:row>1</xdr:row>
       <xdr:rowOff>0</xdr:rowOff>
     </xdr:from>
     <xdr:to>
-      <xdr:col>6</xdr:col>
-      <xdr:colOff>581025</xdr:colOff>
+      <xdr:col>5</xdr:col>
+      <xdr:colOff>7572375</xdr:colOff>
       <xdr:row>3</xdr:row>
       <xdr:rowOff>66675</xdr:rowOff>
     </xdr:to>
