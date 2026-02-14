@@ -1,61 +1,61 @@
-<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<?xml version="1.0" encoding="utf-8"?>
 <presets xmlns="urn:excelprototype:presets" version="1">
   <profile name="Default">
-    <v row="3">.\TESTS\GetReferences\PeopleState.xlsx</v>
-    <v row="4">TableState</v>
-    <v row="5">.\TESTS\GetReferences\PeopleEvents.xlsx</v>
-    <v row="6">TableEvents</v>
-    <v row="7">Ivanov Ivan Ivanovich2</v>
-    <v row="8"/>
-    <v row="9">state_FIO</v>
-    <v row="10">state_FIO; state_BirthDate; state_City; state_Phone</v>
-    <v row="11"/>
-    <v row="12">FIO|ФИО</v>
-    <v row="13">BirthDate|Дата рождения</v>
-    <v row="14">City|Город</v>
-    <v row="15">Phone|Телефон</v>
-    <v row="16"/>
-    <v row="17">e_FIO</v>
-    <v row="18">e_RecordNo; e_EventDate; e_EventType; e_Department; e_Position; e_Salary</v>
-    <v row="19">e_RecordNo</v>
-    <v row="20"/>
-    <v row="21">FIO|ФИО</v>
-    <v row="22">RecordNo|№</v>
-    <v row="23">EventDate|Дата</v>
-    <v row="24">EventType|Событие</v>
-    <v row="25">Department|Отдел</v>
-    <v row="26">Position|Должность</v>
-    <v row="27">Salary|Оклад</v>
-    <v row="28"/>
-    <v row="29">Events.RecordNo</v>
+    <v key="StateFilePath">.\TESTS\GetReferences\PeopleState.xlsx</v>
+    <v key="StateTableName">TableState</v>
+    <v key="EventsFilePath">.\TESTS\GetReferences\PeopleEvents.xlsx</v>
+    <v key="EventsTableName">TableEvents</v>
+    <v key="PersonFIO">Ivanov Ivan Ivanovich</v>
+    <v key="State Table" type="#"/>
+    <v key="Model.State.Key" note="Ключ">state_FIO</v>
+    <v key="Model.State.Fields" note="Алиасы колонок">state_FIO; state_BirthDate; state_City; state_Phone</v>
+    <v key=""/>
+    <v key="Map.state_FIO" note="Связывание алиасов с реальными названиями колонок">FIO|ФИО</v>
+    <v key="Map.state_BirthDate">BirthDate|Дата рождения</v>
+    <v key="Map.state_City">City|Город</v>
+    <v key="Map.state_Phone">Phone|Телефон</v>
+    <v key="Events Table" type="#"/>
+    <v key="Model.Events.Key" note="Ключ">e_FIO</v>
+    <v key="Model.Events.Fields" note="Алиасы колонок">e_RecordNo; e_EventDate; e_EventType; e_Department; e_Position; e_Salary</v>
+    <v key="Model.Events.Sort">e_RecordNo</v>
+    <v key=""/>
+    <v key="Map.e_FIO" note="Связывание алиасов с реальными названиями колонок">FIO|ФИО</v>
+    <v key="Map.e_RecordNo">RecordNo|№</v>
+    <v key="Map.e_EventDate">EventDate|Дата</v>
+    <v key="Map.e_EventType">EventType|Событие</v>
+    <v key="Map.e_Department">Department|Отдел</v>
+    <v key="Map.e_Position">Position|Должность</v>
+    <v key="Map.e_Salary">Salary|Оклад</v>
+    <v key="" type="#"/>
+    <v key="SortField.Events">Events.RecordNo</v>
   </profile>
   <profile name="Test">
-    <v row="3">.\TESTS\GetReferences\PeopleState_TEST.xlsx</v>
-    <v row="4">TableState</v>
-    <v row="5">.\TESTS\GetReferences\PeopleEvents_TEST.xlsx</v>
-    <v row="6">TableEvents</v>
-    <v row="7">Petrov Petr Petrovich</v>
-    <v row="8"/>
-    <v row="9">state_FIO</v>
-    <v row="10">state_FIO; state_BirthDate; state_City; state_Phone</v>
-    <v row="11"/>
-    <v row="12">FIO|ФИО</v>
-    <v row="13">BirthDate|Дата рождения</v>
-    <v row="14">City|Город</v>
-    <v row="15">Phone|Телефон</v>
-    <v row="16"/>
-    <v row="17">e_FIO</v>
-    <v row="18">e_RecordNo; e_EventDate; e_EventType; e_Department; e_Position; e_Salary</v>
-    <v row="19">e_RecordNo</v>
-    <v row="20"/>
-    <v row="21">FIO|ФИО</v>
-    <v row="22">RecordNo|№</v>
-    <v row="23">EventDate|Дата</v>
-    <v row="24">EventType|Событие</v>
-    <v row="25">Department|Отдел</v>
-    <v row="26">Position|Должность</v>
-    <v row="27">Salary|Оклад</v>
-    <v row="28"/>
-    <v row="29">Events.RecordNo</v>
+    <v key="StateFilePath">.\TESTS\GetReferences\PeopleState_TEST.xlsx</v>
+    <v key="StateTableName">TableState</v>
+    <v key="EventsFilePath">.\TESTS\GetReferences\PeopleEvents_TEST.xlsx</v>
+    <v key="EventsTableName">TableEvents</v>
+    <v key="PersonFIO">Petrov Petr Petrovich</v>
+    <v key="State Table" type="#"/>
+    <v key="Model.State.Key" note="Ключ">state_FIO</v>
+    <v key="Model.State.Fields" note="Алиасы колонок">state_FIO; state_BirthDate; state_City; state_Phone</v>
+    <v key=""/>
+    <v key="Map.state_FIO" note="Связывание алиасов с реальными названиями колонок">FIO|ФИО</v>
+    <v key="Map.state_BirthDate">BirthDate|Дата рождения</v>
+    <v key="Map.state_City">City|Город</v>
+    <v key="Map.state_Phone">Phone|Телефон</v>
+    <v key="Events Table" type="#"/>
+    <v key="Model.Events.Key" note="Ключ">e_FIO</v>
+    <v key="Model.Events.Fields" note="Алиасы колонок">e_RecordNo; e_EventDate; e_EventType; e_Department; e_Position; e_Salary</v>
+    <v key="Model.Events.Sort">e_RecordNo</v>
+    <v key=""/>
+    <v key="Map.e_FIO" note="Связывание алиасов с реальными названиями колонок">FIO|ФИО</v>
+    <v key="Map.e_RecordNo">RecordNo|№</v>
+    <v key="Map.e_EventDate">EventDate|Дата</v>
+    <v key="Map.e_EventType">EventType|Событие</v>
+    <v key="Map.e_Department">Department|Отдел</v>
+    <v key="Map.e_Position">Position|Должность</v>
+    <v key="Map.e_Salary">Salary|Оклад</v>
+    <v key="" type="#"/>
+    <v key="SortField.Events">Events.RecordNo</v>
   </profile>
 </presets>
