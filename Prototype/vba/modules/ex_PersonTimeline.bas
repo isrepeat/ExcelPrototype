@@ -18,22 +18,107 @@ Public Sub m_ShowPersonTimeline(ByVal fio As String)
 
     On Error GoTo EH
 
-    mp_LogInit
-    mp_Log "Timeline", "Start: fio='" & fio & "'"
+    ' mp_LogInit
+    ' mp_Log "Timeline", "Start: fio='" & fio & "'"
+    Dim prevScreenUpdating As Boolean
+    Dim prevDisplayAlerts As Boolean
+    Dim prevEnableEvents As Boolean
+    prevScreenUpdating = Application.ScreenUpdating
+    prevDisplayAlerts = Application.DisplayAlerts
+    prevEnableEvents = Application.EnableEvents
+    Application.ScreenUpdating = False
+    Application.DisplayAlerts = False
+    Application.EnableEvents = False
 
-    ' 1) Load external tables into internal sheets based on dev config
-    ex_SourceLoader.m_LoadStateEventsFromConfigToInternalSheets
+    Dim statePath As String
+    Dim stateTableName As String
+    Dim eventsPath As String
+    Dim eventsTableName As String
+    Dim wbState As Workbook
+    Dim wbEvents As Workbook
+    Dim loState As ListObject
+    Dim loEvents As ListObject
+    Dim mode As OutputMode
+    Dim needState As Boolean
+    Dim needEvents As Boolean
 
-    ' 2) Get internal sheets
-    Dim wsState As Worksheet
-    Dim wsEvents As Worksheet
+    mode = ex_Settings.m_GetOutputMode()
+    Select Case mode
+        Case StateTableOnly
+            needState = True
+            needEvents = False
+        Case EventsTableOnly
+            needState = False
+            needEvents = True
+        Case Else
+            needState = True
+            needEvents = True
+    End Select
 
-    Set wsState = ThisWorkbook.Worksheets("g_State")
-    Set wsEvents = ThisWorkbook.Worksheets("g_Events")
+    statePath = mp_ResolvePathLocal(ex_Config.m_GetConfigValue("StateFilePath", vbNullString))
+    stateTableName = Trim$(ex_Config.m_GetConfigValue("StateTableName", vbNullString))
+    eventsPath = mp_ResolvePathLocal(ex_Config.m_GetConfigValue("EventsFilePath", vbNullString))
+    eventsTableName = Trim$(ex_Config.m_GetConfigValue("EventsTableName", vbNullString))
 
-    mp_Log "Timeline", "Sheets: g_State='" & wsState.Name & "', g_Events='" & wsEvents.Name & "'"
-    mp_Log "Timeline", "g_Events UsedRange=" & wsEvents.UsedRange.Address
-    mp_Log "Timeline", "g_Events Header row 1: " & mp_DebugHeadersRow(wsEvents, 1)
+    If needState Then
+        If Len(statePath) = 0 Or Len(stateTableName) = 0 Then
+            Err.Raise vbObjectError + 1200, "ex_PersonTimeline", _
+                "Config is incomplete for State mode. Required: StateFilePath/StateTableName."
+        End If
+    End If
+
+    If needEvents Then
+        If Len(eventsPath) = 0 Or Len(eventsTableName) = 0 Then
+            Err.Raise vbObjectError + 1200, "ex_PersonTimeline", _
+                "Config is incomplete for Events mode. Required: EventsFilePath/EventsTableName."
+        End If
+    End If
+
+    If needState Then
+        If Dir(statePath) = vbNullString Then
+            Err.Raise vbObjectError + 1201, "ex_PersonTimeline", "StateFilePath not found: " & statePath
+        End If
+    End If
+
+    If needEvents Then
+        If Dir(eventsPath) = vbNullString Then
+            Err.Raise vbObjectError + 1202, "ex_PersonTimeline", "EventsFilePath not found: " & eventsPath
+        End If
+    End If
+
+    If needState Then
+        Set wbState = Workbooks.Open(Filename:=statePath, ReadOnly:=True, UpdateLinks:=0)
+        On Error Resume Next
+        wbState.Windows(1).Visible = False
+        On Error GoTo EH
+    End If
+
+    If needEvents Then
+        If needState And StrComp(statePath, eventsPath, vbTextCompare) = 0 Then
+            Set wbEvents = wbState
+        Else
+            Set wbEvents = Workbooks.Open(Filename:=eventsPath, ReadOnly:=True, UpdateLinks:=0)
+            On Error Resume Next
+            wbEvents.Windows(1).Visible = False
+            On Error GoTo EH
+        End If
+    End If
+
+    If needState Then
+        Set loState = mp_FindListObjectByName(wbState, stateTableName)
+        If loState Is Nothing Then
+            Err.Raise vbObjectError + 1203, "ex_PersonTimeline", _
+                "Table '" & stateTableName & "' was not found in file: " & statePath
+        End If
+    End If
+
+    If needEvents Then
+        Set loEvents = mp_FindListObjectByName(wbEvents, eventsTableName)
+        If loEvents Is Nothing Then
+            Err.Raise vbObjectError + 1204, "ex_PersonTimeline", _
+                "Table '" & eventsTableName & "' was not found in file: " & eventsPath
+        End If
+    End If
 
     ' 3) Create output sheet
     Dim wsOut As Worksheet
@@ -46,34 +131,57 @@ Public Sub m_ShowPersonTimeline(ByVal fio As String)
     Dim rowIndex As Long
     rowIndex = 1
 
-    Dim mode As OutputMode
-    mode = ex_Settings.m_GetOutputMode()
-
-    mp_Log "Timeline", "Mode=" & ex_Settings.m_GetOutputModeDisplay()
+    ' mp_Log "Timeline", "Mode=" & ex_Settings.m_GetOutputModeDisplay()
 
     rowIndex = mp_WriteHeader(wsOut, fio, rowIndex, mode)
     rowIndex = rowIndex + 1
 
     Select Case mode
         Case PersonTimeline
-            rowIndex = mp_WriteStateCard_FromSheet(wsOut, wsState, fio, rowIndex + 1)
-            rowIndex = mp_WriteEventsTimeline_FromSheet(wsOut, wsEvents, fio, rowIndex + 2)
+            rowIndex = mp_WriteStateCard_FromTable(wsOut, loState, fio, rowIndex + 1)
+            rowIndex = mp_WriteEventsTimeline_FromTable(wsOut, loEvents, fio, rowIndex + 2)
         Case StateTableOnly
-            rowIndex = mp_WriteStateCard_FromSheet(wsOut, wsState, fio, rowIndex + 1)
+            rowIndex = mp_WriteStateCard_FromTable(wsOut, loState, fio, rowIndex + 1)
         Case EventsTableOnly
-            rowIndex = mp_WriteEventsTimeline_FromSheet(wsOut, wsEvents, fio, rowIndex + 1)
+            rowIndex = mp_WriteEventsTimeline_FromTable(wsOut, loEvents, fio, rowIndex + 1)
         Case Else
-            rowIndex = mp_WriteStateCard_FromSheet(wsOut, wsState, fio, rowIndex + 1)
-            rowIndex = mp_WriteEventsTimeline_FromSheet(wsOut, wsEvents, fio, rowIndex + 2)
+            rowIndex = mp_WriteStateCard_FromTable(wsOut, loState, fio, rowIndex + 1)
+            rowIndex = mp_WriteEventsTimeline_FromTable(wsOut, loEvents, fio, rowIndex + 2)
     End Select
 
     wsOut.Columns.AutoFit
     ex_SheetTheme.m_ApplyDarkThemeToSheet wsOut
-    mp_Log "Timeline", "Done"
+    On Error Resume Next
+    If Not wbEvents Is Nothing Then
+        If Not wbEvents Is wbState Then
+            wbEvents.Close SaveChanges:=False
+        End If
+    End If
+    If Not wbState Is Nothing Then
+        wbState.Close SaveChanges:=False
+    End If
+    Application.EnableEvents = prevEnableEvents
+    Application.DisplayAlerts = prevDisplayAlerts
+    Application.ScreenUpdating = prevScreenUpdating
+    On Error GoTo 0
+    ' mp_Log "Timeline", "Done"
     Exit Sub
 
 EH:
-    mp_Log "ERROR", "Err=" & CStr(Err.Number) & " Desc='" & Err.Description & "'"
+    On Error Resume Next
+    If Not wbEvents Is Nothing Then
+        If Not wbEvents Is wbState Then
+            wbEvents.Close SaveChanges:=False
+        End If
+    End If
+    If Not wbState Is Nothing Then
+        wbState.Close SaveChanges:=False
+    End If
+    Application.EnableEvents = prevEnableEvents
+    Application.DisplayAlerts = prevDisplayAlerts
+    Application.ScreenUpdating = prevScreenUpdating
+    On Error GoTo 0
+    ' mp_Log "ERROR", "Err=" & CStr(Err.Number) & " Desc='" & Err.Description & "'"
     MsgBox "Error: " & Err.Description, vbExclamation, "m_ShowPersonTimeline"
 
 End Sub
@@ -102,7 +210,7 @@ Private Function mp_WriteHeader(ByVal ws As Worksheet, ByVal fio As String, ByVa
 
 End Function
 
-Private Function mp_WriteStateCard_FromSheet(ByVal wsOut As Worksheet, ByVal wsState As Worksheet, ByVal fio As String, ByVal rowIndex As Long) As Long
+Private Function mp_WriteStateCard_FromTable(ByVal wsOut As Worksheet, ByVal loState As ListObject, ByVal fio As String, ByVal rowIndex As Long) As Long
 
     Dim stateLayout As Variant
     stateLayout = mp_GetFieldIdList("Model.State.Fields")
@@ -122,14 +230,14 @@ Private Function mp_WriteStateCard_FromSheet(ByVal wsOut As Worksheet, ByVal wsS
     End If
 
     Dim keyColIndex As Long
-    keyColIndex = mp_FindHeaderColumn(wsState, 1, keyHeaderName)
+    keyColIndex = mp_FindHeaderColumnInTable(loState, keyHeaderName)
 
     If keyColIndex <= 0 Then
         Err.Raise vbObjectError + 1002, "ex_PersonTimeline", "State key header not found: '" & keyHeaderName & "'"
     End If
 
     Dim foundRow As Long
-    foundRow = mp_FindRowByKey(wsState, keyColIndex, fio, 2)
+    foundRow = mp_FindDataRowByKeyInTable(loState, keyColIndex, fio)
 
     If foundRow <= 0 Then
         Err.Raise vbObjectError + 1003, "ex_PersonTimeline", "State row not found for fio='" & fio & "'"
@@ -149,12 +257,12 @@ Private Function mp_WriteStateCard_FromSheet(ByVal wsOut As Worksheet, ByVal wsS
         fieldLabel = mp_GetLabel(fieldId)
 
         Dim colIndex As Long
-        colIndex = mp_TryGetColumnByFieldId(wsState, 1, fieldId)
+        colIndex = mp_TryGetTableColumnByFieldId(loState, fieldId)
 
         wsOut.Cells(rowIndex, 1).Value = fieldLabel
 
         If colIndex > 0 Then
-            wsOut.Cells(rowIndex, 2).Value = wsState.Cells(foundRow, colIndex).Value
+            wsOut.Cells(rowIndex, 2).Value = loState.DataBodyRange.Cells(foundRow, colIndex).Value
         Else
             wsOut.Cells(rowIndex, 2).Value = "(missing column)"
         End If
@@ -164,11 +272,11 @@ Private Function mp_WriteStateCard_FromSheet(ByVal wsOut As Worksheet, ByVal wsS
 ContinueLoop:
     Next i
 
-    mp_WriteStateCard_FromSheet = rowIndex
+    mp_WriteStateCard_FromTable = rowIndex
 
 End Function
 
-Private Function mp_WriteEventsTimeline_FromSheet(ByVal wsOut As Worksheet, ByVal wsEvents As Worksheet, ByVal fio As String, ByVal rowIndex As Long) As Long
+Private Function mp_WriteEventsTimeline_FromTable(ByVal wsOut As Worksheet, ByVal loEvents As ListObject, ByVal fio As String, ByVal rowIndex As Long) As Long
 
     Dim eventsLayout As Variant
     eventsLayout = mp_GetFieldIdList("Model.Events.Fields")
@@ -188,7 +296,7 @@ Private Function mp_WriteEventsTimeline_FromSheet(ByVal wsOut As Worksheet, ByVa
     End If
 
     Dim keyColIndex As Long
-    keyColIndex = mp_FindHeaderColumn(wsEvents, 1, keyHeaderName)
+    keyColIndex = mp_FindHeaderColumnInTable(loEvents, keyHeaderName)
 
     If keyColIndex <= 0 Then
         Err.Raise vbObjectError + 1102, "ex_PersonTimeline", "Events key header not found: '" & keyHeaderName & "'"
@@ -210,14 +318,24 @@ Private Function mp_WriteEventsTimeline_FromSheet(ByVal wsOut As Worksheet, ByVa
     Dim outDataRow As Long
     outDataRow = outHeaderRow + 1
 
-    Dim lastRow As Long
-    lastRow = wsEvents.Cells(wsEvents.Rows.Count, keyColIndex).End(xlUp).row
+    Dim colIndexes() As Long
+    ReDim colIndexes(LBound(eventsLayout) To UBound(eventsLayout))
+
+    For i = LBound(eventsLayout) To UBound(eventsLayout)
+        colIndexes(i) = mp_TryGetTableColumnByFieldId(loEvents, Trim$(CStr(eventsLayout(i))))
+    Next i
+
+    If loEvents.DataBodyRange Is Nothing Then
+        wsOut.Cells(outDataRow, 1).Value = "(no events found for this person)"
+        mp_WriteEventsTimeline_FromTable = outDataRow + 1
+        Exit Function
+    End If
 
     Dim r As Long
-    For r = 2 To lastRow
+    For r = 1 To loEvents.DataBodyRange.Rows.Count
 
         Dim rowFio As String
-        rowFio = CStr(wsEvents.Cells(r, keyColIndex).Value)
+        rowFio = CStr(loEvents.DataBodyRange.Cells(r, keyColIndex).Value)
 
         If StrComp(Trim$(rowFio), fio, vbTextCompare) <> 0 Then
             GoTo ContinueRow
@@ -225,11 +343,8 @@ Private Function mp_WriteEventsTimeline_FromSheet(ByVal wsOut As Worksheet, ByVa
 
         For i = LBound(eventsLayout) To UBound(eventsLayout)
 
-            Dim colIndex As Long
-            colIndex = mp_TryGetColumnByFieldId(wsEvents, 1, Trim$(CStr(eventsLayout(i))))
-
-            If colIndex > 0 Then
-                wsOut.Cells(outDataRow, 1 + (i - LBound(eventsLayout))).Value = wsEvents.Cells(r, colIndex).Value
+            If colIndexes(i) > 0 Then
+                wsOut.Cells(outDataRow, 1 + (i - LBound(eventsLayout))).Value = loEvents.DataBodyRange.Cells(r, colIndexes(i)).Value
             Else
                 wsOut.Cells(outDataRow, 1 + (i - LBound(eventsLayout))).Value = "(missing column)"
             End If
@@ -243,7 +358,7 @@ ContinueRow:
 
     If outDataRow = outHeaderRow + 1 Then
         wsOut.Cells(outDataRow, 1).Value = "(no events found for this person)"
-        mp_WriteEventsTimeline_FromSheet = outDataRow + 1
+        mp_WriteEventsTimeline_FromTable = outDataRow + 1
         Exit Function
     End If
 
@@ -265,12 +380,12 @@ ContinueRow:
         If sortOutCol > 0 Then
             mp_SortRangeByColumnIndex wsOut, outHeaderRow, outDataRow - 1, 1, (UBound(eventsLayout) - LBound(eventsLayout) + 1), sortOutCol
         Else
-            mp_Log "Events", "Sort ignored: '" & sortFieldId & "' is not in Model.Events.Fields"
+            ' mp_Log "Events", "Sort ignored: '" & sortFieldId & "' is not in Model.Events.Fields"
         End If
 
     End If
 
-    mp_WriteEventsTimeline_FromSheet = outDataRow + 1
+    mp_WriteEventsTimeline_FromTable = outDataRow + 1
 
 End Function
 
@@ -299,6 +414,100 @@ End Function
 Private Function mp_NormalizeHeader(ByVal s As String) As String
 
     mp_NormalizeHeader = LCase$(Trim$(s))
+
+End Function
+
+Private Function mp_ResolvePathLocal(ByVal inputPath As String) As String
+
+    Dim basePath As String
+
+    inputPath = Trim$(inputPath)
+    If Len(inputPath) = 0 Then Exit Function
+
+    If Left$(inputPath, 2) = "\\" Or InStr(1, inputPath, ":\", vbTextCompare) > 0 Then
+        mp_ResolvePathLocal = inputPath
+        Exit Function
+    End If
+
+    basePath = ThisWorkbook.Path
+    If Len(basePath) = 0 Then
+        mp_ResolvePathLocal = inputPath
+        Exit Function
+    End If
+
+    If Right$(basePath, 1) <> "\" Then
+        basePath = basePath & "\"
+    End If
+
+    mp_ResolvePathLocal = basePath & inputPath
+
+End Function
+
+Private Function mp_FindListObjectByName(ByVal wbSrc As Workbook, ByVal tableName As String) As ListObject
+
+    Dim ws As Worksheet
+    Dim lo As ListObject
+
+    For Each ws In wbSrc.Worksheets
+        For Each lo In ws.ListObjects
+            If StrComp(lo.Name, tableName, vbTextCompare) = 0 Then
+                Set mp_FindListObjectByName = lo
+                Exit Function
+            End If
+        Next lo
+    Next ws
+
+    Set mp_FindListObjectByName = Nothing
+
+End Function
+
+Private Function mp_FindHeaderColumnInTable(ByVal lo As ListObject, ByVal headerName As String) As Long
+
+    Dim normalizedNeedle As String
+    normalizedNeedle = mp_NormalizeHeader(headerName)
+
+    Dim c As Long
+    For c = 1 To lo.ListColumns.Count
+        If mp_NormalizeHeader(CStr(lo.HeaderRowRange.Cells(1, c).Value)) = normalizedNeedle Then
+            mp_FindHeaderColumnInTable = c
+            Exit Function
+        End If
+    Next c
+
+    mp_FindHeaderColumnInTable = -1
+
+End Function
+
+Private Function mp_FindDataRowByKeyInTable(ByVal lo As ListObject, ByVal keyColIndex As Long, ByVal keyValue As String) As Long
+
+    If lo.DataBodyRange Is Nothing Then
+        mp_FindDataRowByKeyInTable = -1
+        Exit Function
+    End If
+
+    Dim r As Long
+    For r = 1 To lo.DataBodyRange.Rows.Count
+        If StrComp(Trim$(CStr(lo.DataBodyRange.Cells(r, keyColIndex).Value)), keyValue, vbTextCompare) = 0 Then
+            mp_FindDataRowByKeyInTable = r
+            Exit Function
+        End If
+    Next r
+
+    mp_FindDataRowByKeyInTable = -1
+
+End Function
+
+Private Function mp_TryGetTableColumnByFieldId(ByVal lo As ListObject, ByVal fieldId As String) As Long
+
+    Dim headerName As String
+    headerName = mp_GetMappedSourceHeader(fieldId)
+
+    If Len(headerName) = 0 Then
+        mp_TryGetTableColumnByFieldId = -1
+        Exit Function
+    End If
+
+    mp_TryGetTableColumnByFieldId = mp_FindHeaderColumnInTable(lo, headerName)
 
 End Function
 
