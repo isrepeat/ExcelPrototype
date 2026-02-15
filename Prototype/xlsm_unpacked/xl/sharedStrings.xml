@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="UTF-8" standalone="yes"?>
-<sst xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" count="78" uniqueCount="71">
+<sst xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" count="60" uniqueCount="55">
   <si>
     <t>Key</t>
   </si>
@@ -58,159 +58,111 @@
     <t>Output.Tables</t>
   </si>
   <si>
-    <t>Config [profile = Test]</t>
+    <t>Config [profile = Default]</t>
   </si>
   <si>
-    <t>..\dsc_StateSrc.xlsx</t>
+    <t>.\TESTS\GetReferences\PeopleStateUA.xlsx</t>
   </si>
   <si>
-    <t>..\dsc_EventsSrc.xlsx</t>
+    <t>.\TESTS\GetReferences\PeopleEventsUA.xlsx</t>
   </si>
   <si>
-    <t>XОС</t>
+    <t>EventsMain</t>
   </si>
   <si>
-    <t>FIO; IPN; ZV; Position</t>
+    <t>Іванов Іван Іванович</t>
   </si>
   <si>
-    <t>Прізвище, ім’я, по батькові</t>
+    <t>TableState</t>
   </si>
   <si>
-    <t>Main.Table[StateMain].Map[IPN]</t>
+    <t>FIO; BirthDate; City; Phone</t>
   </si>
   <si>
-    <t>ІПН</t>
+    <t>ПІБ</t>
   </si>
   <si>
-    <t>Main.Table[StateMain].Map[ZV]</t>
+    <t>Main.Table[StateMain].Map[BirthDate]</t>
   </si>
   <si>
-    <t>Військове звання</t>
+    <t>Дата народження</t>
   </si>
   <si>
-    <t>Main.Table[StateMain].Map[Position]</t>
+    <t>Main.Table[StateMain].Map[City]</t>
   </si>
   <si>
-    <t>Повна назва посади</t>
+    <t>Місто</t>
   </si>
   <si>
-    <t>EventsIn</t>
+    <t>Main.Table[StateMain].Map[Phone]</t>
   </si>
   <si>
-    <t>Events.Table[EventsIn].Type</t>
+    <t>Телефон</t>
   </si>
   <si>
-    <t>Events.Table[EventsIn].Name</t>
+    <t>Events.Table[EventsMain].Type</t>
   </si>
   <si>
-    <t>ВІДСУТНІ28</t>
+    <t>Events.Table[EventsMain].Name</t>
   </si>
   <si>
-    <t>Events.Table[EventsIn].FieldsAliases</t>
+    <t>TableEvents</t>
   </si>
   <si>
-    <t>ZV; FIO; ComesFrom;</t>
+    <t>Events.Table[EventsMain].Key</t>
   </si>
   <si>
-    <t>Events.Table[EventsIn].Key</t>
+    <t>Events.Table[EventsMain].FieldsAliases</t>
   </si>
   <si>
-    <t>Events.Table[EventsIn].Sort</t>
+    <t>RecordNo; EventDate; EventType; Department; Position; Salary</t>
   </si>
   <si>
-    <t>Events.Table[EventsIn].Map[ZV]</t>
+    <t>Events.Table[EventsMain].Sort</t>
   </si>
   <si>
-    <t>65|Звання</t>
+    <t>RecordNo</t>
   </si>
   <si>
-    <t>Events.Table[EventsIn].Map[FIO]</t>
+    <t>Events.Table[EventsMain].Map[FIO]</t>
   </si>
   <si>
-    <t>66|ПІБ</t>
+    <t>Events.Table[EventsMain].Map[RecordNo]</t>
   </si>
   <si>
-    <t>Events.Table[EventsIn].Map[ComesFrom]</t>
+    <t>№</t>
   </si>
   <si>
-    <t>58|Звідки прибув</t>
+    <t>Events.Table[EventsMain].Map[EventDate]</t>
   </si>
   <si>
-    <t>EventsOut</t>
+    <t>Дата події</t>
   </si>
   <si>
-    <t>Events.Table[EventsOut].Type</t>
+    <t>Events.Table[EventsMain].Map[EventType]</t>
   </si>
   <si>
-    <t>Events.Table[EventsOut].Name</t>
+    <t>Тип події</t>
   </si>
   <si>
-    <t>ВІДСУТНІ</t>
+    <t>Events.Table[EventsMain].Map[Department]</t>
   </si>
   <si>
-    <t>Events.Table[EventsOut].FieldsAliases</t>
+    <t>Відділ</t>
   </si>
   <si>
-    <t>ZV; FIO; EventReason; City; Date; Note; Ticket</t>
+    <t>Events.Table[EventsMain].Map[Position]</t>
   </si>
   <si>
-    <t>Events.Table[EventsOut].Key</t>
+    <t>Посада</t>
   </si>
   <si>
-    <t>Events.Table[EventsOut].Sort</t>
+    <t>Events.Table[EventsMain].Map[Salary]</t>
   </si>
   <si>
-    <t>Date</t>
+    <t>Оклад</t>
   </si>
   <si>
-    <t>Events.Table[EventsOut].Map[ZV]</t>
-  </si>
-  <si>
-    <t>Events.Table[EventsOut].Map[FIO]</t>
-  </si>
-  <si>
-    <t>Events.Table[EventsOut].Map[EventReason]</t>
-  </si>
-  <si>
-    <t>68|Причинна вибуття</t>
-  </si>
-  <si>
-    <t>Events.Table[EventsOut].Map[City]</t>
-  </si>
-  <si>
-    <t>69|Місце вибуття</t>
-  </si>
-  <si>
-    <t>Events.Table[EventsOut].Map[Date]</t>
-  </si>
-  <si>
-    <t>71 (А)|Дата наказу</t>
-  </si>
-  <si>
-    <t>Events.Table[EventsOut].Map[Note]</t>
-  </si>
-  <si>
-    <t>76|Замітки</t>
-  </si>
-  <si>
-    <t>Events.Table[EventsOut].Map[Ticket]</t>
-  </si>
-  <si>
-    <t>Стовпець1|Номер квитка</t>
-  </si>
-  <si>
-    <t>StateMain; EventsOut; EventsIn</t>
-  </si>
-  <si>
-    <t>EventsIn; EventsOut</t>
-  </si>
-  <si>
-    <t>55|Звання</t>
-  </si>
-  <si>
-    <t>56|ПІБ</t>
-  </si>
-  <si>
-    <t>СТАДНИК Юрій Олексійович</t>
+    <t>StateMain; EventsMain</t>
   </si>
 </sst>

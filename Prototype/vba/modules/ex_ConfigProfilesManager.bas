@@ -6,7 +6,7 @@ Option Explicit
 ' =============================================================================
 ' Назначение:
 ' - читать/писать профили конфигурации из внешнего XML-файла
-'   (`profiles\config_profiles.xml`);
+'   (`config\PersonalCard\PersonalCardProfiles.xml`);
 ' - применять выбранный профиль к таблице `tblDevConfig` на листе Dev;
 ' - сохранять текущее состояние таблицы обратно в активный профиль;
 ' - поддерживать совместимость со старыми форматами (legacy row/marker layout);
@@ -19,7 +19,10 @@ Option Explicit
 
 Private Const PRESETS_NS As String = "urn:excelprototype:presets"
 Private Const PRESETS_TEMPLATE As String = "<?xml version=""1.0"" encoding=""UTF-8"" standalone=""yes""?><presets xmlns=""" & PRESETS_NS & """ version=""1""/>"
-Private Const PRESETS_REL_PATH As String = "profiles\config_profiles.xml"
+Private Const PERSONAL_PRESETS_REL_PATH As String = "config\PersonalCard\PersonalCardProfiles.xml"
+Private Const TABLES_PRESETS_REL_PATH As String = "config\TablesComparing\TablesComparingProfiles.xml"
+Private Const MODE_PERSONAL_CARD As String = "Personal Card"
+Private Const MODE_TABLES_COMPARING As String = "Comparing"
 Private Const DEV_CONFIG_TABLE_NAME As String = "tblDevConfig"
 Private Const DEV_CONFIG_HEADER_ROW As Long = 2
 Private Const DEV_CONFIG_MARKER_COL As Long = 1
@@ -87,6 +90,8 @@ Public Sub m_ApplyProfileFromDev(Optional ByVal profileName As String = vbNullSt
     On Error Resume Next
     ex_Config.m_RefreshConfigTitle ws, profileName
     On Error GoTo 0
+    ex_ProfileUI.m_ApplyProfileUI ws, profileNode, profileName
+    mp_ApplyModeVisibility ws
 EH:
     Application.ScreenUpdating = True
     Application.EnableEvents = prevEvents
@@ -158,6 +163,9 @@ Public Sub m_EnsureProfileDropdown(Optional ByVal ws As Worksheet)
         Set ws = ws_Dev
     End If
 
+    m_EnsureModeDropdown ws
+    mp_ApplyModeVisibility ws
+
     profiles = mp_GetProfileNames(ws)
     m_RefreshProfileValidation ws
 
@@ -190,6 +198,18 @@ Public Sub m_OnProfileChanged()
     If Len(profileName) = 0 Then Exit Sub
 
     m_ApplyProfileFromDev profileName
+End Sub
+
+Public Sub m_OnModeChanged()
+    Dim ws As Worksheet
+    Dim profiles As Variant
+
+    Set ws = ws_Dev
+    m_EnsureModeDropdown ws
+    mp_ApplyModeVisibility ws
+    profiles = mp_GetProfileNames(ws)
+    If Not mp_ArrayHasItems(profiles) Then Exit Sub
+    m_EnsureProfileDropdown ws
 End Sub
 
 Public Sub m_EnsureProfileDropdown_UI()
@@ -385,6 +405,86 @@ Private Function mp_GetSelectedProfileNameFromDropdown(ByVal ws As Worksheet, By
 
     mp_GetSelectedProfileNameFromDropdown = CStr(profiles(selectedIndex - 1))
 End Function
+
+Private Sub m_EnsureModeDropdown(ByVal ws As Worksheet)
+    Dim cf As Object
+    Dim selectedIndex As Long
+    Dim modeNames(0 To 1) As String
+
+    modeNames(0) = MODE_PERSONAL_CARD
+    modeNames(1) = MODE_TABLES_COMPARING
+
+    Set cf = mp_GetModeDropdownControl(ws)
+    If cf Is Nothing Then
+        MsgBox "Mode control 'ddMode' was not found on sheet '" & ws.Name & "'.", vbExclamation
+        Exit Sub
+    End If
+
+    selectedIndex = mp_GetControlIndex(cf)
+    mp_SetDropdownItems cf, modeNames
+
+    If selectedIndex < 1 Or selectedIndex > 2 Then
+        selectedIndex = 1
+    End If
+
+    On Error Resume Next
+    cf.Value = selectedIndex
+    On Error GoTo 0
+End Sub
+
+Private Function mp_GetSelectedModeName(ByVal ws As Worksheet) As String
+    Dim cf As Object
+    Dim selectedIndex As Long
+
+    Set cf = mp_GetModeDropdownControl(ws)
+    If cf Is Nothing Then
+        mp_GetSelectedModeName = MODE_PERSONAL_CARD
+        Exit Function
+    End If
+
+    selectedIndex = mp_GetControlIndex(cf)
+    Select Case selectedIndex
+        Case 2
+            mp_GetSelectedModeName = MODE_TABLES_COMPARING
+        Case Else
+            mp_GetSelectedModeName = MODE_PERSONAL_CARD
+    End Select
+End Function
+
+Private Function mp_GetModeDropdownControl(ByVal ws As Worksheet) As Object
+    Dim shp As Shape
+
+    On Error Resume Next
+    Set shp = ws.Shapes("ddMode")
+    On Error GoTo 0
+    If shp Is Nothing Then Exit Function
+
+    On Error Resume Next
+    Set mp_GetModeDropdownControl = shp.ControlFormat
+    On Error GoTo 0
+End Function
+
+Private Sub mp_ApplyModeVisibility(ByVal ws As Worksheet)
+    Dim profiles As Variant
+    Dim profileName As String
+    Dim doc As Object
+    Dim profileNode As Object
+
+    profiles = mp_GetProfileNames(ws)
+    If Not mp_ArrayHasItems(profiles) Then Exit Sub
+
+    profileName = mp_GetSelectedProfileNameFromDropdown(ws, profiles, False)
+    If Len(profileName) = 0 Then
+        profileName = CStr(profiles(LBound(profiles)))
+    End If
+    If Len(profileName) = 0 Then Exit Sub
+
+    Set doc = mp_LoadPresetsDom(ws)
+    Set profileNode = mp_GetProfileNode(doc, profileName, False)
+    If profileNode Is Nothing Then Exit Sub
+
+    ex_ProfileUI.m_ApplyModeVisibility ws, profileNode
+End Sub
 
 Private Function mp_GetControlItemByIndex(ByVal cf As Object, ByVal itemIndex As Long) As String
     On Error Resume Next
@@ -1122,13 +1222,26 @@ End Sub
 
 Private Function mp_GetProfilesFilePath() As String
     Dim basePath As String
+    Dim modeName As String
+    Dim relPath As String
 
     basePath = ThisWorkbook.Path
     If Len(basePath) = 0 Then
         basePath = CurDir$
     End If
 
-    mp_GetProfilesFilePath = basePath & "\" & PRESETS_REL_PATH
+    modeName = MODE_PERSONAL_CARD
+    On Error Resume Next
+    modeName = mp_GetSelectedModeName(ws_Dev)
+    On Error GoTo 0
+
+    If StrComp(modeName, MODE_TABLES_COMPARING, vbTextCompare) = 0 Then
+        relPath = TABLES_PRESETS_REL_PATH
+    Else
+        relPath = PERSONAL_PRESETS_REL_PATH
+    End If
+
+    mp_GetProfilesFilePath = basePath & "\" & relPath
 End Function
 
 Private Function mp_GetProfileNode(ByVal doc As Object, ByVal profileName As String, ByVal createIfMissing As Boolean) As Object

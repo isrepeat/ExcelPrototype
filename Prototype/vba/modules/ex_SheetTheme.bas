@@ -119,7 +119,7 @@ Private Sub mp_ApplyStatusHighlight( _
     Dim statusValue As String
     Dim rowRange As Range
     
-    statusCol = FindColumnIndex(ws, colCount, "Status")
+    statusCol = mp_FindColumnIndex(ws, colCount, "Status")
     If statusCol = 0 Then
         Exit Sub
     End If

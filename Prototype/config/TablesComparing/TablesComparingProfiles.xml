@@ -1,0 +1,31 @@
+<?xml version="1.0" standalone="yes"?>
+<presets version="1" xmlns="urn:excelprototype:presets">
+  <profile name="Default">
+    <v key="OldFilePath">.\TESTS\Comparing\OldTable.xlsx</v>
+    <v key="OldTableName">TableSrc</v>
+    <v key="NewFilePath">.\TESTS\Comparing\NewTable.xlsx</v>
+    <v key="NewTableName">TableLast</v>
+    <v key="KeyColumnName">ID</v>
+    <ui>
+      <shape name="ddProfile" visible="true"/>
+      <shape name="ddMode" visible="true"/>
+      <shape name="btnClear" visible="true"/>
+      <shape name="btnPersonalCard" visible="false"/>
+      <shape name="btnComparing" visible="true"/>
+    </ui>
+  </profile>
+  <profile name="Test">
+    <v key="OldFilePath">.\TESTS\Comparing\OldTable.xlsx</v>
+    <v key="OldTableName">TableSrc</v>
+    <v key="NewFilePath">.\TESTS\Comparing\NewTable.xlsx</v>
+    <v key="NewTableName">TableLast</v>
+    <v key="KeyColumnName">ID</v>
+    <ui>
+      <shape name="ddProfile" visible="true"/>
+      <shape name="btnClear" visible="true"/>
+      <shape name="btnMode" visible="true"/>
+      <shape name="btnPersonalCard" visible="false"/>
+      <shape name="btnComparing" visible="true"/>
+    </ui>
+  </profile>
+</presets>
