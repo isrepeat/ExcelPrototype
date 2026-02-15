@@ -9,7 +9,7 @@
   <v:path shadowok="f" o:extrusionok="f" strokeok="f" fillok="f" o:connecttype="rect"/>
   <o:lock v:ext="edit" shapetype="t"/>
  </v:shapetype><v:shape id="ddProfile" o:spid="_x0000_s1025" type="#_x0000_t201"
-  style='position:absolute;margin-left:519.75pt;margin-top:.75pt;width:139.5pt;
+  style='position:absolute;margin-left:593.25pt;margin-top:2.25pt;width:139.5pt;
   height:15pt;z-index:1;mso-wrap-style:tight' o:button="t" filled="f"
   fillcolor="windowText [64]" strokecolor="windowText [64]" o:insetmode="auto">
   <v:fill color2="window [65]" o:detectmouseclick="t"/>
@@ -17,21 +17,48 @@
   <x:ClientData ObjectType="Drop">
    <x:SizeWithCells/>
    <x:Anchor>
-    4, 4, 0, 1, 4, 190, 1, 0</x:Anchor>
+    4, 5, 0, 3, 5, 0, 1, 2</x:Anchor>
    <x:AutoFill>False</x:AutoFill>
    <x:FmlaMacro>[0]!m_OnProfileChanged</x:FmlaMacro>
+   <x:Val>0</x:Val>
+   <x:Min>0</x:Min>
+   <x:Max>1</x:Max>
+   <x:Inc>1</x:Inc>
+   <x:Page>1</x:Page>
+   <x:Dx>22</x:Dx>
+   <x:Sel>1</x:Sel>
+   <x:NoThreeD2/>
+   <x:SelType>Single</x:SelType>
+   <x:LCT>Normal</x:LCT>
+   <x:ListItem>Default</x:ListItem>
+   <x:ListItem>Test</x:ListItem>
+   <x:DropStyle>Combo</x:DropStyle>
+   <x:DropLines>8</x:DropLines>
+  </x:ClientData>
+ </v:shape><v:shape id="ddMode" o:spid="_x0000_s1026" type="#_x0000_t201"
+  style='position:absolute;margin-left:758.25pt;margin-top:2.25pt;width:156pt;
+  height:15pt;z-index:2;mso-wrap-style:tight' o:button="t" filled="f"
+  fillcolor="windowText [64]" strokecolor="windowText [64]" o:insetmode="auto">
+  <v:fill color2="window [65]" o:detectmouseclick="t"/>
+  <o:lock v:ext="edit" rotation="t" text="t"/>
+  <x:ClientData ObjectType="Drop">
+   <x:SizeWithCells/>
+   <x:Anchor>
+    6, 0, 0, 3, 8, 64, 1, 2</x:Anchor>
+   <x:AutoFill>False</x:AutoFill>
+   <x:FmlaMacro>[0]!m_OnModeChanged</x:FmlaMacro>
    <x:Val>0</x:Val>
    <x:Min>0</x:Min>
    <x:Max>0</x:Max>
    <x:Inc>1</x:Inc>
    <x:Page>2</x:Page>
    <x:Dx>22</x:Dx>
-   <x:Sel>2</x:Sel>
+   <x:Sel>1</x:Sel>
    <x:NoThreeD2/>
    <x:SelType>Single</x:SelType>
    <x:LCT>Normal</x:LCT>
-   <x:ListItem>Default</x:ListItem>
-   <x:ListItem>Test</x:ListItem>
+   <x:ListItem>Personal Card</x:ListItem>
+   <x:ListItem>Comparing</x:ListItem>
    <x:DropStyle>Combo</x:DropStyle>
    <x:DropLines>8</x:DropLines>
   </x:ClientData>

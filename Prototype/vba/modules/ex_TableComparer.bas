@@ -234,13 +234,13 @@ Private Function mp_RowsAreDifferent(ByVal oldRow As Variant, ByVal newRow As Va
     ' Это покрывает случаи, когда одна из строк содержит дополнительные
     ' столбцы (например, из-за лишних заголовков в UsedRange).
     If UBound(oldRow) <> UBound(newRow) Then
-        RowsAreDifferent = True
+        mp_RowsAreDifferent = True
         Exit Function
     End If
     
     For i = LBound(oldRow) To UBound(oldRow)
         If CStr(oldRow(i)) <> CStr(newRow(i)) Then
-            RowsAreDifferent = True
+            mp_RowsAreDifferent = True
             Exit Function
         End If
     Next i

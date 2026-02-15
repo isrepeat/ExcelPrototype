@@ -1,0 +1,4 @@
+<?xml version="1.0" standalone="yes"?>
+<globalButtons xmlns="urn:excelprototype:presets">
+  <shape name="btnUpdateCode" visible="true"/>
+</globalButtons>

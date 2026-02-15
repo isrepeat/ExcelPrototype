@@ -2,20 +2,20 @@
 <xdr:wsDr xmlns:xdr="http://schemas.openxmlformats.org/drawingml/2006/spreadsheetDrawing" xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main">
   <xdr:twoCellAnchor editAs="absolute">
     <xdr:from>
-      <xdr:col>5</xdr:col>
-      <xdr:colOff>3390899</xdr:colOff>
-      <xdr:row>3</xdr:row>
-      <xdr:rowOff>180975</xdr:rowOff>
+      <xdr:col>14</xdr:col>
+      <xdr:colOff>581024</xdr:colOff>
+      <xdr:row>0</xdr:row>
+      <xdr:rowOff>152400</xdr:rowOff>
     </xdr:from>
     <xdr:to>
-      <xdr:col>5</xdr:col>
-      <xdr:colOff>5370899</xdr:colOff>
-      <xdr:row>7</xdr:row>
-      <xdr:rowOff>100875</xdr:rowOff>
+      <xdr:col>17</xdr:col>
+      <xdr:colOff>503624</xdr:colOff>
+      <xdr:row>4</xdr:row>
+      <xdr:rowOff>72300</xdr:rowOff>
     </xdr:to>
     <xdr:sp macro="[0]!dev_UpdateCode" textlink="">
       <xdr:nvSpPr>
-        <xdr:cNvPr id="3" name="Прямокутник 2">
+        <xdr:cNvPr id="3" name="btnUpdateCode">
           <a:extLst>
             <a:ext uri="{FF2B5EF4-FFF2-40B4-BE49-F238E27FC236}">
               <a16:creationId xmlns:a16="http://schemas.microsoft.com/office/drawing/2014/main" id="{BA5198CA-54F8-192C-4BCD-6EE0AAFE7DF4}"/>
@@ -26,7 +26,7 @@
       </xdr:nvSpPr>
       <xdr:spPr>
         <a:xfrm>
-          <a:off x="11858624" y="781050"/>
+          <a:off x="15697199" y="152400"/>
           <a:ext cx="1980000" cy="720000"/>
         </a:xfrm>
         <a:prstGeom prst="rect">
@@ -66,22 +66,22 @@
     </xdr:sp>
     <xdr:clientData/>
   </xdr:twoCellAnchor>
-  <xdr:twoCellAnchor editAs="absolute">
+  <xdr:twoCellAnchor>
     <xdr:from>
-      <xdr:col>5</xdr:col>
-      <xdr:colOff>5619750</xdr:colOff>
-      <xdr:row>8</xdr:row>
-      <xdr:rowOff>28575</xdr:rowOff>
+      <xdr:col>6</xdr:col>
+      <xdr:colOff>0</xdr:colOff>
+      <xdr:row>5</xdr:row>
+      <xdr:rowOff>171450</xdr:rowOff>
     </xdr:from>
     <xdr:to>
-      <xdr:col>5</xdr:col>
-      <xdr:colOff>7600950</xdr:colOff>
-      <xdr:row>11</xdr:row>
-      <xdr:rowOff>148500</xdr:rowOff>
+      <xdr:col>8</xdr:col>
+      <xdr:colOff>608400</xdr:colOff>
+      <xdr:row>9</xdr:row>
+      <xdr:rowOff>79200</xdr:rowOff>
     </xdr:to>
     <xdr:sp macro="[0]!Run" textlink="">
       <xdr:nvSpPr>
-        <xdr:cNvPr id="5" name="Прямокутник 4">
+        <xdr:cNvPr id="5" name="btnComparing" hidden="1">
           <a:extLst>
             <a:ext uri="{FF2B5EF4-FFF2-40B4-BE49-F238E27FC236}">
               <a16:creationId xmlns:a16="http://schemas.microsoft.com/office/drawing/2014/main" id="{51CA96EA-F061-45E9-81E8-D49A7F0AA3FA}"/>
@@ -92,8 +92,8 @@
       </xdr:nvSpPr>
       <xdr:spPr>
         <a:xfrm>
-          <a:off x="14087475" y="1628775"/>
-          <a:ext cx="1981200" cy="720000"/>
+          <a:off x="9629775" y="1182525"/>
+          <a:ext cx="1980000" cy="720000"/>
         </a:xfrm>
         <a:prstGeom prst="rect">
           <a:avLst/>
@@ -127,22 +127,22 @@
     </xdr:sp>
     <xdr:clientData/>
   </xdr:twoCellAnchor>
-  <xdr:twoCellAnchor editAs="absolute">
+  <xdr:twoCellAnchor>
     <xdr:from>
-      <xdr:col>5</xdr:col>
-      <xdr:colOff>3381375</xdr:colOff>
-      <xdr:row>8</xdr:row>
-      <xdr:rowOff>28575</xdr:rowOff>
+      <xdr:col>6</xdr:col>
+      <xdr:colOff>0</xdr:colOff>
+      <xdr:row>1</xdr:row>
+      <xdr:rowOff>190500</xdr:rowOff>
     </xdr:from>
     <xdr:to>
-      <xdr:col>5</xdr:col>
-      <xdr:colOff>5362575</xdr:colOff>
-      <xdr:row>11</xdr:row>
-      <xdr:rowOff>148500</xdr:rowOff>
+      <xdr:col>8</xdr:col>
+      <xdr:colOff>609600</xdr:colOff>
+      <xdr:row>5</xdr:row>
+      <xdr:rowOff>110400</xdr:rowOff>
     </xdr:to>
     <xdr:sp macro="[0]!m_DeleteResultSheets" textlink="">
       <xdr:nvSpPr>
-        <xdr:cNvPr id="2" name="Прямокутник 1">
+        <xdr:cNvPr id="2" name="btnClear">
           <a:extLst>
             <a:ext uri="{FF2B5EF4-FFF2-40B4-BE49-F238E27FC236}">
               <a16:creationId xmlns:a16="http://schemas.microsoft.com/office/drawing/2014/main" id="{335A1C5F-7541-4876-7006-FBC8027591A3}"/>
@@ -153,7 +153,7 @@
       </xdr:nvSpPr>
       <xdr:spPr>
         <a:xfrm>
-          <a:off x="11849100" y="1628775"/>
+          <a:off x="9629775" y="390525"/>
           <a:ext cx="1981200" cy="720000"/>
         </a:xfrm>
         <a:prstGeom prst="rect">
@@ -189,22 +189,22 @@
     </xdr:sp>
     <xdr:clientData/>
   </xdr:twoCellAnchor>
-  <xdr:twoCellAnchor editAs="absolute">
+  <xdr:twoCellAnchor>
     <xdr:from>
-      <xdr:col>5</xdr:col>
-      <xdr:colOff>5610225</xdr:colOff>
-      <xdr:row>3</xdr:row>
-      <xdr:rowOff>190500</xdr:rowOff>
+      <xdr:col>6</xdr:col>
+      <xdr:colOff>0</xdr:colOff>
+      <xdr:row>5</xdr:row>
+      <xdr:rowOff>171450</xdr:rowOff>
     </xdr:from>
     <xdr:to>
-      <xdr:col>5</xdr:col>
-      <xdr:colOff>7590225</xdr:colOff>
-      <xdr:row>7</xdr:row>
-      <xdr:rowOff>110400</xdr:rowOff>
+      <xdr:col>8</xdr:col>
+      <xdr:colOff>608400</xdr:colOff>
+      <xdr:row>9</xdr:row>
+      <xdr:rowOff>79200</xdr:rowOff>
     </xdr:to>
     <xdr:sp macro="[0]!m_ShowPersonTimeline_UI" textlink="">
       <xdr:nvSpPr>
-        <xdr:cNvPr id="4" name="Прямокутник 3">
+        <xdr:cNvPr id="4" name="btnPersonalCard">
           <a:extLst>
             <a:ext uri="{FF2B5EF4-FFF2-40B4-BE49-F238E27FC236}">
               <a16:creationId xmlns:a16="http://schemas.microsoft.com/office/drawing/2014/main" id="{C4018E74-DD62-2E4E-C88D-A5471E9A5F00}"/>
@@ -215,7 +215,7 @@
       </xdr:nvSpPr>
       <xdr:spPr>
         <a:xfrm>
-          <a:off x="14077950" y="790575"/>
+          <a:off x="9629775" y="1182525"/>
           <a:ext cx="1980000" cy="720000"/>
         </a:xfrm>
         <a:prstGeom prst="rect">
@@ -255,22 +255,22 @@
     </xdr:sp>
     <xdr:clientData/>
   </xdr:twoCellAnchor>
-  <xdr:twoCellAnchor editAs="absolute">
+  <xdr:twoCellAnchor>
     <xdr:from>
-      <xdr:col>5</xdr:col>
-      <xdr:colOff>5600700</xdr:colOff>
-      <xdr:row>1</xdr:row>
-      <xdr:rowOff>0</xdr:rowOff>
+      <xdr:col>8</xdr:col>
+      <xdr:colOff>580975</xdr:colOff>
+      <xdr:row>6</xdr:row>
+      <xdr:rowOff>107860</xdr:rowOff>
     </xdr:from>
     <xdr:to>
-      <xdr:col>5</xdr:col>
-      <xdr:colOff>7572375</xdr:colOff>
-      <xdr:row>3</xdr:row>
-      <xdr:rowOff>66675</xdr:rowOff>
+      <xdr:col>11</xdr:col>
+      <xdr:colOff>495250</xdr:colOff>
+      <xdr:row>8</xdr:row>
+      <xdr:rowOff>168785</xdr:rowOff>
     </xdr:to>
     <xdr:sp macro="[0]!m_SwitchMode_OnClick" textlink="">
       <xdr:nvSpPr>
-        <xdr:cNvPr id="7" name="Прямокутник: округлені кути 6">
+        <xdr:cNvPr id="7" name="btnMode">
           <a:extLst>
             <a:ext uri="{FF2B5EF4-FFF2-40B4-BE49-F238E27FC236}">
               <a16:creationId xmlns:a16="http://schemas.microsoft.com/office/drawing/2014/main" id="{252E4870-505A-7A66-D11C-E6625A3A236A}"/>
@@ -281,8 +281,8 @@
       </xdr:nvSpPr>
       <xdr:spPr>
         <a:xfrm>
-          <a:off x="14068425" y="200025"/>
-          <a:ext cx="1971675" cy="466725"/>
+          <a:off x="11582350" y="1308010"/>
+          <a:ext cx="1971675" cy="460975"/>
         </a:xfrm>
         <a:prstGeom prst="roundRect">
           <a:avLst/>
@@ -350,15 +350,15 @@
       <xdr:twoCellAnchor editAs="oneCell">
         <xdr:from>
           <xdr:col>4</xdr:col>
-          <xdr:colOff>38100</xdr:colOff>
+          <xdr:colOff>47625</xdr:colOff>
           <xdr:row>0</xdr:row>
-          <xdr:rowOff>9525</xdr:rowOff>
+          <xdr:rowOff>28575</xdr:rowOff>
         </xdr:from>
         <xdr:to>
-          <xdr:col>4</xdr:col>
-          <xdr:colOff>1809750</xdr:colOff>
+          <xdr:col>5</xdr:col>
+          <xdr:colOff>0</xdr:colOff>
           <xdr:row>1</xdr:row>
-          <xdr:rowOff>0</xdr:rowOff>
+          <xdr:rowOff>19050</xdr:rowOff>
         </xdr:to>
         <xdr:sp macro="" textlink="">
           <xdr:nvSpPr>
@@ -369,6 +369,63 @@
                 </a:ext>
                 <a:ext uri="{FF2B5EF4-FFF2-40B4-BE49-F238E27FC236}">
                   <a16:creationId xmlns:a16="http://schemas.microsoft.com/office/drawing/2014/main" id="{00000000-0008-0000-0000-000001040000}"/>
+                </a:ext>
+              </a:extLst>
+            </xdr:cNvPr>
+            <xdr:cNvSpPr/>
+          </xdr:nvSpPr>
+          <xdr:spPr bwMode="auto">
+            <a:xfrm>
+              <a:off x="0" y="0"/>
+              <a:ext cx="0" cy="0"/>
+            </a:xfrm>
+            <a:prstGeom prst="rect">
+              <a:avLst/>
+            </a:prstGeom>
+            <a:noFill/>
+            <a:ln w="9525">
+              <a:miter lim="800000"/>
+              <a:headEnd/>
+              <a:tailEnd/>
+            </a:ln>
+            <a:extLst>
+              <a:ext uri="{909E8E84-426E-40DD-AFC4-6F175D3DCCD1}">
+                <a14:hiddenFill>
+                  <a:noFill/>
+                </a14:hiddenFill>
+              </a:ext>
+            </a:extLst>
+          </xdr:spPr>
+        </xdr:sp>
+        <xdr:clientData/>
+      </xdr:twoCellAnchor>
+    </mc:Choice>
+    <mc:Fallback/>
+  </mc:AlternateContent>
+  <mc:AlternateContent xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006">
+    <mc:Choice xmlns:a14="http://schemas.microsoft.com/office/drawing/2010/main" Requires="a14">
+      <xdr:twoCellAnchor editAs="oneCell">
+        <xdr:from>
+          <xdr:col>6</xdr:col>
+          <xdr:colOff>0</xdr:colOff>
+          <xdr:row>0</xdr:row>
+          <xdr:rowOff>28575</xdr:rowOff>
+        </xdr:from>
+        <xdr:to>
+          <xdr:col>8</xdr:col>
+          <xdr:colOff>609600</xdr:colOff>
+          <xdr:row>1</xdr:row>
+          <xdr:rowOff>19050</xdr:rowOff>
+        </xdr:to>
+        <xdr:sp macro="" textlink="">
+          <xdr:nvSpPr>
+            <xdr:cNvPr id="1026" name="ddMode" hidden="1">
+              <a:extLst>
+                <a:ext uri="{63B3BB69-23CF-44E3-9099-C40C66FF867C}">
+                  <a14:compatExt spid="_x0000_s1026"/>
+                </a:ext>
+                <a:ext uri="{FF2B5EF4-FFF2-40B4-BE49-F238E27FC236}">
+                  <a16:creationId xmlns:a16="http://schemas.microsoft.com/office/drawing/2014/main" id="{00000000-0008-0000-0000-000002040000}"/>
                 </a:ext>
               </a:extLst>
             </xdr:cNvPr>

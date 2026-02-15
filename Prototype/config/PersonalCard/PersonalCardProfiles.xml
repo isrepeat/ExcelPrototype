@@ -30,6 +30,14 @@
 		<v key="Events.Table[EventsMain].Map[Salary]">Оклад</v>
 		<v key=""/>
 		<v key="Output.Tables">StateMain; EventsMain</v>
+		<ui>
+			<shape name="ddProfile" visible="true"/>
+			<shape name="ddMode" visible="true"/>
+			<shape name="btnClear" visible="true"/>
+			<shape name="btnMode" visible="true"/>
+			<shape name="btnPersonalCard" visible="true"/>
+			<shape name="btnComparing" visible="false"/>
+		</ui>
 	</profile>
 	<profile name="Test">
 		<v key="Source.Main.FilePath">..\dsc_StateSrc.xlsx</v>
@@ -70,5 +78,13 @@
 		<v key="Events.Table[EventsOut].Map[Ticket]">Стовпець1|Номер квитка</v>
 		<v key=""/>
 		<v key="Output.Tables">StateMain; EventsOut; EventsIn</v>
+		<ui>
+			<shape name="ddProfile" visible="true" />
+			<shape name="ddMode" visible="true"/>
+			<shape name="btnClear" visible="true"/>
+			<shape name="btnMode" visible="true"/>
+			<shape name="btnPersonalCard" visible="true"/>
+			<shape name="btnComparing" visible="false"/>
+		</ui>
 	</profile>
 </presets>
