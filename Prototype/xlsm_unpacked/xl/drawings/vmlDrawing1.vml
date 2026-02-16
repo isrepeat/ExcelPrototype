@@ -42,16 +42,15 @@
   <v:fill color2="window [65]" o:detectmouseclick="t"/>
   <o:lock v:ext="edit" rotation="t" text="t"/>
   <x:ClientData ObjectType="Drop">
-   <x:SizeWithCells/>
    <x:Anchor>
     6, 0, 0, 3, 8, 64, 1, 2</x:Anchor>
    <x:AutoFill>False</x:AutoFill>
    <x:FmlaMacro>[0]!m_OnModeChanged</x:FmlaMacro>
    <x:Val>0</x:Val>
    <x:Min>0</x:Min>
-   <x:Max>0</x:Max>
+   <x:Max>1</x:Max>
    <x:Inc>1</x:Inc>
-   <x:Page>2</x:Page>
+   <x:Page>1</x:Page>
    <x:Dx>22</x:Dx>
    <x:Sel>1</x:Sel>
    <x:NoThreeD2/>

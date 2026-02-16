@@ -497,7 +497,7 @@
           <mc:Choice Requires="x14">
             <control shapeId="1026" r:id="rId4" name="ddMode">
               <controlPr defaultSize="0" autoFill="0" autoPict="0" macro="[0]!m_OnModeChanged">
-                <anchor moveWithCells="1">
+                <anchor moveWithCells="0">
                   <from>
                     <xdr:col>6</xdr:col>
                     <xdr:colOff>0</xdr:colOff>

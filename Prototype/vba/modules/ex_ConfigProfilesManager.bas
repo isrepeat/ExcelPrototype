@@ -454,9 +454,7 @@ End Function
 Private Function mp_GetModeDropdownControl(ByVal ws As Worksheet) As Object
     Dim shp As Shape
 
-    On Error Resume Next
-    Set shp = ws.Shapes("ddMode")
-    On Error GoTo 0
+    Set shp = ex_ProfileUI.m_GetShapeByName(ws, "ddMode")
     If shp Is Nothing Then Exit Function
 
     On Error Resume Next
@@ -497,9 +495,7 @@ End Function
 Private Function mp_GetProfileDropdownControl(ByVal ws As Worksheet) As Object
     Dim shp As Shape
 
-    On Error Resume Next
-    Set shp = ws.Shapes("ddProfile")
-    On Error GoTo 0
+    Set shp = ex_ProfileUI.m_GetShapeByName(ws, "ddProfile")
     If shp Is Nothing Then Exit Function
 
     On Error Resume Next

@@ -3,6 +3,35 @@ Option Explicit
 
 Private Const PRESETS_NS As String = "urn:excelprototype:presets"
 Private Const GLOBAL_BUTTONS_REL_PATH As String = "config\GlobalButtons.xml"
+Private Const UI_BLOCK_GROUP_NAME As String = "grpUiBlock"
+Private Const MODE_DROPDOWN_SHAPE As String = "ddMode"
+Private Const UPDATE_BUTTON_SHAPE As String = "btnUpdateCode"
+Private Const CLEAR_BUTTON_SHAPE As String = "btnClear"
+Private Const MODE_BUTTON_SHAPE As String = "btnMode"
+Private Const PERSONAL_BUTTON_SHAPE As String = "btnPersonalCard"
+Private Const COMPARING_BUTTON_SHAPE As String = "btnComparing"
+
+' Initial absolute layout in points.
+Private Const UI_DDMODE_LEFT As Double = 758.25
+Private Const UI_DDMODE_TOP As Double = 2.25
+Private Const UI_DDMODE_WIDTH As Double = 156#
+Private Const UI_DDMODE_HEIGHT As Double = 15#
+Private Const UI_CLEAR_LEFT As Double = 758.25
+Private Const UI_CLEAR_TOP As Double = 30.75
+Private Const UI_CLEAR_WIDTH As Double = 156#
+Private Const UI_CLEAR_HEIGHT As Double = 56.69
+Private Const UI_PERSONAL_LEFT As Double = 758.25
+Private Const UI_PERSONAL_TOP As Double = 93.11
+Private Const UI_PERSONAL_WIDTH As Double = 155.91
+Private Const UI_PERSONAL_HEIGHT As Double = 56.69
+Private Const UI_COMPARING_LEFT As Double = 758.25
+Private Const UI_COMPARING_TOP As Double = 93.11
+Private Const UI_COMPARING_WIDTH As Double = 155.91
+Private Const UI_COMPARING_HEIGHT As Double = 56.69
+Private Const UI_MODEBTN_LEFT As Double = 912#
+Private Const UI_MODEBTN_TOP As Double = 102.99
+Private Const UI_MODEBTN_WIDTH As Double = 155.25
+Private Const UI_MODEBTN_HEIGHT As Double = 36.3
 
 Public Sub m_ApplyProfileUI(ByVal ws As Worksheet, ByVal profileNode As Object, Optional ByVal profileName As String = vbNullString)
     Dim uiNodes As Object
@@ -34,9 +63,7 @@ Public Sub m_ApplyProfileUI(ByVal ws As Worksheet, ByVal profileNode As Object, 
             Exit Sub
         End If
 
-        On Error Resume Next
-        Set shp = ws.Shapes(shapeName)
-        On Error GoTo 0
+        Set shp = m_GetShapeByName(ws, shapeName)
         If shp Is Nothing Then
             MsgBox "Profile UI shape '" & shapeName & "' was not found on sheet '" & ws.Name & "'.", vbExclamation
             Exit Sub
@@ -49,6 +76,74 @@ Public Sub m_ApplyProfileUI(ByVal ws As Worksheet, ByVal profileNode As Object, 
 
         Set shp = Nothing
     Next node
+End Sub
+
+' Keeps UI controls detached from cell grid so their coordinates stay absolute.
+' Managed block: all btn* except btnUpdateCode + ddMode dropdown.
+Public Sub m_EnsureUiControlsAbsolute(Optional ByVal ws As Worksheet)
+    Dim shp As Shape
+
+    If ws Is Nothing Then
+        Set ws = ws_Dev
+    End If
+    If ws Is Nothing Then
+        MsgBox "Failed to apply absolute UI layout: worksheet is not specified.", vbExclamation
+        Exit Sub
+    End If
+
+    For Each shp In ws.Shapes
+        If mp_IsManagedUiBlockShape(shp.Name) Then
+            On Error GoTo EH_PLACEMENT
+            shp.Placement = xlFreeFloating
+            On Error GoTo 0
+        End If
+    Next shp
+
+    Exit Sub
+EH_PLACEMENT:
+    MsgBox "Failed to set absolute placement for shape '" & shp.Name & "': " & Err.Description, vbExclamation
+End Sub
+
+Public Sub m_InitUiBlockLayoutAndGroup(Optional ByVal ws As Worksheet)
+    Dim shp As Shape
+    Dim names As Variant
+    Dim groupShape As Shape
+    Dim shapeName As Variant
+
+    If ws Is Nothing Then
+        Set ws = ws_Dev
+    End If
+    If ws Is Nothing Then
+        MsgBox "Failed to initialize UI block group: worksheet is not specified.", vbExclamation
+        Exit Sub
+    End If
+
+    m_EnsureUiControlsAbsolute ws
+    mp_ApplyInitialUiLayout ws
+
+    On Error GoTo EH_UNGROUP
+    mp_UngroupManagedUiShapes ws
+    On Error GoTo 0
+
+    names = Array(MODE_DROPDOWN_SHAPE, CLEAR_BUTTON_SHAPE, MODE_BUTTON_SHAPE, PERSONAL_BUTTON_SHAPE, COMPARING_BUTTON_SHAPE)
+    For Each shapeName In names
+        Set shp = m_GetShapeByName(ws, CStr(shapeName))
+        If shp Is Nothing Then
+            MsgBox "Failed to initialize UI block group: shape '" & CStr(shapeName) & "' was not found on sheet '" & ws.Name & "'.", vbExclamation
+            Exit Sub
+        End If
+    Next shapeName
+
+    On Error GoTo EH_GROUP
+    Set groupShape = ws.Shapes.Range(names).Group
+    groupShape.Name = UI_BLOCK_GROUP_NAME
+    Exit Sub
+
+EH_UNGROUP:
+    MsgBox "Failed to ungroup existing UI block shapes before creating '" & UI_BLOCK_GROUP_NAME & "': " & Err.Description, vbExclamation
+    Exit Sub
+EH_GROUP:
+    MsgBox "Failed to create group '" & UI_BLOCK_GROUP_NAME & "'. Group ddMode + buttons manually if needed: " & Err.Description, vbExclamation
 End Sub
 
 Public Sub m_ApplyModeVisibility(ByVal ws As Worksheet, ByVal profileNode As Object)
@@ -117,9 +212,7 @@ Private Sub mp_ApplyFilteredVisibilityFromNodes(ByVal ws As Worksheet, ByVal nod
         End If
         If Not mp_IsButtonShapeName(shapeName) Then GoTo NextNode
 
-        On Error Resume Next
-        Set shp = ws.Shapes(shapeName)
-        On Error GoTo 0
+        Set shp = m_GetShapeByName(ws, shapeName)
         If shp Is Nothing Then
             MsgBox "UI shape '" & shapeName & "' was not found on sheet '" & ws.Name & "'.", vbExclamation
             Exit Sub
@@ -168,17 +261,161 @@ Private Function mp_GetGlobalButtonsFilePath() As String
 End Function
 
 Private Sub mp_HideAllButtons(ByVal ws As Worksheet)
-    Dim shp As Shape
-    For Each shp In ws.Shapes
-        If mp_IsButtonShapeName(shp.Name) Then
-            shp.Visible = msoFalse
-        End If
-    Next shp
+    mp_HideAllButtonsInContainer ws.Shapes
 End Sub
 
 Private Function mp_IsButtonShapeName(ByVal shapeName As String) As Boolean
     mp_IsButtonShapeName = (LCase$(Left$(Trim$(shapeName), 3)) = "btn")
 End Function
+
+Private Function mp_IsManagedUiBlockShape(ByVal shapeName As String) As Boolean
+    Dim normalized As String
+
+    normalized = Trim$(shapeName)
+    If Len(normalized) = 0 Then Exit Function
+
+    If StrComp(normalized, MODE_DROPDOWN_SHAPE, vbTextCompare) = 0 Then
+        mp_IsManagedUiBlockShape = True
+        Exit Function
+    End If
+
+    If mp_IsButtonShapeName(normalized) Then
+        mp_IsManagedUiBlockShape = (StrComp(normalized, UPDATE_BUTTON_SHAPE, vbTextCompare) <> 0)
+    End If
+End Function
+
+Public Function m_GetShapeByName(ByVal ws As Worksheet, ByVal shapeName As String) As Shape
+    If ws Is Nothing Then Exit Function
+    Set m_GetShapeByName = mp_FindShapeInContainer(ws.Shapes, shapeName)
+End Function
+
+Private Sub mp_HideAllButtonsInContainer(ByVal shapeContainer As Object)
+    Dim shp As Shape
+    Dim groupItem As Shape
+
+    For Each shp In shapeContainer
+        If mp_IsButtonShapeName(shp.Name) Then
+            shp.Visible = msoFalse
+        End If
+        If shp.Type = msoGroup Then
+            For Each groupItem In shp.GroupItems
+                If mp_IsButtonShapeName(groupItem.Name) Then
+                    groupItem.Visible = msoFalse
+                End If
+            Next groupItem
+        End If
+    Next shp
+End Sub
+
+Private Function mp_FindShapeInContainer(ByVal shapeContainer As Object, ByVal shapeName As String) As Shape
+    Dim shp As Shape
+    Dim groupItem As Shape
+    Dim normalized As String
+
+    normalized = Trim$(shapeName)
+    If Len(normalized) = 0 Then Exit Function
+
+    For Each shp In shapeContainer
+        If StrComp(shp.Name, normalized, vbTextCompare) = 0 Then
+            Set mp_FindShapeInContainer = shp
+            Exit Function
+        End If
+        If shp.Type = msoGroup Then
+            For Each groupItem In shp.GroupItems
+                If StrComp(groupItem.Name, normalized, vbTextCompare) = 0 Then
+                    Set mp_FindShapeInContainer = groupItem
+                    Exit Function
+                End If
+            Next groupItem
+        End If
+    Next shp
+End Function
+
+Private Sub mp_UngroupManagedUiShapes(ByVal ws As Worksheet)
+    Dim hasGroupsToUngroup As Boolean
+    Dim i As Long
+    Dim shp As Shape
+
+    Do
+        hasGroupsToUngroup = False
+
+        For i = ws.Shapes.Count To 1 Step -1
+            Set shp = ws.Shapes(i)
+            If shp.Type = msoGroup Then
+                If mp_GroupContainsManagedShapes(shp) Then
+                    shp.Ungroup
+                    hasGroupsToUngroup = True
+                    Exit For
+                End If
+            End If
+        Next i
+    Loop While hasGroupsToUngroup
+End Sub
+
+Private Function mp_GroupContainsManagedShapes(ByVal groupShape As Shape) As Boolean
+    Dim groupItem As Shape
+
+    For Each groupItem In groupShape.GroupItems
+        If mp_IsManagedUiBlockShape(groupItem.Name) Then
+            mp_GroupContainsManagedShapes = True
+            Exit Function
+        End If
+    Next groupItem
+End Function
+
+Private Sub mp_ApplyInitialUiLayout(ByVal ws As Worksheet)
+    Dim shp As Shape
+
+    Set shp = m_GetShapeByName(ws, MODE_DROPDOWN_SHAPE)
+    If shp Is Nothing Then
+        MsgBox "Initial UI layout failed: '" & MODE_DROPDOWN_SHAPE & "' was not found on sheet '" & ws.Name & "'.", vbExclamation
+        Exit Sub
+    End If
+    shp.Left = UI_DDMODE_LEFT
+    shp.Top = UI_DDMODE_TOP
+    shp.Width = UI_DDMODE_WIDTH
+    shp.Height = UI_DDMODE_HEIGHT
+
+    Set shp = m_GetShapeByName(ws, CLEAR_BUTTON_SHAPE)
+    If shp Is Nothing Then
+        MsgBox "Initial UI layout failed: '" & CLEAR_BUTTON_SHAPE & "' was not found on sheet '" & ws.Name & "'.", vbExclamation
+        Exit Sub
+    End If
+    shp.Left = UI_CLEAR_LEFT
+    shp.Top = UI_CLEAR_TOP
+    shp.Width = UI_CLEAR_WIDTH
+    shp.Height = UI_CLEAR_HEIGHT
+
+    Set shp = m_GetShapeByName(ws, MODE_BUTTON_SHAPE)
+    If shp Is Nothing Then
+        MsgBox "Initial UI layout failed: '" & MODE_BUTTON_SHAPE & "' was not found on sheet '" & ws.Name & "'.", vbExclamation
+        Exit Sub
+    End If
+    shp.Left = UI_MODEBTN_LEFT
+    shp.Top = UI_MODEBTN_TOP
+    shp.Width = UI_MODEBTN_WIDTH
+    shp.Height = UI_MODEBTN_HEIGHT
+
+    Set shp = m_GetShapeByName(ws, PERSONAL_BUTTON_SHAPE)
+    If shp Is Nothing Then
+        MsgBox "Initial UI layout failed: '" & PERSONAL_BUTTON_SHAPE & "' was not found on sheet '" & ws.Name & "'.", vbExclamation
+        Exit Sub
+    End If
+    shp.Left = UI_PERSONAL_LEFT
+    shp.Top = UI_PERSONAL_TOP
+    shp.Width = UI_PERSONAL_WIDTH
+    shp.Height = UI_PERSONAL_HEIGHT
+
+    Set shp = m_GetShapeByName(ws, COMPARING_BUTTON_SHAPE)
+    If shp Is Nothing Then
+        MsgBox "Initial UI layout failed: '" & COMPARING_BUTTON_SHAPE & "' was not found on sheet '" & ws.Name & "'.", vbExclamation
+        Exit Sub
+    End If
+    shp.Left = UI_COMPARING_LEFT
+    shp.Top = UI_COMPARING_TOP
+    shp.Width = UI_COMPARING_WIDTH
+    shp.Height = UI_COMPARING_HEIGHT
+End Sub
 
 Private Function mp_ApplyShapeVisible(ByVal node As Object, ByVal shp As Shape) As Boolean
     Dim valueText As String

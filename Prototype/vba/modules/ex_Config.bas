@@ -208,9 +208,7 @@ Private Function mp_GetProfileNameFromDropdown(ByVal wsDev As Worksheet) As Stri
     Dim cf As Object
     Dim idx As Long
 
-    On Error Resume Next
-    Set shp = wsDev.Shapes("ddProfile")
-    On Error GoTo 0
+    Set shp = ex_ProfileUI.m_GetShapeByName(wsDev, "ddProfile")
     If shp Is Nothing Then Exit Function
 
     On Error Resume Next
