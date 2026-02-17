@@ -1,6 +1,14 @@
 ﻿<?xml version="1.0" standalone="yes"?>
 <presets version="1" xmlns="urn:excelprototype:presets">
 	<profile name="Default">
+		<ui>
+			<control name="ddProfile" visible="true"/>
+			<control name="ddMode" visible="true"/>
+			<control name="btnClear" visible="true"/>
+			<control name="btnMode" visible="true"/>
+			<control name="btnPersonalCard" visible="true"/>
+			<control name="btnComparing" visible="false"/>
+		</ui>
 		<v key="Source.Main.FilePath">.\TESTS\GetReferences\PeopleStateUA.xlsx</v>
 		<v key="Source.Main.TablesAliases">StateMain</v>
 		<v key="Source.Events.FilePath">.\TESTS\GetReferences\PeopleEventsUA.xlsx</v>
@@ -30,20 +38,6 @@
 		<v key="Events.Table[EventsMain].Map[Salary]">Оклад</v>
 		<v key=""/>
 		<v key="Output.Tables">StateMain; EventsMain</v>
-            <ui>
-                <control name="ddProfile"
-                         visible="true"/>
-                <control name="ddMode"
-                         visible="true"/>
-                <control name="btnClear"
-                         visible="true"/>
-                <control name="btnMode"
-                         visible="true"/>
-                <control name="btnPersonalCard"
-                         visible="true"/>
-                <control name="btnComparing"
-                         visible="false"/>
-            </ui>
 	</profile>
 	<profile name="Test">
 		<v key="Source.Main.FilePath">..\dsc_StateSrc.xlsx</v>
@@ -84,19 +78,13 @@
 		<v key="Events.Table[EventsOut].Map[Ticket]">Стовпець1|Номер квитка</v>
 		<v key=""/>
 		<v key="Output.Tables">StateMain; EventsOut; EventsIn</v>
-            <ui>
-                <control name="ddProfile"
-                         visible="true"/>
-                <control name="ddMode"
-                         visible="true"/>
-                <control name="btnClear"
-                         visible="true"/>
-                <control name="btnMode"
-                         visible="true"/>
-                <control name="btnPersonalCard"
-                         visible="true"/>
-                <control name="btnComparing"
-                         visible="false"/>
-            </ui>
+		<ui>
+			<control name="ddProfile" visible="true"/>
+			<control name="ddMode" visible="true"/>
+			<control name="btnClear" visible="true"/>
+			<control name="btnMode" visible="true"/>
+			<control name="btnPersonalCard" visible="true"/>
+			<control name="btnComparing" visible="false"/>
+		</ui>
 	</profile>
 </presets>

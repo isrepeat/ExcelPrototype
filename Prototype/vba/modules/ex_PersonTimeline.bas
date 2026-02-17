@@ -46,6 +46,11 @@ Public Sub m_ShowPersonTimeline(ByVal fio As String)
     Dim mode As OutputMode
     mode = ex_Settings.m_GetOutputMode()
 
+    Dim outputStyle As t_OutputStyle
+    If Not ex_OutputStyle.m_LoadOutputStyle(outputStyle, ThisWorkbook) Then
+        Err.Raise vbObjectError + 1304, "ex_PersonTimeline", "Failed to load output style from config\OutputStyle.xml."
+    End If
+
     Dim outputAliases As Variant
     outputAliases = mp_GetListRequired(cfg, "Output.Tables")
 
@@ -61,8 +66,12 @@ Public Sub m_ShowPersonTimeline(ByVal fio As String)
 
     Dim rowIndex As Long
     rowIndex = 1
-    rowIndex = mp_WriteHeader(wsOut, fio, rowIndex, mode)
-    rowIndex = rowIndex + 1
+
+    Dim headerRows As Collection
+    Set headerRows = New Collection
+
+    Dim sectionRows As Collection
+    Set sectionRows = New Collection
 
     Dim renderedCount As Long
     renderedCount = 0
@@ -107,15 +116,16 @@ Public Sub m_ShowPersonTimeline(ByVal fio As String)
         End If
 
         If tableType = "state" Then
-            rowIndex = mp_WriteStateCardGeneric(wsOut, lo, fio, rowIndex, cfg, sourceAlias, tableAlias)
+            rowIndex = mp_WriteStateCardGeneric(wsOut, lo, fio, rowIndex, cfg, sourceAlias, tableAlias, headerRows, sectionRows)
             rowIndex = rowIndex + 1
         Else
-            If mode = PersonTimeline And renderedCount > 0 Then
+            If mode <> StateTableOnly Then
                 wsOut.Cells(rowIndex, 1).Value = "Events [" & tableAlias & "]"
                 wsOut.Cells(rowIndex, 1).Font.Bold = True
+                sectionRows.Add rowIndex
                 rowIndex = rowIndex + 1
             End If
-            rowIndex = mp_WriteEventsGeneric(wsOut, lo, fio, rowIndex, cfg, sourceAlias, tableAlias)
+            rowIndex = mp_WriteEventsGeneric(wsOut, lo, fio, rowIndex, cfg, sourceAlias, tableAlias, headerRows)
             rowIndex = rowIndex + 1
         End If
 
@@ -129,8 +139,8 @@ ContinueAlias:
             "No tables were rendered for mode '" & ex_Settings.m_GetOutputModeDisplay() & "'. Check Output.Tables and table Type."
     End If
 
-    wsOut.Columns.AutoFit
     ex_SheetTheme.m_ApplyDarkThemeToSheet wsOut
+    mp_ApplyOutputStyle wsOut, headerRows, sectionRows, outputStyle
 
     mp_CloseWorkbooks wbCache
 
@@ -151,31 +161,6 @@ EH:
 
 End Sub
 
-Private Function mp_WriteHeader(ByVal ws As Worksheet, ByVal fio As String, ByVal rowIndex As Long, ByVal mode As OutputMode) As Long
-
-    Dim title As String
-
-    Select Case mode
-        Case PersonTimeline
-            title = "Timeline by Full Name"
-        Case StateTableOnly
-            title = "State by Full Name"
-        Case EventsTableOnly
-            title = "Events by Full Name"
-        Case Else
-            title = "Timeline by Full Name"
-    End Select
-
-    ws.Cells(rowIndex, 1).Value = title
-    ws.Cells(rowIndex, 2).Value = fio
-
-    ws.Cells(rowIndex, 1).Font.Bold = True
-    ws.Cells(rowIndex, 2).Font.Bold = True
-
-    mp_WriteHeader = rowIndex
-
-End Function
-
 Private Function mp_WriteStateCardGeneric( _
     ByVal wsOut As Worksheet, _
     ByVal lo As ListObject, _
@@ -183,7 +168,9 @@ Private Function mp_WriteStateCardGeneric( _
     ByVal rowIndex As Long, _
     ByVal cfg As Object, _
     ByVal sourceAlias As String, _
-    ByVal tableAlias As String _
+    ByVal tableAlias As String, _
+    ByVal headerRows As Collection, _
+    ByVal sectionRows As Collection _
 ) As Long
 
     Dim fields As Variant
@@ -209,32 +196,40 @@ Private Function mp_WriteStateCardGeneric( _
             "State row not found for person '" & fio & "' in table alias '" & tableAlias & "'."
     End If
 
+    wsOut.Cells(rowIndex, 1).Value = fio
+    sectionRows.Add rowIndex
+    rowIndex = rowIndex + 1
+
+    Dim headerRow As Long
+    headerRow = rowIndex
+    headerRows.Add headerRow
+
+    Dim valueRow As Long
+    valueRow = headerRow + 1
+
     Dim i As Long
     For i = LBound(fields) To UBound(fields)
         Dim fieldAlias As String
         fieldAlias = Trim$(CStr(fields(i)))
         If Len(fieldAlias) = 0 Then GoTo ContinueField
 
-        Dim labelText As String
-        labelText = mp_GetLabel(cfg, sourceAlias, tableAlias, fieldAlias)
+        Dim outCol As Long
+        outCol = 1 + (i - LBound(fields))
+
+        wsOut.Cells(headerRow, outCol).Value = mp_GetLabel(cfg, sourceAlias, tableAlias, fieldAlias)
 
         Dim colIndex As Long
         colIndex = mp_TryGetTableColumnByFieldAlias(lo, cfg, sourceAlias, tableAlias, fieldAlias)
-
-        wsOut.Cells(rowIndex, 1).Value = labelText
-
         If colIndex > 0 Then
-            wsOut.Cells(rowIndex, 2).Value = lo.DataBodyRange.Cells(foundRow, colIndex).Value
+            wsOut.Cells(valueRow, outCol).Value = lo.DataBodyRange.Cells(foundRow, colIndex).Value
         Else
-            wsOut.Cells(rowIndex, 2).Value = "(missing column)"
+            wsOut.Cells(valueRow, outCol).Value = "(missing column)"
         End If
-
-        rowIndex = rowIndex + 1
 
 ContinueField:
     Next i
 
-    mp_WriteStateCardGeneric = rowIndex
+    mp_WriteStateCardGeneric = valueRow + 1
 
 End Function
 
@@ -245,7 +240,8 @@ Private Function mp_WriteEventsGeneric( _
     ByVal rowIndex As Long, _
     ByVal cfg As Object, _
     ByVal sourceAlias As String, _
-    ByVal tableAlias As String _
+    ByVal tableAlias As String, _
+    ByVal headerRows As Collection _
 ) As Long
 
     Dim fields As Variant
@@ -266,6 +262,7 @@ Private Function mp_WriteEventsGeneric( _
 
     Dim outHeaderRow As Long
     outHeaderRow = rowIndex
+    headerRows.Add outHeaderRow
 
     Dim i As Long
     For i = LBound(fields) To UBound(fields)
@@ -336,6 +333,70 @@ ContinueRow:
 
     mp_WriteEventsGeneric = outDataRow + 1
 
+End Function
+
+Private Sub mp_ApplyOutputStyle(ByVal ws As Worksheet, ByVal headerRows As Collection, ByVal sectionRows As Collection, ByRef style As t_OutputStyle)
+    Dim usedRows As Long
+    Dim usedCols As Long
+    Dim usedRange As Range
+    Dim rowId As Variant
+    Dim rowIndex As Long
+    Dim lastCol As Long
+    Dim titleRange As Range
+
+    If ws Is Nothing Then Exit Sub
+    If ws.UsedRange Is Nothing Then Exit Sub
+
+    usedRows = ws.UsedRange.Rows.Count
+    usedCols = ws.UsedRange.Columns.Count
+    Set usedRange = ws.Range(ws.Cells(1, 1), ws.Cells(usedRows, usedCols))
+
+    usedRange.Font.Name = style.FontName
+    usedRange.Font.Size = style.FontSize
+    usedRange.Font.Color = style.ContentColor
+    usedRange.HorizontalAlignment = style.HorizontalAlignment
+    usedRange.VerticalAlignment = style.VerticalAlignment
+    ws.Rows("1:" & CStr(usedRows)).RowHeight = style.RowHeight
+    usedRange.EntireColumn.AutoFit
+
+    Dim sectionLastCol As Long
+    sectionLastCol = style.SectionMergeColumns
+    If sectionLastCol < 1 Then
+        sectionLastCol = 1
+    End If
+
+    For Each rowId In sectionRows
+        rowIndex = CLng(rowId)
+        Set titleRange = ws.Range(ws.Cells(rowIndex, 1), ws.Cells(rowIndex, sectionLastCol))
+        titleRange.UnMerge
+        titleRange.Merge
+        titleRange.HorizontalAlignment = style.HorizontalAlignment
+        titleRange.VerticalAlignment = style.VerticalAlignment
+        titleRange.Font.Bold = style.SectionBold
+        titleRange.Font.Color = style.SectionColor
+    Next rowId
+
+    For Each rowId In headerRows
+        rowIndex = CLng(rowId)
+        lastCol = mp_GetLastUsedColumnInRow(ws, rowIndex)
+        If lastCol > 0 Then
+            Set titleRange = ws.Range(ws.Cells(rowIndex, 1), ws.Cells(rowIndex, lastCol))
+            titleRange.Font.Bold = style.HeaderBold
+            titleRange.Font.Color = style.HeaderColor
+        End If
+    Next rowId
+End Sub
+
+Private Function mp_GetLastUsedColumnInRow(ByVal ws As Worksheet, ByVal rowIndex As Long) As Long
+    If ws Is Nothing Then Exit Function
+    If rowIndex <= 0 Then Exit Function
+
+    mp_GetLastUsedColumnInRow = ws.Cells(rowIndex, ws.Columns.Count).End(xlToLeft).Column
+    If mp_GetLastUsedColumnInRow = 1 Then
+        If Len(Trim$(CStr(ws.Cells(rowIndex, 1).Value))) = 0 Then
+            mp_GetLastUsedColumnInRow = 0
+        End If
+    End If
 End Function
 
 Private Function mp_LoadConfigDictionary() As Object

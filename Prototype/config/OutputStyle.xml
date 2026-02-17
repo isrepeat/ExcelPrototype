@@ -1,0 +1,11 @@
+<?xml version="1.0" standalone="yes"?>
+<outputStyle xmlns="urn:excelprototype:presets" version="1">
+  <font name="Times New Roman" size="12"/>
+  <rows height="20"/>
+
+  <content color="#EBEBEB"/>
+  <header color="#68D947" bold="true"/>
+  <section color="#D7A763" bold="true" mergeColumns="2"/>
+
+  <alignment horizontal="center" vertical="center"/>
+</outputStyle>
