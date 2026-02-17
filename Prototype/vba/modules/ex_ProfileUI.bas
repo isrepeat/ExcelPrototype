@@ -2,7 +2,7 @@ Attribute VB_Name = "ex_ProfileUI"
 Option Explicit
 
 Private Const PRESETS_NS As String = "urn:excelprototype:presets"
-Private Const GLOBAL_BUTTONS_REL_PATH As String = "config\GlobalButtons.xml"
+Private Const UI_DEFINITION_REL_PATH As String = "config\UI.xml"
 Private Const UI_BLOCK_GROUP_NAME As String = "grpUiBlock"
 Private Const PROFILE_DROPDOWN_SHAPE As String = "ddProfile"
 Private Const MODE_DROPDOWN_SHAPE As String = "ddMode"
@@ -17,7 +17,6 @@ Public Sub m_ApplyProfileUI(ByVal ws As Worksheet, ByVal profileNode As Object, 
     Dim node As Object
     Dim shapeName As String
     Dim shp As Shape
-    Dim applyProfileLayout As Boolean
 
     If ws Is Nothing Then
         MsgBox "Failed to apply profile UI: worksheet is not specified.", vbExclamation
@@ -32,11 +31,9 @@ Public Sub m_ApplyProfileUI(ByVal ws As Worksheet, ByVal profileNode As Object, 
     profileNode.OwnerDocument.setProperty "SelectionNamespaces", "xmlns:p='" & PRESETS_NS & "'"
     On Error GoTo 0
 
-    Set uiNodes = profileNode.selectNodes("p:ui/p:shape")
+    Set uiNodes = profileNode.selectNodes("p:ui/p:control")
     If uiNodes Is Nothing Then Exit Sub
     If uiNodes.Length = 0 Then Exit Sub
-
-    If Not mp_TryGetApplyProfileLayoutFlag(applyProfileLayout) Then Exit Sub
 
     For Each node In uiNodes
         shapeName = Trim$(mp_NodeAttrText(node, "name"))
@@ -47,18 +44,15 @@ Public Sub m_ApplyProfileUI(ByVal ws As Worksheet, ByVal profileNode As Object, 
 
         Set shp = m_GetShapeByName(ws, shapeName)
         If shp Is Nothing Then
+            If mp_IsButtonShapeName(shapeName) Then GoTo NextNode
             MsgBox "Profile UI shape '" & shapeName & "' was not found on sheet '" & ws.Name & "'.", vbExclamation
             Exit Sub
         End If
 
         If Not mp_ApplyShapeVisible(node, shp) Then Exit Sub
-        If applyProfileLayout Then
-            If Not mp_ApplyShapePlacement(node, shp, ws) Then Exit Sub
-            If Not mp_ApplyShapeGeometry(node, shp) Then Exit Sub
-        End If
-        If Not mp_ApplyShapeColor(node, shp, profileName) Then Exit Sub
 
         Set shp = Nothing
+NextNode:
     Next node
 End Sub
 
@@ -129,8 +123,8 @@ EH_GROUP:
 End Sub
 
 Public Sub m_ApplyModeVisibility(ByVal ws As Worksheet, ByVal profileNode As Object)
-    Dim globalDoc As Object
-    Dim globalNodes As Object
+    Dim uiDefDoc As Object
+    Dim uiControlNodes As Object
     Dim uiNodes As Object
 
     If ws Is Nothing Then
@@ -149,17 +143,17 @@ Public Sub m_ApplyModeVisibility(ByVal ws As Worksheet, ByVal profileNode As Obj
     ' Guardrail: any shape named as button (btn*) must be explicitly enabled by current profile.
     mp_HideAllButtons ws
 
-    Set globalDoc = mp_LoadGlobalButtonsDom()
-    If globalDoc Is Nothing Then Exit Sub
+    Set uiDefDoc = mp_LoadUiDefinitionDom()
+    If uiDefDoc Is Nothing Then Exit Sub
 
-    Set globalNodes = globalDoc.selectNodes("/p:globalButtons/p:shape")
-    If globalNodes Is Nothing Then
-        MsgBox "Invalid global buttons file format. Expected '/globalButtons/shape'.", vbExclamation
+    Set uiControlNodes = uiDefDoc.selectNodes("/p:uiDefinition/p:controls/p:control")
+    If uiControlNodes Is Nothing Then
+        MsgBox "Invalid UI definition format. Expected '/uiDefinition/controls/control'.", vbExclamation
         Exit Sub
     End If
-    mp_ApplyFilteredVisibilityFromNodes ws, globalNodes
+    mp_ApplyGlobalVisibilityFromUiControls ws, uiControlNodes
 
-    Set uiNodes = profileNode.selectNodes("p:ui/p:shape")
+    Set uiNodes = profileNode.selectNodes("p:ui/p:control")
     If uiNodes Is Nothing Then Exit Sub
     If uiNodes.Length = 0 Then Exit Sub
     mp_ApplyFilteredVisibilityFromNodes ws, uiNodes
@@ -196,8 +190,7 @@ Private Sub mp_ApplyFilteredVisibilityFromNodes(ByVal ws As Worksheet, ByVal nod
 
         Set shp = m_GetShapeByName(ws, shapeName)
         If shp Is Nothing Then
-            MsgBox "UI shape '" & shapeName & "' was not found on sheet '" & ws.Name & "'.", vbExclamation
-            Exit Sub
+            GoTo NextNode
         End If
 
         If mp_IsShapeVisibleByFilters(node) Then
@@ -208,13 +201,43 @@ NextNode:
     Next node
 End Sub
 
-Private Function mp_LoadGlobalButtonsDom() As Object
+Private Sub mp_ApplyGlobalVisibilityFromUiControls(ByVal ws As Worksheet, ByVal controlNodes As Object)
+    Dim node As Object
+    Dim shapeName As String
+    Dim visibleText As String
+    Dim isGlobalVisible As Boolean
+    Dim shp As Shape
+
+    For Each node In controlNodes
+        shapeName = Trim$(mp_NodeAttrText(node, "name"))
+        If Len(shapeName) = 0 Then
+            MsgBox "UI control entry contains no 'name' attribute.", vbExclamation
+            Exit Sub
+        End If
+        If Not mp_IsButtonShapeName(shapeName) Then GoTo NextNode
+
+        visibleText = Trim$(mp_NodeAttrText(node, "globalVisible"))
+        If Len(visibleText) = 0 Then GoTo NextNode
+        If Not mp_TryParseBoolean(visibleText, isGlobalVisible) Then
+            MsgBox "Invalid boolean value for UI control attribute 'globalVisible' on '" & shapeName & "': " & visibleText, vbExclamation
+            Exit Sub
+        End If
+        If Not isGlobalVisible Then GoTo NextNode
+
+        Set shp = m_GetShapeByName(ws, shapeName)
+        If shp Is Nothing Then GoTo NextNode
+        shp.Visible = msoTrue
+NextNode:
+    Next node
+End Sub
+
+Private Function mp_LoadUiDefinitionDom() As Object
     Dim filePath As String
     Dim doc As Object
 
-    filePath = mp_GetGlobalButtonsFilePath()
+    filePath = mp_GetUiDefinitionFilePath()
     If Len(Dir(filePath)) = 0 Then
-        MsgBox "Global buttons config file was not found: " & filePath, vbExclamation
+        MsgBox "UI definition config file was not found: " & filePath, vbExclamation
         Exit Function
     End If
 
@@ -223,45 +246,15 @@ Private Function mp_LoadGlobalButtonsDom() As Object
     doc.validateOnParse = False
 
     If Not doc.Load(filePath) Then
-        MsgBox "Failed to parse global buttons config file: " & filePath, vbExclamation
+        MsgBox "Failed to parse UI definition config file: " & filePath, vbExclamation
         Exit Function
     End If
 
     doc.setProperty "SelectionNamespaces", "xmlns:p='" & PRESETS_NS & "'"
-    Set mp_LoadGlobalButtonsDom = doc
+    Set mp_LoadUiDefinitionDom = doc
 End Function
 
-Private Function mp_TryGetApplyProfileLayoutFlag(ByRef applyProfileLayout As Boolean) As Boolean
-    Dim globalDoc As Object
-    Dim rootNode As Object
-    Dim valueText As String
-
-    applyProfileLayout = True
-
-    Set globalDoc = mp_LoadGlobalButtonsDom()
-    If globalDoc Is Nothing Then Exit Function
-
-    Set rootNode = globalDoc.selectSingleNode("/p:globalButtons")
-    If rootNode Is Nothing Then
-        MsgBox "Invalid global buttons file format. Expected '/globalButtons'.", vbExclamation
-        Exit Function
-    End If
-
-    valueText = Trim$(mp_NodeAttrText(rootNode, "applyProfileLayout"))
-    If Len(valueText) = 0 Then
-        mp_TryGetApplyProfileLayoutFlag = True
-        Exit Function
-    End If
-
-    If Not mp_TryParseBoolean(valueText, applyProfileLayout) Then
-        MsgBox "Invalid boolean value for global setting 'applyProfileLayout': " & valueText, vbExclamation
-        Exit Function
-    End If
-
-    mp_TryGetApplyProfileLayoutFlag = True
-End Function
-
-Private Function mp_GetGlobalButtonsFilePath() As String
+Private Function mp_GetUiDefinitionFilePath() As String
     Dim basePath As String
 
     basePath = ThisWorkbook.Path
@@ -269,7 +262,7 @@ Private Function mp_GetGlobalButtonsFilePath() As String
         basePath = CurDir$
     End If
 
-    mp_GetGlobalButtonsFilePath = basePath & "\" & GLOBAL_BUTTONS_REL_PATH
+    mp_GetUiDefinitionFilePath = basePath & "\" & UI_DEFINITION_REL_PATH
 End Function
 
 Private Sub mp_HideAllButtons(ByVal ws As Worksheet)
@@ -400,121 +393,6 @@ Private Function mp_ApplyShapeVisible(ByVal node As Object, ByVal shp As Shape) 
     mp_ApplyShapeVisible = True
 End Function
 
-Private Function mp_ApplyShapeGeometry(ByVal node As Object, ByVal shp As Shape) As Boolean
-    If Not mp_ApplySingleGeometryAttribute(node, shp, "left") Then Exit Function
-    If Not mp_ApplySingleGeometryAttribute(node, shp, "top") Then Exit Function
-    If Not mp_ApplySingleGeometryAttribute(node, shp, "width") Then Exit Function
-    If Not mp_ApplySingleGeometryAttribute(node, shp, "height") Then Exit Function
-    mp_ApplyShapeGeometry = True
-End Function
-
-Private Function mp_ApplyShapePlacement(ByVal node As Object, ByVal shp As Shape, ByVal ws As Worksheet) As Boolean
-    Dim placementText As String
-    Dim placementValue As XlPlacement
-    Dim anchorCellText As String
-    Dim anchorCell As Range
-    Dim dx As Double
-    Dim dy As Double
-
-    placementText = Trim$(mp_NodeAttrText(node, "placement"))
-    If Len(placementText) > 0 Then
-        If Not mp_TryParsePlacement(placementText, placementValue) Then
-            MsgBox "Invalid UI placement value on shape '" & shp.Name & "': " & placementText, vbExclamation
-            Exit Function
-        End If
-        shp.Placement = placementValue
-    End If
-
-    anchorCellText = Trim$(mp_NodeAttrText(node, "anchorCell"))
-    If Len(anchorCellText) = 0 Then
-        mp_ApplyShapePlacement = True
-        Exit Function
-    End If
-
-    On Error GoTo EH_ANCHOR
-    Set anchorCell = ws.Range(anchorCellText)
-    On Error GoTo 0
-
-    If Not mp_ReadOffset(node, "anchorDx", dx) Then
-        MsgBox "Invalid numeric value for UI attribute 'anchorDx' on shape '" & shp.Name & "'.", vbExclamation
-        Exit Function
-    End If
-    If Not mp_ReadOffset(node, "anchorDy", dy) Then
-        MsgBox "Invalid numeric value for UI attribute 'anchorDy' on shape '" & shp.Name & "'.", vbExclamation
-        Exit Function
-    End If
-
-    shp.Left = anchorCell.Left + dx
-    shp.Top = anchorCell.Top + dy
-
-    mp_ApplyShapePlacement = True
-    Exit Function
-EH_ANCHOR:
-    MsgBox "Invalid range in UI attribute 'anchorCell' for shape '" & shp.Name & "': " & anchorCellText, vbExclamation
-End Function
-
-Private Function mp_ApplySingleGeometryAttribute(ByVal node As Object, ByVal shp As Shape, ByVal attrName As String) As Boolean
-    Dim valueText As String
-    Dim valueNumber As Double
-
-    valueText = Trim$(mp_NodeAttrText(node, attrName))
-    If Len(valueText) = 0 Then
-        mp_ApplySingleGeometryAttribute = True
-        Exit Function
-    End If
-
-    If Not mp_TryParseDouble(valueText, valueNumber) Then
-        MsgBox "Invalid numeric value for UI attribute '" & attrName & "' on shape '" & shp.Name & "': " & valueText, vbExclamation
-        Exit Function
-    End If
-
-    Select Case LCase$(attrName)
-        Case "left": shp.Left = valueNumber
-        Case "top": shp.Top = valueNumber
-        Case "width": shp.Width = valueNumber
-        Case "height": shp.Height = valueNumber
-    End Select
-
-    mp_ApplySingleGeometryAttribute = True
-End Function
-
-Private Function mp_ApplyShapeColor(ByVal node As Object, ByVal shp As Shape, ByVal profileName As String) As Boolean
-    Dim valueText As String
-    Dim colorValue As Long
-
-    valueText = Trim$(mp_NodeAttrText(node, "backColor"))
-    If Len(valueText) = 0 Then
-        mp_ApplyShapeColor = True
-        Exit Function
-    End If
-
-    If Not mp_TryParseColor(valueText, colorValue) Then
-        MsgBox "Invalid color value for UI attribute 'backColor' on shape '" & shp.Name & "': " & valueText, vbExclamation
-        Exit Function
-    End If
-
-    On Error GoTo EH
-    shp.Fill.Visible = msoTrue
-    shp.Fill.ForeColor.RGB = colorValue
-    mp_ApplyShapeColor = True
-    Exit Function
-EH:
-    MsgBox "Failed to apply 'backColor' for shape '" & shp.Name & "' in profile '" & profileName & "': " & Err.Description, vbExclamation
-End Function
-
-Private Function mp_ReadOffset(ByVal node As Object, ByVal attrName As String, ByRef value As Double) As Boolean
-    Dim valueText As String
-
-    valueText = Trim$(mp_NodeAttrText(node, attrName))
-    If Len(valueText) = 0 Then
-        value = 0#
-        mp_ReadOffset = True
-        Exit Function
-    End If
-
-    mp_ReadOffset = mp_TryParseDouble(valueText, value)
-End Function
-
 Private Function mp_NodeAttrText(ByVal node As Object, ByVal attrName As String) As String
     On Error Resume Next
     mp_NodeAttrText = CStr(node.selectSingleNode("@*[local-name()='" & attrName & "']").Text)
@@ -534,85 +412,4 @@ Private Function mp_TryParseBoolean(ByVal valueText As String, ByRef result As B
             result = False
             mp_TryParseBoolean = True
     End Select
-End Function
-
-Private Function mp_TryParsePlacement(ByVal valueText As String, ByRef result As XlPlacement) As Boolean
-    Select Case LCase$(Trim$(valueText))
-        Case "absolute", "free", "freefloating"
-            result = xlFreeFloating
-            mp_TryParsePlacement = True
-        Case "move", "movewithcells"
-            result = xlMove
-            mp_TryParsePlacement = True
-        Case "moveandsize", "move_and_size", "move-size", "moveandresize"
-            result = xlMoveAndSize
-            mp_TryParsePlacement = True
-    End Select
-End Function
-
-Private Function mp_TryParseDouble(ByVal valueText As String, ByRef result As Double) As Boolean
-    Dim normalized As String
-    Dim decSep As String
-    Dim altSep As String
-
-    On Error GoTo EH
-
-    normalized = Trim$(valueText)
-    If Len(normalized) = 0 Then Exit Function
-
-    decSep = CStr(Application.International(xlDecimalSeparator))
-    If decSep = "." Then
-        altSep = ","
-    Else
-        altSep = "."
-    End If
-
-    normalized = Replace(normalized, altSep, decSep)
-    If Not IsNumeric(normalized) Then Exit Function
-
-    result = CDbl(normalized)
-    mp_TryParseDouble = True
-    Exit Function
-EH:
-    mp_TryParseDouble = False
-End Function
-
-Private Function mp_TryParseColor(ByVal valueText As String, ByRef colorValue As Long) As Boolean
-    Dim hexText As String
-    Dim r As Long
-    Dim g As Long
-    Dim b As Long
-
-    valueText = Trim$(valueText)
-    If Len(valueText) = 0 Then Exit Function
-
-    If Left$(valueText, 1) = "#" And Len(valueText) = 7 Then
-        hexText = Mid$(valueText, 2)
-        If Not mp_IsHex(hexText) Then Exit Function
-        r = CLng("&H" & Mid$(hexText, 1, 2))
-        g = CLng("&H" & Mid$(hexText, 3, 2))
-        b = CLng("&H" & Mid$(hexText, 5, 2))
-        colorValue = RGB(r, g, b)
-        mp_TryParseColor = True
-        Exit Function
-    End If
-
-    If IsNumeric(valueText) Then
-        colorValue = CLng(valueText)
-        mp_TryParseColor = True
-    End If
-End Function
-
-Private Function mp_IsHex(ByVal valueText As String) As Boolean
-    Dim i As Long
-    Dim ch As String
-
-    If Len(valueText) = 0 Then Exit Function
-    For i = 1 To Len(valueText)
-        ch = Mid$(valueText, i, 1)
-        If InStr(1, "0123456789abcdefABCDEF", ch, vbBinaryCompare) = 0 Then
-            Exit Function
-        End If
-    Next i
-    mp_IsHex = True
 End Function

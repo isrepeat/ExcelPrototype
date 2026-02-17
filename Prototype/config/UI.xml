@@ -1,0 +1,190 @@
+<?xml version="1.0" standalone="yes"?>
+<uiDefinition xmlns="urn:excelprototype:presets" version="1">
+  <dataSources>
+    <profilesSource name="profilesByMode"
+                    defaultMode="Personal Card"
+                    modePersonalCard="Personal Card"
+                    modeComparing="Comparing"
+                    pathPersonalCard="config\profiles\PersonalCard\PersonalCardProfiles.xml"
+                    pathComparing="config\profiles\TablesComparing\TablesComparingProfiles.xml"/>
+  </dataSources>
+
+  <styles>
+    <buttonStyle name="base"
+                 backColor="#2F2F2F"
+                 textColor="#FFFFFF"
+                 borderColor="#505050"
+                 borderWeight="1"
+                 fontName="Calibri"
+                 fontSize="10"
+                 fontBold="true"/>
+    <buttonStyle name="accent"
+                 backColor="#1F5E9C"
+                 textColor="#FFFFFF"
+                 borderColor="#163F69"
+                 borderWeight="1"
+                 fontName="Calibri"
+                 fontSize="10"
+                 fontBold="true"/>
+    <buttonStyle name="modeTimeline"
+                 backColor="#0070C0"
+                 textColor="#FFFFFF"
+                 borderColor="#0070C0"
+                 borderWeight="1"
+                 fontName="Calibri"
+                 fontSize="14"
+                 fontBold="true"/>
+    <buttonStyle name="modeState"
+                 backColor="#70AD47"
+                 textColor="#FFFFFF"
+                 borderColor="#70AD47"
+                 borderWeight="1"
+                 fontName="Calibri"
+                 fontSize="14"
+                 fontBold="true"/>
+    <buttonStyle name="modeEvents"
+                 backColor="#C55A11"
+                 textColor="#FFFFFF"
+                 borderColor="#C55A11"
+                 borderWeight="1"
+                 fontName="Calibri"
+                 fontSize="14"
+                 fontBold="true"/>
+    <buttonStyle name="modeUnknown"
+                 backColor="#808080"
+                 textColor="#FFFFFF"
+                 borderColor="#808080"
+                 borderWeight="1"
+                 fontName="Calibri"
+                 fontSize="14"
+                 fontBold="true"/>
+  </styles>
+
+  <controls>
+    <control name="btnUpdateCode"
+             type="button"
+             sheet="Dev"
+             required="true"
+             createIfMissing="true"
+             macro="DevTools.dev_UpdateCode"
+             caption="Update Code"
+             globalVisible="true"
+             style="accent"
+             left="920"
+             top="30.75"
+             width="120"
+             height="24"/>
+
+    <control name="btnClear"
+             type="button"
+             sheet="Dev"
+             required="true"
+             createIfMissing="true"
+             macro="ex_SheetManager.m_DeleteResultSheets"
+             caption="Clear"
+             style="base"
+             left="758.25"
+             top="30.75"
+             width="156"
+             height="56.69"/>
+
+    <control name="btnPersonalCard"
+             type="button"
+             sheet="Dev"
+             required="true"
+             createIfMissing="true"
+             macro="ex_PersonTimeline.m_ShowPersonTimeline_UI"
+             caption="Personal Card"
+             style="base"
+             left="758.25"
+             top="93.11"
+             width="155.91"
+             height="56.69"/>
+
+    <control name="btnComparing"
+             type="button"
+             sheet="Dev"
+             required="true"
+             createIfMissing="true"
+             macro="ex_Run.m_Run"
+             caption="Comparing"
+             style="base"
+             left="758.25"
+             top="93.11"
+             width="155.91"
+             height="56.69"/>
+
+    <control name="btnMode"
+             type="button"
+             sheet="Dev"
+             required="true"
+             createIfMissing="true"
+             macro="ex_Settings.m_SwitchMode_OnClick"
+             caption="ModeButton [Timeline]"
+             style="modeTimeline"
+             left="920"
+             top="102.99"
+             width="155.25"
+             height="36.3">
+      <modeVariants source="Settings.OutputMode">
+        <variant value="1"
+                 display="Timeline"
+                 caption="ModeButton [Timeline]"
+                 style="modeTimeline"/>
+        <variant value="2"
+                 display="State"
+                 caption="ModeButton [State]"
+                 style="modeState"/>
+        <variant value="3"
+                 display="Events"
+                 caption="ModeButton [Events]"
+                 style="modeEvents"/>
+      </modeVariants>
+    </control>
+
+    <!-- <control name="btnHelloWorld"
+             type="button"
+             sheet="Dev"
+             required="true"
+             createIfMissing="true"
+             macro="ex_Startup.m_HelloWorld"
+             caption="HelloWorld"
+             globalVisible="true"
+             style="base"
+             left="1048"
+             top="30.75"
+             width="120"
+             height="24"/> -->
+
+    <control name="ddProfile"
+             type="dropdown"
+             sheet="Dev"
+             required="true"
+             macro="ex_ConfigProfilesManager.m_OnProfileChanged"
+             itemsSource="profilesByMode"
+             visible="true"
+             placement="move"
+             anchorCell="E1"
+             anchorDx="0"
+             anchorDy="2.25"
+             width="139.5"
+             height="15"/>
+
+    <control name="ddMode"
+             type="dropdown"
+             sheet="Dev"
+             required="true"
+             macro="ex_ConfigProfilesManager.m_OnModeChanged"
+             selectedItem="Personal Card"
+             visible="true"
+             left="758.25"
+             top="2.25"
+             width="156"
+             height="15">
+      <items>
+        <item value="Personal Card"/>
+        <item value="Comparing"/>
+      </items>
+    </control>
+  </controls>
+</uiDefinition>

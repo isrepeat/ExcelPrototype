@@ -6,7 +6,7 @@ Option Explicit
 ' =============================================================================
 ' Назначение:
 ' - читать/писать профили конфигурации из внешнего XML-файла
-'   (`config\PersonalCard\PersonalCardProfiles.xml`);
+'   (пути задаются в `config\UI.xml` -> `dataSources/profilesSource`);
 ' - применять выбранный профиль к таблице `tblDevConfig` на листе Dev;
 ' - сохранять текущее состояние таблицы обратно в активный профиль;
 ' - поддерживать совместимость со старыми форматами (legacy row/marker layout);
@@ -19,8 +19,6 @@ Option Explicit
 
 Private Const PRESETS_NS As String = "urn:excelprototype:presets"
 Private Const PRESETS_TEMPLATE As String = "<?xml version=""1.0"" encoding=""UTF-8"" standalone=""yes""?><presets xmlns=""" & PRESETS_NS & """ version=""1""/>"
-Private Const PERSONAL_PRESETS_REL_PATH As String = "config\PersonalCard\PersonalCardProfiles.xml"
-Private Const TABLES_PRESETS_REL_PATH As String = "config\TablesComparing\TablesComparingProfiles.xml"
 Private Const MODE_PERSONAL_CARD As String = "Personal Card"
 Private Const MODE_TABLES_COMPARING As String = "Comparing"
 Private Const DEV_CONFIG_TABLE_NAME As String = "tblDevConfig"
@@ -317,29 +315,14 @@ Private Sub mp_SeedProfileFromSheet(ByVal doc As Object, ByVal ws As Worksheet)
 End Sub
 
 Private Function mp_GetProfileNames(Optional ByVal ws As Worksheet) As Variant
-    Dim doc As Object
-    Dim nodes As Object
-    Dim names() As String
-    Dim i As Long
+    Dim modeName As String
 
     If ws Is Nothing Then
         Set ws = ws_Dev
     End If
 
-    Set doc = mp_LoadPresetsDom(ws)
-    Set nodes = doc.selectNodes("/p:presets/p:profile")
-
-    If nodes.Length = 0 Then
-        mp_GetProfileNames = Array()
-        Exit Function
-    End If
-
-    ReDim names(0 To nodes.Length - 1)
-    For i = 0 To nodes.Length - 1
-        names(i) = CStr(nodes.Item(i).getAttribute("name"))
-    Next i
-
-    mp_GetProfileNames = names
+    modeName = mp_GetSelectedModeName(ws)
+    mp_GetProfileNames = ex_UILoader.m_GetDropdownItemsByName("ddProfile", ThisWorkbook, modeName)
 End Function
 
 Private Function mp_ArrayHasItems(ByVal values As Variant) As Boolean
@@ -399,8 +382,10 @@ Private Function mp_GetSelectedProfileNameFromDropdown(ByVal ws As Worksheet, By
 
     selectedIndex = mp_GetControlIndex(cf)
     If selectedIndex < 1 Or selectedIndex > mp_ArrayLength(profiles) Then
-        MsgBox "No active profile is selected in control 'ddProfile'.", vbExclamation
-        Exit Function
+        selectedIndex = 1
+        On Error Resume Next
+        cf.Value = selectedIndex
+        On Error GoTo 0
     End If
 
     mp_GetSelectedProfileNameFromDropdown = CStr(profiles(selectedIndex - 1))
@@ -409,10 +394,7 @@ End Function
 Private Sub m_EnsureModeDropdown(ByVal ws As Worksheet)
     Dim cf As Object
     Dim selectedIndex As Long
-    Dim modeNames(0 To 1) As String
-
-    modeNames(0) = MODE_PERSONAL_CARD
-    modeNames(1) = MODE_TABLES_COMPARING
+    Dim modeNames As Variant
 
     Set cf = mp_GetModeDropdownControl(ws)
     If cf Is Nothing Then
@@ -420,10 +402,16 @@ Private Sub m_EnsureModeDropdown(ByVal ws As Worksheet)
         Exit Sub
     End If
 
+    modeNames = ex_UILoader.m_GetDropdownItemsByName("ddMode", ThisWorkbook)
+    If Not mp_ArrayHasItems(modeNames) Then
+        MsgBox "Mode control 'ddMode' has no <items> in config\UI.xml.", vbExclamation
+        Exit Sub
+    End If
+
     selectedIndex = mp_GetControlIndex(cf)
     mp_SetDropdownItems cf, modeNames
 
-    If selectedIndex < 1 Or selectedIndex > 2 Then
+    If selectedIndex < 1 Or selectedIndex > mp_ArrayLength(modeNames) Then
         selectedIndex = 1
     End If
 
@@ -435,6 +423,7 @@ End Sub
 Private Function mp_GetSelectedModeName(ByVal ws As Worksheet) As String
     Dim cf As Object
     Dim selectedIndex As Long
+    Dim selectedName As String
 
     Set cf = mp_GetModeDropdownControl(ws)
     If cf Is Nothing Then
@@ -443,12 +432,12 @@ Private Function mp_GetSelectedModeName(ByVal ws As Worksheet) As String
     End If
 
     selectedIndex = mp_GetControlIndex(cf)
-    Select Case selectedIndex
-        Case 2
-            mp_GetSelectedModeName = MODE_TABLES_COMPARING
-        Case Else
-            mp_GetSelectedModeName = MODE_PERSONAL_CARD
-    End Select
+    selectedName = mp_GetControlItemByIndex(cf, selectedIndex)
+    If Len(selectedName) = 0 Then
+        mp_GetSelectedModeName = MODE_PERSONAL_CARD
+    Else
+        mp_GetSelectedModeName = selectedName
+    End If
 End Function
 
 Private Function mp_GetModeDropdownControl(ByVal ws As Worksheet) As Object
@@ -509,7 +498,7 @@ Private Sub mp_SetDropdownItems(ByVal cf As Object, ByVal profiles As Variant)
     On Error Resume Next
     cf.RemoveAllItems
     If Err.Number <> 0 Then
-        MsgBox "Failed to clear control items in 'ddProfile': " & Err.Description, vbExclamation
+        MsgBox "Failed to clear dropdown control items: " & Err.Description, vbExclamation
         Err.Clear
         On Error GoTo 0
         Exit Sub
@@ -520,7 +509,7 @@ Private Sub mp_SetDropdownItems(ByVal cf As Object, ByVal profiles As Variant)
         On Error Resume Next
         cf.AddItem CStr(profiles(i))
         If Err.Number <> 0 Then
-            MsgBox "Failed to add profile '" & CStr(profiles(i)) & "' into 'ddProfile': " & Err.Description, vbExclamation
+            MsgBox "Failed to add dropdown item '" & CStr(profiles(i)) & "': " & Err.Description, vbExclamation
             Err.Clear
             On Error GoTo 0
             Exit Sub
@@ -562,12 +551,16 @@ End Function
 Private Function mp_LoadPresetsDom(Optional ByVal ws As Worksheet) As Object
     Dim filePath As String
     Dim doc As Object
+    Dim modeName As String
 
     If ws Is Nothing Then
         Set ws = ws_Dev
     End If
 
-    filePath = mp_GetProfilesFilePath()
+    modeName = mp_GetSelectedModeName(ws)
+    filePath = mp_GetProfilesFilePath(modeName)
+    If Len(filePath) = 0 Then Exit Function
+
     Set doc = CreateObject("MSXML2.DOMDocument.6.0")
 
     doc.async = False
@@ -588,8 +581,11 @@ End Function
 
 Private Sub mp_SavePresetsDom(ByVal doc As Object)
     Dim filePath As String
+    Dim modeName As String
 
-    filePath = mp_GetProfilesFilePath()
+    modeName = mp_GetSelectedModeName(ws_Dev)
+    filePath = mp_GetProfilesFilePath(modeName)
+    If Len(filePath) = 0 Then Exit Sub
 
     If Len(Dir(filePath)) = 0 Then
         MsgBox "Profiles config file was not found: " & filePath, vbExclamation
@@ -1216,28 +1212,18 @@ Private Sub mp_ApplyConfigTableDarkTheme(ByVal tbl As ListObject)
     End If
 End Sub
 
-Private Function mp_GetProfilesFilePath() As String
-    Dim basePath As String
-    Dim modeName As String
-    Dim relPath As String
+Private Function mp_GetProfilesFilePath(Optional ByVal modeName As String = vbNullString) As String
+    Dim resolvedMode As String
 
-    basePath = ThisWorkbook.Path
-    If Len(basePath) = 0 Then
-        basePath = CurDir$
+    resolvedMode = Trim$(modeName)
+    If Len(resolvedMode) = 0 Then
+        resolvedMode = MODE_PERSONAL_CARD
+        On Error Resume Next
+        resolvedMode = mp_GetSelectedModeName(ws_Dev)
+        On Error GoTo 0
     End If
 
-    modeName = MODE_PERSONAL_CARD
-    On Error Resume Next
-    modeName = mp_GetSelectedModeName(ws_Dev)
-    On Error GoTo 0
-
-    If StrComp(modeName, MODE_TABLES_COMPARING, vbTextCompare) = 0 Then
-        relPath = TABLES_PRESETS_REL_PATH
-    Else
-        relPath = PERSONAL_PRESETS_REL_PATH
-    End If
-
-    mp_GetProfilesFilePath = basePath & "\" & relPath
+    mp_GetProfilesFilePath = ex_UILoader.m_GetProfilesFilePathByMode(resolvedMode, ThisWorkbook, "profilesByMode")
 End Function
 
 Private Function mp_GetProfileNode(ByVal doc As Object, ByVal profileName As String, ByVal createIfMissing As Boolean) As Object

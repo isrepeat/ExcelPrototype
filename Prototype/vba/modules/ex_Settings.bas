@@ -15,7 +15,7 @@ End Enum
 ' Константы флагов
 ' =============================================================================
 
-Private Const FLAG_OUTPUT_MODE As String = "Display.OutputMode"
+Private Const FLAG_OUTPUT_MODE As String = "Settings.OutputMode"
 
 ' =============================================================================
 ' Public API: Булевы флаги
@@ -46,13 +46,21 @@ End Sub
 ' =============================================================================
 
 Public Function m_GetOutputMode() As OutputMode
+    Dim defaultModeValue As Long
+
     On Error GoTo NoProp
     m_GetOutputMode = CLng(ThisWorkbook.CustomDocumentProperties(FLAG_OUTPUT_MODE).Value)
     Exit Function
 NoProp:
-    ' По умолчанию - Timeline
-    m_SetOutputMode PersonTimeline
-    m_GetOutputMode = PersonTimeline
+    defaultModeValue = mp_GetDefaultModeValue()
+    If defaultModeValue <= 0 Then
+        MsgBox "Mode variants for control 'btnMode' are not configured in UI.xml.", vbExclamation
+        m_GetOutputMode = 0
+        Exit Function
+    End If
+
+    m_SetOutputMode CLng(defaultModeValue)
+    m_GetOutputMode = CLng(defaultModeValue)
 End Function
 
 Public Sub m_SetOutputMode(ByVal mode As OutputMode)
@@ -69,34 +77,49 @@ End Sub
 
 Public Function m_GetOutputModeString() As String
     Dim mode As OutputMode
+    Dim variants As Variant
+    Dim variantRow As Long
+    Dim displayText As String
+
     mode = m_GetOutputMode()
-    
-    Select Case mode
-        Case PersonTimeline
-            m_GetOutputModeString = "PersonTimeline"
-        Case StateTableOnly
-            m_GetOutputModeString = "StateTableOnly"
-        Case EventsTableOnly
-            m_GetOutputModeString = "EventsTableOnly"
-        Case Else
-            m_GetOutputModeString = "Unknown"
-    End Select
+
+    variants = mp_GetModeVariants()
+    If Not mp_ArrayHasItems(variants) Then
+        m_GetOutputModeString = "Unknown"
+        Exit Function
+    End If
+
+    variantRow = mp_FindVariantRowByValue(variants, CLng(mode))
+    If variantRow > 0 Then
+        displayText = CStr(variants(variantRow, 4))
+        If Len(displayText) > 0 Then
+            m_GetOutputModeString = displayText
+            Exit Function
+        End If
+    End If
+
+    m_GetOutputModeString = "Mode" & CStr(CLng(mode))
 End Function
 
 Public Function m_GetOutputModeDisplay() As String
     Dim mode As OutputMode
+    Dim variants As Variant
+    Dim variantRow As Long
+    Dim displayText As String
+
     mode = m_GetOutputMode()
-    
-    Select Case mode
-        Case PersonTimeline
-            m_GetOutputModeDisplay = "Timeline"
-        Case StateTableOnly
-            m_GetOutputModeDisplay = "State"
-        Case EventsTableOnly
-            m_GetOutputModeDisplay = "Events"
-        Case Else
-            m_GetOutputModeDisplay = ""
-    End Select
+    variants = mp_GetModeVariants()
+    If Not mp_ArrayHasItems(variants) Then Exit Function
+
+    variantRow = mp_FindVariantRowByValue(variants, CLng(mode))
+    If variantRow <= 0 Then Exit Function
+
+    displayText = CStr(variants(variantRow, 4))
+    If Len(displayText) > 0 Then
+        m_GetOutputModeDisplay = displayText
+    Else
+        m_GetOutputModeDisplay = CStr(variants(variantRow, 2))
+    End If
 End Function
 
 ' =============================================================================
@@ -104,24 +127,24 @@ End Function
 ' =============================================================================
 
 Public Sub m_CycleOutputMode()
-    ' Циклически переключает режимы: Timeline -> State -> Events -> Timeline
-    Dim currentMode As OutputMode
-    Dim nextMode As OutputMode
-    
-    currentMode = m_GetOutputMode()
-    
-    Select Case currentMode
-        Case PersonTimeline
-            nextMode = StateTableOnly
-        Case StateTableOnly
-            nextMode = EventsTableOnly
-        Case EventsTableOnly
-            nextMode = PersonTimeline
-        Case Else
-            nextMode = PersonTimeline
-    End Select
-    
-    m_SetOutputMode nextMode
+    Dim currentModeValue As Long
+    Dim nextModeValue As Long
+    Dim variants As Variant
+
+    variants = mp_GetModeVariants()
+    If Not mp_ArrayHasItems(variants) Then
+        MsgBox "Mode variants for control 'btnMode' are not configured in UI.xml.", vbExclamation
+        Exit Sub
+    End If
+
+    currentModeValue = CLng(m_GetOutputMode())
+    nextModeValue = mp_GetNextVariantValue(variants, currentModeValue)
+    If nextModeValue <= 0 Then
+        MsgBox "Failed to resolve next mode value from UI.xml modeVariants.", vbExclamation
+        Exit Sub
+    End If
+
+    m_SetOutputMode CLng(nextModeValue)
     Call ex_Messaging.m_ShowNotice("Mode changed to: " & m_GetOutputModeDisplay(), 3)
 End Sub
 
@@ -159,93 +182,108 @@ End Sub
 ' =============================================================================
 
 Public Sub m_UpdateModeButton()
-
-    ' Обновляет текст и цвет кнопки с начальным текстом "ModeButton"
-    ' Текст обновляется на "ModeButton [Timeline]", "ModeButton [State]" или "ModeButton [Events]"
-    
     On Error GoTo EH
-    
+
     Dim currentMode As OutputMode
-    currentMode = m_GetOutputMode()
-    
-    ' Получаем фигуру с листа Dev
     Dim ws As Worksheet
-    Set ws = ws_Dev
-    
     Dim btn As Shape
-    Dim i As Integer
-    Dim btnFound As Boolean
-    btnFound = False
-    
-    ' Ищем фигуру, текст которой начинается с "ModeButton"
-    For i = 1 To ws.Shapes.Count
-        On Error Resume Next
-        If ws.Shapes(i).HasTextFrame Then
-            If InStr(1, ws.Shapes(i).TextFrame.Characters.Text, "ModeButton", vbTextCompare) = 1 Then
-                Set btn = ws.Shapes(i)
-                btnFound = True
-                On Error GoTo EH
-                Exit For
-            End If
-        End If
-        On Error GoTo EH
-    Next i
-    
-    If Not btnFound Then
-        Call ex_Messaging.m_ShowNotice("Button with 'ModeButton' text not found on Dev sheet", 3)
+    Dim variants As Variant
+    Dim variantRow As Long
+    Dim captionText As String
+    Dim styleName As String
+
+    currentMode = m_GetOutputMode()
+    variants = mp_GetModeVariants()
+    If Not mp_ArrayHasItems(variants) Then
+        MsgBox "Mode variants for control 'btnMode' are not configured in UI.xml.", vbExclamation
         Exit Sub
     End If
-    
-    ' Константы цветов
-    Const COLOR_TIMELINE As Long = &H0070C0     ' Синий
-    Const COLOR_STATE As Long = &H70AD47        ' Зелёный
-    Const COLOR_EVENTS As Long = &HC55A11       ' Оранжевый
-    Const COLOR_TEXT As Long = &HFFFFFF         ' Белый текст
-    
-    Dim btnText As String
-    Dim btnColor As Long
-    
-    ' Определяем текст и цвет в зависимости от режима
-    Select Case currentMode
-        Case PersonTimeline
-            btnText = "ModeButton [Timeline]"
-            btnColor = COLOR_TIMELINE
-            
-        Case StateTableOnly
-            btnText = "ModeButton [State]"
-            btnColor = COLOR_STATE
-            
-        Case EventsTableOnly
-            btnText = "ModeButton [Events]"
-            btnColor = COLOR_EVENTS
-            
-        Case Else
-            btnText = "ModeButton [Unknown]"
-            btnColor = &H808080
-    End Select
-    
-    ' Обновляем текст кнопки - просто присваиваем текст
-    btn.TextFrame.Characters.Text = btnText
-    
-    ' Форматируем текст
-    With btn.TextFrame.Characters.Font
-        .Size = 14
-        .Bold = True
-        .Color = COLOR_TEXT
-    End With
-    
-    ' Центрируем текст
-    btn.TextFrame.HorizontalAlignment = xlHAlignCenter
-    btn.TextFrame.VerticalAlignment = xlVAlignCenter
-    
-    ' Обновляем цвет кнопки
-    With btn.Fill
-        .Solid
-        .ForeColor.RGB = btnColor
-    End With
-    
+
+    Set ws = ws_Dev
+    Set btn = ex_ProfileUI.m_GetShapeByName(ws, "btnMode")
+    If btn Is Nothing Then
+        Call ex_Messaging.m_ShowNotice("Button 'btnMode' not found on Dev sheet", 3)
+        Exit Sub
+    End If
+
+    variantRow = mp_FindVariantRowByValue(variants, CLng(currentMode))
+    If variantRow <= 0 Then
+        MsgBox "Current mode value '" & CStr(CLng(currentMode)) & "' is not present in UI.xml modeVariants.", vbExclamation
+        Exit Sub
+    End If
+
+    captionText = CStr(variants(variantRow, 2))
+    If Len(captionText) = 0 Then
+        captionText = ex_UILoader.m_GetControlAttribute("btnMode", "caption", ThisWorkbook)
+    End If
+
+    If Len(captionText) > 0 Then
+        btn.TextFrame.Characters.Text = captionText
+    End If
+
+    styleName = CStr(variants(variantRow, 3))
+    If Len(styleName) = 0 Then
+        styleName = ex_UILoader.m_GetControlAttribute("btnMode", "style", ThisWorkbook)
+    End If
+    If Len(styleName) > 0 Then
+        If Not ex_UILoader.m_ApplyControlStyleByName(ws, "btnMode", styleName, ThisWorkbook) Then
+            Exit Sub
+        End If
+    End If
+
     Exit Sub
-    
 EH:
-    Call ex_Messaging.m_ShowNotice("Error updating button: " & Err.Description, 3)
+    Call ex_Messaging.m_ShowNotice("Error updating mode button: " & Err.Description, 3)
 End Sub
+
+Private Function mp_GetModeVariants() As Variant
+    mp_GetModeVariants = ex_UILoader.m_GetModeVariantsByControl("btnMode", ThisWorkbook)
+End Function
+
+Private Function mp_GetDefaultModeValue() As Long
+    Dim variants As Variant
+
+    variants = mp_GetModeVariants()
+    If Not mp_ArrayHasItems(variants) Then Exit Function
+    mp_GetDefaultModeValue = CLng(variants(LBound(variants, 1), 1))
+End Function
+
+Private Function mp_ArrayHasItems(ByVal values As Variant) As Boolean
+    On Error GoTo EH
+    If IsArray(values) Then
+        mp_ArrayHasItems = (UBound(values, 1) >= LBound(values, 1))
+    End If
+    Exit Function
+EH:
+    mp_ArrayHasItems = False
+End Function
+
+Private Function mp_FindVariantRowByValue(ByVal variants As Variant, ByVal modeValue As Long) As Long
+    Dim i As Long
+
+    If Not mp_ArrayHasItems(variants) Then Exit Function
+
+    For i = LBound(variants, 1) To UBound(variants, 1)
+        If CLng(variants(i, 1)) = modeValue Then
+            mp_FindVariantRowByValue = i
+            Exit Function
+        End If
+    Next i
+End Function
+
+Private Function mp_GetNextVariantValue(ByVal variants As Variant, ByVal currentModeValue As Long) As Long
+    Dim currentRow As Long
+
+    If Not mp_ArrayHasItems(variants) Then Exit Function
+
+    currentRow = mp_FindVariantRowByValue(variants, currentModeValue)
+    If currentRow = 0 Then
+        Exit Function
+    End If
+
+    If currentRow >= UBound(variants, 1) Then
+        mp_GetNextVariantValue = CLng(variants(LBound(variants, 1), 1))
+    Else
+        mp_GetNextVariantValue = CLng(variants(currentRow + 1, 1))
+    End If
+End Function

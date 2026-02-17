@@ -1,5 +1,0 @@
-<?xml version="1.0" standalone="yes"?>
-<globalButtons xmlns="urn:excelprototype:presets" applyProfileLayout="true">
-  <shape name="btnUpdateCode"
-         visible="true"/>
-</globalButtons>
