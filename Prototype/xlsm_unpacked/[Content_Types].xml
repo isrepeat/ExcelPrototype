@@ -16,5 +16,4 @@
   <Override PartName="/docProps/core.xml" ContentType="application/vnd.openxmlformats-package.core-properties+xml"/>
   <Override PartName="/docProps/app.xml" ContentType="application/vnd.openxmlformats-officedocument.extended-properties+xml"/>
   <Override PartName="/docProps/custom.xml" ContentType="application/vnd.openxmlformats-officedocument.custom-properties+xml"/>
-  <Override PartName="/customUI/customUI14.xml" ContentType="application/vnd.ms-office.ribbon+xml"/>
 </Types>

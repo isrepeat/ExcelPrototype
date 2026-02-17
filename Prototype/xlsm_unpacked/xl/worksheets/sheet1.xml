@@ -4,7 +4,7 @@
   <dimension ref="A1:D92"/>
   <sheetViews>
     <sheetView tabSelected="1" zoomScaleNormal="100" workbookViewId="0">
-      <selection activeCell="K4" sqref="K4"/>
+      <selection activeCell="E5" sqref="E5"/>
     </sheetView>
   </sheetViews>
   <sheetFormatPr defaultRowHeight="15.95" customHeight="1" x14ac:dyDescent="0.25"/>
@@ -478,15 +478,15 @@
                 <anchor moveWithCells="1">
                   <from>
                     <xdr:col>4</xdr:col>
-                    <xdr:colOff>47625</xdr:colOff>
+                    <xdr:colOff>0</xdr:colOff>
                     <xdr:row>0</xdr:row>
                     <xdr:rowOff>28575</xdr:rowOff>
                   </from>
                   <to>
-                    <xdr:col>5</xdr:col>
-                    <xdr:colOff>0</xdr:colOff>
+                    <xdr:col>4</xdr:col>
+                    <xdr:colOff>1771650</xdr:colOff>
                     <xdr:row>1</xdr:row>
-                    <xdr:rowOff>19050</xdr:rowOff>
+                    <xdr:rowOff>28575</xdr:rowOff>
                   </to>
                 </anchor>
               </controlPr>
@@ -497,7 +497,7 @@
           <mc:Choice Requires="x14">
             <control shapeId="1026" r:id="rId4" name="ddMode">
               <controlPr defaultSize="0" autoFill="0" autoPict="0" macro="[0]!m_OnModeChanged">
-                <anchor moveWithCells="0">
+                <anchor>
                   <from>
                     <xdr:col>6</xdr:col>
                     <xdr:colOff>0</xdr:colOff>
@@ -508,7 +508,7 @@
                     <xdr:col>8</xdr:col>
                     <xdr:colOff>609600</xdr:colOff>
                     <xdr:row>1</xdr:row>
-                    <xdr:rowOff>19050</xdr:rowOff>
+                    <xdr:rowOff>28575</xdr:rowOff>
                   </to>
                 </anchor>
               </controlPr>

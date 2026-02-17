@@ -4,6 +4,7 @@ Option Explicit
 Private Const PRESETS_NS As String = "urn:excelprototype:presets"
 Private Const GLOBAL_BUTTONS_REL_PATH As String = "config\GlobalButtons.xml"
 Private Const UI_BLOCK_GROUP_NAME As String = "grpUiBlock"
+Private Const PROFILE_DROPDOWN_SHAPE As String = "ddProfile"
 Private Const MODE_DROPDOWN_SHAPE As String = "ddMode"
 Private Const UPDATE_BUTTON_SHAPE As String = "btnUpdateCode"
 Private Const CLEAR_BUTTON_SHAPE As String = "btnClear"
@@ -11,33 +12,12 @@ Private Const MODE_BUTTON_SHAPE As String = "btnMode"
 Private Const PERSONAL_BUTTON_SHAPE As String = "btnPersonalCard"
 Private Const COMPARING_BUTTON_SHAPE As String = "btnComparing"
 
-' Initial absolute layout in points.
-Private Const UI_DDMODE_LEFT As Double = 758.25
-Private Const UI_DDMODE_TOP As Double = 2.25
-Private Const UI_DDMODE_WIDTH As Double = 156#
-Private Const UI_DDMODE_HEIGHT As Double = 15#
-Private Const UI_CLEAR_LEFT As Double = 758.25
-Private Const UI_CLEAR_TOP As Double = 30.75
-Private Const UI_CLEAR_WIDTH As Double = 156#
-Private Const UI_CLEAR_HEIGHT As Double = 56.69
-Private Const UI_PERSONAL_LEFT As Double = 758.25
-Private Const UI_PERSONAL_TOP As Double = 93.11
-Private Const UI_PERSONAL_WIDTH As Double = 155.91
-Private Const UI_PERSONAL_HEIGHT As Double = 56.69
-Private Const UI_COMPARING_LEFT As Double = 758.25
-Private Const UI_COMPARING_TOP As Double = 93.11
-Private Const UI_COMPARING_WIDTH As Double = 155.91
-Private Const UI_COMPARING_HEIGHT As Double = 56.69
-Private Const UI_MODEBTN_LEFT As Double = 912#
-Private Const UI_MODEBTN_TOP As Double = 102.99
-Private Const UI_MODEBTN_WIDTH As Double = 155.25
-Private Const UI_MODEBTN_HEIGHT As Double = 36.3
-
 Public Sub m_ApplyProfileUI(ByVal ws As Worksheet, ByVal profileNode As Object, Optional ByVal profileName As String = vbNullString)
     Dim uiNodes As Object
     Dim node As Object
     Dim shapeName As String
     Dim shp As Shape
+    Dim applyProfileLayout As Boolean
 
     If ws Is Nothing Then
         MsgBox "Failed to apply profile UI: worksheet is not specified.", vbExclamation
@@ -56,6 +36,8 @@ Public Sub m_ApplyProfileUI(ByVal ws As Worksheet, ByVal profileNode As Object, 
     If uiNodes Is Nothing Then Exit Sub
     If uiNodes.Length = 0 Then Exit Sub
 
+    If Not mp_TryGetApplyProfileLayoutFlag(applyProfileLayout) Then Exit Sub
+
     For Each node In uiNodes
         shapeName = Trim$(mp_NodeAttrText(node, "name"))
         If Len(shapeName) = 0 Then
@@ -70,8 +52,10 @@ Public Sub m_ApplyProfileUI(ByVal ws As Worksheet, ByVal profileNode As Object, 
         End If
 
         If Not mp_ApplyShapeVisible(node, shp) Then Exit Sub
-        If Not mp_ApplyShapePlacement(node, shp, ws) Then Exit Sub
-        If Not mp_ApplyShapeGeometry(node, shp) Then Exit Sub
+        If applyProfileLayout Then
+            If Not mp_ApplyShapePlacement(node, shp, ws) Then Exit Sub
+            If Not mp_ApplyShapeGeometry(node, shp) Then Exit Sub
+        End If
         If Not mp_ApplyShapeColor(node, shp, profileName) Then Exit Sub
 
         Set shp = Nothing
@@ -79,7 +63,7 @@ Public Sub m_ApplyProfileUI(ByVal ws As Worksheet, ByVal profileNode As Object, 
 End Sub
 
 ' Keeps UI controls detached from cell grid so their coordinates stay absolute.
-' Managed block: all btn* except btnUpdateCode + ddMode dropdown.
+' Managed block: all btn* except btnUpdateCode + ddProfile/ddMode dropdowns.
 Public Sub m_EnsureUiControlsAbsolute(Optional ByVal ws As Worksheet)
     Dim shp As Shape
 
@@ -119,8 +103,6 @@ Public Sub m_InitUiBlockLayoutAndGroup(Optional ByVal ws As Worksheet)
     End If
 
     m_EnsureUiControlsAbsolute ws
-    mp_ApplyInitialUiLayout ws
-
     On Error GoTo EH_UNGROUP
     mp_UngroupManagedUiShapes ws
     On Error GoTo 0
@@ -249,6 +231,36 @@ Private Function mp_LoadGlobalButtonsDom() As Object
     Set mp_LoadGlobalButtonsDom = doc
 End Function
 
+Private Function mp_TryGetApplyProfileLayoutFlag(ByRef applyProfileLayout As Boolean) As Boolean
+    Dim globalDoc As Object
+    Dim rootNode As Object
+    Dim valueText As String
+
+    applyProfileLayout = True
+
+    Set globalDoc = mp_LoadGlobalButtonsDom()
+    If globalDoc Is Nothing Then Exit Function
+
+    Set rootNode = globalDoc.selectSingleNode("/p:globalButtons")
+    If rootNode Is Nothing Then
+        MsgBox "Invalid global buttons file format. Expected '/globalButtons'.", vbExclamation
+        Exit Function
+    End If
+
+    valueText = Trim$(mp_NodeAttrText(rootNode, "applyProfileLayout"))
+    If Len(valueText) = 0 Then
+        mp_TryGetApplyProfileLayoutFlag = True
+        Exit Function
+    End If
+
+    If Not mp_TryParseBoolean(valueText, applyProfileLayout) Then
+        MsgBox "Invalid boolean value for global setting 'applyProfileLayout': " & valueText, vbExclamation
+        Exit Function
+    End If
+
+    mp_TryGetApplyProfileLayoutFlag = True
+End Function
+
 Private Function mp_GetGlobalButtonsFilePath() As String
     Dim basePath As String
 
@@ -273,6 +285,11 @@ Private Function mp_IsManagedUiBlockShape(ByVal shapeName As String) As Boolean
 
     normalized = Trim$(shapeName)
     If Len(normalized) = 0 Then Exit Function
+
+    If StrComp(normalized, PROFILE_DROPDOWN_SHAPE, vbTextCompare) = 0 Then
+        mp_IsManagedUiBlockShape = True
+        Exit Function
+    End If
 
     If StrComp(normalized, MODE_DROPDOWN_SHAPE, vbTextCompare) = 0 Then
         mp_IsManagedUiBlockShape = True
@@ -362,60 +379,6 @@ Private Function mp_GroupContainsManagedShapes(ByVal groupShape As Shape) As Boo
         End If
     Next groupItem
 End Function
-
-Private Sub mp_ApplyInitialUiLayout(ByVal ws As Worksheet)
-    Dim shp As Shape
-
-    Set shp = m_GetShapeByName(ws, MODE_DROPDOWN_SHAPE)
-    If shp Is Nothing Then
-        MsgBox "Initial UI layout failed: '" & MODE_DROPDOWN_SHAPE & "' was not found on sheet '" & ws.Name & "'.", vbExclamation
-        Exit Sub
-    End If
-    shp.Left = UI_DDMODE_LEFT
-    shp.Top = UI_DDMODE_TOP
-    shp.Width = UI_DDMODE_WIDTH
-    shp.Height = UI_DDMODE_HEIGHT
-
-    Set shp = m_GetShapeByName(ws, CLEAR_BUTTON_SHAPE)
-    If shp Is Nothing Then
-        MsgBox "Initial UI layout failed: '" & CLEAR_BUTTON_SHAPE & "' was not found on sheet '" & ws.Name & "'.", vbExclamation
-        Exit Sub
-    End If
-    shp.Left = UI_CLEAR_LEFT
-    shp.Top = UI_CLEAR_TOP
-    shp.Width = UI_CLEAR_WIDTH
-    shp.Height = UI_CLEAR_HEIGHT
-
-    Set shp = m_GetShapeByName(ws, MODE_BUTTON_SHAPE)
-    If shp Is Nothing Then
-        MsgBox "Initial UI layout failed: '" & MODE_BUTTON_SHAPE & "' was not found on sheet '" & ws.Name & "'.", vbExclamation
-        Exit Sub
-    End If
-    shp.Left = UI_MODEBTN_LEFT
-    shp.Top = UI_MODEBTN_TOP
-    shp.Width = UI_MODEBTN_WIDTH
-    shp.Height = UI_MODEBTN_HEIGHT
-
-    Set shp = m_GetShapeByName(ws, PERSONAL_BUTTON_SHAPE)
-    If shp Is Nothing Then
-        MsgBox "Initial UI layout failed: '" & PERSONAL_BUTTON_SHAPE & "' was not found on sheet '" & ws.Name & "'.", vbExclamation
-        Exit Sub
-    End If
-    shp.Left = UI_PERSONAL_LEFT
-    shp.Top = UI_PERSONAL_TOP
-    shp.Width = UI_PERSONAL_WIDTH
-    shp.Height = UI_PERSONAL_HEIGHT
-
-    Set shp = m_GetShapeByName(ws, COMPARING_BUTTON_SHAPE)
-    If shp Is Nothing Then
-        MsgBox "Initial UI layout failed: '" & COMPARING_BUTTON_SHAPE & "' was not found on sheet '" & ws.Name & "'.", vbExclamation
-        Exit Sub
-    End If
-    shp.Left = UI_COMPARING_LEFT
-    shp.Top = UI_COMPARING_TOP
-    shp.Width = UI_COMPARING_WIDTH
-    shp.Height = UI_COMPARING_HEIGHT
-End Sub
 
 Private Function mp_ApplyShapeVisible(ByVal node As Object, ByVal shp As Shape) As Boolean
     Dim valueText As String
