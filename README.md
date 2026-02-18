@@ -2,10 +2,10 @@
 
 ## Настройка Codespace (алиасы + логи)
 
-В каждом новом Codespace подключи алиас `codexlog`, чтобы терминал логировался и перезапусти shell
+Если работаешь через расширение и оно работает нормально, этот шаг можно пропустить.
+Используй его как fallback для CLI-сценария (когда расширение недоступно/нестабильно), чтобы писать локальные логи сессии в терминале.
 ```bash
-echo 'source /workspaces/ExcelPrototype/Codex/aliases.sh' >> ~/.bashrc
-source /workspaces/ExcelPrototype/Codex/aliases.sh
+bash Codex/setup_codexlog.sh
 ```
 Использование:
 ```bash
