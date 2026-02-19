@@ -1,6 +1,6 @@
 Краткие инструкции / подсказки для новой сессии
 Пункты с пометкой [Codex CLI fallback] применять только если в начале сессии подтвержден CLI fallback:
-- Проверка: `command -v codex >/dev/null 2>&1 && (command -v codexlog >/dev/null 2>&1 || [ -f Codex/aliases.sh ])`
+- Проверка: `command -v codex >/dev/null 2>&1 && (command -v codexlog >/dev/null 2>&1 || [ -f .env/aliases.sh ])`
 - Если проверка не прошла, пункты [Codex CLI fallback] пропускать.
 
 Контекст
@@ -20,21 +20,21 @@ Excel структура
 - Правило: после любых внесенных мной изменений в xlsm_unpacked я сразу упаковываю их в Prototype_repacked.xlsm.
 
 Триггеры
-- [Codex CLI fallback] Если пользователь пишет "срезюмируй" или "срезюмирую сессию", нужно записать резюме последней сессии в `Codex/sessions/session-YYYY-MM-DD_HH-MM.txt` (дата и время локальные).
-- [Codex CLI fallback] Если при резюмировании доступны логи `Codex/logs/codex-YYYY-MM-DD_HH-MM.log`, вытащить токен только из хвоста лога (последние ~80 строк) и дописать его в файл сессии.
-- [Codex CLI fallback] Если токена нет в момент резюмирования (обычно до завершения через `CTRL+C`), то в следующей новой сессии найти токен в логах предыдущей сессии и дописать его в уже созданный файл `Codex/sessions/session-YYYY-MM-DD_HH-MM.txt` с той же датой сессии.
+- [Codex CLI fallback] Если пользователь пишет "срезюмируй" или "срезюмирую сессию", нужно записать резюме последней сессии в `.env/Codex/sessions/session-YYYY-MM-DD_HH-MM.txt` (дата и время локальные).
+- [Codex CLI fallback] Если при резюмировании доступны логи `.env/Codex/logs/codex-YYYY-MM-DD_HH-MM.log`, вытащить токен только из хвоста лога (последние ~80 строк) и дописать его в файл сессии.
+- [Codex CLI fallback] Если токена нет в момент резюмирования (обычно до завершения через `CTRL+C`), то в следующей новой сессии найти токен в логах предыдущей сессии и дописать его в уже созданный файл `.env/Codex/sessions/session-YYYY-MM-DD_HH-MM.txt` с той же датой сессии.
 - [Codex CLI fallback] Если пользователь пишет "очисти скрины", нужно удалить все файлы из папки `!SCREENSHOTS`.
 
 [Codex CLI fallback] Быстрый поиск токена `codex resume`
 - Использовать только хвост лога, не сканировать весь файл целиком.
 - Команда:
-  `tail -n 80 Codex/logs/codex-YYYY-MM-DD_HH-MM.log | perl -pe 's/\e\[[0-9;?]*[ -\/]*[@-~]//g' | sed -n 's/.*To continue this session, run \(codex resume [0-9a-f-]\{36\}\).*/\1/p' | tail -n 1`
-- Если команда вернула строку `codex resume ...` и в `Codex/sessions/session-YYYY-MM-DD_HH-MM.txt` ее еще нет — дописать.
+  `tail -n 80 .env/Codex/logs/codex-YYYY-MM-DD_HH-MM.log | perl -pe 's/\e\[[0-9;?]*[ -\/]*[@-~]//g' | sed -n 's/.*To continue this session, run \(codex resume [0-9a-f-]\{36\}\).*/\1/p' | tail -n 1`
+- Если команда вернула строку `codex resume ...` и в `.env/Codex/sessions/session-YYYY-MM-DD_HH-MM.txt` ее еще нет — дописать.
 - Если не вернула — зафиксировать "токен не найден" и завершить проверку без полного прохода по логу.
 
 Что делать в начале сессии
-- [Codex CLI fallback] Прочитать все файлы сессий за текущий и предыдущий дни в `Codex/sessions/session-YYYY-MM-DD_*.txt` (если есть).
-- [Codex CLI fallback] Проверить логи предыдущей сессии (`Codex/logs/codex-YYYY-MM-DD_HH-MM.log`) быстрым способом (через `tail -n 80` + очистка ANSI + извлечение `codex resume`): если токен найден, а в соответствующем файле `Codex/sessions/session-YYYY-MM-DD_HH-MM.txt` его еще нет, дописать.
+- [Codex CLI fallback] Прочитать все файлы сессий за текущий и предыдущий дни в `.env/Codex/sessions/session-YYYY-MM-DD_*.txt` (если есть).
+- [Codex CLI fallback] Проверить логи предыдущей сессии (`.env/Codex/logs/codex-YYYY-MM-DD_HH-MM.log`) быстрым способом (через `tail -n 80` + очистка ANSI + извлечение `codex resume`): если токен найден, а в соответствующем файле `.env/Codex/sessions/session-YYYY-MM-DD_HH-MM.txt` его еще нет, дописать.
 
 Правило обработки ошибок
 - Не использовать молчаливые fallback по умолчанию (например, автоматический выбор `Default`).
