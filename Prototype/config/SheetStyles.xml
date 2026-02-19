@@ -1,0 +1,27 @@
+<?xml version="1.0" standalone="yes"?>
+<SheetStyles xmlns="urn:excelprototype:presets" version="1">
+  <baseSheetStyle priority="100">
+    <base backColor="#262626" fontColor="#EBEBEB" showGridlines="false"/>
+    <background extraRows="200" extraCols="30"/>
+    <grid color="#000000" weight="thin" extraRows="200" extraCols="50"/>
+  </baseSheetStyle>
+
+  <outputSheetStyle priority="200">
+    <font name="Times New Roman" size="12"/>
+    <rows height="20"/>
+
+    <content color="#EBEBEB" backColor="#222222"/>
+    <header color="#68D947" backColor="#222222" bold="true"/>
+    <section color="#D7A763" backColor="#161616" bold="true" sectionTitleColumns="2"/>
+
+    <alignment horizontal="center" vertical="center"/>
+
+    <status
+      columnName="Status"
+      fontColor="#EBEBEB"
+      defaultBackColor="#1E1E1E"
+      addedBackColor="#2E7D32"
+      changedBackColor="#7B1FA2"
+      removedBackColor="#B71C1C"/>
+  </outputSheetStyle>
+</SheetStyles>

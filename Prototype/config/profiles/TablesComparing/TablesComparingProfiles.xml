@@ -1,0 +1,45 @@
+<?xml version="1.0" standalone="yes"?>
+<presets version="1" xmlns="urn:excelprototype:presets">
+  <profile name="Default">
+    <v key="OldFilePath">.\TESTS\Comparing\OldTable.xlsx</v>
+    <v key="OldTableName">TableSrc</v>
+    <v key="NewFilePath">.\TESTS\Comparing\NewTable.xlsx</v>
+    <v key="NewTableName">TableLast</v>
+    <v key="KeyColumnName">ID</v>
+    <ui>
+      <control name="ddProfile"
+               visible="true"/>
+      <control name="ddMode"
+               visible="true"/>
+      <control name="btnClear"
+               visible="true"/>
+      <control name="btnMode"
+               visible="false"/>
+      <control name="btnPersonalCard"
+               visible="false"/>
+      <control name="btnComparing"
+               visible="true"/>
+    </ui>
+  </profile>
+  <profile name="Test">
+    <v key="OldFilePath">.\TESTS\Comparing\OldTable.xlsx</v>
+    <v key="OldTableName">TableSrc</v>
+    <v key="NewFilePath">.\TESTS\Comparing\NewTable.xlsx</v>
+    <v key="NewTableName">TableLast</v>
+    <v key="KeyColumnName">ID</v>
+    <ui>
+      <control name="ddProfile"
+               visible="true"/>
+      <control name="ddMode"
+               visible="true"/>
+      <control name="btnClear"
+               visible="true"/>
+      <control name="btnMode"
+               visible="true"/>
+      <control name="btnPersonalCard"
+               visible="false"/>
+      <control name="btnComparing"
+               visible="true"/>
+    </ui>
+  </profile>
+</presets>

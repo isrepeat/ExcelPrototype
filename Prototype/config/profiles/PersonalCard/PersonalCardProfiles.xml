@@ -1,0 +1,90 @@
+﻿<?xml version="1.0" standalone="yes"?>
+<presets version="1" xmlns="urn:excelprototype:presets">
+	<profile name="Default">
+		<ui>
+			<control name="ddProfile" visible="true"/>
+			<control name="ddMode" visible="true"/>
+			<control name="btnClear" visible="true"/>
+			<control name="btnMode" visible="true"/>
+			<control name="btnPersonalCard" visible="true"/>
+			<control name="btnComparing" visible="false"/>
+		</ui>
+		<v key="Source.Main.FilePath">.\TESTS\GetReferences\PeopleStateUA.xlsx</v>
+		<v key="Source.Main.TablesAliases">StateMain</v>
+		<v key="Source.Events.FilePath">.\TESTS\GetReferences\PeopleEventsUA.xlsx</v>
+		<v key="Source.Events.TablesAliases">EventsMain</v>
+		<v key="Context.PersonValue">Іванов Іван Іванович</v>
+		<v type="#" key="StateMain"/>
+		<v key="Main.Table[StateMain].Type">State</v>
+		<v key="Main.Table[StateMain].Name">TableState</v>
+		<v key="Main.Table[StateMain].Key">FIO</v>
+		<v key="Main.Table[StateMain].FieldsAliases">FIO; BirthDate; City; Phone</v>
+		<v key="Main.Table[StateMain].Map[FIO]">ПІБ</v>
+		<v key="Main.Table[StateMain].Map[BirthDate]">Дата народження</v>
+		<v key="Main.Table[StateMain].Map[City]">Місто</v>
+		<v key="Main.Table[StateMain].Map[Phone]">Телефон</v>
+		<v type="#" key="EventsMain"/>
+		<v key="Events.Table[EventsMain].Type">Events</v>
+		<v key="Events.Table[EventsMain].Name">TableEvents</v>
+		<v key="Events.Table[EventsMain].Key">FIO</v>
+		<v key="Events.Table[EventsMain].FieldsAliases">RecordNo; EventDate; EventType; Department; Position; Salary</v>
+		<v key="Events.Table[EventsMain].Sort">RecordNo</v>
+		<v key="Events.Table[EventsMain].Map[FIO]">ПІБ</v>
+		<v key="Events.Table[EventsMain].Map[RecordNo]">№</v>
+		<v key="Events.Table[EventsMain].Map[EventDate]">Дата події</v>
+		<v key="Events.Table[EventsMain].Map[EventType]">Тип події</v>
+		<v key="Events.Table[EventsMain].Map[Department]">Відділ</v>
+		<v key="Events.Table[EventsMain].Map[Position]">Посада</v>
+		<v key="Events.Table[EventsMain].Map[Salary]">Оклад</v>
+		<v key=""/>
+		<v key="Output.Tables">StateMain; EventsMain</v>
+	</profile>
+	<profile name="Test">
+		<v key="Source.Main.FilePath">..\dsc_StateSrc.xlsx</v>
+		<v key="Source.Main.TablesAliases">StateMain</v>
+		<v key="Source.Events.FilePath">..\dsc_EventsSrc.xlsx</v>
+		<v key="Source.Events.TablesAliases">EventsIn; EventsOut</v>
+		<v key="Context.PersonValue">PLACEHOLDER</v>
+		<v type="#" key="StateMain"/>
+		<v key="Main.Table[StateMain].Type">State</v>
+		<v key="Main.Table[StateMain].Name">XОС</v>
+		<v key="Main.Table[StateMain].Key">FIO</v>
+		<v key="Main.Table[StateMain].FieldsAliases">FIO; IPN; ZV; Position</v>
+		<v key="Main.Table[StateMain].Map[FIO]">Прізвище, ім’я, по батькові</v>
+		<v key="Main.Table[StateMain].Map[IPN]">ІПН</v>
+		<v key="Main.Table[StateMain].Map[ZV]">Військове звання</v>
+		<v key="Main.Table[StateMain].Map[Position]">Повна назва посади</v>
+		<v type="#" key="EventsIn"/>
+		<v key="Events.Table[EventsIn].Type">Events</v>
+		<v key="Events.Table[EventsIn].Name">ВІДСУТНІ28</v>
+		<v key="Events.Table[EventsIn].FieldsAliases">ZV; FIO; ComesFrom;</v>
+		<v key="Events.Table[EventsIn].Key">FIO</v>
+		<v key="Events.Table[EventsIn].Sort">FIO</v>
+		<v key="Events.Table[EventsIn].Map[ZV]">55|Звання</v>
+		<v key="Events.Table[EventsIn].Map[FIO]">56|ПІБ</v>
+		<v key="Events.Table[EventsIn].Map[ComesFrom]">58|Звідки прибув</v>
+		<v type="#" key="EventsOut"/>
+		<v key="Events.Table[EventsOut].Type">Events</v>
+		<v key="Events.Table[EventsOut].Name">ВІДСУТНІ</v>
+		<v key="Events.Table[EventsOut].FieldsAliases">ZV; FIO; EventReason; City; Date; Note; Ticket</v>
+		<v key="Events.Table[EventsOut].Key">FIO</v>
+		<v key="Events.Table[EventsOut].Sort">Date</v>
+		<v key="Events.Table[EventsOut].Map[ZV]">65|Звання</v>
+		<v key="Events.Table[EventsOut].Map[FIO]">66|ПІБ</v>
+		<v key="Events.Table[EventsOut].Map[EventReason]">68|Причинна вибуття</v>
+		<v key="Events.Table[EventsOut].Map[City]">69|Місце вибуття</v>
+		<v key="Events.Table[EventsOut].Map[Date]">71 (А)|Дата наказу</v>
+		<v key="Events.Table[EventsOut].Map[Note]">76|Замітки</v>
+		<v key="Events.Table[EventsOut].Map[Ticket]">Стовпець1|Номер квитка</v>
+		<v key=""/>
+		<v key="Output.Tables">StateMain; EventsOut; EventsIn</v>
+		<ui>
+			<control name="ddProfile" visible="true"/>
+			<control name="ddMode" visible="true"/>
+			<control name="btnClear" visible="true"/>
+			<control name="btnMode" visible="true"/>
+			<control name="btnPersonalCard" visible="true"/>
+			<control name="btnComparing" visible="false"/>
+		</ui>
+	</profile>
+</presets>

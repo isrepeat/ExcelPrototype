@@ -1,0 +1,66 @@
+<xml xmlns:v="urn:schemas-microsoft-com:vml"
+ xmlns:o="urn:schemas-microsoft-com:office:office"
+ xmlns:x="urn:schemas-microsoft-com:office:excel">
+ <o:shapelayout v:ext="edit">
+  <o:idmap v:ext="edit" data="1"/>
+ </o:shapelayout><v:shapetype id="_x0000_t201" coordsize="21600,21600" o:spt="201"
+  path="m,l,21600r21600,l21600,xe">
+  <v:stroke joinstyle="miter"/>
+  <v:path shadowok="f" o:extrusionok="f" strokeok="f" fillok="f" o:connecttype="rect"/>
+  <o:lock v:ext="edit" shapetype="t"/>
+ </v:shapetype><v:shape id="ddProfile" o:spid="_x0000_s1025" type="#_x0000_t201"
+  style='position:absolute;margin-left:589.5pt;margin-top:2.25pt;width:139.5pt;
+  height:15.75pt;z-index:1;mso-wrap-style:tight' o:button="t" filled="f"
+  fillcolor="windowText [64]" strokecolor="windowText [64]" o:insetmode="auto">
+  <v:fill color2="window [65]" o:detectmouseclick="t"/>
+  <o:lock v:ext="edit" rotation="t" text="t"/>
+  <x:ClientData ObjectType="Drop">
+   <x:SizeWithCells/>
+   <x:Anchor>
+    4, 0, 0, 3, 4, 186, 1, 3</x:Anchor>
+   <x:AutoFill>False</x:AutoFill>
+   <x:FmlaMacro>[0]!ex_UIActions.m_OnProfileChanged</x:FmlaMacro>
+   <x:Val>0</x:Val>
+   <x:Min>0</x:Min>
+   <x:Max>1</x:Max>
+   <x:Inc>1</x:Inc>
+   <x:Page>1</x:Page>
+   <x:Dx>22</x:Dx>
+   <x:Sel>1</x:Sel>
+   <x:NoThreeD2/>
+   <x:SelType>Single</x:SelType>
+   <x:LCT>Normal</x:LCT>
+   <x:ListItem>Default</x:ListItem>
+   <x:ListItem>Test</x:ListItem>
+   <x:DropStyle>Combo</x:DropStyle>
+   <x:DropLines>8</x:DropLines>
+  </x:ClientData>
+ </v:shape><v:shape id="ddMode" o:spid="_x0000_s1026" type="#_x0000_t201"
+  style='position:absolute;margin-left:758.25pt;margin-top:2.25pt;width:156pt;
+  height:15.75pt;z-index:2;mso-wrap-style:tight' o:button="t" filled="f"
+  fillcolor="windowText [64]" strokecolor="windowText [64]" o:insetmode="auto">
+  <v:fill color2="window [65]" o:detectmouseclick="t"/>
+  <o:lock v:ext="edit" rotation="t" text="t"/>
+  <x:ClientData ObjectType="Drop">
+   <x:MoveWithCells/>
+   <x:SizeWithCells/>
+   <x:Anchor>
+    6, 0, 0, 3, 8, 64, 1, 3</x:Anchor>
+   <x:AutoFill>False</x:AutoFill>
+   <x:FmlaMacro>[0]!ex_UIActions.m_OnModeChanged</x:FmlaMacro>
+   <x:Val>0</x:Val>
+   <x:Min>0</x:Min>
+   <x:Max>1</x:Max>
+   <x:Inc>1</x:Inc>
+   <x:Page>1</x:Page>
+   <x:Dx>22</x:Dx>
+   <x:Sel>1</x:Sel>
+   <x:NoThreeD2/>
+   <x:SelType>Single</x:SelType>
+   <x:LCT>Normal</x:LCT>
+   <x:ListItem>Personal Card</x:ListItem>
+   <x:ListItem>Comparing</x:ListItem>
+   <x:DropStyle>Combo</x:DropStyle>
+   <x:DropLines>8</x:DropLines>
+  </x:ClientData>
+ </v:shape></xml>
