@@ -4,7 +4,7 @@
   <dimension ref="A1:D92"/>
   <sheetViews>
     <sheetView tabSelected="1" zoomScaleNormal="100" workbookViewId="0">
-      <selection activeCell="I13" sqref="I13"/>
+      <selection activeCell="E7" sqref="E7"/>
     </sheetView>
   </sheetViews>
   <sheetFormatPr defaultRowHeight="15.95" customHeight="1" x14ac:dyDescent="0.25"/>
@@ -474,7 +474,7 @@
         <mc:AlternateContent xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006">
           <mc:Choice Requires="x14">
             <control shapeId="1025" r:id="rId3" name="ddProfile">
-              <controlPr defaultSize="0" autoFill="0" autoPict="0" macro="[0]!ex_ConfigProfilesManager.m_OnProfileChanged">
+              <controlPr defaultSize="0" autoFill="0" autoPict="0" macro="[0]!ex_UIActions.m_OnProfileChanged">
                 <anchor moveWithCells="1">
                   <from>
                     <xdr:col>4</xdr:col>
@@ -496,7 +496,7 @@
         <mc:AlternateContent xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006">
           <mc:Choice Requires="x14">
             <control shapeId="1026" r:id="rId4" name="ddMode">
-              <controlPr defaultSize="0" autoFill="0" autoPict="0" macro="[0]!ex_ConfigProfilesManager.m_OnModeChanged">
+              <controlPr defaultSize="0" autoFill="0" autoPict="0" macro="[0]!ex_UIActions.m_OnModeChanged">
                 <anchor>
                   <from>
                     <xdr:col>6</xdr:col>

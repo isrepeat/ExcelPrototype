@@ -1,8 +1,8 @@
-Attribute VB_Name = "ex_Config"
+Attribute VB_Name = "ex_ConfigProvider"
 Option Explicit
 
 ' =============================================================================
-' ex_Config
+' ex_ConfigProvider
 ' =============================================================================
 ' Назначение модуля:
 ' - поддерживать рабочую таблицу конфигурации на листе Dev (`tblDevConfig`);
@@ -208,7 +208,7 @@ Private Function mp_GetProfileNameFromDropdown(ByVal wsDev As Worksheet) As Stri
     Dim cf As Object
     Dim idx As Long
 
-    Set shp = ex_ProfileUI.m_GetShapeByName(wsDev, "ddProfile")
+    Set shp = ex_ConfigProfilesManager.m_GetShapeByName(wsDev, "ddProfile")
     If shp Is Nothing Then Exit Function
 
     On Error Resume Next

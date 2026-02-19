@@ -11,9 +11,9 @@ Public Sub m_ShowPersonTimeline_UI()
 
     Dim fio As String
 
-    fio = Trim$(ex_Config.m_GetConfigValue("Context.PersonValue", vbNullString))
+    fio = Trim$(ex_ConfigProvider.m_GetConfigValue("Context.PersonValue", vbNullString))
     If Len(fio) = 0 Then
-        fio = Trim$(ex_Config.m_GetConfigValue("PersonFIO", vbNullString))
+        fio = Trim$(ex_ConfigProvider.m_GetConfigValue("PersonFIO", vbNullString))
     End If
     If Len(fio) = 0 Then
         MsgBox "Config key 'Context.PersonValue' is empty.", vbExclamation, "m_ShowPersonTimeline_UI"
@@ -46,9 +46,15 @@ Public Sub m_ShowPersonTimeline(ByVal fio As String)
     Dim mode As OutputMode
     mode = ex_Settings.m_GetOutputMode()
 
-    Dim outputStyle As t_OutputStyle
-    If Not ex_OutputStyle.m_LoadOutputStyle(outputStyle, ThisWorkbook) Then
-        Err.Raise vbObjectError + 1304, "ex_PersonTimeline", "Failed to load output style from config\OutputStyle.xml."
+    Dim outputStyle As t_OutputSheetStyle
+    Dim baseStyle As t_BaseSheetStyle
+    Dim hasOutputStyle As Boolean
+    If Not ex_SheetStylesXmlProvider.m_EnsureInitialized(ThisWorkbook) Then
+        Err.Raise vbObjectError + 1304, "ex_PersonTimeline", "Failed to initialize style registry."
+    End If
+    hasOutputStyle = ex_SheetStylesXmlProvider.m_GetOutputSheetStyle(outputStyle, ThisWorkbook)
+    If Not ex_SheetStylesXmlProvider.m_GetBaseSheetStyle(baseStyle, ThisWorkbook) Then
+        Err.Raise vbObjectError + 1306, "ex_PersonTimeline", "Failed to get sheet theme style from registry."
     End If
 
     Dim outputAliases As Variant
@@ -139,8 +145,7 @@ ContinueAlias:
             "No tables were rendered for mode '" & ex_Settings.m_GetOutputModeDisplay() & "'. Check Output.Tables and table Type."
     End If
 
-    ex_SheetTheme.m_ApplyDarkThemeToSheet wsOut
-    mp_ApplyOutputStyle wsOut, headerRows, sectionRows, outputStyle
+    mp_ApplyTimelineStyleLayers wsOut, headerRows, sectionRows, outputStyle, baseStyle, hasOutputStyle
 
     mp_CloseWorkbooks wbCache
 
@@ -335,7 +340,7 @@ ContinueRow:
 
 End Function
 
-Private Sub mp_ApplyOutputStyle(ByVal ws As Worksheet, ByVal headerRows As Collection, ByVal sectionRows As Collection, ByRef style As t_OutputStyle)
+Private Sub mp_ApplyOutputStyle(ByVal ws As Worksheet, ByVal headerRows As Collection, ByVal sectionRows As Collection, ByRef style As t_OutputSheetStyle)
     Dim usedRows As Long
     Dim usedCols As Long
     Dim usedRange As Range
@@ -343,6 +348,8 @@ Private Sub mp_ApplyOutputStyle(ByVal ws As Worksheet, ByVal headerRows As Colle
     Dim rowIndex As Long
     Dim lastCol As Long
     Dim titleRange As Range
+    Dim sectionFillRange As Range
+    Dim sectionTitleCols As Long
 
     If ws Is Nothing Then Exit Sub
     If ws.UsedRange Is Nothing Then Exit Sub
@@ -351,6 +358,8 @@ Private Sub mp_ApplyOutputStyle(ByVal ws As Worksheet, ByVal headerRows As Colle
     usedCols = ws.UsedRange.Columns.Count
     Set usedRange = ws.Range(ws.Cells(1, 1), ws.Cells(usedRows, usedCols))
 
+    usedRange.Interior.Pattern = xlSolid
+    usedRange.Interior.Color = style.ContentBackColor
     usedRange.Font.Name = style.FontName
     usedRange.Font.Size = style.FontSize
     usedRange.Font.Color = style.ContentColor
@@ -359,19 +368,19 @@ Private Sub mp_ApplyOutputStyle(ByVal ws As Worksheet, ByVal headerRows As Colle
     ws.Rows("1:" & CStr(usedRows)).RowHeight = style.RowHeight
     usedRange.EntireColumn.AutoFit
 
-    Dim sectionLastCol As Long
-    sectionLastCol = style.SectionMergeColumns
-    If sectionLastCol < 1 Then
-        sectionLastCol = 1
-    End If
-
     For Each rowId In sectionRows
         rowIndex = CLng(rowId)
-        Set titleRange = ws.Range(ws.Cells(rowIndex, 1), ws.Cells(rowIndex, sectionLastCol))
+        Set sectionFillRange = ws.Range(ws.Cells(rowIndex, 1), ws.Cells(rowIndex, usedCols))
+        sectionTitleCols = style.SectionMergeColumns
+        If sectionTitleCols < 1 Then sectionTitleCols = 1
+        If sectionTitleCols > usedCols Then sectionTitleCols = usedCols
+        Set titleRange = ws.Range(ws.Cells(rowIndex, 1), ws.Cells(rowIndex, sectionTitleCols))
         titleRange.UnMerge
         titleRange.Merge
         titleRange.HorizontalAlignment = style.HorizontalAlignment
         titleRange.VerticalAlignment = style.VerticalAlignment
+        sectionFillRange.Interior.Pattern = xlSolid
+        sectionFillRange.Interior.Color = style.SectionBackColor
         titleRange.Font.Bold = style.SectionBold
         titleRange.Font.Color = style.SectionColor
     Next rowId
@@ -381,10 +390,39 @@ Private Sub mp_ApplyOutputStyle(ByVal ws As Worksheet, ByVal headerRows As Colle
         lastCol = mp_GetLastUsedColumnInRow(ws, rowIndex)
         If lastCol > 0 Then
             Set titleRange = ws.Range(ws.Cells(rowIndex, 1), ws.Cells(rowIndex, lastCol))
+            titleRange.Interior.Pattern = xlSolid
+            titleRange.Interior.Color = style.HeaderBackColor
             titleRange.Font.Bold = style.HeaderBold
             titleRange.Font.Color = style.HeaderColor
         End If
     Next rowId
+End Sub
+
+Private Sub mp_ApplyTimelineStyleLayers( _
+    ByVal ws As Worksheet, _
+    ByVal headerRows As Collection, _
+    ByVal sectionRows As Collection, _
+    ByRef outputStyle As t_OutputSheetStyle, _
+    ByRef baseStyle As t_BaseSheetStyle, _
+    ByVal hasOutputStyle As Boolean _
+)
+    Dim layerOrder As Variant
+    Dim layerName As Variant
+    Dim rowCount As Long
+    Dim colCount As Long
+
+    If ws Is Nothing Then Exit Sub
+    If Not ex_SheetStylesXmlProvider.m_GetLayerOrder(hasOutputStyle, layerOrder, ThisWorkbook) Then Exit Sub
+    If Not ex_SheetStylesXmlProvider.m_GetUsedRangeSize(ws, rowCount, colCount) Then Exit Sub
+
+    For Each layerName In layerOrder
+        Select Case CStr(layerName)
+            Case ex_SheetStylesXmlProvider.LAYER_BASE
+                ex_SheetStylesXmlProvider.m_ApplyBaseLayer ws, rowCount, colCount, baseStyle
+            Case ex_SheetStylesXmlProvider.LAYER_OUTPUT
+                mp_ApplyOutputStyle ws, headerRows, sectionRows, outputStyle
+        End Select
+    Next layerName
 End Sub
 
 Private Function mp_GetLastUsedColumnInRow(ByVal ws As Worksheet, ByVal rowIndex As Long) As Long
@@ -756,7 +794,6 @@ Private Function mp_CreateOrClearSheet(ByVal sheetName As String) As Worksheet
         ws.Cells.Clear
     End If
 
-    ex_SheetTheme.m_ApplyDarkThemeToSheet ws
     ws.Cells.NumberFormat = "@"
 
     Set mp_CreateOrClearSheet = ws

@@ -135,20 +135,35 @@ Private Sub mp_RemoveImportedModules()
 End Sub
 
 Private Sub mp_ImportFolder(ByVal folderPath As String)
-    Dim fileName As String
-    Dim importPath As String
+    Dim fso As Object
+    Dim rootFolder As Object
     Dim failed As String
-    Dim errText As String
 
     If Dir(folderPath, vbDirectory) = "" Then Exit Sub
 
-    fileName = Dir(folderPath & "*.*")
-    Do While fileName <> ""
+    Set fso = CreateObject("Scripting.FileSystemObject")
+    Set rootFolder = fso.GetFolder(folderPath)
+    mp_ImportFolderRecursive rootFolder, failed
+
+    If Len(failed) > 0 Then
+        Err.Raise vbObjectError + 1001, "mp_ImportFolder", "Import failed for file(s):" & failed
+    End If
+End Sub
+
+Private Sub mp_ImportFolderRecursive(ByVal folderObj As Object, ByRef failed As String)
+    Dim fileObj As Object
+    Dim subFolder As Object
+    Dim importPath As String
+    Dim fileName As String
+    Dim errText As String
+
+    For Each fileObj In folderObj.Files
+        fileName = LCase$(CStr(fileObj.Name))
         If mp_EndsWith(fileName, ".bas") _
         Or mp_EndsWith(fileName, ".cls") _
         Or mp_EndsWith(fileName, ".frm") Then
-            If LCase$(fileName) <> "devtools.bas" Then
-                importPath = folderPath & fileName
+            If fileName <> "devtools.bas" Then
+                importPath = CStr(fileObj.Path)
                 On Error Resume Next
                 ThisWorkbook.VBProject.VBComponents.Import importPath
                 If Err.Number <> 0 Then
@@ -159,13 +174,11 @@ Private Sub mp_ImportFolder(ByVal folderPath As String)
                 On Error GoTo 0
             End If
         End If
+    Next fileObj
 
-        fileName = Dir()
-    Loop
-
-    If Len(failed) > 0 Then
-        Err.Raise vbObjectError + 1001, "mp_ImportFolder", "Import failed for file(s):" & failed
-    End If
+    For Each subFolder In folderObj.SubFolders
+        mp_ImportFolderRecursive subFolder, failed
+    Next subFolder
 End Sub
 
 Private Function mp_EndsWith(ByVal value As String, ByVal suffix As String) As Boolean

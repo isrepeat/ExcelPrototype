@@ -170,7 +170,7 @@
       <xdr:row>5</xdr:row>
       <xdr:rowOff>110363</xdr:rowOff>
     </xdr:to>
-    <xdr:sp macro="[0]!ex_SheetManager.m_DeleteResultSheets" textlink="">
+    <xdr:sp macro="[0]!ex_UIActions.m_DeleteResultSheets" textlink="">
       <xdr:nvSpPr>
         <xdr:cNvPr id="2" name="btnClear">
           <a:extLst>
@@ -364,7 +364,7 @@
       <xdr:row>9</xdr:row>
       <xdr:rowOff>102235</xdr:rowOff>
     </xdr:to>
-    <xdr:sp macro="[0]!ex_Run.m_Run" textlink="">
+    <xdr:sp macro="[0]!ex_TableComparing.m_RunComparing" textlink="">
       <xdr:nvSpPr>
         <xdr:cNvPr id="5" name="btnComparing" hidden="1">
           <a:extLst>
@@ -458,7 +458,7 @@
       <xdr:row>8</xdr:row>
       <xdr:rowOff>168783</xdr:rowOff>
     </xdr:to>
-    <xdr:sp macro="[0]!ex_Settings.m_SwitchMode_OnClick" textlink="">
+    <xdr:sp macro="[0]!ex_UIActions.m_SwitchMode_OnClick" textlink="">
       <xdr:nvSpPr>
         <xdr:cNvPr id="7" name="btnMode">
           <a:extLst>

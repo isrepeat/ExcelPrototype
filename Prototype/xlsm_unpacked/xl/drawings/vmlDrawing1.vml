@@ -19,7 +19,7 @@
    <x:Anchor>
     4, 0, 0, 3, 4, 186, 1, 3</x:Anchor>
    <x:AutoFill>False</x:AutoFill>
-   <x:FmlaMacro>[0]!ex_ConfigProfilesManager.m_OnProfileChanged</x:FmlaMacro>
+   <x:FmlaMacro>[0]!ex_UIActions.m_OnProfileChanged</x:FmlaMacro>
    <x:Val>0</x:Val>
    <x:Min>0</x:Min>
    <x:Max>1</x:Max>
@@ -47,12 +47,12 @@
    <x:Anchor>
     6, 0, 0, 3, 8, 64, 1, 3</x:Anchor>
    <x:AutoFill>False</x:AutoFill>
-   <x:FmlaMacro>[0]!ex_ConfigProfilesManager.m_OnModeChanged</x:FmlaMacro>
+   <x:FmlaMacro>[0]!ex_UIActions.m_OnModeChanged</x:FmlaMacro>
    <x:Val>0</x:Val>
    <x:Min>0</x:Min>
-   <x:Max>0</x:Max>
+   <x:Max>1</x:Max>
    <x:Inc>1</x:Inc>
-   <x:Page>2</x:Page>
+   <x:Page>1</x:Page>
    <x:Dx>22</x:Dx>
    <x:Sel>1</x:Sel>
    <x:NoThreeD2/>

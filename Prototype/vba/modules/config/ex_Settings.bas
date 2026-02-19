@@ -200,7 +200,7 @@ Public Sub m_UpdateModeButton()
     End If
 
     Set ws = ws_Dev
-    Set btn = ex_ProfileUI.m_GetShapeByName(ws, "btnMode")
+    Set btn = ex_ConfigProfilesManager.m_GetShapeByName(ws, "btnMode")
     If btn Is Nothing Then
         Call ex_Messaging.m_ShowNotice("Button 'btnMode' not found on Dev sheet", 3)
         Exit Sub
@@ -214,7 +214,7 @@ Public Sub m_UpdateModeButton()
 
     captionText = CStr(variants(variantRow, 2))
     If Len(captionText) = 0 Then
-        captionText = ex_UILoader.m_GetControlAttribute("btnMode", "caption", ThisWorkbook)
+        captionText = ex_UiXmlProvider.m_GetControlAttribute("btnMode", "caption", ThisWorkbook)
     End If
 
     If Len(captionText) > 0 Then
@@ -223,10 +223,10 @@ Public Sub m_UpdateModeButton()
 
     styleName = CStr(variants(variantRow, 3))
     If Len(styleName) = 0 Then
-        styleName = ex_UILoader.m_GetControlAttribute("btnMode", "style", ThisWorkbook)
+        styleName = ex_UiXmlProvider.m_GetControlAttribute("btnMode", "style", ThisWorkbook)
     End If
     If Len(styleName) > 0 Then
-        If Not ex_UILoader.m_ApplyControlStyleByName(ws, "btnMode", styleName, ThisWorkbook) Then
+        If Not ex_UiXmlProvider.m_ApplyControlStyleByName(ws, "btnMode", styleName, ThisWorkbook) Then
             Exit Sub
         End If
     End If
@@ -237,7 +237,7 @@ EH:
 End Sub
 
 Private Function mp_GetModeVariants() As Variant
-    mp_GetModeVariants = ex_UILoader.m_GetModeVariantsByControl("btnMode", ThisWorkbook)
+    mp_GetModeVariants = ex_UiXmlProvider.m_GetModeVariantsByControl("btnMode", ThisWorkbook)
 End Function
 
 Private Function mp_GetDefaultModeValue() As Long
