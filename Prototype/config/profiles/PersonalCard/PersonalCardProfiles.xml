@@ -50,10 +50,10 @@
 		<v key="Main.Table[StateMain].Name">XОС</v>
 		<v key="Main.Table[StateMain].Key">FIO</v>
 		<v key="Main.Table[StateMain].FieldsAliases">FIO; IPN; ZV; Position</v>
-		<v key="Main.Table[StateMain].Map[FIO]">Прізвище, ім’я, по батькові</v>
-		<v key="Main.Table[StateMain].Map[IPN]">ІПН</v>
 		<v key="Main.Table[StateMain].Map[ZV]">Військове звання</v>
+		<v key="Main.Table[StateMain].Map[FIO]">Прізвище, ім’я, по батькові|ПІБ</v>
 		<v key="Main.Table[StateMain].Map[Position]">Повна назва посади</v>
+		<v key="Main.Table[StateMain].Map[IPN]">ІПН</v>
 		<v type="#" key="EventsIn"/>
 		<v key="Events.Table[EventsIn].Type">Events</v>
 		<v key="Events.Table[EventsIn].Name">ВІДСУТНІ28</v>
@@ -74,8 +74,8 @@
 		<v key="Events.Table[EventsOut].Map[EventReason]">68|Причинна вибуття</v>
 		<v key="Events.Table[EventsOut].Map[City]">69|Місце вибуття</v>
 		<v key="Events.Table[EventsOut].Map[Date]">71 (А)|Дата наказу</v>
-		<v key="Events.Table[EventsOut].Map[Note]">76|Замітки</v>
 		<v key="Events.Table[EventsOut].Map[Ticket]">Стовпець1|Номер квитка</v>
+		<v key="Events.Table[EventsOut].Map[Note]">76|Замітки</v>
 		<v key=""/>
 		<v key="Output.Tables">StateMain; EventsOut; EventsIn</v>
 		<ui>

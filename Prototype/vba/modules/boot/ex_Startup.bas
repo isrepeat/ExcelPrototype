@@ -9,7 +9,7 @@ Public Sub Startup_Open()
         Exit Sub
     End If
     ex_UILoader.m_LoadUiFromConfig ThisWorkbook
-    Application.Run "ex_ConfigProfilesManager.m_OnModeChanged"
+    Application.Run "ex_ConfigProfilesManager.m_RestoreSelectionState"
     Exit Sub
 EH:
     MsgBox "Startup initialization failed: " & Err.Description, vbExclamation

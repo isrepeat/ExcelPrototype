@@ -15,10 +15,6 @@ Public Sub m_ShowPersonTimeline_UI()
     If Len(fio) = 0 Then
         fio = Trim$(ex_ConfigProvider.m_GetConfigValue("PersonFIO", vbNullString))
     End If
-    If Len(fio) = 0 Then
-        MsgBox "Config key 'Context.PersonValue' is empty.", vbExclamation, "m_ShowPersonTimeline_UI"
-        Exit Sub
-    End If
 
     m_ShowPersonTimeline fio
 
@@ -39,6 +35,18 @@ Public Sub m_ShowPersonTimeline(ByVal fio As String)
     Application.ScreenUpdating = False
     Application.DisplayAlerts = False
     Application.EnableEvents = False
+
+    Dim wsOut As Worksheet
+    Set wsOut = mp_CreateOrClearSheet("g_PersonTimeline")
+    ex_Messaging.m_ApplyDarkSheetBase wsOut
+
+    wsOut.Activate
+    ActiveWindow.Zoom = 115
+
+    If Len(Trim$(fio)) = 0 Then
+        Err.Raise vbObjectError + 1300, "ex_PersonTimeline", _
+            "Config key 'Context.PersonValue' (or fallback 'PersonFIO') is empty."
+    End If
 
     Dim cfg As Object
     Set cfg = mp_LoadConfigDictionary()
@@ -63,12 +71,6 @@ Public Sub m_ShowPersonTimeline(ByVal fio As String)
     Dim wbCache As Object
     Set wbCache = CreateObject("Scripting.Dictionary")
     wbCache.CompareMode = 1
-
-    Dim wsOut As Worksheet
-    Set wsOut = mp_CreateOrClearSheet("g_PersonTimeline")
-
-    wsOut.Activate
-    ActiveWindow.Zoom = 115
 
     Dim rowIndex As Long
     rowIndex = 1
@@ -156,13 +158,26 @@ ContinueAlias:
     Exit Sub
 
 EH:
+    Dim errNumber As Long
+    Dim errSource As String
+    Dim errDescription As String
+
+    errNumber = Err.Number
+    errSource = Err.Source
+    errDescription = Err.Description
+
     On Error Resume Next
     mp_CloseWorkbooks wbCache
     Application.EnableEvents = prevEnableEvents
     Application.DisplayAlerts = prevDisplayAlerts
     Application.ScreenUpdating = prevScreenUpdating
     On Error GoTo 0
-    MsgBox "Error: " & Err.Description, vbExclamation, "m_ShowPersonTimeline"
+
+    If wsOut Is Nothing Then
+        Set wsOut = mp_CreateOrClearSheet("g_PersonTimeline")
+        ex_Messaging.m_ApplyDarkSheetBase wsOut
+    End If
+    ex_Messaging.m_RenderErrorBanner wsOut, errDescription, errSource, errNumber, "ERROR: Timeline generation failed"
 
 End Sub
 
@@ -179,7 +194,7 @@ Private Function mp_WriteStateCardGeneric( _
 ) As Long
 
     Dim fields As Variant
-    fields = mp_GetListRequired(cfg, sourceAlias & ".Table[" & tableAlias & "].FieldsAliases")
+    fields = mp_GetOrderedFieldAliases(cfg, sourceAlias, tableAlias)
 
     Dim keyAlias As String
     keyAlias = mp_GetCfgRequired(cfg, sourceAlias & ".Table[" & tableAlias & "].Key")
@@ -250,7 +265,7 @@ Private Function mp_WriteEventsGeneric( _
 ) As Long
 
     Dim fields As Variant
-    fields = mp_GetListRequired(cfg, sourceAlias & ".Table[" & tableAlias & "].FieldsAliases")
+    fields = mp_GetOrderedFieldAliases(cfg, sourceAlias, tableAlias)
 
     Dim keyAlias As String
     keyAlias = mp_GetCfgRequired(cfg, sourceAlias & ".Table[" & tableAlias & "].Key")
@@ -332,6 +347,7 @@ ContinueRow:
         Next i
 
         If sortOutCol > 0 Then
+            mp_NormalizeDateColumn wsOut, outHeaderRow + 1, outDataRow - 1, sortOutCol
             mp_SortRangeByColumnIndex wsOut, outHeaderRow, outDataRow - 1, 1, (UBound(fields) - LBound(fields) + 1), sortOutCol
         End If
     End If
@@ -652,6 +668,88 @@ Private Function mp_GetListRequired(ByVal cfg As Object, ByVal keyName As String
 
 End Function
 
+Private Function mp_GetOrderedFieldAliases(ByVal cfg As Object, ByVal sourceAlias As String, ByVal tableAlias As String) As Variant
+    Dim ordered As Variant
+    ordered = mp_GetMapAliasesInConfigOrder(sourceAlias, tableAlias)
+
+    If Not mp_IsEmptyVariantArray(ordered) Then
+        mp_GetOrderedFieldAliases = ordered
+        Exit Function
+    End If
+
+    mp_GetOrderedFieldAliases = mp_GetListRequired(cfg, sourceAlias & ".Table[" & tableAlias & "].FieldsAliases")
+End Function
+
+Private Function mp_GetMapAliasesInConfigOrder(ByVal sourceAlias As String, ByVal tableAlias As String) As Variant
+    Dim ws As Worksheet
+    Dim tbl As ListObject
+    Dim dataRange As Range
+    Dim prefix As String
+    Dim seen As Object
+    Dim aliases() As String
+    Dim count As Long
+    Dim r As Long
+    Dim markerText As String
+    Dim keyText As String
+    Dim suffix As String
+    Dim closingPos As Long
+    Dim fieldAlias As String
+
+    On Error GoTo EH
+
+    Set ws = ws_Dev
+    Set tbl = ws.ListObjects(DEV_CONFIG_TABLE_NAME)
+    If tbl Is Nothing Then
+        mp_GetMapAliasesInConfigOrder = Array()
+        Exit Function
+    End If
+    If tbl.DataBodyRange Is Nothing Then
+        mp_GetMapAliasesInConfigOrder = Array()
+        Exit Function
+    End If
+
+    Set dataRange = tbl.DataBodyRange
+    prefix = LCase$(sourceAlias & ".Table[" & tableAlias & "].Map[")
+    Set seen = CreateObject("Scripting.Dictionary")
+    seen.CompareMode = 1
+    count = 0
+
+    For r = 1 To dataRange.Rows.Count
+        markerText = Trim$(CStr(dataRange.Cells(r, DEV_COL_MARKER).Value))
+        If StrComp(markerText, DEV_MARKER_SYMBOL, vbTextCompare) = 0 Then GoTo ContinueRow
+
+        keyText = Trim$(CStr(dataRange.Cells(r, DEV_COL_KEY).Value))
+        If Len(keyText) = 0 Then GoTo ContinueRow
+        If LCase$(Left$(keyText, Len(prefix))) <> prefix Then GoTo ContinueRow
+
+        suffix = Mid$(keyText, Len(prefix) + 1)
+        closingPos = InStr(1, suffix, "]", vbBinaryCompare)
+        If closingPos <= 1 Then GoTo ContinueRow
+        If Len(Trim$(Mid$(suffix, closingPos + 1))) <> 0 Then GoTo ContinueRow
+
+        fieldAlias = Trim$(Left$(suffix, closingPos - 1))
+        If Len(fieldAlias) = 0 Then GoTo ContinueRow
+        If seen.Exists(fieldAlias) Then GoTo ContinueRow
+
+        seen.Add fieldAlias, True
+        ReDim Preserve aliases(0 To count)
+        aliases(count) = fieldAlias
+        count = count + 1
+
+ContinueRow:
+    Next r
+
+    If count = 0 Then
+        mp_GetMapAliasesInConfigOrder = Array()
+    Else
+        mp_GetMapAliasesInConfigOrder = aliases
+    End If
+    Exit Function
+
+EH:
+    mp_GetMapAliasesInConfigOrder = Array()
+End Function
+
 Private Function mp_SplitList(ByVal raw As String) As Variant
 
     raw = Trim$(raw)
@@ -868,6 +966,106 @@ Private Sub mp_SortRangeByColumnIndex(ByVal ws As Worksheet, ByVal topRow As Lon
     rng.Sort Key1:=ws.Cells(topRow + 1, leftCol + sortColRelative - 1), Order1:=xlAscending, Header:=xlYes
 
 End Sub
+
+Private Sub mp_NormalizeDateColumn(ByVal ws As Worksheet, ByVal topRow As Long, ByVal bottomRow As Long, ByVal colIndex As Long)
+    Dim r As Long
+    Dim v As Variant
+    Dim dt As Date
+
+    If ws Is Nothing Then Exit Sub
+    If topRow <= 0 Or bottomRow < topRow Then Exit Sub
+    If colIndex <= 0 Then Exit Sub
+
+    For r = topRow To bottomRow
+        v = ws.Cells(r, colIndex).Value
+        If mp_TryParseDate(v, dt) Then
+            ws.Cells(r, colIndex).Value = CDbl(dt)
+            ws.Cells(r, colIndex).NumberFormat = "dd.mm.yyyy"
+        End If
+    Next r
+End Sub
+
+Private Function mp_TryParseDate(ByVal valueIn As Variant, ByRef dateOut As Date) As Boolean
+    Dim s As String
+    Dim sep As String
+    Dim parts As Variant
+    Dim p1 As Long
+    Dim p2 As Long
+    Dim p3 As Long
+    Dim d As Long
+    Dim m As Long
+    Dim y As Long
+
+    s = Trim$(CStr(valueIn))
+    If Len(s) = 0 Then
+        If IsDate(valueIn) Then
+            dateOut = CDate(valueIn)
+            mp_TryParseDate = True
+        End If
+        Exit Function
+    End If
+
+    If InStr(1, s, ".", vbBinaryCompare) > 0 Then
+        sep = "."
+    ElseIf InStr(1, s, "/", vbBinaryCompare) > 0 Then
+        sep = "/"
+    ElseIf InStr(1, s, "-", vbBinaryCompare) > 0 Then
+        sep = "-"
+    Else
+        If IsDate(valueIn) Then
+            dateOut = CDate(valueIn)
+            mp_TryParseDate = True
+        End If
+        Exit Function
+    End If
+
+    parts = Split(s, sep)
+    If UBound(parts) - LBound(parts) <> 2 Then Exit Function
+    If Not IsNumeric(parts(0)) Or Not IsNumeric(parts(1)) Or Not IsNumeric(parts(2)) Then Exit Function
+
+    p1 = CLng(parts(0))
+    p2 = CLng(parts(1))
+    p3 = CLng(parts(2))
+
+    If p1 > 31 Or p2 > 31 Then Exit Function
+
+    If p3 < 100 Then
+        If p3 <= 29 Then
+            y = 2000 + p3
+        Else
+            y = 1900 + p3
+        End If
+    Else
+        y = p3
+    End If
+
+    If sep = "." Then
+        d = p1
+        m = p2
+    ElseIf sep = "/" Then
+        m = p1
+        d = p2
+    Else
+        If p1 > 12 And p2 <= 12 Then
+            d = p1
+            m = p2
+        ElseIf p2 > 12 And p1 <= 12 Then
+            m = p1
+            d = p2
+        Else
+            d = p1
+            m = p2
+        End If
+    End If
+
+    On Error GoTo EH
+    dateOut = DateSerial(y, m, d)
+    mp_TryParseDate = True
+    Exit Function
+
+EH:
+    mp_TryParseDate = False
+End Function
 
 Private Function mp_ResolvePathLocal(ByVal inputPath As String) As String
 

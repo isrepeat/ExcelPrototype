@@ -48,6 +48,8 @@ Private Const PFUI_CLEAR_BUTTON_SHAPE As String = "btnClear"
 Private Const PFUI_MODE_BUTTON_SHAPE As String = "btnMode"
 Private Const PFUI_PERSONAL_BUTTON_SHAPE As String = "btnPersonalCard"
 Private Const PFUI_COMPARING_BUTTON_SHAPE As String = "btnComparing"
+Private Const STATE_ACTIVE_MODE_PROP As String = "Settings.ActiveModeName"
+Private Const STATE_ACTIVE_PROFILE_PROP_PREFIX As String = "Settings.ActiveProfile."
 
 ' =============================================================================
 ' Public API (сверху по требованию рефакторинга)
@@ -164,6 +166,7 @@ End Sub
 Public Sub m_EnsureProfileDropdown(Optional ByVal ws As Worksheet)
     Dim profiles As Variant
     Dim profileName As String
+    Dim savedProfileName As String
 
     If ws Is Nothing Then
         Set ws = ws_Dev
@@ -180,7 +183,8 @@ Public Sub m_EnsureProfileDropdown(Optional ByVal ws As Worksheet)
         Exit Sub
     End If
 
-    profileName = mp_GetSelectedProfileNameFromDropdown(ws, profiles, True)
+    savedProfileName = mp_GetSavedProfileNameForMode(mp_GetSelectedModeName(ws))
+    profileName = mp_GetSelectedProfileNameFromDropdown(ws, profiles, True, savedProfileName)
     If Len(profileName) = 0 Then
         Exit Sub
     End If
@@ -204,6 +208,8 @@ Public Sub m_OnProfileChanged()
     If Len(profileName) = 0 Then Exit Sub
 
     m_ApplyProfileFromDev profileName
+    mp_ReapplySelectedProfileUi ws
+    m_SaveSelectionState ws
 End Sub
 
 Public Sub m_OnModeChanged()
@@ -216,6 +222,48 @@ Public Sub m_OnModeChanged()
     profiles = mp_GetProfileNames(ws)
     If Not mp_ArrayHasItems(profiles) Then Exit Sub
     m_EnsureProfileDropdown ws
+    mp_ReapplySelectedProfileUi ws
+    m_SaveSelectionState ws
+End Sub
+
+Public Sub m_RestoreSelectionState(Optional ByVal ws As Worksheet)
+    Dim savedModeName As String
+
+    If ws Is Nothing Then
+        Set ws = ws_Dev
+    End If
+
+    m_EnsureModeDropdown ws
+    savedModeName = mp_GetStatePropText(STATE_ACTIVE_MODE_PROP, vbNullString)
+    If Len(savedModeName) > 0 Then
+        mp_TrySelectModeByName ws, savedModeName
+    End If
+
+    mp_ApplyModeVisibility ws
+    m_EnsureProfileDropdown ws
+    mp_ReapplySelectedProfileUi ws
+End Sub
+
+Public Sub m_SaveSelectionState(Optional ByVal ws As Worksheet)
+    Dim modeName As String
+    Dim profileName As String
+    Dim profiles As Variant
+
+    If ws Is Nothing Then
+        Set ws = ws_Dev
+    End If
+
+    modeName = Trim$(mp_GetSelectedModeName(ws))
+    If Len(modeName) = 0 Then Exit Sub
+    mp_SetStatePropText STATE_ACTIVE_MODE_PROP, modeName
+
+    profiles = mp_GetProfileNames(ws)
+    If Not mp_ArrayHasItems(profiles) Then Exit Sub
+
+    profileName = Trim$(mp_GetSelectedProfileNameFromDropdown(ws, profiles, False))
+    If Len(profileName) = 0 Then Exit Sub
+
+    mp_SetStatePropText STATE_ACTIVE_PROFILE_PROP_PREFIX & mp_NormalizePropSuffix(modeName), profileName
 End Sub
 
 Public Sub m_EnsureProfileDropdown_UI()
@@ -266,6 +314,7 @@ Public Sub m_SaveCurrentProfileToConfig(Optional ByVal ws As Worksheet)
 
     ex_ProfilesEntriesMapper.m_WriteSheetValuesToProfile ws, doc, profileNode
     mp_SavePresetsDom doc
+    m_SaveSelectionState ws
     On Error Resume Next
     ex_ConfigProvider.m_RefreshConfigTitle ws, profileName
     On Error GoTo 0
@@ -358,7 +407,12 @@ Private Function mp_ArrayContains(ByVal values As Variant, ByVal needle As Strin
     Next i
 End Function
 
-Private Function mp_GetSelectedProfileNameFromDropdown(ByVal ws As Worksheet, ByVal profiles As Variant, Optional ByVal syncItems As Boolean = False) As String
+Private Function mp_GetSelectedProfileNameFromDropdown( _
+    ByVal ws As Worksheet, _
+    ByVal profiles As Variant, _
+    Optional ByVal syncItems As Boolean = False, _
+    Optional ByVal preferredName As String = vbNullString _
+) As String
     Dim cf As Object
     Dim selectedIndex As Long
     Dim previousIndex As Long
@@ -376,7 +430,10 @@ Private Function mp_GetSelectedProfileNameFromDropdown(ByVal ws As Worksheet, By
 
     If syncItems Then
         mp_SetDropdownItems cf, profiles
-        matchedIndex = mp_FindProfileIndexByName(profiles, previousName)
+        matchedIndex = mp_FindProfileIndexByName(profiles, preferredName)
+        If matchedIndex = 0 Then
+            matchedIndex = mp_FindProfileIndexByName(profiles, previousName)
+        End If
         If matchedIndex > 0 Then
             On Error Resume Next
             cf.Value = matchedIndex
@@ -425,6 +482,28 @@ Private Sub m_EnsureModeDropdown(ByVal ws As Worksheet)
 
     On Error Resume Next
     cf.Value = selectedIndex
+    On Error GoTo 0
+End Sub
+
+Private Sub mp_TrySelectModeByName(ByVal ws As Worksheet, ByVal modeName As String)
+    Dim cf As Object
+    Dim modeNames As Variant
+    Dim targetIndex As Long
+
+    modeName = Trim$(modeName)
+    If Len(modeName) = 0 Then Exit Sub
+
+    Set cf = mp_GetModeDropdownControl(ws)
+    If cf Is Nothing Then Exit Sub
+
+    modeNames = ex_UiXmlProvider.m_GetDropdownItemsByName("ddMode", ThisWorkbook)
+    If Not mp_ArrayHasItems(modeNames) Then Exit Sub
+
+    targetIndex = mp_FindProfileIndexByName(modeNames, modeName)
+    If targetIndex <= 0 Then Exit Sub
+
+    On Error Resume Next
+    cf.Value = targetIndex
     On Error GoTo 0
 End Sub
 
@@ -478,6 +557,26 @@ Private Sub mp_ApplyModeVisibility(ByVal ws As Worksheet)
     Set profileNode = mp_GetProfileNode(doc, profileName, False)
     If profileNode Is Nothing Then Exit Sub
 
+    ex_ConfigProfilesManager.m_ApplyModeVisibility ws, profileNode
+End Sub
+
+Private Sub mp_ReapplySelectedProfileUi(ByVal ws As Worksheet)
+    Dim profiles As Variant
+    Dim profileName As String
+    Dim doc As Object
+    Dim profileNode As Object
+
+    profiles = mp_GetProfileNames(ws)
+    If Not mp_ArrayHasItems(profiles) Then Exit Sub
+
+    profileName = mp_GetSelectedProfileNameFromDropdown(ws, profiles, False)
+    If Len(profileName) = 0 Then Exit Sub
+
+    Set doc = mp_LoadPresetsDom(ws)
+    Set profileNode = mp_GetProfileNode(doc, profileName, False)
+    If profileNode Is Nothing Then Exit Sub
+
+    ex_ConfigProfilesManager.m_ApplyProfileUI ws, profileNode, profileName
     ex_ConfigProfilesManager.m_ApplyModeVisibility ws, profileNode
 End Sub
 
@@ -555,6 +654,62 @@ Private Function mp_FindProfileIndexByName(ByVal profiles As Variant, ByVal prof
         End If
     Next i
 End Function
+
+Private Function mp_GetSavedProfileNameForMode(ByVal modeName As String) As String
+    Dim propName As String
+
+    modeName = Trim$(modeName)
+    If Len(modeName) = 0 Then Exit Function
+
+    propName = STATE_ACTIVE_PROFILE_PROP_PREFIX & mp_NormalizePropSuffix(modeName)
+    mp_GetSavedProfileNameForMode = mp_GetStatePropText(propName, vbNullString)
+End Function
+
+Private Function mp_NormalizePropSuffix(ByVal valueText As String) As String
+    Dim i As Long
+    Dim ch As String
+    Dim code As Long
+    Dim resultText As String
+
+    valueText = Trim$(valueText)
+    If Len(valueText) = 0 Then
+        mp_NormalizePropSuffix = "_"
+        Exit Function
+    End If
+
+    For i = 1 To Len(valueText)
+        ch = Mid$(valueText, i, 1)
+        code = AscW(ch)
+        If (code >= 48 And code <= 57) Or (code >= 65 And code <= 90) Or (code >= 97 And code <= 122) Then
+            resultText = resultText & ch
+        Else
+            resultText = resultText & "_"
+        End If
+    Next i
+
+    If Len(resultText) = 0 Then resultText = "_"
+    mp_NormalizePropSuffix = resultText
+End Function
+
+Private Function mp_GetStatePropText(ByVal propName As String, ByVal defaultValue As String) As String
+    On Error GoTo EH
+    mp_GetStatePropText = CStr(ThisWorkbook.CustomDocumentProperties(propName).Value)
+    Exit Function
+EH:
+    mp_GetStatePropText = defaultValue
+End Function
+
+Private Sub mp_SetStatePropText(ByVal propName As String, ByVal valueText As String)
+    On Error GoTo AddProp
+    ThisWorkbook.CustomDocumentProperties(propName).Value = CStr(valueText)
+    Exit Sub
+AddProp:
+    ThisWorkbook.CustomDocumentProperties.Add _
+        Name:=propName, _
+        LinkToContent:=False, _
+        Type:=msoPropertyTypeString, _
+        Value:=CStr(valueText)
+End Sub
 
 Private Function mp_LoadPresetsDom(Optional ByVal ws As Worksheet) As Object
     Dim filePath As String
