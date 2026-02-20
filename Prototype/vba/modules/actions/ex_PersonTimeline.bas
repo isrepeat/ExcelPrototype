@@ -57,7 +57,7 @@ Public Sub m_ShowPersonTimeline(ByVal fio As String)
     Dim outputStyle As t_OutputSheetStyle
     Dim baseStyle As t_BaseSheetStyle
     Dim hasOutputStyle As Boolean
-    If Not ex_SheetStylesXmlProvider.m_EnsureInitialized(ThisWorkbook) Then
+    If Not ex_SheetStylesXmlProvider.m_InitializeStyles(ThisWorkbook) Then
         Err.Raise vbObjectError + 1304, "ex_PersonTimeline", "Failed to initialize style registry."
     End If
     hasOutputStyle = ex_SheetStylesXmlProvider.m_GetOutputSheetStyle(outputStyle, ThisWorkbook)
@@ -74,6 +74,9 @@ Public Sub m_ShowPersonTimeline(ByVal fio As String)
 
     Dim rowIndex As Long
     rowIndex = 1
+    If hasOutputStyle Then
+        rowIndex = ex_SheetStylesXmlProvider.m_GetOutputViewStartRow(ThisWorkbook)
+    End If
 
     Dim headerRows As Collection
     Set headerRows = New Collection
@@ -148,6 +151,9 @@ ContinueAlias:
     End If
 
     mp_ApplyTimelineStyleLayers wsOut, headerRows, sectionRows, outputStyle, baseStyle, hasOutputStyle
+    If hasOutputStyle Then
+        ex_OutputPanel.m_RenderForSheet wsOut, outputStyle
+    End If
 
     mp_CloseWorkbooks wbCache
 
@@ -161,6 +167,7 @@ EH:
     Dim errNumber As Long
     Dim errSource As String
     Dim errDescription As String
+    Dim errOutputStyle As t_OutputSheetStyle
 
     errNumber = Err.Number
     errSource = Err.Source
@@ -177,7 +184,14 @@ EH:
         Set wsOut = mp_CreateOrClearSheet("g_PersonTimeline")
         ex_Messaging.m_ApplyDarkSheetBase wsOut
     End If
-    ex_Messaging.m_RenderErrorBanner wsOut, errDescription, errSource, errNumber, "ERROR: Timeline generation failed"
+    On Error Resume Next
+    If ex_SheetStylesXmlProvider.m_InitializeStyles(ThisWorkbook) Then
+        If ex_SheetStylesXmlProvider.m_GetOutputSheetStyle(errOutputStyle, ThisWorkbook) Then
+            ex_OutputPanel.m_RenderForSheet wsOut, errOutputStyle
+        End If
+    End If
+    On Error GoTo 0
+    ex_Messaging.m_RenderErrorBanner wsOut, errDescription, errSource, errNumber, "ERROR: Timeline generation failed", ex_SheetStylesXmlProvider.m_GetOutputErrorBannerRangeAddress(ThisWorkbook)
 
 End Sub
 
