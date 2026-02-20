@@ -3,8 +3,10 @@ Option Explicit
 
 Public Sub m_WriteTableToResultSheet(ByVal tableData As Variant)
     Dim ws As Worksheet
-    Dim rowCount As Long
+    Dim dataRows As Long
     Dim colCount As Long
+    Dim startRow As Long
+    Dim fullRowCount As Long
     Dim targetRange As Range
     Dim outputStyle As t_OutputSheetStyle
     Dim baseStyle As t_BaseSheetStyle
@@ -14,7 +16,7 @@ Public Sub m_WriteTableToResultSheet(ByVal tableData As Variant)
 
     On Error GoTo EH
 
-    If Not ex_SheetStylesXmlProvider.m_EnsureInitialized(ThisWorkbook) Then
+    If Not ex_SheetStylesXmlProvider.m_InitializeStyles(ThisWorkbook) Then
         MsgBox "Не удалось инициализировать реестр стилей.", vbExclamation
         Exit Sub
     End If
@@ -26,23 +28,32 @@ Public Sub m_WriteTableToResultSheet(ByVal tableData As Variant)
     ws.Cells.Clear
     ws.ScrollArea = ""
 
-    rowCount = UBound(tableData, 1)
+    dataRows = UBound(tableData, 1)
     colCount = UBound(tableData, 2)
+    startRow = 1
+    If hasOutputStyle Then
+        startRow = ex_SheetStylesXmlProvider.m_GetOutputViewStartRow(ThisWorkbook)
+    End If
+    fullRowCount = startRow + dataRows - 1
 
-    Set targetRange = ws.Range(ws.Cells(1, 1), ws.Cells(rowCount, colCount))
+    Set targetRange = ws.Range(ws.Cells(startRow, 1), ws.Cells(fullRowCount, colCount))
     targetRange.Value = tableData
 
-    mp_FormatAsTable ws, rowCount, colCount
+    mp_FormatAsTable ws, startRow, dataRows, colCount
 
     For Each layerName In layerOrder
         Select Case CStr(layerName)
             Case ex_SheetStylesXmlProvider.LAYER_BASE
-                ex_SheetStylesXmlProvider.m_ApplyBaseLayer ws, rowCount, colCount, baseStyle
+                ex_SheetStylesXmlProvider.m_ApplyBaseLayer ws, fullRowCount, colCount, baseStyle
             Case ex_SheetStylesXmlProvider.LAYER_OUTPUT
-                mp_ApplyOutputStyleToResult ws, rowCount, colCount, outputStyle
-                ex_SheetStylesXmlProvider.m_ApplyStatusLayer ws, rowCount, colCount, outputStyle
+                mp_ApplyOutputStyleToResult ws, startRow, dataRows, colCount, outputStyle
+                ex_SheetStylesXmlProvider.m_ApplyStatusLayer ws, startRow, dataRows, colCount, outputStyle
         End Select
     Next layerName
+
+    If hasOutputStyle Then
+        ex_OutputPanel.m_RenderForSheet ws, outputStyle
+    End If
 
     Exit Sub
 EH:
@@ -68,12 +79,13 @@ Private Function mp_GetOrCreateWorksheet(ByVal sheetName As String) As Worksheet
     Set mp_GetOrCreateWorksheet = ws
 End Function
 
-Private Sub mp_FormatAsTable(ByVal ws As Worksheet, ByVal rowCount As Long, ByVal colCount As Long)
+Private Sub mp_FormatAsTable(ByVal ws As Worksheet, ByVal startRow As Long, ByVal rowCount As Long, ByVal colCount As Long)
     Dim headerRange As Range
     Dim allRange As Range
+    Dim freezeRow As Long
 
-    Set headerRange = ws.Range(ws.Cells(1, 1), ws.Cells(1, colCount))
-    Set allRange = ws.Range(ws.Cells(1, 1), ws.Cells(rowCount, colCount))
+    Set headerRange = ws.Range(ws.Cells(startRow, 1), ws.Cells(startRow, colCount))
+    Set allRange = ws.Range(ws.Cells(startRow, 1), ws.Cells(startRow + rowCount - 1, colCount))
 
     allRange.Font.Name = "Segoe UI"
     allRange.Font.Size = 10
@@ -84,12 +96,14 @@ Private Sub mp_FormatAsTable(ByVal ws As Worksheet, ByVal rowCount As Long, ByVa
     allRange.AutoFilter
 
     ws.Activate
-    ws.Range("A2").Select
+    freezeRow = startRow + 1
+    ws.Cells(freezeRow, 1).Select
     ActiveWindow.FreezePanes = True
 End Sub
 
 Private Sub mp_ApplyOutputStyleToResult( _
     ByVal ws As Worksheet, _
+    ByVal startRow As Long, _
     ByVal rowCount As Long, _
     ByVal colCount As Long, _
     ByRef style As t_OutputSheetStyle _
@@ -97,8 +111,8 @@ Private Sub mp_ApplyOutputStyleToResult( _
     Dim targetRange As Range
     Dim headerRange As Range
 
-    Set targetRange = ws.Range(ws.Cells(1, 1), ws.Cells(rowCount, colCount))
-    Set headerRange = ws.Range(ws.Cells(1, 1), ws.Cells(1, colCount))
+    Set targetRange = ws.Range(ws.Cells(startRow, 1), ws.Cells(startRow + rowCount - 1, colCount))
+    Set headerRange = ws.Range(ws.Cells(startRow, 1), ws.Cells(startRow, colCount))
 
     targetRange.Interior.Pattern = xlSolid
     targetRange.Interior.Color = style.ContentBackColor

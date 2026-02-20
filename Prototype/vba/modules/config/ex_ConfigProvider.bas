@@ -117,6 +117,81 @@ Public Function m_GetConfigValue( _
     m_GetConfigValue = defaultValue
 End Function
 
+Public Sub m_SetConfigValue( _
+    ByVal keyName As String, _
+    ByVal valueText As String, _
+    Optional ByVal createIfMissing As Boolean = True _
+)
+    Dim wsDev As Worksheet
+    Dim cfgTable As ListObject
+    Dim dataRange As Range
+    Dim keyCol As Long
+    Dim valueCol As Long
+    Dim markerCol As Long
+    Dim r As Long
+    Dim markerText As String
+    Dim keyText As String
+    Dim newRow As ListRow
+
+    keyName = Trim$(keyName)
+    If Len(keyName) = 0 Then
+        MsgBox "Config key name must not be empty.", vbExclamation
+        Exit Sub
+    End If
+
+    Set wsDev = mp_EnsureDevSheet()
+    mp_EnsureConfigArea wsDev
+
+    Set cfgTable = mp_GetConfigTable(wsDev, True)
+    If cfgTable Is Nothing Then
+        MsgBox "Config table '" & DEV_CONFIG_TABLE_NAME & "' was not found on sheet '" & wsDev.Name & "'.", vbExclamation
+        Exit Sub
+    End If
+
+    keyCol = DEV_COL_KEY
+    valueCol = DEV_COL_VALUE
+    markerCol = DEV_COL_MARKER
+    If cfgTable.ListColumns.Count < DEV_COL_VALUE Then
+        keyCol = 1
+        valueCol = 2
+        markerCol = 0
+    End If
+
+    If Not cfgTable.DataBodyRange Is Nothing Then
+        Set dataRange = cfgTable.DataBodyRange
+        For r = 1 To dataRange.Rows.Count
+            markerText = vbNullString
+            If markerCol > 0 Then
+                markerText = Trim$(CStr(dataRange.Cells(r, markerCol).Value))
+            End If
+            keyText = Trim$(CStr(dataRange.Cells(r, keyCol).Value))
+            If StrComp(markerText, DEV_MARKER_SYMBOL, vbTextCompare) <> 0 Then
+                If StrComp(keyText, keyName, vbTextCompare) = 0 Then
+                    dataRange.Cells(r, valueCol).Value = valueText
+                    Exit Sub
+                End If
+            End If
+        Next r
+    End If
+
+    If Not createIfMissing Then
+        MsgBox "Config key '" & keyName & "' was not found in '" & DEV_CONFIG_TABLE_NAME & "'.", vbExclamation
+        Exit Sub
+    End If
+
+    Set newRow = cfgTable.ListRows.Add
+    If newRow Is Nothing Then
+        MsgBox "Failed to append a new row into config table '" & DEV_CONFIG_TABLE_NAME & "'.", vbExclamation
+        Exit Sub
+    End If
+
+    If markerCol > 0 Then
+        newRow.Range.Cells(1, markerCol).Value = vbNullString
+    End If
+    newRow.Range.Cells(1, keyCol).Value = keyName
+    newRow.Range.Cells(1, valueCol).Value = valueText
+End Sub
+
 ' Обновляет служебный текст в заголовке 3-й колонки таблицы.
 ' Текст формируется по шаблону CONFIG_TITLE_TEMPLATE и подставляет:
 ' - явный `profileName`, если передан;
