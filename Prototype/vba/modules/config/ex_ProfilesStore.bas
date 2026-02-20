@@ -1,8 +1,8 @@
 Attribute VB_Name = "ex_ProfilesStore"
 Option Explicit
 
-Private Const PRESETS_NS As String = "urn:excelprototype:presets"
-Private Const PRESETS_TEMPLATE As String = "<?xml version=""1.0"" encoding=""UTF-8"" standalone=""yes""?><presets xmlns=""" & PRESETS_NS & """ version=""1""/>"
+Private Const PROFILES_NS As String = "urn:excelprototype:profiles"
+Private Const PROFILES_TEMPLATE As String = "<?xml version=""1.0"" encoding=""UTF-8"" standalone=""yes""?><profiles xmlns=""" & PROFILES_NS & """ version=""1""/>"
 
 Public Function m_GetProfilesFilePath(Optional ByVal modeName As String = vbNullString, Optional ByVal wb As Workbook) As String
     Dim resolvedMode As String
@@ -18,25 +18,25 @@ Public Function m_GetProfilesFilePath(Optional ByVal modeName As String = vbNull
     m_GetProfilesFilePath = ex_UiXmlProvider.m_GetProfilesFilePathByMode(resolvedMode, wb, "profilesByMode")
 End Function
 
-Public Function m_LoadPresetsDom(ByVal filePath As String) As Object
+Public Function m_LoadProfilesDom(ByVal filePath As String) As Object
     Dim doc As Object
 
     If Len(Trim$(filePath)) = 0 Then Exit Function
 
-    Set doc = ex_XmlCore.m_CreateDom(PRESETS_NS)
+    Set doc = ex_XmlCore.m_CreateDom(PROFILES_NS)
 
     If Len(Dir(filePath)) > 0 Then
         If Not doc.Load(filePath) Then
-            doc.loadXML PRESETS_TEMPLATE
+            doc.loadXML PROFILES_TEMPLATE
         End If
     Else
-        doc.loadXML PRESETS_TEMPLATE
+        doc.loadXML PROFILES_TEMPLATE
     End If
 
-    Set m_LoadPresetsDom = doc
+    Set m_LoadProfilesDom = doc
 End Function
 
-Public Sub m_SavePresetsDom(ByVal doc As Object, ByVal filePath As String)
+Public Sub m_SaveProfilesDom(ByVal doc As Object, ByVal filePath As String)
     If doc Is Nothing Then Exit Sub
     If Len(Trim$(filePath)) = 0 Then Exit Sub
 
@@ -60,11 +60,11 @@ Public Function m_GetProfileNode(ByVal doc As Object, ByVal profileName As Strin
     profileName = Trim$(profileName)
     If Len(profileName) = 0 Then Exit Function
 
-    Set node = doc.selectSingleNode("/p:presets/p:profile[@name=" & ex_XmlCore.m_XPathLiteral(profileName) & "]")
+    Set node = doc.selectSingleNode("/p:profiles/p:profile[@name=" & ex_XmlCore.m_XPathLiteral(profileName) & "]")
     If node Is Nothing And createIfMissing Then
-        Set root = doc.selectSingleNode("/p:presets")
+        Set root = doc.selectSingleNode("/p:profiles")
         If root Is Nothing Then Exit Function
-        Set node = doc.createNode(1, "profile", PRESETS_NS)
+        Set node = doc.createNode(1, "profile", PROFILES_NS)
         node.setAttribute "name", profileName
         root.appendChild node
     End If

@@ -1,7 +1,7 @@
 Attribute VB_Name = "ex_ProfilesEntriesMapper"
 Option Explicit
 
-Private Const PRESETS_NS As String = "urn:excelprototype:presets"
+Private Const PROFILES_NS As String = "urn:excelprototype:profiles"
 Private Const DEV_CONFIG_TABLE_NAME As String = "tblDevConfig"
 Private Const DEV_CONFIG_HEADER_ROW As Long = 2
 Private Const DEV_CONFIG_MARKER_COL As Long = 1
@@ -24,7 +24,7 @@ Public Sub m_WriteSheetValuesToProfile(ByVal ws As Worksheet, ByVal doc As Objec
     If Not mp_ArrayHasItems(entries) Then Exit Sub
 
     For i = LBound(entries, 1) To UBound(entries, 1)
-        Set vNode = doc.createNode(1, "v", PRESETS_NS)
+        Set vNode = doc.createNode(1, "v", PROFILES_NS)
         If Len(Trim$(CStr(entries(i, DEV_CONFIG_MARKER_COL)))) > 0 Then
             vNode.setAttribute "type", CStr(entries(i, DEV_CONFIG_MARKER_COL))
         End If

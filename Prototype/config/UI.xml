@@ -1,12 +1,12 @@
 <?xml version="1.0" standalone="yes"?>
-<uiDefinition xmlns="urn:excelprototype:presets" version="1">
+<uiDefinition xmlns="urn:excelprototype:profiles" version="1">
   <dataSources>
     <profilesSource name="profilesByMode"
                     defaultMode="Personal Card"
                     modePersonalCard="Personal Card"
                     modeComparing="Comparing"
-                    pathPersonalCard="config\profiles\PersonalCard\PersonalCardProfiles.xml"
-                    pathComparing="config\profiles\TablesComparing\TablesComparingProfiles.xml"/>
+                    pathPersonalCard="config\modes\PersonalCard"
+                    pathComparing="config\modes\TablesComparing"/>
   </dataSources>
 
   <styles>

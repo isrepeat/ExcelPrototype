@@ -1,5 +1,5 @@
 <?xml version="1.0" standalone="yes"?>
-<presets version="1" xmlns="urn:excelprototype:presets">
+<profiles version="1" xmlns="urn:excelprototype:profiles">
   <profile name="Default">
     <v key="OldFilePath">.\TESTS\Comparing\OldTable.xlsx</v>
     <v key="OldTableName">TableSrc</v>
@@ -42,4 +42,4 @@
                visible="true"/>
     </ui>
   </profile>
-</presets>
+</profiles>

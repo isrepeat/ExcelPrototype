@@ -1,8 +1,13 @@
 Attribute VB_Name = "ex_SheetStylesXmlProvider"
 Option Explicit
 
-Private Const PRESETS_NS As String = "urn:excelprototype:presets"
+Private Const PROFILES_NS As String = "urn:excelprototype:profiles"
 Private Const SHEET_STYLES_REL_PATH As String = "config\SheetStyles.xml"
+Private Const OUTPUT_STYLE_PERSONAL_DIR_REL_PATH As String = "config\modes\PersonalCard"
+Private Const OUTPUT_STYLE_COMPARING_DIR_REL_PATH As String = "config\modes\TablesComparing"
+Private Const OUTPUT_STYLE_FILE_SUFFIX As String = "SheetStyles.xml"
+Private Const MODE_PERSONAL_CARD As String = "Personal Card"
+Private Const MODE_TABLES_COMPARING As String = "Comparing"
 Private Const BASE_STYLE_LABEL As String = "base sheet style"
 Private Const OUTPUT_STYLE_LABEL As String = "output sheet style"
 
@@ -18,8 +23,7 @@ Public Type t_ControlPanelFieldStyle
     Label As String
     InputConfigKey As String
     InputName As String
-    ButtonCount As Long
-    Buttons() As t_ControlPanelButtonStyle
+    Button As t_ControlPanelButtonStyle
 End Type
 
 Public Type t_BaseSheetStyle
@@ -93,6 +97,12 @@ Public Type t_OutputSheetStyle
     PanelButtonBackColor As Long
     PanelButtonTextColor As Long
     PanelButtonBorderColor As Long
+    PanelButtonAnchorColumn As Long
+    PanelButtonWidthColumns As Long
+    PanelFixedWidthKey As Double
+    PanelFixedWidthValue As Double
+    PanelFixedWidthButton As Double
+    PanelFixedFieldRowHeight As Double
     PanelFieldCount As Long
     PanelFields() As t_ControlPanelFieldStyle
 End Type
@@ -101,9 +111,12 @@ Private g_IsInitialized As Boolean
 Private g_BaseStyle As t_BaseSheetStyle
 Private g_OutputStyle As t_OutputSheetStyle
 Private g_HasOutputStyle As Boolean
+Private g_LastActiveModeName As String
 
 Public Function m_InitializeStyles(Optional ByVal wb As Workbook) As Boolean
-    Dim doc As Object
+    Dim baseDoc As Object
+    Dim outputDoc As Object
+    Dim outputRelPath As String
 
     If wb Is Nothing Then Set wb = ThisWorkbook
     If wb Is Nothing Then
@@ -111,18 +124,29 @@ Public Function m_InitializeStyles(Optional ByVal wb As Workbook) As Boolean
         Exit Function
     End If
 
-    Set doc = mp_LoadSheetStylesDom(wb)
-    If doc Is Nothing Then Exit Function
+    Set baseDoc = mp_LoadSheetStylesDom(wb)
+    If baseDoc Is Nothing Then Exit Function
 
-    If Not mp_LoadBaseSheetStyleFromDom(doc, g_BaseStyle) Then Exit Function
-    g_HasOutputStyle = mp_TryLoadOutputSheetStyleFromDom(doc, g_OutputStyle)
+    If Not mp_LoadBaseSheetStyleFromDom(baseDoc, g_BaseStyle) Then Exit Function
+
+    outputRelPath = mp_GetOutputStyleRelPathByMode()
+    Set outputDoc = mp_LoadOutputStyleDomByRelativePath(wb, outputRelPath)
+    If outputDoc Is Nothing Then Exit Function
+
+    g_HasOutputStyle = mp_TryLoadOutputSheetStyleFromDom(outputDoc, g_OutputStyle)
+    If Not g_HasOutputStyle Then
+        MsgBox "Output style must contain '/SheetStyles/outputSheetStyle' in mode-specific file: " & outputRelPath, vbExclamation
+        Exit Function
+    End If
+
+    g_LastActiveModeName = mp_GetCurrentActiveModeName()
 
     g_IsInitialized = True
     m_InitializeStyles = True
 End Function
 
 Public Function m_EnsureInitialized(Optional ByVal wb As Workbook) As Boolean
-    If g_IsInitialized Then
+    If g_IsInitialized And StrComp(g_LastActiveModeName, mp_GetCurrentActiveModeName(), vbTextCompare) = 0 Then
         m_EnsureInitialized = True
         Exit Function
     End If
@@ -156,10 +180,8 @@ Public Function m_GetOutputViewStartRow(Optional ByVal wb As Workbook) As Long
     If panelBottomRow > 0 Then
         ' Keep a configurable visual gap between control panel and data view.
         m_GetOutputViewStartRow = panelBottomRow + 1 + style.PanelViewZoneGapRows
-    ElseIf style.ViewStartRow > 0 Then
-        m_GetOutputViewStartRow = style.ViewStartRow
     Else
-        m_GetOutputViewStartRow = 1 + style.OutputTopOffsetRows
+        m_GetOutputViewStartRow = 1
     End If
 
     If m_GetOutputViewStartRow < 1 Then m_GetOutputViewStartRow = 1
@@ -366,9 +388,93 @@ Private Function mp_LoadSheetStylesDom(ByVal wb As Workbook) As Object
     Set mp_LoadSheetStylesDom = ex_XmlCore.m_LoadDomByRelativePath( _
         wb, _
         SHEET_STYLES_REL_PATH, _
-        PRESETS_NS, _
+        PROFILES_NS, _
         "SheetStyles config file was not found: ", _
         "Failed to parse SheetStyles config file: ")
+End Function
+
+Private Function mp_LoadOutputStyleDomByRelativePath(ByVal wb As Workbook, ByVal relPath As String) As Object
+    Set mp_LoadOutputStyleDomByRelativePath = ex_XmlCore.m_LoadDomByRelativePath( _
+        wb, _
+        relPath, _
+        PROFILES_NS, _
+        "Output style config file was not found: ", _
+        "Failed to parse output style config file: ")
+End Function
+
+Private Function mp_GetCurrentActiveModeName() As String
+    On Error Resume Next
+    mp_GetCurrentActiveModeName = Trim$(ex_ConfigProfilesManager.m_GetActiveModeName(ws_Dev))
+    On Error GoTo 0
+
+    If Len(mp_GetCurrentActiveModeName) = 0 Then
+        mp_GetCurrentActiveModeName = MODE_PERSONAL_CARD
+    End If
+End Function
+
+Private Function mp_GetOutputStyleRelPathByMode() As String
+    Dim modeName As String
+
+    modeName = mp_GetCurrentActiveModeName()
+
+    If StrComp(modeName, MODE_TABLES_COMPARING, vbTextCompare) = 0 Then
+        mp_GetOutputStyleRelPathByMode = mp_BuildPatternBasedFilePath(OUTPUT_STYLE_COMPARING_DIR_REL_PATH, OUTPUT_STYLE_FILE_SUFFIX)
+        Exit Function
+    End If
+
+    If StrComp(modeName, MODE_PERSONAL_CARD, vbTextCompare) = 0 Then
+        mp_GetOutputStyleRelPathByMode = mp_BuildPatternBasedFilePath(OUTPUT_STYLE_PERSONAL_DIR_REL_PATH, OUTPUT_STYLE_FILE_SUFFIX)
+        Exit Function
+    End If
+
+    If Len(modeName) > 0 Then
+        MsgBox "Unsupported active mode value for style mapping: '" & modeName & "'.", vbExclamation
+    Else
+        MsgBox "Unsupported active mode value for style mapping.", vbExclamation
+    End If
+
+    Select Case modeName
+        Case MODE_PERSONAL_CARD
+            mp_GetOutputStyleRelPathByMode = mp_BuildPatternBasedFilePath(OUTPUT_STYLE_PERSONAL_DIR_REL_PATH, OUTPUT_STYLE_FILE_SUFFIX)
+        Case MODE_TABLES_COMPARING
+            mp_GetOutputStyleRelPathByMode = mp_BuildPatternBasedFilePath(OUTPUT_STYLE_COMPARING_DIR_REL_PATH, OUTPUT_STYLE_FILE_SUFFIX)
+    End Select
+End Function
+
+Private Function mp_BuildPatternBasedFilePath(ByVal directoryRelPath As String, ByVal fileSuffix As String) As String
+    Dim normalizedDir As String
+    Dim dirName As String
+
+    normalizedDir = mp_NormalizeDirectoryPath(directoryRelPath)
+    If Len(normalizedDir) = 0 Then Exit Function
+
+    dirName = mp_GetLastPathSegment(normalizedDir)
+    If Len(dirName) = 0 Then Exit Function
+
+    mp_BuildPatternBasedFilePath = normalizedDir & "\" & dirName & fileSuffix
+End Function
+
+Private Function mp_NormalizeDirectoryPath(ByVal value As String) As String
+    value = Trim$(value)
+    If Len(value) = 0 Then Exit Function
+
+    value = Replace$(value, "/", "\")
+    Do While Right$(value, 1) = "\"
+        value = Left$(value, Len(value) - 1)
+    Loop
+
+    mp_NormalizeDirectoryPath = value
+End Function
+
+Private Function mp_GetLastPathSegment(ByVal pathValue As String) As String
+    Dim slashPos As Long
+
+    slashPos = InStrRev(pathValue, "\")
+    If slashPos <= 0 Then
+        mp_GetLastPathSegment = pathValue
+    Else
+        mp_GetLastPathSegment = Mid$(pathValue, slashPos + 1)
+    End If
 End Function
 
 Private Function mp_LoadBaseSheetStyleFromDom(ByVal doc As Object, ByRef style As t_BaseSheetStyle) As Boolean
@@ -423,6 +529,7 @@ Private Function mp_TryLoadOutputSheetStyleFromDom(ByVal doc As Object, ByRef st
     Dim nodeAlignment As Object
     Dim nodeStatus As Object
     Dim nodeControlPanel As Object
+    Dim isPanelVisible As Boolean
     Dim sectionTitleColumnsText As String
 
     Set rootNode = doc.selectSingleNode("/p:SheetStyles/p:outputSheetStyle")
@@ -516,8 +623,16 @@ Private Function mp_TryLoadOutputSheetStyleFromDom(ByVal doc As Object, ByRef st
     End If
 
     style.HasControlPanel = False
+    style.PanelFieldCount = 0
+    Erase style.PanelFields
     Set nodeControlPanel = rootNode.selectSingleNode("p:controlPanel")
     If Not nodeControlPanel Is Nothing Then
+        If Not mp_ReadOptionalAttrBoolean(nodeControlPanel, "visible", isPanelVisible, True, "controlPanel@visible") Then Exit Function
+        If Not isPanelVisible Then
+            mp_TryLoadOutputSheetStyleFromDom = True
+            Exit Function
+        End If
+
         style.HasControlPanel = True
         style.PanelTitle = mp_ReadOptionalAttrText(nodeControlPanel, "title", "Quick Search")
 
@@ -592,11 +707,60 @@ Private Function mp_TryLoadOutputSheetStyleFromDom(ByVal doc As Object, ByRef st
         If Not mp_ReadOptionalAttrHexColor(nodeControlPanel, "buttonBackColor", style.PanelButtonBackColor, RGB(31, 94, 156), "controlPanel@buttonBackColor") Then Exit Function
         If Not mp_ReadOptionalAttrHexColor(nodeControlPanel, "buttonTextColor", style.PanelButtonTextColor, RGB(255, 255, 255), "controlPanel@buttonTextColor") Then Exit Function
         If Not mp_ReadOptionalAttrHexColor(nodeControlPanel, "buttonBorderColor", style.PanelButtonBorderColor, RGB(22, 63, 105), "controlPanel@buttonBorderColor") Then Exit Function
+        If Not mp_ReadOptionalAttrLong(nodeControlPanel, "buttonAnchorColumn", style.PanelButtonAnchorColumn, 4, "controlPanel@buttonAnchorColumn") Then Exit Function
+        If Not mp_ReadOptionalAttrLong(nodeControlPanel, "buttonWidthColumns", style.PanelButtonWidthColumns, 1, "controlPanel@buttonWidthColumns") Then Exit Function
+        If Not mp_ReadOptionalAttrDouble(nodeControlPanel, "fixedWidthKey", style.PanelFixedWidthKey, 0#, "controlPanel@fixedWidthKey") Then Exit Function
+        If Not mp_ReadOptionalAttrDouble(nodeControlPanel, "fixedWidthValue", style.PanelFixedWidthValue, 0#, "controlPanel@fixedWidthValue") Then Exit Function
+        If Not mp_ReadOptionalAttrDouble(nodeControlPanel, "fixedWidthButton", style.PanelFixedWidthButton, 0#, "controlPanel@fixedWidthButton") Then Exit Function
+        If Not mp_ReadOptionalAttrDouble(nodeControlPanel, "fixedFieldRowHeight", style.PanelFixedFieldRowHeight, 0#, "controlPanel@fixedFieldRowHeight") Then Exit Function
+
+        If style.PanelButtonAnchorColumn < 1 Then
+            MsgBox "Invalid value for output sheet style attribute 'controlPanel@buttonAnchorColumn': must be >= 1.", vbExclamation
+            Exit Function
+        End If
+        If style.PanelButtonWidthColumns < 1 Then
+            MsgBox "Invalid value for output sheet style attribute 'controlPanel@buttonWidthColumns': must be >= 1.", vbExclamation
+            Exit Function
+        End If
+        If style.PanelFixedWidthKey < 0 Then
+            MsgBox "Invalid value for output sheet style attribute 'controlPanel@fixedWidthKey': must be >= 0.", vbExclamation
+            Exit Function
+        End If
+        If style.PanelFixedWidthValue < 0 Then
+            MsgBox "Invalid value for output sheet style attribute 'controlPanel@fixedWidthValue': must be >= 0.", vbExclamation
+            Exit Function
+        End If
+        If style.PanelFixedWidthButton < 0 Then
+            MsgBox "Invalid value for output sheet style attribute 'controlPanel@fixedWidthButton': must be >= 0.", vbExclamation
+            Exit Function
+        End If
+        If style.PanelFixedFieldRowHeight < 0 Then
+            MsgBox "Invalid value for output sheet style attribute 'controlPanel@fixedFieldRowHeight': must be >= 0.", vbExclamation
+            Exit Function
+        End If
 
         If Not mp_LoadControlPanelFields(nodeControlPanel, style) Then Exit Function
     End If
 
     mp_TryLoadOutputSheetStyleFromDom = True
+End Function
+
+Private Function mp_ReadOptionalAttrBoolean(ByVal node As Object, ByVal attrName As String, ByRef outValue As Boolean, ByVal defaultValue As Boolean, ByVal fieldName As String) As Boolean
+    Dim textValue As String
+
+    textValue = Trim$(ex_XmlCore.m_NodeAttrText(node, attrName))
+    If Len(textValue) = 0 Then
+        outValue = defaultValue
+        mp_ReadOptionalAttrBoolean = True
+        Exit Function
+    End If
+
+    If Not ex_XmlCore.m_TryParseBoolean(textValue, outValue) Then
+        MsgBox "Invalid boolean output sheet style attribute '" & fieldName & "': " & textValue, vbExclamation
+        Exit Function
+    End If
+
+    mp_ReadOptionalAttrBoolean = True
 End Function
 
 Private Function mp_LoadControlPanelFields(ByVal nodeControlPanel As Object, ByRef style As t_OutputSheetStyle) As Boolean
@@ -632,7 +796,6 @@ Private Function mp_LoadControlPanelFieldNode( _
 ) As Boolean
     Dim buttonNodes As Object
     Dim buttonNode As Object
-    Dim i As Long
 
     fieldStyle.Label = mp_ReadOptionalAttrText(fieldNode, "label", vbNullString)
     fieldStyle.InputConfigKey = mp_ReadOptionalAttrText(fieldNode, "inputConfigKey", vbNullString)
@@ -649,21 +812,17 @@ Private Function mp_LoadControlPanelFieldNode( _
         Exit Function
     End If
 
-    fieldStyle.ButtonCount = buttonNodes.Length
-    If fieldStyle.ButtonCount <= 0 Then
-        MsgBox "Invalid control panel field: at least one button is required.", vbExclamation
+    If buttonNodes.Length <> 1 Then
+        MsgBox "Invalid control panel field: exactly one 'button' node is supported per field.", vbExclamation
         Exit Function
     End If
-    ReDim fieldStyle.Buttons(1 To fieldStyle.ButtonCount)
 
-    For i = 1 To fieldStyle.ButtonCount
-        Set buttonNode = buttonNodes.Item(i - 1)
-        fieldStyle.Buttons(i).Caption = mp_ReadOptionalAttrText(buttonNode, "caption", "Action " & CStr(i))
-        fieldStyle.Buttons(i).MacroName = mp_ReadOptionalAttrText(buttonNode, "macro", "ex_UIActions.m_OutputPanelStartSearch_OnClick")
-        If Len(Trim$(fieldStyle.Buttons(i).MacroName)) = 0 Then
-            fieldStyle.Buttons(i).MacroName = "ex_UIActions.m_OutputPanelStartSearch_OnClick"
-        End If
-    Next i
+    Set buttonNode = buttonNodes.Item(0)
+    fieldStyle.Button.Caption = mp_ReadOptionalAttrText(buttonNode, "caption", "Action 1")
+    fieldStyle.Button.MacroName = mp_ReadOptionalAttrText(buttonNode, "macro", "ex_UIActions.m_OutputPanelStartSearch_OnClick")
+    If Len(Trim$(fieldStyle.Button.MacroName)) = 0 Then
+        fieldStyle.Button.MacroName = "ex_UIActions.m_OutputPanelStartSearch_OnClick"
+    End If
 
     mp_LoadControlPanelFieldNode = True
 End Function

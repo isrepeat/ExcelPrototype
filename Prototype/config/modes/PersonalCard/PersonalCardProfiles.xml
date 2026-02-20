@@ -1,5 +1,5 @@
 ﻿<?xml version="1.0" standalone="yes"?>
-<presets version="1" xmlns="urn:excelprototype:presets">
+<profiles version="1" xmlns="urn:excelprototype:profiles">
 	<profile name="Default">
 		<ui>
 			<control name="ddProfile" visible="true"/>
@@ -87,4 +87,4 @@
 			<control name="btnComparing" visible="false"/>
 		</ui>
 	</profile>
-</presets>
+</profiles>
