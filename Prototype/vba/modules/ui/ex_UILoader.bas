@@ -1,7 +1,7 @@
 Attribute VB_Name = "ex_UILoader"
 Option Explicit
 
-Private Const PRESETS_NS As String = "urn:excelprototype:presets"
+Private Const PROFILES_NS As String = "urn:excelprototype:profiles"
 Private Const UI_CONFIG_REL_PATH As String = "config\UI.xml"
 Private Const DEFAULT_SHEET_NAME As String = "Dev"
 Private Const UI_BLOCK_GROUP_NAME As String = "grpUiBlock"
@@ -115,7 +115,7 @@ Private Function mp_LoadUiDom(ByVal wb As Workbook) As Object
     Set mp_LoadUiDom = ex_XmlCore.m_LoadDomByRelativePath( _
         wb, _
         UI_CONFIG_REL_PATH, _
-        PRESETS_NS, _
+        PROFILES_NS, _
         "UI config file was not found: ", _
         "Failed to parse UI config file: ")
 End Function

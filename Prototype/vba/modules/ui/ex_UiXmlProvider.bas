@@ -1,7 +1,7 @@
 Attribute VB_Name = "ex_UiXmlProvider"
 Option Explicit
 
-Private Const PRESETS_NS As String = "urn:excelprototype:presets"
+Private Const PROFILES_NS As String = "urn:excelprototype:profiles"
 Private Const UI_CONFIG_REL_PATH As String = "config\UI.xml"
 
 Public Function m_GetDropdownItemsByName(ByVal controlName As String, Optional ByVal wb As Workbook, Optional ByVal modeName As String = vbNullString) As Variant
@@ -289,7 +289,7 @@ Private Function mp_LoadUiDom(ByVal wb As Workbook) As Object
     Set mp_LoadUiDom = ex_XmlCore.m_LoadDomByRelativePath( _
         wb, _
         UI_CONFIG_REL_PATH, _
-        PRESETS_NS, _
+        PROFILES_NS, _
         "UI config file was not found: ", _
         "Failed to parse UI config file: ")
 End Function
@@ -319,12 +319,12 @@ Private Function mp_GetItemsFromSource(ByVal doc As Object, ByVal sourceName As 
     filePath = ex_XmlCore.m_CombineBasePath(wb, relPath)
     Set srcDoc = ex_XmlCore.m_LoadDomByFilePath( _
         filePath, _
-        PRESETS_NS, _
+        PROFILES_NS, _
         "Profiles source file was not found: ", _
         "Failed to parse profiles source file: ")
     If srcDoc Is Nothing Then Exit Function
 
-    Set profileNodes = srcDoc.selectNodes("/p:presets/p:profile")
+    Set profileNodes = srcDoc.selectNodes("/p:profiles/p:profile")
     If profileNodes Is Nothing Then Exit Function
     If profileNodes.Length = 0 Then
         mp_GetItemsFromSource = Array()
@@ -351,6 +351,8 @@ Private Function mp_ResolveProfilesSourceRelPath(ByVal sourceNode As Object, ByV
     Dim modeComparing As String
     Dim pathPersonal As String
     Dim pathComparing As String
+    Dim personalDir As String
+    Dim comparingDir As String
     Dim defaultMode As String
 
     modePersonal = Trim$(ex_XmlCore.m_NodeAttrText(sourceNode, "modePersonalCard"))
@@ -368,20 +370,74 @@ Private Function mp_ResolveProfilesSourceRelPath(ByVal sourceNode As Object, ByV
         Exit Function
     End If
 
+    personalDir = mp_NormalizeDirectoryPath(pathPersonal)
+    comparingDir = mp_NormalizeDirectoryPath(pathComparing)
+    If Len(personalDir) = 0 Or Len(comparingDir) = 0 Then
+        MsgBox "Profiles source paths are invalid: pathPersonalCard/pathComparing.", vbExclamation
+        Exit Function
+    End If
+
     modeName = Trim$(modeName)
     If Len(modeName) = 0 Then modeName = defaultMode
     If Len(modeName) = 0 Then modeName = modePersonal
 
     If StrComp(modeName, modeComparing, vbTextCompare) = 0 Then
-        mp_ResolveProfilesSourceRelPath = pathComparing
+        mp_ResolveProfilesSourceRelPath = mp_BuildPatternBasedFilePath(comparingDir, "Profiles.xml")
         Exit Function
     End If
     If StrComp(modeName, modePersonal, vbTextCompare) = 0 Then
-        mp_ResolveProfilesSourceRelPath = pathPersonal
+        mp_ResolveProfilesSourceRelPath = mp_BuildPatternBasedFilePath(personalDir, "Profiles.xml")
         Exit Function
     End If
 
     MsgBox "Invalid mode '" & modeName & "' for profiles source. Allowed values: '" & modePersonal & "', '" & modeComparing & "'.", vbExclamation
+End Function
+
+Private Function mp_BuildPatternBasedFilePath(ByVal directoryRelPath As String, ByVal fileSuffix As String) As String
+    Dim normalizedDir As String
+    Dim dirName As String
+
+    normalizedDir = mp_NormalizeDirectoryPath(directoryRelPath)
+    If Len(normalizedDir) = 0 Then Exit Function
+
+    dirName = mp_GetLastPathSegment(normalizedDir)
+    If Len(dirName) = 0 Then Exit Function
+
+    mp_BuildPatternBasedFilePath = normalizedDir & "\" & dirName & fileSuffix
+End Function
+
+Private Function mp_NormalizeDirectoryPath(ByVal value As String) As String
+    Dim slashPos As Long
+    Dim pathLeaf As String
+
+    value = Trim$(value)
+    If Len(value) = 0 Then Exit Function
+
+    value = Replace$(value, "/", "\")
+    Do While Right$(value, 1) = "\"
+        value = Left$(value, Len(value) - 1)
+    Loop
+
+    slashPos = InStrRev(value, "\")
+    If slashPos > 0 Then
+        pathLeaf = Mid$(value, slashPos + 1)
+        If InStr(1, pathLeaf, ".", vbTextCompare) > 0 Then
+            value = Left$(value, slashPos - 1)
+        End If
+    End If
+
+    mp_NormalizeDirectoryPath = value
+End Function
+
+Private Function mp_GetLastPathSegment(ByVal pathValue As String) As String
+    Dim slashPos As Long
+
+    slashPos = InStrRev(pathValue, "\")
+    If slashPos <= 0 Then
+        mp_GetLastPathSegment = pathValue
+    Else
+        mp_GetLastPathSegment = Mid$(pathValue, slashPos + 1)
+    End If
 End Function
 
 Private Sub mp_SetStyleValue(ByVal styleData As Object, ByVal key As String, ByVal value As String)

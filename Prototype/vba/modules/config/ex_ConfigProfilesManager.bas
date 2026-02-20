@@ -17,7 +17,7 @@ Option Explicit
 ' - бизнес-логика чтения значений конфигурации по ключу находится в ex_ConfigProvider.
 ' =============================================================================
 
-Private Const PRESETS_NS As String = "urn:excelprototype:presets"
+Private Const PROFILES_NS As String = "urn:excelprototype:profiles"
 Private Const MODE_PERSONAL_CARD As String = "Personal Card"
 Private Const MODE_TABLES_COMPARING As String = "Comparing"
 Private Const DEV_CONFIG_TABLE_NAME As String = "tblDevConfig"
@@ -83,7 +83,7 @@ Public Sub m_ApplyProfileFromDev(Optional ByVal profileName As String = vbNullSt
     profileName = Trim$(profileName)
     If Len(profileName) = 0 Then Exit Sub
 
-    Set doc = mp_LoadPresetsDom(ws)
+    Set doc = mp_LoadProfilesDom(ws)
     Set profileNode = mp_GetProfileNode(doc, profileName, False)
     If profileNode Is Nothing Then
         MsgBox "Profile '" & profileName & "' was not found in config file: " & mp_GetProfilesFilePath(), vbExclamation
@@ -141,7 +141,7 @@ Public Sub m_SaveEditsToProfile(ByVal ws As Worksheet, ByVal targetRange As Rang
     Set editRange = Intersect(targetRange, dataRange)
     If editRange Is Nothing Then Exit Sub
 
-    Set doc = mp_LoadPresetsDom(ws)
+    Set doc = mp_LoadProfilesDom(ws)
     Set profileNode = mp_GetProfileNode(doc, profileName, True)
     If profileNode Is Nothing Then Exit Sub
 
@@ -149,7 +149,7 @@ Public Sub m_SaveEditsToProfile(ByVal ws As Worksheet, ByVal targetRange As Rang
 
     ex_ProfilesEntriesMapper.m_WriteSheetValuesToProfile ws, doc, profileNode
 
-    mp_SavePresetsDom doc
+    mp_SaveProfilesDom doc
     m_RefreshProfileValidation ws
 
     Application.ScreenUpdating = True
@@ -162,6 +162,27 @@ Public Sub m_RefreshProfileValidation(Optional ByVal ws As Worksheet)
         Set ws = ws_Dev
     End If
 End Sub
+
+Public Function m_GetActiveModeName(Optional ByVal ws As Worksheet) As String
+    Dim modeName As String
+
+    If ws Is Nothing Then
+        Set ws = ws_Dev
+    End If
+
+    On Error Resume Next
+    modeName = Trim$(mp_GetSelectedModeName(ws))
+    On Error GoTo 0
+
+    If Len(modeName) = 0 Then
+        modeName = Trim$(mp_GetStatePropText(STATE_ACTIVE_MODE_PROP, MODE_PERSONAL_CARD))
+    End If
+    If Len(modeName) = 0 Then
+        modeName = MODE_PERSONAL_CARD
+    End If
+
+    m_GetActiveModeName = modeName
+End Function
 
 Public Sub m_EnsureProfileDropdown(Optional ByVal ws As Worksheet)
     Dim profiles As Variant
@@ -305,7 +326,7 @@ Public Sub m_SaveCurrentProfileToConfig(Optional ByVal ws As Worksheet)
         Exit Sub
     End If
 
-    Set doc = mp_LoadPresetsDom(ws)
+    Set doc = mp_LoadProfilesDom(ws)
     Set profileNode = mp_GetProfileNode(doc, profileName, True)
     If profileNode Is Nothing Then
         MsgBox "Failed to access profile '" & profileName & "' in config file: " & mp_GetProfilesFilePath(), vbExclamation
@@ -313,7 +334,7 @@ Public Sub m_SaveCurrentProfileToConfig(Optional ByVal ws As Worksheet)
     End If
 
     ex_ProfilesEntriesMapper.m_WriteSheetValuesToProfile ws, doc, profileNode
-    mp_SavePresetsDom doc
+    mp_SaveProfilesDom doc
     m_SaveSelectionState ws
     On Error Resume Next
     ex_ConfigProvider.m_RefreshConfigTitle ws, profileName
@@ -345,10 +366,10 @@ Private Sub mp_SeedProfileFromSheet(ByVal doc As Object, ByVal ws As Worksheet)
         profileName = "Default"
     End If
 
-    Set root = doc.selectSingleNode("/p:presets")
+    Set root = doc.selectSingleNode("/p:profiles")
     If root Is Nothing Then Exit Sub
 
-    Set profileNode = doc.createNode(1, "profile", PRESETS_NS)
+    Set profileNode = doc.createNode(1, "profile", PROFILES_NS)
     profileNode.setAttribute "name", profileName
     root.appendChild profileNode
 
@@ -356,7 +377,7 @@ Private Sub mp_SeedProfileFromSheet(ByVal doc As Object, ByVal ws As Worksheet)
     If Not mp_ArrayHasItems(entries) Then Exit Sub
 
     For i = LBound(entries, 1) To UBound(entries, 1)
-        Set vNode = doc.createNode(1, "v", PRESETS_NS)
+        Set vNode = doc.createNode(1, "v", PROFILES_NS)
         If Len(Trim$(CStr(entries(i, DEV_CONFIG_MARKER_COL)))) > 0 Then
             vNode.setAttribute "type", CStr(entries(i, DEV_CONFIG_MARKER_COL))
         End If
@@ -368,7 +389,7 @@ Private Sub mp_SeedProfileFromSheet(ByVal doc As Object, ByVal ws As Worksheet)
         profileNode.appendChild vNode
     Next i
 
-    mp_SavePresetsDom doc
+    mp_SaveProfilesDom doc
 End Sub
 
 Private Function mp_GetProfileNames(Optional ByVal ws As Worksheet) As Variant
@@ -553,7 +574,7 @@ Private Sub mp_ApplyModeVisibility(ByVal ws As Worksheet)
     End If
     If Len(profileName) = 0 Then Exit Sub
 
-    Set doc = mp_LoadPresetsDom(ws)
+    Set doc = mp_LoadProfilesDom(ws)
     Set profileNode = mp_GetProfileNode(doc, profileName, False)
     If profileNode Is Nothing Then Exit Sub
 
@@ -572,7 +593,7 @@ Private Sub mp_ReapplySelectedProfileUi(ByVal ws As Worksheet)
     profileName = mp_GetSelectedProfileNameFromDropdown(ws, profiles, False)
     If Len(profileName) = 0 Then Exit Sub
 
-    Set doc = mp_LoadPresetsDom(ws)
+    Set doc = mp_LoadProfilesDom(ws)
     Set profileNode = mp_GetProfileNode(doc, profileName, False)
     If profileNode Is Nothing Then Exit Sub
 
@@ -711,7 +732,7 @@ AddProp:
         Value:=CStr(valueText)
 End Sub
 
-Private Function mp_LoadPresetsDom(Optional ByVal ws As Worksheet) As Object
+Private Function mp_LoadProfilesDom(Optional ByVal ws As Worksheet) As Object
     Dim filePath As String
     Dim modeName As String
 
@@ -723,16 +744,16 @@ Private Function mp_LoadPresetsDom(Optional ByVal ws As Worksheet) As Object
     filePath = mp_GetProfilesFilePath(modeName)
     If Len(filePath) = 0 Then Exit Function
 
-    Set mp_LoadPresetsDom = ex_ProfilesStore.m_LoadPresetsDom(filePath)
+    Set mp_LoadProfilesDom = ex_ProfilesStore.m_LoadProfilesDom(filePath)
 End Function
 
-Private Sub mp_SavePresetsDom(ByVal doc As Object)
+Private Sub mp_SaveProfilesDom(ByVal doc As Object)
     Dim filePath As String
     Dim modeName As String
 
     modeName = mp_GetSelectedModeName(ws_Dev)
     filePath = mp_GetProfilesFilePath(modeName)
-    ex_ProfilesStore.m_SavePresetsDom doc, filePath
+    ex_ProfilesStore.m_SaveProfilesDom doc, filePath
 End Sub
 
 
@@ -834,7 +855,7 @@ Public Sub m_ApplyProfileUI(ByVal ws As Worksheet, ByVal profileNode As Object, 
     End If
 
     On Error Resume Next
-    profileNode.OwnerDocument.setProperty "SelectionNamespaces", "xmlns:p='" & PRESETS_NS & "'"
+    profileNode.OwnerDocument.setProperty "SelectionNamespaces", "xmlns:p='" & PROFILES_NS & "'"
     On Error GoTo 0
 
     Set uiNodes = profileNode.selectNodes("p:ui/p:control")
@@ -941,7 +962,7 @@ Public Sub m_ApplyModeVisibility(ByVal ws As Worksheet, ByVal profileNode As Obj
     End If
 
     On Error Resume Next
-    profileNode.OwnerDocument.setProperty "SelectionNamespaces", "xmlns:p='" & PRESETS_NS & "'"
+    profileNode.OwnerDocument.setProperty "SelectionNamespaces", "xmlns:p='" & PROFILES_NS & "'"
     On Error GoTo 0
 
     pfui_HideAllButtons ws
@@ -1169,7 +1190,7 @@ Private Function pfui_LoadUiDefinitionDom() As Object
     Set pfui_LoadUiDefinitionDom = ex_XmlCore.m_LoadDomByRelativePath( _
         ThisWorkbook, _
         PFUI_UI_DEFINITION_REL_PATH, _
-        PRESETS_NS, _
+        PROFILES_NS, _
         "UI definition config file was not found: ", _
         "Failed to parse UI definition config file: ")
 End Function

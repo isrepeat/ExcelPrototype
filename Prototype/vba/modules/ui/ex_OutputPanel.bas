@@ -4,8 +4,7 @@ Option Explicit
 Private Const PANEL_INPUT_NAME As String = "outPanelInputCell"
 Private Const PANEL_INPUT_PREFIX As String = "outPanelInput_"
 Private Const PANEL_BUTTON_PREFIX As String = "btnOutPanelSearch_"
-Private Const PANEL_BUTTON_GAP_PTS As Double = 6#
-
+Private Const PANEL_RANGE_NAME As String = "outPanelRange"
 Public Sub m_RenderForSheet(ByVal ws As Worksheet, ByRef style As ex_SheetStylesXmlProvider.t_OutputSheetStyle)
     Dim topRow As Long
     Dim startCol As Long
@@ -25,11 +24,8 @@ Public Sub m_RenderForSheet(ByVal ws As Worksheet, ByRef style As ex_SheetStyles
     Dim buttonHeight As Double
     Dim buttonLeft As Double
     Dim buttonTop As Double
-    Dim buttonAreaRight As Double
-    Dim buttonAreaWidth As Double
     Dim titleEndCol As Long
     Dim currentValue As String
-    Dim maxButtonCount As Long
     Dim panelWidth As Long
     Dim fieldsTopRow As Long
     Dim rowSpan As Long
@@ -37,9 +33,17 @@ Public Sub m_RenderForSheet(ByVal ws As Worksheet, ByRef style As ex_SheetStyles
     Dim fieldIndex As Long
     Dim fieldTopRow As Long
     Dim fieldBottomRow As Long
-    Dim buttonIndex As Long
+    Dim buttonAnchorCol As Long
+    Dim buttonWidthCols As Long
+    Dim buttonWidthPoints As Double
+    Dim anchorColumnWidthPoints As Double
+    Dim buttonCellRange As Range
+    Dim panelAutoFitLastCol As Long
+    Dim panelAutoFitCols As Long
 
     If ws Is Nothing Then Exit Sub
+
+    mp_ClearPanelArtifacts ws
     If Not style.HasControlPanel Then Exit Sub
 
     topRow = style.PanelTopRow
@@ -54,15 +58,13 @@ Public Sub m_RenderForSheet(ByVal ws As Worksheet, ByRef style As ex_SheetStyles
     If startCol < 1 Then startCol = 1
 
     If style.PanelFieldCount <= 0 Then Exit Sub
-    maxButtonCount = mp_GetMaxButtonCount(style)
-    If maxButtonCount < 1 Then maxButtonCount = 1
 
     rowSpan = style.PanelFieldRowSpan
     If rowSpan < 1 Then rowSpan = 2
     fieldSpacing = style.PanelFieldSpacingRows
     If fieldSpacing < 0 Then fieldSpacing = 0
 
-    panelWidth = style.PanelLabelColumns + style.PanelValueColumns + maxButtonCount
+    panelWidth = style.PanelLabelColumns + style.PanelValueColumns + 1
     If style.PanelWidthColumns > panelWidth Then panelWidth = style.PanelWidthColumns
     rightCol = startCol + panelWidth - 1
 
@@ -94,18 +96,18 @@ Public Sub m_RenderForSheet(ByVal ws As Worksheet, ByRef style As ex_SheetStyles
         fieldTopRow = fieldsTopRow + ((fieldIndex - 1) * (rowSpan + fieldSpacing))
         fieldBottomRow = fieldTopRow + rowSpan - 1
 
-        Set labelRange = ws.Range(ws.Cells(fieldTopRow, startCol), ws.Cells(fieldBottomRow, startCol + style.PanelLabelColumns - 1))
+        ws.Rows(fieldTopRow).RowHeight = 32
+
+        Set labelRange = ws.Cells(fieldTopRow, startCol)
         labelRange.UnMerge
-        labelRange.Merge
         labelRange.Value = style.PanelFields(fieldIndex).Label
         labelRange.Font.Bold = True
         labelRange.Font.Color = style.PanelLabelColor
         labelRange.HorizontalAlignment = xlCenter
         labelRange.VerticalAlignment = xlCenter
 
-        Set inputRange = ws.Range(ws.Cells(fieldTopRow, inputStartCol), ws.Cells(fieldBottomRow, inputEndCol))
+        Set inputRange = ws.Cells(fieldTopRow, inputStartCol)
         inputRange.UnMerge
-        inputRange.Merge
         inputRange.Interior.Pattern = xlSolid
         inputRange.Interior.Color = style.PanelInputBackColor
         inputRange.Font.Color = style.PanelInputFontColor
@@ -123,38 +125,52 @@ Public Sub m_RenderForSheet(ByVal ws As Worksheet, ByRef style As ex_SheetStyles
         End If
         mp_SetPanelInputKeyName ws, inputAnchor, style.PanelFields(fieldIndex).InputName
 
-        buttonTop = ws.Cells(fieldTopRow, buttonStartCol).Top + 1
-        buttonLeft = ws.Cells(fieldTopRow, buttonStartCol).Left + 1
-        buttonAreaRight = ws.Cells(fieldTopRow, rightCol).Left + ws.Cells(fieldTopRow, rightCol).Width - 1
-        buttonAreaWidth = buttonAreaRight - buttonLeft
-        If maxButtonCount > 0 Then
-            buttonWidth = (buttonAreaWidth - (PANEL_BUTTON_GAP_PTS * (maxButtonCount - 1))) / maxButtonCount
-        Else
-            buttonWidth = ws.Cells(fieldTopRow, buttonStartCol).Width - 2
+        buttonAnchorCol = style.PanelButtonAnchorColumn
+        If buttonAnchorCol < 1 Then buttonAnchorCol = 4
+        buttonWidthCols = style.PanelButtonWidthColumns
+        If buttonWidthCols < 1 Then buttonWidthCols = 1
+
+        panelAutoFitLastCol = inputStartCol
+        If (buttonAnchorCol + buttonWidthCols - 1) > panelAutoFitLastCol Then
+            panelAutoFitLastCol = buttonAnchorCol + buttonWidthCols - 1
         End If
-        buttonHeight = ws.Range(ws.Cells(fieldTopRow, buttonStartCol), ws.Cells(fieldBottomRow, buttonStartCol)).Height - 2
+        If panelAutoFitLastCol >= startCol Then
+            panelAutoFitCols = panelAutoFitLastCol - startCol + 1
+            ws.Columns(startCol).Resize(, panelAutoFitCols).AutoFit
+        End If
+
+        Set buttonCellRange = ws.Range(ws.Cells(fieldTopRow, buttonAnchorCol), ws.Cells(fieldBottomRow, buttonAnchorCol + buttonWidthCols - 1))
+        anchorColumnWidthPoints = buttonCellRange.Width
+        buttonWidthPoints = anchorColumnWidthPoints
+        If buttonWidthPoints < 8 Then buttonWidthPoints = 8
+
+        buttonTop = buttonCellRange.Top
+        buttonLeft = buttonCellRange.Left
+        buttonWidth = buttonWidthPoints
+        buttonHeight = buttonCellRange.Height
         If buttonWidth < 8 Then buttonWidth = 8
         If buttonHeight < 8 Then buttonHeight = 8
 
-        For buttonIndex = 1 To style.PanelFields(fieldIndex).ButtonCount
-            If buttonLeft + buttonWidth > buttonAreaRight Then Exit For
-            buttonName = mp_GetButtonName(ws, fieldIndex, buttonIndex)
-            Set buttonShape = ws.Shapes.AddShape(msoShapeRoundedRectangle, buttonLeft, buttonTop, buttonWidth, buttonHeight)
-            buttonShape.Name = buttonName
-            buttonShape.TextFrame.Characters.Text = style.PanelFields(fieldIndex).Buttons(buttonIndex).Caption
-            buttonShape.Fill.ForeColor.RGB = style.PanelButtonBackColor
-            buttonShape.Line.ForeColor.RGB = style.PanelButtonBorderColor
-            buttonShape.Line.Weight = 1
-            buttonShape.TextFrame.Characters.Font.Bold = True
-            buttonShape.TextFrame.Characters.Font.Color = style.PanelButtonTextColor
-            buttonShape.TextFrame.Characters.Font.Name = style.FontName
-            buttonShape.TextFrame.Characters.Font.Size = style.FontSize
-            buttonShape.Placement = xlMove
-            buttonShape.OnAction = "'" & ThisWorkbook.Name & "'!" & Trim$(style.PanelFields(fieldIndex).Buttons(buttonIndex).MacroName)
-
-            buttonLeft = buttonLeft + buttonWidth + PANEL_BUTTON_GAP_PTS
-        Next buttonIndex
+        buttonName = mp_GetButtonName(ws, fieldIndex)
+        Set buttonShape = ws.Shapes.AddShape(msoShapeRoundedRectangle, buttonLeft, buttonTop, buttonWidth, buttonHeight)
+        buttonShape.Name = buttonName
+        buttonShape.TextFrame.Characters.Text = style.PanelFields(fieldIndex).Button.Caption
+        buttonShape.Fill.ForeColor.RGB = style.PanelButtonBackColor
+        buttonShape.Line.ForeColor.RGB = style.PanelButtonBorderColor
+        buttonShape.Line.Weight = 1
+        buttonShape.TextFrame.Characters.Font.Bold = True
+        buttonShape.TextFrame.Characters.Font.Color = style.PanelButtonTextColor
+        buttonShape.TextFrame.Characters.Font.Name = style.FontName
+        buttonShape.TextFrame.Characters.Font.Size = style.FontSize
+        buttonShape.TextFrame.HorizontalAlignment = xlHAlignCenter
+        buttonShape.TextFrame.VerticalAlignment = xlVAlignCenter
+        buttonShape.Placement = xlMoveAndSize
+        buttonShape.OnAction = "'" & ThisWorkbook.Name & "'!" & Trim$(style.PanelFields(fieldIndex).Button.MacroName)
     Next fieldIndex
+
+    mp_SetPanelRangeName ws, ws.Range(ws.Cells(topRow, startCol), ws.Cells(bottomRow, rightCol))
+
+    mp_ApplyFixedControlPanelLayout ws, style, startCol, inputStartCol
 End Sub
 
 Public Function m_ReadSearchValue(ByVal ws As Worksheet) As String
@@ -171,10 +187,69 @@ Public Function m_ReadFieldValue(ByVal ws As Worksheet, ByVal inputName As Strin
     m_ReadFieldValue = Trim$(CStr(inputCell.Value))
 End Function
 
+Public Sub m_ApplyFixedWidthViewZoneLayer( _
+    ByVal ws As Worksheet, _
+    ByRef style As ex_SheetStylesXmlProvider.t_OutputSheetStyle, _
+    ByVal viewStartRow As Long, _
+    ByVal viewEndRow As Long, _
+    ByVal dataLastCol As Long _
+)
+    Dim panelStartCol As Long
+    Dim keyCol As Long
+    Dim valueCol As Long
+    Dim buttonCol As Long
+    Dim maxCol As Long
+    Dim hasFixedColumn As Boolean
+    Dim fixedFlags() As Boolean
+    Dim c As Long
+    Dim colRange As Range
+
+    If ws Is Nothing Then Exit Sub
+    If Not style.HasControlPanel Then Exit Sub
+    If viewStartRow < 1 Then Exit Sub
+    If viewEndRow < viewStartRow Then Exit Sub
+
+    panelStartCol = style.PanelStartColumn
+    If panelStartCol <= 0 Then
+        panelStartCol = dataLastCol + style.PanelOffsetColumns
+        If panelStartCol < style.PanelMinStartColumn Then panelStartCol = style.PanelMinStartColumn
+    End If
+    If panelStartCol < 1 Then panelStartCol = 1
+
+    keyCol = panelStartCol
+    valueCol = panelStartCol + style.PanelLabelColumns
+    buttonCol = style.PanelButtonAnchorColumn
+    If buttonCol < 1 Then buttonCol = 4
+
+    maxCol = dataLastCol
+    If style.PanelFixedWidthKey > 0 And keyCol > maxCol Then maxCol = keyCol
+    If style.PanelFixedWidthValue > 0 And valueCol > maxCol Then maxCol = valueCol
+    If style.PanelFixedWidthButton > 0 And buttonCol > maxCol Then maxCol = buttonCol
+    If maxCol < 1 Then Exit Sub
+
+    ReDim fixedFlags(1 To maxCol)
+    If style.PanelFixedWidthKey > 0 And keyCol >= 1 And keyCol <= maxCol Then fixedFlags(keyCol) = True
+    If style.PanelFixedWidthValue > 0 And valueCol >= 1 And valueCol <= maxCol Then fixedFlags(valueCol) = True
+    If style.PanelFixedWidthButton > 0 And buttonCol >= 1 And buttonCol <= maxCol Then fixedFlags(buttonCol) = True
+
+    For c = 1 To maxCol
+        If fixedFlags(c) Then
+            hasFixedColumn = True
+            Set colRange = ws.Range(ws.Cells(viewStartRow, c), ws.Cells(viewEndRow, c))
+            colRange.WrapText = True
+        End If
+    Next c
+
+    If hasFixedColumn Then
+        ws.Rows(CStr(viewStartRow) & ":" & CStr(viewEndRow)).AutoFit
+    End If
+End Sub
+
 Public Function m_TryGetClickedFieldIndex(ByVal ws As Worksheet, ByVal callerName As String, ByRef fieldIndex As Long) As Boolean
     Dim prefix As String
     Dim suffix As String
     Dim sepPos As Long
+    Dim fieldToken As String
 
     If ws Is Nothing Then Exit Function
     callerName = Trim$(callerName)
@@ -185,9 +260,13 @@ Public Function m_TryGetClickedFieldIndex(ByVal ws As Worksheet, ByVal callerNam
 
     suffix = Mid$(callerName, Len(prefix) + 1)
     sepPos = InStr(1, suffix, "_", vbTextCompare)
-    If sepPos <= 1 Then Exit Function
+    If sepPos > 1 Then
+        fieldToken = Left$(suffix, sepPos - 1)
+    Else
+        fieldToken = suffix
+    End If
 
-    If Not ex_XmlCore.m_TryParseLong(Left$(suffix, sepPos - 1), fieldIndex) Then Exit Function
+    If Not ex_XmlCore.m_TryParseLong(fieldToken, fieldIndex) Then Exit Function
     If fieldIndex < 1 Then Exit Function
     m_TryGetClickedFieldIndex = True
 End Function
@@ -274,12 +353,87 @@ Private Function mp_GetPanelInputCellByKey(ByVal ws As Worksheet, ByVal inputKey
     On Error GoTo 0
 End Function
 
-Private Function mp_GetButtonName(ByVal ws As Worksheet, ByVal fieldIndex As Long, ByVal buttonIndex As Long) As String
+Private Function mp_GetButtonName(ByVal ws As Worksheet, ByVal fieldIndex As Long) As String
     If ws Is Nothing Then
         mp_GetButtonName = PANEL_BUTTON_PREFIX
         Exit Function
     End If
-    mp_GetButtonName = PANEL_BUTTON_PREFIX & ws.CodeName & "_" & CStr(fieldIndex) & "_" & CStr(buttonIndex)
+    mp_GetButtonName = PANEL_BUTTON_PREFIX & ws.CodeName & "_" & CStr(fieldIndex)
+End Function
+
+Private Sub mp_ClearPanelArtifacts(ByVal ws As Worksheet)
+    mp_ClearStoredPanelRange ws
+    mp_DeletePanelButtons ws
+    mp_DeletePanelInputNames ws
+End Sub
+
+Private Sub mp_SetPanelRangeName(ByVal ws As Worksheet, ByVal panelRange As Range)
+    If ws Is Nothing Then Exit Sub
+    If panelRange Is Nothing Then Exit Sub
+
+    On Error Resume Next
+    ws.Names(PANEL_RANGE_NAME).Delete
+    On Error GoTo 0
+
+    On Error Resume Next
+    ws.Names.Add Name:=PANEL_RANGE_NAME, RefersTo:="=" & panelRange.Address(True, True, xlA1, True)
+    On Error GoTo 0
+End Sub
+
+Private Sub mp_ClearStoredPanelRange(ByVal ws As Worksheet)
+    Dim panelName As Name
+    Dim panelRange As Range
+
+    If ws Is Nothing Then Exit Sub
+
+    On Error Resume Next
+    Set panelName = ws.Names(PANEL_RANGE_NAME)
+    On Error GoTo 0
+
+    If panelName Is Nothing Then Exit Sub
+
+    On Error Resume Next
+    Set panelRange = panelName.RefersToRange
+    On Error GoTo 0
+
+    If Not panelRange Is Nothing Then
+        On Error Resume Next
+        panelRange.UnMerge
+        panelRange.Clear
+        On Error GoTo 0
+    End If
+
+    On Error Resume Next
+    panelName.Delete
+    On Error GoTo 0
+End Sub
+
+Private Sub mp_DeletePanelInputNames(ByVal ws As Worksheet)
+    Dim i As Long
+    Dim localName As String
+
+    If ws Is Nothing Then Exit Sub
+
+    For i = ws.Names.Count To 1 Step -1
+        localName = mp_GetLocalNameToken(ws.Names(i).Name)
+        If LCase$(localName) = LCase$(PANEL_INPUT_NAME) Or _
+           LCase$(Left$(localName, Len(PANEL_INPUT_PREFIX))) = LCase$(PANEL_INPUT_PREFIX) Then
+            On Error Resume Next
+            ws.Names(i).Delete
+            On Error GoTo 0
+        End If
+    Next i
+End Sub
+
+Private Function mp_GetLocalNameToken(ByVal fullName As String) As String
+    Dim bangPos As Long
+
+    bangPos = InStrRev(fullName, "!")
+    If bangPos > 0 Then
+        mp_GetLocalNameToken = Mid$(fullName, bangPos + 1)
+    Else
+        mp_GetLocalNameToken = fullName
+    End If
 End Function
 
 Private Sub mp_DeletePanelButtons(ByVal ws As Worksheet)
@@ -298,18 +452,48 @@ Private Sub mp_DeletePanelButtons(ByVal ws As Worksheet)
     Next shp
 End Sub
 
-Private Function mp_GetMaxButtonCount(ByRef style As ex_SheetStylesXmlProvider.t_OutputSheetStyle) As Long
-    Dim i As Long
-    Dim maxCount As Long
+Private Sub mp_ApplyFixedControlPanelLayout( _
+    ByVal ws As Worksheet, _
+    ByRef style As ex_SheetStylesXmlProvider.t_OutputSheetStyle, _
+    ByVal keyCol As Long, _
+    ByVal valueCol As Long _
+)
+    Dim buttonCol As Long
+    Dim fieldsTopRow As Long
+    Dim rowSpan As Long
+    Dim spacingRows As Long
+    Dim fieldIndex As Long
+    Dim fieldTopRow As Long
 
-    For i = 1 To style.PanelFieldCount
-        If style.PanelFields(i).ButtonCount > maxCount Then
-            maxCount = style.PanelFields(i).ButtonCount
-        End If
-    Next i
+    If ws Is Nothing Then Exit Sub
 
-    mp_GetMaxButtonCount = maxCount
-End Function
+    buttonCol = style.PanelButtonAnchorColumn
+    If buttonCol < 1 Then buttonCol = 4
+
+    If style.PanelFixedWidthKey > 0 Then
+        ws.Columns(keyCol).ColumnWidth = style.PanelFixedWidthKey
+    End If
+    If style.PanelFixedWidthValue > 0 Then
+        ws.Columns(valueCol).ColumnWidth = style.PanelFixedWidthValue
+    End If
+    If style.PanelFixedWidthButton > 0 Then
+        ws.Columns(buttonCol).ColumnWidth = style.PanelFixedWidthButton
+    End If
+
+    If style.PanelFixedFieldRowHeight <= 0 Then Exit Sub
+    If style.PanelFieldCount <= 0 Then Exit Sub
+
+    rowSpan = style.PanelFieldRowSpan
+    If rowSpan < 1 Then rowSpan = 1
+    spacingRows = style.PanelFieldSpacingRows
+    If spacingRows < 0 Then spacingRows = 0
+    fieldsTopRow = style.PanelTopRow + 1
+
+    For fieldIndex = 1 To style.PanelFieldCount
+        fieldTopRow = fieldsTopRow + ((fieldIndex - 1) * (rowSpan + spacingRows))
+        ws.Rows(fieldTopRow).RowHeight = style.PanelFixedFieldRowHeight
+    Next fieldIndex
+End Sub
 
 Private Function mp_GetInputNameByKey(ByVal inputKey As String) As String
     Dim normalized As String

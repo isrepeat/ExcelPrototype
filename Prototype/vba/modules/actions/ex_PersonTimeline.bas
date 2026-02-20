@@ -57,6 +57,10 @@ Public Sub m_ShowPersonTimeline(ByVal fio As String)
     Dim outputStyle As t_OutputSheetStyle
     Dim baseStyle As t_BaseSheetStyle
     Dim hasOutputStyle As Boolean
+    Dim viewRowCount As Long
+    Dim viewColCount As Long
+    Dim viewStartRow As Long
+    Dim viewEndRow As Long
     If Not ex_SheetStylesXmlProvider.m_InitializeStyles(ThisWorkbook) Then
         Err.Raise vbObjectError + 1304, "ex_PersonTimeline", "Failed to initialize style registry."
     End If
@@ -152,7 +156,13 @@ ContinueAlias:
 
     mp_ApplyTimelineStyleLayers wsOut, headerRows, sectionRows, outputStyle, baseStyle, hasOutputStyle
     If hasOutputStyle Then
-        ex_OutputPanel.m_RenderForSheet wsOut, outputStyle
+        viewStartRow = ex_SheetStylesXmlProvider.m_GetOutputViewStartRow(ThisWorkbook)
+        viewEndRow = rowIndex - 1
+        If viewEndRow < viewStartRow Then viewEndRow = viewStartRow
+        If Not ex_SheetStylesXmlProvider.m_GetUsedRangeSize(wsOut, viewRowCount, viewColCount) Then
+            viewColCount = 1
+        End If
+        ex_OutputFormattingPipeline.m_ApplyOutputPanelLayers wsOut, outputStyle, True, viewStartRow, viewEndRow, viewColCount
     End If
 
     mp_CloseWorkbooks wbCache
@@ -370,64 +380,6 @@ ContinueRow:
 
 End Function
 
-Private Sub mp_ApplyOutputStyle(ByVal ws As Worksheet, ByVal headerRows As Collection, ByVal sectionRows As Collection, ByRef style As t_OutputSheetStyle)
-    Dim usedRows As Long
-    Dim usedCols As Long
-    Dim usedRange As Range
-    Dim rowId As Variant
-    Dim rowIndex As Long
-    Dim lastCol As Long
-    Dim titleRange As Range
-    Dim sectionFillRange As Range
-    Dim sectionTitleCols As Long
-
-    If ws Is Nothing Then Exit Sub
-    If ws.UsedRange Is Nothing Then Exit Sub
-
-    usedRows = ws.UsedRange.Rows.Count
-    usedCols = ws.UsedRange.Columns.Count
-    Set usedRange = ws.Range(ws.Cells(1, 1), ws.Cells(usedRows, usedCols))
-
-    usedRange.Interior.Pattern = xlSolid
-    usedRange.Interior.Color = style.ContentBackColor
-    usedRange.Font.Name = style.FontName
-    usedRange.Font.Size = style.FontSize
-    usedRange.Font.Color = style.ContentColor
-    usedRange.HorizontalAlignment = style.HorizontalAlignment
-    usedRange.VerticalAlignment = style.VerticalAlignment
-    ws.Rows("1:" & CStr(usedRows)).RowHeight = style.RowHeight
-    usedRange.EntireColumn.AutoFit
-
-    For Each rowId In sectionRows
-        rowIndex = CLng(rowId)
-        Set sectionFillRange = ws.Range(ws.Cells(rowIndex, 1), ws.Cells(rowIndex, usedCols))
-        sectionTitleCols = style.SectionMergeColumns
-        If sectionTitleCols < 1 Then sectionTitleCols = 1
-        If sectionTitleCols > usedCols Then sectionTitleCols = usedCols
-        Set titleRange = ws.Range(ws.Cells(rowIndex, 1), ws.Cells(rowIndex, sectionTitleCols))
-        titleRange.UnMerge
-        titleRange.Merge
-        titleRange.HorizontalAlignment = style.HorizontalAlignment
-        titleRange.VerticalAlignment = style.VerticalAlignment
-        sectionFillRange.Interior.Pattern = xlSolid
-        sectionFillRange.Interior.Color = style.SectionBackColor
-        titleRange.Font.Bold = style.SectionBold
-        titleRange.Font.Color = style.SectionColor
-    Next rowId
-
-    For Each rowId In headerRows
-        rowIndex = CLng(rowId)
-        lastCol = mp_GetLastUsedColumnInRow(ws, rowIndex)
-        If lastCol > 0 Then
-            Set titleRange = ws.Range(ws.Cells(rowIndex, 1), ws.Cells(rowIndex, lastCol))
-            titleRange.Interior.Pattern = xlSolid
-            titleRange.Interior.Color = style.HeaderBackColor
-            titleRange.Font.Bold = style.HeaderBold
-            titleRange.Font.Color = style.HeaderColor
-        End If
-    Next rowId
-End Sub
-
 Private Sub mp_ApplyTimelineStyleLayers( _
     ByVal ws As Worksheet, _
     ByVal headerRows As Collection, _
@@ -436,36 +388,8 @@ Private Sub mp_ApplyTimelineStyleLayers( _
     ByRef baseStyle As t_BaseSheetStyle, _
     ByVal hasOutputStyle As Boolean _
 )
-    Dim layerOrder As Variant
-    Dim layerName As Variant
-    Dim rowCount As Long
-    Dim colCount As Long
-
-    If ws Is Nothing Then Exit Sub
-    If Not ex_SheetStylesXmlProvider.m_GetLayerOrder(hasOutputStyle, layerOrder, ThisWorkbook) Then Exit Sub
-    If Not ex_SheetStylesXmlProvider.m_GetUsedRangeSize(ws, rowCount, colCount) Then Exit Sub
-
-    For Each layerName In layerOrder
-        Select Case CStr(layerName)
-            Case ex_SheetStylesXmlProvider.LAYER_BASE
-                ex_SheetStylesXmlProvider.m_ApplyBaseLayer ws, rowCount, colCount, baseStyle
-            Case ex_SheetStylesXmlProvider.LAYER_OUTPUT
-                mp_ApplyOutputStyle ws, headerRows, sectionRows, outputStyle
-        End Select
-    Next layerName
+    ex_OutputFormattingPipeline.m_ApplyTimelineStyleLayers ws, headerRows, sectionRows, outputStyle, baseStyle, hasOutputStyle
 End Sub
-
-Private Function mp_GetLastUsedColumnInRow(ByVal ws As Worksheet, ByVal rowIndex As Long) As Long
-    If ws Is Nothing Then Exit Function
-    If rowIndex <= 0 Then Exit Function
-
-    mp_GetLastUsedColumnInRow = ws.Cells(rowIndex, ws.Columns.Count).End(xlToLeft).Column
-    If mp_GetLastUsedColumnInRow = 1 Then
-        If Len(Trim$(CStr(ws.Cells(rowIndex, 1).Value))) = 0 Then
-            mp_GetLastUsedColumnInRow = 0
-        End If
-    End If
-End Function
 
 Private Function mp_LoadConfigDictionary() As Object
 

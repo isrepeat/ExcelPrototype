@@ -16,7 +16,7 @@ Public Sub m_RunComparing()
     End If
 
     resultTable = m_CompareConfiguredTables(keyColumnName)
-    ex_ResultWriter.m_WriteTableToResultSheet resultTable
+    mp_WriteComparingResultSheet resultTable
     Exit Sub
 EH:
     MsgBox "Run error: " & Err.Description, vbExclamation
@@ -357,4 +357,67 @@ Private Function mp_RowsAreDifferent(ByVal oldRow As Variant, ByVal newRow As Va
     Next i
 
     mp_RowsAreDifferent = False
+End Function
+
+Private Sub mp_WriteComparingResultSheet(ByVal tableData As Variant)
+    Dim ws As Worksheet
+    Dim dataRows As Long
+    Dim colCount As Long
+    Dim startRow As Long
+    Dim fullRowCount As Long
+    Dim targetRange As Range
+    Dim outputStyle As t_OutputSheetStyle
+    Dim baseStyle As t_BaseSheetStyle
+    Dim hasOutputStyle As Boolean
+
+    On Error GoTo EH
+
+    If Not ex_SheetStylesXmlProvider.m_InitializeStyles(ThisWorkbook) Then
+        MsgBox "Не удалось инициализировать реестр стилей.", vbExclamation
+        Exit Sub
+    End If
+    If Not ex_SheetStylesXmlProvider.m_GetBaseSheetStyle(baseStyle, ThisWorkbook) Then Exit Sub
+    hasOutputStyle = ex_SheetStylesXmlProvider.m_GetOutputSheetStyle(outputStyle, ThisWorkbook)
+
+    Set ws = mp_GetOrCreateResultWorksheet("Result")
+    ws.Cells.Clear
+    ws.ScrollArea = ""
+
+    dataRows = UBound(tableData, 1)
+    colCount = UBound(tableData, 2)
+    startRow = 1
+    If hasOutputStyle Then
+        startRow = ex_SheetStylesXmlProvider.m_GetOutputViewStartRow(ThisWorkbook)
+    End If
+    fullRowCount = startRow + dataRows - 1
+
+    Set targetRange = ws.Range(ws.Cells(startRow, 1), ws.Cells(fullRowCount, colCount))
+    targetRange.Value = tableData
+
+    ex_OutputFormattingPipeline.m_FormatAsTable ws, startRow, dataRows, colCount
+    ex_OutputFormattingPipeline.m_ApplyComparingStyleLayers ws, startRow, dataRows, colCount, baseStyle, outputStyle, hasOutputStyle
+    ex_OutputFormattingPipeline.m_ApplyOutputPanelLayers ws, outputStyle, hasOutputStyle, startRow, fullRowCount, colCount
+
+    Exit Sub
+EH:
+    MsgBox "Result writer error: " & Err.Description, vbExclamation
+End Sub
+
+Private Function mp_GetOrCreateResultWorksheet(ByVal sheetName As String) As Worksheet
+    Dim ws As Worksheet
+    Dim fullName As String
+
+    fullName = "g_" & sheetName
+
+    For Each ws In ThisWorkbook.Worksheets
+        If StrComp(ws.Name, fullName, vbTextCompare) = 0 Then
+            Set mp_GetOrCreateResultWorksheet = ws
+            Exit Function
+        End If
+    Next ws
+
+    Set ws = ThisWorkbook.Worksheets.Add(After:=ThisWorkbook.Worksheets(ThisWorkbook.Worksheets.Count))
+    ws.Name = fullName
+    ex_SheetStylesXmlProvider.m_ApplyDefaultSheetView ws
+    Set mp_GetOrCreateResultWorksheet = ws
 End Function
