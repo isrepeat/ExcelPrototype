@@ -54,7 +54,7 @@ Public Function m_GetOutputMode() As OutputMode
 NoProp:
     defaultModeValue = mp_GetDefaultModeValue()
     If defaultModeValue <= 0 Then
-        MsgBox "Mode variants for control 'btnMode' are not configured in UI.xml.", vbExclamation
+        MsgBox "Mode variants for control 'btnMode' are not configured in DevUI.xml.", vbExclamation
         m_GetOutputMode = 0
         Exit Function
     End If
@@ -133,14 +133,14 @@ Public Sub m_CycleOutputMode()
 
     variants = mp_GetModeVariants()
     If Not mp_ArrayHasItems(variants) Then
-        MsgBox "Mode variants for control 'btnMode' are not configured in UI.xml.", vbExclamation
+        MsgBox "Mode variants for control 'btnMode' are not configured in DevUI.xml.", vbExclamation
         Exit Sub
     End If
 
     currentModeValue = CLng(m_GetOutputMode())
     nextModeValue = mp_GetNextVariantValue(variants, currentModeValue)
     If nextModeValue <= 0 Then
-        MsgBox "Failed to resolve next mode value from UI.xml modeVariants.", vbExclamation
+        MsgBox "Failed to resolve next mode value from DevUI.xml modeVariants.", vbExclamation
         Exit Sub
     End If
 
@@ -195,7 +195,7 @@ Public Sub m_UpdateModeButton()
     currentMode = m_GetOutputMode()
     variants = mp_GetModeVariants()
     If Not mp_ArrayHasItems(variants) Then
-        MsgBox "Mode variants for control 'btnMode' are not configured in UI.xml.", vbExclamation
+        MsgBox "Mode variants for control 'btnMode' are not configured in DevUI.xml.", vbExclamation
         Exit Sub
     End If
 
@@ -208,7 +208,7 @@ Public Sub m_UpdateModeButton()
 
     variantRow = mp_FindVariantRowByValue(variants, CLng(currentMode))
     If variantRow <= 0 Then
-        MsgBox "Current mode value '" & CStr(CLng(currentMode)) & "' is not present in UI.xml modeVariants.", vbExclamation
+        MsgBox "Current mode value '" & CStr(CLng(currentMode)) & "' is not present in DevUI.xml modeVariants.", vbExclamation
         Exit Sub
     End If
 

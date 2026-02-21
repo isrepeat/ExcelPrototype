@@ -2,7 +2,7 @@ Attribute VB_Name = "ex_UILoader"
 Option Explicit
 
 Private Const PROFILES_NS As String = "urn:excelprototype:profiles"
-Private Const UI_CONFIG_REL_PATH As String = "config\UI.xml"
+Private Const UI_CONFIG_REL_PATH As String = "config\DevUI.xml"
 Private Const DEFAULT_SHEET_NAME As String = "Dev"
 Private Const UI_BLOCK_GROUP_NAME As String = "grpUiBlock"
 
@@ -243,19 +243,19 @@ End Function
 
 Private Function mp_ReadRequiredControlRect(ByVal controlNode As Object, ByVal controlName As String, ByRef leftPos As Double, ByRef topPos As Double, ByRef widthVal As Double, ByRef heightVal As Double) As Boolean
     If Not mp_ReadRequiredNumber(controlNode, "left", leftPos) Then
-        MsgBox "Control '" & controlName & "' with createIfMissing='true' must define numeric 'left' in UI.xml.", vbExclamation
+        MsgBox "Control '" & controlName & "' with createIfMissing='true' must define numeric 'left' in DevUI.xml.", vbExclamation
         Exit Function
     End If
     If Not mp_ReadRequiredNumber(controlNode, "top", topPos) Then
-        MsgBox "Control '" & controlName & "' with createIfMissing='true' must define numeric 'top' in UI.xml.", vbExclamation
+        MsgBox "Control '" & controlName & "' with createIfMissing='true' must define numeric 'top' in DevUI.xml.", vbExclamation
         Exit Function
     End If
     If Not mp_ReadRequiredNumber(controlNode, "width", widthVal) Then
-        MsgBox "Control '" & controlName & "' with createIfMissing='true' must define numeric 'width' in UI.xml.", vbExclamation
+        MsgBox "Control '" & controlName & "' with createIfMissing='true' must define numeric 'width' in DevUI.xml.", vbExclamation
         Exit Function
     End If
     If Not mp_ReadRequiredNumber(controlNode, "height", heightVal) Then
-        MsgBox "Control '" & controlName & "' with createIfMissing='true' must define numeric 'height' in UI.xml.", vbExclamation
+        MsgBox "Control '" & controlName & "' with createIfMissing='true' must define numeric 'height' in DevUI.xml.", vbExclamation
         Exit Function
     End If
 

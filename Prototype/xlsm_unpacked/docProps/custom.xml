@@ -6,4 +6,10 @@
   <property fmtid="{D5CDD505-2E9C-101B-9397-08002B2CF9AE}" pid="3" name="Settings.OutputMode">
     <vt:i4>1</vt:i4>
   </property>
+  <property fmtid="{D5CDD505-2E9C-101B-9397-08002B2CF9AE}" pid="4" name="Settings.ActiveModeName">
+    <vt:lpwstr>Personal Card</vt:lpwstr>
+  </property>
+  <property fmtid="{D5CDD505-2E9C-101B-9397-08002B2CF9AE}" pid="5" name="Settings.ActiveProfile.Personal_Card">
+    <vt:lpwstr>Default</vt:lpwstr>
+  </property>
 </Properties>

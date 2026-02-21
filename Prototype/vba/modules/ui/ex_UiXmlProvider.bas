@@ -2,7 +2,8 @@ Attribute VB_Name = "ex_UiXmlProvider"
 Option Explicit
 
 Private Const PROFILES_NS As String = "urn:excelprototype:profiles"
-Private Const UI_CONFIG_REL_PATH As String = "config\UI.xml"
+Private Const DEV_UI_CONFIG_REL_PATH As String = "config\DevUI.xml"
+Private Const PROFILES_FILE_SUFFIX As String = "Profiles.xml"
 
 Public Function m_GetDropdownItemsByName(ByVal controlName As String, Optional ByVal wb As Workbook, Optional ByVal modeName As String = vbNullString) As Variant
     Dim doc As Object
@@ -17,7 +18,7 @@ Public Function m_GetDropdownItemsByName(ByVal controlName As String, Optional B
     If wb Is Nothing Then Set wb = ThisWorkbook
     If wb Is Nothing Then Exit Function
 
-    Set doc = mp_LoadUiDom(wb)
+    Set doc = mp_LoadDevUiDom(wb)
     If doc Is Nothing Then Exit Function
 
     Set controlNode = mp_GetControlNode(doc, controlName)
@@ -57,13 +58,13 @@ Public Function m_GetProfilesFilePathByMode(Optional ByVal modeName As String = 
     If wb Is Nothing Then Set wb = ThisWorkbook
     If wb Is Nothing Then Exit Function
 
-    Set doc = mp_LoadUiDom(wb)
+    Set doc = mp_LoadDevUiDom(wb)
     If doc Is Nothing Then Exit Function
 
     Set sourceNode = mp_GetProfilesSourceNode(doc, sourceName)
     If sourceNode Is Nothing Then Exit Function
 
-    relPath = mp_ResolveProfilesSourceRelPath(sourceNode, modeName)
+    relPath = mp_ResolveProfilesSourceRelPath(sourceNode, modeName, PROFILES_FILE_SUFFIX)
     If Len(relPath) = 0 Then Exit Function
 
     m_GetProfilesFilePathByMode = ex_XmlCore.m_CombineBasePath(wb, relPath)
@@ -84,7 +85,7 @@ Public Function m_GetModeVariantsByControl(ByVal controlName As String, Optional
     If wb Is Nothing Then Set wb = ThisWorkbook
     If wb Is Nothing Then Exit Function
 
-    Set doc = mp_LoadUiDom(wb)
+    Set doc = mp_LoadDevUiDom(wb)
     If doc Is Nothing Then Exit Function
 
     Set controlNode = mp_GetControlNode(doc, controlName)
@@ -134,7 +135,7 @@ Public Function m_GetControlAttribute(ByVal controlName As String, ByVal attrNam
     If wb Is Nothing Then Set wb = ThisWorkbook
     If wb Is Nothing Then Exit Function
 
-    Set doc = mp_LoadUiDom(wb)
+    Set doc = mp_LoadDevUiDom(wb)
     If doc Is Nothing Then Exit Function
 
     Set controlNode = mp_GetControlNode(doc, controlName)
@@ -154,7 +155,7 @@ Public Function m_ReadButtonStyles(Optional ByVal wb As Workbook) As Object
     If wb Is Nothing Then Set wb = ThisWorkbook
     If wb Is Nothing Then Exit Function
 
-    Set doc = mp_LoadUiDom(wb)
+    Set doc = mp_LoadDevUiDom(wb)
     If doc Is Nothing Then Exit Function
 
     Set stylesMap = CreateObject("Scripting.Dictionary")
@@ -285,13 +286,13 @@ EH:
     MsgBox "Failed to apply style '" & styleName & "' to shape '" & shp.Name & "': " & Err.Description, vbExclamation
 End Function
 
-Private Function mp_LoadUiDom(ByVal wb As Workbook) As Object
-    Set mp_LoadUiDom = ex_XmlCore.m_LoadDomByRelativePath( _
+Private Function mp_LoadDevUiDom(ByVal wb As Workbook) As Object
+    Set mp_LoadDevUiDom = ex_XmlCore.m_LoadDomByRelativePath( _
         wb, _
-        UI_CONFIG_REL_PATH, _
+        DEV_UI_CONFIG_REL_PATH, _
         PROFILES_NS, _
-        "UI config file was not found: ", _
-        "Failed to parse UI config file: ")
+        "Dev UI config file was not found: ", _
+        "Failed to parse Dev UI config file: ")
 End Function
 
 Private Function mp_GetControlNode(ByVal doc As Object, ByVal controlName As String) As Object
@@ -313,7 +314,7 @@ Private Function mp_GetItemsFromSource(ByVal doc As Object, ByVal sourceName As 
     Set sourceNode = mp_GetProfilesSourceNode(doc, sourceName)
     If sourceNode Is Nothing Then Exit Function
 
-    relPath = mp_ResolveProfilesSourceRelPath(sourceNode, modeName)
+    relPath = mp_ResolveProfilesSourceRelPath(sourceNode, modeName, PROFILES_FILE_SUFFIX)
     If Len(relPath) = 0 Then Exit Function
 
     filePath = ex_XmlCore.m_CombineBasePath(wb, relPath)
@@ -346,7 +347,7 @@ Private Function mp_GetProfilesSourceNode(ByVal doc As Object, ByVal sourceName 
     End If
 End Function
 
-Private Function mp_ResolveProfilesSourceRelPath(ByVal sourceNode As Object, ByVal modeName As String) As String
+Private Function mp_ResolveProfilesSourceRelPath(ByVal sourceNode As Object, ByVal modeName As String, Optional ByVal fileSuffix As String = PROFILES_FILE_SUFFIX) As String
     Dim modePersonal As String
     Dim modeComparing As String
     Dim pathPersonal As String
@@ -381,12 +382,14 @@ Private Function mp_ResolveProfilesSourceRelPath(ByVal sourceNode As Object, ByV
     If Len(modeName) = 0 Then modeName = defaultMode
     If Len(modeName) = 0 Then modeName = modePersonal
 
+    If Len(fileSuffix) = 0 Then fileSuffix = PROFILES_FILE_SUFFIX
+
     If StrComp(modeName, modeComparing, vbTextCompare) = 0 Then
-        mp_ResolveProfilesSourceRelPath = mp_BuildPatternBasedFilePath(comparingDir, "Profiles.xml")
+        mp_ResolveProfilesSourceRelPath = mp_BuildPatternBasedFilePath(comparingDir, fileSuffix)
         Exit Function
     End If
     If StrComp(modeName, modePersonal, vbTextCompare) = 0 Then
-        mp_ResolveProfilesSourceRelPath = mp_BuildPatternBasedFilePath(personalDir, "Profiles.xml")
+        mp_ResolveProfilesSourceRelPath = mp_BuildPatternBasedFilePath(personalDir, fileSuffix)
         Exit Function
     End If
 

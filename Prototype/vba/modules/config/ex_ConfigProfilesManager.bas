@@ -6,7 +6,7 @@ Option Explicit
 ' =============================================================================
 ' Назначение:
 ' - читать/писать профили конфигурации из внешнего XML-файла
-'   (пути задаются в `config\UI.xml` -> `dataSources/profilesSource`);
+'   (пути задаются в `config\DevUI.xml` -> `dataSources/profilesSource`);
 ' - применять выбранный профиль к таблице `tblDevConfig` на листе Dev;
 ' - сохранять текущее состояние таблицы обратно в активный профиль;
 ' - поддерживать совместимость со старыми форматами (legacy row/marker layout);
@@ -39,7 +39,7 @@ Private Const DEV_COLOR_NOTE_TEXT As Long = &HA8A8A8
 Private Const THEME_BG As Long = &H262626
 Private Const THEME_TEXT As Long = &HEBEBEB
 Private Const THEME_BORDER As Long = &H0
-Private Const PFUI_UI_DEFINITION_REL_PATH As String = "config\UI.xml"
+Private Const PFUI_UI_DEFINITION_REL_PATH As String = "config\DevUI.xml"
 Private Const PFUI_UI_BLOCK_GROUP_NAME As String = "grpUiBlock"
 Private Const PFUI_PROFILE_DROPDOWN_SHAPE As String = "ddProfile"
 Private Const PFUI_MODE_DROPDOWN_SHAPE As String = "ddMode"
@@ -490,7 +490,7 @@ Private Sub m_EnsureModeDropdown(ByVal ws As Worksheet)
 
     modeNames = ex_UiXmlProvider.m_GetDropdownItemsByName("ddMode", ThisWorkbook)
     If Not mp_ArrayHasItems(modeNames) Then
-        MsgBox "Mode control 'ddMode' has no <items> in config\UI.xml.", vbExclamation
+        MsgBox "Mode control 'ddMode' has no <items> in config\DevUI.xml.", vbExclamation
         Exit Sub
     End If
 

@@ -4,19 +4,44 @@ Option Explicit
 Private Const DEFAULT_DARK_ROWS As Long = 200
 Private Const DEFAULT_DARK_COLS As Long = 52
 
+Private g_StatusClearTime As Date
+Private g_StatusClearScheduled As Boolean
+Private g_StatusClearProcedureName As String
+
 ' =============================================================================
 ' Status bar notification
 ' =============================================================================
 
 Public Sub m_ShowNotice(ByVal msg As String, Optional ByVal seconds As Double = 2)
+    If seconds <= 0 Then seconds = 2
+
     Application.StatusBar = msg
-    Application.OnTime Now + TimeSerial(0, 0, seconds), "ex_Messaging.m_ClearStatusBar"
+
+    On Error Resume Next
+    If g_StatusClearScheduled Then
+        Application.OnTime EarliestTime:=g_StatusClearTime, Procedure:=mp_GetStatusClearProcedureName(), Schedule:=False
+        g_StatusClearScheduled = False
+    End If
+
+    g_StatusClearTime = Now + (seconds / 86400#)
+    Application.OnTime EarliestTime:=g_StatusClearTime, Procedure:=mp_GetStatusClearProcedureName(), Schedule:=True
+    g_StatusClearScheduled = (Err.Number = 0)
+    Err.Clear
+    On Error GoTo 0
 End Sub
 
 Public Sub m_ClearStatusBar()
     ' Очищает статус бар
+    g_StatusClearScheduled = False
     Application.StatusBar = False
 End Sub
+
+Private Function mp_GetStatusClearProcedureName() As String
+    If Len(g_StatusClearProcedureName) = 0 Then
+        g_StatusClearProcedureName = "'" & ThisWorkbook.Name & "'!ex_Messaging.m_ClearStatusBar"
+    End If
+    mp_GetStatusClearProcedureName = g_StatusClearProcedureName
+End Function
 
 Public Sub m_ApplyDarkSheetBase( _
     ByVal ws As Worksheet, _
