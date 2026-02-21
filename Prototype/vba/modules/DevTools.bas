@@ -32,7 +32,7 @@ Public Sub dev_UpdateCode()
     mp_UpdateWorkbookModule basePath & "ThisWorkbook.bas"
 
     Application.ScreenUpdating = True
-    mp_ShowNotice "Code updated", 2
+    ex_Messaging.m_ShowNotice "Code updated", 2
     Exit Sub
 
 EH:
@@ -89,20 +89,6 @@ End Sub
 ' Ribbon hook (keeps existing button working if mapped).
 Public Sub dev_OnUpdateCodeClicked(ByVal control As Object)
     dev_UpdateCode
-End Sub
-
-'==========================
-' Status bar notification
-'==========================
-Public Sub dev_ClearStatusBar()
-    Application.StatusBar = False
-End Sub
-
- 
-
-Private Sub mp_ShowNotice(ByVal msg As String, Optional ByVal seconds As Double = 2)
-    Application.StatusBar = msg
-    Application.OnTime Now + TimeSerial(0, 0, seconds), "dev_ClearStatusBar"
 End Sub
 
 '==========================

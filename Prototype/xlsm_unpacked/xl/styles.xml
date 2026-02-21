@@ -294,29 +294,6 @@
   <dxfs count="9">
     <dxf>
       <font>
-        <b/>
-        <color rgb="FFEBEBEB"/>
-        <family val="1"/>
-      </font>
-      <fill>
-        <patternFill patternType="solid">
-          <fgColor indexed="64"/>
-          <bgColor rgb="FF1E1E1E"/>
-        </patternFill>
-      </fill>
-      <border diagonalUp="0" diagonalDown="0" outline="0">
-        <left style="thin">
-          <color auto="1"/>
-        </left>
-        <right style="thin">
-          <color auto="1"/>
-        </right>
-        <top/>
-        <bottom/>
-      </border>
-    </dxf>
-    <dxf>
-      <font>
         <b val="0"/>
         <color rgb="FFA8A8A8"/>
         <family val="1"/>
@@ -339,19 +316,6 @@
           <color auto="1"/>
         </bottom>
       </border>
-    </dxf>
-    <dxf>
-      <font>
-        <b val="0"/>
-        <color rgb="FFEBEBEB"/>
-        <family val="1"/>
-      </font>
-      <fill>
-        <patternFill patternType="solid">
-          <fgColor indexed="64"/>
-          <bgColor rgb="FF1E1E1E"/>
-        </patternFill>
-      </fill>
     </dxf>
     <dxf>
       <font>
@@ -440,13 +404,6 @@
       </border>
     </dxf>
     <dxf>
-      <border outline="0">
-        <bottom style="thin">
-          <color auto="1"/>
-        </bottom>
-      </border>
-    </dxf>
-    <dxf>
       <border diagonalUp="0" diagonalDown="0" outline="0">
         <left style="thin">
           <color auto="1"/>
@@ -460,6 +417,49 @@
         <bottom style="thin">
           <color auto="1"/>
         </bottom>
+      </border>
+    </dxf>
+    <dxf>
+      <font>
+        <b val="0"/>
+        <color rgb="FFEBEBEB"/>
+        <family val="1"/>
+      </font>
+      <fill>
+        <patternFill patternType="solid">
+          <fgColor indexed="64"/>
+          <bgColor rgb="FF1E1E1E"/>
+        </patternFill>
+      </fill>
+    </dxf>
+    <dxf>
+      <border outline="0">
+        <bottom style="thin">
+          <color auto="1"/>
+        </bottom>
+      </border>
+    </dxf>
+    <dxf>
+      <font>
+        <b/>
+        <color rgb="FFEBEBEB"/>
+        <family val="1"/>
+      </font>
+      <fill>
+        <patternFill patternType="solid">
+          <fgColor indexed="64"/>
+          <bgColor rgb="FF1E1E1E"/>
+        </patternFill>
+      </fill>
+      <border diagonalUp="0" diagonalDown="0" outline="0">
+        <left style="thin">
+          <color auto="1"/>
+        </left>
+        <right style="thin">
+          <color auto="1"/>
+        </right>
+        <top/>
+        <bottom/>
       </border>
     </dxf>
   </dxfs>

@@ -142,20 +142,6 @@
       </modeVariants>
     </control>
 
-    <!-- <control name="btnHelloWorld"
-             type="button"
-             sheet="Dev"
-             required="true"
-             createIfMissing="true"
-             macro="ex_UIActions.m_HelloWorld_OnClick"
-             caption="HelloWorld"
-             globalVisible="true"
-             style="base"
-             left="1048"
-             top="30.75"
-             width="120"
-             height="24"/> -->
-
     <control name="ddProfile"
              type="dropdown"
              sheet="Dev"

@@ -6,6 +6,7 @@ Private Const SHEET_STYLES_REL_PATH As String = "config\SheetStyles.xml"
 Private Const OUTPUT_STYLE_PERSONAL_DIR_REL_PATH As String = "config\modes\PersonalCard"
 Private Const OUTPUT_STYLE_COMPARING_DIR_REL_PATH As String = "config\modes\TablesComparing"
 Private Const OUTPUT_STYLE_FILE_SUFFIX As String = "SheetStyles.xml"
+Private Const OUTPUT_UI_FILE_SUFFIX As String = "UI.xml"
 Private Const MODE_PERSONAL_CARD As String = "Personal Card"
 Private Const MODE_TABLES_COMPARING As String = "Comparing"
 Private Const BASE_STYLE_LABEL As String = "base sheet style"
@@ -116,7 +117,9 @@ Private g_LastActiveModeName As String
 Public Function m_InitializeStyles(Optional ByVal wb As Workbook) As Boolean
     Dim baseDoc As Object
     Dim outputDoc As Object
+    Dim modeUiDoc As Object
     Dim outputRelPath As String
+    Dim modeUiRelPath As String
 
     If wb Is Nothing Then Set wb = ThisWorkbook
     If wb Is Nothing Then
@@ -138,6 +141,12 @@ Public Function m_InitializeStyles(Optional ByVal wb As Workbook) As Boolean
         MsgBox "Output style must contain '/SheetStyles/outputSheetStyle' in mode-specific file: " & outputRelPath, vbExclamation
         Exit Function
     End If
+
+    modeUiRelPath = mp_GetOutputUiRelPathByMode()
+    Set modeUiDoc = mp_LoadModeUiDomByRelativePath(wb, modeUiRelPath)
+    If modeUiDoc Is Nothing Then Exit Function
+
+    If Not mp_LoadControlPanelFromModeUi(modeUiDoc, g_OutputStyle) Then Exit Function
 
     g_LastActiveModeName = mp_GetCurrentActiveModeName()
 
@@ -402,6 +411,15 @@ Private Function mp_LoadOutputStyleDomByRelativePath(ByVal wb As Workbook, ByVal
         "Failed to parse output style config file: ")
 End Function
 
+    Private Function mp_LoadModeUiDomByRelativePath(ByVal wb As Workbook, ByVal relPath As String) As Object
+        Set mp_LoadModeUiDomByRelativePath = ex_XmlCore.m_LoadDomByRelativePath( _
+        wb, _
+        relPath, _
+        PROFILES_NS, _
+        "Mode UI config file was not found: ", _
+        "Failed to parse mode UI config file: ")
+    End Function
+
 Private Function mp_GetCurrentActiveModeName() As String
     On Error Resume Next
     mp_GetCurrentActiveModeName = Trim$(ex_ConfigProfilesManager.m_GetActiveModeName(ws_Dev))
@@ -438,6 +456,35 @@ Private Function mp_GetOutputStyleRelPathByMode() As String
             mp_GetOutputStyleRelPathByMode = mp_BuildPatternBasedFilePath(OUTPUT_STYLE_PERSONAL_DIR_REL_PATH, OUTPUT_STYLE_FILE_SUFFIX)
         Case MODE_TABLES_COMPARING
             mp_GetOutputStyleRelPathByMode = mp_BuildPatternBasedFilePath(OUTPUT_STYLE_COMPARING_DIR_REL_PATH, OUTPUT_STYLE_FILE_SUFFIX)
+    End Select
+End Function
+
+Private Function mp_GetOutputUiRelPathByMode() As String
+    Dim modeName As String
+
+    modeName = mp_GetCurrentActiveModeName()
+
+    If StrComp(modeName, MODE_TABLES_COMPARING, vbTextCompare) = 0 Then
+        mp_GetOutputUiRelPathByMode = mp_BuildPatternBasedFilePath(OUTPUT_STYLE_COMPARING_DIR_REL_PATH, OUTPUT_UI_FILE_SUFFIX)
+        Exit Function
+    End If
+
+    If StrComp(modeName, MODE_PERSONAL_CARD, vbTextCompare) = 0 Then
+        mp_GetOutputUiRelPathByMode = mp_BuildPatternBasedFilePath(OUTPUT_STYLE_PERSONAL_DIR_REL_PATH, OUTPUT_UI_FILE_SUFFIX)
+        Exit Function
+    End If
+
+    If Len(modeName) > 0 Then
+        MsgBox "Unsupported active mode value for mode UI mapping: '" & modeName & "'.", vbExclamation
+    Else
+        MsgBox "Unsupported active mode value for mode UI mapping.", vbExclamation
+    End If
+
+    Select Case modeName
+        Case MODE_PERSONAL_CARD
+            mp_GetOutputUiRelPathByMode = mp_BuildPatternBasedFilePath(OUTPUT_STYLE_PERSONAL_DIR_REL_PATH, OUTPUT_UI_FILE_SUFFIX)
+        Case MODE_TABLES_COMPARING
+            mp_GetOutputUiRelPathByMode = mp_BuildPatternBasedFilePath(OUTPUT_STYLE_COMPARING_DIR_REL_PATH, OUTPUT_UI_FILE_SUFFIX)
     End Select
 End Function
 
@@ -528,8 +575,6 @@ Private Function mp_TryLoadOutputSheetStyleFromDom(ByVal doc As Object, ByRef st
     Dim nodeSection As Object
     Dim nodeAlignment As Object
     Dim nodeStatus As Object
-    Dim nodeControlPanel As Object
-    Dim isPanelVisible As Boolean
     Dim sectionTitleColumnsText As String
 
     Set rootNode = doc.selectSingleNode("/p:SheetStyles/p:outputSheetStyle")
@@ -622,128 +667,145 @@ Private Function mp_TryLoadOutputSheetStyleFromDom(ByVal doc As Object, ByRef st
         If Not ex_XmlCore.m_ReadRequiredAttrHexColor(nodeStatus, "removedBackColor", style.StatusRemovedBackColor, "status@removedBackColor", OUTPUT_STYLE_LABEL) Then Exit Function
     End If
 
-    style.HasControlPanel = False
-    style.PanelFieldCount = 0
-    Erase style.PanelFields
-    Set nodeControlPanel = rootNode.selectSingleNode("p:controlPanel")
-    If Not nodeControlPanel Is Nothing Then
-        If Not mp_ReadOptionalAttrBoolean(nodeControlPanel, "visible", isPanelVisible, True, "controlPanel@visible") Then Exit Function
-        If Not isPanelVisible Then
-            mp_TryLoadOutputSheetStyleFromDom = True
-            Exit Function
-        End If
-
-        style.HasControlPanel = True
-        style.PanelTitle = mp_ReadOptionalAttrText(nodeControlPanel, "title", "Quick Search")
-
-        If Not mp_ReadOptionalAttrLong(nodeControlPanel, "startColumn", style.PanelStartColumn, 0, "controlPanel@startColumn") Then Exit Function
-        If Not mp_ReadOptionalAttrLong(nodeControlPanel, "minStartColumn", style.PanelMinStartColumn, 8, "controlPanel@minStartColumn") Then Exit Function
-        If Not mp_ReadOptionalAttrLong(nodeControlPanel, "offsetColumns", style.PanelOffsetColumns, 2, "controlPanel@offsetColumns") Then Exit Function
-        If Not mp_ReadOptionalAttrLong(nodeControlPanel, "widthColumns", style.PanelWidthColumns, 6, "controlPanel@widthColumns") Then Exit Function
-        If Not mp_ReadOptionalAttrLong(nodeControlPanel, "heightRows", style.PanelHeightRows, 3, "controlPanel@heightRows") Then Exit Function
-        If Not mp_ReadOptionalAttrLong(nodeControlPanel, "topRow", style.PanelTopRow, 1, "controlPanel@topRow") Then Exit Function
-        If Not mp_ReadOptionalAttrLong(nodeControlPanel, "labelColumns", style.PanelLabelColumns, 1, "controlPanel@labelColumns") Then Exit Function
-        If Not mp_ReadOptionalAttrLong(nodeControlPanel, "valueColumns", style.PanelValueColumns, 2, "controlPanel@valueColumns") Then Exit Function
-        If Not mp_ReadOptionalAttrLong(nodeControlPanel, "fieldRowSpan", style.PanelFieldRowSpan, 2, "controlPanel@fieldRowSpan") Then Exit Function
-        If Not mp_ReadOptionalAttrLong(nodeControlPanel, "fieldSpacingRows", style.PanelFieldSpacingRows, 0, "controlPanel@fieldSpacingRows") Then Exit Function
-        If Not mp_ReadOptionalAttrLong(nodeControlPanel, "viewZoneGapRows", style.PanelViewZoneGapRows, 2, "controlPanel@viewZoneGapRows") Then Exit Function
-        If Not mp_ReadOptionalAttrDouble(nodeControlPanel, "panelColumnWidth", style.PanelColumnWidth, 12#, "controlPanel@panelColumnWidth") Then Exit Function
-
-        If style.PanelStartColumn < 0 Then
-            MsgBox "Invalid value for output sheet style attribute 'controlPanel@startColumn': must be >= 0.", vbExclamation
-            Exit Function
-        End If
-        If style.PanelMinStartColumn < 1 Then
-            MsgBox "Invalid value for output sheet style attribute 'controlPanel@minStartColumn': must be >= 1.", vbExclamation
-            Exit Function
-        End If
-        If style.PanelOffsetColumns < 1 Then
-            MsgBox "Invalid value for output sheet style attribute 'controlPanel@offsetColumns': must be >= 1.", vbExclamation
-            Exit Function
-        End If
-        If style.PanelWidthColumns < 4 Then
-            MsgBox "Invalid value for output sheet style attribute 'controlPanel@widthColumns': must be >= 4.", vbExclamation
-            Exit Function
-        End If
-        If style.PanelHeightRows < 3 Then
-            MsgBox "Invalid value for output sheet style attribute 'controlPanel@heightRows': must be >= 3.", vbExclamation
-            Exit Function
-        End If
-        If style.PanelTopRow < 1 Then
-            MsgBox "Invalid value for output sheet style attribute 'controlPanel@topRow': must be >= 1.", vbExclamation
-            Exit Function
-        End If
-        If style.PanelLabelColumns < 1 Then
-            MsgBox "Invalid value for output sheet style attribute 'controlPanel@labelColumns': must be >= 1.", vbExclamation
-            Exit Function
-        End If
-        If style.PanelValueColumns < 1 Then
-            MsgBox "Invalid value for output sheet style attribute 'controlPanel@valueColumns': must be >= 1.", vbExclamation
-            Exit Function
-        End If
-        If style.PanelFieldRowSpan < 1 Then
-            MsgBox "Invalid value for output sheet style attribute 'controlPanel@fieldRowSpan': must be >= 1.", vbExclamation
-            Exit Function
-        End If
-        If style.PanelFieldSpacingRows < 0 Then
-            MsgBox "Invalid value for output sheet style attribute 'controlPanel@fieldSpacingRows': must be >= 0.", vbExclamation
-            Exit Function
-        End If
-        If style.PanelViewZoneGapRows < 0 Then
-            MsgBox "Invalid value for output sheet style attribute 'controlPanel@viewZoneGapRows': must be >= 0.", vbExclamation
-            Exit Function
-        End If
-        If style.PanelColumnWidth <= 0 Then
-            MsgBox "Invalid value for output sheet style attribute 'controlPanel@panelColumnWidth': must be > 0.", vbExclamation
-            Exit Function
-        End If
-
-        If Not mp_ReadOptionalAttrHexColor(nodeControlPanel, "panelBackColor", style.PanelBackColor, RGB(30, 30, 30), "controlPanel@panelBackColor") Then Exit Function
-        If Not mp_ReadOptionalAttrHexColor(nodeControlPanel, "panelBorderColor", style.PanelBorderColor, RGB(80, 80, 80), "controlPanel@panelBorderColor") Then Exit Function
-        If Not mp_ReadOptionalAttrHexColor(nodeControlPanel, "titleColor", style.PanelTitleColor, RGB(215, 167, 99), "controlPanel@titleColor") Then Exit Function
-        If Not mp_ReadOptionalAttrHexColor(nodeControlPanel, "labelColor", style.PanelLabelColor, style.ContentColor, "controlPanel@labelColor") Then Exit Function
-        If Not mp_ReadOptionalAttrHexColor(nodeControlPanel, "inputBackColor", style.PanelInputBackColor, RGB(38, 38, 38), "controlPanel@inputBackColor") Then Exit Function
-        If Not mp_ReadOptionalAttrHexColor(nodeControlPanel, "inputFontColor", style.PanelInputFontColor, style.ContentColor, "controlPanel@inputFontColor") Then Exit Function
-        If Not mp_ReadOptionalAttrHexColor(nodeControlPanel, "buttonBackColor", style.PanelButtonBackColor, RGB(31, 94, 156), "controlPanel@buttonBackColor") Then Exit Function
-        If Not mp_ReadOptionalAttrHexColor(nodeControlPanel, "buttonTextColor", style.PanelButtonTextColor, RGB(255, 255, 255), "controlPanel@buttonTextColor") Then Exit Function
-        If Not mp_ReadOptionalAttrHexColor(nodeControlPanel, "buttonBorderColor", style.PanelButtonBorderColor, RGB(22, 63, 105), "controlPanel@buttonBorderColor") Then Exit Function
-        If Not mp_ReadOptionalAttrLong(nodeControlPanel, "buttonAnchorColumn", style.PanelButtonAnchorColumn, 4, "controlPanel@buttonAnchorColumn") Then Exit Function
-        If Not mp_ReadOptionalAttrLong(nodeControlPanel, "buttonWidthColumns", style.PanelButtonWidthColumns, 1, "controlPanel@buttonWidthColumns") Then Exit Function
-        If Not mp_ReadOptionalAttrDouble(nodeControlPanel, "fixedWidthKey", style.PanelFixedWidthKey, 0#, "controlPanel@fixedWidthKey") Then Exit Function
-        If Not mp_ReadOptionalAttrDouble(nodeControlPanel, "fixedWidthValue", style.PanelFixedWidthValue, 0#, "controlPanel@fixedWidthValue") Then Exit Function
-        If Not mp_ReadOptionalAttrDouble(nodeControlPanel, "fixedWidthButton", style.PanelFixedWidthButton, 0#, "controlPanel@fixedWidthButton") Then Exit Function
-        If Not mp_ReadOptionalAttrDouble(nodeControlPanel, "fixedFieldRowHeight", style.PanelFixedFieldRowHeight, 0#, "controlPanel@fixedFieldRowHeight") Then Exit Function
-
-        If style.PanelButtonAnchorColumn < 1 Then
-            MsgBox "Invalid value for output sheet style attribute 'controlPanel@buttonAnchorColumn': must be >= 1.", vbExclamation
-            Exit Function
-        End If
-        If style.PanelButtonWidthColumns < 1 Then
-            MsgBox "Invalid value for output sheet style attribute 'controlPanel@buttonWidthColumns': must be >= 1.", vbExclamation
-            Exit Function
-        End If
-        If style.PanelFixedWidthKey < 0 Then
-            MsgBox "Invalid value for output sheet style attribute 'controlPanel@fixedWidthKey': must be >= 0.", vbExclamation
-            Exit Function
-        End If
-        If style.PanelFixedWidthValue < 0 Then
-            MsgBox "Invalid value for output sheet style attribute 'controlPanel@fixedWidthValue': must be >= 0.", vbExclamation
-            Exit Function
-        End If
-        If style.PanelFixedWidthButton < 0 Then
-            MsgBox "Invalid value for output sheet style attribute 'controlPanel@fixedWidthButton': must be >= 0.", vbExclamation
-            Exit Function
-        End If
-        If style.PanelFixedFieldRowHeight < 0 Then
-            MsgBox "Invalid value for output sheet style attribute 'controlPanel@fixedFieldRowHeight': must be >= 0.", vbExclamation
-            Exit Function
-        End If
-
-        If Not mp_LoadControlPanelFields(nodeControlPanel, style) Then Exit Function
-    End If
+    mp_ResetControlPanelStyle style
 
     mp_TryLoadOutputSheetStyleFromDom = True
 End Function
+
+Private Function mp_LoadControlPanelFromModeUi(ByVal doc As Object, ByRef style As t_OutputSheetStyle) As Boolean
+    Dim nodeControlPanel As Object
+    Dim isPanelVisible As Boolean
+
+    mp_ResetControlPanelStyle style
+
+    Set nodeControlPanel = doc.selectSingleNode("/p:uiDefinition/p:controlPanel")
+    If nodeControlPanel Is Nothing Then
+        mp_LoadControlPanelFromModeUi = True
+        Exit Function
+    End If
+
+    If Not mp_ReadOptionalAttrBoolean(nodeControlPanel, "visible", isPanelVisible, True, "controlPanel@visible") Then Exit Function
+    If Not isPanelVisible Then
+        mp_LoadControlPanelFromModeUi = True
+        Exit Function
+    End If
+
+    style.HasControlPanel = True
+    style.PanelTitle = mp_ReadOptionalAttrText(nodeControlPanel, "title", "Quick Search")
+
+    If Not mp_ReadOptionalAttrLong(nodeControlPanel, "startColumn", style.PanelStartColumn, 0, "controlPanel@startColumn") Then Exit Function
+    If Not mp_ReadOptionalAttrLong(nodeControlPanel, "minStartColumn", style.PanelMinStartColumn, 8, "controlPanel@minStartColumn") Then Exit Function
+    If Not mp_ReadOptionalAttrLong(nodeControlPanel, "offsetColumns", style.PanelOffsetColumns, 2, "controlPanel@offsetColumns") Then Exit Function
+    If Not mp_ReadOptionalAttrLong(nodeControlPanel, "widthColumns", style.PanelWidthColumns, 6, "controlPanel@widthColumns") Then Exit Function
+    If Not mp_ReadOptionalAttrLong(nodeControlPanel, "heightRows", style.PanelHeightRows, 3, "controlPanel@heightRows") Then Exit Function
+    If Not mp_ReadOptionalAttrLong(nodeControlPanel, "topRow", style.PanelTopRow, 1, "controlPanel@topRow") Then Exit Function
+    If Not mp_ReadOptionalAttrLong(nodeControlPanel, "labelColumns", style.PanelLabelColumns, 1, "controlPanel@labelColumns") Then Exit Function
+    If Not mp_ReadOptionalAttrLong(nodeControlPanel, "valueColumns", style.PanelValueColumns, 2, "controlPanel@valueColumns") Then Exit Function
+    If Not mp_ReadOptionalAttrLong(nodeControlPanel, "fieldRowSpan", style.PanelFieldRowSpan, 2, "controlPanel@fieldRowSpan") Then Exit Function
+    If Not mp_ReadOptionalAttrLong(nodeControlPanel, "fieldSpacingRows", style.PanelFieldSpacingRows, 0, "controlPanel@fieldSpacingRows") Then Exit Function
+    If Not mp_ReadOptionalAttrLong(nodeControlPanel, "viewZoneGapRows", style.PanelViewZoneGapRows, 2, "controlPanel@viewZoneGapRows") Then Exit Function
+    If Not mp_ReadOptionalAttrDouble(nodeControlPanel, "panelColumnWidth", style.PanelColumnWidth, 12#, "controlPanel@panelColumnWidth") Then Exit Function
+
+    If style.PanelStartColumn < 0 Then
+        MsgBox "Invalid value for mode UI attribute 'controlPanel@startColumn': must be >= 0.", vbExclamation
+        Exit Function
+    End If
+    If style.PanelMinStartColumn < 1 Then
+        MsgBox "Invalid value for mode UI attribute 'controlPanel@minStartColumn': must be >= 1.", vbExclamation
+        Exit Function
+    End If
+    If style.PanelOffsetColumns < 1 Then
+        MsgBox "Invalid value for mode UI attribute 'controlPanel@offsetColumns': must be >= 1.", vbExclamation
+        Exit Function
+    End If
+    If style.PanelWidthColumns < 4 Then
+        MsgBox "Invalid value for mode UI attribute 'controlPanel@widthColumns': must be >= 4.", vbExclamation
+        Exit Function
+    End If
+    If style.PanelHeightRows < 3 Then
+        MsgBox "Invalid value for mode UI attribute 'controlPanel@heightRows': must be >= 3.", vbExclamation
+        Exit Function
+    End If
+    If style.PanelTopRow < 1 Then
+        MsgBox "Invalid value for mode UI attribute 'controlPanel@topRow': must be >= 1.", vbExclamation
+        Exit Function
+    End If
+    If style.PanelLabelColumns < 1 Then
+        MsgBox "Invalid value for mode UI attribute 'controlPanel@labelColumns': must be >= 1.", vbExclamation
+        Exit Function
+    End If
+    If style.PanelValueColumns < 1 Then
+        MsgBox "Invalid value for mode UI attribute 'controlPanel@valueColumns': must be >= 1.", vbExclamation
+        Exit Function
+    End If
+    If style.PanelFieldRowSpan < 1 Then
+        MsgBox "Invalid value for mode UI attribute 'controlPanel@fieldRowSpan': must be >= 1.", vbExclamation
+        Exit Function
+    End If
+    If style.PanelFieldSpacingRows < 0 Then
+        MsgBox "Invalid value for mode UI attribute 'controlPanel@fieldSpacingRows': must be >= 0.", vbExclamation
+        Exit Function
+    End If
+    If style.PanelViewZoneGapRows < 0 Then
+        MsgBox "Invalid value for mode UI attribute 'controlPanel@viewZoneGapRows': must be >= 0.", vbExclamation
+        Exit Function
+    End If
+    If style.PanelColumnWidth <= 0 Then
+        MsgBox "Invalid value for mode UI attribute 'controlPanel@panelColumnWidth': must be > 0.", vbExclamation
+        Exit Function
+    End If
+
+    If Not mp_ReadOptionalAttrHexColor(nodeControlPanel, "panelBackColor", style.PanelBackColor, RGB(30, 30, 30), "controlPanel@panelBackColor") Then Exit Function
+    If Not mp_ReadOptionalAttrHexColor(nodeControlPanel, "panelBorderColor", style.PanelBorderColor, RGB(80, 80, 80), "controlPanel@panelBorderColor") Then Exit Function
+    If Not mp_ReadOptionalAttrHexColor(nodeControlPanel, "titleColor", style.PanelTitleColor, RGB(215, 167, 99), "controlPanel@titleColor") Then Exit Function
+    If Not mp_ReadOptionalAttrHexColor(nodeControlPanel, "labelColor", style.PanelLabelColor, style.ContentColor, "controlPanel@labelColor") Then Exit Function
+    If Not mp_ReadOptionalAttrHexColor(nodeControlPanel, "inputBackColor", style.PanelInputBackColor, RGB(38, 38, 38), "controlPanel@inputBackColor") Then Exit Function
+    If Not mp_ReadOptionalAttrHexColor(nodeControlPanel, "inputFontColor", style.PanelInputFontColor, style.ContentColor, "controlPanel@inputFontColor") Then Exit Function
+    If Not mp_ReadOptionalAttrHexColor(nodeControlPanel, "buttonBackColor", style.PanelButtonBackColor, RGB(31, 94, 156), "controlPanel@buttonBackColor") Then Exit Function
+    If Not mp_ReadOptionalAttrHexColor(nodeControlPanel, "buttonTextColor", style.PanelButtonTextColor, RGB(255, 255, 255), "controlPanel@buttonTextColor") Then Exit Function
+    If Not mp_ReadOptionalAttrHexColor(nodeControlPanel, "buttonBorderColor", style.PanelButtonBorderColor, RGB(22, 63, 105), "controlPanel@buttonBorderColor") Then Exit Function
+    If Not mp_ReadOptionalAttrLong(nodeControlPanel, "buttonAnchorColumn", style.PanelButtonAnchorColumn, 4, "controlPanel@buttonAnchorColumn") Then Exit Function
+    If Not mp_ReadOptionalAttrLong(nodeControlPanel, "buttonWidthColumns", style.PanelButtonWidthColumns, 1, "controlPanel@buttonWidthColumns") Then Exit Function
+    If Not mp_ReadOptionalAttrDouble(nodeControlPanel, "fixedWidthKey", style.PanelFixedWidthKey, 0#, "controlPanel@fixedWidthKey") Then Exit Function
+    If Not mp_ReadOptionalAttrDouble(nodeControlPanel, "fixedWidthValue", style.PanelFixedWidthValue, 0#, "controlPanel@fixedWidthValue") Then Exit Function
+    If Not mp_ReadOptionalAttrDouble(nodeControlPanel, "fixedWidthButton", style.PanelFixedWidthButton, 0#, "controlPanel@fixedWidthButton") Then Exit Function
+    If Not mp_ReadOptionalAttrDouble(nodeControlPanel, "fixedFieldRowHeight", style.PanelFixedFieldRowHeight, 0#, "controlPanel@fixedFieldRowHeight") Then Exit Function
+
+    If style.PanelButtonAnchorColumn < 1 Then
+        MsgBox "Invalid value for mode UI attribute 'controlPanel@buttonAnchorColumn': must be >= 1.", vbExclamation
+        Exit Function
+    End If
+    If style.PanelButtonWidthColumns < 1 Then
+        MsgBox "Invalid value for mode UI attribute 'controlPanel@buttonWidthColumns': must be >= 1.", vbExclamation
+        Exit Function
+    End If
+    If style.PanelFixedWidthKey < 0 Then
+        MsgBox "Invalid value for mode UI attribute 'controlPanel@fixedWidthKey': must be >= 0.", vbExclamation
+        Exit Function
+    End If
+    If style.PanelFixedWidthValue < 0 Then
+        MsgBox "Invalid value for mode UI attribute 'controlPanel@fixedWidthValue': must be >= 0.", vbExclamation
+        Exit Function
+    End If
+    If style.PanelFixedWidthButton < 0 Then
+        MsgBox "Invalid value for mode UI attribute 'controlPanel@fixedWidthButton': must be >= 0.", vbExclamation
+        Exit Function
+    End If
+    If style.PanelFixedFieldRowHeight < 0 Then
+        MsgBox "Invalid value for mode UI attribute 'controlPanel@fixedFieldRowHeight': must be >= 0.", vbExclamation
+        Exit Function
+    End If
+
+    If Not mp_LoadControlPanelFields(nodeControlPanel, style) Then Exit Function
+
+    mp_LoadControlPanelFromModeUi = True
+End Function
+
+Private Sub mp_ResetControlPanelStyle(ByRef style As t_OutputSheetStyle)
+    style.HasControlPanel = False
+    style.PanelFieldCount = 0
+    Erase style.PanelFields
+End Sub
 
 Private Function mp_ReadOptionalAttrBoolean(ByVal node As Object, ByVal attrName As String, ByRef outValue As Boolean, ByVal defaultValue As Boolean, ByVal fieldName As String) As Boolean
     Dim textValue As String

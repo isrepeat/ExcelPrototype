@@ -4,7 +4,6 @@ Option Explicit
 Public Sub m_FormatAsTable(ByVal ws As Worksheet, ByVal startRow As Long, ByVal rowCount As Long, ByVal colCount As Long)
     Dim headerRange As Range
     Dim allRange As Range
-    Dim freezeRow As Long
 
     Set headerRange = ws.Range(ws.Cells(startRow, 1), ws.Cells(startRow, colCount))
     Set allRange = ws.Range(ws.Cells(startRow, 1), ws.Cells(startRow + rowCount - 1, colCount))
@@ -18,9 +17,7 @@ Public Sub m_FormatAsTable(ByVal ws As Worksheet, ByVal startRow As Long, ByVal 
     allRange.AutoFilter
 
     ws.Activate
-    freezeRow = startRow + 1
-    ws.Cells(freezeRow, 1).Select
-    ActiveWindow.FreezePanes = True
+    ActiveWindow.FreezePanes = False
 End Sub
 
 Public Sub m_ApplyComparingStyleLayers( _
