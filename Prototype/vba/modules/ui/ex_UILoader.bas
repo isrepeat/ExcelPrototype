@@ -187,10 +187,10 @@ Private Function mp_TryCreateMissingButton(ByVal ws As Worksheet, ByVal controlN
         captionText = controlName
     End If
 
-    If Not mp_ReadRequiredControlRect(controlNode, controlName, leftPos, topPos, widthVal, heightVal) Then Exit Function
+    If Not mp_ReadRequiredControlRect(ws, controlNode, controlName, leftPos, topPos, widthVal, heightVal) Then Exit Function
 
     On Error GoTo EH_CREATE
-    Set createdShape = ws.Shapes.AddShape(msoShapeRoundedRectangle, leftPos, topPos, widthVal, heightVal)
+    Set createdShape = ws.Shapes.AddShape(msoShapeRectangle, leftPos, topPos, widthVal, heightVal)
 
     templateName = Trim$(mp_NodeAttrText(controlNode, "template"))
     If Len(templateName) > 0 Then
@@ -225,7 +225,7 @@ Private Function mp_TryCreateMissingDropdown(ByVal ws As Worksheet, ByVal contro
     Dim heightVal As Double
     Dim dd As DropDown
 
-    If Not mp_ReadRequiredControlRect(controlNode, controlName, leftPos, topPos, widthVal, heightVal) Then Exit Function
+    If Not mp_ReadRequiredControlRect(ws, controlNode, controlName, leftPos, topPos, widthVal, heightVal) Then Exit Function
 
     On Error GoTo EH_CREATE
     Set dd = ws.DropDowns.Add(leftPos, topPos, widthVal, heightVal)
@@ -241,20 +241,72 @@ EH_CREATE:
     MsgBox "Failed to auto-create dropdown control '" & controlName & "': " & Err.Description, vbExclamation
 End Function
 
-Private Function mp_ReadRequiredControlRect(ByVal controlNode As Object, ByVal controlName As String, ByRef leftPos As Double, ByRef topPos As Double, ByRef widthVal As Double, ByRef heightVal As Double) As Boolean
-    If Not mp_ReadRequiredNumber(controlNode, "left", leftPos) Then
-        MsgBox "Control '" & controlName & "' with createIfMissing='true' must define numeric 'left' in DevUI.xml.", vbExclamation
+Private Function mp_ReadRequiredControlRect(ByVal ws As Worksheet, ByVal controlNode As Object, ByVal controlName As String, ByRef leftPos As Double, ByRef topPos As Double, ByRef widthVal As Double, ByRef heightVal As Double) As Boolean
+    Dim hasLeft As Boolean
+    Dim hasTop As Boolean
+    Dim hasWidth As Boolean
+    Dim hasHeight As Boolean
+    Dim relativeToName As String
+    Dim baseShape As Shape
+    Dim marginLeft As Double
+    Dim marginTop As Double
+
+    hasLeft = mp_ReadRequiredNumber(controlNode, "left", leftPos)
+    hasTop = mp_ReadRequiredNumber(controlNode, "top", topPos)
+    hasWidth = mp_ReadRequiredNumber(controlNode, "width", widthVal)
+    hasHeight = mp_ReadRequiredNumber(controlNode, "height", heightVal)
+
+    If hasLeft And hasTop And hasWidth And hasHeight Then
+        mp_ReadRequiredControlRect = True
         Exit Function
     End If
-    If Not mp_ReadRequiredNumber(controlNode, "top", topPos) Then
-        MsgBox "Control '" & controlName & "' with createIfMissing='true' must define numeric 'top' in DevUI.xml.", vbExclamation
+
+    If mp_HasAnchorSpanLayout(controlNode) Then
+        If Not mp_TryReadAnchorSpanRect(ws, controlNode, controlName, leftPos, topPos, widthVal, heightVal) Then Exit Function
+        mp_ReadRequiredControlRect = True
         Exit Function
     End If
-    If Not mp_ReadRequiredNumber(controlNode, "width", widthVal) Then
-        MsgBox "Control '" & controlName & "' with createIfMissing='true' must define numeric 'width' in DevUI.xml.", vbExclamation
+
+    If Not hasLeft Or Not hasTop Then
+        relativeToName = Trim$(mp_NodeAttrText(controlNode, "relativeTo"))
+        If Len(relativeToName) = 0 Then
+            MsgBox "Control '" & controlName & "' with createIfMissing='true' must define either numeric left/top/width/height, or anchor layout ('anchorCell' + 'spanCols' + 'spanRows'), or relative layout ('relativeTo' + 'marginLeft' + 'marginTop' + 'height' + optional 'width'/'matchWidthToRelative') in DevUI.xml.", vbExclamation
+            Exit Function
+        End If
+
+        Set baseShape = ex_ConfigProfilesManager.m_GetShapeByName(ws, relativeToName)
+        If baseShape Is Nothing Then
+            MsgBox "Control '" & controlName & "' references relativeTo='" & relativeToName & "' but anchor shape was not found on sheet '" & ws.Name & "'.", vbExclamation
+            Exit Function
+        End If
+
+        If Not mp_ReadRequiredNumber(controlNode, "marginLeft", marginLeft) Then
+            MsgBox "Control '" & controlName & "' with relative layout must define numeric 'marginLeft' in DevUI.xml.", vbExclamation
+            Exit Function
+        End If
+        If Not mp_ReadRequiredNumber(controlNode, "marginTop", marginTop) Then
+            MsgBox "Control '" & controlName & "' with relative layout must define numeric 'marginTop' in DevUI.xml.", vbExclamation
+            Exit Function
+        End If
+
+        leftPos = baseShape.Left + marginLeft
+        topPos = baseShape.Top + baseShape.Height + marginTop
+    End If
+
+    If Not hasWidth Then
+        If Not baseShape Is Nothing Then
+            If mp_NodeAttrBool(controlNode, "matchWidthToRelative", False) Then
+                widthVal = baseShape.Width
+                hasWidth = True
+            End If
+        End If
+    End If
+
+    If Not hasWidth Then
+        MsgBox "Control '" & controlName & "' with createIfMissing='true' must define numeric 'width' or set matchWidthToRelative='true' with valid relativeTo in DevUI.xml.", vbExclamation
         Exit Function
     End If
-    If Not mp_ReadRequiredNumber(controlNode, "height", heightVal) Then
+    If Not hasHeight Then
         MsgBox "Control '" & controlName & "' with createIfMissing='true' must define numeric 'height' in DevUI.xml.", vbExclamation
         Exit Function
     End If
@@ -282,9 +334,13 @@ Private Function mp_ApplyControlAttributes(ByVal ws As Worksheet, ByVal controlN
 
     If Not mp_ApplyShapeVisible(controlNode, shp) Then Exit Function
     If Not mp_ApplyShapePlacement(controlNode, shp, ws) Then Exit Function
-    If Not mp_ApplyShapeGeometry(controlNode, shp) Then Exit Function
+    If Not mp_ApplyShapeGeometry(controlNode, shp, ws) Then Exit Function
 
     If StrComp(controlType, "button", vbTextCompare) = 0 Then
+        On Error Resume Next
+        shp.AutoShapeType = msoShapeRectangle
+        On Error GoTo 0
+
         If Not mp_ApplyButtonCaption(controlNode, shp) Then Exit Function
 
         styleName = Trim$(mp_NodeAttrText(controlNode, "style"))
@@ -627,12 +683,102 @@ EH_ANCHOR:
     MsgBox "Invalid range in UI attribute 'anchorCell' for shape '" & shp.Name & "': " & anchorCellText, vbExclamation
 End Function
 
-Private Function mp_ApplyShapeGeometry(ByVal node As Object, ByVal shp As Shape) As Boolean
+Private Function mp_ApplyShapeGeometry(ByVal node As Object, ByVal shp As Shape, ByVal ws As Worksheet) As Boolean
     If Not mp_ApplySingleGeometryAttribute(node, shp, "left") Then Exit Function
     If Not mp_ApplySingleGeometryAttribute(node, shp, "top") Then Exit Function
     If Not mp_ApplySingleGeometryAttribute(node, shp, "width") Then Exit Function
     If Not mp_ApplySingleGeometryAttribute(node, shp, "height") Then Exit Function
+
+    If mp_HasAnchorSpanLayout(node) Then
+        If Not mp_ApplyAnchorSpanGeometry(node, shp, ws) Then Exit Function
+    End If
+
     mp_ApplyShapeGeometry = True
+End Function
+
+Private Function mp_ApplyAnchorSpanGeometry(ByVal node As Object, ByVal shp As Shape, ByVal ws As Worksheet) As Boolean
+    Dim leftPos As Double
+    Dim topPos As Double
+    Dim widthVal As Double
+    Dim heightVal As Double
+
+    If ws Is Nothing Then
+        MsgBox "Failed to apply anchor span geometry for '" & shp.Name & "': worksheet is not specified.", vbExclamation
+        Exit Function
+    End If
+
+    If Not mp_TryReadAnchorSpanRect(ws, node, shp.Name, leftPos, topPos, widthVal, heightVal) Then Exit Function
+
+    shp.Left = leftPos
+    shp.Top = topPos
+    shp.Width = widthVal
+    shp.Height = heightVal
+    mp_ApplyAnchorSpanGeometry = True
+End Function
+
+Private Function mp_HasAnchorSpanLayout(ByVal node As Object) As Boolean
+    mp_HasAnchorSpanLayout = (Len(Trim$(mp_NodeAttrText(node, "spanCols"))) > 0 Or Len(Trim$(mp_NodeAttrText(node, "spanRows"))) > 0)
+End Function
+
+Private Function mp_TryReadAnchorSpanRect(ByVal ws As Worksheet, ByVal node As Object, ByVal controlName As String, ByRef leftPos As Double, ByRef topPos As Double, ByRef widthVal As Double, ByRef heightVal As Double) As Boolean
+    Dim anchorCellText As String
+    Dim spanColsText As String
+    Dim spanRowsText As String
+    Dim spanCols As Long
+    Dim spanRows As Long
+    Dim anchorCell As Range
+    Dim spanRange As Range
+
+    anchorCellText = Trim$(mp_NodeAttrText(node, "anchorCell"))
+    spanColsText = Trim$(mp_NodeAttrText(node, "spanCols"))
+    spanRowsText = Trim$(mp_NodeAttrText(node, "spanRows"))
+
+    If Len(anchorCellText) = 0 Then
+        MsgBox "Control '" & controlName & "' with anchor layout must define 'anchorCell' in DevUI.xml.", vbExclamation
+        Exit Function
+    End If
+    If Len(spanColsText) = 0 Then
+        MsgBox "Control '" & controlName & "' with anchor layout must define 'spanCols' in DevUI.xml.", vbExclamation
+        Exit Function
+    End If
+    If Len(spanRowsText) = 0 Then
+        MsgBox "Control '" & controlName & "' with anchor layout must define 'spanRows' in DevUI.xml.", vbExclamation
+        Exit Function
+    End If
+
+    If Not IsNumeric(spanColsText) Then
+        MsgBox "Control '" & controlName & "' has non-numeric spanCols: '" & spanColsText & "'.", vbExclamation
+        Exit Function
+    End If
+    If Not IsNumeric(spanRowsText) Then
+        MsgBox "Control '" & controlName & "' has non-numeric spanRows: '" & spanRowsText & "'.", vbExclamation
+        Exit Function
+    End If
+
+    spanCols = CLng(spanColsText)
+    spanRows = CLng(spanRowsText)
+    If spanCols <= 0 Then
+        MsgBox "Control '" & controlName & "' must define spanCols > 0.", vbExclamation
+        Exit Function
+    End If
+    If spanRows <= 0 Then
+        MsgBox "Control '" & controlName & "' must define spanRows > 0.", vbExclamation
+        Exit Function
+    End If
+
+    On Error GoTo EH_ANCHOR
+    Set anchorCell = ws.Range(anchorCellText)
+    Set spanRange = anchorCell.Resize(spanRows, spanCols)
+    On Error GoTo 0
+
+    leftPos = anchorCell.Left
+    topPos = anchorCell.Top
+    widthVal = spanRange.Width
+    heightVal = spanRange.Height
+    mp_TryReadAnchorSpanRect = True
+    Exit Function
+EH_ANCHOR:
+    MsgBox "Control '" & controlName & "' has invalid anchorCell range: '" & anchorCellText & "'.", vbExclamation
 End Function
 
 Private Function mp_ApplySingleGeometryAttribute(ByVal node As Object, ByVal shp As Shape, ByVal attrName As String) As Boolean

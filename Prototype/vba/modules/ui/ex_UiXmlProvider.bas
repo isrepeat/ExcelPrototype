@@ -144,6 +144,22 @@ Public Function m_GetControlAttribute(ByVal controlName As String, ByVal attrNam
     m_GetControlAttribute = Trim$(ex_XmlCore.m_NodeAttrText(controlNode, attrName))
 End Function
 
+Public Function m_GetLayoutAttribute(ByVal layoutNodeName As String, ByVal attrName As String, Optional ByVal wb As Workbook) As String
+    Dim doc As Object
+    Dim layoutNode As Object
+
+    If wb Is Nothing Then Set wb = ThisWorkbook
+    If wb Is Nothing Then Exit Function
+
+    Set doc = mp_LoadDevUiDom(wb)
+    If doc Is Nothing Then Exit Function
+
+    Set layoutNode = doc.selectSingleNode("/p:uiDefinition/p:layout/p:" & layoutNodeName)
+    If layoutNode Is Nothing Then Exit Function
+
+    m_GetLayoutAttribute = Trim$(ex_XmlCore.m_NodeAttrText(layoutNode, attrName))
+End Function
+
 Public Function m_ReadButtonStyles(Optional ByVal wb As Workbook) As Object
     Dim doc As Object
     Dim styleNodes As Object
@@ -279,6 +295,12 @@ Public Function m_ApplyButtonStyleByName(ByVal shp As Shape, ByVal styleName As 
         End If
         shp.TextFrame.Characters.Font.Bold = boolValue
     End If
+
+    On Error Resume Next
+    shp.TextFrame.HorizontalAlignment = xlHAlignCenter
+    shp.TextFrame2.TextRange.ParagraphFormat.Alignment = msoAlignCenter
+    shp.TextFrame2.VerticalAnchor = msoAnchorMiddle
+    On Error GoTo EH
 
     m_ApplyButtonStyleByName = True
     Exit Function

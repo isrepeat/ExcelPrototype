@@ -217,8 +217,10 @@ Public Sub m_OnProfileChanged()
     Dim ws As Worksheet
     Dim profiles As Variant
     Dim profileName As String
+    Dim targetStableZoneLeft As Double
 
     Set ws = ws_Dev
+    targetStableZoneLeft = ex_CustomDropdown.m_GetStableZoneStartLeft(ws)
     profiles = mp_GetProfileNames(ws)
     If Not mp_ArrayHasItems(profiles) Then
         MsgBox "Profiles are missing or config file is empty: " & mp_GetProfilesFilePath(), vbExclamation
@@ -231,13 +233,20 @@ Public Sub m_OnProfileChanged()
     m_ApplyProfileFromDev profileName
     mp_ReapplySelectedProfileUi ws
     m_SaveSelectionState ws
+
+    If targetStableZoneLeft >= 0 Then
+        ex_CustomDropdown.m_StabilizeChooseModeAnchorX ws, targetStableZoneLeft
+    End If
 End Sub
 
 Public Sub m_OnModeChanged()
     Dim ws As Worksheet
     Dim profiles As Variant
+    Dim targetStableZoneLeft As Double
 
     Set ws = ws_Dev
+    targetStableZoneLeft = ex_CustomDropdown.m_GetStableZoneStartLeft(ws)
+
     m_EnsureModeDropdown ws
     mp_ApplyModeVisibility ws
     profiles = mp_GetProfileNames(ws)
@@ -245,6 +254,10 @@ Public Sub m_OnModeChanged()
     m_EnsureProfileDropdown ws
     mp_ReapplySelectedProfileUi ws
     m_SaveSelectionState ws
+
+    If targetStableZoneLeft >= 0 Then
+        ex_CustomDropdown.m_StabilizeChooseModeAnchorX ws, targetStableZoneLeft
+    End If
 End Sub
 
 Public Sub m_RestoreSelectionState(Optional ByVal ws As Worksheet)

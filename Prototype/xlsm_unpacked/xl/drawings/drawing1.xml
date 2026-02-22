@@ -1,17 +1,17 @@
 <?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <xdr:wsDr xmlns:xdr="http://schemas.openxmlformats.org/drawingml/2006/spreadsheetDrawing" xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main">
-  <xdr:twoCellAnchor editAs="absolute">
+  <xdr:twoCellAnchor>
     <xdr:from>
-      <xdr:col>8</xdr:col>
-      <xdr:colOff>682625</xdr:colOff>
-      <xdr:row>1</xdr:row>
-      <xdr:rowOff>190500</xdr:rowOff>
+      <xdr:col>16</xdr:col>
+      <xdr:colOff>0</xdr:colOff>
+      <xdr:row>4</xdr:row>
+      <xdr:rowOff>0</xdr:rowOff>
     </xdr:from>
     <xdr:to>
-      <xdr:col>11</xdr:col>
-      <xdr:colOff>149225</xdr:colOff>
-      <xdr:row>3</xdr:row>
-      <xdr:rowOff>95250</xdr:rowOff>
+      <xdr:col>18</xdr:col>
+      <xdr:colOff>0</xdr:colOff>
+      <xdr:row>6</xdr:row>
+      <xdr:rowOff>0</xdr:rowOff>
     </xdr:to>
     <xdr:sp macro="[0]!DevTools.dev_UpdateCode" textlink="">
       <xdr:nvSpPr>
@@ -26,8 +26,8 @@
       </xdr:nvSpPr>
       <xdr:spPr>
         <a:xfrm>
-          <a:off x="11684000" y="390525"/>
-          <a:ext cx="1524000" cy="304800"/>
+          <a:off x="17106900" y="800100"/>
+          <a:ext cx="1371600" cy="400050"/>
         </a:xfrm>
         <a:prstGeom prst="rect">
           <a:avLst/>
@@ -35,7 +35,7 @@
         <a:gradFill flip="none" rotWithShape="1">
           <a:gsLst>
             <a:gs pos="0">
-              <a:srgbClr val="1F5E9C"/>
+              <a:srgbClr val="3C7D22"/>
             </a:gs>
             <a:gs pos="50000">
               <a:schemeClr val="dk1">
@@ -57,7 +57,7 @@
         </a:gradFill>
         <a:ln w="12700">
           <a:solidFill>
-            <a:srgbClr val="163F69"/>
+            <a:srgbClr val="3C7D22"/>
           </a:solidFill>
         </a:ln>
       </xdr:spPr>
@@ -81,17 +81,17 @@
         <a:p>
           <a:pPr algn="ctr"/>
           <a:r>
-            <a:rPr lang="en-US" sz="1000" b="1">
+            <a:rPr lang="en-US" sz="1200" b="0">
               <a:solidFill>
-                <a:srgbClr val="FFFFFF"/>
+                <a:srgbClr val="0A0A0A"/>
               </a:solidFill>
               <a:latin typeface="Calibri" panose="020F0502020204030204" pitchFamily="34" charset="0"/>
             </a:rPr>
             <a:t>Update Code</a:t>
           </a:r>
-          <a:endParaRPr lang="uk-UA" sz="1000" b="1">
+          <a:endParaRPr lang="uk-UA" sz="1200" b="0">
             <a:solidFill>
-              <a:srgbClr val="FFFFFF"/>
+              <a:srgbClr val="0A0A0A"/>
             </a:solidFill>
             <a:latin typeface="Calibri" panose="020F0502020204030204" pitchFamily="34" charset="0"/>
           </a:endParaRPr>
@@ -105,15 +105,15 @@
       <xdr:twoCellAnchor editAs="oneCell">
         <xdr:from>
           <xdr:col>4</xdr:col>
-          <xdr:colOff>0</xdr:colOff>
+          <xdr:colOff>3362</xdr:colOff>
           <xdr:row>0</xdr:row>
           <xdr:rowOff>28575</xdr:rowOff>
         </xdr:from>
         <xdr:to>
-          <xdr:col>4</xdr:col>
-          <xdr:colOff>1771650</xdr:colOff>
+          <xdr:col>5</xdr:col>
+          <xdr:colOff>665630</xdr:colOff>
           <xdr:row>1</xdr:row>
-          <xdr:rowOff>28575</xdr:rowOff>
+          <xdr:rowOff>26894</xdr:rowOff>
         </xdr:to>
         <xdr:sp macro="" textlink="">
           <xdr:nvSpPr>
@@ -157,20 +157,20 @@
     </mc:Choice>
     <mc:Fallback/>
   </mc:AlternateContent>
-  <xdr:twoCellAnchor editAs="absolute">
+  <xdr:twoCellAnchor>
     <xdr:from>
-      <xdr:col>6</xdr:col>
+      <xdr:col>16</xdr:col>
       <xdr:colOff>0</xdr:colOff>
       <xdr:row>1</xdr:row>
-      <xdr:rowOff>190500</xdr:rowOff>
+      <xdr:rowOff>0</xdr:rowOff>
     </xdr:from>
     <xdr:to>
-      <xdr:col>8</xdr:col>
-      <xdr:colOff>609600</xdr:colOff>
-      <xdr:row>5</xdr:row>
-      <xdr:rowOff>110363</xdr:rowOff>
+      <xdr:col>18</xdr:col>
+      <xdr:colOff>0</xdr:colOff>
+      <xdr:row>3</xdr:row>
+      <xdr:rowOff>0</xdr:rowOff>
     </xdr:to>
-    <xdr:sp macro="[0]!ex_UIActions.m_DeleteResultSheets" textlink="">
+    <xdr:sp macro="[0]!ex_UIActions.m_DeleteResultSheets_OnClick" textlink="">
       <xdr:nvSpPr>
         <xdr:cNvPr id="2" name="btnClear">
           <a:extLst>
@@ -183,8 +183,8 @@
       </xdr:nvSpPr>
       <xdr:spPr>
         <a:xfrm>
-          <a:off x="9629775" y="390525"/>
-          <a:ext cx="1981200" cy="719963"/>
+          <a:off x="17106900" y="200025"/>
+          <a:ext cx="1371600" cy="400050"/>
         </a:xfrm>
         <a:prstGeom prst="rect">
           <a:avLst/>
@@ -192,7 +192,7 @@
         <a:gradFill flip="none" rotWithShape="1">
           <a:gsLst>
             <a:gs pos="0">
-              <a:srgbClr val="2F2F2F"/>
+              <a:srgbClr val="3C7D22"/>
             </a:gs>
             <a:gs pos="50000">
               <a:schemeClr val="dk1">
@@ -214,7 +214,7 @@
         </a:gradFill>
         <a:ln w="12700">
           <a:solidFill>
-            <a:srgbClr val="505050"/>
+            <a:srgbClr val="3C7D22"/>
           </a:solidFill>
         </a:ln>
       </xdr:spPr>
@@ -238,17 +238,17 @@
         <a:p>
           <a:pPr algn="ctr"/>
           <a:r>
-            <a:rPr lang="en-US" sz="1000" b="1">
+            <a:rPr lang="en-US" sz="1200" b="0">
               <a:solidFill>
-                <a:srgbClr val="FFFFFF"/>
+                <a:srgbClr val="0A0A0A"/>
               </a:solidFill>
               <a:latin typeface="Calibri" panose="020F0502020204030204" pitchFamily="34" charset="0"/>
             </a:rPr>
             <a:t>Clear</a:t>
           </a:r>
-          <a:endParaRPr lang="uk-UA" sz="1000" b="1">
+          <a:endParaRPr lang="uk-UA" sz="1200" b="0">
             <a:solidFill>
-              <a:srgbClr val="FFFFFF"/>
+              <a:srgbClr val="0A0A0A"/>
             </a:solidFill>
             <a:latin typeface="Calibri" panose="020F0502020204030204" pitchFamily="34" charset="0"/>
           </a:endParaRPr>
@@ -257,20 +257,20 @@
     </xdr:sp>
     <xdr:clientData/>
   </xdr:twoCellAnchor>
-  <xdr:twoCellAnchor editAs="absolute">
+  <xdr:twoCellAnchor>
     <xdr:from>
-      <xdr:col>6</xdr:col>
+      <xdr:col>10</xdr:col>
       <xdr:colOff>0</xdr:colOff>
-      <xdr:row>5</xdr:row>
-      <xdr:rowOff>182372</xdr:rowOff>
+      <xdr:row>7</xdr:row>
+      <xdr:rowOff>0</xdr:rowOff>
     </xdr:from>
     <xdr:to>
-      <xdr:col>8</xdr:col>
-      <xdr:colOff>608457</xdr:colOff>
+      <xdr:col>13</xdr:col>
+      <xdr:colOff>0</xdr:colOff>
       <xdr:row>9</xdr:row>
-      <xdr:rowOff>102235</xdr:rowOff>
+      <xdr:rowOff>0</xdr:rowOff>
     </xdr:to>
-    <xdr:sp macro="[0]!ex_PersonTimeline.m_ShowPersonTimeline_UI" textlink="">
+    <xdr:sp macro="[0]!ex_UIActions.m_ShowPersonalCard_OnClick" textlink="">
       <xdr:nvSpPr>
         <xdr:cNvPr id="4" name="btnPersonalCard">
           <a:extLst>
@@ -283,8 +283,8 @@
       </xdr:nvSpPr>
       <xdr:spPr>
         <a:xfrm>
-          <a:off x="9629775" y="1182497"/>
-          <a:ext cx="1980057" cy="719963"/>
+          <a:off x="12992100" y="1400175"/>
+          <a:ext cx="2057400" cy="400050"/>
         </a:xfrm>
         <a:prstGeom prst="rect">
           <a:avLst/>
@@ -292,7 +292,7 @@
         <a:gradFill flip="none" rotWithShape="1">
           <a:gsLst>
             <a:gs pos="0">
-              <a:srgbClr val="2F2F2F"/>
+              <a:srgbClr val="3C7D22"/>
             </a:gs>
             <a:gs pos="50000">
               <a:schemeClr val="dk1">
@@ -314,7 +314,7 @@
         </a:gradFill>
         <a:ln w="12700">
           <a:solidFill>
-            <a:srgbClr val="505050"/>
+            <a:srgbClr val="3C7D22"/>
           </a:solidFill>
         </a:ln>
       </xdr:spPr>
@@ -338,9 +338,9 @@
         <a:p>
           <a:pPr algn="ctr"/>
           <a:r>
-            <a:rPr lang="en-US" sz="1000" b="1">
+            <a:rPr lang="en-US" sz="1200" b="0">
               <a:solidFill>
-                <a:srgbClr val="FFFFFF"/>
+                <a:srgbClr val="0A0A0A"/>
               </a:solidFill>
               <a:latin typeface="Calibri" panose="020F0502020204030204" pitchFamily="34" charset="0"/>
             </a:rPr>
@@ -351,112 +351,18 @@
     </xdr:sp>
     <xdr:clientData/>
   </xdr:twoCellAnchor>
-  <xdr:twoCellAnchor editAs="absolute">
+  <xdr:twoCellAnchor>
     <xdr:from>
-      <xdr:col>6</xdr:col>
+      <xdr:col>13</xdr:col>
       <xdr:colOff>0</xdr:colOff>
-      <xdr:row>5</xdr:row>
-      <xdr:rowOff>182372</xdr:rowOff>
+      <xdr:row>7</xdr:row>
+      <xdr:rowOff>0</xdr:rowOff>
     </xdr:from>
     <xdr:to>
-      <xdr:col>8</xdr:col>
-      <xdr:colOff>608457</xdr:colOff>
+      <xdr:col>15</xdr:col>
+      <xdr:colOff>0</xdr:colOff>
       <xdr:row>9</xdr:row>
-      <xdr:rowOff>102235</xdr:rowOff>
-    </xdr:to>
-    <xdr:sp macro="[0]!ex_TableComparing.m_RunComparing" textlink="">
-      <xdr:nvSpPr>
-        <xdr:cNvPr id="5" name="btnComparing" hidden="1">
-          <a:extLst>
-            <a:ext uri="{FF2B5EF4-FFF2-40B4-BE49-F238E27FC236}">
-              <a16:creationId xmlns:a16="http://schemas.microsoft.com/office/drawing/2014/main" id="{51CA96EA-F061-45E9-81E8-D49A7F0AA3FA}"/>
-            </a:ext>
-          </a:extLst>
-        </xdr:cNvPr>
-        <xdr:cNvSpPr/>
-      </xdr:nvSpPr>
-      <xdr:spPr>
-        <a:xfrm>
-          <a:off x="9629775" y="1182497"/>
-          <a:ext cx="1980057" cy="719963"/>
-        </a:xfrm>
-        <a:prstGeom prst="rect">
-          <a:avLst/>
-        </a:prstGeom>
-        <a:gradFill flip="none" rotWithShape="1">
-          <a:gsLst>
-            <a:gs pos="0">
-              <a:srgbClr val="2F2F2F"/>
-            </a:gs>
-            <a:gs pos="50000">
-              <a:schemeClr val="dk1">
-                <a:lumMod val="105000"/>
-                <a:satMod val="103000"/>
-                <a:tint val="73000"/>
-              </a:schemeClr>
-            </a:gs>
-            <a:gs pos="100000">
-              <a:schemeClr val="dk1">
-                <a:lumMod val="105000"/>
-                <a:satMod val="109000"/>
-                <a:tint val="81000"/>
-              </a:schemeClr>
-            </a:gs>
-          </a:gsLst>
-          <a:lin ang="5400000" scaled="0"/>
-          <a:tileRect/>
-        </a:gradFill>
-        <a:ln w="12700">
-          <a:solidFill>
-            <a:srgbClr val="505050"/>
-          </a:solidFill>
-        </a:ln>
-      </xdr:spPr>
-      <xdr:style>
-        <a:lnRef idx="1">
-          <a:schemeClr val="dk1"/>
-        </a:lnRef>
-        <a:fillRef idx="2">
-          <a:schemeClr val="dk1"/>
-        </a:fillRef>
-        <a:effectRef idx="1">
-          <a:schemeClr val="dk1"/>
-        </a:effectRef>
-        <a:fontRef idx="minor">
-          <a:schemeClr val="dk1"/>
-        </a:fontRef>
-      </xdr:style>
-      <xdr:txBody>
-        <a:bodyPr vertOverflow="clip" horzOverflow="clip" rtlCol="0" anchor="ctr"/>
-        <a:lstStyle/>
-        <a:p>
-          <a:pPr algn="ctr"/>
-          <a:r>
-            <a:rPr lang="en-US" sz="1000" b="1">
-              <a:solidFill>
-                <a:srgbClr val="FFFFFF"/>
-              </a:solidFill>
-              <a:latin typeface="Calibri" panose="020F0502020204030204" pitchFamily="34" charset="0"/>
-            </a:rPr>
-            <a:t>Comparing</a:t>
-          </a:r>
-        </a:p>
-      </xdr:txBody>
-    </xdr:sp>
-    <xdr:clientData/>
-  </xdr:twoCellAnchor>
-  <xdr:twoCellAnchor editAs="absolute">
-    <xdr:from>
-      <xdr:col>8</xdr:col>
-      <xdr:colOff>682625</xdr:colOff>
-      <xdr:row>6</xdr:row>
-      <xdr:rowOff>107823</xdr:rowOff>
-    </xdr:from>
-    <xdr:to>
-      <xdr:col>11</xdr:col>
-      <xdr:colOff>596900</xdr:colOff>
-      <xdr:row>8</xdr:row>
-      <xdr:rowOff>168783</xdr:rowOff>
+      <xdr:rowOff>0</xdr:rowOff>
     </xdr:to>
     <xdr:sp macro="[0]!ex_UIActions.m_SwitchMode_OnClick" textlink="">
       <xdr:nvSpPr>
@@ -471,18 +377,18 @@
       </xdr:nvSpPr>
       <xdr:spPr>
         <a:xfrm>
-          <a:off x="11684000" y="1307973"/>
-          <a:ext cx="1971675" cy="461010"/>
+          <a:off x="15049500" y="1400175"/>
+          <a:ext cx="1371600" cy="400050"/>
         </a:xfrm>
-        <a:prstGeom prst="roundRect">
+        <a:prstGeom prst="rect">
           <a:avLst/>
         </a:prstGeom>
         <a:solidFill>
-          <a:srgbClr val="0070C0"/>
+          <a:srgbClr val="3A3F45"/>
         </a:solidFill>
         <a:ln w="12700">
           <a:solidFill>
-            <a:srgbClr val="0070C0"/>
+            <a:srgbClr val="0B4F7D"/>
           </a:solidFill>
         </a:ln>
       </xdr:spPr>
@@ -524,7 +430,7 @@
             <a:defRPr/>
           </a:pPr>
           <a:r>
-            <a:rPr lang="en-US" sz="1400" b="1">
+            <a:rPr lang="en-US" sz="1200" b="0">
               <a:solidFill>
                 <a:srgbClr val="FFFFFF"/>
               </a:solidFill>
@@ -533,7 +439,7 @@
               <a:ea typeface="+mn-ea"/>
               <a:cs typeface="+mn-cs"/>
             </a:rPr>
-            <a:t>ModeButton [Timeline]</a:t>
+            <a:t>Mode [Timeline]</a:t>
           </a:r>
         </a:p>
       </xdr:txBody>
@@ -544,16 +450,16 @@
     <mc:Choice xmlns:a14="http://schemas.microsoft.com/office/drawing/2010/main" Requires="a14">
       <xdr:twoCellAnchor editAs="absolute">
         <xdr:from>
-          <xdr:col>6</xdr:col>
-          <xdr:colOff>0</xdr:colOff>
+          <xdr:col>5</xdr:col>
+          <xdr:colOff>330574</xdr:colOff>
           <xdr:row>0</xdr:row>
           <xdr:rowOff>28575</xdr:rowOff>
         </xdr:from>
         <xdr:to>
-          <xdr:col>8</xdr:col>
-          <xdr:colOff>609600</xdr:colOff>
+          <xdr:col>7</xdr:col>
+          <xdr:colOff>662828</xdr:colOff>
           <xdr:row>1</xdr:row>
-          <xdr:rowOff>28575</xdr:rowOff>
+          <xdr:rowOff>26894</xdr:rowOff>
         </xdr:to>
         <xdr:sp macro="" textlink="">
           <xdr:nvSpPr>
@@ -597,4 +503,578 @@
     </mc:Choice>
     <mc:Fallback/>
   </mc:AlternateContent>
+  <xdr:twoCellAnchor>
+    <xdr:from>
+      <xdr:col>4</xdr:col>
+      <xdr:colOff>0</xdr:colOff>
+      <xdr:row>1</xdr:row>
+      <xdr:rowOff>0</xdr:rowOff>
+    </xdr:from>
+    <xdr:to>
+      <xdr:col>6</xdr:col>
+      <xdr:colOff>0</xdr:colOff>
+      <xdr:row>3</xdr:row>
+      <xdr:rowOff>0</xdr:rowOff>
+    </xdr:to>
+    <xdr:sp macro="[0]!ex_UIActions.m_ToggleCustomProfile_OnClick" textlink="">
+      <xdr:nvSpPr>
+        <xdr:cNvPr id="6" name="btnCustomProfile">
+          <a:extLst>
+            <a:ext uri="{FF2B5EF4-FFF2-40B4-BE49-F238E27FC236}">
+              <a16:creationId xmlns:a16="http://schemas.microsoft.com/office/drawing/2014/main" id="{996EC3F6-0FCD-7ABE-86BB-93142F495756}"/>
+            </a:ext>
+          </a:extLst>
+        </xdr:cNvPr>
+        <xdr:cNvSpPr/>
+      </xdr:nvSpPr>
+      <xdr:spPr>
+        <a:xfrm>
+          <a:off x="4552950" y="200025"/>
+          <a:ext cx="1962150" cy="400050"/>
+        </a:xfrm>
+        <a:prstGeom prst="rect">
+          <a:avLst/>
+        </a:prstGeom>
+        <a:solidFill>
+          <a:srgbClr val="3C7D22"/>
+        </a:solidFill>
+        <a:ln w="12700">
+          <a:solidFill>
+            <a:srgbClr val="3C7D22"/>
+          </a:solidFill>
+        </a:ln>
+      </xdr:spPr>
+      <xdr:style>
+        <a:lnRef idx="2">
+          <a:schemeClr val="accent1">
+            <a:shade val="15000"/>
+          </a:schemeClr>
+        </a:lnRef>
+        <a:fillRef idx="1">
+          <a:schemeClr val="accent1"/>
+        </a:fillRef>
+        <a:effectRef idx="0">
+          <a:schemeClr val="accent1"/>
+        </a:effectRef>
+        <a:fontRef idx="minor">
+          <a:schemeClr val="lt1"/>
+        </a:fontRef>
+      </xdr:style>
+      <xdr:txBody>
+        <a:bodyPr vertOverflow="clip" horzOverflow="clip" rtlCol="0" anchor="ctr"/>
+        <a:lstStyle/>
+        <a:p>
+          <a:pPr algn="ctr"/>
+          <a:r>
+            <a:rPr lang="en-US" sz="1200" b="0">
+              <a:solidFill>
+                <a:srgbClr val="0A0A0A"/>
+              </a:solidFill>
+              <a:latin typeface="Calibri" panose="020F0502020204030204" pitchFamily="34" charset="0"/>
+            </a:rPr>
+            <a:t>Choose profile</a:t>
+          </a:r>
+          <a:endParaRPr lang="uk-UA" sz="1200" b="0">
+            <a:solidFill>
+              <a:srgbClr val="0A0A0A"/>
+            </a:solidFill>
+            <a:latin typeface="Calibri" panose="020F0502020204030204" pitchFamily="34" charset="0"/>
+          </a:endParaRPr>
+        </a:p>
+      </xdr:txBody>
+    </xdr:sp>
+    <xdr:clientData/>
+  </xdr:twoCellAnchor>
+  <xdr:twoCellAnchor>
+    <xdr:from>
+      <xdr:col>10</xdr:col>
+      <xdr:colOff>0</xdr:colOff>
+      <xdr:row>1</xdr:row>
+      <xdr:rowOff>0</xdr:rowOff>
+    </xdr:from>
+    <xdr:to>
+      <xdr:col>13</xdr:col>
+      <xdr:colOff>0</xdr:colOff>
+      <xdr:row>3</xdr:row>
+      <xdr:rowOff>0</xdr:rowOff>
+    </xdr:to>
+    <xdr:sp macro="[0]!ex_UIActions.m_ToggleCustomMode_OnClick" textlink="">
+      <xdr:nvSpPr>
+        <xdr:cNvPr id="10" name="btnCustomMode">
+          <a:extLst>
+            <a:ext uri="{FF2B5EF4-FFF2-40B4-BE49-F238E27FC236}">
+              <a16:creationId xmlns:a16="http://schemas.microsoft.com/office/drawing/2014/main" id="{5567BF02-5A30-2729-3987-FD36C36EC367}"/>
+            </a:ext>
+          </a:extLst>
+        </xdr:cNvPr>
+        <xdr:cNvSpPr/>
+      </xdr:nvSpPr>
+      <xdr:spPr>
+        <a:xfrm>
+          <a:off x="12992100" y="200025"/>
+          <a:ext cx="2057400" cy="400050"/>
+        </a:xfrm>
+        <a:prstGeom prst="rect">
+          <a:avLst/>
+        </a:prstGeom>
+        <a:solidFill>
+          <a:srgbClr val="3C7D22"/>
+        </a:solidFill>
+        <a:ln w="12700">
+          <a:solidFill>
+            <a:srgbClr val="3C7D22"/>
+          </a:solidFill>
+        </a:ln>
+      </xdr:spPr>
+      <xdr:style>
+        <a:lnRef idx="2">
+          <a:schemeClr val="accent1">
+            <a:shade val="15000"/>
+          </a:schemeClr>
+        </a:lnRef>
+        <a:fillRef idx="1">
+          <a:schemeClr val="accent1"/>
+        </a:fillRef>
+        <a:effectRef idx="0">
+          <a:schemeClr val="accent1"/>
+        </a:effectRef>
+        <a:fontRef idx="minor">
+          <a:schemeClr val="lt1"/>
+        </a:fontRef>
+      </xdr:style>
+      <xdr:txBody>
+        <a:bodyPr vertOverflow="clip" horzOverflow="clip" rtlCol="0" anchor="ctr"/>
+        <a:lstStyle/>
+        <a:p>
+          <a:pPr algn="ctr"/>
+          <a:r>
+            <a:rPr lang="en-US" sz="1200" b="0">
+              <a:solidFill>
+                <a:srgbClr val="0A0A0A"/>
+              </a:solidFill>
+              <a:latin typeface="Calibri" panose="020F0502020204030204" pitchFamily="34" charset="0"/>
+            </a:rPr>
+            <a:t>Choose mode</a:t>
+          </a:r>
+          <a:endParaRPr lang="uk-UA" sz="1200" b="0">
+            <a:solidFill>
+              <a:srgbClr val="0A0A0A"/>
+            </a:solidFill>
+            <a:latin typeface="Calibri" panose="020F0502020204030204" pitchFamily="34" charset="0"/>
+          </a:endParaRPr>
+        </a:p>
+      </xdr:txBody>
+    </xdr:sp>
+    <xdr:clientData/>
+  </xdr:twoCellAnchor>
+  <xdr:twoCellAnchor>
+    <xdr:from>
+      <xdr:col>10</xdr:col>
+      <xdr:colOff>0</xdr:colOff>
+      <xdr:row>7</xdr:row>
+      <xdr:rowOff>0</xdr:rowOff>
+    </xdr:from>
+    <xdr:to>
+      <xdr:col>12</xdr:col>
+      <xdr:colOff>0</xdr:colOff>
+      <xdr:row>9</xdr:row>
+      <xdr:rowOff>0</xdr:rowOff>
+    </xdr:to>
+    <xdr:sp macro="[0]!ex_UIActions.m_RunComparingTables_OnClick" textlink="">
+      <xdr:nvSpPr>
+        <xdr:cNvPr id="5" name="btnComparing" hidden="1">
+          <a:extLst>
+            <a:ext uri="{FF2B5EF4-FFF2-40B4-BE49-F238E27FC236}">
+              <a16:creationId xmlns:a16="http://schemas.microsoft.com/office/drawing/2014/main" id="{658E8F7C-D113-14BD-9055-31FEE327BF92}"/>
+            </a:ext>
+          </a:extLst>
+        </xdr:cNvPr>
+        <xdr:cNvSpPr/>
+      </xdr:nvSpPr>
+      <xdr:spPr>
+        <a:xfrm>
+          <a:off x="12992100" y="1400175"/>
+          <a:ext cx="1371600" cy="400050"/>
+        </a:xfrm>
+        <a:prstGeom prst="rect">
+          <a:avLst/>
+        </a:prstGeom>
+        <a:solidFill>
+          <a:srgbClr val="3C7D22"/>
+        </a:solidFill>
+        <a:ln w="12700">
+          <a:solidFill>
+            <a:srgbClr val="3C7D22"/>
+          </a:solidFill>
+        </a:ln>
+      </xdr:spPr>
+      <xdr:style>
+        <a:lnRef idx="2">
+          <a:schemeClr val="accent1">
+            <a:shade val="15000"/>
+          </a:schemeClr>
+        </a:lnRef>
+        <a:fillRef idx="1">
+          <a:schemeClr val="accent1"/>
+        </a:fillRef>
+        <a:effectRef idx="0">
+          <a:schemeClr val="accent1"/>
+        </a:effectRef>
+        <a:fontRef idx="minor">
+          <a:schemeClr val="lt1"/>
+        </a:fontRef>
+      </xdr:style>
+      <xdr:txBody>
+        <a:bodyPr vertOverflow="clip" horzOverflow="clip" rtlCol="0" anchor="ctr"/>
+        <a:lstStyle/>
+        <a:p>
+          <a:pPr algn="ctr"/>
+          <a:r>
+            <a:rPr lang="en-US" sz="1200" b="0">
+              <a:solidFill>
+                <a:srgbClr val="0A0A0A"/>
+              </a:solidFill>
+              <a:latin typeface="Calibri" panose="020F0502020204030204" pitchFamily="34" charset="0"/>
+            </a:rPr>
+            <a:t>Comparing</a:t>
+          </a:r>
+          <a:endParaRPr lang="uk-UA" sz="1200" b="0">
+            <a:solidFill>
+              <a:srgbClr val="0A0A0A"/>
+            </a:solidFill>
+            <a:latin typeface="Calibri" panose="020F0502020204030204" pitchFamily="34" charset="0"/>
+          </a:endParaRPr>
+        </a:p>
+      </xdr:txBody>
+    </xdr:sp>
+    <xdr:clientData/>
+  </xdr:twoCellAnchor>
+  <xdr:twoCellAnchor editAs="absolute">
+    <xdr:from>
+      <xdr:col>10</xdr:col>
+      <xdr:colOff>0</xdr:colOff>
+      <xdr:row>3</xdr:row>
+      <xdr:rowOff>25400</xdr:rowOff>
+    </xdr:from>
+    <xdr:to>
+      <xdr:col>13</xdr:col>
+      <xdr:colOff>0</xdr:colOff>
+      <xdr:row>4</xdr:row>
+      <xdr:rowOff>28575</xdr:rowOff>
+    </xdr:to>
+    <xdr:sp macro="[0]!ex_UIActions.m_SelectCustomModeOption_OnClick" textlink="">
+      <xdr:nvSpPr>
+        <xdr:cNvPr id="11" name="btnCustomModeOption_1" hidden="1">
+          <a:extLst>
+            <a:ext uri="{FF2B5EF4-FFF2-40B4-BE49-F238E27FC236}">
+              <a16:creationId xmlns:a16="http://schemas.microsoft.com/office/drawing/2014/main" id="{4E2F7A76-2941-8C75-383E-E0A2BD86F533}"/>
+            </a:ext>
+          </a:extLst>
+        </xdr:cNvPr>
+        <xdr:cNvSpPr/>
+      </xdr:nvSpPr>
+      <xdr:spPr>
+        <a:xfrm>
+          <a:off x="12992100" y="625475"/>
+          <a:ext cx="2057400" cy="203200"/>
+        </a:xfrm>
+        <a:prstGeom prst="rect">
+          <a:avLst/>
+        </a:prstGeom>
+        <a:solidFill>
+          <a:srgbClr val="3A3F45"/>
+        </a:solidFill>
+        <a:ln w="12700">
+          <a:solidFill>
+            <a:srgbClr val="0B4F7D"/>
+          </a:solidFill>
+        </a:ln>
+      </xdr:spPr>
+      <xdr:style>
+        <a:lnRef idx="2">
+          <a:schemeClr val="accent1">
+            <a:shade val="15000"/>
+          </a:schemeClr>
+        </a:lnRef>
+        <a:fillRef idx="1">
+          <a:schemeClr val="accent1"/>
+        </a:fillRef>
+        <a:effectRef idx="0">
+          <a:schemeClr val="accent1"/>
+        </a:effectRef>
+        <a:fontRef idx="minor">
+          <a:schemeClr val="lt1"/>
+        </a:fontRef>
+      </xdr:style>
+      <xdr:txBody>
+        <a:bodyPr vertOverflow="clip" horzOverflow="clip" rtlCol="0" anchor="ctr"/>
+        <a:lstStyle/>
+        <a:p>
+          <a:pPr algn="ctr"/>
+          <a:r>
+            <a:rPr lang="en-US" sz="1200" b="0">
+              <a:solidFill>
+                <a:srgbClr val="FFFFFF"/>
+              </a:solidFill>
+              <a:latin typeface="Calibri" panose="020F0502020204030204" pitchFamily="34" charset="0"/>
+            </a:rPr>
+            <a:t>Personal Card</a:t>
+          </a:r>
+          <a:endParaRPr lang="uk-UA" sz="1200" b="0">
+            <a:solidFill>
+              <a:srgbClr val="FFFFFF"/>
+            </a:solidFill>
+            <a:latin typeface="Calibri" panose="020F0502020204030204" pitchFamily="34" charset="0"/>
+          </a:endParaRPr>
+        </a:p>
+      </xdr:txBody>
+    </xdr:sp>
+    <xdr:clientData/>
+  </xdr:twoCellAnchor>
+  <xdr:twoCellAnchor editAs="absolute">
+    <xdr:from>
+      <xdr:col>10</xdr:col>
+      <xdr:colOff>0</xdr:colOff>
+      <xdr:row>4</xdr:row>
+      <xdr:rowOff>53975</xdr:rowOff>
+    </xdr:from>
+    <xdr:to>
+      <xdr:col>13</xdr:col>
+      <xdr:colOff>0</xdr:colOff>
+      <xdr:row>5</xdr:row>
+      <xdr:rowOff>57150</xdr:rowOff>
+    </xdr:to>
+    <xdr:sp macro="[0]!ex_UIActions.m_SelectCustomModeOption_OnClick" textlink="">
+      <xdr:nvSpPr>
+        <xdr:cNvPr id="12" name="btnCustomModeOption_2" hidden="1">
+          <a:extLst>
+            <a:ext uri="{FF2B5EF4-FFF2-40B4-BE49-F238E27FC236}">
+              <a16:creationId xmlns:a16="http://schemas.microsoft.com/office/drawing/2014/main" id="{516FEC18-C6BE-00A2-AF28-261C498EF7E9}"/>
+            </a:ext>
+          </a:extLst>
+        </xdr:cNvPr>
+        <xdr:cNvSpPr/>
+      </xdr:nvSpPr>
+      <xdr:spPr>
+        <a:xfrm>
+          <a:off x="12992100" y="854075"/>
+          <a:ext cx="2057400" cy="203200"/>
+        </a:xfrm>
+        <a:prstGeom prst="rect">
+          <a:avLst/>
+        </a:prstGeom>
+        <a:solidFill>
+          <a:srgbClr val="3A3F45"/>
+        </a:solidFill>
+        <a:ln w="12700">
+          <a:solidFill>
+            <a:srgbClr val="0B4F7D"/>
+          </a:solidFill>
+        </a:ln>
+      </xdr:spPr>
+      <xdr:style>
+        <a:lnRef idx="2">
+          <a:schemeClr val="accent1">
+            <a:shade val="15000"/>
+          </a:schemeClr>
+        </a:lnRef>
+        <a:fillRef idx="1">
+          <a:schemeClr val="accent1"/>
+        </a:fillRef>
+        <a:effectRef idx="0">
+          <a:schemeClr val="accent1"/>
+        </a:effectRef>
+        <a:fontRef idx="minor">
+          <a:schemeClr val="lt1"/>
+        </a:fontRef>
+      </xdr:style>
+      <xdr:txBody>
+        <a:bodyPr vertOverflow="clip" horzOverflow="clip" rtlCol="0" anchor="ctr"/>
+        <a:lstStyle/>
+        <a:p>
+          <a:pPr algn="ctr"/>
+          <a:r>
+            <a:rPr lang="en-US" sz="1200" b="0">
+              <a:solidFill>
+                <a:srgbClr val="FFFFFF"/>
+              </a:solidFill>
+              <a:latin typeface="Calibri" panose="020F0502020204030204" pitchFamily="34" charset="0"/>
+            </a:rPr>
+            <a:t>Comparing</a:t>
+          </a:r>
+          <a:endParaRPr lang="uk-UA" sz="1200" b="0">
+            <a:solidFill>
+              <a:srgbClr val="FFFFFF"/>
+            </a:solidFill>
+            <a:latin typeface="Calibri" panose="020F0502020204030204" pitchFamily="34" charset="0"/>
+          </a:endParaRPr>
+        </a:p>
+      </xdr:txBody>
+    </xdr:sp>
+    <xdr:clientData/>
+  </xdr:twoCellAnchor>
+  <xdr:twoCellAnchor editAs="absolute">
+    <xdr:from>
+      <xdr:col>2</xdr:col>
+      <xdr:colOff>3776381</xdr:colOff>
+      <xdr:row>3</xdr:row>
+      <xdr:rowOff>25400</xdr:rowOff>
+    </xdr:from>
+    <xdr:to>
+      <xdr:col>4</xdr:col>
+      <xdr:colOff>913279</xdr:colOff>
+      <xdr:row>4</xdr:row>
+      <xdr:rowOff>28575</xdr:rowOff>
+    </xdr:to>
+    <xdr:sp macro="[0]!ex_UIActions.m_SelectCustomProfileOption_OnClick" textlink="">
+      <xdr:nvSpPr>
+        <xdr:cNvPr id="8" name="btnCustomProfileOption_1" hidden="1">
+          <a:extLst>
+            <a:ext uri="{FF2B5EF4-FFF2-40B4-BE49-F238E27FC236}">
+              <a16:creationId xmlns:a16="http://schemas.microsoft.com/office/drawing/2014/main" id="{85F1ECFF-9AA6-48FF-EFF6-521ACC184030}"/>
+            </a:ext>
+          </a:extLst>
+        </xdr:cNvPr>
+        <xdr:cNvSpPr/>
+      </xdr:nvSpPr>
+      <xdr:spPr>
+        <a:xfrm>
+          <a:off x="7134224" y="625475"/>
+          <a:ext cx="1962150" cy="203200"/>
+        </a:xfrm>
+        <a:prstGeom prst="rect">
+          <a:avLst/>
+        </a:prstGeom>
+        <a:solidFill>
+          <a:srgbClr val="3A3F45"/>
+        </a:solidFill>
+        <a:ln w="12700">
+          <a:solidFill>
+            <a:srgbClr val="0B4F7D"/>
+          </a:solidFill>
+        </a:ln>
+      </xdr:spPr>
+      <xdr:style>
+        <a:lnRef idx="2">
+          <a:schemeClr val="accent1">
+            <a:shade val="15000"/>
+          </a:schemeClr>
+        </a:lnRef>
+        <a:fillRef idx="1">
+          <a:schemeClr val="accent1"/>
+        </a:fillRef>
+        <a:effectRef idx="0">
+          <a:schemeClr val="accent1"/>
+        </a:effectRef>
+        <a:fontRef idx="minor">
+          <a:schemeClr val="lt1"/>
+        </a:fontRef>
+      </xdr:style>
+      <xdr:txBody>
+        <a:bodyPr vertOverflow="clip" horzOverflow="clip" rtlCol="0" anchor="ctr"/>
+        <a:lstStyle/>
+        <a:p>
+          <a:pPr algn="ctr"/>
+          <a:r>
+            <a:rPr lang="en-US" sz="1200" b="0">
+              <a:solidFill>
+                <a:srgbClr val="FFFFFF"/>
+              </a:solidFill>
+              <a:latin typeface="Calibri" panose="020F0502020204030204" pitchFamily="34" charset="0"/>
+            </a:rPr>
+            <a:t>Default</a:t>
+          </a:r>
+          <a:endParaRPr lang="uk-UA" sz="1200" b="0">
+            <a:solidFill>
+              <a:srgbClr val="FFFFFF"/>
+            </a:solidFill>
+            <a:latin typeface="Calibri" panose="020F0502020204030204" pitchFamily="34" charset="0"/>
+          </a:endParaRPr>
+        </a:p>
+      </xdr:txBody>
+    </xdr:sp>
+    <xdr:clientData/>
+  </xdr:twoCellAnchor>
+  <xdr:twoCellAnchor editAs="absolute">
+    <xdr:from>
+      <xdr:col>2</xdr:col>
+      <xdr:colOff>3776380</xdr:colOff>
+      <xdr:row>4</xdr:row>
+      <xdr:rowOff>53975</xdr:rowOff>
+    </xdr:from>
+    <xdr:to>
+      <xdr:col>4</xdr:col>
+      <xdr:colOff>913278</xdr:colOff>
+      <xdr:row>5</xdr:row>
+      <xdr:rowOff>57150</xdr:rowOff>
+    </xdr:to>
+    <xdr:sp macro="[0]!ex_UIActions.m_SelectCustomProfileOption_OnClick" textlink="">
+      <xdr:nvSpPr>
+        <xdr:cNvPr id="9" name="btnCustomProfileOption_2" hidden="1">
+          <a:extLst>
+            <a:ext uri="{FF2B5EF4-FFF2-40B4-BE49-F238E27FC236}">
+              <a16:creationId xmlns:a16="http://schemas.microsoft.com/office/drawing/2014/main" id="{EAF02BA0-B41D-48E5-8444-60956ABCC15C}"/>
+            </a:ext>
+          </a:extLst>
+        </xdr:cNvPr>
+        <xdr:cNvSpPr/>
+      </xdr:nvSpPr>
+      <xdr:spPr>
+        <a:xfrm>
+          <a:off x="7134223" y="854075"/>
+          <a:ext cx="1962150" cy="203200"/>
+        </a:xfrm>
+        <a:prstGeom prst="rect">
+          <a:avLst/>
+        </a:prstGeom>
+        <a:solidFill>
+          <a:srgbClr val="3A3F45"/>
+        </a:solidFill>
+        <a:ln w="12700">
+          <a:solidFill>
+            <a:srgbClr val="0B4F7D"/>
+          </a:solidFill>
+        </a:ln>
+      </xdr:spPr>
+      <xdr:style>
+        <a:lnRef idx="2">
+          <a:schemeClr val="accent1">
+            <a:shade val="15000"/>
+          </a:schemeClr>
+        </a:lnRef>
+        <a:fillRef idx="1">
+          <a:schemeClr val="accent1"/>
+        </a:fillRef>
+        <a:effectRef idx="0">
+          <a:schemeClr val="accent1"/>
+        </a:effectRef>
+        <a:fontRef idx="minor">
+          <a:schemeClr val="lt1"/>
+        </a:fontRef>
+      </xdr:style>
+      <xdr:txBody>
+        <a:bodyPr vertOverflow="clip" horzOverflow="clip" rtlCol="0" anchor="ctr"/>
+        <a:lstStyle/>
+        <a:p>
+          <a:pPr algn="ctr"/>
+          <a:r>
+            <a:rPr lang="en-US" sz="1200" b="0">
+              <a:solidFill>
+                <a:srgbClr val="FFFFFF"/>
+              </a:solidFill>
+              <a:latin typeface="Calibri" panose="020F0502020204030204" pitchFamily="34" charset="0"/>
+            </a:rPr>
+            <a:t>Test</a:t>
+          </a:r>
+          <a:endParaRPr lang="uk-UA" sz="1200" b="0">
+            <a:solidFill>
+              <a:srgbClr val="FFFFFF"/>
+            </a:solidFill>
+            <a:latin typeface="Calibri" panose="020F0502020204030204" pitchFamily="34" charset="0"/>
+          </a:endParaRPr>
+        </a:p>
+      </xdr:txBody>
+    </xdr:sp>
+    <xdr:clientData/>
+  </xdr:twoCellAnchor>
 </xdr:wsDr>

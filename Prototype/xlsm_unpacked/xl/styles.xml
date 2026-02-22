@@ -81,13 +81,13 @@
     </fill>
     <fill>
       <patternFill patternType="solid">
-        <fgColor rgb="FF2D2D2D"/>
+        <fgColor rgb="FF262626"/>
         <bgColor indexed="64"/>
       </patternFill>
     </fill>
     <fill>
       <patternFill patternType="solid">
-        <fgColor rgb="FF262626"/>
+        <fgColor rgb="FF2D2D2D"/>
         <bgColor indexed="64"/>
       </patternFill>
     </fill>
@@ -270,7 +270,7 @@
     </xf>
     <xf numFmtId="0" fontId="4" fillId="2" borderId="1" xfId="0" applyFont="1" applyFill="1" applyBorder="1"/>
     <xf numFmtId="0" fontId="4" fillId="2" borderId="2" xfId="0" applyFont="1" applyFill="1" applyBorder="1"/>
-    <xf numFmtId="0" fontId="2" fillId="5" borderId="3" xfId="0" applyFont="1" applyFill="1" applyBorder="1"/>
+    <xf numFmtId="0" fontId="2" fillId="4" borderId="3" xfId="0" applyFont="1" applyFill="1" applyBorder="1"/>
     <xf numFmtId="0" fontId="5" fillId="3" borderId="4" xfId="0" applyFont="1" applyFill="1" applyBorder="1"/>
     <xf numFmtId="0" fontId="5" fillId="3" borderId="6" xfId="0" applyFont="1" applyFill="1" applyBorder="1"/>
     <xf numFmtId="0" fontId="5" fillId="3" borderId="8" xfId="0" applyFont="1" applyFill="1" applyBorder="1"/>
@@ -283,15 +283,38 @@
       <alignment horizontal="center"/>
     </xf>
     <xf numFmtId="0" fontId="3" fillId="3" borderId="10" xfId="0" applyFont="1" applyFill="1" applyBorder="1"/>
-    <xf numFmtId="0" fontId="5" fillId="4" borderId="8" xfId="0" applyFont="1" applyFill="1" applyBorder="1"/>
-    <xf numFmtId="0" fontId="5" fillId="4" borderId="4" xfId="0" applyFont="1" applyFill="1" applyBorder="1"/>
-    <xf numFmtId="0" fontId="5" fillId="4" borderId="11" xfId="0" applyFont="1" applyFill="1" applyBorder="1"/>
-    <xf numFmtId="0" fontId="7" fillId="4" borderId="4" xfId="0" applyFont="1" applyFill="1" applyBorder="1"/>
+    <xf numFmtId="0" fontId="5" fillId="5" borderId="8" xfId="0" applyFont="1" applyFill="1" applyBorder="1"/>
+    <xf numFmtId="0" fontId="5" fillId="5" borderId="4" xfId="0" applyFont="1" applyFill="1" applyBorder="1"/>
+    <xf numFmtId="0" fontId="5" fillId="5" borderId="11" xfId="0" applyFont="1" applyFill="1" applyBorder="1"/>
+    <xf numFmtId="0" fontId="7" fillId="5" borderId="4" xfId="0" applyFont="1" applyFill="1" applyBorder="1"/>
   </cellXfs>
   <cellStyles count="1">
     <cellStyle name="Звичайний" xfId="0" builtinId="0"/>
   </cellStyles>
   <dxfs count="9">
+    <dxf>
+      <font>
+        <b/>
+        <color rgb="FFEBEBEB"/>
+        <family val="1"/>
+      </font>
+      <fill>
+        <patternFill patternType="solid">
+          <fgColor indexed="64"/>
+          <bgColor rgb="FF1E1E1E"/>
+        </patternFill>
+      </fill>
+      <border diagonalUp="0" diagonalDown="0" outline="0">
+        <left style="thin">
+          <color auto="1"/>
+        </left>
+        <right style="thin">
+          <color auto="1"/>
+        </right>
+        <top/>
+        <bottom/>
+      </border>
+    </dxf>
     <dxf>
       <font>
         <b val="0"/>
@@ -316,6 +339,19 @@
           <color auto="1"/>
         </bottom>
       </border>
+    </dxf>
+    <dxf>
+      <font>
+        <b val="0"/>
+        <color rgb="FFEBEBEB"/>
+        <family val="1"/>
+      </font>
+      <fill>
+        <patternFill patternType="solid">
+          <fgColor indexed="64"/>
+          <bgColor rgb="FF1E1E1E"/>
+        </patternFill>
+      </fill>
     </dxf>
     <dxf>
       <font>
@@ -404,6 +440,13 @@
       </border>
     </dxf>
     <dxf>
+      <border outline="0">
+        <bottom style="thin">
+          <color auto="1"/>
+        </bottom>
+      </border>
+    </dxf>
+    <dxf>
       <border diagonalUp="0" diagonalDown="0" outline="0">
         <left style="thin">
           <color auto="1"/>
@@ -417,49 +460,6 @@
         <bottom style="thin">
           <color auto="1"/>
         </bottom>
-      </border>
-    </dxf>
-    <dxf>
-      <font>
-        <b val="0"/>
-        <color rgb="FFEBEBEB"/>
-        <family val="1"/>
-      </font>
-      <fill>
-        <patternFill patternType="solid">
-          <fgColor indexed="64"/>
-          <bgColor rgb="FF1E1E1E"/>
-        </patternFill>
-      </fill>
-    </dxf>
-    <dxf>
-      <border outline="0">
-        <bottom style="thin">
-          <color auto="1"/>
-        </bottom>
-      </border>
-    </dxf>
-    <dxf>
-      <font>
-        <b/>
-        <color rgb="FFEBEBEB"/>
-        <family val="1"/>
-      </font>
-      <fill>
-        <patternFill patternType="solid">
-          <fgColor indexed="64"/>
-          <bgColor rgb="FF1E1E1E"/>
-        </patternFill>
-      </fill>
-      <border diagonalUp="0" diagonalDown="0" outline="0">
-        <left style="thin">
-          <color auto="1"/>
-        </left>
-        <right style="thin">
-          <color auto="1"/>
-        </right>
-        <top/>
-        <bottom/>
       </border>
     </dxf>
   </dxfs>
