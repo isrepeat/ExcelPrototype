@@ -5,10 +5,12 @@ Option Explicit
 ' and delegates work to domain/config modules.
 
 Public Sub m_DeleteResultSheets_OnClick()
+    ex_CustomDropdown.m_OnManagedButtonClick
     ex_SheetStylesXmlProvider.m_DeleteResultSheets
 End Sub
 
 Public Sub m_SwitchMode_OnClick()
+    ex_CustomDropdown.m_OnManagedButtonClick
     ex_Settings.m_SwitchMode_OnClick
 End Sub
 
@@ -20,15 +22,37 @@ Public Sub m_OnModeChanged_OnClick()
     ex_ConfigProfilesManager.m_OnModeChanged
 End Sub
 
+Public Sub m_ToggleCustomMode_OnClick()
+    ex_CustomDropdown.m_OnManagedButtonClick
+    ex_CustomDropdown.m_ToggleDevTestDropdown ThisWorkbook
+End Sub
+
+Public Sub m_SelectCustomModeOption_OnClick()
+    ex_CustomDropdown.m_OnManagedButtonClick
+    ex_CustomDropdown.m_SelectDevTestOption ThisWorkbook
+End Sub
+
+Public Sub m_ToggleCustomProfile_OnClick()
+    ex_CustomDropdown.m_OnManagedButtonClick
+    ex_CustomDropdown.m_ToggleCustomProfileDropdown ThisWorkbook
+End Sub
+
+Public Sub m_SelectCustomProfileOption_OnClick()
+    ex_CustomDropdown.m_OnManagedButtonClick
+    ex_CustomDropdown.m_SelectCustomProfileOption ThisWorkbook
+End Sub
+
 Public Sub m_HelloWorld_OnClick()
     ex_Startup.m_HelloWorld
 End Sub
 
 Public Sub m_ShowPersonalCard_OnClick()
+    ex_CustomDropdown.m_OnManagedButtonClick
     ex_PersonTimeline.m_ShowPersonTimeline_UI
 End Sub
 
 Public Sub m_RunComparingTables_OnClick()
+    ex_CustomDropdown.m_OnManagedButtonClick
     ex_TableComparing.m_RunComparing
 End Sub
 

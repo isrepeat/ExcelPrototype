@@ -32,12 +32,21 @@ Public Sub dev_UpdateCode()
     mp_UpdateWorkbookModule basePath & "ThisWorkbook.bas"
 
     Application.ScreenUpdating = True
-    ex_Messaging.m_ShowNotice "Code updated", 2
+    mp_ShowCodeUpdatedNotice
     Exit Sub
 
 EH:
     Application.ScreenUpdating = True
     MsgBox "Update Code failed: " & Err.Description, vbExclamation
+End Sub
+
+Private Sub mp_ShowCodeUpdatedNotice()
+    On Error GoTo ShowMsgBox
+    Application.Run "ex_Messaging.m_ShowNotice", "Code updated", 2
+    Exit Sub
+
+ShowMsgBox:
+    MsgBox "Code updated", vbInformation
 End Sub
 
 Private Sub mp_ImportUserFormsFromFolder(ByVal formsPath As String)
@@ -114,10 +123,16 @@ Private Sub mp_RemoveImportedModules()
     Next comp
 
     For i = 1 To n
-        On Error Resume Next
+        On Error GoTo EH_REMOVE
         prj.VBComponents.Remove prj.VBComponents(names(i))
         On Error GoTo 0
     Next i
+
+    Exit Sub
+
+EH_REMOVE:
+    Err.Raise vbObjectError + 1004, "mp_RemoveImportedModules", _
+              "Failed to remove component '" & names(i) & "': " & Err.Description
 End Sub
 
 Private Sub mp_ImportFolder(ByVal folderPath As String)
@@ -141,6 +156,7 @@ Private Sub mp_ImportFolderRecursive(ByVal folderObj As Object, ByRef failed As 
     Dim subFolder As Object
     Dim importPath As String
     Dim fileName As String
+    Dim componentName As String
     Dim errText As String
 
     For Each fileObj In folderObj.Files
@@ -150,22 +166,76 @@ Private Sub mp_ImportFolderRecursive(ByVal folderObj As Object, ByRef failed As 
         Or mp_EndsWith(fileName, ".frm") Then
             If fileName <> "devtools.bas" Then
                 importPath = CStr(fileObj.Path)
-                On Error Resume Next
+                componentName = mp_GetComponentNameFromSource(importPath)
+                On Error GoTo EH_IMPORT_FILE
+                mp_RemoveComponentIfExists componentName
                 ThisWorkbook.VBProject.VBComponents.Import importPath
-                If Err.Number <> 0 Then
-                    errText = CStr(Err.Number) & ": " & Err.Description
-                    failed = failed & vbCrLf & "- " & importPath & " (" & errText & ")"
-                    Err.Clear
-                End If
                 On Error GoTo 0
             End If
         End If
+
+ContinueNextFile:
     Next fileObj
 
     For Each subFolder In folderObj.SubFolders
         mp_ImportFolderRecursive subFolder, failed
     Next subFolder
+
+    Exit Sub
+
+EH_IMPORT_FILE:
+    errText = CStr(Err.Number) & ": " & Err.Description
+    failed = failed & vbCrLf & "- " & importPath & " (" & errText & ")"
+    Err.Clear
+    On Error GoTo 0
+    GoTo ContinueNextFile
 End Sub
+
+Private Sub mp_RemoveComponentIfExists(ByVal componentName As String)
+    Dim vbComp As Object
+
+    If Len(componentName) = 0 Then Exit Sub
+
+    Set vbComp = mp_TryGetComponentByName(componentName)
+    If vbComp Is Nothing Then Exit Sub
+
+    ThisWorkbook.VBProject.VBComponents.Remove vbComp
+End Sub
+
+Private Function mp_TryGetComponentByName(ByVal componentName As String) As Object
+    On Error Resume Next
+    Set mp_TryGetComponentByName = ThisWorkbook.VBProject.VBComponents(componentName)
+    On Error GoTo 0
+End Function
+
+Private Function mp_GetComponentNameFromSource(ByVal importPath As String) As String
+    Dim fileName As String
+    Dim dotPos As Long
+    Dim sourceText As String
+    Dim attrPos As Long
+    Dim quoteStart As Long
+    Dim quoteEnd As Long
+
+    fileName = Mid$(importPath, InStrRev(importPath, "\") + 1)
+    dotPos = InStrRev(fileName, ".")
+    If dotPos > 1 Then
+        mp_GetComponentNameFromSource = Left$(fileName, dotPos - 1)
+    Else
+        mp_GetComponentNameFromSource = fileName
+    End If
+
+    sourceText = mp_ReadAllText(importPath)
+    attrPos = InStr(1, sourceText, "Attribute VB_Name", vbTextCompare)
+    If attrPos = 0 Then Exit Function
+
+    quoteStart = InStr(attrPos, sourceText, """")
+    If quoteStart = 0 Then Exit Function
+
+    quoteEnd = InStr(quoteStart + 1, sourceText, """")
+    If quoteEnd <= quoteStart Then Exit Function
+
+    mp_GetComponentNameFromSource = Mid$(sourceText, quoteStart + 1, quoteEnd - quoteStart - 1)
+End Function
 
 Private Function mp_EndsWith(ByVal value As String, ByVal suffix As String) As Boolean
     mp_EndsWith = (LCase$(Right$(value, Len(suffix))) = LCase$(suffix))

@@ -10,10 +10,13 @@
     <t>Note</t>
   </si>
   <si>
-    <t>#</t>
+    <t>Config [profile = Default]</t>
   </si>
   <si>
     <t>Source.Main.FilePath</t>
+  </si>
+  <si>
+    <t>.\TESTS\GetReferences\PeopleStateUA.xlsx</t>
   </si>
   <si>
     <t>Source.Main.TablesAliases</t>
@@ -25,10 +28,22 @@
     <t>Source.Events.FilePath</t>
   </si>
   <si>
+    <t>.\TESTS\GetReferences\PeopleEventsUA.xlsx</t>
+  </si>
+  <si>
     <t>Source.Events.TablesAliases</t>
   </si>
   <si>
+    <t>EventsMain</t>
+  </si>
+  <si>
     <t>Context.PersonValue</t>
+  </si>
+  <si>
+    <t>Іванов Іван Іванович</t>
+  </si>
+  <si>
+    <t>#</t>
   </si>
   <si>
     <t>Main.Table[StateMain].Type</t>
@@ -40,6 +55,9 @@
     <t>Main.Table[StateMain].Name</t>
   </si>
   <si>
+    <t>TableState</t>
+  </si>
+  <si>
     <t>Main.Table[StateMain].Key</t>
   </si>
   <si>
@@ -49,34 +67,10 @@
     <t>Main.Table[StateMain].FieldsAliases</t>
   </si>
   <si>
-    <t>Main.Table[StateMain].Map[FIO]</t>
-  </si>
-  <si>
-    <t>Events</t>
-  </si>
-  <si>
-    <t>Output.Tables</t>
-  </si>
-  <si>
-    <t>Config [profile = Default]</t>
-  </si>
-  <si>
-    <t>.\TESTS\GetReferences\PeopleStateUA.xlsx</t>
-  </si>
-  <si>
-    <t>.\TESTS\GetReferences\PeopleEventsUA.xlsx</t>
-  </si>
-  <si>
-    <t>EventsMain</t>
-  </si>
-  <si>
-    <t>Іванов Іван Іванович</t>
-  </si>
-  <si>
-    <t>TableState</t>
-  </si>
-  <si>
     <t>FIO; BirthDate; City; Phone</t>
+  </si>
+  <si>
+    <t>Main.Table[StateMain].Map[FIO]</t>
   </si>
   <si>
     <t>ПІБ</t>
@@ -101,6 +95,9 @@
   </si>
   <si>
     <t>Events.Table[EventsMain].Type</t>
+  </si>
+  <si>
+    <t>Events</t>
   </si>
   <si>
     <t>Events.Table[EventsMain].Name</t>
@@ -161,6 +158,9 @@
   </si>
   <si>
     <t>Оклад</t>
+  </si>
+  <si>
+    <t>Output.Tables</t>
   </si>
   <si>
     <t>StateMain; EventsMain</t>

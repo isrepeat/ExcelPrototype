@@ -12,4 +12,13 @@
   <property fmtid="{D5CDD505-2E9C-101B-9397-08002B2CF9AE}" pid="5" name="Settings.ActiveProfile.Personal_Card">
     <vt:lpwstr>Default</vt:lpwstr>
   </property>
+  <property fmtid="{D5CDD505-2E9C-101B-9397-08002B2CF9AE}" pid="6" name="Settings.CustomProfileDropdownExpanded">
+    <vt:bool>false</vt:bool>
+  </property>
+  <property fmtid="{D5CDD505-2E9C-101B-9397-08002B2CF9AE}" pid="7" name="Settings.CustomModeDropdownExpanded">
+    <vt:bool>false</vt:bool>
+  </property>
+  <property fmtid="{D5CDD505-2E9C-101B-9397-08002B2CF9AE}" pid="8" name="Settings.ActiveProfile.Comparing">
+    <vt:lpwstr>Default</vt:lpwstr>
+  </property>
 </Properties>
