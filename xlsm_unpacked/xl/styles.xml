@@ -464,6 +464,11 @@
     </dxf>
   </dxfs>
   <tableStyles count="0" defaultTableStyle="TableStyleMedium2" defaultPivotStyle="PivotStyleLight16"/>
+  <colors>
+    <mruColors>
+      <color rgb="FF222222"/>
+    </mruColors>
+  </colors>
   <extLst>
     <ext xmlns:x14="http://schemas.microsoft.com/office/spreadsheetml/2009/9/main" uri="{EB79DEF2-80B8-43e5-95BD-54CBDDF9020C}">
       <x14:slicerStyles defaultSlicerStyle="SlicerStyleLight1"/>

@@ -300,6 +300,28 @@ Public Sub m_SaveSelectionState(Optional ByVal ws As Worksheet)
     mp_SetStatePropText STATE_ACTIVE_PROFILE_PROP_PREFIX & mp_NormalizePropSuffix(modeName), profileName
 End Sub
 
+Public Sub m_ResetDevUILayout(Optional ByVal ws As Worksheet)
+    If ws Is Nothing Then
+        Set ws = ws_Dev
+    End If
+    If ws Is Nothing Then Exit Sub
+
+    ' Layer 1: hard reset worksheet dimensions to default baseline.
+    mp_ResetWorksheetDimensions ws
+
+    ' Layer 2: apply config-table column layout (includes AutoFit by existing logic).
+    mp_ApplyConfigColumnsLayoutLayer ws
+
+    ' Layer 3 (disabled): stable-zone compensation via buffer column.
+    ' ex_CustomDropdown.m_StabilizeChooseModeAnchorX ws, ex_CustomDropdown.m_GetStableZoneStartLeft(ws)
+
+    ex_CustomDropdown.m_InitDevTestDropdown ThisWorkbook
+End Sub
+
+Public Sub m_ResetDevUILayout_UI()
+    m_ResetDevUILayout ws_Dev
+End Sub
+
 Public Sub m_EnsureProfileDropdown_UI()
     m_EnsureProfileDropdown ws_Dev
 End Sub
@@ -743,6 +765,26 @@ AddProp:
         LinkToContent:=False, _
         Type:=msoPropertyTypeString, _
         Value:=CStr(valueText)
+End Sub
+
+Private Sub mp_ResetWorksheetDimensions(ByVal ws As Worksheet)
+    On Error Resume Next
+    ws.Columns.ColumnWidth = 8
+    ws.Rows.RowHeight = 16
+    On Error GoTo 0
+End Sub
+
+Private Sub mp_ApplyConfigColumnsLayoutLayer(ByVal ws As Worksheet)
+    Dim tbl As ListObject
+
+    Set tbl = ex_ConfigTableStore.m_GetConfigTable(ws, True)
+    If tbl Is Nothing Then
+        MsgBox "Config table '" & DEV_CONFIG_TABLE_NAME & "' was not found on sheet '" & ws.Name & "'.", vbExclamation
+        Exit Sub
+    End If
+
+    ex_ConfigTableStore.m_ApplyConfigTableDarkTheme tbl
+    ex_ConfigTableStore.m_ApplyConfigMarkerStyles tbl
 End Sub
 
 Private Function mp_LoadProfilesDom(Optional ByVal ws As Worksheet) As Object

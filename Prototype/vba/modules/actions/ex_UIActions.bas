@@ -109,6 +109,10 @@ Public Sub m_OutputPanelStartSearch_OnClick()
     Exit Sub
 
 EH:
+    Dim baseStyle As t_BaseSheetStyle
+    Dim rowCount As Long
+    Dim colCount As Long
+
     errNumber = Err.Number
     errSource = Err.Source
     errDescription = Err.Description
@@ -122,9 +126,20 @@ EH:
 
     On Error Resume Next
     If ex_SheetStylesXmlProvider.m_InitializeStyles(ThisWorkbook) Then
+        If ex_SheetStylesXmlProvider.m_GetBaseSheetStyle(baseStyle, ThisWorkbook) Then
+            If Not ex_SheetStylesXmlProvider.m_GetUsedRangeSize(ws, rowCount, colCount) Then
+                rowCount = 1
+                colCount = 1
+            End If
+            ex_SheetStylesXmlProvider.m_ApplyBaseLayer ws, rowCount, colCount, baseStyle
+        Else
+            ex_Messaging.m_ApplyDarkSheetBase ws
+        End If
         If ex_SheetStylesXmlProvider.m_GetOutputSheetStyle(outputStyle, ThisWorkbook) Then
             ex_OutputPanel.m_RenderForSheet ws, outputStyle
         End If
+    Else
+        ex_Messaging.m_ApplyDarkSheetBase ws
     End If
     On Error GoTo 0
     ex_Messaging.m_RenderErrorBanner ws, errDescription, errSource, errNumber, "ERROR: Timeline generation failed", ex_SheetStylesXmlProvider.m_GetOutputErrorBannerRangeAddress(ThisWorkbook)

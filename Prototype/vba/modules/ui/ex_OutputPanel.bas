@@ -40,6 +40,8 @@ Public Sub m_RenderForSheet(ByVal ws As Worksheet, ByRef style As ex_SheetStyles
     Dim buttonCellRange As Range
     Dim panelAutoFitLastCol As Long
     Dim panelAutoFitCols As Long
+    Dim panelRange As Range
+    Dim panelRenderRightCol As Long
 
     If ws Is Nothing Then Exit Sub
 
@@ -78,6 +80,22 @@ Public Sub m_RenderForSheet(ByVal ws As Worksheet, ByRef style As ex_SheetStyles
     If titleEndCol < startCol Then titleEndCol = startCol
     buttonStartCol = inputEndCol + 1
     If buttonStartCol > rightCol Then buttonStartCol = rightCol
+
+    buttonAnchorCol = style.PanelButtonAnchorColumn
+    If buttonAnchorCol < 1 Then buttonAnchorCol = 4
+    buttonWidthCols = style.PanelButtonWidthColumns
+    If buttonWidthCols < 1 Then buttonWidthCols = 1
+
+    panelRenderRightCol = inputEndCol
+    If titleEndCol > panelRenderRightCol Then panelRenderRightCol = titleEndCol
+    If (buttonAnchorCol + buttonWidthCols - 1) > panelRenderRightCol Then
+        panelRenderRightCol = buttonAnchorCol + buttonWidthCols - 1
+    End If
+    If panelRenderRightCol < startCol Then panelRenderRightCol = startCol
+
+    Set panelRange = ws.Range(ws.Cells(topRow, startCol), ws.Cells(bottomRow, panelRenderRightCol))
+    panelRange.Interior.Pattern = xlSolid
+    panelRange.Interior.Color = style.PanelBackColor
 
     ws.Columns(startCol).Resize(, style.PanelLabelColumns + style.PanelValueColumns).ColumnWidth = style.PanelColumnWidth
 
@@ -125,11 +143,6 @@ Public Sub m_RenderForSheet(ByVal ws As Worksheet, ByRef style As ex_SheetStyles
         End If
         mp_SetPanelInputKeyName ws, inputAnchor, style.PanelFields(fieldIndex).InputName
 
-        buttonAnchorCol = style.PanelButtonAnchorColumn
-        If buttonAnchorCol < 1 Then buttonAnchorCol = 4
-        buttonWidthCols = style.PanelButtonWidthColumns
-        If buttonWidthCols < 1 Then buttonWidthCols = 1
-
         panelAutoFitLastCol = inputStartCol
         If (buttonAnchorCol + buttonWidthCols - 1) > panelAutoFitLastCol Then
             panelAutoFitLastCol = buttonAnchorCol + buttonWidthCols - 1
@@ -152,10 +165,12 @@ Public Sub m_RenderForSheet(ByVal ws As Worksheet, ByRef style As ex_SheetStyles
         If buttonHeight < 8 Then buttonHeight = 8
 
         buttonName = mp_GetButtonName(ws, fieldIndex)
-        Set buttonShape = ws.Shapes.AddShape(msoShapeRoundedRectangle, buttonLeft, buttonTop, buttonWidth, buttonHeight)
+        Set buttonShape = ws.Shapes.AddShape(msoShapeRectangle, buttonLeft, buttonTop, buttonWidth, buttonHeight)
         buttonShape.Name = buttonName
         buttonShape.TextFrame.Characters.Text = style.PanelFields(fieldIndex).Button.Caption
+        buttonShape.Fill.Solid
         buttonShape.Fill.ForeColor.RGB = style.PanelButtonBackColor
+        buttonShape.Fill.Transparency = 0
         buttonShape.Line.ForeColor.RGB = style.PanelButtonBorderColor
         buttonShape.Line.Weight = 1
         buttonShape.TextFrame.Characters.Font.Bold = True
@@ -168,7 +183,7 @@ Public Sub m_RenderForSheet(ByVal ws As Worksheet, ByRef style As ex_SheetStyles
         buttonShape.OnAction = "'" & ThisWorkbook.Name & "'!" & Trim$(style.PanelFields(fieldIndex).Button.MacroName)
     Next fieldIndex
 
-    mp_SetPanelRangeName ws, ws.Range(ws.Cells(topRow, startCol), ws.Cells(bottomRow, rightCol))
+    mp_SetPanelRangeName ws, ws.Range(ws.Cells(topRow, startCol), ws.Cells(bottomRow, panelRenderRightCol))
 
     mp_ApplyFixedControlPanelLayout ws, style, startCol, inputStartCol
 End Sub
@@ -399,7 +414,7 @@ Private Sub mp_ClearStoredPanelRange(ByVal ws As Worksheet)
     If Not panelRange Is Nothing Then
         On Error Resume Next
         panelRange.UnMerge
-        panelRange.Clear
+        panelRange.ClearContents
         On Error GoTo 0
     End If
 
@@ -439,12 +454,15 @@ End Function
 Private Sub mp_DeletePanelButtons(ByVal ws As Worksheet)
     Dim shp As Shape
     Dim prefix As String
+    Dim backPrefix As String
 
     If ws Is Nothing Then Exit Sub
     prefix = PANEL_BUTTON_PREFIX & ws.CodeName & "_"
+    backPrefix = "btnOutPanelBackToDev_" & ws.CodeName
 
     For Each shp In ws.Shapes
-        If LCase$(Left$(shp.Name, Len(prefix))) = LCase$(prefix) Then
+        If LCase$(Left$(shp.Name, Len(prefix))) = LCase$(prefix) _
+           Or LCase$(Left$(shp.Name, Len(backPrefix))) = LCase$(backPrefix) Then
             On Error Resume Next
             shp.Delete
             On Error GoTo 0

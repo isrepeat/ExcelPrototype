@@ -1,9 +1,9 @@
 <?xml version="1.0" standalone="yes"?>
 <profiles version="1" xmlns="urn:excelprototype:profiles">
   <profile name="Default">
-    <v key="OldFilePath">.\TESTS\Comparing\OldTable.xlsx</v>
+    <v key="OldFilePath">..\TESTS\Comparing\OldTable.xlsx</v>
     <v key="OldTableName">TableSrc</v>
-    <v key="NewFilePath">.\TESTS\Comparing\NewTable.xlsx</v>
+    <v key="NewFilePath">..\TESTS\Comparing\NewTable.xlsx</v>
     <v key="NewTableName">TableLast</v>
     <v key="KeyColumnName">ID</v>
     <ui>
@@ -36,9 +36,9 @@
     </ui>
   </profile>
   <profile name="Test">
-    <v key="OldFilePath">.\TESTS\Comparing\OldTable.xlsx</v>
+    <v key="OldFilePath">..\TESTS\Comparing\OldTable.xlsx</v>
     <v key="OldTableName">TableSrc</v>
-    <v key="NewFilePath">.\TESTS\Comparing\NewTable.xlsx</v>
+    <v key="NewFilePath">..\TESTS\Comparing\NewTable.xlsx</v>
     <v key="NewTableName">TableLast</v>
     <v key="KeyColumnName">ID</v>
     <ui>

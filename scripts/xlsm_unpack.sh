@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-XLSM_PATH="${1:-Prototype/Prototype.xlsm}"
-OUT_DIR="${2:-Prototype/xlsm_unpacked}"
+XLSM_PATH="${1:-Prototype.xlsm}"
+OUT_DIR="${2:-xlsm_unpacked}"
 
 rm -rf "$OUT_DIR"
 mkdir -p "$OUT_DIR"

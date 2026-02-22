@@ -248,7 +248,9 @@ Public Function m_ApplyButtonStyleByName(ByVal shp As Shape, ByVal styleName As 
             Exit Function
         End If
         shp.Fill.Visible = msoTrue
+        shp.Fill.Solid
         shp.Fill.ForeColor.RGB = colorValue
+        shp.Fill.Transparency = 0
     End If
 
     If styleData.Exists("textColor") Then

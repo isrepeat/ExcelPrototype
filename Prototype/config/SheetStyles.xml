@@ -1,8 +1,27 @@
 <?xml version="1.0" standalone="yes"?>
 <SheetStyles xmlns="urn:excelprototype:profiles" version="1">
   <baseSheetStyle priority="100">
-    <base backColor="#262626" fontColor="#EBEBEB" showGridlines="false"/>
+    <base backColor="#222222" fontColor="#EBEBEB" showGridlines="false"/>
     <background extraRows="200" extraCols="30"/>
     <grid color="#000000" weight="thin" extraRows="200" extraCols="50"/>
   </baseSheetStyle>
+
+  <outputCommonStyle>
+    <content color="#EBEBEB" backColor="#222222"/>
+    <header color="#68D947" backColor="#222222" bold="true"/>
+    <section color="#D7A763" backColor="#161616" bold="true" sectionTitleColumns="2"/>
+  </outputCommonStyle>
+
+  <errorBanner
+    columns="8"
+    rows="4"
+    rowHeight="24"
+    backColor="#161616"
+    fontColor="#FFFFFF"
+    wrapText="true"
+    titleBold="true"
+    showGrid="true"
+    gridColor="#111111"
+    horizontal="left"
+    vertical="center"/>
 </SheetStyles>

@@ -20,9 +20,9 @@
     labelColor="#EBEBEB"
     inputBackColor="#262626"
     inputFontColor="#EBEBEB"
-    buttonBackColor="#1F5E9C"
-    buttonTextColor="#FFFFFF"
-    buttonBorderColor="#163F69"
+    buttonBackColor="#3C7D22"
+    buttonTextColor="#0A0A0A"
+    buttonBorderColor="#3C7D22"
     buttonAnchorColumn="3"
     buttonWidthColumns="1"
     fixedWidthKey="12"
@@ -35,5 +35,4 @@
       </field>
     </fields>
   </controlPanel>
-
 </uiDefinition>

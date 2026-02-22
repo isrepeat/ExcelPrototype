@@ -26,38 +26,18 @@
       </xdr:nvSpPr>
       <xdr:spPr>
         <a:xfrm>
-          <a:off x="17106900" y="800100"/>
-          <a:ext cx="1371600" cy="400050"/>
+          <a:off x="16068675" y="800100"/>
+          <a:ext cx="1314450" cy="400050"/>
         </a:xfrm>
         <a:prstGeom prst="rect">
           <a:avLst/>
         </a:prstGeom>
-        <a:gradFill flip="none" rotWithShape="1">
-          <a:gsLst>
-            <a:gs pos="0">
-              <a:srgbClr val="3C7D22"/>
-            </a:gs>
-            <a:gs pos="50000">
-              <a:schemeClr val="dk1">
-                <a:lumMod val="105000"/>
-                <a:satMod val="103000"/>
-                <a:tint val="73000"/>
-              </a:schemeClr>
-            </a:gs>
-            <a:gs pos="100000">
-              <a:schemeClr val="dk1">
-                <a:lumMod val="105000"/>
-                <a:satMod val="109000"/>
-                <a:tint val="81000"/>
-              </a:schemeClr>
-            </a:gs>
-          </a:gsLst>
-          <a:lin ang="5400000" scaled="0"/>
-          <a:tileRect/>
-        </a:gradFill>
+        <a:solidFill>
+          <a:srgbClr val="ED7D31"/>
+        </a:solidFill>
         <a:ln w="12700">
           <a:solidFill>
-            <a:srgbClr val="3C7D22"/>
+            <a:srgbClr val="ED7D31"/>
           </a:solidFill>
         </a:ln>
       </xdr:spPr>
@@ -105,13 +85,13 @@
       <xdr:twoCellAnchor editAs="oneCell">
         <xdr:from>
           <xdr:col>4</xdr:col>
-          <xdr:colOff>3362</xdr:colOff>
+          <xdr:colOff>1681</xdr:colOff>
           <xdr:row>0</xdr:row>
           <xdr:rowOff>28575</xdr:rowOff>
         </xdr:from>
         <xdr:to>
-          <xdr:col>5</xdr:col>
-          <xdr:colOff>665630</xdr:colOff>
+          <xdr:col>6</xdr:col>
+          <xdr:colOff>441512</xdr:colOff>
           <xdr:row>1</xdr:row>
           <xdr:rowOff>26894</xdr:rowOff>
         </xdr:to>
@@ -183,38 +163,18 @@
       </xdr:nvSpPr>
       <xdr:spPr>
         <a:xfrm>
-          <a:off x="17106900" y="200025"/>
-          <a:ext cx="1371600" cy="400050"/>
+          <a:off x="16068675" y="200025"/>
+          <a:ext cx="1314450" cy="400050"/>
         </a:xfrm>
         <a:prstGeom prst="rect">
           <a:avLst/>
         </a:prstGeom>
-        <a:gradFill flip="none" rotWithShape="1">
-          <a:gsLst>
-            <a:gs pos="0">
-              <a:srgbClr val="3C7D22"/>
-            </a:gs>
-            <a:gs pos="50000">
-              <a:schemeClr val="dk1">
-                <a:lumMod val="105000"/>
-                <a:satMod val="103000"/>
-                <a:tint val="73000"/>
-              </a:schemeClr>
-            </a:gs>
-            <a:gs pos="100000">
-              <a:schemeClr val="dk1">
-                <a:lumMod val="105000"/>
-                <a:satMod val="109000"/>
-                <a:tint val="81000"/>
-              </a:schemeClr>
-            </a:gs>
-          </a:gsLst>
-          <a:lin ang="5400000" scaled="0"/>
-          <a:tileRect/>
-        </a:gradFill>
+        <a:solidFill>
+          <a:srgbClr val="3A3F45"/>
+        </a:solidFill>
         <a:ln w="12700">
           <a:solidFill>
-            <a:srgbClr val="3C7D22"/>
+            <a:srgbClr val="3A3F45"/>
           </a:solidFill>
         </a:ln>
       </xdr:spPr>
@@ -240,7 +200,7 @@
           <a:r>
             <a:rPr lang="en-US" sz="1200" b="0">
               <a:solidFill>
-                <a:srgbClr val="0A0A0A"/>
+                <a:srgbClr val="FFD966"/>
               </a:solidFill>
               <a:latin typeface="Calibri" panose="020F0502020204030204" pitchFamily="34" charset="0"/>
             </a:rPr>
@@ -248,7 +208,7 @@
           </a:r>
           <a:endParaRPr lang="uk-UA" sz="1200" b="0">
             <a:solidFill>
-              <a:srgbClr val="0A0A0A"/>
+              <a:srgbClr val="FFD966"/>
             </a:solidFill>
             <a:latin typeface="Calibri" panose="020F0502020204030204" pitchFamily="34" charset="0"/>
           </a:endParaRPr>
@@ -283,38 +243,18 @@
       </xdr:nvSpPr>
       <xdr:spPr>
         <a:xfrm>
-          <a:off x="12992100" y="1400175"/>
-          <a:ext cx="2057400" cy="400050"/>
+          <a:off x="12125325" y="1400175"/>
+          <a:ext cx="1971675" cy="400050"/>
         </a:xfrm>
         <a:prstGeom prst="rect">
           <a:avLst/>
         </a:prstGeom>
-        <a:gradFill flip="none" rotWithShape="1">
-          <a:gsLst>
-            <a:gs pos="0">
-              <a:srgbClr val="3C7D22"/>
-            </a:gs>
-            <a:gs pos="50000">
-              <a:schemeClr val="dk1">
-                <a:lumMod val="105000"/>
-                <a:satMod val="103000"/>
-                <a:tint val="73000"/>
-              </a:schemeClr>
-            </a:gs>
-            <a:gs pos="100000">
-              <a:schemeClr val="dk1">
-                <a:lumMod val="105000"/>
-                <a:satMod val="109000"/>
-                <a:tint val="81000"/>
-              </a:schemeClr>
-            </a:gs>
-          </a:gsLst>
-          <a:lin ang="5400000" scaled="0"/>
-          <a:tileRect/>
-        </a:gradFill>
+        <a:solidFill>
+          <a:srgbClr val="3A3F45"/>
+        </a:solidFill>
         <a:ln w="12700">
           <a:solidFill>
-            <a:srgbClr val="3C7D22"/>
+            <a:srgbClr val="3A3F45"/>
           </a:solidFill>
         </a:ln>
       </xdr:spPr>
@@ -340,7 +280,7 @@
           <a:r>
             <a:rPr lang="en-US" sz="1200" b="0">
               <a:solidFill>
-                <a:srgbClr val="0A0A0A"/>
+                <a:srgbClr val="FFD966"/>
               </a:solidFill>
               <a:latin typeface="Calibri" panose="020F0502020204030204" pitchFamily="34" charset="0"/>
             </a:rPr>
@@ -377,8 +317,8 @@
       </xdr:nvSpPr>
       <xdr:spPr>
         <a:xfrm>
-          <a:off x="15049500" y="1400175"/>
-          <a:ext cx="1371600" cy="400050"/>
+          <a:off x="14097000" y="1400175"/>
+          <a:ext cx="1314450" cy="400050"/>
         </a:xfrm>
         <a:prstGeom prst="rect">
           <a:avLst/>
@@ -388,7 +328,7 @@
         </a:solidFill>
         <a:ln w="12700">
           <a:solidFill>
-            <a:srgbClr val="0B4F7D"/>
+            <a:srgbClr val="3A3F45"/>
           </a:solidFill>
         </a:ln>
       </xdr:spPr>
@@ -450,14 +390,14 @@
     <mc:Choice xmlns:a14="http://schemas.microsoft.com/office/drawing/2010/main" Requires="a14">
       <xdr:twoCellAnchor editAs="absolute">
         <xdr:from>
-          <xdr:col>5</xdr:col>
-          <xdr:colOff>330574</xdr:colOff>
+          <xdr:col>6</xdr:col>
+          <xdr:colOff>117662</xdr:colOff>
           <xdr:row>0</xdr:row>
           <xdr:rowOff>28575</xdr:rowOff>
         </xdr:from>
         <xdr:to>
-          <xdr:col>7</xdr:col>
-          <xdr:colOff>662828</xdr:colOff>
+          <xdr:col>9</xdr:col>
+          <xdr:colOff>105896</xdr:colOff>
           <xdr:row>1</xdr:row>
           <xdr:rowOff>26894</xdr:rowOff>
         </xdr:to>
@@ -529,8 +469,8 @@
       </xdr:nvSpPr>
       <xdr:spPr>
         <a:xfrm>
-          <a:off x="4552950" y="200025"/>
-          <a:ext cx="1962150" cy="400050"/>
+          <a:off x="8181975" y="200025"/>
+          <a:ext cx="1314450" cy="400050"/>
         </a:xfrm>
         <a:prstGeom prst="rect">
           <a:avLst/>
@@ -611,8 +551,8 @@
       </xdr:nvSpPr>
       <xdr:spPr>
         <a:xfrm>
-          <a:off x="12992100" y="200025"/>
-          <a:ext cx="2057400" cy="400050"/>
+          <a:off x="12125325" y="200025"/>
+          <a:ext cx="1971675" cy="400050"/>
         </a:xfrm>
         <a:prstGeom prst="rect">
           <a:avLst/>
@@ -693,18 +633,18 @@
       </xdr:nvSpPr>
       <xdr:spPr>
         <a:xfrm>
-          <a:off x="12992100" y="1400175"/>
-          <a:ext cx="1371600" cy="400050"/>
+          <a:off x="12125325" y="1400175"/>
+          <a:ext cx="1314450" cy="400050"/>
         </a:xfrm>
         <a:prstGeom prst="rect">
           <a:avLst/>
         </a:prstGeom>
         <a:solidFill>
-          <a:srgbClr val="3C7D22"/>
+          <a:srgbClr val="3A3F45"/>
         </a:solidFill>
         <a:ln w="12700">
           <a:solidFill>
-            <a:srgbClr val="3C7D22"/>
+            <a:srgbClr val="3A3F45"/>
           </a:solidFill>
         </a:ln>
       </xdr:spPr>
@@ -732,7 +672,7 @@
           <a:r>
             <a:rPr lang="en-US" sz="1200" b="0">
               <a:solidFill>
-                <a:srgbClr val="0A0A0A"/>
+                <a:srgbClr val="FFD966"/>
               </a:solidFill>
               <a:latin typeface="Calibri" panose="020F0502020204030204" pitchFamily="34" charset="0"/>
             </a:rPr>
@@ -740,7 +680,7 @@
           </a:r>
           <a:endParaRPr lang="uk-UA" sz="1200" b="0">
             <a:solidFill>
-              <a:srgbClr val="0A0A0A"/>
+              <a:srgbClr val="FFD966"/>
             </a:solidFill>
             <a:latin typeface="Calibri" panose="020F0502020204030204" pitchFamily="34" charset="0"/>
           </a:endParaRPr>
@@ -775,8 +715,8 @@
       </xdr:nvSpPr>
       <xdr:spPr>
         <a:xfrm>
-          <a:off x="12992100" y="625475"/>
-          <a:ext cx="2057400" cy="203200"/>
+          <a:off x="12125325" y="625475"/>
+          <a:ext cx="1971675" cy="203200"/>
         </a:xfrm>
         <a:prstGeom prst="rect">
           <a:avLst/>
@@ -786,7 +726,7 @@
         </a:solidFill>
         <a:ln w="12700">
           <a:solidFill>
-            <a:srgbClr val="0B4F7D"/>
+            <a:srgbClr val="3A3F45"/>
           </a:solidFill>
         </a:ln>
       </xdr:spPr>
@@ -857,8 +797,8 @@
       </xdr:nvSpPr>
       <xdr:spPr>
         <a:xfrm>
-          <a:off x="12992100" y="854075"/>
-          <a:ext cx="2057400" cy="203200"/>
+          <a:off x="12125325" y="854075"/>
+          <a:ext cx="1971675" cy="203200"/>
         </a:xfrm>
         <a:prstGeom prst="rect">
           <a:avLst/>
@@ -868,7 +808,7 @@
         </a:solidFill>
         <a:ln w="12700">
           <a:solidFill>
-            <a:srgbClr val="0B4F7D"/>
+            <a:srgbClr val="3A3F45"/>
           </a:solidFill>
         </a:ln>
       </xdr:spPr>
@@ -916,13 +856,13 @@
   <xdr:twoCellAnchor editAs="absolute">
     <xdr:from>
       <xdr:col>2</xdr:col>
-      <xdr:colOff>3776381</xdr:colOff>
+      <xdr:colOff>3776382</xdr:colOff>
       <xdr:row>3</xdr:row>
       <xdr:rowOff>25400</xdr:rowOff>
     </xdr:from>
     <xdr:to>
       <xdr:col>4</xdr:col>
-      <xdr:colOff>913279</xdr:colOff>
+      <xdr:colOff>268941</xdr:colOff>
       <xdr:row>4</xdr:row>
       <xdr:rowOff>28575</xdr:rowOff>
     </xdr:to>
@@ -939,8 +879,8 @@
       </xdr:nvSpPr>
       <xdr:spPr>
         <a:xfrm>
-          <a:off x="7134224" y="625475"/>
-          <a:ext cx="1962150" cy="203200"/>
+          <a:off x="7134225" y="625475"/>
+          <a:ext cx="1314450" cy="203200"/>
         </a:xfrm>
         <a:prstGeom prst="rect">
           <a:avLst/>
@@ -950,7 +890,7 @@
         </a:solidFill>
         <a:ln w="12700">
           <a:solidFill>
-            <a:srgbClr val="0B4F7D"/>
+            <a:srgbClr val="3A3F45"/>
           </a:solidFill>
         </a:ln>
       </xdr:spPr>
@@ -998,13 +938,13 @@
   <xdr:twoCellAnchor editAs="absolute">
     <xdr:from>
       <xdr:col>2</xdr:col>
-      <xdr:colOff>3776380</xdr:colOff>
+      <xdr:colOff>3776382</xdr:colOff>
       <xdr:row>4</xdr:row>
       <xdr:rowOff>53975</xdr:rowOff>
     </xdr:from>
     <xdr:to>
       <xdr:col>4</xdr:col>
-      <xdr:colOff>913278</xdr:colOff>
+      <xdr:colOff>268941</xdr:colOff>
       <xdr:row>5</xdr:row>
       <xdr:rowOff>57150</xdr:rowOff>
     </xdr:to>
@@ -1021,8 +961,8 @@
       </xdr:nvSpPr>
       <xdr:spPr>
         <a:xfrm>
-          <a:off x="7134223" y="854075"/>
-          <a:ext cx="1962150" cy="203200"/>
+          <a:off x="7134225" y="854075"/>
+          <a:ext cx="1314450" cy="203200"/>
         </a:xfrm>
         <a:prstGeom prst="rect">
           <a:avLst/>
@@ -1032,7 +972,7 @@
         </a:solidFill>
         <a:ln w="12700">
           <a:solidFill>
-            <a:srgbClr val="0B4F7D"/>
+            <a:srgbClr val="3A3F45"/>
           </a:solidFill>
         </a:ln>
       </xdr:spPr>

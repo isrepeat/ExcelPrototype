@@ -1,39 +1,3 @@
 <?xml version="1.0" standalone="yes"?>
 <uiDefinition xmlns="urn:excelprototype:profiles" version="1">
-  <controlPanel
-    title="Quick Search"
-    startColumn="1"
-    minStartColumn="1"
-    offsetColumns="2"
-    widthColumns="5"
-    heightRows="5"
-    topRow="1"
-    labelColumns="1"
-    valueColumns="2"
-    fieldRowSpan="1"
-    fieldSpacingRows="0"
-    viewZoneGapRows="2"
-    panelColumnWidth="12"
-    panelBackColor="#1E1E1E"
-    panelBorderColor="#505050"
-    titleColor="#D7A763"
-    labelColor="#EBEBEB"
-    inputBackColor="#262626"
-    inputFontColor="#EBEBEB"
-    buttonBackColor="#1F5E9C"
-    buttonTextColor="#FFFFFF"
-    buttonBorderColor="#163F69"
-    buttonAnchorColumn="3"
-    buttonWidthColumns="1"
-    fixedWidthKey="12"
-    fixedWidthValue="28"
-    fixedWidthButton="14"
-    fixedFieldRowHeight="32">
-    <fields>
-      <field label="Key" inputName="Context.PersonValue" inputConfigKey="Context.PersonValue">
-        <button caption="Search" macro="ex_UIActions.m_OutputPanelStartSearch_OnClick"/>
-      </field>
-    </fields>
-  </controlPanel>
-
 </uiDefinition>
