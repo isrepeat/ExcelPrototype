@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-IN_DIR="${1:-Prototype/xlsm_unpacked}"
-OUT_FILE="${2:-Prototype/Prototype_packed.xlsm}"
+IN_DIR="${1:-xlsm_unpacked}"
+OUT_FILE="${2:-Prototype_repacked.xlsm}"
 
 if [[ ! -d "$IN_DIR" ]]; then
   echo "Input dir not found: $IN_DIR" >&2

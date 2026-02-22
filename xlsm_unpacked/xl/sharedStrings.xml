@@ -16,9 +16,6 @@
     <t>Source.Main.FilePath</t>
   </si>
   <si>
-    <t>.\TESTS\GetReferences\PeopleStateUA.xlsx</t>
-  </si>
-  <si>
     <t>Source.Main.TablesAliases</t>
   </si>
   <si>
@@ -28,9 +25,6 @@
     <t>Source.Events.FilePath</t>
   </si>
   <si>
-    <t>.\TESTS\GetReferences\PeopleEventsUA.xlsx</t>
-  </si>
-  <si>
     <t>Source.Events.TablesAliases</t>
   </si>
   <si>
@@ -38,9 +32,6 @@
   </si>
   <si>
     <t>Context.PersonValue</t>
-  </si>
-  <si>
-    <t>Іванов Іван Іванович</t>
   </si>
   <si>
     <t>#</t>
@@ -164,5 +155,14 @@
   </si>
   <si>
     <t>StateMain; EventsMain</t>
+  </si>
+  <si>
+    <t>..\TESTS\GetReferences\PeopleStateUA.xlsx</t>
+  </si>
+  <si>
+    <t>..\TESTS\GetReferences\PeopleEventsUA.xlsx</t>
+  </si>
+  <si>
+    <t>Іванов Іван Іванович2</t>
   </si>
 </sst>

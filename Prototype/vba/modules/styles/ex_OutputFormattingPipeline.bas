@@ -91,6 +91,70 @@ Public Sub m_ApplyOutputPanelLayers( _
     ex_OutputPanel.m_ApplyFixedWidthViewZoneLayer ws, outputStyle, viewStartRow, viewEndRow, viewColCount
 End Sub
 
+Public Sub m_ApplyViewZoneWrapText( _
+    ByVal ws As Worksheet, _
+    ByVal viewStartRow As Long, _
+    ByVal viewEndRow As Long, _
+    ByVal viewColCount As Long, _
+    Optional ByVal wrapEnabled As Boolean = True, _
+    Optional ByVal excludedRows As Collection = Nothing, _
+    Optional ByVal excludedRows2 As Collection = Nothing _
+)
+    Dim targetRange As Range
+    Dim rowIndex As Long
+    Dim rowRange As Range
+
+    If ws Is Nothing Then Exit Sub
+    If viewStartRow < 1 Then Exit Sub
+    If viewEndRow < viewStartRow Then Exit Sub
+    If viewColCount < 1 Then Exit Sub
+
+    Set targetRange = ws.Range(ws.Cells(viewStartRow, 1), ws.Cells(viewEndRow, viewColCount))
+    targetRange.WrapText = wrapEnabled
+
+    If excludedRows Is Nothing Then Exit Sub
+
+    For rowIndex = viewStartRow To viewEndRow
+        If mp_RowIsListed(excludedRows, rowIndex) Then
+            Set rowRange = ws.Range(ws.Cells(rowIndex, 1), ws.Cells(rowIndex, viewColCount))
+            rowRange.WrapText = False
+        ElseIf mp_RowIsListed(excludedRows2, rowIndex) Then
+            Set rowRange = ws.Range(ws.Cells(rowIndex, 1), ws.Cells(rowIndex, viewColCount))
+            rowRange.WrapText = False
+        End If
+    Next rowIndex
+End Sub
+
+Public Sub m_ApplyTimelineDataRowsHeight( _
+    ByVal ws As Worksheet, _
+    ByVal viewStartRow As Long, _
+    ByVal viewEndRow As Long, _
+    ByVal viewColCount As Long, _
+    ByVal headerRows As Collection, _
+    ByVal sectionRows As Collection, _
+    Optional ByVal dataRowHeight As Double = 32 _
+)
+    Dim rowIndex As Long
+    Dim rowRange As Range
+
+    If ws Is Nothing Then Exit Sub
+    If viewStartRow < 1 Then Exit Sub
+    If viewEndRow < viewStartRow Then Exit Sub
+    If viewColCount < 1 Then Exit Sub
+    If dataRowHeight <= 0 Then Exit Sub
+
+    For rowIndex = viewStartRow To viewEndRow
+        If mp_RowIsListed(headerRows, rowIndex) Then GoTo ContinueRow
+        If mp_RowIsListed(sectionRows, rowIndex) Then GoTo ContinueRow
+
+        Set rowRange = ws.Range(ws.Cells(rowIndex, 1), ws.Cells(rowIndex, viewColCount))
+        If Application.WorksheetFunction.CountA(rowRange) > 0 Then
+            ws.Rows(rowIndex).RowHeight = dataRowHeight
+        End If
+ContinueRow:
+    Next rowIndex
+End Sub
+
 Private Sub mp_ApplyOutputStyleToResult( _
     ByVal ws As Worksheet, _
     ByVal startRow As Long, _
@@ -145,6 +209,24 @@ Private Sub mp_ApplyTimelineOutputStyle(ByVal ws As Worksheet, ByVal headerRows 
     usedRange.HorizontalAlignment = style.HorizontalAlignment
     usedRange.VerticalAlignment = style.VerticalAlignment
     ws.Rows("1:" & CStr(usedRows)).RowHeight = style.RowHeight
+
+    ' Header/section rows should not wrap before AutoFit, otherwise column widths can be over-expanded.
+    For Each rowId In headerRows
+        rowIndex = CLng(rowId)
+        lastCol = mp_GetLastUsedColumnInRow(ws, rowIndex)
+        If lastCol > 0 Then
+            ws.Range(ws.Cells(rowIndex, 1), ws.Cells(rowIndex, lastCol)).WrapText = False
+        End If
+    Next rowId
+
+    For Each rowId In sectionRows
+        rowIndex = CLng(rowId)
+        lastCol = mp_GetLastUsedColumnInRow(ws, rowIndex)
+        If lastCol > 0 Then
+            ws.Range(ws.Cells(rowIndex, 1), ws.Cells(rowIndex, lastCol)).WrapText = False
+        End If
+    Next rowId
+
     usedRange.EntireColumn.AutoFit
 
     For Each rowId In sectionRows
@@ -187,4 +269,17 @@ Private Function mp_GetLastUsedColumnInRow(ByVal ws As Worksheet, ByVal rowIndex
             mp_GetLastUsedColumnInRow = 0
         End If
     End If
+End Function
+
+Private Function mp_RowIsListed(ByVal rowsCollection As Collection, ByVal rowIndex As Long) As Boolean
+    Dim itemValue As Variant
+
+    If rowsCollection Is Nothing Then Exit Function
+
+    For Each itemValue In rowsCollection
+        If CLng(itemValue) = rowIndex Then
+            mp_RowIsListed = True
+            Exit Function
+        End If
+    Next itemValue
 End Function

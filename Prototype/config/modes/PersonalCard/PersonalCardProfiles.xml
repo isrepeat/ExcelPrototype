@@ -16,9 +16,9 @@
 			<control name="btnCustomModeOption_1" visible="false"/>
 			<control name="btnCustomModeOption_2" visible="false"/>
 		</ui>
-		<v key="Source.Main.FilePath">.\TESTS\GetReferences\PeopleStateUA.xlsx</v>
+		<v key="Source.Main.FilePath">..\TESTS\GetReferences\PeopleStateUA.xlsx</v>
 		<v key="Source.Main.TablesAliases">StateMain</v>
-		<v key="Source.Events.FilePath">.\TESTS\GetReferences\PeopleEventsUA.xlsx</v>
+		<v key="Source.Events.FilePath">..\TESTS\GetReferences\PeopleEventsUA.xlsx</v>
 		<v key="Source.Events.TablesAliases">EventsMain</v>
 		<v key="Context.PersonValue">Іванов Іван Іванович</v>
 		<v type="#" key="StateMain"/>

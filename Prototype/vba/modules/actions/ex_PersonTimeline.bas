@@ -162,7 +162,9 @@ ContinueAlias:
         If Not ex_SheetStylesXmlProvider.m_GetUsedRangeSize(wsOut, viewRowCount, viewColCount) Then
             viewColCount = 1
         End If
-        ex_OutputFormattingPipeline.m_ApplyOutputPanelLayers wsOut, outputStyle, True, viewStartRow, viewEndRow, viewColCount
+        ex_OutputPanel.m_RenderForSheet wsOut, outputStyle
+        ex_OutputFormattingPipeline.m_ApplyViewZoneWrapText wsOut, viewStartRow, viewEndRow, viewColCount, True, headerRows, sectionRows
+        ex_OutputFormattingPipeline.m_ApplyTimelineDataRowsHeight wsOut, viewStartRow, viewEndRow, viewColCount, headerRows, sectionRows, 32
     End If
 
     mp_CloseWorkbooks wbCache
@@ -178,6 +180,9 @@ EH:
     Dim errSource As String
     Dim errDescription As String
     Dim errOutputStyle As t_OutputSheetStyle
+    Dim errBaseStyle As t_BaseSheetStyle
+    Dim errRowCount As Long
+    Dim errColCount As Long
 
     errNumber = Err.Number
     errSource = Err.Source
@@ -192,13 +197,23 @@ EH:
 
     If wsOut Is Nothing Then
         Set wsOut = mp_CreateOrClearSheet("g_PersonTimeline")
-        ex_Messaging.m_ApplyDarkSheetBase wsOut
     End If
     On Error Resume Next
     If ex_SheetStylesXmlProvider.m_InitializeStyles(ThisWorkbook) Then
+        If ex_SheetStylesXmlProvider.m_GetBaseSheetStyle(errBaseStyle, ThisWorkbook) Then
+            If Not ex_SheetStylesXmlProvider.m_GetUsedRangeSize(wsOut, errRowCount, errColCount) Then
+                errRowCount = 1
+                errColCount = 1
+            End If
+            ex_SheetStylesXmlProvider.m_ApplyBaseLayer wsOut, errRowCount, errColCount, errBaseStyle
+        Else
+            ex_Messaging.m_ApplyDarkSheetBase wsOut
+        End If
         If ex_SheetStylesXmlProvider.m_GetOutputSheetStyle(errOutputStyle, ThisWorkbook) Then
             ex_OutputPanel.m_RenderForSheet wsOut, errOutputStyle
         End If
+    Else
+        ex_Messaging.m_ApplyDarkSheetBase wsOut
     End If
     On Error GoTo 0
     ex_Messaging.m_RenderErrorBanner wsOut, errDescription, errSource, errNumber, "ERROR: Timeline generation failed", ex_SheetStylesXmlProvider.m_GetOutputErrorBannerRangeAddress(ThisWorkbook)

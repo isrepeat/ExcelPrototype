@@ -1,12 +1,8 @@
 <?xml version="1.0" standalone="yes"?>
 <SheetStyles xmlns="urn:excelprototype:profiles" version="1">
-  <outputSheetStyle priority="200" outputTopOffsetRows="4" headerRows="4" viewStartRow="6" errorBannerColumns="8">
+  <outputSheetStyle priority="200" outputTopOffsetRows="4" headerRows="4" viewStartRow="6">
     <font name="Times New Roman" size="12"/>
     <rows height="20"/>
-
-    <content color="#EBEBEB" backColor="#222222"/>
-    <header color="#68D947" backColor="#222222" bold="true"/>
-    <section color="#D7A763" backColor="#161616" bold="true" sectionTitleColumns="2"/>
 
     <alignment horizontal="center" vertical="center"/>
 
