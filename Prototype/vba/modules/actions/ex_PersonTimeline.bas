@@ -11,7 +11,7 @@ Public Sub m_ShowPersonTimeline_UI()
 
     Dim fio As String
 
-    fio = Trim$(ex_ConfigProvider.m_GetConfigValue("Context.PersonValue", vbNullString))
+    fio = Trim$(ex_ConfigProvider.m_GetConfigValue("CommonKey", vbNullString))
     If Len(fio) = 0 Then
         fio = Trim$(ex_ConfigProvider.m_GetConfigValue("PersonFIO", vbNullString))
     End If
@@ -27,14 +27,20 @@ Public Sub m_ShowPersonTimeline(ByVal fio As String)
     Dim prevScreenUpdating As Boolean
     Dim prevDisplayAlerts As Boolean
     Dim prevEnableEvents As Boolean
+    Dim prevCalculation As XlCalculation
+    Dim prevCalculateBeforeSave As Boolean
 
     prevScreenUpdating = Application.ScreenUpdating
     prevDisplayAlerts = Application.DisplayAlerts
     prevEnableEvents = Application.EnableEvents
+    prevCalculation = Application.Calculation
+    prevCalculateBeforeSave = Application.CalculateBeforeSave
 
     Application.ScreenUpdating = False
     Application.DisplayAlerts = False
     Application.EnableEvents = False
+    Application.Calculation = xlCalculationManual
+    Application.CalculateBeforeSave = False
 
     Dim wsOut As Worksheet
     Set wsOut = mp_CreateOrClearSheet("g_PersonTimeline")
@@ -45,7 +51,7 @@ Public Sub m_ShowPersonTimeline(ByVal fio As String)
 
     If Len(Trim$(fio)) = 0 Then
         Err.Raise vbObjectError + 1300, "ex_PersonTimeline", _
-            "Config key 'Context.PersonValue' (or fallback 'PersonFIO') is empty."
+            "Config key 'CommonKey' (or fallback 'PersonFIO') is empty."
     End If
 
     Dim cfg As Object
@@ -72,9 +78,13 @@ Public Sub m_ShowPersonTimeline(ByVal fio As String)
     Dim outputAliases As Variant
     outputAliases = mp_GetListRequired(cfg, "Output.Tables")
 
-    Dim wbCache As Object
-    Set wbCache = CreateObject("Scripting.Dictionary")
-    wbCache.CompareMode = 1
+    Dim tableSourceMap As Object
+    Set tableSourceMap = CreateObject("Scripting.Dictionary")
+    tableSourceMap.CompareMode = 1
+
+    Dim connCache As Object
+    Set connCache = CreateObject("Scripting.Dictionary")
+    connCache.CompareMode = 1
 
     Dim rowIndex As Long
     rowIndex = 1
@@ -100,7 +110,7 @@ Public Sub m_ShowPersonTimeline(ByVal fio As String)
         End If
 
         Dim sourceAlias As String
-        sourceAlias = mp_FindSourceAliasForTable(cfg, tableAlias)
+        sourceAlias = mp_GetSourceAliasCached(cfg, tableAlias, tableSourceMap)
 
         Dim tableType As String
         tableType = LCase$(mp_GetCfgRequired(cfg, sourceAlias & ".Table[" & tableAlias & "].Type"))
@@ -117,21 +127,14 @@ Public Sub m_ShowPersonTimeline(ByVal fio As String)
                 "Unsupported table type for alias '" & tableAlias & "': " & tableType
         End If
 
-        Dim tableName As String
-        tableName = mp_GetCfgRequired(cfg, sourceAlias & ".Table[" & tableAlias & "].Name")
+        Dim adoObjectName As String
+        adoObjectName = mp_GetCfgOptional(cfg, sourceAlias & ".Table[" & tableAlias & "].SheetName", vbNullString)
 
-        Dim wb As Workbook
-        Set wb = mp_GetWorkbookForSource(wbCache, cfg, sourceAlias)
-
-        Dim lo As ListObject
-        Set lo = mp_FindListObjectByName(wb, tableName)
-        If lo Is Nothing Then
-            Err.Raise vbObjectError + 1302, "ex_PersonTimeline", _
-                "Table '" & tableName & "' for alias '" & tableAlias & "' was not found in source '" & sourceAlias & "'."
-        End If
+        Dim sourceConn As Object
+        Set sourceConn = mp_GetConnectionForSource(connCache, cfg, sourceAlias)
 
         If tableType = "state" Then
-            rowIndex = mp_WriteStateCardGeneric(wsOut, lo, fio, rowIndex, cfg, sourceAlias, tableAlias, headerRows, sectionRows)
+            rowIndex = mp_WriteStateCardGeneric(wsOut, sourceConn, adoObjectName, fio, rowIndex, cfg, sourceAlias, tableAlias, headerRows, sectionRows)
             rowIndex = rowIndex + 1
         Else
             If mode <> StateTableOnly Then
@@ -140,7 +143,7 @@ Public Sub m_ShowPersonTimeline(ByVal fio As String)
                 sectionRows.Add rowIndex
                 rowIndex = rowIndex + 1
             End If
-            rowIndex = mp_WriteEventsGeneric(wsOut, lo, fio, rowIndex, cfg, sourceAlias, tableAlias, headerRows)
+            rowIndex = mp_WriteEventsGeneric(wsOut, sourceConn, adoObjectName, fio, rowIndex, cfg, sourceAlias, tableAlias, headerRows)
             rowIndex = rowIndex + 1
         End If
 
@@ -167,11 +170,13 @@ ContinueAlias:
         ex_OutputFormattingPipeline.m_ApplyTimelineDataRowsHeight wsOut, viewStartRow, viewEndRow, viewColCount, headerRows, sectionRows, 32
     End If
 
-    mp_CloseWorkbooks wbCache
+    mp_CloseConnections connCache
 
     Application.EnableEvents = prevEnableEvents
     Application.DisplayAlerts = prevDisplayAlerts
     Application.ScreenUpdating = prevScreenUpdating
+    Application.CalculateBeforeSave = prevCalculateBeforeSave
+    Application.Calculation = prevCalculation
 
     Exit Sub
 
@@ -189,10 +194,12 @@ EH:
     errDescription = Err.Description
 
     On Error Resume Next
-    mp_CloseWorkbooks wbCache
+    mp_CloseConnections connCache
     Application.EnableEvents = prevEnableEvents
     Application.DisplayAlerts = prevDisplayAlerts
     Application.ScreenUpdating = prevScreenUpdating
+    Application.CalculateBeforeSave = prevCalculateBeforeSave
+    Application.Calculation = prevCalculation
     On Error GoTo 0
 
     If wsOut Is Nothing Then
@@ -222,7 +229,8 @@ End Sub
 
 Private Function mp_WriteStateCardGeneric( _
     ByVal wsOut As Worksheet, _
-    ByVal lo As ListObject, _
+    ByVal adoConn As Object, _
+    ByVal adoObjectName As String, _
     ByVal fio As String, _
     ByVal rowIndex As Long, _
     ByVal cfg As Object, _
@@ -231,6 +239,18 @@ Private Function mp_WriteStateCardGeneric( _
     ByVal headerRows As Collection, _
     ByVal sectionRows As Collection _
 ) As Long
+    Dim rs As Object
+    Dim sql As String
+    Dim tableRef As String
+    Dim expectedHeaders As Variant
+    Dim keyOrdinal As Long
+    Dim stateRows As Variant
+    Dim rowCount As Long
+    Dim rowIndexState As Long
+    Dim keyIsNumeric As Boolean
+    Dim headerRowIndex As Long
+    Dim columnMap As Object
+    Dim useMatrixLookup As Boolean
 
     Dim fields As Variant
     fields = mp_GetOrderedFieldAliases(cfg, sourceAlias, tableAlias)
@@ -241,16 +261,74 @@ Private Function mp_WriteStateCardGeneric( _
     Dim keyHeader As String
     keyHeader = mp_GetMappedSourceHeader(cfg, sourceAlias, tableAlias, keyAlias)
 
-    Dim keyCol As Long
-    keyCol = mp_FindHeaderColumnInTable(lo, keyHeader)
-    If keyCol <= 0 Then
+    expectedHeaders = mp_BuildExpectedHeaders(cfg, sourceAlias, tableAlias, fields, keyHeader)
+    tableRef = mp_GetAdoTableReference(adoConn, adoObjectName, expectedHeaders, keyHeader, fio, sourceAlias, tableAlias)
+
+    keyIsNumeric = mp_IsNumericHeaderToken(keyHeader)
+
+    sql = "SELECT * FROM " & tableRef
+
+    Set rs = CreateObject("ADODB.Recordset")
+    rs.Open sql, adoConn, 0, 1
+
+    If rs.EOF Then
+        Err.Raise vbObjectError + 1311, "ex_PersonTimeline", _
+            "State row not found for person '" & fio & "' in table alias '" & tableAlias & "'."
+    End If
+
+    stateRows = rs.GetRows
+    rowCount = UBound(stateRows, 2) - LBound(stateRows, 2) + 1
+
+    If keyIsNumeric Then
+        headerRowIndex = mp_DetectHeaderRowIndexByHeaders(stateRows, expectedHeaders)
+        If headerRowIndex < 0 Then
+            Err.Raise vbObjectError + 1310, "ex_PersonTimeline", _
+                "State key header not found: '" & keyHeader & "' (alias '" & tableAlias & "')."
+        End If
+
+        Set columnMap = mp_BuildMatrixColumnMap(stateRows, headerRowIndex)
+        keyOrdinal = mp_GetMatrixColumnOrdinal(columnMap, keyHeader)
+        useMatrixLookup = True
+    Else
+        keyOrdinal = mp_RecordsetGetFieldOrdinal(rs, keyHeader)
+        headerRowIndex = mp_DetectHeaderRowIndexByHeaders(stateRows, expectedHeaders)
+        If headerRowIndex >= 0 Then
+            Set columnMap = mp_BuildMatrixColumnMap(stateRows, headerRowIndex)
+            If keyOrdinal < 0 Then
+                keyOrdinal = mp_GetMatrixColumnOrdinal(columnMap, keyHeader)
+            End If
+            If mp_GetMatrixColumnOrdinal(columnMap, keyHeader) >= 0 Then
+                useMatrixLookup = True
+            End If
+        Else
+            headerRowIndex = -1
+        End If
+    End If
+
+    If keyOrdinal < 0 Then
+        keyOrdinal = mp_FindKeyOrdinalByValue(stateRows, headerRowIndex, fio)
+    End If
+
+    If keyOrdinal < 0 Then
         Err.Raise vbObjectError + 1310, "ex_PersonTimeline", _
             "State key header not found: '" & keyHeader & "' (alias '" & tableAlias & "')."
     End If
 
-    Dim foundRow As Long
-    foundRow = mp_FindDataRowByKeyInTable(lo, keyCol, fio)
-    If foundRow <= 0 Then
+    rowIndexState = -1
+
+    Dim rr As Long
+    Dim stateDataStartRow As Long
+    stateDataStartRow = 0
+    If keyIsNumeric Or useMatrixLookup Then stateDataStartRow = headerRowIndex + 1
+
+    For rr = stateDataStartRow To rowCount - 1
+        If StrComp(mp_ToSafeText(stateRows(keyOrdinal, rr)), fio, vbTextCompare) = 0 Then
+            rowIndexState = rr
+            Exit For
+        End If
+    Next rr
+
+    If rowIndexState < 0 Then
         Err.Raise vbObjectError + 1311, "ex_PersonTimeline", _
             "State row not found for person '" & fio & "' in table alias '" & tableAlias & "'."
     End If
@@ -277,10 +355,17 @@ Private Function mp_WriteStateCardGeneric( _
 
         wsOut.Cells(headerRow, outCol).Value = mp_GetLabel(cfg, sourceAlias, tableAlias, fieldAlias)
 
-        Dim colIndex As Long
-        colIndex = mp_TryGetTableColumnByFieldAlias(lo, cfg, sourceAlias, tableAlias, fieldAlias)
-        If colIndex > 0 Then
-            wsOut.Cells(valueRow, outCol).Value = lo.DataBodyRange.Cells(foundRow, colIndex).Value
+        Dim sourceHeader As String
+        sourceHeader = mp_GetMappedSourceHeader(cfg, sourceAlias, tableAlias, fieldAlias)
+
+        Dim fieldOrdinal As Long
+        If keyIsNumeric Or useMatrixLookup Then
+            fieldOrdinal = mp_GetMatrixColumnOrdinal(columnMap, sourceHeader)
+        Else
+            fieldOrdinal = mp_RecordsetGetFieldOrdinal(rs, sourceHeader)
+        End If
+        If fieldOrdinal >= 0 Then
+            wsOut.Cells(valueRow, outCol).Value = mp_ToCellValue(stateRows(fieldOrdinal, rowIndexState))
         Else
             wsOut.Cells(valueRow, outCol).Value = "(missing column)"
         End If
@@ -288,13 +373,16 @@ Private Function mp_WriteStateCardGeneric( _
 ContinueField:
     Next i
 
+    rs.Close
+
     mp_WriteStateCardGeneric = valueRow + 1
 
 End Function
 
 Private Function mp_WriteEventsGeneric( _
     ByVal wsOut As Worksheet, _
-    ByVal lo As ListObject, _
+    ByVal adoConn As Object, _
+    ByVal adoObjectName As String, _
     ByVal fio As String, _
     ByVal rowIndex As Long, _
     ByVal cfg As Object, _
@@ -302,9 +390,27 @@ Private Function mp_WriteEventsGeneric( _
     ByVal tableAlias As String, _
     ByVal headerRows As Collection _
 ) As Long
+    On Error GoTo EH
+
+    Dim rs As Object
+    Dim sql As String
+    Dim tableRef As String
+    Dim sourceHeader As String
+    Dim fieldData As Variant
+    Dim rowCount As Long
+    Dim expectedHeaders As Variant
+    Dim keyIsNumeric As Boolean
+    Dim keyOrdinal As Long
+    Dim stepName As String
+    Dim headerRowIndex As Long
+    Dim columnMap As Object
+    Dim useMatrixLookup As Boolean
 
     Dim fields As Variant
     fields = mp_GetOrderedFieldAliases(cfg, sourceAlias, tableAlias)
+
+    Dim fieldCount As Long
+    fieldCount = UBound(fields) - LBound(fields) + 1
 
     Dim keyAlias As String
     keyAlias = mp_GetCfgRequired(cfg, sourceAlias & ".Table[" & tableAlias & "].Key")
@@ -312,64 +418,137 @@ Private Function mp_WriteEventsGeneric( _
     Dim keyHeader As String
     keyHeader = mp_GetMappedSourceHeader(cfg, sourceAlias, tableAlias, keyAlias)
 
-    Dim keyCol As Long
-    keyCol = mp_FindHeaderColumnInTable(lo, keyHeader)
-    If keyCol <= 0 Then
-        Err.Raise vbObjectError + 1320, "ex_PersonTimeline", _
-            "Events key header not found: '" & keyHeader & "' (alias '" & tableAlias & "')."
-    End If
+    expectedHeaders = mp_BuildExpectedHeaders(cfg, sourceAlias, tableAlias, fields, keyHeader)
+    stepName = "resolve-table"
+    tableRef = mp_GetAdoTableReference(adoConn, adoObjectName, expectedHeaders, keyHeader, fio, sourceAlias, tableAlias)
+
+    keyIsNumeric = mp_IsNumericHeaderToken(keyHeader)
+    sql = "SELECT * FROM " & tableRef
+
+    stepName = "open-recordset"
+    Set rs = CreateObject("ADODB.Recordset")
+    rs.Open sql, adoConn, 0, 1
 
     Dim outHeaderRow As Long
     outHeaderRow = rowIndex
     headerRows.Add outHeaderRow
 
     Dim i As Long
-    For i = LBound(fields) To UBound(fields)
-        Dim fieldAlias As String
-        fieldAlias = Trim$(CStr(fields(i)))
-        wsOut.Cells(outHeaderRow, 1 + (i - LBound(fields))).Value = mp_GetLabel(cfg, sourceAlias, tableAlias, fieldAlias)
-    Next i
-
-    Dim colIndexes() As Long
-    ReDim colIndexes(LBound(fields) To UBound(fields))
+    Dim headerValues() As Variant
+    ReDim headerValues(1 To 1, 1 To fieldCount)
 
     For i = LBound(fields) To UBound(fields)
-        colIndexes(i) = mp_TryGetTableColumnByFieldAlias(lo, cfg, sourceAlias, tableAlias, Trim$(CStr(fields(i))))
+        headerValues(1, 1 + (i - LBound(fields))) = mp_GetLabel(cfg, sourceAlias, tableAlias, Trim$(CStr(fields(i))))
     Next i
+
+    wsOut.Range(wsOut.Cells(outHeaderRow, 1), wsOut.Cells(outHeaderRow, fieldCount)).Value = headerValues
+
+    Dim fieldOrdinals() As Long
+    ReDim fieldOrdinals(LBound(fields) To UBound(fields))
 
     Dim outDataRow As Long
     outDataRow = outHeaderRow + 1
 
-    If lo.DataBodyRange Is Nothing Then
+    If rs.EOF Then
         wsOut.Cells(outDataRow, 1).Value = "(no events found for this person)"
+        rs.Close
         mp_WriteEventsGeneric = outDataRow + 1
         Exit Function
     End If
 
-    Dim r As Long
-    For r = 1 To lo.DataBodyRange.Rows.Count
-        If StrComp(Trim$(CStr(lo.DataBodyRange.Cells(r, keyCol).Value)), fio, vbTextCompare) <> 0 Then
-            GoTo ContinueRow
+    stepName = "fetch-rows"
+    fieldData = rs.GetRows
+    rowCount = UBound(fieldData, 2) - LBound(fieldData, 2) + 1
+
+    If keyIsNumeric Then
+        headerRowIndex = mp_DetectHeaderRowIndexByHeaders(fieldData, expectedHeaders)
+        If headerRowIndex < 0 Then
+            Err.Raise vbObjectError + 1320, "ex_PersonTimeline", _
+                "Events key header not found: '" & keyHeader & "' (alias '" & tableAlias & "')."
         End If
 
-        For i = LBound(fields) To UBound(fields)
-            If colIndexes(i) > 0 Then
-                wsOut.Cells(outDataRow, 1 + (i - LBound(fields))).Value = lo.DataBodyRange.Cells(r, colIndexes(i)).Value
-            Else
-                wsOut.Cells(outDataRow, 1 + (i - LBound(fields))).Value = "(missing column)"
+        Set columnMap = mp_BuildMatrixColumnMap(fieldData, headerRowIndex)
+        keyOrdinal = mp_GetMatrixColumnOrdinal(columnMap, keyHeader)
+        useMatrixLookup = True
+    Else
+        keyOrdinal = mp_RecordsetGetFieldOrdinal(rs, keyHeader)
+        headerRowIndex = mp_DetectHeaderRowIndexByHeaders(fieldData, expectedHeaders)
+        If headerRowIndex >= 0 Then
+            Set columnMap = mp_BuildMatrixColumnMap(fieldData, headerRowIndex)
+            If keyOrdinal < 0 Then
+                keyOrdinal = mp_GetMatrixColumnOrdinal(columnMap, keyHeader)
             End If
-        Next i
+            If mp_GetMatrixColumnOrdinal(columnMap, keyHeader) >= 0 Then
+                useMatrixLookup = True
+            End If
+        Else
+            headerRowIndex = -1
+        End If
+    End If
 
-        outDataRow = outDataRow + 1
+    If keyOrdinal < 0 Then
+        keyOrdinal = mp_FindKeyOrdinalByValue(fieldData, headerRowIndex, fio)
+    End If
 
-ContinueRow:
-    Next r
+    If keyOrdinal < 0 Then
+        Err.Raise vbObjectError + 1320, "ex_PersonTimeline", _
+            "Events key header not found: '" & keyHeader & "' (alias '" & tableAlias & "')."
+    End If
 
-    If outDataRow = outHeaderRow + 1 Then
+    For i = LBound(fields) To UBound(fields)
+        sourceHeader = mp_GetMappedSourceHeader(cfg, sourceAlias, tableAlias, Trim$(CStr(fields(i))))
+        If keyIsNumeric Or useMatrixLookup Then
+            fieldOrdinals(i) = mp_GetMatrixColumnOrdinal(columnMap, sourceHeader)
+        Else
+            fieldOrdinals(i) = mp_RecordsetGetFieldOrdinal(rs, sourceHeader)
+        End If
+    Next i
+
+    Dim selectedIndexes() As Long
+    Dim selectedCount As Long
+    Dim rawIndex As Long
+
+    ReDim selectedIndexes(0 To rowCount - 1)
+    selectedCount = 0
+
+    Dim dataStartRow As Long
+    dataStartRow = 0
+    If keyIsNumeric Then dataStartRow = headerRowIndex + 1
+
+    For rawIndex = dataStartRow To rowCount - 1
+        If StrComp(mp_ToSafeText(fieldData(keyOrdinal, rawIndex)), fio, vbTextCompare) = 0 Then
+            selectedIndexes(selectedCount) = rawIndex
+            selectedCount = selectedCount + 1
+        End If
+    Next rawIndex
+
+    If selectedCount = 0 Then
         wsOut.Cells(outDataRow, 1).Value = "(no events found for this person)"
+        rs.Close
         mp_WriteEventsGeneric = outDataRow + 1
         Exit Function
     End If
+
+    Dim outValues() As Variant
+    Dim outIndex As Long
+    ReDim outValues(1 To selectedCount, 1 To fieldCount)
+
+    For outIndex = 1 To selectedCount
+        rawIndex = selectedIndexes(outIndex - 1)
+
+        For i = LBound(fields) To UBound(fields)
+            If fieldOrdinals(i) >= 0 Then
+                outValues(outIndex, 1 + (i - LBound(fields))) = mp_ToCellValue(fieldData(fieldOrdinals(i), rawIndex))
+            Else
+                outValues(outIndex, 1 + (i - LBound(fields))) = "(missing column)"
+            End If
+        Next i
+    Next outIndex
+
+    stepName = "write-output"
+    wsOut.Range(wsOut.Cells(outDataRow, 1), wsOut.Cells(outDataRow + selectedCount - 1, fieldCount)).Value2 = outValues
+    outDataRow = outDataRow + selectedCount
+    rs.Close
 
     Dim sortAlias As String
     sortAlias = mp_GetCfgOptional(cfg, sourceAlias & ".Table[" & tableAlias & "].Sort", vbNullString)
@@ -386,13 +565,105 @@ ContinueRow:
         Next i
 
         If sortOutCol > 0 Then
+            On Error GoTo SortEH
             mp_NormalizeDateColumn wsOut, outHeaderRow + 1, outDataRow - 1, sortOutCol
-            mp_SortRangeByColumnIndex wsOut, outHeaderRow, outDataRow - 1, 1, (UBound(fields) - LBound(fields) + 1), sortOutCol
+            mp_SortRangeByColumnIndex wsOut, outHeaderRow, outDataRow - 1, 1, fieldCount, sortOutCol
+            On Error GoTo EH
         End If
     End If
 
     mp_WriteEventsGeneric = outDataRow + 1
+    Exit Function
 
+SortEH:
+    Err.Clear
+    On Error GoTo EH
+    mp_WriteEventsGeneric = outDataRow + 1
+    Exit Function
+
+EH:
+    On Error Resume Next
+    If Not rs Is Nothing Then
+        If rs.State <> 0 Then rs.Close
+    End If
+    On Error GoTo 0
+
+    Err.Raise vbObjectError + 1329, "ex_PersonTimeline.mp_WriteEventsGeneric", _
+        "Failed for table alias '" & tableAlias & "' (source '" & sourceAlias & "') at step '" & stepName & "': " & Err.Description
+
+End Function
+
+Private Function mp_GetAdoTableReference( _
+    ByVal adoConn As Object, _
+    ByVal adoObjectName As String, _
+    ByVal expectedHeaders As Variant, _
+    ByVal keyHeader As String, _
+    ByVal keyValue As String, _
+    ByVal sourceAlias As String, _
+    ByVal tableAlias As String _
+) As String
+    adoObjectName = Trim$(adoObjectName)
+    If Len(adoObjectName) > 0 Then
+        mp_GetAdoTableReference = mp_ResolveExplicitAdoObjectReference(adoConn, adoObjectName, sourceAlias, tableAlias)
+        Exit Function
+    End If
+
+    Err.Raise vbObjectError + 1335, "ex_PersonTimeline", _
+        "Missing required config key '" & sourceAlias & ".Table[" & tableAlias & "].SheetName'."
+End Function
+
+Private Function mp_ResolveExplicitAdoObjectReference( _
+    ByVal adoConn As Object, _
+    ByVal configuredName As String, _
+    ByVal sourceAlias As String, _
+    ByVal tableAlias As String _
+) As String
+    Dim schemaRs As Object
+    Dim schemaName As String
+    Dim schemaNameClean As String
+    Dim listedNames As String
+    Dim listedCount As Long
+
+    configuredName = mp_CleanAdoSchemaObjectName(Trim$(configuredName))
+
+    Set schemaRs = adoConn.OpenSchema(20)
+    Do While Not schemaRs.EOF
+        schemaName = CStr(schemaRs.Fields("TABLE_NAME").Value)
+        schemaNameClean = mp_CleanAdoSchemaObjectName(schemaName)
+
+        If listedCount < 20 Then
+            If Len(listedNames) > 0 Then listedNames = listedNames & ", "
+            listedNames = listedNames & schemaNameClean
+            listedCount = listedCount + 1
+        End If
+
+        If StrComp(mp_NormalizeAdoObjectName(schemaNameClean), mp_NormalizeAdoObjectName(configuredName), vbTextCompare) = 0 Then
+            schemaRs.Close
+            mp_ResolveExplicitAdoObjectReference = mp_QuoteSqlIdentifier(schemaNameClean)
+            Exit Function
+        End If
+
+        schemaRs.MoveNext
+    Loop
+    schemaRs.Close
+
+    Err.Raise vbObjectError + 1336, "ex_PersonTimeline", _
+        "Configured SheetName '" & configuredName & "' for " & sourceAlias & ".Table[" & tableAlias & "] was not found. Available objects: " & listedNames
+End Function
+
+Private Function mp_GetSourceAliasCached(ByVal cfg As Object, ByVal tableAlias As String, ByVal cache As Object) As String
+    If Not cache Is Nothing Then
+        If cache.Exists(tableAlias) Then
+            mp_GetSourceAliasCached = CStr(cache(tableAlias))
+            Exit Function
+        End If
+    End If
+
+    mp_GetSourceAliasCached = mp_FindSourceAliasForTable(cfg, tableAlias)
+
+    If Not cache Is Nothing Then
+        cache(tableAlias) = mp_GetSourceAliasCached
+    End If
 End Function
 
 Private Sub mp_ApplyTimelineStyleLayers( _
@@ -533,6 +804,607 @@ Private Function mp_GetSourceAliases(ByVal cfg As Object) As Variant
 
     mp_GetSourceAliases = arr
 
+End Function
+
+Private Function mp_GetConnectionForSource(ByVal connCache As Object, ByVal cfg As Object, ByVal sourceAlias As String) As Object
+    Dim fileKey As String
+    Dim sourcePath As String
+    Dim conn As Object
+
+    If connCache.Exists(sourceAlias) Then
+        Set mp_GetConnectionForSource = connCache(sourceAlias)
+        Exit Function
+    End If
+
+    fileKey = "Source." & sourceAlias & ".FilePath"
+    sourcePath = mp_ResolvePathLocal(mp_GetCfgRequired(cfg, fileKey))
+
+    If Dir(sourcePath) = vbNullString Then
+        Err.Raise vbObjectError + 1360, "ex_PersonTimeline", "Source file not found: " & sourcePath
+    End If
+
+    Set conn = CreateObject("ADODB.Connection")
+    On Error GoTo EH
+    conn.Open mp_BuildAdoConnectionString(sourcePath)
+    On Error GoTo 0
+
+    connCache.Add sourceAlias, conn
+    Set mp_GetConnectionForSource = conn
+    Exit Function
+
+EH:
+    Err.Raise vbObjectError + 1362, "ex_PersonTimeline", _
+        "ADO connection failed for source '" & sourceAlias & "' (" & sourcePath & "): " & Err.Description
+End Function
+
+Private Sub mp_CloseConnections(ByVal connCache As Object)
+    Dim key As Variant
+    Dim conn As Object
+
+    If connCache Is Nothing Then Exit Sub
+
+    On Error Resume Next
+    For Each key In connCache.Keys
+        Set conn = connCache(key)
+        If Not conn Is Nothing Then
+            If conn.State <> 0 Then conn.Close
+        End If
+    Next key
+    connCache.RemoveAll
+    On Error GoTo 0
+End Sub
+
+Private Function mp_BuildAdoConnectionString(ByVal sourcePath As String) As String
+    Dim ext As String
+    Dim props As String
+
+    ext = LCase$(Mid$(sourcePath, InStrRev(sourcePath, ".") + 1))
+
+    Select Case ext
+        Case "xls"
+            props = "Excel 8.0;HDR=YES;IMEX=1;ReadOnly=True"
+        Case "xlsx"
+            props = "Excel 12.0 Xml;HDR=YES;IMEX=1;ReadOnly=True"
+        Case "xlsm"
+            props = "Excel 12.0 Macro;HDR=YES;IMEX=1;ReadOnly=True"
+        Case "xlsb"
+            props = "Excel 12.0;HDR=YES;IMEX=1;ReadOnly=True"
+        Case Else
+            Err.Raise vbObjectError + 1363, "ex_PersonTimeline", "Unsupported source file extension for ADO: ." & ext
+    End Select
+
+    mp_BuildAdoConnectionString = "Provider=Microsoft.ACE.OLEDB.12.0;Data Source=" & sourcePath & ";Extended Properties=""" & props & """;"
+End Function
+
+Private Function mp_ResolveAdoTableReference(ByVal adoConn As Object, ByVal tableName As String, Optional ByVal expectedHeaders As Variant, Optional ByVal keyHeader As String = vbNullString, Optional ByVal keyValue As String = vbNullString) As String
+    Dim schemaRs As Object
+    Dim schemaName As String
+    Dim schemaNameClean As String
+    Dim resolvedName As String
+    Dim listedNames As String
+    Dim listedCount As Long
+    Dim fallbackName As String
+    Dim fallbackScore As Long
+    Dim currentScore As Long
+    Dim keyMatchCount As Long
+
+    Set schemaRs = adoConn.OpenSchema(20)
+
+    Do While Not schemaRs.EOF
+        schemaName = CStr(schemaRs.Fields("TABLE_NAME").Value)
+        schemaNameClean = mp_CleanAdoSchemaObjectName(schemaName)
+        If listedCount < 15 Then
+            If Len(listedNames) > 0 Then listedNames = listedNames & ", "
+            listedNames = listedNames & schemaNameClean
+            listedCount = listedCount + 1
+        End If
+        If mp_IsMatchingAdoTableName(schemaNameClean, tableName) Then
+            resolvedName = schemaNameClean
+            Exit Do
+        End If
+
+        If Not mp_IsEmptyVariantArray(expectedHeaders) Then
+            currentScore = mp_AdoObjectMatchScore(adoConn, schemaNameClean, expectedHeaders)
+        Else
+            currentScore = 0
+        End If
+
+        If Len(keyHeader) > 0 And Len(keyValue) > 0 Then
+            keyMatchCount = mp_AdoObjectKeyMatchCount(adoConn, schemaNameClean, keyHeader, keyValue)
+            If keyMatchCount > 0 Then
+                currentScore = currentScore + (100000 + keyMatchCount)
+            End If
+        End If
+
+        If currentScore > fallbackScore Then
+            fallbackScore = currentScore
+            fallbackName = schemaNameClean
+        End If
+        schemaRs.MoveNext
+    Loop
+
+    schemaRs.Close
+
+    If Len(resolvedName) = 0 And Len(fallbackName) > 0 And fallbackScore > 0 Then
+        resolvedName = fallbackName
+    End If
+
+    If Len(resolvedName) = 0 Then
+        Err.Raise vbObjectError + 1302, "ex_PersonTimeline", _
+            "ADO table/range not found: '" & tableName & "'. Available objects: " & listedNames
+    End If
+
+    mp_ResolveAdoTableReference = mp_QuoteSqlIdentifier(resolvedName)
+End Function
+
+Private Function mp_AdoObjectKeyMatchCount(ByVal adoConn As Object, ByVal objectName As String, ByVal keyHeader As String, ByVal keyValue As String) As Long
+    Dim rs As Object
+    Dim dataValues As Variant
+    Dim keyOrdinal As Long
+    Dim r As Long
+    Dim rowCount As Long
+    Dim sql As String
+    Dim headerRowIndex As Long
+    Dim columnMap As Object
+
+    On Error GoTo EH
+
+    Set rs = CreateObject("ADODB.Recordset")
+
+    If mp_IsNumericHeaderToken(keyHeader) Then
+        sql = "SELECT * FROM " & mp_QuoteSqlIdentifier(objectName)
+    Else
+        sql = "SELECT " & mp_QuoteSqlIdentifier(keyHeader) & " FROM " & mp_QuoteSqlIdentifier(objectName) & " WHERE " & mp_BuildAdoWhereEquals(keyHeader, keyValue)
+    End If
+
+    rs.Open sql, adoConn, 0, 1
+    If rs.EOF Then
+        rs.Close
+        Exit Function
+    End If
+
+    If mp_IsNumericHeaderToken(keyHeader) Then
+        dataValues = rs.GetRows
+        rowCount = UBound(dataValues, 2) - LBound(dataValues, 2) + 1
+
+        headerRowIndex = mp_DetectHeaderRowIndexByHeaders(dataValues, Array(keyHeader))
+        If headerRowIndex < 0 Then
+            rs.Close
+            Exit Function
+        End If
+
+        Set columnMap = mp_BuildMatrixColumnMap(dataValues, headerRowIndex)
+        keyOrdinal = mp_GetMatrixColumnOrdinal(columnMap, keyHeader)
+        If keyOrdinal < 0 Then
+            rs.Close
+            Exit Function
+        End If
+
+        For r = headerRowIndex + 1 To rowCount - 1
+            If StrComp(mp_ToSafeText(dataValues(keyOrdinal, r)), keyValue, vbTextCompare) = 0 Then
+                mp_AdoObjectKeyMatchCount = mp_AdoObjectKeyMatchCount + 1
+            End If
+        Next r
+    Else
+        dataValues = rs.GetRows
+        mp_AdoObjectKeyMatchCount = UBound(dataValues, 2) - LBound(dataValues, 2) + 1
+    End If
+
+    rs.Close
+    Exit Function
+
+EH:
+    On Error Resume Next
+    If Not rs Is Nothing Then
+        If rs.State <> 0 Then rs.Close
+    End If
+    On Error GoTo 0
+End Function
+
+Private Function mp_BuildExpectedHeaders(ByVal cfg As Object, ByVal sourceAlias As String, ByVal tableAlias As String, ByVal fields As Variant, ByVal keyHeader As String) As Variant
+    Dim d As Object
+    Dim i As Long
+    Dim h As Variant
+    Dim out() As String
+    Dim idx As Long
+
+    Set d = CreateObject("Scripting.Dictionary")
+    d.CompareMode = 1
+
+    h = Trim$(keyHeader)
+    If Len(h) > 0 Then d(h) = h
+
+    For i = LBound(fields) To UBound(fields)
+        h = Trim$(mp_GetMappedSourceHeader(cfg, sourceAlias, tableAlias, Trim$(CStr(fields(i)))))
+        If Len(h) > 0 Then d(h) = h
+    Next i
+
+    If d.Count = 0 Then
+        mp_BuildExpectedHeaders = Array()
+        Exit Function
+    End If
+
+    ReDim out(0 To d.Count - 1)
+    idx = 0
+    For Each h In d.Keys
+        out(idx) = CStr(h)
+        idx = idx + 1
+    Next h
+
+    mp_BuildExpectedHeaders = out
+End Function
+
+Private Function mp_AdoObjectMatchScore(ByVal adoConn As Object, ByVal objectName As String, ByVal expectedHeaders As Variant) As Long
+    Dim rs As Object
+    Dim i As Long
+    Dim headerToken As String
+    Dim dataValues As Variant
+    Dim headerRowIndex As Long
+    Dim columnMap As Object
+
+    If mp_IsEmptyVariantArray(expectedHeaders) Then Exit Function
+
+    On Error GoTo EH
+    Set rs = CreateObject("ADODB.Recordset")
+    If mp_ExpectedHeadersContainNumeric(expectedHeaders) Then
+        rs.Open "SELECT * FROM " & mp_QuoteSqlIdentifier(objectName), adoConn, 0, 1
+
+        If Not rs.EOF Then
+            dataValues = rs.GetRows
+            headerRowIndex = mp_DetectHeaderRowIndexByHeaders(dataValues, expectedHeaders)
+            If headerRowIndex >= 0 Then
+                Set columnMap = mp_BuildMatrixColumnMap(dataValues, headerRowIndex)
+                For i = LBound(expectedHeaders) To UBound(expectedHeaders)
+                    headerToken = Trim$(CStr(expectedHeaders(i)))
+                    If mp_GetMatrixColumnOrdinal(columnMap, headerToken) >= 0 Then
+                        mp_AdoObjectMatchScore = mp_AdoObjectMatchScore + 1
+                    End If
+                Next i
+            End If
+        End If
+    Else
+        rs.Open "SELECT * FROM " & mp_QuoteSqlIdentifier(objectName) & " WHERE 1=0", adoConn, 0, 1
+
+        For i = LBound(expectedHeaders) To UBound(expectedHeaders)
+            headerToken = Trim$(CStr(expectedHeaders(i)))
+            If mp_AdoRecordsetHasField(rs, headerToken) Then
+                mp_AdoObjectMatchScore = mp_AdoObjectMatchScore + 1
+            End If
+        Next i
+    End If
+
+    rs.Close
+    Exit Function
+
+EH:
+    On Error Resume Next
+    If Not rs Is Nothing Then
+        If rs.State <> 0 Then rs.Close
+    End If
+    On Error GoTo 0
+End Function
+
+Private Function mp_ExpectedHeadersContainNumeric(ByVal expectedHeaders As Variant) As Boolean
+    Dim i As Long
+    If mp_IsEmptyVariantArray(expectedHeaders) Then Exit Function
+
+    For i = LBound(expectedHeaders) To UBound(expectedHeaders)
+        If mp_IsNumericHeaderToken(CStr(expectedHeaders(i))) Then
+            mp_ExpectedHeadersContainNumeric = True
+            Exit Function
+        End If
+    Next i
+End Function
+
+Private Function mp_DetectHeaderRowIndexByHeaders(ByRef dataValues As Variant, ByVal expectedHeaders As Variant) As Long
+    Dim rowCount As Long
+    Dim colCount As Long
+    Dim maxRows As Long
+    Dim r As Long
+    Dim c As Long
+    Dim bestRow As Long
+    Dim bestScore As Long
+    Dim rowTokens As Object
+    Dim headerToken As String
+    Dim score As Long
+    Dim i As Long
+
+    If mp_IsEmptyVariantArray(expectedHeaders) Then
+        mp_DetectHeaderRowIndexByHeaders = -1
+        Exit Function
+    End If
+
+    rowCount = UBound(dataValues, 2) - LBound(dataValues, 2) + 1
+    colCount = UBound(dataValues, 1) - LBound(dataValues, 1) + 1
+    maxRows = rowCount
+    If maxRows > 120 Then maxRows = 120
+
+    bestRow = -1
+    bestScore = 0
+
+    For r = 0 To maxRows - 1
+        Set rowTokens = CreateObject("Scripting.Dictionary")
+        rowTokens.CompareMode = 1
+
+        For c = 0 To colCount - 1
+            headerToken = mp_NormalizeHeader(mp_ToSafeText(dataValues(c, r)))
+            If Len(headerToken) > 0 Then rowTokens(headerToken) = True
+        Next c
+
+        score = 0
+        For i = LBound(expectedHeaders) To UBound(expectedHeaders)
+            headerToken = mp_NormalizeHeader(CStr(expectedHeaders(i)))
+            If Len(headerToken) > 0 Then
+                If rowTokens.Exists(headerToken) Then score = score + 1
+            End If
+        Next i
+
+        If score > bestScore Then
+            bestScore = score
+            bestRow = r
+        End If
+    Next r
+
+    If bestScore > 0 Then
+        mp_DetectHeaderRowIndexByHeaders = bestRow
+    Else
+        mp_DetectHeaderRowIndexByHeaders = -1
+    End If
+End Function
+
+Private Function mp_BuildMatrixColumnMap(ByRef dataValues As Variant, ByVal headerRowIndex As Long) As Object
+    Dim colMap As Object
+    Dim c As Long
+    Dim colCount As Long
+    Dim token As String
+
+    Set colMap = CreateObject("Scripting.Dictionary")
+    colMap.CompareMode = 1
+
+    colCount = UBound(dataValues, 1) - LBound(dataValues, 1) + 1
+    For c = 0 To colCount - 1
+        token = mp_NormalizeHeader(mp_ToSafeText(dataValues(c, headerRowIndex)))
+        If Len(token) > 0 Then
+            If Not colMap.Exists(token) Then colMap(token) = c
+        End If
+    Next c
+
+    Set mp_BuildMatrixColumnMap = colMap
+End Function
+
+Private Function mp_GetMatrixColumnOrdinal(ByVal colMap As Object, ByVal headerToken As String) As Long
+    Dim normalized As String
+
+    mp_GetMatrixColumnOrdinal = -1
+    If colMap Is Nothing Then Exit Function
+
+    normalized = mp_NormalizeHeader(headerToken)
+    If Len(normalized) = 0 Then Exit Function
+    If Not colMap.Exists(normalized) Then Exit Function
+
+    mp_GetMatrixColumnOrdinal = CLng(colMap(normalized))
+End Function
+
+Private Function mp_AdoRecordsetHasField(ByVal rs As Object, ByVal fieldName As String) As Boolean
+    mp_AdoRecordsetHasField = (mp_RecordsetGetFieldOrdinal(rs, fieldName) >= 0)
+End Function
+
+Private Function mp_CleanAdoSchemaObjectName(ByVal value As String) As String
+    value = Trim$(value)
+
+    If Len(value) >= 2 Then
+        If Left$(value, 1) = "'" And Right$(value, 1) = "'" Then
+            value = Mid$(value, 2, Len(value) - 2)
+        End If
+    End If
+
+    mp_CleanAdoSchemaObjectName = value
+End Function
+
+Private Function mp_AdoObjectHasField(ByVal adoConn As Object, ByVal objectName As String, ByVal fieldName As String) As Boolean
+    Dim rs As Object
+    Dim sql As String
+    Dim i As Long
+
+    On Error GoTo EH
+
+    sql = "SELECT * FROM " & mp_QuoteSqlIdentifier(objectName) & " WHERE 1=0"
+    Set rs = CreateObject("ADODB.Recordset")
+    rs.Open sql, adoConn, 0, 1
+
+    For i = 0 To rs.Fields.Count - 1
+        If StrComp(mp_NormalizeHeader(CStr(rs.Fields(i).Name)), mp_NormalizeHeader(fieldName), vbTextCompare) = 0 Then
+            mp_AdoObjectHasField = True
+            Exit For
+        End If
+    Next i
+
+    rs.Close
+    Exit Function
+
+EH:
+    On Error Resume Next
+    If Not rs Is Nothing Then
+        If rs.State <> 0 Then rs.Close
+    End If
+    On Error GoTo 0
+End Function
+
+Private Function mp_IsMatchingAdoTableName(ByVal candidate As String, ByVal requested As String) As Boolean
+    mp_IsMatchingAdoTableName = (StrComp(mp_NormalizeAdoObjectName(candidate), mp_NormalizeAdoObjectName(requested), vbTextCompare) = 0)
+End Function
+
+Private Function mp_NormalizeAdoObjectName(ByVal value As String) As String
+    Dim dollarPos As Long
+
+    value = mp_CleanAdoSchemaObjectName(value)
+    value = mp_StripAdoObjectOrdinalPrefix(value)
+
+    If Len(value) >= 2 Then
+        If Left$(value, 1) = "[" And Right$(value, 1) = "]" Then
+            value = Mid$(value, 2, Len(value) - 2)
+        End If
+    End If
+
+    If Len(value) >= 2 Then
+        If Left$(value, 1) = "'" And Right$(value, 1) = "'" Then
+            value = Mid$(value, 2, Len(value) - 2)
+        End If
+    End If
+
+    dollarPos = InStr(1, value, "$", vbBinaryCompare)
+    If dollarPos > 0 Then
+        value = Left$(value, dollarPos - 1)
+    End If
+
+    mp_NormalizeAdoObjectName = LCase$(Trim$(value))
+End Function
+
+Private Function mp_StripAdoObjectOrdinalPrefix(ByVal value As String) As String
+    Dim i As Long
+    Dim j As Long
+    Dim prefix As String
+    Dim marker As String
+
+    value = Trim$(value)
+    If Len(value) = 0 Then
+        mp_StripAdoObjectOrdinalPrefix = value
+        Exit Function
+    End If
+
+    j = 1
+    Do While j <= Len(value)
+        If Mid$(value, j, 1) < "0" Or Mid$(value, j, 1) > "9" Then Exit Do
+        j = j + 1
+    Loop
+
+    If j > 1 And j <= Len(value) Then
+        marker = Mid$(value, j, 1)
+        If marker = "#" Or marker = "." Or marker = ")" Or marker = "-" Then
+            prefix = Trim$(Left$(value, j - 1))
+            If IsNumeric(prefix) Then
+                i = j + 1
+                Do While i <= Len(value) And Mid$(value, i, 1) = " "
+                    i = i + 1
+                Loop
+                value = Mid$(value, i)
+            End If
+        End If
+    End If
+
+    mp_StripAdoObjectOrdinalPrefix = value
+End Function
+
+Private Function mp_QuoteSqlIdentifier(ByVal value As String) As String
+    mp_QuoteSqlIdentifier = "[" & Replace$(value, "]", "]]" ) & "]"
+End Function
+
+Private Function mp_BuildAdoWhereEquals(ByVal columnName As String, ByVal valueText As String) As String
+    mp_BuildAdoWhereEquals = mp_QuoteSqlIdentifier(columnName) & " = '" & Replace$(valueText, "'", "''") & "'"
+End Function
+
+Private Function mp_RecordsetGetFieldOrdinal(ByVal rs As Object, ByVal fieldName As String) As Long
+    Dim i As Long
+
+    mp_RecordsetGetFieldOrdinal = -1
+    If rs Is Nothing Then Exit Function
+
+    For i = 0 To rs.Fields.Count - 1
+        If StrComp(mp_NormalizeHeader(CStr(rs.Fields(i).Name)), mp_NormalizeHeader(fieldName), vbTextCompare) = 0 Then
+            mp_RecordsetGetFieldOrdinal = i
+            Exit Function
+        End If
+    Next i
+End Function
+
+Private Function mp_FindKeyOrdinalByValue(ByRef dataValues As Variant, ByVal headerRowIndex As Long, ByVal keyValue As String) As Long
+    Dim rowCount As Long
+    Dim colCount As Long
+    Dim startRow As Long
+    Dim c As Long
+    Dim r As Long
+    Dim hits As Long
+    Dim bestHits As Long
+    Dim bestCol As Long
+
+    On Error GoTo EH
+
+    rowCount = UBound(dataValues, 2) - LBound(dataValues, 2) + 1
+    colCount = UBound(dataValues, 1) - LBound(dataValues, 1) + 1
+
+    startRow = 0
+    If headerRowIndex >= 0 Then startRow = headerRowIndex + 1
+    If startRow < 0 Then startRow = 0
+    If startRow > rowCount - 1 Then startRow = 0
+
+    bestCol = -1
+    bestHits = 0
+
+    For c = 0 To colCount - 1
+        hits = 0
+        For r = startRow To rowCount - 1
+            If StrComp(mp_ToSafeText(dataValues(c, r)), keyValue, vbTextCompare) = 0 Then
+                hits = hits + 1
+            End If
+        Next r
+
+        If hits > bestHits Then
+            bestHits = hits
+            bestCol = c
+        End If
+    Next c
+
+    If bestHits > 0 Then
+        mp_FindKeyOrdinalByValue = bestCol
+    Else
+        mp_FindKeyOrdinalByValue = -1
+    End If
+    Exit Function
+
+EH:
+    mp_FindKeyOrdinalByValue = -1
+End Function
+
+Private Function mp_IsNumericHeaderToken(ByVal headerText As String) As Boolean
+    Dim n As Long
+    mp_IsNumericHeaderToken = mp_TryParsePositiveLong(headerText, n)
+End Function
+
+Private Function mp_TryParsePositiveLong(ByVal textValue As String, ByRef outValue As Long) As Boolean
+    textValue = Trim$(textValue)
+    If Len(textValue) = 0 Then Exit Function
+    If Not IsNumeric(textValue) Then Exit Function
+
+    On Error GoTo EH
+    outValue = CLng(textValue)
+    If outValue <= 0 Then Exit Function
+
+    mp_TryParsePositiveLong = True
+    Exit Function
+
+EH:
+    mp_TryParsePositiveLong = False
+End Function
+
+Private Function mp_ToSafeText(ByVal valueIn As Variant) As String
+    If IsError(valueIn) Then Exit Function
+    If IsNull(valueIn) Then Exit Function
+    If IsEmpty(valueIn) Then Exit Function
+
+    mp_ToSafeText = Trim$(CStr(valueIn))
+End Function
+
+Private Function mp_ToCellValue(ByVal valueIn As Variant) As Variant
+    If IsError(valueIn) Then
+        mp_ToCellValue = vbNullString
+        Exit Function
+    End If
+    If IsNull(valueIn) Then
+        mp_ToCellValue = vbNullString
+        Exit Function
+    End If
+
+    mp_ToCellValue = valueIn
 End Function
 
 Private Function mp_GetWorkbookForSource(ByVal wbCache As Object, ByVal cfg As Object, ByVal sourceAlias As String) As Workbook
@@ -893,22 +1765,82 @@ Private Function mp_FindHeaderColumnInTable(ByVal lo As ListObject, ByVal header
 End Function
 
 Private Function mp_FindDataRowByKeyInTable(ByVal lo As ListObject, ByVal keyColIndex As Long, ByVal keyValue As String) As Long
+    Dim matchedRows As Collection
 
     If lo.DataBodyRange Is Nothing Then
         mp_FindDataRowByKeyInTable = -1
         Exit Function
     End If
 
-    Dim r As Long
-    For r = 1 To lo.DataBodyRange.Rows.Count
-        If StrComp(Trim$(CStr(lo.DataBodyRange.Cells(r, keyColIndex).Value)), keyValue, vbTextCompare) = 0 Then
-            mp_FindDataRowByKeyInTable = r
-            Exit Function
-        End If
-    Next r
+    Set matchedRows = mp_CollectMatchingRowsByKey(lo, keyColIndex, keyValue)
+    If matchedRows.Count > 0 Then
+        mp_FindDataRowByKeyInTable = CLng(matchedRows(1))
+        Exit Function
+    End If
 
     mp_FindDataRowByKeyInTable = -1
 
+End Function
+
+Private Function mp_CollectMatchingRowsByKey(ByVal lo As ListObject, ByVal keyColIndex As Long, ByVal keyValue As String) As Collection
+    Dim matches As Collection
+    Dim keyRange As Range
+    Dim firstFound As Range
+    Dim currentFound As Range
+    Dim firstAddress As String
+    Dim dataValues As Variant
+    Dim rowCount As Long
+    Dim r As Long
+
+    Set matches = New Collection
+
+    If lo Is Nothing Then
+        Set mp_CollectMatchingRowsByKey = matches
+        Exit Function
+    End If
+    If lo.DataBodyRange Is Nothing Then
+        Set mp_CollectMatchingRowsByKey = matches
+        Exit Function
+    End If
+    If keyColIndex <= 0 Or keyColIndex > lo.ListColumns.Count Then
+        Set mp_CollectMatchingRowsByKey = matches
+        Exit Function
+    End If
+
+    Set keyRange = lo.ListColumns(keyColIndex).DataBodyRange
+    If keyRange Is Nothing Then
+        Set mp_CollectMatchingRowsByKey = matches
+        Exit Function
+    End If
+
+    On Error Resume Next
+    Set firstFound = keyRange.Find(What:=keyValue, After:=keyRange.Cells(keyRange.Cells.Count), LookIn:=xlValues, LookAt:=xlWhole, SearchOrder:=xlByRows, SearchDirection:=xlNext, MatchCase:=False)
+    On Error GoTo 0
+
+    If Not firstFound Is Nothing Then
+        firstAddress = firstFound.Address
+        Set currentFound = firstFound
+        Do
+            matches.Add (currentFound.Row - keyRange.Row + 1)
+            Set currentFound = keyRange.FindNext(currentFound)
+            If currentFound Is Nothing Then Exit Do
+        Loop While currentFound.Address <> firstAddress
+    End If
+
+    If matches.Count > 0 Then
+        Set mp_CollectMatchingRowsByKey = matches
+        Exit Function
+    End If
+
+    dataValues = keyRange.Value2
+    rowCount = UBound(dataValues, 1)
+    For r = 1 To rowCount
+        If StrComp(Trim$(CStr(dataValues(r, 1))), keyValue, vbTextCompare) = 0 Then
+            matches.Add r
+        End If
+    Next r
+
+    Set mp_CollectMatchingRowsByKey = matches
 End Function
 
 Private Sub mp_SortRangeByColumnIndex(ByVal ws As Worksheet, ByVal topRow As Long, ByVal bottomRow As Long, ByVal leftCol As Long, ByVal rightCol As Long, ByVal sortColRelative As Long)
@@ -921,21 +1853,34 @@ Private Sub mp_SortRangeByColumnIndex(ByVal ws As Worksheet, ByVal topRow As Lon
 End Sub
 
 Private Sub mp_NormalizeDateColumn(ByVal ws As Worksheet, ByVal topRow As Long, ByVal bottomRow As Long, ByVal colIndex As Long)
+    Dim values As Variant
+    Dim normalized() As Variant
     Dim r As Long
     Dim v As Variant
     Dim dt As Date
+    Dim rowCount As Long
 
     If ws Is Nothing Then Exit Sub
     If topRow <= 0 Or bottomRow < topRow Then Exit Sub
     If colIndex <= 0 Then Exit Sub
 
-    For r = topRow To bottomRow
-        v = ws.Cells(r, colIndex).Value
+    rowCount = bottomRow - topRow + 1
+    If rowCount <= 0 Then Exit Sub
+
+    values = ws.Range(ws.Cells(topRow, colIndex), ws.Cells(bottomRow, colIndex)).Value2
+    ReDim normalized(1 To rowCount, 1 To 1)
+
+    For r = 1 To rowCount
+        v = values(r, 1)
         If mp_TryParseDate(v, dt) Then
-            ws.Cells(r, colIndex).Value = CDbl(dt)
-            ws.Cells(r, colIndex).NumberFormat = "dd.mm.yyyy"
+            normalized(r, 1) = CDbl(dt)
+        Else
+            normalized(r, 1) = v
         End If
     Next r
+
+    ws.Range(ws.Cells(topRow, colIndex), ws.Cells(bottomRow, colIndex)).Value2 = normalized
+    ws.Range(ws.Cells(topRow, colIndex), ws.Cells(bottomRow, colIndex)).NumberFormat = "dd.mm.yyyy"
 End Sub
 
 Private Function mp_TryParseDate(ByVal valueIn As Variant, ByRef dateOut As Date) As Boolean
@@ -948,6 +1893,9 @@ Private Function mp_TryParseDate(ByVal valueIn As Variant, ByRef dateOut As Date
     Dim d As Long
     Dim m As Long
     Dim y As Long
+
+    If IsError(valueIn) Then Exit Function
+    If IsNull(valueIn) Then Exit Function
 
     s = Trim$(CStr(valueIn))
     If Len(s) = 0 Then
