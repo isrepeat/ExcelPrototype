@@ -20,10 +20,10 @@
 		<v key="Source.Main.TablesAliases">StateMain</v>
 		<v key="Source.Events.FilePath">..\TESTS\GetReferences\PeopleEventsUA.xlsx</v>
 		<v key="Source.Events.TablesAliases">EventsMain</v>
-		<v key="Context.PersonValue">Іванов Іван Іванович</v>
+		<v key="CommonKey">Іванов Іван Іванович</v>
 		<v type="#" key="StateMain"/>
 		<v key="Main.Table[StateMain].Type">State</v>
-		<v key="Main.Table[StateMain].Name">TableState</v>
+		<v key="Main.Table[StateMain].SheetName">StateSheet</v>
 		<v key="Main.Table[StateMain].Key">FIO</v>
 		<v key="Main.Table[StateMain].FieldsAliases">FIO; BirthDate; City; Phone</v>
 		<v key="Main.Table[StateMain].Map[FIO]">ПІБ</v>
@@ -32,7 +32,7 @@
 		<v key="Main.Table[StateMain].Map[Phone]">Телефон</v>
 		<v type="#" key="EventsMain"/>
 		<v key="Events.Table[EventsMain].Type">Events</v>
-		<v key="Events.Table[EventsMain].Name">TableEvents</v>
+		<v key="Events.Table[EventsMain].SheetName">EventsSheet</v>
 		<v key="Events.Table[EventsMain].Key">FIO</v>
 		<v key="Events.Table[EventsMain].FieldsAliases">RecordNo; EventDate; EventType; Department; Position; Salary</v>
 		<v key="Events.Table[EventsMain].Sort">RecordNo</v>
@@ -51,10 +51,10 @@
 		<v key="Source.Main.TablesAliases">StateMain</v>
 		<v key="Source.Events.FilePath">..\dsc_EventsSrc.xlsx</v>
 		<v key="Source.Events.TablesAliases">EventsIn; EventsOut</v>
-		<v key="Context.PersonValue">PLACEHOLDER</v>
+		<v key="CommonKey">ТКАЧЕНКО Сергій Олександрович</v>
 		<v type="#" key="StateMain"/>
 		<v key="Main.Table[StateMain].Type">State</v>
-		<v key="Main.Table[StateMain].Name">XОС</v>
+		<v key="Main.Table[StateMain].SheetName">ШПС</v>
 		<v key="Main.Table[StateMain].Key">FIO</v>
 		<v key="Main.Table[StateMain].FieldsAliases">FIO; IPN; ZV; Position</v>
 		<v key="Main.Table[StateMain].Map[ZV]">Військове звання</v>
@@ -63,7 +63,7 @@
 		<v key="Main.Table[StateMain].Map[IPN]">ІПН</v>
 		<v type="#" key="EventsIn"/>
 		<v key="Events.Table[EventsIn].Type">Events</v>
-		<v key="Events.Table[EventsIn].Name">ВІДСУТНІ28</v>
+		<v key="Events.Table[EventsIn].SheetName">4. Тимчасово прибулі</v>
 		<v key="Events.Table[EventsIn].FieldsAliases">ZV; FIO; ComesFrom;</v>
 		<v key="Events.Table[EventsIn].Key">FIO</v>
 		<v key="Events.Table[EventsIn].Sort">FIO</v>
@@ -72,7 +72,7 @@
 		<v key="Events.Table[EventsIn].Map[ComesFrom]">58|Звідки прибув</v>
 		<v type="#" key="EventsOut"/>
 		<v key="Events.Table[EventsOut].Type">Events</v>
-		<v key="Events.Table[EventsOut].Name">ВІДСУТНІ</v>
+		<v key="Events.Table[EventsOut].SheetName">5. Тимчасово відсутні</v>
 		<v key="Events.Table[EventsOut].FieldsAliases">ZV; FIO; EventReason; City; Date; Note; Ticket</v>
 		<v key="Events.Table[EventsOut].Key">FIO</v>
 		<v key="Events.Table[EventsOut].Sort">Date</v>

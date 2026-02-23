@@ -23,6 +23,8 @@
     buttonBackColor="#3C7D22"
     buttonTextColor="#0A0A0A"
     buttonBorderColor="#3C7D22"
+    errorBackColor="#FF0000"
+    errorFontColor="#0A0A0A"
     buttonAnchorColumn="3"
     buttonWidthColumns="1"
     fixedWidthKey="12"
@@ -30,9 +32,9 @@
     fixedWidthButton="14"
     fixedFieldRowHeight="32">
     <fields>
-      <field label="Key" inputName="Context.PersonValue" inputConfigKey="Context.PersonValue">
+      <configRefField label="Key" inputName="CommonKey" inputConfigKey="CommonKey">
         <button caption="Search" macro="ex_UIActions.m_OutputPanelStartSearch_OnClick"/>
-      </field>
+      </configRefField>
     </fields>
   </controlPanel>
 </uiDefinition>

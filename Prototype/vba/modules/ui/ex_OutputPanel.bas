@@ -42,6 +42,7 @@ Public Sub m_RenderForSheet(ByVal ws As Worksheet, ByRef style As ex_SheetStyles
     Dim panelAutoFitCols As Long
     Dim panelRange As Range
     Dim panelRenderRightCol As Long
+    Dim fieldError As String
 
     If ws Is Nothing Then Exit Sub
 
@@ -110,6 +111,15 @@ Public Sub m_RenderForSheet(ByVal ws As Worksheet, ByRef style As ex_SheetStyles
 
     mp_DeletePanelButtons ws
 
+    panelAutoFitLastCol = inputStartCol
+    If (buttonAnchorCol + buttonWidthCols - 1) > panelAutoFitLastCol Then
+        panelAutoFitLastCol = buttonAnchorCol + buttonWidthCols - 1
+    End If
+    If panelAutoFitLastCol >= startCol Then
+        panelAutoFitCols = panelAutoFitLastCol - startCol + 1
+        ws.Columns(startCol).Resize(, panelAutoFitCols).AutoFit
+    End If
+
     For fieldIndex = 1 To style.PanelFieldCount
         fieldTopRow = fieldsTopRow + ((fieldIndex - 1) * (rowSpan + fieldSpacing))
         fieldBottomRow = fieldTopRow + rowSpan - 1
@@ -134,6 +144,7 @@ Public Sub m_RenderForSheet(ByVal ws As Worksheet, ByRef style As ex_SheetStyles
         inputRange.NumberFormat = "@"
 
         Set inputAnchor = inputRange.Cells(1, 1)
+        mp_ApplyInputOverflowStyle inputAnchor, style.PanelFields(fieldIndex).InputOverflowStyle
         currentValue = Trim$(CStr(inputAnchor.Value))
         If Len(currentValue) = 0 Then
             inputAnchor.Value = ex_ConfigProvider.m_GetConfigValue(style.PanelFields(fieldIndex).InputConfigKey, vbNullString)
@@ -143,13 +154,10 @@ Public Sub m_RenderForSheet(ByVal ws As Worksheet, ByRef style As ex_SheetStyles
         End If
         mp_SetPanelInputKeyName ws, inputAnchor, style.PanelFields(fieldIndex).InputName
 
-        panelAutoFitLastCol = inputStartCol
-        If (buttonAnchorCol + buttonWidthCols - 1) > panelAutoFitLastCol Then
-            panelAutoFitLastCol = buttonAnchorCol + buttonWidthCols - 1
-        End If
-        If panelAutoFitLastCol >= startCol Then
-            panelAutoFitCols = panelAutoFitLastCol - startCol + 1
-            ws.Columns(startCol).Resize(, panelAutoFitCols).AutoFit
+        fieldError = mp_GetConfigRefFieldError(style.PanelFields(fieldIndex), fieldIndex)
+        If Len(fieldError) > 0 Then
+            mp_RenderFieldInlineError inputAnchor, fieldError, style, style.PanelFields(fieldIndex).InputOverflowStyle
+            GoTo ContinueField
         End If
 
         Set buttonCellRange = ws.Range(ws.Cells(fieldTopRow, buttonAnchorCol), ws.Cells(fieldBottomRow, buttonAnchorCol + buttonWidthCols - 1))
@@ -181,11 +189,77 @@ Public Sub m_RenderForSheet(ByVal ws As Worksheet, ByRef style As ex_SheetStyles
         buttonShape.TextFrame.VerticalAlignment = xlVAlignCenter
         buttonShape.Placement = xlMoveAndSize
         buttonShape.OnAction = "'" & ThisWorkbook.Name & "'!" & Trim$(style.PanelFields(fieldIndex).Button.MacroName)
+
+ContinueField:
     Next fieldIndex
 
     mp_SetPanelRangeName ws, ws.Range(ws.Cells(topRow, startCol), ws.Cells(bottomRow, panelRenderRightCol))
 
     mp_ApplyFixedControlPanelLayout ws, style, startCol, inputStartCol
+End Sub
+
+Private Function mp_GetConfigRefFieldError( _
+    ByRef fieldStyle As ex_SheetStylesXmlProvider.t_ControlPanelFieldStyle, _
+    ByVal fieldIndex As Long _
+) As String
+    If Not fieldStyle.IsConfigRefField Then Exit Function
+
+    If Len(Trim$(fieldStyle.Label)) = 0 Then
+        mp_GetConfigRefFieldError = "Missing required attribute: configRefField@label (field " & CStr(fieldIndex) & ")."
+        Exit Function
+    End If
+    If Len(Trim$(fieldStyle.InputConfigKey)) = 0 Then
+        mp_GetConfigRefFieldError = "Missing required attribute: configRefField@inputConfigKey (field " & CStr(fieldIndex) & ")."
+        Exit Function
+    End If
+    If Len(Trim$(fieldStyle.InputName)) = 0 Then
+        mp_GetConfigRefFieldError = "Missing required attribute: configRefField@inputName (field " & CStr(fieldIndex) & ")."
+        Exit Function
+    End If
+    If Len(Trim$(fieldStyle.Button.Caption)) = 0 Then
+        mp_GetConfigRefFieldError = "Missing required attribute: configRefField/button@caption (field " & CStr(fieldIndex) & ")."
+        Exit Function
+    End If
+    If Len(Trim$(fieldStyle.Button.MacroName)) = 0 Then
+        mp_GetConfigRefFieldError = "Missing required attribute: configRefField/button@macro (field " & CStr(fieldIndex) & ")."
+        Exit Function
+    End If
+End Function
+
+Private Sub mp_RenderFieldInlineError( _
+    ByVal inputAnchor As Range, _
+    ByVal errorText As String, _
+    ByRef style As ex_SheetStylesXmlProvider.t_OutputSheetStyle, _
+    ByVal overflowStyle As String _
+)
+    If inputAnchor Is Nothing Then Exit Sub
+
+    inputAnchor.UnMerge
+    inputAnchor.Value = errorText
+    inputAnchor.Font.Bold = True
+    inputAnchor.Font.Color = style.PanelErrorFontColor
+    inputAnchor.Interior.Pattern = xlSolid
+    inputAnchor.Interior.Color = style.PanelErrorBackColor
+    inputAnchor.HorizontalAlignment = xlLeft
+    inputAnchor.VerticalAlignment = xlCenter
+    mp_ApplyInputOverflowStyle inputAnchor, overflowStyle
+End Sub
+
+Private Sub mp_ApplyInputOverflowStyle(ByVal targetCell As Range, ByVal overflowStyle As String)
+    overflowStyle = LCase$(Trim$(overflowStyle))
+    If Len(overflowStyle) = 0 Then overflowStyle = "overflow"
+
+    Select Case overflowStyle
+        Case "wrap"
+            targetCell.WrapText = True
+            targetCell.ShrinkToFit = False
+        Case "shrink"
+            targetCell.WrapText = False
+            targetCell.ShrinkToFit = True
+        Case Else
+            targetCell.WrapText = False
+            targetCell.ShrinkToFit = False
+    End Select
 End Sub
 
 Public Function m_ReadSearchValue(ByVal ws As Worksheet) As String

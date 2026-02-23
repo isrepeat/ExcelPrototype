@@ -7,32 +7,19 @@
     <v key="NewTableName">TableLast</v>
     <v key="KeyColumnName">ID</v>
     <ui>
-      <control name="ddProfile"
-               visible="false"/>
-      <control name="ddMode"
-               visible="false"/>
-      <control name="btnClear"
-               visible="true"/>
-      <control name="btnMode"
-               visible="false"/>
-      <control name="btnPersonalCard"
-               visible="false"/>
-      <control name="btnComparing"
-               visible="true"/>
-      <control name="btnUpdateCode"
-               visible="true"/>
-      <control name="btnCustomProfile"
-               visible="true"/>
-      <control name="btnCustomProfileOption_1"
-               visible="false"/>
-      <control name="btnCustomProfileOption_2"
-               visible="false"/>
-      <control name="btnCustomMode"
-               visible="true"/>
-      <control name="btnCustomModeOption_1"
-               visible="false"/>
-      <control name="btnCustomModeOption_2"
-               visible="false"/>
+      <control name="ddProfile" visible="false"/>
+      <control name="ddMode" visible="false"/>
+      <control name="btnClear" visible="true"/>
+      <control name="btnMode" visible="false"/>
+      <control name="btnPersonalCard" visible="false"/>
+      <control name="btnComparing" visible="true"/>
+      <control name="btnUpdateCode" visible="true"/>
+      <control name="btnCustomProfile" visible="true"/>
+      <control name="btnCustomProfileOption_1" visible="false"/>
+      <control name="btnCustomProfileOption_2" visible="false"/>
+      <control name="btnCustomMode" visible="true"/>
+      <control name="btnCustomModeOption_1" visible="false"/>
+      <control name="btnCustomModeOption_2" visible="false"/>
     </ui>
   </profile>
   <profile name="Test">
@@ -42,32 +29,19 @@
     <v key="NewTableName">TableLast</v>
     <v key="KeyColumnName">ID</v>
     <ui>
-      <control name="ddProfile"
-               visible="false"/>
-      <control name="ddMode"
-               visible="false"/>
-      <control name="btnClear"
-               visible="true"/>
-      <control name="btnMode"
-               visible="false"/>
-      <control name="btnPersonalCard"
-               visible="false"/>
-      <control name="btnComparing"
-               visible="true"/>
-      <control name="btnUpdateCode"
-               visible="true"/>
-      <control name="btnCustomProfile"
-               visible="true"/>
-      <control name="btnCustomProfileOption_1"
-               visible="false"/>
-      <control name="btnCustomProfileOption_2"
-               visible="false"/>
-      <control name="btnCustomMode"
-               visible="true"/>
-      <control name="btnCustomModeOption_1"
-               visible="false"/>
-      <control name="btnCustomModeOption_2"
-               visible="false"/>
+      <control name="ddProfile" visible="false"/>
+      <control name="ddMode" visible="false"/>
+      <control name="btnClear" visible="true"/>
+      <control name="btnMode" visible="false"/>
+      <control name="btnPersonalCard" visible="false"/>
+      <control name="btnComparing" visible="true"/>
+      <control name="btnUpdateCode" visible="true"/>
+      <control name="btnCustomProfile" visible="true"/>
+      <control name="btnCustomProfileOption_1" visible="false"/>
+      <control name="btnCustomProfileOption_2" visible="false"/>
+      <control name="btnCustomMode" visible="true"/>
+      <control name="btnCustomModeOption_1" visible="false"/>
+      <control name="btnCustomModeOption_2" visible="false"/>
     </ui>
   </profile>
 </profiles>

@@ -23,9 +23,11 @@ Public Type t_ControlPanelButtonStyle
 End Type
 
 Public Type t_ControlPanelFieldStyle
+    IsConfigRefField As Boolean
     Label As String
     InputConfigKey As String
     InputName As String
+    InputOverflowStyle As String
     Button As t_ControlPanelButtonStyle
 End Type
 
@@ -99,6 +101,8 @@ Public Type t_OutputSheetStyle
     PanelButtonBackColor As Long
     PanelButtonTextColor As Long
     PanelButtonBorderColor As Long
+    PanelErrorBackColor As Long
+    PanelErrorFontColor As Long
     PanelButtonAnchorColumn As Long
     PanelButtonWidthColumns As Long
     PanelFixedWidthKey As Double
@@ -330,9 +334,13 @@ End Sub
 
 Public Function m_GetUsedRangeSize(ByVal ws As Worksheet, ByRef rowCount As Long, ByRef colCount As Long) As Boolean
     Dim usedRange As Range
+    Dim lastCell As Range
 
     If ws Is Nothing Then Exit Function
-    If Application.WorksheetFunction.CountA(ws.Cells) = 0 Then Exit Function
+    On Error Resume Next
+    Set lastCell = ws.Cells.Find(What:="*", LookIn:=xlFormulas, SearchOrder:=xlByRows, SearchDirection:=xlPrevious)
+    On Error GoTo 0
+    If lastCell Is Nothing Then Exit Function
     If ws.UsedRange Is Nothing Then Exit Function
 
     Set usedRange = ws.UsedRange
@@ -877,6 +885,8 @@ Private Function mp_LoadControlPanelFromModeUi(ByVal doc As Object, ByRef style 
     If Not mp_ReadOptionalAttrHexColor(nodeControlPanel, "buttonBackColor", style.PanelButtonBackColor, RGB(31, 94, 156), "controlPanel@buttonBackColor") Then Exit Function
     If Not mp_ReadOptionalAttrHexColor(nodeControlPanel, "buttonTextColor", style.PanelButtonTextColor, RGB(255, 255, 255), "controlPanel@buttonTextColor") Then Exit Function
     If Not mp_ReadOptionalAttrHexColor(nodeControlPanel, "buttonBorderColor", style.PanelButtonBorderColor, RGB(22, 63, 105), "controlPanel@buttonBorderColor") Then Exit Function
+    If Not mp_ReadOptionalAttrHexColor(nodeControlPanel, "errorBackColor", style.PanelErrorBackColor, style.PanelButtonBackColor, "controlPanel@errorBackColor") Then Exit Function
+    If Not mp_ReadOptionalAttrHexColor(nodeControlPanel, "errorFontColor", style.PanelErrorFontColor, style.PanelButtonTextColor, "controlPanel@errorFontColor") Then Exit Function
     If Not mp_ReadOptionalAttrLong(nodeControlPanel, "buttonAnchorColumn", style.PanelButtonAnchorColumn, 4, "controlPanel@buttonAnchorColumn") Then Exit Function
     If Not mp_ReadOptionalAttrLong(nodeControlPanel, "buttonWidthColumns", style.PanelButtonWidthColumns, 1, "controlPanel@buttonWidthColumns") Then Exit Function
     If Not mp_ReadOptionalAttrDouble(nodeControlPanel, "fixedWidthKey", style.PanelFixedWidthKey, 0#, "controlPanel@fixedWidthKey") Then Exit Function
@@ -943,13 +953,13 @@ Private Function mp_LoadControlPanelFields(ByVal nodeControlPanel As Object, ByR
     Dim fieldNode As Object
     Dim i As Long
 
-    Set fieldNodes = nodeControlPanel.selectNodes("p:fields/p:field")
+    Set fieldNodes = nodeControlPanel.selectNodes("p:fields/*[self::p:configRefField or self::p:field]")
     If fieldNodes Is Nothing Or fieldNodes.Length = 0 Then
-        Set fieldNodes = nodeControlPanel.selectNodes("p:field")
+        Set fieldNodes = nodeControlPanel.selectNodes("*[self::p:configRefField or self::p:field]")
     End If
 
     If fieldNodes Is Nothing Or fieldNodes.Length = 0 Then
-        MsgBox "Invalid controlPanel layout: at least one field is required in 'controlPanel/fields/field'.", vbExclamation
+        MsgBox "Invalid controlPanel layout: at least one field is required in 'controlPanel/fields/(configRefField|field)'.", vbExclamation
         Exit Function
     End If
 
@@ -971,14 +981,29 @@ Private Function mp_LoadControlPanelFieldNode( _
 ) As Boolean
     Dim buttonNodes As Object
     Dim buttonNode As Object
+    Dim fieldTagName As String
+
+    fieldTagName = LCase$(Trim$(CStr(fieldNode.baseName)))
+    fieldStyle.IsConfigRefField = (fieldTagName = "configreffield")
+
+    If fieldTagName <> "configreffield" And fieldTagName <> "field" Then
+        MsgBox "Invalid control panel field tag: '" & fieldTagName & "'. Allowed tags: field, configRefField.", vbExclamation
+        Exit Function
+    End If
 
     fieldStyle.Label = mp_ReadOptionalAttrText(fieldNode, "label", vbNullString)
     fieldStyle.InputConfigKey = mp_ReadOptionalAttrText(fieldNode, "inputConfigKey", vbNullString)
-    fieldStyle.InputName = mp_ReadOptionalAttrText(fieldNode, "inputName", fieldStyle.InputConfigKey)
-    If Len(Trim$(fieldStyle.Label)) = 0 Then fieldStyle.Label = "Key"
-    If Len(Trim$(fieldStyle.InputConfigKey)) = 0 Then fieldStyle.InputConfigKey = "Context.PersonValue"
-    If Len(Trim$(fieldStyle.InputName)) = 0 Then
-        fieldStyle.InputName = "Field" & CStr(fieldIndex)
+    fieldStyle.InputName = mp_ReadOptionalAttrText(fieldNode, "inputName", vbNullString)
+    fieldStyle.InputOverflowStyle = mp_ReadOptionalAttrText(fieldNode, "inputOverflowStyle", "wrap")
+
+    If Not mp_NormalizeInputOverflowStyle(fieldStyle.InputOverflowStyle, fieldStyle.InputOverflowStyle, fieldTagName, fieldIndex) Then Exit Function
+
+    If Not fieldStyle.IsConfigRefField Then
+        If Len(Trim$(fieldStyle.Label)) = 0 Then fieldStyle.Label = "Key"
+        If Len(Trim$(fieldStyle.InputConfigKey)) = 0 Then fieldStyle.InputConfigKey = "CommonKey"
+        If Len(Trim$(fieldStyle.InputName)) = 0 Then
+            fieldStyle.InputName = "Field" & CStr(fieldIndex)
+        End If
     End If
 
     Set buttonNodes = fieldNode.selectNodes("p:button")
@@ -993,13 +1018,41 @@ Private Function mp_LoadControlPanelFieldNode( _
     End If
 
     Set buttonNode = buttonNodes.Item(0)
-    fieldStyle.Button.Caption = mp_ReadOptionalAttrText(buttonNode, "caption", "Action 1")
-    fieldStyle.Button.MacroName = mp_ReadOptionalAttrText(buttonNode, "macro", "ex_UIActions.m_OutputPanelStartSearch_OnClick")
-    If Len(Trim$(fieldStyle.Button.MacroName)) = 0 Then
-        fieldStyle.Button.MacroName = "ex_UIActions.m_OutputPanelStartSearch_OnClick"
+    fieldStyle.Button.Caption = mp_ReadOptionalAttrText(buttonNode, "caption", vbNullString)
+    fieldStyle.Button.MacroName = mp_ReadOptionalAttrText(buttonNode, "macro", vbNullString)
+
+    If Not fieldStyle.IsConfigRefField Then
+        If Len(Trim$(fieldStyle.Button.Caption)) = 0 Then fieldStyle.Button.Caption = "Action 1"
+        If Len(Trim$(fieldStyle.Button.MacroName)) = 0 Then
+            fieldStyle.Button.MacroName = "ex_UIActions.m_OutputPanelStartSearch_OnClick"
+        End If
     End If
 
     mp_LoadControlPanelFieldNode = True
+End Function
+
+Private Function mp_NormalizeInputOverflowStyle( _
+    ByVal rawValue As String, _
+    ByRef normalized As String, _
+    ByVal fieldTagName As String, _
+    ByVal fieldIndex As Long _
+) As Boolean
+    rawValue = LCase$(Trim$(rawValue))
+    If Len(rawValue) = 0 Then rawValue = "wrap"
+
+    Select Case rawValue
+        Case "wrap"
+            normalized = "wrap"
+        Case "shrink"
+            normalized = "shrink"
+        Case "overflow", "clip"
+            normalized = "overflow"
+        Case Else
+            MsgBox "Invalid value for input overflow style: " & fieldTagName & "@inputOverflowStyle='" & rawValue & "' (field " & CStr(fieldIndex) & "). Allowed: wrap, shrink, overflow, clip.", vbExclamation
+            Exit Function
+    End Select
+
+    mp_NormalizeInputOverflowStyle = True
 End Function
 
 Private Function mp_ReadOptionalAttrText(ByVal node As Object, ByVal attrName As String, ByVal defaultValue As String) As String

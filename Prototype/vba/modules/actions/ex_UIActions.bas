@@ -74,7 +74,7 @@ Public Sub m_OutputPanelStartSearch_OnClick()
         Err.Raise vbObjectError + 2401, "ex_UIActions.m_OutputPanelStartSearch_OnClick", "Active sheet is not available for output panel search."
     End If
 
-    configKey = "Context.PersonValue"
+    configKey = "CommonKey"
     If ex_SheetStylesXmlProvider.m_GetOutputSheetStyle(outputStyle, ThisWorkbook) Then
         callerName = vbNullString
         On Error Resume Next

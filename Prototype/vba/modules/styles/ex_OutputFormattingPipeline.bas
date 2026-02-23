@@ -103,6 +103,8 @@ Public Sub m_ApplyViewZoneWrapText( _
     Dim targetRange As Range
     Dim rowIndex As Long
     Dim rowRange As Range
+    Dim excludedMap As Object
+    Dim excludedMap2 As Object
 
     If ws Is Nothing Then Exit Sub
     If viewStartRow < 1 Then Exit Sub
@@ -114,11 +116,14 @@ Public Sub m_ApplyViewZoneWrapText( _
 
     If excludedRows Is Nothing Then Exit Sub
 
+    Set excludedMap = mp_BuildRowsMap(excludedRows)
+    Set excludedMap2 = mp_BuildRowsMap(excludedRows2)
+
     For rowIndex = viewStartRow To viewEndRow
-        If mp_RowIsListed(excludedRows, rowIndex) Then
+        If mp_RowIsInMap(excludedMap, rowIndex) Then
             Set rowRange = ws.Range(ws.Cells(rowIndex, 1), ws.Cells(rowIndex, viewColCount))
             rowRange.WrapText = False
-        ElseIf mp_RowIsListed(excludedRows2, rowIndex) Then
+        ElseIf mp_RowIsInMap(excludedMap2, rowIndex) Then
             Set rowRange = ws.Range(ws.Cells(rowIndex, 1), ws.Cells(rowIndex, viewColCount))
             rowRange.WrapText = False
         End If
@@ -135,7 +140,9 @@ Public Sub m_ApplyTimelineDataRowsHeight( _
     Optional ByVal dataRowHeight As Double = 32 _
 )
     Dim rowIndex As Long
-    Dim rowRange As Range
+    Dim headerRowsMap As Object
+    Dim sectionRowsMap As Object
+    Dim lastDataRow As Long
 
     If ws Is Nothing Then Exit Sub
     If viewStartRow < 1 Then Exit Sub
@@ -143,14 +150,18 @@ Public Sub m_ApplyTimelineDataRowsHeight( _
     If viewColCount < 1 Then Exit Sub
     If dataRowHeight <= 0 Then Exit Sub
 
-    For rowIndex = viewStartRow To viewEndRow
-        If mp_RowIsListed(headerRows, rowIndex) Then GoTo ContinueRow
-        If mp_RowIsListed(sectionRows, rowIndex) Then GoTo ContinueRow
+    Set headerRowsMap = mp_BuildRowsMap(headerRows)
+    Set sectionRowsMap = mp_BuildRowsMap(sectionRows)
 
-        Set rowRange = ws.Range(ws.Cells(rowIndex, 1), ws.Cells(rowIndex, viewColCount))
-        If Application.WorksheetFunction.CountA(rowRange) > 0 Then
-            ws.Rows(rowIndex).RowHeight = dataRowHeight
-        End If
+    lastDataRow = mp_GetLastUsedRow(ws)
+    If lastDataRow <= 0 Then Exit Sub
+    If lastDataRow < viewStartRow Then Exit Sub
+    If lastDataRow > viewEndRow Then lastDataRow = viewEndRow
+
+    For rowIndex = viewStartRow To lastDataRow
+        If mp_RowIsInMap(headerRowsMap, rowIndex) Then GoTo ContinueRow
+        If mp_RowIsInMap(sectionRowsMap, rowIndex) Then GoTo ContinueRow
+        ws.Rows(rowIndex).RowHeight = dataRowHeight
 ContinueRow:
     Next rowIndex
 End Sub
@@ -282,4 +293,41 @@ Private Function mp_RowIsListed(ByVal rowsCollection As Collection, ByVal rowInd
             Exit Function
         End If
     Next itemValue
+End Function
+
+Private Function mp_BuildRowsMap(ByVal rowsCollection As Collection) As Object
+    Dim rowsMap As Object
+    Dim itemValue As Variant
+
+    Set rowsMap = CreateObject("Scripting.Dictionary")
+    rowsMap.CompareMode = 0
+
+    If rowsCollection Is Nothing Then
+        Set mp_BuildRowsMap = rowsMap
+        Exit Function
+    End If
+
+    For Each itemValue In rowsCollection
+        rowsMap(CStr(CLng(itemValue))) = True
+    Next itemValue
+
+    Set mp_BuildRowsMap = rowsMap
+End Function
+
+Private Function mp_RowIsInMap(ByVal rowsMap As Object, ByVal rowIndex As Long) As Boolean
+    If rowsMap Is Nothing Then Exit Function
+    mp_RowIsInMap = rowsMap.Exists(CStr(rowIndex))
+End Function
+
+Private Function mp_GetLastUsedRow(ByVal ws As Worksheet) As Long
+    Dim lastCell As Range
+
+    If ws Is Nothing Then Exit Function
+
+    On Error Resume Next
+    Set lastCell = ws.Cells.Find(What:="*", LookIn:=xlFormulas, SearchOrder:=xlByRows, SearchDirection:=xlPrevious)
+    On Error GoTo 0
+
+    If lastCell Is Nothing Then Exit Function
+    mp_GetLastUsedRow = lastCell.Row
 End Function
