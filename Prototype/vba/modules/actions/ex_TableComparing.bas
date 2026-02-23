@@ -4,8 +4,14 @@ Option Explicit
 Public Sub m_RunComparing()
     Dim resultTable As Variant
     Dim keyColumnName As String
+    Dim validationError As String
 
     On Error GoTo EH
+    If Not mp_ValidateComparingEntryConfig(validationError) Then
+        MsgBox validationError, vbExclamation
+        Exit Sub
+    End If
+
     If Not ex_SheetStylesXmlProvider.m_EnsureInitialized(ThisWorkbook) Then
         Err.Raise vbObjectError + 2201, "ex_TableComparing", "Failed to initialize style registry."
     End If
@@ -21,6 +27,35 @@ Public Sub m_RunComparing()
 EH:
     MsgBox "Run error: " & Err.Description, vbExclamation
 End Sub
+
+Private Function mp_ValidateComparingEntryConfig(ByRef outErrorText As String) As Boolean
+    Dim oldPath As String
+    Dim oldTableName As String
+    Dim newPath As String
+    Dim newTableName As String
+
+    oldPath = mp_ResolvePath(mp_GetConfigValueSafe("OldFilePath"))
+    oldTableName = Trim$(mp_GetConfigValueSafe("OldTableName"))
+    newPath = mp_ResolvePath(mp_GetConfigValueSafe("NewFilePath"))
+    newTableName = Trim$(mp_GetConfigValueSafe("NewTableName"))
+
+    If Len(oldPath) = 0 Or Len(oldTableName) = 0 Or Len(newPath) = 0 Or Len(newTableName) = 0 Then
+        outErrorText = "Config validation failed: keys OldFilePath/OldTableName/NewFilePath/NewTableName are required."
+        Exit Function
+    End If
+
+    If Dir(oldPath) = vbNullString Then
+        outErrorText = "Config validation failed: OldFilePath not found: " & oldPath
+        Exit Function
+    End If
+
+    If Dir(newPath) = vbNullString Then
+        outErrorText = "Config validation failed: NewFilePath not found: " & newPath
+        Exit Function
+    End If
+
+    mp_ValidateComparingEntryConfig = True
+End Function
 
 Public Function m_CompareConfiguredTables(ByVal keyColumnName As String) As Variant
     Dim oldPath As String

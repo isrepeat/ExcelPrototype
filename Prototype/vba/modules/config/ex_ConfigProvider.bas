@@ -23,6 +23,8 @@ Private Const DEV_COL_MARKER As Long = 1
 Private Const DEV_COL_KEY As Long = 2
 Private Const DEV_COL_VALUE As Long = 3
 Private Const DEV_COL_NOTE As Long = 4
+Private Const DEV_HEADER_STYLES As String = "Styles"
+Private Const DEV_HEADER_NOTE_LEGACY As String = "Note"
 Private Const CONFIG_TITLE_TEMPLATE As String = "Config [profile = <CURRENT_PROFILE>]"
 
 Private Const CONFIG_TOP As Long = 1
@@ -117,6 +119,112 @@ Public Function m_GetConfigValue( _
     m_GetConfigValue = defaultValue
 End Function
 
+Public Function m_GetConfigNote( _
+    ByVal keyName As String, _
+    Optional ByVal defaultValue As String = vbNullString _
+) As String
+
+    Dim wsDev As Worksheet
+    Dim cfgTable As ListObject
+    Dim dataRange As Range
+    Dim r As Long
+    Dim markerText As String
+    Dim keyText As String
+    Dim noteText As String
+    Dim keyCol As Long
+    Dim markerCol As Long
+    Dim noteCol As Long
+
+    Set wsDev = mp_EnsureDevSheet()
+    mp_EnsureConfigArea wsDev
+
+    Set cfgTable = mp_GetConfigTable(wsDev, True)
+    If cfgTable Is Nothing Then
+        m_GetConfigNote = defaultValue
+        Exit Function
+    End If
+
+    If cfgTable.DataBodyRange Is Nothing Then
+        m_GetConfigNote = defaultValue
+        Exit Function
+    End If
+
+    Set dataRange = cfgTable.DataBodyRange
+    keyCol = DEV_COL_KEY
+    markerCol = DEV_COL_MARKER
+    noteCol = DEV_COL_NOTE
+
+    For r = 1 To dataRange.Rows.Count
+        markerText = vbNullString
+        If markerCol > 0 Then
+            markerText = Trim$(CStr(dataRange.Cells(r, markerCol).Value))
+        End If
+        keyText = Trim$(CStr(dataRange.Cells(r, keyCol).Value))
+
+        If StrComp(markerText, DEV_MARKER_SYMBOL, vbTextCompare) <> 0 Then
+            If StrComp(keyText, keyName, vbTextCompare) = 0 Then
+                noteText = CStr(dataRange.Cells(r, noteCol).Value)
+                If Len(noteText) = 0 Then
+                    m_GetConfigNote = defaultValue
+                Else
+                    m_GetConfigNote = noteText
+                End If
+                Exit Function
+            End If
+        End If
+    Next r
+
+    m_GetConfigNote = defaultValue
+End Function
+
+Public Function m_GetConfigNotesDictionary() As Object
+    Dim wsDev As Worksheet
+    Dim cfgTable As ListObject
+    Dim dataRange As Range
+    Dim notesDict As Object
+    Dim r As Long
+    Dim markerText As String
+    Dim keyText As String
+
+    Set wsDev = mp_EnsureDevSheet()
+    mp_EnsureConfigArea wsDev
+
+    Set cfgTable = mp_GetConfigTable(wsDev, True)
+    If cfgTable Is Nothing Then
+        Set notesDict = CreateObject("Scripting.Dictionary")
+        notesDict.CompareMode = 1
+        Set m_GetConfigNotesDictionary = notesDict
+        Exit Function
+    End If
+
+    Set notesDict = CreateObject("Scripting.Dictionary")
+    notesDict.CompareMode = 1
+
+    If cfgTable.DataBodyRange Is Nothing Then
+        Set m_GetConfigNotesDictionary = notesDict
+        Exit Function
+    End If
+
+    Set dataRange = cfgTable.DataBodyRange
+    For r = 1 To dataRange.Rows.Count
+        markerText = Trim$(CStr(dataRange.Cells(r, DEV_COL_MARKER).Value))
+        If StrComp(markerText, DEV_MARKER_SYMBOL, vbTextCompare) = 0 Then
+            GoTo ContinueRow
+        End If
+
+        keyText = Trim$(CStr(dataRange.Cells(r, DEV_COL_KEY).Value))
+        If Len(keyText) = 0 Then
+            GoTo ContinueRow
+        End If
+
+        notesDict(keyText) = CStr(dataRange.Cells(r, DEV_COL_NOTE).Value)
+
+ContinueRow:
+    Next r
+
+    Set m_GetConfigNotesDictionary = notesDict
+End Function
+
 Public Sub m_SetConfigValue( _
     ByVal keyName As String, _
     ByVal valueText As String, _
@@ -192,6 +300,79 @@ Public Sub m_SetConfigValue( _
     newRow.Range.Cells(1, valueCol).Value = valueText
 End Sub
 
+Public Sub m_SetConfigNote( _
+    ByVal keyName As String, _
+    ByVal noteText As String, _
+    Optional ByVal createIfMissing As Boolean = False _
+)
+    Dim wsDev As Worksheet
+    Dim cfgTable As ListObject
+    Dim dataRange As Range
+    Dim keyCol As Long
+    Dim valueCol As Long
+    Dim markerCol As Long
+    Dim noteCol As Long
+    Dim r As Long
+    Dim markerText As String
+    Dim keyText As String
+    Dim newRow As ListRow
+
+    keyName = Trim$(keyName)
+    If Len(keyName) = 0 Then
+        MsgBox "Config key name must not be empty.", vbExclamation
+        Exit Sub
+    End If
+
+    Set wsDev = mp_EnsureDevSheet()
+    mp_EnsureConfigArea wsDev
+
+    Set cfgTable = mp_GetConfigTable(wsDev, True)
+    If cfgTable Is Nothing Then
+        MsgBox "Config table '" & DEV_CONFIG_TABLE_NAME & "' was not found on sheet '" & wsDev.Name & "'.", vbExclamation
+        Exit Sub
+    End If
+
+    keyCol = DEV_COL_KEY
+    valueCol = DEV_COL_VALUE
+    markerCol = DEV_COL_MARKER
+    noteCol = DEV_COL_NOTE
+
+    If Not cfgTable.DataBodyRange Is Nothing Then
+        Set dataRange = cfgTable.DataBodyRange
+        For r = 1 To dataRange.Rows.Count
+            markerText = vbNullString
+            If markerCol > 0 Then
+                markerText = Trim$(CStr(dataRange.Cells(r, markerCol).Value))
+            End If
+            keyText = Trim$(CStr(dataRange.Cells(r, keyCol).Value))
+            If StrComp(markerText, DEV_MARKER_SYMBOL, vbTextCompare) <> 0 Then
+                If StrComp(keyText, keyName, vbTextCompare) = 0 Then
+                    dataRange.Cells(r, noteCol).Value = noteText
+                    Exit Sub
+                End If
+            End If
+        Next r
+    End If
+
+    If Not createIfMissing Then
+        MsgBox "Config key '" & keyName & "' was not found in '" & DEV_CONFIG_TABLE_NAME & "'.", vbExclamation
+        Exit Sub
+    End If
+
+    Set newRow = cfgTable.ListRows.Add
+    If newRow Is Nothing Then
+        MsgBox "Failed to append a new row into config table '" & DEV_CONFIG_TABLE_NAME & "'.", vbExclamation
+        Exit Sub
+    End If
+
+    If markerCol > 0 Then
+        newRow.Range.Cells(1, markerCol).Value = vbNullString
+    End If
+    newRow.Range.Cells(1, keyCol).Value = keyName
+    newRow.Range.Cells(1, valueCol).Value = vbNullString
+    newRow.Range.Cells(1, noteCol).Value = noteText
+End Sub
+
 ' Обновляет служебный текст в заголовке 3-й колонки таблицы.
 ' Текст формируется по шаблону CONFIG_TITLE_TEMPLATE и подставляет:
 ' - явный `profileName`, если передан;
@@ -263,7 +444,8 @@ Private Sub mp_EnsureConfigArea(ByVal wsDev As Worksheet)
     If Trim$(CStr(wsDev.Cells(CONFIG_TOP + 1, CONFIG_LEFT + DEV_COL_MARKER - 1).Value)) = DEV_MARKER_HEADER And _
        Trim$(CStr(wsDev.Cells(CONFIG_TOP + 1, CONFIG_LEFT + DEV_COL_KEY - 1).Value)) = "Key" And _
        mp_IsConfigTitleHeader(CStr(wsDev.Cells(CONFIG_TOP + 1, CONFIG_LEFT + DEV_COL_VALUE - 1).Value)) And _
-       Trim$(CStr(wsDev.Cells(CONFIG_TOP + 1, CONFIG_LEFT + DEV_COL_NOTE - 1).Value)) = "Note" Then
+       (Trim$(CStr(wsDev.Cells(CONFIG_TOP + 1, CONFIG_LEFT + DEV_COL_NOTE - 1).Value)) = DEV_HEADER_STYLES Or _
+        Trim$(CStr(wsDev.Cells(CONFIG_TOP + 1, CONFIG_LEFT + DEV_COL_NOTE - 1).Value)) = DEV_HEADER_NOTE_LEGACY) Then
         mp_EnsureConfigTable wsDev
         Exit Sub
     End If
@@ -384,9 +566,11 @@ Private Sub mp_RenderConfigArea(ByVal wsDev As Worksheet)
                                   wsDev.Cells(CONFIG_TOP + 1, CONFIG_LEFT + DEV_COL_NOTE - 1))
     wsDev.Cells(CONFIG_TOP + 1, CONFIG_LEFT + DEV_COL_MARKER - 1).Value = DEV_MARKER_HEADER
     wsDev.Cells(CONFIG_TOP + 1, CONFIG_LEFT + DEV_COL_KEY - 1).Value = "Key"
-    wsDev.Cells(CONFIG_TOP + 1, CONFIG_LEFT + DEV_COL_NOTE - 1).Value = "Note"
+    wsDev.Cells(CONFIG_TOP + 1, CONFIG_LEFT + DEV_COL_NOTE - 1).Value = DEV_HEADER_STYLES
     m_RefreshConfigTitle wsDev
     headerRange.Font.Bold = True
+    headerRange.HorizontalAlignment = xlCenter
+    headerRange.VerticalAlignment = xlCenter
 
     ' Keys (стартовые)
     wsDev.Cells(CONFIG_TOP + 2, CONFIG_LEFT + DEV_COL_KEY - 1).Value = "StateFilePath"

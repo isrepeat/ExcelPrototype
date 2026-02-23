@@ -418,7 +418,7 @@ Private Sub mp_SeedProfileFromSheet(ByVal doc As Object, ByVal ws As Worksheet)
         End If
         vNode.setAttribute "key", CStr(entries(i, DEV_CONFIG_KEY_COL))
         If Len(Trim$(CStr(entries(i, DEV_CONFIG_NOTE_COL)))) > 0 Then
-            vNode.setAttribute "note", CStr(entries(i, DEV_CONFIG_NOTE_COL))
+            vNode.setAttribute "styles", CStr(entries(i, DEV_CONFIG_NOTE_COL))
         End If
         vNode.Text = CStr(entries(i, DEV_CONFIG_VALUE_COL))
         profileNode.appendChild vNode

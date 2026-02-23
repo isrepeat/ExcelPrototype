@@ -8,6 +8,8 @@ Private Const DEV_CONFIG_KEY_COL As Long = 2
 Private Const DEV_CONFIG_VALUE_COL As Long = 3
 Private Const DEV_CONFIG_NOTE_COL As Long = 4
 Private Const DEV_CONFIG_COL_COUNT As Long = 4
+Private Const DEV_HEADER_STYLES As String = "Styles"
+Private Const DEV_HEADER_NOTE_LEGACY As String = "Note"
 Private Const DEV_MARKER_SYMBOL As String = "#"
 Private Const DEV_MARKER_HEADER As String = ".."
 Private Const DEV_MARKER_PREFIX As String = "#MARKER:"
@@ -140,6 +142,8 @@ Public Sub m_ApplyConfigTableDarkTheme(ByVal tbl As ListObject)
 
     tbl.HeaderRowRange.Font.Bold = True
     tbl.HeaderRowRange.Cells(1, DEV_CONFIG_NOTE_COL).Font.Color = DEV_COLOR_TEXT
+    tbl.HeaderRowRange.HorizontalAlignment = xlCenter
+    tbl.HeaderRowRange.VerticalAlignment = xlCenter
     tbl.Range.EntireColumn.AutoFit
     If tbl.ListColumns(DEV_CONFIG_MARKER_COL).Range.ColumnWidth < 4 Then
         tbl.ListColumns(DEV_CONFIG_MARKER_COL).Range.ColumnWidth = 4
@@ -213,7 +217,7 @@ Private Function m_CreateConfigTable(ByVal ws As Worksheet) As ListObject
 
     If Trim$(CStr(ws.Cells(DEV_CONFIG_HEADER_ROW, DEV_CONFIG_MARKER_COL).Value)) <> DEV_MARKER_HEADER Then ws.Cells(DEV_CONFIG_HEADER_ROW, DEV_CONFIG_MARKER_COL).Value = DEV_MARKER_HEADER
     If Trim$(CStr(ws.Cells(DEV_CONFIG_HEADER_ROW, DEV_CONFIG_KEY_COL).Value)) <> "Key" Then ws.Cells(DEV_CONFIG_HEADER_ROW, DEV_CONFIG_KEY_COL).Value = "Key"
-    If Trim$(CStr(ws.Cells(DEV_CONFIG_HEADER_ROW, DEV_CONFIG_NOTE_COL).Value)) <> "Note" Then ws.Cells(DEV_CONFIG_HEADER_ROW, DEV_CONFIG_NOTE_COL).Value = "Note"
+    If Trim$(CStr(ws.Cells(DEV_CONFIG_HEADER_ROW, DEV_CONFIG_NOTE_COL).Value)) <> DEV_HEADER_STYLES Then ws.Cells(DEV_CONFIG_HEADER_ROW, DEV_CONFIG_NOTE_COL).Value = DEV_HEADER_STYLES
 
     lastRow = m_GetLastConfigRow(ws)
     If lastRow < DEV_CONFIG_HEADER_ROW Then lastRow = DEV_CONFIG_HEADER_ROW
@@ -250,7 +254,11 @@ Private Sub m_EnsureConfigTableLayout(ByVal ws As Worksheet, ByVal tbl As ListOb
     If tbl.ListColumns.Count = DEV_CONFIG_COL_COUNT Then
         tbl.HeaderRowRange.Cells(1, DEV_CONFIG_MARKER_COL).Value = DEV_MARKER_HEADER
         tbl.HeaderRowRange.Cells(1, DEV_CONFIG_KEY_COL).Value = "Key"
-        tbl.HeaderRowRange.Cells(1, DEV_CONFIG_NOTE_COL).Value = "Note"
+        If Trim$(CStr(tbl.HeaderRowRange.Cells(1, DEV_CONFIG_NOTE_COL).Value)) = DEV_HEADER_NOTE_LEGACY Then
+            tbl.HeaderRowRange.Cells(1, DEV_CONFIG_NOTE_COL).Value = DEV_HEADER_STYLES
+        ElseIf Trim$(CStr(tbl.HeaderRowRange.Cells(1, DEV_CONFIG_NOTE_COL).Value)) <> DEV_HEADER_STYLES Then
+            tbl.HeaderRowRange.Cells(1, DEV_CONFIG_NOTE_COL).Value = DEV_HEADER_STYLES
+        End If
         On Error Resume Next
         ex_ConfigProvider.m_RefreshConfigTitle ws
         On Error GoTo 0
@@ -274,7 +282,7 @@ Private Sub m_EnsureConfigTableLayout(ByVal ws As Worksheet, ByVal tbl As ListOb
         tbl.Resize ws.Range(ws.Cells(tbl.HeaderRowRange.Row, tbl.Range.Column), ws.Cells(tbl.HeaderRowRange.Row + rowCount, tbl.Range.Column + DEV_CONFIG_COL_COUNT - 1))
         tbl.HeaderRowRange.Cells(1, DEV_CONFIG_MARKER_COL).Value = DEV_MARKER_HEADER
         tbl.HeaderRowRange.Cells(1, DEV_CONFIG_KEY_COL).Value = "Key"
-        tbl.HeaderRowRange.Cells(1, DEV_CONFIG_NOTE_COL).Value = "Note"
+        tbl.HeaderRowRange.Cells(1, DEV_CONFIG_NOTE_COL).Value = DEV_HEADER_STYLES
         On Error Resume Next
         ex_ConfigProvider.m_RefreshConfigTitle ws
         On Error GoTo 0
