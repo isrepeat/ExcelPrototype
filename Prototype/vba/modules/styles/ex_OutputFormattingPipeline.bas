@@ -91,6 +91,15 @@ Public Sub m_ApplyOutputPanelLayers( _
     ex_OutputPanel.m_ApplyFixedWidthViewZoneLayer ws, outputStyle, viewStartRow, viewEndRow, viewColCount
 End Sub
 
+Public Sub m_ApplyConfigNoteStyleLayer( _
+    ByVal ws As Worksheet, _
+    ByVal styleTargets As Collection, _
+    ByVal cfgNotes As Object _
+)
+    If ws Is Nothing Then Exit Sub
+    ex_ConfigStylesParser.m_ApplyColumnStylesByMapKeys ws, styleTargets, cfgNotes
+End Sub
+
 Public Sub m_ApplyViewZoneWrapText( _
     ByVal ws As Worksheet, _
     ByVal viewStartRow As Long, _

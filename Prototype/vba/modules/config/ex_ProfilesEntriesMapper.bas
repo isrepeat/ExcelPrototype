@@ -9,6 +9,7 @@ Private Const DEV_CONFIG_KEY_COL As Long = 2
 Private Const DEV_CONFIG_VALUE_COL As Long = 3
 Private Const DEV_CONFIG_NOTE_COL As Long = 4
 Private Const DEV_CONFIG_COL_COUNT As Long = 4
+Private Const XML_ATTR_STYLES As String = "styles"
 
 Public Sub m_WriteSheetValuesToProfile(ByVal ws As Worksheet, ByVal doc As Object, ByVal profileNode As Object)
     Dim entries As Variant
@@ -30,7 +31,7 @@ Public Sub m_WriteSheetValuesToProfile(ByVal ws As Worksheet, ByVal doc As Objec
         End If
         vNode.setAttribute "key", CStr(entries(i, DEV_CONFIG_KEY_COL))
         If Len(Trim$(CStr(entries(i, DEV_CONFIG_NOTE_COL)))) > 0 Then
-            vNode.setAttribute "note", CStr(entries(i, DEV_CONFIG_NOTE_COL))
+            vNode.setAttribute XML_ATTR_STYLES, CStr(entries(i, DEV_CONFIG_NOTE_COL))
         End If
         vNode.Text = CStr(entries(i, DEV_CONFIG_VALUE_COL))
         profileNode.appendChild vNode
@@ -58,7 +59,7 @@ Public Function m_ReadProfileEntries(ByVal ws As Worksheet, ByVal profileNode As
     For i = 0 To nodes.Length - 1
         If Len(mp_NodeAttrText(nodes.Item(i), "key")) > 0 _
            Or Len(mp_NodeAttrText(nodes.Item(i), "type")) > 0 _
-           Or Len(mp_NodeAttrText(nodes.Item(i), "note")) > 0 Then
+           Or Len(mp_ReadStyleAttr(nodes.Item(i))) > 0 Then
             hasKeyFormat = True
             Exit For
         End If
@@ -71,7 +72,7 @@ Public Function m_ReadProfileEntries(ByVal ws As Worksheet, ByVal profileNode As
             entries(i + 1, DEV_CONFIG_MARKER_COL) = mp_NodeAttrText(node, "type")
             entries(i + 1, DEV_CONFIG_KEY_COL) = mp_NodeAttrText(node, "key")
             entries(i + 1, DEV_CONFIG_VALUE_COL) = CStr(node.Text)
-            entries(i + 1, DEV_CONFIG_NOTE_COL) = mp_NodeAttrText(node, "note")
+            entries(i + 1, DEV_CONFIG_NOTE_COL) = mp_ReadStyleAttr(node)
             ex_ConfigTableStore.m_NormalizeLegacyMarkerEntry entries, i + 1
         Next i
         m_ReadProfileEntries = entries
@@ -79,6 +80,10 @@ Public Function m_ReadProfileEntries(ByVal ws As Worksheet, ByVal profileNode As
     End If
 
     m_ReadProfileEntries = mp_ReadLegacyProfileEntries(ws, nodes)
+End Function
+
+Private Function mp_ReadStyleAttr(ByVal node As Object) As String
+    mp_ReadStyleAttr = mp_NodeAttrText(node, XML_ATTR_STYLES)
 End Function
 
 Public Function m_ReadConfigTableEntries(ByVal ws As Worksheet) As Variant

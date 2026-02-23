@@ -28,7 +28,7 @@
 		<v key="Main.Table[StateMain].FieldsAliases">FIO; BirthDate; City; Phone</v>
 		<v key="Main.Table[StateMain].Map[FIO]">ПІБ</v>
 		<v key="Main.Table[StateMain].Map[BirthDate]">Дата народження</v>
-		<v key="Main.Table[StateMain].Map[City]">Місто</v>
+		<v key="Main.Table[StateMain].Map[City]" styles="{width:20;overflow:shrink}">Місто</v>
 		<v key="Main.Table[StateMain].Map[Phone]">Телефон</v>
 		<v type="#" key="EventsMain"/>
 		<v key="Events.Table[EventsMain].Type">Events</v>
