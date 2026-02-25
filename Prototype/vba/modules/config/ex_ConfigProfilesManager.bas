@@ -184,6 +184,25 @@ Public Function m_GetActiveModeName(Optional ByVal ws As Worksheet) As String
     m_GetActiveModeName = modeName
 End Function
 
+Public Function m_GetActiveProfileName(Optional ByVal ws As Worksheet) As String
+    Dim profiles As Variant
+    Dim profileName As String
+
+    If ws Is Nothing Then
+        Set ws = ws_Dev
+    End If
+
+    profiles = mp_GetProfileNames(ws)
+    If Not mp_ArrayHasItems(profiles) Then Exit Function
+
+    profileName = Trim$(mp_GetSelectedProfileNameFromDropdown(ws, profiles, False))
+    If Len(profileName) = 0 Then
+        profileName = Trim$(CStr(profiles(LBound(profiles))))
+    End If
+
+    m_GetActiveProfileName = profileName
+End Function
+
 Public Sub m_EnsureProfileDropdown(Optional ByVal ws As Worksheet)
     Dim profiles As Variant
     Dim profileName As String

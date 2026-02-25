@@ -100,8 +100,13 @@ Public Sub m_ShowPersonTimeline(ByVal fio As String)
     wsOut.Activate
     ActiveWindow.Zoom = 115
 
-    Dim styleTargets As Collection
-    Set styleTargets = New Collection
+    Dim resultFieldRanges As Collection
+    Set resultFieldRanges = New Collection
+    Dim resultTables As Collection
+    Set resultTables = New Collection
+    Dim resultTablesByRef As Object
+    Set resultTablesByRef = CreateObject("Scripting.Dictionary")
+    resultTablesByRef.CompareMode = 1
 
     Dim outputStyle As t_OutputSheetStyle
     Dim baseStyle As t_BaseSheetStyle
@@ -119,7 +124,7 @@ Public Sub m_ShowPersonTimeline(ByVal fio As String)
     End If
 
     Dim outputAliases As Variant
-    outputAliases = mp_GetListRequired(cfg, "Output.Tables")
+    outputAliases = mp_GetListRequired(cfg, "Output.Sheets")
 
     Dim tableSourceMap As Object
     Set tableSourceMap = CreateObject("Scripting.Dictionary")
@@ -156,7 +161,7 @@ Public Sub m_ShowPersonTimeline(ByVal fio As String)
         sourceAlias = mp_GetSourceAliasCached(cfg, tableAlias, tableSourceMap)
 
         Dim tableType As String
-        tableType = LCase$(mp_GetCfgRequired(cfg, sourceAlias & ".Table[" & tableAlias & "].Type"))
+        tableType = LCase$(mp_GetCfgRequired(cfg, sourceAlias & ".Sheet[" & tableAlias & "].Type"))
 
         If mode = StateTableOnly And tableType <> "state" Then
             GoTo ContinueAlias
@@ -171,13 +176,13 @@ Public Sub m_ShowPersonTimeline(ByVal fio As String)
         End If
 
         Dim adoObjectName As String
-        adoObjectName = mp_GetCfgOptional(cfg, sourceAlias & ".Table[" & tableAlias & "].SheetName", vbNullString)
+        adoObjectName = mp_GetCfgOptional(cfg, sourceAlias & ".Sheet[" & tableAlias & "].SheetName", vbNullString)
 
         Dim sourceConn As Object
         Set sourceConn = mp_GetConnectionForSource(connCache, cfg, sourceAlias)
 
         If tableType = "state" Then
-            rowIndex = mp_WriteStateCardGeneric(wsOut, sourceConn, adoObjectName, fio, rowIndex, cfg, styleTargets, sourceAlias, tableAlias, headerRows, sectionRows)
+            rowIndex = mp_WriteStateCardGeneric(wsOut, sourceConn, adoObjectName, fio, rowIndex, cfg, resultFieldRanges, resultTables, resultTablesByRef, sourceAlias, tableAlias, headerRows, sectionRows)
             rowIndex = rowIndex + 1
         Else
             If mode <> StateTableOnly Then
@@ -186,7 +191,7 @@ Public Sub m_ShowPersonTimeline(ByVal fio As String)
                 sectionRows.Add rowIndex
                 rowIndex = rowIndex + 1
             End If
-            rowIndex = mp_WriteEventsGeneric(wsOut, sourceConn, adoObjectName, fio, rowIndex, cfg, styleTargets, sourceAlias, tableAlias, headerRows)
+            rowIndex = mp_WriteEventsGeneric(wsOut, sourceConn, adoObjectName, fio, rowIndex, cfg, resultFieldRanges, resultTables, resultTablesByRef, sourceAlias, tableAlias, headerRows)
             rowIndex = rowIndex + 1
         End If
 
@@ -197,7 +202,7 @@ ContinueAlias:
 
     If renderedCount = 0 Then
         Err.Raise vbObjectError + 1303, "ex_PersonTimeline", _
-            "No tables were rendered for mode '" & ex_Settings.m_GetOutputModeDisplay() & "'. Check Output.Tables and table Type."
+            "No sheets were rendered for mode '" & ex_Settings.m_GetOutputModeDisplay() & "'. Check Output.Sheets and sheet Type."
     End If
 
     mp_ApplyTimelineStyleLayers wsOut, headerRows, sectionRows, outputStyle, baseStyle, hasOutputStyle
@@ -213,7 +218,8 @@ ContinueAlias:
         ex_OutputFormattingPipeline.m_ApplyTimelineDataRowsHeight wsOut, viewStartRow, viewEndRow, viewColCount, headerRows, sectionRows, 32
     End If
 
-    ex_OutputFormattingPipeline.m_ApplyConfigNoteStyleLayer wsOut, styleTargets, cfgNotes
+    ex_OutputFormattingPipeline.m_ApplyConfigNoteStyleLayer wsOut, resultFieldRanges, cfgNotes
+    ex_PostProcessDsl.m_ApplyScriptToSheet wsOut, cfg, resultTables
 
     mp_CloseConnections connCache
 
@@ -285,17 +291,20 @@ Private Function mp_ValidateTimelineConfig( _
 ) As Boolean
     Dim outputAliases As Variant
     Dim tableSourceMap As Object
-    Dim styleTargets As Collection
+    Dim resultFieldRanges As Collection
+    Dim allowedTableFields As Object
     Dim i As Long
 
     On Error GoTo EH
 
-    outputAliases = mp_GetListRequired(cfg, "Output.Tables")
+    outputAliases = mp_GetListRequired(cfg, "Output.Sheets")
 
     Set tableSourceMap = CreateObject("Scripting.Dictionary")
     tableSourceMap.CompareMode = 1
 
-    Set styleTargets = New Collection
+    Set resultFieldRanges = New Collection
+    Set allowedTableFields = CreateObject("Scripting.Dictionary")
+    allowedTableFields.CompareMode = 1
 
     For i = LBound(outputAliases) To UBound(outputAliases)
         Dim tableAlias As String
@@ -309,7 +318,7 @@ Private Function mp_ValidateTimelineConfig( _
         If Len(tableAlias) = 0 Then GoTo ContinueAlias
 
         sourceAlias = mp_GetSourceAliasCached(cfg, tableAlias, tableSourceMap)
-        tableType = LCase$(mp_GetCfgRequired(cfg, sourceAlias & ".Table[" & tableAlias & "].Type"))
+        tableType = LCase$(mp_GetCfgRequired(cfg, sourceAlias & ".Sheet[" & tableAlias & "].Type"))
 
         If mode = StateTableOnly And tableType <> "state" Then GoTo ContinueAlias
         If mode = EventsTableOnly And tableType <> "events" Then GoTo ContinueAlias
@@ -319,23 +328,39 @@ Private Function mp_ValidateTimelineConfig( _
                 "Unsupported table type for alias '" & tableAlias & "': " & tableType
         End If
 
-        Call mp_GetCfgRequired(cfg, sourceAlias & ".Table[" & tableAlias & "].SheetName")
-        Call mp_GetCfgRequired(cfg, sourceAlias & ".Table[" & tableAlias & "].Key")
+        Call mp_GetCfgRequired(cfg, sourceAlias & ".Sheet[" & tableAlias & "].SheetName")
+        Call mp_GetCfgRequired(cfg, sourceAlias & ".Sheet[" & tableAlias & "].Key")
 
         fields = mp_GetOrderedFieldAliases(cfg, sourceAlias, tableAlias)
+        Dim sheetRefKey As String
+        sheetRefKey = sourceAlias & ".Sheet[" & tableAlias & "]"
+
+        If Not allowedTableFields.Exists(sheetRefKey) Then
+            Dim tableFields As Object
+            Set tableFields = CreateObject("Scripting.Dictionary")
+            tableFields.CompareMode = 1
+            allowedTableFields.Add sheetRefKey, tableFields
+        End If
+        Dim tableFieldsRef As Object
+        Set tableFieldsRef = allowedTableFields.Item(sheetRefKey)
+
         For fieldIndex = LBound(fields) To UBound(fields)
             fieldAlias = Trim$(CStr(fields(fieldIndex)))
             If Len(fieldAlias) = 0 Then GoTo ContinueField
 
                 Call mp_GetMappedSourceHeader(cfg, sourceAlias, tableAlias, fieldAlias)
-                mp_AddMapStyleTarget styleTargets, sourceAlias, tableAlias, fieldAlias, 1, 1, 1
+                tableFieldsRef(sourceAlias & ".Sheet[" & tableAlias & "].Map[" & fieldAlias & "]") = True
+                mp_AddResultFieldRange resultFieldRanges, sourceAlias, tableAlias, fieldAlias, 1, 1, 1
 ContinueField:
         Next fieldIndex
 
 ContinueAlias:
     Next i
 
-    If Not ex_ConfigStylesParser.m_ValidateColumnStylesByMapKeys(styleTargets, cfgNotes, outErrorText) Then
+    If Not ex_ConfigStylesParser.m_ValidateColumnStylesByMapKeys(resultFieldRanges, cfgNotes, outErrorText) Then
+        Exit Function
+    End If
+    If Not ex_PostProcessDsl.m_ValidateScriptAgainstConfig(cfg, allowedTableFields, outErrorText) Then
         Exit Function
     End If
 
@@ -353,6 +378,9 @@ Private Function mp_IsConfigValidationError(ByVal errNumber As Long) As Boolean
              vbObjectError + 1340, vbObjectError + 1341, vbObjectError + 1360, _
              vbObjectError + 1370, vbObjectError + 1371, vbObjectError + 1380, _
              vbObjectError + 1390, vbObjectError + 1491, vbObjectError + 1492, _
+             vbObjectError + 1590, vbObjectError + 1591, vbObjectError + 1592, _
+             vbObjectError + 1593, vbObjectError + 1594, vbObjectError + 1595, _
+             vbObjectError + 1596, vbObjectError + 1597, _
              vbObjectError + 1493, vbObjectError + 1494
             mp_IsConfigValidationError = True
     End Select
@@ -365,7 +393,9 @@ Private Function mp_WriteStateCardGeneric( _
     ByVal fio As String, _
     ByVal rowIndex As Long, _
     ByVal cfg As Object, _
-    ByVal styleTargets As Collection, _
+    ByVal resultFieldRanges As Collection, _
+    ByVal resultTables As Collection, _
+    ByVal resultTablesByRef As Object, _
     ByVal sourceAlias As String, _
     ByVal tableAlias As String, _
     ByVal headerRows As Collection, _
@@ -386,9 +416,12 @@ Private Function mp_WriteStateCardGeneric( _
 
     Dim fields As Variant
     fields = mp_GetOrderedFieldAliases(cfg, sourceAlias, tableAlias)
+    Dim resultTable As pp_ResultTable
+    Set resultTable = mp_EnsureResultTable(resultTables, resultTablesByRef, sourceAlias, tableAlias)
+    mp_RegisterResultTableFieldAliases resultTable, sourceAlias, tableAlias, fields
 
     Dim keyAlias As String
-    keyAlias = mp_GetCfgRequired(cfg, sourceAlias & ".Table[" & tableAlias & "].Key")
+    keyAlias = mp_GetCfgRequired(cfg, sourceAlias & ".Sheet[" & tableAlias & "].Key")
 
     Dim keyHeader As String
     keyHeader = mp_GetMappedSourceHeader(cfg, sourceAlias, tableAlias, keyAlias)
@@ -484,7 +517,7 @@ Private Function mp_WriteStateCardGeneric( _
 
         Dim outCol As Long
         outCol = 1 + (i - LBound(fields))
-        mp_AddMapStyleTarget styleTargets, sourceAlias, tableAlias, fieldAlias, outCol, headerRow, valueRow
+        mp_AddResultFieldRange resultFieldRanges, sourceAlias, tableAlias, fieldAlias, outCol, headerRow, valueRow
 
         wsOut.Cells(headerRow, outCol).Value = mp_GetLabel(cfg, sourceAlias, tableAlias, fieldAlias)
 
@@ -506,6 +539,8 @@ Private Function mp_WriteStateCardGeneric( _
 ContinueField:
     Next i
 
+    mp_CaptureResultTableRowsFromOutput wsOut, resultTable, sourceAlias, tableAlias, fields, valueRow, valueRow
+
     rs.Close
 
     mp_WriteStateCardGeneric = valueRow + 1
@@ -519,7 +554,9 @@ Private Function mp_WriteEventsGeneric( _
     ByVal fio As String, _
     ByVal rowIndex As Long, _
     ByVal cfg As Object, _
-    ByVal styleTargets As Collection, _
+    ByVal resultFieldRanges As Collection, _
+    ByVal resultTables As Collection, _
+    ByVal resultTablesByRef As Object, _
     ByVal sourceAlias As String, _
     ByVal tableAlias As String, _
     ByVal headerRows As Collection _
@@ -542,12 +579,15 @@ Private Function mp_WriteEventsGeneric( _
 
     Dim fields As Variant
     fields = mp_GetOrderedFieldAliases(cfg, sourceAlias, tableAlias)
+    Dim resultTable As pp_ResultTable
+    Set resultTable = mp_EnsureResultTable(resultTables, resultTablesByRef, sourceAlias, tableAlias)
+    mp_RegisterResultTableFieldAliases resultTable, sourceAlias, tableAlias, fields
 
     Dim fieldCount As Long
     fieldCount = UBound(fields) - LBound(fields) + 1
 
     Dim keyAlias As String
-    keyAlias = mp_GetCfgRequired(cfg, sourceAlias & ".Table[" & tableAlias & "].Key")
+    keyAlias = mp_GetCfgRequired(cfg, sourceAlias & ".Sheet[" & tableAlias & "].Key")
 
     Dim keyHeader As String
     keyHeader = mp_GetMappedSourceHeader(cfg, sourceAlias, tableAlias, keyAlias)
@@ -587,7 +627,8 @@ Private Function mp_WriteEventsGeneric( _
 
     If rs.EOF Then
         wsOut.Cells(outDataRow, 1).Value = "(no events found for this person)"
-        mp_AddMapStyleTargetsForFields styleTargets, sourceAlias, tableAlias, fields, outHeaderRow, outDataRow
+        mp_AddResultFieldRangesForFields resultFieldRanges, sourceAlias, tableAlias, fields, outHeaderRow, outDataRow
+        mp_CaptureResultTableRowsFromOutput wsOut, resultTable, sourceAlias, tableAlias, fields, outDataRow, outDataRow
         rs.Close
         mp_WriteEventsGeneric = outDataRow + 1
         Exit Function
@@ -661,7 +702,8 @@ Private Function mp_WriteEventsGeneric( _
 
     If selectedCount = 0 Then
         wsOut.Cells(outDataRow, 1).Value = "(no events found for this person)"
-        mp_AddMapStyleTargetsForFields styleTargets, sourceAlias, tableAlias, fields, outHeaderRow, outDataRow
+        mp_AddResultFieldRangesForFields resultFieldRanges, sourceAlias, tableAlias, fields, outHeaderRow, outDataRow
+        mp_CaptureResultTableRowsFromOutput wsOut, resultTable, sourceAlias, tableAlias, fields, outDataRow, outDataRow
         rs.Close
         mp_WriteEventsGeneric = outDataRow + 1
         Exit Function
@@ -689,7 +731,7 @@ Private Function mp_WriteEventsGeneric( _
     rs.Close
 
     Dim sortAlias As String
-    sortAlias = mp_GetCfgOptional(cfg, sourceAlias & ".Table[" & tableAlias & "].Sort", vbNullString)
+    sortAlias = mp_GetCfgOptional(cfg, sourceAlias & ".Sheet[" & tableAlias & "].Sort", vbNullString)
 
     If Len(sortAlias) > 0 Then
         Dim sortOutCol As Long
@@ -710,14 +752,16 @@ Private Function mp_WriteEventsGeneric( _
         End If
     End If
 
-    mp_AddMapStyleTargetsForFields styleTargets, sourceAlias, tableAlias, fields, outHeaderRow, outDataRow - 1
+    mp_AddResultFieldRangesForFields resultFieldRanges, sourceAlias, tableAlias, fields, outHeaderRow, outDataRow - 1
+    mp_CaptureResultTableRowsFromOutput wsOut, resultTable, sourceAlias, tableAlias, fields, outHeaderRow + 1, outDataRow - 1
 
     mp_WriteEventsGeneric = outDataRow + 1
     Exit Function
 
 SortEH:
     Err.Clear
-    mp_AddMapStyleTargetsForFields styleTargets, sourceAlias, tableAlias, fields, outHeaderRow, outDataRow - 1
+    mp_AddResultFieldRangesForFields resultFieldRanges, sourceAlias, tableAlias, fields, outHeaderRow, outDataRow - 1
+    mp_CaptureResultTableRowsFromOutput wsOut, resultTable, sourceAlias, tableAlias, fields, outHeaderRow + 1, outDataRow - 1
     On Error GoTo EH
     mp_WriteEventsGeneric = outDataRow + 1
     Exit Function
@@ -750,7 +794,7 @@ Private Function mp_GetAdoTableReference( _
     End If
 
     Err.Raise vbObjectError + 1335, "ex_PersonTimeline", _
-        "Missing required config key '" & sourceAlias & ".Table[" & tableAlias & "].SheetName'."
+        "Missing required config key '" & sourceAlias & ".Sheet[" & tableAlias & "].SheetName'."
 End Function
 
 Private Function mp_ResolveExplicitAdoObjectReference( _
@@ -789,7 +833,7 @@ Private Function mp_ResolveExplicitAdoObjectReference( _
     schemaRs.Close
 
     Err.Raise vbObjectError + 1336, "ex_PersonTimeline", _
-        "Configured SheetName '" & configuredName & "' for " & sourceAlias & ".Table[" & tableAlias & "] was not found. Available objects: " & listedNames
+        "Configured SheetName '" & configuredName & "' for " & sourceAlias & ".Sheet[" & tableAlias & "] was not found. Available objects: " & listedNames
 End Function
 
 Private Function mp_GetSourceAliasCached(ByVal cfg As Object, ByVal tableAlias As String, ByVal cache As Object) As String
@@ -869,8 +913,8 @@ ContinueRow:
 
 End Function
 
-Private Sub mp_AddMapStyleTarget( _
-    ByVal styleTargets As Collection, _
+Private Sub mp_AddResultFieldRange( _
+    ByVal resultFieldRanges As Collection, _
     ByVal sourceAlias As String, _
     ByVal tableAlias As String, _
     ByVal fieldAlias As String, _
@@ -880,7 +924,7 @@ Private Sub mp_AddMapStyleTarget( _
 )
     Dim target As Object
 
-    If styleTargets Is Nothing Then Exit Sub
+    If resultFieldRanges Is Nothing Then Exit Sub
     If Len(Trim$(fieldAlias)) = 0 Then Exit Sub
     If outCol <= 0 Then Exit Sub
     If rowStart <= 0 Then Exit Sub
@@ -888,16 +932,97 @@ Private Sub mp_AddMapStyleTarget( _
 
     Set target = CreateObject("Scripting.Dictionary")
     target.CompareMode = 1
-    target("MapKey") = sourceAlias & ".Table[" & tableAlias & "].Map[" & fieldAlias & "]"
+    target("MapKey") = sourceAlias & ".Sheet[" & tableAlias & "].Map[" & fieldAlias & "]"
     target("ColumnIndex") = outCol
     target("RowStart") = rowStart
     target("RowEnd") = rowEnd
 
-    styleTargets.Add target
+    resultFieldRanges.Add target
 End Sub
 
-Private Sub mp_AddMapStyleTargetsForFields( _
-    ByVal styleTargets As Collection, _
+Private Function mp_EnsureResultTable( _
+    ByVal resultTables As Collection, _
+    ByVal resultTablesByRef As Object, _
+    ByVal sourceAlias As String, _
+    ByVal tableAlias As String _
+) As pp_ResultTable
+    Dim tableRef As String
+    tableRef = sourceAlias & ".Sheet[" & tableAlias & "]"
+
+    If resultTablesByRef Is Nothing Then
+        Err.Raise vbObjectError + 1338, "ex_PersonTimeline", "Result tables index dictionary is not initialized."
+    End If
+
+    If Not resultTablesByRef.Exists(tableRef) Then
+        Dim tableObj As pp_ResultTable
+        Set tableObj = New pp_ResultTable
+        tableObj.Initialize tableRef
+        resultTablesByRef.Add tableRef, tableObj
+        If Not resultTables Is Nothing Then resultTables.Add tableObj
+    End If
+
+    Set mp_EnsureResultTable = resultTablesByRef(tableRef)
+End Function
+
+Private Sub mp_RegisterResultTableFieldAliases( _
+    ByVal resultTable As pp_ResultTable, _
+    ByVal sourceAlias As String, _
+    ByVal tableAlias As String, _
+    ByVal fields As Variant _
+)
+    Dim i As Long
+    Dim fieldAlias As String
+    Dim mapKey As String
+
+    If resultTable Is Nothing Then Exit Sub
+    If mp_IsEmptyVariantArray(fields) Then Exit Sub
+
+    For i = LBound(fields) To UBound(fields)
+        fieldAlias = Trim$(CStr(fields(i)))
+        If Len(fieldAlias) = 0 Then GoTo ContinueField
+        mapKey = sourceAlias & ".Sheet[" & tableAlias & "].Map[" & fieldAlias & "]"
+        resultTable.AddFieldMap fieldAlias, mapKey
+ContinueField:
+    Next i
+End Sub
+
+Private Sub mp_CaptureResultTableRowsFromOutput( _
+    ByVal wsOut As Worksheet, _
+    ByVal resultTable As pp_ResultTable, _
+    ByVal sourceAlias As String, _
+    ByVal tableAlias As String, _
+    ByVal fields As Variant, _
+    ByVal dataRowStart As Long, _
+    ByVal dataRowEnd As Long _
+)
+    Dim r As Long
+    Dim i As Long
+    Dim outCol As Long
+    Dim fieldAlias As String
+    Dim mapKey As String
+    Dim valueText As String
+
+    If wsOut Is Nothing Then Exit Sub
+    If resultTable Is Nothing Then Exit Sub
+    If mp_IsEmptyVariantArray(fields) Then Exit Sub
+    If dataRowStart <= 0 Then Exit Sub
+    If dataRowEnd < dataRowStart Then Exit Sub
+
+    For r = dataRowStart To dataRowEnd
+        For i = LBound(fields) To UBound(fields)
+            fieldAlias = Trim$(CStr(fields(i)))
+            If Len(fieldAlias) = 0 Then GoTo ContinueField
+            outCol = 1 + (i - LBound(fields))
+            mapKey = sourceAlias & ".Sheet[" & tableAlias & "].Map[" & fieldAlias & "]"
+            valueText = CStr(wsOut.Cells(r, outCol).Value)
+            resultTable.SetRowValue r, fieldAlias, mapKey, valueText
+ContinueField:
+        Next i
+    Next r
+End Sub
+
+Private Sub mp_AddResultFieldRangesForFields( _
+    ByVal resultFieldRanges As Collection, _
     ByVal sourceAlias As String, _
     ByVal tableAlias As String, _
     ByVal fields As Variant, _
@@ -907,7 +1032,7 @@ Private Sub mp_AddMapStyleTargetsForFields( _
     Dim i As Long
     Dim fieldAlias As String
 
-    If styleTargets Is Nothing Then Exit Sub
+    If resultFieldRanges Is Nothing Then Exit Sub
     If mp_IsEmptyVariantArray(fields) Then Exit Sub
     If rowStart <= 0 Then Exit Sub
     If rowEnd < rowStart Then Exit Sub
@@ -915,7 +1040,7 @@ Private Sub mp_AddMapStyleTargetsForFields( _
     For i = LBound(fields) To UBound(fields)
         fieldAlias = Trim$(CStr(fields(i)))
         If Len(fieldAlias) = 0 Then GoTo ContinueField
-        mp_AddMapStyleTarget styleTargets, sourceAlias, tableAlias, fieldAlias, 1 + (i - LBound(fields)), rowStart, rowEnd
+        mp_AddResultFieldRange resultFieldRanges, sourceAlias, tableAlias, fieldAlias, 1 + (i - LBound(fields)), rowStart, rowEnd
 ContinueField:
     Next i
 End Sub
@@ -933,7 +1058,7 @@ Private Function mp_FindSourceAliasForTable(ByVal cfg As Object, ByVal tableAlia
         src = CStr(sourceAliases(i))
 
         Dim listKey As String
-        listKey = "Source." & src & ".TablesAliases"
+        listKey = "Source." & src & ".SheetAliases"
 
         Dim aliases As Variant
         aliases = mp_GetListRequired(cfg, listKey)
@@ -941,7 +1066,7 @@ Private Function mp_FindSourceAliasForTable(ByVal cfg As Object, ByVal tableAlia
         If mp_ArrayContainsText(aliases, tableAlias) Then
             If Len(found) > 0 Then
                 Err.Raise vbObjectError + 1340, "ex_PersonTimeline", _
-                    "Table alias '" & tableAlias & "' is declared in multiple sources: '" & found & "' and '" & src & "'."
+                    "Sheet alias '" & tableAlias & "' is declared in multiple sources: '" & found & "' and '" & src & "'."
             End If
             found = src
         End If
@@ -949,7 +1074,7 @@ Private Function mp_FindSourceAliasForTable(ByVal cfg As Object, ByVal tableAlia
 
     If Len(found) = 0 Then
         Err.Raise vbObjectError + 1341, "ex_PersonTimeline", _
-            "Table alias '" & tableAlias & "' is not declared in any Source.*.TablesAliases."
+            "Sheet alias '" & tableAlias & "' is not declared in any Source.*.SheetAliases."
     End If
 
     mp_FindSourceAliasForTable = found
@@ -1694,7 +1819,7 @@ Private Function mp_GetOrderedFieldAliases(ByVal cfg As Object, ByVal sourceAlia
         Exit Function
     End If
 
-    mp_GetOrderedFieldAliases = mp_GetListRequired(cfg, sourceAlias & ".Table[" & tableAlias & "].FieldsAliases")
+    mp_GetOrderedFieldAliases = mp_GetListRequired(cfg, sourceAlias & ".Sheet[" & tableAlias & "].FieldsAliases")
 End Function
 
 Private Function mp_GetMapAliasesInConfigOrder(ByVal sourceAlias As String, ByVal tableAlias As String) As Variant
@@ -1726,7 +1851,7 @@ Private Function mp_GetMapAliasesInConfigOrder(ByVal sourceAlias As String, ByVa
     End If
 
     Set dataRange = tbl.DataBodyRange
-    prefix = LCase$(sourceAlias & ".Table[" & tableAlias & "].Map[")
+    prefix = LCase$(sourceAlias & ".Sheet[" & tableAlias & "].Map[")
     Set seen = CreateObject("Scripting.Dictionary")
     seen.CompareMode = 1
     count = 0
@@ -1835,7 +1960,7 @@ Private Function mp_GetMappedSourceHeader( _
 ) As String
 
     Dim raw As String
-    raw = mp_GetCfgRequired(cfg, sourceAlias & ".Table[" & tableAlias & "].Map[" & fieldAlias & "]")
+    raw = mp_GetCfgRequired(cfg, sourceAlias & ".Sheet[" & tableAlias & "].Map[" & fieldAlias & "]")
 
     Dim p As Long
     p = InStr(1, raw, "|", vbBinaryCompare)
@@ -1848,7 +1973,7 @@ Private Function mp_GetMappedSourceHeader( _
 
     If Len(mp_GetMappedSourceHeader) = 0 Then
         Err.Raise vbObjectError + 1390, "ex_PersonTimeline", _
-            "Mapped source header is empty for " & sourceAlias & ".Table[" & tableAlias & "].Map[" & fieldAlias & "]"
+            "Mapped source header is empty for " & sourceAlias & ".Sheet[" & tableAlias & "].Map[" & fieldAlias & "]"
     End If
 
 End Function
@@ -1861,7 +1986,7 @@ Private Function mp_GetLabel( _
 ) As String
 
     Dim raw As String
-    raw = mp_GetCfgRequired(cfg, sourceAlias & ".Table[" & tableAlias & "].Map[" & fieldAlias & "]")
+    raw = mp_GetCfgRequired(cfg, sourceAlias & ".Sheet[" & tableAlias & "].Map[" & fieldAlias & "]")
 
     Dim p As Long
     p = InStr(1, raw, "|", vbBinaryCompare)

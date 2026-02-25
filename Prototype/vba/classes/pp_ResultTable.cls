@@ -1,0 +1,69 @@
+VERSION 1.0 CLASS
+BEGIN
+  MultiUse = -1  'True
+END
+Attribute VB_Name = "pp_ResultTable"
+Option Explicit
+
+Private m_TableRef As String
+Private m_Rows As Collection
+Private m_RowsByIndex As Object
+Private m_FieldMapByAlias As Object
+
+Public Sub Initialize(ByVal tableRef As String)
+    m_TableRef = Trim$(tableRef)
+    Set m_Rows = New Collection
+    Set m_RowsByIndex = CreateObject("Scripting.Dictionary")
+    m_RowsByIndex.CompareMode = 1
+    Set m_FieldMapByAlias = CreateObject("Scripting.Dictionary")
+    m_FieldMapByAlias.CompareMode = 1
+End Sub
+
+Public Property Get TableRef() As String
+    TableRef = m_TableRef
+End Property
+
+Public Property Get Rows() As Collection
+    Set Rows = m_Rows
+End Property
+
+Public Sub AddFieldMap(ByVal fieldAlias As String, ByVal mapKey As String)
+    m_FieldMapByAlias(Trim$(fieldAlias)) = Trim$(mapKey)
+End Sub
+
+Public Function HasFieldAlias(ByVal fieldAlias As String) As Boolean
+    HasFieldAlias = m_FieldMapByAlias.Exists(Trim$(fieldAlias))
+End Function
+
+Public Function MapKeyByAlias(ByVal fieldAlias As String) As String
+    MapKeyByAlias = CStr(m_FieldMapByAlias(Trim$(fieldAlias)))
+End Function
+
+Public Property Get FieldMapByAlias() As Object
+    Set FieldMapByAlias = m_FieldMapByAlias
+End Property
+
+Public Function HasRow(ByVal rowIndex As Long) As Boolean
+    HasRow = m_RowsByIndex.Exists(CStr(rowIndex))
+End Function
+
+Public Function RowByIndex(ByVal rowIndex As Long) As pp_ResultRow
+    Set RowByIndex = m_RowsByIndex(CStr(rowIndex))
+End Function
+
+Public Function EnsureRow(ByVal rowIndex As Long) As pp_ResultRow
+    Dim rowObj As pp_ResultRow
+    If Not m_RowsByIndex.Exists(CStr(rowIndex)) Then
+        Set rowObj = New pp_ResultRow
+        rowObj.Initialize rowIndex
+        m_RowsByIndex.Add CStr(rowIndex), rowObj
+        m_Rows.Add rowObj
+    End If
+    Set EnsureRow = m_RowsByIndex(CStr(rowIndex))
+End Function
+
+Public Sub SetRowValue(ByVal rowIndex As Long, ByVal fieldAlias As String, ByVal mapKey As String, ByVal valueText As String)
+    Dim rowObj As pp_ResultRow
+    Set rowObj = EnsureRow(rowIndex)
+    rowObj.SetValue fieldAlias, mapKey, valueText
+End Sub
