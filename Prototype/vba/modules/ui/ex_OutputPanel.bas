@@ -35,14 +35,19 @@ Public Sub m_RenderForSheet(ByVal ws As Worksheet, ByRef style As ex_SheetStyles
     Dim fieldBottomRow As Long
     Dim buttonAnchorCol As Long
     Dim buttonWidthCols As Long
-    Dim buttonWidthPoints As Double
-    Dim anchorColumnWidthPoints As Double
     Dim buttonCellRange As Range
     Dim panelAutoFitLastCol As Long
     Dim panelAutoFitCols As Long
     Dim panelRange As Range
     Dim panelRenderRightCol As Long
     Dim fieldError As String
+    Dim buttonIndex As Long
+    Dim buttonsCount As Long
+    Dim buttonRowTop As Long
+    Dim fieldRow As Long
+    Dim buttonBackColor As Long
+    Dim buttonTextColor As Long
+    Dim buttonBorderColor As Long
 
     If ws Is Nothing Then Exit Sub
 
@@ -72,7 +77,7 @@ Public Sub m_RenderForSheet(ByVal ws As Worksheet, ByRef style As ex_SheetStyles
     rightCol = startCol + panelWidth - 1
 
     fieldsTopRow = topRow + 1
-    bottomRow = fieldsTopRow + (style.PanelFieldCount * rowSpan) + ((style.PanelFieldCount - 1) * fieldSpacing) - 1
+    bottomRow = mp_GetControlPanelBottomRow(style, fieldsTopRow, rowSpan, fieldSpacing)
 
     inputStartCol = startCol + style.PanelLabelColumns
     inputEndCol = inputStartCol + style.PanelValueColumns - 1
@@ -121,10 +126,12 @@ Public Sub m_RenderForSheet(ByVal ws As Worksheet, ByRef style As ex_SheetStyles
     End If
 
     For fieldIndex = 1 To style.PanelFieldCount
-        fieldTopRow = fieldsTopRow + ((fieldIndex - 1) * (rowSpan + fieldSpacing))
-        fieldBottomRow = fieldTopRow + rowSpan - 1
+        fieldTopRow = mp_GetFieldTopRow(style, fieldsTopRow, rowSpan, fieldSpacing, fieldIndex)
+        fieldBottomRow = fieldTopRow + mp_GetFieldEffectiveRowSpan(style, fieldIndex, rowSpan) - 1
 
-        ws.Rows(fieldTopRow).RowHeight = 32
+        For fieldRow = fieldTopRow To fieldBottomRow
+            ws.Rows(fieldRow).RowHeight = 32
+        Next fieldRow
 
         Set labelRange = ws.Cells(fieldTopRow, startCol)
         labelRange.UnMerge
@@ -160,35 +167,40 @@ Public Sub m_RenderForSheet(ByVal ws As Worksheet, ByRef style As ex_SheetStyles
             GoTo ContinueField
         End If
 
-        Set buttonCellRange = ws.Range(ws.Cells(fieldTopRow, buttonAnchorCol), ws.Cells(fieldBottomRow, buttonAnchorCol + buttonWidthCols - 1))
-        anchorColumnWidthPoints = buttonCellRange.Width
-        buttonWidthPoints = anchorColumnWidthPoints
-        If buttonWidthPoints < 8 Then buttonWidthPoints = 8
+        buttonsCount = style.PanelFields(fieldIndex).ButtonCount
+        If buttonsCount < 1 Then buttonsCount = 1
 
-        buttonTop = buttonCellRange.Top
-        buttonLeft = buttonCellRange.Left
-        buttonWidth = buttonWidthPoints
-        buttonHeight = buttonCellRange.Height
-        If buttonWidth < 8 Then buttonWidth = 8
-        If buttonHeight < 8 Then buttonHeight = 8
+        For buttonIndex = 1 To buttonsCount
+            buttonRowTop = fieldTopRow + buttonIndex - 1
+            Set buttonCellRange = ws.Range(ws.Cells(buttonRowTop, buttonAnchorCol), ws.Cells(buttonRowTop, buttonAnchorCol + buttonWidthCols - 1))
+            buttonTop = buttonCellRange.Top
+            buttonLeft = buttonCellRange.Left
+            buttonWidth = buttonCellRange.Width
+            buttonHeight = buttonCellRange.Height
+            If buttonWidth < 8 Then buttonWidth = 8
+            If buttonHeight < 8 Then buttonHeight = 8
 
-        buttonName = mp_GetButtonName(ws, fieldIndex)
-        Set buttonShape = ws.Shapes.AddShape(msoShapeRectangle, buttonLeft, buttonTop, buttonWidth, buttonHeight)
-        buttonShape.Name = buttonName
-        buttonShape.TextFrame.Characters.Text = style.PanelFields(fieldIndex).Button.Caption
-        buttonShape.Fill.Solid
-        buttonShape.Fill.ForeColor.RGB = style.PanelButtonBackColor
-        buttonShape.Fill.Transparency = 0
-        buttonShape.Line.ForeColor.RGB = style.PanelButtonBorderColor
-        buttonShape.Line.Weight = 1
-        buttonShape.TextFrame.Characters.Font.Bold = True
-        buttonShape.TextFrame.Characters.Font.Color = style.PanelButtonTextColor
-        buttonShape.TextFrame.Characters.Font.Name = style.FontName
-        buttonShape.TextFrame.Characters.Font.Size = style.FontSize
-        buttonShape.TextFrame.HorizontalAlignment = xlHAlignCenter
-        buttonShape.TextFrame.VerticalAlignment = xlVAlignCenter
-        buttonShape.Placement = xlMoveAndSize
-        buttonShape.OnAction = "'" & ThisWorkbook.Name & "'!" & Trim$(style.PanelFields(fieldIndex).Button.MacroName)
+            buttonName = mp_GetButtonName(ws, fieldIndex, buttonIndex)
+            Set buttonShape = ws.Shapes.AddShape(msoShapeRectangle, buttonLeft, buttonTop, buttonWidth, buttonHeight)
+            buttonShape.Name = buttonName
+            buttonShape.TextFrame.Characters.Text = style.PanelFields(fieldIndex).Buttons(buttonIndex).Caption
+            buttonBackColor = mp_GetButtonBackColor(style, fieldIndex, buttonIndex)
+            buttonTextColor = mp_GetButtonTextColor(style, fieldIndex, buttonIndex)
+            buttonBorderColor = mp_GetButtonBorderColor(style, fieldIndex, buttonIndex)
+            buttonShape.Fill.Solid
+            buttonShape.Fill.ForeColor.RGB = buttonBackColor
+            buttonShape.Fill.Transparency = 0
+            buttonShape.Line.ForeColor.RGB = buttonBorderColor
+            buttonShape.Line.Weight = 1
+            buttonShape.TextFrame.Characters.Font.Bold = True
+            buttonShape.TextFrame.Characters.Font.Color = buttonTextColor
+            buttonShape.TextFrame.Characters.Font.Name = style.FontName
+            buttonShape.TextFrame.Characters.Font.Size = style.FontSize
+            buttonShape.TextFrame.HorizontalAlignment = xlHAlignCenter
+            buttonShape.TextFrame.VerticalAlignment = xlVAlignCenter
+            buttonShape.Placement = xlMoveAndSize
+            buttonShape.OnAction = "'" & ThisWorkbook.Name & "'!" & Trim$(style.PanelFields(fieldIndex).Buttons(buttonIndex).MacroName)
+        Next buttonIndex
 
 ContinueField:
     Next fieldIndex
@@ -202,28 +214,38 @@ Private Function mp_GetConfigRefFieldError( _
     ByRef fieldStyle As ex_SheetStylesXmlProvider.t_ControlPanelFieldStyle, _
     ByVal fieldIndex As Long _
 ) As String
+    Dim buttonIndex As Long
+
     If Not fieldStyle.IsConfigRefField Then Exit Function
 
     If Len(Trim$(fieldStyle.Label)) = 0 Then
-        mp_GetConfigRefFieldError = "Missing required attribute: configRefField@label (field " & CStr(fieldIndex) & ")."
+        mp_GetConfigRefFieldError = "Missing required attribute: inputConfigRefField@label (field " & CStr(fieldIndex) & ")."
         Exit Function
     End If
     If Len(Trim$(fieldStyle.InputConfigKey)) = 0 Then
-        mp_GetConfigRefFieldError = "Missing required attribute: configRefField@inputConfigKey (field " & CStr(fieldIndex) & ")."
+        mp_GetConfigRefFieldError = "Missing required attribute: inputConfigRefField@inputConfigKey (field " & CStr(fieldIndex) & ")."
         Exit Function
     End If
     If Len(Trim$(fieldStyle.InputName)) = 0 Then
-        mp_GetConfigRefFieldError = "Missing required attribute: configRefField@inputName (field " & CStr(fieldIndex) & ")."
+        mp_GetConfigRefFieldError = "Missing required attribute: inputConfigRefField@inputName (field " & CStr(fieldIndex) & ")."
         Exit Function
     End If
-    If Len(Trim$(fieldStyle.Button.Caption)) = 0 Then
-        mp_GetConfigRefFieldError = "Missing required attribute: configRefField/button@caption (field " & CStr(fieldIndex) & ")."
+
+    If fieldStyle.ButtonCount <= 0 Then
+        mp_GetConfigRefFieldError = "Missing required node: inputConfigRefField/button (field " & CStr(fieldIndex) & ")."
         Exit Function
     End If
-    If Len(Trim$(fieldStyle.Button.MacroName)) = 0 Then
-        mp_GetConfigRefFieldError = "Missing required attribute: configRefField/button@macro (field " & CStr(fieldIndex) & ")."
-        Exit Function
-    End If
+
+    For buttonIndex = 1 To fieldStyle.ButtonCount
+        If Len(Trim$(fieldStyle.Buttons(buttonIndex).Caption)) = 0 Then
+            mp_GetConfigRefFieldError = "Missing required attribute: inputConfigRefField/button@caption (field " & CStr(fieldIndex) & ", button " & CStr(buttonIndex) & ")."
+            Exit Function
+        End If
+        If Len(Trim$(fieldStyle.Buttons(buttonIndex).MacroName)) = 0 Then
+            mp_GetConfigRefFieldError = "Missing required attribute: inputConfigRefField/button@macro (field " & CStr(fieldIndex) & ", button " & CStr(buttonIndex) & ")."
+            Exit Function
+        End If
+    Next buttonIndex
 End Function
 
 Private Sub mp_RenderFieldInlineError( _
@@ -442,12 +464,12 @@ Private Function mp_GetPanelInputCellByKey(ByVal ws As Worksheet, ByVal inputKey
     On Error GoTo 0
 End Function
 
-Private Function mp_GetButtonName(ByVal ws As Worksheet, ByVal fieldIndex As Long) As String
+Private Function mp_GetButtonName(ByVal ws As Worksheet, ByVal fieldIndex As Long, Optional ByVal buttonIndex As Long = 1) As String
     If ws Is Nothing Then
         mp_GetButtonName = PANEL_BUTTON_PREFIX
         Exit Function
     End If
-    mp_GetButtonName = PANEL_BUTTON_PREFIX & ws.CodeName & "_" & CStr(fieldIndex)
+    mp_GetButtonName = PANEL_BUTTON_PREFIX & ws.CodeName & "_" & CStr(fieldIndex) & "_" & CStr(buttonIndex)
 End Function
 
 Private Sub mp_ClearPanelArtifacts(ByVal ws As Worksheet)
@@ -526,22 +548,27 @@ Private Function mp_GetLocalNameToken(ByVal fullName As String) As String
 End Function
 
 Private Sub mp_DeletePanelButtons(ByVal ws As Worksheet)
+    Dim shapeIndex As Long
     Dim shp As Shape
     Dim prefix As String
+    Dim commonPrefix As String
     Dim backPrefix As String
 
     If ws Is Nothing Then Exit Sub
     prefix = PANEL_BUTTON_PREFIX & ws.CodeName & "_"
+    commonPrefix = PANEL_BUTTON_PREFIX
     backPrefix = "btnOutPanelBackToDev_" & ws.CodeName
 
-    For Each shp In ws.Shapes
+    For shapeIndex = ws.Shapes.Count To 1 Step -1
+        Set shp = ws.Shapes(shapeIndex)
         If LCase$(Left$(shp.Name, Len(prefix))) = LCase$(prefix) _
+           Or LCase$(Left$(shp.Name, Len(commonPrefix))) = LCase$(commonPrefix) _
            Or LCase$(Left$(shp.Name, Len(backPrefix))) = LCase$(backPrefix) Then
             On Error Resume Next
             shp.Delete
             On Error GoTo 0
         End If
-    Next shp
+    Next shapeIndex
 End Sub
 
 Private Sub mp_ApplyFixedControlPanelLayout( _
@@ -556,6 +583,8 @@ Private Sub mp_ApplyFixedControlPanelLayout( _
     Dim spacingRows As Long
     Dim fieldIndex As Long
     Dim fieldTopRow As Long
+    Dim fieldBottomRow As Long
+    Dim rowIndex As Long
 
     If ws Is Nothing Then Exit Sub
 
@@ -582,10 +611,113 @@ Private Sub mp_ApplyFixedControlPanelLayout( _
     fieldsTopRow = style.PanelTopRow + 1
 
     For fieldIndex = 1 To style.PanelFieldCount
-        fieldTopRow = fieldsTopRow + ((fieldIndex - 1) * (rowSpan + spacingRows))
-        ws.Rows(fieldTopRow).RowHeight = style.PanelFixedFieldRowHeight
+        fieldTopRow = mp_GetFieldTopRow(style, fieldsTopRow, rowSpan, spacingRows, fieldIndex)
+        fieldBottomRow = fieldTopRow + mp_GetFieldEffectiveRowSpan(style, fieldIndex, rowSpan) - 1
+        For rowIndex = fieldTopRow To fieldBottomRow
+            ws.Rows(rowIndex).RowHeight = style.PanelFixedFieldRowHeight
+        Next rowIndex
     Next fieldIndex
 End Sub
+
+Private Function mp_GetControlPanelBottomRow( _
+    ByRef style As ex_SheetStylesXmlProvider.t_OutputSheetStyle, _
+    ByVal fieldsTopRow As Long, _
+    ByVal baseRowSpan As Long, _
+    ByVal spacingRows As Long _
+) As Long
+    Dim totalRows As Long
+    Dim fieldIndex As Long
+
+    If style.PanelFieldCount <= 0 Then
+        mp_GetControlPanelBottomRow = fieldsTopRow - 1
+        Exit Function
+    End If
+
+    For fieldIndex = 1 To style.PanelFieldCount
+        totalRows = totalRows + mp_GetFieldEffectiveRowSpan(style, fieldIndex, baseRowSpan)
+        If fieldIndex < style.PanelFieldCount Then
+            totalRows = totalRows + spacingRows
+        End If
+    Next fieldIndex
+
+    mp_GetControlPanelBottomRow = fieldsTopRow + totalRows - 1
+End Function
+
+Private Function mp_GetFieldTopRow( _
+    ByRef style As ex_SheetStylesXmlProvider.t_OutputSheetStyle, _
+    ByVal fieldsTopRow As Long, _
+    ByVal baseRowSpan As Long, _
+    ByVal spacingRows As Long, _
+    ByVal fieldIndex As Long _
+) As Long
+    Dim i As Long
+    Dim topRow As Long
+
+    topRow = fieldsTopRow
+    For i = 1 To fieldIndex - 1
+        topRow = topRow + mp_GetFieldEffectiveRowSpan(style, i, baseRowSpan) + spacingRows
+    Next i
+
+    mp_GetFieldTopRow = topRow
+End Function
+
+Private Function mp_GetFieldEffectiveRowSpan( _
+    ByRef style As ex_SheetStylesXmlProvider.t_OutputSheetStyle, _
+    ByVal fieldIndex As Long, _
+    ByVal baseRowSpan As Long _
+) As Long
+    Dim effectiveSpan As Long
+
+    effectiveSpan = baseRowSpan
+    If effectiveSpan < 1 Then effectiveSpan = 1
+
+    If fieldIndex >= 1 And fieldIndex <= style.PanelFieldCount Then
+        If style.PanelFields(fieldIndex).ButtonCount > effectiveSpan Then
+            effectiveSpan = style.PanelFields(fieldIndex).ButtonCount
+        End If
+    End If
+
+    mp_GetFieldEffectiveRowSpan = effectiveSpan
+End Function
+
+Private Function mp_GetButtonBackColor( _
+    ByRef style As ex_SheetStylesXmlProvider.t_OutputSheetStyle, _
+    ByVal fieldIndex As Long, _
+    ByVal buttonIndex As Long _
+) As Long
+    mp_GetButtonBackColor = style.PanelButtonBackColor
+    If fieldIndex < 1 Or fieldIndex > style.PanelFieldCount Then Exit Function
+    If buttonIndex < 1 Or buttonIndex > style.PanelFields(fieldIndex).ButtonCount Then Exit Function
+    If style.PanelFields(fieldIndex).Buttons(buttonIndex).HasBackColor Then
+        mp_GetButtonBackColor = style.PanelFields(fieldIndex).Buttons(buttonIndex).BackColor
+    End If
+End Function
+
+Private Function mp_GetButtonTextColor( _
+    ByRef style As ex_SheetStylesXmlProvider.t_OutputSheetStyle, _
+    ByVal fieldIndex As Long, _
+    ByVal buttonIndex As Long _
+) As Long
+    mp_GetButtonTextColor = style.PanelButtonTextColor
+    If fieldIndex < 1 Or fieldIndex > style.PanelFieldCount Then Exit Function
+    If buttonIndex < 1 Or buttonIndex > style.PanelFields(fieldIndex).ButtonCount Then Exit Function
+    If style.PanelFields(fieldIndex).Buttons(buttonIndex).HasTextColor Then
+        mp_GetButtonTextColor = style.PanelFields(fieldIndex).Buttons(buttonIndex).TextColor
+    End If
+End Function
+
+Private Function mp_GetButtonBorderColor( _
+    ByRef style As ex_SheetStylesXmlProvider.t_OutputSheetStyle, _
+    ByVal fieldIndex As Long, _
+    ByVal buttonIndex As Long _
+) As Long
+    mp_GetButtonBorderColor = style.PanelButtonBorderColor
+    If fieldIndex < 1 Or fieldIndex > style.PanelFieldCount Then Exit Function
+    If buttonIndex < 1 Or buttonIndex > style.PanelFields(fieldIndex).ButtonCount Then Exit Function
+    If style.PanelFields(fieldIndex).Buttons(buttonIndex).HasBorderColor Then
+        mp_GetButtonBorderColor = style.PanelFields(fieldIndex).Buttons(buttonIndex).BorderColor
+    End If
+End Function
 
 Private Function mp_GetInputNameByKey(ByVal inputKey As String) As String
     Dim normalized As String

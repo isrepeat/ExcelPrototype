@@ -94,8 +94,8 @@
 				}
 			}
 
-			if (Events.Sheet[EventsOut].row[0].column[Date] == "12.07.2025") {
-				callMacro("ex_PostProcessActions.m_HighlightRow", Events.Sheet[EventsOut].row[0].column[Date], "#0000FF");
+			if (Events.Sheet[EventsOut].row[2].column[Date] == "12.07.2025") {
+				callMacro("ex_PostProcessActions.m_HighlightRow", Events.Sheet[EventsOut].row[0], "#0000FF");
 			}
 		</postProcessScript>
 		<ui>

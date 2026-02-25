@@ -7,6 +7,9 @@ Private Const DEV_COL_MARKER As Long = 1
 Private Const DEV_COL_KEY As Long = 2
 Private Const DEV_COL_VALUE As Long = 3
 
+Private g_LastPostProcessCfg As Object
+Private g_LastPostProcessTables As Collection
+
 Public Sub m_ShowPersonTimeline_UI()
 
     Dim fio As String
@@ -219,7 +222,11 @@ ContinueAlias:
     End If
 
     ex_OutputFormattingPipeline.m_ApplyConfigNoteStyleLayer wsOut, resultFieldRanges, cfgNotes
-    ex_PostProcessDsl.m_ApplyScriptToSheet wsOut, cfg, resultTables
+
+    mp_StorePostProcessContext cfg, resultTables
+    If mp_ShouldAutoPostProcess() Then
+        ex_PostProcessDsl.m_ApplyScriptToSheet wsOut, cfg, resultTables
+    End If
 
     mp_CloseConnections connCache
 
@@ -282,6 +289,40 @@ EH:
     ex_Messaging.m_RenderErrorBanner wsOut, errDescription, errSource, errNumber, "ERROR: Timeline generation failed", ex_SheetStylesXmlProvider.m_GetOutputErrorBannerRangeAddress(ThisWorkbook)
 
 End Sub
+
+Public Sub m_RunPostProcessForActiveSheet()
+    Dim ws As Worksheet
+
+    Set ws = ActiveSheet
+    If ws Is Nothing Then
+        MsgBox "Active sheet is not available for post-process.", vbExclamation
+        Exit Sub
+    End If
+
+    If g_LastPostProcessCfg Is Nothing Or g_LastPostProcessTables Is Nothing Then
+        MsgBox "Post-process context is not prepared. Generate Personal Card result first.", vbExclamation
+        Exit Sub
+    End If
+
+    ex_PostProcessDsl.m_ApplyScriptToSheet ws, g_LastPostProcessCfg, g_LastPostProcessTables
+End Sub
+
+Private Sub mp_StorePostProcessContext(ByVal cfg As Object, ByVal resultTables As Collection)
+    Set g_LastPostProcessCfg = cfg
+    Set g_LastPostProcessTables = resultTables
+End Sub
+
+Private Function mp_ShouldAutoPostProcess() As Boolean
+    Dim valueText As String
+    Dim parsed As Boolean
+
+    valueText = ex_XmlCore.m_GetSettingsValue("st_AutoPostProcess", "true")
+    If ex_XmlCore.m_TryParseBoolean(valueText, parsed) Then
+        mp_ShouldAutoPostProcess = parsed
+    Else
+        mp_ShouldAutoPostProcess = True
+    End If
+End Function
 
 Private Function mp_ValidateTimelineConfig( _
     ByVal cfg As Object, _

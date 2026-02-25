@@ -1,6 +1,8 @@
 Attribute VB_Name = "ex_XmlCore"
 Option Explicit
 
+Private Const SETTINGS_REL_PATH As String = "config\Settings.xml"
+
 Public Function m_CombineBasePath(ByVal wb As Workbook, ByVal relPath As String) As String
     Dim basePath As String
 
@@ -247,6 +249,281 @@ Public Function m_ReadRequiredAttrHexColor(ByVal node As Object, ByVal attrName 
     End If
 
     m_ReadRequiredAttrHexColor = True
+End Function
+
+Public Function m_TryEvaluateNodeCondition( _
+    ByVal node As Object, _
+    ByRef outIsIncluded As Boolean, _
+    Optional ByVal conditionAttrName As String = "condition", _
+    Optional ByVal entityLabel As String = "xml node" _
+) As Boolean
+    Dim conditionText As String
+    Dim errorText As String
+
+    outIsIncluded = True
+    If node Is Nothing Then
+        m_TryEvaluateNodeCondition = True
+        Exit Function
+    End If
+
+    conditionText = Trim$(m_NodeAttrText(node, conditionAttrName))
+    If Len(conditionText) = 0 Then
+        m_TryEvaluateNodeCondition = True
+        Exit Function
+    End If
+
+    If Not mp_TryEvaluateConfigCondition(conditionText, outIsIncluded, errorText) Then
+        MsgBox "Invalid condition for " & entityLabel & ": '" & conditionText & "'. " & errorText, vbExclamation
+        Exit Function
+    End If
+
+    m_TryEvaluateNodeCondition = True
+End Function
+
+Public Function m_GetSettingsValue(ByVal keyName As String, Optional ByVal defaultValue As String = vbNullString) As String
+    Dim valueText As String
+
+    valueText = mp_GetConditionSourceValue(keyName)
+    If Len(valueText) = 0 Then
+        m_GetSettingsValue = defaultValue
+    Else
+        m_GetSettingsValue = valueText
+    End If
+End Function
+
+Private Function mp_TryEvaluateConfigCondition(ByVal conditionText As String, ByRef outResult As Boolean, ByRef outErrorText As String) As Boolean
+    Dim parts() As String
+    Dim part As Variant
+    Dim partText As String
+    Dim partResult As Boolean
+
+    conditionText = Trim$(conditionText)
+    If Len(conditionText) = 0 Then
+        outResult = True
+        mp_TryEvaluateConfigCondition = True
+        Exit Function
+    End If
+
+    parts = Split(conditionText, "&&")
+    outResult = True
+
+    For Each part In parts
+        partText = Trim$(CStr(part))
+        If Len(partText) = 0 Then
+            outErrorText = "Empty token in condition."
+            Exit Function
+        End If
+
+        If Not mp_TryEvaluateConditionPart(partText, partResult, outErrorText) Then Exit Function
+        If Not partResult Then
+            outResult = False
+            mp_TryEvaluateConfigCondition = True
+            Exit Function
+        End If
+    Next part
+
+    mp_TryEvaluateConfigCondition = True
+End Function
+
+Private Function mp_TryEvaluateConditionPart(ByVal tokenText As String, ByRef outResult As Boolean, ByRef outErrorText As String) As Boolean
+    Dim lhs As String
+    Dim rhs As String
+    Dim opPos As Long
+    Dim actualValue As String
+    Dim expectedValue As String
+    Dim boolValue As Boolean
+
+    tokenText = Trim$(tokenText)
+    If Len(tokenText) = 0 Then
+        outErrorText = "Condition token is empty."
+        Exit Function
+    End If
+
+    opPos = InStr(1, tokenText, "!=", vbTextCompare)
+    If opPos > 0 Then
+        lhs = Trim$(Left$(tokenText, opPos - 1))
+        rhs = Trim$(Mid$(tokenText, opPos + 2))
+        If Len(lhs) = 0 Then
+            outErrorText = "Left operand is missing for '!='."
+            Exit Function
+        End If
+        actualValue = mp_GetConditionSourceValue(lhs)
+        expectedValue = mp_UnquoteConditionValue(rhs)
+        outResult = (StrComp(actualValue, expectedValue, vbTextCompare) <> 0)
+        mp_TryEvaluateConditionPart = True
+        Exit Function
+    End If
+
+    opPos = InStr(1, tokenText, "==", vbTextCompare)
+    If opPos > 0 Then
+        lhs = Trim$(Left$(tokenText, opPos - 1))
+        rhs = Trim$(Mid$(tokenText, opPos + 2))
+        If Len(lhs) = 0 Then
+            outErrorText = "Left operand is missing for '=='."
+            Exit Function
+        End If
+        actualValue = mp_GetConditionSourceValue(lhs)
+        expectedValue = mp_UnquoteConditionValue(rhs)
+        outResult = (StrComp(actualValue, expectedValue, vbTextCompare) = 0)
+        mp_TryEvaluateConditionPart = True
+        Exit Function
+    End If
+
+    opPos = InStr(1, tokenText, "=", vbTextCompare)
+    If opPos > 0 Then
+        lhs = Trim$(Left$(tokenText, opPos - 1))
+        rhs = Trim$(Mid$(tokenText, opPos + 1))
+        If Len(lhs) = 0 Then
+            outErrorText = "Left operand is missing for '='."
+            Exit Function
+        End If
+        actualValue = mp_GetConditionSourceValue(lhs)
+        expectedValue = mp_UnquoteConditionValue(rhs)
+        outResult = (StrComp(actualValue, expectedValue, vbTextCompare) = 0)
+        mp_TryEvaluateConditionPart = True
+        Exit Function
+    End If
+
+    If Left$(tokenText, 1) = "!" Then
+        lhs = Trim$(Mid$(tokenText, 2))
+        If Len(lhs) = 0 Then
+            outErrorText = "Missing config key after '!'."
+            Exit Function
+        End If
+        actualValue = mp_GetConditionSourceValue(lhs)
+        If mp_TryParseBoolean(actualValue, boolValue) Then
+            outResult = Not boolValue
+        Else
+            outResult = Not mp_IsTruthy(actualValue)
+        End If
+        mp_TryEvaluateConditionPart = True
+        Exit Function
+    End If
+
+    actualValue = mp_GetConditionSourceValue(tokenText)
+    If mp_TryParseBoolean(actualValue, boolValue) Then
+        outResult = boolValue
+    Else
+        outResult = mp_IsTruthy(actualValue)
+    End If
+    mp_TryEvaluateConditionPart = True
+End Function
+
+Private Function mp_IsTruthy(ByVal valueText As String) As Boolean
+    valueText = LCase$(Trim$(valueText))
+    If Len(valueText) = 0 Then Exit Function
+
+    Select Case valueText
+        Case "0", "false", "no", "off", "none", "null"
+            mp_IsTruthy = False
+        Case Else
+            mp_IsTruthy = True
+    End Select
+End Function
+
+Private Function mp_UnquoteConditionValue(ByVal valueText As String) As String
+    valueText = Trim$(valueText)
+    If Len(valueText) >= 2 Then
+        If Left$(valueText, 1) = """" And Right$(valueText, 1) = """" Then
+            mp_UnquoteConditionValue = Mid$(valueText, 2, Len(valueText) - 2)
+            Exit Function
+        End If
+        If Left$(valueText, 1) = "'" And Right$(valueText, 1) = "'" Then
+            mp_UnquoteConditionValue = Mid$(valueText, 2, Len(valueText) - 2)
+            Exit Function
+        End If
+    End If
+    mp_UnquoteConditionValue = valueText
+End Function
+
+Private Function mp_TryParseBoolean(ByVal valueText As String, ByRef result As Boolean) As Boolean
+    mp_TryParseBoolean = m_TryParseBoolean(valueText, result)
+End Function
+
+Private Function mp_GetConditionSourceValue(ByVal keyName As String) As String
+    Dim settingsMap As Object
+
+    keyName = LCase$(Trim$(keyName))
+    If Len(keyName) = 0 Then Exit Function
+
+    Set settingsMap = mp_GetSettingsMap()
+    If settingsMap Is Nothing Then Exit Function
+    If settingsMap.Exists(keyName) Then
+        mp_GetConditionSourceValue = CStr(settingsMap(keyName))
+    End If
+End Function
+
+Private Function mp_GetSettingsMap() As Object
+    Static cachedMap As Object
+    Static cachedPath As String
+    Static cachedLastWrite As Date
+    Dim currentPath As String
+    Dim currentLastWrite As Date
+    Dim doc As Object
+    Dim rootNode As Object
+    Dim childNode As Object
+    Dim flagNodes As Object
+    Dim flagNode As Object
+    Dim keyName As String
+    Dim valueText As String
+
+    currentPath = m_CombineBasePath(ThisWorkbook, SETTINGS_REL_PATH)
+    If Len(currentPath) = 0 Then Exit Function
+
+    On Error Resume Next
+    currentLastWrite = FileDateTime(currentPath)
+    If Err.Number <> 0 Then
+        currentLastWrite = 0
+        Err.Clear
+    End If
+    On Error GoTo 0
+
+    If cachedMap Is Nothing _
+       Or StrComp(cachedPath, currentPath, vbTextCompare) <> 0 _
+       Or cachedLastWrite <> currentLastWrite Then
+        Set cachedMap = CreateObject("Scripting.Dictionary")
+        cachedMap.CompareMode = 1
+        cachedPath = currentPath
+        cachedLastWrite = currentLastWrite
+
+        Set doc = m_LoadDomByRelativePath(ThisWorkbook, SETTINGS_REL_PATH, vbNullString, "Settings file was not found: ", "Failed to parse Settings file: ")
+        If doc Is Nothing Then
+            Set mp_GetSettingsMap = cachedMap
+            Exit Function
+        End If
+
+        Set rootNode = doc.selectSingleNode("/*[local-name()='settings']")
+        If rootNode Is Nothing Then
+            MsgBox "Invalid Settings XML format: root <settings> is required in '" & currentPath & "'.", vbExclamation
+            Set mp_GetSettingsMap = cachedMap
+            Exit Function
+        End If
+
+        For Each childNode In rootNode.ChildNodes
+            If childNode.NodeType = 1 Then
+                keyName = LCase$(Trim$(CStr(childNode.baseName)))
+                valueText = Trim$(CStr(childNode.Text))
+                If Len(keyName) > 0 Then
+                    cachedMap(keyName) = valueText
+                End If
+            End If
+        Next childNode
+
+        Set flagNodes = rootNode.selectNodes(".//*[local-name()='flag']")
+        If Not flagNodes Is Nothing Then
+            For Each flagNode In flagNodes
+                keyName = LCase$(Trim$(m_NodeAttrText(flagNode, "name")))
+                If Len(keyName) = 0 Then GoTo NextFlagNode
+
+                valueText = Trim$(m_NodeAttrText(flagNode, "value"))
+                If Len(valueText) = 0 Then valueText = Trim$(CStr(flagNode.Text))
+                cachedMap(keyName) = valueText
+NextFlagNode:
+            Next flagNode
+        End If
+    End If
+
+    Set mp_GetSettingsMap = cachedMap
 End Function
 
 Private Function mp_IsHexPair(ByVal value As String) As Boolean

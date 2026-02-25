@@ -5,6 +5,7 @@ Private Const PROFILES_NS As String = "urn:excelprototype:profiles"
 Private Const UI_CONFIG_REL_PATH As String = "config\DevUI.xml"
 Private Const DEFAULT_SHEET_NAME As String = "Dev"
 Private Const UI_BLOCK_GROUP_NAME As String = "grpUiBlock"
+Private Const OUTPUT_PANEL_BUTTON_PREFIX As String = "btnOutPanelSearch_"
 
 Public Sub m_LoadUiFromConfig(Optional ByVal wb As Workbook)
     Dim doc As Object
@@ -20,6 +21,7 @@ Public Sub m_LoadUiFromConfig(Optional ByVal wb As Workbook)
     Dim didUngroupUiBlock As Boolean
     Dim regroupSheets As Object
     Dim regroupSheetName As Variant
+    Dim isNodeEnabled As Boolean
 
     If wb Is Nothing Then
         Set wb = ThisWorkbook
@@ -50,6 +52,9 @@ Public Sub m_LoadUiFromConfig(Optional ByVal wb As Workbook)
 
     For Each controlNode In controlNodes
         controlName = Trim$(mp_NodeAttrText(controlNode, "name"))
+        If Not ex_XmlCore.m_TryEvaluateNodeCondition(controlNode, isNodeEnabled, "condition", "control '" & controlName & "'") Then Exit Sub
+        If Not isNodeEnabled Then GoTo NextControl
+
         If Len(controlName) = 0 Then
             MsgBox "UI config contains <control> without 'name' attribute.", vbExclamation
             Exit Sub
@@ -828,11 +833,15 @@ Private Function mp_RemoveButtonsMissingInConfig(ByVal wb As Workbook, ByVal con
     Dim controlType As String
     Dim sheetName As String
     Dim buttonName As Variant
+    Dim isNodeEnabled As Boolean
 
     Set allowedButtons = CreateObject("Scripting.Dictionary")
 
     For Each controlNode In controlNodes
         controlName = Trim$(mp_NodeAttrText(controlNode, "name"))
+        If Not ex_XmlCore.m_TryEvaluateNodeCondition(controlNode, isNodeEnabled, "condition", "control '" & controlName & "'") Then Exit Function
+        If Not isNodeEnabled Then GoTo NextNode
+
         controlType = LCase$(Trim$(mp_NodeAttrText(controlNode, "type")))
         If Len(controlType) = 0 Then
             controlType = "button"
@@ -853,9 +862,12 @@ NextNode:
         mp_CollectButtonShapeNamesInContainer ws.Shapes, existingButtons
 
         For Each buttonName In existingButtons.Keys
+            If mp_IsRuntimeManagedButton(CStr(buttonName)) Then GoTo NextButtonName
+
             If Not allowedButtons.Exists(mp_SheetButtonKey(ws.Name, CStr(buttonName))) Then
                 If Not mp_DeleteShapeByName(ws, CStr(buttonName)) Then Exit Function
             End If
+NextButtonName:
         Next buttonName
     Next ws
 
@@ -951,6 +963,14 @@ End Function
 
 Private Function mp_IsButtonShapeName(ByVal shapeName As String) As Boolean
     mp_IsButtonShapeName = (LCase$(Left$(Trim$(shapeName), 3)) = "btn")
+End Function
+
+Private Function mp_IsRuntimeManagedButton(ByVal shapeName As String) As Boolean
+    shapeName = Trim$(shapeName)
+    If Len(shapeName) = 0 Then Exit Function
+
+    mp_IsRuntimeManagedButton = _
+        (StrComp(Left$(shapeName, Len(OUTPUT_PANEL_BUTTON_PREFIX)), OUTPUT_PANEL_BUTTON_PREFIX, vbTextCompare) = 0)
 End Function
 
 Private Function mp_SheetButtonKey(ByVal sheetName As String, ByVal controlName As String) As String
