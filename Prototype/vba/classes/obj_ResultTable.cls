@@ -2,7 +2,7 @@ VERSION 1.0 CLASS
 BEGIN
   MultiUse = -1  'True
 END
-Attribute VB_Name = "pp_ResultTable"
+Attribute VB_Name = "obj_ResultTable"
 Option Explicit
 
 Private m_TableRef As String
@@ -27,6 +27,27 @@ Public Property Get Rows() As Collection
     Set Rows = m_Rows
 End Property
 
+Public Property Get Count() As Long
+    If m_Rows Is Nothing Then Exit Property
+    Count = m_Rows.Count
+End Property
+
+Public Property Get RowCount() As Long
+    RowCount = Count
+End Property
+
+Public Property Get LastRow() As obj_ResultRow
+    If m_Rows Is Nothing Then Exit Property
+    If m_Rows.Count = 0 Then Exit Property
+    Set LastRow = m_Rows(m_Rows.Count)
+End Property
+
+Public Property Get PrevRow() As obj_ResultRow
+    If m_Rows Is Nothing Then Exit Property
+    If m_Rows.Count < 2 Then Exit Property
+    Set PrevRow = m_Rows(m_Rows.Count - 1)
+End Property
+
 Public Sub AddFieldMap(ByVal fieldAlias As String, ByVal mapKey As String)
     m_FieldMapByAlias(Trim$(fieldAlias)) = Trim$(mapKey)
 End Sub
@@ -47,14 +68,21 @@ Public Function HasRow(ByVal rowIndex As Long) As Boolean
     HasRow = m_RowsByIndex.Exists(CStr(rowIndex))
 End Function
 
-Public Function RowByIndex(ByVal rowIndex As Long) As pp_ResultRow
+Public Function RowByIndex(ByVal rowIndex As Long) As obj_ResultRow
     Set RowByIndex = m_RowsByIndex(CStr(rowIndex))
 End Function
 
-Public Function EnsureRow(ByVal rowIndex As Long) As pp_ResultRow
-    Dim rowObj As pp_ResultRow
+Public Property Get Row(ByVal rowIndex As Long) As obj_ResultRow
+    If rowIndex < 0 Then Exit Property
+    If m_Rows Is Nothing Then Exit Property
+    If rowIndex + 1 > m_Rows.Count Then Exit Property
+    Set Row = m_Rows(rowIndex + 1)
+End Property
+
+Public Function EnsureRow(ByVal rowIndex As Long) As obj_ResultRow
+    Dim rowObj As obj_ResultRow
     If Not m_RowsByIndex.Exists(CStr(rowIndex)) Then
-        Set rowObj = New pp_ResultRow
+        Set rowObj = New obj_ResultRow
         rowObj.Initialize rowIndex
         m_RowsByIndex.Add CStr(rowIndex), rowObj
         m_Rows.Add rowObj
@@ -63,7 +91,7 @@ Public Function EnsureRow(ByVal rowIndex As Long) As pp_ResultRow
 End Function
 
 Public Sub SetRowValue(ByVal rowIndex As Long, ByVal fieldAlias As String, ByVal mapKey As String, ByVal valueText As String)
-    Dim rowObj As pp_ResultRow
+    Dim rowObj As obj_ResultRow
     Set rowObj = EnsureRow(rowIndex)
     rowObj.SetValue fieldAlias, mapKey, valueText
 End Sub

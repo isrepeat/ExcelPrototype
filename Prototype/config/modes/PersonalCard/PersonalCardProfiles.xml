@@ -86,16 +86,18 @@
 		<v key=""/>
 		<v key="Output.Sheets">StateMain; EventsOut; EventsIn</v>
 		<postProcessScript>
-			// callMacro("ex_PostProcessActions.m_HighlightRow", Events.Sheet[EventsOut].row[0], "#00B0F0");
-			
 			for (row in Events.Sheet[EventsOut].rows) {
 				if (row.column[Date] == "12.07.2025") {
 					callMacro("ex_PostProcessActions.m_HighlightRow", row, "#FF0000");
 				}
 			}
 
-			if (Events.Sheet[EventsOut].row[2].column[Date] == "12.07.2025") {
-				callMacro("ex_PostProcessActions.m_HighlightRow", Events.Sheet[EventsOut].row[0], "#0000FF");
+			if (Events.Sheet[EventsOut].count != "0") {
+				callMacro("ex_PostProcessActions.m_AppendPostProcessFooterText", "EventsOut rows: {Events.Sheet[EventsOut].count}. Last date: {Events.Sheet[EventsOut].lastRow.column[Date]}");
+			}
+
+			if (Events.Sheet[EventsOut].count != "0" and Events.Sheet[EventsOut].count != "1") {
+				callMacro("ex_PostProcessActions.m_AppendPostProcessFooterText", "Prev date: {Events.Sheet[EventsOut].prevRow.column[Date]}");
 			}
 		</postProcessScript>
 		<ui>

@@ -3,10 +3,6 @@ Option Explicit
 
 Private Const SCRIPT_KEY As String = "PostProcess.Script"
 Private Const ACTION_CALL_MACRO As String = "callmacro"
-Private Const DSL_TYPE_SHEET_REF As String = "sheetref"
-Private Const DSL_TYPE_ROW As String = "row"
-Private g_LastScriptLoadError As String
-Private g_DslMembersByType As Object
 
 Public Function m_ValidateScriptAgainstConfig( _
     ByVal cfg As Object, _
@@ -21,11 +17,7 @@ Public Function m_ValidateScriptAgainstConfig( _
     On Error GoTo EH
 
     stepName = "load-script"
-    scriptText = mp_GetScriptText(cfg, scriptConfigKey)
-    If Len(g_LastScriptLoadError) > 0 Then
-        outErrorText = g_LastScriptLoadError
-        Exit Function
-    End If
+    If Not ex_PostProcessScriptSource.m_TryGetScriptText(cfg, scriptConfigKey, scriptText, outErrorText) Then Exit Function
     If Len(scriptText) = 0 Then
         m_ValidateScriptAgainstConfig = True
         Exit Function
@@ -55,65 +47,38 @@ Public Sub m_ApplyScriptToSheet( _
     Optional ByVal scriptConfigKey As String = SCRIPT_KEY _
 )
     Dim scriptText As String
+    Dim scriptLoadError As String
     Dim blocks As Collection
     Dim parseError As String
     Dim ctxTablesByRef As Object
     Dim ctxFields As Object
-    Dim i As Long
-    Dim tableObj As pp_ResultTable
-    Dim fieldMap As Object
-    Dim aliasKey As Variant
-    Dim mapKey As String
-    Dim tableFields As Object
-    Dim footerLines As Collection
+    Dim postProcessFooterLines As Collection
     Dim usedCols As Long
 
     If ws Is Nothing Then Exit Sub
     If cfg Is Nothing Then Exit Sub
     If resultTables Is Nothing Then Exit Sub
 
-    scriptText = mp_GetScriptText(cfg, scriptConfigKey)
+    If Not ex_PostProcessScriptSource.m_TryGetScriptText(cfg, scriptConfigKey, scriptText, scriptLoadError) Then
+        Err.Raise vbObjectError + 1592, "ex_PostProcessDsl", scriptLoadError
+    End If
     If Len(scriptText) = 0 Then Exit Sub
 
     If Not mp_ParseScript(scriptText, blocks, parseError) Then
         Err.Raise vbObjectError + 1590, "ex_PostProcessDsl", "PostProcess script parse failed: " & parseError
     End If
 
-    Set ctxTablesByRef = CreateObject("Scripting.Dictionary")
-    ctxTablesByRef.CompareMode = 1
-    Set ctxFields = CreateObject("Scripting.Dictionary")
-    ctxFields.CompareMode = 1
-
-    For i = 1 To resultTables.Count
-        Set tableObj = resultTables(i)
-        If tableObj Is Nothing Then GoTo ContinueTable
-        If Not ctxTablesByRef.Exists(tableObj.TableRef) Then
-            ctxTablesByRef.Add tableObj.TableRef, tableObj
-        End If
-
-        Set tableFields = CreateObject("Scripting.Dictionary")
-        tableFields.CompareMode = 1
-        Set fieldMap = tableObj.FieldMapByAlias
-        For Each aliasKey In fieldMap.Keys
-            mapKey = CStr(fieldMap(aliasKey))
-            tableFields(mapKey) = True
-        Next aliasKey
-        If ctxFields.Exists(tableObj.TableRef) Then
-            ctxFields.Remove tableObj.TableRef
-        End If
-        ctxFields.Add tableObj.TableRef, tableFields
-ContinueTable:
-    Next i
+    ex_ResultRuntimeAdapter.m_BuildRuntimeContext resultTables, ctxTablesByRef, ctxFields
 
     If Not mp_ValidateBlocks(blocks, ctxFields, parseError) Then
         Err.Raise vbObjectError + 1591, "ex_PostProcessDsl", "PostProcess script validation failed: " & parseError
     End If
 
-    Set footerLines = New Collection
+    Set postProcessFooterLines = New Collection
     usedCols = mp_GetLastUsedColumn(ws)
     If usedCols <= 0 Then usedCols = 1
 
-    mp_ExecuteBlocks ws, blocks, ctxTablesByRef, footerLines, usedCols
+    mp_ExecuteBlocks ws, blocks, ctxTablesByRef, postProcessFooterLines, usedCols
 End Sub
 
 ' Backward-compatible wrappers for existing callers.
@@ -160,29 +125,28 @@ Private Sub mp_ExecuteBlocks( _
     ByVal ws As Worksheet, _
     ByVal blocks As Collection, _
     ByVal tablesByRef As Object, _
-    ByVal footerLines As Collection, _
+    ByVal postProcessFooterLines As Collection, _
     ByVal usedCols As Long _
 )
-    mp_ExecuteStatements ws, blocks, tablesByRef, footerLines, usedCols, vbNullString, vbNullString, Nothing
+    mp_ExecuteStatements ws, blocks, tablesByRef, postProcessFooterLines, usedCols, vbNullString, vbNullString, Nothing
 End Sub
 
 Private Sub mp_ExecuteStatements( _
     ByVal ws As Worksheet, _
     ByVal statements As Collection, _
     ByVal tablesByRef As Object, _
-    ByVal footerLines As Collection, _
+    ByVal postProcessFooterLines As Collection, _
     ByVal usedCols As Long, _
     ByVal currentTableRef As String, _
     ByVal currentRowVar As String, _
-    ByVal currentRowRef As pp_ResultRow _
+    ByVal currentRowRef As obj_ResultRow _
 )
     Dim i As Long
     Dim statement As Object
     Dim statementType As String
     Dim macroArgs As Collection
-    Dim tableObj As pp_ResultTable
     Dim rowsList As Collection
-    Dim rowRef As pp_ResultRow
+    Dim rowRef As obj_ResultRow
     Dim rowIdx As Long
 
     If statements Is Nothing Then Exit Sub
@@ -195,21 +159,19 @@ Private Sub mp_ExecuteStatements( _
             Case ACTION_CALL_MACRO
                 On Error GoTo CallMacroErr
                 Set macroArgs = mp_BuildMacroRuntimeArgs(statement, currentTableRef, currentRowVar, currentRowRef, tablesByRef)
-                mp_RunMacroWithArgs CStr(statement("MacroName")), macroArgs
+                ex_PostProcessActionInvoker.m_RunMacroWithArgs CStr(statement("MacroName")), macroArgs
                 On Error GoTo 0
 
             Case "if"
                 If mp_EvaluateCondition(CStr(statement("Condition")), currentTableRef, currentRowVar, currentRowRef, tablesByRef) Then
-                    mp_ExecuteStatements ws, statement("Body"), tablesByRef, footerLines, usedCols, currentTableRef, currentRowVar, currentRowRef
+                    mp_ExecuteStatements ws, statement("Body"), tablesByRef, postProcessFooterLines, usedCols, currentTableRef, currentRowVar, currentRowRef
                 End If
 
             Case "for"
-                If tablesByRef.Exists(CStr(statement("TableRef"))) Then
-                    Set tableObj = tablesByRef(CStr(statement("TableRef")))
-                    Set rowsList = tableObj.Rows
+                If ex_ResultRuntimeAdapter.m_TryGetRowsForTableRef(tablesByRef, CStr(statement("TableRef")), rowsList) Then
                     For rowIdx = 1 To rowsList.Count
                         Set rowRef = rowsList(rowIdx)
-                        mp_ExecuteStatements ws, statement("Body"), tablesByRef, footerLines, usedCols, CStr(statement("TableRef")), CStr(statement("RowVar")), rowRef
+                        mp_ExecuteStatements ws, statement("Body"), tablesByRef, postProcessFooterLines, usedCols, CStr(statement("TableRef")), CStr(statement("RowVar")), rowRef
                     Next rowIdx
                 End If
 
@@ -306,7 +268,6 @@ Private Function mp_TryParseForStatement( _
     Dim tableRef As String
     Dim bodyStatements As Collection
     Dim stmtLine As Long
-    Dim memberName As String
 
     stmtLine = lineNo
     If Not mp_ReadIdentifier(sourceText, pos, lineNo, keywordText) Then Exit Function
@@ -329,18 +290,8 @@ Private Function mp_TryParseForStatement( _
         End If
     End If
 
-    If LCase$(Right$(targetText, 5)) <> ".rows" Then
-        outErrorText = "Expected '.rows' in for target at line " & CStr(stmtLine)
-        Exit Function
-    End If
-    tableRef = Trim$(Left$(targetText, Len(targetText) - 5))
-    If Len(tableRef) = 0 Or Not mp_IsSheetRef(tableRef) Then
+    If Not ex_obj_ResultTableDsl.m_TryParseTableRowsRef(targetText, tableRef) Then
         outErrorText = "Invalid table reference in for-statement at line " & CStr(stmtLine)
-        Exit Function
-    End If
-    memberName = "rows"
-    If Not mp_IsMemberAllowed(DSL_TYPE_SHEET_REF, memberName) Then
-        outErrorText = "Member '.rows' is not allowed for table reference at line " & CStr(stmtLine)
         Exit Function
     End If
 
@@ -529,22 +480,24 @@ Private Function mp_ValidateConditionText( _
     ByVal allowedTableFields As Object, _
     ByRef outErrorText As String _
 ) As Boolean
-    Dim condParts As Variant
-    Dim part As Variant
+    Dim condParts As Collection
+    Dim condOps As Collection
+    Dim i As Long
     Dim tokenText As String
     Dim resolvedTableRef As String
     Dim resolvedMapKey As String
 
-    condParts = Split(conditionText, "&&")
-    For Each part In condParts
-        If Not mp_TryExtractConditionField(CStr(part), tokenText) Then
-            outErrorText = "Unsupported condition token: '" & Trim$(CStr(part)) & "'."
+    If Not mp_TrySplitConditionExpression(conditionText, condParts, condOps, outErrorText) Then Exit Function
+
+    For i = 1 To condParts.Count
+        If Not mp_TryExtractConditionField(CStr(condParts(i)), tokenText) Then
+            outErrorText = "Unsupported condition token: '" & Trim$(CStr(condParts(i))) & "'."
             Exit Function
         End If
         If Not mp_TryResolveConditionTokenForValidation(tokenText, currentTableRef, currentRowVar, allowedTableFields, resolvedTableRef, resolvedMapKey, outErrorText) Then
             Exit Function
         End If
-    Next part
+    Next i
 
     mp_ValidateConditionText = True
 End Function
@@ -714,21 +667,31 @@ Private Function mp_EvaluateCondition( _
     ByVal conditionText As String, _
     ByVal currentTableRef As String, _
     ByVal currentRowVar As String, _
-    ByVal currentRowRef As pp_ResultRow, _
+    ByVal currentRowRef As obj_ResultRow, _
     ByVal tablesByRef As Object _
 ) As Boolean
-    Dim condParts As Variant
-    Dim part As Variant
+    Dim condParts As Collection
+    Dim condOps As Collection
+    Dim i As Long
     Dim refToken As String
     Dim opText As String
+    Dim boolOp As String
     Dim expectedValue As String
     Dim actualValue As String
     Dim resolveError As String
+    Dim partResult As Boolean
+    Dim currentTerm As Boolean
+    Dim finalResult As Boolean
+    Dim hasCurrentTerm As Boolean
+    Dim hasFinalResult As Boolean
 
-    condParts = Split(conditionText, "&&")
-    For Each part In condParts
-        If Not mp_ParseConditionPart(CStr(part), refToken, opText, expectedValue) Then
-            Err.Raise vbObjectError + 1594, "ex_PostProcessDsl", "Invalid condition: " & Trim$(CStr(part))
+    If Not mp_TrySplitConditionExpression(conditionText, condParts, condOps, resolveError) Then
+        Err.Raise vbObjectError + 1594, "ex_PostProcessDsl", resolveError
+    End If
+
+    For i = 1 To condParts.Count
+        If Not mp_ParseConditionPart(CStr(condParts(i)), refToken, opText, expectedValue) Then
+            Err.Raise vbObjectError + 1594, "ex_PostProcessDsl", "Invalid condition: " & Trim$(CStr(condParts(i)))
         End If
         If Not mp_TryResolveRuntimeValue(refToken, currentTableRef, currentRowVar, currentRowRef, tablesByRef, actualValue, resolveError) Then
             Err.Raise vbObjectError + 1595, "ex_PostProcessDsl", resolveError
@@ -736,15 +699,41 @@ Private Function mp_EvaluateCondition( _
 
         Select Case opText
             Case "=="
-                If StrComp(actualValue, expectedValue, vbTextCompare) <> 0 Then Exit Function
+                partResult = (StrComp(actualValue, expectedValue, vbTextCompare) = 0)
             Case "!="
-                If StrComp(actualValue, expectedValue, vbTextCompare) = 0 Then Exit Function
+                partResult = (StrComp(actualValue, expectedValue, vbTextCompare) <> 0)
             Case Else
                 Err.Raise vbObjectError + 1596, "ex_PostProcessDsl", "Unsupported operator in condition: " & opText
         End Select
-    Next part
 
-    mp_EvaluateCondition = True
+        If Not hasCurrentTerm Then
+            currentTerm = partResult
+            hasCurrentTerm = True
+        Else
+            boolOp = LCase$(Trim$(CStr(condOps(i - 1))))
+            Select Case boolOp
+                Case "and"
+                    currentTerm = (currentTerm And partResult)
+                Case "or"
+                    If Not hasFinalResult Then
+                        finalResult = currentTerm
+                        hasFinalResult = True
+                    Else
+                        finalResult = (finalResult Or currentTerm)
+                    End If
+                    currentTerm = partResult
+                Case Else
+                    Err.Raise vbObjectError + 1596, "ex_PostProcessDsl", "Unsupported boolean operator in condition: " & boolOp
+            End Select
+        End If
+    Next i
+
+    If hasFinalResult Then
+        mp_EvaluateCondition = (finalResult Or currentTerm)
+    Else
+        mp_EvaluateCondition = currentTerm
+    End If
+
 End Function
 
 Private Function mp_TryParseAction(ByVal lineText As String, ByRef outAction As Object, ByRef outErrorText As String) As Boolean
@@ -768,58 +757,6 @@ Private Function mp_TryParseAction(ByVal lineText As String, ByRef outAction As 
     End If
 
     outErrorText = "Unsupported action: '" & lineText & "'. Only callMacro(...) is supported."
-End Function
-
-Private Function mp_TryParseIfHeader(ByVal lineText As String, ByRef outConditionText As String) As Boolean
-    Dim openPos As Long
-    Dim closePos As Long
-
-    If Left$(LCase$(lineText), 2) <> "if" Then Exit Function
-    If Right$(lineText, 1) <> "{" Then Exit Function
-
-    openPos = InStr(1, lineText, "(", vbBinaryCompare)
-    closePos = InStrRev(lineText, ")", -1, vbBinaryCompare)
-    If openPos <= 0 Or closePos <= openPos Then Exit Function
-
-    outConditionText = Trim$(Mid$(lineText, openPos + 1, closePos - openPos - 1))
-    If Len(outConditionText) = 0 Then Exit Function
-    mp_TryParseIfHeader = True
-End Function
-
-Private Function mp_TryParseForHeader(ByVal lineText As String, ByRef outRowVar As String, ByRef outTableRef As String) As Boolean
-    Dim bodyText As String
-    Dim lowerBody As String
-    Dim inPos As Long
-    Dim targetText As String
-    Dim rowsPos As Long
-    Dim memberName As String
-
-    If Right$(lineText, 1) <> "{" Then Exit Function
-
-    bodyText = Trim$(Left$(lineText, Len(lineText) - 1))
-    lowerBody = LCase$(bodyText)
-    If Left$(lowerBody, 4) <> "for " Then Exit Function
-
-    bodyText = Trim$(Mid$(bodyText, 5))
-    lowerBody = LCase$(bodyText)
-    inPos = InStr(1, lowerBody, " in ", vbBinaryCompare)
-    If inPos <= 1 Then Exit Function
-
-    outRowVar = Trim$(Left$(bodyText, inPos - 1))
-    If Len(outRowVar) = 0 Then Exit Function
-
-    targetText = Trim$(Mid$(bodyText, inPos + 4))
-    If Len(targetText) = 0 Then Exit Function
-
-    rowsPos = InStrRev(targetText, ".rows", -1, vbTextCompare)
-    If rowsPos <= 0 Or rowsPos + Len(".rows") - 1 <> Len(targetText) Then Exit Function
-
-    outTableRef = Trim$(Left$(targetText, rowsPos - 1))
-    If Len(outTableRef) = 0 Then Exit Function
-    If Not mp_IsSheetRef(outTableRef) Then Exit Function
-    memberName = "rows"
-    If Not mp_IsMemberAllowed(DSL_TYPE_SHEET_REF, memberName) Then Exit Function
-    mp_TryParseForHeader = True
 End Function
 
 Private Function mp_ParseConditionPart(ByVal rawPart As String, ByRef outFieldName As String, ByRef outOp As String, ByRef outValue As String) As Boolean
@@ -856,6 +793,134 @@ Private Function mp_TryExtractConditionField(ByVal rawPart As String, ByRef outF
     mp_TryExtractConditionField = mp_ParseConditionPart(rawPart, outFieldName, opText, valueText)
 End Function
 
+Private Function mp_TrySplitConditionExpression( _
+    ByVal conditionText As String, _
+    ByRef outParts As Collection, _
+    ByRef outOps As Collection, _
+    ByRef outErrorText As String _
+) As Boolean
+    Dim i As Long
+    Dim ch As String
+    Dim partText As String
+    Dim inQuotes As Boolean
+
+    Set outParts = New Collection
+    Set outOps = New Collection
+
+    conditionText = Trim$(conditionText)
+    If Len(conditionText) = 0 Then
+        outErrorText = "Condition cannot be empty."
+        Exit Function
+    End If
+
+    i = 1
+    Do While i <= Len(conditionText)
+        ch = Mid$(conditionText, i, 1)
+        If ch = """" And Not mp_IsEscapedQuote(conditionText, i) Then
+            inQuotes = Not inQuotes
+            partText = partText & ch
+            i = i + 1
+            GoTo ContinueLoop
+        End If
+
+        If Not inQuotes Then
+            If i < Len(conditionText) And Mid$(conditionText, i, 2) = "&&" Then
+                If Not mp_TryPushConditionPart(partText, "and", outParts, outOps, outErrorText) Then Exit Function
+                partText = vbNullString
+                i = i + 2
+                GoTo ContinueLoop
+            End If
+
+            If i < Len(conditionText) And Mid$(conditionText, i, 2) = "||" Then
+                If Not mp_TryPushConditionPart(partText, "or", outParts, outOps, outErrorText) Then Exit Function
+                partText = vbNullString
+                i = i + 2
+                GoTo ContinueLoop
+            End If
+
+            If mp_IsWordOperatorAt(conditionText, i, "and") Then
+                If Not mp_TryPushConditionPart(partText, "and", outParts, outOps, outErrorText) Then Exit Function
+                partText = vbNullString
+                i = i + 3
+                GoTo ContinueLoop
+            End If
+
+            If mp_IsWordOperatorAt(conditionText, i, "or") Then
+                If Not mp_TryPushConditionPart(partText, "or", outParts, outOps, outErrorText) Then Exit Function
+                partText = vbNullString
+                i = i + 2
+                GoTo ContinueLoop
+            End If
+        End If
+
+        partText = partText & ch
+        i = i + 1
+ContinueLoop:
+    Loop
+
+    If inQuotes Then
+        outErrorText = "Unterminated quoted string in condition."
+        Exit Function
+    End If
+
+    partText = Trim$(partText)
+    If Len(partText) = 0 Then
+        outErrorText = "Invalid condition: missing token after boolean operator."
+        Exit Function
+    End If
+    outParts.Add partText
+
+    mp_TrySplitConditionExpression = True
+End Function
+
+Private Function mp_TryPushConditionPart( _
+    ByVal partText As String, _
+    ByVal boolOp As String, _
+    ByVal outParts As Collection, _
+    ByVal outOps As Collection, _
+    ByRef outErrorText As String _
+) As Boolean
+    partText = Trim$(partText)
+    If Len(partText) = 0 Then
+        outErrorText = "Invalid condition: missing token before boolean operator '" & boolOp & "'."
+        Exit Function
+    End If
+    outParts.Add partText
+    outOps.Add boolOp
+    mp_TryPushConditionPart = True
+End Function
+
+Private Function mp_IsWordOperatorAt(ByVal textValue As String, ByVal pos As Long, ByVal wordOp As String) As Boolean
+    Dim opLen As Long
+    Dim prevCh As String
+    Dim nextCh As String
+    Dim opText As String
+
+    opLen = Len(wordOp)
+    If pos + opLen - 1 > Len(textValue) Then Exit Function
+
+    opText = LCase$(Mid$(textValue, pos, opLen))
+    If opText <> wordOp Then Exit Function
+
+    If pos > 1 Then
+        prevCh = Mid$(textValue, pos - 1, 1)
+        If mp_IsConditionIdentifierChar(prevCh) Then Exit Function
+    End If
+
+    If pos + opLen <= Len(textValue) Then
+        nextCh = Mid$(textValue, pos + opLen, 1)
+        If mp_IsConditionIdentifierChar(nextCh) Then Exit Function
+    End If
+
+    mp_IsWordOperatorAt = True
+End Function
+
+Private Function mp_IsConditionIdentifierChar(ByVal ch As String) As Boolean
+    If Len(ch) = 0 Then Exit Function
+    mp_IsConditionIdentifierChar = _
+        ((ch >= "A" And ch <= "Z") Or (ch >= "a" And ch <= "z") Or (ch >= "0" And ch <= "9") Or ch = "_")
+End Function
+
 Private Function mp_TryParseQuotedString(ByVal valueText As String, ByRef outValue As String) As Boolean
     Dim rawInner As String
     valueText = Trim$(valueText)
@@ -880,7 +945,7 @@ Private Function mp_RenderTemplate( _
     ByVal templateText As String, _
     ByVal currentTableRef As String, _
     ByVal currentRowVar As String, _
-    ByVal currentRowRef As pp_ResultRow, _
+    ByVal currentRowRef As obj_ResultRow, _
     ByVal tablesByRef As Object _
 ) As String
     Dim result As String
@@ -957,95 +1022,6 @@ Private Function mp_StripSingleLineComment(ByVal lineText As String) As String
     mp_StripSingleLineComment = lineText
 End Function
 
-Private Function mp_GetScriptText(ByVal cfg As Object, Optional ByVal scriptConfigKey As String = SCRIPT_KEY) As String
-    Dim scriptFromProfile As String
-    g_LastScriptLoadError = vbNullString
-    scriptFromProfile = mp_GetScriptTextFromActiveProfile()
-    If Len(scriptFromProfile) > 0 Then
-        mp_GetScriptText = scriptFromProfile
-        Exit Function
-    End If
-
-    On Error GoTo ExitFn
-    If cfg Is Nothing Then Exit Function
-    scriptConfigKey = Trim$(scriptConfigKey)
-    If Len(scriptConfigKey) = 0 Then scriptConfigKey = SCRIPT_KEY
-    If Not cfg.Exists(scriptConfigKey) Then Exit Function
-    mp_GetScriptText = Trim$(CStr(cfg(scriptConfigKey)))
-    If Len(mp_GetScriptText) = 0 Then Exit Function
-    mp_GetScriptText = Replace(mp_GetScriptText, "\n", vbLf)
-ExitFn:
-End Function
-
-Private Function mp_GetScriptTextFromActiveProfile() As String
-    Dim modeName As String
-    Dim profileName As String
-    Dim filePath As String
-    Dim doc As Object
-    Dim profileNode As Object
-    Dim scriptNode As Object
-    Dim stepName As String
-
-    On Error GoTo ExitFn
-
-    stepName = "read-active-mode-profile"
-    modeName = Trim$(ex_ConfigProfilesManager.m_GetActiveModeName(ws_Dev))
-    profileName = Trim$(ex_ConfigProfilesManager.m_GetActiveProfileName(ws_Dev))
-    If Len(modeName) = 0 Or Len(profileName) = 0 Then Exit Function
-
-    stepName = "resolve-profiles-path"
-    filePath = ex_ProfilesStore.m_GetProfilesFilePath(modeName, ThisWorkbook)
-    If Len(Trim$(filePath)) = 0 Then Exit Function
-
-    stepName = "load-profiles-dom"
-    Set doc = ex_ProfilesStore.m_LoadProfilesDom(filePath)
-    If doc Is Nothing Then Exit Function
-    stepName = "find-profile-node"
-    Set profileNode = ex_ProfilesStore.m_GetProfileNode(doc, profileName, False)
-    If profileNode Is Nothing Then Exit Function
-
-    stepName = "read-postprocess-node"
-    Set scriptNode = profileNode.selectSingleNode("p:postProcessScript")
-    If scriptNode Is Nothing Then Exit Function
-
-    mp_GetScriptTextFromActiveProfile = Trim$(CStr(scriptNode.Text))
-    If Len(mp_GetScriptTextFromActiveProfile) = 0 Then Exit Function
-    mp_GetScriptTextFromActiveProfile = Replace(mp_GetScriptTextFromActiveProfile, "\n", vbLf)
-ExitFn:
-    If Err.Number <> 0 Then
-        g_LastScriptLoadError = "PostProcess script load failed at step '" & stepName & "' [mode=" & modeName & "] [profile=" & profileName & "] [file=" & filePath & "]: [" & Err.Source & " #" & CStr(Err.Number) & "] " & Err.Description
-        mp_GetScriptTextFromActiveProfile = vbNullString
-    End If
-End Function
-
-Private Function mp_TryParseMapKey(ByVal mapKey As String, ByRef outTableAlias As String, ByRef outFieldAlias As String, Optional ByRef outSourceAlias As String) As Boolean
-    Dim sheetStart As Long
-    Dim sheetEnd As Long
-    Dim mapStart As Long
-    Dim mapEnd As Long
-
-    sheetStart = InStr(1, mapKey, ".Sheet[", vbTextCompare)
-    mapStart = InStr(1, mapKey, "].Map[", vbTextCompare)
-    If sheetStart <= 0 Or mapStart <= sheetStart Then Exit Function
-
-    outSourceAlias = Left$(mapKey, sheetStart - 1)
-    outSourceAlias = Trim$(outSourceAlias)
-    If Len(outSourceAlias) = 0 Then Exit Function
-
-    sheetStart = sheetStart + Len(".Sheet[")
-    sheetEnd = mapStart
-    outTableAlias = Mid$(mapKey, sheetStart, sheetEnd - sheetStart)
-    If Len(Trim$(outTableAlias)) = 0 Then Exit Function
-
-    mapStart = mapStart + Len("].Map[")
-    mapEnd = InStr(mapStart, mapKey, "]", vbBinaryCompare)
-    If mapEnd <= mapStart Then Exit Function
-    outFieldAlias = Mid$(mapKey, mapStart, mapEnd - mapStart)
-    If Len(Trim$(outFieldAlias)) = 0 Then Exit Function
-
-    mp_TryParseMapKey = True
-End Function
-
 Private Function mp_TryResolveConditionTokenForValidation( _
     ByVal tokenText As String, _
     ByVal currentTableRef As String, _
@@ -1055,326 +1031,35 @@ Private Function mp_TryResolveConditionTokenForValidation( _
     ByRef outResolvedMapKey As String, _
     ByRef outErrorText As String _
 ) As Boolean
-    Dim rowVarName As String
-    Dim fieldAlias As String
-    Dim sourceAlias As String
-    Dim tableAlias As String
-    Dim tableRef As String
-    Dim mapTableAlias As String
-    Dim mapFieldAlias As String
-    Dim mapSourceAlias As String
-    Dim rowIndex As Long
-    Dim mapKey As String
-
-    tokenText = Trim$(tokenText)
-    If Len(tokenText) = 0 Then
-        outErrorText = "Field reference is empty."
-        Exit Function
-    End If
-
-    If mp_TryParseRowColumnRef(tokenText, rowVarName, fieldAlias) Then
-        If Len(currentRowVar) = 0 Then
-            outErrorText = "Row variable '" & rowVarName & "' is not available in this scope."
-            Exit Function
-        End If
-        If StrComp(rowVarName, currentRowVar, vbTextCompare) <> 0 Then
-            outErrorText = "Unknown row variable '" & rowVarName & "'. Expected '" & currentRowVar & "'."
-            Exit Function
-        End If
-        If Len(currentTableRef) = 0 Then
-            outErrorText = "Current table scope is not defined for row variable '" & rowVarName & "'."
-            Exit Function
-        End If
-        If Not mp_TryResolveMapKeyByFieldAlias(allowedTableFields, currentTableRef, fieldAlias, outResolvedMapKey, outErrorText) Then Exit Function
-        outResolvedTableRef = currentTableRef
-        mp_TryResolveConditionTokenForValidation = True
-        Exit Function
-    End If
-
-    If mp_TryParseMapKey(tokenText, mapTableAlias, mapFieldAlias, mapSourceAlias) Then
-        tableRef = mapSourceAlias & ".Sheet[" & mapTableAlias & "]"
-        If allowedTableFields Is Nothing Or Not allowedTableFields.Exists(tableRef) Then
-            outErrorText = "Unknown table reference in reference '" & tokenText & "'."
-            Exit Function
-        End If
-        If Not allowedTableFields(tableRef).Exists(tokenText) Then
-            outErrorText = "Field reference '" & tokenText & "' is not configured."
-            Exit Function
-        End If
-        outResolvedMapKey = tokenText
-        outResolvedTableRef = tableRef
-        mp_TryResolveConditionTokenForValidation = True
-        Exit Function
-    End If
-
-    If mp_TryParseFullRowColumnRef(tokenText, sourceAlias, tableAlias, rowIndex, fieldAlias) Then
-        tableRef = sourceAlias & ".Sheet[" & tableAlias & "]"
-        mapKey = mp_BuildMapKey(sourceAlias, tableAlias, fieldAlias)
-        If rowIndex < 0 Then
-            outErrorText = "Row index must be >= 0 in reference '" & tokenText & "'."
-            Exit Function
-        End If
-        If allowedTableFields Is Nothing Or Not allowedTableFields.Exists(tableRef) Then
-            outErrorText = "Unknown table reference in reference '" & tokenText & "'."
-            Exit Function
-        End If
-        If Not allowedTableFields(tableRef).Exists(mapKey) Then
-            outErrorText = "Field reference '" & tokenText & "' is not configured."
-            Exit Function
-        End If
-        outResolvedMapKey = mapKey
-        outResolvedTableRef = tableRef
-        mp_TryResolveConditionTokenForValidation = True
-        Exit Function
-    End If
-
-    outErrorText = "Unsupported field reference '" & tokenText & "'. Use <rowVar>.column[FieldAlias] or Source.Sheet[TableAlias].row[N].column[FieldAlias]."
+    mp_TryResolveConditionTokenForValidation = ex_ResultRuntimeAdapter.m_TryResolveConditionTokenForValidation( _
+        tokenText, _
+        currentTableRef, _
+        currentRowVar, _
+        allowedTableFields, _
+        outResolvedTableRef, _
+        outResolvedMapKey, _
+        outErrorText _
+    )
 End Function
 
 Private Function mp_TryResolveRuntimeValue( _
     ByVal tokenText As String, _
     ByVal currentTableRef As String, _
     ByVal currentRowVar As String, _
-    ByVal currentRowRef As pp_ResultRow, _
+    ByVal currentRowRef As obj_ResultRow, _
     ByVal tablesByRef As Object, _
     ByRef outValue As String, _
     ByRef outErrorText As String _
 ) As Boolean
-    Dim rowVarName As String
-    Dim fieldAlias As String
-    Dim sourceAlias As String
-    Dim tableAlias As String
-    Dim tableRef As String
-    Dim rowIndex As Long
-    Dim targetTable As pp_ResultTable
-    Dim targetRowRef As pp_ResultRow
-
-    tokenText = Trim$(tokenText)
-    If Len(tokenText) = 0 Then
-        outErrorText = "Field reference is empty."
-        Exit Function
-    End If
-
-    If mp_TryParseRowColumnRef(tokenText, rowVarName, fieldAlias) Then
-        If Len(currentRowVar) = 0 Then
-            outErrorText = "Row variable '" & rowVarName & "' is not available in this scope."
-            Exit Function
-        End If
-        If StrComp(rowVarName, currentRowVar, vbTextCompare) <> 0 Then
-            outErrorText = "Unknown row variable '" & rowVarName & "'. Expected '" & currentRowVar & "'."
-            Exit Function
-        End If
-        If currentRowRef Is Nothing Then
-            outErrorText = "Current row is not available for variable '" & rowVarName & "'."
-            Exit Function
-        End If
-        If Not currentRowRef.HasAlias(fieldAlias) Then
-            outErrorText = "Unknown field alias '" & fieldAlias & "' for table '" & currentTableRef & "'."
-            Exit Function
-        End If
-        outValue = currentRowRef.GetByAlias(fieldAlias)
-        mp_TryResolveRuntimeValue = True
-        Exit Function
-    End If
-
-    If mp_TryParseFullRowColumnRef(tokenText, sourceAlias, tableAlias, rowIndex, fieldAlias) Then
-        tableRef = sourceAlias & ".Sheet[" & tableAlias & "]"
-        If tablesByRef Is Nothing Or Not tablesByRef.Exists(tableRef) Then
-            outErrorText = "Table '" & tableRef & "' is not available in current result."
-            Exit Function
-        End If
-        Set targetTable = tablesByRef(tableRef)
-        If rowIndex < 0 Then
-            outErrorText = "Row index must be >= 0 in reference '" & tokenText & "'."
-            Exit Function
-        End If
-        If rowIndex + 1 > targetTable.Rows.Count Then
-            outErrorText = "Row '" & CStr(rowIndex) & "' is out of range for table '" & tableRef & "'."
-            Exit Function
-        End If
-        Set targetRowRef = targetTable.Rows(rowIndex + 1)
-        If Not targetRowRef.HasAlias(fieldAlias) Then
-            outErrorText = "Field alias '" & fieldAlias & "' is not available at row '" & CStr(rowIndex) & "'."
-            Exit Function
-        End If
-        outValue = targetRowRef.GetByAlias(fieldAlias)
-        mp_TryResolveRuntimeValue = True
-        Exit Function
-    End If
-
-    outErrorText = "Unsupported field reference '" & tokenText & "'."
-End Function
-
-Private Function mp_TryParseRowColumnRef(ByVal refText As String, ByRef outRowVar As String, ByRef outFieldAlias As String) As Boolean
-    Dim dotPos As Long
-    Dim memberName As String
-    refText = Trim$(refText)
-    dotPos = InStr(1, refText, ".column[", vbTextCompare)
-    If dotPos <= 1 Then Exit Function
-    If Right$(refText, 1) <> "]" Then Exit Function
-    memberName = Mid$(refText, dotPos + 1, Len("column"))
-    If Not mp_IsMemberAllowed(DSL_TYPE_ROW, memberName) Then Exit Function
-    outRowVar = Trim$(Left$(refText, dotPos - 1))
-    If Len(outRowVar) = 0 Then Exit Function
-    If Not mp_IsIdentifier(outRowVar) Then Exit Function
-    outFieldAlias = Mid$(refText, dotPos + Len(".column["), Len(refText) - (dotPos + Len(".column[")))
-    outFieldAlias = Trim$(outFieldAlias)
-    If Len(outFieldAlias) = 0 Then Exit Function
-    mp_TryParseRowColumnRef = True
-End Function
-
-Private Function mp_TryParseFullRowColumnRef( _
-    ByVal refText As String, _
-    ByRef outSourceAlias As String, _
-    ByRef outTableAlias As String, _
-    ByRef outRowIndex As Long, _
-    ByRef outFieldAlias As String _
-) As Boolean
-    Dim sheetPos As Long
-    Dim rowPos As Long
-    Dim colPos As Long
-    Dim rowText As String
-    Dim tableRef As String
-    Dim memberName As String
-
-    refText = Trim$(refText)
-    sheetPos = InStr(1, refText, ".Sheet[", vbTextCompare)
-    rowPos = InStr(1, refText, "].row[", vbTextCompare)
-    colPos = InStr(1, refText, "].column[", vbTextCompare)
-    If sheetPos <= 1 Then Exit Function
-    If rowPos <= sheetPos Then Exit Function
-    If colPos <= rowPos Then Exit Function
-    If Right$(refText, 1) <> "]" Then Exit Function
-
-    outSourceAlias = Trim$(Left$(refText, sheetPos - 1))
-    If Len(outSourceAlias) = 0 Then Exit Function
-
-    outTableAlias = Trim$(Mid$(refText, sheetPos + Len(".Sheet["), rowPos - (sheetPos + Len(".Sheet["))))
-    If Len(outTableAlias) = 0 Then Exit Function
-    tableRef = outSourceAlias & ".Sheet[" & outTableAlias & "]"
-    If Not mp_IsSheetRef(tableRef) Then Exit Function
-
-    memberName = "row"
-    If Not mp_IsMemberAllowed(DSL_TYPE_SHEET_REF, memberName) Then Exit Function
-
-    rowText = Trim$(Mid$(refText, rowPos + Len("].row["), colPos - (rowPos + Len("].row["))))
-    If Len(rowText) = 0 Then Exit Function
-    If Not ex_XmlCore.m_TryParseLong(rowText, outRowIndex) Then Exit Function
-    If outRowIndex < 0 Then Exit Function
-
-    memberName = "column"
-    If Not mp_IsMemberAllowed(DSL_TYPE_SHEET_REF, memberName) Then Exit Function
-
-    outFieldAlias = Trim$(Mid$(refText, colPos + Len("].column["), Len(refText) - (colPos + Len("].column["))))
-    If Len(outFieldAlias) = 0 Then Exit Function
-
-    mp_TryParseFullRowColumnRef = True
-End Function
-
-Private Function mp_TryParseTableRowRef( _
-    ByVal refText As String, _
-    ByRef outSourceAlias As String, _
-    ByRef outTableAlias As String, _
-    ByRef outRowIndex As Long _
-) As Boolean
-    Dim sheetPos As Long
-    Dim rowPos As Long
-    Dim rowText As String
-    Dim tableRef As String
-    Dim memberName As String
-
-    refText = Trim$(refText)
-    sheetPos = InStr(1, refText, ".Sheet[", vbTextCompare)
-    rowPos = InStr(1, refText, "].row[", vbTextCompare)
-    If sheetPos <= 1 Then Exit Function
-    If rowPos <= sheetPos Then Exit Function
-    If Right$(refText, 1) <> "]" Then Exit Function
-
-    outSourceAlias = Trim$(Left$(refText, sheetPos - 1))
-    If Len(outSourceAlias) = 0 Then Exit Function
-
-    outTableAlias = Trim$(Mid$(refText, sheetPos + Len(".Sheet["), rowPos - (sheetPos + Len(".Sheet["))))
-    If Len(outTableAlias) = 0 Then Exit Function
-    tableRef = outSourceAlias & ".Sheet[" & outTableAlias & "]"
-    If Not mp_IsSheetRef(tableRef) Then Exit Function
-
-    memberName = "row"
-    If Not mp_IsMemberAllowed(DSL_TYPE_SHEET_REF, memberName) Then Exit Function
-
-    rowText = Trim$(Mid$(refText, rowPos + Len("].row["), Len(refText) - (rowPos + Len("].row["))))
-    If Len(rowText) = 0 Then Exit Function
-    If Not ex_XmlCore.m_TryParseLong(rowText, outRowIndex) Then Exit Function
-    If outRowIndex < 0 Then Exit Function
-
-    mp_TryParseTableRowRef = True
-End Function
-
-Private Function mp_TryResolveMapKeyByFieldAlias( _
-    ByVal fieldsByTable As Object, _
-    ByVal tableRef As String, _
-    ByVal fieldAlias As String, _
-    ByRef outMapKey As String, _
-    ByRef outErrorText As String _
-) As Boolean
-    Dim mapKeys As Object
-    Dim key As Variant
-    Dim parsedTableAlias As String
-    Dim parsedFieldAlias As String
-    Dim hits As Long
-
-    If fieldsByTable Is Nothing Or Not fieldsByTable.Exists(tableRef) Then
-        outErrorText = "Unknown table reference '" & tableRef & "'."
-        Exit Function
-    End If
-    Set mapKeys = fieldsByTable(tableRef)
-
-    For Each key In mapKeys.Keys
-        If mp_TryParseMapKey(CStr(key), parsedTableAlias, parsedFieldAlias) Then
-            If StrComp(parsedFieldAlias, fieldAlias, vbTextCompare) = 0 Then
-                outMapKey = CStr(key)
-                hits = hits + 1
-            End If
-        End If
-    Next key
-
-    If hits = 0 Then
-        outErrorText = "Field alias '" & fieldAlias & "' is not configured for table '" & tableRef & "'."
-        Exit Function
-    End If
-    If hits > 1 Then
-        outErrorText = "Field alias '" & fieldAlias & "' is ambiguous for table '" & tableRef & "'. Use full reference."
-        Exit Function
-    End If
-    mp_TryResolveMapKeyByFieldAlias = True
-End Function
-
-Private Function mp_BuildMapKey(ByVal sourceAlias As String, ByVal tableAlias As String, ByVal fieldAlias As String) As String
-    mp_BuildMapKey = Trim$(sourceAlias) & ".Sheet[" & Trim$(tableAlias) & "].Map[" & Trim$(fieldAlias) & "]"
-End Function
-
-Private Function mp_IsSheetRef(ByVal refText As String) As Boolean
-    Dim sheetPos As Long
-    Dim openPos As Long
-    Dim closePos As Long
-    Dim sourceAlias As String
-    Dim tableAlias As String
-
-    refText = Trim$(refText)
-    sheetPos = InStr(1, refText, ".Sheet[", vbTextCompare)
-    If sheetPos <= 1 Then Exit Function
-
-    sourceAlias = Trim$(Left$(refText, sheetPos - 1))
-    If Len(sourceAlias) = 0 Then Exit Function
-
-    openPos = sheetPos + Len(".Sheet[")
-    closePos = InStr(openPos, refText, "]", vbBinaryCompare)
-    If closePos <= openPos Then Exit Function
-    If closePos <> Len(refText) Then Exit Function
-
-    tableAlias = Trim$(Mid$(refText, openPos, closePos - openPos))
-    If Len(tableAlias) = 0 Then Exit Function
-
-    mp_IsSheetRef = True
+    mp_TryResolveRuntimeValue = ex_ResultRuntimeAdapter.m_TryResolveRuntimeValue( _
+        tokenText, _
+        currentTableRef, _
+        currentRowVar, _
+        currentRowRef, _
+        tablesByRef, _
+        outValue, _
+        outErrorText _
+    )
 End Function
 
 Private Function mp_TryParseCallMacroArgs( _
@@ -1418,7 +1103,7 @@ Private Function mp_TryParseCallMacroArgs( _
             Exit Function
         End If
         If Not mp_TryParseMacroArg(partText, argSpec) Then
-            outErrorText = "Unsupported callMacro argument '" & partText & "'. Use row variable, quoted string, Source.Sheet[Table].row[N], or Source.Sheet[Table].row[N].column[Field]."
+            outErrorText = "Unsupported callMacro argument '" & partText & "'. Use row variable, quoted string, Source.Sheet[Table].row[N], Source.Sheet[Table].lastRow, Source.Sheet[Table].prevRow, or a .column[Field] variant."
             Exit Function
         End If
         outArgSpecs.Add argSpec
@@ -1428,46 +1113,7 @@ Private Function mp_TryParseCallMacroArgs( _
 End Function
 
 Private Function mp_TryParseMacroArg(ByVal argText As String, ByRef outArgSpec As Object) As Boolean
-    Dim literalText As String
-    Dim sourceAlias As String
-    Dim tableAlias As String
-    Dim rowIndex As Long
-    Dim tableRef As String
-    Dim fieldAlias As String
-    Set outArgSpec = CreateObject("Scripting.Dictionary")
-    outArgSpec.CompareMode = 1
-
-    If mp_TryParseQuotedString(argText, literalText) Then
-        outArgSpec("Kind") = "string"
-        outArgSpec("Value") = literalText
-        mp_TryParseMacroArg = True
-        Exit Function
-    End If
-
-    If mp_IsIdentifier(argText) Then
-        outArgSpec("Kind") = "rowvar"
-        outArgSpec("Name") = Trim$(argText)
-        mp_TryParseMacroArg = True
-        Exit Function
-    End If
-
-    If mp_TryParseTableRowRef(argText, sourceAlias, tableAlias, rowIndex) Then
-        tableRef = sourceAlias & ".Sheet[" & tableAlias & "]"
-        outArgSpec("Kind") = "rowref"
-        outArgSpec("TableRef") = tableRef
-        outArgSpec("RowIndex") = CLng(rowIndex)
-        mp_TryParseMacroArg = True
-        Exit Function
-    End If
-
-    If mp_TryParseFullRowColumnRef(argText, sourceAlias, tableAlias, rowIndex, fieldAlias) Then
-        tableRef = sourceAlias & ".Sheet[" & tableAlias & "]"
-        outArgSpec("Kind") = "cellref"
-        outArgSpec("TableRef") = tableRef
-        outArgSpec("RowIndex") = CLng(rowIndex)
-        outArgSpec("FieldAlias") = fieldAlias
-        mp_TryParseMacroArg = True
-    End If
+    mp_TryParseMacroArg = ex_ResultRuntimeAdapter.m_TryParseMacroArg(argText, outArgSpec)
 End Function
 
 Private Function mp_ValidateCallMacroArgs( _
@@ -1479,9 +1125,6 @@ Private Function mp_ValidateCallMacroArgs( _
     Dim argSpecs As Collection
     Dim i As Long
     Dim argSpec As Object
-    Dim tableRef As String
-    Dim resolvedMapKey As String
-
     If action Is Nothing Then Exit Function
     If Not action.Exists("Args") Then
         mp_ValidateCallMacroArgs = True
@@ -1491,40 +1134,7 @@ Private Function mp_ValidateCallMacroArgs( _
     Set argSpecs = action("Args")
     For i = 1 To argSpecs.Count
         Set argSpec = argSpecs(i)
-        Select Case LCase$(CStr(argSpec("Kind")))
-            Case "rowvar"
-                If Len(currentRowVar) = 0 Then
-                    outErrorText = "callMacro row argument '" & CStr(argSpec("Name")) & "' is not available in this scope."
-                    Exit Function
-                End If
-                If StrComp(CStr(argSpec("Name")), currentRowVar, vbTextCompare) <> 0 Then
-                    outErrorText = "callMacro row argument must be current row variable '" & currentRowVar & "'."
-                    Exit Function
-                End If
-            Case "rowref"
-                tableRef = CStr(argSpec("TableRef"))
-                If allowedTableFields Is Nothing Or Not allowedTableFields.Exists(tableRef) Then
-                    outErrorText = "callMacro row argument references unknown table '" & tableRef & "'."
-                    Exit Function
-                End If
-                If CLng(argSpec("RowIndex")) < 0 Then
-                    outErrorText = "callMacro row argument index must be >= 0 for '" & tableRef & "'."
-                    Exit Function
-                End If
-            Case "cellref"
-                tableRef = CStr(argSpec("TableRef"))
-                If allowedTableFields Is Nothing Or Not allowedTableFields.Exists(tableRef) Then
-                    outErrorText = "callMacro cell argument references unknown table '" & tableRef & "'."
-                    Exit Function
-                End If
-                If CLng(argSpec("RowIndex")) < 0 Then
-                    outErrorText = "callMacro cell argument index must be >= 0 for '" & tableRef & "'."
-                    Exit Function
-                End If
-                If Not mp_TryResolveMapKeyByFieldAlias(allowedTableFields, tableRef, CStr(argSpec("FieldAlias")), resolvedMapKey, outErrorText) Then
-                    Exit Function
-                End If
-        End Select
+        If Not ex_ResultRuntimeAdapter.m_ValidateMacroArgSpec(argSpec, currentRowVar, allowedTableFields, outErrorText) Then Exit Function
     Next i
 
     mp_ValidateCallMacroArgs = True
@@ -1534,7 +1144,7 @@ Private Function mp_BuildMacroRuntimeArgs( _
     ByVal action As Object, _
     ByVal currentTableRef As String, _
     ByVal currentRowVar As String, _
-    ByVal currentRowRef As pp_ResultRow, _
+    ByVal currentRowRef As obj_ResultRow, _
     ByVal tablesByRef As Object _
 ) As Collection
     Dim result As Collection
@@ -1566,9 +1176,9 @@ Private Function mp_BuildMacroRuntimeArgs( _
                 End If
                 result.Add currentRowRef
             Case "rowref"
-                result.Add mp_ResolveRowReferenceArg(argSpec, tablesByRef)
+                result.Add ex_ResultRuntimeAdapter.m_ResolveRowReferenceArg(argSpec, tablesByRef)
             Case "cellref"
-                result.Add mp_ResolveCellReferenceArg(argSpec, tablesByRef)
+                result.Add ex_ResultRuntimeAdapter.m_ResolveCellReferenceArg(argSpec, tablesByRef)
             Case "string"
                 renderedText = mp_RenderTemplate(CStr(argSpec("Value")), currentTableRef, currentRowVar, currentRowRef, tablesByRef)
                 result.Add renderedText
@@ -1579,77 +1189,6 @@ Private Function mp_BuildMacroRuntimeArgs( _
 
     Set mp_BuildMacroRuntimeArgs = result
 End Function
-
-Private Function mp_ResolveCellReferenceArg(ByVal argSpec As Object, ByVal tablesByRef As Object) As String
-    Dim rowObj As pp_ResultRow
-    Dim fieldAlias As String
-
-    Set rowObj = mp_ResolveRowReferenceArg(argSpec, tablesByRef)
-    fieldAlias = CStr(argSpec("FieldAlias"))
-    If Not rowObj.HasAlias(fieldAlias) Then
-        Err.Raise vbObjectError + 1605, "ex_PostProcessDsl", "Field alias '" & fieldAlias & "' is not available in referenced row."
-    End If
-    mp_ResolveCellReferenceArg = rowObj.GetByAlias(fieldAlias)
-End Function
-
-Private Function mp_ResolveRowReferenceArg(ByVal argSpec As Object, ByVal tablesByRef As Object) As pp_ResultRow
-    Dim tableRef As String
-    Dim rowIndex As Long
-    Dim tableObj As pp_ResultTable
-    Dim rowsList As Collection
-    Dim rowObj As pp_ResultRow
-
-    tableRef = CStr(argSpec("TableRef"))
-    rowIndex = CLng(argSpec("RowIndex"))
-    If rowIndex < 0 Then
-        Err.Raise vbObjectError + 1602, "ex_PostProcessDsl", "Row index must be >= 0 in '" & tableRef & ".row[" & CStr(rowIndex) & "]'."
-    End If
-    If tablesByRef Is Nothing Or Not tablesByRef.Exists(tableRef) Then
-        Err.Raise vbObjectError + 1603, "ex_PostProcessDsl", "Table '" & tableRef & "' is not available for row reference."
-    End If
-
-    Set tableObj = tablesByRef(tableRef)
-    Set rowsList = tableObj.Rows
-    If rowIndex + 1 > rowsList.Count Then
-        Err.Raise vbObjectError + 1604, "ex_PostProcessDsl", "Row index " & CStr(rowIndex) & " is out of range for table '" & tableRef & "' (rows=" & CStr(rowsList.Count) & ")."
-    End If
-
-    Set rowObj = rowsList(rowIndex + 1)
-    Set mp_ResolveRowReferenceArg = rowObj
-End Function
-
-Private Sub mp_RunMacroWithArgs(ByVal macroName As String, ByVal args As Collection)
-    Dim argCount As Long
-
-    macroName = Trim$(macroName)
-    If Len(macroName) = 0 Then
-        Err.Raise vbObjectError + 1599, "ex_PostProcessDsl", "Macro name is empty."
-    End If
-
-    If args Is Nothing Then
-        Application.Run macroName
-        Exit Sub
-    End If
-
-    argCount = args.Count
-
-    Select Case argCount
-        Case 0
-            Application.Run macroName
-        Case 1
-            Application.Run macroName, args(1)
-        Case 2
-            Application.Run macroName, args(1), args(2)
-        Case 3
-            Application.Run macroName, args(1), args(2), args(3)
-        Case 4
-            Application.Run macroName, args(1), args(2), args(3), args(4)
-        Case 5
-            Application.Run macroName, args(1), args(2), args(3), args(4), args(5)
-        Case Else
-            Err.Raise vbObjectError + 1600, "ex_PostProcessDsl", "Too many callMacro arguments (max 5)."
-    End Select
-End Sub
 
 Private Function mp_SplitArgs(ByVal argsText As String, ByRef outParts As Collection, ByRef outErrorText As String) As Boolean
     Dim i As Long
@@ -1685,71 +1224,6 @@ End Function
 Private Function mp_IsEscapedQuote(ByVal textValue As String, ByVal pos As Long) As Boolean
     If pos <= 1 Then Exit Function
     mp_IsEscapedQuote = (Mid$(textValue, pos, 1) = """" And Mid$(textValue, pos - 1, 1) = "\")
-End Function
-
-Private Function mp_IsIdentifier(ByVal valueText As String) As Boolean
-    Dim i As Long
-    Dim ch As String
-
-    valueText = Trim$(valueText)
-    If Len(valueText) = 0 Then Exit Function
-
-    For i = 1 To Len(valueText)
-        ch = Mid$(valueText, i, 1)
-        If Not ((ch >= "a" And ch <= "z") Or (ch >= "A" And ch <= "Z") Or (ch >= "0" And ch <= "9") Or ch = "_") Then
-            Exit Function
-        End If
-        If i = 1 And (ch >= "0" And ch <= "9") Then Exit Function
-    Next i
-
-    mp_IsIdentifier = True
-End Function
-
-Private Function mp_IsMemberAllowed(ByVal objectType As String, ByVal memberName As String) As Boolean
-    Dim membersByType As Object
-    Dim memberSet As Object
-
-    objectType = LCase$(Trim$(objectType))
-    memberName = LCase$(Trim$(memberName))
-    If Len(objectType) = 0 Or Len(memberName) = 0 Then Exit Function
-
-    Set membersByType = mp_GetDslMembersByType()
-    If membersByType Is Nothing Then Exit Function
-    If Not membersByType.Exists(objectType) Then Exit Function
-    Set memberSet = membersByType(objectType)
-    mp_IsMemberAllowed = memberSet.Exists(memberName)
-End Function
-
-Private Function mp_GetDslMembersByType() As Object
-    If g_DslMembersByType Is Nothing Then
-        Set g_DslMembersByType = CreateObject("Scripting.Dictionary")
-        g_DslMembersByType.CompareMode = 1
-        g_DslMembersByType.Add DSL_TYPE_SHEET_REF, mp_CreateMemberSet("rows,column,row")
-        g_DslMembersByType.Add DSL_TYPE_ROW, mp_CreateMemberSet("column")
-    End If
-    Set mp_GetDslMembersByType = g_DslMembersByType
-End Function
-
-Private Function mp_CreateMemberSet(ByVal csvMembers As String) As Object
-    Dim result As Object
-    Dim parts As Variant
-    Dim i As Long
-    Dim memberName As String
-
-    Set result = CreateObject("Scripting.Dictionary")
-    result.CompareMode = 1
-    parts = Split(csvMembers, ",")
-    For i = LBound(parts) To UBound(parts)
-        memberName = Trim$(CStr(parts(i)))
-        If Len(memberName) > 0 Then result(memberName) = True
-    Next i
-    Set mp_CreateMemberSet = result
-End Function
-
-Private Function mp_GetLastUsedRow(ByVal ws As Worksheet) As Long
-    On Error GoTo ExitFn
-    mp_GetLastUsedRow = ws.Cells.Find(What:="*", SearchOrder:=xlByRows, SearchDirection:=xlPrevious).Row
-ExitFn:
 End Function
 
 Private Function mp_GetLastUsedColumn(ByVal ws As Worksheet) As Long

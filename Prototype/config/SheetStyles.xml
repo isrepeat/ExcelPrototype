@@ -24,4 +24,13 @@
     gridColor="#111111"
     horizontal="left"
     vertical="center"/>
+
+  <postProcessFooterStyle
+    columns="2"
+    overflow="wrap"
+    backColor="#161616"
+    fontColor="#F5D08A"
+    fontSize="12"
+    rowHeight="24"
+    autoHeight="true"/>
 </SheetStyles>

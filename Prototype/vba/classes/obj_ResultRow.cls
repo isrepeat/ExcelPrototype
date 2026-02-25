@@ -2,7 +2,7 @@ VERSION 1.0 CLASS
 BEGIN
   MultiUse = -1  'True
 END
-Attribute VB_Name = "pp_ResultRow"
+Attribute VB_Name = "obj_ResultRow"
 Option Explicit
 
 Private m_RowIndex As Long
@@ -35,6 +35,10 @@ End Function
 Public Function GetByAlias(ByVal fieldAlias As String) As String
     GetByAlias = CStr(m_ValuesByAlias(Trim$(fieldAlias)))
 End Function
+
+Public Property Get Column(ByVal fieldAlias As String) As String
+    Column = GetByAlias(fieldAlias)
+End Property
 
 Public Function HasMapKey(ByVal mapKey As String) As Boolean
     If m_ValuesByMapKey Is Nothing Then Exit Function

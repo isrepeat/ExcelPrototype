@@ -457,7 +457,7 @@ Private Function mp_WriteStateCardGeneric( _
 
     Dim fields As Variant
     fields = mp_GetOrderedFieldAliases(cfg, sourceAlias, tableAlias)
-    Dim resultTable As pp_ResultTable
+    Dim resultTable As obj_ResultTable
     Set resultTable = mp_EnsureResultTable(resultTables, resultTablesByRef, sourceAlias, tableAlias)
     mp_RegisterResultTableFieldAliases resultTable, sourceAlias, tableAlias, fields
 
@@ -620,7 +620,7 @@ Private Function mp_WriteEventsGeneric( _
 
     Dim fields As Variant
     fields = mp_GetOrderedFieldAliases(cfg, sourceAlias, tableAlias)
-    Dim resultTable As pp_ResultTable
+    Dim resultTable As obj_ResultTable
     Set resultTable = mp_EnsureResultTable(resultTables, resultTablesByRef, sourceAlias, tableAlias)
     mp_RegisterResultTableFieldAliases resultTable, sourceAlias, tableAlias, fields
 
@@ -986,7 +986,7 @@ Private Function mp_EnsureResultTable( _
     ByVal resultTablesByRef As Object, _
     ByVal sourceAlias As String, _
     ByVal tableAlias As String _
-) As pp_ResultTable
+) As obj_ResultTable
     Dim tableRef As String
     tableRef = sourceAlias & ".Sheet[" & tableAlias & "]"
 
@@ -995,8 +995,8 @@ Private Function mp_EnsureResultTable( _
     End If
 
     If Not resultTablesByRef.Exists(tableRef) Then
-        Dim tableObj As pp_ResultTable
-        Set tableObj = New pp_ResultTable
+        Dim tableObj As obj_ResultTable
+        Set tableObj = New obj_ResultTable
         tableObj.Initialize tableRef
         resultTablesByRef.Add tableRef, tableObj
         If Not resultTables Is Nothing Then resultTables.Add tableObj
@@ -1006,7 +1006,7 @@ Private Function mp_EnsureResultTable( _
 End Function
 
 Private Sub mp_RegisterResultTableFieldAliases( _
-    ByVal resultTable As pp_ResultTable, _
+    ByVal resultTable As obj_ResultTable, _
     ByVal sourceAlias As String, _
     ByVal tableAlias As String, _
     ByVal fields As Variant _
@@ -1029,7 +1029,7 @@ End Sub
 
 Private Sub mp_CaptureResultTableRowsFromOutput( _
     ByVal wsOut As Worksheet, _
-    ByVal resultTable As pp_ResultTable, _
+    ByVal resultTable As obj_ResultTable, _
     ByVal sourceAlias As String, _
     ByVal tableAlias As String, _
     ByVal fields As Variant, _
