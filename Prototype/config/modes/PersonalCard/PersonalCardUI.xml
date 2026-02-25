@@ -32,9 +32,18 @@
     fixedWidthButton="14"
     fixedFieldRowHeight="32">
     <fields>
-      <configRefField label="Key" inputName="CommonKey" inputConfigKey="CommonKey">
-        <button caption="Search" macro="ex_UIActions.m_OutputPanelStartSearch_OnClick"/>
-      </configRefField>
+      <inputConfigRefField label="Key" inputName="CommonKey" inputConfigKey="CommonKey">
+        <button caption="Search"
+                macro="ex_UIActions.m_OutputPanelStartSearch_OnClick"
+                />
+        <button condition="st_AutoPostProcess=false"
+                caption="Post Process"
+                macro="ex_UIActions.m_OutputPanelRunPostProcess_OnClick"
+                buttonBackColor="#C62828"
+                buttonTextColor="#FFFFFF"
+                buttonBorderColor="#8E0000"
+                />
+      </inputConfigRefField>
     </fields>
   </controlPanel>
 </uiDefinition>

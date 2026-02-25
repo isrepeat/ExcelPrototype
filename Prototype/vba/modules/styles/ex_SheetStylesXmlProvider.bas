@@ -20,6 +20,12 @@ Public Const LAYER_OUTPUT As String = "output"
 Public Type t_ControlPanelButtonStyle
     Caption As String
     MacroName As String
+    HasBackColor As Boolean
+    BackColor As Long
+    HasTextColor As Boolean
+    TextColor As Long
+    HasBorderColor As Boolean
+    BorderColor As Long
 End Type
 
 Public Type t_ControlPanelFieldStyle
@@ -28,7 +34,8 @@ Public Type t_ControlPanelFieldStyle
     InputConfigKey As String
     InputName As String
     InputOverflowStyle As String
-    Button As t_ControlPanelButtonStyle
+    ButtonCount As Long
+    Buttons() As t_ControlPanelButtonStyle
 End Type
 
 Public Type t_BaseSheetStyle
@@ -951,23 +958,36 @@ End Function
 Private Function mp_LoadControlPanelFields(ByVal nodeControlPanel As Object, ByRef style As t_OutputSheetStyle) As Boolean
     Dim fieldNodes As Object
     Dim fieldNode As Object
+    Dim activeFieldNodes As Collection
     Dim i As Long
+    Dim isNodeEnabled As Boolean
 
-    Set fieldNodes = nodeControlPanel.selectNodes("p:fields/*[self::p:configRefField or self::p:field]")
+    Set fieldNodes = nodeControlPanel.selectNodes("p:fields/*[self::p:inputConfigRefField or self::p:field]")
     If fieldNodes Is Nothing Or fieldNodes.Length = 0 Then
-        Set fieldNodes = nodeControlPanel.selectNodes("*[self::p:configRefField or self::p:field]")
+        Set fieldNodes = nodeControlPanel.selectNodes("*[self::p:inputConfigRefField or self::p:field]")
     End If
 
     If fieldNodes Is Nothing Or fieldNodes.Length = 0 Then
-        MsgBox "Invalid controlPanel layout: at least one field is required in 'controlPanel/fields/(configRefField|field)'.", vbExclamation
+        MsgBox "Invalid controlPanel layout: at least one field is required in 'controlPanel/fields/(inputConfigRefField|field)'.", vbExclamation
         Exit Function
     End If
 
-    style.PanelFieldCount = fieldNodes.Length
+    Set activeFieldNodes = New Collection
+    For Each fieldNode In fieldNodes
+        If Not ex_XmlCore.m_TryEvaluateNodeCondition(fieldNode, isNodeEnabled, "condition", "controlPanel field node") Then Exit Function
+        If isNodeEnabled Then activeFieldNodes.Add fieldNode
+    Next fieldNode
+
+    If activeFieldNodes.Count = 0 Then
+        MsgBox "Invalid controlPanel layout: no active fields remain after applying conditions.", vbExclamation
+        Exit Function
+    End If
+
+    style.PanelFieldCount = activeFieldNodes.Count
     ReDim style.PanelFields(1 To style.PanelFieldCount)
 
     For i = 1 To style.PanelFieldCount
-        Set fieldNode = fieldNodes.Item(i - 1)
+        Set fieldNode = activeFieldNodes.Item(i)
         If Not mp_LoadControlPanelFieldNode(fieldNode, style.PanelFields(i), i) Then Exit Function
     Next i
 
@@ -981,13 +1001,16 @@ Private Function mp_LoadControlPanelFieldNode( _
 ) As Boolean
     Dim buttonNodes As Object
     Dim buttonNode As Object
+    Dim activeButtonNodes As Collection
     Dim fieldTagName As String
+    Dim buttonIndex As Long
+    Dim isNodeEnabled As Boolean
 
     fieldTagName = LCase$(Trim$(CStr(fieldNode.baseName)))
-    fieldStyle.IsConfigRefField = (fieldTagName = "configreffield")
+    fieldStyle.IsConfigRefField = (fieldTagName = "inputconfigreffield")
 
-    If fieldTagName <> "configreffield" And fieldTagName <> "field" Then
-        MsgBox "Invalid control panel field tag: '" & fieldTagName & "'. Allowed tags: field, configRefField.", vbExclamation
+    If fieldTagName <> "inputconfigreffield" And fieldTagName <> "field" Then
+        MsgBox "Invalid control panel field tag: '" & fieldTagName & "'. Allowed tags: field, inputConfigRefField.", vbExclamation
         Exit Function
     End If
 
@@ -1012,21 +1035,37 @@ Private Function mp_LoadControlPanelFieldNode( _
         Exit Function
     End If
 
-    If buttonNodes.Length <> 1 Then
-        MsgBox "Invalid control panel field: exactly one 'button' node is supported per field.", vbExclamation
+    Set activeButtonNodes = New Collection
+    For Each buttonNode In buttonNodes
+        If Not ex_XmlCore.m_TryEvaluateNodeCondition(buttonNode, isNodeEnabled, "condition", "controlPanel button node (field " & CStr(fieldIndex) & ")") Then Exit Function
+        If isNodeEnabled Then activeButtonNodes.Add buttonNode
+    Next buttonNode
+
+    If activeButtonNodes.Count = 0 Then
+        MsgBox "Invalid control panel field: no active 'button' nodes remain after applying conditions (field " & CStr(fieldIndex) & ").", vbExclamation
         Exit Function
     End If
 
-    Set buttonNode = buttonNodes.Item(0)
-    fieldStyle.Button.Caption = mp_ReadOptionalAttrText(buttonNode, "caption", vbNullString)
-    fieldStyle.Button.MacroName = mp_ReadOptionalAttrText(buttonNode, "macro", vbNullString)
+    fieldStyle.ButtonCount = activeButtonNodes.Count
+    ReDim fieldStyle.Buttons(1 To fieldStyle.ButtonCount)
 
-    If Not fieldStyle.IsConfigRefField Then
-        If Len(Trim$(fieldStyle.Button.Caption)) = 0 Then fieldStyle.Button.Caption = "Action 1"
-        If Len(Trim$(fieldStyle.Button.MacroName)) = 0 Then
-            fieldStyle.Button.MacroName = "ex_UIActions.m_OutputPanelStartSearch_OnClick"
+    For buttonIndex = 1 To fieldStyle.ButtonCount
+        Set buttonNode = activeButtonNodes.Item(buttonIndex)
+        fieldStyle.Buttons(buttonIndex).Caption = mp_ReadOptionalAttrText(buttonNode, "caption", vbNullString)
+        fieldStyle.Buttons(buttonIndex).MacroName = mp_ReadOptionalAttrText(buttonNode, "macro", vbNullString)
+        If Not mp_ReadOptionalButtonHexColor(buttonNode, "buttonBackColor", fieldStyle.Buttons(buttonIndex).BackColor, fieldStyle.Buttons(buttonIndex).HasBackColor, "inputConfigRefField/button@buttonBackColor", fieldIndex, buttonIndex) Then Exit Function
+        If Not mp_ReadOptionalButtonHexColor(buttonNode, "buttonTextColor", fieldStyle.Buttons(buttonIndex).TextColor, fieldStyle.Buttons(buttonIndex).HasTextColor, "inputConfigRefField/button@buttonTextColor", fieldIndex, buttonIndex) Then Exit Function
+        If Not mp_ReadOptionalButtonHexColor(buttonNode, "buttonBorderColor", fieldStyle.Buttons(buttonIndex).BorderColor, fieldStyle.Buttons(buttonIndex).HasBorderColor, "inputConfigRefField/button@buttonBorderColor", fieldIndex, buttonIndex) Then Exit Function
+
+        If Not fieldStyle.IsConfigRefField Then
+            If Len(Trim$(fieldStyle.Buttons(buttonIndex).Caption)) = 0 Then
+                fieldStyle.Buttons(buttonIndex).Caption = "Action " & CStr(buttonIndex)
+            End If
+            If Len(Trim$(fieldStyle.Buttons(buttonIndex).MacroName)) = 0 Then
+                fieldStyle.Buttons(buttonIndex).MacroName = "ex_UIActions.m_OutputPanelStartSearch_OnClick"
+            End If
         End If
-    End If
+    Next buttonIndex
 
     mp_LoadControlPanelFieldNode = True
 End Function
@@ -1114,6 +1153,33 @@ Private Function mp_ReadOptionalAttrHexColor(ByVal node As Object, ByVal attrNam
     End If
 
     mp_ReadOptionalAttrHexColor = True
+End Function
+
+Private Function mp_ReadOptionalButtonHexColor( _
+    ByVal node As Object, _
+    ByVal attrName As String, _
+    ByRef outValue As Long, _
+    ByRef hasValue As Boolean, _
+    ByVal fieldName As String, _
+    ByVal fieldIndex As Long, _
+    ByVal buttonIndex As Long _
+) As Boolean
+    Dim textValue As String
+
+    textValue = Trim$(ex_XmlCore.m_NodeAttrText(node, attrName))
+    If Len(textValue) = 0 Then
+        hasValue = False
+        mp_ReadOptionalButtonHexColor = True
+        Exit Function
+    End If
+
+    If Not ex_XmlCore.m_TryParseHexColor(textValue, outValue) Then
+        MsgBox "Invalid color output sheet style attribute '" & fieldName & "' (field " & CStr(fieldIndex) & ", button " & CStr(buttonIndex) & "): expected #RRGGBB, got " & textValue, vbExclamation
+        Exit Function
+    End If
+
+    hasValue = True
+    mp_ReadOptionalButtonHexColor = True
 End Function
 
 Private Function mp_ReadOptionalAttrHorizontalAlignment( _
@@ -1263,18 +1329,42 @@ End Function
 
 Private Function mp_GetControlPanelBottomRow(ByRef style As t_OutputSheetStyle) As Long
     Dim fieldsTopRow As Long
-    Dim rowSpan As Long
+    Dim baseRowSpan As Long
     Dim spacingRows As Long
+    Dim totalRows As Long
+    Dim fieldIndex As Long
 
     If Not style.HasControlPanel Then Exit Function
     If style.PanelFieldCount <= 0 Then Exit Function
 
-    rowSpan = style.PanelFieldRowSpan
-    If rowSpan < 1 Then rowSpan = 2
+    baseRowSpan = style.PanelFieldRowSpan
+    If baseRowSpan < 1 Then baseRowSpan = 2
 
     spacingRows = style.PanelFieldSpacingRows
     If spacingRows < 0 Then spacingRows = 0
 
     fieldsTopRow = style.PanelTopRow + 1
-    mp_GetControlPanelBottomRow = fieldsTopRow + (style.PanelFieldCount * rowSpan) + ((style.PanelFieldCount - 1) * spacingRows) - 1
+    For fieldIndex = 1 To style.PanelFieldCount
+        totalRows = totalRows + mp_GetPanelFieldEffectiveRowSpan(style, fieldIndex, baseRowSpan)
+        If fieldIndex < style.PanelFieldCount Then
+            totalRows = totalRows + spacingRows
+        End If
+    Next fieldIndex
+
+    mp_GetControlPanelBottomRow = fieldsTopRow + totalRows - 1
+End Function
+
+Private Function mp_GetPanelFieldEffectiveRowSpan(ByRef style As t_OutputSheetStyle, ByVal fieldIndex As Long, ByVal baseRowSpan As Long) As Long
+    Dim effectiveSpan As Long
+
+    effectiveSpan = baseRowSpan
+    If effectiveSpan < 1 Then effectiveSpan = 1
+
+    If fieldIndex >= 1 And fieldIndex <= style.PanelFieldCount Then
+        If style.PanelFields(fieldIndex).ButtonCount > effectiveSpan Then
+            effectiveSpan = style.PanelFields(fieldIndex).ButtonCount
+        End If
+    End If
+
+    mp_GetPanelFieldEffectiveRowSpan = effectiveSpan
 End Function

@@ -56,6 +56,10 @@ Public Sub m_RunComparingTables_OnClick()
     ex_TableComparing.m_RunComparing
 End Sub
 
+Public Sub m_OutputPanelRunPostProcess_OnClick()
+    ex_PersonTimeline.m_RunPostProcessForActiveSheet
+End Sub
+
 Public Sub m_OutputPanelStartSearch_OnClick()
     Dim ws As Worksheet
     Dim searchKey As String
