@@ -93,11 +93,11 @@ End Sub
 
 Public Sub m_ApplyConfigNoteStyleLayer( _
     ByVal ws As Worksheet, _
-    ByVal styleTargets As Collection, _
+    ByVal resultFieldRanges As Collection, _
     ByVal cfgNotes As Object _
 )
     If ws Is Nothing Then Exit Sub
-    ex_ConfigStylesParser.m_ApplyColumnStylesByMapKeys ws, styleTargets, cfgNotes
+    ex_ConfigStylesParser.m_ApplyColumnStylesByMapKeys ws, resultFieldRanges, cfgNotes
 End Sub
 
 Public Sub m_ApplyViewZoneWrapText( _

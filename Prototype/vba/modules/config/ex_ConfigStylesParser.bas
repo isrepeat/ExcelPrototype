@@ -14,7 +14,7 @@ Private Const STYLE_PROPERTY_AUTO_HEIGHT As String = "autoHeight"
 
 Public Sub m_ApplyColumnStylesByMapKeys( _
     ByVal ws As Worksheet, _
-    ByVal styleTargets As Collection, _
+    ByVal resultFieldRanges As Collection, _
     ByVal cfgNotes As Object _
 )
     Dim i As Long
@@ -29,12 +29,12 @@ Public Sub m_ApplyColumnStylesByMapKeys( _
     Dim rowEnd As Long
 
     If ws Is Nothing Then Exit Sub
-    If styleTargets Is Nothing Then Exit Sub
+    If resultFieldRanges Is Nothing Then Exit Sub
     If cfgNotes Is Nothing Then Exit Sub
-    If styleTargets.Count = 0 Then Exit Sub
+    If resultFieldRanges.Count = 0 Then Exit Sub
 
-    For i = 1 To styleTargets.Count
-        Set target = styleTargets(i)
+    For i = 1 To resultFieldRanges.Count
+        Set target = resultFieldRanges(i)
         If target Is Nothing Then GoTo ContinueTarget
 
         mapKey = Trim$(CStr(target("MapKey")))
@@ -67,7 +67,7 @@ ContinueTarget:
 End Sub
 
 Public Function m_ValidateColumnStylesByMapKeys( _
-    ByVal styleTargets As Collection, _
+    ByVal resultFieldRanges As Collection, _
     ByVal cfgNotes As Object, _
     ByRef outErrorText As String _
 ) As Boolean
@@ -82,7 +82,7 @@ Public Function m_ValidateColumnStylesByMapKeys( _
 
     On Error GoTo EH
 
-    If styleTargets Is Nothing Then
+    If resultFieldRanges Is Nothing Then
         m_ValidateColumnStylesByMapKeys = True
         Exit Function
     End If
@@ -90,14 +90,14 @@ Public Function m_ValidateColumnStylesByMapKeys( _
         m_ValidateColumnStylesByMapKeys = True
         Exit Function
     End If
-    If styleTargets.Count = 0 Then
+    If resultFieldRanges.Count = 0 Then
         m_ValidateColumnStylesByMapKeys = True
         Exit Function
     End If
 
-    For i = 1 To styleTargets.Count
+    For i = 1 To resultFieldRanges.Count
         stepName = "read-target"
-        Set target = styleTargets(i)
+        Set target = resultFieldRanges(i)
         If target Is Nothing Then GoTo ContinueTarget
 
         stepName = "read-map-key"
