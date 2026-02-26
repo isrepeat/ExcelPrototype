@@ -40,6 +40,45 @@ Public Sub m_HighlightRow( _
     rowRange.Interior.Color = colorValue
 End Sub
 
+Public Sub m_HighlightRowCell( _
+    ByVal rowRef As obj_ResultRow, _
+    ByVal columnRef As String, _
+    Optional ByVal colorHex As String = "#FFF2CC" _
+)
+    Dim colorValue As Long
+    Dim targetCol As Long
+    Dim targetCell As Range
+    Dim ws As Worksheet
+    Dim usedCols As Long
+
+    If rowRef Is Nothing Then Exit Sub
+    columnRef = Trim$(columnRef)
+    If Len(columnRef) = 0 Then
+        Err.Raise vbObjectError + 1652, "ex_PostProcessActions", "Column reference is empty for row cell highlight."
+    End If
+    If Len(Trim$(colorHex)) = 0 Then colorHex = "#FFF2CC"
+
+    Set ws = ActiveSheet
+    If ws Is Nothing Then Exit Sub
+    usedCols = mp_GetLastUsedColumn(ws)
+    If usedCols <= 0 Then usedCols = 1
+
+    If Not mp_TryResolveColumnIndexInRow(rowRef, columnRef, targetCol) Then
+        Err.Raise vbObjectError + 1653, "ex_PostProcessActions", "Unknown row cell reference '" & columnRef & "'. Use 1-based column index or field alias."
+    End If
+    If targetCol < 1 Or targetCol > usedCols Then
+        Err.Raise vbObjectError + 1654, "ex_PostProcessActions", "Column index '" & CStr(targetCol) & "' is out of used range 1.." & CStr(usedCols) & "."
+    End If
+
+    If Not ex_XmlCore.m_TryParseColor(colorHex, colorValue) Then
+        Err.Raise vbObjectError + 1650, "ex_PostProcessActions", "Invalid highlight color: " & colorHex
+    End If
+
+    Set targetCell = ws.Cells(rowRef.RowIndex, targetCol)
+    targetCell.Interior.Pattern = xlSolid
+    targetCell.Interior.Color = colorValue
+End Sub
+
 Public Sub m_AddNote( _
     ByVal rowRef As obj_ResultRow, _
     ByVal noteText As String _
@@ -240,4 +279,36 @@ Private Function mp_GetLastUsedColumn(ByVal ws As Worksheet) As Long
     On Error GoTo ExitFn
     mp_GetLastUsedColumn = ws.Cells.Find(What:="*", SearchOrder:=xlByColumns, SearchDirection:=xlPrevious).Column
 ExitFn:
+End Function
+
+Private Function mp_TryResolveColumnIndexInRow( _
+    ByVal rowRef As obj_ResultRow, _
+    ByVal columnRef As String, _
+    ByRef outColumnIndex As Long _
+) As Boolean
+    Dim numericIndex As Long
+    Dim columns As Collection
+    Dim i As Long
+    Dim colObj As obj_ResultColumn
+
+    If rowRef Is Nothing Then Exit Function
+    columnRef = Trim$(columnRef)
+    If Len(columnRef) = 0 Then Exit Function
+
+    If ex_XmlCore.m_TryParseLong(columnRef, numericIndex) Then
+        If numericIndex < 1 Then Exit Function
+        outColumnIndex = numericIndex
+        mp_TryResolveColumnIndexInRow = True
+        Exit Function
+    End If
+
+    Set columns = rowRef.Columns
+    For i = 1 To columns.Count
+        Set colObj = columns(i)
+        If StrComp(colObj.Alias, columnRef, vbTextCompare) = 0 Then
+            outColumnIndex = i
+            mp_TryResolveColumnIndexInRow = True
+            Exit Function
+        End If
+    Next i
 End Function
