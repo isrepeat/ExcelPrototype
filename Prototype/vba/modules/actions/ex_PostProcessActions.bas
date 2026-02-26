@@ -79,6 +79,111 @@ Public Sub m_HighlightRowCell( _
     targetCell.Interior.Color = colorValue
 End Sub
 
+Public Function m_RegexIsMatch( _
+    ByVal textValue As String, _
+    ByVal regexPattern As String _
+) As Boolean
+    Dim rx As Object
+
+    Set rx = mp_CreateRegex(regexPattern)
+    m_RegexIsMatch = rx.Test(CStr(textValue))
+End Function
+
+Public Function m_RegexFirstMatch( _
+    ByVal textValue As String, _
+    ByVal regexPattern As String _
+) As String
+    Dim rx As Object
+    Dim matches As Object
+
+    Set rx = mp_CreateRegex(regexPattern)
+    Set matches = rx.Execute(CStr(textValue))
+    If matches.Count > 0 Then
+        m_RegexFirstMatch = CStr(matches(0).Value)
+    End If
+End Function
+
+Public Function m_RowToText( _
+    ByVal rowRef As obj_ResultRow, _
+    ByVal separatorText As String _
+) As String
+    m_RowToText = mp_GetRowText(rowRef, separatorText)
+End Function
+
+Public Function m_RowCellRegexIsMatch( _
+    ByVal rowRef As obj_ResultRow, _
+    ByVal columnRef As String, _
+    ByVal regexPattern As String _
+) As Boolean
+    m_RowCellRegexIsMatch = m_RegexIsMatch(mp_GetRowCellLiveText(rowRef, columnRef), regexPattern)
+End Function
+
+Public Function m_RowCellRegexFirstMatch( _
+    ByVal rowRef As obj_ResultRow, _
+    ByVal columnRef As String, _
+    ByVal regexPattern As String _
+) As String
+    m_RowCellRegexFirstMatch = m_RegexFirstMatch(mp_GetRowCellLiveText(rowRef, columnRef), regexPattern)
+End Function
+
+Public Sub m_EmphasizeRowCellTextByRegex( _
+    ByVal rowRef As obj_ResultRow, _
+    ByVal columnRef As String, _
+    ByVal regexPattern As String, _
+    Optional ByVal fontColorHex As String = "#FF0000", _
+    Optional ByVal uppercaseMatches As String = "false" _
+)
+    Dim targetCell As Range
+    Dim targetCol As Long
+    Dim originalText As String
+    Dim transformedText As String
+    Dim rx As Object
+    Dim matches As Object
+    Dim i As Long
+    Dim matchObj As Object
+    Dim colorValue As Long
+    Dim makeUpper As Boolean
+
+    If rowRef Is Nothing Then
+        Err.Raise vbObjectError + 1664, "ex_PostProcessActions", "Row reference is required for regex text emphasis."
+    End If
+
+    If Not mp_TryResolveColumnIndexInRow(rowRef, columnRef, targetCol) Then
+        Err.Raise vbObjectError + 1665, "ex_PostProcessActions", "Unknown row cell reference '" & columnRef & "' for regex text emphasis."
+    End If
+    Set targetCell = mp_GetRowCellRange(rowRef.RowIndex, targetCol)
+    originalText = CStr(targetCell.Value)
+
+    If Len(Trim$(fontColorHex)) = 0 Then fontColorHex = "#FF0000"
+    If Not ex_XmlCore.m_TryParseColor(fontColorHex, colorValue) Then
+        Err.Raise vbObjectError + 1666, "ex_PostProcessActions", "Invalid regex emphasis color: " & fontColorHex
+    End If
+    makeUpper = mp_ParseRequiredBoolean(uppercaseMatches, "uppercaseMatches")
+
+    Set rx = mp_CreateRegex(regexPattern, True)
+    Set matches = rx.Execute(originalText)
+    If matches Is Nothing Or matches.Count = 0 Then Exit Sub
+
+    If makeUpper Then
+        transformedText = originalText
+        For i = 0 To matches.Count - 1
+            Set matchObj = matches(i)
+            If matchObj.Length > 0 Then
+                transformedText = Left$(transformedText, matchObj.FirstIndex) & UCase$(Mid$(transformedText, matchObj.FirstIndex + 1, matchObj.Length)) & Mid$(transformedText, matchObj.FirstIndex + matchObj.Length + 1)
+            End If
+        Next i
+        targetCell.Value = transformedText
+    End If
+
+    For i = 0 To matches.Count - 1
+        Set matchObj = matches(i)
+        If matchObj.Length > 0 Then
+            targetCell.Characters(matchObj.FirstIndex + 1, matchObj.Length).Font.Color = colorValue
+            targetCell.Characters(matchObj.FirstIndex + 1, matchObj.Length).Font.Bold = True
+        End If
+    Next i
+End Sub
+
 Public Sub m_AddNote( _
     ByVal rowRef As obj_ResultRow, _
     ByVal noteText As String _
@@ -297,6 +402,8 @@ Private Function mp_TryResolveColumnIndexInRow( _
 
     If ex_XmlCore.m_TryParseLong(columnRef, numericIndex) Then
         If numericIndex < 1 Then Exit Function
+        Set columns = rowRef.Columns
+        If numericIndex > columns.Count Then Exit Function
         outColumnIndex = numericIndex
         mp_TryResolveColumnIndexInRow = True
         Exit Function
@@ -311,4 +418,142 @@ Private Function mp_TryResolveColumnIndexInRow( _
             Exit Function
         End If
     Next i
+End Function
+
+Private Function mp_GetRowText( _
+    ByVal rowRef As obj_ResultRow, _
+    ByVal separatorText As String _
+) As String
+    Dim columns As Collection
+    Dim i As Long
+    Dim colObj As obj_ResultColumn
+    Dim result As String
+
+    If rowRef Is Nothing Then
+        Err.Raise vbObjectError + 1655, "ex_PostProcessActions", "Row reference is required for row text build."
+    End If
+    If Len(separatorText) = 0 Then
+        Err.Raise vbObjectError + 1663, "ex_PostProcessActions", "Separator is required for row text build."
+    End If
+
+    Set columns = rowRef.Columns
+    For i = 1 To columns.Count
+        Set colObj = columns(i)
+        If i > 1 Then result = result & separatorText
+        result = result & CStr(colObj.Value)
+    Next i
+
+    mp_GetRowText = result
+End Function
+
+Private Function mp_GetRowCellText( _
+    ByVal rowRef As obj_ResultRow, _
+    ByVal columnRef As String _
+) As String
+    Dim numericIndex As Long
+    Dim columns As Collection
+
+    If rowRef Is Nothing Then
+        Err.Raise vbObjectError + 1656, "ex_PostProcessActions", "Row reference is required for regex cell parsing."
+    End If
+
+    columnRef = Trim$(columnRef)
+    If Len(columnRef) = 0 Then
+        Err.Raise vbObjectError + 1657, "ex_PostProcessActions", "Column reference is empty for regex cell parsing."
+    End If
+
+    If ex_XmlCore.m_TryParseLong(columnRef, numericIndex) Then
+        If numericIndex < 1 Then
+            Err.Raise vbObjectError + 1658, "ex_PostProcessActions", "Column index must be >= 1 for regex cell parsing."
+        End If
+
+        Set columns = rowRef.Columns
+        If numericIndex > columns.Count Then
+            Err.Raise vbObjectError + 1659, "ex_PostProcessActions", "Column index '" & CStr(numericIndex) & "' is out of row bounds (max " & CStr(columns.Count) & ")."
+        End If
+
+        mp_GetRowCellText = CStr(columns(numericIndex).Value)
+        Exit Function
+    End If
+
+    If Not rowRef.HasAlias(columnRef) Then
+        Err.Raise vbObjectError + 1660, "ex_PostProcessActions", "Field alias '" & columnRef & "' is not available in row."
+    End If
+    mp_GetRowCellText = CStr(rowRef.Column(columnRef))
+End Function
+
+Private Function mp_GetRowCellLiveText( _
+    ByVal rowRef As obj_ResultRow, _
+    ByVal columnRef As String _
+) As String
+    Dim targetCol As Long
+    Dim targetCell As Range
+
+    If rowRef Is Nothing Then
+        Err.Raise vbObjectError + 1671, "ex_PostProcessActions", "Row reference is required for live cell text parsing."
+    End If
+    If Not mp_TryResolveColumnIndexInRow(rowRef, columnRef, targetCol) Then
+        Err.Raise vbObjectError + 1672, "ex_PostProcessActions", "Unknown row cell reference '" & columnRef & "' for live cell text parsing."
+    End If
+
+    Set targetCell = mp_GetRowCellRange(rowRef.RowIndex, targetCol)
+    mp_GetRowCellLiveText = CStr(targetCell.Value)
+End Function
+
+Private Function mp_CreateRegex( _
+    ByVal regexPattern As String, _
+    Optional ByVal globalMatches As Boolean = False _
+) As Object
+    Dim rx As Object
+
+    regexPattern = Trim$(regexPattern)
+    If Len(regexPattern) = 0 Then
+        Err.Raise vbObjectError + 1661, "ex_PostProcessActions", "Regex pattern is empty."
+    End If
+
+    Set rx = CreateObject("VBScript.RegExp")
+    rx.Global = globalMatches
+    rx.IgnoreCase = True
+    rx.MultiLine = True
+
+    On Error GoTo PatternErr
+    rx.Pattern = regexPattern
+    On Error GoTo 0
+
+    Set mp_CreateRegex = rx
+    Exit Function
+
+PatternErr:
+    Err.Raise vbObjectError + 1662, "ex_PostProcessActions", "Invalid regex pattern '" & regexPattern & "': " & Err.Description
+End Function
+
+Private Function mp_ParseRequiredBoolean(ByVal valueText As String, ByVal fieldName As String) As Boolean
+    Dim parsedValue As Boolean
+
+    valueText = Trim$(valueText)
+    If Not ex_XmlCore.m_TryParseBoolean(valueText, parsedValue) Then
+        Err.Raise vbObjectError + 1667, "ex_PostProcessActions", "Invalid boolean for '" & fieldName & "': '" & valueText & "'."
+    End If
+
+    mp_ParseRequiredBoolean = parsedValue
+End Function
+
+Private Function mp_GetRowCellRange( _
+    ByVal rowIndex As Long, _
+    ByVal columnIndex As Long _
+) As Range
+    Dim ws As Worksheet
+
+    Set ws = ActiveSheet
+    If ws Is Nothing Then
+        Err.Raise vbObjectError + 1668, "ex_PostProcessActions", "Active sheet is not available for regex text emphasis."
+    End If
+    If rowIndex < 1 Then
+        Err.Raise vbObjectError + 1669, "ex_PostProcessActions", "Row index must be >= 1 for regex text emphasis."
+    End If
+    If columnIndex < 1 Then
+        Err.Raise vbObjectError + 1670, "ex_PostProcessActions", "Column index must be >= 1 for regex text emphasis."
+    End If
+
+    Set mp_GetRowCellRange = ws.Cells(rowIndex, columnIndex)
 End Function
