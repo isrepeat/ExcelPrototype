@@ -355,6 +355,7 @@ Private Function mp_TryParseForStatement( _
             Exit Function
         End If
     End If
+    If Not mp_TryValidateScriptVariableName(loopVarName, stmtLine, outErrorText) Then Exit Function
 
     mp_SkipWhitespace sourceText, pos, lineNo
     If pos > Len(sourceText) Or Mid$(sourceText, pos, 1) <> "{" Then
@@ -520,10 +521,7 @@ Private Function mp_TryParseLetStatement( _
         outErrorText = "Expected variable name after let at line " & CStr(stmtLine)
         Exit Function
     End If
-    If Not ex_PostProcessParserCore.m_IsIdentifier(varName) Then
-        outErrorText = "Invalid variable name '" & varName & "' at line " & CStr(stmtLine)
-        Exit Function
-    End If
+    If Not mp_TryValidateScriptVariableName(varName, stmtLine, outErrorText) Then Exit Function
 
     mp_SkipWhitespace sourceText, pos, lineNo
     If pos > Len(sourceText) Or Mid$(sourceText, pos, 1) <> "=" Then
@@ -560,6 +558,7 @@ Private Function mp_ValidateStatements( _
     Dim i As Long
     Dim statement As Object
     Dim statementType As String
+    Dim statementLine As Long
     Dim loopTarget As String
     Dim tableRef As String
     Dim loopVarName As String
@@ -576,12 +575,15 @@ Private Function mp_ValidateStatements( _
     For i = 1 To statements.Count
         Set statement = statements(i)
         statementType = LCase$(CStr(statement("Type")))
+        statementLine = 0
+        If statement.Exists("Line") Then statementLine = CLng(statement("Line"))
 
         Select Case statementType
             Case ACTION_CALL_MACRO
                 If Not mp_ValidateCallMacroArgs(statement, scopeVarTypes, allowedTableFields, outErrorText) Then Exit Function
 
             Case ACTION_LET
+                If Not mp_TryValidateScriptVariableName(CStr(statement("VarName")), statementLine, outErrorText) Then Exit Function
                 If Not mp_ValidateCallMacroArgs(statement, scopeVarTypes, allowedTableFields, outErrorText) Then Exit Function
                 mp_SetScopeValue scopeVarTypes, CStr(statement("VarName")), VAR_TYPE_STRING
 
@@ -593,6 +595,7 @@ Private Function mp_ValidateStatements( _
             Case "for"
                 loopTarget = LCase$(CStr(statement("LoopTarget")))
                 loopVarName = CStr(statement("LoopVar"))
+                If Not mp_TryValidateScriptVariableName(loopVarName, statementLine, outErrorText) Then Exit Function
                 Select Case loopTarget
                     Case LOOP_TARGET_TABLE_ROWS
                         tableRef = CStr(statement("TableRef"))
@@ -660,6 +663,40 @@ Private Function mp_ValidateConditionText( _
     Next i
 
     mp_ValidateConditionText = True
+End Function
+
+Private Function mp_TryValidateScriptVariableName( _
+    ByVal variableName As String, _
+    ByVal lineNo As Long, _
+    ByRef outErrorText As String _
+) As Boolean
+    variableName = Trim$(variableName)
+    If Not ex_PostProcessParserCore.m_IsIdentifier(variableName) Then
+        If lineNo > 0 Then
+            outErrorText = "Invalid variable name '" & variableName & "' at line " & CStr(lineNo) & "."
+        Else
+            outErrorText = "Invalid variable name '" & variableName & "'."
+        End If
+        Exit Function
+    End If
+
+    If mp_IsReservedDslKeyword(variableName) Then
+        If lineNo > 0 Then
+            outErrorText = "Variable name '" & variableName & "' is reserved keyword at line " & CStr(lineNo) & "."
+        Else
+            outErrorText = "Variable name '" & variableName & "' is reserved keyword."
+        End If
+        Exit Function
+    End If
+
+    mp_TryValidateScriptVariableName = True
+End Function
+
+Private Function mp_IsReservedDslKeyword(ByVal tokenText As String) As Boolean
+    Select Case LCase$(Trim$(tokenText))
+        Case "if", "for", "callmacro", "let", "in", "and", "or", "gt", "lt", "gte", "lte"
+            mp_IsReservedDslKeyword = True
+    End Select
 End Function
 
 Private Sub mp_SkipWhitespace(ByVal sourceText As String, ByRef pos As Long, ByRef lineNo As Long)
@@ -839,6 +876,7 @@ Private Function mp_EvaluateCondition( _
     Dim boolOp As String
     Dim expectedValue As String
     Dim actualValue As String
+    Dim compareResult As Long
     Dim resolveError As String
     Dim partResult As Boolean
     Dim currentTerm As Boolean
@@ -858,11 +896,20 @@ Private Function mp_EvaluateCondition( _
             Err.Raise vbObjectError + 1595, "ex_PostProcessDsl", resolveError
         End If
 
+        compareResult = mp_CompareConditionValues(actualValue, expectedValue)
         Select Case opText
             Case "=="
-                partResult = (StrComp(actualValue, expectedValue, vbTextCompare) = 0)
+                partResult = (compareResult = 0)
             Case "!="
-                partResult = (StrComp(actualValue, expectedValue, vbTextCompare) <> 0)
+                partResult = (compareResult <> 0)
+            Case "gt"
+                partResult = (compareResult > 0)
+            Case "lt"
+                partResult = (compareResult < 0)
+            Case "gte"
+                partResult = (compareResult >= 0)
+            Case "lte"
+                partResult = (compareResult <= 0)
             Case Else
                 Err.Raise vbObjectError + 1596, "ex_PostProcessDsl", "Unsupported operator in condition: " & opText
         End Select
@@ -897,6 +944,29 @@ Private Function mp_EvaluateCondition( _
 
 End Function
 
+Private Function mp_CompareConditionValues(ByVal actualValue As String, ByVal expectedValue As String) As Long
+    Dim leftNumber As Double
+    Dim rightNumber As Double
+    Dim leftText As String
+    Dim rightText As String
+
+    leftText = Trim$(actualValue)
+    rightText = Trim$(expectedValue)
+
+    If ex_XmlCore.m_TryParseDouble(leftText, leftNumber, True) And ex_XmlCore.m_TryParseDouble(rightText, rightNumber, True) Then
+        If leftNumber < rightNumber Then
+            mp_CompareConditionValues = -1
+        ElseIf leftNumber > rightNumber Then
+            mp_CompareConditionValues = 1
+        Else
+            mp_CompareConditionValues = 0
+        End If
+        Exit Function
+    End If
+
+    mp_CompareConditionValues = StrComp(actualValue, expectedValue, vbTextCompare)
+End Function
+
 Private Function mp_TryParseAction(ByVal lineText As String, ByRef outAction As Object, ByRef outErrorText As String) As Boolean
     Dim payload As String
     Dim macroName As String
@@ -922,11 +992,13 @@ End Function
 
 Private Function mp_ParseConditionPart(ByVal rawPart As String, ByRef outFieldName As String, ByRef outOp As String, ByRef outValue As String) As Boolean
     Dim part As String
+    Dim partLower As String
     Dim opPos As Long
     Dim opLen As Long
     Dim rhs As String
 
     part = Trim$(rawPart)
+    partLower = LCase$(part)
     opPos = InStr(1, part, "==", vbBinaryCompare)
     If opPos > 0 Then
         outOp = "=="
@@ -936,6 +1008,14 @@ Private Function mp_ParseConditionPart(ByVal rawPart As String, ByRef outFieldNa
         If opPos > 0 Then
             outOp = "!="
             opLen = 2
+        ElseIf mp_TryFindConditionWordOperator(partLower, "gte", opPos, opLen) Then
+            outOp = "gte"
+        ElseIf mp_TryFindConditionWordOperator(partLower, "lte", opPos, opLen) Then
+            outOp = "lte"
+        ElseIf mp_TryFindConditionWordOperator(partLower, "gt", opPos, opLen) Then
+            outOp = "gt"
+        ElseIf mp_TryFindConditionWordOperator(partLower, "lt", opPos, opLen) Then
+            outOp = "lt"
         End If
     End If
     If opPos <= 1 Then Exit Function
@@ -946,6 +1026,52 @@ Private Function mp_ParseConditionPart(ByVal rawPart As String, ByRef outFieldNa
     If Not mp_TryParseQuotedString(rhs, outValue) Then Exit Function
 
     mp_ParseConditionPart = True
+End Function
+
+Private Function mp_TryFindConditionWordOperator( _
+    ByVal textValue As String, _
+    ByVal opWord As String, _
+    ByRef outPos As Long, _
+    ByRef outLen As Long _
+) As Boolean
+    Dim i As Long
+    Dim inQuotes As Boolean
+    Dim ch As String
+    Dim prevCh As String
+    Dim nextCh As String
+    Dim opText As String
+
+    outLen = Len(opWord)
+    If outLen = 0 Then Exit Function
+    If Len(textValue) < outLen Then Exit Function
+
+    For i = 1 To Len(textValue) - outLen + 1
+        ch = Mid$(textValue, i, 1)
+        If ch = """" And Not mp_IsEscapedQuote(textValue, i) Then
+            inQuotes = Not inQuotes
+            GoTo ContinueLoop
+        End If
+
+        If Not inQuotes Then
+            opText = Mid$(textValue, i, outLen)
+            If opText = opWord Then
+                If i > 1 Then
+                    prevCh = Mid$(textValue, i - 1, 1)
+                    If mp_IsConditionIdentifierChar(prevCh) Then GoTo ContinueLoop
+                End If
+
+                If i + outLen <= Len(textValue) Then
+                    nextCh = Mid$(textValue, i + outLen, 1)
+                    If mp_IsConditionIdentifierChar(nextCh) Then GoTo ContinueLoop
+                End If
+
+                outPos = i
+                mp_TryFindConditionWordOperator = True
+                Exit Function
+            End If
+        End If
+ContinueLoop:
+    Next i
 End Function
 
 Private Function mp_TryExtractConditionField(ByVal rawPart As String, ByRef outFieldName As String) As Boolean
@@ -985,20 +1111,6 @@ Private Function mp_TrySplitConditionExpression( _
         End If
 
         If Not inQuotes Then
-            If i < Len(conditionText) And Mid$(conditionText, i, 2) = "&&" Then
-                If Not mp_TryPushConditionPart(partText, "and", outParts, outOps, outErrorText) Then Exit Function
-                partText = vbNullString
-                i = i + 2
-                GoTo ContinueLoop
-            End If
-
-            If i < Len(conditionText) And Mid$(conditionText, i, 2) = "||" Then
-                If Not mp_TryPushConditionPart(partText, "or", outParts, outOps, outErrorText) Then Exit Function
-                partText = vbNullString
-                i = i + 2
-                GoTo ContinueLoop
-            End If
-
             If mp_IsWordOperatorAt(conditionText, i, "and") Then
                 If Not mp_TryPushConditionPart(partText, "and", outParts, outOps, outErrorText) Then Exit Function
                 partText = vbNullString
@@ -1144,6 +1256,7 @@ Private Function mp_NormalizeScript(ByVal scriptText As String) As String
 
     scriptText = Replace(scriptText, vbCrLf, vbLf)
     scriptText = Replace(scriptText, vbCr, vbLf)
+    scriptText = mp_StripMultiLineComments(scriptText)
     lines = Split(scriptText, vbLf)
 
     For i = LBound(lines) To UBound(lines)
@@ -1157,6 +1270,58 @@ Private Function mp_NormalizeScript(ByVal scriptText As String) As String
     Next i
 
     mp_NormalizeScript = normalized
+End Function
+
+Private Function mp_StripMultiLineComments(ByVal sourceText As String) As String
+    Dim i As Long
+    Dim ch As String
+    Dim nextCh As String
+    Dim inQuotes As Boolean
+    Dim inCommentBlock As Boolean
+    Dim result As String
+
+    i = 1
+    Do While i <= Len(sourceText)
+        ch = Mid$(sourceText, i, 1)
+
+        If inCommentBlock Then
+            If ch = "*" And i < Len(sourceText) Then
+                nextCh = Mid$(sourceText, i + 1, 1)
+                If nextCh = "/" Then
+                    inCommentBlock = False
+                    i = i + 2
+                    GoTo ContinueLoop
+                End If
+            End If
+
+            If ch = vbLf Then result = result & vbLf
+            i = i + 1
+            GoTo ContinueLoop
+        End If
+
+        If ch = """" And Not mp_IsEscapedQuote(sourceText, i) Then
+            inQuotes = Not inQuotes
+            result = result & ch
+            i = i + 1
+            GoTo ContinueLoop
+        End If
+
+        If Not inQuotes And ch = "/" And i < Len(sourceText) Then
+            nextCh = Mid$(sourceText, i + 1, 1)
+            If nextCh = "*" Then
+                inCommentBlock = True
+                result = result & " "
+                i = i + 2
+                GoTo ContinueLoop
+            End If
+        End If
+
+        result = result & ch
+        i = i + 1
+ContinueLoop:
+    Loop
+
+    mp_StripMultiLineComments = result
 End Function
 
 Private Function mp_StripSingleLineComment(ByVal lineText As String) As String
