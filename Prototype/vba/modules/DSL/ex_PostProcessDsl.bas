@@ -86,6 +86,7 @@ Public Sub m_ApplyScriptToSheet( _
     usedCols = mp_GetLastUsedColumn(ws)
     If usedCols <= 0 Then usedCols = 1
 
+    ex_PostProcessActions.m_ResetPostProcessHeaderCursor ws
     mp_ExecuteBlocks ws, blocks, ctxTablesByRef, postProcessFooterLines, usedCols
 End Sub
 

@@ -175,6 +175,124 @@ ContinueRow:
     Next rowIndex
 End Sub
 
+Public Sub m_ApplyTimelineHeaderRowsLayout( _
+    ByVal ws As Worksheet, _
+    ByVal headerRows As Collection, _
+    ByVal viewColCount As Long _
+)
+    Dim rowId As Variant
+    Dim rowIndex As Long
+    Dim lastCol As Long
+
+    If ws Is Nothing Then Exit Sub
+    If headerRows Is Nothing Then Exit Sub
+    If viewColCount < 1 Then Exit Sub
+
+    For Each rowId In headerRows
+        rowIndex = CLng(rowId)
+        If rowIndex < 1 Then GoTo ContinueRow
+
+        lastCol = mp_GetLastUsedColumnInRow(ws, rowIndex)
+        If lastCol < 1 Then GoTo ContinueRow
+        If lastCol > viewColCount Then lastCol = viewColCount
+
+        ws.Range(ws.Cells(rowIndex, 1), ws.Cells(rowIndex, lastCol)).WrapText = True
+        ws.Rows(rowIndex).AutoFit
+ContinueRow:
+    Next rowId
+End Sub
+
+Public Sub m_ApplyTimelineRowLayoutsByStyle( _
+    ByVal ws As Worksheet, _
+    ByVal viewStartRow As Long, _
+    ByVal viewEndRow As Long, _
+    ByVal viewColCount As Long, _
+    ByVal headerRows As Collection, _
+    ByVal sectionRows As Collection, _
+    ByRef style As t_OutputSheetStyle, _
+    Optional ByVal dataRowHeight As Double = 32 _
+)
+    Dim rowIndex As Long
+    Dim rowRange As Range
+    Dim lastDataRow As Long
+    Dim headerRowsMap As Object
+    Dim sectionRowsMap As Object
+
+    If ws Is Nothing Then Exit Sub
+    If viewStartRow < 1 Then Exit Sub
+    If viewEndRow < viewStartRow Then Exit Sub
+    If viewColCount < 1 Then Exit Sub
+
+    lastDataRow = mp_GetLastUsedRow(ws)
+    If lastDataRow <= 0 Then Exit Sub
+    If lastDataRow < viewStartRow Then Exit Sub
+    If lastDataRow > viewEndRow Then lastDataRow = viewEndRow
+
+    Set headerRowsMap = mp_BuildRowsMap(headerRows)
+    Set sectionRowsMap = mp_BuildRowsMap(sectionRows)
+
+    ' Width should be applied first because overflow/auto-height calculations depend on it.
+    mp_ApplyWidthToRowCollection ws, headerRows, viewColCount, style.HeaderWidth
+    mp_ApplyWidthToRowCollection ws, sectionRows, viewColCount, style.SectionWidth
+    mp_ApplyWidthToContentRows ws, viewStartRow, lastDataRow, viewColCount, headerRowsMap, sectionRowsMap, style.ContentWidth
+
+    mp_ApplyOverflowAndHeightToRowCollection ws, headerRows, viewColCount, style.HeaderOverflow, style.HeaderAutoHeight, style.RowHeight
+    mp_ApplyOverflowAndHeightToRowCollection ws, sectionRows, viewColCount, style.SectionOverflow, style.SectionAutoHeight, style.RowHeight
+
+    For rowIndex = viewStartRow To lastDataRow
+        If mp_RowIsInMap(headerRowsMap, rowIndex) Then GoTo ContinueContentRow
+        If mp_RowIsInMap(sectionRowsMap, rowIndex) Then GoTo ContinueContentRow
+
+        Set rowRange = ws.Range(ws.Cells(rowIndex, 1), ws.Cells(rowIndex, viewColCount))
+        mp_ApplyOverflowToRange rowRange, style.ContentOverflow
+        If style.ContentAutoHeight Then
+            ws.Rows(rowIndex).AutoFit
+        ElseIf dataRowHeight > 0 Then
+            ws.Rows(rowIndex).RowHeight = dataRowHeight
+        End If
+ContinueContentRow:
+    Next rowIndex
+End Sub
+
+Public Sub m_ApplyPartialMatchRowsAutoHeight( _
+    ByVal ws As Worksheet, _
+    ByVal partialMatchRowRanges As Collection _
+)
+    Dim i As Long
+    Dim itemObj As Object
+    Dim rowStart As Long
+    Dim rowEnd As Long
+    Dim rowIndex As Long
+    Dim lastCol As Long
+    Dim rowRange As Range
+
+    If ws Is Nothing Then Exit Sub
+    If partialMatchRowRanges Is Nothing Then Exit Sub
+    If partialMatchRowRanges.Count = 0 Then Exit Sub
+
+    For i = 1 To partialMatchRowRanges.Count
+        Set itemObj = partialMatchRowRanges(i)
+        If itemObj Is Nothing Then GoTo ContinueItem
+        If Not itemObj.Exists("RowStart") Then GoTo ContinueItem
+        If Not itemObj.Exists("RowEnd") Then GoTo ContinueItem
+
+        rowStart = CLng(itemObj("RowStart"))
+        rowEnd = CLng(itemObj("RowEnd"))
+        If rowStart <= 0 Then GoTo ContinueItem
+        If rowEnd < rowStart Then GoTo ContinueItem
+
+        For rowIndex = rowStart To rowEnd
+            lastCol = mp_GetLastUsedColumnInRow(ws, rowIndex)
+            If lastCol < 1 Then GoTo ContinueRow
+            Set rowRange = ws.Range(ws.Cells(rowIndex, 1), ws.Cells(rowIndex, lastCol))
+            rowRange.WrapText = True
+            ws.Rows(rowIndex).AutoFit
+ContinueRow:
+        Next rowIndex
+ContinueItem:
+    Next i
+End Sub
+
 Private Sub mp_ApplyOutputStyleToResult( _
     ByVal ws As Worksheet, _
     ByVal startRow As Long, _
@@ -184,9 +302,11 @@ Private Sub mp_ApplyOutputStyleToResult( _
 )
     Dim targetRange As Range
     Dim headerRange As Range
+    Dim outputColumnsRange As Range
 
     Set targetRange = ws.Range(ws.Cells(startRow, 1), ws.Cells(startRow + rowCount - 1, colCount))
     Set headerRange = ws.Range(ws.Cells(startRow, 1), ws.Cells(startRow, colCount))
+    Set outputColumnsRange = ws.Range(ws.Cells(1, 1), ws.Cells(1, colCount))
 
     targetRange.Interior.Pattern = xlSolid
     targetRange.Interior.Color = style.ContentBackColor
@@ -196,11 +316,23 @@ Private Sub mp_ApplyOutputStyleToResult( _
     targetRange.RowHeight = style.RowHeight
     targetRange.HorizontalAlignment = style.HorizontalAlignment
     targetRange.VerticalAlignment = style.VerticalAlignment
+    mp_ApplyOverflowToRange targetRange, style.ContentOverflow
 
     headerRange.Interior.Pattern = xlSolid
     headerRange.Interior.Color = style.HeaderBackColor
     headerRange.Font.Color = style.HeaderColor
     headerRange.Font.Bold = style.HeaderBold
+    mp_ApplyOverflowToRange headerRange, style.HeaderOverflow
+
+    If style.ContentWidth > 0 Then outputColumnsRange.ColumnWidth = style.ContentWidth
+    If style.HeaderWidth > 0 Then outputColumnsRange.ColumnWidth = style.HeaderWidth
+
+    If style.ContentAutoHeight Then
+        targetRange.EntireRow.AutoFit
+    End If
+    If style.HeaderAutoHeight Then
+        ws.Rows(startRow).AutoFit
+    End If
 End Sub
 
 Private Sub mp_ApplyTimelineOutputStyle(ByVal ws As Worksheet, ByVal headerRows As Collection, ByVal sectionRows As Collection, ByRef style As t_OutputSheetStyle)
@@ -290,6 +422,146 @@ Private Function mp_GetLastUsedColumnInRow(ByVal ws As Worksheet, ByVal rowIndex
         End If
     End If
 End Function
+
+Private Sub mp_ApplyOverflowAndHeightToRowCollection( _
+    ByVal ws As Worksheet, _
+    ByVal rowsCollection As Collection, _
+    ByVal viewColCount As Long, _
+    ByVal overflowStyle As String, _
+    ByVal autoHeight As Boolean, _
+    ByVal fixedRowHeight As Double _
+)
+    Dim rowId As Variant
+    Dim rowIndex As Long
+    Dim lastCol As Long
+    Dim rowRange As Range
+
+    If ws Is Nothing Then Exit Sub
+    If rowsCollection Is Nothing Then Exit Sub
+    If viewColCount < 1 Then Exit Sub
+
+    For Each rowId In rowsCollection
+        rowIndex = CLng(rowId)
+        If rowIndex < 1 Then GoTo ContinueRow
+
+        lastCol = mp_GetLastUsedColumnInRow(ws, rowIndex)
+        If lastCol < 1 Then GoTo ContinueRow
+        If lastCol > viewColCount Then lastCol = viewColCount
+
+        Set rowRange = ws.Range(ws.Cells(rowIndex, 1), ws.Cells(rowIndex, lastCol))
+        mp_ApplyOverflowToRange rowRange, overflowStyle
+        If autoHeight Then
+            ws.Rows(rowIndex).AutoFit
+        ElseIf fixedRowHeight > 0 Then
+            ws.Rows(rowIndex).RowHeight = fixedRowHeight
+        End If
+ContinueRow:
+    Next rowId
+End Sub
+
+Private Sub mp_ApplyOverflowToRange(ByVal targetRange As Range, ByVal overflowStyle As String)
+    Dim normalized As String
+
+    If targetRange Is Nothing Then Exit Sub
+
+    normalized = LCase$(Trim$(overflowStyle))
+    If Len(normalized) = 0 Then normalized = "clip"
+
+    Select Case normalized
+        Case "wrap"
+            targetRange.WrapText = True
+            targetRange.ShrinkToFit = False
+        Case "shrink"
+            targetRange.WrapText = False
+            targetRange.ShrinkToFit = True
+        Case Else
+            targetRange.WrapText = False
+            targetRange.ShrinkToFit = False
+    End Select
+End Sub
+
+Private Sub mp_ApplyWidthToRowCollection( _
+    ByVal ws As Worksheet, _
+    ByVal rowsCollection As Collection, _
+    ByVal viewColCount As Long, _
+    ByVal widthValue As Double _
+)
+    Dim columnsMap As Object
+    Dim rowId As Variant
+    Dim colKey As Variant
+    Dim rowIndex As Long
+    Dim lastCol As Long
+    Dim colIndex As Long
+
+    If ws Is Nothing Then Exit Sub
+    If rowsCollection Is Nothing Then Exit Sub
+    If viewColCount < 1 Then Exit Sub
+    If widthValue <= 0 Then Exit Sub
+
+    Set columnsMap = CreateObject("Scripting.Dictionary")
+    columnsMap.CompareMode = 0
+
+    For Each rowId In rowsCollection
+        rowIndex = CLng(rowId)
+        If rowIndex < 1 Then GoTo ContinueRow
+
+        lastCol = mp_GetLastUsedColumnInRow(ws, rowIndex)
+        If lastCol < 1 Then GoTo ContinueRow
+        If lastCol > viewColCount Then lastCol = viewColCount
+
+        For colIndex = 1 To lastCol
+            columnsMap(CStr(colIndex)) = True
+        Next colIndex
+ContinueRow:
+    Next rowId
+
+    For Each colKey In columnsMap.Keys
+        ws.Columns(CLng(colKey)).ColumnWidth = widthValue
+    Next colKey
+End Sub
+
+Private Sub mp_ApplyWidthToContentRows( _
+    ByVal ws As Worksheet, _
+    ByVal viewStartRow As Long, _
+    ByVal viewEndRow As Long, _
+    ByVal viewColCount As Long, _
+    ByVal headerRowsMap As Object, _
+    ByVal sectionRowsMap As Object, _
+    ByVal widthValue As Double _
+)
+    Dim columnsMap As Object
+    Dim colKey As Variant
+    Dim rowIndex As Long
+    Dim lastCol As Long
+    Dim colIndex As Long
+
+    If ws Is Nothing Then Exit Sub
+    If viewStartRow < 1 Then Exit Sub
+    If viewEndRow < viewStartRow Then Exit Sub
+    If viewColCount < 1 Then Exit Sub
+    If widthValue <= 0 Then Exit Sub
+
+    Set columnsMap = CreateObject("Scripting.Dictionary")
+    columnsMap.CompareMode = 0
+
+    For rowIndex = viewStartRow To viewEndRow
+        If mp_RowIsInMap(headerRowsMap, rowIndex) Then GoTo ContinueRow
+        If mp_RowIsInMap(sectionRowsMap, rowIndex) Then GoTo ContinueRow
+
+        lastCol = mp_GetLastUsedColumnInRow(ws, rowIndex)
+        If lastCol < 1 Then GoTo ContinueRow
+        If lastCol > viewColCount Then lastCol = viewColCount
+
+        For colIndex = 1 To lastCol
+            columnsMap(CStr(colIndex)) = True
+        Next colIndex
+ContinueRow:
+    Next rowIndex
+
+    For Each colKey In columnsMap.Keys
+        ws.Columns(CLng(colKey)).ColumnWidth = widthValue
+    Next colKey
+End Sub
 
 Private Function mp_RowIsListed(ByVal rowsCollection As Collection, ByVal rowIndex As Long) As Boolean
     Dim itemValue As Variant

@@ -142,3 +142,76 @@ Public Sub m_RenderErrorBanner( _
     ws.Range(ws.Cells(bannerRange.Row, bannerRange.Column), ws.Cells(bannerRange.Row, bannerRange.Column + bannerRange.Columns.Count - 1)).Font.Bold = IIf(hasBannerStyle, bannerStyle.TitleBold, True)
     ws.Rows(CStr(bannerRange.Row) & ":" & CStr(bannerRange.Row + rowCount - 1)).RowHeight = IIf(hasBannerStyle, bannerStyle.RowHeight, 24)
 End Sub
+
+Public Sub m_RenderWarningBanner( _
+    ByVal ws As Worksheet, _
+    ByVal warningText As String, _
+    Optional ByVal titleText As String = "WARNING", _
+    Optional ByVal bannerRangeAddress As String = "A1:H3" _
+)
+    Dim bannerRange As Range
+    Dim bannerStyle As ex_SheetStylesXmlProvider.t_ErrorBannerStyle
+    Dim hasBannerStyle As Boolean
+    Dim rowCount As Long
+    Dim messageText As String
+    Dim rowOffset As Long
+
+    If ws Is Nothing Then Exit Sub
+
+    messageText = Trim$(warningText)
+    If Len(messageText) = 0 Then
+        messageText = "Action required."
+    End If
+
+    hasBannerStyle = ex_SheetStylesXmlProvider.m_GetWarningBannerStyle(bannerStyle, ThisWorkbook)
+    If Len(Trim$(bannerRangeAddress)) = 0 Then
+        bannerRangeAddress = ex_SheetStylesXmlProvider.m_GetOutputWarningBannerRangeAddress(ThisWorkbook)
+    End If
+
+    Set bannerRange = ws.Range(bannerRangeAddress)
+    rowCount = bannerRange.Rows.Count
+    If hasBannerStyle Then
+        If bannerStyle.Rows > rowCount Then rowCount = bannerStyle.Rows
+    End If
+    If rowCount < 2 Then rowCount = 2
+
+    bannerRange.ClearContents
+    bannerRange.UnMerge
+    For rowOffset = 0 To rowCount - 1
+        ws.Range(ws.Cells(bannerRange.Row + rowOffset, bannerRange.Column), ws.Cells(bannerRange.Row + rowOffset, bannerRange.Column + bannerRange.Columns.Count - 1)).Merge
+    Next rowOffset
+
+    ws.Cells(bannerRange.Row, bannerRange.Column).Value = titleText
+    ws.Cells(bannerRange.Row + 1, bannerRange.Column).Value = messageText
+
+    With ws.Range(ws.Cells(bannerRange.Row, bannerRange.Column), ws.Cells(bannerRange.Row + rowCount - 1, bannerRange.Column + bannerRange.Columns.Count - 1))
+        .WrapText = IIf(hasBannerStyle, bannerStyle.WrapText, True)
+        .VerticalAlignment = IIf(hasBannerStyle, bannerStyle.VerticalAlignment, xlCenter)
+        .HorizontalAlignment = IIf(hasBannerStyle, bannerStyle.HorizontalAlignment, xlLeft)
+        .Interior.Pattern = xlSolid
+        .Interior.Color = IIf(hasBannerStyle, bannerStyle.BackColor, RGB(76, 63, 16))
+        .Font.Color = IIf(hasBannerStyle, bannerStyle.FontColor, RGB(255, 229, 153))
+        .Font.Bold = False
+
+        If hasBannerStyle And bannerStyle.ShowGrid Then
+            .Borders(xlEdgeLeft).LineStyle = xlContinuous
+            .Borders(xlEdgeTop).LineStyle = xlContinuous
+            .Borders(xlEdgeBottom).LineStyle = xlContinuous
+            .Borders(xlEdgeRight).LineStyle = xlContinuous
+            .Borders(xlInsideVertical).LineStyle = xlContinuous
+            .Borders(xlInsideHorizontal).LineStyle = xlContinuous
+            .Borders.Color = bannerStyle.GridColor
+            .Borders.Weight = xlThin
+        ElseIf hasBannerStyle Then
+            .Borders(xlEdgeLeft).LineStyle = xlNone
+            .Borders(xlEdgeTop).LineStyle = xlNone
+            .Borders(xlEdgeBottom).LineStyle = xlNone
+            .Borders(xlEdgeRight).LineStyle = xlNone
+            .Borders(xlInsideVertical).LineStyle = xlNone
+            .Borders(xlInsideHorizontal).LineStyle = xlNone
+        End If
+    End With
+
+    ws.Range(ws.Cells(bannerRange.Row, bannerRange.Column), ws.Cells(bannerRange.Row, bannerRange.Column + bannerRange.Columns.Count - 1)).Font.Bold = IIf(hasBannerStyle, bannerStyle.TitleBold, True)
+    ws.Rows(CStr(bannerRange.Row) & ":" & CStr(bannerRange.Row + rowCount - 1)).RowHeight = IIf(hasBannerStyle, bannerStyle.RowHeight, 24)
+End Sub

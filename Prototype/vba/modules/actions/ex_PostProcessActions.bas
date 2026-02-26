@@ -3,7 +3,18 @@ Option Explicit
 
 Private Const PROFILES_NS As String = "urn:excelprototype:profiles"
 Private Const SHEET_STYLES_REL_PATH As String = "config\SheetStyles.xml"
+Private Const POST_PROCESS_HEADER_STYLE_LABEL As String = "post process header style"
 Private Const POST_PROCESS_FOOTER_STYLE_LABEL As String = "post process footer style"
+
+Private Type t_PostProcessHeaderStyle
+    Columns As Long
+    Overflow As String
+    BackColor As Long
+    FontColor As Long
+    FontSize As Double
+    RowHeight As Double
+    AutoHeight As Boolean
+End Type
 
 Private Type t_PostProcessFooterStyle
     Columns As Long
@@ -14,6 +25,9 @@ Private Type t_PostProcessFooterStyle
     RowHeight As Double
     AutoHeight As Boolean
 End Type
+
+Private g_PostProcessHeaderSheetKey As String
+Private g_PostProcessHeaderNextInsertRow As Long
 
 Public Sub m_HighlightRow( _
     ByVal rowRef As obj_ResultRow, _
@@ -202,6 +216,78 @@ Public Sub m_AddNote( _
     noteCell.AddComment noteText
 End Sub
 
+Public Sub m_ResetPostProcessHeaderCursor(Optional ByVal targetSheet As Worksheet)
+    g_PostProcessHeaderNextInsertRow = 0
+    If targetSheet Is Nothing Then
+        g_PostProcessHeaderSheetKey = vbNullString
+    Else
+        g_PostProcessHeaderSheetKey = mp_BuildSheetKey(targetSheet)
+    End If
+End Sub
+
+Public Sub m_AppendPostProcessHeaderText(ByVal postProcessHeaderText As String)
+    Dim ws As Worksheet
+    Dim insertRow As Long
+    Dim endCol As Long
+    Dim postProcessHeaderStyle As t_PostProcessHeaderStyle
+    Dim postProcessHeaderRange As Range
+    Dim sheetKey As String
+
+    Set ws = ActiveSheet
+    If ws Is Nothing Then Exit Sub
+
+    If Not mp_TryLoadPostProcessHeaderStyle(postProcessHeaderStyle) Then
+        Err.Raise vbObjectError + 1673, "ex_PostProcessActions", "Unable to apply postProcessHeader text: invalid '/SheetStyles/postProcessHeaderStyle'."
+    End If
+
+    sheetKey = mp_BuildSheetKey(ws)
+    If StrComp(g_PostProcessHeaderSheetKey, sheetKey, vbTextCompare) <> 0 Then
+        g_PostProcessHeaderSheetKey = sheetKey
+        g_PostProcessHeaderNextInsertRow = 0
+    End If
+
+    If g_PostProcessHeaderNextInsertRow <= 0 Then
+        insertRow = mp_GetFirstUsedRow(ws)
+        If insertRow < 1 Then insertRow = 1
+    Else
+        insertRow = g_PostProcessHeaderNextInsertRow
+    End If
+    If insertRow > ws.Rows.Count Then insertRow = ws.Rows.Count
+
+    ws.Rows(insertRow).Insert Shift:=xlDown, CopyOrigin:=xlFormatFromLeftOrAbove
+
+    endCol = postProcessHeaderStyle.Columns
+    If endCol < 1 Then endCol = 1
+    If endCol > ws.Columns.Count Then endCol = ws.Columns.Count
+
+    Set postProcessHeaderRange = ws.Range(ws.Cells(insertRow, 1), ws.Cells(insertRow, endCol))
+    If postProcessHeaderRange.MergeCells Then postProcessHeaderRange.UnMerge
+    If endCol > 1 Then postProcessHeaderRange.Merge
+
+    postProcessHeaderRange.Value = postProcessHeaderText
+    postProcessHeaderRange.Interior.Pattern = xlSolid
+    postProcessHeaderRange.Interior.Color = postProcessHeaderStyle.BackColor
+    postProcessHeaderRange.Font.Color = postProcessHeaderStyle.FontColor
+    postProcessHeaderRange.Font.Size = postProcessHeaderStyle.FontSize
+    postProcessHeaderRange.HorizontalAlignment = xlLeft
+    postProcessHeaderRange.VerticalAlignment = xlCenter
+
+    Select Case postProcessHeaderStyle.Overflow
+        Case "wrap"
+            postProcessHeaderRange.WrapText = True
+            postProcessHeaderRange.ShrinkToFit = False
+        Case "shrink"
+            postProcessHeaderRange.WrapText = False
+            postProcessHeaderRange.ShrinkToFit = True
+        Case Else
+            postProcessHeaderRange.WrapText = False
+            postProcessHeaderRange.ShrinkToFit = False
+    End Select
+
+    mp_ApplyPostProcessHeaderRowHeight ws, postProcessHeaderRange, postProcessHeaderText, postProcessHeaderStyle
+    g_PostProcessHeaderNextInsertRow = insertRow + 1
+End Sub
+
 Public Sub m_AppendPostProcessFooterText(ByVal postProcessFooterText As String)
     Dim ws As Worksheet
     Dim startRow As Long
@@ -249,6 +335,58 @@ Public Sub m_AppendPostProcessFooterText(ByVal postProcessFooterText As String)
 
     mp_ApplyPostProcessFooterRowHeight ws, postProcessFooterRange, postProcessFooterText, postProcessFooterStyle
 End Sub
+
+Private Function mp_TryLoadPostProcessHeaderStyle(ByRef outStyle As t_PostProcessHeaderStyle) As Boolean
+    Dim doc As Object
+    Dim node As Object
+    Dim overflowText As String
+
+    Set doc = ex_XmlCore.m_LoadDomByRelativePath( _
+        ThisWorkbook, _
+        SHEET_STYLES_REL_PATH, _
+        PROFILES_NS, _
+        "Missing SheetStyles file: ", _
+        "Failed to parse SheetStyles file: " _
+    )
+    If doc Is Nothing Then Exit Function
+
+    Set node = doc.selectSingleNode("/p:SheetStyles/p:postProcessHeaderStyle")
+    If node Is Nothing Then
+        MsgBox "SheetStyles must contain '/SheetStyles/postProcessHeaderStyle'.", vbExclamation
+        Exit Function
+    End If
+
+    If Not ex_XmlCore.m_ReadRequiredAttrLong(node, "columns", outStyle.Columns, "postProcessHeaderStyle@columns", POST_PROCESS_HEADER_STYLE_LABEL) Then Exit Function
+    overflowText = LCase$(Trim$(ex_XmlCore.m_ReadRequiredAttrText(node, "overflow", "postProcessHeaderStyle@overflow", POST_PROCESS_HEADER_STYLE_LABEL)))
+    If Len(overflowText) = 0 Then Exit Function
+    Select Case overflowText
+        Case "wrap", "clip", "shrink"
+            outStyle.Overflow = overflowText
+        Case Else
+            MsgBox "Invalid value for postProcessHeader style attribute 'postProcessHeaderStyle@overflow': expected wrap, clip, or shrink.", vbExclamation
+            Exit Function
+    End Select
+    If Not ex_XmlCore.m_ReadRequiredAttrHexColor(node, "backColor", outStyle.BackColor, "postProcessHeaderStyle@backColor", POST_PROCESS_HEADER_STYLE_LABEL) Then Exit Function
+    If Not ex_XmlCore.m_ReadRequiredAttrHexColor(node, "fontColor", outStyle.FontColor, "postProcessHeaderStyle@fontColor", POST_PROCESS_HEADER_STYLE_LABEL) Then Exit Function
+    If Not ex_XmlCore.m_ReadRequiredAttrDouble(node, "fontSize", outStyle.FontSize, "postProcessHeaderStyle@fontSize", POST_PROCESS_HEADER_STYLE_LABEL) Then Exit Function
+    If Not ex_XmlCore.m_ReadRequiredAttrDouble(node, "rowHeight", outStyle.RowHeight, "postProcessHeaderStyle@rowHeight", POST_PROCESS_HEADER_STYLE_LABEL) Then Exit Function
+    If Not ex_XmlCore.m_ReadRequiredAttrBoolean(node, "autoHeight", outStyle.AutoHeight, "postProcessHeaderStyle@autoHeight", POST_PROCESS_HEADER_STYLE_LABEL) Then Exit Function
+
+    If outStyle.Columns < 1 Then
+        MsgBox "Invalid value for postProcessHeader style attribute 'postProcessHeaderStyle@columns': must be >= 1.", vbExclamation
+        Exit Function
+    End If
+    If outStyle.FontSize <= 0 Then
+        MsgBox "Invalid value for postProcessHeader style attribute 'postProcessHeaderStyle@fontSize': must be > 0.", vbExclamation
+        Exit Function
+    End If
+    If outStyle.RowHeight <= 0 Then
+        MsgBox "Invalid value for postProcessHeader style attribute 'postProcessHeaderStyle@rowHeight': must be > 0.", vbExclamation
+        Exit Function
+    End If
+
+    mp_TryLoadPostProcessHeaderStyle = True
+End Function
 
 Private Function mp_TryLoadPostProcessFooterStyle(ByRef outStyle As t_PostProcessFooterStyle) As Boolean
     Dim doc As Object
@@ -302,6 +440,39 @@ Private Function mp_TryLoadPostProcessFooterStyle(ByRef outStyle As t_PostProces
     mp_TryLoadPostProcessFooterStyle = True
 End Function
 
+Private Sub mp_ApplyPostProcessHeaderRowHeight( _
+    ByVal ws As Worksheet, _
+    ByVal postProcessHeaderRange As Range, _
+    ByVal postProcessHeaderText As String, _
+    ByRef postProcessHeaderStyle As t_PostProcessHeaderStyle _
+)
+    Dim targetRow As Long
+    Dim measuredHeight As Double
+
+    If ws Is Nothing Then Exit Sub
+    If postProcessHeaderRange Is Nothing Then Exit Sub
+
+    targetRow = postProcessHeaderRange.Row
+    If targetRow <= 0 Then Exit Sub
+
+    If Not postProcessHeaderStyle.AutoHeight Or StrComp(postProcessHeaderStyle.Overflow, "wrap", vbTextCompare) <> 0 Then
+        ws.Rows(targetRow).RowHeight = postProcessHeaderStyle.RowHeight
+        Exit Sub
+    End If
+
+    measuredHeight = mp_MeasurePostProcessHeaderTextHeight(ws, postProcessHeaderRange, postProcessHeaderText, postProcessHeaderStyle.FontSize)
+    If measuredHeight <= 0 Then
+        ws.Rows(targetRow).RowHeight = postProcessHeaderStyle.RowHeight
+        Exit Sub
+    End If
+
+    If measuredHeight < postProcessHeaderStyle.RowHeight Then
+        ws.Rows(targetRow).RowHeight = postProcessHeaderStyle.RowHeight
+    Else
+        ws.Rows(targetRow).RowHeight = measuredHeight
+    End If
+End Sub
+
 Private Sub mp_ApplyPostProcessFooterRowHeight( _
     ByVal ws As Worksheet, _
     ByVal postProcessFooterRange As Range, _
@@ -334,6 +505,45 @@ Private Sub mp_ApplyPostProcessFooterRowHeight( _
         ws.Rows(targetRow).RowHeight = measuredHeight
     End If
 End Sub
+
+Private Function mp_MeasurePostProcessHeaderTextHeight( _
+    ByVal ws As Worksheet, _
+    ByVal postProcessHeaderRange As Range, _
+    ByVal postProcessHeaderText As String, _
+    ByVal fontSize As Double _
+) As Double
+    Dim textBoxShape As Object
+
+    On Error GoTo EH
+    If ws Is Nothing Then Exit Function
+    If postProcessHeaderRange Is Nothing Then Exit Function
+    If Len(postProcessHeaderText) = 0 Then Exit Function
+
+    Set textBoxShape = ws.Shapes.AddTextbox(1, postProcessHeaderRange.Left, postProcessHeaderRange.Top, postProcessHeaderRange.Width, 8)
+    textBoxShape.Line.Visible = 0
+    textBoxShape.Fill.Visible = 0
+    textBoxShape.TextFrame2.MarginLeft = 0
+    textBoxShape.TextFrame2.MarginRight = 0
+    textBoxShape.TextFrame2.MarginTop = 0
+    textBoxShape.TextFrame2.MarginBottom = 0
+    textBoxShape.TextFrame2.WordWrap = -1
+    textBoxShape.TextFrame2.AutoSize = 1
+    textBoxShape.TextFrame2.TextRange.Text = postProcessHeaderText
+    textBoxShape.TextFrame2.TextRange.Font.Size = fontSize
+    textBoxShape.TextFrame2.TextRange.Font.Name = CStr(postProcessHeaderRange.Font.Name)
+
+    mp_MeasurePostProcessHeaderTextHeight = textBoxShape.Height + 2
+
+Cleanup:
+    On Error Resume Next
+    If Not textBoxShape Is Nothing Then textBoxShape.Delete
+    On Error GoTo 0
+    Exit Function
+
+EH:
+    mp_MeasurePostProcessHeaderTextHeight = 0
+    Resume Cleanup
+End Function
 
 Private Function mp_MeasurePostProcessFooterTextHeight( _
     ByVal ws As Worksheet, _
@@ -372,6 +582,15 @@ Cleanup:
 EH:
     mp_MeasurePostProcessFooterTextHeight = 0
     Resume Cleanup
+End Function
+
+Private Function mp_GetFirstUsedRow(ByVal ws As Worksheet) As Long
+    Dim firstUsedCell As Range
+
+    On Error GoTo ExitFn
+    Set firstUsedCell = ws.Cells.Find(What:="*", After:=ws.Cells(ws.Rows.Count, ws.Columns.Count), SearchOrder:=xlByRows, SearchDirection:=xlNext)
+    If Not firstUsedCell Is Nothing Then mp_GetFirstUsedRow = firstUsedCell.Row
+ExitFn:
 End Function
 
 Private Function mp_GetLastUsedRow(ByVal ws As Worksheet) As Long
@@ -536,6 +755,11 @@ Private Function mp_ParseRequiredBoolean(ByVal valueText As String, ByVal fieldN
     End If
 
     mp_ParseRequiredBoolean = parsedValue
+End Function
+
+Private Function mp_BuildSheetKey(ByVal ws As Worksheet) As String
+    If ws Is Nothing Then Exit Function
+    mp_BuildSheetKey = CStr(ws.Parent.Name) & "|" & CStr(ws.Name)
 End Function
 
 Private Function mp_GetRowCellRange( _
