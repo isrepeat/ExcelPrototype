@@ -9,6 +9,150 @@ Private Const DEV_COL_VALUE As Long = 3
 
 Private g_LastPostProcessCfg As Object
 Private g_LastPostProcessTables As Collection
+Private g_LastResultHasPartialMatchCandidates As Boolean
+Private g_AdoLookupCacheSignature As String
+Private g_AdoResolvedTableRefByConfigured As Object
+Private g_AdoAutoTableRefBySignature As Object
+Private g_AdoFieldMapByTableRef As Object
+Private g_AdoFieldListByTableRef As Object
+Private g_AdoFieldGenericByTableRef As Object
+
+Private Sub mp_EnsureAdoLookupCaches(ByVal cfg As Object)
+    Dim signature As String
+
+    signature = mp_BuildAdoLookupCacheSignature(cfg)
+    If StrComp(g_AdoLookupCacheSignature, signature, vbBinaryCompare) <> 0 Then
+        mp_ResetAdoLookupCaches
+        g_AdoLookupCacheSignature = signature
+        Exit Sub
+    End If
+
+    mp_EnsureAdoLookupCacheContainers
+End Sub
+
+Private Sub mp_ResetAdoLookupCaches()
+    g_AdoLookupCacheSignature = vbNullString
+
+    Set g_AdoResolvedTableRefByConfigured = Nothing
+    Set g_AdoAutoTableRefBySignature = Nothing
+    Set g_AdoFieldMapByTableRef = Nothing
+    Set g_AdoFieldListByTableRef = Nothing
+    Set g_AdoFieldGenericByTableRef = Nothing
+
+    mp_EnsureAdoLookupCacheContainers
+End Sub
+
+Private Sub mp_EnsureAdoLookupCacheContainers()
+    If g_AdoResolvedTableRefByConfigured Is Nothing Then
+        Set g_AdoResolvedTableRefByConfigured = CreateObject("Scripting.Dictionary")
+        g_AdoResolvedTableRefByConfigured.CompareMode = 1
+    End If
+    If g_AdoAutoTableRefBySignature Is Nothing Then
+        Set g_AdoAutoTableRefBySignature = CreateObject("Scripting.Dictionary")
+        g_AdoAutoTableRefBySignature.CompareMode = 1
+    End If
+    If g_AdoFieldMapByTableRef Is Nothing Then
+        Set g_AdoFieldMapByTableRef = CreateObject("Scripting.Dictionary")
+        g_AdoFieldMapByTableRef.CompareMode = 1
+    End If
+    If g_AdoFieldListByTableRef Is Nothing Then
+        Set g_AdoFieldListByTableRef = CreateObject("Scripting.Dictionary")
+        g_AdoFieldListByTableRef.CompareMode = 1
+    End If
+    If g_AdoFieldGenericByTableRef Is Nothing Then
+        Set g_AdoFieldGenericByTableRef = CreateObject("Scripting.Dictionary")
+        g_AdoFieldGenericByTableRef.CompareMode = 1
+    End If
+End Sub
+
+Private Function mp_BuildAdoLookupCacheSignature(ByVal cfg As Object) As String
+    Dim outputAliases As Variant
+    Dim fieldAliases As Variant
+    Dim i As Long
+    Dim j As Long
+    Dim tableAlias As String
+    Dim sourceAlias As String
+    Dim keyAlias As String
+    Dim columnsRaw As String
+    Dim fieldAlias As String
+    Dim signature As String
+
+    On Error GoTo EH
+
+    If cfg Is Nothing Then
+        mp_BuildAdoLookupCacheSignature = "cfg:none"
+        Exit Function
+    End If
+
+    If cfg.Count = 0 Then
+        mp_BuildAdoLookupCacheSignature = "cfg:empty"
+        Exit Function
+    End If
+
+    signature = "cfg:" & CStr(cfg.Count) & "|out=" & mp_GetCfgOptional(cfg, "Output.Sheets", vbNullString)
+    outputAliases = mp_SplitList(mp_GetCfgOptional(cfg, "Output.Sheets", vbNullString))
+    If mp_IsEmptyVariantArray(outputAliases) Then
+        mp_BuildAdoLookupCacheSignature = signature
+        Exit Function
+    End If
+
+    For i = LBound(outputAliases) To UBound(outputAliases)
+        tableAlias = Trim$(CStr(outputAliases(i)))
+        If Len(tableAlias) = 0 Then GoTo ContinueTable
+
+        sourceAlias = mp_GetCfgOptional(cfg, "Output.Sheet[" & tableAlias & "].SourceAlias", vbNullString)
+        If Len(sourceAlias) = 0 Then sourceAlias = tableAlias
+
+        keyAlias = mp_GetCfgOptional(cfg, sourceAlias & ".Sheet[" & tableAlias & "].Key", vbNullString)
+        columnsRaw = mp_GetCfgOptional(cfg, sourceAlias & ".Sheet[" & tableAlias & "].Columns", vbNullString)
+        signature = signature & "|tbl=" & sourceAlias & ":" & tableAlias & _
+                    "|fp=" & mp_GetCfgOptional(cfg, sourceAlias & ".FilePath", vbNullString) & _
+                    "|hh=" & mp_GetCfgOptional(cfg, sourceAlias & ".HasHeaders", vbNullString) & _
+                    "|sn=" & mp_GetCfgOptional(cfg, sourceAlias & ".Sheet[" & tableAlias & "].SheetName", vbNullString) & _
+                    "|k=" & keyAlias & _
+                    "|c=" & columnsRaw
+
+        If Len(keyAlias) > 0 Then
+            signature = signature & "|m[" & keyAlias & "]=" & mp_GetCfgOptional(cfg, sourceAlias & ".Sheet[" & tableAlias & "].Map[" & keyAlias & "]", vbNullString)
+        End If
+
+        fieldAliases = mp_SplitList(columnsRaw)
+        If Not mp_IsEmptyVariantArray(fieldAliases) Then
+            For j = LBound(fieldAliases) To UBound(fieldAliases)
+                fieldAlias = Trim$(CStr(fieldAliases(j)))
+                If Len(fieldAlias) = 0 Then GoTo ContinueField
+                signature = signature & "|m[" & fieldAlias & "]=" & mp_GetCfgOptional(cfg, sourceAlias & ".Sheet[" & tableAlias & "].Map[" & fieldAlias & "]", vbNullString)
+ContinueField:
+            Next j
+        End If
+ContinueTable:
+    Next i
+
+    mp_BuildAdoLookupCacheSignature = signature
+    Exit Function
+
+EH:
+    mp_BuildAdoLookupCacheSignature = "cfg:error|" & CStr(Err.Number) & "|" & Err.Description
+End Function
+
+Private Sub mp_SortVariantTextArray(ByRef arr As Variant)
+    Dim i As Long
+    Dim j As Long
+    Dim tmp As Variant
+
+    If mp_IsEmptyVariantArray(arr) Then Exit Sub
+    If UBound(arr) <= LBound(arr) Then Exit Sub
+
+    For i = LBound(arr) To UBound(arr) - 1
+        For j = i + 1 To UBound(arr)
+            If StrComp(CStr(arr(i)), CStr(arr(j)), vbTextCompare) > 0 Then
+                tmp = arr(i)
+                arr(i) = arr(j)
+                arr(j) = tmp
+            End If
+        Next j
+    Next i
+End Sub
 
 Public Sub m_ShowPersonTimeline_UI()
 
@@ -79,6 +223,7 @@ Public Sub m_ShowPersonTimeline(ByVal fio As String)
 
     Dim cfg As Object
     Set cfg = mp_LoadConfigDictionary()
+    mp_EnsureAdoLookupCaches cfg
 
     Dim cfgNotes As Object
     Set cfgNotes = ex_ConfigProvider.m_GetConfigNotesDictionary()
@@ -249,7 +394,7 @@ ContinueAlias:
     mp_RenderPendingWarningBanners wsOut, pendingWarningBanners
     ex_OutputFormattingPipeline.m_ApplyPartialMatchRowsAutoHeight wsOut, partialMatchRowRanges
 
-    mp_StorePostProcessContext cfg, resultTables
+    mp_StorePostProcessContext cfg, resultTables, (partialMatchRowRanges.Count > 0)
     If mp_ShouldAutoPostProcess() Then
         ex_PostProcessDsl.m_ApplyScriptToSheet wsOut, cfg, resultTables
     End If
@@ -318,6 +463,11 @@ End Sub
 
 Public Sub m_RunPostProcessForActiveSheet()
     Dim ws As Worksheet
+    Dim errNumber As Long
+    Dim errSource As String
+    Dim errDescription As String
+
+    On Error GoTo EH
 
     Set ws = ActiveSheet
     If ws Is Nothing Then
@@ -330,12 +480,32 @@ Public Sub m_RunPostProcessForActiveSheet()
         Exit Sub
     End If
 
+    If g_LastResultHasPartialMatchCandidates Then
+        MsgBox "Post-process is unavailable for partial-match candidate output. Select the full key from candidates and run search again.", vbExclamation
+        Exit Sub
+    End If
+
     ex_PostProcessDsl.m_ApplyScriptToSheet ws, g_LastPostProcessCfg, g_LastPostProcessTables
+    Exit Sub
+
+EH:
+    errNumber = Err.Number
+    errSource = Err.Source
+    errDescription = Err.Description
+    MsgBox "Post-process failed: [" & errSource & " #" & CStr(errNumber) & "] " & errDescription, vbExclamation
 End Sub
 
-Private Sub mp_StorePostProcessContext(ByVal cfg As Object, ByVal resultTables As Collection)
+Public Sub m_ResetResultPageSessionState()
+    mp_ResetAdoLookupCaches
+    Set g_LastPostProcessCfg = Nothing
+    Set g_LastPostProcessTables = Nothing
+    g_LastResultHasPartialMatchCandidates = False
+End Sub
+
+Private Sub mp_StorePostProcessContext(ByVal cfg As Object, ByVal resultTables As Collection, ByVal hasPartialMatchCandidates As Boolean)
     Set g_LastPostProcessCfg = cfg
     Set g_LastPostProcessTables = resultTables
+    g_LastResultHasPartialMatchCandidates = hasPartialMatchCandidates
 End Sub
 
 Private Function mp_ShouldAutoPostProcess() As Boolean
@@ -480,6 +650,7 @@ Private Function mp_WriteStateCardGeneric( _
     Dim stateRows As Variant
     Dim rowCount As Long
     Dim stepName As String
+    Dim showNoStateRow As Boolean
 
     Dim fields As Variant
     fields = mp_GetOrderedFieldAliases(cfg, sourceAlias, tableAlias)
@@ -487,6 +658,7 @@ Private Function mp_WriteStateCardGeneric( _
     Set resultTable = mp_EnsureResultTable(resultTables, resultTablesByRef, sourceAlias, tableAlias)
     mp_RegisterResultTableFieldAliases resultTable, sourceAlias, tableAlias, fields
 
+    showNoStateRow = mp_IsLikelyFullPersonKey(fio)
     outTableRendered = False
     mp_WriteStateCardGeneric = rowIndex
 
@@ -582,6 +754,13 @@ ContinueExactField:
 
     If rs.EOF Then
         rs.Close
+        If showNoStateRow Then
+            wsOut.Cells(rowIndex, 1).Value = fio
+            sectionRows.Add rowIndex
+            rowIndex = rowIndex + 1
+            mp_WriteStateCardGeneric = mp_RenderStateNoData(wsOut, rowIndex, cfg, sourceAlias, tableAlias, fields, headerRows, resultFieldRanges, resultTable)
+            outTableRendered = True
+        End If
         Exit Function
     End If
 
@@ -890,10 +1069,23 @@ Private Function mp_ResolveExplicitAdoObjectReference( _
     Dim schemaNameClean As String
     Dim listedNames As String
     Dim listedCount As Long
+    Dim cacheKey As String
 
     configuredName = mp_CleanAdoSchemaObjectName(Trim$(configuredName))
+    cacheKey = LCase$(Trim$(sourceAlias) & "|" & Trim$(tableAlias) & "|" & mp_NormalizeAdoObjectNameExact(configuredName))
+
+    If Not g_AdoResolvedTableRefByConfigured Is Nothing Then
+        If g_AdoResolvedTableRefByConfigured.Exists(cacheKey) Then
+            mp_ResolveExplicitAdoObjectReference = CStr(g_AdoResolvedTableRefByConfigured(cacheKey))
+            Exit Function
+        End If
+    End If
+
     If mp_IsExplicitAdoRangeReference(configuredName) Then
         mp_ResolveExplicitAdoObjectReference = mp_QuoteSqlIdentifier(configuredName)
+        If Not g_AdoResolvedTableRefByConfigured Is Nothing Then
+            g_AdoResolvedTableRefByConfigured(cacheKey) = mp_ResolveExplicitAdoObjectReference
+        End If
         Exit Function
     End If
 
@@ -911,6 +1103,9 @@ Private Function mp_ResolveExplicitAdoObjectReference( _
         If mp_IsMatchingConfiguredAdoObject(schemaNameClean, configuredName) Then
             schemaRs.Close
             mp_ResolveExplicitAdoObjectReference = mp_QuoteSqlIdentifier(schemaNameClean)
+            If Not g_AdoResolvedTableRefByConfigured Is Nothing Then
+                g_AdoResolvedTableRefByConfigured(cacheKey) = mp_ResolveExplicitAdoObjectReference
+            End If
             Exit Function
         End If
 
@@ -934,6 +1129,7 @@ Private Function mp_TryAutoDetectHeaderRangeReference( _
     Dim keyOrdinal As Long
     Dim detectedRef As String
     Dim sourceRef As String
+    Dim autoKey As String
 
     mp_TryAutoDetectHeaderRangeReference = tableRef
     If Len(Trim$(tableRef)) = 0 Then Exit Function
@@ -942,18 +1138,33 @@ Private Function mp_TryAutoDetectHeaderRangeReference( _
     sourceRef = mp_UnquoteSqlIdentifier(tableRef)
     If InStr(1, sourceRef, "$", vbBinaryCompare) = 0 Then Exit Function
 
+    autoKey = LCase$(Trim$(sourceAlias) & "|" & Trim$(tableAlias) & "|" & mp_NormalizeAdoObjectNameExact(sourceRef) & "|" & _
+                     mp_NormalizeHeader(keyHeader) & "|" & mp_BuildExpectedHeadersSignature(expectedHeaders))
+    If Not g_AdoAutoTableRefBySignature Is Nothing Then
+        If g_AdoAutoTableRefBySignature.Exists(autoKey) Then
+            mp_TryAutoDetectHeaderRangeReference = CStr(g_AdoAutoTableRefBySignature(autoKey))
+            Exit Function
+        End If
+    End If
+
     On Error GoTo EH
     Set rs = CreateObject("ADODB.Recordset")
     rs.Open "SELECT * FROM " & tableRef & " WHERE 1=0", adoConn, 0, 1
     keyOrdinal = mp_RecordsetGetFieldOrdinal(rs, keyHeader)
     If keyOrdinal >= 0 Then
         rs.Close
+        If Not g_AdoAutoTableRefBySignature Is Nothing Then
+            g_AdoAutoTableRefBySignature(autoKey) = tableRef
+        End If
         Exit Function
     End If
     rs.Close
 
     If mp_TryDetectHeaderRangeFromTopRows(adoConn, tableRef, expectedHeaders, keyHeader, detectedRef) Then
         mp_TryAutoDetectHeaderRangeReference = detectedRef
+    End If
+    If Not g_AdoAutoTableRefBySignature Is Nothing Then
+        g_AdoAutoTableRefBySignature(autoKey) = mp_TryAutoDetectHeaderRangeReference
     End If
     Exit Function
 
@@ -1793,6 +2004,35 @@ Private Function mp_BuildNormalizedHeaderTokenSet(ByVal expectedHeaders As Varia
     Set mp_BuildNormalizedHeaderTokenSet = d
 End Function
 
+Private Function mp_BuildExpectedHeadersSignature(ByVal expectedHeaders As Variant) As String
+    Dim d As Object
+    Dim keys As Variant
+    Dim i As Long
+    Dim token As String
+
+    Set d = CreateObject("Scripting.Dictionary")
+    d.CompareMode = 1
+
+    If Not mp_IsEmptyVariantArray(expectedHeaders) Then
+        For i = LBound(expectedHeaders) To UBound(expectedHeaders)
+            token = mp_NormalizeHeader(CStr(expectedHeaders(i)))
+            If Len(token) > 0 Then d(token) = True
+        Next i
+    End If
+
+    If d.Count = 0 Then
+        mp_BuildExpectedHeadersSignature = "-"
+        Exit Function
+    End If
+
+    keys = d.Keys
+    mp_SortVariantTextArray keys
+    For i = LBound(keys) To UBound(keys)
+        If i > LBound(keys) Then mp_BuildExpectedHeadersSignature = mp_BuildExpectedHeadersSignature & "|"
+        mp_BuildExpectedHeadersSignature = mp_BuildExpectedHeadersSignature & CStr(keys(i))
+    Next i
+End Function
+
 Private Function mp_QuoteSqlIdentifier(ByVal value As String) As String
     mp_QuoteSqlIdentifier = "[" & Replace$(value, "]", "]]" ) & "]"
 End Function
@@ -1810,32 +2050,80 @@ Private Function mp_ResolveAdoMappedHeader( _
     ByVal tableRef As String _
 ) As String
     Dim desiredHeader As String
+    Dim desiredToken As String
     Dim rs As Object
-    Dim fieldOrdinal As Long
+    Dim fieldMap As Object
+    Dim tableCacheKey As String
     Dim availableFields As String
+    Dim hasGenericFields As Boolean
     Dim hintText As String
+    Dim i As Long
+    Dim fieldName As String
+    Dim fieldToken As String
 
     ' The mapping format is SourceHeader|Label, where Label is display-only.
     ' For SQL and field resolution we must always use the source header (left token).
     desiredHeader = mp_GetMappedSourceHeader(cfg, sourceAlias, tableAlias, fieldAlias)
+    desiredToken = mp_NormalizeHeader(desiredHeader)
+    If Len(desiredToken) = 0 Then
+        Err.Raise vbObjectError + 1391, "ex_PersonTimeline", _
+            "Configured source header is empty for " & sourceAlias & ".Sheet[" & tableAlias & "].Map[" & fieldAlias & "]."
+    End If
+
+    mp_EnsureAdoLookupCacheContainers
+    tableCacheKey = LCase$(Trim$(sourceAlias) & "|" & Trim$(tableAlias) & "|" & mp_NormalizeAdoObjectNameExact(tableRef))
+
+    If g_AdoFieldMapByTableRef.Exists(tableCacheKey) Then
+        Set fieldMap = g_AdoFieldMapByTableRef.Item(tableCacheKey)
+        If g_AdoFieldListByTableRef.Exists(tableCacheKey) Then
+            availableFields = CStr(g_AdoFieldListByTableRef(tableCacheKey))
+        End If
+        If g_AdoFieldGenericByTableRef.Exists(tableCacheKey) Then
+            hasGenericFields = CBool(g_AdoFieldGenericByTableRef(tableCacheKey))
+        End If
+    End If
 
     On Error GoTo EH
-    Set rs = CreateObject("ADODB.Recordset")
-    rs.Open "SELECT * FROM " & tableRef & " WHERE 1=0", adoConn, 0, 1
+    If fieldMap Is Nothing Then
+        Set rs = CreateObject("ADODB.Recordset")
+        rs.Open "SELECT * FROM " & tableRef & " WHERE 1=0", adoConn, 0, 1
 
-    fieldOrdinal = mp_RecordsetGetFieldOrdinal(rs, desiredHeader)
-    If fieldOrdinal >= 0 Then
-        mp_ResolveAdoMappedHeader = CStr(rs.Fields(fieldOrdinal).Name)
+        Set fieldMap = CreateObject("Scripting.Dictionary")
+        fieldMap.CompareMode = 1
+
+        For i = 0 To rs.Fields.Count - 1
+            fieldName = CStr(rs.Fields(i).Name)
+            fieldToken = mp_NormalizeHeader(fieldName)
+            If Len(fieldToken) > 0 Then
+                If Not fieldMap.Exists(fieldToken) Then
+                    fieldMap.Add fieldToken, fieldName
+                End If
+            End If
+        Next i
+
+        availableFields = mp_ListAdoRecordsetFields(rs, 25)
+        hasGenericFields = mp_RecordsetLooksLikeUnnamedFields(rs)
         rs.Close
+
+        If g_AdoFieldMapByTableRef.Exists(tableCacheKey) Then
+            Set g_AdoFieldMapByTableRef.Item(tableCacheKey) = fieldMap
+        Else
+            g_AdoFieldMapByTableRef.Add tableCacheKey, fieldMap
+        End If
+        g_AdoFieldListByTableRef(tableCacheKey) = availableFields
+        g_AdoFieldGenericByTableRef(tableCacheKey) = hasGenericFields
+    End If
+
+    If fieldMap.Exists(desiredToken) Then
+        mp_ResolveAdoMappedHeader = CStr(fieldMap(desiredToken))
         Exit Function
     End If
 
-    availableFields = mp_ListAdoRecordsetFields(rs, 25)
-    If mp_RecordsetLooksLikeUnnamedFields(rs) Then
+    If hasGenericFields Then
         hintText = " Hint: ADO returned generic fields (F1..Fn). Set '" & sourceAlias & ".Sheet[" & tableAlias & "].SheetName' " & _
                    "to an explicit range where the first row contains real headers (example: ШПС$A10:K5000)."
     End If
-    rs.Close
+    If Len(Trim$(availableFields)) = 0 Then availableFields = "(none)"
 
     Err.Raise vbObjectError + 1391, "ex_PersonTimeline", _
         "Configured source header '" & desiredHeader & "' is not found for " & sourceAlias & ".Sheet[" & tableAlias & "].Map[" & fieldAlias & "]. " & _
@@ -2030,6 +2318,45 @@ Private Function mp_RenderEventsNoData( _
     mp_CaptureResultTableRowsFromOutput wsOut, resultTable, sourceAlias, tableAlias, fields, outDataRow, outDataRow
 
     mp_RenderEventsNoData = outDataRow + 1
+End Function
+
+Private Function mp_RenderStateNoData( _
+    ByVal wsOut As Worksheet, _
+    ByVal rowIndex As Long, _
+    ByVal cfg As Object, _
+    ByVal sourceAlias As String, _
+    ByVal tableAlias As String, _
+    ByVal fields As Variant, _
+    ByVal headerRows As Collection, _
+    ByVal resultFieldRanges As Collection, _
+    ByVal resultTable As obj_ResultTable _
+) As Long
+    Dim outHeaderRow As Long
+    Dim outDataRow As Long
+    Dim fieldCount As Long
+    Dim i As Long
+    Dim headerValues() As Variant
+    Dim fieldAlias As String
+
+    outHeaderRow = rowIndex
+    headerRows.Add outHeaderRow
+
+    fieldCount = UBound(fields) - LBound(fields) + 1
+    ReDim headerValues(1 To 1, 1 To fieldCount)
+
+    For i = LBound(fields) To UBound(fields)
+        fieldAlias = Trim$(CStr(fields(i)))
+        headerValues(1, 1 + (i - LBound(fields))) = mp_GetLabel(cfg, sourceAlias, tableAlias, fieldAlias)
+    Next i
+
+    wsOut.Range(wsOut.Cells(outHeaderRow, 1), wsOut.Cells(outHeaderRow, fieldCount)).Value = headerValues
+
+    outDataRow = outHeaderRow + 1
+    wsOut.Cells(outDataRow, 1).Value = "(no state found for this person)"
+    mp_AddResultFieldRangesForFields resultFieldRanges, sourceAlias, tableAlias, fields, outHeaderRow, outDataRow
+    mp_CaptureResultTableRowsFromOutput wsOut, resultTable, sourceAlias, tableAlias, fields, outDataRow, outDataRow
+
+    mp_RenderStateNoData = outDataRow + 1
 End Function
 
 Private Function mp_RenderStateCandidatesWarningBanner( _
@@ -2422,6 +2749,11 @@ End Function
 Private Function mp_CreateOrClearSheet(ByVal sheetName As String) As Worksheet
 
     Dim ws As Worksheet
+    Dim usedRows As Long
+    Dim usedCols As Long
+    Dim clearRows As Long
+    Dim clearCols As Long
+    Dim clearRange As Range
 
     On Error Resume Next
     Set ws = ThisWorkbook.Worksheets(sheetName)
@@ -2431,12 +2763,39 @@ Private Function mp_CreateOrClearSheet(ByVal sheetName As String) As Worksheet
         Set ws = ThisWorkbook.Worksheets.Add(After:=ThisWorkbook.Worksheets(ThisWorkbook.Worksheets.Count))
         ws.Name = sheetName
     Else
-        ws.Cells.Clear
+        ' Previous render may leave merged areas whose value is stored only in the top-left cell.
+        ' Such merge extents are not reflected in last used column detection, so unmerge whole sheet first.
+        On Error Resume Next
+        ws.Cells.UnMerge
+        On Error GoTo 0
+
+        If ex_SheetStylesXmlProvider.m_GetUsedRangeSize(ws, usedRows, usedCols) Then
+            clearRows = usedRows
+            clearCols = usedCols
+            If clearRows < ws.Rows.Count Then clearRows = clearRows + 2
+            If clearCols < ws.Columns.Count Then clearCols = clearCols + 8
+            Set clearRange = ws.Range(ws.Cells(1, 1), ws.Cells(clearRows, clearCols))
+
+            On Error GoTo ClearFallback
+            clearRange.UnMerge
+            clearRange.Clear
+            On Error GoTo 0
+        Else
+            ws.Cells(1, 1).Clear
+        End If
     End If
 
     ws.Cells.NumberFormat = "@"
 
     Set mp_CreateOrClearSheet = ws
+    Exit Function
+
+ClearFallback:
+    On Error Resume Next
+    ws.Cells.Clear
+    ws.Cells.NumberFormat = "@"
+    Set mp_CreateOrClearSheet = ws
+    On Error GoTo 0
 
 End Function
 

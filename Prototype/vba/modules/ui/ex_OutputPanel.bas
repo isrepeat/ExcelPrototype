@@ -5,6 +5,9 @@ Private Const PANEL_INPUT_NAME As String = "outPanelInputCell"
 Private Const PANEL_INPUT_PREFIX As String = "outPanelInput_"
 Private Const PANEL_BUTTON_PREFIX As String = "btnOutPanelSearch_"
 Private Const PANEL_RANGE_NAME As String = "outPanelRange"
+Private Const PANEL_ONCHANGE_BINDING_PREFIX As String = "chg::"
+
+Private g_OnChangeBindings As Object
 Public Sub m_RenderForSheet(ByVal ws As Worksheet, ByRef style As ex_SheetStylesXmlProvider.t_OutputSheetStyle)
     Dim topRow As Long
     Dim startCol As Long
@@ -160,6 +163,7 @@ Public Sub m_RenderForSheet(ByVal ws As Worksheet, ByRef style As ex_SheetStyles
             mp_SetPanelInputName ws, inputAnchor
         End If
         mp_SetPanelInputKeyName ws, inputAnchor, style.PanelFields(fieldIndex).InputName
+        mp_RegisterOnChangeBinding ws, inputAnchor, style.PanelFields(fieldIndex).OnChangeMacroName
 
         fieldError = mp_GetConfigRefFieldError(style.PanelFields(fieldIndex), fieldIndex)
         If Len(fieldError) > 0 Then
@@ -208,6 +212,36 @@ ContinueField:
     mp_SetPanelRangeName ws, ws.Range(ws.Cells(topRow, startCol), ws.Cells(bottomRow, panelRenderRightCol))
 
     mp_ApplyFixedControlPanelLayout ws, style, startCol, inputStartCol
+End Sub
+
+Public Sub m_HandleSheetInputChange(ByVal ws As Worksheet, ByVal target As Range)
+    Dim macroName As String
+    Dim prevEnableEvents As Boolean
+    Dim prevScreenUpdating As Boolean
+
+    If ws Is Nothing Then Exit Sub
+    If target Is Nothing Then Exit Sub
+    If target.CountLarge <> 1 Then Exit Sub
+
+    macroName = mp_GetOnChangeMacroName(ws, target)
+    If Len(macroName) = 0 Then Exit Sub
+
+    On Error GoTo EH
+    prevEnableEvents = Application.EnableEvents
+    prevScreenUpdating = Application.ScreenUpdating
+    Application.EnableEvents = False
+    Application.ScreenUpdating = False
+    Application.Run macroName
+    Application.ScreenUpdating = prevScreenUpdating
+    Application.EnableEvents = prevEnableEvents
+    Exit Sub
+
+EH:
+    On Error Resume Next
+    Application.ScreenUpdating = prevScreenUpdating
+    Application.EnableEvents = prevEnableEvents
+    On Error GoTo 0
+    MsgBox "Failed to run onChange macro '" & macroName & "': " & Err.Description, vbExclamation
 End Sub
 
 Private Function mp_GetConfigRefFieldError( _
@@ -476,7 +510,88 @@ Private Sub mp_ClearPanelArtifacts(ByVal ws As Worksheet)
     mp_ClearStoredPanelRange ws
     mp_DeletePanelButtons ws
     mp_DeletePanelInputNames ws
+    mp_ClearOnChangeBindings ws
 End Sub
+
+Private Function mp_GetOnChangeMacroName(ByVal ws As Worksheet, ByVal target As Range) As String
+    Dim registry As Object
+    Dim key As String
+
+    If ws Is Nothing Then Exit Function
+    If target Is Nothing Then Exit Function
+    If g_OnChangeBindings Is Nothing Then Exit Function
+
+    Set registry = mp_GetSheetOnChangeRegistry(ws, False)
+    If registry Is Nothing Then Exit Function
+
+    key = mp_GetOnChangeBindingKey(target)
+    If Len(key) = 0 Then Exit Function
+    If registry.Exists(key) Then
+        mp_GetOnChangeMacroName = CStr(registry(key))
+    End If
+End Function
+
+Private Sub mp_RegisterOnChangeBinding(ByVal ws As Worksheet, ByVal inputCell As Range, ByVal macroName As String)
+    Dim registry As Object
+    Dim key As String
+
+    macroName = Trim$(macroName)
+    If Len(macroName) = 0 Then Exit Sub
+    If ws Is Nothing Then Exit Sub
+    If inputCell Is Nothing Then Exit Sub
+
+    Set registry = mp_GetSheetOnChangeRegistry(ws, True)
+    If registry Is Nothing Then Exit Sub
+
+    key = mp_GetOnChangeBindingKey(inputCell)
+    If Len(key) = 0 Then Exit Sub
+    registry(key) = macroName
+End Sub
+
+Private Sub mp_ClearOnChangeBindings(ByVal ws As Worksheet)
+    If ws Is Nothing Then Exit Sub
+    If g_OnChangeBindings Is Nothing Then Exit Sub
+    If g_OnChangeBindings.Exists(mp_GetSheetBindingKey(ws)) Then
+        g_OnChangeBindings.Remove mp_GetSheetBindingKey(ws)
+    End If
+End Sub
+
+Private Function mp_GetSheetOnChangeRegistry(ByVal ws As Worksheet, ByVal createIfMissing As Boolean) As Object
+    Dim mapKey As String
+    Dim registry As Object
+
+    If ws Is Nothing Then Exit Function
+    mapKey = mp_GetSheetBindingKey(ws)
+    If Len(mapKey) = 0 Then Exit Function
+
+    If g_OnChangeBindings Is Nothing Then
+        If Not createIfMissing Then Exit Function
+        Set g_OnChangeBindings = CreateObject("Scripting.Dictionary")
+        g_OnChangeBindings.CompareMode = 1
+    End If
+
+    If g_OnChangeBindings.Exists(mapKey) Then
+        Set mp_GetSheetOnChangeRegistry = g_OnChangeBindings(mapKey)
+        Exit Function
+    End If
+
+    If Not createIfMissing Then Exit Function
+
+    Set registry = CreateObject("Scripting.Dictionary")
+    registry.CompareMode = 1
+    g_OnChangeBindings.Add mapKey, registry
+    Set mp_GetSheetOnChangeRegistry = registry
+End Function
+
+Private Function mp_GetSheetBindingKey(ByVal ws As Worksheet) As String
+    If ws Is Nothing Then Exit Function
+    mp_GetSheetBindingKey = PANEL_ONCHANGE_BINDING_PREFIX & LCase$(Trim$(ws.CodeName))
+End Function
+
+Private Function mp_GetOnChangeBindingKey(ByVal target As Range) As String
+    If target Is Nothing Then Exit Function
+    mp_GetOnChangeBindingKey = LCase$(target.Address(False, False, xlA1))
+End Function
 
 Private Sub mp_SetPanelRangeName(ByVal ws As Worksheet, ByVal panelRange As Range)
     If ws Is Nothing Then Exit Sub

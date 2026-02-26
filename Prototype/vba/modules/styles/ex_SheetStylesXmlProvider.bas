@@ -33,6 +33,7 @@ Public Type t_ControlPanelFieldStyle
     Label As String
     InputConfigKey As String
     InputName As String
+    OnChangeMacroName As String
     InputOverflowStyle As String
     ButtonCount As Long
     Buttons() As t_ControlPanelButtonStyle
@@ -367,19 +368,21 @@ Public Sub m_ApplyDarkThemeToSheet(ByVal ws As Worksheet)
 End Sub
 
 Public Function m_GetUsedRangeSize(ByVal ws As Worksheet, ByRef rowCount As Long, ByRef colCount As Long) As Boolean
-    Dim usedRange As Range
-    Dim lastCell As Range
+    Dim lastRowCell As Range
+    Dim lastColCell As Range
 
     If ws Is Nothing Then Exit Function
-    On Error Resume Next
-    Set lastCell = ws.Cells.Find(What:="*", LookIn:=xlFormulas, SearchOrder:=xlByRows, SearchDirection:=xlPrevious)
-    On Error GoTo 0
-    If lastCell Is Nothing Then Exit Function
-    If ws.UsedRange Is Nothing Then Exit Function
 
-    Set usedRange = ws.UsedRange
-    rowCount = usedRange.Rows.Count
-    colCount = usedRange.Columns.Count
+    On Error Resume Next
+    Set lastRowCell = ws.Cells.Find(What:="*", LookIn:=xlFormulas, SearchOrder:=xlByRows, SearchDirection:=xlPrevious)
+    Set lastColCell = ws.Cells.Find(What:="*", LookIn:=xlFormulas, SearchOrder:=xlByColumns, SearchDirection:=xlPrevious)
+    On Error GoTo 0
+
+    If lastRowCell Is Nothing Then Exit Function
+    If lastColCell Is Nothing Then Exit Function
+
+    rowCount = lastRowCell.Row
+    colCount = lastColCell.Column
     m_GetUsedRangeSize = (rowCount > 0 And colCount > 0)
 End Function
 
@@ -468,6 +471,10 @@ End Sub
 Public Sub m_DeleteResultSheets()
     Dim ws As Worksheet
     Dim i As Long
+
+    On Error Resume Next
+    ex_PersonTimeline.m_ResetResultPageSessionState
+    On Error GoTo 0
 
     Application.DisplayAlerts = False
     On Error Resume Next
@@ -1074,6 +1081,7 @@ Private Function mp_LoadControlPanelFieldNode( _
     fieldStyle.Label = mp_ReadOptionalAttrText(fieldNode, "label", vbNullString)
     fieldStyle.InputConfigKey = mp_ReadOptionalAttrText(fieldNode, "inputConfigKey", vbNullString)
     fieldStyle.InputName = mp_ReadOptionalAttrText(fieldNode, "inputName", vbNullString)
+    fieldStyle.OnChangeMacroName = mp_ReadOptionalAttrText(fieldNode, "onChange", vbNullString)
     fieldStyle.InputOverflowStyle = mp_ReadOptionalAttrText(fieldNode, "inputOverflowStyle", "wrap")
 
     If Not mp_NormalizeInputOverflowStyle(fieldStyle.InputOverflowStyle, fieldStyle.InputOverflowStyle, fieldTagName, fieldIndex) Then Exit Function
