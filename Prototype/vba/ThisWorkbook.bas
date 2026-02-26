@@ -23,6 +23,14 @@ End Sub
 Private Sub Workbook_SheetSelectionChange(ByVal Sh As Object, ByVal Target As Range)
 End Sub
 
+Private Sub Workbook_SheetChange(ByVal Sh As Object, ByVal Target As Range)
+    On Error Resume Next
+    If TypeOf Sh Is Worksheet Then
+        ex_OutputPanel.m_HandleSheetInputChange Sh, Target
+    End If
+    On Error GoTo 0
+End Sub
+
 Private Sub Workbook_WindowResize(ByVal Wn As Window)
 End Sub
 

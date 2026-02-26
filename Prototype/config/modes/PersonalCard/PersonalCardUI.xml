@@ -32,7 +32,11 @@
     fixedWidthButton="14"
     fixedFieldRowHeight="32">
     <fields>
-      <inputConfigRefField label="Common Key" inputName="CommonKey" inputConfigKey="CommonKey">
+      <inputConfigRefField
+        label="Common Key"
+        inputName="CommonKey"
+        inputConfigKey="CommonKey"
+        onChange="ex_UIActions.m_OutputPanelStartSearch_OnClick">
         <button caption="Search"
                 macro="ex_UIActions.m_OutputPanelStartSearch_OnClick"
                 />

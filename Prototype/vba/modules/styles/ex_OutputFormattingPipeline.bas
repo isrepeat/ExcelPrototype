@@ -347,10 +347,8 @@ Private Sub mp_ApplyTimelineOutputStyle(ByVal ws As Worksheet, ByVal headerRows 
     Dim sectionTitleCols As Long
 
     If ws Is Nothing Then Exit Sub
-    If ws.UsedRange Is Nothing Then Exit Sub
+    If Not ex_SheetStylesXmlProvider.m_GetUsedRangeSize(ws, usedRows, usedCols) Then Exit Sub
 
-    usedRows = ws.UsedRange.Rows.Count
-    usedCols = ws.UsedRange.Columns.Count
     Set usedRange = ws.Range(ws.Cells(1, 1), ws.Cells(usedRows, usedCols))
 
     usedRange.Interior.Pattern = xlSolid
