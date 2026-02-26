@@ -6,12 +6,6 @@
     <grid color="#000000" weight="thin" extraRows="200" extraCols="50"/>
   </baseSheetStyle>
 
-  <outputCommonStyle>
-    <content color="#EBEBEB" backColor="#222222"/>
-    <header color="#68D947" backColor="#222222" bold="true"/>
-    <section color="#D7A763" backColor="#161616" bold="true" sectionTitleColumns="2"/>
-  </outputCommonStyle>
-
   <errorBanner
     columns="8"
     rows="4"
@@ -24,6 +18,28 @@
     gridColor="#111111"
     horizontal="left"
     vertical="center"/>
+
+  <warningBanner
+    columns="8"
+    rows="3"
+    rowHeight="24"
+    backColor="#4C3F10"
+    fontColor="#FFE599"
+    wrapText="true"
+    titleBold="true"
+    showGrid="true"
+    gridColor="#3B320D"
+    horizontal="left"
+    vertical="center"/>
+
+  <postProcessHeaderStyle
+    columns="2"
+    overflow="wrap"
+    backColor="#161616"
+    fontColor="#F5D08A"
+    fontSize="12"
+    rowHeight="24"
+    autoHeight="true"/>
 
   <postProcessFooterStyle
     columns="2"

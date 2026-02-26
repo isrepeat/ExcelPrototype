@@ -149,6 +149,12 @@ Public Sub m_ShowPersonTimeline(ByVal fio As String)
     Dim sectionRows As Collection
     Set sectionRows = New Collection
 
+    Dim pendingWarningBanners As Collection
+    Set pendingWarningBanners = New Collection
+
+    Dim partialMatchRowRanges As Collection
+    Set partialMatchRowRanges = New Collection
+
     Dim renderedCount As Long
     renderedCount = 0
 
@@ -185,20 +191,38 @@ Public Sub m_ShowPersonTimeline(ByVal fio As String)
         Set sourceConn = mp_GetConnectionForSource(connCache, cfg, sourceAlias)
 
         If tableType = "state" Then
-            rowIndex = mp_WriteStateCardGeneric(wsOut, sourceConn, adoObjectName, fio, rowIndex, cfg, resultFieldRanges, resultTables, resultTablesByRef, sourceAlias, tableAlias, headerRows, sectionRows)
-            rowIndex = rowIndex + 1
+            Dim stateRendered As Boolean
+            rowIndex = mp_WriteStateCardGeneric(wsOut, sourceConn, adoObjectName, fio, rowIndex, cfg, resultFieldRanges, resultTables, resultTablesByRef, sourceAlias, tableAlias, headerRows, sectionRows, pendingWarningBanners, partialMatchRowRanges, stateRendered)
+            If stateRendered Then
+                rowIndex = rowIndex + 1
+                renderedCount = renderedCount + 1
+            End If
         Else
+            Dim eventsSectionRow As Long
+            Dim eventsSectionAdded As Boolean
+            Dim eventsRendered As Boolean
+
+            eventsSectionRow = rowIndex
+
             If mode <> StateTableOnly Then
                 wsOut.Cells(rowIndex, 1).Value = "Events [" & tableAlias & "]"
                 wsOut.Cells(rowIndex, 1).Font.Bold = True
                 sectionRows.Add rowIndex
+                eventsSectionAdded = True
                 rowIndex = rowIndex + 1
             End If
-            rowIndex = mp_WriteEventsGeneric(wsOut, sourceConn, adoObjectName, fio, rowIndex, cfg, resultFieldRanges, resultTables, resultTablesByRef, sourceAlias, tableAlias, headerRows)
-            rowIndex = rowIndex + 1
+            rowIndex = mp_WriteEventsGeneric(wsOut, sourceConn, adoObjectName, fio, rowIndex, cfg, resultFieldRanges, resultTables, resultTablesByRef, sourceAlias, tableAlias, headerRows, pendingWarningBanners, partialMatchRowRanges, eventsRendered)
+            If eventsRendered Then
+                rowIndex = rowIndex + 1
+                renderedCount = renderedCount + 1
+            Else
+                If eventsSectionAdded Then
+                    wsOut.Rows(eventsSectionRow).ClearContents
+                    sectionRows.Remove sectionRows.Count
+                End If
+                rowIndex = eventsSectionRow
+            End If
         End If
-
-        renderedCount = renderedCount + 1
 
 ContinueAlias:
     Next i
@@ -217,11 +241,13 @@ ContinueAlias:
             viewColCount = 1
         End If
         ex_OutputPanel.m_RenderForSheet wsOut, outputStyle
-        ex_OutputFormattingPipeline.m_ApplyViewZoneWrapText wsOut, viewStartRow, viewEndRow, viewColCount, True, headerRows, sectionRows
-        ex_OutputFormattingPipeline.m_ApplyTimelineDataRowsHeight wsOut, viewStartRow, viewEndRow, viewColCount, headerRows, sectionRows, 32
+        ex_OutputFormattingPipeline.m_ApplyTimelineRowLayoutsByStyle wsOut, viewStartRow, viewEndRow, viewColCount, headerRows, sectionRows, outputStyle, 32
     End If
 
+    ' Config note styles (e.g. {width/overflow/autoHeight}) always override outputSheetStyle content layout.
     ex_OutputFormattingPipeline.m_ApplyConfigNoteStyleLayer wsOut, resultFieldRanges, cfgNotes
+    mp_RenderPendingWarningBanners wsOut, pendingWarningBanners
+    ex_OutputFormattingPipeline.m_ApplyPartialMatchRowsAutoHeight wsOut, partialMatchRowRanges
 
     mp_StorePostProcessContext cfg, resultTables
     If mp_ShouldAutoPostProcess() Then
@@ -440,7 +466,10 @@ Private Function mp_WriteStateCardGeneric( _
     ByVal sourceAlias As String, _
     ByVal tableAlias As String, _
     ByVal headerRows As Collection, _
-    ByVal sectionRows As Collection _
+    ByVal sectionRows As Collection, _
+    ByVal pendingWarningBanners As Collection, _
+    ByVal partialMatchRowRanges As Collection, _
+    ByRef outTableRendered As Boolean _
 ) As Long
     Dim rs As Object
     Dim sql As String
@@ -449,17 +478,21 @@ Private Function mp_WriteStateCardGeneric( _
     Dim keyOrdinal As Long
     Dim stateRows As Variant
     Dim rowCount As Long
-    Dim rowIndexState As Long
     Dim keyIsNumeric As Boolean
     Dim headerRowIndex As Long
     Dim columnMap As Object
     Dim useMatrixLookup As Boolean
+    Dim dataStartRow As Long
+    Dim keyCellText As String
 
     Dim fields As Variant
     fields = mp_GetOrderedFieldAliases(cfg, sourceAlias, tableAlias)
     Dim resultTable As obj_ResultTable
     Set resultTable = mp_EnsureResultTable(resultTables, resultTablesByRef, sourceAlias, tableAlias)
     mp_RegisterResultTableFieldAliases resultTable, sourceAlias, tableAlias, fields
+
+    outTableRendered = False
+    mp_WriteStateCardGeneric = rowIndex
 
     Dim keyAlias As String
     keyAlias = mp_GetCfgRequired(cfg, sourceAlias & ".Sheet[" & tableAlias & "].Key")
@@ -478,8 +511,8 @@ Private Function mp_WriteStateCardGeneric( _
     rs.Open sql, adoConn, 0, 1
 
     If rs.EOF Then
-        Err.Raise vbObjectError + 1311, "ex_PersonTimeline", _
-            "State row not found for person '" & fio & "' in table alias '" & tableAlias & "'."
+        rs.Close
+        Exit Function
     End If
 
     stateRows = rs.GetRows
@@ -520,71 +553,138 @@ Private Function mp_WriteStateCardGeneric( _
             "State key header not found: '" & keyHeader & "' (alias '" & tableAlias & "')."
     End If
 
-    rowIndexState = -1
-
     Dim rr As Long
-    Dim stateDataStartRow As Long
-    stateDataStartRow = 0
-    If keyIsNumeric Or useMatrixLookup Then stateDataStartRow = headerRowIndex + 1
+    dataStartRow = 0
+    If keyIsNumeric Or useMatrixLookup Then dataStartRow = headerRowIndex + 1
 
-    For rr = stateDataStartRow To rowCount - 1
-        If StrComp(mp_ToSafeText(stateRows(keyOrdinal, rr)), fio, vbTextCompare) = 0 Then
-            rowIndexState = rr
-            Exit For
+    Dim exactIndexes() As Long
+    Dim exactCount As Long
+    Dim partialKeySet As Object
+    Dim partialKeys As Collection
+
+    ReDim exactIndexes(0 To rowCount - 1)
+    Set partialKeySet = CreateObject("Scripting.Dictionary")
+    partialKeySet.CompareMode = 1
+    Set partialKeys = New Collection
+
+    For rr = dataStartRow To rowCount - 1
+        keyCellText = mp_ToSafeText(stateRows(keyOrdinal, rr))
+        If StrComp(keyCellText, fio, vbTextCompare) = 0 Then
+            exactIndexes(exactCount) = rr
+            exactCount = exactCount + 1
+        ElseIf mp_StateKeyContainsToken(keyCellText, fio) Then
+            If Len(keyCellText) > 0 Then
+                If Not partialKeySet.Exists(keyCellText) Then
+                    partialKeySet.Add keyCellText, True
+                    partialKeys.Add keyCellText
+                End If
+            End If
         End If
     Next rr
 
-    If rowIndexState < 0 Then
-        Err.Raise vbObjectError + 1311, "ex_PersonTimeline", _
-            "State row not found for person '" & fio & "' in table alias '" & tableAlias & "'."
+    If exactCount = 0 And partialKeys.Count = 0 Then
+        rs.Close
+        Exit Function
+    End If
+
+    Dim headerRow As Long
+    Dim valueRow As Long
+    Dim dataEndRow As Long
+    Dim keyLabel As String
+    keyLabel = mp_GetLabel(cfg, sourceAlias, tableAlias, keyAlias)
+
+    If exactCount = 0 And partialKeys.Count > 0 Then
+        rowIndex = mp_RenderStateCandidatesWarningBanner(wsOut, rowIndex, fio, partialKeys.Count, pendingWarningBanners)
+        wsOut.Cells(rowIndex, 1).Value = "Candidates [State " & tableAlias & "] (" & CStr(partialKeys.Count) & ")"
+        sectionRows.Add rowIndex
+        rowIndex = rowIndex + 1
+
+        headerRow = rowIndex
+        headerRows.Add headerRow
+        wsOut.Cells(headerRow, 1).Value = keyLabel
+
+        valueRow = headerRow + 1
+        dataEndRow = valueRow + partialKeys.Count - 1
+
+        Dim partialValues() As Variant
+        Dim keyOnlyFields(0 To 0) As String
+        Dim candidateIndex As Long
+        ReDim partialValues(1 To partialKeys.Count, 1 To 1)
+        keyOnlyFields(0) = keyAlias
+
+        For candidateIndex = 1 To partialKeys.Count
+            partialValues(candidateIndex, 1) = CStr(partialKeys(candidateIndex))
+        Next candidateIndex
+
+        wsOut.Range(wsOut.Cells(valueRow, 1), wsOut.Cells(dataEndRow, 1)).Value2 = partialValues
+        mp_AddResultFieldRange resultFieldRanges, sourceAlias, tableAlias, keyAlias, 1, headerRow, dataEndRow
+        mp_CaptureResultTableRowsFromOutput wsOut, resultTable, sourceAlias, tableAlias, keyOnlyFields, valueRow, dataEndRow
+        mp_AddPartialMatchRowRange partialMatchRowRanges, headerRow, dataEndRow
+
+        rs.Close
+        outTableRendered = True
+        mp_WriteStateCardGeneric = dataEndRow + 1
+        Exit Function
     End If
 
     wsOut.Cells(rowIndex, 1).Value = fio
     sectionRows.Add rowIndex
     rowIndex = rowIndex + 1
 
-    Dim headerRow As Long
     headerRow = rowIndex
     headerRows.Add headerRow
 
-    Dim valueRow As Long
     valueRow = headerRow + 1
+    dataEndRow = valueRow + exactCount - 1
 
+    Dim fieldCount As Long
+    fieldCount = UBound(fields) - LBound(fields) + 1
     Dim i As Long
+    Dim outCol As Long
+    Dim fieldAlias As String
+    Dim sourceHeader As String
+    Dim fieldOrdinal As Long
+    Dim fieldOrdinals() As Long
+    ReDim fieldOrdinals(LBound(fields) To UBound(fields))
+
     For i = LBound(fields) To UBound(fields)
-        Dim fieldAlias As String
         fieldAlias = Trim$(CStr(fields(i)))
-        If Len(fieldAlias) = 0 Then GoTo ContinueField
-
-        Dim outCol As Long
+        If Len(fieldAlias) = 0 Then GoTo ContinueExactField
         outCol = 1 + (i - LBound(fields))
-        mp_AddResultFieldRange resultFieldRanges, sourceAlias, tableAlias, fieldAlias, outCol, headerRow, valueRow
-
         wsOut.Cells(headerRow, outCol).Value = mp_GetLabel(cfg, sourceAlias, tableAlias, fieldAlias)
-
-        Dim sourceHeader As String
         sourceHeader = mp_GetMappedSourceHeader(cfg, sourceAlias, tableAlias, fieldAlias)
-
-        Dim fieldOrdinal As Long
         If keyIsNumeric Or useMatrixLookup Then
             fieldOrdinal = mp_GetMatrixColumnOrdinal(columnMap, sourceHeader)
         Else
             fieldOrdinal = mp_RecordsetGetFieldOrdinal(rs, sourceHeader)
         End If
-        If fieldOrdinal >= 0 Then
-            wsOut.Cells(valueRow, outCol).Value = mp_ToCellValue(stateRows(fieldOrdinal, rowIndexState))
-        Else
-            wsOut.Cells(valueRow, outCol).Value = "(missing column)"
-        End If
-
-ContinueField:
+        fieldOrdinals(i) = fieldOrdinal
+        mp_AddResultFieldRange resultFieldRanges, sourceAlias, tableAlias, fieldAlias, outCol, headerRow, dataEndRow
+ContinueExactField:
     Next i
 
-    mp_CaptureResultTableRowsFromOutput wsOut, resultTable, sourceAlias, tableAlias, fields, valueRow, valueRow
+    Dim outValues() As Variant
+    Dim outRow As Long
+    Dim sourceRowIndex As Long
+    ReDim outValues(1 To exactCount, 1 To fieldCount)
+
+    For outRow = 1 To exactCount
+        sourceRowIndex = exactIndexes(outRow - 1)
+        For i = LBound(fields) To UBound(fields)
+            If fieldOrdinals(i) >= 0 Then
+                outValues(outRow, 1 + (i - LBound(fields))) = mp_ToCellValue(stateRows(fieldOrdinals(i), sourceRowIndex))
+            Else
+                outValues(outRow, 1 + (i - LBound(fields))) = "(missing column)"
+            End If
+        Next i
+    Next outRow
+
+    wsOut.Range(wsOut.Cells(valueRow, 1), wsOut.Cells(dataEndRow, fieldCount)).Value2 = outValues
+    mp_CaptureResultTableRowsFromOutput wsOut, resultTable, sourceAlias, tableAlias, fields, valueRow, dataEndRow
 
     rs.Close
-
-    mp_WriteStateCardGeneric = valueRow + 1
+    outTableRendered = True
+    mp_WriteStateCardGeneric = dataEndRow + 1
 
 End Function
 
@@ -600,7 +700,10 @@ Private Function mp_WriteEventsGeneric( _
     ByVal resultTablesByRef As Object, _
     ByVal sourceAlias As String, _
     ByVal tableAlias As String, _
-    ByVal headerRows As Collection _
+    ByVal headerRows As Collection, _
+    ByVal pendingWarningBanners As Collection, _
+    ByVal partialMatchRowRanges As Collection, _
+    ByRef outTableRendered As Boolean _
 ) As Long
     On Error GoTo EH
 
@@ -617,6 +720,10 @@ Private Function mp_WriteEventsGeneric( _
     Dim headerRowIndex As Long
     Dim columnMap As Object
     Dim useMatrixLookup As Boolean
+    Dim dataStartRow As Long
+    Dim rawIndex As Long
+    Dim keyCellText As String
+    Dim showNoEventsRow As Boolean
 
     Dim fields As Variant
     fields = mp_GetOrderedFieldAliases(cfg, sourceAlias, tableAlias)
@@ -626,6 +733,10 @@ Private Function mp_WriteEventsGeneric( _
 
     Dim fieldCount As Long
     fieldCount = UBound(fields) - LBound(fields) + 1
+
+    showNoEventsRow = mp_IsLikelyFullPersonKey(fio)
+    outTableRendered = False
+    mp_WriteEventsGeneric = rowIndex
 
     Dim keyAlias As String
     keyAlias = mp_GetCfgRequired(cfg, sourceAlias & ".Sheet[" & tableAlias & "].Key")
@@ -644,34 +755,12 @@ Private Function mp_WriteEventsGeneric( _
     Set rs = CreateObject("ADODB.Recordset")
     rs.Open sql, adoConn, 0, 1
 
-    Dim outHeaderRow As Long
-    outHeaderRow = rowIndex
-    headerRows.Add outHeaderRow
-
-    Dim i As Long
-    Dim headerValues() As Variant
-    ReDim headerValues(1 To 1, 1 To fieldCount)
-
-    For i = LBound(fields) To UBound(fields)
-        Dim fieldAlias As String
-        fieldAlias = Trim$(CStr(fields(i)))
-        headerValues(1, 1 + (i - LBound(fields))) = mp_GetLabel(cfg, sourceAlias, tableAlias, fieldAlias)
-    Next i
-
-    wsOut.Range(wsOut.Cells(outHeaderRow, 1), wsOut.Cells(outHeaderRow, fieldCount)).Value = headerValues
-
-    Dim fieldOrdinals() As Long
-    ReDim fieldOrdinals(LBound(fields) To UBound(fields))
-
-    Dim outDataRow As Long
-    outDataRow = outHeaderRow + 1
-
     If rs.EOF Then
-        wsOut.Cells(outDataRow, 1).Value = "(no events found for this person)"
-        mp_AddResultFieldRangesForFields resultFieldRanges, sourceAlias, tableAlias, fields, outHeaderRow, outDataRow
-        mp_CaptureResultTableRowsFromOutput wsOut, resultTable, sourceAlias, tableAlias, fields, outDataRow, outDataRow
         rs.Close
-        mp_WriteEventsGeneric = outDataRow + 1
+        If showNoEventsRow Then
+            mp_WriteEventsGeneric = mp_RenderEventsNoData(wsOut, rowIndex, cfg, sourceAlias, tableAlias, fields, headerRows, resultFieldRanges, resultTable)
+            outTableRendered = True
+        End If
         Exit Function
     End If
 
@@ -714,48 +803,111 @@ Private Function mp_WriteEventsGeneric( _
             "Events key header not found: '" & keyHeader & "' (alias '" & tableAlias & "')."
     End If
 
+    Dim exactIndexes() As Long
+    Dim exactCount As Long
+    Dim partialKeySet As Object
+    Dim partialKeys As Collection
+
+    ReDim exactIndexes(0 To rowCount - 1)
+    Set partialKeySet = CreateObject("Scripting.Dictionary")
+    partialKeySet.CompareMode = 1
+    Set partialKeys = New Collection
+
+    dataStartRow = 0
+    If keyIsNumeric Or useMatrixLookup Then dataStartRow = headerRowIndex + 1
+
+    For rawIndex = dataStartRow To rowCount - 1
+        keyCellText = mp_ToSafeText(fieldData(keyOrdinal, rawIndex))
+        If StrComp(keyCellText, fio, vbTextCompare) = 0 Then
+            exactIndexes(exactCount) = rawIndex
+            exactCount = exactCount + 1
+        ElseIf mp_StateKeyContainsToken(keyCellText, fio) Then
+            If Len(keyCellText) > 0 Then
+                If Not partialKeySet.Exists(keyCellText) Then
+                    partialKeySet.Add keyCellText, True
+                    partialKeys.Add keyCellText
+                End If
+            End If
+        End If
+    Next rawIndex
+
+    If exactCount = 0 And partialKeys.Count = 0 Then
+        rs.Close
+        If showNoEventsRow Then
+            mp_WriteEventsGeneric = mp_RenderEventsNoData(wsOut, rowIndex, cfg, sourceAlias, tableAlias, fields, headerRows, resultFieldRanges, resultTable)
+            outTableRendered = True
+        End If
+        Exit Function
+    End If
+
+    Dim outHeaderRow As Long
+    Dim outDataRow As Long
+    Dim i As Long
+    Dim fieldAlias As String
+    Dim headerValues() As Variant
+    Dim fieldOrdinals() As Long
+
+    If exactCount = 0 And partialKeys.Count > 0 Then
+        rowIndex = mp_RenderStateCandidatesWarningBanner(wsOut, rowIndex, fio, partialKeys.Count, pendingWarningBanners)
+
+        outHeaderRow = rowIndex
+        headerRows.Add outHeaderRow
+        wsOut.Cells(outHeaderRow, 1).Value = mp_GetLabel(cfg, sourceAlias, tableAlias, keyAlias)
+
+        outDataRow = outHeaderRow + 1
+        Dim keyDataEndRow As Long
+        keyDataEndRow = outDataRow + partialKeys.Count - 1
+
+        Dim partialValues() As Variant
+        Dim keyOnlyFields(0 To 0) As String
+        Dim candidateIndex As Long
+        ReDim partialValues(1 To partialKeys.Count, 1 To 1)
+        keyOnlyFields(0) = keyAlias
+
+        For candidateIndex = 1 To partialKeys.Count
+            partialValues(candidateIndex, 1) = CStr(partialKeys(candidateIndex))
+        Next candidateIndex
+
+        wsOut.Range(wsOut.Cells(outDataRow, 1), wsOut.Cells(keyDataEndRow, 1)).Value2 = partialValues
+        mp_AddResultFieldRange resultFieldRanges, sourceAlias, tableAlias, keyAlias, 1, outHeaderRow, keyDataEndRow
+        mp_CaptureResultTableRowsFromOutput wsOut, resultTable, sourceAlias, tableAlias, keyOnlyFields, outDataRow, keyDataEndRow
+        mp_AddPartialMatchRowRange partialMatchRowRanges, outHeaderRow, keyDataEndRow
+
+        rs.Close
+        outTableRendered = True
+        mp_WriteEventsGeneric = keyDataEndRow + 1
+        Exit Function
+    End If
+
+    outHeaderRow = rowIndex
+    headerRows.Add outHeaderRow
+
+    ReDim headerValues(1 To 1, 1 To fieldCount)
+    ReDim fieldOrdinals(LBound(fields) To UBound(fields))
+
     For i = LBound(fields) To UBound(fields)
-        sourceHeader = mp_GetMappedSourceHeader(cfg, sourceAlias, tableAlias, Trim$(CStr(fields(i))))
+        fieldAlias = Trim$(CStr(fields(i)))
+        headerValues(1, 1 + (i - LBound(fields))) = mp_GetLabel(cfg, sourceAlias, tableAlias, fieldAlias)
+        sourceHeader = mp_GetMappedSourceHeader(cfg, sourceAlias, tableAlias, fieldAlias)
         If keyIsNumeric Or useMatrixLookup Then
             fieldOrdinals(i) = mp_GetMatrixColumnOrdinal(columnMap, sourceHeader)
         Else
             fieldOrdinals(i) = mp_RecordsetGetFieldOrdinal(rs, sourceHeader)
         End If
     Next i
+    wsOut.Range(wsOut.Cells(outHeaderRow, 1), wsOut.Cells(outHeaderRow, fieldCount)).Value = headerValues
 
-    Dim selectedIndexes() As Long
     Dim selectedCount As Long
-    Dim rawIndex As Long
+    selectedCount = exactCount
 
-    ReDim selectedIndexes(0 To rowCount - 1)
-    selectedCount = 0
-
-    Dim dataStartRow As Long
-    dataStartRow = 0
-    If keyIsNumeric Then dataStartRow = headerRowIndex + 1
-
-    For rawIndex = dataStartRow To rowCount - 1
-        If StrComp(mp_ToSafeText(fieldData(keyOrdinal, rawIndex)), fio, vbTextCompare) = 0 Then
-            selectedIndexes(selectedCount) = rawIndex
-            selectedCount = selectedCount + 1
-        End If
-    Next rawIndex
-
-    If selectedCount = 0 Then
-        wsOut.Cells(outDataRow, 1).Value = "(no events found for this person)"
-        mp_AddResultFieldRangesForFields resultFieldRanges, sourceAlias, tableAlias, fields, outHeaderRow, outDataRow
-        mp_CaptureResultTableRowsFromOutput wsOut, resultTable, sourceAlias, tableAlias, fields, outDataRow, outDataRow
-        rs.Close
-        mp_WriteEventsGeneric = outDataRow + 1
-        Exit Function
-    End If
+    outDataRow = outHeaderRow + 1
 
     Dim outValues() As Variant
     Dim outIndex As Long
     ReDim outValues(1 To selectedCount, 1 To fieldCount)
 
     For outIndex = 1 To selectedCount
-        rawIndex = selectedIndexes(outIndex - 1)
+        rawIndex = exactIndexes(outIndex - 1)
 
         For i = LBound(fields) To UBound(fields)
             If fieldOrdinals(i) >= 0 Then
@@ -796,6 +948,7 @@ Private Function mp_WriteEventsGeneric( _
     mp_AddResultFieldRangesForFields resultFieldRanges, sourceAlias, tableAlias, fields, outHeaderRow, outDataRow - 1
     mp_CaptureResultTableRowsFromOutput wsOut, resultTable, sourceAlias, tableAlias, fields, outHeaderRow + 1, outDataRow - 1
 
+    outTableRendered = True
     mp_WriteEventsGeneric = outDataRow + 1
     Exit Function
 
@@ -804,6 +957,7 @@ SortEH:
     mp_AddResultFieldRangesForFields resultFieldRanges, sourceAlias, tableAlias, fields, outHeaderRow, outDataRow - 1
     mp_CaptureResultTableRowsFromOutput wsOut, resultTable, sourceAlias, tableAlias, fields, outHeaderRow + 1, outDataRow - 1
     On Error GoTo EH
+    outTableRendered = True
     mp_WriteEventsGeneric = outDataRow + 1
     Exit Function
 
@@ -979,6 +1133,24 @@ Private Sub mp_AddResultFieldRange( _
     target("RowEnd") = rowEnd
 
     resultFieldRanges.Add target
+End Sub
+
+Private Sub mp_AddPartialMatchRowRange( _
+    ByVal partialMatchRowRanges As Collection, _
+    ByVal rowStart As Long, _
+    ByVal rowEnd As Long _
+)
+    Dim target As Object
+
+    If partialMatchRowRanges Is Nothing Then Exit Sub
+    If rowStart <= 0 Then Exit Sub
+    If rowEnd < rowStart Then Exit Sub
+
+    Set target = CreateObject("Scripting.Dictionary")
+    target.CompareMode = 1
+    target("RowStart") = rowStart
+    target("RowEnd") = rowEnd
+    partialMatchRowRanges.Add target
 End Sub
 
 Private Function mp_EnsureResultTable( _
@@ -1750,6 +1922,167 @@ Private Function mp_ToSafeText(ByVal valueIn As Variant) As String
     If IsEmpty(valueIn) Then Exit Function
 
     mp_ToSafeText = Trim$(CStr(valueIn))
+End Function
+
+Private Function mp_StateKeyContainsToken(ByVal candidateKey As String, ByVal searchToken As String) As Boolean
+    Dim normalizedCandidate As String
+    Dim normalizedToken As String
+
+    normalizedCandidate = mp_NormalizeSearchToken(candidateKey)
+    normalizedToken = mp_NormalizeSearchToken(searchToken)
+
+    If Len(normalizedCandidate) = 0 Then Exit Function
+    If Len(normalizedToken) = 0 Then Exit Function
+
+    mp_StateKeyContainsToken = (InStr(1, normalizedCandidate, normalizedToken, vbTextCompare) > 0)
+End Function
+
+Private Function mp_NormalizeSearchToken(ByVal valueText As String) As String
+    valueText = Replace$(valueText, vbCr, " ")
+    valueText = Replace$(valueText, vbLf, " ")
+    valueText = Replace$(valueText, vbTab, " ")
+    valueText = Trim$(valueText)
+
+    Do While InStr(1, valueText, "  ", vbBinaryCompare) > 0
+        valueText = Replace$(valueText, "  ", " ")
+    Loop
+
+    mp_NormalizeSearchToken = valueText
+End Function
+
+Private Function mp_IsLikelyFullPersonKey(ByVal searchKey As String) As Boolean
+    Dim normalized As String
+    Dim tokens As Variant
+    Dim i As Long
+    Dim tokenCount As Long
+
+    normalized = mp_NormalizeSearchToken(searchKey)
+    If Len(normalized) = 0 Then Exit Function
+
+    tokens = Split(normalized, " ")
+    For i = LBound(tokens) To UBound(tokens)
+        If Len(Trim$(CStr(tokens(i)))) > 0 Then tokenCount = tokenCount + 1
+    Next i
+
+    mp_IsLikelyFullPersonKey = (tokenCount >= 2)
+End Function
+
+Private Function mp_RenderEventsNoData( _
+    ByVal wsOut As Worksheet, _
+    ByVal rowIndex As Long, _
+    ByVal cfg As Object, _
+    ByVal sourceAlias As String, _
+    ByVal tableAlias As String, _
+    ByVal fields As Variant, _
+    ByVal headerRows As Collection, _
+    ByVal resultFieldRanges As Collection, _
+    ByVal resultTable As obj_ResultTable _
+) As Long
+    Dim outHeaderRow As Long
+    Dim outDataRow As Long
+    Dim fieldCount As Long
+    Dim i As Long
+    Dim headerValues() As Variant
+    Dim fieldAlias As String
+
+    outHeaderRow = rowIndex
+    headerRows.Add outHeaderRow
+
+    fieldCount = UBound(fields) - LBound(fields) + 1
+    ReDim headerValues(1 To 1, 1 To fieldCount)
+
+    For i = LBound(fields) To UBound(fields)
+        fieldAlias = Trim$(CStr(fields(i)))
+        headerValues(1, 1 + (i - LBound(fields))) = mp_GetLabel(cfg, sourceAlias, tableAlias, fieldAlias)
+    Next i
+
+    wsOut.Range(wsOut.Cells(outHeaderRow, 1), wsOut.Cells(outHeaderRow, fieldCount)).Value = headerValues
+
+    outDataRow = outHeaderRow + 1
+    wsOut.Cells(outDataRow, 1).Value = "(no events found for this person)"
+    mp_AddResultFieldRangesForFields resultFieldRanges, sourceAlias, tableAlias, fields, outHeaderRow, outDataRow
+    mp_CaptureResultTableRowsFromOutput wsOut, resultTable, sourceAlias, tableAlias, fields, outDataRow, outDataRow
+
+    mp_RenderEventsNoData = outDataRow + 1
+End Function
+
+Private Function mp_RenderStateCandidatesWarningBanner( _
+    ByVal ws As Worksheet, _
+    ByVal startRow As Long, _
+    ByVal searchKey As String, _
+    ByVal candidateCount As Long, _
+    ByVal pendingWarningBanners As Collection _
+) As Long
+    Dim bannerCols As Long
+    Dim bannerRows As Long
+    Dim bannerRangeAddress As String
+    Dim titleText As String
+    Dim messageText As String
+    Dim entry As Object
+
+    If startRow < 1 Then startRow = 1
+    mp_GetWarningBannerDimensions bannerCols, bannerRows
+    bannerRangeAddress = "A" & CStr(startRow) & ":" & mp_ToColumnLetter(bannerCols) & CStr(startRow + bannerRows - 1)
+
+    titleText = "WARNING: Multiple candidates found"
+    messageText = "Search key '" & searchKey & "' returned " & CStr(candidateCount) & " matches. Select the correct candidate from the list below, copy the full key value, paste it into the search field, and run search again."
+
+    If Not pendingWarningBanners Is Nothing Then
+        Set entry = CreateObject("Scripting.Dictionary")
+        entry.CompareMode = 1
+        entry("RangeAddress") = bannerRangeAddress
+        entry("Title") = titleText
+        entry("Message") = messageText
+        pendingWarningBanners.Add entry
+    End If
+
+    ex_Messaging.m_RenderWarningBanner ws, messageText, titleText, bannerRangeAddress
+
+    mp_RenderStateCandidatesWarningBanner = startRow + bannerRows + 1
+End Function
+
+Private Sub mp_RenderPendingWarningBanners(ByVal ws As Worksheet, ByVal pendingWarningBanners As Collection)
+    Dim i As Long
+    Dim entry As Object
+
+    If ws Is Nothing Then Exit Sub
+    If pendingWarningBanners Is Nothing Then Exit Sub
+
+    For i = 1 To pendingWarningBanners.Count
+        Set entry = pendingWarningBanners(i)
+        If entry Is Nothing Then GoTo ContinueBanner
+        ex_Messaging.m_RenderWarningBanner ws, CStr(entry("Message")), CStr(entry("Title")), CStr(entry("RangeAddress"))
+ContinueBanner:
+    Next i
+End Sub
+
+Private Sub mp_GetWarningBannerDimensions(ByRef outColumns As Long, ByRef outRows As Long)
+    Dim bannerStyle As ex_SheetStylesXmlProvider.t_ErrorBannerStyle
+
+    If ex_SheetStylesXmlProvider.m_GetWarningBannerStyle(bannerStyle, ThisWorkbook) Then
+        outColumns = bannerStyle.Columns
+        outRows = bannerStyle.Rows
+    ElseIf ex_SheetStylesXmlProvider.m_GetErrorBannerStyle(bannerStyle, ThisWorkbook) Then
+        outColumns = bannerStyle.Columns
+        outRows = bannerStyle.Rows
+    End If
+
+    If outColumns < 1 Then outColumns = 8
+    If outRows < 1 Then outRows = 3
+End Sub
+
+Private Function mp_ToColumnLetter(ByVal columnIndex As Long) As String
+    Dim n As Long
+    Dim remainder As Long
+
+    If columnIndex < 1 Then columnIndex = 1
+    n = columnIndex
+
+    Do While n > 0
+        remainder = (n - 1) Mod 26
+        mp_ToColumnLetter = Chr$(65 + remainder) & mp_ToColumnLetter
+        n = (n - remainder - 1) \ 26
+    Loop
 End Function
 
 Private Function mp_ToCellValue(ByVal valueIn As Variant) As Variant

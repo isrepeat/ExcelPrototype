@@ -27,12 +27,12 @@
     errorFontColor="#0A0A0A"
     buttonAnchorColumn="3"
     buttonWidthColumns="1"
-    fixedWidthKey="12"
+    fixedWidthKey="20"
     fixedWidthValue="28"
     fixedWidthButton="14"
     fixedFieldRowHeight="32">
     <fields>
-      <inputConfigRefField label="Key" inputName="CommonKey" inputConfigKey="CommonKey">
+      <inputConfigRefField label="Common Key" inputName="CommonKey" inputConfigKey="CommonKey">
         <button caption="Search"
                 macro="ex_UIActions.m_OutputPanelStartSearch_OnClick"
                 />
