@@ -326,7 +326,7 @@ Public Function m_TryParseMacroArg(ByVal argText As String, ByRef outArgSpec As 
     End If
 
     If ex_PostProcessParserCore.m_IsIdentifier(argText) Then
-        outArgSpec("Kind") = "rowvar"
+        outArgSpec("Kind") = "varref"
         outArgSpec("Name") = Trim$(argText)
         m_TryParseMacroArg = True
         Exit Function
@@ -373,7 +373,7 @@ End Function
 
 Public Function m_ValidateMacroArgSpec( _
     ByVal argSpec As Object, _
-    ByVal currentRowVar As String, _
+    ByVal scopeVarTypes As Object, _
     ByVal allowedTableFields As Object, _
     ByRef outErrorText As String _
 ) As Boolean
@@ -383,13 +383,13 @@ Public Function m_ValidateMacroArgSpec( _
     If argSpec Is Nothing Then Exit Function
 
     Select Case LCase$(CStr(argSpec("Kind")))
-        Case "rowvar"
-            If Len(currentRowVar) = 0 Then
-                outErrorText = "callMacro row argument '" & CStr(argSpec("Name")) & "' is not available in this scope."
+        Case "varref"
+            If scopeVarTypes Is Nothing Then
+                outErrorText = "callMacro variable '" & CStr(argSpec("Name")) & "' is not available in this scope."
                 Exit Function
             End If
-            If StrComp(CStr(argSpec("Name")), currentRowVar, vbTextCompare) <> 0 Then
-                outErrorText = "callMacro row argument must be current row variable '" & currentRowVar & "'."
+            If Not scopeVarTypes.Exists(CStr(argSpec("Name"))) Then
+                outErrorText = "callMacro variable '" & CStr(argSpec("Name")) & "' is not available in this scope."
                 Exit Function
             End If
 

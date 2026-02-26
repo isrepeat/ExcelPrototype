@@ -3,6 +3,14 @@ Option Explicit
 
 Private Const SCRIPT_KEY As String = "PostProcess.Script"
 Private Const ACTION_CALL_MACRO As String = "callmacro"
+Private Const ACTION_LET As String = "let"
+
+Private Const LOOP_TARGET_TABLE_ROWS As String = "tablerows"
+Private Const LOOP_TARGET_ROW_COLUMNS As String = "rowcolumns"
+
+Private Const VAR_TYPE_ROW As String = "row"
+Private Const VAR_TYPE_COLUMN As String = "column"
+Private Const VAR_TYPE_STRING As String = "string"
 
 Public Function m_ValidateScriptAgainstConfig( _
     ByVal cfg As Object, _
@@ -113,12 +121,15 @@ Private Function mp_ParseScript(ByVal scriptText As String, ByRef outBlocks As C
 End Function
 
 Private Function mp_ValidateBlocks(ByVal blocks As Collection, ByVal allowedTableFields As Object, ByRef outErrorText As String) As Boolean
+    Dim rootScopeVarTypes As Object
+
     If blocks Is Nothing Then
         mp_ValidateBlocks = True
         Exit Function
     End If
 
-    mp_ValidateBlocks = mp_ValidateStatements(blocks, allowedTableFields, vbNullString, vbNullString, outErrorText)
+    Set rootScopeVarTypes = mp_CreateVarScope()
+    mp_ValidateBlocks = mp_ValidateStatements(blocks, allowedTableFields, vbNullString, vbNullString, rootScopeVarTypes, outErrorText)
 End Function
 
 Private Sub mp_ExecuteBlocks( _
@@ -128,7 +139,10 @@ Private Sub mp_ExecuteBlocks( _
     ByVal postProcessFooterLines As Collection, _
     ByVal usedCols As Long _
 )
-    mp_ExecuteStatements ws, blocks, tablesByRef, postProcessFooterLines, usedCols, vbNullString, vbNullString, Nothing
+    Dim rootRuntimeVars As Object
+
+    Set rootRuntimeVars = mp_CreateVarScope()
+    mp_ExecuteStatements ws, blocks, tablesByRef, postProcessFooterLines, usedCols, vbNullString, vbNullString, Nothing, rootRuntimeVars
 End Sub
 
 Private Sub mp_ExecuteStatements( _
@@ -139,17 +153,26 @@ Private Sub mp_ExecuteStatements( _
     ByVal usedCols As Long, _
     ByVal currentTableRef As String, _
     ByVal currentRowVar As String, _
-    ByVal currentRowRef As obj_ResultRow _
+    ByVal currentRowRef As obj_ResultRow, _
+    ByVal runtimeVars As Object _
 )
     Dim i As Long
     Dim statement As Object
     Dim statementType As String
     Dim macroArgs As Collection
+    Dim macroResult As Variant
     Dim rowsList As Collection
     Dim rowRef As obj_ResultRow
     Dim rowIdx As Long
+    Dim childRuntimeVars As Object
+    Dim loopVarName As String
+    Dim sourceRowVarName As String
+    Dim sourceRowRef As obj_ResultRow
+    Dim rowColumns As Collection
+    Dim columnObj As obj_ResultColumn
 
     If statements Is Nothing Then Exit Sub
+    If runtimeVars Is Nothing Then Set runtimeVars = mp_CreateVarScope()
 
     For i = 1 To statements.Count
         Set statement = statements(i)
@@ -158,22 +181,62 @@ Private Sub mp_ExecuteStatements( _
         Select Case statementType
             Case ACTION_CALL_MACRO
                 On Error GoTo CallMacroErr
-                Set macroArgs = mp_BuildMacroRuntimeArgs(statement, currentTableRef, currentRowVar, currentRowRef, tablesByRef)
+                Set macroArgs = mp_BuildMacroRuntimeArgs(statement, currentTableRef, currentRowVar, currentRowRef, tablesByRef, runtimeVars)
                 ex_PostProcessActionInvoker.m_RunMacroWithArgs CStr(statement("MacroName")), macroArgs
                 On Error GoTo 0
 
+            Case ACTION_LET
+                On Error GoTo CallMacroErr
+                Set macroArgs = mp_BuildMacroRuntimeArgs(statement, currentTableRef, currentRowVar, currentRowRef, tablesByRef, runtimeVars)
+                macroResult = ex_PostProcessActionInvoker.m_RunMacroWithArgsReturn(CStr(statement("MacroName")), macroArgs)
+                mp_SetScopeValue runtimeVars, CStr(statement("VarName")), mp_ConvertVariantToString(macroResult)
+                On Error GoTo 0
+
             Case "if"
-                If mp_EvaluateCondition(CStr(statement("Condition")), currentTableRef, currentRowVar, currentRowRef, tablesByRef) Then
-                    mp_ExecuteStatements ws, statement("Body"), tablesByRef, postProcessFooterLines, usedCols, currentTableRef, currentRowVar, currentRowRef
+                If mp_EvaluateCondition(CStr(statement("Condition")), currentTableRef, currentRowVar, currentRowRef, tablesByRef, runtimeVars) Then
+                    Set childRuntimeVars = mp_CloneVarScope(runtimeVars)
+                    mp_ExecuteStatements ws, statement("Body"), tablesByRef, postProcessFooterLines, usedCols, currentTableRef, currentRowVar, currentRowRef, childRuntimeVars
                 End If
 
             Case "for"
-                If ex_ResultRuntimeAdapter.m_TryGetRowsForTableRef(tablesByRef, CStr(statement("TableRef")), rowsList) Then
-                    For rowIdx = 1 To rowsList.Count
-                        Set rowRef = rowsList(rowIdx)
-                        mp_ExecuteStatements ws, statement("Body"), tablesByRef, postProcessFooterLines, usedCols, CStr(statement("TableRef")), CStr(statement("RowVar")), rowRef
-                    Next rowIdx
-                End If
+                Select Case LCase$(CStr(statement("LoopTarget")))
+                    Case LOOP_TARGET_TABLE_ROWS
+                        If ex_ResultRuntimeAdapter.m_TryGetRowsForTableRef(tablesByRef, CStr(statement("TableRef")), rowsList) Then
+                            loopVarName = CStr(statement("LoopVar"))
+                            For rowIdx = 1 To rowsList.Count
+                                Set rowRef = rowsList(rowIdx)
+                                Set childRuntimeVars = mp_CloneVarScope(runtimeVars)
+                                mp_SetScopeObject childRuntimeVars, loopVarName, rowRef
+                                mp_ExecuteStatements ws, statement("Body"), tablesByRef, postProcessFooterLines, usedCols, CStr(statement("TableRef")), loopVarName, rowRef, childRuntimeVars
+                            Next rowIdx
+                        End If
+
+                    Case LOOP_TARGET_ROW_COLUMNS
+                        sourceRowVarName = CStr(statement("SourceRowVar"))
+                        If runtimeVars Is Nothing Or Not runtimeVars.Exists(sourceRowVarName) Then
+                            Err.Raise vbObjectError + 1608, "ex_PostProcessDsl", "Row variable '" & sourceRowVarName & "' is not available for .columns iteration."
+                        End If
+                        If Not IsObject(runtimeVars(sourceRowVarName)) Then
+                            Err.Raise vbObjectError + 1609, "ex_PostProcessDsl", "Variable '" & sourceRowVarName & "' is not an object row reference for .columns iteration."
+                        End If
+                        If Not TypeOf runtimeVars(sourceRowVarName) Is obj_ResultRow Then
+                            Err.Raise vbObjectError + 1610, "ex_PostProcessDsl", "Variable '" & sourceRowVarName & "' must be row object for .columns iteration."
+                        End If
+
+                        Set sourceRowRef = runtimeVars(sourceRowVarName)
+                        Set rowColumns = sourceRowRef.Columns
+                        loopVarName = CStr(statement("LoopVar"))
+
+                        For rowIdx = 1 To rowColumns.Count
+                            Set columnObj = rowColumns(rowIdx)
+                            Set childRuntimeVars = mp_CloneVarScope(runtimeVars)
+                            mp_SetScopeObject childRuntimeVars, loopVarName, columnObj
+                            mp_ExecuteStatements ws, statement("Body"), tablesByRef, postProcessFooterLines, usedCols, currentTableRef, sourceRowVarName, sourceRowRef, childRuntimeVars
+                        Next rowIdx
+
+                    Case Else
+                        Err.Raise vbObjectError + 1611, "ex_PostProcessDsl", "Unsupported for-loop target: " & CStr(statement("LoopTarget"))
+                End Select
 
             Case Else
                 Err.Raise vbObjectError + 1593, "ex_PostProcessDsl", "Unsupported statement type: " & statementType
@@ -249,6 +312,8 @@ Private Function mp_ParseStatement( _
             mp_ParseStatement = mp_TryParseIfStatement(sourceText, pos, lineNo, outStatement, outErrorText)
         Case "callmacro"
             mp_ParseStatement = mp_TryParseCallMacroStatement(sourceText, pos, lineNo, outStatement, outErrorText)
+        Case "let"
+            mp_ParseStatement = mp_TryParseLetStatement(sourceText, pos, lineNo, outStatement, outErrorText)
         Case Else
             outErrorText = "Unsupported statement '" & keywordText & "' at line " & CStr(lineNo)
     End Select
@@ -263,9 +328,10 @@ Private Function mp_TryParseForStatement( _
 ) As Boolean
     Dim keywordText As String
     Dim forHeaderText As String
-    Dim rowVarName As String
+    Dim loopVarName As String
     Dim targetText As String
     Dim tableRef As String
+    Dim sourceRowVarName As String
     Dim bodyStatements As Collection
     Dim stmtLine As Long
 
@@ -276,23 +342,18 @@ Private Function mp_TryParseForStatement( _
     mp_SkipWhitespace sourceText, pos, lineNo
     If pos <= Len(sourceText) And Mid$(sourceText, pos, 1) = "(" Then
         If Not mp_ReadBalanced(sourceText, pos, lineNo, "(", ")", forHeaderText, outErrorText) Then
-            If Len(outErrorText) = 0 Then outErrorText = "Expected '(row in Source.Sheet[Table].rows)' after for at line " & CStr(stmtLine)
+            If Len(outErrorText) = 0 Then outErrorText = "Expected '(item in Source.Sheet[Table].rows)' after for at line " & CStr(stmtLine)
             Exit Function
         End If
-        If Not mp_TryParseForHeaderText(forHeaderText, rowVarName, targetText) Then
-            outErrorText = "Expected 'for (row in Source.Sheet[Table].rows)' at line " & CStr(stmtLine)
+        If Not mp_TryParseForHeaderText(forHeaderText, loopVarName, targetText) Then
+            outErrorText = "Expected 'for (item in Source.Sheet[Table].rows)' at line " & CStr(stmtLine)
             Exit Function
         End If
     Else
-        If Not mp_TryParseForHeaderFromStream(sourceText, pos, lineNo, rowVarName, targetText) Then
-            outErrorText = "Expected 'for row in Source.Sheet[Table].rows' at line " & CStr(stmtLine)
+        If Not mp_TryParseForHeaderFromStream(sourceText, pos, lineNo, loopVarName, targetText) Then
+            outErrorText = "Expected 'for item in Source.Sheet[Table].rows' at line " & CStr(stmtLine)
             Exit Function
         End If
-    End If
-
-    If Not ex_obj_ResultTableDsl.m_TryParseTableRowsRef(targetText, tableRef) Then
-        outErrorText = "Invalid table reference in for-statement at line " & CStr(stmtLine)
-        Exit Function
     End If
 
     mp_SkipWhitespace sourceText, pos, lineNo
@@ -308,8 +369,19 @@ Private Function mp_TryParseForStatement( _
     Set outStatement = CreateObject("Scripting.Dictionary")
     outStatement.CompareMode = 1
     outStatement("Type") = "for"
-    outStatement("RowVar") = rowVarName
-    outStatement("TableRef") = tableRef
+    outStatement("LoopVar") = loopVarName
+
+    If ex_obj_ResultTableDsl.m_TryParseTableRowsRef(targetText, tableRef) Then
+        outStatement("LoopTarget") = LOOP_TARGET_TABLE_ROWS
+        outStatement("TableRef") = tableRef
+    ElseIf ex_obj_ResultRowDsl.m_TryParseRowColumnsRef(targetText, sourceRowVarName) Then
+        outStatement("LoopTarget") = LOOP_TARGET_ROW_COLUMNS
+        outStatement("SourceRowVar") = sourceRowVarName
+    Else
+        outErrorText = "Invalid for target at line " & CStr(stmtLine) & ". Use Source.Sheet[Table].rows or <rowVar>.columns."
+        Exit Function
+    End If
+
     outStatement.Add "Body", bodyStatements
     outStatement("Line") = CLng(stmtLine)
     mp_TryParseForStatement = True
@@ -352,6 +424,7 @@ Private Function mp_TryParseForHeaderText( _
 
     outRowVarName = Trim$(Left$(bodyText, inPos - 1))
     If Len(outRowVarName) = 0 Then Exit Function
+    If Not ex_PostProcessParserCore.m_IsIdentifier(outRowVarName) Then Exit Function
 
     outTargetText = Trim$(Mid$(bodyText, inPos + 4))
     If Len(outTargetText) = 0 Then Exit Function
@@ -425,23 +498,80 @@ Private Function mp_TryParseCallMacroStatement( _
     mp_TryParseCallMacroStatement = True
 End Function
 
+Private Function mp_TryParseLetStatement( _
+    ByVal sourceText As String, _
+    ByRef pos As Long, _
+    ByRef lineNo As Long, _
+    ByRef outStatement As Object, _
+    ByRef outErrorText As String _
+) As Boolean
+    Dim keywordText As String
+    Dim varName As String
+    Dim rhsStatementText As String
+    Dim actionStatement As Object
+    Dim stmtLine As Long
+
+    stmtLine = lineNo
+    If Not mp_ReadIdentifier(sourceText, pos, lineNo, keywordText) Then Exit Function
+    If StrComp(keywordText, "let", vbTextCompare) <> 0 Then Exit Function
+
+    mp_SkipWhitespace sourceText, pos, lineNo
+    If Not mp_ReadIdentifier(sourceText, pos, lineNo, varName) Then
+        outErrorText = "Expected variable name after let at line " & CStr(stmtLine)
+        Exit Function
+    End If
+    If Not ex_PostProcessParserCore.m_IsIdentifier(varName) Then
+        outErrorText = "Invalid variable name '" & varName & "' at line " & CStr(stmtLine)
+        Exit Function
+    End If
+
+    mp_SkipWhitespace sourceText, pos, lineNo
+    If pos > Len(sourceText) Or Mid$(sourceText, pos, 1) <> "=" Then
+        outErrorText = "Expected '=' in let statement at line " & CStr(stmtLine)
+        Exit Function
+    End If
+    pos = pos + 1
+
+    If Not mp_ReadStatementToSemicolon(sourceText, pos, lineNo, rhsStatementText, outErrorText) Then Exit Function
+    If Not mp_TryParseAction(rhsStatementText, actionStatement, outErrorText) Then
+        outErrorText = outErrorText & " at line " & CStr(stmtLine)
+        Exit Function
+    End If
+    If LCase$(CStr(actionStatement("Type"))) <> ACTION_CALL_MACRO Then
+        outErrorText = "let supports only callMacro(...) at line " & CStr(stmtLine)
+        Exit Function
+    End If
+
+    Set outStatement = actionStatement
+    outStatement("Type") = ACTION_LET
+    outStatement("VarName") = varName
+    outStatement("Line") = CLng(stmtLine)
+    mp_TryParseLetStatement = True
+End Function
+
 Private Function mp_ValidateStatements( _
     ByVal statements As Collection, _
     ByVal allowedTableFields As Object, _
     ByVal currentTableRef As String, _
     ByVal currentRowVar As String, _
+    ByVal scopeVarTypes As Object, _
     ByRef outErrorText As String _
 ) As Boolean
     Dim i As Long
     Dim statement As Object
     Dim statementType As String
+    Dim loopTarget As String
     Dim tableRef As String
-    Dim rowVarName As String
+    Dim loopVarName As String
+    Dim sourceRowVarName As String
+    Dim childScopeVarTypes As Object
 
     If statements Is Nothing Then
         mp_ValidateStatements = True
         Exit Function
     End If
+
+    If scopeVarTypes Is Nothing Then Set scopeVarTypes = mp_CreateVarScope()
 
     For i = 1 To statements.Count
         Set statement = statements(i)
@@ -449,20 +579,49 @@ Private Function mp_ValidateStatements( _
 
         Select Case statementType
             Case ACTION_CALL_MACRO
-                If Not mp_ValidateCallMacroArgs(statement, currentRowVar, allowedTableFields, outErrorText) Then Exit Function
+                If Not mp_ValidateCallMacroArgs(statement, scopeVarTypes, allowedTableFields, outErrorText) Then Exit Function
+
+            Case ACTION_LET
+                If Not mp_ValidateCallMacroArgs(statement, scopeVarTypes, allowedTableFields, outErrorText) Then Exit Function
+                mp_SetScopeValue scopeVarTypes, CStr(statement("VarName")), VAR_TYPE_STRING
 
             Case "if"
-                If Not mp_ValidateConditionText(CStr(statement("Condition")), currentTableRef, currentRowVar, allowedTableFields, outErrorText) Then Exit Function
-                If Not mp_ValidateStatements(statement("Body"), allowedTableFields, currentTableRef, currentRowVar, outErrorText) Then Exit Function
+                If Not mp_ValidateConditionText(CStr(statement("Condition")), currentTableRef, currentRowVar, scopeVarTypes, allowedTableFields, outErrorText) Then Exit Function
+                Set childScopeVarTypes = mp_CloneVarScope(scopeVarTypes)
+                If Not mp_ValidateStatements(statement("Body"), allowedTableFields, currentTableRef, currentRowVar, childScopeVarTypes, outErrorText) Then Exit Function
 
             Case "for"
-                tableRef = CStr(statement("TableRef"))
-                rowVarName = CStr(statement("RowVar"))
-                If allowedTableFields Is Nothing Or Not allowedTableFields.Exists(tableRef) Then
-                    outErrorText = "Unknown table reference in script: '" & tableRef & "'."
-                    Exit Function
-                End If
-                If Not mp_ValidateStatements(statement("Body"), allowedTableFields, tableRef, rowVarName, outErrorText) Then Exit Function
+                loopTarget = LCase$(CStr(statement("LoopTarget")))
+                loopVarName = CStr(statement("LoopVar"))
+                Select Case loopTarget
+                    Case LOOP_TARGET_TABLE_ROWS
+                        tableRef = CStr(statement("TableRef"))
+                        If allowedTableFields Is Nothing Or Not allowedTableFields.Exists(tableRef) Then
+                            outErrorText = "Unknown table reference in script: '" & tableRef & "'."
+                            Exit Function
+                        End If
+                        Set childScopeVarTypes = mp_CloneVarScope(scopeVarTypes)
+                        mp_SetScopeValue childScopeVarTypes, loopVarName, VAR_TYPE_ROW
+                        If Not mp_ValidateStatements(statement("Body"), allowedTableFields, tableRef, loopVarName, childScopeVarTypes, outErrorText) Then Exit Function
+
+                    Case LOOP_TARGET_ROW_COLUMNS
+                        sourceRowVarName = CStr(statement("SourceRowVar"))
+                        If scopeVarTypes Is Nothing Or Not scopeVarTypes.Exists(sourceRowVarName) Then
+                            outErrorText = "Unknown row variable '" & sourceRowVarName & "' in for-loop."
+                            Exit Function
+                        End If
+                        If StrComp(CStr(scopeVarTypes(sourceRowVarName)), VAR_TYPE_ROW, vbTextCompare) <> 0 Then
+                            outErrorText = "Variable '" & sourceRowVarName & "' must be a row variable to use .columns iteration."
+                            Exit Function
+                        End If
+                        Set childScopeVarTypes = mp_CloneVarScope(scopeVarTypes)
+                        mp_SetScopeValue childScopeVarTypes, loopVarName, VAR_TYPE_COLUMN
+                        If Not mp_ValidateStatements(statement("Body"), allowedTableFields, currentTableRef, sourceRowVarName, childScopeVarTypes, outErrorText) Then Exit Function
+
+                    Case Else
+                        outErrorText = "Unsupported for-loop target '" & loopTarget & "'."
+                        Exit Function
+                End Select
 
             Case Else
                 outErrorText = "Unsupported statement type '" & statementType & "'."
@@ -477,6 +636,7 @@ Private Function mp_ValidateConditionText( _
     ByVal conditionText As String, _
     ByVal currentTableRef As String, _
     ByVal currentRowVar As String, _
+    ByVal scopeVarTypes As Object, _
     ByVal allowedTableFields As Object, _
     ByRef outErrorText As String _
 ) As Boolean
@@ -494,7 +654,7 @@ Private Function mp_ValidateConditionText( _
             outErrorText = "Unsupported condition token: '" & Trim$(CStr(condParts(i))) & "'."
             Exit Function
         End If
-        If Not mp_TryResolveConditionTokenForValidation(tokenText, currentTableRef, currentRowVar, allowedTableFields, resolvedTableRef, resolvedMapKey, outErrorText) Then
+        If Not mp_TryResolveConditionTokenForValidation(tokenText, currentTableRef, currentRowVar, scopeVarTypes, allowedTableFields, resolvedTableRef, resolvedMapKey, outErrorText) Then
             Exit Function
         End If
     Next i
@@ -668,7 +828,8 @@ Private Function mp_EvaluateCondition( _
     ByVal currentTableRef As String, _
     ByVal currentRowVar As String, _
     ByVal currentRowRef As obj_ResultRow, _
-    ByVal tablesByRef As Object _
+    ByVal tablesByRef As Object, _
+    ByVal runtimeVars As Object _
 ) As Boolean
     Dim condParts As Collection
     Dim condOps As Collection
@@ -693,7 +854,7 @@ Private Function mp_EvaluateCondition( _
         If Not mp_ParseConditionPart(CStr(condParts(i)), refToken, opText, expectedValue) Then
             Err.Raise vbObjectError + 1594, "ex_PostProcessDsl", "Invalid condition: " & Trim$(CStr(condParts(i)))
         End If
-        If Not mp_TryResolveRuntimeValue(refToken, currentTableRef, currentRowVar, currentRowRef, tablesByRef, actualValue, resolveError) Then
+        If Not mp_TryResolveRuntimeValue(refToken, currentTableRef, currentRowVar, currentRowRef, tablesByRef, runtimeVars, actualValue, resolveError) Then
             Err.Raise vbObjectError + 1595, "ex_PostProcessDsl", resolveError
         End If
 
@@ -946,7 +1107,8 @@ Private Function mp_RenderTemplate( _
     ByVal currentTableRef As String, _
     ByVal currentRowVar As String, _
     ByVal currentRowRef As obj_ResultRow, _
-    ByVal tablesByRef As Object _
+    ByVal tablesByRef As Object, _
+    ByVal runtimeVars As Object _
 ) As String
     Dim result As String
     Dim openPos As Long
@@ -962,7 +1124,7 @@ Private Function mp_RenderTemplate( _
         If closePos <= openPos Then Exit Do
 
         tokenText = Mid$(result, openPos + 1, closePos - openPos - 1)
-        If Not mp_TryResolveRuntimeValue(tokenText, currentTableRef, currentRowVar, currentRowRef, tablesByRef, tokenValue, resolveError) Then
+        If Not mp_TryResolveRuntimeValue(tokenText, currentTableRef, currentRowVar, currentRowRef, tablesByRef, runtimeVars, tokenValue, resolveError) Then
             Err.Raise vbObjectError + 1595, "ex_PostProcessDsl", resolveError
         End If
 
@@ -1026,11 +1188,56 @@ Private Function mp_TryResolveConditionTokenForValidation( _
     ByVal tokenText As String, _
     ByVal currentTableRef As String, _
     ByVal currentRowVar As String, _
+    ByVal scopeVarTypes As Object, _
     ByVal allowedTableFields As Object, _
     ByRef outResolvedTableRef As String, _
     ByRef outResolvedMapKey As String, _
     ByRef outErrorText As String _
 ) As Boolean
+    Dim variableName As String
+    Dim memberName As String
+    Dim variableType As String
+
+    tokenText = Trim$(tokenText)
+    If Len(tokenText) = 0 Then
+        outErrorText = "Field reference is empty."
+        Exit Function
+    End If
+
+    If ex_PostProcessParserCore.m_IsIdentifier(tokenText) Then
+        If scopeVarTypes Is Nothing Or Not scopeVarTypes.Exists(tokenText) Then
+            outErrorText = "Unknown variable '" & tokenText & "' in condition."
+            Exit Function
+        End If
+        outResolvedTableRef = vbNullString
+        outResolvedMapKey = vbNullString
+        mp_TryResolveConditionTokenForValidation = True
+        Exit Function
+    End If
+
+    If mp_TryParseVariableMemberRef(tokenText, variableName, memberName) Then
+        If scopeVarTypes Is Nothing Or Not scopeVarTypes.Exists(variableName) Then
+            outErrorText = "Unknown variable '" & variableName & "' in condition."
+            Exit Function
+        End If
+        variableType = LCase$(CStr(scopeVarTypes(variableName)))
+        Select Case variableType
+            Case VAR_TYPE_COLUMN
+                If Not ex_PostProcessDslContracts.m_IsMemberAllowed(ex_PostProcessDslContracts.TYPE_COLUMN, memberName) Then
+                    outErrorText = "Unsupported column member '" & memberName & "' in token '" & tokenText & "'."
+                    Exit Function
+                End If
+            Case Else
+                outErrorText = "Variable '" & variableName & "' does not support member access in token '" & tokenText & "'."
+                Exit Function
+        End Select
+
+        outResolvedTableRef = vbNullString
+        outResolvedMapKey = vbNullString
+        mp_TryResolveConditionTokenForValidation = True
+        Exit Function
+    End If
+
     mp_TryResolveConditionTokenForValidation = ex_ResultRuntimeAdapter.m_TryResolveConditionTokenForValidation( _
         tokenText, _
         currentTableRef, _
@@ -1048,9 +1255,35 @@ Private Function mp_TryResolveRuntimeValue( _
     ByVal currentRowVar As String, _
     ByVal currentRowRef As obj_ResultRow, _
     ByVal tablesByRef As Object, _
+    ByVal runtimeVars As Object, _
     ByRef outValue As String, _
     ByRef outErrorText As String _
 ) As Boolean
+    Dim variableName As String
+    Dim memberName As String
+
+    tokenText = Trim$(tokenText)
+    If Len(tokenText) = 0 Then
+        outErrorText = "Field reference is empty."
+        Exit Function
+    End If
+
+    If ex_PostProcessParserCore.m_IsIdentifier(tokenText) Then
+        If runtimeVars Is Nothing Or Not runtimeVars.Exists(tokenText) Then
+            outErrorText = "Unknown variable '" & tokenText & "'."
+            Exit Function
+        End If
+        If Not mp_TryConvertScopeEntryToString(runtimeVars, tokenText, outValue, outErrorText) Then Exit Function
+        mp_TryResolveRuntimeValue = True
+        Exit Function
+    End If
+
+    If mp_TryParseVariableMemberRef(tokenText, variableName, memberName) Then
+        If Not mp_TryResolveScopeMemberValue(runtimeVars, variableName, memberName, tokenText, outValue, outErrorText) Then Exit Function
+        mp_TryResolveRuntimeValue = True
+        Exit Function
+    End If
+
     mp_TryResolveRuntimeValue = ex_ResultRuntimeAdapter.m_TryResolveRuntimeValue( _
         tokenText, _
         currentTableRef, _
@@ -1103,7 +1336,7 @@ Private Function mp_TryParseCallMacroArgs( _
             Exit Function
         End If
         If Not mp_TryParseMacroArg(partText, argSpec) Then
-            outErrorText = "Unsupported callMacro argument '" & partText & "'. Use row variable, quoted string, Source.Sheet[Table].row[N], Source.Sheet[Table].lastRow, Source.Sheet[Table].prevRow, or a .column[Field] variant."
+            outErrorText = "Unsupported callMacro argument '" & partText & "'. Use variable, quoted string, Source.Sheet[Table].row[N], Source.Sheet[Table].lastRow, Source.Sheet[Table].prevRow, or a .column[Field] variant."
             Exit Function
         End If
         outArgSpecs.Add argSpec
@@ -1118,7 +1351,7 @@ End Function
 
 Private Function mp_ValidateCallMacroArgs( _
     ByVal action As Object, _
-    ByVal currentRowVar As String, _
+    ByVal scopeVarTypes As Object, _
     ByVal allowedTableFields As Object, _
     ByRef outErrorText As String _
 ) As Boolean
@@ -1134,7 +1367,7 @@ Private Function mp_ValidateCallMacroArgs( _
     Set argSpecs = action("Args")
     For i = 1 To argSpecs.Count
         Set argSpec = argSpecs(i)
-        If Not ex_ResultRuntimeAdapter.m_ValidateMacroArgSpec(argSpec, currentRowVar, allowedTableFields, outErrorText) Then Exit Function
+        If Not ex_ResultRuntimeAdapter.m_ValidateMacroArgSpec(argSpec, scopeVarTypes, allowedTableFields, outErrorText) Then Exit Function
     Next i
 
     mp_ValidateCallMacroArgs = True
@@ -1145,7 +1378,8 @@ Private Function mp_BuildMacroRuntimeArgs( _
     ByVal currentTableRef As String, _
     ByVal currentRowVar As String, _
     ByVal currentRowRef As obj_ResultRow, _
-    ByVal tablesByRef As Object _
+    ByVal tablesByRef As Object, _
+    ByVal runtimeVars As Object _
 ) As Collection
     Dim result As Collection
     Dim argSpecs As Collection
@@ -1153,6 +1387,8 @@ Private Function mp_BuildMacroRuntimeArgs( _
     Dim argSpec As Object
     Dim argKind As String
     Dim renderedText As String
+    Dim argObject As Object
+    Dim argValue As Variant
 
     Set result = New Collection
     If action Is Nothing Then
@@ -1170,17 +1406,23 @@ Private Function mp_BuildMacroRuntimeArgs( _
         Set argSpec = argSpecs(i)
         argKind = LCase$(CStr(argSpec("Kind")))
         Select Case argKind
-            Case "rowvar"
-                If currentRowRef Is Nothing Then
-                    Err.Raise vbObjectError + 1601, "ex_PostProcessDsl", "Current row is not available for callMacro row argument."
+            Case "varref"
+                If runtimeVars Is Nothing Or Not runtimeVars.Exists(CStr(argSpec("Name"))) Then
+                    Err.Raise vbObjectError + 1601, "ex_PostProcessDsl", "Variable '" & CStr(argSpec("Name")) & "' is not available for callMacro argument."
                 End If
-                result.Add currentRowRef
+                If IsObject(runtimeVars(CStr(argSpec("Name")))) Then
+                    Set argObject = runtimeVars(CStr(argSpec("Name")))
+                    result.Add argObject
+                Else
+                    argValue = runtimeVars(CStr(argSpec("Name")))
+                    result.Add argValue
+                End If
             Case "rowref"
                 result.Add ex_ResultRuntimeAdapter.m_ResolveRowReferenceArg(argSpec, tablesByRef)
             Case "cellref"
                 result.Add ex_ResultRuntimeAdapter.m_ResolveCellReferenceArg(argSpec, tablesByRef)
             Case "string"
-                renderedText = mp_RenderTemplate(CStr(argSpec("Value")), currentTableRef, currentRowVar, currentRowRef, tablesByRef)
+                renderedText = mp_RenderTemplate(CStr(argSpec("Value")), currentTableRef, currentRowVar, currentRowRef, tablesByRef, runtimeVars)
                 result.Add renderedText
             Case Else
                 Err.Raise vbObjectError + 1598, "ex_PostProcessDsl", "Unsupported callMacro argument kind: " & argKind
@@ -1188,6 +1430,185 @@ Private Function mp_BuildMacroRuntimeArgs( _
     Next i
 
     Set mp_BuildMacroRuntimeArgs = result
+End Function
+
+Private Function mp_CreateVarScope() As Object
+    Set mp_CreateVarScope = CreateObject("Scripting.Dictionary")
+    mp_CreateVarScope.CompareMode = 1
+End Function
+
+Private Function mp_CloneVarScope(ByVal sourceScope As Object) As Object
+    Dim result As Object
+    Dim key As Variant
+
+    Set result = mp_CreateVarScope()
+    If sourceScope Is Nothing Then
+        Set mp_CloneVarScope = result
+        Exit Function
+    End If
+
+    For Each key In sourceScope.Keys
+        If IsObject(sourceScope(key)) Then
+            Set result(CStr(key)) = sourceScope(key)
+        Else
+            result(CStr(key)) = sourceScope(key)
+        End If
+    Next key
+
+    Set mp_CloneVarScope = result
+End Function
+
+Private Sub mp_SetScopeValue(ByVal targetScope As Object, ByVal variableName As String, ByVal variableValue As String)
+    variableName = Trim$(variableName)
+    If Len(variableName) = 0 Then Exit Sub
+    If targetScope Is Nothing Then Exit Sub
+
+    targetScope(variableName) = variableValue
+End Sub
+
+Private Sub mp_SetScopeObject(ByVal targetScope As Object, ByVal variableName As String, ByVal variableObject As Object)
+    variableName = Trim$(variableName)
+    If Len(variableName) = 0 Then Exit Sub
+    If targetScope Is Nothing Then Exit Sub
+    Set targetScope(variableName) = variableObject
+End Sub
+
+Private Function mp_TryParseVariableMemberRef( _
+    ByVal tokenText As String, _
+    ByRef outVariableName As String, _
+    ByRef outMemberName As String _
+) As Boolean
+    Dim dotPos As Long
+
+    tokenText = Trim$(tokenText)
+    If InStr(1, tokenText, "[", vbBinaryCompare) > 0 Then Exit Function
+    If InStr(1, tokenText, "]", vbBinaryCompare) > 0 Then Exit Function
+
+    dotPos = InStr(1, tokenText, ".", vbBinaryCompare)
+    If dotPos <= 1 Then Exit Function
+    If InStr(dotPos + 1, tokenText, ".", vbBinaryCompare) > 0 Then Exit Function
+
+    outVariableName = Trim$(Left$(tokenText, dotPos - 1))
+    outMemberName = Trim$(Mid$(tokenText, dotPos + 1))
+    If Len(outVariableName) = 0 Or Len(outMemberName) = 0 Then Exit Function
+    If Not ex_PostProcessParserCore.m_IsIdentifier(outVariableName) Then Exit Function
+    If Not ex_PostProcessParserCore.m_IsIdentifier(outMemberName) Then Exit Function
+
+    mp_TryParseVariableMemberRef = True
+End Function
+
+Private Function mp_TryResolveVariableMemberValue( _
+    ByVal variableObject As Object, _
+    ByVal memberName As String, _
+    ByVal tokenText As String, _
+    ByRef outValue As String, _
+    ByRef outErrorText As String _
+) As Boolean
+    Dim columnObj As obj_ResultColumn
+
+    If TypeOf variableObject Is obj_ResultColumn Then
+        Set columnObj = variableObject
+        Select Case LCase$(memberName)
+            Case "alias", "name"
+                outValue = columnObj.Alias
+            Case "value"
+                outValue = columnObj.Value
+            Case "mapkey"
+                outValue = columnObj.MapKey
+            Case Else
+                outErrorText = "Unsupported column member '" & memberName & "' in token '" & tokenText & "'."
+                Exit Function
+        End Select
+        mp_TryResolveVariableMemberValue = True
+        Exit Function
+    End If
+
+    outErrorText = "Variable in token '" & tokenText & "' does not support member access."
+End Function
+
+Private Function mp_TryConvertScopeValueToString( _
+    ByVal variableObject As Object, _
+    ByRef outValue As String, _
+    ByRef outErrorText As String _
+) As Boolean
+    Dim columnObj As obj_ResultColumn
+
+    If TypeOf variableObject Is obj_ResultColumn Then
+        Set columnObj = variableObject
+        outValue = columnObj.Value
+        mp_TryConvertScopeValueToString = True
+        Exit Function
+    End If
+
+    outErrorText = "Variable value is object and cannot be rendered as string."
+End Function
+
+Private Function mp_TryConvertScopeEntryToString( _
+    ByVal scopeRef As Object, _
+    ByVal variableName As String, _
+    ByRef outValue As String, _
+    ByRef outErrorText As String _
+) As Boolean
+    Dim valueObj As Object
+    Dim scalarValue As Variant
+
+    If scopeRef Is Nothing Or Not scopeRef.Exists(variableName) Then
+        outErrorText = "Unknown variable '" & variableName & "'."
+        Exit Function
+    End If
+
+    If IsObject(scopeRef(variableName)) Then
+        Set valueObj = scopeRef(variableName)
+        mp_TryConvertScopeEntryToString = mp_TryConvertScopeValueToString(valueObj, outValue, outErrorText)
+        Exit Function
+    End If
+
+    scalarValue = scopeRef(variableName)
+    If IsNull(scalarValue) Then
+        outValue = vbNullString
+    ElseIf IsError(scalarValue) Then
+        outErrorText = "Variable value contains error and cannot be rendered."
+        Exit Function
+    Else
+        outValue = CStr(scalarValue)
+    End If
+
+    mp_TryConvertScopeEntryToString = True
+End Function
+
+Private Function mp_TryResolveScopeMemberValue( _
+    ByVal scopeRef As Object, _
+    ByVal variableName As String, _
+    ByVal memberName As String, _
+    ByVal tokenText As String, _
+    ByRef outValue As String, _
+    ByRef outErrorText As String _
+) As Boolean
+    Dim variableObject As Object
+
+    If scopeRef Is Nothing Or Not scopeRef.Exists(variableName) Then
+        outErrorText = "Unknown variable '" & variableName & "' in token '" & tokenText & "'."
+        Exit Function
+    End If
+    If Not IsObject(scopeRef(variableName)) Then
+        outErrorText = "Variable '" & variableName & "' does not support member access in token '" & tokenText & "'."
+        Exit Function
+    End If
+
+    Set variableObject = scopeRef(variableName)
+    mp_TryResolveScopeMemberValue = mp_TryResolveVariableMemberValue(variableObject, memberName, tokenText, outValue, outErrorText)
+End Function
+
+Private Function mp_ConvertVariantToString(ByVal valueRef As Variant) As String
+    If IsNull(valueRef) Then
+        mp_ConvertVariantToString = vbNullString
+    ElseIf IsError(valueRef) Then
+        Err.Raise vbObjectError + 1612, "ex_PostProcessDsl", "callMacro returned error value; expected string-compatible result."
+    ElseIf IsObject(valueRef) Then
+        Err.Raise vbObjectError + 1613, "ex_PostProcessDsl", "callMacro returned object; expected string-compatible result."
+    Else
+        mp_ConvertVariantToString = CStr(valueRef)
+    End If
 End Function
 
 Private Function mp_SplitArgs(ByVal argsText As String, ByRef outParts As Collection, ByRef outErrorText As String) As Boolean

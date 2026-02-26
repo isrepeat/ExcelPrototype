@@ -4,6 +4,10 @@ Option Explicit
 Private Const ERR_SOURCE As String = "ex_PostProcessDsl"
 
 Public Sub m_RunMacroWithArgs(ByVal macroName As String, ByVal args As Collection)
+    m_RunMacroWithArgsReturn macroName, args
+End Sub
+
+Public Function m_RunMacroWithArgsReturn(ByVal macroName As String, ByVal args As Collection) As Variant
     Dim argCount As Long
 
     macroName = Trim$(macroName)
@@ -12,26 +16,26 @@ Public Sub m_RunMacroWithArgs(ByVal macroName As String, ByVal args As Collectio
     End If
 
     If args Is Nothing Then
-        Application.Run macroName
-        Exit Sub
+        m_RunMacroWithArgsReturn = Application.Run(macroName)
+        Exit Function
     End If
 
     argCount = args.Count
 
     Select Case argCount
         Case 0
-            Application.Run macroName
+            m_RunMacroWithArgsReturn = Application.Run(macroName)
         Case 1
-            Application.Run macroName, args(1)
+            m_RunMacroWithArgsReturn = Application.Run(macroName, args(1))
         Case 2
-            Application.Run macroName, args(1), args(2)
+            m_RunMacroWithArgsReturn = Application.Run(macroName, args(1), args(2))
         Case 3
-            Application.Run macroName, args(1), args(2), args(3)
+            m_RunMacroWithArgsReturn = Application.Run(macroName, args(1), args(2), args(3))
         Case 4
-            Application.Run macroName, args(1), args(2), args(3), args(4)
+            m_RunMacroWithArgsReturn = Application.Run(macroName, args(1), args(2), args(3), args(4))
         Case 5
-            Application.Run macroName, args(1), args(2), args(3), args(4), args(5)
+            m_RunMacroWithArgsReturn = Application.Run(macroName, args(1), args(2), args(3), args(4), args(5))
         Case Else
             Err.Raise vbObjectError + 1600, ERR_SOURCE, "Too many callMacro arguments (max 5)."
     End Select
-End Sub
+End Function

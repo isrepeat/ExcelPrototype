@@ -3,6 +3,7 @@ Option Explicit
 
 Public Const TYPE_SHEET_REF As String = "sheetref"
 Public Const TYPE_ROW As String = "row"
+Public Const TYPE_COLUMN As String = "column"
 
 Private g_MembersByType As Object
 
@@ -27,7 +28,8 @@ Private Function mp_GetMembersByType() As Object
         Set g_MembersByType = CreateObject("Scripting.Dictionary")
         g_MembersByType.CompareMode = 1
         g_MembersByType.Add TYPE_SHEET_REF, mp_CreateMemberSet("rows,column,row,lastRow,prevRow,count,rowCount")
-        g_MembersByType.Add TYPE_ROW, mp_CreateMemberSet("column")
+        g_MembersByType.Add TYPE_ROW, mp_CreateMemberSet("column,columns")
+        g_MembersByType.Add TYPE_COLUMN, mp_CreateMemberSet("alias,name,mapKey,value")
     End If
     Set mp_GetMembersByType = g_MembersByType
 End Function
