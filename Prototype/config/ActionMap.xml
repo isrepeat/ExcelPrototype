@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<actionMap version="1">
+  <action key="mode.enter.personal_card" macro="ex_UIActions.m_ShowPersonalCard_OnClick"/>
+  <action key="mode.enter.tables_comparing" macro="ex_UIActions.m_RunComparingTables_OnClick"/>
+</actionMap>
