@@ -15,11 +15,7 @@
       <control name="btnComparing" visible="true"/>
       <control name="btnUpdateCode" visible="true"/>
       <control name="btnCustomProfile" visible="true"/>
-      <control name="btnCustomProfileOption_1" visible="false"/>
-      <control name="btnCustomProfileOption_2" visible="false"/>
       <control name="btnCustomMode" visible="true"/>
-      <control name="btnCustomModeOption_1" visible="false"/>
-      <control name="btnCustomModeOption_2" visible="false"/>
     </ui>
   </profile>
   <profile name="Test">
@@ -37,11 +33,7 @@
       <control name="btnComparing" visible="true"/>
       <control name="btnUpdateCode" visible="true"/>
       <control name="btnCustomProfile" visible="true"/>
-      <control name="btnCustomProfileOption_1" visible="false"/>
-      <control name="btnCustomProfileOption_2" visible="false"/>
       <control name="btnCustomMode" visible="true"/>
-      <control name="btnCustomModeOption_1" visible="false"/>
-      <control name="btnCustomModeOption_2" visible="false"/>
     </ui>
   </profile>
 </profiles>
