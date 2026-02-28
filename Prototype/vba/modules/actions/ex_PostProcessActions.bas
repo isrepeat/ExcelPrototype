@@ -140,6 +140,100 @@ Public Function m_RowCellRegexFirstMatch( _
     m_RowCellRegexFirstMatch = m_RegexFirstMatch(mp_GetRowCellLiveText(rowRef, columnRef), regexPattern)
 End Function
 
+Public Function m_TextAppend( _
+    ByVal baseText As String, _
+    ByVal appendText As String, _
+    Optional ByVal separatorText As String = vbNullString _
+) As String
+    If Len(appendText) = 0 Then
+        m_TextAppend = CStr(baseText)
+        Exit Function
+    End If
+
+    If Len(baseText) = 0 Then
+        m_TextAppend = CStr(appendText)
+    ElseIf Len(separatorText) = 0 Then
+        m_TextAppend = CStr(baseText) & CStr(appendText)
+    Else
+        m_TextAppend = CStr(baseText) & CStr(separatorText) & CStr(appendText)
+    End If
+End Function
+
+Public Sub m_SetRowCellText( _
+    ByVal rowRef As obj_ResultRow, _
+    ByVal columnRef As String, _
+    ByVal cellText As String _
+)
+    Dim targetCell As Range
+
+    Set targetCell = mp_GetTargetCellForRowRef(rowRef, columnRef)
+    targetCell.Value = CStr(cellText)
+End Sub
+
+Public Sub m_AppendRowCellText( _
+    ByVal rowRef As obj_ResultRow, _
+    ByVal columnRef As String, _
+    ByVal appendText As String, _
+    Optional ByVal separatorText As String = vbLf _
+)
+    Dim targetCell As Range
+    Dim currentText As String
+
+    If Len(appendText) = 0 Then Exit Sub
+
+    Set targetCell = mp_GetTargetCellForRowRef(rowRef, columnRef)
+    currentText = CStr(targetCell.Value)
+    targetCell.Value = m_TextAppend(currentText, CStr(appendText), separatorText)
+End Sub
+
+Public Sub m_AppendToOwnerRowCell( _
+    ByVal rowRef As obj_ResultRow, _
+    ByVal ownerColumnRef As String, _
+    ByVal targetColumnRef As String, _
+    ByVal appendText As String, _
+    Optional ByVal separatorText As String = vbLf _
+)
+    Dim ws As Worksheet
+    Dim ownerCol As Long
+    Dim targetCol As Long
+    Dim ownerRowIndex As Long
+    Dim probeRow As Long
+    Dim targetCell As Range
+    Dim currentText As String
+
+    If rowRef Is Nothing Then
+        Err.Raise vbObjectError + 1674, "ex_PostProcessActions", "Row reference is required for owner row append."
+    End If
+
+    If Len(appendText) = 0 Then Exit Sub
+    Set ws = ActiveSheet
+    If ws Is Nothing Then
+        Err.Raise vbObjectError + 1675, "ex_PostProcessActions", "Active sheet is not available for owner row append."
+    End If
+
+    If Not mp_TryResolveColumnIndexInRow(rowRef, ownerColumnRef, ownerCol) Then
+        Err.Raise vbObjectError + 1676, "ex_PostProcessActions", "Unknown owner column reference '" & ownerColumnRef & "'."
+    End If
+    If Not mp_TryResolveColumnIndexInRow(rowRef, targetColumnRef, targetCol) Then
+        Err.Raise vbObjectError + 1677, "ex_PostProcessActions", "Unknown target column reference '" & targetColumnRef & "'."
+    End If
+
+    For probeRow = rowRef.RowIndex To 1 Step -1
+        If Len(Trim$(CStr(ws.Cells(probeRow, ownerCol).Value))) > 0 Then
+            ownerRowIndex = probeRow
+            Exit For
+        End If
+    Next probeRow
+
+    If ownerRowIndex <= 0 Then
+        Err.Raise vbObjectError + 1678, "ex_PostProcessActions", "Unable to resolve owner row by column '" & ownerColumnRef & "' from row " & CStr(rowRef.RowIndex) & "."
+    End If
+
+    Set targetCell = ws.Cells(ownerRowIndex, targetCol)
+    currentText = CStr(targetCell.Value)
+    targetCell.Value = m_TextAppend(currentText, CStr(appendText), separatorText)
+End Sub
+
 Public Sub m_EmphasizeRowCellTextByRegex( _
     ByVal rowRef As obj_ResultRow, _
     ByVal columnRef As String, _
@@ -780,4 +874,26 @@ Private Function mp_GetRowCellRange( _
     End If
 
     Set mp_GetRowCellRange = ws.Cells(rowIndex, columnIndex)
+End Function
+
+Private Function mp_GetTargetCellForRowRef( _
+    ByVal rowRef As obj_ResultRow, _
+    ByVal columnRef As String _
+) As Range
+    Dim targetCol As Long
+
+    If rowRef Is Nothing Then
+        Err.Raise vbObjectError + 1679, "ex_PostProcessActions", "Row reference is required for row cell write."
+    End If
+
+    columnRef = Trim$(columnRef)
+    If Len(columnRef) = 0 Then
+        Err.Raise vbObjectError + 1680, "ex_PostProcessActions", "Column reference is empty for row cell write."
+    End If
+
+    If Not mp_TryResolveColumnIndexInRow(rowRef, columnRef, targetCol) Then
+        Err.Raise vbObjectError + 1681, "ex_PostProcessActions", "Unknown row cell reference '" & columnRef & "' for row cell write."
+    End If
+
+    Set mp_GetTargetCellForRowRef = mp_GetRowCellRange(rowRef.RowIndex, targetCol)
 End Function

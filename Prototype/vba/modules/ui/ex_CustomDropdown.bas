@@ -249,6 +249,8 @@ Private Sub mp_RebuildDynamicOptions( _
     Dim firstGap As Double
     Dim nextGap As Double
     Dim matchWidth As Boolean
+    Dim optionHeight As Double
+    Dim optionStyleName As String
     Dim currentTop As Double
 
     Set headerShape = ex_ConfigProfilesManager.m_GetShapeByName(ws, headerShapeName)
@@ -257,11 +259,9 @@ Private Sub mp_RebuildDynamicOptions( _
         Exit Sub
     End If
 
+    mp_DeleteAllOptionShapes ws, optionPrefix, onClickMacro, optionKind
+
     Set templateShape = ex_ConfigProfilesManager.m_GetShapeByName(ws, optionPrefix & "1")
-    If templateShape Is Nothing Then
-        MsgBox "Template shape '" & optionPrefix & "1' was not found for dynamic dropdown.", vbExclamation
-        Exit Sub
-    End If
 
     itemRecords = ex_UiXmlProvider.m_GetDropdownItemRecordsByControl(sourceControlName, ThisWorkbook)
     If Not mp_HasRecords(itemRecords) Then
@@ -276,12 +276,21 @@ Private Sub mp_RebuildDynamicOptions( _
     recordUpper = UBound(itemRecords, 1)
     recordCount = recordUpper - recordLower + 1
 
-    If Not mp_GetOptionLayout(optionPrefix, marginLeft, firstGap, nextGap, matchWidth) Then Exit Sub
+    If Not mp_GetOptionLayout(sourceControlName, marginLeft, firstGap, nextGap, matchWidth, optionHeight, optionStyleName) Then Exit Sub
 
     currentTop = headerShape.Top + headerShape.Height + firstGap
 
     For i = recordLower To recordUpper
-        Set optionShape = mp_GetOrCreateOptionShape(ws, optionPrefix, i - recordLower + 1, templateShape)
+        Set optionShape = mp_GetOrCreateOptionShape( _
+            ws, _
+            optionPrefix, _
+            i - recordLower + 1, _
+            templateShape, _
+            headerShape.Left + marginLeft, _
+            currentTop, _
+            headerShape.Width, _
+            optionHeight, _
+            optionStyleName)
         If optionShape Is Nothing Then Exit Sub
 
         mp_SetShapeOnAction optionShape, onClickMacro
@@ -300,10 +309,109 @@ Private Sub mp_RebuildDynamicOptions( _
     mp_HideExcessOptionShapes ws, optionPrefix, recordCount
 End Sub
 
-Private Function mp_GetOrCreateOptionShape(ByVal ws As Worksheet, ByVal optionPrefix As String, ByVal optionIndex As Long, ByVal templateShape As Shape) As Shape
+Private Sub mp_DeleteAllOptionShapes( _
+    ByVal ws As Worksheet, _
+    ByVal optionPrefix As String, _
+    Optional ByVal onClickMacro As String = vbNullString, _
+    Optional ByVal optionKind As String = vbNullString)
+
+    Dim i As Long
+    Dim shp As Shape
+
+    For i = ws.Shapes.Count To 1 Step -1
+        Set shp = ws.Shapes(i)
+        If mp_IsManagedOptionShape(shp, optionPrefix, onClickMacro, optionKind) Then
+            shp.Delete
+        End If
+    Next i
+End Sub
+
+Private Function mp_IsManagedOptionShape( _
+    ByVal shp As Shape, _
+    ByVal optionPrefix As String, _
+    ByVal onClickMacro As String, _
+    ByVal optionKind As String) As Boolean
+
+    Dim shapeName As String
+    Dim tagKind As String
+    Dim onActionText As String
+
+    If shp Is Nothing Then Exit Function
+
+    shapeName = Trim$(shp.Name)
+    If Len(optionPrefix) > 0 Then
+        If StrComp(Left$(shapeName, Len(optionPrefix)), optionPrefix, vbTextCompare) = 0 Then
+            mp_IsManagedOptionShape = True
+            Exit Function
+        End If
+    End If
+
+    optionKind = LCase$(Trim$(optionKind))
+    If Len(optionKind) > 0 Then
+        tagKind = LCase$(Trim$(mp_GetShapeTag(shp, TAG_KIND)))
+        If StrComp(tagKind, optionKind, vbTextCompare) = 0 Then
+            mp_IsManagedOptionShape = True
+            Exit Function
+        End If
+    End If
+
+    onClickMacro = Trim$(onClickMacro)
+    If Len(onClickMacro) = 0 Then Exit Function
+
+    On Error Resume Next
+    onActionText = Trim$(CStr(shp.OnAction))
+    On Error GoTo 0
+    If Len(onActionText) = 0 Then Exit Function
+
+    If mp_OnActionMatchesMacro(onActionText, onClickMacro) Then
+        mp_IsManagedOptionShape = True
+    End If
+End Function
+
+Private Function mp_OnActionMatchesMacro(ByVal onActionText As String, ByVal macroName As String) As Boolean
+    Dim suffix As String
+
+    onActionText = Trim$(onActionText)
+    macroName = Trim$(macroName)
+
+    If Len(onActionText) = 0 Or Len(macroName) = 0 Then Exit Function
+
+    If StrComp(onActionText, macroName, vbTextCompare) = 0 Then
+        mp_OnActionMatchesMacro = True
+        Exit Function
+    End If
+
+    suffix = "!" & macroName
+    If Len(onActionText) >= Len(suffix) Then
+        If StrComp(Right$(onActionText, Len(suffix)), suffix, vbTextCompare) = 0 Then
+            mp_OnActionMatchesMacro = True
+            Exit Function
+        End If
+    End If
+
+    suffix = "." & macroName
+    If Len(onActionText) >= Len(suffix) Then
+        If StrComp(Right$(onActionText, Len(suffix)), suffix, vbTextCompare) = 0 Then
+            mp_OnActionMatchesMacro = True
+        End If
+    End If
+End Function
+
+Private Function mp_GetOrCreateOptionShape( _
+    ByVal ws As Worksheet, _
+    ByVal optionPrefix As String, _
+    ByVal optionIndex As Long, _
+    ByVal templateShape As Shape, _
+    ByVal leftPos As Double, _
+    ByVal topPos As Double, _
+    ByVal widthVal As Double, _
+    ByVal heightVal As Double, _
+    ByVal optionStyleName As String) As Shape
+
     Dim shapeName As String
     Dim duplicateRange As Object
     Dim createdShape As Shape
+    Dim duplicateErr As String
 
     shapeName = optionPrefix & CStr(optionIndex)
     Set createdShape = ex_ConfigProfilesManager.m_GetShapeByName(ws, shapeName)
@@ -312,19 +420,50 @@ Private Function mp_GetOrCreateOptionShape(ByVal ws As Worksheet, ByVal optionPr
         Exit Function
     End If
 
-    If templateShape Is Nothing Then Exit Function
+    If Not templateShape Is Nothing Then
+        On Error Resume Next
+        Set duplicateRange = templateShape.Duplicate
+        If Err.Number <> 0 Then
+            duplicateErr = Err.Description
+            Err.Clear
+        Else
+            Set createdShape = duplicateRange.Item(1)
+            If Err.Number <> 0 Then
+                duplicateErr = Err.Description
+                Err.Clear
+                Set createdShape = Nothing
+            End If
+        End If
+        On Error GoTo 0
+    End If
 
-    On Error GoTo EH_DUP
-    Set duplicateRange = templateShape.Duplicate
-    Set createdShape = duplicateRange.Item(1)
+    If createdShape Is Nothing Then
+        If widthVal <= 0 Then widthVal = 60
+        If heightVal <= 0 Then heightVal = 16
+        On Error GoTo EH_ADD
+        Set createdShape = ws.Shapes.AddShape(msoShapeRectangle, leftPos, topPos, widthVal, heightVal)
+        If Not templateShape Is Nothing Then
+            On Error Resume Next
+            templateShape.PickUp
+            createdShape.Apply
+            On Error GoTo EH_ADD
+        ElseIf Not mp_ApplyOptionStyle(createdShape, optionStyleName) Then
+            Exit Function
+        End If
+    End If
+
     createdShape.Name = shapeName
     createdShape.Visible = msoFalse
     createdShape.Placement = xlFreeFloating
 
     Set mp_GetOrCreateOptionShape = createdShape
     Exit Function
-EH_DUP:
-    MsgBox "Failed to create dynamic option shape '" & shapeName & "': " & Err.Description, vbExclamation
+EH_ADD:
+    If Len(duplicateErr) > 0 Then
+        MsgBox "Failed to create dynamic option shape '" & shapeName & "'. Duplicate error: " & duplicateErr & ". Fallback error: " & Err.Description, vbExclamation
+    Else
+        MsgBox "Failed to create dynamic option shape '" & shapeName & "': " & Err.Description, vbExclamation
+    End If
 End Function
 
 Private Sub mp_HideExcessOptionShapes(ByVal ws As Worksheet, ByVal optionPrefix As String, ByVal keepCount As Long)
@@ -338,32 +477,70 @@ Private Sub mp_HideExcessOptionShapes(ByVal ws As Worksheet, ByVal optionPrefix 
             If IsNumeric(suffix) Then
                 optionIndex = CLng(suffix)
                 If optionIndex > keepCount Then shp.Visible = msoFalse
+            Else
+                shp.Visible = msoFalse
             End If
         End If
     Next shp
 End Sub
 
-Private Function mp_GetOptionLayout(ByVal optionPrefix As String, ByRef marginLeft As Double, ByRef firstGap As Double, ByRef nextGap As Double, ByRef matchWidth As Boolean) As Boolean
-    Dim firstName As String
-    Dim secondName As String
-
-    firstName = optionPrefix & "1"
-    secondName = optionPrefix & "2"
+Private Function mp_GetOptionLayout( _
+    ByVal headerControlName As String, _
+    ByRef marginLeft As Double, _
+    ByRef firstGap As Double, _
+    ByRef nextGap As Double, _
+    ByRef matchWidth As Boolean, _
+    ByRef optionHeight As Double, _
+    ByRef optionStyleName As String) As Boolean
 
     marginLeft = 0
     firstGap = 2
     nextGap = 2
     matchWidth = True
+    optionHeight = 16
+    optionStyleName = "modeChooserOption"
 
-    If Not mp_TryGetOptionalDoubleAttr(firstName, "marginLeft", marginLeft) Then Exit Function
-    If Not mp_TryGetOptionalDoubleAttr(firstName, "marginTop", firstGap) Then Exit Function
-    If Not mp_TryGetOptionalDoubleAttr(secondName, "marginTop", nextGap) Then Exit Function
-
-    If Len(Trim$(ex_UiXmlProvider.m_GetControlAttribute(firstName, "matchWidthToRelative", ThisWorkbook))) > 0 Then
-        If Not mp_TryGetOptionalBooleanAttr(firstName, "matchWidthToRelative", matchWidth) Then Exit Function
+    If Not mp_TryGetOptionalDoubleAttr(headerControlName, "itemMarginLeft", marginLeft) Then Exit Function
+    If Not mp_TryGetOptionalDoubleAttr(headerControlName, "itemFirstGap", firstGap) Then Exit Function
+    If Not mp_TryGetOptionalDoubleAttr(headerControlName, "itemGap", nextGap) Then Exit Function
+    If Not mp_TryGetOptionalDoubleAttr(headerControlName, "itemHeight", optionHeight) Then Exit Function
+    If optionHeight <= 0 Then
+        MsgBox "Control '" & headerControlName & "' has invalid attribute 'itemHeight'. Value must be > 0.", vbExclamation
+        Exit Function
     End If
 
+    If Not mp_TryGetOptionalBooleanAttr(headerControlName, "itemMatchWidth", matchWidth) Then Exit Function
+    optionStyleName = mp_GetOptionalTextAttr(headerControlName, "itemStyle", optionStyleName)
+
     mp_GetOptionLayout = True
+End Function
+
+Private Function mp_GetOptionalTextAttr(ByVal controlName As String, ByVal attrName As String, ByVal defaultValue As String) As String
+    Dim valueText As String
+
+    valueText = Trim$(ex_UiXmlProvider.m_GetControlAttribute(controlName, attrName, ThisWorkbook))
+    If Len(valueText) = 0 Then
+        mp_GetOptionalTextAttr = defaultValue
+    Else
+        mp_GetOptionalTextAttr = valueText
+    End If
+End Function
+
+Private Function mp_ApplyOptionStyle(ByVal shp As Shape, ByVal styleName As String) As Boolean
+    Dim stylesMap As Object
+
+    If shp Is Nothing Then Exit Function
+
+    styleName = Trim$(styleName)
+    If Len(styleName) = 0 Then
+        mp_ApplyOptionStyle = True
+        Exit Function
+    End If
+
+    Set stylesMap = ex_UiXmlProvider.m_ReadButtonStyles(ThisWorkbook)
+    If stylesMap Is Nothing Then Exit Function
+
+    mp_ApplyOptionStyle = ex_UiXmlProvider.m_ApplyButtonStyleByName(shp, styleName, stylesMap)
 End Function
 
 Private Function mp_TryGetOptionalDoubleAttr(ByVal controlName As String, ByVal attrName As String, ByRef outValue As Double) As Boolean
@@ -690,13 +867,21 @@ End Sub
 
 Private Sub mp_SetOptionsVisible(ByVal ws As Worksheet, ByVal optionPrefix As String, ByVal isVisible As Boolean)
     Dim shp As Shape
+    Dim suffix As String
+    Dim isNumberedOption As Boolean
     Dim visibility As MsoTriState
 
     visibility = IIf(isVisible, msoTrue, msoFalse)
 
     For Each shp In ws.Shapes
         If StrComp(Left$(shp.Name, Len(optionPrefix)), optionPrefix, vbTextCompare) = 0 Then
-            shp.Visible = visibility
+            suffix = Mid$(shp.Name, Len(optionPrefix) + 1)
+            isNumberedOption = IsNumeric(suffix)
+            If isVisible Then
+                shp.Visible = IIf(isNumberedOption, msoTrue, msoFalse)
+            Else
+                shp.Visible = msoFalse
+            End If
         End If
     Next shp
 End Sub
@@ -840,12 +1025,7 @@ Private Function mp_EnsureShapesExist(ByVal ws As Worksheet, ByVal wb As Workboo
         ex_UILoader.m_LoadUiFromConfig wb
     End If
 
-    If ex_ConfigProfilesManager.m_GetShapeByName(ws, HEADER_SHAPE_NAME) Is Nothing Then Exit Function
-    If ex_ConfigProfilesManager.m_GetShapeByName(ws, OPTION_SHAPE_PREFIX & "1") Is Nothing Then
-        ex_UILoader.m_LoadUiFromConfig wb
-    End If
-
-    mp_EnsureShapesExist = Not (ex_ConfigProfilesManager.m_GetShapeByName(ws, OPTION_SHAPE_PREFIX & "1") Is Nothing)
+    mp_EnsureShapesExist = Not (ex_ConfigProfilesManager.m_GetShapeByName(ws, HEADER_SHAPE_NAME) Is Nothing)
 End Function
 
 Private Function mp_EnsureProfileShapesExist(ByVal ws As Worksheet, ByVal wb As Workbook) As Boolean
@@ -853,10 +1033,5 @@ Private Function mp_EnsureProfileShapesExist(ByVal ws As Worksheet, ByVal wb As 
         ex_UILoader.m_LoadUiFromConfig wb
     End If
 
-    If ex_ConfigProfilesManager.m_GetShapeByName(ws, PROFILE_HEADER_SHAPE_NAME) Is Nothing Then Exit Function
-    If ex_ConfigProfilesManager.m_GetShapeByName(ws, PROFILE_OPTION_SHAPE_PREFIX & "1") Is Nothing Then
-        ex_UILoader.m_LoadUiFromConfig wb
-    End If
-
-    mp_EnsureProfileShapesExist = Not (ex_ConfigProfilesManager.m_GetShapeByName(ws, PROFILE_OPTION_SHAPE_PREFIX & "1") Is Nothing)
+    mp_EnsureProfileShapesExist = Not (ex_ConfigProfilesManager.m_GetShapeByName(ws, PROFILE_HEADER_SHAPE_NAME) Is Nothing)
 End Function

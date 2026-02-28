@@ -10,11 +10,7 @@
 			<control name="btnComparing" visible="false"/>
 			<control name="btnUpdateCode" visible="true"/>
 			<control name="btnCustomProfile" visible="true"/>
-			<control name="btnCustomProfileOption_1" visible="false"/>
-			<control name="btnCustomProfileOption_2" visible="false"/>
 			<control name="btnCustomMode" visible="true"/>
-			<control name="btnCustomModeOption_1" visible="false"/>
-			<control name="btnCustomModeOption_2" visible="false"/>
 		</ui>
 		<v key="Source.Main.FilePath">..\TESTS\GetReferences\PeopleStateUA.xlsx</v>
 		<v key="Source.Main.SheetAliases">StateMain</v>
@@ -124,11 +120,160 @@
 			<control name="btnComparing" visible="false"/>
 			<control name="btnUpdateCode" visible="true"/>
 			<control name="btnCustomProfile" visible="true"/>
-			<control name="btnCustomProfileOption_1" visible="false"/>
-			<control name="btnCustomProfileOption_2" visible="false"/>
 			<control name="btnCustomMode" visible="true"/>
-			<control name="btnCustomModeOption_1" visible="false"/>
-			<control name="btnCustomModeOption_2" visible="false"/>
+		</ui>
+	</profile>
+		<profile name="Test2">
+		<v key="Source.Main.FilePath">..\dsc_StateSrc.xlsx</v>
+		<v key="Source.Main.SheetAliases">StateMain</v>
+		<v key="Source.Events.FilePath">..\dsc_EventsSrc.xlsx</v>
+		<v key="Source.Events.SheetAliases">EventsIn; EventsOut; DailyEvents</v>
+		<v key="CommonKey">ТКАЧЕНКО Сергій Олександрович</v>
+		<v type="#" key="StateMain"/>
+		<v key="Main.Sheet[StateMain].Type">State</v>
+		<v key="Main.Sheet[StateMain].SheetName">ШПС</v>
+		<v key="Main.Sheet[StateMain].Key">FIO</v>
+		<v key="Main.Sheet[StateMain].FieldsAliases">FIO; IPN; ZV; Position</v>
+		<v key="Main.Sheet[StateMain].Map[ZV]">Військове звання</v>
+		<v key="Main.Sheet[StateMain].Map[FIO]">Прізвище, ім’я, по батькові|ПІБ</v>
+		<v key="Main.Sheet[StateMain].Map[Position]">Повна назва посади</v>
+		<v key="Main.Sheet[StateMain].Map[IPN]">ІПН</v>
+		<v type="#" key="EventsIn"/>
+		<v key="Events.Sheet[EventsIn].Type">Events</v>
+		<v key="Events.Sheet[EventsIn].SheetName">4. Тимчасово прибулі</v>
+		<v key="Events.Sheet[EventsIn].FieldsAliases">ZV; FIO; ComesFrom;</v>
+		<v key="Events.Sheet[EventsIn].Key">FIO</v>
+		<v key="Events.Sheet[EventsIn].Sort">FIO</v>
+		<v key="Events.Sheet[EventsIn].Map[ZV]">55|Звання</v>
+		<v key="Events.Sheet[EventsIn].Map[FIO]">56|ПІБ</v>
+		<v key="Events.Sheet[EventsIn].Map[ComesFrom]">58|Звідки прибув</v>
+		<v type="#" key="EventsOut"/>
+		<v key="Events.Sheet[EventsOut].Type">Events</v>
+		<v key="Events.Sheet[EventsOut].SheetName">5. Тимчасово відсутні</v>
+		<v key="Events.Sheet[EventsOut].FieldsAliases">ZV; FIO; EventReason; City; Date; Note; Ticket</v>
+		<v key="Events.Sheet[EventsOut].Key">FIO</v>
+		<v key="Events.Sheet[EventsOut].Sort">Date</v>
+		<v key="Events.Sheet[EventsOut].Map[ZV]">65|Звання</v>
+		<v key="Events.Sheet[EventsOut].Map[FIO]">66|ПІБ</v>
+		<v key="Events.Sheet[EventsOut].Map[EventReason]">68|Причинна вибуття</v>
+		<v key="Events.Sheet[EventsOut].Map[City]">69|Місце вибуття</v>
+		<v key="Events.Sheet[EventsOut].Map[Date]">71 (А)|Дата наказу</v>
+		<v key="Events.Sheet[EventsOut].Map[Ticket]">Стовпець1|Номер квитка</v>
+		<v key="Events.Sheet[EventsOut].Map[Note]" styles="{width: 40; autoHeight: true}">76|Замітки</v>
+		<v type="#" key="DailyEvents"/>
+		<v key="Events.Sheet[DailyEvents].Type">Events</v>
+		<v key="Events.Sheet[DailyEvents].SheetName">test</v>
+		<v key="Events.Sheet[DailyEvents].FieldsAliases">Hospital; Vacation; Rank; FIO; Position; RaportTVO; RaportFrom; InNum; InDate; DocNote; DocNum; DocDate; DaysCount; DateFrom; DateTo; VkNum; VkDate; VlkNum; VlkDate</v>
+		<v key="Events.Sheet[DailyEvents].Key">FIO</v>
+		<v key="Events.Sheet[DailyEvents].Sort">InDate</v>
+		<v key="Events.Sheet[DailyEvents].Map[Hospital]">Лікарня</v>
+		<v key="Events.Sheet[DailyEvents].Map[Vacation]">Відпустка</v>
+		<v key="Events.Sheet[DailyEvents].Map[Rank]">Звання</v>
+		<v key="Events.Sheet[DailyEvents].Map[FIO]">ПІБ</v>
+		<v key="Events.Sheet[DailyEvents].Map[Position]">Посада</v>
+		<v key="Events.Sheet[DailyEvents].Map[RaportTVO]">Рапорт ТВО</v>
+		<v key="Events.Sheet[DailyEvents].Map[RaportFrom]">Рапорт кого</v>
+		<v key="Events.Sheet[DailyEvents].Map[InNum]">Вх. №</v>
+		<v key="Events.Sheet[DailyEvents].Map[InDate]">Вх. Дата</v>
+		<v key="Events.Sheet[DailyEvents].Map[DocNote]" styles="{width: 40; autoHeight: true}">Документ / Замітки</v>
+		<v key="Events.Sheet[DailyEvents].Map[DocNum]">Док. №</v>
+		<v key="Events.Sheet[DailyEvents].Map[DocDate]">Док. дата</v>
+		<v key="Events.Sheet[DailyEvents].Map[DaysCount]">На скільки</v>
+		<v key="Events.Sheet[DailyEvents].Map[DateFrom]">З</v>
+		<v key="Events.Sheet[DailyEvents].Map[DateTo]">По</v>
+		<v key="Events.Sheet[DailyEvents].Map[VkNum]">В/к №</v>
+		<v key="Events.Sheet[DailyEvents].Map[VkDate]">В/к дата</v>
+		<v key="Events.Sheet[DailyEvents].Map[VlkNum]">ВЛК №</v>
+		<v key="Events.Sheet[DailyEvents].Map[VlkDate]">ВЛК дата</v>
+		<v key=""/>
+		<v key="Output.Sheets">StateMain; EventsOut; EventsIn; DailyEvents</v>
+		<postProcessScript>
+			for (row in Events.Sheet[DailyEvents].rows) {
+				/* Старт блока: новая больница */
+				if (row.column[Hospital] != "") {
+					let txt = callMacro("ex_PostProcessActions.m_TextAppend", "", "7.2.3. З-лікування:");
+					let txt = callMacro("ex_PostProcessActions.m_TextAppend", txt, "З {row.column[Hospital]}.", "\n");
+
+					if (row.column[Rank] != "" and row.column[FIO] != "" and row.column[Position] != "") {
+						let txt = callMacro("ex_PostProcessActions.m_TextAppend", txt, "{row.column[Rank]} {row.column[FIO]}, {row.column[Position]}.", "\n");
+					}
+
+					if (row.column[Vacation] != "") {
+						let txt = callMacro("ex_PostProcessActions.m_TextAppend", txt, "Статус: {row.column[Vacation]}.", "\n");
+					}
+
+					if (row.column[DaysCount] != "" and row.column[DateFrom] != "" and row.column[DateTo] != "") {
+						let txt = callMacro("ex_PostProcessActions.m_TextAppend", txt, "Термін: {row.column[DaysCount]} (з {row.column[DateFrom]} по {row.column[DateTo]}).", "\n");
+					}
+
+					if (row.column[RaportFrom] != "" and row.column[InNum] != "" and row.column[InDate] != "") {
+						let txt = callMacro("ex_PostProcessActions.m_TextAppend", txt, "Підстава: рапорт {row.column[RaportFrom]} (вх. №{row.column[InNum]} від {row.column[InDate]}).", "\n");
+					}
+
+					if (row.column[DocNum] != "" and row.column[DocDate] != "") {
+						let txt = callMacro("ex_PostProcessActions.m_TextAppend", txt, "Виписка з медичної карти №{row.column[DocNum]} від {row.column[DocDate]}.", "\n");
+					}
+
+					if (row.column[VkNum] != "" and row.column[VkDate] != "") {
+						let txt = callMacro("ex_PostProcessActions.m_TextAppend", txt, "В/к №{row.column[VkNum]} від {row.column[VkDate]}.", "\n");
+					}
+
+					if (row.column[VlkNum] != "" and row.column[VlkDate] != "") {
+						let txt = callMacro("ex_PostProcessActions.m_TextAppend", txt, "ВЛК №{row.column[VlkNum]} від {row.column[VlkDate]}.", "\n");
+					}
+
+					callMacro("ex_PostProcessActions.m_SetRowCellText", row, "DocNote", txt);
+				}
+
+				/* Продолжение блока: строка без Hospital дописывается в блок выше */
+				if (row.column[Hospital] == "" and row.column[FIO] != "" and row.column[Rank] != "" and row.column[Position] != "") {
+					callMacro("ex_PostProcessActions.m_AppendToOwnerRowCell", row, "Hospital", "DocNote", "{row.column[Rank]} {row.column[FIO]}, {row.column[Position]}.", "\n");
+				}
+
+				if (row.column[Hospital] == "" and row.column[Vacation] != "") {
+					callMacro("ex_PostProcessActions.m_AppendToOwnerRowCell", row, "Hospital", "DocNote", "Статус: {row.column[Vacation]}.", "\n");
+				}
+
+				if (row.column[Hospital] == "" and row.column[DaysCount] != "" and row.column[DateFrom] != "" and row.column[DateTo] != "") {
+					callMacro("ex_PostProcessActions.m_AppendToOwnerRowCell", row, "Hospital", "DocNote", "Термін: {row.column[DaysCount]} (з {row.column[DateFrom]} по {row.column[DateTo]}).", "\n");
+				}
+
+				if (row.column[Hospital] == "" and row.column[RaportFrom] != "" and row.column[InNum] != "" and row.column[InDate] != "") {
+					callMacro("ex_PostProcessActions.m_AppendToOwnerRowCell", row, "Hospital", "DocNote", "Підстава: рапорт {row.column[RaportFrom]} (вх. №{row.column[InNum]} від {row.column[InDate]}).", "\n");
+				}
+
+				if (row.column[Hospital] == "" and row.column[DocNum] != "" and row.column[DocDate] != "") {
+					callMacro("ex_PostProcessActions.m_AppendToOwnerRowCell", row, "Hospital", "DocNote", "Виписка з медичної карти №{row.column[DocNum]} від {row.column[DocDate]}.", "\n");
+				}
+
+				if (row.column[Hospital] == "" and row.column[VkNum] != "" and row.column[VkDate] != "") {
+					callMacro("ex_PostProcessActions.m_AppendToOwnerRowCell", row, "Hospital", "DocNote", "В/к №{row.column[VkNum]} від {row.column[VkDate]}.", "\n");
+				}
+
+				if (row.column[Hospital] == "" and row.column[VlkNum] != "" and row.column[VlkDate] != "") {
+					callMacro("ex_PostProcessActions.m_AppendToOwnerRowCell", row, "Hospital", "DocNote", "ВЛК №{row.column[VlkNum]} від {row.column[VlkDate]}.", "\n");
+				}
+
+				if (row.column[DocNote] != "") {
+					callMacro("ex_PostProcessActions.m_HighlightRowCell", row, "DocNote", "#404040");
+					callMacro("ex_PostProcessActions.m_EmphasizeRowCellTextByRegex", row, "DocNote", "№\\s*[0-9]+", "#FF0000", "false");
+				}
+			}
+
+			if (Events.Sheet[DailyEvents].count != "0") {
+				callMacro("ex_PostProcessActions.m_AppendPostProcessFooterText", "DailyEvents rows: {Events.Sheet[DailyEvents].count}");
+			}
+		</postProcessScript>
+		<ui>
+			<control name="ddProfile" visible="false"/>
+			<control name="ddMode" visible="false"/>
+			<control name="btnClear" visible="true"/>
+			<control name="btnMode" visible="true"/>
+			<control name="btnPersonalCard" visible="true"/>
+			<control name="btnComparing" visible="false"/>
+			<control name="btnUpdateCode" visible="true"/>
+			<control name="btnCustomProfile" visible="true"/>
+			<control name="btnCustomMode" visible="true"/>
 		</ui>
 	</profile>
 </profiles>

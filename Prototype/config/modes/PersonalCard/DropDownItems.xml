@@ -9,5 +9,9 @@
           caption="Test"
           target="Test"
           setContext="activeProfile=Test"/>
+    <item key="Test2"
+          caption="Test2"
+          target="Test2"
+          setContext="activeProfile=Test2"/>
   </list>
 </dropdownItems>
