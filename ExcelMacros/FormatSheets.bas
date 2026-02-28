@@ -2,15 +2,25 @@ Option Explicit
 
 Private mStatusClearAt As Date
 Private mStatusClearPending As Boolean
-Private Const SHEET_NAME_SPS As String = "ШПС"
+
 Private Const SHEET_BACKUP_SUFFIX As String = " (orig)"
+Private Const PROFILE_DEFAULT As String = "default"
+
+Private Const SHEET_NAME_SPS As String = "ШПС"
+Private Const PROFILE_SPS As String = "sps"
+Private Const SPS_HEADER_SCAN_LIMIT As Long = 30
+
+Private Const SHEET_NAME_TEMP_ARRIVED As String = "4. Тимчасово прибулі"
+Private Const PROFILE_TEMP_ARRIVED As String = "temp_arrived"
+
+Private Const SHEET_NAME_TEMP_ABSENT As String = "5. Тимчасово відсутні"
+Private Const PROFILE_TEMP_ABSENT As String = "temp_absent"
 
 Public Sub dev_FormatKnownSupportedSheets()
     Dim ws As Worksheet: Set ws = ActiveSheet
     Dim startSheet As Worksheet: Set startSheet = ws
-    Const HEADER_SCAN_LIMIT As Long = 30
-    Dim isTargetSheet As Boolean
-    isTargetSheet = IsSpsSheet(ws.Name)
+    Dim sheetProfile As String
+    sheetProfile = ResolveSheetProfile(ws.Name)
 
     Dim prevScreenUpdating As Boolean
     Dim prevEnableEvents As Boolean
@@ -27,67 +37,7 @@ Public Sub dev_FormatKnownSupportedSheets()
     Application.EnableEvents = False
     Application.Calculation = xlCalculationManual
 
-    If isTargetSheet Then
-        Dim headerRow As Long
-        headerRow = DetectHeaderRow(ws, Array("#", "№ з/п"), HEADER_SCAN_LIMIT)
-        If headerRow = 0 Then
-            MsgBox "Header row was not found in the first " & HEADER_SCAN_LIMIT & " rows.", vbExclamation
-            GoTo Cleanup
-        End If
-
-        SaveStyleBackup ws
-
-        Dim keepHeaders As Variant
-        keepHeaders = Array( _
-            "#", _
-            "Код посади", _
-            "Військове звання", _
-            "Прізвище, ім’я, по батькові", _
-            "Повна назва посади", _
-            "ІПН", _
-            "Вид військової служби", _
-            "Дата підписання контракту", _
-            "Дата завершення контракту", _
-            "Дата та № наказу про присвоэння звання", _
-            "Дата та № наказу призначення на посаду", _
-            "Дата та № наказу про зарахування", _
-            "Дата та № наказу доступу до ""Таємно""", _
-            "Прибув з:", _
-            "Місцезнаходження", _
-            "Дата та № наказу місцезнаходження", _
-            "Х1" _
-        )
-
-        Dim anchorHeaders As Variant
-        anchorHeaders = Array("Прізвище, ім’я, по батькові", "Прізвище, ім'я, по батькові")
-
-        Dim keep As Object
-        Set keep = CreateObject("Scripting.Dictionary")
-        keep.CompareMode = vbTextCompare
-        BuildKeepMap keepHeaders, keep
-
-        Dim lastCol As Long
-        Dim lastRow As Long
-        Dim moveInfo As String
-
-        lastCol = ws.Cells(headerRow, ws.Columns.Count).End(xlToLeft).Column
-        lastRow = LastUsedRow(ws)
-        If lastRow < 1 Then lastRow = 1
-
-        If Not MoveColumnAfterHeader(ws, headerRow, lastRow, "Повна назва посади", anchorHeaders, moveInfo) Then
-            MsgBox moveInfo, vbExclamation
-            GoTo Cleanup
-        End If
-
-        lastCol = ws.Cells(headerRow, ws.Columns.Count).End(xlToLeft).Column
-        ApplySheetTheme ws
-        HideNotDesiredColumns ws, headerRow, lastCol, keep
-        ApplyFinalFormatting ws, headerRow, lastRow
-        resultMsg = "Layout applied."
-    Else
-        ApplySheetTheme ws
-        resultMsg = "Theme applied only. Non-target sheet: '" & ws.Name & "'."
-    End If
+    resultMsg = ApplySheetProfile(ws, sheetProfile)
 
 Cleanup:
     Application.Calculation = prevCalculation
@@ -112,18 +62,127 @@ Fail:
     Resume Cleanup
 End Sub
 
-Private Function IsSpsSheet(sheetName As String) As Boolean
-    Dim normalized As String
-    normalized = Replace(sheetName, ChrW(160), " ")
-    normalized = Trim$(normalized)
+Private Function ApplySheetProfile(ws As Worksheet, sheetProfile As String) As String
+    Select Case sheetProfile
+        Case PROFILE_SPS
+            ApplySheetProfile = ApplyStyleProfileSps(ws, SPS_HEADER_SCAN_LIMIT)
+        Case PROFILE_TEMP_ARRIVED
+            ApplySheetProfile = ApplyStyleProfileTemporaryArrived(ws)
+        Case PROFILE_TEMP_ABSENT
+            ApplySheetProfile = ApplyStyleProfileTemporaryAbsent(ws)
+        Case Else
+            ApplySheetProfile = ApplyStyleProfileDefault(ws)
+    End Select
+End Function
 
-    If StrComp(normalized, SHEET_NAME_SPS, vbTextCompare) = 0 Then
-        IsSpsSheet = True
-    ElseIf Len(normalized) > Len(SHEET_NAME_SPS) + 2 Then
-        IsSpsSheet = (StrComp(Left$(normalized, Len(SHEET_NAME_SPS) + 2), SHEET_NAME_SPS & " (", vbTextCompare) = 0)
+Private Function ResolveSheetProfile(sheetName As String) As String
+    Dim normalized As String
+    normalized = NormalizeSheetName(sheetName)
+
+    If IsSpsSheet(normalized) Then
+        ResolveSheetProfile = PROFILE_SPS
+    ElseIf IsSheetNameOrCopy(normalized, SHEET_NAME_TEMP_ARRIVED) Then
+        ResolveSheetProfile = PROFILE_TEMP_ARRIVED
+    ElseIf IsSheetNameOrCopy(normalized, SHEET_NAME_TEMP_ABSENT) Then
+        ResolveSheetProfile = PROFILE_TEMP_ABSENT
     Else
-        IsSpsSheet = False
+        ResolveSheetProfile = PROFILE_DEFAULT
     End If
+End Function
+
+Private Function ApplyStyleProfileSps(ws As Worksheet, headerScanLimit As Long) As String
+    Dim headerRow As Long
+    headerRow = DetectHeaderRow(ws, Array("#", "№ з/п"), headerScanLimit)
+    If headerRow = 0 Then
+        Err.Raise vbObjectError + 1301, "ApplyStyleProfileSps", _
+                  "Header row was not found in the first " & headerScanLimit & " rows."
+    End If
+
+    SaveStyleBackup ws
+
+    Dim keepHeaders As Variant
+    keepHeaders = Array( _
+        "#", _
+        "Код посади", _
+        "Військове звання", _
+        "Прізвище, ім’я, по батькові", _
+        "Повна назва посади", _
+        "ІПН", _
+        "Вид військової служби", _
+        "Дата підписання контракту", _
+        "Дата завершення контракту", _
+        "Дата та № наказу про присвоэння звання", _
+        "Дата та № наказу призначення на посаду", _
+        "Дата та № наказу про зарахування", _
+        "Дата та № наказу доступу до ""Таємно""", _
+        "Прибув з:", _
+        "Місцезнаходження", _
+        "Дата та № наказу місцезнаходження", _
+        "Х1" _
+    )
+
+    Dim anchorHeaders As Variant
+    anchorHeaders = Array("Прізвище, ім’я, по батькові", "Прізвище, ім'я, по батькові")
+
+    Dim keep As Object
+    Set keep = CreateObject("Scripting.Dictionary")
+    keep.CompareMode = vbTextCompare
+    BuildKeepMap keepHeaders, keep
+
+    Dim lastCol As Long
+    Dim lastRow As Long
+    Dim moveInfo As String
+
+    lastCol = ws.Cells(headerRow, ws.Columns.Count).End(xlToLeft).Column
+    lastRow = LastUsedRow(ws)
+    If lastRow < 1 Then lastRow = 1
+
+    If Not MoveColumnAfterHeader(ws, headerRow, lastRow, "Повна назва посади", anchorHeaders, moveInfo) Then
+        Err.Raise vbObjectError + 1302, "ApplyStyleProfileSps", moveInfo
+    End If
+
+    lastCol = ws.Cells(headerRow, ws.Columns.Count).End(xlToLeft).Column
+    ApplySheetTheme ws
+    HideNotDesiredColumns ws, headerRow, lastCol, keep
+    ApplyFinalFormatting ws, headerRow, lastRow
+
+    ApplyStyleProfileSps = "Layout applied."
+End Function
+
+Private Function ApplyStyleProfileTemporaryArrived(ws As Worksheet) As String
+    ApplyTemporaryPersonnelBaseStyle ws
+    ApplyTemporaryArrivedColumnWidths ws
+    ApplyStyleProfileTemporaryArrived = "Layout applied for '" & SHEET_NAME_TEMP_ARRIVED & "'."
+End Function
+
+Private Function ApplyStyleProfileTemporaryAbsent(ws As Worksheet) As String
+    ApplyTemporaryPersonnelBaseStyle ws
+    ApplyTemporaryAbsentColumnWidths ws
+    ApplyStyleProfileTemporaryAbsent = "Layout applied for '" & SHEET_NAME_TEMP_ABSENT & "'."
+End Function
+
+Private Function ApplyStyleProfileDefault(ws As Worksheet) As String
+    ApplySheetTheme ws
+    ApplyStyleProfileDefault = "Theme applied only. Non-target sheet: '" & ws.Name & "'."
+End Function
+
+Private Function IsSpsSheet(sheetName As String) As Boolean
+    IsSpsSheet = IsSheetNameOrCopy(NormalizeSheetName(sheetName), SHEET_NAME_SPS)
+End Function
+
+Private Function IsSheetNameOrCopy(normalizedSheetName As String, baseSheetName As String) As Boolean
+    If StrComp(normalizedSheetName, baseSheetName, vbTextCompare) = 0 Then
+        IsSheetNameOrCopy = True
+    ElseIf Len(normalizedSheetName) > Len(baseSheetName) + 2 Then
+        IsSheetNameOrCopy = (StrComp(Left$(normalizedSheetName, Len(baseSheetName) + 2), _
+                             baseSheetName & " (", vbTextCompare) = 0)
+    Else
+        IsSheetNameOrCopy = False
+    End If
+End Function
+
+Private Function NormalizeSheetName(sheetName As String) As String
+    NormalizeSheetName = NormalizeHeader(sheetName)
 End Function
 
 Private Function DetectHeaderRow(ws As Worksheet, keys As Variant, maxRowsToCheck As Long) As Long
@@ -168,6 +227,7 @@ Private Sub SaveStyleBackup(ws As Worksheet)
     On Error GoTo BackupFail
 
     Dim wb As Workbook: Set wb = ws.Parent
+    Dim sourceWs As Worksheet: Set sourceWs = ws
     Dim backupSheetName As String
     backupSheetName = GetBackupSheetName()
     Dim prevDisplayAlerts As Boolean
@@ -193,23 +253,17 @@ Private Sub SaveStyleBackup(ws As Worksheet)
     ws.Copy After:=wb.Worksheets(wb.Worksheets.Count)
 
     Dim backupWs As Worksheet
-    Set backupWs = wb.Worksheets(wb.Worksheets.Count)
+    Set backupWs = ActiveSheet
+    backupWs.Name = backupSheetName
 
-    ' TODO: Backup sheet rename is unstable in current environment/workbook state.
-    ' TODO: Sometimes Excel leaves copied sheet with auto-generated name and rename fails.
-    ' TODO: Need deeper investigation (workbook structure state, name collisions, Personal.xlsb context).
-    Dim renameErrText As String
-    If Not TryRenameSheet(backupWs, backupSheetName, 3, renameErrText) Then
-        Err.Raise vbObjectError + 1203, "SaveStyleBackup", _
-                  "Could not rename backup sheet to '" & backupSheetName & "': " & renameErrText
-    End If
-
-    backupWs.Visible = xlSheetVeryHidden
+    backupWs.Visible = xlSheetVisible
+    sourceWs.Activate
     Exit Sub
 
 BackupFail:
     On Error Resume Next
     Application.DisplayAlerts = prevDisplayAlerts
+    sourceWs.Activate
     On Error GoTo 0
     Err.Raise Err.Number, Err.Source, Err.Description
 End Sub
@@ -224,33 +278,6 @@ Private Function WorksheetExists(wb As Workbook, sheetName As String) As Boolean
     Set tmp = wb.Worksheets(sheetName)
     On Error GoTo 0
     WorksheetExists = Not tmp Is Nothing
-End Function
-
-Private Function TryRenameSheet(sheetToRename As Worksheet, targetName As String, retries As Long, _
-                                ByRef lastErrText As String) As Boolean
-    Dim i As Long
-    Dim errNum As Long
-
-    ' TODO: Temporary retry workaround; root cause of rename failure is still unknown.
-    ' TODO: Replace with deterministic rename strategy after root-cause analysis.
-    If retries < 1 Then retries = 1
-
-    For i = 1 To retries
-        On Error Resume Next
-        sheetToRename.Name = targetName
-        errNum = Err.Number
-        lastErrText = Err.Description
-        On Error GoTo 0
-
-        If errNum = 0 Then
-            TryRenameSheet = True
-            Exit Function
-        End If
-
-        DoEvents
-    Next i
-
-    TryRenameSheet = False
 End Function
 
 Private Sub ShowStatusForSeconds(messageText As String, secondsCount As Long)
@@ -307,7 +334,7 @@ Private Function MoveColumnAfterHeader( _
     End If
 
     Dim dstCol As Long
-    dstCol = FindAnyColInArrayPreferVisible(ws, headers, anchorHeaders)
+    dstCol = FindAnyColInArrayPreferVisibleRightmost(ws, headers, anchorHeaders)
     If dstCol = 0 Then
         info = "Target column 'Прізвище, ім’я, по батькові' was not found."
         Exit Function
@@ -345,24 +372,99 @@ Private Function FindColInArrayPreferVisible(ws As Worksheet, headers As Variant
     FindColInArrayPreferVisible = firstMatch
 End Function
 
-Private Function FindAnyColInArrayPreferVisible(ws As Worksheet, headers As Variant, variants As Variant) As Long
+Private Function FindAnyColInArrayPreferVisibleRightmost(ws As Worksheet, headers As Variant, variants As Variant) As Long
     Dim i As Long, key As String, c As Long
-    Dim firstMatch As Long
+    Dim bestVisible As Long
+    Dim bestAny As Long
 
     For i = LBound(variants) To UBound(variants)
         key = NormalizeHeader(CStr(variants(i)))
         For c = 1 To UBound(headers, 2)
             If NormalizeHeader(CStr(headers(1, c))) = key Then
-                If firstMatch = 0 Then firstMatch = c
+                If c > bestAny Then bestAny = c
                 If Not ws.Columns(c).Hidden Then
-                    FindAnyColInArrayPreferVisible = c
-                    Exit Function
+                    If c > bestVisible Then bestVisible = c
                 End If
             End If
         Next c
     Next i
 
-    FindAnyColInArrayPreferVisible = firstMatch
+    If bestVisible > 0 Then
+        FindAnyColInArrayPreferVisibleRightmost = bestVisible
+    Else
+        FindAnyColInArrayPreferVisibleRightmost = bestAny
+    End If
+End Function
+
+Private Sub ApplyTemporaryPersonnelBaseStyle(ws As Worksheet)
+    ApplySheetTheme ws
+    ApplyTemporaryAbsentKeywordColors ws
+End Sub
+
+Private Sub ApplyTemporaryAbsentKeywordColors(ws As Worksheet)
+    Dim usedRng As Range
+    Set usedRng = ws.UsedRange
+    If usedRng Is Nothing Then Exit Sub
+
+    ColorKeywordsInRange usedRng, TemporaryAbsentRedKeywords(), RGB(255, 0, 0)
+    ColorKeywordsInRange usedRng, TemporaryAbsentBlueKeywords(), RGB(0, 176, 240)
+End Sub
+
+Private Sub ApplyTemporaryAbsentColumnWidths(ws As Worksheet)
+    ws.Columns("F:M").AutoFit
+    ws.Columns("O:O").AutoFit
+End Sub
+
+Private Sub ApplyTemporaryArrivedColumnWidths(ws As Worksheet)
+    ws.Columns("F:K").AutoFit
+End Sub
+
+Private Sub ColorKeywordsInRange(targetRange As Range, keywords As Variant, fontColor As Long)
+    Dim cell As Range
+    For Each cell In targetRange.Cells
+        Dim v As Variant
+        v = cell.Value2
+        If Not IsError(v) Then
+            Dim txt As String
+            txt = CStr(v)
+            If Len(txt) > 0 Then
+                Dim i As Long
+                For i = LBound(keywords) To UBound(keywords)
+                    ApplyKeywordColorInCell cell, txt, CStr(keywords(i)), fontColor
+                Next i
+            End If
+        End If
+    Next cell
+End Sub
+
+Private Sub ApplyKeywordColorInCell(targetCell As Range, ByVal cellText As String, ByVal keyword As String, ByVal fontColor As Long)
+    If Len(keyword) = 0 Then Exit Sub
+
+    Dim pos As Long
+    Dim searchFrom As Long
+    searchFrom = 1
+
+    Do
+        pos = InStr(searchFrom, cellText, keyword, vbBinaryCompare) ' case-sensitive
+        If pos = 0 Then Exit Do
+        targetCell.Characters(pos, Len(keyword)).Font.Color = fontColor
+        searchFrom = pos + Len(keyword)
+    Loop
+End Sub
+
+Private Function TemporaryAbsentRedKeywords() As Variant
+    TemporaryAbsentRedKeywords = Array( _
+        "ПЕРЕБУВАВ у відпустці для лікуванні", _
+        "ПЕРЕБУВАВ у відпустці для лікування", _
+        "СЗЧ", _
+        "ВИБУВАЄ у відпустку для лікування", _
+        "ПЕРЕБУВАВ на лікуванні", _
+        "ПРИБУВ" _
+    )
+End Function
+
+Private Function TemporaryAbsentBlueKeywords() As Variant
+    TemporaryAbsentBlueKeywords = Array("ТВО")
 End Function
 
 Private Function FindColInArray(headers As Variant, wantedKey As String) As Long
