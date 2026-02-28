@@ -4,12 +4,17 @@ Option Explicit
 Private Const DEV_SHEET_NAME As String = "Dev"
 Private Const HEADER_SHAPE_NAME As String = "btnCustomMode"
 Private Const OPTION_SHAPE_PREFIX As String = "btnCustomModeOption_"
-Private Const OPTION_COUNT As Long = 2
 Private Const STATE_DROPDOWN_EXPANDED_FLAG As String = "Settings.CustomModeDropdownExpanded"
 Private Const PROFILE_HEADER_SHAPE_NAME As String = "btnCustomProfile"
 Private Const PROFILE_OPTION_SHAPE_PREFIX As String = "btnCustomProfileOption_"
-Private Const PROFILE_OPTION_COUNT As Long = 2
 Private Const STATE_PROFILE_DROPDOWN_EXPANDED_FLAG As String = "Settings.CustomProfileDropdownExpanded"
+
+Private Const TAG_KIND As String = "dd_kind"
+Private Const TAG_KEY As String = "dd_key"
+Private Const TAG_TARGET As String = "dd_target"
+Private Const TAG_SET_CONTEXT As String = "dd_setContext"
+Private Const TAG_ACTION_KEY As String = "dd_actionKey"
+Private Const TAG_MACRO As String = "dd_macro"
 
 Public Sub m_InitDevTestDropdown(Optional ByVal wb As Workbook)
     Dim ws As Worksheet
@@ -25,15 +30,15 @@ Public Sub m_InitDevTestDropdown(Optional ByVal wb As Workbook)
     If Not mp_EnsureShapesExist(ws, wb) Then Exit Sub
     If Not mp_EnsureProfileShapesExist(ws, wb) Then Exit Sub
 
-    mp_SyncProfileOptionCaptions ws
-    mp_RepositionOptionShapes ws
-    mp_RepositionProfileOptionShapes ws
+    mp_SyncDropdownContext ws
+    mp_RebuildModeOptions ws
+    mp_RebuildProfileOptions ws
 
     isExpanded = mp_GetExpandedState()
-    mp_SetOptionsVisible ws, isExpanded
+    mp_SetOptionsVisible ws, OPTION_SHAPE_PREFIX, isExpanded
 
     isProfileExpanded = mp_GetProfileExpandedState()
-    mp_SetProfileOptionsVisible ws, isProfileExpanded
+    mp_SetOptionsVisible ws, PROFILE_OPTION_SHAPE_PREFIX, isProfileExpanded
 End Sub
 
 Public Sub m_ToggleDevTestDropdown(Optional ByVal wb As Workbook)
@@ -48,16 +53,16 @@ Public Sub m_ToggleDevTestDropdown(Optional ByVal wb As Workbook)
 
     If Not mp_EnsureShapesExist(ws, wb) Then Exit Sub
 
-    mp_RepositionOptionShapes ws
+    mp_SyncDropdownContext ws
+    mp_RebuildModeOptions ws
+
     isExpanded = Not mp_GetExpandedState()
     mp_SetExpandedState isExpanded
-    mp_SetOptionsVisible ws, isExpanded
+    mp_SetOptionsVisible ws, OPTION_SHAPE_PREFIX, isExpanded
 End Sub
 
 Public Sub m_SelectDevTestOption(Optional ByVal wb As Workbook)
     Dim ws As Worksheet
-    Dim callerName As String
-    Dim optionIndex As Long
 
     If wb Is Nothing Then Set wb = ThisWorkbook
     If wb Is Nothing Then Exit Sub
@@ -65,18 +70,10 @@ Public Sub m_SelectDevTestOption(Optional ByVal wb As Workbook)
     Set ws = mp_GetDevSheet(wb)
     If ws Is Nothing Then Exit Sub
 
-    callerName = vbNullString
-    On Error Resume Next
-    callerName = CStr(Application.Caller)
-    On Error GoTo 0
+    mp_HandleDynamicOptionSelect ws, "mode", OPTION_SHAPE_PREFIX
 
-    optionIndex = mp_ParseOptionIndex(callerName)
-    If optionIndex < 1 Then Exit Sub
-    If optionIndex > OPTION_COUNT Then Exit Sub
-
-    mp_SelectModeByOption ws, optionIndex
     mp_SetExpandedState False
-    mp_SetOptionsVisible ws, False
+    mp_SetOptionsVisible ws, OPTION_SHAPE_PREFIX, False
 End Sub
 
 Public Sub m_HideDevTestDropdown(Optional ByVal ws As Worksheet)
@@ -96,7 +93,7 @@ Public Sub m_HideCustomModeDropdown(Optional ByVal ws As Worksheet)
     If ws Is Nothing Then Exit Sub
 
     mp_SetExpandedState False
-    mp_SetOptionsVisible ws, False
+    mp_SetOptionsVisible ws, OPTION_SHAPE_PREFIX, False
 End Sub
 
 Public Sub m_HideCustomProfileDropdown(Optional ByVal ws As Worksheet)
@@ -106,7 +103,7 @@ Public Sub m_HideCustomProfileDropdown(Optional ByVal ws As Worksheet)
     If ws Is Nothing Then Exit Sub
 
     mp_SetProfileExpandedState False
-    mp_SetProfileOptionsVisible ws, False
+    mp_SetOptionsVisible ws, PROFILE_OPTION_SHAPE_PREFIX, False
 End Sub
 
 Public Sub m_OnManagedButtonClick(Optional ByVal callerName As String = vbNullString)
@@ -147,17 +144,16 @@ Public Sub m_ToggleCustomProfileDropdown(Optional ByVal wb As Workbook)
 
     If Not mp_EnsureProfileShapesExist(ws, wb) Then Exit Sub
 
-    mp_SyncProfileOptionCaptions ws
-    mp_RepositionProfileOptionShapes ws
+    mp_SyncDropdownContext ws
+    mp_RebuildProfileOptions ws
+
     isExpanded = Not mp_GetProfileExpandedState()
     mp_SetProfileExpandedState isExpanded
-    mp_SetProfileOptionsVisible ws, isExpanded
+    mp_SetOptionsVisible ws, PROFILE_OPTION_SHAPE_PREFIX, isExpanded
 End Sub
 
 Public Sub m_SelectCustomProfileOption(Optional ByVal wb As Workbook)
     Dim ws As Worksheet
-    Dim callerName As String
-    Dim optionIndex As Long
 
     If wb Is Nothing Then Set wb = ThisWorkbook
     If wb Is Nothing Then Exit Sub
@@ -165,18 +161,10 @@ Public Sub m_SelectCustomProfileOption(Optional ByVal wb As Workbook)
     Set ws = mp_GetDevSheet(wb)
     If ws Is Nothing Then Exit Sub
 
-    callerName = vbNullString
-    On Error Resume Next
-    callerName = CStr(Application.Caller)
-    On Error GoTo 0
+    mp_HandleDynamicOptionSelect ws, "profile", PROFILE_OPTION_SHAPE_PREFIX
 
-    optionIndex = mp_ParseOptionIndexByPrefix(callerName, PROFILE_OPTION_SHAPE_PREFIX)
-    If optionIndex < 1 Then Exit Sub
-    If optionIndex > PROFILE_OPTION_COUNT Then Exit Sub
-
-    mp_SelectProfileByOption ws, optionIndex
     mp_SetProfileExpandedState False
-    mp_SetProfileOptionsVisible ws, False
+    mp_SetOptionsVisible ws, PROFILE_OPTION_SHAPE_PREFIX, False
 End Sub
 
 Public Sub m_StabilizeChooseModeAnchorX(Optional ByVal ws As Worksheet, Optional ByVal targetLeft As Double = -1)
@@ -231,6 +219,505 @@ Public Function m_GetStableZoneStartLeft(Optional ByVal ws As Worksheet) As Doub
 
     m_GetStableZoneStartLeft = ws.Cells(1, stableStartCol).Left
 End Function
+
+Private Sub mp_RebuildModeOptions(ByVal ws As Worksheet)
+    mp_RebuildDynamicOptions ws, HEADER_SHAPE_NAME, OPTION_SHAPE_PREFIX, HEADER_SHAPE_NAME, "mode", "ex_UIActions.m_SelectCustomModeOption_OnClick", "ddMode"
+End Sub
+
+Private Sub mp_RebuildProfileOptions(ByVal ws As Worksheet)
+    mp_RebuildDynamicOptions ws, PROFILE_HEADER_SHAPE_NAME, PROFILE_OPTION_SHAPE_PREFIX, PROFILE_HEADER_SHAPE_NAME, "profile", "ex_UIActions.m_SelectCustomProfileOption_OnClick", "ddProfile"
+End Sub
+
+Private Sub mp_RebuildDynamicOptions( _
+    ByVal ws As Worksheet, _
+    ByVal headerShapeName As String, _
+    ByVal optionPrefix As String, _
+    ByVal sourceControlName As String, _
+    ByVal optionKind As String, _
+    ByVal onClickMacro As String, _
+    ByVal fallbackDropdownShapeName As String)
+
+    Dim headerShape As Shape
+    Dim templateShape As Shape
+    Dim itemRecords As Variant
+    Dim recordCount As Long
+    Dim recordLower As Long
+    Dim recordUpper As Long
+    Dim i As Long
+    Dim optionShape As Shape
+    Dim marginLeft As Double
+    Dim firstGap As Double
+    Dim nextGap As Double
+    Dim matchWidth As Boolean
+    Dim currentTop As Double
+
+    Set headerShape = ex_ConfigProfilesManager.m_GetShapeByName(ws, headerShapeName)
+    If headerShape Is Nothing Then
+        MsgBox "Header shape '" & headerShapeName & "' was not found for dynamic dropdown.", vbExclamation
+        Exit Sub
+    End If
+
+    Set templateShape = ex_ConfigProfilesManager.m_GetShapeByName(ws, optionPrefix & "1")
+    If templateShape Is Nothing Then
+        MsgBox "Template shape '" & optionPrefix & "1' was not found for dynamic dropdown.", vbExclamation
+        Exit Sub
+    End If
+
+    itemRecords = ex_UiXmlProvider.m_GetDropdownItemRecordsByControl(sourceControlName, ThisWorkbook)
+    If Not mp_HasRecords(itemRecords) Then
+        itemRecords = mp_BuildRecordsFromDropdownShape(ws, fallbackDropdownShapeName)
+    End If
+    If Not mp_HasRecords(itemRecords) Then
+        MsgBox "No items were resolved for dynamic dropdown control '" & sourceControlName & "'.", vbExclamation
+        Exit Sub
+    End If
+
+    recordLower = LBound(itemRecords, 1)
+    recordUpper = UBound(itemRecords, 1)
+    recordCount = recordUpper - recordLower + 1
+
+    If Not mp_GetOptionLayout(optionPrefix, marginLeft, firstGap, nextGap, matchWidth) Then Exit Sub
+
+    currentTop = headerShape.Top + headerShape.Height + firstGap
+
+    For i = recordLower To recordUpper
+        Set optionShape = mp_GetOrCreateOptionShape(ws, optionPrefix, i - recordLower + 1, templateShape)
+        If optionShape Is Nothing Then Exit Sub
+
+        mp_SetShapeOnAction optionShape, onClickMacro
+        mp_SetOptionShapeMetadata optionShape, optionKind, itemRecords(i, ex_UiXmlProvider.DROPDOWN_ITEM_COL_KEY), itemRecords(i, ex_UiXmlProvider.DROPDOWN_ITEM_COL_TARGET), itemRecords(i, ex_UiXmlProvider.DROPDOWN_ITEM_COL_SET_CONTEXT), itemRecords(i, ex_UiXmlProvider.DROPDOWN_ITEM_COL_ACTION_KEY), itemRecords(i, ex_UiXmlProvider.DROPDOWN_ITEM_COL_MACRO)
+
+        optionShape.TextFrame.Characters.Text = CStr(itemRecords(i, ex_UiXmlProvider.DROPDOWN_ITEM_COL_CAPTION))
+
+        optionShape.Left = headerShape.Left + marginLeft
+        optionShape.Top = currentTop
+        If matchWidth Then optionShape.Width = headerShape.Width
+        optionShape.ZOrder msoBringToFront
+
+        currentTop = optionShape.Top + optionShape.Height + nextGap
+    Next i
+
+    mp_HideExcessOptionShapes ws, optionPrefix, recordCount
+End Sub
+
+Private Function mp_GetOrCreateOptionShape(ByVal ws As Worksheet, ByVal optionPrefix As String, ByVal optionIndex As Long, ByVal templateShape As Shape) As Shape
+    Dim shapeName As String
+    Dim duplicateRange As Object
+    Dim createdShape As Shape
+
+    shapeName = optionPrefix & CStr(optionIndex)
+    Set createdShape = ex_ConfigProfilesManager.m_GetShapeByName(ws, shapeName)
+    If Not createdShape Is Nothing Then
+        Set mp_GetOrCreateOptionShape = createdShape
+        Exit Function
+    End If
+
+    If templateShape Is Nothing Then Exit Function
+
+    On Error GoTo EH_DUP
+    Set duplicateRange = templateShape.Duplicate
+    Set createdShape = duplicateRange.Item(1)
+    createdShape.Name = shapeName
+    createdShape.Visible = msoFalse
+    createdShape.Placement = xlFreeFloating
+
+    Set mp_GetOrCreateOptionShape = createdShape
+    Exit Function
+EH_DUP:
+    MsgBox "Failed to create dynamic option shape '" & shapeName & "': " & Err.Description, vbExclamation
+End Function
+
+Private Sub mp_HideExcessOptionShapes(ByVal ws As Worksheet, ByVal optionPrefix As String, ByVal keepCount As Long)
+    Dim shp As Shape
+    Dim suffix As String
+    Dim optionIndex As Long
+
+    For Each shp In ws.Shapes
+        If StrComp(Left$(shp.Name, Len(optionPrefix)), optionPrefix, vbTextCompare) = 0 Then
+            suffix = Mid$(shp.Name, Len(optionPrefix) + 1)
+            If IsNumeric(suffix) Then
+                optionIndex = CLng(suffix)
+                If optionIndex > keepCount Then shp.Visible = msoFalse
+            End If
+        End If
+    Next shp
+End Sub
+
+Private Function mp_GetOptionLayout(ByVal optionPrefix As String, ByRef marginLeft As Double, ByRef firstGap As Double, ByRef nextGap As Double, ByRef matchWidth As Boolean) As Boolean
+    Dim firstName As String
+    Dim secondName As String
+
+    firstName = optionPrefix & "1"
+    secondName = optionPrefix & "2"
+
+    marginLeft = 0
+    firstGap = 2
+    nextGap = 2
+    matchWidth = True
+
+    If Not mp_TryGetOptionalDoubleAttr(firstName, "marginLeft", marginLeft) Then Exit Function
+    If Not mp_TryGetOptionalDoubleAttr(firstName, "marginTop", firstGap) Then Exit Function
+    If Not mp_TryGetOptionalDoubleAttr(secondName, "marginTop", nextGap) Then Exit Function
+
+    If Len(Trim$(ex_UiXmlProvider.m_GetControlAttribute(firstName, "matchWidthToRelative", ThisWorkbook))) > 0 Then
+        If Not mp_TryGetOptionalBooleanAttr(firstName, "matchWidthToRelative", matchWidth) Then Exit Function
+    End If
+
+    mp_GetOptionLayout = True
+End Function
+
+Private Function mp_TryGetOptionalDoubleAttr(ByVal controlName As String, ByVal attrName As String, ByRef outValue As Double) As Boolean
+    Dim valueText As String
+    Dim parsedValue As Double
+
+    valueText = Trim$(ex_UiXmlProvider.m_GetControlAttribute(controlName, attrName, ThisWorkbook))
+    If Len(valueText) = 0 Then
+        mp_TryGetOptionalDoubleAttr = True
+        Exit Function
+    End If
+
+    If Not ex_XmlCore.m_TryParseDouble(valueText, parsedValue, True) Then
+        MsgBox "Invalid numeric value '" & valueText & "' for attribute '" & attrName & "' on control '" & controlName & "'.", vbExclamation
+        Exit Function
+    End If
+
+    outValue = parsedValue
+    mp_TryGetOptionalDoubleAttr = True
+End Function
+
+Private Function mp_TryGetOptionalBooleanAttr(ByVal controlName As String, ByVal attrName As String, ByRef outValue As Boolean) As Boolean
+    Dim valueText As String
+    Dim parsedValue As Boolean
+
+    valueText = Trim$(ex_UiXmlProvider.m_GetControlAttribute(controlName, attrName, ThisWorkbook))
+    If Len(valueText) = 0 Then
+        mp_TryGetOptionalBooleanAttr = True
+        Exit Function
+    End If
+
+    If Not ex_XmlCore.m_TryParseBoolean(valueText, parsedValue) Then
+        MsgBox "Invalid boolean value '" & valueText & "' for attribute '" & attrName & "' on control '" & controlName & "'.", vbExclamation
+        Exit Function
+    End If
+
+    outValue = parsedValue
+    mp_TryGetOptionalBooleanAttr = True
+End Function
+
+Private Function mp_BuildRecordsFromDropdownShape(ByVal ws As Worksheet, ByVal dropdownShapeName As String) As Variant
+    Dim shp As Shape
+    Dim cf As Object
+    Dim listCount As Long
+    Dim records() As Variant
+    Dim i As Long
+    Dim itemText As String
+
+    Set shp = ex_ConfigProfilesManager.m_GetShapeByName(ws, dropdownShapeName)
+    If shp Is Nothing Then Exit Function
+
+    On Error Resume Next
+    Set cf = shp.ControlFormat
+    On Error GoTo 0
+    If cf Is Nothing Then Exit Function
+
+    On Error Resume Next
+    listCount = CLng(cf.ListCount)
+    On Error GoTo 0
+    If listCount <= 0 Then Exit Function
+
+    ReDim records(1 To listCount, 1 To ex_UiXmlProvider.DROPDOWN_ITEM_COL_MACRO)
+    For i = 1 To listCount
+        On Error Resume Next
+        itemText = CStr(cf.List(i))
+        On Error GoTo 0
+        itemText = Trim$(itemText)
+        If Len(itemText) = 0 Then itemText = "Item " & CStr(i)
+
+        records(i, ex_UiXmlProvider.DROPDOWN_ITEM_COL_KEY) = itemText
+        records(i, ex_UiXmlProvider.DROPDOWN_ITEM_COL_CAPTION) = itemText
+        records(i, ex_UiXmlProvider.DROPDOWN_ITEM_COL_TARGET) = itemText
+        records(i, ex_UiXmlProvider.DROPDOWN_ITEM_COL_SET_CONTEXT) = vbNullString
+        records(i, ex_UiXmlProvider.DROPDOWN_ITEM_COL_ACTION_KEY) = vbNullString
+        records(i, ex_UiXmlProvider.DROPDOWN_ITEM_COL_MACRO) = vbNullString
+    Next i
+
+    mp_BuildRecordsFromDropdownShape = records
+End Function
+
+Private Function mp_HasRecords(ByVal records As Variant) As Boolean
+    On Error GoTo EH
+    If Not IsArray(records) Then Exit Function
+    mp_HasRecords = (UBound(records, 1) >= LBound(records, 1))
+    Exit Function
+EH:
+    mp_HasRecords = False
+End Function
+
+Private Sub mp_SetOptionShapeMetadata(ByVal shp As Shape, ByVal optionKind As String, ByVal keyText As String, ByVal targetText As String, ByVal setContextText As String, ByVal actionKey As String, ByVal macroName As String)
+    mp_SetShapeTag shp, TAG_KIND, optionKind
+    mp_SetShapeTag shp, TAG_KEY, keyText
+    mp_SetShapeTag shp, TAG_TARGET, targetText
+    mp_SetShapeTag shp, TAG_SET_CONTEXT, setContextText
+    mp_SetShapeTag shp, TAG_ACTION_KEY, actionKey
+    mp_SetShapeTag shp, TAG_MACRO, macroName
+End Sub
+
+Private Sub mp_SetShapeTag(ByVal shp As Shape, ByVal tagName As String, ByVal tagValue As String)
+    On Error Resume Next
+    shp.Tags.Delete tagName
+    shp.Tags.Add tagName, CStr(tagValue)
+    On Error GoTo 0
+End Sub
+
+Private Function mp_GetShapeTag(ByVal shp As Shape, ByVal tagName As String) As String
+    On Error Resume Next
+    mp_GetShapeTag = CStr(shp.Tags(tagName))
+    On Error GoTo 0
+End Function
+
+Private Sub mp_SetShapeOnAction(ByVal shp As Shape, ByVal macroName As String)
+    If shp Is Nothing Then Exit Sub
+    macroName = Trim$(macroName)
+    If Len(macroName) = 0 Then Exit Sub
+
+    On Error GoTo EH
+    shp.OnAction = "'" & ThisWorkbook.Name & "'!" & macroName
+    Exit Sub
+EH:
+    MsgBox "Failed to assign macro '" & macroName & "' to shape '" & shp.Name & "': " & Err.Description, vbExclamation
+End Sub
+
+Private Sub mp_HandleDynamicOptionSelect(ByVal ws As Worksheet, ByVal expectedKind As String, ByVal optionPrefix As String)
+    Dim callerName As String
+    Dim optionShape As Shape
+    Dim optionKind As String
+    Dim targetText As String
+    Dim keyText As String
+    Dim setContextText As String
+    Dim actionKey As String
+    Dim macroName As String
+
+    callerName = vbNullString
+    On Error Resume Next
+    callerName = CStr(Application.Caller)
+    On Error GoTo 0
+    callerName = Trim$(callerName)
+    If Len(callerName) = 0 Then Exit Sub
+
+    If StrComp(Left$(callerName, Len(optionPrefix)), optionPrefix, vbTextCompare) <> 0 Then Exit Sub
+
+    Set optionShape = ex_ConfigProfilesManager.m_GetShapeByName(ws, callerName)
+    If optionShape Is Nothing Then Exit Sub
+
+    optionKind = LCase$(Trim$(mp_GetShapeTag(optionShape, TAG_KIND)))
+    If Len(optionKind) = 0 Then optionKind = LCase$(expectedKind)
+    If StrComp(optionKind, LCase$(expectedKind), vbTextCompare) <> 0 Then Exit Sub
+
+    keyText = Trim$(mp_GetShapeTag(optionShape, TAG_KEY))
+    targetText = Trim$(mp_GetShapeTag(optionShape, TAG_TARGET))
+    If Len(targetText) = 0 Then targetText = keyText
+
+    setContextText = Trim$(mp_GetShapeTag(optionShape, TAG_SET_CONTEXT))
+    actionKey = Trim$(mp_GetShapeTag(optionShape, TAG_ACTION_KEY))
+    macroName = Trim$(mp_GetShapeTag(optionShape, TAG_MACRO))
+
+    If Len(keyText) = 0 And Len(targetText) = 0 Then
+        mp_FillOptionDataByCallerIndex ws, expectedKind, callerName, optionPrefix, keyText, targetText, setContextText, actionKey, macroName
+    End If
+
+    If Len(setContextText) > 0 Then
+        ex_UiXmlProvider.m_ApplyDropdownSetContext setContextText
+    End If
+
+    If StrComp(optionKind, "mode", vbTextCompare) = 0 Then
+        If Len(targetText) = 0 Then
+            MsgBox "Dynamic mode option '" & callerName & "' has no target mode.", vbExclamation
+            Exit Sub
+        End If
+
+        If Not mp_SelectDropdownByItemText(ws, "ddMode", targetText) Then
+            MsgBox "Mode '" & targetText & "' was not found in hidden dropdown 'ddMode'.", vbExclamation
+            Exit Sub
+        End If
+
+        ex_ConfigProfilesManager.m_OnModeChanged
+        If Len(keyText) > 0 Then
+            ex_UiXmlProvider.m_SetDropdownContextValue "activeMode", keyText
+        Else
+            ex_UiXmlProvider.m_SetDropdownContextValue "activeMode", targetText
+        End If
+
+    ElseIf StrComp(optionKind, "profile", vbTextCompare) = 0 Then
+        If Len(targetText) = 0 Then
+            MsgBox "Dynamic profile option '" & callerName & "' has no target profile.", vbExclamation
+            Exit Sub
+        End If
+
+        If Not mp_SelectDropdownByItemText(ws, "ddProfile", targetText) Then
+            MsgBox "Profile '" & targetText & "' was not found in hidden dropdown 'ddProfile'.", vbExclamation
+            Exit Sub
+        End If
+
+        ex_ConfigProfilesManager.m_OnProfileChanged
+        ex_UiXmlProvider.m_SetDropdownContextValue "activeProfile", ex_ConfigProfilesManager.m_GetActiveProfileName(ws)
+    End If
+
+    If Len(macroName) = 0 And Len(actionKey) > 0 Then
+        macroName = ex_UiXmlProvider.m_ResolveMacroByActionKey(actionKey, ThisWorkbook)
+    End If
+
+    If Len(macroName) > 0 Then
+        mp_RunMacroByName macroName
+    End If
+End Sub
+
+Private Sub mp_FillOptionDataByCallerIndex( _
+    ByVal ws As Worksheet, _
+    ByVal optionKind As String, _
+    ByVal callerName As String, _
+    ByVal optionPrefix As String, _
+    ByRef keyText As String, _
+    ByRef targetText As String, _
+    ByRef setContextText As String, _
+    ByRef actionKey As String, _
+    ByRef macroName As String)
+
+    Dim suffix As String
+    Dim itemIndex As Long
+    Dim records As Variant
+    Dim rowIndex As Long
+    Dim sourceControlName As String
+    Dim dropdownShapeName As String
+    Dim shp As Shape
+    Dim cf As Object
+    Dim fallbackText As String
+
+    suffix = Mid$(callerName, Len(optionPrefix) + 1)
+    If Not IsNumeric(suffix) Then Exit Sub
+
+    itemIndex = CLng(suffix)
+    If itemIndex <= 0 Then Exit Sub
+
+    If StrComp(optionKind, "profile", vbTextCompare) = 0 Then
+        sourceControlName = PROFILE_HEADER_SHAPE_NAME
+        dropdownShapeName = "ddProfile"
+    Else
+        sourceControlName = HEADER_SHAPE_NAME
+        dropdownShapeName = "ddMode"
+    End If
+
+    records = ex_UiXmlProvider.m_GetDropdownItemRecordsByControl(sourceControlName, ThisWorkbook)
+    If mp_HasRecords(records) Then
+        rowIndex = LBound(records, 1) + itemIndex - 1
+        If rowIndex >= LBound(records, 1) And rowIndex <= UBound(records, 1) Then
+            If Len(keyText) = 0 Then keyText = Trim$(CStr(records(rowIndex, ex_UiXmlProvider.DROPDOWN_ITEM_COL_KEY)))
+            If Len(targetText) = 0 Then targetText = Trim$(CStr(records(rowIndex, ex_UiXmlProvider.DROPDOWN_ITEM_COL_TARGET)))
+            If Len(setContextText) = 0 Then setContextText = Trim$(CStr(records(rowIndex, ex_UiXmlProvider.DROPDOWN_ITEM_COL_SET_CONTEXT)))
+            If Len(actionKey) = 0 Then actionKey = Trim$(CStr(records(rowIndex, ex_UiXmlProvider.DROPDOWN_ITEM_COL_ACTION_KEY)))
+            If Len(macroName) = 0 Then macroName = Trim$(CStr(records(rowIndex, ex_UiXmlProvider.DROPDOWN_ITEM_COL_MACRO)))
+            If Len(targetText) = 0 Then targetText = Trim$(CStr(records(rowIndex, ex_UiXmlProvider.DROPDOWN_ITEM_COL_CAPTION)))
+        End If
+    End If
+
+    If Len(targetText) > 0 Then Exit Sub
+
+    Set shp = ex_ConfigProfilesManager.m_GetShapeByName(ws, dropdownShapeName)
+    If shp Is Nothing Then Exit Sub
+
+    On Error Resume Next
+    Set cf = shp.ControlFormat
+    On Error GoTo 0
+    If cf Is Nothing Then Exit Sub
+
+    On Error Resume Next
+    fallbackText = Trim$(CStr(cf.List(itemIndex)))
+    On Error GoTo 0
+    If Len(fallbackText) = 0 Then Exit Sub
+
+    If Len(keyText) = 0 Then keyText = fallbackText
+    targetText = fallbackText
+End Sub
+
+Private Function mp_SelectDropdownByItemText(ByVal ws As Worksheet, ByVal dropdownShapeName As String, ByVal itemText As String) As Boolean
+    Dim shp As Shape
+    Dim cf As Object
+    Dim listCount As Long
+    Dim i As Long
+
+    Set shp = ex_ConfigProfilesManager.m_GetShapeByName(ws, dropdownShapeName)
+    If shp Is Nothing Then Exit Function
+
+    On Error Resume Next
+    Set cf = shp.ControlFormat
+    On Error GoTo 0
+    If cf Is Nothing Then Exit Function
+
+    On Error Resume Next
+    listCount = CLng(cf.ListCount)
+    On Error GoTo 0
+    If listCount <= 0 Then Exit Function
+
+    For i = 1 To listCount
+        On Error Resume Next
+        If StrComp(CStr(cf.List(i)), itemText, vbTextCompare) = 0 Then
+            cf.Value = i
+            On Error GoTo 0
+            mp_SelectDropdownByItemText = True
+            Exit Function
+        End If
+        On Error GoTo 0
+    Next i
+End Function
+
+Private Sub mp_RunMacroByName(ByVal macroName As String)
+    Dim fullyQualified As String
+
+    macroName = Trim$(macroName)
+    If Len(macroName) = 0 Then Exit Sub
+
+    If InStr(1, macroName, "!", vbTextCompare) > 0 Then
+        fullyQualified = macroName
+    Else
+        fullyQualified = "'" & ThisWorkbook.Name & "'!" & macroName
+    End If
+
+    On Error GoTo EH
+    Application.Run fullyQualified
+    Exit Sub
+EH:
+    MsgBox "Failed to run macro '" & macroName & "': " & Err.Description, vbExclamation
+End Sub
+
+Private Sub mp_SetOptionsVisible(ByVal ws As Worksheet, ByVal optionPrefix As String, ByVal isVisible As Boolean)
+    Dim shp As Shape
+    Dim visibility As MsoTriState
+
+    visibility = IIf(isVisible, msoTrue, msoFalse)
+
+    For Each shp In ws.Shapes
+        If StrComp(Left$(shp.Name, Len(optionPrefix)), optionPrefix, vbTextCompare) = 0 Then
+            shp.Visible = visibility
+        End If
+    Next shp
+End Sub
+
+Private Sub mp_SyncDropdownContext(ByVal ws As Worksheet)
+    Dim modeName As String
+    Dim modeKey As String
+    Dim profileName As String
+
+    modeName = Trim$(ex_ConfigProfilesManager.m_GetActiveModeName(ws))
+    If Len(modeName) > 0 Then
+        modeKey = Trim$(ex_UiXmlProvider.m_GetDropdownItemKeyByTarget(HEADER_SHAPE_NAME, modeName, ThisWorkbook))
+        If Len(modeKey) = 0 Then modeKey = modeName
+        ex_UiXmlProvider.m_SetDropdownContextValue "activeMode", modeKey
+    End If
+
+    profileName = Trim$(ex_ConfigProfilesManager.m_GetActiveProfileName(ws))
+    If Len(profileName) > 0 Then
+        ex_UiXmlProvider.m_SetDropdownContextValue "activeProfile", profileName
+    End If
+End Sub
 
 Private Function mp_TryGetStableZoneColumns(ByVal ws As Worksheet, ByRef stableStartCol As Long, ByRef bufferCol As Long) As Boolean
     Dim stableColText As String
@@ -348,325 +835,28 @@ Private Function mp_GetDevSheet(ByVal wb As Workbook) As Worksheet
     End If
 End Function
 
-Private Function mp_GetHeaderShape(ByVal ws As Worksheet) As Shape
-    Dim headerShape As Shape
-
-    Set headerShape = ex_ConfigProfilesManager.m_GetShapeByName(ws, HEADER_SHAPE_NAME)
-    Set mp_GetHeaderShape = headerShape
-End Function
-
 Private Function mp_EnsureShapesExist(ByVal ws As Worksheet, ByVal wb As Workbook) As Boolean
-    Dim i As Long
-
-    If mp_GetHeaderShape(ws) Is Nothing Then
+    If ex_ConfigProfilesManager.m_GetShapeByName(ws, HEADER_SHAPE_NAME) Is Nothing Then
         ex_UILoader.m_LoadUiFromConfig wb
     End If
 
-    If mp_GetHeaderShape(ws) Is Nothing Then Exit Function
+    If ex_ConfigProfilesManager.m_GetShapeByName(ws, HEADER_SHAPE_NAME) Is Nothing Then Exit Function
+    If ex_ConfigProfilesManager.m_GetShapeByName(ws, OPTION_SHAPE_PREFIX & "1") Is Nothing Then
+        ex_UILoader.m_LoadUiFromConfig wb
+    End If
 
-    For i = 1 To OPTION_COUNT
-        If ex_ConfigProfilesManager.m_GetShapeByName(ws, OPTION_SHAPE_PREFIX & CStr(i)) Is Nothing Then
-            ex_UILoader.m_LoadUiFromConfig wb
-            Exit For
-        End If
-    Next i
-
-    For i = 1 To OPTION_COUNT
-        If ex_ConfigProfilesManager.m_GetShapeByName(ws, OPTION_SHAPE_PREFIX & CStr(i)) Is Nothing Then Exit Function
-    Next i
-
-    mp_EnsureShapesExist = True
+    mp_EnsureShapesExist = Not (ex_ConfigProfilesManager.m_GetShapeByName(ws, OPTION_SHAPE_PREFIX & "1") Is Nothing)
 End Function
 
 Private Function mp_EnsureProfileShapesExist(ByVal ws As Worksheet, ByVal wb As Workbook) As Boolean
-    Dim i As Long
-
     If ex_ConfigProfilesManager.m_GetShapeByName(ws, PROFILE_HEADER_SHAPE_NAME) Is Nothing Then
         ex_UILoader.m_LoadUiFromConfig wb
     End If
 
     If ex_ConfigProfilesManager.m_GetShapeByName(ws, PROFILE_HEADER_SHAPE_NAME) Is Nothing Then Exit Function
-
-    For i = 1 To PROFILE_OPTION_COUNT
-        If ex_ConfigProfilesManager.m_GetShapeByName(ws, PROFILE_OPTION_SHAPE_PREFIX & CStr(i)) Is Nothing Then
-            ex_UILoader.m_LoadUiFromConfig wb
-            Exit For
-        End If
-    Next i
-
-    For i = 1 To PROFILE_OPTION_COUNT
-        If ex_ConfigProfilesManager.m_GetShapeByName(ws, PROFILE_OPTION_SHAPE_PREFIX & CStr(i)) Is Nothing Then Exit Function
-    Next i
-
-    mp_EnsureProfileShapesExist = True
-End Function
-
-Private Sub mp_RepositionOptionShapes(ByVal ws As Worksheet)
-    Dim i As Long
-    Dim optionControlName As String
-    Dim baseControlName As String
-    Dim optionShape As Shape
-    Dim baseShape As Shape
-    Dim marginTop As Double
-    Dim marginLeft As Double
-
-    For i = 1 To OPTION_COUNT
-        optionControlName = OPTION_SHAPE_PREFIX & CStr(i)
-        Set optionShape = ex_ConfigProfilesManager.m_GetShapeByName(ws, optionControlName)
-        If optionShape Is Nothing Then GoTo NextOption
-
-        If Not mp_TryGetRequiredTextAttr(optionControlName, "relativeTo", baseControlName) Then GoTo NextOption
-        Set baseShape = ex_ConfigProfilesManager.m_GetShapeByName(ws, baseControlName)
-        If baseShape Is Nothing Then
-            MsgBox "Relative anchor control '" & baseControlName & "' was not found for '" & optionControlName & "'.", vbExclamation
-            GoTo NextOption
-        End If
-
-        If Not mp_TryGetRequiredDoubleAttr(optionControlName, "marginTop", marginTop) Then GoTo NextOption
-        If Not mp_TryGetRequiredDoubleAttr(optionControlName, "marginLeft", marginLeft) Then GoTo NextOption
-
-        optionShape.Left = baseShape.Left + marginLeft
-        optionShape.Top = baseShape.Top + baseShape.Height + marginTop
-        If mp_ShouldMatchWidthToRelative(optionControlName) Then
-            optionShape.Width = baseShape.Width
-        End If
-        optionShape.ZOrder msoBringToFront
-NextOption:
-    Next i
-End Sub
-
-Private Function mp_ShouldMatchWidthToRelative(ByVal controlName As String) As Boolean
-    Dim valueText As String
-    Dim valueBool As Boolean
-
-    valueText = Trim$(ex_UiXmlProvider.m_GetControlAttribute(controlName, "matchWidthToRelative", ThisWorkbook))
-    If Len(valueText) = 0 Then Exit Function
-
-    If Not ex_XmlCore.m_TryParseBoolean(valueText, valueBool) Then
-        MsgBox "Invalid boolean value '" & valueText & "' for attribute 'matchWidthToRelative' on control '" & controlName & "'.", vbExclamation
-        Exit Function
+    If ex_ConfigProfilesManager.m_GetShapeByName(ws, PROFILE_OPTION_SHAPE_PREFIX & "1") Is Nothing Then
+        ex_UILoader.m_LoadUiFromConfig wb
     End If
 
-    mp_ShouldMatchWidthToRelative = valueBool
+    mp_EnsureProfileShapesExist = Not (ex_ConfigProfilesManager.m_GetShapeByName(ws, PROFILE_OPTION_SHAPE_PREFIX & "1") Is Nothing)
 End Function
-
-Private Function mp_TryGetRequiredTextAttr(ByVal controlName As String, ByVal attrName As String, ByRef outValue As String) As Boolean
-    Dim valueText As String
-
-    valueText = Trim$(ex_UiXmlProvider.m_GetControlAttribute(controlName, attrName, ThisWorkbook))
-    If Len(valueText) = 0 Then
-        MsgBox "Control '" & controlName & "' must define required attribute '" & attrName & "' in DevUI.xml.", vbExclamation
-        Exit Function
-    End If
-
-    outValue = valueText
-    mp_TryGetRequiredTextAttr = True
-End Function
-
-Private Function mp_TryGetRequiredDoubleAttr(ByVal controlName As String, ByVal attrName As String, ByRef outValue As Double) As Boolean
-    Dim valueText As String
-    Dim parsedValue As Double
-
-    valueText = Trim$(ex_UiXmlProvider.m_GetControlAttribute(controlName, attrName, ThisWorkbook))
-    If Len(valueText) = 0 Then
-        MsgBox "Control '" & controlName & "' must define required attribute '" & attrName & "' in DevUI.xml.", vbExclamation
-        Exit Function
-    End If
-
-    If Not ex_XmlCore.m_TryParseDouble(valueText, parsedValue, True) Then
-        MsgBox "Invalid numeric value '" & valueText & "' for attribute '" & attrName & "' on control '" & controlName & "'.", vbExclamation
-        Exit Function
-    End If
-
-    outValue = parsedValue
-    mp_TryGetRequiredDoubleAttr = True
-End Function
-
-Private Function mp_ParseOptionIndex(ByVal callerName As String) As Long
-    mp_ParseOptionIndex = mp_ParseOptionIndexByPrefix(callerName, OPTION_SHAPE_PREFIX)
-End Function
-
-Private Function mp_ParseOptionIndexByPrefix(ByVal callerName As String, ByVal prefix As String) As Long
-    Dim rawValue As String
-
-    callerName = Trim$(callerName)
-    If Len(callerName) = 0 Then Exit Function
-
-    If StrComp(Left$(callerName, Len(prefix)), prefix, vbTextCompare) <> 0 Then Exit Function
-
-    rawValue = Mid$(callerName, Len(prefix) + 1)
-    If Len(rawValue) = 0 Then Exit Function
-    If Not IsNumeric(rawValue) Then Exit Function
-
-    mp_ParseOptionIndexByPrefix = CLng(rawValue)
-End Function
-
-Private Function mp_HasOptionShapes(ByVal ws As Worksheet) As Boolean
-    Dim firstOption As Shape
-
-    Set firstOption = ex_ConfigProfilesManager.m_GetShapeByName(ws, OPTION_SHAPE_PREFIX & "1")
-    mp_HasOptionShapes = Not firstOption Is Nothing
-End Function
-
-Private Sub mp_SelectModeByOption(ByVal ws As Worksheet, ByVal optionIndex As Long)
-    Dim modeShape As Shape
-    Dim cf As Object
-    Dim listCount As Long
-
-    Set modeShape = ex_ConfigProfilesManager.m_GetShapeByName(ws, "ddMode")
-    If modeShape Is Nothing Then Exit Sub
-
-    On Error Resume Next
-    Set cf = modeShape.ControlFormat
-    On Error GoTo 0
-    If cf Is Nothing Then Exit Sub
-
-    On Error Resume Next
-    listCount = CLng(cf.ListCount)
-    On Error GoTo 0
-    If listCount < optionIndex Then Exit Sub
-
-    On Error Resume Next
-    cf.Value = optionIndex
-    On Error GoTo 0
-
-    ex_ConfigProfilesManager.m_OnModeChanged
-End Sub
-
-Private Sub mp_SelectProfileByOption(ByVal ws As Worksheet, ByVal optionIndex As Long)
-    Dim profileShape As Shape
-    Dim cf As Object
-    Dim listCount As Long
-
-    Set profileShape = ex_ConfigProfilesManager.m_GetShapeByName(ws, "ddProfile")
-    If profileShape Is Nothing Then Exit Sub
-
-    On Error Resume Next
-    Set cf = profileShape.ControlFormat
-    On Error GoTo 0
-    If cf Is Nothing Then Exit Sub
-
-    On Error Resume Next
-    listCount = CLng(cf.ListCount)
-    On Error GoTo 0
-    If listCount < optionIndex Then Exit Sub
-
-    On Error Resume Next
-    cf.Value = optionIndex
-    On Error GoTo 0
-
-    ex_ConfigProfilesManager.m_OnProfileChanged
-End Sub
-
-Private Function mp_AreOptionsVisible(ByVal ws As Worksheet) As Boolean
-    Dim firstOption As Shape
-
-    Set firstOption = ex_ConfigProfilesManager.m_GetShapeByName(ws, OPTION_SHAPE_PREFIX & "1")
-    If firstOption Is Nothing Then Exit Function
-
-    mp_AreOptionsVisible = (firstOption.Visible = msoTrue)
-End Function
-
-Private Sub mp_SetOptionsVisible(ByVal ws As Worksheet, ByVal isVisible As Boolean)
-    Dim i As Long
-    Dim optionShape As Shape
-    Dim visibility As MsoTriState
-
-    visibility = IIf(isVisible, msoTrue, msoFalse)
-
-    For i = 1 To OPTION_COUNT
-        Set optionShape = ex_ConfigProfilesManager.m_GetShapeByName(ws, OPTION_SHAPE_PREFIX & CStr(i))
-        If Not optionShape Is Nothing Then
-            optionShape.Visible = visibility
-        End If
-    Next i
-End Sub
-
-Private Sub mp_SetProfileOptionsVisible(ByVal ws As Worksheet, ByVal isVisible As Boolean)
-    Dim i As Long
-    Dim optionShape As Shape
-    Dim visibility As MsoTriState
-
-    visibility = IIf(isVisible, msoTrue, msoFalse)
-
-    For i = 1 To PROFILE_OPTION_COUNT
-        Set optionShape = ex_ConfigProfilesManager.m_GetShapeByName(ws, PROFILE_OPTION_SHAPE_PREFIX & CStr(i))
-        If Not optionShape Is Nothing Then
-            optionShape.Visible = visibility
-        End If
-    Next i
-End Sub
-
-Private Sub mp_RepositionProfileOptionShapes(ByVal ws As Worksheet)
-    Dim i As Long
-    Dim optionControlName As String
-    Dim baseControlName As String
-    Dim optionShape As Shape
-    Dim baseShape As Shape
-    Dim marginTop As Double
-    Dim marginLeft As Double
-
-    For i = 1 To PROFILE_OPTION_COUNT
-        optionControlName = PROFILE_OPTION_SHAPE_PREFIX & CStr(i)
-        Set optionShape = ex_ConfigProfilesManager.m_GetShapeByName(ws, optionControlName)
-        If optionShape Is Nothing Then GoTo NextOption
-
-        If Not mp_TryGetRequiredTextAttr(optionControlName, "relativeTo", baseControlName) Then GoTo NextOption
-        Set baseShape = ex_ConfigProfilesManager.m_GetShapeByName(ws, baseControlName)
-        If baseShape Is Nothing Then
-            MsgBox "Relative anchor control '" & baseControlName & "' was not found for '" & optionControlName & "'.", vbExclamation
-            GoTo NextOption
-        End If
-
-        If Not mp_TryGetRequiredDoubleAttr(optionControlName, "marginTop", marginTop) Then GoTo NextOption
-        If Not mp_TryGetRequiredDoubleAttr(optionControlName, "marginLeft", marginLeft) Then GoTo NextOption
-
-        optionShape.Left = baseShape.Left + marginLeft
-        optionShape.Top = baseShape.Top + baseShape.Height + marginTop
-        If mp_ShouldMatchWidthToRelative(optionControlName) Then
-            optionShape.Width = baseShape.Width
-        End If
-        optionShape.ZOrder msoBringToFront
-NextOption:
-    Next i
-End Sub
-
-Private Sub mp_SyncProfileOptionCaptions(ByVal ws As Worksheet)
-    Dim profileShape As Shape
-    Dim cf As Object
-    Dim i As Long
-    Dim listCount As Long
-    Dim itemText As String
-    Dim optionShape As Shape
-
-    Set profileShape = ex_ConfigProfilesManager.m_GetShapeByName(ws, "ddProfile")
-    If profileShape Is Nothing Then Exit Sub
-
-    On Error Resume Next
-    Set cf = profileShape.ControlFormat
-    On Error GoTo 0
-    If cf Is Nothing Then Exit Sub
-
-    On Error Resume Next
-    listCount = CLng(cf.ListCount)
-    On Error GoTo 0
-
-    For i = 1 To PROFILE_OPTION_COUNT
-        Set optionShape = ex_ConfigProfilesManager.m_GetShapeByName(ws, PROFILE_OPTION_SHAPE_PREFIX & CStr(i))
-        If optionShape Is Nothing Then GoTo NextOption
-
-        If i <= listCount Then
-            On Error Resume Next
-            itemText = CStr(cf.List(i))
-            On Error GoTo 0
-            If Len(Trim$(itemText)) = 0 Then
-                itemText = "Profile " & CStr(i)
-            End If
-            optionShape.TextFrame.Characters.Text = itemText
-            optionShape.Visible = msoTrue
-        Else
-            optionShape.Visible = msoFalse
-        End If
-NextOption:
-    Next i
-End Sub
