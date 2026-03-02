@@ -9,7 +9,6 @@ Private Const DEV_CONFIG_VALUE_COL As Long = 3
 Private Const DEV_CONFIG_NOTE_COL As Long = 4
 Private Const DEV_CONFIG_COL_COUNT As Long = 4
 Private Const DEV_HEADER_STYLES As String = "Styles"
-Private Const DEV_HEADER_NOTE_LEGACY As String = "Note"
 Private Const DEV_MARKER_SYMBOL As String = "#"
 Private Const DEV_MARKER_HEADER As String = ".."
 Private Const DEV_MARKER_PREFIX As String = "#MARKER:"
@@ -22,6 +21,8 @@ Private Const DEV_COLOR_NOTE_TEXT As Long = &HA8A8A8
 Private Const THEME_BG As Long = &H262626
 Private Const THEME_TEXT As Long = &HEBEBEB
 Private Const THEME_BORDER As Long = &H0
+Private Const MIN_MARKER_WIDTH_UNITS As Double = 4#
+Private Const MIN_CONFIG_DATA_COL_WIDTH_POINTS As Double = 16#
 
 Public Function m_GetConfigTable(ByVal ws As Worksheet, Optional ByVal createIfMissing As Boolean = False) As ListObject
     Dim tbl As ListObject
@@ -144,11 +145,157 @@ Public Sub m_ApplyConfigTableDarkTheme(ByVal tbl As ListObject)
     tbl.HeaderRowRange.Cells(1, DEV_CONFIG_NOTE_COL).Font.Color = DEV_COLOR_TEXT
     tbl.HeaderRowRange.HorizontalAlignment = xlCenter
     tbl.HeaderRowRange.VerticalAlignment = xlCenter
-    tbl.Range.EntireColumn.AutoFit
-    If tbl.ListColumns(DEV_CONFIG_MARKER_COL).Range.ColumnWidth < 4 Then
-        tbl.ListColumns(DEV_CONFIG_MARKER_COL).Range.ColumnWidth = 4
+    m_AutoFitConfigColumnsWithinStableZone tbl.Parent, tbl.Range.Column, DEV_CONFIG_COL_COUNT, DEV_CONFIG_MARKER_COL
+End Sub
+
+Public Sub m_AutoFitConfigColumnsWithinStableZone( _
+    ByVal ws As Worksheet, _
+    ByVal firstCol As Long, _
+    ByVal colCount As Long, _
+    Optional ByVal markerRelativeCol As Long = 1)
+
+    Dim stableStartCol As Long
+    Dim bufferCol As Long
+    Dim markerAbsCol As Long
+    Dim beforeWidth As Double
+    Dim afterWidth As Double
+    Dim bufferWidthBefore As Double
+    Dim minBufferWidthUnits As Double
+    Dim minBufferWidthPoints As Double
+    Dim allowedGrowth As Double
+    Dim maxWidth As Double
+
+    If ws Is Nothing Then
+        MsgBox "Worksheet is not specified for config column layout.", vbExclamation
+        Exit Sub
+    End If
+    If firstCol < 1 Then
+        MsgBox "Invalid config layout bounds: first column must be >= 1.", vbExclamation
+        Exit Sub
+    End If
+    If colCount < 1 Then
+        MsgBox "Invalid config layout bounds: column count must be >= 1.", vbExclamation
+        Exit Sub
+    End If
+
+    markerAbsCol = firstCol + markerRelativeCol - 1
+    If markerRelativeCol < 1 Or markerRelativeCol > colCount Then
+        markerAbsCol = firstCol
+    End If
+    beforeWidth = mp_GetColumnsWidthPoints(ws, firstCol, colCount)
+
+    If Not mp_TryGetStableZoneColumns(ws, stableStartCol, bufferCol) Then Exit Sub
+    If bufferCol < firstCol + colCount - 1 Then
+        MsgBox "Invalid UI layout: stable zone starts before the end of config columns.", vbExclamation
+        Exit Sub
+    End If
+
+    bufferWidthBefore = ws.Columns(bufferCol).Width
+    minBufferWidthUnits = mp_GetStableZoneMinBufferWidthUnits()
+    If minBufferWidthUnits <= 0 Then Exit Sub
+
+    minBufferWidthPoints = mp_GetColumnWidthPointsForUnits(ws.Columns(bufferCol), minBufferWidthUnits)
+    If minBufferWidthPoints <= 0 Then
+        MsgBox "Failed to evaluate minimum divider width for stable zone buffer column.", vbExclamation
+        Exit Sub
+    End If
+
+    ws.Columns(firstCol).Resize(, colCount).AutoFit
+
+    If ws.Columns(markerAbsCol).ColumnWidth < MIN_MARKER_WIDTH_UNITS Then
+        ws.Columns(markerAbsCol).ColumnWidth = MIN_MARKER_WIDTH_UNITS
+    End If
+
+    allowedGrowth = bufferWidthBefore - minBufferWidthPoints
+    If allowedGrowth < 0 Then allowedGrowth = 0
+    maxWidth = beforeWidth + allowedGrowth
+
+    afterWidth = mp_GetColumnsWidthPoints(ws, firstCol, colCount)
+    If afterWidth <= maxWidth + 0.1 Then Exit Sub
+
+    mp_ShrinkConfigColumnsToMaxWidth ws, firstCol, colCount, markerAbsCol, maxWidth
+
+    If ws.Columns(markerAbsCol).ColumnWidth < MIN_MARKER_WIDTH_UNITS Then
+        ws.Columns(markerAbsCol).ColumnWidth = MIN_MARKER_WIDTH_UNITS
     End If
 End Sub
+
+Public Function m_ScaleConfigColumnsToStableTarget( _
+    ByVal ws As Worksheet, _
+    ByVal firstCol As Long, _
+    ByVal colCount As Long, _
+    ByVal targetStableZoneLeft As Double _
+) As Boolean
+
+    Dim stableStartCol As Long
+    Dim bufferCol As Long
+    Dim currentStableLeft As Double
+    Dim overflowPoints As Double
+    Dim configStartLeft As Double
+    Dim configEndCol As Long
+    Dim gapStartCol As Long
+    Dim gapEndCol As Long
+    Dim gapWidth As Double
+    Dim availableWidth As Double
+    Dim requestedTotal As Double
+    Dim scaleK As Double
+    Dim colIndex As Long
+    Dim srcWidths() As Double
+    Dim targetPoints As Double
+
+    If ws Is Nothing Then Exit Function
+    If firstCol < 1 Or colCount < 1 Then Exit Function
+    If targetStableZoneLeft < 0 Then Exit Function
+
+    If Not mp_TryGetStableZoneColumns(ws, stableStartCol, bufferCol) Then Exit Function
+
+    currentStableLeft = ws.Cells(1, stableStartCol).Left
+    overflowPoints = currentStableLeft - targetStableZoneLeft
+    If overflowPoints <= 0.1 Then Exit Function
+
+    configStartLeft = ws.Cells(1, firstCol).Left
+    configEndCol = firstCol + colCount - 1
+    gapStartCol = configEndCol + 1
+    gapEndCol = stableStartCol - 1
+    If gapStartCol <= gapEndCol Then
+        gapWidth = ws.Range(ws.Cells(1, gapStartCol), ws.Cells(1, gapEndCol)).Width
+    End If
+
+    ' Scale only config columns while preserving widths of gap/buffer columns before stable zone.
+    availableWidth = targetStableZoneLeft - configStartLeft - gapWidth
+    If availableWidth <= 0 Then Exit Function
+
+    requestedTotal = mp_GetColumnsWidthPoints(ws, firstCol, colCount)
+    If requestedTotal <= 0 Then Exit Function
+    If requestedTotal <= availableWidth + 0.1 Then Exit Function
+
+    scaleK = availableWidth / requestedTotal
+    If scaleK <= 0 Then Exit Function
+
+    ReDim srcWidths(1 To colCount)
+    For colIndex = 1 To colCount
+        srcWidths(colIndex) = ws.Columns(firstCol + colIndex - 1).Width
+    Next colIndex
+
+    For colIndex = 1 To colCount
+        targetPoints = srcWidths(colIndex) * scaleK
+        If targetPoints <= 0.1 Then targetPoints = 0.1
+        If Not mp_SetColumnWidthByPoints(ws.Columns(firstCol + colIndex - 1), targetPoints) Then
+            Exit Function
+        End If
+    Next colIndex
+
+    m_ScaleConfigColumnsToStableTarget = True
+End Function
+
+Public Function m_EqualizeConfigColumnsToStableTarget( _
+    ByVal ws As Worksheet, _
+    ByVal firstCol As Long, _
+    ByVal colCount As Long, _
+    ByVal targetStableZoneLeft As Double _
+) As Boolean
+    m_EqualizeConfigColumnsToStableTarget = m_ScaleConfigColumnsToStableTarget(ws, firstCol, colCount, targetStableZoneLeft)
+End Function
 
 Public Sub m_ApplyConfigMarkerStyles(ByVal tbl As ListObject)
     Dim rowCount As Long
@@ -254,9 +401,7 @@ Private Sub m_EnsureConfigTableLayout(ByVal ws As Worksheet, ByVal tbl As ListOb
     If tbl.ListColumns.Count = DEV_CONFIG_COL_COUNT Then
         tbl.HeaderRowRange.Cells(1, DEV_CONFIG_MARKER_COL).Value = DEV_MARKER_HEADER
         tbl.HeaderRowRange.Cells(1, DEV_CONFIG_KEY_COL).Value = "Key"
-        If Trim$(CStr(tbl.HeaderRowRange.Cells(1, DEV_CONFIG_NOTE_COL).Value)) = DEV_HEADER_NOTE_LEGACY Then
-            tbl.HeaderRowRange.Cells(1, DEV_CONFIG_NOTE_COL).Value = DEV_HEADER_STYLES
-        ElseIf Trim$(CStr(tbl.HeaderRowRange.Cells(1, DEV_CONFIG_NOTE_COL).Value)) <> DEV_HEADER_STYLES Then
+        If Trim$(CStr(tbl.HeaderRowRange.Cells(1, DEV_CONFIG_NOTE_COL).Value)) <> DEV_HEADER_STYLES Then
             tbl.HeaderRowRange.Cells(1, DEV_CONFIG_NOTE_COL).Value = DEV_HEADER_STYLES
         End If
         On Error Resume Next
@@ -311,4 +456,185 @@ Private Function m_IsMarkerKey(ByVal keyText As String) As Boolean
     keyText = Trim$(keyText)
     If Len(keyText) < Len(DEV_MARKER_PREFIX) Then Exit Function
     m_IsMarkerKey = (StrComp(Left$(keyText, Len(DEV_MARKER_PREFIX)), DEV_MARKER_PREFIX, vbTextCompare) = 0)
+End Function
+
+Private Sub mp_ShrinkConfigColumnsToMaxWidth( _
+    ByVal ws As Worksheet, _
+    ByVal firstCol As Long, _
+    ByVal colCount As Long, _
+    ByVal markerAbsCol As Long, _
+    ByVal maxWidth As Double)
+
+    Dim endCol As Long
+    Dim pass As Long
+    Dim colIndex As Long
+    Dim totalWidth As Double
+    Dim overflow As Double
+    Dim currentPoints As Double
+    Dim minPoints As Double
+    Dim targetPoints As Double
+    Dim markerMinPoints As Double
+
+    endCol = firstCol + colCount - 1
+    markerMinPoints = mp_GetColumnWidthPointsForUnits(ws.Columns(markerAbsCol), MIN_MARKER_WIDTH_UNITS)
+    If markerMinPoints <= 0 Then markerMinPoints = MIN_CONFIG_DATA_COL_WIDTH_POINTS
+
+    For pass = 1 To 3
+        totalWidth = mp_GetColumnsWidthPoints(ws, firstCol, colCount)
+        overflow = totalWidth - maxWidth
+        If overflow <= 0.1 Then Exit Sub
+
+        For colIndex = endCol To firstCol Step -1
+            currentPoints = ws.Columns(colIndex).Width
+            minPoints = MIN_CONFIG_DATA_COL_WIDTH_POINTS
+            If colIndex = markerAbsCol Then minPoints = markerMinPoints
+
+            If currentPoints > minPoints + 0.1 Then
+                targetPoints = currentPoints - overflow
+                If targetPoints < minPoints Then targetPoints = minPoints
+                mp_SetColumnWidthByPoints ws.Columns(colIndex), targetPoints
+
+                totalWidth = mp_GetColumnsWidthPoints(ws, firstCol, colCount)
+                overflow = totalWidth - maxWidth
+                If overflow <= 0.1 Then Exit Sub
+            End If
+        Next colIndex
+    Next pass
+End Sub
+
+Private Function mp_GetColumnsWidthPoints(ByVal ws As Worksheet, ByVal firstCol As Long, ByVal colCount As Long) As Double
+    If ws Is Nothing Then Exit Function
+    If firstCol < 1 Or colCount < 1 Then Exit Function
+    mp_GetColumnsWidthPoints = ws.Columns(firstCol).Resize(, colCount).Width
+End Function
+
+Private Function mp_GetColumnWidthPointsForUnits(ByVal colRange As Range, ByVal widthUnits As Double) As Double
+    Dim prevUnits As Double
+
+    If colRange Is Nothing Then Exit Function
+    If widthUnits <= 0 Then Exit Function
+
+    On Error GoTo EH
+    prevUnits = colRange.ColumnWidth
+    colRange.ColumnWidth = widthUnits
+    mp_GetColumnWidthPointsForUnits = colRange.Width
+    colRange.ColumnWidth = prevUnits
+    Exit Function
+EH:
+    On Error Resume Next
+    If prevUnits > 0 Then colRange.ColumnWidth = prevUnits
+    On Error GoTo 0
+    mp_GetColumnWidthPointsForUnits = 0
+End Function
+
+Private Function mp_TryGetStableZoneColumns(ByVal ws As Worksheet, ByRef stableStartCol As Long, ByRef bufferCol As Long) As Boolean
+    Dim stableColText As String
+
+    stableColText = Trim$(ex_UiXmlProvider.m_GetLayoutAttribute("stableZone", "startCol", ThisWorkbook))
+    If Len(stableColText) = 0 Then
+        MsgBox "UI layout must define /uiDefinition/layout/stableZone@startCol in DevUI.xml.", vbExclamation
+        Exit Function
+    End If
+
+    If Not mp_TryResolveColumnIndex(ws, stableColText, stableStartCol) Then
+        MsgBox "Invalid stable zone startCol in DevUI.xml: '" & stableColText & "'.", vbExclamation
+        Exit Function
+    End If
+
+    If stableStartCol <= 1 Then
+        MsgBox "Layout stable zone startCol must be greater than column A.", vbExclamation
+        Exit Function
+    End If
+
+    bufferCol = stableStartCol - 1
+    mp_TryGetStableZoneColumns = True
+End Function
+
+Private Function mp_GetStableZoneMinBufferWidthUnits() As Double
+    Dim widthText As String
+
+    widthText = Trim$(ex_UiXmlProvider.m_GetLayoutAttribute("stableZone", "minBufferWidth", ThisWorkbook))
+    If Len(widthText) = 0 Then
+        MsgBox "UI layout must define /uiDefinition/layout/stableZone@minBufferWidth in DevUI.xml.", vbExclamation
+        Exit Function
+    End If
+
+    If Not IsNumeric(widthText) Then
+        MsgBox "Invalid stable zone minBufferWidth in DevUI.xml: '" & widthText & "'.", vbExclamation
+        Exit Function
+    End If
+
+    mp_GetStableZoneMinBufferWidthUnits = CDbl(widthText)
+    If mp_GetStableZoneMinBufferWidthUnits <= 0 Then
+        MsgBox "Invalid stable zone minBufferWidth in DevUI.xml: value must be > 0.", vbExclamation
+        mp_GetStableZoneMinBufferWidthUnits = 0
+    End If
+End Function
+
+Private Function mp_TryResolveColumnIndex(ByVal ws As Worksheet, ByVal valueText As String, ByRef outColumnIndex As Long) As Boolean
+    Dim parsed As Long
+    Dim refRange As Range
+
+    valueText = Trim$(valueText)
+    If Len(valueText) = 0 Then Exit Function
+
+    If IsNumeric(valueText) Then
+        parsed = CLng(valueText)
+        If parsed > 0 Then
+            outColumnIndex = parsed
+            mp_TryResolveColumnIndex = True
+            Exit Function
+        End If
+    End If
+
+    On Error Resume Next
+    Set refRange = ws.Range(valueText)
+    If refRange Is Nothing Then Set refRange = ws.Range(valueText & "1")
+    If refRange Is Nothing Then Set refRange = ws.Columns(valueText & ":" & valueText)
+    On Error GoTo 0
+
+    If refRange Is Nothing Then Exit Function
+
+    outColumnIndex = refRange.Column
+    mp_TryResolveColumnIndex = (outColumnIndex > 0)
+End Function
+
+Private Function mp_SetColumnWidthByPoints(ByVal colRange As Range, ByVal targetPoints As Double) As Boolean
+    Dim i As Long
+    Dim currentPoints As Double
+    Dim currentWidthUnits As Double
+    Dim slope As Double
+    Dim deltaPoints As Double
+
+    If colRange Is Nothing Then Exit Function
+    If targetPoints <= 0 Then Exit Function
+
+    On Error GoTo EH
+    currentPoints = colRange.Width
+    currentWidthUnits = colRange.ColumnWidth
+    If currentPoints <= 0 Or currentWidthUnits <= 0 Then Exit Function
+
+    colRange.ColumnWidth = currentWidthUnits * (targetPoints / currentPoints)
+
+    For i = 1 To 8
+        currentPoints = colRange.Width
+        deltaPoints = targetPoints - currentPoints
+        If Abs(deltaPoints) < 0.1 Then
+            mp_SetColumnWidthByPoints = True
+            Exit Function
+        End If
+
+        currentWidthUnits = colRange.ColumnWidth
+        If currentWidthUnits <= 0 Then Exit For
+        slope = currentPoints / currentWidthUnits
+        If slope <= 0 Then Exit For
+
+        colRange.ColumnWidth = currentWidthUnits + (deltaPoints / slope)
+        If colRange.ColumnWidth < 0.1 Then colRange.ColumnWidth = 0.1
+    Next i
+
+    mp_SetColumnWidthByPoints = (Abs(targetPoints - colRange.Width) < 0.5)
+    Exit Function
+EH:
+    mp_SetColumnWidthByPoints = False
 End Function

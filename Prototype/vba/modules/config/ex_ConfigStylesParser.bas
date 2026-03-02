@@ -48,7 +48,7 @@ Public Sub m_ApplyColumnStylesByMapKeys( _
         parseError = vbNullString
         If Not mp_TryParseStyleMap(noteText, parsedStyles, hasStyleBlock, parseError) Then
             Err.Raise vbObjectError + 1491, "ex_ConfigStylesParser", _
-                "Invalid Note style for key '" & mapKey & "': " & parseError & ". Source: '" & noteText & "'."
+                "Invalid styles definition for key '" & mapKey & "': " & parseError & ". Source: '" & noteText & "'."
         End If
         If Not hasStyleBlock Then GoTo ContinueTarget
 
@@ -113,7 +113,7 @@ Public Function m_ValidateColumnStylesByMapKeys( _
         parseError = vbNullString
         hasStyleBlock = False
         If Not mp_TryParseStyleMap(noteText, parsedStyles, hasStyleBlock, parseError) Then
-            outErrorText = "Invalid Note style for key '" & mapKey & "': " & parseError & ". Source: '" & noteText & "'."
+            outErrorText = "Invalid styles definition for key '" & mapKey & "': " & parseError & ". Source: '" & noteText & "'."
             Exit Function
         End If
 

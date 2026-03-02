@@ -24,7 +24,6 @@ Private Const DEV_COL_KEY As Long = 2
 Private Const DEV_COL_VALUE As Long = 3
 Private Const DEV_COL_NOTE As Long = 4
 Private Const DEV_HEADER_STYLES As String = "Styles"
-Private Const DEV_HEADER_NOTE_LEGACY As String = "Note"
 Private Const CONFIG_TITLE_TEMPLATE As String = "Config [profile = <CURRENT_PROFILE>]"
 
 Private Const CONFIG_TOP As Long = 1
@@ -444,8 +443,7 @@ Private Sub mp_EnsureConfigArea(ByVal wsDev As Worksheet)
     If Trim$(CStr(wsDev.Cells(CONFIG_TOP + 1, CONFIG_LEFT + DEV_COL_MARKER - 1).Value)) = DEV_MARKER_HEADER And _
        Trim$(CStr(wsDev.Cells(CONFIG_TOP + 1, CONFIG_LEFT + DEV_COL_KEY - 1).Value)) = "Key" And _
        mp_IsConfigTitleHeader(CStr(wsDev.Cells(CONFIG_TOP + 1, CONFIG_LEFT + DEV_COL_VALUE - 1).Value)) And _
-       (Trim$(CStr(wsDev.Cells(CONFIG_TOP + 1, CONFIG_LEFT + DEV_COL_NOTE - 1).Value)) = DEV_HEADER_STYLES Or _
-        Trim$(CStr(wsDev.Cells(CONFIG_TOP + 1, CONFIG_LEFT + DEV_COL_NOTE - 1).Value)) = DEV_HEADER_NOTE_LEGACY) Then
+       Trim$(CStr(wsDev.Cells(CONFIG_TOP + 1, CONFIG_LEFT + DEV_COL_NOTE - 1).Value)) = DEV_HEADER_STYLES Then
         mp_EnsureConfigTable wsDev
         Exit Sub
     End If
@@ -581,10 +579,7 @@ Private Sub mp_RenderConfigArea(ByVal wsDev As Worksheet)
     wsDev.Cells(CONFIG_TOP + 6, CONFIG_LEFT + DEV_COL_VALUE - 1).Value = "Id"
     wsDev.Cells(CONFIG_TOP + 7, CONFIG_LEFT + DEV_COL_KEY - 1).Value = "PersonFIO"
 
-    rng.EntireColumn.AutoFit
-    If rng.Columns(DEV_COL_MARKER).ColumnWidth < 4 Then
-        rng.Columns(DEV_COL_MARKER).ColumnWidth = 4
-    End If
+    ex_ConfigTableStore.m_AutoFitConfigColumnsWithinStableZone wsDev, CONFIG_LEFT, CONFIG_COLS, DEV_COL_MARKER
 
     mp_ApplyDarkThemeToRange rng
 End Sub

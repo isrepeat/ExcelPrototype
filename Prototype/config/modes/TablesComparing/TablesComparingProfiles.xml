@@ -1,6 +1,14 @@
 <?xml version="1.0" standalone="yes"?>
 <profiles version="1" xmlns="urn:excelprototype:profiles">
   <profile name="Default">
+    <styles>
+      <config>
+        <column id="marker" width="5" align="middle-center" overflow="clip"/>
+        <column id="key" width="24" align="middle-left" overflow="clip"/>
+        <column id="value" width="30" align="middle-left" overflow="shrink"/>
+        <column id="styles" width="24" align="middle-left" overflow="shrink"/>
+      </config>
+    </styles>
     <v key="OldFilePath">..\TESTS\Comparing\OldTable.xlsx</v>
     <v key="OldTableName">TableSrc</v>
     <v key="NewFilePath">..\TESTS\Comparing\NewTable.xlsx</v>
@@ -19,6 +27,14 @@
     </ui>
   </profile>
   <profile name="Test">
+    <styles>
+      <config>
+        <column id="marker" width="5" align="middle-center" overflow="clip"/>
+        <column id="key" width="24" align="middle-left" overflow="clip"/>
+        <column id="value" width="30" align="middle-left" overflow="shrink"/>
+        <column id="styles" width="24" align="middle-left" overflow="shrink"/>
+      </config>
+    </styles>
     <v key="OldFilePath">..\TESTS\Comparing\OldTable.xlsx</v>
     <v key="OldTableName">TableSrc</v>
     <v key="NewFilePath">..\TESTS\Comparing\NewTable.xlsx</v>

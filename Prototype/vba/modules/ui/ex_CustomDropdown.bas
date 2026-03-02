@@ -174,6 +174,8 @@ Public Sub m_StabilizeChooseModeAnchorX(Optional ByVal ws As Worksheet, Optional
     Dim delta As Double
     Dim bufferRange As Range
     Dim targetBufferWidth As Double
+    Dim minBufferWidthUnits As Double
+    Dim minBufferWidthPoints As Double
 
     If ws Is Nothing Then
         Set ws = mp_GetDevSheet(ThisWorkbook)
@@ -192,10 +194,17 @@ Public Sub m_StabilizeChooseModeAnchorX(Optional ByVal ws As Worksheet, Optional
 
     Set bufferRange = ws.Columns(bufferCol)
     targetBufferWidth = bufferRange.Width + delta
-    If targetBufferWidth < 4 Then targetBufferWidth = 4
+    minBufferWidthUnits = mp_GetStableZoneMinBufferWidthUnits()
+    If minBufferWidthUnits <= 0 Then Exit Sub
+
+    minBufferWidthPoints = mp_GetColumnWidthPointsForUnits(bufferRange, minBufferWidthUnits)
+    If minBufferWidthPoints <= 0 Then minBufferWidthPoints = bufferRange.Width
+    If targetBufferWidth < minBufferWidthPoints Then targetBufferWidth = minBufferWidthPoints
 
     If Not mp_SetColumnWidthByPoints(bufferRange, targetBufferWidth) Then
         MsgBox "Failed to stabilize Choose mode anchor: unable to set buffer column width.", vbExclamation
+    ElseIf bufferRange.ColumnWidth < minBufferWidthUnits Then
+        bufferRange.ColumnWidth = minBufferWidthUnits
     End If
     Exit Sub
 End Sub
@@ -927,6 +936,27 @@ Private Function mp_TryGetStableZoneColumns(ByVal ws As Worksheet, ByRef stableS
     mp_TryGetStableZoneColumns = True
 End Function
 
+Private Function mp_GetStableZoneMinBufferWidthUnits() As Double
+    Dim widthText As String
+
+    widthText = Trim$(ex_UiXmlProvider.m_GetLayoutAttribute("stableZone", "minBufferWidth", ThisWorkbook))
+    If Len(widthText) = 0 Then
+        MsgBox "UI layout must define /uiDefinition/layout/stableZone@minBufferWidth in DevUI.xml.", vbExclamation
+        Exit Function
+    End If
+
+    If Not IsNumeric(widthText) Then
+        MsgBox "Invalid stable zone minBufferWidth in DevUI.xml: '" & widthText & "'.", vbExclamation
+        Exit Function
+    End If
+
+    mp_GetStableZoneMinBufferWidthUnits = CDbl(widthText)
+    If mp_GetStableZoneMinBufferWidthUnits <= 0 Then
+        MsgBox "Invalid stable zone minBufferWidth in DevUI.xml: value must be > 0.", vbExclamation
+        mp_GetStableZoneMinBufferWidthUnits = 0
+    End If
+End Function
+
 Private Function mp_TryResolveColumnIndex(ByVal ws As Worksheet, ByVal valueText As String, ByRef outColumnIndex As Long) As Boolean
     Dim parsed As Long
     Dim refRange As Range
@@ -993,6 +1023,25 @@ Private Function mp_SetColumnWidthByPoints(ByVal colRange As Range, ByVal target
     Exit Function
 EH:
     mp_SetColumnWidthByPoints = False
+End Function
+
+Private Function mp_GetColumnWidthPointsForUnits(ByVal colRange As Range, ByVal widthUnits As Double) As Double
+    Dim prevUnits As Double
+
+    If colRange Is Nothing Then Exit Function
+    If widthUnits <= 0 Then Exit Function
+
+    On Error GoTo EH
+    prevUnits = colRange.ColumnWidth
+    colRange.ColumnWidth = widthUnits
+    mp_GetColumnWidthPointsForUnits = colRange.Width
+    colRange.ColumnWidth = prevUnits
+    Exit Function
+EH:
+    On Error Resume Next
+    If prevUnits > 0 Then colRange.ColumnWidth = prevUnits
+    On Error GoTo 0
+    mp_GetColumnWidthPointsForUnits = 0
 End Function
 
 Private Function mp_GetExpandedState() As Boolean
