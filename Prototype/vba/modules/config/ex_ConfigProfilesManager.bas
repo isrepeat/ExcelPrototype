@@ -39,6 +39,11 @@ Private Const DEV_COLOR_NOTE_TEXT As Long = &HA8A8A8
 Private Const THEME_BG As Long = &H262626
 Private Const THEME_TEXT As Long = &HEBEBEB
 Private Const THEME_BORDER As Long = &H0
+Private Const PROFILE_CFG_COL_MARKER As String = "marker"
+Private Const PROFILE_CFG_COL_KEY As String = "key"
+Private Const PROFILE_CFG_COL_VALUE As String = "value"
+Private Const PROFILE_CFG_COL_NOTE As String = "note"
+Private Const PROFILE_CFG_COL_STYLES As String = "styles"
 Private Const PFUI_UI_DEFINITION_REL_PATH As String = "config\DevUI.xml"
 Private Const PFUI_UI_BLOCK_GROUP_NAME As String = "grpUiBlock"
 Private Const PFUI_PROFILE_DROPDOWN_SHAPE As String = "ddProfile"
@@ -68,11 +73,13 @@ Public Sub m_ApplyProfileFromDev(Optional ByVal profileName As String = vbNullSt
     Dim entries As Variant
     Dim profiles As Variant
     Dim prevEvents As Boolean
+    Dim targetStableZoneLeft As Double
 
     On Error GoTo EH
     prevEvents = Application.EnableEvents
 
     Set ws = ws_Dev
+    targetStableZoneLeft = ex_CustomDropdown.m_GetStableZoneStartLeft(ws)
 
     If Len(profileName) = 0 Then
         profiles = mp_GetProfileNames(ws)
@@ -95,6 +102,7 @@ Public Sub m_ApplyProfileFromDev(Optional ByVal profileName As String = vbNullSt
     Application.EnableEvents = False
     Application.ScreenUpdating = False
     mp_WriteEntriesToConfigTable ws, entries
+    If Not mp_ApplyProfileConfigStyles(ws, profileNode, targetStableZoneLeft) Then GoTo EH
     On Error Resume Next
     ex_ConfigProvider.m_RefreshConfigTitle ws, profileName
     On Error GoTo 0
@@ -931,6 +939,248 @@ End Function
 Private Function mp_GetProfileNode(ByVal doc As Object, ByVal profileName As String, ByVal createIfMissing As Boolean) As Object
     Set mp_GetProfileNode = ex_ProfilesStore.m_GetProfileNode(doc, profileName, createIfMissing)
 End Function
+
+Private Function mp_ApplyProfileConfigStyles( _
+    ByVal ws As Worksheet, _
+    ByVal profileNode As Object, _
+    Optional ByVal targetStableZoneLeft As Double = -1 _
+) As Boolean
+    Dim cfgNodes As Object
+    Dim cfgNode As Object
+    Dim tbl As ListObject
+    Dim usedIds As Object
+    Dim colId As String
+    Dim relCol As Long
+    Dim absCol As Long
+    Dim widthText As String
+    Dim alignText As String
+    Dim overflowText As String
+    Dim widthUnits As Double
+    Dim horizontalAlign As Long
+    Dim verticalAlign As Long
+    Dim bodyRange As Range
+    Dim normalizedOverflow As String
+    Dim shouldAutoFitConfigRows As Boolean
+    Dim didScale As Boolean
+
+    If ws Is Nothing Then
+        MsgBox "Failed to apply profile config styles: worksheet is not specified.", vbExclamation
+        Exit Function
+    End If
+    If profileNode Is Nothing Then
+        MsgBox "Failed to apply profile config styles: profile node is not specified.", vbExclamation
+        Exit Function
+    End If
+
+    On Error Resume Next
+    profileNode.OwnerDocument.setProperty "SelectionNamespaces", "xmlns:p='" & PROFILES_NS & "'"
+    On Error GoTo 0
+
+    Set cfgNodes = profileNode.selectNodes("p:styles/p:config/p:column")
+    If cfgNodes Is Nothing Then
+        mp_ApplyProfileConfigStyles = True
+        Exit Function
+    End If
+    If cfgNodes.Length = 0 Then
+        mp_ApplyProfileConfigStyles = True
+        Exit Function
+    End If
+
+    Set tbl = ex_ConfigTableStore.m_GetConfigTable(ws, True)
+    If tbl Is Nothing Then
+        MsgBox "Config table '" & DEV_CONFIG_TABLE_NAME & "' was not found on sheet '" & ws.Name & "'.", vbExclamation
+        Exit Function
+    End If
+
+    Set usedIds = CreateObject("Scripting.Dictionary")
+    usedIds.CompareMode = 1
+
+    For Each cfgNode In cfgNodes
+        colId = LCase$(Trim$(mp_NodeAttrText(cfgNode, "id")))
+        If Len(colId) = 0 Then
+            MsgBox "Profile styles/config/column must define non-empty attribute 'id'.", vbExclamation
+            Exit Function
+        End If
+        If usedIds.Exists(colId) Then
+            MsgBox "Duplicate profile styles/config/column id: '" & colId & "'.", vbExclamation
+            Exit Function
+        End If
+        usedIds(colId) = True
+
+        If Not mp_TryResolveProfileConfigColumnId(colId, relCol) Then
+            MsgBox "Unsupported profile styles/config/column@id value: '" & colId & "'. Allowed: marker, key, value, note, styles.", vbExclamation
+            Exit Function
+        End If
+        If relCol < 1 Or relCol > tbl.ListColumns.Count Then
+            MsgBox "Profile styles/config/column id '" & colId & "' is out of bounds for table '" & DEV_CONFIG_TABLE_NAME & "'.", vbExclamation
+            Exit Function
+        End If
+
+        widthText = Trim$(mp_NodeAttrText(cfgNode, "width"))
+        alignText = Trim$(mp_NodeAttrText(cfgNode, "align"))
+        overflowText = Trim$(mp_NodeAttrText(cfgNode, "overflow"))
+        If Len(widthText) = 0 And Len(alignText) = 0 And Len(overflowText) = 0 Then
+            MsgBox "Profile styles/config/column id '" & colId & "' must define at least one attribute: width, align, or overflow.", vbExclamation
+            Exit Function
+        End If
+
+        absCol = tbl.Range.Column + relCol - 1
+        If Len(widthText) > 0 Then
+            If Not mp_TryParseProfileConfigWidth(widthText, widthUnits) Then
+                MsgBox "Invalid profile styles/config/column@width for id '" & colId & "': '" & widthText & "'. Expected positive number.", vbExclamation
+                Exit Function
+            End If
+            ws.Columns(absCol).ColumnWidth = widthUnits
+        End If
+
+        On Error Resume Next
+        Set bodyRange = tbl.ListColumns(relCol).DataBodyRange
+        On Error GoTo 0
+        If bodyRange Is Nothing Then GoTo NextCfgNode
+
+        If Len(alignText) > 0 Then
+            If Not mp_TryParseProfileConfigAlign(alignText, horizontalAlign, verticalAlign) Then
+                MsgBox "Invalid profile styles/config/column@align for id '" & colId & "': '" & alignText & "'.", vbExclamation
+                Exit Function
+            End If
+            bodyRange.HorizontalAlignment = horizontalAlign
+            bodyRange.VerticalAlignment = verticalAlign
+        End If
+
+        If Len(overflowText) > 0 Then
+            normalizedOverflow = LCase$(Trim$(overflowText))
+            Select Case normalizedOverflow
+                Case "wrap"
+                    bodyRange.WrapText = True
+                    bodyRange.ShrinkToFit = False
+                Case "shrink"
+                    bodyRange.WrapText = False
+                    bodyRange.ShrinkToFit = True
+                Case "clip"
+                    bodyRange.WrapText = False
+                    bodyRange.ShrinkToFit = False
+                Case Else
+                    MsgBox "Invalid profile styles/config/column@overflow for id '" & colId & "': '" & overflowText & "'. Allowed: clip, wrap, shrink.", vbExclamation
+                    Exit Function
+            End Select
+
+            If normalizedOverflow = "wrap" Then
+                shouldAutoFitConfigRows = True
+            End If
+        End If
+NextCfgNode:
+    Next cfgNode
+
+    If shouldAutoFitConfigRows Then
+        mp_AutoFitConfigRangeRows ws, tbl
+    End If
+
+    If targetStableZoneLeft >= 0 Then
+        ex_CustomDropdown.m_StabilizeChooseModeAnchorX ws, targetStableZoneLeft
+        didScale = ex_ConfigTableStore.m_ScaleConfigColumnsToStableTarget(ws, tbl.Range.Column, DEV_CONFIG_COL_COUNT, targetStableZoneLeft)
+        ex_CustomDropdown.m_StabilizeChooseModeAnchorX ws, targetStableZoneLeft
+        If didScale Then
+            Application.StatusBar = "WARNING: Config styles exceed available dynamic zone width. Columns were scaled proportionally to fit."
+        End If
+    End If
+
+    mp_ApplyProfileConfigStyles = True
+End Function
+
+Private Function mp_TryResolveProfileConfigColumnId(ByVal colId As String, ByRef outColIndex As Long) As Boolean
+    Select Case LCase$(Trim$(colId))
+        Case PROFILE_CFG_COL_MARKER
+            outColIndex = DEV_CONFIG_MARKER_COL
+        Case PROFILE_CFG_COL_KEY
+            outColIndex = DEV_CONFIG_KEY_COL
+        Case PROFILE_CFG_COL_VALUE
+            outColIndex = DEV_CONFIG_VALUE_COL
+        Case PROFILE_CFG_COL_NOTE, PROFILE_CFG_COL_STYLES
+            outColIndex = DEV_CONFIG_NOTE_COL
+        Case Else
+            Exit Function
+    End Select
+
+    mp_TryResolveProfileConfigColumnId = True
+End Function
+
+Private Function mp_TryParseProfileConfigWidth(ByVal widthText As String, ByRef outWidth As Double) As Boolean
+    widthText = Trim$(widthText)
+    If Len(widthText) = 0 Then Exit Function
+
+    If Len(widthText) >= 2 Then
+        If LCase$(Right$(widthText, 2)) = "px" Then
+            widthText = Trim$(Left$(widthText, Len(widthText) - 2))
+        End If
+    End If
+
+    If Not IsNumeric(widthText) Then Exit Function
+
+    outWidth = CDbl(widthText)
+    If outWidth <= 0 Then Exit Function
+
+    mp_TryParseProfileConfigWidth = True
+End Function
+
+Private Function mp_TryParseProfileConfigAlign(ByVal alignText As String, ByRef outHorizontal As Long, ByRef outVertical As Long) As Boolean
+    Dim normalized As String
+
+    normalized = LCase$(Trim$(alignText))
+    normalized = Replace(normalized, "_", "-")
+    normalized = Replace(normalized, " ", vbNullString)
+
+    Select Case normalized
+        Case "tl": normalized = "top-left"
+        Case "tc": normalized = "top-center"
+        Case "tr": normalized = "top-right"
+        Case "ml": normalized = "middle-left"
+        Case "mc": normalized = "middle-center"
+        Case "mr": normalized = "middle-right"
+        Case "bl": normalized = "bottom-left"
+        Case "bc": normalized = "bottom-center"
+        Case "br": normalized = "bottom-right"
+    End Select
+
+    Select Case normalized
+        Case "top-left"
+            outHorizontal = xlLeft: outVertical = xlTop
+        Case "top-center"
+            outHorizontal = xlCenter: outVertical = xlTop
+        Case "top-right"
+            outHorizontal = xlRight: outVertical = xlTop
+        Case "middle-left"
+            outHorizontal = xlLeft: outVertical = xlCenter
+        Case "middle-center"
+            outHorizontal = xlCenter: outVertical = xlCenter
+        Case "middle-right"
+            outHorizontal = xlRight: outVertical = xlCenter
+        Case "bottom-left"
+            outHorizontal = xlLeft: outVertical = xlBottom
+        Case "bottom-center"
+            outHorizontal = xlCenter: outVertical = xlBottom
+        Case "bottom-right"
+            outHorizontal = xlRight: outVertical = xlBottom
+        Case Else
+            Exit Function
+    End Select
+
+    mp_TryParseProfileConfigAlign = True
+End Function
+
+Private Sub mp_AutoFitConfigRangeRows(ByVal ws As Worksheet, ByVal tbl As ListObject)
+    Dim topRow As Long
+    Dim bottomRow As Long
+
+    If ws Is Nothing Then Exit Sub
+    If tbl Is Nothing Then Exit Sub
+    If tbl.Range Is Nothing Then Exit Sub
+
+    topRow = tbl.Range.Row
+    bottomRow = topRow + tbl.Range.Rows.Count - 1
+    If bottomRow < topRow Then Exit Sub
+
+    ws.Rows(CStr(topRow) & ":" & CStr(bottomRow)).AutoFit
+End Sub
 
 ' =============================================================================
 ' Profile UI helpers (migrated from ex_ProfileUI)

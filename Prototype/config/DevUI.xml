@@ -101,7 +101,7 @@
   </styles>
 
   <layout>
-    <stableZone startCol="H"/>
+    <stableZone startCol="H" minBufferWidth="5"/>
   </layout>
 
   <controls>

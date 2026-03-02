@@ -1,6 +1,14 @@
 ﻿<?xml version="1.0" standalone="yes"?>
 <profiles version="1" xmlns="urn:excelprototype:profiles">
 	<profile name="Default">
+		<styles>
+			<config>
+				<column id="marker" width="5" align="middle-center" overflow="clip"/>
+				<column id="key" width="24" align="middle-left" overflow="clip"/>
+				<column id="value" width="30" align="middle-left" overflow="shrink"/>
+				<column id="styles" width="24" align="middle-left" overflow="shrink"/>
+			</config>
+		</styles>
 		<ui>
 			<control name="ddProfile" visible="false"/>
 			<control name="ddMode" visible="false"/>
@@ -43,6 +51,14 @@
 		<v key="Output.Sheets">StateMain; EventsMain</v>
 	</profile>
 	<profile name="Test">
+		<styles>
+			<config>
+				<column id="marker" width="5" align="middle-center" overflow="clip"/>
+				<column id="key" width="24" align="middle-left" overflow="clip"/>
+				<column id="value" width="30" align="middle-left" overflow="shrink"/>
+				<column id="styles" width="24" align="middle-left" overflow="shrink"/>
+			</config>
+		</styles>
 		<v key="Source.Main.FilePath">..\dsc_StateSrc.xlsx</v>
 		<v key="Source.Main.SheetAliases">StateMain</v>
 		<v key="Source.Events.FilePath">..\dsc_EventsSrc.xlsx</v>
@@ -124,6 +140,14 @@
 		</ui>
 	</profile>
 		<profile name="Test2">
+		<styles>
+			<config>
+				<column id="marker" width="5" align="middle-center" overflow="clip"/>
+				<column id="key" width="42" align="middle-left" overflow="clip"/>
+				<column id="value" width="42" align="middle-left" overflow="wrap"/>
+				<column id="styles" width="24" align="middle-left" overflow="wrap"/>
+			</config>
+		</styles>
 		<v key="Source.Main.FilePath">..\dsc_StateSrc.xlsx</v>
 		<v key="Source.Main.SheetAliases">StateMain</v>
 		<v key="Source.Events.FilePath">..\dsc_EventsSrc.xlsx</v>
