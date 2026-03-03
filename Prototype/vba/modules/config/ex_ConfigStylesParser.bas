@@ -4,13 +4,43 @@ Option Explicit
 Private Enum e_ConfigStylePropertyId
     cfgStylePropUnknown = 0
     cfgStylePropWidth = 1
-    cfgStylePropOverflow = 2
-    cfgStylePropAutoHeight = 3
+    cfgStylePropMinWidth = 2
+    cfgStylePropMaxWidth = 3
+    cfgStylePropAutoFitColumns = 4
+    cfgStylePropOverflow = 5
+    cfgStylePropAutoHeight = 6
+    cfgStylePropRowHeight = 7
+    cfgStylePropMergeColumns = 8
+    cfgStylePropFontName = 9
+    cfgStylePropFontSize = 10
+    cfgStylePropFontBold = 11
+    cfgStylePropBackColor = 12
+    cfgStylePropFontColor = 13
+    cfgStylePropHorizontal = 14
+    cfgStylePropVertical = 15
 End Enum
 
+' Supported style properties (declarations):
+' width, minWidth, maxWidth, autoFitColumns
+' overflow, autoHeight, rowHeight, mergeColumns
+' fontName, fontSize, fontBold
+' backColor, fontColor
+' horizontal, vertical
 Private Const STYLE_PROPERTY_WIDTH As String = "width"
+Private Const STYLE_PROPERTY_MIN_WIDTH As String = "minWidth"
+Private Const STYLE_PROPERTY_MAX_WIDTH As String = "maxWidth"
+Private Const STYLE_PROPERTY_AUTO_FIT_COLUMNS As String = "autoFitColumns"
 Private Const STYLE_PROPERTY_OVERFLOW As String = "overflow"
 Private Const STYLE_PROPERTY_AUTO_HEIGHT As String = "autoHeight"
+Private Const STYLE_PROPERTY_ROW_HEIGHT As String = "rowHeight"
+Private Const STYLE_PROPERTY_MERGE_COLUMNS As String = "mergeColumns"
+Private Const STYLE_PROPERTY_FONT_NAME As String = "fontName"
+Private Const STYLE_PROPERTY_FONT_SIZE As String = "fontSize"
+Private Const STYLE_PROPERTY_FONT_BOLD As String = "fontBold"
+Private Const STYLE_PROPERTY_BACK_COLOR As String = "backColor"
+Private Const STYLE_PROPERTY_FONT_COLOR As String = "fontColor"
+Private Const STYLE_PROPERTY_HORIZONTAL As String = "horizontal"
+Private Const STYLE_PROPERTY_VERTICAL As String = "vertical"
 
 Public Sub m_ApplyColumnStylesByMapKeys( _
     ByVal ws As Worksheet, _
@@ -65,6 +95,38 @@ Public Sub m_ApplyColumnStylesByMapKeys( _
 ContinueTarget:
     Next i
 End Sub
+
+Public Function m_TryParseStyleDeclarations( _
+    ByVal styleText As String, _
+    ByRef outDeclarations As Object, _
+    ByRef outHasDeclarationBlock As Boolean, _
+    ByRef outErrorText As String _
+) As Boolean
+    Dim normalized As String
+
+    normalized = Trim$(styleText)
+    outErrorText = vbNullString
+    outHasDeclarationBlock = False
+
+    If Not mp_TryParseStyleMap(normalized, outDeclarations, outHasDeclarationBlock, outErrorText) Then
+        Exit Function
+    End If
+
+    If outHasDeclarationBlock Then
+        m_TryParseStyleDeclarations = True
+        Exit Function
+    End If
+
+    ' Allow compact declarations syntax without braces for style catalogs:
+    ' width:40;overflow:wrap;autoHeight:true
+    If InStr(1, normalized, ":", vbBinaryCompare) > 0 Then
+        If Not mp_TryParseStyleMap("{" & normalized & "}", outDeclarations, outHasDeclarationBlock, outErrorText) Then
+            Exit Function
+        End If
+    End If
+
+    m_TryParseStyleDeclarations = True
+End Function
 
 Public Function m_ValidateColumnStylesByMapKeys( _
     ByVal resultFieldRanges As Collection, _
@@ -157,7 +219,7 @@ Private Function mp_TryParseStyleMap( _
     Set outStyles = CreateObject("Scripting.Dictionary")
     outStyles.CompareMode = 1
 
-    sourceText = Trim$(noteText)
+    sourceText = mp_NormalizeStyleToken(noteText)
     If Len(sourceText) = 0 Then
         mp_TryParseStyleMap = True
         Exit Function
@@ -178,7 +240,7 @@ Private Function mp_TryParseStyleMap( _
         Exit Function
     End If
 
-    blockText = Trim$(Mid$(sourceText, openPos + 1, closePos - openPos - 1))
+    blockText = mp_NormalizeStyleToken(Mid$(sourceText, openPos + 1, closePos - openPos - 1))
     If Len(blockText) = 0 Then
         outErrorText = "style block is empty"
         Exit Function
@@ -189,7 +251,7 @@ Private Function mp_TryParseStyleMap( _
 
     pairs = Split(blockText, ";")
     For i = LBound(pairs) To UBound(pairs)
-        pairText = Trim$(CStr(pairs(i)))
+        pairText = mp_NormalizeStyleToken(CStr(pairs(i)))
         If Len(pairText) = 0 Then GoTo ContinuePair
 
         colonPos = InStr(1, pairText, ":", vbBinaryCompare)
@@ -198,8 +260,8 @@ Private Function mp_TryParseStyleMap( _
             Exit Function
         End If
 
-        propertyName = LCase$(Trim$(Left$(pairText, colonPos - 1)))
-        propertyValue = Trim$(Mid$(pairText, colonPos + 1))
+        propertyName = LCase$(mp_NormalizeStyleToken(Left$(pairText, colonPos - 1)))
+        propertyValue = mp_UnquoteText(mp_NormalizeStyleToken(Mid$(pairText, colonPos + 1)))
 
         If Len(propertyName) = 0 Then
             outErrorText = "property name is empty in token '" & pairText & "'"
@@ -234,8 +296,20 @@ Private Function mp_BuildSupportedPropertyIds() As Object
     propertyIds.CompareMode = 1
 
     propertyIds(STYLE_PROPERTY_WIDTH) = cfgStylePropWidth
+    propertyIds(LCase$(STYLE_PROPERTY_MIN_WIDTH)) = cfgStylePropMinWidth
+    propertyIds(LCase$(STYLE_PROPERTY_MAX_WIDTH)) = cfgStylePropMaxWidth
+    propertyIds(LCase$(STYLE_PROPERTY_AUTO_FIT_COLUMNS)) = cfgStylePropAutoFitColumns
     propertyIds(STYLE_PROPERTY_OVERFLOW) = cfgStylePropOverflow
     propertyIds(STYLE_PROPERTY_AUTO_HEIGHT) = cfgStylePropAutoHeight
+    propertyIds(LCase$(STYLE_PROPERTY_ROW_HEIGHT)) = cfgStylePropRowHeight
+    propertyIds(LCase$(STYLE_PROPERTY_MERGE_COLUMNS)) = cfgStylePropMergeColumns
+    propertyIds(LCase$(STYLE_PROPERTY_FONT_NAME)) = cfgStylePropFontName
+    propertyIds(LCase$(STYLE_PROPERTY_FONT_SIZE)) = cfgStylePropFontSize
+    propertyIds(LCase$(STYLE_PROPERTY_FONT_BOLD)) = cfgStylePropFontBold
+    propertyIds(LCase$(STYLE_PROPERTY_BACK_COLOR)) = cfgStylePropBackColor
+    propertyIds(LCase$(STYLE_PROPERTY_FONT_COLOR)) = cfgStylePropFontColor
+    propertyIds(LCase$(STYLE_PROPERTY_HORIZONTAL)) = cfgStylePropHorizontal
+    propertyIds(LCase$(STYLE_PROPERTY_VERTICAL)) = cfgStylePropVertical
 
     Set mp_BuildSupportedPropertyIds = propertyIds
 End Function
@@ -243,6 +317,8 @@ End Function
 Private Function mp_BuildDiscreteValidators() As Object
     Dim validators As Object
     Dim overflowAllowed As Object
+    Dim horizontalAllowed As Object
+    Dim verticalAllowed As Object
 
     Set validators = CreateObject("Scripting.Dictionary")
     validators.CompareMode = 1
@@ -261,6 +337,28 @@ Private Function mp_BuildDiscreteValidators() As Object
 
     validators.Add CStr(cfgStylePropOverflow), overflowAllowed
     validators.Add CStr(cfgStylePropAutoHeight), boolAllowed
+    validators.Add CStr(cfgStylePropAutoFitColumns), boolAllowed
+    validators.Add CStr(cfgStylePropFontBold), boolAllowed
+
+    Set horizontalAllowed = CreateObject("Scripting.Dictionary")
+    horizontalAllowed.CompareMode = 1
+    horizontalAllowed("left") = True
+    horizontalAllowed("center") = True
+    horizontalAllowed("right") = True
+    horizontalAllowed("fill") = True
+    horizontalAllowed("justify") = True
+    horizontalAllowed("distributed") = True
+    horizontalAllowed("general") = True
+    validators.Add CStr(cfgStylePropHorizontal), horizontalAllowed
+
+    Set verticalAllowed = CreateObject("Scripting.Dictionary")
+    verticalAllowed.CompareMode = 1
+    verticalAllowed("top") = True
+    verticalAllowed("center") = True
+    verticalAllowed("bottom") = True
+    verticalAllowed("justify") = True
+    verticalAllowed("distributed") = True
+    validators.Add CStr(cfgStylePropVertical), verticalAllowed
 
     Set mp_BuildDiscreteValidators = validators
 End Function
@@ -275,11 +373,19 @@ Private Function mp_ValidatePropertyValue( _
     Dim normalizedValue As String
     Dim allowedValues As Object
     Dim boolValue As Boolean
+    Dim colorValue As Long
+    Dim longValue As Long
 
     Select Case propertyId
-        Case cfgStylePropWidth
+        Case cfgStylePropWidth, cfgStylePropMinWidth, cfgStylePropMaxWidth
             If Not mp_TryParseWidth(propertyValue, widthValue) Then
-                outErrorText = "invalid width value '" & propertyValue & "' (expected positive number)"
+                outErrorText = "invalid numeric width value '" & propertyValue & "' (expected positive number)"
+                Exit Function
+            End If
+
+        Case cfgStylePropAutoFitColumns
+            If Not mp_TryParseBoolean(propertyValue, boolValue) Then
+                outErrorText = "invalid autoFitColumns value '" & propertyValue & "' (expected true/false)"
                 Exit Function
             End If
 
@@ -299,6 +405,58 @@ Private Function mp_ValidatePropertyValue( _
         Case cfgStylePropAutoHeight
             If Not mp_TryParseBoolean(propertyValue, boolValue) Then
                 outErrorText = "invalid autoHeight value '" & propertyValue & "' (expected true/false)"
+                Exit Function
+            End If
+
+        Case cfgStylePropRowHeight
+            If Not mp_TryParsePositiveDouble(propertyValue, widthValue) Then
+                outErrorText = "invalid rowHeight value '" & propertyValue & "' (expected positive number)"
+                Exit Function
+            End If
+
+        Case cfgStylePropMergeColumns
+            If Not ex_XmlCore.m_TryParseLong(propertyValue, longValue) Then
+                outErrorText = "invalid mergeColumns value '" & propertyValue & "' (expected integer >= 1)"
+                Exit Function
+            End If
+            If longValue < 1 Then
+                outErrorText = "invalid mergeColumns value '" & propertyValue & "' (expected integer >= 1)"
+                Exit Function
+            End If
+
+        Case cfgStylePropFontName
+            If Len(Trim$(propertyValue)) = 0 Then
+                outErrorText = "invalid fontName value (expected non-empty text)"
+                Exit Function
+            End If
+
+        Case cfgStylePropFontSize
+            If Not mp_TryParsePositiveDouble(propertyValue, widthValue) Then
+                outErrorText = "invalid fontSize value '" & propertyValue & "' (expected positive number)"
+                Exit Function
+            End If
+
+        Case cfgStylePropFontBold
+            If Not mp_TryParseBoolean(propertyValue, boolValue) Then
+                outErrorText = "invalid fontBold value '" & propertyValue & "' (expected true/false)"
+                Exit Function
+            End If
+
+        Case cfgStylePropBackColor, cfgStylePropFontColor
+            If Not ex_XmlCore.m_TryParseColor(propertyValue, colorValue) Then
+                outErrorText = "invalid color value '" & propertyValue & "'"
+                Exit Function
+            End If
+
+        Case cfgStylePropHorizontal, cfgStylePropVertical
+            normalizedValue = LCase$(Trim$(propertyValue))
+            If Not discreteValidators.Exists(CStr(propertyId)) Then
+                outErrorText = "alignment validator is not configured"
+                Exit Function
+            End If
+            Set allowedValues = discreteValidators(CStr(propertyId))
+            If Not allowedValues.Exists(normalizedValue) Then
+                outErrorText = "unsupported alignment value '" & propertyValue & "'"
                 Exit Function
             End If
 
@@ -339,10 +497,22 @@ Private Sub mp_ApplyParsedStylesToColumn( _
     ByVal mapKey As String _
 )
     Dim widthUnits As Double
+    Dim minWidthUnits As Double
+    Dim maxWidthUnits As Double
+    Dim hasMinWidth As Boolean
+    Dim hasMaxWidth As Boolean
+    Dim currentWidth As Double
     Dim overflowValue As String
     Dim columnRange As Range
     Dim scopedRange As Range
     Dim autoHeightEnabled As Boolean
+    Dim autoFitColumnsEnabled As Boolean
+    Dim rowHeightValue As Double
+    Dim boolValue As Boolean
+    Dim fontSizeValue As Double
+    Dim colorValue As Long
+    Dim horizontalValue As String
+    Dim verticalValue As String
 
     If ws Is Nothing Then Exit Sub
     If parsedStyles Is Nothing Then Exit Sub
@@ -359,6 +529,45 @@ Private Sub mp_ApplyParsedStylesToColumn( _
                 "Invalid parsed width value for key '" & mapKey & "'."
         End If
         columnRange.ColumnWidth = widthUnits
+    End If
+
+    If parsedStyles.Exists(LCase$(STYLE_PROPERTY_MIN_WIDTH)) Then
+        If Not mp_TryParseWidth(CStr(parsedStyles(LCase$(STYLE_PROPERTY_MIN_WIDTH))), minWidthUnits) Then
+            Err.Raise vbObjectError + 1499, "ex_ConfigStylesParser", _
+                "Invalid minWidth value for key '" & mapKey & "'."
+        End If
+        hasMinWidth = True
+    End If
+
+    If parsedStyles.Exists(LCase$(STYLE_PROPERTY_MAX_WIDTH)) Then
+        If Not mp_TryParseWidth(CStr(parsedStyles(LCase$(STYLE_PROPERTY_MAX_WIDTH))), maxWidthUnits) Then
+            Err.Raise vbObjectError + 1499, "ex_ConfigStylesParser", _
+                "Invalid maxWidth value for key '" & mapKey & "'."
+        End If
+        hasMaxWidth = True
+    End If
+
+    If hasMinWidth Or hasMaxWidth Then
+        currentWidth = columnRange.ColumnWidth
+        If hasMinWidth Then
+            If currentWidth < minWidthUnits Then
+                columnRange.ColumnWidth = minWidthUnits
+                currentWidth = minWidthUnits
+            End If
+        End If
+        If hasMaxWidth Then
+            If currentWidth > maxWidthUnits Then
+                columnRange.ColumnWidth = maxWidthUnits
+            End If
+        End If
+    End If
+
+    If parsedStyles.Exists(LCase$(STYLE_PROPERTY_AUTO_FIT_COLUMNS)) Then
+        If Not mp_TryParseBoolean(CStr(parsedStyles(LCase$(STYLE_PROPERTY_AUTO_FIT_COLUMNS))), autoFitColumnsEnabled) Then
+            Err.Raise vbObjectError + 1499, "ex_ConfigStylesParser", _
+                "Invalid autoFitColumns value for key '" & mapKey & "'."
+        End If
+        If autoFitColumnsEnabled Then columnRange.AutoFit
     End If
 
     If parsedStyles.Exists(STYLE_PROPERTY_OVERFLOW) Then
@@ -388,7 +597,84 @@ Private Sub mp_ApplyParsedStylesToColumn( _
             scopedRange.EntireRow.AutoFit
         End If
     End If
+
+    If parsedStyles.Exists(LCase$(STYLE_PROPERTY_ROW_HEIGHT)) Then
+        If Not mp_TryParsePositiveDouble(CStr(parsedStyles(LCase$(STYLE_PROPERTY_ROW_HEIGHT))), rowHeightValue) Then
+            Err.Raise vbObjectError + 1499, "ex_ConfigStylesParser", _
+                "Invalid rowHeight value for key '" & mapKey & "'."
+        End If
+        scopedRange.RowHeight = rowHeightValue
+    End If
+
+    If parsedStyles.Exists(LCase$(STYLE_PROPERTY_FONT_NAME)) Then
+        scopedRange.Font.Name = CStr(parsedStyles(LCase$(STYLE_PROPERTY_FONT_NAME)))
+    End If
+
+    If parsedStyles.Exists(LCase$(STYLE_PROPERTY_FONT_SIZE)) Then
+        If Not mp_TryParsePositiveDouble(CStr(parsedStyles(LCase$(STYLE_PROPERTY_FONT_SIZE))), fontSizeValue) Then
+            Err.Raise vbObjectError + 1495, "ex_ConfigStylesParser", _
+                "Invalid fontSize value for key '" & mapKey & "'."
+        End If
+        scopedRange.Font.Size = fontSizeValue
+    End If
+
+    If parsedStyles.Exists(LCase$(STYLE_PROPERTY_FONT_BOLD)) Then
+        If Not mp_TryParseBoolean(CStr(parsedStyles(LCase$(STYLE_PROPERTY_FONT_BOLD))), boolValue) Then
+            Err.Raise vbObjectError + 1496, "ex_ConfigStylesParser", _
+                "Invalid fontBold value for key '" & mapKey & "'."
+        End If
+        scopedRange.Font.Bold = boolValue
+    End If
+
+    If parsedStyles.Exists(LCase$(STYLE_PROPERTY_BACK_COLOR)) Then
+        If Not ex_XmlCore.m_TryParseColor(CStr(parsedStyles(LCase$(STYLE_PROPERTY_BACK_COLOR))), colorValue) Then
+            Err.Raise vbObjectError + 1497, "ex_ConfigStylesParser", _
+                "Invalid backColor value for key '" & mapKey & "'."
+        End If
+        scopedRange.Interior.Color = colorValue
+    End If
+
+    If parsedStyles.Exists(LCase$(STYLE_PROPERTY_FONT_COLOR)) Then
+        If Not ex_XmlCore.m_TryParseColor(CStr(parsedStyles(LCase$(STYLE_PROPERTY_FONT_COLOR))), colorValue) Then
+            Err.Raise vbObjectError + 1498, "ex_ConfigStylesParser", _
+                "Invalid fontColor value for key '" & mapKey & "'."
+        End If
+        scopedRange.Font.Color = colorValue
+    End If
+
+    If parsedStyles.Exists(LCase$(STYLE_PROPERTY_HORIZONTAL)) Then
+        horizontalValue = LCase$(Trim$(CStr(parsedStyles(LCase$(STYLE_PROPERTY_HORIZONTAL)))))
+        scopedRange.HorizontalAlignment = mp_ParseHorizontalAlignment(horizontalValue)
+    End If
+
+    If parsedStyles.Exists(LCase$(STYLE_PROPERTY_VERTICAL)) Then
+        verticalValue = LCase$(Trim$(CStr(parsedStyles(LCase$(STYLE_PROPERTY_VERTICAL)))))
+        scopedRange.VerticalAlignment = mp_ParseVerticalAlignment(verticalValue)
+    End If
 End Sub
+
+Private Function mp_ParseHorizontalAlignment(ByVal valueText As String) As XlHAlign
+    Select Case LCase$(Trim$(valueText))
+        Case "left": mp_ParseHorizontalAlignment = xlLeft
+        Case "center": mp_ParseHorizontalAlignment = xlCenter
+        Case "right": mp_ParseHorizontalAlignment = xlRight
+        Case "fill": mp_ParseHorizontalAlignment = xlFill
+        Case "justify": mp_ParseHorizontalAlignment = xlJustify
+        Case "distributed": mp_ParseHorizontalAlignment = xlDistributed
+        Case Else: mp_ParseHorizontalAlignment = xlGeneral
+    End Select
+End Function
+
+Private Function mp_ParseVerticalAlignment(ByVal valueText As String) As XlVAlign
+    Select Case LCase$(Trim$(valueText))
+        Case "top": mp_ParseVerticalAlignment = xlTop
+        Case "center": mp_ParseVerticalAlignment = xlCenter
+        Case "bottom": mp_ParseVerticalAlignment = xlBottom
+        Case "justify": mp_ParseVerticalAlignment = xlJustify
+        Case "distributed": mp_ParseVerticalAlignment = xlDistributed
+        Case Else: mp_ParseVerticalAlignment = xlCenter
+    End Select
+End Function
 
 Private Function mp_TryParseBoolean(ByVal valueText As String, ByRef outValue As Boolean) As Boolean
     Dim normalized As String
@@ -404,4 +690,39 @@ Private Function mp_TryParseBoolean(ByVal valueText As String, ByRef outValue As
             outValue = False
             mp_TryParseBoolean = True
     End Select
+End Function
+
+Private Function mp_TryParsePositiveDouble(ByVal valueText As String, ByRef outValue As Double) As Boolean
+    Dim normalized As String
+
+    normalized = Trim$(valueText)
+    If Len(normalized) = 0 Then Exit Function
+    If Not ex_XmlCore.m_TryParseDouble(normalized, outValue) Then Exit Function
+    If outValue <= 0 Then Exit Function
+    mp_TryParsePositiveDouble = True
+End Function
+
+Private Function mp_UnquoteText(ByVal valueText As String) As String
+    Dim normalized As String
+    normalized = mp_NormalizeStyleToken(valueText)
+    If Len(normalized) >= 2 Then
+        If (Left$(normalized, 1) = "'" And Right$(normalized, 1) = "'") _
+            Or (Left$(normalized, 1) = Chr$(34) And Right$(normalized, 1) = Chr$(34)) Then
+            normalized = Mid$(normalized, 2, Len(normalized) - 2)
+        End If
+    End If
+    mp_UnquoteText = mp_NormalizeStyleToken(normalized)
+End Function
+
+Private Function mp_NormalizeStyleToken(ByVal valueText As String) As String
+    Dim normalized As String
+
+    normalized = CStr(valueText)
+    normalized = Replace(normalized, vbCr, " ")
+    normalized = Replace(normalized, vbLf, " ")
+    normalized = Replace(normalized, vbTab, " ")
+    normalized = Replace(normalized, Chr$(160), " ")
+    normalized = Replace(normalized, ChrW$(160), " ")
+
+    mp_NormalizeStyleToken = Trim$(normalized)
 End Function

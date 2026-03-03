@@ -10,12 +10,17 @@ Private Const DEV_CONFIG_VALUE_COL As Long = 3
 Private Const DEV_CONFIG_NOTE_COL As Long = 4
 Private Const DEV_CONFIG_COL_COUNT As Long = 4
 Private Const XML_ATTR_STYLES As String = "styles"
+Private Const XML_ATTR_STYLE As String = "style"
 
 Public Sub m_WriteSheetValuesToProfile(ByVal ws As Worksheet, ByVal doc As Object, ByVal profileNode As Object)
     Dim entries As Variant
     Dim i As Long
     Dim vNode As Object
     Dim child As Object
+    Dim keyName As String
+    Dim styleTagsByKey As Object
+
+    Set styleTagsByKey = mp_BuildStyleTagsIndex(profileNode)
 
     For Each child In profileNode.selectNodes("p:v")
         profileNode.removeChild child
@@ -29,7 +34,15 @@ Public Sub m_WriteSheetValuesToProfile(ByVal ws As Worksheet, ByVal doc As Objec
         If Len(Trim$(CStr(entries(i, DEV_CONFIG_MARKER_COL)))) > 0 Then
             vNode.setAttribute "type", CStr(entries(i, DEV_CONFIG_MARKER_COL))
         End If
-        vNode.setAttribute "key", CStr(entries(i, DEV_CONFIG_KEY_COL))
+        keyName = CStr(entries(i, DEV_CONFIG_KEY_COL))
+        vNode.setAttribute "key", keyName
+        If Not styleTagsByKey Is Nothing Then
+            If Len(Trim$(keyName)) > 0 Then
+                If styleTagsByKey.Exists(keyName) Then
+                    vNode.setAttribute XML_ATTR_STYLE, CStr(styleTagsByKey(keyName))
+                End If
+            End If
+        End If
         If Len(Trim$(CStr(entries(i, DEV_CONFIG_NOTE_COL)))) > 0 Then
             vNode.setAttribute XML_ATTR_STYLES, CStr(entries(i, DEV_CONFIG_NOTE_COL))
         End If
@@ -59,7 +72,8 @@ Public Function m_ReadProfileEntries(ByVal ws As Worksheet, ByVal profileNode As
     For i = 0 To nodes.Length - 1
         If Len(mp_NodeAttrText(nodes.Item(i), "key")) > 0 _
            Or Len(mp_NodeAttrText(nodes.Item(i), "type")) > 0 _
-           Or Len(mp_ReadStyleAttr(nodes.Item(i))) > 0 Then
+           Or Len(mp_ReadStyleAttr(nodes.Item(i))) > 0 _
+           Or Len(mp_NodeAttrText(nodes.Item(i), XML_ATTR_STYLE)) > 0 Then
             hasKeyFormat = True
             Exit For
         End If
@@ -80,6 +94,38 @@ Public Function m_ReadProfileEntries(ByVal ws As Worksheet, ByVal profileNode As
     End If
 
     m_ReadProfileEntries = mp_ReadLegacyProfileEntries(ws, nodes)
+End Function
+
+Private Function mp_BuildStyleTagsIndex(ByVal profileNode As Object) As Object
+    Dim result As Object
+    Dim nodes As Object
+    Dim node As Object
+    Dim keyText As String
+    Dim styleTag As String
+
+    Set result = CreateObject("Scripting.Dictionary")
+    result.CompareMode = 1
+
+    If profileNode Is Nothing Then
+        Set mp_BuildStyleTagsIndex = result
+        Exit Function
+    End If
+
+    Set nodes = profileNode.selectNodes("p:v")
+    If nodes Is Nothing Then
+        Set mp_BuildStyleTagsIndex = result
+        Exit Function
+    End If
+
+    For Each node In nodes
+        keyText = Trim$(mp_NodeAttrText(node, "key"))
+        styleTag = Trim$(mp_NodeAttrText(node, XML_ATTR_STYLE))
+        If Len(keyText) > 0 And Len(styleTag) > 0 Then
+            result(keyText) = styleTag
+        End If
+    Next node
+
+    Set mp_BuildStyleTagsIndex = result
 End Function
 
 Private Function mp_ReadStyleAttr(ByVal node As Object) As String

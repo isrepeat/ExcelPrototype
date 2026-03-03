@@ -211,6 +211,53 @@ Public Function m_GetActiveProfileName(Optional ByVal ws As Worksheet) As String
     m_GetActiveProfileName = profileName
 End Function
 
+Public Function m_GetActiveProfileStyleTagsByKey(Optional ByVal ws As Worksheet) As Object
+    Dim profileName As String
+    Dim doc As Object
+    Dim profileNode As Object
+    Dim nodes As Object
+    Dim node As Object
+    Dim mapKey As String
+    Dim styleTag As String
+    Dim result As Object
+
+    Set result = CreateObject("Scripting.Dictionary")
+    result.CompareMode = 1
+
+    If ws Is Nothing Then
+        Set ws = ws_Dev
+    End If
+
+    profileName = Trim$(m_GetActiveProfileName(ws))
+    If Len(profileName) = 0 Then
+        Set m_GetActiveProfileStyleTagsByKey = result
+        Exit Function
+    End If
+
+    Set doc = mp_LoadProfilesDom(ws)
+    If doc Is Nothing Then
+        Err.Raise vbObjectError + 1732, "ex_ConfigProfilesManager", "Failed to load profiles DOM for active profile style tags."
+    End If
+
+    Set profileNode = mp_GetProfileNode(doc, profileName, False)
+    If profileNode Is Nothing Then
+        Err.Raise vbObjectError + 1733, "ex_ConfigProfilesManager", "Active profile '" & profileName & "' was not found in profiles XML."
+    End If
+
+    Set nodes = profileNode.selectNodes("p:v")
+    If Not nodes Is Nothing Then
+        For Each node In nodes
+            mapKey = Trim$(mp_NodeAttrText(node, "key"))
+            styleTag = Trim$(mp_NodeAttrText(node, "style"))
+            If Len(mapKey) > 0 And Len(styleTag) > 0 Then
+                result(mapKey) = styleTag
+            End If
+        Next node
+    End If
+
+    Set m_GetActiveProfileStyleTagsByKey = result
+End Function
+
 Public Sub m_EnsureProfileDropdown(Optional ByVal ws As Worksheet)
     Dim profiles As Variant
     Dim profileName As String

@@ -5,7 +5,6 @@ Private Const PROFILES_NS As String = "urn:excelprototype:profiles"
 Private Const SHEET_STYLES_REL_PATH As String = "config\SheetStyles.xml"
 Private Const OUTPUT_STYLE_PERSONAL_DIR_REL_PATH As String = "config\modes\PersonalCard"
 Private Const OUTPUT_STYLE_COMPARING_DIR_REL_PATH As String = "config\modes\TablesComparing"
-Private Const OUTPUT_STYLE_FILE_SUFFIX As String = "SheetStyles.xml"
 Private Const OUTPUT_UI_FILE_SUFFIX As String = "UI.xml"
 Private Const MODE_PERSONAL_CARD As String = "Personal Card"
 Private Const MODE_TABLES_COMPARING As String = "Comparing"
@@ -156,11 +155,9 @@ Private g_LastActiveModeName As String
 
 Public Function m_InitializeStyles(Optional ByVal wb As Workbook) As Boolean
     Dim baseDoc As Object
-    Dim outputDoc As Object
     Dim modeUiDoc As Object
-    Dim outputRelPath As String
     Dim modeUiRelPath As String
-    Dim modeBaseNode As Object
+    Dim activeModeName As String
 
     If wb Is Nothing Then Set wb = ThisWorkbook
     If wb Is Nothing Then
@@ -174,23 +171,15 @@ Public Function m_InitializeStyles(Optional ByVal wb As Workbook) As Boolean
     If Not mp_LoadBaseSheetStyleFromDom(baseDoc, g_BaseStyle) Then Exit Function
     g_HasErrorBannerStyle = mp_LoadErrorBannerStyleFromDom(baseDoc, g_ErrorBannerStyle)
     If Not g_HasErrorBannerStyle Then
-        MsgBox "SheetStyles must contain '/SheetStyles/errorBanner'.", vbExclamation
+        MsgBox "sheetStyles must contain '/sheetStyles/errorBanner'.", vbExclamation
         Exit Function
     End If
     g_HasWarningBannerStyle = mp_LoadWarningBannerStyleFromDom(baseDoc, g_WarningBannerStyle)
 
-    outputRelPath = mp_GetOutputStyleRelPathByMode()
-    Set outputDoc = mp_LoadOutputStyleDomByRelativePath(wb, outputRelPath)
-    If outputDoc Is Nothing Then Exit Function
-
-    Set modeBaseNode = outputDoc.selectSingleNode("/p:SheetStyles/p:baseSheetStyle")
-    If Not modeBaseNode Is Nothing Then
-        If Not mp_LoadBaseSheetStyleFromDom(outputDoc, g_BaseStyle) Then Exit Function
-    End If
-
-    g_HasOutputStyle = mp_TryLoadOutputSheetStyleFromDom(outputDoc, g_OutputStyle)
+    activeModeName = mp_GetCurrentActiveModeName()
+    g_HasOutputStyle = mp_TryLoadOutputSheetStyleFromDom(baseDoc, g_OutputStyle, activeModeName)
     If Not g_HasOutputStyle Then
-        MsgBox "Output style must contain '/SheetStyles/outputSheetStyle' in mode-specific file: " & outputRelPath, vbExclamation
+        MsgBox "Output style for mode '" & activeModeName & "' was not found in SheetStyles config file: " & SHEET_STYLES_REL_PATH, vbExclamation
         Exit Function
     End If
 
@@ -503,15 +492,6 @@ Private Function mp_LoadSheetStylesDom(ByVal wb As Workbook) As Object
         "Failed to parse SheetStyles config file: ")
 End Function
 
-Private Function mp_LoadOutputStyleDomByRelativePath(ByVal wb As Workbook, ByVal relPath As String) As Object
-    Set mp_LoadOutputStyleDomByRelativePath = ex_XmlCore.m_LoadDomByRelativePath( _
-        wb, _
-        relPath, _
-        PROFILES_NS, _
-        "Output style config file was not found: ", _
-        "Failed to parse output style config file: ")
-End Function
-
     Private Function mp_LoadModeUiDomByRelativePath(ByVal wb As Workbook, ByVal relPath As String) As Object
         Set mp_LoadModeUiDomByRelativePath = ex_XmlCore.m_LoadDomByRelativePath( _
         wb, _
@@ -529,35 +509,6 @@ Private Function mp_GetCurrentActiveModeName() As String
     If Len(mp_GetCurrentActiveModeName) = 0 Then
         mp_GetCurrentActiveModeName = MODE_PERSONAL_CARD
     End If
-End Function
-
-Private Function mp_GetOutputStyleRelPathByMode() As String
-    Dim modeName As String
-
-    modeName = mp_GetCurrentActiveModeName()
-
-    If StrComp(modeName, MODE_TABLES_COMPARING, vbTextCompare) = 0 Then
-        mp_GetOutputStyleRelPathByMode = mp_BuildPatternBasedFilePath(OUTPUT_STYLE_COMPARING_DIR_REL_PATH, OUTPUT_STYLE_FILE_SUFFIX)
-        Exit Function
-    End If
-
-    If StrComp(modeName, MODE_PERSONAL_CARD, vbTextCompare) = 0 Then
-        mp_GetOutputStyleRelPathByMode = mp_BuildPatternBasedFilePath(OUTPUT_STYLE_PERSONAL_DIR_REL_PATH, OUTPUT_STYLE_FILE_SUFFIX)
-        Exit Function
-    End If
-
-    If Len(modeName) > 0 Then
-        MsgBox "Unsupported active mode value for style mapping: '" & modeName & "'.", vbExclamation
-    Else
-        MsgBox "Unsupported active mode value for style mapping.", vbExclamation
-    End If
-
-    Select Case modeName
-        Case MODE_PERSONAL_CARD
-            mp_GetOutputStyleRelPathByMode = mp_BuildPatternBasedFilePath(OUTPUT_STYLE_PERSONAL_DIR_REL_PATH, OUTPUT_STYLE_FILE_SUFFIX)
-        Case MODE_TABLES_COMPARING
-            mp_GetOutputStyleRelPathByMode = mp_BuildPatternBasedFilePath(OUTPUT_STYLE_COMPARING_DIR_REL_PATH, OUTPUT_STYLE_FILE_SUFFIX)
-    End Select
 End Function
 
 Private Function mp_GetOutputUiRelPathByMode() As String
@@ -632,9 +583,9 @@ Private Function mp_LoadBaseSheetStyleFromDom(ByVal doc As Object, ByRef style A
     Dim nodeGrid As Object
     Dim gridWeightText As String
 
-    Set rootNode = doc.selectSingleNode("/p:SheetStyles/p:baseSheetStyle")
+    Set rootNode = doc.selectSingleNode("/p:sheetStyles/p:baseSheetStyle")
     If rootNode Is Nothing Then
-        MsgBox "SheetStyles must contain '/SheetStyles/baseSheetStyle'.", vbExclamation
+        MsgBox "sheetStyles must contain '/sheetStyles/baseSheetStyle'.", vbExclamation
         Exit Function
     End If
 
@@ -667,7 +618,7 @@ Private Function mp_LoadBaseSheetStyleFromDom(ByVal doc As Object, ByRef style A
     mp_LoadBaseSheetStyleFromDom = True
 End Function
 
-Private Function mp_TryLoadOutputSheetStyleFromDom(ByVal doc As Object, ByRef style As t_OutputSheetStyle) As Boolean
+Private Function mp_TryLoadOutputSheetStyleFromDom(ByVal doc As Object, ByRef style As t_OutputSheetStyle, ByVal modeName As String) As Boolean
     Dim rootNode As Object
     Dim nodeFont As Object
     Dim nodeRows As Object
@@ -678,7 +629,7 @@ Private Function mp_TryLoadOutputSheetStyleFromDom(ByVal doc As Object, ByRef st
     Dim nodeStatus As Object
     Dim sectionTitleColumnsText As String
 
-    Set rootNode = doc.selectSingleNode("/p:SheetStyles/p:outputSheetStyle")
+    Set rootNode = mp_SelectOutputSheetStyleNode(doc, modeName)
     If rootNode Is Nothing Then
         Exit Function
     End If
@@ -795,7 +746,7 @@ End Function
 Private Function mp_LoadErrorBannerStyleFromDom(ByVal doc As Object, ByRef style As t_ErrorBannerStyle) As Boolean
     Dim node As Object
 
-    Set node = doc.selectSingleNode("/p:SheetStyles/p:errorBanner")
+    Set node = doc.selectSingleNode("/p:sheetStyles/p:errorBanner")
     If node Is Nothing Then
         Exit Function
     End If
@@ -831,7 +782,7 @@ End Function
 Private Function mp_LoadWarningBannerStyleFromDom(ByVal doc As Object, ByRef style As t_ErrorBannerStyle) As Boolean
     Dim node As Object
 
-    Set node = doc.selectSingleNode("/p:SheetStyles/p:warningBanner")
+    Set node = doc.selectSingleNode("/p:sheetStyles/p:warningBanner")
     If node Is Nothing Then
         Exit Function
     End If
@@ -862,6 +813,36 @@ Private Function mp_LoadWarningBannerStyleFromDom(ByVal doc As Object, ByRef sty
     End If
 
     mp_LoadWarningBannerStyleFromDom = True
+End Function
+
+Private Function mp_SelectOutputSheetStyleNode(ByVal doc As Object, ByVal modeName As String) As Object
+    Dim nodes As Object
+    Dim node As Object
+    Dim modeAttr As String
+    Dim fallbackNode As Object
+
+    If doc Is Nothing Then Exit Function
+
+    Set nodes = doc.selectNodes("/p:sheetStyles/p:outputStyles/p:outputSheetStyle")
+    If nodes Is Nothing Then Exit Function
+    If nodes.Length = 0 Then Exit Function
+
+    modeName = Trim$(modeName)
+    For Each node In nodes
+        modeAttr = Trim$(ex_XmlCore.m_NodeAttrText(node, "mode"))
+        If Len(modeAttr) = 0 Then
+            If fallbackNode Is Nothing Then Set fallbackNode = node
+        ElseIf Len(modeName) > 0 And StrComp(modeAttr, modeName, vbTextCompare) = 0 Then
+            Set mp_SelectOutputSheetStyleNode = node
+            Exit Function
+        End If
+    Next node
+
+    If Not fallbackNode Is Nothing Then
+        Set mp_SelectOutputSheetStyleNode = fallbackNode
+    ElseIf nodes.Length > 0 Then
+        Set mp_SelectOutputSheetStyleNode = nodes.Item(0)
+    End If
 End Function
 
 Private Function mp_LoadControlPanelFromModeUi(ByVal doc As Object, ByRef style As t_OutputSheetStyle) As Boolean

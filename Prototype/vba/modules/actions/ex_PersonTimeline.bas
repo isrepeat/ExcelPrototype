@@ -157,12 +157,6 @@ End Sub
 Public Sub m_ShowPersonTimeline_UI()
 
     Dim fio As String
-    Dim validationError As String
-
-    If Not mp_ValidateTimelineEntryConfig(validationError) Then
-        MsgBox validationError, vbExclamation
-        Exit Sub
-    End If
 
     fio = Trim$(ex_ConfigProvider.m_GetConfigValue("CommonKey", vbNullString))
     If Len(fio) = 0 Then
@@ -257,19 +251,12 @@ Public Sub m_ShowPersonTimeline(ByVal fio As String)
     resultTablesByRef.CompareMode = 1
 
     Dim outputStyle As t_OutputSheetStyle
-    Dim baseStyle As t_BaseSheetStyle
     Dim hasOutputStyle As Boolean
-    Dim viewRowCount As Long
-    Dim viewColCount As Long
-    Dim viewStartRow As Long
-    Dim viewEndRow As Long
+
     If Not ex_SheetStylesXmlProvider.m_InitializeStyles(ThisWorkbook) Then
         Err.Raise vbObjectError + 1304, "ex_PersonTimeline", "Failed to initialize style registry."
     End If
     hasOutputStyle = ex_SheetStylesXmlProvider.m_GetOutputSheetStyle(outputStyle, ThisWorkbook)
-    If Not ex_SheetStylesXmlProvider.m_GetBaseSheetStyle(baseStyle, ThisWorkbook) Then
-        Err.Raise vbObjectError + 1306, "ex_PersonTimeline", "Failed to get sheet theme style from registry."
-    End If
 
     Dim outputAliases As Variant
     outputAliases = mp_GetListRequired(cfg, "Output.Sheets")
@@ -377,22 +364,14 @@ ContinueAlias:
             "No sheets were rendered for mode '" & ex_Settings.m_GetOutputModeDisplay() & "'. Check Output.Sheets and sheet Type."
     End If
 
-    mp_ApplyTimelineStyleLayers wsOut, headerRows, sectionRows, outputStyle, baseStyle, hasOutputStyle
+    mp_ApplyTimelineStyleLayers wsOut, headerRows, sectionRows, resultFieldRanges
     If hasOutputStyle Then
-        viewStartRow = ex_SheetStylesXmlProvider.m_GetOutputViewStartRow(ThisWorkbook)
-        viewEndRow = rowIndex - 1
-        If viewEndRow < viewStartRow Then viewEndRow = viewStartRow
-        If Not ex_SheetStylesXmlProvider.m_GetUsedRangeSize(wsOut, viewRowCount, viewColCount) Then
-            viewColCount = 1
-        End If
         ex_OutputPanel.m_RenderForSheet wsOut, outputStyle
-        ex_OutputFormattingPipeline.m_ApplyTimelineRowLayoutsByStyle wsOut, viewStartRow, viewEndRow, viewColCount, headerRows, sectionRows, outputStyle, 32
     End If
 
-    ' Config note styles (e.g. {width/overflow/autoHeight}) always override outputSheetStyle content layout.
-    ex_OutputFormattingPipeline.m_ApplyConfigNoteStyleLayer wsOut, resultFieldRanges, cfgNotes
+    ex_OutputFormattingPipeline.m_ApplyTimelinePostLayoutStyleLayers wsOut, resultFieldRanges, cfgNotes
     mp_RenderPendingWarningBanners wsOut, pendingWarningBanners
-    ex_OutputFormattingPipeline.m_ApplyPartialMatchRowsAutoHeight wsOut, partialMatchRowRanges
+    ex_OutputFormattingPipeline.m_ApplyTimelinePostWarningsStyleLayers wsOut, partialMatchRowRanges
 
     mp_StorePostProcessContext cfg, resultTables, (partialMatchRowRanges.Count > 0)
     If mp_ShouldAutoPostProcess() Then
@@ -520,6 +499,18 @@ Private Function mp_ShouldAutoPostProcess() As Boolean
     End If
 End Function
 
+Private Function mp_ShouldStrictPreflightValidation() As Boolean
+    Dim valueText As String
+    Dim parsed As Boolean
+
+    valueText = ex_XmlCore.m_GetSettingsValue("st_StrictPreflightValidation", "false")
+    If ex_XmlCore.m_TryParseBoolean(valueText, parsed) Then
+        mp_ShouldStrictPreflightValidation = parsed
+    Else
+        mp_ShouldStrictPreflightValidation = False
+    End If
+End Function
+
 Private Function mp_ValidateTimelineConfig( _
     ByVal cfg As Object, _
     ByVal cfgNotes As Object, _
@@ -530,6 +521,9 @@ Private Function mp_ValidateTimelineConfig( _
     Dim tableSourceMap As Object
     Dim resultFieldRanges As Collection
     Dim allowedTableFields As Object
+    Dim activeModeName As String
+    Dim styleTagsByMapKey As Object
+    Dim strictPreflight As Boolean
     Dim i As Long
 
     On Error GoTo EH
@@ -594,9 +588,36 @@ ContinueField:
 ContinueAlias:
     Next i
 
-    If Not ex_ConfigStylesParser.m_ValidateColumnStylesByMapKeys(resultFieldRanges, cfgNotes, outErrorText) Then
-        Exit Function
+    strictPreflight = mp_ShouldStrictPreflightValidation()
+    If strictPreflight Then
+        activeModeName = ex_ConfigProfilesManager.m_GetActiveModeName(ws_Dev)
+        Set styleTagsByMapKey = ex_ConfigProfilesManager.m_GetActiveProfileStyleTagsByKey(ws_Dev)
+        If Not ex_StylePipelineEngine.m_ValidateColumnStylesPipeline( _
+            resultFieldRanges, _
+            cfgNotes, _
+            styleTagsByMapKey, _
+            activeModeName, _
+            outErrorText, _
+            ThisWorkbook _
+        ) Then
+            Exit Function
+        End If
+
+        Dim workflowSteps As Collection
+        If Not ex_StylePipelineEngine.m_GetRenderWorkflowStepOrder(activeModeName, "personalCardTimeline", workflowSteps, ThisWorkbook) Then
+            outErrorText = "Style workflow 'personalCardTimeline' is not configured for mode '" & activeModeName & "'."
+            Exit Function
+        End If
+        If Not ex_StylePipelineEngine.m_GetRenderWorkflowStepOrder(activeModeName, "personalCardPostLayout", workflowSteps, ThisWorkbook) Then
+            outErrorText = "Style workflow 'personalCardPostLayout' is not configured for mode '" & activeModeName & "'."
+            Exit Function
+        End If
+        If Not ex_StylePipelineEngine.m_GetRenderWorkflowStepOrder(activeModeName, "personalCardPostWarnings", workflowSteps, ThisWorkbook) Then
+            outErrorText = "Style workflow 'personalCardPostWarnings' is not configured for mode '" & activeModeName & "'."
+            Exit Function
+        End If
     End If
+
     If Not ex_PostProcessDsl.m_ValidateScriptAgainstConfig(cfg, allowedTableFields, outErrorText) Then
         Exit Function
     End If
@@ -615,6 +636,14 @@ Private Function mp_IsConfigValidationError(ByVal errNumber As Long) As Boolean
              vbObjectError + 1340, vbObjectError + 1341, vbObjectError + 1360, _
              vbObjectError + 1370, vbObjectError + 1371, vbObjectError + 1380, _
              vbObjectError + 1390, vbObjectError + 1491, vbObjectError + 1492, _
+             vbObjectError + 1710, vbObjectError + 1711, vbObjectError + 1712, _
+             vbObjectError + 1713, vbObjectError + 1714, vbObjectError + 1715, _
+             vbObjectError + 1716, vbObjectError + 1717, vbObjectError + 1718, _
+             vbObjectError + 1719, vbObjectError + 1734, vbObjectError + 1735, _
+             vbObjectError + 1736, vbObjectError + 1737, vbObjectError + 1738, _
+             vbObjectError + 1739, vbObjectError + 1740, vbObjectError + 1741, _
+             vbObjectError + 1742, vbObjectError + 1743, vbObjectError + 1744, _
+             vbObjectError + 1745, vbObjectError + 1746, _
              vbObjectError + 1590, vbObjectError + 1591, vbObjectError + 1592, _
              vbObjectError + 1593, vbObjectError + 1594, vbObjectError + 1595, _
              vbObjectError + 1596, vbObjectError + 1597, _
@@ -1183,6 +1212,7 @@ Private Function mp_TryDetectHeaderRangeFromTopRows( _
     ByVal keyHeader As String, _
     ByRef outDetectedRef As String _
 ) As Boolean
+    Const MAX_HEADER_ALIGNMENT_SHIFT As Long = 20
     Dim sheetPrefix As String
     Dim probeRef As String
     Dim rs As Object
@@ -1206,6 +1236,8 @@ Private Function mp_TryDetectHeaderRangeFromTopRows( _
     Dim token As Variant
     Dim headerRowAbs As Long
     Dim colLetter As String
+    Dim fallbackRowAbs As Long
+    Dim alignmentShift As Long
 
     sheetPrefix = mp_ExtractAdoSheetPrefix(tableRef)
     If Len(sheetPrefix) = 0 Then Exit Function
@@ -1271,14 +1303,64 @@ Private Function mp_TryDetectHeaderRangeFromTopRows( _
     If bestLastCol <= 0 Then bestLastCol = (fieldUpper - fieldLower + 1)
     If bestLastCol <= 0 Then Exit Function
 
-    headerRowAbs = (bestRowIndex - rowLower) + 2
-    If headerRowAbs <= 0 Then Exit Function
-
     colLetter = mp_ToColumnLetter(bestLastCol)
     If Len(colLetter) = 0 Then Exit Function
 
-    outDetectedRef = "[" & sheetPrefix & "A" & CStr(headerRowAbs) & ":" & colLetter & "1048576]"
+    ' Provider alignment can drift from A1 (A1, A2, A3...).
+    ' Probe a bounded set of shifts and keep the first candidate
+    ' that exposes keyHeader in WHERE 1=0 metadata.
+    For alignmentShift = 1 To MAX_HEADER_ALIGNMENT_SHIFT
+        headerRowAbs = (bestRowIndex - rowLower) + alignmentShift
+        If headerRowAbs > 0 Then
+            If mp_TryBuildValidatedHeaderRangeRef(adoConn, sheetPrefix, headerRowAbs, colLetter, keyHeader, outDetectedRef) Then
+                mp_TryDetectHeaderRangeFromTopRows = True
+                Exit Function
+            End If
+        End If
+    Next alignmentShift
+
+    ' Last resort: keep deterministic fallback based on +1.
+    fallbackRowAbs = (bestRowIndex - rowLower) + 1
+    If fallbackRowAbs <= 0 Then Exit Function
+    outDetectedRef = "[" & sheetPrefix & "A" & CStr(fallbackRowAbs) & ":" & colLetter & "1048576]"
     mp_TryDetectHeaderRangeFromTopRows = True
+    Exit Function
+
+EH:
+    On Error Resume Next
+    If Not rs Is Nothing Then
+        If rs.State <> 0 Then rs.Close
+    End If
+    On Error GoTo 0
+End Function
+
+Private Function mp_TryBuildValidatedHeaderRangeRef( _
+    ByVal adoConn As Object, _
+    ByVal sheetPrefix As String, _
+    ByVal headerRowAbs As Long, _
+    ByVal colLetter As String, _
+    ByVal keyHeader As String, _
+    ByRef outRangeRef As String _
+) As Boolean
+    Dim rs As Object
+    Dim candidateRef As String
+
+    If adoConn Is Nothing Then Exit Function
+    If headerRowAbs <= 0 Then Exit Function
+    If Len(Trim$(sheetPrefix)) = 0 Then Exit Function
+    If Len(Trim$(colLetter)) = 0 Then Exit Function
+    If Len(Trim$(keyHeader)) = 0 Then Exit Function
+
+    candidateRef = "[" & sheetPrefix & "A" & CStr(headerRowAbs) & ":" & colLetter & "1048576]"
+
+    On Error GoTo EH
+    Set rs = CreateObject("ADODB.Recordset")
+    rs.Open "SELECT * FROM " & candidateRef & " WHERE 1=0", adoConn, 0, 1
+    If mp_RecordsetGetFieldOrdinal(rs, keyHeader) >= 0 Then
+        outRangeRef = candidateRef
+        mp_TryBuildValidatedHeaderRangeRef = True
+    End If
+    rs.Close
     Exit Function
 
 EH:
@@ -1308,11 +1390,9 @@ Private Sub mp_ApplyTimelineStyleLayers( _
     ByVal ws As Worksheet, _
     ByVal headerRows As Collection, _
     ByVal sectionRows As Collection, _
-    ByRef outputStyle As t_OutputSheetStyle, _
-    ByRef baseStyle As t_BaseSheetStyle, _
-    ByVal hasOutputStyle As Boolean _
+    ByVal resultFieldRanges As Collection _
 )
-    ex_OutputFormattingPipeline.m_ApplyTimelineStyleLayers ws, headerRows, sectionRows, outputStyle, baseStyle, hasOutputStyle
+    ex_OutputFormattingPipeline.m_ApplyTimelineStyleLayers ws, headerRows, sectionRows, resultFieldRanges
 End Sub
 
 Private Function mp_LoadConfigDictionary() As Object
@@ -2804,6 +2884,8 @@ Private Function mp_NormalizeHeader(ByVal s As String) As String
     s = Replace$(s, vbLf, " ")
     s = Replace$(s, vbTab, " ")
     s = Replace$(s, ChrW$(160), " ")
+    ' ACE/OLEDB can expose dots in Excel headers as '#', e.g. "Вх. №" -> "Вх# №".
+    s = Replace$(s, "#", ".")
     s = Replace$(s, ChrW$(&H2019), "'")
     s = Replace$(s, ChrW$(&H2BC), "'")
     s = Replace$(s, ChrW$(&H60), "'")
