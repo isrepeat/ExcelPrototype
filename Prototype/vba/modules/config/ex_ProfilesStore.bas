@@ -4,18 +4,24 @@ Option Explicit
 Private Const PROFILES_NS As String = "urn:excelprototype:profiles"
 Private Const PROFILES_TEMPLATE As String = "<?xml version=""1.0"" encoding=""UTF-8"" standalone=""yes""?><profiles xmlns=""" & PROFILES_NS & """ version=""1""/>"
 
-Public Function m_GetProfilesFilePath(Optional ByVal modeName As String = vbNullString, Optional ByVal wb As Workbook) As String
-    Dim resolvedMode As String
+Public Function m_GetProfilesFilePath(Optional ByVal modeKey As String = vbNullString, Optional ByVal wb As Workbook) As String
+    Dim resolvedModeKey As String
+    Dim defaultModeKey As String
 
     If wb Is Nothing Then Set wb = ThisWorkbook
     If wb Is Nothing Then Exit Function
 
-    resolvedMode = Trim$(modeName)
-    If Len(resolvedMode) = 0 Then
-        resolvedMode = "Personal Card"
+    resolvedModeKey = Trim$(modeKey)
+    If Len(resolvedModeKey) = 0 Then
+        defaultModeKey = Trim$(ex_UiXmlProvider.m_GetDefaultModeKey(wb))
+        If Len(defaultModeKey) > 0 Then
+            resolvedModeKey = defaultModeKey
+        Else
+            resolvedModeKey = Trim$(ex_UiXmlProvider.m_GetModeKeyByIndex(1, wb))
+        End If
     End If
 
-    m_GetProfilesFilePath = ex_UiXmlProvider.m_GetProfilesFilePathByMode(resolvedMode, wb, "profilesByMode")
+    m_GetProfilesFilePath = ex_UiXmlProvider.m_GetProfilesFilePathByMode(resolvedModeKey, wb, "profilesFileByMode")
 End Function
 
 Public Function m_LoadProfilesDom(ByVal filePath As String) As Object

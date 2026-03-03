@@ -10,8 +10,6 @@
 			</config>
 		</styles>
 		<ui>
-			<control name="ddProfile" visible="false"/>
-			<control name="ddMode" visible="false"/>
 			<control name="btnClear" visible="true"/>
 			<control name="btnMode" visible="true"/>
 			<control name="btnPersonalCard" visible="true"/>
@@ -128,8 +126,6 @@
 			}
 		</postProcessScript>
 		<ui>
-			<control name="ddProfile" visible="false"/>
-			<control name="ddMode" visible="false"/>
 			<control name="btnClear" visible="true"/>
 			<control name="btnMode" visible="true"/>
 			<control name="btnPersonalCard" visible="true"/>
@@ -156,7 +152,6 @@
 		<v key="Source.Daily.SheetAliases">DailyEvents</v>
 		<!-- <v key="CommonKey">ТКАЧЕНКО Сергій Олександрович</v> -->
 		<v key="CommonKey">БОНДАРЕНКО Максим Вікторович</v>
-		<v type="#" key="StateMain"/>
 		<v type="#" key="StateMain"/>
 		<v key="Main.Sheet[StateMain].Type">State</v>
 		<v key="Main.Sheet[StateMain].SheetName">ШПС</v>
@@ -293,8 +288,6 @@
 			}
 		</postProcessScript>
 		<ui>
-			<control name="ddProfile" visible="false"/>
-			<control name="ddMode" visible="false"/>
 			<control name="btnClear" visible="true"/>
 			<control name="btnMode" visible="true"/>
 			<control name="btnPersonalCard" visible="true"/>

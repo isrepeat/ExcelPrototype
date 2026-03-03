@@ -8,7 +8,7 @@ Option Explicit
 ' - поддерживать рабочую таблицу конфигурации на листе Dev (`tblDevConfig`);
 ' - отдавать значения конфига другим модулям через `m_GetConfigValue`;
 ' - обновлять служебный заголовок в третьей колонке таблицы
-'   (`Config [profile = ...]`) на основе текущего профиля из `ddProfile`.
+'   (`Config [profile = ...]`) на основе текущего активного профиля (state).
 '
 ' Важно:
 ' - модуль НЕ хранит профили; он работает только с текущим отображением таблицы;
@@ -375,7 +375,7 @@ End Sub
 ' Обновляет служебный текст в заголовке 3-й колонки таблицы.
 ' Текст формируется по шаблону CONFIG_TITLE_TEMPLATE и подставляет:
 ' - явный `profileName`, если передан;
-' - иначе активный элемент из dropdown `ddProfile`;
+' - иначе активный профиль из state;
 ' - иначе `<none>`.
 Public Sub m_RefreshConfigTitle( _
     Optional ByVal wsDev As Worksheet, _
@@ -395,7 +395,7 @@ Public Sub m_RefreshConfigTitle( _
 
     resolvedProfile = Trim$(profileName)
     If Len(resolvedProfile) = 0 Then
-        resolvedProfile = mp_GetProfileNameFromDropdown(wsDev)
+        resolvedProfile = Trim$(ex_ConfigProfilesManager.m_GetActiveProfileName(wsDev))
     End If
     If Len(resolvedProfile) = 0 Then
         resolvedProfile = "<none>"
@@ -456,34 +456,6 @@ Private Function mp_IsConfigTitleHeader(ByVal cellText As String) As Boolean
     cellText = Trim$(cellText)
     If Len(cellText) = 0 Then Exit Function
     mp_IsConfigTitleHeader = (InStr(1, cellText, "Config [profile =", vbTextCompare) = 1)
-End Function
-
-Private Function mp_GetProfileNameFromDropdown(ByVal wsDev As Worksheet) As String
-    Dim shp As Shape
-    Dim cf As Object
-    Dim idx As Long
-
-    Set shp = ex_ConfigProfilesManager.m_GetShapeByName(wsDev, "ddProfile")
-    If shp Is Nothing Then Exit Function
-
-    On Error Resume Next
-    Set cf = shp.ControlFormat
-    On Error GoTo 0
-    If cf Is Nothing Then Exit Function
-
-    On Error Resume Next
-    idx = CLng(cf.Value)
-    If Err.Number <> 0 Then
-        Err.Clear
-        On Error GoTo 0
-        Exit Function
-    End If
-    On Error GoTo 0
-
-    If idx < 1 Then Exit Function
-    On Error Resume Next
-    mp_GetProfileNameFromDropdown = CStr(cf.List(idx))
-    On Error GoTo 0
 End Function
 
 Private Sub mp_EnsureConfigTable(ByVal wsDev As Worksheet)

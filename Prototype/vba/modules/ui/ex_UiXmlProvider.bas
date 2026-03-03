@@ -3,10 +3,9 @@ Option Explicit
 
 Private Const PROFILES_NS As String = "urn:excelprototype:profiles"
 Private Const DEV_UI_CONFIG_REL_PATH As String = "config\DevUI.xml"
-Private Const PROFILES_FILE_SUFFIX As String = "Profiles.xml"
 Private Const ACTION_MAP_REL_PATH As String = "config\ActionMap.xml"
 Private Const DROPDOWN_CONTEXT_PROP_PREFIX As String = "Settings.DropdownContext."
-Private Const STATE_ACTIVE_MODE_PROP As String = "Settings.ActiveModeName"
+Private Const STATE_ACTIVE_MODE_KEY_PROP As String = "Settings.ActiveModeKey"
 
 Public Const DROPDOWN_ITEM_COL_KEY As Long = 1
 Public Const DROPDOWN_ITEM_COL_CAPTION As Long = 2
@@ -15,7 +14,18 @@ Public Const DROPDOWN_ITEM_COL_SET_CONTEXT As Long = 4
 Public Const DROPDOWN_ITEM_COL_ACTION_KEY As Long = 5
 Public Const DROPDOWN_ITEM_COL_MACRO As Long = 6
 
-Public Function m_GetDropdownItemsByName(ByVal controlName As String, Optional ByVal wb As Workbook, Optional ByVal modeName As String = vbNullString) As Variant
+Private Const MODE_LIST_CONTROL As String = "btnCustomMode"
+Private Const PROFILES_FILE_SOURCE_NAME As String = "profilesFileByMode"
+
+Private g_DevUiDomCache As Object
+Private g_DevUiDomCacheWbKey As String
+Private g_DevUiDomCacheStamp As Date
+Private g_SourceUriRecordsCache As Object
+Private g_SourceUriRecordsStampCache As Object
+Private g_SourceUriDefaultKeyCache As Object
+Private g_SourceUriDefaultKeyStampCache As Object
+
+Public Function m_GetDropdownItemsByName(ByVal controlName As String, Optional ByVal wb As Workbook, Optional ByVal modeKey As String = vbNullString) As Variant
     Dim doc As Object
     Dim controlNode As Object
     Dim sourceName As String
@@ -35,7 +45,7 @@ Public Function m_GetDropdownItemsByName(ByVal controlName As String, Optional B
     Set controlNode = mp_GetControlNode(doc, controlName)
     If controlNode Is Nothing Then Exit Function
 
-    itemRecords = mp_GetDropdownItemRecordsFromControlNode(controlNode, wb)
+    itemRecords = mp_GetDropdownItemRecordsFromControlNode(controlNode, wb, modeKey, doc)
     If mp_HasDropdownItemRecords(itemRecords) Then
         m_GetDropdownItemsByName = mp_BuildCaptionItemsFromRecords(itemRecords)
         Exit Function
@@ -43,7 +53,7 @@ Public Function m_GetDropdownItemsByName(ByVal controlName As String, Optional B
 
     sourceName = Trim$(ex_XmlCore.m_NodeAttrText(controlNode, "itemsSource"))
     If Len(sourceName) > 0 Then
-        m_GetDropdownItemsByName = mp_GetItemsFromSource(doc, sourceName, modeName, wb)
+        m_GetDropdownItemsByName = Array()
         Exit Function
     End If
 
@@ -67,7 +77,7 @@ Public Function m_GetDropdownItemsByName(ByVal controlName As String, Optional B
     m_GetDropdownItemsByName = items
 End Function
 
-Public Function m_GetDropdownItemRecordsByControl(ByVal controlName As String, Optional ByVal wb As Workbook) As Variant
+Public Function m_GetDropdownItemRecordsByControl(ByVal controlName As String, Optional ByVal wb As Workbook, Optional ByVal modeKey As String = vbNullString) As Variant
     Dim doc As Object
     Dim controlNode As Object
 
@@ -80,7 +90,7 @@ Public Function m_GetDropdownItemRecordsByControl(ByVal controlName As String, O
     Set controlNode = mp_GetControlNode(doc, controlName)
     If controlNode Is Nothing Then Exit Function
 
-    m_GetDropdownItemRecordsByControl = mp_GetDropdownItemRecordsFromControlNode(controlNode, wb)
+    m_GetDropdownItemRecordsByControl = mp_GetDropdownItemRecordsFromControlNode(controlNode, wb, modeKey, doc)
 End Function
 
 Public Function m_GetDropdownItemKeyByTarget(ByVal controlName As String, ByVal targetText As String, Optional ByVal wb As Workbook) As String
@@ -106,6 +116,110 @@ Public Function m_GetDropdownItemKeyByTarget(ByVal controlName As String, ByVal 
             Exit Function
         End If
     Next i
+End Function
+
+Public Function m_GetDropdownItemTargetByKey(ByVal controlName As String, ByVal keyText As String, Optional ByVal wb As Workbook) As String
+    Dim records As Variant
+    Dim i As Long
+    Dim recordKey As String
+    Dim recordTarget As String
+    Dim captionText As String
+
+    keyText = Trim$(keyText)
+    If Len(keyText) = 0 Then Exit Function
+
+    records = m_GetDropdownItemRecordsByControl(controlName, wb)
+    If Not mp_HasDropdownItemRecords(records) Then Exit Function
+
+    For i = LBound(records, 1) To UBound(records, 1)
+        recordKey = Trim$(CStr(records(i, DROPDOWN_ITEM_COL_KEY)))
+        If StrComp(recordKey, keyText, vbTextCompare) <> 0 Then GoTo ContinueRow
+
+        recordTarget = Trim$(CStr(records(i, DROPDOWN_ITEM_COL_TARGET)))
+        captionText = Trim$(CStr(records(i, DROPDOWN_ITEM_COL_CAPTION)))
+        If Len(recordTarget) > 0 Then
+            m_GetDropdownItemTargetByKey = recordTarget
+        Else
+            m_GetDropdownItemTargetByKey = captionText
+        End If
+        Exit Function
+ContinueRow:
+    Next i
+End Function
+
+Public Function m_GetDropdownItemCaptionByKey(ByVal controlName As String, ByVal keyText As String, Optional ByVal wb As Workbook) As String
+    Dim records As Variant
+    Dim i As Long
+    Dim recordKey As String
+
+    keyText = Trim$(keyText)
+    If Len(keyText) = 0 Then Exit Function
+
+    records = m_GetDropdownItemRecordsByControl(controlName, wb)
+    If Not mp_HasDropdownItemRecords(records) Then Exit Function
+
+    For i = LBound(records, 1) To UBound(records, 1)
+        recordKey = Trim$(CStr(records(i, DROPDOWN_ITEM_COL_KEY)))
+        If StrComp(recordKey, keyText, vbTextCompare) = 0 Then
+            m_GetDropdownItemCaptionByKey = Trim$(CStr(records(i, DROPDOWN_ITEM_COL_CAPTION)))
+            Exit Function
+        End If
+    Next i
+End Function
+
+Public Function m_GetDefaultModeKey(Optional ByVal wb As Workbook) As String
+    Dim doc As Object
+    Dim controlNode As Object
+    Dim sourceName As String
+    Dim sourceUri As String
+    Dim defaultModeKey As String
+
+    If wb Is Nothing Then Set wb = ThisWorkbook
+    If wb Is Nothing Then Exit Function
+
+    Set doc = mp_LoadDevUiDom(wb)
+    If doc Is Nothing Then Exit Function
+
+    Set controlNode = mp_GetControlNode(doc, MODE_LIST_CONTROL)
+    If controlNode Is Nothing Then Exit Function
+
+    sourceUri = mp_ResolveControlSourceUri(controlNode, wb, vbNullString)
+    If Len(sourceUri) = 0 Then
+        sourceName = Trim$(ex_XmlCore.m_NodeAttrText(controlNode, "itemsSource"))
+        If Len(sourceName) = 0 Then Exit Function
+        sourceUri = mp_ResolveItemsSourceUriByName(doc, sourceName, wb, vbNullString)
+    End If
+    If Len(sourceUri) = 0 Then Exit Function
+
+    If Not mp_TryGetDefaultDropdownItemKeyBySourceUri(sourceUri, wb, defaultModeKey, MODE_LIST_CONTROL) Then
+        Exit Function
+    End If
+
+    If Len(defaultModeKey) > 0 Then
+        m_GetDefaultModeKey = defaultModeKey
+        Exit Function
+    End If
+
+    m_GetDefaultModeKey = Trim$(m_GetModeKeyByIndex(1, wb))
+End Function
+
+Public Function m_GetModeKeyByIndex(ByVal modeIndex As Long, Optional ByVal wb As Workbook) As String
+    Dim modeRecords As Variant
+    Dim rowStart As Long
+    Dim rowIndex As Long
+
+    If modeIndex <= 0 Then Exit Function
+    If wb Is Nothing Then Set wb = ThisWorkbook
+    If wb Is Nothing Then Exit Function
+
+    modeRecords = m_GetDropdownItemRecordsByControl(MODE_LIST_CONTROL, wb)
+    If Not mp_HasDropdownItemRecords(modeRecords) Then Exit Function
+
+    rowStart = LBound(modeRecords, 1)
+    rowIndex = rowStart + modeIndex - 1
+    If rowIndex < rowStart Or rowIndex > UBound(modeRecords, 1) Then Exit Function
+
+    m_GetModeKeyByIndex = Trim$(CStr(modeRecords(rowIndex, DROPDOWN_ITEM_COL_KEY)))
 End Function
 
 Public Sub m_SetDropdownContextValue(ByVal contextKey As String, ByVal valueText As String)
@@ -225,10 +339,9 @@ Public Function m_ResolveMacroByActionKey(ByVal actionKey As String, Optional By
     m_ResolveMacroByActionKey = macroName
 End Function
 
-Public Function m_GetProfilesFilePathByMode(Optional ByVal modeName As String = vbNullString, Optional ByVal wb As Workbook, Optional ByVal sourceName As String = "profilesByMode") As String
+Public Function m_GetProfilesFilePathByMode(Optional ByVal modeKey As String = vbNullString, Optional ByVal wb As Workbook, Optional ByVal sourceName As String = PROFILES_FILE_SOURCE_NAME) As String
     Dim doc As Object
-    Dim sourceNode As Object
-    Dim relPath As String
+    Dim sourceUri As String
 
     If wb Is Nothing Then Set wb = ThisWorkbook
     If wb Is Nothing Then Exit Function
@@ -236,13 +349,15 @@ Public Function m_GetProfilesFilePathByMode(Optional ByVal modeName As String = 
     Set doc = mp_LoadDevUiDom(wb)
     If doc Is Nothing Then Exit Function
 
-    Set sourceNode = mp_GetProfilesSourceNode(doc, sourceName)
-    If sourceNode Is Nothing Then Exit Function
+    sourceUri = mp_ResolveItemsSourceUriByName(doc, sourceName, wb, modeKey)
+    If Len(sourceUri) = 0 Then Exit Function
 
-    relPath = mp_ResolveProfilesSourceRelPath(sourceNode, modeName, PROFILES_FILE_SUFFIX)
-    If Len(relPath) = 0 Then Exit Function
+    If InStr(1, sourceUri, "#", vbTextCompare) > 0 Then
+        MsgBox "Items source '" & sourceName & "' must resolve to a file path without '#list': " & sourceUri, vbExclamation
+        Exit Function
+    End If
 
-    m_GetProfilesFilePathByMode = ex_XmlCore.m_CombineBasePath(wb, relPath)
+    m_GetProfilesFilePathByMode = ex_XmlCore.m_CombineBasePath(wb, sourceUri)
 End Function
 
 Public Function m_GetModeVariantsByControl(ByVal controlName As String, Optional ByVal wb As Workbook) As Variant
@@ -485,35 +600,113 @@ EH:
     MsgBox "Failed to apply style '" & styleName & "' to shape '" & shp.Name & "': " & Err.Description, vbExclamation
 End Function
 
-Private Function mp_GetDropdownItemRecordsFromControlNode(ByVal controlNode As Object, ByVal wb As Workbook) As Variant
+Private Function mp_GetDropdownItemRecordsFromControlNode(ByVal controlNode As Object, ByVal wb As Workbook, Optional ByVal modeKey As String = vbNullString, Optional ByVal doc As Object = Nothing) As Variant
     Dim sourceUri As String
+    Dim sourceName As String
 
-    sourceUri = mp_ResolveControlSourceUri(controlNode, wb)
-    If Len(sourceUri) = 0 Then Exit Function
+    sourceUri = mp_ResolveControlSourceUri(controlNode, wb, modeKey)
+    If Len(sourceUri) > 0 Then
+        mp_GetDropdownItemRecordsFromControlNode = mp_GetDropdownItemRecordsBySourceUri(sourceUri, wb)
+        If mp_HasDropdownItemRecords(mp_GetDropdownItemRecordsFromControlNode) Then Exit Function
+    End If
 
-    mp_GetDropdownItemRecordsFromControlNode = mp_GetDropdownItemRecordsBySourceUri(sourceUri, wb)
+    sourceName = Trim$(ex_XmlCore.m_NodeAttrText(controlNode, "itemsSource"))
+    If Len(sourceName) = 0 Then Exit Function
+
+    If doc Is Nothing Then
+        On Error Resume Next
+        Set doc = controlNode.OwnerDocument
+        On Error GoTo 0
+    End If
+
+    If doc Is Nothing Then
+        Set doc = mp_LoadDevUiDom(wb)
+        If doc Is Nothing Then Exit Function
+    End If
+
+    mp_GetDropdownItemRecordsFromControlNode = mp_GetDropdownItemRecordsByItemsSource(doc, sourceName, wb, modeKey)
 End Function
 
-Private Function mp_ResolveControlSourceUri(ByVal controlNode As Object, ByVal wb As Workbook) As String
+Private Function mp_ResolveControlSourceUri(ByVal controlNode As Object, ByVal wb As Workbook, Optional ByVal modeKey As String = vbNullString) As String
     Dim sourceUri As String
     Dim sourceUriTemplate As String
 
-    sourceUri = Trim$(ex_XmlCore.m_NodeAttrText(controlNode, "sourceUri"))
-    sourceUriTemplate = Trim$(ex_XmlCore.m_NodeAttrText(controlNode, "sourceUriTemplate"))
+    sourceUri = Trim$(ex_XmlCore.m_NodeAttrText(controlNode, "uri"))
+    sourceUriTemplate = Trim$(ex_XmlCore.m_NodeAttrText(controlNode, "uriTemplate"))
+    If Len(sourceUri) = 0 Then sourceUri = Trim$(ex_XmlCore.m_NodeAttrText(controlNode, "sourceUri"))
+    If Len(sourceUriTemplate) = 0 Then sourceUriTemplate = Trim$(ex_XmlCore.m_NodeAttrText(controlNode, "sourceUriTemplate"))
 
     If Len(sourceUriTemplate) > 0 Then
-        mp_ResolveControlSourceUri = mp_ResolveTemplateValue(sourceUriTemplate)
+        mp_ResolveControlSourceUri = mp_ResolveTemplateValue(sourceUriTemplate, modeKey)
         Exit Function
     End If
 
     mp_ResolveControlSourceUri = sourceUri
 End Function
 
+Private Function mp_GetDropdownItemRecordsByItemsSource(ByVal doc As Object, ByVal sourceName As String, ByVal wb As Workbook, Optional ByVal modeKey As String = vbNullString) As Variant
+    Dim sourceUri As String
+
+    sourceName = Trim$(sourceName)
+    If Len(sourceName) = 0 Then Exit Function
+    If doc Is Nothing Then Exit Function
+
+    sourceUri = mp_ResolveItemsSourceUriByName(doc, sourceName, wb, modeKey)
+    If Len(sourceUri) = 0 Then Exit Function
+
+    mp_GetDropdownItemRecordsByItemsSource = mp_GetDropdownItemRecordsBySourceUri(sourceUri, wb)
+End Function
+
+Private Function mp_ResolveItemSourceUri(ByVal sourceNode As Object, Optional ByVal modeKey As String = vbNullString) As String
+    Dim sourceUri As String
+    Dim sourceUriTemplate As String
+
+    sourceUri = Trim$(ex_XmlCore.m_NodeAttrText(sourceNode, "uri"))
+    sourceUriTemplate = Trim$(ex_XmlCore.m_NodeAttrText(sourceNode, "uriTemplate"))
+
+    If Len(sourceUriTemplate) > 0 Then
+        mp_ResolveItemSourceUri = mp_ResolveTemplateValue(sourceUriTemplate, modeKey)
+        Exit Function
+    End If
+
+    mp_ResolveItemSourceUri = sourceUri
+End Function
+
+Private Function mp_GetItemSourceNode(ByVal doc As Object, ByVal sourceName As String) As Object
+    Set mp_GetItemSourceNode = doc.selectSingleNode("/p:uiDefinition/p:dataSources/p:itemsSource[@name=" & ex_XmlCore.m_XPathLiteral(sourceName) & "]")
+End Function
+
+Private Function mp_ResolveItemsSourceUriByName( _
+    ByVal doc As Object, _
+    ByVal sourceName As String, _
+    ByVal wb As Workbook, _
+    Optional ByVal modeKey As String = vbNullString) As String
+
+    Dim sourceNode As Object
+    Dim sourceUri As String
+
+    sourceName = Trim$(sourceName)
+    If Len(sourceName) = 0 Then Exit Function
+    If doc Is Nothing Then Exit Function
+
+    Set sourceNode = mp_GetItemSourceNode(doc, sourceName)
+    If sourceNode Is Nothing Then
+        MsgBox "Items source '" & sourceName & "' was not found in UI config.", vbExclamation
+        Exit Function
+    End If
+
+    sourceUri = mp_ResolveItemSourceUri(sourceNode, modeKey)
+    If Len(sourceUri) = 0 Then
+        MsgBox "Items source '" & sourceName & "' has empty uri/uriTemplate.", vbExclamation
+        Exit Function
+    End If
+
+    mp_ResolveItemsSourceUriByName = sourceUri
+End Function
+
 Private Function mp_GetDropdownItemRecordsBySourceUri(ByVal sourceUri As String, ByVal wb As Workbook) As Variant
-    Dim hashPos As Long
-    Dim relPath As String
-    Dim listName As String
     Dim filePath As String
+    Dim listName As String
     Dim doc As Object
     Dim listNode As Object
     Dim itemNodes As Object
@@ -523,24 +716,34 @@ Private Function mp_GetDropdownItemRecordsBySourceUri(ByVal sourceUri As String,
     Dim rowIndex As Long
     Dim keyText As String
     Dim captionText As String
+    Dim defaultText As String
+    Dim isDefault As Boolean
+    Dim defaultCount As Long
+    Dim cacheKey As String
+    Dim fileStamp As Date
 
     sourceUri = Trim$(sourceUri)
     If Len(sourceUri) = 0 Then Exit Function
+    If wb Is Nothing Then Set wb = ThisWorkbook
+    If wb Is Nothing Then Exit Function
 
-    hashPos = InStrRev(sourceUri, "#")
-    If hashPos <= 1 Or hashPos >= Len(sourceUri) Then
-        MsgBox "Invalid sourceUri format '" & sourceUri & "'. Expected '<relative-path>#<list-name>'.", vbExclamation
+    If Not mp_TryResolveSourceUriParts(sourceUri, wb, vbNullString, filePath, listName) Then
         Exit Function
     End If
 
-    relPath = Trim$(Left$(sourceUri, hashPos - 1))
-    listName = Trim$(Mid$(sourceUri, hashPos + 1))
-    If Len(relPath) = 0 Or Len(listName) = 0 Then
-        MsgBox "Invalid sourceUri format '" & sourceUri & "'. Path or list name is empty.", vbExclamation
-        Exit Function
+    mp_EnsureRuntimeCaches
+    cacheKey = mp_BuildSourceUriCacheKey(wb, sourceUri)
+    If mp_TryGetFileStamp(filePath, fileStamp) Then
+        If g_SourceUriRecordsCache.Exists(cacheKey) Then
+            If g_SourceUriRecordsStampCache.Exists(cacheKey) Then
+                If g_SourceUriRecordsStampCache(cacheKey) = fileStamp Then
+                    mp_GetDropdownItemRecordsBySourceUri = g_SourceUriRecordsCache(cacheKey)
+                    Exit Function
+                End If
+            End If
+        End If
     End If
 
-    filePath = ex_XmlCore.m_CombineBasePath(wb, relPath)
     Set doc = mp_LoadPlainDomByFilePath(filePath, "DropDown items file was not found: ", "Failed to parse DropDown items file: ")
     If doc Is Nothing Then Exit Function
 
@@ -571,6 +774,15 @@ Private Function mp_GetDropdownItemRecordsBySourceUri(ByVal sourceUri As String,
         captionText = mp_GetPlainXmlAttrText(itemNode, "caption")
         If Len(captionText) = 0 Then captionText = keyText
 
+        defaultText = mp_GetPlainXmlAttrText(itemNode, "default")
+        If Len(defaultText) > 0 Then
+            If Not ex_XmlCore.m_TryParseBoolean(defaultText, isDefault) Then
+                MsgBox "Invalid boolean value '" & defaultText & "' in attribute 'default' for list '" & listName & "' (file: " & filePath & ").", vbExclamation
+                Exit Function
+            End If
+            If isDefault Then defaultCount = defaultCount + 1
+        End If
+
         records(rowIndex, DROPDOWN_ITEM_COL_KEY) = keyText
         records(rowIndex, DROPDOWN_ITEM_COL_CAPTION) = captionText
         records(rowIndex, DROPDOWN_ITEM_COL_TARGET) = mp_GetPlainXmlAttrText(itemNode, "target")
@@ -580,7 +792,109 @@ Private Function mp_GetDropdownItemRecordsBySourceUri(ByVal sourceUri As String,
         rowIndex = rowIndex + 1
     Next itemNode
 
+    If defaultCount > 1 Then
+        MsgBox "Dropdown list '" & listName & "' in file '" & filePath & "' contains multiple default items. Only one item with default='true' is allowed.", vbExclamation
+        Exit Function
+    End If
+
     mp_GetDropdownItemRecordsBySourceUri = records
+    If mp_TryGetFileStamp(filePath, fileStamp) Then
+        g_SourceUriRecordsCache(cacheKey) = records
+        g_SourceUriRecordsStampCache(cacheKey) = fileStamp
+    End If
+End Function
+
+Private Function mp_TryGetDefaultDropdownItemKeyBySourceUri( _
+    ByVal sourceUri As String, _
+    ByVal wb As Workbook, _
+    ByRef outDefaultKey As String, _
+    ByVal controlName As String) As Boolean
+
+    Dim filePath As String
+    Dim listName As String
+    Dim doc As Object
+    Dim listNode As Object
+    Dim itemNodes As Object
+    Dim itemNode As Object
+    Dim keyText As String
+    Dim defaultText As String
+    Dim isDefault As Boolean
+    Dim defaultCount As Long
+    Dim cacheKey As String
+    Dim fileStamp As Date
+
+    sourceUri = Trim$(sourceUri)
+    If Len(sourceUri) = 0 Then
+        mp_TryGetDefaultDropdownItemKeyBySourceUri = True
+        Exit Function
+    End If
+    If wb Is Nothing Then Set wb = ThisWorkbook
+    If wb Is Nothing Then Exit Function
+
+    If Not mp_TryResolveSourceUriParts(sourceUri, wb, controlName, filePath, listName) Then
+        Exit Function
+    End If
+
+    mp_EnsureRuntimeCaches
+    cacheKey = mp_BuildSourceUriCacheKey(wb, sourceUri)
+    If mp_TryGetFileStamp(filePath, fileStamp) Then
+        If g_SourceUriDefaultKeyCache.Exists(cacheKey) Then
+            If g_SourceUriDefaultKeyStampCache.Exists(cacheKey) Then
+                If g_SourceUriDefaultKeyStampCache(cacheKey) = fileStamp Then
+                    outDefaultKey = CStr(g_SourceUriDefaultKeyCache(cacheKey))
+                    mp_TryGetDefaultDropdownItemKeyBySourceUri = True
+                    Exit Function
+                End If
+            End If
+        End If
+    End If
+
+    Set doc = mp_LoadPlainDomByFilePath(filePath, "DropDown items file was not found: ", "Failed to parse DropDown items file: ")
+    If doc Is Nothing Then Exit Function
+
+    Set listNode = doc.selectSingleNode("/dropdownItems/list[@name=" & ex_XmlCore.m_XPathLiteral(listName) & "]")
+    If listNode Is Nothing Then
+        MsgBox "Dropdown list '" & listName & "' was not found in file: " & filePath, vbExclamation
+        Exit Function
+    End If
+
+    Set itemNodes = listNode.selectNodes("item")
+    If itemNodes Is Nothing Then
+        mp_TryGetDefaultDropdownItemKeyBySourceUri = True
+        Exit Function
+    End If
+
+    For Each itemNode In itemNodes
+        defaultText = mp_GetPlainXmlAttrText(itemNode, "default")
+        If Len(defaultText) = 0 Then GoTo NextItem
+
+        If Not ex_XmlCore.m_TryParseBoolean(defaultText, isDefault) Then
+            MsgBox "Invalid boolean value '" & defaultText & "' in attribute 'default' for list '" & listName & "' (file: " & filePath & ").", vbExclamation
+            Exit Function
+        End If
+        If Not isDefault Then GoTo NextItem
+
+        keyText = mp_GetPlainXmlAttrText(itemNode, "key")
+        If Len(keyText) = 0 Then
+            MsgBox "Default item in list '" & listName & "' has empty key (file: " & filePath & ").", vbExclamation
+            Exit Function
+        End If
+
+        defaultCount = defaultCount + 1
+        outDefaultKey = keyText
+NextItem:
+    Next itemNode
+
+    If defaultCount > 1 Then
+        MsgBox "Dropdown list '" & listName & "' in file '" & filePath & "' contains multiple default items. Only one item with default='true' is allowed.", vbExclamation
+        Exit Function
+    End If
+
+    mp_TryGetDefaultDropdownItemKeyBySourceUri = True
+    If mp_TryGetFileStamp(filePath, fileStamp) Then
+        g_SourceUriDefaultKeyCache(cacheKey) = outDefaultKey
+        g_SourceUriDefaultKeyStampCache(cacheKey) = fileStamp
+    End If
 End Function
 
 Private Function mp_GetPlainXmlAttrText(ByVal node As Object, ByVal attrName As String) As String
@@ -646,7 +960,7 @@ Private Function mp_BuildCaptionItemsFromRecords(ByVal itemRecords As Variant) A
     mp_BuildCaptionItemsFromRecords = result
 End Function
 
-Private Function mp_ResolveTemplateValue(ByVal templateText As String) As String
+Private Function mp_ResolveTemplateValue(ByVal templateText As String, Optional ByVal modeKeyOverride As String = vbNullString, Optional ByVal profileOverride As String = vbNullString) As String
     Dim resultText As String
     Dim startPos As Long
     Dim endPos As Long
@@ -659,19 +973,19 @@ Private Function mp_ResolveTemplateValue(ByVal templateText As String) As String
     Do While startPos > 0
         endPos = InStr(startPos + 1, resultText, "}", vbTextCompare)
         If endPos <= startPos Then
-            MsgBox "Invalid sourceUriTemplate '" & templateText & "': missing closing '}'.", vbExclamation
+            MsgBox "Invalid uriTemplate '" & templateText & "': missing closing '}'.", vbExclamation
             Exit Function
         End If
 
         tokenName = Trim$(Mid$(resultText, startPos + 1, endPos - startPos - 1))
         If Len(tokenName) = 0 Then
-            MsgBox "Invalid sourceUriTemplate '" & templateText & "': empty placeholder is not allowed.", vbExclamation
+            MsgBox "Invalid uriTemplate '" & templateText & "': empty placeholder is not allowed.", vbExclamation
             Exit Function
         End If
 
-        tokenValue = mp_GetContextOrFallbackValue(tokenName)
+        tokenValue = mp_GetContextOrFallbackValue(tokenName, modeKeyOverride, profileOverride)
         If Len(tokenValue) = 0 Then
-            MsgBox "Unable to resolve sourceUriTemplate placeholder '{" & tokenName & "}'.", vbExclamation
+            MsgBox "Unable to resolve uriTemplate placeholder '{" & tokenName & "}'.", vbExclamation
             Exit Function
         End If
 
@@ -682,9 +996,24 @@ Private Function mp_ResolveTemplateValue(ByVal templateText As String) As String
     mp_ResolveTemplateValue = resultText
 End Function
 
-Private Function mp_GetContextOrFallbackValue(ByVal contextKey As String) As String
+Private Function mp_GetContextOrFallbackValue(ByVal contextKey As String, Optional ByVal modeKeyOverride As String = vbNullString, Optional ByVal profileOverride As String = vbNullString) As String
     Dim valueText As String
-    Dim mappedModeKey As String
+
+    If StrComp(contextKey, "activeMode", vbTextCompare) = 0 Then
+        modeKeyOverride = Trim$(modeKeyOverride)
+        If Len(modeKeyOverride) > 0 Then
+            mp_GetContextOrFallbackValue = modeKeyOverride
+            Exit Function
+        End If
+    End If
+
+    If StrComp(contextKey, "activeProfile", vbTextCompare) = 0 Then
+        profileOverride = Trim$(profileOverride)
+        If Len(profileOverride) > 0 Then
+            mp_GetContextOrFallbackValue = profileOverride
+            Exit Function
+        End If
+    End If
 
     valueText = m_GetDropdownContextValue(contextKey, vbNullString)
     If Len(valueText) > 0 Then
@@ -693,15 +1022,8 @@ Private Function mp_GetContextOrFallbackValue(ByVal contextKey As String) As Str
     End If
 
     If StrComp(contextKey, "activeMode", vbTextCompare) = 0 Then
-        valueText = mp_GetStatePropertyText(STATE_ACTIVE_MODE_PROP)
-        If Len(valueText) = 0 Then Exit Function
-
-        mappedModeKey = m_GetDropdownItemKeyByTarget("btnCustomMode", valueText, ThisWorkbook)
-        If Len(mappedModeKey) > 0 Then
-            mp_GetContextOrFallbackValue = mappedModeKey
-        Else
-            mp_GetContextOrFallbackValue = valueText
-        End If
+        valueText = Trim$(mp_GetStatePropertyText(STATE_ACTIVE_MODE_KEY_PROP))
+        mp_GetContextOrFallbackValue = valueText
         Exit Function
     End If
 End Function
@@ -741,159 +1063,143 @@ Private Function mp_NormalizeContextKey(ByVal contextKey As String) As String
 End Function
 
 Private Function mp_LoadDevUiDom(ByVal wb As Workbook) As Object
-    Set mp_LoadDevUiDom = ex_XmlCore.m_LoadDomByRelativePath( _
+    Dim wbKey As String
+    Dim fileStamp As Date
+
+    If wb Is Nothing Then Set wb = ThisWorkbook
+    If wb Is Nothing Then Exit Function
+
+    mp_EnsureRuntimeCaches
+    wbKey = mp_BuildWorkbookCacheKey(wb)
+
+    If mp_TryGetRelativeFileStamp(wb, DEV_UI_CONFIG_REL_PATH, fileStamp) Then
+        If Not g_DevUiDomCache Is Nothing Then
+            If StrComp(g_DevUiDomCacheWbKey, wbKey, vbTextCompare) = 0 Then
+                If g_DevUiDomCacheStamp = fileStamp Then
+                    Set mp_LoadDevUiDom = g_DevUiDomCache
+                    Exit Function
+                End If
+            End If
+        End If
+    End If
+
+    Set g_DevUiDomCache = ex_XmlCore.m_LoadDomByRelativePath( _
         wb, _
         DEV_UI_CONFIG_REL_PATH, _
         PROFILES_NS, _
         "Dev UI config file was not found: ", _
         "Failed to parse Dev UI config file: ")
+    Set mp_LoadDevUiDom = g_DevUiDomCache
+    g_DevUiDomCacheWbKey = wbKey
+    If mp_TryGetRelativeFileStamp(wb, DEV_UI_CONFIG_REL_PATH, fileStamp) Then
+        g_DevUiDomCacheStamp = fileStamp
+    Else
+        g_DevUiDomCacheStamp = 0
+    End If
+End Function
+
+Private Sub mp_EnsureRuntimeCaches()
+    If g_SourceUriRecordsCache Is Nothing Then
+        Set g_SourceUriRecordsCache = CreateObject("Scripting.Dictionary")
+        g_SourceUriRecordsCache.CompareMode = 1
+    End If
+    If g_SourceUriRecordsStampCache Is Nothing Then
+        Set g_SourceUriRecordsStampCache = CreateObject("Scripting.Dictionary")
+        g_SourceUriRecordsStampCache.CompareMode = 1
+    End If
+    If g_SourceUriDefaultKeyCache Is Nothing Then
+        Set g_SourceUriDefaultKeyCache = CreateObject("Scripting.Dictionary")
+        g_SourceUriDefaultKeyCache.CompareMode = 1
+    End If
+    If g_SourceUriDefaultKeyStampCache Is Nothing Then
+        Set g_SourceUriDefaultKeyStampCache = CreateObject("Scripting.Dictionary")
+        g_SourceUriDefaultKeyStampCache.CompareMode = 1
+    End If
+End Sub
+
+Private Function mp_BuildWorkbookCacheKey(ByVal wb As Workbook) As String
+    If wb Is Nothing Then
+        mp_BuildWorkbookCacheKey = "wb:none"
+        Exit Function
+    End If
+
+    mp_BuildWorkbookCacheKey = LCase$(Trim$(wb.FullName))
+    If Len(mp_BuildWorkbookCacheKey) = 0 Then
+        mp_BuildWorkbookCacheKey = "wb:" & LCase$(Trim$(wb.Path)) & "|" & LCase$(Trim$(wb.Name))
+    End If
+End Function
+
+Private Function mp_BuildSourceUriCacheKey(ByVal wb As Workbook, ByVal sourceUri As String) As String
+    mp_BuildSourceUriCacheKey = mp_BuildWorkbookCacheKey(wb) & "|" & LCase$(Trim$(sourceUri))
+End Function
+
+Private Function mp_TryGetRelativeFileStamp(ByVal wb As Workbook, ByVal relPath As String, ByRef outStamp As Date) As Boolean
+    Dim fullPath As String
+
+    If wb Is Nothing Then Set wb = ThisWorkbook
+    If wb Is Nothing Then Exit Function
+
+    fullPath = ex_XmlCore.m_CombineBasePath(wb, relPath)
+    If Len(fullPath) = 0 Then Exit Function
+
+    mp_TryGetRelativeFileStamp = mp_TryGetFileStamp(fullPath, outStamp)
+End Function
+
+Private Function mp_TryGetFileStamp(ByVal fullPath As String, ByRef outStamp As Date) As Boolean
+    On Error GoTo EH
+    If Len(Trim$(fullPath)) = 0 Then Exit Function
+    If Len(Dir(fullPath)) = 0 Then Exit Function
+
+    outStamp = FileDateTime(fullPath)
+    mp_TryGetFileStamp = True
+    Exit Function
+EH:
+    mp_TryGetFileStamp = False
+End Function
+
+Private Function mp_TryResolveSourceUriParts( _
+    ByVal sourceUri As String, _
+    ByVal wb As Workbook, _
+    ByVal controlName As String, _
+    ByRef outFilePath As String, _
+    ByRef outListName As String) As Boolean
+
+    Dim hashPos As Long
+    Dim relPath As String
+    Dim messagePrefix As String
+
+    sourceUri = Trim$(sourceUri)
+    If Len(sourceUri) = 0 Then Exit Function
+
+    If Len(Trim$(controlName)) > 0 Then
+        messagePrefix = "Invalid uri/sourceUri format '" & sourceUri & "' for control '" & controlName & "'. "
+    Else
+        messagePrefix = "Invalid uri/sourceUri format '" & sourceUri & "'. "
+    End If
+
+    hashPos = InStrRev(sourceUri, "#")
+    If hashPos <= 1 Or hashPos >= Len(sourceUri) Then
+        MsgBox messagePrefix & "Expected '<relative-path>#<list-name>'.", vbExclamation
+        Exit Function
+    End If
+
+    relPath = Trim$(Left$(sourceUri, hashPos - 1))
+    outListName = Trim$(Mid$(sourceUri, hashPos + 1))
+    If Len(relPath) = 0 Or Len(outListName) = 0 Then
+        MsgBox messagePrefix & "Path or list name is empty.", vbExclamation
+        Exit Function
+    End If
+
+    outFilePath = ex_XmlCore.m_CombineBasePath(wb, relPath)
+    If Len(outFilePath) = 0 Then Exit Function
+
+    mp_TryResolveSourceUriParts = True
 End Function
 
 Private Function mp_GetControlNode(ByVal doc As Object, ByVal controlName As String) As Object
     Set mp_GetControlNode = doc.selectSingleNode("/p:uiDefinition/p:controls/p:control[@name=" & ex_XmlCore.m_XPathLiteral(controlName) & "]")
     If mp_GetControlNode Is Nothing Then
         MsgBox "Control '" & controlName & "' was not found in UI config.", vbExclamation
-    End If
-End Function
-
-Private Function mp_GetItemsFromSource(ByVal doc As Object, ByVal sourceName As String, ByVal modeName As String, ByVal wb As Workbook) As Variant
-    Dim sourceNode As Object
-    Dim relPath As String
-    Dim filePath As String
-    Dim srcDoc As Object
-    Dim profileNodes As Object
-    Dim names() As String
-    Dim i As Long
-
-    Set sourceNode = mp_GetProfilesSourceNode(doc, sourceName)
-    If sourceNode Is Nothing Then Exit Function
-
-    relPath = mp_ResolveProfilesSourceRelPath(sourceNode, modeName, PROFILES_FILE_SUFFIX)
-    If Len(relPath) = 0 Then Exit Function
-
-    filePath = ex_XmlCore.m_CombineBasePath(wb, relPath)
-    Set srcDoc = ex_XmlCore.m_LoadDomByFilePath( _
-        filePath, _
-        PROFILES_NS, _
-        "Profiles source file was not found: ", _
-        "Failed to parse profiles source file: ")
-    If srcDoc Is Nothing Then Exit Function
-
-    Set profileNodes = srcDoc.selectNodes("/p:profiles/p:profile")
-    If profileNodes Is Nothing Then Exit Function
-    If profileNodes.Length = 0 Then
-        mp_GetItemsFromSource = Array()
-        Exit Function
-    End If
-
-    ReDim names(0 To profileNodes.Length - 1)
-    For i = 0 To profileNodes.Length - 1
-        names(i) = CStr(profileNodes.Item(i).getAttribute("name"))
-    Next i
-
-    mp_GetItemsFromSource = names
-End Function
-
-Private Function mp_GetProfilesSourceNode(ByVal doc As Object, ByVal sourceName As String) As Object
-    Set mp_GetProfilesSourceNode = doc.selectSingleNode("/p:uiDefinition/p:dataSources/p:profilesSource[@name=" & ex_XmlCore.m_XPathLiteral(sourceName) & "]")
-    If mp_GetProfilesSourceNode Is Nothing Then
-        MsgBox "Profiles source '" & sourceName & "' was not found in UI config.", vbExclamation
-    End If
-End Function
-
-Private Function mp_ResolveProfilesSourceRelPath(ByVal sourceNode As Object, ByVal modeName As String, Optional ByVal fileSuffix As String = PROFILES_FILE_SUFFIX) As String
-    Dim modePersonal As String
-    Dim modeComparing As String
-    Dim pathPersonal As String
-    Dim pathComparing As String
-    Dim personalDir As String
-    Dim comparingDir As String
-    Dim defaultMode As String
-
-    modePersonal = Trim$(ex_XmlCore.m_NodeAttrText(sourceNode, "modePersonalCard"))
-    modeComparing = Trim$(ex_XmlCore.m_NodeAttrText(sourceNode, "modeComparing"))
-    pathPersonal = Trim$(ex_XmlCore.m_NodeAttrText(sourceNode, "pathPersonalCard"))
-    pathComparing = Trim$(ex_XmlCore.m_NodeAttrText(sourceNode, "pathComparing"))
-    defaultMode = Trim$(ex_XmlCore.m_NodeAttrText(sourceNode, "defaultMode"))
-
-    If Len(modePersonal) = 0 Or Len(modeComparing) = 0 Then
-        MsgBox "Profiles source is missing required mode labels: modePersonalCard/modeComparing.", vbExclamation
-        Exit Function
-    End If
-    If Len(pathPersonal) = 0 Or Len(pathComparing) = 0 Then
-        MsgBox "Profiles source is missing required paths: pathPersonalCard/pathComparing.", vbExclamation
-        Exit Function
-    End If
-
-    personalDir = mp_NormalizeDirectoryPath(pathPersonal)
-    comparingDir = mp_NormalizeDirectoryPath(pathComparing)
-    If Len(personalDir) = 0 Or Len(comparingDir) = 0 Then
-        MsgBox "Profiles source paths are invalid: pathPersonalCard/pathComparing.", vbExclamation
-        Exit Function
-    End If
-
-    modeName = Trim$(modeName)
-    If Len(modeName) = 0 Then modeName = defaultMode
-    If Len(modeName) = 0 Then modeName = modePersonal
-
-    If Len(fileSuffix) = 0 Then fileSuffix = PROFILES_FILE_SUFFIX
-
-    If StrComp(modeName, modeComparing, vbTextCompare) = 0 Then
-        mp_ResolveProfilesSourceRelPath = mp_BuildPatternBasedFilePath(comparingDir, fileSuffix)
-        Exit Function
-    End If
-    If StrComp(modeName, modePersonal, vbTextCompare) = 0 Then
-        mp_ResolveProfilesSourceRelPath = mp_BuildPatternBasedFilePath(personalDir, fileSuffix)
-        Exit Function
-    End If
-
-    MsgBox "Invalid mode '" & modeName & "' for profiles source. Allowed values: '" & modePersonal & "', '" & modeComparing & "'.", vbExclamation
-End Function
-
-Private Function mp_BuildPatternBasedFilePath(ByVal directoryRelPath As String, ByVal fileSuffix As String) As String
-    Dim normalizedDir As String
-    Dim dirName As String
-
-    normalizedDir = mp_NormalizeDirectoryPath(directoryRelPath)
-    If Len(normalizedDir) = 0 Then Exit Function
-
-    dirName = mp_GetLastPathSegment(normalizedDir)
-    If Len(dirName) = 0 Then Exit Function
-
-    mp_BuildPatternBasedFilePath = normalizedDir & "\" & dirName & fileSuffix
-End Function
-
-Private Function mp_NormalizeDirectoryPath(ByVal value As String) As String
-    Dim slashPos As Long
-    Dim pathLeaf As String
-
-    value = Trim$(value)
-    If Len(value) = 0 Then Exit Function
-
-    value = Replace$(value, "/", "\")
-    Do While Right$(value, 1) = "\"
-        value = Left$(value, Len(value) - 1)
-    Loop
-
-    slashPos = InStrRev(value, "\")
-    If slashPos > 0 Then
-        pathLeaf = Mid$(value, slashPos + 1)
-        If InStr(1, pathLeaf, ".", vbTextCompare) > 0 Then
-            value = Left$(value, slashPos - 1)
-        End If
-    End If
-
-    mp_NormalizeDirectoryPath = value
-End Function
-
-Private Function mp_GetLastPathSegment(ByVal pathValue As String) As String
-    Dim slashPos As Long
-
-    slashPos = InStrRev(pathValue, "\")
-    If slashPos <= 0 Then
-        mp_GetLastPathSegment = pathValue
-    Else
-        mp_GetLastPathSegment = Mid$(pathValue, slashPos + 1)
     End If
 End Function
 

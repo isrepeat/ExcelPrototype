@@ -6,20 +6,18 @@ Option Explicit
 ' =============================================================================
 ' Назначение:
 ' - читать/писать профили конфигурации из внешнего XML-файла
-'   (пути задаются в `config\DevUI.xml` -> `dataSources/profilesSource`);
+'   (пути задаются в `config\DevUI.xml` -> `dataSources/itemsSource[name='profilesFileByMode']`);
 ' - применять выбранный профиль к таблице `tblDevConfig` на листе Dev;
 ' - сохранять текущее состояние таблицы обратно в активный профиль;
 ' - поддерживать совместимость со старыми форматами (legacy row/marker layout);
 ' - синхронизировать визуальное оформление таблицы после загрузки профиля.
 '
 ' Границы ответственности:
-' - этот модуль работает с профильным XML и dropdown `ddProfile`;
+' - этот модуль работает с профильным XML и состоянием выбранных mode/profile;
 ' - бизнес-логика чтения значений конфигурации по ключу находится в ex_ConfigProvider.
 ' =============================================================================
 
 Private Const PROFILES_NS As String = "urn:excelprototype:profiles"
-Private Const MODE_PERSONAL_CARD As String = "Personal Card"
-Private Const MODE_TABLES_COMPARING As String = "Comparing"
 Private Const DEV_CONFIG_TABLE_NAME As String = "tblDevConfig"
 Private Const DEV_CONFIG_HEADER_ROW As Long = 2
 Private Const DEV_CONFIG_MARKER_COL As Long = 1
@@ -46,14 +44,16 @@ Private Const PROFILE_CFG_COL_NOTE As String = "note"
 Private Const PROFILE_CFG_COL_STYLES As String = "styles"
 Private Const PFUI_UI_DEFINITION_REL_PATH As String = "config\DevUI.xml"
 Private Const PFUI_UI_BLOCK_GROUP_NAME As String = "grpUiBlock"
-Private Const PFUI_PROFILE_DROPDOWN_SHAPE As String = "ddProfile"
-Private Const PFUI_MODE_DROPDOWN_SHAPE As String = "ddMode"
+Private Const PFUI_PROFILE_DROPDOWN_SHAPE As String = "btnCustomProfile"
+Private Const PFUI_MODE_DROPDOWN_SHAPE As String = "btnCustomMode"
+Private Const LEGACY_PROFILE_DROPDOWN_SHAPE As String = "ddProfile"
+Private Const LEGACY_MODE_DROPDOWN_SHAPE As String = "ddMode"
 Private Const PFUI_UPDATE_BUTTON_SHAPE As String = "btnUpdateCode"
 Private Const PFUI_CLEAR_BUTTON_SHAPE As String = "btnClear"
 Private Const PFUI_MODE_BUTTON_SHAPE As String = "btnMode"
 Private Const PFUI_PERSONAL_BUTTON_SHAPE As String = "btnPersonalCard"
 Private Const PFUI_COMPARING_BUTTON_SHAPE As String = "btnComparing"
-Private Const STATE_ACTIVE_MODE_PROP As String = "Settings.ActiveModeName"
+Private Const STATE_ACTIVE_MODE_KEY_PROP As String = "Settings.ActiveModeKey"
 Private Const STATE_ACTIVE_PROFILE_PROP_PREFIX As String = "Settings.ActiveProfile."
 
 ' =============================================================================
@@ -62,7 +62,7 @@ Private Const STATE_ACTIVE_PROFILE_PROP_PREFIX As String = "Settings.ActiveProfi
 
 ' Применяет выбранный профиль в таблицу на листе Dev.
 ' Последовательность:
-' 1) определяет активный профиль (аргумент или `ddProfile`);
+' 1) определяет активный профиль (аргумент или сохранённый activeProfile в state);
 ' 2) загружает DOM профилей из XML;
 ' 3) читает узлы профиля в внутренний массив строк;
 ' 4) перезаписывает таблицу `tblDevConfig` и обновляет заголовок профиля.
@@ -171,8 +171,36 @@ Public Sub m_RefreshProfileValidation(Optional ByVal ws As Worksheet)
     End If
 End Sub
 
+Public Function m_GetActiveModeKey(Optional ByVal ws As Worksheet) As String
+    Dim modeKey As String
+    Dim defaultModeKey As String
+
+    If ws Is Nothing Then
+        Set ws = ws_Dev
+    End If
+
+    On Error Resume Next
+    modeKey = Trim$(mp_GetSelectedModeKey(ws))
+    On Error GoTo 0
+
+    If Len(modeKey) = 0 Then
+        modeKey = Trim$(mp_GetStatePropText(STATE_ACTIVE_MODE_KEY_PROP, vbNullString))
+    End If
+    If Len(modeKey) = 0 Then
+        defaultModeKey = Trim$(ex_UiXmlProvider.m_GetDefaultModeKey(ThisWorkbook))
+        If Len(defaultModeKey) > 0 Then
+            modeKey = defaultModeKey
+        Else
+            modeKey = Trim$(ex_UiXmlProvider.m_GetModeKeyByIndex(1, ThisWorkbook))
+        End If
+    End If
+
+    m_GetActiveModeKey = modeKey
+End Function
+
 Public Function m_GetActiveModeName(Optional ByVal ws As Worksheet) As String
     Dim modeName As String
+    Dim modeKey As String
 
     If ws Is Nothing Then
         Set ws = ws_Dev
@@ -182,11 +210,13 @@ Public Function m_GetActiveModeName(Optional ByVal ws As Worksheet) As String
     modeName = Trim$(mp_GetSelectedModeName(ws))
     On Error GoTo 0
 
+    modeKey = m_GetActiveModeKey(ws)
+
     If Len(modeName) = 0 Then
-        modeName = Trim$(mp_GetStatePropText(STATE_ACTIVE_MODE_PROP, MODE_PERSONAL_CARD))
+        modeName = Trim$(ex_UiXmlProvider.m_GetDropdownItemCaptionByKey(PFUI_MODE_DROPDOWN_SHAPE, modeKey, ThisWorkbook))
     End If
     If Len(modeName) = 0 Then
-        modeName = MODE_PERSONAL_CARD
+        modeName = modeKey
     End If
 
     m_GetActiveModeName = modeName
@@ -210,6 +240,55 @@ Public Function m_GetActiveProfileName(Optional ByVal ws As Worksheet) As String
 
     m_GetActiveProfileName = profileName
 End Function
+
+Public Sub m_SetActiveModeKey(ByVal modeKey As String, Optional ByVal ws As Worksheet)
+    Dim resolvedModeKey As String
+
+    If ws Is Nothing Then
+        Set ws = ws_Dev
+    End If
+
+    modeKey = Trim$(modeKey)
+    If Len(modeKey) = 0 Then Exit Sub
+
+    resolvedModeKey = modeKey
+    If Not mp_IsModeKeyValid(resolvedModeKey) Then
+        MsgBox "Mode key '" & modeKey & "' is not available in control '" & PFUI_MODE_DROPDOWN_SHAPE & "'.", vbExclamation
+        Exit Sub
+    End If
+
+    mp_SetStatePropText STATE_ACTIVE_MODE_KEY_PROP, resolvedModeKey
+    ex_UiXmlProvider.m_SetDropdownContextValue "activeMode", resolvedModeKey
+End Sub
+
+Public Sub m_SetActiveProfileName(ByVal profileName As String, Optional ByVal modeKey As String = vbNullString, Optional ByVal ws As Worksheet)
+    Dim resolvedModeKey As String
+    Dim availableProfiles As Variant
+
+    If ws Is Nothing Then
+        Set ws = ws_Dev
+    End If
+
+    profileName = Trim$(profileName)
+    If Len(profileName) = 0 Then Exit Sub
+
+    resolvedModeKey = Trim$(modeKey)
+    If Len(resolvedModeKey) = 0 Then
+        resolvedModeKey = Trim$(m_GetActiveModeKey(ws))
+    End If
+    If Len(resolvedModeKey) = 0 Then Exit Sub
+
+    availableProfiles = ex_UiXmlProvider.m_GetDropdownItemsByName(PFUI_PROFILE_DROPDOWN_SHAPE, ThisWorkbook, resolvedModeKey)
+    If mp_ArrayHasItems(availableProfiles) Then
+        If Not mp_ArrayContains(availableProfiles, profileName) Then
+            MsgBox "Profile '" & profileName & "' is not available for mode '" & resolvedModeKey & "'.", vbExclamation
+            Exit Sub
+        End If
+    End If
+
+    mp_SetStatePropText STATE_ACTIVE_PROFILE_PROP_PREFIX & mp_NormalizePropSuffix(resolvedModeKey), profileName
+    ex_UiXmlProvider.m_SetDropdownContextValue "activeProfile", profileName
+End Sub
 
 Public Function m_GetActiveProfileStyleTagsByKey(Optional ByVal ws As Worksheet) As Object
     Dim profileName As String
@@ -278,7 +357,7 @@ Public Sub m_EnsureProfileDropdown(Optional ByVal ws As Worksheet)
         Exit Sub
     End If
 
-    savedProfileName = mp_GetSavedProfileNameForMode(mp_GetSelectedModeName(ws))
+    savedProfileName = mp_GetSavedProfileNameForModeKey(mp_GetSelectedModeKey(ws))
     profileName = mp_GetSelectedProfileNameFromDropdown(ws, profiles, True, savedProfileName)
     If Len(profileName) = 0 Then
         Exit Sub
@@ -337,16 +416,16 @@ Public Sub m_OnModeChanged()
 End Sub
 
 Public Sub m_RestoreSelectionState(Optional ByVal ws As Worksheet)
-    Dim savedModeName As String
+    Dim savedModeKey As String
 
     If ws Is Nothing Then
         Set ws = ws_Dev
     End If
 
     m_EnsureModeDropdown ws
-    savedModeName = mp_GetStatePropText(STATE_ACTIVE_MODE_PROP, vbNullString)
-    If Len(savedModeName) > 0 Then
-        mp_TrySelectModeByName ws, savedModeName
+    savedModeKey = mp_GetStatePropText(STATE_ACTIVE_MODE_KEY_PROP, vbNullString)
+    If Len(savedModeKey) > 0 Then
+        mp_TrySelectModeByKey ws, savedModeKey
     End If
 
     mp_ApplyModeVisibility ws
@@ -356,7 +435,7 @@ Public Sub m_RestoreSelectionState(Optional ByVal ws As Worksheet)
 End Sub
 
 Public Sub m_SaveSelectionState(Optional ByVal ws As Worksheet)
-    Dim modeName As String
+    Dim modeKey As String
     Dim profileName As String
     Dim profiles As Variant
 
@@ -364,9 +443,9 @@ Public Sub m_SaveSelectionState(Optional ByVal ws As Worksheet)
         Set ws = ws_Dev
     End If
 
-    modeName = Trim$(mp_GetSelectedModeName(ws))
-    If Len(modeName) = 0 Then Exit Sub
-    mp_SetStatePropText STATE_ACTIVE_MODE_PROP, modeName
+    modeKey = Trim$(mp_GetSelectedModeKey(ws))
+    If Len(modeKey) = 0 Then Exit Sub
+    mp_SetStatePropText STATE_ACTIVE_MODE_KEY_PROP, modeKey
 
     profiles = mp_GetProfileNames(ws)
     If Not mp_ArrayHasItems(profiles) Then Exit Sub
@@ -374,7 +453,7 @@ Public Sub m_SaveSelectionState(Optional ByVal ws As Worksheet)
     profileName = Trim$(mp_GetSelectedProfileNameFromDropdown(ws, profiles, False))
     If Len(profileName) = 0 Then Exit Sub
 
-    mp_SetStatePropText STATE_ACTIVE_PROFILE_PROP_PREFIX & mp_NormalizePropSuffix(modeName), profileName
+    mp_SetStatePropText STATE_ACTIVE_PROFILE_PROP_PREFIX & mp_NormalizePropSuffix(modeKey), profileName
     mp_SyncDropdownContextState ws
 End Sub
 
@@ -506,14 +585,14 @@ Private Sub mp_SeedProfileFromSheet(ByVal doc As Object, ByVal ws As Worksheet)
 End Sub
 
 Private Function mp_GetProfileNames(Optional ByVal ws As Worksheet) As Variant
-    Dim modeName As String
+    Dim modeKey As String
 
     If ws Is Nothing Then
         Set ws = ws_Dev
     End If
 
-    modeName = mp_GetSelectedModeName(ws)
-    mp_GetProfileNames = ex_UiXmlProvider.m_GetDropdownItemsByName("ddProfile", ThisWorkbook, modeName)
+    modeKey = m_GetActiveModeKey(ws)
+    mp_GetProfileNames = ex_UiXmlProvider.m_GetDropdownItemsByName(PFUI_PROFILE_DROPDOWN_SHAPE, ThisWorkbook, modeKey)
 End Function
 
 Private Function mp_ArrayHasItems(ByVal values As Variant) As Boolean
@@ -547,129 +626,132 @@ Private Function mp_GetSelectedProfileNameFromDropdown( _
     Optional ByVal syncItems As Boolean = False, _
     Optional ByVal preferredName As String = vbNullString _
 ) As String
-    Dim cf As Object
-    Dim selectedIndex As Long
-    Dim previousIndex As Long
-    Dim previousName As String
-    Dim matchedIndex As Long
+    Dim modeKey As String
+    Dim resolvedProfile As String
+    Dim contextProfile As String
 
-    Set cf = mp_GetProfileDropdownControl(ws)
-    If cf Is Nothing Then
-        MsgBox "Profile control 'ddProfile' was not found on sheet '" & ws.Name & "'.", vbExclamation
-        Exit Function
+    modeKey = Trim$(mp_GetSelectedModeKey(ws))
+    preferredName = Trim$(preferredName)
+
+    If Len(preferredName) > 0 And mp_ArrayContains(profiles, preferredName) Then
+        resolvedProfile = preferredName
     End If
 
-    previousIndex = mp_GetControlIndex(cf)
-    previousName = mp_GetControlItemByIndex(cf, previousIndex)
+    If Len(resolvedProfile) = 0 Then
+        resolvedProfile = Trim$(mp_GetSavedProfileNameForModeKey(modeKey))
+        If Len(resolvedProfile) = 0 Then
+            contextProfile = Trim$(ex_UiXmlProvider.m_GetDropdownContextValue("activeProfile", vbNullString))
+            If Len(contextProfile) > 0 Then resolvedProfile = contextProfile
+        End If
+        If Len(resolvedProfile) > 0 Then
+            If Not mp_ArrayContains(profiles, resolvedProfile) Then
+                resolvedProfile = vbNullString
+            End If
+        End If
+    End If
+
+    If Len(resolvedProfile) = 0 Then
+        resolvedProfile = CStr(profiles(LBound(profiles)))
+    End If
 
     If syncItems Then
-        mp_SetDropdownItems cf, profiles
-        matchedIndex = mp_FindProfileIndexByName(profiles, preferredName)
-        If matchedIndex = 0 Then
-            matchedIndex = mp_FindProfileIndexByName(profiles, previousName)
-        End If
-        If matchedIndex > 0 Then
-            On Error Resume Next
-            cf.Value = matchedIndex
-            On Error GoTo 0
-        ElseIf previousIndex >= 1 And previousIndex <= mp_ArrayLength(profiles) Then
-            On Error Resume Next
-            cf.Value = previousIndex
-            On Error GoTo 0
-        End If
+        m_SetActiveProfileName resolvedProfile, modeKey, ws
     End If
 
-    selectedIndex = mp_GetControlIndex(cf)
-    If selectedIndex < 1 Or selectedIndex > mp_ArrayLength(profiles) Then
-        selectedIndex = 1
-        On Error Resume Next
-        cf.Value = selectedIndex
-        On Error GoTo 0
-    End If
-
-    mp_GetSelectedProfileNameFromDropdown = CStr(profiles(selectedIndex - 1))
+    mp_GetSelectedProfileNameFromDropdown = resolvedProfile
 End Function
 
 Private Sub m_EnsureModeDropdown(ByVal ws As Worksheet)
-    Dim cf As Object
-    Dim selectedIndex As Long
-    Dim modeNames As Variant
+    Dim modeKey As String
 
-    Set cf = mp_GetModeDropdownControl(ws)
-    If cf Is Nothing Then
-        MsgBox "Mode control 'ddMode' was not found on sheet '" & ws.Name & "'.", vbExclamation
+    modeKey = Trim$(mp_GetSelectedModeKey(ws))
+    If Len(modeKey) = 0 Then
+        MsgBox "Mode list is empty for control '" & PFUI_MODE_DROPDOWN_SHAPE & "' in config\DevUI.xml.", vbExclamation
         Exit Sub
     End If
 
-    modeNames = ex_UiXmlProvider.m_GetDropdownItemsByName("ddMode", ThisWorkbook)
-    If Not mp_ArrayHasItems(modeNames) Then
-        MsgBox "Mode control 'ddMode' has no resolved items from its configured source in config\DevUI.xml.", vbExclamation
-        Exit Sub
-    End If
-
-    selectedIndex = mp_GetControlIndex(cf)
-    mp_SetDropdownItems cf, modeNames
-
-    If selectedIndex < 1 Or selectedIndex > mp_ArrayLength(modeNames) Then
-        selectedIndex = 1
-    End If
-
-    On Error Resume Next
-    cf.Value = selectedIndex
-    On Error GoTo 0
+    mp_SetStatePropText STATE_ACTIVE_MODE_KEY_PROP, modeKey
 End Sub
 
 Private Sub mp_TrySelectModeByName(ByVal ws As Worksheet, ByVal modeName As String)
-    Dim cf As Object
-    Dim modeNames As Variant
-    Dim targetIndex As Long
+    Dim modeKey As String
 
     modeName = Trim$(modeName)
     If Len(modeName) = 0 Then Exit Sub
 
-    Set cf = mp_GetModeDropdownControl(ws)
-    If cf Is Nothing Then Exit Sub
-
-    modeNames = ex_UiXmlProvider.m_GetDropdownItemsByName("ddMode", ThisWorkbook)
-    If Not mp_ArrayHasItems(modeNames) Then Exit Sub
-
-    targetIndex = mp_FindProfileIndexByName(modeNames, modeName)
-    If targetIndex <= 0 Then Exit Sub
-
-    On Error Resume Next
-    cf.Value = targetIndex
-    On Error GoTo 0
+    modeKey = mp_ResolveModeKeyByName(modeName)
+    If Len(modeKey) = 0 Then Exit Sub
+    mp_SetStatePropText STATE_ACTIVE_MODE_KEY_PROP, modeKey
 End Sub
 
-Private Function mp_GetSelectedModeName(ByVal ws As Worksheet) As String
-    Dim cf As Object
-    Dim selectedIndex As Long
-    Dim selectedName As String
+Private Sub mp_TrySelectModeByKey(ByVal ws As Worksheet, ByVal modeKey As String)
+    modeKey = Trim$(modeKey)
+    If Len(modeKey) = 0 Then Exit Sub
+    If Not mp_IsModeKeyValid(modeKey) Then Exit Sub
+    mp_SetStatePropText STATE_ACTIVE_MODE_KEY_PROP, modeKey
+End Sub
 
-    Set cf = mp_GetModeDropdownControl(ws)
-    If cf Is Nothing Then
-        mp_GetSelectedModeName = MODE_PERSONAL_CARD
-        Exit Function
+Private Function mp_GetSelectedModeKey(ByVal ws As Worksheet) As String
+    Dim modeKey As String
+    Dim fallbackModeKey As String
+
+    modeKey = Trim$(mp_GetStatePropText(STATE_ACTIVE_MODE_KEY_PROP, vbNullString))
+    If Len(modeKey) > 0 Then
+        If mp_IsModeKeyValid(modeKey) Then
+            mp_GetSelectedModeKey = modeKey
+            Exit Function
+        End If
     End If
 
-    selectedIndex = mp_GetControlIndex(cf)
-    selectedName = mp_GetControlItemByIndex(cf, selectedIndex)
-    If Len(selectedName) = 0 Then
-        mp_GetSelectedModeName = MODE_PERSONAL_CARD
-    Else
-        mp_GetSelectedModeName = selectedName
+    fallbackModeKey = Trim$(ex_UiXmlProvider.m_GetDefaultModeKey(ThisWorkbook))
+    If Len(fallbackModeKey) = 0 Then fallbackModeKey = Trim$(ex_UiXmlProvider.m_GetModeKeyByIndex(1, ThisWorkbook))
+    If Len(fallbackModeKey) > 0 Then
+        If mp_IsModeKeyValid(fallbackModeKey) Then
+            mp_SetStatePropText STATE_ACTIVE_MODE_KEY_PROP, fallbackModeKey
+            mp_GetSelectedModeKey = fallbackModeKey
+            Exit Function
+        End If
     End If
 End Function
 
-Private Function mp_GetModeDropdownControl(ByVal ws As Worksheet) As Object
-    Dim shp As Shape
+Private Function mp_GetSelectedModeName(ByVal ws As Worksheet) As String
+    Dim modeKey As String
+    Dim modeName As String
 
-    Set shp = ex_ConfigProfilesManager.m_GetShapeByName(ws, "ddMode")
-    If shp Is Nothing Then Exit Function
+    modeKey = Trim$(mp_GetSelectedModeKey(ws))
+    If Len(modeKey) = 0 Then Exit Function
 
-    On Error Resume Next
-    Set mp_GetModeDropdownControl = shp.ControlFormat
-    On Error GoTo 0
+    modeName = Trim$(mp_ResolveModeNameByKey(modeKey))
+    If Len(modeName) = 0 Then modeName = modeKey
+    mp_GetSelectedModeName = modeName
+End Function
+
+Private Function mp_ResolveModeKeyByName(ByVal modeName As String) As String
+    Dim modeKey As String
+    Dim existingCaption As String
+
+    modeName = Trim$(modeName)
+    If Len(modeName) = 0 Then Exit Function
+
+    modeKey = Trim$(ex_UiXmlProvider.m_GetDropdownItemKeyByTarget(PFUI_MODE_DROPDOWN_SHAPE, modeName, ThisWorkbook))
+    If Len(modeKey) = 0 Then
+        existingCaption = Trim$(ex_UiXmlProvider.m_GetDropdownItemCaptionByKey(PFUI_MODE_DROPDOWN_SHAPE, modeName, ThisWorkbook))
+        If Len(existingCaption) > 0 Then modeKey = modeName
+    End If
+
+    mp_ResolveModeKeyByName = modeKey
+End Function
+
+Private Function mp_ResolveModeNameByKey(ByVal modeKey As String) As String
+    Dim modeName As String
+
+    modeKey = Trim$(modeKey)
+    If Len(modeKey) = 0 Then Exit Function
+
+    modeName = Trim$(ex_UiXmlProvider.m_GetDropdownItemCaptionByKey(PFUI_MODE_DROPDOWN_SHAPE, modeKey, ThisWorkbook))
+    If Len(modeName) = 0 Then modeName = modeKey
+
+    mp_ResolveModeNameByKey = modeName
 End Function
 
 Private Sub mp_ApplyModeVisibility(ByVal ws As Worksheet)
@@ -714,64 +796,29 @@ Private Sub mp_ReapplySelectedProfileUi(ByVal ws As Worksheet)
     ex_ConfigProfilesManager.m_ApplyModeVisibility ws, profileNode
 End Sub
 
-Private Function mp_GetControlItemByIndex(ByVal cf As Object, ByVal itemIndex As Long) As String
-    On Error Resume Next
-    If itemIndex >= 1 Then
-        mp_GetControlItemByIndex = CStr(cf.List(itemIndex))
-    End If
-    On Error GoTo 0
-End Function
-
-Private Function mp_GetProfileDropdownControl(ByVal ws As Worksheet) As Object
-    Dim shp As Shape
-
-    Set shp = ex_ConfigProfilesManager.m_GetShapeByName(ws, "ddProfile")
-    If shp Is Nothing Then Exit Function
-
-    On Error Resume Next
-    Set mp_GetProfileDropdownControl = shp.ControlFormat
-    On Error GoTo 0
-End Function
-
-Private Sub mp_SetDropdownItems(ByVal cf As Object, ByVal profiles As Variant)
-    Dim i As Long
-
-    On Error Resume Next
-    cf.RemoveAllItems
-    If Err.Number <> 0 Then
-        MsgBox "Failed to clear dropdown control items: " & Err.Description, vbExclamation
-        Err.Clear
-        On Error GoTo 0
-        Exit Sub
-    End If
-    On Error GoTo 0
-
-    For i = LBound(profiles) To UBound(profiles)
-        On Error Resume Next
-        cf.AddItem CStr(profiles(i))
-        If Err.Number <> 0 Then
-            MsgBox "Failed to add dropdown item '" & CStr(profiles(i)) & "': " & Err.Description, vbExclamation
-            Err.Clear
-            On Error GoTo 0
-            Exit Sub
-        End If
-        On Error GoTo 0
-    Next i
-End Sub
-
-Private Function mp_GetControlIndex(ByVal cf As Object) As Long
-    On Error Resume Next
-    mp_GetControlIndex = CLng(cf.Value)
-    If Err.Number <> 0 Then
-        Err.Clear
-        mp_GetControlIndex = 0
-    End If
-    On Error GoTo 0
-End Function
-
 Private Function mp_ArrayLength(ByVal values As Variant) As Long
     If Not mp_ArrayHasItems(values) Then Exit Function
     mp_ArrayLength = UBound(values) - LBound(values) + 1
+End Function
+
+Private Function mp_IsModeKeyValid(ByVal modeKey As String) As Boolean
+    Dim modeRecords As Variant
+    Dim i As Long
+    Dim recordKey As String
+
+    modeKey = Trim$(modeKey)
+    If Len(modeKey) = 0 Then Exit Function
+
+    modeRecords = ex_UiXmlProvider.m_GetDropdownItemRecordsByControl(PFUI_MODE_DROPDOWN_SHAPE, ThisWorkbook)
+    If Not mp_ArrayHasItems(modeRecords) Then Exit Function
+
+    For i = LBound(modeRecords, 1) To UBound(modeRecords, 1)
+        recordKey = Trim$(CStr(modeRecords(i, ex_UiXmlProvider.DROPDOWN_ITEM_COL_KEY)))
+        If StrComp(recordKey, modeKey, vbTextCompare) = 0 Then
+            mp_IsModeKeyValid = True
+            Exit Function
+        End If
+    Next i
 End Function
 
 Private Function mp_FindProfileIndexByName(ByVal profiles As Variant, ByVal profileName As String) As Long
@@ -789,14 +836,14 @@ Private Function mp_FindProfileIndexByName(ByVal profiles As Variant, ByVal prof
     Next i
 End Function
 
-Private Function mp_GetSavedProfileNameForMode(ByVal modeName As String) As String
+Private Function mp_GetSavedProfileNameForModeKey(ByVal modeKey As String) As String
     Dim propName As String
 
-    modeName = Trim$(modeName)
-    If Len(modeName) = 0 Then Exit Function
+    modeKey = Trim$(modeKey)
+    If Len(modeKey) = 0 Then Exit Function
 
-    propName = STATE_ACTIVE_PROFILE_PROP_PREFIX & mp_NormalizePropSuffix(modeName)
-    mp_GetSavedProfileNameForMode = mp_GetStatePropText(propName, vbNullString)
+    propName = STATE_ACTIVE_PROFILE_PROP_PREFIX & mp_NormalizePropSuffix(modeKey)
+    mp_GetSavedProfileNameForModeKey = mp_GetStatePropText(propName, vbNullString)
 End Function
 
 Private Function mp_NormalizePropSuffix(ByVal valueText As String) As String
@@ -826,14 +873,11 @@ Private Function mp_NormalizePropSuffix(ByVal valueText As String) As String
 End Function
 
 Private Sub mp_SyncDropdownContextState(ByVal ws As Worksheet)
-    Dim modeName As String
     Dim modeKey As String
     Dim profileName As String
 
-    modeName = Trim$(mp_GetSelectedModeName(ws))
-    If Len(modeName) > 0 Then
-        modeKey = Trim$(ex_UiXmlProvider.m_GetDropdownItemKeyByTarget("btnCustomMode", modeName, ThisWorkbook))
-        If Len(modeKey) = 0 Then modeKey = modeName
+    modeKey = Trim$(mp_GetSelectedModeKey(ws))
+    If Len(modeKey) > 0 Then
         ex_UiXmlProvider.m_SetDropdownContextValue "activeMode", modeKey
     End If
 
@@ -885,14 +929,14 @@ End Sub
 
 Private Function mp_LoadProfilesDom(Optional ByVal ws As Worksheet) As Object
     Dim filePath As String
-    Dim modeName As String
+    Dim modeKey As String
 
     If ws Is Nothing Then
         Set ws = ws_Dev
     End If
 
-    modeName = mp_GetSelectedModeName(ws)
-    filePath = mp_GetProfilesFilePath(modeName)
+    modeKey = mp_GetSelectedModeKey(ws)
+    filePath = mp_GetProfilesFilePath(modeKey)
     If Len(filePath) = 0 Then Exit Function
 
     Set mp_LoadProfilesDom = ex_ProfilesStore.m_LoadProfilesDom(filePath)
@@ -900,10 +944,10 @@ End Function
 
 Private Sub mp_SaveProfilesDom(ByVal doc As Object)
     Dim filePath As String
-    Dim modeName As String
+    Dim modeKey As String
 
-    modeName = mp_GetSelectedModeName(ws_Dev)
-    filePath = mp_GetProfilesFilePath(modeName)
+    modeKey = mp_GetSelectedModeKey(ws_Dev)
+    filePath = mp_GetProfilesFilePath(modeKey)
     ex_ProfilesStore.m_SaveProfilesDom doc, filePath
 End Sub
 
@@ -969,18 +1013,21 @@ EH:
 End Function
 
 
-Private Function mp_GetProfilesFilePath(Optional ByVal modeName As String = vbNullString) As String
-    Dim resolvedMode As String
+Private Function mp_GetProfilesFilePath(Optional ByVal modeKey As String = vbNullString) As String
+    Dim resolvedModeKey As String
+    Dim defaultModeKey As String
 
-    resolvedMode = Trim$(modeName)
-    If Len(resolvedMode) = 0 Then
-        resolvedMode = MODE_PERSONAL_CARD
+    resolvedModeKey = Trim$(modeKey)
+    If Len(resolvedModeKey) = 0 Then
+        defaultModeKey = Trim$(ex_UiXmlProvider.m_GetDefaultModeKey(ThisWorkbook))
+        If Len(defaultModeKey) > 0 Then resolvedModeKey = defaultModeKey
         On Error Resume Next
-        resolvedMode = mp_GetSelectedModeName(ws_Dev)
+        resolvedModeKey = mp_GetSelectedModeKey(ws_Dev)
         On Error GoTo 0
     End If
+    If Len(resolvedModeKey) = 0 Then resolvedModeKey = Trim$(ex_UiXmlProvider.m_GetModeKeyByIndex(1, ThisWorkbook))
 
-    mp_GetProfilesFilePath = ex_ProfilesStore.m_GetProfilesFilePath(resolvedMode, ThisWorkbook)
+    mp_GetProfilesFilePath = ex_ProfilesStore.m_GetProfilesFilePath(resolvedModeKey, ThisWorkbook)
 End Function
 
 Private Function mp_GetProfileNode(ByVal doc As Object, ByVal profileName As String, ByVal createIfMissing As Boolean) As Object
@@ -1264,6 +1311,8 @@ Public Sub m_ApplyProfileUI(ByVal ws As Worksheet, ByVal profileNode As Object, 
 
         Set shp = m_GetShapeByName(ws, shapeName)
         If shp Is Nothing Then
+            If StrComp(shapeName, LEGACY_PROFILE_DROPDOWN_SHAPE, vbTextCompare) = 0 Then GoTo NextNode
+            If StrComp(shapeName, LEGACY_MODE_DROPDOWN_SHAPE, vbTextCompare) = 0 Then GoTo NextNode
             If pfui_IsButtonShapeName(shapeName) Then GoTo NextNode
             MsgBox "Profile UI shape '" & shapeName & "' was not found on sheet '" & ws.Name & "'.", vbExclamation
             Exit Sub
@@ -1337,7 +1386,7 @@ EH_UNGROUP:
     MsgBox "Failed to ungroup existing UI block shapes before creating '" & PFUI_UI_BLOCK_GROUP_NAME & "': " & Err.Description, vbExclamation
     Exit Sub
 EH_GROUP:
-    MsgBox "Failed to create group '" & PFUI_UI_BLOCK_GROUP_NAME & "'. Group ddMode + buttons manually if needed: " & Err.Description, vbExclamation
+    MsgBox "Failed to create group '" & PFUI_UI_BLOCK_GROUP_NAME & "'. Group " & PFUI_MODE_DROPDOWN_SHAPE & " + buttons manually if needed: " & Err.Description, vbExclamation
 End Sub
 
 Public Sub m_ApplyModeVisibility(ByVal ws As Worksheet, ByVal profileNode As Object)
@@ -1569,7 +1618,17 @@ Private Function pfui_IsManagedUiBlockShape(ByVal shapeName As String) As Boolea
         Exit Function
     End If
 
+    If StrComp(normalized, LEGACY_PROFILE_DROPDOWN_SHAPE, vbTextCompare) = 0 Then
+        pfui_IsManagedUiBlockShape = True
+        Exit Function
+    End If
+
     If StrComp(normalized, PFUI_MODE_DROPDOWN_SHAPE, vbTextCompare) = 0 Then
+        pfui_IsManagedUiBlockShape = True
+        Exit Function
+    End If
+
+    If StrComp(normalized, LEGACY_MODE_DROPDOWN_SHAPE, vbTextCompare) = 0 Then
         pfui_IsManagedUiBlockShape = True
         Exit Function
     End If

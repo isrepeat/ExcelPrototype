@@ -60,14 +60,16 @@ Public Sub m_ApplyTimelineStyleLayers( _
 )
     Dim workflowSteps As Collection
     Dim stepName As Variant
-    Dim activeModeName As String
+    Dim activeModeKey As String
+    Dim pageName As String
     Dim rowKindRanges As Object
 
     If ws Is Nothing Then Exit Sub
-    activeModeName = ex_ConfigProfilesManager.m_GetActiveModeName(ws_Dev)
-    If Not ex_StylePipelineEngine.m_GetRenderWorkflowStepOrder(activeModeName, "personalCardTimeline", workflowSteps, ThisWorkbook) Then
+    pageName = Trim$(ws.Name)
+    activeModeKey = ex_ConfigProfilesManager.m_GetActiveModeKey(ws_Dev)
+    If Not ex_StylePipelineEngine.m_GetRenderWorkflowStepOrder(pageName, "personalCardTimeline", workflowSteps, ThisWorkbook) Then
         Err.Raise vbObjectError + 1737, "ex_OutputFormattingPipeline", _
-            "Failed to resolve style workflow steps for workflow 'personalCardTimeline' and mode '" & activeModeName & "'."
+            "Failed to resolve style workflow steps for workflow 'personalCardTimeline' and page '" & pageName & "'."
     End If
 
     Set rowKindRanges = mp_BuildTimelineRowKindRanges(headerRows, sectionRows, resultFieldRanges)
@@ -75,9 +77,9 @@ Public Sub m_ApplyTimelineStyleLayers( _
     For Each stepName In workflowSteps
         Select Case LCase$(Trim$(CStr(stepName)))
             Case "base"
-                mp_ApplyTimelineStageRules ws, activeModeName, "base", resultFieldRanges, rowKindRanges
+                mp_ApplyTimelineStageRules ws, activeModeKey, "base", resultFieldRanges, rowKindRanges
             Case "output"
-                mp_ApplyTimelineStageRules ws, activeModeName, "output", resultFieldRanges, rowKindRanges
+                mp_ApplyTimelineStageRules ws, activeModeKey, "output", resultFieldRanges, rowKindRanges
             Case Else
                 Err.Raise vbObjectError + 1734, "ex_OutputFormattingPipeline", _
                     "Unsupported workflow step '" & CStr(stepName) & "' in workflow 'personalCardTimeline'."
@@ -87,7 +89,7 @@ End Sub
 
 Private Sub mp_ApplyTimelineStageRules( _
     ByVal ws As Worksheet, _
-    ByVal activeModeName As String, _
+    ByVal activeModeKey As String, _
     ByVal stageName As String, _
     Optional ByVal resultFieldRanges As Collection = Nothing, _
     Optional ByVal rowKindRanges As Object = Nothing _
@@ -97,11 +99,11 @@ Private Sub mp_ApplyTimelineStageRules( _
     If ws Is Nothing Then Exit Sub
     If Len(Trim$(stageName)) = 0 Then Exit Sub
 
-    Set stagePipeline = ex_StylePipelineEngine.m_LoadSheetPipelineStageLayers(activeModeName, stageName, ThisWorkbook)
+    Set stagePipeline = ex_StylePipelineEngine.m_LoadSheetPipelineStageLayers(ws.Name, stageName, ThisWorkbook)
     If stagePipeline Is Nothing Then Exit Sub
     If stagePipeline.Count = 0 Then Exit Sub
 
-    ex_StylePipelineEngine.m_ApplyColumnStylesPipeline ws, resultFieldRanges, stagePipeline, activeModeName, rowKindRanges
+    ex_StylePipelineEngine.m_ApplyColumnStylesPipeline ws, resultFieldRanges, stagePipeline, activeModeKey, rowKindRanges
 End Sub
 
 Public Sub m_ApplyOutputPanelLayers( _
@@ -125,24 +127,25 @@ Public Sub m_ApplyConfigNoteStyleLayer( _
     ByVal cfgNotes As Object _
 )
     Dim styleTagsByMapKey As Object
-    Dim activeModeName As String
+    Dim activeModeKey As String
     Dim pipeline As Collection
 
     If ws Is Nothing Then Exit Sub
     If resultFieldRanges Is Nothing Then Exit Sub
     If cfgNotes Is Nothing Then Exit Sub
 
-    activeModeName = ex_ConfigProfilesManager.m_GetActiveModeName(ws_Dev)
+    activeModeKey = ex_ConfigProfilesManager.m_GetActiveModeKey(ws_Dev)
     Set styleTagsByMapKey = ex_ConfigProfilesManager.m_GetActiveProfileStyleTagsByKey(ws_Dev)
     Set pipeline = ex_StylePipelineEngine.m_BuildColumnStylesPipeline( _
         resultFieldRanges, _
         cfgNotes, _
         styleTagsByMapKey, _
-        activeModeName, _
-        ThisWorkbook _
+        activeModeKey, _
+        ThisWorkbook, _
+        ws.Name _
     )
 
-    ex_StylePipelineEngine.m_ApplyColumnStylesPipeline ws, resultFieldRanges, pipeline, activeModeName
+    ex_StylePipelineEngine.m_ApplyColumnStylesPipeline ws, resultFieldRanges, pipeline, activeModeKey
 End Sub
 
 Public Sub m_ApplyTimelinePostLayoutStyleLayers( _
@@ -152,17 +155,19 @@ Public Sub m_ApplyTimelinePostLayoutStyleLayers( _
 )
     Dim workflowSteps As Collection
     Dim stepName As Variant
-    Dim activeModeName As String
+    Dim activeModeKey As String
+    Dim pageName As String
     Dim stagePipeline As Collection
     Dim rowKindRanges As Object
     Dim configNoteStylesApplied As Boolean
 
     If ws Is Nothing Then Exit Sub
 
-    activeModeName = ex_ConfigProfilesManager.m_GetActiveModeName(ws_Dev)
-    If Not ex_StylePipelineEngine.m_GetRenderWorkflowStepOrder(activeModeName, "personalCardPostLayout", workflowSteps, ThisWorkbook) Then
+    pageName = Trim$(ws.Name)
+    activeModeKey = ex_ConfigProfilesManager.m_GetActiveModeKey(ws_Dev)
+    If Not ex_StylePipelineEngine.m_GetRenderWorkflowStepOrder(pageName, "personalCardPostLayout", workflowSteps, ThisWorkbook) Then
         Err.Raise vbObjectError + 1738, "ex_OutputFormattingPipeline", _
-            "Failed to resolve style workflow steps for workflow 'personalCardPostLayout' and mode '" & activeModeName & "'."
+            "Failed to resolve style workflow steps for workflow 'personalCardPostLayout' and page '" & pageName & "'."
     End If
 
     For Each stepName In workflowSteps
@@ -176,8 +181,8 @@ Public Sub m_ApplyTimelinePostLayoutStyleLayers( _
                     configNoteStylesApplied = True
                 End If
                 Set rowKindRanges = mp_BuildConfigNoteRowKindRanges(resultFieldRanges, cfgNotes)
-                Set stagePipeline = ex_StylePipelineEngine.m_LoadSheetPipelineStageLayers(activeModeName, "postLayout", ThisWorkbook)
-                ex_StylePipelineEngine.m_ApplyColumnStylesPipeline ws, resultFieldRanges, stagePipeline, activeModeName, rowKindRanges
+                Set stagePipeline = ex_StylePipelineEngine.m_LoadSheetPipelineStageLayers(pageName, "postLayout", ThisWorkbook)
+                ex_StylePipelineEngine.m_ApplyColumnStylesPipeline ws, resultFieldRanges, stagePipeline, activeModeKey, rowKindRanges
             Case Else
                 Err.Raise vbObjectError + 1735, "ex_OutputFormattingPipeline", _
                     "Unsupported workflow step '" & CStr(stepName) & "' in workflow 'personalCardPostLayout'."
@@ -191,16 +196,18 @@ Public Sub m_ApplyTimelinePostWarningsStyleLayers( _
 )
     Dim workflowSteps As Collection
     Dim stepName As Variant
-    Dim activeModeName As String
+    Dim activeModeKey As String
+    Dim pageName As String
     Dim stagePipeline As Collection
     Dim rowKindRanges As Object
 
     If ws Is Nothing Then Exit Sub
 
-    activeModeName = ex_ConfigProfilesManager.m_GetActiveModeName(ws_Dev)
-    If Not ex_StylePipelineEngine.m_GetRenderWorkflowStepOrder(activeModeName, "personalCardPostWarnings", workflowSteps, ThisWorkbook) Then
+    pageName = Trim$(ws.Name)
+    activeModeKey = ex_ConfigProfilesManager.m_GetActiveModeKey(ws_Dev)
+    If Not ex_StylePipelineEngine.m_GetRenderWorkflowStepOrder(pageName, "personalCardPostWarnings", workflowSteps, ThisWorkbook) Then
         Err.Raise vbObjectError + 1739, "ex_OutputFormattingPipeline", _
-            "Failed to resolve style workflow steps for workflow 'personalCardPostWarnings' and mode '" & activeModeName & "'."
+            "Failed to resolve style workflow steps for workflow 'personalCardPostWarnings' and page '" & pageName & "'."
     End If
 
     For Each stepName In workflowSteps
@@ -215,8 +222,8 @@ Public Sub m_ApplyTimelinePostWarningsStyleLayers( _
             Set rowKindRanges = mp_BuildPartialMatchRowKindRanges(partialMatchRowRanges)
         End If
 
-        Set stagePipeline = ex_StylePipelineEngine.m_LoadSheetPipelineStageLayers(activeModeName, LCase$(Trim$(CStr(stepName))), ThisWorkbook)
-        ex_StylePipelineEngine.m_ApplyColumnStylesPipeline ws, Nothing, stagePipeline, activeModeName, rowKindRanges
+        Set stagePipeline = ex_StylePipelineEngine.m_LoadSheetPipelineStageLayers(pageName, LCase$(Trim$(CStr(stepName))), ThisWorkbook)
+        ex_StylePipelineEngine.m_ApplyColumnStylesPipeline ws, Nothing, stagePipeline, activeModeKey, rowKindRanges
     Next stepName
 End Sub
 

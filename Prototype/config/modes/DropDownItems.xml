@@ -3,11 +3,10 @@
   <list name="modes.main">
     <item key="PersonalCard"
           caption="Personal Card"
-          target="Personal Card"
+          default="true"
           setContext="activeMode=PersonalCard"/>
     <item key="TablesComparing"
           caption="Comparing"
-          target="Comparing"
           setContext="activeMode=TablesComparing"/>
   </list>
 </dropdownItems>
