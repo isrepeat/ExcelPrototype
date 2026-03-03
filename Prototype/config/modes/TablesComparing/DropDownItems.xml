@@ -3,11 +3,9 @@
   <list name="profiles.main">
     <item key="Default"
           caption="Default"
-          target="Default"
           setContext="activeProfile=Default"/>
     <item key="Test"
           caption="Test"
-          target="Test"
           setContext="activeProfile=Test"/>
   </list>
 </dropdownItems>

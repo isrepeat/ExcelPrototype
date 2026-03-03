@@ -3,11 +3,7 @@ Option Explicit
 
 Private Const PROFILES_NS As String = "urn:excelprototype:profiles"
 Private Const SHEET_STYLES_REL_PATH As String = "config\SheetStyles.xml"
-Private Const OUTPUT_STYLE_PERSONAL_DIR_REL_PATH As String = "config\modes\PersonalCard"
-Private Const OUTPUT_STYLE_COMPARING_DIR_REL_PATH As String = "config\modes\TablesComparing"
 Private Const OUTPUT_UI_FILE_SUFFIX As String = "UI.xml"
-Private Const MODE_PERSONAL_CARD As String = "Personal Card"
-Private Const MODE_TABLES_COMPARING As String = "Comparing"
 Private Const BASE_STYLE_LABEL As String = "base sheet style"
 Private Const OUTPUT_STYLE_LABEL As String = "output sheet style"
 Private Const ERROR_BANNER_STYLE_LABEL As String = "error banner style"
@@ -151,13 +147,13 @@ Private g_WarningBannerStyle As t_ErrorBannerStyle
 Private g_HasOutputStyle As Boolean
 Private g_HasErrorBannerStyle As Boolean
 Private g_HasWarningBannerStyle As Boolean
-Private g_LastActiveModeName As String
+Private g_LastActiveModeKey As String
 
 Public Function m_InitializeStyles(Optional ByVal wb As Workbook) As Boolean
     Dim baseDoc As Object
     Dim modeUiDoc As Object
-    Dim modeUiRelPath As String
-    Dim activeModeName As String
+    Dim modeUiFilePath As String
+    Dim activeModeKey As String
 
     If wb Is Nothing Then Set wb = ThisWorkbook
     If wb Is Nothing Then
@@ -176,27 +172,27 @@ Public Function m_InitializeStyles(Optional ByVal wb As Workbook) As Boolean
     End If
     g_HasWarningBannerStyle = mp_LoadWarningBannerStyleFromDom(baseDoc, g_WarningBannerStyle)
 
-    activeModeName = mp_GetCurrentActiveModeName()
-    g_HasOutputStyle = mp_TryLoadOutputSheetStyleFromDom(baseDoc, g_OutputStyle, activeModeName)
+    activeModeKey = mp_GetCurrentActiveModeKey()
+    g_HasOutputStyle = mp_TryLoadOutputSheetStyleFromDom(baseDoc, g_OutputStyle, activeModeKey)
     If Not g_HasOutputStyle Then
-        MsgBox "Output style for mode '" & activeModeName & "' was not found in SheetStyles config file: " & SHEET_STYLES_REL_PATH, vbExclamation
+        MsgBox "Output style for mode key '" & activeModeKey & "' was not found in SheetStyles config file: " & SHEET_STYLES_REL_PATH, vbExclamation
         Exit Function
     End If
 
-    modeUiRelPath = mp_GetOutputUiRelPathByMode()
-    Set modeUiDoc = mp_LoadModeUiDomByRelativePath(wb, modeUiRelPath)
+    modeUiFilePath = mp_GetOutputUiFilePathByMode(wb)
+    Set modeUiDoc = mp_LoadModeUiDomByFilePath(modeUiFilePath)
     If modeUiDoc Is Nothing Then Exit Function
 
     If Not mp_LoadControlPanelFromModeUi(modeUiDoc, g_OutputStyle) Then Exit Function
 
-    g_LastActiveModeName = mp_GetCurrentActiveModeName()
+    g_LastActiveModeKey = mp_GetCurrentActiveModeKey()
 
     g_IsInitialized = True
     m_InitializeStyles = True
 End Function
 
 Public Function m_EnsureInitialized(Optional ByVal wb As Workbook) As Boolean
-    If g_IsInitialized And StrComp(g_LastActiveModeName, mp_GetCurrentActiveModeName(), vbTextCompare) = 0 Then
+    If g_IsInitialized And StrComp(g_LastActiveModeKey, mp_GetCurrentActiveModeKey(), vbTextCompare) = 0 Then
         m_EnsureInitialized = True
         Exit Function
     End If
@@ -492,88 +488,72 @@ Private Function mp_LoadSheetStylesDom(ByVal wb As Workbook) As Object
         "Failed to parse SheetStyles config file: ")
 End Function
 
-    Private Function mp_LoadModeUiDomByRelativePath(ByVal wb As Workbook, ByVal relPath As String) As Object
-        Set mp_LoadModeUiDomByRelativePath = ex_XmlCore.m_LoadDomByRelativePath( _
-        wb, _
-        relPath, _
+Private Function mp_LoadModeUiDomByFilePath(ByVal filePath As String) As Object
+    If Len(Trim$(filePath)) = 0 Then Exit Function
+
+    Set mp_LoadModeUiDomByFilePath = ex_XmlCore.m_LoadDomByFilePath( _
+        filePath, _
         PROFILES_NS, _
         "Mode UI config file was not found: ", _
         "Failed to parse mode UI config file: ")
-    End Function
+End Function
 
-Private Function mp_GetCurrentActiveModeName() As String
+Private Function mp_GetCurrentActiveModeKey() As String
+    Dim defaultModeKey As String
+
     On Error Resume Next
-    mp_GetCurrentActiveModeName = Trim$(ex_ConfigProfilesManager.m_GetActiveModeName(ws_Dev))
+    mp_GetCurrentActiveModeKey = Trim$(ex_ConfigProfilesManager.m_GetActiveModeKey(ws_Dev))
     On Error GoTo 0
 
-    If Len(mp_GetCurrentActiveModeName) = 0 Then
-        mp_GetCurrentActiveModeName = MODE_PERSONAL_CARD
+    If Len(mp_GetCurrentActiveModeKey) = 0 Then
+        defaultModeKey = Trim$(ex_UiXmlProvider.m_GetDefaultModeKey(ThisWorkbook))
+        If Len(defaultModeKey) > 0 Then
+            mp_GetCurrentActiveModeKey = defaultModeKey
+        Else
+            mp_GetCurrentActiveModeKey = Trim$(ex_UiXmlProvider.m_GetModeKeyByIndex(1, ThisWorkbook))
+        End If
     End If
 End Function
 
-Private Function mp_GetOutputUiRelPathByMode() As String
-    Dim modeName As String
-
-    modeName = mp_GetCurrentActiveModeName()
-
-    If StrComp(modeName, MODE_TABLES_COMPARING, vbTextCompare) = 0 Then
-        mp_GetOutputUiRelPathByMode = mp_BuildPatternBasedFilePath(OUTPUT_STYLE_COMPARING_DIR_REL_PATH, OUTPUT_UI_FILE_SUFFIX)
-        Exit Function
-    End If
-
-    If StrComp(modeName, MODE_PERSONAL_CARD, vbTextCompare) = 0 Then
-        mp_GetOutputUiRelPathByMode = mp_BuildPatternBasedFilePath(OUTPUT_STYLE_PERSONAL_DIR_REL_PATH, OUTPUT_UI_FILE_SUFFIX)
-        Exit Function
-    End If
-
-    If Len(modeName) > 0 Then
-        MsgBox "Unsupported active mode value for mode UI mapping: '" & modeName & "'.", vbExclamation
-    Else
-        MsgBox "Unsupported active mode value for mode UI mapping.", vbExclamation
-    End If
-
-    Select Case modeName
-        Case MODE_PERSONAL_CARD
-            mp_GetOutputUiRelPathByMode = mp_BuildPatternBasedFilePath(OUTPUT_STYLE_PERSONAL_DIR_REL_PATH, OUTPUT_UI_FILE_SUFFIX)
-        Case MODE_TABLES_COMPARING
-            mp_GetOutputUiRelPathByMode = mp_BuildPatternBasedFilePath(OUTPUT_STYLE_COMPARING_DIR_REL_PATH, OUTPUT_UI_FILE_SUFFIX)
-    End Select
-End Function
-
-Private Function mp_BuildPatternBasedFilePath(ByVal directoryRelPath As String, ByVal fileSuffix As String) As String
-    Dim normalizedDir As String
-    Dim dirName As String
-
-    normalizedDir = mp_NormalizeDirectoryPath(directoryRelPath)
-    If Len(normalizedDir) = 0 Then Exit Function
-
-    dirName = mp_GetLastPathSegment(normalizedDir)
-    If Len(dirName) = 0 Then Exit Function
-
-    mp_BuildPatternBasedFilePath = normalizedDir & "\" & dirName & fileSuffix
-End Function
-
-Private Function mp_NormalizeDirectoryPath(ByVal value As String) As String
-    value = Trim$(value)
-    If Len(value) = 0 Then Exit Function
-
-    value = Replace$(value, "/", "\")
-    Do While Right$(value, 1) = "\"
-        value = Left$(value, Len(value) - 1)
-    Loop
-
-    mp_NormalizeDirectoryPath = value
-End Function
-
-Private Function mp_GetLastPathSegment(ByVal pathValue As String) As String
+Private Function mp_GetOutputUiFilePathByMode(ByVal wb As Workbook) As String
+    Dim modeKey As String
+    Dim profilesFilePath As String
     Dim slashPos As Long
+    Dim modeDirPath As String
+    Dim modeDirName As String
 
-    slashPos = InStrRev(pathValue, "\")
-    If slashPos <= 0 Then
-        mp_GetLastPathSegment = pathValue
-    Else
-        mp_GetLastPathSegment = Mid$(pathValue, slashPos + 1)
+    modeKey = mp_GetCurrentActiveModeKey()
+    If Len(modeKey) = 0 Then
+        MsgBox "Active mode key is empty for mode UI mapping.", vbExclamation
+        Exit Function
     End If
+
+    profilesFilePath = Trim$(ex_UiXmlProvider.m_GetProfilesFilePathByMode(modeKey, wb, "profilesFileByMode"))
+    If Len(profilesFilePath) = 0 Then
+        MsgBox "Profiles file path is not resolved for active mode key '" & modeKey & "'.", vbExclamation
+        Exit Function
+    End If
+
+    slashPos = InStrRev(profilesFilePath, "\")
+    If slashPos <= 1 Then
+        MsgBox "Invalid profiles file path for active mode key '" & modeKey & "': " & profilesFilePath, vbExclamation
+        Exit Function
+    End If
+    modeDirPath = Left$(profilesFilePath, slashPos - 1)
+
+    slashPos = InStrRev(modeDirPath, "\")
+    If slashPos <= 0 Then
+        modeDirName = modeDirPath
+    Else
+        modeDirName = Mid$(modeDirPath, slashPos + 1)
+    End If
+    modeDirName = Trim$(modeDirName)
+    If Len(modeDirName) = 0 Then
+        MsgBox "Invalid mode directory in profiles file path for active mode key '" & modeKey & "': " & profilesFilePath, vbExclamation
+        Exit Function
+    End If
+
+    mp_GetOutputUiFilePathByMode = modeDirPath & "\" & modeDirName & OUTPUT_UI_FILE_SUFFIX
 End Function
 
 Private Function mp_LoadBaseSheetStyleFromDom(ByVal doc As Object, ByRef style As t_BaseSheetStyle) As Boolean
@@ -618,7 +598,7 @@ Private Function mp_LoadBaseSheetStyleFromDom(ByVal doc As Object, ByRef style A
     mp_LoadBaseSheetStyleFromDom = True
 End Function
 
-Private Function mp_TryLoadOutputSheetStyleFromDom(ByVal doc As Object, ByRef style As t_OutputSheetStyle, ByVal modeName As String) As Boolean
+Private Function mp_TryLoadOutputSheetStyleFromDom(ByVal doc As Object, ByRef style As t_OutputSheetStyle, ByVal modeKey As String) As Boolean
     Dim rootNode As Object
     Dim nodeFont As Object
     Dim nodeRows As Object
@@ -629,7 +609,7 @@ Private Function mp_TryLoadOutputSheetStyleFromDom(ByVal doc As Object, ByRef st
     Dim nodeStatus As Object
     Dim sectionTitleColumnsText As String
 
-    Set rootNode = mp_SelectOutputSheetStyleNode(doc, modeName)
+    Set rootNode = mp_SelectOutputSheetStyleNode(doc, modeKey)
     If rootNode Is Nothing Then
         Exit Function
     End If
@@ -815,11 +795,13 @@ Private Function mp_LoadWarningBannerStyleFromDom(ByVal doc As Object, ByRef sty
     mp_LoadWarningBannerStyleFromDom = True
 End Function
 
-Private Function mp_SelectOutputSheetStyleNode(ByVal doc As Object, ByVal modeName As String) As Object
+Private Function mp_SelectOutputSheetStyleNode(ByVal doc As Object, ByVal modeKey As String) As Object
     Dim nodes As Object
     Dim node As Object
-    Dim modeAttr As String
+    Dim modeKeyAttr As String
     Dim fallbackNode As Object
+    Dim primaryModeKey As String
+    Dim secondaryModeKey As String
 
     If doc Is Nothing Then Exit Function
 
@@ -827,16 +809,30 @@ Private Function mp_SelectOutputSheetStyleNode(ByVal doc As Object, ByVal modeNa
     If nodes Is Nothing Then Exit Function
     If nodes.Length = 0 Then Exit Function
 
-    modeName = Trim$(modeName)
+    modeKey = Trim$(modeKey)
+
     For Each node In nodes
-        modeAttr = Trim$(ex_XmlCore.m_NodeAttrText(node, "mode"))
-        If Len(modeAttr) = 0 Then
+        modeKeyAttr = Trim$(ex_XmlCore.m_NodeAttrText(node, "modeKey"))
+        If Len(modeKeyAttr) = 0 Then
             If fallbackNode Is Nothing Then Set fallbackNode = node
-        ElseIf Len(modeName) > 0 And StrComp(modeAttr, modeName, vbTextCompare) = 0 Then
+        ElseIf Len(modeKey) > 0 And Len(modeKeyAttr) > 0 And StrComp(modeKeyAttr, modeKey, vbTextCompare) = 0 Then
             Set mp_SelectOutputSheetStyleNode = node
             Exit Function
         End If
     Next node
+
+    primaryModeKey = Trim$(ex_UiXmlProvider.m_GetModeKeyByIndex(1, ThisWorkbook))
+    secondaryModeKey = Trim$(ex_UiXmlProvider.m_GetModeKeyByIndex(2, ThisWorkbook))
+    If nodes.Length >= 2 Then
+        If Len(primaryModeKey) > 0 And StrComp(modeKey, primaryModeKey, vbTextCompare) = 0 Then
+            Set mp_SelectOutputSheetStyleNode = nodes.Item(0)
+            Exit Function
+        End If
+        If Len(secondaryModeKey) > 0 And StrComp(modeKey, secondaryModeKey, vbTextCompare) = 0 Then
+            Set mp_SelectOutputSheetStyleNode = nodes.Item(1)
+            Exit Function
+        End If
+    End If
 
     If Not fallbackNode Is Nothing Then
         Set mp_SelectOutputSheetStyleNode = fallbackNode

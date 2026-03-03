@@ -407,7 +407,7 @@ Private Sub mp_WriteComparingResultSheet(ByVal tableData As Variant)
 
     On Error GoTo EH
 
-    If Not ex_SheetStylesXmlProvider.m_InitializeStyles(ThisWorkbook) Then
+    If Not ex_SheetStylesXmlProvider.m_EnsureInitialized(ThisWorkbook) Then
         MsgBox "Не удалось инициализировать реестр стилей.", vbExclamation
         Exit Sub
     End If

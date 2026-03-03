@@ -47,6 +47,7 @@ Public Sub m_LoadUiFromConfig(Optional ByVal wb As Workbook)
     Set stylesMap = ex_UiXmlProvider.m_ReadButtonStyles(wb)
 
     If Not mp_RemoveButtonsMissingInConfig(wb, controlNodes) Then Exit Sub
+    If Not mp_RemoveMissingLegacyDropdowns(wb, controlNodes) Then Exit Sub
 
     Set regroupSheets = CreateObject("Scripting.Dictionary")
 
@@ -60,7 +61,7 @@ Public Sub m_LoadUiFromConfig(Optional ByVal wb As Workbook)
             Exit Sub
         End If
 
-        controlType = LCase$(Trim$(mp_NodeAttrText(controlNode, "type")))
+        controlType = mp_NormalizeControlType(mp_NodeAttrText(controlNode, "type"))
         If Len(controlType) = 0 Then
             controlType = "button"
         End If
@@ -125,9 +126,41 @@ Private Function mp_LoadUiDom(ByVal wb As Workbook) As Object
         "Failed to parse UI config file: ")
 End Function
 
+Private Function mp_RemoveMissingLegacyDropdowns(ByVal wb As Workbook, ByVal controlNodes As Object) As Boolean
+    If Not mp_DeleteLegacyControlIfNotConfigured(wb, controlNodes, "ddMode") Then Exit Function
+    If Not mp_DeleteLegacyControlIfNotConfigured(wb, controlNodes, "ddProfile") Then Exit Function
+    mp_RemoveMissingLegacyDropdowns = True
+End Function
+
+Private Function mp_DeleteLegacyControlIfNotConfigured(ByVal wb As Workbook, ByVal controlNodes As Object, ByVal controlName As String) As Boolean
+    Dim controlNode As Object
+    Dim configured As Boolean
+    Dim currentName As String
+    Dim ws As Worksheet
+
+    For Each controlNode In controlNodes
+        currentName = Trim$(mp_NodeAttrText(controlNode, "name"))
+        If StrComp(currentName, controlName, vbTextCompare) = 0 Then
+            configured = True
+            Exit For
+        End If
+    Next controlNode
+    If configured Then
+        mp_DeleteLegacyControlIfNotConfigured = True
+        Exit Function
+    End If
+
+    For Each ws In wb.Worksheets
+        If Not mp_DeleteShapeByName(ws, controlName) Then Exit Function
+    Next ws
+
+    mp_DeleteLegacyControlIfNotConfigured = True
+End Function
+
 Private Function mp_IsSupportedControlType(ByVal controlType As String) As Boolean
-    Select Case LCase$(Trim$(controlType))
-        Case "button", "dropdown", "combo"
+    controlType = mp_NormalizeControlType(controlType)
+    Select Case controlType
+        Case "button", "dropdownbutton", "dropdown", "combo"
             mp_IsSupportedControlType = True
     End Select
 End Function
@@ -161,8 +194,9 @@ Private Function mp_EnsureControlShape(ByVal ws As Worksheet, ByVal controlNode 
         Exit Function
     End If
 
-    Select Case LCase$(controlType)
-        Case "button"
+    controlType = mp_NormalizeControlType(controlType)
+    Select Case controlType
+        Case "button", "dropdownbutton"
             If Not mp_TryCreateMissingButton(ws, controlNode, controlName, shp) Then Exit Function
         Case "dropdown", "combo"
             If Not mp_TryCreateMissingDropdown(ws, controlNode, controlName, shp) Then Exit Function
@@ -341,7 +375,8 @@ Private Function mp_ApplyControlAttributes(ByVal ws As Worksheet, ByVal controlN
     If Not mp_ApplyShapePlacement(controlNode, shp, ws) Then Exit Function
     If Not mp_ApplyShapeGeometry(controlNode, shp, ws) Then Exit Function
 
-    If StrComp(controlType, "button", vbTextCompare) = 0 Then
+    controlType = mp_NormalizeControlType(controlType)
+    If StrComp(controlType, "button", vbTextCompare) = 0 Or StrComp(controlType, "dropdownbutton", vbTextCompare) = 0 Then
         On Error Resume Next
         shp.AutoShapeType = msoShapeRectangle
         On Error GoTo 0
@@ -499,12 +534,12 @@ Private Function mp_FindDropdownItemIndex(ByVal cf As Object, ByVal itemText As 
     Next i
 End Function
 
-Public Function m_GetDropdownItemsByName(ByVal controlName As String, Optional ByVal wb As Workbook, Optional ByVal modeName As String = vbNullString) As Variant
-    m_GetDropdownItemsByName = ex_UiXmlProvider.m_GetDropdownItemsByName(controlName, wb, modeName)
+Public Function m_GetDropdownItemsByName(ByVal controlName As String, Optional ByVal wb As Workbook, Optional ByVal modeKey As String = vbNullString) As Variant
+    m_GetDropdownItemsByName = ex_UiXmlProvider.m_GetDropdownItemsByName(controlName, wb, modeKey)
 End Function
 
-Public Function m_GetProfilesFilePathByMode(Optional ByVal modeName As String = vbNullString, Optional ByVal wb As Workbook, Optional ByVal sourceName As String = "profilesByMode") As String
-    m_GetProfilesFilePathByMode = ex_UiXmlProvider.m_GetProfilesFilePathByMode(modeName, wb, sourceName)
+Public Function m_GetProfilesFilePathByMode(Optional ByVal modeKey As String = vbNullString, Optional ByVal wb As Workbook, Optional ByVal sourceName As String = "profilesFileByMode") As String
+    m_GetProfilesFilePathByMode = ex_UiXmlProvider.m_GetProfilesFilePathByMode(modeKey, wb, sourceName)
 End Function
 
 Public Function m_GetModeVariantsByControl(ByVal controlName As String, Optional ByVal wb As Workbook) As Variant
@@ -842,11 +877,11 @@ Private Function mp_RemoveButtonsMissingInConfig(ByVal wb As Workbook, ByVal con
         If Not ex_XmlCore.m_TryEvaluateNodeCondition(controlNode, isNodeEnabled, "condition", "control '" & controlName & "'") Then Exit Function
         If Not isNodeEnabled Then GoTo NextNode
 
-        controlType = LCase$(Trim$(mp_NodeAttrText(controlNode, "type")))
+        controlType = mp_NormalizeControlType(mp_NodeAttrText(controlNode, "type"))
         If Len(controlType) = 0 Then
             controlType = "button"
         End If
-        If StrComp(controlType, "button", vbTextCompare) <> 0 Then GoTo NextNode
+        If StrComp(controlType, "button", vbTextCompare) <> 0 And StrComp(controlType, "dropdownbutton", vbTextCompare) <> 0 Then GoTo NextNode
         If Not mp_IsButtonShapeName(controlName) Then GoTo NextNode
 
         sheetName = Trim$(mp_NodeAttrText(controlNode, "sheet"))
@@ -872,6 +907,11 @@ NextButtonName:
     Next ws
 
     mp_RemoveButtonsMissingInConfig = True
+End Function
+
+Private Function mp_NormalizeControlType(ByVal rawType As String) As String
+    rawType = LCase$(Trim$(rawType))
+    mp_NormalizeControlType = rawType
 End Function
 
 Private Sub mp_CollectButtonShapeNamesInContainer(ByVal shapeContainer As Object, ByVal names As Object)

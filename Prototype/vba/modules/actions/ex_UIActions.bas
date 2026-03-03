@@ -22,24 +22,61 @@ Public Sub m_OnModeChanged_OnClick()
     ex_ConfigProfilesManager.m_OnModeChanged
 End Sub
 
-Public Sub m_ToggleCustomMode_OnClick()
+Public Sub m_ToggleDropdownButton_OnClick()
     ex_CustomDropdown.m_OnManagedButtonClick
-    ex_CustomDropdown.m_ToggleDevTestDropdown ThisWorkbook
+    ex_CustomDropdown.m_ToggleDropdownButton ThisWorkbook
 End Sub
 
-Public Sub m_SelectCustomModeOption_OnClick()
+Public Sub m_SelectDropdownOption_OnClick()
     ex_CustomDropdown.m_OnManagedButtonClick
-    ex_CustomDropdown.m_SelectDevTestOption ThisWorkbook
+    ex_CustomDropdown.m_SelectDropdownOption ThisWorkbook
 End Sub
 
-Public Sub m_ToggleCustomProfile_OnClick()
-    ex_CustomDropdown.m_OnManagedButtonClick
-    ex_CustomDropdown.m_ToggleCustomProfileDropdown ThisWorkbook
+Public Sub m_OnModeOptionSelected(Optional ByVal selectedKey As String = vbNullString, Optional ByVal selectedCaption As String = vbNullString, Optional ByVal sourceControlName As String = vbNullString)
+    Dim modeKey As String
+
+    modeKey = Trim$(selectedKey)
+    If Len(modeKey) = 0 Then
+        modeKey = Trim$(selectedCaption)
+    End If
+    If Len(modeKey) = 0 Then
+        MsgBox "Mode option selection is empty for control '" & sourceControlName & "'.", vbExclamation
+        Exit Sub
+    End If
+
+    ex_ConfigProfilesManager.m_SetActiveModeKey modeKey
+    If StrComp(Trim$(ex_ConfigProfilesManager.m_GetActiveModeKey()), modeKey, vbTextCompare) <> 0 Then
+        Exit Sub
+    End If
+
+    ex_ConfigProfilesManager.m_OnModeChanged
 End Sub
 
-Public Sub m_SelectCustomProfileOption_OnClick()
-    ex_CustomDropdown.m_OnManagedButtonClick
-    ex_CustomDropdown.m_SelectCustomProfileOption ThisWorkbook
+Public Sub m_OnProfileOptionSelected(Optional ByVal selectedKey As String = vbNullString, Optional ByVal selectedCaption As String = vbNullString, Optional ByVal sourceControlName As String = vbNullString)
+    Dim profileName As String
+    Dim activeModeKey As String
+
+    profileName = Trim$(selectedKey)
+    If Len(profileName) = 0 Then
+        profileName = Trim$(selectedCaption)
+    End If
+    If Len(profileName) = 0 Then
+        MsgBox "Profile option selection is empty for control '" & sourceControlName & "'.", vbExclamation
+        Exit Sub
+    End If
+
+    activeModeKey = Trim$(ex_ConfigProfilesManager.m_GetActiveModeKey())
+    If Len(activeModeKey) = 0 Then
+        MsgBox "Active mode key is empty while applying profile selection.", vbExclamation
+        Exit Sub
+    End If
+
+    ex_ConfigProfilesManager.m_SetActiveProfileName profileName, activeModeKey
+    If StrComp(Trim$(ex_ConfigProfilesManager.m_GetActiveProfileName()), profileName, vbTextCompare) <> 0 Then
+        Exit Sub
+    End If
+
+    ex_ConfigProfilesManager.m_OnProfileChanged
 End Sub
 
 Public Sub m_HelloWorld_OnClick()

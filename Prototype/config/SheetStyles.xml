@@ -57,7 +57,7 @@
 
   <outputStyles>
     <outputSheetStyle
-      mode="Personal Card"
+      modeKey="PersonalCard"
       priority="200"
       outputTopOffsetRows="4"
       headerRows="4"
@@ -92,7 +92,7 @@
     </outputSheetStyle>
 
     <outputSheetStyle
-      mode="Comparing"
+      modeKey="TablesComparing"
       priority="200"
       outputTopOffsetRows="4"
       headerRows="4"

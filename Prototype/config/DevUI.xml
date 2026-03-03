@@ -1,12 +1,13 @@
 <?xml version="1.0" standalone="yes"?>
 <uiDefinition xmlns="urn:excelprototype:profiles" version="1">
   <dataSources>
-    <profilesSource name="profilesByMode"
-                    defaultMode="Personal Card"
-                    modePersonalCard="Personal Card"
-                    modeComparing="Comparing"
-                    pathPersonalCard="config\modes\PersonalCard"
-                    pathComparing="config\modes\TablesComparing"/>
+    <itemsSource name="modesMain"
+                 uri="config\modes\DropDownItems.xml#modes.main"/>
+    <itemsSource name="profilesMain"
+                 uriTemplate="config\modes\{activeMode}\DropDownItems.xml#profiles.main"/>
+    <!-- TODO: try remove hardcoded source-name dependency in VBA (profilesFileByMode); -->
+    <itemsSource name="profilesFileByMode"
+                 uriTemplate="config\modes\{activeMode}\{activeMode}Profiles.xml"/>
   </dataSources>
 
   <styles>
@@ -196,14 +197,14 @@
              spanRows="2"/>
 
     <control name="btnCustomProfile"
-             type="button"
+             type="dropdownButton"
              sheet="Dev"
              required="true"
              createIfMissing="true"
-             macro="ex_UIActions.m_ToggleCustomProfile_OnClick"
+             macro="ex_UIActions.m_ToggleDropdownButton_OnClick"
              caption="Choose profile"
-             sourceUriTemplate="config\modes\{activeMode}\DropDownItems.xml#profiles.main"
-             refreshOn="activeMode"
+             itemsSource="profilesMain"
+             selectionChangedMacro="ex_UIActions.m_OnProfileOptionSelected"
              itemStyle="modeChooserOption"
              itemMarginLeft="0"
              itemFirstGap="2"
@@ -218,13 +219,14 @@
              spanRows="2"/>
 
     <control name="btnCustomMode"
-             type="button"
+             type="dropdownButton"
              sheet="Dev"
              required="true"
              createIfMissing="true"
-             macro="ex_UIActions.m_ToggleCustomMode_OnClick"
+             macro="ex_UIActions.m_ToggleDropdownButton_OnClick"
              caption="Choose mode"
-             sourceUri="config\modes\DropDownItems.xml#modes.main"
+             itemsSource="modesMain"
+             selectionChangedMacro="ex_UIActions.m_OnModeOptionSelected"
              itemStyle="modeChooserOption"
              itemMarginLeft="0"
              itemFirstGap="2"
@@ -237,36 +239,5 @@
              spanCols="3"
              spanRows="2"/>
 
-    <control name="ddProfile"
-             type="dropdown"
-             sheet="Dev"
-             required="true"
-             macro="ex_UIActions.m_OnProfileChanged_OnClick"
-             itemsSource="profilesByMode"
-             visible="false"
-             placement="move"
-             anchorCell="E1"
-             anchorDx="0"
-             anchorDy="2.25"
-             width="139.5"
-             height="15"/>
-
-    <control name="ddMode"
-             type="dropdown"
-             sheet="Dev"
-             required="true"
-             macro="ex_UIActions.m_OnModeChanged_OnClick"
-             sourceUri="config\modes\DropDownItems.xml#modes.main"
-             selectedItem="Personal Card"
-             visible="false"
-             left="758.25"
-             top="2.25"
-             width="156"
-             height="15">
-      <items>
-        <item value="Personal Card"/>
-        <item value="Comparing"/>
-      </items>
-    </control>
   </controls>
 </uiDefinition>

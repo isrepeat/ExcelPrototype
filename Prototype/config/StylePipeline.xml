@@ -1,6 +1,6 @@
 <?xml version="1.0" standalone="yes"?>
 <stylePipeline xmlns="urn:excelprototype:profiles" version="1">
-  <sheetPipeline sheet="Personal Card">
+  <sheetPipeline page="g_PersonTimeline">
     <layer id="pc-base" stage="base" priority="100" enabled="true">
       <rule target="sheet"
             styles="{

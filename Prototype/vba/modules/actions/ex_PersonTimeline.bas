@@ -6,6 +6,7 @@ Private Const DEV_MARKER_SYMBOL As String = "#"
 Private Const DEV_COL_MARKER As Long = 1
 Private Const DEV_COL_KEY As Long = 2
 Private Const DEV_COL_VALUE As Long = 3
+Private Const RESULT_SHEET_NAME As String = "g_PersonTimeline"
 
 Private g_LastPostProcessCfg As Object
 Private g_LastPostProcessTables As Collection
@@ -236,7 +237,7 @@ Public Sub m_ShowPersonTimeline(ByVal fio As String)
         Exit Sub
     End If
 
-    Set wsOut = mp_CreateOrClearSheet("g_PersonTimeline")
+    Set wsOut = mp_CreateOrClearSheet(RESULT_SHEET_NAME)
     ex_Messaging.m_ApplyDarkSheetBase wsOut
 
     wsOut.Activate
@@ -253,7 +254,7 @@ Public Sub m_ShowPersonTimeline(ByVal fio As String)
     Dim outputStyle As t_OutputSheetStyle
     Dim hasOutputStyle As Boolean
 
-    If Not ex_SheetStylesXmlProvider.m_InitializeStyles(ThisWorkbook) Then
+    If Not ex_SheetStylesXmlProvider.m_EnsureInitialized(ThisWorkbook) Then
         Err.Raise vbObjectError + 1304, "ex_PersonTimeline", "Failed to initialize style registry."
     End If
     hasOutputStyle = ex_SheetStylesXmlProvider.m_GetOutputSheetStyle(outputStyle, ThisWorkbook)
@@ -416,7 +417,7 @@ EH:
     End If
 
     If wsOut Is Nothing Then
-        Set wsOut = mp_CreateOrClearSheet("g_PersonTimeline")
+        Set wsOut = mp_CreateOrClearSheet(RESULT_SHEET_NAME)
     End If
     On Error Resume Next
     If ex_SheetStylesXmlProvider.m_InitializeStyles(ThisWorkbook) Then
@@ -521,7 +522,7 @@ Private Function mp_ValidateTimelineConfig( _
     Dim tableSourceMap As Object
     Dim resultFieldRanges As Collection
     Dim allowedTableFields As Object
-    Dim activeModeName As String
+    Dim activeModeKey As String
     Dim styleTagsByMapKey As Object
     Dim strictPreflight As Boolean
     Dim i As Long
@@ -590,30 +591,31 @@ ContinueAlias:
 
     strictPreflight = mp_ShouldStrictPreflightValidation()
     If strictPreflight Then
-        activeModeName = ex_ConfigProfilesManager.m_GetActiveModeName(ws_Dev)
+        activeModeKey = ex_ConfigProfilesManager.m_GetActiveModeKey(ws_Dev)
         Set styleTagsByMapKey = ex_ConfigProfilesManager.m_GetActiveProfileStyleTagsByKey(ws_Dev)
         If Not ex_StylePipelineEngine.m_ValidateColumnStylesPipeline( _
             resultFieldRanges, _
             cfgNotes, _
             styleTagsByMapKey, _
-            activeModeName, _
+            activeModeKey, _
             outErrorText, _
-            ThisWorkbook _
+            ThisWorkbook, _
+            RESULT_SHEET_NAME _
         ) Then
             Exit Function
         End If
 
         Dim workflowSteps As Collection
-        If Not ex_StylePipelineEngine.m_GetRenderWorkflowStepOrder(activeModeName, "personalCardTimeline", workflowSteps, ThisWorkbook) Then
-            outErrorText = "Style workflow 'personalCardTimeline' is not configured for mode '" & activeModeName & "'."
+        If Not ex_StylePipelineEngine.m_GetRenderWorkflowStepOrder(RESULT_SHEET_NAME, "personalCardTimeline", workflowSteps, ThisWorkbook) Then
+            outErrorText = "Style workflow 'personalCardTimeline' is not configured for page '" & RESULT_SHEET_NAME & "'."
             Exit Function
         End If
-        If Not ex_StylePipelineEngine.m_GetRenderWorkflowStepOrder(activeModeName, "personalCardPostLayout", workflowSteps, ThisWorkbook) Then
-            outErrorText = "Style workflow 'personalCardPostLayout' is not configured for mode '" & activeModeName & "'."
+        If Not ex_StylePipelineEngine.m_GetRenderWorkflowStepOrder(RESULT_SHEET_NAME, "personalCardPostLayout", workflowSteps, ThisWorkbook) Then
+            outErrorText = "Style workflow 'personalCardPostLayout' is not configured for page '" & RESULT_SHEET_NAME & "'."
             Exit Function
         End If
-        If Not ex_StylePipelineEngine.m_GetRenderWorkflowStepOrder(activeModeName, "personalCardPostWarnings", workflowSteps, ThisWorkbook) Then
-            outErrorText = "Style workflow 'personalCardPostWarnings' is not configured for mode '" & activeModeName & "'."
+        If Not ex_StylePipelineEngine.m_GetRenderWorkflowStepOrder(RESULT_SHEET_NAME, "personalCardPostWarnings", workflowSteps, ThisWorkbook) Then
+            outErrorText = "Style workflow 'personalCardPostWarnings' is not configured for page '" & RESULT_SHEET_NAME & "'."
             Exit Function
         End If
     End If

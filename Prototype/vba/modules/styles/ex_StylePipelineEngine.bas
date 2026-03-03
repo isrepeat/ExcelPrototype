@@ -241,7 +241,8 @@ Public Function m_LoadLayersFromStylePipelineXml( _
     ByVal wb As Workbook, _
     Optional ByVal scopeFilter As String = "columnStyles", _
     Optional ByVal workflowName As String = vbNullString, _
-    Optional ByVal stageFilter As String = vbNullString _
+    Optional ByVal stageFilter As String = vbNullString, _
+    Optional ByVal pageName As String = vbNullString _
 ) As Collection
     Dim doc As Object
     Dim result As Collection
@@ -265,13 +266,13 @@ Public Function m_LoadLayersFromStylePipelineXml( _
     End If
 
     mp_EnsureRuntimeCaches
-    cacheKey = mp_BuildLayersCacheKey(wb, activeModeName, scopeFilter, workflowName, stageFilter)
+    cacheKey = mp_BuildLayersCacheKey(wb, activeModeName, scopeFilter, workflowName, stageFilter, pageName)
     If g_LayersCache.Exists(cacheKey) Then
         Set m_LoadLayersFromStylePipelineXml = g_LayersCache(cacheKey)
         Exit Function
     End If
 
-    Set formatLayers = mp_LoadLayersFromSheetPipelineXml(doc, activeModeName, scopeFilter, workflowName, stageFilter)
+    Set formatLayers = mp_LoadLayersFromSheetPipelineXml(doc, pageName, scopeFilter, workflowName, stageFilter)
     If Not formatLayers Is Nothing Then
         For Each layerObj In formatLayers
             If Not layerObj Is Nothing Then
@@ -283,40 +284,27 @@ Public Function m_LoadLayersFromStylePipelineXml( _
         Next layerObj
     End If
 
-    If Len(Trim$(stageFilter)) = 0 Then
-        Set formatLayers = mp_LoadLayersFromLegacyStyleLayersXml(doc, activeModeName, scopeFilter, workflowName)
-        If Not formatLayers Is Nothing Then
-            For Each layerObj In formatLayers
-                If Not layerObj Is Nothing Then
-                    If Not seenLayerIds.Exists(LCase$(layerObj.LayerId)) Then
-                        seenLayerIds(LCase$(layerObj.LayerId)) = True
-                        result.Add layerObj
-                    End If
-                End If
-            Next layerObj
-        End If
-    End If
-
     Set g_LayersCache(cacheKey) = result
     Set m_LoadLayersFromStylePipelineXml = result
 End Function
 
 Public Function m_LoadSheetPipelineStageLayers( _
-    ByVal activeModeName As String, _
+    ByVal pageName As String, _
     ByVal stageName As String, _
     ByVal wb As Workbook _
 ) As Collection
     Set m_LoadSheetPipelineStageLayers = m_LoadLayersFromStylePipelineXml( _
-        activeModeName, _
+        vbNullString, _
         wb, _
         vbNullString, _
         vbNullString, _
-        stageName _
+        stageName, _
+        pageName _
     )
 End Function
 
 Public Function m_GetRenderWorkflowStepOrder( _
-    ByVal activeModeName As String, _
+    ByVal pageName As String, _
     ByVal workflowName As String, _
     ByRef outStepOrder As Collection, _
     ByVal wb As Workbook _
@@ -339,22 +327,22 @@ Public Function m_GetRenderWorkflowStepOrder( _
     ' Ensure StylePipeline file timestamp is checked before reading workflow cache.
     If mp_GetStylePipelineDomCached(wb) Is Nothing Then
         Err.Raise vbObjectError + 1741, "ex_StylePipelineEngine", _
-            "StylePipeline must contain layers for workflow '" & workflowName & "' and mode '" & activeModeName & "'."
+            "StylePipeline must contain layers for workflow '" & workflowName & "' and page '" & pageName & "'."
     End If
 
     mp_EnsureRuntimeCaches
     If wb Is Nothing Then Set wb = ThisWorkbook
-    cacheKey = mp_BuildWorkflowStepsCacheKey(wb, activeModeName, workflowName)
+    cacheKey = mp_BuildWorkflowStepsCacheKey(wb, pageName, workflowName)
     If g_WorkflowStepsCache.Exists(cacheKey) Then
         Set outStepOrder = mp_CopyStringCollection(g_WorkflowStepsCache(cacheKey))
         m_GetRenderWorkflowStepOrder = (outStepOrder.Count > 0)
         Exit Function
     End If
 
-    Set workflowLayers = m_LoadLayersFromStylePipelineXml(activeModeName, wb, "renderWorkflow", workflowName)
+    Set workflowLayers = m_LoadLayersFromStylePipelineXml(vbNullString, wb, "renderWorkflow", workflowName, vbNullString, pageName)
     If workflowLayers Is Nothing Or workflowLayers.Count = 0 Then
         Err.Raise vbObjectError + 1741, "ex_StylePipelineEngine", _
-            "StylePipeline must contain layers for workflow '" & workflowName & "' and mode '" & activeModeName & "'."
+            "StylePipeline must contain layers for workflow '" & workflowName & "' and page '" & pageName & "'."
     End If
 
     Set sortedLayers = m_GetSortedLayers(workflowLayers)
@@ -409,7 +397,8 @@ Public Function m_BuildColumnStylesPipeline( _
     ByVal cfgNotes As Object, _
     ByVal styleTagsByMapKey As Object, _
     ByVal activeModeName As String, _
-    ByVal wb As Workbook _
+    ByVal wb As Workbook, _
+    Optional ByVal pageName As String = vbNullString _
 ) As Collection
     Dim pipeline As Collection
     Dim inlineLayer As obj_StyleLayer
@@ -427,7 +416,7 @@ Public Function m_BuildColumnStylesPipeline( _
     Set styleTagLayer = mp_BuildProfileStyleTagLayer(resultFieldRanges, styleTagsByMapKey, styleCatalog)
     If Not styleTagLayer Is Nothing Then m_AddLayer pipeline, styleTagLayer
 
-    Set xmlLayers = m_LoadLayersFromStylePipelineXml(activeModeName, wb, "columnStyles")
+    Set xmlLayers = m_LoadLayersFromStylePipelineXml(activeModeName, wb, "columnStyles", vbNullString, vbNullString, pageName)
     If Not xmlLayers Is Nothing Then
         For Each xmlLayer In xmlLayers
             m_AddLayer pipeline, xmlLayer
@@ -443,7 +432,8 @@ Public Function m_ValidateColumnStylesPipeline( _
     ByVal styleTagsByMapKey As Object, _
     ByVal activeModeName As String, _
     ByRef outErrorText As String, _
-    ByVal wb As Workbook _
+    ByVal wb As Workbook, _
+    Optional ByVal pageName As String = vbNullString _
 ) As Boolean
     Dim pipeline As Collection
     Dim sortedLayers As Collection
@@ -456,7 +446,7 @@ Public Function m_ValidateColumnStylesPipeline( _
     outErrorText = vbNullString
 
     stepName = "build-pipeline"
-    Set pipeline = m_BuildColumnStylesPipeline(resultFieldRanges, cfgNotes, styleTagsByMapKey, activeModeName, wb)
+    Set pipeline = m_BuildColumnStylesPipeline(resultFieldRanges, cfgNotes, styleTagsByMapKey, activeModeName, wb, pageName)
 
     stepName = "sort-layers"
     Set sortedLayers = m_GetSortedLayers(pipeline)
@@ -526,7 +516,7 @@ End Sub
 
 Private Function mp_LoadLayersFromSheetPipelineXml( _
     ByVal doc As Object, _
-    ByVal activeModeName As String, _
+    ByVal pageName As String, _
     ByVal scopeFilter As String, _
     ByVal workflowName As String, _
     Optional ByVal stageFilter As String = vbNullString _
@@ -543,7 +533,7 @@ Private Function mp_LoadLayersFromSheetPipelineXml( _
     Dim layerEnabled As Boolean
     Dim layerPriority As Long
     Dim ok As Boolean
-    Dim sheetName As String
+    Dim pageKey As String
 
     Set result = New Collection
     If doc Is Nothing Then
@@ -558,10 +548,17 @@ Private Function mp_LoadLayersFromSheetPipelineXml( _
     End If
 
     For Each sheetPipelineNode In sheetPipelines
-        sheetName = Trim$(mp_NodeAttrText(sheetPipelineNode, "sheet"))
-        If Len(sheetName) = 0 Then sheetName = Trim$(mp_NodeAttrText(sheetPipelineNode, "mode"))
-        If Len(sheetName) > 0 And Len(Trim$(activeModeName)) > 0 Then
-            If StrComp(sheetName, Trim$(activeModeName), vbTextCompare) <> 0 Then GoTo ContinueSheetPipeline
+        pageKey = Trim$(mp_NodeAttrText(sheetPipelineNode, "page"))
+        If Len(pageKey) = 0 Then
+            ' Legacy compatibility for older configs.
+            pageKey = Trim$(mp_NodeAttrText(sheetPipelineNode, "sheet"))
+        End If
+        If Len(pageKey) = 0 Then
+            Err.Raise vbObjectError + 1736, "ex_StylePipelineEngine", _
+                "sheetPipeline@page is required (or legacy @sheet)."
+        End If
+        If Len(Trim$(pageName)) > 0 Then
+            If StrComp(pageKey, Trim$(pageName), vbTextCompare) <> 0 Then GoTo ContinueSheetPipeline
         End If
 
         Set layerNodes = sheetPipelineNode.selectNodes("p:layer")
@@ -602,74 +599,6 @@ ContinueSheetPipeline:
     Next sheetPipelineNode
 
     Set mp_LoadLayersFromSheetPipelineXml = result
-End Function
-
-Private Function mp_LoadLayersFromLegacyStyleLayersXml( _
-    ByVal doc As Object, _
-    ByVal activeModeName As String, _
-    ByVal scopeFilter As String, _
-    ByVal workflowName As String _
-) As Collection
-    Dim result As Collection
-    Dim layerNodes As Object
-    Dim layerNode As Object
-    Dim layerObj As obj_StyleLayer
-    Dim layerId As String
-    Dim layerSource As String
-    Dim layerMode As String
-    Dim layerScope As String
-    Dim layerWorkflow As String
-    Dim layerEnabled As Boolean
-    Dim layerPriority As Long
-    Dim ok As Boolean
-
-    Set result = New Collection
-    If doc Is Nothing Then
-        Set mp_LoadLayersFromLegacyStyleLayersXml = result
-        Exit Function
-    End If
-
-    Set layerNodes = doc.selectNodes("/p:stylePipeline/p:styleLayers/p:layer")
-    If layerNodes Is Nothing Then
-        Set mp_LoadLayersFromLegacyStyleLayersXml = result
-        Exit Function
-    End If
-
-    For Each layerNode In layerNodes
-        layerMode = Trim$(mp_NodeAttrText(layerNode, "mode"))
-        If Len(layerMode) > 0 And Len(Trim$(activeModeName)) > 0 Then
-            If StrComp(layerMode, Trim$(activeModeName), vbTextCompare) <> 0 Then GoTo ContinueLayer
-        End If
-
-        layerScope = Trim$(mp_NodeAttrText(layerNode, "scope"))
-        layerWorkflow = Trim$(mp_NodeAttrText(layerNode, "workflow"))
-        If Not mp_ShouldIncludeLayerByScope(scopeFilter, layerScope) Then GoTo ContinueLayer
-        If Len(Trim$(workflowName)) > 0 Then
-            If StrComp(layerWorkflow, Trim$(workflowName), vbTextCompare) <> 0 Then GoTo ContinueLayer
-        End If
-
-        layerId = Trim$(mp_NodeAttrText(layerNode, "id"))
-        If Len(layerId) = 0 Then
-            Err.Raise vbObjectError + 1710, "ex_StylePipelineEngine", "styleLayers/layer@" & "id is required."
-        End If
-        If Not ex_XmlCore.m_TryParseLong(mp_NodeAttrText(layerNode, "priority"), layerPriority) Then
-            Err.Raise vbObjectError + 1711, "ex_StylePipelineEngine", "Invalid style layer priority for '" & layerId & "'."
-        End If
-        layerSource = Trim$(mp_NodeAttrText(layerNode, "source"))
-        If Len(layerSource) = 0 Then layerSource = "xml"
-
-        ok = mp_TryParseBoolean(mp_NodeAttrText(layerNode, "enabled"), layerEnabled)
-        If Not ok Then layerEnabled = True
-
-        Set layerObj = New obj_StyleLayer
-        layerObj.Initialize layerId, layerPriority, layerSource, layerEnabled
-        mp_ParseLayerRules layerNode, layerObj
-
-        If layerObj.RuleCount > 0 Then result.Add layerObj
-ContinueLayer:
-    Next layerNode
-
-    Set mp_LoadLayersFromLegacyStyleLayersXml = result
 End Function
 
 Private Sub mp_ParseLayerRules(ByVal layerNode As Object, ByVal layerObj As obj_StyleLayer)
@@ -1040,7 +969,7 @@ Private Sub mp_ApplyRule( _
 
     Set selector = mp_GetParsedSelectorCached(ruleObj.Selector)
     If selector.Exists("mode") Then
-        If StrComp(CStr(selector("mode")), Trim$(activeModeName), vbTextCompare) <> 0 Then Exit Sub
+        If StrComp(LCase$(Trim$(CStr(selector("mode")))), LCase$(Trim$(activeModeName)), vbTextCompare) <> 0 Then Exit Sub
     End If
 
     targetName = LCase$(Trim$(ruleObj.Target))
@@ -1941,22 +1870,24 @@ Private Function mp_BuildLayersCacheKey( _
     ByVal activeModeName As String, _
     ByVal scopeFilter As String, _
     ByVal workflowName As String, _
-    ByVal stageFilter As String _
+    ByVal stageFilter As String, _
+    ByVal pageName As String _
 ) As String
     mp_BuildLayersCacheKey = mp_BuildWorkbookCacheKey(wb) & "|" & _
         LCase$(Trim$(activeModeName)) & "|" & _
         LCase$(Trim$(scopeFilter)) & "|" & _
         LCase$(Trim$(workflowName)) & "|" & _
-        LCase$(Trim$(stageFilter))
+        LCase$(Trim$(stageFilter)) & "|" & _
+        LCase$(Trim$(pageName))
 End Function
 
 Private Function mp_BuildWorkflowStepsCacheKey( _
     ByVal wb As Workbook, _
-    ByVal activeModeName As String, _
+    ByVal pageName As String, _
     ByVal workflowName As String _
 ) As String
     mp_BuildWorkflowStepsCacheKey = mp_BuildWorkbookCacheKey(wb) & "|" & _
-        LCase$(Trim$(activeModeName)) & "|" & _
+        LCase$(Trim$(pageName)) & "|" & _
         LCase$(Trim$(workflowName))
 End Function
 

@@ -41,7 +41,7 @@ EH:
 End Function
 
 Private Function mp_TryGetScriptTextFromActiveProfile(ByRef outScriptText As String, ByRef outErrorText As String) As Boolean
-    Dim modeName As String
+    Dim modeKey As String
     Dim profileName As String
     Dim filePath As String
     Dim doc As Object
@@ -55,15 +55,15 @@ Private Function mp_TryGetScriptTextFromActiveProfile(ByRef outScriptText As Str
     outErrorText = vbNullString
 
     stepName = "read-active-mode-profile"
-    modeName = Trim$(ex_ConfigProfilesManager.m_GetActiveModeName(ws_Dev))
+    modeKey = Trim$(ex_ConfigProfilesManager.m_GetActiveModeKey(ws_Dev))
     profileName = Trim$(ex_ConfigProfilesManager.m_GetActiveProfileName(ws_Dev))
-    If Len(modeName) = 0 Or Len(profileName) = 0 Then
+    If Len(modeKey) = 0 Or Len(profileName) = 0 Then
         mp_TryGetScriptTextFromActiveProfile = True
         Exit Function
     End If
 
     stepName = "resolve-profiles-path"
-    filePath = ex_ProfilesStore.m_GetProfilesFilePath(modeName, ThisWorkbook)
+    filePath = ex_ProfilesStore.m_GetProfilesFilePath(modeKey, ThisWorkbook)
     If Len(Trim$(filePath)) = 0 Then
         mp_TryGetScriptTextFromActiveProfile = True
         Exit Function
@@ -96,5 +96,5 @@ Private Function mp_TryGetScriptTextFromActiveProfile(ByRef outScriptText As Str
     Exit Function
 
 EH:
-    outErrorText = "PostProcess script load failed at step '" & stepName & "' [mode=" & modeName & "] [profile=" & profileName & "] [file=" & filePath & "]: [" & Err.Source & " #" & CStr(Err.Number) & "] " & Err.Description
+    outErrorText = "PostProcess script load failed at step '" & stepName & "' [modeKey=" & modeKey & "] [profile=" & profileName & "] [file=" & filePath & "]: [" & Err.Source & " #" & CStr(Err.Number) & "] " & Err.Description
 End Function
