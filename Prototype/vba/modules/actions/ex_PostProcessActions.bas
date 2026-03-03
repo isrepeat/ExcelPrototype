@@ -331,7 +331,7 @@ Public Sub m_AppendPostProcessHeaderText(ByVal postProcessHeaderText As String)
     If ws Is Nothing Then Exit Sub
 
     If Not mp_TryLoadPostProcessHeaderStyle(postProcessHeaderStyle) Then
-        Err.Raise vbObjectError + 1673, "ex_PostProcessActions", "Unable to apply postProcessHeader text: invalid '/SheetStyles/postProcessHeaderStyle'."
+        Err.Raise vbObjectError + 1673, "ex_PostProcessActions", "Unable to apply postProcessHeader text: invalid '/sheetStyles/postProcessHeaderStyle'."
     End If
 
     sheetKey = mp_BuildSheetKey(ws)
@@ -393,7 +393,7 @@ Public Sub m_AppendPostProcessFooterText(ByVal postProcessFooterText As String)
     If ws Is Nothing Then Exit Sub
 
     If Not mp_TryLoadPostProcessFooterStyle(postProcessFooterStyle) Then
-        Err.Raise vbObjectError + 1651, "ex_PostProcessActions", "Unable to apply postProcessFooter text: invalid '/SheetStyles/postProcessFooterStyle'."
+        Err.Raise vbObjectError + 1651, "ex_PostProcessActions", "Unable to apply postProcessFooter text: invalid '/sheetStyles/postProcessFooterStyle'."
     End If
 
     startRow = mp_GetLastUsedRow(ws) + 2
@@ -444,9 +444,9 @@ Private Function mp_TryLoadPostProcessHeaderStyle(ByRef outStyle As t_PostProces
     )
     If doc Is Nothing Then Exit Function
 
-    Set node = doc.selectSingleNode("/p:SheetStyles/p:postProcessHeaderStyle")
+    Set node = doc.selectSingleNode("/p:sheetStyles/p:postProcessHeaderStyle")
     If node Is Nothing Then
-        MsgBox "SheetStyles must contain '/SheetStyles/postProcessHeaderStyle'.", vbExclamation
+        MsgBox "sheetStyles must contain '/sheetStyles/postProcessHeaderStyle'.", vbExclamation
         Exit Function
     End If
 
@@ -496,9 +496,9 @@ Private Function mp_TryLoadPostProcessFooterStyle(ByRef outStyle As t_PostProces
     )
     If doc Is Nothing Then Exit Function
 
-    Set node = doc.selectSingleNode("/p:SheetStyles/p:postProcessFooterStyle")
+    Set node = doc.selectSingleNode("/p:sheetStyles/p:postProcessFooterStyle")
     If node Is Nothing Then
-        MsgBox "SheetStyles must contain '/SheetStyles/postProcessFooterStyle'.", vbExclamation
+        MsgBox "sheetStyles must contain '/sheetStyles/postProcessFooterStyle'.", vbExclamation
         Exit Function
     End If
 

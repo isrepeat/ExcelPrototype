@@ -1,5 +1,5 @@
 <?xml version="1.0" standalone="yes"?>
-<SheetStyles xmlns="urn:excelprototype:profiles" version="1">
+<sheetStyles xmlns="urn:excelprototype:profiles" version="1">
   <baseSheetStyle priority="100">
     <base backColor="#222222" fontColor="#EBEBEB" showGridlines="false"/>
     <background extraRows="200" extraCols="30"/>
@@ -49,4 +49,89 @@
     fontSize="12"
     rowHeight="24"
     autoHeight="true"/>
-</SheetStyles>
+
+  <styleCatalog>
+    <style name="wideWrapAuto" styles="{width:40;overflow:wrap;autoHeight:true}"/>
+    <style name="compactClip" styles="{width:18;overflow:clip;autoHeight:false}"/>
+  </styleCatalog>
+
+  <outputStyles>
+    <outputSheetStyle
+      mode="Personal Card"
+      priority="200"
+      outputTopOffsetRows="4"
+      headerRows="4"
+      viewStartRow="6">
+      <font name="Times New Roman" size="12"/>
+      <rows height="20"/>
+      <alignment horizontal="center" vertical="center"/>
+
+      <section
+        color="#D7A763"
+        backColor="#161616"
+        bold="true"
+        sectionTitleColumns="2"
+        width="0"
+        overflow="clip"
+        autoHeight="false"/>
+
+      <header
+        color="#68D947"
+        backColor="#222222"
+        bold="true"
+        width="0"
+        overflow="wrap"
+        autoHeight="true"/>
+
+      <content
+        color="#EBEBEB"
+        backColor="#222222"
+        width="0"
+        overflow="wrap"
+        autoHeight="false"/>
+    </outputSheetStyle>
+
+    <outputSheetStyle
+      mode="Comparing"
+      priority="200"
+      outputTopOffsetRows="4"
+      headerRows="4"
+      viewStartRow="6">
+      <font name="Times New Roman" size="12"/>
+      <rows height="20"/>
+      <alignment horizontal="center" vertical="center"/>
+
+      <section
+        color="#D7A763"
+        backColor="#161616"
+        bold="true"
+        sectionTitleColumns="2"
+        width="0"
+        overflow="clip"
+        autoHeight="false"/>
+
+      <header
+        color="#68D947"
+        backColor="#222222"
+        bold="true"
+        width="0"
+        overflow="wrap"
+        autoHeight="true"/>
+
+      <content
+        color="#EBEBEB"
+        backColor="#222222"
+        width="0"
+        overflow="wrap"
+        autoHeight="false"/>
+
+      <status
+        columnName="Status"
+        fontColor="#EBEBEB"
+        defaultBackColor="#1E1E1E"
+        addedBackColor="#2E7D32"
+        changedBackColor="#7B1FA2"
+        removedBackColor="#B71C1C"/>
+    </outputSheetStyle>
+  </outputStyles>
+</sheetStyles>

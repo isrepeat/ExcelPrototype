@@ -1,0 +1,109 @@
+<?xml version="1.0" standalone="yes"?>
+<stylePipeline xmlns="urn:excelprototype:profiles" version="1">
+  <sheetPipeline sheet="Personal Card">
+    <layer id="pc-base" stage="base" priority="100" enabled="true">
+      <rule target="sheet"
+            styles="{
+              fontName:'Times New Roman';
+              fontSize:12;
+              backColor:#222222;
+              fontColor:#EBEBEB;
+              horizontal:center;
+              vertical:center;
+              rowHeight:20;
+            }"/>
+    </layer>
+
+    <layer id="pc-output-pre-autofit" stage="output" priority="200" enabled="true">
+      <rule target="row"
+            selector="kind=header"
+            styles="{
+              overflow:clip;
+            }"/>
+      <rule target="row"
+            selector="kind=section"
+            styles="{
+              overflow:clip;
+            }"/>
+    </layer>
+
+    <layer id="pc-output-autofit" stage="output" priority="210" enabled="true">
+      <rule target="sheet"
+            styles="{
+              autoFitColumns:true;
+            }"/>
+    </layer>
+
+    <layer id="pc-output-clamp-columns" stage="output" priority="220" enabled="true">
+      <rule target="sheet"
+            styles="{
+              minWidth:5;
+              maxWidth:30;
+            }"/>
+    </layer>
+
+    <layer id="pc-output-section" stage="output" priority="230" enabled="true">
+      <rule target="row"
+            selector="kind=section"
+            styles="{
+              backColor:#161616;
+              fontColor:#D7A763;
+              fontBold:true;
+              mergeColumns:2;
+              overflow:clip;
+              rowHeight:20;
+            }"/>
+    </layer>
+
+    <layer id="pc-output-header" stage="output" priority="240" enabled="true">
+      <rule target="row"
+            selector="kind=header"
+            styles="{
+              backColor:#222222;
+              fontColor:#68D947;
+              fontBold:true;
+              overflow:wrap;
+              autoHeight:true;
+            }"/>
+    </layer>
+
+    <layer id="pc-output-content" stage="output" priority="250" enabled="true">
+      <rule target="row"
+            selector="kind=content"
+            styles="{
+              backColor:#222222;
+              fontColor:#EBEBEB;
+              overflow:wrap;
+              rowHeight:32;
+            }"/>
+    </layer>
+
+    <layer id="pc-output-docnote" stage="columnStyles" priority="300" enabled="true">
+      <rule target="column"
+            selector="mapKey=Daily.Sheet[DailyEvents].Map[DocNote]"
+            styles="{
+              width:40;
+              overflow:wrap;
+              autoHeight:true;
+            }"/>
+    </layer>
+
+    <layer id="pc-postlayout" stage="postLayout" priority="400" enabled="true">
+      <rule target="row"
+            selector="kind=confignote"
+            styles="{
+              autoHeight:true;
+            }"/>
+    </layer>
+
+    <layer id="pc-partialmatch-autoheight" stage="partialMatchAutoHeight" priority="480" enabled="true">
+      <rule target="row"
+            selector="kind=partialmatch"
+            styles="{
+              autoHeight:true;
+            }"/>
+    </layer>
+
+    <layer id="pc-postwarnings" stage="postWarnings" priority="500" enabled="true"/>
+  </sheetPipeline>
+</stylePipeline>

@@ -140,7 +140,7 @@ Public Sub m_RenderErrorBanner( _
     End With
 
     ws.Range(ws.Cells(bannerRange.Row, bannerRange.Column), ws.Cells(bannerRange.Row, bannerRange.Column + bannerRange.Columns.Count - 1)).Font.Bold = IIf(hasBannerStyle, bannerStyle.TitleBold, True)
-    ws.Rows(CStr(bannerRange.Row) & ":" & CStr(bannerRange.Row + rowCount - 1)).RowHeight = IIf(hasBannerStyle, bannerStyle.RowHeight, 24)
+    mp_ApplyBannerRowHeights ws, bannerRange, rowCount, IIf(hasBannerStyle, bannerStyle.RowHeight, 24), bannerRange.Row + 1, messageText, IIf(hasBannerStyle, bannerStyle.WrapText, True)
 End Sub
 
 Public Sub m_RenderWarningBanner( _
@@ -213,5 +213,80 @@ Public Sub m_RenderWarningBanner( _
     End With
 
     ws.Range(ws.Cells(bannerRange.Row, bannerRange.Column), ws.Cells(bannerRange.Row, bannerRange.Column + bannerRange.Columns.Count - 1)).Font.Bold = IIf(hasBannerStyle, bannerStyle.TitleBold, True)
-    ws.Rows(CStr(bannerRange.Row) & ":" & CStr(bannerRange.Row + rowCount - 1)).RowHeight = IIf(hasBannerStyle, bannerStyle.RowHeight, 24)
+    mp_ApplyBannerRowHeights ws, bannerRange, rowCount, IIf(hasBannerStyle, bannerStyle.RowHeight, 24), bannerRange.Row + 1, messageText, IIf(hasBannerStyle, bannerStyle.WrapText, True)
 End Sub
+
+Private Sub mp_ApplyBannerRowHeights( _
+    ByVal ws As Worksheet, _
+    ByVal bannerRange As Range, _
+    ByVal rowCount As Long, _
+    ByVal baseRowHeight As Double, _
+    ByVal messageRowIndex As Long, _
+    ByVal messageText As String, _
+    ByVal wrapTextEnabled As Boolean _
+)
+    Dim measuredHeight As Double
+    Dim messageRange As Range
+    Dim rowStart As Long
+    Dim rowEnd As Long
+
+    If ws Is Nothing Then Exit Sub
+    If bannerRange Is Nothing Then Exit Sub
+    If rowCount < 1 Then Exit Sub
+    If baseRowHeight <= 0 Then baseRowHeight = 24
+
+    rowStart = bannerRange.Row
+    rowEnd = bannerRange.Row + rowCount - 1
+    ws.Rows(CStr(rowStart) & ":" & CStr(rowEnd)).RowHeight = baseRowHeight
+
+    If Not wrapTextEnabled Then Exit Sub
+    If Len(Trim$(messageText)) = 0 Then Exit Sub
+    If messageRowIndex < rowStart Or messageRowIndex > rowEnd Then Exit Sub
+
+    Set messageRange = ws.Range( _
+        ws.Cells(messageRowIndex, bannerRange.Column), _
+        ws.Cells(messageRowIndex, bannerRange.Column + bannerRange.Columns.Count - 1) _
+    )
+    measuredHeight = mp_MeasureBannerTextHeight(ws, messageRange, messageText)
+    If measuredHeight > baseRowHeight Then
+        ws.Rows(messageRowIndex).RowHeight = measuredHeight
+    End If
+End Sub
+
+Private Function mp_MeasureBannerTextHeight( _
+    ByVal ws As Worksheet, _
+    ByVal targetRange As Range, _
+    ByVal messageText As String _
+) As Double
+    Dim textBoxShape As Object
+
+    On Error GoTo EH
+    If ws Is Nothing Then Exit Function
+    If targetRange Is Nothing Then Exit Function
+    If Len(messageText) = 0 Then Exit Function
+
+    Set textBoxShape = ws.Shapes.AddTextbox(1, targetRange.Left, targetRange.Top, targetRange.Width, 8)
+    textBoxShape.Line.Visible = 0
+    textBoxShape.Fill.Visible = 0
+    textBoxShape.TextFrame2.MarginLeft = 0
+    textBoxShape.TextFrame2.MarginRight = 0
+    textBoxShape.TextFrame2.MarginTop = 0
+    textBoxShape.TextFrame2.MarginBottom = 0
+    textBoxShape.TextFrame2.WordWrap = -1
+    textBoxShape.TextFrame2.AutoSize = 1
+    textBoxShape.TextFrame2.TextRange.Text = messageText
+    textBoxShape.TextFrame2.TextRange.Font.Size = targetRange.Font.Size
+    textBoxShape.TextFrame2.TextRange.Font.Name = CStr(targetRange.Font.Name)
+
+    mp_MeasureBannerTextHeight = textBoxShape.Height + 2
+
+Cleanup:
+    On Error Resume Next
+    If Not textBoxShape Is Nothing Then textBoxShape.Delete
+    On Error GoTo 0
+    Exit Function
+
+EH:
+    mp_MeasureBannerTextHeight = 0
+    Resume Cleanup
+End Function
