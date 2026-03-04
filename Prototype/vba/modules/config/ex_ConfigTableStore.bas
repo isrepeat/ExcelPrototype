@@ -2,11 +2,11 @@ Attribute VB_Name = "ex_ConfigTableStore"
 Option Explicit
 
 Private Const DEV_CONFIG_TABLE_NAME As String = "tblDevConfig"
-Private Const DEV_CONFIG_HEADER_ROW As Long = 2
+Private Const DEV_CONFIG_HEADER_ROW As Long = 1
 Private Const DEV_CONFIG_MARKER_COL As Long = 1
 Private Const DEV_CONFIG_KEY_COL As Long = 2
 Private Const DEV_CONFIG_VALUE_COL As Long = 3
-Private Const DEV_CONFIG_NOTE_COL As Long = 4
+Private Const DEV_CONFIG_STYLES_COL As Long = 4
 Private Const DEV_CONFIG_COL_COUNT As Long = 4
 Private Const DEV_HEADER_STYLES As String = "Styles"
 Private Const DEV_MARKER_SYMBOL As String = "#"
@@ -14,13 +14,6 @@ Private Const DEV_MARKER_HEADER As String = ".."
 Private Const DEV_MARKER_PREFIX As String = "#MARKER:"
 Private Const DEV_MARKER_SECTION As String = "#MARKER:SECTION"
 Private Const DEV_MARKER_SPACER As String = "#MARKER:SPACER"
-Private Const DEV_COLOR_BG As Long = &H1E1E1E
-Private Const DEV_COLOR_TEXT As Long = &HEBEBEB
-Private Const DEV_COLOR_BORDER As Long = &H505050
-Private Const DEV_COLOR_NOTE_TEXT As Long = &HA8A8A8
-Private Const THEME_BG As Long = &H262626
-Private Const THEME_TEXT As Long = &HEBEBEB
-Private Const THEME_BORDER As Long = &H0
 Private Const MIN_MARKER_WIDTH_UNITS As Double = 4#
 Private Const MIN_CONFIG_DATA_COL_WIDTH_POINTS As Double = 16#
 
@@ -82,70 +75,6 @@ Public Sub m_ClearConfigDataArea(ByVal ws As Worksheet, ByVal tbl As ListObject)
 
     Set clearRange = ws.Range(ws.Cells(topRow, leftCol), ws.Cells(topRow + rowCount - 1, rightCol))
     clearRange.Clear
-End Sub
-
-Public Sub m_ApplySheetThemeToFormerTableTail(ByVal ws As Worksheet, ByVal tbl As ListObject, ByVal previousRowCount As Long, ByVal newRowCount As Long)
-    Dim topRow As Long
-    Dim leftCol As Long
-    Dim rightCol As Long
-    Dim previousBottom As Long
-    Dim newBottom As Long
-    Dim tailRange As Range
-
-    If previousRowCount <= newRowCount Then Exit Sub
-
-    topRow = tbl.HeaderRowRange.Row
-    leftCol = tbl.Range.Column
-    rightCol = leftCol + DEV_CONFIG_COL_COUNT - 1
-    previousBottom = topRow + previousRowCount
-    newBottom = topRow + newRowCount
-    If previousBottom <= newBottom Then Exit Sub
-
-    Set tailRange = ws.Range(ws.Cells(newBottom + 1, leftCol), ws.Cells(previousBottom, rightCol))
-    With tailRange
-        .Interior.Pattern = xlSolid
-        .Interior.Color = THEME_BG
-        .Font.Color = THEME_TEXT
-        .Borders.LineStyle = xlContinuous
-        .Borders.Color = THEME_BORDER
-        .Borders.Weight = xlThin
-    End With
-End Sub
-
-Public Sub m_ApplyConfigTableDarkTheme(ByVal tbl As ListObject)
-    Dim targetRange As Range
-    Dim bodyRange As Range
-
-    On Error Resume Next
-    tbl.TableStyle = vbNullString
-    tbl.ShowTableStyleColumnStripes = False
-    tbl.ShowTableStyleRowStripes = False
-    tbl.ShowTableStyleFirstColumn = False
-    tbl.ShowTableStyleLastColumn = False
-    On Error GoTo 0
-
-    Set targetRange = tbl.Range
-    With targetRange
-        .Interior.Pattern = xlSolid
-        .Interior.Color = DEV_COLOR_BG
-        .Font.Color = DEV_COLOR_TEXT
-        .Font.Bold = False
-        .Borders.LineStyle = xlContinuous
-        .Borders.Color = DEV_COLOR_BORDER
-        .Borders.Weight = xlThin
-    End With
-
-    Set bodyRange = tbl.DataBodyRange
-    If Not bodyRange Is Nothing Then
-        bodyRange.Font.Bold = False
-        bodyRange.Columns(DEV_CONFIG_NOTE_COL).Font.Color = DEV_COLOR_NOTE_TEXT
-    End If
-
-    tbl.HeaderRowRange.Font.Bold = True
-    tbl.HeaderRowRange.Cells(1, DEV_CONFIG_NOTE_COL).Font.Color = DEV_COLOR_TEXT
-    tbl.HeaderRowRange.HorizontalAlignment = xlCenter
-    tbl.HeaderRowRange.VerticalAlignment = xlCenter
-    m_AutoFitConfigColumnsWithinStableZone tbl.Parent, tbl.Range.Column, DEV_CONFIG_COL_COUNT, DEV_CONFIG_MARKER_COL
 End Sub
 
 Public Sub m_AutoFitConfigColumnsWithinStableZone( _
@@ -304,31 +233,78 @@ Public Sub m_ApplyConfigMarkerStyles(ByVal tbl As ListObject)
     Dim markerKind As String
     Dim rowRange As Range
 
+    If tbl Is Nothing Then Exit Sub
     rowCount = m_GetTableDataRowCount(tbl)
-    If rowCount <= 0 Then Exit Sub
 
-    For i = 1 To rowCount
-        Set rowRange = tbl.DataBodyRange.Cells(i, 1).Resize(1, DEV_CONFIG_COL_COUNT)
-        keyText = Trim$(CStr(rowRange.Cells(1, DEV_CONFIG_KEY_COL).Value))
-        markerKind = Trim$(CStr(rowRange.Cells(1, DEV_CONFIG_MARKER_COL).Value))
-        If StrComp(markerKind, DEV_MARKER_SYMBOL, vbTextCompare) <> 0 And Not m_IsMarkerKey(keyText) Then GoTo NextRow
+    If rowCount > 0 Then
+        For i = 1 To rowCount
+            Set rowRange = tbl.DataBodyRange.Cells(i, 1).Resize(1, DEV_CONFIG_COL_COUNT)
+            keyText = Trim$(CStr(rowRange.Cells(1, DEV_CONFIG_KEY_COL).Value))
+            markerKind = Trim$(CStr(rowRange.Cells(1, DEV_CONFIG_MARKER_COL).Value))
+            If StrComp(markerKind, DEV_MARKER_SYMBOL, vbTextCompare) <> 0 And Not m_IsMarkerKey(keyText) Then GoTo NextRow
 
-        rowRange.Cells(1, DEV_CONFIG_MARKER_COL).Value = DEV_MARKER_SYMBOL
-        rowRange.Interior.Pattern = xlSolid
-        rowRange.Interior.Color = RGB(45, 45, 45)
-        rowRange.Font.Color = DEV_COLOR_TEXT
-        rowRange.Font.Bold = False
-        rowRange.Cells(1, DEV_CONFIG_MARKER_COL).Font.Color = DEV_COLOR_TEXT
-
-        If Len(Trim$(CStr(rowRange.Cells(1, DEV_CONFIG_KEY_COL).Value))) > 0 Then
-            rowRange.Cells(1, DEV_CONFIG_KEY_COL).Font.Bold = True
-            rowRange.Cells(1, DEV_CONFIG_KEY_COL).Font.Color = RGB(245, 245, 245)
-        Else
-            rowRange.Cells(1, DEV_CONFIG_VALUE_COL).Value = vbNullString
-            rowRange.Cells(1, DEV_CONFIG_NOTE_COL).Value = vbNullString
-        End If
+            rowRange.Cells(1, DEV_CONFIG_MARKER_COL).Value = DEV_MARKER_SYMBOL
+            If Len(Trim$(CStr(rowRange.Cells(1, DEV_CONFIG_KEY_COL).Value))) = 0 Then
+                rowRange.Cells(1, DEV_CONFIG_VALUE_COL).Value = vbNullString
+                rowRange.Cells(1, DEV_CONFIG_STYLES_COL).Value = vbNullString
+            End If
 NextRow:
+        Next i
+    End If
+
+    mp_ApplyConfigStylesFromPipeline tbl
+End Sub
+
+Private Sub mp_ApplyConfigStylesFromPipeline(ByVal tbl As ListObject)
+    Dim ws As Worksheet
+    Dim rowKindRanges As Object
+    Dim allRows As Collection
+    Dim headerRows As Collection
+    Dim dataRows As Collection
+    Dim markerRows As Collection
+    Dim rowCount As Long
+    Dim i As Long
+    Dim rowIndex As Long
+    Dim markerKind As String
+    Dim keyText As String
+
+    If tbl Is Nothing Then Exit Sub
+    Set ws = tbl.Parent
+    If ws Is Nothing Then Exit Sub
+
+    Set rowKindRanges = CreateObject("Scripting.Dictionary")
+    rowKindRanges.CompareMode = 1
+
+    Set allRows = New Collection
+    Set headerRows = New Collection
+    Set dataRows = New Collection
+    Set markerRows = New Collection
+
+    rowIndex = tbl.HeaderRowRange.Row
+    allRows.Add rowIndex
+    headerRows.Add rowIndex
+
+    rowCount = m_GetTableDataRowCount(tbl)
+    For i = 1 To rowCount
+        rowIndex = tbl.DataBodyRange.Row + i - 1
+        allRows.Add rowIndex
+
+        markerKind = Trim$(CStr(tbl.DataBodyRange.Cells(i, DEV_CONFIG_MARKER_COL).Value))
+        keyText = Trim$(CStr(tbl.DataBodyRange.Cells(i, DEV_CONFIG_KEY_COL).Value))
+        If StrComp(markerKind, DEV_MARKER_SYMBOL, vbTextCompare) = 0 Or m_IsMarkerKey(keyText) Then
+            markerRows.Add rowIndex
+        Else
+            dataRows.Add rowIndex
+        End If
     Next i
+
+    Set rowKindRanges("configall") = allRows
+    Set rowKindRanges("configheader") = headerRows
+    Set rowKindRanges("configdata") = dataRows
+    Set rowKindRanges("configmarker") = markerRows
+
+    ex_OutputFormattingPipeline.m_ApplySheetPipeline ws, Nothing, Nothing, rowKindRanges
+    m_AutoFitConfigColumnsWithinStableZone ws, tbl.Range.Column, DEV_CONFIG_COL_COUNT, DEV_CONFIG_MARKER_COL
 End Sub
 
 Public Sub m_NormalizeLegacyMarkerEntry(ByRef entries As Variant, ByVal rowIndex As Long)
@@ -346,7 +322,7 @@ Public Sub m_NormalizeLegacyMarkerEntry(ByRef entries As Variant, ByVal rowIndex
         entries(rowIndex, DEV_CONFIG_MARKER_COL) = DEV_MARKER_SYMBOL
         entries(rowIndex, DEV_CONFIG_KEY_COL) = valueText
         entries(rowIndex, DEV_CONFIG_VALUE_COL) = vbNullString
-        entries(rowIndex, DEV_CONFIG_NOTE_COL) = vbNullString
+        entries(rowIndex, DEV_CONFIG_STYLES_COL) = vbNullString
         Exit Sub
     End If
 
@@ -354,7 +330,7 @@ Public Sub m_NormalizeLegacyMarkerEntry(ByRef entries As Variant, ByVal rowIndex
         entries(rowIndex, DEV_CONFIG_MARKER_COL) = DEV_MARKER_SYMBOL
         entries(rowIndex, DEV_CONFIG_KEY_COL) = vbNullString
         entries(rowIndex, DEV_CONFIG_VALUE_COL) = vbNullString
-        entries(rowIndex, DEV_CONFIG_NOTE_COL) = vbNullString
+        entries(rowIndex, DEV_CONFIG_STYLES_COL) = vbNullString
     End If
 End Sub
 
@@ -364,12 +340,12 @@ Private Function m_CreateConfigTable(ByVal ws As Worksheet) As ListObject
 
     If Trim$(CStr(ws.Cells(DEV_CONFIG_HEADER_ROW, DEV_CONFIG_MARKER_COL).Value)) <> DEV_MARKER_HEADER Then ws.Cells(DEV_CONFIG_HEADER_ROW, DEV_CONFIG_MARKER_COL).Value = DEV_MARKER_HEADER
     If Trim$(CStr(ws.Cells(DEV_CONFIG_HEADER_ROW, DEV_CONFIG_KEY_COL).Value)) <> "Key" Then ws.Cells(DEV_CONFIG_HEADER_ROW, DEV_CONFIG_KEY_COL).Value = "Key"
-    If Trim$(CStr(ws.Cells(DEV_CONFIG_HEADER_ROW, DEV_CONFIG_NOTE_COL).Value)) <> DEV_HEADER_STYLES Then ws.Cells(DEV_CONFIG_HEADER_ROW, DEV_CONFIG_NOTE_COL).Value = DEV_HEADER_STYLES
+    If Trim$(CStr(ws.Cells(DEV_CONFIG_HEADER_ROW, DEV_CONFIG_STYLES_COL).Value)) <> DEV_HEADER_STYLES Then ws.Cells(DEV_CONFIG_HEADER_ROW, DEV_CONFIG_STYLES_COL).Value = DEV_HEADER_STYLES
 
     lastRow = m_GetLastConfigRow(ws)
     If lastRow < DEV_CONFIG_HEADER_ROW Then lastRow = DEV_CONFIG_HEADER_ROW
 
-    Set rangeToTable = ws.Range(ws.Cells(DEV_CONFIG_HEADER_ROW, DEV_CONFIG_MARKER_COL), ws.Cells(lastRow, DEV_CONFIG_NOTE_COL))
+    Set rangeToTable = ws.Range(ws.Cells(DEV_CONFIG_HEADER_ROW, DEV_CONFIG_MARKER_COL), ws.Cells(lastRow, DEV_CONFIG_STYLES_COL))
 
     On Error Resume Next
     Set m_CreateConfigTable = ws.ListObjects.Add(xlSrcRange, rangeToTable, , xlYes)
@@ -395,14 +371,19 @@ Private Sub m_EnsureConfigTableLayout(ByVal ws As Worksheet, ByVal tbl As ListOb
     Dim i As Long
     Dim oldData As Variant
     Dim migrated() As Variant
-    Dim noteColIndex As Long
+    Dim styleColIndex As Long
+
+    If tbl.HeaderRowRange.Row <> DEV_CONFIG_HEADER_ROW Then
+        Set tbl = mp_RecreateTableAtHeaderRow(ws, tbl)
+        If tbl Is Nothing Then Exit Sub
+    End If
 
     rowCount = m_GetTableDataRowCount(tbl)
     If tbl.ListColumns.Count = DEV_CONFIG_COL_COUNT Then
         tbl.HeaderRowRange.Cells(1, DEV_CONFIG_MARKER_COL).Value = DEV_MARKER_HEADER
         tbl.HeaderRowRange.Cells(1, DEV_CONFIG_KEY_COL).Value = "Key"
-        If Trim$(CStr(tbl.HeaderRowRange.Cells(1, DEV_CONFIG_NOTE_COL).Value)) <> DEV_HEADER_STYLES Then
-            tbl.HeaderRowRange.Cells(1, DEV_CONFIG_NOTE_COL).Value = DEV_HEADER_STYLES
+        If Trim$(CStr(tbl.HeaderRowRange.Cells(1, DEV_CONFIG_STYLES_COL).Value)) <> DEV_HEADER_STYLES Then
+            tbl.HeaderRowRange.Cells(1, DEV_CONFIG_STYLES_COL).Value = DEV_HEADER_STYLES
         End If
         On Error Resume Next
         ex_ConfigProvider.m_RefreshConfigTitle ws
@@ -414,12 +395,12 @@ Private Sub m_EnsureConfigTableLayout(ByVal ws As Worksheet, ByVal tbl As ListOb
         If rowCount > 0 Then
             oldData = tbl.DataBodyRange.Cells(1, 1).Resize(rowCount, 2).Value
             ReDim migrated(1 To rowCount, 1 To DEV_CONFIG_COL_COUNT)
-            noteColIndex = tbl.Range.Column + 2
+            styleColIndex = tbl.Range.Column + 2
             For i = 1 To rowCount
                 migrated(i, DEV_CONFIG_MARKER_COL) = vbNullString
                 migrated(i, DEV_CONFIG_KEY_COL) = CStr(oldData(i, 1))
                 migrated(i, DEV_CONFIG_VALUE_COL) = CStr(oldData(i, 2))
-                migrated(i, DEV_CONFIG_NOTE_COL) = CStr(ws.Cells(tbl.HeaderRowRange.Row + i, noteColIndex).Value)
+                migrated(i, DEV_CONFIG_STYLES_COL) = CStr(ws.Cells(tbl.HeaderRowRange.Row + i, styleColIndex).Value)
                 m_NormalizeLegacyMarkerEntry migrated, i
             Next i
         End If
@@ -427,7 +408,7 @@ Private Sub m_EnsureConfigTableLayout(ByVal ws As Worksheet, ByVal tbl As ListOb
         tbl.Resize ws.Range(ws.Cells(tbl.HeaderRowRange.Row, tbl.Range.Column), ws.Cells(tbl.HeaderRowRange.Row + rowCount, tbl.Range.Column + DEV_CONFIG_COL_COUNT - 1))
         tbl.HeaderRowRange.Cells(1, DEV_CONFIG_MARKER_COL).Value = DEV_MARKER_HEADER
         tbl.HeaderRowRange.Cells(1, DEV_CONFIG_KEY_COL).Value = "Key"
-        tbl.HeaderRowRange.Cells(1, DEV_CONFIG_NOTE_COL).Value = DEV_HEADER_STYLES
+        tbl.HeaderRowRange.Cells(1, DEV_CONFIG_STYLES_COL).Value = DEV_HEADER_STYLES
         On Error Resume Next
         ex_ConfigProvider.m_RefreshConfigTitle ws
         On Error GoTo 0
@@ -438,14 +419,75 @@ Private Sub m_EnsureConfigTableLayout(ByVal ws As Worksheet, ByVal tbl As ListOb
     MsgBox "Unsupported config table layout in '" & DEV_CONFIG_TABLE_NAME & "' (columns: " & CStr(tbl.ListColumns.Count) & ").", vbExclamation
 End Sub
 
+Private Function mp_RecreateTableAtHeaderRow(ByVal ws As Worksheet, ByVal tbl As ListObject) As ListObject
+    Dim tableName As String
+    Dim colCount As Long
+    Dim rowCount As Long
+    Dim leftCol As Long
+    Dim sourceRange As Range
+    Dim targetRange As Range
+    Dim headerValues As Variant
+    Dim bodyValues As Variant
+
+    If ws Is Nothing Or tbl Is Nothing Then Exit Function
+
+    tableName = tbl.Name
+    colCount = tbl.ListColumns.Count
+    rowCount = m_GetTableDataRowCount(tbl)
+    leftCol = tbl.Range.Column
+
+    Set sourceRange = tbl.Range
+    headerValues = tbl.HeaderRowRange.Cells(1, 1).Resize(1, colCount).Value
+    If rowCount > 0 Then
+        bodyValues = tbl.DataBodyRange.Cells(1, 1).Resize(rowCount, colCount).Value
+    End If
+
+    On Error Resume Next
+    tbl.Unlist
+    If Err.Number <> 0 Then
+        MsgBox "Failed to move config table '" & tableName & "' to row " & CStr(DEV_CONFIG_HEADER_ROW) & ": " & Err.Description, vbExclamation
+        Err.Clear
+        On Error GoTo 0
+        Exit Function
+    End If
+    On Error GoTo 0
+
+    sourceRange.Clear
+
+    Set targetRange = ws.Range( _
+        ws.Cells(DEV_CONFIG_HEADER_ROW, leftCol), _
+        ws.Cells(DEV_CONFIG_HEADER_ROW + rowCount, leftCol + colCount - 1) _
+    )
+    targetRange.Clear
+    targetRange.Cells(1, 1).Resize(1, colCount).Value = headerValues
+    If rowCount > 0 Then
+        targetRange.Cells(2, 1).Resize(rowCount, colCount).Value = bodyValues
+    End If
+
+    On Error Resume Next
+    Set mp_RecreateTableAtHeaderRow = ws.ListObjects.Add(xlSrcRange, targetRange, , xlYes)
+    If Err.Number <> 0 Then
+        MsgBox "Failed to recreate config table '" & tableName & "' at row " & CStr(DEV_CONFIG_HEADER_ROW) & ": " & Err.Description, vbExclamation
+        Err.Clear
+        On Error GoTo 0
+        Set mp_RecreateTableAtHeaderRow = Nothing
+        Exit Function
+    End If
+    On Error GoTo 0
+
+    On Error Resume Next
+    mp_RecreateTableAtHeaderRow.Name = tableName
+    On Error GoTo 0
+End Function
+
 Private Function m_GetLastConfigRow(ByVal ws As Worksheet) As Long
     Dim lastKey As Long
     Dim lastValue As Long
 
     lastKey = ws.Cells(ws.Rows.Count, DEV_CONFIG_MARKER_COL).End(xlUp).Row
     lastValue = ws.Cells(ws.Rows.Count, DEV_CONFIG_VALUE_COL).End(xlUp).Row
-    If ws.Cells(ws.Rows.Count, DEV_CONFIG_NOTE_COL).End(xlUp).Row > lastValue Then
-        lastValue = ws.Cells(ws.Rows.Count, DEV_CONFIG_NOTE_COL).End(xlUp).Row
+    If ws.Cells(ws.Rows.Count, DEV_CONFIG_STYLES_COL).End(xlUp).Row > lastValue Then
+        lastValue = ws.Cells(ws.Rows.Count, DEV_CONFIG_STYLES_COL).End(xlUp).Row
     End If
 
     m_GetLastConfigRow = lastKey

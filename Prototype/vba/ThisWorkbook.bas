@@ -2,11 +2,19 @@ Option Explicit
 
 Private Sub Workbook_Open()
     On Error Resume Next
+    ex_Messaging.m_EndWorkbookClose
+    ex_Messaging.m_CancelPendingStatusClear
+    ex_Messaging.m_ClearStatusBar
     Application.Run "ex_Startup.Startup_Open"
     On Error GoTo 0
 End Sub
 
 Private Sub Workbook_BeforeClose(Cancel As Boolean)
+    On Error Resume Next
+    ex_Messaging.m_BeginWorkbookClose
+    ex_Messaging.m_CancelPendingStatusClear
+    ex_Messaging.m_ClearStatusBar
+    On Error GoTo 0
 End Sub
 
 Private Sub Workbook_BeforeSave(ByVal SaveAsUI As Boolean, Cancel As Boolean)

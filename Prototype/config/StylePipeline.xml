@@ -1,8 +1,165 @@
 <?xml version="1.0" standalone="yes"?>
 <stylePipeline xmlns="urn:excelprototype:profiles" version="1">
-  <sheetPipeline page="g_PersonTimeline">
-    <layer id="pc-base" stage="base" priority="100" enabled="true">
+  <sheetPipeline page="Dev">
+    <layer id="dev-base" priority="100" enabled="true">
+      <rule target="range"
+            selector="address=A:XFD"
+            styles="{
+              backColor:#262626;
+              fontColor:#EBEBEB;
+              borderColor:#000000;
+              borderWeight:thin;
+            }"/>
+    </layer>
+
+    <layer id="dev-config-table-base" priority="200" enabled="true">
+      <rule target="row"
+            selector="kind=configall;col=1:4"
+            styles="{
+              backColor:#1E1E1E;
+              fontColor:#EBEBEB;
+              fontBold:false;
+            }"/>
+    </layer>
+
+    <layer id="dev-config-table-header" priority="210" enabled="true">
+      <rule target="row"
+            selector="kind=configheader;col=1:4"
+            styles="{
+              fontBold:true;
+              horizontal:center;
+              vertical:center;
+            }"/>
+    </layer>
+
+    <layer id="dev-config-table-note-column" priority="220" enabled="true">
+      <rule target="row"
+            selector="kind=configdata;col=4"
+            styles="{
+              fontColor:#A8A8A8;
+            }"/>
+    </layer>
+
+    <layer id="dev-config-table-marker" priority="230" enabled="true">
+      <rule target="row"
+            selector="kind=configmarker;col=1:4"
+            styles="{
+              backColor:#2D2D2D;
+              fontColor:#EBEBEB;
+              fontBold:false;
+            }"/>
+      <rule target="row"
+            selector="kind=configmarker;col=2"
+            styles="{
+              fontBold:true;
+              fontColor:#F5F5F5;
+            }"/>
+    </layer>
+  </sheetPipeline>
+  
+  <sheetPipeline page="g_Result">
+    <layer id="tc-base" priority="100" enabled="true">
       <rule target="sheet"
+            styles="{
+              backColor:#222222;
+              fontColor:#EBEBEB;
+              borderColor:#000000;
+              borderWeight:thin;
+            }"/>
+    </layer>
+
+    <layer id="tc-table-base" priority="200" enabled="true">
+      <rule target="row"
+            selector="kind=comparingall"
+            styles="{
+              fontName:'Times New Roman';
+              fontSize:12;
+              horizontal:center;
+              vertical:center;
+              borderColor:#111111;
+              borderWeight:thin;
+            }"/>
+    </layer>
+
+    <layer id="tc-header" priority="210" enabled="true">
+      <rule target="row"
+            selector="kind=comparingheader"
+            styles="{
+              backColor:#222222;
+              fontColor:#68D947;
+              fontBold:true;
+              overflow:wrap;
+              autoHeight:true;
+            }"/>
+    </layer>
+
+    <layer id="tc-data" priority="220" enabled="true">
+      <rule target="row"
+            selector="kind=comparingdata"
+            styles="{
+              backColor:#1E1E1E;
+              fontColor:#EBEBEB;
+              overflow:wrap;
+              rowHeight:20;
+            }"/>
+    </layer>
+
+    <layer id="tc-status-added" priority="230" enabled="true">
+      <rule target="row"
+            selector="kind=statusadded"
+            styles="{
+              backColor:#2E7D32;
+              fontColor:#EBEBEB;
+            }"/>
+    </layer>
+
+    <layer id="tc-status-changed" priority="231" enabled="true">
+      <rule target="row"
+            selector="kind=statuschanged"
+            styles="{
+              backColor:#7B1FA2;
+              fontColor:#EBEBEB;
+            }"/>
+    </layer>
+
+    <layer id="tc-status-removed" priority="232" enabled="true">
+      <rule target="row"
+            selector="kind=statusremoved"
+            styles="{
+              backColor:#B71C1C;
+              fontColor:#EBEBEB;
+            }"/>
+    </layer>
+
+    <layer id="tc-status-default" priority="233" enabled="true">
+      <rule target="row"
+            selector="kind=statusdefault"
+            styles="{
+              backColor:#1E1E1E;
+              fontColor:#EBEBEB;
+            }"/>
+    </layer>
+
+    <layer id="tc-autofit-columns" priority="300" enabled="true">
+      <rule target="sheet"
+            styles="{
+              autoFitColumns:true;
+            }"/>
+    </layer>
+
+    <layer id="tc-clamp-columns" priority="310" enabled="true">
+      <rule target="sheet"
+            styles="{
+              minWidth:5;
+              maxWidth:60;
+            }"/>
+    </layer>
+  </sheetPipeline>
+  
+  <sheetPipeline page="g_PersonTimeline">
+    <layer id="pc-base" priority="100" enabled="true">
+      <rule target="range"
+            selector="address=A:XFD"
             styles="{
               fontName:'Times New Roman';
               fontSize:12;
@@ -11,10 +168,12 @@
               horizontal:center;
               vertical:center;
               rowHeight:20;
+              borderColor:#000000;
+              borderWeight:thin;
             }"/>
     </layer>
 
-    <layer id="pc-output-pre-autofit" stage="output" priority="200" enabled="true">
+    <layer id="pc-output-pre-autofit" priority="200" enabled="true">
       <rule target="row"
             selector="kind=header"
             styles="{
@@ -27,14 +186,14 @@
             }"/>
     </layer>
 
-    <layer id="pc-output-autofit" stage="output" priority="210" enabled="true">
+    <layer id="pc-output-autofit" priority="210" enabled="true">
       <rule target="sheet"
             styles="{
               autoFitColumns:true;
             }"/>
     </layer>
 
-    <layer id="pc-output-clamp-columns" stage="output" priority="220" enabled="true">
+    <layer id="pc-output-clamp-columns" priority="220" enabled="true">
       <rule target="sheet"
             styles="{
               minWidth:5;
@@ -42,7 +201,7 @@
             }"/>
     </layer>
 
-    <layer id="pc-output-section" stage="output" priority="230" enabled="true">
+    <layer id="pc-output-section" priority="230" enabled="true">
       <rule target="row"
             selector="kind=section"
             styles="{
@@ -55,7 +214,7 @@
             }"/>
     </layer>
 
-    <layer id="pc-output-header" stage="output" priority="240" enabled="true">
+    <layer id="pc-output-header" priority="240" enabled="true">
       <rule target="row"
             selector="kind=header"
             styles="{
@@ -67,7 +226,7 @@
             }"/>
     </layer>
 
-    <layer id="pc-output-content" stage="output" priority="250" enabled="true">
+    <layer id="pc-output-content" priority="250" enabled="true">
       <rule target="row"
             selector="kind=content"
             styles="{
@@ -78,7 +237,7 @@
             }"/>
     </layer>
 
-    <layer id="pc-output-docnote" stage="columnStyles" priority="300" enabled="true">
+    <layer id="pc-output-docnote" priority="300" enabled="true">
       <rule target="column"
             selector="mapKey=Daily.Sheet[DailyEvents].Map[DocNote]"
             styles="{
@@ -88,15 +247,15 @@
             }"/>
     </layer>
 
-    <layer id="pc-postlayout" stage="postLayout" priority="400" enabled="true">
+    <layer id="pc-postlayout" priority="400" enabled="true">
       <rule target="row"
-            selector="kind=confignote"
+            selector="kind=configstyle"
             styles="{
               autoHeight:true;
             }"/>
     </layer>
 
-    <layer id="pc-partialmatch-autoheight" stage="partialMatchAutoHeight" priority="480" enabled="true">
+    <layer id="pc-partialmatch-autoheight" priority="480" enabled="true">
       <rule target="row"
             selector="kind=partialmatch"
             styles="{
@@ -104,6 +263,6 @@
             }"/>
     </layer>
 
-    <layer id="pc-postwarnings" stage="postWarnings" priority="500" enabled="true"/>
+    <layer id="pc-postwarnings" priority="500" enabled="true"/>
   </sheetPipeline>
 </stylePipeline>

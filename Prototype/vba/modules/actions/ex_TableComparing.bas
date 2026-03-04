@@ -12,10 +12,6 @@ Public Sub m_RunComparing()
         Exit Sub
     End If
 
-    If Not ex_SheetStylesXmlProvider.m_EnsureInitialized(ThisWorkbook) Then
-        Err.Raise vbObjectError + 2201, "ex_TableComparing", "Failed to initialize style registry."
-    End If
-
     keyColumnName = mp_GetKeyColumnFromConfig()
     If Len(keyColumnName) = 0 Then
         keyColumnName = "Id"
@@ -401,18 +397,9 @@ Private Sub mp_WriteComparingResultSheet(ByVal tableData As Variant)
     Dim startRow As Long
     Dim fullRowCount As Long
     Dim targetRange As Range
-    Dim outputStyle As t_OutputSheetStyle
-    Dim baseStyle As t_BaseSheetStyle
-    Dim hasOutputStyle As Boolean
+    Dim rowKindRanges As Object
 
     On Error GoTo EH
-
-    If Not ex_SheetStylesXmlProvider.m_EnsureInitialized(ThisWorkbook) Then
-        MsgBox "Не удалось инициализировать реестр стилей.", vbExclamation
-        Exit Sub
-    End If
-    If Not ex_SheetStylesXmlProvider.m_GetBaseSheetStyle(baseStyle, ThisWorkbook) Then Exit Sub
-    hasOutputStyle = ex_SheetStylesXmlProvider.m_GetOutputSheetStyle(outputStyle, ThisWorkbook)
 
     Set ws = mp_GetOrCreateResultWorksheet("Result")
     ws.Cells.Clear
@@ -421,17 +408,14 @@ Private Sub mp_WriteComparingResultSheet(ByVal tableData As Variant)
     dataRows = UBound(tableData, 1)
     colCount = UBound(tableData, 2)
     startRow = 1
-    If hasOutputStyle Then
-        startRow = ex_SheetStylesXmlProvider.m_GetOutputViewStartRow(ThisWorkbook)
-    End If
     fullRowCount = startRow + dataRows - 1
 
     Set targetRange = ws.Range(ws.Cells(startRow, 1), ws.Cells(fullRowCount, colCount))
     targetRange.Value = tableData
 
-    ex_OutputFormattingPipeline.m_FormatAsTable ws, startRow, dataRows, colCount
-    ex_OutputFormattingPipeline.m_ApplyComparingStyleLayers ws, startRow, dataRows, colCount, baseStyle, outputStyle, hasOutputStyle
-    ex_OutputFormattingPipeline.m_ApplyOutputPanelLayers ws, outputStyle, hasOutputStyle, startRow, fullRowCount, colCount
+    mp_ApplyResultAutoFilter ws, startRow, dataRows, colCount
+    Set rowKindRanges = mp_BuildComparingRowKindRanges(tableData, startRow)
+    ex_OutputFormattingPipeline.m_ApplySheetPipeline ws, Nothing, Nothing, rowKindRanges, "TablesComparing"
 
     Exit Sub
 EH:
@@ -453,6 +437,88 @@ Private Function mp_GetOrCreateResultWorksheet(ByVal sheetName As String) As Wor
 
     Set ws = ThisWorkbook.Worksheets.Add(After:=ThisWorkbook.Worksheets(ThisWorkbook.Worksheets.Count))
     ws.Name = fullName
-    ex_SheetStylesXmlProvider.m_ApplyDefaultSheetView ws
     Set mp_GetOrCreateResultWorksheet = ws
+End Function
+
+Private Sub mp_ApplyResultAutoFilter( _
+    ByVal ws As Worksheet, _
+    ByVal startRow As Long, _
+    ByVal rowCount As Long, _
+    ByVal colCount As Long _
+)
+    Dim tableRange As Range
+
+    If ws Is Nothing Then Exit Sub
+    If startRow < 1 Then Exit Sub
+    If rowCount < 1 Then Exit Sub
+    If colCount < 1 Then Exit Sub
+
+    Set tableRange = ws.Range(ws.Cells(startRow, 1), ws.Cells(startRow + rowCount - 1, colCount))
+    tableRange.AutoFilter
+End Sub
+
+Private Function mp_BuildComparingRowKindRanges( _
+    ByVal tableData As Variant, _
+    ByVal startRow As Long _
+) As Object
+    Dim rowKindRanges As Object
+    Dim allRows As Collection
+    Dim headerRows As Collection
+    Dim dataRows As Collection
+    Dim statusAddedRows As Collection
+    Dim statusChangedRows As Collection
+    Dim statusRemovedRows As Collection
+    Dim statusDefaultRows As Collection
+    Dim totalRows As Long
+    Dim tableRow As Long
+    Dim sheetRow As Long
+    Dim statusValue As String
+
+    Set rowKindRanges = CreateObject("Scripting.Dictionary")
+    rowKindRanges.CompareMode = 1
+
+    Set allRows = New Collection
+    Set headerRows = New Collection
+    Set dataRows = New Collection
+    Set statusAddedRows = New Collection
+    Set statusChangedRows = New Collection
+    Set statusRemovedRows = New Collection
+    Set statusDefaultRows = New Collection
+
+    totalRows = UBound(tableData, 1)
+    If totalRows <= 0 Then
+        Set mp_BuildComparingRowKindRanges = rowKindRanges
+        Exit Function
+    End If
+
+    allRows.Add startRow
+    headerRows.Add startRow
+
+    For tableRow = 2 To totalRows
+        sheetRow = startRow + tableRow - 1
+        allRows.Add sheetRow
+        dataRows.Add sheetRow
+
+        statusValue = LCase$(Trim$(CStr(tableData(tableRow, 2))))
+        Select Case statusValue
+            Case "added"
+                statusAddedRows.Add sheetRow
+            Case "changed"
+                statusChangedRows.Add sheetRow
+            Case "removed"
+                statusRemovedRows.Add sheetRow
+            Case Else
+                statusDefaultRows.Add sheetRow
+        End Select
+    Next tableRow
+
+    Set rowKindRanges("comparingall") = allRows
+    Set rowKindRanges("comparingheader") = headerRows
+    Set rowKindRanges("comparingdata") = dataRows
+    Set rowKindRanges("statusadded") = statusAddedRows
+    Set rowKindRanges("statuschanged") = statusChangedRows
+    Set rowKindRanges("statusremoved") = statusRemovedRows
+    Set rowKindRanges("statusdefault") = statusDefaultRows
+
+    Set mp_BuildComparingRowKindRanges = rowKindRanges
 End Function

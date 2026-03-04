@@ -22,19 +22,13 @@ Private Const DEV_MARKER_HEADER As String = ".."
 Private Const DEV_COL_MARKER As Long = 1
 Private Const DEV_COL_KEY As Long = 2
 Private Const DEV_COL_VALUE As Long = 3
-Private Const DEV_COL_NOTE As Long = 4
+Private Const DEV_COL_STYLES As Long = 4
 Private Const DEV_HEADER_STYLES As String = "Styles"
 Private Const CONFIG_TITLE_TEMPLATE As String = "Config [profile = <CURRENT_PROFILE>]"
 
 Private Const CONFIG_TOP As Long = 1
 Private Const CONFIG_LEFT As Long = 1
-Private Const CONFIG_ROWS As Long = 8
 Private Const CONFIG_COLS As Long = 4
-
-' Цвета (согласованы с темой результатов)
-Private Const COLOR_BG As Long = &H1E1E1E
-Private Const COLOR_TEXT As Long = &HEBEBEB
-Private Const COLOR_BORDER As Long = &H505050
 
 ' =============================================================================
 ' Public API
@@ -42,12 +36,18 @@ Private Const COLOR_BORDER As Long = &H505050
 
 Public Sub m_OpenConfigOnDev()
     Dim wsDev As Worksheet
+    Dim tbl As ListObject
 
     Set wsDev = mp_EnsureDevSheet()
+    ex_OutputFormattingPipeline.m_ApplySheetPipeline wsDev
     mp_EnsureConfigArea wsDev
+    Set tbl = ex_ConfigTableStore.m_GetConfigTable(wsDev, False)
+    If Not tbl Is Nothing Then
+        ex_ConfigTableStore.m_ApplyConfigMarkerStyles tbl
+    End If
 
     wsDev.Activate
-    wsDev.Cells(CONFIG_TOP + 2, CONFIG_LEFT + 1).Select
+    wsDev.Cells(CONFIG_TOP + 1, CONFIG_LEFT + 1).Select
 End Sub
 
 ' Читает значение конфигурации по ключу из таблицы `tblDevConfig`.
@@ -118,7 +118,7 @@ Public Function m_GetConfigValue( _
     m_GetConfigValue = defaultValue
 End Function
 
-Public Function m_GetConfigNote( _
+Public Function m_GetConfigStyle( _
     ByVal keyName As String, _
     Optional ByVal defaultValue As String = vbNullString _
 ) As String
@@ -129,29 +129,29 @@ Public Function m_GetConfigNote( _
     Dim r As Long
     Dim markerText As String
     Dim keyText As String
-    Dim noteText As String
+    Dim styleText As String
     Dim keyCol As Long
     Dim markerCol As Long
-    Dim noteCol As Long
+    Dim styleCol As Long
 
     Set wsDev = mp_EnsureDevSheet()
     mp_EnsureConfigArea wsDev
 
     Set cfgTable = mp_GetConfigTable(wsDev, True)
     If cfgTable Is Nothing Then
-        m_GetConfigNote = defaultValue
+        m_GetConfigStyle = defaultValue
         Exit Function
     End If
 
     If cfgTable.DataBodyRange Is Nothing Then
-        m_GetConfigNote = defaultValue
+        m_GetConfigStyle = defaultValue
         Exit Function
     End If
 
     Set dataRange = cfgTable.DataBodyRange
     keyCol = DEV_COL_KEY
     markerCol = DEV_COL_MARKER
-    noteCol = DEV_COL_NOTE
+    styleCol = DEV_COL_STYLES
 
     For r = 1 To dataRange.Rows.Count
         markerText = vbNullString
@@ -162,25 +162,25 @@ Public Function m_GetConfigNote( _
 
         If StrComp(markerText, DEV_MARKER_SYMBOL, vbTextCompare) <> 0 Then
             If StrComp(keyText, keyName, vbTextCompare) = 0 Then
-                noteText = CStr(dataRange.Cells(r, noteCol).Value)
-                If Len(noteText) = 0 Then
-                    m_GetConfigNote = defaultValue
+                styleText = CStr(dataRange.Cells(r, styleCol).Value)
+                If Len(styleText) = 0 Then
+                    m_GetConfigStyle = defaultValue
                 Else
-                    m_GetConfigNote = noteText
+                    m_GetConfigStyle = styleText
                 End If
                 Exit Function
             End If
         End If
     Next r
 
-    m_GetConfigNote = defaultValue
+    m_GetConfigStyle = defaultValue
 End Function
 
-Public Function m_GetConfigNotesDictionary() As Object
+Public Function m_GetConfigStylesDictionary() As Object
     Dim wsDev As Worksheet
     Dim cfgTable As ListObject
     Dim dataRange As Range
-    Dim notesDict As Object
+    Dim stylesDict As Object
     Dim r As Long
     Dim markerText As String
     Dim keyText As String
@@ -190,17 +190,17 @@ Public Function m_GetConfigNotesDictionary() As Object
 
     Set cfgTable = mp_GetConfigTable(wsDev, True)
     If cfgTable Is Nothing Then
-        Set notesDict = CreateObject("Scripting.Dictionary")
-        notesDict.CompareMode = 1
-        Set m_GetConfigNotesDictionary = notesDict
+        Set stylesDict = CreateObject("Scripting.Dictionary")
+        stylesDict.CompareMode = 1
+        Set m_GetConfigStylesDictionary = stylesDict
         Exit Function
     End If
 
-    Set notesDict = CreateObject("Scripting.Dictionary")
-    notesDict.CompareMode = 1
+    Set stylesDict = CreateObject("Scripting.Dictionary")
+    stylesDict.CompareMode = 1
 
     If cfgTable.DataBodyRange Is Nothing Then
-        Set m_GetConfigNotesDictionary = notesDict
+        Set m_GetConfigStylesDictionary = stylesDict
         Exit Function
     End If
 
@@ -216,12 +216,12 @@ Public Function m_GetConfigNotesDictionary() As Object
             GoTo ContinueRow
         End If
 
-        notesDict(keyText) = CStr(dataRange.Cells(r, DEV_COL_NOTE).Value)
+        stylesDict(keyText) = CStr(dataRange.Cells(r, DEV_COL_STYLES).Value)
 
 ContinueRow:
     Next r
 
-    Set m_GetConfigNotesDictionary = notesDict
+    Set m_GetConfigStylesDictionary = stylesDict
 End Function
 
 Public Sub m_SetConfigValue( _
@@ -299,9 +299,9 @@ Public Sub m_SetConfigValue( _
     newRow.Range.Cells(1, valueCol).Value = valueText
 End Sub
 
-Public Sub m_SetConfigNote( _
+Public Sub m_SetConfigStyle( _
     ByVal keyName As String, _
-    ByVal noteText As String, _
+    ByVal styleText As String, _
     Optional ByVal createIfMissing As Boolean = False _
 )
     Dim wsDev As Worksheet
@@ -310,7 +310,7 @@ Public Sub m_SetConfigNote( _
     Dim keyCol As Long
     Dim valueCol As Long
     Dim markerCol As Long
-    Dim noteCol As Long
+    Dim styleCol As Long
     Dim r As Long
     Dim markerText As String
     Dim keyText As String
@@ -334,7 +334,7 @@ Public Sub m_SetConfigNote( _
     keyCol = DEV_COL_KEY
     valueCol = DEV_COL_VALUE
     markerCol = DEV_COL_MARKER
-    noteCol = DEV_COL_NOTE
+    styleCol = DEV_COL_STYLES
 
     If Not cfgTable.DataBodyRange Is Nothing Then
         Set dataRange = cfgTable.DataBodyRange
@@ -346,7 +346,7 @@ Public Sub m_SetConfigNote( _
             keyText = Trim$(CStr(dataRange.Cells(r, keyCol).Value))
             If StrComp(markerText, DEV_MARKER_SYMBOL, vbTextCompare) <> 0 Then
                 If StrComp(keyText, keyName, vbTextCompare) = 0 Then
-                    dataRange.Cells(r, noteCol).Value = noteText
+                    dataRange.Cells(r, styleCol).Value = styleText
                     Exit Sub
                 End If
             End If
@@ -369,7 +369,7 @@ Public Sub m_SetConfigNote( _
     End If
     newRow.Range.Cells(1, keyCol).Value = keyName
     newRow.Range.Cells(1, valueCol).Value = vbNullString
-    newRow.Range.Cells(1, noteCol).Value = noteText
+    newRow.Range.Cells(1, styleCol).Value = styleText
 End Sub
 
 ' Обновляет служебный текст в заголовке 3-й колонки таблицы.
@@ -403,8 +403,6 @@ Public Sub m_RefreshConfigTitle( _
 
     Set titleCell = cfgTable.HeaderRowRange.Cells(1, DEV_COL_VALUE)
     titleCell.Value = Replace(CONFIG_TITLE_TEMPLATE, "<CURRENT_PROFILE>", resolvedProfile)
-    titleCell.Font.Bold = True
-    titleCell.HorizontalAlignment = xlCenter
 End Sub
 
 ' =============================================================================
@@ -428,22 +426,22 @@ End Function
 Private Sub mp_EnsureConfigArea(ByVal wsDev As Worksheet)
     Dim cfgTable As ListObject
 
-    Set cfgTable = mp_GetConfigTable(wsDev, False)
+    Set cfgTable = ex_ConfigTableStore.m_GetConfigTable(wsDev, False)
     If Not cfgTable Is Nothing Then
         m_RefreshConfigTitle wsDev
         Exit Sub
     End If
 	
-    If Trim$(CStr(wsDev.Cells(CONFIG_TOP + 1, CONFIG_LEFT).Value)) = "Key" And _
-       Trim$(CStr(wsDev.Cells(CONFIG_TOP + 1, CONFIG_LEFT + 1).Value)) = "Value" Then
+    If Trim$(CStr(wsDev.Cells(CONFIG_TOP, CONFIG_LEFT).Value)) = "Key" And _
+       Trim$(CStr(wsDev.Cells(CONFIG_TOP, CONFIG_LEFT + 1).Value)) = "Value" Then
         mp_EnsureConfigTable wsDev
         Exit Sub
     End If
 
-    If Trim$(CStr(wsDev.Cells(CONFIG_TOP + 1, CONFIG_LEFT + DEV_COL_MARKER - 1).Value)) = DEV_MARKER_HEADER And _
-       Trim$(CStr(wsDev.Cells(CONFIG_TOP + 1, CONFIG_LEFT + DEV_COL_KEY - 1).Value)) = "Key" And _
-       mp_IsConfigTitleHeader(CStr(wsDev.Cells(CONFIG_TOP + 1, CONFIG_LEFT + DEV_COL_VALUE - 1).Value)) And _
-       Trim$(CStr(wsDev.Cells(CONFIG_TOP + 1, CONFIG_LEFT + DEV_COL_NOTE - 1).Value)) = DEV_HEADER_STYLES Then
+    If Trim$(CStr(wsDev.Cells(CONFIG_TOP, CONFIG_LEFT + DEV_COL_MARKER - 1).Value)) = DEV_MARKER_HEADER And _
+       Trim$(CStr(wsDev.Cells(CONFIG_TOP, CONFIG_LEFT + DEV_COL_KEY - 1).Value)) = "Key" And _
+       mp_IsConfigTitleHeader(CStr(wsDev.Cells(CONFIG_TOP, CONFIG_LEFT + DEV_COL_VALUE - 1).Value)) And _
+       Trim$(CStr(wsDev.Cells(CONFIG_TOP, CONFIG_LEFT + DEV_COL_STYLES - 1).Value)) = DEV_HEADER_STYLES Then
         mp_EnsureConfigTable wsDev
         Exit Sub
     End If
@@ -467,29 +465,29 @@ Private Sub mp_EnsureConfigTable(ByVal wsDev As Worksheet)
     Set cfgTable = mp_GetConfigTable(wsDev, False)
     If Not cfgTable Is Nothing Then Exit Sub
 
-    isLegacyHeaders = (Trim$(CStr(wsDev.Cells(CONFIG_TOP + 1, CONFIG_LEFT).Value)) = "Key" And _
-                       Trim$(CStr(wsDev.Cells(CONFIG_TOP + 1, CONFIG_LEFT + 1).Value)) = "Value")
+    isLegacyHeaders = (Trim$(CStr(wsDev.Cells(CONFIG_TOP, CONFIG_LEFT).Value)) = "Key" And _
+                       Trim$(CStr(wsDev.Cells(CONFIG_TOP, CONFIG_LEFT + 1).Value)) = "Value")
 
     lastRow = wsDev.Cells(wsDev.Rows.Count, CONFIG_LEFT).End(xlUp).Row
     If wsDev.Cells(wsDev.Rows.Count, CONFIG_LEFT + 1).End(xlUp).Row > lastRow Then
         lastRow = wsDev.Cells(wsDev.Rows.Count, CONFIG_LEFT + 1).End(xlUp).Row
     End If
-    If Not isLegacyHeaders And wsDev.Cells(wsDev.Rows.Count, CONFIG_LEFT + DEV_COL_NOTE - 1).End(xlUp).Row > lastRow Then
-        lastRow = wsDev.Cells(wsDev.Rows.Count, CONFIG_LEFT + DEV_COL_NOTE - 1).End(xlUp).Row
+    If Not isLegacyHeaders And wsDev.Cells(wsDev.Rows.Count, CONFIG_LEFT + DEV_COL_STYLES - 1).End(xlUp).Row > lastRow Then
+        lastRow = wsDev.Cells(wsDev.Rows.Count, CONFIG_LEFT + DEV_COL_STYLES - 1).End(xlUp).Row
     End If
-    If lastRow < CONFIG_TOP + 1 Then
-        lastRow = CONFIG_TOP + 1
+    If lastRow < CONFIG_TOP Then
+        lastRow = CONFIG_TOP
     End If
 
     If isLegacyHeaders Then
         Set tableRange = wsDev.Range( _
-            wsDev.Cells(CONFIG_TOP + 1, CONFIG_LEFT), _
+            wsDev.Cells(CONFIG_TOP, CONFIG_LEFT), _
             wsDev.Cells(lastRow, CONFIG_LEFT + 1) _
         )
     Else
         Set tableRange = wsDev.Range( _
-            wsDev.Cells(CONFIG_TOP + 1, CONFIG_LEFT), _
-            wsDev.Cells(lastRow, CONFIG_LEFT + DEV_COL_NOTE - 1) _
+            wsDev.Cells(CONFIG_TOP, CONFIG_LEFT), _
+            wsDev.Cells(lastRow, CONFIG_LEFT + DEV_COL_STYLES - 1) _
         )
     End If
 
@@ -525,55 +523,41 @@ Private Function mp_GetConfigTable(ByVal wsDev As Worksheet, Optional ByVal crea
 End Function
 
 Private Sub mp_RenderConfigArea(ByVal wsDev As Worksheet)
-    Dim rng As Range
-    Dim headerRange As Range
+    Dim clearRange As Range
+    Dim lastRow As Long
 
-    Set rng = mp_GetConfigRange(wsDev)
-    rng.Clear
+    lastRow = wsDev.Cells(wsDev.Rows.Count, CONFIG_LEFT).End(xlUp).Row
+    If wsDev.Cells(wsDev.Rows.Count, CONFIG_LEFT + 1).End(xlUp).Row > lastRow Then
+        lastRow = wsDev.Cells(wsDev.Rows.Count, CONFIG_LEFT + 1).End(xlUp).Row
+    End If
+    If wsDev.Cells(wsDev.Rows.Count, CONFIG_LEFT + DEV_COL_STYLES - 1).End(xlUp).Row > lastRow Then
+        lastRow = wsDev.Cells(wsDev.Rows.Count, CONFIG_LEFT + DEV_COL_STYLES - 1).End(xlUp).Row
+    End If
+    If lastRow < CONFIG_TOP + 6 Then
+        lastRow = CONFIG_TOP + 6
+    End If
+    Set clearRange = wsDev.Range( _
+        wsDev.Cells(CONFIG_TOP, CONFIG_LEFT), _
+        wsDev.Cells(lastRow, CONFIG_LEFT + DEV_COL_STYLES - 1) _
+    )
+    clearRange.Clear
 
     ' Header
-    Set headerRange = wsDev.Range(wsDev.Cells(CONFIG_TOP + 1, CONFIG_LEFT), _
-                                  wsDev.Cells(CONFIG_TOP + 1, CONFIG_LEFT + DEV_COL_NOTE - 1))
-    wsDev.Cells(CONFIG_TOP + 1, CONFIG_LEFT + DEV_COL_MARKER - 1).Value = DEV_MARKER_HEADER
-    wsDev.Cells(CONFIG_TOP + 1, CONFIG_LEFT + DEV_COL_KEY - 1).Value = "Key"
-    wsDev.Cells(CONFIG_TOP + 1, CONFIG_LEFT + DEV_COL_NOTE - 1).Value = DEV_HEADER_STYLES
+    wsDev.Cells(CONFIG_TOP, CONFIG_LEFT + DEV_COL_MARKER - 1).Value = DEV_MARKER_HEADER
+    wsDev.Cells(CONFIG_TOP, CONFIG_LEFT + DEV_COL_KEY - 1).Value = "Key"
+    wsDev.Cells(CONFIG_TOP, CONFIG_LEFT + DEV_COL_STYLES - 1).Value = DEV_HEADER_STYLES
     m_RefreshConfigTitle wsDev
-    headerRange.Font.Bold = True
-    headerRange.HorizontalAlignment = xlCenter
-    headerRange.VerticalAlignment = xlCenter
 
     ' Keys (стартовые)
-    wsDev.Cells(CONFIG_TOP + 2, CONFIG_LEFT + DEV_COL_KEY - 1).Value = "StateFilePath"
-    wsDev.Cells(CONFIG_TOP + 3, CONFIG_LEFT + DEV_COL_KEY - 1).Value = "StateTableName"
-    wsDev.Cells(CONFIG_TOP + 4, CONFIG_LEFT + DEV_COL_KEY - 1).Value = "EventsFilePath"
-    wsDev.Cells(CONFIG_TOP + 5, CONFIG_LEFT + DEV_COL_KEY - 1).Value = "EventsTableName"
-    wsDev.Cells(CONFIG_TOP + 6, CONFIG_LEFT + DEV_COL_KEY - 1).Value = "KeyColumnName"
-    wsDev.Cells(CONFIG_TOP + 6, CONFIG_LEFT + DEV_COL_VALUE - 1).Value = "Id"
-    wsDev.Cells(CONFIG_TOP + 7, CONFIG_LEFT + DEV_COL_KEY - 1).Value = "PersonFIO"
+    wsDev.Cells(CONFIG_TOP + 1, CONFIG_LEFT + DEV_COL_KEY - 1).Value = "StateFilePath"
+    wsDev.Cells(CONFIG_TOP + 2, CONFIG_LEFT + DEV_COL_KEY - 1).Value = "StateTableName"
+    wsDev.Cells(CONFIG_TOP + 3, CONFIG_LEFT + DEV_COL_KEY - 1).Value = "EventsFilePath"
+    wsDev.Cells(CONFIG_TOP + 4, CONFIG_LEFT + DEV_COL_KEY - 1).Value = "EventsTableName"
+    wsDev.Cells(CONFIG_TOP + 5, CONFIG_LEFT + DEV_COL_KEY - 1).Value = "KeyColumnName"
+    wsDev.Cells(CONFIG_TOP + 5, CONFIG_LEFT + DEV_COL_VALUE - 1).Value = "Id"
+    wsDev.Cells(CONFIG_TOP + 6, CONFIG_LEFT + DEV_COL_KEY - 1).Value = "PersonFIO"
 
     ex_ConfigTableStore.m_AutoFitConfigColumnsWithinStableZone wsDev, CONFIG_LEFT, CONFIG_COLS, DEV_COL_MARKER
-
-    mp_ApplyDarkThemeToRange rng
-End Sub
-
-Private Function mp_GetConfigRange(ByVal wsDev As Worksheet) As Range
-    Set mp_GetConfigRange = wsDev.Range( _
-        wsDev.Cells(CONFIG_TOP, CONFIG_LEFT), _
-        wsDev.Cells(CONFIG_TOP + CONFIG_ROWS - 1, CONFIG_LEFT + CONFIG_COLS - 1) _
-    )
-End Function
-
-Private Sub mp_ApplyDarkThemeToRange(ByVal target As Range)
-    With target
-        .Interior.Pattern = xlSolid
-        .Interior.Color = COLOR_BG
-
-        .Font.Color = COLOR_TEXT
-
-        .Borders.LineStyle = xlContinuous
-        .Borders.Color = COLOR_BORDER
-        .Borders.Weight = xlThin
-    End With
 End Sub
 
 Private Function mp_NormalizePath(ByVal inputPath As String) As String

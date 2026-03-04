@@ -4,6 +4,33 @@ Option Explicit
 Private Const TIMELINE_MIN_COLUMN_WIDTH As Double = 5#
 Private Const TIMELINE_MAX_COLUMN_WIDTH As Double = 30#
 
+Public Sub m_ApplySheetPipeline( _
+    ByVal ws As Worksheet, _
+    Optional ByVal resultFieldRanges As Collection = Nothing, _
+    Optional ByVal cfgStyles As Object = Nothing, _
+    Optional ByVal rowKindRanges As Object = Nothing, _
+    Optional ByVal activeModeKey As String = vbNullString _
+)
+    Dim resolvedModeKey As String
+    Dim pipeline As Collection
+
+    If ws Is Nothing Then Exit Sub
+
+    resolvedModeKey = Trim$(activeModeKey)
+    If Len(resolvedModeKey) = 0 Then
+        resolvedModeKey = ex_ConfigProfilesManager.m_GetActiveModeKey(ws_Dev)
+    End If
+
+    Set pipeline = ex_StylePipelineEngine.m_BuildColumnStylesPipeline( _
+        resultFieldRanges, _
+        cfgStyles, _
+        resolvedModeKey, _
+        ThisWorkbook, _
+        ws.Name _
+    )
+    ex_StylePipelineEngine.m_ApplyColumnStylesPipeline ws, resultFieldRanges, pipeline, resolvedModeKey, rowKindRanges
+End Sub
+
 Public Sub m_FormatAsTable(ByVal ws As Worksheet, ByVal startRow As Long, ByVal rowCount As Long, ByVal colCount As Long)
     Dim headerRange As Range
     Dim allRange As Range
@@ -56,54 +83,23 @@ Public Sub m_ApplyTimelineStyleLayers( _
     ByVal ws As Worksheet, _
     ByVal headerRows As Collection, _
     ByVal sectionRows As Collection, _
-    Optional ByVal resultFieldRanges As Collection = Nothing _
+    Optional ByVal resultFieldRanges As Collection = Nothing, _
+    Optional ByVal cfgStyles As Object = Nothing, _
+    Optional ByVal partialMatchRowRanges As Collection = Nothing _
 )
-    Dim workflowSteps As Collection
-    Dim stepName As Variant
-    Dim activeModeKey As String
-    Dim pageName As String
     Dim rowKindRanges As Object
+    Dim configRowKindRanges As Object
+    Dim partialRowKindRanges As Object
 
     If ws Is Nothing Then Exit Sub
-    pageName = Trim$(ws.Name)
-    activeModeKey = ex_ConfigProfilesManager.m_GetActiveModeKey(ws_Dev)
-    If Not ex_StylePipelineEngine.m_GetRenderWorkflowStepOrder(pageName, "personalCardTimeline", workflowSteps, ThisWorkbook) Then
-        Err.Raise vbObjectError + 1737, "ex_OutputFormattingPipeline", _
-            "Failed to resolve style workflow steps for workflow 'personalCardTimeline' and page '" & pageName & "'."
-    End If
 
     Set rowKindRanges = mp_BuildTimelineRowKindRanges(headerRows, sectionRows, resultFieldRanges)
+    Set configRowKindRanges = mp_BuildConfigStyleRowKindRanges(resultFieldRanges, cfgStyles)
+    Set partialRowKindRanges = mp_BuildPartialMatchRowKindRanges(partialMatchRowRanges)
+    mp_MergeRowKindRanges rowKindRanges, configRowKindRanges
+    mp_MergeRowKindRanges rowKindRanges, partialRowKindRanges
 
-    For Each stepName In workflowSteps
-        Select Case LCase$(Trim$(CStr(stepName)))
-            Case "base"
-                mp_ApplyTimelineStageRules ws, activeModeKey, "base", resultFieldRanges, rowKindRanges
-            Case "output"
-                mp_ApplyTimelineStageRules ws, activeModeKey, "output", resultFieldRanges, rowKindRanges
-            Case Else
-                Err.Raise vbObjectError + 1734, "ex_OutputFormattingPipeline", _
-                    "Unsupported workflow step '" & CStr(stepName) & "' in workflow 'personalCardTimeline'."
-        End Select
-    Next stepName
-End Sub
-
-Private Sub mp_ApplyTimelineStageRules( _
-    ByVal ws As Worksheet, _
-    ByVal activeModeKey As String, _
-    ByVal stageName As String, _
-    Optional ByVal resultFieldRanges As Collection = Nothing, _
-    Optional ByVal rowKindRanges As Object = Nothing _
-)
-    Dim stagePipeline As Collection
-
-    If ws Is Nothing Then Exit Sub
-    If Len(Trim$(stageName)) = 0 Then Exit Sub
-
-    Set stagePipeline = ex_StylePipelineEngine.m_LoadSheetPipelineStageLayers(ws.Name, stageName, ThisWorkbook)
-    If stagePipeline Is Nothing Then Exit Sub
-    If stagePipeline.Count = 0 Then Exit Sub
-
-    ex_StylePipelineEngine.m_ApplyColumnStylesPipeline ws, resultFieldRanges, stagePipeline, activeModeKey, rowKindRanges
+    m_ApplySheetPipeline ws, resultFieldRanges, cfgStyles, rowKindRanges
 End Sub
 
 Public Sub m_ApplyOutputPanelLayers( _
@@ -119,112 +115,6 @@ Public Sub m_ApplyOutputPanelLayers( _
 
     ex_OutputPanel.m_RenderForSheet ws, outputStyle
     ex_OutputPanel.m_ApplyFixedWidthViewZoneLayer ws, outputStyle, viewStartRow, viewEndRow, viewColCount
-End Sub
-
-Public Sub m_ApplyConfigNoteStyleLayer( _
-    ByVal ws As Worksheet, _
-    ByVal resultFieldRanges As Collection, _
-    ByVal cfgNotes As Object _
-)
-    Dim styleTagsByMapKey As Object
-    Dim activeModeKey As String
-    Dim pipeline As Collection
-
-    If ws Is Nothing Then Exit Sub
-    If resultFieldRanges Is Nothing Then Exit Sub
-    If cfgNotes Is Nothing Then Exit Sub
-
-    activeModeKey = ex_ConfigProfilesManager.m_GetActiveModeKey(ws_Dev)
-    Set styleTagsByMapKey = ex_ConfigProfilesManager.m_GetActiveProfileStyleTagsByKey(ws_Dev)
-    Set pipeline = ex_StylePipelineEngine.m_BuildColumnStylesPipeline( _
-        resultFieldRanges, _
-        cfgNotes, _
-        styleTagsByMapKey, _
-        activeModeKey, _
-        ThisWorkbook, _
-        ws.Name _
-    )
-
-    ex_StylePipelineEngine.m_ApplyColumnStylesPipeline ws, resultFieldRanges, pipeline, activeModeKey
-End Sub
-
-Public Sub m_ApplyTimelinePostLayoutStyleLayers( _
-    ByVal ws As Worksheet, _
-    ByVal resultFieldRanges As Collection, _
-    ByVal cfgNotes As Object _
-)
-    Dim workflowSteps As Collection
-    Dim stepName As Variant
-    Dim activeModeKey As String
-    Dim pageName As String
-    Dim stagePipeline As Collection
-    Dim rowKindRanges As Object
-    Dim configNoteStylesApplied As Boolean
-
-    If ws Is Nothing Then Exit Sub
-
-    pageName = Trim$(ws.Name)
-    activeModeKey = ex_ConfigProfilesManager.m_GetActiveModeKey(ws_Dev)
-    If Not ex_StylePipelineEngine.m_GetRenderWorkflowStepOrder(pageName, "personalCardPostLayout", workflowSteps, ThisWorkbook) Then
-        Err.Raise vbObjectError + 1738, "ex_OutputFormattingPipeline", _
-            "Failed to resolve style workflow steps for workflow 'personalCardPostLayout' and page '" & pageName & "'."
-    End If
-
-    For Each stepName In workflowSteps
-        Select Case LCase$(Trim$(CStr(stepName)))
-            Case "confignotestyles"
-                m_ApplyConfigNoteStyleLayer ws, resultFieldRanges, cfgNotes
-                configNoteStylesApplied = True
-            Case "postlayout"
-                If Not configNoteStylesApplied Then
-                    m_ApplyConfigNoteStyleLayer ws, resultFieldRanges, cfgNotes
-                    configNoteStylesApplied = True
-                End If
-                Set rowKindRanges = mp_BuildConfigNoteRowKindRanges(resultFieldRanges, cfgNotes)
-                Set stagePipeline = ex_StylePipelineEngine.m_LoadSheetPipelineStageLayers(pageName, "postLayout", ThisWorkbook)
-                ex_StylePipelineEngine.m_ApplyColumnStylesPipeline ws, resultFieldRanges, stagePipeline, activeModeKey, rowKindRanges
-            Case Else
-                Err.Raise vbObjectError + 1735, "ex_OutputFormattingPipeline", _
-                    "Unsupported workflow step '" & CStr(stepName) & "' in workflow 'personalCardPostLayout'."
-        End Select
-    Next stepName
-End Sub
-
-Public Sub m_ApplyTimelinePostWarningsStyleLayers( _
-    ByVal ws As Worksheet, _
-    ByVal partialMatchRowRanges As Collection _
-)
-    Dim workflowSteps As Collection
-    Dim stepName As Variant
-    Dim activeModeKey As String
-    Dim pageName As String
-    Dim stagePipeline As Collection
-    Dim rowKindRanges As Object
-
-    If ws Is Nothing Then Exit Sub
-
-    pageName = Trim$(ws.Name)
-    activeModeKey = ex_ConfigProfilesManager.m_GetActiveModeKey(ws_Dev)
-    If Not ex_StylePipelineEngine.m_GetRenderWorkflowStepOrder(pageName, "personalCardPostWarnings", workflowSteps, ThisWorkbook) Then
-        Err.Raise vbObjectError + 1739, "ex_OutputFormattingPipeline", _
-            "Failed to resolve style workflow steps for workflow 'personalCardPostWarnings' and page '" & pageName & "'."
-    End If
-
-    For Each stepName In workflowSteps
-        Select Case LCase$(Trim$(CStr(stepName)))
-            Case "partialmatchautoheight", "postwarnings"
-            Case Else
-                Err.Raise vbObjectError + 1736, "ex_OutputFormattingPipeline", _
-                    "Unsupported workflow step '" & CStr(stepName) & "' in workflow 'personalCardPostWarnings'."
-        End Select
-
-        If rowKindRanges Is Nothing Then
-            Set rowKindRanges = mp_BuildPartialMatchRowKindRanges(partialMatchRowRanges)
-        End If
-
-        Set stagePipeline = ex_StylePipelineEngine.m_LoadSheetPipelineStageLayers(pageName, LCase$(Trim$(CStr(stepName))), ThisWorkbook)
-        ex_StylePipelineEngine.m_ApplyColumnStylesPipeline ws, Nothing, stagePipeline, activeModeKey, rowKindRanges
-    Next stepName
 End Sub
 
 Private Function mp_BuildTimelineRowKindRanges( _
@@ -277,6 +167,33 @@ ContinueTarget:
     Set result("content") = mp_RowsMapToRangeCollection(contentRowsMap)
     Set mp_BuildTimelineRowKindRanges = result
 End Function
+
+Private Sub mp_MergeRowKindRanges(ByVal targetRanges As Object, ByVal sourceRanges As Object)
+    Dim kindName As Variant
+    Dim targetCollection As Collection
+    Dim sourceCollection As Collection
+    Dim rowItem As Variant
+
+    If targetRanges Is Nothing Then Exit Sub
+    If sourceRanges Is Nothing Then Exit Sub
+
+    For Each kindName In sourceRanges.Keys
+        If targetRanges.Exists(CStr(kindName)) Then
+            Set targetCollection = targetRanges(CStr(kindName))
+        Else
+            Set targetCollection = New Collection
+            Set targetRanges(CStr(kindName)) = targetCollection
+        End If
+
+        Set sourceCollection = sourceRanges(CStr(kindName))
+        If sourceCollection Is Nothing Then GoTo ContinueKind
+
+        For Each rowItem In sourceCollection
+            targetCollection.Add rowItem
+        Next rowItem
+ContinueKind:
+    Next kindName
+End Sub
 
 Private Function mp_RowsMapToRangeCollection(ByVal rowsMap As Object) As Collection
     Dim result As Collection
@@ -354,16 +271,16 @@ Private Sub mp_SortLongArray(ByRef values() As Long)
     Next i
 End Sub
 
-Private Function mp_BuildConfigNoteRowKindRanges( _
+Private Function mp_BuildConfigStyleRowKindRanges( _
     ByVal resultFieldRanges As Collection, _
-    ByVal cfgNotes As Object _
+    ByVal cfgStyles As Object _
 ) As Object
     Dim result As Object
-    Dim configNoteRanges As Collection
+    Dim configStyleRanges As Collection
     Dim dedupe As Object
     Dim target As Object
     Dim mapKey As String
-    Dim noteText As String
+    Dim styleText As String
     Dim rowStart As Long
     Dim rowEnd As Long
     Dim dedupeKey As String
@@ -371,18 +288,18 @@ Private Function mp_BuildConfigNoteRowKindRanges( _
 
     Set result = CreateObject("Scripting.Dictionary")
     result.CompareMode = 1
-    Set configNoteRanges = New Collection
+    Set configStyleRanges = New Collection
     Set dedupe = CreateObject("Scripting.Dictionary")
     dedupe.CompareMode = 1
 
-    If Not resultFieldRanges Is Nothing And Not cfgNotes Is Nothing Then
+    If Not resultFieldRanges Is Nothing And Not cfgStyles Is Nothing Then
         For Each target In resultFieldRanges
             If target Is Nothing Then GoTo ContinueTarget
             mapKey = Trim$(CStr(target("MapKey")))
             If Len(mapKey) = 0 Then GoTo ContinueTarget
-            If Not cfgNotes.Exists(mapKey) Then GoTo ContinueTarget
-            noteText = Trim$(CStr(cfgNotes(mapKey)))
-            If Len(noteText) = 0 Then GoTo ContinueTarget
+            If Not cfgStyles.Exists(mapKey) Then GoTo ContinueTarget
+            styleText = Trim$(CStr(cfgStyles(mapKey)))
+            If Len(styleText) = 0 Then GoTo ContinueTarget
 
             rowStart = CLng(target("RowStart"))
             rowEnd = CLng(target("RowEnd"))
@@ -397,13 +314,13 @@ Private Function mp_BuildConfigNoteRowKindRanges( _
             rowItem.CompareMode = 1
             rowItem("RowStart") = rowStart
             rowItem("RowEnd") = rowEnd
-            configNoteRanges.Add rowItem
+            configStyleRanges.Add rowItem
 ContinueTarget:
         Next target
     End If
 
-    Set result("confignote") = configNoteRanges
-    Set mp_BuildConfigNoteRowKindRanges = result
+    Set result("configstyle") = configStyleRanges
+    Set mp_BuildConfigStyleRowKindRanges = result
 End Function
 
 Private Function mp_BuildPartialMatchRowKindRanges(ByVal partialMatchRowRanges As Collection) As Object

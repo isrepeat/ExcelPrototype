@@ -50,11 +50,6 @@
     rowHeight="24"
     autoHeight="true"/>
 
-  <styleCatalog>
-    <style name="wideWrapAuto" styles="{width:40;overflow:wrap;autoHeight:true}"/>
-    <style name="compactClip" styles="{width:18;overflow:clip;autoHeight:false}"/>
-  </styleCatalog>
-
   <outputStyles>
     <outputSheetStyle
       modeKey="PersonalCard"

@@ -1,31 +1,42 @@
 Attribute VB_Name = "ex_Messaging"
 Option Explicit
 
-Private Const DEFAULT_DARK_ROWS As Long = 200
-Private Const DEFAULT_DARK_COLS As Long = 52
-
 Private g_StatusClearTime As Date
 Private g_StatusClearScheduled As Boolean
 Private g_StatusClearProcedureName As String
+Private g_CloseUntil As Date
+
+Private Const STATUS_STORE_APP As String = "ExcelPrototype"
+Private Const STATUS_STORE_SECTION_PREFIX As String = "ex_Messaging_"
+Private Const STATUS_STORE_KEY_CLEAR_AT As String = "status_clear_at"
+Private Const STATUS_STORE_KEY_CLEAR_PROC As String = "status_clear_proc"
+Private Const STATUS_STORE_KEY_CLOSE_UNTIL As String = "close_until"
+Private Const STATUS_CLOSE_HOLD_SECONDS As Double = 15#
 
 ' =============================================================================
 ' Status bar notification
 ' =============================================================================
 
-Public Sub m_ShowNotice(ByVal msg As String, Optional ByVal seconds As Double = 2)
-    If seconds <= 0 Then seconds = 2
+Public Sub m_ShowNotice(ByVal msg As String, Optional ByVal seconds As Double = 3)
+    Dim procedureName As String
+
+    If seconds <= 0 Then seconds = 3
+    If mp_IsClosingActive() Then Exit Sub
 
     Application.StatusBar = msg
+    mp_CancelPendingStatusClearCore True
 
+    procedureName = mp_GetStatusClearProcedureName()
     On Error Resume Next
-    If g_StatusClearScheduled Then
-        Application.OnTime EarliestTime:=g_StatusClearTime, Procedure:=mp_GetStatusClearProcedureName(), Schedule:=False
-        g_StatusClearScheduled = False
-    End If
-
     g_StatusClearTime = Now + (seconds / 86400#)
-    Application.OnTime EarliestTime:=g_StatusClearTime, Procedure:=mp_GetStatusClearProcedureName(), Schedule:=True
+    Application.OnTime EarliestTime:=g_StatusClearTime, Procedure:=procedureName, Schedule:=True
     g_StatusClearScheduled = (Err.Number = 0)
+    If g_StatusClearScheduled Then
+        mp_SavePersistedSchedule g_StatusClearTime, procedureName
+    Else
+        g_StatusClearTime = 0
+        mp_ClearPersistedSchedule
+    End If
     Err.Clear
     On Error GoTo 0
 End Sub
@@ -33,7 +44,24 @@ End Sub
 Public Sub m_ClearStatusBar()
     ' Очищает статус бар
     g_StatusClearScheduled = False
+    g_StatusClearTime = 0
+    mp_ClearPersistedSchedule
     Application.StatusBar = False
+End Sub
+
+Public Sub m_CancelPendingStatusClear()
+    mp_CancelPendingStatusClearCore True
+End Sub
+
+Public Sub m_BeginWorkbookClose(Optional ByVal holdSeconds As Double = STATUS_CLOSE_HOLD_SECONDS)
+    If holdSeconds <= 0 Then holdSeconds = STATUS_CLOSE_HOLD_SECONDS
+    g_CloseUntil = Now + (holdSeconds / 86400#)
+    mp_SaveStoreValue STATUS_STORE_KEY_CLOSE_UNTIL, CStr(CDbl(g_CloseUntil))
+End Sub
+
+Public Sub m_EndWorkbookClose()
+    g_CloseUntil = 0
+    mp_DeleteStoreValue STATUS_STORE_KEY_CLOSE_UNTIL
 End Sub
 
 Private Function mp_GetStatusClearProcedureName() As String
@@ -43,28 +71,101 @@ Private Function mp_GetStatusClearProcedureName() As String
     mp_GetStatusClearProcedureName = g_StatusClearProcedureName
 End Function
 
-Public Sub m_ApplyDarkSheetBase( _
-    ByVal ws As Worksheet, _
-    Optional ByVal rowCount As Long = DEFAULT_DARK_ROWS, _
-    Optional ByVal colCount As Long = DEFAULT_DARK_COLS _
-)
-    Dim seedRange As Range
+Private Sub mp_CancelPendingStatusClearCore(Optional ByVal clearPersistedState As Boolean = True)
+    Dim persistedTime As Date
+    Dim persistedProcedure As String
 
-    If ws Is Nothing Then Exit Sub
-    If rowCount < 1 Then rowCount = DEFAULT_DARK_ROWS
-    If colCount < 1 Then colCount = DEFAULT_DARK_COLS
+    On Error Resume Next
+    If g_StatusClearScheduled And g_StatusClearTime > 0 Then
+        Application.OnTime EarliestTime:=g_StatusClearTime, Procedure:=mp_GetStatusClearProcedureName(), Schedule:=False
+    End If
+    If mp_TryReadPersistedSchedule(persistedTime, persistedProcedure) Then
+        Application.OnTime EarliestTime:=persistedTime, Procedure:=persistedProcedure, Schedule:=False
+    End If
+    Err.Clear
+    On Error GoTo 0
 
-    ws.Activate
-
-    Set seedRange = ws.Range(ws.Cells(1, 1), ws.Cells(rowCount, colCount))
-    seedRange.Interior.Pattern = xlSolid
-    seedRange.Interior.Color = RGB(32, 32, 32)
-    seedRange.Font.Color = RGB(235, 235, 235)
-    seedRange.Borders.LineStyle = xlContinuous
-    seedRange.Borders.Color = RGB(62, 62, 62)
-    seedRange.Borders.Weight = xlThin
-    ActiveWindow.DisplayGridlines = False
+    g_StatusClearScheduled = False
+    g_StatusClearTime = 0
+    If clearPersistedState Then
+        mp_ClearPersistedSchedule
+    End If
 End Sub
+
+Private Function mp_IsClosingActive() As Boolean
+    Dim persistedCloseUntilText As String
+    Dim persistedCloseUntil As Date
+
+    If g_CloseUntil > 0 Then
+        If g_CloseUntil > Now Then
+            mp_IsClosingActive = True
+            Exit Function
+        End If
+        g_CloseUntil = 0
+    End If
+
+    persistedCloseUntilText = Trim$(mp_GetStoreValue(STATUS_STORE_KEY_CLOSE_UNTIL))
+    If Len(persistedCloseUntilText) = 0 Then Exit Function
+    If Not IsNumeric(persistedCloseUntilText) Then
+        mp_DeleteStoreValue STATUS_STORE_KEY_CLOSE_UNTIL
+        Exit Function
+    End If
+
+    persistedCloseUntil = CDate(CDbl(persistedCloseUntilText))
+    If persistedCloseUntil > Now Then
+        g_CloseUntil = persistedCloseUntil
+        mp_IsClosingActive = True
+    Else
+        mp_DeleteStoreValue STATUS_STORE_KEY_CLOSE_UNTIL
+    End If
+End Function
+
+Private Sub mp_SavePersistedSchedule(ByVal scheduledTime As Date, ByVal procedureName As String)
+    mp_SaveStoreValue STATUS_STORE_KEY_CLEAR_AT, CStr(CDbl(scheduledTime))
+    mp_SaveStoreValue STATUS_STORE_KEY_CLEAR_PROC, procedureName
+End Sub
+
+Private Function mp_TryReadPersistedSchedule(ByRef outScheduledTime As Date, ByRef outProcedureName As String) As Boolean
+    Dim scheduledTimeText As String
+
+    scheduledTimeText = Trim$(mp_GetStoreValue(STATUS_STORE_KEY_CLEAR_AT))
+    outProcedureName = Trim$(mp_GetStoreValue(STATUS_STORE_KEY_CLEAR_PROC))
+    If Len(scheduledTimeText) = 0 Or Len(outProcedureName) = 0 Then Exit Function
+    If Not IsNumeric(scheduledTimeText) Then Exit Function
+
+    outScheduledTime = CDate(CDbl(scheduledTimeText))
+    mp_TryReadPersistedSchedule = True
+End Function
+
+Private Sub mp_ClearPersistedSchedule()
+    mp_DeleteStoreValue STATUS_STORE_KEY_CLEAR_AT
+    mp_DeleteStoreValue STATUS_STORE_KEY_CLEAR_PROC
+End Sub
+
+Private Function mp_GetStoreValue(ByVal keyName As String) As String
+    On Error Resume Next
+    mp_GetStoreValue = GetSetting(STATUS_STORE_APP, mp_GetStoreSection(), keyName, vbNullString)
+    Err.Clear
+    On Error GoTo 0
+End Function
+
+Private Sub mp_SaveStoreValue(ByVal keyName As String, ByVal valueText As String)
+    On Error Resume Next
+    SaveSetting STATUS_STORE_APP, mp_GetStoreSection(), keyName, valueText
+    Err.Clear
+    On Error GoTo 0
+End Sub
+
+Private Sub mp_DeleteStoreValue(ByVal keyName As String)
+    On Error Resume Next
+    DeleteSetting STATUS_STORE_APP, mp_GetStoreSection(), keyName
+    Err.Clear
+    On Error GoTo 0
+End Sub
+
+Private Function mp_GetStoreSection() As String
+    mp_GetStoreSection = STATUS_STORE_SECTION_PREFIX & ThisWorkbook.Name
+End Function
 
 Public Sub m_RenderErrorBanner( _
     ByVal ws As Worksheet, _

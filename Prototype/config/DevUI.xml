@@ -116,12 +116,28 @@
              sheet="Dev"
              required="true"
              createIfMissing="true"
+             condition="st_ShowUpdateCode=true"
              macro="DevTools.dev_UpdateCode"
              caption="Update Code"
              globalVisible="true"
              style="actionWarning"
              placement="moveAndSize"
              anchorCell="Q5"
+             spanCols="2"
+             spanRows="2"/>
+
+    <control name="btnUpdateUI"
+             type="button"
+             sheet="Dev"
+             required="true"
+             createIfMissing="true"
+             condition="st_ShowUpdateUI=true"
+             macro="ex_UIActions.m_UpdateUi_OnClick"
+             caption="Update UI"
+             globalVisible="true"
+             style="actionNeutral"
+             placement="moveAndSize"
+             anchorCell="Q8"
              spanCols="2"
              spanRows="2"/>
 

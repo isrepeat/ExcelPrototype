@@ -3,17 +3,17 @@ Option Explicit
 
 Private Const PROFILES_NS As String = "urn:excelprototype:profiles"
 Private Const STYLE_PIPELINE_REL_PATH As String = "config\StylePipeline.xml"
-Private Const SHEET_STYLES_REL_PATH As String = "config\SheetStyles.xml"
 Private Const INLINE_LAYER_ID As String = "profileInline"
-Private Const STYLE_TAG_LAYER_ID As String = "profileStyleTag"
 Private Const INLINE_LAYER_PRIORITY As Long = 100
-Private Const STYLE_TAG_LAYER_PRIORITY As Long = 200
+Private Const SHEET_SCOPE_EXTRA_COLS_RATIO As Double = 0.5
+Private Const SHEET_SCOPE_EXTRA_ROWS_RATIO As Double = 1#
 
 ' Supported style properties (declarations):
 ' width, minWidth, maxWidth, autoFitColumns
 ' overflow, autoHeight, rowHeight, mergeColumns
 ' fontName, fontSize, fontBold
 ' backColor, fontColor
+' borderColor, borderWeight
 ' horizontal, vertical
 Private Const STYLE_PROP_WIDTH As String = "width"
 Private Const STYLE_PROP_MIN_WIDTH As String = "minwidth"
@@ -28,21 +28,18 @@ Private Const STYLE_PROP_FONT_SIZE As String = "fontsize"
 Private Const STYLE_PROP_FONT_BOLD As String = "fontbold"
 Private Const STYLE_PROP_BACK_COLOR As String = "backcolor"
 Private Const STYLE_PROP_FONT_COLOR As String = "fontcolor"
+Private Const STYLE_PROP_BORDER_COLOR As String = "bordercolor"
+Private Const STYLE_PROP_BORDER_WEIGHT As String = "borderweight"
 Private Const STYLE_PROP_HORIZONTAL As String = "horizontal"
 Private Const STYLE_PROP_VERTICAL As String = "vertical"
 
 Private g_IsRuntimeCacheInitialized As Boolean
 Private g_LayersCache As Object
-Private g_WorkflowStepsCache As Object
 Private g_SelectorCache As Object
 
 Private g_StylePipelineDocCache As Object
 Private g_StylePipelineDocWbKey As String
 Private g_StylePipelineDocStamp As Date
-
-Private g_StyleCatalogCache As Object
-Private g_StyleCatalogWbKey As String
-Private g_StyleCatalogStamp As Date
 
 Public Function m_CreatePipeline() As Collection
     Set m_CreatePipeline = New Collection
@@ -51,14 +48,10 @@ End Function
 Public Sub m_ResetRuntimeCaches()
     g_IsRuntimeCacheInitialized = False
     Set g_LayersCache = Nothing
-    Set g_WorkflowStepsCache = Nothing
     Set g_SelectorCache = Nothing
     Set g_StylePipelineDocCache = Nothing
     g_StylePipelineDocWbKey = vbNullString
     g_StylePipelineDocStamp = 0
-    Set g_StyleCatalogCache = Nothing
-    g_StyleCatalogWbKey = vbNullString
-    g_StyleCatalogStamp = 0
 End Sub
 
 Public Sub m_AddLayer(ByVal pipeline As Collection, ByVal layer As obj_StyleLayer)
@@ -89,14 +82,8 @@ Private Sub mp_ApplyRowKindRule( _
             "Row rule '" & ruleId & "' has empty selector kind."
     End If
 
-    If rowKindRanges Is Nothing Then
-        Err.Raise vbObjectError + 1733, "ex_StylePipelineEngine", _
-            "Row rule '" & ruleId & "' requires row kind context. Kind='" & kindName & "'."
-    End If
-    If Not rowKindRanges.Exists(kindName) Then
-        Err.Raise vbObjectError + 1733, "ex_StylePipelineEngine", _
-            "Unknown selector kind '" & kindName & "' in row rule '" & ruleId & "'."
-    End If
+    If rowKindRanges Is Nothing Then Exit Sub
+    If Not rowKindRanges.Exists(kindName) Then Exit Sub
 
     Set kindRanges = rowKindRanges(kindName)
     If kindRanges Is Nothing Then Exit Sub
@@ -236,13 +223,9 @@ Public Function m_GetSortedLayers(ByVal pipeline As Collection) As Collection
     Set m_GetSortedLayers = result
 End Function
 
-Public Function m_LoadLayersFromStylePipelineXml( _
-    ByVal activeModeName As String, _
-    ByVal wb As Workbook, _
-    Optional ByVal scopeFilter As String = "columnStyles", _
-    Optional ByVal workflowName As String = vbNullString, _
-    Optional ByVal stageFilter As String = vbNullString, _
-    Optional ByVal pageName As String = vbNullString _
+Public Function m_LoadSheetPipelineLayers( _
+    ByVal pageName As String, _
+    ByVal wb As Workbook _
 ) As Collection
     Dim doc As Object
     Dim result As Collection
@@ -255,24 +238,24 @@ Public Function m_LoadLayersFromStylePipelineXml( _
     Set seenLayerIds = mp_CreateStringDictionary()
     If wb Is Nothing Then Set wb = ThisWorkbook
     If wb Is Nothing Then
-        Set m_LoadLayersFromStylePipelineXml = result
+        Set m_LoadSheetPipelineLayers = result
         Exit Function
     End If
 
     Set doc = mp_GetStylePipelineDomCached(wb)
     If doc Is Nothing Then
-        Set m_LoadLayersFromStylePipelineXml = result
+        Set m_LoadSheetPipelineLayers = result
         Exit Function
     End If
 
     mp_EnsureRuntimeCaches
-    cacheKey = mp_BuildLayersCacheKey(wb, activeModeName, scopeFilter, workflowName, stageFilter, pageName)
+    cacheKey = mp_BuildLayersCacheKey(wb, pageName)
     If g_LayersCache.Exists(cacheKey) Then
-        Set m_LoadLayersFromStylePipelineXml = g_LayersCache(cacheKey)
+        Set m_LoadSheetPipelineLayers = g_LayersCache(cacheKey)
         Exit Function
     End If
 
-    Set formatLayers = mp_LoadLayersFromSheetPipelineXml(doc, pageName, scopeFilter, workflowName, stageFilter)
+    Set formatLayers = mp_LoadLayersFromSheetPipelineXml(doc, pageName)
     If Not formatLayers Is Nothing Then
         For Each layerObj In formatLayers
             If Not layerObj Is Nothing Then
@@ -285,138 +268,27 @@ Public Function m_LoadLayersFromStylePipelineXml( _
     End If
 
     Set g_LayersCache(cacheKey) = result
-    Set m_LoadLayersFromStylePipelineXml = result
-End Function
-
-Public Function m_LoadSheetPipelineStageLayers( _
-    ByVal pageName As String, _
-    ByVal stageName As String, _
-    ByVal wb As Workbook _
-) As Collection
-    Set m_LoadSheetPipelineStageLayers = m_LoadLayersFromStylePipelineXml( _
-        vbNullString, _
-        wb, _
-        vbNullString, _
-        vbNullString, _
-        stageName, _
-        pageName _
-    )
-End Function
-
-Public Function m_GetRenderWorkflowStepOrder( _
-    ByVal pageName As String, _
-    ByVal workflowName As String, _
-    ByRef outStepOrder As Collection, _
-    ByVal wb As Workbook _
-) As Boolean
-    Dim workflowLayers As Collection
-    Dim sortedLayers As Collection
-    Dim layerObj As obj_StyleLayer
-    Dim ruleObj As obj_StyleRule
-    Dim selector As Object
-    Dim stepName As String
-    Dim stepsMap As Object
-    Dim cacheKey As String
-
-    Set outStepOrder = New Collection
-    workflowName = Trim$(workflowName)
-    If Len(workflowName) = 0 Then
-        Err.Raise vbObjectError + 1740, "ex_StylePipelineEngine", "Style workflow name is empty."
-    End If
-
-    ' Ensure StylePipeline file timestamp is checked before reading workflow cache.
-    If mp_GetStylePipelineDomCached(wb) Is Nothing Then
-        Err.Raise vbObjectError + 1741, "ex_StylePipelineEngine", _
-            "StylePipeline must contain layers for workflow '" & workflowName & "' and page '" & pageName & "'."
-    End If
-
-    mp_EnsureRuntimeCaches
-    If wb Is Nothing Then Set wb = ThisWorkbook
-    cacheKey = mp_BuildWorkflowStepsCacheKey(wb, pageName, workflowName)
-    If g_WorkflowStepsCache.Exists(cacheKey) Then
-        Set outStepOrder = mp_CopyStringCollection(g_WorkflowStepsCache(cacheKey))
-        m_GetRenderWorkflowStepOrder = (outStepOrder.Count > 0)
-        Exit Function
-    End If
-
-    Set workflowLayers = m_LoadLayersFromStylePipelineXml(vbNullString, wb, "renderWorkflow", workflowName, vbNullString, pageName)
-    If workflowLayers Is Nothing Or workflowLayers.Count = 0 Then
-        Err.Raise vbObjectError + 1741, "ex_StylePipelineEngine", _
-            "StylePipeline must contain layers for workflow '" & workflowName & "' and page '" & pageName & "'."
-    End If
-
-    Set sortedLayers = m_GetSortedLayers(workflowLayers)
-    Set stepsMap = mp_CreateStringDictionary()
-
-    For Each layerObj In sortedLayers
-        If layerObj Is Nothing Then GoTo ContinueLayer
-        If Not layerObj.IsEnabled Then GoTo ContinueLayer
-
-        For Each ruleObj In layerObj.Rules
-            If ruleObj Is Nothing Then GoTo ContinueRule
-            If StrComp(LCase$(Trim$(ruleObj.Target)), "pipelinestep", vbTextCompare) <> 0 Then
-                GoTo ContinueRule
-            End If
-
-            Set selector = mp_ParseSelector(ruleObj.Selector)
-            If selector Is Nothing Then
-                Err.Raise vbObjectError + 1743, "ex_StylePipelineEngine", _
-                    "Render workflow rule '" & ruleObj.RuleId & "' has invalid selector."
-            End If
-            If Not selector.Exists("name") Then
-                Err.Raise vbObjectError + 1744, "ex_StylePipelineEngine", _
-                    "Render workflow rule '" & ruleObj.RuleId & "' must define selector name=<step>."
-            End If
-
-            stepName = LCase$(Trim$(CStr(selector("name"))))
-            If Len(stepName) = 0 Then
-                Err.Raise vbObjectError + 1745, "ex_StylePipelineEngine", _
-                    "Render workflow rule '" & ruleObj.RuleId & "' has empty step name."
-            End If
-
-            If Not stepsMap.Exists(stepName) Then
-                stepsMap(stepName) = True
-                outStepOrder.Add stepName
-            End If
-ContinueRule:
-        Next ruleObj
-ContinueLayer:
-    Next layerObj
-
-    If outStepOrder.Count = 0 Then
-        Err.Raise vbObjectError + 1746, "ex_StylePipelineEngine", _
-            "Style workflow '" & workflowName & "' does not contain enabled stages."
-    End If
-
-    Set g_WorkflowStepsCache(cacheKey) = mp_CopyStringCollection(outStepOrder)
-    m_GetRenderWorkflowStepOrder = True
+    Set m_LoadSheetPipelineLayers = result
 End Function
 
 Public Function m_BuildColumnStylesPipeline( _
     ByVal resultFieldRanges As Collection, _
-    ByVal cfgNotes As Object, _
-    ByVal styleTagsByMapKey As Object, _
+    ByVal cfgStyles As Object, _
     ByVal activeModeName As String, _
     ByVal wb As Workbook, _
     Optional ByVal pageName As String = vbNullString _
 ) As Collection
     Dim pipeline As Collection
     Dim inlineLayer As obj_StyleLayer
-    Dim styleTagLayer As obj_StyleLayer
     Dim xmlLayers As Collection
     Dim xmlLayer As obj_StyleLayer
-    Dim styleCatalog As Object
 
     Set pipeline = m_CreatePipeline()
 
-    Set inlineLayer = mp_BuildInlineLayer(resultFieldRanges, cfgNotes)
+    Set inlineLayer = mp_BuildInlineLayer(resultFieldRanges, cfgStyles)
     If Not inlineLayer Is Nothing Then m_AddLayer pipeline, inlineLayer
 
-    Set styleCatalog = mp_LoadStyleCatalog(wb)
-    Set styleTagLayer = mp_BuildProfileStyleTagLayer(resultFieldRanges, styleTagsByMapKey, styleCatalog)
-    If Not styleTagLayer Is Nothing Then m_AddLayer pipeline, styleTagLayer
-
-    Set xmlLayers = m_LoadLayersFromStylePipelineXml(activeModeName, wb, "columnStyles", vbNullString, vbNullString, pageName)
+    Set xmlLayers = m_LoadSheetPipelineLayers(pageName, wb)
     If Not xmlLayers Is Nothing Then
         For Each xmlLayer In xmlLayers
             m_AddLayer pipeline, xmlLayer
@@ -428,8 +300,7 @@ End Function
 
 Public Function m_ValidateColumnStylesPipeline( _
     ByVal resultFieldRanges As Collection, _
-    ByVal cfgNotes As Object, _
-    ByVal styleTagsByMapKey As Object, _
+    ByVal cfgStyles As Object, _
     ByVal activeModeName As String, _
     ByRef outErrorText As String, _
     ByVal wb As Workbook, _
@@ -446,7 +317,7 @@ Public Function m_ValidateColumnStylesPipeline( _
     outErrorText = vbNullString
 
     stepName = "build-pipeline"
-    Set pipeline = m_BuildColumnStylesPipeline(resultFieldRanges, cfgNotes, styleTagsByMapKey, activeModeName, wb, pageName)
+    Set pipeline = m_BuildColumnStylesPipeline(resultFieldRanges, cfgStyles, activeModeName, wb, pageName)
 
     stepName = "sort-layers"
     Set sortedLayers = m_GetSortedLayers(pipeline)
@@ -516,10 +387,7 @@ End Sub
 
 Private Function mp_LoadLayersFromSheetPipelineXml( _
     ByVal doc As Object, _
-    ByVal pageName As String, _
-    ByVal scopeFilter As String, _
-    ByVal workflowName As String, _
-    Optional ByVal stageFilter As String = vbNullString _
+    ByVal pageName As String _
 ) As Collection
     Dim result As Collection
     Dim sheetPipelines As Object
@@ -529,7 +397,6 @@ Private Function mp_LoadLayersFromSheetPipelineXml( _
     Dim layerObj As obj_StyleLayer
     Dim layerId As String
     Dim layerSource As String
-    Dim stageName As String
     Dim layerEnabled As Boolean
     Dim layerPriority As Long
     Dim ok As Boolean
@@ -550,12 +417,8 @@ Private Function mp_LoadLayersFromSheetPipelineXml( _
     For Each sheetPipelineNode In sheetPipelines
         pageKey = Trim$(mp_NodeAttrText(sheetPipelineNode, "page"))
         If Len(pageKey) = 0 Then
-            ' Legacy compatibility for older configs.
-            pageKey = Trim$(mp_NodeAttrText(sheetPipelineNode, "sheet"))
-        End If
-        If Len(pageKey) = 0 Then
             Err.Raise vbObjectError + 1736, "ex_StylePipelineEngine", _
-                "sheetPipeline@page is required (or legacy @sheet)."
+                "sheetPipeline@page is required."
         End If
         If Len(Trim$(pageName)) > 0 Then
             If StrComp(pageKey, Trim$(pageName), vbTextCompare) <> 0 Then GoTo ContinueSheetPipeline
@@ -565,12 +428,6 @@ Private Function mp_LoadLayersFromSheetPipelineXml( _
         If layerNodes Is Nothing Then GoTo ContinueSheetPipeline
 
         For Each layerNode In layerNodes
-            stageName = LCase$(Trim$(mp_NodeAttrText(layerNode, "stage")))
-            If Len(Trim$(stageFilter)) > 0 Then
-                If StrComp(stageName, LCase$(Trim$(stageFilter)), vbTextCompare) <> 0 Then GoTo ContinueLayer
-            End If
-            If Not mp_ShouldIncludeSheetPipelineLayer(scopeFilter, workflowName, stageName) Then GoTo ContinueLayer
-
             layerId = Trim$(mp_NodeAttrText(layerNode, "id"))
             If Len(layerId) = 0 Then
                 Err.Raise vbObjectError + 1710, "ex_StylePipelineEngine", "sheetPipeline/layer@" & "id is required."
@@ -587,11 +444,7 @@ Private Function mp_LoadLayersFromSheetPipelineXml( _
             Set layerObj = New obj_StyleLayer
             layerObj.Initialize layerId, layerPriority, layerSource, layerEnabled
             mp_ParseLayerRules layerNode, layerObj
-            If StrComp(LCase$(Trim$(scopeFilter)), "renderworkflow", vbTextCompare) = 0 Then
-                mp_EnsureStagePipelineStepRule layerObj, stageName
-            End If
 
-            ' sheetPipeline layers may intentionally define only execution stage without style rules.
             result.Add layerObj
 ContinueLayer:
         Next layerNode
@@ -655,104 +508,14 @@ Private Sub mp_ParseLayerRules(ByVal layerNode As Object, ByVal layerObj As obj_
     Next ruleNode
 End Sub
 
-Private Sub mp_EnsureStagePipelineStepRule( _
-    ByVal layerObj As obj_StyleLayer, _
-    ByVal stageName As String _
-)
-    Dim normalizedStage As String
-    Dim ruleObj As obj_StyleRule
-    Dim declarations As Object
-    Dim ruleId As String
-
-    If layerObj Is Nothing Then Exit Sub
-
-    normalizedStage = LCase$(Trim$(stageName))
-    If Len(normalizedStage) = 0 Then Exit Sub
-    If mp_HasPipelineStepRule(layerObj) Then Exit Sub
-
-    Set declarations = mp_CreateStringDictionary()
-    ruleId = layerObj.LayerId & ".stage"
-
-    Set ruleObj = New obj_StyleRule
-    ruleObj.Initialize ruleId, "pipelineStep", "name=" & normalizedStage, declarations
-    layerObj.AddRule ruleObj
-End Sub
-
-Private Function mp_HasPipelineStepRule(ByVal layerObj As obj_StyleLayer) As Boolean
-    Dim ruleObj As obj_StyleRule
-
-    If layerObj Is Nothing Then Exit Function
-
-    For Each ruleObj In layerObj.Rules
-        If ruleObj Is Nothing Then GoTo ContinueRule
-        If StrComp(LCase$(Trim$(ruleObj.Target)), "pipelinestep", vbTextCompare) = 0 Then
-            mp_HasPipelineStepRule = True
-            Exit Function
-        End If
-ContinueRule:
-    Next ruleObj
-End Function
-
-Private Function mp_ShouldIncludeSheetPipelineLayer( _
-    ByVal scopeFilter As String, _
-    ByVal workflowName As String, _
-    ByVal stageName As String _
-) As Boolean
-    Dim normalizedScope As String
-    Dim normalizedStage As String
-
-    normalizedScope = LCase$(Trim$(scopeFilter))
-    normalizedStage = LCase$(Trim$(stageName))
-
-    Select Case normalizedScope
-        Case vbNullString
-            mp_ShouldIncludeSheetPipelineLayer = True
-        Case "columnstyles"
-            If Len(normalizedStage) = 0 Then
-                mp_ShouldIncludeSheetPipelineLayer = True
-            Else
-                mp_ShouldIncludeSheetPipelineLayer = (normalizedStage = "columnstyles")
-            End If
-        Case "renderworkflow"
-            If Len(normalizedStage) = 0 Then Exit Function
-            mp_ShouldIncludeSheetPipelineLayer = mp_IsSheetPipelineStageForWorkflow(workflowName, normalizedStage)
-        Case Else
-            mp_ShouldIncludeSheetPipelineLayer = True
-    End Select
-End Function
-
-Private Function mp_IsSheetPipelineStageForWorkflow( _
-    ByVal workflowName As String, _
-    ByVal stageName As String _
-) As Boolean
-    Dim normalizedWorkflow As String
-    Dim normalizedStage As String
-
-    normalizedWorkflow = LCase$(Trim$(workflowName))
-    normalizedStage = LCase$(Trim$(stageName))
-    If Len(normalizedStage) = 0 Then Exit Function
-
-    Select Case normalizedWorkflow
-        Case "personalcardtimeline"
-            mp_IsSheetPipelineStageForWorkflow = (normalizedStage = "base" Or normalizedStage = "output")
-        Case "personalcardpostlayout"
-            mp_IsSheetPipelineStageForWorkflow = (normalizedStage = "confignotestyles" Or normalizedStage = "postlayout")
-        Case "personalcardpostwarnings"
-            mp_IsSheetPipelineStageForWorkflow = (normalizedStage = "partialmatchautoheight" Or normalizedStage = "postwarnings")
-        Case Else
-            ' For unknown workflow names keep strict matching by stage name.
-            mp_IsSheetPipelineStageForWorkflow = (normalizedStage = normalizedWorkflow)
-    End Select
-End Function
-
 Private Function mp_BuildInlineLayer( _
     ByVal resultFieldRanges As Collection, _
-    ByVal cfgNotes As Object _
+    ByVal cfgStyles As Object _
 ) As obj_StyleLayer
     Dim layerObj As obj_StyleLayer
     Dim target As Object
     Dim mapKey As String
-    Dim noteText As String
+    Dim styleText As String
     Dim declarations As Object
     Dim hasDecl As Boolean
     Dim parseError As String
@@ -762,7 +525,7 @@ Private Function mp_BuildInlineLayer( _
     Dim ruleIndex As Long
 
     If resultFieldRanges Is Nothing Then Exit Function
-    If cfgNotes Is Nothing Then Exit Function
+    If cfgStyles Is Nothing Then Exit Function
     If resultFieldRanges.Count = 0 Then Exit Function
 
     Set dedupe = CreateObject("Scripting.Dictionary")
@@ -778,13 +541,13 @@ Private Function mp_BuildInlineLayer( _
         If dedupe.Exists(mapKey) Then GoTo ContinueTarget
         dedupe(mapKey) = True
 
-        If Not cfgNotes.Exists(mapKey) Then GoTo ContinueTarget
-        noteText = Trim$(CStr(cfgNotes(mapKey)))
-        If Len(noteText) = 0 Then GoTo ContinueTarget
+        If Not cfgStyles.Exists(mapKey) Then GoTo ContinueTarget
+        styleText = Trim$(CStr(cfgStyles(mapKey)))
+        If Len(styleText) = 0 Then GoTo ContinueTarget
 
         parseError = vbNullString
         hasDecl = False
-        If Not ex_ConfigStylesParser.m_TryParseStyleDeclarations(noteText, declarations, hasDecl, parseError) Then
+        If Not ex_ConfigStylesParser.m_TryParseStyleDeclarations(styleText, declarations, hasDecl, parseError) Then
             Err.Raise vbObjectError + 1715, "ex_StylePipelineEngine", _
                 "Invalid inline styles for key '" & mapKey & "': " & parseError
         End If
@@ -801,142 +564,6 @@ ContinueTarget:
 
     If layerObj.RuleCount = 0 Then Exit Function
     Set mp_BuildInlineLayer = layerObj
-End Function
-
-Private Function mp_BuildProfileStyleTagLayer( _
-    ByVal resultFieldRanges As Collection, _
-    ByVal styleTagsByMapKey As Object, _
-    ByVal styleCatalog As Object _
-) As obj_StyleLayer
-    Dim layerObj As obj_StyleLayer
-    Dim target As Object
-    Dim mapKey As String
-    Dim styleTagText As String
-    Dim styleTagNames As Collection
-    Dim styleTagName As Variant
-    Dim declarations As Object
-    Dim dedupe As Object
-    Dim ruleObj As obj_StyleRule
-    Dim ruleId As String
-    Dim ruleIndex As Long
-    Dim dedupeKey As String
-
-    If resultFieldRanges Is Nothing Then Exit Function
-    If styleTagsByMapKey Is Nothing Then Exit Function
-    If styleCatalog Is Nothing Then Exit Function
-    If resultFieldRanges.Count = 0 Then Exit Function
-    If styleTagsByMapKey.Count = 0 Then Exit Function
-
-    Set dedupe = CreateObject("Scripting.Dictionary")
-    dedupe.CompareMode = 1
-
-    Set layerObj = New obj_StyleLayer
-    layerObj.Initialize STYLE_TAG_LAYER_ID, STYLE_TAG_LAYER_PRIORITY, "profileStyleTag", True
-
-    For Each target In resultFieldRanges
-        If target Is Nothing Then GoTo ContinueTarget
-        mapKey = Trim$(CStr(target("MapKey")))
-        If Len(mapKey) = 0 Then GoTo ContinueTarget
-        If Not styleTagsByMapKey.Exists(mapKey) Then GoTo ContinueTarget
-
-        styleTagText = Trim$(CStr(styleTagsByMapKey(mapKey)))
-        If Len(styleTagText) = 0 Then GoTo ContinueTarget
-
-        Set styleTagNames = mp_ParseStyleTagNames(styleTagText)
-        For Each styleTagName In styleTagNames
-            If Not styleCatalog.Exists(CStr(styleTagName)) Then
-                Err.Raise vbObjectError + 1716, "ex_StylePipelineEngine", _
-                    "Unknown style tag '" & CStr(styleTagName) & "' for key '" & mapKey & "'."
-            End If
-
-            dedupeKey = mapKey & "|" & CStr(styleTagName)
-            If dedupe.Exists(dedupeKey) Then GoTo ContinueStyleTag
-            dedupe(dedupeKey) = True
-
-            Set declarations = styleCatalog(CStr(styleTagName))
-            ruleIndex = ruleIndex + 1
-            ruleId = STYLE_TAG_LAYER_ID & ".rule" & CStr(ruleIndex)
-            Set ruleObj = New obj_StyleRule
-            ruleObj.Initialize ruleId, "column", "mapKey=" & mapKey, declarations
-            layerObj.AddRule ruleObj
-
-ContinueStyleTag:
-        Next styleTagName
-ContinueTarget:
-    Next target
-
-    If layerObj.RuleCount = 0 Then Exit Function
-    Set mp_BuildProfileStyleTagLayer = layerObj
-End Function
-
-Private Function mp_LoadStyleCatalog(ByVal wb As Workbook) As Object
-    Dim result As Object
-    Dim doc As Object
-    Dim styleNodes As Object
-    Dim styleNode As Object
-    Dim styleName As String
-    Dim styleText As String
-    Dim declarations As Object
-    Dim hasDecl As Boolean
-    Dim parseError As String
-
-    Set result = CreateObject("Scripting.Dictionary")
-    result.CompareMode = 1
-
-    mp_EnsureRuntimeCaches
-    If wb Is Nothing Then Set wb = ThisWorkbook
-    If wb Is Nothing Then
-        Set mp_LoadStyleCatalog = result
-        Exit Function
-    End If
-
-    If mp_TryGetStyleCatalogCached(wb, result) Then
-        Set mp_LoadStyleCatalog = result
-        Exit Function
-    End If
-
-    Set doc = ex_XmlCore.m_LoadDomByRelativePath( _
-        wb, _
-        SHEET_STYLES_REL_PATH, _
-        PROFILES_NS, _
-        "SheetStyles config file was not found: ", _
-        "Failed to parse SheetStyles config file: " _
-    )
-    If doc Is Nothing Then
-        Set mp_LoadStyleCatalog = result
-        Exit Function
-    End If
-
-    Set styleNodes = doc.selectNodes("/p:sheetStyles/p:styleCatalog/p:style")
-    If styleNodes Is Nothing Then
-        Set mp_LoadStyleCatalog = result
-        Exit Function
-    End If
-
-    For Each styleNode In styleNodes
-        styleName = Trim$(mp_NodeAttrText(styleNode, "name"))
-        If Len(styleName) = 0 Then
-            Err.Raise vbObjectError + 1717, "ex_StylePipelineEngine", "sheetStyles/styleCatalog/style@name is required."
-        End If
-        styleText = Trim$(mp_NodeAttrText(styleNode, "styles"))
-        If Len(styleText) = 0 Then styleText = Trim$(CStr(styleNode.Text))
-
-        parseError = vbNullString
-        hasDecl = False
-        If Not ex_ConfigStylesParser.m_TryParseStyleDeclarations(styleText, declarations, hasDecl, parseError) Then
-            Err.Raise vbObjectError + 1718, "ex_StylePipelineEngine", _
-                "Invalid style catalog declarations for '" & styleName & "': " & parseError
-        End If
-        If Not hasDecl Then
-            Err.Raise vbObjectError + 1719, "ex_StylePipelineEngine", _
-                "Style catalog entry '" & styleName & "' must define declarations."
-        End If
-
-        Set result(styleName) = mp_CopyDictionary(declarations)
-    Next styleNode
-
-    mp_StoreStyleCatalogCache wb, result
-    Set mp_LoadStyleCatalog = result
 End Function
 
 Private Sub mp_ApplyRule( _
@@ -1112,8 +739,14 @@ ContinueMapTarget:
             mp_ApplyDeclarations scopeRange, scopeRange.EntireColumn, ruleObj.Declarations
 
         Case "sheet"
+            Set scopeRange = mp_GetExpandedSheetScopeRange(ws, SHEET_SCOPE_EXTRA_COLS_RATIO, SHEET_SCOPE_EXTRA_ROWS_RATIO)
+            If scopeRange Is Nothing Then Exit Sub
+            mp_ApplyDeclarations scopeRange, scopeRange.EntireColumn, ruleObj.Declarations, scopeRange
+
+        Case "usedrange"
             Set scopeRange = ws.UsedRange
-            mp_ApplyDeclarations scopeRange, scopeRange.EntireColumn, ruleObj.Declarations
+            If scopeRange Is Nothing Then Exit Sub
+            mp_ApplyDeclarations scopeRange, scopeRange.EntireColumn, ruleObj.Declarations, scopeRange
 
         Case Else
             Err.Raise vbObjectError + 1728, "ex_StylePipelineEngine", _
@@ -1165,7 +798,8 @@ End Function
 Private Sub mp_ApplyDeclarations( _
     ByVal scopeRange As Range, _
     ByVal columnRange As Range, _
-    ByVal declarations As Object _
+    ByVal declarations As Object, _
+    Optional ByVal rowRange As Range _
 )
     Dim widthValue As Double
     Dim minWidthValue As Double
@@ -1180,11 +814,21 @@ Private Sub mp_ApplyDeclarations( _
     Dim fontSizeValue As Double
     Dim fontBoldValue As Boolean
     Dim colorValue As Long
+    Dim hasBorderColor As Boolean
+    Dim hasBorderWeight As Boolean
+    Dim borderColorValue As Long
+    Dim borderWeightValue As Long
     Dim horizontalValue As String
     Dim verticalValue As String
+    Dim operationRowRange As Range
 
     If scopeRange Is Nothing Then Exit Sub
     If declarations Is Nothing Then Exit Sub
+    If rowRange Is Nothing Then
+        Set operationRowRange = scopeRange
+    Else
+        Set operationRowRange = rowRange
+    End If
 
     If declarations.Exists(STYLE_PROP_WIDTH) Then
         If Not mp_TryParseWidth(CStr(declarations(STYLE_PROP_WIDTH)), widthValue) Then
@@ -1258,14 +902,14 @@ Private Sub mp_ApplyDeclarations( _
         If Not mp_TryParseBoolean(CStr(declarations(STYLE_PROP_AUTO_HEIGHT)), autoHeightEnabled) Then
             Err.Raise vbObjectError + 1731, "ex_StylePipelineEngine", "Invalid autoHeight declaration: " & CStr(declarations(STYLE_PROP_AUTO_HEIGHT))
         End If
-        If autoHeightEnabled Then scopeRange.EntireRow.AutoFit
+        If autoHeightEnabled Then operationRowRange.EntireRow.AutoFit
     End If
 
     If declarations.Exists(STYLE_PROP_ROW_HEIGHT) Then
         If Not mp_TryParsePositiveDouble(CStr(declarations(STYLE_PROP_ROW_HEIGHT)), rowHeightValue) Then
             Err.Raise vbObjectError + 1731, "ex_StylePipelineEngine", "Invalid rowHeight declaration: " & CStr(declarations(STYLE_PROP_ROW_HEIGHT))
         End If
-        scopeRange.RowHeight = rowHeightValue
+        operationRowRange.RowHeight = rowHeightValue
     End If
 
     If declarations.Exists(STYLE_PROP_MERGE_COLUMNS) Then
@@ -1275,7 +919,7 @@ Private Sub mp_ApplyDeclarations( _
         If mergeColumnsValue < 1 Then
             Err.Raise vbObjectError + 1731, "ex_StylePipelineEngine", "Invalid mergeColumns declaration: " & CStr(declarations(STYLE_PROP_MERGE_COLUMNS))
         End If
-        mp_MergeRowsInScope scopeRange, mergeColumnsValue
+        mp_MergeRowsInScope operationRowRange, mergeColumnsValue
     End If
 
     If declarations.Exists(STYLE_PROP_FONT_NAME) Then
@@ -1310,6 +954,33 @@ Private Sub mp_ApplyDeclarations( _
         scopeRange.Font.Color = colorValue
     End If
 
+    If declarations.Exists(STYLE_PROP_BORDER_COLOR) Then
+        If Not ex_XmlCore.m_TryParseColor(CStr(declarations(STYLE_PROP_BORDER_COLOR)), borderColorValue) Then
+            Err.Raise vbObjectError + 1731, "ex_StylePipelineEngine", "Invalid borderColor declaration: " & CStr(declarations(STYLE_PROP_BORDER_COLOR))
+        End If
+        hasBorderColor = True
+    End If
+
+    If declarations.Exists(STYLE_PROP_BORDER_WEIGHT) Then
+        If Not mp_TryParseBorderWeight(CStr(declarations(STYLE_PROP_BORDER_WEIGHT)), borderWeightValue) Then
+            Err.Raise vbObjectError + 1731, "ex_StylePipelineEngine", "Invalid borderWeight declaration: " & CStr(declarations(STYLE_PROP_BORDER_WEIGHT))
+        End If
+        hasBorderWeight = True
+    End If
+
+    If hasBorderColor Or hasBorderWeight Then
+        With scopeRange
+            .Borders(xlEdgeLeft).LineStyle = xlContinuous
+            .Borders(xlEdgeTop).LineStyle = xlContinuous
+            .Borders(xlEdgeBottom).LineStyle = xlContinuous
+            .Borders(xlEdgeRight).LineStyle = xlContinuous
+            .Borders(xlInsideVertical).LineStyle = xlContinuous
+            .Borders(xlInsideHorizontal).LineStyle = xlContinuous
+            If hasBorderColor Then .Borders.Color = borderColorValue
+            If hasBorderWeight Then .Borders.Weight = borderWeightValue
+        End With
+    End If
+
     If declarations.Exists(STYLE_PROP_HORIZONTAL) Then
         horizontalValue = LCase$(Trim$(CStr(declarations(STYLE_PROP_HORIZONTAL))))
         scopeRange.HorizontalAlignment = mp_ParseHorizontalAlignment(horizontalValue)
@@ -1320,6 +991,64 @@ Private Sub mp_ApplyDeclarations( _
         scopeRange.VerticalAlignment = mp_ParseVerticalAlignment(verticalValue)
     End If
 End Sub
+
+Private Function mp_GetUsedScopeRange(ByVal ws As Worksheet) As Range
+    Dim lastRow As Long
+    Dim lastCol As Long
+
+    If ws Is Nothing Then Exit Function
+
+    lastRow = mp_GetLastUsedRow(ws)
+    lastCol = mp_GetLastUsedColumn(ws)
+    If lastRow < 1 Then lastRow = 1
+    If lastCol < 1 Then lastCol = 1
+
+    Set mp_GetUsedScopeRange = ws.Range(ws.Cells(1, 1), ws.Cells(lastRow, lastCol))
+End Function
+
+Private Function mp_GetExpandedSheetScopeRange( _
+    ByVal ws As Worksheet, _
+    ByVal extraColsRatio As Double, _
+    ByVal extraRowsRatio As Double _
+) As Range
+    Dim usedScope As Range
+    Dim usedLastRow As Long
+    Dim usedLastCol As Long
+    Dim extraCols As Long
+    Dim extraRows As Long
+    Dim endRow As Long
+    Dim endCol As Long
+
+    If ws Is Nothing Then Exit Function
+
+    Set usedScope = mp_GetUsedScopeRange(ws)
+    If usedScope Is Nothing Then Exit Function
+
+    usedLastRow = usedScope.Row + usedScope.Rows.Count - 1
+    usedLastCol = usedScope.Column + usedScope.Columns.Count - 1
+
+    extraCols = mp_CeilPositiveLong(CDbl(usedLastCol) * extraColsRatio)
+    extraRows = mp_CeilPositiveLong(CDbl(usedLastRow) * extraRowsRatio)
+
+    endCol = usedLastCol + extraCols
+    endRow = usedLastRow + extraRows
+
+    If endCol < 1 Then endCol = 1
+    If endRow < 1 Then endRow = 1
+    If endCol > ws.Columns.Count Then endCol = ws.Columns.Count
+    If endRow > ws.Rows.Count Then endRow = ws.Rows.Count
+
+    Set mp_GetExpandedSheetScopeRange = ws.Range(ws.Cells(1, 1), ws.Cells(endRow, endCol))
+End Function
+
+Private Function mp_CeilPositiveLong(ByVal value As Double) As Long
+    If value <= 0 Then Exit Function
+
+    mp_CeilPositiveLong = CLng(value)
+    If CDbl(mp_CeilPositiveLong) < value Then
+        mp_CeilPositiveLong = mp_CeilPositiveLong + 1
+    End If
+End Function
 
 Private Sub mp_ClampColumnRangeWidths( _
     ByVal targetColumns As Range, _
@@ -1382,7 +1111,7 @@ End Sub
 
 Private Function mp_IsSupportedTarget(ByVal targetName As String) As Boolean
     Select Case LCase$(Trim$(targetName))
-        Case "sheet", "range", "row", "column", "cell"
+        Case "sheet", "usedrange", "range", "row", "column", "cell"
             mp_IsSupportedTarget = True
     End Select
 End Function
@@ -1398,6 +1127,7 @@ Private Function mp_ValidateDeclarations(ByVal declarations As Object, ByRef out
     Dim doubleValue As Double
     Dim longValue As Long
     Dim colorValue As Long
+    Dim borderWeightValue As Long
 
     If declarations Is Nothing Then
         outErrorText = "Style declarations object is not initialized."
@@ -1507,6 +1237,20 @@ Private Function mp_ValidateDeclarations(ByVal declarations As Object, ByRef out
     If declarations.Exists(STYLE_PROP_FONT_COLOR) Then
         If Not ex_XmlCore.m_TryParseColor(CStr(declarations(STYLE_PROP_FONT_COLOR)), colorValue) Then
             outErrorText = "Invalid fontColor declaration: " & CStr(declarations(STYLE_PROP_FONT_COLOR))
+            Exit Function
+        End If
+    End If
+
+    If declarations.Exists(STYLE_PROP_BORDER_COLOR) Then
+        If Not ex_XmlCore.m_TryParseColor(CStr(declarations(STYLE_PROP_BORDER_COLOR)), colorValue) Then
+            outErrorText = "Invalid borderColor declaration: " & CStr(declarations(STYLE_PROP_BORDER_COLOR))
+            Exit Function
+        End If
+    End If
+
+    If declarations.Exists(STYLE_PROP_BORDER_WEIGHT) Then
+        If Not mp_TryParseBorderWeight(CStr(declarations(STYLE_PROP_BORDER_WEIGHT)), borderWeightValue) Then
+            outErrorText = "Invalid borderWeight declaration: " & CStr(declarations(STYLE_PROP_BORDER_WEIGHT))
             Exit Function
         End If
     End If
@@ -1801,44 +1545,6 @@ Private Function mp_TryResolveColumnToken(ByVal tokenText As String, ByRef outCo
     mp_TryResolveColumnToken = True
 End Function
 
-Private Function mp_ParseStyleTagNames(ByVal styleTagsText As String) As Collection
-    Dim result As Collection
-    Dim normalized As String
-    Dim tokens As Variant
-    Dim token As String
-    Dim i As Long
-    Dim dedupe As Object
-
-    Set result = New Collection
-    Set dedupe = CreateObject("Scripting.Dictionary")
-    dedupe.CompareMode = 1
-
-    normalized = Trim$(styleTagsText)
-    If Len(normalized) = 0 Then
-        Set mp_ParseStyleTagNames = result
-        Exit Function
-    End If
-
-    normalized = Replace$(normalized, vbCrLf, ";")
-    normalized = Replace$(normalized, vbCr, ";")
-    normalized = Replace$(normalized, vbLf, ";")
-    normalized = Replace$(normalized, ",", ";")
-    normalized = Replace$(normalized, " ", ";")
-    normalized = Replace$(normalized, vbTab, ";")
-    tokens = Split(normalized, ";")
-
-    For i = LBound(tokens) To UBound(tokens)
-        token = Trim$(CStr(tokens(i)))
-        If Len(token) = 0 Then GoTo ContinueToken
-        If dedupe.Exists(token) Then GoTo ContinueToken
-        dedupe(token) = True
-        result.Add token
-ContinueToken:
-    Next i
-
-    Set mp_ParseStyleTagNames = result
-End Function
-
 Private Function mp_NodeAttrText(ByVal node As Object, ByVal attrName As String) As String
     On Error Resume Next
     mp_NodeAttrText = CStr(node.selectSingleNode("@*[local-name()='" & attrName & "']").Text)
@@ -1860,35 +1566,15 @@ Private Sub mp_EnsureRuntimeCaches()
     If g_IsRuntimeCacheInitialized Then Exit Sub
 
     Set g_LayersCache = mp_CreateStringDictionary()
-    Set g_WorkflowStepsCache = mp_CreateStringDictionary()
     Set g_SelectorCache = mp_CreateStringDictionary()
     g_IsRuntimeCacheInitialized = True
 End Sub
 
 Private Function mp_BuildLayersCacheKey( _
     ByVal wb As Workbook, _
-    ByVal activeModeName As String, _
-    ByVal scopeFilter As String, _
-    ByVal workflowName As String, _
-    ByVal stageFilter As String, _
     ByVal pageName As String _
 ) As String
-    mp_BuildLayersCacheKey = mp_BuildWorkbookCacheKey(wb) & "|" & _
-        LCase$(Trim$(activeModeName)) & "|" & _
-        LCase$(Trim$(scopeFilter)) & "|" & _
-        LCase$(Trim$(workflowName)) & "|" & _
-        LCase$(Trim$(stageFilter)) & "|" & _
-        LCase$(Trim$(pageName))
-End Function
-
-Private Function mp_BuildWorkflowStepsCacheKey( _
-    ByVal wb As Workbook, _
-    ByVal pageName As String, _
-    ByVal workflowName As String _
-) As String
-    mp_BuildWorkflowStepsCacheKey = mp_BuildWorkbookCacheKey(wb) & "|" & _
-        LCase$(Trim$(pageName)) & "|" & _
-        LCase$(Trim$(workflowName))
+    mp_BuildLayersCacheKey = mp_BuildWorkbookCacheKey(wb) & "|" & LCase$(Trim$(pageName))
 End Function
 
 Private Function mp_BuildWorkbookCacheKey(ByVal wb As Workbook) As String
@@ -1947,55 +1633,10 @@ Private Function mp_GetStylePipelineDomCached(ByVal wb As Workbook) As Object
 
     If shouldResetPipelineCaches Then
         If Not g_LayersCache Is Nothing Then g_LayersCache.RemoveAll
-        If Not g_WorkflowStepsCache Is Nothing Then g_WorkflowStepsCache.RemoveAll
     End If
 
     Set mp_GetStylePipelineDomCached = g_StylePipelineDocCache
 End Function
-
-Private Function mp_TryGetStyleCatalogCached(ByVal wb As Workbook, ByRef outCatalog As Object) As Boolean
-    Dim wbKey As String
-    Dim fileStamp As Date
-    Dim hasFileStamp As Boolean
-
-    If wb Is Nothing Then Set wb = ThisWorkbook
-    If wb Is Nothing Then Exit Function
-
-    mp_EnsureRuntimeCaches
-
-    wbKey = mp_BuildWorkbookCacheKey(wb)
-    hasFileStamp = mp_TryGetConfigFileStamp(wb, SHEET_STYLES_REL_PATH, fileStamp)
-
-    If g_StyleCatalogCache Is Nothing Then Exit Function
-    If StrComp(g_StyleCatalogWbKey, wbKey, vbTextCompare) <> 0 Then Exit Function
-    If hasFileStamp Then
-        If g_StyleCatalogStamp <> fileStamp Then Exit Function
-    End If
-
-    Set outCatalog = g_StyleCatalogCache
-    mp_TryGetStyleCatalogCached = True
-End Function
-
-Private Sub mp_StoreStyleCatalogCache(ByVal wb As Workbook, ByVal styleCatalog As Object)
-    Dim wbKey As String
-    Dim fileStamp As Date
-    Dim hasFileStamp As Boolean
-
-    If styleCatalog Is Nothing Then Exit Sub
-    If wb Is Nothing Then Set wb = ThisWorkbook
-    If wb Is Nothing Then Exit Sub
-
-    wbKey = mp_BuildWorkbookCacheKey(wb)
-    hasFileStamp = mp_TryGetConfigFileStamp(wb, SHEET_STYLES_REL_PATH, fileStamp)
-
-    Set g_StyleCatalogCache = styleCatalog
-    g_StyleCatalogWbKey = wbKey
-    If hasFileStamp Then
-        g_StyleCatalogStamp = fileStamp
-    Else
-        g_StyleCatalogStamp = 0
-    End If
-End Sub
 
 Private Function mp_TryGetConfigFileStamp( _
     ByVal wb As Workbook, _
@@ -2022,23 +1663,6 @@ Private Function mp_TryGetConfigFileStamp( _
     On Error GoTo 0
 End Function
 
-Private Function mp_CopyStringCollection(ByVal sourceCollection As Collection) As Collection
-    Dim result As Collection
-    Dim itemValue As Variant
-
-    Set result = New Collection
-    If sourceCollection Is Nothing Then
-        Set mp_CopyStringCollection = result
-        Exit Function
-    End If
-
-    For Each itemValue In sourceCollection
-        result.Add CStr(itemValue)
-    Next itemValue
-
-    Set mp_CopyStringCollection = result
-End Function
-
 Private Function mp_GetParsedSelectorCached(ByVal selectorText As String) As Object
     Dim cacheKey As String
     Dim parsedSelector As Object
@@ -2054,47 +1678,6 @@ Private Function mp_GetParsedSelectorCached(ByVal selectorText As String) As Obj
     Set parsedSelector = mp_ParseSelector(selectorText)
     Set g_SelectorCache(cacheKey) = parsedSelector
     Set mp_GetParsedSelectorCached = parsedSelector
-End Function
-
-Private Function mp_ShouldIncludeLayerByScope( _
-    ByVal scopeFilter As String, _
-    ByVal layerScope As String _
-) As Boolean
-    Dim normalizedFilter As String
-    Dim normalizedScope As String
-
-    normalizedFilter = LCase$(Trim$(scopeFilter))
-    normalizedScope = LCase$(Trim$(layerScope))
-
-    If Len(normalizedFilter) = 0 Then
-        mp_ShouldIncludeLayerByScope = True
-        Exit Function
-    End If
-
-    If Len(normalizedScope) = 0 Then
-        mp_ShouldIncludeLayerByScope = (StrComp(normalizedFilter, "columnstyles", vbTextCompare) = 0)
-        Exit Function
-    End If
-
-    mp_ShouldIncludeLayerByScope = (StrComp(normalizedScope, normalizedFilter, vbTextCompare) = 0)
-End Function
-
-Private Function mp_CopyDictionary(ByVal sourceDict As Object) As Object
-    Dim result As Object
-    Dim key As Variant
-
-    Set result = mp_CreateStringDictionary()
-
-    If sourceDict Is Nothing Then
-        Set mp_CopyDictionary = result
-        Exit Function
-    End If
-
-    For Each key In sourceDict.Keys
-        result(CStr(key)) = CStr(sourceDict(key))
-    Next key
-
-    Set mp_CopyDictionary = result
 End Function
 
 Private Function mp_TryParseWidth(ByVal valueText As String, ByRef outWidth As Double) As Boolean
@@ -2141,6 +1724,18 @@ Private Function mp_TryParsePositiveDouble(ByVal valueText As String, ByRef outV
     If Not ex_XmlCore.m_TryParseDouble(normalized, outValue) Then Exit Function
     If outValue <= 0 Then Exit Function
     mp_TryParsePositiveDouble = True
+End Function
+
+Private Function mp_TryParseBorderWeight(ByVal valueText As String, ByRef outValue As Long) As Boolean
+    Select Case LCase$(Trim$(valueText))
+        Case "hairline": outValue = xlHairline
+        Case "thin": outValue = xlThin
+        Case "medium": outValue = xlMedium
+        Case "thick": outValue = xlThick
+        Case Else: Exit Function
+    End Select
+
+    mp_TryParseBorderWeight = True
 End Function
 
 Private Function mp_IsSupportedHorizontalAlignment(ByVal valueText As String) As Boolean
