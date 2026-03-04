@@ -18,6 +18,8 @@ Private Enum e_ConfigStylePropertyId
     cfgStylePropFontColor = 13
     cfgStylePropHorizontal = 14
     cfgStylePropVertical = 15
+    cfgStylePropBorderColor = 16
+    cfgStylePropBorderWeight = 17
 End Enum
 
 ' Supported style properties (declarations):
@@ -25,6 +27,7 @@ End Enum
 ' overflow, autoHeight, rowHeight, mergeColumns
 ' fontName, fontSize, fontBold
 ' backColor, fontColor
+' borderColor, borderWeight
 ' horizontal, vertical
 Private Const STYLE_PROPERTY_WIDTH As String = "width"
 Private Const STYLE_PROPERTY_MIN_WIDTH As String = "minWidth"
@@ -39,18 +42,20 @@ Private Const STYLE_PROPERTY_FONT_SIZE As String = "fontSize"
 Private Const STYLE_PROPERTY_FONT_BOLD As String = "fontBold"
 Private Const STYLE_PROPERTY_BACK_COLOR As String = "backColor"
 Private Const STYLE_PROPERTY_FONT_COLOR As String = "fontColor"
+Private Const STYLE_PROPERTY_BORDER_COLOR As String = "borderColor"
+Private Const STYLE_PROPERTY_BORDER_WEIGHT As String = "borderWeight"
 Private Const STYLE_PROPERTY_HORIZONTAL As String = "horizontal"
 Private Const STYLE_PROPERTY_VERTICAL As String = "vertical"
 
 Public Sub m_ApplyColumnStylesByMapKeys( _
     ByVal ws As Worksheet, _
     ByVal resultFieldRanges As Collection, _
-    ByVal cfgNotes As Object _
+    ByVal cfgStyles As Object _
 )
     Dim i As Long
     Dim target As Object
     Dim mapKey As String
-    Dim noteText As String
+    Dim styleText As String
     Dim parsedStyles As Object
     Dim hasStyleBlock As Boolean
     Dim parseError As String
@@ -60,7 +65,7 @@ Public Sub m_ApplyColumnStylesByMapKeys( _
 
     If ws Is Nothing Then Exit Sub
     If resultFieldRanges Is Nothing Then Exit Sub
-    If cfgNotes Is Nothing Then Exit Sub
+    If cfgStyles Is Nothing Then Exit Sub
     If resultFieldRanges.Count = 0 Then Exit Sub
 
     For i = 1 To resultFieldRanges.Count
@@ -69,16 +74,16 @@ Public Sub m_ApplyColumnStylesByMapKeys( _
 
         mapKey = Trim$(CStr(target("MapKey")))
         If Len(mapKey) = 0 Then GoTo ContinueTarget
-        If Not cfgNotes.Exists(mapKey) Then GoTo ContinueTarget
+        If Not cfgStyles.Exists(mapKey) Then GoTo ContinueTarget
 
-        noteText = Trim$(CStr(cfgNotes(mapKey)))
-        If Len(noteText) = 0 Then GoTo ContinueTarget
+        styleText = Trim$(CStr(cfgStyles(mapKey)))
+        If Len(styleText) = 0 Then GoTo ContinueTarget
 
         hasStyleBlock = False
         parseError = vbNullString
-        If Not mp_TryParseStyleMap(noteText, parsedStyles, hasStyleBlock, parseError) Then
+        If Not mp_TryParseStyleMap(styleText, parsedStyles, hasStyleBlock, parseError) Then
             Err.Raise vbObjectError + 1491, "ex_ConfigStylesParser", _
-                "Invalid styles definition for key '" & mapKey & "': " & parseError & ". Source: '" & noteText & "'."
+                "Invalid styles definition for key '" & mapKey & "': " & parseError & ". Source: '" & styleText & "'."
         End If
         If Not hasStyleBlock Then GoTo ContinueTarget
 
@@ -130,13 +135,13 @@ End Function
 
 Public Function m_ValidateColumnStylesByMapKeys( _
     ByVal resultFieldRanges As Collection, _
-    ByVal cfgNotes As Object, _
+    ByVal cfgStyles As Object, _
     ByRef outErrorText As String _
 ) As Boolean
     Dim i As Long
     Dim target As Object
     Dim mapKey As String
-    Dim noteText As String
+    Dim styleText As String
     Dim parsedStyles As Object
     Dim hasStyleBlock As Boolean
     Dim parseError As String
@@ -148,7 +153,7 @@ Public Function m_ValidateColumnStylesByMapKeys( _
         m_ValidateColumnStylesByMapKeys = True
         Exit Function
     End If
-    If cfgNotes Is Nothing Then
+    If cfgStyles Is Nothing Then
         m_ValidateColumnStylesByMapKeys = True
         Exit Function
     End If
@@ -165,17 +170,17 @@ Public Function m_ValidateColumnStylesByMapKeys( _
         stepName = "read-map-key"
         mapKey = Trim$(CStr(target("MapKey")))
         If Len(mapKey) = 0 Then GoTo ContinueTarget
-        If Not cfgNotes.Exists(mapKey) Then GoTo ContinueTarget
+        If Not cfgStyles.Exists(mapKey) Then GoTo ContinueTarget
 
-        stepName = "read-note"
-        noteText = Trim$(CStr(cfgNotes(mapKey)))
-        If Len(noteText) = 0 Then GoTo ContinueTarget
+        stepName = "read-styles"
+        styleText = Trim$(CStr(cfgStyles(mapKey)))
+        If Len(styleText) = 0 Then GoTo ContinueTarget
 
         stepName = "parse-style-map"
         parseError = vbNullString
         hasStyleBlock = False
-        If Not mp_TryParseStyleMap(noteText, parsedStyles, hasStyleBlock, parseError) Then
-            outErrorText = "Invalid styles definition for key '" & mapKey & "': " & parseError & ". Source: '" & noteText & "'."
+        If Not mp_TryParseStyleMap(styleText, parsedStyles, hasStyleBlock, parseError) Then
+            outErrorText = "Invalid styles definition for key '" & mapKey & "': " & parseError & ". Source: '" & styleText & "'."
             Exit Function
         End If
 
@@ -197,7 +202,7 @@ EH:
 End Function
 
 Private Function mp_TryParseStyleMap( _
-    ByVal noteText As String, _
+    ByVal styleText As String, _
     ByRef outStyles As Object, _
     ByRef hasStyleBlock As Boolean, _
     ByRef outErrorText As String _
@@ -219,7 +224,7 @@ Private Function mp_TryParseStyleMap( _
     Set outStyles = CreateObject("Scripting.Dictionary")
     outStyles.CompareMode = 1
 
-    sourceText = mp_NormalizeStyleToken(noteText)
+    sourceText = mp_NormalizeStyleToken(styleText)
     If Len(sourceText) = 0 Then
         mp_TryParseStyleMap = True
         Exit Function
@@ -308,6 +313,8 @@ Private Function mp_BuildSupportedPropertyIds() As Object
     propertyIds(LCase$(STYLE_PROPERTY_FONT_BOLD)) = cfgStylePropFontBold
     propertyIds(LCase$(STYLE_PROPERTY_BACK_COLOR)) = cfgStylePropBackColor
     propertyIds(LCase$(STYLE_PROPERTY_FONT_COLOR)) = cfgStylePropFontColor
+    propertyIds(LCase$(STYLE_PROPERTY_BORDER_COLOR)) = cfgStylePropBorderColor
+    propertyIds(LCase$(STYLE_PROPERTY_BORDER_WEIGHT)) = cfgStylePropBorderWeight
     propertyIds(LCase$(STYLE_PROPERTY_HORIZONTAL)) = cfgStylePropHorizontal
     propertyIds(LCase$(STYLE_PROPERTY_VERTICAL)) = cfgStylePropVertical
 
@@ -442,9 +449,15 @@ Private Function mp_ValidatePropertyValue( _
                 Exit Function
             End If
 
-        Case cfgStylePropBackColor, cfgStylePropFontColor
+        Case cfgStylePropBackColor, cfgStylePropFontColor, cfgStylePropBorderColor
             If Not ex_XmlCore.m_TryParseColor(propertyValue, colorValue) Then
                 outErrorText = "invalid color value '" & propertyValue & "'"
+                Exit Function
+            End If
+
+        Case cfgStylePropBorderWeight
+            If Not mp_IsSupportedBorderWeightValue(propertyValue) Then
+                outErrorText = "invalid borderWeight value '" & propertyValue & "' (expected hairline/thin/medium/thick)"
                 Exit Function
             End If
 
@@ -466,6 +479,13 @@ Private Function mp_ValidatePropertyValue( _
     End Select
 
     mp_ValidatePropertyValue = True
+End Function
+
+Private Function mp_IsSupportedBorderWeightValue(ByVal valueText As String) As Boolean
+    Select Case LCase$(Trim$(valueText))
+        Case "hairline", "thin", "medium", "thick"
+            mp_IsSupportedBorderWeightValue = True
+    End Select
 End Function
 
 Private Function mp_TryParseWidth(ByVal valueText As String, ByRef outWidth As Double) As Boolean
@@ -511,6 +531,10 @@ Private Sub mp_ApplyParsedStylesToColumn( _
     Dim boolValue As Boolean
     Dim fontSizeValue As Double
     Dim colorValue As Long
+    Dim borderColorValue As Long
+    Dim borderWeightValue As Long
+    Dim hasBorderColor As Boolean
+    Dim hasBorderWeight As Boolean
     Dim horizontalValue As String
     Dim verticalValue As String
 
@@ -642,6 +666,35 @@ Private Sub mp_ApplyParsedStylesToColumn( _
         scopedRange.Font.Color = colorValue
     End If
 
+    If parsedStyles.Exists(LCase$(STYLE_PROPERTY_BORDER_COLOR)) Then
+        If Not ex_XmlCore.m_TryParseColor(CStr(parsedStyles(LCase$(STYLE_PROPERTY_BORDER_COLOR))), borderColorValue) Then
+            Err.Raise vbObjectError + 1498, "ex_ConfigStylesParser", _
+                "Invalid borderColor value for key '" & mapKey & "'."
+        End If
+        hasBorderColor = True
+    End If
+
+    If parsedStyles.Exists(LCase$(STYLE_PROPERTY_BORDER_WEIGHT)) Then
+        If Not mp_TryParseBorderWeight(CStr(parsedStyles(LCase$(STYLE_PROPERTY_BORDER_WEIGHT))), borderWeightValue) Then
+            Err.Raise vbObjectError + 1498, "ex_ConfigStylesParser", _
+                "Invalid borderWeight value for key '" & mapKey & "'."
+        End If
+        hasBorderWeight = True
+    End If
+
+    If hasBorderColor Or hasBorderWeight Then
+        With scopedRange
+            .Borders(xlEdgeLeft).LineStyle = xlContinuous
+            .Borders(xlEdgeTop).LineStyle = xlContinuous
+            .Borders(xlEdgeBottom).LineStyle = xlContinuous
+            .Borders(xlEdgeRight).LineStyle = xlContinuous
+            .Borders(xlInsideVertical).LineStyle = xlContinuous
+            .Borders(xlInsideHorizontal).LineStyle = xlContinuous
+            If hasBorderColor Then .Borders.Color = borderColorValue
+            If hasBorderWeight Then .Borders.Weight = borderWeightValue
+        End With
+    End If
+
     If parsedStyles.Exists(LCase$(STYLE_PROPERTY_HORIZONTAL)) Then
         horizontalValue = LCase$(Trim$(CStr(parsedStyles(LCase$(STYLE_PROPERTY_HORIZONTAL)))))
         scopedRange.HorizontalAlignment = mp_ParseHorizontalAlignment(horizontalValue)
@@ -700,6 +753,18 @@ Private Function mp_TryParsePositiveDouble(ByVal valueText As String, ByRef outV
     If Not ex_XmlCore.m_TryParseDouble(normalized, outValue) Then Exit Function
     If outValue <= 0 Then Exit Function
     mp_TryParsePositiveDouble = True
+End Function
+
+Private Function mp_TryParseBorderWeight(ByVal valueText As String, ByRef outValue As Long) As Boolean
+    Select Case LCase$(Trim$(valueText))
+        Case "hairline": outValue = xlHairline
+        Case "thin": outValue = xlThin
+        Case "medium": outValue = xlMedium
+        Case "thick": outValue = xlThick
+        Case Else: Exit Function
+    End Select
+
+    mp_TryParseBorderWeight = True
 End Function
 
 Private Function mp_UnquoteText(ByVal valueText As String) As String

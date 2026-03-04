@@ -170,16 +170,16 @@ End Sub
 
 Private Function mp_ValidateTimelineEntryConfig(ByRef outErrorText As String) As Boolean
     Dim cfg As Object
-    Dim cfgNotes As Object
+    Dim cfgStyles As Object
     Dim mode As OutputMode
 
     On Error GoTo EH
 
     Set cfg = mp_LoadConfigDictionary()
-    Set cfgNotes = ex_ConfigProvider.m_GetConfigNotesDictionary()
+    Set cfgStyles = ex_ConfigProvider.m_GetConfigStylesDictionary()
     mode = ex_Settings.m_GetOutputMode()
 
-    mp_ValidateTimelineEntryConfig = mp_ValidateTimelineConfig(cfg, cfgNotes, mode, outErrorText)
+    mp_ValidateTimelineEntryConfig = mp_ValidateTimelineConfig(cfg, cfgStyles, mode, outErrorText)
     Exit Function
 
 EH:
@@ -220,14 +220,14 @@ Public Sub m_ShowPersonTimeline(ByVal fio As String)
     Set cfg = mp_LoadConfigDictionary()
     mp_EnsureAdoLookupCaches cfg
 
-    Dim cfgNotes As Object
-    Set cfgNotes = ex_ConfigProvider.m_GetConfigNotesDictionary()
+    Dim cfgStyles As Object
+    Set cfgStyles = ex_ConfigProvider.m_GetConfigStylesDictionary()
 
     Dim mode As OutputMode
     mode = ex_Settings.m_GetOutputMode()
 
     Dim validationError As String
-    If Not mp_ValidateTimelineConfig(cfg, cfgNotes, mode, validationError) Then
+    If Not mp_ValidateTimelineConfig(cfg, cfgStyles, mode, validationError) Then
         Application.EnableEvents = prevEnableEvents
         Application.DisplayAlerts = prevDisplayAlerts
         Application.ScreenUpdating = prevScreenUpdating
@@ -238,7 +238,6 @@ Public Sub m_ShowPersonTimeline(ByVal fio As String)
     End If
 
     Set wsOut = mp_CreateOrClearSheet(RESULT_SHEET_NAME)
-    ex_Messaging.m_ApplyDarkSheetBase wsOut
 
     wsOut.Activate
     ActiveWindow.Zoom = 115
@@ -365,14 +364,12 @@ ContinueAlias:
             "No sheets were rendered for mode '" & ex_Settings.m_GetOutputModeDisplay() & "'. Check Output.Sheets and sheet Type."
     End If
 
-    mp_ApplyTimelineStyleLayers wsOut, headerRows, sectionRows, resultFieldRanges
+    mp_ApplyTimelineStyleLayers wsOut, headerRows, sectionRows, resultFieldRanges, cfgStyles, partialMatchRowRanges
     If hasOutputStyle Then
         ex_OutputPanel.m_RenderForSheet wsOut, outputStyle
     End If
 
-    ex_OutputFormattingPipeline.m_ApplyTimelinePostLayoutStyleLayers wsOut, resultFieldRanges, cfgNotes
     mp_RenderPendingWarningBanners wsOut, pendingWarningBanners
-    ex_OutputFormattingPipeline.m_ApplyTimelinePostWarningsStyleLayers wsOut, partialMatchRowRanges
 
     mp_StorePostProcessContext cfg, resultTables, (partialMatchRowRanges.Count > 0)
     If mp_ShouldAutoPostProcess() Then
@@ -394,9 +391,6 @@ EH:
     Dim errSource As String
     Dim errDescription As String
     Dim errOutputStyle As t_OutputSheetStyle
-    Dim errBaseStyle As t_BaseSheetStyle
-    Dim errRowCount As Long
-    Dim errColCount As Long
 
     errNumber = Err.Number
     errSource = Err.Source
@@ -420,21 +414,9 @@ EH:
         Set wsOut = mp_CreateOrClearSheet(RESULT_SHEET_NAME)
     End If
     On Error Resume Next
-    If ex_SheetStylesXmlProvider.m_InitializeStyles(ThisWorkbook) Then
-        If ex_SheetStylesXmlProvider.m_GetBaseSheetStyle(errBaseStyle, ThisWorkbook) Then
-            If Not ex_SheetStylesXmlProvider.m_GetUsedRangeSize(wsOut, errRowCount, errColCount) Then
-                errRowCount = 1
-                errColCount = 1
-            End If
-            ex_SheetStylesXmlProvider.m_ApplyBaseLayer wsOut, errRowCount, errColCount, errBaseStyle
-        Else
-            ex_Messaging.m_ApplyDarkSheetBase wsOut
-        End If
-        If ex_SheetStylesXmlProvider.m_GetOutputSheetStyle(errOutputStyle, ThisWorkbook) Then
-            ex_OutputPanel.m_RenderForSheet wsOut, errOutputStyle
-        End If
-    Else
-        ex_Messaging.m_ApplyDarkSheetBase wsOut
+    ex_OutputFormattingPipeline.m_ApplySheetPipeline wsOut
+    If ex_SheetStylesXmlProvider.m_GetOutputSheetStyle(errOutputStyle, ThisWorkbook) Then
+        ex_OutputPanel.m_RenderForSheet wsOut, errOutputStyle
     End If
     On Error GoTo 0
     ex_Messaging.m_RenderErrorBanner wsOut, errDescription, errSource, errNumber, "ERROR: Timeline generation failed", ex_SheetStylesXmlProvider.m_GetOutputErrorBannerRangeAddress(ThisWorkbook)
@@ -514,7 +496,7 @@ End Function
 
 Private Function mp_ValidateTimelineConfig( _
     ByVal cfg As Object, _
-    ByVal cfgNotes As Object, _
+    ByVal cfgStyles As Object, _
     ByVal mode As OutputMode, _
     ByRef outErrorText As String _
 ) As Boolean
@@ -523,7 +505,6 @@ Private Function mp_ValidateTimelineConfig( _
     Dim resultFieldRanges As Collection
     Dim allowedTableFields As Object
     Dim activeModeKey As String
-    Dim styleTagsByMapKey As Object
     Dim strictPreflight As Boolean
     Dim i As Long
 
@@ -592,11 +573,9 @@ ContinueAlias:
     strictPreflight = mp_ShouldStrictPreflightValidation()
     If strictPreflight Then
         activeModeKey = ex_ConfigProfilesManager.m_GetActiveModeKey(ws_Dev)
-        Set styleTagsByMapKey = ex_ConfigProfilesManager.m_GetActiveProfileStyleTagsByKey(ws_Dev)
         If Not ex_StylePipelineEngine.m_ValidateColumnStylesPipeline( _
             resultFieldRanges, _
-            cfgNotes, _
-            styleTagsByMapKey, _
+            cfgStyles, _
             activeModeKey, _
             outErrorText, _
             ThisWorkbook, _
@@ -605,19 +584,6 @@ ContinueAlias:
             Exit Function
         End If
 
-        Dim workflowSteps As Collection
-        If Not ex_StylePipelineEngine.m_GetRenderWorkflowStepOrder(RESULT_SHEET_NAME, "personalCardTimeline", workflowSteps, ThisWorkbook) Then
-            outErrorText = "Style workflow 'personalCardTimeline' is not configured for page '" & RESULT_SHEET_NAME & "'."
-            Exit Function
-        End If
-        If Not ex_StylePipelineEngine.m_GetRenderWorkflowStepOrder(RESULT_SHEET_NAME, "personalCardPostLayout", workflowSteps, ThisWorkbook) Then
-            outErrorText = "Style workflow 'personalCardPostLayout' is not configured for page '" & RESULT_SHEET_NAME & "'."
-            Exit Function
-        End If
-        If Not ex_StylePipelineEngine.m_GetRenderWorkflowStepOrder(RESULT_SHEET_NAME, "personalCardPostWarnings", workflowSteps, ThisWorkbook) Then
-            outErrorText = "Style workflow 'personalCardPostWarnings' is not configured for page '" & RESULT_SHEET_NAME & "'."
-            Exit Function
-        End If
     End If
 
     If Not ex_PostProcessDsl.m_ValidateScriptAgainstConfig(cfg, allowedTableFields, outErrorText) Then
@@ -1392,9 +1358,11 @@ Private Sub mp_ApplyTimelineStyleLayers( _
     ByVal ws As Worksheet, _
     ByVal headerRows As Collection, _
     ByVal sectionRows As Collection, _
-    ByVal resultFieldRanges As Collection _
+    ByVal resultFieldRanges As Collection, _
+    ByVal cfgStyles As Object, _
+    ByVal partialMatchRowRanges As Collection _
 )
-    ex_OutputFormattingPipeline.m_ApplyTimelineStyleLayers ws, headerRows, sectionRows, resultFieldRanges
+    ex_OutputFormattingPipeline.m_ApplyTimelineStyleLayers ws, headerRows, sectionRows, resultFieldRanges, cfgStyles, partialMatchRowRanges
 End Sub
 
 Private Function mp_LoadConfigDictionary() As Object

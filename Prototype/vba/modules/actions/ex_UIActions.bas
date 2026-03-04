@@ -27,6 +27,19 @@ Public Sub m_ToggleDropdownButton_OnClick()
     ex_CustomDropdown.m_ToggleDropdownButton ThisWorkbook
 End Sub
 
+Public Sub m_UpdateUi_OnClick()
+    On Error GoTo EH
+
+    ex_CustomDropdown.m_OnManagedButtonClick
+    ex_OutputFormattingPipeline.m_ApplySheetPipeline ws_Dev
+    ex_UILoader.m_LoadUiFromConfig ThisWorkbook
+    Application.Run "ex_ConfigProfilesManager.m_RestoreSelectionState"
+    ex_CustomDropdown.m_InitDevTestDropdown ThisWorkbook
+    Exit Sub
+EH:
+    MsgBox "Update UI failed: " & Err.Description, vbExclamation
+End Sub
+
 Public Sub m_SelectDropdownOption_OnClick()
     ex_CustomDropdown.m_OnManagedButtonClick
     ex_CustomDropdown.m_SelectDropdownOption ThisWorkbook
@@ -150,10 +163,6 @@ Public Sub m_OutputPanelStartSearch_OnClick()
     Exit Sub
 
 EH:
-    Dim baseStyle As t_BaseSheetStyle
-    Dim rowCount As Long
-    Dim colCount As Long
-
     errNumber = Err.Number
     errSource = Err.Source
     errDescription = Err.Description
@@ -166,21 +175,9 @@ EH:
     If ws Is Nothing Then Exit Sub
 
     On Error Resume Next
-    If ex_SheetStylesXmlProvider.m_InitializeStyles(ThisWorkbook) Then
-        If ex_SheetStylesXmlProvider.m_GetBaseSheetStyle(baseStyle, ThisWorkbook) Then
-            If Not ex_SheetStylesXmlProvider.m_GetUsedRangeSize(ws, rowCount, colCount) Then
-                rowCount = 1
-                colCount = 1
-            End If
-            ex_SheetStylesXmlProvider.m_ApplyBaseLayer ws, rowCount, colCount, baseStyle
-        Else
-            ex_Messaging.m_ApplyDarkSheetBase ws
-        End If
-        If ex_SheetStylesXmlProvider.m_GetOutputSheetStyle(outputStyle, ThisWorkbook) Then
-            ex_OutputPanel.m_RenderForSheet ws, outputStyle
-        End If
-    Else
-        ex_Messaging.m_ApplyDarkSheetBase ws
+    ex_OutputFormattingPipeline.m_ApplySheetPipeline ws
+    If ex_SheetStylesXmlProvider.m_GetOutputSheetStyle(outputStyle, ThisWorkbook) Then
+        ex_OutputPanel.m_RenderForSheet ws, outputStyle
     End If
     On Error GoTo 0
     ex_Messaging.m_RenderErrorBanner ws, errDescription, errSource, errNumber, "ERROR: Timeline generation failed", ex_SheetStylesXmlProvider.m_GetOutputErrorBannerRangeAddress(ThisWorkbook)

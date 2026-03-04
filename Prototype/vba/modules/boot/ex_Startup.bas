@@ -8,6 +8,7 @@ Public Sub Startup_Open()
         MsgBox "Startup initialization failed: styles were not loaded.", vbExclamation
         Exit Sub
     End If
+    ex_OutputFormattingPipeline.m_ApplySheetPipeline ws_Dev
     ex_UILoader.m_LoadUiFromConfig ThisWorkbook
     Application.Run "ex_ConfigProfilesManager.m_RestoreSelectionState"
     ex_CustomDropdown.m_InitDevTestDropdown ThisWorkbook

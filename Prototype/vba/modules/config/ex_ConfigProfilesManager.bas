@@ -19,11 +19,10 @@ Option Explicit
 
 Private Const PROFILES_NS As String = "urn:excelprototype:profiles"
 Private Const DEV_CONFIG_TABLE_NAME As String = "tblDevConfig"
-Private Const DEV_CONFIG_HEADER_ROW As Long = 2
 Private Const DEV_CONFIG_MARKER_COL As Long = 1
 Private Const DEV_CONFIG_KEY_COL As Long = 2
 Private Const DEV_CONFIG_VALUE_COL As Long = 3
-Private Const DEV_CONFIG_NOTE_COL As Long = 4
+Private Const DEV_CONFIG_STYLES_COL As Long = 4
 Private Const DEV_CONFIG_COL_COUNT As Long = 4
 Private Const DEV_MARKER_SYMBOL As String = "#"
 Private Const DEV_MARKER_HEADER As String = ".."
@@ -33,14 +32,12 @@ Private Const DEV_MARKER_SPACER As String = "#MARKER:SPACER"
 Private Const DEV_COLOR_BG As Long = &H1E1E1E
 Private Const DEV_COLOR_TEXT As Long = &HEBEBEB
 Private Const DEV_COLOR_BORDER As Long = &H505050
-Private Const DEV_COLOR_NOTE_TEXT As Long = &HA8A8A8
 Private Const THEME_BG As Long = &H262626
 Private Const THEME_TEXT As Long = &HEBEBEB
 Private Const THEME_BORDER As Long = &H0
 Private Const PROFILE_CFG_COL_MARKER As String = "marker"
 Private Const PROFILE_CFG_COL_KEY As String = "key"
 Private Const PROFILE_CFG_COL_VALUE As String = "value"
-Private Const PROFILE_CFG_COL_NOTE As String = "note"
 Private Const PROFILE_CFG_COL_STYLES As String = "styles"
 Private Const PFUI_UI_DEFINITION_REL_PATH As String = "config\DevUI.xml"
 Private Const PFUI_UI_BLOCK_GROUP_NAME As String = "grpUiBlock"
@@ -49,6 +46,7 @@ Private Const PFUI_MODE_DROPDOWN_SHAPE As String = "btnCustomMode"
 Private Const LEGACY_PROFILE_DROPDOWN_SHAPE As String = "ddProfile"
 Private Const LEGACY_MODE_DROPDOWN_SHAPE As String = "ddMode"
 Private Const PFUI_UPDATE_BUTTON_SHAPE As String = "btnUpdateCode"
+Private Const PFUI_UPDATE_UI_BUTTON_SHAPE As String = "btnUpdateUI"
 Private Const PFUI_CLEAR_BUTTON_SHAPE As String = "btnClear"
 Private Const PFUI_MODE_BUTTON_SHAPE As String = "btnMode"
 Private Const PFUI_PERSONAL_BUTTON_SHAPE As String = "btnPersonalCard"
@@ -290,53 +288,6 @@ Public Sub m_SetActiveProfileName(ByVal profileName As String, Optional ByVal mo
     ex_UiXmlProvider.m_SetDropdownContextValue "activeProfile", profileName
 End Sub
 
-Public Function m_GetActiveProfileStyleTagsByKey(Optional ByVal ws As Worksheet) As Object
-    Dim profileName As String
-    Dim doc As Object
-    Dim profileNode As Object
-    Dim nodes As Object
-    Dim node As Object
-    Dim mapKey As String
-    Dim styleTag As String
-    Dim result As Object
-
-    Set result = CreateObject("Scripting.Dictionary")
-    result.CompareMode = 1
-
-    If ws Is Nothing Then
-        Set ws = ws_Dev
-    End If
-
-    profileName = Trim$(m_GetActiveProfileName(ws))
-    If Len(profileName) = 0 Then
-        Set m_GetActiveProfileStyleTagsByKey = result
-        Exit Function
-    End If
-
-    Set doc = mp_LoadProfilesDom(ws)
-    If doc Is Nothing Then
-        Err.Raise vbObjectError + 1732, "ex_ConfigProfilesManager", "Failed to load profiles DOM for active profile style tags."
-    End If
-
-    Set profileNode = mp_GetProfileNode(doc, profileName, False)
-    If profileNode Is Nothing Then
-        Err.Raise vbObjectError + 1733, "ex_ConfigProfilesManager", "Active profile '" & profileName & "' was not found in profiles XML."
-    End If
-
-    Set nodes = profileNode.selectNodes("p:v")
-    If Not nodes Is Nothing Then
-        For Each node In nodes
-            mapKey = Trim$(mp_NodeAttrText(node, "key"))
-            styleTag = Trim$(mp_NodeAttrText(node, "style"))
-            If Len(mapKey) > 0 And Len(styleTag) > 0 Then
-                result(mapKey) = styleTag
-            End If
-        Next node
-    End If
-
-    Set m_GetActiveProfileStyleTagsByKey = result
-End Function
-
 Public Sub m_EnsureProfileDropdown(Optional ByVal ws As Worksheet)
     Dim profiles As Variant
     Dim profileName As String
@@ -531,7 +482,7 @@ Public Sub m_SaveCurrentProfileToConfig(Optional ByVal ws As Worksheet)
     On Error Resume Next
     ex_ConfigProvider.m_RefreshConfigTitle ws, profileName
     On Error GoTo 0
-    Application.StatusBar = "Profiles config saved: " & profileName
+    ex_Messaging.m_ShowNotice "Profiles config saved: " & profileName
 End Sub
 
 ' =============================================================================
@@ -574,8 +525,8 @@ Private Sub mp_SeedProfileFromSheet(ByVal doc As Object, ByVal ws As Worksheet)
             vNode.setAttribute "type", CStr(entries(i, DEV_CONFIG_MARKER_COL))
         End If
         vNode.setAttribute "key", CStr(entries(i, DEV_CONFIG_KEY_COL))
-        If Len(Trim$(CStr(entries(i, DEV_CONFIG_NOTE_COL)))) > 0 Then
-            vNode.setAttribute "styles", CStr(entries(i, DEV_CONFIG_NOTE_COL))
+        If Len(Trim$(CStr(entries(i, DEV_CONFIG_STYLES_COL)))) > 0 Then
+            vNode.setAttribute "styles", CStr(entries(i, DEV_CONFIG_STYLES_COL))
         End If
         vNode.Text = CStr(entries(i, DEV_CONFIG_VALUE_COL))
         profileNode.appendChild vNode
@@ -923,7 +874,6 @@ Private Sub mp_ApplyConfigColumnsLayoutLayer(ByVal ws As Worksheet)
         Exit Sub
     End If
 
-    ex_ConfigTableStore.m_ApplyConfigTableDarkTheme tbl
     ex_ConfigTableStore.m_ApplyConfigMarkerStyles tbl
 End Sub
 
@@ -963,12 +913,11 @@ Private Function mp_NodeAttrText(ByVal node As Object, ByVal attrName As String)
 End Function
 
 ' Перезаписывает таблицу целиком:
-' - очищает старое содержимое/формат в прежних границах;
+' - очищает старое содержимое;
 ' - ресайзит таблицу под новый объём;
-' - накладывает тему и маркерные стили.
+' - накладывает маркерные метки и pipeline-стили.
 Private Sub mp_WriteEntriesToConfigTable(ByVal ws As Worksheet, ByVal entries As Variant)
     Dim tbl As ListObject
-    Dim previousRowCount As Long
     Dim rowCount As Long
     Dim values() As Variant
     Dim i As Long
@@ -979,25 +928,23 @@ Private Sub mp_WriteEntriesToConfigTable(ByVal ws As Worksheet, ByVal entries As
         Exit Sub
     End If
 
-    previousRowCount = ex_ConfigTableStore.m_GetTableDataRowCount(tbl)
     ex_ConfigTableStore.m_ClearConfigDataArea ws, tbl
 
     rowCount = mp_ArrayRowCount(entries)
     ex_ConfigTableStore.m_ResizeConfigTableRows ws, tbl, rowCount
-    ex_ConfigTableStore.m_ApplySheetThemeToFormerTableTail ws, tbl, previousRowCount, rowCount
 
-    If rowCount = 0 Then Exit Sub
+    If rowCount > 0 Then
+        ReDim values(1 To rowCount, 1 To DEV_CONFIG_COL_COUNT)
+        For i = 1 To rowCount
+            values(i, DEV_CONFIG_MARKER_COL) = CStr(entries(i, DEV_CONFIG_MARKER_COL))
+            values(i, DEV_CONFIG_KEY_COL) = CStr(entries(i, DEV_CONFIG_KEY_COL))
+            values(i, DEV_CONFIG_VALUE_COL) = CStr(entries(i, DEV_CONFIG_VALUE_COL))
+            values(i, DEV_CONFIG_STYLES_COL) = CStr(entries(i, DEV_CONFIG_STYLES_COL))
+        Next i
 
-    ReDim values(1 To rowCount, 1 To DEV_CONFIG_COL_COUNT)
-    For i = 1 To rowCount
-        values(i, DEV_CONFIG_MARKER_COL) = CStr(entries(i, DEV_CONFIG_MARKER_COL))
-        values(i, DEV_CONFIG_KEY_COL) = CStr(entries(i, DEV_CONFIG_KEY_COL))
-        values(i, DEV_CONFIG_VALUE_COL) = CStr(entries(i, DEV_CONFIG_VALUE_COL))
-        values(i, DEV_CONFIG_NOTE_COL) = CStr(entries(i, DEV_CONFIG_NOTE_COL))
-    Next i
+        tbl.DataBodyRange.Cells(1, 1).Resize(rowCount, DEV_CONFIG_COL_COUNT).Value = values
+    End If
 
-    tbl.DataBodyRange.Cells(1, 1).Resize(rowCount, DEV_CONFIG_COL_COUNT).Value = values
-    ex_ConfigTableStore.m_ApplyConfigTableDarkTheme tbl
     ex_ConfigTableStore.m_ApplyConfigMarkerStyles tbl
 End Sub
 
@@ -1102,7 +1049,7 @@ Private Function mp_ApplyProfileConfigStyles( _
         usedIds(colId) = True
 
         If Not mp_TryResolveProfileConfigColumnId(colId, relCol) Then
-            MsgBox "Unsupported profile styles/config/column@id value: '" & colId & "'. Allowed: marker, key, value, note, styles.", vbExclamation
+            MsgBox "Unsupported profile styles/config/column@id value: '" & colId & "'. Allowed: marker, key, value, styles.", vbExclamation
             Exit Function
         End If
         If relCol < 1 Or relCol > tbl.ListColumns.Count Then
@@ -1174,7 +1121,7 @@ NextCfgNode:
         didScale = ex_ConfigTableStore.m_ScaleConfigColumnsToStableTarget(ws, tbl.Range.Column, DEV_CONFIG_COL_COUNT, targetStableZoneLeft)
         ex_CustomDropdown.m_StabilizeChooseModeAnchorX ws, targetStableZoneLeft
         If didScale Then
-            Application.StatusBar = "WARNING: Config styles exceed available dynamic zone width. Columns were scaled proportionally to fit."
+            ex_Messaging.m_ShowNotice "WARNING: Config styles exceed available dynamic zone width. Columns were scaled proportionally to fit."
         End If
     End If
 
@@ -1189,8 +1136,8 @@ Private Function mp_TryResolveProfileConfigColumnId(ByVal colId As String, ByRef
             outColIndex = DEV_CONFIG_KEY_COL
         Case PROFILE_CFG_COL_VALUE
             outColIndex = DEV_CONFIG_VALUE_COL
-        Case PROFILE_CFG_COL_NOTE, PROFILE_CFG_COL_STYLES
-            outColIndex = DEV_CONFIG_NOTE_COL
+        Case PROFILE_CFG_COL_STYLES
+            outColIndex = DEV_CONFIG_STYLES_COL
         Case Else
             Exit Function
     End Select
@@ -1634,7 +1581,9 @@ Private Function pfui_IsManagedUiBlockShape(ByVal shapeName As String) As Boolea
     End If
 
     If pfui_IsButtonShapeName(normalized) Then
-        pfui_IsManagedUiBlockShape = (StrComp(normalized, PFUI_UPDATE_BUTTON_SHAPE, vbTextCompare) <> 0)
+        pfui_IsManagedUiBlockShape = ( _
+            StrComp(normalized, PFUI_UPDATE_BUTTON_SHAPE, vbTextCompare) <> 0 _
+            And StrComp(normalized, PFUI_UPDATE_UI_BUTTON_SHAPE, vbTextCompare) <> 0)
     End If
 End Function
 
