@@ -317,6 +317,103 @@ Public Sub m_RenderWarningBanner( _
     mp_ApplyBannerRowHeights ws, bannerRange, rowCount, IIf(hasBannerStyle, bannerStyle.RowHeight, 24), bannerRange.Row + 1, messageText, IIf(hasBannerStyle, bannerStyle.WrapText, True)
 End Sub
 
+Public Function m_CreateWarningBannersRuntimeLayer( _
+    ByVal ws As Worksheet, _
+    ByVal pendingWarningBanners As Collection, _
+    Optional ByVal layerId As String = "runtime-warning-banners", _
+    Optional ByVal priority As Long = 850 _
+) As obj_StyleLayer
+    Dim runtimeLayer As obj_StyleLayer
+    Dim bannerStyle As ex_SheetStylesXmlProvider.t_ErrorBannerStyle
+    Dim hasBannerStyle As Boolean
+    Dim entry As Object
+    Dim bannerRange As Range
+    Dim ruleIndex As Long
+    Dim rowCount As Long
+    Dim startRow As Long
+    Dim startCol As Long
+    Dim endRow As Long
+    Dim endCol As Long
+    Dim declarations As Object
+    Dim rowSelector As String
+    Dim showGrid As Boolean
+    Dim wrapTextEnabled As Boolean
+    Dim rowHeightValue As Double
+    Dim titleBold As Boolean
+    Dim horizontalToken As String
+    Dim verticalToken As String
+    Dim backColorHex As String
+    Dim fontColorHex As String
+    Dim gridColorHex As String
+
+    If ws Is Nothing Then Exit Function
+    If pendingWarningBanners Is Nothing Then Exit Function
+    If pendingWarningBanners.Count = 0 Then Exit Function
+
+    hasBannerStyle = ex_SheetStylesXmlProvider.m_GetWarningBannerStyle(bannerStyle, ThisWorkbook)
+    wrapTextEnabled = IIf(hasBannerStyle, bannerStyle.WrapText, True)
+    rowHeightValue = IIf(hasBannerStyle, bannerStyle.RowHeight, 24#)
+    titleBold = IIf(hasBannerStyle, bannerStyle.TitleBold, True)
+    showGrid = IIf(hasBannerStyle, bannerStyle.ShowGrid, False)
+    horizontalToken = mp_HAlignToToken(IIf(hasBannerStyle, bannerStyle.HorizontalAlignment, xlLeft))
+    verticalToken = mp_VAlignToToken(IIf(hasBannerStyle, bannerStyle.VerticalAlignment, xlCenter))
+    backColorHex = mp_ColorToHex(IIf(hasBannerStyle, bannerStyle.BackColor, RGB(76, 63, 16)))
+    fontColorHex = mp_ColorToHex(IIf(hasBannerStyle, bannerStyle.FontColor, RGB(255, 229, 153)))
+    gridColorHex = mp_ColorToHex(IIf(hasBannerStyle, bannerStyle.GridColor, RGB(80, 80, 80)))
+
+    Set runtimeLayer = New obj_StyleLayer
+    runtimeLayer.Initialize layerId, priority, "runtime", True
+
+    For Each entry In pendingWarningBanners
+        If entry Is Nothing Then GoTo ContinueEntry
+        If Not entry.Exists("RangeAddress") Then GoTo ContinueEntry
+        If Len(Trim$(CStr(entry("RangeAddress")))) = 0 Then GoTo ContinueEntry
+
+        Set bannerRange = ws.Range(CStr(entry("RangeAddress")))
+        rowCount = bannerRange.Rows.Count
+        If hasBannerStyle Then
+            If bannerStyle.Rows > rowCount Then rowCount = bannerStyle.Rows
+        End If
+        If rowCount < 2 Then rowCount = 2
+
+        startRow = bannerRange.Row
+        startCol = bannerRange.Column
+        endRow = startRow + rowCount - 1
+        endCol = startCol + bannerRange.Columns.Count - 1
+
+        ruleIndex = ruleIndex + 1
+        Set declarations = mp_CreateDeclarations()
+        declarations("overflow") = IIf(wrapTextEnabled, "wrap", "clip")
+        declarations("horizontal") = horizontalToken
+        declarations("vertical") = verticalToken
+        declarations("backColor") = backColorHex
+        declarations("fontColor") = fontColorHex
+        declarations("rowHeight") = mp_ToInvariantDoubleText(rowHeightValue)
+        If showGrid Then
+            declarations("borderColor") = gridColorHex
+            declarations("borderWeight") = "thin"
+        End If
+        mp_AddRuntimeRangeRule runtimeLayer, layerId & ".rule" & CStr(ruleIndex), mp_BuildAddress(startRow, startCol, endRow, endCol), declarations
+
+        ruleIndex = ruleIndex + 1
+        Set declarations = mp_CreateDeclarations()
+        declarations("fontBold") = IIf(titleBold, "true", "false")
+        mp_AddRuntimeRangeRule runtimeLayer, layerId & ".rule" & CStr(ruleIndex), mp_BuildAddress(startRow, startCol, startRow, endCol), declarations
+
+        If wrapTextEnabled Then
+            ruleIndex = ruleIndex + 1
+            Set declarations = mp_CreateDeclarations()
+            declarations("autoHeight") = "true"
+            rowSelector = "row=" & CStr(startRow + 1) & ":" & CStr(startRow + 1) & ";col=" & CStr(startCol) & ":" & CStr(endCol)
+            mp_AddRuntimeRowRule runtimeLayer, layerId & ".rule" & CStr(ruleIndex), rowSelector, declarations
+        End If
+ContinueEntry:
+    Next entry
+
+    If runtimeLayer.RuleCount = 0 Then Exit Function
+    Set m_CreateWarningBannersRuntimeLayer = runtimeLayer
+End Function
+
 Private Sub mp_ApplyBannerRowHeights( _
     ByVal ws As Worksheet, _
     ByVal bannerRange As Range, _
@@ -390,4 +487,119 @@ Cleanup:
 EH:
     mp_MeasureBannerTextHeight = 0
     Resume Cleanup
+End Function
+
+Private Function mp_CreateDeclarations() As Object
+    Set mp_CreateDeclarations = CreateObject("Scripting.Dictionary")
+    mp_CreateDeclarations.CompareMode = 1
+End Function
+
+Private Sub mp_AddRuntimeRangeRule( _
+    ByVal layer As obj_StyleLayer, _
+    ByVal ruleId As String, _
+    ByVal addressText As String, _
+    ByVal declarations As Object _
+)
+    Dim ruleObj As obj_StyleRule
+
+    If layer Is Nothing Then Exit Sub
+    If declarations Is Nothing Then Exit Sub
+    If Len(Trim$(ruleId)) = 0 Then Exit Sub
+    If Len(Trim$(addressText)) = 0 Then Exit Sub
+
+    Set ruleObj = New obj_StyleRule
+    ruleObj.Initialize ruleId, "range", "address=" & addressText, declarations
+    layer.AddRule ruleObj
+End Sub
+
+Private Sub mp_AddRuntimeRowRule( _
+    ByVal layer As obj_StyleLayer, _
+    ByVal ruleId As String, _
+    ByVal selectorText As String, _
+    ByVal declarations As Object _
+)
+    Dim ruleObj As obj_StyleRule
+
+    If layer Is Nothing Then Exit Sub
+    If declarations Is Nothing Then Exit Sub
+    If Len(Trim$(ruleId)) = 0 Then Exit Sub
+    If Len(Trim$(selectorText)) = 0 Then Exit Sub
+
+    Set ruleObj = New obj_StyleRule
+    ruleObj.Initialize ruleId, "row", selectorText, declarations
+    layer.AddRule ruleObj
+End Sub
+
+Private Function mp_BuildAddress( _
+    ByVal rowStart As Long, _
+    ByVal colStart As Long, _
+    ByVal rowEnd As Long, _
+    ByVal colEnd As Long _
+) As String
+    If rowStart < 1 Then rowStart = 1
+    If colStart < 1 Then colStart = 1
+    If rowEnd < rowStart Then rowEnd = rowStart
+    If colEnd < colStart Then colEnd = colStart
+
+    mp_BuildAddress = mp_ToColumnLetter(colStart) & CStr(rowStart) & ":" & mp_ToColumnLetter(colEnd) & CStr(rowEnd)
+End Function
+
+Private Function mp_ToColumnLetter(ByVal columnIndex As Long) As String
+    Dim n As Long
+    Dim remainder As Long
+
+    If columnIndex < 1 Then columnIndex = 1
+    n = columnIndex
+    Do While n > 0
+        remainder = (n - 1) Mod 26
+        mp_ToColumnLetter = Chr$(65 + remainder) & mp_ToColumnLetter
+        n = (n - remainder - 1) \ 26
+    Loop
+End Function
+
+Private Function mp_ColorToHex(ByVal colorValue As Long) As String
+    Dim r As Long
+    Dim g As Long
+    Dim b As Long
+
+    r = colorValue Mod 256
+    g = (colorValue \ 256) Mod 256
+    b = (colorValue \ 65536) Mod 256
+    mp_ColorToHex = "#" & Right$("0" & Hex$(r), 2) & Right$("0" & Hex$(g), 2) & Right$("0" & Hex$(b), 2)
+End Function
+
+Private Function mp_ToInvariantDoubleText(ByVal value As Double) As String
+    mp_ToInvariantDoubleText = Replace$(Trim$(CStr(value)), ",", ".")
+End Function
+
+Private Function mp_HAlignToToken(ByVal value As Long) As String
+    Select Case value
+        Case xlCenter, xlCenterAcrossSelection
+            mp_HAlignToToken = "center"
+        Case xlRight
+            mp_HAlignToToken = "right"
+        Case xlFill
+            mp_HAlignToToken = "fill"
+        Case xlJustify
+            mp_HAlignToToken = "justify"
+        Case xlDistributed
+            mp_HAlignToToken = "distributed"
+        Case Else
+            mp_HAlignToToken = "left"
+    End Select
+End Function
+
+Private Function mp_VAlignToToken(ByVal value As Long) As String
+    Select Case value
+        Case xlTop
+            mp_VAlignToToken = "top"
+        Case xlBottom
+            mp_VAlignToToken = "bottom"
+        Case xlJustify
+            mp_VAlignToToken = "justify"
+        Case xlDistributed
+            mp_VAlignToToken = "distributed"
+        Case Else
+            mp_VAlignToToken = "center"
+    End Select
 End Function

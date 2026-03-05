@@ -9,10 +9,13 @@ Public Sub m_ApplySheetPipeline( _
     Optional ByVal resultFieldRanges As Collection = Nothing, _
     Optional ByVal cfgStyles As Object = Nothing, _
     Optional ByVal rowKindRanges As Object = Nothing, _
-    Optional ByVal activeModeKey As String = vbNullString _
+    Optional ByVal activeModeKey As String = vbNullString, _
+    Optional ByVal autoHeightOnly As Boolean = False, _
+    Optional ByVal runtimeLayers As Collection = Nothing _
 )
     Dim resolvedModeKey As String
     Dim pipeline As Collection
+    Dim runtimeLayer As obj_StyleLayer
 
     If ws Is Nothing Then Exit Sub
 
@@ -28,7 +31,14 @@ Public Sub m_ApplySheetPipeline( _
         ThisWorkbook, _
         ws.Name _
     )
-    ex_StylePipelineEngine.m_ApplyColumnStylesPipeline ws, resultFieldRanges, pipeline, resolvedModeKey, rowKindRanges
+    If Not runtimeLayers Is Nothing Then
+        For Each runtimeLayer In runtimeLayers
+            If Not runtimeLayer Is Nothing Then
+                ex_StylePipelineEngine.m_AddLayer pipeline, runtimeLayer
+            End If
+        Next runtimeLayer
+    End If
+    ex_StylePipelineEngine.m_ApplyColumnStylesPipeline ws, resultFieldRanges, pipeline, resolvedModeKey, rowKindRanges, autoHeightOnly
 End Sub
 
 Public Sub m_FormatAsTable(ByVal ws As Worksheet, ByVal startRow As Long, ByVal rowCount As Long, ByVal colCount As Long)
@@ -78,269 +88,6 @@ Public Sub m_ApplyComparingStyleLayers( _
         End Select
     Next layerName
 End Sub
-
-Public Sub m_ApplyTimelineStyleLayers( _
-    ByVal ws As Worksheet, _
-    ByVal headerRows As Collection, _
-    ByVal sectionRows As Collection, _
-    Optional ByVal resultFieldRanges As Collection = Nothing, _
-    Optional ByVal cfgStyles As Object = Nothing, _
-    Optional ByVal partialMatchRowRanges As Collection = Nothing _
-)
-    Dim rowKindRanges As Object
-    Dim configRowKindRanges As Object
-    Dim partialRowKindRanges As Object
-
-    If ws Is Nothing Then Exit Sub
-
-    Set rowKindRanges = mp_BuildTimelineRowKindRanges(headerRows, sectionRows, resultFieldRanges)
-    Set configRowKindRanges = mp_BuildConfigStyleRowKindRanges(resultFieldRanges, cfgStyles)
-    Set partialRowKindRanges = mp_BuildPartialMatchRowKindRanges(partialMatchRowRanges)
-    mp_MergeRowKindRanges rowKindRanges, configRowKindRanges
-    mp_MergeRowKindRanges rowKindRanges, partialRowKindRanges
-
-    m_ApplySheetPipeline ws, resultFieldRanges, cfgStyles, rowKindRanges
-End Sub
-
-Public Sub m_ApplyOutputPanelLayers( _
-    ByVal ws As Worksheet, _
-    ByRef outputStyle As t_OutputSheetStyle, _
-    ByVal hasOutputStyle As Boolean, _
-    ByVal viewStartRow As Long, _
-    ByVal viewEndRow As Long, _
-    ByVal viewColCount As Long _
-)
-    If ws Is Nothing Then Exit Sub
-    If Not hasOutputStyle Then Exit Sub
-
-    ex_OutputPanel.m_RenderForSheet ws, outputStyle
-    ex_OutputPanel.m_ApplyFixedWidthViewZoneLayer ws, outputStyle, viewStartRow, viewEndRow, viewColCount
-End Sub
-
-Private Function mp_BuildTimelineRowKindRanges( _
-    ByVal headerRows As Collection, _
-    ByVal sectionRows As Collection, _
-    ByVal resultFieldRanges As Collection _
-) As Object
-    Dim result As Object
-    Dim headerRowsMap As Object
-    Dim sectionRowsMap As Object
-    Dim contentRowsMap As Object
-    Dim target As Object
-    Dim rowStart As Long
-    Dim rowEnd As Long
-    Dim rowIndex As Long
-    Dim rowKey As String
-
-    Set result = CreateObject("Scripting.Dictionary")
-    result.CompareMode = 1
-
-    Set headerRowsMap = mp_BuildRowsMap(headerRows)
-    Set sectionRowsMap = mp_BuildRowsMap(sectionRows)
-    Set contentRowsMap = CreateObject("Scripting.Dictionary")
-    contentRowsMap.CompareMode = 0
-
-    If Not resultFieldRanges Is Nothing Then
-        For Each target In resultFieldRanges
-            If target Is Nothing Then GoTo ContinueTarget
-            If Not target.Exists("RowStart") Then GoTo ContinueTarget
-            If Not target.Exists("RowEnd") Then GoTo ContinueTarget
-
-            rowStart = CLng(target("RowStart"))
-            rowEnd = CLng(target("RowEnd"))
-            If rowStart <= 0 Then GoTo ContinueTarget
-            If rowEnd < rowStart Then rowEnd = rowStart
-
-            For rowIndex = rowStart To rowEnd
-                rowKey = CStr(rowIndex)
-                If headerRowsMap.Exists(rowKey) Then GoTo ContinueRow
-                If sectionRowsMap.Exists(rowKey) Then GoTo ContinueRow
-                contentRowsMap(rowKey) = True
-ContinueRow:
-            Next rowIndex
-ContinueTarget:
-        Next target
-    End If
-
-    Set result("header") = mp_RowsMapToRangeCollection(headerRowsMap)
-    Set result("section") = mp_RowsMapToRangeCollection(sectionRowsMap)
-    Set result("content") = mp_RowsMapToRangeCollection(contentRowsMap)
-    Set mp_BuildTimelineRowKindRanges = result
-End Function
-
-Private Sub mp_MergeRowKindRanges(ByVal targetRanges As Object, ByVal sourceRanges As Object)
-    Dim kindName As Variant
-    Dim targetCollection As Collection
-    Dim sourceCollection As Collection
-    Dim rowItem As Variant
-
-    If targetRanges Is Nothing Then Exit Sub
-    If sourceRanges Is Nothing Then Exit Sub
-
-    For Each kindName In sourceRanges.Keys
-        If targetRanges.Exists(CStr(kindName)) Then
-            Set targetCollection = targetRanges(CStr(kindName))
-        Else
-            Set targetCollection = New Collection
-            Set targetRanges(CStr(kindName)) = targetCollection
-        End If
-
-        Set sourceCollection = sourceRanges(CStr(kindName))
-        If sourceCollection Is Nothing Then GoTo ContinueKind
-
-        For Each rowItem In sourceCollection
-            targetCollection.Add rowItem
-        Next rowItem
-ContinueKind:
-    Next kindName
-End Sub
-
-Private Function mp_RowsMapToRangeCollection(ByVal rowsMap As Object) As Collection
-    Dim result As Collection
-    Dim keys() As Long
-    Dim keyValue As Variant
-    Dim i As Long
-    Dim count As Long
-    Dim rangeItem As Object
-    Dim runStart As Long
-    Dim runEnd As Long
-
-    Set result = New Collection
-    If rowsMap Is Nothing Then
-        Set mp_RowsMapToRangeCollection = result
-        Exit Function
-    End If
-    If rowsMap.Count = 0 Then
-        Set mp_RowsMapToRangeCollection = result
-        Exit Function
-    End If
-
-    ReDim keys(1 To rowsMap.Count)
-    For Each keyValue In rowsMap.Keys
-        count = count + 1
-        keys(count) = CLng(keyValue)
-    Next keyValue
-    If count = 0 Then
-        Set mp_RowsMapToRangeCollection = result
-        Exit Function
-    End If
-
-    mp_SortLongArray keys
-
-    runStart = keys(1)
-    runEnd = runStart
-    For i = 2 To UBound(keys)
-        If keys(i) = runEnd + 1 Then
-            runEnd = keys(i)
-        Else
-            Set rangeItem = CreateObject("Scripting.Dictionary")
-            rangeItem.CompareMode = 1
-            rangeItem("RowStart") = runStart
-            rangeItem("RowEnd") = runEnd
-            result.Add rangeItem
-
-            runStart = keys(i)
-            runEnd = runStart
-        End If
-    Next i
-
-    Set rangeItem = CreateObject("Scripting.Dictionary")
-    rangeItem.CompareMode = 1
-    rangeItem("RowStart") = runStart
-    rangeItem("RowEnd") = runEnd
-    result.Add rangeItem
-
-    Set mp_RowsMapToRangeCollection = result
-End Function
-
-Private Sub mp_SortLongArray(ByRef values() As Long)
-    Dim i As Long
-    Dim j As Long
-    Dim tmp As Long
-
-    If UBound(values) <= LBound(values) Then Exit Sub
-
-    For i = LBound(values) To UBound(values) - 1
-        For j = i + 1 To UBound(values)
-            If values(j) < values(i) Then
-                tmp = values(i)
-                values(i) = values(j)
-                values(j) = tmp
-            End If
-        Next j
-    Next i
-End Sub
-
-Private Function mp_BuildConfigStyleRowKindRanges( _
-    ByVal resultFieldRanges As Collection, _
-    ByVal cfgStyles As Object _
-) As Object
-    Dim result As Object
-    Dim configStyleRanges As Collection
-    Dim dedupe As Object
-    Dim target As Object
-    Dim mapKey As String
-    Dim styleText As String
-    Dim rowStart As Long
-    Dim rowEnd As Long
-    Dim dedupeKey As String
-    Dim rowItem As Object
-
-    Set result = CreateObject("Scripting.Dictionary")
-    result.CompareMode = 1
-    Set configStyleRanges = New Collection
-    Set dedupe = CreateObject("Scripting.Dictionary")
-    dedupe.CompareMode = 1
-
-    If Not resultFieldRanges Is Nothing And Not cfgStyles Is Nothing Then
-        For Each target In resultFieldRanges
-            If target Is Nothing Then GoTo ContinueTarget
-            mapKey = Trim$(CStr(target("MapKey")))
-            If Len(mapKey) = 0 Then GoTo ContinueTarget
-            If Not cfgStyles.Exists(mapKey) Then GoTo ContinueTarget
-            styleText = Trim$(CStr(cfgStyles(mapKey)))
-            If Len(styleText) = 0 Then GoTo ContinueTarget
-
-            rowStart = CLng(target("RowStart"))
-            rowEnd = CLng(target("RowEnd"))
-            If rowStart <= 0 Then GoTo ContinueTarget
-            If rowEnd < rowStart Then rowEnd = rowStart
-
-            dedupeKey = CStr(rowStart) & ":" & CStr(rowEnd)
-            If dedupe.Exists(dedupeKey) Then GoTo ContinueTarget
-            dedupe(dedupeKey) = True
-
-            Set rowItem = CreateObject("Scripting.Dictionary")
-            rowItem.CompareMode = 1
-            rowItem("RowStart") = rowStart
-            rowItem("RowEnd") = rowEnd
-            configStyleRanges.Add rowItem
-ContinueTarget:
-        Next target
-    End If
-
-    Set result("configstyle") = configStyleRanges
-    Set mp_BuildConfigStyleRowKindRanges = result
-End Function
-
-Private Function mp_BuildPartialMatchRowKindRanges(ByVal partialMatchRowRanges As Collection) As Object
-    Dim result As Object
-    Dim partialRanges As Collection
-    Dim rowItem As Variant
-
-    Set result = CreateObject("Scripting.Dictionary")
-    result.CompareMode = 1
-    Set partialRanges = New Collection
-
-    If Not partialMatchRowRanges Is Nothing Then
-        For Each rowItem In partialMatchRowRanges
-            partialRanges.Add rowItem
-        Next rowItem
-    End If
-
-    Set result("partialmatch") = partialRanges
-    Set mp_BuildPartialMatchRowKindRanges = result
-End Function
 
 Public Sub m_ApplyViewZoneWrapText( _
     ByVal ws As Worksheet, _

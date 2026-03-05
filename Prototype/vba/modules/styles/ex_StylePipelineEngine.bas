@@ -5,8 +5,9 @@ Private Const PROFILES_NS As String = "urn:excelprototype:profiles"
 Private Const STYLE_PIPELINE_REL_PATH As String = "config\StylePipeline.xml"
 Private Const INLINE_LAYER_ID As String = "profileInline"
 Private Const INLINE_LAYER_PRIORITY As Long = 100
-Private Const SHEET_SCOPE_EXTRA_COLS_RATIO As Double = 0.5
-Private Const SHEET_SCOPE_EXTRA_ROWS_RATIO As Double = 1#
+Private Const SHEET_SCOPE_MIN_COL As Long = 40      ' AN
+Private Const SHEET_SCOPE_MIN_ROW As Long = 100
+Private Const SHEET_SCOPE_EXPAND_STEP As Long = 30
 
 ' Supported style properties (declarations):
 ' width, minWidth, maxWidth, autoFitColumns
@@ -65,7 +66,9 @@ Private Sub mp_ApplyRowKindRule( _
     ByVal selector As Object, _
     ByVal declarations As Object, _
     ByVal rowKindRanges As Object, _
-    ByVal ruleId As String _
+    ByVal ruleId As String, _
+    Optional ByVal autoHeightState As Object = Nothing, _
+    Optional ByVal autoHeightOnly As Boolean = False _
 )
     Dim kindName As String
     Dim kindRanges As Collection
@@ -105,7 +108,7 @@ Private Sub mp_ApplyRowKindRule( _
         If rowEnd < rowStart Then rowEnd = rowStart
 
         Set scopeRange = ws.Range(ws.Cells(rowStart, colStart), ws.Cells(rowEnd, colEnd))
-        mp_ApplyDeclarations scopeRange, Nothing, declarations
+        mp_ApplyDeclarations scopeRange, Nothing, declarations, Nothing, autoHeightState, autoHeightOnly
 ContinueRow:
     Next rowEntry
 End Sub
@@ -354,16 +357,20 @@ Public Sub m_ApplyColumnStylesPipeline( _
     ByVal resultFieldRanges As Collection, _
     ByVal pipeline As Collection, _
     ByVal activeModeName As String, _
-    Optional ByVal rowKindRanges As Object = Nothing _
+    Optional ByVal rowKindRanges As Object = Nothing, _
+    Optional ByVal autoHeightOnly As Boolean = False _
 )
     Dim sortedLayers As Collection
     Dim layerObj As obj_StyleLayer
     Dim ruleObj As obj_StyleRule
     Dim targetsByMapKey As Object
+    Dim autoHeightState As Object
 
     If ws Is Nothing Then Exit Sub
     If pipeline Is Nothing Then Exit Sub
     If pipeline.Count = 0 Then Exit Sub
+
+    Set autoHeightState = mp_CreateStringDictionary()
 
     If Not resultFieldRanges Is Nothing Then
         If resultFieldRanges.Count > 0 Then
@@ -378,11 +385,13 @@ Public Sub m_ApplyColumnStylesPipeline( _
 
         For Each ruleObj In layerObj.Rules
             If ruleObj Is Nothing Then GoTo ContinueRule
-            mp_ApplyRule ws, resultFieldRanges, ruleObj, activeModeName, rowKindRanges, targetsByMapKey
+            mp_ApplyRule ws, resultFieldRanges, ruleObj, activeModeName, rowKindRanges, targetsByMapKey, autoHeightState, autoHeightOnly
 ContinueRule:
         Next ruleObj
 ContinueLayer:
     Next layerObj
+
+    mp_ApplyDeferredAutoHeight ws, autoHeightState
 End Sub
 
 Private Function mp_LoadLayersFromSheetPipelineXml( _
@@ -572,7 +581,9 @@ Private Sub mp_ApplyRule( _
     ByVal ruleObj As obj_StyleRule, _
     ByVal activeModeName As String, _
     Optional ByVal rowKindRanges As Object = Nothing, _
-    Optional ByVal targetsByMapKey As Object = Nothing _
+    Optional ByVal targetsByMapKey As Object = Nothing, _
+    Optional ByVal autoHeightState As Object = Nothing, _
+    Optional ByVal autoHeightOnly As Boolean = False _
 )
     Dim selector As Object
     Dim targetName As String
@@ -621,7 +632,7 @@ Private Sub mp_ApplyRule( _
 
                             Set scopeRange = ws.Range(ws.Cells(mapRowStart, mapCol), ws.Cells(mapRowEnd, mapCol))
                             Set columnScope = ws.Columns(mapCol)
-                            mp_ApplyDeclarations scopeRange, columnScope, ruleObj.Declarations
+                            mp_ApplyDeclarations scopeRange, columnScope, ruleObj.Declarations, Nothing, autoHeightState, autoHeightOnly
 ContinueExactMapTarget:
                         Next target
                     End If
@@ -644,7 +655,7 @@ ContinueExactMapTarget:
 
                     Set scopeRange = ws.Range(ws.Cells(mapRowStart, mapCol), ws.Cells(mapRowEnd, mapCol))
                     Set columnScope = ws.Columns(mapCol)
-                    mp_ApplyDeclarations scopeRange, columnScope, ruleObj.Declarations
+                    mp_ApplyDeclarations scopeRange, columnScope, ruleObj.Declarations, Nothing, autoHeightState, autoHeightOnly
 ContinueMapTarget:
                 Next target
                 Exit Sub
@@ -654,7 +665,7 @@ ContinueMapTarget:
                 addressText = CStr(selector("address"))
                 Set scopeRange = ws.Range(addressText)
                 Set columnScope = scopeRange.EntireColumn
-                mp_ApplyDeclarations scopeRange, columnScope, ruleObj.Declarations
+                mp_ApplyDeclarations scopeRange, columnScope, ruleObj.Declarations, Nothing, autoHeightState, autoHeightOnly
                 Exit Sub
             End If
 
@@ -675,17 +686,17 @@ ContinueMapTarget:
 
             Set scopeRange = ws.Range(ws.Cells(rowStart, colStart), ws.Cells(rowEnd, colEnd))
             Set columnScope = ws.Range(ws.Columns(colStart), ws.Columns(colEnd))
-            mp_ApplyDeclarations scopeRange, columnScope, ruleObj.Declarations
+            mp_ApplyDeclarations scopeRange, columnScope, ruleObj.Declarations, Nothing, autoHeightState, autoHeightOnly
 
         Case "row"
             If selector.Exists("kind") Then
-                mp_ApplyRowKindRule ws, selector, ruleObj.Declarations, rowKindRanges, ruleObj.RuleId
+                mp_ApplyRowKindRule ws, selector, ruleObj.Declarations, rowKindRanges, ruleObj.RuleId, autoHeightState, autoHeightOnly
                 Exit Sub
             End If
 
             If selector.Exists("address") Then
                 Set scopeRange = ws.Range(CStr(selector("address")))
-                mp_ApplyDeclarations scopeRange, Nothing, ruleObj.Declarations
+                mp_ApplyDeclarations scopeRange, Nothing, ruleObj.Declarations, Nothing, autoHeightState, autoHeightOnly
                 Exit Sub
             End If
 
@@ -707,14 +718,14 @@ ContinueMapTarget:
             End If
             If colEnd < colStart Then colEnd = colStart
             Set scopeRange = ws.Range(ws.Cells(rowStart, colStart), ws.Cells(rowEnd, colEnd))
-            mp_ApplyDeclarations scopeRange, Nothing, ruleObj.Declarations
+            mp_ApplyDeclarations scopeRange, Nothing, ruleObj.Declarations, Nothing, autoHeightState, autoHeightOnly
 
         Case "range"
             If Not selector.Exists("address") Then
                 Err.Raise vbObjectError + 1724, "ex_StylePipelineEngine", "Range rule '" & ruleObj.RuleId & "' requires selector address."
             End If
             Set scopeRange = ws.Range(CStr(selector("address")))
-            mp_ApplyDeclarations scopeRange, scopeRange.EntireColumn, ruleObj.Declarations
+            mp_ApplyDeclarations scopeRange, scopeRange.EntireColumn, ruleObj.Declarations, Nothing, autoHeightState, autoHeightOnly
 
         Case "cell"
             If selector.Exists("address") Then
@@ -736,17 +747,17 @@ ContinueMapTarget:
                 End If
                 Set scopeRange = ws.Cells(rowStart, colStart)
             End If
-            mp_ApplyDeclarations scopeRange, scopeRange.EntireColumn, ruleObj.Declarations
+            mp_ApplyDeclarations scopeRange, scopeRange.EntireColumn, ruleObj.Declarations, Nothing, autoHeightState, autoHeightOnly
 
         Case "sheet"
-            Set scopeRange = mp_GetExpandedSheetScopeRange(ws, SHEET_SCOPE_EXTRA_COLS_RATIO, SHEET_SCOPE_EXTRA_ROWS_RATIO)
+            Set scopeRange = mp_GetExpandedSheetScopeRange(ws)
             If scopeRange Is Nothing Then Exit Sub
-            mp_ApplyDeclarations scopeRange, scopeRange.EntireColumn, ruleObj.Declarations, scopeRange
+            mp_ApplyDeclarations scopeRange, scopeRange.EntireColumn, ruleObj.Declarations, scopeRange, autoHeightState, autoHeightOnly
 
         Case "usedrange"
             Set scopeRange = ws.UsedRange
             If scopeRange Is Nothing Then Exit Sub
-            mp_ApplyDeclarations scopeRange, scopeRange.EntireColumn, ruleObj.Declarations, scopeRange
+            mp_ApplyDeclarations scopeRange, scopeRange.EntireColumn, ruleObj.Declarations, scopeRange, autoHeightState, autoHeightOnly
 
         Case Else
             Err.Raise vbObjectError + 1728, "ex_StylePipelineEngine", _
@@ -799,7 +810,9 @@ Private Sub mp_ApplyDeclarations( _
     ByVal scopeRange As Range, _
     ByVal columnRange As Range, _
     ByVal declarations As Object, _
-    Optional ByVal rowRange As Range _
+    Optional ByVal rowRange As Range, _
+    Optional ByVal autoHeightState As Object = Nothing, _
+    Optional ByVal autoHeightOnly As Boolean = False _
 )
     Dim widthValue As Double
     Dim minWidthValue As Double
@@ -828,6 +841,20 @@ Private Sub mp_ApplyDeclarations( _
         Set operationRowRange = scopeRange
     Else
         Set operationRowRange = rowRange
+    End If
+
+    If autoHeightOnly Then
+        If declarations.Exists(STYLE_PROP_AUTO_HEIGHT) Then
+            If Not mp_TryParseBoolean(CStr(declarations(STYLE_PROP_AUTO_HEIGHT)), autoHeightEnabled) Then
+                Err.Raise vbObjectError + 1731, "ex_StylePipelineEngine", "Invalid autoHeight declaration: " & CStr(declarations(STYLE_PROP_AUTO_HEIGHT))
+            End If
+            If autoHeightState Is Nothing Then
+                If autoHeightEnabled Then operationRowRange.EntireRow.AutoFit
+            Else
+                mp_RecordDeferredAutoHeight operationRowRange, autoHeightEnabled, autoHeightState
+            End If
+        End If
+        Exit Sub
     End If
 
     If declarations.Exists(STYLE_PROP_WIDTH) Then
@@ -902,7 +929,11 @@ Private Sub mp_ApplyDeclarations( _
         If Not mp_TryParseBoolean(CStr(declarations(STYLE_PROP_AUTO_HEIGHT)), autoHeightEnabled) Then
             Err.Raise vbObjectError + 1731, "ex_StylePipelineEngine", "Invalid autoHeight declaration: " & CStr(declarations(STYLE_PROP_AUTO_HEIGHT))
         End If
-        If autoHeightEnabled Then operationRowRange.EntireRow.AutoFit
+        If autoHeightState Is Nothing Then
+            If autoHeightEnabled Then operationRowRange.EntireRow.AutoFit
+        Else
+            mp_RecordDeferredAutoHeight operationRowRange, autoHeightEnabled, autoHeightState
+        End If
     End If
 
     If declarations.Exists(STYLE_PROP_ROW_HEIGHT) Then
@@ -992,6 +1023,154 @@ Private Sub mp_ApplyDeclarations( _
     End If
 End Sub
 
+Private Sub mp_RecordDeferredAutoHeight( _
+    ByVal targetRange As Range, _
+    ByVal enabled As Boolean, _
+    ByVal autoHeightState As Object _
+)
+    Dim rowArea As Range
+    Dim rowStart As Long
+    Dim rowEnd As Long
+    Dim rowIndex As Long
+
+    If targetRange Is Nothing Then Exit Sub
+    If autoHeightState Is Nothing Then Exit Sub
+
+    For Each rowArea In targetRange.EntireRow.Areas
+        rowStart = rowArea.Row
+        rowEnd = rowStart + rowArea.Rows.Count - 1
+        For rowIndex = rowStart To rowEnd
+            autoHeightState(CStr(rowIndex)) = enabled
+        Next rowIndex
+    Next rowArea
+End Sub
+
+Private Sub mp_ApplyDeferredAutoHeight(ByVal ws As Worksheet, ByVal autoHeightState As Object)
+    Dim enabledRows() As Long
+    Dim enabledCount As Long
+    Dim runStart As Long
+    Dim runEnd As Long
+    Dim rowIndex As Long
+    Dim i As Long
+
+    If ws Is Nothing Then Exit Sub
+    If autoHeightState Is Nothing Then Exit Sub
+    If autoHeightState.Count = 0 Then Exit Sub
+
+    mp_CollectEnabledAutoHeightRows autoHeightState, enabledRows, enabledCount
+    If enabledCount <= 0 Then Exit Sub
+
+    mp_QuickSortLong enabledRows, 1, enabledCount
+
+    runStart = enabledRows(1)
+    runEnd = runStart
+    For i = 2 To enabledCount
+        rowIndex = enabledRows(i)
+        If rowIndex = runEnd + 1 Then
+            runEnd = rowIndex
+        Else
+            mp_ApplyAutoHeightToRowSpan ws, runStart, runEnd
+            runStart = rowIndex
+            runEnd = rowIndex
+        End If
+    Next i
+
+    mp_ApplyAutoHeightToRowSpan ws, runStart, runEnd
+End Sub
+
+Private Sub mp_ApplyAutoHeightToRowSpan(ByVal ws As Worksheet, ByVal rowStart As Long, ByVal rowEnd As Long)
+    Dim prevHeights() As Double
+    Dim currentHeight As Double
+    Dim rowIndex As Long
+    Dim itemIndex As Long
+
+    If ws Is Nothing Then Exit Sub
+    If rowStart <= 0 Then Exit Sub
+    If rowEnd < rowStart Then Exit Sub
+    If rowStart > ws.Rows.Count Then Exit Sub
+    If rowEnd > ws.Rows.Count Then rowEnd = ws.Rows.Count
+
+    ReDim prevHeights(1 To rowEnd - rowStart + 1)
+    itemIndex = 0
+    For rowIndex = rowStart To rowEnd
+        itemIndex = itemIndex + 1
+        prevHeights(itemIndex) = ws.Rows(rowIndex).RowHeight
+    Next rowIndex
+
+    On Error Resume Next
+    ws.Rows(CStr(rowStart) & ":" & CStr(rowEnd)).AutoFit
+    On Error GoTo 0
+
+    itemIndex = 0
+    For rowIndex = rowStart To rowEnd
+        itemIndex = itemIndex + 1
+        currentHeight = ws.Rows(rowIndex).RowHeight
+        If currentHeight < prevHeights(itemIndex) Then
+            ws.Rows(rowIndex).RowHeight = prevHeights(itemIndex)
+        End If
+    Next rowIndex
+End Sub
+
+Private Sub mp_CollectEnabledAutoHeightRows( _
+    ByVal autoHeightState As Object, _
+    ByRef outRows() As Long, _
+    ByRef outCount As Long _
+)
+    Dim keyValue As Variant
+    Dim enabled As Boolean
+    Dim rowIndex As Long
+
+    If autoHeightState Is Nothing Then Exit Sub
+    If autoHeightState.Count = 0 Then Exit Sub
+
+    ReDim outRows(1 To autoHeightState.Count)
+    For Each keyValue In autoHeightState.Keys
+        enabled = False
+        On Error Resume Next
+        enabled = CBool(autoHeightState(CStr(keyValue)))
+        On Error GoTo 0
+        If Not enabled Then GoTo ContinueKey
+
+        rowIndex = CLng(keyValue)
+        If rowIndex <= 0 Then GoTo ContinueKey
+        outCount = outCount + 1
+        outRows(outCount) = rowIndex
+ContinueKey:
+    Next keyValue
+End Sub
+
+Private Sub mp_QuickSortLong(ByRef values() As Long, ByVal low As Long, ByVal high As Long)
+    Dim i As Long
+    Dim j As Long
+    Dim pivot As Long
+    Dim tmp As Long
+
+    If low >= high Then Exit Sub
+
+    i = low
+    j = high
+    pivot = values((low + high) \ 2)
+
+    Do While i <= j
+        Do While values(i) < pivot
+            i = i + 1
+        Loop
+        Do While values(j) > pivot
+            j = j - 1
+        Loop
+        If i <= j Then
+            tmp = values(i)
+            values(i) = values(j)
+            values(j) = tmp
+            i = i + 1
+            j = j - 1
+        End If
+    Loop
+
+    If low < j Then mp_QuickSortLong values, low, j
+    If i < high Then mp_QuickSortLong values, i, high
+End Sub
+
 Private Function mp_GetUsedScopeRange(ByVal ws As Worksheet) As Range
     Dim lastRow As Long
     Dim lastCol As Long
@@ -1006,16 +1185,10 @@ Private Function mp_GetUsedScopeRange(ByVal ws As Worksheet) As Range
     Set mp_GetUsedScopeRange = ws.Range(ws.Cells(1, 1), ws.Cells(lastRow, lastCol))
 End Function
 
-Private Function mp_GetExpandedSheetScopeRange( _
-    ByVal ws As Worksheet, _
-    ByVal extraColsRatio As Double, _
-    ByVal extraRowsRatio As Double _
-) As Range
+Private Function mp_GetExpandedSheetScopeRange(ByVal ws As Worksheet) As Range
     Dim usedScope As Range
     Dim usedLastRow As Long
     Dim usedLastCol As Long
-    Dim extraCols As Long
-    Dim extraRows As Long
     Dim endRow As Long
     Dim endCol As Long
 
@@ -1027,11 +1200,15 @@ Private Function mp_GetExpandedSheetScopeRange( _
     usedLastRow = usedScope.Row + usedScope.Rows.Count - 1
     usedLastCol = usedScope.Column + usedScope.Columns.Count - 1
 
-    extraCols = mp_CeilPositiveLong(CDbl(usedLastCol) * extraColsRatio)
-    extraRows = mp_CeilPositiveLong(CDbl(usedLastRow) * extraRowsRatio)
+    endCol = SHEET_SCOPE_MIN_COL
+    If usedLastCol > SHEET_SCOPE_MIN_COL Then
+        endCol = usedLastCol + SHEET_SCOPE_EXPAND_STEP
+    End If
 
-    endCol = usedLastCol + extraCols
-    endRow = usedLastRow + extraRows
+    endRow = SHEET_SCOPE_MIN_ROW
+    If usedLastRow > SHEET_SCOPE_MIN_ROW Then
+        endRow = usedLastRow + SHEET_SCOPE_EXPAND_STEP
+    End If
 
     If endCol < 1 Then endCol = 1
     If endRow < 1 Then endRow = 1
@@ -1039,15 +1216,6 @@ Private Function mp_GetExpandedSheetScopeRange( _
     If endRow > ws.Rows.Count Then endRow = ws.Rows.Count
 
     Set mp_GetExpandedSheetScopeRange = ws.Range(ws.Cells(1, 1), ws.Cells(endRow, endCol))
-End Function
-
-Private Function mp_CeilPositiveLong(ByVal value As Double) As Long
-    If value <= 0 Then Exit Function
-
-    mp_CeilPositiveLong = CLng(value)
-    If CDbl(mp_CeilPositiveLong) < value Then
-        mp_CeilPositiveLong = mp_CeilPositiveLong + 1
-    End If
 End Function
 
 Private Sub mp_ClampColumnRangeWidths( _
