@@ -239,6 +239,49 @@ Public Function m_GetActiveProfileName(Optional ByVal ws As Worksheet) As String
     m_GetActiveProfileName = profileName
 End Function
 
+Public Function m_GetActiveProfileAttribute( _
+    ByVal attrName As String, _
+    Optional ByVal defaultValue As String = vbNullString, _
+    Optional ByVal ws As Worksheet _
+) As String
+    Dim profileName As String
+    Dim doc As Object
+    Dim profileNode As Object
+    Dim attrValue As String
+
+    If ws Is Nothing Then
+        Set ws = ws_Dev
+    End If
+
+    attrName = Trim$(attrName)
+    If Len(attrName) = 0 Then
+        m_GetActiveProfileAttribute = defaultValue
+        Exit Function
+    End If
+
+    profileName = Trim$(m_GetActiveProfileName(ws))
+    If Len(profileName) = 0 Then
+        m_GetActiveProfileAttribute = defaultValue
+        Exit Function
+    End If
+
+    Set doc = mp_LoadProfilesDom(ws)
+    If doc Is Nothing Then
+        m_GetActiveProfileAttribute = defaultValue
+        Exit Function
+    End If
+
+    Set profileNode = mp_GetProfileNode(doc, profileName, False)
+    If profileNode Is Nothing Then
+        m_GetActiveProfileAttribute = defaultValue
+        Exit Function
+    End If
+
+    attrValue = Trim$(mp_NodeAttrText(profileNode, attrName))
+    If Len(attrValue) = 0 Then attrValue = defaultValue
+    m_GetActiveProfileAttribute = attrValue
+End Function
+
 Public Sub m_SetActiveModeKey(ByVal modeKey As String, Optional ByVal ws As Worksheet)
     Dim resolvedModeKey As String
 

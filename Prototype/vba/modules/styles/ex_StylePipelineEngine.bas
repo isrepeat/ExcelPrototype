@@ -720,13 +720,6 @@ ContinueMapTarget:
             Set scopeRange = ws.Range(ws.Cells(rowStart, colStart), ws.Cells(rowEnd, colEnd))
             mp_ApplyDeclarations scopeRange, Nothing, ruleObj.Declarations, Nothing, autoHeightState, autoHeightOnly
 
-        Case "range"
-            If Not selector.Exists("address") Then
-                Err.Raise vbObjectError + 1724, "ex_StylePipelineEngine", "Range rule '" & ruleObj.RuleId & "' requires selector address."
-            End If
-            Set scopeRange = ws.Range(CStr(selector("address")))
-            mp_ApplyDeclarations scopeRange, scopeRange.EntireColumn, ruleObj.Declarations, Nothing, autoHeightState, autoHeightOnly
-
         Case "cell"
             If selector.Exists("address") Then
                 Set scopeRange = ws.Range(CStr(selector("address")))
@@ -749,15 +742,26 @@ ContinueMapTarget:
             End If
             mp_ApplyDeclarations scopeRange, scopeRange.EntireColumn, ruleObj.Declarations, Nothing, autoHeightState, autoHeightOnly
 
-        Case "sheet"
-            Set scopeRange = mp_GetExpandedSheetScopeRange(ws)
-            If scopeRange Is Nothing Then Exit Sub
-            mp_ApplyDeclarations scopeRange, scopeRange.EntireColumn, ruleObj.Declarations, scopeRange, autoHeightState, autoHeightOnly
-
         Case "usedrange"
             Set scopeRange = ws.UsedRange
             If scopeRange Is Nothing Then Exit Sub
             mp_ApplyDeclarations scopeRange, scopeRange.EntireColumn, ruleObj.Declarations, scopeRange, autoHeightState, autoHeightOnly
+
+        Case "range"
+            If Not selector.Exists("address") Then
+                Err.Raise vbObjectError + 1724, "ex_StylePipelineEngine", "Range rule '" & ruleObj.RuleId & "' requires selector address."
+            End If
+            Set scopeRange = ws.Range(CStr(selector("address")))
+            mp_ApplyDeclarations scopeRange, scopeRange.EntireColumn, ruleObj.Declarations, Nothing, autoHeightState, autoHeightOnly
+
+        Case "sheet"
+            ' Legacy bounded-sheet scope:
+            ' Set scopeRange = mp_GetExpandedSheetScopeRange(ws)
+            ' If scopeRange Is Nothing Then Exit Sub
+            ' mp_ApplyDeclarations scopeRange, scopeRange.EntireColumn, ruleObj.Declarations, scopeRange, autoHeightState, autoHeightOnly
+
+            Set scopeRange = ws.Range("A:XFD")
+            mp_ApplyDeclarations scopeRange, scopeRange.EntireColumn, ruleObj.Declarations, Nothing, autoHeightState, autoHeightOnly
 
         Case Else
             Err.Raise vbObjectError + 1728, "ex_StylePipelineEngine", _
