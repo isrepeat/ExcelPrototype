@@ -390,6 +390,268 @@ Public Sub m_ApplyFixedWidthViewZoneLayer( _
     End If
 End Sub
 
+Public Function m_CreateRuntimeLayer( _
+    ByVal ws As Worksheet, _
+    ByRef style As ex_SheetStylesXmlProvider.t_OutputSheetStyle, _
+    Optional ByVal layerId As String = "runtime-control-panel", _
+    Optional ByVal priority As Long = 800 _
+) As obj_StyleLayer
+    Dim panelRange As Range
+    Dim runtimeLayer As obj_StyleLayer
+    Dim declarations As Object
+    Dim topRow As Long
+    Dim startCol As Long
+    Dim endCol As Long
+    Dim titleEndCol As Long
+    Dim inputStartCol As Long
+    Dim inputEndCol As Long
+    Dim buttonCol As Long
+    Dim buttonWidthCols As Long
+    Dim autoFitLastCol As Long
+    Dim rowSpan As Long
+    Dim fieldSpacing As Long
+    Dim fieldsTopRow As Long
+    Dim fieldIndex As Long
+    Dim fieldTopRow As Long
+    Dim fieldBottomRow As Long
+    Dim fixedFieldHeight As Double
+    Dim ruleIndex As Long
+    Dim fieldError As String
+    Dim inputOverflow As String
+
+    If ws Is Nothing Then Exit Function
+    If Not style.HasControlPanel Then Exit Function
+    If style.PanelFieldCount <= 0 Then Exit Function
+
+    Set panelRange = mp_TryGetPanelRange(ws)
+    If panelRange Is Nothing Then Exit Function
+
+    topRow = panelRange.Row
+    startCol = panelRange.Column
+    endCol = panelRange.Column + panelRange.Columns.Count - 1
+
+    inputStartCol = startCol + style.PanelLabelColumns
+    inputEndCol = inputStartCol + style.PanelValueColumns - 1
+    If inputEndCol < inputStartCol Then inputEndCol = inputStartCol
+    titleEndCol = inputEndCol
+    If titleEndCol < startCol Then titleEndCol = startCol
+    If titleEndCol > endCol Then titleEndCol = endCol
+
+    buttonCol = style.PanelButtonAnchorColumn
+    If buttonCol < 1 Then buttonCol = 4
+    buttonWidthCols = style.PanelButtonWidthColumns
+    If buttonWidthCols < 1 Then buttonWidthCols = 1
+    autoFitLastCol = inputStartCol
+    If (buttonCol + buttonWidthCols - 1) > autoFitLastCol Then
+        autoFitLastCol = buttonCol + buttonWidthCols - 1
+    End If
+    If autoFitLastCol < startCol Then autoFitLastCol = startCol
+
+    rowSpan = style.PanelFieldRowSpan
+    If rowSpan < 1 Then rowSpan = 1
+    fieldSpacing = style.PanelFieldSpacingRows
+    If fieldSpacing < 0 Then fieldSpacing = 0
+    fieldsTopRow = topRow + 1
+
+    fixedFieldHeight = style.PanelFixedFieldRowHeight
+    If fixedFieldHeight <= 0 Then fixedFieldHeight = 32#
+
+    Set runtimeLayer = New obj_StyleLayer
+    runtimeLayer.Initialize layerId, priority, "runtime", True
+
+    ruleIndex = ruleIndex + 1
+    Set declarations = mp_CreateDeclarations()
+    declarations("backColor") = mp_ColorToHex(style.PanelBackColor)
+    declarations("borderColor") = mp_ColorToHex(style.PanelBorderColor)
+    declarations("borderWeight") = "thin"
+    mp_AddRuntimeRule runtimeLayer, layerId & ".rule" & CStr(ruleIndex), "range", mp_BuildAddress(topRow, startCol, panelRange.Row + panelRange.Rows.Count - 1, endCol), declarations
+
+    ruleIndex = ruleIndex + 1
+    Set declarations = mp_CreateDeclarations()
+    declarations("fontBold") = "true"
+    declarations("fontColor") = mp_ColorToHex(style.PanelTitleColor)
+    declarations("horizontal") = "center"
+    declarations("vertical") = "center"
+    mp_AddRuntimeRule runtimeLayer, layerId & ".rule" & CStr(ruleIndex), "range", mp_BuildAddress(topRow, startCol, topRow, titleEndCol), declarations
+
+    If style.PanelColumnWidth > 0 Then
+        ruleIndex = ruleIndex + 1
+        Set declarations = mp_CreateDeclarations()
+        declarations("width") = mp_ToInvariantDoubleText(style.PanelColumnWidth)
+        mp_AddRuntimeRule runtimeLayer, layerId & ".rule" & CStr(ruleIndex), "column", mp_BuildColumnAddress(startCol, inputEndCol), declarations
+    End If
+
+    ruleIndex = ruleIndex + 1
+    Set declarations = mp_CreateDeclarations()
+    declarations("autoFitColumns") = "true"
+    mp_AddRuntimeRule runtimeLayer, layerId & ".rule" & CStr(ruleIndex), "column", mp_BuildColumnAddress(startCol, autoFitLastCol), declarations
+
+    If style.PanelFixedWidthKey > 0 Then
+        ruleIndex = ruleIndex + 1
+        Set declarations = mp_CreateDeclarations()
+        declarations("width") = mp_ToInvariantDoubleText(style.PanelFixedWidthKey)
+        mp_AddRuntimeRule runtimeLayer, layerId & ".rule" & CStr(ruleIndex), "column", mp_BuildColumnAddress(startCol, startCol), declarations
+    End If
+    If style.PanelFixedWidthValue > 0 Then
+        ruleIndex = ruleIndex + 1
+        Set declarations = mp_CreateDeclarations()
+        declarations("width") = mp_ToInvariantDoubleText(style.PanelFixedWidthValue)
+        mp_AddRuntimeRule runtimeLayer, layerId & ".rule" & CStr(ruleIndex), "column", mp_BuildColumnAddress(inputStartCol, inputStartCol), declarations
+    End If
+    If style.PanelFixedWidthButton > 0 Then
+        ruleIndex = ruleIndex + 1
+        Set declarations = mp_CreateDeclarations()
+        declarations("width") = mp_ToInvariantDoubleText(style.PanelFixedWidthButton)
+        mp_AddRuntimeRule runtimeLayer, layerId & ".rule" & CStr(ruleIndex), "column", mp_BuildColumnAddress(buttonCol, buttonCol), declarations
+    End If
+
+    For fieldIndex = 1 To style.PanelFieldCount
+        fieldTopRow = mp_GetFieldTopRow(style, fieldsTopRow, rowSpan, fieldSpacing, fieldIndex)
+        fieldBottomRow = fieldTopRow + mp_GetFieldEffectiveRowSpan(style, fieldIndex, rowSpan) - 1
+
+        ruleIndex = ruleIndex + 1
+        Set declarations = mp_CreateDeclarations()
+        declarations("rowHeight") = mp_ToInvariantDoubleText(fixedFieldHeight)
+        mp_AddRuntimeRule runtimeLayer, layerId & ".rule" & CStr(ruleIndex), "row", "row=" & CStr(fieldTopRow) & ":" & CStr(fieldBottomRow) & ";col=" & CStr(startCol) & ":" & CStr(endCol), declarations
+
+        ruleIndex = ruleIndex + 1
+        Set declarations = mp_CreateDeclarations()
+        declarations("fontBold") = "true"
+        declarations("fontColor") = mp_ColorToHex(style.PanelLabelColor)
+        declarations("horizontal") = "center"
+        declarations("vertical") = "center"
+        mp_AddRuntimeRule runtimeLayer, layerId & ".rule" & CStr(ruleIndex), "cell", mp_BuildAddress(fieldTopRow, startCol, fieldTopRow, startCol), declarations
+
+        fieldError = mp_GetConfigRefFieldError(style.PanelFields(fieldIndex), fieldIndex)
+        inputOverflow = mp_NormalizeOverflowText(style.PanelFields(fieldIndex).InputOverflowStyle)
+        ruleIndex = ruleIndex + 1
+        Set declarations = mp_CreateDeclarations()
+        If Len(fieldError) > 0 Then
+            declarations("fontBold") = "true"
+            declarations("backColor") = mp_ColorToHex(style.PanelErrorBackColor)
+            declarations("fontColor") = mp_ColorToHex(style.PanelErrorFontColor)
+            declarations("horizontal") = "left"
+            declarations("vertical") = "center"
+        Else
+            declarations("backColor") = mp_ColorToHex(style.PanelInputBackColor)
+            declarations("fontColor") = mp_ColorToHex(style.PanelInputFontColor)
+            declarations("horizontal") = "center"
+            declarations("vertical") = "center"
+        End If
+        declarations("overflow") = inputOverflow
+        mp_AddRuntimeRule runtimeLayer, layerId & ".rule" & CStr(ruleIndex), "cell", mp_BuildAddress(fieldTopRow, inputStartCol, fieldTopRow, inputStartCol), declarations
+    Next fieldIndex
+
+    Set m_CreateRuntimeLayer = runtimeLayer
+End Function
+
+Private Function mp_TryGetPanelRange(ByVal ws As Worksheet) As Range
+    Dim panelName As Name
+
+    If ws Is Nothing Then Exit Function
+
+    On Error Resume Next
+    Set panelName = ws.Names(PANEL_RANGE_NAME)
+    On Error GoTo 0
+    If panelName Is Nothing Then Exit Function
+
+    On Error Resume Next
+    Set mp_TryGetPanelRange = panelName.RefersToRange
+    On Error GoTo 0
+End Function
+
+Private Sub mp_AddRuntimeRule( _
+    ByVal layer As obj_StyleLayer, _
+    ByVal ruleId As String, _
+    ByVal targetName As String, _
+    ByVal selectorAddress As String, _
+    ByVal declarations As Object _
+)
+    Dim ruleObj As obj_StyleRule
+    Dim selectorText As String
+
+    If layer Is Nothing Then Exit Sub
+    If declarations Is Nothing Then Exit Sub
+    If Len(Trim$(ruleId)) = 0 Then Exit Sub
+    If Len(Trim$(targetName)) = 0 Then Exit Sub
+    If Len(Trim$(selectorAddress)) = 0 Then Exit Sub
+
+    If StrComp(LCase$(Trim$(targetName)), "column", vbTextCompare) = 0 Or _
+       StrComp(LCase$(Trim$(targetName)), "range", vbTextCompare) = 0 Or _
+       StrComp(LCase$(Trim$(targetName)), "cell", vbTextCompare) = 0 Then
+        selectorText = "address=" & selectorAddress
+    Else
+        selectorText = selectorAddress
+    End If
+
+    Set ruleObj = New obj_StyleRule
+    ruleObj.Initialize ruleId, targetName, selectorText, declarations
+    layer.AddRule ruleObj
+End Sub
+
+Private Function mp_CreateDeclarations() As Object
+    Set mp_CreateDeclarations = CreateObject("Scripting.Dictionary")
+    mp_CreateDeclarations.CompareMode = 1
+End Function
+
+Private Function mp_BuildAddress( _
+    ByVal rowStart As Long, _
+    ByVal colStart As Long, _
+    ByVal rowEnd As Long, _
+    ByVal colEnd As Long _
+) As String
+    If rowStart < 1 Then rowStart = 1
+    If colStart < 1 Then colStart = 1
+    If rowEnd < rowStart Then rowEnd = rowStart
+    If colEnd < colStart Then colEnd = colStart
+
+    mp_BuildAddress = mp_ToColumnLetter(colStart) & CStr(rowStart) & ":" & mp_ToColumnLetter(colEnd) & CStr(rowEnd)
+End Function
+
+Private Function mp_BuildColumnAddress(ByVal colStart As Long, ByVal colEnd As Long) As String
+    If colStart < 1 Then colStart = 1
+    If colEnd < colStart Then colEnd = colStart
+    mp_BuildColumnAddress = mp_ToColumnLetter(colStart) & ":" & mp_ToColumnLetter(colEnd)
+End Function
+
+Private Function mp_ToColumnLetter(ByVal columnIndex As Long) As String
+    Dim n As Long
+    Dim remainder As Long
+
+    If columnIndex < 1 Then columnIndex = 1
+    n = columnIndex
+    Do While n > 0
+        remainder = (n - 1) Mod 26
+        mp_ToColumnLetter = Chr$(65 + remainder) & mp_ToColumnLetter
+        n = (n - remainder - 1) \ 26
+    Loop
+End Function
+
+Private Function mp_ColorToHex(ByVal colorValue As Long) As String
+    Dim r As Long
+    Dim g As Long
+    Dim b As Long
+
+    r = colorValue Mod 256
+    g = (colorValue \ 256) Mod 256
+    b = (colorValue \ 65536) Mod 256
+    mp_ColorToHex = "#" & Right$("0" & Hex$(r), 2) & Right$("0" & Hex$(g), 2) & Right$("0" & Hex$(b), 2)
+End Function
+
+Private Function mp_ToInvariantDoubleText(ByVal value As Double) As String
+    mp_ToInvariantDoubleText = Replace$(Trim$(CStr(value)), ",", ".")
+End Function
+
+Private Function mp_NormalizeOverflowText(ByVal overflowStyle As String) As String
+    overflowStyle = LCase$(Trim$(overflowStyle))
+    Select Case overflowStyle
+        Case "wrap", "shrink", "clip"
+            mp_NormalizeOverflowText = overflowStyle
+        Case Else
+            mp_NormalizeOverflowText = "clip"
+    End Select
+End Function
+
 Public Function m_TryGetClickedFieldIndex(ByVal ws As Worksheet, ByVal callerName As String, ByRef fieldIndex As Long) As Boolean
     Dim prefix As String
     Dim suffix As String

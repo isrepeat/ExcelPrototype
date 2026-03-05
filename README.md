@@ -168,14 +168,14 @@ if (mapKey != "") {
 }
 ```
 
-## StylePipeline (page-based, без stage/workflow)
+## StylePipeline (page-based, universal apply)
 
 Источник конфигурации:
 
-1. `Prototype/config/StylePipeline.xml` - слои и правила для конкретной страницы (`sheetPipeline page="..."`).
-2. `Prototype/config/SheetStyles.xml` - отдельные настройки `outputStyles`/панелей (не участвует в `StylePipeline`).
+1. `Prototype/config/StylePipeline.xml` - декларативные `layer/rule` по страницам (`sheetPipeline page="..."`).
+2. `Prototype/config/SheetStyles.xml` - отдельные style-параметры UI (control panel, banner palettes, и т.п.), которые модули могут конвертировать в `runtimeLayers`.
 
-Точка входа из VBA:
+Единая точка входа из VBA:
 
 ```vb
 ex_OutputFormattingPipeline.m_ApplySheetPipeline ws
@@ -184,93 +184,105 @@ ex_OutputFormattingPipeline.m_ApplySheetPipeline ws
 Полная форма:
 
 ```vb
-ex_OutputFormattingPipeline.m_ApplySheetPipeline ws, resultFieldRanges, cfgStyles, rowKindRanges, activeModeKey
+ex_OutputFormattingPipeline.m_ApplySheetPipeline _
+    ws, _
+    resultFieldRanges, _
+    cfgStyles, _
+    rowKindRanges, _
+    activeModeKey, _
+    autoHeightOnly, _
+    runtimeLayers
 ```
 
-### Как движок собирает и применяет pipeline
+Где:
 
-1. Собирает runtime pipeline:
-   `inline layer` (из `cfgStyles`) -> XML layers из `StylePipeline.xml` для `ws.Name`.
-2. Сортирует слои по `priority` по возрастанию.
-3. При одинаковом `priority` сохраняется порядок добавления.
-4. Применяет только `enabled="true"` слои.
-5. Применяет правила по `target` (`sheet/usedRange/range/row/column/cell`).
-6. Если в `selector` есть `mode=...`, правило применяется только при совпадении active mode.
+1. `resultFieldRanges` - карта выходных полей (`MapKey/ColumnIndex/RowStart/RowEnd`) для `target="column"` по `mapKey/source/table/field`.
+2. `cfgStyles` - словарь inline style блоков из конфига (автоматически превращаются в inline-layer).
+3. `rowKindRanges` - словарь семантических строк для `target="row"` + `selector kind=...`.
+4. `activeModeKey` - ключ режима для `selector mode=...` (если пусто, берется активный профиль).
+5. `autoHeightOnly` - применить только декларации `autoHeight` (используется в спец-сценариях).
+6. `runtimeLayers` - `Collection(obj_StyleLayer)`, добавляемые в pipeline на лету.
+
+### Как теперь формируется pipeline
+
+1. Базовый pipeline строится в движке так:
+   `inline layer (cfgStyles)` -> `XML layers (StylePipeline.xml, page = ws.Name)`.
+2. Затем вызывающий модуль может добавить `runtimeLayers`.
+3. Все слои сортируются по `priority` (возрастание), при равном приоритете сохраняется порядок добавления.
+4. Применяются только `enabled=true`.
+
+Ключевая архитектурная договоренность:
+
+1. В `ex_OutputFormattingPipeline` остается только универсальный apply API.
+2. Специфичный контекст страницы (какие `rowKindRanges` собрать, какие runtime слои добавить) живет в модуле страницы (`ex_PersonTimeline`, `ex_TableComparing`, и т.д.).
+
+### `runtimeLayers`: зачем и как использовать
+
+`runtimeLayers` нужны, когда стиль зависит от runtime-геометрии/данных и это неудобно держать в статичном XML.
+
+Примеры:
+
+1. Контрольная панель (координаты и размеры известны только после рендера).
+2. Warning banners с динамическими диапазонами.
+
+Пример интеграции:
+
+```vb
+Dim runtimeLayers As Collection
+Dim runtimeLayer As obj_StyleLayer
+
+Set runtimeLayers = New Collection
+
+Set runtimeLayer = ex_OutputPanel.m_CreateRuntimeLayer(wsOut, outputStyle, "runtime-control-panel", 800)
+If Not runtimeLayer Is Nothing Then runtimeLayers.Add runtimeLayer
+
+Set runtimeLayer = ex_Messaging.m_CreateWarningBannersRuntimeLayer(wsOut, pendingWarningBanners, "runtime-warning-banners", 850)
+If Not runtimeLayer Is Nothing Then runtimeLayers.Add runtimeLayer
+
+ex_OutputFormattingPipeline.m_ApplySheetPipeline wsOut, resultFieldRanges, cfgStyles, rowKindRanges, vbNullString, False, runtimeLayers
+```
+
+### AutoFit / autoHeight поведение
+
+1. `autoHeight` теперь применяется отложенно: движок собирает финальное состояние по строкам на всем проходе pipeline и выполняет `Rows.AutoFit` один раз в конце.
+2. Принцип: `last rule wins` (`autoHeight:true` может быть отключен поздним `autoHeight:false`).
+3. `autoFitColumns` сейчас применяется в момент обработки правила (не отложенно).
+
+### Scope и target
 
 Важно:
 
-1. `target="sheet"` применяется к расширенной used-области: `usedScope + 50%` по ширине и `usedScope + 100%` по высоте.
-2. `target="usedRange"` применяется к текущей используемой области листа (`Worksheet.UsedRange`) — это прежняя логика `sheet`.
-3. Расчет расширения `target="sheet"` ограничивается физическими границами листа Excel.
-4. Для `target="row"` + `selector="kind=..."` нужен `rowKindRanges`; если контекст не передан, правило просто пропускается.
+1. `target="sheet"` использует минимум `A1:AM100`; если `usedScope` шире/выше, берется `usedScope` и добавляется `+30` колонок и/или `+30` строк (в границах листа).
+2. `target="usedRange"` применяется к `Worksheet.UsedRange`.
+3. `target="row"` + `selector kind=...` требует `rowKindRanges`; если он не передан, такие правила просто пропускаются.
 
-### Формат XML
+Поддерживаемые `target`: `sheet`, `usedRange`, `range`, `row`, `column`, `cell`.
+
+### XML пример
 
 ```xml
 <?xml version="1.0" standalone="yes"?>
 <stylePipeline xmlns="urn:excelprototype:profiles" version="1">
   <sheetPipeline page="Dev">
     <layer id="dev-base" priority="100" enabled="true">
-      <rule target="range" selector="address=A:XFD" styles="{ backColor:#202020; fontColor:#EBEBEB; }"/>
+      <rule target="sheet" styles="{ backColor:#202020; fontColor:#EBEBEB; }"/>
+    </layer>
+    <layer id="dev-grid" priority="110" enabled="true">
+      <rule target="range" selector="address=A1:D200" styles="{ borderColor:#505050; borderWeight:thin; }"/>
     </layer>
   </sheetPipeline>
 </stylePipeline>
 ```
 
-`selector`:
+### `selector` формат
 
 1. Формат: `key=value;key2=value2`.
 2. Разделитель пар: `;`.
 3. Разделитель key/value: `=` или `:`.
+4. `row` span: `5`, `5:12`, `5-12`.
+5. `col` span: `1:4`, `A:D`, `3`, `AA`.
 
-### Поддерживаемые target и selector
-
-`target="sheet"`:
-
-1. Без selector.
-2. Пример: базовая тема листа с запасом.
-
-`target="usedRange"`:
-
-1. Без selector.
-2. Пример: стили только в пределах текущей используемой области.
-
-`target="range"`:
-
-1. Обязателен `selector address=...`.
-2. Пример: `address=A:XFD`, `address=A1:D20`.
-
-`target="row"`:
-
-1. `kind=...` (семантические группы из `rowKindRanges`), опционально `col=...`.
-2. `row=...` (числа), опционально `col=...`.
-3. `address=...`.
-
-`target="column"`:
-
-1. По данным результата (`resultFieldRanges`) через:
-   `mapKey=...`, `source=...`, `table=...`, `field=...`, опционально `row=...`, `col=...`.
-2. По диапазону: `address=...`.
-3. По span: `col=...`, опционально `row=...`.
-
-`target="cell"`:
-
-1. `address=...` или
-2. `row=...;col=...` (берется верхняя левая ячейка span).
-
-Span-форматы:
-
-1. `row=5` или `row=5:12` (также можно `5-12`).
-2. `col=1:4`, `col=A:D`, `col=3`, `col=AA`.
-
-Pattern-матчинг для `mapKey/source/table/field`:
-
-1. Точное совпадение.
-2. Wildcards: `*`, `?` (VBA `Like`, без учета регистра).
-
-### Поддерживаемые style declarations
-
-Список свойств:
+### Поддерживаемые declarations
 
 1. `width`, `minWidth`, `maxWidth`, `autoFitColumns`
 2. `overflow` (`wrap|clip|shrink`)
@@ -281,150 +293,49 @@ Pattern-матчинг для `mapKey/source/table/field`:
 7. `horizontal` (`left|center|right|fill|justify|distributed|general`)
 8. `vertical` (`top|center|bottom|justify|distributed`)
 
-Примечания:
-
-1. Цвета: hex (`#RRGGBB`) и другие форматы, которые поддерживает `ex_XmlCore.m_TryParseColor`.
-2. `width/minWidth/maxWidth` принимают положительные числа, для `width` допустим суффикс `px`.
-3. `borderColor/borderWeight` применяются к внешним и внутренним границам диапазона.
-
-### `rowKindRanges`: общий контракт
-
-Это общий механизм движка, не специфичный для PersonalCard.
+### `rowKindRanges` контракт (общий)
 
 Формат:
 
 1. `Dictionary(kindName -> Collection(rowEntry))`.
-2. `rowEntry` - объект с `RowStart`/`RowEnd` или номер строки.
+2. `rowEntry` может быть:
+   `Long` (одна строка) или объект с `RowStart/RowEnd`.
 
 Пример:
 
 ```vb
 Dim rowKindRanges As Object
-Dim headerRows As Collection
-Dim rowItem As Object
+Dim headerRanges As Collection
+Dim rowEntry As Object
 
 Set rowKindRanges = CreateObject("Scripting.Dictionary")
 rowKindRanges.CompareMode = 1
 
-Set headerRows = New Collection
-Set rowItem = CreateObject("Scripting.Dictionary")
-rowItem("RowStart") = 10
-rowItem("RowEnd") = 12
-headerRows.Add rowItem
+Set headerRanges = New Collection
+Set rowEntry = CreateObject("Scripting.Dictionary")
+rowEntry("RowStart") = 10
+rowEntry("RowEnd") = 12
+headerRanges.Add rowEntry
 
-Set rowKindRanges("header") = headerRows
-
-ex_OutputFormattingPipeline.m_ApplySheetPipeline ws, resultFieldRanges, cfgStyles, rowKindRanges
+Set rowKindRanges("header") = headerRanges
 ```
 
-### Примеры правил (покрытие всех сценариев)
+### Рекомендуемые вызовы
 
-#### 1) Базовая тема страницы (sheet + range)
-
-```xml
-<sheetPipeline page="Dev">
-  <layer id="dev-base" priority="100" enabled="true">
-    <rule target="sheet" styles="{ fontName:'Segoe UI'; fontSize:10; }"/>
-    <rule target="range" selector="address=A:XFD" styles="{ backColor:#202020; fontColor:#EBEBEB; }"/>
-  </layer>
-</sheetPipeline>
-```
-
-#### 2) Row kind стили (row + kind)
-
-```xml
-<layer id="timeline-rows" priority="200" enabled="true">
-  <rule target="row" selector="kind=header;col=1:8" styles="{ fontBold:true; backColor:#1F3A93; }"/>
-  <rule target="row" selector="kind=section;col=1:8" styles="{ backColor:#2A2A2A; }"/>
-  <rule target="row" selector="kind=content" styles="{ overflow:wrap; autoHeight:true; }"/>
-</layer>
-```
-
-#### 3) Row by span/address
-
-```xml
-<layer id="manual-rows" priority="210" enabled="true">
-  <rule target="row" selector="row=2:2;col=1:4" styles="{ fontBold:true; }"/>
-  <rule target="row" selector="address=A20:D20" styles="{ backColor:#333333; }"/>
-</layer>
-```
-
-#### 4) Column by mapKey/source/table/field
-
-```xml
-<layer id="map-columns" priority="300" enabled="true">
-  <rule target="column" selector="mapKey=Daily.Sheet[DailyEvents].Map[DocNote]" styles="{ width:60; overflow:wrap; }"/>
-  <rule target="column" selector="source=Daily;table=DailyEvents;field=Doc*" styles="{ fontColor:#FFD966; }"/>
-</layer>
-```
-
-#### 5) Column by address/col span
-
-```xml
-<layer id="layout-columns" priority="310" enabled="true">
-  <rule target="column" selector="address=B:D" styles="{ minWidth:12; maxWidth:30; }"/>
-  <rule target="column" selector="col=1:2;row=1:200" styles="{ horizontal:center; }"/>
-</layer>
-```
-
-#### 6) Cell target
-
-```xml
-<layer id="cells" priority="320" enabled="true">
-  <rule target="cell" selector="address=A1" styles="{ fontBold:true; backColor:#404040; }"/>
-  <rule target="cell" selector="row=3;col=2" styles="{ fontColor:#00FF00; }"/>
-</layer>
-```
-
-#### 7) Границы (borderColor/borderWeight)
-
-```xml
-<layer id="borders" priority="330" enabled="true">
-  <rule target="range" selector="address=A1:D30" styles="{ borderColor:#505050; borderWeight:thin; }"/>
-</layer>
-```
-
-#### 8) Фильтр по mode
-
-```xml
-<layer id="mode-specific" priority="340" enabled="true">
-  <rule target="range" selector="mode=timeline;address=A:XFD" styles="{ backColor:#1E1E1E; }"/>
-  <rule target="range" selector="mode=comparing;address=A:XFD" styles="{ backColor:#FFFFFF; fontColor:#000000; }"/>
-</layer>
-```
-
-#### 9) Inline styles из cfgStyles (автоматический layer)
-
-Если в `cfgStyles(mapKey)` лежит style block:
-
-```text
-{ width:45; overflow:wrap; autoHeight:true; backColor:#252525; }
-```
-
-то движок автоматически добавит правило `target="column" selector="mapKey=<этот mapKey>"`.
-
-### Рекомендуемый паттерн вызовов
-
-`Startup/Dev` (базовая тема листа):
+`Dev`:
 
 ```vb
 ex_OutputFormattingPipeline.m_ApplySheetPipeline ws_Dev
 ```
 
-`Result page` (нужны mapKey + cfg styles + row kinds):
+`Result page` (данные + kinds + runtime):
 
 ```vb
-ex_OutputFormattingPipeline.m_ApplySheetPipeline wsOut, resultFieldRanges, cfgStyles, rowKindRanges
+ex_OutputFormattingPipeline.m_ApplySheetPipeline wsOut, resultFieldRanges, cfgStyles, rowKindRanges, vbNullString, False, runtimeLayers
 ```
 
-`TablesComparing` (`g_Result`, статусы по row kinds):
+`TablesComparing`:
 
 ```vb
 ex_OutputFormattingPipeline.m_ApplySheetPipeline wsResult, Nothing, Nothing, rowKindRanges, "TablesComparing"
-```
-
-Для `g_PersonTimeline` удобнее использовать обертку:
-
-```vb
-ex_OutputFormattingPipeline.m_ApplyTimelineStyleLayers wsOut, headerRows, sectionRows, resultFieldRanges, cfgStyles, partialMatchRowRanges
 ```
