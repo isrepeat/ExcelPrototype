@@ -1,6 +1,6 @@
 <?xml version="1.0" standalone="yes"?>
 <profiles version="1" xmlns="urn:excelprototype:profiles">
-  <profile name="Default">
+  <profile name="Default" resultZoom="115">
     <styles>
       <config>
         <column id="marker" width="5" align="middle-center" overflow="clip"/>
@@ -24,7 +24,7 @@
       <control name="btnCustomMode" visible="true"/>
     </ui>
   </profile>
-  <profile name="Test">
+  <profile name="Test" resultZoom="115">
     <styles>
       <config>
         <column id="marker" width="5" align="middle-center" overflow="clip"/>

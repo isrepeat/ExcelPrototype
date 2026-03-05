@@ -252,7 +252,7 @@ ex_OutputFormattingPipeline.m_ApplySheetPipeline wsOut, resultFieldRanges, cfgSt
 
 Важно:
 
-1. `target="sheet"` использует минимум `A1:AM100`; если `usedScope` шире/выше, берется `usedScope` и добавляется `+30` колонок и/или `+30` строк (в границах листа).
+1. `target="sheet"` применяется как ограниченный колонками диапазон `A:AZ` (аналогично `target="range" selector="address=A:AZ"`).
 2. `target="usedRange"` применяется к `Worksheet.UsedRange`.
 3. `target="row"` + `selector kind=...` требует `rowKindRanges`; если он не передан, такие правила просто пропускаются.
 
@@ -339,3 +339,18 @@ ex_OutputFormattingPipeline.m_ApplySheetPipeline wsOut, resultFieldRanges, cfgSt
 ```vb
 ex_OutputFormattingPipeline.m_ApplySheetPipeline wsResult, Nothing, Nothing, rowKindRanges, "TablesComparing"
 ```
+
+## Result Page Zoom (profiles)
+
+Для профилей режимов (PersonalCard/TablesComparing) можно задать дефолтный zoom результата атрибутом профиля:
+
+```xml
+<profile name="Test2" resultZoom="115">
+```
+
+Поведение:
+
+1. Если результатный лист создается впервые, применяется `resultZoom` активного профиля.
+2. Пока лист жив (не удален), сохраняется текущий zoom листа; in-memory cache используется как fallback.
+3. Повторный Search/Run не переустанавливает профильный zoom для уже существующей страницы.
+4. Логика общая и используется как в `ex_PersonTimeline`, так и в `ex_TableComparing` через `ex_SheetViewZoom`.

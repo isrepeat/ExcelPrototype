@@ -392,6 +392,7 @@ End Function
 
 Private Sub mp_WriteComparingResultSheet(ByVal tableData As Variant)
     Dim ws As Worksheet
+    Dim resultSheetExisted As Boolean
     Dim dataRows As Long
     Dim colCount As Long
     Dim startRow As Long
@@ -401,7 +402,8 @@ Private Sub mp_WriteComparingResultSheet(ByVal tableData As Variant)
 
     On Error GoTo EH
 
-    Set ws = mp_GetOrCreateResultWorksheet("Result")
+    Set ws = mp_GetOrCreateResultWorksheet("Result", resultSheetExisted)
+    ex_SheetViewZoom.m_ApplyProfileZoomForResultSheet ws, resultSheetExisted
     ws.Cells.Clear
     ws.ScrollArea = ""
 
@@ -422,7 +424,7 @@ EH:
     MsgBox "Result writer error: " & Err.Description, vbExclamation
 End Sub
 
-Private Function mp_GetOrCreateResultWorksheet(ByVal sheetName As String) As Worksheet
+Private Function mp_GetOrCreateResultWorksheet(ByVal sheetName As String, Optional ByRef outExisted As Boolean = False) As Worksheet
     Dim ws As Worksheet
     Dim fullName As String
 
@@ -430,6 +432,7 @@ Private Function mp_GetOrCreateResultWorksheet(ByVal sheetName As String) As Wor
 
     For Each ws In ThisWorkbook.Worksheets
         If StrComp(ws.Name, fullName, vbTextCompare) = 0 Then
+            outExisted = True
             Set mp_GetOrCreateResultWorksheet = ws
             Exit Function
         End If
@@ -437,6 +440,7 @@ Private Function mp_GetOrCreateResultWorksheet(ByVal sheetName As String) As Wor
 
     Set ws = ThisWorkbook.Worksheets.Add(After:=ThisWorkbook.Worksheets(ThisWorkbook.Worksheets.Count))
     ws.Name = fullName
+    outExisted = False
     Set mp_GetOrCreateResultWorksheet = ws
 End Function
 

@@ -210,6 +210,7 @@ Public Sub m_ShowPersonTimeline(ByVal fio As String)
     Application.CalculateBeforeSave = False
 
     Dim wsOut As Worksheet
+    Dim resultSheetExistedBeforeRender As Boolean
 
     If Len(Trim$(fio)) = 0 Then
         Err.Raise vbObjectError + 1300, "ex_PersonTimeline", _
@@ -237,10 +238,9 @@ Public Sub m_ShowPersonTimeline(ByVal fio As String)
         Exit Sub
     End If
 
+    resultSheetExistedBeforeRender = mp_WorksheetExists(RESULT_SHEET_NAME)
     Set wsOut = mp_CreateOrClearSheet(RESULT_SHEET_NAME)
-
-    wsOut.Activate
-    ActiveWindow.Zoom = 115
+    ex_SheetViewZoom.m_ApplyProfileZoomForResultSheet wsOut, resultSheetExistedBeforeRender
 
     Dim resultFieldRanges As Collection
     Set resultFieldRanges = New Collection
@@ -410,7 +410,9 @@ EH:
     End If
 
     If wsOut Is Nothing Then
+        resultSheetExistedBeforeRender = mp_WorksheetExists(RESULT_SHEET_NAME)
         Set wsOut = mp_CreateOrClearSheet(RESULT_SHEET_NAME)
+        ex_SheetViewZoom.m_ApplyProfileZoomForResultSheet wsOut, resultSheetExistedBeforeRender
     End If
     On Error Resume Next
     ex_OutputFormattingPipeline.m_ApplySheetPipeline wsOut
@@ -461,6 +463,7 @@ Public Sub m_ResetResultPageSessionState()
     Set g_LastPostProcessCfg = Nothing
     Set g_LastPostProcessTables = Nothing
     g_LastResultHasPartialMatchCandidates = False
+    ex_SheetViewZoom.m_ResetZoomCache RESULT_SHEET_NAME
 End Sub
 
 Private Sub mp_StorePostProcessContext(ByVal cfg As Object, ByVal resultTables As Collection, ByVal hasPartialMatchCandidates As Boolean)
@@ -3062,6 +3065,19 @@ Private Function mp_TryGetTableColumnByFieldAlias( _
 
     mp_TryGetTableColumnByFieldAlias = mp_FindHeaderColumnInTable(lo, headerName)
 
+End Function
+
+Private Function mp_WorksheetExists(ByVal sheetName As String) As Boolean
+    Dim ws As Worksheet
+
+    sheetName = Trim$(sheetName)
+    If Len(sheetName) = 0 Then Exit Function
+
+    On Error Resume Next
+    Set ws = ThisWorkbook.Worksheets(sheetName)
+    On Error GoTo 0
+
+    mp_WorksheetExists = Not ws Is Nothing
 End Function
 
 Private Function mp_CreateOrClearSheet(ByVal sheetName As String) As Worksheet

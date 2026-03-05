@@ -459,6 +459,7 @@ Public Sub m_DeleteResultSheets()
 
     On Error Resume Next
     ex_PersonTimeline.m_ResetResultPageSessionState
+    ex_SheetViewZoom.m_ResetZoomCache
     On Error GoTo 0
 
     Application.DisplayAlerts = False

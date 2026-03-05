@@ -158,8 +158,7 @@
   
   <sheetPipeline page="g_PersonTimeline">
     <layer id="pc-base" priority="100" enabled="true">
-      <rule target="range"
-            selector="address=A:XFD"
+      <rule target="sheet"
             styles="{
               fontName:'Times New Roman';
               fontSize:12;
