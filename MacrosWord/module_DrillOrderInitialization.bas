@@ -921,35 +921,19 @@ Public Sub m_FioToGenitive_Selection()
     Set sourceRange = Selection.Range.Duplicate
     If sourceRange Is Nothing Then Exit Sub
 
+    Dim sourceBodyText As String
+    Dim trailingBreaks As String
+    mp_SplitTrailingLineBreaks sourceRange.Text, sourceBodyText, trailingBreaks
+
     Dim normalizedText As String
-    normalizedText = mp_NormalizeFioInput(sourceRange.Text)
+    normalizedText = mp_NormalizeFioInput(sourceBodyText)
     If Len(normalizedText) = 0 Then
         mp_MarkInvalidFioSelection sourceRange
         Exit Sub
     End If
 
-    Dim surname As String, firstName As String, patronymic As String
-    If Not mp_TryParseFio(normalizedText, surname, firstName, patronymic) Then
-        mp_MarkInvalidFioSelection sourceRange
-        Exit Sub
-    End If
-
-    Dim gender As String
-    If Not mp_DetectFioGender(firstName, patronymic, gender) Then
-        mp_MarkInvalidFioSelection sourceRange
-        Exit Sub
-    End If
-
-    Dim genSurname As String, genFirstName As String, genPatronymic As String
-    If Not mp_InflectSurnameToGenitive(surname, gender, genSurname) Then
-        mp_MarkInvalidFioSelection sourceRange
-        Exit Sub
-    End If
-    If Not mp_InflectNameToGenitive(firstName, gender, genFirstName) Then
-        mp_MarkInvalidFioSelection sourceRange
-        Exit Sub
-    End If
-    If Not mp_InflectPatronymicToGenitive(patronymic, gender, genPatronymic) Then
+    Dim convertedText As String
+    If Not mp_TryConvertSelectionTextToGenitive(normalizedText, convertedText) Then
         mp_MarkInvalidFioSelection sourceRange
         Exit Sub
     End If
@@ -958,7 +942,7 @@ Public Sub m_FioToGenitive_Selection()
     mp_BeginUndoGroup "ФІО у родовий відмінок", undoStarted
     On Error GoTo FailInflect
 
-    sourceRange.Text = genSurname & " " & genFirstName & " " & genPatronymic
+    sourceRange.Text = convertedText & trailingBreaks
     mp_SetStatusBarMessage "ФІО змінено на родовий відмінок."
 
 Finalize:
@@ -976,6 +960,373 @@ Private Sub mp_MarkInvalidFioSelection(ByVal targetRange As Range)
     Set markerRange = targetRange.Duplicate
     markerRange.HighlightColorIndex = wdYellow
 End Sub
+
+Private Function mp_TryConvertSelectionTextToGenitive(ByVal normalizedText As String, ByRef convertedText As String) As Boolean
+    If mp_TryConvertPureFioToGenitive(normalizedText, convertedText) Then
+        mp_TryConvertSelectionTextToGenitive = True
+        Exit Function
+    End If
+
+    If Not mp_IsSingleSentenceText(normalizedText) Then Exit Function
+
+    If mp_TryConvertSentenceWithFioToGenitive(normalizedText, convertedText) Then
+        mp_TryConvertSelectionTextToGenitive = True
+    End If
+End Function
+
+Private Sub mp_SplitTrailingLineBreaks(ByVal sourceText As String, ByRef bodyText As String, ByRef trailingBreaks As String)
+    bodyText = sourceText
+
+    Do While Len(bodyText) > 0
+        Dim tailChar As String
+        tailChar = Right$(bodyText, 1)
+
+        If tailChar = vbCr Or tailChar = vbLf Or AscW(tailChar) = 11 Or AscW(tailChar) = 7 Then
+            trailingBreaks = tailChar & trailingBreaks
+            bodyText = Left$(bodyText, Len(bodyText) - 1)
+        Else
+            Exit Do
+        End If
+    Loop
+End Sub
+
+Private Function mp_IsSingleSentenceText(ByVal normalizedText As String) As Boolean
+    Static regex As Object
+
+    If regex Is Nothing Then
+        Set regex = CreateObject("VBScript.RegExp")
+        regex.Global = False
+        regex.IgnoreCase = True
+        regex.Pattern = "^[^.!?]+([.!?]+)?$"
+    End If
+
+    mp_IsSingleSentenceText = regex.Test(Trim$(normalizedText))
+End Function
+
+Private Function mp_TryConvertPureFioToGenitive(ByVal normalizedText As String, ByRef convertedText As String) As Boolean
+    Dim surname As String, firstName As String, patronymic As String
+    If Not mp_TryParseFio(normalizedText, surname, firstName, patronymic) Then Exit Function
+
+    Dim gender As String
+    If Not mp_DetectFioGender(firstName, patronymic, gender) Then Exit Function
+
+    Dim genSurname As String, genFirstName As String, genPatronymic As String
+    If Not mp_InflectSurnameToGenitive(surname, gender, genSurname) Then Exit Function
+    If Not mp_InflectNameToGenitive(firstName, gender, genFirstName) Then Exit Function
+    If Not mp_InflectPatronymicToGenitive(patronymic, gender, genPatronymic) Then Exit Function
+
+    convertedText = genSurname & " " & genFirstName & " " & genPatronymic
+    mp_TryConvertPureFioToGenitive = True
+End Function
+
+Private Function mp_TryConvertSentenceWithFioToGenitive(ByVal normalizedText As String, ByRef convertedText As String) As Boolean
+    Dim leadPhrase As String
+    Dim surname As String
+    Dim firstName As String
+    Dim patronymic As String
+    Dim tailPhrase As String
+
+    If Not mp_TryParseSentenceWithFio(normalizedText, leadPhrase, surname, firstName, patronymic, tailPhrase) Then Exit Function
+
+    Dim fioGenitive As String
+    Dim gender As String
+    If Not mp_TryInflectFioToGenitive(surname, firstName, patronymic, fioGenitive, gender) Then Exit Function
+
+    Dim leadPhraseGen As String
+    leadPhraseGen = mp_InflectPhraseByDashSegments(leadPhrase, 4)
+    If Len(leadPhraseGen) = 0 Then Exit Function
+
+    Dim tailPhraseGen As String
+    tailPhraseGen = mp_InflectPhraseByDashSegments(tailPhrase, 4)
+    If Len(tailPhraseGen) = 0 Then Exit Function
+
+    convertedText = leadPhraseGen & " " & fioGenitive & ", " & mp_LowercaseFirstLetter(tailPhraseGen)
+    mp_TryConvertSentenceWithFioToGenitive = True
+End Function
+
+Private Function mp_TryParseSentenceWithFio(ByVal normalizedText As String, ByRef leadPhrase As String, ByRef surname As String, ByRef firstName As String, ByRef patronymic As String, ByRef tailPhrase As String) As Boolean
+    Dim parts() As String
+    parts = Split(normalizedText, " ")
+    If UBound(parts) < 4 Then Exit Function
+
+    Dim fioStart As Long
+    If Not mp_FindFioStartIndex(parts, fioStart, surname, firstName, patronymic) Then Exit Function
+
+    If fioStart < 1 Then Exit Function
+    If fioStart + 3 > UBound(parts) Then Exit Function
+
+    leadPhrase = mp_JoinArraySlice(parts, 0, fioStart - 1)
+    tailPhrase = mp_JoinArraySlice(parts, fioStart + 3, UBound(parts))
+
+    If Len(leadPhrase) = 0 Then Exit Function
+    If Len(tailPhrase) = 0 Then Exit Function
+
+    mp_TryParseSentenceWithFio = True
+End Function
+
+Private Function mp_FindFioStartIndex(ByRef parts() As String, ByRef fioStart As Long, ByRef surname As String, ByRef firstName As String, ByRef patronymic As String) As Boolean
+    Dim i As Long
+    Dim c1 As String
+    Dim c2 As String
+    Dim c3 As String
+    Dim gender As String
+
+    For i = LBound(parts) To UBound(parts) - 2
+        c1 = mp_TrimTokenPunctuation(parts(i))
+        c2 = mp_TrimTokenPunctuation(parts(i + 1))
+        c3 = mp_TrimTokenPunctuation(parts(i + 2))
+
+        If mp_IsValidFioToken(c1) And mp_IsValidFioToken(c2) And mp_IsValidFioToken(c3) Then
+            If mp_DetectFioGender(c2, c3, gender) Then
+                fioStart = i
+                surname = c1
+                firstName = c2
+                patronymic = c3
+                mp_FindFioStartIndex = True
+                Exit Function
+            End If
+        End If
+    Next i
+End Function
+
+Private Function mp_TrimTokenPunctuation(ByVal token As String) As String
+    Dim s As String
+    s = Trim$(token)
+
+    Do While Len(s) > 0 And InStr(".,;:!?()[]{}""«»", Left$(s, 1)) > 0
+        s = Mid$(s, 2)
+    Loop
+
+    Do While Len(s) > 0 And InStr(".,;:!?()[]{}""«»", Right$(s, 1)) > 0
+        s = Left$(s, Len(s) - 1)
+    Loop
+
+    mp_TrimTokenPunctuation = s
+End Function
+
+Private Function mp_TryInflectFioToGenitive(ByVal surname As String, ByVal firstName As String, ByVal patronymic As String, ByRef fioGenitive As String, ByRef gender As String) As Boolean
+    If Not mp_DetectFioGender(firstName, patronymic, gender) Then Exit Function
+
+    Dim genSurname As String
+    Dim genFirstName As String
+    Dim genPatronymic As String
+
+    If Not mp_InflectSurnameToGenitive(surname, gender, genSurname) Then Exit Function
+    If Not mp_InflectNameToGenitive(firstName, gender, genFirstName) Then Exit Function
+    If Not mp_InflectPatronymicToGenitive(patronymic, gender, genPatronymic) Then Exit Function
+
+    fioGenitive = genSurname & " " & genFirstName & " " & genPatronymic
+    mp_TryInflectFioToGenitive = True
+End Function
+
+Private Function mp_SplitLeadingWord(ByVal phraseText As String, ByRef firstWord As String, ByRef restText As String) As Boolean
+    Static regex As Object
+    If regex Is Nothing Then
+        Set regex = CreateObject("VBScript.RegExp")
+        regex.Global = False
+        regex.IgnoreCase = True
+        regex.Pattern = "^\s*([А-ЯІЇЄҐа-яіїєґA-Za-z'’`ʼ\-]+)(.*)$"
+    End If
+
+    Dim matches As Object
+    Set matches = regex.Execute(phraseText)
+    If matches.Count = 0 Then Exit Function
+
+    firstWord = matches(0).SubMatches(0)
+    restText = matches(0).SubMatches(1)
+    mp_SplitLeadingWord = True
+End Function
+
+Private Function mp_InflectCommonWordToGenitive(ByVal sourceWord As String, ByRef resultWord As String) As Boolean
+    If Not mp_IsValidGeneralWord(sourceWord) Then Exit Function
+
+    Dim low As String
+    low = LCase$(sourceWord)
+
+    Dim exceptions As Object
+    Set exceptions = mp_GetCommonWordExceptionsDict()
+    If exceptions.Exists(low) Then
+        resultWord = mp_ApplyWordCase(sourceWord, exceptions(low))
+        mp_InflectCommonWordToGenitive = True
+        Exit Function
+    End If
+
+    Dim outLow As String
+    outLow = low
+
+    If mp_EndsWith(low, "ий") Then
+        outLow = Left$(low, Len(low) - 2) & "ого"
+    ElseIf mp_EndsWith(low, "ій") Then
+        outLow = Left$(low, Len(low) - 2) & "ія"
+    ElseIf mp_EndsWith(low, "а") Then
+        outLow = Left$(low, Len(low) - 1) & "и"
+    ElseIf mp_EndsWith(low, "я") Then
+        If mp_IsLikelyNeuterNounOnYa(low) Then
+            outLow = low
+        Else
+            outLow = Left$(low, Len(low) - 1) & "і"
+        End If
+    ElseIf mp_EndsWith(low, "ь") Then
+        outLow = Left$(low, Len(low) - 1) & "я"
+    ElseIf mp_EndsWith(low, "й") Then
+        outLow = Left$(low, Len(low) - 1) & "я"
+    ElseIf mp_EndsWithConsonant(low) Then
+        outLow = low & "а"
+    End If
+
+    resultWord = mp_ApplyWordCase(sourceWord, outLow)
+    mp_InflectCommonWordToGenitive = True
+End Function
+
+Private Function mp_IsLikelyNeuterNounOnYa(ByVal low As String) As Boolean
+    If mp_EndsWith(low, "ення") Or mp_EndsWith(low, "єння") Or mp_EndsWith(low, "іння") Or _
+       mp_EndsWith(low, "ання") Or mp_EndsWith(low, "ття") Or mp_EndsWith(low, "лля") Then
+        mp_IsLikelyNeuterNounOnYa = True
+    End If
+End Function
+
+Private Function mp_JoinArraySlice(ByRef parts() As String, ByVal startIndex As Long, Optional ByVal endIndex As Long = -1) As String
+    If endIndex < 0 Then endIndex = UBound(parts)
+    If startIndex > endIndex Then Exit Function
+
+    Dim i As Long
+    For i = startIndex To endIndex
+        If Len(mp_JoinArraySlice) = 0 Then
+            mp_JoinArraySlice = parts(i)
+        Else
+            mp_JoinArraySlice = mp_JoinArraySlice & " " & parts(i)
+        End If
+    Next i
+End Function
+
+Private Function mp_IsValidGeneralWord(ByVal token As String) As Boolean
+    Static regex As Object
+
+    If regex Is Nothing Then
+        Set regex = CreateObject("VBScript.RegExp")
+        regex.Global = False
+        regex.IgnoreCase = True
+        regex.Pattern = "^[А-ЯІЇЄҐа-яіїєґA-Za-z][А-ЯІЇЄҐа-яіїєґA-Za-zЬь'’`ʼ\-]*$"
+    End If
+
+    mp_IsValidGeneralWord = regex.Test(token)
+End Function
+
+Private Function mp_LowercaseFirstLetter(ByVal sourceText As String) As String
+    If Len(sourceText) = 0 Then Exit Function
+    mp_LowercaseFirstLetter = LCase$(Left$(sourceText, 1)) & Mid$(sourceText, 2)
+End Function
+
+Private Function mp_InflectPhraseByDashSegments(ByVal phraseText As String, ByVal maxWordsPerSegment As Long) As String
+    Dim normalized As String
+    normalized = Trim$(phraseText)
+    If Len(normalized) = 0 Then Exit Function
+
+    normalized = Replace$(normalized, " – ", " - ")
+    normalized = Replace$(normalized, " — ", " - ")
+
+    Dim segments() As String
+    segments = Split(normalized, " - ")
+
+    Dim i As Long
+    For i = LBound(segments) To UBound(segments)
+        segments(i) = mp_InflectLeadingWordsInSegment(Trim$(segments(i)), maxWordsPerSegment)
+    Next i
+
+    mp_InflectPhraseByDashSegments = Join(segments, " - ")
+End Function
+
+Private Function mp_InflectLeadingWordsInSegment(ByVal segmentText As String, ByVal maxWordsToInflect As Long) As String
+    If Len(segmentText) = 0 Then Exit Function
+
+    Dim parts() As String
+    parts = Split(segmentText, " ")
+
+    Dim i As Long
+    Dim changedCount As Long
+    Dim core As String
+    Dim suffix As String
+    Dim inflected As String
+    Dim lowCore As String
+
+    For i = LBound(parts) To UBound(parts)
+        If changedCount >= maxWordsToInflect Then Exit For
+        If i > 10 Then Exit For ' Защита: склоняем только начало сегмента.
+
+        core = mp_TrimTokenPunctuation(parts(i))
+        If Len(core) = 0 Then GoTo ContinueLoop
+        If Not mp_IsValidGeneralWord(core) Then GoTo ContinueLoop
+        If mp_IsNumericToken(core) Then GoTo ContinueLoop
+        If mp_IsStopWord(core) Then GoTo ContinueLoop
+
+        lowCore = LCase$(core)
+        If changedCount > 0 And mp_IsLikelyAlreadyGenitive(lowCore) Then Exit For
+
+        suffix = mp_TokenTailPunctuation(parts(i))
+        If mp_InflectCommonWordToGenitive(core, inflected) Then
+            parts(i) = inflected & suffix
+            If LCase$(inflected) <> LCase$(core) Then
+                changedCount = changedCount + 1
+            End If
+        End If
+
+ContinueLoop:
+    Next i
+
+    mp_InflectLeadingWordsInSegment = Join(parts, " ")
+End Function
+
+Private Function mp_IsLikelyAlreadyGenitive(ByVal low As String) As Boolean
+    If mp_IsLikelyAdjectiveGenitive(low) Then
+        mp_IsLikelyAlreadyGenitive = True
+        Exit Function
+    End If
+
+    If mp_EndsWith(low, "у") Or mp_EndsWith(low, "ю") Or mp_EndsWith(low, "ів") Or _
+       mp_EndsWith(low, "їв") Or mp_EndsWith(low, "ей") Then
+        mp_IsLikelyAlreadyGenitive = True
+        Exit Function
+    End If
+
+    If Len(low) > 3 Then
+        If mp_EndsWith(low, "и") Or mp_EndsWith(low, "і") Then
+            mp_IsLikelyAlreadyGenitive = True
+        End If
+    End If
+End Function
+
+Private Function mp_IsLikelyAdjectiveGenitive(ByVal low As String) As Boolean
+    If mp_EndsWith(low, "ого") Or mp_EndsWith(low, "ього") Or mp_EndsWith(low, "ої") Or _
+       mp_EndsWith(low, "ьої") Or mp_EndsWith(low, "єї") Or mp_EndsWith(low, "их") Or _
+       mp_EndsWith(low, "іх") Then
+        mp_IsLikelyAdjectiveGenitive = True
+    End If
+End Function
+
+Private Function mp_IsStopWord(ByVal token As String) As Boolean
+    Dim low As String
+    low = LCase$(token)
+
+    Select Case low
+        Case "і", "й", "та", "або", "в", "у", "на", "до", "з", "із", "зі", "по", "за", "від", "при", "для", "про"
+            mp_IsStopWord = True
+    End Select
+End Function
+
+Private Function mp_IsNumericToken(ByVal token As String) As Boolean
+    mp_IsNumericToken = IsNumeric(token)
+End Function
+
+Private Function mp_TokenTailPunctuation(ByVal token As String) As String
+    Dim i As Long
+    For i = Len(token) To 1 Step -1
+        If InStr(".,;:!?)""»", Mid$(token, i, 1)) = 0 Then Exit For
+    Next i
+
+    If i < Len(token) Then
+        mp_TokenTailPunctuation = Mid$(token, i + 1)
+    End If
+End Function
 
 Private Function mp_TryParseFio(ByVal normalizedText As String, ByRef surname As String, ByRef firstName As String, ByRef patronymic As String) As Boolean
     Dim parts() As String
@@ -1308,6 +1659,24 @@ Private Function mp_GetNameExceptionsDict() As Object
     d("лука") = "луки"
 
     Set mp_GetNameExceptionsDict = d
+End Function
+
+Private Function mp_GetCommonWordExceptionsDict() As Object
+    Dim d As Object
+    Set d = CreateObject("Scripting.Dictionary")
+    d.CompareMode = 1 ' TextCompare
+
+    d("капітан") = "капітана"
+    d("лейтенант") = "лейтенанта"
+    d("старший") = "старшого"
+    d("майор") = "майора"
+    d("підполковник") = "підполковника"
+    d("полковник") = "полковника"
+    d("офіцер") = "офіцера"
+    d("начальник") = "начальника"
+    d("штаб") = "штабу"
+
+    Set mp_GetCommonWordExceptionsDict = d
 End Function
 
 Private Function mp_GetSurnameExceptionsDict() As Object
