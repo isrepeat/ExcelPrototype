@@ -1149,6 +1149,59 @@ FailInflect:
     MsgBox "Ошибка преобразования ФІО: " & Err.Description, vbExclamation, "ФІО в родовий відмінок"
 End Sub
 
+Public Sub m_FioToAccusative_Selection()
+    If Documents.Count = 0 Then
+        MsgBox "Нет открытого документа Word.", vbExclamation, "ФІО у знахідний відмінок"
+        Exit Sub
+    End If
+
+    Dim sourceRange As Range
+    Set sourceRange = Selection.Range.Duplicate
+    If sourceRange Is Nothing Then Exit Sub
+
+    Dim parseRange As Range
+    Set parseRange = sourceRange.Duplicate
+    mp_TrimTrailingDecorations parseRange
+    If parseRange.End <= parseRange.Start Then
+        mp_MarkInvalidFioSelection sourceRange
+        Exit Sub
+    End If
+
+    Dim normalizedText As String
+    normalizedText = mp_NormalizeFioInput(parseRange.Text)
+    If Len(normalizedText) = 0 Then
+        mp_MarkInvalidFioSelection sourceRange
+        Exit Sub
+    End If
+
+    Dim convertedText As String
+    If Not mp_TryConvertSelectionTextToAccusative(normalizedText, convertedText) Then
+        mp_MarkInvalidFioSelection sourceRange
+        Exit Sub
+    End If
+
+    Dim undoStarted As Boolean
+    mp_BeginUndoGroup "ФІО у знахідний відмінок", undoStarted
+    On Error GoTo FailAccusative
+
+    parseRange.Text = convertedText
+
+    If mp_UpdateShortFormCacheFromSourceAsGenitive(normalizedText) Then
+        mp_SetStatusBarMessage "ФІО змінено на знахідний відмінок. Коротку форму (родовий) збережено в кеш."
+    Else
+        m_LastShortFormCache = vbNullString
+        mp_SetStatusBarMessage "ФІО змінено на знахідний відмінок. Коротку форму не збережено."
+    End If
+
+Finalize:
+    mp_EndUndoGroup undoStarted
+    Exit Sub
+
+FailAccusative:
+    mp_EndUndoGroup undoStarted
+    MsgBox "Ошибка преобразования ФІО: " & Err.Description, vbExclamation, "ФІО у знахідний відмінок"
+End Sub
+
 Public Sub m_FioToShortForm_Selection()
     If Documents.Count = 0 Then
         MsgBox "Нет открытого документа Word.", vbExclamation, "Скорочення ФІО"
@@ -1175,7 +1228,7 @@ Public Sub m_FioToShortForm_Selection()
     End If
 
     If Len(m_LastShortFormCache) = 0 Then
-        MsgBox "Кеш короткої форми порожній. Спочатку виконайте m_FioToGenitive_Selection або виділіть фразу зі званням і ФІО.", vbExclamation, "Скорочення ФІО"
+        mp_SetStatusBarMessage "Внимание: кеш короткої форми порожній. Спочатку виконайте m_FioToGenitive_Selection або виділіть фразу зі званням і ФІО."
         Exit Sub
     End If
 
@@ -1188,6 +1241,7 @@ Public Sub m_FioToShortForm_Selection()
 
     If mp_ReplaceReportPlaceholderBelow(ActiveDocument, pivotPos, m_LastShortFormCache) Then
         mp_SetStatusBarMessage "Підставлено у шаблон нижче: рапорт " & m_LastShortFormCache
+        m_LastShortFormCache = vbNullString
     Else
         MsgBox "Нижче курсора/виділення не знайдено шаблон виду ""рапорт ***"".", vbExclamation, "Скорочення ФІО"
     End If
@@ -1216,6 +1270,13 @@ Private Function mp_UpdateShortFormCacheFromText(ByVal normalizedText As String)
     If mp_TryParseFio(normalizedText, surname, firstName, patronymic) Then
         mp_UpdateShortFormCacheFromText = mp_TryComposeShortFormText(vbNullString, surname, firstName, patronymic, m_LastShortFormCache)
     End If
+End Function
+
+Private Function mp_UpdateShortFormCacheFromSourceAsGenitive(ByVal normalizedSourceText As String) As Boolean
+    Dim genitiveText As String
+    If Not mp_TryConvertSelectionTextToGenitive(normalizedSourceText, genitiveText) Then Exit Function
+
+    mp_UpdateShortFormCacheFromSourceAsGenitive = mp_UpdateShortFormCacheFromText(genitiveText)
 End Function
 
 Private Function mp_TryComposeShortFormText(ByVal leadPhrase As String, ByVal surname As String, ByVal firstName As String, ByVal patronymic As String, ByRef shortText As String) As Boolean
@@ -1574,6 +1635,19 @@ Private Function mp_TryConvertSelectionTextToGenitive(ByVal normalizedText As St
     End If
 End Function
 
+Private Function mp_TryConvertSelectionTextToAccusative(ByVal normalizedText As String, ByRef convertedText As String) As Boolean
+    If mp_TryConvertPureFioToAccusative(normalizedText, convertedText) Then
+        mp_TryConvertSelectionTextToAccusative = True
+        Exit Function
+    End If
+
+    If Not mp_IsSingleSentenceText(normalizedText) Then Exit Function
+
+    If mp_TryConvertSentenceWithFioToAccusative(normalizedText, convertedText) Then
+        mp_TryConvertSelectionTextToAccusative = True
+    End If
+End Function
+
 Private Sub mp_SplitTrailingLineBreaks(ByVal sourceText As String, ByRef bodyText As String, ByRef trailingBreaks As String)
     bodyText = sourceText
 
@@ -1658,6 +1732,22 @@ Private Function mp_TryConvertPureFioToGenitive(ByVal normalizedText As String, 
     mp_TryConvertPureFioToGenitive = True
 End Function
 
+Private Function mp_TryConvertPureFioToAccusative(ByVal normalizedText As String, ByRef convertedText As String) As Boolean
+    Dim surname As String, firstName As String, patronymic As String
+    If Not mp_TryParseFio(normalizedText, surname, firstName, patronymic) Then Exit Function
+
+    Dim gender As String
+    If Not mp_DetectFioGender(firstName, patronymic, gender) Then Exit Function
+
+    Dim accSurname As String, accFirstName As String, accPatronymic As String
+    If Not mp_InflectSurnameToAccusative(surname, gender, accSurname) Then Exit Function
+    If Not mp_InflectNameToAccusative(firstName, gender, accFirstName) Then Exit Function
+    If Not mp_InflectPatronymicToAccusative(patronymic, gender, accPatronymic) Then Exit Function
+
+    convertedText = accSurname & " " & accFirstName & " " & accPatronymic
+    mp_TryConvertPureFioToAccusative = True
+End Function
+
 Private Function mp_TryConvertSentenceWithFioToGenitive(ByVal normalizedText As String, ByRef convertedText As String) As Boolean
     Dim leadPhrase As String
     Dim surname As String
@@ -1685,6 +1775,37 @@ Private Function mp_TryConvertSentenceWithFioToGenitive(ByVal normalizedText As 
     End If
 
     mp_TryConvertSentenceWithFioToGenitive = True
+End Function
+
+Private Function mp_TryConvertSentenceWithFioToAccusative(ByVal normalizedText As String, ByRef convertedText As String) As Boolean
+    Dim leadPhrase As String
+    Dim surname As String
+    Dim firstName As String
+    Dim patronymic As String
+    Dim tailPhrase As String
+
+    If Not mp_TryParseSentenceWithFio(normalizedText, leadPhrase, surname, firstName, patronymic, tailPhrase) Then Exit Function
+
+    Dim fioAccusative As String
+    Dim gender As String
+    If Not mp_TryInflectFioToAccusative(surname, firstName, patronymic, fioAccusative, gender) Then Exit Function
+
+    ' Для фразы-звания сохраняем прежнюю, стабильную логику склонения.
+    ' Для большинства воинских званий (одушевленные, муж. род) форма совпадает.
+    Dim leadPhraseAcc As String
+    leadPhraseAcc = mp_InflectPhraseByDashSegments(leadPhrase, 4)
+    If Len(leadPhraseAcc) = 0 Then Exit Function
+
+    If Len(Trim$(tailPhrase)) > 0 Then
+        Dim tailPhraseAcc As String
+        tailPhraseAcc = mp_InflectPhraseByDashSegments(tailPhrase, 4)
+        If Len(tailPhraseAcc) = 0 Then Exit Function
+        convertedText = leadPhraseAcc & " " & fioAccusative & ", " & mp_LowercaseFirstLetter(tailPhraseAcc)
+    Else
+        convertedText = leadPhraseAcc & " " & fioAccusative
+    End If
+
+    mp_TryConvertSentenceWithFioToAccusative = True
 End Function
 
 Private Function mp_TryParseSentenceWithFio(ByVal normalizedText As String, ByRef leadPhrase As String, ByRef surname As String, ByRef firstName As String, ByRef patronymic As String, ByRef tailPhrase As String) As Boolean
@@ -1762,6 +1883,21 @@ Private Function mp_TryInflectFioToGenitive(ByVal surname As String, ByVal first
 
     fioGenitive = genSurname & " " & genFirstName & " " & genPatronymic
     mp_TryInflectFioToGenitive = True
+End Function
+
+Private Function mp_TryInflectFioToAccusative(ByVal surname As String, ByVal firstName As String, ByVal patronymic As String, ByRef fioAccusative As String, ByRef gender As String) As Boolean
+    If Not mp_DetectFioGender(firstName, patronymic, gender) Then Exit Function
+
+    Dim accSurname As String
+    Dim accFirstName As String
+    Dim accPatronymic As String
+
+    If Not mp_InflectSurnameToAccusative(surname, gender, accSurname) Then Exit Function
+    If Not mp_InflectNameToAccusative(firstName, gender, accFirstName) Then Exit Function
+    If Not mp_InflectPatronymicToAccusative(patronymic, gender, accPatronymic) Then Exit Function
+
+    fioAccusative = accSurname & " " & accFirstName & " " & accPatronymic
+    mp_TryInflectFioToAccusative = True
 End Function
 
 Private Function mp_SplitLeadingWord(ByVal phraseText As String, ByRef firstWord As String, ByRef restText As String) As Boolean
@@ -2221,6 +2357,18 @@ Private Function mp_InflectPatronymicToGenitive(ByVal patronymic As String, ByVa
     mp_InflectPatronymicToGenitive = mp_InflectTokenByHyphenParts(patronymic, gender, "patronymic", resultText)
 End Function
 
+Private Function mp_InflectSurnameToAccusative(ByVal surname As String, ByVal gender As String, ByRef resultText As String) As Boolean
+    mp_InflectSurnameToAccusative = mp_InflectTokenByHyphenPartsAccusative(surname, gender, "surname", resultText)
+End Function
+
+Private Function mp_InflectNameToAccusative(ByVal firstName As String, ByVal gender As String, ByRef resultText As String) As Boolean
+    mp_InflectNameToAccusative = mp_InflectTokenByHyphenPartsAccusative(firstName, gender, "name", resultText)
+End Function
+
+Private Function mp_InflectPatronymicToAccusative(ByVal patronymic As String, ByVal gender As String, ByRef resultText As String) As Boolean
+    mp_InflectPatronymicToAccusative = mp_InflectTokenByHyphenPartsAccusative(patronymic, gender, "patronymic", resultText)
+End Function
+
 Private Function mp_InflectTokenByHyphenParts(ByVal token As String, ByVal gender As String, ByVal tokenType As String, ByRef resultText As String) As Boolean
     Dim parts() As String
     parts = Split(token, "-")
@@ -2250,6 +2398,37 @@ Private Function mp_InflectTokenByHyphenParts(ByVal token As String, ByVal gende
     Next i
 
     mp_InflectTokenByHyphenParts = True
+End Function
+
+Private Function mp_InflectTokenByHyphenPartsAccusative(ByVal token As String, ByVal gender As String, ByVal tokenType As String, ByRef resultText As String) As Boolean
+    Dim parts() As String
+    parts = Split(token, "-")
+
+    Dim i As Long
+    Dim partResult As String
+
+    For i = LBound(parts) To UBound(parts)
+        partResult = ""
+
+        Select Case tokenType
+            Case "surname"
+                If Not mp_InflectSurnamePartToAccusative(parts(i), gender, partResult) Then Exit Function
+            Case "name"
+                If Not mp_InflectNamePartToAccusative(parts(i), gender, partResult) Then Exit Function
+            Case "patronymic"
+                If Not mp_InflectPatronymicPartToAccusative(parts(i), gender, partResult) Then Exit Function
+            Case Else
+                Exit Function
+        End Select
+
+        If i = LBound(parts) Then
+            resultText = partResult
+        Else
+            resultText = resultText & "-" & partResult
+        End If
+    Next i
+
+    mp_InflectTokenByHyphenPartsAccusative = True
 End Function
 
 Private Function mp_InflectSurnamePart(ByVal originalPart As String, ByVal gender As String, ByRef partResult As String) As Boolean
@@ -2394,6 +2573,131 @@ Private Function mp_InflectPatronymicPart(ByVal originalPart As String, ByVal ge
 
     partResult = mp_ApplyWordCase(originalPart, outLow)
     mp_InflectPatronymicPart = True
+End Function
+
+Private Function mp_InflectSurnamePartToAccusative(ByVal originalPart As String, ByVal gender As String, ByRef partResult As String) As Boolean
+    Dim low As String
+    low = LCase$(originalPart)
+
+    If mp_IsIndeclinableSurname(low, gender) Then
+        partResult = originalPart
+        mp_InflectSurnamePartToAccusative = True
+        Exit Function
+    End If
+
+    Dim outLow As String
+    outLow = low
+
+    If gender = "male" Then
+        ' Для одушевленных мужских ФІО знахідний часто совпадает с родовим,
+        ' но для форм на -а/-я используем -у/-ю.
+        If mp_EndsWith(low, "ський") Then
+            outLow = Left$(low, Len(low) - 5) & "ського"
+        ElseIf mp_EndsWith(low, "цький") Then
+            outLow = Left$(low, Len(low) - 5) & "цького"
+        ElseIf mp_EndsWith(low, "зький") Then
+            outLow = Left$(low, Len(low) - 5) & "зького"
+        ElseIf mp_EndsWith(low, "ець") Then
+            outLow = Left$(low, Len(low) - 3) & "ця"
+        ElseIf mp_EndsWith(low, "ий") Then
+            outLow = Left$(low, Len(low) - 2) & "ого"
+        ElseIf mp_EndsWith(low, "ій") Then
+            outLow = Left$(low, Len(low) - 2) & "ія"
+        ElseIf mp_EndsWith(low, "ко") Then
+            outLow = Left$(low, Len(low) - 1) & "а"
+        ElseIf mp_EndsWith(low, "а") Then
+            outLow = Left$(low, Len(low) - 1) & "у"
+        ElseIf mp_EndsWith(low, "я") Then
+            outLow = Left$(low, Len(low) - 1) & "ю"
+        ElseIf mp_EndsWithConsonant(low) Then
+            outLow = low & "а"
+        End If
+    ElseIf gender = "female" Then
+        If mp_EndsWith(low, "ська") Then
+            outLow = Left$(low, Len(low) - 4) & "ську"
+        ElseIf mp_EndsWith(low, "цька") Then
+            outLow = Left$(low, Len(low) - 4) & "цьку"
+        ElseIf mp_EndsWith(low, "зька") Then
+            outLow = Left$(low, Len(low) - 4) & "зьку"
+        ElseIf mp_EndsWith(low, "а") Then
+            outLow = Left$(low, Len(low) - 1) & "у"
+        ElseIf mp_EndsWith(low, "я") Then
+            outLow = Left$(low, Len(low) - 1) & "ю"
+        End If
+    Else
+        Exit Function
+    End If
+
+    partResult = mp_ApplyWordCase(originalPart, outLow)
+    mp_InflectSurnamePartToAccusative = True
+End Function
+
+Private Function mp_InflectNamePartToAccusative(ByVal originalPart As String, ByVal gender As String, ByRef partResult As String) As Boolean
+    Dim low As String
+    low = LCase$(originalPart)
+
+    Dim outLow As String
+    outLow = low
+
+    If gender = "male" Then
+        ' Для одушевленных мужских имен знахідний часто совпадает с родовим,
+        ' но для форм на -а/-я используем -у/-ю.
+        If mp_EndsWith(low, "ій") Then
+            outLow = Left$(low, Len(low) - 2) & "ія"
+        ElseIf mp_EndsWith(low, "й") Then
+            outLow = Left$(low, Len(low) - 1) & "я"
+        ElseIf mp_EndsWith(low, "ь") Then
+            outLow = Left$(low, Len(low) - 1) & "я"
+        ElseIf mp_EndsWith(low, "о") Then
+            outLow = Left$(low, Len(low) - 1) & "а"
+        ElseIf mp_EndsWith(low, "а") Then
+            outLow = Left$(low, Len(low) - 1) & "у"
+        ElseIf mp_EndsWith(low, "я") Then
+            outLow = Left$(low, Len(low) - 1) & "ю"
+        ElseIf mp_EndsWithConsonant(low) Then
+            outLow = low & "а"
+        End If
+    ElseIf gender = "female" Then
+        If mp_EndsWith(low, "ія") Then
+            outLow = Left$(low, Len(low) - 2) & "ію"
+        ElseIf mp_EndsWith(low, "я") Then
+            outLow = Left$(low, Len(low) - 1) & "ю"
+        ElseIf mp_EndsWith(low, "а") Then
+            outLow = Left$(low, Len(low) - 1) & "у"
+        End If
+    Else
+        Exit Function
+    End If
+
+    partResult = mp_ApplyWordCase(originalPart, outLow)
+    mp_InflectNamePartToAccusative = True
+End Function
+
+Private Function mp_InflectPatronymicPartToAccusative(ByVal originalPart As String, ByVal gender As String, ByRef partResult As String) As Boolean
+    Dim low As String
+    low = LCase$(originalPart)
+
+    Dim outLow As String
+    outLow = low
+
+    If gender = "male" Then
+        If mp_EndsWith(low, "ович") Or mp_EndsWith(low, "евич") Or mp_EndsWith(low, "йович") Then
+            outLow = low & "а"
+        ElseIf mp_EndsWith(low, "овича") Or mp_EndsWith(low, "евича") Or mp_EndsWith(low, "йовича") Then
+            outLow = low
+        End If
+    ElseIf gender = "female" Then
+        If mp_EndsWith(low, "івна") Or mp_EndsWith(low, "ївна") Or mp_EndsWith(low, "овна") Or mp_EndsWith(low, "евна") Then
+            outLow = Left$(low, Len(low) - 1) & "у"
+        ElseIf mp_EndsWith(low, "івни") Or mp_EndsWith(low, "ївни") Or mp_EndsWith(low, "овни") Or mp_EndsWith(low, "евни") Then
+            outLow = Left$(low, Len(low) - 1) & "у"
+        End If
+    Else
+        Exit Function
+    End If
+
+    partResult = mp_ApplyWordCase(originalPart, outLow)
+    mp_InflectPatronymicPartToAccusative = True
 End Function
 
 Private Function mp_IsIndeclinableSurname(ByVal lowSurname As String, ByVal gender As String) As Boolean
