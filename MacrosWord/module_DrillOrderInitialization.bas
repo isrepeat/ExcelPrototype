@@ -4,6 +4,7 @@ Private Const MP_DATE_TOKEN_PATTERN As String = "\{#(?:[+-]\d+)?\}"
 Private Const MP_TEMPLATE_DELIMITER_LINE As String = "========================================================"
 Private Const MP_STATUSBAR_CLEAR_DELAY As String = "00:00:03"
 Private m_LastCollectedText As String
+Private m_LastShortFormCache As String
 
 Public Sub m_DrillOrder_InitializeDate()
     If Documents.Count = 0 Then
@@ -59,11 +60,7 @@ Public Sub m_DrillOrder_InitializeDate()
         GoTo Finalize
     End If
 
-    Dim duplicatedCount As Long
-    duplicatedCount = mp_DuplicateTemplateBlocksBelowByDelimiter(ActiveDocument, MP_TEMPLATE_DELIMITER_LINE)
-
-    mp_SetStatusBarMessage "Готово. Заменено токенов: " & replacementsCount & _
-                           "; Продублировано шаблонных блоков: " & duplicatedCount
+    mp_SetStatusBarMessage "Готово. Заменено токенов: " & replacementsCount
 
 Finalize:
     mp_EndUndoGroup undoStarted
@@ -72,6 +69,84 @@ Finalize:
 FailApply:
     mp_EndUndoGroup undoStarted
     MsgBox "Ошибка выполнения: " & Err.Description, vbExclamation, "Инициализация приказа"
+End Sub
+
+Public Sub m_DrillOrder_InsertTemplateBlockBelowSelection()
+    If Documents.Count = 0 Then
+        MsgBox "Нет открытого документа Word.", vbExclamation, "Вставка шаблонного блока"
+        Exit Sub
+    End If
+
+    If Selection Is Nothing Then
+        MsgBox "Не удалось определить текущее положение курсора.", vbExclamation, "Вставка шаблонного блока"
+        Exit Sub
+    End If
+
+    If Selection.Range.StoryType <> wdMainTextStory Then
+        MsgBox "Курсор должен находиться в основном тексте документа.", vbExclamation, "Вставка шаблонного блока"
+        Exit Sub
+    End If
+
+    Dim doc As Document
+    Set doc = ActiveDocument
+
+    Dim sourceStart As Long
+    Dim sourceEnd As Long
+    Dim insertAt As Long
+    Dim errorText As String
+
+    If Not mp_TryGetTemplateBlockBoundsAtPosition(doc, MP_TEMPLATE_DELIMITER_LINE, Selection.Range.Start, sourceStart, sourceEnd, insertAt, errorText) Then
+        MsgBox errorText, vbExclamation, "Вставка шаблонного блока"
+        Exit Sub
+    End If
+
+    Dim sourceRange As Range
+    Set sourceRange = doc.Range(Start:=sourceStart, End:=sourceEnd)
+    If Not mp_RangeHasMeaningfulText(sourceRange) Then
+        MsgBox "Между найденными строками-разделителями нет шаблонного текста.", vbExclamation, "Вставка шаблонного блока"
+        Exit Sub
+    End If
+
+    Dim undoStarted As Boolean
+    mp_BeginUndoGroup "Вставка шаблонного блока", undoStarted
+    On Error GoTo FailInsert
+
+    Dim insertAnchor As Range
+    Dim pasteRange As Range
+    Dim insertPos As Long
+    Dim insertedLength As Long
+
+    Set insertAnchor = mp_GetCollapsedRangeAt(doc, insertAt)
+    If insertAnchor Is Nothing Then
+        MsgBox "Не удалось определить позицию вставки под шаблоном.", vbExclamation, "Вставка шаблонного блока"
+        GoTo Finalize
+    End If
+
+    ' Добавляем пустую строку перед вставляемым шаблонным блоком.
+    insertAnchor.Text = vbCr
+    insertAnchor.Collapse wdCollapseEnd
+
+    insertPos = insertAnchor.Start
+    insertAnchor.FormattedText = sourceRange.FormattedText
+
+    insertedLength = insertAnchor.End - insertPos
+    If insertedLength <= 0 Then
+        MsgBox "Не удалось вставить копию шаблонного блока.", vbExclamation, "Вставка шаблонного блока"
+        GoTo Finalize
+    End If
+
+    Set pasteRange = doc.Range(Start:=insertPos, End:=insertPos + insertedLength)
+    pasteRange.Font.Color = wdColorAutomatic
+
+    mp_SetStatusBarMessage "Шаблонный блок вставлен ниже разделителя."
+
+Finalize:
+    mp_EndUndoGroup undoStarted
+    Exit Sub
+
+FailInsert:
+    mp_EndUndoGroup undoStarted
+    MsgBox "Ошибка вставки шаблонного блока: " & Err.Description, vbExclamation, "Вставка шаблонного блока"
 End Sub
 
 Private Function mp_BuildDateTokenMap(ByVal doc As Document, ByVal baseDate As Long, ByRef tokenMap As Object, ByRef foundTokenCount As Long, ByRef errorText As String) As Boolean
@@ -276,6 +351,68 @@ Private Function mp_CollectTemplateBlockBounds(ByVal doc As Document, ByVal deli
     Next p
 
     Set mp_CollectTemplateBlockBounds = bounds
+End Function
+
+Private Function mp_TryGetTemplateBlockBoundsAtPosition(ByVal doc As Document, ByVal delimiterLine As String, ByVal position As Long, ByRef blockStart As Long, ByRef blockEnd As Long, ByRef insertAt As Long, ByRef errorText As String) As Boolean
+    Dim mainStory As Range
+    Set mainStory = doc.StoryRanges(wdMainTextStory)
+    If mainStory Is Nothing Then
+        errorText = "Основной текст документа не найден."
+        Exit Function
+    End If
+
+    If position < mainStory.Start Or position > mainStory.End Then
+        errorText = "Курсор должен находиться в основном тексте документа."
+        Exit Function
+    End If
+
+    Dim p As Paragraph
+    Dim normalizedText As String
+    Dim openDelimiterEnd As Long
+    Dim closeDelimiterStart As Long
+    Dim closeDelimiterEnd As Long
+
+    openDelimiterEnd = -1
+
+    For Each p In mainStory.Paragraphs
+        normalizedText = mp_NormalizeParagraphText(p.Range.Text)
+        If normalizedText <> delimiterLine Then GoTo ContinueLoop
+
+        If openDelimiterEnd = -1 Then
+            openDelimiterEnd = p.Range.End
+        Else
+            closeDelimiterStart = p.Range.Start
+            closeDelimiterEnd = p.Range.End
+
+            If position >= openDelimiterEnd And position <= closeDelimiterStart Then
+                blockStart = openDelimiterEnd
+                blockEnd = closeDelimiterStart
+                insertAt = closeDelimiterEnd
+                mp_TryGetTemplateBlockBoundsAtPosition = True
+                Exit Function
+            End If
+
+            openDelimiterEnd = -1
+        End If
+
+ContinueLoop:
+    Next p
+
+    errorText = "Курсор должен быть между строками-разделителями шаблона."
+End Function
+
+Private Function mp_RangeHasMeaningfulText(ByVal sourceRange As Range) As Boolean
+    If sourceRange Is Nothing Then Exit Function
+
+    Dim textValue As String
+    textValue = sourceRange.Text
+    textValue = Replace$(textValue, vbCr, "")
+    textValue = Replace$(textValue, vbLf, "")
+    textValue = Replace$(textValue, vbTab, "")
+    textValue = Replace$(textValue, Chr$(7), "")
+    textValue = Replace$(textValue, ChrW$(160), "")
+
+    mp_RangeHasMeaningfulText = (Len(Trim$(textValue)) > 0)
 End Function
 
 Private Function mp_NormalizeParagraphText(ByVal textValue As String) As String
@@ -620,17 +757,65 @@ End Sub
 Private Function mp_CopyTextToClipboard(ByVal textValue As String) As Boolean
     If Len(textValue) = 0 Then Exit Function
 
+    ' Forms.DataObject в части окружений "съедает" неразрывный пробел.
+    ' Для таких строк сразу идем через Word-буфер.
+    If InStr(1, textValue, ChrW$(160), vbBinaryCompare) > 0 Then
+        GoTo FallbackWordClipboard
+    End If
+
+    ' Быстрый путь без открытия временного документа (обычно без мигания Word).
+    On Error GoTo FallbackWordClipboard
+    Dim dataObject As Object
+    Set dataObject = CreateObject("Forms.DataObject")
+    dataObject.SetText textValue
+    dataObject.PutInClipboard
+    mp_CopyTextToClipboard = True
+    Exit Function
+
+FallbackWordClipboard:
+    Err.Clear
+
     Dim tempDoc As Document
+    Dim tempPayload As String
+    Dim sourceDoc As Document
     Dim currentScreenUpdating As Boolean
+    Dim nbMarker As String
     currentScreenUpdating = Application.ScreenUpdating
 
     On Error GoTo CleanFail
     Application.ScreenUpdating = False
 
-    Set tempDoc = Documents.Add
-    tempDoc.Range.Text = textValue
+    If Documents.Count > 0 Then
+        Set sourceDoc = ActiveDocument
+    End If
+
+    ' Создаем временный документ невидимо, чтобы не было мигания окна Word.
+    Set tempDoc = Documents.Add(, , , False)
+    nbMarker = "<<MP_NBSP_MARKER>>"
+    tempPayload = Replace$(textValue, ChrW$(160), nbMarker)
+    tempDoc.Range.Text = tempPayload
+
+    ' Превращаем маркер в "настоящий" неразрывный пробел Word (^s).
+    If InStr(1, tempPayload, nbMarker, vbBinaryCompare) > 0 Then
+        With tempDoc.Content.Find
+            .ClearFormatting
+            .Replacement.ClearFormatting
+            .Text = nbMarker
+            .Replacement.Text = "^s"
+            .Forward = True
+            .Wrap = wdFindContinue
+            .Format = False
+            .MatchWildcards = False
+            .Execute Replace:=wdReplaceAll
+        End With
+    End If
+
     tempDoc.Range.Copy
     tempDoc.Close SaveChanges:=wdDoNotSaveChanges
+
+    If Not sourceDoc Is Nothing Then
+        sourceDoc.Activate
+    End If
 
     Application.ScreenUpdating = currentScreenUpdating
     mp_CopyTextToClipboard = True
@@ -921,12 +1106,16 @@ Public Sub m_FioToGenitive_Selection()
     Set sourceRange = Selection.Range.Duplicate
     If sourceRange Is Nothing Then Exit Sub
 
-    Dim sourceBodyText As String
-    Dim trailingBreaks As String
-    mp_SplitTrailingLineBreaks sourceRange.Text, sourceBodyText, trailingBreaks
+    Dim parseRange As Range
+    Set parseRange = sourceRange.Duplicate
+    mp_TrimTrailingDecorations parseRange
+    If parseRange.End <= parseRange.Start Then
+        mp_MarkInvalidFioSelection sourceRange
+        Exit Sub
+    End If
 
     Dim normalizedText As String
-    normalizedText = mp_NormalizeFioInput(sourceBodyText)
+    normalizedText = mp_NormalizeFioInput(parseRange.Text)
     If Len(normalizedText) = 0 Then
         mp_MarkInvalidFioSelection sourceRange
         Exit Sub
@@ -942,8 +1131,14 @@ Public Sub m_FioToGenitive_Selection()
     mp_BeginUndoGroup "ФІО у родовий відмінок", undoStarted
     On Error GoTo FailInflect
 
-    sourceRange.Text = convertedText & trailingBreaks
-    mp_SetStatusBarMessage "ФІО змінено на родовий відмінок."
+    parseRange.Text = convertedText
+
+    If mp_UpdateShortFormCacheFromText(convertedText) Then
+        mp_SetStatusBarMessage "ФІО змінено на родовий відмінок. Коротку форму збережено в кеш."
+    Else
+        m_LastShortFormCache = vbNullString
+        mp_SetStatusBarMessage "ФІО змінено на родовий відмінок. Коротку форму не збережено."
+    End If
 
 Finalize:
     mp_EndUndoGroup undoStarted
@@ -954,12 +1149,417 @@ FailInflect:
     MsgBox "Ошибка преобразования ФІО: " & Err.Description, vbExclamation, "ФІО в родовий відмінок"
 End Sub
 
+Public Sub m_FioToShortForm_Selection()
+    If Documents.Count = 0 Then
+        MsgBox "Нет открытого документа Word.", vbExclamation, "Скорочення ФІО"
+        Exit Sub
+    End If
+
+    If Len(m_LastShortFormCache) = 0 Then
+        Dim sourceRange As Range
+        Dim parseRange As Range
+        Dim normalizedText As String
+
+        Set sourceRange = Selection.Range.Duplicate
+        If Not sourceRange Is Nothing Then
+            Set parseRange = sourceRange.Duplicate
+            mp_TrimTrailingDecorations parseRange
+            If parseRange.End > parseRange.Start Then
+                normalizedText = mp_NormalizeFioInput(parseRange.Text)
+            End If
+
+            If Len(normalizedText) > 0 Then
+                Call mp_UpdateShortFormCacheFromText(normalizedText)
+            End If
+        End If
+    End If
+
+    If Len(m_LastShortFormCache) = 0 Then
+        MsgBox "Кеш короткої форми порожній. Спочатку виконайте m_FioToGenitive_Selection або виділіть фразу зі званням і ФІО.", vbExclamation, "Скорочення ФІО"
+        Exit Sub
+    End If
+
+    Dim undoStarted As Boolean
+    mp_BeginUndoGroup "Підстановка рапорту", undoStarted
+    On Error GoTo FailShortForm
+
+    Dim pivotPos As Long
+    pivotPos = Selection.Range.End
+
+    If mp_ReplaceReportPlaceholderBelow(ActiveDocument, pivotPos, m_LastShortFormCache) Then
+        mp_SetStatusBarMessage "Підставлено у шаблон нижче: рапорт " & m_LastShortFormCache
+    Else
+        MsgBox "Нижче курсора/виділення не знайдено шаблон виду ""рапорт ***"".", vbExclamation, "Скорочення ФІО"
+    End If
+
+Finalize:
+    mp_EndUndoGroup undoStarted
+    Exit Sub
+
+FailShortForm:
+    mp_EndUndoGroup undoStarted
+    MsgBox "Ошибка подстановки в шаблон рапорту: " & Err.Description, vbExclamation, "Скорочення ФІО"
+End Sub
+
+Private Function mp_UpdateShortFormCacheFromText(ByVal normalizedText As String) As Boolean
+    Dim leadPhrase As String
+    Dim surname As String
+    Dim firstName As String
+    Dim patronymic As String
+    Dim tailPhrase As String
+
+    If mp_TryParseSentenceWithFio(normalizedText, leadPhrase, surname, firstName, patronymic, tailPhrase) Then
+        mp_UpdateShortFormCacheFromText = mp_TryComposeShortFormText(leadPhrase, surname, firstName, patronymic, m_LastShortFormCache)
+        Exit Function
+    End If
+
+    If mp_TryParseFio(normalizedText, surname, firstName, patronymic) Then
+        mp_UpdateShortFormCacheFromText = mp_TryComposeShortFormText(vbNullString, surname, firstName, patronymic, m_LastShortFormCache)
+    End If
+End Function
+
+Private Function mp_TryComposeShortFormText(ByVal leadPhrase As String, ByVal surname As String, ByVal firstName As String, ByVal patronymic As String, ByRef shortText As String) As Boolean
+    If Not mp_IsValidFioToken(surname) Then Exit Function
+    If Not mp_IsValidFioToken(firstName) Then Exit Function
+    If Not mp_IsValidFioToken(patronymic) Then Exit Function
+
+    Dim surnameTitle As String
+    surnameTitle = mp_ToTitleCaseWord(LCase$(surname))
+
+    Dim firstInitial As String
+    Dim patrInitial As String
+    firstInitial = mp_InitialWithDot(firstName)
+    patrInitial = mp_InitialWithDot(patronymic)
+    If Len(firstInitial) = 0 Or Len(patrInitial) = 0 Then Exit Function
+
+    leadPhrase = mp_NormalizeWhitespace(leadPhrase)
+
+    If Len(leadPhrase) > 0 Then
+        shortText = mp_LowercaseFirstLetter(leadPhrase) & " " & surnameTitle & ChrW$(160) & firstInitial & patrInitial
+    Else
+        shortText = surnameTitle & ChrW$(160) & firstInitial & patrInitial
+    End If
+
+    mp_TryComposeShortFormText = True
+End Function
+
+Private Function mp_ReplaceReportPlaceholderBelow(ByVal doc As Document, ByVal pivotPosition As Long, ByVal shortPhrase As String) As Boolean
+    Dim mainStory As Range
+    Set mainStory = doc.StoryRanges(wdMainTextStory)
+    If mainStory Is Nothing Then Exit Function
+
+    Dim regex As Object
+    Set regex = CreateObject("VBScript.RegExp")
+    regex.Global = True
+    regex.IgnoreCase = True
+    ' Простой шаблон: "рапорт" + пробелы + 3+ звездочек.
+    regex.Pattern = "(рапорт\s+)(\*{3,})"
+
+    Dim matches As Object
+    Set matches = regex.Execute(mainStory.Text)
+    If matches.Count = 0 Then Exit Function
+
+    Dim i As Long
+    Dim m As Object
+    Dim selectedMatch As Object
+    Dim fallbackMatch As Object
+    Dim absoluteStart As Long
+
+    For i = 0 To matches.Count - 1
+        Set m = matches(i)
+        If fallbackMatch Is Nothing Then Set fallbackMatch = m
+        absoluteStart = mainStory.Start + CLng(m.FirstIndex)
+
+        If absoluteStart >= pivotPosition Then
+            Set selectedMatch = m
+            Exit For
+        End If
+    Next i
+
+    If selectedMatch Is Nothing Then Set selectedMatch = fallbackMatch
+    If selectedMatch Is Nothing Then Exit Function
+
+    absoluteStart = mainStory.Start + CLng(selectedMatch.FirstIndex)
+
+    Dim targetRange As Range
+    Dim matchValue As String
+    Dim prefixText As String
+    Dim placeholderStart As Long
+    Dim placeholderEnd As Long
+    Dim placeholderRange As Range
+    Dim windowStart As Long
+    Dim windowEnd As Long
+    Dim scanRange As Range
+    Dim localPos As Long
+
+    matchValue = CStr(selectedMatch.Value)
+    Set targetRange = doc.Range(Start:=absoluteStart, End:=absoluteStart + Len(matchValue))
+
+    ' Защита от редкого смещения индекса на 1 символ влево/вправо.
+    If CStr(targetRange.Text) <> matchValue Then
+        windowStart = absoluteStart - 2
+        If windowStart < mainStory.Start Then windowStart = mainStory.Start
+
+        windowEnd = absoluteStart + Len(matchValue) + 2
+        If windowEnd > mainStory.End Then windowEnd = mainStory.End
+
+        Set scanRange = doc.Range(Start:=windowStart, End:=windowEnd)
+        localPos = InStr(1, CStr(scanRange.Text), matchValue, vbBinaryCompare)
+        If localPos = 0 Then Exit Function
+
+        Set targetRange = doc.Range( _
+            Start:=windowStart + localPos - 1, _
+            End:=windowStart + localPos - 1 + Len(matchValue))
+    End If
+
+    prefixText = CStr(selectedMatch.SubMatches(0))
+    If Len(prefixText) = 0 Then Exit Function
+
+    placeholderStart = targetRange.Start + Len(prefixText)
+    placeholderEnd = targetRange.End
+    If placeholderEnd <= placeholderStart Then Exit Function
+    Set placeholderRange = doc.Range(Start:=placeholderStart, End:=placeholderEnd)
+
+    placeholderRange.Text = shortPhrase
+    mp_ReplaceReportPlaceholderBelow = True
+End Function
+
 Private Sub mp_MarkInvalidFioSelection(ByVal targetRange As Range)
     On Error Resume Next
     Dim markerRange As Range
     Set markerRange = targetRange.Duplicate
     markerRange.HighlightColorIndex = wdYellow
 End Sub
+
+Private Function mp_TryBuildShortFioPhrase(ByVal normalizedText As String, ByRef resultText As String) As Boolean
+    Dim leadPhrase As String
+    Dim surname As String
+    Dim firstName As String
+    Dim patronymic As String
+
+    If Not mp_TryExtractRankAndFioFromSentence(normalizedText, leadPhrase, surname, firstName, patronymic) Then
+        If mp_TryParseFio(normalizedText, surname, firstName, patronymic) Then
+            leadPhrase = vbNullString
+        ElseIf mp_TryBuildShortFioPhraseLegacy(normalizedText, resultText) Then
+            mp_TryBuildShortFioPhrase = True
+            Exit Function
+        Else
+            Exit Function
+        End If
+    End If
+
+    If Not mp_IsValidFioToken(surname) Then Exit Function
+    If Not mp_IsValidFioToken(firstName) Then Exit Function
+    If Not mp_IsValidFioToken(patronymic) Then Exit Function
+
+    Dim surnameTitle As String
+    surnameTitle = mp_ToTitleCaseWord(LCase$(surname))
+
+    Dim firstInitial As String
+    Dim patrInitial As String
+    firstInitial = mp_InitialWithDot(firstName)
+    patrInitial = mp_InitialWithDot(patronymic)
+    If Len(firstInitial) = 0 Or Len(patrInitial) = 0 Then Exit Function
+
+    If Len(leadPhrase) > 0 Then
+        resultText = mp_LowercaseFirstLetter(leadPhrase) & " " & surnameTitle & ChrW$(160) & firstInitial & patrInitial
+    Else
+        resultText = surnameTitle & ChrW$(160) & firstInitial & patrInitial
+    End If
+    mp_TryBuildShortFioPhrase = True
+End Function
+
+Private Function mp_TryBuildShortFioPhraseLegacy(ByVal normalizedText As String, ByRef resultText As String) As Boolean
+    Dim parts() As String
+    parts = Split(normalizedText, " ")
+    If UBound(parts) < 3 Then Exit Function
+
+    Dim surnameIndex As Long
+    surnameIndex = UBound(parts) - 2
+    If surnameIndex < 0 Then Exit Function
+
+    Dim leadPhrase As String
+    If surnameIndex > 0 Then
+        leadPhrase = mp_JoinArraySlice(parts, 0, surnameIndex - 1)
+    Else
+        leadPhrase = vbNullString
+    End If
+
+    Dim surname As String
+    Dim firstName As String
+    Dim patronymic As String
+    surname = mp_TrimTokenPunctuation(parts(surnameIndex))
+    firstName = mp_TrimTokenPunctuation(parts(surnameIndex + 1))
+    patronymic = mp_TrimTokenPunctuation(parts(surnameIndex + 2))
+
+    If Not mp_IsValidFioToken(surname) Then Exit Function
+    If Not mp_IsValidFioToken(firstName) Then Exit Function
+    If Not mp_IsValidFioToken(patronymic) Then Exit Function
+
+    Dim surnameTitle As String
+    surnameTitle = mp_ToTitleCaseWord(LCase$(surname))
+
+    Dim firstInitial As String
+    Dim patrInitial As String
+    firstInitial = mp_InitialWithDot(firstName)
+    patrInitial = mp_InitialWithDot(patronymic)
+    If Len(firstInitial) = 0 Or Len(patrInitial) = 0 Then Exit Function
+
+    If Len(leadPhrase) > 0 Then
+        resultText = mp_LowercaseFirstLetter(leadPhrase) & " " & surnameTitle & ChrW$(160) & firstInitial & patrInitial
+    Else
+        resultText = surnameTitle & ChrW$(160) & firstInitial & patrInitial
+    End If
+    mp_TryBuildShortFioPhraseLegacy = True
+End Function
+
+Private Function mp_InitialWithDot(ByVal token As String) As String
+    Dim normalizedToken As String
+    normalizedToken = mp_TrimTokenPunctuation(token)
+    If Len(normalizedToken) = 0 Then Exit Function
+
+    mp_InitialWithDot = UCase$(Left$(normalizedToken, 1)) & "."
+End Function
+
+Private Function mp_TryExtractRankAndFioFromSentence(ByVal normalizedText As String, ByRef leadPhrase As String, ByRef surname As String, ByRef firstName As String, ByRef patronymic As String) As Boolean
+    Static fioRegex As Object
+
+    If fioRegex Is Nothing Then
+        Set fioRegex = CreateObject("VBScript.RegExp")
+        fioRegex.Global = True
+        fioRegex.IgnoreCase = True
+        fioRegex.Pattern = "([А-ЯІЇЄҐа-яіїєґA-Za-z][А-ЯІЇЄҐа-яіїєґA-Za-zЬь'’`ʼ\-]+)\s+([А-ЯІЇЄҐа-яіїєґA-Za-z][А-ЯІЇЄҐа-яіїєґA-Za-zЬь'’`ʼ\-]+)\s+([А-ЯІЇЄҐа-яіїєґA-Za-z][А-ЯІЇЄҐа-яіїєґA-Za-zЬь'’`ʼ\-]+)"
+    End If
+
+    Dim matches As Object
+    Set matches = fioRegex.Execute(normalizedText)
+    If matches.Count = 0 Then Exit Function
+
+    Dim i As Long
+    Dim m As Object
+    Dim candidateLead As String
+    Dim textBefore As String
+    Dim gender As String
+
+    For i = 0 To matches.Count - 1
+        Set m = matches(i)
+
+        surname = CStr(m.SubMatches(0))
+        firstName = CStr(m.SubMatches(1))
+        patronymic = CStr(m.SubMatches(2))
+
+        If Not mp_DetectFioGender(firstName, patronymic, gender) Then GoTo ContinueLoop
+
+        textBefore = Left$(normalizedText, CLng(m.FirstIndex))
+        candidateLead = mp_TrimTokenPunctuation(mp_GetPhraseTailAfterDelimiters(textBefore))
+        candidateLead = mp_NormalizeWhitespace(candidateLead)
+        If Len(candidateLead) = 0 Then GoTo ContinueLoop
+
+        leadPhrase = candidateLead
+        mp_TryExtractRankAndFioFromSentence = True
+        Exit Function
+
+ContinueLoop:
+    Next i
+End Function
+
+Private Function mp_GetPhraseTailAfterDelimiters(ByVal sourceText As String) As String
+    Dim i As Long
+    Dim ch As String
+
+    For i = Len(sourceText) To 1 Step -1
+        ch = Mid$(sourceText, i, 1)
+        If InStr(".,;:!?)(" & ChrW$(8212) & ChrW$(8211), ch) > 0 Then
+            mp_GetPhraseTailAfterDelimiters = Mid$(sourceText, i + 1)
+            Exit Function
+        End If
+    Next i
+
+    mp_GetPhraseTailAfterDelimiters = sourceText
+End Function
+
+Private Function mp_NormalizeWhitespace(ByVal textValue As String) As String
+    Dim s As String
+    s = Trim$(textValue)
+    Do While InStr(s, "  ") > 0
+        s = Replace$(s, "  ", " ")
+    Loop
+    mp_NormalizeWhitespace = s
+End Function
+
+Private Function mp_ReplaceNearestReportPlaceholder(ByVal doc As Document, ByVal pivotPosition As Long, ByVal shortPhrase As String) As Boolean
+    Dim mainStory As Range
+    Set mainStory = doc.StoryRanges(wdMainTextStory)
+    If mainStory Is Nothing Then Exit Function
+
+    Dim regex As Object
+    Set regex = CreateObject("VBScript.RegExp")
+    regex.Global = True
+    regex.IgnoreCase = True
+    regex.Pattern = "рапорт\s+\*{3,}"
+
+    Dim matches As Object
+    Set matches = regex.Execute(mainStory.Text)
+    If matches.Count = 0 Then Exit Function
+
+    Dim i As Long
+    Dim m As Object
+    Dim bestIndex As Long
+    Dim bestDistance As Long
+    Dim currentDistance As Long
+    Dim absoluteStart As Long
+
+    bestIndex = -1
+    bestDistance = -1
+
+    For i = 0 To matches.Count - 1
+        Set m = matches(i)
+        absoluteStart = mainStory.Start + CLng(m.FirstIndex)
+        currentDistance = Abs(absoluteStart - pivotPosition)
+
+        If bestIndex = -1 Or currentDistance < bestDistance Then
+            bestIndex = i
+            bestDistance = currentDistance
+        End If
+    Next i
+
+    If bestIndex < 0 Then Exit Function
+
+    Set m = matches(bestIndex)
+
+    Dim targetStart As Long
+    Dim targetEnd As Long
+    Dim targetRange As Range
+    Dim reportWord As String
+
+    targetStart = mainStory.Start + CLng(m.FirstIndex)
+    targetEnd = targetStart + Len(CStr(m.Value))
+    Set targetRange = doc.Range(Start:=targetStart, End:=targetEnd)
+
+    reportWord = mp_GetLeadingWord(targetRange.Text)
+    If Len(reportWord) = 0 Then reportWord = "рапорт"
+
+    targetRange.Text = reportWord & " " & shortPhrase
+    mp_ReplaceNearestReportPlaceholder = True
+End Function
+
+Private Function mp_GetLeadingWord(ByVal textValue As String) As String
+    Dim i As Long
+    Dim ch As String
+    textValue = Trim$(textValue)
+    If Len(textValue) = 0 Then Exit Function
+
+    For i = 1 To Len(textValue)
+        ch = Mid$(textValue, i, 1)
+        If ch = " " Or ch = vbTab Then Exit For
+    Next i
+
+    If i <= Len(textValue) Then
+        mp_GetLeadingWord = Left$(textValue, i - 1)
+    Else
+        mp_GetLeadingWord = textValue
+    End If
+End Function
 
 Private Function mp_TryConvertSelectionTextToGenitive(ByVal normalizedText As String, ByRef convertedText As String) As Boolean
     If mp_TryConvertPureFioToGenitive(normalizedText, convertedText) Then
@@ -989,6 +1589,45 @@ Private Sub mp_SplitTrailingLineBreaks(ByVal sourceText As String, ByRef bodyTex
         End If
     Loop
 End Sub
+
+Private Sub mp_TrimTrailingDecorations(ByRef targetRange As Range)
+    Do While targetRange.End > targetRange.Start
+        Dim tailRange As Range
+        Set tailRange = targetRange.Duplicate
+        tailRange.SetRange Start:=targetRange.End - 1, End:=targetRange.End
+
+        If mp_IsTailDecorationChar(tailRange.Text) Then
+            targetRange.End = targetRange.End - 1
+        Else
+            Exit Do
+        End If
+    Loop
+End Sub
+
+Private Function mp_IsTailDecorationChar(ByVal ch As String) As Boolean
+    If Len(ch) = 0 Then Exit Function
+
+    If ch = vbCr Or ch = vbLf Or ch = vbTab Or ch = " " Then
+        mp_IsTailDecorationChar = True
+        Exit Function
+    End If
+
+    Dim codePoint As Long
+    codePoint = AscW(ch)
+    If codePoint = 160 Or codePoint = 11 Or codePoint = 7 Then
+        mp_IsTailDecorationChar = True
+        Exit Function
+    End If
+
+    If InStr(".,;:!?)]}""»", ch) > 0 Then
+        mp_IsTailDecorationChar = True
+    End If
+End Function
+
+Private Function mp_IsWhitespaceLikeChar(ByVal ch As String) As Boolean
+    If Len(ch) = 0 Then Exit Function
+    mp_IsWhitespaceLikeChar = (ch = " " Or ch = vbTab Or ch = vbCr Or ch = vbLf Or AscW(ch) = 160)
+End Function
 
 Private Function mp_IsSingleSentenceText(ByVal normalizedText As String) As Boolean
     Static regex As Object
@@ -1036,30 +1675,36 @@ Private Function mp_TryConvertSentenceWithFioToGenitive(ByVal normalizedText As 
     leadPhraseGen = mp_InflectPhraseByDashSegments(leadPhrase, 4)
     If Len(leadPhraseGen) = 0 Then Exit Function
 
-    Dim tailPhraseGen As String
-    tailPhraseGen = mp_InflectPhraseByDashSegments(tailPhrase, 4)
-    If Len(tailPhraseGen) = 0 Then Exit Function
+    If Len(Trim$(tailPhrase)) > 0 Then
+        Dim tailPhraseGen As String
+        tailPhraseGen = mp_InflectPhraseByDashSegments(tailPhrase, 4)
+        If Len(tailPhraseGen) = 0 Then Exit Function
+        convertedText = leadPhraseGen & " " & fioGenitive & ", " & mp_LowercaseFirstLetter(tailPhraseGen)
+    Else
+        convertedText = leadPhraseGen & " " & fioGenitive
+    End If
 
-    convertedText = leadPhraseGen & " " & fioGenitive & ", " & mp_LowercaseFirstLetter(tailPhraseGen)
     mp_TryConvertSentenceWithFioToGenitive = True
 End Function
 
 Private Function mp_TryParseSentenceWithFio(ByVal normalizedText As String, ByRef leadPhrase As String, ByRef surname As String, ByRef firstName As String, ByRef patronymic As String, ByRef tailPhrase As String) As Boolean
     Dim parts() As String
     parts = Split(normalizedText, " ")
-    If UBound(parts) < 4 Then Exit Function
+    If UBound(parts) < 3 Then Exit Function
 
     Dim fioStart As Long
     If Not mp_FindFioStartIndex(parts, fioStart, surname, firstName, patronymic) Then Exit Function
 
     If fioStart < 1 Then Exit Function
-    If fioStart + 3 > UBound(parts) Then Exit Function
 
     leadPhrase = mp_JoinArraySlice(parts, 0, fioStart - 1)
-    tailPhrase = mp_JoinArraySlice(parts, fioStart + 3, UBound(parts))
+    If fioStart + 3 <= UBound(parts) Then
+        tailPhrase = mp_JoinArraySlice(parts, fioStart + 3, UBound(parts))
+    Else
+        tailPhrase = vbNullString
+    End If
 
     If Len(leadPhrase) = 0 Then Exit Function
-    If Len(tailPhrase) = 0 Then Exit Function
 
     mp_TryParseSentenceWithFio = True
 End Function
@@ -1140,6 +1785,19 @@ End Function
 Private Function mp_InflectCommonWordToGenitive(ByVal sourceWord As String, ByRef resultWord As String) As Boolean
     If Not mp_IsValidGeneralWord(sourceWord) Then Exit Function
 
+    If InStr(sourceWord, "-") > 0 Then
+        If mp_TryInflectHyphenCommonWordToGenitive(sourceWord, resultWord) Then
+            mp_InflectCommonWordToGenitive = True
+        End If
+        Exit Function
+    End If
+
+    mp_InflectCommonWordToGenitive = mp_TryInflectSimpleCommonWordToGenitive(sourceWord, resultWord)
+End Function
+
+Private Function mp_TryInflectSimpleCommonWordToGenitive(ByVal sourceWord As String, ByRef resultWord As String) As Boolean
+    If Not mp_IsValidGeneralWord(sourceWord) Then Exit Function
+
     Dim low As String
     low = LCase$(sourceWord)
 
@@ -1147,7 +1805,7 @@ Private Function mp_InflectCommonWordToGenitive(ByVal sourceWord As String, ByRe
     Set exceptions = mp_GetCommonWordExceptionsDict()
     If exceptions.Exists(low) Then
         resultWord = mp_ApplyWordCase(sourceWord, exceptions(low))
-        mp_InflectCommonWordToGenitive = True
+        mp_TryInflectSimpleCommonWordToGenitive = True
         Exit Function
     End If
 
@@ -1175,7 +1833,51 @@ Private Function mp_InflectCommonWordToGenitive(ByVal sourceWord As String, ByRe
     End If
 
     resultWord = mp_ApplyWordCase(sourceWord, outLow)
-    mp_InflectCommonWordToGenitive = True
+    mp_TryInflectSimpleCommonWordToGenitive = True
+End Function
+
+Private Function mp_TryInflectHyphenCommonWordToGenitive(ByVal sourceWord As String, ByRef resultWord As String) As Boolean
+    Dim parts() As String
+    parts = Split(sourceWord, "-")
+    If UBound(parts) < 1 Then Exit Function
+
+    Dim i As Long
+    Dim partInflected As String
+    Dim currentPart As String
+    Dim isFixedFirstPart As Boolean
+
+    isFixedFirstPart = mp_IsFixedHyphenFirstPart(parts(0))
+
+    For i = LBound(parts) To UBound(parts)
+        currentPart = parts(i)
+        partInflected = currentPart
+
+        If Len(currentPart) > 0 Then
+            If Not (i = LBound(parts) And isFixedFirstPart) Then
+                If mp_TryInflectSimpleCommonWordToGenitive(currentPart, partInflected) Then
+                    ' partInflected already set.
+                End If
+            End If
+        End If
+
+        If i = LBound(parts) Then
+            resultWord = partInflected
+        Else
+            resultWord = resultWord & "-" & partInflected
+        End If
+    Next i
+
+    mp_TryInflectHyphenCommonWordToGenitive = True
+End Function
+
+Private Function mp_IsFixedHyphenFirstPart(ByVal partText As String) As Boolean
+    Dim low As String
+    low = LCase$(partText)
+
+    Select Case low
+        Case "штаб", "обер", "унтер", "віце", "екс", "лейб", "контр", "псевдо"
+            mp_IsFixedHyphenFirstPart = True
+    End Select
 End Function
 
 Private Function mp_IsLikelyNeuterNounOnYa(ByVal low As String) As Boolean
@@ -1222,8 +1924,7 @@ Private Function mp_InflectPhraseByDashSegments(ByVal phraseText As String, ByVa
     normalized = Trim$(phraseText)
     If Len(normalized) = 0 Then Exit Function
 
-    normalized = Replace$(normalized, " – ", " - ")
-    normalized = Replace$(normalized, " — ", " - ")
+    normalized = mp_NormalizeSpacedDashSeparators(normalized)
 
     Dim segments() As String
     segments = Split(normalized, " - ")
@@ -1233,7 +1934,22 @@ Private Function mp_InflectPhraseByDashSegments(ByVal phraseText As String, ByVa
         segments(i) = mp_InflectLeadingWordsInSegment(Trim$(segments(i)), maxWordsPerSegment)
     Next i
 
-    mp_InflectPhraseByDashSegments = Join(segments, " - ")
+    mp_InflectPhraseByDashSegments = Join(segments, " — ")
+End Function
+
+Private Function mp_NormalizeSpacedDashSeparators(ByVal textValue As String) As String
+    Static regex As Object
+
+    If regex Is Nothing Then
+        Set regex = CreateObject("VBScript.RegExp")
+        regex.Global = True
+        regex.IgnoreCase = True
+        ' Нормализуем только тире/дефисы, окруженные пробелами.
+        ' Дефисы внутри слов (оператор-електрик) остаются нетронутыми.
+        regex.Pattern = "\s+[—–-]\s+"
+    End If
+
+    mp_NormalizeSpacedDashSeparators = regex.Replace(textValue, " - ")
 End Function
 
 Private Function mp_InflectLeadingWordsInSegment(ByVal segmentText As String, ByVal maxWordsToInflect As Long) As String
@@ -1248,6 +1964,8 @@ Private Function mp_InflectLeadingWordsInSegment(ByVal segmentText As String, By
     Dim suffix As String
     Dim inflected As String
     Dim lowCore As String
+    Dim lowPrevCore As String
+    Dim candidateCount As Long
 
     For i = LBound(parts) To UBound(parts)
         If changedCount >= maxWordsToInflect Then Exit For
@@ -1259,7 +1977,18 @@ Private Function mp_InflectLeadingWordsInSegment(ByVal segmentText As String, By
         If mp_IsNumericToken(core) Then GoTo ContinueLoop
         If mp_IsStopWord(core) Then GoTo ContinueLoop
 
+        If i > LBound(parts) Then
+            lowPrevCore = LCase$(mp_TrimTokenPunctuation(parts(i - 1)))
+        Else
+            lowPrevCore = vbNullString
+        End If
+
+        candidateCount = candidateCount + 1
+        If candidateCount > maxWordsToInflect Then Exit For
+
         lowCore = LCase$(core)
+        If mp_ShouldKeepWordUnchangedByContext(lowPrevCore, lowCore) Then GoTo ContinueLoop
+
         If changedCount > 0 And mp_IsLikelyAlreadyGenitive(lowCore) Then Exit For
 
         suffix = mp_TokenTailPunctuation(parts(i))
@@ -1274,6 +2003,63 @@ ContinueLoop:
     Next i
 
     mp_InflectLeadingWordsInSegment = Join(parts, " ")
+End Function
+
+Private Function mp_ShouldKeepWordUnchangedByContext(ByVal lowPrevCore As String, ByVal lowCore As String) As Boolean
+    If Len(lowCore) = 0 Then Exit Function
+
+    ' Если слово уже похоже на форму родительного, не трогаем.
+    If mp_IsLikelyAlreadyGenitive(lowCore) Then
+        mp_ShouldKeepWordUnchangedByContext = True
+        Exit Function
+    End If
+
+    ' После существительных на -ення/-іння/... часто идет зависимое слово
+    ' в родительном множественного с нулевым окончанием: "забезпечення стрільб".
+    If mp_IsGenitiveGovernedHeadWord(lowPrevCore) Then
+        If mp_HasConsonantClusterEnding(lowCore) Then
+            mp_ShouldKeepWordUnchangedByContext = True
+        End If
+    End If
+End Function
+
+Private Function mp_IsGenitiveGovernedHeadWord(ByVal lowWord As String) As Boolean
+    If Len(lowWord) = 0 Then Exit Function
+
+    If mp_EndsWith(lowWord, "ення") Or mp_EndsWith(lowWord, "єння") Or mp_EndsWith(lowWord, "іння") Or _
+       mp_EndsWith(lowWord, "ання") Or mp_EndsWith(lowWord, "ття") Or mp_EndsWith(lowWord, "лля") Then
+        mp_IsGenitiveGovernedHeadWord = True
+    End If
+End Function
+
+Private Function mp_HasConsonantClusterEnding(ByVal lowWord As String) As Boolean
+    Dim wordLen As Long
+    wordLen = Len(lowWord)
+    If wordLen < 2 Then Exit Function
+
+    Dim lastCh As String
+    Dim prevCh As String
+    lastCh = Mid$(lowWord, wordLen, 1)
+    prevCh = Mid$(lowWord, wordLen - 1, 1)
+
+    If Not mp_IsConsonantChar(lastCh) Then Exit Function
+
+    If mp_IsConsonantChar(prevCh) Then
+        mp_HasConsonantClusterEnding = True
+        Exit Function
+    End If
+
+    If prevCh = "ь" And wordLen >= 3 Then
+        prevCh = Mid$(lowWord, wordLen - 2, 1)
+        If mp_IsConsonantChar(prevCh) Then
+            mp_HasConsonantClusterEnding = True
+        End If
+    End If
+End Function
+
+Private Function mp_IsConsonantChar(ByVal ch As String) As Boolean
+    If Len(ch) = 0 Then Exit Function
+    mp_IsConsonantChar = (InStr("бвгґджзйклмнпрстфхцчшщ", ch) > 0)
 End Function
 
 Private Function mp_IsLikelyAlreadyGenitive(ByVal low As String) As Boolean
@@ -1333,13 +2119,21 @@ Private Function mp_TryParseFio(ByVal normalizedText As String, ByRef surname As
     parts = Split(normalizedText, " ")
     If UBound(parts) <> 2 Then Exit Function
 
-    If Not mp_IsValidFioToken(parts(0)) Then Exit Function
-    If Not mp_IsValidFioToken(parts(1)) Then Exit Function
-    If Not mp_IsValidFioToken(parts(2)) Then Exit Function
+    Dim p0 As String
+    Dim p1 As String
+    Dim p2 As String
 
-    surname = parts(0)
-    firstName = parts(1)
-    patronymic = parts(2)
+    p0 = mp_TrimTokenPunctuation(parts(0))
+    p1 = mp_TrimTokenPunctuation(parts(1))
+    p2 = mp_TrimTokenPunctuation(parts(2))
+
+    If Not mp_IsValidFioToken(p0) Then Exit Function
+    If Not mp_IsValidFioToken(p1) Then Exit Function
+    If Not mp_IsValidFioToken(p2) Then Exit Function
+
+    surname = p0
+    firstName = p1
+    patronymic = p2
     mp_TryParseFio = True
 End Function
 
@@ -1349,6 +2143,7 @@ Private Function mp_NormalizeFioInput(ByVal inputText As String) As String
     s = Replace$(s, vbCr, " ")
     s = Replace$(s, vbLf, " ")
     s = Replace$(s, vbTab, " ")
+    s = Replace$(s, ChrW$(160), " ")
     s = Replace$(s, Chr$(7), " ")
 
     s = Replace$(s, "’", "'")
@@ -1369,7 +2164,7 @@ Private Function mp_IsValidFioToken(ByVal token As String) As Boolean
         Set regex = CreateObject("VBScript.RegExp")
         regex.Global = False
         regex.IgnoreCase = True
-        regex.Pattern = "^[А-ЯІЇЄҐ][А-ЯІЇЄҐЬ'’`ʼ\-]*$"
+        regex.Pattern = "^[А-ЯІЇЄҐа-яіїєґA-Za-z][А-ЯІЇЄҐа-яіїєґA-Za-zЬь'’`ʼ\-]*$"
     End If
 
     mp_IsValidFioToken = regex.Test(token)
@@ -1379,13 +2174,16 @@ Private Function mp_DetectFioGender(ByVal firstName As String, ByVal patronymic 
     Dim p As String
     p = LCase$(patronymic)
 
-    If mp_EndsWith(p, "ович") Or mp_EndsWith(p, "евич") Or mp_EndsWith(p, "йович") Then
+    ' Підтримка як називного, так і родового відмінків по батькові.
+    If mp_EndsWith(p, "ович") Or mp_EndsWith(p, "евич") Or mp_EndsWith(p, "йович") Or _
+       mp_EndsWith(p, "овича") Or mp_EndsWith(p, "евича") Or mp_EndsWith(p, "йовича") Then
         gender = "male"
         mp_DetectFioGender = True
         Exit Function
     End If
 
-    If mp_EndsWith(p, "івна") Or mp_EndsWith(p, "ївна") Or mp_EndsWith(p, "овна") Or mp_EndsWith(p, "евна") Then
+    If mp_EndsWith(p, "івна") Or mp_EndsWith(p, "ївна") Or mp_EndsWith(p, "овна") Or mp_EndsWith(p, "евна") Or _
+       mp_EndsWith(p, "івни") Or mp_EndsWith(p, "ївни") Or mp_EndsWith(p, "овни") Or mp_EndsWith(p, "евни") Then
         gender = "female"
         mp_DetectFioGender = True
         Exit Function
@@ -1488,6 +2286,8 @@ Private Function mp_InflectSurnamePart(ByVal originalPart As String, ByVal gende
             outLow = Left$(low, Len(low) - 2) & "ого"
         ElseIf mp_EndsWith(low, "ій") Then
             outLow = Left$(low, Len(low) - 2) & "ія"
+        ElseIf mp_EndsWith(low, "ко") Then
+            outLow = Left$(low, Len(low) - 1) & "а"
         ElseIf mp_EndsWith(low, "а") Then
             outLow = Left$(low, Len(low) - 1) & "и"
         ElseIf mp_EndsWith(low, "я") Then
@@ -1597,12 +2397,12 @@ Private Function mp_InflectPatronymicPart(ByVal originalPart As String, ByVal ge
 End Function
 
 Private Function mp_IsIndeclinableSurname(ByVal lowSurname As String, ByVal gender As String) As Boolean
-    If mp_EndsWith(lowSurname, "енко") Or mp_EndsWith(lowSurname, "ко") Then
-        mp_IsIndeclinableSurname = True
-        Exit Function
-    End If
-
     If gender = "female" Then
+        If mp_EndsWith(lowSurname, "енко") Or mp_EndsWith(lowSurname, "ко") Then
+            mp_IsIndeclinableSurname = True
+            Exit Function
+        End If
+
         If mp_EndsWithConsonant(lowSurname) Or mp_EndsWith(lowSurname, "о") Then
             mp_IsIndeclinableSurname = True
         End If
@@ -1762,14 +2562,14 @@ Public Sub m_ReplaceSequences(Optional ByVal useExternalUndoGroup As Boolean = F
 
     On Error GoTo FailReplace
 
+    ' 0) Заменить "<неразрывный пробел>;;" на ";;"
+    mp_ReplaceAllInActiveDocument "/^s;;", ";;"
+
     ' 1) Удалить ";;"
     mp_ReplaceAllInActiveDocument ";;", ""
 
     ' 2) Заменить "/<неразрывный пробел>" на "/"
     mp_ReplaceAllInActiveDocument "/^s", "/"
-
-    ' 3) Убрать неразрывный пробел перед "від"
-    mp_ReplaceAllInActiveDocument "^s від", " від"
 
     mp_SetStatusBarMessage "Замена выполнена"
 
