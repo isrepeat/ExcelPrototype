@@ -908,6 +908,474 @@ Private Sub mp_TrimParagraphEnding(ByRef targetRange As Range)
 End Sub
 
 ' ============================================
+' FIO -> Genitive (Selection only)
+' ============================================
+
+Public Sub m_FioToGenitive_Selection()
+    If Documents.Count = 0 Then
+        MsgBox "Нет открытого документа Word.", vbExclamation, "ФІО в родовий відмінок"
+        Exit Sub
+    End If
+
+    Dim sourceRange As Range
+    Set sourceRange = Selection.Range.Duplicate
+    If sourceRange Is Nothing Then Exit Sub
+
+    Dim normalizedText As String
+    normalizedText = mp_NormalizeFioInput(sourceRange.Text)
+    If Len(normalizedText) = 0 Then
+        mp_MarkInvalidFioSelection sourceRange
+        Exit Sub
+    End If
+
+    Dim surname As String, firstName As String, patronymic As String
+    If Not mp_TryParseFio(normalizedText, surname, firstName, patronymic) Then
+        mp_MarkInvalidFioSelection sourceRange
+        Exit Sub
+    End If
+
+    Dim gender As String
+    If Not mp_DetectFioGender(firstName, patronymic, gender) Then
+        mp_MarkInvalidFioSelection sourceRange
+        Exit Sub
+    End If
+
+    Dim genSurname As String, genFirstName As String, genPatronymic As String
+    If Not mp_InflectSurnameToGenitive(surname, gender, genSurname) Then
+        mp_MarkInvalidFioSelection sourceRange
+        Exit Sub
+    End If
+    If Not mp_InflectNameToGenitive(firstName, gender, genFirstName) Then
+        mp_MarkInvalidFioSelection sourceRange
+        Exit Sub
+    End If
+    If Not mp_InflectPatronymicToGenitive(patronymic, gender, genPatronymic) Then
+        mp_MarkInvalidFioSelection sourceRange
+        Exit Sub
+    End If
+
+    Dim undoStarted As Boolean
+    mp_BeginUndoGroup "ФІО у родовий відмінок", undoStarted
+    On Error GoTo FailInflect
+
+    sourceRange.Text = genSurname & " " & genFirstName & " " & genPatronymic
+    mp_SetStatusBarMessage "ФІО змінено на родовий відмінок."
+
+Finalize:
+    mp_EndUndoGroup undoStarted
+    Exit Sub
+
+FailInflect:
+    mp_EndUndoGroup undoStarted
+    MsgBox "Ошибка преобразования ФІО: " & Err.Description, vbExclamation, "ФІО в родовий відмінок"
+End Sub
+
+Private Sub mp_MarkInvalidFioSelection(ByVal targetRange As Range)
+    On Error Resume Next
+    Dim markerRange As Range
+    Set markerRange = targetRange.Duplicate
+    markerRange.HighlightColorIndex = wdYellow
+End Sub
+
+Private Function mp_TryParseFio(ByVal normalizedText As String, ByRef surname As String, ByRef firstName As String, ByRef patronymic As String) As Boolean
+    Dim parts() As String
+    parts = Split(normalizedText, " ")
+    If UBound(parts) <> 2 Then Exit Function
+
+    If Not mp_IsValidFioToken(parts(0)) Then Exit Function
+    If Not mp_IsValidFioToken(parts(1)) Then Exit Function
+    If Not mp_IsValidFioToken(parts(2)) Then Exit Function
+
+    surname = parts(0)
+    firstName = parts(1)
+    patronymic = parts(2)
+    mp_TryParseFio = True
+End Function
+
+Private Function mp_NormalizeFioInput(ByVal inputText As String) As String
+    Dim s As String
+    s = Trim$(inputText)
+    s = Replace$(s, vbCr, " ")
+    s = Replace$(s, vbLf, " ")
+    s = Replace$(s, vbTab, " ")
+    s = Replace$(s, Chr$(7), " ")
+
+    s = Replace$(s, "’", "'")
+    s = Replace$(s, "ʼ", "'")
+    s = Replace$(s, "`", "'")
+
+    Do While InStr(s, "  ") > 0
+        s = Replace$(s, "  ", " ")
+    Loop
+
+    mp_NormalizeFioInput = Trim$(s)
+End Function
+
+Private Function mp_IsValidFioToken(ByVal token As String) As Boolean
+    Static regex As Object
+
+    If regex Is Nothing Then
+        Set regex = CreateObject("VBScript.RegExp")
+        regex.Global = False
+        regex.IgnoreCase = True
+        regex.Pattern = "^[А-ЯІЇЄҐ][А-ЯІЇЄҐЬ'’`ʼ\-]*$"
+    End If
+
+    mp_IsValidFioToken = regex.Test(token)
+End Function
+
+Private Function mp_DetectFioGender(ByVal firstName As String, ByVal patronymic As String, ByRef gender As String) As Boolean
+    Dim p As String
+    p = LCase$(patronymic)
+
+    If mp_EndsWith(p, "ович") Or mp_EndsWith(p, "евич") Or mp_EndsWith(p, "йович") Then
+        gender = "male"
+        mp_DetectFioGender = True
+        Exit Function
+    End If
+
+    If mp_EndsWith(p, "івна") Or mp_EndsWith(p, "ївна") Or mp_EndsWith(p, "овна") Or mp_EndsWith(p, "евна") Then
+        gender = "female"
+        mp_DetectFioGender = True
+        Exit Function
+    End If
+
+    Dim maleNames As Object
+    Set maleNames = mp_GetMaleNamesDict()
+    Dim femaleNames As Object
+    Set femaleNames = mp_GetFemaleNamesDict()
+
+    Dim n As String
+    n = LCase$(firstName)
+
+    If maleNames.Exists(n) And Not femaleNames.Exists(n) Then
+        gender = "male"
+        mp_DetectFioGender = True
+        Exit Function
+    End If
+
+    If femaleNames.Exists(n) And Not maleNames.Exists(n) Then
+        gender = "female"
+        mp_DetectFioGender = True
+    End If
+End Function
+
+Private Function mp_InflectSurnameToGenitive(ByVal surname As String, ByVal gender As String, ByRef resultText As String) As Boolean
+    mp_InflectSurnameToGenitive = mp_InflectTokenByHyphenParts(surname, gender, "surname", resultText)
+End Function
+
+Private Function mp_InflectNameToGenitive(ByVal firstName As String, ByVal gender As String, ByRef resultText As String) As Boolean
+    mp_InflectNameToGenitive = mp_InflectTokenByHyphenParts(firstName, gender, "name", resultText)
+End Function
+
+Private Function mp_InflectPatronymicToGenitive(ByVal patronymic As String, ByVal gender As String, ByRef resultText As String) As Boolean
+    mp_InflectPatronymicToGenitive = mp_InflectTokenByHyphenParts(patronymic, gender, "patronymic", resultText)
+End Function
+
+Private Function mp_InflectTokenByHyphenParts(ByVal token As String, ByVal gender As String, ByVal tokenType As String, ByRef resultText As String) As Boolean
+    Dim parts() As String
+    parts = Split(token, "-")
+
+    Dim i As Long
+    Dim partResult As String
+
+    For i = LBound(parts) To UBound(parts)
+        partResult = ""
+
+        Select Case tokenType
+            Case "surname"
+                If Not mp_InflectSurnamePart(parts(i), gender, partResult) Then Exit Function
+            Case "name"
+                If Not mp_InflectNamePart(parts(i), gender, partResult) Then Exit Function
+            Case "patronymic"
+                If Not mp_InflectPatronymicPart(parts(i), gender, partResult) Then Exit Function
+            Case Else
+                Exit Function
+        End Select
+
+        If i = LBound(parts) Then
+            resultText = partResult
+        Else
+            resultText = resultText & "-" & partResult
+        End If
+    Next i
+
+    mp_InflectTokenByHyphenParts = True
+End Function
+
+Private Function mp_InflectSurnamePart(ByVal originalPart As String, ByVal gender As String, ByRef partResult As String) As Boolean
+    Dim low As String
+    low = LCase$(originalPart)
+
+    Dim exceptions As Object
+    Set exceptions = mp_GetSurnameExceptionsDict()
+    If exceptions.Exists(low) Then
+        partResult = mp_ApplyWordCase(originalPart, exceptions(low))
+        mp_InflectSurnamePart = True
+        Exit Function
+    End If
+
+    If mp_IsIndeclinableSurname(low, gender) Then
+        partResult = originalPart
+        mp_InflectSurnamePart = True
+        Exit Function
+    End If
+
+    Dim outLow As String
+    outLow = low
+
+    If gender = "male" Then
+        If mp_EndsWith(low, "ський") Then
+            outLow = Left$(low, Len(low) - 5) & "ського"
+        ElseIf mp_EndsWith(low, "цький") Then
+            outLow = Left$(low, Len(low) - 5) & "цького"
+        ElseIf mp_EndsWith(low, "зький") Then
+            outLow = Left$(low, Len(low) - 5) & "зького"
+        ElseIf mp_EndsWith(low, "ець") Then
+            outLow = Left$(low, Len(low) - 3) & "ця"
+        ElseIf mp_EndsWith(low, "ий") Then
+            outLow = Left$(low, Len(low) - 2) & "ого"
+        ElseIf mp_EndsWith(low, "ій") Then
+            outLow = Left$(low, Len(low) - 2) & "ія"
+        ElseIf mp_EndsWith(low, "а") Then
+            outLow = Left$(low, Len(low) - 1) & "и"
+        ElseIf mp_EndsWith(low, "я") Then
+            outLow = Left$(low, Len(low) - 1) & "і"
+        ElseIf mp_EndsWithConsonant(low) Then
+            outLow = low & "а"
+        End If
+    ElseIf gender = "female" Then
+        If mp_EndsWith(low, "ська") Then
+            outLow = Left$(low, Len(low) - 4) & "ської"
+        ElseIf mp_EndsWith(low, "цька") Then
+            outLow = Left$(low, Len(low) - 4) & "цької"
+        ElseIf mp_EndsWith(low, "зька") Then
+            outLow = Left$(low, Len(low) - 4) & "зької"
+        ElseIf mp_EndsWith(low, "ова") Or mp_EndsWith(low, "ева") Or mp_EndsWith(low, "єва") Or _
+               mp_EndsWith(low, "іна") Or mp_EndsWith(low, "їна") Or mp_EndsWith(low, "ина") Then
+            outLow = Left$(low, Len(low) - 1) & "ої"
+        ElseIf mp_EndsWith(low, "а") Then
+            outLow = Left$(low, Len(low) - 1) & "и"
+        ElseIf mp_EndsWith(low, "я") Then
+            outLow = Left$(low, Len(low) - 1) & "і"
+        End If
+    Else
+        Exit Function
+    End If
+
+    partResult = mp_ApplyWordCase(originalPart, outLow)
+    mp_InflectSurnamePart = True
+End Function
+
+Private Function mp_InflectNamePart(ByVal originalPart As String, ByVal gender As String, ByRef partResult As String) As Boolean
+    Dim low As String
+    low = LCase$(originalPart)
+
+    Dim exceptions As Object
+    Set exceptions = mp_GetNameExceptionsDict()
+    If exceptions.Exists(low) Then
+        partResult = mp_ApplyWordCase(originalPart, exceptions(low))
+        mp_InflectNamePart = True
+        Exit Function
+    End If
+
+    Dim outLow As String
+    outLow = low
+
+    If gender = "male" Then
+        If mp_EndsWith(low, "ій") Then
+            outLow = Left$(low, Len(low) - 2) & "ія"
+        ElseIf mp_EndsWith(low, "й") Then
+            outLow = Left$(low, Len(low) - 1) & "я"
+        ElseIf mp_EndsWith(low, "ь") Then
+            outLow = Left$(low, Len(low) - 1) & "я"
+        ElseIf mp_EndsWith(low, "о") Then
+            outLow = Left$(low, Len(low) - 1) & "а"
+        ElseIf mp_EndsWith(low, "а") Then
+            outLow = Left$(low, Len(low) - 1) & "и"
+        ElseIf mp_EndsWith(low, "я") Then
+            outLow = Left$(low, Len(low) - 1) & "і"
+        ElseIf mp_EndsWithConsonant(low) Then
+            outLow = low & "а"
+        End If
+    ElseIf gender = "female" Then
+        If mp_EndsWith(low, "ія") Then
+            outLow = Left$(low, Len(low) - 2) & "ії"
+        ElseIf mp_EndsWith(low, "я") Then
+            outLow = Left$(low, Len(low) - 1) & "і"
+        ElseIf mp_EndsWith(low, "а") Then
+            outLow = Left$(low, Len(low) - 1) & "и"
+        End If
+    Else
+        Exit Function
+    End If
+
+    partResult = mp_ApplyWordCase(originalPart, outLow)
+    mp_InflectNamePart = True
+End Function
+
+Private Function mp_InflectPatronymicPart(ByVal originalPart As String, ByVal gender As String, ByRef partResult As String) As Boolean
+    Dim low As String
+    low = LCase$(originalPart)
+
+    Dim exceptions As Object
+    Set exceptions = mp_GetPatronymicExceptionsDict()
+    If exceptions.Exists(low) Then
+        partResult = mp_ApplyWordCase(originalPart, exceptions(low))
+        mp_InflectPatronymicPart = True
+        Exit Function
+    End If
+
+    Dim outLow As String
+    outLow = low
+
+    If gender = "male" Then
+        If mp_EndsWith(low, "ович") Or mp_EndsWith(low, "евич") Or mp_EndsWith(low, "йович") Then
+            outLow = low & "а"
+        End If
+    ElseIf gender = "female" Then
+        If mp_EndsWith(low, "івна") Or mp_EndsWith(low, "ївна") Or mp_EndsWith(low, "овна") Or mp_EndsWith(low, "евна") Then
+            outLow = Left$(low, Len(low) - 1) & "и"
+        End If
+    Else
+        Exit Function
+    End If
+
+    partResult = mp_ApplyWordCase(originalPart, outLow)
+    mp_InflectPatronymicPart = True
+End Function
+
+Private Function mp_IsIndeclinableSurname(ByVal lowSurname As String, ByVal gender As String) As Boolean
+    If mp_EndsWith(lowSurname, "енко") Or mp_EndsWith(lowSurname, "ко") Then
+        mp_IsIndeclinableSurname = True
+        Exit Function
+    End If
+
+    If gender = "female" Then
+        If mp_EndsWithConsonant(lowSurname) Or mp_EndsWith(lowSurname, "о") Then
+            mp_IsIndeclinableSurname = True
+        End If
+    End If
+End Function
+
+Private Function mp_ApplyWordCase(ByVal sourceWord As String, ByVal inflectedLower As String) As String
+    If sourceWord = UCase$(sourceWord) Then
+        mp_ApplyWordCase = UCase$(inflectedLower)
+    ElseIf sourceWord = LCase$(sourceWord) Then
+        mp_ApplyWordCase = LCase$(inflectedLower)
+    Else
+        mp_ApplyWordCase = mp_ToTitleCaseWord(inflectedLower)
+    End If
+End Function
+
+Private Function mp_ToTitleCaseWord(ByVal textValue As String) As String
+    Dim parts() As String
+    parts = Split(textValue, "-")
+
+    Dim i As Long
+    Dim part As String
+    For i = LBound(parts) To UBound(parts)
+        part = LCase$(parts(i))
+        If Len(part) > 0 Then
+            parts(i) = UCase$(Left$(part, 1)) & Mid$(part, 2)
+        End If
+    Next i
+
+    mp_ToTitleCaseWord = Join(parts, "-")
+End Function
+
+Private Function mp_EndsWith(ByVal textValue As String, ByVal suffix As String) As Boolean
+    If Len(textValue) < Len(suffix) Then Exit Function
+    mp_EndsWith = (Right$(textValue, Len(suffix)) = suffix)
+End Function
+
+Private Function mp_EndsWithConsonant(ByVal textValue As String) As Boolean
+    If Len(textValue) = 0 Then Exit Function
+    Dim ch As String
+    ch = Right$(textValue, 1)
+    mp_EndsWithConsonant = (InStr("бвгґджзйклмнпрстфхцчшщ", ch) > 0)
+End Function
+
+Private Function mp_GetNameExceptionsDict() As Object
+    Dim d As Object
+    Set d = CreateObject("Scripting.Dictionary")
+    d.CompareMode = 1 ' TextCompare
+
+    d("ілля") = "іллі"
+    d("лев") = "лева"
+    d("любов") = "любові"
+    d("матвій") = "матвія"
+    d("лука") = "луки"
+
+    Set mp_GetNameExceptionsDict = d
+End Function
+
+Private Function mp_GetSurnameExceptionsDict() As Object
+    Dim d As Object
+    Set d = CreateObject("Scripting.Dictionary")
+    d.CompareMode = 1 ' TextCompare
+
+    ' Дополняется по мере накопления кейсов.
+    d("середа") = "середи"
+
+    Set mp_GetSurnameExceptionsDict = d
+End Function
+
+Private Function mp_GetPatronymicExceptionsDict() As Object
+    Dim d As Object
+    Set d = CreateObject("Scripting.Dictionary")
+    d.CompareMode = 1 ' TextCompare
+    Set mp_GetPatronymicExceptionsDict = d
+End Function
+
+Private Function mp_GetMaleNamesDict() As Object
+    Dim d As Object
+    Set d = CreateObject("Scripting.Dictionary")
+    d.CompareMode = 1 ' TextCompare
+
+    d("іван") = True
+    d("петро") = True
+    d("андрій") = True
+    d("олександр") = True
+    d("микола") = True
+    d("богдан") = True
+    d("тарас") = True
+    d("дмитро") = True
+    d("максим") = True
+    d("василь") = True
+    d("володимир") = True
+    d("юрій") = True
+    d("сергій") = True
+    d("степан") = True
+    d("роман") = True
+    d("павло") = True
+
+    Set mp_GetMaleNamesDict = d
+End Function
+
+Private Function mp_GetFemaleNamesDict() As Object
+    Dim d As Object
+    Set d = CreateObject("Scripting.Dictionary")
+    d.CompareMode = 1 ' TextCompare
+
+    d("марія") = True
+    d("олена") = True
+    d("наталія") = True
+    d("тетяна") = True
+    d("оксана") = True
+    d("ірина") = True
+    d("анна") = True
+    d("катерина") = True
+    d("людмила") = True
+    d("світлана") = True
+    d("юлія") = True
+    d("ольга") = True
+    d("вікторія") = True
+
+    Set mp_GetFemaleNamesDict = d
+End Function
+
+' ============================================
 ' Sequence cleanup
 ' ============================================
 
