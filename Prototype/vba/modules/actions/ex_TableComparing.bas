@@ -136,9 +136,12 @@ End Function
 
 Private Function mp_OpenWorkbookHidden(ByVal filePath As String) As Workbook
     Dim wb As Workbook
+    Dim snapshotPath As String
+
+    snapshotPath = ex_SourceSnapshot.m_GetSnapshotPath(filePath, "TablesComparing")
 
     Set wb = Workbooks.Open( _
-        Filename:=filePath, _
+        Filename:=snapshotPath, _
         ReadOnly:=True, _
         UpdateLinks:=0, _
         AddToMru:=False)

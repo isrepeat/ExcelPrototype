@@ -1,6 +1,6 @@
 ﻿<?xml version="1.0" standalone="yes"?>
 <profiles version="1" xmlns="urn:excelprototype:profiles">
-	<profile name="Default" resultZoom="115">
+	<profile name="Default" resultZoom="100">
 		<styles>
 			<config>
 				<column id="marker" width="5" align="middle-center" overflow="clip"/>
@@ -48,7 +48,7 @@
 		<v key=""/>
 		<v key="Output.Sheets">StateMain; EventsMain</v>
 	</profile>
-	<profile name="Test" resultZoom="115">
+	<profile name="Test" resultZoom="100">
 		<styles>
 			<config>
 				<column id="marker" width="5" align="middle-center" overflow="clip"/>
@@ -135,7 +135,7 @@
 			<control name="btnCustomMode" visible="true"/>
 		</ui>
 	</profile>
-		<profile name="Test2" resultZoom="115">
+		<profile name="Test2" resultZoom="85">
 		<styles>
 			<config>
 				<column id="marker" width="5" align="middle-center" overflow="clip"/>
