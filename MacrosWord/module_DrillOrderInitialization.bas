@@ -1112,13 +1112,17 @@ Public Sub m_Finalization()
 
     m_ReplaceSequences True
 
+    Dim removedProtectionMarkers As Long
+    removedProtectionMarkers = mp_RemoveProtectedNumberMarkersOutsideTemplateRegions(ActiveDocument, MP_TEMPLATE_START_LINE, MP_TEMPLATE_END_LINE)
+
     Dim removedTemplateBlocks As Long
     removedTemplateBlocks = mp_RemoveTemplateBlocksAndDelimiters(ActiveDocument, MP_TEMPLATE_START_LINE, MP_TEMPLATE_END_LINE)
 
     Dim highlightedHeadings As Long
     highlightedHeadings = mp_HighlightSectionHeadings(ActiveDocument, wdYellow)
 
-    mp_SetStatusBarMessage "Finalization: template blocks removed: " & removedTemplateBlocks & _
+    mp_SetStatusBarMessage "Finalization: protection markers removed: " & removedProtectionMarkers & _
+                           "; template blocks removed: " & removedTemplateBlocks & _
                            "; headings highlighted: " & highlightedHeadings
 
 Finalize:
@@ -1189,6 +1193,53 @@ Private Function mp_CollectTemplateRegionBounds(ByVal doc As Document, ByVal sta
     Next p
 
     Set mp_CollectTemplateRegionBounds = bounds
+End Function
+
+Private Function mp_RemoveProtectedNumberMarkersOutsideTemplateRegions(ByVal doc As Document, ByVal startLine As String, ByVal endLine As String) As Long
+    Dim mainStory As Range
+    Set mainStory = doc.StoryRanges(wdMainTextStory)
+    If mainStory Is Nothing Then Exit Function
+
+    Dim protectedBounds As Collection
+    Set protectedBounds = mp_CollectTemplateRegionBounds(doc, startLine, endLine)
+
+    Dim regex As Object
+    Set regex = CreateObject("VBScript.RegExp")
+    regex.Global = False
+    regex.IgnoreCase = False
+    regex.Pattern = "^(\s*)\^\s*([0-9Nn]+(?:\.[0-9Nn]+)*)(\.?)(?=$|[\s\)\]\}\.;,:/\\\-–—])(\s*.*)$"
+
+    Dim i As Long
+    Dim pRange As Range
+    Dim bodyText As String
+    Dim trailingText As String
+    Dim matches As Object
+    Dim newBody As String
+
+    For i = mainStory.Paragraphs.Count To 1 Step -1
+        Set pRange = mainStory.Paragraphs(i).Range
+        If mp_IsPositionInProtectedBounds(pRange.Start, protectedBounds) Then GoTo ContinueLoop
+
+        bodyText = vbNullString
+        trailingText = vbNullString
+        mp_SplitTrailingLineBreaks pRange.Text, bodyText, trailingText
+        If Len(bodyText) = 0 Then GoTo ContinueLoop
+
+        Set matches = regex.Execute(bodyText)
+        If matches.Count = 0 Then GoTo ContinueLoop
+
+        newBody = CStr(matches(0).SubMatches(0)) & _
+                  CStr(matches(0).SubMatches(1)) & _
+                  CStr(matches(0).SubMatches(2)) & _
+                  CStr(matches(0).SubMatches(3))
+
+        If StrComp(newBody, bodyText, vbBinaryCompare) <> 0 Then
+            pRange.Text = newBody & trailingText
+            mp_RemoveProtectedNumberMarkersOutsideTemplateRegions = mp_RemoveProtectedNumberMarkersOutsideTemplateRegions + 1
+        End If
+
+ContinueLoop:
+    Next i
 End Function
 
 Private Function mp_HighlightSectionHeadings(ByVal doc As Document, ByVal highlightColor As WdColorIndex) As Long
