@@ -2953,6 +2953,8 @@ Private Function mp_InflectSurnamePart(ByVal originalPart As String, ByVal gende
             outLow = Left$(low, Len(low) - 5) & "цького"
         ElseIf mp_EndsWith(low, "зький") Then
             outLow = Left$(low, Len(low) - 5) & "зького"
+        ElseIf mp_EndsWith(low, "ой") Or mp_EndsWith(low, "ый") Then
+            outLow = Left$(low, Len(low) - 2) & "ого"
         ElseIf mp_EndsWith(low, "ець") Then
             outLow = mp_InflectLowWordEndingEtsToGenitive(low)
         ElseIf mp_EndsWith(low, "ий") Then
@@ -2965,6 +2967,8 @@ Private Function mp_InflectSurnamePart(ByVal originalPart As String, ByVal gende
             outLow = Left$(low, Len(low) - 1) & "и"
         ElseIf mp_EndsWith(low, "я") Then
             outLow = Left$(low, Len(low) - 1) & "і"
+        ElseIf mp_EndsWith(low, "ь") Then
+            outLow = Left$(low, Len(low) - 1) & "я"
         ElseIf mp_EndsWithConsonant(low) Then
             outLow = low & "а"
         End If
@@ -3093,6 +3097,8 @@ Private Function mp_InflectSurnamePartToAccusative(ByVal originalPart As String,
             outLow = Left$(low, Len(low) - 5) & "цького"
         ElseIf mp_EndsWith(low, "зький") Then
             outLow = Left$(low, Len(low) - 5) & "зького"
+        ElseIf mp_EndsWith(low, "ой") Or mp_EndsWith(low, "ый") Then
+            outLow = Left$(low, Len(low) - 2) & "ого"
         ElseIf mp_EndsWith(low, "ець") Then
             outLow = mp_InflectLowWordEndingEtsToGenitive(low)
         ElseIf mp_EndsWith(low, "ий") Then
@@ -3105,6 +3111,8 @@ Private Function mp_InflectSurnamePartToAccusative(ByVal originalPart As String,
             outLow = Left$(low, Len(low) - 1) & "у"
         ElseIf mp_EndsWith(low, "я") Then
             outLow = Left$(low, Len(low) - 1) & "ю"
+        ElseIf mp_EndsWith(low, "ь") Then
+            outLow = Left$(low, Len(low) - 1) & "я"
         ElseIf mp_EndsWithConsonant(low) Then
             outLow = low & "а"
         End If
@@ -3277,6 +3285,7 @@ Private Function mp_GetCommonWordExceptionsDict() As Object
     d("офіцер") = "офіцера"
     d("начальник") = "начальника"
     d("штаб") = "штабу"
+    d("майстер") = "майстру"
 
     Set mp_GetCommonWordExceptionsDict = d
 End Function
