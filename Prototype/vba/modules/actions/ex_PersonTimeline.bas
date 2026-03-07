@@ -1918,6 +1918,7 @@ End Function
 Private Function mp_GetConnectionForSource(ByVal connCache As Object, ByVal cfg As Object, ByVal sourceAlias As String) As Object
     Dim fileKey As String
     Dim sourcePath As String
+    Dim snapshotPath As String
     Dim conn As Object
 
     If connCache.Exists(sourceAlias) Then
@@ -1932,9 +1933,11 @@ Private Function mp_GetConnectionForSource(ByVal connCache As Object, ByVal cfg 
         Err.Raise vbObjectError + 1360, "ex_PersonTimeline", "Source file not found: " & sourcePath
     End If
 
+    snapshotPath = ex_SourceSnapshot.m_GetSnapshotPath(sourcePath, "Source." & sourceAlias)
+
     Set conn = CreateObject("ADODB.Connection")
     On Error GoTo EH
-    conn.Open mp_BuildAdoConnectionString(sourcePath)
+    conn.Open mp_BuildAdoConnectionString(snapshotPath)
     On Error GoTo 0
 
     connCache.Add sourceAlias, conn
@@ -1943,7 +1946,7 @@ Private Function mp_GetConnectionForSource(ByVal connCache As Object, ByVal cfg 
 
 EH:
     Err.Raise vbObjectError + 1362, "ex_PersonTimeline", _
-        "ADO connection failed for source '" & sourceAlias & "' (" & sourcePath & "): " & Err.Description
+        "ADO connection failed for source '" & sourceAlias & "' (source: " & sourcePath & ", snapshot: " & snapshotPath & "): " & Err.Description
 End Function
 
 Private Sub mp_CloseConnections(ByVal connCache As Object)
@@ -2773,6 +2776,8 @@ Private Function mp_ToCellValue(ByVal valueIn As Variant) As Variant
 End Function
 
 Private Function mp_GetWorkbookForSource(ByVal wbCache As Object, ByVal cfg As Object, ByVal sourceAlias As String) As Workbook
+    Dim sourcePath As String
+    Dim snapshotPath As String
 
     If wbCache.Exists(sourceAlias) Then
         Set mp_GetWorkbookForSource = wbCache(sourceAlias)
@@ -2782,15 +2787,16 @@ Private Function mp_GetWorkbookForSource(ByVal wbCache As Object, ByVal cfg As O
     Dim fileKey As String
     fileKey = "Source." & sourceAlias & ".FilePath"
 
-    Dim sourcePath As String
     sourcePath = mp_ResolvePathLocal(mp_GetCfgRequired(cfg, fileKey))
 
     If Dir(sourcePath) = vbNullString Then
         Err.Raise vbObjectError + 1360, "ex_PersonTimeline", "Source file not found: " & sourcePath
     End If
 
+    snapshotPath = ex_SourceSnapshot.m_GetSnapshotPath(sourcePath, "Source." & sourceAlias)
+
     Dim wb As Workbook
-    Set wb = Workbooks.Open(Filename:=sourcePath, ReadOnly:=True, UpdateLinks:=0)
+    Set wb = Workbooks.Open(Filename:=snapshotPath, ReadOnly:=True, UpdateLinks:=0)
 
     On Error Resume Next
     wb.Windows(1).Visible = False
