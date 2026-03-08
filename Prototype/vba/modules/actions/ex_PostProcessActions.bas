@@ -1,10 +1,15 @@
 Attribute VB_Name = "ex_PostProcessActions"
 Option Explicit
 
-Private Const PROFILES_NS As String = "urn:excelprototype:profiles"
-Private Const SHEET_STYLES_REL_PATH As String = "config\SheetStyles.xml"
-Private Const POST_PROCESS_HEADER_STYLE_LABEL As String = "post process header style"
-Private Const POST_PROCESS_FOOTER_STYLE_LABEL As String = "post process footer style"
+Private Const POST_PROCESS_STYLE_STAGE_NAME As String = "postProcess"
+Private Const POST_PROCESS_HEADER_LAYER_ID As String = "pc-postprocess-header"
+Private Const POST_PROCESS_FOOTER_LAYER_ID As String = "pc-postprocess-footer"
+Private Const POST_PROCESS_MEASURE_SIDE_MARGIN As Double = 3
+Private Const POST_PROCESS_MEASURE_VERTICAL_MARGIN As Double = 1
+Private Const POST_PROCESS_MEASURE_EXTRA_HEIGHT_BASE As Double = 14
+Private Const POST_PROCESS_MEASURE_EXTRA_HEIGHT_MIN As Double = 8
+Private Const POST_PROCESS_MEASURE_EXTRA_HEIGHT_FONT_FACTOR As Double = 1
+Private Const POST_PROCESS_MEASURE_HEIGHT_ROUND_PAD As Double = 1
 
 Private Type t_PostProcessHeaderStyle
     Columns As Long
@@ -14,6 +19,8 @@ Private Type t_PostProcessHeaderStyle
     FontSize As Double
     RowHeight As Double
     AutoHeight As Boolean
+    AutoHeightMarginTop As Double
+    AutoHeightMarginBottom As Double
 End Type
 
 Private Type t_PostProcessFooterStyle
@@ -24,10 +31,15 @@ Private Type t_PostProcessFooterStyle
     FontSize As Double
     RowHeight As Double
     AutoHeight As Boolean
+    AutoHeightMarginTop As Double
+    AutoHeightMarginBottom As Double
 End Type
 
 Private g_PostProcessHeaderSheetKey As String
 Private g_PostProcessHeaderNextInsertRow As Long
+Private g_PostProcessFooterSheetKey As String
+Private g_PostProcessFooterRowIndex As Long
+Private g_PostProcessFooterHasAppended As Boolean
 
 Public Sub m_HighlightRow( _
     ByVal rowRef As obj_ResultRow, _
@@ -319,6 +331,16 @@ Public Sub m_ResetPostProcessHeaderCursor(Optional ByVal targetSheet As Workshee
     End If
 End Sub
 
+Public Sub m_ResetPostProcessFooterCursor(Optional ByVal targetSheet As Worksheet)
+    g_PostProcessFooterRowIndex = 0
+    g_PostProcessFooterHasAppended = False
+    If targetSheet Is Nothing Then
+        g_PostProcessFooterSheetKey = vbNullString
+    Else
+        g_PostProcessFooterSheetKey = mp_BuildSheetKey(targetSheet)
+    End If
+End Sub
+
 Public Sub m_AppendPostProcessHeaderText(ByVal postProcessHeaderText As String)
     Dim ws As Worksheet
     Dim insertRow As Long
@@ -430,108 +452,358 @@ Public Sub m_AppendPostProcessFooterText(ByVal postProcessFooterText As String)
     mp_ApplyPostProcessFooterRowHeight ws, postProcessFooterRange, postProcessFooterText, postProcessFooterStyle
 End Sub
 
+Public Sub m_AppendToSinglePostProcessFooterText( _
+    ByVal appendText As String, _
+    Optional ByVal separatorText As String = vbLf _
+)
+    Dim ws As Worksheet
+    Dim postProcessFooterStyle As t_PostProcessFooterStyle
+    Dim postProcessFooterRange As Range
+    Dim currentText As String
+    Dim mergedText As String
+
+    If Len(appendText) = 0 Then Exit Sub
+    Set ws = ActiveSheet
+    If ws Is Nothing Then Exit Sub
+
+    If Not mp_TryLoadPostProcessFooterStyle(postProcessFooterStyle) Then
+        Err.Raise vbObjectError + 1682, "ex_PostProcessActions", "Unable to apply single postProcessFooter text: invalid '/sheetStyles/postProcessFooterStyle'."
+    End If
+
+    Set postProcessFooterRange = mp_GetOrCreateSinglePostProcessFooterRange(ws, postProcessFooterStyle)
+    If g_PostProcessFooterHasAppended Then
+        currentText = CStr(postProcessFooterRange.Cells(1, 1).Value)
+    Else
+        currentText = vbNullString
+    End If
+    mergedText = m_TextAppend(currentText, appendText, separatorText)
+    postProcessFooterRange.Cells(1, 1).Value = mergedText
+
+    mp_ApplyPostProcessFooterRowHeight ws, postProcessFooterRange, mergedText, postProcessFooterStyle
+    g_PostProcessFooterHasAppended = True
+End Sub
+
+Public Function m_GetRelativeDayOfMonth(ByVal dayOffsetText As String) As String
+    Dim dayOffset As Long
+    dayOffsetText = Trim$(dayOffsetText)
+    If Not ex_XmlCore.m_TryParseLong(dayOffsetText, dayOffset) Then
+        Err.Raise vbObjectError + 1687, "ex_PostProcessActions", "Day offset must be integer."
+    End If
+    m_GetRelativeDayOfMonth = Format$(DateAdd("d", dayOffset, Date), "dd")
+End Function
+
+Public Function m_GetRelativeRowCellText( _
+    ByVal rowRef As Object, _
+    ByVal rowOffsetText As String, _
+    ByVal columnRef As String _
+) As String
+    Dim sourceRowRef As obj_ResultRow
+    Dim ws As Worksheet
+    Dim rowOffset As Long
+    Dim targetCol As Long
+    Dim targetRow As Long
+
+    If rowRef Is Nothing Then
+        Err.Raise vbObjectError + 1688, "ex_PostProcessActions", "Row reference is required for relative row read."
+    End If
+    If Not TypeOf rowRef Is obj_ResultRow Then
+        Err.Raise vbObjectError + 1695, "ex_PostProcessActions", "Row reference must be obj_ResultRow for relative row read."
+    End If
+    Set sourceRowRef = rowRef
+
+    rowOffsetText = Trim$(rowOffsetText)
+    If Not ex_XmlCore.m_TryParseLong(rowOffsetText, rowOffset) Then
+        Err.Raise vbObjectError + 1689, "ex_PostProcessActions", "Row offset must be integer."
+    End If
+
+    If Not mp_TryResolveColumnIndexInRow(sourceRowRef, columnRef, targetCol) Then
+        Err.Raise vbObjectError + 1690, "ex_PostProcessActions", "Unknown column reference '" & columnRef & "' for relative row read."
+    End If
+
+    Set ws = ActiveSheet
+    If ws Is Nothing Then
+        Err.Raise vbObjectError + 1691, "ex_PostProcessActions", "Active sheet is not available for relative row read."
+    End If
+
+    targetRow = sourceRowRef.RowIndex + rowOffset
+    If targetRow < 1 Then Exit Function
+    If targetRow > ws.Rows.Count Then Exit Function
+
+    m_GetRelativeRowCellText = Trim$(CStr(ws.Cells(targetRow, targetCol).Value))
+End Function
+
+Public Function m_GetRelativeRow( _
+    ByVal rowRef As Object, _
+    ByVal rowOffsetText As String _
+) As obj_ResultRow
+    Dim sourceRowRef As obj_ResultRow
+    Dim ws As Worksheet
+    Dim rowOffset As Long
+    Dim targetRow As Long
+    Dim sourceColumns As Collection
+    Dim i As Long
+    Dim colObj As obj_ResultColumn
+    Dim valueText As String
+    Dim resultRow As obj_ResultRow
+    Dim hasTargetRow As Boolean
+
+    If rowRef Is Nothing Then
+        Err.Raise vbObjectError + 1692, "ex_PostProcessActions", "Row reference is required for relative row read."
+    End If
+    If Not TypeOf rowRef Is obj_ResultRow Then
+        Err.Raise vbObjectError + 1696, "ex_PostProcessActions", "Row reference must be obj_ResultRow for relative row read."
+    End If
+    Set sourceRowRef = rowRef
+
+    rowOffsetText = Trim$(rowOffsetText)
+    If Not ex_XmlCore.m_TryParseLong(rowOffsetText, rowOffset) Then
+        Err.Raise vbObjectError + 1693, "ex_PostProcessActions", "Row offset must be integer."
+    End If
+
+    Set ws = ActiveSheet
+    If ws Is Nothing Then
+        Err.Raise vbObjectError + 1694, "ex_PostProcessActions", "Active sheet is not available for relative row read."
+    End If
+
+    targetRow = sourceRowRef.RowIndex + rowOffset
+    hasTargetRow = (targetRow >= 1 And targetRow <= ws.Rows.Count)
+
+    Set resultRow = New obj_ResultRow
+    If hasTargetRow Then
+        resultRow.Initialize targetRow
+    Else
+        resultRow.Initialize sourceRowRef.RowIndex
+    End If
+
+    Set sourceColumns = sourceRowRef.Columns
+    For i = 1 To sourceColumns.Count
+        Set colObj = sourceColumns(i)
+        If hasTargetRow Then
+            valueText = Trim$(CStr(ws.Cells(targetRow, i).Value))
+        Else
+            valueText = vbNullString
+        End If
+        resultRow.SetValue colObj.Alias, colObj.MapKey, valueText
+    Next i
+
+    Set m_GetRelativeRow = resultRow
+End Function
+
 Private Function mp_TryLoadPostProcessHeaderStyle(ByRef outStyle As t_PostProcessHeaderStyle) As Boolean
-    Dim doc As Object
-    Dim node As Object
-    Dim overflowText As String
-
-    Set doc = ex_XmlCore.m_LoadDomByRelativePath( _
-        ThisWorkbook, _
-        SHEET_STYLES_REL_PATH, _
-        PROFILES_NS, _
-        "Missing SheetStyles file: ", _
-        "Failed to parse SheetStyles file: " _
-    )
-    If doc Is Nothing Then Exit Function
-
-    Set node = doc.selectSingleNode("/p:sheetStyles/p:postProcessHeaderStyle")
-    If node Is Nothing Then
-        MsgBox "sheetStyles must contain '/sheetStyles/postProcessHeaderStyle'.", vbExclamation
-        Exit Function
-    End If
-
-    If Not ex_XmlCore.m_ReadRequiredAttrLong(node, "columns", outStyle.Columns, "postProcessHeaderStyle@columns", POST_PROCESS_HEADER_STYLE_LABEL) Then Exit Function
-    overflowText = LCase$(Trim$(ex_XmlCore.m_ReadRequiredAttrText(node, "overflow", "postProcessHeaderStyle@overflow", POST_PROCESS_HEADER_STYLE_LABEL)))
-    If Len(overflowText) = 0 Then Exit Function
-    Select Case overflowText
-        Case "wrap", "clip", "shrink"
-            outStyle.Overflow = overflowText
-        Case Else
-            MsgBox "Invalid value for postProcessHeader style attribute 'postProcessHeaderStyle@overflow': expected wrap, clip, or shrink.", vbExclamation
-            Exit Function
-    End Select
-    If Not ex_XmlCore.m_ReadRequiredAttrHexColor(node, "backColor", outStyle.BackColor, "postProcessHeaderStyle@backColor", POST_PROCESS_HEADER_STYLE_LABEL) Then Exit Function
-    If Not ex_XmlCore.m_ReadRequiredAttrHexColor(node, "fontColor", outStyle.FontColor, "postProcessHeaderStyle@fontColor", POST_PROCESS_HEADER_STYLE_LABEL) Then Exit Function
-    If Not ex_XmlCore.m_ReadRequiredAttrDouble(node, "fontSize", outStyle.FontSize, "postProcessHeaderStyle@fontSize", POST_PROCESS_HEADER_STYLE_LABEL) Then Exit Function
-    If Not ex_XmlCore.m_ReadRequiredAttrDouble(node, "rowHeight", outStyle.RowHeight, "postProcessHeaderStyle@rowHeight", POST_PROCESS_HEADER_STYLE_LABEL) Then Exit Function
-    If Not ex_XmlCore.m_ReadRequiredAttrBoolean(node, "autoHeight", outStyle.AutoHeight, "postProcessHeaderStyle@autoHeight", POST_PROCESS_HEADER_STYLE_LABEL) Then Exit Function
-
-    If outStyle.Columns < 1 Then
-        MsgBox "Invalid value for postProcessHeader style attribute 'postProcessHeaderStyle@columns': must be >= 1.", vbExclamation
-        Exit Function
-    End If
-    If outStyle.FontSize <= 0 Then
-        MsgBox "Invalid value for postProcessHeader style attribute 'postProcessHeaderStyle@fontSize': must be > 0.", vbExclamation
-        Exit Function
-    End If
-    If outStyle.RowHeight <= 0 Then
-        MsgBox "Invalid value for postProcessHeader style attribute 'postProcessHeaderStyle@rowHeight': must be > 0.", vbExclamation
-        Exit Function
-    End If
+    If Not mp_TryLoadPostProcessStyleByLayer( _
+        POST_PROCESS_HEADER_LAYER_ID, _
+        outStyle.Columns, _
+        outStyle.Overflow, _
+        outStyle.BackColor, _
+        outStyle.FontColor, _
+        outStyle.FontSize, _
+        outStyle.RowHeight, _
+        outStyle.AutoHeight, _
+        outStyle.AutoHeightMarginTop, _
+        outStyle.AutoHeightMarginBottom _
+    ) Then Exit Function
 
     mp_TryLoadPostProcessHeaderStyle = True
 End Function
 
 Private Function mp_TryLoadPostProcessFooterStyle(ByRef outStyle As t_PostProcessFooterStyle) As Boolean
-    Dim doc As Object
-    Dim node As Object
-    Dim overflowText As String
-
-    Set doc = ex_XmlCore.m_LoadDomByRelativePath( _
-        ThisWorkbook, _
-        SHEET_STYLES_REL_PATH, _
-        PROFILES_NS, _
-        "Missing SheetStyles file: ", _
-        "Failed to parse SheetStyles file: " _
-    )
-    If doc Is Nothing Then Exit Function
-
-    Set node = doc.selectSingleNode("/p:sheetStyles/p:postProcessFooterStyle")
-    If node Is Nothing Then
-        MsgBox "sheetStyles must contain '/sheetStyles/postProcessFooterStyle'.", vbExclamation
-        Exit Function
-    End If
-
-    If Not ex_XmlCore.m_ReadRequiredAttrLong(node, "columns", outStyle.Columns, "postProcessFooterStyle@columns", POST_PROCESS_FOOTER_STYLE_LABEL) Then Exit Function
-    overflowText = LCase$(Trim$(ex_XmlCore.m_ReadRequiredAttrText(node, "overflow", "postProcessFooterStyle@overflow", POST_PROCESS_FOOTER_STYLE_LABEL)))
-    If Len(overflowText) = 0 Then Exit Function
-    Select Case overflowText
-        Case "wrap", "clip", "shrink"
-            outStyle.Overflow = overflowText
-        Case Else
-            MsgBox "Invalid value for postProcessFooter style attribute 'postProcessFooterStyle@overflow': expected wrap, clip, or shrink.", vbExclamation
-            Exit Function
-    End Select
-    If Not ex_XmlCore.m_ReadRequiredAttrHexColor(node, "backColor", outStyle.BackColor, "postProcessFooterStyle@backColor", POST_PROCESS_FOOTER_STYLE_LABEL) Then Exit Function
-    If Not ex_XmlCore.m_ReadRequiredAttrHexColor(node, "fontColor", outStyle.FontColor, "postProcessFooterStyle@fontColor", POST_PROCESS_FOOTER_STYLE_LABEL) Then Exit Function
-    If Not ex_XmlCore.m_ReadRequiredAttrDouble(node, "fontSize", outStyle.FontSize, "postProcessFooterStyle@fontSize", POST_PROCESS_FOOTER_STYLE_LABEL) Then Exit Function
-    If Not ex_XmlCore.m_ReadRequiredAttrDouble(node, "rowHeight", outStyle.RowHeight, "postProcessFooterStyle@rowHeight", POST_PROCESS_FOOTER_STYLE_LABEL) Then Exit Function
-    If Not ex_XmlCore.m_ReadRequiredAttrBoolean(node, "autoHeight", outStyle.AutoHeight, "postProcessFooterStyle@autoHeight", POST_PROCESS_FOOTER_STYLE_LABEL) Then Exit Function
-
-    If outStyle.Columns < 1 Then
-        MsgBox "Invalid value for postProcessFooter style attribute 'postProcessFooterStyle@columns': must be >= 1.", vbExclamation
-        Exit Function
-    End If
-    If outStyle.FontSize <= 0 Then
-        MsgBox "Invalid value for postProcessFooter style attribute 'postProcessFooterStyle@fontSize': must be > 0.", vbExclamation
-        Exit Function
-    End If
-    If outStyle.RowHeight <= 0 Then
-        MsgBox "Invalid value for postProcessFooter style attribute 'postProcessFooterStyle@rowHeight': must be > 0.", vbExclamation
-        Exit Function
-    End If
+    If Not mp_TryLoadPostProcessStyleByLayer( _
+        POST_PROCESS_FOOTER_LAYER_ID, _
+        outStyle.Columns, _
+        outStyle.Overflow, _
+        outStyle.BackColor, _
+        outStyle.FontColor, _
+        outStyle.FontSize, _
+        outStyle.RowHeight, _
+        outStyle.AutoHeight, _
+        outStyle.AutoHeightMarginTop, _
+        outStyle.AutoHeightMarginBottom _
+    ) Then Exit Function
 
     mp_TryLoadPostProcessFooterStyle = True
+End Function
+
+Private Function mp_TryLoadPostProcessStyleByLayer( _
+    ByVal layerId As String, _
+    ByRef outColumns As Long, _
+    ByRef outOverflow As String, _
+    ByRef outBackColor As Long, _
+    ByRef outFontColor As Long, _
+    ByRef outFontSize As Double, _
+    ByRef outRowHeight As Double, _
+    ByRef outAutoHeight As Boolean, _
+    ByRef outAutoHeightMarginTop As Double, _
+    ByRef outAutoHeightMarginBottom As Double _
+) As Boolean
+    Dim ws As Worksheet
+    Dim pageName As String
+    Dim stageLayers As Collection
+    Dim layerObj As obj_StyleLayer
+    Dim ruleObj As obj_StyleRule
+    Dim declarations As Object
+    Dim textValue As String
+
+    Set ws = ActiveSheet
+    If ws Is Nothing Then
+        MsgBox "Active sheet is not available for post-process style loading.", vbExclamation
+        Exit Function
+    End If
+    pageName = Trim$(ws.Name)
+    If Len(pageName) = 0 Then
+        MsgBox "Active sheet name is empty for post-process style loading.", vbExclamation
+        Exit Function
+    End If
+
+    Set stageLayers = ex_StylePipelineEngine.m_LoadSheetPipelineLayers(pageName, ThisWorkbook, POST_PROCESS_STYLE_STAGE_NAME)
+    If stageLayers Is Nothing Or stageLayers.Count = 0 Then
+        MsgBox "StylePipeline has no stage '" & POST_PROCESS_STYLE_STAGE_NAME & "' for page '" & pageName & "'.", vbExclamation
+        Exit Function
+    End If
+
+    Set layerObj = ex_StylePipelineEngine.m_GetLayer(stageLayers, layerId)
+    If layerObj Is Nothing Then
+        MsgBox "StylePipeline stage '" & POST_PROCESS_STYLE_STAGE_NAME & "' must contain layer '" & layerId & "' for page '" & pageName & "'.", vbExclamation
+        Exit Function
+    End If
+    If layerObj.RuleCount <= 0 Then
+        MsgBox "StylePipeline layer '" & layerId & "' must contain at least one rule with style declarations.", vbExclamation
+        Exit Function
+    End If
+
+    Set ruleObj = layerObj.Rules(1)
+    If ruleObj Is Nothing Then
+        MsgBox "StylePipeline layer '" & layerId & "' has invalid first rule.", vbExclamation
+        Exit Function
+    End If
+    Set declarations = ruleObj.Declarations
+    If declarations Is Nothing Then
+        MsgBox "StylePipeline layer '" & layerId & "' has empty declarations.", vbExclamation
+        Exit Function
+    End If
+
+    textValue = mp_ReadRequiredDeclText(declarations, "mergeColumns", layerId)
+    If Len(textValue) = 0 Then Exit Function
+    If Not ex_XmlCore.m_TryParseLong(textValue, outColumns) Then
+        MsgBox "Invalid declaration 'mergeColumns' in style layer '" & layerId & "': expected integer.", vbExclamation
+        Exit Function
+    End If
+    If outColumns < 1 Then
+        MsgBox "Invalid declaration 'mergeColumns' in style layer '" & layerId & "': must be >= 1.", vbExclamation
+        Exit Function
+    End If
+
+    outOverflow = LCase$(mp_ReadRequiredDeclText(declarations, "overflow", layerId))
+    If Len(outOverflow) = 0 Then Exit Function
+    Select Case outOverflow
+        Case "wrap", "clip", "shrink"
+        Case Else
+            MsgBox "Invalid declaration 'overflow' in style layer '" & layerId & "': expected wrap, clip, or shrink.", vbExclamation
+            Exit Function
+    End Select
+
+    textValue = mp_ReadRequiredDeclText(declarations, "backColor", layerId)
+    If Len(textValue) = 0 Then Exit Function
+    If Not ex_XmlCore.m_TryParseColor(textValue, outBackColor) Then
+        MsgBox "Invalid declaration 'backColor' in style layer '" & layerId & "'.", vbExclamation
+        Exit Function
+    End If
+
+    textValue = mp_ReadRequiredDeclText(declarations, "fontColor", layerId)
+    If Len(textValue) = 0 Then Exit Function
+    If Not ex_XmlCore.m_TryParseColor(textValue, outFontColor) Then
+        MsgBox "Invalid declaration 'fontColor' in style layer '" & layerId & "'.", vbExclamation
+        Exit Function
+    End If
+
+    textValue = mp_ReadRequiredDeclText(declarations, "fontSize", layerId)
+    If Len(textValue) = 0 Then Exit Function
+    If Not ex_XmlCore.m_TryParseDouble(textValue, outFontSize, True) Then
+        MsgBox "Invalid declaration 'fontSize' in style layer '" & layerId & "': expected number.", vbExclamation
+        Exit Function
+    End If
+    If outFontSize <= 0 Then
+        MsgBox "Invalid declaration 'fontSize' in style layer '" & layerId & "': must be > 0.", vbExclamation
+        Exit Function
+    End If
+
+    textValue = mp_ReadRequiredDeclText(declarations, "rowHeight", layerId)
+    If Len(textValue) = 0 Then Exit Function
+    If Not ex_XmlCore.m_TryParseDouble(textValue, outRowHeight, True) Then
+        MsgBox "Invalid declaration 'rowHeight' in style layer '" & layerId & "': expected number.", vbExclamation
+        Exit Function
+    End If
+    If outRowHeight <= 0 Then
+        MsgBox "Invalid declaration 'rowHeight' in style layer '" & layerId & "': must be > 0.", vbExclamation
+        Exit Function
+    End If
+
+    textValue = mp_ReadRequiredDeclText(declarations, "autoHeight", layerId)
+    If Len(textValue) = 0 Then Exit Function
+    If Not ex_XmlCore.m_TryParseBoolean(textValue, outAutoHeight) Then
+        MsgBox "Invalid declaration 'autoHeight' in style layer '" & layerId & "': expected true/false.", vbExclamation
+        Exit Function
+    End If
+
+    If Not mp_TryReadOptionalDeclNonNegativeDouble(declarations, "customAutoHeight-margin-top", layerId, outAutoHeightMarginTop) Then Exit Function
+    If Not mp_TryReadOptionalDeclNonNegativeDouble(declarations, "customAutoHeight-margin-bottom", layerId, outAutoHeightMarginBottom) Then Exit Function
+
+    mp_TryLoadPostProcessStyleByLayer = True
+End Function
+
+Private Function mp_ReadRequiredDeclText( _
+    ByVal declarations As Object, _
+    ByVal propertyName As String, _
+    ByVal layerId As String _
+) As String
+    Dim key As String
+
+    key = LCase$(Trim$(propertyName))
+    If Len(key) = 0 Then Exit Function
+    If declarations Is Nothing Then Exit Function
+
+    If Not declarations.Exists(key) Then
+        MsgBox "Missing declaration '" & propertyName & "' in style layer '" & layerId & "'.", vbExclamation
+        Exit Function
+    End If
+
+    mp_ReadRequiredDeclText = Trim$(CStr(declarations(key)))
+End Function
+
+Private Function mp_TryReadOptionalDeclNonNegativeDouble( _
+    ByVal declarations As Object, _
+    ByVal propertyName As String, _
+    ByVal layerId As String, _
+    ByRef outValue As Double _
+) As Boolean
+    Dim key As String
+    Dim textValue As String
+
+    outValue = 0
+    key = LCase$(Trim$(propertyName))
+    If Len(key) = 0 Then
+        mp_TryReadOptionalDeclNonNegativeDouble = True
+        Exit Function
+    End If
+    If declarations Is Nothing Then
+        mp_TryReadOptionalDeclNonNegativeDouble = True
+        Exit Function
+    End If
+    If Not declarations.Exists(key) Then
+        mp_TryReadOptionalDeclNonNegativeDouble = True
+        Exit Function
+    End If
+
+    textValue = Trim$(CStr(declarations(key)))
+    If Not ex_XmlCore.m_TryParseDouble(textValue, outValue, True) Then
+        MsgBox "Invalid declaration '" & propertyName & "' in style layer '" & layerId & "': expected number >= 0.", vbExclamation
+        Exit Function
+    End If
+    If outValue < 0 Then
+        MsgBox "Invalid declaration '" & propertyName & "' in style layer '" & layerId & "': expected number >= 0.", vbExclamation
+        Exit Function
+    End If
+
+    mp_TryReadOptionalDeclNonNegativeDouble = True
 End Function
 
 Private Sub mp_ApplyPostProcessHeaderRowHeight( _
@@ -555,6 +827,7 @@ Private Sub mp_ApplyPostProcessHeaderRowHeight( _
     End If
 
     measuredHeight = mp_MeasurePostProcessHeaderTextHeight(ws, postProcessHeaderRange, postProcessHeaderText, postProcessHeaderStyle.FontSize)
+    measuredHeight = measuredHeight + postProcessHeaderStyle.AutoHeightMarginTop + postProcessHeaderStyle.AutoHeightMarginBottom
     If measuredHeight <= 0 Then
         ws.Rows(targetRow).RowHeight = postProcessHeaderStyle.RowHeight
         Exit Sub
@@ -563,7 +836,7 @@ Private Sub mp_ApplyPostProcessHeaderRowHeight( _
     If measuredHeight < postProcessHeaderStyle.RowHeight Then
         ws.Rows(targetRow).RowHeight = postProcessHeaderStyle.RowHeight
     Else
-        ws.Rows(targetRow).RowHeight = measuredHeight
+        ws.Rows(targetRow).RowHeight = mp_RoundUpMeasuredHeight(measuredHeight)
     End If
 End Sub
 
@@ -588,6 +861,7 @@ Private Sub mp_ApplyPostProcessFooterRowHeight( _
     End If
 
     measuredHeight = mp_MeasurePostProcessFooterTextHeight(ws, postProcessFooterRange, postProcessFooterText, postProcessFooterStyle.FontSize)
+    measuredHeight = measuredHeight + postProcessFooterStyle.AutoHeightMarginTop + postProcessFooterStyle.AutoHeightMarginBottom
     If measuredHeight <= 0 Then
         ws.Rows(targetRow).RowHeight = postProcessFooterStyle.RowHeight
         Exit Sub
@@ -596,7 +870,7 @@ Private Sub mp_ApplyPostProcessFooterRowHeight( _
     If measuredHeight < postProcessFooterStyle.RowHeight Then
         ws.Rows(targetRow).RowHeight = postProcessFooterStyle.RowHeight
     Else
-        ws.Rows(targetRow).RowHeight = measuredHeight
+        ws.Rows(targetRow).RowHeight = mp_RoundUpMeasuredHeight(measuredHeight)
     End If
 End Sub
 
@@ -616,17 +890,17 @@ Private Function mp_MeasurePostProcessHeaderTextHeight( _
     Set textBoxShape = ws.Shapes.AddTextbox(1, postProcessHeaderRange.Left, postProcessHeaderRange.Top, postProcessHeaderRange.Width, 8)
     textBoxShape.Line.Visible = 0
     textBoxShape.Fill.Visible = 0
-    textBoxShape.TextFrame2.MarginLeft = 0
-    textBoxShape.TextFrame2.MarginRight = 0
-    textBoxShape.TextFrame2.MarginTop = 0
-    textBoxShape.TextFrame2.MarginBottom = 0
+    textBoxShape.TextFrame2.MarginLeft = POST_PROCESS_MEASURE_SIDE_MARGIN
+    textBoxShape.TextFrame2.MarginRight = POST_PROCESS_MEASURE_SIDE_MARGIN
+    textBoxShape.TextFrame2.MarginTop = POST_PROCESS_MEASURE_VERTICAL_MARGIN
+    textBoxShape.TextFrame2.MarginBottom = POST_PROCESS_MEASURE_VERTICAL_MARGIN
     textBoxShape.TextFrame2.WordWrap = -1
     textBoxShape.TextFrame2.AutoSize = 1
     textBoxShape.TextFrame2.TextRange.Text = postProcessHeaderText
     textBoxShape.TextFrame2.TextRange.Font.Size = fontSize
     textBoxShape.TextFrame2.TextRange.Font.Name = CStr(postProcessHeaderRange.Font.Name)
 
-    mp_MeasurePostProcessHeaderTextHeight = textBoxShape.Height + 2
+    mp_MeasurePostProcessHeaderTextHeight = textBoxShape.Height + mp_GetMeasureExtraHeight(fontSize)
 
 Cleanup:
     On Error Resume Next
@@ -655,17 +929,17 @@ Private Function mp_MeasurePostProcessFooterTextHeight( _
     Set textBoxShape = ws.Shapes.AddTextbox(1, postProcessFooterRange.Left, postProcessFooterRange.Top, postProcessFooterRange.Width, 8)
     textBoxShape.Line.Visible = 0
     textBoxShape.Fill.Visible = 0
-    textBoxShape.TextFrame2.MarginLeft = 0
-    textBoxShape.TextFrame2.MarginRight = 0
-    textBoxShape.TextFrame2.MarginTop = 0
-    textBoxShape.TextFrame2.MarginBottom = 0
+    textBoxShape.TextFrame2.MarginLeft = POST_PROCESS_MEASURE_SIDE_MARGIN
+    textBoxShape.TextFrame2.MarginRight = POST_PROCESS_MEASURE_SIDE_MARGIN
+    textBoxShape.TextFrame2.MarginTop = POST_PROCESS_MEASURE_VERTICAL_MARGIN
+    textBoxShape.TextFrame2.MarginBottom = POST_PROCESS_MEASURE_VERTICAL_MARGIN
     textBoxShape.TextFrame2.WordWrap = -1
     textBoxShape.TextFrame2.AutoSize = 1
     textBoxShape.TextFrame2.TextRange.Text = postProcessFooterText
     textBoxShape.TextFrame2.TextRange.Font.Size = fontSize
     textBoxShape.TextFrame2.TextRange.Font.Name = CStr(postProcessFooterRange.Font.Name)
 
-    mp_MeasurePostProcessFooterTextHeight = textBoxShape.Height + 2
+    mp_MeasurePostProcessFooterTextHeight = textBoxShape.Height + mp_GetMeasureExtraHeight(fontSize)
 
 Cleanup:
     On Error Resume Next
@@ -697,6 +971,25 @@ Private Function mp_GetLastUsedColumn(ByVal ws As Worksheet) As Long
     On Error GoTo ExitFn
     mp_GetLastUsedColumn = ws.Cells.Find(What:="*", SearchOrder:=xlByColumns, SearchDirection:=xlPrevious).Column
 ExitFn:
+End Function
+
+Private Function mp_GetMeasureExtraHeight(ByVal fontSize As Double) As Double
+    Dim dynamicExtra As Double
+
+    dynamicExtra = fontSize * POST_PROCESS_MEASURE_EXTRA_HEIGHT_FONT_FACTOR
+    If dynamicExtra < POST_PROCESS_MEASURE_EXTRA_HEIGHT_MIN Then
+        dynamicExtra = POST_PROCESS_MEASURE_EXTRA_HEIGHT_MIN
+    End If
+
+    mp_GetMeasureExtraHeight = POST_PROCESS_MEASURE_EXTRA_HEIGHT_BASE + dynamicExtra
+End Function
+
+Private Function mp_RoundUpMeasuredHeight(ByVal measuredHeight As Double) As Double
+    Dim roundedHeight As Double
+
+    If measuredHeight <= 0 Then Exit Function
+    roundedHeight = Int(measuredHeight + 0.999)
+    mp_RoundUpMeasuredHeight = roundedHeight + POST_PROCESS_MEASURE_HEIGHT_ROUND_PAD
 End Function
 
 Private Function mp_TryResolveColumnIndexInRow( _
@@ -854,6 +1147,104 @@ End Function
 Private Function mp_BuildSheetKey(ByVal ws As Worksheet) As String
     If ws Is Nothing Then Exit Function
     mp_BuildSheetKey = CStr(ws.Parent.Name) & "|" & CStr(ws.Name)
+End Function
+
+Private Function mp_GetOrCreateSinglePostProcessFooterRange( _
+    ByVal ws As Worksheet, _
+    ByRef postProcessFooterStyle As t_PostProcessFooterStyle _
+) As Range
+    Dim sheetKey As String
+    Dim targetRow As Long
+    Dim endCol As Long
+    Dim footerRange As Range
+
+    If ws Is Nothing Then Exit Function
+
+    sheetKey = mp_BuildSheetKey(ws)
+    If StrComp(g_PostProcessFooterSheetKey, sheetKey, vbTextCompare) <> 0 Then
+        g_PostProcessFooterSheetKey = sheetKey
+        g_PostProcessFooterRowIndex = 0
+        g_PostProcessFooterHasAppended = False
+    End If
+
+    If g_PostProcessFooterRowIndex <= 0 Then
+        targetRow = mp_FindExistingSinglePostProcessFooterRow(ws, postProcessFooterStyle)
+        If targetRow <= 0 Then
+            targetRow = mp_GetLastUsedRow(ws) + 2
+            If targetRow < 1 Then targetRow = 1
+        End If
+        g_PostProcessFooterRowIndex = targetRow
+    Else
+        targetRow = g_PostProcessFooterRowIndex
+        If targetRow > ws.Rows.Count Then targetRow = ws.Rows.Count
+        g_PostProcessFooterRowIndex = targetRow
+    End If
+
+    endCol = postProcessFooterStyle.Columns
+    If endCol < 1 Then endCol = 1
+    If endCol > ws.Columns.Count Then endCol = ws.Columns.Count
+
+    Set footerRange = ws.Range(ws.Cells(targetRow, 1), ws.Cells(targetRow, endCol))
+    If footerRange.MergeCells Then footerRange.UnMerge
+    If endCol > 1 Then footerRange.Merge
+
+    footerRange.Interior.Pattern = xlSolid
+    footerRange.Interior.Color = postProcessFooterStyle.BackColor
+    footerRange.Font.Color = postProcessFooterStyle.FontColor
+    footerRange.Font.Size = postProcessFooterStyle.FontSize
+    footerRange.HorizontalAlignment = xlLeft
+    footerRange.VerticalAlignment = xlCenter
+
+    Select Case postProcessFooterStyle.Overflow
+        Case "wrap"
+            footerRange.WrapText = True
+            footerRange.ShrinkToFit = False
+        Case "shrink"
+            footerRange.WrapText = False
+            footerRange.ShrinkToFit = True
+        Case Else
+            footerRange.WrapText = False
+            footerRange.ShrinkToFit = False
+    End Select
+
+    Set mp_GetOrCreateSinglePostProcessFooterRange = footerRange
+End Function
+
+Private Function mp_FindExistingSinglePostProcessFooterRow( _
+    ByVal ws As Worksheet, _
+    ByRef postProcessFooterStyle As t_PostProcessFooterStyle _
+) As Long
+    Dim lastRow As Long
+    Dim rowIndex As Long
+    Dim endCol As Long
+    Dim probeCell As Range
+    Dim mergeArea As Range
+
+    lastRow = mp_GetLastUsedRow(ws)
+    If lastRow < 1 Then Exit Function
+
+    endCol = postProcessFooterStyle.Columns
+    If endCol < 1 Then endCol = 1
+    If endCol > ws.Columns.Count Then endCol = ws.Columns.Count
+
+    For rowIndex = lastRow To 1 Step -1
+        Set probeCell = ws.Cells(rowIndex, 1)
+        If probeCell.MergeCells Then
+            Set mergeArea = probeCell.MergeArea
+            If Not mergeArea Is Nothing Then
+                If mergeArea.Row = rowIndex _
+                    And mergeArea.Column = 1 _
+                    And mergeArea.Rows.Count = 1 _
+                    And mergeArea.Columns.Count = endCol Then
+                    If CLng(mergeArea.Cells(1, 1).Interior.Color) = postProcessFooterStyle.BackColor _
+                        And CLng(mergeArea.Cells(1, 1).Font.Color) = postProcessFooterStyle.FontColor Then
+                        mp_FindExistingSinglePostProcessFooterRow = rowIndex
+                        Exit Function
+                    End If
+                End If
+            End If
+        End If
+    Next rowIndex
 End Function
 
 Private Function mp_GetRowCellRange( _

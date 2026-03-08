@@ -7,6 +7,10 @@ Private Const DEV_COL_MARKER As Long = 1
 Private Const DEV_COL_KEY As Long = 2
 Private Const DEV_COL_VALUE As Long = 3
 Private Const RESULT_SHEET_NAME As String = "g_PersonTimeline"
+Private Const FETCH_MARKER_HARD_LIMIT_PER_OWNER As Long = 50
+Private Const FETCH_FIELD_ROW_KIND As String = "RowKind"
+Private Const FETCH_ROW_KIND_OWNER As String = "owner"
+Private Const FETCH_ROW_KIND_META As String = "meta"
 
 Private g_LastPostProcessCfg As Object
 Private g_LastPostProcessTables As Collection
@@ -17,6 +21,11 @@ Private g_AdoAutoTableRefBySignature As Object
 Private g_AdoFieldMapByTableRef As Object
 Private g_AdoFieldListByTableRef As Object
 Private g_AdoFieldGenericByTableRef As Object
+
+Private Type t_FetchMarkerRules
+    MarkerFieldAlias As String
+    MarkerValues As Variant
+End Type
 
 Private Sub mp_EnsureAdoLookupCaches(ByVal cfg As Object)
     Dim signature As String
@@ -546,7 +555,7 @@ Private Function mp_ValidateTimelineConfig( _
         Call mp_GetCfgRequired(cfg, sourceAlias & ".Sheet[" & tableAlias & "].SheetName")
         Call mp_GetCfgRequired(cfg, sourceAlias & ".Sheet[" & tableAlias & "].Key")
 
-        fields = mp_GetOrderedFieldAliases(cfg, sourceAlias, tableAlias)
+        fields = mp_GetEffectiveFieldAliases(cfg, sourceAlias, tableAlias)
         Dim sheetRefKey As String
         sheetRefKey = sourceAlias & ".Sheet[" & tableAlias & "]"
 
@@ -563,7 +572,9 @@ Private Function mp_ValidateTimelineConfig( _
             fieldAlias = Trim$(CStr(fields(fieldIndex)))
             If Len(fieldAlias) = 0 Then GoTo ContinueField
 
-                Call mp_GetMappedSourceHeader(cfg, sourceAlias, tableAlias, fieldAlias)
+                If Not mp_IsFetchVirtualFieldAlias(fieldAlias) Then
+                    Call mp_GetMappedSourceHeader(cfg, sourceAlias, tableAlias, fieldAlias)
+                End If
                 tableFieldsRef(sourceAlias & ".Sheet[" & tableAlias & "].Map[" & fieldAlias & "]") = True
                 mp_AddResultFieldRange resultFieldRanges, sourceAlias, tableAlias, fieldAlias, 1, 1, 1
 ContinueField:
@@ -651,8 +662,10 @@ Private Function mp_WriteStateCardGeneric( _
     Dim stepName As String
     Dim showNoStateRow As Boolean
 
+    Dim sourceFields As Variant
+    sourceFields = mp_GetOrderedFieldAliases(cfg, sourceAlias, tableAlias)
     Dim fields As Variant
-    fields = mp_GetOrderedFieldAliases(cfg, sourceAlias, tableAlias)
+    fields = mp_GetEffectiveFieldAliases(cfg, sourceAlias, tableAlias)
     Dim resultTable As obj_ResultTable
     Set resultTable = mp_EnsureResultTable(resultTables, resultTablesByRef, sourceAlias, tableAlias)
     mp_RegisterResultTableFieldAliases resultTable, sourceAlias, tableAlias, fields
@@ -667,7 +680,7 @@ Private Function mp_WriteStateCardGeneric( _
     Dim keyHeader As String
     keyHeader = mp_GetMappedSourceHeader(cfg, sourceAlias, tableAlias, keyAlias)
 
-    expectedHeaders = mp_BuildExpectedHeaders(cfg, sourceAlias, tableAlias, fields, keyHeader)
+    expectedHeaders = mp_BuildExpectedHeaders(cfg, sourceAlias, tableAlias, sourceFields, keyHeader)
     tableRef = mp_GetAdoTableReference(adoConn, adoObjectName, expectedHeaders, keyHeader, fio, sourceAlias, tableAlias)
     stepName = "resolve-key-header"
     keyHeader = mp_ResolveAdoMappedHeader(cfg, sourceAlias, tableAlias, keyAlias, adoConn, tableRef)
@@ -705,7 +718,6 @@ Private Function mp_WriteStateCardGeneric( _
         headerRows.Add headerRow
 
         valueRow = headerRow + 1
-        dataEndRow = valueRow + rowCount - 1
 
         ReDim fieldOrdinals(LBound(fields) To UBound(fields))
         For i = LBound(fields) To UBound(fields)
@@ -713,23 +725,39 @@ Private Function mp_WriteStateCardGeneric( _
             If Len(fieldAlias) = 0 Then GoTo ContinueExactField
 
             outCol = 1 + (i - LBound(fields))
-            wsOut.Cells(headerRow, outCol).Value = mp_GetLabel(cfg, sourceAlias, tableAlias, fieldAlias)
-            sourceHeader = mp_ResolveAdoMappedHeader(cfg, sourceAlias, tableAlias, fieldAlias, adoConn, tableRef)
-            fieldOrdinals(i) = mp_RecordsetGetFieldOrdinal(rs, sourceHeader)
-            mp_AddResultFieldRange resultFieldRanges, sourceAlias, tableAlias, fieldAlias, outCol, headerRow, dataEndRow
+            wsOut.Cells(headerRow, outCol).Value = mp_GetFieldLabel(cfg, sourceAlias, tableAlias, fieldAlias)
+            If mp_IsFetchVirtualFieldAlias(fieldAlias) Then
+                fieldOrdinals(i) = -2
+            Else
+                sourceHeader = mp_ResolveAdoMappedHeader(cfg, sourceAlias, tableAlias, fieldAlias, adoConn, tableRef)
+                fieldOrdinals(i) = mp_RecordsetGetFieldOrdinal(rs, sourceHeader)
+            End If
 ContinueExactField:
         Next i
 
         ReDim outValues(1 To rowCount, 1 To fieldCount)
         For outRow = 1 To rowCount
             For i = LBound(fields) To UBound(fields)
-                If fieldOrdinals(i) >= 0 Then
+                fieldAlias = Trim$(CStr(fields(i)))
+                If mp_IsFetchVirtualFieldAlias(fieldAlias) Then
+                    If StrComp(fieldAlias, FETCH_FIELD_ROW_KIND, vbTextCompare) = 0 Then
+                        outValues(outRow, 1 + (i - LBound(fields))) = FETCH_ROW_KIND_OWNER
+                    Else
+                        outValues(outRow, 1 + (i - LBound(fields))) = vbNullString
+                    End If
+                ElseIf fieldOrdinals(i) >= 0 Then
                     outValues(outRow, 1 + (i - LBound(fields))) = mp_ToCellValue(stateRows(fieldOrdinals(i), outRow - 1))
                 Else
                     outValues(outRow, 1 + (i - LBound(fields))) = "(missing column)"
                 End If
             Next i
         Next outRow
+
+        stepName = "collect-fetch-metadata"
+        mp_AppendFetchMarkerRowsFromSource cfg, sourceAlias, tableAlias, adoConn, tableRef, keyHeader, fio, fields, outValues, rowCount, fieldCount
+
+        dataEndRow = valueRow + rowCount - 1
+        mp_AddResultFieldRangesForFields resultFieldRanges, sourceAlias, tableAlias, fields, headerRow, dataEndRow
 
         wsOut.Range(wsOut.Cells(valueRow, 1), wsOut.Cells(dataEndRow, fieldCount)).Value2 = outValues
         mp_CaptureResultTableRowsFromOutput wsOut, resultTable, sourceAlias, tableAlias, fields, valueRow, dataEndRow
@@ -846,8 +874,10 @@ Private Function mp_WriteEventsGeneric( _
     Dim stepName As String
     Dim showNoEventsRow As Boolean
 
+    Dim sourceFields As Variant
+    sourceFields = mp_GetOrderedFieldAliases(cfg, sourceAlias, tableAlias)
     Dim fields As Variant
-    fields = mp_GetOrderedFieldAliases(cfg, sourceAlias, tableAlias)
+    fields = mp_GetEffectiveFieldAliases(cfg, sourceAlias, tableAlias)
     Dim resultTable As obj_ResultTable
     Set resultTable = mp_EnsureResultTable(resultTables, resultTablesByRef, sourceAlias, tableAlias)
     mp_RegisterResultTableFieldAliases resultTable, sourceAlias, tableAlias, fields
@@ -865,7 +895,7 @@ Private Function mp_WriteEventsGeneric( _
     Dim keyHeader As String
     keyHeader = mp_GetMappedSourceHeader(cfg, sourceAlias, tableAlias, keyAlias)
 
-    expectedHeaders = mp_BuildExpectedHeaders(cfg, sourceAlias, tableAlias, fields, keyHeader)
+    expectedHeaders = mp_BuildExpectedHeaders(cfg, sourceAlias, tableAlias, sourceFields, keyHeader)
     stepName = "resolve-table"
     tableRef = mp_GetAdoTableReference(adoConn, adoObjectName, expectedHeaders, keyHeader, fio, sourceAlias, tableAlias)
     stepName = "resolve-key-header"
@@ -888,6 +918,7 @@ Private Function mp_WriteEventsGeneric( _
     Dim candidateIndex As Long
     Dim partialRows As Variant
     Dim partialCount As Long
+    Dim fetchMarkerRulesApplied As Boolean
 
     If rs.EOF Then
         rs.Close
@@ -951,9 +982,13 @@ Private Function mp_WriteEventsGeneric( _
 
     For i = LBound(fields) To UBound(fields)
         fieldAlias = Trim$(CStr(fields(i)))
-        headerValues(1, 1 + (i - LBound(fields))) = mp_GetLabel(cfg, sourceAlias, tableAlias, fieldAlias)
-        sourceHeader = mp_ResolveAdoMappedHeader(cfg, sourceAlias, tableAlias, fieldAlias, adoConn, tableRef)
-        fieldOrdinals(i) = mp_RecordsetGetFieldOrdinal(rs, sourceHeader)
+        headerValues(1, 1 + (i - LBound(fields))) = mp_GetFieldLabel(cfg, sourceAlias, tableAlias, fieldAlias)
+        If mp_IsFetchVirtualFieldAlias(fieldAlias) Then
+            fieldOrdinals(i) = -2
+        Else
+            sourceHeader = mp_ResolveAdoMappedHeader(cfg, sourceAlias, tableAlias, fieldAlias, adoConn, tableRef)
+            fieldOrdinals(i) = mp_RecordsetGetFieldOrdinal(rs, sourceHeader)
+        End If
     Next i
     wsOut.Range(wsOut.Cells(outHeaderRow, 1), wsOut.Cells(outHeaderRow, fieldCount)).Value = headerValues
 
@@ -965,13 +1000,24 @@ Private Function mp_WriteEventsGeneric( _
 
     For outIndex = 1 To rowCount
         For i = LBound(fields) To UBound(fields)
-            If fieldOrdinals(i) >= 0 Then
+            fieldAlias = Trim$(CStr(fields(i)))
+            If mp_IsFetchVirtualFieldAlias(fieldAlias) Then
+                If StrComp(fieldAlias, FETCH_FIELD_ROW_KIND, vbTextCompare) = 0 Then
+                    outValues(outIndex, 1 + (i - LBound(fields))) = FETCH_ROW_KIND_OWNER
+                Else
+                    outValues(outIndex, 1 + (i - LBound(fields))) = vbNullString
+                End If
+            ElseIf fieldOrdinals(i) >= 0 Then
                 outValues(outIndex, 1 + (i - LBound(fields))) = mp_ToCellValue(fieldData(fieldOrdinals(i), outIndex - 1))
             Else
                 outValues(outIndex, 1 + (i - LBound(fields))) = "(missing column)"
             End If
         Next i
     Next outIndex
+
+    stepName = "collect-fetch-metadata"
+    fetchMarkerRulesApplied = mp_AppendFetchMarkerRowsFromSource( _
+        cfg, sourceAlias, tableAlias, adoConn, tableRef, keyHeader, fio, fields, outValues, rowCount, fieldCount)
 
     stepName = "write-output"
     wsOut.Range(wsOut.Cells(outDataRow, 1), wsOut.Cells(outDataRow + rowCount - 1, fieldCount)).Value2 = outValues
@@ -981,7 +1027,7 @@ Private Function mp_WriteEventsGeneric( _
     Dim sortAlias As String
     sortAlias = mp_GetCfgOptional(cfg, sourceAlias & ".Sheet[" & tableAlias & "].Sort", vbNullString)
 
-    If Len(sortAlias) > 0 Then
+    If Len(sortAlias) > 0 And Not fetchMarkerRulesApplied Then
         Dim sortOutCol As Long
         sortOutCol = -1
 
@@ -1837,6 +1883,294 @@ ContinueField:
     Next i
 End Sub
 
+Private Function mp_AppendFetchMarkerRowsFromSource( _
+    ByVal cfg As Object, _
+    ByVal sourceAlias As String, _
+    ByVal tableAlias As String, _
+    ByVal adoConn As Object, _
+    ByVal tableRef As String, _
+    ByVal keyHeader As String, _
+    ByVal keyValue As String, _
+    ByVal fields As Variant, _
+    ByRef ioOutValues() As Variant, _
+    ByRef ioRowCount As Long, _
+    ByVal fieldCount As Long _
+) As Boolean
+    Dim rules As t_FetchMarkerRules
+    Dim metaValues As Variant
+    Dim metaCount As Long
+
+    If ioRowCount <= 0 Then Exit Function
+    If fieldCount <= 0 Then Exit Function
+    If mp_IsEmptyVariantArray(fields) Then Exit Function
+    If Not mp_TryGetFetchMarkerRules(cfg, sourceAlias, tableAlias, rules) Then Exit Function
+
+    metaCount = mp_CollectFetchMarkerRowsFromSource(cfg, sourceAlias, tableAlias, adoConn, tableRef, keyHeader, keyValue, fields, rules, metaValues)
+    If metaCount <= 0 Then Exit Function
+
+    mp_AppendRowsToOutputMatrix ioOutValues, ioRowCount, metaValues, metaCount, fieldCount
+    mp_AppendFetchMarkerRowsFromSource = True
+End Function
+
+Private Function mp_TryGetFetchMarkerRules( _
+    ByVal cfg As Object, _
+    ByVal sourceAlias As String, _
+    ByVal tableAlias As String, _
+    ByRef outRules As t_FetchMarkerRules _
+) As Boolean
+    Dim prefix As String
+    Dim markerValuesRaw As String
+    Dim markerValues As Variant
+
+    prefix = sourceAlias & ".Sheet[" & tableAlias & "].Fetch."
+
+    outRules.MarkerFieldAlias = Trim$(mp_GetCfgOptional(cfg, prefix & "MarkerField", vbNullString))
+    markerValuesRaw = Trim$(mp_GetCfgOptional(cfg, prefix & "MarkerValues", vbNullString))
+    If Len(outRules.MarkerFieldAlias) = 0 Or Len(markerValuesRaw) = 0 Then Exit Function
+
+    markerValues = mp_SplitList(markerValuesRaw)
+    If mp_IsEmptyVariantArray(markerValues) Then
+        Err.Raise vbObjectError + 1750, "ex_PersonTimeline", _
+            "Fetch.MarkerValues is empty for " & sourceAlias & ".Sheet[" & tableAlias & "]."
+    End If
+
+    outRules.MarkerValues = markerValues
+
+    mp_TryGetFetchMarkerRules = True
+End Function
+
+Private Function mp_CollectFetchMarkerRowsFromSource( _
+    ByVal cfg As Object, _
+    ByVal sourceAlias As String, _
+    ByVal tableAlias As String, _
+    ByVal adoConn As Object, _
+    ByVal tableRef As String, _
+    ByVal keyHeader As String, _
+    ByVal keyValue As String, _
+    ByVal fields As Variant, _
+    ByRef rules As t_FetchMarkerRules, _
+    ByRef outMetaValues As Variant _
+) As Long
+    Dim rs As Object
+    Dim sql As String
+    Dim rowsData As Variant
+    Dim markerHeader As String
+    Dim keyOrdinal As Long
+    Dim markerOrdinal As Long
+    Dim fieldOrdinals() As Long
+    Dim i As Long
+    Dim sourceHeader As String
+    Dim rowLower As Long
+    Dim rowUpper As Long
+    Dim rowIndex As Long
+    Dim probeIndex As Long
+    Dim takenCount As Long
+    Dim markerText As String
+    Dim keyText As String
+    Dim rowVectors As Collection
+    Dim rowVector As Variant
+    Dim fieldCount As Long
+    Dim r As Long
+    Dim c As Long
+    Dim markerSet As Object
+
+    On Error GoTo EH
+
+    If Len(Trim$(tableRef)) = 0 Then Exit Function
+    If Len(Trim$(keyHeader)) = 0 Then Exit Function
+    If Len(Trim$(keyValue)) = 0 Then Exit Function
+    If mp_IsEmptyVariantArray(fields) Then Exit Function
+
+    sql = "SELECT * FROM " & tableRef
+    Set rs = CreateObject("ADODB.Recordset")
+    rs.Open sql, adoConn, 0, 1
+    If rs.EOF Then
+        rs.Close
+        Exit Function
+    End If
+
+    markerHeader = mp_ResolveAdoMappedHeader(cfg, sourceAlias, tableAlias, rules.MarkerFieldAlias, adoConn, tableRef)
+    keyOrdinal = mp_RecordsetGetFieldOrdinal(rs, keyHeader)
+    markerOrdinal = mp_RecordsetGetFieldOrdinal(rs, markerHeader)
+
+    If keyOrdinal < 0 Then
+        Err.Raise vbObjectError + 1754, "ex_PersonTimeline", "Fetch metadata failed: key column '" & keyHeader & "' was not found."
+    End If
+    If markerOrdinal < 0 Then
+        Err.Raise vbObjectError + 1755, "ex_PersonTimeline", _
+            "Fetch metadata failed: marker column '" & markerHeader & "' (" & rules.MarkerFieldAlias & ") was not found."
+    End If
+
+    ReDim fieldOrdinals(LBound(fields) To UBound(fields))
+    For i = LBound(fields) To UBound(fields)
+        If mp_IsFetchVirtualFieldAlias(Trim$(CStr(fields(i)))) Then
+            fieldOrdinals(i) = -2
+        Else
+            sourceHeader = mp_ResolveAdoMappedHeader(cfg, sourceAlias, tableAlias, Trim$(CStr(fields(i))), adoConn, tableRef)
+            fieldOrdinals(i) = mp_RecordsetGetFieldOrdinal(rs, sourceHeader)
+        End If
+    Next i
+
+    rowsData = rs.GetRows
+    rs.Close
+    Set rs = Nothing
+
+    rowLower = LBound(rowsData, 2)
+    rowUpper = UBound(rowsData, 2)
+    Set rowVectors = New Collection
+    Set markerSet = mp_BuildCaseInsensitiveTextSet(rules.MarkerValues)
+
+    For rowIndex = rowLower To rowUpper
+        keyText = Trim$(mp_ToSafeText(rowsData(keyOrdinal, rowIndex)))
+        If StrComp(keyText, Trim$(keyValue), vbTextCompare) = 0 Then
+            takenCount = 0
+            probeIndex = rowIndex + 1
+            Do While probeIndex <= rowUpper
+                If takenCount >= FETCH_MARKER_HARD_LIMIT_PER_OWNER Then Exit Do
+
+                markerText = Trim$(mp_ToSafeText(rowsData(markerOrdinal, probeIndex)))
+                If Not mp_IsFetchMarkerMatch(markerText, markerSet) Then Exit Do
+
+                rowVector = mp_BuildOutputRowVectorFromSourceRows(rowsData, probeIndex, fieldOrdinals, fields, True)
+                rowVectors.Add rowVector
+                takenCount = takenCount + 1
+                probeIndex = probeIndex + 1
+            Loop
+        End If
+    Next rowIndex
+
+    mp_CollectFetchMarkerRowsFromSource = rowVectors.Count
+    If rowVectors.Count = 0 Then Exit Function
+
+    fieldCount = UBound(fields) - LBound(fields) + 1
+    ReDim outMetaValues(1 To rowVectors.Count, 1 To fieldCount)
+    For r = 1 To rowVectors.Count
+        rowVector = rowVectors(r)
+        For c = 1 To fieldCount
+            outMetaValues(r, c) = rowVector(c)
+        Next c
+    Next r
+    Exit Function
+
+EH:
+    Dim innerErrDescription As String
+    innerErrDescription = Err.Description
+
+    On Error Resume Next
+    If Not rs Is Nothing Then
+        If rs.State <> 0 Then rs.Close
+    End If
+    On Error GoTo 0
+
+    Err.Raise vbObjectError + 1756, "ex_PersonTimeline", _
+        "Failed to collect fetch metadata rows for '" & sourceAlias & ".Sheet[" & tableAlias & "]': " & innerErrDescription
+End Function
+
+Private Function mp_BuildOutputRowVectorFromSourceRows( _
+    ByVal rowsData As Variant, _
+    ByVal rowIndex As Long, _
+    ByRef fieldOrdinals() As Long, _
+    ByVal fields As Variant, _
+    ByVal isMetaRow As Boolean _
+) As Variant
+    Dim i As Long
+    Dim outCol As Long
+    Dim rowVector() As Variant
+    Dim fieldCount As Long
+    Dim fieldAlias As String
+
+    fieldCount = UBound(fields) - LBound(fields) + 1
+    ReDim rowVector(1 To fieldCount)
+
+    For i = LBound(fields) To UBound(fields)
+        fieldAlias = Trim$(CStr(fields(i)))
+        outCol = 1 + (i - LBound(fields))
+        If StrComp(fieldAlias, FETCH_FIELD_ROW_KIND, vbTextCompare) = 0 Then
+            If isMetaRow Then
+                rowVector(outCol) = FETCH_ROW_KIND_META
+            Else
+                rowVector(outCol) = FETCH_ROW_KIND_OWNER
+            End If
+        ElseIf fieldOrdinals(i) >= 0 Then
+            rowVector(outCol) = mp_ToCellValue(rowsData(fieldOrdinals(i), rowIndex))
+        Else
+            rowVector(outCol) = "(missing column)"
+        End If
+    Next i
+
+    mp_BuildOutputRowVectorFromSourceRows = rowVector
+End Function
+
+Private Function mp_BuildCaseInsensitiveTextSet(ByVal values As Variant) As Object
+    Dim markerSet As Object
+    Dim i As Long
+    Dim token As String
+
+    Set markerSet = CreateObject("Scripting.Dictionary")
+    markerSet.CompareMode = 1
+
+    If mp_IsEmptyVariantArray(values) Then
+        Set mp_BuildCaseInsensitiveTextSet = markerSet
+        Exit Function
+    End If
+
+    For i = LBound(values) To UBound(values)
+        token = Trim$(CStr(values(i)))
+        If Len(token) > 0 Then markerSet(token) = True
+    Next i
+
+    Set mp_BuildCaseInsensitiveTextSet = markerSet
+End Function
+
+Private Function mp_IsFetchMarkerMatch( _
+    ByVal markerText As String, _
+    ByVal markerSet As Object _
+) As Boolean
+    markerText = Trim$(markerText)
+    If Len(markerText) = 0 Then Exit Function
+    If markerSet Is Nothing Then Exit Function
+    mp_IsFetchMarkerMatch = markerSet.Exists(markerText)
+End Function
+
+Private Sub mp_AppendRowsToOutputMatrix( _
+    ByRef ioBaseValues() As Variant, _
+    ByRef ioBaseRowCount As Long, _
+    ByVal appendValues As Variant, _
+    ByVal appendRowCount As Long, _
+    ByVal fieldCount As Long _
+)
+    Dim merged() As Variant
+    Dim r As Long
+    Dim c As Long
+    Dim totalRows As Long
+
+    If appendRowCount <= 0 Then Exit Sub
+    If fieldCount <= 0 Then Exit Sub
+
+    totalRows = ioBaseRowCount + appendRowCount
+    ReDim merged(1 To totalRows, 1 To fieldCount)
+
+    For r = 1 To ioBaseRowCount
+        For c = 1 To fieldCount
+            merged(r, c) = ioBaseValues(r, c)
+        Next c
+    Next r
+
+    For r = 1 To appendRowCount
+        For c = 1 To fieldCount
+            merged(ioBaseRowCount + r, c) = appendValues(r, c)
+        Next c
+    Next r
+
+    ReDim ioBaseValues(1 To totalRows, 1 To fieldCount)
+    For r = 1 To totalRows
+        For c = 1 To fieldCount
+            ioBaseValues(r, c) = merged(r, c)
+        Next c
+    Next r
+    ioBaseRowCount = totalRows
+End Sub
+
 Private Function mp_FindSourceAliasForTable(ByVal cfg As Object, ByVal tableAlias As String) As String
 
     Dim sourceAliases As Variant
@@ -2631,7 +2965,7 @@ Private Function mp_RenderEventsNoData( _
 
     For i = LBound(fields) To UBound(fields)
         fieldAlias = Trim$(CStr(fields(i)))
-        headerValues(1, 1 + (i - LBound(fields))) = mp_GetLabel(cfg, sourceAlias, tableAlias, fieldAlias)
+        headerValues(1, 1 + (i - LBound(fields))) = mp_GetFieldLabel(cfg, sourceAlias, tableAlias, fieldAlias)
     Next i
 
     wsOut.Range(wsOut.Cells(outHeaderRow, 1), wsOut.Cells(outHeaderRow, fieldCount)).Value = headerValues
@@ -2670,7 +3004,7 @@ Private Function mp_RenderStateNoData( _
 
     For i = LBound(fields) To UBound(fields)
         fieldAlias = Trim$(CStr(fields(i)))
-        headerValues(1, 1 + (i - LBound(fields))) = mp_GetLabel(cfg, sourceAlias, tableAlias, fieldAlias)
+        headerValues(1, 1 + (i - LBound(fields))) = mp_GetFieldLabel(cfg, sourceAlias, tableAlias, fieldAlias)
     Next i
 
     wsOut.Range(wsOut.Cells(outHeaderRow, 1), wsOut.Cells(outHeaderRow, fieldCount)).Value = headerValues
@@ -2876,6 +3210,74 @@ Private Function mp_GetOrderedFieldAliases(ByVal cfg As Object, ByVal sourceAlia
     mp_GetOrderedFieldAliases = mp_GetListRequired(cfg, sourceAlias & ".Sheet[" & tableAlias & "].FieldsAliases")
 End Function
 
+Private Function mp_GetEffectiveFieldAliases(ByVal cfg As Object, ByVal sourceAlias As String, ByVal tableAlias As String) As Variant
+    Dim baseFields As Variant
+    baseFields = mp_GetOrderedFieldAliases(cfg, sourceAlias, tableAlias)
+
+    If mp_HasFetchMarkerConfig(cfg, sourceAlias, tableAlias) Then
+        mp_GetEffectiveFieldAliases = mp_AppendFieldAliases(baseFields, Array(FETCH_FIELD_ROW_KIND))
+    Else
+        mp_GetEffectiveFieldAliases = baseFields
+    End If
+End Function
+
+Private Function mp_HasFetchMarkerConfig(ByVal cfg As Object, ByVal sourceAlias As String, ByVal tableAlias As String) As Boolean
+    Dim prefix As String
+    Dim markerField As String
+    Dim markerValues As String
+
+    prefix = sourceAlias & ".Sheet[" & tableAlias & "].Fetch."
+    markerField = Trim$(mp_GetCfgOptional(cfg, prefix & "MarkerField", vbNullString))
+    markerValues = Trim$(mp_GetCfgOptional(cfg, prefix & "MarkerValues", vbNullString))
+
+    mp_HasFetchMarkerConfig = (Len(markerField) > 0 And Len(markerValues) > 0)
+End Function
+
+Private Function mp_AppendFieldAliases(ByVal baseFields As Variant, ByVal appendFields As Variant) As Variant
+    Dim result As Object
+    Dim i As Long
+    Dim token As String
+    Dim arr() As String
+    Dim key As Variant
+    Dim idx As Long
+
+    Set result = CreateObject("Scripting.Dictionary")
+    result.CompareMode = 1
+
+    If Not mp_IsEmptyVariantArray(baseFields) Then
+        For i = LBound(baseFields) To UBound(baseFields)
+            token = Trim$(CStr(baseFields(i)))
+            If Len(token) > 0 Then result(token) = True
+        Next i
+    End If
+
+    If Not mp_IsEmptyVariantArray(appendFields) Then
+        For i = LBound(appendFields) To UBound(appendFields)
+            token = Trim$(CStr(appendFields(i)))
+            If Len(token) > 0 Then result(token) = True
+        Next i
+    End If
+
+    If result.Count = 0 Then
+        mp_AppendFieldAliases = Array()
+        Exit Function
+    End If
+
+    ReDim arr(0 To result.Count - 1)
+    idx = 0
+    For Each key In result.Keys
+        arr(idx) = CStr(key)
+        idx = idx + 1
+    Next key
+
+    mp_AppendFieldAliases = arr
+End Function
+
+Private Function mp_IsFetchVirtualFieldAlias(ByVal fieldAlias As String) As Boolean
+    fieldAlias = Trim$(fieldAlias)
+    mp_IsFetchVirtualFieldAlias = (StrComp(fieldAlias, FETCH_FIELD_ROW_KIND, vbTextCompare) = 0)
+End Function
+
 Private Function mp_GetMapAliasesInConfigOrder(ByVal sourceAlias As String, ByVal tableAlias As String) As Variant
     Dim ws As Worksheet
     Dim tbl As ListObject
@@ -3056,6 +3458,20 @@ Private Function mp_GetLabel( _
 
     mp_GetLabel = mp_GetMappedSourceHeader(cfg, sourceAlias, tableAlias, fieldAlias)
 
+End Function
+
+Private Function mp_GetFieldLabel( _
+    ByVal cfg As Object, _
+    ByVal sourceAlias As String, _
+    ByVal tableAlias As String, _
+    ByVal fieldAlias As String _
+) As String
+    If StrComp(fieldAlias, FETCH_FIELD_ROW_KIND, vbTextCompare) = 0 Then
+        mp_GetFieldLabel = "Meta type"
+        Exit Function
+    End If
+
+    mp_GetFieldLabel = mp_GetLabel(cfg, sourceAlias, tableAlias, fieldAlias)
 End Function
 
 Private Function mp_TryGetTableColumnByFieldAlias( _

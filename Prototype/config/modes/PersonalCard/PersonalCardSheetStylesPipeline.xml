@@ -1,0 +1,153 @@
+<?xml version="1.0" standalone="yes"?>
+<stylePipeline xmlns="urn:excelprototype:profiles" version="1">
+  <sheetPipeline page="g_PersonTimeline">
+    <stage name="default">
+      <layer name="pc-base" priority="100" enabled="true">
+        <rule target="sheet"
+              styles="{
+                fontName:'Times New Roman';
+                fontSize:12;
+                backColor:#222222;
+                fontColor:#EBEBEB;
+                horizontal:center;
+                vertical:center;
+                rowHeight:20;
+                borderColor:#000000;
+                borderWeight:thin;
+              }"/>
+      </layer>
+
+      <layer name="pc-output-pre-autofit" priority="200" enabled="true">
+        <rule target="row"
+              selector="kind=header"
+              styles="{
+                overflow:clip;
+              }"/>
+        <rule target="row"
+              selector="kind=section"
+              styles="{
+                overflow:clip;
+              }"/>
+      </layer>
+
+      <layer name="pc-output-autofit" priority="210" enabled="true">
+        <rule target="sheet"
+              styles="{
+                autoFitColumns:true;
+              }"/>
+      </layer>
+
+      <layer name="pc-output-clamp-columns" priority="220" enabled="true">
+        <rule target="sheet"
+              styles="{
+                minWidth:5;
+                maxWidth:30;
+              }"/>
+      </layer>
+
+      <layer name="pc-output-section" priority="230" enabled="true">
+        <rule target="row"
+              selector="kind=section"
+              styles="{
+                backColor:#161616;
+                fontColor:#D7A763;
+                fontBold:true;
+                mergeColumns:2;
+                overflow:clip;
+                rowHeight:20;
+              }"/>
+      </layer>
+
+      <layer name="pc-output-header" priority="240" enabled="true">
+        <rule target="row"
+              selector="kind=header"
+              styles="{
+                backColor:#222222;
+                fontColor:#68D947;
+                fontBold:true;
+                overflow:wrap;
+                autoHeight:true;
+              }"/>
+      </layer>
+
+      <layer name="pc-output-content" priority="250" enabled="true">
+        <rule target="row"
+              selector="kind=content"
+              styles="{
+                backColor:#222222;
+                fontColor:#EBEBEB;
+                overflow:wrap;
+                rowHeight:32;
+              }"/>
+      </layer>
+
+      <layer name="pc-output-docnote" priority="300" enabled="true">
+        <rule target="column"
+              selector="mapKey=Daily.Sheet[DailyEvents].Map[DocNote]"
+              styles="{
+                width:40;
+                overflow:wrap;
+                autoHeight:true;
+              }"/>
+      </layer>
+
+      <layer name="pc-output-meta-columns" priority="305" enabled="true">
+        <rule target="column"
+              selector="field=RowKind"
+              styles="{
+                fontColor:#9A9A9A;
+              }"/>
+      </layer>
+
+      <layer name="pc-postlayout" priority="400" enabled="true">
+        <rule target="row"
+              selector="kind=configstyle"
+              styles="{
+                autoHeight:true;
+              }"/>
+      </layer>
+
+      <layer name="pc-partialmatch-autoheight" priority="480" enabled="true">
+        <rule target="row"
+              selector="kind=partialmatch"
+              styles="{
+                autoHeight:true;
+              }"/>
+      </layer>
+
+      <layer name="pc-postwarnings" priority="500" enabled="true"/>
+    </stage>
+
+    <stage name="postProcess">
+      <layer name="pc-postprocess-header" priority="100" enabled="true">
+        <rule target="sheet"
+              styles="{
+                mergeColumns:2;
+                overflow:wrap;
+                backColor:#161616;
+                fontColor:#F5D08A;
+                fontSize:12;
+                rowHeight:24;
+                autoHeight:true;
+                customAutoHeight-margin-top:1;
+                customAutoHeight-margin-bottom:2;
+              }"/>
+      </layer>
+
+      <layer name="pc-postprocess-footer" priority="110" enabled="true">
+        <rule target="sheet"
+              styles="{
+                mergeColumns:2;
+                overflow:wrap;
+                backColor:#161616;
+                fontColor:#F5D08A;
+                fontSize:12;
+                rowHeight:24;
+                autoHeight:true;
+                customAutoHeight-margin-top:1;
+                customAutoHeight-margin-bottom:2;
+              }"/>
+      </layer>
+    </stage>
+  </sheetPipeline>
+</stylePipeline>

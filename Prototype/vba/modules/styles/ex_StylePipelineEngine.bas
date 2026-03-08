@@ -3,6 +3,7 @@ Option Explicit
 
 Private Const PROFILES_NS As String = "urn:excelprototype:profiles"
 Private Const STYLE_PIPELINE_REL_PATH As String = "config\StylePipeline.xml"
+Private Const DEFAULT_STAGE_NAME As String = "default"
 Private Const INLINE_LAYER_ID As String = "profileInline"
 Private Const INLINE_LAYER_PRIORITY As Long = 100
 Private Const SHEET_SCOPE_MIN_COL As Long = 40      ' AN
@@ -11,7 +12,7 @@ Private Const SHEET_SCOPE_EXPAND_STEP As Long = 30
 
 ' Supported style properties (declarations):
 ' width, minWidth, maxWidth, autoFitColumns
-' overflow, autoHeight, rowHeight, mergeColumns
+' overflow, autoHeight, customAutoHeight-margin-top, customAutoHeight-margin-bottom, rowHeight, mergeColumns
 ' fontName, fontSize, fontBold
 ' backColor, fontColor
 ' borderColor, borderWeight
@@ -22,6 +23,8 @@ Private Const STYLE_PROP_MAX_WIDTH As String = "maxwidth"
 Private Const STYLE_PROP_AUTO_FIT_COLUMNS As String = "autofitcolumns"
 Private Const STYLE_PROP_OVERFLOW As String = "overflow"
 Private Const STYLE_PROP_AUTO_HEIGHT As String = "autoheight"
+Private Const STYLE_PROP_CUSTOM_AUTO_HEIGHT_MARGIN_TOP As String = "customautoheight-margin-top"
+Private Const STYLE_PROP_CUSTOM_AUTO_HEIGHT_MARGIN_BOTTOM As String = "customautoheight-margin-bottom"
 Private Const STYLE_PROP_ROW_HEIGHT As String = "rowheight"
 Private Const STYLE_PROP_MERGE_COLUMNS As String = "mergecolumns"
 Private Const STYLE_PROP_FONT_NAME As String = "fontname"
@@ -41,6 +44,7 @@ Private g_SelectorCache As Object
 Private g_StylePipelineDocCache As Object
 Private g_StylePipelineDocWbKey As String
 Private g_StylePipelineDocStamp As Date
+Private g_StylePipelineTrackedFiles As Object
 
 Public Function m_CreatePipeline() As Collection
     Set m_CreatePipeline = New Collection
@@ -51,6 +55,7 @@ Public Sub m_ResetRuntimeCaches()
     Set g_LayersCache = Nothing
     Set g_SelectorCache = Nothing
     Set g_StylePipelineDocCache = Nothing
+    Set g_StylePipelineTrackedFiles = Nothing
     g_StylePipelineDocWbKey = vbNullString
     g_StylePipelineDocStamp = 0
 End Sub
@@ -228,7 +233,8 @@ End Function
 
 Public Function m_LoadSheetPipelineLayers( _
     ByVal pageName As String, _
-    ByVal wb As Workbook _
+    ByVal wb As Workbook, _
+    Optional ByVal stageName As String = vbNullString _
 ) As Collection
     Dim doc As Object
     Dim result As Collection
@@ -236,6 +242,7 @@ Public Function m_LoadSheetPipelineLayers( _
     Dim formatLayers As Collection
     Dim layerObj As obj_StyleLayer
     Dim cacheKey As String
+    Dim normalizedStageName As String
 
     Set result = New Collection
     Set seenLayerIds = mp_CreateStringDictionary()
@@ -251,14 +258,16 @@ Public Function m_LoadSheetPipelineLayers( _
         Exit Function
     End If
 
+    normalizedStageName = mp_NormalizeStageName(stageName)
+
     mp_EnsureRuntimeCaches
-    cacheKey = mp_BuildLayersCacheKey(wb, pageName)
+    cacheKey = mp_BuildLayersCacheKey(wb, pageName, normalizedStageName)
     If g_LayersCache.Exists(cacheKey) Then
         Set m_LoadSheetPipelineLayers = g_LayersCache(cacheKey)
         Exit Function
     End If
 
-    Set formatLayers = mp_LoadLayersFromSheetPipelineXml(doc, pageName)
+    Set formatLayers = mp_LoadLayersFromSheetPipelineXml(doc, pageName, normalizedStageName)
     If Not formatLayers Is Nothing Then
         For Each layerObj In formatLayers
             If Not layerObj Is Nothing Then
@@ -396,12 +405,15 @@ End Sub
 
 Private Function mp_LoadLayersFromSheetPipelineXml( _
     ByVal doc As Object, _
-    ByVal pageName As String _
+    ByVal pageName As String, _
+    ByVal stageName As String _
 ) As Collection
     Dim result As Collection
     Dim sheetPipelines As Object
     Dim sheetPipelineNode As Object
     Dim layerNodes As Object
+    Dim stageNodes As Object
+    Dim stageNode As Object
     Dim layerNode As Object
     Dim layerObj As obj_StyleLayer
     Dim layerId As String
@@ -410,6 +422,11 @@ Private Function mp_LoadLayersFromSheetPipelineXml( _
     Dim layerPriority As Long
     Dim ok As Boolean
     Dim pageKey As String
+    Dim stageKey As String
+    Dim hasDefaultStage As Boolean
+    Dim hasRequestedStage As Boolean
+    Dim hasMatchingSheetPipeline As Boolean
+    Dim normalizedRequestedStage As String
 
     Set result = New Collection
     If doc Is Nothing Then
@@ -423,6 +440,8 @@ Private Function mp_LoadLayersFromSheetPipelineXml( _
         Exit Function
     End If
 
+    normalizedRequestedStage = mp_NormalizeStageName(stageName)
+
     For Each sheetPipelineNode In sheetPipelines
         pageKey = Trim$(mp_NodeAttrText(sheetPipelineNode, "page"))
         If Len(pageKey) = 0 Then
@@ -432,33 +451,72 @@ Private Function mp_LoadLayersFromSheetPipelineXml( _
         If Len(Trim$(pageName)) > 0 Then
             If StrComp(pageKey, Trim$(pageName), vbTextCompare) <> 0 Then GoTo ContinueSheetPipeline
         End If
+        hasMatchingSheetPipeline = True
 
         Set layerNodes = sheetPipelineNode.selectNodes("p:layer")
-        If layerNodes Is Nothing Then GoTo ContinueSheetPipeline
-
-        For Each layerNode In layerNodes
-            layerId = Trim$(mp_NodeAttrText(layerNode, "id"))
-            If Len(layerId) = 0 Then
-                Err.Raise vbObjectError + 1710, "ex_StylePipelineEngine", "sheetPipeline/layer@" & "id is required."
+        If Not layerNodes Is Nothing Then
+            If layerNodes.Length > 0 Then
+                Err.Raise vbObjectError + 1738, "ex_StylePipelineEngine", "sheetPipeline direct layers are not supported. Move layers under stage name='default'."
             End If
-            If Not ex_XmlCore.m_TryParseLong(mp_NodeAttrText(layerNode, "priority"), layerPriority) Then
-                Err.Raise vbObjectError + 1711, "ex_StylePipelineEngine", "Invalid style layer priority for '" & layerId & "'."
+        End If
+
+        Set stageNodes = sheetPipelineNode.selectNodes("p:stage")
+        If stageNodes Is Nothing Or stageNodes.Length = 0 Then
+            Err.Raise vbObjectError + 1739, "ex_StylePipelineEngine", "sheetPipeline must contain at least one stage and mandatory stage name='default'."
+        End If
+        hasDefaultStage = False
+        hasRequestedStage = False
+
+        For Each stageNode In stageNodes
+            stageKey = Trim$(mp_NodeAttrText(stageNode, "name"))
+            If Len(stageKey) = 0 Then
+                Err.Raise vbObjectError + 1737, "ex_StylePipelineEngine", "sheetPipeline/stage@name is required."
             End If
-            layerSource = Trim$(mp_NodeAttrText(layerNode, "source"))
-            If Len(layerSource) = 0 Then layerSource = "sheetPipeline"
+            If StrComp(stageKey, DEFAULT_STAGE_NAME, vbTextCompare) = 0 Then
+                hasDefaultStage = True
+            End If
+            If StrComp(stageKey, normalizedRequestedStage, vbTextCompare) <> 0 Then GoTo ContinueStage
+            hasRequestedStage = True
 
-            ok = mp_TryParseBoolean(mp_NodeAttrText(layerNode, "enabled"), layerEnabled)
-            If Not ok Then layerEnabled = True
+            Set layerNodes = stageNode.selectNodes("p:layer")
+            If layerNodes Is Nothing Then GoTo ContinueStage
 
-            Set layerObj = New obj_StyleLayer
-            layerObj.Initialize layerId, layerPriority, layerSource, layerEnabled
-            mp_ParseLayerRules layerNode, layerObj
+            For Each layerNode In layerNodes
+                layerId = Trim$(mp_NodeAttrText(layerNode, "name"))
+                If Len(layerId) = 0 Then
+                    Err.Raise vbObjectError + 1710, "ex_StylePipelineEngine", "sheetPipeline/stage/layer@name is required."
+                End If
+                If Not ex_XmlCore.m_TryParseLong(mp_NodeAttrText(layerNode, "priority"), layerPriority) Then
+                    Err.Raise vbObjectError + 1711, "ex_StylePipelineEngine", "Invalid style layer priority for '" & layerId & "'."
+                End If
+                layerSource = Trim$(mp_NodeAttrText(layerNode, "source"))
+                If Len(layerSource) = 0 Then layerSource = "sheetPipeline.stage[" & stageKey & "]"
 
-            result.Add layerObj
-ContinueLayer:
-        Next layerNode
+                ok = mp_TryParseBoolean(mp_NodeAttrText(layerNode, "enabled"), layerEnabled)
+                If Not ok Then layerEnabled = True
+
+                Set layerObj = New obj_StyleLayer
+                layerObj.Initialize layerId, layerPriority, layerSource, layerEnabled, stageKey
+                mp_ParseLayerRules layerNode, layerObj
+
+                result.Add layerObj
+            Next layerNode
+ContinueStage:
+        Next stageNode
+        If Not hasDefaultStage Then
+            Err.Raise vbObjectError + 1739, "ex_StylePipelineEngine", "sheetPipeline must contain mandatory stage name='default'."
+        End If
+        If Not hasRequestedStage Then
+            Err.Raise vbObjectError + 1740, "ex_StylePipelineEngine", "Stage '" & normalizedRequestedStage & "' was not found in sheetPipeline page '" & pageKey & "'."
+        End If
 ContinueSheetPipeline:
     Next sheetPipelineNode
+
+    If Len(Trim$(pageName)) > 0 Then
+        If Not hasMatchingSheetPipeline Then
+            Err.Raise vbObjectError + 1736, "ex_StylePipelineEngine", "sheetPipeline@page '" & Trim$(pageName) & "' was not found."
+        End If
+    End If
 
     Set mp_LoadLayersFromSheetPipelineXml = result
 End Function
@@ -1360,6 +1418,20 @@ Private Function mp_ValidateDeclarations(ByVal declarations As Object, ByRef out
         End If
     End If
 
+    If declarations.Exists(STYLE_PROP_CUSTOM_AUTO_HEIGHT_MARGIN_TOP) Then
+        If Not mp_TryParseNonNegativeDouble(CStr(declarations(STYLE_PROP_CUSTOM_AUTO_HEIGHT_MARGIN_TOP)), doubleValue) Then
+            outErrorText = "Invalid customAutoHeight-margin-top declaration: " & CStr(declarations(STYLE_PROP_CUSTOM_AUTO_HEIGHT_MARGIN_TOP))
+            Exit Function
+        End If
+    End If
+
+    If declarations.Exists(STYLE_PROP_CUSTOM_AUTO_HEIGHT_MARGIN_BOTTOM) Then
+        If Not mp_TryParseNonNegativeDouble(CStr(declarations(STYLE_PROP_CUSTOM_AUTO_HEIGHT_MARGIN_BOTTOM)), doubleValue) Then
+            outErrorText = "Invalid customAutoHeight-margin-bottom declaration: " & CStr(declarations(STYLE_PROP_CUSTOM_AUTO_HEIGHT_MARGIN_BOTTOM))
+            Exit Function
+        End If
+    End If
+
     If declarations.Exists(STYLE_PROP_ROW_HEIGHT) Then
         If Not mp_TryParsePositiveDouble(CStr(declarations(STYLE_PROP_ROW_HEIGHT)), doubleValue) Then
             outErrorText = "Invalid rowHeight declaration: " & CStr(declarations(STYLE_PROP_ROW_HEIGHT))
@@ -1744,9 +1816,19 @@ End Sub
 
 Private Function mp_BuildLayersCacheKey( _
     ByVal wb As Workbook, _
-    ByVal pageName As String _
+    ByVal pageName As String, _
+    ByVal stageName As String _
 ) As String
-    mp_BuildLayersCacheKey = mp_BuildWorkbookCacheKey(wb) & "|" & LCase$(Trim$(pageName))
+    mp_BuildLayersCacheKey = mp_BuildWorkbookCacheKey(wb) & "|" & LCase$(Trim$(pageName)) & "|" & LCase$(Trim$(stageName))
+End Function
+
+Private Function mp_NormalizeStageName(ByVal stageName As String) As String
+    stageName = Trim$(stageName)
+    If Len(stageName) = 0 Then
+        mp_NormalizeStageName = DEFAULT_STAGE_NAME
+    Else
+        mp_NormalizeStageName = stageName
+    End If
 End Function
 
 Private Function mp_BuildWorkbookCacheKey(ByVal wb As Workbook) As String
@@ -1764,9 +1846,9 @@ End Function
 
 Private Function mp_GetStylePipelineDomCached(ByVal wb As Workbook) As Object
     Dim wbKey As String
-    Dim fileStamp As Date
-    Dim hasFileStamp As Boolean
     Dim shouldResetPipelineCaches As Boolean
+    Dim loadedFiles As Object
+    Dim resolvedDoc As Object
 
     mp_EnsureRuntimeCaches
 
@@ -1774,40 +1856,271 @@ Private Function mp_GetStylePipelineDomCached(ByVal wb As Workbook) As Object
     If wb Is Nothing Then Exit Function
 
     wbKey = mp_BuildWorkbookCacheKey(wb)
-    hasFileStamp = mp_TryGetConfigFileStamp(wb, STYLE_PIPELINE_REL_PATH, fileStamp)
 
     If Not g_StylePipelineDocCache Is Nothing Then
         If StrComp(g_StylePipelineDocWbKey, wbKey, vbTextCompare) = 0 Then
-            If (Not hasFileStamp) Or g_StylePipelineDocStamp = fileStamp Then
+            If mp_AreTrackedStylePipelineFilesUnchanged(g_StylePipelineTrackedFiles) Then
                 Set mp_GetStylePipelineDomCached = g_StylePipelineDocCache
                 Exit Function
             End If
-            ' Reset pipeline caches only when StylePipeline file timestamp really changed.
-            If hasFileStamp Then
-                shouldResetPipelineCaches = (g_StylePipelineDocStamp <> fileStamp)
-            End If
+            shouldResetPipelineCaches = True
+        Else
+            shouldResetPipelineCaches = True
         End If
     End If
 
-    Set g_StylePipelineDocCache = ex_XmlCore.m_LoadDomByRelativePath( _
-        wb, _
-        STYLE_PIPELINE_REL_PATH, _
-        PROFILES_NS, _
-        "StylePipeline config file was not found: ", _
-        "Failed to parse StylePipeline config file: " _
-    )
+    Set resolvedDoc = mp_LoadStylePipelineDomWithIncludes(wb, loadedFiles)
+    If resolvedDoc Is Nothing Then Exit Function
+
+    Set g_StylePipelineDocCache = resolvedDoc
     g_StylePipelineDocWbKey = wbKey
-    If hasFileStamp Then
-        g_StylePipelineDocStamp = fileStamp
-    Else
-        g_StylePipelineDocStamp = 0
-    End If
+    Set g_StylePipelineTrackedFiles = loadedFiles
+    g_StylePipelineDocStamp = 0
 
     If shouldResetPipelineCaches Then
         If Not g_LayersCache Is Nothing Then g_LayersCache.RemoveAll
     End If
 
     Set mp_GetStylePipelineDomCached = g_StylePipelineDocCache
+End Function
+
+Private Function mp_LoadStylePipelineDomWithIncludes( _
+    ByVal wb As Workbook, _
+    ByRef outTrackedFiles As Object _
+) As Object
+    Dim rootPath As String
+    Dim doc As Object
+    Dim resolvingFiles As Object
+
+    rootPath = ex_XmlCore.m_CombineBasePath(wb, STYLE_PIPELINE_REL_PATH)
+    rootPath = mp_NormalizeFilePath(rootPath)
+    If Len(rootPath) = 0 Then Exit Function
+
+    Set doc = ex_XmlCore.m_LoadDomByFilePath( _
+        rootPath, _
+        PROFILES_NS, _
+        "StylePipeline config file was not found: ", _
+        "Failed to parse StylePipeline config file: " _
+    )
+    If doc Is Nothing Then Exit Function
+
+    Set outTrackedFiles = mp_CreateStringDictionary()
+    If Not mp_TryTrackFileStamp(rootPath, outTrackedFiles) Then Exit Function
+
+    Set resolvingFiles = mp_CreateStringDictionary()
+    If Not mp_ExpandStylePipelineIncludes(doc, rootPath, outTrackedFiles, resolvingFiles) Then Exit Function
+
+    Set mp_LoadStylePipelineDomWithIncludes = doc
+End Function
+
+Private Function mp_ExpandStylePipelineIncludes( _
+    ByVal doc As Object, _
+    ByVal ownerFilePath As String, _
+    ByVal trackedFiles As Object, _
+    ByVal resolvingFiles As Object _
+) As Boolean
+    Dim includeNodes As Collection
+    Dim includeNode As Object
+    Dim includeDoc As Object
+    Dim includeChildren As Object
+    Dim includeChild As Object
+    Dim importedNode As Object
+    Dim includePath As String
+    Dim includeFullPath As String
+    Dim ownerKey As String
+
+    If doc Is Nothing Then Exit Function
+    If trackedFiles Is Nothing Then Exit Function
+    If resolvingFiles Is Nothing Then Exit Function
+
+    ownerKey = LCase$(mp_NormalizeFilePath(ownerFilePath))
+    If Len(ownerKey) = 0 Then Exit Function
+    If resolvingFiles.Exists(ownerKey) Then
+        MsgBox "StylePipeline include recursion detected: " & ownerFilePath, vbExclamation
+        Exit Function
+    End If
+    resolvingFiles(ownerKey) = True
+
+    Set includeNodes = mp_CollectRootIncludeNodes(doc)
+    For Each includeNode In includeNodes
+        includePath = Trim$(ex_XmlCore.m_NodeAttrText(includeNode, "path"))
+        If Len(includePath) = 0 Then
+            MsgBox "StylePipeline include node must contain non-empty attribute 'path' in file: " & ownerFilePath, vbExclamation
+            GoTo CleanupFalse
+        End If
+
+        includeFullPath = mp_ResolveIncludeFilePath(ownerFilePath, includePath)
+        If Len(includeFullPath) = 0 Then
+            MsgBox "StylePipeline include path could not be resolved: " & includePath & " (owner: " & ownerFilePath & ")", vbExclamation
+            GoTo CleanupFalse
+        End If
+
+        Set includeDoc = ex_XmlCore.m_LoadDomByFilePath( _
+            includeFullPath, _
+            PROFILES_NS, _
+            "StylePipeline include file was not found: ", _
+            "Failed to parse StylePipeline include file: " _
+        )
+        If includeDoc Is Nothing Then GoTo CleanupFalse
+        If Not mp_TryTrackFileStamp(includeFullPath, trackedFiles) Then GoTo CleanupFalse
+
+        If Not mp_ExpandStylePipelineIncludes(includeDoc, includeFullPath, trackedFiles, resolvingFiles) Then GoTo CleanupFalse
+
+        Set includeChildren = includeDoc.selectNodes("/p:stylePipeline/*[not(self::p:include)]")
+        If Not includeChildren Is Nothing Then
+            For Each includeChild In includeChildren
+                Set importedNode = doc.importNode(includeChild, True)
+                includeNode.parentNode.insertBefore importedNode, includeNode
+            Next includeChild
+        End If
+
+        includeNode.parentNode.RemoveChild includeNode
+    Next includeNode
+
+    resolvingFiles.Remove ownerKey
+    mp_ExpandStylePipelineIncludes = True
+    Exit Function
+
+CleanupFalse:
+    On Error Resume Next
+    If resolvingFiles.Exists(ownerKey) Then resolvingFiles.Remove ownerKey
+    On Error GoTo 0
+End Function
+
+Private Function mp_CollectRootIncludeNodes(ByVal doc As Object) As Collection
+    Dim result As Collection
+    Dim nodes As Object
+    Dim node As Object
+
+    Set result = New Collection
+    If doc Is Nothing Then
+        Set mp_CollectRootIncludeNodes = result
+        Exit Function
+    End If
+
+    Set nodes = doc.selectNodes("/p:stylePipeline/p:include")
+    If nodes Is Nothing Then
+        Set mp_CollectRootIncludeNodes = result
+        Exit Function
+    End If
+
+    For Each node In nodes
+        If Not node Is Nothing Then result.Add node
+    Next node
+
+    Set mp_CollectRootIncludeNodes = result
+End Function
+
+Private Function mp_ResolveIncludeFilePath(ByVal ownerFilePath As String, ByVal includePath As String) As String
+    Dim normalizedIncludePath As String
+    Dim ownerDir As String
+    Dim combinedPath As String
+
+    normalizedIncludePath = mp_NormalizeFilePath(includePath)
+    If Len(normalizedIncludePath) = 0 Then Exit Function
+
+    If mp_IsAbsolutePath(normalizedIncludePath) Then
+        mp_ResolveIncludeFilePath = normalizedIncludePath
+        Exit Function
+    End If
+
+    ownerDir = mp_GetParentDirectory(ownerFilePath)
+    If Len(ownerDir) = 0 Then Exit Function
+
+    combinedPath = ownerDir & "\" & normalizedIncludePath
+    mp_ResolveIncludeFilePath = mp_NormalizeFilePath(combinedPath)
+End Function
+
+Private Function mp_GetParentDirectory(ByVal filePath As String) As String
+    Dim slashPos As Long
+    Dim normalized As String
+
+    normalized = mp_NormalizeFilePath(filePath)
+    If Len(normalized) = 0 Then Exit Function
+
+    slashPos = InStrRev(normalized, "\", -1, vbBinaryCompare)
+    If slashPos <= 0 Then Exit Function
+    If slashPos = 1 Then
+        mp_GetParentDirectory = "\"
+    Else
+        mp_GetParentDirectory = Left$(normalized, slashPos - 1)
+    End If
+End Function
+
+Private Function mp_IsAbsolutePath(ByVal filePath As String) As Boolean
+    Dim normalized As String
+
+    normalized = mp_NormalizeFilePath(filePath)
+    If Len(normalized) = 0 Then Exit Function
+
+    If Left$(normalized, 2) = "\\" Then
+        mp_IsAbsolutePath = True
+        Exit Function
+    End If
+
+    If Len(normalized) >= 3 Then
+        If Mid$(normalized, 2, 1) = ":" And Mid$(normalized, 3, 1) = "\" Then
+            mp_IsAbsolutePath = True
+        End If
+    End If
+End Function
+
+Private Function mp_NormalizeFilePath(ByVal filePath As String) As String
+    Dim normalized As String
+
+    normalized = Trim$(filePath)
+    normalized = Replace$(normalized, "/", "\")
+    Do While InStr(1, normalized, "\\", vbBinaryCompare) > 0 And Left$(normalized, 2) <> "\\"
+        normalized = Replace$(normalized, "\\", "\")
+    Loop
+    mp_NormalizeFilePath = normalized
+End Function
+
+Private Function mp_TryTrackFileStamp(ByVal filePath As String, ByVal trackedFiles As Object) As Boolean
+    Dim stamp As Date
+    Dim key As String
+
+    If trackedFiles Is Nothing Then Exit Function
+    key = LCase$(mp_NormalizeFilePath(filePath))
+    If Len(key) = 0 Then Exit Function
+
+    On Error Resume Next
+    stamp = FileDateTime(filePath)
+    If Err.Number <> 0 Then
+        Err.Clear
+        On Error GoTo 0
+        MsgBox "StylePipeline file timestamp read failed: " & filePath, vbExclamation
+        Exit Function
+    End If
+    On Error GoTo 0
+
+    trackedFiles(key) = CDbl(stamp)
+    mp_TryTrackFileStamp = True
+End Function
+
+Private Function mp_AreTrackedStylePipelineFilesUnchanged(ByVal trackedFiles As Object) As Boolean
+    Dim key As Variant
+    Dim stamp As Date
+    Dim currentStamp As Double
+
+    If trackedFiles Is Nothing Then Exit Function
+    If trackedFiles.Count = 0 Then Exit Function
+
+    For Each key In trackedFiles.Keys
+        On Error Resume Next
+        stamp = FileDateTime(CStr(key))
+        If Err.Number <> 0 Then
+            Err.Clear
+            On Error GoTo 0
+            Exit Function
+        End If
+        On Error GoTo 0
+
+        currentStamp = CDbl(stamp)
+        If CDbl(trackedFiles(CStr(key))) <> currentStamp Then Exit Function
+    Next key
+
+    mp_AreTrackedStylePipelineFilesUnchanged = True
 End Function
 
 Private Function mp_TryGetConfigFileStamp( _
@@ -1896,6 +2209,16 @@ Private Function mp_TryParsePositiveDouble(ByVal valueText As String, ByRef outV
     If Not ex_XmlCore.m_TryParseDouble(normalized, outValue) Then Exit Function
     If outValue <= 0 Then Exit Function
     mp_TryParsePositiveDouble = True
+End Function
+
+Private Function mp_TryParseNonNegativeDouble(ByVal valueText As String, ByRef outValue As Double) As Boolean
+    Dim normalized As String
+
+    normalized = Trim$(valueText)
+    If Len(normalized) = 0 Then Exit Function
+    If Not ex_XmlCore.m_TryParseDouble(normalized, outValue) Then Exit Function
+    If outValue < 0 Then Exit Function
+    mp_TryParseNonNegativeDouble = True
 End Function
 
 Private Function mp_TryParseBorderWeight(ByVal valueText As String, ByRef outValue As Long) As Boolean

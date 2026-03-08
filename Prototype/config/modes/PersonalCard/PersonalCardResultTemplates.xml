@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resultTemplates xmlns="urn:excelprototype:profiles" version="1">
+  <template id="HospitalBrown">
+    <text><![CDATA[З {Hospital}
+, з {#dd} березня 2026 року:
+
+{Rank} {FIO}, {Position}.
+
+{ReturnLineBlock}Зарахувати на котлове забезпечення з {#dd+1} березня 2026 року.
+
+Підстава: рапорт {RaportFrom} (вх. № 1656/{InNum}-в від {InDate}), виписка із медичної карти стаціонарного хворого № {DocNum} від {DocDate}.]]></text>
+  </template>
+</resultTemplates>

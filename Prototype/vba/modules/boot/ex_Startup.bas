@@ -14,7 +14,7 @@ Public Sub Startup_Open()
     ex_CustomDropdown.m_InitDevTestDropdown ThisWorkbook
     Exit Sub
 EH:
-    MsgBox "Startup initialization failed: " & Err.Description, vbExclamation
+    MsgBox "Startup initialization failed: [" & Err.Source & " #" & CStr(Err.Number) & "] " & Err.Description, vbExclamation
 End Sub
 
 Public Sub m_HelloWorld()
