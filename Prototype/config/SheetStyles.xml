@@ -32,24 +32,6 @@
     horizontal="left"
     vertical="center"/>
 
-  <postProcessHeaderStyle
-    columns="2"
-    overflow="wrap"
-    backColor="#161616"
-    fontColor="#F5D08A"
-    fontSize="12"
-    rowHeight="24"
-    autoHeight="true"/>
-
-  <postProcessFooterStyle
-    columns="2"
-    overflow="wrap"
-    backColor="#161616"
-    fontColor="#F5D08A"
-    fontSize="12"
-    rowHeight="24"
-    autoHeight="true"/>
-
   <outputStyles>
     <outputSheetStyle
       modeKey="PersonalCard"

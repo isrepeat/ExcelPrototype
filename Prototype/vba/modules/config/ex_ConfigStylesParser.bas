@@ -20,11 +20,13 @@ Private Enum e_ConfigStylePropertyId
     cfgStylePropVertical = 15
     cfgStylePropBorderColor = 16
     cfgStylePropBorderWeight = 17
+    cfgStylePropAutoHeightMarginTop = 18
+    cfgStylePropAutoHeightMarginBottom = 19
 End Enum
 
 ' Supported style properties (declarations):
 ' width, minWidth, maxWidth, autoFitColumns
-' overflow, autoHeight, rowHeight, mergeColumns
+' overflow, autoHeight, customAutoHeight-margin-top, customAutoHeight-margin-bottom, rowHeight, mergeColumns
 ' fontName, fontSize, fontBold
 ' backColor, fontColor
 ' borderColor, borderWeight
@@ -35,6 +37,8 @@ Private Const STYLE_PROPERTY_MAX_WIDTH As String = "maxWidth"
 Private Const STYLE_PROPERTY_AUTO_FIT_COLUMNS As String = "autoFitColumns"
 Private Const STYLE_PROPERTY_OVERFLOW As String = "overflow"
 Private Const STYLE_PROPERTY_AUTO_HEIGHT As String = "autoHeight"
+Private Const STYLE_PROPERTY_CUSTOM_AUTO_HEIGHT_MARGIN_TOP As String = "customAutoHeight-margin-top"
+Private Const STYLE_PROPERTY_CUSTOM_AUTO_HEIGHT_MARGIN_BOTTOM As String = "customAutoHeight-margin-bottom"
 Private Const STYLE_PROPERTY_ROW_HEIGHT As String = "rowHeight"
 Private Const STYLE_PROPERTY_MERGE_COLUMNS As String = "mergeColumns"
 Private Const STYLE_PROPERTY_FONT_NAME As String = "fontName"
@@ -306,6 +310,8 @@ Private Function mp_BuildSupportedPropertyIds() As Object
     propertyIds(LCase$(STYLE_PROPERTY_AUTO_FIT_COLUMNS)) = cfgStylePropAutoFitColumns
     propertyIds(STYLE_PROPERTY_OVERFLOW) = cfgStylePropOverflow
     propertyIds(STYLE_PROPERTY_AUTO_HEIGHT) = cfgStylePropAutoHeight
+    propertyIds(LCase$(STYLE_PROPERTY_CUSTOM_AUTO_HEIGHT_MARGIN_TOP)) = cfgStylePropAutoHeightMarginTop
+    propertyIds(LCase$(STYLE_PROPERTY_CUSTOM_AUTO_HEIGHT_MARGIN_BOTTOM)) = cfgStylePropAutoHeightMarginBottom
     propertyIds(LCase$(STYLE_PROPERTY_ROW_HEIGHT)) = cfgStylePropRowHeight
     propertyIds(LCase$(STYLE_PROPERTY_MERGE_COLUMNS)) = cfgStylePropMergeColumns
     propertyIds(LCase$(STYLE_PROPERTY_FONT_NAME)) = cfgStylePropFontName
@@ -412,6 +418,12 @@ Private Function mp_ValidatePropertyValue( _
         Case cfgStylePropAutoHeight
             If Not mp_TryParseBoolean(propertyValue, boolValue) Then
                 outErrorText = "invalid autoHeight value '" & propertyValue & "' (expected true/false)"
+                Exit Function
+            End If
+
+        Case cfgStylePropAutoHeightMarginTop, cfgStylePropAutoHeightMarginBottom
+            If Not mp_TryParseNonNegativeDouble(propertyValue, widthValue) Then
+                outErrorText = "invalid autoHeight margin value '" & propertyValue & "' (expected number >= 0)"
                 Exit Function
             End If
 
@@ -753,6 +765,16 @@ Private Function mp_TryParsePositiveDouble(ByVal valueText As String, ByRef outV
     If Not ex_XmlCore.m_TryParseDouble(normalized, outValue) Then Exit Function
     If outValue <= 0 Then Exit Function
     mp_TryParsePositiveDouble = True
+End Function
+
+Private Function mp_TryParseNonNegativeDouble(ByVal valueText As String, ByRef outValue As Double) As Boolean
+    Dim normalized As String
+
+    normalized = Trim$(valueText)
+    If Len(normalized) = 0 Then Exit Function
+    If Not ex_XmlCore.m_TryParseDouble(normalized, outValue, True) Then Exit Function
+    If outValue < 0 Then Exit Function
+    mp_TryParseNonNegativeDouble = True
 End Function
 
 Private Function mp_TryParseBorderWeight(ByVal valueText As String, ByRef outValue As Long) As Boolean

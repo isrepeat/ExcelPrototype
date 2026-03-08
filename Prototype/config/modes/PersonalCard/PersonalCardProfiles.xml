@@ -96,7 +96,7 @@
 		<v key=""/>
 		<v key="Output.Sheets">StateMain; EventsOut; EventsIn</v>
 		<postProcessScript>
-			for (row in Events.Sheet[EventsOut].rows) {
+			for (let row in Events.Sheet[EventsOut].rows) {
 				/*
 				if (row.column[Date] == "12.07.2025") {
 					callMacro("ex_PostProcessActions.m_HighlightRow", row, "#FF0000");
@@ -208,85 +208,41 @@
 		<v key="Daily.Sheet[DailyEvents].Map[VkDate]">В/к дата</v>
 		<v key="Daily.Sheet[DailyEvents].Map[VlkNum]">ВЛК №</v>
 		<v key="Daily.Sheet[DailyEvents].Map[VlkDate]">ВЛК дата</v>
+		<v key="Daily.Sheet[DailyEvents].Fetch.MarkerField">Vacation</v>
+		<v key="Daily.Sheet[DailyEvents].Fetch.MarkerValues">ТВО</v>
 		<v key=""/>
 		<v key="Output.Sheets">StateMain; EventsOut; EventsIn; DailyEvents</v>
-		<postProcessScript>
-			for (row in Daily.Sheet[DailyEvents].rows) {
-				/* Старт блока: новая больница */
-				if (row.column[Hospital] != "") {
-					let txt = callMacro("ex_PostProcessActions.m_TextAppend", "", "7.2.3. З-лікування:");
-					let txt = callMacro("ex_PostProcessActions.m_TextAppend", txt, "З {row.column[Hospital]}.", "\n");
+			<postProcessScript>
+				for (let row in Daily.Sheet[DailyEvents].rows) {
+					if (row.column[Hospital] != "") {
+						let txt = callMacro("ex_ResultTemplatesParser.m_GetTemplateText", "HospitalBrown");
+						let nextRow = callMacro("ex_PostProcessActions.m_GetRelativeRow", row, "1");
+						let returnLineBlock = callMacro("ex_PostProcessActions.m_TextAppend", "", "");
 
-					if (row.column[Rank] != "" and row.column[FIO] != "" and row.column[Position] != "") {
-						let txt = callMacro("ex_PostProcessActions.m_TextAppend", txt, "{row.column[Rank]} {row.column[FIO]}, {row.column[Position]}.", "\n");
+						if (nextRow.column[RowKind] == "meta" and
+						    nextRow.column[Vacation] == "ТВО" and
+							nextRow.column[Rank] != "" and
+							nextRow.column[FIO] != "" and
+							nextRow.column[Position] != "") {
+							returnLineBlock = callMacro("ex_PostProcessActions.m_TextAppend", "", "{nextRow.column[Rank]} {nextRow.column[FIO]} повернутись до виконання обов'язків {nextRow.column[Position]}.", "\n");
+						}
+
+						txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "Hospital", "{row.column[Hospital]}");
+						txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "Rank", "{row.column[Rank]}");
+						txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "FIO", "{row.column[FIO]}");
+						txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "Position", "{row.column[Position]}");
+						txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "ReturnLineBlock", "{returnLineBlock}");
+						txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "RaportFrom", "{row.column[RaportFrom]}");
+						txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "InNum", "{row.column[InNum]}");
+						txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "InDate", "{row.column[InDate]}");
+						txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "DocNum", "{row.column[DocNum]}");
+						txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "DocDate", "{row.column[DocDate]}");
+						txt = callMacro("ex_ResultTemplatesParser.m_ResolveTemplate", txt);
+
+						callMacro("ex_PostProcessActions.m_AppendToSinglePostProcessFooterText", txt, "\n\n");
 					}
-
-					if (row.column[Vacation] != "") {
-						let txt = callMacro("ex_PostProcessActions.m_TextAppend", txt, "Статус: {row.column[Vacation]}.", "\n");
-					}
-
-					if (row.column[DaysCount] != "" and row.column[DateFrom] != "" and row.column[DateTo] != "") {
-						let txt = callMacro("ex_PostProcessActions.m_TextAppend", txt, "Термін: {row.column[DaysCount]} (з {row.column[DateFrom]} по {row.column[DateTo]}).", "\n");
-					}
-
-					if (row.column[RaportFrom] != "" and row.column[InNum] != "" and row.column[InDate] != "") {
-						let txt = callMacro("ex_PostProcessActions.m_TextAppend", txt, "Підстава: рапорт {row.column[RaportFrom]} (вх. №{row.column[InNum]} від {row.column[InDate]}).", "\n");
-					}
-
-					if (row.column[DocNum] != "" and row.column[DocDate] != "") {
-						let txt = callMacro("ex_PostProcessActions.m_TextAppend", txt, "Виписка з медичної карти №{row.column[DocNum]} від {row.column[DocDate]}.", "\n");
-					}
-
-					if (row.column[VkNum] != "" and row.column[VkDate] != "") {
-						let txt = callMacro("ex_PostProcessActions.m_TextAppend", txt, "В/к №{row.column[VkNum]} від {row.column[VkDate]}.", "\n");
-					}
-
-					if (row.column[VlkNum] != "" and row.column[VlkDate] != "") {
-						let txt = callMacro("ex_PostProcessActions.m_TextAppend", txt, "ВЛК №{row.column[VlkNum]} від {row.column[VlkDate]}.", "\n");
-					}
-
-					callMacro("ex_PostProcessActions.m_SetRowCellText", row, "DocNote", txt);
 				}
-
-				/* Продолжение блока: строка без Hospital дописывается в блок выше */
-				if (row.column[Hospital] == "" and row.column[FIO] != "" and row.column[Rank] != "" and row.column[Position] != "") {
-					callMacro("ex_PostProcessActions.m_AppendToOwnerRowCell", row, "Hospital", "DocNote", "{row.column[Rank]} {row.column[FIO]}, {row.column[Position]}.", "\n");
-				}
-
-				if (row.column[Hospital] == "" and row.column[Vacation] != "") {
-					callMacro("ex_PostProcessActions.m_AppendToOwnerRowCell", row, "Hospital", "DocNote", "Статус: {row.column[Vacation]}.", "\n");
-				}
-
-				if (row.column[Hospital] == "" and row.column[DaysCount] != "" and row.column[DateFrom] != "" and row.column[DateTo] != "") {
-					callMacro("ex_PostProcessActions.m_AppendToOwnerRowCell", row, "Hospital", "DocNote", "Термін: {row.column[DaysCount]} (з {row.column[DateFrom]} по {row.column[DateTo]}).", "\n");
-				}
-
-				if (row.column[Hospital] == "" and row.column[RaportFrom] != "" and row.column[InNum] != "" and row.column[InDate] != "") {
-					callMacro("ex_PostProcessActions.m_AppendToOwnerRowCell", row, "Hospital", "DocNote", "Підстава: рапорт {row.column[RaportFrom]} (вх. №{row.column[InNum]} від {row.column[InDate]}).", "\n");
-				}
-
-				if (row.column[Hospital] == "" and row.column[DocNum] != "" and row.column[DocDate] != "") {
-					callMacro("ex_PostProcessActions.m_AppendToOwnerRowCell", row, "Hospital", "DocNote", "Виписка з медичної карти №{row.column[DocNum]} від {row.column[DocDate]}.", "\n");
-				}
-
-				if (row.column[Hospital] == "" and row.column[VkNum] != "" and row.column[VkDate] != "") {
-					callMacro("ex_PostProcessActions.m_AppendToOwnerRowCell", row, "Hospital", "DocNote", "В/к №{row.column[VkNum]} від {row.column[VkDate]}.", "\n");
-				}
-
-				if (row.column[Hospital] == "" and row.column[VlkNum] != "" and row.column[VlkDate] != "") {
-					callMacro("ex_PostProcessActions.m_AppendToOwnerRowCell", row, "Hospital", "DocNote", "ВЛК №{row.column[VlkNum]} від {row.column[VlkDate]}.", "\n");
-				}
-
-				if (row.column[DocNote] != "") {
-					callMacro("ex_PostProcessActions.m_HighlightRowCell", row, "DocNote", "#404040");
-					callMacro("ex_PostProcessActions.m_EmphasizeRowCellTextByRegex", row, "DocNote", "№\\s*[0-9]+", "#FF0000", "false");
-				}
-			}
-
-			if (Daily.Sheet[DailyEvents].count != "0") {
-				callMacro("ex_PostProcessActions.m_AppendPostProcessFooterText", "DailyEvents rows: {Daily.Sheet[DailyEvents].count}");
-			}
-		</postProcessScript>
+			</postProcessScript>
 		<ui>
 			<control name="btnClear" visible="true"/>
 			<control name="btnMode" visible="true"/>
