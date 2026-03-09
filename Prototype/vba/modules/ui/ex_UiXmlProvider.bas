@@ -3,7 +3,6 @@ Option Explicit
 
 Private Const PROFILES_NS As String = "urn:excelprototype:profiles"
 Private Const DEV_UI_CONFIG_REL_PATH As String = "config\DevUI.xml"
-Private Const ACTION_MAP_REL_PATH As String = "config\ActionMap.xml"
 Private Const DROPDOWN_CONTEXT_PROP_PREFIX As String = "Settings.DropdownContext."
 Private Const STATE_ACTIVE_MODE_KEY_PROP As String = "Settings.ActiveModeKey"
 
@@ -295,49 +294,6 @@ Public Sub m_ApplyDropdownSetContext(ByVal setContextText As String)
 NextAssignment:
     Next assignment
 End Sub
-
-Public Function m_ResolveMacroByActionKey(ByVal actionKey As String, Optional ByVal wb As Workbook) As String
-    Dim filePath As String
-    Dim doc As Object
-    Dim actionNode As Object
-    Dim macroName As String
-
-    actionKey = Trim$(actionKey)
-    If Len(actionKey) = 0 Then Exit Function
-
-    If wb Is Nothing Then Set wb = ThisWorkbook
-    If wb Is Nothing Then Exit Function
-
-    filePath = ex_XmlCore.m_CombineBasePath(wb, ACTION_MAP_REL_PATH)
-    If Len(filePath) = 0 Then Exit Function
-    If Len(Dir(filePath)) = 0 Then
-        MsgBox "Action map file was not found: " & filePath, vbExclamation
-        Exit Function
-    End If
-
-    Set doc = CreateObject("MSXML2.DOMDocument.6.0")
-    doc.async = False
-    doc.validateOnParse = False
-    doc.preserveWhiteSpace = False
-    If Not doc.Load(filePath) Then
-        MsgBox "Failed to parse action map file: " & filePath, vbExclamation
-        Exit Function
-    End If
-
-    Set actionNode = doc.selectSingleNode("/actionMap/action[@key=" & ex_XmlCore.m_XPathLiteral(actionKey) & "]")
-    If actionNode Is Nothing Then
-        MsgBox "Action key '" & actionKey & "' was not found in " & ACTION_MAP_REL_PATH & ".", vbExclamation
-        Exit Function
-    End If
-
-    macroName = mp_GetPlainXmlAttrText(actionNode, "macro")
-    If Len(macroName) = 0 Then
-        MsgBox "Action key '" & actionKey & "' has empty macro in " & ACTION_MAP_REL_PATH & ".", vbExclamation
-        Exit Function
-    End If
-
-    m_ResolveMacroByActionKey = macroName
-End Function
 
 Public Function m_GetProfilesFilePathByMode(Optional ByVal modeKey As String = vbNullString, Optional ByVal wb As Workbook, Optional ByVal sourceName As String = PROFILES_FILE_SOURCE_NAME) As String
     Dim doc As Object

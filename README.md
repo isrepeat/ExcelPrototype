@@ -168,6 +168,118 @@ if (mapKey != "") {
 }
 ```
 
+## ResultTemplatesParser
+
+Модуль: `Prototype/vba/modules/common/ex_ResultTemplatesParser.bas`  
+Источник шаблонов: `Prototype/config/modes/PersonalCard/PersonalCardResultTemplates.xml`
+
+### Что делает
+
+Парсер закрывает задачу финальной сборки текстового блока по XML-шаблону в `postProcessScript`:
+
+1. Загружает `<template id="..."><text><![CDATA[...]]></text></template>`.
+2. Подставляет бизнес-плейсхолдеры (`{Hospital}`, `{FIO}`, ...).
+3. Применяет опциональные форматтеры (`{FIO|upper}`, `{Rank|genitive}`, ...).
+4. Выполняет финальный проход по зарезервированным токенам даты (`{#dd}`, `{#dd+N}`, `{#dd-N}`).
+
+### Публичные методы
+
+1. `m_GetTemplateText(templateId)` - берет `text` по `template/@id`, нормализует переводы строк.
+2. `m_ReplacePlaceholder(sourceText, placeholderName, replacementText)` - заменяет:
+   - простой токен `{Name}`
+   - токен с форматтером `{Name|formatter}`
+   - цепочку форматтеров `{Name|action1|action2}`
+   - форматтеры с аргументами `{Name|truncate:20|replace:foo,bar}`
+3. `m_ResolveTemplate(sourceText, [baseDateText])` - делает финальный проход:
+   - `{#dd}` = день базовой даты
+   - `{#dd+N}` / `{#dd-N}` = день со смещением
+   - `{#_}` / `#_` = убрать перенос строки вокруг токена (склеить строки)
+   - если `baseDateText` не передан, используется `Date` (текущий день)
+   - условные блоки `{#if ...}...{#endif}`
+
+### Форматтеры плейсхолдеров
+
+Поддерживаются:
+
+1. `upper`
+2. `lower`
+3. `capitalize`
+4. `firstchar`
+5. `upperFirstWord`
+6. `upperFirstLetter`
+7. `genitive`
+8. `accusative`
+9. `dative` (укр. давальний: "кому/чому")
+10. `lowerFirstWord`
+11. `lowerFirstLetter`
+12. `truncate:N`
+13. `replace:from,to`
+
+Примечание: `genitive`, `accusative`, `dative` реализованы в `ex_MorphUaLite` и ориентированы на украинские формы.
+
+Правила pipeline:
+
+1. Форматтеры применяются слева направо: `{Field|accusative|lowerFirstLetter}`.
+2. Пробелы вокруг `|` игнорируются.
+3. Для `replace` обязательны оба аргумента (`from,to`), `from` не может быть пустым.
+
+Если форматтер неизвестен, модуль добавляет диагностическую строку в начало результата.
+
+Поддержка в `postProcessScript`:
+
+1. В строковых аргументах `callMacro` можно использовать тот же синтаксис форматтера:
+   - `{row.column[Rank]|accusative}`
+   - `{row.column[FIO]|genitive}`
+2. Форматирование выполняется через `ex_ResultTemplatesParser.m_FormatValue`.
+
+### Условные блоки в шаблоне
+
+Поддерживается синтаксис:
+
+1. `{#if ReturnToDutyLine}...{#endif}` - условие по значению плейсхолдера.
+2. `{#if IsAssignDuty}...{#endif}` - условие по флагу (`"true"` / `"false"` строкой).
+
+Правила вычисления условия:
+
+1. `"false"` (без учета регистра) -> `false`
+2. пустая строка -> `false`
+3. `"true"` -> `true`
+4. любая другая непустая строка -> `true`
+
+Дополнительно:
+
+1. Поддержаны вложенные `if`-блоки.
+2. Если плейсхолдер заменяется через `m_ReplacePlaceholder`, маркеры `{#if PlaceholderName}` автоматически приводятся к `{#if true}` или `{#if false}`.
+
+### Диагностика в тексте результата
+
+При ошибках форматирования/резолва модуль не прерывает сборку шаблона, а добавляет первую строку вида:
+
+`[TEMPLATE ERROR] <operation>: [<source> #<number>] <description>`
+
+Эта строка вставляется в самое начало итогового текста.
+
+### Поддержка неразрывного пробела
+
+Внутренний trim/поиск первого непробельного символа учитывает:
+
+1. обычный пробел
+2. tab/newline
+3. `NBSP` (`U+00A0`)
+4. `NARROW NBSP` (`U+202F`)
+
+Это важно для шаблонов, скопированных из Word/почты, где вместо обычных пробелов часто попадает `NBSP`.
+
+### Рекомендуемый pipeline в DSL
+
+```text
+let txt = callMacro("ex_ResultTemplatesParser.m_GetTemplateText", "HospitalBrown");
+txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "Hospital", "{row.column[Hospital]}");
+txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "FIO", "{row.column[FIO]}");
+txt = callMacro("ex_ResultTemplatesParser.m_ResolveTemplate", txt);
+callMacro("ex_PostProcessActions.m_AppendToSinglePostProcessFooterText", txt, "\n\n");
+```
+
 ## StylePipeline (page-based, universal apply)
 
 Источник конфигурации:
