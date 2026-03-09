@@ -1342,6 +1342,8 @@ Private Function mp_RenderTemplate( _
     Dim openPos As Long
     Dim closePos As Long
     Dim tokenText As String
+    Dim tokenRef As String
+    Dim formatterName As String
     Dim tokenValue As String
     Dim resolveError As String
 
@@ -1352,8 +1354,14 @@ Private Function mp_RenderTemplate( _
         If closePos <= openPos Then Exit Do
 
         tokenText = Mid$(result, openPos + 1, closePos - openPos - 1)
-        If Not mp_TryResolveRuntimeValue(tokenText, currentTableRef, currentRowVar, currentRowRef, tablesByRef, runtimeVars, tokenValue, resolveError) Then
+        mp_SplitTemplateTokenFormatter tokenText, tokenRef, formatterName
+
+        If Not mp_TryResolveRuntimeValue(tokenRef, currentTableRef, currentRowVar, currentRowRef, tablesByRef, runtimeVars, tokenValue, resolveError) Then
             Err.Raise vbObjectError + 1595, "ex_PostProcessDsl", resolveError
+        End If
+
+        If Len(formatterName) > 0 Then
+            tokenValue = ex_ResultTemplatesParser.m_FormatValue(tokenValue, formatterName)
         End If
 
         result = Left$(result, openPos - 1) & tokenValue & Mid$(result, closePos + 1)
@@ -1362,6 +1370,45 @@ Private Function mp_RenderTemplate( _
 
     mp_RenderTemplate = result
 End Function
+
+Private Sub mp_SplitTemplateTokenFormatter( _
+    ByVal tokenText As String, _
+    ByRef outTokenRef As String, _
+    ByRef outFormatterName As String _
+)
+    Dim i As Long
+    Dim ch As String
+    Dim bracketDepth As Long
+    Dim sepPos As Long
+
+    tokenText = CStr(tokenText)
+    outTokenRef = Trim$(tokenText)
+    outFormatterName = vbNullString
+
+    For i = 1 To Len(tokenText)
+        ch = Mid$(tokenText, i, 1)
+        Select Case ch
+            Case "["
+                bracketDepth = bracketDepth + 1
+            Case "]"
+                If bracketDepth > 0 Then bracketDepth = bracketDepth - 1
+            Case "|"
+                If bracketDepth = 0 Then
+                    sepPos = i
+                    Exit For
+                End If
+        End Select
+    Next i
+
+    If sepPos <= 0 Then Exit Sub
+
+    outTokenRef = Trim$(Left$(tokenText, sepPos - 1))
+    outFormatterName = Trim$(Mid$(tokenText, sepPos + 1))
+    If Len(outTokenRef) = 0 Or Len(outFormatterName) = 0 Then
+        outTokenRef = Trim$(tokenText)
+        outFormatterName = vbNullString
+    End If
+End Sub
 
 Private Function mp_NormalizeScript(ByVal scriptText As String) As String
     Dim lines As Variant

@@ -217,21 +217,30 @@
 					if (row.column[Hospital] != "") {
 						let txt = callMacro("ex_ResultTemplatesParser.m_GetTemplateText", "HospitalBrown");
 						let nextRow = callMacro("ex_PostProcessActions.m_GetRelativeRow", row, "1");
-						let returnLineBlock = callMacro("ex_PostProcessActions.m_TextAppend", "", "");
+						let isReturnToDuty = callMacro("ex_PostProcessActions.m_TextAppend", "", "false");
+						let returnToDutyRank = callMacro("ex_PostProcessActions.m_TextAppend", "", "");
+						let returnToDutyFIO = callMacro("ex_PostProcessActions.m_TextAppend", "", "");
+						let returnToDutyPosition = callMacro("ex_PostProcessActions.m_TextAppend", "", "");
 
-						if (nextRow.column[RowKind] == "meta" and
-						    nextRow.column[Vacation] == "ТВО" and
-							nextRow.column[Rank] != "" and
-							nextRow.column[FIO] != "" and
-							nextRow.column[Position] != "") {
-							returnLineBlock = callMacro("ex_PostProcessActions.m_TextAppend", "", "{nextRow.column[Rank]} {nextRow.column[FIO]} повернутись до виконання обов'язків {nextRow.column[Position]}.", "\n");
-						}
+							if (nextRow.column[RowKind] == "meta" and
+							    nextRow.column[Vacation] == "ТВО" and
+								nextRow.column[Rank] != "" and
+								nextRow.column[FIO] != "" and
+								nextRow.column[Position] != "") {
+								isReturnToDuty = callMacro("ex_PostProcessActions.m_TextAppend", "", "true");
+								returnToDutyRank = callMacro("ex_PostProcessActions.m_TextAppend", "", "{nextRow.column[Rank]}");
+								returnToDutyFIO = callMacro("ex_PostProcessActions.m_TextAppend", "", "{nextRow.column[FIO]}");
+								returnToDutyPosition = callMacro("ex_PostProcessActions.m_TextAppend", "", "{nextRow.column[Position]}");
+							}
 
 						txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "Hospital", "{row.column[Hospital]}");
 						txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "Rank", "{row.column[Rank]}");
 						txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "FIO", "{row.column[FIO]}");
 						txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "Position", "{row.column[Position]}");
-						txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "ReturnLineBlock", "{returnLineBlock}");
+						txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "IsReturnToDuty", "{isReturnToDuty}");
+						txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "ReturnToDutyRank", "{returnToDutyRank}");
+						txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "ReturnToDutyFIO", "{returnToDutyFIO}");
+						txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "ReturnToDutyPosition", "{returnToDutyPosition}");
 						txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "RaportFrom", "{row.column[RaportFrom]}");
 						txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "InNum", "{row.column[InNum]}");
 						txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "InDate", "{row.column[InDate]}");

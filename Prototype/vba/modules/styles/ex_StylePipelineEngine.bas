@@ -434,7 +434,7 @@ Private Function mp_LoadLayersFromSheetPipelineXml( _
         Exit Function
     End If
 
-    Set sheetPipelines = doc.selectNodes("/p:stylePipeline/p:sheetPipeline")
+    Set sheetPipelines = doc.selectNodes("/*[local-name()='stylePipeline']/*[local-name()='sheetPipeline']")
     If sheetPipelines Is Nothing Then
         Set mp_LoadLayersFromSheetPipelineXml = result
         Exit Function
@@ -453,14 +453,14 @@ Private Function mp_LoadLayersFromSheetPipelineXml( _
         End If
         hasMatchingSheetPipeline = True
 
-        Set layerNodes = sheetPipelineNode.selectNodes("p:layer")
+        Set layerNodes = sheetPipelineNode.selectNodes("*[local-name()='layer']")
         If Not layerNodes Is Nothing Then
             If layerNodes.Length > 0 Then
                 Err.Raise vbObjectError + 1738, "ex_StylePipelineEngine", "sheetPipeline direct layers are not supported. Move layers under stage name='default'."
             End If
         End If
 
-        Set stageNodes = sheetPipelineNode.selectNodes("p:stage")
+        Set stageNodes = sheetPipelineNode.selectNodes("*[local-name()='stage']")
         If stageNodes Is Nothing Or stageNodes.Length = 0 Then
             Err.Raise vbObjectError + 1739, "ex_StylePipelineEngine", "sheetPipeline must contain at least one stage and mandatory stage name='default'."
         End If
@@ -478,7 +478,7 @@ Private Function mp_LoadLayersFromSheetPipelineXml( _
             If StrComp(stageKey, normalizedRequestedStage, vbTextCompare) <> 0 Then GoTo ContinueStage
             hasRequestedStage = True
 
-            Set layerNodes = stageNode.selectNodes("p:layer")
+            Set layerNodes = stageNode.selectNodes("*[local-name()='layer']")
             If layerNodes Is Nothing Then GoTo ContinueStage
 
             For Each layerNode In layerNodes
@@ -537,7 +537,7 @@ Private Sub mp_ParseLayerRules(ByVal layerNode As Object, ByVal layerObj As obj_
     If layerNode Is Nothing Then Exit Sub
     If layerObj Is Nothing Then Exit Sub
 
-    Set ruleNodes = layerNode.selectNodes("p:rule")
+    Set ruleNodes = layerNode.selectNodes("*[local-name()='rule']")
     If ruleNodes Is Nothing Then Exit Sub
 
     ruleIndex = 0
@@ -1966,7 +1966,7 @@ Private Function mp_ExpandStylePipelineIncludes( _
 
         If Not mp_ExpandStylePipelineIncludes(includeDoc, includeFullPath, trackedFiles, resolvingFiles) Then GoTo CleanupFalse
 
-        Set includeChildren = includeDoc.selectNodes("/p:stylePipeline/*[not(self::p:include)]")
+        Set includeChildren = includeDoc.selectNodes("/*[local-name()='stylePipeline']/*[local-name()!='include']")
         If Not includeChildren Is Nothing Then
             For Each includeChild In includeChildren
                 Set importedNode = doc.importNode(includeChild, True)
@@ -1998,7 +1998,7 @@ Private Function mp_CollectRootIncludeNodes(ByVal doc As Object) As Collection
         Exit Function
     End If
 
-    Set nodes = doc.selectNodes("/p:stylePipeline/p:include")
+    Set nodes = doc.selectNodes("/*[local-name()='stylePipeline']/*[local-name()='include']")
     If nodes Is Nothing Then
         Set mp_CollectRootIncludeNodes = result
         Exit Function
