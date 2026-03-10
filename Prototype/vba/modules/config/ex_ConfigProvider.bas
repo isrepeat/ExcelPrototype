@@ -382,8 +382,10 @@ Public Sub m_RefreshConfigTitle( _
     Optional ByVal profileName As String = vbNullString _
 )
     Dim titleCell As Range
+    Dim titleText As String
     Dim resolvedProfile As String
     Dim cfgTable As ListObject
+    Dim wasProtected As Boolean
 
     If wsDev Is Nothing Then
         Set wsDev = mp_EnsureDevSheet()
@@ -402,7 +404,32 @@ Public Sub m_RefreshConfigTitle( _
     End If
 
     Set titleCell = cfgTable.HeaderRowRange.Cells(1, DEV_COL_VALUE)
-    titleCell.Value = Replace(CONFIG_TITLE_TEMPLATE, "<CURRENT_PROFILE>", resolvedProfile)
+    titleText = Replace(CONFIG_TITLE_TEMPLATE, "<CURRENT_PROFILE>", resolvedProfile)
+
+    If StrComp(CStr(titleCell.Value2), titleText, vbBinaryCompare) = 0 Then Exit Sub
+
+    wasProtected = wsDev.ProtectContents
+    If wasProtected Then
+        On Error Resume Next
+        wsDev.Unprotect
+        If Err.Number <> 0 Or wsDev.ProtectContents Then
+            Err.Clear
+            On Error GoTo 0
+            Exit Sub
+        End If
+        On Error GoTo 0
+    End If
+
+    On Error GoTo SafeExit
+    titleCell.Value2 = titleText
+
+SafeExit:
+    If wasProtected Then
+        On Error Resume Next
+        wsDev.Protect DrawingObjects:=False, Contents:=True, Scenarios:=False, UserInterfaceOnly:=True, AllowFiltering:=True
+        wsDev.EnableSelection = xlUnlockedCells
+        On Error GoTo 0
+    End If
 End Sub
 
 ' =============================================================================

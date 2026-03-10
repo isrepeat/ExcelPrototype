@@ -287,7 +287,7 @@
 					let returnToDutyFIO = callMacro("ex_PostProcessActions.m_TextAppend", "", "");
 					let returnToDutyPosition = callMacro("ex_PostProcessActions.m_TextAppend", "", "");
 
-						if (nextRow.column[RowKind] == "meta" and
+						if (nextRow.column[MetaType] == "meta" and
 							nextRow.column[Vacation] == "ТВО" and
 							nextRow.column[Rank] != "" and
 							nextRow.column[FIO] != "" and
