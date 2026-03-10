@@ -71,16 +71,20 @@ Public Sub m_ApplyProfileFromDev(Optional ByVal profileName As String = vbNullSt
     Dim profileNode As Object
     Dim entries As Variant
     Dim lockedWithPlaceholder As Object
+    Dim cfgTable As ListObject
     Dim profiles As Variant
     Dim prevEvents As Boolean
     Dim targetStableZoneLeft As Double
+    Dim stepName As String
 
     On Error GoTo EH
     prevEvents = Application.EnableEvents
+    stepName = "resolve-sheet"
 
     Set ws = ws_Dev
     targetStableZoneLeft = ex_CustomDropdown.m_GetStableZoneStartLeft(ws)
 
+    stepName = "resolve-profile-name"
     If Len(profileName) = 0 Then
         profiles = mp_GetProfileNames(ws)
         If mp_ArrayHasItems(profiles) Then
@@ -90,26 +94,48 @@ Public Sub m_ApplyProfileFromDev(Optional ByVal profileName As String = vbNullSt
     profileName = Trim$(profileName)
     If Len(profileName) = 0 Then Exit Sub
 
+    stepName = "load-profile-dom"
     Set doc = mp_LoadProfilesDom(ws)
+    stepName = "resolve-profile-node"
     Set profileNode = mp_GetProfileNode(doc, profileName, False)
     If profileNode Is Nothing Then
         MsgBox "Profile '" & profileName & "' was not found in config file: " & mp_GetProfilesFilePath(), vbExclamation
         Exit Sub
     End If
 
+    stepName = "read-profile-entries"
     entries = ex_ProfilesEntriesMapper.m_ReadProfileEntries(ws, profileNode)
     Set lockedWithPlaceholder = mp_ReadLockedWithPlaceholder(profileNode)
 
     Application.EnableEvents = False
     Application.ScreenUpdating = False
-    mp_WriteEntriesToConfigTable ws, entries, lockedWithPlaceholder
+    stepName = "write-config-table"
+    mp_WriteEntriesToConfigTable ws, entries
+
+    stepName = "apply-config-styles"
     If Not mp_ApplyProfileConfigStyles(ws, profileNode, targetStableZoneLeft) Then GoTo EH
+
+    stepName = "apply-locked-placeholders"
+    Set cfgTable = ex_ConfigTableStore.m_GetConfigTable(ws, True)
+    If cfgTable Is Nothing Then
+        MsgBox "Config table '" & DEV_CONFIG_TABLE_NAME & "' was not found on sheet '" & ws.Name & "'.", vbExclamation
+        GoTo EH
+    End If
+    mp_ApplyLockedPlaceholderCells ws, cfgTable, lockedWithPlaceholder
+
+    stepName = "refresh-title"
     On Error Resume Next
     ex_ConfigProvider.m_RefreshConfigTitle ws, profileName
     On Error GoTo 0
+    stepName = "apply-profile-ui"
     ex_ConfigProfilesManager.m_ApplyProfileUI ws, profileNode, profileName
+    stepName = "apply-mode-visibility"
     mp_ApplyModeVisibility ws
 EH:
+    If Err.Number <> 0 Then
+        MsgBox "Failed to apply profile '" & profileName & "' at step '" & stepName & "': [" & Err.Source & " #" & CStr(Err.Number) & "] " & Err.Description, vbExclamation
+        Err.Clear
+    End If
     Application.ScreenUpdating = True
     Application.EnableEvents = prevEvents
 End Sub
@@ -962,7 +988,7 @@ End Function
 ' - очищает старое содержимое;
 ' - ресайзит таблицу под новый объём;
 ' - накладывает маркерные метки и pipeline-стили.
-Private Sub mp_WriteEntriesToConfigTable(ByVal ws As Worksheet, ByVal entries As Variant, Optional ByVal lockedWithPlaceholder As Object = Nothing)
+Private Sub mp_WriteEntriesToConfigTable(ByVal ws As Worksheet, ByVal entries As Variant)
     Dim tbl As ListObject
     Dim rowCount As Long
     Dim values() As Variant
@@ -997,7 +1023,6 @@ Private Sub mp_WriteEntriesToConfigTable(ByVal ws As Worksheet, ByVal entries As
     End If
 
     ex_ConfigTableStore.m_ApplyConfigMarkerStyles tbl
-    mp_ApplyLockedPlaceholderCells ws, tbl, lockedWithPlaceholder
 End Sub
 
 Private Sub mp_ApplyLockedPlaceholderCells(ByVal ws As Worksheet, ByVal tbl As ListObject, ByVal lockedWithPlaceholder As Object)

@@ -277,6 +277,8 @@
 		</v>
 		<v key=""/>
 		<v key="Output.Sheets">StateMain; EventsOut; EventsIn; DailyEvents</v>
+		<v key=""/>
+		<v key="Export.WordTemplatePath">Templates\DailyTemplate.docx</v>
 		<postProcessScript>
 			for (let row in Daily.Sheet[DailyEvents].rows) {
 				if (row.column[Hospital] != "") {

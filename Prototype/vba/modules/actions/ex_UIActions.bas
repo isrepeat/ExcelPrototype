@@ -110,6 +110,11 @@ Public Sub m_OutputPanelRunPostProcess_OnClick()
     ex_PersonTimeline.m_RunPostProcessForActiveSheet
 End Sub
 
+Public Sub m_ExportFooterReportToWord_OnClick()
+    ex_CustomDropdown.m_OnManagedButtonClick
+    ex_WordPlaceholderReports.m_API_ExportActiveSheetFooterPlaceholderReport
+End Sub
+
 Public Sub m_OutputPanelStartSearch_OnClick()
     Dim ws As Worksheet
     Dim searchKey As String
