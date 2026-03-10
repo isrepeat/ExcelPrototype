@@ -56,6 +56,17 @@
                 fontColor:#F5F5F5;
               }"/>
       </layer>
+
+      <layer name="dev-config-table-locked-placeholder" priority="235" enabled="true">
+        <rule target="row"
+              selector="kind=configlockedplaceholder;col=3"
+              styles="{
+                backColor:#3A3220;
+                fontColor:#FFD27A;
+                fontBold:true;
+                horizontal:left;
+              }"/>
+      </layer>
     </stage>
   </sheetPipeline>
 </stylePipeline>
