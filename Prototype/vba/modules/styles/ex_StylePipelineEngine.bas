@@ -1521,7 +1521,8 @@ Private Function mp_SelectorHasMapFilters(ByVal selector As Object) As Boolean
     mp_SelectorHasMapFilters = selector.Exists("mapkey") _
         Or selector.Exists("source") _
         Or selector.Exists("table") _
-        Or selector.Exists("field")
+        Or selector.Exists("field") _
+        Or selector.Exists("kind")
 End Function
 
 Private Function mp_ResultTargetMatchesSelector(ByVal target As Object, ByVal selector As Object) As Boolean
@@ -1529,6 +1530,7 @@ Private Function mp_ResultTargetMatchesSelector(ByVal target As Object, ByVal se
     Dim sourceAlias As String
     Dim tableAlias As String
     Dim fieldAlias As String
+    Dim targetKind As String
     Dim targetCol As Long
     Dim targetRowStart As Long
     Dim targetRowEnd As Long
@@ -1544,6 +1546,15 @@ Private Function mp_ResultTargetMatchesSelector(ByVal target As Object, ByVal se
     End If
 
     mapKey = Trim$(CStr(target("MapKey")))
+    If selector.Exists("kind") Then
+        If target.Exists("Kind") Then
+            targetKind = Trim$(CStr(target("Kind")))
+        Else
+            targetKind = vbNullString
+        End If
+        If Not mp_KindTagsMatchSelector(targetKind, CStr(selector("kind"))) Then Exit Function
+    End If
+
     If selector.Exists("mapkey") Then
         If Not mp_TextMatchesPattern(mapKey, CStr(selector("mapkey"))) Then Exit Function
     End If
@@ -1577,6 +1588,57 @@ Private Function mp_ResultTargetMatchesSelector(ByVal target As Object, ByVal se
     End If
 
     mp_ResultTargetMatchesSelector = True
+End Function
+
+Private Function mp_KindTagsMatchSelector(ByVal kindTags As String, ByVal selectorKindPattern As String) As Boolean
+    Dim valueTokens As Variant
+    Dim selectorTokens As Variant
+    Dim valueIndex As Long
+    Dim selectorIndex As Long
+    Dim valueToken As String
+    Dim selectorToken As String
+    Dim hasSelectorToken As Boolean
+    Dim matchedSelectorToken As Boolean
+    Dim selectorTokenCount As Long
+
+    selectorKindPattern = Trim$(selectorKindPattern)
+    If Len(selectorKindPattern) = 0 Then
+        mp_KindTagsMatchSelector = (Len(Trim$(kindTags)) = 0)
+        Exit Function
+    End If
+
+    kindTags = Trim$(kindTags)
+    If Len(kindTags) = 0 Then Exit Function
+
+    valueTokens = Split(kindTags, "|")
+    selectorTokens = Split(selectorKindPattern, "|")
+
+    For selectorIndex = LBound(selectorTokens) To UBound(selectorTokens)
+        selectorToken = Trim$(CStr(selectorTokens(selectorIndex)))
+        If Len(selectorToken) = 0 Then GoTo ContinueSelector
+        hasSelectorToken = True
+        selectorTokenCount = selectorTokenCount + 1
+        matchedSelectorToken = False
+
+        For valueIndex = LBound(valueTokens) To UBound(valueTokens)
+            valueToken = Trim$(CStr(valueTokens(valueIndex)))
+            If Len(valueToken) = 0 Then GoTo ContinueValue
+            If mp_TextMatchesPattern(valueToken, selectorToken) Then
+                matchedSelectorToken = True
+                Exit For
+            End If
+ContinueValue:
+        Next valueIndex
+
+        If Not matchedSelectorToken Then Exit Function
+ContinueSelector:
+    Next selectorIndex
+
+    If Not hasSelectorToken Then
+        mp_KindTagsMatchSelector = (Len(kindTags) = 0)
+    ElseIf selectorTokenCount > 0 Then
+        mp_KindTagsMatchSelector = True
+    End If
 End Function
 
 Private Function mp_ParseSelector(ByVal selectorText As String) As Object

@@ -373,6 +373,10 @@ Private Sub m_EnsureConfigTableLayout(ByVal ws As Worksheet, ByVal tbl As ListOb
     Dim migrated() As Variant
     Dim styleColIndex As Long
 
+    ' When sheet is protected (especially after workbook reopen), layout normalization
+    ' must not attempt writes or it will fail on header/table mutations.
+    If ws.ProtectContents Then Exit Sub
+
     If tbl.HeaderRowRange.Row <> DEV_CONFIG_HEADER_ROW Then
         Set tbl = mp_RecreateTableAtHeaderRow(ws, tbl)
         If tbl Is Nothing Then Exit Sub

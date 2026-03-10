@@ -135,7 +135,7 @@
 			<control name="btnCustomMode" visible="true"/>
 		</ui>
 	</profile>
-		<profile name="Test2" resultZoom="85">
+	<profile name="Test2" resultZoom="85">
 		<styles>
 			<config>
 				<column id="marker" width="5" align="middle-center" overflow="clip"/>
@@ -144,13 +144,21 @@
 				<column id="styles" width="25" align="middle-left" overflow="wrap"/>
 			</config>
 		</styles>
+				<ui>
+			<control name="btnClear" visible="true"/>
+			<control name="btnMode" visible="true"/>
+			<control name="btnPersonalCard" visible="true"/>
+			<control name="btnComparing" visible="false"/>
+			<control name="btnUpdateCode" visible="true"/>
+			<control name="btnCustomProfile" visible="true"/>
+			<control name="btnCustomMode" visible="true"/>
+		</ui>
 		<v key="Source.Main.FilePath">..\dsc_StateSrc.xlsx</v>
 		<v key="Source.Main.SheetAliases">StateMain</v>
 		<v key="Source.Events.FilePath">..\dsc_EventsSrc.xlsx</v>
 		<v key="Source.Events.SheetAliases">EventsIn; EventsOut</v>
 		<v key="Source.Daily.FilePath">..\DailyScope.xlsx</v>
 		<v key="Source.Daily.SheetAliases">DailyEvents</v>
-		<!-- <v key="CommonKey">ТКАЧЕНКО Сергій Олександрович</v> -->
 		<v key="CommonKey">БОНДАРЕНКО Максим Вікторович</v>
 		<v type="#" key="StateMain"/>
 		<v key="Main.Sheet[StateMain].Type">State</v>
@@ -185,8 +193,8 @@
 		<v key="Events.Sheet[EventsOut].Map[Note]" styles="{width: 40; autoHeight: true}">76|Замітки</v>
 		<v type="#" key="DailyEvents"/>
 		<v key="Daily.Sheet[DailyEvents].Type">Events</v>
-		<v key="Daily.Sheet[DailyEvents].SheetName">test$A1:T1048576</v>
-		<v key="Daily.Sheet[DailyEvents].FieldsAliases">Hospital; Vacation; Rank; FIO; Position; RaportTVO; RaportFrom; InNum; InDate; DocNote; DocNum; DocDate; DaysCount; DateFrom; DateTo; VkNum; VkDate; VlkNum; VlkDate</v>
+		<v key="Daily.Sheet[DailyEvents].SheetName">test2</v>
+		<v key="Daily.Sheet[DailyEvents].FieldsAliases">Hospital; Vacation; Rank; FIO; Position; RaportTVO; RaportFrom; InNum; InDate; DocNote; DocNum; DocDate; DaysCount; DateFrom; DateTo; VkNum; VkDate; VlkNum; VlkDate; Type</v>
 		<v key="Daily.Sheet[DailyEvents].Key">FIO</v>
 		<v key="Daily.Sheet[DailyEvents].Sort">InDate</v>
 		<v key="Daily.Sheet[DailyEvents].Map[Hospital]">Лікарня</v>
@@ -208,58 +216,106 @@
 		<v key="Daily.Sheet[DailyEvents].Map[VkDate]">В/к дата</v>
 		<v key="Daily.Sheet[DailyEvents].Map[VlkNum]">ВЛК №</v>
 		<v key="Daily.Sheet[DailyEvents].Map[VlkDate]">ВЛК дата</v>
-		<v key="Daily.Sheet[DailyEvents].Fetch.MarkerField">Vacation</v>
-		<v key="Daily.Sheet[DailyEvents].Fetch.MarkerValues">ТВО</v>
+		<v key="Daily.Sheet[DailyEvents].Map[Type]">Type</v>
+		<v key="Daily.Sheet[DailyEvents].Fetch.Dsl" lockedWithPlaceholder="hidden, edit in .xml">
+			DEFINE $CurrentTable AS Src;
+
+			/* Контекст, который движок заполняет в SEARCH_* блоках */
+			DEFINE DATABASE Ctx {
+				sectionData: [
+					sectionType,
+					sectionTitle
+				],
+				metaData: [
+					vacation,
+					rank,
+					fio,
+					position
+				]
+			};
+
+			FIND[Src.FIO == $Key] {
+				// Ищем последний заголовок раздела выше owner-строки
+				SEARCH_ABOVE
+					@IF(NOT @IsEmpty(Src.Type))
+					@PUSH(Ctx.sectionData) {
+						.sectionType = Src.Type,
+						.sectionTitle = Src.Hospital
+					}
+					@KEEP(LAST);
+
+				// Собираем все meta-строки ТВО ниже owner-строки
+				SEARCH_BELOW
+					@IF(Src.Vacation == "ТВО")
+					@PUSH(Ctx.metaData) {
+						.vacation = Src.Vacation,
+						.rank = Src.Rank,
+						.fio = Src.FIO,
+						.position = Src.Position
+					}
+					@KEEP(ALL);
+
+				GENERATE {
+					DEFINE COLUMNS [MetaType, OwnerFio, SectionType, SectionTitle];
+					DEFINE ROW {
+						MetaType = "owner",
+						OwnerFio = $Key,
+						SectionType = @LAST(Ctx.sectionData).sectionType,
+						SectionTitle = @LAST(Ctx.sectionData).sectionTitle
+					};
+
+					@FOREACH(md : Ctx.metaData) {
+						DEFINE ROW {
+							MetaType = "meta",
+							OwnerFio = $Key,
+							SectionType = @LAST(Ctx.sectionData).sectionType,
+							SectionTitle = @LAST(Ctx.sectionData).sectionTitle
+						};
+					};
+				}
+			}
+		</v>
 		<v key=""/>
 		<v key="Output.Sheets">StateMain; EventsOut; EventsIn; DailyEvents</v>
-			<postProcessScript>
-				for (let row in Daily.Sheet[DailyEvents].rows) {
-					if (row.column[Hospital] != "") {
-						let txt = callMacro("ex_ResultTemplatesParser.m_GetTemplateText", "HospitalBrown");
-						let nextRow = callMacro("ex_PostProcessActions.m_GetRelativeRow", row, "1");
-						let isReturnToDuty = callMacro("ex_PostProcessActions.m_TextAppend", "", "false");
-						let returnToDutyRank = callMacro("ex_PostProcessActions.m_TextAppend", "", "");
-						let returnToDutyFIO = callMacro("ex_PostProcessActions.m_TextAppend", "", "");
-						let returnToDutyPosition = callMacro("ex_PostProcessActions.m_TextAppend", "", "");
+		<postProcessScript>
+			for (let row in Daily.Sheet[DailyEvents].rows) {
+				if (row.column[Hospital] != "") {
+					let txt = callMacro("ex_ResultTemplatesParser.m_GetTemplateText", "HospitalBrown");
+					let nextRow = callMacro("ex_PostProcessActions.m_GetRelativeRow", row, "1");
+					let isReturnToDuty = callMacro("ex_PostProcessActions.m_TextAppend", "", "false");
+					let returnToDutyRank = callMacro("ex_PostProcessActions.m_TextAppend", "", "");
+					let returnToDutyFIO = callMacro("ex_PostProcessActions.m_TextAppend", "", "");
+					let returnToDutyPosition = callMacro("ex_PostProcessActions.m_TextAppend", "", "");
 
-							if (nextRow.column[RowKind] == "meta" and
-							    nextRow.column[Vacation] == "ТВО" and
-								nextRow.column[Rank] != "" and
-								nextRow.column[FIO] != "" and
-								nextRow.column[Position] != "") {
-								isReturnToDuty = callMacro("ex_PostProcessActions.m_TextAppend", "", "true");
-								returnToDutyRank = callMacro("ex_PostProcessActions.m_TextAppend", "", "{nextRow.column[Rank]}");
-								returnToDutyFIO = callMacro("ex_PostProcessActions.m_TextAppend", "", "{nextRow.column[FIO]}");
-								returnToDutyPosition = callMacro("ex_PostProcessActions.m_TextAppend", "", "{nextRow.column[Position]}");
-							}
+						if (nextRow.column[RowKind] == "meta" and
+							nextRow.column[Vacation] == "ТВО" and
+							nextRow.column[Rank] != "" and
+							nextRow.column[FIO] != "" and
+							nextRow.column[Position] != "") {
+							isReturnToDuty = callMacro("ex_PostProcessActions.m_TextAppend", "", "true");
+							returnToDutyRank = callMacro("ex_PostProcessActions.m_TextAppend", "", "{nextRow.column[Rank]}");
+							returnToDutyFIO = callMacro("ex_PostProcessActions.m_TextAppend", "", "{nextRow.column[FIO]}");
+							returnToDutyPosition = callMacro("ex_PostProcessActions.m_TextAppend", "", "{nextRow.column[Position]}");
+						}
 
-						txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "Hospital", "{row.column[Hospital]}");
-						txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "Rank", "{row.column[Rank]}");
-						txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "FIO", "{row.column[FIO]}");
-						txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "Position", "{row.column[Position]}");
-						txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "IsReturnToDuty", "{isReturnToDuty}");
-						txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "ReturnToDutyRank", "{returnToDutyRank}");
-						txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "ReturnToDutyFIO", "{returnToDutyFIO}");
-						txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "ReturnToDutyPosition", "{returnToDutyPosition}");
-						txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "RaportFrom", "{row.column[RaportFrom]}");
-						txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "InNum", "{row.column[InNum]}");
-						txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "InDate", "{row.column[InDate]}");
-						txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "DocNum", "{row.column[DocNum]}");
-						txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "DocDate", "{row.column[DocDate]}");
-						txt = callMacro("ex_ResultTemplatesParser.m_ResolveTemplate", txt);
+					txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "Hospital", "{row.column[Hospital]}");
+					txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "Rank", "{row.column[Rank]}");
+					txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "FIO", "{row.column[FIO]}");
+					txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "Position", "{row.column[Position]}");
+					txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "IsReturnToDuty", "{isReturnToDuty}");
+					txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "ReturnToDutyRank", "{returnToDutyRank}");
+					txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "ReturnToDutyFIO", "{returnToDutyFIO}");
+					txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "ReturnToDutyPosition", "{returnToDutyPosition}");
+					txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "RaportFrom", "{row.column[RaportFrom]}");
+					txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "InNum", "{row.column[InNum]}");
+					txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "InDate", "{row.column[InDate]}");
+					txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "DocNum", "{row.column[DocNum]}");
+					txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "DocDate", "{row.column[DocDate]}");
+					txt = callMacro("ex_ResultTemplatesParser.m_ResolveTemplate", txt);
 
-						callMacro("ex_PostProcessActions.m_AppendToSinglePostProcessFooterText", txt, "\n\n");
-					}
+					callMacro("ex_PostProcessActions.m_AppendToSinglePostProcessFooterText", txt, "\n\n");
 				}
-			</postProcessScript>
-		<ui>
-			<control name="btnClear" visible="true"/>
-			<control name="btnMode" visible="true"/>
-			<control name="btnPersonalCard" visible="true"/>
-			<control name="btnComparing" visible="false"/>
-			<control name="btnUpdateCode" visible="true"/>
-			<control name="btnCustomProfile" visible="true"/>
-			<control name="btnCustomMode" visible="true"/>
-		</ui>
+			}
+		</postProcessScript>
 	</profile>
 </profiles>

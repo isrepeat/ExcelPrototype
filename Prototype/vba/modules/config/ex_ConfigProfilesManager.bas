@@ -53,6 +53,7 @@ Private Const PFUI_PERSONAL_BUTTON_SHAPE As String = "btnPersonalCard"
 Private Const PFUI_COMPARING_BUTTON_SHAPE As String = "btnComparing"
 Private Const STATE_ACTIVE_MODE_KEY_PROP As String = "Settings.ActiveModeKey"
 Private Const STATE_ACTIVE_PROFILE_PROP_PREFIX As String = "Settings.ActiveProfile."
+Private Const XML_ATTR_LOCKED_WITH_PLACEHOLDER As String = "lockedWithPlaceholder"
 
 ' =============================================================================
 ' Public API (сверху по требованию рефакторинга)
@@ -69,6 +70,7 @@ Public Sub m_ApplyProfileFromDev(Optional ByVal profileName As String = vbNullSt
     Dim doc As Object
     Dim profileNode As Object
     Dim entries As Variant
+    Dim lockedWithPlaceholder As Object
     Dim profiles As Variant
     Dim prevEvents As Boolean
     Dim targetStableZoneLeft As Double
@@ -96,10 +98,11 @@ Public Sub m_ApplyProfileFromDev(Optional ByVal profileName As String = vbNullSt
     End If
 
     entries = ex_ProfilesEntriesMapper.m_ReadProfileEntries(ws, profileNode)
+    Set lockedWithPlaceholder = mp_ReadLockedWithPlaceholder(profileNode)
 
     Application.EnableEvents = False
     Application.ScreenUpdating = False
-    mp_WriteEntriesToConfigTable ws, entries
+    mp_WriteEntriesToConfigTable ws, entries, lockedWithPlaceholder
     If Not mp_ApplyProfileConfigStyles(ws, profileNode, targetStableZoneLeft) Then GoTo EH
     On Error Resume Next
     ex_ConfigProvider.m_RefreshConfigTitle ws, profileName
@@ -959,11 +962,16 @@ End Function
 ' - очищает старое содержимое;
 ' - ресайзит таблицу под новый объём;
 ' - накладывает маркерные метки и pipeline-стили.
-Private Sub mp_WriteEntriesToConfigTable(ByVal ws As Worksheet, ByVal entries As Variant)
+Private Sub mp_WriteEntriesToConfigTable(ByVal ws As Worksheet, ByVal entries As Variant, Optional ByVal lockedWithPlaceholder As Object = Nothing)
     Dim tbl As ListObject
     Dim rowCount As Long
     Dim values() As Variant
     Dim i As Long
+
+    ' Table normalization/writes can fail if previous profile left sheet protected.
+    On Error Resume Next
+    ws.Unprotect
+    On Error GoTo 0
 
     Set tbl = ex_ConfigTableStore.m_GetConfigTable(ws, True)
     If tbl Is Nothing Then
@@ -989,7 +997,162 @@ Private Sub mp_WriteEntriesToConfigTable(ByVal ws As Worksheet, ByVal entries As
     End If
 
     ex_ConfigTableStore.m_ApplyConfigMarkerStyles tbl
+    mp_ApplyLockedPlaceholderCells ws, tbl, lockedWithPlaceholder
 End Sub
+
+Private Sub mp_ApplyLockedPlaceholderCells(ByVal ws As Worksheet, ByVal tbl As ListObject, ByVal lockedWithPlaceholder As Object)
+    Dim r As Long
+    Dim markerText As String
+    Dim keyText As String
+    Dim hasLockedCells As Boolean
+    Dim placeholderText As String
+    Dim cell As Range
+    Dim lockedRows As Collection
+
+    If ws Is Nothing Then Exit Sub
+    If tbl Is Nothing Then Exit Sub
+
+    On Error Resume Next
+    ws.Unprotect
+    On Error GoTo EH
+
+    ws.EnableSelection = xlNoRestrictions
+    Set lockedRows = New Collection
+
+    If Not tbl.DataBodyRange Is Nothing Then
+        tbl.DataBodyRange.Locked = False
+        tbl.DataBodyRange.Columns(DEV_CONFIG_VALUE_COL).NumberFormat = "General"
+
+        For r = 1 To tbl.DataBodyRange.Rows.Count
+            markerText = Trim$(CStr(tbl.DataBodyRange.Cells(r, DEV_CONFIG_MARKER_COL).Value))
+            If StrComp(markerText, DEV_MARKER_SYMBOL, vbTextCompare) = 0 Then GoTo ContinueRow
+
+            keyText = Trim$(CStr(tbl.DataBodyRange.Cells(r, DEV_CONFIG_KEY_COL).Value))
+            If lockedWithPlaceholder Is Nothing Then GoTo ContinueRow
+            If Not lockedWithPlaceholder.Exists(keyText) Then GoTo ContinueRow
+            placeholderText = Trim$(CStr(lockedWithPlaceholder(keyText)))
+            If Len(placeholderText) = 0 Then GoTo ContinueRow
+
+            Set cell = tbl.DataBodyRange.Cells(r, DEV_CONFIG_VALUE_COL)
+            cell.Locked = True
+            cell.NumberFormat = mp_BuildLockedPlaceholderFormat(placeholderText)
+            lockedRows.Add cell.Row
+            hasLockedCells = True
+
+ContinueRow:
+        Next r
+    End If
+
+    If hasLockedCells Then
+        mp_ApplyLockedPlaceholderStylePipeline ws, tbl, lockedRows
+        ws.Protect DrawingObjects:=False, Contents:=True, Scenarios:=False, UserInterfaceOnly:=True, AllowFiltering:=True
+        ws.EnableSelection = xlUnlockedCells
+    Else
+        ws.EnableSelection = xlNoRestrictions
+    End If
+    Exit Sub
+
+EH:
+    MsgBox "Failed to apply locked-placeholder masking/protection on sheet '" & ws.Name & "': " & Err.Description, vbExclamation
+End Sub
+
+Private Sub mp_ApplyLockedPlaceholderStylePipeline(ByVal ws As Worksheet, ByVal tbl As ListObject, ByVal lockedRows As Collection)
+    Dim rowKindRanges As Object
+    Dim allRows As Collection
+    Dim headerRows As Collection
+    Dim dataRows As Collection
+    Dim markerRows As Collection
+    Dim rowCount As Long
+    Dim i As Long
+    Dim rowIndex As Long
+    Dim markerKind As String
+    Dim keyText As String
+
+    If ws Is Nothing Then Exit Sub
+    If tbl Is Nothing Then Exit Sub
+    If lockedRows Is Nothing Then Exit Sub
+    If lockedRows.Count = 0 Then Exit Sub
+
+    Set rowKindRanges = CreateObject("Scripting.Dictionary")
+    rowKindRanges.CompareMode = 1
+
+    Set allRows = New Collection
+    Set headerRows = New Collection
+    Set dataRows = New Collection
+    Set markerRows = New Collection
+
+    rowIndex = tbl.HeaderRowRange.Row
+    allRows.Add rowIndex
+    headerRows.Add rowIndex
+
+    If Not tbl.DataBodyRange Is Nothing Then
+        rowCount = tbl.DataBodyRange.Rows.Count
+        For i = 1 To rowCount
+            rowIndex = tbl.DataBodyRange.Row + i - 1
+            allRows.Add rowIndex
+
+            markerKind = Trim$(CStr(tbl.DataBodyRange.Cells(i, DEV_CONFIG_MARKER_COL).Value))
+            keyText = Trim$(CStr(tbl.DataBodyRange.Cells(i, DEV_CONFIG_KEY_COL).Value))
+            If StrComp(markerKind, DEV_MARKER_SYMBOL, vbTextCompare) = 0 Or mp_IsMarkerKey(keyText) Then
+                markerRows.Add rowIndex
+            Else
+                dataRows.Add rowIndex
+            End If
+        Next i
+    End If
+
+    Set rowKindRanges("configall") = allRows
+    Set rowKindRanges("configheader") = headerRows
+    Set rowKindRanges("configdata") = dataRows
+    Set rowKindRanges("configmarker") = markerRows
+    Set rowKindRanges("configlockedplaceholder") = lockedRows
+
+    ex_OutputFormattingPipeline.m_ApplySheetPipeline ws, Nothing, Nothing, rowKindRanges
+End Sub
+
+Private Function mp_ReadLockedWithPlaceholder(ByVal profileNode As Object) As Object
+    Dim result As Object
+    Dim nodes As Object
+    Dim node As Object
+    Dim keyText As String
+    Dim placeholderText As String
+
+    Set result = CreateObject("Scripting.Dictionary")
+    result.CompareMode = 1
+
+    If profileNode Is Nothing Then
+        Set mp_ReadLockedWithPlaceholder = result
+        Exit Function
+    End If
+
+    Set nodes = profileNode.selectNodes("p:v")
+    If nodes Is Nothing Then
+        Set mp_ReadLockedWithPlaceholder = result
+        Exit Function
+    End If
+
+    For Each node In nodes
+        keyText = Trim$(mp_NodeAttrText(node, "key"))
+        placeholderText = Trim$(mp_NodeAttrText(node, XML_ATTR_LOCKED_WITH_PLACEHOLDER))
+        If Len(keyText) = 0 Then GoTo ContinueNode
+        If Len(placeholderText) = 0 Then GoTo ContinueNode
+        result(keyText) = placeholderText
+ContinueNode:
+    Next node
+
+    Set mp_ReadLockedWithPlaceholder = result
+End Function
+
+Private Function mp_BuildLockedPlaceholderFormat(ByVal placeholderText As String) As String
+    placeholderText = Replace(placeholderText, """", """""")
+    mp_BuildLockedPlaceholderFormat = ";;;""" & placeholderText & """"
+End Function
+
+Private Function mp_IsMarkerKey(ByVal keyText As String) As Boolean
+    keyText = Trim$(keyText)
+    If Len(keyText) < Len(DEV_MARKER_PREFIX) Then Exit Function
+    mp_IsMarkerKey = (StrComp(Left$(keyText, Len(DEV_MARKER_PREFIX)), DEV_MARKER_PREFIX, vbTextCompare) = 0)
+End Function
 
 
 Private Function mp_ArrayRowCount(ByVal values As Variant) As Long

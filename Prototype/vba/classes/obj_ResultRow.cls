@@ -6,6 +6,7 @@ Attribute VB_Name = "obj_ResultRow"
 Option Explicit
 
 Private m_RowIndex As Long
+Private m_Kind As String
 Private m_ValuesByAlias As Object
 Private m_ValuesByMapKey As Object
 Private m_MapKeyByAlias As Object
@@ -22,6 +23,14 @@ End Sub
 
 Public Property Get RowIndex() As Long
     RowIndex = m_RowIndex
+End Property
+
+Public Property Get Kind() As String
+    Kind = m_Kind
+End Property
+
+Public Property Let Kind(ByVal valueText As String)
+    m_Kind = Trim$(valueText)
 End Property
 
 Public Sub SetValue(ByVal fieldAlias As String, ByVal mapKey As String, ByVal valueText As String)
