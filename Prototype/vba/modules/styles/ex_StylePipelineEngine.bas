@@ -372,7 +372,9 @@ Public Sub m_ApplyColumnStylesPipeline( _
     Dim sortedLayers As Collection
     Dim layerObj As obj_StyleLayer
     Dim ruleObj As obj_StyleRule
+    Dim targetIndexes As Object
     Dim targetsByMapKey As Object
+    Dim targetsByKind As Object
     Dim autoHeightState As Object
 
     If ws Is Nothing Then Exit Sub
@@ -383,7 +385,11 @@ Public Sub m_ApplyColumnStylesPipeline( _
 
     If Not resultFieldRanges Is Nothing Then
         If resultFieldRanges.Count > 0 Then
-            Set targetsByMapKey = mp_BuildResultTargetsByMapKey(resultFieldRanges)
+            Set targetIndexes = mp_BuildResultTargetIndexes(resultFieldRanges)
+            If Not targetIndexes Is Nothing Then
+                If targetIndexes.Exists("ByMapKey") Then Set targetsByMapKey = targetIndexes("ByMapKey")
+                If targetIndexes.Exists("ByKind") Then Set targetsByKind = targetIndexes("ByKind")
+            End If
         End If
     End If
 
@@ -394,7 +400,7 @@ Public Sub m_ApplyColumnStylesPipeline( _
 
         For Each ruleObj In layerObj.Rules
             If ruleObj Is Nothing Then GoTo ContinueRule
-            mp_ApplyRule ws, resultFieldRanges, ruleObj, activeModeName, rowKindRanges, targetsByMapKey, autoHeightState, autoHeightOnly
+            mp_ApplyRule ws, resultFieldRanges, ruleObj, activeModeName, rowKindRanges, targetsByMapKey, targetsByKind, autoHeightState, autoHeightOnly
 ContinueRule:
         Next ruleObj
 ContinueLayer:
@@ -640,6 +646,7 @@ Private Sub mp_ApplyRule( _
     ByVal activeModeName As String, _
     Optional ByVal rowKindRanges As Object = Nothing, _
     Optional ByVal targetsByMapKey As Object = Nothing, _
+    Optional ByVal targetsByKind As Object = Nothing, _
     Optional ByVal autoHeightState As Object = Nothing, _
     Optional ByVal autoHeightOnly As Boolean = False _
 )
@@ -659,6 +666,7 @@ Private Sub mp_ApplyRule( _
     Dim mapRowStart As Long
     Dim mapRowEnd As Long
     Dim exactMapKey As String
+    Dim candidateTargets As Collection
 
     If ws Is Nothing Then Exit Sub
     If ruleObj Is Nothing Then Exit Sub
@@ -699,8 +707,10 @@ ContinueExactMapTarget:
             End If
 
             If mp_SelectorHasMapFilters(selector) Or (Not selector.Exists("col") And Not selector.Exists("address")) Then
-                If resultFieldRanges Is Nothing Then Exit Sub
-                For Each target In resultFieldRanges
+                Set candidateTargets = mp_GetColumnRuleCandidateTargets(resultFieldRanges, selector, targetsByMapKey, targetsByKind)
+                If candidateTargets Is Nothing Then Exit Sub
+
+                For Each target In candidateTargets
                     If target Is Nothing Then GoTo ContinueMapTarget
                     If Not mp_ResultTargetMatchesSelector(target, selector) Then GoTo ContinueMapTarget
 
@@ -813,13 +823,9 @@ ContinueMapTarget:
             mp_ApplyDeclarations scopeRange, scopeRange.EntireColumn, ruleObj.Declarations, Nothing, autoHeightState, autoHeightOnly
 
         Case "sheet"
-            ' Legacy bounded-sheet scope:
-            ' Set scopeRange = mp_GetExpandedSheetScopeRange(ws)
-            ' If scopeRange Is Nothing Then Exit Sub
-            ' mp_ApplyDeclarations scopeRange, scopeRange.EntireColumn, ruleObj.Declarations, scopeRange, autoHeightState, autoHeightOnly
-
-            Set scopeRange = ws.Range("A:XFD")
-            mp_ApplyDeclarations scopeRange, scopeRange.EntireColumn, ruleObj.Declarations, Nothing, autoHeightState, autoHeightOnly
+            Set scopeRange = mp_GetExpandedSheetScopeRange(ws)
+            If scopeRange Is Nothing Then Exit Sub
+            mp_ApplyDeclarations scopeRange, scopeRange.EntireColumn, ruleObj.Declarations, scopeRange, autoHeightState, autoHeightOnly
 
         Case Else
             Err.Raise vbObjectError + 1728, "ex_StylePipelineEngine", _
@@ -838,11 +844,20 @@ Private Function mp_IsExactSelectorMapKey(ByVal mapKeyText As String) As Boolean
     mp_IsExactSelectorMapKey = True
 End Function
 
+Private Function mp_BuildResultTargetIndexes(ByVal resultFieldRanges As Collection) As Object
+    Dim result As Object
+
+    Set result = mp_CreateStringDictionary()
+    Set result("ByMapKey") = mp_BuildResultTargetsByMapKey(resultFieldRanges)
+    Set result("ByKind") = mp_BuildResultTargetsByKind(resultFieldRanges)
+
+    Set mp_BuildResultTargetIndexes = result
+End Function
+
 Private Function mp_BuildResultTargetsByMapKey(ByVal resultFieldRanges As Collection) As Object
     Dim result As Object
     Dim target As Object
     Dim normalizedMapKey As String
-    Dim targetGroup As Collection
 
     Set result = mp_CreateStringDictionary()
     If resultFieldRanges Is Nothing Then
@@ -855,17 +870,170 @@ Private Function mp_BuildResultTargetsByMapKey(ByVal resultFieldRanges As Collec
         normalizedMapKey = LCase$(Trim$(CStr(target("MapKey"))))
         If Len(normalizedMapKey) = 0 Then GoTo ContinueTarget
 
-        If result.Exists(normalizedMapKey) Then
-            Set targetGroup = result(normalizedMapKey)
-        Else
-            Set targetGroup = New Collection
-            Set result(normalizedMapKey) = targetGroup
-        End If
-        targetGroup.Add target
+        mp_AddTargetToIndexGroup result, normalizedMapKey, target
 ContinueTarget:
     Next target
 
     Set mp_BuildResultTargetsByMapKey = result
+End Function
+
+Private Function mp_BuildResultTargetsByKind(ByVal resultFieldRanges As Collection) As Object
+    Dim result As Object
+    Dim target As Object
+    Dim kindText As String
+    Dim tokens As Variant
+    Dim i As Long
+    Dim tokenText As String
+
+    Set result = mp_CreateStringDictionary()
+    If resultFieldRanges Is Nothing Then
+        Set mp_BuildResultTargetsByKind = result
+        Exit Function
+    End If
+
+    For Each target In resultFieldRanges
+        If target Is Nothing Then GoTo ContinueTarget
+        If Not target.Exists("Kind") Then GoTo ContinueTarget
+
+        kindText = LCase$(Trim$(CStr(target("Kind"))))
+        If Len(kindText) = 0 Then GoTo ContinueTarget
+        tokens = Split(kindText, "|")
+
+        For i = LBound(tokens) To UBound(tokens)
+            tokenText = LCase$(Trim$(CStr(tokens(i))))
+            If Len(tokenText) = 0 Then GoTo ContinueToken
+            mp_AddTargetToIndexGroup result, tokenText, target
+ContinueToken:
+        Next i
+ContinueTarget:
+    Next target
+
+    Set mp_BuildResultTargetsByKind = result
+End Function
+
+Private Sub mp_AddTargetToIndexGroup(ByVal indexByToken As Object, ByVal tokenText As String, ByVal target As Object)
+    Dim targetGroup As Collection
+
+    If indexByToken Is Nothing Then Exit Sub
+    If target Is Nothing Then Exit Sub
+    tokenText = LCase$(Trim$(tokenText))
+    If Len(tokenText) = 0 Then Exit Sub
+
+    If indexByToken.Exists(tokenText) Then
+        Set targetGroup = indexByToken(tokenText)
+    Else
+        Set targetGroup = New Collection
+        Set indexByToken(tokenText) = targetGroup
+    End If
+    targetGroup.Add target
+End Sub
+
+Private Function mp_GetColumnRuleCandidateTargets( _
+    ByVal resultFieldRanges As Collection, _
+    ByVal selector As Object, _
+    ByVal targetsByMapKey As Object, _
+    ByVal targetsByKind As Object _
+) As Collection
+    Dim exactMapKey As String
+    Dim emptyResult As Collection
+    Dim kindIndexed As Collection
+
+    If resultFieldRanges Is Nothing Then Exit Function
+
+    If Not selector Is Nothing Then
+        If selector.Exists("mapkey") And Not targetsByMapKey Is Nothing Then
+            If mp_IsExactSelectorMapKey(CStr(selector("mapkey"))) Then
+                exactMapKey = LCase$(Trim$(CStr(selector("mapkey"))))
+                If targetsByMapKey.Exists(exactMapKey) Then
+                    Set mp_GetColumnRuleCandidateTargets = targetsByMapKey(exactMapKey)
+                Else
+                    Set emptyResult = New Collection
+                    Set mp_GetColumnRuleCandidateTargets = emptyResult
+                End If
+                Exit Function
+            End If
+        End If
+
+        If selector.Exists("kind") And Not targetsByKind Is Nothing Then
+            Set kindIndexed = mp_TryGetIndexedCandidatesByKind(CStr(selector("kind")), targetsByKind)
+            If Not kindIndexed Is Nothing Then
+                Set mp_GetColumnRuleCandidateTargets = kindIndexed
+                Exit Function
+            End If
+        End If
+    End If
+
+    Set mp_GetColumnRuleCandidateTargets = resultFieldRanges
+End Function
+
+Private Function mp_TryGetIndexedCandidatesByKind(ByVal selectorKindText As String, ByVal targetsByKind As Object) As Collection
+    Dim kindTokens As Variant
+    Dim i As Long
+    Dim tokenText As String
+    Dim bestToken As String
+    Dim bestCount As Long
+    Dim groupCount As Long
+    Dim emptyResult As Collection
+
+    If targetsByKind Is Nothing Then Exit Function
+    If Not mp_TryParseExactSelectorKindTokens(selectorKindText, kindTokens) Then Exit Function
+    If IsArray(kindTokens) = False Then Exit Function
+
+    bestCount = -1
+    For i = LBound(kindTokens) To UBound(kindTokens)
+        tokenText = LCase$(Trim$(CStr(kindTokens(i))))
+        If Len(tokenText) = 0 Then GoTo ContinueToken
+        If Not targetsByKind.Exists(tokenText) Then
+            Set emptyResult = New Collection
+            Set mp_TryGetIndexedCandidatesByKind = emptyResult
+            Exit Function
+        End If
+
+        groupCount = targetsByKind(tokenText).Count
+        If bestCount < 0 Or groupCount < bestCount Then
+            bestCount = groupCount
+            bestToken = tokenText
+        End If
+ContinueToken:
+    Next i
+
+    If Len(bestToken) = 0 Then Exit Function
+    Set mp_TryGetIndexedCandidatesByKind = targetsByKind(bestToken)
+End Function
+
+Private Function mp_TryParseExactSelectorKindTokens(ByVal selectorKindText As String, ByRef outTokens As Variant) As Boolean
+    Dim tokens As Variant
+    Dim i As Long
+    Dim tokenText As String
+    Dim dedupe As Object
+
+    selectorKindText = LCase$(Trim$(selectorKindText))
+    If Len(selectorKindText) = 0 Then Exit Function
+
+    tokens = Split(selectorKindText, "|")
+    Set dedupe = mp_CreateStringDictionary()
+
+    For i = LBound(tokens) To UBound(tokens)
+        tokenText = LCase$(Trim$(CStr(tokens(i))))
+        If Len(tokenText) = 0 Then GoTo ContinueToken
+        If mp_HasWildcardChars(tokenText) Then Exit Function
+        dedupe(tokenText) = True
+ContinueToken:
+    Next i
+
+    If dedupe.Count = 0 Then Exit Function
+    outTokens = dedupe.Keys
+    mp_TryParseExactSelectorKindTokens = True
+End Function
+
+Private Function mp_HasWildcardChars(ByVal textIn As String) As Boolean
+    If InStr(1, textIn, "*", vbBinaryCompare) > 0 Then
+        mp_HasWildcardChars = True
+        Exit Function
+    End If
+    If InStr(1, textIn, "?", vbBinaryCompare) > 0 Then
+        mp_HasWildcardChars = True
+    End If
 End Function
 
 Private Sub mp_ApplyDeclarations( _
