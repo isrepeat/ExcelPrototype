@@ -340,7 +340,15 @@ Private Sub mp_DeleteAllOptionShapes( _
     For i = ws.Shapes.Count To 1 Step -1
         Set shp = ws.Shapes(i)
         If mp_IsManagedOptionShape(shp, optionPrefix, onClickMacro) Then
+            On Error Resume Next
             shp.Delete
+            If Err.Number <> 0 Then
+                Err.Clear
+                ' Fallback for protected/grouped shapes: hide instead of failing startup.
+                shp.Visible = msoFalse
+                shp.OnAction = vbNullString
+            End If
+            On Error GoTo 0
         End If
     Next i
 End Sub
@@ -942,11 +950,13 @@ Private Sub mp_SetOptionsVisible(ByVal ws As Worksheet, ByVal optionPrefix As St
         If StrComp(Left$(shp.Name, Len(optionPrefix)), optionPrefix, vbTextCompare) = 0 Then
             suffix = Mid$(shp.Name, Len(optionPrefix) + 1)
             isNumberedOption = IsNumeric(suffix)
+            On Error Resume Next
             If isVisible Then
                 shp.Visible = IIf(isNumberedOption, msoTrue, msoFalse)
             Else
                 shp.Visible = msoFalse
             End If
+            On Error GoTo 0
         End If
     Next shp
 End Sub

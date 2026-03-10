@@ -483,6 +483,32 @@ Public Sub m_AppendToSinglePostProcessFooterText( _
     g_PostProcessFooterHasAppended = True
 End Sub
 
+Public Function m_GetSinglePostProcessFooterText(Optional ByVal targetSheet As Worksheet = Nothing) As String
+    Dim ws As Worksheet
+    Dim postProcessFooterStyle As t_PostProcessFooterStyle
+    Dim footerRowIndex As Long
+
+    If targetSheet Is Nothing Then
+        Set ws = ActiveSheet
+    Else
+        Set ws = targetSheet
+    End If
+    If ws Is Nothing Then
+        Err.Raise vbObjectError + 1701, "ex_PostProcessActions", "Active sheet is not available for postProcessFooter read."
+    End If
+
+    If Not mp_TryLoadPostProcessFooterStyle(postProcessFooterStyle) Then
+        Err.Raise vbObjectError + 1702, "ex_PostProcessActions", "Unable to read single postProcessFooter text: invalid '/sheetStyles/postProcessFooterStyle'."
+    End If
+
+    footerRowIndex = mp_FindExistingSinglePostProcessFooterRow(ws, postProcessFooterStyle)
+    If footerRowIndex <= 0 Then
+        Err.Raise vbObjectError + 1703, "ex_PostProcessActions", "Single postProcessFooter row not found on sheet '" & ws.Name & "'."
+    End If
+
+    m_GetSinglePostProcessFooterText = CStr(ws.Cells(footerRowIndex, 1).Value)
+End Function
+
 Public Function m_GetRelativeDayOfMonth(ByVal dayOffsetText As String) As String
     Dim dayOffset As Long
     dayOffsetText = Trim$(dayOffsetText)
