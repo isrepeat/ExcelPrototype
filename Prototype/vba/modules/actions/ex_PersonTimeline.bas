@@ -1884,16 +1884,28 @@ Private Sub mp_CaptureResultTableRowsFromOutput( _
     Dim r As Long
     Dim i As Long
     Dim outCol As Long
+    Dim fieldCount As Long
+    Dim rowOffset As Long
     Dim fieldAlias As String
     Dim mapKey As String
     Dim valueText As String
     Dim rowObj As obj_ResultRow
+    Dim dataRange As Range
+    Dim capturedValues As Variant
+    Dim isScalarRange As Boolean
 
     If wsOut Is Nothing Then Exit Sub
     If resultTable Is Nothing Then Exit Sub
     If mp_IsEmptyVariantArray(fields) Then Exit Sub
     If dataRowStart <= 0 Then Exit Sub
     If dataRowEnd < dataRowStart Then Exit Sub
+
+    fieldCount = UBound(fields) - LBound(fields) + 1
+    If fieldCount <= 0 Then Exit Sub
+
+    Set dataRange = wsOut.Range(wsOut.Cells(dataRowStart, 1), wsOut.Cells(dataRowEnd, fieldCount))
+    capturedValues = dataRange.Value2
+    isScalarRange = Not IsArray(capturedValues)
 
     For r = dataRowStart To dataRowEnd
         Set rowObj = resultTable.EnsureRow(r)
@@ -1906,12 +1918,17 @@ Private Sub mp_CaptureResultTableRowsFromOutput( _
         Else
             rowObj.Kind = vbNullString
         End If
+        rowOffset = 1 + (r - dataRowStart)
         For i = LBound(fields) To UBound(fields)
             fieldAlias = Trim$(CStr(fields(i)))
             If Len(fieldAlias) = 0 Then GoTo ContinueField
             outCol = 1 + (i - LBound(fields))
             mapKey = sourceAlias & ".Sheet[" & tableAlias & "].Map[" & fieldAlias & "]"
-            valueText = CStr(wsOut.Cells(r, outCol).Value)
+            If isScalarRange Then
+                valueText = CStr(capturedValues)
+            Else
+                valueText = CStr(capturedValues(rowOffset, outCol))
+            End If
             rowObj.SetValue fieldAlias, mapKey, valueText
 ContinueField:
         Next i
@@ -1947,12 +1964,16 @@ Private Sub mp_AddResultFieldRangesForFields( _
             virtualKind = vbNullString
         End If
 
-        headerKind = mp_CombineKindTags("header", virtualKind)
-        mp_AddResultFieldRange resultFieldRanges, sourceAlias, tableAlias, fieldAlias, 1 + (i - LBound(fields)), rowStart, rowStart, headerKind
+        If Len(virtualKind) > 0 Then
+            headerKind = mp_CombineKindTags("header", virtualKind)
+            mp_AddResultFieldRange resultFieldRanges, sourceAlias, tableAlias, fieldAlias, 1 + (i - LBound(fields)), rowStart, rowStart, headerKind
 
-        If rowEnd >= (rowStart + 1) Then
-            contentKind = mp_CombineKindTags("content", virtualKind)
-            mp_AddResultFieldRange resultFieldRanges, sourceAlias, tableAlias, fieldAlias, 1 + (i - LBound(fields)), rowStart + 1, rowEnd, contentKind
+            If rowEnd >= (rowStart + 1) Then
+                contentKind = mp_CombineKindTags("content", virtualKind)
+                mp_AddResultFieldRange resultFieldRanges, sourceAlias, tableAlias, fieldAlias, 1 + (i - LBound(fields)), rowStart + 1, rowEnd, contentKind
+            End If
+        Else
+            mp_AddResultFieldRange resultFieldRanges, sourceAlias, tableAlias, fieldAlias, 1 + (i - LBound(fields)), rowStart, rowEnd
         End If
 ContinueField:
     Next i

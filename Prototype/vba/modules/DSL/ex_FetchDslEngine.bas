@@ -242,7 +242,7 @@ Private Function mp_ApplyFetchDslRowsFromSource( _
     If mp_IsEmptyVariantArray(fields) Then Exit Function
     If dslPlan Is Nothing Then Exit Function
 
-    sql = "SELECT * FROM " & tableRef
+    sql = mp_FetchDslBuildSourceProjectionSql(cfg, sourceAlias, tableAlias, dslPlan, tableRef)
     Set rs = CreateObject("ADODB.Recordset")
     rs.Open sql, adoConn, 0, 1
     If rs.EOF Then
@@ -284,7 +284,6 @@ Private Function mp_ApplyFetchDslRowsFromSource( _
                     ioOutValues(ownerSeq, rowIndex) = ownerValues(fieldAlias)
                 End If
             Next fieldAlias
-            kindsByOutRow(CStr(ownerSeq)) = DSL_VIRTUAL_KIND_MARKER
         End If
 
         Set metaRows = mp_FetchDslBuildGeneratedMetaRows(dslPlan, rowsData, CLng(keyRow), keyValue, runtimeCtx)
@@ -1129,6 +1128,64 @@ Private Function mp_FetchDslBuildSourceFieldOrdinals(ByVal cfg As Object, ByVal 
     Next token
 
     Set mp_FetchDslBuildSourceFieldOrdinals = ordinals
+End Function
+
+Private Function mp_FetchDslBuildSourceProjectionSql( _
+    ByVal cfg As Object, _
+    ByVal sourceAlias As String, _
+    ByVal tableAlias As String, _
+    ByVal plan As Object, _
+    ByVal tableRef As String _
+) As String
+    Dim tokenSet As Object
+    Dim headers As Object
+    Dim token As Variant
+    Dim sourceHeader As String
+    Dim normalizedHeader As String
+    Dim selectItems As Collection
+    Dim item As Variant
+    Dim selectList As String
+
+    If Len(Trim$(tableRef)) = 0 Then Exit Function
+
+    Set tokenSet = mp_FetchDslCreateDictionary()
+    mp_FetchDslCollectSourceFieldTokens plan, tokenSet
+
+    If tokenSet.Count = 0 Then
+        mp_FetchDslBuildSourceProjectionSql = "SELECT * FROM " & tableRef
+        Exit Function
+    End If
+
+    Set headers = mp_FetchDslCreateDictionary()
+    Set selectItems = New Collection
+
+    For Each token In tokenSet.Keys
+        sourceHeader = mp_FetchDslResolveSourceHeader(cfg, sourceAlias, tableAlias, CStr(token))
+        normalizedHeader = mp_FetchDslNormalizeToken(sourceHeader)
+        If Len(normalizedHeader) = 0 Then GoTo ContinueToken
+        If headers.Exists(normalizedHeader) Then GoTo ContinueToken
+
+        headers(normalizedHeader) = True
+        selectItems.Add mp_FetchDslQuoteSqlIdentifier(sourceHeader)
+ContinueToken:
+    Next token
+
+    For Each item In selectItems
+        If Len(selectList) > 0 Then selectList = selectList & ", "
+        selectList = selectList & CStr(item)
+    Next item
+
+    If Len(selectList) = 0 Then
+        mp_FetchDslBuildSourceProjectionSql = "SELECT * FROM " & tableRef
+    Else
+        mp_FetchDslBuildSourceProjectionSql = "SELECT " & selectList & " FROM " & tableRef
+    End If
+End Function
+
+Private Function mp_FetchDslQuoteSqlIdentifier(ByVal valueText As String) As String
+    valueText = Trim$(valueText)
+    valueText = Replace$(valueText, "]", "]]")
+    mp_FetchDslQuoteSqlIdentifier = "[" & valueText & "]"
 End Function
 
 Private Sub mp_FetchDslCollectSourceFieldTokens(ByVal plan As Object, ByVal ioTokenSet As Object)
