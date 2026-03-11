@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<table xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006" xmlns:xr="http://schemas.microsoft.com/office/spreadsheetml/2014/revision" xmlns:xr3="http://schemas.microsoft.com/office/spreadsheetml/2016/revision3" mc:Ignorable="xr xr3" id="1" xr:uid="{65528FEB-BC3B-4DFD-BED5-0E1DD612AA7B}" name="tblDevConfig" displayName="tblDevConfig" ref="A1:D30" totalsRowShown="0" headerRowDxfId="0" dataDxfId="2" headerRowBorderDxfId="7" tableBorderDxfId="8" totalsRowBorderDxfId="6">
+  <autoFilter ref="A1:D30" xr:uid="{65528FEB-BC3B-4DFD-BED5-0E1DD612AA7B}"/>
+  <tableColumns count="4">
+    <tableColumn id="1" xr3:uid="{AC871725-B21E-4D67-81B3-6B9562866113}" name=".." dataDxfId="5"/>
+    <tableColumn id="2" xr3:uid="{0529C1B2-83A5-4FB7-B1B6-14E55E14A0AC}" name="Key" dataDxfId="4"/>
+    <tableColumn id="3" xr3:uid="{A0074BFD-9148-4277-9FD2-A208A2D55857}" name="Config [profile = Default]" dataDxfId="3"/>
+    <tableColumn id="4" xr3:uid="{BA5E1C2B-76B7-41AC-A1A3-49A8455CA7E2}" name="Note" dataDxfId="1"/>
+  </tableColumns>
+  <tableStyleInfo showFirstColumn="0" showLastColumn="0" showRowStripes="0" showColumnStripes="0"/>
+</table>

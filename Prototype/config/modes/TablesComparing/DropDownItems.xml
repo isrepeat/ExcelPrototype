@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<dropdownItems version="1">
+  <list name="profiles.main">
+    <item key="Default"
+          caption="Default"
+          setContext="activeProfile=Default"/>
+    <item key="Test"
+          caption="Test"
+          setContext="activeProfile=Test"/>
+  </list>
+</dropdownItems>

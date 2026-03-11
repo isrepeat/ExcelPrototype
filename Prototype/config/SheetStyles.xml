@@ -1,0 +1,114 @@
+<?xml version="1.0" standalone="yes"?>
+<sheetStyles xmlns="urn:excelprototype:profiles" version="1">
+  <baseSheetStyle priority="100">
+    <base backColor="#222222" fontColor="#EBEBEB" showGridlines="false"/>
+    <background extraRows="200" extraCols="30"/>
+    <grid color="#000000" weight="thin" extraRows="200" extraCols="50"/>
+  </baseSheetStyle>
+
+  <errorBanner
+    columns="8"
+    rows="4"
+    rowHeight="24"
+    backColor="#161616"
+    fontColor="#FFFFFF"
+    wrapText="true"
+    titleBold="true"
+    showGrid="true"
+    gridColor="#111111"
+    horizontal="left"
+    vertical="center"/>
+
+  <warningBanner
+    columns="8"
+    rows="3"
+    rowHeight="24"
+    backColor="#4C3F10"
+    fontColor="#FFE599"
+    wrapText="true"
+    titleBold="true"
+    showGrid="true"
+    gridColor="#3B320D"
+    horizontal="left"
+    vertical="center"/>
+
+  <outputStyles>
+    <outputSheetStyle
+      modeKey="PersonalCard"
+      priority="200"
+      outputTopOffsetRows="4"
+      headerRows="4"
+      viewStartRow="6">
+      <font name="Times New Roman" size="12"/>
+      <rows height="20"/>
+      <alignment horizontal="center" vertical="center"/>
+
+      <section
+        color="#D7A763"
+        backColor="#161616"
+        bold="true"
+        sectionTitleColumns="2"
+        width="0"
+        overflow="clip"
+        autoHeight="false"/>
+
+      <header
+        color="#68D947"
+        backColor="#222222"
+        bold="true"
+        width="0"
+        overflow="wrap"
+        autoHeight="true"/>
+
+      <content
+        color="#EBEBEB"
+        backColor="#222222"
+        width="0"
+        overflow="wrap"
+        autoHeight="false"/>
+    </outputSheetStyle>
+
+    <outputSheetStyle
+      modeKey="TablesComparing"
+      priority="200"
+      outputTopOffsetRows="4"
+      headerRows="4"
+      viewStartRow="6">
+      <font name="Times New Roman" size="12"/>
+      <rows height="20"/>
+      <alignment horizontal="center" vertical="center"/>
+
+      <section
+        color="#D7A763"
+        backColor="#161616"
+        bold="true"
+        sectionTitleColumns="2"
+        width="0"
+        overflow="clip"
+        autoHeight="false"/>
+
+      <header
+        color="#68D947"
+        backColor="#222222"
+        bold="true"
+        width="0"
+        overflow="wrap"
+        autoHeight="true"/>
+
+      <content
+        color="#EBEBEB"
+        backColor="#222222"
+        width="0"
+        overflow="wrap"
+        autoHeight="false"/>
+
+      <status
+        columnName="Status"
+        fontColor="#EBEBEB"
+        defaultBackColor="#1E1E1E"
+        addedBackColor="#2E7D32"
+        changedBackColor="#7B1FA2"
+        removedBackColor="#B71C1C"/>
+    </outputSheetStyle>
+  </outputStyles>
+</sheetStyles>

@@ -1,0 +1,2 @@
+%appdata%\Microsoft\Excel\XLSTART
+
