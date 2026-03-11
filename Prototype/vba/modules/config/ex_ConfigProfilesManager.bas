@@ -53,6 +53,7 @@ Private Const PFUI_PERSONAL_BUTTON_SHAPE As String = "btnPersonalCard"
 Private Const PFUI_COMPARING_BUTTON_SHAPE As String = "btnComparing"
 Private Const STATE_ACTIVE_MODE_KEY_PROP As String = "Settings.ActiveModeKey"
 Private Const STATE_ACTIVE_PROFILE_PROP_PREFIX As String = "Settings.ActiveProfile."
+Private Const STATE_PROFILE_FILE_SIGNATURE_PROP_PREFIX As String = "Settings.ProfileFileSignature."
 Private Const XML_ATTR_LOCKED_WITH_PLACEHOLDER As String = "lockedWithPlaceholder"
 
 ' =============================================================================
@@ -131,6 +132,8 @@ Public Sub m_ApplyProfileFromDev(Optional ByVal profileName As String = vbNullSt
     ex_ConfigProfilesManager.m_ApplyProfileUI ws, profileNode, profileName
     stepName = "apply-mode-visibility"
     mp_ApplyModeVisibility ws
+    stepName = "save-profile-file-signature"
+    mp_SaveAppliedProfileFileSignature ws, profileName
 EH:
     If Err.Number <> 0 Then
         MsgBox "Failed to apply profile '" & profileName & "' at step '" & stepName & "': [" & Err.Source & " #" & CStr(Err.Number) & "] " & Err.Description, vbExclamation
@@ -415,6 +418,45 @@ Public Sub m_OnProfileChanged()
         ex_CustomDropdown.m_StabilizeChooseModeAnchorX ws, targetStableZoneLeft
     End If
 End Sub
+
+Public Function m_ReapplyActiveProfileIfSourceChanged(Optional ByVal ws As Worksheet) As Boolean
+    Dim modeKey As String
+    Dim profileName As String
+    Dim propName As String
+    Dim currentSignature As String
+    Dim savedSignature As String
+
+    If ws Is Nothing Then
+        Set ws = ws_Dev
+    End If
+    If ws Is Nothing Then Exit Function
+
+    modeKey = Trim$(mp_GetSelectedModeKey(ws))
+    If Len(modeKey) = 0 Then
+        modeKey = Trim$(m_GetActiveModeKey(ws))
+    End If
+    If Len(modeKey) = 0 Then Exit Function
+
+    profileName = Trim$(m_GetActiveProfileName(ws))
+    If Len(profileName) = 0 Then Exit Function
+
+    currentSignature = mp_BuildProfilesFileSignature(modeKey)
+    If Len(currentSignature) = 0 Then Exit Function
+
+    propName = mp_BuildProfileFileSignaturePropName(modeKey, profileName)
+    savedSignature = mp_GetStatePropText(propName, vbNullString)
+
+    If Len(savedSignature) = 0 Then
+        mp_SetStatePropText propName, currentSignature
+        Exit Function
+    End If
+
+    If StrComp(savedSignature, currentSignature, vbBinaryCompare) <> 0 Then
+        m_ApplyProfileFromDev profileName
+        mp_SaveAppliedProfileFileSignature ws, profileName
+        m_ReapplyActiveProfileIfSourceChanged = True
+    End If
+End Function
 
 Public Sub m_OnModeChanged()
     Dim ws As Worksheet
@@ -972,6 +1014,52 @@ Private Sub mp_SaveProfilesDom(ByVal doc As Object)
     filePath = mp_GetProfilesFilePath(modeKey)
     ex_ProfilesStore.m_SaveProfilesDom doc, filePath
 End Sub
+
+Private Sub mp_SaveAppliedProfileFileSignature(ByVal ws As Worksheet, ByVal profileName As String)
+    Dim modeKey As String
+    Dim signatureText As String
+    Dim propName As String
+
+    If ws Is Nothing Then Exit Sub
+
+    modeKey = Trim$(mp_GetSelectedModeKey(ws))
+    If Len(modeKey) = 0 Then
+        modeKey = Trim$(m_GetActiveModeKey(ws))
+    End If
+    If Len(modeKey) = 0 Then Exit Sub
+
+    profileName = Trim$(profileName)
+    If Len(profileName) = 0 Then Exit Sub
+
+    signatureText = mp_BuildProfilesFileSignature(modeKey)
+    If Len(signatureText) = 0 Then Exit Sub
+
+    propName = mp_BuildProfileFileSignaturePropName(modeKey, profileName)
+    mp_SetStatePropText propName, signatureText
+End Sub
+
+Private Function mp_BuildProfileFileSignaturePropName(ByVal modeKey As String, ByVal profileName As String) As String
+    mp_BuildProfileFileSignaturePropName = _
+        STATE_PROFILE_FILE_SIGNATURE_PROP_PREFIX & _
+        mp_NormalizePropSuffix(modeKey) & "." & mp_NormalizePropSuffix(profileName)
+End Function
+
+Private Function mp_BuildProfilesFileSignature(ByVal modeKey As String) As String
+    Dim filePath As String
+    Dim modifiedAt As Date
+    Dim fileSize As Long
+
+    filePath = Trim$(mp_GetProfilesFilePath(modeKey))
+    If Len(filePath) = 0 Then Exit Function
+
+    On Error GoTo EH
+    modifiedAt = FileDateTime(filePath)
+    fileSize = FileLen(filePath)
+    mp_BuildProfilesFileSignature = Format$(modifiedAt, "yyyy-mm-dd hh:nn:ss") & "|" & CStr(fileSize)
+    Exit Function
+EH:
+    mp_BuildProfilesFileSignature = vbNullString
+End Function
 
 
 Private Function mp_NodeAttrText(ByVal node As Object, ByVal attrName As String) As String

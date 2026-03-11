@@ -475,21 +475,24 @@ Public Sub m_DeleteResultSheets()
     Dim ws As Worksheet
     Dim i As Long
 
-    On Error Resume Next
+    On Error GoTo EH
     ex_PersonTimeline.m_ResetResultPageSessionState
     ex_SheetViewZoom.m_ResetZoomCache
-    On Error GoTo 0
 
     Application.DisplayAlerts = False
-    On Error Resume Next
 
     For i = ThisWorkbook.Worksheets.Count To 1 Step -1
         Set ws = ThisWorkbook.Worksheets(i)
         If Left(ws.Name, 2) = "g_" Then ws.Delete
     Next i
 
-    On Error GoTo 0
     Application.DisplayAlerts = True
+    Exit Sub
+
+EH:
+    Application.DisplayAlerts = True
+    On Error GoTo 0
+    MsgBox "Clear failed: [" & Err.Source & " #" & CStr(Err.Number) & "] " & Err.Description, vbExclamation
 End Sub
 
 Public Sub m_ApplyDefaultSheetView(ByVal ws As Worksheet)

@@ -5,8 +5,12 @@ Option Explicit
 ' and delegates work to domain/config modules.
 
 Public Sub m_DeleteResultSheets_OnClick()
+    On Error GoTo EH
     ex_CustomDropdown.m_OnManagedButtonClick
     ex_SheetStylesXmlProvider.m_DeleteResultSheets
+    Exit Sub
+EH:
+    MsgBox "Clear failed: [" & Err.Source & " #" & CStr(Err.Number) & "] " & Err.Description, vbExclamation
 End Sub
 
 Public Sub m_SwitchMode_OnClick()
@@ -137,6 +141,8 @@ Public Sub m_OutputPanelStartSearch_OnClick()
     If ws Is Nothing Then
         Err.Raise vbObjectError + 2401, "ex_UIActions.m_OutputPanelStartSearch_OnClick", "Active sheet is not available for output panel search."
     End If
+
+    ex_ConfigProfilesManager.m_ReapplyActiveProfileIfSourceChanged ws
 
     configKey = "CommonKey"
     If ex_SheetStylesXmlProvider.m_GetOutputSheetStyle(outputStyle, ThisWorkbook) Then
