@@ -630,6 +630,123 @@ Public Function m_ShowLogicError(ByVal errorText As String) As String
     m_ShowLogicError = errorText
 End Function
 
+Public Function m_ShowWarningBanner( _
+    ByVal warningText As String, _
+    Optional ByVal titleText As String = "WARNING", _
+    Optional ByVal bannerRangeAddress As String = vbNullString _
+) As String
+    Dim ws As Worksheet
+
+    warningText = Trim$(warningText)
+    If Len(warningText) = 0 Then Exit Function
+
+    Set ws = ActiveSheet
+    If ws Is Nothing Then
+        Err.Raise vbObjectError + 1713, "ex_PostProcessActions", "Active sheet is not available for warning banner."
+    End If
+
+    ex_Messaging.m_RenderWarningBanner ws, warningText, titleText, bannerRangeAddress
+    m_ShowWarningBanner = warningText
+End Function
+
+Public Function m_GetRowIndex(ByVal rowRef As Object) As String
+    Dim sourceRowRef As obj_ResultRow
+
+    If rowRef Is Nothing Then
+        Err.Raise vbObjectError + 1718, "ex_PostProcessActions", "Row reference is required for row index read."
+    End If
+    If Not TypeOf rowRef Is obj_ResultRow Then
+        Err.Raise vbObjectError + 1719, "ex_PostProcessActions", "Row reference must be obj_ResultRow for row index read."
+    End If
+    Set sourceRowRef = rowRef
+
+    m_GetRowIndex = CStr(sourceRowRef.RowIndex)
+End Function
+
+Public Function m_GetWarningBannerRangeAboveRow( _
+    ByVal rowRef As Object, _
+    Optional ByVal gapRowsText As String = "1" _
+) As String
+    Dim sourceRowRef As obj_ResultRow
+    Dim gapRows As Long
+    Dim bannerCols As Long
+    Dim bannerRows As Long
+    Dim startRow As Long
+
+    If rowRef Is Nothing Then
+        Err.Raise vbObjectError + 1714, "ex_PostProcessActions", "Row reference is required for warning banner range."
+    End If
+    If Not TypeOf rowRef Is obj_ResultRow Then
+        Err.Raise vbObjectError + 1715, "ex_PostProcessActions", "Row reference must be obj_ResultRow for warning banner range."
+    End If
+    Set sourceRowRef = rowRef
+
+    gapRowsText = Trim$(gapRowsText)
+    If Len(gapRowsText) = 0 Then gapRowsText = "1"
+    If Not ex_XmlCore.m_TryParseLong(gapRowsText, gapRows) Then
+        Err.Raise vbObjectError + 1716, "ex_PostProcessActions", "Gap rows must be integer for warning banner range."
+    End If
+    If gapRows < 0 Then
+        Err.Raise vbObjectError + 1717, "ex_PostProcessActions", "Gap rows cannot be negative for warning banner range."
+    End If
+
+    mp_GetWarningBannerDimensions bannerCols, bannerRows
+    startRow = sourceRowRef.RowIndex - gapRows - bannerRows
+    If startRow < 1 Then startRow = 1
+
+    m_GetWarningBannerRangeAboveRow = "A" & CStr(startRow) & ":" & mp_ToColumnLetter(bannerCols) & CStr(startRow + bannerRows - 1)
+End Function
+
+Public Function m_ShowWarningBannerBeforeRowIndex( _
+    ByVal warningText As String, _
+    Optional ByVal titleText As String = "WARNING", _
+    Optional ByVal rowIndexText As String = vbNullString, _
+    Optional ByVal gapRowsText As String = "0" _
+) As String
+    Dim ws As Worksheet
+    Dim rowIndex As Long
+    Dim gapRows As Long
+    Dim bannerCols As Long
+    Dim bannerRows As Long
+    Dim rowsToInsert As Long
+    Dim bannerRangeAddress As String
+
+    warningText = Trim$(warningText)
+    If Len(warningText) = 0 Then Exit Function
+
+    rowIndexText = Trim$(rowIndexText)
+    If Not ex_XmlCore.m_TryParseLong(rowIndexText, rowIndex) Then
+        Err.Raise vbObjectError + 1720, "ex_PostProcessActions", "Row index must be integer for warning banner insert."
+    End If
+    If rowIndex < 1 Then
+        Err.Raise vbObjectError + 1721, "ex_PostProcessActions", "Row index must be >= 1 for warning banner insert."
+    End If
+
+    gapRowsText = Trim$(gapRowsText)
+    If Len(gapRowsText) = 0 Then gapRowsText = "0"
+    If Not ex_XmlCore.m_TryParseLong(gapRowsText, gapRows) Then
+        Err.Raise vbObjectError + 1722, "ex_PostProcessActions", "Gap rows must be integer for warning banner insert."
+    End If
+    If gapRows < 0 Then
+        Err.Raise vbObjectError + 1723, "ex_PostProcessActions", "Gap rows cannot be negative for warning banner insert."
+    End If
+
+    Set ws = ActiveSheet
+    If ws Is Nothing Then
+        Err.Raise vbObjectError + 1724, "ex_PostProcessActions", "Active sheet is not available for warning banner insert."
+    End If
+
+    mp_GetWarningBannerDimensions bannerCols, bannerRows
+    rowsToInsert = bannerRows + gapRows
+    If rowsToInsert > 0 Then
+        ws.Rows(CStr(rowIndex) & ":" & CStr(rowIndex + rowsToInsert - 1)).Insert Shift:=xlDown
+    End If
+
+    bannerRangeAddress = "A" & CStr(rowIndex) & ":" & mp_ToColumnLetter(bannerCols) & CStr(rowIndex + bannerRows - 1)
+    ex_Messaging.m_RenderWarningBanner ws, warningText, titleText, bannerRangeAddress
+    m_ShowWarningBannerBeforeRowIndex = warningText
+End Function
+
 Public Function m_GetRelativeDayOfMonth(ByVal dayOffsetText As String) As String
     Dim dayOffset As Long
     dayOffsetText = Trim$(dayOffsetText)
@@ -1441,6 +1558,35 @@ Private Function mp_FindExistingSinglePostProcessFooterRow( _
             End If
         End If
     Next rowIndex
+End Function
+
+Private Sub mp_GetWarningBannerDimensions(ByRef outColumns As Long, ByRef outRows As Long)
+    Dim bannerStyle As ex_SheetStylesXmlProvider.t_ErrorBannerStyle
+
+    If ex_SheetStylesXmlProvider.m_GetWarningBannerStyle(bannerStyle, ThisWorkbook) Then
+        outColumns = bannerStyle.Columns
+        outRows = bannerStyle.Rows
+    ElseIf ex_SheetStylesXmlProvider.m_GetErrorBannerStyle(bannerStyle, ThisWorkbook) Then
+        outColumns = bannerStyle.Columns
+        outRows = bannerStyle.Rows
+    End If
+
+    If outColumns < 1 Then outColumns = 8
+    If outRows < 1 Then outRows = 3
+End Sub
+
+Private Function mp_ToColumnLetter(ByVal columnIndex As Long) As String
+    Dim n As Long
+    Dim remainder As Long
+
+    If columnIndex < 1 Then columnIndex = 1
+    n = columnIndex
+
+    Do While n > 0
+        remainder = (n - 1) Mod 26
+        mp_ToColumnLetter = Chr$(65 + remainder) & mp_ToColumnLetter
+        n = (n - 1) \ 26
+    Loop
 End Function
 
 Private Function mp_GetRowCellRange( _
