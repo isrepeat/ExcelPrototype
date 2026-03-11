@@ -255,7 +255,7 @@
 						.fio = Src.FIO,
 						.position = Src.Position
 					}
-					@KEEP(ALL);
+					@KEEP(CONTIGUOUS);
 
 				GENERATE {
 					DEFINE COLUMNS [MetaType, OwnerFio, SectionType, SectionTitle];

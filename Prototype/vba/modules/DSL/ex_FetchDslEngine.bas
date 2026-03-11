@@ -27,6 +27,7 @@ Private Const DSL_OP_EQ As String = "=="
 Private Const DSL_KEEP_MODE_ALL As String = "ALL"
 Private Const DSL_KEEP_MODE_LAST As String = "LAST"
 Private Const DSL_KEEP_MODE_FIRST As String = "FIRST"
+Private Const DSL_KEEP_MODE_CONTIGUOUS As String = "CONTIGUOUS"
 Private Const DSL_VAR_CURRENT_TABLE As String = "$CurrentTable"
 Private Const DSL_VAR_KEY As String = "$Key"
 Private Const DSL_COMMENT_LINE As String = "//"
@@ -581,7 +582,7 @@ Private Function mp_FetchDslParseSearchRule( _
     rule("KeepMode") = keepMode
     Set rule("PushAssignments") = assigns
 
-    If keepMode <> DSL_KEEP_MODE_ALL And keepMode <> DSL_KEEP_MODE_LAST And keepMode <> DSL_KEEP_MODE_FIRST Then
+    If keepMode <> DSL_KEEP_MODE_ALL And keepMode <> DSL_KEEP_MODE_LAST And keepMode <> DSL_KEEP_MODE_FIRST And keepMode <> DSL_KEEP_MODE_CONTIGUOUS Then
         Err.Raise vbObjectError + 1779, "ex_FetchDslEngine", "Fetch DSL: unsupported " & DSL_KW_KEEP & " mode '" & keepMode & "' in " & blockName & "."
     End If
 
@@ -1365,13 +1366,16 @@ Private Sub mp_FetchDslRunSearchRule( _
     Dim targetName As String
     Dim valueText As String
     Dim keepMode As String
+    Dim isMatch As Boolean
 
     If rule Is Nothing Then Exit Sub
     If rowEnd < rowStart Then Exit Sub
 
     Set bucket = runtimeCtx(CStr(rule("CtxName")))
+    keepMode = UCase$(CStr(rule("KeepMode")))
     For r = rowStart To rowEnd
-        If mp_FetchDslEvalCondition(rule("Condition"), rowsData, r, plan, keyValue, fieldOrdByToken, runtimeCtx, keyRowIndex, foreachItem) Then
+        isMatch = mp_FetchDslEvalCondition(rule("Condition"), rowsData, r, plan, keyValue, fieldOrdByToken, runtimeCtx, keyRowIndex, foreachItem)
+        If isMatch Then
             Set item = mp_FetchDslCreateDictionary()
             For Each assignment In rule("PushAssignments")
                 targetName = CStr(assignment("Target"))
@@ -1379,10 +1383,11 @@ Private Sub mp_FetchDslRunSearchRule( _
                 item(targetName) = valueText
             Next assignment
             bucket.Add item
+        ElseIf StrComp(keepMode, DSL_KEEP_MODE_CONTIGUOUS, vbTextCompare) = 0 Then
+            Exit For
         End If
     Next r
 
-    keepMode = UCase$(CStr(rule("KeepMode")))
     mp_FetchDslApplyKeep bucket, keepMode
 End Sub
 
@@ -1392,6 +1397,7 @@ Private Sub mp_FetchDslApplyKeep(ByVal bucket As Collection, ByVal keepMode As S
     If bucket Is Nothing Then Exit Sub
     If bucket.Count = 0 Then Exit Sub
     If StrComp(keepMode, DSL_KEEP_MODE_ALL, vbTextCompare) = 0 Then Exit Sub
+    If StrComp(keepMode, DSL_KEEP_MODE_CONTIGUOUS, vbTextCompare) = 0 Then Exit Sub
 
     If StrComp(keepMode, DSL_KEEP_MODE_LAST, vbTextCompare) = 0 Then
         Set keepItem = bucket(bucket.Count)
