@@ -14,9 +14,12 @@ Private Const EXPORT_RUNTIME_WORD_PASTE_ANCHOR As String = "Export.RuntimeDataBa
 Private Const EXPORT_APPEND_SEPARATOR As String = vbCrLf & vbCrLf
 Private Const EXPORT_BOOKMARK_PREFIX As String = "EP_Anchor_"
 Private Const EXPORT_BOOKMARK_MAX_LEN As Long = 40
+Private Const EXPORT_DUPLICATE_CONFIRM_TITLE As String = "Duplicate Export Confirmation"
+Private Const EXPORT_HASH_MODULO As Double = 2147483629#
 
 Private g_WordApp As Object
 Private g_WordAppOwnedByModule As Boolean
+Private g_LastExportHashBySheet As Object
 
 Public Sub m_API_ExportActiveSheetFooterPlaceholderReport()
     Dim ws As Worksheet
@@ -30,6 +33,7 @@ Public Sub m_API_ExportActiveSheetFooterPlaceholderReport()
     Dim wordResultsPlace As String
     Dim wordPasteAnchor As String
     Dim sourceText As String
+    Dim currentExportHash As String
 
     On Error GoTo EH
 
@@ -70,9 +74,16 @@ Public Sub m_API_ExportActiveSheetFooterPlaceholderReport()
     End If
 
     sourceText = mp_ReadSheetTextByRuntimePointer(ws, wordResultsPlace)
+    currentExportHash = mp_ComputeTextHashHex(wordPasteAnchor & vbLf & sourceText)
+    If Not mp_ConfirmProceedForExportHash(ws, currentExportHash) Then
+        ex_Messaging.m_ShowNotice "Export canceled.", 3
+        Exit Sub
+    End If
+
     Set placeholderMap = m_BuildPlaceholderMapFromPairs(wordPasteAnchor, sourceText)
 
     reportPath = m_CreateWordReportFromTemplate(templatePath, outputPath, placeholderMap, True, insertMode)
+    mp_SaveLastExportHash ws, currentExportHash
     ex_Messaging.m_ShowNotice "Word report created: " & reportPath, 5
     Exit Sub
 
@@ -193,6 +204,91 @@ EH:
         "Failed to build Word report. Cause: [" & failureSource & " #" & CStr(failureNumber) & "] " & failureDescription
 End Function
 
+Private Function mp_ConfirmProceedForExportHash(ByVal ws As Worksheet, ByVal currentExportHash As String) As Boolean
+    Dim previousHash As String
+    Dim messageText As String
+    Dim response As VbMsgBoxResult
+
+    previousHash = mp_GetLastExportHash(ws)
+    If Len(previousHash) = 0 Then
+        mp_ConfirmProceedForExportHash = True
+        Exit Function
+    End If
+
+    If StrComp(previousHash, currentExportHash, vbBinaryCompare) <> 0 Then
+        mp_ConfirmProceedForExportHash = True
+        Exit Function
+    End If
+
+    messageText = "The current Post Process result matches the previously exported content (hash: " & currentExportHash & ")." & vbCrLf & vbCrLf & _
+                  "Do you want to export the same content again?"
+    response = MsgBox(messageText, vbQuestion + vbYesNo + vbDefaultButton2, EXPORT_DUPLICATE_CONFIRM_TITLE)
+    mp_ConfirmProceedForExportHash = (response = vbYes)
+End Function
+
+Private Function mp_ComputeTextHashHex(ByVal valueText As String) As String
+    Dim acc As Double
+    Dim i As Long
+    Dim codePoint As Long
+
+    acc = 7#
+
+    For i = 1 To Len(valueText)
+        codePoint = AscW(Mid$(valueText, i, 1))
+        If codePoint < 0 Then codePoint = codePoint + 65536
+
+        acc = (acc * 131#) + CDbl(codePoint)
+        acc = acc - (Fix(acc / EXPORT_HASH_MODULO) * EXPORT_HASH_MODULO)
+    Next i
+
+    mp_ComputeTextHashHex = Right$("00000000" & Hex$(CLng(acc)), 8)
+End Function
+
+Private Function mp_GetLastExportHash(ByVal ws As Worksheet) As String
+    Dim cache As Object
+    Dim cacheKey As String
+
+    If ws Is Nothing Then Exit Function
+    Set cache = mp_EnsureLastExportHashCache()
+    cacheKey = mp_BuildSheetExportCacheKey(ws)
+    If Len(cacheKey) = 0 Then Exit Function
+
+    If cache.Exists(cacheKey) Then
+        mp_GetLastExportHash = CStr(cache(cacheKey))
+    End If
+End Function
+
+Private Sub mp_SaveLastExportHash(ByVal ws As Worksheet, ByVal exportHash As String)
+    Dim cache As Object
+    Dim cacheKey As String
+
+    If ws Is Nothing Then Exit Sub
+    Set cache = mp_EnsureLastExportHashCache()
+    cacheKey = mp_BuildSheetExportCacheKey(ws)
+    If Len(cacheKey) = 0 Then Exit Sub
+
+    cache(cacheKey) = CStr(exportHash)
+End Sub
+
+Private Function mp_EnsureLastExportHashCache() As Object
+    If g_LastExportHashBySheet Is Nothing Then
+        Set g_LastExportHashBySheet = CreateObject("Scripting.Dictionary")
+        g_LastExportHashBySheet.CompareMode = 1 ' vbTextCompare
+    End If
+    Set mp_EnsureLastExportHashCache = g_LastExportHashBySheet
+End Function
+
+Private Function mp_BuildSheetExportCacheKey(ByVal ws As Worksheet) As String
+    Dim wbName As String
+    If ws Is Nothing Then Exit Function
+
+    On Error Resume Next
+    wbName = CStr(ws.Parent.Name)
+    On Error GoTo 0
+
+    mp_BuildSheetExportCacheKey = LCase$(Trim$(wbName) & "|" & Trim$(ws.Name))
+End Function
+
 Public Sub m_ResetWordSession(Optional ByVal quitIfOwned As Boolean = True)
     On Error Resume Next
     If Not g_WordApp Is Nothing Then
@@ -202,6 +298,7 @@ Public Sub m_ResetWordSession(Optional ByVal quitIfOwned As Boolean = True)
     End If
     Set g_WordApp = Nothing
     g_WordAppOwnedByModule = False
+    Set g_LastExportHashBySheet = Nothing
     On Error GoTo 0
 End Sub
 
