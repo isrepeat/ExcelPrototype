@@ -12,6 +12,7 @@ Private Const STATUS_STORE_KEY_CLEAR_AT As String = "status_clear_at"
 Private Const STATUS_STORE_KEY_CLEAR_PROC As String = "status_clear_proc"
 Private Const STATUS_STORE_KEY_CLOSE_UNTIL As String = "close_until"
 Private Const STATUS_CLOSE_HOLD_SECONDS As Double = 15#
+Private Const DEFAULT_LOG_FILE_RELATIVE_PATH As String = "Logs\postprocess_debug.log"
 
 ' =============================================================================
 ' Status bar notification
@@ -63,6 +64,42 @@ Public Sub m_EndWorkbookClose()
     g_CloseUntil = 0
     mp_DeleteStoreValue STATUS_STORE_KEY_CLOSE_UNTIL
 End Sub
+
+' =============================================================================
+' File logging (simple runtime diagnostics)
+' =============================================================================
+
+Public Sub m_ClearLogFile(Optional ByVal relativeOrAbsolutePath As String = DEFAULT_LOG_FILE_RELATIVE_PATH)
+    Dim logPath As String
+    Dim fileNo As Integer
+
+    logPath = mp_ResolveLogFilePath(relativeOrAbsolutePath)
+    mp_EnsureLogParentFolder logPath
+
+    fileNo = FreeFile
+    Open logPath For Output As #fileNo
+    Close #fileNo
+End Sub
+
+Public Function m_LogToFile( _
+    ByVal messageText As String, _
+    Optional ByVal relativeOrAbsolutePath As String = DEFAULT_LOG_FILE_RELATIVE_PATH _
+) As String
+    Dim logPath As String
+    Dim fileNo As Integer
+    Dim lineText As String
+
+    logPath = mp_ResolveLogFilePath(relativeOrAbsolutePath)
+    mp_EnsureLogParentFolder logPath
+
+    lineText = Format$(Now, "yyyy-mm-dd HH:nn:ss") & " | " & CStr(messageText)
+    fileNo = FreeFile
+    Open logPath For Append As #fileNo
+    Print #fileNo, lineText
+    Close #fileNo
+
+    m_LogToFile = logPath
+End Function
 
 Private Function mp_GetStatusClearProcedureName() As String
     If Len(g_StatusClearProcedureName) = 0 Then
@@ -166,6 +203,54 @@ End Sub
 Private Function mp_GetStoreSection() As String
     mp_GetStoreSection = STATUS_STORE_SECTION_PREFIX & ThisWorkbook.Name
 End Function
+
+Private Function mp_ResolveLogFilePath(ByVal relativeOrAbsolutePath As String) As String
+    Dim normalized As String
+    Dim basePath As String
+
+    normalized = Trim$(relativeOrAbsolutePath)
+    If Len(normalized) = 0 Then normalized = DEFAULT_LOG_FILE_RELATIVE_PATH
+    normalized = Replace$(normalized, "/", "\")
+
+    If Left$(normalized, 2) = "\\" Or InStr(1, normalized, ":\", vbTextCompare) > 0 Then
+        mp_ResolveLogFilePath = normalized
+        Exit Function
+    End If
+
+    basePath = ThisWorkbook.Path
+    If Len(basePath) = 0 Then
+        mp_ResolveLogFilePath = normalized
+        Exit Function
+    End If
+    If Right$(basePath, 1) <> "\" Then basePath = basePath & "\"
+    mp_ResolveLogFilePath = basePath & normalized
+End Function
+
+Private Sub mp_EnsureLogParentFolder(ByVal filePath As String)
+    Dim fso As Object
+    Dim parentPath As String
+
+    If Len(Trim$(filePath)) = 0 Then Exit Sub
+    Set fso = CreateObject("Scripting.FileSystemObject")
+    parentPath = fso.GetParentFolderName(filePath)
+    If Len(parentPath) = 0 Then Exit Sub
+    mp_EnsureFolderExists fso, parentPath
+End Sub
+
+Private Sub mp_EnsureFolderExists(ByVal fso As Object, ByVal folderPath As String)
+    Dim parentPath As String
+
+    If fso Is Nothing Then Exit Sub
+    folderPath = Trim$(folderPath)
+    If Len(folderPath) = 0 Then Exit Sub
+    If fso.FolderExists(folderPath) Then Exit Sub
+
+    parentPath = fso.GetParentFolderName(folderPath)
+    If Len(parentPath) > 0 And Not fso.FolderExists(parentPath) Then
+        mp_EnsureFolderExists fso, parentPath
+    End If
+    fso.CreateFolder folderPath
+End Sub
 
 Public Sub m_RenderErrorBanner( _
     ByVal ws As Worksheet, _

@@ -8,14 +8,20 @@ Private Const RESULT_TEMPLATES_REL_PATH As String = "config\modes\PersonalCard\P
 ' Reserved date tokens:
 ' - {#dd}, {#dd+N}, {#dd-N}
 ' Reserved line-join token:
-' - {#_}  (ignores a line break around token)
-' - #_    (same behavior, shorthand)
+' - {#^}  (ignores a line break around token)
+' - #^    (same behavior, shorthand)
+' Legacy line-join token (backward compatibility):
+' - {#_}
+' Reserved trim-indentation token:
+' - #_    (removes token and horizontal whitespace after it)
 Private Const DATE_TOKEN_PATTERN As String = "\{#dd(?:[+-]\d+)?\}"
 Private Const RESERVED_TOKEN_PREFIX As String = "#"
 Private Const RESERVED_DATE_DAY_KEYWORD As String = "dd"
 Private Const RESERVED_DATE_OUTPUT_FORMAT As String = "dd"
-Private Const RESERVED_JOINLINE_TOKEN As String = "{#_}"
-Private Const RESERVED_JOINLINE_TOKEN_SHORT As String = "#_"
+Private Const RESERVED_JOINLINE_TOKEN As String = "{#^}"
+Private Const RESERVED_JOINLINE_TOKEN_SHORT As String = "#^"
+Private Const RESERVED_JOINLINE_TOKEN_LEGACY As String = "{#_}"
+Private Const RESERVED_TRIMINDENT_TOKEN_SHORT As String = "#_"
 Private Const IF_BLOCK_OPEN As String = "{#if"
 Private Const IF_BLOCK_CLOSE As String = "{#endif}"
 Private Const BOOLEAN_TRUE As String = "true"
@@ -155,6 +161,7 @@ Public Function m_ResolveTemplate( _
     ' Final pass for template text.
     m_ResolveTemplate = mp_ResolveConditionalBlocks(CStr(sourceText))
     m_ResolveTemplate = mp_ResolveJoinLineTokens(m_ResolveTemplate)
+    m_ResolveTemplate = mp_ResolveTrimIndentTokens(m_ResolveTemplate)
     m_ResolveTemplate = mp_ResolveDateExpressions(m_ResolveTemplate, baseDateText)
     Exit Function
 
@@ -588,7 +595,35 @@ Private Function mp_ResolveJoinLineTokens(ByVal sourceText As String) As String
 
     resultText = mp_ResolveJoinLineToken(resultText, RESERVED_JOINLINE_TOKEN)
     resultText = mp_ResolveJoinLineToken(resultText, RESERVED_JOINLINE_TOKEN_SHORT)
+    resultText = mp_ResolveJoinLineToken(resultText, RESERVED_JOINLINE_TOKEN_LEGACY)
     mp_ResolveJoinLineTokens = resultText
+End Function
+
+Private Function mp_ResolveTrimIndentTokens(ByVal sourceText As String) As String
+    Dim resultText As String
+
+    resultText = CStr(sourceText)
+    resultText = mp_ResolveTrimIndentToken(resultText, RESERVED_TRIMINDENT_TOKEN_SHORT)
+    mp_ResolveTrimIndentTokens = resultText
+End Function
+
+Private Function mp_ResolveTrimIndentToken(ByVal sourceText As String, ByVal tokenText As String) As String
+    Dim resultText As String
+    Dim rx As Object
+    Dim tokenPattern As String
+
+    resultText = CStr(sourceText)
+    tokenPattern = mp_EscapeRegex(CStr(tokenText))
+
+    Set rx = CreateObject("VBScript.RegExp")
+    rx.Global = True
+    rx.IgnoreCase = False
+
+    ' Remove token and all horizontal whitespace after it.
+    rx.Pattern = tokenPattern & "[ \t]*"
+    resultText = rx.Replace(resultText, vbNullString)
+
+    mp_ResolveTrimIndentToken = resultText
 End Function
 
 Private Function mp_ResolveJoinLineToken(ByVal sourceText As String, ByVal tokenText As String) As String

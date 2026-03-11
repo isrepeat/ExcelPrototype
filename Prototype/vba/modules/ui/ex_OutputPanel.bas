@@ -51,6 +51,7 @@ Public Sub m_RenderForSheet(ByVal ws As Worksheet, ByRef style As ex_SheetStyles
     Dim buttonBackColor As Long
     Dim buttonTextColor As Long
     Dim buttonBorderColor As Long
+    Dim buttonCaption As String
 
     If ws Is Nothing Then Exit Sub
 
@@ -187,10 +188,8 @@ Public Sub m_RenderForSheet(ByVal ws As Worksheet, ByRef style As ex_SheetStyles
             buttonName = mp_GetButtonName(ws, fieldIndex, buttonIndex)
             Set buttonShape = ws.Shapes.AddShape(msoShapeRectangle, buttonLeft, buttonTop, buttonWidth, buttonHeight)
             buttonShape.Name = buttonName
-            buttonShape.TextFrame.Characters.Text = style.PanelFields(fieldIndex).Buttons(buttonIndex).Caption
-            buttonBackColor = mp_GetButtonBackColor(style, fieldIndex, buttonIndex)
-            buttonTextColor = mp_GetButtonTextColor(style, fieldIndex, buttonIndex)
-            buttonBorderColor = mp_GetButtonBorderColor(style, fieldIndex, buttonIndex)
+            mp_ResolveButtonVisual style, fieldIndex, buttonIndex, buttonCaption, buttonBackColor, buttonTextColor, buttonBorderColor
+            buttonShape.TextFrame.Characters.Text = buttonCaption
             buttonShape.Fill.Solid
             buttonShape.Fill.ForeColor.RGB = buttonBackColor
             buttonShape.Fill.Transparency = 0
@@ -249,6 +248,7 @@ Private Function mp_GetConfigRefFieldError( _
     ByVal fieldIndex As Long _
 ) As String
     Dim buttonIndex As Long
+    Dim buttonType As String
 
     If Not fieldStyle.IsConfigRefField Then Exit Function
 
@@ -271,13 +271,31 @@ Private Function mp_GetConfigRefFieldError( _
     End If
 
     For buttonIndex = 1 To fieldStyle.ButtonCount
-        If Len(Trim$(fieldStyle.Buttons(buttonIndex).Caption)) = 0 Then
-            mp_GetConfigRefFieldError = "Missing required attribute: inputConfigRefField/button@caption (field " & CStr(fieldIndex) & ", button " & CStr(buttonIndex) & ")."
-            Exit Function
-        End If
-        If Len(Trim$(fieldStyle.Buttons(buttonIndex).MacroName)) = 0 Then
-            mp_GetConfigRefFieldError = "Missing required attribute: inputConfigRefField/button@macro (field " & CStr(fieldIndex) & ", button " & CStr(buttonIndex) & ")."
-            Exit Function
+        buttonType = LCase$(Trim$(fieldStyle.Buttons(buttonIndex).ButtonType))
+        If Len(buttonType) = 0 Then buttonType = "button"
+
+        If StrComp(buttonType, "togglebutton", vbTextCompare) = 0 Then
+            If Len(Trim$(fieldStyle.Buttons(buttonIndex).ToggleSource)) = 0 Then
+                mp_GetConfigRefFieldError = "Missing required attribute: inputConfigRefField/toggleButton@source (field " & CStr(fieldIndex) & ", button " & CStr(buttonIndex) & ")."
+                Exit Function
+            End If
+            If fieldStyle.Buttons(buttonIndex).ToggleVariantCount <= 0 Then
+                mp_GetConfigRefFieldError = "Missing required node: inputConfigRefField/toggleButton/modeVariants/variant (field " & CStr(fieldIndex) & ", button " & CStr(buttonIndex) & ")."
+                Exit Function
+            End If
+            If Len(Trim$(fieldStyle.Buttons(buttonIndex).MacroName)) = 0 Then
+                mp_GetConfigRefFieldError = "Missing required attribute: inputConfigRefField/toggleButton@macro (field " & CStr(fieldIndex) & ", button " & CStr(buttonIndex) & ")."
+                Exit Function
+            End If
+        Else
+            If Len(Trim$(fieldStyle.Buttons(buttonIndex).Caption)) = 0 Then
+                mp_GetConfigRefFieldError = "Missing required attribute: inputConfigRefField/button@caption (field " & CStr(fieldIndex) & ", button " & CStr(buttonIndex) & ")."
+                Exit Function
+            End If
+            If Len(Trim$(fieldStyle.Buttons(buttonIndex).MacroName)) = 0 Then
+                mp_GetConfigRefFieldError = "Missing required attribute: inputConfigRefField/button@macro (field " & CStr(fieldIndex) & ", button " & CStr(buttonIndex) & ")."
+                Exit Function
+            End If
         End If
     Next buttonIndex
 End Function
@@ -652,11 +670,99 @@ Private Function mp_NormalizeOverflowText(ByVal overflowStyle As String) As Stri
     End Select
 End Function
 
+Private Sub mp_ResolveButtonVisual( _
+    ByRef style As ex_SheetStylesXmlProvider.t_OutputSheetStyle, _
+    ByVal fieldIndex As Long, _
+    ByVal buttonIndex As Long, _
+    ByRef outCaption As String, _
+    ByRef outBackColor As Long, _
+    ByRef outTextColor As Long, _
+    ByRef outBorderColor As Long _
+)
+    Dim variantIndex As Long
+    Dim variantStyle As ex_SheetStylesXmlProvider.t_ControlPanelToggleVariantStyle
+
+    outCaption = style.PanelFields(fieldIndex).Buttons(buttonIndex).Caption
+    outBackColor = mp_GetButtonBackColor(style, fieldIndex, buttonIndex)
+    outTextColor = mp_GetButtonTextColor(style, fieldIndex, buttonIndex)
+    outBorderColor = mp_GetButtonBorderColor(style, fieldIndex, buttonIndex)
+
+    If Not mp_IsToggleButtonType(style.PanelFields(fieldIndex).Buttons(buttonIndex).ButtonType) Then
+        If Len(Trim$(outCaption)) = 0 Then outCaption = "Action " & CStr(buttonIndex)
+        Exit Sub
+    End If
+
+    variantIndex = mp_GetToggleVariantIndex(style, fieldIndex, buttonIndex)
+    If variantIndex <= 0 Or variantIndex > style.PanelFields(fieldIndex).Buttons(buttonIndex).ToggleVariantCount Then
+        If Len(Trim$(outCaption)) = 0 Then outCaption = "Toggle " & CStr(buttonIndex)
+        Exit Sub
+    End If
+
+    variantStyle = style.PanelFields(fieldIndex).Buttons(buttonIndex).ToggleVariants(variantIndex)
+    If Len(Trim$(variantStyle.Caption)) > 0 Then
+        outCaption = variantStyle.Caption
+    ElseIf Len(Trim$(outCaption)) = 0 Then
+        outCaption = variantStyle.Value
+    End If
+
+    If variantStyle.HasBackColor Then outBackColor = variantStyle.BackColor
+    If variantStyle.HasTextColor Then outTextColor = variantStyle.TextColor
+    If variantStyle.HasBorderColor Then outBorderColor = variantStyle.BorderColor
+
+    If Len(Trim$(outCaption)) = 0 Then outCaption = "Toggle " & CStr(buttonIndex)
+End Sub
+
+Private Function mp_IsToggleButtonType(ByVal buttonType As String) As Boolean
+    mp_IsToggleButtonType = (StrComp(LCase$(Trim$(buttonType)), "togglebutton", vbTextCompare) = 0)
+End Function
+
+Private Function mp_GetToggleVariantIndex( _
+    ByRef style As ex_SheetStylesXmlProvider.t_OutputSheetStyle, _
+    ByVal fieldIndex As Long, _
+    ByVal buttonIndex As Long _
+) As Long
+    Dim currentValue As String
+    Dim variantIndex As Long
+    Dim variantValue As String
+
+    If fieldIndex < 1 Or fieldIndex > style.PanelFieldCount Then Exit Function
+    If buttonIndex < 1 Or buttonIndex > style.PanelFields(fieldIndex).ButtonCount Then Exit Function
+    If Not mp_IsToggleButtonType(style.PanelFields(fieldIndex).Buttons(buttonIndex).ButtonType) Then Exit Function
+    If style.PanelFields(fieldIndex).Buttons(buttonIndex).ToggleVariantCount <= 0 Then Exit Function
+
+    currentValue = Trim$(CStr(ex_ConfigProvider.m_GetConfigValue(style.PanelFields(fieldIndex).Buttons(buttonIndex).ToggleSource, vbNullString)))
+    If Len(currentValue) = 0 Then
+        mp_GetToggleVariantIndex = 1
+        Exit Function
+    End If
+
+    For variantIndex = 1 To style.PanelFields(fieldIndex).Buttons(buttonIndex).ToggleVariantCount
+        variantValue = Trim$(style.PanelFields(fieldIndex).Buttons(buttonIndex).ToggleVariants(variantIndex).Value)
+        If StrComp(variantValue, currentValue, vbTextCompare) = 0 Then
+            mp_GetToggleVariantIndex = variantIndex
+            Exit Function
+        End If
+    Next variantIndex
+
+    mp_GetToggleVariantIndex = 1
+End Function
+
 Public Function m_TryGetClickedFieldIndex(ByVal ws As Worksheet, ByVal callerName As String, ByRef fieldIndex As Long) As Boolean
+    Dim buttonIndex As Long
+    m_TryGetClickedFieldIndex = m_TryGetClickedButtonIndices(ws, callerName, fieldIndex, buttonIndex)
+End Function
+
+Public Function m_TryGetClickedButtonIndices( _
+    ByVal ws As Worksheet, _
+    ByVal callerName As String, _
+    ByRef fieldIndex As Long, _
+    ByRef buttonIndex As Long _
+) As Boolean
     Dim prefix As String
     Dim suffix As String
-    Dim sepPos As Long
+    Dim parts() As String
     Dim fieldToken As String
+    Dim buttonToken As String
 
     If ws Is Nothing Then Exit Function
     callerName = Trim$(callerName)
@@ -666,17 +772,92 @@ Public Function m_TryGetClickedFieldIndex(ByVal ws As Worksheet, ByVal callerNam
     If LCase$(Left$(callerName, Len(prefix))) <> LCase$(prefix) Then Exit Function
 
     suffix = Mid$(callerName, Len(prefix) + 1)
-    sepPos = InStr(1, suffix, "_", vbTextCompare)
-    If sepPos > 1 Then
-        fieldToken = Left$(suffix, sepPos - 1)
-    Else
-        fieldToken = suffix
+    If Len(suffix) = 0 Then Exit Function
+
+    parts = Split(suffix, "_")
+    If UBound(parts) < 1 Then Exit Function
+
+    fieldToken = Trim$(parts(0))
+    buttonToken = Trim$(parts(1))
+    If Not ex_XmlCore.m_TryParseLong(fieldToken, fieldIndex) Then Exit Function
+    If Not ex_XmlCore.m_TryParseLong(buttonToken, buttonIndex) Then Exit Function
+    If fieldIndex < 1 Then Exit Function
+    If buttonIndex < 1 Then Exit Function
+
+    m_TryGetClickedButtonIndices = True
+End Function
+
+Public Sub m_HandleToggleButtonOnClick(Optional ByVal ws As Worksheet = Nothing, Optional ByVal callerName As String = vbNullString)
+    Dim outputStyle As ex_SheetStylesXmlProvider.t_OutputSheetStyle
+    Dim fieldIndex As Long
+    Dim buttonIndex As Long
+    Dim currentVariantIndex As Long
+    Dim nextVariantIndex As Long
+    Dim nextValue As String
+    Dim onToggleMacro As String
+
+    On Error GoTo EH
+
+    If ws Is Nothing Then Set ws = ActiveSheet
+    If ws Is Nothing Then
+        Err.Raise vbObjectError + 2461, "ex_OutputPanel.m_HandleToggleButtonOnClick", "Active sheet is not available for toggle button click."
     End If
 
-    If Not ex_XmlCore.m_TryParseLong(fieldToken, fieldIndex) Then Exit Function
-    If fieldIndex < 1 Then Exit Function
-    m_TryGetClickedFieldIndex = True
-End Function
+    If Len(Trim$(callerName)) = 0 Then
+        On Error Resume Next
+        callerName = CStr(Application.Caller)
+        On Error GoTo EH
+    End If
+    If Len(Trim$(callerName)) = 0 Then
+        Err.Raise vbObjectError + 2462, "ex_OutputPanel.m_HandleToggleButtonOnClick", "Caller shape name is empty for toggle button click."
+    End If
+
+    If Not ex_SheetStylesXmlProvider.m_GetOutputSheetStyle(outputStyle, ThisWorkbook) Then
+        Err.Raise vbObjectError + 2463, "ex_OutputPanel.m_HandleToggleButtonOnClick", "Failed to resolve output sheet style for toggle button."
+    End If
+
+    If Not m_TryGetClickedButtonIndices(ws, callerName, fieldIndex, buttonIndex) Then
+        Err.Raise vbObjectError + 2464, "ex_OutputPanel.m_HandleToggleButtonOnClick", "Failed to parse control panel button indices from caller '" & callerName & "'."
+    End If
+
+    If fieldIndex < 1 Or fieldIndex > outputStyle.PanelFieldCount Then
+        Err.Raise vbObjectError + 2465, "ex_OutputPanel.m_HandleToggleButtonOnClick", "Control panel field index is out of range: " & CStr(fieldIndex)
+    End If
+    If buttonIndex < 1 Or buttonIndex > outputStyle.PanelFields(fieldIndex).ButtonCount Then
+        Err.Raise vbObjectError + 2466, "ex_OutputPanel.m_HandleToggleButtonOnClick", "Control panel button index is out of range: " & CStr(buttonIndex)
+    End If
+
+    If Not mp_IsToggleButtonType(outputStyle.PanelFields(fieldIndex).Buttons(buttonIndex).ButtonType) Then Exit Sub
+    If outputStyle.PanelFields(fieldIndex).Buttons(buttonIndex).ToggleVariantCount <= 0 Then
+        Err.Raise vbObjectError + 2467, "ex_OutputPanel.m_HandleToggleButtonOnClick", "Toggle button has no variants configured."
+    End If
+    If Len(Trim$(outputStyle.PanelFields(fieldIndex).Buttons(buttonIndex).ToggleSource)) = 0 Then
+        Err.Raise vbObjectError + 2468, "ex_OutputPanel.m_HandleToggleButtonOnClick", "Toggle button source config key is empty."
+    End If
+
+    currentVariantIndex = mp_GetToggleVariantIndex(outputStyle, fieldIndex, buttonIndex)
+    If currentVariantIndex <= 0 Then currentVariantIndex = 1
+
+    nextVariantIndex = currentVariantIndex + 1
+    If nextVariantIndex > outputStyle.PanelFields(fieldIndex).Buttons(buttonIndex).ToggleVariantCount Then nextVariantIndex = 1
+
+    nextValue = Trim$(outputStyle.PanelFields(fieldIndex).Buttons(buttonIndex).ToggleVariants(nextVariantIndex).Value)
+    If Len(nextValue) = 0 Then
+        Err.Raise vbObjectError + 2469, "ex_OutputPanel.m_HandleToggleButtonOnClick", "Toggle variant value is empty for next variant."
+    End If
+
+    ex_ConfigProvider.m_SetConfigValue outputStyle.PanelFields(fieldIndex).Buttons(buttonIndex).ToggleSource, nextValue, True
+    m_RenderForSheet ws, outputStyle
+
+    onToggleMacro = Trim$(outputStyle.PanelFields(fieldIndex).Buttons(buttonIndex).ToggleChangedMacroName)
+    If Len(onToggleMacro) > 0 Then
+        Application.Run "'" & ThisWorkbook.Name & "'!" & onToggleMacro
+    End If
+    Exit Sub
+
+EH:
+    MsgBox "Toggle button failed: " & Err.Description, vbExclamation
+End Sub
 
 Private Function mp_GetLastUsedColumn(ByVal ws As Worksheet) As Long
     Dim lastCell As Range

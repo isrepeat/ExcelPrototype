@@ -17,6 +17,7 @@ Private g_AdoAutoTableRefBySignature As Object
 Private g_AdoFieldMapByTableRef As Object
 Private g_AdoFieldListByTableRef As Object
 Private g_AdoFieldGenericByTableRef As Object
+Private g_AdoMarkerRangeRefBySignature As Object
 
 Private Sub mp_EnsureAdoLookupCaches(ByVal cfg As Object)
     Dim signature As String
@@ -39,6 +40,7 @@ Private Sub mp_ResetAdoLookupCaches()
     Set g_AdoFieldMapByTableRef = Nothing
     Set g_AdoFieldListByTableRef = Nothing
     Set g_AdoFieldGenericByTableRef = Nothing
+    Set g_AdoMarkerRangeRefBySignature = Nothing
     ex_FetchDslEngine.m_ResetPlanCache
 
     mp_EnsureAdoLookupCacheContainers
@@ -64,6 +66,10 @@ Private Sub mp_EnsureAdoLookupCacheContainers()
     If g_AdoFieldGenericByTableRef Is Nothing Then
         Set g_AdoFieldGenericByTableRef = CreateObject("Scripting.Dictionary")
         g_AdoFieldGenericByTableRef.CompareMode = 1
+    End If
+    If g_AdoMarkerRangeRefBySignature Is Nothing Then
+        Set g_AdoMarkerRangeRefBySignature = CreateObject("Scripting.Dictionary")
+        g_AdoMarkerRangeRefBySignature.CompareMode = 1
     End If
 End Sub
 
@@ -111,6 +117,8 @@ Private Function mp_BuildAdoLookupCacheSignature(ByVal cfg As Object) As String
                     "|fp=" & mp_GetCfgOptional(cfg, sourceAlias & ".FilePath", vbNullString) & _
                     "|hh=" & mp_GetCfgOptional(cfg, sourceAlias & ".HasHeaders", vbNullString) & _
                     "|sn=" & mp_GetCfgOptional(cfg, sourceAlias & ".Sheet[" & tableAlias & "].SheetName", vbNullString) & _
+                    "|rsm=" & mp_GetCfgOptional(cfg, sourceAlias & ".Sheet[" & tableAlias & "].RangeStartMarker", vbNullString) & _
+                    "|rem=" & mp_GetCfgOptional(cfg, sourceAlias & ".Sheet[" & tableAlias & "].RangeEndMarker", vbNullString) & _
                     "|k=" & keyAlias & _
                     "|c=" & columnsRaw
 
@@ -461,6 +469,7 @@ End Sub
 
 Public Sub m_ResetResultPageSessionState()
     mp_ResetAdoLookupCaches
+    ex_PostProcessDsl.m_ResetScriptCache
     Set g_LastPostProcessCfg = Nothing
     Set g_LastPostProcessTables = Nothing
     g_LastResultHasPartialMatchCandidates = False
@@ -506,7 +515,6 @@ Private Function mp_ValidateTimelineConfig( _
     Dim outputAliases As Variant
     Dim tableSourceMap As Object
     Dim resultFieldRanges As Collection
-    Dim allowedTableFields As Object
     Dim activeModeKey As String
     Dim strictPreflight As Boolean
     Dim i As Long
@@ -519,8 +527,6 @@ Private Function mp_ValidateTimelineConfig( _
     tableSourceMap.CompareMode = 1
 
     Set resultFieldRanges = New Collection
-    Set allowedTableFields = CreateObject("Scripting.Dictionary")
-    allowedTableFields.CompareMode = 1
 
     For i = LBound(outputAliases) To UBound(outputAliases)
         Dim tableAlias As String
@@ -547,19 +553,27 @@ Private Function mp_ValidateTimelineConfig( _
 
         Call mp_GetCfgRequired(cfg, sourceAlias & ".Sheet[" & tableAlias & "].SheetName")
         Call mp_GetCfgRequired(cfg, sourceAlias & ".Sheet[" & tableAlias & "].Key")
+        Dim rangeStartMarker As String
+        Dim rangeEndMarker As String
+        Dim configuredSheetName As String
+        configuredSheetName = mp_GetCfgRequired(cfg, sourceAlias & ".Sheet[" & tableAlias & "].SheetName")
+        rangeStartMarker = mp_GetCfgOptional(cfg, sourceAlias & ".Sheet[" & tableAlias & "].RangeStartMarker", vbNullString)
+        rangeEndMarker = mp_GetCfgOptional(cfg, sourceAlias & ".Sheet[" & tableAlias & "].RangeEndMarker", vbNullString)
+        If (Len(rangeStartMarker) > 0 Xor Len(rangeEndMarker) > 0) Then
+            Err.Raise vbObjectError + 1747, "ex_PersonTimeline", _
+                "Both markers must be provided for auto-range mode: '" & _
+                sourceAlias & ".Sheet[" & tableAlias & "].RangeStartMarker' and '" & _
+                sourceAlias & ".Sheet[" & tableAlias & "].RangeEndMarker'."
+        End If
+        If Len(rangeStartMarker) > 0 Then
+            If mp_IsExplicitAdoRangeReference(configuredSheetName) Then
+                Err.Raise vbObjectError + 1748, "ex_PersonTimeline", _
+                    "Auto-range markers are not allowed with explicit range SheetName for " & _
+                    sourceAlias & ".Sheet[" & tableAlias & "].SheetName."
+            End If
+        End If
 
         fields = mp_GetEffectiveFieldAliases(cfg, sourceAlias, tableAlias)
-        Dim sheetRefKey As String
-        sheetRefKey = sourceAlias & ".Sheet[" & tableAlias & "]"
-
-        If Not allowedTableFields.Exists(sheetRefKey) Then
-            Dim tableFields As Object
-            Set tableFields = CreateObject("Scripting.Dictionary")
-            tableFields.CompareMode = 1
-            allowedTableFields.Add sheetRefKey, tableFields
-        End If
-        Dim tableFieldsRef As Object
-        Set tableFieldsRef = allowedTableFields.Item(sheetRefKey)
 
         For fieldIndex = LBound(fields) To UBound(fields)
             fieldAlias = Trim$(CStr(fields(fieldIndex)))
@@ -569,7 +583,6 @@ Private Function mp_ValidateTimelineConfig( _
                 If Not isVirtualField Then
                     Call mp_GetMappedSourceHeader(cfg, sourceAlias, tableAlias, fieldAlias)
                 End If
-                tableFieldsRef(sourceAlias & ".Sheet[" & tableAlias & "].Map[" & fieldAlias & "]") = True
                 If isVirtualField Then
                     mp_AddResultFieldRange resultFieldRanges, sourceAlias, tableAlias, fieldAlias, 1, 1, 1, ex_FetchDslEngine.m_GetGeneratedKindValue()
                 Else
@@ -597,10 +610,6 @@ ContinueAlias:
 
     End If
 
-    If Not ex_PostProcessDsl.m_ValidateScriptAgainstConfig(cfg, allowedTableFields, outErrorText) Then
-        Exit Function
-    End If
-
     mp_ValidateTimelineConfig = True
     Exit Function
 
@@ -622,7 +631,10 @@ Private Function mp_IsConfigValidationError(ByVal errNumber As Long) As Boolean
              vbObjectError + 1736, vbObjectError + 1737, vbObjectError + 1738, _
              vbObjectError + 1739, vbObjectError + 1740, vbObjectError + 1741, _
              vbObjectError + 1742, vbObjectError + 1743, vbObjectError + 1744, _
-             vbObjectError + 1745, vbObjectError + 1746, _
+             vbObjectError + 1745, vbObjectError + 1746, vbObjectError + 1747, _
+             vbObjectError + 1748, vbObjectError + 1749, vbObjectError + 1750, _
+             vbObjectError + 1751, vbObjectError + 1752, vbObjectError + 1753, _
+             vbObjectError + 1754, vbObjectError + 1755, vbObjectError + 1756, _
              vbObjectError + 1590, vbObjectError + 1591, vbObjectError + 1592, _
              vbObjectError + 1593, vbObjectError + 1594, vbObjectError + 1595, _
              vbObjectError + 1596, vbObjectError + 1597, _
@@ -679,7 +691,7 @@ Private Function mp_WriteStateCardGeneric( _
     keyHeader = mp_GetMappedSourceHeader(cfg, sourceAlias, tableAlias, keyAlias)
 
     expectedHeaders = mp_BuildExpectedHeaders(cfg, sourceAlias, tableAlias, sourceFields, keyHeader)
-    tableRef = mp_GetAdoTableReference(adoConn, adoObjectName, expectedHeaders, keyHeader, fio, sourceAlias, tableAlias)
+    tableRef = mp_GetAdoTableReference(cfg, adoConn, adoObjectName, expectedHeaders, keyHeader, fio, sourceAlias, tableAlias)
     stepName = "resolve-key-header"
     keyHeader = mp_ResolveAdoMappedHeader(cfg, sourceAlias, tableAlias, keyAlias, adoConn, tableRef)
 
@@ -894,7 +906,7 @@ Private Function mp_WriteEventsGeneric( _
 
     expectedHeaders = mp_BuildExpectedHeaders(cfg, sourceAlias, tableAlias, sourceFields, keyHeader)
     stepName = "resolve-table"
-    tableRef = mp_GetAdoTableReference(adoConn, adoObjectName, expectedHeaders, keyHeader, fio, sourceAlias, tableAlias)
+    tableRef = mp_GetAdoTableReference(cfg, adoConn, adoObjectName, expectedHeaders, keyHeader, fio, sourceAlias, tableAlias)
     stepName = "resolve-key-header"
     keyHeader = mp_ResolveAdoMappedHeader(cfg, sourceAlias, tableAlias, keyAlias, adoConn, tableRef)
 
@@ -1078,6 +1090,7 @@ EH:
 End Function
 
 Private Function mp_GetAdoTableReference( _
+    ByVal cfg As Object, _
     ByVal adoConn As Object, _
     ByVal adoObjectName As String, _
     ByVal expectedHeaders As Variant, _
@@ -1087,9 +1100,28 @@ Private Function mp_GetAdoTableReference( _
     ByVal tableAlias As String _
 ) As String
     Dim resolvedRef As String
+    Dim rangeStartMarker As String
+    Dim rangeEndMarker As String
 
     adoObjectName = Trim$(adoObjectName)
     If Len(adoObjectName) > 0 Then
+        rangeStartMarker = mp_GetCfgOptional(cfg, sourceAlias & ".Sheet[" & tableAlias & "].RangeStartMarker", vbNullString)
+        rangeEndMarker = mp_GetCfgOptional(cfg, sourceAlias & ".Sheet[" & tableAlias & "].RangeEndMarker", vbNullString)
+
+        If (Len(rangeStartMarker) > 0 Xor Len(rangeEndMarker) > 0) Then
+            Err.Raise vbObjectError + 1747, "ex_PersonTimeline", _
+                "Both markers must be provided for auto-range mode: '" & _
+                sourceAlias & ".Sheet[" & tableAlias & "].RangeStartMarker' and '" & _
+                sourceAlias & ".Sheet[" & tableAlias & "].RangeEndMarker'."
+        End If
+
+        If Len(rangeStartMarker) > 0 Then
+            resolvedRef = mp_BuildAdoRangeReferenceFromMarkers( _
+                cfg, sourceAlias, tableAlias, adoObjectName, rangeStartMarker, rangeEndMarker)
+            mp_GetAdoTableReference = mp_QuoteSqlIdentifier(resolvedRef)
+            Exit Function
+        End If
+
         resolvedRef = mp_ResolveExplicitAdoObjectReference(adoConn, adoObjectName, sourceAlias, tableAlias)
         mp_GetAdoTableReference = mp_TryAutoDetectHeaderRangeReference( _
             adoConn, resolvedRef, expectedHeaders, keyHeader, sourceAlias, tableAlias)
@@ -1098,6 +1130,276 @@ Private Function mp_GetAdoTableReference( _
 
     Err.Raise vbObjectError + 1335, "ex_PersonTimeline", _
         "Missing required config key '" & sourceAlias & ".Sheet[" & tableAlias & "].SheetName'."
+End Function
+
+Private Function mp_BuildAdoRangeReferenceFromMarkers( _
+    ByVal cfg As Object, _
+    ByVal sourceAlias As String, _
+    ByVal tableAlias As String, _
+    ByVal configuredSheetName As String, _
+    ByVal startMarker As String, _
+    ByVal endMarker As String _
+) As String
+    Dim sourcePath As String
+    Dim snapshotPath As String
+    Dim cacheKey As String
+    Dim normalizedSheetName As String
+    Dim wb As Workbook
+    Dim ws As Worksheet
+    Dim startCell As Range
+    Dim endCell As Range
+    Dim markerCol As Long
+    Dim headerRow As Long
+    Dim dataLastRow As Long
+    Dim firstHeaderCell As Range
+    Dim firstCol As Long
+    Dim markerColLetter As String
+    Dim firstColLetter As String
+    Dim sheetToken As String
+
+    On Error GoTo EH
+
+    If mp_IsExplicitAdoRangeReference(configuredSheetName) Then
+        Err.Raise vbObjectError + 1748, "ex_PersonTimeline", _
+            "Auto-range markers are not allowed with explicit range SheetName for " & _
+            sourceAlias & ".Sheet[" & tableAlias & "].SheetName."
+    End If
+
+    sourcePath = mp_ResolvePathLocal(mp_GetCfgRequired(cfg, "Source." & sourceAlias & ".FilePath"))
+    If Dir(sourcePath) = vbNullString Then
+        Err.Raise vbObjectError + 1360, "ex_PersonTimeline", "Source file not found: " & sourcePath
+    End If
+
+    snapshotPath = ex_SourceSnapshot.m_GetSnapshotPath(sourcePath, "Source." & sourceAlias)
+    normalizedSheetName = mp_NormalizeAdoObjectNameExact(configuredSheetName)
+    cacheKey = LCase$(snapshotPath & "|" & normalizedSheetName & "|" & Trim$(startMarker) & "|" & Trim$(endMarker))
+
+    mp_EnsureAdoLookupCacheContainers
+    If g_AdoMarkerRangeRefBySignature.Exists(cacheKey) Then
+        mp_BuildAdoRangeReferenceFromMarkers = CStr(g_AdoMarkerRangeRefBySignature(cacheKey))
+        Exit Function
+    End If
+
+    Set wb = Workbooks.Open(Filename:=snapshotPath, ReadOnly:=True, UpdateLinks:=0)
+
+    On Error Resume Next
+    wb.Windows(1).Visible = False
+    On Error GoTo EH
+
+    Set ws = mp_FindWorksheetByConfiguredAdoName(wb, configuredSheetName)
+    If ws Is Nothing Then
+        Err.Raise vbObjectError + 1749, "ex_PersonTimeline", _
+            "Worksheet for configured SheetName '" & configuredSheetName & "' was not found in source '" & sourceAlias & "'."
+    End If
+
+    Set startCell = mp_FindFirstMarkerCell(ws, startMarker)
+    If startCell Is Nothing Then
+        Err.Raise vbObjectError + 1750, "ex_PersonTimeline", _
+            "Start marker '" & startMarker & "' was not found on sheet '" & ws.Name & "'."
+    End If
+
+    markerCol = startCell.Column
+    Set endCell = mp_FindMarkerCellInColumnAfterRow(ws, markerCol, endMarker, startCell.Row)
+    If endCell Is Nothing Then
+        Err.Raise vbObjectError + 1751, "ex_PersonTimeline", _
+            "End marker '" & endMarker & "' was not found below start marker '" & startMarker & "' in column " & CStr(markerCol) & " on sheet '" & ws.Name & "'."
+    End If
+
+    headerRow = startCell.Row - 1
+    If headerRow < 1 Then
+        Err.Raise vbObjectError + 1752, "ex_PersonTimeline", _
+            "Header row cannot be determined: start marker '" & startMarker & "' is located at row " & CStr(startCell.Row) & "."
+    End If
+
+    dataLastRow = endCell.Row - 1
+    If dataLastRow < startCell.Row Then
+        Err.Raise vbObjectError + 1753, "ex_PersonTimeline", _
+            "Detected marker range is empty: end marker '" & endMarker & "' is at row " & CStr(endCell.Row) & "."
+    End If
+
+    Set firstHeaderCell = ws.Range(ws.Cells(headerRow, 1), ws.Cells(headerRow, markerCol)).Find( _
+        What:="*", _
+        After:=ws.Cells(headerRow, markerCol), _
+        LookIn:=xlValues, _
+        LookAt:=xlPart, _
+        SearchOrder:=xlByColumns, _
+        SearchDirection:=xlNext, _
+        MatchCase:=False)
+    If firstHeaderCell Is Nothing Then
+        Err.Raise vbObjectError + 1754, "ex_PersonTimeline", _
+            "Header row " & CStr(headerRow) & " contains no header cells before marker column."
+    End If
+
+    firstCol = firstHeaderCell.Column
+    If firstCol > markerCol Then
+        Err.Raise vbObjectError + 1755, "ex_PersonTimeline", _
+            "Invalid detected range bounds: first column " & CStr(firstCol) & " is greater than marker column " & CStr(markerCol) & "."
+    End If
+
+    firstColLetter = mp_ToColumnLetter(firstCol)
+    markerColLetter = mp_ToColumnLetter(markerCol)
+    sheetToken = mp_BuildAdoSheetToken(configuredSheetName)
+    If Len(sheetToken) = 0 Then
+        Err.Raise vbObjectError + 1756, "ex_PersonTimeline", _
+            "Failed to build ADO sheet token from SheetName '" & configuredSheetName & "'."
+    End If
+
+    mp_BuildAdoRangeReferenceFromMarkers = sheetToken & firstColLetter & CStr(headerRow) & ":" & markerColLetter & CStr(dataLastRow)
+    g_AdoMarkerRangeRefBySignature(cacheKey) = mp_BuildAdoRangeReferenceFromMarkers
+
+    On Error Resume Next
+    If Not wb Is Nothing Then wb.Close SaveChanges:=False
+    On Error GoTo 0
+    Exit Function
+
+EH:
+    Dim errNo As Long
+    Dim errSrc As String
+    Dim innerErr As String
+    errNo = Err.Number
+    errSrc = Err.Source
+    innerErr = Err.Description
+    On Error Resume Next
+    If Not wb Is Nothing Then wb.Close SaveChanges:=False
+    On Error GoTo 0
+    If errNo <> 0 Then Err.Raise errNo, errSrc, innerErr
+End Function
+
+Private Function mp_FindWorksheetByConfiguredAdoName(ByVal wb As Workbook, ByVal configuredSheetName As String) As Worksheet
+    Dim ws As Worksheet
+    Dim needle As String
+    Dim needleAlt As String
+
+    needle = mp_ExtractSheetNameToken(configuredSheetName)
+    If Len(needle) = 0 Then Exit Function
+    needleAlt = Replace$(needle, "#", ".")
+
+    For Each ws In wb.Worksheets
+        If StrComp(Trim$(ws.Name), needle, vbTextCompare) = 0 Then
+            Set mp_FindWorksheetByConfiguredAdoName = ws
+            Exit Function
+        End If
+        If StrComp(Replace$(Trim$(ws.Name), ".", "#"), needle, vbTextCompare) = 0 Then
+            Set mp_FindWorksheetByConfiguredAdoName = ws
+            Exit Function
+        End If
+        If StrComp(Trim$(ws.Name), needleAlt, vbTextCompare) = 0 Then
+            Set mp_FindWorksheetByConfiguredAdoName = ws
+            Exit Function
+        End If
+    Next ws
+End Function
+
+Private Function mp_FindFirstMarkerCell(ByVal ws As Worksheet, ByVal markerText As String) As Range
+    Dim searchRange As Range
+
+    If ws Is Nothing Then Exit Function
+    markerText = Trim$(markerText)
+    If Len(markerText) = 0 Then Exit Function
+
+    Set searchRange = ws.UsedRange
+    If searchRange Is Nothing Then Exit Function
+
+    Set mp_FindFirstMarkerCell = searchRange.Find( _
+        What:=markerText, _
+        After:=searchRange.Cells(searchRange.Cells.Count), _
+        LookIn:=xlValues, _
+        LookAt:=xlWhole, _
+        SearchOrder:=xlByRows, _
+        SearchDirection:=xlNext, _
+        MatchCase:=False)
+End Function
+
+Private Function mp_FindMarkerCellInColumnAfterRow( _
+    ByVal ws As Worksheet, _
+    ByVal markerColumn As Long, _
+    ByVal markerText As String, _
+    ByVal minExclusiveRow As Long _
+) As Range
+    Dim searchRange As Range
+    Dim firstFound As Range
+    Dim currentFound As Range
+    Dim firstAddress As String
+    Dim bestRow As Long
+
+    If ws Is Nothing Then Exit Function
+    If markerColumn <= 0 Then Exit Function
+    markerText = Trim$(markerText)
+    If Len(markerText) = 0 Then Exit Function
+
+    On Error Resume Next
+    Set searchRange = Intersect(ws.Columns(markerColumn), ws.UsedRange)
+    On Error GoTo 0
+    If searchRange Is Nothing Then
+        Set searchRange = ws.Columns(markerColumn)
+    End If
+
+    Set firstFound = searchRange.Find( _
+        What:=markerText, _
+        After:=searchRange.Cells(searchRange.Cells.Count), _
+        LookIn:=xlValues, _
+        LookAt:=xlWhole, _
+        SearchOrder:=xlByRows, _
+        SearchDirection:=xlNext, _
+        MatchCase:=False)
+    If firstFound Is Nothing Then Exit Function
+
+    bestRow = 0
+    firstAddress = firstFound.Address
+    Set currentFound = firstFound
+
+    Do
+        If currentFound.Row > minExclusiveRow Then
+            If bestRow = 0 Or currentFound.Row < bestRow Then
+                bestRow = currentFound.Row
+                Set mp_FindMarkerCellInColumnAfterRow = currentFound
+            End If
+        End If
+        Set currentFound = searchRange.FindNext(currentFound)
+        If currentFound Is Nothing Then Exit Do
+    Loop While currentFound.Address <> firstAddress
+End Function
+
+Private Function mp_ExtractSheetNameToken(ByVal configuredSheetName As String) As String
+    Dim token As String
+    Dim dollarPos As Long
+
+    token = Trim$(configuredSheetName)
+    If Len(token) = 0 Then Exit Function
+
+    If Left$(token, 1) = "[" And Right$(token, 1) = "]" Then
+        token = Mid$(token, 2, Len(token) - 2)
+    End If
+    token = mp_CleanAdoSchemaObjectName(token)
+
+    dollarPos = InStr(1, token, "$", vbBinaryCompare)
+    If dollarPos > 0 Then
+        token = Left$(token, dollarPos - 1)
+    End If
+
+    mp_ExtractSheetNameToken = Trim$(token)
+End Function
+
+Private Function mp_BuildAdoSheetToken(ByVal configuredSheetName As String) As String
+    Dim token As String
+    Dim dollarPos As Long
+
+    token = Trim$(configuredSheetName)
+    If Len(token) = 0 Then Exit Function
+
+    If Left$(token, 1) = "[" And Right$(token, 1) = "]" Then
+        token = Mid$(token, 2, Len(token) - 2)
+    End If
+    token = mp_CleanAdoSchemaObjectName(token)
+    token = Trim$(token)
+    If Len(token) = 0 Then Exit Function
+
+    dollarPos = InStr(1, token, "$", vbBinaryCompare)
+    If dollarPos > 0 Then
+        mp_BuildAdoSheetToken = Left$(token, dollarPos)
+    Else
+        mp_BuildAdoSheetToken = token & "$"
+    End If
 End Function
 
 Private Function mp_ResolveExplicitAdoObjectReference( _
@@ -1179,6 +1481,9 @@ Private Function mp_TryAutoDetectHeaderRangeReference( _
 
     sourceRef = mp_UnquoteSqlIdentifier(tableRef)
     If InStr(1, sourceRef, "$", vbBinaryCompare) = 0 Then Exit Function
+    ' Explicit range reference means user already constrained source bounds.
+    ' Keep strict object as-is and skip any auto-detection expansion.
+    If mp_IsExplicitAdoRangeReference(sourceRef) Then Exit Function
 
     autoKey = LCase$(Trim$(sourceAlias) & "|" & Trim$(tableAlias) & "|" & mp_NormalizeAdoObjectNameExact(sourceRef) & "|" & _
                      mp_NormalizeHeader(keyHeader) & "|" & mp_BuildExpectedHeadersSignature(expectedHeaders))

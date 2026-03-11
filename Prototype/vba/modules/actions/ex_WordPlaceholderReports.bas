@@ -4,6 +4,16 @@ Option Explicit
 Private Const WD_FIND_STOP As Long = 0
 Private Const WD_COLLAPSE_END As Long = 0
 Private Const WD_ALERTS_NONE As Long = 0
+Private Const EXPORT_OUTPUT_MODE_CREATE_WITH_POSTFIX As String = "CREATEWITHPOSTFIX"
+Private Const EXPORT_OUTPUT_MODE_OVERWRITE_TEMPLATE As String = "OVERWRITETEMPLATE"
+Private Const EXPORT_INSERT_MODE_REPLACE_ALL As String = "REPLACEALL"
+Private Const EXPORT_INSERT_MODE_APPEND_TOP As String = "APPENDTOTOP"
+Private Const EXPORT_INSERT_MODE_APPEND_BOTTOM As String = "APPENDTOBOTTOM"
+Private Const EXPORT_RUNTIME_WORD_RESULTS_PLACE As String = "Export.RuntimeDataBase.WordResultsPlace"
+Private Const EXPORT_RUNTIME_WORD_PASTE_ANCHOR As String = "Export.RuntimeDataBase.WordPasteAnchor"
+Private Const EXPORT_APPEND_SEPARATOR As String = vbCrLf & vbCrLf
+Private Const EXPORT_BOOKMARK_PREFIX As String = "EP_Anchor_"
+Private Const EXPORT_BOOKMARK_MAX_LEN As Long = 40
 
 Private g_WordApp As Object
 Private g_WordAppOwnedByModule As Boolean
@@ -12,9 +22,14 @@ Public Sub m_API_ExportActiveSheetFooterPlaceholderReport()
     Dim ws As Worksheet
     Dim templatePath As String
     Dim outputPath As String
-    Dim footerText As String
     Dim placeholderMap As Object
     Dim reportPath As String
+    Dim insertMode As String
+    Dim outputMode As String
+    Dim outputPostfix As String
+    Dim wordResultsPlace As String
+    Dim wordPasteAnchor As String
+    Dim sourceText As String
 
     On Error GoTo EH
 
@@ -31,17 +46,33 @@ Public Sub m_API_ExportActiveSheetFooterPlaceholderReport()
         Err.Raise vbObjectError + 1764, "ex_WordPlaceholderReports", "Word template not found by config key 'Export.WordTemplatePath': " & templatePath
     End If
 
-    outputPath = mp_BuildDefaultOutputPath(templatePath)
+    insertMode = mp_NormalizeInsertMode(ex_ConfigProvider.m_GetConfigValue("Export.InsertMode", "ReplaceAll"))
+    outputMode = mp_NormalizeOutputMode(ex_ConfigProvider.m_GetConfigValue("Export.OutputMode", "CreateWithPostfix"))
+    outputPostfix = CStr(ex_ConfigProvider.m_GetConfigValue("Export.OutputPostfix", "_result"))
+
+    outputPath = mp_BuildOutputPathByMode(templatePath, outputMode, outputPostfix)
     If Len(outputPath) = 0 Then
-        Err.Raise vbObjectError + 1766, "ex_WordPlaceholderReports", "Unable to build output path from template path: " & templatePath
+        Err.Raise vbObjectError + 1766, "ex_WordPlaceholderReports", "Unable to build output path by mode '" & outputMode & "' from template path: " & templatePath
     End If
 
-    footerText = ex_PostProcessActions.m_GetSinglePostProcessFooterText(ws)
-    Set placeholderMap = m_BuildPlaceholderMapFromPairs( _
-        "FromHospital", footerText _
-    )
+    wordResultsPlace = Trim$(ex_PostProcessActions.m_GetRuntimeData(EXPORT_RUNTIME_WORD_RESULTS_PLACE, vbNullString, ws))
+    If Len(wordResultsPlace) = 0 Then
+        Err.Raise vbObjectError + 1774, "ex_WordPlaceholderReports", _
+            "Missing runtime export value '" & EXPORT_RUNTIME_WORD_RESULTS_PLACE & "'. " & _
+            "Run Search -> Post Process and ensure at least one export footer block was generated."
+    End If
 
-    reportPath = m_CreateWordReportFromTemplate(templatePath, outputPath, placeholderMap, True)
+    wordPasteAnchor = Trim$(ex_PostProcessActions.m_GetRuntimeData(EXPORT_RUNTIME_WORD_PASTE_ANCHOR, vbNullString, ws))
+    If Len(wordPasteAnchor) = 0 Then
+        Err.Raise vbObjectError + 1775, "ex_WordPlaceholderReports", _
+            "Missing runtime export value '" & EXPORT_RUNTIME_WORD_PASTE_ANCHOR & "'. " & _
+            "Run Post Process to prepare export anchor."
+    End If
+
+    sourceText = mp_ReadSheetTextByRuntimePointer(ws, wordResultsPlace)
+    Set placeholderMap = m_BuildPlaceholderMapFromPairs(wordPasteAnchor, sourceText)
+
+    reportPath = m_CreateWordReportFromTemplate(templatePath, outputPath, placeholderMap, True, insertMode)
     ex_Messaging.m_ShowNotice "Word report created: " & reportPath, 5
     Exit Sub
 
@@ -53,15 +84,23 @@ Public Function m_CreateWordReportFromTemplate( _
     ByVal templatePath As String, _
     ByVal outputPath As String, _
     ByVal placeholderMap As Object, _
-    Optional ByVal failIfPlaceholderMissing As Boolean = True _
+    Optional ByVal failIfPlaceholderMissing As Boolean = True, _
+    Optional ByVal insertMode As String = "ReplaceAll" _
 ) As String
     Dim wdApp As Object
     Dim wdDoc As Object
     Dim normalizedTemplatePath As String
     Dim normalizedOutputPath As String
+    Dim normalizedInsertMode As String
     Dim totalReplacements As Long
     Dim missingTokens As String
     Dim normalizedMap As Object
+    Dim saveInPlace As Boolean
+    Dim useExistingOutput As Boolean
+    Dim retriedFromTemplate As Boolean
+    Dim failureSource As String
+    Dim failureDescription As String
+    Dim failureNumber As Long
 
     On Error GoTo EH
 
@@ -81,6 +120,8 @@ Public Function m_CreateWordReportFromTemplate( _
         Err.Raise vbObjectError + 1754, "ex_WordPlaceholderReports", "Output path is empty."
     End If
 
+    normalizedInsertMode = mp_NormalizeInsertMode(insertMode)
+
     If placeholderMap Is Nothing Then
         Err.Raise vbObjectError + 1755, "ex_WordPlaceholderReports", "Placeholder map is not provided."
     End If
@@ -88,14 +129,51 @@ Public Function m_CreateWordReportFromTemplate( _
     Set normalizedMap = mp_BuildNormalizedPlaceholderMap(placeholderMap)
 
     Set wdApp = mp_GetOrCreateWordApp()
-    Set wdDoc = wdApp.Documents.Add(normalizedTemplatePath)
-
-    totalReplacements = mp_ApplyPlaceholderMapInDocument(wdDoc, normalizedMap, missingTokens)
-    If failIfPlaceholderMissing And Len(missingTokens) > 0 Then
-        Err.Raise vbObjectError + 1756, "ex_WordPlaceholderReports", "Placeholders not found in template: " & missingTokens
+    saveInPlace = (StrComp(normalizedOutputPath, normalizedTemplatePath, vbTextCompare) = 0)
+    useExistingOutput = False
+    If Not saveInPlace Then
+        If mp_FileExists(normalizedOutputPath) Then
+            If StrComp(normalizedInsertMode, EXPORT_INSERT_MODE_APPEND_TOP, vbTextCompare) = 0 Or _
+               StrComp(normalizedInsertMode, EXPORT_INSERT_MODE_APPEND_BOTTOM, vbTextCompare) = 0 Then
+                useExistingOutput = True
+            End If
+        End If
     End If
 
-    wdDoc.SaveAs2 normalizedOutputPath
+    If saveInPlace Then
+        Set wdDoc = wdApp.Documents.Open(normalizedTemplatePath, False, False)
+    ElseIf useExistingOutput Then
+        Set wdDoc = wdApp.Documents.Open(normalizedOutputPath, False, False)
+    Else
+        Set wdDoc = wdApp.Documents.Add(normalizedTemplatePath)
+    End If
+
+    totalReplacements = mp_ApplyPlaceholderMapInDocument(wdDoc, normalizedMap, missingTokens, normalizedInsertMode)
+    If Len(missingTokens) > 0 And useExistingOutput Then
+        On Error Resume Next
+        wdDoc.Close False
+        On Error GoTo EH
+
+        Set wdDoc = wdApp.Documents.Add(normalizedTemplatePath)
+        useExistingOutput = False
+        retriedFromTemplate = True
+        missingTokens = vbNullString
+        totalReplacements = mp_ApplyPlaceholderMapInDocument(wdDoc, normalizedMap, missingTokens, normalizedInsertMode)
+    End If
+
+    If failIfPlaceholderMissing And Len(missingTokens) > 0 Then
+        If retriedFromTemplate Then
+            Err.Raise vbObjectError + 1756, "ex_WordPlaceholderReports", "Placeholders not found in template: " & missingTokens
+        Else
+            Err.Raise vbObjectError + 1756, "ex_WordPlaceholderReports", "Placeholders not found in template/output: " & missingTokens
+        End If
+    End If
+
+    If saveInPlace Or useExistingOutput Then
+        wdDoc.Save
+    Else
+        wdDoc.SaveAs2 normalizedOutputPath
+    End If
 
     m_CreateWordReportFromTemplate = normalizedOutputPath
 
@@ -105,10 +183,14 @@ Public Function m_CreateWordReportFromTemplate( _
     Exit Function
 
 EH:
+    failureSource = Err.Source
+    failureDescription = Err.Description
+    failureNumber = Err.Number
     On Error Resume Next
     If Not wdDoc Is Nothing Then wdDoc.Close False
     On Error GoTo 0
-    Err.Raise vbObjectError + 1757, "ex_WordPlaceholderReports", "Failed to build Word report: " & Err.Description
+    Err.Raise vbObjectError + 1757, "ex_WordPlaceholderReports", _
+        "Failed to build Word report. Cause: [" & failureSource & " #" & CStr(failureNumber) & "] " & failureDescription
 End Function
 
 Public Sub m_ResetWordSession(Optional ByVal quitIfOwned As Boolean = True)
@@ -189,36 +271,30 @@ End Function
 Private Function mp_ApplyPlaceholderMapInDocument( _
     ByVal doc As Object, _
     ByVal placeholderMap As Object, _
-    ByRef outMissingTokens As String _
+    ByRef outMissingTokens As String, _
+    Optional ByVal insertMode As String = EXPORT_INSERT_MODE_REPLACE_ALL _
 ) As Long
-    Dim story As Object
-    Dim currentRange As Object
     Dim token As Variant
     Dim perTokenHits As Object
-    Dim replaceHits As Long
+    Dim tokenHits As Long
+    Dim normalizedMode As String
 
     Set perTokenHits = CreateObject("Scripting.Dictionary")
     perTokenHits.CompareMode = 1 ' vbTextCompare
+
+    normalizedMode = mp_NormalizeInsertMode(insertMode)
 
     For Each token In placeholderMap.Keys
         perTokenHits(CStr(token)) = 0
     Next token
 
-    For Each story In doc.StoryRanges
-        Set currentRange = story
-
-        Do While Not currentRange Is Nothing
-            For Each token In placeholderMap.Keys
-                replaceHits = mp_ReplaceTokenInRange(currentRange, CStr(token), CStr(placeholderMap(token)))
-                If replaceHits > 0 Then
-                    perTokenHits(CStr(token)) = CLng(perTokenHits(CStr(token))) + replaceHits
-                    mp_ApplyPlaceholderMapInDocument = mp_ApplyPlaceholderMapInDocument + replaceHits
-                End If
-            Next token
-
-            Set currentRange = currentRange.NextStoryRange
-        Loop
-    Next story
+    For Each token In placeholderMap.Keys
+        tokenHits = mp_ReplaceTokenInDocumentByMode(doc, CStr(token), CStr(placeholderMap(token)), normalizedMode)
+        If tokenHits > 0 Then
+            perTokenHits(CStr(token)) = CLng(perTokenHits(CStr(token))) + tokenHits
+            mp_ApplyPlaceholderMapInDocument = mp_ApplyPlaceholderMapInDocument + tokenHits
+        End If
+    Next token
 
     For Each token In perTokenHits.Keys
         If CLng(perTokenHits(CStr(token))) <= 0 Then
@@ -226,6 +302,78 @@ Private Function mp_ApplyPlaceholderMapInDocument( _
             outMissingTokens = outMissingTokens & CStr(token)
         End If
     Next token
+End Function
+
+Private Function mp_ReplaceTokenInDocumentByMode( _
+    ByVal doc As Object, _
+    ByVal token As String, _
+    ByVal replacementText As String, _
+    ByVal insertMode As String _
+) As Long
+    Dim story As Object
+    Dim currentRange As Object
+    Dim firstHit As Object
+    Dim lastHit As Object
+    Dim bookmarkRange As Object
+    Dim appliedRange As Object
+    Dim existingText As String
+    Dim mergedText As String
+    Dim hitCount As Long
+
+    If StrComp(insertMode, EXPORT_INSERT_MODE_REPLACE_ALL, vbTextCompare) = 0 Then
+        For Each story In doc.StoryRanges
+            Set currentRange = story
+            Do While Not currentRange Is Nothing
+                mp_ReplaceTokenInDocumentByMode = mp_ReplaceTokenInDocumentByMode + mp_ReplaceTokenInRange(currentRange, token, replacementText)
+                Set currentRange = currentRange.NextStoryRange
+            Loop
+        Next story
+        Exit Function
+    End If
+
+    For Each story In doc.StoryRanges
+        Set currentRange = story
+        Do While Not currentRange Is Nothing
+            hitCount = hitCount + mp_CaptureTokenHitsInRange(currentRange, token, firstHit, lastHit)
+            Set currentRange = currentRange.NextStoryRange
+        Loop
+    Next story
+
+    If hitCount > 0 Then
+        If StrComp(insertMode, EXPORT_INSERT_MODE_APPEND_TOP, vbTextCompare) = 0 Then
+            firstHit.Text = replacementText
+            Set appliedRange = firstHit.Duplicate
+            mp_UpsertAnchorBookmark doc, token, appliedRange
+        ElseIf StrComp(insertMode, EXPORT_INSERT_MODE_APPEND_BOTTOM, vbTextCompare) = 0 Then
+            lastHit.Text = replacementText
+            Set appliedRange = lastHit.Duplicate
+            mp_UpsertAnchorBookmark doc, token, appliedRange
+        Else
+            Err.Raise vbObjectError + 1769, "ex_WordPlaceholderReports", "Unsupported insert mode: " & insertMode
+        End If
+        mp_ReplaceTokenInDocumentByMode = 1
+        Exit Function
+    End If
+
+    If Not mp_TryGetAnchorBookmarkRange(doc, token, bookmarkRange) Then Exit Function
+
+    existingText = CStr(bookmarkRange.Text)
+    If Len(existingText) > 0 Then
+        If StrComp(insertMode, EXPORT_INSERT_MODE_APPEND_TOP, vbTextCompare) = 0 Then
+            mergedText = replacementText & EXPORT_APPEND_SEPARATOR & existingText
+        ElseIf StrComp(insertMode, EXPORT_INSERT_MODE_APPEND_BOTTOM, vbTextCompare) = 0 Then
+            mergedText = existingText & EXPORT_APPEND_SEPARATOR & replacementText
+        Else
+            Err.Raise vbObjectError + 1769, "ex_WordPlaceholderReports", "Unsupported insert mode: " & insertMode
+        End If
+    Else
+        mergedText = replacementText
+    End If
+
+    bookmarkRange.Text = mergedText
+    Set appliedRange = bookmarkRange.Duplicate
+    mp_UpsertAnchorBookmark doc, token, appliedRange
+    mp_ReplaceTokenInDocumentByMode = 1
 End Function
 
 Private Function mp_ReplaceTokenInRange( _
@@ -259,6 +407,41 @@ Private Function mp_ReplaceTokenInRange( _
     Loop
 End Function
 
+Private Function mp_CaptureTokenHitsInRange( _
+    ByVal sourceRange As Object, _
+    ByVal token As String, _
+    ByRef firstHit As Object, _
+    ByRef lastHit As Object _
+) As Long
+    Dim findRange As Object
+
+    Set findRange = sourceRange.Duplicate
+
+    With findRange.Find
+        .ClearFormatting
+        .Replacement.ClearFormatting
+        .Text = token
+        .Replacement.Text = vbNullString
+        .Forward = True
+        .Wrap = WD_FIND_STOP
+        .Format = False
+        .MatchCase = False
+        .MatchWholeWord = False
+        .MatchWildcards = False
+        .MatchSoundsLike = False
+        .MatchAllWordForms = False
+    End With
+
+    Do While findRange.Find.Execute
+        If firstHit Is Nothing Then
+            Set firstHit = findRange.Duplicate
+        End If
+        Set lastHit = findRange.Duplicate
+        mp_CaptureTokenHitsInRange = mp_CaptureTokenHitsInRange + 1
+        findRange.Collapse WD_COLLAPSE_END
+    Loop
+End Function
+
 Private Function mp_NormalizePlaceholderToken(ByVal tokenText As String) As String
     tokenText = Trim$(tokenText)
     If Len(tokenText) = 0 Then Exit Function
@@ -270,21 +453,177 @@ Private Function mp_NormalizePlaceholderToken(ByVal tokenText As String) As Stri
     End If
 End Function
 
+Private Sub mp_UpsertAnchorBookmark(ByVal doc As Object, ByVal token As String, ByVal targetRange As Object)
+    Dim bookmarkName As String
+
+    If doc Is Nothing Then Exit Sub
+    If targetRange Is Nothing Then Exit Sub
+
+    bookmarkName = mp_BuildAnchorBookmarkName(token)
+    If Len(bookmarkName) = 0 Then Exit Sub
+
+    On Error Resume Next
+    If doc.Bookmarks.Exists(bookmarkName) Then
+        doc.Bookmarks(bookmarkName).Delete
+    End If
+    doc.Bookmarks.Add bookmarkName, targetRange
+    On Error GoTo 0
+End Sub
+
+Private Function mp_TryGetAnchorBookmarkRange(ByVal doc As Object, ByVal token As String, ByRef outRange As Object) As Boolean
+    Dim bookmarkName As String
+
+    If doc Is Nothing Then Exit Function
+    bookmarkName = mp_BuildAnchorBookmarkName(token)
+    If Len(bookmarkName) = 0 Then Exit Function
+
+    On Error GoTo CleanFail
+    If doc.Bookmarks.Exists(bookmarkName) Then
+        Set outRange = doc.Bookmarks(bookmarkName).Range
+        mp_TryGetAnchorBookmarkRange = Not (outRange Is Nothing)
+    End If
+    Exit Function
+
+CleanFail:
+    Set outRange = Nothing
+    mp_TryGetAnchorBookmarkRange = False
+End Function
+
+Private Function mp_BuildAnchorBookmarkName(ByVal token As String) As String
+    Dim rawToken As String
+    Dim cleanToken As String
+    Dim i As Long
+    Dim ch As String
+    Dim resultName As String
+
+    rawToken = Trim$(token)
+    If Len(rawToken) = 0 Then Exit Function
+    If Left$(rawToken, 1) = "{" And Right$(rawToken, 1) = "}" Then
+        rawToken = Mid$(rawToken, 2, Len(rawToken) - 2)
+    End If
+    rawToken = Trim$(rawToken)
+    If Len(rawToken) = 0 Then Exit Function
+
+    For i = 1 To Len(rawToken)
+        ch = Mid$(rawToken, i, 1)
+        If mp_IsAsciiAlphaNum(ch) Then
+            cleanToken = cleanToken & ch
+        Else
+            cleanToken = cleanToken & "_"
+        End If
+    Next i
+
+    resultName = EXPORT_BOOKMARK_PREFIX & cleanToken
+    If Len(resultName) > EXPORT_BOOKMARK_MAX_LEN Then
+        resultName = Left$(resultName, EXPORT_BOOKMARK_MAX_LEN)
+    End If
+    mp_BuildAnchorBookmarkName = resultName
+End Function
+
+Private Function mp_IsAsciiAlphaNum(ByVal ch As String) As Boolean
+    If Len(ch) <> 1 Then Exit Function
+    If (ch >= "A" And ch <= "Z") Or (ch >= "a" And ch <= "z") Or (ch >= "0" And ch <= "9") Or ch = "_" Then
+        mp_IsAsciiAlphaNum = True
+    End If
+End Function
+
 Private Function mp_BuildDefaultOutputPath(ByVal templatePath As String) As String
+    mp_BuildDefaultOutputPath = mp_BuildPostfixedOutputPath(templatePath, "_result")
+End Function
+
+Private Function mp_ReadSheetTextByRuntimePointer( _
+    ByVal ws As Worksheet, _
+    ByVal sourcePointer As String _
+) As String
+    Dim normalizedPointer As String
+    Dim addressText As String
+    Dim pointerRange As Range
+    Dim colonPos As Long
+    Dim prefixText As String
+    Dim prefixCandidate As String
+
+    If ws Is Nothing Then
+        Err.Raise vbObjectError + 1776, "ex_WordPlaceholderReports", "Target worksheet is missing for runtime source pointer."
+    End If
+
+    normalizedPointer = Trim$(sourcePointer)
+    If Len(normalizedPointer) = 0 Then
+        Err.Raise vbObjectError + 1777, "ex_WordPlaceholderReports", "Runtime source pointer is empty."
+    End If
+
+    colonPos = InStr(1, normalizedPointer, ":", vbBinaryCompare)
+    If colonPos > 0 Then
+        prefixCandidate = Trim$(Left$(normalizedPointer, colonPos - 1))
+        prefixText = UCase$(prefixCandidate)
+        If StrComp(prefixText, "CELL", vbBinaryCompare) = 0 Or StrComp(prefixText, "RANGE", vbBinaryCompare) = 0 Then
+            addressText = Trim$(Mid$(normalizedPointer, colonPos + 1))
+        Else
+            addressText = normalizedPointer
+        End If
+    Else
+        addressText = normalizedPointer
+    End If
+
+    If Len(addressText) = 0 Then
+        Err.Raise vbObjectError + 1779, "ex_WordPlaceholderReports", "Runtime source pointer address is empty in '" & normalizedPointer & "'."
+    End If
+
+    On Error GoTo ResolveErr
+    Set pointerRange = ws.Range(addressText)
+    On Error GoTo 0
+    If pointerRange Is Nothing Then
+        Err.Raise vbObjectError + 1780, "ex_WordPlaceholderReports", "Unable to resolve runtime source pointer '" & normalizedPointer & "' on sheet '" & ws.Name & "'."
+    End If
+
+    mp_ReadSheetTextByRuntimePointer = CStr(pointerRange.Cells(1, 1).Value)
+    Exit Function
+
+ResolveErr:
+    Err.Raise vbObjectError + 1781, "ex_WordPlaceholderReports", "Invalid runtime source pointer '" & normalizedPointer & "' on sheet '" & ws.Name & "': " & Err.Description
+End Function
+
+Private Function mp_BuildOutputPathByMode( _
+    ByVal templatePath As String, _
+    ByVal outputMode As String, _
+    ByVal outputPostfix As String _
+) As String
+    Select Case mp_NormalizeOutputMode(outputMode)
+        Case EXPORT_OUTPUT_MODE_OVERWRITE_TEMPLATE
+            mp_BuildOutputPathByMode = templatePath
+        Case EXPORT_OUTPUT_MODE_CREATE_WITH_POSTFIX
+            mp_BuildOutputPathByMode = mp_BuildPostfixedOutputPath(templatePath, outputPostfix)
+        Case Else
+            Err.Raise vbObjectError + 1770, "ex_WordPlaceholderReports", "Unsupported output mode: " & outputMode
+    End Select
+End Function
+
+Private Function mp_BuildPostfixedOutputPath(ByVal templatePath As String, ByVal outputPostfix As String) As String
     Dim folderPath As String
     Dim fileNameOnly As String
     Dim dotPos As Long
+    Dim baseName As String
+    Dim extensionText As String
 
     folderPath = mp_ExtractFolderPath(templatePath)
     fileNameOnly = mp_ExtractFileName(templatePath)
     If Len(fileNameOnly) = 0 Then Exit Function
 
-    dotPos = InStrRev(fileNameOnly, ".")
-    If dotPos > 1 Then
-        fileNameOnly = Left$(fileNameOnly, dotPos - 1)
+    outputPostfix = Trim$(outputPostfix)
+    If Len(outputPostfix) = 0 Then outputPostfix = "_result"
+    If InStr(1, outputPostfix, "\", vbBinaryCompare) > 0 Or InStr(1, outputPostfix, "/", vbBinaryCompare) > 0 Then
+        Err.Raise vbObjectError + 1771, "ex_WordPlaceholderReports", "Export.OutputPostfix must not contain path separators: " & outputPostfix
     End If
 
-    mp_BuildDefaultOutputPath = folderPath & fileNameOnly & "_result.docx"
+    dotPos = InStrRev(fileNameOnly, ".")
+    If dotPos > 1 Then
+        baseName = Left$(fileNameOnly, dotPos - 1)
+        extensionText = Mid$(fileNameOnly, dotPos)
+    Else
+        baseName = fileNameOnly
+        extensionText = vbNullString
+    End If
+
+    mp_BuildPostfixedOutputPath = folderPath & baseName & outputPostfix & extensionText
 End Function
 
 Private Function mp_ExtractFolderPath(ByVal filePath As String) As String
@@ -370,6 +709,30 @@ Private Function mp_ResolvePath(ByVal inputPath As String) As String
 
     If Right$(basePath, 1) <> "\" Then basePath = basePath & "\"
     mp_ResolvePath = basePath & normalized
+End Function
+
+Private Function mp_NormalizeInsertMode(ByVal modeText As String) As String
+    modeText = UCase$(Trim$(modeText))
+    If Len(modeText) = 0 Then modeText = EXPORT_INSERT_MODE_REPLACE_ALL
+
+    Select Case modeText
+        Case EXPORT_INSERT_MODE_REPLACE_ALL, EXPORT_INSERT_MODE_APPEND_TOP, EXPORT_INSERT_MODE_APPEND_BOTTOM
+            mp_NormalizeInsertMode = modeText
+        Case Else
+            Err.Raise vbObjectError + 1772, "ex_WordPlaceholderReports", "Invalid Export.InsertMode '" & modeText & "'. Expected: ReplaceAll, AppendToTop, AppendToBottom."
+    End Select
+End Function
+
+Private Function mp_NormalizeOutputMode(ByVal modeText As String) As String
+    modeText = UCase$(Trim$(modeText))
+    If Len(modeText) = 0 Then modeText = EXPORT_OUTPUT_MODE_CREATE_WITH_POSTFIX
+
+    Select Case modeText
+        Case EXPORT_OUTPUT_MODE_CREATE_WITH_POSTFIX, EXPORT_OUTPUT_MODE_OVERWRITE_TEMPLATE
+            mp_NormalizeOutputMode = modeText
+        Case Else
+            Err.Raise vbObjectError + 1773, "ex_WordPlaceholderReports", "Invalid Export.OutputMode '" & modeText & "'. Expected: CreateWithPostfix, OverwriteTemplate."
+    End Select
 End Function
 
 Private Function mp_TryPromptRequiredText( _
