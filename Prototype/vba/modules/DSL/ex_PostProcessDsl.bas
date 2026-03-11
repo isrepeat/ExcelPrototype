@@ -5,6 +5,9 @@ Private Const SCRIPT_KEY As String = "PostProcess.Script"
 Private Const ACTION_CALL_MACRO As String = "callmacro"
 Private Const ACTION_LET As String = "let"
 Private Const ACTION_ASSIGN As String = "assign"
+Private Const ACTION_BREAK As String = "break"
+Private Const ACTION_CONTINUE As String = "continue"
+Private Const ACTION_RETURN As String = "return"
 
 Private Const LOOP_TARGET_TABLE_ROWS As String = "tablerows"
 Private Const LOOP_TARGET_ROW_COLUMNS As String = "rowcolumns"
@@ -12,6 +15,23 @@ Private Const LOOP_TARGET_ROW_COLUMNS As String = "rowcolumns"
 Private Const VAR_TYPE_ROW As String = "row"
 Private Const VAR_TYPE_COLUMN As String = "column"
 Private Const VAR_TYPE_STRING As String = "string"
+
+Private Const EXEC_FLOW_NONE As String = ""
+Private Const EXEC_FLOW_BREAK As String = "break"
+Private Const EXEC_FLOW_CONTINUE As String = "continue"
+Private Const EXEC_FLOW_RETURN As String = "return"
+
+Private g_CachedScriptConfigKey As String
+Private g_CachedScriptText As String
+Private g_CachedScriptBlocks As Collection
+Private g_CachedValidationSignature As String
+
+Public Sub m_ResetScriptCache()
+    g_CachedScriptConfigKey = vbNullString
+    g_CachedScriptText = vbNullString
+    Set g_CachedScriptBlocks = Nothing
+    g_CachedValidationSignature = vbNullString
+End Sub
 
 Public Function m_ValidateScriptAgainstConfig( _
     ByVal cfg As Object, _
@@ -21,21 +41,27 @@ Public Function m_ValidateScriptAgainstConfig( _
 ) As Boolean
     Dim scriptText As String
     Dim blocks As Collection
+    Dim validationSignature As String
     Dim stepName As String
 
     On Error GoTo EH
 
-    stepName = "load-script"
-    If Not ex_PostProcessScriptSource.m_TryGetScriptText(cfg, scriptConfigKey, scriptText, outErrorText) Then Exit Function
+    stepName = "load-compile-script"
+    If Not mp_TryGetCompiledScriptBlocks(cfg, scriptConfigKey, scriptText, blocks, outErrorText) Then Exit Function
     If Len(scriptText) = 0 Then
         m_ValidateScriptAgainstConfig = True
         Exit Function
     End If
 
-    stepName = "parse-script"
-    If Not mp_ParseScript(scriptText, blocks, outErrorText) Then Exit Function
+    validationSignature = mp_BuildValidationSignature(allowedTableFields)
+    If mp_IsValidationCacheHit(scriptConfigKey, scriptText, validationSignature) Then
+        m_ValidateScriptAgainstConfig = True
+        Exit Function
+    End If
+
     stepName = "validate-blocks"
     If Not mp_ValidateBlocks(blocks, allowedTableFields, outErrorText) Then Exit Function
+    g_CachedValidationSignature = validationSignature
 
     m_ValidateScriptAgainstConfig = True
     Exit Function
@@ -56,9 +82,9 @@ Public Sub m_ApplyScriptToSheet( _
     Optional ByVal scriptConfigKey As String = SCRIPT_KEY _
 )
     Dim scriptText As String
-    Dim scriptLoadError As String
     Dim blocks As Collection
-    Dim parseError As String
+    Dim parseOrValidationError As String
+    Dim runtimeValidationSignature As String
     Dim ctxTablesByRef As Object
     Dim ctxFields As Object
     Dim postProcessFooterLines As Collection
@@ -68,19 +94,19 @@ Public Sub m_ApplyScriptToSheet( _
     If cfg Is Nothing Then Exit Sub
     If resultTables Is Nothing Then Exit Sub
 
-    If Not ex_PostProcessScriptSource.m_TryGetScriptText(cfg, scriptConfigKey, scriptText, scriptLoadError) Then
-        Err.Raise vbObjectError + 1592, "ex_PostProcessDsl", scriptLoadError
+    If Not mp_TryGetCompiledScriptBlocks(cfg, scriptConfigKey, scriptText, blocks, parseOrValidationError) Then
+        Err.Raise vbObjectError + 1592, "ex_PostProcessDsl", parseOrValidationError
     End If
     If Len(scriptText) = 0 Then Exit Sub
 
-    If Not mp_ParseScript(scriptText, blocks, parseError) Then
-        Err.Raise vbObjectError + 1590, "ex_PostProcessDsl", "PostProcess script parse failed: " & parseError
-    End If
-
     ex_ResultRuntimeAdapter.m_BuildRuntimeContext resultTables, ctxTablesByRef, ctxFields
 
-    If Not mp_ValidateBlocks(blocks, ctxFields, parseError) Then
-        Err.Raise vbObjectError + 1591, "ex_PostProcessDsl", "PostProcess script validation failed: " & parseError
+    runtimeValidationSignature = mp_BuildValidationSignature(ctxFields)
+    If Not mp_IsValidationCacheHit(scriptConfigKey, scriptText, runtimeValidationSignature) Then
+        If Not mp_ValidateBlocks(blocks, ctxFields, parseOrValidationError) Then
+            Err.Raise vbObjectError + 1591, "ex_PostProcessDsl", "PostProcess script validation failed: " & parseOrValidationError
+        End If
+        g_CachedValidationSignature = runtimeValidationSignature
     End If
 
     Set postProcessFooterLines = New Collection
@@ -110,6 +136,140 @@ Public Sub m_ApplyTimelineScript( _
     m_ApplyScriptToSheet ws, cfg, resultTables, SCRIPT_KEY
 End Sub
 
+Private Function mp_TryGetCompiledScriptBlocks( _
+    ByVal cfg As Object, _
+    ByVal scriptConfigKey As String, _
+    ByRef outScriptText As String, _
+    ByRef outBlocks As Collection, _
+    ByRef outErrorText As String _
+) As Boolean
+    Dim parseError As String
+    Dim parsedBlocks As Collection
+    Dim normalizedScriptKey As String
+
+    outScriptText = vbNullString
+    outErrorText = vbNullString
+    Set outBlocks = Nothing
+
+    normalizedScriptKey = Trim$(scriptConfigKey)
+    If Len(normalizedScriptKey) = 0 Then normalizedScriptKey = SCRIPT_KEY
+
+    If Not ex_PostProcessScriptSource.m_TryGetScriptText(cfg, normalizedScriptKey, outScriptText, outErrorText) Then Exit Function
+    If Len(outScriptText) = 0 Then
+        mp_TryGetCompiledScriptBlocks = True
+        Exit Function
+    End If
+
+    If StrComp(g_CachedScriptConfigKey, normalizedScriptKey, vbTextCompare) = 0 Then
+        If StrComp(g_CachedScriptText, outScriptText, vbBinaryCompare) = 0 Then
+            If Not g_CachedScriptBlocks Is Nothing Then
+                Set outBlocks = g_CachedScriptBlocks
+                mp_TryGetCompiledScriptBlocks = True
+                Exit Function
+            End If
+        End If
+    End If
+
+    If Not mp_ParseScript(outScriptText, parsedBlocks, parseError) Then
+        outErrorText = "PostProcess script parse failed: " & parseError
+        Exit Function
+    End If
+
+    g_CachedScriptConfigKey = normalizedScriptKey
+    g_CachedScriptText = outScriptText
+    Set g_CachedScriptBlocks = parsedBlocks
+    g_CachedValidationSignature = vbNullString
+
+    Set outBlocks = g_CachedScriptBlocks
+    mp_TryGetCompiledScriptBlocks = True
+End Function
+
+Private Function mp_IsValidationCacheHit( _
+    ByVal scriptConfigKey As String, _
+    ByVal scriptText As String, _
+    ByVal validationSignature As String _
+) As Boolean
+    Dim normalizedScriptKey As String
+
+    normalizedScriptKey = Trim$(scriptConfigKey)
+    If Len(normalizedScriptKey) = 0 Then normalizedScriptKey = SCRIPT_KEY
+
+    If Len(validationSignature) = 0 Then Exit Function
+    If StrComp(g_CachedScriptConfigKey, normalizedScriptKey, vbTextCompare) <> 0 Then Exit Function
+    If StrComp(g_CachedScriptText, scriptText, vbBinaryCompare) <> 0 Then Exit Function
+    If StrComp(g_CachedValidationSignature, validationSignature, vbBinaryCompare) <> 0 Then Exit Function
+
+    mp_IsValidationCacheHit = True
+End Function
+
+Private Function mp_BuildValidationSignature(ByVal allowedTableFields As Object) As String
+    Dim tableKeys As Variant
+    Dim tableKey As Variant
+    Dim fieldMap As Object
+    Dim fieldKeys As Variant
+    Dim i As Long
+
+    If allowedTableFields Is Nothing Then
+        mp_BuildValidationSignature = "none"
+        Exit Function
+    End If
+
+    tableKeys = allowedTableFields.Keys
+    If mp_IsEmptyArrayLocal(tableKeys) Then
+        mp_BuildValidationSignature = "empty"
+        Exit Function
+    End If
+    mp_SortVariantTextArrayLocal tableKeys
+
+    For i = LBound(tableKeys) To UBound(tableKeys)
+        tableKey = tableKeys(i)
+        mp_BuildValidationSignature = mp_BuildValidationSignature & "|T:" & CStr(tableKey)
+
+        If IsObject(allowedTableFields(CStr(tableKey))) Then
+            Set fieldMap = allowedTableFields(CStr(tableKey))
+            fieldKeys = fieldMap.Keys
+            If Not mp_IsEmptyArrayLocal(fieldKeys) Then
+                mp_SortVariantTextArrayLocal fieldKeys
+                mp_BuildValidationSignature = mp_BuildValidationSignature & "|F:" & Join(fieldKeys, ";")
+            End If
+        End If
+    Next i
+End Function
+
+Private Sub mp_SortVariantTextArrayLocal(ByRef arr As Variant)
+    Dim i As Long
+    Dim j As Long
+    Dim tmp As Variant
+
+    If mp_IsEmptyArrayLocal(arr) Then Exit Sub
+
+    For i = LBound(arr) To UBound(arr) - 1
+        For j = i + 1 To UBound(arr)
+            If StrComp(CStr(arr(i)), CStr(arr(j)), vbTextCompare) > 0 Then
+                tmp = arr(i)
+                arr(i) = arr(j)
+                arr(j) = tmp
+            End If
+        Next j
+    Next i
+End Sub
+
+Private Function mp_IsEmptyArrayLocal(ByVal arr As Variant) As Boolean
+    On Error GoTo EH
+    If IsArray(arr) = False Then
+        mp_IsEmptyArrayLocal = True
+        Exit Function
+    End If
+    If UBound(arr) < LBound(arr) Then
+        mp_IsEmptyArrayLocal = True
+        Exit Function
+    End If
+    mp_IsEmptyArrayLocal = False
+    Exit Function
+EH:
+    mp_IsEmptyArrayLocal = True
+End Function
+
 Private Function mp_ParseScript(ByVal scriptText As String, ByRef outBlocks As Collection, ByRef outErrorText As String) As Boolean
     Set outBlocks = New Collection
     Dim sourceText As String
@@ -132,7 +292,7 @@ Private Function mp_ValidateBlocks(ByVal blocks As Collection, ByVal allowedTabl
     End If
 
     Set rootScopeVarTypes = mp_CreateVarScope()
-    mp_ValidateBlocks = mp_ValidateStatements(blocks, allowedTableFields, vbNullString, vbNullString, rootScopeVarTypes, outErrorText)
+    mp_ValidateBlocks = mp_ValidateStatements(blocks, allowedTableFields, vbNullString, vbNullString, rootScopeVarTypes, 0, outErrorText)
 End Function
 
 Private Sub mp_ExecuteBlocks( _
@@ -143,12 +303,21 @@ Private Sub mp_ExecuteBlocks( _
     ByVal usedCols As Long _
 )
     Dim rootRuntimeVars As Object
+    Dim execFlow As String
 
     Set rootRuntimeVars = mp_CreateVarScope()
-    mp_ExecuteStatements ws, blocks, tablesByRef, postProcessFooterLines, usedCols, vbNullString, vbNullString, Nothing, rootRuntimeVars
+    execFlow = mp_ExecuteStatements(ws, blocks, tablesByRef, postProcessFooterLines, usedCols, vbNullString, vbNullString, Nothing, rootRuntimeVars)
+    Select Case LCase$(execFlow)
+        Case EXEC_FLOW_NONE, EXEC_FLOW_RETURN
+            ' no-op
+        Case EXEC_FLOW_BREAK, EXEC_FLOW_CONTINUE
+            Err.Raise vbObjectError + 1618, "ex_PostProcessDsl", "'" & execFlow & "' is only allowed inside for-loop."
+        Case Else
+            Err.Raise vbObjectError + 1619, "ex_PostProcessDsl", "Unsupported control-flow signal: " & execFlow
+    End Select
 End Sub
 
-Private Sub mp_ExecuteStatements( _
+Private Function mp_ExecuteStatements( _
     ByVal ws As Worksheet, _
     ByVal statements As Collection, _
     ByVal tablesByRef As Object, _
@@ -176,8 +345,12 @@ Private Sub mp_ExecuteStatements( _
     Dim macroResultObject As Object
     Dim localLetDeclarations As Object
     Dim letVarName As String
+    Dim bodyFlow As String
 
-    If statements Is Nothing Then Exit Sub
+    If statements Is Nothing Then
+        mp_ExecuteStatements = EXEC_FLOW_NONE
+        Exit Function
+    End If
     If runtimeVars Is Nothing Then Set runtimeVars = mp_CreateVarScope()
     Set localLetDeclarations = mp_CreateVarScope()
 
@@ -231,8 +404,15 @@ Private Sub mp_ExecuteStatements( _
                 On Error GoTo 0
 
             Case "if"
+                bodyFlow = EXEC_FLOW_NONE
                 If mp_EvaluateCondition(CStr(statement("Condition")), currentTableRef, currentRowVar, currentRowRef, tablesByRef, runtimeVars) Then
-                    mp_ExecuteStatements ws, statement("Body"), tablesByRef, postProcessFooterLines, usedCols, currentTableRef, currentRowVar, currentRowRef, runtimeVars
+                    bodyFlow = mp_ExecuteStatements(ws, statement("Body"), tablesByRef, postProcessFooterLines, usedCols, currentTableRef, currentRowVar, currentRowRef, runtimeVars)
+                ElseIf statement.Exists("ElseBody") Then
+                    bodyFlow = mp_ExecuteStatements(ws, statement("ElseBody"), tablesByRef, postProcessFooterLines, usedCols, currentTableRef, currentRowVar, currentRowRef, runtimeVars)
+                End If
+                If Len(bodyFlow) > 0 Then
+                    mp_ExecuteStatements = bodyFlow
+                    Exit Function
                 End If
 
             Case "for"
@@ -244,7 +424,21 @@ Private Sub mp_ExecuteStatements( _
                                 Set rowRef = rowsList(rowIdx)
                                 Set childRuntimeVars = mp_CloneVarScope(runtimeVars)
                                 mp_SetScopeObject childRuntimeVars, loopVarName, rowRef
-                                mp_ExecuteStatements ws, statement("Body"), tablesByRef, postProcessFooterLines, usedCols, CStr(statement("TableRef")), loopVarName, rowRef, childRuntimeVars
+                                bodyFlow = mp_ExecuteStatements(ws, statement("Body"), tablesByRef, postProcessFooterLines, usedCols, CStr(statement("TableRef")), loopVarName, rowRef, childRuntimeVars)
+                                mp_SyncAssignedParentScope runtimeVars, childRuntimeVars
+                                Select Case LCase$(bodyFlow)
+                                    Case EXEC_FLOW_NONE
+                                        ' no-op
+                                    Case EXEC_FLOW_CONTINUE
+                                        ' next row
+                                    Case EXEC_FLOW_BREAK
+                                        Exit For
+                                    Case EXEC_FLOW_RETURN
+                                        mp_ExecuteStatements = EXEC_FLOW_RETURN
+                                        Exit Function
+                                    Case Else
+                                        Err.Raise vbObjectError + 1620, "ex_PostProcessDsl", "Unsupported control-flow signal in for-loop: " & bodyFlow
+                                End Select
                             Next rowIdx
                         End If
 
@@ -268,21 +462,65 @@ Private Sub mp_ExecuteStatements( _
                             Set columnObj = rowColumns(rowIdx)
                             Set childRuntimeVars = mp_CloneVarScope(runtimeVars)
                             mp_SetScopeObject childRuntimeVars, loopVarName, columnObj
-                            mp_ExecuteStatements ws, statement("Body"), tablesByRef, postProcessFooterLines, usedCols, currentTableRef, sourceRowVarName, sourceRowRef, childRuntimeVars
+                            bodyFlow = mp_ExecuteStatements(ws, statement("Body"), tablesByRef, postProcessFooterLines, usedCols, currentTableRef, sourceRowVarName, sourceRowRef, childRuntimeVars)
+                            mp_SyncAssignedParentScope runtimeVars, childRuntimeVars
+                            Select Case LCase$(bodyFlow)
+                                Case EXEC_FLOW_NONE
+                                    ' no-op
+                                Case EXEC_FLOW_CONTINUE
+                                    ' next column
+                                Case EXEC_FLOW_BREAK
+                                    Exit For
+                                Case EXEC_FLOW_RETURN
+                                    mp_ExecuteStatements = EXEC_FLOW_RETURN
+                                    Exit Function
+                                Case Else
+                                    Err.Raise vbObjectError + 1621, "ex_PostProcessDsl", "Unsupported control-flow signal in for-loop: " & bodyFlow
+                            End Select
                         Next rowIdx
 
                     Case Else
                         Err.Raise vbObjectError + 1611, "ex_PostProcessDsl", "Unsupported for-loop target: " & CStr(statement("LoopTarget"))
                 End Select
 
+            Case ACTION_BREAK
+                mp_ExecuteStatements = EXEC_FLOW_BREAK
+                Exit Function
+
+            Case ACTION_CONTINUE
+                mp_ExecuteStatements = EXEC_FLOW_CONTINUE
+                Exit Function
+
+            Case ACTION_RETURN
+                mp_ExecuteStatements = EXEC_FLOW_RETURN
+                Exit Function
+
             Case Else
                 Err.Raise vbObjectError + 1593, "ex_PostProcessDsl", "Unsupported statement type: " & statementType
         End Select
     Next i
-    Exit Sub
+    mp_ExecuteStatements = EXEC_FLOW_NONE
+    Exit Function
 
 CallMacroErr:
     Err.Raise vbObjectError + 1597, "ex_PostProcessDsl", "callMacro failed for '" & CStr(statement("MacroName")) & "': " & Err.Description
+End Function
+
+Private Sub mp_SyncAssignedParentScope(ByVal parentScope As Object, ByVal childScope As Object)
+    Dim scopeKey As Variant
+
+    If parentScope Is Nothing Then Exit Sub
+    If childScope Is Nothing Then Exit Sub
+
+    For Each scopeKey In parentScope.Keys
+        If childScope.Exists(CStr(scopeKey)) Then
+            If IsObject(childScope(CStr(scopeKey))) Then
+                Set parentScope(CStr(scopeKey)) = childScope(CStr(scopeKey))
+            Else
+                parentScope(CStr(scopeKey)) = childScope(CStr(scopeKey))
+            End If
+        End If
+    Next scopeKey
 End Sub
 
 Private Function mp_ParseStatements( _
@@ -347,13 +585,55 @@ Private Function mp_ParseStatement( _
             mp_ParseStatement = mp_TryParseForStatement(sourceText, pos, lineNo, outStatement, outErrorText)
         Case "if"
             mp_ParseStatement = mp_TryParseIfStatement(sourceText, pos, lineNo, outStatement, outErrorText)
+        Case "else"
+            outErrorText = "Unexpected 'else' without matching if at line " & CStr(lineNo)
+            mp_ParseStatement = False
         Case "callmacro"
             mp_ParseStatement = mp_TryParseCallMacroStatement(sourceText, pos, lineNo, outStatement, outErrorText)
         Case "let"
             mp_ParseStatement = mp_TryParseLetStatement(sourceText, pos, lineNo, outStatement, outErrorText)
+        Case ACTION_BREAK
+            mp_ParseStatement = mp_TryParseKeywordNoArgStatement(sourceText, pos, lineNo, ACTION_BREAK, outStatement, outErrorText)
+        Case ACTION_CONTINUE
+            mp_ParseStatement = mp_TryParseKeywordNoArgStatement(sourceText, pos, lineNo, ACTION_CONTINUE, outStatement, outErrorText)
+        Case ACTION_RETURN
+            mp_ParseStatement = mp_TryParseKeywordNoArgStatement(sourceText, pos, lineNo, ACTION_RETURN, outStatement, outErrorText)
         Case Else
             mp_ParseStatement = mp_TryParseAssignStatement(sourceText, pos, lineNo, outStatement, outErrorText)
     End Select
+End Function
+
+Private Function mp_TryParseKeywordNoArgStatement( _
+    ByVal sourceText As String, _
+    ByRef pos As Long, _
+    ByRef lineNo As Long, _
+    ByVal expectedKeyword As String, _
+    ByRef outStatement As Object, _
+    ByRef outErrorText As String _
+) As Boolean
+    Dim statementText As String
+    Dim bodyText As String
+    Dim stmtLine As Long
+
+    stmtLine = lineNo
+    If Not mp_ReadStatementToSemicolon(sourceText, pos, lineNo, statementText, outErrorText) Then Exit Function
+
+    bodyText = Trim$(statementText)
+    If Right$(bodyText, 1) <> ";" Then
+        outErrorText = "Expected ';' after '" & expectedKeyword & "' at line " & CStr(stmtLine)
+        Exit Function
+    End If
+    bodyText = Trim$(Left$(bodyText, Len(bodyText) - 1))
+    If StrComp(bodyText, expectedKeyword, vbTextCompare) <> 0 Then
+        outErrorText = "'" & expectedKeyword & "' statement does not accept arguments at line " & CStr(stmtLine)
+        Exit Function
+    End If
+
+    Set outStatement = CreateObject("Scripting.Dictionary")
+    outStatement.CompareMode = 1
+    outStatement("Type") = LCase$(expectedKeyword)
+    outStatement("Line") = CLng(stmtLine)
+    mp_TryParseKeywordNoArgStatement = True
 End Function
 
 Private Function mp_TryParseForStatement( _
@@ -494,6 +774,10 @@ Private Function mp_TryParseIfStatement( _
     Dim keywordText As String
     Dim conditionText As String
     Dim bodyStatements As Collection
+    Dim elseBodyStatements As Collection
+    Dim probePos As Long
+    Dim probeLine As Long
+    Dim nextKeyword As String
     Dim stmtLine As Long
 
     stmtLine = lineNo
@@ -521,11 +805,31 @@ Private Function mp_TryParseIfStatement( _
     Set bodyStatements = New Collection
     If Not mp_ParseStatements(sourceText, pos, lineNo, bodyStatements, True, outErrorText) Then Exit Function
 
+    probePos = pos
+    probeLine = lineNo
+    mp_SkipWhitespace sourceText, probePos, probeLine
+    If mp_ReadIdentifier(sourceText, probePos, probeLine, nextKeyword) Then
+        If StrComp(nextKeyword, "else", vbTextCompare) = 0 Then
+            pos = probePos
+            lineNo = probeLine
+            mp_SkipWhitespace sourceText, pos, lineNo
+            If pos > Len(sourceText) Or Mid$(sourceText, pos, 1) <> "{" Then
+                outErrorText = "Expected '{' after else at line " & CStr(stmtLine)
+                Exit Function
+            End If
+            pos = pos + 1
+            Set elseBodyStatements = New Collection
+            If Not mp_ParseStatements(sourceText, pos, lineNo, elseBodyStatements, True, outErrorText) Then Exit Function
+        End If
+    End If
+    If elseBodyStatements Is Nothing Then Set elseBodyStatements = New Collection
+
     Set outStatement = CreateObject("Scripting.Dictionary")
     outStatement.CompareMode = 1
     outStatement("Type") = "if"
     outStatement("Condition") = conditionText
     outStatement.Add "Body", bodyStatements
+    outStatement.Add "ElseBody", elseBodyStatements
     outStatement("Line") = CLng(stmtLine)
     mp_TryParseIfStatement = True
 End Function
@@ -643,6 +947,7 @@ Private Function mp_ValidateStatements( _
     ByVal currentTableRef As String, _
     ByVal currentRowVar As String, _
     ByVal scopeVarTypes As Object, _
+    ByVal loopDepth As Long, _
     ByRef outErrorText As String _
 ) As Boolean
     Dim i As Long
@@ -706,7 +1011,11 @@ Private Function mp_ValidateStatements( _
             Case "if"
                 If Not mp_ValidateConditionText(CStr(statement("Condition")), currentTableRef, currentRowVar, scopeVarTypes, allowedTableFields, outErrorText) Then Exit Function
                 Set childScopeVarTypes = mp_CloneVarScope(scopeVarTypes)
-                If Not mp_ValidateStatements(statement("Body"), allowedTableFields, currentTableRef, currentRowVar, childScopeVarTypes, outErrorText) Then Exit Function
+                If Not mp_ValidateStatements(statement("Body"), allowedTableFields, currentTableRef, currentRowVar, childScopeVarTypes, loopDepth, outErrorText) Then Exit Function
+                If statement.Exists("ElseBody") Then
+                    Set childScopeVarTypes = mp_CloneVarScope(scopeVarTypes)
+                    If Not mp_ValidateStatements(statement("ElseBody"), allowedTableFields, currentTableRef, currentRowVar, childScopeVarTypes, loopDepth, outErrorText) Then Exit Function
+                End If
 
             Case "for"
                 loopTarget = LCase$(CStr(statement("LoopTarget")))
@@ -721,7 +1030,7 @@ Private Function mp_ValidateStatements( _
                         End If
                         Set childScopeVarTypes = mp_CloneVarScope(scopeVarTypes)
                         mp_SetScopeValue childScopeVarTypes, loopVarName, VAR_TYPE_ROW
-                        If Not mp_ValidateStatements(statement("Body"), allowedTableFields, tableRef, loopVarName, childScopeVarTypes, outErrorText) Then Exit Function
+                        If Not mp_ValidateStatements(statement("Body"), allowedTableFields, tableRef, loopVarName, childScopeVarTypes, loopDepth + 1, outErrorText) Then Exit Function
 
                     Case LOOP_TARGET_ROW_COLUMNS
                         sourceRowVarName = CStr(statement("SourceRowVar"))
@@ -735,12 +1044,27 @@ Private Function mp_ValidateStatements( _
                         End If
                         Set childScopeVarTypes = mp_CloneVarScope(scopeVarTypes)
                         mp_SetScopeValue childScopeVarTypes, loopVarName, VAR_TYPE_COLUMN
-                        If Not mp_ValidateStatements(statement("Body"), allowedTableFields, currentTableRef, sourceRowVarName, childScopeVarTypes, outErrorText) Then Exit Function
+                        If Not mp_ValidateStatements(statement("Body"), allowedTableFields, currentTableRef, sourceRowVarName, childScopeVarTypes, loopDepth + 1, outErrorText) Then Exit Function
 
                     Case Else
                         outErrorText = "Unsupported for-loop target '" & loopTarget & "'."
                         Exit Function
                 End Select
+
+            Case ACTION_BREAK
+                If loopDepth <= 0 Then
+                    outErrorText = "'break' is only allowed inside for-loop."
+                    Exit Function
+                End If
+
+            Case ACTION_CONTINUE
+                If loopDepth <= 0 Then
+                    outErrorText = "'continue' is only allowed inside for-loop."
+                    Exit Function
+                End If
+
+            Case ACTION_RETURN
+                ' Allowed at any script nesting level.
 
             Case Else
                 outErrorText = "Unsupported statement type '" & statementType & "'."
@@ -810,7 +1134,7 @@ End Function
 
 Private Function mp_IsReservedDslKeyword(ByVal tokenText As String) As Boolean
     Select Case LCase$(Trim$(tokenText))
-        Case "if", "for", "callmacro", "let", "in", "and", "or", "gt", "lt", "gte", "lte"
+        Case "if", "else", "for", "callmacro", "let", "in", "and", "or", "gt", "lt", "gte", "lte", "break", "continue", "return"
             mp_IsReservedDslKeyword = True
     End Select
 End Function

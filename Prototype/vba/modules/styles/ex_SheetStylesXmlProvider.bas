@@ -8,11 +8,25 @@ Private Const BASE_STYLE_LABEL As String = "base sheet style"
 Private Const OUTPUT_STYLE_LABEL As String = "output sheet style"
 Private Const ERROR_BANNER_STYLE_LABEL As String = "error banner style"
 Private Const WARNING_BANNER_STYLE_LABEL As String = "warning banner style"
+Private Const CONTROL_PANEL_BUTTON_TYPE_BUTTON As String = "button"
+Private Const CONTROL_PANEL_BUTTON_TYPE_TOGGLE As String = "togglebutton"
 
 Public Const LAYER_BASE As String = "base"
 Public Const LAYER_OUTPUT As String = "output"
 
+Public Type t_ControlPanelToggleVariantStyle
+    Value As String
+    Caption As String
+    HasBackColor As Boolean
+    BackColor As Long
+    HasTextColor As Boolean
+    TextColor As Long
+    HasBorderColor As Boolean
+    BorderColor As Long
+End Type
+
 Public Type t_ControlPanelButtonStyle
+    ButtonType As String
     Caption As String
     MacroName As String
     HasBackColor As Boolean
@@ -21,6 +35,10 @@ Public Type t_ControlPanelButtonStyle
     TextColor As Long
     HasBorderColor As Boolean
     BorderColor As Long
+    ToggleSource As String
+    ToggleChangedMacroName As String
+    ToggleVariantCount As Long
+    ToggleVariants() As t_ControlPanelToggleVariantStyle
 End Type
 
 Public Type t_ControlPanelFieldStyle
@@ -1047,6 +1065,7 @@ Private Function mp_LoadControlPanelFieldNode( _
     Dim fieldTagName As String
     Dim buttonIndex As Long
     Dim isNodeEnabled As Boolean
+    Dim buttonType As String
 
     fieldTagName = LCase$(Trim$(CStr(fieldNode.baseName)))
     fieldStyle.IsConfigRefField = (fieldTagName = "inputconfigreffield")
@@ -1072,9 +1091,9 @@ Private Function mp_LoadControlPanelFieldNode( _
         End If
     End If
 
-    Set buttonNodes = fieldNode.selectNodes("p:button")
+    Set buttonNodes = fieldNode.selectNodes("p:button | p:toggleButton")
     If buttonNodes Is Nothing Or buttonNodes.Length = 0 Then
-        MsgBox "Invalid control panel field: at least one 'button' node is required.", vbExclamation
+        MsgBox "Invalid control panel field: at least one 'button' or 'toggleButton' node is required.", vbExclamation
         Exit Function
     End If
 
@@ -1094,11 +1113,39 @@ Private Function mp_LoadControlPanelFieldNode( _
 
     For buttonIndex = 1 To fieldStyle.ButtonCount
         Set buttonNode = activeButtonNodes.Item(buttonIndex)
+        buttonType = mp_NormalizeControlPanelButtonType(CStr(buttonNode.baseName), mp_ReadOptionalAttrText(buttonNode, "type", vbNullString))
+        If Len(buttonType) = 0 Then Exit Function
+
+        fieldStyle.Buttons(buttonIndex).ButtonType = buttonType
         fieldStyle.Buttons(buttonIndex).Caption = mp_ReadOptionalAttrText(buttonNode, "caption", vbNullString)
         fieldStyle.Buttons(buttonIndex).MacroName = mp_ReadOptionalAttrText(buttonNode, "macro", vbNullString)
+        fieldStyle.Buttons(buttonIndex).ToggleSource = mp_ReadOptionalAttrText(buttonNode, "source", vbNullString)
+        fieldStyle.Buttons(buttonIndex).ToggleChangedMacroName = mp_ReadOptionalAttrText(buttonNode, "onToggle", vbNullString)
+        fieldStyle.Buttons(buttonIndex).ToggleVariantCount = 0
+        Erase fieldStyle.Buttons(buttonIndex).ToggleVariants
         If Not mp_ReadOptionalButtonHexColor(buttonNode, "buttonBackColor", fieldStyle.Buttons(buttonIndex).BackColor, fieldStyle.Buttons(buttonIndex).HasBackColor, "inputConfigRefField/button@buttonBackColor", fieldIndex, buttonIndex) Then Exit Function
         If Not mp_ReadOptionalButtonHexColor(buttonNode, "buttonTextColor", fieldStyle.Buttons(buttonIndex).TextColor, fieldStyle.Buttons(buttonIndex).HasTextColor, "inputConfigRefField/button@buttonTextColor", fieldIndex, buttonIndex) Then Exit Function
         If Not mp_ReadOptionalButtonHexColor(buttonNode, "buttonBorderColor", fieldStyle.Buttons(buttonIndex).BorderColor, fieldStyle.Buttons(buttonIndex).HasBorderColor, "inputConfigRefField/button@buttonBorderColor", fieldIndex, buttonIndex) Then Exit Function
+
+        If StrComp(buttonType, CONTROL_PANEL_BUTTON_TYPE_TOGGLE, vbTextCompare) = 0 Then
+            If Len(Trim$(fieldStyle.Buttons(buttonIndex).ToggleSource)) = 0 Then
+                MsgBox "Invalid control panel toggleButton: missing required attribute 'source' (field " & CStr(fieldIndex) & ", button " & CStr(buttonIndex) & ").", vbExclamation
+                Exit Function
+            End If
+
+            If Not mp_LoadControlPanelToggleVariants(buttonNode, fieldStyle.Buttons(buttonIndex), fieldIndex, buttonIndex) Then Exit Function
+
+            If Len(Trim$(fieldStyle.Buttons(buttonIndex).MacroName)) = 0 Then
+                fieldStyle.Buttons(buttonIndex).MacroName = "ex_UIActions.m_OutputPanelToggleButton_OnClick"
+            End If
+
+            If Len(Trim$(fieldStyle.Buttons(buttonIndex).Caption)) = 0 Then
+                fieldStyle.Buttons(buttonIndex).Caption = fieldStyle.Buttons(buttonIndex).ToggleVariants(1).Caption
+                If Len(Trim$(fieldStyle.Buttons(buttonIndex).Caption)) = 0 Then
+                    fieldStyle.Buttons(buttonIndex).Caption = fieldStyle.Buttons(buttonIndex).ToggleVariants(1).Value
+                End If
+            End If
+        End If
 
         If Not fieldStyle.IsConfigRefField Then
             If Len(Trim$(fieldStyle.Buttons(buttonIndex).Caption)) = 0 Then
@@ -1111,6 +1158,81 @@ Private Function mp_LoadControlPanelFieldNode( _
     Next buttonIndex
 
     mp_LoadControlPanelFieldNode = True
+End Function
+
+Private Function mp_LoadControlPanelToggleVariants( _
+    ByVal buttonNode As Object, _
+    ByRef buttonStyle As t_ControlPanelButtonStyle, _
+    ByVal fieldIndex As Long, _
+    ByVal buttonIndex As Long _
+) As Boolean
+    Dim variantNodes As Object
+    Dim variantNode As Object
+    Dim activeVariantNodes As Collection
+    Dim variantIdx As Long
+    Dim isNodeEnabled As Boolean
+    Dim valueText As String
+
+    Set variantNodes = buttonNode.selectNodes("p:modeVariants/p:variant")
+    If variantNodes Is Nothing Or variantNodes.Length = 0 Then
+        MsgBox "Invalid control panel toggleButton: at least one 'modeVariants/variant' node is required (field " & CStr(fieldIndex) & ", button " & CStr(buttonIndex) & ").", vbExclamation
+        Exit Function
+    End If
+
+    Set activeVariantNodes = New Collection
+    For Each variantNode In variantNodes
+        If Not ex_XmlCore.m_TryEvaluateNodeCondition(variantNode, isNodeEnabled, "condition", "controlPanel toggle variant node (field " & CStr(fieldIndex) & ", button " & CStr(buttonIndex) & ")") Then Exit Function
+        If isNodeEnabled Then activeVariantNodes.Add variantNode
+    Next variantNode
+
+    If activeVariantNodes.Count = 0 Then
+        MsgBox "Invalid control panel toggleButton: no active 'variant' nodes remain after applying conditions (field " & CStr(fieldIndex) & ", button " & CStr(buttonIndex) & ").", vbExclamation
+        Exit Function
+    End If
+
+    buttonStyle.ToggleVariantCount = activeVariantNodes.Count
+    ReDim buttonStyle.ToggleVariants(1 To buttonStyle.ToggleVariantCount)
+
+    For variantIdx = 1 To buttonStyle.ToggleVariantCount
+        Set variantNode = activeVariantNodes.Item(variantIdx)
+        valueText = mp_ReadOptionalAttrText(variantNode, "value", vbNullString)
+        If Len(valueText) = 0 Then
+            MsgBox "Invalid control panel toggleButton variant: missing required attribute 'value' (field " & CStr(fieldIndex) & ", button " & CStr(buttonIndex) & ", variant " & CStr(variantIdx) & ").", vbExclamation
+            Exit Function
+        End If
+
+        buttonStyle.ToggleVariants(variantIdx).Value = valueText
+        buttonStyle.ToggleVariants(variantIdx).Caption = mp_ReadOptionalAttrText(variantNode, "caption", vbNullString)
+        If Len(buttonStyle.ToggleVariants(variantIdx).Caption) = 0 Then
+            buttonStyle.ToggleVariants(variantIdx).Caption = mp_ReadOptionalAttrText(variantNode, "display", vbNullString)
+        End If
+
+        If Not mp_ReadOptionalButtonHexColor(variantNode, "buttonBackColor", buttonStyle.ToggleVariants(variantIdx).BackColor, buttonStyle.ToggleVariants(variantIdx).HasBackColor, "toggleButton/modeVariants/variant@buttonBackColor", fieldIndex, buttonIndex) Then Exit Function
+        If Not mp_ReadOptionalButtonHexColor(variantNode, "buttonTextColor", buttonStyle.ToggleVariants(variantIdx).TextColor, buttonStyle.ToggleVariants(variantIdx).HasTextColor, "toggleButton/modeVariants/variant@buttonTextColor", fieldIndex, buttonIndex) Then Exit Function
+        If Not mp_ReadOptionalButtonHexColor(variantNode, "buttonBorderColor", buttonStyle.ToggleVariants(variantIdx).BorderColor, buttonStyle.ToggleVariants(variantIdx).HasBorderColor, "toggleButton/modeVariants/variant@buttonBorderColor", fieldIndex, buttonIndex) Then Exit Function
+    Next variantIdx
+
+    mp_LoadControlPanelToggleVariants = True
+End Function
+
+Private Function mp_NormalizeControlPanelButtonType(ByVal nodeTagName As String, ByVal rawType As String) As String
+    nodeTagName = LCase$(Trim$(nodeTagName))
+    rawType = LCase$(Trim$(rawType))
+
+    If Len(rawType) = 0 Then
+        If StrComp(nodeTagName, CONTROL_PANEL_BUTTON_TYPE_TOGGLE, vbTextCompare) = 0 Then
+            rawType = CONTROL_PANEL_BUTTON_TYPE_TOGGLE
+        Else
+            rawType = CONTROL_PANEL_BUTTON_TYPE_BUTTON
+        End If
+    End If
+
+    Select Case rawType
+        Case CONTROL_PANEL_BUTTON_TYPE_BUTTON, CONTROL_PANEL_BUTTON_TYPE_TOGGLE
+            mp_NormalizeControlPanelButtonType = rawType
+        Case Else
+            MsgBox "Unsupported control panel button type '" & rawType & "'. Allowed: button, toggleButton.", vbExclamation
+    End Select
 End Function
 
 Private Function mp_NormalizeInputOverflowStyle( _

@@ -40,6 +40,7 @@ Private g_PostProcessHeaderNextInsertRow As Long
 Private g_PostProcessFooterSheetKey As String
 Private g_PostProcessFooterRowIndex As Long
 Private g_PostProcessFooterHasAppended As Boolean
+Private g_RuntimeDataBySheetAndKey As Object
 
 Public Sub m_HighlightRow( _
     ByVal rowRef As obj_ResultRow, _
@@ -169,6 +170,10 @@ Public Function m_TextAppend( _
     Else
         m_TextAppend = CStr(baseText) & CStr(separatorText) & CStr(appendText)
     End If
+End Function
+
+Public Function m_SetText(ByVal textValue As String) As String
+    m_SetText = CStr(textValue)
 End Function
 
 Public Sub m_SetRowCellText( _
@@ -326,8 +331,10 @@ Public Sub m_ResetPostProcessHeaderCursor(Optional ByVal targetSheet As Workshee
     g_PostProcessHeaderNextInsertRow = 0
     If targetSheet Is Nothing Then
         g_PostProcessHeaderSheetKey = vbNullString
+        m_ClearRuntimeData
     Else
         g_PostProcessHeaderSheetKey = mp_BuildSheetKey(targetSheet)
+        mp_ClearRuntimeDataForSheet targetSheet
     End If
 End Sub
 
@@ -336,8 +343,10 @@ Public Sub m_ResetPostProcessFooterCursor(Optional ByVal targetSheet As Workshee
     g_PostProcessFooterHasAppended = False
     If targetSheet Is Nothing Then
         g_PostProcessFooterSheetKey = vbNullString
+        m_ClearRuntimeData
     Else
         g_PostProcessFooterSheetKey = mp_BuildSheetKey(targetSheet)
+        mp_ClearRuntimeDataForSheet targetSheet
     End If
 End Sub
 
@@ -507,6 +516,118 @@ Public Function m_GetSinglePostProcessFooterText(Optional ByVal targetSheet As W
     End If
 
     m_GetSinglePostProcessFooterText = CStr(ws.Cells(footerRowIndex, 1).Value)
+End Function
+
+Public Sub m_ClearRuntimeData(Optional ByVal targetSheet As Worksheet = Nothing)
+    If targetSheet Is Nothing Then
+        Set g_RuntimeDataBySheetAndKey = Nothing
+    Else
+        mp_ClearRuntimeDataForSheet targetSheet
+    End If
+End Sub
+
+Public Sub m_SetRuntimeData( _
+    ByVal dataKey As String, _
+    ByVal dataValue As String, _
+    Optional ByVal targetSheet As Worksheet = Nothing _
+)
+    Dim ws As Worksheet
+    Dim cache As Object
+    Dim runtimeKey As String
+
+    If targetSheet Is Nothing Then
+        Set ws = ActiveSheet
+    Else
+        Set ws = targetSheet
+    End If
+    If ws Is Nothing Then
+        Err.Raise vbObjectError + 1704, "ex_PostProcessActions", "Active sheet is not available for runtime data write."
+    End If
+
+    dataKey = mp_NormalizeRuntimeDataKey(dataKey)
+    If Len(dataKey) = 0 Then
+        Err.Raise vbObjectError + 1705, "ex_PostProcessActions", "Runtime data key cannot be empty."
+    End If
+
+    Set cache = mp_EnsureRuntimeDataCache()
+    runtimeKey = mp_BuildRuntimeDataFullKey(ws, dataKey)
+    cache(runtimeKey) = CStr(dataValue)
+End Sub
+
+Public Function m_GetRuntimeData( _
+    ByVal dataKey As String, _
+    Optional ByVal defaultValue As String = vbNullString, _
+    Optional ByVal targetSheet As Worksheet = Nothing _
+) As String
+    Dim ws As Worksheet
+    Dim cache As Object
+    Dim runtimeKey As String
+
+    If targetSheet Is Nothing Then
+        Set ws = ActiveSheet
+    Else
+        Set ws = targetSheet
+    End If
+    If ws Is Nothing Then
+        Err.Raise vbObjectError + 1706, "ex_PostProcessActions", "Active sheet is not available for runtime data read."
+    End If
+
+    dataKey = mp_NormalizeRuntimeDataKey(dataKey)
+    If Len(dataKey) = 0 Then
+        Err.Raise vbObjectError + 1707, "ex_PostProcessActions", "Runtime data key cannot be empty."
+    End If
+
+    Set cache = g_RuntimeDataBySheetAndKey
+    If cache Is Nothing Then
+        m_GetRuntimeData = defaultValue
+        Exit Function
+    End If
+
+    runtimeKey = mp_BuildRuntimeDataFullKey(ws, dataKey)
+    If cache.Exists(runtimeKey) Then
+        m_GetRuntimeData = CStr(cache(runtimeKey))
+    Else
+        m_GetRuntimeData = defaultValue
+    End If
+End Function
+
+Public Function m_GetSinglePostProcessFooterCellRef(Optional ByVal targetSheet As Worksheet = Nothing) As String
+    Dim ws As Worksheet
+    Dim postProcessFooterStyle As t_PostProcessFooterStyle
+    Dim footerRowIndex As Long
+
+    If targetSheet Is Nothing Then
+        Set ws = ActiveSheet
+    Else
+        Set ws = targetSheet
+    End If
+    If ws Is Nothing Then
+        Err.Raise vbObjectError + 1708, "ex_PostProcessActions", "Active sheet is not available for footer cell reference read."
+    End If
+
+    If Not mp_TryLoadPostProcessFooterStyle(postProcessFooterStyle) Then
+        Err.Raise vbObjectError + 1709, "ex_PostProcessActions", "Unable to read single postProcessFooter cell ref: invalid '/sheetStyles/postProcessFooterStyle'."
+    End If
+
+    footerRowIndex = mp_FindExistingSinglePostProcessFooterRow(ws, postProcessFooterStyle)
+    If footerRowIndex <= 0 Then
+        Err.Raise vbObjectError + 1710, "ex_PostProcessActions", "Single postProcessFooter row not found on sheet '" & ws.Name & "'."
+    End If
+
+    m_GetSinglePostProcessFooterCellRef = "Cell:A" & CStr(footerRowIndex)
+End Function
+
+Public Sub m_RaiseError(ByVal errorText As String)
+    errorText = Trim$(errorText)
+    If Len(errorText) = 0 Then errorText = "PostProcess script error."
+    Err.Raise vbObjectError + 1712, "ex_PostProcessActions", errorText
+End Sub
+
+Public Function m_ShowLogicError(ByVal errorText As String) As String
+    errorText = Trim$(errorText)
+    If Len(errorText) = 0 Then errorText = "PostProcess logic error."
+    MsgBox errorText, vbExclamation
+    m_ShowLogicError = errorText
 End Function
 
 Public Function m_GetRelativeDayOfMonth(ByVal dayOffsetText As String) As String
@@ -1173,6 +1294,55 @@ End Function
 Private Function mp_BuildSheetKey(ByVal ws As Worksheet) As String
     If ws Is Nothing Then Exit Function
     mp_BuildSheetKey = CStr(ws.Parent.Name) & "|" & CStr(ws.Name)
+End Function
+
+Private Function mp_EnsureRuntimeDataCache() As Object
+    If g_RuntimeDataBySheetAndKey Is Nothing Then
+        Set g_RuntimeDataBySheetAndKey = CreateObject("Scripting.Dictionary")
+        g_RuntimeDataBySheetAndKey.CompareMode = 1 ' vbTextCompare
+    End If
+    Set mp_EnsureRuntimeDataCache = g_RuntimeDataBySheetAndKey
+End Function
+
+Private Sub mp_ClearRuntimeDataForSheet(ByVal ws As Worksheet)
+    Dim cache As Object
+    Dim key As Variant
+    Dim prefix As String
+    Dim keysToRemove As Collection
+
+    If ws Is Nothing Then Exit Sub
+    Set cache = g_RuntimeDataBySheetAndKey
+    If cache Is Nothing Then Exit Sub
+    If cache.Count = 0 Then Exit Sub
+
+    prefix = mp_BuildSheetKey(ws) & "|"
+    Set keysToRemove = New Collection
+
+    For Each key In cache.Keys
+        If StrComp(Left$(CStr(key), Len(prefix)), prefix, vbTextCompare) = 0 Then
+            keysToRemove.Add CStr(key)
+        End If
+    Next key
+
+    For Each key In keysToRemove
+        cache.Remove CStr(key)
+    Next key
+End Sub
+
+Private Function mp_NormalizeRuntimeDataKey(ByVal dataKey As String) As String
+    dataKey = Trim$(dataKey)
+    If Len(dataKey) = 0 Then Exit Function
+    If InStr(1, dataKey, "|", vbBinaryCompare) > 0 Then
+        Err.Raise vbObjectError + 1711, "ex_PostProcessActions", "Runtime data key cannot contain '|' character."
+    End If
+    mp_NormalizeRuntimeDataKey = LCase$(dataKey)
+End Function
+
+Private Function mp_BuildRuntimeDataFullKey(ByVal ws As Worksheet, ByVal dataKey As String) As String
+    If ws Is Nothing Then Exit Function
+    dataKey = mp_NormalizeRuntimeDataKey(dataKey)
+    If Len(dataKey) = 0 Then Exit Function
+    mp_BuildRuntimeDataFullKey = mp_BuildSheetKey(ws) & "|" & dataKey
 End Function
 
 Private Function mp_GetOrCreateSinglePostProcessFooterRange( _

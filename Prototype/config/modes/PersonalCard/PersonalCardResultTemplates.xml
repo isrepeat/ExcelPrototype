@@ -1,16 +1,121 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resultTemplates xmlns="urn:excelprototype:profiles" version="1">
-  <template id="HospitalBrown">
-    <text><![CDATA[З {Hospital}, з {#dd} березня 2026 року:
+  <template id="FromHospital">
+    <text>
+      <![CDATA[#^
+#_      З {Hospital}, з {#dd} березня 2026 року:
 
-{Rank|accusative} {FIO|accusative}, {Position|accusative|lowerFirstLetter}.
-{#if IsReturnToDuty}#_
-{ReturnToDutyRank|dative|upperFirstLetter} #_
-{ReturnToDutyFIO|dative} #_
-повернутись до виконання обов'язків {ReturnToDutyPosition|accusative|lowerFirstLetter}.#_
-{#endif}
-Зарахувати на котлове забезпечення з {#dd+1} березня 2026 року.
+#_      {Rank|accusative} {FIO|accusative}, {Position|accusative|lowerFirstLetter}.
+#_      {#if IsReturnToDuty}#^
+#_      {ReturnToDutyRank|dative|upperFirstLetter} #^
+#_      {ReturnToDutyFIO|dative} #^
+#_      повернутись до виконання обов'язків {ReturnToDutyPosition|accusative|lowerFirstLetter}.#^
+#_      {#endif}
+#_      Зарахувати на котлове забезпечення з {#dd+1} березня 2026 року.
 
-Підстава: рапорт {RaportFrom} (вх. № 1656/{InNum}-в від {InDate}), виписка із медичної карти стаціонарного хворого № {DocNum} від {DocDate}.]]></text>
+#_      Підстава: рапорт {RaportFrom} (вх. № 1656/{InNum}-в від {InDate}), #^
+#_      виписка із медичної карти стаціонарного хворого № {DocNum} від {DocDate}.#^
+#_    ]]>
+   </text>
+  </template>
+  <template id="FromVacationForCuring">
+    <text>
+      <![CDATA[#^
+#_      {Rank|accusative} {FIO|accusative}, {Position|accusative|lowerFirstLetter}.
+#_      {#if IsReturnToDuty}#^
+#_      {ReturnToDutyRank|dative|upperFirstLetter} #^
+#_      {ReturnToDutyFIO|dative} #^
+#_      повернутись до виконання обов'язків {ReturnToDutyPosition|accusative|lowerFirstLetter}.#^
+#_      {#endif}
+#_      Зарахувати на котлове забезпечення з {#dd+1} березня 2026 року.
+
+#_      Підстава: рапорт {RaportFrom} (вх. № 1656/{InNum}-в від {InDate}), #^
+#_      відпускний квиток № 3/71/{VkNum} від {VkDate}.#^
+#_    ]]>
+   </text>
+  </template>
+  <template id="FromAnnualMainVacation">
+    <text>
+      <![CDATA[#^
+#_      {Rank|accusative} {FIO|accusative}, {Position|accusative|lowerFirstLetter}.
+#_      {#if IsReturnToDuty}#^
+#_      {ReturnToDutyRank|dative|upperFirstLetter} #^
+#_      {ReturnToDutyFIO|dative} #^
+#_      повернутись до виконання обов'язків {ReturnToDutyPosition|accusative|lowerFirstLetter}.#^
+#_      {#endif}
+#_      Зарахувати на котлове забезпечення з {#dd+1} березня 2026 року.
+
+#_      Підстава: рапорт {RaportFrom} (вх. № 1656/{InNum}-в від {InDate}), #^
+#_      відпускний квиток № 3/71/{VkNum} від {VkDate}.#^
+#_    ]]>
+    </text>
+  </template>
+  <template id="FromVacationForFamily">
+    <text>
+      <![CDATA[#^
+#_      {Rank|accusative} {FIO|accusative}, {Position|accusative|lowerFirstLetter}.
+#_      {#if IsReturnToDuty}#^
+#_      {ReturnToDutyRank|dative|upperFirstLetter} {ReturnToDutyFIO|dative} #^
+#_      повернутись до виконання обов'язків {ReturnToDutyPosition|accusative|lowerFirstLetter}.#^
+#_      {#endif}
+#_      Зарахувати на котлове забезпечення з {#dd+1} березня 2026 року.
+
+#_      Підстава: рапорт {RaportFrom} (вх. № 1656/{InNum}-в від {InDate}), #^
+#_      відпускний квиток № 3/71/{VkNum} від {VkDate}.#^
+#_    ]]>
+    </text>
+  </template>
+  <template id="FromOutpatientExaminationOrVlk">
+    <text>
+      <![CDATA[#^
+#_      після проходження військово-лікарської комісії:
+
+#_      {Rank|accusative} {FIO|accusative}, {Position|accusative|lowerFirstLetter}.
+
+#_      Підстава: рапорт {RaportFrom} (вх. № 1656/{InNum}-в від {InDate}), #^
+#_      довідка військово-лікарської комісії № {VlkNum} від {VlkDate}.#^
+#_    ]]>
+    </text>
+  </template>
+  <template id="ToHospital">
+    <text>
+      <![CDATA[#^
+#_      До {Hospital}, з {#dd} березня 2026 року:
+
+#_      {Rank|accusative} {FIO|accusative}, {Position|accusative|lowerFirstLetter}.
+#_      {#if isAssignToDuty}#^
+#_      Тимчасове виконання обов'язків за посадою {Position|accusative|lowerFirstLetter} покласти на #^
+#_      {AssignToDutyRank|dative|upperFirstLetter} {AssignToDutyFIO|dative} {AssignToDutyPosition|accusative|lowerFirstLetter}.#^
+#_      {#endif}
+#_      Зняти з котлового забезпечення з {#dd+1} березня 2026 року.
+
+#_      Підстава: рапорт {RaportFrom} (вх. № 1656/{InNum}-в від {InDate}), #^
+#_      медична карта стаціонарного хворого № {DocNum} від {DocDate}.#^
+#_    ]]>
+    </text>
+  </template>
+  <template id="ToAnnualMainVacation">
+    <text><![CDATA[[TODO] Template ToAnnualMainVacation]]></text>
+  </template>
+  <template id="ToVacationForFamily">
+    <text><![CDATA[[TODO] Template ToVacationForFamily]]></text>
+  </template>
+  <template id="ToVacationForCuring">
+    <text><![CDATA[[TODO] Template ToVacationForCuring]]></text>
+  </template>
+  <template id="ToOutpatientExaminationOrVlk">
+    <text><![CDATA[[TODO] Template ToOutpatientExaminationOrVlk]]></text>
+  </template>
+  <template id="MoveHospitalToVacationForCuring">
+    <text><![CDATA[[TODO] Template MoveHospitalToVacationForCuring]]></text>
+  </template>
+  <template id="MoveVacationForCuringToVacationForCuring">
+    <text><![CDATA[[TODO] Template MoveVacationForCuringToVacationForCuring]]></text>
+  </template>
+  <template id="MoveVacationForCuringToHospital">
+    <text><![CDATA[[TODO] Template MoveVacationForCuringToHospital]]></text>
+  </template>
+  <template id="MoveVacationForCuringToVlk">
+    <text><![CDATA[[TODO] Template MoveVacationForCuringToVlk]]></text>
   </template>
 </resultTemplates>

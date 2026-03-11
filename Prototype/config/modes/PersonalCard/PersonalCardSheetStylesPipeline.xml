@@ -151,7 +151,8 @@
       <layer name="pc-postprocess-footer" priority="110" enabled="true">
         <rule target="sheet"
               styles="{
-                mergeColumns:2;
+                mergeColumns:6;
+                horizontal:left;
                 overflow:wrap;
                 backColor:#161616;
                 fontColor:#F5D08A;

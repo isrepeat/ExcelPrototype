@@ -54,6 +54,35 @@
                 buttonTextColor="#FFFFFF"
                 buttonBorderColor="#1F3F6B"
                 />
+        <toggleButton condition="st_AutoPostProcess=false"
+                      caption="Mode [Timeline]"
+                      source="Settings.OutputMode"
+                      macro="ex_UIActions.m_OutputPanelToggleButton_OnClick"
+                      onToggle="ex_UIActions.m_OutputPanelStartSearch_OnClick"
+                      buttonBackColor="#3A3F45"
+                      buttonTextColor="#FFFFFF"
+                      buttonBorderColor="#3A3F45">
+          <modeVariants>
+            <variant value="1"
+                     display="Timeline"
+                     caption="Mode [Timeline]"
+                     buttonBackColor="#3A3F45"
+                     buttonTextColor="#FFFFFF"
+                     buttonBorderColor="#3A3F45"/>
+            <variant value="2"
+                     display="State"
+                     caption="Mode [State]"
+                     buttonBackColor="#3A3F45"
+                     buttonTextColor="#FFFFFF"
+                     buttonBorderColor="#3A3F45"/>
+            <variant value="3"
+                     display="Events"
+                     caption="Mode [Events]"
+                     buttonBackColor="#3A3F45"
+                     buttonTextColor="#FFFFFF"
+                     buttonBorderColor="#3A3F45"/>
+          </modeVariants>
+        </toggleButton>
       </inputConfigRefField>
     </fields>
   </controlPanel>
