@@ -1,0 +1,89 @@
+<?xml version="1.0" standalone="yes"?>
+<uiDefinition xmlns="urn:excelprototype:profiles" version="1">
+  <controlPanel
+    title="Quick Search"
+    startColumn="1"
+    minStartColumn="1"
+    offsetColumns="2"
+    widthColumns="5"
+    heightRows="5"
+    topRow="1"
+    labelColumns="1"
+    valueColumns="2"
+    fieldRowSpan="1"
+    fieldSpacingRows="0"
+    viewZoneGapRows="2"
+    panelColumnWidth="12"
+    panelBackColor="#1E1E1E"
+    panelBorderColor="#505050"
+    titleColor="#D7A763"
+    labelColor="#EBEBEB"
+    inputBackColor="#262626"
+    inputFontColor="#EBEBEB"
+    buttonBackColor="#3C7D22"
+    buttonTextColor="#0A0A0A"
+    buttonBorderColor="#3C7D22"
+    errorBackColor="#FF0000"
+    errorFontColor="#0A0A0A"
+    buttonAnchorColumn="3"
+    buttonWidthColumns="1"
+    fixedWidthKey="20"
+    fixedWidthValue="28"
+    fixedWidthButton="14"
+    fixedFieldRowHeight="32">
+    <fields>
+      <inputConfigRefField
+        label="Common Key"
+        inputName="CommonKey"
+        inputConfigKey="CommonKey"
+        onChange="ex_UIActions.m_OutputPanelStartSearch_OnClick">
+        <button caption="Search"
+                macro="ex_UIActions.m_OutputPanelStartSearch_OnClick"
+                />
+        <button condition="st_AutoPostProcess=false"
+                caption="Post Process"
+                macro="ex_UIActions.m_OutputPanelRunPostProcess_OnClick"
+                buttonBackColor="#C62828"
+                buttonTextColor="#FFFFFF"
+                buttonBorderColor="#8E0000"
+                />
+        <button condition="st_AutoPostProcess=false"
+                caption="Export"
+                macro="ex_UIActions.m_ExportFooterReportToWord_OnClick"
+                buttonBackColor="#2B579A"
+                buttonTextColor="#FFFFFF"
+                buttonBorderColor="#1F3F6B"
+                />
+        <!-- <toggleButton condition="st_AutoPostProcess=false"
+                      caption="Mode [Timeline]"
+                      source="Settings.OutputMode"
+                      macro="ex_UIActions.m_OutputPanelToggleButton_OnClick"
+                      onToggle="ex_UIActions.m_OutputPanelStartSearch_OnClick"
+                      buttonBackColor="#3A3F45"
+                      buttonTextColor="#FFFFFF"
+                      buttonBorderColor="#3A3F45">
+          <modeVariants>
+            <variant value="1"
+                     display="Timeline"
+                     caption="Mode [Timeline]"
+                     buttonBackColor="#3A3F45"
+                     buttonTextColor="#FFFFFF"
+                     buttonBorderColor="#3A3F45"/>
+            <variant value="2"
+                     display="State"
+                     caption="Mode [State]"
+                     buttonBackColor="#3A3F45"
+                     buttonTextColor="#FFFFFF"
+                     buttonBorderColor="#3A3F45"/>
+            <variant value="3"
+                     display="Events"
+                     caption="Mode [Events]"
+                     buttonBackColor="#3A3F45"
+                     buttonTextColor="#FFFFFF"
+                     buttonBorderColor="#3A3F45"/>
+          </modeVariants>
+        </toggleButton> -->
+      </inputConfigRefField>
+    </fields>
+  </controlPanel>
+</uiDefinition>

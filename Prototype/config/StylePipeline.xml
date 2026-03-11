@@ -1,0 +1,6 @@
+<?xml version="1.0" standalone="yes"?>
+<stylePipeline xmlns="urn:excelprototype:profiles" version="1">
+  <include path="DevSheetStylesPipeline.xml"/>
+  <include path="modes/TablesComparing/TablesComparingSheetStylesPipeline.xml"/>
+  <include path="modes/PersonalCard/PersonalCardSheetStylesPipeline.xml"/>
+</stylePipeline>

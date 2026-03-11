@@ -1,0 +1,6 @@
+<?xml version="1.0" standalone="yes"?>
+<settings version="1">
+  <st_AutoPostProcess>false</st_AutoPostProcess>
+  <st_ShowUpdateCode>true</st_ShowUpdateCode>
+  <st_ShowUpdateUI>true</st_ShowUpdateUI>
+</settings>
