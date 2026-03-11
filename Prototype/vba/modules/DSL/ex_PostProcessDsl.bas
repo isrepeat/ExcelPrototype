@@ -8,6 +8,10 @@ Private Const ACTION_ASSIGN As String = "assign"
 Private Const ACTION_BREAK As String = "break"
 Private Const ACTION_CONTINUE As String = "continue"
 Private Const ACTION_RETURN As String = "return"
+Private Const ASSIGN_KIND_CALL_MACRO As String = "callmacro"
+Private Const ASSIGN_KIND_STRING_EXPR As String = "stringexpr"
+Private Const EXPR_PART_LITERAL As String = "literal"
+Private Const EXPR_PART_TOKEN As String = "token"
 
 Private Const LOOP_TARGET_TABLE_ROWS As String = "tablerows"
 Private Const LOOP_TARGET_ROW_COLUMNS As String = "rowcolumns"
@@ -346,6 +350,7 @@ Private Function mp_ExecuteStatements( _
     Dim localLetDeclarations As Object
     Dim letVarName As String
     Dim bodyFlow As String
+    Dim assignKind As String
 
     If statements Is Nothing Then
         mp_ExecuteStatements = EXEC_FLOW_NONE
@@ -370,38 +375,71 @@ Private Function mp_ExecuteStatements( _
                 If localLetDeclarations.Exists(letVarName) Then
                     Err.Raise vbObjectError + 1617, "ex_PostProcessDsl", "Variable '" & letVarName & "' is already declared in this scope."
                 End If
-                On Error GoTo CallMacroErr
-                Set macroArgs = mp_BuildMacroRuntimeArgs(statement, currentTableRef, currentRowVar, currentRowRef, tablesByRef, runtimeVars)
-                If mp_LetExpectsObjectResult(statement) Then
-                    Set macroResultObject = ex_PostProcessActionInvoker.m_RunMacroWithArgsReturn(CStr(statement("MacroName")), macroArgs)
-                    mp_SetScopeObject runtimeVars, letVarName, macroResultObject
-                Else
-                    macroResult = ex_PostProcessActionInvoker.m_RunMacroWithArgsReturn(CStr(statement("MacroName")), macroArgs)
-                    mp_SetScopeValue runtimeVars, letVarName, mp_ConvertVariantToString(macroResult)
-                End If
+                assignKind = mp_GetStatementAssignKind(statement)
+                Select Case assignKind
+                    Case ASSIGN_KIND_STRING_EXPR
+                        mp_SetScopeValue runtimeVars, letVarName, mp_EvaluateStringExpression( _
+                            statement("ExprParts"), _
+                            currentTableRef, _
+                            currentRowVar, _
+                            currentRowRef, _
+                            tablesByRef, _
+                            runtimeVars _
+                        )
+                    Case ASSIGN_KIND_CALL_MACRO
+                        On Error GoTo CallMacroErr
+                        Set macroArgs = mp_BuildMacroRuntimeArgs(statement, currentTableRef, currentRowVar, currentRowRef, tablesByRef, runtimeVars)
+                        If mp_LetExpectsObjectResult(statement) Then
+                            Set macroResultObject = ex_PostProcessActionInvoker.m_RunMacroWithArgsReturn(CStr(statement("MacroName")), macroArgs)
+                            mp_SetScopeObject runtimeVars, letVarName, macroResultObject
+                        Else
+                            macroResult = ex_PostProcessActionInvoker.m_RunMacroWithArgsReturn(CStr(statement("MacroName")), macroArgs)
+                            mp_SetScopeValue runtimeVars, letVarName, mp_ConvertVariantToString(macroResult)
+                        End If
+                        On Error GoTo 0
+                    Case Else
+                        Err.Raise vbObjectError + 1624, "ex_PostProcessDsl", "Unsupported assignment kind: " & assignKind
+                End Select
                 mp_SetScopeValue localLetDeclarations, letVarName, "1"
-                On Error GoTo 0
 
             Case ACTION_ASSIGN
                 If runtimeVars Is Nothing Or Not runtimeVars.Exists(CStr(statement("VarName"))) Then
                     Err.Raise vbObjectError + 1614, "ex_PostProcessDsl", "Assignment to undeclared variable '" & CStr(statement("VarName")) & "'."
                 End If
-                On Error GoTo CallMacroErr
-                Set macroArgs = mp_BuildMacroRuntimeArgs(statement, currentTableRef, currentRowVar, currentRowRef, tablesByRef, runtimeVars)
-                If IsObject(runtimeVars(CStr(statement("VarName")))) Then
-                    If Not mp_LetExpectsObjectResult(statement) Then
-                        Err.Raise vbObjectError + 1615, "ex_PostProcessDsl", "Assignment type mismatch for variable '" & CStr(statement("VarName")) & "': expected row object result."
-                    End If
-                    Set macroResultObject = ex_PostProcessActionInvoker.m_RunMacroWithArgsReturn(CStr(statement("MacroName")), macroArgs)
-                    mp_SetScopeObject runtimeVars, CStr(statement("VarName")), macroResultObject
-                Else
-                    If mp_LetExpectsObjectResult(statement) Then
-                        Err.Raise vbObjectError + 1616, "ex_PostProcessDsl", "Assignment type mismatch for variable '" & CStr(statement("VarName")) & "': expected string-compatible result."
-                    End If
-                    macroResult = ex_PostProcessActionInvoker.m_RunMacroWithArgsReturn(CStr(statement("MacroName")), macroArgs)
-                    mp_SetScopeValue runtimeVars, CStr(statement("VarName")), mp_ConvertVariantToString(macroResult)
-                End If
-                On Error GoTo 0
+                assignKind = mp_GetStatementAssignKind(statement)
+                Select Case assignKind
+                    Case ASSIGN_KIND_STRING_EXPR
+                        If IsObject(runtimeVars(CStr(statement("VarName")))) Then
+                            Err.Raise vbObjectError + 1615, "ex_PostProcessDsl", "Assignment type mismatch for variable '" & CStr(statement("VarName")) & "': expected row object result."
+                        End If
+                        mp_SetScopeValue runtimeVars, CStr(statement("VarName")), mp_EvaluateStringExpression( _
+                            statement("ExprParts"), _
+                            currentTableRef, _
+                            currentRowVar, _
+                            currentRowRef, _
+                            tablesByRef, _
+                            runtimeVars _
+                        )
+                    Case ASSIGN_KIND_CALL_MACRO
+                        On Error GoTo CallMacroErr
+                        Set macroArgs = mp_BuildMacroRuntimeArgs(statement, currentTableRef, currentRowVar, currentRowRef, tablesByRef, runtimeVars)
+                        If IsObject(runtimeVars(CStr(statement("VarName")))) Then
+                            If Not mp_LetExpectsObjectResult(statement) Then
+                                Err.Raise vbObjectError + 1615, "ex_PostProcessDsl", "Assignment type mismatch for variable '" & CStr(statement("VarName")) & "': expected row object result."
+                            End If
+                            Set macroResultObject = ex_PostProcessActionInvoker.m_RunMacroWithArgsReturn(CStr(statement("MacroName")), macroArgs)
+                            mp_SetScopeObject runtimeVars, CStr(statement("VarName")), macroResultObject
+                        Else
+                            If mp_LetExpectsObjectResult(statement) Then
+                                Err.Raise vbObjectError + 1616, "ex_PostProcessDsl", "Assignment type mismatch for variable '" & CStr(statement("VarName")) & "': expected string-compatible result."
+                            End If
+                            macroResult = ex_PostProcessActionInvoker.m_RunMacroWithArgsReturn(CStr(statement("MacroName")), macroArgs)
+                            mp_SetScopeValue runtimeVars, CStr(statement("VarName")), mp_ConvertVariantToString(macroResult)
+                        End If
+                        On Error GoTo 0
+                    Case Else
+                        Err.Raise vbObjectError + 1624, "ex_PostProcessDsl", "Unsupported assignment kind: " & assignKind
+                End Select
 
             Case "if"
                 bodyFlow = EXEC_FLOW_NONE
@@ -864,7 +902,7 @@ Private Function mp_TryParseLetStatement( _
     Dim keywordText As String
     Dim varName As String
     Dim rhsStatementText As String
-    Dim actionStatement As Object
+    Dim rhsStatement As Object
     Dim stmtLine As Long
 
     stmtLine = lineNo
@@ -886,16 +924,12 @@ Private Function mp_TryParseLetStatement( _
     pos = pos + 1
 
     If Not mp_ReadStatementToSemicolon(sourceText, pos, lineNo, rhsStatementText, outErrorText) Then Exit Function
-    If Not mp_TryParseAction(rhsStatementText, actionStatement, outErrorText) Then
+    If Not mp_TryParseAssignmentRhs(rhsStatementText, rhsStatement, outErrorText) Then
         outErrorText = outErrorText & " at line " & CStr(stmtLine)
         Exit Function
     End If
-    If LCase$(CStr(actionStatement("Type"))) <> ACTION_CALL_MACRO Then
-        outErrorText = "let supports only callMacro(...) at line " & CStr(stmtLine)
-        Exit Function
-    End If
 
-    Set outStatement = actionStatement
+    Set outStatement = rhsStatement
     outStatement("Type") = ACTION_LET
     outStatement("VarName") = varName
     outStatement("Line") = CLng(stmtLine)
@@ -912,7 +946,7 @@ Private Function mp_TryParseAssignStatement( _
     Dim statementText As String
     Dim rhsActionText As String
     Dim varName As String
-    Dim actionStatement As Object
+    Dim rhsStatement As Object
     Dim stmtLine As Long
 
     stmtLine = lineNo
@@ -925,20 +959,179 @@ Private Function mp_TryParseAssignStatement( _
     End If
 
     If Not mp_TryValidateScriptVariableName(varName, stmtLine, outErrorText) Then Exit Function
-    If Not mp_TryParseAction(rhsActionText, actionStatement, outErrorText) Then
+    If Not mp_TryParseAssignmentRhs(rhsActionText, rhsStatement, outErrorText) Then
         outErrorText = outErrorText & " at line " & CStr(stmtLine)
         Exit Function
     End If
-    If LCase$(CStr(actionStatement("Type"))) <> ACTION_CALL_MACRO Then
-        outErrorText = "Assignment supports only callMacro(...) at line " & CStr(stmtLine)
-        Exit Function
-    End If
 
-    Set outStatement = actionStatement
+    Set outStatement = rhsStatement
     outStatement("Type") = ACTION_ASSIGN
     outStatement("VarName") = varName
     outStatement("Line") = CLng(stmtLine)
     mp_TryParseAssignStatement = True
+End Function
+
+Private Function mp_TryParseAssignmentRhs( _
+    ByVal rhsStatementText As String, _
+    ByRef outStatement As Object, _
+    ByRef outErrorText As String _
+) As Boolean
+    Dim trimmedRhs As String
+    Dim actionStatement As Object
+    Dim exprParts As Collection
+
+    trimmedRhs = Trim$(rhsStatementText)
+    If Len(trimmedRhs) = 0 Then
+        outErrorText = "Assignment value is empty."
+        Exit Function
+    End If
+
+    If Left$(LCase$(trimmedRhs), Len("callmacro(")) = "callmacro(" Then
+        If Not mp_TryParseAction(trimmedRhs, actionStatement, outErrorText) Then Exit Function
+        If LCase$(CStr(actionStatement("Type"))) <> ACTION_CALL_MACRO Then
+            outErrorText = "Unsupported assignment action: '" & trimmedRhs & "'."
+            Exit Function
+        End If
+        actionStatement("AssignKind") = ASSIGN_KIND_CALL_MACRO
+        Set outStatement = actionStatement
+        mp_TryParseAssignmentRhs = True
+        Exit Function
+    End If
+
+    If Not mp_TryParseStringExpression(trimmedRhs, exprParts, outErrorText) Then Exit Function
+
+    Set outStatement = CreateObject("Scripting.Dictionary")
+    outStatement.CompareMode = 1
+    outStatement("AssignKind") = ASSIGN_KIND_STRING_EXPR
+    outStatement.Add "ExprParts", exprParts
+    mp_TryParseAssignmentRhs = True
+End Function
+
+Private Function mp_TryParseStringExpression( _
+    ByVal expressionText As String, _
+    ByRef outParts As Collection, _
+    ByRef outErrorText As String _
+) As Boolean
+    Dim bodyText As String
+    Dim terms As Collection
+    Dim i As Long
+    Dim termText As String
+    Dim literalValue As String
+    Dim partSpec As Object
+
+    expressionText = Trim$(expressionText)
+    If Len(expressionText) = 0 Then
+        outErrorText = "String expression is empty."
+        Exit Function
+    End If
+    If Right$(expressionText, 1) <> ";" Then
+        outErrorText = "String expression must end with ';'."
+        Exit Function
+    End If
+
+    bodyText = Trim$(Left$(expressionText, Len(expressionText) - 1))
+    If Len(bodyText) = 0 Then
+        outErrorText = "String expression is empty."
+        Exit Function
+    End If
+
+    If Not mp_TrySplitStringExpressionTerms(bodyText, terms, outErrorText) Then Exit Function
+
+    Set outParts = New Collection
+    For i = 1 To terms.Count
+        termText = Trim$(CStr(terms(i)))
+        If Len(termText) = 0 Then
+            outErrorText = "String expression contains empty operand."
+            Exit Function
+        End If
+
+        Set partSpec = CreateObject("Scripting.Dictionary")
+        partSpec.CompareMode = 1
+        If mp_TryParseQuotedString(termText, literalValue) Then
+            partSpec("Kind") = EXPR_PART_LITERAL
+            partSpec("Value") = literalValue
+        Else
+            partSpec("Kind") = EXPR_PART_TOKEN
+            partSpec("Value") = termText
+        End If
+        outParts.Add partSpec
+    Next i
+
+    mp_TryParseStringExpression = True
+End Function
+
+Private Function mp_TrySplitStringExpressionTerms( _
+    ByVal expressionBody As String, _
+    ByRef outTerms As Collection, _
+    ByRef outErrorText As String _
+) As Boolean
+    Dim i As Long
+    Dim ch As String
+    Dim currentTerm As String
+    Dim inQuotes As Boolean
+    Dim parenDepth As Long
+    Dim bracketDepth As Long
+    Dim braceDepth As Long
+
+    Set outTerms = New Collection
+    currentTerm = vbNullString
+
+    For i = 1 To Len(expressionBody)
+        ch = Mid$(expressionBody, i, 1)
+        If ch = """" And Not mp_IsEscapedQuote(expressionBody, i) Then
+            inQuotes = Not inQuotes
+            currentTerm = currentTerm & ch
+        ElseIf Not inQuotes Then
+            Select Case ch
+                Case "("
+                    parenDepth = parenDepth + 1
+                    currentTerm = currentTerm & ch
+                Case ")"
+                    If parenDepth > 0 Then parenDepth = parenDepth - 1
+                    currentTerm = currentTerm & ch
+                Case "["
+                    bracketDepth = bracketDepth + 1
+                    currentTerm = currentTerm & ch
+                Case "]"
+                    If bracketDepth > 0 Then bracketDepth = bracketDepth - 1
+                    currentTerm = currentTerm & ch
+                Case "{"
+                    braceDepth = braceDepth + 1
+                    currentTerm = currentTerm & ch
+                Case "}"
+                    If braceDepth > 0 Then braceDepth = braceDepth - 1
+                    currentTerm = currentTerm & ch
+                Case "+"
+                    If parenDepth = 0 And bracketDepth = 0 And braceDepth = 0 Then
+                        If Len(Trim$(currentTerm)) = 0 Then
+                            outErrorText = "String expression has empty operand before '+'."
+                            Exit Function
+                        End If
+                        outTerms.Add Trim$(currentTerm)
+                        currentTerm = vbNullString
+                    Else
+                        currentTerm = currentTerm & ch
+                    End If
+                Case Else
+                    currentTerm = currentTerm & ch
+            End Select
+        Else
+            currentTerm = currentTerm & ch
+        End If
+    Next i
+
+    If inQuotes Then
+        outErrorText = "Unterminated quoted string in string expression."
+        Exit Function
+    End If
+
+    If Len(Trim$(currentTerm)) = 0 Then
+        outErrorText = "String expression has empty operand after '+'."
+        Exit Function
+    End If
+    outTerms.Add Trim$(currentTerm)
+
+    mp_TrySplitStringExpressionTerms = True
 End Function
 
 Private Function mp_ValidateStatements( _
@@ -989,8 +1182,17 @@ Private Function mp_ValidateStatements( _
                     outErrorText = "Variable '" & varName & "' is already declared in this scope."
                     Exit Function
                 End If
-                If Not mp_ValidateCallMacroArgs(statement, scopeVarTypes, allowedTableFields, outErrorText) Then Exit Function
-                actualType = mp_InferLetVarType(statement, scopeVarTypes)
+                Select Case mp_GetStatementAssignKind(statement)
+                    Case ASSIGN_KIND_STRING_EXPR
+                        If Not mp_ValidateStringExpressionParts(statement("ExprParts"), currentTableRef, currentRowVar, scopeVarTypes, allowedTableFields, outErrorText) Then Exit Function
+                        actualType = VAR_TYPE_STRING
+                    Case ASSIGN_KIND_CALL_MACRO
+                        If Not mp_ValidateCallMacroArgs(statement, scopeVarTypes, allowedTableFields, outErrorText) Then Exit Function
+                        actualType = mp_InferLetVarType(statement, scopeVarTypes)
+                    Case Else
+                        outErrorText = "Unsupported assignment kind in let statement: '" & mp_GetStatementAssignKind(statement) & "'."
+                        Exit Function
+                End Select
                 mp_SetScopeValue scopeVarTypes, varName, actualType
                 mp_SetScopeValue localLetDeclarations, varName, "1"
 
@@ -1000,9 +1202,18 @@ Private Function mp_ValidateStatements( _
                     outErrorText = "Assignment to undeclared variable '" & varName & "'. Declare it first via let."
                     Exit Function
                 End If
-                If Not mp_ValidateCallMacroArgs(statement, scopeVarTypes, allowedTableFields, outErrorText) Then Exit Function
                 expectedType = LCase$(CStr(scopeVarTypes(varName)))
-                actualType = mp_InferLetVarType(statement, scopeVarTypes)
+                Select Case mp_GetStatementAssignKind(statement)
+                    Case ASSIGN_KIND_STRING_EXPR
+                        If Not mp_ValidateStringExpressionParts(statement("ExprParts"), currentTableRef, currentRowVar, scopeVarTypes, allowedTableFields, outErrorText) Then Exit Function
+                        actualType = VAR_TYPE_STRING
+                    Case ASSIGN_KIND_CALL_MACRO
+                        If Not mp_ValidateCallMacroArgs(statement, scopeVarTypes, allowedTableFields, outErrorText) Then Exit Function
+                        actualType = mp_InferLetVarType(statement, scopeVarTypes)
+                    Case Else
+                        outErrorText = "Unsupported assignment kind in assignment statement: '" & mp_GetStatementAssignKind(statement) & "'."
+                        Exit Function
+                End Select
                 If StrComp(expectedType, actualType, vbTextCompare) <> 0 Then
                     outErrorText = "Type mismatch in assignment to '" & varName & "': expected " & expectedType & ", got " & actualType & "."
                     Exit Function
@@ -1086,23 +1297,119 @@ Private Function mp_ValidateConditionText( _
     Dim condParts As Collection
     Dim condOps As Collection
     Dim i As Long
-    Dim tokenText As String
+    Dim leftTokenText As String
+    Dim rightTokenText As String
+    Dim opText As String
+    Dim rightIsToken As Boolean
     Dim resolvedTableRef As String
     Dim resolvedMapKey As String
 
     If Not mp_TrySplitConditionExpression(conditionText, condParts, condOps, outErrorText) Then Exit Function
 
     For i = 1 To condParts.Count
-        If Not mp_TryExtractConditionField(CStr(condParts(i)), tokenText) Then
+        If Not mp_ParseConditionPart(CStr(condParts(i)), leftTokenText, opText, rightTokenText, rightIsToken) Then
             outErrorText = "Unsupported condition token: '" & Trim$(CStr(condParts(i))) & "'."
             Exit Function
         End If
-        If Not mp_TryResolveConditionTokenForValidation(tokenText, currentTableRef, currentRowVar, scopeVarTypes, allowedTableFields, resolvedTableRef, resolvedMapKey, outErrorText) Then
+        If Not mp_TryResolveConditionTokenForValidation(leftTokenText, currentTableRef, currentRowVar, scopeVarTypes, allowedTableFields, resolvedTableRef, resolvedMapKey, outErrorText) Then
             Exit Function
+        End If
+        If rightIsToken Then
+            If Not mp_TryResolveConditionTokenForValidation(rightTokenText, currentTableRef, currentRowVar, scopeVarTypes, allowedTableFields, resolvedTableRef, resolvedMapKey, outErrorText) Then
+                Exit Function
+            End If
         End If
     Next i
 
     mp_ValidateConditionText = True
+End Function
+
+Private Function mp_ValidateStringExpressionParts( _
+    ByVal exprParts As Collection, _
+    ByVal currentTableRef As String, _
+    ByVal currentRowVar As String, _
+    ByVal scopeVarTypes As Object, _
+    ByVal allowedTableFields As Object, _
+    ByRef outErrorText As String _
+) As Boolean
+    Dim i As Long
+    Dim partSpec As Object
+    Dim partKind As String
+    Dim tokenText As String
+    Dim resolvedTableRef As String
+    Dim resolvedMapKey As String
+    Dim variableName As String
+    Dim memberName As String
+    Dim variableType As String
+
+    If exprParts Is Nothing Or exprParts.Count = 0 Then
+        outErrorText = "String expression is empty."
+        Exit Function
+    End If
+
+    For i = 1 To exprParts.Count
+        Set partSpec = exprParts(i)
+        If partSpec Is Nothing Then
+            outErrorText = "String expression contains invalid operand."
+            Exit Function
+        End If
+        partKind = LCase$(Trim$(CStr(partSpec("Kind"))))
+
+        Select Case partKind
+            Case EXPR_PART_LITERAL
+                ' always valid
+
+            Case EXPR_PART_TOKEN
+                tokenText = Trim$(CStr(partSpec("Value")))
+                If Len(tokenText) = 0 Then
+                    outErrorText = "String expression contains empty token operand."
+                    Exit Function
+                End If
+
+                If ex_PostProcessParserCore.m_IsIdentifier(tokenText) Then
+                    If scopeVarTypes Is Nothing Or Not scopeVarTypes.Exists(tokenText) Then
+                        outErrorText = "Unknown variable '" & tokenText & "' in string expression."
+                        Exit Function
+                    End If
+                    variableType = LCase$(CStr(scopeVarTypes(tokenText)))
+                    If StrComp(variableType, VAR_TYPE_STRING, vbTextCompare) <> 0 Then
+                        outErrorText = "Variable '" & tokenText & "' is type '" & variableType & "' and cannot be concatenated as string."
+                        Exit Function
+                    End If
+                    GoTo ContinueLoop
+                End If
+
+                If mp_TryParseVariableMemberRef(tokenText, variableName, memberName) Then
+                    If scopeVarTypes Is Nothing Or Not scopeVarTypes.Exists(variableName) Then
+                        outErrorText = "Unknown variable '" & variableName & "' in string expression."
+                        Exit Function
+                    End If
+                    variableType = LCase$(CStr(scopeVarTypes(variableName)))
+                    Select Case variableType
+                        Case VAR_TYPE_COLUMN
+                            If Not ex_PostProcessDslContracts.m_IsMemberAllowed(ex_PostProcessDslContracts.TYPE_COLUMN, memberName) Then
+                                outErrorText = "Unsupported column member '" & memberName & "' in string expression token '" & tokenText & "'."
+                                Exit Function
+                            End If
+                        Case Else
+                            outErrorText = "Variable '" & variableName & "' does not support member access in string expression token '" & tokenText & "'."
+                            Exit Function
+                    End Select
+                    GoTo ContinueLoop
+                End If
+
+                If Not mp_TryResolveConditionTokenForValidation(tokenText, currentTableRef, currentRowVar, scopeVarTypes, allowedTableFields, resolvedTableRef, resolvedMapKey, outErrorText) Then
+                    Exit Function
+                End If
+
+            Case Else
+                outErrorText = "Unsupported string expression operand kind '" & partKind & "'."
+                Exit Function
+        End Select
+ContinueLoop:
+    Next i
+
+    mp_ValidateStringExpressionParts = True
 End Function
 
 Private Function mp_TryValidateScriptVariableName( _
@@ -1314,7 +1621,9 @@ Private Function mp_EvaluateCondition( _
     Dim refToken As String
     Dim opText As String
     Dim boolOp As String
+    Dim expectedValueRaw As String
     Dim expectedValue As String
+    Dim expectedIsToken As Boolean
     Dim actualValue As String
     Dim compareResult As Long
     Dim resolveError As String
@@ -1329,11 +1638,18 @@ Private Function mp_EvaluateCondition( _
     End If
 
     For i = 1 To condParts.Count
-        If Not mp_ParseConditionPart(CStr(condParts(i)), refToken, opText, expectedValue) Then
+        If Not mp_ParseConditionPart(CStr(condParts(i)), refToken, opText, expectedValueRaw, expectedIsToken) Then
             Err.Raise vbObjectError + 1594, "ex_PostProcessDsl", "Invalid condition: " & Trim$(CStr(condParts(i)))
         End If
         If Not mp_TryResolveRuntimeValue(refToken, currentTableRef, currentRowVar, currentRowRef, tablesByRef, runtimeVars, actualValue, resolveError) Then
             Err.Raise vbObjectError + 1595, "ex_PostProcessDsl", resolveError
+        End If
+        If expectedIsToken Then
+            If Not mp_TryResolveRuntimeValue(expectedValueRaw, currentTableRef, currentRowVar, currentRowRef, tablesByRef, runtimeVars, expectedValue, resolveError) Then
+                Err.Raise vbObjectError + 1595, "ex_PostProcessDsl", resolveError
+            End If
+        Else
+            expectedValue = expectedValueRaw
         End If
 
         compareResult = mp_CompareConditionValues(actualValue, expectedValue)
@@ -1430,7 +1746,13 @@ Private Function mp_TryParseAction(ByVal lineText As String, ByRef outAction As 
     outErrorText = "Unsupported action: '" & lineText & "'. Only callMacro(...) is supported."
 End Function
 
-Private Function mp_ParseConditionPart(ByVal rawPart As String, ByRef outFieldName As String, ByRef outOp As String, ByRef outValue As String) As Boolean
+Private Function mp_ParseConditionPart( _
+    ByVal rawPart As String, _
+    ByRef outFieldName As String, _
+    ByRef outOp As String, _
+    ByRef outValue As String, _
+    ByRef outValueIsToken As Boolean _
+) As Boolean
     Dim part As String
     Dim partLower As String
     Dim opPos As Long
@@ -1463,7 +1785,16 @@ Private Function mp_ParseConditionPart(ByVal rawPart As String, ByRef outFieldNa
     outFieldName = mp_TrimDslWhitespace(Left$(part, opPos - 1))
     rhs = mp_TrimDslWhitespace(Mid$(part, opPos + opLen))
     If Len(outFieldName) = 0 Then Exit Function
-    If Not mp_TryParseQuotedString(rhs, outValue) Then Exit Function
+    If Len(rhs) = 0 Then Exit Function
+    If mp_TryParseQuotedString(rhs, outValue) Then
+        outValueIsToken = False
+    ElseIf mp_ShouldTreatConditionRhsAsToken(rhs) Then
+        outValue = rhs
+        outValueIsToken = True
+    Else
+        outValue = rhs
+        outValueIsToken = False
+    End If
 
     mp_ParseConditionPart = True
 End Function
@@ -1517,7 +1848,30 @@ End Function
 Private Function mp_TryExtractConditionField(ByVal rawPart As String, ByRef outFieldName As String) As Boolean
     Dim opText As String
     Dim valueText As String
-    mp_TryExtractConditionField = mp_ParseConditionPart(rawPart, outFieldName, opText, valueText)
+    Dim valueIsToken As Boolean
+    mp_TryExtractConditionField = mp_ParseConditionPart(rawPart, outFieldName, opText, valueText, valueIsToken)
+End Function
+
+Private Function mp_ShouldTreatConditionRhsAsToken(ByVal rhsText As String) As Boolean
+    Dim rowVarName As String
+    Dim fieldAlias As String
+    Dim variableName As String
+    Dim memberName As String
+
+    rhsText = Trim$(rhsText)
+    If Len(rhsText) = 0 Then Exit Function
+
+    If ex_PostProcessParserCore.m_IsIdentifier(rhsText) Then
+        mp_ShouldTreatConditionRhsAsToken = True
+        Exit Function
+    End If
+    If ex_obj_ResultRowDsl.m_TryParseRowColumnRef(rhsText, rowVarName, fieldAlias) Then
+        mp_ShouldTreatConditionRhsAsToken = True
+        Exit Function
+    End If
+    If mp_TryParseVariableMemberRef(rhsText, variableName, memberName) Then
+        mp_ShouldTreatConditionRhsAsToken = True
+    End If
 End Function
 
 Private Function mp_TrySplitConditionExpression( _
@@ -2286,6 +2640,60 @@ Private Function mp_ConvertVariantToString(ByVal valueRef As Variant) As String
     Else
         mp_ConvertVariantToString = CStr(valueRef)
     End If
+End Function
+
+Private Function mp_GetStatementAssignKind(ByVal statement As Object) As String
+    Dim assignKind As String
+
+    mp_GetStatementAssignKind = ASSIGN_KIND_CALL_MACRO
+    If statement Is Nothing Then Exit Function
+    If Not statement.Exists("AssignKind") Then Exit Function
+
+    assignKind = LCase$(Trim$(CStr(statement("AssignKind"))))
+    If Len(assignKind) = 0 Then Exit Function
+    mp_GetStatementAssignKind = assignKind
+End Function
+
+Private Function mp_EvaluateStringExpression( _
+    ByVal exprParts As Collection, _
+    ByVal currentTableRef As String, _
+    ByVal currentRowVar As String, _
+    ByVal currentRowRef As obj_ResultRow, _
+    ByVal tablesByRef As Object, _
+    ByVal runtimeVars As Object _
+) As String
+    Dim i As Long
+    Dim partSpec As Object
+    Dim partKind As String
+    Dim tokenText As String
+    Dim tokenValue As String
+    Dim resolveError As String
+    Dim resultText As String
+
+    If exprParts Is Nothing Then Exit Function
+
+    For i = 1 To exprParts.Count
+        Set partSpec = exprParts(i)
+        If partSpec Is Nothing Then
+            Err.Raise vbObjectError + 1625, "ex_PostProcessDsl", "String expression contains invalid operand."
+        End If
+        partKind = LCase$(Trim$(CStr(partSpec("Kind"))))
+
+        Select Case partKind
+            Case EXPR_PART_LITERAL
+                resultText = resultText & CStr(partSpec("Value"))
+            Case EXPR_PART_TOKEN
+                tokenText = CStr(partSpec("Value"))
+                If Not mp_TryResolveRuntimeValue(tokenText, currentTableRef, currentRowVar, currentRowRef, tablesByRef, runtimeVars, tokenValue, resolveError) Then
+                    Err.Raise vbObjectError + 1622, "ex_PostProcessDsl", "Unable to resolve string expression token '" & tokenText & "': " & resolveError
+                End If
+                resultText = resultText & tokenValue
+            Case Else
+                Err.Raise vbObjectError + 1623, "ex_PostProcessDsl", "Unsupported string expression operand kind: " & partKind
+        End Select
+    Next i
+
+    mp_EvaluateStringExpression = resultText
 End Function
 
 Private Function mp_InferLetVarType( _

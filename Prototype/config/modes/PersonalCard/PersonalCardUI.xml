@@ -54,7 +54,7 @@
                 buttonTextColor="#FFFFFF"
                 buttonBorderColor="#1F3F6B"
                 />
-        <toggleButton condition="st_AutoPostProcess=false"
+        <!-- <toggleButton condition="st_AutoPostProcess=false"
                       caption="Mode [Timeline]"
                       source="Settings.OutputMode"
                       macro="ex_UIActions.m_OutputPanelToggleButton_OnClick"
@@ -82,7 +82,7 @@
                      buttonTextColor="#FFFFFF"
                      buttonBorderColor="#3A3F45"/>
           </modeVariants>
-        </toggleButton>
+        </toggleButton> -->
       </inputConfigRefField>
     </fields>
   </controlPanel>
