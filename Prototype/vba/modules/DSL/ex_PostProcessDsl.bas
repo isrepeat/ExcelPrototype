@@ -120,6 +120,7 @@ Public Sub m_ApplyScriptToSheet( _
     ex_PostProcessActions.m_ResetPostProcessHeaderCursor ws
     ex_PostProcessActions.m_ResetPostProcessFooterCursor ws
     mp_ExecuteBlocks ws, blocks, ctxTablesByRef, postProcessFooterLines, usedCols
+    ex_PostProcessActions.m_ScrollToPostProcessResults ws
 End Sub
 
 ' Backward-compatible wrappers for existing callers.

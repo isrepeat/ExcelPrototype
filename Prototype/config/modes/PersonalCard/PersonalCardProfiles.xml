@@ -449,7 +449,7 @@
 							}
 
 							txt = callMacro("ex_ResultTemplatesParser.m_ResolveTemplate", txt);
-							callMacro("ex_PostProcessActions.m_AppendToSinglePostProcessFooterText", txt, "\n\n");
+							callMacro("ex_PostProcessActions.m_AppendToSinglePostProcessHeaderText", txt, "\n\n");
 							hasExportBlocks = "true";
 							}
 						}
@@ -459,7 +459,7 @@
 						}
 
 						if (hasExportBlocks == "true") {
-							let wordResultsPlace = callMacro("ex_PostProcessActions.m_GetSinglePostProcessFooterCellRef");
+							let wordResultsPlace = callMacro("ex_PostProcessActions.m_GetSinglePostProcessHeaderCellRef");
 							callMacro("ex_PostProcessActions.m_SetRuntimeData", "Export.RuntimeDataBase.WordResultsPlace", wordResultsPlace);
 						callMacro("ex_PostProcessActions.m_SetRuntimeData", "Export.RuntimeDataBase.WordPasteAnchor", exportWordPasteAnchor);
 					} else {
