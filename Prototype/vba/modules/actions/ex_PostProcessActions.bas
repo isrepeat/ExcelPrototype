@@ -10,6 +10,13 @@ Private Const POST_PROCESS_MEASURE_EXTRA_HEIGHT_BASE As Double = 14
 Private Const POST_PROCESS_MEASURE_EXTRA_HEIGHT_MIN As Double = 8
 Private Const POST_PROCESS_MEASURE_EXTRA_HEIGHT_FONT_FACTOR As Double = 1
 Private Const POST_PROCESS_MEASURE_HEIGHT_ROUND_PAD As Double = 1
+Private Const POST_PROCESS_HEADER_SCROLL_CONTEXT_ROWS As Long = 4
+Private Const POST_PROCESS_FOOTER_SCROLL_CONTEXT_ROWS As Long = 4
+Private Const POST_PROCESS_HEADER_ANCHOR_MAX_OFFSET_ROWS As Long = 5
+Private Const POST_PROCESS_HEADER_ROW_KIND As String = "postprocessheader"
+Private Const POST_PROCESS_FOOTER_ROW_KIND As String = "postprocessfooter"
+Private Const POST_PROCESS_HEADER_ANCHOR_NAME As String = "__pcPostProcessSingleHeader"
+Private Const POST_PROCESS_FOOTER_ANCHOR_NAME As String = "__pcPostProcessSingleFooter"
 
 Private Type t_PostProcessHeaderStyle
     Columns As Long
@@ -18,6 +25,7 @@ Private Type t_PostProcessHeaderStyle
     FontColor As Long
     FontSize As Double
     RowHeight As Double
+    MinRowHeight As Double
     AutoHeight As Boolean
     AutoHeightMarginTop As Double
     AutoHeightMarginBottom As Double
@@ -30,6 +38,7 @@ Private Type t_PostProcessFooterStyle
     FontColor As Long
     FontSize As Double
     RowHeight As Double
+    MinRowHeight As Double
     AutoHeight As Boolean
     AutoHeightMarginTop As Double
     AutoHeightMarginBottom As Double
@@ -37,6 +46,8 @@ End Type
 
 Private g_PostProcessHeaderSheetKey As String
 Private g_PostProcessHeaderNextInsertRow As Long
+Private g_PostProcessHeaderRowIndex As Long
+Private g_PostProcessHeaderHasAppended As Boolean
 Private g_PostProcessFooterSheetKey As String
 Private g_PostProcessFooterRowIndex As Long
 Private g_PostProcessFooterHasAppended As Boolean
@@ -329,6 +340,8 @@ End Sub
 
 Public Sub m_ResetPostProcessHeaderCursor(Optional ByVal targetSheet As Worksheet)
     g_PostProcessHeaderNextInsertRow = 0
+    g_PostProcessHeaderRowIndex = 0
+    g_PostProcessHeaderHasAppended = False
     If targetSheet Is Nothing Then
         g_PostProcessHeaderSheetKey = vbNullString
         m_ClearRuntimeData
@@ -372,8 +385,7 @@ Public Sub m_AppendPostProcessHeaderText(ByVal postProcessHeaderText As String)
     End If
 
     If g_PostProcessHeaderNextInsertRow <= 0 Then
-        insertRow = mp_GetFirstUsedRow(ws)
-        If insertRow < 1 Then insertRow = 1
+        insertRow = mp_GetPostProcessHeaderInsertStartRow(ws)
     Else
         insertRow = g_PostProcessHeaderNextInsertRow
     End If
@@ -387,31 +399,81 @@ Public Sub m_AppendPostProcessHeaderText(ByVal postProcessHeaderText As String)
 
     Set postProcessHeaderRange = ws.Range(ws.Cells(insertRow, 1), ws.Cells(insertRow, endCol))
     If postProcessHeaderRange.MergeCells Then postProcessHeaderRange.UnMerge
-    If endCol > 1 Then postProcessHeaderRange.Merge
 
-    postProcessHeaderRange.Value = postProcessHeaderText
-    postProcessHeaderRange.Interior.Pattern = xlSolid
-    postProcessHeaderRange.Interior.Color = postProcessHeaderStyle.BackColor
-    postProcessHeaderRange.Font.Color = postProcessHeaderStyle.FontColor
-    postProcessHeaderRange.Font.Size = postProcessHeaderStyle.FontSize
-    postProcessHeaderRange.HorizontalAlignment = xlLeft
-    postProcessHeaderRange.VerticalAlignment = xlCenter
-
-    Select Case postProcessHeaderStyle.Overflow
-        Case "wrap"
-            postProcessHeaderRange.WrapText = True
-            postProcessHeaderRange.ShrinkToFit = False
-        Case "shrink"
-            postProcessHeaderRange.WrapText = False
-            postProcessHeaderRange.ShrinkToFit = True
-        Case Else
-            postProcessHeaderRange.WrapText = False
-            postProcessHeaderRange.ShrinkToFit = False
-    End Select
+    postProcessHeaderRange.Cells(1, 1).Value = postProcessHeaderText
+    mp_ApplyPostProcessHeaderKindStyle ws, insertRow
 
     mp_ApplyPostProcessHeaderRowHeight ws, postProcessHeaderRange, postProcessHeaderText, postProcessHeaderStyle
     g_PostProcessHeaderNextInsertRow = insertRow + 1
 End Sub
+
+Public Sub m_AppendToSinglePostProcessHeaderText( _
+    ByVal appendText As String, _
+    Optional ByVal separatorText As String = vbLf _
+)
+    Dim ws As Worksheet
+    Dim sheetKey As String
+    Dim postProcessHeaderStyle As t_PostProcessHeaderStyle
+    Dim postProcessHeaderRange As Range
+    Dim currentText As String
+    Dim mergedText As String
+
+    If Len(appendText) = 0 Then Exit Sub
+    Set ws = ActiveSheet
+    If ws Is Nothing Then Exit Sub
+
+    sheetKey = mp_BuildSheetKey(ws)
+    If StrComp(g_PostProcessHeaderSheetKey, sheetKey, vbTextCompare) <> 0 Then
+        g_PostProcessHeaderSheetKey = sheetKey
+        g_PostProcessHeaderNextInsertRow = 0
+        g_PostProcessHeaderRowIndex = 0
+        g_PostProcessHeaderHasAppended = False
+    End If
+
+    If Not mp_TryLoadPostProcessHeaderStyle(postProcessHeaderStyle) Then
+        Err.Raise vbObjectError + 1728, "ex_PostProcessActions", "Unable to apply single postProcessHeader text: invalid '/sheetStyles/postProcessHeaderStyle'."
+    End If
+
+    Set postProcessHeaderRange = mp_GetOrCreateSinglePostProcessHeaderRange(ws, postProcessHeaderStyle)
+    If postProcessHeaderRange Is Nothing Then
+        Err.Raise vbObjectError + 1741, "ex_PostProcessActions", "Unable to resolve single postProcessHeader range on sheet '" & ws.Name & "'."
+    End If
+
+    If g_PostProcessHeaderHasAppended Then
+        currentText = CStr(postProcessHeaderRange.Cells(1, 1).Value)
+    Else
+        currentText = vbNullString
+    End If
+    mergedText = m_TextAppend(currentText, appendText, separatorText)
+    postProcessHeaderRange.Cells(1, 1).Value = mergedText
+    mp_ApplyPostProcessHeaderKindStyle ws, postProcessHeaderRange.Row
+
+    mp_ApplyPostProcessHeaderRowHeight ws, postProcessHeaderRange, mergedText, postProcessHeaderStyle
+    g_PostProcessHeaderHasAppended = True
+End Sub
+
+Public Function m_GetSinglePostProcessHeaderText(Optional ByVal targetSheet As Worksheet = Nothing) As String
+    Dim ws As Worksheet
+    Dim headerRowIndex As Long
+
+    If targetSheet Is Nothing Then
+        Set ws = ActiveSheet
+    Else
+        Set ws = targetSheet
+    End If
+    If ws Is Nothing Then
+        Err.Raise vbObjectError + 1729, "ex_PostProcessActions", "Active sheet is not available for postProcessHeader read."
+    End If
+
+    If Not mp_TryGetCachedSinglePostProcessHeaderRowIndex(ws, headerRowIndex) Then
+        Err.Raise vbObjectError + 1731, "ex_PostProcessActions", "Single postProcessHeader row is not available on sheet '" & ws.Name & "'."
+    End If
+    If headerRowIndex <= 0 Then
+        Err.Raise vbObjectError + 1731, "ex_PostProcessActions", "Single postProcessHeader row is not available on sheet '" & ws.Name & "'."
+    End If
+
+    m_GetSinglePostProcessHeaderText = CStr(ws.Cells(headerRowIndex, 1).Value)
+End Function
 
 Public Sub m_AppendPostProcessFooterText(ByVal postProcessFooterText As String)
     Dim ws As Worksheet
@@ -419,6 +481,7 @@ Public Sub m_AppendPostProcessFooterText(ByVal postProcessFooterText As String)
     Dim endCol As Long
     Dim postProcessFooterStyle As t_PostProcessFooterStyle
     Dim postProcessFooterRange As Range
+    Dim sheetKey As String
 
     Set ws = ActiveSheet
     If ws Is Nothing Then Exit Sub
@@ -436,29 +499,16 @@ Public Sub m_AppendPostProcessFooterText(ByVal postProcessFooterText As String)
 
     Set postProcessFooterRange = ws.Range(ws.Cells(startRow, 1), ws.Cells(startRow, endCol))
     If postProcessFooterRange.MergeCells Then postProcessFooterRange.UnMerge
-    If endCol > 1 Then postProcessFooterRange.Merge
 
-    postProcessFooterRange.Value = postProcessFooterText
-    postProcessFooterRange.Interior.Pattern = xlSolid
-    postProcessFooterRange.Interior.Color = postProcessFooterStyle.BackColor
-    postProcessFooterRange.Font.Color = postProcessFooterStyle.FontColor
-    postProcessFooterRange.Font.Size = postProcessFooterStyle.FontSize
-    postProcessFooterRange.HorizontalAlignment = xlLeft
-    postProcessFooterRange.VerticalAlignment = xlCenter
-
-    Select Case postProcessFooterStyle.Overflow
-        Case "wrap"
-            postProcessFooterRange.WrapText = True
-            postProcessFooterRange.ShrinkToFit = False
-        Case "shrink"
-            postProcessFooterRange.WrapText = False
-            postProcessFooterRange.ShrinkToFit = True
-        Case Else
-            postProcessFooterRange.WrapText = False
-            postProcessFooterRange.ShrinkToFit = False
-    End Select
+    postProcessFooterRange.Cells(1, 1).Value = postProcessFooterText
+    mp_ApplyPostProcessFooterKindStyle ws, startRow
 
     mp_ApplyPostProcessFooterRowHeight ws, postProcessFooterRange, postProcessFooterText, postProcessFooterStyle
+
+    sheetKey = mp_BuildSheetKey(ws)
+    g_PostProcessFooterSheetKey = sheetKey
+    g_PostProcessFooterRowIndex = startRow
+    g_PostProcessFooterHasAppended = True
 End Sub
 
 Public Sub m_AppendToSinglePostProcessFooterText( _
@@ -494,7 +544,6 @@ End Sub
 
 Public Function m_GetSinglePostProcessFooterText(Optional ByVal targetSheet As Worksheet = Nothing) As String
     Dim ws As Worksheet
-    Dim postProcessFooterStyle As t_PostProcessFooterStyle
     Dim footerRowIndex As Long
 
     If targetSheet Is Nothing Then
@@ -506,11 +555,9 @@ Public Function m_GetSinglePostProcessFooterText(Optional ByVal targetSheet As W
         Err.Raise vbObjectError + 1701, "ex_PostProcessActions", "Active sheet is not available for postProcessFooter read."
     End If
 
-    If Not mp_TryLoadPostProcessFooterStyle(postProcessFooterStyle) Then
-        Err.Raise vbObjectError + 1702, "ex_PostProcessActions", "Unable to read single postProcessFooter text: invalid '/sheetStyles/postProcessFooterStyle'."
+    If Not mp_TryGetCachedSinglePostProcessFooterRowIndex(ws, footerRowIndex) Then
+        Err.Raise vbObjectError + 1702, "ex_PostProcessActions", "Single postProcessFooter row is not available on sheet '" & ws.Name & "'."
     End If
-
-    footerRowIndex = mp_FindExistingSinglePostProcessFooterRow(ws, postProcessFooterStyle)
     If footerRowIndex <= 0 Then
         Err.Raise vbObjectError + 1703, "ex_PostProcessActions", "Single postProcessFooter row not found on sheet '" & ws.Name & "'."
     End If
@@ -593,7 +640,6 @@ End Function
 
 Public Function m_GetSinglePostProcessFooterCellRef(Optional ByVal targetSheet As Worksheet = Nothing) As String
     Dim ws As Worksheet
-    Dim postProcessFooterStyle As t_PostProcessFooterStyle
     Dim footerRowIndex As Long
 
     If targetSheet Is Nothing Then
@@ -605,16 +651,111 @@ Public Function m_GetSinglePostProcessFooterCellRef(Optional ByVal targetSheet A
         Err.Raise vbObjectError + 1708, "ex_PostProcessActions", "Active sheet is not available for footer cell reference read."
     End If
 
-    If Not mp_TryLoadPostProcessFooterStyle(postProcessFooterStyle) Then
-        Err.Raise vbObjectError + 1709, "ex_PostProcessActions", "Unable to read single postProcessFooter cell ref: invalid '/sheetStyles/postProcessFooterStyle'."
+    If Not mp_TryGetCachedSinglePostProcessFooterRowIndex(ws, footerRowIndex) Then
+        Err.Raise vbObjectError + 1709, "ex_PostProcessActions", "Single postProcessFooter row is not available on sheet '" & ws.Name & "'."
     End If
-
-    footerRowIndex = mp_FindExistingSinglePostProcessFooterRow(ws, postProcessFooterStyle)
     If footerRowIndex <= 0 Then
         Err.Raise vbObjectError + 1710, "ex_PostProcessActions", "Single postProcessFooter row not found on sheet '" & ws.Name & "'."
     End If
 
     m_GetSinglePostProcessFooterCellRef = "Cell:A" & CStr(footerRowIndex)
+End Function
+
+Public Function m_GetSinglePostProcessHeaderCellRef(Optional ByVal targetSheet As Worksheet = Nothing) As String
+    Dim ws As Worksheet
+    Dim headerRowIndex As Long
+
+    If targetSheet Is Nothing Then
+        Set ws = ActiveSheet
+    Else
+        Set ws = targetSheet
+    End If
+    If ws Is Nothing Then
+        Err.Raise vbObjectError + 1732, "ex_PostProcessActions", "Active sheet is not available for header cell reference read."
+    End If
+
+    If Not mp_TryGetCachedSinglePostProcessHeaderRowIndex(ws, headerRowIndex) Then
+        Err.Raise vbObjectError + 1734, "ex_PostProcessActions", "Single postProcessHeader row is not available on sheet '" & ws.Name & "'."
+    End If
+    If headerRowIndex <= 0 Then
+        Err.Raise vbObjectError + 1734, "ex_PostProcessActions", "Single postProcessHeader row is not available on sheet '" & ws.Name & "'."
+    End If
+
+    m_GetSinglePostProcessHeaderCellRef = "Cell:A" & CStr(headerRowIndex)
+End Function
+
+Public Sub m_ScrollToPostProcessResults(Optional ByVal targetSheet As Worksheet = Nothing)
+    Dim ws As Worksheet
+
+    If targetSheet Is Nothing Then
+        Set ws = ActiveSheet
+    Else
+        Set ws = targetSheet
+    End If
+    If ws Is Nothing Then Exit Sub
+
+    If Not mp_HasPostProcessFooterForSheet(ws) Then Exit Sub
+    Call mp_TryScrollToSinglePostProcessFooter(ws)
+End Sub
+
+Public Sub m_ScrollToSinglePostProcessHeader(Optional ByVal targetSheet As Worksheet = Nothing)
+    Call mp_TryScrollToSinglePostProcessHeader(targetSheet)
+End Sub
+
+Public Sub m_ScrollToSinglePostProcessFooter(Optional ByVal targetSheet As Worksheet = Nothing)
+    Call mp_TryScrollToSinglePostProcessFooter(targetSheet)
+End Sub
+
+Private Function mp_TryScrollToSinglePostProcessHeader(Optional ByVal targetSheet As Worksheet = Nothing) As Boolean
+    Dim ws As Worksheet
+    Dim headerRowIndex As Long
+    Dim targetScrollRow As Long
+
+    On Error GoTo SafeExit
+
+    If targetSheet Is Nothing Then
+        Set ws = ActiveSheet
+    Else
+        Set ws = targetSheet
+    End If
+    If ws Is Nothing Then Exit Function
+
+    If Not mp_TryGetCachedSinglePostProcessHeaderRowIndex(ws, headerRowIndex) Then Exit Function
+
+    targetScrollRow = headerRowIndex - POST_PROCESS_HEADER_SCROLL_CONTEXT_ROWS
+    If targetScrollRow < 1 Then targetScrollRow = 1
+
+    ws.Activate
+    Application.Goto ws.Cells(targetScrollRow, 1), True
+    mp_TryScrollToSinglePostProcessHeader = True
+
+SafeExit:
+End Function
+
+Private Function mp_TryScrollToSinglePostProcessFooter(Optional ByVal targetSheet As Worksheet = Nothing) As Boolean
+    Dim ws As Worksheet
+    Dim footerRowIndex As Long
+    Dim targetScrollRow As Long
+
+    On Error GoTo SafeExit
+
+    If targetSheet Is Nothing Then
+        Set ws = ActiveSheet
+    Else
+        Set ws = targetSheet
+    End If
+    If ws Is Nothing Then Exit Function
+
+    If Not mp_TryGetCachedSinglePostProcessFooterRowIndex(ws, footerRowIndex) Then Exit Function
+
+    targetScrollRow = footerRowIndex - POST_PROCESS_FOOTER_SCROLL_CONTEXT_ROWS
+    If targetScrollRow < 1 Then targetScrollRow = 1
+
+    ws.Activate
+    Application.Goto ws.Cells(targetScrollRow, 1), True
+    mp_TryScrollToSinglePostProcessFooter = True
+
+SafeExit:
 End Function
 
 Public Sub m_RaiseError(ByVal errorText As String)
@@ -862,6 +1003,7 @@ Private Function mp_TryLoadPostProcessHeaderStyle(ByRef outStyle As t_PostProces
         outStyle.FontColor, _
         outStyle.FontSize, _
         outStyle.RowHeight, _
+        outStyle.MinRowHeight, _
         outStyle.AutoHeight, _
         outStyle.AutoHeightMarginTop, _
         outStyle.AutoHeightMarginBottom _
@@ -879,6 +1021,7 @@ Private Function mp_TryLoadPostProcessFooterStyle(ByRef outStyle As t_PostProces
         outStyle.FontColor, _
         outStyle.FontSize, _
         outStyle.RowHeight, _
+        outStyle.MinRowHeight, _
         outStyle.AutoHeight, _
         outStyle.AutoHeightMarginTop, _
         outStyle.AutoHeightMarginBottom _
@@ -895,6 +1038,7 @@ Private Function mp_TryLoadPostProcessStyleByLayer( _
     ByRef outFontColor As Long, _
     ByRef outFontSize As Double, _
     ByRef outRowHeight As Double, _
+    ByRef outMinRowHeight As Double, _
     ByRef outAutoHeight As Boolean, _
     ByRef outAutoHeightMarginTop As Double, _
     ByRef outAutoHeightMarginBottom As Double _
@@ -945,6 +1089,10 @@ Private Function mp_TryLoadPostProcessStyleByLayer( _
         Exit Function
     End If
 
+    outRowHeight = 0
+    outMinRowHeight = 0
+    outAutoHeight = False
+
     textValue = mp_ReadRequiredDeclText(declarations, "mergeColumns", layerId)
     If Len(textValue) = 0 Then Exit Function
     If Not ex_XmlCore.m_TryParseLong(textValue, outColumns) Then
@@ -990,23 +1138,9 @@ Private Function mp_TryLoadPostProcessStyleByLayer( _
         Exit Function
     End If
 
-    textValue = mp_ReadRequiredDeclText(declarations, "rowHeight", layerId)
-    If Len(textValue) = 0 Then Exit Function
-    If Not ex_XmlCore.m_TryParseDouble(textValue, outRowHeight, True) Then
-        MsgBox "Invalid declaration 'rowHeight' in style layer '" & layerId & "': expected number.", vbExclamation
-        Exit Function
-    End If
-    If outRowHeight <= 0 Then
-        MsgBox "Invalid declaration 'rowHeight' in style layer '" & layerId & "': must be > 0.", vbExclamation
-        Exit Function
-    End If
-
-    textValue = mp_ReadRequiredDeclText(declarations, "autoHeight", layerId)
-    If Len(textValue) = 0 Then Exit Function
-    If Not ex_XmlCore.m_TryParseBoolean(textValue, outAutoHeight) Then
-        MsgBox "Invalid declaration 'autoHeight' in style layer '" & layerId & "': expected true/false.", vbExclamation
-        Exit Function
-    End If
+    If Not mp_TryReadOptionalDeclPositiveDouble(declarations, "rowHeight", layerId, outRowHeight) Then Exit Function
+    If Not mp_TryReadOptionalDeclPositiveDouble(declarations, "minRowHeight", layerId, outMinRowHeight) Then Exit Function
+    If Not mp_TryReadOptionalDeclBoolean(declarations, "autoHeight", layerId, outAutoHeight) Then Exit Function
 
     If Not mp_TryReadOptionalDeclNonNegativeDouble(declarations, "customAutoHeight-margin-top", layerId, outAutoHeightMarginTop) Then Exit Function
     If Not mp_TryReadOptionalDeclNonNegativeDouble(declarations, "customAutoHeight-margin-bottom", layerId, outAutoHeightMarginBottom) Then Exit Function
@@ -1070,6 +1204,154 @@ Private Function mp_TryReadOptionalDeclNonNegativeDouble( _
     mp_TryReadOptionalDeclNonNegativeDouble = True
 End Function
 
+Private Function mp_TryReadOptionalDeclPositiveDouble( _
+    ByVal declarations As Object, _
+    ByVal propertyName As String, _
+    ByVal layerId As String, _
+    ByRef outValue As Double _
+) As Boolean
+    Dim key As String
+    Dim textValue As String
+
+    outValue = 0
+    key = LCase$(Trim$(propertyName))
+    If Len(key) = 0 Then
+        mp_TryReadOptionalDeclPositiveDouble = True
+        Exit Function
+    End If
+    If declarations Is Nothing Then
+        mp_TryReadOptionalDeclPositiveDouble = True
+        Exit Function
+    End If
+    If Not declarations.Exists(key) Then
+        mp_TryReadOptionalDeclPositiveDouble = True
+        Exit Function
+    End If
+
+    textValue = Trim$(CStr(declarations(key)))
+    If Not ex_XmlCore.m_TryParseDouble(textValue, outValue, True) Then
+        MsgBox "Invalid declaration '" & propertyName & "' in style layer '" & layerId & "': expected number > 0.", vbExclamation
+        Exit Function
+    End If
+    If outValue <= 0 Then
+        MsgBox "Invalid declaration '" & propertyName & "' in style layer '" & layerId & "': expected number > 0.", vbExclamation
+        Exit Function
+    End If
+
+    mp_TryReadOptionalDeclPositiveDouble = True
+End Function
+
+Private Function mp_TryReadOptionalDeclBoolean( _
+    ByVal declarations As Object, _
+    ByVal propertyName As String, _
+    ByVal layerId As String, _
+    ByRef outValue As Boolean _
+) As Boolean
+    Dim key As String
+    Dim textValue As String
+
+    outValue = False
+    key = LCase$(Trim$(propertyName))
+    If Len(key) = 0 Then
+        mp_TryReadOptionalDeclBoolean = True
+        Exit Function
+    End If
+    If declarations Is Nothing Then
+        mp_TryReadOptionalDeclBoolean = True
+        Exit Function
+    End If
+    If Not declarations.Exists(key) Then
+        mp_TryReadOptionalDeclBoolean = True
+        Exit Function
+    End If
+
+    textValue = Trim$(CStr(declarations(key)))
+    If Not ex_XmlCore.m_TryParseBoolean(textValue, outValue) Then
+        MsgBox "Invalid declaration '" & propertyName & "' in style layer '" & layerId & "': expected true/false.", vbExclamation
+        Exit Function
+    End If
+
+    mp_TryReadOptionalDeclBoolean = True
+End Function
+
+Private Sub mp_ApplyPostProcessHeaderKindStyle( _
+    ByVal ws As Worksheet, _
+    ByVal rowIndex As Long _
+)
+    Dim stageLayers As Collection
+    Dim headerLayer As obj_StyleLayer
+    Dim headerPipeline As Collection
+    Dim rowKindRanges As Object
+    Dim headerRows As Collection
+    Dim emptyTargets As Collection
+
+    If ws Is Nothing Then Exit Sub
+    If rowIndex < 1 Then Exit Sub
+
+    Set stageLayers = ex_StylePipelineEngine.m_LoadSheetPipelineLayers(ws.Name, ThisWorkbook, POST_PROCESS_STYLE_STAGE_NAME)
+    If stageLayers Is Nothing Or stageLayers.Count = 0 Then
+        Err.Raise vbObjectError + 1737, "ex_PostProcessActions", _
+            "StylePipeline has no stage '" & POST_PROCESS_STYLE_STAGE_NAME & "' for page '" & ws.Name & "'."
+    End If
+
+    Set headerLayer = ex_StylePipelineEngine.m_GetLayer(stageLayers, POST_PROCESS_HEADER_LAYER_ID)
+    If headerLayer Is Nothing Then
+        Err.Raise vbObjectError + 1738, "ex_PostProcessActions", _
+            "StylePipeline stage '" & POST_PROCESS_STYLE_STAGE_NAME & "' must contain layer '" & POST_PROCESS_HEADER_LAYER_ID & "' for page '" & ws.Name & "'."
+    End If
+
+    Set headerPipeline = ex_StylePipelineEngine.m_CreatePipeline()
+    ex_StylePipelineEngine.m_AddLayer headerPipeline, headerLayer
+
+    Set rowKindRanges = CreateObject("Scripting.Dictionary")
+    rowKindRanges.CompareMode = 1
+    Set headerRows = New Collection
+    headerRows.Add CLng(rowIndex)
+    Set rowKindRanges(POST_PROCESS_HEADER_ROW_KIND) = headerRows
+
+    Set emptyTargets = New Collection
+    ex_StylePipelineEngine.m_ApplyColumnStylesPipeline ws, emptyTargets, headerPipeline, vbNullString, rowKindRanges
+End Sub
+
+Private Sub mp_ApplyPostProcessFooterKindStyle( _
+    ByVal ws As Worksheet, _
+    ByVal rowIndex As Long _
+)
+    Dim stageLayers As Collection
+    Dim footerLayer As obj_StyleLayer
+    Dim footerPipeline As Collection
+    Dim rowKindRanges As Object
+    Dim footerRows As Collection
+    Dim emptyTargets As Collection
+
+    If ws Is Nothing Then Exit Sub
+    If rowIndex < 1 Then Exit Sub
+
+    Set stageLayers = ex_StylePipelineEngine.m_LoadSheetPipelineLayers(ws.Name, ThisWorkbook, POST_PROCESS_STYLE_STAGE_NAME)
+    If stageLayers Is Nothing Or stageLayers.Count = 0 Then
+        Err.Raise vbObjectError + 1739, "ex_PostProcessActions", _
+            "StylePipeline has no stage '" & POST_PROCESS_STYLE_STAGE_NAME & "' for page '" & ws.Name & "'."
+    End If
+
+    Set footerLayer = ex_StylePipelineEngine.m_GetLayer(stageLayers, POST_PROCESS_FOOTER_LAYER_ID)
+    If footerLayer Is Nothing Then
+        Err.Raise vbObjectError + 1740, "ex_PostProcessActions", _
+            "StylePipeline stage '" & POST_PROCESS_STYLE_STAGE_NAME & "' must contain layer '" & POST_PROCESS_FOOTER_LAYER_ID & "' for page '" & ws.Name & "'."
+    End If
+
+    Set footerPipeline = ex_StylePipelineEngine.m_CreatePipeline()
+    ex_StylePipelineEngine.m_AddLayer footerPipeline, footerLayer
+
+    Set rowKindRanges = CreateObject("Scripting.Dictionary")
+    rowKindRanges.CompareMode = 1
+    Set footerRows = New Collection
+    footerRows.Add CLng(rowIndex)
+    Set rowKindRanges(POST_PROCESS_FOOTER_ROW_KIND) = footerRows
+
+    Set emptyTargets = New Collection
+    ex_StylePipelineEngine.m_ApplyColumnStylesPipeline ws, emptyTargets, footerPipeline, vbNullString, rowKindRanges
+End Sub
+
 Private Sub mp_ApplyPostProcessHeaderRowHeight( _
     ByVal ws As Worksheet, _
     ByVal postProcessHeaderRange As Range, _
@@ -1078,6 +1360,7 @@ Private Sub mp_ApplyPostProcessHeaderRowHeight( _
 )
     Dim targetRow As Long
     Dim measuredHeight As Double
+    Dim standardRowHeight As Double
 
     If ws Is Nothing Then Exit Sub
     If postProcessHeaderRange Is Nothing Then Exit Sub
@@ -1085,20 +1368,29 @@ Private Sub mp_ApplyPostProcessHeaderRowHeight( _
     targetRow = postProcessHeaderRange.Row
     If targetRow <= 0 Then Exit Sub
 
-    If Not postProcessHeaderStyle.AutoHeight Or StrComp(postProcessHeaderStyle.Overflow, "wrap", vbTextCompare) <> 0 Then
+    If postProcessHeaderStyle.RowHeight > 0 Then
         ws.Rows(targetRow).RowHeight = postProcessHeaderStyle.RowHeight
+        Exit Sub
+    End If
+
+    standardRowHeight = ws.StandardHeight
+    If standardRowHeight <= 0 Then standardRowHeight = 15
+
+    If Not postProcessHeaderStyle.AutoHeight Or StrComp(postProcessHeaderStyle.Overflow, "wrap", vbTextCompare) <> 0 Then
+        If postProcessHeaderStyle.MinRowHeight > 0 Then
+            ws.Rows(targetRow).RowHeight = postProcessHeaderStyle.MinRowHeight
+        Else
+            ws.Rows(targetRow).RowHeight = standardRowHeight
+        End If
         Exit Sub
     End If
 
     measuredHeight = mp_MeasurePostProcessHeaderTextHeight(ws, postProcessHeaderRange, postProcessHeaderText, postProcessHeaderStyle.FontSize)
     measuredHeight = measuredHeight + postProcessHeaderStyle.AutoHeightMarginTop + postProcessHeaderStyle.AutoHeightMarginBottom
-    If measuredHeight <= 0 Then
-        ws.Rows(targetRow).RowHeight = postProcessHeaderStyle.RowHeight
-        Exit Sub
-    End If
+    If measuredHeight < postProcessHeaderStyle.MinRowHeight Then measuredHeight = postProcessHeaderStyle.MinRowHeight
 
-    If measuredHeight < postProcessHeaderStyle.RowHeight Then
-        ws.Rows(targetRow).RowHeight = postProcessHeaderStyle.RowHeight
+    If measuredHeight <= 0 Then
+        ws.Rows(targetRow).RowHeight = standardRowHeight
     Else
         ws.Rows(targetRow).RowHeight = mp_RoundUpMeasuredHeight(measuredHeight)
     End If
@@ -1112,6 +1404,7 @@ Private Sub mp_ApplyPostProcessFooterRowHeight( _
 )
     Dim targetRow As Long
     Dim measuredHeight As Double
+    Dim standardRowHeight As Double
 
     If ws Is Nothing Then Exit Sub
     If postProcessFooterRange Is Nothing Then Exit Sub
@@ -1119,20 +1412,29 @@ Private Sub mp_ApplyPostProcessFooterRowHeight( _
     targetRow = postProcessFooterRange.Row
     If targetRow <= 0 Then Exit Sub
 
-    If Not postProcessFooterStyle.AutoHeight Or StrComp(postProcessFooterStyle.Overflow, "wrap", vbTextCompare) <> 0 Then
+    If postProcessFooterStyle.RowHeight > 0 Then
         ws.Rows(targetRow).RowHeight = postProcessFooterStyle.RowHeight
+        Exit Sub
+    End If
+
+    standardRowHeight = ws.StandardHeight
+    If standardRowHeight <= 0 Then standardRowHeight = 15
+
+    If Not postProcessFooterStyle.AutoHeight Or StrComp(postProcessFooterStyle.Overflow, "wrap", vbTextCompare) <> 0 Then
+        If postProcessFooterStyle.MinRowHeight > 0 Then
+            ws.Rows(targetRow).RowHeight = postProcessFooterStyle.MinRowHeight
+        Else
+            ws.Rows(targetRow).RowHeight = standardRowHeight
+        End If
         Exit Sub
     End If
 
     measuredHeight = mp_MeasurePostProcessFooterTextHeight(ws, postProcessFooterRange, postProcessFooterText, postProcessFooterStyle.FontSize)
     measuredHeight = measuredHeight + postProcessFooterStyle.AutoHeightMarginTop + postProcessFooterStyle.AutoHeightMarginBottom
-    If measuredHeight <= 0 Then
-        ws.Rows(targetRow).RowHeight = postProcessFooterStyle.RowHeight
-        Exit Sub
-    End If
+    If measuredHeight < postProcessFooterStyle.MinRowHeight Then measuredHeight = postProcessFooterStyle.MinRowHeight
 
-    If measuredHeight < postProcessFooterStyle.RowHeight Then
-        ws.Rows(targetRow).RowHeight = postProcessFooterStyle.RowHeight
+    If measuredHeight <= 0 Then
+        ws.Rows(targetRow).RowHeight = standardRowHeight
     Else
         ws.Rows(targetRow).RowHeight = mp_RoundUpMeasuredHeight(measuredHeight)
     End If
@@ -1223,6 +1525,79 @@ Private Function mp_GetFirstUsedRow(ByVal ws As Worksheet) As Long
     Set firstUsedCell = ws.Cells.Find(What:="*", After:=ws.Cells(ws.Rows.Count, ws.Columns.Count), SearchOrder:=xlByRows, SearchDirection:=xlNext)
     If Not firstUsedCell Is Nothing Then mp_GetFirstUsedRow = firstUsedCell.Row
 ExitFn:
+End Function
+
+Private Function mp_GetPostProcessHeaderInsertStartRow(ByVal ws As Worksheet) As Long
+    Dim outputViewStartRow As Long
+
+    If ws Is Nothing Then
+        Err.Raise vbObjectError + 1735, "ex_PostProcessActions", "Target sheet is not available for postProcessHeader insert start row."
+    End If
+
+    outputViewStartRow = ex_SheetStylesXmlProvider.m_GetOutputViewStartRow(ThisWorkbook)
+    If outputViewStartRow < 1 Then
+        Err.Raise vbObjectError + 1736, "ex_PostProcessActions", "Unable to resolve valid output view start row for postProcessHeader."
+    End If
+
+    mp_GetPostProcessHeaderInsertStartRow = outputViewStartRow
+End Function
+
+Private Function mp_IsRowBlankSegment( _
+    ByVal ws As Worksheet, _
+    ByVal rowIndex As Long, _
+    ByVal endCol As Long _
+) As Boolean
+    Dim probeRange As Range
+
+    If ws Is Nothing Then Exit Function
+    If rowIndex < 1 Or rowIndex > ws.Rows.Count Then Exit Function
+    If endCol < 1 Then endCol = 1
+    If endCol > ws.Columns.Count Then endCol = ws.Columns.Count
+
+    Set probeRange = ws.Range(ws.Cells(rowIndex, 1), ws.Cells(rowIndex, endCol))
+    mp_IsRowBlankSegment = (Application.WorksheetFunction.CountA(probeRange) = 0)
+End Function
+
+Private Function mp_IsSinglePostProcessTextRowShape( _
+    ByVal ws As Worksheet, _
+    ByVal rowIndex As Long, _
+    ByVal endCol As Long _
+) As Boolean
+    Dim probeRange As Range
+
+    If ws Is Nothing Then Exit Function
+    If rowIndex < 1 Or rowIndex > ws.Rows.Count Then Exit Function
+
+    If endCol < 1 Then endCol = 1
+    If endCol > ws.Columns.Count Then endCol = ws.Columns.Count
+
+    Set probeRange = ws.Range(ws.Cells(rowIndex, 1), ws.Cells(rowIndex, endCol))
+    If Application.WorksheetFunction.CountA(probeRange) <> 1 Then Exit Function
+    If Len(Trim$(CStr(ws.Cells(rowIndex, 1).Value))) = 0 Then Exit Function
+
+    mp_IsSinglePostProcessTextRowShape = True
+End Function
+
+Private Function mp_IsHeaderAnchorRowValid( _
+    ByVal ws As Worksheet, _
+    ByVal rowIndex As Long, _
+    ByVal endCol As Long _
+) As Boolean
+    If Not mp_IsSinglePostProcessTextRowShape(ws, rowIndex, endCol) Then Exit Function
+    If Not mp_IsRowBlankSegment(ws, rowIndex - 1, endCol) Then Exit Function
+    If Not mp_IsRowBlankSegment(ws, rowIndex + 1, endCol) Then Exit Function
+    mp_IsHeaderAnchorRowValid = True
+End Function
+
+Private Function mp_IsFooterAnchorRowValid( _
+    ByVal ws As Worksheet, _
+    ByVal rowIndex As Long, _
+    ByVal endCol As Long _
+) As Boolean
+    If Not mp_IsSinglePostProcessTextRowShape(ws, rowIndex, endCol) Then Exit Function
+    If Not mp_IsRowBlankSegment(ws, rowIndex - 1, endCol) Then Exit Function
+    If Not mp_IsRowBlankSegment(ws, rowIndex + 1, endCol) Then Exit Function
+    mp_IsFooterAnchorRowValid = True
 End Function
 
 Private Function mp_GetLastUsedRow(ByVal ws As Worksheet) As Long
@@ -1462,6 +1837,216 @@ Private Function mp_BuildRuntimeDataFullKey(ByVal ws As Worksheet, ByVal dataKey
     mp_BuildRuntimeDataFullKey = mp_BuildSheetKey(ws) & "|" & dataKey
 End Function
 
+Private Function mp_HasPostProcessFooterForSheet(ByVal ws As Worksheet) As Boolean
+    If ws Is Nothing Then Exit Function
+    If Not g_PostProcessFooterHasAppended Then Exit Function
+    If g_PostProcessFooterRowIndex < 1 Then Exit Function
+    If StrComp(g_PostProcessFooterSheetKey, mp_BuildSheetKey(ws), vbTextCompare) <> 0 Then Exit Function
+    mp_HasPostProcessFooterForSheet = True
+End Function
+
+Private Function mp_TryGetNamedRowAnchor( _
+    ByVal ws As Worksheet, _
+    ByVal anchorName As String, _
+    ByRef outRowIndex As Long _
+) As Boolean
+    Dim namedEntry As Name
+    Dim anchorCell As Range
+
+    If ws Is Nothing Then Exit Function
+    anchorName = Trim$(anchorName)
+    If Len(anchorName) = 0 Then Exit Function
+
+    On Error Resume Next
+    Set namedEntry = ws.Names(anchorName)
+    On Error GoTo 0
+    If namedEntry Is Nothing Then Exit Function
+
+    On Error Resume Next
+    Set anchorCell = namedEntry.RefersToRange
+    On Error GoTo 0
+    If anchorCell Is Nothing Then Exit Function
+
+    outRowIndex = anchorCell.Row
+    If outRowIndex < 1 Or outRowIndex > ws.Rows.Count Then Exit Function
+    mp_TryGetNamedRowAnchor = True
+End Function
+
+Private Sub mp_ClearNamedRowAnchor( _
+    ByVal ws As Worksheet, _
+    ByVal anchorName As String _
+)
+    If ws Is Nothing Then Exit Sub
+    anchorName = Trim$(anchorName)
+    If Len(anchorName) = 0 Then Exit Sub
+
+    On Error Resume Next
+    ws.Names(anchorName).Delete
+    On Error GoTo 0
+End Sub
+
+Private Sub mp_SetNamedRowAnchor( _
+    ByVal ws As Worksheet, _
+    ByVal anchorName As String, _
+    ByVal rowIndex As Long _
+)
+    If ws Is Nothing Then Exit Sub
+    anchorName = Trim$(anchorName)
+    If Len(anchorName) = 0 Then Exit Sub
+    If rowIndex < 1 Or rowIndex > ws.Rows.Count Then Exit Sub
+
+    mp_ClearNamedRowAnchor ws, anchorName
+
+    On Error Resume Next
+    ws.Names.Add Name:=anchorName, RefersTo:="=" & ws.Cells(rowIndex, 1).Address(True, True, xlA1, True)
+    On Error GoTo 0
+End Sub
+
+Private Function mp_TryGetCachedSinglePostProcessHeaderRowIndex( _
+    ByVal ws As Worksheet, _
+    ByRef outRowIndex As Long _
+) As Boolean
+    Dim sheetKey As String
+    Dim rowIndex As Long
+    Dim viewStartRow As Long
+    Dim probeEndCol As Long
+
+    If ws Is Nothing Then Exit Function
+    viewStartRow = mp_GetPostProcessHeaderInsertStartRow(ws)
+    probeEndCol = mp_GetLastUsedColumn(ws)
+    If probeEndCol < 1 Then probeEndCol = 1
+
+    sheetKey = mp_BuildSheetKey(ws)
+    If StrComp(g_PostProcessHeaderSheetKey, sheetKey, vbTextCompare) = 0 Then
+        rowIndex = g_PostProcessHeaderRowIndex
+        If rowIndex >= viewStartRow _
+            And rowIndex <= (viewStartRow + POST_PROCESS_HEADER_ANCHOR_MAX_OFFSET_ROWS) _
+            And rowIndex <= ws.Rows.Count Then
+            If mp_IsHeaderAnchorRowValid(ws, rowIndex, probeEndCol) Then
+                outRowIndex = rowIndex
+                mp_TryGetCachedSinglePostProcessHeaderRowIndex = True
+                Exit Function
+            End If
+        End If
+    End If
+
+    If mp_TryGetNamedRowAnchor(ws, POST_PROCESS_HEADER_ANCHOR_NAME, rowIndex) Then
+        If rowIndex < viewStartRow Then Exit Function
+        If rowIndex > (viewStartRow + POST_PROCESS_HEADER_ANCHOR_MAX_OFFSET_ROWS) Then Exit Function
+        If Not mp_IsHeaderAnchorRowValid(ws, rowIndex, probeEndCol) Then
+            mp_ClearNamedRowAnchor ws, POST_PROCESS_HEADER_ANCHOR_NAME
+            Exit Function
+        End If
+        g_PostProcessHeaderSheetKey = sheetKey
+        g_PostProcessHeaderRowIndex = rowIndex
+        g_PostProcessHeaderNextInsertRow = rowIndex + 2
+        If g_PostProcessHeaderNextInsertRow > ws.Rows.Count Then g_PostProcessHeaderNextInsertRow = ws.Rows.Count
+        outRowIndex = rowIndex
+        mp_TryGetCachedSinglePostProcessHeaderRowIndex = True
+    End If
+End Function
+
+Private Function mp_TryGetCachedSinglePostProcessFooterRowIndex( _
+    ByVal ws As Worksheet, _
+    ByRef outRowIndex As Long _
+) As Boolean
+    Dim sheetKey As String
+    Dim rowIndex As Long
+    Dim probeEndCol As Long
+
+    If ws Is Nothing Then Exit Function
+    probeEndCol = mp_GetLastUsedColumn(ws)
+    If probeEndCol < 1 Then probeEndCol = 1
+
+    sheetKey = mp_BuildSheetKey(ws)
+    If StrComp(g_PostProcessFooterSheetKey, sheetKey, vbTextCompare) = 0 Then
+        rowIndex = g_PostProcessFooterRowIndex
+        If rowIndex >= 1 And rowIndex <= ws.Rows.Count Then
+            If mp_IsFooterAnchorRowValid(ws, rowIndex, probeEndCol) Then
+                outRowIndex = rowIndex
+                mp_TryGetCachedSinglePostProcessFooterRowIndex = True
+                Exit Function
+            End If
+        End If
+    End If
+
+    If mp_TryGetNamedRowAnchor(ws, POST_PROCESS_FOOTER_ANCHOR_NAME, rowIndex) Then
+        If Not mp_IsFooterAnchorRowValid(ws, rowIndex, probeEndCol) Then
+            mp_ClearNamedRowAnchor ws, POST_PROCESS_FOOTER_ANCHOR_NAME
+            Exit Function
+        End If
+        g_PostProcessFooterSheetKey = sheetKey
+        g_PostProcessFooterRowIndex = rowIndex
+        outRowIndex = rowIndex
+        mp_TryGetCachedSinglePostProcessFooterRowIndex = True
+    End If
+End Function
+
+Private Function mp_GetOrCreateSinglePostProcessHeaderRange( _
+    ByVal ws As Worksheet, _
+    ByRef postProcessHeaderStyle As t_PostProcessHeaderStyle _
+) As Range
+    Dim sheetKey As String
+    Dim viewStartRow As Long
+    Dim targetRow As Long
+    Dim existingRow As Long
+    Dim insertRow As Long
+    Dim endCol As Long
+    Dim headerRange As Range
+
+    If ws Is Nothing Then Exit Function
+
+    sheetKey = mp_BuildSheetKey(ws)
+    If StrComp(g_PostProcessHeaderSheetKey, sheetKey, vbTextCompare) <> 0 Then
+        g_PostProcessHeaderSheetKey = sheetKey
+        g_PostProcessHeaderNextInsertRow = 0
+        g_PostProcessHeaderRowIndex = 0
+        g_PostProcessHeaderHasAppended = False
+    End If
+    viewStartRow = mp_GetPostProcessHeaderInsertStartRow(ws)
+
+    endCol = postProcessHeaderStyle.Columns
+    If endCol < 1 Then endCol = 1
+    If endCol > ws.Columns.Count Then endCol = ws.Columns.Count
+
+    If g_PostProcessHeaderRowIndex > 0 Then
+        targetRow = g_PostProcessHeaderRowIndex
+        If targetRow > ws.Rows.Count Then targetRow = ws.Rows.Count
+    ElseIf mp_TryGetNamedRowAnchor(ws, POST_PROCESS_HEADER_ANCHOR_NAME, existingRow) Then
+        targetRow = existingRow
+    End If
+    If targetRow >= viewStartRow Then
+        If Not mp_IsHeaderAnchorRowValid(ws, targetRow, endCol) Then
+            targetRow = 0
+        End If
+    End If
+    If targetRow > (viewStartRow + POST_PROCESS_HEADER_ANCHOR_MAX_OFFSET_ROWS) Then targetRow = 0
+    If targetRow < viewStartRow Then
+        insertRow = mp_GetPostProcessHeaderInsertStartRow(ws)
+        If insertRow < 1 Then insertRow = 1
+        If insertRow > ws.Rows.Count Then insertRow = ws.Rows.Count
+        If insertRow > ws.Rows.Count - 2 Then insertRow = ws.Rows.Count - 2
+        If insertRow < 1 Then insertRow = 1
+
+        ws.Rows(CStr(insertRow) & ":" & CStr(insertRow + 2)).Insert Shift:=xlDown
+        targetRow = insertRow + 1
+    End If
+
+    If targetRow < 1 Then targetRow = 1
+    If targetRow > ws.Rows.Count Then targetRow = ws.Rows.Count
+
+    g_PostProcessHeaderRowIndex = targetRow
+    g_PostProcessHeaderNextInsertRow = targetRow + 2
+    If g_PostProcessHeaderNextInsertRow > ws.Rows.Count Then g_PostProcessHeaderNextInsertRow = ws.Rows.Count
+    mp_SetNamedRowAnchor ws, POST_PROCESS_HEADER_ANCHOR_NAME, targetRow
+
+    Set headerRange = ws.Range(ws.Cells(targetRow, 1), ws.Cells(targetRow, endCol))
+    If headerRange.MergeCells Then headerRange.UnMerge
+    mp_ApplyPostProcessHeaderKindStyle ws, targetRow
+
+    Set mp_GetOrCreateSinglePostProcessHeaderRange = headerRange
+End Function
+
 Private Function mp_GetOrCreateSinglePostProcessFooterRange( _
     ByVal ws As Worksheet, _
     ByRef postProcessFooterStyle As t_PostProcessFooterStyle _
@@ -1480,84 +2065,36 @@ Private Function mp_GetOrCreateSinglePostProcessFooterRange( _
         g_PostProcessFooterHasAppended = False
     End If
 
-    If g_PostProcessFooterRowIndex <= 0 Then
-        targetRow = mp_FindExistingSinglePostProcessFooterRow(ws, postProcessFooterStyle)
-        If targetRow <= 0 Then
+    endCol = postProcessFooterStyle.Columns
+    If endCol < 1 Then endCol = 1
+    If endCol > ws.Columns.Count Then endCol = ws.Columns.Count
+
+    If g_PostProcessFooterRowIndex > 0 Then
+        targetRow = g_PostProcessFooterRowIndex
+        If targetRow > ws.Rows.Count Then targetRow = ws.Rows.Count
+    ElseIf mp_TryGetNamedRowAnchor(ws, POST_PROCESS_FOOTER_ANCHOR_NAME, targetRow) Then
+        ' anchor resolved
+    Else
+        targetRow = mp_GetLastUsedRow(ws) + 2
+        If targetRow < 1 Then targetRow = 1
+    End If
+    If targetRow > 0 Then
+        If Not mp_IsFooterAnchorRowValid(ws, targetRow, endCol) Then
             targetRow = mp_GetLastUsedRow(ws) + 2
             If targetRow < 1 Then targetRow = 1
         End If
-        g_PostProcessFooterRowIndex = targetRow
-    Else
-        targetRow = g_PostProcessFooterRowIndex
-        If targetRow > ws.Rows.Count Then targetRow = ws.Rows.Count
-        g_PostProcessFooterRowIndex = targetRow
     End If
 
-    endCol = postProcessFooterStyle.Columns
-    If endCol < 1 Then endCol = 1
-    If endCol > ws.Columns.Count Then endCol = ws.Columns.Count
+    If targetRow < 1 Then targetRow = 1
+    If targetRow > ws.Rows.Count Then targetRow = ws.Rows.Count
+    g_PostProcessFooterRowIndex = targetRow
+    mp_SetNamedRowAnchor ws, POST_PROCESS_FOOTER_ANCHOR_NAME, targetRow
 
     Set footerRange = ws.Range(ws.Cells(targetRow, 1), ws.Cells(targetRow, endCol))
     If footerRange.MergeCells Then footerRange.UnMerge
-    If endCol > 1 Then footerRange.Merge
-
-    footerRange.Interior.Pattern = xlSolid
-    footerRange.Interior.Color = postProcessFooterStyle.BackColor
-    footerRange.Font.Color = postProcessFooterStyle.FontColor
-    footerRange.Font.Size = postProcessFooterStyle.FontSize
-    footerRange.HorizontalAlignment = xlLeft
-    footerRange.VerticalAlignment = xlCenter
-
-    Select Case postProcessFooterStyle.Overflow
-        Case "wrap"
-            footerRange.WrapText = True
-            footerRange.ShrinkToFit = False
-        Case "shrink"
-            footerRange.WrapText = False
-            footerRange.ShrinkToFit = True
-        Case Else
-            footerRange.WrapText = False
-            footerRange.ShrinkToFit = False
-    End Select
+    mp_ApplyPostProcessFooterKindStyle ws, targetRow
 
     Set mp_GetOrCreateSinglePostProcessFooterRange = footerRange
-End Function
-
-Private Function mp_FindExistingSinglePostProcessFooterRow( _
-    ByVal ws As Worksheet, _
-    ByRef postProcessFooterStyle As t_PostProcessFooterStyle _
-) As Long
-    Dim lastRow As Long
-    Dim rowIndex As Long
-    Dim endCol As Long
-    Dim probeCell As Range
-    Dim mergeArea As Range
-
-    lastRow = mp_GetLastUsedRow(ws)
-    If lastRow < 1 Then Exit Function
-
-    endCol = postProcessFooterStyle.Columns
-    If endCol < 1 Then endCol = 1
-    If endCol > ws.Columns.Count Then endCol = ws.Columns.Count
-
-    For rowIndex = lastRow To 1 Step -1
-        Set probeCell = ws.Cells(rowIndex, 1)
-        If probeCell.MergeCells Then
-            Set mergeArea = probeCell.MergeArea
-            If Not mergeArea Is Nothing Then
-                If mergeArea.Row = rowIndex _
-                    And mergeArea.Column = 1 _
-                    And mergeArea.Rows.Count = 1 _
-                    And mergeArea.Columns.Count = endCol Then
-                    If CLng(mergeArea.Cells(1, 1).Interior.Color) = postProcessFooterStyle.BackColor _
-                        And CLng(mergeArea.Cells(1, 1).Font.Color) = postProcessFooterStyle.FontColor Then
-                        mp_FindExistingSinglePostProcessFooterRow = rowIndex
-                        Exit Function
-                    End If
-                End If
-            End If
-        End If
-    Next rowIndex
 End Function
 
 Private Sub mp_GetWarningBannerDimensions(ByRef outColumns As Long, ByRef outRows As Long)

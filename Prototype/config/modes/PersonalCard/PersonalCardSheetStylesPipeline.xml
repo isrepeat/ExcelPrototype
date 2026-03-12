@@ -134,22 +134,8 @@
 
     <stage name="postProcess">
       <layer name="pc-postprocess-header" priority="100" enabled="true">
-        <rule target="sheet"
-              styles="{
-                mergeColumns:2;
-                overflow:wrap;
-                backColor:#161616;
-                fontColor:#F5D08A;
-                fontSize:12;
-                rowHeight:24;
-                autoHeight:true;
-                customAutoHeight-margin-top:1;
-                customAutoHeight-margin-bottom:2;
-              }"/>
-      </layer>
-
-      <layer name="pc-postprocess-footer" priority="110" enabled="true">
-        <rule target="sheet"
+        <rule target="row"
+              selector="kind=postprocessheader;col=1:6"
               styles="{
                 mergeColumns:6;
                 horizontal:left;
@@ -157,7 +143,24 @@
                 backColor:#161616;
                 fontColor:#F5D08A;
                 fontSize:12;
-                rowHeight:24;
+                minRowHeight:24;
+                autoHeight:true;
+                customAutoHeight-margin-top:1;
+                customAutoHeight-margin-bottom:2;
+              }"/>
+      </layer>
+
+      <layer name="pc-postprocess-footer" priority="110" enabled="true">
+        <rule target="row"
+              selector="kind=postprocessfooter;col=1:6"
+              styles="{
+                mergeColumns:6;
+                horizontal:left;
+                overflow:wrap;
+                backColor:#161616;
+                fontColor:#F5D08A;
+                fontSize:12;
+                minRowHeight:24;
                 autoHeight:true;
                 customAutoHeight-margin-top:1;
                 customAutoHeight-margin-bottom:2;

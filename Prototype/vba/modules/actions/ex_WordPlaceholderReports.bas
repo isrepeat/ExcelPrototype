@@ -63,7 +63,7 @@ Public Sub m_API_ExportActiveSheetFooterPlaceholderReport()
     If Len(wordResultsPlace) = 0 Then
         Err.Raise vbObjectError + 1774, "ex_WordPlaceholderReports", _
             "Missing runtime export value '" & EXPORT_RUNTIME_WORD_RESULTS_PLACE & "'. " & _
-            "Run Search -> Post Process and ensure at least one export footer block was generated."
+            "Run Search -> Post Process and ensure at least one export results block was generated."
     End If
 
     wordPasteAnchor = Trim$(ex_PostProcessActions.m_GetRuntimeData(EXPORT_RUNTIME_WORD_PASTE_ANCHOR, vbNullString, ws))
