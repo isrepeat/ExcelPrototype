@@ -145,8 +145,8 @@
                 fontSize:12;
                 minRowHeight:24;
                 autoHeight:true;
-                customAutoHeight-margin-top:1;
-                customAutoHeight-margin-bottom:2;
+                customAutoHeight-margin-top:5;
+                customAutoHeight-margin-bottom:5;
               }"/>
       </layer>
 
@@ -162,8 +162,64 @@
                 fontSize:12;
                 minRowHeight:24;
                 autoHeight:true;
-                customAutoHeight-margin-top:1;
-                customAutoHeight-margin-bottom:2;
+                customAutoHeight-margin-top:5;
+                customAutoHeight-margin-bottom:5;
+              }"/>
+      </layer>
+    </stage>
+
+    <stage name="banners">
+      <layer name="pc-banner-base" priority="100" enabled="true">
+        <rule target="row"
+              selector="kind=errorbanner|warningbanner|notebanner;col=1:8"
+              styles="{
+                mergeColumns:8;
+                overflow:wrap;
+                horizontal:left;
+                vertical:center;
+                minRowHeight:24;
+                autoHeight:true;
+                customAutoHeight-margin-top:5;
+                customAutoHeight-margin-bottom:5;
+                borderWeight:thin;
+              }"/>
+      </layer>
+
+      <layer name="pc-banner-warning" priority="110" enabled="true">
+        <rule target="row"
+              selector="kind=warningbanner;col=1:8"
+              styles="{
+                backColor:#4C3F10;
+                fontColor:#FFE599;
+                borderColor:#3B320D;
+              }"/>
+      </layer>
+
+      <layer name="pc-banner-error" priority="120" enabled="true">
+        <rule target="row"
+              selector="kind=errorbanner;col=1:8"
+              styles="{
+                backColor:#161616;
+                fontColor:#FFFFFF;
+                borderColor:#111111;
+              }"/>
+      </layer>
+
+      <layer name="pc-banner-note" priority="125" enabled="true">
+        <rule target="row"
+              selector="kind=notebanner;col=1:8"
+              styles="{
+                backColor:#2A2A2A;
+                fontColor:#FFE599;
+                borderColor:#575757;
+              }"/>
+      </layer>
+
+      <layer name="pc-banner-title" priority="130" enabled="true">
+        <rule target="row"
+              selector="kind=errorbannertitle|warningbannertitle|notebannertitle;col=1:8"
+              styles="{
+                fontBold:true;
               }"/>
       </layer>
     </stage>

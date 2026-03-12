@@ -634,7 +634,9 @@ Private Function mp_ReadSheetTextByRuntimePointer( _
 ) As String
     Dim normalizedPointer As String
     Dim addressText As String
+    Dim nameText As String
     Dim pointerRange As Range
+    Dim namedEntry As Name
     Dim colonPos As Long
     Dim prefixText As String
     Dim prefixCandidate As String
@@ -654,11 +656,30 @@ Private Function mp_ReadSheetTextByRuntimePointer( _
         prefixText = UCase$(prefixCandidate)
         If StrComp(prefixText, "CELL", vbBinaryCompare) = 0 Or StrComp(prefixText, "RANGE", vbBinaryCompare) = 0 Then
             addressText = Trim$(Mid$(normalizedPointer, colonPos + 1))
+        ElseIf StrComp(prefixText, "NAME", vbBinaryCompare) = 0 Then
+            nameText = Trim$(Mid$(normalizedPointer, colonPos + 1))
         Else
             addressText = normalizedPointer
         End If
     Else
         addressText = normalizedPointer
+    End If
+
+    If Len(nameText) > 0 Then
+        On Error Resume Next
+        Set namedEntry = ws.Names(nameText)
+        On Error GoTo ResolveErr
+        If namedEntry Is Nothing Then
+            Err.Raise vbObjectError + 1780, "ex_WordPlaceholderReports", "Unable to resolve runtime source pointer '" & normalizedPointer & "' on sheet '" & ws.Name & "'."
+        End If
+        On Error Resume Next
+        Set pointerRange = namedEntry.RefersToRange
+        On Error GoTo ResolveErr
+        If pointerRange Is Nothing Then
+            Err.Raise vbObjectError + 1780, "ex_WordPlaceholderReports", "Unable to resolve runtime source pointer '" & normalizedPointer & "' on sheet '" & ws.Name & "'."
+        End If
+        mp_ReadSheetTextByRuntimePointer = CStr(pointerRange.Cells(1, 1).Value)
+        Exit Function
     End If
 
     If Len(addressText) = 0 Then

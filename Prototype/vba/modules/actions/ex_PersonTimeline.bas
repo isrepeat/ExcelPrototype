@@ -250,6 +250,8 @@ Public Sub m_ShowPersonTimeline(ByVal fio As String)
     resultSheetExistedBeforeRender = mp_WorksheetExists(RESULT_SHEET_NAME)
     Set wsOut = mp_CreateOrClearSheet(RESULT_SHEET_NAME)
     ex_SheetViewZoom.m_ApplyProfileZoomForResultSheet wsOut, resultSheetExistedBeforeRender
+    ex_Messaging.m_ClearBannerAnchors wsOut
+    ex_Messaging.m_ClearResultTableAnchors wsOut
 
     Dim resultFieldRanges As Collection
     Set resultFieldRanges = New Collection
@@ -376,8 +378,8 @@ ContinueAlias:
     If hasOutputStyle Then
         ex_OutputPanel.m_RenderForSheet wsOut, outputStyle
     End If
-    mp_RenderPendingWarningBanners wsOut, pendingWarningBanners
     mp_ApplyTimelineStyleLayers wsOut, headerRows, sectionRows, resultFieldRanges, resultTables, cfgStyles, partialMatchRowRanges, hasOutputStyle, outputStyle, pendingWarningBanners
+    mp_RenderPendingWarningBanners wsOut, pendingWarningBanners
 
     mp_StorePostProcessContext cfg, resultTables, (partialMatchRowRanges.Count > 0)
     If mp_ShouldAutoPostProcess() Then
@@ -769,7 +771,7 @@ ContinueExactField:
 
         wsOut.Range(wsOut.Cells(valueRow, 1), wsOut.Cells(dataEndRow, fieldCount)).Value2 = outValues
         Set fetchKindsBySheetRow = mp_BuildSheetRowKindsMap(fetchKindsByOutRow, valueRow)
-        mp_CaptureResultTableRowsFromOutput wsOut, resultTable, sourceAlias, tableAlias, fields, valueRow, dataEndRow, fetchKindsBySheetRow
+        mp_CaptureResultTableRowsFromOutput wsOut, resultTable, sourceAlias, tableAlias, fields, valueRow, dataEndRow, fetchKindsBySheetRow, headerRow, dataEndRow
 
         rs.Close
         outTableRendered = True
@@ -829,7 +831,7 @@ ContinueExactField:
 
     wsOut.Range(wsOut.Cells(valueRow, 1), wsOut.Cells(dataEndRow, 1)).Value2 = partialValues
     mp_AddResultFieldRange resultFieldRanges, sourceAlias, tableAlias, keyAlias, 1, headerRow, dataEndRow
-    mp_CaptureResultTableRowsFromOutput wsOut, resultTable, sourceAlias, tableAlias, keyOnlyFields, valueRow, dataEndRow
+    mp_CaptureResultTableRowsFromOutput wsOut, resultTable, sourceAlias, tableAlias, keyOnlyFields, valueRow, dataEndRow, visualRowStart:=headerRow, visualRowEnd:=dataEndRow
     mp_AddPartialMatchRowRange partialMatchRowRanges, headerRow, dataEndRow
 
     rs.Close
@@ -973,7 +975,7 @@ Private Function mp_WriteEventsGeneric( _
 
         wsOut.Range(wsOut.Cells(outDataRow, 1), wsOut.Cells(keyDataEndRow, 1)).Value2 = partialValues
         mp_AddResultFieldRange resultFieldRanges, sourceAlias, tableAlias, keyAlias, 1, outHeaderRow, keyDataEndRow
-        mp_CaptureResultTableRowsFromOutput wsOut, resultTable, sourceAlias, tableAlias, keyOnlyFields, outDataRow, keyDataEndRow
+        mp_CaptureResultTableRowsFromOutput wsOut, resultTable, sourceAlias, tableAlias, keyOnlyFields, outDataRow, keyDataEndRow, visualRowStart:=outHeaderRow, visualRowEnd:=keyDataEndRow
         mp_AddPartialMatchRowRange partialMatchRowRanges, outHeaderRow, keyDataEndRow
 
         outTableRendered = True
@@ -1055,7 +1057,7 @@ Private Function mp_WriteEventsGeneric( _
 
     mp_AddResultFieldRangesForFields resultFieldRanges, cfg, sourceAlias, tableAlias, fields, outHeaderRow, outDataRow - 1
     Set fetchKindsBySheetRow = mp_BuildSheetRowKindsMap(fetchKindsByOutRow, outHeaderRow + 1)
-    mp_CaptureResultTableRowsFromOutput wsOut, resultTable, sourceAlias, tableAlias, fields, outHeaderRow + 1, outDataRow - 1, fetchKindsBySheetRow
+    mp_CaptureResultTableRowsFromOutput wsOut, resultTable, sourceAlias, tableAlias, fields, outHeaderRow + 1, outDataRow - 1, fetchKindsBySheetRow, outHeaderRow, outDataRow - 1
 
     outTableRendered = True
     mp_WriteEventsGeneric = outDataRow + 1
@@ -1065,7 +1067,7 @@ SortEH:
     Err.Clear
     mp_AddResultFieldRangesForFields resultFieldRanges, cfg, sourceAlias, tableAlias, fields, outHeaderRow, outDataRow - 1
     Set fetchKindsBySheetRow = mp_BuildSheetRowKindsMap(fetchKindsByOutRow, outHeaderRow + 1)
-    mp_CaptureResultTableRowsFromOutput wsOut, resultTable, sourceAlias, tableAlias, fields, outHeaderRow + 1, outDataRow - 1, fetchKindsBySheetRow
+    mp_CaptureResultTableRowsFromOutput wsOut, resultTable, sourceAlias, tableAlias, fields, outHeaderRow + 1, outDataRow - 1, fetchKindsBySheetRow, outHeaderRow, outDataRow - 1
     On Error GoTo EH
     outTableRendered = True
     mp_WriteEventsGeneric = outDataRow + 1
@@ -1738,9 +1740,6 @@ Private Sub mp_ApplyTimelineStyleLayers( _
         If Not runtimeLayer Is Nothing Then runtimeLayers.Add runtimeLayer
     End If
 
-    Set runtimeLayer = ex_Messaging.m_CreateWarningBannersRuntimeLayer(ws, pendingWarningBanners, "runtime-warning-banners", 850)
-    If Not runtimeLayer Is Nothing Then runtimeLayers.Add runtimeLayer
-
     ex_OutputFormattingPipeline.m_ApplySheetPipeline ws, resultFieldRanges, cfgStyles, rowKindRanges, vbNullString, False, runtimeLayers
 End Sub
 
@@ -2184,7 +2183,9 @@ Private Sub mp_CaptureResultTableRowsFromOutput( _
     ByVal fields As Variant, _
     ByVal dataRowStart As Long, _
     ByVal dataRowEnd As Long, _
-    Optional ByVal rowKindsBySheetRow As Object = Nothing _
+    Optional ByVal rowKindsBySheetRow As Object = Nothing, _
+    Optional ByVal visualRowStart As Long = 0, _
+    Optional ByVal visualRowEnd As Long = 0 _
 )
     Dim r As Long
     Dim i As Long
@@ -2238,6 +2239,10 @@ Private Sub mp_CaptureResultTableRowsFromOutput( _
 ContinueField:
         Next i
     Next r
+
+    If visualRowStart <= 0 Then visualRowStart = dataRowStart
+    If visualRowEnd < visualRowStart Then visualRowEnd = dataRowEnd
+    ex_Messaging.m_RegisterResultTableAnchor wsOut, resultTable.TableRef, visualRowStart, visualRowEnd
 End Sub
 
 Private Sub mp_AddResultFieldRangesForFields( _
@@ -3158,7 +3163,7 @@ Private Function mp_RenderEventsNoData( _
     outDataRow = outHeaderRow + 1
     wsOut.Cells(outDataRow, 1).Value = "(no events found for this person)"
     mp_AddResultFieldRangesForFields resultFieldRanges, cfg, sourceAlias, tableAlias, fields, outHeaderRow, outDataRow
-    mp_CaptureResultTableRowsFromOutput wsOut, resultTable, sourceAlias, tableAlias, fields, outDataRow, outDataRow
+    mp_CaptureResultTableRowsFromOutput wsOut, resultTable, sourceAlias, tableAlias, fields, outDataRow, outDataRow, visualRowStart:=outHeaderRow, visualRowEnd:=outDataRow
 
     mp_RenderEventsNoData = outDataRow + 1
 End Function
@@ -3197,7 +3202,7 @@ Private Function mp_RenderStateNoData( _
     outDataRow = outHeaderRow + 1
     wsOut.Cells(outDataRow, 1).Value = "(no state found for this person)"
     mp_AddResultFieldRangesForFields resultFieldRanges, cfg, sourceAlias, tableAlias, fields, outHeaderRow, outDataRow
-    mp_CaptureResultTableRowsFromOutput wsOut, resultTable, sourceAlias, tableAlias, fields, outDataRow, outDataRow
+    mp_CaptureResultTableRowsFromOutput wsOut, resultTable, sourceAlias, tableAlias, fields, outDataRow, outDataRow, visualRowStart:=outHeaderRow, visualRowEnd:=outDataRow
 
     mp_RenderStateNoData = outDataRow + 1
 End Function

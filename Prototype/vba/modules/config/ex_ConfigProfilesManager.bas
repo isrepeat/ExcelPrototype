@@ -1130,10 +1130,11 @@ Private Sub mp_ApplyLockedPlaceholderCells(ByVal ws As Worksheet, ByVal tbl As L
     On Error GoTo EH
 
     ws.EnableSelection = xlNoRestrictions
+    ' Base policy for Dev sheet: unlock everything, then lock only explicit placeholder cells.
+    ws.Cells.Locked = False
     Set lockedRows = New Collection
 
     If Not tbl.DataBodyRange Is Nothing Then
-        tbl.DataBodyRange.Locked = False
         tbl.DataBodyRange.Columns(DEV_CONFIG_VALUE_COL).NumberFormat = "General"
 
         For r = 1 To tbl.DataBodyRange.Rows.Count

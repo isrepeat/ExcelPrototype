@@ -6,32 +6,6 @@
     <grid color="#000000" weight="thin" extraRows="200" extraCols="50"/>
   </baseSheetStyle>
 
-  <errorBanner
-    columns="8"
-    rows="4"
-    rowHeight="24"
-    backColor="#161616"
-    fontColor="#FFFFFF"
-    wrapText="true"
-    titleBold="true"
-    showGrid="true"
-    gridColor="#111111"
-    horizontal="left"
-    vertical="center"/>
-
-  <warningBanner
-    columns="8"
-    rows="3"
-    rowHeight="24"
-    backColor="#4C3F10"
-    fontColor="#FFE599"
-    wrapText="true"
-    titleBold="true"
-    showGrid="true"
-    gridColor="#3B320D"
-    horizontal="left"
-    vertical="center"/>
-
   <outputStyles>
     <outputSheetStyle
       modeKey="PersonalCard"

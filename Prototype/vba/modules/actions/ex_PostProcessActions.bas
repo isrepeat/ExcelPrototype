@@ -17,6 +17,23 @@ Private Const POST_PROCESS_HEADER_ROW_KIND As String = "postprocessheader"
 Private Const POST_PROCESS_FOOTER_ROW_KIND As String = "postprocessfooter"
 Private Const POST_PROCESS_HEADER_ANCHOR_NAME As String = "__pcPostProcessSingleHeader"
 Private Const POST_PROCESS_FOOTER_ANCHOR_NAME As String = "__pcPostProcessSingleFooter"
+Private Const RUNTIME_POINTER_PREFIX_NAME As String = "Name:"
+Private Const BANNER_TYPE_WARNING As String = "WARNING"
+Private Const BANNER_TYPE_ERROR As String = "ERROR"
+Private Const BANNER_TYPE_NOTE As String = "NOTE"
+Private Const BANNER_KIND_WARNING As String = "warningbanner"
+Private Const BANNER_KIND_ERROR As String = "errorbanner"
+Private Const BANNER_KIND_NOTE As String = "notebanner"
+Private Const DEFER_OP_APPEND_HEADER_TEXT As String = "append_single_header_text"
+Private Const DEFER_OP_APPEND_FOOTER_TEXT As String = "append_single_footer_text"
+Private Const DEFER_OP_APPEND_HEADER_ROW As String = "append_header_row"
+Private Const DEFER_OP_APPEND_FOOTER_ROW As String = "append_footer_row"
+Private Const DEFER_OP_SHOW_BANNER As String = "show_banner"
+Private Const DEFER_OP_SHOW_BANNER_AT_CELL As String = "show_banner_at_cell"
+Private Const DEFER_OP_SHOW_BANNER_AFTER_BANNER As String = "show_banner_after_banner"
+Private Const DEFER_OP_SHOW_BANNER_AT_TABLE As String = "show_banner_at_table"
+Private Const DEFER_OP_SHOW_BANNER_BEFORE_ROW As String = "show_banner_before_row"
+Private Const DEFER_ROW_ANCHOR_PREFIX As String = "__pcDeferredRow_"
 
 Private Type t_PostProcessHeaderStyle
     Columns As Long
@@ -52,6 +69,9 @@ Private g_PostProcessFooterSheetKey As String
 Private g_PostProcessFooterRowIndex As Long
 Private g_PostProcessFooterHasAppended As Boolean
 Private g_RuntimeDataBySheetAndKey As Object
+Private g_DeferredSingleHeaderTextBySheet As Object
+Private g_DeferredSingleFooterTextBySheet As Object
+Private g_DeferredRowAnchorSeqBySheet As Object
 
 Public Sub m_HighlightRow( _
     ByVal rowRef As obj_ResultRow, _
@@ -339,28 +359,154 @@ Public Sub m_AddNote( _
 End Sub
 
 Public Sub m_ResetPostProcessHeaderCursor(Optional ByVal targetSheet As Worksheet)
+    Dim ws As Worksheet
+
     g_PostProcessHeaderNextInsertRow = 0
     g_PostProcessHeaderRowIndex = 0
     g_PostProcessHeaderHasAppended = False
     If targetSheet Is Nothing Then
         g_PostProcessHeaderSheetKey = vbNullString
         m_ClearRuntimeData
+        Set g_DeferredSingleHeaderTextBySheet = Nothing
+        Set g_DeferredSingleFooterTextBySheet = Nothing
+        Set g_DeferredRowAnchorSeqBySheet = Nothing
+        ex_RenderQueue.m_ClearAll
+        On Error Resume Next
+        Set ws = ActiveSheet
+        On Error GoTo 0
+        If Not ws Is Nothing Then
+            mp_ClearPostProcessHeaderAnchors ws
+        End If
     Else
         g_PostProcessHeaderSheetKey = mp_BuildSheetKey(targetSheet)
         mp_ClearRuntimeDataForSheet targetSheet
+        mp_ClearDeferredRenderSheetState targetSheet
+        mp_SetDeferredRenderActive targetSheet, False
     End If
 End Sub
 
 Public Sub m_ResetPostProcessFooterCursor(Optional ByVal targetSheet As Worksheet)
+    Dim ws As Worksheet
+
     g_PostProcessFooterRowIndex = 0
     g_PostProcessFooterHasAppended = False
     If targetSheet Is Nothing Then
         g_PostProcessFooterSheetKey = vbNullString
         m_ClearRuntimeData
+        Set g_DeferredSingleHeaderTextBySheet = Nothing
+        Set g_DeferredSingleFooterTextBySheet = Nothing
+        Set g_DeferredRowAnchorSeqBySheet = Nothing
+        ex_RenderQueue.m_ClearAll
+        On Error Resume Next
+        Set ws = ActiveSheet
+        On Error GoTo 0
+        If Not ws Is Nothing Then
+            mp_ClearPostProcessFooterAnchors ws
+        End If
     Else
         g_PostProcessFooterSheetKey = mp_BuildSheetKey(targetSheet)
         mp_ClearRuntimeDataForSheet targetSheet
+        mp_ClearDeferredRenderSheetState targetSheet
+        mp_SetDeferredRenderActive targetSheet, False
     End If
+End Sub
+
+Public Sub m_BeginDeferredRender(Optional ByVal targetSheet As Worksheet = Nothing)
+    Dim ws As Worksheet
+
+    If targetSheet Is Nothing Then
+        Set ws = ActiveSheet
+    Else
+        Set ws = targetSheet
+    End If
+    If ws Is Nothing Then Exit Sub
+
+    mp_EnsureDeferredStores
+    mp_ClearDeferredRenderSheetState ws
+    ex_RenderQueue.m_BeginForSheet ws
+End Sub
+
+Public Sub m_CommitDeferredRender(Optional ByVal targetSheet As Worksheet = Nothing)
+    Dim ws As Worksheet
+    Dim queue As Collection
+    Dim op As Object
+    Dim phase As Long
+    Dim prevSheet As Worksheet
+    Dim prevSheetName As String
+    Dim errNumber As Long
+    Dim errSource As String
+    Dim errDescription As String
+
+    If targetSheet Is Nothing Then
+        Set ws = ActiveSheet
+    Else
+        Set ws = targetSheet
+    End If
+    If ws Is Nothing Then Exit Sub
+
+    If Not mp_IsDeferredRenderActiveForSheet(ws) Then Exit Sub
+    Set queue = mp_GetDeferredQueueForSheet(ws)
+    If queue Is Nothing Then
+        mp_ClearDeferredRenderSheetState ws
+        mp_SetDeferredRenderActive ws, False
+        Exit Sub
+    End If
+
+    On Error Resume Next
+    Set prevSheet = ActiveSheet
+    If Not prevSheet Is Nothing Then prevSheetName = prevSheet.Name
+    On Error GoTo 0
+
+    On Error GoTo EH
+    mp_SetDeferredRenderActive ws, False
+
+    On Error Resume Next
+    ws.Activate
+    On Error GoTo EH
+
+    For phase = 1 To 3
+        For Each op In queue
+            If mp_GetDeferredOperationPhase(op) = phase Then
+                mp_ApplyDeferredOperation ws, op
+            End If
+        Next op
+    Next phase
+
+    mp_ClearDeferredRenderSheetState ws
+
+    If Len(prevSheetName) > 0 Then
+        On Error Resume Next
+        ThisWorkbook.Worksheets(prevSheetName).Activate
+        On Error GoTo 0
+    End If
+    Exit Sub
+
+EH:
+    errNumber = Err.Number
+    errSource = Err.Source
+    errDescription = Err.Description
+
+    On Error Resume Next
+    mp_SetDeferredRenderActive ws, False
+    mp_ClearDeferredRenderSheetState ws
+    If Len(prevSheetName) > 0 Then ThisWorkbook.Worksheets(prevSheetName).Activate
+    On Error GoTo 0
+
+    Err.Raise errNumber, errSource, errDescription
+End Sub
+
+Public Sub m_EndDeferredRender(Optional ByVal targetSheet As Worksheet = Nothing)
+    Dim ws As Worksheet
+
+    If targetSheet Is Nothing Then
+        Set ws = ActiveSheet
+    Else
+        Set ws = targetSheet
+    End If
+    If ws Is Nothing Then Exit Sub
+
+    mp_ClearDeferredRenderSheetState ws
+    mp_SetDeferredRenderActive ws, False
 End Sub
 
 Public Sub m_AppendPostProcessHeaderText(ByVal postProcessHeaderText As String)
@@ -373,6 +519,10 @@ Public Sub m_AppendPostProcessHeaderText(ByVal postProcessHeaderText As String)
 
     Set ws = ActiveSheet
     If ws Is Nothing Then Exit Sub
+    If mp_IsDeferredRenderActiveForSheet(ws) Then
+        mp_QueueDeferredOperation ws, DEFER_OP_APPEND_HEADER_ROW, Array(CStr(postProcessHeaderText))
+        Exit Sub
+    End If
 
     If Not mp_TryLoadPostProcessHeaderStyle(postProcessHeaderStyle) Then
         Err.Raise vbObjectError + 1673, "ex_PostProcessActions", "Unable to apply postProcessHeader text: invalid '/sheetStyles/postProcessHeaderStyle'."
@@ -404,6 +554,9 @@ Public Sub m_AppendPostProcessHeaderText(ByVal postProcessHeaderText As String)
     mp_ApplyPostProcessHeaderKindStyle ws, insertRow
 
     mp_ApplyPostProcessHeaderRowHeight ws, postProcessHeaderRange, postProcessHeaderText, postProcessHeaderStyle
+    g_PostProcessHeaderRowIndex = insertRow
+    g_PostProcessHeaderHasAppended = True
+    mp_SetPostProcessHeaderAnchors ws, insertRow
     g_PostProcessHeaderNextInsertRow = insertRow + 1
 End Sub
 
@@ -421,6 +574,11 @@ Public Sub m_AppendToSinglePostProcessHeaderText( _
     If Len(appendText) = 0 Then Exit Sub
     Set ws = ActiveSheet
     If ws Is Nothing Then Exit Sub
+    If mp_IsDeferredRenderActiveForSheet(ws) Then
+        mp_QueueDeferredOperation ws, DEFER_OP_APPEND_HEADER_TEXT, Array(CStr(appendText), CStr(separatorText))
+        mp_AppendDeferredSingleHeaderText ws, appendText, separatorText
+        Exit Sub
+    End If
 
     sheetKey = mp_BuildSheetKey(ws)
     If StrComp(g_PostProcessHeaderSheetKey, sheetKey, vbTextCompare) <> 0 Then
@@ -455,6 +613,7 @@ End Sub
 Public Function m_GetSinglePostProcessHeaderText(Optional ByVal targetSheet As Worksheet = Nothing) As String
     Dim ws As Worksheet
     Dim headerRowIndex As Long
+    Dim deferredText As String
 
     If targetSheet Is Nothing Then
         Set ws = ActiveSheet
@@ -463,6 +622,12 @@ Public Function m_GetSinglePostProcessHeaderText(Optional ByVal targetSheet As W
     End If
     If ws Is Nothing Then
         Err.Raise vbObjectError + 1729, "ex_PostProcessActions", "Active sheet is not available for postProcessHeader read."
+    End If
+    If mp_IsDeferredRenderActiveForSheet(ws) Then
+        If mp_TryGetDeferredSingleHeaderText(ws, deferredText) Then
+            m_GetSinglePostProcessHeaderText = deferredText
+            Exit Function
+        End If
     End If
 
     If Not mp_TryGetCachedSinglePostProcessHeaderRowIndex(ws, headerRowIndex) Then
@@ -485,6 +650,10 @@ Public Sub m_AppendPostProcessFooterText(ByVal postProcessFooterText As String)
 
     Set ws = ActiveSheet
     If ws Is Nothing Then Exit Sub
+    If mp_IsDeferredRenderActiveForSheet(ws) Then
+        mp_QueueDeferredOperation ws, DEFER_OP_APPEND_FOOTER_ROW, Array(CStr(postProcessFooterText))
+        Exit Sub
+    End If
 
     If Not mp_TryLoadPostProcessFooterStyle(postProcessFooterStyle) Then
         Err.Raise vbObjectError + 1651, "ex_PostProcessActions", "Unable to apply postProcessFooter text: invalid '/sheetStyles/postProcessFooterStyle'."
@@ -524,6 +693,11 @@ Public Sub m_AppendToSinglePostProcessFooterText( _
     If Len(appendText) = 0 Then Exit Sub
     Set ws = ActiveSheet
     If ws Is Nothing Then Exit Sub
+    If mp_IsDeferredRenderActiveForSheet(ws) Then
+        mp_QueueDeferredOperation ws, DEFER_OP_APPEND_FOOTER_TEXT, Array(CStr(appendText), CStr(separatorText))
+        mp_AppendDeferredSingleFooterText ws, appendText, separatorText
+        Exit Sub
+    End If
 
     If Not mp_TryLoadPostProcessFooterStyle(postProcessFooterStyle) Then
         Err.Raise vbObjectError + 1682, "ex_PostProcessActions", "Unable to apply single postProcessFooter text: invalid '/sheetStyles/postProcessFooterStyle'."
@@ -545,6 +719,7 @@ End Sub
 Public Function m_GetSinglePostProcessFooterText(Optional ByVal targetSheet As Worksheet = Nothing) As String
     Dim ws As Worksheet
     Dim footerRowIndex As Long
+    Dim deferredText As String
 
     If targetSheet Is Nothing Then
         Set ws = ActiveSheet
@@ -553,6 +728,12 @@ Public Function m_GetSinglePostProcessFooterText(Optional ByVal targetSheet As W
     End If
     If ws Is Nothing Then
         Err.Raise vbObjectError + 1701, "ex_PostProcessActions", "Active sheet is not available for postProcessFooter read."
+    End If
+    If mp_IsDeferredRenderActiveForSheet(ws) Then
+        If mp_TryGetDeferredSingleFooterText(ws, deferredText) Then
+            m_GetSinglePostProcessFooterText = deferredText
+            Exit Function
+        End If
     End If
 
     If Not mp_TryGetCachedSinglePostProcessFooterRowIndex(ws, footerRowIndex) Then
@@ -650,6 +831,12 @@ Public Function m_GetSinglePostProcessFooterCellRef(Optional ByVal targetSheet A
     If ws Is Nothing Then
         Err.Raise vbObjectError + 1708, "ex_PostProcessActions", "Active sheet is not available for footer cell reference read."
     End If
+    If mp_IsDeferredRenderActiveForSheet(ws) Then
+        If mp_HasDeferredSingleFooterText(ws) Then
+            m_GetSinglePostProcessFooterCellRef = RUNTIME_POINTER_PREFIX_NAME & POST_PROCESS_FOOTER_ANCHOR_NAME
+            Exit Function
+        End If
+    End If
 
     If Not mp_TryGetCachedSinglePostProcessFooterRowIndex(ws, footerRowIndex) Then
         Err.Raise vbObjectError + 1709, "ex_PostProcessActions", "Single postProcessFooter row is not available on sheet '" & ws.Name & "'."
@@ -672,6 +859,12 @@ Public Function m_GetSinglePostProcessHeaderCellRef(Optional ByVal targetSheet A
     End If
     If ws Is Nothing Then
         Err.Raise vbObjectError + 1732, "ex_PostProcessActions", "Active sheet is not available for header cell reference read."
+    End If
+    If mp_IsDeferredRenderActiveForSheet(ws) Then
+        If mp_HasDeferredSingleHeaderText(ws) Then
+            m_GetSinglePostProcessHeaderCellRef = RUNTIME_POINTER_PREFIX_NAME & POST_PROCESS_HEADER_ANCHOR_NAME
+            Exit Function
+        End If
     End If
 
     If Not mp_TryGetCachedSinglePostProcessHeaderRowIndex(ws, headerRowIndex) Then
@@ -771,23 +964,168 @@ Public Function m_ShowLogicError(ByVal errorText As String) As String
     m_ShowLogicError = errorText
 End Function
 
-Public Function m_ShowWarningBanner( _
-    ByVal warningText As String, _
-    Optional ByVal titleText As String = "WARNING", _
-    Optional ByVal bannerRangeAddress As String = vbNullString _
+Public Function m_ShowBanner( _
+    ByVal bannerType As String, _
+    ByVal bannerText As String, _
+    Optional ByVal titleText As String = vbNullString, _
+    Optional ByVal bannerRangeAddress As String = vbNullString, _
+    Optional ByVal rowIndexText As String = vbNullString _
 ) As String
     Dim ws As Worksheet
+    Dim bannerKind As String
 
-    warningText = Trim$(warningText)
-    If Len(warningText) = 0 Then Exit Function
+    bannerText = Trim$(bannerText)
+    If Len(bannerText) = 0 Then Exit Function
+    bannerKind = mp_MapBannerTypeToKind(bannerType)
+    titleText = mp_ResolveBannerTitle(titleText, bannerType)
 
     Set ws = ActiveSheet
     If ws Is Nothing Then
-        Err.Raise vbObjectError + 1713, "ex_PostProcessActions", "Active sheet is not available for warning banner."
+        Err.Raise vbObjectError + 1725, "ex_PostProcessActions", "Active sheet is not available for banner."
+    End If
+    rowIndexText = Trim$(rowIndexText)
+    bannerRangeAddress = Trim$(bannerRangeAddress)
+    If mp_IsDeferredRenderActiveForSheet(ws) Then
+        If Len(rowIndexText) > 0 Then
+            mp_QueueDeferredOperation ws, DEFER_OP_SHOW_BANNER_BEFORE_ROW, Array(CStr(bannerType), CStr(bannerText), CStr(titleText), CStr(rowIndexText), "1")
+        Else
+            mp_QueueDeferredOperation ws, DEFER_OP_SHOW_BANNER, Array(CStr(bannerType), CStr(bannerText), CStr(titleText), CStr(bannerRangeAddress), CStr(rowIndexText))
+        End If
+        m_ShowBanner = bannerText
+        Exit Function
     End If
 
-    ex_Messaging.m_RenderWarningBanner ws, warningText, titleText, bannerRangeAddress
-    m_ShowWarningBanner = warningText
+    If Len(rowIndexText) > 0 Then
+        m_ShowBanner = m_ShowBannerBeforeRowIndex(bannerType, bannerText, titleText, rowIndexText, "1")
+        Exit Function
+    End If
+
+    If Len(bannerRangeAddress) = 0 Then
+        m_ShowBanner = m_ShowBannerAfterBanner(bannerType, bannerText, titleText, "0", "1")
+        Exit Function
+    End If
+
+    ex_Messaging.m_RenderTextBanner ws, bannerText, titleText, bannerRangeAddress, bannerKind
+    m_ShowBanner = bannerText
+End Function
+
+Public Function m_ShowBannerAtCell( _
+    ByVal bannerType As String, _
+    ByVal bannerText As String, _
+    Optional ByVal titleText As String = vbNullString, _
+    Optional ByVal topLeftCellRef As String = "A1" _
+) As String
+    Dim ws As Worksheet
+    Dim bannerKind As String
+
+    bannerText = Trim$(bannerText)
+    If Len(bannerText) = 0 Then Exit Function
+    bannerKind = mp_MapBannerTypeToKind(bannerType)
+    titleText = mp_ResolveBannerTitle(titleText, bannerType)
+
+    Set ws = ActiveSheet
+    If ws Is Nothing Then
+        Err.Raise vbObjectError + 1726, "ex_PostProcessActions", "Active sheet is not available for banner at cell."
+    End If
+    If mp_IsDeferredRenderActiveForSheet(ws) Then
+        mp_QueueDeferredOperation ws, DEFER_OP_SHOW_BANNER_AT_CELL, Array(CStr(bannerType), CStr(bannerText), CStr(titleText), CStr(topLeftCellRef))
+        m_ShowBannerAtCell = bannerText
+        Exit Function
+    End If
+
+    ex_Messaging.m_RenderTextBannerAtCell ws, bannerText, topLeftCellRef, titleText, bannerKind
+    m_ShowBannerAtCell = bannerText
+End Function
+
+Public Function m_ShowBannerAfterBanner( _
+    ByVal bannerType As String, _
+    ByVal bannerText As String, _
+    Optional ByVal titleText As String = vbNullString, _
+    Optional ByVal afterBannerNumberText As String = "1", _
+    Optional ByVal gapRowsText As String = "1" _
+) As String
+    Dim ws As Worksheet
+    Dim bannerKind As String
+    Dim afterBannerIndex As Long
+    Dim gapRows As Long
+
+    bannerText = Trim$(bannerText)
+    If Len(bannerText) = 0 Then Exit Function
+    bannerKind = mp_MapBannerTypeToKind(bannerType)
+    titleText = mp_ResolveBannerTitle(titleText, bannerType)
+
+    afterBannerNumberText = Trim$(afterBannerNumberText)
+    If Len(afterBannerNumberText) = 0 Then afterBannerNumberText = "1"
+    If Not ex_XmlCore.m_TryParseLong(afterBannerNumberText, afterBannerIndex) Then
+        Err.Raise vbObjectError + 1727, "ex_PostProcessActions", "Banner index must be integer for 'after banner' placement."
+    End If
+
+    Set ws = ActiveSheet
+    If ws Is Nothing Then
+        Err.Raise vbObjectError + 1729, "ex_PostProcessActions", "Active sheet is not available for 'after banner' placement."
+    End If
+    If mp_IsDeferredRenderActiveForSheet(ws) Then
+        mp_QueueDeferredOperation ws, DEFER_OP_SHOW_BANNER_AFTER_BANNER, Array(CStr(bannerType), CStr(bannerText), CStr(titleText), CStr(afterBannerNumberText), CStr(gapRowsText))
+        m_ShowBannerAfterBanner = bannerText
+        Exit Function
+    End If
+
+    gapRowsText = Trim$(gapRowsText)
+    If Len(gapRowsText) = 0 Then gapRowsText = "1"
+    If Not ex_XmlCore.m_TryParseLong(gapRowsText, gapRows) Then
+        Err.Raise vbObjectError + 1765, "ex_PostProcessActions", "Gap rows must be integer for 'after banner' placement."
+    End If
+    If gapRows < 0 Then
+        Err.Raise vbObjectError + 1766, "ex_PostProcessActions", "Gap rows cannot be negative for 'after banner' placement."
+    End If
+
+    ex_Messaging.m_RenderTextBannerAfterBanner ws, bannerText, afterBannerIndex, titleText, bannerKind, gapRows
+    m_ShowBannerAfterBanner = bannerText
+End Function
+
+Public Function m_ShowBannerAtTable( _
+    ByVal bannerType As String, _
+    ByVal bannerText As String, _
+    ByVal tableRef As String, _
+    Optional ByVal positionText As String = "before", _
+    Optional ByVal titleText As String = vbNullString _
+) As String
+    Dim ws As Worksheet
+    Dim bannerKind As String
+    Dim gapRows As Long
+    Dim gapRowsText As String
+
+    bannerText = Trim$(bannerText)
+    If Len(bannerText) = 0 Then Exit Function
+    bannerKind = mp_MapBannerTypeToKind(bannerType)
+    titleText = mp_ResolveBannerTitle(titleText, bannerType)
+    tableRef = Trim$(tableRef)
+    If Len(tableRef) = 0 Then
+        Err.Raise vbObjectError + 1730, "ex_PostProcessActions", "Table reference is required for table banner placement."
+    End If
+
+    Set ws = ActiveSheet
+    If ws Is Nothing Then
+        Err.Raise vbObjectError + 1731, "ex_PostProcessActions", "Active sheet is not available for table banner placement."
+    End If
+    If mp_IsDeferredRenderActiveForSheet(ws) Then
+        mp_QueueDeferredOperation ws, DEFER_OP_SHOW_BANNER_AT_TABLE, Array(CStr(bannerType), CStr(bannerText), CStr(tableRef), CStr(positionText), CStr(titleText))
+        m_ShowBannerAtTable = bannerText
+        Exit Function
+    End If
+
+    gapRowsText = "1"
+    gapRowsText = Trim$(gapRowsText)
+    If Len(gapRowsText) = 0 Then gapRowsText = "1"
+    If Not ex_XmlCore.m_TryParseLong(gapRowsText, gapRows) Then
+        Err.Raise vbObjectError + 1767, "ex_PostProcessActions", "Gap rows must be integer for table banner placement."
+    End If
+    If gapRows < 0 Then
+        Err.Raise vbObjectError + 1768, "ex_PostProcessActions", "Gap rows cannot be negative for table banner placement."
+    End If
+
+    ex_Messaging.m_RenderTextBannerAtTable ws, bannerText, tableRef, positionText, titleText, bannerKind, gapRows
+    m_ShowBannerAtTable = bannerText
 End Function
 
 Public Function m_GetRowIndex(ByVal rowRef As Object) As String
@@ -804,7 +1142,8 @@ Public Function m_GetRowIndex(ByVal rowRef As Object) As String
     m_GetRowIndex = CStr(sourceRowRef.RowIndex)
 End Function
 
-Public Function m_GetWarningBannerRangeAboveRow( _
+Private Function m_GetBannerRangeAboveRow( _
+    ByVal bannerType As String, _
     ByVal rowRef As Object, _
     Optional ByVal gapRowsText As String = "1" _
 ) As String
@@ -813,36 +1152,39 @@ Public Function m_GetWarningBannerRangeAboveRow( _
     Dim bannerCols As Long
     Dim bannerRows As Long
     Dim startRow As Long
+    Dim bannerKind As String
 
     If rowRef Is Nothing Then
-        Err.Raise vbObjectError + 1714, "ex_PostProcessActions", "Row reference is required for warning banner range."
+        Err.Raise vbObjectError + 1714, "ex_PostProcessActions", "Row reference is required for banner range."
     End If
     If Not TypeOf rowRef Is obj_ResultRow Then
-        Err.Raise vbObjectError + 1715, "ex_PostProcessActions", "Row reference must be obj_ResultRow for warning banner range."
+        Err.Raise vbObjectError + 1715, "ex_PostProcessActions", "Row reference must be obj_ResultRow for banner range."
     End If
     Set sourceRowRef = rowRef
 
     gapRowsText = Trim$(gapRowsText)
     If Len(gapRowsText) = 0 Then gapRowsText = "1"
     If Not ex_XmlCore.m_TryParseLong(gapRowsText, gapRows) Then
-        Err.Raise vbObjectError + 1716, "ex_PostProcessActions", "Gap rows must be integer for warning banner range."
+        Err.Raise vbObjectError + 1716, "ex_PostProcessActions", "Gap rows must be integer for banner range."
     End If
     If gapRows < 0 Then
-        Err.Raise vbObjectError + 1717, "ex_PostProcessActions", "Gap rows cannot be negative for warning banner range."
+        Err.Raise vbObjectError + 1717, "ex_PostProcessActions", "Gap rows cannot be negative for banner range."
     End If
 
-    mp_GetWarningBannerDimensions bannerCols, bannerRows
+    bannerKind = mp_MapBannerTypeToKind(bannerType)
+    mp_GetWarningBannerDimensions bannerCols, bannerRows, bannerKind
     startRow = sourceRowRef.RowIndex - gapRows - bannerRows
     If startRow < 1 Then startRow = 1
 
-    m_GetWarningBannerRangeAboveRow = "A" & CStr(startRow) & ":" & mp_ToColumnLetter(bannerCols) & CStr(startRow + bannerRows - 1)
+    m_GetBannerRangeAboveRow = "A" & CStr(startRow) & ":" & mp_ToColumnLetter(bannerCols) & CStr(startRow + bannerRows - 1)
 End Function
 
-Public Function m_ShowWarningBannerBeforeRowIndex( _
-    ByVal warningText As String, _
-    Optional ByVal titleText As String = "WARNING", _
+Private Function m_ShowBannerBeforeRowIndex( _
+    ByVal bannerType As String, _
+    ByVal bannerText As String, _
+    Optional ByVal titleText As String = vbNullString, _
     Optional ByVal rowIndexText As String = vbNullString, _
-    Optional ByVal gapRowsText As String = "0" _
+    Optional ByVal gapRowsText As String = "1" _
 ) As String
     Dim ws As Worksheet
     Dim rowIndex As Long
@@ -851,41 +1193,123 @@ Public Function m_ShowWarningBannerBeforeRowIndex( _
     Dim bannerRows As Long
     Dim rowsToInsert As Long
     Dim bannerRangeAddress As String
+    Dim existingRangeAddress As String
+    Dim bannerKind As String
 
-    warningText = Trim$(warningText)
-    If Len(warningText) = 0 Then Exit Function
+    bannerText = Trim$(bannerText)
+    If Len(bannerText) = 0 Then Exit Function
+    bannerKind = mp_MapBannerTypeToKind(bannerType)
+    titleText = mp_ResolveBannerTitle(titleText, bannerType)
 
     rowIndexText = Trim$(rowIndexText)
     If Not ex_XmlCore.m_TryParseLong(rowIndexText, rowIndex) Then
-        Err.Raise vbObjectError + 1720, "ex_PostProcessActions", "Row index must be integer for warning banner insert."
+        Err.Raise vbObjectError + 1720, "ex_PostProcessActions", "Row index must be integer for banner insert."
     End If
     If rowIndex < 1 Then
-        Err.Raise vbObjectError + 1721, "ex_PostProcessActions", "Row index must be >= 1 for warning banner insert."
+        Err.Raise vbObjectError + 1721, "ex_PostProcessActions", "Row index must be >= 1 for banner insert."
     End If
 
     gapRowsText = Trim$(gapRowsText)
-    If Len(gapRowsText) = 0 Then gapRowsText = "0"
+    If Len(gapRowsText) = 0 Then gapRowsText = "1"
     If Not ex_XmlCore.m_TryParseLong(gapRowsText, gapRows) Then
-        Err.Raise vbObjectError + 1722, "ex_PostProcessActions", "Gap rows must be integer for warning banner insert."
+        Err.Raise vbObjectError + 1722, "ex_PostProcessActions", "Gap rows must be integer for banner insert."
     End If
     If gapRows < 0 Then
-        Err.Raise vbObjectError + 1723, "ex_PostProcessActions", "Gap rows cannot be negative for warning banner insert."
+        Err.Raise vbObjectError + 1723, "ex_PostProcessActions", "Gap rows cannot be negative for banner insert."
     End If
 
     Set ws = ActiveSheet
     If ws Is Nothing Then
-        Err.Raise vbObjectError + 1724, "ex_PostProcessActions", "Active sheet is not available for warning banner insert."
+        Err.Raise vbObjectError + 1724, "ex_PostProcessActions", "Active sheet is not available for banner insert."
+    End If
+    If mp_IsDeferredRenderActiveForSheet(ws) Then
+        mp_QueueDeferredOperation ws, DEFER_OP_SHOW_BANNER_BEFORE_ROW, Array(CStr(bannerType), CStr(bannerText), CStr(titleText), CStr(rowIndexText), CStr(gapRowsText))
+        m_ShowBannerBeforeRowIndex = bannerText
+        Exit Function
     End If
 
-    mp_GetWarningBannerDimensions bannerCols, bannerRows
+    If ex_Messaging.m_TryGetBannerRangeAddressByText(ws, bannerText, existingRangeAddress) Then
+        ex_Messaging.m_RenderTextBanner ws, bannerText, titleText, existingRangeAddress, bannerKind
+        m_ShowBannerBeforeRowIndex = bannerText
+        Exit Function
+    End If
+
+    mp_GetWarningBannerDimensions bannerCols, bannerRows, bannerKind
     rowsToInsert = bannerRows + gapRows
     If rowsToInsert > 0 Then
         ws.Rows(CStr(rowIndex) & ":" & CStr(rowIndex + rowsToInsert - 1)).Insert Shift:=xlDown
+        mp_UnmergeRowsSafe ws, rowIndex + bannerRows, gapRows
     End If
 
     bannerRangeAddress = "A" & CStr(rowIndex) & ":" & mp_ToColumnLetter(bannerCols) & CStr(rowIndex + bannerRows - 1)
-    ex_Messaging.m_RenderWarningBanner ws, warningText, titleText, bannerRangeAddress
-    m_ShowWarningBannerBeforeRowIndex = warningText
+    ex_Messaging.m_RenderTextBanner ws, bannerText, titleText, bannerRangeAddress, bannerKind
+    m_ShowBannerBeforeRowIndex = bannerText
+End Function
+
+Private Sub mp_UnmergeRowsSafe(ByVal ws As Worksheet, ByVal startRow As Long, ByVal rowCount As Long)
+    Dim endRow As Long
+
+    If ws Is Nothing Then Exit Sub
+    If rowCount <= 0 Then Exit Sub
+    If startRow < 1 Then startRow = 1
+    If startRow > ws.Rows.Count Then Exit Sub
+
+    endRow = startRow + rowCount - 1
+    If endRow > ws.Rows.Count Then endRow = ws.Rows.Count
+    If endRow < startRow Then Exit Sub
+
+    On Error Resume Next
+    ws.Rows(CStr(startRow) & ":" & CStr(endRow)).UnMerge
+    ws.Rows(CStr(startRow) & ":" & CStr(endRow)).RowHeight = ws.StandardHeight
+    On Error GoTo 0
+End Sub
+
+Private Function mp_NormalizeBannerType(ByVal bannerType As String) As String
+    Dim normalized As String
+
+    normalized = UCase$(Trim$(bannerType))
+    If Len(normalized) = 0 Then normalized = BANNER_TYPE_WARNING
+
+    Select Case normalized
+        Case BANNER_TYPE_WARNING, BANNER_TYPE_ERROR, BANNER_TYPE_NOTE
+            mp_NormalizeBannerType = normalized
+        Case UCase$(BANNER_KIND_WARNING)
+            mp_NormalizeBannerType = BANNER_TYPE_WARNING
+        Case UCase$(BANNER_KIND_ERROR)
+            mp_NormalizeBannerType = BANNER_TYPE_ERROR
+        Case UCase$(BANNER_KIND_NOTE)
+            mp_NormalizeBannerType = BANNER_TYPE_NOTE
+        Case Else
+            Err.Raise vbObjectError + 1737, "ex_PostProcessActions", "Unsupported banner type '" & bannerType & "'. Allowed: WARNING, ERROR, NOTE."
+    End Select
+End Function
+
+Private Function mp_MapBannerTypeToKind(ByVal bannerType As String) As String
+    Select Case mp_NormalizeBannerType(bannerType)
+        Case BANNER_TYPE_ERROR
+            mp_MapBannerTypeToKind = BANNER_KIND_ERROR
+        Case BANNER_TYPE_NOTE
+            mp_MapBannerTypeToKind = BANNER_KIND_NOTE
+        Case Else
+            mp_MapBannerTypeToKind = BANNER_KIND_WARNING
+    End Select
+End Function
+
+Private Function mp_ResolveBannerTitle(ByVal titleText As String, ByVal bannerType As String) As String
+    titleText = Trim$(titleText)
+    If Len(titleText) > 0 Then
+        mp_ResolveBannerTitle = titleText
+        Exit Function
+    End If
+
+    Select Case mp_NormalizeBannerType(bannerType)
+        Case BANNER_TYPE_ERROR
+            mp_ResolveBannerTitle = BANNER_TYPE_ERROR
+        Case BANNER_TYPE_NOTE
+            mp_ResolveBannerTitle = BANNER_TYPE_NOTE
+        Case Else
+            mp_ResolveBannerTitle = BANNER_TYPE_WARNING
+    End Select
 End Function
 
 Public Function m_GetRelativeDayOfMonth(ByVal dayOffsetText As String) As String
@@ -1358,42 +1782,24 @@ Private Sub mp_ApplyPostProcessHeaderRowHeight( _
     ByVal postProcessHeaderText As String, _
     ByRef postProcessHeaderStyle As t_PostProcessHeaderStyle _
 )
-    Dim targetRow As Long
-    Dim measuredHeight As Double
-    Dim standardRowHeight As Double
-
     If ws Is Nothing Then Exit Sub
     If postProcessHeaderRange Is Nothing Then Exit Sub
 
-    targetRow = postProcessHeaderRange.Row
-    If targetRow <= 0 Then Exit Sub
-
-    If postProcessHeaderStyle.RowHeight > 0 Then
-        ws.Rows(targetRow).RowHeight = postProcessHeaderStyle.RowHeight
-        Exit Sub
-    End If
-
-    standardRowHeight = ws.StandardHeight
-    If standardRowHeight <= 0 Then standardRowHeight = 15
-
-    If Not postProcessHeaderStyle.AutoHeight Or StrComp(postProcessHeaderStyle.Overflow, "wrap", vbTextCompare) <> 0 Then
-        If postProcessHeaderStyle.MinRowHeight > 0 Then
-            ws.Rows(targetRow).RowHeight = postProcessHeaderStyle.MinRowHeight
-        Else
-            ws.Rows(targetRow).RowHeight = standardRowHeight
-        End If
-        Exit Sub
-    End If
-
-    measuredHeight = mp_MeasurePostProcessHeaderTextHeight(ws, postProcessHeaderRange, postProcessHeaderText, postProcessHeaderStyle.FontSize)
-    measuredHeight = measuredHeight + postProcessHeaderStyle.AutoHeightMarginTop + postProcessHeaderStyle.AutoHeightMarginBottom
-    If measuredHeight < postProcessHeaderStyle.MinRowHeight Then measuredHeight = postProcessHeaderStyle.MinRowHeight
-
-    If measuredHeight <= 0 Then
-        ws.Rows(targetRow).RowHeight = standardRowHeight
-    Else
-        ws.Rows(targetRow).RowHeight = mp_RoundUpMeasuredHeight(measuredHeight)
-    End If
+    ex_SheetHelpers.m_ApplySingleRowTextAutoHeight _
+        ws, _
+        postProcessHeaderRange, _
+        postProcessHeaderText, _
+        postProcessHeaderStyle.RowHeight, _
+        postProcessHeaderStyle.MinRowHeight, _
+        postProcessHeaderStyle.AutoHeight, _
+        (StrComp(postProcessHeaderStyle.Overflow, "wrap", vbTextCompare) = 0), _
+        postProcessHeaderStyle.AutoHeightMarginTop, _
+        postProcessHeaderStyle.AutoHeightMarginBottom, _
+        POST_PROCESS_MEASURE_SIDE_MARGIN, _
+        POST_PROCESS_MEASURE_VERTICAL_MARGIN, _
+        mp_GetMeasureExtraHeight(postProcessHeaderStyle.FontSize), _
+        POST_PROCESS_MEASURE_HEIGHT_ROUND_PAD, _
+        postProcessHeaderStyle.FontSize
 End Sub
 
 Private Sub mp_ApplyPostProcessFooterRowHeight( _
@@ -1402,42 +1808,24 @@ Private Sub mp_ApplyPostProcessFooterRowHeight( _
     ByVal postProcessFooterText As String, _
     ByRef postProcessFooterStyle As t_PostProcessFooterStyle _
 )
-    Dim targetRow As Long
-    Dim measuredHeight As Double
-    Dim standardRowHeight As Double
-
     If ws Is Nothing Then Exit Sub
     If postProcessFooterRange Is Nothing Then Exit Sub
 
-    targetRow = postProcessFooterRange.Row
-    If targetRow <= 0 Then Exit Sub
-
-    If postProcessFooterStyle.RowHeight > 0 Then
-        ws.Rows(targetRow).RowHeight = postProcessFooterStyle.RowHeight
-        Exit Sub
-    End If
-
-    standardRowHeight = ws.StandardHeight
-    If standardRowHeight <= 0 Then standardRowHeight = 15
-
-    If Not postProcessFooterStyle.AutoHeight Or StrComp(postProcessFooterStyle.Overflow, "wrap", vbTextCompare) <> 0 Then
-        If postProcessFooterStyle.MinRowHeight > 0 Then
-            ws.Rows(targetRow).RowHeight = postProcessFooterStyle.MinRowHeight
-        Else
-            ws.Rows(targetRow).RowHeight = standardRowHeight
-        End If
-        Exit Sub
-    End If
-
-    measuredHeight = mp_MeasurePostProcessFooterTextHeight(ws, postProcessFooterRange, postProcessFooterText, postProcessFooterStyle.FontSize)
-    measuredHeight = measuredHeight + postProcessFooterStyle.AutoHeightMarginTop + postProcessFooterStyle.AutoHeightMarginBottom
-    If measuredHeight < postProcessFooterStyle.MinRowHeight Then measuredHeight = postProcessFooterStyle.MinRowHeight
-
-    If measuredHeight <= 0 Then
-        ws.Rows(targetRow).RowHeight = standardRowHeight
-    Else
-        ws.Rows(targetRow).RowHeight = mp_RoundUpMeasuredHeight(measuredHeight)
-    End If
+    ex_SheetHelpers.m_ApplySingleRowTextAutoHeight _
+        ws, _
+        postProcessFooterRange, _
+        postProcessFooterText, _
+        postProcessFooterStyle.RowHeight, _
+        postProcessFooterStyle.MinRowHeight, _
+        postProcessFooterStyle.AutoHeight, _
+        (StrComp(postProcessFooterStyle.Overflow, "wrap", vbTextCompare) = 0), _
+        postProcessFooterStyle.AutoHeightMarginTop, _
+        postProcessFooterStyle.AutoHeightMarginBottom, _
+        POST_PROCESS_MEASURE_SIDE_MARGIN, _
+        POST_PROCESS_MEASURE_VERTICAL_MARGIN, _
+        mp_GetMeasureExtraHeight(postProcessFooterStyle.FontSize), _
+        POST_PROCESS_MEASURE_HEIGHT_ROUND_PAD, _
+        postProcessFooterStyle.FontSize
 End Sub
 
 Private Function mp_MeasurePostProcessHeaderTextHeight( _
@@ -1446,37 +1834,15 @@ Private Function mp_MeasurePostProcessHeaderTextHeight( _
     ByVal postProcessHeaderText As String, _
     ByVal fontSize As Double _
 ) As Double
-    Dim textBoxShape As Object
-
-    On Error GoTo EH
-    If ws Is Nothing Then Exit Function
-    If postProcessHeaderRange Is Nothing Then Exit Function
-    If Len(postProcessHeaderText) = 0 Then Exit Function
-
-    Set textBoxShape = ws.Shapes.AddTextbox(1, postProcessHeaderRange.Left, postProcessHeaderRange.Top, postProcessHeaderRange.Width, 8)
-    textBoxShape.Line.Visible = 0
-    textBoxShape.Fill.Visible = 0
-    textBoxShape.TextFrame2.MarginLeft = POST_PROCESS_MEASURE_SIDE_MARGIN
-    textBoxShape.TextFrame2.MarginRight = POST_PROCESS_MEASURE_SIDE_MARGIN
-    textBoxShape.TextFrame2.MarginTop = POST_PROCESS_MEASURE_VERTICAL_MARGIN
-    textBoxShape.TextFrame2.MarginBottom = POST_PROCESS_MEASURE_VERTICAL_MARGIN
-    textBoxShape.TextFrame2.WordWrap = -1
-    textBoxShape.TextFrame2.AutoSize = 1
-    textBoxShape.TextFrame2.TextRange.Text = postProcessHeaderText
-    textBoxShape.TextFrame2.TextRange.Font.Size = fontSize
-    textBoxShape.TextFrame2.TextRange.Font.Name = CStr(postProcessHeaderRange.Font.Name)
-
-    mp_MeasurePostProcessHeaderTextHeight = textBoxShape.Height + mp_GetMeasureExtraHeight(fontSize)
-
-Cleanup:
-    On Error Resume Next
-    If Not textBoxShape Is Nothing Then textBoxShape.Delete
-    On Error GoTo 0
-    Exit Function
-
-EH:
-    mp_MeasurePostProcessHeaderTextHeight = 0
-    Resume Cleanup
+    mp_MeasurePostProcessHeaderTextHeight = ex_SheetHelpers.m_MeasureTextHeight( _
+        ws, _
+        postProcessHeaderRange, _
+        postProcessHeaderText, _
+        POST_PROCESS_MEASURE_SIDE_MARGIN, _
+        POST_PROCESS_MEASURE_VERTICAL_MARGIN, _
+        fontSize, _
+        CStr(postProcessHeaderRange.Font.Name) _
+    ) + mp_GetMeasureExtraHeight(fontSize)
 End Function
 
 Private Function mp_MeasurePostProcessFooterTextHeight( _
@@ -1485,37 +1851,15 @@ Private Function mp_MeasurePostProcessFooterTextHeight( _
     ByVal postProcessFooterText As String, _
     ByVal fontSize As Double _
 ) As Double
-    Dim textBoxShape As Object
-
-    On Error GoTo EH
-    If ws Is Nothing Then Exit Function
-    If postProcessFooterRange Is Nothing Then Exit Function
-    If Len(postProcessFooterText) = 0 Then Exit Function
-
-    Set textBoxShape = ws.Shapes.AddTextbox(1, postProcessFooterRange.Left, postProcessFooterRange.Top, postProcessFooterRange.Width, 8)
-    textBoxShape.Line.Visible = 0
-    textBoxShape.Fill.Visible = 0
-    textBoxShape.TextFrame2.MarginLeft = POST_PROCESS_MEASURE_SIDE_MARGIN
-    textBoxShape.TextFrame2.MarginRight = POST_PROCESS_MEASURE_SIDE_MARGIN
-    textBoxShape.TextFrame2.MarginTop = POST_PROCESS_MEASURE_VERTICAL_MARGIN
-    textBoxShape.TextFrame2.MarginBottom = POST_PROCESS_MEASURE_VERTICAL_MARGIN
-    textBoxShape.TextFrame2.WordWrap = -1
-    textBoxShape.TextFrame2.AutoSize = 1
-    textBoxShape.TextFrame2.TextRange.Text = postProcessFooterText
-    textBoxShape.TextFrame2.TextRange.Font.Size = fontSize
-    textBoxShape.TextFrame2.TextRange.Font.Name = CStr(postProcessFooterRange.Font.Name)
-
-    mp_MeasurePostProcessFooterTextHeight = textBoxShape.Height + mp_GetMeasureExtraHeight(fontSize)
-
-Cleanup:
-    On Error Resume Next
-    If Not textBoxShape Is Nothing Then textBoxShape.Delete
-    On Error GoTo 0
-    Exit Function
-
-EH:
-    mp_MeasurePostProcessFooterTextHeight = 0
-    Resume Cleanup
+    mp_MeasurePostProcessFooterTextHeight = ex_SheetHelpers.m_MeasureTextHeight( _
+        ws, _
+        postProcessFooterRange, _
+        postProcessFooterText, _
+        POST_PROCESS_MEASURE_SIDE_MARGIN, _
+        POST_PROCESS_MEASURE_VERTICAL_MARGIN, _
+        fontSize, _
+        CStr(postProcessFooterRange.Font.Name) _
+    ) + mp_GetMeasureExtraHeight(fontSize)
 End Function
 
 Private Function mp_GetFirstUsedRow(ByVal ws As Worksheet) As Long
@@ -1584,8 +1928,6 @@ Private Function mp_IsHeaderAnchorRowValid( _
     ByVal endCol As Long _
 ) As Boolean
     If Not mp_IsSinglePostProcessTextRowShape(ws, rowIndex, endCol) Then Exit Function
-    If Not mp_IsRowBlankSegment(ws, rowIndex - 1, endCol) Then Exit Function
-    If Not mp_IsRowBlankSegment(ws, rowIndex + 1, endCol) Then Exit Function
     mp_IsHeaderAnchorRowValid = True
 End Function
 
@@ -1595,8 +1937,6 @@ Private Function mp_IsFooterAnchorRowValid( _
     ByVal endCol As Long _
 ) As Boolean
     If Not mp_IsSinglePostProcessTextRowShape(ws, rowIndex, endCol) Then Exit Function
-    If Not mp_IsRowBlankSegment(ws, rowIndex - 1, endCol) Then Exit Function
-    If Not mp_IsRowBlankSegment(ws, rowIndex + 1, endCol) Then Exit Function
     mp_IsFooterAnchorRowValid = True
 End Function
 
@@ -1624,11 +1964,7 @@ Private Function mp_GetMeasureExtraHeight(ByVal fontSize As Double) As Double
 End Function
 
 Private Function mp_RoundUpMeasuredHeight(ByVal measuredHeight As Double) As Double
-    Dim roundedHeight As Double
-
-    If measuredHeight <= 0 Then Exit Function
-    roundedHeight = Int(measuredHeight + 0.999)
-    mp_RoundUpMeasuredHeight = roundedHeight + POST_PROCESS_MEASURE_HEIGHT_ROUND_PAD
+    mp_RoundUpMeasuredHeight = ex_SheetHelpers.m_RoundUpMeasuredHeight(measuredHeight, POST_PROCESS_MEASURE_HEIGHT_ROUND_PAD)
 End Function
 
 Private Function mp_TryResolveColumnIndexInRow( _
@@ -1837,6 +2173,289 @@ Private Function mp_BuildRuntimeDataFullKey(ByVal ws As Worksheet, ByVal dataKey
     mp_BuildRuntimeDataFullKey = mp_BuildSheetKey(ws) & "|" & dataKey
 End Function
 
+Private Sub mp_EnsureDeferredStores()
+    If g_DeferredSingleHeaderTextBySheet Is Nothing Then
+        Set g_DeferredSingleHeaderTextBySheet = CreateObject("Scripting.Dictionary")
+        g_DeferredSingleHeaderTextBySheet.CompareMode = 1 ' vbTextCompare
+    End If
+    If g_DeferredSingleFooterTextBySheet Is Nothing Then
+        Set g_DeferredSingleFooterTextBySheet = CreateObject("Scripting.Dictionary")
+        g_DeferredSingleFooterTextBySheet.CompareMode = 1 ' vbTextCompare
+    End If
+    If g_DeferredRowAnchorSeqBySheet Is Nothing Then
+        Set g_DeferredRowAnchorSeqBySheet = CreateObject("Scripting.Dictionary")
+        g_DeferredRowAnchorSeqBySheet.CompareMode = 1 ' vbTextCompare
+    End If
+End Sub
+
+Private Function mp_BuildDeferredSheetKey(ByVal ws As Worksheet) As String
+    mp_BuildDeferredSheetKey = mp_BuildSheetKey(ws)
+End Function
+
+Private Function mp_GetDeferredQueueForSheet(ByVal ws As Worksheet) As Collection
+    If ws Is Nothing Then Exit Function
+    Set mp_GetDeferredQueueForSheet = ex_RenderQueue.m_GetOrCreateQueueForSheet(ws)
+End Function
+
+Private Sub mp_SetDeferredRenderActive(ByVal ws As Worksheet, ByVal isActive As Boolean)
+    If ws Is Nothing Then Exit Sub
+    ex_RenderQueue.m_SetActiveForSheet ws, isActive
+End Sub
+
+Private Function mp_IsDeferredRenderActiveForSheet(ByVal ws As Worksheet) As Boolean
+    mp_IsDeferredRenderActiveForSheet = ex_RenderQueue.m_IsActiveForSheet(ws)
+End Function
+
+Private Sub mp_ClearDeferredRenderSheetState(ByVal ws As Worksheet)
+    Dim sheetKey As String
+
+    If ws Is Nothing Then Exit Sub
+    sheetKey = mp_BuildDeferredSheetKey(ws)
+    If Len(sheetKey) = 0 Then Exit Sub
+
+    ex_RenderQueue.m_ClearQueueForSheet ws
+    If Not g_DeferredSingleHeaderTextBySheet Is Nothing Then
+        If g_DeferredSingleHeaderTextBySheet.Exists(sheetKey) Then g_DeferredSingleHeaderTextBySheet.Remove sheetKey
+    End If
+    If Not g_DeferredSingleFooterTextBySheet Is Nothing Then
+        If g_DeferredSingleFooterTextBySheet.Exists(sheetKey) Then g_DeferredSingleFooterTextBySheet.Remove sheetKey
+    End If
+    If Not g_DeferredRowAnchorSeqBySheet Is Nothing Then
+        If g_DeferredRowAnchorSeqBySheet.Exists(sheetKey) Then g_DeferredRowAnchorSeqBySheet.Remove sheetKey
+    End If
+    mp_ClearDeferredRowAnchors ws
+End Sub
+
+Private Sub mp_QueueDeferredOperation( _
+    ByVal ws As Worksheet, _
+    ByVal opType As String, _
+    ByVal args As Variant _
+)
+    Dim queue As Collection
+    Dim op As Object
+    Dim rowIndex As Long
+    Dim anchorName As String
+
+    If ws Is Nothing Then Exit Sub
+    opType = LCase$(Trim$(opType))
+    If Len(opType) = 0 Then Exit Sub
+
+    Set queue = mp_GetDeferredQueueForSheet(ws)
+    If queue Is Nothing Then Exit Sub
+
+    Set op = CreateObject("Scripting.Dictionary")
+    op.CompareMode = 1
+    op("Type") = opType
+    op("Args") = args
+
+    If opType = DEFER_OP_SHOW_BANNER_BEFORE_ROW Then
+        If IsArray(args) Then
+            If UBound(args) >= 3 Then
+                If ex_XmlCore.m_TryParseLong(CStr(args(3)), rowIndex) Then
+                    If rowIndex >= 1 And rowIndex <= ws.Rows.Count Then
+                        anchorName = mp_NextDeferredRowAnchorName(ws)
+                        If Len(anchorName) > 0 Then
+                            mp_SetNamedRowAnchor ws, anchorName, rowIndex
+                            op("AnchorName") = anchorName
+                        End If
+                    End If
+                End If
+            End If
+        End If
+    End If
+
+    queue.Add op
+End Sub
+
+Private Sub mp_ApplyDeferredOperation(ByVal ws As Worksheet, ByVal op As Object)
+    Dim args As Variant
+    Dim opType As String
+    Dim rowIndexText As String
+    Dim rowIndex As Long
+    Dim anchorName As String
+
+    If ws Is Nothing Then Exit Sub
+    If op Is Nothing Then Exit Sub
+    If Not op.Exists("Type") Then Exit Sub
+
+    opType = LCase$(Trim$(CStr(op("Type"))))
+    If op.Exists("Args") Then args = op("Args")
+
+    Select Case opType
+        Case DEFER_OP_APPEND_HEADER_TEXT
+            m_AppendToSinglePostProcessHeaderText CStr(args(0)), CStr(args(1))
+        Case DEFER_OP_APPEND_FOOTER_TEXT
+            m_AppendToSinglePostProcessFooterText CStr(args(0)), CStr(args(1))
+        Case DEFER_OP_APPEND_HEADER_ROW
+            m_AppendPostProcessHeaderText CStr(args(0))
+        Case DEFER_OP_APPEND_FOOTER_ROW
+            m_AppendPostProcessFooterText CStr(args(0))
+        Case DEFER_OP_SHOW_BANNER
+            Call m_ShowBanner(CStr(args(0)), CStr(args(1)), CStr(args(2)), CStr(args(3)), CStr(args(4)))
+        Case DEFER_OP_SHOW_BANNER_AT_CELL
+            Call m_ShowBannerAtCell(CStr(args(0)), CStr(args(1)), CStr(args(2)), CStr(args(3)))
+        Case DEFER_OP_SHOW_BANNER_AFTER_BANNER
+            Call m_ShowBannerAfterBanner(CStr(args(0)), CStr(args(1)), CStr(args(2)), CStr(args(3)), CStr(args(4)))
+        Case DEFER_OP_SHOW_BANNER_AT_TABLE
+            Call m_ShowBannerAtTable(CStr(args(0)), CStr(args(1)), CStr(args(2)), CStr(args(3)), CStr(args(4)))
+        Case DEFER_OP_SHOW_BANNER_BEFORE_ROW
+            rowIndexText = CStr(args(3))
+            If op.Exists("AnchorName") Then
+                anchorName = CStr(op("AnchorName"))
+                If Len(anchorName) > 0 Then
+                    If mp_TryGetNamedRowAnchor(ws, anchorName, rowIndex) Then rowIndexText = CStr(rowIndex)
+                    mp_ClearNamedRowAnchor ws, anchorName
+                End If
+            End If
+            Call m_ShowBannerBeforeRowIndex(CStr(args(0)), CStr(args(1)), CStr(args(2)), rowIndexText, CStr(args(4)))
+    End Select
+End Sub
+
+Private Function mp_GetDeferredOperationPhase(ByVal op As Object) As Long
+    Dim opType As String
+
+    mp_GetDeferredOperationPhase = 2
+    If op Is Nothing Then Exit Function
+    If Not op.Exists("Type") Then Exit Function
+
+    opType = LCase$(Trim$(CStr(op("Type"))))
+    Select Case opType
+        Case DEFER_OP_APPEND_HEADER_TEXT, DEFER_OP_APPEND_HEADER_ROW
+            mp_GetDeferredOperationPhase = 1
+        Case DEFER_OP_APPEND_FOOTER_TEXT, DEFER_OP_APPEND_FOOTER_ROW
+            mp_GetDeferredOperationPhase = 3
+        Case Else
+            mp_GetDeferredOperationPhase = 2
+    End Select
+End Function
+
+Private Function mp_NextDeferredRowAnchorName(ByVal ws As Worksheet) As String
+    Dim sheetKey As String
+    Dim nextSeq As Long
+
+    If ws Is Nothing Then Exit Function
+    mp_EnsureDeferredStores
+    sheetKey = mp_BuildDeferredSheetKey(ws)
+    If Len(sheetKey) = 0 Then Exit Function
+
+    If g_DeferredRowAnchorSeqBySheet.Exists(sheetKey) Then
+        nextSeq = CLng(g_DeferredRowAnchorSeqBySheet(sheetKey)) + 1
+    Else
+        nextSeq = 1
+    End If
+
+    g_DeferredRowAnchorSeqBySheet(sheetKey) = CStr(nextSeq)
+    mp_NextDeferredRowAnchorName = DEFER_ROW_ANCHOR_PREFIX & CStr(nextSeq)
+End Function
+
+Private Sub mp_ClearDeferredRowAnchors(ByVal ws As Worksheet)
+    Dim i As Long
+    Dim entry As Name
+    Dim localName As String
+    Dim namePos As Long
+    Dim localPrefix As String
+
+    If ws Is Nothing Then Exit Sub
+    localPrefix = LCase$(DEFER_ROW_ANCHOR_PREFIX)
+    If Len(localPrefix) = 0 Then Exit Sub
+
+    On Error Resume Next
+    For i = ws.Names.Count To 1 Step -1
+        Set entry = ws.Names(i)
+        localName = CStr(entry.Name)
+        namePos = InStrRev(localName, "!", vbBinaryCompare)
+        If namePos > 0 Then localName = Mid$(localName, namePos + 1)
+        If LCase$(Left$(localName, Len(localPrefix))) = localPrefix Then
+            entry.Delete
+        End If
+    Next i
+    On Error GoTo 0
+End Sub
+
+Private Sub mp_AppendDeferredSingleHeaderText( _
+    ByVal ws As Worksheet, _
+    ByVal appendText As String, _
+    ByVal separatorText As String _
+)
+    Dim sheetKey As String
+    Dim currentText As String
+
+    If ws Is Nothing Then Exit Sub
+    mp_EnsureDeferredStores
+    sheetKey = mp_BuildDeferredSheetKey(ws)
+    If Len(sheetKey) = 0 Then Exit Sub
+
+    If g_DeferredSingleHeaderTextBySheet.Exists(sheetKey) Then
+        currentText = CStr(g_DeferredSingleHeaderTextBySheet(sheetKey))
+    Else
+        currentText = vbNullString
+    End If
+
+    g_DeferredSingleHeaderTextBySheet(sheetKey) = m_TextAppend(currentText, appendText, separatorText)
+End Sub
+
+Private Sub mp_AppendDeferredSingleFooterText( _
+    ByVal ws As Worksheet, _
+    ByVal appendText As String, _
+    ByVal separatorText As String _
+)
+    Dim sheetKey As String
+    Dim currentText As String
+
+    If ws Is Nothing Then Exit Sub
+    mp_EnsureDeferredStores
+    sheetKey = mp_BuildDeferredSheetKey(ws)
+    If Len(sheetKey) = 0 Then Exit Sub
+
+    If g_DeferredSingleFooterTextBySheet.Exists(sheetKey) Then
+        currentText = CStr(g_DeferredSingleFooterTextBySheet(sheetKey))
+    Else
+        currentText = vbNullString
+    End If
+
+    g_DeferredSingleFooterTextBySheet(sheetKey) = m_TextAppend(currentText, appendText, separatorText)
+End Sub
+
+Private Function mp_TryGetDeferredSingleHeaderText(ByVal ws As Worksheet, ByRef outText As String) As Boolean
+    Dim sheetKey As String
+
+    If ws Is Nothing Then Exit Function
+    If g_DeferredSingleHeaderTextBySheet Is Nothing Then Exit Function
+    sheetKey = mp_BuildDeferredSheetKey(ws)
+    If Len(sheetKey) = 0 Then Exit Function
+    If Not g_DeferredSingleHeaderTextBySheet.Exists(sheetKey) Then Exit Function
+
+    outText = CStr(g_DeferredSingleHeaderTextBySheet(sheetKey))
+    mp_TryGetDeferredSingleHeaderText = True
+End Function
+
+Private Function mp_TryGetDeferredSingleFooterText(ByVal ws As Worksheet, ByRef outText As String) As Boolean
+    Dim sheetKey As String
+
+    If ws Is Nothing Then Exit Function
+    If g_DeferredSingleFooterTextBySheet Is Nothing Then Exit Function
+    sheetKey = mp_BuildDeferredSheetKey(ws)
+    If Len(sheetKey) = 0 Then Exit Function
+    If Not g_DeferredSingleFooterTextBySheet.Exists(sheetKey) Then Exit Function
+
+    outText = CStr(g_DeferredSingleFooterTextBySheet(sheetKey))
+    mp_TryGetDeferredSingleFooterText = True
+End Function
+
+Private Function mp_HasDeferredSingleHeaderText(ByVal ws As Worksheet) As Boolean
+    Dim textValue As String
+    If mp_TryGetDeferredSingleHeaderText(ws, textValue) Then
+        mp_HasDeferredSingleHeaderText = (Len(textValue) > 0)
+    End If
+End Function
+
+Private Function mp_HasDeferredSingleFooterText(ByVal ws As Worksheet) As Boolean
+    Dim textValue As String
+    If mp_TryGetDeferredSingleFooterText(ws, textValue) Then
+        mp_HasDeferredSingleFooterText = (Len(textValue) > 0)
+    End If
+End Function
+
 Private Function mp_HasPostProcessFooterForSheet(ByVal ws As Worksheet) As Boolean
     If ws Is Nothing Then Exit Function
     If Not g_PostProcessFooterHasAppended Then Exit Function
@@ -1882,6 +2501,7 @@ Private Sub mp_ClearNamedRowAnchor( _
 
     On Error Resume Next
     ws.Names(anchorName).Delete
+    ThisWorkbook.Names(anchorName).Delete
     On Error GoTo 0
 End Sub
 
@@ -1890,16 +2510,60 @@ Private Sub mp_SetNamedRowAnchor( _
     ByVal anchorName As String, _
     ByVal rowIndex As Long _
 )
+    Dim refersToText As String
+    Dim resolvedRowIndex As Long
+
     If ws Is Nothing Then Exit Sub
     anchorName = Trim$(anchorName)
     If Len(anchorName) = 0 Then Exit Sub
     If rowIndex < 1 Or rowIndex > ws.Rows.Count Then Exit Sub
 
     mp_ClearNamedRowAnchor ws, anchorName
+    refersToText = "=" & ws.Cells(rowIndex, 1).Address(True, True, xlA1, True)
 
     On Error Resume Next
-    ws.Names.Add Name:=anchorName, RefersTo:="=" & ws.Cells(rowIndex, 1).Address(True, True, xlA1, True)
+    ws.Names.Add Name:=anchorName, RefersTo:=refersToText
     On Error GoTo 0
+
+    If Not mp_TryGetNamedRowAnchor(ws, anchorName, resolvedRowIndex) Then
+        On Error Resume Next
+        ws.Names.Add Name:=ws.Name & "!" & anchorName, RefersTo:=refersToText
+        On Error GoTo 0
+    End If
+End Sub
+
+Private Sub mp_SetPostProcessHeaderAnchors(ByVal ws As Worksheet, ByVal rowIndex As Long)
+    If ws Is Nothing Then Exit Sub
+    mp_SetNamedRowAnchor ws, POST_PROCESS_HEADER_ANCHOR_NAME, rowIndex
+End Sub
+
+Private Sub mp_SetPostProcessFooterAnchors(ByVal ws As Worksheet, ByVal rowIndex As Long)
+    If ws Is Nothing Then Exit Sub
+    mp_SetNamedRowAnchor ws, POST_PROCESS_FOOTER_ANCHOR_NAME, rowIndex
+End Sub
+
+Private Function mp_TryGetPostProcessHeaderAnchorRow( _
+    ByVal ws As Worksheet, _
+    ByRef outRowIndex As Long _
+) As Boolean
+    mp_TryGetPostProcessHeaderAnchorRow = mp_TryGetNamedRowAnchor(ws, POST_PROCESS_HEADER_ANCHOR_NAME, outRowIndex)
+End Function
+
+Private Function mp_TryGetPostProcessFooterAnchorRow( _
+    ByVal ws As Worksheet, _
+    ByRef outRowIndex As Long _
+) As Boolean
+    mp_TryGetPostProcessFooterAnchorRow = mp_TryGetNamedRowAnchor(ws, POST_PROCESS_FOOTER_ANCHOR_NAME, outRowIndex)
+End Function
+
+Private Sub mp_ClearPostProcessHeaderAnchors(ByVal ws As Worksheet)
+    If ws Is Nothing Then Exit Sub
+    mp_ClearNamedRowAnchor ws, POST_PROCESS_HEADER_ANCHOR_NAME
+End Sub
+
+Private Sub mp_ClearPostProcessFooterAnchors(ByVal ws As Worksheet)
+    If ws Is Nothing Then Exit Sub
+    mp_ClearNamedRowAnchor ws, POST_PROCESS_FOOTER_ANCHOR_NAME
 End Sub
 
 Private Function mp_TryGetCachedSinglePostProcessHeaderRowIndex( _
@@ -1930,11 +2594,11 @@ Private Function mp_TryGetCachedSinglePostProcessHeaderRowIndex( _
         End If
     End If
 
-    If mp_TryGetNamedRowAnchor(ws, POST_PROCESS_HEADER_ANCHOR_NAME, rowIndex) Then
+    If mp_TryGetPostProcessHeaderAnchorRow(ws, rowIndex) Then
         If rowIndex < viewStartRow Then Exit Function
         If rowIndex > (viewStartRow + POST_PROCESS_HEADER_ANCHOR_MAX_OFFSET_ROWS) Then Exit Function
         If Not mp_IsHeaderAnchorRowValid(ws, rowIndex, probeEndCol) Then
-            mp_ClearNamedRowAnchor ws, POST_PROCESS_HEADER_ANCHOR_NAME
+            mp_ClearPostProcessHeaderAnchors ws
             Exit Function
         End If
         g_PostProcessHeaderSheetKey = sheetKey
@@ -1970,9 +2634,9 @@ Private Function mp_TryGetCachedSinglePostProcessFooterRowIndex( _
         End If
     End If
 
-    If mp_TryGetNamedRowAnchor(ws, POST_PROCESS_FOOTER_ANCHOR_NAME, rowIndex) Then
+    If mp_TryGetPostProcessFooterAnchorRow(ws, rowIndex) Then
         If Not mp_IsFooterAnchorRowValid(ws, rowIndex, probeEndCol) Then
-            mp_ClearNamedRowAnchor ws, POST_PROCESS_FOOTER_ANCHOR_NAME
+            mp_ClearPostProcessFooterAnchors ws
             Exit Function
         End If
         g_PostProcessFooterSheetKey = sheetKey
@@ -2012,7 +2676,7 @@ Private Function mp_GetOrCreateSinglePostProcessHeaderRange( _
     If g_PostProcessHeaderRowIndex > 0 Then
         targetRow = g_PostProcessHeaderRowIndex
         If targetRow > ws.Rows.Count Then targetRow = ws.Rows.Count
-    ElseIf mp_TryGetNamedRowAnchor(ws, POST_PROCESS_HEADER_ANCHOR_NAME, existingRow) Then
+    ElseIf mp_TryGetPostProcessHeaderAnchorRow(ws, existingRow) Then
         targetRow = existingRow
     End If
     If targetRow >= viewStartRow Then
@@ -2038,7 +2702,7 @@ Private Function mp_GetOrCreateSinglePostProcessHeaderRange( _
     g_PostProcessHeaderRowIndex = targetRow
     g_PostProcessHeaderNextInsertRow = targetRow + 2
     If g_PostProcessHeaderNextInsertRow > ws.Rows.Count Then g_PostProcessHeaderNextInsertRow = ws.Rows.Count
-    mp_SetNamedRowAnchor ws, POST_PROCESS_HEADER_ANCHOR_NAME, targetRow
+    mp_SetPostProcessHeaderAnchors ws, targetRow
 
     Set headerRange = ws.Range(ws.Cells(targetRow, 1), ws.Cells(targetRow, endCol))
     If headerRange.MergeCells Then headerRange.UnMerge
@@ -2072,7 +2736,7 @@ Private Function mp_GetOrCreateSinglePostProcessFooterRange( _
     If g_PostProcessFooterRowIndex > 0 Then
         targetRow = g_PostProcessFooterRowIndex
         If targetRow > ws.Rows.Count Then targetRow = ws.Rows.Count
-    ElseIf mp_TryGetNamedRowAnchor(ws, POST_PROCESS_FOOTER_ANCHOR_NAME, targetRow) Then
+    ElseIf mp_TryGetPostProcessFooterAnchorRow(ws, targetRow) Then
         ' anchor resolved
     Else
         targetRow = mp_GetLastUsedRow(ws) + 2
@@ -2088,7 +2752,7 @@ Private Function mp_GetOrCreateSinglePostProcessFooterRange( _
     If targetRow < 1 Then targetRow = 1
     If targetRow > ws.Rows.Count Then targetRow = ws.Rows.Count
     g_PostProcessFooterRowIndex = targetRow
-    mp_SetNamedRowAnchor ws, POST_PROCESS_FOOTER_ANCHOR_NAME, targetRow
+    mp_SetPostProcessFooterAnchors ws, targetRow
 
     Set footerRange = ws.Range(ws.Cells(targetRow, 1), ws.Cells(targetRow, endCol))
     If footerRange.MergeCells Then footerRange.UnMerge
@@ -2097,19 +2761,36 @@ Private Function mp_GetOrCreateSinglePostProcessFooterRange( _
     Set mp_GetOrCreateSinglePostProcessFooterRange = footerRange
 End Function
 
-Private Sub mp_GetWarningBannerDimensions(ByRef outColumns As Long, ByRef outRows As Long)
+Private Sub mp_GetWarningBannerDimensions( _
+    ByRef outColumns As Long, _
+    ByRef outRows As Long, _
+    Optional ByVal bannerKind As String = "warningbanner" _
+)
     Dim bannerStyle As ex_SheetStylesXmlProvider.t_ErrorBannerStyle
+    Dim normalizedKind As String
 
-    If ex_SheetStylesXmlProvider.m_GetWarningBannerStyle(bannerStyle, ThisWorkbook) Then
-        outColumns = bannerStyle.Columns
-        outRows = bannerStyle.Rows
-    ElseIf ex_SheetStylesXmlProvider.m_GetErrorBannerStyle(bannerStyle, ThisWorkbook) Then
-        outColumns = bannerStyle.Columns
-        outRows = bannerStyle.Rows
+    normalizedKind = LCase$(Trim$(bannerKind))
+    If normalizedKind = "errorbanner" Then
+        If ex_SheetStylesXmlProvider.m_GetErrorBannerStyle(bannerStyle, ThisWorkbook) Then
+            outColumns = bannerStyle.Columns
+            outRows = bannerStyle.Rows
+        ElseIf ex_SheetStylesXmlProvider.m_GetWarningBannerStyle(bannerStyle, ThisWorkbook) Then
+            outColumns = bannerStyle.Columns
+            outRows = bannerStyle.Rows
+        End If
+    Else
+        If ex_SheetStylesXmlProvider.m_GetWarningBannerStyle(bannerStyle, ThisWorkbook) Then
+            outColumns = bannerStyle.Columns
+            outRows = bannerStyle.Rows
+        ElseIf ex_SheetStylesXmlProvider.m_GetErrorBannerStyle(bannerStyle, ThisWorkbook) Then
+            outColumns = bannerStyle.Columns
+            outRows = bannerStyle.Rows
+        End If
     End If
 
     If outColumns < 1 Then outColumns = 8
-    If outRows < 1 Then outRows = 3
+    ' Banner layout is single-row (title + body in one cell with blank line).
+    outRows = 1
 End Sub
 
 Private Function mp_ToColumnLetter(ByVal columnIndex As Long) As String
