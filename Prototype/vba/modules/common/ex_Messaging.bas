@@ -13,6 +13,18 @@ Private Const STATUS_STORE_KEY_CLEAR_PROC As String = "status_clear_proc"
 Private Const STATUS_STORE_KEY_CLOSE_UNTIL As String = "close_until"
 Private Const STATUS_CLOSE_HOLD_SECONDS As Double = 15#
 Private Const DEFAULT_LOG_FILE_RELATIVE_PATH As String = "Logs\postprocess_debug.log"
+Private Const BANNER_STYLE_STAGE_NAME As String = "banners"
+Private Const BANNER_KIND_ERROR As String = "errorbanner"
+Private Const BANNER_KIND_WARNING As String = "warningbanner"
+Private Const STYLE_PROP_CUSTOM_AUTO_HEIGHT_MARGIN_TOP As String = "customautoheight-margin-top"
+Private Const STYLE_PROP_CUSTOM_AUTO_HEIGHT_MARGIN_BOTTOM As String = "customautoheight-margin-bottom"
+Private Const POST_PROCESS_HEADER_ANCHOR_NAME As String = "__pcPostProcessSingleHeader"
+Private Const BANNER_ANCHOR_PREFIX As String = "__pcBanner_"
+Private Const BANNER_MESSAGE_ANCHOR_PREFIX As String = "__pcBannerMsg_"
+Private Const TABLE_ANCHOR_PREFIX As String = "__pcTable_"
+Private Const BANNER_MAX_ANCHOR_INDEX As Long = 9999
+Private Const DEFAULT_BANNER_COLUMNS As Long = 8
+Private Const DEFAULT_BANNER_ROWS As Long = 3
 
 ' =============================================================================
 ' Status bar notification
@@ -258,14 +270,10 @@ Public Sub m_RenderErrorBanner( _
     Optional ByVal errSource As String = vbNullString, _
     Optional ByVal errNumber As Long = 0, _
     Optional ByVal titleText As String = "ERROR: Operation failed", _
-    Optional ByVal bannerRangeAddress As String = "A1:H4" _
+    Optional ByVal bannerRangeAddress As String = vbNullString _
 )
-    Dim bannerRange As Range
-    Dim bannerStyle As ex_SheetStylesXmlProvider.t_ErrorBannerStyle
-    Dim hasBannerStyle As Boolean
-    Dim rowCount As Long
     Dim messageText As String
-    Dim rowOffset As Long
+    Dim bodyLines As Collection
 
     If ws Is Nothing Then Exit Sub
 
@@ -274,73 +282,22 @@ Public Sub m_RenderErrorBanner( _
         messageText = "Unknown error."
     End If
 
-    hasBannerStyle = ex_SheetStylesXmlProvider.m_GetErrorBannerStyle(bannerStyle, ThisWorkbook)
-    If Len(Trim$(bannerRangeAddress)) = 0 Then
-        bannerRangeAddress = ex_SheetStylesXmlProvider.m_GetOutputErrorBannerRangeAddress(ThisWorkbook)
-    End If
+    Set bodyLines = New Collection
+    bodyLines.Add messageText
+    bodyLines.Add "Source: " & IIf(Len(Trim$(errSource)) > 0, errSource, "n/a")
+    bodyLines.Add "Code: " & CStr(errNumber)
 
-    Set bannerRange = ws.Range(bannerRangeAddress)
-    rowCount = bannerRange.Rows.Count
-    If hasBannerStyle Then
-        If bannerStyle.Rows > rowCount Then rowCount = bannerStyle.Rows
-    End If
-    If rowCount < 4 Then rowCount = 4
-
-    bannerRange.ClearContents
-    bannerRange.UnMerge
-    For rowOffset = 0 To rowCount - 1
-        ws.Range(ws.Cells(bannerRange.Row + rowOffset, bannerRange.Column), ws.Cells(bannerRange.Row + rowOffset, bannerRange.Column + bannerRange.Columns.Count - 1)).Merge
-    Next rowOffset
-
-    ws.Cells(bannerRange.Row, bannerRange.Column).Value = titleText
-    ws.Cells(bannerRange.Row + 1, bannerRange.Column).Value = messageText
-    ws.Cells(bannerRange.Row + 2, bannerRange.Column).Value = "Source: " & IIf(Len(Trim$(errSource)) > 0, errSource, "n/a")
-    ws.Cells(bannerRange.Row + 3, bannerRange.Column).Value = "Code: " & CStr(errNumber)
-
-    With ws.Range(ws.Cells(bannerRange.Row, bannerRange.Column), ws.Cells(bannerRange.Row + rowCount - 1, bannerRange.Column + bannerRange.Columns.Count - 1))
-        .WrapText = IIf(hasBannerStyle, bannerStyle.WrapText, True)
-        .VerticalAlignment = IIf(hasBannerStyle, bannerStyle.VerticalAlignment, xlCenter)
-        .HorizontalAlignment = IIf(hasBannerStyle, bannerStyle.HorizontalAlignment, xlLeft)
-        .Interior.Pattern = xlSolid
-        .Interior.Color = IIf(hasBannerStyle, bannerStyle.BackColor, RGB(192, 0, 0))
-        .Font.Color = IIf(hasBannerStyle, bannerStyle.FontColor, RGB(255, 255, 255))
-        .Font.Bold = False
-
-        If hasBannerStyle And bannerStyle.ShowGrid Then
-            .Borders(xlEdgeLeft).LineStyle = xlContinuous
-            .Borders(xlEdgeTop).LineStyle = xlContinuous
-            .Borders(xlEdgeBottom).LineStyle = xlContinuous
-            .Borders(xlEdgeRight).LineStyle = xlContinuous
-            .Borders(xlInsideVertical).LineStyle = xlContinuous
-            .Borders(xlInsideHorizontal).LineStyle = xlContinuous
-            .Borders.Color = bannerStyle.GridColor
-            .Borders.Weight = xlThin
-        ElseIf hasBannerStyle Then
-            .Borders(xlEdgeLeft).LineStyle = xlNone
-            .Borders(xlEdgeTop).LineStyle = xlNone
-            .Borders(xlEdgeBottom).LineStyle = xlNone
-            .Borders(xlEdgeRight).LineStyle = xlNone
-            .Borders(xlInsideVertical).LineStyle = xlNone
-            .Borders(xlInsideHorizontal).LineStyle = xlNone
-        End If
-    End With
-
-    ws.Range(ws.Cells(bannerRange.Row, bannerRange.Column), ws.Cells(bannerRange.Row, bannerRange.Column + bannerRange.Columns.Count - 1)).Font.Bold = IIf(hasBannerStyle, bannerStyle.TitleBold, True)
-    mp_ApplyBannerRowHeights ws, bannerRange, rowCount, IIf(hasBannerStyle, bannerStyle.RowHeight, 24), bannerRange.Row + 1, messageText, IIf(hasBannerStyle, bannerStyle.WrapText, True)
+    m_RenderBanner ws, titleText, bodyLines, bannerRangeAddress, BANNER_KIND_ERROR, messageText
 End Sub
 
 Public Sub m_RenderWarningBanner( _
     ByVal ws As Worksheet, _
     ByVal warningText As String, _
     Optional ByVal titleText As String = "WARNING", _
-    Optional ByVal bannerRangeAddress As String = "A1:H3" _
+    Optional ByVal bannerRangeAddress As String = vbNullString _
 )
-    Dim bannerRange As Range
-    Dim bannerStyle As ex_SheetStylesXmlProvider.t_ErrorBannerStyle
-    Dim hasBannerStyle As Boolean
-    Dim rowCount As Long
     Dim messageText As String
-    Dim rowOffset As Long
+    Dim bodyLines As Collection
 
     If ws Is Nothing Then Exit Sub
 
@@ -349,17 +306,320 @@ Public Sub m_RenderWarningBanner( _
         messageText = "Action required."
     End If
 
-    hasBannerStyle = ex_SheetStylesXmlProvider.m_GetWarningBannerStyle(bannerStyle, ThisWorkbook)
-    If Len(Trim$(bannerRangeAddress)) = 0 Then
-        bannerRangeAddress = ex_SheetStylesXmlProvider.m_GetOutputWarningBannerRangeAddress(ThisWorkbook)
+    Set bodyLines = New Collection
+    bodyLines.Add messageText
+
+    m_RenderBanner ws, titleText, bodyLines, bannerRangeAddress, BANNER_KIND_WARNING, messageText
+End Sub
+
+Public Sub m_ClearBannerAnchors(ByVal ws As Worksheet)
+    mp_ClearAnchorsByPrefix ws, BANNER_ANCHOR_PREFIX
+    mp_ClearAnchorsByPrefix ws, BANNER_MESSAGE_ANCHOR_PREFIX
+End Sub
+
+Public Function m_TryGetBannerRangeAddressByText( _
+    ByVal ws As Worksheet, _
+    ByVal bannerText As String, _
+    ByRef outRangeAddress As String _
+) As Boolean
+    Dim anchorRange As Range
+
+    If ws Is Nothing Then Exit Function
+    If Not mp_TryGetBannerRangeByMessage(ws, bannerText, anchorRange) Then Exit Function
+    If anchorRange Is Nothing Then Exit Function
+
+    outRangeAddress = anchorRange.Address(False, False, xlA1)
+    m_TryGetBannerRangeAddressByText = True
+End Function
+
+Public Sub m_ClearResultTableAnchors(ByVal ws As Worksheet)
+    mp_ClearAnchorsByPrefix ws, TABLE_ANCHOR_PREFIX
+End Sub
+
+Public Sub m_RegisterResultTableAnchor( _
+    ByVal ws As Worksheet, _
+    ByVal tableRef As String, _
+    ByVal rowStart As Long, _
+    ByVal rowEnd As Long _
+)
+    Dim anchorName As String
+    Dim anchorRange As Range
+
+    If ws Is Nothing Then Exit Sub
+    tableRef = Trim$(tableRef)
+    If Len(tableRef) = 0 Then Exit Sub
+    If rowStart < 1 Then Exit Sub
+    If rowEnd < rowStart Then Exit Sub
+
+    If rowEnd > ws.Rows.Count Then rowEnd = ws.Rows.Count
+
+    anchorName = mp_BuildResultTableAnchorName(tableRef)
+    If Len(anchorName) = 0 Then Exit Sub
+
+    Set anchorRange = ws.Range(ws.Cells(rowStart, 1), ws.Cells(rowEnd, 1))
+    mp_SetNamedRangeAnchor ws, anchorName, anchorRange
+End Sub
+
+Public Sub m_RenderTextBanner( _
+    ByVal ws As Worksheet, _
+    ByVal bannerText As String, _
+    Optional ByVal titleText As String = "NOTICE", _
+    Optional ByVal bannerRangeAddress As String = vbNullString, _
+    Optional ByVal bannerKind As String = BANNER_KIND_WARNING _
+)
+    Dim bodyLines As Collection
+
+    If ws Is Nothing Then Exit Sub
+
+    Set bodyLines = New Collection
+    bannerText = Trim$(bannerText)
+    If Len(bannerText) = 0 Then
+        bodyLines.Add "Action required."
+    Else
+        bodyLines.Add bannerText
     End If
 
-    Set bannerRange = ws.Range(bannerRangeAddress)
-    rowCount = bannerRange.Rows.Count
-    If hasBannerStyle Then
-        If bannerStyle.Rows > rowCount Then rowCount = bannerStyle.Rows
+    m_RenderBanner ws, titleText, bodyLines, bannerRangeAddress, bannerKind, bannerText
+End Sub
+
+Public Sub m_RenderTextBannerAtCell( _
+    ByVal ws As Worksheet, _
+    ByVal bannerText As String, _
+    ByVal topLeftCellRef As String, _
+    Optional ByVal titleText As String = "NOTICE", _
+    Optional ByVal bannerKind As String = BANNER_KIND_WARNING _
+)
+    Dim targetCell As Range
+    Dim existingBannerRange As Range
+    Dim bannerColumns As Long
+    Dim bannerRows As Long
+    Dim requiredRows As Long
+    Dim rangeAddress As String
+
+    If ws Is Nothing Then Exit Sub
+
+    If mp_TryGetBannerRangeByMessage(ws, bannerText, existingBannerRange) Then
+        m_RenderTextBanner ws, bannerText, titleText, existingBannerRange.Address(False, False, xlA1), bannerKind
+        Exit Sub
     End If
-    If rowCount < 2 Then rowCount = 2
+
+    topLeftCellRef = Trim$(topLeftCellRef)
+    If Len(topLeftCellRef) = 0 Then topLeftCellRef = "A1"
+
+    Set targetCell = ws.Range(topLeftCellRef).Cells(1, 1)
+    mp_GetBannerDimensions bannerKind, bannerColumns, bannerRows
+    requiredRows = mp_GetRequiredBannerRowsFromText(bannerText, bannerRows)
+    rangeAddress = mp_BuildAddress( _
+        targetCell.Row, _
+        targetCell.Column, _
+        targetCell.Row + requiredRows - 1, _
+        targetCell.Column + bannerColumns - 1 _
+    )
+
+    m_RenderTextBanner ws, bannerText, titleText, rangeAddress, bannerKind
+End Sub
+
+Public Sub m_RenderTextBannerAfterBanner( _
+    ByVal ws As Worksheet, _
+    ByVal bannerText As String, _
+    ByVal afterBannerIndex As Long, _
+    Optional ByVal titleText As String = "NOTICE", _
+    Optional ByVal bannerKind As String = BANNER_KIND_WARNING, _
+    Optional ByVal gapRows As Long = 1, _
+    Optional ByVal insertRows As Boolean = True _
+)
+    Dim existingBannerRange As Range
+    Dim afterStartRow As Long
+    Dim afterEndRow As Long
+    Dim bannerColumns As Long
+    Dim bannerRows As Long
+    Dim requiredRows As Long
+    Dim rowsToInsert As Long
+    Dim bannerStartRow As Long
+    Dim topStartRow As Long
+    Dim insertAtRow As Long
+    Dim rangeAddress As String
+
+    If ws Is Nothing Then Exit Sub
+    If gapRows < 0 Then gapRows = 0
+
+    If mp_TryGetBannerRangeByMessage(ws, bannerText, existingBannerRange) Then
+        m_RenderTextBanner ws, bannerText, titleText, existingBannerRange.Address(False, False, xlA1), bannerKind
+        Exit Sub
+    End If
+
+    mp_GetBannerDimensions bannerKind, bannerColumns, bannerRows
+    requiredRows = mp_GetRequiredBannerRowsFromText(bannerText, bannerRows)
+
+    If afterBannerIndex <= 0 Then
+        topStartRow = ex_SheetStylesXmlProvider.m_GetOutputViewStartRow(ThisWorkbook)
+        If topStartRow < 1 Then topStartRow = 1
+        topStartRow = mp_AdjustBannerStartForHeader(ws, topStartRow, requiredRows, True)
+
+        If insertRows Then
+            insertAtRow = topStartRow
+            rowsToInsert = requiredRows + gapRows
+            mp_InsertRowsSafe ws, insertAtRow, rowsToInsert
+            bannerStartRow = insertAtRow
+            mp_UnmergeSpacerRows ws, bannerStartRow + requiredRows, gapRows
+        Else
+            bannerStartRow = topStartRow
+            bannerStartRow = mp_AdjustBannerStartForExistingAnchors(ws, bannerStartRow, requiredRows)
+        End If
+    Else
+        If Not mp_TryGetBannerBoundsByIndex(ws, afterBannerIndex, afterStartRow, afterEndRow) Then
+            Err.Raise vbObjectError + 1761, "ex_Messaging", "Banner #" & CStr(afterBannerIndex) & " was not found on sheet '" & ws.Name & "'."
+        End If
+
+        If insertRows Then
+            insertAtRow = afterEndRow + 1
+            rowsToInsert = requiredRows + gapRows
+            mp_InsertRowsSafe ws, insertAtRow, rowsToInsert
+            bannerStartRow = insertAtRow
+            mp_UnmergeSpacerRows ws, bannerStartRow + requiredRows, gapRows
+        Else
+            bannerStartRow = afterEndRow + 1
+        End If
+    End If
+
+    rangeAddress = mp_BuildAddress(bannerStartRow, 1, bannerStartRow + requiredRows - 1, bannerColumns)
+    m_RenderTextBanner ws, bannerText, titleText, rangeAddress, bannerKind
+End Sub
+
+Public Sub m_RenderTextBannerAtTable( _
+    ByVal ws As Worksheet, _
+    ByVal bannerText As String, _
+    ByVal tableRef As String, _
+    Optional ByVal positionText As String = "before", _
+    Optional ByVal titleText As String = "NOTICE", _
+    Optional ByVal bannerKind As String = BANNER_KIND_WARNING, _
+    Optional ByVal gapRows As Long = 1, _
+    Optional ByVal insertRows As Boolean = True _
+)
+    Dim existingBannerRange As Range
+    Dim tableStartRow As Long
+    Dim tableEndRow As Long
+    Dim bannerColumns As Long
+    Dim bannerRows As Long
+    Dim requiredRows As Long
+    Dim normalizedPos As String
+    Dim rowsToInsert As Long
+    Dim insertAtRow As Long
+    Dim bannerStartRow As Long
+    Dim rangeAddress As String
+
+    If ws Is Nothing Then Exit Sub
+    tableRef = Trim$(tableRef)
+    If Len(tableRef) = 0 Then
+        Err.Raise vbObjectError + 1762, "ex_Messaging", "Table reference is required for banner placement."
+    End If
+    If gapRows < 0 Then gapRows = 0
+
+    If mp_TryGetBannerRangeByMessage(ws, bannerText, existingBannerRange) Then
+        m_RenderTextBanner ws, bannerText, titleText, existingBannerRange.Address(False, False, xlA1), bannerKind
+        Exit Sub
+    End If
+
+    If Not mp_TryGetResultTableBounds(ws, tableRef, tableStartRow, tableEndRow) Then
+        Err.Raise vbObjectError + 1763, "ex_Messaging", "Table anchor is not found for tableRef '" & tableRef & "' on sheet '" & ws.Name & "'."
+    End If
+
+    normalizedPos = LCase$(Trim$(positionText))
+    If Len(normalizedPos) = 0 Then normalizedPos = "before"
+    If normalizedPos <> "before" And normalizedPos <> "after" Then
+        Err.Raise vbObjectError + 1764, "ex_Messaging", "Unsupported table banner position '" & positionText & "'. Use 'before' or 'after'."
+    End If
+
+    mp_GetBannerDimensions bannerKind, bannerColumns, bannerRows
+    requiredRows = mp_GetRequiredBannerRowsFromText(bannerText, bannerRows)
+
+    If normalizedPos = "before" Then
+        If insertRows Then
+            insertAtRow = tableStartRow
+            rowsToInsert = requiredRows + gapRows
+            mp_InsertRowsSafe ws, insertAtRow, rowsToInsert
+            bannerStartRow = insertAtRow
+            mp_UnmergeSpacerRows ws, bannerStartRow + requiredRows, gapRows
+        Else
+            bannerStartRow = tableStartRow - gapRows - requiredRows
+            If bannerStartRow < 1 Then bannerStartRow = 1
+        End If
+    Else
+        If insertRows Then
+            insertAtRow = tableEndRow + 1
+            rowsToInsert = requiredRows + gapRows
+            mp_InsertRowsSafe ws, insertAtRow, rowsToInsert
+            bannerStartRow = insertAtRow
+            mp_UnmergeSpacerRows ws, bannerStartRow + requiredRows, gapRows
+        Else
+            bannerStartRow = tableEndRow + 1
+        End If
+    End If
+
+    rangeAddress = mp_BuildAddress(bannerStartRow, 1, bannerStartRow + requiredRows - 1, bannerColumns)
+    m_RenderTextBanner ws, bannerText, titleText, rangeAddress, bannerKind
+End Sub
+
+Public Sub m_RenderBanner( _
+    ByVal ws As Worksheet, _
+    ByVal titleText As String, _
+    ByVal bodyLines As Collection, _
+    Optional ByVal bannerRangeAddress As String = vbNullString, _
+    Optional ByVal bannerKind As String = BANNER_KIND_WARNING, _
+    Optional ByVal bannerIdentityText As String = vbNullString _
+)
+    Dim requestedRange As Range
+    Dim bannerRange As Range
+    Dim bodyText As String
+    Dim combinedText As String
+    Dim rowCount As Long
+    Dim rowOffset As Long
+    Dim startRow As Long
+    Dim startCol As Long
+    Dim colCount As Long
+    Dim isAutoAddress As Boolean
+
+    If ws Is Nothing Then Exit Sub
+
+    isAutoAddress = (Len(Trim$(bannerRangeAddress)) = 0)
+    bodyText = mp_GetBannerBodyText(bodyLines)
+    combinedText = mp_ComposeBannerText(titleText, bodyText)
+    If isAutoAddress Then
+        bannerRangeAddress = ex_SheetStylesXmlProvider.m_GetOutputBannerRangeAddress(ThisWorkbook, 1)
+    End If
+
+    Set requestedRange = ws.Range(bannerRangeAddress)
+    startRow = requestedRange.Row
+    startCol = requestedRange.Column
+    colCount = requestedRange.Columns.Count
+    rowCount = 1
+
+    startRow = mp_AdjustBannerStartForHeader(ws, startRow, rowCount, isAutoAddress)
+    If isAutoAddress Then
+        startRow = mp_AdjustBannerStartForExistingAnchors(ws, startRow, rowCount)
+    End If
+
+    If startRow < 1 Then startRow = 1
+    If startCol < 1 Then startCol = 1
+    If colCount < 1 Then colCount = 1
+    If startRow > ws.Rows.Count Then startRow = ws.Rows.Count
+    If startCol > ws.Columns.Count Then startCol = ws.Columns.Count
+    If startCol + colCount - 1 > ws.Columns.Count Then
+        colCount = ws.Columns.Count - startCol + 1
+    End If
+    If rowCount > ws.Rows.Count - startRow + 1 Then
+        rowCount = ws.Rows.Count - startRow + 1
+    End If
+    If rowCount < 1 Then Exit Sub
+
+    Set bannerRange = ws.Range( _
+        ws.Cells(startRow, startCol), _
+        ws.Cells(startRow + rowCount - 1, startCol + colCount - 1) _
+    )
+
+    On Error Resume Next
+    ws.Rows(CStr(startRow) & ":" & CStr(startRow + rowCount - 1)).RowHeight = ws.StandardHeight
+    On Error GoTo 0
 
     bannerRange.ClearContents
     bannerRange.UnMerge
@@ -367,40 +627,776 @@ Public Sub m_RenderWarningBanner( _
         ws.Range(ws.Cells(bannerRange.Row + rowOffset, bannerRange.Column), ws.Cells(bannerRange.Row + rowOffset, bannerRange.Column + bannerRange.Columns.Count - 1)).Merge
     Next rowOffset
 
-    ws.Cells(bannerRange.Row, bannerRange.Column).Value = titleText
-    ws.Cells(bannerRange.Row + 1, bannerRange.Column).Value = messageText
+    ws.Cells(bannerRange.Row, bannerRange.Column).Value = combinedText
 
-    With ws.Range(ws.Cells(bannerRange.Row, bannerRange.Column), ws.Cells(bannerRange.Row + rowCount - 1, bannerRange.Column + bannerRange.Columns.Count - 1))
-        .WrapText = IIf(hasBannerStyle, bannerStyle.WrapText, True)
-        .VerticalAlignment = IIf(hasBannerStyle, bannerStyle.VerticalAlignment, xlCenter)
-        .HorizontalAlignment = IIf(hasBannerStyle, bannerStyle.HorizontalAlignment, xlLeft)
-        .Interior.Pattern = xlSolid
-        .Interior.Color = IIf(hasBannerStyle, bannerStyle.BackColor, RGB(76, 63, 16))
-        .Font.Color = IIf(hasBannerStyle, bannerStyle.FontColor, RGB(255, 229, 153))
-        .Font.Bold = False
-
-        If hasBannerStyle And bannerStyle.ShowGrid Then
-            .Borders(xlEdgeLeft).LineStyle = xlContinuous
-            .Borders(xlEdgeTop).LineStyle = xlContinuous
-            .Borders(xlEdgeBottom).LineStyle = xlContinuous
-            .Borders(xlEdgeRight).LineStyle = xlContinuous
-            .Borders(xlInsideVertical).LineStyle = xlContinuous
-            .Borders(xlInsideHorizontal).LineStyle = xlContinuous
-            .Borders.Color = bannerStyle.GridColor
-            .Borders.Weight = xlThin
-        ElseIf hasBannerStyle Then
-            .Borders(xlEdgeLeft).LineStyle = xlNone
-            .Borders(xlEdgeTop).LineStyle = xlNone
-            .Borders(xlEdgeBottom).LineStyle = xlNone
-            .Borders(xlEdgeRight).LineStyle = xlNone
-            .Borders(xlInsideVertical).LineStyle = xlNone
-            .Borders(xlInsideHorizontal).LineStyle = xlNone
-        End If
-    End With
-
-    ws.Range(ws.Cells(bannerRange.Row, bannerRange.Column), ws.Cells(bannerRange.Row, bannerRange.Column + bannerRange.Columns.Count - 1)).Font.Bold = IIf(hasBannerStyle, bannerStyle.TitleBold, True)
-    mp_ApplyBannerRowHeights ws, bannerRange, rowCount, IIf(hasBannerStyle, bannerStyle.RowHeight, 24), bannerRange.Row + 1, messageText, IIf(hasBannerStyle, bannerStyle.WrapText, True)
+    mp_ApplyBannerKindPipeline ws, bannerRange.Row, rowCount, bannerKind
+    mp_ApplyBannerAutoHeight ws, bannerRange, combinedText, bannerKind
+    mp_RegisterBannerAnchor ws, bannerRange
+    mp_RegisterBannerMessageAnchor ws, bannerRange, bannerIdentityText
 End Sub
+
+Private Function mp_GetBannerBodyText(ByVal bodyLines As Collection) As String
+    Dim i As Long
+    Dim lineText As String
+
+    If bodyLines Is Nothing Then Exit Function
+    If bodyLines.Count = 0 Then Exit Function
+
+    For i = 1 To bodyLines.Count
+        lineText = CStr(bodyLines(i))
+        If i = 1 Then
+            mp_GetBannerBodyText = lineText
+        Else
+            mp_GetBannerBodyText = mp_GetBannerBodyText & vbLf & lineText
+        End If
+    Next i
+End Function
+
+Private Function mp_ComposeBannerText( _
+    ByVal titleText As String, _
+    ByVal bodyText As String _
+) As String
+    titleText = Trim$(titleText)
+    bodyText = Trim$(bodyText)
+
+    If Len(titleText) = 0 Then
+        mp_ComposeBannerText = bodyText
+    ElseIf Len(bodyText) = 0 Then
+        mp_ComposeBannerText = titleText
+    Else
+        mp_ComposeBannerText = titleText & vbLf & vbLf & bodyText
+    End If
+End Function
+
+Private Sub mp_ApplyBannerAutoHeight( _
+    ByVal ws As Worksheet, _
+    ByVal bannerRange As Range, _
+    ByVal bannerText As String, _
+    ByVal bannerKind As String _
+)
+    Dim bannerStyle As ex_SheetStylesXmlProvider.t_ErrorBannerStyle
+    Dim hasBannerStyle As Boolean
+    Dim baseRowHeight As Double
+    Dim normalizedKind As String
+    Dim autoHeightMarginTop As Double
+    Dim autoHeightMarginBottom As Double
+
+    If ws Is Nothing Then Exit Sub
+    If bannerRange Is Nothing Then Exit Sub
+
+    normalizedKind = LCase$(Trim$(bannerKind))
+    If normalizedKind = BANNER_KIND_ERROR Then
+        If ex_SheetStylesXmlProvider.m_GetErrorBannerStyle(bannerStyle, ThisWorkbook) Then
+            hasBannerStyle = True
+        ElseIf ex_SheetStylesXmlProvider.m_GetWarningBannerStyle(bannerStyle, ThisWorkbook) Then
+            hasBannerStyle = True
+        End If
+    Else
+        If ex_SheetStylesXmlProvider.m_GetWarningBannerStyle(bannerStyle, ThisWorkbook) Then
+            hasBannerStyle = True
+        ElseIf ex_SheetStylesXmlProvider.m_GetErrorBannerStyle(bannerStyle, ThisWorkbook) Then
+            hasBannerStyle = True
+        End If
+    End If
+
+    baseRowHeight = ws.StandardHeight
+    If hasBannerStyle Then
+        If bannerStyle.RowHeight > 0 Then baseRowHeight = bannerStyle.RowHeight
+    End If
+
+    mp_LoadBannerAutoHeightMargins ws, normalizedKind, autoHeightMarginTop, autoHeightMarginBottom
+    ex_SheetHelpers.m_ApplySingleRowTextAutoHeight _
+        ws, _
+        bannerRange, _
+        bannerText, _
+        baseRowHeight, _
+        0, _
+        True, _
+        True, _
+        autoHeightMarginTop, _
+        autoHeightMarginBottom, _
+        0, _
+        0, _
+        2, _
+        0
+End Sub
+
+Private Sub mp_LoadBannerAutoHeightMargins( _
+    ByVal ws As Worksheet, _
+    ByVal bannerKind As String, _
+    ByRef outMarginTop As Double, _
+    ByRef outMarginBottom As Double _
+)
+    Dim stageLayers As Collection
+    Dim layerObj As obj_StyleLayer
+    Dim ruleObj As obj_StyleRule
+    Dim declarations As Object
+    Dim parsedValue As Double
+
+    outMarginTop = 0
+    outMarginBottom = 0
+    If ws Is Nothing Then Exit Sub
+
+    Set stageLayers = ex_StylePipelineEngine.m_LoadSheetPipelineLayers(ws.Name, ThisWorkbook, BANNER_STYLE_STAGE_NAME)
+    If stageLayers Is Nothing Then Exit Sub
+    If stageLayers.Count = 0 Then Exit Sub
+
+    For Each layerObj In stageLayers
+        If layerObj Is Nothing Then GoTo ContinueLayer
+        For Each ruleObj In layerObj.Rules
+            If ruleObj Is Nothing Then GoTo ContinueRule
+            If StrComp(LCase$(Trim$(ruleObj.Target)), "row", vbBinaryCompare) <> 0 Then GoTo ContinueRule
+            If Not mp_BannerRuleMatchesKind(ruleObj.Selector, bannerKind) Then GoTo ContinueRule
+
+            Set declarations = ruleObj.Declarations
+            If declarations Is Nothing Then GoTo ContinueRule
+
+            If declarations.Exists(STYLE_PROP_CUSTOM_AUTO_HEIGHT_MARGIN_TOP) Then
+                If Not mp_TryParseNonNegativeDouble(CStr(declarations(STYLE_PROP_CUSTOM_AUTO_HEIGHT_MARGIN_TOP)), parsedValue) Then
+                    Err.Raise vbObjectError + 1769, "ex_Messaging", _
+                        "Invalid '" & STYLE_PROP_CUSTOM_AUTO_HEIGHT_MARGIN_TOP & "' for banner rule '" & ruleObj.RuleId & "'."
+                End If
+                outMarginTop = parsedValue
+            End If
+            If declarations.Exists(STYLE_PROP_CUSTOM_AUTO_HEIGHT_MARGIN_BOTTOM) Then
+                If Not mp_TryParseNonNegativeDouble(CStr(declarations(STYLE_PROP_CUSTOM_AUTO_HEIGHT_MARGIN_BOTTOM)), parsedValue) Then
+                    Err.Raise vbObjectError + 1770, "ex_Messaging", _
+                        "Invalid '" & STYLE_PROP_CUSTOM_AUTO_HEIGHT_MARGIN_BOTTOM & "' for banner rule '" & ruleObj.RuleId & "'."
+                End If
+                outMarginBottom = parsedValue
+            End If
+ContinueRule:
+        Next ruleObj
+ContinueLayer:
+    Next layerObj
+End Sub
+
+Private Function mp_BannerRuleMatchesKind( _
+    ByVal selectorText As String, _
+    ByVal bannerKind As String _
+) As Boolean
+    Dim selectorParts() As String
+    Dim selectorPart As Variant
+    Dim keyText As String
+    Dim valueText As String
+    Dim eqPos As Long
+    Dim kindClause As String
+    Dim kindTokens() As String
+    Dim token As Variant
+    Dim normalizedKind As String
+
+    normalizedKind = LCase$(Trim$(bannerKind))
+    If Len(normalizedKind) = 0 Then normalizedKind = BANNER_KIND_WARNING
+
+    selectorText = Trim$(selectorText)
+    If Len(selectorText) = 0 Then
+        mp_BannerRuleMatchesKind = True
+        Exit Function
+    End If
+
+    selectorParts = Split(selectorText, ";")
+    For Each selectorPart In selectorParts
+        eqPos = InStr(1, CStr(selectorPart), "=", vbBinaryCompare)
+        If eqPos <= 1 Then GoTo ContinuePart
+        keyText = LCase$(Trim$(Left$(CStr(selectorPart), eqPos - 1)))
+        If StrComp(keyText, "kind", vbBinaryCompare) <> 0 Then GoTo ContinuePart
+        valueText = Trim$(Mid$(CStr(selectorPart), eqPos + 1))
+        If Len(valueText) = 0 Then
+            mp_BannerRuleMatchesKind = False
+            Exit Function
+        End If
+        kindClause = Replace(valueText, ",", "|")
+        kindTokens = Split(kindClause, "|")
+        For Each token In kindTokens
+            token = LCase$(Trim$(CStr(token)))
+            If Len(token) = 0 Then GoTo ContinueToken
+            If CStr(token) = "*" Then
+                mp_BannerRuleMatchesKind = True
+                Exit Function
+            End If
+            If StrComp(CStr(token), normalizedKind, vbBinaryCompare) = 0 Then
+                mp_BannerRuleMatchesKind = True
+                Exit Function
+            End If
+ContinueToken:
+        Next token
+        mp_BannerRuleMatchesKind = False
+        Exit Function
+ContinuePart:
+    Next selectorPart
+
+    ' Rules without explicit kind selector are treated as global for all banner kinds.
+    mp_BannerRuleMatchesKind = True
+End Function
+
+Private Function mp_TryParseNonNegativeDouble( _
+    ByVal textValue As String, _
+    ByRef outValue As Double _
+) As Boolean
+    textValue = Trim$(textValue)
+    If Len(textValue) = 0 Then Exit Function
+    If Not ex_XmlCore.m_TryParseDouble(textValue, outValue, True) Then Exit Function
+    If outValue < 0 Then Exit Function
+    mp_TryParseNonNegativeDouble = True
+End Function
+
+Private Sub mp_ApplyBannerKindPipeline( _
+    ByVal ws As Worksheet, _
+    ByVal startRow As Long, _
+    ByVal rowCount As Long, _
+    ByVal bannerKind As String _
+)
+    Dim stageLayers As Collection
+    Dim bannerPipeline As Collection
+    Dim layerObj As obj_StyleLayer
+    Dim rowKindRanges As Object
+    Dim bannerRows As Collection
+    Dim emptyTargets As Collection
+    Dim rowIndex As Long
+    Dim normalizedKind As String
+
+    If ws Is Nothing Then Exit Sub
+    If startRow < 1 Then Exit Sub
+    If rowCount < 1 Then Exit Sub
+
+    normalizedKind = LCase$(Trim$(bannerKind))
+    If Len(normalizedKind) = 0 Then normalizedKind = BANNER_KIND_WARNING
+
+    Set stageLayers = ex_StylePipelineEngine.m_LoadSheetPipelineLayers(ws.Name, ThisWorkbook, BANNER_STYLE_STAGE_NAME)
+    If stageLayers Is Nothing Or stageLayers.Count = 0 Then
+        MsgBox "StylePipeline has no stage '" & BANNER_STYLE_STAGE_NAME & "' for page '" & ws.Name & "'.", vbExclamation
+        Exit Sub
+    End If
+
+    Set bannerPipeline = ex_StylePipelineEngine.m_CreatePipeline()
+    For Each layerObj In stageLayers
+        ex_StylePipelineEngine.m_AddLayer bannerPipeline, layerObj
+    Next layerObj
+
+    Set rowKindRanges = CreateObject("Scripting.Dictionary")
+    rowKindRanges.CompareMode = 1 ' vbTextCompare
+
+    Set bannerRows = New Collection
+    For rowIndex = startRow To startRow + rowCount - 1
+        bannerRows.Add CLng(rowIndex)
+    Next rowIndex
+    Set rowKindRanges(normalizedKind) = bannerRows
+
+    Set emptyTargets = New Collection
+    ex_StylePipelineEngine.m_ApplyColumnStylesPipeline ws, emptyTargets, bannerPipeline, vbNullString, rowKindRanges
+End Sub
+
+Private Function mp_GetRequiredBannerRowsFromText( _
+    ByVal bannerText As String, _
+    ByVal configuredRows As Long _
+) As Long
+    ' Banner layout is fixed to one row with plain text:
+    ' Title + blank line + content.
+    mp_GetRequiredBannerRowsFromText = 1
+End Function
+
+Private Sub mp_GetBannerDimensions( _
+    ByVal bannerKind As String, _
+    ByRef outColumns As Long, _
+    ByRef outRows As Long _
+)
+    Dim bannerStyle As ex_SheetStylesXmlProvider.t_ErrorBannerStyle
+    Dim normalizedKind As String
+
+    normalizedKind = LCase$(Trim$(bannerKind))
+    If Len(normalizedKind) = 0 Then normalizedKind = BANNER_KIND_WARNING
+
+    If normalizedKind = BANNER_KIND_ERROR Then
+        If ex_SheetStylesXmlProvider.m_GetErrorBannerStyle(bannerStyle, ThisWorkbook) Then
+            outColumns = bannerStyle.Columns
+            outRows = bannerStyle.Rows
+        ElseIf ex_SheetStylesXmlProvider.m_GetWarningBannerStyle(bannerStyle, ThisWorkbook) Then
+            outColumns = bannerStyle.Columns
+            outRows = bannerStyle.Rows
+        End If
+    Else
+        If ex_SheetStylesXmlProvider.m_GetWarningBannerStyle(bannerStyle, ThisWorkbook) Then
+            outColumns = bannerStyle.Columns
+            outRows = bannerStyle.Rows
+        ElseIf ex_SheetStylesXmlProvider.m_GetErrorBannerStyle(bannerStyle, ThisWorkbook) Then
+            outColumns = bannerStyle.Columns
+            outRows = bannerStyle.Rows
+        End If
+    End If
+
+    If outColumns < 1 Then outColumns = DEFAULT_BANNER_COLUMNS
+    If outRows < 1 Then outRows = DEFAULT_BANNER_ROWS
+End Sub
+
+Private Function mp_AdjustBannerStartForHeader( _
+    ByVal ws As Worksheet, _
+    ByVal desiredStartRow As Long, _
+    ByVal rowCount As Long, _
+    Optional ByVal enforceViewZone As Boolean = True _
+) As Long
+    Dim headerStartRow As Long
+    Dim headerEndRow As Long
+    Dim bannerEndRow As Long
+    Dim viewStartRow As Long
+
+    mp_AdjustBannerStartForHeader = desiredStartRow
+    If ws Is Nothing Then Exit Function
+    If rowCount < 1 Then rowCount = 1
+
+    viewStartRow = ex_SheetStylesXmlProvider.m_GetOutputViewStartRow(ThisWorkbook)
+    If viewStartRow < 1 Then viewStartRow = 1
+
+    If enforceViewZone And mp_AdjustBannerStartForHeader < viewStartRow Then
+        mp_AdjustBannerStartForHeader = viewStartRow
+    End If
+
+    If Not mp_TryGetPostProcessHeaderBounds(ws, headerStartRow, headerEndRow) Then Exit Function
+    If enforceViewZone Then
+        If mp_AdjustBannerStartForHeader <= (headerEndRow + 1) Then
+            mp_AdjustBannerStartForHeader = headerEndRow + 2
+            Exit Function
+        End If
+    End If
+    bannerEndRow = mp_AdjustBannerStartForHeader + rowCount - 1
+    If mp_RowsOverlap(mp_AdjustBannerStartForHeader, bannerEndRow, headerStartRow, headerEndRow) Then
+        ' Keep one spacer row below single-header block.
+        mp_AdjustBannerStartForHeader = headerEndRow + 2
+    End If
+End Function
+
+Private Function mp_AdjustBannerStartForExistingAnchors( _
+    ByVal ws As Worksheet, _
+    ByVal desiredStartRow As Long, _
+    ByVal rowCount As Long _
+) As Long
+    Dim anchors As Collection
+    Dim entry As Object
+    Dim startRow As Long
+    Dim endRow As Long
+    Dim hasOverlap As Boolean
+
+    startRow = desiredStartRow
+    If ws Is Nothing Then
+        mp_AdjustBannerStartForExistingAnchors = startRow
+        Exit Function
+    End If
+    If rowCount < 1 Then
+        mp_AdjustBannerStartForExistingAnchors = startRow
+        Exit Function
+    End If
+
+    Set anchors = mp_GetSortedBannerAnchors(ws)
+
+    Do
+        hasOverlap = False
+        endRow = startRow + rowCount - 1
+        For Each entry In anchors
+            If entry Is Nothing Then GoTo ContinueEntry
+            If mp_RowsOverlap(startRow, endRow, CLng(entry("RowStart")), CLng(entry("RowEnd"))) Then
+                startRow = CLng(entry("RowEnd")) + 1
+                hasOverlap = True
+                Exit For
+            End If
+ContinueEntry:
+        Next entry
+    Loop While hasOverlap
+
+    mp_AdjustBannerStartForExistingAnchors = startRow
+End Function
+
+Private Function mp_RowsOverlap( _
+    ByVal rowStartA As Long, _
+    ByVal rowEndA As Long, _
+    ByVal rowStartB As Long, _
+    ByVal rowEndB As Long _
+) As Boolean
+    If rowEndA < rowStartA Then rowEndA = rowStartA
+    If rowEndB < rowStartB Then rowEndB = rowStartB
+    mp_RowsOverlap = Not (rowEndA < rowStartB Or rowEndB < rowStartA)
+End Function
+
+Private Function mp_TryGetPostProcessHeaderBounds( _
+    ByVal ws As Worksheet, _
+    ByRef outStartRow As Long, _
+    ByRef outEndRow As Long _
+) As Boolean
+    Dim headerRange As Range
+
+    If ws Is Nothing Then Exit Function
+    If Not mp_TryGetNamedRangeAnchor(ws, POST_PROCESS_HEADER_ANCHOR_NAME, headerRange) Then Exit Function
+    If headerRange Is Nothing Then Exit Function
+
+    outStartRow = headerRange.Row
+    outEndRow = headerRange.Row + headerRange.Rows.Count - 1
+    mp_TryGetPostProcessHeaderBounds = True
+End Function
+
+Private Function mp_GetSortedBannerAnchors(ByVal ws As Worksheet) As Collection
+    Dim result As Collection
+    Dim namedEntry As Name
+    Dim anchorRange As Range
+    Dim nameText As String
+    Dim entry As Object
+
+    Set result = New Collection
+    If ws Is Nothing Then
+        Set mp_GetSortedBannerAnchors = result
+        Exit Function
+    End If
+
+    For Each namedEntry In ws.Names
+        If namedEntry Is Nothing Then GoTo ContinueName
+        nameText = CStr(namedEntry.Name)
+        If InStr(1, nameText, "!", vbBinaryCompare) > 0 Then
+            nameText = Mid$(nameText, InStrRev(nameText, "!", -1, vbBinaryCompare) + 1)
+        End If
+        If StrComp(Left$(LCase$(nameText), Len(BANNER_ANCHOR_PREFIX)), LCase$(BANNER_ANCHOR_PREFIX), vbBinaryCompare) <> 0 Then GoTo ContinueName
+
+        On Error Resume Next
+        Set anchorRange = namedEntry.RefersToRange
+        On Error GoTo 0
+        If anchorRange Is Nothing Then GoTo ContinueName
+
+        Set entry = CreateObject("Scripting.Dictionary")
+        entry.CompareMode = 1
+        entry("Name") = nameText
+        entry("RowStart") = anchorRange.Row
+        entry("RowEnd") = anchorRange.Row + anchorRange.Rows.Count - 1
+        entry("ColStart") = anchorRange.Column
+        entry("ColEnd") = anchorRange.Column + anchorRange.Columns.Count - 1
+        mp_AddBannerAnchorEntrySorted result, entry
+ContinueName:
+        Set anchorRange = Nothing
+    Next namedEntry
+
+    Set mp_GetSortedBannerAnchors = result
+End Function
+
+Private Sub mp_AddBannerAnchorEntrySorted(ByVal target As Collection, ByVal entry As Object)
+    Dim i As Long
+
+    If target Is Nothing Then Exit Sub
+    If entry Is Nothing Then Exit Sub
+
+    For i = 1 To target.Count
+        If CLng(entry("RowStart")) < CLng(target(i)("RowStart")) Then
+            target.Add entry, Before:=i
+            Exit Sub
+        End If
+    Next i
+    target.Add entry
+End Sub
+
+Private Function mp_TryGetBannerBoundsByIndex( _
+    ByVal ws As Worksheet, _
+    ByVal bannerIndex As Long, _
+    ByRef outRowStart As Long, _
+    ByRef outRowEnd As Long _
+) As Boolean
+    Dim anchors As Collection
+    Dim entry As Object
+
+    If ws Is Nothing Then Exit Function
+    If bannerIndex < 1 Then Exit Function
+
+    Set anchors = mp_GetSortedBannerAnchors(ws)
+    If anchors Is Nothing Then Exit Function
+    If bannerIndex > anchors.Count Then Exit Function
+
+    Set entry = anchors(bannerIndex)
+    If entry Is Nothing Then Exit Function
+
+    outRowStart = CLng(entry("RowStart"))
+    outRowEnd = CLng(entry("RowEnd"))
+    mp_TryGetBannerBoundsByIndex = True
+End Function
+
+Private Sub mp_RegisterBannerAnchor(ByVal ws As Worksheet, ByVal bannerRange As Range)
+    Dim anchors As Collection
+    Dim entry As Object
+    Dim anchorName As String
+    Dim startRow As Long
+    Dim endRow As Long
+    Dim startCol As Long
+    Dim endCol As Long
+    Dim nextIndex As Long
+
+    If ws Is Nothing Then Exit Sub
+    If bannerRange Is Nothing Then Exit Sub
+
+    startRow = bannerRange.Row
+    endRow = bannerRange.Row + bannerRange.Rows.Count - 1
+    startCol = bannerRange.Column
+    endCol = bannerRange.Column + bannerRange.Columns.Count - 1
+
+    Set anchors = mp_GetSortedBannerAnchors(ws)
+    For Each entry In anchors
+        If entry Is Nothing Then GoTo ContinueEntry
+        If CLng(entry("RowStart")) = startRow _
+            And CLng(entry("RowEnd")) = endRow _
+            And CLng(entry("ColStart")) = startCol _
+            And CLng(entry("ColEnd")) = endCol Then
+            anchorName = CStr(entry("Name"))
+            Exit For
+        End If
+ContinueEntry:
+    Next entry
+
+    If Len(anchorName) = 0 Then
+        anchorName = vbNullString
+        For nextIndex = 1 To BANNER_MAX_ANCHOR_INDEX
+            If Not mp_AnchorNameExists(ws, BANNER_ANCHOR_PREFIX & Format$(nextIndex, "0000")) Then
+                anchorName = BANNER_ANCHOR_PREFIX & Format$(nextIndex, "0000")
+                Exit For
+            End If
+        Next nextIndex
+    End If
+    If Len(anchorName) = 0 Then Exit Sub
+
+    mp_SetNamedRangeAnchor ws, anchorName, bannerRange
+End Sub
+
+Private Sub mp_RegisterBannerMessageAnchor( _
+    ByVal ws As Worksheet, _
+    ByVal bannerRange As Range, _
+    ByVal bannerText As String _
+)
+    Dim anchorName As String
+
+    If ws Is Nothing Then Exit Sub
+    If bannerRange Is Nothing Then Exit Sub
+
+    anchorName = mp_BuildBannerMessageAnchorName(bannerText)
+    If Len(anchorName) = 0 Then Exit Sub
+    mp_SetNamedRangeAnchor ws, anchorName, bannerRange
+End Sub
+
+Private Function mp_TryGetBannerRangeByMessage( _
+    ByVal ws As Worksheet, _
+    ByVal bannerText As String, _
+    ByRef outRange As Range _
+) As Boolean
+    Dim anchorName As String
+
+    If ws Is Nothing Then Exit Function
+    anchorName = mp_BuildBannerMessageAnchorName(bannerText)
+    If Len(anchorName) = 0 Then Exit Function
+
+    If Not mp_TryGetNamedRangeAnchor(ws, anchorName, outRange) Then Exit Function
+    If outRange Is Nothing Then Exit Function
+    mp_TryGetBannerRangeByMessage = True
+End Function
+
+Private Function mp_BuildBannerMessageAnchorName(ByVal bannerText As String) As String
+    Dim normalized As String
+
+    bannerText = Trim$(bannerText)
+    If Len(bannerText) = 0 Then Exit Function
+
+    normalized = mp_SanitizeNameToken(LCase$(bannerText))
+    If Len(normalized) = 0 Then normalized = "banner"
+    If Len(normalized) > 150 Then normalized = Left$(normalized, 150)
+
+    mp_BuildBannerMessageAnchorName = BANNER_MESSAGE_ANCHOR_PREFIX & normalized & "_" & mp_ChecksumHex4(bannerText)
+End Function
+
+Private Function mp_BuildResultTableAnchorName(ByVal tableRef As String) As String
+    Dim normalized As String
+
+    normalized = mp_SanitizeNameToken(tableRef)
+    If Len(normalized) = 0 Then Exit Function
+
+    If Len(normalized) > 180 Then normalized = Left$(normalized, 180)
+    mp_BuildResultTableAnchorName = TABLE_ANCHOR_PREFIX & normalized & "_" & mp_ChecksumHex4(tableRef)
+End Function
+
+Private Function mp_TryGetResultTableBounds( _
+    ByVal ws As Worksheet, _
+    ByVal tableRef As String, _
+    ByRef outRowStart As Long, _
+    ByRef outRowEnd As Long _
+) As Boolean
+    Dim anchorName As String
+    Dim anchorRange As Range
+
+    If ws Is Nothing Then Exit Function
+    tableRef = Trim$(tableRef)
+    If Len(tableRef) = 0 Then Exit Function
+
+    anchorName = mp_BuildResultTableAnchorName(tableRef)
+    If Len(anchorName) = 0 Then Exit Function
+    If Not mp_TryGetNamedRangeAnchor(ws, anchorName, anchorRange) Then Exit Function
+    If anchorRange Is Nothing Then Exit Function
+
+    outRowStart = anchorRange.Row
+    outRowEnd = anchorRange.Row + anchorRange.Rows.Count - 1
+    mp_TryGetResultTableBounds = True
+End Function
+
+Private Sub mp_ClearAnchorsByPrefix(ByVal ws As Worksheet, ByVal namePrefix As String)
+    Dim namesToDelete As Collection
+    Dim namedEntry As Name
+    Dim nameText As String
+    Dim i As Long
+
+    If ws Is Nothing Then Exit Sub
+    namePrefix = LCase$(Trim$(namePrefix))
+    If Len(namePrefix) = 0 Then Exit Sub
+
+    Set namesToDelete = New Collection
+    For Each namedEntry In ws.Names
+        If namedEntry Is Nothing Then GoTo ContinueName
+        nameText = CStr(namedEntry.Name)
+        If InStr(1, nameText, "!", vbBinaryCompare) > 0 Then
+            nameText = Mid$(nameText, InStrRev(nameText, "!", -1, vbBinaryCompare) + 1)
+        End If
+        If StrComp(Left$(LCase$(nameText), Len(namePrefix)), namePrefix, vbBinaryCompare) = 0 Then
+            namesToDelete.Add nameText
+        End If
+ContinueName:
+    Next namedEntry
+
+    For i = 1 To namesToDelete.Count
+        On Error Resume Next
+        ws.Names(CStr(namesToDelete(i))).Delete
+        On Error GoTo 0
+    Next i
+End Sub
+
+Private Function mp_TryGetNamedRangeAnchor( _
+    ByVal ws As Worksheet, _
+    ByVal anchorName As String, _
+    ByRef outRange As Range _
+) As Boolean
+    Dim namedEntry As Name
+
+    If ws Is Nothing Then Exit Function
+    anchorName = Trim$(anchorName)
+    If Len(anchorName) = 0 Then Exit Function
+
+    On Error Resume Next
+    Set namedEntry = ws.Names(anchorName)
+    On Error GoTo 0
+    If namedEntry Is Nothing Then Exit Function
+
+    On Error Resume Next
+    Set outRange = namedEntry.RefersToRange
+    On Error GoTo 0
+    If outRange Is Nothing Then Exit Function
+
+    mp_TryGetNamedRangeAnchor = True
+End Function
+
+Private Sub mp_SetNamedRangeAnchor( _
+    ByVal ws As Worksheet, _
+    ByVal anchorName As String, _
+    ByVal anchorRange As Range _
+)
+    If ws Is Nothing Then Exit Sub
+    If anchorRange Is Nothing Then Exit Sub
+    anchorName = Trim$(anchorName)
+    If Len(anchorName) = 0 Then Exit Sub
+
+    On Error Resume Next
+    ws.Names(anchorName).Delete
+    On Error GoTo 0
+
+    On Error Resume Next
+    ws.Names.Add Name:=anchorName, RefersTo:="=" & anchorRange.Address(True, True, xlA1, True)
+    On Error GoTo 0
+End Sub
+
+Private Function mp_AnchorNameExists(ByVal ws As Worksheet, ByVal anchorName As String) As Boolean
+    Dim namedEntry As Name
+
+    If ws Is Nothing Then Exit Function
+    anchorName = Trim$(anchorName)
+    If Len(anchorName) = 0 Then Exit Function
+
+    On Error Resume Next
+    Set namedEntry = ws.Names(anchorName)
+    On Error GoTo 0
+    mp_AnchorNameExists = Not (namedEntry Is Nothing)
+End Function
+
+Private Sub mp_InsertRowsSafe(ByVal ws As Worksheet, ByVal atRow As Long, ByVal rowCount As Long)
+    Dim insertStart As Long
+    Dim insertEnd As Long
+
+    If ws Is Nothing Then Exit Sub
+    If rowCount <= 0 Then Exit Sub
+
+    If atRow < 1 Then atRow = 1
+    If atRow > ws.Rows.Count Then atRow = ws.Rows.Count
+
+    insertStart = atRow
+    insertEnd = atRow + rowCount - 1
+    If insertEnd > ws.Rows.Count Then insertEnd = ws.Rows.Count
+    If insertEnd < insertStart Then Exit Sub
+
+    ws.Rows(CStr(insertStart) & ":" & CStr(insertEnd)).Insert Shift:=xlDown
+End Sub
+
+Private Sub mp_UnmergeSpacerRows(ByVal ws As Worksheet, ByVal startRow As Long, ByVal rowCount As Long)
+    Dim endRow As Long
+
+    If ws Is Nothing Then Exit Sub
+    If rowCount <= 0 Then Exit Sub
+    If startRow < 1 Then startRow = 1
+    If startRow > ws.Rows.Count Then Exit Sub
+
+    endRow = startRow + rowCount - 1
+    If endRow > ws.Rows.Count Then endRow = ws.Rows.Count
+    If endRow < startRow Then Exit Sub
+
+    On Error Resume Next
+    ws.Rows(CStr(startRow) & ":" & CStr(endRow)).UnMerge
+    ws.Rows(CStr(startRow) & ":" & CStr(endRow)).RowHeight = ws.StandardHeight
+    On Error GoTo 0
+End Sub
+
+Private Function mp_SanitizeNameToken(ByVal sourceText As String) As String
+    Dim i As Long
+    Dim ch As String
+    Dim codePoint As Long
+    Dim resultText As String
+
+    sourceText = Trim$(sourceText)
+    If Len(sourceText) = 0 Then Exit Function
+
+    For i = 1 To Len(sourceText)
+        ch = Mid$(sourceText, i, 1)
+        codePoint = AscW(ch)
+        If (codePoint >= 48 And codePoint <= 57) _
+            Or (codePoint >= 65 And codePoint <= 90) _
+            Or (codePoint >= 97 And codePoint <= 122) _
+            Or codePoint = 95 Then
+            resultText = resultText & ch
+        Else
+            resultText = resultText & "_"
+        End If
+    Next i
+
+    If Len(resultText) = 0 Then
+        resultText = "anchor"
+    ElseIf Mid$(resultText, 1, 1) Like "#" Then
+        resultText = "_" & resultText
+    End If
+
+    mp_SanitizeNameToken = resultText
+End Function
+
+Private Function mp_ChecksumHex4(ByVal sourceText As String) As String
+    Dim i As Long
+    Dim checksum As Long
+
+    checksum = 0
+    For i = 1 To Len(sourceText)
+        checksum = ((checksum * 31) + AscW(Mid$(sourceText, i, 1))) And &HFFFF&
+    Next i
+
+    mp_ChecksumHex4 = Right$("0000" & Hex$(checksum), 4)
+End Function
 
 Public Function m_CreateWarningBannersRuntimeLayer( _
     ByVal ws As Worksheet, _
@@ -541,37 +1537,7 @@ Private Function mp_MeasureBannerTextHeight( _
     ByVal targetRange As Range, _
     ByVal messageText As String _
 ) As Double
-    Dim textBoxShape As Object
-
-    On Error GoTo EH
-    If ws Is Nothing Then Exit Function
-    If targetRange Is Nothing Then Exit Function
-    If Len(messageText) = 0 Then Exit Function
-
-    Set textBoxShape = ws.Shapes.AddTextbox(1, targetRange.Left, targetRange.Top, targetRange.Width, 8)
-    textBoxShape.Line.Visible = 0
-    textBoxShape.Fill.Visible = 0
-    textBoxShape.TextFrame2.MarginLeft = 0
-    textBoxShape.TextFrame2.MarginRight = 0
-    textBoxShape.TextFrame2.MarginTop = 0
-    textBoxShape.TextFrame2.MarginBottom = 0
-    textBoxShape.TextFrame2.WordWrap = -1
-    textBoxShape.TextFrame2.AutoSize = 1
-    textBoxShape.TextFrame2.TextRange.Text = messageText
-    textBoxShape.TextFrame2.TextRange.Font.Size = targetRange.Font.Size
-    textBoxShape.TextFrame2.TextRange.Font.Name = CStr(targetRange.Font.Name)
-
-    mp_MeasureBannerTextHeight = textBoxShape.Height + 2
-
-Cleanup:
-    On Error Resume Next
-    If Not textBoxShape Is Nothing Then textBoxShape.Delete
-    On Error GoTo 0
-    Exit Function
-
-EH:
-    mp_MeasureBannerTextHeight = 0
-    Resume Cleanup
+    mp_MeasureBannerTextHeight = ex_SheetHelpers.m_MeasureTextHeight(ws, targetRange, messageText, 0, 0) + 2
 End Function
 
 Private Function mp_CreateDeclarations() As Object

@@ -10,6 +10,9 @@ Private Const ERROR_BANNER_STYLE_LABEL As String = "error banner style"
 Private Const WARNING_BANNER_STYLE_LABEL As String = "warning banner style"
 Private Const CONTROL_PANEL_BUTTON_TYPE_BUTTON As String = "button"
 Private Const CONTROL_PANEL_BUTTON_TYPE_TOGGLE As String = "togglebutton"
+Private Const DEFAULT_BANNER_COLUMNS As Long = 8
+Private Const DEFAULT_ERROR_BANNER_ROWS As Long = 4
+Private Const DEFAULT_WARNING_BANNER_ROWS As Long = 3
 
 Public Const LAYER_BASE As String = "base"
 Public Const LAYER_OUTPUT As String = "output"
@@ -184,10 +187,6 @@ Public Function m_InitializeStyles(Optional ByVal wb As Workbook) As Boolean
 
     If Not mp_LoadBaseSheetStyleFromDom(baseDoc, g_BaseStyle) Then Exit Function
     g_HasErrorBannerStyle = mp_LoadErrorBannerStyleFromDom(baseDoc, g_ErrorBannerStyle)
-    If Not g_HasErrorBannerStyle Then
-        MsgBox "sheetStyles must contain '/sheetStyles/errorBanner'.", vbExclamation
-        Exit Function
-    End If
     g_HasWarningBannerStyle = mp_LoadWarningBannerStyleFromDom(baseDoc, g_WarningBannerStyle)
 
     activeModeKey = mp_GetCurrentActiveModeKey()
@@ -266,45 +265,26 @@ Public Function m_GetOutputViewStartRow(Optional ByVal wb As Workbook) As Long
 End Function
 
 Public Function m_GetOutputErrorBannerRangeAddress(Optional ByVal wb As Workbook) As String
-    Dim style As t_ErrorBannerStyle
-    Dim startRow As Long
-    Dim endCol As Long
-    Dim rowCount As Long
-
-    If Not m_GetErrorBannerStyle(style, wb) Then
-        m_GetOutputErrorBannerRangeAddress = "A1:H4"
-        Exit Function
-    End If
-
-    startRow = m_GetOutputViewStartRow(wb)
-    If startRow < 1 Then startRow = 1
-    endCol = style.Columns
-    rowCount = style.Rows
-    If endCol < 1 Then endCol = 8
-    If rowCount < 1 Then rowCount = 4
-
-    m_GetOutputErrorBannerRangeAddress = "A" & CStr(startRow) & ":" & mp_ColumnLetter(endCol) & CStr(startRow + rowCount - 1)
+    m_GetOutputErrorBannerRangeAddress = m_GetOutputBannerRangeAddress(wb, DEFAULT_ERROR_BANNER_ROWS)
 End Function
 
 Public Function m_GetOutputWarningBannerRangeAddress(Optional ByVal wb As Workbook) As String
-    Dim style As t_ErrorBannerStyle
-    Dim startRow As Long
-    Dim endCol As Long
-    Dim rowCount As Long
+    m_GetOutputWarningBannerRangeAddress = m_GetOutputBannerRangeAddress(wb, DEFAULT_WARNING_BANNER_ROWS)
+End Function
 
-    If Not m_GetWarningBannerStyle(style, wb) Then
-        m_GetOutputWarningBannerRangeAddress = m_GetOutputErrorBannerRangeAddress(wb)
-        Exit Function
-    End If
+Public Function m_GetOutputBannerRangeAddress( _
+    Optional ByVal wb As Workbook, _
+    Optional ByVal rowCount As Long = DEFAULT_WARNING_BANNER_ROWS, _
+    Optional ByVal endCol As Long = DEFAULT_BANNER_COLUMNS _
+) As String
+    Dim startRow As Long
 
     startRow = m_GetOutputViewStartRow(wb)
     If startRow < 1 Then startRow = 1
-    endCol = style.Columns
-    rowCount = style.Rows
-    If endCol < 1 Then endCol = 8
-    If rowCount < 1 Then rowCount = 3
+    If endCol < 1 Then endCol = DEFAULT_BANNER_COLUMNS
+    If rowCount < 1 Then rowCount = DEFAULT_WARNING_BANNER_ROWS
 
-    m_GetOutputWarningBannerRangeAddress = "A" & CStr(startRow) & ":" & mp_ColumnLetter(endCol) & CStr(startRow + rowCount - 1)
+    m_GetOutputBannerRangeAddress = "A" & CStr(startRow) & ":" & mp_ColumnLetter(endCol) & CStr(startRow + rowCount - 1)
 End Function
 
 Public Function m_HasOutputSheetStyle(Optional ByVal wb As Workbook) As Boolean

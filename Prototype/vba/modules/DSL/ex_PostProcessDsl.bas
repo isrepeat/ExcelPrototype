@@ -93,10 +93,17 @@ Public Sub m_ApplyScriptToSheet( _
     Dim ctxFields As Object
     Dim postProcessFooterLines As Collection
     Dim usedCols As Long
+    Dim startedDeferredRender As Boolean
+    Dim prevScreenUpdating As Boolean
+
+    On Error GoTo EH
 
     If ws Is Nothing Then Exit Sub
     If cfg Is Nothing Then Exit Sub
     If resultTables Is Nothing Then Exit Sub
+
+    prevScreenUpdating = Application.ScreenUpdating
+    Application.ScreenUpdating = False
 
     If Not mp_TryGetCompiledScriptBlocks(cfg, scriptConfigKey, scriptText, blocks, parseOrValidationError) Then
         Err.Raise vbObjectError + 1592, "ex_PostProcessDsl", parseOrValidationError
@@ -119,8 +126,25 @@ Public Sub m_ApplyScriptToSheet( _
 
     ex_PostProcessActions.m_ResetPostProcessHeaderCursor ws
     ex_PostProcessActions.m_ResetPostProcessFooterCursor ws
+    ex_PostProcessActions.m_BeginDeferredRender ws
+    startedDeferredRender = True
     mp_ExecuteBlocks ws, blocks, ctxTablesByRef, postProcessFooterLines, usedCols
+    ex_PostProcessActions.m_CommitDeferredRender ws
+    startedDeferredRender = False
     ex_PostProcessActions.m_ScrollToPostProcessResults ws
+    Application.ScreenUpdating = prevScreenUpdating
+    Exit Sub
+
+EH:
+    If startedDeferredRender Then
+        On Error Resume Next
+        ex_PostProcessActions.m_EndDeferredRender ws
+        On Error GoTo 0
+    End If
+    On Error Resume Next
+    Application.ScreenUpdating = prevScreenUpdating
+    On Error GoTo 0
+    Err.Raise Err.Number, Err.Source, Err.Description
 End Sub
 
 ' Backward-compatible wrappers for existing callers.
