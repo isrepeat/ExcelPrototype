@@ -97,7 +97,7 @@
 		<v key=""/>
 		<v key="Output.Layout.Gap.Default">1</v>
 		<v key="Output.Sheets">StateMain; EventsOut; EventsIn</v>
-		<postProcessScript>
+		<postProcessScript execution="Explicit">
 			for (let row in Events.Sheet[EventsOut].rows) {
 				/*
 				if (row.column[Date] == "12.07.2025") {
@@ -287,7 +287,19 @@
 		<v key="Export.OutputMode">CreateWithPostfix</v>
 		<v key="Export.OutputPostfix">_result</v>
 		<v key="Export.InsertMode">AppendToTop</v>
-		<postProcessScript>
+		<postProcessScript execution="Implicit">
+			let tvoNoteRegex = "ТВО";
+
+			/* Highlight pass (before validation): emphasize ТВО in EventsOut.Note */
+			for (let outRow in Events.Sheet[EventsOut].rows) {
+				let hasTvoInNote = callMacro("ex_PostProcessActions.m_RowCellRegexIsMatch", outRow, "Note", tvoNoteRegex);
+				if (hasTvoInNote == "True") {
+					//callMacro("ex_PostProcessActions.m_HighlightRowCell", outRow, "Note", "#404040");
+					callMacro("ex_PostProcessActions.m_EmphasizeRowCellTextByRegex", outRow, "Note", tvoNoteRegex, "#FF0000", "false");
+				}
+			}
+		</postProcessScript>
+		<postProcessScript execution="Explicit">
 			let validationWarningsText = "";
 			let hasValidationWarnings = "false";
 			let validationWarningTitle = "DailyEvents validation warning";
@@ -321,7 +333,7 @@
 						if (hasTvoInLastEventsOutNote == "true") {
 							let nextRow = callMacro("ex_PostProcessActions.m_GetRelativeRow", owner, "1");
 							if (nextRow.column[Vacation] != "ТВО") {
-								let warningLine = "FIO=" + owner.column[FIO] + ": в останній записи EventsOut.Note є позначка ТВО, але після owner у DailyEvents відсутній рядок з Vacation=ТВО.";
+								let warningLine = "FIO=" + owner.column[FIO] + ": в последней записи EventsOut.Note есть пометка ТВО, но после owner в DailyEvents отсутствует строка с Vacation=ТВО.";
 								callMacro("ex_PostProcessActions.m_ShowBanner", "TYPE_WARNING", validationWarningTitle, warningLine, "", firstDailyOwnerRowIndex);
 								hasValidationWarnings = "true";
 							}

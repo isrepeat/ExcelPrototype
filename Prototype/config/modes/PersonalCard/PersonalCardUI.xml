@@ -40,21 +40,19 @@
         <button caption="Search"
                 macro="ex_UIActions.m_OutputPanelStartSearch_OnClick"
                 />
-        <button condition="st_AutoPostProcess=false"
-                caption="Post Process"
+        <button caption="Post Process"
                 macro="ex_UIActions.m_OutputPanelRunPostProcess_OnClick"
                 buttonBackColor="#C62828"
                 buttonTextColor="#FFFFFF"
                 buttonBorderColor="#8E0000"
                 />
-        <button condition="st_AutoPostProcess=false"
-                caption="Export"
+        <button caption="Export"
                 macro="ex_UIActions.m_ExportFooterReportToWord_OnClick"
                 buttonBackColor="#2B579A"
                 buttonTextColor="#FFFFFF"
                 buttonBorderColor="#1F3F6B"
                 />
-        <!-- <toggleButton condition="st_AutoPostProcess=false"
+        <!-- <toggleButton
                       caption="Mode [Timeline]"
                       source="Settings.OutputMode"
                       macro="ex_UIActions.m_OutputPanelToggleButton_OnClick"
