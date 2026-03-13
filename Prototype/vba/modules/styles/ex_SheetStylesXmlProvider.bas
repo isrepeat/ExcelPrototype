@@ -2,12 +2,7 @@ Attribute VB_Name = "ex_SheetStylesXmlProvider"
 Option Explicit
 
 Private Const PROFILES_NS As String = "urn:excelprototype:profiles"
-Private Const SHEET_STYLES_REL_PATH As String = "config\SheetStyles.xml"
 Private Const OUTPUT_UI_FILE_SUFFIX As String = "UI.xml"
-Private Const BASE_STYLE_LABEL As String = "base sheet style"
-Private Const OUTPUT_STYLE_LABEL As String = "output sheet style"
-Private Const ERROR_BANNER_STYLE_LABEL As String = "error banner style"
-Private Const WARNING_BANNER_STYLE_LABEL As String = "warning banner style"
 Private Const CONTROL_PANEL_BUTTON_TYPE_BUTTON As String = "button"
 Private Const CONTROL_PANEL_BUTTON_TYPE_TOGGLE As String = "togglebutton"
 Private Const DEFAULT_BANNER_COLUMNS As Long = 8
@@ -171,7 +166,6 @@ Private g_HasWarningBannerStyle As Boolean
 Private g_LastActiveModeKey As String
 
 Public Function m_InitializeStyles(Optional ByVal wb As Workbook) As Boolean
-    Dim baseDoc As Object
     Dim modeUiDoc As Object
     Dim modeUiFilePath As String
     Dim activeModeKey As String
@@ -182,19 +176,13 @@ Public Function m_InitializeStyles(Optional ByVal wb As Workbook) As Boolean
         Exit Function
     End If
 
-    Set baseDoc = mp_LoadSheetStylesDom(wb)
-    If baseDoc Is Nothing Then Exit Function
-
-    If Not mp_LoadBaseSheetStyleFromDom(baseDoc, g_BaseStyle) Then Exit Function
-    g_HasErrorBannerStyle = mp_LoadErrorBannerStyleFromDom(baseDoc, g_ErrorBannerStyle)
-    g_HasWarningBannerStyle = mp_LoadWarningBannerStyleFromDom(baseDoc, g_WarningBannerStyle)
-
     activeModeKey = mp_GetCurrentActiveModeKey()
-    g_HasOutputStyle = mp_TryLoadOutputSheetStyleFromDom(baseDoc, g_OutputStyle, activeModeKey)
-    If Not g_HasOutputStyle Then
-        MsgBox "Output style for mode key '" & activeModeKey & "' was not found in SheetStyles config file: " & SHEET_STYLES_REL_PATH, vbExclamation
-        Exit Function
-    End If
+    mp_ApplyDefaultBaseSheetStyle g_BaseStyle
+    mp_ApplyDefaultOutputSheetStyle g_OutputStyle, activeModeKey
+    mp_ApplyDefaultBannerStyles g_ErrorBannerStyle, g_WarningBannerStyle
+    g_HasOutputStyle = True
+    g_HasErrorBannerStyle = True
+    g_HasWarningBannerStyle = True
 
     modeUiFilePath = mp_GetOutputUiFilePathByMode(wb)
     Set modeUiDoc = mp_LoadModeUiDomByFilePath(modeUiFilePath)
@@ -207,6 +195,93 @@ Public Function m_InitializeStyles(Optional ByVal wb As Workbook) As Boolean
     g_IsInitialized = True
     m_InitializeStyles = True
 End Function
+
+Private Sub mp_ApplyDefaultBaseSheetStyle(ByRef style As t_BaseSheetStyle)
+    style.PriorityLayer = 100
+    style.BaseBackColor = RGB(34, 34, 34)
+    style.BaseFontColor = RGB(235, 235, 235)
+    style.ShowGridlines = False
+    style.BackgroundExtraRows = 200
+    style.BackgroundExtraCols = 30
+    style.GridColor = RGB(0, 0, 0)
+    style.GridWeight = xlThin
+    style.GridExtraRows = 200
+    style.GridExtraCols = 50
+End Sub
+
+Private Sub mp_ApplyDefaultOutputSheetStyle(ByRef style As t_OutputSheetStyle, Optional ByVal activeModeKey As String = vbNullString)
+    style.PriorityLayer = 200
+    style.OutputTopOffsetRows = 4
+    style.HeaderRows = 4
+    style.ViewStartRow = 6
+
+    style.FontName = "Times New Roman"
+    style.FontSize = 12#
+    style.RowHeight = 20#
+
+    style.ContentColor = RGB(235, 235, 235)
+    style.ContentBackColor = RGB(34, 34, 34)
+    style.ContentWidth = 0#
+    style.ContentOverflow = "wrap"
+    style.ContentAutoHeight = False
+
+    style.HeaderColor = RGB(104, 217, 71)
+    style.HeaderBackColor = RGB(34, 34, 34)
+    style.HeaderBold = True
+    style.HeaderWidth = 0#
+    style.HeaderOverflow = "wrap"
+    style.HeaderAutoHeight = True
+
+    style.SectionColor = RGB(215, 167, 99)
+    style.SectionBackColor = RGB(22, 22, 22)
+    style.SectionBold = True
+    style.SectionMergeColumns = 2
+    style.SectionWidth = 0#
+    style.SectionOverflow = "clip"
+    style.SectionAutoHeight = False
+
+    style.HorizontalAlignment = xlCenter
+    style.VerticalAlignment = xlCenter
+
+    style.HasStatusStyle = False
+    If StrComp(Trim$(activeModeKey), "TablesComparing", vbTextCompare) = 0 Then
+        style.HasStatusStyle = True
+        style.StatusColumnName = "Status"
+        style.StatusFontColor = RGB(235, 235, 235)
+        style.StatusDefaultBackColor = RGB(30, 30, 30)
+        style.StatusAddedBackColor = RGB(46, 125, 50)
+        style.StatusChangedBackColor = RGB(123, 31, 162)
+        style.StatusRemovedBackColor = RGB(183, 28, 28)
+    End If
+
+    mp_ResetControlPanelStyle style
+End Sub
+
+Private Sub mp_ApplyDefaultBannerStyles(ByRef errorStyle As t_ErrorBannerStyle, ByRef warningStyle As t_ErrorBannerStyle)
+    errorStyle.Columns = DEFAULT_BANNER_COLUMNS
+    errorStyle.Rows = DEFAULT_ERROR_BANNER_ROWS
+    errorStyle.RowHeight = 24#
+    errorStyle.BackColor = RGB(90, 32, 32)
+    errorStyle.FontColor = RGB(255, 225, 225)
+    errorStyle.WrapText = True
+    errorStyle.TitleBold = True
+    errorStyle.ShowGrid = False
+    errorStyle.GridColor = RGB(80, 80, 80)
+    errorStyle.HorizontalAlignment = xlLeft
+    errorStyle.VerticalAlignment = xlCenter
+
+    warningStyle.Columns = DEFAULT_BANNER_COLUMNS
+    warningStyle.Rows = DEFAULT_WARNING_BANNER_ROWS
+    warningStyle.RowHeight = 24#
+    warningStyle.BackColor = RGB(76, 63, 16)
+    warningStyle.FontColor = RGB(255, 229, 153)
+    warningStyle.WrapText = True
+    warningStyle.TitleBold = True
+    warningStyle.ShowGrid = False
+    warningStyle.GridColor = RGB(80, 80, 80)
+    warningStyle.HorizontalAlignment = xlLeft
+    warningStyle.VerticalAlignment = xlCenter
+End Sub
 
 Public Function m_EnsureInitialized(Optional ByVal wb As Workbook) As Boolean
     If g_IsInitialized And StrComp(g_LastActiveModeKey, mp_GetCurrentActiveModeKey(), vbTextCompare) = 0 Then
@@ -481,15 +556,6 @@ Public Sub m_ApplyDefaultSheetView(ByVal ws As Worksheet)
     ActiveWindow.Zoom = 115
 End Sub
 
-Private Function mp_LoadSheetStylesDom(ByVal wb As Workbook) As Object
-    Set mp_LoadSheetStylesDom = ex_XmlCore.m_LoadDomByRelativePath( _
-        wb, _
-        SHEET_STYLES_REL_PATH, _
-        PROFILES_NS, _
-        "SheetStyles config file was not found: ", _
-        "Failed to parse SheetStyles config file: ")
-End Function
-
 Private Function mp_LoadModeUiDomByFilePath(ByVal filePath As String) As Object
     If Len(Trim$(filePath)) = 0 Then Exit Function
 
@@ -556,291 +622,6 @@ Private Function mp_GetOutputUiFilePathByMode(ByVal wb As Workbook) As String
     End If
 
     mp_GetOutputUiFilePathByMode = modeDirPath & "\" & modeDirName & OUTPUT_UI_FILE_SUFFIX
-End Function
-
-Private Function mp_LoadBaseSheetStyleFromDom(ByVal doc As Object, ByRef style As t_BaseSheetStyle) As Boolean
-    Dim rootNode As Object
-    Dim nodeBase As Object
-    Dim nodeBackground As Object
-    Dim nodeGrid As Object
-    Dim gridWeightText As String
-
-    Set rootNode = doc.selectSingleNode("/p:sheetStyles/p:baseSheetStyle")
-    If rootNode Is Nothing Then
-        MsgBox "sheetStyles must contain '/sheetStyles/baseSheetStyle'.", vbExclamation
-        Exit Function
-    End If
-
-    Set nodeBase = rootNode.selectSingleNode("p:base")
-    Set nodeBackground = rootNode.selectSingleNode("p:background")
-    Set nodeGrid = rootNode.selectSingleNode("p:grid")
-    If nodeBase Is Nothing Or nodeBackground Is Nothing Or nodeGrid Is Nothing Then
-        MsgBox "baseSheetStyle must contain nodes: base, background, grid.", vbExclamation
-        Exit Function
-    End If
-
-    If Not ex_XmlCore.m_ReadRequiredAttrLong(rootNode, "priority", style.PriorityLayer, "baseSheetStyle@priority", BASE_STYLE_LABEL) Then Exit Function
-    If Not ex_XmlCore.m_ReadRequiredAttrHexColor(nodeBase, "backColor", style.BaseBackColor, "base@backColor", BASE_STYLE_LABEL) Then Exit Function
-    If Not ex_XmlCore.m_ReadRequiredAttrHexColor(nodeBase, "fontColor", style.BaseFontColor, "base@fontColor", BASE_STYLE_LABEL) Then Exit Function
-    If Not ex_XmlCore.m_ReadRequiredAttrBoolean(nodeBase, "showGridlines", style.ShowGridlines, "base@showGridlines", BASE_STYLE_LABEL) Then Exit Function
-    If Not ex_XmlCore.m_ReadRequiredAttrLong(nodeBackground, "extraRows", style.BackgroundExtraRows, "background@extraRows", BASE_STYLE_LABEL) Then Exit Function
-    If Not ex_XmlCore.m_ReadRequiredAttrLong(nodeBackground, "extraCols", style.BackgroundExtraCols, "background@extraCols", BASE_STYLE_LABEL) Then Exit Function
-    If Not ex_XmlCore.m_ReadRequiredAttrHexColor(nodeGrid, "color", style.GridColor, "grid@color", BASE_STYLE_LABEL) Then Exit Function
-
-    gridWeightText = LCase$(ex_XmlCore.m_ReadRequiredAttrText(nodeGrid, "weight", "grid@weight", BASE_STYLE_LABEL))
-    If Len(gridWeightText) = 0 Then Exit Function
-    If Not mp_TryParseBorderWeight(gridWeightText, style.GridWeight) Then
-        MsgBox "Invalid value for baseSheetStyle grid@weight: " & gridWeightText & ".", vbExclamation
-        Exit Function
-    End If
-
-    If Not ex_XmlCore.m_ReadRequiredAttrLong(nodeGrid, "extraRows", style.GridExtraRows, "grid@extraRows", BASE_STYLE_LABEL) Then Exit Function
-    If Not ex_XmlCore.m_ReadRequiredAttrLong(nodeGrid, "extraCols", style.GridExtraCols, "grid@extraCols", BASE_STYLE_LABEL) Then Exit Function
-
-    mp_LoadBaseSheetStyleFromDom = True
-End Function
-
-Private Function mp_TryLoadOutputSheetStyleFromDom(ByVal doc As Object, ByRef style As t_OutputSheetStyle, ByVal modeKey As String) As Boolean
-    Dim rootNode As Object
-    Dim nodeFont As Object
-    Dim nodeRows As Object
-    Dim nodeAlignment As Object
-    Dim nodeContent As Object
-    Dim nodeHeader As Object
-    Dim nodeSection As Object
-    Dim nodeStatus As Object
-    Dim sectionTitleColumnsText As String
-
-    Set rootNode = mp_SelectOutputSheetStyleNode(doc, modeKey)
-    If rootNode Is Nothing Then
-        Exit Function
-    End If
-
-    Set nodeFont = rootNode.selectSingleNode("p:font")
-    Set nodeRows = rootNode.selectSingleNode("p:rows")
-    Set nodeAlignment = rootNode.selectSingleNode("p:alignment")
-    Set nodeContent = rootNode.selectSingleNode("p:content")
-    Set nodeHeader = rootNode.selectSingleNode("p:header")
-    Set nodeSection = rootNode.selectSingleNode("p:section")
-
-    If nodeFont Is Nothing Or nodeRows Is Nothing Or nodeAlignment Is Nothing Or nodeContent Is Nothing Or nodeHeader Is Nothing Or nodeSection Is Nothing Then
-        MsgBox "outputSheetStyle must contain nodes: font, rows, alignment, content, header, section.", vbExclamation
-        Exit Function
-    End If
-
-    If Not ex_XmlCore.m_ReadRequiredAttrLong(rootNode, "priority", style.PriorityLayer, "outputSheetStyle@priority", OUTPUT_STYLE_LABEL) Then Exit Function
-    If Not mp_ReadOptionalAttrLong(rootNode, "outputTopOffsetRows", style.OutputTopOffsetRows, 4, "outputSheetStyle@outputTopOffsetRows") Then Exit Function
-    If style.OutputTopOffsetRows < 0 Then
-        MsgBox "Invalid value for output sheet style attribute 'outputSheetStyle@outputTopOffsetRows': must be >= 0.", vbExclamation
-        Exit Function
-    End If
-    If Not mp_ReadOptionalAttrLong(rootNode, "headerRows", style.HeaderRows, 4, "outputSheetStyle@headerRows") Then Exit Function
-    If Not mp_ReadOptionalAttrLong(rootNode, "viewStartRow", style.ViewStartRow, 6, "outputSheetStyle@viewStartRow") Then Exit Function
-    If style.HeaderRows < 1 Then
-        MsgBox "Invalid value for output sheet style attribute 'outputSheetStyle@headerRows': must be >= 1.", vbExclamation
-        Exit Function
-    End If
-    If style.ViewStartRow < 1 Then
-        MsgBox "Invalid value for output sheet style attribute 'outputSheetStyle@viewStartRow': must be >= 1.", vbExclamation
-        Exit Function
-    End If
-    If style.ViewStartRow <= style.HeaderRows Then
-        MsgBox "Invalid layout in output sheet style: viewStartRow must be greater than headerRows.", vbExclamation
-        Exit Function
-    End If
-
-    style.FontName = ex_XmlCore.m_ReadRequiredAttrText(nodeFont, "name", "font@name", OUTPUT_STYLE_LABEL)
-    If Len(style.FontName) = 0 Then Exit Function
-
-    If Not ex_XmlCore.m_ReadRequiredAttrDouble(nodeFont, "size", style.FontSize, "font@size", OUTPUT_STYLE_LABEL) Then Exit Function
-    If Not ex_XmlCore.m_ReadRequiredAttrDouble(nodeRows, "height", style.RowHeight, "rows@height", OUTPUT_STYLE_LABEL) Then Exit Function
-
-    If Not ex_XmlCore.m_ReadRequiredAttrHexColor(nodeContent, "color", style.ContentColor, "content@color", OUTPUT_STYLE_LABEL) Then Exit Function
-    If Not ex_XmlCore.m_ReadRequiredAttrHexColor(nodeContent, "backColor", style.ContentBackColor, "content@backColor", OUTPUT_STYLE_LABEL) Then Exit Function
-    If Not mp_ReadOptionalAttrDouble(nodeContent, "width", style.ContentWidth, 0#, "content@width") Then Exit Function
-    If style.ContentWidth < 0 Then
-        MsgBox "Invalid value for output sheet style attribute 'content@width': must be >= 0.", vbExclamation
-        Exit Function
-    End If
-    If Not mp_ReadOptionalOutputOverflowAttr(nodeContent, "overflow", style.ContentOverflow, "wrap", "content@overflow") Then Exit Function
-    If Not mp_ReadOptionalAttrBoolean(nodeContent, "autoHeight", style.ContentAutoHeight, False, "content@autoHeight") Then Exit Function
-
-    If Not ex_XmlCore.m_ReadRequiredAttrHexColor(nodeHeader, "color", style.HeaderColor, "header@color", OUTPUT_STYLE_LABEL) Then Exit Function
-    If Not ex_XmlCore.m_ReadRequiredAttrHexColor(nodeHeader, "backColor", style.HeaderBackColor, "header@backColor", OUTPUT_STYLE_LABEL) Then Exit Function
-    If Not ex_XmlCore.m_ReadRequiredAttrBoolean(nodeHeader, "bold", style.HeaderBold, "header@bold", OUTPUT_STYLE_LABEL) Then Exit Function
-    If Not mp_ReadOptionalAttrDouble(nodeHeader, "width", style.HeaderWidth, 0#, "header@width") Then Exit Function
-    If style.HeaderWidth < 0 Then
-        MsgBox "Invalid value for output sheet style attribute 'header@width': must be >= 0.", vbExclamation
-        Exit Function
-    End If
-    If Not mp_ReadOptionalOutputOverflowAttr(nodeHeader, "overflow", style.HeaderOverflow, "wrap", "header@overflow") Then Exit Function
-    If Not mp_ReadOptionalAttrBoolean(nodeHeader, "autoHeight", style.HeaderAutoHeight, True, "header@autoHeight") Then Exit Function
-
-    If Not ex_XmlCore.m_ReadRequiredAttrHexColor(nodeSection, "color", style.SectionColor, "section@color", OUTPUT_STYLE_LABEL) Then Exit Function
-    If Not ex_XmlCore.m_ReadRequiredAttrHexColor(nodeSection, "backColor", style.SectionBackColor, "section@backColor", OUTPUT_STYLE_LABEL) Then Exit Function
-    If Not ex_XmlCore.m_ReadRequiredAttrBoolean(nodeSection, "bold", style.SectionBold, "section@bold", OUTPUT_STYLE_LABEL) Then Exit Function
-    If Not mp_ReadOptionalAttrDouble(nodeSection, "width", style.SectionWidth, 0#, "section@width") Then Exit Function
-    If style.SectionWidth < 0 Then
-        MsgBox "Invalid value for output sheet style attribute 'section@width': must be >= 0.", vbExclamation
-        Exit Function
-    End If
-    If Not mp_ReadOptionalOutputOverflowAttr(nodeSection, "overflow", style.SectionOverflow, "clip", "section@overflow") Then Exit Function
-    If Not mp_ReadOptionalAttrBoolean(nodeSection, "autoHeight", style.SectionAutoHeight, False, "section@autoHeight") Then Exit Function
-
-    sectionTitleColumnsText = Trim$(ex_XmlCore.m_NodeAttrText(nodeSection, "sectionTitleColumns"))
-    If Len(sectionTitleColumnsText) = 0 Then
-        sectionTitleColumnsText = Trim$(ex_XmlCore.m_NodeAttrText(nodeSection, "mergeColumns"))
-    End If
-    If Len(sectionTitleColumnsText) = 0 Then
-        MsgBox "Missing required output sheet style attribute: section@sectionTitleColumns", vbExclamation
-        Exit Function
-    End If
-    If Not ex_XmlCore.m_TryParseLong(sectionTitleColumnsText, style.SectionMergeColumns) Then
-        MsgBox "Invalid integer output sheet style attribute 'section@sectionTitleColumns': " & sectionTitleColumnsText, vbExclamation
-        Exit Function
-    End If
-    If style.SectionMergeColumns < 1 Then
-        MsgBox "Invalid value for output sheet style attribute 'section@sectionTitleColumns': must be >= 1.", vbExclamation
-        Exit Function
-    End If
-
-    If Not mp_ReadRequiredAttrHorizontalAlignment(nodeAlignment, "horizontal", style.HorizontalAlignment) Then Exit Function
-    If Not mp_ReadRequiredAttrVerticalAlignment(nodeAlignment, "vertical", style.VerticalAlignment) Then Exit Function
-
-    style.HasStatusStyle = False
-    Set nodeStatus = rootNode.selectSingleNode("p:status")
-    If Not nodeStatus Is Nothing Then
-        style.HasStatusStyle = True
-        style.StatusColumnName = ex_XmlCore.m_ReadRequiredAttrText(nodeStatus, "columnName", "status@columnName", OUTPUT_STYLE_LABEL)
-        If Len(style.StatusColumnName) = 0 Then Exit Function
-        If Not ex_XmlCore.m_ReadRequiredAttrHexColor(nodeStatus, "fontColor", style.StatusFontColor, "status@fontColor", OUTPUT_STYLE_LABEL) Then Exit Function
-        If Not ex_XmlCore.m_ReadRequiredAttrHexColor(nodeStatus, "defaultBackColor", style.StatusDefaultBackColor, "status@defaultBackColor", OUTPUT_STYLE_LABEL) Then Exit Function
-        If Not ex_XmlCore.m_ReadRequiredAttrHexColor(nodeStatus, "addedBackColor", style.StatusAddedBackColor, "status@addedBackColor", OUTPUT_STYLE_LABEL) Then Exit Function
-        If Not ex_XmlCore.m_ReadRequiredAttrHexColor(nodeStatus, "changedBackColor", style.StatusChangedBackColor, "status@changedBackColor", OUTPUT_STYLE_LABEL) Then Exit Function
-        If Not ex_XmlCore.m_ReadRequiredAttrHexColor(nodeStatus, "removedBackColor", style.StatusRemovedBackColor, "status@removedBackColor", OUTPUT_STYLE_LABEL) Then Exit Function
-    End If
-
-    mp_ResetControlPanelStyle style
-
-    mp_TryLoadOutputSheetStyleFromDom = True
-End Function
-
-Private Function mp_LoadErrorBannerStyleFromDom(ByVal doc As Object, ByRef style As t_ErrorBannerStyle) As Boolean
-    Dim node As Object
-
-    Set node = doc.selectSingleNode("/p:sheetStyles/p:errorBanner")
-    If node Is Nothing Then
-        Exit Function
-    End If
-
-    If Not ex_XmlCore.m_ReadRequiredAttrLong(node, "columns", style.Columns, "errorBanner@columns", ERROR_BANNER_STYLE_LABEL) Then Exit Function
-    If Not ex_XmlCore.m_ReadRequiredAttrLong(node, "rows", style.Rows, "errorBanner@rows", ERROR_BANNER_STYLE_LABEL) Then Exit Function
-    If Not ex_XmlCore.m_ReadRequiredAttrDouble(node, "rowHeight", style.RowHeight, "errorBanner@rowHeight", ERROR_BANNER_STYLE_LABEL) Then Exit Function
-    If Not ex_XmlCore.m_ReadRequiredAttrHexColor(node, "backColor", style.BackColor, "errorBanner@backColor", ERROR_BANNER_STYLE_LABEL) Then Exit Function
-    If Not ex_XmlCore.m_ReadRequiredAttrHexColor(node, "fontColor", style.FontColor, "errorBanner@fontColor", ERROR_BANNER_STYLE_LABEL) Then Exit Function
-    If Not ex_XmlCore.m_ReadRequiredAttrBoolean(node, "wrapText", style.WrapText, "errorBanner@wrapText", ERROR_BANNER_STYLE_LABEL) Then Exit Function
-    If Not ex_XmlCore.m_ReadRequiredAttrBoolean(node, "titleBold", style.TitleBold, "errorBanner@titleBold", ERROR_BANNER_STYLE_LABEL) Then Exit Function
-    If Not ex_XmlCore.m_ReadRequiredAttrBoolean(node, "showGrid", style.ShowGrid, "errorBanner@showGrid", ERROR_BANNER_STYLE_LABEL) Then Exit Function
-    If Not ex_XmlCore.m_ReadRequiredAttrHexColor(node, "gridColor", style.GridColor, "errorBanner@gridColor", ERROR_BANNER_STYLE_LABEL) Then Exit Function
-    If Not mp_ReadOptionalAttrHorizontalAlignment(node, "horizontal", style.HorizontalAlignment, xlLeft, "errorBanner@horizontal") Then Exit Function
-    If Not mp_ReadOptionalAttrVerticalAlignment(node, "vertical", style.VerticalAlignment, xlCenter, "errorBanner@vertical") Then Exit Function
-
-    If style.Columns < 1 Then
-        MsgBox "Invalid value for error banner attribute 'errorBanner@columns': must be >= 1.", vbExclamation
-        Exit Function
-    End If
-    If style.Rows < 1 Then
-        MsgBox "Invalid value for error banner attribute 'errorBanner@rows': must be >= 1.", vbExclamation
-        Exit Function
-    End If
-    If style.RowHeight <= 0 Then
-        MsgBox "Invalid value for error banner attribute 'errorBanner@rowHeight': must be > 0.", vbExclamation
-        Exit Function
-    End If
-
-    mp_LoadErrorBannerStyleFromDom = True
-End Function
-
-Private Function mp_LoadWarningBannerStyleFromDom(ByVal doc As Object, ByRef style As t_ErrorBannerStyle) As Boolean
-    Dim node As Object
-
-    Set node = doc.selectSingleNode("/p:sheetStyles/p:warningBanner")
-    If node Is Nothing Then
-        Exit Function
-    End If
-
-    If Not ex_XmlCore.m_ReadRequiredAttrLong(node, "columns", style.Columns, "warningBanner@columns", WARNING_BANNER_STYLE_LABEL) Then Exit Function
-    If Not ex_XmlCore.m_ReadRequiredAttrLong(node, "rows", style.Rows, "warningBanner@rows", WARNING_BANNER_STYLE_LABEL) Then Exit Function
-    If Not ex_XmlCore.m_ReadRequiredAttrDouble(node, "rowHeight", style.RowHeight, "warningBanner@rowHeight", WARNING_BANNER_STYLE_LABEL) Then Exit Function
-    If Not ex_XmlCore.m_ReadRequiredAttrHexColor(node, "backColor", style.BackColor, "warningBanner@backColor", WARNING_BANNER_STYLE_LABEL) Then Exit Function
-    If Not ex_XmlCore.m_ReadRequiredAttrHexColor(node, "fontColor", style.FontColor, "warningBanner@fontColor", WARNING_BANNER_STYLE_LABEL) Then Exit Function
-    If Not ex_XmlCore.m_ReadRequiredAttrBoolean(node, "wrapText", style.WrapText, "warningBanner@wrapText", WARNING_BANNER_STYLE_LABEL) Then Exit Function
-    If Not ex_XmlCore.m_ReadRequiredAttrBoolean(node, "titleBold", style.TitleBold, "warningBanner@titleBold", WARNING_BANNER_STYLE_LABEL) Then Exit Function
-    If Not ex_XmlCore.m_ReadRequiredAttrBoolean(node, "showGrid", style.ShowGrid, "warningBanner@showGrid", WARNING_BANNER_STYLE_LABEL) Then Exit Function
-    If Not ex_XmlCore.m_ReadRequiredAttrHexColor(node, "gridColor", style.GridColor, "warningBanner@gridColor", WARNING_BANNER_STYLE_LABEL) Then Exit Function
-    If Not mp_ReadOptionalAttrHorizontalAlignment(node, "horizontal", style.HorizontalAlignment, xlLeft, "warningBanner@horizontal") Then Exit Function
-    If Not mp_ReadOptionalAttrVerticalAlignment(node, "vertical", style.VerticalAlignment, xlCenter, "warningBanner@vertical") Then Exit Function
-
-    If style.Columns < 1 Then
-        MsgBox "Invalid value for warning banner attribute 'warningBanner@columns': must be >= 1.", vbExclamation
-        Exit Function
-    End If
-    If style.Rows < 1 Then
-        MsgBox "Invalid value for warning banner attribute 'warningBanner@rows': must be >= 1.", vbExclamation
-        Exit Function
-    End If
-    If style.RowHeight <= 0 Then
-        MsgBox "Invalid value for warning banner attribute 'warningBanner@rowHeight': must be > 0.", vbExclamation
-        Exit Function
-    End If
-
-    mp_LoadWarningBannerStyleFromDom = True
-End Function
-
-Private Function mp_SelectOutputSheetStyleNode(ByVal doc As Object, ByVal modeKey As String) As Object
-    Dim nodes As Object
-    Dim node As Object
-    Dim modeKeyAttr As String
-    Dim fallbackNode As Object
-    Dim primaryModeKey As String
-    Dim secondaryModeKey As String
-
-    If doc Is Nothing Then Exit Function
-
-    Set nodes = doc.selectNodes("/p:sheetStyles/p:outputStyles/p:outputSheetStyle")
-    If nodes Is Nothing Then Exit Function
-    If nodes.Length = 0 Then Exit Function
-
-    modeKey = Trim$(modeKey)
-
-    For Each node In nodes
-        modeKeyAttr = Trim$(ex_XmlCore.m_NodeAttrText(node, "modeKey"))
-        If Len(modeKeyAttr) = 0 Then
-            If fallbackNode Is Nothing Then Set fallbackNode = node
-        ElseIf Len(modeKey) > 0 And Len(modeKeyAttr) > 0 And StrComp(modeKeyAttr, modeKey, vbTextCompare) = 0 Then
-            Set mp_SelectOutputSheetStyleNode = node
-            Exit Function
-        End If
-    Next node
-
-    primaryModeKey = Trim$(ex_UiXmlProvider.m_GetModeKeyByIndex(1, ThisWorkbook))
-    secondaryModeKey = Trim$(ex_UiXmlProvider.m_GetModeKeyByIndex(2, ThisWorkbook))
-    If nodes.Length >= 2 Then
-        If Len(primaryModeKey) > 0 And StrComp(modeKey, primaryModeKey, vbTextCompare) = 0 Then
-            Set mp_SelectOutputSheetStyleNode = nodes.Item(0)
-            Exit Function
-        End If
-        If Len(secondaryModeKey) > 0 And StrComp(modeKey, secondaryModeKey, vbTextCompare) = 0 Then
-            Set mp_SelectOutputSheetStyleNode = nodes.Item(1)
-            Exit Function
-        End If
-    End If
-
-    If Not fallbackNode Is Nothing Then
-        Set mp_SelectOutputSheetStyleNode = fallbackNode
-    ElseIf nodes.Length > 0 Then
-        Set mp_SelectOutputSheetStyleNode = nodes.Item(0)
-    End If
 End Function
 
 Private Function mp_LoadControlPanelFromModeUi(ByVal doc As Object, ByRef style As t_OutputSheetStyle) As Boolean
@@ -1242,31 +1023,6 @@ Private Function mp_NormalizeInputOverflowStyle( _
     mp_NormalizeInputOverflowStyle = True
 End Function
 
-Private Function mp_ReadOptionalOutputOverflowAttr( _
-    ByVal node As Object, _
-    ByVal attrName As String, _
-    ByRef outValue As String, _
-    ByVal defaultValue As String, _
-    ByVal fieldName As String _
-) As Boolean
-    Dim textValue As String
-
-    textValue = LCase$(Trim$(ex_XmlCore.m_NodeAttrText(node, attrName)))
-    If Len(textValue) = 0 Then textValue = LCase$(Trim$(defaultValue))
-
-    Select Case textValue
-        Case "wrap", "shrink", "clip"
-            outValue = textValue
-        Case "overflow"
-            outValue = "clip"
-        Case Else
-            MsgBox "Invalid value for output sheet style attribute '" & fieldName & "': expected wrap, shrink, clip, or overflow.", vbExclamation
-            Exit Function
-    End Select
-
-    mp_ReadOptionalOutputOverflowAttr = True
-End Function
-
 Private Function mp_ReadOptionalAttrText(ByVal node As Object, ByVal attrName As String, ByVal defaultValue As String) As String
     mp_ReadOptionalAttrText = Trim$(ex_XmlCore.m_NodeAttrText(node, attrName))
     If Len(mp_ReadOptionalAttrText) = 0 Then
@@ -1409,54 +1165,6 @@ Private Function mp_ReadOptionalAttrVerticalAlignment( _
     End Select
 
     mp_ReadOptionalAttrVerticalAlignment = True
-End Function
-
-Private Function mp_ReadRequiredAttrHorizontalAlignment(ByVal node As Object, ByVal attrName As String, ByRef outValue As Long) As Boolean
-    Dim textValue As String
-
-    textValue = LCase$(ex_XmlCore.m_ReadRequiredAttrText(node, attrName, "alignment@" & attrName, OUTPUT_STYLE_LABEL))
-    If Len(textValue) = 0 Then Exit Function
-
-    Select Case textValue
-        Case "center": outValue = xlCenter
-        Case "left": outValue = xlLeft
-        Case "right": outValue = xlRight
-        Case Else
-            MsgBox "Invalid alignment value for '" & attrName & "': " & textValue & ". Allowed: left, center, right.", vbExclamation
-            Exit Function
-    End Select
-
-    mp_ReadRequiredAttrHorizontalAlignment = True
-End Function
-
-Private Function mp_ReadRequiredAttrVerticalAlignment(ByVal node As Object, ByVal attrName As String, ByRef outValue As Long) As Boolean
-    Dim textValue As String
-
-    textValue = LCase$(ex_XmlCore.m_ReadRequiredAttrText(node, attrName, "alignment@" & attrName, OUTPUT_STYLE_LABEL))
-    If Len(textValue) = 0 Then Exit Function
-
-    Select Case textValue
-        Case "center": outValue = xlCenter
-        Case "top": outValue = xlTop
-        Case "bottom": outValue = xlBottom
-        Case Else
-            MsgBox "Invalid alignment value for '" & attrName & "': " & textValue & ". Allowed: top, center, bottom.", vbExclamation
-            Exit Function
-    End Select
-
-    mp_ReadRequiredAttrVerticalAlignment = True
-End Function
-
-Private Function mp_TryParseBorderWeight(ByVal value As String, ByRef outValue As Long) As Boolean
-    Select Case LCase$(Trim$(value))
-        Case "hairline": outValue = xlHairline
-        Case "thin": outValue = xlThin
-        Case "medium": outValue = xlMedium
-        Case "thick": outValue = xlThick
-        Case Else: Exit Function
-    End Select
-
-    mp_TryParseBorderWeight = True
 End Function
 
 Private Sub mp_AddLayer( _

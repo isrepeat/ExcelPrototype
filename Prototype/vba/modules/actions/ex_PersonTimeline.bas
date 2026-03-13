@@ -252,6 +252,7 @@ Public Sub m_ShowPersonTimeline(ByVal fio As String)
     ex_SheetViewZoom.m_ApplyProfileZoomForResultSheet wsOut, resultSheetExistedBeforeRender
     ex_Messaging.m_ClearBannerAnchors wsOut
     ex_Messaging.m_ClearResultTableAnchors wsOut
+    ex_Messaging.m_ClearResultRowAnchors wsOut
 
     Dim resultFieldRanges As Collection
     Set resultFieldRanges = New Collection
@@ -440,6 +441,9 @@ Public Sub m_RunPostProcessForActiveSheet()
     Dim errNumber As Long
     Dim errSource As String
     Dim errDescription As String
+    Dim prevScreenUpdating As Boolean
+    Dim outputStyle As t_OutputSheetStyle
+    Dim hasOutputStyle As Boolean
 
     On Error GoTo EH
 
@@ -459,13 +463,28 @@ Public Sub m_RunPostProcessForActiveSheet()
         Exit Sub
     End If
 
+    prevScreenUpdating = Application.ScreenUpdating
+    Application.ScreenUpdating = False
+    hasOutputStyle = ex_SheetStylesXmlProvider.m_GetOutputSheetStyle(outputStyle, ThisWorkbook)
+    If hasOutputStyle Then
+        ex_OutputPanel.m_DeletePanelButtonsForSheet ws
+    End If
+
     ex_PostProcessDsl.m_ApplyScriptToSheet ws, g_LastPostProcessCfg, g_LastPostProcessTables
+    If hasOutputStyle Then
+        ex_OutputPanel.m_RenderForSheet ws, outputStyle
+    End If
+    Application.ScreenUpdating = prevScreenUpdating
     Exit Sub
 
 EH:
     errNumber = Err.Number
     errSource = Err.Source
     errDescription = Err.Description
+    On Error Resume Next
+    If hasOutputStyle And Not ws Is Nothing Then ex_OutputPanel.m_RenderForSheet ws, outputStyle
+    Application.ScreenUpdating = prevScreenUpdating
+    On Error GoTo 0
     MsgBox "Post-process failed: [" & errSource & " #" & CStr(errNumber) & "] " & errDescription, vbExclamation
 End Sub
 
@@ -2199,6 +2218,8 @@ Private Sub mp_CaptureResultTableRowsFromOutput( _
     Dim dataRange As Range
     Dim capturedValues As Variant
     Dim isScalarRange As Boolean
+    Dim rowOrdinal As Long
+    Dim rowAnchorName As String
 
     If wsOut Is Nothing Then Exit Sub
     If resultTable Is Nothing Then Exit Sub
@@ -2215,6 +2236,13 @@ Private Sub mp_CaptureResultTableRowsFromOutput( _
 
     For r = dataRowStart To dataRowEnd
         Set rowObj = resultTable.EnsureRow(r)
+        rowOrdinal = r - dataRowStart + 1
+        rowAnchorName = ex_Messaging.m_BuildResultRowAnchorName(resultTable.TableRef, rowOrdinal)
+        If Len(rowAnchorName) = 0 Then
+            Err.Raise vbObjectError + 1316, "ex_PersonTimeline", "Unable to build row anchor name for table '" & resultTable.TableRef & "' row ordinal " & CStr(rowOrdinal) & "."
+        End If
+        rowObj.RowAnchorName = rowAnchorName
+        ex_Messaging.m_RegisterResultRowAnchor wsOut, rowAnchorName, r
         If Not rowKindsBySheetRow Is Nothing Then
             If rowKindsBySheetRow.Exists(CStr(r)) Then
                 rowObj.Kind = CStr(rowKindsBySheetRow(CStr(r)))

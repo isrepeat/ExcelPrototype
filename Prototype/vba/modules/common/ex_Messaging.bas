@@ -22,6 +22,7 @@ Private Const POST_PROCESS_HEADER_ANCHOR_NAME As String = "__pcPostProcessSingle
 Private Const BANNER_ANCHOR_PREFIX As String = "__pcBanner_"
 Private Const BANNER_MESSAGE_ANCHOR_PREFIX As String = "__pcBannerMsg_"
 Private Const TABLE_ANCHOR_PREFIX As String = "__pcTable_"
+Private Const ROW_ANCHOR_PREFIX As String = "__pcRow_"
 Private Const BANNER_MAX_ANCHOR_INDEX As Long = 9999
 Private Const DEFAULT_BANNER_COLUMNS As Long = 8
 Private Const DEFAULT_BANNER_ROWS As Long = 3
@@ -335,6 +336,63 @@ End Function
 Public Sub m_ClearResultTableAnchors(ByVal ws As Worksheet)
     mp_ClearAnchorsByPrefix ws, TABLE_ANCHOR_PREFIX
 End Sub
+
+Public Sub m_ClearResultRowAnchors(ByVal ws As Worksheet)
+    mp_ClearAnchorsByPrefix ws, ROW_ANCHOR_PREFIX
+End Sub
+
+Public Function m_BuildResultRowAnchorName( _
+    ByVal tableRef As String, _
+    ByVal rowOrdinal As Long _
+) As String
+    Dim normalized As String
+
+    tableRef = Trim$(tableRef)
+    If Len(tableRef) = 0 Then Exit Function
+    If rowOrdinal < 1 Then Exit Function
+
+    normalized = mp_SanitizeNameToken(tableRef)
+    If Len(normalized) = 0 Then Exit Function
+    If Len(normalized) > 150 Then normalized = Left$(normalized, 150)
+
+    m_BuildResultRowAnchorName = ROW_ANCHOR_PREFIX & normalized & "_" & mp_ChecksumHex4(tableRef) & "_" & CStr(rowOrdinal)
+End Function
+
+Public Sub m_RegisterResultRowAnchor( _
+    ByVal ws As Worksheet, _
+    ByVal anchorName As String, _
+    ByVal rowIndex As Long _
+)
+    Dim anchorRange As Range
+
+    If ws Is Nothing Then Exit Sub
+    anchorName = Trim$(anchorName)
+    If Len(anchorName) = 0 Then Exit Sub
+    If rowIndex < 1 Then Exit Sub
+    If rowIndex > ws.Rows.Count Then Exit Sub
+
+    Set anchorRange = ws.Cells(rowIndex, 1)
+    mp_SetNamedRangeAnchor ws, anchorName, anchorRange
+End Sub
+
+Public Function m_TryResolveResultRowAnchorRow( _
+    ByVal ws As Worksheet, _
+    ByVal anchorName As String, _
+    ByRef outRowIndex As Long _
+) As Boolean
+    Dim anchorRange As Range
+
+    If ws Is Nothing Then Exit Function
+    anchorName = Trim$(anchorName)
+    If Len(anchorName) = 0 Then Exit Function
+    If Not mp_TryGetNamedRangeAnchor(ws, anchorName, anchorRange) Then Exit Function
+    If anchorRange Is Nothing Then Exit Function
+
+    outRowIndex = anchorRange.Row
+    If outRowIndex < 1 Then Exit Function
+    If outRowIndex > ws.Rows.Count Then Exit Function
+    m_TryResolveResultRowAnchorRow = True
+End Function
 
 Public Sub m_RegisterResultTableAnchor( _
     ByVal ws As Worksheet, _

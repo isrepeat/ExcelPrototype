@@ -285,7 +285,7 @@ callMacro("ex_PostProcessActions.m_AppendToSinglePostProcessFooterText", txt, "\
 Источник конфигурации:
 
 1. `Prototype/config/StylePipeline.xml` - декларативные `layer/rule` по страницам (`sheetPipeline page="..."`).
-2. `Prototype/config/SheetStyles.xml` - отдельные style-параметры UI (control panel, banner palettes, и т.п.), которые модули могут конвертировать в `runtimeLayers`.
+2. `Prototype/config/modes/*/*UI.xml` - конфигурация control panel по режимам; палитры/базовые параметры подставляются кодом и runtime layers.
 
 Единая точка входа из VBA:
 

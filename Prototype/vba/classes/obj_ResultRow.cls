@@ -6,6 +6,7 @@ Attribute VB_Name = "obj_ResultRow"
 Option Explicit
 
 Private m_RowIndex As Long
+Private m_RowAnchorName As String
 Private m_Kind As String
 Private m_ValuesByAlias As Object
 Private m_ValuesByMapKey As Object
@@ -23,6 +24,14 @@ End Sub
 
 Public Property Get RowIndex() As Long
     RowIndex = m_RowIndex
+End Property
+
+Public Property Get RowAnchorName() As String
+    RowAnchorName = m_RowAnchorName
+End Property
+
+Public Property Let RowAnchorName(ByVal valueText As String)
+    m_RowAnchorName = Trim$(valueText)
 End Property
 
 Public Property Get Kind() As String

@@ -213,6 +213,31 @@ ContinueField:
     mp_ApplyFixedControlPanelLayout ws, style, startCol, inputStartCol
 End Sub
 
+Public Sub m_SetPanelButtonsVisible(ByVal ws As Worksheet, ByVal isVisible As Boolean)
+    Dim shapeIndex As Long
+    Dim shp As Shape
+
+    If ws Is Nothing Then Exit Sub
+
+    For shapeIndex = ws.Shapes.Count To 1 Step -1
+        Set shp = ws.Shapes(shapeIndex)
+        If mp_IsPanelButtonShape(ws, shp.Name) Then
+            On Error Resume Next
+            If isVisible Then
+                shp.Visible = msoTrue
+            Else
+                shp.Visible = msoFalse
+            End If
+            On Error GoTo 0
+        End If
+    Next shapeIndex
+End Sub
+
+Public Sub m_DeletePanelButtonsForSheet(ByVal ws As Worksheet)
+    If ws Is Nothing Then Exit Sub
+    mp_DeletePanelButtons ws
+End Sub
+
 Public Sub m_HandleSheetInputChange(ByVal ws As Worksheet, ByVal target As Range)
     Dim macroName As String
     Dim prevEnableEvents As Boolean
@@ -1108,26 +1133,45 @@ End Function
 Private Sub mp_DeletePanelButtons(ByVal ws As Worksheet)
     Dim shapeIndex As Long
     Dim shp As Shape
-    Dim prefix As String
-    Dim commonPrefix As String
-    Dim backPrefix As String
 
     If ws Is Nothing Then Exit Sub
-    prefix = PANEL_BUTTON_PREFIX & ws.CodeName & "_"
-    commonPrefix = PANEL_BUTTON_PREFIX
-    backPrefix = "btnOutPanelBackToDev_" & ws.CodeName
 
     For shapeIndex = ws.Shapes.Count To 1 Step -1
         Set shp = ws.Shapes(shapeIndex)
-        If LCase$(Left$(shp.Name, Len(prefix))) = LCase$(prefix) _
-           Or LCase$(Left$(shp.Name, Len(commonPrefix))) = LCase$(commonPrefix) _
-           Or LCase$(Left$(shp.Name, Len(backPrefix))) = LCase$(backPrefix) Then
+        If mp_IsPanelButtonShape(ws, shp.Name) Then
             On Error Resume Next
             shp.Delete
             On Error GoTo 0
         End If
     Next shapeIndex
 End Sub
+
+Private Function mp_IsPanelButtonShape(ByVal ws As Worksheet, ByVal shapeName As String) As Boolean
+    Dim prefix As String
+    Dim commonPrefix As String
+    Dim backPrefix As String
+    Dim normalized As String
+
+    If ws Is Nothing Then Exit Function
+    normalized = LCase$(Trim$(shapeName))
+    If Len(normalized) = 0 Then Exit Function
+
+    prefix = LCase$(PANEL_BUTTON_PREFIX & ws.CodeName & "_")
+    commonPrefix = LCase$(PANEL_BUTTON_PREFIX)
+    backPrefix = LCase$("btnOutPanelBackToDev_" & ws.CodeName)
+
+    If Left$(normalized, Len(prefix)) = prefix Then
+        mp_IsPanelButtonShape = True
+        Exit Function
+    End If
+    If Left$(normalized, Len(commonPrefix)) = commonPrefix Then
+        mp_IsPanelButtonShape = True
+        Exit Function
+    End If
+    If Left$(normalized, Len(backPrefix)) = backPrefix Then
+        mp_IsPanelButtonShape = True
+    End If
+End Function
 
 Private Sub mp_ApplyFixedControlPanelLayout( _
     ByVal ws As Worksheet, _
