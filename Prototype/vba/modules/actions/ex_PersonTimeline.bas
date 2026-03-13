@@ -316,16 +316,12 @@ Public Sub m_ShowPersonTimeline(ByVal fio As String)
         Dim tableType As String
         tableType = LCase$(mp_GetCfgRequired(cfg, sourceAlias & ".Sheet[" & tableAlias & "].Type"))
 
-        If mode = StateTableOnly And tableType <> "state" Then
-            GoTo ContinueAlias
-        End If
-        If mode = EventsTableOnly And tableType <> "events" Then
-            GoTo ContinueAlias
-        End If
-
-        If tableType <> "state" And tableType <> "events" Then
+        If Not mp_IsSupportedOutputTableType(tableType) Then
             Err.Raise vbObjectError + 1301, "ex_PersonTimeline", _
                 "Unsupported table type for alias '" & tableAlias & "': " & tableType
+        End If
+        If Not mp_ShouldRenderTableForMode(mode, tableType) Then
+            GoTo ContinueAlias
         End If
 
         Dim adoObjectName As String
@@ -338,7 +334,7 @@ Public Sub m_ShowPersonTimeline(ByVal fio As String)
             Dim stateRendered As Boolean
             rowIndex = mp_WriteStateCardGeneric(wsOut, sourceConn, adoObjectName, fio, rowIndex, cfg, resultFieldRanges, resultTables, resultTablesByRef, sourceAlias, tableAlias, headerRows, sectionRows, pendingWarningBanners, partialMatchRowRanges, stateRendered)
             If stateRendered Then
-                rowIndex = rowIndex + 1
+                rowIndex = mp_AdvanceRowIndexAfterRenderedTable(cfg, outputAliases, i, mode, tableSourceMap, tableAlias, tableType, rowIndex)
                 renderedCount = renderedCount + 1
             End If
         Else
@@ -357,7 +353,7 @@ Public Sub m_ShowPersonTimeline(ByVal fio As String)
             End If
             rowIndex = mp_WriteEventsGeneric(wsOut, sourceConn, adoObjectName, fio, rowIndex, cfg, resultFieldRanges, resultTables, resultTablesByRef, sourceAlias, tableAlias, headerRows, pendingWarningBanners, partialMatchRowRanges, eventsRendered)
             If eventsRendered Then
-                rowIndex = rowIndex + 1
+                rowIndex = mp_AdvanceRowIndexAfterRenderedTable(cfg, outputAliases, i, mode, tableSourceMap, tableAlias, tableType, rowIndex)
                 renderedCount = renderedCount + 1
             Else
                 If eventsSectionAdded Then
@@ -564,13 +560,11 @@ Private Function mp_ValidateTimelineConfig( _
         sourceAlias = mp_GetSourceAliasCached(cfg, tableAlias, tableSourceMap)
         tableType = LCase$(mp_GetCfgRequired(cfg, sourceAlias & ".Sheet[" & tableAlias & "].Type"))
 
-        If mode = StateTableOnly And tableType <> "state" Then GoTo ContinueAlias
-        If mode = EventsTableOnly And tableType <> "events" Then GoTo ContinueAlias
-
-        If tableType <> "state" And tableType <> "events" Then
+        If Not mp_IsSupportedOutputTableType(tableType) Then
             Err.Raise vbObjectError + 1301, "ex_PersonTimeline", _
                 "Unsupported table type for alias '" & tableAlias & "': " & tableType
         End If
+        If Not mp_ShouldRenderTableForMode(mode, tableType) Then GoTo ContinueAlias
 
         Call mp_GetCfgRequired(cfg, sourceAlias & ".Sheet[" & tableAlias & "].SheetName")
         Call mp_GetCfgRequired(cfg, sourceAlias & ".Sheet[" & tableAlias & "].Key")
@@ -1079,7 +1073,7 @@ Private Function mp_WriteEventsGeneric( _
     mp_CaptureResultTableRowsFromOutput wsOut, resultTable, sourceAlias, tableAlias, fields, outHeaderRow + 1, outDataRow - 1, fetchKindsBySheetRow, outHeaderRow, outDataRow - 1
 
     outTableRendered = True
-    mp_WriteEventsGeneric = outDataRow + 1
+    mp_WriteEventsGeneric = outDataRow
     Exit Function
 
 SortEH:
@@ -1089,7 +1083,7 @@ SortEH:
     mp_CaptureResultTableRowsFromOutput wsOut, resultTable, sourceAlias, tableAlias, fields, outHeaderRow + 1, outDataRow - 1, fetchKindsBySheetRow, outHeaderRow, outDataRow - 1
     On Error GoTo EH
     outTableRendered = True
-    mp_WriteEventsGeneric = outDataRow + 1
+    mp_WriteEventsGeneric = outDataRow
     Exit Function
 
 EH:
@@ -2390,6 +2384,176 @@ ContinueKey:
     Next outRowKey
 
     Set mp_BuildSheetRowKindsMap = result
+End Function
+
+Private Function mp_AdvanceRowIndexAfterRenderedTable( _
+    ByVal cfg As Object, _
+    ByVal outputAliases As Variant, _
+    ByVal currentIndex As Long, _
+    ByVal mode As OutputMode, _
+    ByVal tableSourceMap As Object, _
+    ByVal currentTableAlias As String, _
+    ByVal currentTableType As String, _
+    ByVal rowIndexAfterCurrentTable As Long _
+) As Long
+    Dim nextSourceAlias As String
+    Dim nextTableAlias As String
+    Dim nextTableType As String
+    Dim gapRows As Long
+
+    mp_AdvanceRowIndexAfterRenderedTable = rowIndexAfterCurrentTable
+
+    If Not mp_TryGetNextRenderableOutputTable(cfg, outputAliases, currentIndex, mode, tableSourceMap, nextSourceAlias, nextTableAlias, nextTableType) Then
+        Exit Function
+    End If
+
+    gapRows = mp_GetOutputTablesGapRows(cfg, currentTableAlias, currentTableType, nextTableAlias, nextTableType)
+    If gapRows > 0 Then
+        mp_AdvanceRowIndexAfterRenderedTable = rowIndexAfterCurrentTable + gapRows
+    End If
+End Function
+
+Private Function mp_TryGetNextRenderableOutputTable( _
+    ByVal cfg As Object, _
+    ByVal outputAliases As Variant, _
+    ByVal fromIndex As Long, _
+    ByVal mode As OutputMode, _
+    ByVal tableSourceMap As Object, _
+    ByRef outSourceAlias As String, _
+    ByRef outTableAlias As String, _
+    ByRef outTableType As String _
+) As Boolean
+    Dim i As Long
+    Dim candidateAlias As String
+    Dim candidateSourceAlias As String
+    Dim candidateTableType As String
+
+    For i = fromIndex + 1 To UBound(outputAliases)
+        candidateAlias = Trim$(CStr(outputAliases(i)))
+        If Len(candidateAlias) = 0 Then GoTo ContinueCandidate
+
+        candidateSourceAlias = mp_GetSourceAliasCached(cfg, candidateAlias, tableSourceMap)
+        candidateTableType = LCase$(mp_GetCfgRequired(cfg, candidateSourceAlias & ".Sheet[" & candidateAlias & "].Type"))
+
+        If Not mp_IsSupportedOutputTableType(candidateTableType) Then
+            Err.Raise vbObjectError + 1301, "ex_PersonTimeline", _
+                "Unsupported table type for alias '" & candidateAlias & "': " & candidateTableType
+        End If
+
+        If Not mp_ShouldRenderTableForMode(mode, candidateTableType) Then
+            GoTo ContinueCandidate
+        End If
+
+        outSourceAlias = candidateSourceAlias
+        outTableAlias = candidateAlias
+        outTableType = candidateTableType
+        mp_TryGetNextRenderableOutputTable = True
+        Exit Function
+ContinueCandidate:
+    Next i
+End Function
+
+Private Function mp_GetOutputTablesGapRows( _
+    ByVal cfg As Object, _
+    ByVal currentTableAlias As String, _
+    ByVal currentTableType As String, _
+    ByVal nextTableAlias As String, _
+    ByVal nextTableType As String _
+) As Long
+    Dim keyName As String
+    Dim currentTypeToken As String
+    Dim nextTypeToken As String
+
+    currentTypeToken = mp_ToOutputTableTypeToken(currentTableType)
+    nextTypeToken = mp_ToOutputTableTypeToken(nextTableType)
+
+    keyName = "Output.Layout.Gap.Between[" & currentTableAlias & "->" & nextTableAlias & "]"
+    If cfg.Exists(keyName) Then
+        mp_GetOutputTablesGapRows = mp_GetCfgNonNegativeLongValue(cfg, keyName)
+        Exit Function
+    End If
+
+    keyName = "Output.Layout.Gap.BetweenType[" & currentTypeToken & "->" & nextTypeToken & "]"
+    If cfg.Exists(keyName) Then
+        mp_GetOutputTablesGapRows = mp_GetCfgNonNegativeLongValue(cfg, keyName)
+        Exit Function
+    End If
+
+    keyName = "Output.Layout.Gap.After[" & currentTableAlias & "]"
+    If cfg.Exists(keyName) Then
+        mp_GetOutputTablesGapRows = mp_GetCfgNonNegativeLongValue(cfg, keyName)
+        Exit Function
+    End If
+
+    keyName = "Output.Layout.Gap.AfterType[" & currentTypeToken & "]"
+    If cfg.Exists(keyName) Then
+        mp_GetOutputTablesGapRows = mp_GetCfgNonNegativeLongValue(cfg, keyName)
+        Exit Function
+    End If
+
+    keyName = "Output.Layout.Gap.Default"
+    If cfg.Exists(keyName) Then
+        mp_GetOutputTablesGapRows = mp_GetCfgNonNegativeLongValue(cfg, keyName)
+        Exit Function
+    End If
+
+    mp_GetOutputTablesGapRows = 1
+End Function
+
+Private Function mp_IsSupportedOutputTableType(ByVal tableType As String) As Boolean
+    mp_IsSupportedOutputTableType = (tableType = "state" Or tableType = "events")
+End Function
+
+Private Function mp_ShouldRenderTableForMode(ByVal mode As OutputMode, ByVal tableType As String) As Boolean
+    If mode = StateTableOnly And tableType <> "state" Then Exit Function
+    If mode = EventsTableOnly And tableType <> "events" Then Exit Function
+    mp_ShouldRenderTableForMode = True
+End Function
+
+Private Function mp_ToOutputTableTypeToken(ByVal tableType As String) As String
+    Select Case LCase$(Trim$(tableType))
+        Case "state"
+            mp_ToOutputTableTypeToken = "State"
+        Case "events"
+            mp_ToOutputTableTypeToken = "Events"
+        Case Else
+            mp_ToOutputTableTypeToken = Trim$(tableType)
+    End Select
+End Function
+
+Private Function mp_GetCfgNonNegativeLongValue(ByVal cfg As Object, ByVal keyName As String) As Long
+    Dim rawValue As String
+    Dim parsedValue As Long
+
+    rawValue = mp_GetCfgRequired(cfg, keyName)
+    If Not mp_TryParseNonNegativeLong(rawValue, parsedValue) Then
+        Err.Raise vbObjectError + 1760, "ex_PersonTimeline", _
+            "Config key '" & keyName & "' must be a non-negative integer, got: '" & rawValue & "'."
+    End If
+
+    mp_GetCfgNonNegativeLongValue = parsedValue
+End Function
+
+Private Function mp_TryParseNonNegativeLong(ByVal rawValue As String, ByRef outValue As Long) As Boolean
+    Dim textValue As String
+    Dim i As Long
+    Dim ch As String
+
+    textValue = Trim$(rawValue)
+    If Len(textValue) = 0 Then Exit Function
+
+    For i = 1 To Len(textValue)
+        ch = Mid$(textValue, i, 1)
+        If ch < "0" Or ch > "9" Then Exit Function
+    Next i
+
+    On Error GoTo ParseEH
+    outValue = CLng(textValue)
+    mp_TryParseNonNegativeLong = True
+    Exit Function
+
+ParseEH:
+    mp_TryParseNonNegativeLong = False
 End Function
 
 Private Function mp_FindSourceAliasForTable(ByVal cfg As Object, ByVal tableAlias As String) As String

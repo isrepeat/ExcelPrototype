@@ -18,9 +18,12 @@ Private Const POST_PROCESS_FOOTER_ROW_KIND As String = "postprocessfooter"
 Private Const POST_PROCESS_HEADER_ANCHOR_NAME As String = "__pcPostProcessSingleHeader"
 Private Const POST_PROCESS_FOOTER_ANCHOR_NAME As String = "__pcPostProcessSingleFooter"
 Private Const RUNTIME_POINTER_PREFIX_NAME As String = "Name:"
-Private Const BANNER_TYPE_WARNING As String = "WARNING"
-Private Const BANNER_TYPE_ERROR As String = "ERROR"
-Private Const BANNER_TYPE_NOTE As String = "NOTE"
+Private Const BANNER_TYPE_WARNING As String = "TYPE_WARNING"
+Private Const BANNER_TYPE_ERROR As String = "TYPE_ERROR"
+Private Const BANNER_TYPE_NOTE As String = "TYPE_NOTE"
+Private Const BANNER_TITLE_WARNING As String = "WARNING"
+Private Const BANNER_TITLE_ERROR As String = "ERROR"
+Private Const BANNER_TITLE_NOTE As String = "NOTE"
 Private Const BANNER_KIND_WARNING As String = "warningbanner"
 Private Const BANNER_KIND_ERROR As String = "errorbanner"
 Private Const BANNER_KIND_NOTE As String = "notebanner"
@@ -982,8 +985,8 @@ End Function
 
 Public Function m_ShowBanner( _
     ByVal bannerType As String, _
-    ByVal bannerText As String, _
     Optional ByVal titleText As String = vbNullString, _
+    Optional ByVal bannerText As String = vbNullString, _
     Optional ByVal bannerRangeAddress As String = vbNullString, _
     Optional ByVal rowIndexText As String = vbNullString _
 ) As String
@@ -1003,21 +1006,21 @@ Public Function m_ShowBanner( _
     bannerRangeAddress = Trim$(bannerRangeAddress)
     If mp_IsDeferredRenderActiveForSheet(ws) Then
         If Len(rowIndexText) > 0 Then
-            mp_QueueDeferredOperation ws, DEFER_OP_SHOW_BANNER_BEFORE_ROW, Array(CStr(bannerType), CStr(bannerText), CStr(titleText), CStr(rowIndexText), "1")
+            mp_QueueDeferredOperation ws, DEFER_OP_SHOW_BANNER_BEFORE_ROW, Array(CStr(bannerType), CStr(titleText), CStr(bannerText), CStr(rowIndexText), "1")
         Else
-            mp_QueueDeferredOperation ws, DEFER_OP_SHOW_BANNER, Array(CStr(bannerType), CStr(bannerText), CStr(titleText), CStr(bannerRangeAddress), CStr(rowIndexText))
+            mp_QueueDeferredOperation ws, DEFER_OP_SHOW_BANNER, Array(CStr(bannerType), CStr(titleText), CStr(bannerText), CStr(bannerRangeAddress), CStr(rowIndexText))
         End If
         m_ShowBanner = bannerText
         Exit Function
     End If
 
     If Len(rowIndexText) > 0 Then
-        m_ShowBanner = m_ShowBannerBeforeRowIndex(bannerType, bannerText, titleText, rowIndexText, "1")
+        m_ShowBanner = m_ShowBannerBeforeRowIndex(bannerType, titleText, bannerText, rowIndexText, "1")
         Exit Function
     End If
 
     If Len(bannerRangeAddress) = 0 Then
-        m_ShowBanner = m_ShowBannerAfterBanner(bannerType, bannerText, titleText, "0", "1")
+        m_ShowBanner = m_ShowBannerAfterBanner(bannerType, titleText, bannerText, "0", "1")
         Exit Function
     End If
 
@@ -1027,8 +1030,8 @@ End Function
 
 Public Function m_ShowBannerAtCell( _
     ByVal bannerType As String, _
-    ByVal bannerText As String, _
     Optional ByVal titleText As String = vbNullString, _
+    Optional ByVal bannerText As String = vbNullString, _
     Optional ByVal topLeftCellRef As String = "A1" _
 ) As String
     Dim ws As Worksheet
@@ -1044,7 +1047,7 @@ Public Function m_ShowBannerAtCell( _
         Err.Raise vbObjectError + 1726, "ex_PostProcessActions", "Active sheet is not available for banner at cell."
     End If
     If mp_IsDeferredRenderActiveForSheet(ws) Then
-        mp_QueueDeferredOperation ws, DEFER_OP_SHOW_BANNER_AT_CELL, Array(CStr(bannerType), CStr(bannerText), CStr(titleText), CStr(topLeftCellRef))
+        mp_QueueDeferredOperation ws, DEFER_OP_SHOW_BANNER_AT_CELL, Array(CStr(bannerType), CStr(titleText), CStr(bannerText), CStr(topLeftCellRef))
         m_ShowBannerAtCell = bannerText
         Exit Function
     End If
@@ -1055,8 +1058,8 @@ End Function
 
 Public Function m_ShowBannerAfterBanner( _
     ByVal bannerType As String, _
-    ByVal bannerText As String, _
     Optional ByVal titleText As String = vbNullString, _
+    Optional ByVal bannerText As String = vbNullString, _
     Optional ByVal afterBannerNumberText As String = "1", _
     Optional ByVal gapRowsText As String = "1" _
 ) As String
@@ -1081,7 +1084,7 @@ Public Function m_ShowBannerAfterBanner( _
         Err.Raise vbObjectError + 1729, "ex_PostProcessActions", "Active sheet is not available for 'after banner' placement."
     End If
     If mp_IsDeferredRenderActiveForSheet(ws) Then
-        mp_QueueDeferredOperation ws, DEFER_OP_SHOW_BANNER_AFTER_BANNER, Array(CStr(bannerType), CStr(bannerText), CStr(titleText), CStr(afterBannerNumberText), CStr(gapRowsText))
+        mp_QueueDeferredOperation ws, DEFER_OP_SHOW_BANNER_AFTER_BANNER, Array(CStr(bannerType), CStr(titleText), CStr(bannerText), CStr(afterBannerNumberText), CStr(gapRowsText))
         m_ShowBannerAfterBanner = bannerText
         Exit Function
     End If
@@ -1101,10 +1104,10 @@ End Function
 
 Public Function m_ShowBannerAtTable( _
     ByVal bannerType As String, _
-    ByVal bannerText As String, _
     ByVal tableRef As String, _
-    Optional ByVal positionText As String = "before", _
-    Optional ByVal titleText As String = vbNullString _
+    Optional ByVal titleText As String = vbNullString, _
+    Optional ByVal bannerText As String = vbNullString, _
+    Optional ByVal positionText As String = "before" _
 ) As String
     Dim ws As Worksheet
     Dim bannerKind As String
@@ -1125,7 +1128,7 @@ Public Function m_ShowBannerAtTable( _
         Err.Raise vbObjectError + 1731, "ex_PostProcessActions", "Active sheet is not available for table banner placement."
     End If
     If mp_IsDeferredRenderActiveForSheet(ws) Then
-        mp_QueueDeferredOperation ws, DEFER_OP_SHOW_BANNER_AT_TABLE, Array(CStr(bannerType), CStr(bannerText), CStr(tableRef), CStr(positionText), CStr(titleText))
+        mp_QueueDeferredOperation ws, DEFER_OP_SHOW_BANNER_AT_TABLE, Array(CStr(bannerType), CStr(tableRef), CStr(titleText), CStr(bannerText), CStr(positionText))
         m_ShowBannerAtTable = bannerText
         Exit Function
     End If
@@ -1210,8 +1213,8 @@ End Function
 
 Private Function m_ShowBannerBeforeRowIndex( _
     ByVal bannerType As String, _
-    ByVal bannerText As String, _
     Optional ByVal titleText As String = vbNullString, _
+    Optional ByVal bannerText As String = vbNullString, _
     Optional ByVal rowIndexText As String = vbNullString, _
     Optional ByVal gapRowsText As String = "1" _
 ) As String
@@ -1302,6 +1305,12 @@ Private Function mp_NormalizeBannerType(ByVal bannerType As String) As String
     Select Case normalized
         Case BANNER_TYPE_WARNING, BANNER_TYPE_ERROR, BANNER_TYPE_NOTE
             mp_NormalizeBannerType = normalized
+        Case BANNER_TITLE_WARNING
+            mp_NormalizeBannerType = BANNER_TYPE_WARNING
+        Case BANNER_TITLE_ERROR
+            mp_NormalizeBannerType = BANNER_TYPE_ERROR
+        Case BANNER_TITLE_NOTE
+            mp_NormalizeBannerType = BANNER_TYPE_NOTE
         Case UCase$(BANNER_KIND_WARNING)
             mp_NormalizeBannerType = BANNER_TYPE_WARNING
         Case UCase$(BANNER_KIND_ERROR)
@@ -1309,7 +1318,7 @@ Private Function mp_NormalizeBannerType(ByVal bannerType As String) As String
         Case UCase$(BANNER_KIND_NOTE)
             mp_NormalizeBannerType = BANNER_TYPE_NOTE
         Case Else
-            Err.Raise vbObjectError + 1737, "ex_PostProcessActions", "Unsupported banner type '" & bannerType & "'. Allowed: WARNING, ERROR, NOTE."
+            Err.Raise vbObjectError + 1737, "ex_PostProcessActions", "Unsupported banner type '" & bannerType & "'. Allowed: TYPE_WARNING, TYPE_ERROR, TYPE_NOTE."
     End Select
 End Function
 
@@ -1333,11 +1342,11 @@ Private Function mp_ResolveBannerTitle(ByVal titleText As String, ByVal bannerTy
 
     Select Case mp_NormalizeBannerType(bannerType)
         Case BANNER_TYPE_ERROR
-            mp_ResolveBannerTitle = BANNER_TYPE_ERROR
+            mp_ResolveBannerTitle = BANNER_TITLE_ERROR
         Case BANNER_TYPE_NOTE
-            mp_ResolveBannerTitle = BANNER_TYPE_NOTE
+            mp_ResolveBannerTitle = BANNER_TITLE_NOTE
         Case Else
-            mp_ResolveBannerTitle = BANNER_TYPE_WARNING
+            mp_ResolveBannerTitle = BANNER_TITLE_WARNING
     End Select
 End Function
 
