@@ -328,7 +328,7 @@
 			}
 
 			if (hasValidationWarnings == "true") {
-				callMacro("ex_PostProcessActions.m_ShowBanner", "WARNING", "Верхній варнінг", "WARNING");
+				callMacro("ex_PostProcessActions.m_ShowBanner", "NOTE", "Верхній варнінг", "WARNING");
 			}
 
 			let exportWordPasteAnchor = "";

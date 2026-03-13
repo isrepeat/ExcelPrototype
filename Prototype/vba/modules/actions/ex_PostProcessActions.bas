@@ -34,6 +34,7 @@ Private Const DEFER_OP_SHOW_BANNER_AFTER_BANNER As String = "show_banner_after_b
 Private Const DEFER_OP_SHOW_BANNER_AT_TABLE As String = "show_banner_at_table"
 Private Const DEFER_OP_SHOW_BANNER_BEFORE_ROW As String = "show_banner_before_row"
 Private Const DEFER_ROW_ANCHOR_PREFIX As String = "__pcDeferredRow_"
+Private Const RUNTIME_ROW_ANCHOR_PREFIX As String = "__pcRuntimeRow_"
 
 Private Type t_PostProcessHeaderStyle
     Columns As Long
@@ -81,6 +82,7 @@ Public Sub m_HighlightRow( _
     Dim rowRange As Range
     Dim ws As Worksheet
     Dim usedCols As Long
+    Dim rowIndex As Long
 
     If rowRef Is Nothing Then Exit Sub
     If Len(Trim$(colorHex)) = 0 Then colorHex = "#FFF2CC"
@@ -93,7 +95,8 @@ Public Sub m_HighlightRow( _
         Err.Raise vbObjectError + 1650, "ex_PostProcessActions", "Invalid highlight color: " & colorHex
     End If
 
-    Set rowRange = ws.Range(ws.Cells(rowRef.RowIndex, 1), ws.Cells(rowRef.RowIndex, usedCols))
+    rowIndex = mp_ResolveAnchoredRowIndex(ws, rowRef, "row highlight")
+    Set rowRange = ws.Range(ws.Cells(rowIndex, 1), ws.Cells(rowIndex, usedCols))
     rowRange.Interior.Pattern = xlSolid
     rowRange.Interior.Color = colorValue
 End Sub
@@ -108,6 +111,7 @@ Public Sub m_HighlightRowCell( _
     Dim targetCell As Range
     Dim ws As Worksheet
     Dim usedCols As Long
+    Dim rowIndex As Long
 
     If rowRef Is Nothing Then Exit Sub
     columnRef = Trim$(columnRef)
@@ -132,7 +136,8 @@ Public Sub m_HighlightRowCell( _
         Err.Raise vbObjectError + 1650, "ex_PostProcessActions", "Invalid highlight color: " & colorHex
     End If
 
-    Set targetCell = ws.Cells(rowRef.RowIndex, targetCol)
+    rowIndex = mp_ResolveAnchoredRowIndex(ws, rowRef, "row cell highlight")
+    Set targetCell = ws.Cells(rowIndex, targetCol)
     targetCell.Interior.Pattern = xlSolid
     targetCell.Interior.Color = colorValue
 End Sub
@@ -248,6 +253,7 @@ Public Sub m_AppendToOwnerRowCell( _
     Dim probeRow As Long
     Dim targetCell As Range
     Dim currentText As String
+    Dim sourceRowIndex As Long
 
     If rowRef Is Nothing Then
         Err.Raise vbObjectError + 1674, "ex_PostProcessActions", "Row reference is required for owner row append."
@@ -266,7 +272,8 @@ Public Sub m_AppendToOwnerRowCell( _
         Err.Raise vbObjectError + 1677, "ex_PostProcessActions", "Unknown target column reference '" & targetColumnRef & "'."
     End If
 
-    For probeRow = rowRef.RowIndex To 1 Step -1
+    sourceRowIndex = mp_ResolveAnchoredRowIndex(ws, rowRef, "owner row append")
+    For probeRow = sourceRowIndex To 1 Step -1
         If Len(Trim$(CStr(ws.Cells(probeRow, ownerCol).Value))) > 0 Then
             ownerRowIndex = probeRow
             Exit For
@@ -274,7 +281,7 @@ Public Sub m_AppendToOwnerRowCell( _
     Next probeRow
 
     If ownerRowIndex <= 0 Then
-        Err.Raise vbObjectError + 1678, "ex_PostProcessActions", "Unable to resolve owner row by column '" & ownerColumnRef & "' from row " & CStr(rowRef.RowIndex) & "."
+        Err.Raise vbObjectError + 1678, "ex_PostProcessActions", "Unable to resolve owner row by column '" & ownerColumnRef & "' from row " & CStr(sourceRowIndex) & "."
     End If
 
     Set targetCell = ws.Cells(ownerRowIndex, targetCol)
@@ -299,6 +306,8 @@ Public Sub m_EmphasizeRowCellTextByRegex( _
     Dim matchObj As Object
     Dim colorValue As Long
     Dim makeUpper As Boolean
+    Dim ws As Worksheet
+    Dim rowIndex As Long
 
     If rowRef Is Nothing Then
         Err.Raise vbObjectError + 1664, "ex_PostProcessActions", "Row reference is required for regex text emphasis."
@@ -307,7 +316,12 @@ Public Sub m_EmphasizeRowCellTextByRegex( _
     If Not mp_TryResolveColumnIndexInRow(rowRef, columnRef, targetCol) Then
         Err.Raise vbObjectError + 1665, "ex_PostProcessActions", "Unknown row cell reference '" & columnRef & "' for regex text emphasis."
     End If
-    Set targetCell = mp_GetRowCellRange(rowRef.RowIndex, targetCol)
+    Set ws = ActiveSheet
+    If ws Is Nothing Then
+        Err.Raise vbObjectError + 1753, "ex_PostProcessActions", "Active sheet is not available for regex text emphasis."
+    End If
+    rowIndex = mp_ResolveAnchoredRowIndex(ws, rowRef, "regex text emphasis")
+    Set targetCell = mp_GetRowCellRange(rowIndex, targetCol)
     originalText = CStr(targetCell.Value)
 
     If Len(Trim$(fontColorHex)) = 0 Then fontColorHex = "#FF0000"
@@ -346,12 +360,14 @@ Public Sub m_AddNote( _
 )
     Dim noteCell As Range
     Dim ws As Worksheet
+    Dim rowIndex As Long
 
     If rowRef Is Nothing Then Exit Sub
     Set ws = ActiveSheet
     If ws Is Nothing Then Exit Sub
 
-    Set noteCell = ws.Cells(rowRef.RowIndex, 1)
+    rowIndex = mp_ResolveAnchoredRowIndex(ws, rowRef, "note add")
+    Set noteCell = ws.Cells(rowIndex, 1)
     On Error Resume Next
     If Not noteCell.Comment Is Nothing Then noteCell.Comment.Delete
     On Error GoTo 0
@@ -525,7 +541,7 @@ Public Sub m_AppendPostProcessHeaderText(ByVal postProcessHeaderText As String)
     End If
 
     If Not mp_TryLoadPostProcessHeaderStyle(postProcessHeaderStyle) Then
-        Err.Raise vbObjectError + 1673, "ex_PostProcessActions", "Unable to apply postProcessHeader text: invalid '/sheetStyles/postProcessHeaderStyle'."
+        Err.Raise vbObjectError + 1673, "ex_PostProcessActions", "Unable to apply postProcessHeader text: invalid postProcess header style."
     End If
 
     sheetKey = mp_BuildSheetKey(ws)
@@ -589,7 +605,7 @@ Public Sub m_AppendToSinglePostProcessHeaderText( _
     End If
 
     If Not mp_TryLoadPostProcessHeaderStyle(postProcessHeaderStyle) Then
-        Err.Raise vbObjectError + 1728, "ex_PostProcessActions", "Unable to apply single postProcessHeader text: invalid '/sheetStyles/postProcessHeaderStyle'."
+        Err.Raise vbObjectError + 1728, "ex_PostProcessActions", "Unable to apply single postProcessHeader text: invalid postProcess header style."
     End If
 
     Set postProcessHeaderRange = mp_GetOrCreateSinglePostProcessHeaderRange(ws, postProcessHeaderStyle)
@@ -656,7 +672,7 @@ Public Sub m_AppendPostProcessFooterText(ByVal postProcessFooterText As String)
     End If
 
     If Not mp_TryLoadPostProcessFooterStyle(postProcessFooterStyle) Then
-        Err.Raise vbObjectError + 1651, "ex_PostProcessActions", "Unable to apply postProcessFooter text: invalid '/sheetStyles/postProcessFooterStyle'."
+        Err.Raise vbObjectError + 1651, "ex_PostProcessActions", "Unable to apply postProcessFooter text: invalid postProcess footer style."
     End If
 
     startRow = mp_GetLastUsedRow(ws) + 2
@@ -700,7 +716,7 @@ Public Sub m_AppendToSinglePostProcessFooterText( _
     End If
 
     If Not mp_TryLoadPostProcessFooterStyle(postProcessFooterStyle) Then
-        Err.Raise vbObjectError + 1682, "ex_PostProcessActions", "Unable to apply single postProcessFooter text: invalid '/sheetStyles/postProcessFooterStyle'."
+        Err.Raise vbObjectError + 1682, "ex_PostProcessActions", "Unable to apply single postProcessFooter text: invalid postProcess footer style."
     End If
 
     Set postProcessFooterRange = mp_GetOrCreateSinglePostProcessFooterRange(ws, postProcessFooterStyle)
@@ -1130,6 +1146,7 @@ End Function
 
 Public Function m_GetRowIndex(ByVal rowRef As Object) As String
     Dim sourceRowRef As obj_ResultRow
+    Dim ws As Worksheet
 
     If rowRef Is Nothing Then
         Err.Raise vbObjectError + 1718, "ex_PostProcessActions", "Row reference is required for row index read."
@@ -1139,7 +1156,12 @@ Public Function m_GetRowIndex(ByVal rowRef As Object) As String
     End If
     Set sourceRowRef = rowRef
 
-    m_GetRowIndex = CStr(sourceRowRef.RowIndex)
+    Set ws = ActiveSheet
+    If ws Is Nothing Then
+        Err.Raise vbObjectError + 1744, "ex_PostProcessActions", "Active sheet is not available for row index read."
+    End If
+
+    m_GetRowIndex = CStr(mp_ResolveAnchoredRowIndex(ws, sourceRowRef, "row index read"))
 End Function
 
 Private Function m_GetBannerRangeAboveRow( _
@@ -1153,6 +1175,8 @@ Private Function m_GetBannerRangeAboveRow( _
     Dim bannerRows As Long
     Dim startRow As Long
     Dim bannerKind As String
+    Dim sourceRowIndex As Long
+    Dim ws As Worksheet
 
     If rowRef Is Nothing Then
         Err.Raise vbObjectError + 1714, "ex_PostProcessActions", "Row reference is required for banner range."
@@ -1173,7 +1197,12 @@ Private Function m_GetBannerRangeAboveRow( _
 
     bannerKind = mp_MapBannerTypeToKind(bannerType)
     mp_GetWarningBannerDimensions bannerCols, bannerRows, bannerKind
-    startRow = sourceRowRef.RowIndex - gapRows - bannerRows
+    Set ws = ActiveSheet
+    If ws Is Nothing Then
+        Err.Raise vbObjectError + 1745, "ex_PostProcessActions", "Active sheet is not available for banner range."
+    End If
+    sourceRowIndex = mp_ResolveAnchoredRowIndex(ws, sourceRowRef, "banner range build")
+    startRow = sourceRowIndex - gapRows - bannerRows
     If startRow < 1 Then startRow = 1
 
     m_GetBannerRangeAboveRow = "A" & CStr(startRow) & ":" & mp_ToColumnLetter(bannerCols) & CStr(startRow + bannerRows - 1)
@@ -1331,6 +1360,7 @@ Public Function m_GetRelativeRowCellText( _
     Dim rowOffset As Long
     Dim targetCol As Long
     Dim targetRow As Long
+    Dim sourceRowIndex As Long
 
     If rowRef Is Nothing Then
         Err.Raise vbObjectError + 1688, "ex_PostProcessActions", "Row reference is required for relative row read."
@@ -1354,7 +1384,8 @@ Public Function m_GetRelativeRowCellText( _
         Err.Raise vbObjectError + 1691, "ex_PostProcessActions", "Active sheet is not available for relative row read."
     End If
 
-    targetRow = sourceRowRef.RowIndex + rowOffset
+    sourceRowIndex = mp_ResolveAnchoredRowIndex(ws, sourceRowRef, "relative row cell read")
+    targetRow = sourceRowIndex + rowOffset
     If targetRow < 1 Then Exit Function
     If targetRow > ws.Rows.Count Then Exit Function
 
@@ -1375,6 +1406,7 @@ Public Function m_GetRelativeRow( _
     Dim valueText As String
     Dim resultRow As obj_ResultRow
     Dim hasTargetRow As Boolean
+    Dim sourceRowIndex As Long
 
     If rowRef Is Nothing Then
         Err.Raise vbObjectError + 1692, "ex_PostProcessActions", "Row reference is required for relative row read."
@@ -1394,14 +1426,16 @@ Public Function m_GetRelativeRow( _
         Err.Raise vbObjectError + 1694, "ex_PostProcessActions", "Active sheet is not available for relative row read."
     End If
 
-    targetRow = sourceRowRef.RowIndex + rowOffset
+    sourceRowIndex = mp_ResolveAnchoredRowIndex(ws, sourceRowRef, "relative row read")
+    targetRow = sourceRowIndex + rowOffset
     hasTargetRow = (targetRow >= 1 And targetRow <= ws.Rows.Count)
 
     Set resultRow = New obj_ResultRow
     If hasTargetRow Then
         resultRow.Initialize targetRow
+        mp_AssignRuntimeRowAnchor ws, resultRow, targetRow
     Else
-        resultRow.Initialize sourceRowRef.RowIndex
+        resultRow.Initialize sourceRowIndex
     End If
 
     Set sourceColumns = sourceRowRef.Columns
@@ -2069,6 +2103,8 @@ Private Function mp_GetRowCellLiveText( _
 ) As String
     Dim targetCol As Long
     Dim targetCell As Range
+    Dim ws As Worksheet
+    Dim rowIndex As Long
 
     If rowRef Is Nothing Then
         Err.Raise vbObjectError + 1671, "ex_PostProcessActions", "Row reference is required for live cell text parsing."
@@ -2077,7 +2113,12 @@ Private Function mp_GetRowCellLiveText( _
         Err.Raise vbObjectError + 1672, "ex_PostProcessActions", "Unknown row cell reference '" & columnRef & "' for live cell text parsing."
     End If
 
-    Set targetCell = mp_GetRowCellRange(rowRef.RowIndex, targetCol)
+    Set ws = ActiveSheet
+    If ws Is Nothing Then
+        Err.Raise vbObjectError + 1746, "ex_PostProcessActions", "Active sheet is not available for live cell text parsing."
+    End If
+    rowIndex = mp_ResolveAnchoredRowIndex(ws, rowRef, "live cell text parsing")
+    Set targetCell = mp_GetRowCellRange(rowIndex, targetCol)
     mp_GetRowCellLiveText = CStr(targetCell.Value)
 End Function
 
@@ -2330,10 +2371,23 @@ Private Function mp_GetDeferredOperationPhase(ByVal op As Object) As Long
 End Function
 
 Private Function mp_NextDeferredRowAnchorName(ByVal ws As Worksheet) As String
+    mp_NextDeferredRowAnchorName = mp_NextSequentialRowAnchorName(ws, DEFER_ROW_ANCHOR_PREFIX)
+End Function
+
+Private Function mp_NextRuntimeRowAnchorName(ByVal ws As Worksheet) As String
+    mp_NextRuntimeRowAnchorName = mp_NextSequentialRowAnchorName(ws, RUNTIME_ROW_ANCHOR_PREFIX)
+End Function
+
+Private Function mp_NextSequentialRowAnchorName( _
+    ByVal ws As Worksheet, _
+    ByVal anchorPrefix As String _
+) As String
     Dim sheetKey As String
     Dim nextSeq As Long
 
     If ws Is Nothing Then Exit Function
+    anchorPrefix = Trim$(anchorPrefix)
+    If Len(anchorPrefix) = 0 Then Exit Function
     mp_EnsureDeferredStores
     sheetKey = mp_BuildDeferredSheetKey(ws)
     If Len(sheetKey) = 0 Then Exit Function
@@ -2345,10 +2399,15 @@ Private Function mp_NextDeferredRowAnchorName(ByVal ws As Worksheet) As String
     End If
 
     g_DeferredRowAnchorSeqBySheet(sheetKey) = CStr(nextSeq)
-    mp_NextDeferredRowAnchorName = DEFER_ROW_ANCHOR_PREFIX & CStr(nextSeq)
+    mp_NextSequentialRowAnchorName = anchorPrefix & CStr(nextSeq)
 End Function
 
 Private Sub mp_ClearDeferredRowAnchors(ByVal ws As Worksheet)
+    mp_ClearRowAnchorsByPrefix ws, DEFER_ROW_ANCHOR_PREFIX
+    mp_ClearRowAnchorsByPrefix ws, RUNTIME_ROW_ANCHOR_PREFIX
+End Sub
+
+Private Sub mp_ClearRowAnchorsByPrefix(ByVal ws As Worksheet, ByVal anchorPrefix As String)
     Dim i As Long
     Dim entry As Name
     Dim localName As String
@@ -2356,7 +2415,7 @@ Private Sub mp_ClearDeferredRowAnchors(ByVal ws As Worksheet)
     Dim localPrefix As String
 
     If ws Is Nothing Then Exit Sub
-    localPrefix = LCase$(DEFER_ROW_ANCHOR_PREFIX)
+    localPrefix = LCase$(Trim$(anchorPrefix))
     If Len(localPrefix) = 0 Then Exit Sub
 
     On Error Resume Next
@@ -2832,6 +2891,8 @@ Private Function mp_GetTargetCellForRowRef( _
     ByVal columnRef As String _
 ) As Range
     Dim targetCol As Long
+    Dim ws As Worksheet
+    Dim rowIndex As Long
 
     If rowRef Is Nothing Then
         Err.Raise vbObjectError + 1679, "ex_PostProcessActions", "Row reference is required for row cell write."
@@ -2846,5 +2907,57 @@ Private Function mp_GetTargetCellForRowRef( _
         Err.Raise vbObjectError + 1681, "ex_PostProcessActions", "Unknown row cell reference '" & columnRef & "' for row cell write."
     End If
 
-    Set mp_GetTargetCellForRowRef = mp_GetRowCellRange(rowRef.RowIndex, targetCol)
+    Set ws = ActiveSheet
+    If ws Is Nothing Then
+        Err.Raise vbObjectError + 1747, "ex_PostProcessActions", "Active sheet is not available for row cell write."
+    End If
+
+    rowIndex = mp_ResolveAnchoredRowIndex(ws, rowRef, "row cell write")
+    Set mp_GetTargetCellForRowRef = mp_GetRowCellRange(rowIndex, targetCol)
 End Function
+
+Private Function mp_ResolveAnchoredRowIndex( _
+    ByVal ws As Worksheet, _
+    ByVal rowRef As obj_ResultRow, _
+    ByVal operationName As String _
+) As Long
+    Dim anchorName As String
+    Dim resolvedRowIndex As Long
+
+    If ws Is Nothing Then
+        Err.Raise vbObjectError + 1748, "ex_PostProcessActions", "Active sheet is not available for " & operationName & "."
+    End If
+    If rowRef Is Nothing Then
+        Err.Raise vbObjectError + 1749, "ex_PostProcessActions", "Row reference is required for " & operationName & "."
+    End If
+
+    anchorName = Trim$(rowRef.RowAnchorName)
+    If Len(anchorName) = 0 Then
+        Err.Raise vbObjectError + 1750, "ex_PostProcessActions", "Row anchor is not defined for " & operationName & "."
+    End If
+    If Not mp_TryGetNamedRowAnchor(ws, anchorName, resolvedRowIndex) Then
+        Err.Raise vbObjectError + 1751, "ex_PostProcessActions", "Row anchor '" & anchorName & "' is not found for " & operationName & "."
+    End If
+
+    mp_ResolveAnchoredRowIndex = resolvedRowIndex
+End Function
+
+Private Sub mp_AssignRuntimeRowAnchor( _
+    ByVal ws As Worksheet, _
+    ByVal rowRef As obj_ResultRow, _
+    ByVal rowIndex As Long _
+)
+    Dim anchorName As String
+
+    If ws Is Nothing Then Exit Sub
+    If rowRef Is Nothing Then Exit Sub
+    If rowIndex < 1 Then Exit Sub
+    If rowIndex > ws.Rows.Count Then Exit Sub
+
+    anchorName = mp_NextRuntimeRowAnchorName(ws)
+    If Len(anchorName) = 0 Then
+        Err.Raise vbObjectError + 1752, "ex_PostProcessActions", "Unable to allocate runtime row anchor."
+    End If
+    mp_SetNamedRowAnchor ws, anchorName, rowIndex
+    rowRef.RowAnchorName = anchorName
+End Sub
