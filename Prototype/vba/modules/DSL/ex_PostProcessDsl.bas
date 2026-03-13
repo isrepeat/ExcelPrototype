@@ -131,7 +131,8 @@ Public Sub m_ApplyScriptToSheet( _
     mp_ExecuteBlocks ws, blocks, ctxTablesByRef, postProcessFooterLines, usedCols
     ex_PostProcessActions.m_CommitDeferredRender ws
     startedDeferredRender = False
-    ex_PostProcessActions.m_ScrollToPostProcessResults ws
+    ' Временно отключено: автопрокрутка к футеру после post-processing.
+    ' ex_PostProcessActions.m_ScrollToPostProcessResults ws
     Application.ScreenUpdating = prevScreenUpdating
     Exit Sub
 

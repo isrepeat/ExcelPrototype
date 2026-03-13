@@ -7,6 +7,8 @@ Private Const DEV_COL_MARKER As Long = 1
 Private Const DEV_COL_KEY As Long = 2
 Private Const DEV_COL_VALUE As Long = 3
 Private Const RESULT_SHEET_NAME As String = "g_PersonTimeline"
+Private Const POST_PROCESS_SCRIPT_KEY_IMPLICIT As String = "PostProcess.Script.Implicit"
+Private Const POST_PROCESS_SCRIPT_KEY_EXPLICIT As String = "PostProcess.Script.Explicit"
 
 Private g_LastPostProcessCfg As Object
 Private g_LastPostProcessTables As Collection
@@ -379,9 +381,7 @@ ContinueAlias:
     mp_RenderPendingWarningBanners wsOut, pendingWarningBanners
 
     mp_StorePostProcessContext cfg, resultTables, (partialMatchRowRanges.Count > 0)
-    If mp_ShouldAutoPostProcess() Then
-        ex_PostProcessDsl.m_ApplyScriptToSheet wsOut, cfg, resultTables
-    End If
+    ex_PostProcessDsl.m_ApplyScriptToSheet wsOut, cfg, resultTables, POST_PROCESS_SCRIPT_KEY_IMPLICIT
 
     mp_CloseConnections connCache
 
@@ -466,7 +466,7 @@ Public Sub m_RunPostProcessForActiveSheet()
         ex_OutputPanel.m_DeletePanelButtonsForSheet ws
     End If
 
-    ex_PostProcessDsl.m_ApplyScriptToSheet ws, g_LastPostProcessCfg, g_LastPostProcessTables
+    ex_PostProcessDsl.m_ApplyScriptToSheet ws, g_LastPostProcessCfg, g_LastPostProcessTables, POST_PROCESS_SCRIPT_KEY_EXPLICIT
     If hasOutputStyle Then
         ex_OutputPanel.m_RenderForSheet ws, outputStyle
     End If
@@ -498,18 +498,6 @@ Private Sub mp_StorePostProcessContext(ByVal cfg As Object, ByVal resultTables A
     Set g_LastPostProcessTables = resultTables
     g_LastResultHasPartialMatchCandidates = hasPartialMatchCandidates
 End Sub
-
-Private Function mp_ShouldAutoPostProcess() As Boolean
-    Dim valueText As String
-    Dim parsed As Boolean
-
-    valueText = ex_XmlCore.m_GetSettingsValue("st_AutoPostProcess", "true")
-    If ex_XmlCore.m_TryParseBoolean(valueText, parsed) Then
-        mp_ShouldAutoPostProcess = parsed
-    Else
-        mp_ShouldAutoPostProcess = True
-    End If
-End Function
 
 Private Function mp_ShouldStrictPreflightValidation() As Boolean
     Dim valueText As String
