@@ -46,6 +46,7 @@
 		<v key="Events.Sheet[EventsMain].Map[Position]">Посада</v>
 		<v key="Events.Sheet[EventsMain].Map[Salary]">Оклад</v>
 		<v key=""/>
+		<v key="Output.Layout.Gap.Default">1</v>
 		<v key="Output.Sheets">StateMain; EventsMain</v>
 	</profile>
 	<profile name="Test" resultZoom="100">
@@ -94,6 +95,7 @@
 		<v key="Events.Sheet[EventsOut].Map[Ticket]">Стовпець1|Номер квитка</v>
 		<v key="Events.Sheet[EventsOut].Map[Note]" styles="{width: 40; autoHeight: true}">76|Замітки</v>
 		<v key=""/>
+		<v key="Output.Layout.Gap.Default">1</v>
 		<v key="Output.Sheets">StateMain; EventsOut; EventsIn</v>
 		<postProcessScript>
 			for (let row in Events.Sheet[EventsOut].rows) {
@@ -279,11 +281,12 @@
 		</v>
 		<v key=""/>
 		<v key="Output.Sheets">StateMain; EventsOut; EventsIn; DailyEvents</v>
+		<v key="Output.Layout.Gap.Default">1</v>
 		<v key=""/>
 		<v key="Export.WordTemplatePath">Templates\DailyTemplate.docx</v>
-		<v key="Export.InsertMode">AppendToTop</v>
 		<v key="Export.OutputMode">CreateWithPostfix</v>
 		<v key="Export.OutputPostfix">_result</v>
+		<v key="Export.InsertMode">AppendToTop</v>
 		<postProcessScript>
 			let validationWarningsText = "";
 			let hasValidationWarnings = "false";
@@ -319,7 +322,7 @@
 							let nextRow = callMacro("ex_PostProcessActions.m_GetRelativeRow", owner, "1");
 							if (nextRow.column[Vacation] != "ТВО") {
 								let warningLine = "FIO=" + owner.column[FIO] + ": в останній записи EventsOut.Note є позначка ТВО, але після owner у DailyEvents відсутній рядок з Vacation=ТВО.";
-								callMacro("ex_PostProcessActions.m_ShowBanner", "WARNING", warningLine, validationWarningTitle, "", firstDailyOwnerRowIndex);
+								callMacro("ex_PostProcessActions.m_ShowBanner", "TYPE_WARNING", validationWarningTitle, warningLine, "", firstDailyOwnerRowIndex);
 								hasValidationWarnings = "true";
 							}
 						}
@@ -328,7 +331,7 @@
 			}
 
 			if (hasValidationWarnings == "true") {
-				callMacro("ex_PostProcessActions.m_ShowBanner", "NOTE", "Верхній варнінг", "WARNING");
+				callMacro("ex_PostProcessActions.m_ShowBanner", "TYPE_NOTE", "WARNING", "Валидация не пройдена.");
 			}
 
 			let exportWordPasteAnchor = "";

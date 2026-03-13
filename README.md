@@ -466,3 +466,32 @@ ex_OutputFormattingPipeline.m_ApplySheetPipeline wsResult, Nothing, Nothing, row
 2. Пока лист жив (не удален), сохраняется текущий zoom листа; in-memory cache используется как fallback.
 3. Повторный Search/Run не переустанавливает профильный zoom для уже существующей страницы.
 4. Логика общая и используется как в `ex_PersonTimeline`, так и в `ex_TableComparing` через `ex_SheetViewZoom`.
+
+## Output Layout (gaps between result tables)
+
+Отступы между таблицами результата теперь настраиваются через `Output.*` в профиле (а не через `StylePipeline`).
+
+Пример:
+
+```xml
+<v key="Output.Sheets">StateMain; EventsOut; EventsIn; DailyEvents</v>
+<v key="Output.Layout.Gap.Default">1</v>
+<v key="Output.Layout.Gap.AfterType[Events]">1</v>
+<v key="Output.Layout.Gap.Between[EventsOut->EventsIn]">0</v>
+```
+
+Поддерживаемые ключи:
+
+1. `Output.Layout.Gap.Between[AliasA->AliasB]` - самый точный приоритет для конкретной пары таблиц.
+2. `Output.Layout.Gap.BetweenType[State->Events]` - правило по типам (`State`, `Events`).
+3. `Output.Layout.Gap.After[AliasA]` - отступ после конкретной таблицы.
+4. `Output.Layout.Gap.AfterType[Events]` - отступ после типа таблицы.
+5. `Output.Layout.Gap.Default` - общий дефолт.
+
+Приоритет применения: `Between` -> `BetweenType` -> `After` -> `AfterType` -> `Default` -> встроенный fallback `1`.
+
+Важные детали:
+
+1. Значения gap должны быть целыми `>= 0`, иначе рендер завершится с ошибкой валидации ключа.
+2. Gap применяется только между реально отрисованными таблицами с учетом режима (`StateTableOnly`/`EventsTableOnly`).
+3. `StylePipeline` управляет визуальным стилем строк/ячеек, но не структурным количеством пустых строк между таблицами.
