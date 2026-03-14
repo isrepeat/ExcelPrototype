@@ -881,6 +881,61 @@ Public Function m_GetRuntimeData( _
     End If
 End Function
 
+Public Function m_GetRuntimeDataEntriesByPrefix( _
+    ByVal dataKeyPrefix As String, _
+    Optional ByVal targetSheet As Worksheet = Nothing _
+) As Object
+    Dim ws As Worksheet
+    Dim cache As Object
+    Dim result As Object
+    Dim sheetKey As String
+    Dim keyPrefixNormalized As String
+    Dim runtimePrefix As String
+    Dim key As Variant
+    Dim fullKey As String
+    Dim dataKey As String
+
+    If targetSheet Is Nothing Then
+        Set ws = ActiveSheet
+    Else
+        Set ws = targetSheet
+    End If
+    If ws Is Nothing Then
+        Err.Raise vbObjectError + 1785, "ex_PostProcessActions", "Active sheet is not available for runtime data prefix read."
+    End If
+
+    keyPrefixNormalized = mp_NormalizeRuntimeDataKey(dataKeyPrefix)
+    If Len(keyPrefixNormalized) = 0 Then
+        Err.Raise vbObjectError + 1786, "ex_PostProcessActions", "Runtime data key prefix cannot be empty."
+    End If
+
+    Set result = CreateObject("Scripting.Dictionary")
+    result.CompareMode = 1 ' vbTextCompare
+
+    Set cache = g_RuntimeDataBySheetAndKey
+    If cache Is Nothing Then
+        Set m_GetRuntimeDataEntriesByPrefix = result
+        Exit Function
+    End If
+    If cache.Count = 0 Then
+        Set m_GetRuntimeDataEntriesByPrefix = result
+        Exit Function
+    End If
+
+    sheetKey = mp_BuildSheetKey(ws)
+    runtimePrefix = sheetKey & "|" & keyPrefixNormalized
+
+    For Each key In cache.Keys
+        fullKey = CStr(key)
+        If StrComp(Left$(fullKey, Len(runtimePrefix)), runtimePrefix, vbTextCompare) = 0 Then
+            dataKey = Mid$(fullKey, Len(sheetKey) + 2) ' skip "<sheetKey>|"
+            result(dataKey) = CStr(cache(fullKey))
+        End If
+    Next key
+
+    Set m_GetRuntimeDataEntriesByPrefix = result
+End Function
+
 Public Function m_GetSinglePostProcessFooterCellRef(Optional ByVal targetSheet As Worksheet = Nothing) As String
     Dim ws As Worksheet
     Dim footerRowIndex As Long

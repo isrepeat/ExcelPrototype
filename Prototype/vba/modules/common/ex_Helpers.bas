@@ -52,6 +52,55 @@ Public Function m_RegexGetGroup( _
     m_RegexGetGroup = CStr(firstMatch.SubMatches(groupIndex - 1))
 End Function
 
+Public Function m_ReplaceLeadingPhraseIfMatched( _
+    ByVal sourceText As String, _
+    ByVal leadingText As String, _
+    ByVal replacementLeadingText As String _
+) As String
+    Dim sourceValue As String
+    Dim leadValue As String
+    Dim prefixValue As String
+    Dim startPos As Long
+    Dim afterLeadPos As Long
+    Dim nextChar As String
+
+    sourceValue = CStr(sourceText)
+    leadValue = Trim$(CStr(leadingText))
+    replacementLeadingText = CStr(replacementLeadingText)
+
+    If Len(sourceValue) = 0 Or Len(leadValue) = 0 Then
+        m_ReplaceLeadingPhraseIfMatched = sourceValue
+        Exit Function
+    End If
+
+    startPos = mp_FirstNonWhitespacePos(sourceValue)
+    If startPos <= 0 Then
+        m_ReplaceLeadingPhraseIfMatched = sourceValue
+        Exit Function
+    End If
+    If (Len(sourceValue) - startPos + 1) < Len(leadValue) Then
+        m_ReplaceLeadingPhraseIfMatched = sourceValue
+        Exit Function
+    End If
+
+    prefixValue = Mid$(sourceValue, startPos, Len(leadValue))
+    If StrComp(LCase$(prefixValue), LCase$(leadValue), vbBinaryCompare) <> 0 Then
+        m_ReplaceLeadingPhraseIfMatched = sourceValue
+        Exit Function
+    End If
+
+    afterLeadPos = startPos + Len(leadValue)
+    If afterLeadPos <= Len(sourceValue) Then
+        nextChar = Mid$(sourceValue, afterLeadPos, 1)
+        If Not mp_IsWhitespaceLikeChar(nextChar) And nextChar <> "," And nextChar <> "." And nextChar <> ";" And nextChar <> ":" Then
+            m_ReplaceLeadingPhraseIfMatched = sourceValue
+            Exit Function
+        End If
+    End If
+
+    m_ReplaceLeadingPhraseIfMatched = Left$(sourceValue, startPos - 1) & replacementLeadingText & Mid$(sourceValue, afterLeadPos)
+End Function
+
 Public Function m_RowCellRegexIsMatch( _
     ByVal rowRef As obj_ResultRow, _
     ByVal columnRef As String, _
@@ -168,6 +217,38 @@ Private Function mp_CreateRegex( _
 
 PatternErr:
     Err.Raise vbObjectError + 1813, "ex_Helpers", "Invalid regex pattern '" & regexPattern & "': " & Err.Description
+End Function
+
+Private Function mp_FirstNonWhitespacePos(ByVal textValue As String) As Long
+    Dim i As Long
+    Dim ch As String
+
+    For i = 1 To Len(textValue)
+        ch = Mid$(textValue, i, 1)
+        If Not mp_IsWhitespaceLikeChar(ch) Then
+            mp_FirstNonWhitespacePos = i
+            Exit Function
+        End If
+    Next i
+End Function
+
+Private Function mp_IsWhitespaceLikeChar(ByVal ch As String) As Boolean
+    Dim codePoint As Long
+
+    If Len(ch) = 0 Then
+        mp_IsWhitespaceLikeChar = True
+        Exit Function
+    End If
+    If ch = " " Or ch = vbTab Or ch = vbCr Or ch = vbLf Then
+        mp_IsWhitespaceLikeChar = True
+        Exit Function
+    End If
+
+    codePoint = AscW(ch)
+    If codePoint < 0 Then codePoint = codePoint + 65536
+    If codePoint = 160 Or codePoint = 8239 Then
+        mp_IsWhitespaceLikeChar = True
+    End If
 End Function
 
 Private Function mp_ParseRequiredBoolean(ByVal valueText As String, ByVal fieldName As String) As Boolean
