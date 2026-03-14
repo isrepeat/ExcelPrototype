@@ -315,6 +315,7 @@ Public Function m_TryParseMacroArg(ByVal argText As String, ByRef outArgSpec As 
     Dim rowSelector As String
     Dim tableRef As String
     Dim fieldAlias As String
+    Dim rowVarName As String
 
     Set outArgSpec = CreateObject("Scripting.Dictionary")
     outArgSpec.CompareMode = 1
@@ -373,6 +374,14 @@ Public Function m_TryParseMacroArg(ByVal argText As String, ByRef outArgSpec As 
         outArgSpec("Kind") = "cellref"
         outArgSpec("TableRef") = tableRef
         outArgSpec("RowIndex") = CLng(rowIndex)
+        outArgSpec("FieldAlias") = fieldAlias
+        m_TryParseMacroArg = True
+        Exit Function
+    End If
+
+    If ex_obj_ResultRowDsl.m_TryParseRowColumnRef(argText, rowVarName, fieldAlias) Then
+        outArgSpec("Kind") = "scopecellref"
+        outArgSpec("RowVar") = rowVarName
         outArgSpec("FieldAlias") = fieldAlias
         m_TryParseMacroArg = True
         Exit Function
@@ -436,6 +445,20 @@ Public Function m_ValidateMacroArgSpec( _
                 Exit Function
             End If
             If Not mp_TryResolveMapKeyByFieldAlias(allowedTableFields, tableRef, CStr(argSpec("FieldAlias")), resolvedMapKey, outErrorText) Then Exit Function
+
+        Case "scopecellref"
+            If scopeVarTypes Is Nothing Then
+                outErrorText = "callMacro row-cell argument variable '" & CStr(argSpec("RowVar")) & "' is not available in this scope."
+                Exit Function
+            End If
+            If Not scopeVarTypes.Exists(CStr(argSpec("RowVar"))) Then
+                outErrorText = "callMacro row-cell argument variable '" & CStr(argSpec("RowVar")) & "' is not available in this scope."
+                Exit Function
+            End If
+            If StrComp(LCase$(CStr(scopeVarTypes(CStr(argSpec("RowVar"))))), "row", vbBinaryCompare) <> 0 Then
+                outErrorText = "callMacro row-cell argument variable '" & CStr(argSpec("RowVar")) & "' must be row type."
+                Exit Function
+            End If
     End Select
 
     m_ValidateMacroArgSpec = True

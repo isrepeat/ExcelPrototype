@@ -106,10 +106,10 @@
 				}
 				*/
 
-				let hasOrderNumber = callMacro("ex_PostProcessActions.m_RowCellRegexIsMatch", row, "Note", "№\\s*[0-9]+");
+				let hasOrderNumber = callMacro("ex_Helpers.m_RegexIsMatch", row.column[Note], "№\\s*[0-9]+");
 				if (hasOrderNumber == "True") {
 					callMacro("ex_PostProcessActions.m_HighlightRowCell", row, "Note", "#404040");
-					callMacro("ex_PostProcessActions.m_EmphasizeRowCellTextByRegex", row, "Note", "№\\s*[0-9]+", "#FF0000", "false");
+					callMacro("ex_Helpers.m_EmphasizeRowCellTextByRegex", row, "Note", "№\\s*[0-9]+", "#FF0000", "false");
 				}
 			}
 
@@ -303,10 +303,10 @@
 
 			/* Highlight pass (before validation): emphasize ТВО in EventsOut.Note */
 			for (let outRow in Events.Sheet[EventsOut].rows) {
-				let hasTvoInNote = callMacro("ex_PostProcessActions.m_RowCellRegexIsMatch", outRow, "Note", tvoNoteRegex);
+				let hasTvoInNote = callMacro("ex_Helpers.m_RegexIsMatch", outRow.column[Note], tvoNoteRegex);
 				if (hasTvoInNote == "True") {
 					//callMacro("ex_PostProcessActions.m_HighlightRowCell", outRow, "Note", "#404040");
-					callMacro("ex_PostProcessActions.m_EmphasizeRowCellTextByRegex", outRow, "Note", tvoNoteRegex, "#FF0000", "false");
+					callMacro("ex_Helpers.m_EmphasizeRowCellTextByRegex", outRow, "Note", tvoNoteRegex, "#FF0000", "false");
 				}
 			}
 			]]>

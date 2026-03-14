@@ -2,7 +2,6 @@ Attribute VB_Name = "ex_ResultTemplatesParser"
 Option Explicit
 
 Private Const PROFILES_NS As String = "urn:excelprototype:profiles"
-Private Const RESULT_TEMPLATES_REL_PATH As String = "config\modes\PersonalCard\PersonalCardResultTemplates.xml"
 
 ' Reserved keywords/tokens supported by this parser.
 ' Reserved numeric offset token:
@@ -19,6 +18,8 @@ Private Const RESULT_TEMPLATES_REL_PATH As String = "config\modes\PersonalCard\P
 ' - #let varName = $ModuleName.MethodName(arg1, arg2);
 ' Reserved if-condition unary operator:
 ' - #not
+' Reserved if-condition numeric comparison operators:
+' - ==, !=, >, <, >=, <=
 Private Const NUMERIC_OFFSET_TOKEN_PATTERN As String = "\{([+-]\d+)\}"
 Private Const LEGACY_DAY_TOKEN_PATTERN As String = "\{#dd(?:[+-]\d+)?\}"
 Private Const RESERVED_JOINLINE_TOKEN As String = "{#^}"
@@ -55,22 +56,30 @@ Private Const NBSP_CODE_POINT As Long = 160
 Private Const NARROW_NBSP_CODE_POINT As Long = 8239
 Private Const TEMPLATE_ERROR_PREFIX As String = "[TEMPLATE ERROR]"
 
-Public Function m_GetTemplateText(ByVal templateId As String) As String
+Public Function m_GetTemplateText( _
+    ByVal templateId As String, _
+    ByVal resultTemplatesRelPath As String _
+) As String
     Dim doc As Object
     Dim node As Object
     Dim xpath As String
     Dim templateText As String
-
-    On Error GoTo EH
+    Dim templatesPath As String
 
     templateId = mp_TrimWhitespace(templateId)
     If Len(templateId) = 0 Then
         Err.Raise vbObjectError + 1760, "ex_ResultTemplatesParser", "Template id is empty."
     End If
+    templatesPath = mp_TrimWhitespace(resultTemplatesRelPath)
+    If Len(templatesPath) = 0 Then
+        Err.Raise vbObjectError + 1819, "ex_ResultTemplatesParser", "Result templates path is empty."
+    End If
+
+    On Error GoTo EH
 
     Set doc = ex_XmlCore.m_LoadDomByRelativePath( _
         ThisWorkbook, _
-        RESULT_TEMPLATES_REL_PATH, _
+        templatesPath, _
         PROFILES_NS, _
         "Missing result templates file: ", _
         "Failed to parse result templates file: " _
@@ -90,7 +99,7 @@ Public Function m_GetTemplateText(ByVal templateId As String) As String
     Exit Function
 
 EH:
-    m_GetTemplateText = mp_PrependTemplateError(vbNullString, "m_GetTemplateText('" & templateId & "')")
+    m_GetTemplateText = mp_PrependTemplateError(vbNullString, "m_GetTemplateText('" & templateId & "', '" & templatesPath & "')")
 End Function
 
 Public Function m_ReplaceToken( _
@@ -556,7 +565,10 @@ Private Function mp_ReplaceIfConditionForPlaceholder( _
     ByVal replacementText As String _
 ) As String
     Dim rx As Object
+    Dim rxExpr As Object
     Dim replacementCondition As String
+    Dim resultText As String
+    Dim updatedText As String
 
     Set rx = CreateObject("VBScript.RegExp")
     rx.Global = True
@@ -564,7 +576,20 @@ Private Function mp_ReplaceIfConditionForPlaceholder( _
     rx.Pattern = "\{#if\s+" & mp_EscapeRegex(placeholderName) & "\s*\}"
 
     replacementCondition = IF_BLOCK_OPEN & " " & mp_BooleanTextFromValue(replacementText) & "}"
-    mp_ReplaceIfConditionForPlaceholder = rx.Replace(CStr(sourceText), replacementCondition)
+    resultText = rx.Replace(CStr(sourceText), replacementCondition)
+
+    Set rxExpr = CreateObject("VBScript.RegExp")
+    rxExpr.Global = True
+    rxExpr.IgnoreCase = False
+    rxExpr.Pattern = "(\{#if\s+[^}]*)\b" & mp_EscapeRegex(placeholderName) & "\b"
+
+    Do
+        updatedText = rxExpr.Replace(resultText, "$1" & CStr(replacementText))
+        If StrComp(updatedText, resultText, vbBinaryCompare) = 0 Then Exit Do
+        resultText = updatedText
+    Loop
+
+    mp_ReplaceIfConditionForPlaceholder = resultText
 End Function
 
 Private Function mp_BooleanTextFromValue(ByVal textValue As String) As String
@@ -579,6 +604,7 @@ Private Function mp_IsTruthyConditionValue(ByVal textValue As String) As Boolean
     Dim normalized As String
     Dim isNegated As Boolean
     Dim baseValue As Boolean
+    Dim hasNumericComparison As Boolean
 
     normalized = LCase$(mp_TrimWhitespace(CStr(textValue)))
 
@@ -586,12 +612,20 @@ Private Function mp_IsTruthyConditionValue(ByVal textValue As String) As Boolean
         isNegated = Not isNegated
     Loop
 
-    If Len(normalized) = 0 Then
-        baseValue = False
-    ElseIf normalized = BOOLEAN_FALSE Then
-        baseValue = False
+    hasNumericComparison = mp_HasNumericComparisonOperator(normalized)
+    If hasNumericComparison Then
+        If Not mp_TryEvaluateNumericComparisonCondition(normalized, baseValue) Then
+            Err.Raise vbObjectError + 1810, "ex_ResultTemplatesParser", _
+                "Unsupported numeric if-condition '" & CStr(textValue) & "'. Use '<NUMBER> <OP> <NUMBER>' where OP is ==, !=, >, <, >=, <=."
+        End If
     Else
-        baseValue = True
+        If Len(normalized) = 0 Then
+            baseValue = False
+        ElseIf normalized = BOOLEAN_FALSE Then
+            baseValue = False
+        Else
+            baseValue = True
+        End If
     End If
 
     If isNegated Then baseValue = Not baseValue
@@ -616,6 +650,87 @@ Private Function mp_TryStripNotPrefix(ByRef conditionText As String) As Boolean
 
     conditionText = LCase$(mp_TrimWhitespace(Mid$(conditionText, 5)))
     mp_TryStripNotPrefix = True
+End Function
+
+Private Function mp_HasNumericComparisonOperator(ByVal conditionText As String) As Boolean
+    conditionText = CStr(conditionText)
+    If InStr(1, conditionText, "==", vbBinaryCompare) > 0 Then
+        mp_HasNumericComparisonOperator = True
+        Exit Function
+    End If
+    If InStr(1, conditionText, "!=", vbBinaryCompare) > 0 Then
+        mp_HasNumericComparisonOperator = True
+        Exit Function
+    End If
+    If InStr(1, conditionText, ">=", vbBinaryCompare) > 0 Then
+        mp_HasNumericComparisonOperator = True
+        Exit Function
+    End If
+    If InStr(1, conditionText, "<=", vbBinaryCompare) > 0 Then
+        mp_HasNumericComparisonOperator = True
+        Exit Function
+    End If
+    If InStr(1, conditionText, ">", vbBinaryCompare) > 0 Then
+        mp_HasNumericComparisonOperator = True
+        Exit Function
+    End If
+    If InStr(1, conditionText, "<", vbBinaryCompare) > 0 Then
+        mp_HasNumericComparisonOperator = True
+        Exit Function
+    End If
+End Function
+
+Private Function mp_TryEvaluateNumericComparisonCondition( _
+    ByVal conditionText As String, _
+    ByRef outResult As Boolean _
+) As Boolean
+    Dim rx As Object
+    Dim matches As Object
+    Dim leftText As String
+    Dim rightText As String
+    Dim operatorText As String
+    Dim leftValue As Double
+    Dim rightValue As Double
+    Dim leftIsInteger As Boolean
+    Dim rightIsInteger As Boolean
+
+    conditionText = mp_TrimWhitespace(CStr(conditionText))
+    If Len(conditionText) = 0 Then Exit Function
+
+    Set rx = CreateObject("VBScript.RegExp")
+    rx.Global = False
+    rx.IgnoreCase = False
+    rx.Pattern = "^\s*(.+?)\s*(==|!=|>=|<=|>|<)\s*(.+?)\s*$"
+
+    Set matches = rx.Execute(conditionText)
+    If matches Is Nothing Then Exit Function
+    If matches.Count = 0 Then Exit Function
+
+    leftText = mp_TrimWhitespace(CStr(matches(0).SubMatches(0)))
+    operatorText = CStr(matches(0).SubMatches(1))
+    rightText = mp_TrimWhitespace(CStr(matches(0).SubMatches(2)))
+
+    If Not mp_TryParseTemplateNumeric(leftText, leftValue, leftIsInteger) Then Exit Function
+    If Not mp_TryParseTemplateNumeric(rightText, rightValue, rightIsInteger) Then Exit Function
+
+    Select Case operatorText
+        Case "=="
+            outResult = (leftValue = rightValue)
+        Case "!="
+            outResult = (leftValue <> rightValue)
+        Case ">"
+            outResult = (leftValue > rightValue)
+        Case "<"
+            outResult = (leftValue < rightValue)
+        Case ">="
+            outResult = (leftValue >= rightValue)
+        Case "<="
+            outResult = (leftValue <= rightValue)
+        Case Else
+            Exit Function
+    End Select
+
+    mp_TryEvaluateNumericComparisonCondition = True
 End Function
 
 Private Function mp_ResolveTemplateLetBindings(ByVal sourceText As String) As String

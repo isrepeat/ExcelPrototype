@@ -152,51 +152,11 @@ Public Sub m_HighlightRowCell( _
     targetCell.Interior.Color = colorValue
 End Sub
 
-Public Function m_RegexIsMatch( _
-    ByVal textValue As String, _
-    ByVal regexPattern As String _
-) As Boolean
-    Dim rx As Object
-
-    Set rx = mp_CreateRegex(regexPattern)
-    m_RegexIsMatch = rx.Test(CStr(textValue))
-End Function
-
-Public Function m_RegexFirstMatch( _
-    ByVal textValue As String, _
-    ByVal regexPattern As String _
-) As String
-    Dim rx As Object
-    Dim matches As Object
-
-    Set rx = mp_CreateRegex(regexPattern)
-    Set matches = rx.Execute(CStr(textValue))
-    If matches.Count > 0 Then
-        m_RegexFirstMatch = CStr(matches(0).Value)
-    End If
-End Function
-
 Public Function m_RowToText( _
     ByVal rowRef As obj_ResultRow, _
     ByVal separatorText As String _
 ) As String
     m_RowToText = mp_GetRowText(rowRef, separatorText)
-End Function
-
-Public Function m_RowCellRegexIsMatch( _
-    ByVal rowRef As obj_ResultRow, _
-    ByVal columnRef As String, _
-    ByVal regexPattern As String _
-) As Boolean
-    m_RowCellRegexIsMatch = m_RegexIsMatch(mp_GetRowCellLiveText(rowRef, columnRef), regexPattern)
-End Function
-
-Public Function m_RowCellRegexFirstMatch( _
-    ByVal rowRef As obj_ResultRow, _
-    ByVal columnRef As String, _
-    ByVal regexPattern As String _
-) As String
-    m_RowCellRegexFirstMatch = m_RegexFirstMatch(mp_GetRowCellLiveText(rowRef, columnRef), regexPattern)
 End Function
 
 Public Function m_TextAppend( _
@@ -299,70 +259,6 @@ Public Sub m_AppendToOwnerRowCell( _
     targetCell.Value = m_TextAppend(currentText, CStr(appendText), separatorText)
 End Sub
 
-Public Sub m_EmphasizeRowCellTextByRegex( _
-    ByVal rowRef As obj_ResultRow, _
-    ByVal columnRef As String, _
-    ByVal regexPattern As String, _
-    Optional ByVal fontColorHex As String = "#FF0000", _
-    Optional ByVal uppercaseMatches As String = "false" _
-)
-    Dim targetCell As Range
-    Dim targetCol As Long
-    Dim originalText As String
-    Dim transformedText As String
-    Dim rx As Object
-    Dim matches As Object
-    Dim i As Long
-    Dim matchObj As Object
-    Dim colorValue As Long
-    Dim makeUpper As Boolean
-    Dim ws As Worksheet
-    Dim rowIndex As Long
-
-    If rowRef Is Nothing Then
-        Err.Raise vbObjectError + 1664, "ex_PostProcessActions", "Row reference is required for regex text emphasis."
-    End If
-
-    If Not mp_TryResolveColumnIndexInRow(rowRef, columnRef, targetCol) Then
-        Err.Raise vbObjectError + 1665, "ex_PostProcessActions", "Unknown row cell reference '" & columnRef & "' for regex text emphasis."
-    End If
-    Set ws = ActiveSheet
-    If ws Is Nothing Then
-        Err.Raise vbObjectError + 1753, "ex_PostProcessActions", "Active sheet is not available for regex text emphasis."
-    End If
-    rowIndex = mp_ResolveAnchoredRowIndex(ws, rowRef, "regex text emphasis")
-    Set targetCell = mp_GetRowCellRange(rowIndex, targetCol)
-    originalText = CStr(targetCell.Value)
-
-    If Len(Trim$(fontColorHex)) = 0 Then fontColorHex = "#FF0000"
-    If Not ex_XmlCore.m_TryParseColor(fontColorHex, colorValue) Then
-        Err.Raise vbObjectError + 1666, "ex_PostProcessActions", "Invalid regex emphasis color: " & fontColorHex
-    End If
-    makeUpper = mp_ParseRequiredBoolean(uppercaseMatches, "uppercaseMatches")
-
-    Set rx = mp_CreateRegex(regexPattern, True)
-    Set matches = rx.Execute(originalText)
-    If matches Is Nothing Or matches.Count = 0 Then Exit Sub
-
-    If makeUpper Then
-        transformedText = originalText
-        For i = 0 To matches.Count - 1
-            Set matchObj = matches(i)
-            If matchObj.Length > 0 Then
-                transformedText = Left$(transformedText, matchObj.FirstIndex) & UCase$(Mid$(transformedText, matchObj.FirstIndex + 1, matchObj.Length)) & Mid$(transformedText, matchObj.FirstIndex + matchObj.Length + 1)
-            End If
-        Next i
-        targetCell.Value = transformedText
-    End If
-
-    For i = 0 To matches.Count - 1
-        Set matchObj = matches(i)
-        If matchObj.Length > 0 Then
-            targetCell.Characters(matchObj.FirstIndex + 1, matchObj.Length).Font.Color = colorValue
-            targetCell.Characters(matchObj.FirstIndex + 1, matchObj.Length).Font.Bold = True
-        End If
-    Next i
-End Sub
 
 Public Sub m_AddNote( _
     ByVal rowRef As obj_ResultRow, _
@@ -2251,44 +2147,6 @@ Private Function mp_GetRowCellLiveText( _
     rowIndex = mp_ResolveAnchoredRowIndex(ws, rowRef, "live cell text parsing")
     Set targetCell = mp_GetRowCellRange(rowIndex, targetCol)
     mp_GetRowCellLiveText = CStr(targetCell.Value)
-End Function
-
-Private Function mp_CreateRegex( _
-    ByVal regexPattern As String, _
-    Optional ByVal globalMatches As Boolean = False _
-) As Object
-    Dim rx As Object
-
-    regexPattern = Trim$(regexPattern)
-    If Len(regexPattern) = 0 Then
-        Err.Raise vbObjectError + 1661, "ex_PostProcessActions", "Regex pattern is empty."
-    End If
-
-    Set rx = CreateObject("VBScript.RegExp")
-    rx.Global = globalMatches
-    rx.IgnoreCase = True
-    rx.MultiLine = True
-
-    On Error GoTo PatternErr
-    rx.Pattern = regexPattern
-    On Error GoTo 0
-
-    Set mp_CreateRegex = rx
-    Exit Function
-
-PatternErr:
-    Err.Raise vbObjectError + 1662, "ex_PostProcessActions", "Invalid regex pattern '" & regexPattern & "': " & Err.Description
-End Function
-
-Private Function mp_ParseRequiredBoolean(ByVal valueText As String, ByVal fieldName As String) As Boolean
-    Dim parsedValue As Boolean
-
-    valueText = Trim$(valueText)
-    If Not ex_XmlCore.m_TryParseBoolean(valueText, parsedValue) Then
-        Err.Raise vbObjectError + 1667, "ex_PostProcessActions", "Invalid boolean for '" & fieldName & "': '" & valueText & "'."
-    End If
-
-    mp_ParseRequiredBoolean = parsedValue
 End Function
 
 Private Function mp_BuildSheetKey(ByVal ws As Worksheet) As String

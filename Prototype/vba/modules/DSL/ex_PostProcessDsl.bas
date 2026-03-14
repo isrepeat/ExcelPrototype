@@ -2460,6 +2460,7 @@ Private Function mp_BuildMacroRuntimeArgs( _
     Dim renderedText As String
     Dim argObject As Object
     Dim argValue As Variant
+    Dim rowCellResolveError As String
 
     Set result = New Collection
     If action Is Nothing Then
@@ -2495,6 +2496,21 @@ Private Function mp_BuildMacroRuntimeArgs( _
                 result.Add ex_ResultRuntimeAdapter.m_ResolveRowReferenceArg(argSpec, tablesByRef)
             Case "cellref"
                 result.Add ex_ResultRuntimeAdapter.m_ResolveCellReferenceArg(argSpec, tablesByRef)
+            Case "scopecellref"
+                If Not mp_TryResolveScopedRowCellValue( _
+                    runtimeVars, _
+                    CStr(argSpec("RowVar")), _
+                    CStr(argSpec("FieldAlias")), _
+                    CStr(argSpec("RowVar")) & ".column[" & CStr(argSpec("FieldAlias")) & "]", _
+                    renderedText, _
+                    rowCellResolveError _
+                ) Then
+                    Err.Raise vbObjectError + 1626, "ex_PostProcessDsl", _
+                        "Unable to resolve callMacro row-cell argument '" & _
+                        CStr(argSpec("RowVar")) & ".column[" & CStr(argSpec("FieldAlias")) & "]': " & _
+                        rowCellResolveError
+                End If
+                result.Add renderedText
             Case "string"
                 renderedText = mp_RenderTemplate(CStr(argSpec("Value")), currentTableRef, currentRowVar, currentRowRef, tablesByRef, runtimeVars)
                 result.Add renderedText
