@@ -55,11 +55,41 @@ Public Function HasAlias(ByVal fieldAlias As String) As Boolean
 End Function
 
 Public Function GetByAlias(ByVal fieldAlias As String) As String
-    GetByAlias = CStr(m_ValuesByAlias(Trim$(fieldAlias)))
+    Dim availableAliases As String
+
+    fieldAlias = Trim$(fieldAlias)
+    If Len(fieldAlias) = 0 Then
+        Err.Raise vbObjectError + 1710, "obj_ResultRow", "Field alias is empty."
+    End If
+    If m_ValuesByAlias Is Nothing Then
+        Err.Raise vbObjectError + 1711, "obj_ResultRow", "Row storage is not initialized."
+    End If
+    If Not m_ValuesByAlias.Exists(fieldAlias) Then
+        availableAliases = mp_JoinDictionaryKeys(m_ValuesByAlias)
+        Err.Raise vbObjectError + 1712, "obj_ResultRow", _
+            "Unknown field alias '" & fieldAlias & "' at row index " & CStr(m_RowIndex) & _
+            ". Available aliases: " & availableAliases
+    End If
+    GetByAlias = CStr(m_ValuesByAlias(fieldAlias))
 End Function
 
 Public Function MapKeyByAlias(ByVal fieldAlias As String) As String
-    MapKeyByAlias = CStr(m_MapKeyByAlias(Trim$(fieldAlias)))
+    Dim availableAliases As String
+
+    fieldAlias = Trim$(fieldAlias)
+    If Len(fieldAlias) = 0 Then
+        Err.Raise vbObjectError + 1713, "obj_ResultRow", "Field alias is empty for map key resolve."
+    End If
+    If m_MapKeyByAlias Is Nothing Then
+        Err.Raise vbObjectError + 1714, "obj_ResultRow", "Row map key storage is not initialized."
+    End If
+    If Not m_MapKeyByAlias.Exists(fieldAlias) Then
+        availableAliases = mp_JoinDictionaryKeys(m_MapKeyByAlias)
+        Err.Raise vbObjectError + 1715, "obj_ResultRow", _
+            "Unknown field alias '" & fieldAlias & "' for map key resolve at row index " & CStr(m_RowIndex) & _
+            ". Available aliases: " & availableAliases
+    End If
+    MapKeyByAlias = CStr(m_MapKeyByAlias(fieldAlias))
 End Function
 
 Public Property Get Column(ByVal fieldAlias As String) As String
@@ -72,7 +102,22 @@ Public Function HasMapKey(ByVal mapKey As String) As Boolean
 End Function
 
 Public Function GetByMapKey(ByVal mapKey As String) As String
-    GetByMapKey = CStr(m_ValuesByMapKey(Trim$(mapKey)))
+    Dim availableMapKeys As String
+
+    mapKey = Trim$(mapKey)
+    If Len(mapKey) = 0 Then
+        Err.Raise vbObjectError + 1716, "obj_ResultRow", "Map key is empty."
+    End If
+    If m_ValuesByMapKey Is Nothing Then
+        Err.Raise vbObjectError + 1717, "obj_ResultRow", "Row map key storage is not initialized."
+    End If
+    If Not m_ValuesByMapKey.Exists(mapKey) Then
+        availableMapKeys = mp_JoinDictionaryKeys(m_ValuesByMapKey)
+        Err.Raise vbObjectError + 1718, "obj_ResultRow", _
+            "Unknown map key '" & mapKey & "' at row index " & CStr(m_RowIndex) & _
+            ". Available map keys: " & availableMapKeys
+    End If
+    GetByMapKey = CStr(m_ValuesByMapKey(mapKey))
 End Function
 
 Public Property Get Columns() As Collection
@@ -96,3 +141,24 @@ Public Property Get Columns() As Collection
 
     Set Columns = result
 End Property
+
+Private Function mp_JoinDictionaryKeys(ByVal dict As Object) As String
+    Dim key As Variant
+    Dim result As String
+
+    If dict Is Nothing Then
+        mp_JoinDictionaryKeys = "(none)"
+        Exit Function
+    End If
+    If dict.Count = 0 Then
+        mp_JoinDictionaryKeys = "(none)"
+        Exit Function
+    End If
+
+    For Each key In dict.Keys
+        If Len(result) > 0 Then result = result & ", "
+        result = result & CStr(key)
+    Next key
+
+    mp_JoinDictionaryKeys = result
+End Function

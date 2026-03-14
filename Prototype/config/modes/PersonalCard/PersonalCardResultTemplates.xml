@@ -100,11 +100,11 @@
 #_      {Rank|accusative} {FIO|accusative}, {Position|accusative|lowerFirstLetter}, #^
 #_      до {City}, #^
 #_      терміном на 15 календарних днів, #^
-#_      {#if HasOneAdditionalWayDay}#^
+#_      {#if AdditionalWayDays == 1}#^
 #_      без урахування 1 доби, необхідної для проїзду до місця проведення відпустки та назад, #^
 #_      {#endif}#^
-#_      {#if HasTwoAdditionalWayDays}#^
-#_      без урахування 2 діб, необхідних для проїзду до місця проведення відпустки та назад, #^
+#_      {#if AdditionalWayDays > 1}#^
+#_      без урахування {AdditionalWayDays} діб, необхідних для проїзду до місця проведення відпустки та назад, #^
 #_      {#endif}#^
 #_      {
           #let isSameMonth = $ex_DateHelpers.m_IsSameMonth({OutDate}, {ReturnDate});
@@ -132,11 +132,11 @@
 #_      {Rank|accusative} {FIO|accusative}, {Position|accusative|lowerFirstLetter}, #^
 #_      до {City}, #^
 #_      терміном на {DaysCount} календарних днів, #^
-#_      {#if HasOneAdditionalWayDay}#^
+#_      {#if AdditionalWayDays == 1}#^
 #_      без урахування 1 доби, необхідної для проїзду до місця проведення відпустки та назад, #^
 #_      {#endif}#^
-#_      {#if HasTwoAdditionalWayDays}#^
-#_      без урахування 2 діб, необхідних для проїзду до місця проведення відпустки та назад, #^
+#_      {#if AdditionalWayDays > 1}#^
+#_      без урахування {AdditionalWayDays} діб, необхідних для проїзду до місця проведення відпустки та назад, #^
 #_      {#endif}#^
 #_      {
           #let isSameMonth = $ex_DateHelpers.m_IsSameMonth({OutDate}, {ReturnDate});
@@ -164,11 +164,11 @@
 #_      {Rank|accusative} {FIO|accusative}, {Position|accusative|lowerFirstLetter}, #^
 #_      до {City}, #^
 #_      терміном на {DaysCount} календарних днів, #^
-#_      {#if HasOneAdditionalWayDay}#^
+#_      {#if AdditionalWayDays == 1}#^
 #_      без урахування 1 доби, необхідної для проїзду до місця проведення відпустки та назад, #^
 #_      {#endif}#^
-#_      {#if HasTwoAdditionalWayDays}#^
-#_      без урахування 2 діб, необхідних для проїзду до місця проведення відпустки та назад, #^
+#_      {#if AdditionalWayDays > 1}#^
+#_      без урахування {AdditionalWayDays} діб, необхідних для проїзду до місця проведення відпустки та назад, #^
 #_      {#endif}#^
 #_      {
           #let isSameMonth = $ex_DateHelpers.m_IsSameMonth({OutDate}, {ReturnDate});
