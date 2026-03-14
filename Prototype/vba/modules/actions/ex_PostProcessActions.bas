@@ -35,8 +35,12 @@ Private Const DEFER_OP_SHOW_BANNER_AT_CELL As String = "show_banner_at_cell"
 Private Const DEFER_OP_SHOW_BANNER_AFTER_BANNER As String = "show_banner_after_banner"
 Private Const DEFER_OP_SHOW_BANNER_AT_TABLE As String = "show_banner_at_table"
 Private Const DEFER_OP_SHOW_BANNER_BEFORE_ROW As String = "show_banner_before_row"
+Private Const DEFER_OP_APPEND_RESULT_BLOCK As String = "append_result_block"
 Private Const DEFER_ROW_ANCHOR_PREFIX As String = "__pcDeferredRow_"
 Private Const RUNTIME_ROW_ANCHOR_PREFIX As String = "__pcRuntimeRow_"
+Private Const RESULT_BLOCK_ANCHOR_PREFIX As String = "__pcResultBlock_"
+Private Const RESULT_BLOCK_ANCHOR_MAX_INDEX As Long = 9999
+Private Const RESULT_BLOCK_LAST_ANCHOR_NAME As String = "__pcResultBlockLast"
 
 Private Type t_PostProcessHeaderStyle
     Columns As Long
@@ -71,6 +75,10 @@ Private g_PostProcessHeaderHasAppended As Boolean
 Private g_PostProcessFooterSheetKey As String
 Private g_PostProcessFooterRowIndex As Long
 Private g_PostProcessFooterHasAppended As Boolean
+Private g_ResultBlockSheetKey As String
+Private g_ResultBlockNextInsertRow As Long
+Private g_ResultBlockLastRowIndex As Long
+Private g_ResultBlockCount As Long
 Private g_RuntimeDataBySheetAndKey As Object
 Private g_DeferredSingleHeaderTextBySheet As Object
 Private g_DeferredSingleFooterTextBySheet As Object
@@ -382,6 +390,10 @@ Public Sub m_ResetPostProcessHeaderCursor(Optional ByVal targetSheet As Workshee
     g_PostProcessHeaderNextInsertRow = 0
     g_PostProcessHeaderRowIndex = 0
     g_PostProcessHeaderHasAppended = False
+    g_ResultBlockSheetKey = vbNullString
+    g_ResultBlockNextInsertRow = 0
+    g_ResultBlockLastRowIndex = 0
+    g_ResultBlockCount = 0
     If targetSheet Is Nothing Then
         g_PostProcessHeaderSheetKey = vbNullString
         m_ClearRuntimeData
@@ -394,6 +406,7 @@ Public Sub m_ResetPostProcessHeaderCursor(Optional ByVal targetSheet As Workshee
         On Error GoTo 0
         If Not ws Is Nothing Then
             mp_ClearPreviousSinglePostProcessHeader ws
+            mp_ClearPreviousResultBlocks ws
         End If
     Else
         g_PostProcessHeaderSheetKey = mp_BuildSheetKey(targetSheet)
@@ -401,6 +414,7 @@ Public Sub m_ResetPostProcessHeaderCursor(Optional ByVal targetSheet As Workshee
         mp_ClearDeferredRenderSheetState targetSheet
         mp_SetDeferredRenderActive targetSheet, False
         mp_ClearPreviousSinglePostProcessHeader targetSheet
+        mp_ClearPreviousResultBlocks targetSheet
     End If
 End Sub
 
@@ -409,6 +423,10 @@ Public Sub m_ResetPostProcessFooterCursor(Optional ByVal targetSheet As Workshee
 
     g_PostProcessFooterRowIndex = 0
     g_PostProcessFooterHasAppended = False
+    g_ResultBlockSheetKey = vbNullString
+    g_ResultBlockNextInsertRow = 0
+    g_ResultBlockLastRowIndex = 0
+    g_ResultBlockCount = 0
     If targetSheet Is Nothing Then
         g_PostProcessFooterSheetKey = vbNullString
         m_ClearRuntimeData
@@ -421,6 +439,7 @@ Public Sub m_ResetPostProcessFooterCursor(Optional ByVal targetSheet As Workshee
         On Error GoTo 0
         If Not ws Is Nothing Then
             mp_ClearPreviousSinglePostProcessFooter ws
+            mp_ClearPreviousResultBlocks ws
         End If
     Else
         g_PostProcessFooterSheetKey = mp_BuildSheetKey(targetSheet)
@@ -428,6 +447,7 @@ Public Sub m_ResetPostProcessFooterCursor(Optional ByVal targetSheet As Workshee
         mp_ClearDeferredRenderSheetState targetSheet
         mp_SetDeferredRenderActive targetSheet, False
         mp_ClearPreviousSinglePostProcessFooter targetSheet
+        mp_ClearPreviousResultBlocks targetSheet
     End If
 End Sub
 
@@ -629,6 +649,132 @@ Public Sub m_AppendToSinglePostProcessHeaderText( _
     mp_ApplyPostProcessHeaderRowHeight ws, postProcessHeaderRange, mergedText, postProcessHeaderStyle
     g_PostProcessHeaderHasAppended = True
 End Sub
+
+Public Function m_AppendResultBlock( _
+    ByVal blockText As String, _
+    Optional ByVal titleText As String = vbNullString, _
+    Optional ByVal blockType As String = BANNER_TYPE_NOTE, _
+    Optional ByVal gapRowsBefore As Long = 0, _
+    Optional ByVal gapRowsAfter As Long = 1 _
+) As String
+    Dim ws As Worksheet
+    Dim sheetKey As String
+    Dim insertRow As Long
+    Dim rowsToInsert As Long
+    Dim blockRow As Long
+    Dim bannerCols As Long
+    Dim bannerRows As Long
+    Dim bannerKind As String
+    Dim bannerRangeAddress As String
+    Dim bodyLines As Collection
+    Dim insertedRange As Range
+    Dim anchorName As String
+    Dim nextBlockIndex As Long
+
+    blockText = Trim$(blockText)
+    If Len(blockText) = 0 Then Exit Function
+
+    Set ws = ActiveSheet
+    If ws Is Nothing Then
+        Err.Raise vbObjectError + 1782, "ex_PostProcessActions", "Active sheet is not available for result block render."
+    End If
+
+    If mp_IsDeferredRenderActiveForSheet(ws) Then
+        mp_QueueDeferredOperation ws, DEFER_OP_APPEND_RESULT_BLOCK, Array(CStr(blockText), CStr(titleText), CStr(blockType), CLng(gapRowsBefore), CLng(gapRowsAfter))
+        m_AppendResultBlock = blockText
+        Exit Function
+    End If
+
+    mp_ValidateBannerGapRows gapRowsBefore, gapRowsAfter, "result block"
+    bannerKind = mp_MapBannerTypeToKind(blockType)
+    titleText = Trim$(titleText)
+
+    sheetKey = mp_BuildSheetKey(ws)
+    If StrComp(g_ResultBlockSheetKey, sheetKey, vbTextCompare) <> 0 Then
+        g_ResultBlockSheetKey = sheetKey
+        g_ResultBlockNextInsertRow = 0
+        g_ResultBlockLastRowIndex = 0
+        g_ResultBlockCount = 0
+    End If
+
+    If g_ResultBlockNextInsertRow <= 0 Then
+        insertRow = mp_GetPostProcessHeaderInsertStartRow(ws)
+    Else
+        insertRow = g_ResultBlockNextInsertRow
+    End If
+    If insertRow < 1 Then insertRow = 1
+    If insertRow > ws.Rows.Count Then insertRow = ws.Rows.Count
+
+    mp_GetWarningBannerDimensions bannerCols, bannerRows, bannerKind
+    rowsToInsert = gapRowsBefore + bannerRows + gapRowsAfter
+    If rowsToInsert <= 0 Then rowsToInsert = 1
+    If insertRow + rowsToInsert - 1 > ws.Rows.Count Then
+        rowsToInsert = ws.Rows.Count - insertRow + 1
+    End If
+
+    ws.Rows(CStr(insertRow) & ":" & CStr(insertRow + rowsToInsert - 1)).Insert Shift:=xlDown
+    mp_UnmergeRowsSafe ws, insertRow, gapRowsBefore
+
+    blockRow = insertRow + gapRowsBefore
+    If blockRow > ws.Rows.Count Then blockRow = ws.Rows.Count
+
+    bannerRangeAddress = "A" & CStr(blockRow) & ":" & mp_ToColumnLetter(bannerCols) & CStr(blockRow + bannerRows - 1)
+
+    Set bodyLines = New Collection
+    bodyLines.Add blockText
+    nextBlockIndex = g_ResultBlockCount + 1
+    ex_Messaging.m_RenderBanner ws, titleText, bodyLines, bannerRangeAddress, bannerKind, mp_BuildResultBlockIdentity(sheetKey, nextBlockIndex, blockText)
+
+    mp_UnmergeRowsSafe ws, blockRow + bannerRows, gapRowsAfter
+    Set insertedRange = ws.Range(ws.Cells(insertRow, 1), ws.Cells(insertRow + rowsToInsert - 1, bannerCols))
+    anchorName = mp_NextResultBlockAnchorName(ws)
+    If Len(anchorName) > 0 Then
+        mp_SetNamedRangeAnchor ws, anchorName, insertedRange
+    End If
+
+    g_ResultBlockCount = nextBlockIndex
+    g_ResultBlockLastRowIndex = blockRow
+    g_ResultBlockNextInsertRow = insertRow + rowsToInsert
+    If g_ResultBlockNextInsertRow > ws.Rows.Count Then g_ResultBlockNextInsertRow = ws.Rows.Count
+    mp_SetNamedRowAnchor ws, RESULT_BLOCK_LAST_ANCHOR_NAME, blockRow
+    m_AppendResultBlock = blockText
+End Function
+
+Public Function m_GetLastResultBlockCellRef(Optional ByVal targetSheet As Worksheet = Nothing) As String
+    Dim ws As Worksheet
+    Dim rowIndex As Long
+    Dim sheetKey As String
+
+    If targetSheet Is Nothing Then
+        Set ws = ActiveSheet
+    Else
+        Set ws = targetSheet
+    End If
+    If ws Is Nothing Then
+        Err.Raise vbObjectError + 1783, "ex_PostProcessActions", "Active sheet is not available for result block pointer read."
+    End If
+    If mp_IsDeferredRenderActiveForSheet(ws) Then
+        m_GetLastResultBlockCellRef = RUNTIME_POINTER_PREFIX_NAME & RESULT_BLOCK_LAST_ANCHOR_NAME
+        Exit Function
+    End If
+
+    sheetKey = mp_BuildSheetKey(ws)
+    If StrComp(g_ResultBlockSheetKey, sheetKey, vbTextCompare) <> 0 Then
+        If Not mp_TryGetNamedRowAnchor(ws, RESULT_BLOCK_LAST_ANCHOR_NAME, rowIndex) Then
+            Err.Raise vbObjectError + 1784, "ex_PostProcessActions", "Result block pointer is not available on sheet '" & ws.Name & "'."
+        End If
+        m_GetLastResultBlockCellRef = "Cell:A" & CStr(rowIndex)
+        Exit Function
+    End If
+    rowIndex = g_ResultBlockLastRowIndex
+    If rowIndex < 1 Or rowIndex > ws.Rows.Count Then
+        If Not mp_TryGetNamedRowAnchor(ws, RESULT_BLOCK_LAST_ANCHOR_NAME, rowIndex) Then
+            Err.Raise vbObjectError + 1784, "ex_PostProcessActions", "Result block pointer is not available on sheet '" & ws.Name & "'."
+        End If
+    End If
+
+    m_GetLastResultBlockCellRef = "Cell:A" & CStr(rowIndex)
+End Function
 
 Public Function m_GetSinglePostProcessHeaderText(Optional ByVal targetSheet As Worksheet = Nothing) As String
     Dim ws As Worksheet
@@ -2332,6 +2478,8 @@ Private Sub mp_ApplyDeferredOperation(ByVal ws As Worksheet, ByVal op As Object)
                 End If
             End If
             Call m_ShowBannerBeforeRowIndex(CStr(args(0)), CStr(args(1)), CStr(args(2)), rowIndexValue, mp_RequireLongArg(args, 4, "banner insert"), mp_RequireLongArg(args, 5, "banner insert"))
+        Case DEFER_OP_APPEND_RESULT_BLOCK
+            Call m_AppendResultBlock(CStr(args(0)), CStr(args(1)), CStr(args(2)), mp_RequireLongArg(args, 3, "result block"), mp_RequireLongArg(args, 4, "result block"))
     End Select
 End Sub
 
@@ -2616,6 +2764,144 @@ Private Sub mp_SetNamedRowAnchor( _
         ws.Names.Add Name:=ws.Name & "!" & anchorName, RefersTo:=refersToText
         On Error GoTo 0
     End If
+End Sub
+
+Private Sub mp_ClearNamedRangeAnchor( _
+    ByVal ws As Worksheet, _
+    ByVal anchorName As String _
+)
+    If ws Is Nothing Then Exit Sub
+    anchorName = Trim$(anchorName)
+    If Len(anchorName) = 0 Then Exit Sub
+
+    On Error Resume Next
+    ws.Names(anchorName).Delete
+    ThisWorkbook.Names(anchorName).Delete
+    On Error GoTo 0
+End Sub
+
+Private Sub mp_SetNamedRangeAnchor( _
+    ByVal ws As Worksheet, _
+    ByVal anchorName As String, _
+    ByVal targetRange As Range _
+)
+    Dim refersToText As String
+
+    If ws Is Nothing Then Exit Sub
+    If targetRange Is Nothing Then Exit Sub
+    anchorName = Trim$(anchorName)
+    If Len(anchorName) = 0 Then Exit Sub
+
+    mp_ClearNamedRangeAnchor ws, anchorName
+    refersToText = "=" & targetRange.Address(True, True, xlA1, True)
+
+    On Error Resume Next
+    ws.Names.Add Name:=anchorName, RefersTo:=refersToText
+    If Err.Number <> 0 Then
+        Err.Clear
+        ws.Names.Add Name:=ws.Name & "!" & anchorName, RefersTo:=refersToText
+    End If
+    On Error GoTo 0
+End Sub
+
+Private Function mp_NextResultBlockAnchorName(ByVal ws As Worksheet) As String
+    Dim idx As Long
+    Dim anchorName As String
+    Dim namedEntry As Name
+
+    If ws Is Nothing Then Exit Function
+
+    For idx = 1 To RESULT_BLOCK_ANCHOR_MAX_INDEX
+        anchorName = RESULT_BLOCK_ANCHOR_PREFIX & Format$(idx, "0000")
+        Set namedEntry = Nothing
+        On Error Resume Next
+        Set namedEntry = ws.Names(anchorName)
+        On Error GoTo 0
+        If namedEntry Is Nothing Then
+            mp_NextResultBlockAnchorName = anchorName
+            Exit Function
+        End If
+    Next idx
+End Function
+
+Private Function mp_BuildResultBlockIdentity( _
+    ByVal sheetKey As String, _
+    ByVal blockIndex As Long, _
+    ByVal blockText As String _
+) As String
+    mp_BuildResultBlockIdentity = "__resultblock__" & CStr(sheetKey) & "_" & CStr(blockIndex) & "_" & CStr(blockText)
+End Function
+
+Private Sub mp_ClearPreviousResultBlocks(ByVal ws As Worksheet)
+    Dim namedEntry As Name
+    Dim normalizedName As String
+    Dim refersRange As Range
+    Dim blocks As Collection
+    Dim namesToDelete As Collection
+    Dim entry As Object
+    Dim maxRow As Long
+    Dim maxIndex As Long
+    Dim i As Long
+    Dim deleteName As Variant
+    Dim rowStart As Long
+    Dim rowEnd As Long
+
+    If ws Is Nothing Then Exit Sub
+
+    Set blocks = New Collection
+    Set namesToDelete = New Collection
+
+    For Each namedEntry In ws.Names
+        normalizedName = LCase$(CStr(namedEntry.Name))
+        If InStr(1, normalizedName, LCase$(RESULT_BLOCK_ANCHOR_PREFIX), vbBinaryCompare) > 0 Then
+            namesToDelete.Add CStr(namedEntry.Name)
+            Set refersRange = Nothing
+            On Error Resume Next
+            Set refersRange = namedEntry.RefersToRange
+            On Error GoTo 0
+            If Not refersRange Is Nothing Then
+                Set entry = CreateObject("Scripting.Dictionary")
+                entry.CompareMode = 1
+                entry("RowStart") = CLng(refersRange.Row)
+                entry("RowEnd") = CLng(refersRange.Row + refersRange.Rows.Count - 1)
+                blocks.Add entry
+            End If
+        End If
+    Next namedEntry
+
+    Do While blocks.Count > 0
+        maxIndex = 0
+        maxRow = -1
+        For i = 1 To blocks.Count
+            Set entry = blocks(i)
+            If CLng(entry("RowStart")) > maxRow Then
+                maxRow = CLng(entry("RowStart"))
+                maxIndex = i
+            End If
+        Next i
+        If maxIndex <= 0 Then Exit Do
+
+        Set entry = blocks(maxIndex)
+        rowStart = CLng(entry("RowStart"))
+        rowEnd = CLng(entry("RowEnd"))
+        If rowStart < 1 Then rowStart = 1
+        If rowEnd > ws.Rows.Count Then rowEnd = ws.Rows.Count
+        If rowEnd >= rowStart Then
+            On Error Resume Next
+            ws.Rows(CStr(rowStart) & ":" & CStr(rowEnd)).Delete Shift:=xlUp
+            On Error GoTo 0
+        End If
+        blocks.Remove maxIndex
+    Loop
+
+    For Each deleteName In namesToDelete
+        On Error Resume Next
+        ws.Names(CStr(deleteName)).Delete
+        ThisWorkbook.Names(CStr(deleteName)).Delete
+        On Error GoTo 0
+    Next deleteName
+
+    mp_ClearNamedRowAnchor ws, RESULT_BLOCK_LAST_ANCHOR_NAME
 End Sub
 
 Private Sub mp_SetPostProcessHeaderAnchors(ByVal ws As Worksheet, ByVal rowIndex As Long)
