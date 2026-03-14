@@ -445,16 +445,24 @@ Public Sub m_RenderTextBannerAtCell( _
     ByVal bannerText As String, _
     ByVal topLeftCellRef As String, _
     Optional ByVal titleText As String = "NOTICE", _
-    Optional ByVal bannerKind As String = BANNER_KIND_WARNING _
+    Optional ByVal bannerKind As String = BANNER_KIND_WARNING, _
+    Optional ByVal gapRowsBefore As Long = 0, _
+    Optional ByVal gapRowsAfter As Long = 0, _
+    Optional ByVal insertRows As Boolean = True _
 )
     Dim targetCell As Range
     Dim existingBannerRange As Range
     Dim bannerColumns As Long
     Dim bannerRows As Long
     Dim requiredRows As Long
+    Dim rowsToInsert As Long
+    Dim insertAtRow As Long
+    Dim bannerStartRow As Long
     Dim rangeAddress As String
 
     If ws Is Nothing Then Exit Sub
+    If gapRowsBefore < 0 Then gapRowsBefore = 0
+    If gapRowsAfter < 0 Then gapRowsAfter = 0
 
     If mp_TryGetBannerRangeByMessage(ws, bannerText, existingBannerRange) Then
         m_RenderTextBanner ws, bannerText, titleText, existingBannerRange.Address(False, False, xlA1), bannerKind
@@ -467,10 +475,26 @@ Public Sub m_RenderTextBannerAtCell( _
     Set targetCell = ws.Range(topLeftCellRef).Cells(1, 1)
     mp_GetBannerDimensions bannerKind, bannerColumns, bannerRows
     requiredRows = mp_GetRequiredBannerRowsFromText(bannerText, bannerRows)
+
+    If insertRows Then
+        insertAtRow = targetCell.Row
+        rowsToInsert = gapRowsBefore + requiredRows + gapRowsAfter
+        If rowsToInsert > 0 Then
+            mp_InsertRowsSafe ws, insertAtRow, rowsToInsert
+            bannerStartRow = insertAtRow + gapRowsBefore
+            mp_UnmergeSpacerRows ws, insertAtRow, gapRowsBefore
+            mp_UnmergeSpacerRows ws, bannerStartRow + requiredRows, gapRowsAfter
+        Else
+            bannerStartRow = insertAtRow
+        End If
+    Else
+        bannerStartRow = targetCell.Row + gapRowsBefore
+    End If
+
     rangeAddress = mp_BuildAddress( _
-        targetCell.Row, _
+        bannerStartRow, _
         targetCell.Column, _
-        targetCell.Row + requiredRows - 1, _
+        bannerStartRow + requiredRows - 1, _
         targetCell.Column + bannerColumns - 1 _
     )
 
@@ -483,7 +507,8 @@ Public Sub m_RenderTextBannerAfterBanner( _
     ByVal afterBannerIndex As Long, _
     Optional ByVal titleText As String = "NOTICE", _
     Optional ByVal bannerKind As String = BANNER_KIND_WARNING, _
-    Optional ByVal gapRows As Long = 1, _
+    Optional ByVal gapRowsBefore As Long = 0, _
+    Optional ByVal gapRowsAfter As Long = 1, _
     Optional ByVal insertRows As Boolean = True _
 )
     Dim existingBannerRange As Range
@@ -499,7 +524,8 @@ Public Sub m_RenderTextBannerAfterBanner( _
     Dim rangeAddress As String
 
     If ws Is Nothing Then Exit Sub
-    If gapRows < 0 Then gapRows = 0
+    If gapRowsBefore < 0 Then gapRowsBefore = 0
+    If gapRowsAfter < 0 Then gapRowsAfter = 0
 
     If mp_TryGetBannerRangeByMessage(ws, bannerText, existingBannerRange) Then
         m_RenderTextBanner ws, bannerText, titleText, existingBannerRange.Address(False, False, xlA1), bannerKind
@@ -516,12 +542,13 @@ Public Sub m_RenderTextBannerAfterBanner( _
 
         If insertRows Then
             insertAtRow = topStartRow
-            rowsToInsert = requiredRows + gapRows
+            rowsToInsert = gapRowsBefore + requiredRows + gapRowsAfter
             mp_InsertRowsSafe ws, insertAtRow, rowsToInsert
-            bannerStartRow = insertAtRow
-            mp_UnmergeSpacerRows ws, bannerStartRow + requiredRows, gapRows
+            bannerStartRow = insertAtRow + gapRowsBefore
+            mp_UnmergeSpacerRows ws, insertAtRow, gapRowsBefore
+            mp_UnmergeSpacerRows ws, bannerStartRow + requiredRows, gapRowsAfter
         Else
-            bannerStartRow = topStartRow
+            bannerStartRow = topStartRow + gapRowsBefore
             bannerStartRow = mp_AdjustBannerStartForExistingAnchors(ws, bannerStartRow, requiredRows)
         End If
     Else
@@ -531,12 +558,13 @@ Public Sub m_RenderTextBannerAfterBanner( _
 
         If insertRows Then
             insertAtRow = afterEndRow + 1
-            rowsToInsert = requiredRows + gapRows
+            rowsToInsert = gapRowsBefore + requiredRows + gapRowsAfter
             mp_InsertRowsSafe ws, insertAtRow, rowsToInsert
-            bannerStartRow = insertAtRow
-            mp_UnmergeSpacerRows ws, bannerStartRow + requiredRows, gapRows
+            bannerStartRow = insertAtRow + gapRowsBefore
+            mp_UnmergeSpacerRows ws, insertAtRow, gapRowsBefore
+            mp_UnmergeSpacerRows ws, bannerStartRow + requiredRows, gapRowsAfter
         Else
-            bannerStartRow = afterEndRow + 1
+            bannerStartRow = afterEndRow + 1 + gapRowsBefore
         End If
     End If
 
@@ -551,7 +579,8 @@ Public Sub m_RenderTextBannerAtTable( _
     Optional ByVal positionText As String = "before", _
     Optional ByVal titleText As String = "NOTICE", _
     Optional ByVal bannerKind As String = BANNER_KIND_WARNING, _
-    Optional ByVal gapRows As Long = 1, _
+    Optional ByVal gapRowsBefore As Long = 0, _
+    Optional ByVal gapRowsAfter As Long = 1, _
     Optional ByVal insertRows As Boolean = True _
 )
     Dim existingBannerRange As Range
@@ -571,7 +600,8 @@ Public Sub m_RenderTextBannerAtTable( _
     If Len(tableRef) = 0 Then
         Err.Raise vbObjectError + 1762, "ex_Messaging", "Table reference is required for banner placement."
     End If
-    If gapRows < 0 Then gapRows = 0
+    If gapRowsBefore < 0 Then gapRowsBefore = 0
+    If gapRowsAfter < 0 Then gapRowsAfter = 0
 
     If mp_TryGetBannerRangeByMessage(ws, bannerText, existingBannerRange) Then
         m_RenderTextBanner ws, bannerText, titleText, existingBannerRange.Address(False, False, xlA1), bannerKind
@@ -594,23 +624,25 @@ Public Sub m_RenderTextBannerAtTable( _
     If normalizedPos = "before" Then
         If insertRows Then
             insertAtRow = tableStartRow
-            rowsToInsert = requiredRows + gapRows
+            rowsToInsert = gapRowsBefore + requiredRows + gapRowsAfter
             mp_InsertRowsSafe ws, insertAtRow, rowsToInsert
-            bannerStartRow = insertAtRow
-            mp_UnmergeSpacerRows ws, bannerStartRow + requiredRows, gapRows
+            bannerStartRow = insertAtRow + gapRowsBefore
+            mp_UnmergeSpacerRows ws, insertAtRow, gapRowsBefore
+            mp_UnmergeSpacerRows ws, bannerStartRow + requiredRows, gapRowsAfter
         Else
-            bannerStartRow = tableStartRow - gapRows - requiredRows
+            bannerStartRow = tableStartRow - gapRowsAfter - requiredRows - gapRowsBefore
             If bannerStartRow < 1 Then bannerStartRow = 1
         End If
     Else
         If insertRows Then
             insertAtRow = tableEndRow + 1
-            rowsToInsert = requiredRows + gapRows
+            rowsToInsert = gapRowsBefore + requiredRows + gapRowsAfter
             mp_InsertRowsSafe ws, insertAtRow, rowsToInsert
-            bannerStartRow = insertAtRow
-            mp_UnmergeSpacerRows ws, bannerStartRow + requiredRows, gapRows
+            bannerStartRow = insertAtRow + gapRowsBefore
+            mp_UnmergeSpacerRows ws, insertAtRow, gapRowsBefore
+            mp_UnmergeSpacerRows ws, bannerStartRow + requiredRows, gapRowsAfter
         Else
-            bannerStartRow = tableEndRow + 1
+            bannerStartRow = tableEndRow + 1 + gapRowsBefore
         End If
     End If
 

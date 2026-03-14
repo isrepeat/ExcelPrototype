@@ -1,5 +1,8 @@
 {
     "chat.tools.terminal.autoApprove": {
         "diff": true
+    },
+    "files.associations": {
+        "*.jslike": "javascript"
     }
 }
