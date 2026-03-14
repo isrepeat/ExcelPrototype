@@ -124,10 +124,11 @@ for (let row in Daily.Sheet[DailyEvents].rows) {
 		if (sectionType == "8") { rowTemplateAnchor = "ToVacationForFamily"; }
 		if (sectionType == "9") { rowTemplateAnchor = "ToVacationForCuring"; }
 		if (sectionType == "10") { rowTemplateAnchor = "ToOutpatientExaminationOrVlk"; }
-		if (sectionType == "11") { rowTemplateAnchor = "MoveHospitalToVacationForCuring"; }
-		if (sectionType == "12") { rowTemplateAnchor = "MoveVacationForCuringToVacationForCuring"; }
-		if (sectionType == "13") { rowTemplateAnchor = "MoveVacationForCuringToHospital"; }
-		if (sectionType == "14") { rowTemplateAnchor = "MoveVacationForCuringToVlk"; }
+		if (sectionType == "11") { rowTemplateAnchor = "MoveFromHospitalToVacationForCuring"; }
+		if (sectionType == "12") { rowTemplateAnchor = "MoveFromVacationForCuringToVacationForCuring"; }
+		if (sectionType == "13") { rowTemplateAnchor = "MoveFromVacationForCuringToHospital"; }
+		if (sectionType == "14") { rowTemplateAnchor = "MoveFromVacationForCuringToVlk"; }
+		if (sectionType == "15") { rowTemplateAnchor = "MoveFromVlkToVacationForCuring"; }
 
 		if (sectionType != "" && rowTemplateAnchor == "") {
 			callMacro("ex_PostProcessActions.m_ShowLogicError", "Unsupported SectionType for export mapping: {sectionType}");
