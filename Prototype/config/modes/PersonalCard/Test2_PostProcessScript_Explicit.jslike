@@ -161,22 +161,33 @@ for (let row in Daily.Sheet[DailyEvents].rows) {
 			needDateRange = "true";
 		}
 
-		if (row.column[InDate] != "" && row.column[InDate] != "?") {
+		if (row.column[InDate] != "" &&
+			row.column[InDate] != "?") {
 			fullInDate = callMacro("ex_DateHelpers.m_ToFullDate", "{row.column[InDate]}", "{baseDate}");
 		}
-		if (needDocDate == "true" && row.column[DocDate] != "" && row.column[DocDate] != "?") {
+		if (needDocDate == "true" &&
+			row.column[DocDate] != "" &&
+			row.column[DocDate] != "?") {
 			fullDocDate = callMacro("ex_DateHelpers.m_ToFullDate", "{row.column[DocDate]}", "{baseDate}");
 		}
-		if (needVkDate == "true" && row.column[VkDate] != "" && row.column[VkDate] != "?") {
+		if (needVkDate == "true" &&
+			row.column[VkDate] != "" &&
+			row.column[VkDate] != "?") {
 			fullVkDate = callMacro("ex_DateHelpers.m_ToFullDate", "{row.column[VkDate]}", "{baseDate}");
 		}
-		if (needVlkDate == "true" && row.column[VlkDate] != "" && row.column[VlkDate] != "?") {
+		if (needVlkDate == "true" &&
+			row.column[VlkDate] != "" &&
+			row.column[VlkDate] != "?") {
 			fullVlkDate = callMacro("ex_DateHelpers.m_ToFullDate", "{row.column[VlkDate]}", "{baseDate}");
 		}
-		if (needDateRange == "true" && row.column[DateFrom] != "" && row.column[DateFrom] != "?") {
+		if (needDateRange == "true" &&
+			row.column[DateFrom] != "" &&
+			row.column[DateFrom] != "?") {
 			fullDateFrom = callMacro("ex_DateHelpers.m_ToFullDate", "{row.column[DateFrom]}", "{baseDate}");
 		}
-		if (needDateRange == "true" && row.column[DateTo] != "" && row.column[DateTo] != "?") {
+		if (needDateRange == "true" &&
+			row.column[DateTo] != "" &&
+			row.column[DateTo] != "?") {
 			fullDateTo = callMacro("ex_DateHelpers.m_ToFullDate", "{row.column[DateTo]}", "{baseDate}");
 		}
 
@@ -309,13 +320,15 @@ for (let row in Daily.Sheet[DailyEvents].rows) {
 		}
 
 		txt = callMacro("ex_ResultTemplatesParser.m_ResolveTemplate", txt);
-		callMacro("ex_PostProcessActions.m_AppendToSinglePostProcessHeaderText", txt, "\n\n");
-		hasExportBlocks = "true";
+		let appendedBlockText = callMacro("ex_PostProcessActions.m_AppendResultBlock", txt, "", "TYPE_NOTE", 0, 1);
+		if (appendedBlockText != "") {
+			hasExportBlocks = "true";
+		}
 	}
-}
+} // for (let row in Daily.Sheet[DailyEvents].rows)
 
 if (hasExportBlocks == "true") {
-	let wordResultsPlace = callMacro("ex_PostProcessActions.m_GetSinglePostProcessHeaderCellRef");
+	let wordResultsPlace = callMacro("ex_PostProcessActions.m_GetLastResultBlockCellRef");
 	callMacro("ex_PostProcessActions.m_SetRuntimeData", "Export.RuntimeDataBase.WordResultsPlace", wordResultsPlace);
 	callMacro("ex_PostProcessActions.m_SetRuntimeData", "Export.RuntimeDataBase.WordPasteAnchor", exportWordPasteAnchor);
 } else {
