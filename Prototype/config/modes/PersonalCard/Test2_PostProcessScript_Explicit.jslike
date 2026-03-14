@@ -1,0 +1,324 @@
+let validationWarningsText = "";
+let hasValidationWarnings = "false";
+let validationWarningTitle = "DailyEvents validation warning";
+let validationErrorTitle = "DailyEvents validation error";
+let tvoNoteRegex = "ТВО";
+let unclosedReturnDateRegex = "^\\s*(\\?|)\\s*$";
+
+/* Логи временно отключены */
+// let debugLogPath = "LOGS/postprocess_debug.log";
+// сallMacro("ex_Messaging.m_ClearLogFile", debugLogPath);
+// callMacro("ex_Messaging.m_LogToFile", "START explicit postprocess", debugLogPath);
+
+
+/* Единый проход валидации по owner-строкам DailyEvents перед формированием экспорта */
+for (let owner in Daily.Sheet[DailyEvents].rows) {
+	if (owner.column[MetaType] == "owner") {
+		let ownerRowIndexForWarning = callMacro("ex_PostProcessActions.m_GetRowIndex", owner);
+		// Вспомогательные значения по текущему owner, собираем из EventsOut:
+		// - последнюю заметку (для проверки ТВО),
+		// - последнюю строку с причиной "Лікування" и ее ReturnDate (для проверки закрытия лечения).
+		let hasEventsOutForOwner = "false";
+		let lastEventsOutNote = "";
+		let lastEventsOutReturnDate = "";
+		let hasTreatmentEventsOutForOwner = "false";
+		let lastTreatmentEventsOutReturnDate = "";
+
+		for (let outRow in Events.Sheet[EventsOut].rows) {
+			if (outRow.column[FIO] == owner.column[FIO]) {
+				hasEventsOutForOwner = "true";
+				lastEventsOutNote = outRow.column[Note];
+				lastEventsOutReturnDate = outRow.column[ReturnDate];
+				if (outRow.column[EventReason] == "Лікування") {
+					hasTreatmentEventsOutForOwner = "true";
+					lastTreatmentEventsOutReturnDate = outRow.column[ReturnDate];
+				}
+			}
+		}
+
+		// Валидация #1:
+		// если в последней записи EventsOut.Note есть ТВО, то сразу после owner
+		// в DailyEvents должна идти meta-строка с Vacation=ТВО.
+		if (hasEventsOutForOwner == "true") {
+			let hasTvoInLastEventsOutNote = "false";
+			let lastNoteTvoMatch = callMacro("ex_PostProcessActions.m_RegexFirstMatch", lastEventsOutNote, tvoNoteRegex);
+			if (lastNoteTvoMatch != "") {
+				hasTvoInLastEventsOutNote = "true";
+			}
+
+			if (hasTvoInLastEventsOutNote == "true") {
+				let nextRow = callMacro("ex_PostProcessActions.m_GetRelativeRow", owner, "1");
+				if (nextRow.column[Vacation] != "ТВО") {
+					let errorLine = "FIO=" + owner.column[FIO] + ": в последней записи EventsOut.Note есть пометка ТВО, но после owner в DailyEvents отсутствует строка с Vacation=ТВО.";
+					callMacro("ex_PostProcessActions.m_ShowBannerBeforeRowIndex", "TYPE_WARNING", validationWarningTitle, errorLine, ownerRowIndexForWarning, 0, 0);
+					hasValidationWarnings = "true";
+				}
+			}
+		}
+
+		// Валидация #2:
+		// если ключ в секции ToHospital (SectionType=6), то последняя запись EventsOut
+		// с EventReason="Лікування" должна быть закрыта: поле ReturnDate не должно быть пустым и не должно быть "?".
+		if (owner.column[SectionType] == "6" && hasTreatmentEventsOutForOwner == "true") {
+			let openTreatmentReturnDateMatch = callMacro("ex_PostProcessActions.m_RegexFirstMatch", lastTreatmentEventsOutReturnDate, unclosedReturnDateRegex);
+			if (openTreatmentReturnDateMatch != "") {
+				let errorLine = "FIO=" + owner.column[FIO] + ": ключ находится в секции ToHospital, но последняя запись EventsOut с EventReason=Лікування не закрыта (ReturnDate пустой или '?'). Ключ должен быть в секции MoveVacationForCuringToHospital.";
+				callMacro("ex_PostProcessActions.m_ShowBannerBeforeRowIndex", "TYPE_WARNING", validationWarningTitle, errorLine, ownerRowIndexForWarning, 0, 0);
+				hasValidationWarnings = "true";
+			}
+		}
+
+		// Валидация #3:
+		// если ключ в секции ToVacationForCuring (SectionType=9), то последняя запись EventsOut
+		// (независимо от EventReason) должна быть закрыта: поле ReturnDate не должно быть пустым и не должно быть "?".
+		if (owner.column[SectionType] == "9" && hasEventsOutForOwner == "true") {
+			let openLastEventsOutReturnDateMatch = callMacro("ex_PostProcessActions.m_RegexFirstMatch", lastEventsOutReturnDate, unclosedReturnDateRegex);
+			if (openLastEventsOutReturnDateMatch != "") {
+				let errorLine = "FIO=" + owner.column[FIO] + ": ключ находится в секции ToVacationForCuring, но последняя запись EventsOut не закрыта (ReturnDate пустой или '?').";
+				callMacro("ex_PostProcessActions.m_ShowBannerBeforeRowIndex", "TYPE_WARNING", validationWarningTitle, errorLine, ownerRowIndexForWarning, 0, 0);
+				hasValidationWarnings = "true";
+			}
+		}
+	}
+}
+
+if (hasValidationWarnings == "true") {
+	callMacro("ex_PostProcessActions.m_ShowBannerAfterBanner", "TYPE_NOTE", "WARNING", "Валидация не пройдена.", 0, 0, 0);
+	return;
+}
+
+let exportWordPasteAnchor = "";
+let hasExportBlocks = "false";
+
+for (let row in Daily.Sheet[DailyEvents].rows) {
+	if (row.column[MetaType] == "owner") {
+		let sectionType = row.column[SectionType];
+		let ownerRowIndex = callMacro("ex_PostProcessActions.m_GetRowIndex", row);
+
+		let rowTemplateAnchor = "";
+		if (sectionType == "") {
+			callMacro("ex_PostProcessActions.m_ShowLogicError", "SectionType is empty for owner row.");
+			return;
+		}
+
+		if (sectionType == "1") { rowTemplateAnchor = "FromHospital"; }
+		if (sectionType == "2") { rowTemplateAnchor = "FromVacationForCuring"; }
+		if (sectionType == "3") { rowTemplateAnchor = "FromAnnualMainVacation"; }
+		if (sectionType == "4") { rowTemplateAnchor = "FromVacationForFamily"; }
+		if (sectionType == "5") { rowTemplateAnchor = "FromOutpatientExaminationOrVlk"; }
+		if (sectionType == "6") { rowTemplateAnchor = "ToHospital"; }
+		if (sectionType == "7") { rowTemplateAnchor = "ToAnnualMainVacation"; }
+		if (sectionType == "8") { rowTemplateAnchor = "ToVacationForFamily"; }
+		if (sectionType == "9") { rowTemplateAnchor = "ToVacationForCuring"; }
+		if (sectionType == "10") { rowTemplateAnchor = "ToOutpatientExaminationOrVlk"; }
+		if (sectionType == "11") { rowTemplateAnchor = "MoveHospitalToVacationForCuring"; }
+		if (sectionType == "12") { rowTemplateAnchor = "MoveVacationForCuringToVacationForCuring"; }
+		if (sectionType == "13") { rowTemplateAnchor = "MoveVacationForCuringToHospital"; }
+		if (sectionType == "14") { rowTemplateAnchor = "MoveVacationForCuringToVlk"; }
+
+		if (sectionType != "" && rowTemplateAnchor == "") {
+			callMacro("ex_PostProcessActions.m_ShowLogicError", "Unsupported SectionType for export mapping: {sectionType}");
+			return;
+		}
+
+		exportWordPasteAnchor = rowTemplateAnchor;
+
+		let baseDate = "11.03.2026";
+		let txt = callMacro("ex_ResultTemplatesParser.m_GetTemplateText", rowTemplateAnchor);
+		txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "DATE", "{baseDate}");
+
+		/* Нормализация дат для всех секций: в шаблоны передаем уже полные даты */
+		let fullInDate = row.column[InDate];
+		let fullDocDate = row.column[DocDate];
+		let fullVkDate = row.column[VkDate];
+		let fullVlkDate = row.column[VlkDate];
+		let fullDateFrom = row.column[DateFrom];
+		let fullDateTo = row.column[DateTo];
+		let needDocDate = "false";
+		let needVkDate = "false";
+		let needVlkDate = "false";
+		let needDateRange = "false";
+
+		if (sectionType == "1" ||
+			sectionType == "6") {
+			needDocDate = "true";
+		}
+		if (sectionType == "2" ||
+			sectionType == "3" ||
+			sectionType == "4" ||
+			sectionType == "7" ||
+			sectionType == "8" ||
+			sectionType == "9") {
+			needVkDate = "true";
+		}
+		if (sectionType == "5" ||
+			sectionType == "9") {
+			needVlkDate = "true";
+		}
+		if (sectionType == "7" ||
+			sectionType == "8" ||
+			sectionType == "9") {
+			needDateRange = "true";
+		}
+
+		if (row.column[InDate] != "" && row.column[InDate] != "?") {
+			fullInDate = callMacro("ex_DateHelpers.m_ToFullDate", "{row.column[InDate]}", "{baseDate}");
+		}
+		if (needDocDate == "true" && row.column[DocDate] != "" && row.column[DocDate] != "?") {
+			fullDocDate = callMacro("ex_DateHelpers.m_ToFullDate", "{row.column[DocDate]}", "{baseDate}");
+		}
+		if (needVkDate == "true" && row.column[VkDate] != "" && row.column[VkDate] != "?") {
+			fullVkDate = callMacro("ex_DateHelpers.m_ToFullDate", "{row.column[VkDate]}", "{baseDate}");
+		}
+		if (needVlkDate == "true" && row.column[VlkDate] != "" && row.column[VlkDate] != "?") {
+			fullVlkDate = callMacro("ex_DateHelpers.m_ToFullDate", "{row.column[VlkDate]}", "{baseDate}");
+		}
+		if (needDateRange == "true" && row.column[DateFrom] != "" && row.column[DateFrom] != "?") {
+			fullDateFrom = callMacro("ex_DateHelpers.m_ToFullDate", "{row.column[DateFrom]}", "{baseDate}");
+		}
+		if (needDateRange == "true" && row.column[DateTo] != "" && row.column[DateTo] != "?") {
+			fullDateTo = callMacro("ex_DateHelpers.m_ToFullDate", "{row.column[DateTo]}", "{baseDate}");
+		}
+
+		let nextRow = callMacro("ex_PostProcessActions.m_GetRelativeRow", row, "1");
+
+		let isReturnToDuty = "false";
+		let returnToDutyRank = "";
+		let returnToDutyFIO = "";
+		let returnToDutyPosition = "";
+		let isAssignToDuty = "false";
+		let assignToDutyRank = "";
+		let assignToDutyFIO = "";
+		let assignToDutyPosition = "";
+
+		if (nextRow.column[MetaType] == "meta" &&
+			nextRow.column[Vacation] == "ТВО" &&
+			nextRow.column[Rank] != "" &&
+			nextRow.column[FIO] != "" &&
+			nextRow.column[Position] != "") {
+			isReturnToDuty = "true";
+			returnToDutyRank = nextRow.column[Rank];
+			returnToDutyFIO = nextRow.column[FIO];
+			returnToDutyPosition = nextRow.column[Position];
+			isAssignToDuty = "true";
+			assignToDutyRank = nextRow.column[Rank];
+			assignToDutyFIO = nextRow.column[FIO];
+			assignToDutyPosition = nextRow.column[Position];
+		}
+
+		if (sectionType == "1") {
+			txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "Hospital", "{row.column[Hospital]}");
+			txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "Rank", "{row.column[Rank]}");
+			txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "FIO", "{row.column[FIO]}");
+			txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "Position", "{row.column[Position]}");
+			txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "IsReturnToDuty", "{isReturnToDuty}");
+			txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "ReturnToDutyRank", "{returnToDutyRank}");
+			txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "ReturnToDutyFIO", "{returnToDutyFIO}");
+			txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "ReturnToDutyPosition", "{returnToDutyPosition}");
+			txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "RaportFrom", "{row.column[RaportFrom]}");
+			txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "InNum", "{row.column[InNum]}");
+			txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "InDate", "{fullInDate}");
+			txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "DocNum", "{row.column[DocNum]}");
+			txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "DocDate", "{fullDocDate}");
+		}
+
+		if (sectionType == "2" || sectionType == "3" || sectionType == "4") {
+			txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "Rank", "{row.column[Rank]}");
+			txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "FIO", "{row.column[FIO]}");
+			txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "Position", "{row.column[Position]}");
+			txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "IsReturnToDuty", "{isReturnToDuty}");
+			txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "ReturnToDutyRank", "{returnToDutyRank}");
+			txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "ReturnToDutyFIO", "{returnToDutyFIO}");
+			txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "ReturnToDutyPosition", "{returnToDutyPosition}");
+			txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "RaportFrom", "{row.column[RaportFrom]}");
+			txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "InNum", "{row.column[InNum]}");
+			txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "InDate", "{fullInDate}");
+			txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "VkNum", "{row.column[VkNum]}");
+			txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "VkDate", "{fullVkDate}");
+		}
+
+		if (sectionType == "5") {
+			txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "Rank", "{row.column[Rank]}");
+			txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "FIO", "{row.column[FIO]}");
+			txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "Position", "{row.column[Position]}");
+			txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "RaportFrom", "{row.column[RaportFrom]}");
+			txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "InNum", "{row.column[InNum]}");
+			txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "InDate", "{fullInDate}");
+			txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "VlkNum", "{row.column[VlkNum]}");
+			txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "VlkDate", "{fullVlkDate}");
+		}
+
+		if (sectionType == "6") {
+			txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "Hospital", "{row.column[Hospital]}");
+			txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "Rank", "{row.column[Rank]}");
+			txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "FIO", "{row.column[FIO]}");
+			txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "Position", "{row.column[Position]}");
+			txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "IsAssignToDuty", "{isAssignToDuty}");
+			txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "AssignToDutyRank", "{assignToDutyRank}");
+			txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "AssignToDutyFIO", "{assignToDutyFIO}");
+			txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "AssignToDutyPosition", "{assignToDutyPosition}");
+			txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "RaportFrom", "{row.column[RaportFrom]}");
+			txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "InNum", "{row.column[InNum]}");
+			txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "InDate", "{fullInDate}");
+			txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "DocNum", "{row.column[DocNum]}");
+			txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "DocDate", "{fullDocDate}");
+		}
+
+		if (sectionType == "7" || sectionType == "8") {
+			txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "Rank", "{row.column[Rank]}");
+			txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "FIO", "{row.column[FIO]}");
+			txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "Position", "{row.column[Position]}");
+			txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "City", "{row.column[Vacation]}");
+			txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "DaysCount", "{row.column[DaysCount]}");
+			txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "HasOneAdditionalWayDay", "false");
+			txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "HasTwoAdditionalWayDays", "false");
+			txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "OutDate", "{fullDateFrom}");
+			txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "ReturnDate", "{fullDateTo}");
+			txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "IsAssignToDuty", "{isAssignToDuty}");
+			txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "AssignToDutyRank", "{assignToDutyRank}");
+			txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "AssignToDutyFIO", "{assignToDutyFIO}");
+			txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "AssignToDutyPosition", "{assignToDutyPosition}");
+			txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "RaportFrom", "{row.column[RaportFrom]}");
+			txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "InNum", "{row.column[InNum]}");
+			txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "InDate", "{fullInDate}");
+			txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "VkNum", "{row.column[VkNum]}");
+			txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "VkDate", "{fullVkDate}");
+		}
+
+		if (sectionType == "9") {
+			txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "Rank", "{row.column[Rank]}");
+			txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "FIO", "{row.column[FIO]}");
+			txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "Position", "{row.column[Position]}");
+			txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "City", "{row.column[Vacation]}");
+			txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "DaysCount", "{row.column[DaysCount]}");
+			txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "HasOneAdditionalWayDay", "false");
+			txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "HasTwoAdditionalWayDays", "false");
+			txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "OutDate", "{fullDateFrom}");
+			txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "ReturnDate", "{fullDateTo}");
+			txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "IsAssignToDuty", "{isAssignToDuty}");
+			txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "AssignToDutyRank", "{assignToDutyRank}");
+			txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "AssignToDutyFIO", "{assignToDutyFIO}");
+			txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "AssignToDutyPosition", "{assignToDutyPosition}");
+			txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "RaportFrom", "{row.column[RaportFrom]}");
+			txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "InNum", "{row.column[InNum]}");
+			txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "InDate", "{fullInDate}");
+			txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "VlkNum", "{row.column[VlkNum]}");
+			txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "VlkDate", "{fullVlkDate}");
+			txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "VkNum", "{row.column[VkNum]}");
+			txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "VkDate", "{fullVkDate}");
+		}
+
+		txt = callMacro("ex_ResultTemplatesParser.m_ResolveTemplate", txt);
+		callMacro("ex_PostProcessActions.m_AppendToSinglePostProcessHeaderText", txt, "\n\n");
+		hasExportBlocks = "true";
+	}
+}
+
+if (hasExportBlocks == "true") {
+	let wordResultsPlace = callMacro("ex_PostProcessActions.m_GetSinglePostProcessHeaderCellRef");
+	callMacro("ex_PostProcessActions.m_SetRuntimeData", "Export.RuntimeDataBase.WordResultsPlace", wordResultsPlace);
+	callMacro("ex_PostProcessActions.m_SetRuntimeData", "Export.RuntimeDataBase.WordPasteAnchor", exportWordPasteAnchor);
+} else {
+	callMacro("ex_PostProcessActions.m_ShowLogicError", "Post Process generated no export blocks for current key. Check CommonKey and DailyEvents source rows.");
+	return;
+}

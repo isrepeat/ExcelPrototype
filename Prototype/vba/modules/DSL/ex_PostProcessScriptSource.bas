@@ -143,9 +143,8 @@ Private Function mp_TryGetScriptTextFromActiveProfile( _
     End If
 
     For Each scriptNode In scriptNodes
-        nodeText = Trim$(CStr(scriptNode.Text))
+        nodeText = mp_GetScriptNodeText(scriptNode, filePath)
         If Len(nodeText) = 0 Then GoTo ContinueNode
-        nodeText = Replace(nodeText, "\n", vbLf)
         If Len(outScriptText) > 0 Then outScriptText = outScriptText & vbLf & vbLf
         outScriptText = outScriptText & nodeText
 ContinueNode:
@@ -156,6 +155,118 @@ ContinueNode:
 
 EH:
     outErrorText = "PostProcess script load failed at step '" & stepName & "' [modeKey=" & modeKey & "] [profile=" & profileName & "] [file=" & filePath & "]: [" & Err.Source & " #" & CStr(Err.Number) & "] " & Err.Description
+End Function
+
+Private Function mp_GetScriptNodeText(ByVal scriptNode As Object, ByVal ownerFilePath As String) As String
+    Dim includePath As String
+    Dim includeFullPath As String
+    Dim inlineScriptText As String
+
+    includePath = Trim$(ex_XmlCore.m_NodeAttrText(scriptNode, "include"))
+    inlineScriptText = CStr(scriptNode.Text)
+
+    If Len(includePath) > 0 Then
+        If Len(Trim$(inlineScriptText)) > 0 Then
+            Err.Raise vbObjectError + 1773, "ex_PostProcessScriptSource", _
+                "postProcessScript cannot define both inline body and include attribute in the same node."
+        End If
+
+        includeFullPath = mp_ResolveIncludeFilePath(ownerFilePath, includePath)
+        If Len(includeFullPath) = 0 Then
+            Err.Raise vbObjectError + 1774, "ex_PostProcessScriptSource", _
+                "postProcessScript include path could not be resolved: '" & includePath & "'."
+        End If
+
+        mp_GetScriptNodeText = mp_ReadTextFileUtf8(includeFullPath)
+        Exit Function
+    End If
+
+    mp_GetScriptNodeText = Trim$(inlineScriptText)
+    If Len(mp_GetScriptNodeText) > 0 Then
+        mp_GetScriptNodeText = Replace(mp_GetScriptNodeText, "\n", vbLf)
+    End If
+End Function
+
+Private Function mp_ReadTextFileUtf8(ByVal filePath As String) As String
+    Dim normalizedPath As String
+    Dim stream As Object
+
+    normalizedPath = mp_NormalizeFilePath(filePath)
+    If Len(normalizedPath) = 0 Then Exit Function
+    If Len(Dir$(normalizedPath)) = 0 Then
+        Err.Raise vbObjectError + 1775, "ex_PostProcessScriptSource", _
+            "postProcessScript include file was not found: '" & normalizedPath & "'."
+    End If
+
+    Set stream = CreateObject("ADODB.Stream")
+    stream.Type = 2 ' adTypeText
+    stream.Charset = "utf-8"
+    stream.Open
+    stream.LoadFromFile normalizedPath
+    mp_ReadTextFileUtf8 = CStr(stream.ReadText(-1))
+    stream.Close
+End Function
+
+Private Function mp_ResolveIncludeFilePath(ByVal ownerFilePath As String, ByVal includePath As String) As String
+    Dim normalizedIncludePath As String
+    Dim ownerDir As String
+    Dim combinedPath As String
+
+    normalizedIncludePath = mp_NormalizeFilePath(includePath)
+    If Len(normalizedIncludePath) = 0 Then Exit Function
+
+    If mp_IsAbsolutePath(normalizedIncludePath) Then
+        mp_ResolveIncludeFilePath = normalizedIncludePath
+        Exit Function
+    End If
+
+    ownerDir = mp_GetParentDirectory(ownerFilePath)
+    If Len(ownerDir) = 0 Then Exit Function
+
+    combinedPath = ownerDir & "\" & normalizedIncludePath
+    mp_ResolveIncludeFilePath = mp_NormalizeFilePath(combinedPath)
+End Function
+
+Private Function mp_GetParentDirectory(ByVal filePath As String) As String
+    Dim slashPos As Long
+    Dim normalized As String
+
+    normalized = mp_NormalizeFilePath(filePath)
+    If Len(normalized) = 0 Then Exit Function
+
+    slashPos = InStrRev(normalized, "\", -1, vbBinaryCompare)
+    If slashPos <= 0 Then Exit Function
+    If slashPos = 1 Then
+        mp_GetParentDirectory = "\"
+    Else
+        mp_GetParentDirectory = Left$(normalized, slashPos - 1)
+    End If
+End Function
+
+Private Function mp_IsAbsolutePath(ByVal filePath As String) As Boolean
+    Dim normalized As String
+
+    normalized = mp_NormalizeFilePath(filePath)
+    If Len(normalized) = 0 Then Exit Function
+
+    If Left$(normalized, 2) = "\\" Then
+        mp_IsAbsolutePath = True
+        Exit Function
+    End If
+
+    If Len(normalized) >= 3 Then
+        If Mid$(normalized, 2, 1) = ":" And Mid$(normalized, 3, 1) = "\" Then
+            mp_IsAbsolutePath = True
+            Exit Function
+        End If
+    End If
+End Function
+
+Private Function mp_NormalizeFilePath(ByVal filePath As String) As String
+    filePath = Trim$(filePath)
+    If Len(filePath) = 0 Then Exit Function
+    filePath = Replace$(filePath, "/", "\")
+    mp_NormalizeFilePath = filePath
 End Function
 
 Private Function mp_GetExecutionModeByScriptKey(ByVal scriptConfigKey As String) As String

@@ -308,6 +308,7 @@ End Function
 
 Public Function m_TryParseMacroArg(ByVal argText As String, ByRef outArgSpec As Object) As Boolean
     Dim literalText As String
+    Dim integerLiteral As Long
     Dim sourceAlias As String
     Dim tableAlias As String
     Dim rowIndex As Long
@@ -321,6 +322,13 @@ Public Function m_TryParseMacroArg(ByVal argText As String, ByRef outArgSpec As 
     If mp_TryParseQuotedString(argText, literalText) Then
         outArgSpec("Kind") = "string"
         outArgSpec("Value") = literalText
+        m_TryParseMacroArg = True
+        Exit Function
+    End If
+
+    If ex_XmlCore.m_TryParseLong(Trim$(argText), integerLiteral) Then
+        outArgSpec("Kind") = "number"
+        outArgSpec("Value") = CLng(integerLiteral)
         m_TryParseMacroArg = True
         Exit Function
     End If
@@ -383,6 +391,9 @@ Public Function m_ValidateMacroArgSpec( _
     If argSpec Is Nothing Then Exit Function
 
     Select Case LCase$(CStr(argSpec("Kind")))
+        Case "number"
+            ' Numeric literal does not need additional validation.
+
         Case "varref"
             If scopeVarTypes Is Nothing Then
                 outErrorText = "callMacro variable '" & CStr(argSpec("Name")) & "' is not available in this scope."

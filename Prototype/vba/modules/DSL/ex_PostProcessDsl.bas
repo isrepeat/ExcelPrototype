@@ -1931,6 +1931,20 @@ Private Function mp_TrySplitConditionExpression( _
         End If
 
         If Not inQuotes Then
+            If Mid$(conditionText, i, 2) = "&&" Then
+                If Not mp_TryPushConditionPart(partText, "and", outParts, outOps, outErrorText) Then Exit Function
+                partText = vbNullString
+                i = i + 2
+                GoTo ContinueLoop
+            End If
+
+            If Mid$(conditionText, i, 2) = "||" Then
+                If Not mp_TryPushConditionPart(partText, "or", outParts, outOps, outErrorText) Then Exit Function
+                partText = vbNullString
+                i = i + 2
+                GoTo ContinueLoop
+            End If
+
             If mp_IsWordOperatorAt(conditionText, i, "and") Then
                 If Not mp_TryPushConditionPart(partText, "and", outParts, outOps, outErrorText) Then Exit Function
                 partText = vbNullString
@@ -2393,7 +2407,7 @@ Private Function mp_TryParseCallMacroArgs( _
             Exit Function
         End If
         If Not mp_TryParseMacroArg(partText, argSpec) Then
-            outErrorText = "Unsupported callMacro argument '" & partText & "'. Use variable, quoted string, Source.Sheet[Table].row[N], Source.Sheet[Table].lastRow, Source.Sheet[Table].prevRow, or a .column[Field] variant."
+            outErrorText = "Unsupported callMacro argument '" & partText & "'. Use variable, numeric literal, quoted string, Source.Sheet[Table].row[N], Source.Sheet[Table].lastRow, Source.Sheet[Table].prevRow, or a .column[Field] variant."
             Exit Function
         End If
         outArgSpecs.Add argSpec
@@ -2463,6 +2477,9 @@ Private Function mp_BuildMacroRuntimeArgs( _
         Set argSpec = argSpecs(i)
         argKind = LCase$(CStr(argSpec("Kind")))
         Select Case argKind
+            Case "number"
+                result.Add CLng(argSpec("Value"))
+
             Case "varref"
                 If runtimeVars Is Nothing Or Not runtimeVars.Exists(CStr(argSpec("Name"))) Then
                     Err.Raise vbObjectError + 1601, "ex_PostProcessDsl", "Variable '" & CStr(argSpec("Name")) & "' is not available for callMacro argument."
