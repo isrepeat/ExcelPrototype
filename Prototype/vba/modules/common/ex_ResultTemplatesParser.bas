@@ -47,6 +47,10 @@ Private Const FORMATTER_REPLACE As String = "replace"
 Private Const FORMATTER_DATEFORMAT As String = "dateformat"
 Private Const FORMATTER_TO_DATE_DAY As String = "todate_day"
 Private Const FORMATTER_TO_DATE_DAY_WITH_MONTH As String = "todate_daywithmonth"
+Private Const FORMATTER_CALENDAR_DAYS_UA As String = "calendardaysua"
+Private Const FORMATTER_SURNAME_INITIALS As String = "surnameinitials"
+Private Const FORMATTER_FIO_SURNAME As String = "fiosurname"
+Private Const FORMATTER_FIO_INITIALS As String = "fioinitials"
 
 Private Const CASE_GENITIVE As String = "genitive"
 Private Const CASE_ACCUSATIVE As String = "accusative"
@@ -214,6 +218,18 @@ Private Function mp_FormatUaDateDayWithMonth(ByVal sourceDateText As String) As 
     mp_FormatUaDateDayWithMonth = ex_DateHelpers.m_FormatDateDayWithMonth(CStr(sourceDateText))
 End Function
 
+Private Function mp_FormatSurnameInitials(ByVal sourceValue As String) As String
+    mp_FormatSurnameInitials = ex_MorphUaLite.m_ToShortFioNormalized(CStr(sourceValue))
+End Function
+
+Private Function mp_FormatFioSurname(ByVal sourceValue As String) As String
+    mp_FormatFioSurname = ex_MorphUaLite.m_ToFioSurnameNormalized(CStr(sourceValue))
+End Function
+
+Private Function mp_FormatFioInitials(ByVal sourceValue As String) As String
+    mp_FormatFioInitials = ex_MorphUaLite.m_ToFioInitials(CStr(sourceValue))
+End Function
+
 Private Function mp_CapitalizeText(ByVal textValue As String) As String
     textValue = CStr(textValue)
     If Len(textValue) = 0 Then Exit Function
@@ -257,6 +273,14 @@ Private Function mp_ApplyFormatter(ByVal sourceValue As String, ByVal formatterN
             mp_ApplyFormatter = mp_FormatUaDateDay(CStr(sourceValue))
         Case FORMATTER_TO_DATE_DAY_WITH_MONTH
             mp_ApplyFormatter = mp_FormatUaDateDayWithMonth(CStr(sourceValue))
+        Case FORMATTER_CALENDAR_DAYS_UA
+            mp_ApplyFormatter = ex_DateHelpers.m_FormatCalendarDaysUa(CStr(sourceValue))
+        Case FORMATTER_SURNAME_INITIALS
+            mp_ApplyFormatter = mp_FormatSurnameInitials(CStr(sourceValue))
+        Case FORMATTER_FIO_SURNAME
+            mp_ApplyFormatter = mp_FormatFioSurname(CStr(sourceValue))
+        Case FORMATTER_FIO_INITIALS
+            mp_ApplyFormatter = mp_FormatFioInitials(CStr(sourceValue))
         Case Else
             Err.Raise vbObjectError + 1766, "ex_ResultTemplatesParser", _
                 "Unsupported formatter '" & formatterName & "'."

@@ -293,7 +293,7 @@
 		<v key="Output.Sheets">StateMain; EventsOut; EventsIn; DailyEvents</v>
 		<v key="Output.Layout.Gap.Default">1</v>
 		<v key=""/>
-		<v key="Export.WordTemplatePath">Templates\DailyTemplate.docx</v>
+		<v key="Export.WordTemplatePath">Templates\Template.docx</v>
 		<v key="Export.OutputMode">CreateWithPostfix</v>
 		<v key="Export.OutputPostfix">_result</v>
 		<v key="Export.InsertMode">AppendToTop</v>

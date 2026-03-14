@@ -60,6 +60,66 @@ Public Function m_ToTitleCaseWord(ByVal textValue As String) As String
     m_ToTitleCaseWord = mp_ToTitleCaseWord(textValue)
 End Function
 
+Public Function m_ToShortFioNormalized(ByVal sourceText As String) As String
+    Dim surname As String
+    Dim initials As String
+
+    surname = m_ToFioSurnameNormalized(sourceText)
+    initials = m_ToFioInitials(sourceText)
+
+    m_ToShortFioNormalized = mp_ToTitleCaseWord(surname)
+    If Len(initials) > 0 Then
+        If Len(m_ToShortFioNormalized) > 0 Then
+            m_ToShortFioNormalized = m_ToShortFioNormalized & " " & initials
+        Else
+            m_ToShortFioNormalized = initials
+        End If
+    End If
+End Function
+
+Public Function m_ToFioSurnameNormalized(ByVal sourceText As String) As String
+    Dim normalized As String
+    Dim surname As String
+    Dim firstName As String
+    Dim patronymic As String
+
+    normalized = mp_NormalizeFioInput(CStr(sourceText))
+    If Len(normalized) = 0 Then Exit Function
+
+    If Not mp_TryParseFio(normalized, surname, firstName, patronymic) Then
+        m_ToFioSurnameNormalized = normalized
+        Exit Function
+    End If
+
+    m_ToFioSurnameNormalized = surname
+End Function
+
+Public Function m_ToFioInitials(ByVal sourceText As String) As String
+    Dim normalized As String
+    Dim surname As String
+    Dim firstName As String
+    Dim patronymic As String
+    Dim firstInitial As String
+    Dim patronymicInitial As String
+
+    normalized = mp_NormalizeFioInput(CStr(sourceText))
+    If Len(normalized) = 0 Then Exit Function
+
+    If Not mp_TryParseFio(normalized, surname, firstName, patronymic) Then
+        Exit Function
+    End If
+
+    If Len(firstName) > 0 Then firstInitial = UCase$(Left$(firstName, 1))
+    If Len(patronymic) > 0 Then patronymicInitial = UCase$(Left$(patronymic, 1))
+
+    If Len(firstInitial) > 0 Then
+        m_ToFioInitials = firstInitial & "."
+    End If
+    If Len(patronymicInitial) > 0 Then
+        m_ToFioInitials = m_ToFioInitials & patronymicInitial & "."
+    End If
+End Function
+
 Public Function m_LowercaseFirstLetter(ByVal sourceText As String) As String
     m_LowercaseFirstLetter = mp_LowercaseFirstLetter(sourceText)
 End Function

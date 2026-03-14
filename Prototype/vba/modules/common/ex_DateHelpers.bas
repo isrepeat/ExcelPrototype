@@ -192,6 +192,21 @@ Public Function m_IsSameMonth(ByVal leftDateText As String, ByVal rightDateText 
     m_IsSameMonth = (leftMonth = rightMonth)
 End Function
 
+Public Function m_FormatCalendarDaysUa(ByVal dayCountText As String) As String
+    Dim dayCount As Long
+    Dim normalized As String
+
+    normalized = Trim$(CStr(dayCountText))
+    If Len(normalized) = 0 Then
+        Err.Raise vbObjectError + 1808, "ex_DateHelpers", "FormatCalendarDaysUa: day count is empty."
+    End If
+    If Not ex_XmlCore.m_TryParseLong(normalized, dayCount) Then
+        Err.Raise vbObjectError + 1809, "ex_DateHelpers", "FormatCalendarDaysUa: invalid integer day count '" & normalized & "'."
+    End If
+
+    m_FormatCalendarDaysUa = CStr(dayCount) & " " & mp_GetUaCalendarDaysPhrase(dayCount)
+End Function
+
 Private Function mp_TryParseMonth(ByVal sourceDateText As String, ByRef outMonth As Long) As Boolean
     Dim dayValue As Long
     Dim monthValue As Long
@@ -303,5 +318,33 @@ Private Function mp_GetUaMonthGenitiveName(ByVal monthNumber As Long) As String
         Case 12: mp_GetUaMonthGenitiveName = "грудня"
         Case Else
             Err.Raise vbObjectError + 1807, "ex_DateHelpers", "Invalid month number '" & CStr(monthNumber) & "' for date formatting."
+    End Select
+End Function
+
+Private Function mp_GetUaCalendarDaysPhrase(ByVal dayCount As Long) As String
+    Dim absDayCount As Long
+    Dim mod10 As Long
+    Dim mod100 As Long
+
+    absDayCount = Abs(dayCount)
+    mod10 = absDayCount Mod 10
+    mod100 = absDayCount Mod 100
+
+    If mod100 >= 11 And mod100 <= 14 Then
+        mp_GetUaCalendarDaysPhrase = "календарних днів"
+        Exit Function
+    End If
+
+    Select Case mod10
+        Case 1
+            mp_GetUaCalendarDaysPhrase = "календарний день"
+        Case 2
+            mp_GetUaCalendarDaysPhrase = "календарних дня"
+        Case 3
+            mp_GetUaCalendarDaysPhrase = "календарних дні"
+        Case 4
+            mp_GetUaCalendarDaysPhrase = "календарних дня"
+        Case Else
+            mp_GetUaCalendarDaysPhrase = "календарних днів"
     End Select
 End Function
