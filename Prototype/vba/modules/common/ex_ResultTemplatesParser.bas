@@ -970,6 +970,7 @@ Private Function mp_RunExternalTemplateHelper(ByVal helperRef As String, ByVal a
     If argCount > 0 Then
         ReDim parsedArgs(0 To argCount - 1)
         For i = 0 To argCount - 1
+            mp_ValidateTemplateHelperArgumentRaw CStr(args(i)), helperRef, i + 1
             parsedArgs(i) = mp_ParseTemplateHelperArgument(CStr(args(i)))
         Next i
     End If
@@ -1028,6 +1029,56 @@ Private Function mp_ParseTemplateHelperArgument(ByVal argText As String) As Vari
     End If
 
     mp_ParseTemplateHelperArgument = normalized
+End Function
+
+Private Sub mp_ValidateTemplateHelperArgumentRaw( _
+    ByVal rawArgText As String, _
+    ByVal helperRef As String, _
+    ByVal argIndex As Long _
+)
+    Dim normalized As String
+    Dim checkText As String
+    Dim placeholderToken As String
+
+    normalized = mp_TrimWhitespace(CStr(rawArgText))
+    If Len(normalized) = 0 Then Exit Sub
+
+    ' Escaped braces are allowed: \{ and \}
+    checkText = Replace(normalized, "\{", vbNullString)
+    checkText = Replace(checkText, "\}", vbNullString)
+
+    placeholderToken = mp_FindFirstPlaceholderLikeToken(checkText)
+    If Len(placeholderToken) > 0 Then
+        Err.Raise vbObjectError + 1810, "ex_ResultTemplatesParser", _
+            "Template helper '" & helperRef & "' argument #" & CStr(argIndex) & _
+            " contains unresolved placeholder '" & placeholderToken & "'. " & _
+            "Ensure placeholders are resolved before '#let $<MODULE>.<METHOD>(...)'."
+    End If
+
+    If InStr(1, checkText, "{", vbBinaryCompare) > 0 Or InStr(1, checkText, "}", vbBinaryCompare) > 0 Then
+        Err.Raise vbObjectError + 1811, "ex_ResultTemplatesParser", _
+            "Template helper '" & helperRef & "' argument #" & CStr(argIndex) & _
+            " contains unescaped '{' or '}'. Use '\{' and '\}' for literal braces."
+    End If
+End Sub
+
+Private Function mp_FindFirstPlaceholderLikeToken(ByVal sourceText As String) As String
+    Dim rx As Object
+    Dim matches As Object
+
+    sourceText = CStr(sourceText)
+    If Len(sourceText) = 0 Then Exit Function
+
+    Set rx = CreateObject("VBScript.RegExp")
+    rx.Global = False
+    rx.IgnoreCase = False
+    rx.Pattern = "\{[A-Za-z_#][^{}]*\}"
+
+    Set matches = rx.Execute(sourceText)
+    If matches Is Nothing Then Exit Function
+    If matches.Count = 0 Then Exit Function
+
+    mp_FindFirstPlaceholderLikeToken = CStr(matches(0).Value)
 End Function
 
 Private Function mp_NormalizeTemplateHelperResult(ByVal resultValue As Variant, ByVal helperRef As String) As String

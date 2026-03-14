@@ -68,8 +68,6 @@
   <template id="FromOutpatientExaminationOrVlk">
     <text>
       <![CDATA[#^
-#_      після проходження військово-лікарської комісії:
-
 #_      {Rank|accusative} {FIO|accusative}, {Position|accusative|lowerFirstLetter}.
 
 #_      Підстава: рапорт {RaportFrom} (вх. № 1656/{InNum}-в від {InDate}), #^
@@ -121,7 +119,7 @@
 #_      {#endif}#^
 #_      Зняти з котлового забезпечення з {OutDate|dateformat:"\dd \month"} 2026 року.
 
-#_      Підстава: рапорт {RaportFrom} (вх. № 1656/{InNum}-в від {InDate}), #^
+#_      Підстава: рапорт {Rank|accusative|lowerFirstLetter} {FIO|genitive|fioSurname|capitalize} {FIO|fioInitials} (вх. № 1656/{InNum}-в від {InDate}), #^
 #_      відпускний квиток № 3/71/{VkNum} від {VkDate}.#^
 #_    ]]>
     </text>
@@ -153,7 +151,7 @@
 #_      {#endif}#^
 #_      Зняти з котлового забезпечення з {OutDate|dateformat:"\dd \month"} 2026 року.
 
-#_      Підстава: рапорт {RaportFrom} (вх. № 1656/{InNum}-в від {InDate}), #^
+#_      Підстава: рапорт {Rank|accusative|lowerFirstLetter} {FIO|genitive|fioSurname|capitalize} {FIO|fioInitials} (вх. № 1656/{InNum}-в від {InDate}), #^
 #_      відпускний квиток № 3/71/{VkNum} від {VkDate}.#^
 #_    ]]>
     </text>
@@ -194,8 +192,6 @@
   <template id="ToOutpatientExaminationOrVlk">
     <text>
       <![CDATA[#^
-#_      на проходження військово-лікарської комісії:
-
 #_      {Rank|accusative} {FIO|accusative}, {Position|accusative|lowerFirstLetter}.
 
 #_      Підстава: рапорт {RaportFrom} (вх. № 1656/{InNum}-в від {InDate}).#^
@@ -219,7 +215,7 @@
 #_      з {OutDate|dateformat:"\dd \month"} по {ReturnDate|dateformat:"\dd \month"} 2026 року.
 #_      {#endif}#^
 
-#_      Підстава: рапорт {RaportFrom} (вх. № 1656/{InNum}-в від {InDate}), #^
+#_      Підстава: рапорт {Rank|accusative|lowerFirstLetter} {FIO|genitive|fioSurname|capitalize} {FIO|fioInitials} (вх. № 1656/{InNum}-в від {InDate}), #^
 #_      довідка військово-лікарської комісії № {VlkNum} від {VlkDate}, #^
 #_      виписка із медичної карти стаціонарного хворого № {DocNum} від {DocDate}, #^
 #_      відпускний квиток № 3/71/{VkNum} від {VkDate}.#^
@@ -243,7 +239,7 @@
 #_      з {OutDate|dateformat:"\dd \month"} по {ReturnDate|dateformat:"\dd \month"} 2026 року.
 #_      {#endif}#^
 
-#_      Підстава: рапорт {RaportFrom} (вх. № 1656/{InNum}-в від {InDate}), #^
+#_      Підстава: рапорт {Rank|accusative|lowerFirstLetter} {FIO|genitive|fioSurname|capitalize} {FIO|fioInitials} (вх. № 1656/{InNum}-в від {InDate}), #^
 #_      довідка військово-лікарської комісії № {VlkNum} від {VlkDate}, #^
 #_      відпускний квиток № 3/71/{VkNum} від {VkDate}.#^
 #_    ]]>

@@ -181,12 +181,31 @@ End Function
 Public Function m_IsSameMonth(ByVal leftDateText As String, ByVal rightDateText As String) As Boolean
     Dim leftMonth As Long
     Dim rightMonth As Long
+    Dim normalizedLeft As String
+    Dim normalizedRight As String
 
-    If Not mp_TryParseMonth(leftDateText, leftMonth) Then
-        Err.Raise vbObjectError + 1786, "ex_DateHelpers", "IsSameMonth: invalid first date '" & CStr(leftDateText) & "'."
+    normalizedLeft = Trim$(CStr(leftDateText))
+    normalizedRight = Trim$(CStr(rightDateText))
+
+    If mp_IsUnresolvedTemplateToken(normalizedLeft) Then
+        Err.Raise vbObjectError + 1810, "ex_DateHelpers", "IsSameMonth: first date contains unresolved placeholder '" & normalizedLeft & "'. Expected concrete date (dd.mm or dd.mm.yyyy). Check DateFrom/OutDate placeholder replacement in post-process script."
     End If
-    If Not mp_TryParseMonth(rightDateText, rightMonth) Then
-        Err.Raise vbObjectError + 1787, "ex_DateHelpers", "IsSameMonth: invalid second date '" & CStr(rightDateText) & "'."
+    If mp_IsUnresolvedTemplateToken(normalizedRight) Then
+        Err.Raise vbObjectError + 1811, "ex_DateHelpers", "IsSameMonth: second date contains unresolved placeholder '" & normalizedRight & "'. Expected concrete date (dd.mm or dd.mm.yyyy). Check DateTo/ReturnDate placeholder replacement in post-process script."
+    End If
+
+    If Len(normalizedLeft) = 0 Or normalizedLeft = "?" Then
+        Err.Raise vbObjectError + 1812, "ex_DateHelpers", "IsSameMonth: first date is empty or '?'. Expected concrete date (dd.mm or dd.mm.yyyy)."
+    End If
+    If Len(normalizedRight) = 0 Or normalizedRight = "?" Then
+        Err.Raise vbObjectError + 1813, "ex_DateHelpers", "IsSameMonth: second date is empty or '?'. Expected concrete date (dd.mm or dd.mm.yyyy)."
+    End If
+
+    If Not mp_TryParseMonth(normalizedLeft, leftMonth) Then
+        Err.Raise vbObjectError + 1786, "ex_DateHelpers", "IsSameMonth: invalid first date '" & normalizedLeft & "'. Expected format dd.mm or dd.mm.yyyy."
+    End If
+    If Not mp_TryParseMonth(normalizedRight, rightMonth) Then
+        Err.Raise vbObjectError + 1787, "ex_DateHelpers", "IsSameMonth: invalid second date '" & normalizedRight & "'. Expected format dd.mm or dd.mm.yyyy."
     End If
 
     m_IsSameMonth = (leftMonth = rightMonth)
@@ -347,4 +366,14 @@ Private Function mp_GetUaCalendarDaysPhrase(ByVal dayCount As Long) As String
         Case Else
             mp_GetUaCalendarDaysPhrase = "календарних днів"
     End Select
+End Function
+
+Private Function mp_IsUnresolvedTemplateToken(ByVal sourceText As String) As Boolean
+    Dim normalized As String
+
+    normalized = Trim$(CStr(sourceText))
+    If Len(normalized) < 3 Then Exit Function
+
+    mp_IsUnresolvedTemplateToken = _
+        (Left$(normalized, 1) = "{") And (Right$(normalized, 1) = "}")
 End Function

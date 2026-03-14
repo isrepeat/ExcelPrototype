@@ -11,6 +11,7 @@ Private Const EXPORT_INSERT_MODE_APPEND_TOP As String = "APPENDTOTOP"
 Private Const EXPORT_INSERT_MODE_APPEND_BOTTOM As String = "APPENDTOBOTTOM"
 Private Const EXPORT_RUNTIME_WORD_RESULTS_PLACE As String = "Export.RuntimeDataBase.WordResultsPlace"
 Private Const EXPORT_RUNTIME_WORD_PASTE_ANCHOR As String = "Export.RuntimeDataBase.WordPasteAnchor"
+Private Const EXPORT_RUNTIME_WORD_ANCHOR_PREFIX As String = "Export.RuntimeDataBase.WordAnchor."
 Private Const EXPORT_APPEND_SEPARATOR As String = vbCrLf & vbCrLf
 Private Const EXPORT_BOOKMARK_PREFIX As String = "EP_Anchor_"
 Private Const EXPORT_BOOKMARK_MAX_LEN As Long = 40
@@ -34,6 +35,8 @@ Public Sub m_API_ExportActiveSheetFooterPlaceholderReport()
     Dim wordPasteAnchor As String
     Dim sourceText As String
     Dim currentExportHash As String
+    Dim placeholderMapFromAnchors As Object
+    Dim hasMultiRuntimeAnchors As Boolean
 
     On Error GoTo EH
 
@@ -59,28 +62,39 @@ Public Sub m_API_ExportActiveSheetFooterPlaceholderReport()
         Err.Raise vbObjectError + 1766, "ex_WordPlaceholderReports", "Unable to build output path by mode '" & outputMode & "' from template path: " & templatePath
     End If
 
-    wordResultsPlace = Trim$(ex_PostProcessActions.m_GetRuntimeData(EXPORT_RUNTIME_WORD_RESULTS_PLACE, vbNullString, ws))
-    If Len(wordResultsPlace) = 0 Then
-        Err.Raise vbObjectError + 1774, "ex_WordPlaceholderReports", _
-            "Missing runtime export value '" & EXPORT_RUNTIME_WORD_RESULTS_PLACE & "'. " & _
-            "Run Search -> Post Process and ensure at least one export results block was generated."
+    Set placeholderMapFromAnchors = mp_BuildPlaceholderMapFromRuntimeAnchors(ws)
+    If Not placeholderMapFromAnchors Is Nothing Then
+        If placeholderMapFromAnchors.Count > 0 Then
+            hasMultiRuntimeAnchors = True
+            Set placeholderMap = placeholderMapFromAnchors
+            currentExportHash = mp_ComputeTextHashHex(mp_BuildPlaceholderMapHashSource(placeholderMap))
+        End If
     End If
 
-    wordPasteAnchor = Trim$(ex_PostProcessActions.m_GetRuntimeData(EXPORT_RUNTIME_WORD_PASTE_ANCHOR, vbNullString, ws))
-    If Len(wordPasteAnchor) = 0 Then
-        Err.Raise vbObjectError + 1775, "ex_WordPlaceholderReports", _
-            "Missing runtime export value '" & EXPORT_RUNTIME_WORD_PASTE_ANCHOR & "'. " & _
-            "Run Post Process to prepare export anchor."
+    If Not hasMultiRuntimeAnchors Then
+        wordResultsPlace = Trim$(ex_PostProcessActions.m_GetRuntimeData(EXPORT_RUNTIME_WORD_RESULTS_PLACE, vbNullString, ws))
+        If Len(wordResultsPlace) = 0 Then
+            Err.Raise vbObjectError + 1774, "ex_WordPlaceholderReports", _
+                "Missing runtime export value '" & EXPORT_RUNTIME_WORD_RESULTS_PLACE & "'. " & _
+                "Run Search -> Post Process and ensure at least one export results block was generated."
+        End If
+
+        wordPasteAnchor = Trim$(ex_PostProcessActions.m_GetRuntimeData(EXPORT_RUNTIME_WORD_PASTE_ANCHOR, vbNullString, ws))
+        If Len(wordPasteAnchor) = 0 Then
+            Err.Raise vbObjectError + 1775, "ex_WordPlaceholderReports", _
+                "Missing runtime export value '" & EXPORT_RUNTIME_WORD_PASTE_ANCHOR & "'. " & _
+                "Run Post Process to prepare export anchor."
+        End If
+
+        sourceText = mp_ReadSheetTextByRuntimePointer(ws, wordResultsPlace)
+        currentExportHash = mp_ComputeTextHashHex(wordPasteAnchor & vbLf & sourceText)
+        Set placeholderMap = m_BuildPlaceholderMapFromPairs(wordPasteAnchor, sourceText)
     End If
 
-    sourceText = mp_ReadSheetTextByRuntimePointer(ws, wordResultsPlace)
-    currentExportHash = mp_ComputeTextHashHex(wordPasteAnchor & vbLf & sourceText)
     If Not mp_ConfirmProceedForExportHash(ws, currentExportHash) Then
         ex_Messaging.m_ShowNotice "Export canceled.", 3
         Exit Sub
     End If
-
-    Set placeholderMap = m_BuildPlaceholderMapFromPairs(wordPasteAnchor, sourceText)
 
     reportPath = m_CreateWordReportFromTemplate(templatePath, outputPath, placeholderMap, True, insertMode)
     mp_SaveLastExportHash ws, currentExportHash
@@ -89,6 +103,84 @@ Public Sub m_API_ExportActiveSheetFooterPlaceholderReport()
 
 EH:
     MsgBox "Word footer export failed: " & Err.Description, vbExclamation
+End Sub
+
+Private Function mp_BuildPlaceholderMapFromRuntimeAnchors(ByVal ws As Worksheet) As Object
+    Dim runtimeEntries As Object
+    Dim result As Object
+    Dim dataKey As Variant
+    Dim normalizedPrefix As String
+    Dim anchorName As String
+    Dim valueText As String
+    Dim keyText As String
+
+    If ws Is Nothing Then Exit Function
+
+    Set runtimeEntries = ex_PostProcessActions.m_GetRuntimeDataEntriesByPrefix(EXPORT_RUNTIME_WORD_ANCHOR_PREFIX, ws)
+    If runtimeEntries Is Nothing Then Exit Function
+    If runtimeEntries.Count = 0 Then Exit Function
+
+    Set result = CreateObject("Scripting.Dictionary")
+    result.CompareMode = 1 ' vbTextCompare
+    normalizedPrefix = LCase$(EXPORT_RUNTIME_WORD_ANCHOR_PREFIX)
+
+    For Each dataKey In runtimeEntries.Keys
+        keyText = LCase$(CStr(dataKey))
+        If StrComp(Left$(keyText, Len(normalizedPrefix)), normalizedPrefix, vbBinaryCompare) <> 0 Then
+            GoTo ContinueKey
+        End If
+        anchorName = Mid$(CStr(dataKey), Len(normalizedPrefix) + 1)
+        If Len(Trim$(anchorName)) = 0 Then GoTo ContinueKey
+
+        valueText = CStr(runtimeEntries(CStr(dataKey)))
+        result(anchorName) = valueText
+ContinueKey:
+    Next dataKey
+
+    If result.Count > 0 Then Set mp_BuildPlaceholderMapFromRuntimeAnchors = result
+End Function
+
+Private Function mp_BuildPlaceholderMapHashSource(ByVal placeholderMap As Object) As String
+    Dim keys() As String
+    Dim token As Variant
+    Dim i As Long
+
+    If placeholderMap Is Nothing Then Exit Function
+    If placeholderMap.Count = 0 Then Exit Function
+
+    ReDim keys(0 To placeholderMap.Count - 1)
+    i = 0
+    For Each token In placeholderMap.Keys
+        keys(i) = CStr(token)
+        i = i + 1
+    Next token
+
+    mp_SortTextArray keys
+
+    For i = LBound(keys) To UBound(keys)
+        mp_BuildPlaceholderMapHashSource = mp_BuildPlaceholderMapHashSource & _
+            "{" & keys(i) & "}=" & CStr(placeholderMap(keys(i))) & vbLf
+    Next i
+End Function
+
+Private Sub mp_SortTextArray(ByRef values() As String)
+    Dim i As Long
+    Dim j As Long
+    Dim tmp As String
+
+    On Error GoTo EmptyArray
+    For i = LBound(values) To UBound(values) - 1
+        For j = i + 1 To UBound(values)
+            If StrComp(values(i), values(j), vbTextCompare) > 0 Then
+                tmp = values(i)
+                values(i) = values(j)
+                values(j) = tmp
+            End If
+        Next j
+    Next i
+    Exit Sub
+
+EmptyArray:
 End Sub
 
 Public Function m_CreateWordReportFromTemplate( _
