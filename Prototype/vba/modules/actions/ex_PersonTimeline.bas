@@ -82,6 +82,7 @@ Private Function mp_BuildAdoLookupCacheSignature(ByVal cfg As Object) As String
     Dim j As Long
     Dim tableAlias As String
     Dim sourceAlias As String
+    Dim sourcePrefix As String
     Dim keyAlias As String
     Dim columnsRaw As String
     Dim fieldAlias As String
@@ -112,12 +113,16 @@ Private Function mp_BuildAdoLookupCacheSignature(ByVal cfg As Object) As String
 
         sourceAlias = mp_GetCfgOptional(cfg, "Output.Sheet[" & tableAlias & "].SourceAlias", vbNullString)
         If Len(sourceAlias) = 0 Then sourceAlias = tableAlias
+        sourcePrefix = "Source." & sourceAlias
 
         keyAlias = mp_GetCfgOptional(cfg, sourceAlias & ".Sheet[" & tableAlias & "].Key", vbNullString)
         columnsRaw = mp_GetCfgOptional(cfg, sourceAlias & ".Sheet[" & tableAlias & "].Columns", vbNullString)
         signature = signature & "|tbl=" & sourceAlias & ":" & tableAlias & _
-                    "|fp=" & mp_GetCfgOptional(cfg, sourceAlias & ".FilePath", vbNullString) & _
-                    "|hh=" & mp_GetCfgOptional(cfg, sourceAlias & ".HasHeaders", vbNullString) & _
+                    "|fp=" & mp_GetCfgOptional(cfg, sourcePrefix & ".FilePath", vbNullString) & _
+                    "|fr=" & mp_GetCfgOptional(cfg, sourcePrefix & ".FileResolver", vbNullString) & _
+                    "|fra=" & mp_GetCfgOptional(cfg, sourcePrefix & ".FileResolverArgs", vbNullString) & _
+                    "|fpr=" & mp_GetSourcePathSignatureValue(cfg, sourceAlias) & _
+                    "|hh=" & mp_GetCfgOptional(cfg, sourcePrefix & ".HasHeaders", vbNullString) & _
                     "|sn=" & mp_GetCfgOptional(cfg, sourceAlias & ".Sheet[" & tableAlias & "].SheetName", vbNullString) & _
                     "|rsm=" & mp_GetCfgOptional(cfg, sourceAlias & ".Sheet[" & tableAlias & "].RangeStartMarker", vbNullString) & _
                     "|rem=" & mp_GetCfgOptional(cfg, sourceAlias & ".Sheet[" & tableAlias & "].RangeEndMarker", vbNullString) & _
@@ -181,16 +186,14 @@ End Sub
 
 Private Function mp_ValidateTimelineEntryConfig(ByRef outErrorText As String) As Boolean
     Dim cfg As Object
-    Dim cfgStyles As Object
     Dim mode As OutputMode
 
     On Error GoTo EH
 
     Set cfg = mp_LoadConfigDictionary()
-    Set cfgStyles = ex_ConfigProvider.m_GetConfigStylesDictionary()
     mode = ex_Settings.m_GetOutputMode()
 
-    mp_ValidateTimelineEntryConfig = mp_ValidateTimelineConfig(cfg, cfgStyles, mode, outErrorText)
+    mp_ValidateTimelineEntryConfig = mp_ValidateTimelineConfig(cfg, mode, outErrorText)
     Exit Function
 
 EH:
@@ -232,14 +235,11 @@ Public Sub m_ShowPersonTimeline(ByVal fio As String)
     Set cfg = mp_LoadConfigDictionary()
     mp_EnsureAdoLookupCaches cfg
 
-    Dim cfgStyles As Object
-    Set cfgStyles = ex_ConfigProvider.m_GetConfigStylesDictionary()
-
     Dim mode As OutputMode
     mode = ex_Settings.m_GetOutputMode()
 
     Dim validationError As String
-    If Not mp_ValidateTimelineConfig(cfg, cfgStyles, mode, validationError) Then
+    If Not mp_ValidateTimelineConfig(cfg, mode, validationError) Then
         Application.EnableEvents = prevEnableEvents
         Application.DisplayAlerts = prevDisplayAlerts
         Application.ScreenUpdating = prevScreenUpdating
@@ -377,7 +377,7 @@ ContinueAlias:
     If hasOutputStyle Then
         ex_OutputPanel.m_RenderForSheet wsOut, outputStyle
     End If
-    mp_ApplyTimelineStyleLayers wsOut, headerRows, sectionRows, resultFieldRanges, resultTables, cfgStyles, partialMatchRowRanges, hasOutputStyle, outputStyle, pendingWarningBanners
+    mp_ApplyTimelineStyleLayers wsOut, headerRows, sectionRows, resultFieldRanges, resultTables, partialMatchRowRanges, hasOutputStyle, outputStyle, pendingWarningBanners
     mp_RenderPendingWarningBanners wsOut, pendingWarningBanners
 
     mp_StorePostProcessContext cfg, resultTables, (partialMatchRowRanges.Count > 0)
@@ -513,7 +513,6 @@ End Function
 
 Private Function mp_ValidateTimelineConfig( _
     ByVal cfg As Object, _
-    ByVal cfgStyles As Object, _
     ByVal mode As OutputMode, _
     ByRef outErrorText As String _
 ) As Boolean
@@ -602,7 +601,7 @@ ContinueAlias:
         activeModeKey = ex_ConfigProfilesManager.m_GetActiveModeKey(ws_Dev)
         If Not ex_StylePipelineEngine.m_ValidateColumnStylesPipeline( _
             resultFieldRanges, _
-            cfgStyles, _
+            Nothing, _
             activeModeKey, _
             outErrorText, _
             ThisWorkbook, _
@@ -1168,7 +1167,7 @@ Private Function mp_BuildAdoRangeReferenceFromMarkers( _
             sourceAlias & ".Sheet[" & tableAlias & "].SheetName."
     End If
 
-    sourcePath = mp_ResolvePathLocal(mp_GetCfgRequired(cfg, "Source." & sourceAlias & ".FilePath"))
+    sourcePath = mp_GetResolvedSourcePath(cfg, sourceAlias)
     If Dir(sourcePath) = vbNullString Then
         Err.Raise vbObjectError + 1360, "ex_PersonTimeline", "Source file not found: " & sourcePath
     End If
@@ -1713,24 +1712,20 @@ Private Sub mp_ApplyTimelineStyleLayers( _
     ByVal sectionRows As Collection, _
     ByVal resultFieldRanges As Collection, _
     ByVal resultTables As Collection, _
-    ByVal cfgStyles As Object, _
     ByVal partialMatchRowRanges As Collection, _
     ByVal hasOutputStyle As Boolean, _
     ByRef outputStyle As t_OutputSheetStyle, _
     ByVal pendingWarningBanners As Collection _
 )
     Dim rowKindRanges As Object
-    Dim configRowKindRanges As Object
     Dim partialRowKindRanges As Object
     Dim fetchDslRowKindRanges As Object
     Dim runtimeLayers As Collection
     Dim runtimeLayer As obj_StyleLayer
 
     Set rowKindRanges = mp_BuildTimelineRowKindRanges(headerRows, sectionRows, resultFieldRanges)
-    Set configRowKindRanges = mp_BuildConfigStyleRowKindRanges(resultFieldRanges, cfgStyles)
     Set partialRowKindRanges = mp_BuildPartialMatchRowKindRanges(partialMatchRowRanges)
     Set fetchDslRowKindRanges = mp_BuildFetchDslRowKindRanges(resultTables)
-    mp_MergeRowKindRanges rowKindRanges, configRowKindRanges
     mp_MergeRowKindRanges rowKindRanges, partialRowKindRanges
     mp_MergeRowKindRanges rowKindRanges, fetchDslRowKindRanges
 
@@ -1741,7 +1736,7 @@ Private Sub mp_ApplyTimelineStyleLayers( _
         If Not runtimeLayer Is Nothing Then runtimeLayers.Add runtimeLayer
     End If
 
-    ex_OutputFormattingPipeline.m_ApplySheetPipeline ws, resultFieldRanges, cfgStyles, rowKindRanges, vbNullString, False, runtimeLayers
+    ex_OutputFormattingPipeline.m_ApplySheetPipeline ws, resultFieldRanges, Nothing, rowKindRanges, vbNullString, False, runtimeLayers
 End Sub
 
 Private Function mp_BuildFetchDslRowKindRanges(ByVal resultTables As Collection) As Object
@@ -1864,58 +1859,6 @@ Private Sub mp_MergeRowKindRanges(ByVal targetRanges As Object, ByVal sourceRang
 ContinueKind:
     Next kindName
 End Sub
-
-Private Function mp_BuildConfigStyleRowKindRanges( _
-    ByVal resultFieldRanges As Collection, _
-    ByVal cfgStyles As Object _
-) As Object
-    Dim result As Object
-    Dim configStyleRanges As Collection
-    Dim dedupe As Object
-    Dim target As Object
-    Dim mapKey As String
-    Dim styleText As String
-    Dim rowStart As Long
-    Dim rowEnd As Long
-    Dim dedupeKey As String
-    Dim rowItem As Object
-
-    Set result = CreateObject("Scripting.Dictionary")
-    result.CompareMode = 1
-    Set configStyleRanges = New Collection
-    Set dedupe = CreateObject("Scripting.Dictionary")
-    dedupe.CompareMode = 1
-
-    If Not resultFieldRanges Is Nothing And Not cfgStyles Is Nothing Then
-        For Each target In resultFieldRanges
-            If target Is Nothing Then GoTo ContinueTarget
-            mapKey = Trim$(CStr(target("MapKey")))
-            If Len(mapKey) = 0 Then GoTo ContinueTarget
-            If Not cfgStyles.Exists(mapKey) Then GoTo ContinueTarget
-            styleText = Trim$(CStr(cfgStyles(mapKey)))
-            If Len(styleText) = 0 Then GoTo ContinueTarget
-
-            rowStart = CLng(target("RowStart"))
-            rowEnd = CLng(target("RowEnd"))
-            If rowStart <= 0 Then GoTo ContinueTarget
-            If rowEnd < rowStart Then rowEnd = rowStart
-
-            dedupeKey = CStr(rowStart) & ":" & CStr(rowEnd)
-            If dedupe.Exists(dedupeKey) Then GoTo ContinueTarget
-            dedupe(dedupeKey) = True
-
-            Set rowItem = CreateObject("Scripting.Dictionary")
-            rowItem.CompareMode = 1
-            rowItem("RowStart") = rowStart
-            rowItem("RowEnd") = rowEnd
-            configStyleRanges.Add rowItem
-ContinueTarget:
-        Next target
-    End If
-
-    Set result("configstyle") = configStyleRanges
-    Set mp_BuildConfigStyleRowKindRanges = result
-End Function
 
 Private Function mp_BuildPartialMatchRowKindRanges(ByVal partialMatchRowRanges As Collection) As Object
     Dim result As Object
@@ -2620,7 +2563,6 @@ Private Function mp_GetSourceAliases(ByVal cfg As Object) As Variant
 End Function
 
 Private Function mp_GetConnectionForSource(ByVal connCache As Object, ByVal cfg As Object, ByVal sourceAlias As String) As Object
-    Dim fileKey As String
     Dim sourcePath As String
     Dim snapshotPath As String
     Dim conn As Object
@@ -2630,8 +2572,7 @@ Private Function mp_GetConnectionForSource(ByVal connCache As Object, ByVal cfg 
         Exit Function
     End If
 
-    fileKey = "Source." & sourceAlias & ".FilePath"
-    sourcePath = mp_ResolvePathLocal(mp_GetCfgRequired(cfg, fileKey))
+    sourcePath = mp_GetResolvedSourcePath(cfg, sourceAlias)
 
     If Dir(sourcePath) = vbNullString Then
         Err.Raise vbObjectError + 1360, "ex_PersonTimeline", "Source file not found: " & sourcePath
@@ -3488,10 +3429,7 @@ Private Function mp_GetWorkbookForSource(ByVal wbCache As Object, ByVal cfg As O
         Exit Function
     End If
 
-    Dim fileKey As String
-    fileKey = "Source." & sourceAlias & ".FilePath"
-
-    sourcePath = mp_ResolvePathLocal(mp_GetCfgRequired(cfg, fileKey))
+    sourcePath = mp_GetResolvedSourcePath(cfg, sourceAlias)
 
     If Dir(sourcePath) = vbNullString Then
         Err.Raise vbObjectError + 1360, "ex_PersonTimeline", "Source file not found: " & sourcePath
@@ -4170,6 +4108,82 @@ Private Function mp_TryParseDate(ByVal valueIn As Variant, ByRef dateOut As Date
 
 EH:
     mp_TryParseDate = False
+End Function
+
+Private Function mp_GetResolvedSourcePath(ByVal cfg As Object, ByVal sourceAlias As String) As String
+    Dim sourcePrefix As String
+    Dim fileKey As String
+    Dim resolverKey As String
+    Dim resolverArgsKey As String
+    Dim rawPath As String
+    Dim resolverName As String
+    Dim resolverCallName As String
+    Dim resolverArgs As String
+    Dim resolvedValue As Variant
+    Dim resolvedPath As String
+
+    sourcePrefix = "Source." & Trim$(sourceAlias)
+    fileKey = sourcePrefix & ".FilePath"
+    resolverKey = sourcePrefix & ".FileResolver"
+    resolverArgsKey = sourcePrefix & ".FileResolverArgs"
+
+    rawPath = mp_GetCfgRequired(cfg, fileKey)
+    resolverName = mp_GetCfgOptional(cfg, resolverKey, vbNullString)
+    resolverArgs = mp_GetCfgOptional(cfg, resolverArgsKey, vbNullString)
+
+    If Len(resolverName) = 0 Then
+        If mp_HasPlaceholderTokens(rawPath) Then
+            Err.Raise vbObjectError + 1762, "ex_PersonTimeline", _
+                "Source path contains placeholders but no resolver is configured for key '" & fileKey & "'. " & _
+                "Set '" & resolverKey & "' (for example: ex_SourceResolvers.m_ResolveLatestByDmyPattern)."
+        End If
+
+        mp_GetResolvedSourcePath = mp_ResolvePathLocal(rawPath)
+        Exit Function
+    End If
+
+    If InStr(1, resolverName, "!", vbBinaryCompare) > 0 Then
+        resolverCallName = resolverName
+    Else
+        resolverCallName = "'" & ThisWorkbook.Name & "'!" & resolverName
+    End If
+
+    On Error GoTo ResolverEH
+    resolvedValue = Application.Run(resolverCallName, rawPath, resolverArgs)
+    On Error GoTo 0
+
+    resolvedPath = Trim$(CStr(resolvedValue))
+    If Len(resolvedPath) = 0 Then
+        Err.Raise vbObjectError + 1760, "ex_PersonTimeline", _
+            "Source file resolver '" & resolverName & "' returned an empty path for key '" & fileKey & "'."
+    End If
+
+    mp_GetResolvedSourcePath = mp_ResolvePathLocal(resolvedPath)
+    Exit Function
+
+ResolverEH:
+    Err.Raise vbObjectError + 1761, "ex_PersonTimeline", _
+        "Source file resolver failed for key '" & fileKey & "' (resolver='" & resolverName & "'): " & Err.Description
+End Function
+
+Private Function mp_GetSourcePathSignatureValue(ByVal cfg As Object, ByVal sourceAlias As String) As String
+    On Error GoTo EH
+
+    mp_GetSourcePathSignatureValue = mp_GetResolvedSourcePath(cfg, sourceAlias)
+    Exit Function
+
+EH:
+    mp_GetSourcePathSignatureValue = "#ERR:" & CStr(Err.Number) & ":" & Err.Description
+End Function
+
+Private Function mp_HasPlaceholderTokens(ByVal valueText As String) As Boolean
+    Dim normalized As String
+
+    normalized = Trim$(valueText)
+    If Len(normalized) = 0 Then Exit Function
+
+    mp_HasPlaceholderTokens = (InStr(1, normalized, "{", vbBinaryCompare) > 0) _
+                              And (InStr(1, normalized, "}", vbBinaryCompare) > 0)
 End Function
 
 Private Function mp_ResolvePathLocal(ByVal inputPath As String) As String

@@ -41,7 +41,7 @@
         <rule target="sheet"
               styles="{
                 minWidth:5;
-                maxWidth:30;
+                maxWidth:20;
               }"/>
       </layer>
 
@@ -77,17 +77,34 @@
                 backColor:#222222;
                 fontColor:#EBEBEB;
                 overflow:wrap;
-                rowHeight:32;
+                autoHeight:true;
               }"/>
       </layer>
 
-      <layer name="pc-output-docnote" priority="300" enabled="true">
+      <layer name="pc-output-specificcolumns" priority="300" enabled="true">
+        <rule target="column"
+              selector="mapKey=Daily.Sheet[DailyEvents].Map[InNum]"
+              styles="{
+                width:9;
+                overflow:wrap;
+              }"/>
+        <rule target="column"
+              selector="mapKey=Daily.Sheet[DailyEvents].Map[InDate]"
+              styles="{
+                width:11;
+                overflow:wrap;
+              }"/>
         <rule target="column"
               selector="mapKey=Daily.Sheet[DailyEvents].Map[DocNote]"
               styles="{
                 width:40;
                 overflow:wrap;
-                autoHeight:true;
+              }"/>
+        <rule target="column"
+              selector="mapKey=Daily.Sheet[DailyEvents].Map[VlkNum]"
+              styles="{
+                width:15;
+                overflow:wrap;
               }"/>
       </layer>
 
@@ -110,14 +127,6 @@
               styles="{
                 backColor:#2A2418;
                 fontColor:#F5E6C5;
-              }"/>
-      </layer>
-
-      <layer name="pc-postlayout" priority="400" enabled="true">
-        <rule target="row"
-              selector="kind=configstyle"
-              styles="{
-                autoHeight:true;
               }"/>
       </layer>
 

@@ -4,8 +4,6 @@ Option Explicit
 Private Const PROFILES_NS As String = "urn:excelprototype:profiles"
 Private Const STYLE_PIPELINE_REL_PATH As String = "config\StylePipeline.xml"
 Private Const DEFAULT_STAGE_NAME As String = "default"
-Private Const INLINE_LAYER_ID As String = "profileInline"
-Private Const INLINE_LAYER_PRIORITY As Long = 100
 Private Const SHEET_SCOPE_MIN_COL As Long = 40      ' AN
 Private Const SHEET_SCOPE_MIN_ROW As Long = 100
 Private Const SHEET_SCOPE_EXPAND_STEP As Long = 30
@@ -292,14 +290,10 @@ Public Function m_BuildColumnStylesPipeline( _
     Optional ByVal pageName As String = vbNullString _
 ) As Collection
     Dim pipeline As Collection
-    Dim inlineLayer As obj_StyleLayer
     Dim xmlLayers As Collection
     Dim xmlLayer As obj_StyleLayer
 
     Set pipeline = m_CreatePipeline()
-
-    Set inlineLayer = mp_BuildInlineLayer(resultFieldRanges, cfgStyles)
-    If Not inlineLayer Is Nothing Then m_AddLayer pipeline, inlineLayer
 
     Set xmlLayers = m_LoadSheetPipelineLayers(pageName, wb)
     If Not xmlLayers Is Nothing Then
@@ -581,64 +575,6 @@ Private Sub mp_ParseLayerRules(ByVal layerNode As Object, ByVal layerObj As obj_
         layerObj.AddRule ruleObj
     Next ruleNode
 End Sub
-
-Private Function mp_BuildInlineLayer( _
-    ByVal resultFieldRanges As Collection, _
-    ByVal cfgStyles As Object _
-) As obj_StyleLayer
-    Dim layerObj As obj_StyleLayer
-    Dim target As Object
-    Dim mapKey As String
-    Dim styleText As String
-    Dim declarations As Object
-    Dim hasDecl As Boolean
-    Dim parseError As String
-    Dim dedupe As Object
-    Dim ruleObj As obj_StyleRule
-    Dim ruleId As String
-    Dim ruleIndex As Long
-
-    If resultFieldRanges Is Nothing Then Exit Function
-    If cfgStyles Is Nothing Then Exit Function
-    If resultFieldRanges.Count = 0 Then Exit Function
-
-    Set dedupe = CreateObject("Scripting.Dictionary")
-    dedupe.CompareMode = 1
-
-    Set layerObj = New obj_StyleLayer
-    layerObj.Initialize INLINE_LAYER_ID, INLINE_LAYER_PRIORITY, "profileInline", True
-
-    For Each target In resultFieldRanges
-        If target Is Nothing Then GoTo ContinueTarget
-        mapKey = Trim$(CStr(target("MapKey")))
-        If Len(mapKey) = 0 Then GoTo ContinueTarget
-        If dedupe.Exists(mapKey) Then GoTo ContinueTarget
-        dedupe(mapKey) = True
-
-        If Not cfgStyles.Exists(mapKey) Then GoTo ContinueTarget
-        styleText = Trim$(CStr(cfgStyles(mapKey)))
-        If Len(styleText) = 0 Then GoTo ContinueTarget
-
-        parseError = vbNullString
-        hasDecl = False
-        If Not ex_ConfigStylesParser.m_TryParseStyleDeclarations(styleText, declarations, hasDecl, parseError) Then
-            Err.Raise vbObjectError + 1715, "ex_StylePipelineEngine", _
-                "Invalid inline styles for key '" & mapKey & "': " & parseError
-        End If
-        If Not hasDecl Then GoTo ContinueTarget
-
-        ruleIndex = ruleIndex + 1
-        ruleId = INLINE_LAYER_ID & ".rule" & CStr(ruleIndex)
-        Set ruleObj = New obj_StyleRule
-        ruleObj.Initialize ruleId, "column", "mapKey=" & mapKey, declarations
-        layerObj.AddRule ruleObj
-
-ContinueTarget:
-    Next target
-
-    If layerObj.RuleCount = 0 Then Exit Function
-    Set mp_BuildInlineLayer = layerObj
-End Function
 
 Private Sub mp_ApplyRule( _
     ByVal ws As Worksheet, _
@@ -2483,6 +2419,7 @@ End Function
 
 Private Function mp_TryTrackFileStamp(ByVal filePath As String, ByVal trackedFiles As Object) As Boolean
     Dim stamp As Date
+    Dim fileSize As Long
     Dim key As String
 
     If trackedFiles Is Nothing Then Exit Function
@@ -2491,6 +2428,7 @@ Private Function mp_TryTrackFileStamp(ByVal filePath As String, ByVal trackedFil
 
     On Error Resume Next
     stamp = FileDateTime(filePath)
+    fileSize = FileLen(filePath)
     If Err.Number <> 0 Then
         Err.Clear
         On Error GoTo 0
@@ -2499,14 +2437,15 @@ Private Function mp_TryTrackFileStamp(ByVal filePath As String, ByVal trackedFil
     End If
     On Error GoTo 0
 
-    trackedFiles(key) = CDbl(stamp)
+    trackedFiles(key) = CStr(CDbl(stamp)) & "|" & CStr(fileSize)
     mp_TryTrackFileStamp = True
 End Function
 
 Private Function mp_AreTrackedStylePipelineFilesUnchanged(ByVal trackedFiles As Object) As Boolean
     Dim key As Variant
     Dim stamp As Date
-    Dim currentStamp As Double
+    Dim fileSize As Long
+    Dim currentToken As String
 
     If trackedFiles Is Nothing Then Exit Function
     If trackedFiles.Count = 0 Then Exit Function
@@ -2514,6 +2453,7 @@ Private Function mp_AreTrackedStylePipelineFilesUnchanged(ByVal trackedFiles As 
     For Each key In trackedFiles.Keys
         On Error Resume Next
         stamp = FileDateTime(CStr(key))
+        fileSize = FileLen(CStr(key))
         If Err.Number <> 0 Then
             Err.Clear
             On Error GoTo 0
@@ -2521,8 +2461,8 @@ Private Function mp_AreTrackedStylePipelineFilesUnchanged(ByVal trackedFiles As 
         End If
         On Error GoTo 0
 
-        currentStamp = CDbl(stamp)
-        If CDbl(trackedFiles(CStr(key))) <> currentStamp Then Exit Function
+        currentToken = CStr(CDbl(stamp)) & "|" & CStr(fileSize)
+        If CStr(trackedFiles(CStr(key))) <> currentToken Then Exit Function
     Next key
 
     mp_AreTrackedStylePipelineFilesUnchanged = True

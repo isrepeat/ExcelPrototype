@@ -1,14 +1,6 @@
 ﻿<?xml version="1.0" standalone="yes"?>
 <profiles version="1" xmlns="urn:excelprototype:profiles">
 	<profile name="Default" resultZoom="100">
-		<styles>
-			<config>
-				<column id="marker" width="5" align="middle-center" overflow="clip"/>
-				<column id="key" width="24" align="middle-left" overflow="clip"/>
-				<column id="value" width="30" align="middle-left" overflow="shrink"/>
-				<column id="styles" width="24" align="middle-left" overflow="shrink"/>
-			</config>
-		</styles>
 		<ui>
 			<control name="btnClear" visible="true"/>
 			<control name="btnMode" visible="true"/>
@@ -30,7 +22,7 @@
 		<v key="Main.Sheet[StateMain].FieldsAliases">FIO; BirthDate; City; Phone</v>
 		<v key="Main.Sheet[StateMain].Map[FIO]">ПІБ</v>
 		<v key="Main.Sheet[StateMain].Map[BirthDate]">Дата народження</v>
-		<v key="Main.Sheet[StateMain].Map[City]" styles="{width:20;overflow:shrink}">Місто</v>
+		<v key="Main.Sheet[StateMain].Map[City]">Місто</v>
 		<v key="Main.Sheet[StateMain].Map[Phone]">Телефон</v>
 		<v type="#" key="EventsMain"/>
 		<v key="Events.Sheet[EventsMain].Type">Events</v>
@@ -50,14 +42,6 @@
 		<v key="Output.Sheets">StateMain; EventsMain</v>
 	</profile>
 	<profile name="Test" resultZoom="100">
-		<styles>
-			<config>
-				<column id="marker" width="5" align="middle-center" overflow="clip"/>
-				<column id="key" width="24" align="middle-left" overflow="clip"/>
-				<column id="value" width="30" align="middle-left" overflow="shrink"/>
-				<column id="styles" width="24" align="middle-left" overflow="shrink"/>
-			</config>
-		</styles>
 		<v key="Source.Main.FilePath">..\dsc_StateSrc.xlsx</v>
 		<v key="Source.Main.SheetAliases">StateMain</v>
 		<v key="Source.Events.FilePath">..\dsc_EventsSrc.xlsx</v>
@@ -93,7 +77,7 @@
 		<v key="Events.Sheet[EventsOut].Map[City]">69|Місце вибуття</v>
 		<v key="Events.Sheet[EventsOut].Map[Date]">71 (А)|Дата наказу</v>
 		<v key="Events.Sheet[EventsOut].Map[Ticket]">Стовпець1|Номер квитка</v>
-		<v key="Events.Sheet[EventsOut].Map[Note]" styles="{width: 40; autoHeight: true}">76|Замітки</v>
+		<v key="Events.Sheet[EventsOut].Map[Note]">76|Замітки</v>
 		<v key=""/>
 		<v key="Output.Layout.Gap.Default">1</v>
 		<v key="Output.Sheets">StateMain; EventsOut; EventsIn</v>
@@ -137,15 +121,7 @@
 			<control name="btnCustomMode" visible="true"/>
 		</ui>
 	</profile>
-	<profile name="Test2" resultZoom="85">
-		<styles>
-			<config>
-				<column id="marker" width="5" align="middle-center" overflow="clip"/>
-				<column id="key" width="42" align="middle-left" overflow="clip"/>
-				<column id="value" width="42" align="middle-left" overflow="wrap"/>
-				<column id="styles" width="25" align="middle-left" overflow="wrap"/>
-			</config>
-		</styles>
+	<profile name="Test2" resultZoom="90">
 		<ui>
 			<control name="btnClear" visible="true"/>
 			<control name="btnMode" visible="true"/>
@@ -156,10 +132,14 @@
 			<control name="btnCustomMode" visible="true"/>
 		</ui>
 		<!-- <v key="Source.Main.FilePath">..\dsc_StateTest.xlsx</v> -->
-		<v key="Source.Main.FilePath">..\dsc_State.xlsx</v>
+		<!-- <v key="Source.Main.FilePath">..\dsc_State.xlsx</v> -->
+		<v key="Source.Main.FilePath">C:\Users\SVI\Desktop\{yyyy}-{mm}-{dd} А7383 Особовий склад.xlsx</v>
+		<v key="Source.Main.FileResolver">ex_SourceResolvers.m_ResolveLatestByDmyPattern</v>
 		<v key="Source.Main.SheetAliases">StateMain</v>
 		<!-- <v key="Source.Events.FilePath">..\dsc_EventsTest.xlsx</v> -->
-		<v key="Source.Events.FilePath">..\dsc_Events.xlsx</v>
+		<!-- <v key="Source.Events.FilePath">..\dsc_Events.xlsx</v> -->
+		<v key="Source.Events.FilePath">C:\Users\SVI\Desktop\ТП+ТВ {dd}.{mm}.{yyyy}.xlsx</v>
+		<v key="Source.Events.FileResolver">ex_SourceResolvers.m_ResolveLatestByDmyPattern</v>
 		<v key="Source.Events.SheetAliases">EventsIn; EventsOut</v>
 		<!-- <v key="Source.Daily.FilePath">..\DailyScopeTest.xlsx</v> -->
 		<v key="Source.Daily.FilePath">..\..\..\WORK Alexandr Bondarenko\НАКАЗИ\DailyScope.xlsx</v>
@@ -201,7 +181,7 @@
 		<v key="Events.Sheet[EventsOut].Map[CommandNumber]">71 (А)|Номер наказу</v>
 		<v key="Events.Sheet[EventsOut].Map[DaysCount]">72|Строк вибуття</v>
 		<v key="Events.Sheet[EventsOut].Map[ReturnDate]">73|Дата повернення</v>
-		<v key="Events.Sheet[EventsOut].Map[Note]" styles="{width: 40; autoHeight: true}">76|Замітки</v>
+		<v key="Events.Sheet[EventsOut].Map[Note]">76|Замітки</v>
 		<v key="Events.Sheet[EventsOut].Map[Ticket]">Стовпець1|Номер квитка</v>
 		<v type="#" key="DailyEvents"/>
 		<v key="Daily.Sheet[DailyEvents].Type">Events</v>
@@ -220,7 +200,7 @@
 		<v key="Daily.Sheet[DailyEvents].Map[RaportFrom]">Рапорт кого</v>
 		<v key="Daily.Sheet[DailyEvents].Map[InNum]">Вх. №</v>
 		<v key="Daily.Sheet[DailyEvents].Map[InDate]">Вх. Дата</v>
-		<v key="Daily.Sheet[DailyEvents].Map[DocNote]" styles="{width: 40; autoHeight: true}">Документ / Замітки</v>
+		<v key="Daily.Sheet[DailyEvents].Map[DocNote]">Документ / Замітки</v>
 		<v key="Daily.Sheet[DailyEvents].Map[DocNum]">Док. №</v>
 		<v key="Daily.Sheet[DailyEvents].Map[DocDate]">Док. дата</v>
 		<v key="Daily.Sheet[DailyEvents].Map[DaysCount]">На скільки</v>
