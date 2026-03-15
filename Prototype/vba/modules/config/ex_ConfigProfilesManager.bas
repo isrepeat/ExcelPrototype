@@ -110,6 +110,7 @@ Public Sub m_ApplyProfileFromDev(Optional ByVal profileName As String = vbNullSt
 
     Application.EnableEvents = False
     Application.ScreenUpdating = False
+    ex_StylePipelineEngine.m_ResetRuntimeCaches
     stepName = "write-config-table"
     mp_WriteEntriesToConfigTable ws, entries
 
@@ -639,9 +640,6 @@ Private Sub mp_SeedProfileFromSheet(ByVal doc As Object, ByVal ws As Worksheet)
             vNode.setAttribute "type", CStr(entries(i, DEV_CONFIG_MARKER_COL))
         End If
         vNode.setAttribute "key", CStr(entries(i, DEV_CONFIG_KEY_COL))
-        If Len(Trim$(CStr(entries(i, DEV_CONFIG_STYLES_COL)))) > 0 Then
-            vNode.setAttribute "styles", CStr(entries(i, DEV_CONFIG_STYLES_COL))
-        End If
         vNode.Text = CStr(entries(i, DEV_CONFIG_VALUE_COL))
         profileNode.appendChild vNode
     Next i
@@ -1159,8 +1157,12 @@ ContinueRow:
 
     If hasLockedCells Then
         mp_ApplyLockedPlaceholderStylePipeline ws, tbl, lockedRows
-        ws.Protect DrawingObjects:=False, Contents:=True, Scenarios:=False, UserInterfaceOnly:=True, AllowFiltering:=True
-        ws.EnableSelection = xlUnlockedCells
+        ws.Protect DrawingObjects:=False, Contents:=True, Scenarios:=False, UserInterfaceOnly:=True, _
+                   AllowFormattingCells:=True, AllowFormattingColumns:=True, AllowFormattingRows:=True, _
+                   AllowInsertingColumns:=True, AllowInsertingRows:=True, AllowInsertingHyperlinks:=True, _
+                   AllowDeletingColumns:=True, AllowDeletingRows:=True, AllowSorting:=True, _
+                   AllowFiltering:=True, AllowUsingPivotTables:=True
+        ws.EnableSelection = xlNoRestrictions
     Else
         ws.EnableSelection = xlNoRestrictions
     End If
@@ -1181,11 +1183,13 @@ Private Sub mp_ApplyLockedPlaceholderStylePipeline(ByVal ws As Worksheet, ByVal 
     Dim rowIndex As Long
     Dim markerKind As String
     Dim keyText As String
+    Dim targetStableZoneLeft As Double
 
     If ws Is Nothing Then Exit Sub
     If tbl Is Nothing Then Exit Sub
     If lockedRows Is Nothing Then Exit Sub
     If lockedRows.Count = 0 Then Exit Sub
+    targetStableZoneLeft = ex_CustomDropdown.m_GetStableZoneStartLeft(ws)
 
     Set rowKindRanges = CreateObject("Scripting.Dictionary")
     rowKindRanges.CompareMode = 1
@@ -1222,6 +1226,13 @@ Private Sub mp_ApplyLockedPlaceholderStylePipeline(ByVal ws As Worksheet, ByVal 
     Set rowKindRanges("configlockedplaceholder") = lockedRows
 
     ex_OutputFormattingPipeline.m_ApplySheetPipeline ws, Nothing, Nothing, rowKindRanges
+    ' Keep explicit width declarations from DevSheetStylesPipeline.
+    ' Global AutoFit here would overwrite configured widths.
+    If targetStableZoneLeft >= 0 Then
+        ex_CustomDropdown.m_StabilizeChooseModeAnchorX ws, targetStableZoneLeft
+        ex_ConfigTableStore.m_ScaleConfigColumnsToStableTarget ws, tbl.Range.Column, DEV_CONFIG_COL_COUNT, targetStableZoneLeft
+        ex_CustomDropdown.m_StabilizeChooseModeAnchorX ws, targetStableZoneLeft
+    End If
 End Sub
 
 Private Function mp_ReadLockedWithPlaceholder(ByVal profileNode As Object) As Object
