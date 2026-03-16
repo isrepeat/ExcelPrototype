@@ -29,7 +29,7 @@
     buttonWidthColumns="1"
     fixedWidthKey="20"
     fixedWidthValue="28"
-    fixedWidthButton="18"
+    fixedWidthButton="20"
     fixedFieldRowHeight="32">
     <fields>
       <inputConfigRefField
@@ -61,13 +61,13 @@
           <modeVariants>
             <variant value="AppendToTop"
                      display="AppendToTop"
-                     caption="Insert [Top]"
+                     caption="Append to [Top]"
                      buttonBackColor="#2B579A"
                      buttonTextColor="#FFFFFF"
                      buttonBorderColor="#1F3F6B"/>
             <variant value="AppendToBottom"
                      display="AppendToBottom"
-                     caption="Insert [Bottom]"
+                     caption="Append to [Bottom]"
                      buttonBackColor="#2B579A"
                      buttonTextColor="#FFFFFF"
                      buttonBorderColor="#1F3F6B"/>

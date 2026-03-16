@@ -52,6 +52,17 @@ Public Function m_RegexGetGroup( _
     m_RegexGetGroup = CStr(firstMatch.SubMatches(groupIndex - 1))
 End Function
 
+Public Function m_RegexReplace( _
+    ByVal textValue As String, _
+    ByVal regexPattern As String, _
+    ByVal replacementText As String _
+) As String
+    Dim rx As Object
+
+    Set rx = mp_CreateRegex(regexPattern, True)
+    m_RegexReplace = rx.Replace(CStr(textValue), CStr(replacementText))
+End Function
+
 Public Function m_ReplaceLeadingPhraseIfMatched( _
     ByVal sourceText As String, _
     ByVal leadingText As String, _

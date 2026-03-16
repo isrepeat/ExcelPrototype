@@ -115,7 +115,7 @@
     <text>
       <![CDATA[#^
 #_      {Rank|accusative|upperFirstLetter} {FIO|accusative}, {Position|accusative|lowerFirstLetter}, #^
-#_      до {City}, #^
+#_      до {City|regexreplace:"[Мм]\.[ \t]*","м. "|regexreplace:"обл\.","області"}, #^
 #_      терміном на {DaysCount|calendarDaysUa}, #^
 #_      {#if AdditionalWayDays == 1}#^
 #_      без урахування 1 доби, необхідної для проїзду до місця проведення відпустки та назад, #^
@@ -148,7 +148,7 @@
     <text>
       <![CDATA[#^
 #_      {Rank|accusative|upperFirstLetter} {FIO|accusative}, {Position|accusative|lowerFirstLetter}, #^
-#_      до {City}, #^
+#_      до {City|regexreplace:"[Мм]\.[ \t]*","м. "|regexreplace:"обл\.","області"}, #^
 #_      терміном на {DaysCount|calendarDaysUa}, #^
 #_      {#if AdditionalWayDays == 1}#^
 #_      без урахування 1 доби, необхідної для проїзду до місця проведення відпустки та назад, #^
@@ -181,7 +181,7 @@
     <text>
       <![CDATA[#^
 #_      {Rank|accusative|upperFirstLetter} {FIO|accusative}, {Position|accusative|lowerFirstLetter}, #^
-#_      до {City}, #^
+#_      до {City|regexreplace:"[Мм]\.[ \t]*","м. "|regexreplace:"обл\.","області"}, #^
 #_      терміном на {DaysCount|calendarDaysUa}, #^
 #_      {#if AdditionalWayDays == 1}#^
 #_      без урахування 1 доби, необхідної для проїзду до місця проведення відпустки та назад, #^
@@ -226,7 +226,7 @@
       <![CDATA[#^
 #_      NN. {Rank|accusative|upperFirstLetter} {FIO|accusative}, {Position|accusative|lowerFirstLetter}, #^
 #_      який перебував на лікуванні у {Hospital}, вважати таким, що перебуває у відпустці для лікування, #^
-#_      до {City}, #^
+#_      до {City|regexreplace:"[Мм]\.[ \t]*","м. "|regexreplace:"обл\.","області"}, #^
 #_      терміном на {DaysCount|calendarDaysUa}, #^
 #_      {
           #let isSameMonth = $ex_DateHelpers.m_IsSameMonth({OutDate}, {ReturnDate});
@@ -253,7 +253,7 @@
       <![CDATA[#^
 #_      NN. {Rank|accusative|upperFirstLetter} {FIO|accusative}, {Position|accusative|lowerFirstLetter}, #^
 #_      який перебував у відпустці для лікування, вважати таким, що перебуває у відпустці для лікування, #^
-#_      до {City}, #^
+#_      до {City|regexreplace:"[Мм]\.[ \t]*","м. "|regexreplace:"обл\.","області"}, #^
 #_      терміном на {DaysCount|calendarDaysUa}, #^
 #_      {
           #let isSameMonth = $ex_DateHelpers.m_IsSameMonth({OutDate}, {ReturnDate});
@@ -307,7 +307,7 @@
       <![CDATA[#^
 #_      NN. {Rank|accusative|upperFirstLetter} {FIO|accusative}, {Position|accusative|lowerFirstLetter}, #^
 #_      який перебував на медичному огляді військово лікарської комісії, вважати таким, що перебуває у відпустці для лікування, #^
-#_      до {City}, #^
+#_      до {City|regexreplace:"[Мм]\.[ \t]*","м. "|regexreplace:"обл\.","області"}, #^
 #_      терміном на {DaysCount|calendarDaysUa}, #^
 #_      {
           #let isSameMonth = $ex_DateHelpers.m_IsSameMonth({OutDate}, {ReturnDate});
