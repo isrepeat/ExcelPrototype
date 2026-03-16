@@ -1,3 +1,4 @@
+let baseDate = "13.03.2026";
 let validationWarningsText = "";
 let hasValidationWarnings = "false";
 let validationWarningTitle = "DailyEvents validation warning";
@@ -18,65 +19,69 @@ for (let owner in Daily.Sheet[DailyEvents].rows) {
 		let ownerRowIndexForWarning = callMacro("ex_PostProcessActions.m_GetRowIndex", owner);
 		// Вспомогательные значения по текущему owner, собираем из EventsOut:
 		// - последнюю заметку (для проверки ТВО),
-		// - последнюю строку с причиной "Лікування" и ее ReturnDate (для проверки закрытия лечения).
+		// - последнюю строку с причиной "Лікування" и ее FactArrivalDate (для проверки закрытия лечения).
 		let hasEventsOutForOwner = "false";
 		let lastEventsOutNote = "";
-		let lastEventsOutReturnDate = "";
+		let lastEventsOutPlannedReturnDate = "";
 		let hasTreatmentEventsOutForOwner = "false";
-		let lastTreatmentEventsOutReturnDate = "";
+		let lastTreatmentEventsOutFactArrivalDate = "";
 
 		for (let outRow in Events.Sheet[EventsOut].rows) {
 			if (outRow.column[FIO] == owner.column[FIO]) {
 				hasEventsOutForOwner = "true";
 				lastEventsOutNote = outRow.column[Note];
-				lastEventsOutReturnDate = outRow.column[ReturnDate];
+				lastEventsOutPlannedReturnDate = outRow.column[PlannedReturnDate];
 				if (outRow.column[EventReason] == "Лікування") {
 					hasTreatmentEventsOutForOwner = "true";
-					lastTreatmentEventsOutReturnDate = outRow.column[ReturnDate];
+					lastTreatmentEventsOutFactArrivalDate = outRow.column[FactArrivalDate];
 				}
 			}
 		}
 
-			// Валидация #1:
-			// если в последней записи EventsOut.Note есть ТВО, то сразу после owner
-			// в DailyEvents должна идти корректная meta-строка:
-			// Vacation=ТВО + заполненные Rank/FIO/Position.
-			if (hasEventsOutForOwner == "true") {
-				let hasTvoInLastEventsOutNote = "false";
-				let lastNoteTvoMatch = callMacro("ex_Helpers.m_RegexFirstMatch", lastEventsOutNote, tvoNoteRegex);
-				if (lastNoteTvoMatch != "") {
-					hasTvoInLastEventsOutNote = "true";
-				}
+		// Валидация #1:
+		// если в последней записи EventsOut.Note есть ТВО, то сразу после owner
+		// в DailyEvents должна идти корректная meta-строка:
+		// Vacation=ТВО + заполненные Rank/FIO/Position.
+		if (hasEventsOutForOwner == "true") {
+			let hasTvoInLastEventsOutNote = "false";
+			let lastNoteTvoMatch = callMacro("ex_Helpers.m_RegexFirstMatch", lastEventsOutNote, tvoNoteRegex);
+			if (lastNoteTvoMatch != "") {
+				hasTvoInLastEventsOutNote = "true";
+			}
 
-				if (hasTvoInLastEventsOutNote == "true") {
-					let nextRow = callMacro("ex_PostProcessActions.m_GetRelativeRow", owner, "1");
-					let hasValidTvoMetaRow = "false";
-					if (nextRow.column[MetaType] == "meta" &&
-						nextRow.column[Vacation] == "ТВО" &&
-						nextRow.column[Rank] != "" &&
-						nextRow.column[Rank] != "?" &&
-						nextRow.column[FIO] != "" &&
-						nextRow.column[FIO] != "?" &&
-						nextRow.column[Position] != "" &&
-						nextRow.column[Position] != "?") {
+			if (hasTvoInLastEventsOutNote == "true") {
+				let hasValidTvoMetaRow = "false";
+
+				for (let candidateMetaRow in Daily.Sheet[DailyEvents].rows) {
+					if (candidateMetaRow.column[MetaType] == "meta" &&
+						candidateMetaRow.column[OwnerFio] == owner.column[FIO] &&
+						candidateMetaRow.column[SectionType] == owner.column[SectionType] &&
+						candidateMetaRow.column[Vacation] == "ТВО" &&
+						candidateMetaRow.column[Rank] != "" &&
+						candidateMetaRow.column[Rank] != "?" &&
+						candidateMetaRow.column[FIO] != "" &&
+						candidateMetaRow.column[FIO] != "?" &&
+						candidateMetaRow.column[Position] != "" &&
+						candidateMetaRow.column[Position] != "?") {
 						hasValidTvoMetaRow = "true";
 					}
+				}
 
-					if (hasValidTvoMetaRow != "true") {
-						let errorLine = "FIO=" + owner.column[FIO] + ": в последней записи EventsOut.Note есть пометка ТВО, но после owner отсутствует корректная meta-строка (MetaType=meta, Vacation=ТВО, заполнены Rank/FIO/Position).";
-						callMacro("ex_PostProcessActions.m_ShowBannerBeforeRowIndex", "TYPE_WARNING", validationWarningTitle, errorLine, ownerRowIndexForWarning, 0, 0);
-						hasValidationWarnings = "true";
-					}
+				if (hasValidTvoMetaRow != "true") {
+					let errorLine = "FIO=" + owner.column[FIO] + ": в последней записи EventsOut.Note есть пометка ТВО, но после owner отсутствует корректная meta-строка (MetaType=meta, Vacation=ТВО, заполнены Rank/FIO/Position).";
+					callMacro("ex_PostProcessActions.m_ShowBannerBeforeRowIndex", "TYPE_WARNING", validationWarningTitle, errorLine, ownerRowIndexForWarning, 0, 0);
+					hasValidationWarnings = "true";
 				}
 			}
+		}
 
 		// Валидация #2:
 		// если ключ в секции ToHospital (SectionType=6), то последняя запись EventsOut
-		// с EventReason="Лікування" должна быть закрыта: поле ReturnDate не должно быть пустым и не должно быть "?".
+		// с EventReason="Лікування" должна быть закрыта: поле FactArrivalDate не должно быть пустым и не должно быть "?".
 		if (owner.column[SectionType] == "6" && hasTreatmentEventsOutForOwner == "true") {
-			let openTreatmentReturnDateMatch = callMacro("ex_Helpers.m_RegexFirstMatch", lastTreatmentEventsOutReturnDate, unclosedReturnDateRegex);
-			if (openTreatmentReturnDateMatch != "") {
-				let errorLine = "FIO=" + owner.column[FIO] + ": ключ находится в секции ToHospital, но последняя запись EventsOut с EventReason=Лікування не закрыта (ReturnDate пустой или '?'). Ключ должен быть в секции MoveVacationForCuringToHospital.";
+			let openTreatmentFactArrivalDateMatch = callMacro("ex_Helpers.m_RegexFirstMatch", lastTreatmentEventsOutFactArrivalDate, unclosedReturnDateRegex);
+			if (openTreatmentFactArrivalDateMatch != "") {
+				let errorLine = "FIO=" + owner.column[FIO] + ": ключ находится в секции ToHospital, но последняя запись EventsOut с EventReason=Лікування не закрыта (FactArrivalDate пустой или '?'). Ключ должен быть в секции MoveVacationForCuringToHospital.";
 				callMacro("ex_PostProcessActions.m_ShowBannerBeforeRowIndex", "TYPE_WARNING", validationWarningTitle, errorLine, ownerRowIndexForWarning, 0, 0);
 				hasValidationWarnings = "true";
 			}
@@ -84,11 +89,11 @@ for (let owner in Daily.Sheet[DailyEvents].rows) {
 
 		// Валидация #3:
 		// если ключ в секции ToVacationForCuring (SectionType=9), то последняя запись EventsOut
-		// (независимо от EventReason) должна быть закрыта: поле ReturnDate не должно быть пустым и не должно быть "?".
+		// (независимо от EventReason) должна быть закрыта: поле PlannedReturnDate не должно быть пустым и не должно быть "?".
 		if (owner.column[SectionType] == "9" && hasEventsOutForOwner == "true") {
-			let openLastEventsOutReturnDateMatch = callMacro("ex_Helpers.m_RegexFirstMatch", lastEventsOutReturnDate, unclosedReturnDateRegex);
-			if (openLastEventsOutReturnDateMatch != "") {
-				let errorLine = "FIO=" + owner.column[FIO] + ": ключ находится в секции ToVacationForCuring, но последняя запись EventsOut не закрыта (ReturnDate пустой или '?').";
+			let openLastEventsOutPlannedReturnDateMatch = callMacro("ex_Helpers.m_RegexFirstMatch", lastEventsOutPlannedReturnDate, unclosedReturnDateRegex);
+			if (openLastEventsOutPlannedReturnDateMatch != "") {
+				let errorLine = "FIO=" + owner.column[FIO] + ": ключ находится в секции ToVacationForCuring, но последняя запись EventsOut не закрыта (PlannedReturnDate пустой или '?').";
 				callMacro("ex_PostProcessActions.m_ShowBannerBeforeRowIndex", "TYPE_WARNING", validationWarningTitle, errorLine, ownerRowIndexForWarning, 0, 0);
 				hasValidationWarnings = "true";
 			}
@@ -138,9 +143,9 @@ for (let row in Daily.Sheet[DailyEvents].rows) {
 
 		exportWordPasteAnchor = rowTemplateAnchor;
 
-		let baseDate = "11.03.2026";
-			let txt = callMacro("ex_ResultTemplatesParser.m_GetTemplateText", rowTemplateAnchor, resultTemplatesRelPath);
+		let txt = callMacro("ex_ResultTemplatesParser.m_GetTemplateText", rowTemplateAnchor, resultTemplatesRelPath);
 		txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "DATE", "{baseDate}");
+		txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "RaportTvo", "{row.column[RaportTVO]}");
 
 		/* Нормализация дат для всех секций: в шаблоны передаем уже полные даты */
 		let fullInDate = row.column[InDate];
@@ -237,7 +242,7 @@ for (let row in Daily.Sheet[DailyEvents].rows) {
 					outRow.column[EventReason] == "Відпустка для лікування") {
 					hasPrevVacationForCuringEvent = "true";
 					prevVkNum = outRow.column[Ticket];
-					prevVkDateRaw = outRow.column[CommandDate];
+					prevVkDateRaw = outRow.column[OutCommandDate];
 				}
 			}
 
@@ -250,7 +255,7 @@ for (let row in Daily.Sheet[DailyEvents].rows) {
 				return;
 			}
 			if (prevVkDateRaw == "" || prevVkDateRaw == "?") {
-				callMacro("ex_PostProcessActions.m_ShowLogicError", "SectionType={sectionType}, FIO={row.column[FIO]}: EventsOut.CommandDate is empty for last row with EventReason='Відпустка для лікування'.");
+				callMacro("ex_PostProcessActions.m_ShowLogicError", "SectionType={sectionType}, FIO={row.column[FIO]}: EventsOut.OutCommandDate is empty for last row with EventReason='Відпустка для лікування'.");
 				return;
 			}
 
@@ -264,6 +269,12 @@ for (let row in Daily.Sheet[DailyEvents].rows) {
 		let additionalWayDays = "0";
 		let sourceDaysCount = normalizedDaysCount;
 		let daysCountPattern = "^\\s*(\\d+)(?:\\s*\\+\\s*(\\d+))?";
+		let inNumFull = row.column[InNum];
+		let inNumDigitsPattern = "^\\s*(\\d+)\\s*$";
+		let inNumDigits = callMacro("ex_Helpers.m_RegexGetGroup", inNumFull, inNumDigitsPattern, 1);
+		if (inNumDigits != "") {
+			inNumFull = "1656/" + inNumDigits + "-в";
+		}
 		let baseDaysDigits = callMacro("ex_Helpers.m_RegexGetGroup", sourceDaysCount, daysCountPattern, 1);
 		if (baseDaysDigits != "") {
 			normalizedDaysCount = baseDaysDigits;
@@ -273,8 +284,6 @@ for (let row in Daily.Sheet[DailyEvents].rows) {
 			additionalWayDays = additionalDaysDigits;
 		}
 
-		let nextRow = callMacro("ex_PostProcessActions.m_GetRelativeRow", row, "1");
-
 		let isReturnToDuty = "false";
 		let returnToDutyRank = "";
 		let returnToDutyFIO = "";
@@ -283,22 +292,39 @@ for (let row in Daily.Sheet[DailyEvents].rows) {
 		let assignToDutyRank = "";
 		let assignToDutyFIO = "";
 		let assignToDutyPosition = "";
+		let hasDuplicateRaport = "false";
+		let duplicateRaportFrom = "";
+		let duplicateRaportTVO = "";
 
-		if (nextRow.column[MetaType] == "meta" &&
-			nextRow.column[Vacation] == "ТВО" &&
-			nextRow.column[Rank] != "" &&
-			nextRow.column[FIO] != "" &&
-			nextRow.column[Position] != "") {
-			isReturnToDuty = "true";
-			returnToDutyRank = nextRow.column[Rank];
-			returnToDutyFIO = nextRow.column[FIO];
-			returnToDutyPosition = nextRow.column[Position];
-			isAssignToDuty = "true";
-			assignToDutyRank = nextRow.column[Rank];
-			assignToDutyFIO = nextRow.column[FIO];
-			assignToDutyPosition = nextRow.column[Position];
+		for (let metaRow in Daily.Sheet[DailyEvents].rows) {
+			if (metaRow.column[MetaType] == "meta" &&
+				metaRow.column[OwnerFio] == row.column[FIO] &&
+				metaRow.column[SectionType] == row.column[SectionType] &&
+				isReturnToDuty != "true" &&
+				metaRow.column[Vacation] == "ТВО" &&
+				metaRow.column[Rank] != "" &&
+				metaRow.column[FIO] != "" &&
+				metaRow.column[Position] != "") {
+				isReturnToDuty = "true";
+				returnToDutyRank = metaRow.column[Rank];
+				returnToDutyFIO = metaRow.column[FIO];
+				returnToDutyPosition = metaRow.column[Position];
+				isAssignToDuty = "true";
+				assignToDutyRank = metaRow.column[Rank];
+				assignToDutyFIO = metaRow.column[FIO];
+				assignToDutyPosition = metaRow.column[Position];
+			}
+
+			if (metaRow.column[MetaType] == "meta" &&
+				metaRow.column[OwnerFio] == row.column[FIO] &&
+				metaRow.column[SectionType] == row.column[SectionType] &&
+				hasDuplicateRaport != "true" &&
+				metaRow.column[DocNote] == "дублікат") {
+				hasDuplicateRaport = "true";
+				duplicateRaportFrom = metaRow.column[RaportFrom];
+				duplicateRaportTVO = metaRow.column[RaportTVO];
+			}
 		}
-
 		if (sectionType == "1") {
 			txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "Hospital", "{row.column[Hospital]}");
 			txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "Rank", "{row.column[Rank]}");
@@ -309,7 +335,10 @@ for (let row in Daily.Sheet[DailyEvents].rows) {
 			txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "ReturnToDutyFIO", "{returnToDutyFIO}");
 			txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "ReturnToDutyPosition", "{returnToDutyPosition}");
 			txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "RaportFrom", "{row.column[RaportFrom]}");
-			txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "InNum", "{row.column[InNum]}");
+			txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "HasDuplicateRaport", "{hasDuplicateRaport}");
+			txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "DuplicateRaportFrom", "{duplicateRaportFrom}");
+			txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "DuplicateRaportTVO", "{duplicateRaportTVO}");
+			txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "InNumFull", "{inNumFull}");
 			txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "InDate", "{fullInDate}");
 			txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "DocNum", "{row.column[DocNum]}");
 			txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "DocDate", "{fullDocDate}");
@@ -324,7 +353,7 @@ for (let row in Daily.Sheet[DailyEvents].rows) {
 			txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "ReturnToDutyFIO", "{returnToDutyFIO}");
 			txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "ReturnToDutyPosition", "{returnToDutyPosition}");
 			txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "RaportFrom", "{row.column[RaportFrom]}");
-			txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "InNum", "{row.column[InNum]}");
+			txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "InNumFull", "{inNumFull}");
 			txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "InDate", "{fullInDate}");
 			txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "VkNum", "{row.column[VkNum]}");
 			txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "VkDate", "{fullVkDate}");
@@ -335,7 +364,7 @@ for (let row in Daily.Sheet[DailyEvents].rows) {
 			txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "FIO", "{row.column[FIO]}");
 			txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "Position", "{row.column[Position]}");
 			txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "RaportFrom", "{row.column[RaportFrom]}");
-			txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "InNum", "{row.column[InNum]}");
+			txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "InNumFull", "{inNumFull}");
 			txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "InDate", "{fullInDate}");
 			txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "VlkNum", "{row.column[VlkNum]}");
 			txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "VlkDate", "{fullVlkDate}");
@@ -351,47 +380,50 @@ for (let row in Daily.Sheet[DailyEvents].rows) {
 			txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "AssignToDutyFIO", "{assignToDutyFIO}");
 			txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "AssignToDutyPosition", "{assignToDutyPosition}");
 			txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "RaportFrom", "{row.column[RaportFrom]}");
-			txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "InNum", "{row.column[InNum]}");
+			txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "HasDuplicateRaport", "{hasDuplicateRaport}");
+			txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "DuplicateRaportFrom", "{duplicateRaportFrom}");
+			txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "DuplicateRaportTVO", "{duplicateRaportTVO}");
+			txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "InNumFull", "{inNumFull}");
 			txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "InDate", "{fullInDate}");
 			txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "DocNum", "{row.column[DocNum]}");
 			txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "DocDate", "{fullDocDate}");
 		}
 
-			if (sectionType == "7" || sectionType == "8") {
-				txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "Rank", "{row.column[Rank]}");
-				txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "FIO", "{row.column[FIO]}");
-				txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "Position", "{row.column[Position]}");
-				txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "City", "{row.column[Vacation]}");
-				txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "DaysCount", "{normalizedDaysCount}");
-				txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "AdditionalWayDays", "{additionalWayDays}");
-				txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "OutDate", "{fullDateFrom}");
-				txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "ReturnDate", "{fullDateTo}");
-				txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "IsAssignToDuty", "{isAssignToDuty}");
-				txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "AssignToDutyRank", "{assignToDutyRank}");
-				txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "AssignToDutyFIO", "{assignToDutyFIO}");
-				txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "AssignToDutyPosition", "{assignToDutyPosition}");
+		if (sectionType == "7" || sectionType == "8") {
+			txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "Rank", "{row.column[Rank]}");
+			txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "FIO", "{row.column[FIO]}");
+			txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "Position", "{row.column[Position]}");
+			txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "City", "{row.column[Vacation]}");
+			txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "DaysCount", "{normalizedDaysCount}");
+			txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "AdditionalWayDays", "{additionalWayDays}");
+			txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "OutDate", "{fullDateFrom}");
+			txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "ReturnDate", "{fullDateTo}");
+			txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "IsAssignToDuty", "{isAssignToDuty}");
+			txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "AssignToDutyRank", "{assignToDutyRank}");
+			txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "AssignToDutyFIO", "{assignToDutyFIO}");
+			txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "AssignToDutyPosition", "{assignToDutyPosition}");
 			txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "RaportFrom", "{row.column[RaportFrom]}");
-			txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "InNum", "{row.column[InNum]}");
+			txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "InNumFull", "{inNumFull}");
 			txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "InDate", "{fullInDate}");
 			txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "VkNum", "{row.column[VkNum]}");
 			txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "VkDate", "{fullVkDate}");
 		}
 
 		if (sectionType == "9") {
-				txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "Rank", "{row.column[Rank]}");
-				txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "FIO", "{row.column[FIO]}");
-				txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "Position", "{row.column[Position]}");
-				txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "City", "{row.column[Vacation]}");
-				txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "DaysCount", "{normalizedDaysCount}");
-				txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "AdditionalWayDays", "{additionalWayDays}");
-				txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "OutDate", "{fullDateFrom}");
-				txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "ReturnDate", "{fullDateTo}");
-				txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "IsAssignToDuty", "{isAssignToDuty}");
-				txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "AssignToDutyRank", "{assignToDutyRank}");
-				txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "AssignToDutyFIO", "{assignToDutyFIO}");
-				txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "AssignToDutyPosition", "{assignToDutyPosition}");
+			txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "Rank", "{row.column[Rank]}");
+			txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "FIO", "{row.column[FIO]}");
+			txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "Position", "{row.column[Position]}");
+			txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "City", "{row.column[Vacation]}");
+			txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "DaysCount", "{normalizedDaysCount}");
+			txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "AdditionalWayDays", "{additionalWayDays}");
+			txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "OutDate", "{fullDateFrom}");
+			txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "ReturnDate", "{fullDateTo}");
+			txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "IsAssignToDuty", "{isAssignToDuty}");
+			txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "AssignToDutyRank", "{assignToDutyRank}");
+			txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "AssignToDutyFIO", "{assignToDutyFIO}");
+			txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "AssignToDutyPosition", "{assignToDutyPosition}");
 			txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "RaportFrom", "{row.column[RaportFrom]}");
-			txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "InNum", "{row.column[InNum]}");
+			txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "InNumFull", "{inNumFull}");
 			txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "InDate", "{fullInDate}");
 			txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "VlkNum", "{row.column[VlkNum]}");
 			txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "VlkDate", "{fullVlkDate}");
@@ -404,7 +436,7 @@ for (let row in Daily.Sheet[DailyEvents].rows) {
 			txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "FIO", "{row.column[FIO]}");
 			txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "Position", "{row.column[Position]}");
 			txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "RaportFrom", "{row.column[RaportFrom]}");
-			txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "InNum", "{row.column[InNum]}");
+			txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "InNumFull", "{inNumFull}");
 			txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "InDate", "{fullInDate}");
 		}
 
@@ -431,7 +463,7 @@ for (let row in Daily.Sheet[DailyEvents].rows) {
 			txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "DaysCount", "{normalizedDaysCount}");
 			txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "OutDate", "{fullDateFrom}");
 			txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "ReturnDate", "{fullDateTo}");
-			txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "InNum", "{row.column[InNum]}");
+			txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "InNumFull", "{inNumFull}");
 			txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "InDate", "{fullInDate}");
 			txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "VlkNum", "{row.column[VlkNum]}");
 			txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "VlkDate", "{fullVlkDate}");
@@ -449,7 +481,7 @@ for (let row in Daily.Sheet[DailyEvents].rows) {
 			txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "DaysCount", "{normalizedDaysCount}");
 			txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "OutDate", "{fullDateFrom}");
 			txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "ReturnDate", "{fullDateTo}");
-			txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "InNum", "{row.column[InNum]}");
+			txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "InNumFull", "{inNumFull}");
 			txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "InDate", "{fullInDate}");
 			txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "VlkNum", "{row.column[VlkNum]}");
 			txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "VlkDate", "{fullVlkDate}");
@@ -464,7 +496,7 @@ for (let row in Daily.Sheet[DailyEvents].rows) {
 			txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "Hospital", "{row.column[Hospital]}");
 			txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "OutDate", "{fullDateFrom}");
 			txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "RaportFrom", "{row.column[RaportFrom]}");
-			txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "InNum", "{row.column[InNum]}");
+			txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "InNumFull", "{inNumFull}");
 			txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "InDate", "{fullInDate}");
 			txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "DocNum", "{row.column[DocNum]}");
 			txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "DocDate", "{fullDocDate}");
@@ -478,7 +510,7 @@ for (let row in Daily.Sheet[DailyEvents].rows) {
 			txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "Position", "{row.column[Position]}");
 			txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "OutDate", "{fullDateFrom}");
 			txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "RaportFrom", "{row.column[RaportFrom]}");
-			txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "InNum", "{row.column[InNum]}");
+			txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "InNumFull", "{inNumFull}");
 			txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "InDate", "{fullInDate}");
 			txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "DocNum", "{row.column[DocNum]}");
 			txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "DocDate", "{fullDocDate}");
@@ -495,7 +527,7 @@ for (let row in Daily.Sheet[DailyEvents].rows) {
 			txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "OutDate", "{fullDateFrom}");
 			txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "ReturnDate", "{fullDateTo}");
 			txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "RaportFrom", "{row.column[RaportFrom]}");
-			txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "InNum", "{row.column[InNum]}");
+			txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "InNumFull", "{inNumFull}");
 			txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "InDate", "{fullInDate}");
 			txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "VlkNum", "{row.column[VlkNum]}");
 			txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "VlkDate", "{fullVlkDate}");

@@ -820,6 +820,10 @@ Public Sub m_HandleToggleButtonOnClick(Optional ByVal ws As Worksheet = Nothing,
     Dim nextVariantIndex As Long
     Dim nextValue As String
     Dim onToggleMacro As String
+    Dim prevEnableEvents As Boolean
+    Dim prevScreenUpdating As Boolean
+    Dim hasUiStateSnapshot As Boolean
+    Dim errDescription As String
 
     On Error GoTo EH
 
@@ -871,6 +875,12 @@ Public Sub m_HandleToggleButtonOnClick(Optional ByVal ws As Worksheet = Nothing,
         Err.Raise vbObjectError + 2469, "ex_OutputPanel.m_HandleToggleButtonOnClick", "Toggle variant value is empty for next variant."
     End If
 
+    prevEnableEvents = Application.EnableEvents
+    prevScreenUpdating = Application.ScreenUpdating
+    hasUiStateSnapshot = True
+    Application.EnableEvents = False
+    Application.ScreenUpdating = False
+
     ex_ConfigProvider.m_SetConfigValue outputStyle.PanelFields(fieldIndex).Buttons(buttonIndex).ToggleSource, nextValue, True
     m_RenderForSheet ws, outputStyle
 
@@ -878,10 +888,23 @@ Public Sub m_HandleToggleButtonOnClick(Optional ByVal ws As Worksheet = Nothing,
     If Len(onToggleMacro) > 0 Then
         Application.Run "'" & ThisWorkbook.Name & "'!" & onToggleMacro
     End If
-    Exit Sub
+    GoTo Done
 
 EH:
-    MsgBox "Toggle button failed: " & Err.Description, vbExclamation
+    errDescription = Err.Description
+
+Done:
+    If hasUiStateSnapshot Then
+        On Error Resume Next
+        Application.ScreenUpdating = prevScreenUpdating
+        Application.EnableEvents = prevEnableEvents
+        On Error GoTo 0
+    End If
+
+    If Len(errDescription) > 0 Then
+        MsgBox "Toggle button failed: " & errDescription, vbExclamation
+    End If
+    Exit Sub
 End Sub
 
 Private Function mp_GetLastUsedColumn(ByVal ws As Worksheet) As Long
@@ -982,21 +1005,38 @@ Private Sub mp_ClearPanelArtifacts(ByVal ws As Worksheet)
 End Sub
 
 Private Function mp_GetOnChangeMacroName(ByVal ws As Worksheet, ByVal target As Range) As String
-    Dim registry As Object
-    Dim key As String
+    Dim outputStyle As ex_SheetStylesXmlProvider.t_OutputSheetStyle
+    Dim fieldIndex As Long
+    Dim inputCell As Range
+    Dim targetKey As String
+    Dim inputKey As String
+    Dim macroName As String
 
     If ws Is Nothing Then Exit Function
     If target Is Nothing Then Exit Function
-    If g_OnChangeBindings Is Nothing Then Exit Function
+    If target.CountLarge <> 1 Then Exit Function
 
-    Set registry = mp_GetSheetOnChangeRegistry(ws, False)
-    If registry Is Nothing Then Exit Function
+    targetKey = mp_GetOnChangeBindingKey(target)
+    If Len(targetKey) = 0 Then Exit Function
+    If Not ex_SheetStylesXmlProvider.m_GetOutputSheetStyle(outputStyle, ThisWorkbook) Then Exit Function
+    If outputStyle.PanelFieldCount <= 0 Then Exit Function
 
-    key = mp_GetOnChangeBindingKey(target)
-    If Len(key) = 0 Then Exit Function
-    If registry.Exists(key) Then
-        mp_GetOnChangeMacroName = CStr(registry(key))
-    End If
+    For fieldIndex = 1 To outputStyle.PanelFieldCount
+        macroName = Trim$(outputStyle.PanelFields(fieldIndex).OnChangeMacroName)
+        If Len(macroName) = 0 Then GoTo ContinueField
+
+        Set inputCell = mp_GetPanelInputCellByKey(ws, outputStyle.PanelFields(fieldIndex).InputName)
+        If inputCell Is Nothing Then GoTo ContinueField
+
+        inputKey = mp_GetOnChangeBindingKey(inputCell)
+        If Len(inputKey) = 0 Then GoTo ContinueField
+        If StrComp(targetKey, inputKey, vbTextCompare) = 0 Then
+            mp_GetOnChangeMacroName = macroName
+            Exit Function
+        End If
+
+ContinueField:
+    Next fieldIndex
 End Function
 
 Private Sub mp_RegisterOnChangeBinding(ByVal ws As Worksheet, ByVal inputCell As Range, ByVal macroName As String)

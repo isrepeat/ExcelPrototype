@@ -381,7 +381,9 @@ ContinueAlias:
     mp_RenderPendingWarningBanners wsOut, pendingWarningBanners
 
     mp_StorePostProcessContext cfg, resultTables, (partialMatchRowRanges.Count > 0)
-    ex_PostProcessDsl.m_ApplyScriptToSheet wsOut, cfg, resultTables, POST_PROCESS_SCRIPT_KEY_IMPLICIT
+    If partialMatchRowRanges.Count = 0 Then
+        ex_PostProcessDsl.m_ApplyScriptToSheet wsOut, cfg, resultTables, POST_PROCESS_SCRIPT_KEY_IMPLICIT
+    End If
 
     mp_CloseConnections connCache
 
@@ -811,10 +813,10 @@ ContinueExactField:
     partialRows = rs.GetRows
     partialCount = UBound(partialRows, 2) - LBound(partialRows, 2) + 1
 
-    rowIndex = mp_RenderStateCandidatesWarningBanner(wsOut, rowIndex, fio, partialCount, pendingWarningBanners)
     wsOut.Cells(rowIndex, 1).Value = "Candidates [State " & tableAlias & "] (" & CStr(partialCount) & ")"
     sectionRows.Add rowIndex
     rowIndex = rowIndex + 1
+    rowIndex = mp_RenderStateCandidatesWarningBanner(wsOut, rowIndex, fio, partialCount, pendingWarningBanners)
 
     headerRow = rowIndex
     headerRows.Add headerRow
@@ -3344,6 +3346,7 @@ Private Function mp_RenderStateCandidatesWarningBanner( _
 
     If startRow < 1 Then startRow = 1
     mp_GetWarningBannerDimensions bannerCols, bannerRows
+    bannerRows = 1
     bannerRangeAddress = "A" & CStr(startRow) & ":" & mp_ToColumnLetter(bannerCols) & CStr(startRow + bannerRows - 1)
 
     titleText = "WARNING: Multiple candidates found"

@@ -143,6 +143,13 @@ Public Function m_ReplacePlaceholder( _
         Exit Function
     End If
 
+    If mp_ShouldCollapsePlaceholderValue(replacementText) Then
+        resultText = mp_CollapseNamedPlaceholderTokens(CStr(sourceText), normalizedName)
+        resultText = mp_ReplaceIfConditionForPlaceholder(resultText, normalizedName, vbNullString)
+        m_ReplacePlaceholder = resultText
+        Exit Function
+    End If
+
     placeholderToken = "{" & normalizedName & "}"
     resultText = m_ReplaceToken(CStr(sourceText), placeholderToken, CStr(replacementText))
 
@@ -183,10 +190,58 @@ Public Function m_ResolveTemplate( _
     m_ResolveTemplate = mp_ResolveJoinLineTokens(m_ResolveTemplate)
     m_ResolveTemplate = mp_ResolveTrimIndentTokens(m_ResolveTemplate)
     m_ResolveTemplate = mp_ResolveDateExpressions(m_ResolveTemplate, baseDateText)
+    m_ResolveTemplate = mp_CollapseUnresolvedPlaceholders(m_ResolveTemplate)
     Exit Function
 
 EH:
     m_ResolveTemplate = mp_PrependTemplateError(CStr(sourceText), "m_ResolveTemplate")
+End Function
+
+Private Function mp_ShouldCollapsePlaceholderValue(ByVal replacementText As String) As Boolean
+    Dim normalized As String
+
+    normalized = mp_TrimWhitespace(CStr(replacementText))
+    If Len(normalized) = 0 Then
+        mp_ShouldCollapsePlaceholderValue = True
+        Exit Function
+    End If
+
+    If normalized = "-" Or normalized = "?" Then
+        mp_ShouldCollapsePlaceholderValue = True
+    End If
+End Function
+
+Private Function mp_CollapseNamedPlaceholderTokens( _
+    ByVal sourceText As String, _
+    ByVal placeholderName As String _
+) As String
+    Dim rx As Object
+    Dim tokenPattern As String
+    Dim resultText As String
+
+    resultText = CStr(sourceText)
+    tokenPattern = "\{" & mp_EscapeRegex(CStr(placeholderName)) & "(\|[^{}]+)?\}"
+
+    Set rx = CreateObject("VBScript.RegExp")
+    rx.Global = True
+    rx.IgnoreCase = False
+    rx.Pattern = " ?" & tokenPattern & " ?"
+
+    mp_CollapseNamedPlaceholderTokens = rx.Replace(resultText, vbNullString)
+End Function
+
+Private Function mp_CollapseUnresolvedPlaceholders(ByVal sourceText As String) As String
+    Dim rx As Object
+    Dim resultText As String
+
+    resultText = CStr(sourceText)
+
+    Set rx = CreateObject("VBScript.RegExp")
+    rx.Global = True
+    rx.IgnoreCase = False
+    rx.Pattern = " ?\{[A-Za-z_][A-Za-z0-9_]*(\|[^{}]+)?\} ?"
+
+    mp_CollapseUnresolvedPlaceholders = rx.Replace(resultText, vbNullString)
 End Function
 
 Public Function m_FormatValue( _
