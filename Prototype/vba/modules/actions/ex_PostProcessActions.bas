@@ -41,6 +41,7 @@ Private Const RUNTIME_ROW_ANCHOR_PREFIX As String = "__pcRuntimeRow_"
 Private Const RESULT_BLOCK_ANCHOR_PREFIX As String = "__pcResultBlock_"
 Private Const RESULT_BLOCK_ANCHOR_MAX_INDEX As Long = 9999
 Private Const RESULT_BLOCK_LAST_ANCHOR_NAME As String = "__pcResultBlockLast"
+Private Const RESULT_BLOCK_PLACEHOLDER_HIGHLIGHT_COLOR As String = "#66CCFF"
 
 Private Type t_PostProcessHeaderStyle
     Columns As Long
@@ -566,6 +567,7 @@ Public Function m_AppendResultBlock( _
     Dim insertedRange As Range
     Dim anchorName As String
     Dim nextBlockIndex As Long
+    Dim highlightSegments As Collection
 
     blockText = Trim$(blockText)
     If Len(blockText) = 0 Then Exit Function
@@ -584,6 +586,8 @@ Public Function m_AppendResultBlock( _
     mp_ValidateBannerGapRows gapRowsBefore, gapRowsAfter, "result block"
     bannerKind = mp_MapBannerTypeToKind(blockType)
     titleText = Trim$(titleText)
+    blockText = ex_ResultTemplatesParser.m_ExtractHighlightSegments(blockText, highlightSegments, RESULT_BLOCK_PLACEHOLDER_HIGHLIGHT_COLOR)
+    If Len(Trim$(blockText)) = 0 Then Exit Function
 
     sheetKey = mp_BuildSheetKey(ws)
     If StrComp(g_ResultBlockSheetKey, sheetKey, vbTextCompare) <> 0 Then
@@ -620,6 +624,7 @@ Public Function m_AppendResultBlock( _
     bodyLines.Add blockText
     nextBlockIndex = g_ResultBlockCount + 1
     ex_Messaging.m_RenderBanner ws, titleText, bodyLines, bannerRangeAddress, bannerKind, mp_BuildResultBlockIdentity(sheetKey, nextBlockIndex, blockText)
+    mp_ApplyResultBlockHighlightSegments ws, blockRow, titleText, blockText, highlightSegments
 
     mp_UnmergeRowsSafe ws, blockRow + bannerRows, gapRowsAfter
     Set insertedRange = ws.Range(ws.Cells(insertRow, 1), ws.Cells(insertRow + rowsToInsert - 1, bannerCols))
@@ -635,6 +640,69 @@ Public Function m_AppendResultBlock( _
     mp_SetNamedRowAnchor ws, RESULT_BLOCK_LAST_ANCHOR_NAME, blockRow
     m_AppendResultBlock = blockText
 End Function
+
+Private Sub mp_ApplyResultBlockHighlightSegments( _
+    ByVal ws As Worksheet, _
+    ByVal blockRow As Long, _
+    ByVal titleText As String, _
+    ByVal bodyText As String, _
+    ByVal highlightSegments As Collection _
+)
+    Dim targetCell As Range
+    Dim segment As Variant
+    Dim segmentStart As Long
+    Dim segmentLength As Long
+    Dim titlePrefixLength As Long
+    Dim combinedText As String
+    Dim colorHex As String
+    Dim fontColor As Long
+
+    If ws Is Nothing Then Exit Sub
+    If highlightSegments Is Nothing Then Exit Sub
+    If highlightSegments.Count = 0 Then Exit Sub
+    If blockRow < 1 Or blockRow > ws.Rows.Count Then Exit Sub
+
+    titleText = Trim$(titleText)
+    bodyText = CStr(bodyText)
+    If Len(titleText) > 0 Then
+        titlePrefixLength = Len(titleText) + 2
+        combinedText = titleText & vbLf & vbLf & bodyText
+    Else
+        titlePrefixLength = 0
+        combinedText = bodyText
+    End If
+    If Len(combinedText) = 0 Then Exit Sub
+
+    Set targetCell = ws.Cells(blockRow, 1)
+
+    For Each segment In highlightSegments
+        If Not IsObject(segment) Then GoTo NextSegment
+        If Not segment.Exists("Start") Then GoTo NextSegment
+        If Not segment.Exists("Length") Then GoTo NextSegment
+
+        segmentStart = CLng(segment("Start")) + titlePrefixLength
+        segmentLength = CLng(segment("Length"))
+        If segmentLength <= 0 Then GoTo NextSegment
+        If segmentStart < 1 Then GoTo NextSegment
+        If segmentStart > Len(combinedText) Then GoTo NextSegment
+        If segmentStart + segmentLength - 1 > Len(combinedText) Then
+            segmentLength = Len(combinedText) - segmentStart + 1
+            If segmentLength <= 0 Then GoTo NextSegment
+        End If
+
+        colorHex = RESULT_BLOCK_PLACEHOLDER_HIGHLIGHT_COLOR
+        If segment.Exists("ColorHex") Then
+            colorHex = CStr(segment("ColorHex"))
+        End If
+        If Not ex_XmlCore.m_TryParseColor(colorHex, fontColor) Then
+            If Not ex_XmlCore.m_TryParseColor(RESULT_BLOCK_PLACEHOLDER_HIGHLIGHT_COLOR, fontColor) Then GoTo NextSegment
+        End If
+
+        targetCell.Characters(segmentStart, segmentLength).Font.Color = fontColor
+
+NextSegment:
+    Next segment
+End Sub
 
 Public Function m_GetLastResultBlockCellRef(Optional ByVal targetSheet As Worksheet = Nothing) As String
     Dim ws As Worksheet

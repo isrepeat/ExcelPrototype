@@ -430,7 +430,7 @@ EH:
         ex_OutputPanel.m_RenderForSheet wsOut, errOutputStyle
     End If
     On Error GoTo 0
-    ex_Messaging.m_RenderErrorBanner wsOut, errDescription, errSource, errNumber, "ERROR: Timeline generation failed", ex_SheetStylesXmlProvider.m_GetOutputErrorBannerRangeAddress(ThisWorkbook)
+    ex_Messaging.m_RenderErrorBanner wsOut, errDescription, errSource, errNumber, "ОШИБКА: Не удалось сформировать таймлайн", ex_SheetStylesXmlProvider.m_GetOutputErrorBannerRangeAddress(ThisWorkbook)
 
 End Sub
 
@@ -846,6 +846,7 @@ EH:
     Dim innerErrDescription As String
     innerErrNumber = Err.Number
     innerErrDescription = Err.Description
+    innerErrDescription = mp_LocalizeInnerErrorRu(innerErrDescription)
 
     On Error Resume Next
     If Not rs Is Nothing Then
@@ -854,8 +855,8 @@ EH:
     On Error GoTo 0
 
     Err.Raise vbObjectError + 1319, "ex_PersonTimeline.mp_WriteStateCardGeneric", _
-        "Failed for table alias '" & tableAlias & "' (source '" & sourceAlias & "') at step '" & stepName & "'. " & _
-        "SQL=[" & sql & "]. InnerError #" & CStr(innerErrNumber) & ": " & innerErrDescription
+        "Ошибка для таблицы '" & tableAlias & "' (источник '" & sourceAlias & "') на шаге '" & stepName & "'. " & _
+        "SQL=[" & sql & "]. Внутренняя ошибка #" & CStr(innerErrNumber) & ": " & innerErrDescription
 End Function
 
 Private Function mp_WriteEventsGeneric( _
@@ -1080,6 +1081,7 @@ EH:
     Dim innerErrDescription As String
     innerErrNumber = Err.Number
     innerErrDescription = Err.Description
+    innerErrDescription = mp_LocalizeInnerErrorRu(innerErrDescription)
 
     On Error Resume Next
     If Not rs Is Nothing Then
@@ -1088,8 +1090,8 @@ EH:
     On Error GoTo 0
 
     Err.Raise vbObjectError + 1329, "ex_PersonTimeline.mp_WriteEventsGeneric", _
-        "Failed for table alias '" & tableAlias & "' (source '" & sourceAlias & "') at step '" & stepName & "'. " & _
-        "SQL=[" & sql & "]. InnerError #" & CStr(innerErrNumber) & ": " & innerErrDescription
+        "Ошибка для таблицы '" & tableAlias & "' (источник '" & sourceAlias & "') на шаге '" & stepName & "'. " & _
+        "SQL=[" & sql & "]. Внутренняя ошибка #" & CStr(innerErrNumber) & ": " & innerErrDescription
 
 End Function
 
@@ -3005,7 +3007,20 @@ Private Function mp_BuildExpectedHeadersSignature(ByVal expectedHeaders As Varia
 End Function
 
 Private Function mp_QuoteSqlIdentifier(ByVal value As String) As String
+    value = Trim$(value)
+    If Len(value) >= 2 Then
+        If Left$(value, 1) = "[" And Right$(value, 1) = "]" Then
+            value = Mid$(value, 2, Len(value) - 2)
+        End If
+    End If
     mp_QuoteSqlIdentifier = "[" & Replace$(value, "]", "]]" ) & "]"
+End Function
+
+Private Function mp_LocalizeInnerErrorRu(ByVal errorText As String) As String
+    errorText = Replace$(errorText, "Неприпустиме використання дужок для імен", "Недопустимое использование скобок для имен")
+    errorText = Replace$(errorText, "Ім'я", "Имя")
+    errorText = Replace$(errorText, "імен", "имен")
+    mp_LocalizeInnerErrorRu = errorText
 End Function
 
 Private Function mp_BuildAdoWhereEquals(ByVal columnName As String, ByVal valueText As String) As String
@@ -3727,6 +3742,12 @@ Private Function mp_GetMappedSourceHeader( _
         mp_GetMappedSourceHeader = Trim$(Left$(raw, p - 1))
     Else
         mp_GetMappedSourceHeader = Trim$(raw)
+    End If
+
+    If Len(mp_GetMappedSourceHeader) >= 2 Then
+        If Left$(mp_GetMappedSourceHeader, 1) = "[" And Right$(mp_GetMappedSourceHeader, 1) = "]" Then
+            mp_GetMappedSourceHeader = Trim$(Mid$(mp_GetMappedSourceHeader, 2, Len(mp_GetMappedSourceHeader) - 2))
+        End If
     End If
 
     If Len(mp_GetMappedSourceHeader) = 0 Then

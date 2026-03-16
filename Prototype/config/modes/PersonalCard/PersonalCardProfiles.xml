@@ -227,9 +227,11 @@
 						metaRank,
 						metaFio,
 						metaPosition,
-						metaDocNote,
 						metaRaportTVO,
-						metaRaportFrom
+						metaRaportFrom,
+						metaInNum,
+						metaInDate,
+						metaDocNote
 					]
 				};
 
@@ -252,9 +254,11 @@
 							.metaRank = Src.Rank,
 							.metaFio = Src.FIO,
 							.metaPosition = Src.Position,
-							.metaDocNote = Src.DocNote,
 							.metaRaportTVO = Src.RaportTVO,
-							.metaRaportFrom = Src.RaportFrom
+							.metaRaportFrom = Src.RaportFrom,
+							.metaInNum = Src.InNum,
+							.metaInDate = Src.InDate,
+							.metaDocNote = Src.DocNote
 						}
 						@KEEP(CONTIGUOUS);
 
@@ -267,21 +271,23 @@
 						SectionTitle = @LAST(Ctx.sectionData).sectionTitle
 					};
 
-						@FOREACH(md : Ctx.metaData) {
-							DEFINE ROW {
-								MetaType = "meta",
-								OwnerFio = $Key,
-								SectionType = @LAST(Ctx.sectionData).sectionType,
-								SectionTitle = @LAST(Ctx.sectionData).sectionTitle,
-								Vacation = md.metaVacation,
-								Rank = md.metaRank,
-								FIO = md.metaFio,
-								Position = md.metaPosition,
-								DocNote = md.metaDocNote,
-								RaportTVO = md.metaRaportTVO,
-								RaportFrom = md.metaRaportFrom
-							};
+					@FOREACH(md : Ctx.metaData) {
+						DEFINE ROW {
+							Vacation = md.metaVacation,
+							Rank = md.metaRank,
+							FIO = md.metaFio,
+							Position = md.metaPosition,
+							RaportTVO = md.metaRaportTVO,
+							RaportFrom = md.metaRaportFrom,
+							InNum = md.metaInNum,
+							InDate = md.metaInDate,
+							DocNote = md.metaDocNote,
+							MetaType = "meta",
+							OwnerFio = $Key,
+							SectionType = @LAST(Ctx.sectionData).sectionType,
+							SectionTitle = @LAST(Ctx.sectionData).sectionTitle
 						};
+					};
 				}
 			}
 		</v>
