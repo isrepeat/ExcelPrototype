@@ -44,6 +44,7 @@ Private Const FORMATTER_ACCUSATIVE As String = "accusative"
 Private Const FORMATTER_DATIVE As String = "dative"
 Private Const FORMATTER_TRUNCATE As String = "truncate"
 Private Const FORMATTER_REPLACE As String = "replace"
+Private Const FORMATTER_REGEX_REPLACE As String = "regexreplace"
 Private Const FORMATTER_DATEFORMAT As String = "dateformat"
 Private Const FORMATTER_TO_DATE_DAY As String = "todate_day"
 Private Const FORMATTER_TO_DATE_DAY_WITH_MONTH As String = "todate_daywithmonth"
@@ -396,7 +397,7 @@ Private Function mp_CollapseNamedPlaceholderTokens( _
     Set rx = CreateObject("VBScript.RegExp")
     rx.Global = True
     rx.IgnoreCase = False
-    rx.Pattern = " ?" & tokenPattern & " ?"
+    rx.Pattern = tokenPattern
 
     mp_CollapseNamedPlaceholderTokens = rx.Replace(resultText, vbNullString)
 End Function
@@ -644,6 +645,8 @@ Private Function mp_ApplyFormatterAction(ByVal sourceValue As String, ByVal acti
     Dim commaPos As Long
     Dim replaceFrom As String
     Dim replaceTo As String
+    Dim regexPattern As String
+    Dim regexReplaceTo As String
     Dim maxLen As Long
 
     actionSpec = mp_TrimWhitespace(CStr(actionSpec))
@@ -684,6 +687,21 @@ Private Function mp_ApplyFormatterAction(ByVal sourceValue As String, ByVal acti
             mp_ApplyFormatterAction = Replace(CStr(sourceValue), replaceFrom, replaceTo)
             Exit Function
 
+        Case FORMATTER_REGEX_REPLACE
+            commaPos = InStr(1, actionArgs, ",", vbBinaryCompare)
+            If commaPos <= 0 Then
+                Err.Raise vbObjectError + 1828, "ex_ResultTemplatesParser", "regexreplace requires two args 'pattern,replacement': '" & actionSpec & "'."
+            End If
+
+            regexPattern = mp_UnquoteFormatterArgument(Left$(actionArgs, commaPos - 1))
+            regexReplaceTo = mp_UnquoteFormatterArgument(Mid$(actionArgs, commaPos + 1))
+            If Len(regexPattern) = 0 Then
+                Err.Raise vbObjectError + 1829, "ex_ResultTemplatesParser", "regexreplace 'pattern' cannot be empty: '" & actionSpec & "'."
+            End If
+
+            mp_ApplyFormatterAction = mp_RegexReplaceText(CStr(sourceValue), regexPattern, regexReplaceTo)
+            Exit Function
+
         Case FORMATTER_DATEFORMAT
             actionArgs = mp_UnquoteFormatterArgument(actionArgs)
             If Len(actionArgs) = 0 Then
@@ -699,6 +717,29 @@ Private Function mp_ApplyFormatterAction(ByVal sourceValue As String, ByVal acti
             mp_ApplyFormatterAction = mp_ApplyFormatter(CStr(sourceValue), actionName)
             Exit Function
     End Select
+End Function
+
+Private Function mp_RegexReplaceText( _
+    ByVal sourceValue As String, _
+    ByVal regexPattern As String, _
+    ByVal replacementText As String _
+) As String
+    Dim rx As Object
+
+    Set rx = CreateObject("VBScript.RegExp")
+    rx.Global = True
+    rx.IgnoreCase = False
+    rx.MultiLine = True
+
+    On Error GoTo PatternErr
+    rx.Pattern = CStr(regexPattern)
+    On Error GoTo 0
+
+    mp_RegexReplaceText = rx.Replace(CStr(sourceValue), CStr(replacementText))
+    Exit Function
+
+PatternErr:
+    Err.Raise vbObjectError + 1830, "ex_ResultTemplatesParser", "Invalid regex pattern '" & CStr(regexPattern) & "' in formatter regexreplace."
 End Function
 
 Private Function mp_UnquoteFormatterArgument(ByVal argText As String) As String
