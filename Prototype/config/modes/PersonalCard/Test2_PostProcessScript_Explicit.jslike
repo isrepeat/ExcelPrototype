@@ -1,4 +1,4 @@
-let baseDate = "13.03.2026";
+let baseDate = "14.03.2026";
 let validationWarningsText = "";
 let hasValidationWarnings = "false";
 let validationWarningTitle = "DailyEvents validation warning";
@@ -550,7 +550,9 @@ for (let row in Daily.Sheet[DailyEvents].rows) {
 			txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "VkDate", "{fullVkDate}", "#66CCFF");
 		}
 
+		txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "DocNote", "{row.column[DocNote]}", "#66CCFF");
 		txt = callMacro("ex_ResultTemplatesParser.m_ResolveTemplate", txt, "", "#66CCFF");
+		
 		let txtForWord = callMacro("ex_ResultTemplatesParser.m_RemoveHighlightMarkers", txt);
 		let exportAnchorRuntimeKey = exportRuntimeWordAnchorPrefix + rowTemplateAnchor;
 		let currentAnchorExportText = callMacro("ex_PostProcessActions.m_GetRuntimeData", exportAnchorRuntimeKey, "");

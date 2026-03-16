@@ -131,15 +131,6 @@ Public Function m_ReplacePlaceholder( _
 ) As String
     Dim normalizedName As String
     Dim resultText As String
-    Dim rx As Object
-    Dim matches As Object
-    Dim i As Long
-    Dim formatter As String
-    Dim formattedValue As String
-    Dim matchStart As Long
-    Dim matchLen As Long
-    Dim offsetText As String
-    Dim resolvedValue As String
 
     On Error GoTo EH
 
@@ -157,51 +148,7 @@ Public Function m_ReplacePlaceholder( _
     End If
 
     resultText = CStr(sourceText)
-
-    ' Resolve formatted placeholders first: {Name|formatter}{+N}
-    Set rx = CreateObject("VBScript.RegExp")
-    rx.Global = True
-    rx.IgnoreCase = False
-    rx.Pattern = "\{" & mp_EscapeRegex(normalizedName) & "\|([^{}]+)\}(\{([+-]\d+)\})?"
-
-    Set matches = rx.Execute(resultText)
-    If Not matches Is Nothing Then
-        For i = matches.Count - 1 To 0 Step -1
-            formatter = CStr(matches(i).SubMatches(0))
-            If matches(i).SubMatches.Count >= 3 Then
-                offsetText = CStr(matches(i).SubMatches(2))
-            Else
-                offsetText = vbNullString
-            End If
-            formattedValue = mp_ApplyFormatterPipeline(CStr(replacementText), formatter)
-            resolvedValue = mp_ResolveNumericOffsetForPlaceholderValue(formattedValue, offsetText, normalizedName)
-            resolvedValue = mp_WrapHighlightMarkers(resolvedValue, highlightColorHex)
-            matchStart = CLng(matches(i).FirstIndex)
-            matchLen = CLng(matches(i).Length)
-
-            resultText = Left$(resultText, matchStart) & resolvedValue & Mid$(resultText, matchStart + matchLen + 1)
-        Next i
-    End If
-
-    ' Resolve plain placeholders: {Name}{+N}
-    rx.Pattern = "\{" & mp_EscapeRegex(normalizedName) & "\}(\{([+-]\d+)\})?"
-    Set matches = rx.Execute(resultText)
-    If Not matches Is Nothing Then
-        For i = matches.Count - 1 To 0 Step -1
-            If matches(i).SubMatches.Count >= 2 Then
-                offsetText = CStr(matches(i).SubMatches(1))
-            Else
-                offsetText = vbNullString
-            End If
-
-            resolvedValue = mp_ResolveNumericOffsetForPlaceholderValue(CStr(replacementText), offsetText, normalizedName)
-            resolvedValue = mp_WrapHighlightMarkers(resolvedValue, highlightColorHex)
-            matchStart = CLng(matches(i).FirstIndex)
-            matchLen = CLng(matches(i).Length)
-
-            resultText = Left$(resultText, matchStart) & resolvedValue & Mid$(resultText, matchStart + matchLen + 1)
-        Next i
-    End If
+    resultText = mp_ReplaceNamedPlaceholderTokens(resultText, normalizedName, CStr(replacementText), highlightColorHex)
 
     resultText = mp_ReplaceIfConditionForPlaceholder(resultText, normalizedName, CStr(replacementText))
     m_ReplacePlaceholder = resultText
@@ -387,33 +334,341 @@ Private Function mp_CollapseNamedPlaceholderTokens( _
     ByVal sourceText As String, _
     ByVal placeholderName As String _
 ) As String
-    Dim rx As Object
-    Dim tokenPattern As String
+    Dim src As String
     Dim resultText As String
+    Dim i As Long
+    Dim phEndPos As Long
+    Dim tokenEndPos As Long
+    Dim formatterPipeline As String
+    Dim offsetText As String
 
-    resultText = CStr(sourceText)
-    tokenPattern = "\{" & mp_EscapeRegex(CStr(placeholderName)) & "(\|[^{}]+)?\}"
+    src = CStr(sourceText)
+    i = 1
+    Do While i <= Len(src)
+        If Mid$(src, i, 1) = "{" Then
+            If mp_TryParseNamedPlaceholderTokenAt(src, i, CStr(placeholderName), phEndPos, formatterPipeline, offsetText, tokenEndPos) Then
+                i = tokenEndPos + 1
+                GoTo ContinueLoop
+            End If
+        End If
 
-    Set rx = CreateObject("VBScript.RegExp")
-    rx.Global = True
-    rx.IgnoreCase = False
-    rx.Pattern = tokenPattern
+        resultText = resultText & Mid$(src, i, 1)
+        i = i + 1
+ContinueLoop:
+    Loop
 
-    mp_CollapseNamedPlaceholderTokens = rx.Replace(resultText, vbNullString)
+    mp_CollapseNamedPlaceholderTokens = resultText
+End Function
+
+Private Function mp_ReplaceNamedPlaceholderTokens( _
+    ByVal sourceText As String, _
+    ByVal placeholderName As String, _
+    ByVal replacementText As String, _
+    ByVal highlightColorHex As String _
+) As String
+    Dim src As String
+    Dim resultText As String
+    Dim i As Long
+    Dim phEndPos As Long
+    Dim tokenEndPos As Long
+    Dim formatterPipeline As String
+    Dim offsetText As String
+    Dim resolvedValue As String
+    Dim formattedValue As String
+
+    src = CStr(sourceText)
+    i = 1
+    Do While i <= Len(src)
+        If Mid$(src, i, 1) = "{" Then
+            If mp_TryParseNamedPlaceholderTokenAt(src, i, CStr(placeholderName), phEndPos, formatterPipeline, offsetText, tokenEndPos) Then
+                formattedValue = CStr(replacementText)
+                If Len(formatterPipeline) > 0 Then
+                    formattedValue = mp_ApplyFormatterPipeline(formattedValue, formatterPipeline)
+                End If
+
+                resolvedValue = mp_ResolveNumericOffsetForPlaceholderValue(formattedValue, offsetText, CStr(placeholderName))
+                resolvedValue = mp_WrapHighlightMarkers(resolvedValue, highlightColorHex)
+                resultText = resultText & resolvedValue
+
+                i = tokenEndPos + 1
+                GoTo ContinueLoop
+            End If
+        End If
+
+        resultText = resultText & Mid$(src, i, 1)
+        i = i + 1
+ContinueLoop:
+    Loop
+
+    mp_ReplaceNamedPlaceholderTokens = resultText
+End Function
+
+Private Function mp_TryParseNamedPlaceholderTokenAt( _
+    ByVal sourceText As String, _
+    ByVal startPos As Long, _
+    ByVal placeholderName As String, _
+    ByRef outPlaceholderEndPos As Long, _
+    ByRef outFormatterPipeline As String, _
+    ByRef outOffsetText As String, _
+    ByRef outTokenEndPos As Long _
+) As Boolean
+    Dim nameLen As Long
+    Dim nameStartPos As Long
+    Dim afterNamePos As Long
+    Dim tailPos As Long
+    Dim firstTailChar As String
+    Dim closePos As Long
+    Dim offsetEndPos As Long
+
+    sourceText = CStr(sourceText)
+    placeholderName = CStr(placeholderName)
+    nameLen = Len(placeholderName)
+    If nameLen = 0 Then Exit Function
+    If startPos < 1 Or startPos > Len(sourceText) Then Exit Function
+
+    If Mid$(sourceText, startPos, 1) <> "{" Then Exit Function
+
+    nameStartPos = startPos + 1
+    If nameStartPos + nameLen - 1 > Len(sourceText) Then Exit Function
+    If StrComp(Mid$(sourceText, nameStartPos, nameLen), placeholderName, vbBinaryCompare) <> 0 Then Exit Function
+
+    afterNamePos = nameStartPos + nameLen
+    If afterNamePos > Len(sourceText) Then Exit Function
+
+    tailPos = mp_FindNextNonWhitespacePosition(sourceText, afterNamePos)
+    If tailPos = 0 Then Exit Function
+
+    firstTailChar = Mid$(sourceText, tailPos, 1)
+    If firstTailChar = "}" Then
+        closePos = tailPos
+        outFormatterPipeline = vbNullString
+    ElseIf firstTailChar = "|" Then
+        If Not mp_TryFindPlaceholderTokenClose(sourceText, startPos, closePos) Then Exit Function
+        outFormatterPipeline = Mid$(sourceText, tailPos + 1, closePos - tailPos - 1)
+    Else
+        Exit Function
+    End If
+
+    outPlaceholderEndPos = closePos
+    outOffsetText = vbNullString
+    outTokenEndPos = closePos
+    If mp_TryParseNumericOffsetTokenAt(sourceText, closePos + 1, outOffsetText, offsetEndPos) Then
+        outTokenEndPos = offsetEndPos
+    End If
+
+    mp_TryParseNamedPlaceholderTokenAt = True
+End Function
+
+Private Function mp_TryFindPlaceholderTokenClose( _
+    ByVal sourceText As String, _
+    ByVal openBracePos As Long, _
+    ByRef outClosePos As Long _
+) As Boolean
+    Dim i As Long
+    Dim ch As String
+    Dim quoteChar As String
+    Dim depth As Long
+    Dim sourceLen As Long
+
+    sourceText = CStr(sourceText)
+    sourceLen = Len(sourceText)
+    If openBracePos < 1 Or openBracePos > sourceLen Then Exit Function
+    If Mid$(sourceText, openBracePos, 1) <> "{" Then Exit Function
+
+    depth = 1
+    i = openBracePos + 1
+    Do While i <= sourceLen
+        ch = Mid$(sourceText, i, 1)
+        If Len(quoteChar) = 0 Then
+            If ch = """" Or ch = "'" Then
+                quoteChar = ch
+                i = i + 1
+            ElseIf ch = "{" Then
+                depth = depth + 1
+                i = i + 1
+            ElseIf ch = "}" Then
+                depth = depth - 1
+                If depth = 0 Then
+                    outClosePos = i
+                    mp_TryFindPlaceholderTokenClose = True
+                    Exit Function
+                End If
+                i = i + 1
+            Else
+                i = i + 1
+            End If
+        Else
+            If ch = "\" Then
+                If i < sourceLen Then
+                    i = i + 2
+                Else
+                    i = i + 1
+                End If
+            ElseIf ch = quoteChar Then
+                quoteChar = vbNullString
+                i = i + 1
+            Else
+                i = i + 1
+            End If
+        End If
+    Loop
+End Function
+
+Private Function mp_TryParseNumericOffsetTokenAt( _
+    ByVal sourceText As String, _
+    ByVal startPos As Long, _
+    ByRef outOffsetText As String, _
+    ByRef outEndPos As Long _
+) As Boolean
+    Dim i As Long
+    Dim signChar As String
+    Dim sourceLen As Long
+    Dim digitStart As Long
+    Dim ch As String
+
+    sourceText = CStr(sourceText)
+    sourceLen = Len(sourceText)
+    If startPos < 1 Or startPos > sourceLen Then Exit Function
+    If Mid$(sourceText, startPos, 1) <> "{" Then Exit Function
+
+    If startPos + 2 > sourceLen Then Exit Function
+    signChar = Mid$(sourceText, startPos + 1, 1)
+    If signChar <> "+" And signChar <> "-" Then Exit Function
+
+    digitStart = startPos + 2
+    i = digitStart
+    Do While i <= sourceLen
+        ch = Mid$(sourceText, i, 1)
+        If ch < "0" Or ch > "9" Then Exit Do
+        i = i + 1
+    Loop
+
+    If i = digitStart Then Exit Function
+    If i > sourceLen Then Exit Function
+    If Mid$(sourceText, i, 1) <> "}" Then Exit Function
+
+    outOffsetText = Mid$(sourceText, startPos + 1, i - startPos - 1)
+    outEndPos = i
+    mp_TryParseNumericOffsetTokenAt = True
 End Function
 
 Private Function mp_CollapseUnresolvedPlaceholders(ByVal sourceText As String) As String
-    Dim rx As Object
+    Dim src As String
     Dim resultText As String
+    Dim i As Long
+    Dim tokenEndPos As Long
 
-    resultText = CStr(sourceText)
+    src = CStr(sourceText)
+    i = 1
+    Do While i <= Len(src)
+        If Mid$(src, i, 1) = "{" Then
+            If mp_TryParseAnyPlaceholderTokenAt(src, i, tokenEndPos) Then
+                i = tokenEndPos + 1
+                GoTo ContinueLoop
+            End If
+        End If
 
-    Set rx = CreateObject("VBScript.RegExp")
-    rx.Global = True
-    rx.IgnoreCase = False
-    rx.Pattern = "\{[A-Za-z_][A-Za-z0-9_]*(\|[^{}]+)?\}"
+        resultText = resultText & Mid$(src, i, 1)
+        i = i + 1
+ContinueLoop:
+    Loop
 
-    mp_CollapseUnresolvedPlaceholders = rx.Replace(resultText, vbNullString)
+    mp_CollapseUnresolvedPlaceholders = resultText
+End Function
+
+Private Function mp_TryParseAnyPlaceholderTokenAt( _
+    ByVal sourceText As String, _
+    ByVal startPos As Long, _
+    ByRef outTokenEndPos As Long _
+) As Boolean
+    Dim sourceLen As Long
+    Dim i As Long
+    Dim tailPos As Long
+    Dim ch As String
+    Dim nameEndPos As Long
+    Dim tailChar As String
+    Dim closePos As Long
+    Dim offsetText As String
+    Dim offsetEndPos As Long
+
+    sourceText = CStr(sourceText)
+    sourceLen = Len(sourceText)
+    If startPos < 1 Or startPos > sourceLen Then Exit Function
+    If Mid$(sourceText, startPos, 1) <> "{" Then Exit Function
+    If startPos + 1 > sourceLen Then Exit Function
+
+    ch = Mid$(sourceText, startPos + 1, 1)
+    If Not mp_IsPlaceholderNameStartChar(ch) Then Exit Function
+
+    i = startPos + 2
+    Do While i <= sourceLen
+        ch = Mid$(sourceText, i, 1)
+        If Not mp_IsPlaceholderNamePartChar(ch) Then Exit Do
+        i = i + 1
+    Loop
+    nameEndPos = i - 1
+    If nameEndPos < startPos + 1 Then Exit Function
+    If i > sourceLen Then Exit Function
+
+    tailPos = mp_FindNextNonWhitespacePosition(sourceText, i)
+    If tailPos = 0 Then Exit Function
+
+    tailChar = Mid$(sourceText, tailPos, 1)
+    If tailChar = "}" Then
+        closePos = tailPos
+    ElseIf tailChar = "|" Then
+        If Not mp_TryFindPlaceholderTokenClose(sourceText, startPos, closePos) Then Exit Function
+    Else
+        Exit Function
+    End If
+
+    outTokenEndPos = closePos
+    If mp_TryParseNumericOffsetTokenAt(sourceText, closePos + 1, offsetText, offsetEndPos) Then
+        outTokenEndPos = offsetEndPos
+    End If
+
+    mp_TryParseAnyPlaceholderTokenAt = True
+End Function
+
+Private Function mp_IsPlaceholderNameStartChar(ByVal ch As String) As Boolean
+    ch = CStr(ch)
+    If Len(ch) <> 1 Then Exit Function
+    mp_IsPlaceholderNameStartChar = _
+        ((ch >= "A" And ch <= "Z") Or _
+         (ch >= "a" And ch <= "z") Or _
+         ch = "_")
+End Function
+
+Private Function mp_IsPlaceholderNamePartChar(ByVal ch As String) As Boolean
+    ch = CStr(ch)
+    If Len(ch) <> 1 Then Exit Function
+    mp_IsPlaceholderNamePartChar = _
+        ((ch >= "A" And ch <= "Z") Or _
+         (ch >= "a" And ch <= "z") Or _
+         (ch >= "0" And ch <= "9") Or _
+         ch = "_")
+End Function
+
+Private Function mp_FindNextNonWhitespacePosition( _
+    ByVal sourceText As String, _
+    ByVal startPos As Long _
+) As Long
+    Dim i As Long
+    Dim sourceLen As Long
+    Dim ch As String
+
+    sourceText = CStr(sourceText)
+    sourceLen = Len(sourceText)
+    If startPos < 1 Then startPos = 1
+    If startPos > sourceLen Then Exit Function
+
+    For i = startPos To sourceLen
+        ch = Mid$(sourceText, i, 1)
+        If Not mp_IsWhitespaceChar(ch) Then
+            mp_FindNextNonWhitespacePosition = i
+            Exit Function
+        End If
+    Next i
 End Function
 
 Private Function mp_CollapseHorizontalWhitespaceRuns(ByVal sourceText As String) As String
@@ -612,10 +867,10 @@ Private Function mp_LowercaseFirstWord(ByVal sourceValue As String) As String
 End Function
 
 Private Function mp_ApplyFormatterPipeline(ByVal sourceValue As String, ByVal formatterPipeline As String) As String
-    Dim actions() As String
     Dim i As Long
     Dim actionSpec As String
     Dim formattedValue As String
+    Dim actions As Collection
 
     formatterPipeline = CStr(formatterPipeline)
     actionSpec = mp_TrimWhitespace(formatterPipeline)
@@ -625,9 +880,9 @@ Private Function mp_ApplyFormatterPipeline(ByVal sourceValue As String, ByVal fo
     End If
 
     formattedValue = CStr(sourceValue)
-    actions = Split(actionSpec, "|")
+    Set actions = mp_SplitByDelimiterOutsideQuotedLiterals(actionSpec, "|")
 
-    For i = LBound(actions) To UBound(actions)
+    For i = 1 To actions.Count
         actionSpec = mp_TrimWhitespace(CStr(actions(i)))
         If Len(actionSpec) = 0 Then
             Err.Raise vbObjectError + 1770, "ex_ResultTemplatesParser", "Empty formatter action in '" & formatterPipeline & "'."
@@ -675,7 +930,7 @@ Private Function mp_ApplyFormatterAction(ByVal sourceValue As String, ByVal acti
             Exit Function
 
         Case FORMATTER_REPLACE
-            commaPos = InStr(1, actionArgs, ",", vbBinaryCompare)
+            commaPos = mp_IndexOfDelimiterOutsideQuotedLiterals(actionArgs, ",")
             If commaPos <= 0 Then
                 Err.Raise vbObjectError + 1772, "ex_ResultTemplatesParser", "replace requires two args 'from,to': '" & actionSpec & "'."
             End If
@@ -688,7 +943,7 @@ Private Function mp_ApplyFormatterAction(ByVal sourceValue As String, ByVal acti
             Exit Function
 
         Case FORMATTER_REGEX_REPLACE
-            commaPos = InStr(1, actionArgs, ",", vbBinaryCompare)
+            commaPos = mp_IndexOfDelimiterOutsideQuotedLiterals(actionArgs, ",")
             If commaPos <= 0 Then
                 Err.Raise vbObjectError + 1828, "ex_ResultTemplatesParser", "regexreplace requires two args 'pattern,replacement': '" & actionSpec & "'."
             End If
@@ -717,6 +972,97 @@ Private Function mp_ApplyFormatterAction(ByVal sourceValue As String, ByVal acti
             mp_ApplyFormatterAction = mp_ApplyFormatter(CStr(sourceValue), actionName)
             Exit Function
     End Select
+End Function
+
+Private Function mp_SplitByDelimiterOutsideQuotedLiterals( _
+    ByVal sourceText As String, _
+    ByVal delimiterChar As String _
+) As Collection
+    Dim parts As Collection
+    Dim cursor As Long
+    Dim delimiterPos As Long
+    Dim tokenText As String
+
+    sourceText = CStr(sourceText)
+    delimiterChar = CStr(delimiterChar)
+    If Len(delimiterChar) <> 1 Then
+        Err.Raise vbObjectError + 1831, "ex_ResultTemplatesParser", "Delimiter must be exactly one character."
+    End If
+
+    Set parts = New Collection
+    cursor = 1
+
+    Do
+        delimiterPos = mp_IndexOfDelimiterOutsideQuotedLiterals(sourceText, delimiterChar, cursor)
+        If delimiterPos <= 0 Then
+            parts.Add Mid$(sourceText, cursor)
+            Exit Do
+        End If
+
+        tokenText = Mid$(sourceText, cursor, delimiterPos - cursor)
+        parts.Add tokenText
+        cursor = delimiterPos + 1
+
+        If cursor > Len(sourceText) + 1 Then
+            parts.Add vbNullString
+            Exit Do
+        End If
+    Loop
+
+    Set mp_SplitByDelimiterOutsideQuotedLiterals = parts
+End Function
+
+Private Function mp_IndexOfDelimiterOutsideQuotedLiterals( _
+    ByVal sourceText As String, _
+    ByVal delimiterChar As String, _
+    Optional ByVal startPos As Long = 1 _
+) As Long
+    Dim i As Long
+    Dim textLen As Long
+    Dim ch As String
+    Dim quoteChar As String
+
+    sourceText = CStr(sourceText)
+    delimiterChar = CStr(delimiterChar)
+    If Len(delimiterChar) <> 1 Then
+        Err.Raise vbObjectError + 1832, "ex_ResultTemplatesParser", "Delimiter must be exactly one character."
+    End If
+
+    textLen = Len(sourceText)
+    If startPos < 1 Then startPos = 1
+    If startPos > textLen Then Exit Function
+
+    i = startPos
+    Do While i <= textLen
+        ch = Mid$(sourceText, i, 1)
+
+        If Len(quoteChar) = 0 Then
+            If ch = """" Or ch = "'" Then
+                quoteChar = ch
+            ElseIf ch = delimiterChar Then
+                mp_IndexOfDelimiterOutsideQuotedLiterals = i
+                Exit Function
+            End If
+            i = i + 1
+        Else
+            If ch = "\" Then
+                If i < textLen Then
+                    i = i + 2
+                Else
+                    i = i + 1
+                End If
+            ElseIf ch = quoteChar Then
+                quoteChar = vbNullString
+                i = i + 1
+            Else
+                i = i + 1
+            End If
+        End If
+    Loop
+
+    If Len(quoteChar) > 0 Then
+        Err.Raise vbObjectError + 1833, "ex_ResultTemplatesParser", "Unclosed string literal in formatter expression: '" & sourceText & "'."
+    End If
 End Function
 
 Private Function mp_RegexReplaceText( _
