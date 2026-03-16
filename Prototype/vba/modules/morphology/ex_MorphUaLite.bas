@@ -531,6 +531,14 @@ Private Function mp_TryInflectSimpleCommonWordToAccusative(ByVal sourceWord As S
     low = LCase$(sourceWord)
     low = mp_NormalizeTrailingYiSoftSign(low)
 
+    ' Keep likely dative-plural forms unchanged (e.g., "екіпажам")
+    ' to avoid over-inflection like "екіпажама" in accusative pass.
+    If mp_EndsWith(low, "ам") Or mp_EndsWith(low, "ям") Then
+        resultWord = sourceWord
+        mp_TryInflectSimpleCommonWordToAccusative = True
+        Exit Function
+    End If
+
     Dim exceptions As Object
     Set exceptions = mp_GetCommonWordExceptionsAccusativeDict()
     If exceptions.Exists(low) Then
