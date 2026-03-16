@@ -485,6 +485,7 @@ Private Function mp_TryInflectSimpleCommonWordToGenitive(ByVal sourceWord As Str
 
     Dim low As String
     low = LCase$(sourceWord)
+    low = mp_NormalizeTrailingYiSoftSign(low)
 
     Dim exceptions As Object
     Set exceptions = mp_GetCommonWordExceptionsGenitiveDict()
@@ -528,6 +529,7 @@ Private Function mp_TryInflectSimpleCommonWordToAccusative(ByVal sourceWord As S
 
     Dim low As String
     low = LCase$(sourceWord)
+    low = mp_NormalizeTrailingYiSoftSign(low)
 
     Dim exceptions As Object
     Set exceptions = mp_GetCommonWordExceptionsAccusativeDict()
@@ -571,6 +573,7 @@ Private Function mp_TryInflectSimpleCommonWordToDative(ByVal sourceWord As Strin
 
     Dim low As String
     low = LCase$(sourceWord)
+    low = mp_NormalizeTrailingYiSoftSign(low)
 
     Dim exceptions As Object
     Set exceptions = mp_GetCommonWordExceptionsDativeDict()
@@ -897,6 +900,15 @@ End Function
 Private Function mp_EndsWith(ByVal textValue As String, ByVal suffix As String) As Boolean
     If Len(textValue) < Len(suffix) Then Exit Function
     mp_EndsWith = (Right$(textValue, Len(suffix)) = suffix)
+End Function
+
+Private Function mp_NormalizeTrailingYiSoftSign(ByVal lowWord As String) As String
+    mp_NormalizeTrailingYiSoftSign = lowWord
+    If Len(lowWord) < 2 Then Exit Function
+
+    If Right$(lowWord, 2) = "йь" Then
+        mp_NormalizeTrailingYiSoftSign = Left$(lowWord, Len(lowWord) - 1)
+    End If
 End Function
 
 Private Function mp_EndsWithConsonant(ByVal textValue As String) As Boolean
@@ -1482,6 +1494,7 @@ End Function
 Private Function mp_InflectSurnamePart(ByVal originalPart As String, ByVal gender As String, ByRef partResult As String) As Boolean
     Dim low As String
     low = LCase$(originalPart)
+    low = mp_NormalizeTrailingYiSoftSign(low)
 
     Dim exceptions As Object
     Set exceptions = mp_GetSurnameExceptionsDict()
@@ -1525,6 +1538,8 @@ Private Function mp_InflectSurnamePart(ByVal originalPart As String, ByVal gende
             outLow = Left$(low, Len(low) - 1) & "і"
         ElseIf mp_EndsWith(low, "ь") Then
             outLow = Left$(low, Len(low) - 1) & "я"
+        ElseIf mp_EndsWith(low, "й") Then
+            outLow = Left$(low, Len(low) - 1) & "я"
         ElseIf mp_EndsWithConsonant(low) Then
             outLow = low & "а"
         End If
@@ -1554,6 +1569,7 @@ End Function
 Private Function mp_InflectNamePart(ByVal originalPart As String, ByVal gender As String, ByRef partResult As String) As Boolean
     Dim low As String
     low = LCase$(originalPart)
+    low = mp_NormalizeTrailingYiSoftSign(low)
 
     Dim exceptions As Object
     Set exceptions = mp_GetNameExceptionsDict()
@@ -1634,6 +1650,7 @@ End Function
 Private Function mp_InflectSurnamePartToAccusative(ByVal originalPart As String, ByVal gender As String, ByRef partResult As String) As Boolean
     Dim low As String
     low = LCase$(originalPart)
+    low = mp_NormalizeTrailingYiSoftSign(low)
 
     If mp_IsIndeclinableSurname(low, gender) Then
         partResult = originalPart
@@ -1669,6 +1686,8 @@ Private Function mp_InflectSurnamePartToAccusative(ByVal originalPart As String,
             outLow = Left$(low, Len(low) - 1) & "ю"
         ElseIf mp_EndsWith(low, "ь") Then
             outLow = Left$(low, Len(low) - 1) & "я"
+        ElseIf mp_EndsWith(low, "й") Then
+            outLow = Left$(low, Len(low) - 1) & "я"
         ElseIf mp_EndsWithConsonant(low) Then
             outLow = low & "а"
         End If
@@ -1695,6 +1714,7 @@ End Function
 Private Function mp_InflectNamePartToAccusative(ByVal originalPart As String, ByVal gender As String, ByRef partResult As String) As Boolean
     Dim low As String
     low = LCase$(originalPart)
+    low = mp_NormalizeTrailingYiSoftSign(low)
 
     Dim outLow As String
     outLow = low
@@ -1763,6 +1783,7 @@ End Function
 Private Function mp_InflectSurnamePartToDative(ByVal originalPart As String, ByVal gender As String, ByRef partResult As String) As Boolean
     Dim low As String
     low = LCase$(originalPart)
+    low = mp_NormalizeTrailingYiSoftSign(low)
 
     If mp_IsIndeclinableSurname(low, gender) Then
         partResult = originalPart
@@ -1796,6 +1817,8 @@ Private Function mp_InflectSurnamePartToDative(ByVal originalPart As String, ByV
             outLow = Left$(low, Len(low) - 1) & "і"
         ElseIf mp_EndsWith(low, "ь") Then
             outLow = Left$(low, Len(low) - 1) & "ю"
+        ElseIf mp_EndsWith(low, "й") Then
+            outLow = Left$(low, Len(low) - 1) & "ю"
         ElseIf mp_EndsWithConsonant(low) Then
             outLow = low & "у"
         End If
@@ -1825,6 +1848,7 @@ End Function
 Private Function mp_InflectNamePartToDative(ByVal originalPart As String, ByVal gender As String, ByRef partResult As String) As Boolean
     Dim low As String
     low = LCase$(originalPart)
+    low = mp_NormalizeTrailingYiSoftSign(low)
 
     Dim exceptions As Object
     Set exceptions = mp_GetNameExceptionsDativeDict()

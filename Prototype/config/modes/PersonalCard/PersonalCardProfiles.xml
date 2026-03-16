@@ -187,7 +187,7 @@
 		<v key="Events.Sheet[EventsOut].Map[Ticket]">Стовпець1|Номер квитка</v>
 		<v type="#" key="DailyEvents"/>
 		<v key="Daily.Sheet[DailyEvents].Type">Events</v>
-		<v key="Daily.Sheet[DailyEvents].SheetName">13_03</v>
+		<v key="Daily.Sheet[DailyEvents].SheetName">14_03</v>
 		<v key="Daily.Sheet[DailyEvents].RangeStartMarker">StartTable_DailyEvents</v>
 		<v key="Daily.Sheet[DailyEvents].RangeEndMarker">EndTable_DailyEvents</v>
 		<v key="Daily.Sheet[DailyEvents].FieldsAliases">Hospital; Vacation; Rank; FIO; Position; RaportTVO; RaportFrom; InNum; InDate; DocNote; DocNum; DocDate; DaysCount; DateFrom; DateTo; VkNum; VkDate; VlkNum; VlkDate; Type</v>
@@ -298,7 +298,7 @@
 		<v key="Export.WordTemplatePath">Templates\Template.docx</v>
 		<v key="Export.OutputMode">CreateWithPostfix</v>
 		<v key="Export.OutputPostfix">_result</v>
-		<v key="Export.InsertMode">AppendToTop</v>
+		<v key="Export.InsertMode">AppendToBottom</v>
 		<!-- <postProcessScript execution="Implicit">
 			<![CDATA[
 			let tvoNoteRegex = "ТВО";
@@ -313,6 +313,6 @@
 			}
 			]]>
 		</postProcessScript> -->
-		<postProcessScript execution="Explicit" include="Test2_PostProcessScript_Explicit.jslike"/>
+		<postProcessScript execution="Implicit" include="Test2_PostProcessScript_Explicit.jslike"/>
 	</profile>
 </profiles>

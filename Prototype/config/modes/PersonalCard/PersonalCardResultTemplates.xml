@@ -12,7 +12,7 @@
 #_      {#if IsReturnToDuty}#^
 #_      {ReturnToDutyRank|dative|upperFirstLetter} #^
 #_      {ReturnToDutyFIO|dative} #^
-#_      повернутись до виконання обов'язків {ReturnToDutyPosition|accusative|lowerFirstLetter}.#^
+#_      повернутись до виконання обов'язків {ReturnToDutyPosition|accusative|lowerFirstLetter}.
 #_      {#endif}#^
 #_      Зарахувати на котлове забезпечення з {DATE|dateformat:"\dd"}{+1} {DATE|dateformat:"\month"} 2026 року.
 
@@ -21,7 +21,10 @@
 #_      , рапорт {DuplicateRaportTVO} {DuplicateRaportFrom} (вх. № {DuplicateInNumFull} від {DuplicateInDate})#^
 #_      {#endif}#^
 #_      {#if DocNum #or DocDate}#^
-#_      , виписка із медичної карти стаціонарного хворого {#if DocNum}№ {DocNum}{#endif}{#if DocDate} від {DocDate}{#endif}#^
+#_      , {DocNote
+            |regexreplace:"^[ \t\r\n]*([\s\S]*?)[ \t\r\n]*$","$1"
+            |regexreplace:"^м/к$","виписка із медичної карти стаціонарного хворого"
+        } {#if DocNum}№ {DocNum}{#endif}{#if DocDate} від {DocDate}{#endif}#^
 #_      .#^
 #_      {#endif}#^
 #_    ]]>
@@ -34,7 +37,7 @@
 #_      {#if IsReturnToDuty}#^
 #_      {ReturnToDutyRank|dative|upperFirstLetter} #^
 #_      {ReturnToDutyFIO|dative} #^
-#_      повернутись до виконання обов'язків {ReturnToDutyPosition|accusative|lowerFirstLetter}.#^
+#_      повернутись до виконання обов'язків {ReturnToDutyPosition|accusative|lowerFirstLetter}.
 #_      {#endif}#^
 #_      Зарахувати на котлове забезпечення з {DATE|dateformat:"\dd"}{+1} {DATE|dateformat:"\month"} 2026 року.
 
@@ -51,7 +54,7 @@
 #_      {#if IsReturnToDuty}#^
 #_      {ReturnToDutyRank|dative|upperFirstLetter} #^
 #_      {ReturnToDutyFIO|dative} #^
-#_      повернутись до виконання обов'язків {ReturnToDutyPosition|accusative|lowerFirstLetter}.#^
+#_      повернутись до виконання обов'язків {ReturnToDutyPosition|accusative|lowerFirstLetter}.
 #_      {#endif}#^
 #_      Зарахувати на котлове забезпечення з {DATE|dateformat:"\dd"}{+1} {DATE|dateformat:"\month"} 2026 року.
 
@@ -67,7 +70,7 @@
 #_      {Rank|accusative|upperFirstLetter} {FIO|accusative}, {Position|accusative|lowerFirstLetter}.
 #_      {#if IsReturnToDuty}#^
 #_      {ReturnToDutyRank|dative|upperFirstLetter} {ReturnToDutyFIO|dative} #^
-#_      повернутись до виконання обов'язків {ReturnToDutyPosition|accusative|lowerFirstLetter}.#^
+#_      повернутись до виконання обов'язків {ReturnToDutyPosition|accusative|lowerFirstLetter}.
 #_      {#endif}#^
 #_      Зарахувати на котлове забезпечення з {DATE|dateformat:"\dd"}{+1} {DATE|dateformat:"\month"} 2026 року.
 
@@ -96,16 +99,25 @@
 #_      {Rank|accusative} {FIO|accusative}, {Position|accusative|lowerFirstLetter}.
 #_      {#if IsAssignToDuty}#^
 #_      Тимчасове виконання обов'язків за посадою {Position|accusative|lowerFirstLetter} покласти на #^
-#_      {AssignToDutyRank|dative|upperFirstLetter} {AssignToDutyFIO|dative} {AssignToDutyPosition|accusative|lowerFirstLetter}.#^
+#_      {AssignToDutyRank|accusative|lowerFirstLetter} {AssignToDutyFIO|accusative}, {AssignToDutyPosition|accusative|lowerFirstLetter}.
 #_      {#endif}#^
 #_      Зняти з котлового забезпечення з {DATE|dateformat:"\dd"} {DATE|dateformat:"\month"} 2026 року.
+#_      {
+          #let HasFoodAttestatLine = $ex_Helpers.m_RegexFirstMatch("{Hospital}", "центру\s+[Пп]івнічного\s+регіону|центру\s+[Зз]ахідного\s+регіону");
+        }#^
+#_      {#if HasFoodAttestatLine}#^
+#_      Видати продовольчий атестат.
+#_      {#endif}#^
 
 #_      Підстава: рапорт {RaportTvo} {RaportFrom} (вх. № {InNumFull} від {InDate})#^
 #_      {#if HasDuplicateRaport}#^
 #_      , рапорт {DuplicateRaportTVO} {DuplicateRaportFrom} (вх. № {DuplicateInNumFull} від {DuplicateInDate})#^
 #_      {#endif}#^
 #_      {#if DocNum #or DocDate}#^
-#_      , медична карта стаціонарного хворого {#if DocNum}№ {DocNum}{#endif}{#if DocDate} від {DocDate}{#endif}#^
+#_      , {DocNote
+            |regexreplace:"^[ \t\r\n]*([\s\S]*?)[ \t\r\n]*$","$1"
+            |regexreplace:"^м/к$","медична карта стаціонарного хворого"
+        } {#if DocNum}№ {DocNum}{#endif}{#if DocDate} від {DocDate}{#endif}#^
 #_      .#^
 #_      {#endif}#^
 #_    ]]>
@@ -115,7 +127,12 @@
     <text>
       <![CDATA[#^
 #_      {Rank|accusative|upperFirstLetter} {FIO|accusative}, {Position|accusative|lowerFirstLetter}, #^
-#_      до {City|regexreplace:"[Мм]\.[ \t]*","м. "|regexreplace:"обл\.","області"}, #^
+#_      до {City
+            |regexreplace:"[Мм]\.[ \t]*","м. "
+            |regexreplace:"[Сс]ел\.[ \t]*","сел. "
+            |regexreplace:"[Сс]\.[ \t]*","с. "
+            |regexreplace:"обл\.","області"
+        }, #^
 #_      терміном на {DaysCount|calendarDaysUa}, #^
 #_      {#if AdditionalWayDays == 1}#^
 #_      без урахування 1 доби, необхідної для проїзду до місця проведення відпустки та назад, #^
@@ -134,7 +151,7 @@
 #_      {#endif}#^
 #_      {#if IsAssignToDuty}#^
 #_      Тимчасове виконання обов'язків за посадою {Position|accusative|lowerFirstLetter} покласти на #^
-#_      {AssignToDutyRank|dative|upperFirstLetter} {AssignToDutyFIO|dative} {AssignToDutyPosition|accusative|lowerFirstLetter}.#^
+#_      {AssignToDutyRank|accusative|lowerFirstLetter} {AssignToDutyFIO|accusative}, {AssignToDutyPosition|accusative|lowerFirstLetter}.
 #_      {#endif}#^
 #_      Зняти з котлового забезпечення з {OutDate|dateformat:"\dd \month"} 2026 року.
 
@@ -148,7 +165,12 @@
     <text>
       <![CDATA[#^
 #_      {Rank|accusative|upperFirstLetter} {FIO|accusative}, {Position|accusative|lowerFirstLetter}, #^
-#_      до {City|regexreplace:"[Мм]\.[ \t]*","м. "|regexreplace:"обл\.","області"}, #^
+#_      до {City
+            |regexreplace:"[Мм]\.[ \t]*","м. "
+            |regexreplace:"[Сс]ел\.[ \t]*","сел. "
+            |regexreplace:"[Сс]\.[ \t]*","с. "
+            |regexreplace:"обл\.","області"
+        }, #^
 #_      терміном на {DaysCount|calendarDaysUa}, #^
 #_      {#if AdditionalWayDays == 1}#^
 #_      без урахування 1 доби, необхідної для проїзду до місця проведення відпустки та назад, #^
@@ -167,7 +189,7 @@
 #_      {#endif}#^
 #_      {#if IsAssignToDuty}#^
 #_      Тимчасове виконання обов'язків за посадою {Position|accusative|lowerFirstLetter} покласти на #^
-#_      {AssignToDutyRank|dative|upperFirstLetter} {AssignToDutyFIO|dative} {AssignToDutyPosition|accusative|lowerFirstLetter}.#^
+#_      {AssignToDutyRank|accusative|lowerFirstLetter} {AssignToDutyFIO|accusative}, {AssignToDutyPosition|accusative|lowerFirstLetter}.
 #_      {#endif}#^
 #_      Зняти з котлового забезпечення з {OutDate|dateformat:"\dd \month"} 2026 року.
 
@@ -181,7 +203,12 @@
     <text>
       <![CDATA[#^
 #_      {Rank|accusative|upperFirstLetter} {FIO|accusative}, {Position|accusative|lowerFirstLetter}, #^
-#_      до {City|regexreplace:"[Мм]\.[ \t]*","м. "|regexreplace:"обл\.","області"}, #^
+#_      до {City
+            |regexreplace:"[Мм]\.[ \t]*","м. "
+            |regexreplace:"[Сс]ел\.[ \t]*","сел. "
+            |regexreplace:"[Сс]\.[ \t]*","с. "
+            |regexreplace:"обл\.","області"
+        }, #^
 #_      терміном на {DaysCount|calendarDaysUa}, #^
 #_      {#if AdditionalWayDays == 1}#^
 #_      без урахування 1 доби, необхідної для проїзду до місця проведення відпустки та назад, #^
@@ -200,7 +227,7 @@
 #_      {#endif}#^
 #_      {#if IsAssignToDuty}#^
 #_      Тимчасове виконання обов'язків за посадою {Position|accusative|lowerFirstLetter} покласти на #^
-#_      {AssignToDutyRank|dative|upperFirstLetter} {AssignToDutyFIO|dative} {AssignToDutyPosition|accusative|lowerFirstLetter}.#^
+#_      {AssignToDutyRank|accusative|lowerFirstLetter} {AssignToDutyFIO|accusative}, {AssignToDutyPosition|accusative|lowerFirstLetter}.
 #_      {#endif}#^
 #_      Зняти з котлового забезпечення з {OutDate|dateformat:"\dd \month"} 2026 року.
 
@@ -226,7 +253,12 @@
       <![CDATA[#^
 #_      NN. {Rank|accusative|upperFirstLetter} {FIO|accusative}, {Position|accusative|lowerFirstLetter}, #^
 #_      який перебував на лікуванні у {Hospital}, вважати таким, що перебуває у відпустці для лікування, #^
-#_      до {City|regexreplace:"[Мм]\.[ \t]*","м. "|regexreplace:"обл\.","області"}, #^
+#_      до {City
+            |regexreplace:"[Мм]\.[ \t]*","м. "
+            |regexreplace:"[Сс]ел\.[ \t]*","сел. "
+            |regexreplace:"[Сс]\.[ \t]*","с. "
+            |regexreplace:"обл\.","області"
+        }, #^
 #_      терміном на {DaysCount|calendarDaysUa}, #^
 #_      {
           #let isSameMonth = $ex_DateHelpers.m_IsSameMonth({OutDate}, {ReturnDate});
@@ -241,7 +273,10 @@
 #_      Підстава: рапорт {Rank|accusative|lowerFirstLetter} {FIO|genitive|fioSurname|capitalize} {FIO|fioInitials} (вх. № {InNumFull} від {InDate})#^
 #_      , довідка військово-лікарської комісії № {VlkNum} від {VlkDate}#^
 #_      {#if DocNum #or DocDate}#^
-#_      , виписка із медичної карти стаціонарного хворого {#if DocNum}№ {DocNum}{#endif}{#if DocDate} від {DocDate}{#endif}#^
+#_      , {DocNote
+            |regexreplace:"^[ \t\r\n]*([\s\S]*?)[ \t\r\n]*$","$1"
+            |regexreplace:"^м/к$","виписка із медичної карти стаціонарного хворого"
+        } {#if DocNum}№ {DocNum}{#endif}{#if DocDate} від {DocDate}{#endif}#^
 #_      {#endif}#^
 #_      , відпускний квиток № 3/71/{VkNum} від {VkDate}#^
 #_      .#^
@@ -253,7 +288,12 @@
       <![CDATA[#^
 #_      NN. {Rank|accusative|upperFirstLetter} {FIO|accusative}, {Position|accusative|lowerFirstLetter}, #^
 #_      який перебував у відпустці для лікування, вважати таким, що перебуває у відпустці для лікування, #^
-#_      до {City|regexreplace:"[Мм]\.[ \t]*","м. "|regexreplace:"обл\.","області"}, #^
+#_      до {City
+            |regexreplace:"[Мм]\.[ \t]*","м. "
+            |regexreplace:"[Сс]ел\.[ \t]*","сел. "
+            |regexreplace:"[Сс]\.[ \t]*","с. "
+            |regexreplace:"обл\.","області"
+        }, #^
 #_      терміном на {DaysCount|calendarDaysUa}, #^
 #_      {
           #let isSameMonth = $ex_DateHelpers.m_IsSameMonth({OutDate}, {ReturnDate});
@@ -281,8 +321,10 @@
 
 #_      Підстава: рапорт {RaportTvo} {RaportFrom} (вх. № {InNumFull} від {InDate})#^
 #_      {#if DocNum #or DocDate}#^
-#_      , медична карта стаціонарного хворого {#if DocNum}№ {DocNum}{#endif}{#if DocDate} від {DocDate}{#endif}#^
-#_      {#endif}#^
+#_      , {DocNote
+            |regexreplace:"^[ \t\r\n]*([\s\S]*?)[ \t\r\n]*$","$1"
+            |regexreplace:"^м/к$","медична карта стаціонарного хворого"
+        } {#if DocNum}№ {DocNum}{#endif}{#if DocDate} від {DocDate}{#endif}#^#_      {#endif}#^
 #_      , відпускний квиток № 3/71/{PrevVkNum} від {PrevVkDate}#^
 #_      .#^
 #_    ]]>
@@ -307,7 +349,12 @@
       <![CDATA[#^
 #_      NN. {Rank|accusative|upperFirstLetter} {FIO|accusative}, {Position|accusative|lowerFirstLetter}, #^
 #_      який перебував на медичному огляді військово лікарської комісії, вважати таким, що перебуває у відпустці для лікування, #^
-#_      до {City|regexreplace:"[Мм]\.[ \t]*","м. "|regexreplace:"обл\.","області"}, #^
+#_      до {City
+            |regexreplace:"[Мм]\.[ \t]*","м. "
+            |regexreplace:"[Сс]ел\.[ \t]*","сел. "
+            |regexreplace:"[Сс]\.[ \t]*","с. "
+            |regexreplace:"обл\.","області"
+        }, #^
 #_      терміном на {DaysCount|calendarDaysUa}, #^
 #_      {
           #let isSameMonth = $ex_DateHelpers.m_IsSameMonth({OutDate}, {ReturnDate});
