@@ -142,6 +142,11 @@ Public Sub m_OutputPanelStartSearch_OnClick()
         Err.Raise vbObjectError + 2401, "ex_UIActions.m_OutputPanelStartSearch_OnClick", "Active sheet is not available for output panel search."
     End If
 
+    ' Self-heal: auto-search relies on Workbook_SheetChange, which won't fire when events are disabled.
+    If Application.EnableEvents = False Then
+        Application.EnableEvents = True
+    End If
+
     ex_ConfigProfilesManager.m_ReapplyActiveProfileIfSourceChanged ws
 
     configKey = "CommonKey"

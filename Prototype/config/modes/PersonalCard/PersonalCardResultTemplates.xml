@@ -13,7 +13,10 @@
 #_      {#endif}#^
 #_      Зарахувати на котлове забезпечення з {DATE|dateformat:"\dd"}{+1} {DATE|dateformat:"\month"} 2026 року.
 
-#_      Підстава: рапорт {RaportFrom} (вх. № 1656/{InNum}-в від {InDate}), #^
+#_      Підстава: рапорт {RaportTvo} {RaportFrom} (вх. № {InNumFull} від {InDate}), #^
+#_      {#if HasDuplicateRaport}#^
+#_      рапорт {DuplicateRaportTVO} {DuplicateRaportFrom}, #^
+#_      {#endif}#^
 #_      виписка із медичної карти стаціонарного хворого № {DocNum} від {DocDate}.#^
 #_    ]]>
    </text>
@@ -29,7 +32,7 @@
 #_      {#endif}#^
 #_      Зарахувати на котлове забезпечення з {DATE|dateformat:"\dd"}{+1} {DATE|dateformat:"\month"} 2026 року.
 
-#_      Підстава: рапорт {RaportFrom} (вх. № 1656/{InNum}-в від {InDate}), #^
+#_      Підстава: рапорт {RaportTvo} {RaportFrom} (вх. № {InNumFull} від {InDate}), #^
 #_      відпускний квиток № 3/71/{VkNum} від {VkDate}.#^
 #_    ]]>
    </text>
@@ -45,7 +48,7 @@
 #_      {#endif}#^
 #_      Зарахувати на котлове забезпечення з {DATE|dateformat:"\dd"}{+1} {DATE|dateformat:"\month"} 2026 року.
 
-#_      Підстава: рапорт {RaportFrom} (вх. № 1656/{InNum}-в від {InDate}), #^
+#_      Підстава: рапорт {RaportTvo} {RaportFrom} (вх. № {InNumFull} від {InDate}), #^
 #_      відпускний квиток № 3/71/{VkNum} від {VkDate}.#^
 #_    ]]>
     </text>
@@ -60,7 +63,7 @@
 #_      {#endif}#^
 #_      Зарахувати на котлове забезпечення з {DATE|dateformat:"\dd"}{+1} {DATE|dateformat:"\month"} 2026 року.
 
-#_      Підстава: рапорт {RaportFrom} (вх. № 1656/{InNum}-в від {InDate}), #^
+#_      Підстава: рапорт {RaportTvo} {RaportFrom} (вх. № {InNumFull} від {InDate}), #^
 #_      відпускний квиток № 3/71/{VkNum} від {VkDate}.#^
 #_    ]]>
     </text>
@@ -70,7 +73,7 @@
       <![CDATA[#^
 #_      {Rank|accusative} {FIO|accusative}, {Position|accusative|lowerFirstLetter}.
 
-#_      Підстава: рапорт {RaportFrom} (вх. № 1656/{InNum}-в від {InDate}), #^
+#_      Підстава: рапорт {RaportTvo} {RaportFrom} (вх. № {InNumFull} від {InDate}), #^
 #_      довідка військово-лікарської комісії № {VlkNum} від {VlkDate}.#^
 #_    ]]>
     </text>
@@ -87,7 +90,10 @@
 #_      {#endif}#^
 #_      Зняти з котлового забезпечення з {DATE|dateformat:"\dd"} {DATE|dateformat:"\month"} 2026 року.
 
-#_      Підстава: рапорт {RaportFrom} (вх. № 1656/{InNum}-в від {InDate}), #^
+#_      Підстава: рапорт {RaportTvo} {RaportFrom} (вх. № {InNumFull} від {InDate}), #^
+#_      {#if HasDuplicateRaport}#^
+#_      рапорт {DuplicateRaportTVO} {DuplicateRaportFrom}, #^
+#_      {#endif}#^
 #_      медична карта стаціонарного хворого № {DocNum} від {DocDate}.#^
 #_    ]]>
     </text>
@@ -119,7 +125,7 @@
 #_      {#endif}#^
 #_      Зняти з котлового забезпечення з {OutDate|dateformat:"\dd \month"} 2026 року.
 
-#_      Підстава: рапорт {Rank|accusative|lowerFirstLetter} {FIO|genitive|fioSurname|capitalize} {FIO|fioInitials} (вх. № 1656/{InNum}-в від {InDate}), #^
+#_      Підстава: рапорт {Rank|accusative|lowerFirstLetter} {FIO|genitive|fioSurname|capitalize} {FIO|fioInitials} (вх. № {InNumFull} від {InDate}), #^
 #_      відпускний квиток № 3/71/{VkNum} від {VkDate}.#^
 #_    ]]>
     </text>
@@ -151,7 +157,7 @@
 #_      {#endif}#^
 #_      Зняти з котлового забезпечення з {OutDate|dateformat:"\dd \month"} 2026 року.
 
-#_      Підстава: рапорт {Rank|accusative|lowerFirstLetter} {FIO|genitive|fioSurname|capitalize} {FIO|fioInitials} (вх. № 1656/{InNum}-в від {InDate}), #^
+#_      Підстава: рапорт {Rank|accusative|lowerFirstLetter} {FIO|genitive|fioSurname|capitalize} {FIO|fioInitials} (вх. № {InNumFull} від {InDate}), #^
 #_      відпускний квиток № 3/71/{VkNum} від {VkDate}.#^
 #_    ]]>
     </text>
@@ -183,7 +189,7 @@
 #_      {#endif}#^
 #_      Зняти з котлового забезпечення з {OutDate|dateformat:"\dd \month"} 2026 року.
 
-#_      Підстава: рапорт {Rank|accusative|lowerFirstLetter} {FIO|genitive|fioSurname|capitalize} {FIO|fioInitials} (вх. № 1656/{InNum}-в від {InDate}), #^
+#_      Підстава: рапорт {Rank|accusative|lowerFirstLetter} {FIO|genitive|fioSurname|capitalize} {FIO|fioInitials} (вх. № {InNumFull} від {InDate}), #^
 #_      довідка військово-лікарської комісії № {VlkNum} від {VlkDate}, #^
 #_      відпускний квиток № 3/71/{VkNum} від {VkDate}.#^
 #_    ]]>
@@ -194,7 +200,7 @@
       <![CDATA[#^
 #_      {Rank|accusative} {FIO|accusative}, {Position|accusative|lowerFirstLetter}.
 
-#_      Підстава: рапорт {RaportFrom} (вх. № 1656/{InNum}-в від {InDate}).#^
+#_      Підстава: рапорт {RaportTvo} {RaportFrom} (вх. № {InNumFull} від {InDate}).#^
 #_    ]]>
     </text>
   </template>
@@ -215,7 +221,7 @@
 #_      з {OutDate|dateformat:"\dd \month"} по {ReturnDate|dateformat:"\dd \month"} 2026 року.
 #_      {#endif}#^
 
-#_      Підстава: рапорт {Rank|accusative|lowerFirstLetter} {FIO|genitive|fioSurname|capitalize} {FIO|fioInitials} (вх. № 1656/{InNum}-в від {InDate}), #^
+#_      Підстава: рапорт {Rank|accusative|lowerFirstLetter} {FIO|genitive|fioSurname|capitalize} {FIO|fioInitials} (вх. № {InNumFull} від {InDate}), #^
 #_      довідка військово-лікарської комісії № {VlkNum} від {VlkDate}, #^
 #_      виписка із медичної карти стаціонарного хворого № {DocNum} від {DocDate}, #^
 #_      відпускний квиток № 3/71/{VkNum} від {VkDate}.#^
@@ -239,7 +245,7 @@
 #_      з {OutDate|dateformat:"\dd \month"} по {ReturnDate|dateformat:"\dd \month"} 2026 року.
 #_      {#endif}#^
 
-#_      Підстава: рапорт {Rank|accusative|lowerFirstLetter} {FIO|genitive|fioSurname|capitalize} {FIO|fioInitials} (вх. № 1656/{InNum}-в від {InDate}), #^
+#_      Підстава: рапорт {Rank|accusative|lowerFirstLetter} {FIO|genitive|fioSurname|capitalize} {FIO|fioInitials} (вх. № {InNumFull} від {InDate}), #^
 #_      довідка військово-лікарської комісії № {VlkNum} від {VlkDate}, #^
 #_      відпускний квиток № 3/71/{VkNum} від {VkDate}.#^
 #_    ]]>
@@ -252,7 +258,7 @@
 #_      який перебував у відпустці для лікування, вважати таким, що перебуває на лікуванні у {Hospital}, #^
 #_      з {OutDate|dateformat:"\dd \month"} 2026 року.
 
-#_      Підстава: рапорт {RaportFrom} (вх. № 1656/{InNum}-в від {InDate}), #^
+#_      Підстава: рапорт {RaportTvo} {RaportFrom} (вх. № {InNumFull} від {InDate}), #^
 #_      медична карта стаціонарного хворого № {DocNum} від {DocDate}, #^
 #_      відпускний квиток № 3/71/{PrevVkNum} від {PrevVkDate}.#^
 #_    ]]>
@@ -265,7 +271,7 @@
 #_      який перебував у відпустці для лікування, вважати таким, що перебуває на медичному огляді військово лікарської комісії, #^
 #_      з {OutDate|dateformat:"\dd \month"} 2026 року.
 
-#_      Підстава: рапорт {RaportFrom} (вх. № 1656/{InNum}-в від {InDate}), #^
+#_      Підстава: рапорт {RaportTvo} {RaportFrom} (вх. № {InNumFull} від {InDate}), #^
 #_      направлення на медичний огляд військово-лікарською-комісією № {DocNum} від {DocDate}, #^
 #_      відпускний квиток № 3/71/{PrevVkNum} від {PrevVkDate}.#^
 #_    ]]>
@@ -288,7 +294,7 @@
 #_      з {OutDate|dateformat:"\dd \month"} по {ReturnDate|dateformat:"\dd \month"} 2026 року.
 #_      {#endif}#^
 
-#_      Підстава: рапорт {RaportFrom} (вх. № 1656/{InNum}-в від {InDate}), #^
+#_      Підстава: рапорт {RaportTvo} {RaportFrom} (вх. № {InNumFull} від {InDate}), #^
 #_      довідка військово-лікарської комісії № {VlkNum} від {VlkDate}, #^
 #_      відпускний квиток № 3/71/{VkNum} від {VkDate}.#^
 #_    ]]>

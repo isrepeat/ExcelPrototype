@@ -166,28 +166,30 @@
 		<v type="#" key="EventsOut"/>
 		<v key="Events.Sheet[EventsOut].Type">Events</v>
 		<v key="Events.Sheet[EventsOut].SheetName">5. Тимчасово відсутні</v>
-		<v key="Events.Sheet[EventsOut].FieldsAliases">
-		ZV; FIO; EventReason; City; OutDate; CommandDate; CommandNumber;
-		DaysCount; ReturnDate; Note; Ticket
-		</v>
+			<v key="Events.Sheet[EventsOut].FieldsAliases">
+			ZV; FIO; EventReason; City; OutDate; OutCommandDate; OutCommandNumber;
+			DaysCount; PlannedReturnDate; FactArrivalDate; ArrivalCommandDate; Note; Ticket
+			</v>
 		<v key="Events.Sheet[EventsOut].Key">FIO</v>
-		<v key="Events.Sheet[EventsOut].Sort">CommandDate</v>
+		<v key="Events.Sheet[EventsOut].Sort">OutCommandDate</v>
 		<v key="Events.Sheet[EventsOut].Map[ZV]">65|Звання</v>
 		<v key="Events.Sheet[EventsOut].Map[FIO]">66|ПІБ</v>
 		<v key="Events.Sheet[EventsOut].Map[EventReason]">68|Причинна вибуття</v>
 		<v key="Events.Sheet[EventsOut].Map[City]">69|Місце вибуття</v>
 		<v key="Events.Sheet[EventsOut].Map[OutDate]">70|Дата вибуття</v>
-		<v key="Events.Sheet[EventsOut].Map[CommandDate]">71 (А)|Дата наказу</v>
-		<v key="Events.Sheet[EventsOut].Map[CommandNumber]">71 (А)|Номер наказу</v>
+		<v key="Events.Sheet[EventsOut].Map[OutCommandDate]">71 (А)|Дата наказу про вибуття</v>
+		<v key="Events.Sheet[EventsOut].Map[OutCommandNumber]">71 (Б)|Номер наказу про вибуття</v>
 		<v key="Events.Sheet[EventsOut].Map[DaysCount]">72|Строк вибуття</v>
-		<v key="Events.Sheet[EventsOut].Map[ReturnDate]">73|Дата повернення</v>
+		<v key="Events.Sheet[EventsOut].Map[PlannedReturnDate]">73|Дата повернення</v>
+		<v key="Events.Sheet[EventsOut].Map[FactArrivalDate]">74|Фактична дата прибуття</v>
+		<v key="Events.Sheet[EventsOut].Map[ArrivalCommandDate]">75 (А)|Дата наказу на прибуття</v>
 		<v key="Events.Sheet[EventsOut].Map[Note]">76|Замітки</v>
 		<v key="Events.Sheet[EventsOut].Map[Ticket]">Стовпець1|Номер квитка</v>
 		<v type="#" key="DailyEvents"/>
 		<v key="Daily.Sheet[DailyEvents].Type">Events</v>
-		<v key="Daily.Sheet[DailyEvents].SheetName">11_03</v>
-		<v key="Daily.Sheet[DailyEvents].RangeStartMarker">StartTable_11_03</v>
-		<v key="Daily.Sheet[DailyEvents].RangeEndMarker">EndTable_11_03</v>
+		<v key="Daily.Sheet[DailyEvents].SheetName">13_03</v>
+		<v key="Daily.Sheet[DailyEvents].RangeStartMarker">StartTable_DailyEvents</v>
+		<v key="Daily.Sheet[DailyEvents].RangeEndMarker">EndTable_DailyEvents</v>
 		<v key="Daily.Sheet[DailyEvents].FieldsAliases">Hospital; Vacation; Rank; FIO; Position; RaportTVO; RaportFrom; InNum; InDate; DocNote; DocNum; DocDate; DaysCount; DateFrom; DateTo; VkNum; VkDate; VlkNum; VlkDate; Type</v>
 		<v key="Daily.Sheet[DailyEvents].Key">FIO</v>
 		<v key="Daily.Sheet[DailyEvents].Sort">InDate</v>
@@ -215,18 +217,21 @@
 			DEFINE $CurrentTable AS Src;
 
 			/* Контекст, который движок заполняет в SEARCH_* блоках */
-			DEFINE DATABASE Ctx {
-				sectionData: [
-					sectionType,
-					sectionTitle
-				],
-				metaData: [
-					vacation,
-					rank,
-					fio,
-					position
-				]
-			};
+				DEFINE DATABASE Ctx {
+					sectionData: [
+						sectionType,
+						sectionTitle
+					],
+					metaData: [
+						metaVacation,
+						metaRank,
+						metaFio,
+						metaPosition,
+						metaDocNote,
+						metaRaportTVO,
+						metaRaportFrom
+					]
+				};
 
 			FIND[Src.FIO == $Key] {
 				// Ищем последний заголовок раздела выше owner-строки
@@ -238,16 +243,20 @@
 					}
 					@KEEP(LAST);
 
-				// Собираем все meta-строки ТВО ниже owner-строки
-				SEARCH_BELOW
-					@IF(Src.Vacation == "ТВО")
-					@PUSH(Ctx.metaData) {
-						.vacation = Src.Vacation,
-						.rank = Src.Rank,
-						.fio = Src.FIO,
-						.position = Src.Position
-					}
-					@KEEP(CONTIGUOUS);
+				// Собираем все meta-строки ниже owner-строки:
+				// Vacation=ТВО или DocNote=дублікат
+					SEARCH_BELOW
+						@IF(Src.Vacation == "ТВО" OR Src.DocNote == "дублікат")
+						@PUSH(Ctx.metaData) {
+							.metaVacation = Src.Vacation,
+							.metaRank = Src.Rank,
+							.metaFio = Src.FIO,
+							.metaPosition = Src.Position,
+							.metaDocNote = Src.DocNote,
+							.metaRaportTVO = Src.RaportTVO,
+							.metaRaportFrom = Src.RaportFrom
+						}
+						@KEEP(CONTIGUOUS);
 
 				GENERATE {
 					DEFINE COLUMNS [MetaType, OwnerFio, SectionType, SectionTitle];
@@ -258,14 +267,21 @@
 						SectionTitle = @LAST(Ctx.sectionData).sectionTitle
 					};
 
-					@FOREACH(md : Ctx.metaData) {
-						DEFINE ROW {
-							MetaType = "meta",
-							OwnerFio = $Key,
-							SectionType = @LAST(Ctx.sectionData).sectionType,
-							SectionTitle = @LAST(Ctx.sectionData).sectionTitle
+						@FOREACH(md : Ctx.metaData) {
+							DEFINE ROW {
+								MetaType = "meta",
+								OwnerFio = $Key,
+								SectionType = @LAST(Ctx.sectionData).sectionType,
+								SectionTitle = @LAST(Ctx.sectionData).sectionTitle,
+								Vacation = md.metaVacation,
+								Rank = md.metaRank,
+								FIO = md.metaFio,
+								Position = md.metaPosition,
+								DocNote = md.metaDocNote,
+								RaportTVO = md.metaRaportTVO,
+								RaportFrom = md.metaRaportFrom
+							};
 						};
-					};
 				}
 			}
 		</v>
@@ -277,7 +293,7 @@
 		<v key="Export.OutputMode">CreateWithPostfix</v>
 		<v key="Export.OutputPostfix">_result</v>
 		<v key="Export.InsertMode">AppendToTop</v>
-		<postProcessScript execution="Implicit">
+		<!-- <postProcessScript execution="Implicit">
 			<![CDATA[
 			let tvoNoteRegex = "ТВО";
 
@@ -290,7 +306,7 @@
 				}
 			}
 			]]>
-		</postProcessScript>
+		</postProcessScript> -->
 		<postProcessScript execution="Explicit" include="Test2_PostProcessScript_Explicit.jslike"/>
 	</profile>
 </profiles>

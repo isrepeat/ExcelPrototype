@@ -29,7 +29,7 @@
     buttonWidthColumns="1"
     fixedWidthKey="20"
     fixedWidthValue="28"
-    fixedWidthButton="14"
+    fixedWidthButton="18"
     fixedFieldRowHeight="32">
     <fields>
       <inputConfigRefField
@@ -52,35 +52,27 @@
                 buttonTextColor="#FFFFFF"
                 buttonBorderColor="#1F3F6B"
                 />
-        <!-- <toggleButton
-                      caption="Mode [Timeline]"
-                      source="Settings.OutputMode"
+        <toggleButton
+                      source="Export.InsertMode"
                       macro="ex_UIActions.m_OutputPanelToggleButton_OnClick"
-                      onToggle="ex_UIActions.m_OutputPanelStartSearch_OnClick"
-                      buttonBackColor="#3A3F45"
+                      buttonBackColor="#5A4B2A"
                       buttonTextColor="#FFFFFF"
-                      buttonBorderColor="#3A3F45">
+                      buttonBorderColor="#9C7A37">
           <modeVariants>
-            <variant value="1"
-                     display="Timeline"
-                     caption="Mode [Timeline]"
-                     buttonBackColor="#3A3F45"
+            <variant value="AppendToTop"
+                     display="AppendToTop"
+                     caption="Insert [Top]"
+                     buttonBackColor="#2E7D32"
                      buttonTextColor="#FFFFFF"
-                     buttonBorderColor="#3A3F45"/>
-            <variant value="2"
-                     display="State"
-                     caption="Mode [State]"
-                     buttonBackColor="#3A3F45"
+                     buttonBorderColor="#1B5E20"/>
+            <variant value="AppendToBottom"
+                     display="AppendToBottom"
+                     caption="Insert [Bottom]"
+                     buttonBackColor="#2B579A"
                      buttonTextColor="#FFFFFF"
-                     buttonBorderColor="#3A3F45"/>
-            <variant value="3"
-                     display="Events"
-                     caption="Mode [Events]"
-                     buttonBackColor="#3A3F45"
-                     buttonTextColor="#FFFFFF"
-                     buttonBorderColor="#3A3F45"/>
+                     buttonBorderColor="#1F3F6B"/>
           </modeVariants>
-        </toggleButton> -->
+        </toggleButton>
       </inputConfigRefField>
     </fields>
   </controlPanel>

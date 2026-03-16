@@ -3,6 +3,7 @@ Option Explicit
 
 Private Const WD_FIND_STOP As Long = 0
 Private Const WD_COLLAPSE_END As Long = 0
+Private Const WD_COLLAPSE_START As Long = 1
 Private Const WD_ALERTS_NONE As Long = 0
 Private Const EXPORT_OUTPUT_MODE_CREATE_WITH_POSTFIX As String = "CREATEWITHPOSTFIX"
 Private Const EXPORT_OUTPUT_MODE_OVERWRITE_TEMPLATE As String = "OVERWRITETEMPLATE"
@@ -14,6 +15,8 @@ Private Const EXPORT_RUNTIME_WORD_PASTE_ANCHOR As String = "Export.RuntimeDataBa
 Private Const EXPORT_RUNTIME_WORD_ANCHOR_PREFIX As String = "Export.RuntimeDataBase.WordAnchor."
 Private Const EXPORT_APPEND_SEPARATOR As String = vbCrLf & vbCrLf
 Private Const EXPORT_BOOKMARK_PREFIX As String = "EP_Anchor_"
+Private Const EXPORT_BOOKMARK_TOP_SUFFIX As String = "_Top"
+Private Const EXPORT_BOOKMARK_BOTTOM_SUFFIX As String = "_Bottom"
 Private Const EXPORT_BOOKMARK_MAX_LEN As Long = 40
 Private Const EXPORT_DUPLICATE_CONFIRM_TITLE As String = "Duplicate Export Confirmation"
 Private Const EXPORT_HASH_MODULO As Double = 2147483629#
@@ -503,11 +506,23 @@ Private Function mp_ReplaceTokenInDocumentByMode( _
     Dim currentRange As Object
     Dim firstHit As Object
     Dim lastHit As Object
-    Dim bookmarkRange As Object
+    Dim topBookmarkRange As Object
+    Dim bottomBookmarkRange As Object
+    Dim insertionRange As Object
     Dim appliedRange As Object
-    Dim existingText As String
-    Dim mergedText As String
+    Dim preservedRange As Object
+    Dim topStart As Long
+    Dim topEnd As Long
+    Dim bottomStart As Long
+    Dim bottomEnd As Long
+    Dim insertLength As Long
+    Dim separatorLength As Long
+    Dim appendSeparatorText As String
     Dim hitCount As Long
+
+    replacementText = mp_NormalizeTextForWord(replacementText)
+    appendSeparatorText = mp_NormalizeTextForWord(EXPORT_APPEND_SEPARATOR)
+    separatorLength = Len(appendSeparatorText)
 
     If StrComp(insertMode, EXPORT_INSERT_MODE_REPLACE_ALL, vbTextCompare) = 0 Then
         For Each story In doc.StoryRanges
@@ -532,11 +547,11 @@ Private Function mp_ReplaceTokenInDocumentByMode( _
         If StrComp(insertMode, EXPORT_INSERT_MODE_APPEND_TOP, vbTextCompare) = 0 Then
             firstHit.Text = replacementText
             Set appliedRange = firstHit.Duplicate
-            mp_UpsertAnchorBookmark doc, token, appliedRange
+            mp_UpsertAnchorBookmarkPair doc, token, appliedRange, appliedRange
         ElseIf StrComp(insertMode, EXPORT_INSERT_MODE_APPEND_BOTTOM, vbTextCompare) = 0 Then
             lastHit.Text = replacementText
             Set appliedRange = lastHit.Duplicate
-            mp_UpsertAnchorBookmark doc, token, appliedRange
+            mp_UpsertAnchorBookmarkPair doc, token, appliedRange, appliedRange
         Else
             Err.Raise vbObjectError + 1769, "ex_WordPlaceholderReports", "Unsupported insert mode: " & insertMode
         End If
@@ -544,24 +559,41 @@ Private Function mp_ReplaceTokenInDocumentByMode( _
         Exit Function
     End If
 
-    If Not mp_TryGetAnchorBookmarkRange(doc, token, bookmarkRange) Then Exit Function
+    If Not mp_TryGetAnchorBookmarkPair(doc, token, topBookmarkRange, bottomBookmarkRange) Then Exit Function
+    topStart = topBookmarkRange.Start
+    topEnd = topBookmarkRange.End
+    bottomStart = bottomBookmarkRange.Start
+    bottomEnd = bottomBookmarkRange.End
 
-    existingText = CStr(bookmarkRange.Text)
-    If Len(existingText) > 0 Then
-        If StrComp(insertMode, EXPORT_INSERT_MODE_APPEND_TOP, vbTextCompare) = 0 Then
-            mergedText = replacementText & EXPORT_APPEND_SEPARATOR & existingText
-        ElseIf StrComp(insertMode, EXPORT_INSERT_MODE_APPEND_BOTTOM, vbTextCompare) = 0 Then
-            mergedText = existingText & EXPORT_APPEND_SEPARATOR & replacementText
-        Else
-            Err.Raise vbObjectError + 1769, "ex_WordPlaceholderReports", "Unsupported insert mode: " & insertMode
+    If StrComp(insertMode, EXPORT_INSERT_MODE_APPEND_TOP, vbTextCompare) = 0 Then
+        Set insertionRange = topBookmarkRange.Duplicate
+        insertionRange.Collapse WD_COLLAPSE_START
+        insertionRange.Text = replacementText & appendSeparatorText
+        insertLength = insertionRange.End - insertionRange.Start
+        Set appliedRange = insertionRange.Duplicate
+        mp_TrimInsertedRangeForAppendTop appliedRange, separatorLength
+        mp_UpsertAnchorBookmarkByRole doc, token, True, appliedRange
+
+        Set preservedRange = mp_CreateRangeSafe(doc, bottomStart + insertLength, bottomEnd + insertLength)
+        If Not preservedRange Is Nothing Then
+            mp_UpsertAnchorBookmarkByRole doc, token, False, preservedRange
+        End If
+    ElseIf StrComp(insertMode, EXPORT_INSERT_MODE_APPEND_BOTTOM, vbTextCompare) = 0 Then
+        Set insertionRange = bottomBookmarkRange.Duplicate
+        insertionRange.Collapse WD_COLLAPSE_END
+        insertionRange.Text = appendSeparatorText & replacementText
+        Set appliedRange = insertionRange.Duplicate
+        mp_TrimInsertedRangeForAppendBottom appliedRange, separatorLength
+        mp_UpsertAnchorBookmarkByRole doc, token, False, appliedRange
+
+        Set preservedRange = mp_CreateRangeSafe(doc, topStart, topEnd)
+        If Not preservedRange Is Nothing Then
+            mp_UpsertAnchorBookmarkByRole doc, token, True, preservedRange
         End If
     Else
-        mergedText = replacementText
+        Err.Raise vbObjectError + 1769, "ex_WordPlaceholderReports", "Unsupported insert mode: " & insertMode
     End If
 
-    bookmarkRange.Text = mergedText
-    Set appliedRange = bookmarkRange.Duplicate
-    mp_UpsertAnchorBookmark doc, token, appliedRange
     mp_ReplaceTokenInDocumentByMode = 1
 End Function
 
@@ -642,14 +674,89 @@ Private Function mp_NormalizePlaceholderToken(ByVal tokenText As String) As Stri
     End If
 End Function
 
+Private Sub mp_TrimInsertedRangeForAppendTop(ByVal targetRange As Object, ByVal separatorLength As Long)
+    If targetRange Is Nothing Then Exit Sub
+    If separatorLength <= 0 Then Exit Sub
+
+    On Error Resume Next
+    targetRange.End = targetRange.End - separatorLength
+    If targetRange.End < targetRange.Start Then targetRange.End = targetRange.Start
+    On Error GoTo 0
+End Sub
+
+Private Sub mp_TrimInsertedRangeForAppendBottom(ByVal targetRange As Object, ByVal separatorLength As Long)
+    If targetRange Is Nothing Then Exit Sub
+    If separatorLength <= 0 Then Exit Sub
+
+    On Error Resume Next
+    targetRange.Start = targetRange.Start + separatorLength
+    If targetRange.End < targetRange.Start Then targetRange.Start = targetRange.End
+    On Error GoTo 0
+End Sub
+
+Private Function mp_NormalizeTextForWord(ByVal sourceText As String) As String
+    sourceText = Replace$(sourceText, vbCrLf, vbCr)
+    sourceText = Replace$(sourceText, vbLf, vbCr)
+    mp_NormalizeTextForWord = sourceText
+End Function
+
+Private Function mp_CreateRangeSafe(ByVal doc As Object, ByVal startPos As Long, ByVal endPos As Long) As Object
+    Dim docEnd As Long
+
+    If doc Is Nothing Then Exit Function
+
+    On Error GoTo CleanFail
+    docEnd = CLng(doc.Content.End)
+    If startPos < 0 Then startPos = 0
+    If endPos < startPos Then endPos = startPos
+    If startPos > docEnd Then startPos = docEnd
+    If endPos > docEnd Then endPos = docEnd
+
+    Set mp_CreateRangeSafe = doc.Range(startPos, endPos)
+    Exit Function
+
+CleanFail:
+    Set mp_CreateRangeSafe = Nothing
+End Function
+
 Private Sub mp_UpsertAnchorBookmark(ByVal doc As Object, ByVal token As String, ByVal targetRange As Object)
+    If doc Is Nothing Then Exit Sub
+    If targetRange Is Nothing Then Exit Sub
+
+    mp_UpsertAnchorBookmarkPair doc, token, targetRange, targetRange
+End Sub
+
+Private Sub mp_UpsertAnchorBookmarkPair(ByVal doc As Object, ByVal token As String, ByVal topRange As Object, ByVal bottomRange As Object)
+    If doc Is Nothing Then Exit Sub
+    If topRange Is Nothing And bottomRange Is Nothing Then Exit Sub
+
+    If topRange Is Nothing Then Set topRange = bottomRange.Duplicate
+    If bottomRange Is Nothing Then Set bottomRange = topRange.Duplicate
+
+    mp_UpsertAnchorBookmarkByRole doc, token, True, topRange
+    mp_UpsertAnchorBookmarkByRole doc, token, False, bottomRange
+End Sub
+
+Private Sub mp_UpsertAnchorBookmarkByRole(ByVal doc As Object, ByVal token As String, ByVal isTopRole As Boolean, ByVal targetRange As Object)
     Dim bookmarkName As String
 
     If doc Is Nothing Then Exit Sub
     If targetRange Is Nothing Then Exit Sub
 
-    bookmarkName = mp_BuildAnchorBookmarkName(token)
+    If isTopRole Then
+        bookmarkName = mp_BuildAnchorBookmarkTopName(token)
+    Else
+        bookmarkName = mp_BuildAnchorBookmarkBottomName(token)
+    End If
     If Len(bookmarkName) = 0 Then Exit Sub
+
+    mp_UpsertBookmarkByName doc, bookmarkName, targetRange
+End Sub
+
+Private Sub mp_UpsertBookmarkByName(ByVal doc As Object, ByVal bookmarkName As String, ByVal targetRange As Object)
+    If doc Is Nothing Then Exit Sub
+    If targetRange Is Nothing Then Exit Sub
+    If Len(Trim$(bookmarkName)) = 0 Then Exit Sub
 
     On Error Resume Next
     If doc.Bookmarks.Exists(bookmarkName) Then
@@ -660,30 +767,92 @@ Private Sub mp_UpsertAnchorBookmark(ByVal doc As Object, ByVal token As String, 
 End Sub
 
 Private Function mp_TryGetAnchorBookmarkRange(ByVal doc As Object, ByVal token As String, ByRef outRange As Object) As Boolean
-    Dim bookmarkName As String
+    Dim topRange As Object
+    Dim bottomRange As Object
+
+    If mp_TryGetAnchorBookmarkPair(doc, token, topRange, bottomRange) Then
+        Set outRange = topRange
+        mp_TryGetAnchorBookmarkRange = Not (outRange Is Nothing)
+    End If
+End Function
+
+Private Function mp_TryGetAnchorBookmarkPair(ByVal doc As Object, ByVal token As String, ByRef outTopRange As Object, ByRef outBottomRange As Object) As Boolean
+    Dim topBookmarkName As String
+    Dim bottomBookmarkName As String
+    Dim legacyBookmarkName As String
+    Dim hasTop As Boolean
+    Dim hasBottom As Boolean
+    Dim legacyRange As Object
 
     If doc Is Nothing Then Exit Function
-    bookmarkName = mp_BuildAnchorBookmarkName(token)
+
+    topBookmarkName = mp_BuildAnchorBookmarkTopName(token)
+    bottomBookmarkName = mp_BuildAnchorBookmarkBottomName(token)
+    legacyBookmarkName = mp_BuildAnchorBookmarkName(token)
+
+    hasTop = mp_TryGetBookmarkRangeByName(doc, topBookmarkName, outTopRange)
+    hasBottom = mp_TryGetBookmarkRangeByName(doc, bottomBookmarkName, outBottomRange)
+
+    If hasTop And hasBottom Then
+        mp_TryGetAnchorBookmarkPair = True
+        Exit Function
+    End If
+
+    If hasTop And Not hasBottom Then
+        Set outBottomRange = outTopRange.Duplicate
+        mp_UpsertBookmarkByName doc, bottomBookmarkName, outBottomRange
+        mp_TryGetAnchorBookmarkPair = True
+        Exit Function
+    End If
+
+    If hasBottom And Not hasTop Then
+        Set outTopRange = outBottomRange.Duplicate
+        mp_UpsertBookmarkByName doc, topBookmarkName, outTopRange
+        mp_TryGetAnchorBookmarkPair = True
+        Exit Function
+    End If
+
+    If mp_TryGetBookmarkRangeByName(doc, legacyBookmarkName, legacyRange) Then
+        Set outTopRange = legacyRange.Duplicate
+        Set outBottomRange = legacyRange.Duplicate
+        mp_UpsertBookmarkByName doc, topBookmarkName, outTopRange
+        mp_UpsertBookmarkByName doc, bottomBookmarkName, outBottomRange
+        mp_TryGetAnchorBookmarkPair = True
+    End If
+End Function
+
+Private Function mp_TryGetBookmarkRangeByName(ByVal doc As Object, ByVal bookmarkName As String, ByRef outRange As Object) As Boolean
+    If doc Is Nothing Then Exit Function
+    bookmarkName = Trim$(bookmarkName)
     If Len(bookmarkName) = 0 Then Exit Function
 
     On Error GoTo CleanFail
     If doc.Bookmarks.Exists(bookmarkName) Then
         Set outRange = doc.Bookmarks(bookmarkName).Range
-        mp_TryGetAnchorBookmarkRange = Not (outRange Is Nothing)
+        mp_TryGetBookmarkRangeByName = Not (outRange Is Nothing)
     End If
     Exit Function
 
 CleanFail:
     Set outRange = Nothing
-    mp_TryGetAnchorBookmarkRange = False
+    mp_TryGetBookmarkRangeByName = False
 End Function
 
-Private Function mp_BuildAnchorBookmarkName(ByVal token As String) As String
+Private Function mp_BuildAnchorBookmarkTopName(ByVal token As String) As String
+    mp_BuildAnchorBookmarkTopName = mp_BuildAnchorBookmarkName(token, EXPORT_BOOKMARK_TOP_SUFFIX)
+End Function
+
+Private Function mp_BuildAnchorBookmarkBottomName(ByVal token As String) As String
+    mp_BuildAnchorBookmarkBottomName = mp_BuildAnchorBookmarkName(token, EXPORT_BOOKMARK_BOTTOM_SUFFIX)
+End Function
+
+Private Function mp_BuildAnchorBookmarkName(ByVal token As String, Optional ByVal roleSuffix As String = vbNullString) As String
     Dim rawToken As String
     Dim cleanToken As String
     Dim i As Long
     Dim ch As String
     Dim resultName As String
+    Dim maxBaseLen As Long
 
     rawToken = Trim$(token)
     If Len(rawToken) = 0 Then Exit Function
@@ -702,11 +871,17 @@ Private Function mp_BuildAnchorBookmarkName(ByVal token As String) As String
         End If
     Next i
 
-    resultName = EXPORT_BOOKMARK_PREFIX & cleanToken
-    If Len(resultName) > EXPORT_BOOKMARK_MAX_LEN Then
-        resultName = Left$(resultName, EXPORT_BOOKMARK_MAX_LEN)
+    roleSuffix = CStr(roleSuffix)
+    maxBaseLen = EXPORT_BOOKMARK_MAX_LEN - Len(roleSuffix)
+    If maxBaseLen < Len(EXPORT_BOOKMARK_PREFIX) Then
+        maxBaseLen = Len(EXPORT_BOOKMARK_PREFIX)
     End If
-    mp_BuildAnchorBookmarkName = resultName
+
+    resultName = EXPORT_BOOKMARK_PREFIX & cleanToken
+    If Len(resultName) > maxBaseLen Then
+        resultName = Left$(resultName, maxBaseLen)
+    End If
+    mp_BuildAnchorBookmarkName = resultName & roleSuffix
 End Function
 
 Private Function mp_IsAsciiAlphaNum(ByVal ch As String) As Boolean
