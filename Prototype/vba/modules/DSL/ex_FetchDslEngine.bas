@@ -243,7 +243,9 @@ Private Function mp_ApplyFetchDslRowsFromSource( _
     If mp_IsEmptyVariantArray(fields) Then Exit Function
     If dslPlan Is Nothing Then Exit Function
 
-    sql = mp_FetchDslBuildSourceProjectionSql(cfg, sourceAlias, tableAlias, dslPlan, tableRef)
+    ' Use full projection to avoid provider-specific parser issues on localized
+    ' headers with punctuation (e.g. "Вх. Дата"/"Вх. №").
+    sql = "SELECT * FROM " & tableRef
     Set rs = CreateObject("ADODB.Recordset")
     rs.Open sql, adoConn, 0, 1
     If rs.EOF Then
@@ -332,6 +334,7 @@ Private Function mp_ApplyFetchDslRowsFromSource( _
 EH:
     Dim innerErrDescription As String
     innerErrDescription = Err.Description
+    innerErrDescription = mp_FetchDslLocalizeInnerErrorRu(innerErrDescription)
 
     On Error Resume Next
     If Not rs Is Nothing Then
@@ -340,7 +343,7 @@ EH:
     On Error GoTo 0
 
     Err.Raise vbObjectError + 1768, "ex_FetchDslEngine", _
-        "Fetch DSL failed for '" & sourceAlias & ".Sheet[" & tableAlias & "]': " & innerErrDescription
+        "Ошибка Fetch DSL для '" & sourceAlias & ".Sheet[" & tableAlias & "]'. SQL=[" & sql & "]: " & innerErrDescription
 End Function
 
 Private Function mp_FetchDslParsePlan(ByVal dslTextRaw As String) As Object
@@ -1185,8 +1188,20 @@ End Function
 
 Private Function mp_FetchDslQuoteSqlIdentifier(ByVal valueText As String) As String
     valueText = Trim$(valueText)
+    If Len(valueText) >= 2 Then
+        If Left$(valueText, 1) = "[" And Right$(valueText, 1) = "]" Then
+            valueText = Mid$(valueText, 2, Len(valueText) - 2)
+        End If
+    End If
     valueText = Replace$(valueText, "]", "]]")
     mp_FetchDslQuoteSqlIdentifier = "[" & valueText & "]"
+End Function
+
+Private Function mp_FetchDslLocalizeInnerErrorRu(ByVal errorText As String) As String
+    errorText = Replace$(errorText, "Неприпустиме використання дужок для імен", "Недопустимое использование скобок для имен")
+    errorText = Replace$(errorText, "Ім'я", "Имя")
+    errorText = Replace$(errorText, "імен", "имен")
+    mp_FetchDslLocalizeInnerErrorRu = errorText
 End Function
 
 Private Sub mp_FetchDslCollectSourceFieldTokens(ByVal plan As Object, ByVal ioTokenSet As Object)
@@ -1663,6 +1678,18 @@ Private Function mp_FetchDslBuildFieldIndexMap(ByVal fields As Variant) As Objec
 End Function
 
 Private Function mp_FetchDslNormalizeToken(ByVal tokenText As String) As String
+    tokenText = Replace$(tokenText, vbCr, " ")
+    tokenText = Replace$(tokenText, vbLf, " ")
+    tokenText = Replace$(tokenText, vbTab, " ")
+    tokenText = Replace$(tokenText, ChrW$(160), " ")
+    ' ACE/OLEDB can expose dots in Excel headers as '#', e.g. "Вх. №" -> "Вх# №".
+    tokenText = Replace$(tokenText, "#", ".")
+    tokenText = Replace$(tokenText, ChrW$(&H2019), "'")
+    tokenText = Replace$(tokenText, ChrW$(&H2BC), "'")
+    tokenText = Replace$(tokenText, ChrW$(&H60), "'")
+    tokenText = Replace$(tokenText, ChrW$(&HB4), "'")
+    tokenText = Replace$(tokenText, "  ", " ")
+    tokenText = Replace$(tokenText, "  ", " ")
     mp_FetchDslNormalizeToken = LCase$(Trim$(tokenText))
 End Function
 
@@ -1701,6 +1728,12 @@ Private Function mp_GetMappedSourceHeader( _
         mp_GetMappedSourceHeader = Trim$(Left$(raw, p - 1))
     Else
         mp_GetMappedSourceHeader = Trim$(raw)
+    End If
+
+    If Len(mp_GetMappedSourceHeader) >= 2 Then
+        If Left$(mp_GetMappedSourceHeader, 1) = "[" And Right$(mp_GetMappedSourceHeader, 1) = "]" Then
+            mp_GetMappedSourceHeader = Trim$(Mid$(mp_GetMappedSourceHeader, 2, Len(mp_GetMappedSourceHeader) - 2))
+        End If
     End If
 
     If Len(mp_GetMappedSourceHeader) = 0 Then

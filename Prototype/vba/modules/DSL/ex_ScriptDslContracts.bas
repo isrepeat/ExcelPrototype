@@ -1,9 +1,11 @@
-Attribute VB_Name = "ex_PostProcessDslContracts"
+Attribute VB_Name = "ex_ScriptDslContracts"
 Option Explicit
 
 Public Const TYPE_SHEET_REF As String = "sheetref"
 Public Const TYPE_ROW As String = "row"
 Public Const TYPE_COLUMN As String = "column"
+Public Const TYPE_STRING As String = "string"
+Public Const TYPE_OBJECT As String = "object"
 
 Private g_MembersByType As Object
 

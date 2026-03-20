@@ -122,105 +122,16 @@ Public Function m_GetConfigStyle( _
     ByVal keyName As String, _
     Optional ByVal defaultValue As String = vbNullString _
 ) As String
-
-    Dim wsDev As Worksheet
-    Dim cfgTable As ListObject
-    Dim dataRange As Range
-    Dim r As Long
-    Dim markerText As String
-    Dim keyText As String
-    Dim styleText As String
-    Dim keyCol As Long
-    Dim markerCol As Long
-    Dim styleCol As Long
-
-    Set wsDev = mp_EnsureDevSheet()
-    mp_EnsureConfigArea wsDev
-
-    Set cfgTable = mp_GetConfigTable(wsDev, True)
-    If cfgTable Is Nothing Then
-        m_GetConfigStyle = defaultValue
-        Exit Function
-    End If
-
-    If cfgTable.DataBodyRange Is Nothing Then
-        m_GetConfigStyle = defaultValue
-        Exit Function
-    End If
-
-    Set dataRange = cfgTable.DataBodyRange
-    keyCol = DEV_COL_KEY
-    markerCol = DEV_COL_MARKER
-    styleCol = DEV_COL_STYLES
-
-    For r = 1 To dataRange.Rows.Count
-        markerText = vbNullString
-        If markerCol > 0 Then
-            markerText = Trim$(CStr(dataRange.Cells(r, markerCol).Value))
-        End If
-        keyText = Trim$(CStr(dataRange.Cells(r, keyCol).Value))
-
-        If StrComp(markerText, DEV_MARKER_SYMBOL, vbTextCompare) <> 0 Then
-            If StrComp(keyText, keyName, vbTextCompare) = 0 Then
-                styleText = CStr(dataRange.Cells(r, styleCol).Value)
-                If Len(styleText) = 0 Then
-                    m_GetConfigStyle = defaultValue
-                Else
-                    m_GetConfigStyle = styleText
-                End If
-                Exit Function
-            End If
-        End If
-    Next r
-
+    ' Inline styles from config table are deprecated.
     m_GetConfigStyle = defaultValue
 End Function
 
 Public Function m_GetConfigStylesDictionary() As Object
-    Dim wsDev As Worksheet
-    Dim cfgTable As ListObject
-    Dim dataRange As Range
     Dim stylesDict As Object
-    Dim r As Long
-    Dim markerText As String
-    Dim keyText As String
-
-    Set wsDev = mp_EnsureDevSheet()
-    mp_EnsureConfigArea wsDev
-
-    Set cfgTable = mp_GetConfigTable(wsDev, True)
-    If cfgTable Is Nothing Then
-        Set stylesDict = CreateObject("Scripting.Dictionary")
-        stylesDict.CompareMode = 1
-        Set m_GetConfigStylesDictionary = stylesDict
-        Exit Function
-    End If
 
     Set stylesDict = CreateObject("Scripting.Dictionary")
     stylesDict.CompareMode = 1
-
-    If cfgTable.DataBodyRange Is Nothing Then
-        Set m_GetConfigStylesDictionary = stylesDict
-        Exit Function
-    End If
-
-    Set dataRange = cfgTable.DataBodyRange
-    For r = 1 To dataRange.Rows.Count
-        markerText = Trim$(CStr(dataRange.Cells(r, DEV_COL_MARKER).Value))
-        If StrComp(markerText, DEV_MARKER_SYMBOL, vbTextCompare) = 0 Then
-            GoTo ContinueRow
-        End If
-
-        keyText = Trim$(CStr(dataRange.Cells(r, DEV_COL_KEY).Value))
-        If Len(keyText) = 0 Then
-            GoTo ContinueRow
-        End If
-
-        stylesDict(keyText) = CStr(dataRange.Cells(r, DEV_COL_STYLES).Value)
-
-ContinueRow:
-    Next r
-
+    ' Inline styles from config table are deprecated.
     Set m_GetConfigStylesDictionary = stylesDict
 End Function
 
@@ -304,72 +215,7 @@ Public Sub m_SetConfigStyle( _
     ByVal styleText As String, _
     Optional ByVal createIfMissing As Boolean = False _
 )
-    Dim wsDev As Worksheet
-    Dim cfgTable As ListObject
-    Dim dataRange As Range
-    Dim keyCol As Long
-    Dim valueCol As Long
-    Dim markerCol As Long
-    Dim styleCol As Long
-    Dim r As Long
-    Dim markerText As String
-    Dim keyText As String
-    Dim newRow As ListRow
-
-    keyName = Trim$(keyName)
-    If Len(keyName) = 0 Then
-        MsgBox "Config key name must not be empty.", vbExclamation
-        Exit Sub
-    End If
-
-    Set wsDev = mp_EnsureDevSheet()
-    mp_EnsureConfigArea wsDev
-
-    Set cfgTable = mp_GetConfigTable(wsDev, True)
-    If cfgTable Is Nothing Then
-        MsgBox "Config table '" & DEV_CONFIG_TABLE_NAME & "' was not found on sheet '" & wsDev.Name & "'.", vbExclamation
-        Exit Sub
-    End If
-
-    keyCol = DEV_COL_KEY
-    valueCol = DEV_COL_VALUE
-    markerCol = DEV_COL_MARKER
-    styleCol = DEV_COL_STYLES
-
-    If Not cfgTable.DataBodyRange Is Nothing Then
-        Set dataRange = cfgTable.DataBodyRange
-        For r = 1 To dataRange.Rows.Count
-            markerText = vbNullString
-            If markerCol > 0 Then
-                markerText = Trim$(CStr(dataRange.Cells(r, markerCol).Value))
-            End If
-            keyText = Trim$(CStr(dataRange.Cells(r, keyCol).Value))
-            If StrComp(markerText, DEV_MARKER_SYMBOL, vbTextCompare) <> 0 Then
-                If StrComp(keyText, keyName, vbTextCompare) = 0 Then
-                    dataRange.Cells(r, styleCol).Value = styleText
-                    Exit Sub
-                End If
-            End If
-        Next r
-    End If
-
-    If Not createIfMissing Then
-        MsgBox "Config key '" & keyName & "' was not found in '" & DEV_CONFIG_TABLE_NAME & "'.", vbExclamation
-        Exit Sub
-    End If
-
-    Set newRow = cfgTable.ListRows.Add
-    If newRow Is Nothing Then
-        MsgBox "Failed to append a new row into config table '" & DEV_CONFIG_TABLE_NAME & "'.", vbExclamation
-        Exit Sub
-    End If
-
-    If markerCol > 0 Then
-        newRow.Range.Cells(1, markerCol).Value = vbNullString
-    End If
-    newRow.Range.Cells(1, keyCol).Value = keyName
-    newRow.Range.Cells(1, valueCol).Value = vbNullString
-    newRow.Range.Cells(1, styleCol).Value = styleText
+    ' Inline styles from config table are deprecated.
 End Sub
 
 ' Обновляет служебный текст в заголовке 3-й колонки таблицы.
@@ -426,8 +272,12 @@ Public Sub m_RefreshConfigTitle( _
 SafeExit:
     If wasProtected Then
         On Error Resume Next
-        wsDev.Protect DrawingObjects:=False, Contents:=True, Scenarios:=False, UserInterfaceOnly:=True, AllowFiltering:=True
-        wsDev.EnableSelection = xlUnlockedCells
+        wsDev.Protect DrawingObjects:=False, Contents:=True, Scenarios:=False, UserInterfaceOnly:=True, _
+                      AllowFormattingCells:=True, AllowFormattingColumns:=True, AllowFormattingRows:=True, _
+                      AllowInsertingColumns:=True, AllowInsertingRows:=True, AllowInsertingHyperlinks:=True, _
+                      AllowDeletingColumns:=True, AllowDeletingRows:=True, AllowSorting:=True, _
+                      AllowFiltering:=True, AllowUsingPivotTables:=True
+        wsDev.EnableSelection = xlNoRestrictions
         On Error GoTo 0
     End If
 End Sub

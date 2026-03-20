@@ -1,0 +1,21 @@
+<?xml version="1.0" standalone="yes"?>
+<stylePipeline xmlns="urn:excelprototype:profiles" version="1">
+  <sheetPipeline page="g_SimpleTest">
+    <stage name="default">
+      <layer name="rc-base" priority="100" enabled="true">
+        <rule target="sheet"
+              styles="{
+                fontName:'Times New Roman';
+                fontSize:12;
+                backColor:#222222;
+                fontColor:#EBEBEB;
+                horizontal:center;
+                vertical:center;
+                rowHeight:20;
+                borderColor:#000000;
+                borderWeight:thin;
+              }"/>
+      </layer>
+    </stage>
+  </sheetPipeline>
+</stylePipeline>

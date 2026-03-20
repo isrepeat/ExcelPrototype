@@ -1,0 +1,95 @@
+<?xml version="1.0" standalone="yes"?>
+<stylePipeline xmlns="urn:excelprototype:profiles" version="1">
+  <sheetPipeline page="g_ReportCreation">
+    <stage name="default">
+      <layer name="rc-base" priority="100" enabled="true">
+        <rule target="sheet"
+              styles="{
+                fontName:'Times New Roman';
+                fontSize:12;
+                backColor:#222222;
+                fontColor:#EBEBEB;
+                horizontal:center;
+                vertical:center;
+                rowHeight:20;
+                borderColor:#000000;
+                borderWeight:thin;
+              }"/>
+      </layer>
+
+      <layer name="rc-pre-autofit" priority="200" enabled="true">
+        <rule target="row"
+              selector="kind=header"
+              styles="{
+                overflow:clip;
+              }"/>
+        <rule target="row"
+              selector="kind=section"
+              styles="{
+                overflow:clip;
+              }"/>
+      </layer>
+
+      <layer name="rc-autofit" priority="210" enabled="true">
+        <rule target="sheet"
+              styles="{
+                autoFitColumns:true;
+              }"/>
+      </layer>
+
+      <layer name="rc-clamp-columns" priority="220" enabled="true">
+        <rule target="sheet"
+              styles="{
+                minWidth:5;
+                maxWidth:20;
+              }"/>
+      </layer>
+
+      <layer name="rc-section" priority="230" enabled="true">
+        <rule target="row"
+              selector="kind=section"
+              styles="{
+                backColor:#161616;
+                fontColor:#D7A763;
+                fontBold:true;
+                mergeColumns:7;
+                horizontal:left;
+                overflow:clip;
+                rowHeight:20;
+              }"/>
+      </layer>
+
+      <layer name="rc-header" priority="240" enabled="true">
+        <rule target="row"
+              selector="kind=header"
+              styles="{
+                backColor:#222222;
+                fontColor:#68D947;
+                fontBold:true;
+                overflow:wrap;
+                autoHeight:true;
+              }"/>
+      </layer>
+
+      <layer name="rc-content" priority="250" enabled="true">
+        <rule target="row"
+              selector="kind=content"
+              styles="{
+                backColor:#222222;
+                fontColor:#EBEBEB;
+                overflow:wrap;
+                autoHeight:true;
+              }"/>
+      </layer>
+
+      <layer name="rc-owner-divider" priority="255" enabled="true">
+        <rule target="row"
+              selector="kind=ownerdivider"
+              styles="{
+                backColor:#4A4A4A;
+                fontColor:#FFFFFF;
+              }"/>
+      </layer>
+    </stage>
+  </sheetPipeline>
+</stylePipeline>

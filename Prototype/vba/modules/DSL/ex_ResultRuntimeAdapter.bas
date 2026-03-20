@@ -1,7 +1,7 @@
 Attribute VB_Name = "ex_ResultRuntimeAdapter"
 Option Explicit
 
-Private Const ERR_SOURCE As String = "ex_PostProcessDsl"
+Private Const ERR_SOURCE As String = "ex_ScriptDSL"
 
 Public Sub m_BuildRuntimeContext( _
     ByVal resultTables As Collection, _
@@ -308,12 +308,14 @@ End Function
 
 Public Function m_TryParseMacroArg(ByVal argText As String, ByRef outArgSpec As Object) As Boolean
     Dim literalText As String
+    Dim integerLiteral As Long
     Dim sourceAlias As String
     Dim tableAlias As String
     Dim rowIndex As Long
     Dim rowSelector As String
     Dim tableRef As String
     Dim fieldAlias As String
+    Dim rowVarName As String
 
     Set outArgSpec = CreateObject("Scripting.Dictionary")
     outArgSpec.CompareMode = 1
@@ -325,7 +327,14 @@ Public Function m_TryParseMacroArg(ByVal argText As String, ByRef outArgSpec As 
         Exit Function
     End If
 
-    If ex_PostProcessParserCore.m_IsIdentifier(argText) Then
+    If ex_XmlCore.m_TryParseLong(Trim$(argText), integerLiteral) Then
+        outArgSpec("Kind") = "number"
+        outArgSpec("Value") = CLng(integerLiteral)
+        m_TryParseMacroArg = True
+        Exit Function
+    End If
+
+    If ex_ScriptParserCore.m_IsIdentifier(argText) Then
         outArgSpec("Kind") = "varref"
         outArgSpec("Name") = Trim$(argText)
         m_TryParseMacroArg = True
@@ -369,6 +378,14 @@ Public Function m_TryParseMacroArg(ByVal argText As String, ByRef outArgSpec As 
         m_TryParseMacroArg = True
         Exit Function
     End If
+
+    If ex_obj_ResultRowDsl.m_TryParseRowColumnRef(argText, rowVarName, fieldAlias) Then
+        outArgSpec("Kind") = "scopecellref"
+        outArgSpec("RowVar") = rowVarName
+        outArgSpec("FieldAlias") = fieldAlias
+        m_TryParseMacroArg = True
+        Exit Function
+    End If
 End Function
 
 Public Function m_ValidateMacroArgSpec( _
@@ -383,6 +400,9 @@ Public Function m_ValidateMacroArgSpec( _
     If argSpec Is Nothing Then Exit Function
 
     Select Case LCase$(CStr(argSpec("Kind")))
+        Case "number"
+            ' Numeric literal does not need additional validation.
+
         Case "varref"
             If scopeVarTypes Is Nothing Then
                 outErrorText = "callMacro variable '" & CStr(argSpec("Name")) & "' is not available in this scope."
@@ -425,6 +445,20 @@ Public Function m_ValidateMacroArgSpec( _
                 Exit Function
             End If
             If Not mp_TryResolveMapKeyByFieldAlias(allowedTableFields, tableRef, CStr(argSpec("FieldAlias")), resolvedMapKey, outErrorText) Then Exit Function
+
+        Case "scopecellref"
+            If scopeVarTypes Is Nothing Then
+                outErrorText = "callMacro row-cell argument variable '" & CStr(argSpec("RowVar")) & "' is not available in this scope."
+                Exit Function
+            End If
+            If Not scopeVarTypes.Exists(CStr(argSpec("RowVar"))) Then
+                outErrorText = "callMacro row-cell argument variable '" & CStr(argSpec("RowVar")) & "' is not available in this scope."
+                Exit Function
+            End If
+            If StrComp(LCase$(CStr(scopeVarTypes(CStr(argSpec("RowVar"))))), "row", vbBinaryCompare) <> 0 Then
+                outErrorText = "callMacro row-cell argument variable '" & CStr(argSpec("RowVar")) & "' must be row type."
+                Exit Function
+            End If
     End Select
 
     m_ValidateMacroArgSpec = True

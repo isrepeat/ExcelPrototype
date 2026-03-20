@@ -22,11 +22,12 @@ Private Enum e_ConfigStylePropertyId
     cfgStylePropBorderWeight = 17
     cfgStylePropAutoHeightMarginTop = 18
     cfgStylePropAutoHeightMarginBottom = 19
+    cfgStylePropMinRowHeight = 20
 End Enum
 
 ' Supported style properties (declarations):
 ' width, minWidth, maxWidth, autoFitColumns
-' overflow, autoHeight, customAutoHeight-margin-top, customAutoHeight-margin-bottom, rowHeight, mergeColumns
+' overflow, autoHeight, customAutoHeight-margin-top, customAutoHeight-margin-bottom, rowHeight, minRowHeight, mergeColumns
 ' fontName, fontSize, fontBold
 ' backColor, fontColor
 ' borderColor, borderWeight
@@ -40,6 +41,7 @@ Private Const STYLE_PROPERTY_AUTO_HEIGHT As String = "autoHeight"
 Private Const STYLE_PROPERTY_CUSTOM_AUTO_HEIGHT_MARGIN_TOP As String = "customAutoHeight-margin-top"
 Private Const STYLE_PROPERTY_CUSTOM_AUTO_HEIGHT_MARGIN_BOTTOM As String = "customAutoHeight-margin-bottom"
 Private Const STYLE_PROPERTY_ROW_HEIGHT As String = "rowHeight"
+Private Const STYLE_PROPERTY_MIN_ROW_HEIGHT As String = "minRowHeight"
 Private Const STYLE_PROPERTY_MERGE_COLUMNS As String = "mergeColumns"
 Private Const STYLE_PROPERTY_FONT_NAME As String = "fontName"
 Private Const STYLE_PROPERTY_FONT_SIZE As String = "fontSize"
@@ -313,6 +315,7 @@ Private Function mp_BuildSupportedPropertyIds() As Object
     propertyIds(LCase$(STYLE_PROPERTY_CUSTOM_AUTO_HEIGHT_MARGIN_TOP)) = cfgStylePropAutoHeightMarginTop
     propertyIds(LCase$(STYLE_PROPERTY_CUSTOM_AUTO_HEIGHT_MARGIN_BOTTOM)) = cfgStylePropAutoHeightMarginBottom
     propertyIds(LCase$(STYLE_PROPERTY_ROW_HEIGHT)) = cfgStylePropRowHeight
+    propertyIds(LCase$(STYLE_PROPERTY_MIN_ROW_HEIGHT)) = cfgStylePropMinRowHeight
     propertyIds(LCase$(STYLE_PROPERTY_MERGE_COLUMNS)) = cfgStylePropMergeColumns
     propertyIds(LCase$(STYLE_PROPERTY_FONT_NAME)) = cfgStylePropFontName
     propertyIds(LCase$(STYLE_PROPERTY_FONT_SIZE)) = cfgStylePropFontSize
@@ -433,6 +436,12 @@ Private Function mp_ValidatePropertyValue( _
                 Exit Function
             End If
 
+        Case cfgStylePropMinRowHeight
+            If Not mp_TryParsePositiveDouble(propertyValue, widthValue) Then
+                outErrorText = "invalid minRowHeight value '" & propertyValue & "' (expected positive number)"
+                Exit Function
+            End If
+
         Case cfgStylePropMergeColumns
             If Not ex_XmlCore.m_TryParseLong(propertyValue, longValue) Then
                 outErrorText = "invalid mergeColumns value '" & propertyValue & "' (expected integer >= 1)"
@@ -540,6 +549,9 @@ Private Sub mp_ApplyParsedStylesToColumn( _
     Dim autoHeightEnabled As Boolean
     Dim autoFitColumnsEnabled As Boolean
     Dim rowHeightValue As Double
+    Dim minRowHeightValue As Double
+    Dim hasRowHeight As Boolean
+    Dim hasMinRowHeight As Boolean
     Dim boolValue As Boolean
     Dim fontSizeValue As Double
     Dim colorValue As Long
@@ -624,22 +636,35 @@ Private Sub mp_ApplyParsedStylesToColumn( _
         End Select
     End If
 
-    If parsedStyles.Exists(STYLE_PROPERTY_AUTO_HEIGHT) Then
+    If parsedStyles.Exists(LCase$(STYLE_PROPERTY_ROW_HEIGHT)) Then
+        If Not mp_TryParsePositiveDouble(CStr(parsedStyles(LCase$(STYLE_PROPERTY_ROW_HEIGHT))), rowHeightValue) Then
+            Err.Raise vbObjectError + 1499, "ex_ConfigStylesParser", _
+                "Invalid rowHeight value for key '" & mapKey & "'."
+        End If
+        hasRowHeight = True
+    End If
+
+    If parsedStyles.Exists(LCase$(STYLE_PROPERTY_MIN_ROW_HEIGHT)) Then
+        If Not mp_TryParsePositiveDouble(CStr(parsedStyles(LCase$(STYLE_PROPERTY_MIN_ROW_HEIGHT))), minRowHeightValue) Then
+            Err.Raise vbObjectError + 1499, "ex_ConfigStylesParser", _
+                "Invalid minRowHeight value for key '" & mapKey & "'."
+        End If
+        hasMinRowHeight = True
+    End If
+
+    If hasRowHeight Then
+        scopedRange.RowHeight = rowHeightValue
+    ElseIf parsedStyles.Exists(STYLE_PROPERTY_AUTO_HEIGHT) Then
         If Not mp_TryParseBoolean(CStr(parsedStyles(STYLE_PROPERTY_AUTO_HEIGHT)), autoHeightEnabled) Then
             Err.Raise vbObjectError + 1494, "ex_ConfigStylesParser", _
                 "Invalid autoHeight value for key '" & mapKey & "'."
         End If
         If autoHeightEnabled Then
             scopedRange.EntireRow.AutoFit
+            If hasMinRowHeight Then
+                If scopedRange.RowHeight < minRowHeightValue Then scopedRange.RowHeight = minRowHeightValue
+            End If
         End If
-    End If
-
-    If parsedStyles.Exists(LCase$(STYLE_PROPERTY_ROW_HEIGHT)) Then
-        If Not mp_TryParsePositiveDouble(CStr(parsedStyles(LCase$(STYLE_PROPERTY_ROW_HEIGHT))), rowHeightValue) Then
-            Err.Raise vbObjectError + 1499, "ex_ConfigStylesParser", _
-                "Invalid rowHeight value for key '" & mapKey & "'."
-        End If
-        scopedRange.RowHeight = rowHeightValue
     End If
 
     If parsedStyles.Exists(LCase$(STYLE_PROPERTY_FONT_NAME)) Then

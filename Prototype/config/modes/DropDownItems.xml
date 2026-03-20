@@ -8,5 +8,11 @@
     <item key="TablesComparing"
           caption="Comparing"
           setContext="activeMode=TablesComparing"/>
+    <item key="ReportCreation"
+        caption="Report Creation"
+        setContext="activeMode=ReportCreation"/>
+      <item key="SimpleTest"
+            caption="Simple Test"
+            setContext="activeMode=SimpleTest"/>
   </list>
 </dropdownItems>

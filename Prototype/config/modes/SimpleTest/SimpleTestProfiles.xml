@@ -1,0 +1,20 @@
+<?xml version="1.0" standalone="yes"?>
+<profiles version="1" xmlns="urn:excelprototype:profiles">
+  <profile name="Default" resultZoom="100">
+    <ui>
+      <control name="btnClear" visible="true"/>
+      <control name="btnMode" visible="true"/>
+      <control name="btnSimpleTest" visible="true"/>
+      <control name="btnComparing" visible="false"/>
+      <control name="btnUpdateCode" visible="true"/>
+      <control name="btnCustomProfile" visible="true"/>
+      <control name="btnCustomMode" visible="true"/>
+    </ui>
+
+    <v key="CommonKey" mutable="true">Simple Test Key</v>
+    <v key="Output.Sheets">StateMain</v>
+    <v key="Main.Sheet[StateMain].Type">State</v>
+    <preProcessScript include="Simple_PreProcessScript.jslike"/>
+    <postProcessScript execution="Implicit" include="Simple_PostProcessScript.jslike"/>
+  </profile>
+</profiles>
