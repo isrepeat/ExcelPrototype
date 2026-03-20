@@ -33,11 +33,93 @@
               }"/>
       </layer>
 
+      <layer name="dev-config-table-layout" priority="215" enabled="true">
+        <rule target="column"
+              selector="col=1"
+              styles="{
+                width:5;
+              }"/>
+        <rule target="column"
+              selector="col=2"
+              styles="{
+                width:42;
+              }"/>
+        <rule target="column"
+              selector="col=3"
+              styles="{
+                width:70;
+              }"/>
+        <rule target="column"
+              selector="col=4"
+              styles="{
+                width:10;
+              }"/>
+
+        <rule target="row"
+              selector="kind=configdata;col=1"
+              styles="{
+                horizontal:center;
+                vertical:center;
+                overflow:clip;
+              }"/>
+        <rule target="row"
+              selector="kind=configmarker;col=1"
+              styles="{
+                horizontal:center;
+                vertical:center;
+                overflow:clip;
+              }"/>
+
+        <rule target="row"
+              selector="kind=configdata;col=2"
+              styles="{
+                horizontal:left;
+                vertical:center;
+                overflow:clip;
+              }"/>
+        <rule target="row"
+              selector="kind=configmarker;col=2"
+              styles="{
+                horizontal:left;
+                vertical:center;
+                overflow:clip;
+              }"/>
+
+        <rule target="row"
+              selector="kind=configdata;col=3:4"
+              styles="{
+                horizontal:left;
+                vertical:center;
+                overflow:wrap;
+              }"/>
+        <rule target="row"
+              selector="kind=configmarker;col=3:4"
+              styles="{
+                horizontal:left;
+                vertical:center;
+                overflow:wrap;
+              }"/>
+      </layer>
+
       <layer name="dev-config-table-note-column" priority="220" enabled="true">
         <rule target="row"
               selector="kind=configdata;col=4"
               styles="{
                 fontColor:#A8A8A8;
+              }"/>
+      </layer>
+
+      <layer name="dev-config-table-mutable" priority="225" enabled="true">
+        <rule target="row"
+              selector="kind=configmutable;col=2:4"
+              styles="{
+                backColor:#223A35;
+                fontColor:#D7FFF3;
+              }"/>
+        <rule target="row"
+              selector="kind=configmutable;col=2"
+              styles="{
+                fontBold:true;
               }"/>
       </layer>
 

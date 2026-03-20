@@ -1,121 +1,377 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resultTemplates xmlns="urn:excelprototype:profiles" version="1">
+  <!-- Template note:
+       In conditions like {#if InNumFull}...{#endif} a placeholder is treated as empty
+       if it is empty ("") or equals "-" / "?". -->
   <template id="FromHospital">
     <text>
       <![CDATA[#^
-#_      З {Hospital}, з {#dd} березня 2026 року:
+#_      З {Hospital}, з {DATE|dateformat:"\dd \month"} 2026 року:
 
 #_      {Rank|accusative} {FIO|accusative}, {Position|accusative|lowerFirstLetter}.
 #_      {#if IsReturnToDuty}#^
 #_      {ReturnToDutyRank|dative|upperFirstLetter} #^
 #_      {ReturnToDutyFIO|dative} #^
-#_      повернутись до виконання обов'язків {ReturnToDutyPosition|accusative|lowerFirstLetter}.#^
-#_      {#endif}
-#_      Зарахувати на котлове забезпечення з {#dd+1} березня 2026 року.
+#_      повернутись до виконання обов'язків {ReturnToDutyPosition|accusative|lowerFirstLetter}.
+#_      {#endif}#^
+#_      Зарахувати на котлове забезпечення з {DATE|dateformat:"\dd"}{+1} {DATE|dateformat:"\month"} 2026 року.
 
-#_      Підстава: рапорт {RaportFrom} (вх. № 1656/{InNum}-в від {InDate}), #^
-#_      виписка із медичної карти стаціонарного хворого № {DocNum} від {DocDate}.#^
+#_      Підстава: рапорт {RaportTvo} {RaportFrom} (вх. № {InNumFull} від {InDate})#^
+#_      {#if HasDuplicateRaport}#^
+#_      , рапорт {DuplicateRaportTVO} {DuplicateRaportFrom} (вх. № {DuplicateInNumFull} від {DuplicateInDate})#^
+#_      {#endif}#^
+#_      {#if DocNum #or DocDate}#^
+#_      , {DocNote
+            |regexreplace:"^[ \t\r\n]*([\s\S]*?)[ \t\r\n]*$","$1"
+            |regexreplace:"^м/к$","виписка із медичної карти стаціонарного хворого"
+        } {#if DocNum}№ {DocNum}{#endif}{#if DocDate} від {DocDate}{#endif}#^
+#_      .#^
+#_      {#endif}#^
 #_    ]]>
    </text>
   </template>
   <template id="FromVacationForCuring">
     <text>
       <![CDATA[#^
-#_      {Rank|accusative} {FIO|accusative}, {Position|accusative|lowerFirstLetter}.
+#_      {Rank|accusative|upperFirstLetter} {FIO|accusative}, {Position|accusative|lowerFirstLetter}.
 #_      {#if IsReturnToDuty}#^
 #_      {ReturnToDutyRank|dative|upperFirstLetter} #^
 #_      {ReturnToDutyFIO|dative} #^
-#_      повернутись до виконання обов'язків {ReturnToDutyPosition|accusative|lowerFirstLetter}.#^
-#_      {#endif}
-#_      Зарахувати на котлове забезпечення з {#dd+1} березня 2026 року.
+#_      повернутись до виконання обов'язків {ReturnToDutyPosition|accusative|lowerFirstLetter}.
+#_      {#endif}#^
+#_      Зарахувати на котлове забезпечення з {DATE|dateformat:"\dd"}{+1} {DATE|dateformat:"\month"} 2026 року.
 
-#_      Підстава: рапорт {RaportFrom} (вх. № 1656/{InNum}-в від {InDate}), #^
-#_      відпускний квиток № 3/71/{VkNum} від {VkDate}.#^
+#_      Підстава: рапорт {RaportTvo} {RaportFrom} (вх. № {InNumFull} від {InDate})#^
+#_      , відпускний квиток № 3/71/{VkNum} від {VkDate}#^
+#_      .#^
 #_    ]]>
    </text>
   </template>
   <template id="FromAnnualMainVacation">
     <text>
       <![CDATA[#^
-#_      {Rank|accusative} {FIO|accusative}, {Position|accusative|lowerFirstLetter}.
+#_      {Rank|accusative|upperFirstLetter} {FIO|accusative}, {Position|accusative|lowerFirstLetter}.
 #_      {#if IsReturnToDuty}#^
 #_      {ReturnToDutyRank|dative|upperFirstLetter} #^
 #_      {ReturnToDutyFIO|dative} #^
-#_      повернутись до виконання обов'язків {ReturnToDutyPosition|accusative|lowerFirstLetter}.#^
-#_      {#endif}
-#_      Зарахувати на котлове забезпечення з {#dd+1} березня 2026 року.
+#_      повернутись до виконання обов'язків {ReturnToDutyPosition|accusative|lowerFirstLetter}.
+#_      {#endif}#^
+#_      Зарахувати на котлове забезпечення з {DATE|dateformat:"\dd"}{+1} {DATE|dateformat:"\month"} 2026 року.
 
-#_      Підстава: рапорт {RaportFrom} (вх. № 1656/{InNum}-в від {InDate}), #^
-#_      відпускний квиток № 3/71/{VkNum} від {VkDate}.#^
+#_      Підстава: рапорт {RaportTvo} {RaportFrom} (вх. № {InNumFull} від {InDate})#^
+#_      , відпускний квиток № 3/71/{VkNum} від {VkDate}#^
+#_      .#^
 #_    ]]>
     </text>
   </template>
   <template id="FromVacationForFamily">
     <text>
       <![CDATA[#^
-#_      {Rank|accusative} {FIO|accusative}, {Position|accusative|lowerFirstLetter}.
+#_      {Rank|accusative|upperFirstLetter} {FIO|accusative}, {Position|accusative|lowerFirstLetter}.
 #_      {#if IsReturnToDuty}#^
 #_      {ReturnToDutyRank|dative|upperFirstLetter} {ReturnToDutyFIO|dative} #^
-#_      повернутись до виконання обов'язків {ReturnToDutyPosition|accusative|lowerFirstLetter}.#^
-#_      {#endif}
-#_      Зарахувати на котлове забезпечення з {#dd+1} березня 2026 року.
+#_      повернутись до виконання обов'язків {ReturnToDutyPosition|accusative|lowerFirstLetter}.
+#_      {#endif}#^
+#_      Зарахувати на котлове забезпечення з {DATE|dateformat:"\dd"}{+1} {DATE|dateformat:"\month"} 2026 року.
 
-#_      Підстава: рапорт {RaportFrom} (вх. № 1656/{InNum}-в від {InDate}), #^
-#_      відпускний квиток № 3/71/{VkNum} від {VkDate}.#^
+#_      Підстава: рапорт {RaportTvo} {RaportFrom} (вх. № {InNumFull} від {InDate})#^
+#_      , відпускний квиток № 3/71/{VkNum} від {VkDate}#^
+#_      .#^
 #_    ]]>
     </text>
   </template>
   <template id="FromOutpatientExaminationOrVlk">
     <text>
       <![CDATA[#^
-#_      після проходження військово-лікарської комісії:
-
 #_      {Rank|accusative} {FIO|accusative}, {Position|accusative|lowerFirstLetter}.
 
-#_      Підстава: рапорт {RaportFrom} (вх. № 1656/{InNum}-в від {InDate}), #^
-#_      довідка військово-лікарської комісії № {VlkNum} від {VlkDate}.#^
+#_      Підстава: рапорт {RaportTvo} {RaportFrom} (вх. № {InNumFull} від {InDate})#^
+#_      , довідка військово-лікарської комісії № {VlkNum} від {VlkDate}#^
+#_      .#^
 #_    ]]>
     </text>
   </template>
   <template id="ToHospital">
     <text>
       <![CDATA[#^
-#_      До {Hospital}, з {#dd} березня 2026 року:
+#_      До {Hospital}, з {DATE|dateformat:"\dd \month"} 2026 року:
 
 #_      {Rank|accusative} {FIO|accusative}, {Position|accusative|lowerFirstLetter}.
-#_      {#if isAssignToDuty}#^
+#_      {#if IsAssignToDuty}#^
 #_      Тимчасове виконання обов'язків за посадою {Position|accusative|lowerFirstLetter} покласти на #^
-#_      {AssignToDutyRank|dative|upperFirstLetter} {AssignToDutyFIO|dative} {AssignToDutyPosition|accusative|lowerFirstLetter}.#^
-#_      {#endif}
-#_      Зняти з котлового забезпечення з {#dd+1} березня 2026 року.
+#_      {AssignToDutyRank|accusative|lowerFirstLetter} {AssignToDutyFIO|accusative}, {AssignToDutyPosition|accusative|lowerFirstLetter}.
+#_      {#endif}#^
+#_      Зняти з котлового забезпечення з {DATE|dateformat:"\dd"} {DATE|dateformat:"\month"} 2026 року.
+#_      {
+          #let HasFoodAttestatLine = $ex_Helpers.m_RegexFirstMatch("{Hospital}", "центру\s+[Пп]івнічного\s+регіону|центру\s+[Зз]ахідного\s+регіону");
+        }#^
+#_      {#if HasFoodAttestatLine}#^
+#_      Видати продовольчий атестат.
+#_      {#endif}#^
 
-#_      Підстава: рапорт {RaportFrom} (вх. № 1656/{InNum}-в від {InDate}), #^
-#_      медична карта стаціонарного хворого № {DocNum} від {DocDate}.#^
+#_      Підстава: рапорт {RaportTvo} {RaportFrom} (вх. № {InNumFull} від {InDate})#^
+#_      {#if HasDuplicateRaport}#^
+#_      , рапорт {DuplicateRaportTVO} {DuplicateRaportFrom} (вх. № {DuplicateInNumFull} від {DuplicateInDate})#^
+#_      {#endif}#^
+#_      {#if DocNum #or DocDate}#^
+#_      , {DocNote
+            |regexreplace:"^[ \t\r\n]*([\s\S]*?)[ \t\r\n]*$","$1"
+            |regexreplace:"^м/к$","медична карта стаціонарного хворого"
+        } {#if DocNum}№ {DocNum}{#endif}{#if DocDate} від {DocDate}{#endif}#^
+#_      .#^
+#_      {#endif}#^
 #_    ]]>
     </text>
   </template>
   <template id="ToAnnualMainVacation">
-    <text><![CDATA[[TODO] Template ToAnnualMainVacation]]></text>
+    <text>
+      <![CDATA[#^
+#_      {Rank|accusative|upperFirstLetter} {FIO|accusative}, {Position|accusative|lowerFirstLetter}, #^
+#_      до {City
+            |regexreplace:"[Мм]\.[ \t]*","м. "
+            |regexreplace:"[Сс]ел\.[ \t]*","сел. "
+            |regexreplace:"[Сс]\.[ \t]*","с. "
+            |regexreplace:"обл\.","області"
+        }, #^
+#_      терміном на {DaysCount|calendarDaysUa}, #^
+#_      {#if AdditionalWayDays == 1}#^
+#_      без урахування 1 доби, необхідної для проїзду до місця проведення відпустки та назад, #^
+#_      {#endif}#^
+#_      {#if AdditionalWayDays > 1}#^
+#_      без урахування {AdditionalWayDays} діб, необхідних для проїзду до місця проведення відпустки та назад, #^
+#_      {#endif}#^
+#_      {
+          #let isSameMonth = $ex_DateHelpers.m_IsSameMonth({OutDate}, {ReturnDate});
+        }#^
+#_      {#if isSameMonth}#^
+#_      з {OutDate|dateformat:"\dd"} по {ReturnDate|dateformat:"\dd \month"} 2026 року.
+#_      {#endif}#^
+#_      {#if #not isSameMonth}#^
+#_      з {OutDate|dateformat:"\dd \month"} по {ReturnDate|dateformat:"\dd \month"} 2026 року.
+#_      {#endif}#^
+#_      {#if IsAssignToDuty}#^
+#_      Тимчасове виконання обов'язків за посадою {Position|accusative|lowerFirstLetter} покласти на #^
+#_      {AssignToDutyRank|accusative|lowerFirstLetter} {AssignToDutyFIO|accusative}, {AssignToDutyPosition|accusative|lowerFirstLetter}.
+#_      {#endif}#^
+#_      Зняти з котлового забезпечення з {OutDate|dateformat:"\dd \month"} 2026 року.
+
+#_      Підстава: рапорт {Rank|accusative|lowerFirstLetter} {FIO|genitive|fioSurname|capitalize} {FIO|fioInitials} (вх. № {InNumFull} від {InDate})#^
+#_      , відпускний квиток № 3/71/{VkNum} від {VkDate}#^
+#_      .#^
+#_    ]]>
+    </text>
   </template>
   <template id="ToVacationForFamily">
-    <text><![CDATA[[TODO] Template ToVacationForFamily]]></text>
+    <text>
+      <![CDATA[#^
+#_      {Rank|accusative|upperFirstLetter} {FIO|accusative}, {Position|accusative|lowerFirstLetter}, #^
+#_      до {City
+            |regexreplace:"[Мм]\.[ \t]*","м. "
+            |regexreplace:"[Сс]ел\.[ \t]*","сел. "
+            |regexreplace:"[Сс]\.[ \t]*","с. "
+            |regexreplace:"обл\.","області"
+        }, #^
+#_      терміном на {DaysCount|calendarDaysUa}, #^
+#_      {#if AdditionalWayDays == 1}#^
+#_      без урахування 1 доби, необхідної для проїзду до місця проведення відпустки та назад, #^
+#_      {#endif}#^
+#_      {#if AdditionalWayDays > 1}#^
+#_      без урахування {AdditionalWayDays} діб, необхідних для проїзду до місця проведення відпустки та назад, #^
+#_      {#endif}#^
+#_      {
+          #let isSameMonth = $ex_DateHelpers.m_IsSameMonth({OutDate}, {ReturnDate});
+        }#^
+#_      {#if isSameMonth}#^
+#_      з {OutDate|dateformat:"\dd"} по {ReturnDate|dateformat:"\dd \month"} 2026 року.
+#_      {#endif}#^
+#_      {#if #not isSameMonth}#^
+#_      з {OutDate|dateformat:"\dd \month"} по {ReturnDate|dateformat:"\dd \month"} 2026 року.
+#_      {#endif}#^
+#_      {#if IsAssignToDuty}#^
+#_      Тимчасове виконання обов'язків за посадою {Position|accusative|lowerFirstLetter} покласти на #^
+#_      {AssignToDutyRank|accusative|lowerFirstLetter} {AssignToDutyFIO|accusative}, {AssignToDutyPosition|accusative|lowerFirstLetter}.
+#_      {#endif}#^
+#_      Зняти з котлового забезпечення з {OutDate|dateformat:"\dd \month"} 2026 року.
+
+#_      Підстава: рапорт {Rank|accusative|lowerFirstLetter} {FIO|genitive|fioSurname|capitalize} {FIO|fioInitials} (вх. № {InNumFull} від {InDate})#^
+#_      , відпускний квиток № 3/71/{VkNum} від {VkDate}#^
+#_      .#^
+#_    ]]>
+    </text>
   </template>
   <template id="ToVacationForCuring">
-    <text><![CDATA[[TODO] Template ToVacationForCuring]]></text>
+    <text>
+      <![CDATA[#^
+#_      {Rank|accusative|upperFirstLetter} {FIO|accusative}, {Position|accusative|lowerFirstLetter}, #^
+#_      до {City
+            |regexreplace:"[Мм]\.[ \t]*","м. "
+            |regexreplace:"[Сс]ел\.[ \t]*","сел. "
+            |regexreplace:"[Сс]\.[ \t]*","с. "
+            |regexreplace:"обл\.","області"
+        }, #^
+#_      терміном на {DaysCount|calendarDaysUa}, #^
+#_      {#if AdditionalWayDays == 1}#^
+#_      без урахування 1 доби, необхідної для проїзду до місця проведення відпустки та назад, #^
+#_      {#endif}#^
+#_      {#if AdditionalWayDays > 1}#^
+#_      без урахування {AdditionalWayDays} діб, необхідних для проїзду до місця проведення відпустки та назад, #^
+#_      {#endif}#^
+#_      {
+          #let isSameMonth = $ex_DateHelpers.m_IsSameMonth({OutDate}, {ReturnDate});
+        }#^
+#_      {#if isSameMonth}#^
+#_      з {OutDate|dateformat:"\dd"} по {ReturnDate|dateformat:"\dd \month"} 2026 року.
+#_      {#endif}#^
+#_      {#if #not isSameMonth}#^
+#_      з {OutDate|dateformat:"\dd \month"} по {ReturnDate|dateformat:"\dd \month"} 2026 року.
+#_      {#endif}#^
+#_      {#if IsAssignToDuty}#^
+#_      Тимчасове виконання обов'язків за посадою {Position|accusative|lowerFirstLetter} покласти на #^
+#_      {AssignToDutyRank|accusative|lowerFirstLetter} {AssignToDutyFIO|accusative}, {AssignToDutyPosition|accusative|lowerFirstLetter}.
+#_      {#endif}#^
+#_      Зняти з котлового забезпечення з {OutDate|dateformat:"\dd \month"} 2026 року.
+
+#_      Підстава: рапорт {Rank|accusative|lowerFirstLetter} {FIO|genitive|fioSurname|capitalize} {FIO|fioInitials} (вх. № {InNumFull} від {InDate})#^
+#_      , довідка військово-лікарської комісії № {VlkNum} від {VlkDate}#^
+#_      , відпускний квиток № 3/71/{VkNum} від {VkDate}#^
+#_      .#^
+#_    ]]>
+    </text>
   </template>
   <template id="ToOutpatientExaminationOrVlk">
-    <text><![CDATA[[TODO] Template ToOutpatientExaminationOrVlk]]></text>
+    <text>
+      <![CDATA[#^
+#_      {Rank|accusative} {FIO|accusative}, {Position|accusative|lowerFirstLetter}.
+
+#_      Підстава: рапорт {RaportTvo} {RaportFrom} (вх. № {InNumFull} від {InDate})#^
+#_      .#^
+#_    ]]>
+    </text>
   </template>
-  <template id="MoveHospitalToVacationForCuring">
-    <text><![CDATA[[TODO] Template MoveHospitalToVacationForCuring]]></text>
+  <template id="MoveFromHospitalToVacationForCuring">
+    <text>
+      <![CDATA[#^
+#_      NN. {Rank|accusative|upperFirstLetter} {FIO|accusative}, {Position|accusative|lowerFirstLetter}, #^
+#_      який перебував на лікуванні у {Hospital}, вважати таким, що перебуває у відпустці для лікування, #^
+#_      до {City
+            |regexreplace:"[Мм]\.[ \t]*","м. "
+            |regexreplace:"[Сс]ел\.[ \t]*","сел. "
+            |regexreplace:"[Сс]\.[ \t]*","с. "
+            |regexreplace:"обл\.","області"
+        }, #^
+#_      терміном на {DaysCount|calendarDaysUa}, #^
+#_      {
+          #let isSameMonth = $ex_DateHelpers.m_IsSameMonth({OutDate}, {ReturnDate});
+        }#^
+#_      {#if isSameMonth}#^
+#_      з {OutDate|dateformat:"\dd"} по {ReturnDate|dateformat:"\dd \month"} 2026 року.
+#_      {#endif}#^
+#_      {#if #not isSameMonth}#^
+#_      з {OutDate|dateformat:"\dd \month"} по {ReturnDate|dateformat:"\dd \month"} 2026 року.
+#_      {#endif}#^
+
+#_      Підстава: рапорт {Rank|accusative|lowerFirstLetter} {FIO|genitive|fioSurname|capitalize} {FIO|fioInitials} (вх. № {InNumFull} від {InDate})#^
+#_      , довідка військово-лікарської комісії № {VlkNum} від {VlkDate}#^
+#_      {#if DocNum #or DocDate}#^
+#_      , {DocNote
+            |regexreplace:"^[ \t\r\n]*([\s\S]*?)[ \t\r\n]*$","$1"
+            |regexreplace:"^м/к$","виписка із медичної карти стаціонарного хворого"
+        } {#if DocNum}№ {DocNum}{#endif}{#if DocDate} від {DocDate}{#endif}#^
+#_      {#endif}#^
+#_      , відпускний квиток № 3/71/{VkNum} від {VkDate}#^
+#_      .#^
+#_    ]]>
+    </text>
   </template>
-  <template id="MoveVacationForCuringToVacationForCuring">
-    <text><![CDATA[[TODO] Template MoveVacationForCuringToVacationForCuring]]></text>
+  <template id="MoveFromVacationForCuringToVacationForCuring">
+    <text>
+      <![CDATA[#^
+#_      NN. {Rank|accusative|upperFirstLetter} {FIO|accusative}, {Position|accusative|lowerFirstLetter}, #^
+#_      який перебував у відпустці для лікування, вважати таким, що перебуває у відпустці для лікування, #^
+#_      до {City
+            |regexreplace:"[Мм]\.[ \t]*","м. "
+            |regexreplace:"[Сс]ел\.[ \t]*","сел. "
+            |regexreplace:"[Сс]\.[ \t]*","с. "
+            |regexreplace:"обл\.","області"
+        }, #^
+#_      терміном на {DaysCount|calendarDaysUa}, #^
+#_      {
+          #let isSameMonth = $ex_DateHelpers.m_IsSameMonth({OutDate}, {ReturnDate});
+        }#^
+#_      {#if isSameMonth}#^
+#_      з {OutDate|dateformat:"\dd"} по {ReturnDate|dateformat:"\dd \month"} 2026 року.
+#_      {#endif}#^
+#_      {#if #not isSameMonth}#^
+#_      з {OutDate|dateformat:"\dd \month"} по {ReturnDate|dateformat:"\dd \month"} 2026 року.
+#_      {#endif}#^
+
+#_      Підстава: рапорт {Rank|accusative|lowerFirstLetter} {FIO|genitive|fioSurname|capitalize} {FIO|fioInitials} (вх. № {InNumFull} від {InDate})#^
+#_      , довідка військово-лікарської комісії № {VlkNum} від {VlkDate}#^
+#_      , відпускний квиток № 3/71/{VkNum} від {VkDate}#^
+#_      .#^
+#_    ]]>
+    </text>
   </template>
-  <template id="MoveVacationForCuringToHospital">
-    <text><![CDATA[[TODO] Template MoveVacationForCuringToHospital]]></text>
+  <template id="MoveFromVacationForCuringToHospital">
+    <text>
+      <![CDATA[#^
+#_      NN. {Rank|accusative|upperFirstLetter} {FIO|accusative}, {Position|accusative|lowerFirstLetter}, #^
+#_      який перебував у відпустці для лікування, вважати таким, що перебуває на лікуванні у {Hospital}, #^
+#_      з {OutDate|dateformat:"\dd \month"} 2026 року.
+
+#_      Підстава: рапорт {RaportTvo} {RaportFrom} (вх. № {InNumFull} від {InDate})#^
+#_      {#if DocNum #or DocDate}#^
+#_      , {DocNote
+            |regexreplace:"^[ \t\r\n]*([\s\S]*?)[ \t\r\n]*$","$1"
+            |regexreplace:"^м/к$","медична карта стаціонарного хворого"
+        } {#if DocNum}№ {DocNum}{#endif}{#if DocDate} від {DocDate}{#endif}#^
+#_      {#endif}#^
+#_      , відпускний квиток № 3/71/{PrevVkNum} від {PrevVkDate}#^
+#_      .#^
+#_    ]]>
+    </text>
   </template>
-  <template id="MoveVacationForCuringToVlk">
-    <text><![CDATA[[TODO] Template MoveVacationForCuringToVlk]]></text>
+  <template id="MoveFromVacationForCuringToVlk">
+    <text>
+      <![CDATA[#^
+#_      NN. {Rank|accusative|upperFirstLetter} {FIO|accusative}, {Position|accusative|lowerFirstLetter}, #^
+#_      який перебував у відпустці для лікування, вважати таким, що перебуває на медичному огляді військово лікарської комісії, #^
+#_      з {OutDate|dateformat:"\dd \month"} 2026 року.
+
+#_      Підстава: рапорт {RaportTvo} {RaportFrom} (вх. № {InNumFull} від {InDate})#^
+#_      , направлення на медичний огляд військово-лікарською-комісією № {DocNum} від {DocDate}#^
+#_      , відпускний квиток № 3/71/{PrevVkNum} від {PrevVkDate}#^
+#_      .#^
+#_    ]]>
+    </text>
+  </template>
+  <template id="MoveFromVlkToVacationForCuring">
+    <text>
+      <![CDATA[#^
+#_      NN. {Rank|accusative|upperFirstLetter} {FIO|accusative}, {Position|accusative|lowerFirstLetter}, #^
+#_      який перебував на медичному огляді військово лікарської комісії, вважати таким, що перебуває у відпустці для лікування, #^
+#_      до {City
+            |regexreplace:"[Мм]\.[ \t]*","м. "
+            |regexreplace:"[Сс]ел\.[ \t]*","сел. "
+            |regexreplace:"[Сс]\.[ \t]*","с. "
+            |regexreplace:"обл\.","області"
+        }, #^
+#_      терміном на {DaysCount|calendarDaysUa}, #^
+#_      {
+          #let isSameMonth = $ex_DateHelpers.m_IsSameMonth({OutDate}, {ReturnDate});
+        }#^
+#_      {#if isSameMonth}#^
+#_      з {OutDate|dateformat:"\dd"} по {ReturnDate|dateformat:"\dd \month"} 2026 року.
+#_      {#endif}#^
+#_      {#if #not isSameMonth}#^
+#_      з {OutDate|dateformat:"\dd \month"} по {ReturnDate|dateformat:"\dd \month"} 2026 року.
+#_      {#endif}#^
+
+#_      Підстава: рапорт {RaportTvo} {RaportFrom} (вх. № {InNumFull} від {InDate})#^
+#_      , довідка військово-лікарської комісії № {VlkNum} від {VlkDate}#^
+#_      , відпускний квиток № 3/71/{VkNum} від {VkDate}#^
+#_      .#^
+#_    ]]>
+    </text>
   </template>
 </resultTemplates>

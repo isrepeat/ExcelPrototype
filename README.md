@@ -170,8 +170,7 @@ if (mapKey != "") {
 
 ## ResultTemplatesParser
 
-Модуль: `Prototype/vba/modules/common/ex_ResultTemplatesParser.bas`  
-Источник шаблонов: `Prototype/config/modes/PersonalCard/PersonalCardResultTemplates.xml`
+Модуль: `Prototype/vba/modules/common/ex_ResultTemplatesParser.bas`
 
 ### Что делает
 
@@ -184,13 +183,15 @@ if (mapKey != "") {
 
 ### Публичные методы
 
-1. `m_GetTemplateText(templateId)` - берет `text` по `template/@id`, нормализует переводы строк.
-2. `m_ReplacePlaceholder(sourceText, placeholderName, replacementText)` - заменяет:
+1. `m_GetTemplateText(templateId, resultTemplatesRelPath)` - берет `text` по `template/@id`, нормализует переводы строк.
+2. `resultTemplatesRelPath` обязателен:
+   - если путь не передан или передан пустым, функция возвращает ошибку.
+3. `m_ReplacePlaceholder(sourceText, placeholderName, replacementText)` - заменяет:
    - простой токен `{Name}`
    - токен с форматтером `{Name|formatter}`
    - цепочку форматтеров `{Name|action1|action2}`
    - форматтеры с аргументами `{Name|truncate:20|replace:foo,bar}`
-3. `m_ResolveTemplate(sourceText, [baseDateText])` - делает финальный проход:
+4. `m_ResolveTemplate(sourceText, [baseDateText])` - делает финальный проход:
    - `{#dd}` = день базовой даты
    - `{#dd+N}` / `{#dd-N}` = день со смещением
    - `{#_}` / `#_` = убрать перенос строки вокруг токена (склеить строки)
@@ -214,6 +215,10 @@ if (mapKey != "") {
 11. `lowerFirstLetter`
 12. `truncate:N`
 13. `replace:from,to`
+14. `calendarDaysUa` (например, `1 календарний день`, `2 календарних дня`, `5 календарних днів`)
+15. `surnameInitials` (из `Прізвище Ім'я По батькові` в `Прізвище І.П.`)
+16. `fioSurname` (только фамилия из ФИО, в исходном регистре)
+17. `fioInitials` (только инициалы из ФИО, например `І.П.`)
 
 Примечание: `genitive`, `accusative`, `dative` реализованы в `ex_MorphUaLite` и ориентированы на украинские формы.
 
@@ -238,6 +243,8 @@ if (mapKey != "") {
 
 1. `{#if ReturnToDutyLine}...{#endif}` - условие по значению плейсхолдера.
 2. `{#if IsAssignDuty}...{#endif}` - условие по флагу (`"true"` / `"false"` строкой).
+3. `{#if AdditionalWayDays == 1}...{#endif}` - числовое сравнение (`==`, `!=`, `>`, `<`, `>=`, `<=`).
+4. Поддержан префикс отрицания `#not`, например: `{#if #not IsAssignDuty}`.
 
 Правила вычисления условия:
 
@@ -245,11 +252,16 @@ if (mapKey != "") {
 2. пустая строка -> `false`
 3. `"true"` -> `true`
 4. любая другая непустая строка -> `true`
+5. Для числовых сравнений обе части должны парситься как числа.
 
 Дополнительно:
 
 1. Поддержаны вложенные `if`-блоки.
-2. Если плейсхолдер заменяется через `m_ReplacePlaceholder`, маркеры `{#if PlaceholderName}` автоматически приводятся к `{#if true}` или `{#if false}`.
+2. Если плейсхолдер заменяется через `m_ReplacePlaceholder`, выражения в `{#if ...}` обновляются тем же значением.
+3. Это позволяет делать сравнение плейсхолдера с числовым литералом после подстановки, например:
+   - шаблон: `{#if AdditionalWayDays == 2}...{#endif}`
+   - подстановка: `m_ReplacePlaceholder(..., "AdditionalWayDays", "2")`
+   - итог: условие вычисляется как `true`.
 
 ### Диагностика в тексте результата
 
@@ -273,7 +285,8 @@ if (mapKey != "") {
 ### Рекомендуемый pipeline в DSL
 
 ```text
-let txt = callMacro("ex_ResultTemplatesParser.m_GetTemplateText", "HospitalBrown");
+let resultTemplatesRelPath = "config\\modes\\PersonalCard\\PersonalCardResultTemplates.xml";
+let txt = callMacro("ex_ResultTemplatesParser.m_GetTemplateText", "HospitalBrown", resultTemplatesRelPath);
 txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "Hospital", "{row.column[Hospital]}");
 txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "FIO", "{row.column[FIO]}");
 txt = callMacro("ex_ResultTemplatesParser.m_ResolveTemplate", txt);
@@ -285,7 +298,7 @@ callMacro("ex_PostProcessActions.m_AppendToSinglePostProcessFooterText", txt, "\
 Источник конфигурации:
 
 1. `Prototype/config/StylePipeline.xml` - декларативные `layer/rule` по страницам (`sheetPipeline page="..."`).
-2. `Prototype/config/SheetStyles.xml` - отдельные style-параметры UI (control panel, banner palettes, и т.п.), которые модули могут конвертировать в `runtimeLayers`.
+2. `Prototype/config/modes/*/*UI.xml` - конфигурация control panel по режимам; палитры/базовые параметры подставляются кодом и runtime layers.
 
 Единая точка входа из VBA:
 
@@ -466,3 +479,32 @@ ex_OutputFormattingPipeline.m_ApplySheetPipeline wsResult, Nothing, Nothing, row
 2. Пока лист жив (не удален), сохраняется текущий zoom листа; in-memory cache используется как fallback.
 3. Повторный Search/Run не переустанавливает профильный zoom для уже существующей страницы.
 4. Логика общая и используется как в `ex_PersonTimeline`, так и в `ex_TableComparing` через `ex_SheetViewZoom`.
+
+## Output Layout (gaps between result tables)
+
+Отступы между таблицами результата теперь настраиваются через `Output.*` в профиле (а не через `StylePipeline`).
+
+Пример:
+
+```xml
+<v key="Output.Sheets">StateMain; EventsOut; EventsIn; DailyEvents</v>
+<v key="Output.Layout.Gap.Default">1</v>
+<v key="Output.Layout.Gap.AfterType[Events]">1</v>
+<v key="Output.Layout.Gap.Between[EventsOut->EventsIn]">0</v>
+```
+
+Поддерживаемые ключи:
+
+1. `Output.Layout.Gap.Between[AliasA->AliasB]` - самый точный приоритет для конкретной пары таблиц.
+2. `Output.Layout.Gap.BetweenType[State->Events]` - правило по типам (`State`, `Events`).
+3. `Output.Layout.Gap.After[AliasA]` - отступ после конкретной таблицы.
+4. `Output.Layout.Gap.AfterType[Events]` - отступ после типа таблицы.
+5. `Output.Layout.Gap.Default` - общий дефолт.
+
+Приоритет применения: `Between` -> `BetweenType` -> `After` -> `AfterType` -> `Default` -> встроенный fallback `1`.
+
+Важные детали:
+
+1. Значения gap должны быть целыми `>= 0`, иначе рендер завершится с ошибкой валидации ключа.
+2. Gap применяется только между реально отрисованными таблицами с учетом режима (`StateTableOnly`/`EventsTableOnly`).
+3. `StylePipeline` управляет визуальным стилем строк/ячеек, но не структурным количеством пустых строк между таблицами.

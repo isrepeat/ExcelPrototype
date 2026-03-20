@@ -2,11 +2,11 @@ Attribute VB_Name = "ex_ResultTemplatesParser"
 Option Explicit
 
 Private Const PROFILES_NS As String = "urn:excelprototype:profiles"
-Private Const RESULT_TEMPLATES_REL_PATH As String = "config\modes\PersonalCard\PersonalCardResultTemplates.xml"
 
 ' Reserved keywords/tokens supported by this parser.
-' Reserved date tokens:
-' - {#dd}, {#dd+N}, {#dd-N}
+' Reserved numeric offset token:
+' - <NUMERIC>{+N}
+' - <NUMERIC>{-N}
 ' Reserved line-join token:
 ' - {#^}  (ignores a line break around token)
 ' - #^    (same behavior, shorthand)
@@ -14,10 +14,14 @@ Private Const RESULT_TEMPLATES_REL_PATH As String = "config\modes\PersonalCard\P
 ' - {#_}
 ' Reserved trim-indentation token:
 ' - #_    (removes token and horizontal whitespace after it)
-Private Const DATE_TOKEN_PATTERN As String = "\{#dd(?:[+-]\d+)?\}"
-Private Const RESERVED_TOKEN_PREFIX As String = "#"
-Private Const RESERVED_DATE_DAY_KEYWORD As String = "dd"
-Private Const RESERVED_DATE_OUTPUT_FORMAT As String = "dd"
+' Reserved computed-value token:
+' - #let varName = $ModuleName.MethodName(arg1, arg2);
+' Reserved if-condition unary operator:
+' - #not
+' Reserved if-condition numeric comparison operators:
+' - ==, !=, >, <, >=, <=
+Private Const NUMERIC_OFFSET_TOKEN_PATTERN As String = "\{([+-]\d+)\}"
+Private Const LEGACY_DAY_TOKEN_PATTERN As String = "\{#dd(?:[+-]\d+)?\}"
 Private Const RESERVED_JOINLINE_TOKEN As String = "{#^}"
 Private Const RESERVED_JOINLINE_TOKEN_SHORT As String = "#^"
 Private Const RESERVED_JOINLINE_TOKEN_LEGACY As String = "{#_}"
@@ -40,6 +44,14 @@ Private Const FORMATTER_ACCUSATIVE As String = "accusative"
 Private Const FORMATTER_DATIVE As String = "dative"
 Private Const FORMATTER_TRUNCATE As String = "truncate"
 Private Const FORMATTER_REPLACE As String = "replace"
+Private Const FORMATTER_REGEX_REPLACE As String = "regexreplace"
+Private Const FORMATTER_DATEFORMAT As String = "dateformat"
+Private Const FORMATTER_TO_DATE_DAY As String = "todate_day"
+Private Const FORMATTER_TO_DATE_DAY_WITH_MONTH As String = "todate_daywithmonth"
+Private Const FORMATTER_CALENDAR_DAYS_UA As String = "calendardaysua"
+Private Const FORMATTER_SURNAME_INITIALS As String = "surnameinitials"
+Private Const FORMATTER_FIO_SURNAME As String = "fiosurname"
+Private Const FORMATTER_FIO_INITIALS As String = "fioinitials"
 
 Private Const CASE_GENITIVE As String = "genitive"
 Private Const CASE_ACCUSATIVE As String = "accusative"
@@ -48,23 +60,34 @@ Private Const CASE_DATIVE As String = "dative"
 Private Const NBSP_CODE_POINT As Long = 160
 Private Const NARROW_NBSP_CODE_POINT As Long = 8239
 Private Const TEMPLATE_ERROR_PREFIX As String = "[TEMPLATE ERROR]"
+Private Const HIGHLIGHT_MARKER_START As String = "/Start"
+Private Const HIGHLIGHT_MARKER_END As String = "/End"
+Private Const DEFAULT_HIGHLIGHT_COLOR_HEX As String = "#66CCFF"
 
-Public Function m_GetTemplateText(ByVal templateId As String) As String
+Public Function m_GetTemplateText( _
+    ByVal templateId As String, _
+    ByVal resultTemplatesRelPath As String _
+) As String
     Dim doc As Object
     Dim node As Object
     Dim xpath As String
     Dim templateText As String
-
-    On Error GoTo EH
+    Dim templatesPath As String
 
     templateId = mp_TrimWhitespace(templateId)
     If Len(templateId) = 0 Then
         Err.Raise vbObjectError + 1760, "ex_ResultTemplatesParser", "Template id is empty."
     End If
+    templatesPath = mp_TrimWhitespace(resultTemplatesRelPath)
+    If Len(templatesPath) = 0 Then
+        Err.Raise vbObjectError + 1819, "ex_ResultTemplatesParser", "Result templates path is empty."
+    End If
+
+    On Error GoTo EH
 
     Set doc = ex_XmlCore.m_LoadDomByRelativePath( _
         ThisWorkbook, _
-        RESULT_TEMPLATES_REL_PATH, _
+        templatesPath, _
         PROFILES_NS, _
         "Missing result templates file: ", _
         "Failed to parse result templates file: " _
@@ -84,7 +107,7 @@ Public Function m_GetTemplateText(ByVal templateId As String) As String
     Exit Function
 
 EH:
-    m_GetTemplateText = mp_PrependTemplateError(vbNullString, "m_GetTemplateText('" & templateId & "')")
+    m_GetTemplateText = mp_PrependTemplateError(vbNullString, "m_GetTemplateText('" & templateId & "', '" & templatesPath & "')")
 End Function
 
 Public Function m_ReplaceToken( _
@@ -103,18 +126,11 @@ End Function
 Public Function m_ReplacePlaceholder( _
     ByVal sourceText As String, _
     ByVal placeholderName As String, _
-    ByVal replacementText As String _
+    ByVal replacementText As String, _
+    Optional ByVal highlightColorHex As String = vbNullString _
 ) As String
     Dim normalizedName As String
-    Dim placeholderToken As String
     Dim resultText As String
-    Dim rx As Object
-    Dim matches As Object
-    Dim i As Long
-    Dim formatter As String
-    Dim formattedValue As String
-    Dim matchStart As Long
-    Dim matchLen As Long
 
     On Error GoTo EH
 
@@ -124,25 +140,15 @@ Public Function m_ReplacePlaceholder( _
         Exit Function
     End If
 
-    placeholderToken = "{" & normalizedName & "}"
-    resultText = m_ReplaceToken(CStr(sourceText), placeholderToken, CStr(replacementText))
-
-    Set rx = CreateObject("VBScript.RegExp")
-    rx.Global = True
-    rx.IgnoreCase = False
-    rx.Pattern = "\{" & mp_EscapeRegex(normalizedName) & "\|([^{}]+)\}"
-
-    Set matches = rx.Execute(resultText)
-    If Not matches Is Nothing Then
-        For i = matches.Count - 1 To 0 Step -1
-            formatter = CStr(matches(i).SubMatches(0))
-            formattedValue = mp_ApplyFormatterPipeline(CStr(replacementText), formatter)
-            matchStart = CLng(matches(i).FirstIndex)
-            matchLen = CLng(matches(i).Length)
-
-            resultText = Left$(resultText, matchStart) & formattedValue & Mid$(resultText, matchStart + matchLen + 1)
-        Next i
+    If mp_ShouldCollapsePlaceholderValue(replacementText) Then
+        resultText = mp_CollapseNamedPlaceholderTokens(CStr(sourceText), normalizedName)
+        resultText = mp_ReplaceIfConditionForPlaceholder(resultText, normalizedName, vbNullString)
+        m_ReplacePlaceholder = resultText
+        Exit Function
     End If
+
+    resultText = CStr(sourceText)
+    resultText = mp_ReplaceNamedPlaceholderTokens(resultText, normalizedName, CStr(replacementText), highlightColorHex)
 
     resultText = mp_ReplaceIfConditionForPlaceholder(resultText, normalizedName, CStr(replacementText))
     m_ReplacePlaceholder = resultText
@@ -153,20 +159,527 @@ EH:
     m_ReplacePlaceholder = mp_PrependTemplateError(resultText, "m_ReplacePlaceholder('" & CStr(placeholderName) & "')")
 End Function
 
+Private Function mp_ResolveNumericOffsetForPlaceholderValue( _
+    ByVal sourceValue As String, _
+    ByVal offsetText As String, _
+    ByVal placeholderName As String _
+) As String
+    Dim baseNumber As Double
+    Dim baseIsInteger As Boolean
+    Dim offsetValue As Double
+    Dim resultNumber As Double
+
+    sourceValue = CStr(sourceValue)
+    offsetText = mp_TrimWhitespace(CStr(offsetText))
+    If Len(offsetText) = 0 Then
+        mp_ResolveNumericOffsetForPlaceholderValue = sourceValue
+        Exit Function
+    End If
+
+    If Not mp_TryParseTemplateNumeric(sourceValue, baseNumber, baseIsInteger) Then
+        Err.Raise vbObjectError + 1824, "ex_ResultTemplatesParser", _
+            "Placeholder '" & CStr(placeholderName) & "' value '" & CStr(sourceValue) & "' is not numeric for offset '{" & CStr(offsetText) & "}'."
+    End If
+    If Not mp_TryParseSignedInteger(offsetText, offsetValue) Then
+        Err.Raise vbObjectError + 1825, "ex_ResultTemplatesParser", _
+            "Invalid numeric offset '{" & CStr(offsetText) & "}' after placeholder '" & CStr(placeholderName) & "'. Use '{+N}' or '{-N}'."
+    End If
+
+    resultNumber = baseNumber + offsetValue
+    If baseIsInteger And Fix(resultNumber) = resultNumber Then
+        mp_ResolveNumericOffsetForPlaceholderValue = mp_FormatIntegerWithBasePadding(CLng(resultNumber), sourceValue)
+    Else
+        mp_ResolveNumericOffsetForPlaceholderValue = CStr(resultNumber)
+    End If
+End Function
+
 Public Function m_ResolveTemplate( _
     ByVal sourceText As String, _
-    Optional ByVal baseDateText As String = vbNullString _
+    Optional ByVal baseDateText As String = vbNullString, _
+    Optional ByVal highlightColorHex As String = vbNullString _
 ) As String
     On Error GoTo EH
     ' Final pass for template text.
-    m_ResolveTemplate = mp_ResolveConditionalBlocks(CStr(sourceText))
+    m_ResolveTemplate = mp_ResolveTemplateLetBindings(CStr(sourceText), highlightColorHex)
+    m_ResolveTemplate = mp_ResolveConditionalBlocks(m_ResolveTemplate)
     m_ResolveTemplate = mp_ResolveJoinLineTokens(m_ResolveTemplate)
     m_ResolveTemplate = mp_ResolveTrimIndentTokens(m_ResolveTemplate)
     m_ResolveTemplate = mp_ResolveDateExpressions(m_ResolveTemplate, baseDateText)
+    m_ResolveTemplate = mp_CollapseUnresolvedPlaceholders(m_ResolveTemplate)
+    m_ResolveTemplate = mp_CollapseHorizontalWhitespaceRuns(m_ResolveTemplate)
     Exit Function
 
 EH:
     m_ResolveTemplate = mp_PrependTemplateError(CStr(sourceText), "m_ResolveTemplate")
+End Function
+
+Public Function m_ExtractHighlightSegments( _
+    ByVal sourceText As String, _
+    ByRef outSegments As Collection, _
+    Optional ByVal fallbackColorHex As String = vbNullString _
+) As String
+    Dim resultText As String
+    Dim scanPos As Long
+    Dim startPos As Long
+    Dim valueStartPos As Long
+    Dim endPos As Long
+    Dim prefixText As String
+    Dim valueText As String
+    Dim colorHex As String
+    Dim colorStartPos As Long
+    Dim colorEndPos As Long
+    Dim segmentStart As Long
+    Dim segment As Object
+
+    On Error GoTo EH
+
+    Set outSegments = New Collection
+    resultText = vbNullString
+    sourceText = CStr(sourceText)
+    fallbackColorHex = mp_TrimWhitespace(CStr(fallbackColorHex))
+    If Len(fallbackColorHex) = 0 Then fallbackColorHex = DEFAULT_HIGHLIGHT_COLOR_HEX
+
+    scanPos = 1
+    Do
+        startPos = InStr(scanPos, sourceText, HIGHLIGHT_MARKER_START, vbBinaryCompare)
+        If startPos = 0 Then
+            resultText = resultText & Mid$(sourceText, scanPos)
+            Exit Do
+        End If
+
+        prefixText = Mid$(sourceText, scanPos, startPos - scanPos)
+        resultText = resultText & prefixText
+
+        valueStartPos = startPos + Len(HIGHLIGHT_MARKER_START)
+        colorHex = fallbackColorHex
+
+        If valueStartPos <= Len(sourceText) Then
+            If Mid$(sourceText, valueStartPos, 1) = "(" Then
+                colorStartPos = valueStartPos + 1
+                colorEndPos = InStr(colorStartPos, sourceText, ")", vbBinaryCompare)
+                If colorEndPos > 0 Then
+                    colorHex = mp_TrimWhitespace(Mid$(sourceText, colorStartPos, colorEndPos - colorStartPos))
+                    If Len(colorHex) = 0 Then colorHex = fallbackColorHex
+                    valueStartPos = colorEndPos + 1
+                End If
+            End If
+        End If
+
+        endPos = InStr(valueStartPos, sourceText, HIGHLIGHT_MARKER_END, vbBinaryCompare)
+        If endPos = 0 Then
+            resultText = resultText & Mid$(sourceText, startPos)
+            Exit Do
+        End If
+
+        valueText = Mid$(sourceText, valueStartPos, endPos - valueStartPos)
+        segmentStart = Len(resultText) + 1
+        resultText = resultText & valueText
+
+        If Len(valueText) > 0 Then
+            Set segment = CreateObject("Scripting.Dictionary")
+            segment.CompareMode = 1 ' vbTextCompare
+            segment("Start") = CLng(segmentStart)
+            segment("Length") = CLng(Len(valueText))
+            segment("ColorHex") = CStr(colorHex)
+            outSegments.Add segment
+        End If
+
+        scanPos = endPos + Len(HIGHLIGHT_MARKER_END)
+    Loop
+
+    m_ExtractHighlightSegments = resultText
+    Exit Function
+
+EH:
+    Set outSegments = New Collection
+    m_ExtractHighlightSegments = CStr(sourceText)
+End Function
+
+Public Function m_RemoveHighlightMarkers(ByVal sourceText As String) As String
+    Dim segments As Collection
+
+    m_RemoveHighlightMarkers = m_ExtractHighlightSegments(CStr(sourceText), segments, DEFAULT_HIGHLIGHT_COLOR_HEX)
+End Function
+
+Private Function mp_ShouldCollapsePlaceholderValue(ByVal replacementText As String) As Boolean
+    Dim normalized As String
+
+    normalized = mp_TrimWhitespace(CStr(replacementText))
+    If Len(normalized) = 0 Then
+        mp_ShouldCollapsePlaceholderValue = True
+        Exit Function
+    End If
+
+    If normalized = "-" Or normalized = "?" Then
+        mp_ShouldCollapsePlaceholderValue = True
+    End If
+End Function
+
+Private Function mp_WrapHighlightMarkers( _
+    ByVal valueText As String, _
+    ByVal highlightColorHex As String _
+) As String
+    highlightColorHex = mp_TrimWhitespace(CStr(highlightColorHex))
+    valueText = CStr(valueText)
+
+    If Len(valueText) = 0 Or Len(highlightColorHex) = 0 Then
+        mp_WrapHighlightMarkers = valueText
+        Exit Function
+    End If
+
+    mp_WrapHighlightMarkers = HIGHLIGHT_MARKER_START & "(" & highlightColorHex & ")" & valueText & HIGHLIGHT_MARKER_END
+End Function
+
+Private Function mp_CollapseNamedPlaceholderTokens( _
+    ByVal sourceText As String, _
+    ByVal placeholderName As String _
+) As String
+    Dim src As String
+    Dim resultText As String
+    Dim i As Long
+    Dim phEndPos As Long
+    Dim tokenEndPos As Long
+    Dim formatterPipeline As String
+    Dim offsetText As String
+
+    src = CStr(sourceText)
+    i = 1
+    Do While i <= Len(src)
+        If Mid$(src, i, 1) = "{" Then
+            If mp_TryParseNamedPlaceholderTokenAt(src, i, CStr(placeholderName), phEndPos, formatterPipeline, offsetText, tokenEndPos) Then
+                i = tokenEndPos + 1
+                GoTo ContinueLoop
+            End If
+        End If
+
+        resultText = resultText & Mid$(src, i, 1)
+        i = i + 1
+ContinueLoop:
+    Loop
+
+    mp_CollapseNamedPlaceholderTokens = resultText
+End Function
+
+Private Function mp_ReplaceNamedPlaceholderTokens( _
+    ByVal sourceText As String, _
+    ByVal placeholderName As String, _
+    ByVal replacementText As String, _
+    ByVal highlightColorHex As String _
+) As String
+    Dim src As String
+    Dim resultText As String
+    Dim i As Long
+    Dim phEndPos As Long
+    Dim tokenEndPos As Long
+    Dim formatterPipeline As String
+    Dim offsetText As String
+    Dim resolvedValue As String
+    Dim formattedValue As String
+
+    src = CStr(sourceText)
+    i = 1
+    Do While i <= Len(src)
+        If Mid$(src, i, 1) = "{" Then
+            If mp_TryParseNamedPlaceholderTokenAt(src, i, CStr(placeholderName), phEndPos, formatterPipeline, offsetText, tokenEndPos) Then
+                formattedValue = CStr(replacementText)
+                If Len(formatterPipeline) > 0 Then
+                    formattedValue = mp_ApplyFormatterPipeline(formattedValue, formatterPipeline)
+                End If
+
+                resolvedValue = mp_ResolveNumericOffsetForPlaceholderValue(formattedValue, offsetText, CStr(placeholderName))
+                resolvedValue = mp_WrapHighlightMarkers(resolvedValue, highlightColorHex)
+                resultText = resultText & resolvedValue
+
+                i = tokenEndPos + 1
+                GoTo ContinueLoop
+            End If
+        End If
+
+        resultText = resultText & Mid$(src, i, 1)
+        i = i + 1
+ContinueLoop:
+    Loop
+
+    mp_ReplaceNamedPlaceholderTokens = resultText
+End Function
+
+Private Function mp_TryParseNamedPlaceholderTokenAt( _
+    ByVal sourceText As String, _
+    ByVal startPos As Long, _
+    ByVal placeholderName As String, _
+    ByRef outPlaceholderEndPos As Long, _
+    ByRef outFormatterPipeline As String, _
+    ByRef outOffsetText As String, _
+    ByRef outTokenEndPos As Long _
+) As Boolean
+    Dim nameLen As Long
+    Dim nameStartPos As Long
+    Dim afterNamePos As Long
+    Dim tailPos As Long
+    Dim firstTailChar As String
+    Dim closePos As Long
+    Dim offsetEndPos As Long
+
+    sourceText = CStr(sourceText)
+    placeholderName = CStr(placeholderName)
+    nameLen = Len(placeholderName)
+    If nameLen = 0 Then Exit Function
+    If startPos < 1 Or startPos > Len(sourceText) Then Exit Function
+
+    If Mid$(sourceText, startPos, 1) <> "{" Then Exit Function
+
+    nameStartPos = startPos + 1
+    If nameStartPos + nameLen - 1 > Len(sourceText) Then Exit Function
+    If StrComp(Mid$(sourceText, nameStartPos, nameLen), placeholderName, vbBinaryCompare) <> 0 Then Exit Function
+
+    afterNamePos = nameStartPos + nameLen
+    If afterNamePos > Len(sourceText) Then Exit Function
+
+    tailPos = mp_FindNextNonWhitespacePosition(sourceText, afterNamePos)
+    If tailPos = 0 Then Exit Function
+
+    firstTailChar = Mid$(sourceText, tailPos, 1)
+    If firstTailChar = "}" Then
+        closePos = tailPos
+        outFormatterPipeline = vbNullString
+    ElseIf firstTailChar = "|" Then
+        If Not mp_TryFindPlaceholderTokenClose(sourceText, startPos, closePos) Then Exit Function
+        outFormatterPipeline = Mid$(sourceText, tailPos + 1, closePos - tailPos - 1)
+    Else
+        Exit Function
+    End If
+
+    outPlaceholderEndPos = closePos
+    outOffsetText = vbNullString
+    outTokenEndPos = closePos
+    If mp_TryParseNumericOffsetTokenAt(sourceText, closePos + 1, outOffsetText, offsetEndPos) Then
+        outTokenEndPos = offsetEndPos
+    End If
+
+    mp_TryParseNamedPlaceholderTokenAt = True
+End Function
+
+Private Function mp_TryFindPlaceholderTokenClose( _
+    ByVal sourceText As String, _
+    ByVal openBracePos As Long, _
+    ByRef outClosePos As Long _
+) As Boolean
+    Dim i As Long
+    Dim ch As String
+    Dim quoteChar As String
+    Dim depth As Long
+    Dim sourceLen As Long
+
+    sourceText = CStr(sourceText)
+    sourceLen = Len(sourceText)
+    If openBracePos < 1 Or openBracePos > sourceLen Then Exit Function
+    If Mid$(sourceText, openBracePos, 1) <> "{" Then Exit Function
+
+    depth = 1
+    i = openBracePos + 1
+    Do While i <= sourceLen
+        ch = Mid$(sourceText, i, 1)
+        If Len(quoteChar) = 0 Then
+            If ch = """" Or ch = "'" Then
+                quoteChar = ch
+                i = i + 1
+            ElseIf ch = "{" Then
+                depth = depth + 1
+                i = i + 1
+            ElseIf ch = "}" Then
+                depth = depth - 1
+                If depth = 0 Then
+                    outClosePos = i
+                    mp_TryFindPlaceholderTokenClose = True
+                    Exit Function
+                End If
+                i = i + 1
+            Else
+                i = i + 1
+            End If
+        Else
+            If ch = "\" Then
+                If i < sourceLen Then
+                    i = i + 2
+                Else
+                    i = i + 1
+                End If
+            ElseIf ch = quoteChar Then
+                quoteChar = vbNullString
+                i = i + 1
+            Else
+                i = i + 1
+            End If
+        End If
+    Loop
+End Function
+
+Private Function mp_TryParseNumericOffsetTokenAt( _
+    ByVal sourceText As String, _
+    ByVal startPos As Long, _
+    ByRef outOffsetText As String, _
+    ByRef outEndPos As Long _
+) As Boolean
+    Dim i As Long
+    Dim signChar As String
+    Dim sourceLen As Long
+    Dim digitStart As Long
+    Dim ch As String
+
+    sourceText = CStr(sourceText)
+    sourceLen = Len(sourceText)
+    If startPos < 1 Or startPos > sourceLen Then Exit Function
+    If Mid$(sourceText, startPos, 1) <> "{" Then Exit Function
+
+    If startPos + 2 > sourceLen Then Exit Function
+    signChar = Mid$(sourceText, startPos + 1, 1)
+    If signChar <> "+" And signChar <> "-" Then Exit Function
+
+    digitStart = startPos + 2
+    i = digitStart
+    Do While i <= sourceLen
+        ch = Mid$(sourceText, i, 1)
+        If ch < "0" Or ch > "9" Then Exit Do
+        i = i + 1
+    Loop
+
+    If i = digitStart Then Exit Function
+    If i > sourceLen Then Exit Function
+    If Mid$(sourceText, i, 1) <> "}" Then Exit Function
+
+    outOffsetText = Mid$(sourceText, startPos + 1, i - startPos - 1)
+    outEndPos = i
+    mp_TryParseNumericOffsetTokenAt = True
+End Function
+
+Private Function mp_CollapseUnresolvedPlaceholders(ByVal sourceText As String) As String
+    Dim src As String
+    Dim resultText As String
+    Dim i As Long
+    Dim tokenEndPos As Long
+
+    src = CStr(sourceText)
+    i = 1
+    Do While i <= Len(src)
+        If Mid$(src, i, 1) = "{" Then
+            If mp_TryParseAnyPlaceholderTokenAt(src, i, tokenEndPos) Then
+                i = tokenEndPos + 1
+                GoTo ContinueLoop
+            End If
+        End If
+
+        resultText = resultText & Mid$(src, i, 1)
+        i = i + 1
+ContinueLoop:
+    Loop
+
+    mp_CollapseUnresolvedPlaceholders = resultText
+End Function
+
+Private Function mp_TryParseAnyPlaceholderTokenAt( _
+    ByVal sourceText As String, _
+    ByVal startPos As Long, _
+    ByRef outTokenEndPos As Long _
+) As Boolean
+    Dim sourceLen As Long
+    Dim i As Long
+    Dim tailPos As Long
+    Dim ch As String
+    Dim nameEndPos As Long
+    Dim tailChar As String
+    Dim closePos As Long
+    Dim offsetText As String
+    Dim offsetEndPos As Long
+
+    sourceText = CStr(sourceText)
+    sourceLen = Len(sourceText)
+    If startPos < 1 Or startPos > sourceLen Then Exit Function
+    If Mid$(sourceText, startPos, 1) <> "{" Then Exit Function
+    If startPos + 1 > sourceLen Then Exit Function
+
+    ch = Mid$(sourceText, startPos + 1, 1)
+    If Not mp_IsPlaceholderNameStartChar(ch) Then Exit Function
+
+    i = startPos + 2
+    Do While i <= sourceLen
+        ch = Mid$(sourceText, i, 1)
+        If Not mp_IsPlaceholderNamePartChar(ch) Then Exit Do
+        i = i + 1
+    Loop
+    nameEndPos = i - 1
+    If nameEndPos < startPos + 1 Then Exit Function
+    If i > sourceLen Then Exit Function
+
+    tailPos = mp_FindNextNonWhitespacePosition(sourceText, i)
+    If tailPos = 0 Then Exit Function
+
+    tailChar = Mid$(sourceText, tailPos, 1)
+    If tailChar = "}" Then
+        closePos = tailPos
+    ElseIf tailChar = "|" Then
+        If Not mp_TryFindPlaceholderTokenClose(sourceText, startPos, closePos) Then Exit Function
+    Else
+        Exit Function
+    End If
+
+    outTokenEndPos = closePos
+    If mp_TryParseNumericOffsetTokenAt(sourceText, closePos + 1, offsetText, offsetEndPos) Then
+        outTokenEndPos = offsetEndPos
+    End If
+
+    mp_TryParseAnyPlaceholderTokenAt = True
+End Function
+
+Private Function mp_IsPlaceholderNameStartChar(ByVal ch As String) As Boolean
+    ch = CStr(ch)
+    If Len(ch) <> 1 Then Exit Function
+    mp_IsPlaceholderNameStartChar = _
+        ((ch >= "A" And ch <= "Z") Or _
+         (ch >= "a" And ch <= "z") Or _
+         ch = "_")
+End Function
+
+Private Function mp_IsPlaceholderNamePartChar(ByVal ch As String) As Boolean
+    ch = CStr(ch)
+    If Len(ch) <> 1 Then Exit Function
+    mp_IsPlaceholderNamePartChar = _
+        ((ch >= "A" And ch <= "Z") Or _
+         (ch >= "a" And ch <= "z") Or _
+         (ch >= "0" And ch <= "9") Or _
+         ch = "_")
+End Function
+
+Private Function mp_FindNextNonWhitespacePosition( _
+    ByVal sourceText As String, _
+    ByVal startPos As Long _
+) As Long
+    Dim i As Long
+    Dim sourceLen As Long
+    Dim ch As String
+
+    sourceText = CStr(sourceText)
+    sourceLen = Len(sourceText)
+    If startPos < 1 Then startPos = 1
+    If startPos > sourceLen Then Exit Function
+
+    For i = startPos To sourceLen
+        ch = Mid$(sourceText, i, 1)
+        If Not mp_IsWhitespaceChar(ch) Then
+            mp_FindNextNonWhitespacePosition = i
+            Exit Function
+        End If
+    Next i
+End Function
+
+Private Function mp_CollapseHorizontalWhitespaceRuns(ByVal sourceText As String) As String
+    Dim rx As Object
+
+    Set rx = CreateObject("VBScript.RegExp")
+    rx.Global = True
+    rx.IgnoreCase = False
+    rx.Pattern = "[ \t]{2,}"
+
+    mp_CollapseHorizontalWhitespaceRuns = rx.Replace(CStr(sourceText), " ")
 End Function
 
 Public Function m_FormatValue( _
@@ -188,6 +701,26 @@ Public Function m_FormatValue( _
 
 EH:
     m_FormatValue = mp_PrependTemplateError(CStr(sourceValue), "m_FormatValue('" & CStr(formatterName) & "')")
+End Function
+
+Private Function mp_FormatUaDateDay(ByVal sourceDateText As String) As String
+    mp_FormatUaDateDay = ex_DateHelpers.m_FormatDateDay(CStr(sourceDateText))
+End Function
+
+Private Function mp_FormatUaDateDayWithMonth(ByVal sourceDateText As String) As String
+    mp_FormatUaDateDayWithMonth = ex_DateHelpers.m_FormatDateDayWithMonth(CStr(sourceDateText))
+End Function
+
+Private Function mp_FormatSurnameInitials(ByVal sourceValue As String) As String
+    mp_FormatSurnameInitials = ex_MorphUaLite.m_ToShortFioNormalized(CStr(sourceValue))
+End Function
+
+Private Function mp_FormatFioSurname(ByVal sourceValue As String) As String
+    mp_FormatFioSurname = ex_MorphUaLite.m_ToFioSurnameNormalized(CStr(sourceValue))
+End Function
+
+Private Function mp_FormatFioInitials(ByVal sourceValue As String) As String
+    mp_FormatFioInitials = ex_MorphUaLite.m_ToFioInitials(CStr(sourceValue))
 End Function
 
 Private Function mp_CapitalizeText(ByVal textValue As String) As String
@@ -229,6 +762,18 @@ Private Function mp_ApplyFormatter(ByVal sourceValue As String, ByVal formatterN
             mp_ApplyFormatter = mp_InflectPhraseToCase(CStr(sourceValue), CASE_ACCUSATIVE)
         Case FORMATTER_DATIVE
             mp_ApplyFormatter = mp_InflectPhraseToCase(CStr(sourceValue), CASE_DATIVE)
+        Case FORMATTER_TO_DATE_DAY
+            mp_ApplyFormatter = mp_FormatUaDateDay(CStr(sourceValue))
+        Case FORMATTER_TO_DATE_DAY_WITH_MONTH
+            mp_ApplyFormatter = mp_FormatUaDateDayWithMonth(CStr(sourceValue))
+        Case FORMATTER_CALENDAR_DAYS_UA
+            mp_ApplyFormatter = ex_DateHelpers.m_FormatCalendarDaysUa(CStr(sourceValue))
+        Case FORMATTER_SURNAME_INITIALS
+            mp_ApplyFormatter = mp_FormatSurnameInitials(CStr(sourceValue))
+        Case FORMATTER_FIO_SURNAME
+            mp_ApplyFormatter = mp_FormatFioSurname(CStr(sourceValue))
+        Case FORMATTER_FIO_INITIALS
+            mp_ApplyFormatter = mp_FormatFioInitials(CStr(sourceValue))
         Case Else
             Err.Raise vbObjectError + 1766, "ex_ResultTemplatesParser", _
                 "Unsupported formatter '" & formatterName & "'."
@@ -322,10 +867,10 @@ Private Function mp_LowercaseFirstWord(ByVal sourceValue As String) As String
 End Function
 
 Private Function mp_ApplyFormatterPipeline(ByVal sourceValue As String, ByVal formatterPipeline As String) As String
-    Dim actions() As String
     Dim i As Long
     Dim actionSpec As String
     Dim formattedValue As String
+    Dim actions As Collection
 
     formatterPipeline = CStr(formatterPipeline)
     actionSpec = mp_TrimWhitespace(formatterPipeline)
@@ -335,9 +880,9 @@ Private Function mp_ApplyFormatterPipeline(ByVal sourceValue As String, ByVal fo
     End If
 
     formattedValue = CStr(sourceValue)
-    actions = Split(actionSpec, "|")
+    Set actions = mp_SplitByDelimiterOutsideQuotedLiterals(actionSpec, "|")
 
-    For i = LBound(actions) To UBound(actions)
+    For i = 1 To actions.Count
         actionSpec = mp_TrimWhitespace(CStr(actions(i)))
         If Len(actionSpec) = 0 Then
             Err.Raise vbObjectError + 1770, "ex_ResultTemplatesParser", "Empty formatter action in '" & formatterPipeline & "'."
@@ -355,6 +900,8 @@ Private Function mp_ApplyFormatterAction(ByVal sourceValue As String, ByVal acti
     Dim commaPos As Long
     Dim replaceFrom As String
     Dim replaceTo As String
+    Dim regexPattern As String
+    Dim regexReplaceTo As String
     Dim maxLen As Long
 
     actionSpec = mp_TrimWhitespace(CStr(actionSpec))
@@ -383,7 +930,7 @@ Private Function mp_ApplyFormatterAction(ByVal sourceValue As String, ByVal acti
             Exit Function
 
         Case FORMATTER_REPLACE
-            commaPos = InStr(1, actionArgs, ",", vbBinaryCompare)
+            commaPos = mp_IndexOfDelimiterOutsideQuotedLiterals(actionArgs, ",")
             If commaPos <= 0 Then
                 Err.Raise vbObjectError + 1772, "ex_ResultTemplatesParser", "replace requires two args 'from,to': '" & actionSpec & "'."
             End If
@@ -395,6 +942,29 @@ Private Function mp_ApplyFormatterAction(ByVal sourceValue As String, ByVal acti
             mp_ApplyFormatterAction = Replace(CStr(sourceValue), replaceFrom, replaceTo)
             Exit Function
 
+        Case FORMATTER_REGEX_REPLACE
+            commaPos = mp_IndexOfDelimiterOutsideQuotedLiterals(actionArgs, ",")
+            If commaPos <= 0 Then
+                Err.Raise vbObjectError + 1828, "ex_ResultTemplatesParser", "regexreplace requires two args 'pattern,replacement': '" & actionSpec & "'."
+            End If
+
+            regexPattern = mp_UnquoteFormatterArgument(Left$(actionArgs, commaPos - 1))
+            regexReplaceTo = mp_UnquoteFormatterArgument(Mid$(actionArgs, commaPos + 1))
+            If Len(regexPattern) = 0 Then
+                Err.Raise vbObjectError + 1829, "ex_ResultTemplatesParser", "regexreplace 'pattern' cannot be empty: '" & actionSpec & "'."
+            End If
+
+            mp_ApplyFormatterAction = mp_RegexReplaceText(CStr(sourceValue), regexPattern, regexReplaceTo)
+            Exit Function
+
+        Case FORMATTER_DATEFORMAT
+            actionArgs = mp_UnquoteFormatterArgument(actionArgs)
+            If Len(actionArgs) = 0 Then
+                Err.Raise vbObjectError + 1801, "ex_ResultTemplatesParser", "dateformat requires non-empty format argument: '" & actionSpec & "'."
+            End If
+            mp_ApplyFormatterAction = ex_DateHelpers.m_FormatDateByPattern(CStr(sourceValue), actionArgs)
+            Exit Function
+
         Case Else
             If Len(actionArgs) > 0 Then
                 Err.Raise vbObjectError + 1774, "ex_ResultTemplatesParser", "Formatter '" & actionName & "' does not support arguments."
@@ -402,6 +972,134 @@ Private Function mp_ApplyFormatterAction(ByVal sourceValue As String, ByVal acti
             mp_ApplyFormatterAction = mp_ApplyFormatter(CStr(sourceValue), actionName)
             Exit Function
     End Select
+End Function
+
+Private Function mp_SplitByDelimiterOutsideQuotedLiterals( _
+    ByVal sourceText As String, _
+    ByVal delimiterChar As String _
+) As Collection
+    Dim parts As Collection
+    Dim cursor As Long
+    Dim delimiterPos As Long
+    Dim tokenText As String
+
+    sourceText = CStr(sourceText)
+    delimiterChar = CStr(delimiterChar)
+    If Len(delimiterChar) <> 1 Then
+        Err.Raise vbObjectError + 1831, "ex_ResultTemplatesParser", "Delimiter must be exactly one character."
+    End If
+
+    Set parts = New Collection
+    cursor = 1
+
+    Do
+        delimiterPos = mp_IndexOfDelimiterOutsideQuotedLiterals(sourceText, delimiterChar, cursor)
+        If delimiterPos <= 0 Then
+            parts.Add Mid$(sourceText, cursor)
+            Exit Do
+        End If
+
+        tokenText = Mid$(sourceText, cursor, delimiterPos - cursor)
+        parts.Add tokenText
+        cursor = delimiterPos + 1
+
+        If cursor > Len(sourceText) + 1 Then
+            parts.Add vbNullString
+            Exit Do
+        End If
+    Loop
+
+    Set mp_SplitByDelimiterOutsideQuotedLiterals = parts
+End Function
+
+Private Function mp_IndexOfDelimiterOutsideQuotedLiterals( _
+    ByVal sourceText As String, _
+    ByVal delimiterChar As String, _
+    Optional ByVal startPos As Long = 1 _
+) As Long
+    Dim i As Long
+    Dim textLen As Long
+    Dim ch As String
+    Dim quoteChar As String
+
+    sourceText = CStr(sourceText)
+    delimiterChar = CStr(delimiterChar)
+    If Len(delimiterChar) <> 1 Then
+        Err.Raise vbObjectError + 1832, "ex_ResultTemplatesParser", "Delimiter must be exactly one character."
+    End If
+
+    textLen = Len(sourceText)
+    If startPos < 1 Then startPos = 1
+    If startPos > textLen Then Exit Function
+
+    i = startPos
+    Do While i <= textLen
+        ch = Mid$(sourceText, i, 1)
+
+        If Len(quoteChar) = 0 Then
+            If ch = """" Or ch = "'" Then
+                quoteChar = ch
+            ElseIf ch = delimiterChar Then
+                mp_IndexOfDelimiterOutsideQuotedLiterals = i
+                Exit Function
+            End If
+            i = i + 1
+        Else
+            If ch = "\" Then
+                If i < textLen Then
+                    i = i + 2
+                Else
+                    i = i + 1
+                End If
+            ElseIf ch = quoteChar Then
+                quoteChar = vbNullString
+                i = i + 1
+            Else
+                i = i + 1
+            End If
+        End If
+    Loop
+
+    If Len(quoteChar) > 0 Then
+        Err.Raise vbObjectError + 1833, "ex_ResultTemplatesParser", "Unclosed string literal in formatter expression: '" & sourceText & "'."
+    End If
+End Function
+
+Private Function mp_RegexReplaceText( _
+    ByVal sourceValue As String, _
+    ByVal regexPattern As String, _
+    ByVal replacementText As String _
+) As String
+    Dim rx As Object
+
+    Set rx = CreateObject("VBScript.RegExp")
+    rx.Global = True
+    rx.IgnoreCase = False
+    rx.MultiLine = True
+
+    On Error GoTo PatternErr
+    rx.Pattern = CStr(regexPattern)
+    On Error GoTo 0
+
+    mp_RegexReplaceText = rx.Replace(CStr(sourceValue), CStr(replacementText))
+    Exit Function
+
+PatternErr:
+    Err.Raise vbObjectError + 1830, "ex_ResultTemplatesParser", "Invalid regex pattern '" & CStr(regexPattern) & "' in formatter regexreplace."
+End Function
+
+Private Function mp_UnquoteFormatterArgument(ByVal argText As String) As String
+    Dim normalized As String
+
+    normalized = mp_TrimWhitespace(CStr(argText))
+    If Len(normalized) >= 2 Then
+        If (Left$(normalized, 1) = """" And Right$(normalized, 1) = """") Or _
+           (Left$(normalized, 1) = "'" And Right$(normalized, 1) = "'") Then
+            normalized = Mid$(normalized, 2, Len(normalized) - 2)
+        End If
+    End If
+
+    mp_UnquoteFormatterArgument = normalized
 End Function
 
 Private Function mp_TryParseNonNegativeLong(ByVal textValue As String, ByRef outValue As Long) As Boolean
@@ -515,7 +1213,10 @@ Private Function mp_ReplaceIfConditionForPlaceholder( _
     ByVal replacementText As String _
 ) As String
     Dim rx As Object
+    Dim rxExpr As Object
     Dim replacementCondition As String
+    Dim resultText As String
+    Dim updatedText As String
 
     Set rx = CreateObject("VBScript.RegExp")
     rx.Global = True
@@ -523,7 +1224,20 @@ Private Function mp_ReplaceIfConditionForPlaceholder( _
     rx.Pattern = "\{#if\s+" & mp_EscapeRegex(placeholderName) & "\s*\}"
 
     replacementCondition = IF_BLOCK_OPEN & " " & mp_BooleanTextFromValue(replacementText) & "}"
-    mp_ReplaceIfConditionForPlaceholder = rx.Replace(CStr(sourceText), replacementCondition)
+    resultText = rx.Replace(CStr(sourceText), replacementCondition)
+
+    Set rxExpr = CreateObject("VBScript.RegExp")
+    rxExpr.Global = True
+    rxExpr.IgnoreCase = False
+    rxExpr.Pattern = "(\{#if\s+[^}]*)\b" & mp_EscapeRegex(placeholderName) & "\b"
+
+    Do
+        updatedText = rxExpr.Replace(resultText, "$1" & CStr(replacementText))
+        If StrComp(updatedText, resultText, vbBinaryCompare) = 0 Then Exit Do
+        resultText = updatedText
+    Loop
+
+    mp_ReplaceIfConditionForPlaceholder = resultText
 End Function
 
 Private Function mp_BooleanTextFromValue(ByVal textValue As String) As String
@@ -536,11 +1250,633 @@ End Function
 
 Private Function mp_IsTruthyConditionValue(ByVal textValue As String) As Boolean
     Dim normalized As String
-    normalized = LCase$(mp_TrimWhitespace(CStr(textValue)))
+    Dim tokens As Variant
+    Dim tokenCount As Long
+    Dim tokenLBound As Long
+    Dim tokenUBound As Long
+    Dim tokenIndex As Long
 
+    normalized = mp_NormalizeConditionWhitespace(CStr(textValue))
     If Len(normalized) = 0 Then Exit Function
-    If normalized = BOOLEAN_FALSE Then Exit Function
-    mp_IsTruthyConditionValue = True
+
+    tokens = Split(normalized, " ")
+    tokenCount = mp_GetArrayItemCount(tokens)
+    If tokenCount <= 0 Then Exit Function
+
+    tokenLBound = LBound(tokens)
+    tokenUBound = UBound(tokens)
+    tokenIndex = tokenLBound
+
+    mp_IsTruthyConditionValue = mp_EvaluateConditionOr(tokens, tokenIndex, tokenLBound, tokenUBound, CStr(textValue))
+    If tokenIndex <= tokenUBound Then
+        Err.Raise vbObjectError + 1812, "ex_ResultTemplatesParser", _
+            "Unsupported if-condition '" & CStr(textValue) & "' near token '" & CStr(tokens(tokenIndex)) & "'."
+    End If
+End Function
+
+Private Function mp_EvaluateConditionOr( _
+    ByVal tokens As Variant, _
+    ByRef tokenIndex As Long, _
+    ByVal tokenLBound As Long, _
+    ByVal tokenUBound As Long, _
+    ByVal sourceCondition As String _
+) As Boolean
+    Dim resultValue As Boolean
+    Dim nextValue As Boolean
+    Dim tokenText As String
+
+    resultValue = mp_EvaluateConditionAnd(tokens, tokenIndex, tokenLBound, tokenUBound, sourceCondition)
+    Do While tokenIndex <= tokenUBound
+        tokenText = LCase$(CStr(tokens(tokenIndex)))
+        If tokenText <> "#or" Then Exit Do
+
+        tokenIndex = tokenIndex + 1
+        nextValue = mp_EvaluateConditionAnd(tokens, tokenIndex, tokenLBound, tokenUBound, sourceCondition)
+        resultValue = (resultValue Or nextValue)
+    Loop
+
+    mp_EvaluateConditionOr = resultValue
+End Function
+
+Private Function mp_EvaluateConditionAnd( _
+    ByVal tokens As Variant, _
+    ByRef tokenIndex As Long, _
+    ByVal tokenLBound As Long, _
+    ByVal tokenUBound As Long, _
+    ByVal sourceCondition As String _
+) As Boolean
+    Dim resultValue As Boolean
+    Dim nextValue As Boolean
+    Dim tokenText As String
+
+    resultValue = mp_EvaluateConditionUnary(tokens, tokenIndex, tokenLBound, tokenUBound, sourceCondition)
+    Do While tokenIndex <= tokenUBound
+        tokenText = LCase$(CStr(tokens(tokenIndex)))
+        If tokenText <> "#and" Then Exit Do
+
+        tokenIndex = tokenIndex + 1
+        nextValue = mp_EvaluateConditionUnary(tokens, tokenIndex, tokenLBound, tokenUBound, sourceCondition)
+        resultValue = (resultValue And nextValue)
+    Loop
+
+    mp_EvaluateConditionAnd = resultValue
+End Function
+
+Private Function mp_EvaluateConditionUnary( _
+    ByVal tokens As Variant, _
+    ByRef tokenIndex As Long, _
+    ByVal tokenLBound As Long, _
+    ByVal tokenUBound As Long, _
+    ByVal sourceCondition As String _
+) As Boolean
+    Dim isNegated As Boolean
+    Dim tokenText As String
+    Dim atomStart As Long
+    Dim atomText As String
+    Dim atomValue As Boolean
+
+    Do While tokenIndex <= tokenUBound
+        tokenText = LCase$(CStr(tokens(tokenIndex)))
+        If tokenText <> "#not" Then Exit Do
+        isNegated = Not isNegated
+        tokenIndex = tokenIndex + 1
+    Loop
+
+    If tokenIndex > tokenUBound Then
+        atomValue = False
+    Else
+        tokenText = LCase$(CStr(tokens(tokenIndex)))
+        If tokenText = "#and" Or tokenText = "#or" Then
+            ' Missing operand is treated as False to handle empty placeholders in expressions.
+            atomValue = False
+        Else
+            atomStart = tokenIndex
+            Do While tokenIndex <= tokenUBound
+                tokenText = LCase$(CStr(tokens(tokenIndex)))
+                If tokenText = "#and" Or tokenText = "#or" Then Exit Do
+                tokenIndex = tokenIndex + 1
+            Loop
+
+            atomText = mp_JoinConditionTokens(tokens, atomStart, tokenIndex - 1)
+            atomValue = mp_EvaluateAtomicCondition(atomText, sourceCondition)
+        End If
+    End If
+
+    If isNegated Then atomValue = Not atomValue
+    mp_EvaluateConditionUnary = atomValue
+End Function
+
+Private Function mp_EvaluateAtomicCondition(ByVal atomicText As String, ByVal sourceCondition As String) As Boolean
+    Dim normalized As String
+    Dim hasNumericComparison As Boolean
+
+    normalized = LCase$(mp_TrimWhitespace(CStr(atomicText)))
+    If Len(normalized) = 0 Then Exit Function
+
+    hasNumericComparison = mp_HasNumericComparisonOperator(normalized)
+    If hasNumericComparison Then
+        If Not mp_TryEvaluateNumericComparisonCondition(normalized, mp_EvaluateAtomicCondition) Then
+            Err.Raise vbObjectError + 1810, "ex_ResultTemplatesParser", _
+                "Unsupported numeric if-condition '" & CStr(sourceCondition) & "'. Use '<NUMBER> <OP> <NUMBER>' where OP is ==, !=, >, <, >=, <=."
+        End If
+        Exit Function
+    End If
+
+    If normalized = BOOLEAN_FALSE Then
+        mp_EvaluateAtomicCondition = False
+    Else
+        mp_EvaluateAtomicCondition = True
+    End If
+End Function
+
+Private Function mp_JoinConditionTokens(ByVal tokens As Variant, ByVal startIndex As Long, ByVal endIndex As Long) As String
+    Dim i As Long
+    Dim resultText As String
+
+    If endIndex < startIndex Then Exit Function
+
+    For i = startIndex To endIndex
+        If Len(resultText) > 0 Then resultText = resultText & " "
+        resultText = resultText & CStr(tokens(i))
+    Next i
+
+    mp_JoinConditionTokens = resultText
+End Function
+
+Private Function mp_NormalizeConditionWhitespace(ByVal conditionText As String) As String
+    Dim i As Long
+    Dim ch As String
+    Dim resultText As String
+    Dim needSeparator As Boolean
+
+    conditionText = CStr(conditionText)
+    For i = 1 To Len(conditionText)
+        ch = Mid$(conditionText, i, 1)
+        If mp_IsWhitespaceChar(ch) Then
+            If Len(resultText) > 0 Then needSeparator = True
+        Else
+            If needSeparator Then
+                resultText = resultText & " "
+                needSeparator = False
+            End If
+            resultText = resultText & ch
+        End If
+    Next i
+
+    mp_NormalizeConditionWhitespace = mp_TrimWhitespace(resultText)
+End Function
+
+Private Function mp_TryStripNotPrefix(ByRef conditionText As String) As Boolean
+    Dim nextCh As String
+
+    conditionText = LCase$(mp_TrimWhitespace(CStr(conditionText)))
+    If Len(conditionText) < 4 Then Exit Function
+    If Left$(conditionText, 4) <> "#not" Then Exit Function
+
+    If Len(conditionText) = 4 Then
+        conditionText = vbNullString
+        mp_TryStripNotPrefix = True
+        Exit Function
+    End If
+
+    nextCh = Mid$(conditionText, 5, 1)
+    If Not mp_IsWhitespaceChar(nextCh) Then Exit Function
+
+    conditionText = LCase$(mp_TrimWhitespace(Mid$(conditionText, 5)))
+    mp_TryStripNotPrefix = True
+End Function
+
+Private Function mp_HasNumericComparisonOperator(ByVal conditionText As String) As Boolean
+    conditionText = CStr(conditionText)
+    If InStr(1, conditionText, "==", vbBinaryCompare) > 0 Then
+        mp_HasNumericComparisonOperator = True
+        Exit Function
+    End If
+    If InStr(1, conditionText, "!=", vbBinaryCompare) > 0 Then
+        mp_HasNumericComparisonOperator = True
+        Exit Function
+    End If
+    If InStr(1, conditionText, ">=", vbBinaryCompare) > 0 Then
+        mp_HasNumericComparisonOperator = True
+        Exit Function
+    End If
+    If InStr(1, conditionText, "<=", vbBinaryCompare) > 0 Then
+        mp_HasNumericComparisonOperator = True
+        Exit Function
+    End If
+    If InStr(1, conditionText, ">", vbBinaryCompare) > 0 Then
+        mp_HasNumericComparisonOperator = True
+        Exit Function
+    End If
+    If InStr(1, conditionText, "<", vbBinaryCompare) > 0 Then
+        mp_HasNumericComparisonOperator = True
+        Exit Function
+    End If
+End Function
+
+Private Function mp_TryEvaluateNumericComparisonCondition( _
+    ByVal conditionText As String, _
+    ByRef outResult As Boolean _
+) As Boolean
+    Dim rx As Object
+    Dim matches As Object
+    Dim leftText As String
+    Dim rightText As String
+    Dim operatorText As String
+    Dim leftValue As Double
+    Dim rightValue As Double
+    Dim leftIsInteger As Boolean
+    Dim rightIsInteger As Boolean
+
+    conditionText = mp_TrimWhitespace(CStr(conditionText))
+    If Len(conditionText) = 0 Then Exit Function
+
+    Set rx = CreateObject("VBScript.RegExp")
+    rx.Global = False
+    rx.IgnoreCase = False
+    rx.Pattern = "^\s*(.+?)\s*(==|!=|>=|<=|>|<)\s*(.+?)\s*$"
+
+    Set matches = rx.Execute(conditionText)
+    If matches Is Nothing Then Exit Function
+    If matches.Count = 0 Then Exit Function
+
+    leftText = mp_TrimWhitespace(CStr(matches(0).SubMatches(0)))
+    operatorText = CStr(matches(0).SubMatches(1))
+    rightText = mp_TrimWhitespace(CStr(matches(0).SubMatches(2)))
+
+    If Not mp_TryParseTemplateNumeric(leftText, leftValue, leftIsInteger) Then Exit Function
+    If Not mp_TryParseTemplateNumeric(rightText, rightValue, rightIsInteger) Then Exit Function
+
+    Select Case operatorText
+        Case "=="
+            outResult = (leftValue = rightValue)
+        Case "!="
+            outResult = (leftValue <> rightValue)
+        Case ">"
+            outResult = (leftValue > rightValue)
+        Case "<"
+            outResult = (leftValue < rightValue)
+        Case ">="
+            outResult = (leftValue >= rightValue)
+        Case "<="
+            outResult = (leftValue <= rightValue)
+        Case Else
+            Exit Function
+    End Select
+
+    mp_TryEvaluateNumericComparisonCondition = True
+End Function
+
+Private Function mp_ResolveTemplateLetBindings( _
+    ByVal sourceText As String, _
+    Optional ByVal highlightColorHex As String = vbNullString _
+) As String
+    Dim resultText As String
+    Dim rx As Object
+    Dim matches As Object
+    Dim i As Long
+    Dim letVarName As String
+    Dim letExpression As String
+    Dim letValue As String
+    Dim matchStart As Long
+    Dim matchLen As Long
+    Dim valuesByVar As Object
+    Dim key As Variant
+
+    resultText = CStr(sourceText)
+
+    Set rx = CreateObject("VBScript.RegExp")
+    rx.Global = True
+    rx.IgnoreCase = False
+    rx.Pattern = "#let\s+([A-Za-z_][A-Za-z0-9_]*)\s*=\s*([^;]+?)\s*;"
+
+    Set matches = rx.Execute(resultText)
+    If matches Is Nothing Then
+        mp_ResolveTemplateLetBindings = resultText
+        Exit Function
+    End If
+    If matches.Count = 0 Then
+        mp_ResolveTemplateLetBindings = resultText
+        Exit Function
+    End If
+
+    Set valuesByVar = CreateObject("Scripting.Dictionary")
+    valuesByVar.CompareMode = 1 ' vbTextCompare
+
+    For i = matches.Count - 1 To 0 Step -1
+        letVarName = mp_TrimWhitespace(CStr(matches(i).SubMatches(0)))
+        letExpression = mp_TrimWhitespace(CStr(matches(i).SubMatches(1)))
+        letValue = mp_EvaluateTemplateLetExpression(letExpression)
+
+        If valuesByVar.Exists(letVarName) Then
+            Err.Raise vbObjectError + 1778, "ex_ResultTemplatesParser", "Template let variable '" & letVarName & "' is already declared."
+        End If
+        valuesByVar.Add letVarName, letValue
+
+        matchStart = CLng(matches(i).FirstIndex)
+        matchLen = CLng(matches(i).Length)
+        resultText = Left$(resultText, matchStart) & Mid$(resultText, matchStart + matchLen + 1)
+    Next i
+
+    If InStr(1, resultText, "#let", vbTextCompare) > 0 Then
+        Err.Raise vbObjectError + 1809, "ex_ResultTemplatesParser", "Invalid #let syntax. Use '#let <VAR> = <EXPR>;' format."
+    End If
+
+    resultText = mp_RemoveEmptyLetContainers(resultText)
+
+    For Each key In valuesByVar.Keys
+        resultText = m_ReplacePlaceholder(resultText, CStr(key), CStr(valuesByVar(CStr(key))), highlightColorHex)
+    Next key
+
+    mp_ResolveTemplateLetBindings = resultText
+End Function
+
+Private Function mp_RemoveEmptyLetContainers(ByVal sourceText As String) As String
+    Dim resultText As String
+    Dim updatedText As String
+    Dim rx As Object
+
+    resultText = CStr(sourceText)
+
+    Set rx = CreateObject("VBScript.RegExp")
+    rx.Global = True
+    rx.IgnoreCase = False
+    rx.Pattern = "\{[ \t\r\n]*\}"
+
+    Do
+        updatedText = rx.Replace(resultText, vbNullString)
+        If StrComp(updatedText, resultText, vbBinaryCompare) = 0 Then Exit Do
+        resultText = updatedText
+    Loop
+
+    mp_RemoveEmptyLetContainers = resultText
+End Function
+
+Private Function mp_EvaluateTemplateLetExpression(ByVal expressionText As String) As String
+    Dim normalizedExpression As String
+    Dim openPos As Long
+    Dim closePos As Long
+    Dim helperRef As String
+    Dim argsText As String
+    Dim args As Variant
+
+    normalizedExpression = mp_TrimWhitespace(CStr(expressionText))
+    If Right$(normalizedExpression, 1) = ";" Then
+        normalizedExpression = mp_TrimWhitespace(Left$(normalizedExpression, Len(normalizedExpression) - 1))
+    End If
+    If Len(normalizedExpression) = 0 Then
+        Err.Raise vbObjectError + 1779, "ex_ResultTemplatesParser", "Template let expression is empty."
+    End If
+
+    openPos = InStr(1, normalizedExpression, "(", vbBinaryCompare)
+    closePos = InStrRev(normalizedExpression, ")", -1, vbBinaryCompare)
+    If openPos <= 1 Or closePos <= openPos Then
+        Err.Raise vbObjectError + 1780, "ex_ResultTemplatesParser", "Unsupported template let expression: '" & normalizedExpression & "'."
+    End If
+
+    helperRef = mp_TrimWhitespace(Left$(normalizedExpression, openPos - 1))
+    argsText = Mid$(normalizedExpression, openPos + 1, closePos - openPos - 1)
+
+    args = mp_SplitLetExpressionArgs(argsText)
+
+    If Left$(helperRef, 1) <> "$" Then
+        Err.Raise vbObjectError + 1783, "ex_ResultTemplatesParser", _
+            "Template let helper must use '$<MODULE>.<METHOD>(...)' syntax: '" & normalizedExpression & "'."
+    End If
+
+    mp_EvaluateTemplateLetExpression = mp_RunExternalTemplateHelper(helperRef, args)
+End Function
+
+Private Function mp_SplitLetExpressionArgs(ByVal argsText As String) As Variant
+    Dim parts() As String
+    Dim currentPart As String
+    Dim ch As String
+    Dim i As Long
+    Dim normalizedPart As String
+    Dim count As Long
+    Dim inSingleQuote As Boolean
+    Dim inDoubleQuote As Boolean
+
+    argsText = mp_TrimWhitespace(CStr(argsText))
+    If Len(argsText) = 0 Then
+        mp_SplitLetExpressionArgs = Array()
+        Exit Function
+    End If
+
+    ReDim parts(0 To Len(argsText))
+
+    For i = 1 To Len(argsText)
+        ch = Mid$(argsText, i, 1)
+        If ch = "'" And Not inDoubleQuote Then
+            inSingleQuote = Not inSingleQuote
+            currentPart = currentPart & ch
+            GoTo ContinueChar
+        End If
+        If ch = """" And Not inSingleQuote Then
+            inDoubleQuote = Not inDoubleQuote
+            currentPart = currentPart & ch
+            GoTo ContinueChar
+        End If
+
+        If ch = "," And Not inSingleQuote And Not inDoubleQuote Then
+            normalizedPart = mp_TrimWhitespace(currentPart)
+            If Len(normalizedPart) > 0 Then
+                parts(count) = normalizedPart
+                count = count + 1
+            End If
+            currentPart = vbNullString
+            GoTo ContinueChar
+        End If
+
+        currentPart = currentPart & ch
+ContinueChar:
+    Next i
+
+    normalizedPart = mp_TrimWhitespace(currentPart)
+    If Len(normalizedPart) > 0 Then
+        parts(count) = normalizedPart
+        count = count + 1
+    End If
+
+    If count = 0 Then
+        mp_SplitLetExpressionArgs = Array()
+        Exit Function
+    End If
+
+    ReDim Preserve parts(0 To count - 1)
+    mp_SplitLetExpressionArgs = parts
+End Function
+
+Private Function mp_GetArrayItemCount(ByVal values As Variant) As Long
+    On Error GoTo EmptyArray
+    If IsArray(values) Then
+        mp_GetArrayItemCount = UBound(values) - LBound(values) + 1
+    End If
+    Exit Function
+EmptyArray:
+    mp_GetArrayItemCount = 0
+End Function
+
+Private Function mp_RunExternalTemplateHelper(ByVal helperRef As String, ByVal args As Variant) As String
+    Dim methodRef As String
+    Dim argCount As Long
+    Dim parsedArgs() As Variant
+    Dim i As Long
+    Dim invokeResult As Variant
+
+    methodRef = mp_TrimWhitespace(CStr(helperRef))
+    If Left$(methodRef, 1) = "$" Then methodRef = Mid$(methodRef, 2)
+    methodRef = mp_TrimWhitespace(methodRef)
+
+    If Len(methodRef) = 0 Then
+        Err.Raise vbObjectError + 1784, "ex_ResultTemplatesParser", "Template helper reference is empty."
+    End If
+    If InStr(1, methodRef, ".", vbBinaryCompare) = 0 Then
+        Err.Raise vbObjectError + 1785, "ex_ResultTemplatesParser", "Template helper must use '<MODULE>.<METHOD>' syntax: '" & helperRef & "'."
+    End If
+
+    argCount = mp_GetArrayItemCount(args)
+    If argCount > 5 Then
+        Err.Raise vbObjectError + 1786, "ex_ResultTemplatesParser", "Template helper supports at most 5 arguments: '" & helperRef & "'."
+    End If
+
+    If argCount > 0 Then
+        ReDim parsedArgs(0 To argCount - 1)
+        For i = 0 To argCount - 1
+            mp_ValidateTemplateHelperArgumentRaw CStr(args(i)), helperRef, i + 1
+            parsedArgs(i) = mp_ParseTemplateHelperArgument(CStr(args(i)))
+        Next i
+    End If
+
+    Select Case argCount
+        Case 0
+            invokeResult = Application.Run(methodRef)
+        Case 1
+            invokeResult = Application.Run(methodRef, parsedArgs(0))
+        Case 2
+            invokeResult = Application.Run(methodRef, parsedArgs(0), parsedArgs(1))
+        Case 3
+            invokeResult = Application.Run(methodRef, parsedArgs(0), parsedArgs(1), parsedArgs(2))
+        Case 4
+            invokeResult = Application.Run(methodRef, parsedArgs(0), parsedArgs(1), parsedArgs(2), parsedArgs(3))
+        Case 5
+            invokeResult = Application.Run(methodRef, parsedArgs(0), parsedArgs(1), parsedArgs(2), parsedArgs(3), parsedArgs(4))
+    End Select
+
+    mp_RunExternalTemplateHelper = mp_NormalizeTemplateHelperResult(invokeResult, helperRef)
+End Function
+
+Private Function mp_ParseTemplateHelperArgument(ByVal argText As String) As Variant
+    Dim normalized As String
+    Dim numberValue As Double
+    Dim unquoted As String
+
+    normalized = mp_TrimWhitespace(CStr(argText))
+    normalized = mp_RemoveInlineHighlightMarkers(normalized)
+    normalized = mp_TrimWhitespace(normalized)
+    If Len(normalized) = 0 Then
+        mp_ParseTemplateHelperArgument = vbNullString
+        Exit Function
+    End If
+
+    If (Left$(normalized, 1) = """" And Right$(normalized, 1) = """") Or _
+       (Left$(normalized, 1) = "'" And Right$(normalized, 1) = "'") Then
+        unquoted = Mid$(normalized, 2, Len(normalized) - 2)
+        unquoted = mp_RemoveInlineHighlightMarkers(unquoted)
+        mp_ParseTemplateHelperArgument = unquoted
+        Exit Function
+    End If
+
+    Select Case LCase$(normalized)
+        Case "true"
+            mp_ParseTemplateHelperArgument = True
+            Exit Function
+        Case "false"
+            mp_ParseTemplateHelperArgument = False
+            Exit Function
+    End Select
+
+    If IsNumeric(normalized) Then
+        numberValue = CDbl(normalized)
+        If Fix(numberValue) = numberValue Then
+            mp_ParseTemplateHelperArgument = CLng(numberValue)
+        Else
+            mp_ParseTemplateHelperArgument = numberValue
+        End If
+        Exit Function
+    End If
+
+    mp_ParseTemplateHelperArgument = normalized
+End Function
+
+Private Sub mp_ValidateTemplateHelperArgumentRaw( _
+    ByVal rawArgText As String, _
+    ByVal helperRef As String, _
+    ByVal argIndex As Long _
+)
+    Dim normalized As String
+    Dim checkText As String
+    Dim placeholderToken As String
+
+    normalized = mp_TrimWhitespace(CStr(rawArgText))
+    If Len(normalized) = 0 Then Exit Sub
+
+    ' Escaped braces are allowed: \{ and \}
+    checkText = Replace(normalized, "\{", vbNullString)
+    checkText = Replace(checkText, "\}", vbNullString)
+
+    placeholderToken = mp_FindFirstPlaceholderLikeToken(checkText)
+    If Len(placeholderToken) > 0 Then
+        Err.Raise vbObjectError + 1810, "ex_ResultTemplatesParser", _
+            "Template helper '" & helperRef & "' argument #" & CStr(argIndex) & _
+            " contains unresolved placeholder '" & placeholderToken & "'. " & _
+            "Ensure placeholders are resolved before '#let $<MODULE>.<METHOD>(...)'."
+    End If
+
+    If InStr(1, checkText, "{", vbBinaryCompare) > 0 Or InStr(1, checkText, "}", vbBinaryCompare) > 0 Then
+        Err.Raise vbObjectError + 1811, "ex_ResultTemplatesParser", _
+            "Template helper '" & helperRef & "' argument #" & CStr(argIndex) & _
+            " contains unescaped '{' or '}'. Use '\{' and '\}' for literal braces."
+    End If
+End Sub
+
+Private Function mp_FindFirstPlaceholderLikeToken(ByVal sourceText As String) As String
+    Dim rx As Object
+    Dim matches As Object
+
+    sourceText = CStr(sourceText)
+    If Len(sourceText) = 0 Then Exit Function
+
+    Set rx = CreateObject("VBScript.RegExp")
+    rx.Global = False
+    rx.IgnoreCase = False
+    rx.Pattern = "\{[A-Za-z_#][^{}]*\}"
+
+    Set matches = rx.Execute(sourceText)
+    If matches Is Nothing Then Exit Function
+    If matches.Count = 0 Then Exit Function
+
+    mp_FindFirstPlaceholderLikeToken = CStr(matches(0).Value)
+End Function
+
+Private Function mp_NormalizeTemplateHelperResult(ByVal resultValue As Variant, ByVal helperRef As String) As String
+    If IsObject(resultValue) Then
+        Err.Raise vbObjectError + 1787, "ex_ResultTemplatesParser", "Template helper '" & helperRef & "' returned object result, string/number/boolean expected."
+    End If
+    If IsError(resultValue) Then
+        Err.Raise vbObjectError + 1788, "ex_ResultTemplatesParser", "Template helper '" & helperRef & "' returned error value."
+    End If
+
+    If VarType(resultValue) = vbBoolean Then
+        mp_NormalizeTemplateHelperResult = mp_BooleanTextFromValue(CStr(resultValue))
+        Exit Function
+    End If
+
+    If IsNull(resultValue) Then
+        mp_NormalizeTemplateHelperResult = vbNullString
+    Else
+        mp_NormalizeTemplateHelperResult = CStr(resultValue)
+    End If
 End Function
 
 Private Function mp_ResolveConditionalBlocks(ByVal sourceText As String) As String
@@ -710,37 +2046,77 @@ Private Function mp_ResolveDateExpressions( _
     ByVal sourceText As String, _
     Optional ByVal baseDateText As String = vbNullString _
 ) As String
-    Dim baseDate As Date
     Dim rx As Object
     Dim matches As Object
-    Dim i As Long
-    Dim tokenText As String
-    Dim resolvedDay As String
-    Dim resolvedByToken As Object
-    Dim key As Variant
+    Dim tokenStart As Long
+    Dim tokenLen As Long
+    Dim tokenOffsetText As String
+    Dim prefixText As String
+    Dim valueStart As Long
+    Dim valueLen As Long
+    Dim valueText As String
+    Dim baseNumber As Double
+    Dim baseIsInteger As Boolean
+    Dim offsetValue As Double
+    Dim resultNumber As Double
+    Dim resolvedValue As String
+    Dim leftPart As String
+    Dim rightPart As String
+    Dim resultText As String
+    Dim hasHighlight As Boolean
+    Dim highlightColorHex As String
 
-    baseDate = mp_ParseBaseDate(baseDateText)
-    Set resolvedByToken = CreateObject("Scripting.Dictionary")
-    resolvedByToken.CompareMode = 1
+    resultText = CStr(sourceText)
+    baseDateText = CStr(baseDateText) ' reserved for signature compatibility.
 
-    Set rx = mp_CreateDateTokenRegex()
-    Set matches = rx.Execute(CStr(sourceText))
-    mp_ResolveDateExpressions = CStr(sourceText)
+    mp_EnsureLegacyDayTokensNotUsed resultText
 
-    If matches Is Nothing Then Exit Function
-    If matches.Count = 0 Then Exit Function
+    Set rx = CreateObject("VBScript.RegExp")
+    rx.Global = False
+    rx.IgnoreCase = False
+    rx.Pattern = NUMERIC_OFFSET_TOKEN_PATTERN
 
-    For i = 0 To matches.Count - 1
-        tokenText = CStr(matches(i).Value)
-        If Not resolvedByToken.Exists(tokenText) Then
-            resolvedDay = mp_ResolveDateToken(tokenText, baseDate)
-            resolvedByToken.Add tokenText, resolvedDay
+    Do
+        Set matches = rx.Execute(resultText)
+        If matches Is Nothing Then Exit Do
+        If matches.Count = 0 Then Exit Do
+
+        tokenStart = CLng(matches(0).FirstIndex)
+        tokenLen = CLng(matches(0).Length)
+        tokenOffsetText = CStr(matches(0).SubMatches(0))
+        prefixText = Left$(resultText, tokenStart)
+
+        If Not mp_TryFindImmediateLeftValueSpan(prefixText, valueStart, valueLen, valueText) Then
+            Err.Raise vbObjectError + 1764, "ex_ResultTemplatesParser", _
+                "Numeric offset token '{" & tokenOffsetText & "}' has no left value."
         End If
-    Next i
+        hasHighlight = mp_TryExtractInlineHighlightColor(valueText, highlightColorHex)
 
-    For Each key In resolvedByToken.Keys
-        mp_ResolveDateExpressions = Replace(mp_ResolveDateExpressions, CStr(key), CStr(resolvedByToken(CStr(key))))
-    Next key
+        If Not mp_TryParseTemplateNumeric(valueText, baseNumber, baseIsInteger) Then
+            Err.Raise vbObjectError + 1765, "ex_ResultTemplatesParser", _
+                "Left value '" & valueText & "' before token '{" & tokenOffsetText & "}' is not numeric."
+        End If
+        If Not mp_TryParseSignedInteger(tokenOffsetText, offsetValue) Then
+            Err.Raise vbObjectError + 1766, "ex_ResultTemplatesParser", _
+                "Invalid numeric offset '{" & tokenOffsetText & "}'. Use '{+N}' or '{-N}'."
+        End If
+
+        resultNumber = baseNumber + offsetValue
+        If baseIsInteger And Fix(resultNumber) = resultNumber Then
+            resolvedValue = mp_FormatIntegerWithBasePadding(CLng(resultNumber), valueText)
+        Else
+            resolvedValue = CStr(resultNumber)
+        End If
+        If hasHighlight Then
+            resolvedValue = mp_WrapHighlightMarkers(resolvedValue, highlightColorHex)
+        End If
+
+        leftPart = Left$(resultText, valueStart - 1)
+        rightPart = Mid$(resultText, tokenStart + tokenLen + 1)
+        resultText = leftPart & resolvedValue & rightPart
+    Loop
+
+    mp_ResolveDateExpressions = resultText
 End Function
 
 Private Function mp_NormalizeTemplateText(ByVal templateText As String) As String
@@ -771,65 +2147,161 @@ Private Function mp_PrependTemplateError(ByVal sourceText As String, ByVal opera
     mp_PrependTemplateError = errorLine & vbLf & fullText
 End Function
 
-Private Function mp_CreateDateTokenRegex() As Object
-    Dim regex As Object
-    Set regex = CreateObject("VBScript.RegExp")
-    regex.Global = True
-    regex.IgnoreCase = False
-    regex.Pattern = DATE_TOKEN_PATTERN
-    Set mp_CreateDateTokenRegex = regex
+Private Sub mp_EnsureLegacyDayTokensNotUsed(ByVal sourceText As String)
+    Dim rx As Object
+    Dim matches As Object
+
+    Set rx = CreateObject("VBScript.RegExp")
+    rx.Global = False
+    rx.IgnoreCase = False
+    rx.Pattern = LEGACY_DAY_TOKEN_PATTERN
+
+    Set matches = rx.Execute(CStr(sourceText))
+    If matches Is Nothing Then Exit Sub
+    If matches.Count = 0 Then Exit Sub
+
+    Err.Raise vbObjectError + 1763, "ex_ResultTemplatesParser", _
+        "Legacy token '" & CStr(matches(0).Value) & "' is not supported. Use '<NUMERIC>{+N}' or '<NUMERIC>{-N}'."
+End Sub
+
+Private Function mp_TryFindImmediateLeftValueSpan( _
+    ByVal textValue As String, _
+    ByRef outStartPos As Long, _
+    ByRef outLength As Long, _
+    ByRef outValueText As String _
+) As Boolean
+    Dim endPos As Long
+    Dim startPos As Long
+
+    textValue = CStr(textValue)
+    endPos = Len(textValue)
+
+    Do While endPos > 0
+        If Not mp_IsWhitespaceChar(Mid$(textValue, endPos, 1)) Then Exit Do
+        endPos = endPos - 1
+    Loop
+    If endPos <= 0 Then Exit Function
+
+    startPos = endPos
+    Do While startPos > 1
+        If mp_IsWhitespaceChar(Mid$(textValue, startPos - 1, 1)) Then Exit Do
+        startPos = startPos - 1
+    Loop
+
+    outStartPos = startPos
+    outLength = endPos - startPos + 1
+    outValueText = Mid$(textValue, outStartPos, outLength)
+    mp_TryFindImmediateLeftValueSpan = (outLength > 0)
 End Function
 
-Private Function mp_ParseBaseDate(ByVal baseDateText As String) As Date
-    Dim parsedDate As Date
+Private Function mp_TryParseTemplateNumeric(ByVal numberText As String, ByRef outValue As Double, ByRef outIsInteger As Boolean) As Boolean
+    Dim rx As Object
+    Dim normalized As String
 
-    baseDateText = mp_TrimWhitespace(baseDateText)
-    If Len(baseDateText) = 0 Then
-        mp_ParseBaseDate = Date
+    numberText = mp_RemoveInlineHighlightMarkers(CStr(numberText))
+    numberText = mp_TrimWhitespace(CStr(numberText))
+    If Len(numberText) = 0 Then Exit Function
+
+    Set rx = CreateObject("VBScript.RegExp")
+    rx.Global = False
+    rx.IgnoreCase = False
+    rx.Pattern = "^[+-]?\d+(?:[.,]\d+)?$"
+
+    If Not rx.Test(numberText) Then Exit Function
+
+    normalized = Replace(numberText, ",", ".")
+    outValue = Val(normalized)
+    outIsInteger = (InStr(1, normalized, ".", vbBinaryCompare) = 0)
+    mp_TryParseTemplateNumeric = True
+End Function
+
+Private Function mp_RemoveInlineHighlightMarkers(ByVal sourceText As String) As String
+    Dim rxStart As Object
+    Dim resultText As String
+
+    resultText = CStr(sourceText)
+    If Len(resultText) = 0 Then
+        mp_RemoveInlineHighlightMarkers = vbNullString
         Exit Function
     End If
 
-    On Error GoTo ParseError
-    parsedDate = CDate(baseDateText)
-    mp_ParseBaseDate = parsedDate
-    Exit Function
+    Set rxStart = CreateObject("VBScript.RegExp")
+    rxStart.Global = True
+    rxStart.IgnoreCase = False
+    rxStart.Pattern = mp_EscapeRegex(HIGHLIGHT_MARKER_START) & "(\([^)]*\))?"
+    resultText = rxStart.Replace(resultText, vbNullString)
+    resultText = Replace(resultText, HIGHLIGHT_MARKER_END, vbNullString)
 
-ParseError:
-    Err.Raise vbObjectError + 1763, "ex_ResultTemplatesParser", _
-        "Invalid base date '" & baseDateText & "' for date expressions."
+    mp_RemoveInlineHighlightMarkers = resultText
 End Function
 
-Private Function mp_ResolveDateToken(ByVal tokenText As String, ByVal baseDate As Date) As String
-    Dim innerText As String
-    Dim offsetText As String
-    Dim offsetValue As Long
-    Dim resolvedDate As Date
+Private Function mp_TryExtractInlineHighlightColor(ByVal sourceText As String, ByRef outColorHex As String) As Boolean
+    Dim rx As Object
+    Dim matches As Object
 
-    innerText = Mid$(tokenText, 2, Len(tokenText) - 2) ' without braces
-    If Left$(innerText, 1) <> RESERVED_TOKEN_PREFIX Then
-        Err.Raise vbObjectError + 1765, "ex_ResultTemplatesParser", _
-            "Unsupported reserved token '" & tokenText & "'. Reserved tokens must start with '#'."
+    outColorHex = vbNullString
+    sourceText = CStr(sourceText)
+    If Len(sourceText) = 0 Then Exit Function
+    If InStr(1, sourceText, HIGHLIGHT_MARKER_START, vbBinaryCompare) = 0 Then Exit Function
+    If InStr(1, sourceText, HIGHLIGHT_MARKER_END, vbBinaryCompare) = 0 Then Exit Function
+
+    Set rx = CreateObject("VBScript.RegExp")
+    rx.Global = False
+    rx.IgnoreCase = False
+    rx.Pattern = mp_EscapeRegex(HIGHLIGHT_MARKER_START) & "(?:\(([^)]*)\))?"
+
+    Set matches = rx.Execute(sourceText)
+    If matches Is Nothing Then Exit Function
+    If matches.Count = 0 Then Exit Function
+
+    outColorHex = mp_TrimWhitespace(CStr(matches(0).SubMatches(0)))
+    If Len(outColorHex) = 0 Then outColorHex = DEFAULT_HIGHLIGHT_COLOR_HEX
+    mp_TryExtractInlineHighlightColor = True
+End Function
+
+Private Function mp_TryParseSignedInteger(ByVal numberText As String, ByRef outValue As Double) As Boolean
+    Dim rx As Object
+
+    numberText = mp_TrimWhitespace(CStr(numberText))
+    If Len(numberText) = 0 Then Exit Function
+
+    Set rx = CreateObject("VBScript.RegExp")
+    rx.Global = False
+    rx.IgnoreCase = False
+    rx.Pattern = "^[+-]\d+$"
+
+    If Not rx.Test(numberText) Then Exit Function
+
+    outValue = CDbl(numberText)
+    mp_TryParseSignedInteger = True
+End Function
+
+Private Function mp_FormatIntegerWithBasePadding(ByVal resultValue As Long, ByVal baseNumberText As String) As String
+    Dim signText As String
+    Dim absResult As Long
+    Dim baseDigits As String
+    Dim width As Long
+    Dim paddedText As String
+    Dim shouldPad As Boolean
+
+    signText = vbNullString
+    If resultValue < 0 Then signText = "-"
+
+    absResult = resultValue
+    If absResult < 0 Then absResult = -absResult
+
+    baseDigits = mp_TrimWhitespace(CStr(baseNumberText))
+    If Left$(baseDigits, 1) = "+" Or Left$(baseDigits, 1) = "-" Then
+        baseDigits = Mid$(baseDigits, 2)
     End If
-    innerText = Mid$(innerText, 2)
 
-    If LCase$(Left$(innerText, 2)) <> RESERVED_DATE_DAY_KEYWORD Then
-        Err.Raise vbObjectError + 1765, "ex_ResultTemplatesParser", _
-            "Unsupported reserved token '" & tokenText & "'."
-    End If
-
-    offsetText = Mid$(innerText, 3) ' suffix after dd
-    If Len(offsetText) = 0 Then
-        offsetValue = 0
+    width = Len(baseDigits)
+    shouldPad = (width > 1 And Left$(baseDigits, 1) = "0")
+    If shouldPad Then
+        paddedText = Format$(absResult, String$(width, "0"))
     Else
-        On Error GoTo ParseError
-        offsetValue = CLng(offsetText)
+        paddedText = CStr(absResult)
     End If
 
-    resolvedDate = DateAdd("d", offsetValue, baseDate)
-    mp_ResolveDateToken = Format$(resolvedDate, RESERVED_DATE_OUTPUT_FORMAT)
-    Exit Function
-
-ParseError:
-    Err.Raise vbObjectError + 1764, "ex_ResultTemplatesParser", _
-        "Invalid date token '" & tokenText & "'. Use {#dd}, {#dd+N}, {#dd-N}."
+    mp_FormatIntegerWithBasePadding = signText & paddedText
 End Function

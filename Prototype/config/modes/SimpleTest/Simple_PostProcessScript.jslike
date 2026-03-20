@@ -1,0 +1,34 @@
+// Simple post-process script for pipeline smoke checks.
+// Reads string payload from pre-process input and writes it to log.
+
+let logPath = "Logs\\personalcard_pipeline.log";
+callMacro("ex_Messaging.m_LogToFile", "[POST][SIMPLE] START", logPath);
+
+let input = callMacroObject("ex_ScriptIO.m_GetInput");
+let preHello = callMacro("ex_ScriptIO.m_GetValue", input, "PreHello", "");
+let demoCollection = callMacroObject("ex_ScriptIO.m_GetObject", input, "DemoCollection");
+let demoDictionary = callMacroObject("ex_ScriptIO.m_GetObject", input, "DemoDictionary");
+let demoObject = callMacroObject("ex_ScriptIO.m_GetObject", input, "DemoObject");
+
+let demoObjectType = callMacro("ex_ScriptIO.m_GetValue", demoObject, "type", "");
+let payloadObject = callMacroObject("ex_ScriptIO.m_GetObject", demoDictionary, "payload");
+let payloadObjectType = callMacro("ex_ScriptIO.m_GetByPath", demoDictionary, "payload.type", "");
+let firstCollectionItem = callMacro("ex_ScriptIO.m_CollectionGetStringOrDefault", demoCollection, 1, "");
+let demoCollectionCount = callMacro("ex_ScriptIO.m_CollectionCount", demoCollection);
+
+if (preHello == "") {
+	callMacro("ex_Messaging.m_LogToFile", "[POST][SIMPLE] PreHello is empty", logPath);
+} else {
+	callMacro("ex_Messaging.m_LogToFile", "[POST][SIMPLE] PreHello={preHello}", logPath);
+}
+
+callMacro("ex_Messaging.m_LogToFile", "[POST][SIMPLE] demoObject.type={demoObjectType}", logPath);
+callMacro("ex_Messaging.m_LogToFile", "[POST][SIMPLE] demoDictionary.payload.type={payloadObjectType}", logPath);
+callMacro("ex_Messaging.m_LogToFile", "[POST][SIMPLE] demoCollection.count={demoCollectionCount}", logPath);
+callMacro("ex_Messaging.m_LogToFile", "[POST][SIMPLE] demoCollection.first={firstCollectionItem}", logPath);
+
+callMacro("ex_SimpleTestAction.m_LogInputObjectField", "DemoCollection", logPath);
+callMacro("ex_SimpleTestAction.m_LogInputObjectField", "DemoDictionary", logPath);
+callMacro("ex_SimpleTestAction.m_LogInputObjectField", "DemoObject", logPath);
+
+callMacro("ex_Messaging.m_LogToFile", "[POST][SIMPLE] END", logPath);

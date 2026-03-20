@@ -1,14 +1,6 @@
 ﻿<?xml version="1.0" standalone="yes"?>
 <profiles version="1" xmlns="urn:excelprototype:profiles">
 	<profile name="Default" resultZoom="100">
-		<styles>
-			<config>
-				<column id="marker" width="5" align="middle-center" overflow="clip"/>
-				<column id="key" width="24" align="middle-left" overflow="clip"/>
-				<column id="value" width="30" align="middle-left" overflow="shrink"/>
-				<column id="styles" width="24" align="middle-left" overflow="shrink"/>
-			</config>
-		</styles>
 		<ui>
 			<control name="btnClear" visible="true"/>
 			<control name="btnMode" visible="true"/>
@@ -30,7 +22,7 @@
 		<v key="Main.Sheet[StateMain].FieldsAliases">FIO; BirthDate; City; Phone</v>
 		<v key="Main.Sheet[StateMain].Map[FIO]">ПІБ</v>
 		<v key="Main.Sheet[StateMain].Map[BirthDate]">Дата народження</v>
-		<v key="Main.Sheet[StateMain].Map[City]" styles="{width:20;overflow:shrink}">Місто</v>
+		<v key="Main.Sheet[StateMain].Map[City]">Місто</v>
 		<v key="Main.Sheet[StateMain].Map[Phone]">Телефон</v>
 		<v type="#" key="EventsMain"/>
 		<v key="Events.Sheet[EventsMain].Type">Events</v>
@@ -46,17 +38,10 @@
 		<v key="Events.Sheet[EventsMain].Map[Position]">Посада</v>
 		<v key="Events.Sheet[EventsMain].Map[Salary]">Оклад</v>
 		<v key=""/>
+		<v key="Output.Layout.Gap.Default">1</v>
 		<v key="Output.Sheets">StateMain; EventsMain</v>
 	</profile>
 	<profile name="Test" resultZoom="100">
-		<styles>
-			<config>
-				<column id="marker" width="5" align="middle-center" overflow="clip"/>
-				<column id="key" width="24" align="middle-left" overflow="clip"/>
-				<column id="value" width="30" align="middle-left" overflow="shrink"/>
-				<column id="styles" width="24" align="middle-left" overflow="shrink"/>
-			</config>
-		</styles>
 		<v key="Source.Main.FilePath">..\dsc_StateSrc.xlsx</v>
 		<v key="Source.Main.SheetAliases">StateMain</v>
 		<v key="Source.Events.FilePath">..\dsc_EventsSrc.xlsx</v>
@@ -92,10 +77,11 @@
 		<v key="Events.Sheet[EventsOut].Map[City]">69|Місце вибуття</v>
 		<v key="Events.Sheet[EventsOut].Map[Date]">71 (А)|Дата наказу</v>
 		<v key="Events.Sheet[EventsOut].Map[Ticket]">Стовпець1|Номер квитка</v>
-		<v key="Events.Sheet[EventsOut].Map[Note]" styles="{width: 40; autoHeight: true}">76|Замітки</v>
+		<v key="Events.Sheet[EventsOut].Map[Note]">76|Замітки</v>
 		<v key=""/>
+		<v key="Output.Layout.Gap.Default">1</v>
 		<v key="Output.Sheets">StateMain; EventsOut; EventsIn</v>
-		<postProcessScript>
+		<postProcessScript execution="Explicit">
 			for (let row in Events.Sheet[EventsOut].rows) {
 				/*
 				if (row.column[Date] == "12.07.2025") {
@@ -104,10 +90,10 @@
 				}
 				*/
 
-				let hasOrderNumber = callMacro("ex_PostProcessActions.m_RowCellRegexIsMatch", row, "Note", "№\\s*[0-9]+");
+				let hasOrderNumber = callMacro("ex_Helpers.m_RegexIsMatch", row.column[Note], "№\\s*[0-9]+");
 				if (hasOrderNumber == "True") {
 					callMacro("ex_PostProcessActions.m_HighlightRowCell", row, "Note", "#404040");
-					callMacro("ex_PostProcessActions.m_EmphasizeRowCellTextByRegex", row, "Note", "№\\s*[0-9]+", "#FF0000", "false");
+					callMacro("ex_Helpers.m_EmphasizeRowCellTextByRegex", row, "Note", "№\\s*[0-9]+", "#FF0000", "false");
 				}
 			}
 
@@ -135,16 +121,8 @@
 			<control name="btnCustomMode" visible="true"/>
 		</ui>
 	</profile>
-	<profile name="Test2" resultZoom="85">
-		<styles>
-			<config>
-				<column id="marker" width="5" align="middle-center" overflow="clip"/>
-				<column id="key" width="42" align="middle-left" overflow="clip"/>
-				<column id="value" width="42" align="middle-left" overflow="wrap"/>
-				<column id="styles" width="25" align="middle-left" overflow="wrap"/>
-			</config>
-		</styles>
-				<ui>
+	<profile name="Test2" resultZoom="90">
+		<ui>
 			<control name="btnClear" visible="true"/>
 			<control name="btnMode" visible="true"/>
 			<control name="btnPersonalCard" visible="true"/>
@@ -153,13 +131,20 @@
 			<control name="btnCustomProfile" visible="true"/>
 			<control name="btnCustomMode" visible="true"/>
 		</ui>
-		<v key="Source.Main.FilePath">..\dsc_StateSrc.xlsx</v>
+		<!-- <v key="Source.Main.FilePath">..\dsc_StateTest.xlsx</v> -->
+		<!-- <v key="Source.Main.FilePath">..\dsc_State.xlsx</v> -->
+		<v key="Source.Main.FilePath">C:\Users\SVI\Desktop\{yyyy}-{mm}-{dd} А7383 Особовий склад.xlsx</v>
+		<v key="Source.Main.FileResolver">ex_SourceResolvers.m_ResolveLatestByDmyPattern</v>
 		<v key="Source.Main.SheetAliases">StateMain</v>
-		<v key="Source.Events.FilePath">..\dsc_EventsSrc.xlsx</v>
+		<!-- <v key="Source.Events.FilePath">..\dsc_EventsTest.xlsx</v> -->
+		<!-- <v key="Source.Events.FilePath">..\dsc_Events.xlsx</v> -->
+		<v key="Source.Events.FilePath">C:\Users\SVI\Desktop\ТП+ТВ {dd}.{mm}.{yyyy}.xlsx</v>
+		<v key="Source.Events.FileResolver">ex_SourceResolvers.m_ResolveLatestByDmyPattern</v>
 		<v key="Source.Events.SheetAliases">EventsIn; EventsOut</v>
-		<v key="Source.Daily.FilePath">..\DailyScopeTest.xlsx</v>
+		<!-- <v key="Source.Daily.FilePath">..\DailyScopeTest.xlsx</v> -->
+		<v key="Source.Daily.FilePath">..\..\..\WORK Alexandr Bondarenko\НАКАЗИ\DailyScope.xlsx</v>
 		<v key="Source.Daily.SheetAliases">DailyEvents</v>
-		<v key="CommonKey">БОНДАРЕНКО Максим Вікторович</v>
+		<v key="CommonKey" mutable="true">КАЗНАЧЄЄВ Владислав Геннадійович</v>
 		<v type="#" key="StateMain"/>
 		<v key="Main.Sheet[StateMain].Type">State</v>
 		<v key="Main.Sheet[StateMain].SheetName">ШПС</v>
@@ -181,21 +166,30 @@
 		<v type="#" key="EventsOut"/>
 		<v key="Events.Sheet[EventsOut].Type">Events</v>
 		<v key="Events.Sheet[EventsOut].SheetName">5. Тимчасово відсутні</v>
-		<v key="Events.Sheet[EventsOut].FieldsAliases">ZV; FIO; EventReason; City; Date; Note; Ticket</v>
+		<v key="Events.Sheet[EventsOut].FieldsAliases">
+			ZV; FIO; EventReason; City; OutDate; OutCommandDate; OutCommandNumber;
+			DaysCount; PlannedReturnDate; FactArrivalDate; ArrivalCommandDate; Note; Ticket
+		</v>
 		<v key="Events.Sheet[EventsOut].Key">FIO</v>
-		<v key="Events.Sheet[EventsOut].Sort">Date</v>
+		<v key="Events.Sheet[EventsOut].Sort">OutCommandDate</v>
 		<v key="Events.Sheet[EventsOut].Map[ZV]">65|Звання</v>
 		<v key="Events.Sheet[EventsOut].Map[FIO]">66|ПІБ</v>
 		<v key="Events.Sheet[EventsOut].Map[EventReason]">68|Причинна вибуття</v>
 		<v key="Events.Sheet[EventsOut].Map[City]">69|Місце вибуття</v>
-		<v key="Events.Sheet[EventsOut].Map[Date]">71 (А)|Дата наказу</v>
+		<v key="Events.Sheet[EventsOut].Map[OutDate]">70|Дата вибуття</v>
+		<v key="Events.Sheet[EventsOut].Map[OutCommandDate]">71 (А)|Дата наказу про вибуття</v>
+		<v key="Events.Sheet[EventsOut].Map[OutCommandNumber]">71 (Б)|Номер наказу про вибуття</v>
+		<v key="Events.Sheet[EventsOut].Map[DaysCount]">72|Строк вибуття</v>
+		<v key="Events.Sheet[EventsOut].Map[PlannedReturnDate]">73|Дата повернення</v>
+		<v key="Events.Sheet[EventsOut].Map[FactArrivalDate]">74|Фактична дата прибуття</v>
+		<v key="Events.Sheet[EventsOut].Map[ArrivalCommandDate]">75 (А)|Дата наказу на прибуття</v>
+		<v key="Events.Sheet[EventsOut].Map[Note]">76|Замітки</v>
 		<v key="Events.Sheet[EventsOut].Map[Ticket]">Стовпець1|Номер квитка</v>
-		<v key="Events.Sheet[EventsOut].Map[Note]" styles="{width: 40; autoHeight: true}">76|Замітки</v>
 		<v type="#" key="DailyEvents"/>
 		<v key="Daily.Sheet[DailyEvents].Type">Events</v>
-		<v key="Daily.Sheet[DailyEvents].SheetName">test2</v>
-		<v key="Daily.Sheet[DailyEvents].RangeStartMarker">StartTable_test2</v>
-		<v key="Daily.Sheet[DailyEvents].RangeEndMarker">EndTable_test2</v>
+		<v key="Daily.Sheet[DailyEvents].SheetName">17_03</v>
+		<v key="Daily.Sheet[DailyEvents].RangeStartMarker">StartTable_DailyEvents</v>
+		<v key="Daily.Sheet[DailyEvents].RangeEndMarker">EndTable_DailyEvents</v>
 		<v key="Daily.Sheet[DailyEvents].FieldsAliases">Hospital; Vacation; Rank; FIO; Position; RaportTVO; RaportFrom; InNum; InDate; DocNote; DocNum; DocDate; DaysCount; DateFrom; DateTo; VkNum; VkDate; VlkNum; VlkDate; Type</v>
 		<v key="Daily.Sheet[DailyEvents].Key">FIO</v>
 		<v key="Daily.Sheet[DailyEvents].Sort">InDate</v>
@@ -208,7 +202,7 @@
 		<v key="Daily.Sheet[DailyEvents].Map[RaportFrom]">Рапорт кого</v>
 		<v key="Daily.Sheet[DailyEvents].Map[InNum]">Вх. №</v>
 		<v key="Daily.Sheet[DailyEvents].Map[InDate]">Вх. Дата</v>
-		<v key="Daily.Sheet[DailyEvents].Map[DocNote]" styles="{width: 40; autoHeight: true}">Документ / Замітки</v>
+		<v key="Daily.Sheet[DailyEvents].Map[DocNote]">Документ / Замітки</v>
 		<v key="Daily.Sheet[DailyEvents].Map[DocNum]">Док. №</v>
 		<v key="Daily.Sheet[DailyEvents].Map[DocDate]">Док. дата</v>
 		<v key="Daily.Sheet[DailyEvents].Map[DaysCount]">На скільки</v>
@@ -223,18 +217,23 @@
 			DEFINE $CurrentTable AS Src;
 
 			/* Контекст, который движок заполняет в SEARCH_* блоках */
-			DEFINE DATABASE Ctx {
-				sectionData: [
-					sectionType,
-					sectionTitle
-				],
-				metaData: [
-					vacation,
-					rank,
-					fio,
-					position
-				]
-			};
+				DEFINE DATABASE Ctx {
+					sectionData: [
+						sectionType,
+						sectionTitle
+					],
+					metaData: [
+						metaVacation,
+						metaRank,
+						metaFio,
+						metaPosition,
+						metaRaportTVO,
+						metaRaportFrom,
+						metaInNum,
+						metaInDate,
+						metaDocNote
+					]
+				};
 
 			FIND[Src.FIO == $Key] {
 				// Ищем последний заголовок раздела выше owner-строки
@@ -246,16 +245,22 @@
 					}
 					@KEEP(LAST);
 
-				// Собираем все meta-строки ТВО ниже owner-строки
-				SEARCH_BELOW
-					@IF(Src.Vacation == "ТВО")
-					@PUSH(Ctx.metaData) {
-						.vacation = Src.Vacation,
-						.rank = Src.Rank,
-						.fio = Src.FIO,
-						.position = Src.Position
-					}
-					@KEEP(CONTIGUOUS);
+				// Собираем все meta-строки ниже owner-строки:
+				// Vacation=ТВО или DocNote=дублікат
+					SEARCH_BELOW
+						@IF(Src.Vacation == "ТВО" OR Src.DocNote == "дублікат")
+						@PUSH(Ctx.metaData) {
+							.metaVacation = Src.Vacation,
+							.metaRank = Src.Rank,
+							.metaFio = Src.FIO,
+							.metaPosition = Src.Position,
+							.metaRaportTVO = Src.RaportTVO,
+							.metaRaportFrom = Src.RaportFrom,
+							.metaInNum = Src.InNum,
+							.metaInDate = Src.InDate,
+							.metaDocNote = Src.DocNote
+						}
+						@KEEP(CONTIGUOUS);
 
 				GENERATE {
 					DEFINE COLUMNS [MetaType, OwnerFio, SectionType, SectionTitle];
@@ -268,6 +273,15 @@
 
 					@FOREACH(md : Ctx.metaData) {
 						DEFINE ROW {
+							Vacation = md.metaVacation,
+							Rank = md.metaRank,
+							FIO = md.metaFio,
+							Position = md.metaPosition,
+							RaportTVO = md.metaRaportTVO,
+							RaportFrom = md.metaRaportFrom,
+							InNum = md.metaInNum,
+							InDate = md.metaInDate,
+							DocNote = md.metaDocNote,
 							MetaType = "meta",
 							OwnerFio = $Key,
 							SectionType = @LAST(Ctx.sectionData).sectionType,
@@ -276,196 +290,31 @@
 					};
 				}
 			}
-			</v>
-			<v key=""/>
-			<v key="Output.Sheets">StateMain; EventsOut; EventsIn; DailyEvents</v>
-			<v key=""/>
-			<v key="Export.WordTemplatePath">Templates\DailyTemplate.docx</v>
-			<v key="Export.InsertMode">AppendToTop</v>
-			<v key="Export.OutputMode">CreateWithPostfix</v>
-			<v key="Export.OutputPostfix">_result</v>
-				<postProcessScript>
-					let validationWarningsText = "";
-					let hasValidationWarnings = "false";
-					let validationWarningTitle = "DailyEvents validation warning";
-					let firstDailyOwnerRowIndex = "";
-					let tvoNoteRegex = "ТВО";
+		</v>
+		<v key=""/>
+		<v key="Output.Sheets">StateMain; EventsOut; EventsIn; DailyEvents</v>
+		<v key="Output.Layout.Gap.Default">1</v>
+		<v key=""/>
+		<v key="Export.WordTemplatePath">Templates\Template.docx</v>
+		<v key="Export.OutputMode">CreateWithPostfix</v>
+		<v key="Export.OutputPostfix">_result</v>
+		<v key="Export.InsertMode">AppendToBottom</v>
+		<!-- <postProcessScript execution="Implicit">
+			<![CDATA[
+			let tvoNoteRegex = "ТВО";
 
-						/* Validation pass (before export cycle) */
-						for (let owner in Daily.Sheet[DailyEvents].rows) {
-							if (owner.column[MetaType] == "owner") {
-								if (firstDailyOwnerRowIndex == "") {
-									firstDailyOwnerRowIndex = callMacro("ex_PostProcessActions.m_GetRowIndex", owner);
-								}
-
-								let hasEventsOutForOwner = "false";
-								let lastEventsOutNote = "";
-
-								for (let outRow in Events.Sheet[EventsOut].rows) {
-									if (outRow.column[FIO] == owner.column[FIO]) {
-										hasEventsOutForOwner = "true";
-										lastEventsOutNote = outRow.column[Note];
-									}
-								}
-
-								if (hasEventsOutForOwner == "true") {
-									let hasTvoInLastEventsOutNote = "false";
-									let lastNoteTvoMatch = callMacro("ex_PostProcessActions.m_RegexFirstMatch", lastEventsOutNote, tvoNoteRegex);
-									if (lastNoteTvoMatch != "") {
-										hasTvoInLastEventsOutNote = "true";
-									}
-
-										if (hasTvoInLastEventsOutNote == "true") {
-											let nextRow = callMacro("ex_PostProcessActions.m_GetRelativeRow", owner, "1");
-												if (nextRow.column[Vacation] != "ТВО") {
-													let warningLine = "FIO=" + owner.column[FIO] + ": в останній записи EventsOut.Note є позначка ТВО, але після owner у DailyEvents відсутній рядок з Vacation=ТВО.";
-												if (validationWarningsText == "") {
-													validationWarningsText = warningLine;
-												} else {
-												validationWarningsText = validationWarningsText + "\n" + warningLine;
-											}
-											hasValidationWarnings = "true";
-										}
-									}
-								}
-							}
-						}
-
-						let exportWordPasteAnchor = "";
-						let hasExportBlocks = "false";
-
-					for (let row in Daily.Sheet[DailyEvents].rows) {
-						if (row.column[MetaType] == "owner") {
-							let sectionType = row.column[SectionType];
-							let rowTemplateAnchor = "";
-							if (sectionType == "") {
-								callMacro("ex_PostProcessActions.m_ShowLogicError", "SectionType is empty for owner row.");
-								return;
-							}
-
-							if (sectionType == "1") { rowTemplateAnchor = "FromHospital"; }
-							if (sectionType == "2") { rowTemplateAnchor = "FromVacationForCuring"; }
-							if (sectionType == "3") { rowTemplateAnchor = "FromAnnualMainVacation"; }
-							if (sectionType == "4") { rowTemplateAnchor = "FromVacationForFamily"; }
-							if (sectionType == "5") { rowTemplateAnchor = "FromOutpatientExaminationOrVlk"; }
-							if (sectionType == "6") { rowTemplateAnchor = "ToHospital"; }
-							if (sectionType == "7") { rowTemplateAnchor = "ToAnnualMainVacation"; }
-							if (sectionType == "8") { rowTemplateAnchor = "ToVacationForFamily"; }
-							if (sectionType == "9") { rowTemplateAnchor = "ToVacationForCuring"; }
-							if (sectionType == "10") { rowTemplateAnchor = "ToOutpatientExaminationOrVlk"; }
-							if (sectionType == "11") { rowTemplateAnchor = "MoveHospitalToVacationForCuring"; }
-							if (sectionType == "12") { rowTemplateAnchor = "MoveVacationForCuringToVacationForCuring"; }
-							if (sectionType == "13") { rowTemplateAnchor = "MoveVacationForCuringToHospital"; }
-							if (sectionType == "14") { rowTemplateAnchor = "MoveVacationForCuringToVlk"; }
-
-							if (sectionType != "" and rowTemplateAnchor == "") {
-								callMacro("ex_PostProcessActions.m_ShowLogicError", "Unsupported SectionType for export mapping: {sectionType}");
-								return;
-							}
-
-							exportWordPasteAnchor = rowTemplateAnchor;
-							let txt = callMacro("ex_ResultTemplatesParser.m_GetTemplateText", rowTemplateAnchor);
-							let nextRow = callMacro("ex_PostProcessActions.m_GetRelativeRow", row, "1");
-							let isReturnToDuty = "false";
-							let returnToDutyRank = "";
-							let returnToDutyFIO = "";
-							let returnToDutyPosition = "";
-							let isAssignToDuty = "false";
-							let assignToDutyRank = "";
-							let assignToDutyFIO = "";
-							let assignToDutyPosition = "";
-
-							if (nextRow.column[MetaType] == "meta" and
-								nextRow.column[Vacation] == "ТВО" and
-								nextRow.column[Rank] != "" and
-								nextRow.column[FIO] != "" and
-								nextRow.column[Position] != "") {
-								isReturnToDuty = "true";
-								returnToDutyRank = nextRow.column[Rank];
-								returnToDutyFIO = nextRow.column[FIO];
-								returnToDutyPosition = nextRow.column[Position];
-								isAssignToDuty = "true";
-								assignToDutyRank = nextRow.column[Rank];
-								assignToDutyFIO = nextRow.column[FIO];
-								assignToDutyPosition = nextRow.column[Position];
-							}
-
-							if (sectionType == "1") {
-								txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "Hospital", "{row.column[Hospital]}");
-								txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "Rank", "{row.column[Rank]}");
-								txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "FIO", "{row.column[FIO]}");
-								txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "Position", "{row.column[Position]}");
-								txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "IsReturnToDuty", "{isReturnToDuty}");
-								txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "ReturnToDutyRank", "{returnToDutyRank}");
-								txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "ReturnToDutyFIO", "{returnToDutyFIO}");
-								txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "ReturnToDutyPosition", "{returnToDutyPosition}");
-								txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "RaportFrom", "{row.column[RaportFrom]}");
-								txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "InNum", "{row.column[InNum]}");
-								txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "InDate", "{row.column[InDate]}");
-								txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "DocNum", "{row.column[DocNum]}");
-								txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "DocDate", "{row.column[DocDate]}");
-							}
-
-							if (sectionType == "2" or sectionType == "3" or sectionType == "4") {
-								txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "Rank", "{row.column[Rank]}");
-								txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "FIO", "{row.column[FIO]}");
-								txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "Position", "{row.column[Position]}");
-								txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "IsReturnToDuty", "{isReturnToDuty}");
-								txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "ReturnToDutyRank", "{returnToDutyRank}");
-								txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "ReturnToDutyFIO", "{returnToDutyFIO}");
-								txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "ReturnToDutyPosition", "{returnToDutyPosition}");
-								txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "RaportFrom", "{row.column[RaportFrom]}");
-								txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "InNum", "{row.column[InNum]}");
-								txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "InDate", "{row.column[InDate]}");
-								txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "VkNum", "{row.column[VkNum]}");
-								txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "VkDate", "{row.column[VkDate]}");
-							}
-
-							if (sectionType == "5") {
-								txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "Rank", "{row.column[Rank]}");
-								txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "FIO", "{row.column[FIO]}");
-								txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "Position", "{row.column[Position]}");
-								txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "RaportFrom", "{row.column[RaportFrom]}");
-								txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "InNum", "{row.column[InNum]}");
-								txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "InDate", "{row.column[InDate]}");
-								txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "VlkNum", "{row.column[VlkNum]}");
-								txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "VlkDate", "{row.column[VlkDate]}");
-							}
-
-							if (sectionType == "6") {
-								txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "Hospital", "{row.column[Hospital]}");
-								txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "Rank", "{row.column[Rank]}");
-								txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "FIO", "{row.column[FIO]}");
-								txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "Position", "{row.column[Position]}");
-								txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "isAssignToDuty", "{isAssignToDuty}");
-								txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "AssignToDutyRank", "{assignToDutyRank}");
-								txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "AssignToDutyFIO", "{assignToDutyFIO}");
-								txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "AssignToDutyPosition", "{assignToDutyPosition}");
-								txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "RaportFrom", "{row.column[RaportFrom]}");
-								txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "InNum", "{row.column[InNum]}");
-								txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "InDate", "{row.column[InDate]}");
-								txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "DocNum", "{row.column[DocNum]}");
-								txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "DocDate", "{row.column[DocDate]}");
-							}
-
-							txt = callMacro("ex_ResultTemplatesParser.m_ResolveTemplate", txt);
-							callMacro("ex_PostProcessActions.m_AppendToSinglePostProcessFooterText", txt, "\n\n");
-							hasExportBlocks = "true";
-							}
-						}
-
-						if (hasValidationWarnings == "true") {
-							callMacro("ex_PostProcessActions.m_ShowWarningBannerBeforeRowIndex", validationWarningsText, validationWarningTitle, firstDailyOwnerRowIndex, "0");
-						}
-
-						if (hasExportBlocks == "true") {
-							let wordResultsPlace = callMacro("ex_PostProcessActions.m_GetSinglePostProcessFooterCellRef");
-							callMacro("ex_PostProcessActions.m_SetRuntimeData", "Export.RuntimeDataBase.WordResultsPlace", wordResultsPlace);
-						callMacro("ex_PostProcessActions.m_SetRuntimeData", "Export.RuntimeDataBase.WordPasteAnchor", exportWordPasteAnchor);
-					} else {
-						callMacro("ex_PostProcessActions.m_ShowLogicError", "Post Process generated no export blocks for current key. Check CommonKey and DailyEvents source rows.");
-						return;
-					}
-				</postProcessScript>
+			/* Highlight pass (before validation): emphasize ТВО in EventsOut.Note */
+			for (let outRow in Events.Sheet[EventsOut].rows) {
+				let hasTvoInNote = callMacro("ex_Helpers.m_RegexIsMatch", outRow.column[Note], tvoNoteRegex);
+				if (hasTvoInNote == "True") {
+					//callMacro("ex_PostProcessActions.m_HighlightRowCell", outRow, "Note", "#404040");
+					callMacro("ex_Helpers.m_EmphasizeRowCellTextByRegex", outRow, "Note", tvoNoteRegex, "#FF0000", "false");
+				}
+			}
+			]]>
+		</postProcessScript> -->
+		<preProcessScript include="Test2_PreProcessScript.jslike"/>
+		<postProcessScript execution="Implicit" include="Test2_PostProcessScript.jslike"/>
+		<postProcessScript execution="Explicit" include="Test2_PostProcessScript.jslike"/>
 	</profile>
 </profiles>

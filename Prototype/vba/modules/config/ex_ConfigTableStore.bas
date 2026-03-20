@@ -267,10 +267,12 @@ Private Sub mp_ApplyConfigStylesFromPipeline(ByVal tbl As ListObject)
     Dim rowIndex As Long
     Dim markerKind As String
     Dim keyText As String
+    Dim targetStableZoneLeft As Double
 
     If tbl Is Nothing Then Exit Sub
     Set ws = tbl.Parent
     If ws Is Nothing Then Exit Sub
+    targetStableZoneLeft = ex_CustomDropdown.m_GetStableZoneStartLeft(ws)
 
     Set rowKindRanges = CreateObject("Scripting.Dictionary")
     rowKindRanges.CompareMode = 1
@@ -304,7 +306,13 @@ Private Sub mp_ApplyConfigStylesFromPipeline(ByVal tbl As ListObject)
     Set rowKindRanges("configmarker") = markerRows
 
     ex_OutputFormattingPipeline.m_ApplySheetPipeline ws, Nothing, Nothing, rowKindRanges
-    m_AutoFitConfigColumnsWithinStableZone ws, tbl.Range.Column, DEV_CONFIG_COL_COUNT, DEV_CONFIG_MARKER_COL
+    ' Keep explicit width declarations from DevSheetStylesPipeline.
+    ' Global AutoFit here would overwrite configured widths.
+    If targetStableZoneLeft >= 0 Then
+        ex_CustomDropdown.m_StabilizeChooseModeAnchorX ws, targetStableZoneLeft
+        m_ScaleConfigColumnsToStableTarget ws, tbl.Range.Column, DEV_CONFIG_COL_COUNT, targetStableZoneLeft
+        ex_CustomDropdown.m_StabilizeChooseModeAnchorX ws, targetStableZoneLeft
+    End If
 End Sub
 
 Public Sub m_NormalizeLegacyMarkerEntry(ByRef entries As Variant, ByVal rowIndex As Long)

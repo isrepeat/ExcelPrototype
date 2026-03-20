@@ -9,9 +9,9 @@ Private Const DEV_CONFIG_KEY_COL As Long = 2
 Private Const DEV_CONFIG_VALUE_COL As Long = 3
 Private Const DEV_CONFIG_STYLES_COL As Long = 4
 Private Const DEV_CONFIG_COL_COUNT As Long = 4
-Private Const XML_ATTR_STYLES As String = "styles"
 Private Const XML_ATTR_HIDDEN As String = "hidden"
 Private Const XML_ATTR_LOCKED_WITH_PLACEHOLDER As String = "lockedWithPlaceholder"
+Private Const XML_ATTR_MUTABLE As String = "mutable"
 
 Public Sub m_WriteSheetValuesToProfile(ByVal ws As Worksheet, ByVal doc As Object, ByVal profileNode As Object)
     Dim entries As Variant
@@ -44,15 +44,15 @@ Public Sub m_WriteSheetValuesToProfile(ByVal ws As Worksheet, ByVal doc As Objec
             End If
             keyName = CStr(entries(i, DEV_CONFIG_KEY_COL))
             vNode.setAttribute "key", keyName
-            If Len(Trim$(CStr(entries(i, DEV_CONFIG_STYLES_COL)))) > 0 Then
-                vNode.setAttribute XML_ATTR_STYLES, CStr(entries(i, DEV_CONFIG_STYLES_COL))
-            End If
 
             If Len(Trim$(keyName)) > 0 Then visibleKeys(Trim$(keyName)) = True
 
             If Not preservedByKey Is Nothing Then
                 If preservedByKey.Exists(keyName) Then
                     Set preservedItem = preservedByKey(keyName)
+                    If CBool(preservedItem("HasMutable")) Then
+                        vNode.setAttribute XML_ATTR_MUTABLE, CStr(preservedItem("MutableAttrValue"))
+                    End If
                     If CBool(preservedItem("HasLockedWithPlaceholder")) Then
                         vNode.setAttribute XML_ATTR_LOCKED_WITH_PLACEHOLDER, CStr(preservedItem("LockedWithPlaceholder"))
                         vNode.Text = CStr(preservedItem("PreservedValue"))
@@ -81,13 +81,13 @@ Public Sub m_WriteSheetValuesToProfile(ByVal ws As Worksheet, ByVal doc As Objec
                 vNode.setAttribute "type", CStr(hiddenItem("Type"))
             End If
             vNode.setAttribute "key", CStr(hiddenItem("Key"))
-            If Len(Trim$(CStr(hiddenItem("Styles")))) > 0 Then
-                vNode.setAttribute XML_ATTR_STYLES, CStr(hiddenItem("Styles"))
-            End If
 
             vNode.setAttribute XML_ATTR_HIDDEN, CStr(hiddenItem("HiddenAttrValue"))
             If CBool(hiddenItem("HasLockedWithPlaceholder")) Then
                 vNode.setAttribute XML_ATTR_LOCKED_WITH_PLACEHOLDER, CStr(hiddenItem("LockedWithPlaceholder"))
+            End If
+            If CBool(hiddenItem("HasMutable")) Then
+                vNode.setAttribute XML_ATTR_MUTABLE, CStr(hiddenItem("MutableAttrValue"))
             End If
             vNode.Text = CStr(hiddenItem("Value"))
             profileNode.appendChild vNode
@@ -127,6 +127,8 @@ Private Function mp_ReadPreservedByKey(ByVal profileNode As Object) As Object
         item.CompareMode = 1
         item("HasLockedWithPlaceholder") = mp_NodeHasAttr(node, XML_ATTR_LOCKED_WITH_PLACEHOLDER)
         item("LockedWithPlaceholder") = placeholderText
+        item("HasMutable") = mp_NodeHasAttr(node, XML_ATTR_MUTABLE)
+        item("MutableAttrValue") = mp_NodeAttrText(node, XML_ATTR_MUTABLE)
         item("PreservedValue") = CStr(node.Text)
         Set result(keyName) = item
 
@@ -160,11 +162,12 @@ Private Function mp_ReadHiddenNodes(ByVal profileNode As Object) As Collection
         item.CompareMode = 1
         item("Type") = mp_NodeAttrText(node, "type")
         item("Key") = mp_NodeAttrText(node, "key")
-        item("Styles") = mp_NodeAttrText(node, XML_ATTR_STYLES)
         item("Value") = CStr(node.Text)
         item("HiddenAttrValue") = mp_NodeAttrText(node, XML_ATTR_HIDDEN)
         item("HasLockedWithPlaceholder") = mp_NodeHasAttr(node, XML_ATTR_LOCKED_WITH_PLACEHOLDER)
         item("LockedWithPlaceholder") = mp_NodeAttrText(node, XML_ATTR_LOCKED_WITH_PLACEHOLDER)
+        item("HasMutable") = mp_NodeHasAttr(node, XML_ATTR_MUTABLE)
+        item("MutableAttrValue") = mp_NodeAttrText(node, XML_ATTR_MUTABLE)
         result.Add item
 ContinueNode:
     Next node
@@ -194,8 +197,7 @@ Public Function m_ReadProfileEntries(ByVal ws As Worksheet, ByVal profileNode As
     hasKeyFormat = False
     For i = 0 To nodes.Length - 1
         If Len(mp_NodeAttrText(nodes.Item(i), "key")) > 0 _
-           Or Len(mp_NodeAttrText(nodes.Item(i), "type")) > 0 _
-           Or Len(mp_ReadStyleAttr(nodes.Item(i))) > 0 Then
+           Or Len(mp_NodeAttrText(nodes.Item(i), "type")) > 0 Then
             hasKeyFormat = True
             Exit For
         End If
@@ -222,7 +224,7 @@ Public Function m_ReadProfileEntries(ByVal ws As Worksheet, ByVal profileNode As
             entries(writeIndex, DEV_CONFIG_MARKER_COL) = mp_NodeAttrText(node, "type")
             entries(writeIndex, DEV_CONFIG_KEY_COL) = mp_NodeAttrText(node, "key")
             entries(writeIndex, DEV_CONFIG_VALUE_COL) = CStr(node.Text)
-            entries(writeIndex, DEV_CONFIG_STYLES_COL) = mp_ReadStyleAttr(node)
+            entries(writeIndex, DEV_CONFIG_STYLES_COL) = vbNullString
             ex_ConfigTableStore.m_NormalizeLegacyMarkerEntry entries, writeIndex
 ContinueVisible:
         Next i
@@ -231,10 +233,6 @@ ContinueVisible:
     End If
 
     m_ReadProfileEntries = mp_ReadLegacyProfileEntries(ws, nodes)
-End Function
-
-Private Function mp_ReadStyleAttr(ByVal node As Object) As String
-    mp_ReadStyleAttr = mp_NodeAttrText(node, XML_ATTR_STYLES)
 End Function
 
 Public Function m_ReadConfigTableEntries(ByVal ws As Worksheet) As Variant
@@ -306,7 +304,7 @@ Private Function mp_ReadLegacyProfileEntries(ByVal ws As Worksheet, ByVal nodes 
         entries(i, DEV_CONFIG_MARKER_COL) = CStr(tableValues(i, DEV_CONFIG_MARKER_COL))
         entries(i, DEV_CONFIG_KEY_COL) = CStr(tableValues(i, DEV_CONFIG_KEY_COL))
         entries(i, DEV_CONFIG_VALUE_COL) = vbNullString
-        entries(i, DEV_CONFIG_STYLES_COL) = CStr(tableValues(i, DEV_CONFIG_STYLES_COL))
+        entries(i, DEV_CONFIG_STYLES_COL) = vbNullString
     Next i
 
     For i = 0 To nodes.Length - 1

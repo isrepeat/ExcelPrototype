@@ -1,4 +1,4 @@
-Attribute VB_Name = "ex_PostProcessParserCore"
+Attribute VB_Name = "ex_ScriptParserCore"
 Option Explicit
 
 Public Function m_IsIdentifier(ByVal valueText As String) As Boolean

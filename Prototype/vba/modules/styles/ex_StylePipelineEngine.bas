@@ -4,15 +4,13 @@ Option Explicit
 Private Const PROFILES_NS As String = "urn:excelprototype:profiles"
 Private Const STYLE_PIPELINE_REL_PATH As String = "config\StylePipeline.xml"
 Private Const DEFAULT_STAGE_NAME As String = "default"
-Private Const INLINE_LAYER_ID As String = "profileInline"
-Private Const INLINE_LAYER_PRIORITY As Long = 100
 Private Const SHEET_SCOPE_MIN_COL As Long = 40      ' AN
 Private Const SHEET_SCOPE_MIN_ROW As Long = 100
 Private Const SHEET_SCOPE_EXPAND_STEP As Long = 30
 
 ' Supported style properties (declarations):
 ' width, minWidth, maxWidth, autoFitColumns
-' overflow, autoHeight, customAutoHeight-margin-top, customAutoHeight-margin-bottom, rowHeight, mergeColumns
+' overflow, autoHeight, customAutoHeight-margin-top, customAutoHeight-margin-bottom, rowHeight, minRowHeight, mergeColumns
 ' fontName, fontSize, fontBold
 ' backColor, fontColor
 ' borderColor, borderWeight
@@ -26,6 +24,7 @@ Private Const STYLE_PROP_AUTO_HEIGHT As String = "autoheight"
 Private Const STYLE_PROP_CUSTOM_AUTO_HEIGHT_MARGIN_TOP As String = "customautoheight-margin-top"
 Private Const STYLE_PROP_CUSTOM_AUTO_HEIGHT_MARGIN_BOTTOM As String = "customautoheight-margin-bottom"
 Private Const STYLE_PROP_ROW_HEIGHT As String = "rowheight"
+Private Const STYLE_PROP_MIN_ROW_HEIGHT As String = "minrowheight"
 Private Const STYLE_PROP_MERGE_COLUMNS As String = "mergecolumns"
 Private Const STYLE_PROP_FONT_NAME As String = "fontname"
 Private Const STYLE_PROP_FONT_SIZE As String = "fontsize"
@@ -291,14 +290,10 @@ Public Function m_BuildColumnStylesPipeline( _
     Optional ByVal pageName As String = vbNullString _
 ) As Collection
     Dim pipeline As Collection
-    Dim inlineLayer As obj_StyleLayer
     Dim xmlLayers As Collection
     Dim xmlLayer As obj_StyleLayer
 
     Set pipeline = m_CreatePipeline()
-
-    Set inlineLayer = mp_BuildInlineLayer(resultFieldRanges, cfgStyles)
-    If Not inlineLayer Is Nothing Then m_AddLayer pipeline, inlineLayer
 
     Set xmlLayers = m_LoadSheetPipelineLayers(pageName, wb)
     If Not xmlLayers Is Nothing Then
@@ -580,64 +575,6 @@ Private Sub mp_ParseLayerRules(ByVal layerNode As Object, ByVal layerObj As obj_
         layerObj.AddRule ruleObj
     Next ruleNode
 End Sub
-
-Private Function mp_BuildInlineLayer( _
-    ByVal resultFieldRanges As Collection, _
-    ByVal cfgStyles As Object _
-) As obj_StyleLayer
-    Dim layerObj As obj_StyleLayer
-    Dim target As Object
-    Dim mapKey As String
-    Dim styleText As String
-    Dim declarations As Object
-    Dim hasDecl As Boolean
-    Dim parseError As String
-    Dim dedupe As Object
-    Dim ruleObj As obj_StyleRule
-    Dim ruleId As String
-    Dim ruleIndex As Long
-
-    If resultFieldRanges Is Nothing Then Exit Function
-    If cfgStyles Is Nothing Then Exit Function
-    If resultFieldRanges.Count = 0 Then Exit Function
-
-    Set dedupe = CreateObject("Scripting.Dictionary")
-    dedupe.CompareMode = 1
-
-    Set layerObj = New obj_StyleLayer
-    layerObj.Initialize INLINE_LAYER_ID, INLINE_LAYER_PRIORITY, "profileInline", True
-
-    For Each target In resultFieldRanges
-        If target Is Nothing Then GoTo ContinueTarget
-        mapKey = Trim$(CStr(target("MapKey")))
-        If Len(mapKey) = 0 Then GoTo ContinueTarget
-        If dedupe.Exists(mapKey) Then GoTo ContinueTarget
-        dedupe(mapKey) = True
-
-        If Not cfgStyles.Exists(mapKey) Then GoTo ContinueTarget
-        styleText = Trim$(CStr(cfgStyles(mapKey)))
-        If Len(styleText) = 0 Then GoTo ContinueTarget
-
-        parseError = vbNullString
-        hasDecl = False
-        If Not ex_ConfigStylesParser.m_TryParseStyleDeclarations(styleText, declarations, hasDecl, parseError) Then
-            Err.Raise vbObjectError + 1715, "ex_StylePipelineEngine", _
-                "Invalid inline styles for key '" & mapKey & "': " & parseError
-        End If
-        If Not hasDecl Then GoTo ContinueTarget
-
-        ruleIndex = ruleIndex + 1
-        ruleId = INLINE_LAYER_ID & ".rule" & CStr(ruleIndex)
-        Set ruleObj = New obj_StyleRule
-        ruleObj.Initialize ruleId, "column", "mapKey=" & mapKey, declarations
-        layerObj.AddRule ruleObj
-
-ContinueTarget:
-    Next target
-
-    If layerObj.RuleCount = 0 Then Exit Function
-    Set mp_BuildInlineLayer = layerObj
-End Function
 
 Private Sub mp_ApplyRule( _
     ByVal ws As Worksheet, _
@@ -1053,6 +990,8 @@ Private Sub mp_ApplyDeclarations( _
     Dim overflowValue As String
     Dim autoHeightEnabled As Boolean
     Dim rowHeightValue As Double
+    Dim minRowHeightValue As Double
+    Dim effectiveMinRowHeight As Double
     Dim mergeColumnsValue As Long
     Dim fontSizeValue As Double
     Dim fontBoldValue As Boolean
@@ -1064,6 +1003,8 @@ Private Sub mp_ApplyDeclarations( _
     Dim horizontalValue As String
     Dim verticalValue As String
     Dim operationRowRange As Range
+    Dim hasRowHeight As Boolean
+    Dim hasMinRowHeight As Boolean
 
     If scopeRange Is Nothing Then Exit Sub
     If declarations Is Nothing Then Exit Sub
@@ -1073,15 +1014,41 @@ Private Sub mp_ApplyDeclarations( _
         Set operationRowRange = rowRange
     End If
 
+    If declarations.Exists(STYLE_PROP_ROW_HEIGHT) Then
+        If Not mp_TryParsePositiveDouble(CStr(declarations(STYLE_PROP_ROW_HEIGHT)), rowHeightValue) Then
+            Err.Raise vbObjectError + 1731, "ex_StylePipelineEngine", "Invalid rowHeight declaration: " & CStr(declarations(STYLE_PROP_ROW_HEIGHT))
+        End If
+        hasRowHeight = True
+    End If
+
+    If declarations.Exists(STYLE_PROP_MIN_ROW_HEIGHT) Then
+        If Not mp_TryParsePositiveDouble(CStr(declarations(STYLE_PROP_MIN_ROW_HEIGHT)), minRowHeightValue) Then
+            Err.Raise vbObjectError + 1731, "ex_StylePipelineEngine", "Invalid minRowHeight declaration: " & CStr(declarations(STYLE_PROP_MIN_ROW_HEIGHT))
+        End If
+        hasMinRowHeight = True
+    End If
+
     If autoHeightOnly Then
+        If hasRowHeight Then
+            Exit Sub
+        End If
         If declarations.Exists(STYLE_PROP_AUTO_HEIGHT) Then
             If Not mp_TryParseBoolean(CStr(declarations(STYLE_PROP_AUTO_HEIGHT)), autoHeightEnabled) Then
                 Err.Raise vbObjectError + 1731, "ex_StylePipelineEngine", "Invalid autoHeight declaration: " & CStr(declarations(STYLE_PROP_AUTO_HEIGHT))
             End If
             If autoHeightState Is Nothing Then
-                If autoHeightEnabled Then operationRowRange.EntireRow.AutoFit
+                If autoHeightEnabled Then
+                    operationRowRange.EntireRow.AutoFit
+                    If hasMinRowHeight Then
+                        mp_EnforceMinRowHeight operationRowRange, minRowHeightValue
+                    End If
+                End If
             Else
-                mp_RecordDeferredAutoHeight operationRowRange, autoHeightEnabled, autoHeightState
+                effectiveMinRowHeight = 0
+                If autoHeightEnabled And hasMinRowHeight Then
+                    effectiveMinRowHeight = minRowHeightValue
+                End If
+                mp_RecordDeferredAutoHeight operationRowRange, autoHeightEnabled, autoHeightState, effectiveMinRowHeight
             End If
         End If
         Exit Sub
@@ -1155,22 +1122,26 @@ Private Sub mp_ApplyDeclarations( _
         End Select
     End If
 
-    If declarations.Exists(STYLE_PROP_AUTO_HEIGHT) Then
+    If hasRowHeight Then
+        operationRowRange.RowHeight = rowHeightValue
+    ElseIf declarations.Exists(STYLE_PROP_AUTO_HEIGHT) Then
         If Not mp_TryParseBoolean(CStr(declarations(STYLE_PROP_AUTO_HEIGHT)), autoHeightEnabled) Then
             Err.Raise vbObjectError + 1731, "ex_StylePipelineEngine", "Invalid autoHeight declaration: " & CStr(declarations(STYLE_PROP_AUTO_HEIGHT))
         End If
         If autoHeightState Is Nothing Then
-            If autoHeightEnabled Then operationRowRange.EntireRow.AutoFit
+            If autoHeightEnabled Then
+                operationRowRange.EntireRow.AutoFit
+                If hasMinRowHeight Then
+                    mp_EnforceMinRowHeight operationRowRange, minRowHeightValue
+                End If
+            End If
         Else
-            mp_RecordDeferredAutoHeight operationRowRange, autoHeightEnabled, autoHeightState
+            effectiveMinRowHeight = 0
+            If autoHeightEnabled And hasMinRowHeight Then
+                effectiveMinRowHeight = minRowHeightValue
+            End If
+            mp_RecordDeferredAutoHeight operationRowRange, autoHeightEnabled, autoHeightState, effectiveMinRowHeight
         End If
-    End If
-
-    If declarations.Exists(STYLE_PROP_ROW_HEIGHT) Then
-        If Not mp_TryParsePositiveDouble(CStr(declarations(STYLE_PROP_ROW_HEIGHT)), rowHeightValue) Then
-            Err.Raise vbObjectError + 1731, "ex_StylePipelineEngine", "Invalid rowHeight declaration: " & CStr(declarations(STYLE_PROP_ROW_HEIGHT))
-        End If
-        operationRowRange.RowHeight = rowHeightValue
     End If
 
     If declarations.Exists(STYLE_PROP_MERGE_COLUMNS) Then
@@ -1256,12 +1227,14 @@ End Sub
 Private Sub mp_RecordDeferredAutoHeight( _
     ByVal targetRange As Range, _
     ByVal enabled As Boolean, _
-    ByVal autoHeightState As Object _
+    ByVal autoHeightState As Object, _
+    Optional ByVal minRowHeight As Double = 0 _
 )
     Dim rowArea As Range
     Dim rowStart As Long
     Dim rowEnd As Long
     Dim rowIndex As Long
+    Dim rowState As Object
 
     If targetRange Is Nothing Then Exit Sub
     If autoHeightState Is Nothing Then Exit Sub
@@ -1270,7 +1243,18 @@ Private Sub mp_RecordDeferredAutoHeight( _
         rowStart = rowArea.Row
         rowEnd = rowStart + rowArea.Rows.Count - 1
         For rowIndex = rowStart To rowEnd
-            autoHeightState(CStr(rowIndex)) = enabled
+            Set rowState = mp_GetOrCreateDeferredAutoHeightRowState(autoHeightState, CStr(rowIndex))
+            If rowState Is Nothing Then GoTo ContinueRow
+
+            rowState("enabled") = enabled
+            If enabled Then
+                If minRowHeight > CDbl(rowState("minrowheight")) Then
+                    rowState("minrowheight") = minRowHeight
+                End If
+            Else
+                rowState("minrowheight") = 0#
+            End If
+ContinueRow:
         Next rowIndex
     Next rowArea
 End Sub
@@ -1278,6 +1262,7 @@ End Sub
 Private Sub mp_ApplyDeferredAutoHeight(ByVal ws As Worksheet, ByVal autoHeightState As Object)
     Dim enabledRows() As Long
     Dim enabledCount As Long
+    Dim minHeightsByRow As Object
     Dim runStart As Long
     Dim runEnd As Long
     Dim rowIndex As Long
@@ -1287,7 +1272,8 @@ Private Sub mp_ApplyDeferredAutoHeight(ByVal ws As Worksheet, ByVal autoHeightSt
     If autoHeightState Is Nothing Then Exit Sub
     If autoHeightState.Count = 0 Then Exit Sub
 
-    mp_CollectEnabledAutoHeightRows autoHeightState, enabledRows, enabledCount
+    Set minHeightsByRow = mp_CreateStringDictionary()
+    mp_CollectEnabledAutoHeightRows autoHeightState, enabledRows, enabledCount, minHeightsByRow
     If enabledCount <= 0 Then Exit Sub
 
     mp_QuickSortLong enabledRows, 1, enabledCount
@@ -1306,7 +1292,95 @@ Private Sub mp_ApplyDeferredAutoHeight(ByVal ws As Worksheet, ByVal autoHeightSt
     Next i
 
     mp_ApplyAutoHeightToRowSpan ws, runStart, runEnd
+    mp_ApplyMinRowHeights ws, minHeightsByRow
 End Sub
+
+Private Sub mp_ApplyMinRowHeights(ByVal ws As Worksheet, ByVal minHeightsByRow As Object)
+    Dim rowKey As Variant
+    Dim rowIndex As Long
+    Dim minHeight As Double
+
+    If ws Is Nothing Then Exit Sub
+    If minHeightsByRow Is Nothing Then Exit Sub
+    If minHeightsByRow.Count = 0 Then Exit Sub
+
+    For Each rowKey In minHeightsByRow.Keys
+        rowIndex = CLng(rowKey)
+        If rowIndex <= 0 Then GoTo ContinueRow
+        If rowIndex > ws.Rows.Count Then GoTo ContinueRow
+
+        minHeight = CDbl(minHeightsByRow(CStr(rowKey)))
+        If minHeight <= 0 Then GoTo ContinueRow
+        If ws.Rows(rowIndex).RowHeight < minHeight Then
+            ws.Rows(rowIndex).RowHeight = minHeight
+        End If
+ContinueRow:
+    Next rowKey
+End Sub
+
+Private Sub mp_EnforceMinRowHeight(ByVal targetRange As Range, ByVal minRowHeight As Double)
+    Dim rowArea As Range
+    Dim rowStart As Long
+    Dim rowEnd As Long
+    Dim rowIndex As Long
+    Dim ws As Worksheet
+
+    If targetRange Is Nothing Then Exit Sub
+    If minRowHeight <= 0 Then Exit Sub
+
+    Set ws = targetRange.Worksheet
+    For Each rowArea In targetRange.EntireRow.Areas
+        rowStart = rowArea.Row
+        rowEnd = rowStart + rowArea.Rows.Count - 1
+        For rowIndex = rowStart To rowEnd
+            If ws.Rows(rowIndex).RowHeight < minRowHeight Then
+                ws.Rows(rowIndex).RowHeight = minRowHeight
+            End If
+        Next rowIndex
+    Next rowArea
+End Sub
+
+Private Function mp_GetOrCreateDeferredAutoHeightRowState( _
+    ByVal autoHeightState As Object, _
+    ByVal rowKey As String _
+) As Object
+    Dim rowState As Object
+    Dim rawState As Variant
+    Dim enabled As Boolean
+
+    If autoHeightState Is Nothing Then Exit Function
+    If Len(rowKey) = 0 Then Exit Function
+
+    If autoHeightState.Exists(rowKey) Then
+        If IsObject(autoHeightState(rowKey)) Then
+            Set rowState = autoHeightState(rowKey)
+        Else
+            rawState = autoHeightState(rowKey)
+            On Error Resume Next
+            enabled = CBool(rawState)
+            On Error GoTo 0
+            Set rowState = mp_CreateDeferredAutoHeightRowState(enabled, 0)
+        End If
+    Else
+        Set rowState = mp_CreateDeferredAutoHeightRowState(False, 0)
+    End If
+
+    Set autoHeightState(rowKey) = rowState
+    Set mp_GetOrCreateDeferredAutoHeightRowState = rowState
+End Function
+
+Private Function mp_CreateDeferredAutoHeightRowState( _
+    ByVal enabled As Boolean, _
+    ByVal minRowHeight As Double _
+) As Object
+    Dim rowState As Object
+
+    Set rowState = mp_CreateStringDictionary()
+    rowState("enabled") = enabled
+    rowState("minrowheight") = minRowHeight
+
+    Set mp_CreateDeferredAutoHeightRowState = rowState
+End Function
 
 Private Sub mp_ApplyAutoHeightToRowSpan(ByVal ws As Worksheet, ByVal rowStart As Long, ByVal rowEnd As Long)
     Dim prevHeights() As Double
@@ -1344,11 +1418,15 @@ End Sub
 Private Sub mp_CollectEnabledAutoHeightRows( _
     ByVal autoHeightState As Object, _
     ByRef outRows() As Long, _
-    ByRef outCount As Long _
+    ByRef outCount As Long, _
+    Optional ByVal outMinHeightsByRow As Object = Nothing _
 )
     Dim keyValue As Variant
+    Dim stateValue As Variant
+    Dim stateObj As Object
     Dim enabled As Boolean
     Dim rowIndex As Long
+    Dim minRowHeight As Double
 
     If autoHeightState Is Nothing Then Exit Sub
     If autoHeightState.Count = 0 Then Exit Sub
@@ -1356,15 +1434,41 @@ Private Sub mp_CollectEnabledAutoHeightRows( _
     ReDim outRows(1 To autoHeightState.Count)
     For Each keyValue In autoHeightState.Keys
         enabled = False
-        On Error Resume Next
-        enabled = CBool(autoHeightState(CStr(keyValue)))
-        On Error GoTo 0
+        minRowHeight = 0
+
+        If IsObject(autoHeightState(CStr(keyValue))) Then
+            Set stateObj = autoHeightState(CStr(keyValue))
+            If Not stateObj Is Nothing Then
+                On Error Resume Next
+                If stateObj.Exists("enabled") Then enabled = CBool(stateObj("enabled"))
+                If stateObj.Exists("minrowheight") Then minRowHeight = CDbl(stateObj("minrowheight"))
+                On Error GoTo 0
+            End If
+        Else
+            stateValue = autoHeightState(CStr(keyValue))
+            On Error Resume Next
+            enabled = CBool(stateValue)
+            On Error GoTo 0
+        End If
+
         If Not enabled Then GoTo ContinueKey
 
         rowIndex = CLng(keyValue)
         If rowIndex <= 0 Then GoTo ContinueKey
         outCount = outCount + 1
         outRows(outCount) = rowIndex
+
+        If Not outMinHeightsByRow Is Nothing Then
+            If minRowHeight > 0 Then
+                If outMinHeightsByRow.Exists(CStr(rowIndex)) Then
+                    If CDbl(outMinHeightsByRow(CStr(rowIndex))) < minRowHeight Then
+                        outMinHeightsByRow(CStr(rowIndex)) = minRowHeight
+                    End If
+                Else
+                    outMinHeightsByRow(CStr(rowIndex)) = minRowHeight
+                End If
+            End If
+        End If
 ContinueKey:
     Next keyValue
 End Sub
@@ -1603,6 +1707,13 @@ Private Function mp_ValidateDeclarations(ByVal declarations As Object, ByRef out
     If declarations.Exists(STYLE_PROP_ROW_HEIGHT) Then
         If Not mp_TryParsePositiveDouble(CStr(declarations(STYLE_PROP_ROW_HEIGHT)), doubleValue) Then
             outErrorText = "Invalid rowHeight declaration: " & CStr(declarations(STYLE_PROP_ROW_HEIGHT))
+            Exit Function
+        End If
+    End If
+
+    If declarations.Exists(STYLE_PROP_MIN_ROW_HEIGHT) Then
+        If Not mp_TryParsePositiveDouble(CStr(declarations(STYLE_PROP_MIN_ROW_HEIGHT)), doubleValue) Then
+            outErrorText = "Invalid minRowHeight declaration: " & CStr(declarations(STYLE_PROP_MIN_ROW_HEIGHT))
             Exit Function
         End If
     End If
@@ -2308,6 +2419,7 @@ End Function
 
 Private Function mp_TryTrackFileStamp(ByVal filePath As String, ByVal trackedFiles As Object) As Boolean
     Dim stamp As Date
+    Dim fileSize As Long
     Dim key As String
 
     If trackedFiles Is Nothing Then Exit Function
@@ -2316,6 +2428,7 @@ Private Function mp_TryTrackFileStamp(ByVal filePath As String, ByVal trackedFil
 
     On Error Resume Next
     stamp = FileDateTime(filePath)
+    fileSize = FileLen(filePath)
     If Err.Number <> 0 Then
         Err.Clear
         On Error GoTo 0
@@ -2324,14 +2437,15 @@ Private Function mp_TryTrackFileStamp(ByVal filePath As String, ByVal trackedFil
     End If
     On Error GoTo 0
 
-    trackedFiles(key) = CDbl(stamp)
+    trackedFiles(key) = CStr(CDbl(stamp)) & "|" & CStr(fileSize)
     mp_TryTrackFileStamp = True
 End Function
 
 Private Function mp_AreTrackedStylePipelineFilesUnchanged(ByVal trackedFiles As Object) As Boolean
     Dim key As Variant
     Dim stamp As Date
-    Dim currentStamp As Double
+    Dim fileSize As Long
+    Dim currentToken As String
 
     If trackedFiles Is Nothing Then Exit Function
     If trackedFiles.Count = 0 Then Exit Function
@@ -2339,6 +2453,7 @@ Private Function mp_AreTrackedStylePipelineFilesUnchanged(ByVal trackedFiles As 
     For Each key In trackedFiles.Keys
         On Error Resume Next
         stamp = FileDateTime(CStr(key))
+        fileSize = FileLen(CStr(key))
         If Err.Number <> 0 Then
             Err.Clear
             On Error GoTo 0
@@ -2346,8 +2461,8 @@ Private Function mp_AreTrackedStylePipelineFilesUnchanged(ByVal trackedFiles As 
         End If
         On Error GoTo 0
 
-        currentStamp = CDbl(stamp)
-        If CDbl(trackedFiles(CStr(key))) <> currentStamp Then Exit Function
+        currentToken = CStr(CDbl(stamp)) & "|" & CStr(fileSize)
+        If CStr(trackedFiles(CStr(key))) <> currentToken Then Exit Function
     Next key
 
     mp_AreTrackedStylePipelineFilesUnchanged = True

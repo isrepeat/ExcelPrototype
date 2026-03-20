@@ -146,30 +146,32 @@ Public Sub m_RenderForSheet(ByVal ws As Worksheet, ByRef style As ex_SheetStyles
         labelRange.VerticalAlignment = xlCenter
 
         Set inputRange = ws.Cells(fieldTopRow, inputStartCol)
-        inputRange.UnMerge
-        inputRange.Interior.Pattern = xlSolid
-        inputRange.Interior.Color = style.PanelInputBackColor
-        inputRange.Font.Color = style.PanelInputFontColor
-        inputRange.HorizontalAlignment = xlCenter
-        inputRange.VerticalAlignment = xlCenter
-        inputRange.NumberFormat = "@"
+        If style.PanelFields(fieldIndex).ShowInput Then
+            inputRange.UnMerge
+            inputRange.Interior.Pattern = xlSolid
+            inputRange.Interior.Color = style.PanelInputBackColor
+            inputRange.Font.Color = style.PanelInputFontColor
+            inputRange.HorizontalAlignment = xlCenter
+            inputRange.VerticalAlignment = xlCenter
+            inputRange.NumberFormat = "@"
 
-        Set inputAnchor = inputRange.Cells(1, 1)
-        mp_ApplyInputOverflowStyle inputAnchor, style.PanelFields(fieldIndex).InputOverflowStyle
-        currentValue = Trim$(CStr(inputAnchor.Value))
-        If Len(currentValue) = 0 Then
-            inputAnchor.Value = ex_ConfigProvider.m_GetConfigValue(style.PanelFields(fieldIndex).InputConfigKey, vbNullString)
-        End If
-        If fieldIndex = 1 Then
-            mp_SetPanelInputName ws, inputAnchor
-        End If
-        mp_SetPanelInputKeyName ws, inputAnchor, style.PanelFields(fieldIndex).InputName
-        mp_RegisterOnChangeBinding ws, inputAnchor, style.PanelFields(fieldIndex).OnChangeMacroName
+            Set inputAnchor = inputRange.Cells(1, 1)
+            mp_ApplyInputOverflowStyle inputAnchor, style.PanelFields(fieldIndex).InputOverflowStyle
+            currentValue = Trim$(CStr(inputAnchor.Value))
+            If Len(currentValue) = 0 Then
+                inputAnchor.Value = ex_ConfigProvider.m_GetConfigValue(style.PanelFields(fieldIndex).InputConfigKey, vbNullString)
+            End If
+            If fieldIndex = 1 Then
+                mp_SetPanelInputName ws, inputAnchor
+            End If
+            mp_SetPanelInputKeyName ws, inputAnchor, style.PanelFields(fieldIndex).InputName
+            mp_RegisterOnChangeBinding ws, inputAnchor, style.PanelFields(fieldIndex).OnChangeMacroName
 
-        fieldError = mp_GetConfigRefFieldError(style.PanelFields(fieldIndex), fieldIndex)
-        If Len(fieldError) > 0 Then
-            mp_RenderFieldInlineError inputAnchor, fieldError, style, style.PanelFields(fieldIndex).InputOverflowStyle
-            GoTo ContinueField
+            fieldError = mp_GetConfigRefFieldError(style.PanelFields(fieldIndex), fieldIndex)
+            If Len(fieldError) > 0 Then
+                mp_RenderFieldInlineError inputAnchor, fieldError, style, style.PanelFields(fieldIndex).InputOverflowStyle
+                GoTo ContinueField
+            End If
         End If
 
         buttonsCount = style.PanelFields(fieldIndex).ButtonCount
@@ -211,6 +213,31 @@ ContinueField:
     mp_SetPanelRangeName ws, ws.Range(ws.Cells(topRow, startCol), ws.Cells(bottomRow, panelRenderRightCol))
 
     mp_ApplyFixedControlPanelLayout ws, style, startCol, inputStartCol
+End Sub
+
+Public Sub m_SetPanelButtonsVisible(ByVal ws As Worksheet, ByVal isVisible As Boolean)
+    Dim shapeIndex As Long
+    Dim shp As Shape
+
+    If ws Is Nothing Then Exit Sub
+
+    For shapeIndex = ws.Shapes.Count To 1 Step -1
+        Set shp = ws.Shapes(shapeIndex)
+        If mp_IsPanelButtonShape(ws, shp.Name) Then
+            On Error Resume Next
+            If isVisible Then
+                shp.Visible = msoTrue
+            Else
+                shp.Visible = msoFalse
+            End If
+            On Error GoTo 0
+        End If
+    Next shapeIndex
+End Sub
+
+Public Sub m_DeletePanelButtonsForSheet(ByVal ws As Worksheet)
+    If ws Is Nothing Then Exit Sub
+    mp_DeletePanelButtons ws
 End Sub
 
 Public Sub m_HandleSheetInputChange(ByVal ws As Worksheet, ByVal target As Range)
@@ -795,6 +822,10 @@ Public Sub m_HandleToggleButtonOnClick(Optional ByVal ws As Worksheet = Nothing,
     Dim nextVariantIndex As Long
     Dim nextValue As String
     Dim onToggleMacro As String
+    Dim prevEnableEvents As Boolean
+    Dim prevScreenUpdating As Boolean
+    Dim hasUiStateSnapshot As Boolean
+    Dim errDescription As String
 
     On Error GoTo EH
 
@@ -846,6 +877,12 @@ Public Sub m_HandleToggleButtonOnClick(Optional ByVal ws As Worksheet = Nothing,
         Err.Raise vbObjectError + 2469, "ex_OutputPanel.m_HandleToggleButtonOnClick", "Toggle variant value is empty for next variant."
     End If
 
+    prevEnableEvents = Application.EnableEvents
+    prevScreenUpdating = Application.ScreenUpdating
+    hasUiStateSnapshot = True
+    Application.EnableEvents = False
+    Application.ScreenUpdating = False
+
     ex_ConfigProvider.m_SetConfigValue outputStyle.PanelFields(fieldIndex).Buttons(buttonIndex).ToggleSource, nextValue, True
     m_RenderForSheet ws, outputStyle
 
@@ -853,10 +890,23 @@ Public Sub m_HandleToggleButtonOnClick(Optional ByVal ws As Worksheet = Nothing,
     If Len(onToggleMacro) > 0 Then
         Application.Run "'" & ThisWorkbook.Name & "'!" & onToggleMacro
     End If
-    Exit Sub
+    GoTo Done
 
 EH:
-    MsgBox "Toggle button failed: " & Err.Description, vbExclamation
+    errDescription = Err.Description
+
+Done:
+    If hasUiStateSnapshot Then
+        On Error Resume Next
+        Application.ScreenUpdating = prevScreenUpdating
+        Application.EnableEvents = prevEnableEvents
+        On Error GoTo 0
+    End If
+
+    If Len(errDescription) > 0 Then
+        MsgBox "Toggle button failed: " & errDescription, vbExclamation
+    End If
+    Exit Sub
 End Sub
 
 Private Function mp_GetLastUsedColumn(ByVal ws As Worksheet) As Long
@@ -957,21 +1007,38 @@ Private Sub mp_ClearPanelArtifacts(ByVal ws As Worksheet)
 End Sub
 
 Private Function mp_GetOnChangeMacroName(ByVal ws As Worksheet, ByVal target As Range) As String
-    Dim registry As Object
-    Dim key As String
+    Dim outputStyle As ex_SheetStylesXmlProvider.t_OutputSheetStyle
+    Dim fieldIndex As Long
+    Dim inputCell As Range
+    Dim targetKey As String
+    Dim inputKey As String
+    Dim macroName As String
 
     If ws Is Nothing Then Exit Function
     If target Is Nothing Then Exit Function
-    If g_OnChangeBindings Is Nothing Then Exit Function
+    If target.CountLarge <> 1 Then Exit Function
 
-    Set registry = mp_GetSheetOnChangeRegistry(ws, False)
-    If registry Is Nothing Then Exit Function
+    targetKey = mp_GetOnChangeBindingKey(target)
+    If Len(targetKey) = 0 Then Exit Function
+    If Not ex_SheetStylesXmlProvider.m_GetOutputSheetStyle(outputStyle, ThisWorkbook) Then Exit Function
+    If outputStyle.PanelFieldCount <= 0 Then Exit Function
 
-    key = mp_GetOnChangeBindingKey(target)
-    If Len(key) = 0 Then Exit Function
-    If registry.Exists(key) Then
-        mp_GetOnChangeMacroName = CStr(registry(key))
-    End If
+    For fieldIndex = 1 To outputStyle.PanelFieldCount
+        macroName = Trim$(outputStyle.PanelFields(fieldIndex).OnChangeMacroName)
+        If Len(macroName) = 0 Then GoTo ContinueField
+
+        Set inputCell = mp_GetPanelInputCellByKey(ws, outputStyle.PanelFields(fieldIndex).InputName)
+        If inputCell Is Nothing Then GoTo ContinueField
+
+        inputKey = mp_GetOnChangeBindingKey(inputCell)
+        If Len(inputKey) = 0 Then GoTo ContinueField
+        If StrComp(targetKey, inputKey, vbTextCompare) = 0 Then
+            mp_GetOnChangeMacroName = macroName
+            Exit Function
+        End If
+
+ContinueField:
+    Next fieldIndex
 End Function
 
 Private Sub mp_RegisterOnChangeBinding(ByVal ws As Worksheet, ByVal inputCell As Range, ByVal macroName As String)
@@ -1108,26 +1175,45 @@ End Function
 Private Sub mp_DeletePanelButtons(ByVal ws As Worksheet)
     Dim shapeIndex As Long
     Dim shp As Shape
-    Dim prefix As String
-    Dim commonPrefix As String
-    Dim backPrefix As String
 
     If ws Is Nothing Then Exit Sub
-    prefix = PANEL_BUTTON_PREFIX & ws.CodeName & "_"
-    commonPrefix = PANEL_BUTTON_PREFIX
-    backPrefix = "btnOutPanelBackToDev_" & ws.CodeName
 
     For shapeIndex = ws.Shapes.Count To 1 Step -1
         Set shp = ws.Shapes(shapeIndex)
-        If LCase$(Left$(shp.Name, Len(prefix))) = LCase$(prefix) _
-           Or LCase$(Left$(shp.Name, Len(commonPrefix))) = LCase$(commonPrefix) _
-           Or LCase$(Left$(shp.Name, Len(backPrefix))) = LCase$(backPrefix) Then
+        If mp_IsPanelButtonShape(ws, shp.Name) Then
             On Error Resume Next
             shp.Delete
             On Error GoTo 0
         End If
     Next shapeIndex
 End Sub
+
+Private Function mp_IsPanelButtonShape(ByVal ws As Worksheet, ByVal shapeName As String) As Boolean
+    Dim prefix As String
+    Dim commonPrefix As String
+    Dim backPrefix As String
+    Dim normalized As String
+
+    If ws Is Nothing Then Exit Function
+    normalized = LCase$(Trim$(shapeName))
+    If Len(normalized) = 0 Then Exit Function
+
+    prefix = LCase$(PANEL_BUTTON_PREFIX & ws.CodeName & "_")
+    commonPrefix = LCase$(PANEL_BUTTON_PREFIX)
+    backPrefix = LCase$("btnOutPanelBackToDev_" & ws.CodeName)
+
+    If Left$(normalized, Len(prefix)) = prefix Then
+        mp_IsPanelButtonShape = True
+        Exit Function
+    End If
+    If Left$(normalized, Len(commonPrefix)) = commonPrefix Then
+        mp_IsPanelButtonShape = True
+        Exit Function
+    End If
+    If Left$(normalized, Len(backPrefix)) = backPrefix Then
+        mp_IsPanelButtonShape = True
+    End If
+End Function
 
 Private Sub mp_ApplyFixedControlPanelLayout( _
     ByVal ws As Worksheet, _

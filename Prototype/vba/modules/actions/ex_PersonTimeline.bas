@@ -7,10 +7,13 @@ Private Const DEV_COL_MARKER As Long = 1
 Private Const DEV_COL_KEY As Long = 2
 Private Const DEV_COL_VALUE As Long = 3
 Private Const RESULT_SHEET_NAME As String = "g_PersonTimeline"
+Private Const POST_PROCESS_SCRIPT_KEY_EXPLICIT As String = "PostProcess.Script.Explicit"
+Private Const TIMELINE_DEBUG_LOG_PATH As String = "Logs\personalcard_pipeline.log"
 
 Private g_LastPostProcessCfg As Object
 Private g_LastPostProcessTables As Collection
 Private g_LastResultHasPartialMatchCandidates As Boolean
+Private g_LastPostProcessInput As Object
 Private g_AdoLookupCacheSignature As String
 Private g_AdoResolvedTableRefByConfigured As Object
 Private g_AdoAutoTableRefBySignature As Object
@@ -80,6 +83,7 @@ Private Function mp_BuildAdoLookupCacheSignature(ByVal cfg As Object) As String
     Dim j As Long
     Dim tableAlias As String
     Dim sourceAlias As String
+    Dim sourcePrefix As String
     Dim keyAlias As String
     Dim columnsRaw As String
     Dim fieldAlias As String
@@ -110,12 +114,16 @@ Private Function mp_BuildAdoLookupCacheSignature(ByVal cfg As Object) As String
 
         sourceAlias = mp_GetCfgOptional(cfg, "Output.Sheet[" & tableAlias & "].SourceAlias", vbNullString)
         If Len(sourceAlias) = 0 Then sourceAlias = tableAlias
+        sourcePrefix = "Source." & sourceAlias
 
         keyAlias = mp_GetCfgOptional(cfg, sourceAlias & ".Sheet[" & tableAlias & "].Key", vbNullString)
         columnsRaw = mp_GetCfgOptional(cfg, sourceAlias & ".Sheet[" & tableAlias & "].Columns", vbNullString)
         signature = signature & "|tbl=" & sourceAlias & ":" & tableAlias & _
-                    "|fp=" & mp_GetCfgOptional(cfg, sourceAlias & ".FilePath", vbNullString) & _
-                    "|hh=" & mp_GetCfgOptional(cfg, sourceAlias & ".HasHeaders", vbNullString) & _
+                    "|fp=" & mp_GetCfgOptional(cfg, sourcePrefix & ".FilePath", vbNullString) & _
+                    "|fr=" & mp_GetCfgOptional(cfg, sourcePrefix & ".FileResolver", vbNullString) & _
+                    "|fra=" & mp_GetCfgOptional(cfg, sourcePrefix & ".FileResolverArgs", vbNullString) & _
+                    "|fpr=" & mp_GetSourcePathSignatureValue(cfg, sourceAlias) & _
+                    "|hh=" & mp_GetCfgOptional(cfg, sourcePrefix & ".HasHeaders", vbNullString) & _
                     "|sn=" & mp_GetCfgOptional(cfg, sourceAlias & ".Sheet[" & tableAlias & "].SheetName", vbNullString) & _
                     "|rsm=" & mp_GetCfgOptional(cfg, sourceAlias & ".Sheet[" & tableAlias & "].RangeStartMarker", vbNullString) & _
                     "|rem=" & mp_GetCfgOptional(cfg, sourceAlias & ".Sheet[" & tableAlias & "].RangeEndMarker", vbNullString) & _
@@ -164,31 +172,48 @@ Private Sub mp_SortVariantTextArray(ByRef arr As Variant)
     Next i
 End Sub
 
-Public Sub m_ShowPersonTimeline_UI()
-
+Public Sub m_RunPersonalCard()
+    Dim cfg As Object
     Dim fio As String
 
     fio = Trim$(ex_ConfigProvider.m_GetConfigValue("CommonKey", vbNullString))
-    If Len(fio) = 0 Then
-        fio = Trim$(ex_ConfigProvider.m_GetConfigValue("PersonFIO", vbNullString))
-    End If
 
-    m_ShowPersonTimeline fio
-
+    Set cfg = mp_LoadConfigDictionary()
+    ex_ModePipeline.m_RunModePipeline cfg, "ex_PersonTimeline.m_RunMode", mp_CreateScriptInputContext(fio), False
 End Sub
+
+Public Sub m_RunPersonalCardByKey(ByVal fio As String)
+    Dim cfg As Object
+
+    Set cfg = mp_LoadConfigDictionary()
+    ex_ModePipeline.m_RunModePipeline cfg, "ex_PersonTimeline.m_RunMode", mp_CreateScriptInputContext(fio), False
+End Sub
+
+Public Function m_RunMode(ByVal cfg As Object, ByVal modeInput As Object, ByVal preProcessContext As Object) As Object
+    Dim fio As String
+
+    On Error GoTo EH
+
+    fio = Trim$(ex_ScriptIO.m_GetStringOrDefault(modeInput, "CommonKey", vbNullString))
+
+    Set m_RunMode = mp_RunModeCore(fio, cfg, modeInput)
+    Exit Function
+
+EH:
+    MsgBox "PersonalCard failed: [" & Err.Source & " #" & CStr(Err.Number) & "] " & Err.Description, vbExclamation
+    Set m_RunMode = Nothing
+End Function
 
 Private Function mp_ValidateTimelineEntryConfig(ByRef outErrorText As String) As Boolean
     Dim cfg As Object
-    Dim cfgStyles As Object
     Dim mode As OutputMode
 
     On Error GoTo EH
 
     Set cfg = mp_LoadConfigDictionary()
-    Set cfgStyles = ex_ConfigProvider.m_GetConfigStylesDictionary()
     mode = ex_Settings.m_GetOutputMode()
 
-    mp_ValidateTimelineEntryConfig = mp_ValidateTimelineConfig(cfg, cfgStyles, mode, outErrorText)
+    mp_ValidateTimelineEntryConfig = mp_ValidateTimelineConfig(cfg, mode, outErrorText)
     Exit Function
 
 EH:
@@ -196,7 +221,11 @@ EH:
     mp_ValidateTimelineEntryConfig = False
 End Function
 
-Public Sub m_ShowPersonTimeline(ByVal fio As String)
+Private Function mp_RunModeCore( _
+    ByVal fio As String, _
+    ByVal cfg As Object, _
+    ByVal preparedPostProcessInput As Object _
+) As Object
 
     On Error GoTo EH
 
@@ -205,6 +234,12 @@ Public Sub m_ShowPersonTimeline(ByVal fio As String)
     Dim prevEnableEvents As Boolean
     Dim prevCalculation As XlCalculation
     Dim prevCalculateBeforeSave As Boolean
+    Dim stageName As String
+    Dim postProcessInput As Object
+    Dim modeResult As Object
+
+    stageName = "init"
+    mp_DebugLog "START mp_RunModeCore fio='" & CStr(fio) & "'"
 
     prevScreenUpdating = Application.ScreenUpdating
     prevDisplayAlerts = Application.DisplayAlerts
@@ -221,35 +256,46 @@ Public Sub m_ShowPersonTimeline(ByVal fio As String)
     Dim wsOut As Worksheet
     Dim resultSheetExistedBeforeRender As Boolean
 
+    stageName = "validate-input-key"
     If Len(Trim$(fio)) = 0 Then
         Err.Raise vbObjectError + 1300, "ex_PersonTimeline", _
-            "Config key 'CommonKey' (or fallback 'PersonFIO') is empty."
+            "Config key 'CommonKey' is empty."
     End If
 
-    Dim cfg As Object
-    Set cfg = mp_LoadConfigDictionary()
+    stageName = "ensure-ado-caches"
     mp_EnsureAdoLookupCaches cfg
 
-    Dim cfgStyles As Object
-    Set cfgStyles = ex_ConfigProvider.m_GetConfigStylesDictionary()
-
     Dim mode As OutputMode
+    stageName = "read-output-mode"
     mode = ex_Settings.m_GetOutputMode()
 
     Dim validationError As String
-    If Not mp_ValidateTimelineConfig(cfg, cfgStyles, mode, validationError) Then
+    stageName = "validate-config"
+    If Not mp_ValidateTimelineConfig(cfg, mode, validationError) Then
         Application.EnableEvents = prevEnableEvents
         Application.DisplayAlerts = prevDisplayAlerts
         Application.ScreenUpdating = prevScreenUpdating
         Application.CalculateBeforeSave = prevCalculateBeforeSave
         Application.Calculation = prevCalculation
         MsgBox validationError, vbExclamation
-        Exit Sub
+        Set mp_RunModeCore = Nothing
+        Exit Function
     End If
 
+    stageName = "prepare-mode-input"
+    Set postProcessInput = preparedPostProcessInput
+    If postProcessInput Is Nothing Then
+        Set postProcessInput = mp_CreateScriptInputContext(fio)
+    End If
+    fio = Trim$(ex_ScriptIO.m_GetStringOrDefault(postProcessInput, "CommonKey", fio))
+
+    stageName = "prepare-output-sheet"
     resultSheetExistedBeforeRender = mp_WorksheetExists(RESULT_SHEET_NAME)
     Set wsOut = mp_CreateOrClearSheet(RESULT_SHEET_NAME)
     ex_SheetViewZoom.m_ApplyProfileZoomForResultSheet wsOut, resultSheetExistedBeforeRender
+    ex_Messaging.m_ClearBannerAnchors wsOut
+    ex_Messaging.m_ClearResultTableAnchors wsOut
+    ex_Messaging.m_ClearResultRowAnchors wsOut
 
     Dim resultFieldRanges As Collection
     Set resultFieldRanges = New Collection
@@ -267,6 +313,7 @@ Public Sub m_ShowPersonTimeline(ByVal fio As String)
     End If
     hasOutputStyle = ex_SheetStylesXmlProvider.m_GetOutputSheetStyle(outputStyle, ThisWorkbook)
 
+    stageName = "resolve-output-aliases"
     Dim outputAliases As Variant
     outputAliases = mp_GetListRequired(cfg, "Output.Sheets")
 
@@ -300,6 +347,7 @@ Public Sub m_ShowPersonTimeline(ByVal fio As String)
     renderedCount = 0
 
     Dim i As Long
+    stageName = "render-output-tables"
     For i = LBound(outputAliases) To UBound(outputAliases)
         Dim tableAlias As String
         tableAlias = Trim$(CStr(outputAliases(i)))
@@ -313,16 +361,12 @@ Public Sub m_ShowPersonTimeline(ByVal fio As String)
         Dim tableType As String
         tableType = LCase$(mp_GetCfgRequired(cfg, sourceAlias & ".Sheet[" & tableAlias & "].Type"))
 
-        If mode = StateTableOnly And tableType <> "state" Then
-            GoTo ContinueAlias
-        End If
-        If mode = EventsTableOnly And tableType <> "events" Then
-            GoTo ContinueAlias
-        End If
-
-        If tableType <> "state" And tableType <> "events" Then
+        If Not mp_IsSupportedOutputTableType(tableType) Then
             Err.Raise vbObjectError + 1301, "ex_PersonTimeline", _
                 "Unsupported table type for alias '" & tableAlias & "': " & tableType
+        End If
+        If Not mp_ShouldRenderTableForMode(mode, tableType) Then
+            GoTo ContinueAlias
         End If
 
         Dim adoObjectName As String
@@ -335,7 +379,7 @@ Public Sub m_ShowPersonTimeline(ByVal fio As String)
             Dim stateRendered As Boolean
             rowIndex = mp_WriteStateCardGeneric(wsOut, sourceConn, adoObjectName, fio, rowIndex, cfg, resultFieldRanges, resultTables, resultTablesByRef, sourceAlias, tableAlias, headerRows, sectionRows, pendingWarningBanners, partialMatchRowRanges, stateRendered)
             If stateRendered Then
-                rowIndex = rowIndex + 1
+                rowIndex = mp_AdvanceRowIndexAfterRenderedTable(cfg, outputAliases, i, mode, tableSourceMap, tableAlias, tableType, rowIndex)
                 renderedCount = renderedCount + 1
             End If
         Else
@@ -354,7 +398,7 @@ Public Sub m_ShowPersonTimeline(ByVal fio As String)
             End If
             rowIndex = mp_WriteEventsGeneric(wsOut, sourceConn, adoObjectName, fio, rowIndex, cfg, resultFieldRanges, resultTables, resultTablesByRef, sourceAlias, tableAlias, headerRows, pendingWarningBanners, partialMatchRowRanges, eventsRendered)
             If eventsRendered Then
-                rowIndex = rowIndex + 1
+                rowIndex = mp_AdvanceRowIndexAfterRenderedTable(cfg, outputAliases, i, mode, tableSourceMap, tableAlias, tableType, rowIndex)
                 renderedCount = renderedCount + 1
             Else
                 If eventsSectionAdded Then
@@ -368,22 +412,33 @@ Public Sub m_ShowPersonTimeline(ByVal fio As String)
 ContinueAlias:
     Next i
 
+    stageName = "validate-rendered-count"
     If renderedCount = 0 Then
         Err.Raise vbObjectError + 1303, "ex_PersonTimeline", _
             "No sheets were rendered for mode '" & ex_Settings.m_GetOutputModeDisplay() & "'. Check Output.Sheets and sheet Type."
     End If
 
+    stageName = "apply-styles"
     If hasOutputStyle Then
         ex_OutputPanel.m_RenderForSheet wsOut, outputStyle
     End If
+    mp_ApplyTimelineStyleLayers wsOut, headerRows, sectionRows, resultFieldRanges, resultTables, partialMatchRowRanges, hasOutputStyle, outputStyle, pendingWarningBanners
     mp_RenderPendingWarningBanners wsOut, pendingWarningBanners
-    mp_ApplyTimelineStyleLayers wsOut, headerRows, sectionRows, resultFieldRanges, resultTables, cfgStyles, partialMatchRowRanges, hasOutputStyle, outputStyle, pendingWarningBanners
 
-    mp_StorePostProcessContext cfg, resultTables, (partialMatchRowRanges.Count > 0)
-    If mp_ShouldAutoPostProcess() Then
-        ex_PostProcessDsl.m_ApplyScriptToSheet wsOut, cfg, resultTables
-    End If
+    stageName = "prepare-postprocess-input"
+    ex_ScriptIO.m_SetInput postProcessInput
 
+    stageName = "store-postprocess-context"
+    mp_StoreScriptContext cfg, resultTables, (partialMatchRowRanges.Count > 0), postProcessInput
+
+    Set modeResult = CreateObject("Scripting.Dictionary")
+    modeResult.CompareMode = 1
+    Set modeResult("Output") = postProcessInput
+    Set modeResult("Worksheet") = wsOut
+    Set modeResult("ResultTables") = resultTables
+    Set mp_RunModeCore = modeResult
+
+    stageName = "close-connections"
     mp_CloseConnections connCache
 
     Application.EnableEvents = prevEnableEvents
@@ -392,7 +447,8 @@ ContinueAlias:
     Application.CalculateBeforeSave = prevCalculateBeforeSave
     Application.Calculation = prevCalculation
 
-    Exit Sub
+    mp_DebugLog "END mp_RunModeCore success fio='" & CStr(fio) & "'"
+    Exit Function
 
 EH:
     Dim errNumber As Long
@@ -405,6 +461,10 @@ EH:
     errDescription = Err.Description
 
     On Error Resume Next
+    ex_Messaging.m_LogToFile "[ex_PersonTimeline] FAIL stage='" & stageName & "' fio='" & CStr(fio) & "' source='" & errSource & "' code=" & CStr(errNumber) & " description='" & errDescription & "'", TIMELINE_DEBUG_LOG_PATH
+    On Error GoTo 0
+
+    On Error Resume Next
     mp_CloseConnections connCache
     Application.EnableEvents = prevEnableEvents
     Application.DisplayAlerts = prevDisplayAlerts
@@ -415,7 +475,8 @@ EH:
 
     If mp_IsConfigValidationError(errNumber) Then
         MsgBox errDescription, vbExclamation
-        Exit Sub
+        Set mp_RunModeCore = Nothing
+        Exit Function
     End If
 
     If wsOut Is Nothing Then
@@ -429,8 +490,15 @@ EH:
         ex_OutputPanel.m_RenderForSheet wsOut, errOutputStyle
     End If
     On Error GoTo 0
-    ex_Messaging.m_RenderErrorBanner wsOut, errDescription, errSource, errNumber, "ERROR: Timeline generation failed", ex_SheetStylesXmlProvider.m_GetOutputErrorBannerRangeAddress(ThisWorkbook)
+    ex_Messaging.m_RenderErrorBanner wsOut, errDescription, errSource, errNumber, "ОШИБКА: Не удалось сформировать таймлайн", ex_SheetStylesXmlProvider.m_GetOutputErrorBannerRangeAddress(ThisWorkbook)
 
+    Set mp_RunModeCore = Nothing
+End Function
+
+Private Sub mp_DebugLog(ByVal messageText As String)
+    On Error Resume Next
+    ex_Messaging.m_LogToFile "[ex_PersonTimeline] " & CStr(messageText), TIMELINE_DEBUG_LOG_PATH
+    On Error GoTo 0
 End Sub
 
 Public Sub m_RunPostProcessForActiveSheet()
@@ -438,6 +506,9 @@ Public Sub m_RunPostProcessForActiveSheet()
     Dim errNumber As Long
     Dim errSource As String
     Dim errDescription As String
+    Dim prevScreenUpdating As Boolean
+    Dim outputStyle As t_OutputSheetStyle
+    Dim hasOutputStyle As Boolean
 
     On Error GoTo EH
 
@@ -457,41 +528,61 @@ Public Sub m_RunPostProcessForActiveSheet()
         Exit Sub
     End If
 
-    ex_PostProcessDsl.m_ApplyScriptToSheet ws, g_LastPostProcessCfg, g_LastPostProcessTables
+    prevScreenUpdating = Application.ScreenUpdating
+    Application.ScreenUpdating = False
+    hasOutputStyle = ex_SheetStylesXmlProvider.m_GetOutputSheetStyle(outputStyle, ThisWorkbook)
+    If hasOutputStyle Then
+        ex_OutputPanel.m_DeletePanelButtonsForSheet ws
+    End If
+
+    ex_ScriptIO.m_SetInput g_LastPostProcessInput
+    ex_ScriptDSL.m_ApplyScriptToSheet ws, g_LastPostProcessCfg, g_LastPostProcessTables, POST_PROCESS_SCRIPT_KEY_EXPLICIT
+    If hasOutputStyle Then
+        ex_OutputPanel.m_RenderForSheet ws, outputStyle
+    End If
+    Application.ScreenUpdating = prevScreenUpdating
     Exit Sub
 
 EH:
     errNumber = Err.Number
     errSource = Err.Source
     errDescription = Err.Description
+    On Error Resume Next
+    If hasOutputStyle And Not ws Is Nothing Then ex_OutputPanel.m_RenderForSheet ws, outputStyle
+    Application.ScreenUpdating = prevScreenUpdating
+    On Error GoTo 0
     MsgBox "Post-process failed: [" & errSource & " #" & CStr(errNumber) & "] " & errDescription, vbExclamation
 End Sub
 
 Public Sub m_ResetResultPageSessionState()
     mp_ResetAdoLookupCaches
-    ex_PostProcessDsl.m_ResetScriptCache
+    ex_ScriptDSL.m_ResetScriptCache
     Set g_LastPostProcessCfg = Nothing
     Set g_LastPostProcessTables = Nothing
+    Set g_LastPostProcessInput = Nothing
     g_LastResultHasPartialMatchCandidates = False
     ex_SheetViewZoom.m_ResetZoomCache RESULT_SHEET_NAME
 End Sub
 
-Private Sub mp_StorePostProcessContext(ByVal cfg As Object, ByVal resultTables As Collection, ByVal hasPartialMatchCandidates As Boolean)
+Private Sub mp_StoreScriptContext( _
+    ByVal cfg As Object, _
+    ByVal resultTables As Collection, _
+    ByVal hasPartialMatchCandidates As Boolean, _
+    ByVal inputContext As Object _
+)
     Set g_LastPostProcessCfg = cfg
     Set g_LastPostProcessTables = resultTables
     g_LastResultHasPartialMatchCandidates = hasPartialMatchCandidates
+    Set g_LastPostProcessInput = inputContext
 End Sub
 
-Private Function mp_ShouldAutoPostProcess() As Boolean
-    Dim valueText As String
-    Dim parsed As Boolean
+Private Function mp_CreateScriptInputContext(ByVal fio As String) As Object
+    Dim ctx As obj_ScriptIOPayload
 
-    valueText = ex_XmlCore.m_GetSettingsValue("st_AutoPostProcess", "true")
-    If ex_XmlCore.m_TryParseBoolean(valueText, parsed) Then
-        mp_ShouldAutoPostProcess = parsed
-    Else
-        mp_ShouldAutoPostProcess = True
-    End If
+    Set ctx = New obj_ScriptIOPayload
+    ctx.m_SetString "CommonKey", CStr(fio)
+
+    Set mp_CreateScriptInputContext = ctx
 End Function
 
 Private Function mp_ShouldStrictPreflightValidation() As Boolean
@@ -508,7 +599,6 @@ End Function
 
 Private Function mp_ValidateTimelineConfig( _
     ByVal cfg As Object, _
-    ByVal cfgStyles As Object, _
     ByVal mode As OutputMode, _
     ByRef outErrorText As String _
 ) As Boolean
@@ -543,13 +633,11 @@ Private Function mp_ValidateTimelineConfig( _
         sourceAlias = mp_GetSourceAliasCached(cfg, tableAlias, tableSourceMap)
         tableType = LCase$(mp_GetCfgRequired(cfg, sourceAlias & ".Sheet[" & tableAlias & "].Type"))
 
-        If mode = StateTableOnly And tableType <> "state" Then GoTo ContinueAlias
-        If mode = EventsTableOnly And tableType <> "events" Then GoTo ContinueAlias
-
-        If tableType <> "state" And tableType <> "events" Then
+        If Not mp_IsSupportedOutputTableType(tableType) Then
             Err.Raise vbObjectError + 1301, "ex_PersonTimeline", _
                 "Unsupported table type for alias '" & tableAlias & "': " & tableType
         End If
+        If Not mp_ShouldRenderTableForMode(mode, tableType) Then GoTo ContinueAlias
 
         Call mp_GetCfgRequired(cfg, sourceAlias & ".Sheet[" & tableAlias & "].SheetName")
         Call mp_GetCfgRequired(cfg, sourceAlias & ".Sheet[" & tableAlias & "].Key")
@@ -599,7 +687,7 @@ ContinueAlias:
         activeModeKey = ex_ConfigProfilesManager.m_GetActiveModeKey(ws_Dev)
         If Not ex_StylePipelineEngine.m_ValidateColumnStylesPipeline( _
             resultFieldRanges, _
-            cfgStyles, _
+            Nothing, _
             activeModeKey, _
             outErrorText, _
             ThisWorkbook, _
@@ -671,7 +759,6 @@ Private Function mp_WriteStateCardGeneric( _
     Dim rowCount As Long
     Dim stepName As String
     Dim showNoStateRow As Boolean
-
     Dim sourceFields As Variant
     sourceFields = mp_GetOrderedFieldAliases(cfg, sourceAlias, tableAlias)
     Dim fields As Variant
@@ -769,7 +856,7 @@ ContinueExactField:
 
         wsOut.Range(wsOut.Cells(valueRow, 1), wsOut.Cells(dataEndRow, fieldCount)).Value2 = outValues
         Set fetchKindsBySheetRow = mp_BuildSheetRowKindsMap(fetchKindsByOutRow, valueRow)
-        mp_CaptureResultTableRowsFromOutput wsOut, resultTable, sourceAlias, tableAlias, fields, valueRow, dataEndRow, fetchKindsBySheetRow
+        mp_CaptureResultTableRowsFromOutput wsOut, resultTable, sourceAlias, tableAlias, fields, valueRow, dataEndRow, fetchKindsBySheetRow, headerRow, dataEndRow
 
         rs.Close
         outTableRendered = True
@@ -809,10 +896,10 @@ ContinueExactField:
     partialRows = rs.GetRows
     partialCount = UBound(partialRows, 2) - LBound(partialRows, 2) + 1
 
-    rowIndex = mp_RenderStateCandidatesWarningBanner(wsOut, rowIndex, fio, partialCount, pendingWarningBanners)
     wsOut.Cells(rowIndex, 1).Value = "Candidates [State " & tableAlias & "] (" & CStr(partialCount) & ")"
     sectionRows.Add rowIndex
     rowIndex = rowIndex + 1
+    rowIndex = mp_RenderStateCandidatesWarningBanner(wsOut, rowIndex, fio, partialCount, pendingWarningBanners)
 
     headerRow = rowIndex
     headerRows.Add headerRow
@@ -829,7 +916,7 @@ ContinueExactField:
 
     wsOut.Range(wsOut.Cells(valueRow, 1), wsOut.Cells(dataEndRow, 1)).Value2 = partialValues
     mp_AddResultFieldRange resultFieldRanges, sourceAlias, tableAlias, keyAlias, 1, headerRow, dataEndRow
-    mp_CaptureResultTableRowsFromOutput wsOut, resultTable, sourceAlias, tableAlias, keyOnlyFields, valueRow, dataEndRow
+    mp_CaptureResultTableRowsFromOutput wsOut, resultTable, sourceAlias, tableAlias, keyOnlyFields, valueRow, dataEndRow, visualRowStart:=headerRow, visualRowEnd:=dataEndRow
     mp_AddPartialMatchRowRange partialMatchRowRanges, headerRow, dataEndRow
 
     rs.Close
@@ -842,6 +929,7 @@ EH:
     Dim innerErrDescription As String
     innerErrNumber = Err.Number
     innerErrDescription = Err.Description
+    innerErrDescription = mp_LocalizeInnerErrorRu(innerErrDescription)
 
     On Error Resume Next
     If Not rs Is Nothing Then
@@ -850,8 +938,8 @@ EH:
     On Error GoTo 0
 
     Err.Raise vbObjectError + 1319, "ex_PersonTimeline.mp_WriteStateCardGeneric", _
-        "Failed for table alias '" & tableAlias & "' (source '" & sourceAlias & "') at step '" & stepName & "'. " & _
-        "SQL=[" & sql & "]. InnerError #" & CStr(innerErrNumber) & ": " & innerErrDescription
+        "Ошибка для таблицы '" & tableAlias & "' (источник '" & sourceAlias & "') на шаге '" & stepName & "'. " & _
+        "SQL=[" & sql & "]. Внутренняя ошибка #" & CStr(innerErrNumber) & ": " & innerErrDescription
 End Function
 
 Private Function mp_WriteEventsGeneric( _
@@ -973,7 +1061,7 @@ Private Function mp_WriteEventsGeneric( _
 
         wsOut.Range(wsOut.Cells(outDataRow, 1), wsOut.Cells(keyDataEndRow, 1)).Value2 = partialValues
         mp_AddResultFieldRange resultFieldRanges, sourceAlias, tableAlias, keyAlias, 1, outHeaderRow, keyDataEndRow
-        mp_CaptureResultTableRowsFromOutput wsOut, resultTable, sourceAlias, tableAlias, keyOnlyFields, outDataRow, keyDataEndRow
+        mp_CaptureResultTableRowsFromOutput wsOut, resultTable, sourceAlias, tableAlias, keyOnlyFields, outDataRow, keyDataEndRow, visualRowStart:=outHeaderRow, visualRowEnd:=keyDataEndRow
         mp_AddPartialMatchRowRange partialMatchRowRanges, outHeaderRow, keyDataEndRow
 
         outTableRendered = True
@@ -1055,20 +1143,20 @@ Private Function mp_WriteEventsGeneric( _
 
     mp_AddResultFieldRangesForFields resultFieldRanges, cfg, sourceAlias, tableAlias, fields, outHeaderRow, outDataRow - 1
     Set fetchKindsBySheetRow = mp_BuildSheetRowKindsMap(fetchKindsByOutRow, outHeaderRow + 1)
-    mp_CaptureResultTableRowsFromOutput wsOut, resultTable, sourceAlias, tableAlias, fields, outHeaderRow + 1, outDataRow - 1, fetchKindsBySheetRow
+    mp_CaptureResultTableRowsFromOutput wsOut, resultTable, sourceAlias, tableAlias, fields, outHeaderRow + 1, outDataRow - 1, fetchKindsBySheetRow, outHeaderRow, outDataRow - 1
 
     outTableRendered = True
-    mp_WriteEventsGeneric = outDataRow + 1
+    mp_WriteEventsGeneric = outDataRow
     Exit Function
 
 SortEH:
     Err.Clear
     mp_AddResultFieldRangesForFields resultFieldRanges, cfg, sourceAlias, tableAlias, fields, outHeaderRow, outDataRow - 1
     Set fetchKindsBySheetRow = mp_BuildSheetRowKindsMap(fetchKindsByOutRow, outHeaderRow + 1)
-    mp_CaptureResultTableRowsFromOutput wsOut, resultTable, sourceAlias, tableAlias, fields, outHeaderRow + 1, outDataRow - 1, fetchKindsBySheetRow
+    mp_CaptureResultTableRowsFromOutput wsOut, resultTable, sourceAlias, tableAlias, fields, outHeaderRow + 1, outDataRow - 1, fetchKindsBySheetRow, outHeaderRow, outDataRow - 1
     On Error GoTo EH
     outTableRendered = True
-    mp_WriteEventsGeneric = outDataRow + 1
+    mp_WriteEventsGeneric = outDataRow
     Exit Function
 
 EH:
@@ -1076,6 +1164,7 @@ EH:
     Dim innerErrDescription As String
     innerErrNumber = Err.Number
     innerErrDescription = Err.Description
+    innerErrDescription = mp_LocalizeInnerErrorRu(innerErrDescription)
 
     On Error Resume Next
     If Not rs Is Nothing Then
@@ -1084,8 +1173,8 @@ EH:
     On Error GoTo 0
 
     Err.Raise vbObjectError + 1329, "ex_PersonTimeline.mp_WriteEventsGeneric", _
-        "Failed for table alias '" & tableAlias & "' (source '" & sourceAlias & "') at step '" & stepName & "'. " & _
-        "SQL=[" & sql & "]. InnerError #" & CStr(innerErrNumber) & ": " & innerErrDescription
+        "Ошибка для таблицы '" & tableAlias & "' (источник '" & sourceAlias & "') на шаге '" & stepName & "'. " & _
+        "SQL=[" & sql & "]. Внутренняя ошибка #" & CStr(innerErrNumber) & ": " & innerErrDescription
 
 End Function
 
@@ -1165,7 +1254,7 @@ Private Function mp_BuildAdoRangeReferenceFromMarkers( _
             sourceAlias & ".Sheet[" & tableAlias & "].SheetName."
     End If
 
-    sourcePath = mp_ResolvePathLocal(mp_GetCfgRequired(cfg, "Source." & sourceAlias & ".FilePath"))
+    sourcePath = mp_GetResolvedSourcePath(cfg, sourceAlias)
     If Dir(sourcePath) = vbNullString Then
         Err.Raise vbObjectError + 1360, "ex_PersonTimeline", "Source file not found: " & sourcePath
     End If
@@ -1710,24 +1799,20 @@ Private Sub mp_ApplyTimelineStyleLayers( _
     ByVal sectionRows As Collection, _
     ByVal resultFieldRanges As Collection, _
     ByVal resultTables As Collection, _
-    ByVal cfgStyles As Object, _
     ByVal partialMatchRowRanges As Collection, _
     ByVal hasOutputStyle As Boolean, _
     ByRef outputStyle As t_OutputSheetStyle, _
     ByVal pendingWarningBanners As Collection _
 )
     Dim rowKindRanges As Object
-    Dim configRowKindRanges As Object
     Dim partialRowKindRanges As Object
     Dim fetchDslRowKindRanges As Object
     Dim runtimeLayers As Collection
     Dim runtimeLayer As obj_StyleLayer
 
     Set rowKindRanges = mp_BuildTimelineRowKindRanges(headerRows, sectionRows, resultFieldRanges)
-    Set configRowKindRanges = mp_BuildConfigStyleRowKindRanges(resultFieldRanges, cfgStyles)
     Set partialRowKindRanges = mp_BuildPartialMatchRowKindRanges(partialMatchRowRanges)
     Set fetchDslRowKindRanges = mp_BuildFetchDslRowKindRanges(resultTables)
-    mp_MergeRowKindRanges rowKindRanges, configRowKindRanges
     mp_MergeRowKindRanges rowKindRanges, partialRowKindRanges
     mp_MergeRowKindRanges rowKindRanges, fetchDslRowKindRanges
 
@@ -1738,10 +1823,7 @@ Private Sub mp_ApplyTimelineStyleLayers( _
         If Not runtimeLayer Is Nothing Then runtimeLayers.Add runtimeLayer
     End If
 
-    Set runtimeLayer = ex_Messaging.m_CreateWarningBannersRuntimeLayer(ws, pendingWarningBanners, "runtime-warning-banners", 850)
-    If Not runtimeLayer Is Nothing Then runtimeLayers.Add runtimeLayer
-
-    ex_OutputFormattingPipeline.m_ApplySheetPipeline ws, resultFieldRanges, cfgStyles, rowKindRanges, vbNullString, False, runtimeLayers
+    ex_OutputFormattingPipeline.m_ApplySheetPipeline ws, resultFieldRanges, Nothing, rowKindRanges, vbNullString, False, runtimeLayers
 End Sub
 
 Private Function mp_BuildFetchDslRowKindRanges(ByVal resultTables As Collection) As Object
@@ -1864,58 +1946,6 @@ Private Sub mp_MergeRowKindRanges(ByVal targetRanges As Object, ByVal sourceRang
 ContinueKind:
     Next kindName
 End Sub
-
-Private Function mp_BuildConfigStyleRowKindRanges( _
-    ByVal resultFieldRanges As Collection, _
-    ByVal cfgStyles As Object _
-) As Object
-    Dim result As Object
-    Dim configStyleRanges As Collection
-    Dim dedupe As Object
-    Dim target As Object
-    Dim mapKey As String
-    Dim styleText As String
-    Dim rowStart As Long
-    Dim rowEnd As Long
-    Dim dedupeKey As String
-    Dim rowItem As Object
-
-    Set result = CreateObject("Scripting.Dictionary")
-    result.CompareMode = 1
-    Set configStyleRanges = New Collection
-    Set dedupe = CreateObject("Scripting.Dictionary")
-    dedupe.CompareMode = 1
-
-    If Not resultFieldRanges Is Nothing And Not cfgStyles Is Nothing Then
-        For Each target In resultFieldRanges
-            If target Is Nothing Then GoTo ContinueTarget
-            mapKey = Trim$(CStr(target("MapKey")))
-            If Len(mapKey) = 0 Then GoTo ContinueTarget
-            If Not cfgStyles.Exists(mapKey) Then GoTo ContinueTarget
-            styleText = Trim$(CStr(cfgStyles(mapKey)))
-            If Len(styleText) = 0 Then GoTo ContinueTarget
-
-            rowStart = CLng(target("RowStart"))
-            rowEnd = CLng(target("RowEnd"))
-            If rowStart <= 0 Then GoTo ContinueTarget
-            If rowEnd < rowStart Then rowEnd = rowStart
-
-            dedupeKey = CStr(rowStart) & ":" & CStr(rowEnd)
-            If dedupe.Exists(dedupeKey) Then GoTo ContinueTarget
-            dedupe(dedupeKey) = True
-
-            Set rowItem = CreateObject("Scripting.Dictionary")
-            rowItem.CompareMode = 1
-            rowItem("RowStart") = rowStart
-            rowItem("RowEnd") = rowEnd
-            configStyleRanges.Add rowItem
-ContinueTarget:
-        Next target
-    End If
-
-    Set result("configstyle") = configStyleRanges
-    Set mp_BuildConfigStyleRowKindRanges = result
-End Function
 
 Private Function mp_BuildPartialMatchRowKindRanges(ByVal partialMatchRowRanges As Collection) As Object
     Dim result As Object
@@ -2184,7 +2214,9 @@ Private Sub mp_CaptureResultTableRowsFromOutput( _
     ByVal fields As Variant, _
     ByVal dataRowStart As Long, _
     ByVal dataRowEnd As Long, _
-    Optional ByVal rowKindsBySheetRow As Object = Nothing _
+    Optional ByVal rowKindsBySheetRow As Object = Nothing, _
+    Optional ByVal visualRowStart As Long = 0, _
+    Optional ByVal visualRowEnd As Long = 0 _
 )
     Dim r As Long
     Dim i As Long
@@ -2198,6 +2230,8 @@ Private Sub mp_CaptureResultTableRowsFromOutput( _
     Dim dataRange As Range
     Dim capturedValues As Variant
     Dim isScalarRange As Boolean
+    Dim rowOrdinal As Long
+    Dim rowAnchorName As String
 
     If wsOut Is Nothing Then Exit Sub
     If resultTable Is Nothing Then Exit Sub
@@ -2214,6 +2248,13 @@ Private Sub mp_CaptureResultTableRowsFromOutput( _
 
     For r = dataRowStart To dataRowEnd
         Set rowObj = resultTable.EnsureRow(r)
+        rowOrdinal = r - dataRowStart + 1
+        rowAnchorName = ex_Messaging.m_BuildResultRowAnchorName(resultTable.TableRef, rowOrdinal)
+        If Len(rowAnchorName) = 0 Then
+            Err.Raise vbObjectError + 1316, "ex_PersonTimeline", "Unable to build row anchor name for table '" & resultTable.TableRef & "' row ordinal " & CStr(rowOrdinal) & "."
+        End If
+        rowObj.RowAnchorName = rowAnchorName
+        ex_Messaging.m_RegisterResultRowAnchor wsOut, rowAnchorName, r
         If Not rowKindsBySheetRow Is Nothing Then
             If rowKindsBySheetRow.Exists(CStr(r)) Then
                 rowObj.Kind = CStr(rowKindsBySheetRow(CStr(r)))
@@ -2238,6 +2279,10 @@ Private Sub mp_CaptureResultTableRowsFromOutput( _
 ContinueField:
         Next i
     Next r
+
+    If visualRowStart <= 0 Then visualRowStart = dataRowStart
+    If visualRowEnd < visualRowStart Then visualRowEnd = dataRowEnd
+    ex_Messaging.m_RegisterResultTableAnchor wsOut, resultTable.TableRef, visualRowStart, visualRowEnd
 End Sub
 
 Private Sub mp_AddResultFieldRangesForFields( _
@@ -2359,6 +2404,176 @@ ContinueKey:
     Set mp_BuildSheetRowKindsMap = result
 End Function
 
+Private Function mp_AdvanceRowIndexAfterRenderedTable( _
+    ByVal cfg As Object, _
+    ByVal outputAliases As Variant, _
+    ByVal currentIndex As Long, _
+    ByVal mode As OutputMode, _
+    ByVal tableSourceMap As Object, _
+    ByVal currentTableAlias As String, _
+    ByVal currentTableType As String, _
+    ByVal rowIndexAfterCurrentTable As Long _
+) As Long
+    Dim nextSourceAlias As String
+    Dim nextTableAlias As String
+    Dim nextTableType As String
+    Dim gapRows As Long
+
+    mp_AdvanceRowIndexAfterRenderedTable = rowIndexAfterCurrentTable
+
+    If Not mp_TryGetNextRenderableOutputTable(cfg, outputAliases, currentIndex, mode, tableSourceMap, nextSourceAlias, nextTableAlias, nextTableType) Then
+        Exit Function
+    End If
+
+    gapRows = mp_GetOutputTablesGapRows(cfg, currentTableAlias, currentTableType, nextTableAlias, nextTableType)
+    If gapRows > 0 Then
+        mp_AdvanceRowIndexAfterRenderedTable = rowIndexAfterCurrentTable + gapRows
+    End If
+End Function
+
+Private Function mp_TryGetNextRenderableOutputTable( _
+    ByVal cfg As Object, _
+    ByVal outputAliases As Variant, _
+    ByVal fromIndex As Long, _
+    ByVal mode As OutputMode, _
+    ByVal tableSourceMap As Object, _
+    ByRef outSourceAlias As String, _
+    ByRef outTableAlias As String, _
+    ByRef outTableType As String _
+) As Boolean
+    Dim i As Long
+    Dim candidateAlias As String
+    Dim candidateSourceAlias As String
+    Dim candidateTableType As String
+
+    For i = fromIndex + 1 To UBound(outputAliases)
+        candidateAlias = Trim$(CStr(outputAliases(i)))
+        If Len(candidateAlias) = 0 Then GoTo ContinueCandidate
+
+        candidateSourceAlias = mp_GetSourceAliasCached(cfg, candidateAlias, tableSourceMap)
+        candidateTableType = LCase$(mp_GetCfgRequired(cfg, candidateSourceAlias & ".Sheet[" & candidateAlias & "].Type"))
+
+        If Not mp_IsSupportedOutputTableType(candidateTableType) Then
+            Err.Raise vbObjectError + 1301, "ex_PersonTimeline", _
+                "Unsupported table type for alias '" & candidateAlias & "': " & candidateTableType
+        End If
+
+        If Not mp_ShouldRenderTableForMode(mode, candidateTableType) Then
+            GoTo ContinueCandidate
+        End If
+
+        outSourceAlias = candidateSourceAlias
+        outTableAlias = candidateAlias
+        outTableType = candidateTableType
+        mp_TryGetNextRenderableOutputTable = True
+        Exit Function
+ContinueCandidate:
+    Next i
+End Function
+
+Private Function mp_GetOutputTablesGapRows( _
+    ByVal cfg As Object, _
+    ByVal currentTableAlias As String, _
+    ByVal currentTableType As String, _
+    ByVal nextTableAlias As String, _
+    ByVal nextTableType As String _
+) As Long
+    Dim keyName As String
+    Dim currentTypeToken As String
+    Dim nextTypeToken As String
+
+    currentTypeToken = mp_ToOutputTableTypeToken(currentTableType)
+    nextTypeToken = mp_ToOutputTableTypeToken(nextTableType)
+
+    keyName = "Output.Layout.Gap.Between[" & currentTableAlias & "->" & nextTableAlias & "]"
+    If cfg.Exists(keyName) Then
+        mp_GetOutputTablesGapRows = mp_GetCfgNonNegativeLongValue(cfg, keyName)
+        Exit Function
+    End If
+
+    keyName = "Output.Layout.Gap.BetweenType[" & currentTypeToken & "->" & nextTypeToken & "]"
+    If cfg.Exists(keyName) Then
+        mp_GetOutputTablesGapRows = mp_GetCfgNonNegativeLongValue(cfg, keyName)
+        Exit Function
+    End If
+
+    keyName = "Output.Layout.Gap.After[" & currentTableAlias & "]"
+    If cfg.Exists(keyName) Then
+        mp_GetOutputTablesGapRows = mp_GetCfgNonNegativeLongValue(cfg, keyName)
+        Exit Function
+    End If
+
+    keyName = "Output.Layout.Gap.AfterType[" & currentTypeToken & "]"
+    If cfg.Exists(keyName) Then
+        mp_GetOutputTablesGapRows = mp_GetCfgNonNegativeLongValue(cfg, keyName)
+        Exit Function
+    End If
+
+    keyName = "Output.Layout.Gap.Default"
+    If cfg.Exists(keyName) Then
+        mp_GetOutputTablesGapRows = mp_GetCfgNonNegativeLongValue(cfg, keyName)
+        Exit Function
+    End If
+
+    mp_GetOutputTablesGapRows = 1
+End Function
+
+Private Function mp_IsSupportedOutputTableType(ByVal tableType As String) As Boolean
+    mp_IsSupportedOutputTableType = (tableType = "state" Or tableType = "events")
+End Function
+
+Private Function mp_ShouldRenderTableForMode(ByVal mode As OutputMode, ByVal tableType As String) As Boolean
+    If mode = StateTableOnly And tableType <> "state" Then Exit Function
+    If mode = EventsTableOnly And tableType <> "events" Then Exit Function
+    mp_ShouldRenderTableForMode = True
+End Function
+
+Private Function mp_ToOutputTableTypeToken(ByVal tableType As String) As String
+    Select Case LCase$(Trim$(tableType))
+        Case "state"
+            mp_ToOutputTableTypeToken = "State"
+        Case "events"
+            mp_ToOutputTableTypeToken = "Events"
+        Case Else
+            mp_ToOutputTableTypeToken = Trim$(tableType)
+    End Select
+End Function
+
+Private Function mp_GetCfgNonNegativeLongValue(ByVal cfg As Object, ByVal keyName As String) As Long
+    Dim rawValue As String
+    Dim parsedValue As Long
+
+    rawValue = mp_GetCfgRequired(cfg, keyName)
+    If Not mp_TryParseNonNegativeLong(rawValue, parsedValue) Then
+        Err.Raise vbObjectError + 1760, "ex_PersonTimeline", _
+            "Config key '" & keyName & "' must be a non-negative integer, got: '" & rawValue & "'."
+    End If
+
+    mp_GetCfgNonNegativeLongValue = parsedValue
+End Function
+
+Private Function mp_TryParseNonNegativeLong(ByVal rawValue As String, ByRef outValue As Long) As Boolean
+    Dim textValue As String
+    Dim i As Long
+    Dim ch As String
+
+    textValue = Trim$(rawValue)
+    If Len(textValue) = 0 Then Exit Function
+
+    For i = 1 To Len(textValue)
+        ch = Mid$(textValue, i, 1)
+        If ch < "0" Or ch > "9" Then Exit Function
+    Next i
+
+    On Error GoTo ParseEH
+    outValue = CLng(textValue)
+    mp_TryParseNonNegativeLong = True
+    Exit Function
+
+ParseEH:
+    mp_TryParseNonNegativeLong = False
+End Function
+
 Private Function mp_FindSourceAliasForTable(ByVal cfg As Object, ByVal tableAlias As String) As String
     Dim sourceAliases As Variant
     Dim aliases As Variant
@@ -2435,7 +2650,6 @@ Private Function mp_GetSourceAliases(ByVal cfg As Object) As Variant
 End Function
 
 Private Function mp_GetConnectionForSource(ByVal connCache As Object, ByVal cfg As Object, ByVal sourceAlias As String) As Object
-    Dim fileKey As String
     Dim sourcePath As String
     Dim snapshotPath As String
     Dim conn As Object
@@ -2445,8 +2659,7 @@ Private Function mp_GetConnectionForSource(ByVal connCache As Object, ByVal cfg 
         Exit Function
     End If
 
-    fileKey = "Source." & sourceAlias & ".FilePath"
-    sourcePath = mp_ResolvePathLocal(mp_GetCfgRequired(cfg, fileKey))
+    sourcePath = mp_GetResolvedSourcePath(cfg, sourceAlias)
 
     If Dir(sourcePath) = vbNullString Then
         Err.Raise vbObjectError + 1360, "ex_PersonTimeline", "Source file not found: " & sourcePath
@@ -2877,7 +3090,20 @@ Private Function mp_BuildExpectedHeadersSignature(ByVal expectedHeaders As Varia
 End Function
 
 Private Function mp_QuoteSqlIdentifier(ByVal value As String) As String
+    value = Trim$(value)
+    If Len(value) >= 2 Then
+        If Left$(value, 1) = "[" And Right$(value, 1) = "]" Then
+            value = Mid$(value, 2, Len(value) - 2)
+        End If
+    End If
     mp_QuoteSqlIdentifier = "[" & Replace$(value, "]", "]]" ) & "]"
+End Function
+
+Private Function mp_LocalizeInnerErrorRu(ByVal errorText As String) As String
+    errorText = Replace$(errorText, "Неприпустиме використання дужок для імен", "Недопустимое использование скобок для имен")
+    errorText = Replace$(errorText, "Ім'я", "Имя")
+    errorText = Replace$(errorText, "імен", "имен")
+    mp_LocalizeInnerErrorRu = errorText
 End Function
 
 Private Function mp_BuildAdoWhereEquals(ByVal columnName As String, ByVal valueText As String) As String
@@ -3158,7 +3384,7 @@ Private Function mp_RenderEventsNoData( _
     outDataRow = outHeaderRow + 1
     wsOut.Cells(outDataRow, 1).Value = "(no events found for this person)"
     mp_AddResultFieldRangesForFields resultFieldRanges, cfg, sourceAlias, tableAlias, fields, outHeaderRow, outDataRow
-    mp_CaptureResultTableRowsFromOutput wsOut, resultTable, sourceAlias, tableAlias, fields, outDataRow, outDataRow
+    mp_CaptureResultTableRowsFromOutput wsOut, resultTable, sourceAlias, tableAlias, fields, outDataRow, outDataRow, visualRowStart:=outHeaderRow, visualRowEnd:=outDataRow
 
     mp_RenderEventsNoData = outDataRow + 1
 End Function
@@ -3197,7 +3423,7 @@ Private Function mp_RenderStateNoData( _
     outDataRow = outHeaderRow + 1
     wsOut.Cells(outDataRow, 1).Value = "(no state found for this person)"
     mp_AddResultFieldRangesForFields resultFieldRanges, cfg, sourceAlias, tableAlias, fields, outHeaderRow, outDataRow
-    mp_CaptureResultTableRowsFromOutput wsOut, resultTable, sourceAlias, tableAlias, fields, outDataRow, outDataRow
+    mp_CaptureResultTableRowsFromOutput wsOut, resultTable, sourceAlias, tableAlias, fields, outDataRow, outDataRow, visualRowStart:=outHeaderRow, visualRowEnd:=outDataRow
 
     mp_RenderStateNoData = outDataRow + 1
 End Function
@@ -3218,6 +3444,7 @@ Private Function mp_RenderStateCandidatesWarningBanner( _
 
     If startRow < 1 Then startRow = 1
     mp_GetWarningBannerDimensions bannerCols, bannerRows
+    bannerRows = 1
     bannerRangeAddress = "A" & CStr(startRow) & ":" & mp_ToColumnLetter(bannerCols) & CStr(startRow + bannerRows - 1)
 
     titleText = "WARNING: Multiple candidates found"
@@ -3303,10 +3530,7 @@ Private Function mp_GetWorkbookForSource(ByVal wbCache As Object, ByVal cfg As O
         Exit Function
     End If
 
-    Dim fileKey As String
-    fileKey = "Source." & sourceAlias & ".FilePath"
-
-    sourcePath = mp_ResolvePathLocal(mp_GetCfgRequired(cfg, fileKey))
+    sourcePath = mp_GetResolvedSourcePath(cfg, sourceAlias)
 
     If Dir(sourcePath) = vbNullString Then
         Err.Raise vbObjectError + 1360, "ex_PersonTimeline", "Source file not found: " & sourcePath
@@ -3601,6 +3825,12 @@ Private Function mp_GetMappedSourceHeader( _
         mp_GetMappedSourceHeader = Trim$(Left$(raw, p - 1))
     Else
         mp_GetMappedSourceHeader = Trim$(raw)
+    End If
+
+    If Len(mp_GetMappedSourceHeader) >= 2 Then
+        If Left$(mp_GetMappedSourceHeader, 1) = "[" And Right$(mp_GetMappedSourceHeader, 1) = "]" Then
+            mp_GetMappedSourceHeader = Trim$(Mid$(mp_GetMappedSourceHeader, 2, Len(mp_GetMappedSourceHeader) - 2))
+        End If
     End If
 
     If Len(mp_GetMappedSourceHeader) = 0 Then
@@ -3985,6 +4215,82 @@ Private Function mp_TryParseDate(ByVal valueIn As Variant, ByRef dateOut As Date
 
 EH:
     mp_TryParseDate = False
+End Function
+
+Private Function mp_GetResolvedSourcePath(ByVal cfg As Object, ByVal sourceAlias As String) As String
+    Dim sourcePrefix As String
+    Dim fileKey As String
+    Dim resolverKey As String
+    Dim resolverArgsKey As String
+    Dim rawPath As String
+    Dim resolverName As String
+    Dim resolverCallName As String
+    Dim resolverArgs As String
+    Dim resolvedValue As Variant
+    Dim resolvedPath As String
+
+    sourcePrefix = "Source." & Trim$(sourceAlias)
+    fileKey = sourcePrefix & ".FilePath"
+    resolverKey = sourcePrefix & ".FileResolver"
+    resolverArgsKey = sourcePrefix & ".FileResolverArgs"
+
+    rawPath = mp_GetCfgRequired(cfg, fileKey)
+    resolverName = mp_GetCfgOptional(cfg, resolverKey, vbNullString)
+    resolverArgs = mp_GetCfgOptional(cfg, resolverArgsKey, vbNullString)
+
+    If Len(resolverName) = 0 Then
+        If mp_HasPlaceholderTokens(rawPath) Then
+            Err.Raise vbObjectError + 1762, "ex_PersonTimeline", _
+                "Source path contains placeholders but no resolver is configured for key '" & fileKey & "'. " & _
+                "Set '" & resolverKey & "' (for example: ex_SourceResolvers.m_ResolveLatestByDmyPattern)."
+        End If
+
+        mp_GetResolvedSourcePath = mp_ResolvePathLocal(rawPath)
+        Exit Function
+    End If
+
+    If InStr(1, resolverName, "!", vbBinaryCompare) > 0 Then
+        resolverCallName = resolverName
+    Else
+        resolverCallName = "'" & ThisWorkbook.Name & "'!" & resolverName
+    End If
+
+    On Error GoTo ResolverEH
+    resolvedValue = Application.Run(resolverCallName, rawPath, resolverArgs)
+    On Error GoTo 0
+
+    resolvedPath = Trim$(CStr(resolvedValue))
+    If Len(resolvedPath) = 0 Then
+        Err.Raise vbObjectError + 1760, "ex_PersonTimeline", _
+            "Source file resolver '" & resolverName & "' returned an empty path for key '" & fileKey & "'."
+    End If
+
+    mp_GetResolvedSourcePath = mp_ResolvePathLocal(resolvedPath)
+    Exit Function
+
+ResolverEH:
+    Err.Raise vbObjectError + 1761, "ex_PersonTimeline", _
+        "Source file resolver failed for key '" & fileKey & "' (resolver='" & resolverName & "'): " & Err.Description
+End Function
+
+Private Function mp_GetSourcePathSignatureValue(ByVal cfg As Object, ByVal sourceAlias As String) As String
+    On Error GoTo EH
+
+    mp_GetSourcePathSignatureValue = mp_GetResolvedSourcePath(cfg, sourceAlias)
+    Exit Function
+
+EH:
+    mp_GetSourcePathSignatureValue = "#ERR:" & CStr(Err.Number) & ":" & Err.Description
+End Function
+
+Private Function mp_HasPlaceholderTokens(ByVal valueText As String) As Boolean
+    Dim normalized As String
+
+    normalized = Trim$(valueText)
+    If Len(normalized) = 0 Then Exit Function
+
+    mp_HasPlaceholderTokens = (InStr(1, normalized, "{", vbBinaryCompare) > 0) _
+                              And (InStr(1, normalized, "}", vbBinaryCompare) > 0)
 End Function
 
 Private Function mp_ResolvePathLocal(ByVal inputPath As String) As String
