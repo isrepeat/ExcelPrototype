@@ -109,6 +109,20 @@
               }"/>
       </layer>
 
+      <layer name="dev-config-table-mutable" priority="225" enabled="true">
+        <rule target="row"
+              selector="kind=configmutable;col=2:4"
+              styles="{
+                backColor:#223A35;
+                fontColor:#D7FFF3;
+              }"/>
+        <rule target="row"
+              selector="kind=configmutable;col=2"
+              styles="{
+                fontBold:true;
+              }"/>
+      </layer>
+
       <layer name="dev-config-table-marker" priority="230" enabled="true">
         <rule target="row"
               selector="kind=configmarker;col=1:4"

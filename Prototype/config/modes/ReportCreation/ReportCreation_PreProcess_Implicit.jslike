@@ -1,0 +1,20 @@
+// Minimal PreProcess DSL for Input.Mode=Script
+// Supported statements:
+//   pushKey("...");
+//   pushKeys("a; b; c");
+//   pushKeysFromConfig("ConfigKeyName");
+//   fromConfig("ConfigKeyName");
+//   resolveLatestByDmyPattern("ConfigKeyName");
+//   resolveLatestByDmyPattern("ConfigKeyName", "resolverArgs");
+//   pushKeysFromSource("SourceAlias", "TableAlias");
+//   pushKeysFromSource("SourceAlias", "TableAlias", "KeyFieldAlias");
+
+// Example: resolve file path by date pattern if Source.*.FilePath contains placeholders.
+// resolveLatestByDmyPattern("Source.Main.FilePath");
+// resolveLatestByDmyPattern("Source.Events.FilePath");
+
+// Example: collect keys directly from source table by configured Key alias.
+pushKeysFromSource("Main", "StateMain");
+
+// Optional fallback/additional keys from manual config:
+// pushKeysFromConfig("MultiKeys");

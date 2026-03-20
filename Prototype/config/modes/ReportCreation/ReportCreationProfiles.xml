@@ -1,0 +1,53 @@
+<?xml version="1.0" standalone="yes"?>
+<profiles version="1" xmlns="urn:excelprototype:profiles">
+  <profile name="Default" resultZoom="100">
+    <ui>
+      <control name="btnClear" visible="true"/>
+      <control name="btnReportCreation" visible="true"/>
+      <control name="btnUpdateCode" visible="true"/>
+      <control name="btnCustomProfile" visible="true"/>
+      <control name="btnCustomMode" visible="true"/>
+    </ui>
+
+    <v key="Source.Main.FilePath">..\TESTS\GetReferences\PeopleStateUA.xlsx</v>
+    <v key="Source.Main.SheetAliases">StateMain</v>
+    <v key="Source.Events.FilePath">..\TESTS\GetReferences\PeopleEventsUA.xlsx</v>
+    <v key="Source.Events.SheetAliases">EventsMain</v>
+
+    <v key="MultiKeys">Іванов Іван Іванович; Сидорова Анна Сергіївна</v>
+        <!-- Optional script-driven input mode:
+          <v key="Input.Mode">Script</v>
+          <preProcessScript include="ReportCreation_PreProcess_Implicit.jslike"/>
+        -->
+
+    <v type="#" key="StateMain"/>
+    <v key="Main.Sheet[StateMain].Type">State</v>
+    <v key="Main.Sheet[StateMain].SheetName">StateSheet</v>
+    <v key="Main.Sheet[StateMain].Key">FIO</v>
+    <v key="Main.Sheet[StateMain].FieldsAliases">FIO; BirthDate; City; Phone</v>
+    <v key="Main.Sheet[StateMain].Map[FIO]">ПІБ</v>
+    <v key="Main.Sheet[StateMain].Map[BirthDate]">Дата народження</v>
+    <v key="Main.Sheet[StateMain].Map[City]">Місто</v>
+    <v key="Main.Sheet[StateMain].Map[Phone]">Телефон</v>
+
+    <v type="#" key="EventsMain"/>
+    <v key="Events.Sheet[EventsMain].Type">Events</v>
+    <v key="Events.Sheet[EventsMain].SheetName">EventsSheet</v>
+    <v key="Events.Sheet[EventsMain].Key">FIO</v>
+    <v key="Events.Sheet[EventsMain].FieldsAliases">RecordNo; EventDate; EventType; Department; Position; Salary</v>
+    <v key="Events.Sheet[EventsMain].Sort">RecordNo</v>
+    <v key="Events.Sheet[EventsMain].Map[FIO]">ПІБ</v>
+    <v key="Events.Sheet[EventsMain].Map[RecordNo]">№</v>
+    <v key="Events.Sheet[EventsMain].Map[EventDate]">Дата події</v>
+    <v key="Events.Sheet[EventsMain].Map[EventType]">Тип події</v>
+    <v key="Events.Sheet[EventsMain].Map[Department]">Відділ</v>
+    <v key="Events.Sheet[EventsMain].Map[Position]">Посада</v>
+    <v key="Events.Sheet[EventsMain].Map[Salary]">Оклад</v>
+
+    <v key="Output.Sheets">StateMain; EventsMain</v>
+    <v key="Output.Layout.Gap.Default">1</v>
+    <v key="Output.Layout.Gap.OwnerDivider">0</v>
+
+    <postProcessScript execution="Implicit" include="ReportCreation_BatchHighlight_Implicit.jslike"/>
+  </profile>
+</profiles>

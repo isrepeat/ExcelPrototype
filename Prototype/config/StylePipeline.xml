@@ -3,4 +3,6 @@
   <include path="DevSheetStylesPipeline.xml"/>
   <include path="modes/TablesComparing/TablesComparingSheetStylesPipeline.xml"/>
   <include path="modes/PersonalCard/PersonalCardSheetStylesPipeline.xml"/>
+  <include path="modes/ReportCreation/ReportCreationSheetStylesPipeline.xml"/>
+  <include path="modes/SimpleTest/SimpleTestSheetStylesPipeline.xml"/>
 </stylePipeline>

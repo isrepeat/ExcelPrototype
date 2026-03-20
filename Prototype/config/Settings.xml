@@ -2,4 +2,5 @@
 <settings version="1">
   <st_ShowUpdateCode>true</st_ShowUpdateCode>
   <st_ShowUpdateUI>true</st_ShowUpdateUI>
+  <st_FileLogEnabled>true</st_FileLogEnabled>
 </settings>

@@ -1,9 +1,10 @@
-Attribute VB_Name = "ex_PostProcessScriptSource"
+Attribute VB_Name = "ex_ScriptSourceLoader"
 Option Explicit
 
 Private Const DEFAULT_SCRIPT_KEY As String = "PostProcess.Script"
 Private Const IMPLICIT_SCRIPT_KEY As String = "PostProcess.Script.Implicit"
 Private Const EXPLICIT_SCRIPT_KEY As String = "PostProcess.Script.Explicit"
+Private Const PREPROCESS_SCRIPT_KEY As String = "Input.PreProcessScript"
 Private Const EXECUTION_MODE_IMPLICIT As String = "implicit"
 Private Const EXECUTION_MODE_EXPLICIT As String = "explicit"
 Private Const ASCII_UPPER As String = "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
@@ -15,7 +16,6 @@ Public Function m_TryGetScriptText( _
     ByRef outScriptText As String, _
     ByRef outErrorText As String _
 ) As Boolean
-    Dim scriptFromProfile As String
     Dim normalizedScriptKey As String
 
     outScriptText = vbNullString
@@ -23,10 +23,12 @@ Public Function m_TryGetScriptText( _
     normalizedScriptKey = Trim$(scriptConfigKey)
     If Len(normalizedScriptKey) = 0 Then normalizedScriptKey = DEFAULT_SCRIPT_KEY
 
-    If Not mp_TryGetScriptTextFromActiveProfile(normalizedScriptKey, scriptFromProfile, outErrorText) Then Exit Function
-    If Len(scriptFromProfile) > 0 Then
-        outScriptText = scriptFromProfile
-        m_TryGetScriptText = True
+    If Not mp_TryGetScriptTextFromActiveProfile(normalizedScriptKey, outScriptText, outErrorText) Then
+        Exit Function
+    End If
+
+    If Len(outScriptText) = 0 Then
+        outErrorText = "Script is not configured for key '" & normalizedScriptKey & "' in the active profile."
         Exit Function
     End If
 
@@ -53,6 +55,7 @@ Private Function mp_TryGetScriptTextFromActiveProfile( _
     Dim executionModesSeen As Object
     Dim executionAttrRaw As Variant
     Dim executionAttrValue As String
+    Dim preScriptNodes As Object
     Dim stepName As String
 
     On Error GoTo EH
@@ -92,11 +95,38 @@ Private Function mp_TryGetScriptTextFromActiveProfile( _
         Exit Function
     End If
 
-    stepName = "validate-postprocess-execution"
+    If StrComp(normalizedScriptKey, PREPROCESS_SCRIPT_KEY, vbTextCompare) = 0 Then
+        stepName = "read-preprocess-script-node"
+        Set preScriptNodes = profileNode.selectNodes("p:preProcessScript")
+        If preScriptNodes Is Nothing Then
+            outErrorText = "preProcessScript node is required for key '" & PREPROCESS_SCRIPT_KEY & "'."
+            Exit Function
+        End If
+
+        If preScriptNodes.Length = 0 Then
+            outErrorText = "preProcessScript node is required for key '" & PREPROCESS_SCRIPT_KEY & "'."
+            Exit Function
+        End If
+
+        If preScriptNodes.Length > 1 Then
+            Err.Raise vbObjectError + 1776, "ex_ScriptSourceLoader", _
+                "Only one preProcessScript node is allowed per profile."
+        End If
+
+        For Each scriptNode In preScriptNodes
+            outScriptText = mp_GetScriptNodeText(scriptNode, filePath, "preProcessScript")
+            Exit For
+        Next scriptNode
+
+        mp_TryGetScriptTextFromActiveProfile = True
+        Exit Function
+    End If
+
+    stepName = "validate-script-execution"
     Set scriptNodes = profileNode.selectNodes("p:postProcessScript")
     If Not scriptNodes Is Nothing Then
         If scriptNodes.Length > 2 Then
-            Err.Raise vbObjectError + 1767, "ex_PostProcessScriptSource", _
+            Err.Raise vbObjectError + 1767, "ex_ScriptSourceLoader", _
                 "Only up to two postProcessScript nodes are allowed per profile: execution='Implicit' and execution='Explicit'."
         End If
 
@@ -111,25 +141,25 @@ Private Function mp_TryGetScriptTextFromActiveProfile( _
                 executionAttrValue = LCase$(Trim$(CStr(executionAttrRaw)))
             End If
             If Len(executionAttrValue) = 0 Then
-                Err.Raise vbObjectError + 1768, "ex_PostProcessScriptSource", _
+                Err.Raise vbObjectError + 1768, "ex_ScriptSourceLoader", _
                     "Attribute execution is required for postProcessScript. Allowed values: Implicit, Explicit."
             End If
 
             If StrComp(executionAttrValue, EXECUTION_MODE_IMPLICIT, vbTextCompare) <> 0 And _
                StrComp(executionAttrValue, EXECUTION_MODE_EXPLICIT, vbTextCompare) <> 0 Then
-                Err.Raise vbObjectError + 1766, "ex_PostProcessScriptSource", _
+                Err.Raise vbObjectError + 1766, "ex_ScriptSourceLoader", _
                     "Unsupported postProcessScript execution='" & executionAttrValue & "'. Allowed values: Implicit, Explicit."
             End If
 
             If executionModesSeen.Exists(executionAttrValue) Then
-                Err.Raise vbObjectError + 1769, "ex_PostProcessScriptSource", _
+                Err.Raise vbObjectError + 1769, "ex_ScriptSourceLoader", _
                     "Duplicate postProcessScript execution='" & executionAttrValue & "'. Only one script per execution mode is allowed."
             End If
             executionModesSeen(executionAttrValue) = True
         Next scriptNode
     End If
 
-    stepName = "read-postprocess-node"
+    stepName = "read-script-node"
     If StrComp(executionMode, EXECUTION_MODE_IMPLICIT, vbTextCompare) = 0 Then
         xpath = "p:postProcessScript[translate(normalize-space(@execution), '" & ASCII_UPPER & "', '" & ASCII_LOWER & "')='implicit']"
     Else
@@ -138,12 +168,17 @@ Private Function mp_TryGetScriptTextFromActiveProfile( _
 
     Set scriptNodes = profileNode.selectNodes(xpath)
     If scriptNodes Is Nothing Then
-        mp_TryGetScriptTextFromActiveProfile = True
+        outErrorText = "postProcessScript execution='" & executionMode & "' is required for key '" & normalizedScriptKey & "'."
+        Exit Function
+    End If
+
+    If scriptNodes.Length = 0 Then
+        outErrorText = "postProcessScript execution='" & executionMode & "' is required for key '" & normalizedScriptKey & "'."
         Exit Function
     End If
 
     For Each scriptNode In scriptNodes
-        nodeText = mp_GetScriptNodeText(scriptNode, filePath)
+        nodeText = mp_GetScriptNodeText(scriptNode, filePath, "postProcessScript")
         If Len(nodeText) = 0 Then GoTo ContinueNode
         If Len(outScriptText) > 0 Then outScriptText = outScriptText & vbLf & vbLf
         outScriptText = outScriptText & nodeText
@@ -154,10 +189,14 @@ ContinueNode:
     Exit Function
 
 EH:
-    outErrorText = "PostProcess script load failed at step '" & stepName & "' [modeKey=" & modeKey & "] [profile=" & profileName & "] [file=" & filePath & "]: [" & Err.Source & " #" & CStr(Err.Number) & "] " & Err.Description
+    outErrorText = "Script load failed at step '" & stepName & "' [modeKey=" & modeKey & "] [profile=" & profileName & "] [file=" & filePath & "]: [" & Err.Source & " #" & CStr(Err.Number) & "] " & Err.Description
 End Function
 
-Private Function mp_GetScriptNodeText(ByVal scriptNode As Object, ByVal ownerFilePath As String) As String
+Private Function mp_GetScriptNodeText( _
+    ByVal scriptNode As Object, _
+    ByVal ownerFilePath As String, _
+    ByVal scriptNodeName As String _
+) As String
     Dim includePath As String
     Dim includeFullPath As String
     Dim inlineScriptText As String
@@ -167,17 +206,17 @@ Private Function mp_GetScriptNodeText(ByVal scriptNode As Object, ByVal ownerFil
 
     If Len(includePath) > 0 Then
         If Len(Trim$(inlineScriptText)) > 0 Then
-            Err.Raise vbObjectError + 1773, "ex_PostProcessScriptSource", _
-                "postProcessScript cannot define both inline body and include attribute in the same node."
+            Err.Raise vbObjectError + 1773, "ex_ScriptSourceLoader", _
+                scriptNodeName & " cannot define both inline body and include attribute in the same node."
         End If
 
         includeFullPath = mp_ResolveIncludeFilePath(ownerFilePath, includePath)
         If Len(includeFullPath) = 0 Then
-            Err.Raise vbObjectError + 1774, "ex_PostProcessScriptSource", _
-                "postProcessScript include path could not be resolved: '" & includePath & "'."
+            Err.Raise vbObjectError + 1774, "ex_ScriptSourceLoader", _
+                scriptNodeName & " include path could not be resolved: '" & includePath & "'."
         End If
 
-        mp_GetScriptNodeText = mp_ReadTextFileUtf8(includeFullPath)
+        mp_GetScriptNodeText = mp_ReadTextFileUtf8(includeFullPath, scriptNodeName)
         Exit Function
     End If
 
@@ -187,15 +226,15 @@ Private Function mp_GetScriptNodeText(ByVal scriptNode As Object, ByVal ownerFil
     End If
 End Function
 
-Private Function mp_ReadTextFileUtf8(ByVal filePath As String) As String
+Private Function mp_ReadTextFileUtf8(ByVal filePath As String, Optional ByVal scriptNodeName As String = "script") As String
     Dim normalizedPath As String
     Dim stream As Object
 
     normalizedPath = mp_NormalizeFilePath(filePath)
     If Len(normalizedPath) = 0 Then Exit Function
     If Len(Dir$(normalizedPath)) = 0 Then
-        Err.Raise vbObjectError + 1775, "ex_PostProcessScriptSource", _
-            "postProcessScript include file was not found: '" & normalizedPath & "'."
+        Err.Raise vbObjectError + 1775, "ex_ScriptSourceLoader", _
+            scriptNodeName & " include file was not found: '" & normalizedPath & "'."
     End If
 
     Set stream = CreateObject("ADODB.Stream")
@@ -287,3 +326,4 @@ Private Function mp_GetExecutionModeByScriptKey(ByVal scriptConfigKey As String)
 
     mp_GetExecutionModeByScriptKey = EXECUTION_MODE_EXPLICIT
 End Function
+
