@@ -102,7 +102,17 @@ End Sub
 
 Public Sub m_ShowPersonalCard_OnClick()
     ex_CustomDropdown.m_OnManagedButtonClick
-    ex_PersonTimeline.m_ShowPersonTimeline_UI
+    ex_PersonTimeline.m_RunPersonalCard
+End Sub
+
+Public Sub m_ShowReportCreation_OnClick()
+    ex_CustomDropdown.m_OnManagedButtonClick
+    ex_ReportCreation.m_RunMultiKeysFlatReport
+End Sub
+
+Public Sub m_ShowSimpleTest_OnClick()
+    ex_CustomDropdown.m_OnManagedButtonClick
+    ex_SimpleTestAction.m_RunSimpleTest
 End Sub
 
 Public Sub m_RunComparingTables_OnClick()
@@ -112,6 +122,18 @@ End Sub
 
 Public Sub m_OutputPanelRunPostProcess_OnClick()
     ex_PersonTimeline.m_RunPostProcessForActiveSheet
+End Sub
+
+Public Sub m_ReportCreationRunPostProcess_OnClick()
+    ' ReportCreation already applies implicit postprocess during generation,
+    ' so re-running ReportCreation refreshes output + postprocess in one action.
+    ex_CustomDropdown.m_OnManagedButtonClick
+    ex_ReportCreation.m_RunMultiKeysFlatReport
+End Sub
+
+Public Sub m_ReportCreationExport_OnClick()
+    ex_CustomDropdown.m_OnManagedButtonClick
+    MsgBox "ReportCreation export is not implemented yet.", vbInformation
 End Sub
 
 Public Sub m_ExportFooterReportToWord_OnClick()
@@ -180,7 +202,7 @@ Public Sub m_OutputPanelStartSearch_OnClick()
     End If
 
     ex_ConfigProvider.m_SetConfigValue configKey, searchKey, True
-    ex_PersonTimeline.m_ShowPersonTimeline searchKey
+    ex_PersonTimeline.m_RunPersonalCardByKey searchKey
     Exit Sub
 
 EH:

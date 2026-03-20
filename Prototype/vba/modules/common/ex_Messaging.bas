@@ -12,7 +12,8 @@ Private Const STATUS_STORE_KEY_CLEAR_AT As String = "status_clear_at"
 Private Const STATUS_STORE_KEY_CLEAR_PROC As String = "status_clear_proc"
 Private Const STATUS_STORE_KEY_CLOSE_UNTIL As String = "close_until"
 Private Const STATUS_CLOSE_HOLD_SECONDS As Double = 15#
-Private Const DEFAULT_LOG_FILE_RELATIVE_PATH As String = "Logs\postprocess_debug.log"
+Private Const DEFAULT_LOG_FILE_RELATIVE_PATH As String = "Logs\personalcard_pipeline.log"
+Private Const SETTINGS_KEY_FILE_LOG_ENABLED As String = "st_FileLogEnabled"
 Private Const BANNER_STYLE_STAGE_NAME As String = "banners"
 Private Const BANNER_KIND_ERROR As String = "errorbanner"
 Private Const BANNER_KIND_WARNING As String = "warningbanner"
@@ -103,6 +104,11 @@ Public Function m_LogToFile( _
     Dim lineText As String
 
     logPath = mp_ResolveLogFilePath(relativeOrAbsolutePath)
+    If Not mp_IsFileLogEnabled() Then
+        m_LogToFile = logPath
+        Exit Function
+    End If
+
     mp_EnsureLogParentFolder logPath
 
     lineText = Format$(Now, "yyyy-mm-dd HH:nn:ss") & " | " & CStr(messageText)
@@ -112,6 +118,18 @@ Public Function m_LogToFile( _
     Close #fileNo
 
     m_LogToFile = logPath
+End Function
+
+Private Function mp_IsFileLogEnabled() As Boolean
+    Dim rawValue As String
+
+    rawValue = LCase$(Trim$(ex_XmlCore.m_GetSettingsValue(SETTINGS_KEY_FILE_LOG_ENABLED, "false")))
+    Select Case rawValue
+        Case "1", "true", "yes", "on"
+            mp_IsFileLogEnabled = True
+        Case Else
+            mp_IsFileLogEnabled = False
+    End Select
 End Function
 
 Private Function mp_GetStatusClearProcedureName() As String
@@ -1040,7 +1058,7 @@ Private Function mp_AdjustBannerStartForHeader( _
         mp_AdjustBannerStartForHeader = viewStartRow
     End If
 
-    If Not mp_TryGetPostProcessHeaderBounds(ws, headerStartRow, headerEndRow) Then Exit Function
+    If Not mp_TryGetScriptHeaderBounds(ws, headerStartRow, headerEndRow) Then Exit Function
     If enforceViewZone Then
         If mp_AdjustBannerStartForHeader <= (headerEndRow + 1) Then
             mp_AdjustBannerStartForHeader = headerEndRow + 2
@@ -1105,7 +1123,7 @@ Private Function mp_RowsOverlap( _
     mp_RowsOverlap = Not (rowEndA < rowStartB Or rowEndB < rowStartA)
 End Function
 
-Private Function mp_TryGetPostProcessHeaderBounds( _
+Private Function mp_TryGetScriptHeaderBounds( _
     ByVal ws As Worksheet, _
     ByRef outStartRow As Long, _
     ByRef outEndRow As Long _
@@ -1118,7 +1136,7 @@ Private Function mp_TryGetPostProcessHeaderBounds( _
 
     outStartRow = headerRange.Row
     outEndRow = headerRange.Row + headerRange.Rows.Count - 1
-    mp_TryGetPostProcessHeaderBounds = True
+    mp_TryGetScriptHeaderBounds = True
 End Function
 
 Private Function mp_GetSortedBannerAnchors(ByVal ws As Worksheet) As Collection

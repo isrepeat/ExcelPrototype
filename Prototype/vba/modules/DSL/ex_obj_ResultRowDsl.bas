@@ -15,11 +15,11 @@ Public Function m_TryParseRowColumnRef( _
     If Right$(refText, 1) <> "]" Then Exit Function
 
     memberName = Mid$(refText, dotPos + 1, Len("column"))
-    If Not ex_PostProcessDslContracts.m_IsMemberAllowed(ex_PostProcessDslContracts.TYPE_ROW, memberName) Then Exit Function
+    If Not ex_ScriptDslContracts.m_IsMemberAllowed(ex_ScriptDslContracts.TYPE_ROW, memberName) Then Exit Function
 
     outRowVar = Trim$(Left$(refText, dotPos - 1))
     If Len(outRowVar) = 0 Then Exit Function
-    If Not ex_PostProcessParserCore.m_IsIdentifier(outRowVar) Then Exit Function
+    If Not ex_ScriptParserCore.m_IsIdentifier(outRowVar) Then Exit Function
 
     outFieldAlias = Mid$(refText, dotPos + Len(".column["), Len(refText) - (dotPos + Len(".column[")))
     outFieldAlias = Trim$(outFieldAlias)
@@ -41,11 +41,11 @@ Public Function m_TryParseRowColumnsRef( _
     If dotPos + Len(".columns") - 1 <> Len(refText) Then Exit Function
 
     memberName = Mid$(refText, dotPos + 1)
-    If Not ex_PostProcessDslContracts.m_IsMemberAllowed(ex_PostProcessDslContracts.TYPE_ROW, memberName) Then Exit Function
+    If Not ex_ScriptDslContracts.m_IsMemberAllowed(ex_ScriptDslContracts.TYPE_ROW, memberName) Then Exit Function
 
     outRowVar = Trim$(Left$(refText, dotPos - 1))
     If Len(outRowVar) = 0 Then Exit Function
-    If Not ex_PostProcessParserCore.m_IsIdentifier(outRowVar) Then Exit Function
+    If Not ex_ScriptParserCore.m_IsIdentifier(outRowVar) Then Exit Function
 
     m_TryParseRowColumnsRef = True
 End Function

@@ -7,12 +7,13 @@ Private Const DEV_COL_MARKER As Long = 1
 Private Const DEV_COL_KEY As Long = 2
 Private Const DEV_COL_VALUE As Long = 3
 Private Const RESULT_SHEET_NAME As String = "g_PersonTimeline"
-Private Const POST_PROCESS_SCRIPT_KEY_IMPLICIT As String = "PostProcess.Script.Implicit"
 Private Const POST_PROCESS_SCRIPT_KEY_EXPLICIT As String = "PostProcess.Script.Explicit"
+Private Const TIMELINE_DEBUG_LOG_PATH As String = "Logs\personalcard_pipeline.log"
 
 Private g_LastPostProcessCfg As Object
 Private g_LastPostProcessTables As Collection
 Private g_LastResultHasPartialMatchCandidates As Boolean
+Private g_LastPostProcessInput As Object
 Private g_AdoLookupCacheSignature As String
 Private g_AdoResolvedTableRefByConfigured As Object
 Private g_AdoAutoTableRefBySignature As Object
@@ -171,18 +172,37 @@ Private Sub mp_SortVariantTextArray(ByRef arr As Variant)
     Next i
 End Sub
 
-Public Sub m_ShowPersonTimeline_UI()
-
+Public Sub m_RunPersonalCard()
+    Dim cfg As Object
     Dim fio As String
 
     fio = Trim$(ex_ConfigProvider.m_GetConfigValue("CommonKey", vbNullString))
-    If Len(fio) = 0 Then
-        fio = Trim$(ex_ConfigProvider.m_GetConfigValue("PersonFIO", vbNullString))
-    End If
 
-    m_ShowPersonTimeline fio
-
+    Set cfg = mp_LoadConfigDictionary()
+    ex_ModePipeline.m_RunModePipeline cfg, "ex_PersonTimeline.m_RunMode", mp_CreateScriptInputContext(fio), False
 End Sub
+
+Public Sub m_RunPersonalCardByKey(ByVal fio As String)
+    Dim cfg As Object
+
+    Set cfg = mp_LoadConfigDictionary()
+    ex_ModePipeline.m_RunModePipeline cfg, "ex_PersonTimeline.m_RunMode", mp_CreateScriptInputContext(fio), False
+End Sub
+
+Public Function m_RunMode(ByVal cfg As Object, ByVal modeInput As Object, ByVal preProcessContext As Object) As Object
+    Dim fio As String
+
+    On Error GoTo EH
+
+    fio = Trim$(ex_ScriptIO.m_GetStringOrDefault(modeInput, "CommonKey", vbNullString))
+
+    Set m_RunMode = mp_RunModeCore(fio, cfg, modeInput)
+    Exit Function
+
+EH:
+    MsgBox "PersonalCard failed: [" & Err.Source & " #" & CStr(Err.Number) & "] " & Err.Description, vbExclamation
+    Set m_RunMode = Nothing
+End Function
 
 Private Function mp_ValidateTimelineEntryConfig(ByRef outErrorText As String) As Boolean
     Dim cfg As Object
@@ -201,7 +221,11 @@ EH:
     mp_ValidateTimelineEntryConfig = False
 End Function
 
-Public Sub m_ShowPersonTimeline(ByVal fio As String)
+Private Function mp_RunModeCore( _
+    ByVal fio As String, _
+    ByVal cfg As Object, _
+    ByVal preparedPostProcessInput As Object _
+) As Object
 
     On Error GoTo EH
 
@@ -210,6 +234,12 @@ Public Sub m_ShowPersonTimeline(ByVal fio As String)
     Dim prevEnableEvents As Boolean
     Dim prevCalculation As XlCalculation
     Dim prevCalculateBeforeSave As Boolean
+    Dim stageName As String
+    Dim postProcessInput As Object
+    Dim modeResult As Object
+
+    stageName = "init"
+    mp_DebugLog "START mp_RunModeCore fio='" & CStr(fio) & "'"
 
     prevScreenUpdating = Application.ScreenUpdating
     prevDisplayAlerts = Application.DisplayAlerts
@@ -226,19 +256,21 @@ Public Sub m_ShowPersonTimeline(ByVal fio As String)
     Dim wsOut As Worksheet
     Dim resultSheetExistedBeforeRender As Boolean
 
+    stageName = "validate-input-key"
     If Len(Trim$(fio)) = 0 Then
         Err.Raise vbObjectError + 1300, "ex_PersonTimeline", _
-            "Config key 'CommonKey' (or fallback 'PersonFIO') is empty."
+            "Config key 'CommonKey' is empty."
     End If
 
-    Dim cfg As Object
-    Set cfg = mp_LoadConfigDictionary()
+    stageName = "ensure-ado-caches"
     mp_EnsureAdoLookupCaches cfg
 
     Dim mode As OutputMode
+    stageName = "read-output-mode"
     mode = ex_Settings.m_GetOutputMode()
 
     Dim validationError As String
+    stageName = "validate-config"
     If Not mp_ValidateTimelineConfig(cfg, mode, validationError) Then
         Application.EnableEvents = prevEnableEvents
         Application.DisplayAlerts = prevDisplayAlerts
@@ -246,9 +278,18 @@ Public Sub m_ShowPersonTimeline(ByVal fio As String)
         Application.CalculateBeforeSave = prevCalculateBeforeSave
         Application.Calculation = prevCalculation
         MsgBox validationError, vbExclamation
-        Exit Sub
+        Set mp_RunModeCore = Nothing
+        Exit Function
     End If
 
+    stageName = "prepare-mode-input"
+    Set postProcessInput = preparedPostProcessInput
+    If postProcessInput Is Nothing Then
+        Set postProcessInput = mp_CreateScriptInputContext(fio)
+    End If
+    fio = Trim$(ex_ScriptIO.m_GetStringOrDefault(postProcessInput, "CommonKey", fio))
+
+    stageName = "prepare-output-sheet"
     resultSheetExistedBeforeRender = mp_WorksheetExists(RESULT_SHEET_NAME)
     Set wsOut = mp_CreateOrClearSheet(RESULT_SHEET_NAME)
     ex_SheetViewZoom.m_ApplyProfileZoomForResultSheet wsOut, resultSheetExistedBeforeRender
@@ -272,6 +313,7 @@ Public Sub m_ShowPersonTimeline(ByVal fio As String)
     End If
     hasOutputStyle = ex_SheetStylesXmlProvider.m_GetOutputSheetStyle(outputStyle, ThisWorkbook)
 
+    stageName = "resolve-output-aliases"
     Dim outputAliases As Variant
     outputAliases = mp_GetListRequired(cfg, "Output.Sheets")
 
@@ -305,6 +347,7 @@ Public Sub m_ShowPersonTimeline(ByVal fio As String)
     renderedCount = 0
 
     Dim i As Long
+    stageName = "render-output-tables"
     For i = LBound(outputAliases) To UBound(outputAliases)
         Dim tableAlias As String
         tableAlias = Trim$(CStr(outputAliases(i)))
@@ -369,22 +412,33 @@ Public Sub m_ShowPersonTimeline(ByVal fio As String)
 ContinueAlias:
     Next i
 
+    stageName = "validate-rendered-count"
     If renderedCount = 0 Then
         Err.Raise vbObjectError + 1303, "ex_PersonTimeline", _
             "No sheets were rendered for mode '" & ex_Settings.m_GetOutputModeDisplay() & "'. Check Output.Sheets and sheet Type."
     End If
 
+    stageName = "apply-styles"
     If hasOutputStyle Then
         ex_OutputPanel.m_RenderForSheet wsOut, outputStyle
     End If
     mp_ApplyTimelineStyleLayers wsOut, headerRows, sectionRows, resultFieldRanges, resultTables, partialMatchRowRanges, hasOutputStyle, outputStyle, pendingWarningBanners
     mp_RenderPendingWarningBanners wsOut, pendingWarningBanners
 
-    mp_StorePostProcessContext cfg, resultTables, (partialMatchRowRanges.Count > 0)
-    If partialMatchRowRanges.Count = 0 Then
-        ex_PostProcessDsl.m_ApplyScriptToSheet wsOut, cfg, resultTables, POST_PROCESS_SCRIPT_KEY_IMPLICIT
-    End If
+    stageName = "prepare-postprocess-input"
+    ex_ScriptIO.m_SetInput postProcessInput
 
+    stageName = "store-postprocess-context"
+    mp_StoreScriptContext cfg, resultTables, (partialMatchRowRanges.Count > 0), postProcessInput
+
+    Set modeResult = CreateObject("Scripting.Dictionary")
+    modeResult.CompareMode = 1
+    Set modeResult("Output") = postProcessInput
+    Set modeResult("Worksheet") = wsOut
+    Set modeResult("ResultTables") = resultTables
+    Set mp_RunModeCore = modeResult
+
+    stageName = "close-connections"
     mp_CloseConnections connCache
 
     Application.EnableEvents = prevEnableEvents
@@ -393,7 +447,8 @@ ContinueAlias:
     Application.CalculateBeforeSave = prevCalculateBeforeSave
     Application.Calculation = prevCalculation
 
-    Exit Sub
+    mp_DebugLog "END mp_RunModeCore success fio='" & CStr(fio) & "'"
+    Exit Function
 
 EH:
     Dim errNumber As Long
@@ -406,6 +461,10 @@ EH:
     errDescription = Err.Description
 
     On Error Resume Next
+    ex_Messaging.m_LogToFile "[ex_PersonTimeline] FAIL stage='" & stageName & "' fio='" & CStr(fio) & "' source='" & errSource & "' code=" & CStr(errNumber) & " description='" & errDescription & "'", TIMELINE_DEBUG_LOG_PATH
+    On Error GoTo 0
+
+    On Error Resume Next
     mp_CloseConnections connCache
     Application.EnableEvents = prevEnableEvents
     Application.DisplayAlerts = prevDisplayAlerts
@@ -416,7 +475,8 @@ EH:
 
     If mp_IsConfigValidationError(errNumber) Then
         MsgBox errDescription, vbExclamation
-        Exit Sub
+        Set mp_RunModeCore = Nothing
+        Exit Function
     End If
 
     If wsOut Is Nothing Then
@@ -432,6 +492,13 @@ EH:
     On Error GoTo 0
     ex_Messaging.m_RenderErrorBanner wsOut, errDescription, errSource, errNumber, "ОШИБКА: Не удалось сформировать таймлайн", ex_SheetStylesXmlProvider.m_GetOutputErrorBannerRangeAddress(ThisWorkbook)
 
+    Set mp_RunModeCore = Nothing
+End Function
+
+Private Sub mp_DebugLog(ByVal messageText As String)
+    On Error Resume Next
+    ex_Messaging.m_LogToFile "[ex_PersonTimeline] " & CStr(messageText), TIMELINE_DEBUG_LOG_PATH
+    On Error GoTo 0
 End Sub
 
 Public Sub m_RunPostProcessForActiveSheet()
@@ -468,7 +535,8 @@ Public Sub m_RunPostProcessForActiveSheet()
         ex_OutputPanel.m_DeletePanelButtonsForSheet ws
     End If
 
-    ex_PostProcessDsl.m_ApplyScriptToSheet ws, g_LastPostProcessCfg, g_LastPostProcessTables, POST_PROCESS_SCRIPT_KEY_EXPLICIT
+    ex_ScriptIO.m_SetInput g_LastPostProcessInput
+    ex_ScriptDSL.m_ApplyScriptToSheet ws, g_LastPostProcessCfg, g_LastPostProcessTables, POST_PROCESS_SCRIPT_KEY_EXPLICIT
     If hasOutputStyle Then
         ex_OutputPanel.m_RenderForSheet ws, outputStyle
     End If
@@ -488,18 +556,34 @@ End Sub
 
 Public Sub m_ResetResultPageSessionState()
     mp_ResetAdoLookupCaches
-    ex_PostProcessDsl.m_ResetScriptCache
+    ex_ScriptDSL.m_ResetScriptCache
     Set g_LastPostProcessCfg = Nothing
     Set g_LastPostProcessTables = Nothing
+    Set g_LastPostProcessInput = Nothing
     g_LastResultHasPartialMatchCandidates = False
     ex_SheetViewZoom.m_ResetZoomCache RESULT_SHEET_NAME
 End Sub
 
-Private Sub mp_StorePostProcessContext(ByVal cfg As Object, ByVal resultTables As Collection, ByVal hasPartialMatchCandidates As Boolean)
+Private Sub mp_StoreScriptContext( _
+    ByVal cfg As Object, _
+    ByVal resultTables As Collection, _
+    ByVal hasPartialMatchCandidates As Boolean, _
+    ByVal inputContext As Object _
+)
     Set g_LastPostProcessCfg = cfg
     Set g_LastPostProcessTables = resultTables
     g_LastResultHasPartialMatchCandidates = hasPartialMatchCandidates
+    Set g_LastPostProcessInput = inputContext
 End Sub
+
+Private Function mp_CreateScriptInputContext(ByVal fio As String) As Object
+    Dim ctx As obj_ScriptIOPayload
+
+    Set ctx = New obj_ScriptIOPayload
+    ctx.m_SetString "CommonKey", CStr(fio)
+
+    Set mp_CreateScriptInputContext = ctx
+End Function
 
 Private Function mp_ShouldStrictPreflightValidation() As Boolean
     Dim valueText As String
@@ -675,7 +759,6 @@ Private Function mp_WriteStateCardGeneric( _
     Dim rowCount As Long
     Dim stepName As String
     Dim showNoStateRow As Boolean
-
     Dim sourceFields As Variant
     sourceFields = mp_GetOrderedFieldAliases(cfg, sourceAlias, tableAlias)
     Dim fields As Variant

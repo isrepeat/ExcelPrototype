@@ -7,9 +7,17 @@ let tvoNoteRegex = "ТВО";
 let unclosedReturnDateRegex = "^\\s*(\\?|)\\s*$";
 let resultTemplatesRelPath = "config\\modes\\PersonalCard\\PersonalCardResultTemplates.xml";
 let exportRuntimeWordAnchorPrefix = "Export.RuntimeDataBase.WordAnchor.";
+let logPath = "Logs\\personalcard_pipeline.log";
+
+let input = callMacroObject("ex_ScriptIO.m_GetInput");
+let inputCommonKey = callMacro("ex_ScriptIO.m_GetValue", input, "CommonKey", "");
+let inputMultiKeys = callMacro("ex_ScriptIO.m_GetValue", input, "MultiKeys", "");
+
+callMacro("ex_Messaging.m_LogToFile", "[POST][PC] input.CommonKey={inputCommonKey}", logPath);
+callMacro("ex_Messaging.m_LogToFile", "[POST][PC] input.MultiKeys={inputMultiKeys}", logPath);
 
 /* Логи временно отключены */
-// let debugLogPath = "LOGS/postprocess_debug.log";
+// let debugLogPath = "Logs\\personalcard_pipeline.log";
 // сallMacro("ex_Messaging.m_ClearLogFile", debugLogPath);
 // callMacro("ex_Messaging.m_LogToFile", "START explicit postprocess", debugLogPath);
 
@@ -102,6 +110,7 @@ for (let owner in Daily.Sheet[DailyEvents].rows) {
 }
 
 if (hasValidationWarnings == "true") {
+	//callMacro("ex_Messaging.m_LogToFile", "[POST] STOP validation failed", logPath);
 	callMacro("ex_PostProcessActions.m_ShowBannerAfterBanner", "TYPE_NOTE", "WARNING", "Валидация не пройдена.", 0, 0, 0);
 	return;
 }
@@ -235,32 +244,32 @@ for (let row in Daily.Sheet[DailyEvents].rows) {
 			fullDateTo = callMacro("ex_DateHelpers.m_ToFullDate", "{row.column[DateTo]}", "{baseDate}");
 		}
 
-		if (sectionType == "13" || sectionType == "14") {
-			let hasPrevVacationForCuringEvent = "false";
-			for (let outRow in Events.Sheet[EventsOut].rows) {
-				if (outRow.column[FIO] == row.column[FIO] &&
-					outRow.column[EventReason] == "Відпустка для лікування") {
-					hasPrevVacationForCuringEvent = "true";
-					prevVkNum = outRow.column[Ticket];
-					prevVkDateRaw = outRow.column[OutCommandDate];
-				}
-			}
+		// if (sectionType == "13" || sectionType == "14") {
+		// 	let hasPrevVacationForCuringEvent = "false";
+		// 	for (let outRow in Events.Sheet[EventsOut].rows) {
+		// 		if (outRow.column[FIO] == row.column[FIO] &&
+		// 			outRow.column[EventReason] == "Відпустка для лікування") {
+		// 			hasPrevVacationForCuringEvent = "true";
+		// 			prevVkNum = outRow.column[Ticket];
+		// 			prevVkDateRaw = outRow.column[OutCommandDate];
+		// 		}
+		// 	}
 
-			if (hasPrevVacationForCuringEvent != "true") {
-				callMacro("ex_PostProcessActions.m_ShowLogicError", "SectionType={sectionType}, FIO={row.column[FIO]}: not found EventsOut row with EventReason='Відпустка для лікування' to fill PrevVkNum/PrevVkDate.");
-				return;
-			}
-			if (prevVkNum == "" || prevVkNum == "?") {
-				callMacro("ex_PostProcessActions.m_ShowLogicError", "SectionType={sectionType}, FIO={row.column[FIO]}: EventsOut.Ticket is empty for last row with EventReason='Відпустка для лікування'.");
-				return;
-			}
-			if (prevVkDateRaw == "" || prevVkDateRaw == "?") {
-				callMacro("ex_PostProcessActions.m_ShowLogicError", "SectionType={sectionType}, FIO={row.column[FIO]}: EventsOut.OutCommandDate is empty for last row with EventReason='Відпустка для лікування'.");
-				return;
-			}
-
-			prevVkDate = callMacro("ex_DateHelpers.m_ToFullDate", "{prevVkDateRaw}", "{baseDate}");
-		}
+		// 	if (hasPrevVacationForCuringEvent != "true") {
+		// 		callMacro("ex_PostProcessActions.m_ShowLogicError", "SectionType={sectionType}, FIO={row.column[FIO]}: not found EventsOut row with EventReason='Відпустка для лікування' to fill PrevVkNum/PrevVkDate.");
+		// 		return;
+		// 	}
+		// 	if (prevVkNum == "" || prevVkNum == "?") {
+		// 		callMacro("ex_PostProcessActions.m_ShowLogicError", "SectionType={sectionType}, FIO={row.column[FIO]}: EventsOut.Ticket is empty for last row with EventReason='Відпустка для лікування'.");
+		// 		return;
+		// 	}
+		// 	if (prevVkDateRaw == "" || prevVkDateRaw == "?") {
+		// 		callMacro("ex_PostProcessActions.m_ShowLogicError", "SectionType={sectionType}, FIO={row.column[FIO]}: EventsOut.OutCommandDate is empty for last row with EventReason='Відпустка для лікування'.");
+		// 		return;
+		// 	}
+			
+		// 	prevVkDate = callMacro("ex_DateHelpers.m_ToFullDate", "{prevVkDateRaw}", "{baseDate}");
+		// }
 
 		// Парсим DaysCount по шаблону "N+X ...":
 		// - группа 1: базовое количество дней N
@@ -570,7 +579,9 @@ if (hasExportBlocks == "true") {
 	let wordResultsPlace = callMacro("ex_PostProcessActions.m_GetLastResultBlockCellRef");
 	callMacro("ex_PostProcessActions.m_SetRuntimeData", "Export.RuntimeDataBase.WordResultsPlace", wordResultsPlace);
 	callMacro("ex_PostProcessActions.m_SetRuntimeData", "Export.RuntimeDataBase.WordPasteAnchor", exportWordPasteAnchor);
+	//callMacro("ex_Messaging.m_LogToFile", "[POST] END success. Anchor=" + exportWordPasteAnchor, logPath);
 } else {
+	callMacro("ex_Messaging.m_LogToFile", "[POST] STOP no export blocks", logPath);
 	callMacro("ex_PostProcessActions.m_ShowLogicError", "Post Process generated no export blocks for current key. Check CommonKey and DailyEvents source rows.");
 	return;
 }

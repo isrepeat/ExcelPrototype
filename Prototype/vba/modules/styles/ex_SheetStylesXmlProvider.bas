@@ -41,6 +41,7 @@ End Type
 
 Public Type t_ControlPanelFieldStyle
     IsConfigRefField As Boolean
+    ShowInput As Boolean
     Label As String
     InputConfigKey As String
     InputName As String
@@ -833,6 +834,7 @@ Private Function mp_LoadControlPanelFieldNode( _
 
     fieldTagName = LCase$(Trim$(CStr(fieldNode.baseName)))
     fieldStyle.IsConfigRefField = (fieldTagName = "inputconfigreffield")
+    If Not mp_ReadOptionalAttrBoolean(fieldNode, "showInput", fieldStyle.ShowInput, True, "controlPanel field@showInput") Then Exit Function
 
     If fieldTagName <> "inputconfigreffield" And fieldTagName <> "field" Then
         MsgBox "Invalid control panel field tag: '" & fieldTagName & "'. Allowed tags: field, inputConfigRefField.", vbExclamation

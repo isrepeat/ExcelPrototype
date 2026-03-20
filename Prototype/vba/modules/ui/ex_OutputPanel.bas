@@ -146,30 +146,32 @@ Public Sub m_RenderForSheet(ByVal ws As Worksheet, ByRef style As ex_SheetStyles
         labelRange.VerticalAlignment = xlCenter
 
         Set inputRange = ws.Cells(fieldTopRow, inputStartCol)
-        inputRange.UnMerge
-        inputRange.Interior.Pattern = xlSolid
-        inputRange.Interior.Color = style.PanelInputBackColor
-        inputRange.Font.Color = style.PanelInputFontColor
-        inputRange.HorizontalAlignment = xlCenter
-        inputRange.VerticalAlignment = xlCenter
-        inputRange.NumberFormat = "@"
+        If style.PanelFields(fieldIndex).ShowInput Then
+            inputRange.UnMerge
+            inputRange.Interior.Pattern = xlSolid
+            inputRange.Interior.Color = style.PanelInputBackColor
+            inputRange.Font.Color = style.PanelInputFontColor
+            inputRange.HorizontalAlignment = xlCenter
+            inputRange.VerticalAlignment = xlCenter
+            inputRange.NumberFormat = "@"
 
-        Set inputAnchor = inputRange.Cells(1, 1)
-        mp_ApplyInputOverflowStyle inputAnchor, style.PanelFields(fieldIndex).InputOverflowStyle
-        currentValue = Trim$(CStr(inputAnchor.Value))
-        If Len(currentValue) = 0 Then
-            inputAnchor.Value = ex_ConfigProvider.m_GetConfigValue(style.PanelFields(fieldIndex).InputConfigKey, vbNullString)
-        End If
-        If fieldIndex = 1 Then
-            mp_SetPanelInputName ws, inputAnchor
-        End If
-        mp_SetPanelInputKeyName ws, inputAnchor, style.PanelFields(fieldIndex).InputName
-        mp_RegisterOnChangeBinding ws, inputAnchor, style.PanelFields(fieldIndex).OnChangeMacroName
+            Set inputAnchor = inputRange.Cells(1, 1)
+            mp_ApplyInputOverflowStyle inputAnchor, style.PanelFields(fieldIndex).InputOverflowStyle
+            currentValue = Trim$(CStr(inputAnchor.Value))
+            If Len(currentValue) = 0 Then
+                inputAnchor.Value = ex_ConfigProvider.m_GetConfigValue(style.PanelFields(fieldIndex).InputConfigKey, vbNullString)
+            End If
+            If fieldIndex = 1 Then
+                mp_SetPanelInputName ws, inputAnchor
+            End If
+            mp_SetPanelInputKeyName ws, inputAnchor, style.PanelFields(fieldIndex).InputName
+            mp_RegisterOnChangeBinding ws, inputAnchor, style.PanelFields(fieldIndex).OnChangeMacroName
 
-        fieldError = mp_GetConfigRefFieldError(style.PanelFields(fieldIndex), fieldIndex)
-        If Len(fieldError) > 0 Then
-            mp_RenderFieldInlineError inputAnchor, fieldError, style, style.PanelFields(fieldIndex).InputOverflowStyle
-            GoTo ContinueField
+            fieldError = mp_GetConfigRefFieldError(style.PanelFields(fieldIndex), fieldIndex)
+            If Len(fieldError) > 0 Then
+                mp_RenderFieldInlineError inputAnchor, fieldError, style, style.PanelFields(fieldIndex).InputOverflowStyle
+                GoTo ContinueField
+            End If
         End If
 
         buttonsCount = style.PanelFields(fieldIndex).ButtonCount

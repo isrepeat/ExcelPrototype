@@ -29,7 +29,7 @@ Public Function m_TryParseSpecialRowColumnRef( _
     If Len(outTableAlias) = 0 Then Exit Function
 
     tableRef = outSourceAlias & ".Sheet[" & outTableAlias & "]"
-    If Not ex_PostProcessParserCore.m_IsSheetRef(tableRef) Then Exit Function
+    If Not ex_ScriptParserCore.m_IsSheetRef(tableRef) Then Exit Function
 
     tailText = Mid$(refText, tableEndPos + 1)
     lowerTail = LCase$(tailText)
@@ -45,14 +45,14 @@ Public Function m_TryParseSpecialRowColumnRef( _
     End If
 
     memberName = outRowSelector
-    If Not ex_PostProcessDslContracts.m_IsMemberAllowed(ex_PostProcessDslContracts.TYPE_SHEET_REF, memberName) Then Exit Function
+    If Not ex_ScriptDslContracts.m_IsMemberAllowed(ex_ScriptDslContracts.TYPE_SHEET_REF, memberName) Then Exit Function
 
     If Right$(tailText, 1) <> "]" Then Exit Function
     outFieldAlias = Trim$(Mid$(tailText, prefixLen + 1, Len(tailText) - prefixLen - 1))
     If Len(outFieldAlias) = 0 Then Exit Function
 
     memberName = "column"
-    If Not ex_PostProcessDslContracts.m_IsMemberAllowed(ex_PostProcessDslContracts.TYPE_ROW, memberName) Then Exit Function
+    If Not ex_ScriptDslContracts.m_IsMemberAllowed(ex_ScriptDslContracts.TYPE_ROW, memberName) Then Exit Function
 
     m_TryParseSpecialRowColumnRef = True
 End Function
@@ -82,7 +82,7 @@ Public Function m_TryParseTableSpecialRowRef( _
     If Len(outTableAlias) = 0 Then Exit Function
 
     tableRef = outSourceAlias & ".Sheet[" & outTableAlias & "]"
-    If Not ex_PostProcessParserCore.m_IsSheetRef(tableRef) Then Exit Function
+    If Not ex_ScriptParserCore.m_IsSheetRef(tableRef) Then Exit Function
 
     tailText = LCase$(Trim$(Mid$(refText, tableEndPos + 1)))
     If tailText = ".lastrow" Then
@@ -94,7 +94,7 @@ Public Function m_TryParseTableSpecialRowRef( _
     End If
 
     memberName = outRowSelector
-    If Not ex_PostProcessDslContracts.m_IsMemberAllowed(ex_PostProcessDslContracts.TYPE_SHEET_REF, memberName) Then Exit Function
+    If Not ex_ScriptDslContracts.m_IsMemberAllowed(ex_ScriptDslContracts.TYPE_SHEET_REF, memberName) Then Exit Function
 
     m_TryParseTableSpecialRowRef = True
 End Function
@@ -123,16 +123,16 @@ Public Function m_TryParseTableScalarRef( _
     If Len(outTableAlias) = 0 Then Exit Function
 
     tableRef = outSourceAlias & ".Sheet[" & outTableAlias & "]"
-    If Not ex_PostProcessParserCore.m_IsSheetRef(tableRef) Then Exit Function
+    If Not ex_ScriptParserCore.m_IsSheetRef(tableRef) Then Exit Function
 
     tailText = Trim$(Mid$(refText, tableEndPos + 1))
     If Left$(tailText, 1) <> "." Then Exit Function
 
     outMemberName = Trim$(Mid$(tailText, 2))
     If Len(outMemberName) = 0 Then Exit Function
-    If Not ex_PostProcessParserCore.m_IsIdentifier(outMemberName) Then Exit Function
+    If Not ex_ScriptParserCore.m_IsIdentifier(outMemberName) Then Exit Function
     If Not mp_IsTableScalarMember(outMemberName) Then Exit Function
-    If Not ex_PostProcessDslContracts.m_IsMemberAllowed(ex_PostProcessDslContracts.TYPE_SHEET_REF, outMemberName) Then Exit Function
+    If Not ex_ScriptDslContracts.m_IsMemberAllowed(ex_ScriptDslContracts.TYPE_SHEET_REF, outMemberName) Then Exit Function
 
     m_TryParseTableScalarRef = True
 End Function
@@ -158,13 +158,13 @@ Public Function m_TryParseTableRowsRef(ByVal refText As String, ByRef outTableRe
     If Len(tableAlias) = 0 Then Exit Function
 
     outTableRef = sourceAlias & ".Sheet[" & tableAlias & "]"
-    If Not ex_PostProcessParserCore.m_IsSheetRef(outTableRef) Then Exit Function
+    If Not ex_ScriptParserCore.m_IsSheetRef(outTableRef) Then Exit Function
 
     tailText = LCase$(Trim$(Mid$(refText, tableEndPos + 1)))
     If tailText <> ".rows" Then Exit Function
 
     memberName = "rows"
-    If Not ex_PostProcessDslContracts.m_IsMemberAllowed(ex_PostProcessDslContracts.TYPE_SHEET_REF, memberName) Then Exit Function
+    If Not ex_ScriptDslContracts.m_IsMemberAllowed(ex_ScriptDslContracts.TYPE_SHEET_REF, memberName) Then Exit Function
 
     m_TryParseTableRowsRef = True
 End Function
@@ -198,10 +198,10 @@ Public Function m_TryParseFullRowColumnRef( _
     outTableAlias = Trim$(Mid$(refText, sheetPos + Len(".Sheet["), rowPos - (sheetPos + Len(".Sheet["))))
     If Len(outTableAlias) = 0 Then Exit Function
     tableRef = outSourceAlias & ".Sheet[" & outTableAlias & "]"
-    If Not ex_PostProcessParserCore.m_IsSheetRef(tableRef) Then Exit Function
+    If Not ex_ScriptParserCore.m_IsSheetRef(tableRef) Then Exit Function
 
     memberName = "row"
-    If Not ex_PostProcessDslContracts.m_IsMemberAllowed(ex_PostProcessDslContracts.TYPE_SHEET_REF, memberName) Then Exit Function
+    If Not ex_ScriptDslContracts.m_IsMemberAllowed(ex_ScriptDslContracts.TYPE_SHEET_REF, memberName) Then Exit Function
 
     rowText = Trim$(Mid$(refText, rowPos + Len("].row["), colPos - (rowPos + Len("].row["))))
     If Len(rowText) = 0 Then Exit Function
@@ -209,7 +209,7 @@ Public Function m_TryParseFullRowColumnRef( _
     If outRowIndex < 0 Then Exit Function
 
     memberName = "column"
-    If Not ex_PostProcessDslContracts.m_IsMemberAllowed(ex_PostProcessDslContracts.TYPE_ROW, memberName) Then Exit Function
+    If Not ex_ScriptDslContracts.m_IsMemberAllowed(ex_ScriptDslContracts.TYPE_ROW, memberName) Then Exit Function
 
     outFieldAlias = Trim$(Mid$(refText, colPos + Len("].column["), Len(refText) - (colPos + Len("].column["))))
     If Len(outFieldAlias) = 0 Then Exit Function
@@ -242,10 +242,10 @@ Public Function m_TryParseTableRowRef( _
     outTableAlias = Trim$(Mid$(refText, sheetPos + Len(".Sheet["), rowPos - (sheetPos + Len(".Sheet["))))
     If Len(outTableAlias) = 0 Then Exit Function
     tableRef = outSourceAlias & ".Sheet[" & outTableAlias & "]"
-    If Not ex_PostProcessParserCore.m_IsSheetRef(tableRef) Then Exit Function
+    If Not ex_ScriptParserCore.m_IsSheetRef(tableRef) Then Exit Function
 
     memberName = "row"
-    If Not ex_PostProcessDslContracts.m_IsMemberAllowed(ex_PostProcessDslContracts.TYPE_SHEET_REF, memberName) Then Exit Function
+    If Not ex_ScriptDslContracts.m_IsMemberAllowed(ex_ScriptDslContracts.TYPE_SHEET_REF, memberName) Then Exit Function
 
     rowText = Trim$(Mid$(refText, rowPos + Len("].row["), Len(refText) - (rowPos + Len("].row["))))
     If Len(rowText) = 0 Then Exit Function

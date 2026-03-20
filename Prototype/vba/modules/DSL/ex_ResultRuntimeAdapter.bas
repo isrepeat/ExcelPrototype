@@ -1,7 +1,7 @@
 Attribute VB_Name = "ex_ResultRuntimeAdapter"
 Option Explicit
 
-Private Const ERR_SOURCE As String = "ex_PostProcessDsl"
+Private Const ERR_SOURCE As String = "ex_ScriptDSL"
 
 Public Sub m_BuildRuntimeContext( _
     ByVal resultTables As Collection, _
@@ -334,7 +334,7 @@ Public Function m_TryParseMacroArg(ByVal argText As String, ByRef outArgSpec As 
         Exit Function
     End If
 
-    If ex_PostProcessParserCore.m_IsIdentifier(argText) Then
+    If ex_ScriptParserCore.m_IsIdentifier(argText) Then
         outArgSpec("Kind") = "varref"
         outArgSpec("Name") = Trim$(argText)
         m_TryParseMacroArg = True

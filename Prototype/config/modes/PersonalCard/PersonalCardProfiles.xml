@@ -144,7 +144,7 @@
 		<!-- <v key="Source.Daily.FilePath">..\DailyScopeTest.xlsx</v> -->
 		<v key="Source.Daily.FilePath">..\..\..\WORK Alexandr Bondarenko\НАКАЗИ\DailyScope.xlsx</v>
 		<v key="Source.Daily.SheetAliases">DailyEvents</v>
-		<v key="CommonKey">ПЛИСКА Олександр Васильович</v>
+		<v key="CommonKey" mutable="true">КАЗНАЧЄЄВ Владислав Геннадійович</v>
 		<v type="#" key="StateMain"/>
 		<v key="Main.Sheet[StateMain].Type">State</v>
 		<v key="Main.Sheet[StateMain].SheetName">ШПС</v>
@@ -166,10 +166,10 @@
 		<v type="#" key="EventsOut"/>
 		<v key="Events.Sheet[EventsOut].Type">Events</v>
 		<v key="Events.Sheet[EventsOut].SheetName">5. Тимчасово відсутні</v>
-			<v key="Events.Sheet[EventsOut].FieldsAliases">
+		<v key="Events.Sheet[EventsOut].FieldsAliases">
 			ZV; FIO; EventReason; City; OutDate; OutCommandDate; OutCommandNumber;
 			DaysCount; PlannedReturnDate; FactArrivalDate; ArrivalCommandDate; Note; Ticket
-			</v>
+		</v>
 		<v key="Events.Sheet[EventsOut].Key">FIO</v>
 		<v key="Events.Sheet[EventsOut].Sort">OutCommandDate</v>
 		<v key="Events.Sheet[EventsOut].Map[ZV]">65|Звання</v>
@@ -187,7 +187,7 @@
 		<v key="Events.Sheet[EventsOut].Map[Ticket]">Стовпець1|Номер квитка</v>
 		<v type="#" key="DailyEvents"/>
 		<v key="Daily.Sheet[DailyEvents].Type">Events</v>
-		<v key="Daily.Sheet[DailyEvents].SheetName">14_03</v>
+		<v key="Daily.Sheet[DailyEvents].SheetName">17_03</v>
 		<v key="Daily.Sheet[DailyEvents].RangeStartMarker">StartTable_DailyEvents</v>
 		<v key="Daily.Sheet[DailyEvents].RangeEndMarker">EndTable_DailyEvents</v>
 		<v key="Daily.Sheet[DailyEvents].FieldsAliases">Hospital; Vacation; Rank; FIO; Position; RaportTVO; RaportFrom; InNum; InDate; DocNote; DocNum; DocDate; DaysCount; DateFrom; DateTo; VkNum; VkDate; VlkNum; VlkDate; Type</v>
@@ -313,6 +313,8 @@
 			}
 			]]>
 		</postProcessScript> -->
-		<postProcessScript execution="Implicit" include="Test2_PostProcessScript_Explicit.jslike"/>
+		<preProcessScript include="Test2_PreProcessScript.jslike"/>
+		<postProcessScript execution="Implicit" include="Test2_PostProcessScript.jslike"/>
+		<postProcessScript execution="Explicit" include="Test2_PostProcessScript.jslike"/>
 	</profile>
 </profiles>

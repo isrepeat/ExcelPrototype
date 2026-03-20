@@ -212,6 +212,34 @@
              spanCols="2"
              spanRows="2"/>
 
+    <control name="btnReportCreation"
+         type="button"
+         sheet="Dev"
+         required="true"
+         createIfMissing="true"
+         macro="ex_UIActions.m_ShowReportCreation_OnClick"
+         caption="Report Creation"
+         globalVisible="false"
+         style="modePrimary"
+         placement="moveAndSize"
+         anchorCell="K8"
+         spanCols="3"
+         spanRows="2"/>
+
+        <control name="btnSimpleTest"
+          type="button"
+          sheet="Dev"
+          required="true"
+          createIfMissing="true"
+          macro="ex_UIActions.m_ShowSimpleTest_OnClick"
+          caption="Simple Test"
+          globalVisible="false"
+          style="modePrimary"
+          placement="moveAndSize"
+          anchorCell="K8"
+          spanCols="3"
+          spanRows="2"/>
+
     <control name="btnCustomProfile"
              type="dropdownButton"
              sheet="Dev"
