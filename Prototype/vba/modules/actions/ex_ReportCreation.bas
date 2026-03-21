@@ -357,6 +357,7 @@ Private Function mp_AppendRowsGeneric( _
     Dim colIndex As Long
     Dim fieldAlias As String
     Dim cellValue As String
+    Dim fieldType As Long
     Dim prevOwnerKey As String
     Dim currentOwnerKey As String
     Dim rowObj As obj_ResultRow
@@ -381,8 +382,9 @@ Private Function mp_AppendRowsGeneric( _
 
         For colIndex = 1 To fieldAliases.Count
             fieldAlias = CStr(fieldAliases(colIndex))
-            cellValue = mp_AsText(rs.Fields(fieldAlias).Value)
-            ws.Cells(nextRow, colIndex).Value = rs.Fields(fieldAlias).Value
+            fieldType = rs.Fields(fieldAlias).Type
+            cellValue = mp_AsText(rs.Fields(fieldAlias).Value, fieldType)
+            ws.Cells(nextRow, colIndex).Value = cellValue
             If Not resultTable Is Nothing Then
                 mp_AddResultCell resultTable, tableRowIndex, sourceAlias, tableAlias, fieldAlias, cellValue
             End If
@@ -478,12 +480,8 @@ Private Function mp_GetOwnerDividerGapRows() As Long
     mp_GetOwnerDividerGapRows = parsedValue
 End Function
 
-Private Function mp_AsText(ByVal valueIn As Variant) As String
-    If IsNull(valueIn) Then
-        mp_AsText = vbNullString
-    Else
-        mp_AsText = CStr(valueIn)
-    End If
+Private Function mp_AsText(ByVal valueIn As Variant, Optional ByVal adoFieldType As Long = -1) As String
+    mp_AsText = ex_SqlAdoHelpers.m_ToNormalizedText(valueIn, adoFieldType)
 End Function
 
 Private Sub mp_SetSheetTextFormat(ByVal ws As Worksheet)
