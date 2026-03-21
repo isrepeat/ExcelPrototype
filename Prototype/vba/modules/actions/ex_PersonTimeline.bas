@@ -799,10 +799,12 @@ Private Function mp_WriteStateCardGeneric( _
     Dim fieldAlias As String
     Dim sourceHeader As String
     Dim fieldOrdinals() As Long
+    Dim fieldTypes() As Long
     Dim outValues() As Variant
     Dim outRow As Long
     Dim fetchKindsByOutRow As Object
     Dim fetchKindsBySheetRow As Object
+    Dim keyFieldType As Long
 
     If Not rs.EOF Then
         stepName = "fetch-exact-rows"
@@ -819,6 +821,7 @@ Private Function mp_WriteStateCardGeneric( _
         valueRow = headerRow + 1
 
         ReDim fieldOrdinals(LBound(fields) To UBound(fields))
+        ReDim fieldTypes(LBound(fields) To UBound(fields))
         For i = LBound(fields) To UBound(fields)
             fieldAlias = Trim$(CStr(fields(i)))
             If Len(fieldAlias) = 0 Then GoTo ContinueExactField
@@ -827,9 +830,15 @@ Private Function mp_WriteStateCardGeneric( _
             wsOut.Cells(headerRow, outCol).Value = mp_GetFieldLabel(cfg, sourceAlias, tableAlias, fieldAlias)
             If mp_IsVirtualFieldAlias(cfg, sourceAlias, tableAlias, fieldAlias) Then
                 fieldOrdinals(i) = -2
+                fieldTypes(i) = -1
             Else
                 sourceHeader = mp_ResolveAdoMappedHeader(cfg, sourceAlias, tableAlias, fieldAlias, adoConn, tableRef)
                 fieldOrdinals(i) = mp_RecordsetGetFieldOrdinal(rs, sourceHeader)
+                If fieldOrdinals(i) >= 0 Then
+                    fieldTypes(i) = rs.Fields(fieldOrdinals(i)).Type
+                Else
+                    fieldTypes(i) = -1
+                End If
             End If
 ContinueExactField:
         Next i
@@ -841,7 +850,7 @@ ContinueExactField:
                 If mp_IsVirtualFieldAlias(cfg, sourceAlias, tableAlias, fieldAlias) Then
                     outValues(outRow, 1 + (i - LBound(fields))) = vbNullString
                 ElseIf fieldOrdinals(i) >= 0 Then
-                    outValues(outRow, 1 + (i - LBound(fields))) = mp_ToCellValue(stateRows(fieldOrdinals(i), outRow - 1))
+                    outValues(outRow, 1 + (i - LBound(fields))) = mp_ToCellValue(stateRows(fieldOrdinals(i), outRow - 1), fieldTypes(i))
                 Else
                     outValues(outRow, 1 + (i - LBound(fields))) = "(missing column)"
                 End If
@@ -910,8 +919,9 @@ ContinueExactField:
 
     ReDim partialValues(1 To partialCount, 1 To 1)
     keyOnlyFields(0) = keyAlias
+    keyFieldType = rs.Fields(0).Type
     For candidateIndex = 1 To partialCount
-        partialValues(candidateIndex, 1) = mp_ToCellValue(partialRows(0, candidateIndex - 1))
+        partialValues(candidateIndex, 1) = mp_ToCellValue(partialRows(0, candidateIndex - 1), keyFieldType)
     Next candidateIndex
 
     wsOut.Range(wsOut.Cells(valueRow, 1), wsOut.Cells(dataEndRow, 1)).Value2 = partialValues
@@ -1009,6 +1019,7 @@ Private Function mp_WriteEventsGeneric( _
     Dim fieldAlias As String
     Dim headerValues() As Variant
     Dim fieldOrdinals() As Long
+    Dim fieldTypes() As Long
     Dim keyDataEndRow As Long
     Dim partialValues() As Variant
     Dim keyOnlyFields(0 To 0) As String
@@ -1018,6 +1029,7 @@ Private Function mp_WriteEventsGeneric( _
     Dim fetchDslApplied As Boolean
     Dim fetchKindsByOutRow As Object
     Dim fetchKindsBySheetRow As Object
+    Dim keyFieldType As Long
 
     If rs.EOF Then
         rs.Close
@@ -1055,8 +1067,9 @@ Private Function mp_WriteEventsGeneric( _
 
         ReDim partialValues(1 To partialCount, 1 To 1)
         keyOnlyFields(0) = keyAlias
+        keyFieldType = rs.Fields(0).Type
         For candidateIndex = 1 To partialCount
-            partialValues(candidateIndex, 1) = mp_ToCellValue(partialRows(0, candidateIndex - 1))
+            partialValues(candidateIndex, 1) = mp_ToCellValue(partialRows(0, candidateIndex - 1), keyFieldType)
         Next candidateIndex
 
         wsOut.Range(wsOut.Cells(outDataRow, 1), wsOut.Cells(keyDataEndRow, 1)).Value2 = partialValues
@@ -1078,15 +1091,22 @@ Private Function mp_WriteEventsGeneric( _
 
     ReDim headerValues(1 To 1, 1 To fieldCount)
     ReDim fieldOrdinals(LBound(fields) To UBound(fields))
+    ReDim fieldTypes(LBound(fields) To UBound(fields))
 
     For i = LBound(fields) To UBound(fields)
         fieldAlias = Trim$(CStr(fields(i)))
         headerValues(1, 1 + (i - LBound(fields))) = mp_GetFieldLabel(cfg, sourceAlias, tableAlias, fieldAlias)
         If mp_IsVirtualFieldAlias(cfg, sourceAlias, tableAlias, fieldAlias) Then
             fieldOrdinals(i) = -2
+            fieldTypes(i) = -1
         Else
             sourceHeader = mp_ResolveAdoMappedHeader(cfg, sourceAlias, tableAlias, fieldAlias, adoConn, tableRef)
             fieldOrdinals(i) = mp_RecordsetGetFieldOrdinal(rs, sourceHeader)
+            If fieldOrdinals(i) >= 0 Then
+                fieldTypes(i) = rs.Fields(fieldOrdinals(i)).Type
+            Else
+                fieldTypes(i) = -1
+            End If
         End If
     Next i
     wsOut.Range(wsOut.Cells(outHeaderRow, 1), wsOut.Cells(outHeaderRow, fieldCount)).Value = headerValues
@@ -1103,7 +1123,7 @@ Private Function mp_WriteEventsGeneric( _
             If mp_IsVirtualFieldAlias(cfg, sourceAlias, tableAlias, fieldAlias) Then
                 outValues(outIndex, 1 + (i - LBound(fields))) = vbNullString
             ElseIf fieldOrdinals(i) >= 0 Then
-                outValues(outIndex, 1 + (i - LBound(fields))) = mp_ToCellValue(fieldData(fieldOrdinals(i), outIndex - 1))
+                outValues(outIndex, 1 + (i - LBound(fields))) = mp_ToCellValue(fieldData(fieldOrdinals(i), outIndex - 1), fieldTypes(i))
             Else
                 outValues(outIndex, 1 + (i - LBound(fields))) = "(missing column)"
             End If
@@ -3508,17 +3528,8 @@ Private Function mp_ToColumnLetter(ByVal columnIndex As Long) As String
     Loop
 End Function
 
-Private Function mp_ToCellValue(ByVal valueIn As Variant) As Variant
-    If IsError(valueIn) Then
-        mp_ToCellValue = vbNullString
-        Exit Function
-    End If
-    If IsNull(valueIn) Then
-        mp_ToCellValue = vbNullString
-        Exit Function
-    End If
-
-    mp_ToCellValue = valueIn
+Private Function mp_ToCellValue(ByVal valueIn As Variant, Optional ByVal adoFieldType As Long = -1) As Variant
+    mp_ToCellValue = ex_SqlAdoHelpers.m_ToNormalizedCellValue(valueIn, adoFieldType)
 End Function
 
 Private Function mp_GetWorkbookForSource(ByVal wbCache As Object, ByVal cfg As Object, ByVal sourceAlias As String) As Workbook
