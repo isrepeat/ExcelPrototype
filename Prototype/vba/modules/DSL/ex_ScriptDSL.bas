@@ -56,8 +56,7 @@ Public Function m_ValidateScriptAgainstConfig( _
     ByVal cfg As Object, _
     ByVal allowedTableFields As Object, _
     ByRef outErrorText As String, _
-    Optional ByVal scriptConfigKey As String = SCRIPT_KEY, _
-    Optional ByVal injectedScopeVarTypes As Object = Nothing _
+    Optional ByVal scriptConfigKey As String = SCRIPT_KEY _
 ) As Boolean
     Dim scriptText As String
     Dim blocks As Collection
@@ -80,7 +79,7 @@ Public Function m_ValidateScriptAgainstConfig( _
     End If
 
     stepName = "validate-blocks"
-    If Not mp_ValidateBlocks(blocks, allowedTableFields, outErrorText, injectedScopeVarTypes) Then Exit Function
+    If Not mp_ValidateBlocks(blocks, allowedTableFields, outErrorText) Then Exit Function
     mp_MarkValidationCache scriptConfigKey, scriptText, validationSignature
 
     m_ValidateScriptAgainstConfig = True
@@ -99,9 +98,7 @@ Public Sub m_ApplyScriptToSheet( _
     ByVal ws As Worksheet, _
     ByVal cfg As Object, _
     ByVal resultTables As Collection, _
-    Optional ByVal scriptConfigKey As String = SCRIPT_KEY, _
-    Optional ByVal injectedRuntimeVars As Object = Nothing, _
-    Optional ByVal injectedRuntimeVarTypes As Object = Nothing _
+    Optional ByVal scriptConfigKey As String = SCRIPT_KEY _
 )
     Dim scriptText As String
     Dim blocks As Collection
@@ -139,10 +136,10 @@ Public Sub m_ApplyScriptToSheet( _
     ex_ResultRuntimeAdapter.m_BuildRuntimeContext resultTables, ctxTablesByRef, ctxFields
     mp_DebugLog "runtime context built"
 
-    runtimeValidationSignature = mp_BuildValidationSignature(ctxFields) & mp_BuildRuntimeScopeSignature(injectedRuntimeVarTypes)
+    runtimeValidationSignature = mp_BuildValidationSignature(ctxFields)
     If Not mp_IsValidationCacheHit(scriptConfigKey, scriptText, runtimeValidationSignature) Then
         mp_DebugLog "validate start"
-        If Not mp_ValidateBlocks(blocks, ctxFields, parseOrValidationError, injectedRuntimeVarTypes) Then
+        If Not mp_ValidateBlocks(blocks, ctxFields, parseOrValidationError) Then
             mp_DebugLog "validate failed: " & parseOrValidationError
             Err.Raise vbObjectError + 1591, "ex_ScriptDSL", "Script validation failed: " & parseOrValidationError
         End If
@@ -170,7 +167,7 @@ Public Sub m_ApplyScriptToSheet( _
     If Not ws Is ActiveSheet Then ws.Activate
 
     mp_DebugLog "execute blocks start"
-    mp_ExecuteBlocks ws, blocks, ctxTablesByRef, postProcessFooterLines, usedCols, injectedRuntimeVars
+    mp_ExecuteBlocks ws, blocks, ctxTablesByRef, postProcessFooterLines, usedCols
     mp_DebugLog "execute blocks ok"
     ex_PostProcessActions.m_CommitDeferredRender ws
     mp_DebugLog "deferred commit ok"
@@ -441,8 +438,7 @@ End Function
 Private Function mp_ValidateBlocks( _
     ByVal blocks As Collection, _
     ByVal allowedTableFields As Object, _
-    ByRef outErrorText As String, _
-    Optional ByVal injectedScopeVarTypes As Object = Nothing _
+    ByRef outErrorText As String _
 ) As Boolean
     Dim rootScopeVarTypes As Object
 
@@ -452,7 +448,6 @@ Private Function mp_ValidateBlocks( _
     End If
 
     Set rootScopeVarTypes = mp_CreateVarScope()
-    mp_ApplyInjectedScopeVarTypes rootScopeVarTypes, injectedScopeVarTypes
     mp_ValidateBlocks = mp_ValidateStatements(blocks, allowedTableFields, vbNullString, vbNullString, rootScopeVarTypes, 0, outErrorText)
 End Function
 
@@ -461,14 +456,12 @@ Private Sub mp_ExecuteBlocks( _
     ByVal blocks As Collection, _
     ByVal tablesByRef As Object, _
     ByVal postProcessFooterLines As Collection, _
-    ByVal usedCols As Long, _
-    Optional ByVal injectedRuntimeVars As Object = Nothing _
+    ByVal usedCols As Long _
 )
     Dim rootRuntimeVars As Object
     Dim execFlow As String
 
     Set rootRuntimeVars = mp_CreateVarScope()
-    mp_ApplyInjectedRuntimeVars rootRuntimeVars, injectedRuntimeVars
     execFlow = mp_ExecuteStatements(ws, blocks, tablesByRef, postProcessFooterLines, usedCols, vbNullString, vbNullString, Nothing, rootRuntimeVars)
     Select Case LCase$(execFlow)
         Case EXEC_FLOW_NONE, EXEC_FLOW_RETURN
@@ -1762,77 +1755,6 @@ Private Function mp_IsReservedDslKeyword(ByVal tokenText As String) As Boolean
     End Select
 End Function
 
-Private Function mp_BuildRuntimeScopeSignature(ByVal scopeVarTypes As Object) As String
-    Dim keys As Variant
-    Dim i As Long
-
-    On Error GoTo EH
-
-    If scopeVarTypes Is Nothing Then
-        mp_BuildRuntimeScopeSignature = "|S:none"
-        Exit Function
-    End If
-
-    keys = scopeVarTypes.Keys
-    If mp_IsEmptyArrayLocal(keys) Then
-        mp_BuildRuntimeScopeSignature = "|S:empty"
-        Exit Function
-    End If
-
-    mp_SortVariantTextArrayLocal keys
-    mp_BuildRuntimeScopeSignature = "|S"
-    For i = LBound(keys) To UBound(keys)
-        mp_BuildRuntimeScopeSignature = mp_BuildRuntimeScopeSignature & ";" & CStr(keys(i)) & ":" & LCase$(CStr(scopeVarTypes(CStr(keys(i)))))
-    Next i
-    Exit Function
-
-EH:
-    mp_BuildRuntimeScopeSignature = "|S:error:" & CStr(Err.Number)
-End Function
-
-Private Sub mp_ApplyInjectedScopeVarTypes(ByVal targetScope As Object, ByVal injectedScopeVarTypes As Object)
-    Dim scopeKey As Variant
-    Dim normalizedType As String
-
-    If targetScope Is Nothing Then Exit Sub
-    If injectedScopeVarTypes Is Nothing Then Exit Sub
-
-    For Each scopeKey In injectedScopeVarTypes.Keys
-        normalizedType = LCase$(Trim$(CStr(injectedScopeVarTypes(CStr(scopeKey)))))
-        Select Case normalizedType
-            Case VAR_TYPE_ROW, VAR_TYPE_COLUMN, VAR_TYPE_STRING, VAR_TYPE_OBJECT
-                mp_SetScopeValue targetScope, CStr(scopeKey), normalizedType
-            Case Else
-                Err.Raise vbObjectError + 1627, "ex_ScriptDSL", "Unsupported injected variable type for '" & CStr(scopeKey) & "': " & CStr(injectedScopeVarTypes(CStr(scopeKey)))
-        End Select
-    Next scopeKey
-End Sub
-
-Private Sub mp_ApplyInjectedRuntimeVars(ByVal targetScope As Object, ByVal injectedRuntimeVars As Object)
-    Dim scopeKey As Variant
-    Dim rawValue As Variant
-    Dim rawObject As Object
-    Dim scopeValue As obj_ScriptScopeValue
-
-    If targetScope Is Nothing Then Exit Sub
-    If injectedRuntimeVars Is Nothing Then Exit Sub
-
-    For Each scopeKey In injectedRuntimeVars.Keys
-        rawValue = injectedRuntimeVars(CStr(scopeKey))
-        If IsObject(rawValue) Then
-            Set rawObject = rawValue
-            If TypeOf rawObject Is obj_ScriptScopeValue Then
-                Set scopeValue = rawObject
-                mp_SetRuntimeScopeValue targetScope, CStr(scopeKey), scopeValue
-            Else
-                mp_SetRuntimeScopeObject targetScope, CStr(scopeKey), rawObject
-            End If
-        Else
-            mp_SetRuntimeScopeString targetScope, CStr(scopeKey), CStr(rawValue)
-        End If
-    Next scopeKey
-End Sub
-
 Private Sub mp_SkipWhitespace(ByVal sourceText As String, ByRef pos As Long, ByRef lineNo As Long)
     Dim ch As String
     Do While pos <= Len(sourceText)
@@ -2910,6 +2832,19 @@ Private Function mp_TryResolveVariableMemberValue( _
     ByRef outErrorText As String _
 ) As Boolean
     Dim columnObj As obj_ResultColumn
+    Dim rowObj As obj_ResultRow
+
+    If TypeOf variableObject Is obj_ResultRow Then
+        Set rowObj = variableObject
+        If Not rowObj.HasAlias(memberName) Then
+            outErrorText = "Unknown row field alias '" & memberName & "' in token '" & tokenText & "'."
+            Exit Function
+        End If
+
+        outValue = rowObj.Column(memberName)
+        mp_TryResolveVariableMemberValue = True
+        Exit Function
+    End If
 
     If TypeOf variableObject Is obj_ResultColumn Then
         Set columnObj = variableObject

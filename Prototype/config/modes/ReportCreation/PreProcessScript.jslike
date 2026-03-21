@@ -1,0 +1,9 @@
+// ReportCreation pre-process pass-through.
+// Keeps pipeline behavior explicit: Input -> Output with no transformations.
+
+let input = callMacroObject("ex_ScriptIO.m_GetInput");
+let output = callMacroObject("ex_ScriptIO.m_CreateOutput");
+
+let keysCollection = callMacroObject("ex_ScriptIO.m_GetObject", input, "KeysCollection");
+
+callMacro("ex_ScriptIO.m_SetObject", output, "KeysCollection", keysCollection);

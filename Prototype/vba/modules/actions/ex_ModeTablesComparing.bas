@@ -1,4 +1,4 @@
-Attribute VB_Name = "ex_TableComparing"
+Attribute VB_Name = "ex_ModeTablesComparing"
 Option Explicit
 
 Public Sub m_RunComparing()
@@ -65,16 +65,16 @@ Public Function m_CompareConfiguredTables(ByVal keyColumnName As String) As Vari
     newTableName = Trim$(mp_GetConfigValueSafe("NewTableName"))
 
     If Len(oldPath) = 0 Or Len(oldTableName) = 0 Or Len(newPath) = 0 Or Len(newTableName) = 0 Then
-        Err.Raise vbObjectError + 2202, "ex_TableComparing", _
+        Err.Raise vbObjectError + 2202, "ex_ModeTablesComparing", _
             "Config keys OldFilePath/OldTableName/NewFilePath/NewTableName are required."
     End If
 
     If Dir(oldPath) = vbNullString Then
-        Err.Raise vbObjectError + 2203, "ex_TableComparing", "OldFilePath not found: " & oldPath
+        Err.Raise vbObjectError + 2203, "ex_ModeTablesComparing", "OldFilePath not found: " & oldPath
     End If
 
     If Dir(newPath) = vbNullString Then
-        Err.Raise vbObjectError + 2204, "ex_TableComparing", "NewFilePath not found: " & newPath
+        Err.Raise vbObjectError + 2204, "ex_ModeTablesComparing", "NewFilePath not found: " & newPath
     End If
 
     m_CompareConfiguredTables = mp_CompareExternalTables(oldPath, oldTableName, newPath, newTableName, keyColumnName)
@@ -107,12 +107,12 @@ Private Function mp_CompareExternalTables( _
 
     Set loOld = mp_FindListObjectByName(wbOld, oldTableName)
     If loOld Is Nothing Then
-        Err.Raise vbObjectError + 2205, "ex_TableComparing", "Table '" & oldTableName & "' not found in file: " & oldWorkbookPath
+        Err.Raise vbObjectError + 2205, "ex_ModeTablesComparing", "Table '" & oldTableName & "' not found in file: " & oldWorkbookPath
     End If
 
     Set loNew = mp_FindListObjectByName(wbNew, newTableName)
     If loNew Is Nothing Then
-        Err.Raise vbObjectError + 2206, "ex_TableComparing", "Table '" & newTableName & "' not found in file: " & newWorkbookPath
+        Err.Raise vbObjectError + 2206, "ex_ModeTablesComparing", "Table '" & newTableName & "' not found in file: " & newWorkbookPath
     End If
 
     mp_CompareExternalTables = mp_CompareRanges(loOld.Range, loNew.Range, keyColumnName)
@@ -125,7 +125,7 @@ Cleanup:
     Application.ScreenUpdating = prevScreenUpdating
     On Error GoTo 0
     If hadError Then
-        Err.Raise vbObjectError + 2207, "ex_TableComparing", errText
+        Err.Raise vbObjectError + 2207, "ex_ModeTablesComparing", errText
     End If
     Exit Function
 EH:

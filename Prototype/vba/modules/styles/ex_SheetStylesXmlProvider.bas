@@ -532,7 +532,7 @@ Public Sub m_DeleteResultSheets()
     Dim i As Long
 
     On Error GoTo EH
-    ex_PersonTimeline.m_ResetResultPageSessionState
+    ex_ModePersonalCard.m_ResetResultPageSessionState
     ex_SheetViewZoom.m_ResetZoomCache
 
     Application.DisplayAlerts = False

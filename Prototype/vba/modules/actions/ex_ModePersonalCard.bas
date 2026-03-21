@@ -1,4 +1,4 @@
-Attribute VB_Name = "ex_PersonTimeline"
+Attribute VB_Name = "ex_ModePersonalCard"
 Option Explicit
 
 Private Const DEV_CONFIG_TABLE_NAME As String = "tblDevConfig"
@@ -179,14 +179,14 @@ Public Sub m_RunPersonalCard()
     fio = Trim$(ex_ConfigProvider.m_GetConfigValue("CommonKey", vbNullString))
 
     Set cfg = mp_LoadConfigDictionary()
-    ex_ModePipeline.m_RunModePipeline cfg, "ex_PersonTimeline.m_RunMode", mp_CreateScriptInputContext(fio), False
+    ex_ModePipeline.m_RunModePipeline cfg, "ex_ModePersonalCard.m_RunMode", mp_CreateScriptInputContext(fio), False
 End Sub
 
 Public Sub m_RunPersonalCardByKey(ByVal fio As String)
     Dim cfg As Object
 
     Set cfg = mp_LoadConfigDictionary()
-    ex_ModePipeline.m_RunModePipeline cfg, "ex_PersonTimeline.m_RunMode", mp_CreateScriptInputContext(fio), False
+    ex_ModePipeline.m_RunModePipeline cfg, "ex_ModePersonalCard.m_RunMode", mp_CreateScriptInputContext(fio), False
 End Sub
 
 Public Function m_RunMode(ByVal cfg As Object, ByVal modeInput As Object, ByVal preProcessContext As Object) As Object
@@ -258,7 +258,7 @@ Private Function mp_RunModeCore( _
 
     stageName = "validate-input-key"
     If Len(Trim$(fio)) = 0 Then
-        Err.Raise vbObjectError + 1300, "ex_PersonTimeline", _
+        Err.Raise vbObjectError + 1300, "ex_ModePersonalCard", _
             "Config key 'CommonKey' is empty."
     End If
 
@@ -309,7 +309,7 @@ Private Function mp_RunModeCore( _
     Dim hasOutputStyle As Boolean
 
     If Not ex_SheetStylesXmlProvider.m_EnsureInitialized(ThisWorkbook) Then
-        Err.Raise vbObjectError + 1304, "ex_PersonTimeline", "Failed to initialize style registry."
+        Err.Raise vbObjectError + 1304, "ex_ModePersonalCard", "Failed to initialize style registry."
     End If
     hasOutputStyle = ex_SheetStylesXmlProvider.m_GetOutputSheetStyle(outputStyle, ThisWorkbook)
 
@@ -362,7 +362,7 @@ Private Function mp_RunModeCore( _
         tableType = LCase$(mp_GetCfgRequired(cfg, sourceAlias & ".Sheet[" & tableAlias & "].Type"))
 
         If Not mp_IsSupportedOutputTableType(tableType) Then
-            Err.Raise vbObjectError + 1301, "ex_PersonTimeline", _
+            Err.Raise vbObjectError + 1301, "ex_ModePersonalCard", _
                 "Unsupported table type for alias '" & tableAlias & "': " & tableType
         End If
         If Not mp_ShouldRenderTableForMode(mode, tableType) Then
@@ -414,7 +414,7 @@ ContinueAlias:
 
     stageName = "validate-rendered-count"
     If renderedCount = 0 Then
-        Err.Raise vbObjectError + 1303, "ex_PersonTimeline", _
+        Err.Raise vbObjectError + 1303, "ex_ModePersonalCard", _
             "No sheets were rendered for mode '" & ex_Settings.m_GetOutputModeDisplay() & "'. Check Output.Sheets and sheet Type."
     End If
 
@@ -461,7 +461,7 @@ EH:
     errDescription = Err.Description
 
     On Error Resume Next
-    ex_Messaging.m_LogToFile "[ex_PersonTimeline] FAIL stage='" & stageName & "' fio='" & CStr(fio) & "' source='" & errSource & "' code=" & CStr(errNumber) & " description='" & errDescription & "'", TIMELINE_DEBUG_LOG_PATH
+    ex_Messaging.m_LogToFile "[ex_ModePersonalCard] FAIL stage='" & stageName & "' fio='" & CStr(fio) & "' source='" & errSource & "' code=" & CStr(errNumber) & " description='" & errDescription & "'", TIMELINE_DEBUG_LOG_PATH
     On Error GoTo 0
 
     On Error Resume Next
@@ -497,7 +497,7 @@ End Function
 
 Private Sub mp_DebugLog(ByVal messageText As String)
     On Error Resume Next
-    ex_Messaging.m_LogToFile "[ex_PersonTimeline] " & CStr(messageText), TIMELINE_DEBUG_LOG_PATH
+    ex_Messaging.m_LogToFile "[ex_ModePersonalCard] " & CStr(messageText), TIMELINE_DEBUG_LOG_PATH
     On Error GoTo 0
 End Sub
 
@@ -634,7 +634,7 @@ Private Function mp_ValidateTimelineConfig( _
         tableType = LCase$(mp_GetCfgRequired(cfg, sourceAlias & ".Sheet[" & tableAlias & "].Type"))
 
         If Not mp_IsSupportedOutputTableType(tableType) Then
-            Err.Raise vbObjectError + 1301, "ex_PersonTimeline", _
+            Err.Raise vbObjectError + 1301, "ex_ModePersonalCard", _
                 "Unsupported table type for alias '" & tableAlias & "': " & tableType
         End If
         If Not mp_ShouldRenderTableForMode(mode, tableType) Then GoTo ContinueAlias
@@ -648,14 +648,14 @@ Private Function mp_ValidateTimelineConfig( _
         rangeStartMarker = mp_GetCfgOptional(cfg, sourceAlias & ".Sheet[" & tableAlias & "].RangeStartMarker", vbNullString)
         rangeEndMarker = mp_GetCfgOptional(cfg, sourceAlias & ".Sheet[" & tableAlias & "].RangeEndMarker", vbNullString)
         If (Len(rangeStartMarker) > 0 Xor Len(rangeEndMarker) > 0) Then
-            Err.Raise vbObjectError + 1747, "ex_PersonTimeline", _
+            Err.Raise vbObjectError + 1747, "ex_ModePersonalCard", _
                 "Both markers must be provided for auto-range mode: '" & _
                 sourceAlias & ".Sheet[" & tableAlias & "].RangeStartMarker' and '" & _
                 sourceAlias & ".Sheet[" & tableAlias & "].RangeEndMarker'."
         End If
         If Len(rangeStartMarker) > 0 Then
             If mp_IsExplicitAdoRangeReference(configuredSheetName) Then
-                Err.Raise vbObjectError + 1748, "ex_PersonTimeline", _
+                Err.Raise vbObjectError + 1748, "ex_ModePersonalCard", _
                     "Auto-range markers are not allowed with explicit range SheetName for " & _
                     sourceAlias & ".Sheet[" & tableAlias & "].SheetName."
             End If
@@ -947,7 +947,7 @@ EH:
     End If
     On Error GoTo 0
 
-    Err.Raise vbObjectError + 1319, "ex_PersonTimeline.mp_WriteStateCardGeneric", _
+    Err.Raise vbObjectError + 1319, "ex_ModePersonalCard.mp_WriteStateCardGeneric", _
         "Ошибка для таблицы '" & tableAlias & "' (источник '" & sourceAlias & "') на шаге '" & stepName & "'. " & _
         "SQL=[" & sql & "]. Внутренняя ошибка #" & CStr(innerErrNumber) & ": " & innerErrDescription
 End Function
@@ -1192,7 +1192,7 @@ EH:
     End If
     On Error GoTo 0
 
-    Err.Raise vbObjectError + 1329, "ex_PersonTimeline.mp_WriteEventsGeneric", _
+    Err.Raise vbObjectError + 1329, "ex_ModePersonalCard.mp_WriteEventsGeneric", _
         "Ошибка для таблицы '" & tableAlias & "' (источник '" & sourceAlias & "') на шаге '" & stepName & "'. " & _
         "SQL=[" & sql & "]. Внутренняя ошибка #" & CStr(innerErrNumber) & ": " & innerErrDescription
 
@@ -1218,7 +1218,7 @@ Private Function mp_GetAdoTableReference( _
         rangeEndMarker = mp_GetCfgOptional(cfg, sourceAlias & ".Sheet[" & tableAlias & "].RangeEndMarker", vbNullString)
 
         If (Len(rangeStartMarker) > 0 Xor Len(rangeEndMarker) > 0) Then
-            Err.Raise vbObjectError + 1747, "ex_PersonTimeline", _
+            Err.Raise vbObjectError + 1747, "ex_ModePersonalCard", _
                 "Both markers must be provided for auto-range mode: '" & _
                 sourceAlias & ".Sheet[" & tableAlias & "].RangeStartMarker' and '" & _
                 sourceAlias & ".Sheet[" & tableAlias & "].RangeEndMarker'."
@@ -1237,7 +1237,7 @@ Private Function mp_GetAdoTableReference( _
         Exit Function
     End If
 
-    Err.Raise vbObjectError + 1335, "ex_PersonTimeline", _
+    Err.Raise vbObjectError + 1335, "ex_ModePersonalCard", _
         "Missing required config key '" & sourceAlias & ".Sheet[" & tableAlias & "].SheetName'."
 End Function
 
@@ -1269,14 +1269,14 @@ Private Function mp_BuildAdoRangeReferenceFromMarkers( _
     On Error GoTo EH
 
     If mp_IsExplicitAdoRangeReference(configuredSheetName) Then
-        Err.Raise vbObjectError + 1748, "ex_PersonTimeline", _
+        Err.Raise vbObjectError + 1748, "ex_ModePersonalCard", _
             "Auto-range markers are not allowed with explicit range SheetName for " & _
             sourceAlias & ".Sheet[" & tableAlias & "].SheetName."
     End If
 
     sourcePath = mp_GetResolvedSourcePath(cfg, sourceAlias)
     If Dir(sourcePath) = vbNullString Then
-        Err.Raise vbObjectError + 1360, "ex_PersonTimeline", "Source file not found: " & sourcePath
+        Err.Raise vbObjectError + 1360, "ex_ModePersonalCard", "Source file not found: " & sourcePath
     End If
 
     snapshotPath = ex_SourceSnapshot.m_GetSnapshotPath(sourcePath, "Source." & sourceAlias)
@@ -1297,32 +1297,32 @@ Private Function mp_BuildAdoRangeReferenceFromMarkers( _
 
     Set ws = mp_FindWorksheetByConfiguredAdoName(wb, configuredSheetName)
     If ws Is Nothing Then
-        Err.Raise vbObjectError + 1749, "ex_PersonTimeline", _
+        Err.Raise vbObjectError + 1749, "ex_ModePersonalCard", _
             "Worksheet for configured SheetName '" & configuredSheetName & "' was not found in source '" & sourceAlias & "'."
     End If
 
     Set startCell = mp_FindFirstMarkerCell(ws, startMarker)
     If startCell Is Nothing Then
-        Err.Raise vbObjectError + 1750, "ex_PersonTimeline", _
+        Err.Raise vbObjectError + 1750, "ex_ModePersonalCard", _
             "Start marker '" & startMarker & "' was not found on sheet '" & ws.Name & "'."
     End If
 
     markerCol = startCell.Column
     Set endCell = mp_FindMarkerCellInColumnAfterRow(ws, markerCol, endMarker, startCell.Row)
     If endCell Is Nothing Then
-        Err.Raise vbObjectError + 1751, "ex_PersonTimeline", _
+        Err.Raise vbObjectError + 1751, "ex_ModePersonalCard", _
             "End marker '" & endMarker & "' was not found below start marker '" & startMarker & "' in column " & CStr(markerCol) & " on sheet '" & ws.Name & "'."
     End If
 
     headerRow = startCell.Row - 1
     If headerRow < 1 Then
-        Err.Raise vbObjectError + 1752, "ex_PersonTimeline", _
+        Err.Raise vbObjectError + 1752, "ex_ModePersonalCard", _
             "Header row cannot be determined: start marker '" & startMarker & "' is located at row " & CStr(startCell.Row) & "."
     End If
 
     dataLastRow = endCell.Row - 1
     If dataLastRow < startCell.Row Then
-        Err.Raise vbObjectError + 1753, "ex_PersonTimeline", _
+        Err.Raise vbObjectError + 1753, "ex_ModePersonalCard", _
             "Detected marker range is empty: end marker '" & endMarker & "' is at row " & CStr(endCell.Row) & "."
     End If
 
@@ -1335,13 +1335,13 @@ Private Function mp_BuildAdoRangeReferenceFromMarkers( _
         SearchDirection:=xlNext, _
         MatchCase:=False)
     If firstHeaderCell Is Nothing Then
-        Err.Raise vbObjectError + 1754, "ex_PersonTimeline", _
+        Err.Raise vbObjectError + 1754, "ex_ModePersonalCard", _
             "Header row " & CStr(headerRow) & " contains no header cells before marker column."
     End If
 
     firstCol = firstHeaderCell.Column
     If firstCol > markerCol Then
-        Err.Raise vbObjectError + 1755, "ex_PersonTimeline", _
+        Err.Raise vbObjectError + 1755, "ex_ModePersonalCard", _
             "Invalid detected range bounds: first column " & CStr(firstCol) & " is greater than marker column " & CStr(markerCol) & "."
     End If
 
@@ -1349,7 +1349,7 @@ Private Function mp_BuildAdoRangeReferenceFromMarkers( _
     markerColLetter = mp_ToColumnLetter(markerCol)
     sheetToken = mp_BuildAdoSheetToken(configuredSheetName)
     If Len(sheetToken) = 0 Then
-        Err.Raise vbObjectError + 1756, "ex_PersonTimeline", _
+        Err.Raise vbObjectError + 1756, "ex_ModePersonalCard", _
             "Failed to build ADO sheet token from SheetName '" & configuredSheetName & "'."
     End If
 
@@ -1566,7 +1566,7 @@ Private Function mp_ResolveExplicitAdoObjectReference( _
     Loop
     schemaRs.Close
 
-    Err.Raise vbObjectError + 1336, "ex_PersonTimeline", _
+    Err.Raise vbObjectError + 1336, "ex_ModePersonalCard", _
         "Configured SheetName '" & configuredName & "' for " & sourceAlias & ".Sheet[" & tableAlias & "] was not found. Available objects: " & listedNames
 End Function
 
@@ -2093,12 +2093,12 @@ Private Function mp_LoadConfigDictionary() As Object
     On Error GoTo 0
 
     If tbl Is Nothing Then
-        Err.Raise vbObjectError + 1330, "ex_PersonTimeline", _
+        Err.Raise vbObjectError + 1330, "ex_ModePersonalCard", _
             "Config table '" & DEV_CONFIG_TABLE_NAME & "' was not found on sheet '" & ws.Name & "'."
     End If
 
     If tbl.DataBodyRange Is Nothing Then
-        Err.Raise vbObjectError + 1331, "ex_PersonTimeline", _
+        Err.Raise vbObjectError + 1331, "ex_ModePersonalCard", _
             "Config table '" & DEV_CONFIG_TABLE_NAME & "' has no data rows."
     End If
 
@@ -2190,7 +2190,7 @@ Private Function mp_EnsureResultTable( _
     tableRef = sourceAlias & ".Sheet[" & tableAlias & "]"
 
     If resultTablesByRef Is Nothing Then
-        Err.Raise vbObjectError + 1338, "ex_PersonTimeline", "Result tables index dictionary is not initialized."
+        Err.Raise vbObjectError + 1338, "ex_ModePersonalCard", "Result tables index dictionary is not initialized."
     End If
 
     If Not resultTablesByRef.Exists(tableRef) Then
@@ -2271,7 +2271,7 @@ Private Sub mp_CaptureResultTableRowsFromOutput( _
         rowOrdinal = r - dataRowStart + 1
         rowAnchorName = ex_Messaging.m_BuildResultRowAnchorName(resultTable.TableRef, rowOrdinal)
         If Len(rowAnchorName) = 0 Then
-            Err.Raise vbObjectError + 1316, "ex_PersonTimeline", "Unable to build row anchor name for table '" & resultTable.TableRef & "' row ordinal " & CStr(rowOrdinal) & "."
+            Err.Raise vbObjectError + 1316, "ex_ModePersonalCard", "Unable to build row anchor name for table '" & resultTable.TableRef & "' row ordinal " & CStr(rowOrdinal) & "."
         End If
         rowObj.RowAnchorName = rowAnchorName
         ex_Messaging.m_RegisterResultRowAnchor wsOut, rowAnchorName, r
@@ -2474,7 +2474,7 @@ Private Function mp_TryGetNextRenderableOutputTable( _
         candidateTableType = LCase$(mp_GetCfgRequired(cfg, candidateSourceAlias & ".Sheet[" & candidateAlias & "].Type"))
 
         If Not mp_IsSupportedOutputTableType(candidateTableType) Then
-            Err.Raise vbObjectError + 1301, "ex_PersonTimeline", _
+            Err.Raise vbObjectError + 1301, "ex_ModePersonalCard", _
                 "Unsupported table type for alias '" & candidateAlias & "': " & candidateTableType
         End If
 
@@ -2565,7 +2565,7 @@ Private Function mp_GetCfgNonNegativeLongValue(ByVal cfg As Object, ByVal keyNam
 
     rawValue = mp_GetCfgRequired(cfg, keyName)
     If Not mp_TryParseNonNegativeLong(rawValue, parsedValue) Then
-        Err.Raise vbObjectError + 1760, "ex_PersonTimeline", _
+        Err.Raise vbObjectError + 1760, "ex_ModePersonalCard", _
             "Config key '" & keyName & "' must be a non-negative integer, got: '" & rawValue & "'."
     End If
 
@@ -2603,7 +2603,7 @@ Private Function mp_FindSourceAliasForTable(ByVal cfg As Object, ByVal tableAlia
 
     tableAlias = Trim$(tableAlias)
     If Len(tableAlias) = 0 Then
-        Err.Raise vbObjectError + 1335, "ex_PersonTimeline", "Output.Sheets contains an empty table alias."
+        Err.Raise vbObjectError + 1335, "ex_ModePersonalCard", "Output.Sheets contains an empty table alias."
     End If
 
     sourceAliases = mp_GetSourceAliases(cfg)
@@ -2612,7 +2612,7 @@ Private Function mp_FindSourceAliasForTable(ByVal cfg As Object, ByVal tableAlia
         aliases = mp_GetListRequired(cfg, "Source." & src & ".SheetAliases")
         If mp_ArrayContainsText(aliases, tableAlias) Then
             If Len(found) > 0 Then
-                Err.Raise vbObjectError + 1340, "ex_PersonTimeline", _
+                Err.Raise vbObjectError + 1340, "ex_ModePersonalCard", _
                     "Sheet alias '" & tableAlias & "' is declared in multiple sources: '" & found & "' and '" & src & "'."
             End If
             found = src
@@ -2620,7 +2620,7 @@ Private Function mp_FindSourceAliasForTable(ByVal cfg As Object, ByVal tableAlia
     Next i
 
     If Len(found) = 0 Then
-        Err.Raise vbObjectError + 1341, "ex_PersonTimeline", _
+        Err.Raise vbObjectError + 1341, "ex_ModePersonalCard", _
             "Sheet alias '" & tableAlias & "' is not declared in any Source.*.SheetAliases."
     End If
 
@@ -2652,7 +2652,7 @@ Private Function mp_GetSourceAliases(ByVal cfg As Object) As Variant
     Next key
 
     If d.Count = 0 Then
-        Err.Raise vbObjectError + 1350, "ex_PersonTimeline", "No Source.* keys found in config."
+        Err.Raise vbObjectError + 1350, "ex_ModePersonalCard", "No Source.* keys found in config."
     End If
 
     Dim arr() As String
@@ -2682,7 +2682,7 @@ Private Function mp_GetConnectionForSource(ByVal connCache As Object, ByVal cfg 
     sourcePath = mp_GetResolvedSourcePath(cfg, sourceAlias)
 
     If Dir(sourcePath) = vbNullString Then
-        Err.Raise vbObjectError + 1360, "ex_PersonTimeline", "Source file not found: " & sourcePath
+        Err.Raise vbObjectError + 1360, "ex_ModePersonalCard", "Source file not found: " & sourcePath
     End If
 
     snapshotPath = ex_SourceSnapshot.m_GetSnapshotPath(sourcePath, "Source." & sourceAlias)
@@ -2697,7 +2697,7 @@ Private Function mp_GetConnectionForSource(ByVal connCache As Object, ByVal cfg 
     Exit Function
 
 EH:
-    Err.Raise vbObjectError + 1362, "ex_PersonTimeline", _
+    Err.Raise vbObjectError + 1362, "ex_ModePersonalCard", _
         "ADO connection failed for source '" & sourceAlias & "' (source: " & sourcePath & ", snapshot: " & snapshotPath & "): " & Err.Description
 End Function
 
@@ -2734,7 +2734,7 @@ Private Function mp_BuildAdoConnectionString(ByVal sourcePath As String) As Stri
         Case "xlsb"
             props = "Excel 12.0;HDR=YES;IMEX=1;ReadOnly=True"
         Case Else
-            Err.Raise vbObjectError + 1363, "ex_PersonTimeline", "Unsupported source file extension for ADO: ." & ext
+            Err.Raise vbObjectError + 1363, "ex_ModePersonalCard", "Unsupported source file extension for ADO: ." & ext
     End Select
 
     mp_BuildAdoConnectionString = "Provider=Microsoft.ACE.OLEDB.12.0;Data Source=" & sourcePath & ";Extended Properties=""" & props & """;"
@@ -2794,7 +2794,7 @@ Private Function mp_ResolveAdoTableReference(ByVal adoConn As Object, ByVal tabl
     End If
 
     If Len(resolvedName) = 0 Then
-        Err.Raise vbObjectError + 1302, "ex_PersonTimeline", _
+        Err.Raise vbObjectError + 1302, "ex_ModePersonalCard", _
             "ADO table/range not found: '" & tableName & "'. Available objects: " & listedNames
     End If
 
@@ -3155,7 +3155,7 @@ Private Function mp_ResolveAdoMappedHeader( _
     desiredHeader = mp_GetMappedSourceHeader(cfg, sourceAlias, tableAlias, fieldAlias)
     desiredToken = mp_NormalizeHeader(desiredHeader)
     If Len(desiredToken) = 0 Then
-        Err.Raise vbObjectError + 1391, "ex_PersonTimeline", _
+        Err.Raise vbObjectError + 1391, "ex_ModePersonalCard", _
             "Configured source header is empty for " & sourceAlias & ".Sheet[" & tableAlias & "].Map[" & fieldAlias & "]."
     End If
 
@@ -3214,7 +3214,7 @@ Private Function mp_ResolveAdoMappedHeader( _
     End If
     If Len(Trim$(availableFields)) = 0 Then availableFields = "(none)"
 
-    Err.Raise vbObjectError + 1391, "ex_PersonTimeline", _
+    Err.Raise vbObjectError + 1391, "ex_ModePersonalCard", _
         "Configured source header '" & desiredHeader & "' is not found for " & sourceAlias & ".Sheet[" & tableAlias & "].Map[" & fieldAlias & "]. " & _
         "Available fields: " & availableFields & "." & hintText
     Exit Function
@@ -3236,7 +3236,7 @@ EH:
     If innerErrNumber = vbObjectError + 1391 Then
         Err.Raise innerErrNumber, innerErrSource, innerErrDescription
     End If
-    Err.Raise vbObjectError + 1391, "ex_PersonTimeline", _
+    Err.Raise vbObjectError + 1391, "ex_ModePersonalCard", _
         "Failed to resolve source header for " & sourceAlias & ".Sheet[" & tableAlias & "].Map[" & fieldAlias & "]: " & innerErrDescription
 End Function
 
@@ -3544,7 +3544,7 @@ Private Function mp_GetWorkbookForSource(ByVal wbCache As Object, ByVal cfg As O
     sourcePath = mp_GetResolvedSourcePath(cfg, sourceAlias)
 
     If Dir(sourcePath) = vbNullString Then
-        Err.Raise vbObjectError + 1360, "ex_PersonTimeline", "Source file not found: " & sourcePath
+        Err.Raise vbObjectError + 1360, "ex_ModePersonalCard", "Source file not found: " & sourcePath
     End If
 
     snapshotPath = ex_SourceSnapshot.m_GetSnapshotPath(sourcePath, "Source." & sourceAlias)
@@ -3582,14 +3582,14 @@ End Sub
 Private Function mp_GetCfgRequired(ByVal cfg As Object, ByVal keyName As String) As String
 
     If Not cfg.Exists(keyName) Then
-        Err.Raise vbObjectError + 1370, "ex_PersonTimeline", "Missing config key: " & keyName
+        Err.Raise vbObjectError + 1370, "ex_ModePersonalCard", "Missing config key: " & keyName
     End If
 
     Dim valueText As String
     valueText = Trim$(CStr(cfg(keyName)))
 
     If Len(valueText) = 0 Then
-        Err.Raise vbObjectError + 1371, "ex_PersonTimeline", "Empty config value: " & keyName
+        Err.Raise vbObjectError + 1371, "ex_ModePersonalCard", "Empty config value: " & keyName
     End If
 
     mp_GetCfgRequired = valueText
@@ -3613,7 +3613,7 @@ Private Function mp_GetListRequired(ByVal cfg As Object, ByVal keyName As String
     mp_GetListRequired = mp_SplitList(raw)
 
     If mp_IsEmptyVariantArray(mp_GetListRequired) Then
-        Err.Raise vbObjectError + 1380, "ex_PersonTimeline", "List is empty for config key: " & keyName
+        Err.Raise vbObjectError + 1380, "ex_ModePersonalCard", "List is empty for config key: " & keyName
     End If
 
 End Function
@@ -3845,7 +3845,7 @@ Private Function mp_GetMappedSourceHeader( _
     End If
 
     If Len(mp_GetMappedSourceHeader) = 0 Then
-        Err.Raise vbObjectError + 1390, "ex_PersonTimeline", _
+        Err.Raise vbObjectError + 1390, "ex_ModePersonalCard", _
             "Mapped source header is empty for " & sourceAlias & ".Sheet[" & tableAlias & "].Map[" & fieldAlias & "]"
     End If
 
@@ -4251,7 +4251,7 @@ Private Function mp_GetResolvedSourcePath(ByVal cfg As Object, ByVal sourceAlias
 
     If Len(resolverName) = 0 Then
         If mp_HasPlaceholderTokens(rawPath) Then
-            Err.Raise vbObjectError + 1762, "ex_PersonTimeline", _
+            Err.Raise vbObjectError + 1762, "ex_ModePersonalCard", _
                 "Source path contains placeholders but no resolver is configured for key '" & fileKey & "'. " & _
                 "Set '" & resolverKey & "' (for example: ex_SourceResolvers.m_ResolveLatestByDmyPattern)."
         End If
@@ -4272,7 +4272,7 @@ Private Function mp_GetResolvedSourcePath(ByVal cfg As Object, ByVal sourceAlias
 
     resolvedPath = Trim$(CStr(resolvedValue))
     If Len(resolvedPath) = 0 Then
-        Err.Raise vbObjectError + 1760, "ex_PersonTimeline", _
+        Err.Raise vbObjectError + 1760, "ex_ModePersonalCard", _
             "Source file resolver '" & resolverName & "' returned an empty path for key '" & fileKey & "'."
     End If
 
@@ -4280,7 +4280,7 @@ Private Function mp_GetResolvedSourcePath(ByVal cfg As Object, ByVal sourceAlias
     Exit Function
 
 ResolverEH:
-    Err.Raise vbObjectError + 1761, "ex_PersonTimeline", _
+    Err.Raise vbObjectError + 1761, "ex_ModePersonalCard", _
         "Source file resolver failed for key '" & fileKey & "' (resolver='" & resolverName & "'): " & Err.Description
 End Function
 

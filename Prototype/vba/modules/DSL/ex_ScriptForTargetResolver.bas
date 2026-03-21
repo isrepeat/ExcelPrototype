@@ -207,8 +207,7 @@ Public Function m_TryResolveMemberRows( _
     End If
 
     If TypeOf scopeObject Is obj_ResultRow Then
-        If Not m_TryResolveMemberTableRef(scopeObject, memberName, resolvedTableRef) Then
-            outErrorText = "Member rows table reference is missing in scoped row context (expected alias '" & memberName & "TableRef')."
+        If Not mp_TryResolveMemberRowsFromRowAlias(scopeObject, memberName, resolvedTableRef, outErrorText) Then
             Exit Function
         End If
         If Not ex_ResultRuntimeAdapter.m_TryGetRowsForTableRef(tablesByRef, resolvedTableRef, outRows) Then
@@ -216,6 +215,18 @@ Public Function m_TryResolveMemberRows( _
             Exit Function
         End If
         outTableRef = resolvedTableRef
+        m_TryResolveMemberRows = True
+        Exit Function
+    End If
+
+    If TypeOf scopeObject Is obj_ResultTable Then
+        If StrComp(memberName, "rows", vbTextCompare) <> 0 Then
+            outErrorText = "Unsupported table member '" & memberName & "' for member rows resolve. Use '.rows'."
+            Exit Function
+        End If
+
+        Set outRows = scopeObject.Rows
+        outTableRef = scopeObject.TableRef
         m_TryResolveMemberRows = True
         Exit Function
     End If
@@ -305,6 +316,8 @@ Public Function m_TryResolveMemberTableRef( _
     ByVal memberName As String, _
     ByRef outTableRef As String _
 ) As Boolean
+    ' Deprecated: row member table refs are now resolved from direct alias <member>.
+    ' This helper remains only for backward compatibility with external callers.
     Dim aliasName As String
 
     If scopeRow Is Nothing Then Exit Function
@@ -320,6 +333,40 @@ Public Function m_TryResolveMemberTableRef( _
     If Not ex_ScriptParserCore.m_IsSheetRef(outTableRef) Then Exit Function
 
     m_TryResolveMemberTableRef = True
+End Function
+
+Private Function mp_TryResolveMemberRowsFromRowAlias( _
+    ByVal scopeRow As obj_ResultRow, _
+    ByVal memberName As String, _
+    ByRef outTableRef As String, _
+    ByRef outErrorText As String _
+) As Boolean
+    memberName = Trim$(memberName)
+    If scopeRow Is Nothing Then
+        outErrorText = "Scoped source row is missing for member rows resolve."
+        Exit Function
+    End If
+    If Len(memberName) = 0 Then
+        outErrorText = "Member name is empty in member rows resolve."
+        Exit Function
+    End If
+
+    If Not scopeRow.HasAlias(memberName) Then
+        outErrorText = "Scoped row has no alias '" & memberName & "' for member rows resolve."
+        Exit Function
+    End If
+
+    outTableRef = Trim$(CStr(scopeRow.Column(memberName)))
+    If Len(outTableRef) = 0 Then
+        outErrorText = "Alias '" & memberName & "' is empty in scoped row member rows resolve."
+        Exit Function
+    End If
+    If Not ex_ScriptParserCore.m_IsSheetRef(outTableRef) Then
+        outErrorText = "Alias '" & memberName & "' must contain table reference in form Source.Sheet[Table]."
+        Exit Function
+    End If
+
+    mp_TryResolveMemberRowsFromRowAlias = True
 End Function
 
 Public Function m_TryResolveScopedKeyContext( _
