@@ -141,6 +141,34 @@
              spanCols="2"
              spanRows="2"/>
 
+    <control name="btnPreProcessScript"
+         type="button"
+         sheet="Dev"
+         required="true"
+         createIfMissing="true"
+         macro="ex_UIActions.m_OpenPreProcessScript_OnClick"
+         caption="Pre Process Script"
+         globalVisible="false"
+         style="actionNeutral"
+         placement="moveAndSize"
+         anchorCell="Q11"
+         spanCols="2"
+         spanRows="2"/>
+
+    <control name="btnPostProcessScript"
+         type="button"
+         sheet="Dev"
+         required="true"
+         createIfMissing="true"
+         macro="ex_UIActions.m_OpenPostProcessScript_OnClick"
+         caption="Post Process Script"
+         globalVisible="false"
+         style="actionNeutral"
+         placement="moveAndSize"
+         anchorCell="Q14"
+         spanCols="2"
+         spanRows="2"/>
+
     <control name="btnClear"
              type="button"
              sheet="Dev"

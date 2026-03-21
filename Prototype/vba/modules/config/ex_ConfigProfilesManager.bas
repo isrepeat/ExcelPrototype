@@ -51,6 +51,8 @@ Private Const PFUI_CLEAR_BUTTON_SHAPE As String = "btnClear"
 Private Const PFUI_MODE_BUTTON_SHAPE As String = "btnMode"
 Private Const PFUI_PERSONAL_BUTTON_SHAPE As String = "btnPersonalCard"
 Private Const PFUI_COMPARING_BUTTON_SHAPE As String = "btnComparing"
+Private Const PFUI_PREPROCESS_SCRIPT_BUTTON_SHAPE As String = "btnPreProcessScript"
+Private Const PFUI_POSTPROCESS_SCRIPT_BUTTON_SHAPE As String = "btnPostProcessScript"
 Private Const STATE_ACTIVE_MODE_KEY_PROP As String = "Settings.ActiveModeKey"
 Private Const STATE_ACTIVE_PROFILE_PROP_PREFIX As String = "Settings.ActiveProfile."
 Private Const STATE_PROFILE_FILE_SIGNATURE_PROP_PREFIX As String = "Settings.ProfileFileSignature."
@@ -1831,10 +1833,58 @@ Public Sub m_ApplyModeVisibility(ByVal ws As Worksheet, ByVal profileNode As Obj
     pfui_ApplyGlobalVisibilityFromUiControls ws, uiControlNodes
 
     Set uiNodes = profileNode.selectNodes("p:ui/p:control")
-    If uiNodes Is Nothing Then Exit Sub
-    If uiNodes.Length = 0 Then Exit Sub
-    pfui_ApplyFilteredVisibilityFromNodes ws, uiNodes
+    If Not uiNodes Is Nothing Then
+        If uiNodes.Length > 0 Then
+            pfui_ApplyFilteredVisibilityFromNodes ws, uiNodes
+        End If
+    End If
+    mp_ApplyScriptButtonsVisibility ws, profileNode
 End Sub
+
+Private Sub mp_ApplyScriptButtonsVisibility(ByVal ws As Worksheet, ByVal profileNode As Object)
+    Dim hasPreScript As Boolean
+    Dim hasPostScript As Boolean
+
+    hasPreScript = mp_ProfileHasScriptDefinition(profileNode, True)
+    hasPostScript = mp_ProfileHasScriptDefinition(profileNode, False)
+
+    pfui_SetButtonVisibility ws, PFUI_PREPROCESS_SCRIPT_BUTTON_SHAPE, hasPreScript
+    pfui_SetButtonVisibility ws, PFUI_POSTPROCESS_SCRIPT_BUTTON_SHAPE, hasPostScript
+End Sub
+
+Private Sub pfui_SetButtonVisibility(ByVal ws As Worksheet, ByVal shapeName As String, ByVal isVisible As Boolean)
+    Dim shp As Shape
+
+    Set shp = m_GetShapeByName(ws, shapeName)
+    If shp Is Nothing Then Exit Sub
+    shp.Visible = IIf(isVisible, msoTrue, msoFalse)
+End Sub
+
+Private Function mp_ProfileHasScriptDefinition(ByVal profileNode As Object, ByVal isPreProcess As Boolean) As Boolean
+    Dim scriptNodes As Object
+    Dim scriptNode As Object
+    Dim includePath As String
+    Dim inlineText As String
+
+    If profileNode Is Nothing Then Exit Function
+
+    If isPreProcess Then
+        Set scriptNodes = profileNode.selectNodes("p:preProcessScript")
+    Else
+        Set scriptNodes = profileNode.selectNodes("p:postProcessScript")
+    End If
+    If scriptNodes Is Nothing Then Exit Function
+    If scriptNodes.Length = 0 Then Exit Function
+
+    For Each scriptNode In scriptNodes
+        includePath = Trim$(mp_NodeAttrText(scriptNode, "include"))
+        inlineText = Trim$(CStr(scriptNode.Text))
+        If Len(includePath) > 0 Or Len(inlineText) > 0 Then
+            mp_ProfileHasScriptDefinition = True
+            Exit Function
+        End If
+    Next scriptNode
+End Function
 
 Public Function m_GetShapeByName(ByVal ws As Worksheet, ByVal shapeName As String) As Shape
     If ws Is Nothing Then Exit Function
