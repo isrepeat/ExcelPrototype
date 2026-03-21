@@ -10,8 +10,6 @@ Public Function m_Run( _
     ByVal resultTables As Collection, _
     Optional ByVal inputObject As Object = Nothing, _
     Optional ByVal scriptConfigKey As String = "PostProcess.Script.Implicit", _
-    Optional ByVal injectedRuntimeVars As Object = Nothing, _
-    Optional ByVal injectedRuntimeVarTypes As Object = Nothing, _
     Optional ByVal requireScript As Boolean = False _
 ) As Boolean
     Dim scriptKey As String
@@ -54,7 +52,7 @@ Public Function m_Run( _
 
     stageName = "run-postprocess-script"
     ex_ScriptIO.m_SetInput inputObject
-    ex_ScriptDSL.m_ApplyScriptToSheet ws, cfg, resultTables, scriptKey, injectedRuntimeVars, injectedRuntimeVarTypes
+    ex_ScriptDSL.m_ApplyScriptToSheet ws, cfg, resultTables, scriptKey
     m_Run = True
     mp_DebugLog "RUN END OK scriptKey='" & scriptKey & "' sheet='" & ws.Name & "'"
     Exit Function

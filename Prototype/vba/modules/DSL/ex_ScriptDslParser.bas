@@ -118,29 +118,6 @@ Public Function m_ParseQuotedArgs(ByVal argsText As String) As Collection
     Set m_ParseQuotedArgs = result
 End Function
 
-Public Function m_LooksLikeInlineScript(ByVal scriptRef As String) As Boolean
-    scriptRef = CStr(scriptRef)
-    If InStr(1, scriptRef, vbCr, vbBinaryCompare) > 0 Then
-        m_LooksLikeInlineScript = True
-        Exit Function
-    End If
-    If InStr(1, scriptRef, vbLf, vbBinaryCompare) > 0 Then
-        m_LooksLikeInlineScript = True
-        Exit Function
-    End If
-    If InStr(1, scriptRef, "pushKey", vbTextCompare) > 0 Then
-        m_LooksLikeInlineScript = True
-        Exit Function
-    End If
-    If InStr(1, scriptRef, "pushKeysFromSource", vbTextCompare) > 0 Then
-        m_LooksLikeInlineScript = True
-        Exit Function
-    End If
-    If InStr(1, scriptRef, "resolveLatestByDmyPattern", vbTextCompare) > 0 Then
-        m_LooksLikeInlineScript = True
-    End If
-End Function
-
 Private Function mp_StripMultiLineComments(ByVal sourceText As String) As String
     Dim i As Long
     Dim ch As String

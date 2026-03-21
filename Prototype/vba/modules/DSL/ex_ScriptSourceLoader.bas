@@ -27,11 +27,6 @@ Public Function m_TryGetScriptText( _
         Exit Function
     End If
 
-    If Len(outScriptText) = 0 Then
-        outErrorText = "Script is not configured for key '" & normalizedScriptKey & "' in the active profile."
-        Exit Function
-    End If
-
     m_TryGetScriptText = True
     Exit Function
 End Function

@@ -9,8 +9,6 @@ Private Const CONTEXT_FIELD_POST_EXECUTED As String = "PostExecuted"
 Private Const MODE_RESULT_FIELD_OUTPUT As String = "Output"
 Private Const MODE_RESULT_FIELD_WORKSHEET As String = "Worksheet"
 Private Const MODE_RESULT_FIELD_RESULT_TABLES As String = "ResultTables"
-Private Const MODE_RESULT_FIELD_RUNTIME_VARS As String = "InjectedRuntimeVars"
-Private Const MODE_RESULT_FIELD_RUNTIME_TYPES As String = "InjectedRuntimeVarTypes"
 
 Private Const AUTO_POSTPROCESS_SCRIPT_KEY As String = "PostProcess.Script.Implicit"
 Private Const DEBUG_LOG_PATH As String = "Logs\personalcard_pipeline.log"
@@ -34,8 +32,6 @@ Public Function m_RunModePipeline( _
     Dim modeSheet As Worksheet
     Dim modeTables As Collection
     Dim modeOutput As Object
-    Dim injectedRuntimeVars As Object
-    Dim injectedRuntimeVarTypes As Object
     Dim busyScopeActive As Boolean
 
     On Error GoTo EH
@@ -96,11 +92,8 @@ Public Function m_RunModePipeline( _
         Err.Raise vbObjectError + 6115, "ex_ModePipeline", "Mode result must provide ResultTables for post-process execution."
     End If
 
-    mp_TryGetModeResultObject modeResult, MODE_RESULT_FIELD_RUNTIME_VARS, injectedRuntimeVars
-    mp_TryGetModeResultObject modeResult, MODE_RESULT_FIELD_RUNTIME_TYPES, injectedRuntimeVarTypes
-
     stageName = "run-postprocess"
-    If ex_PostProcessPipeline.m_Run(modeSheet, cfg, modeTables, modeOutput, AUTO_POSTPROCESS_SCRIPT_KEY, injectedRuntimeVars, injectedRuntimeVarTypes, False) Then
+    If ex_PostProcessPipeline.m_Run(modeSheet, cfg, modeTables, modeOutput, AUTO_POSTPROCESS_SCRIPT_KEY, False) Then
         ctx(CONTEXT_FIELD_POST_EXECUTED) = "true"
         mp_DebugLog "post process executed scriptKey='" & AUTO_POSTPROCESS_SCRIPT_KEY & "'"
     Else

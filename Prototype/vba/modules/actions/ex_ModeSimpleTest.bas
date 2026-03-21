@@ -1,4 +1,4 @@
-Attribute VB_Name = "ex_SimpleTestAction"
+Attribute VB_Name = "ex_ModeSimpleTest"
 Option Explicit
 
 Private Const RESULT_SHEET_NAME As String = "g_SimpleTest"
@@ -12,7 +12,7 @@ Public Sub m_RunSimpleTest()
     Dim cfg As Object
 
     Set cfg = mp_LoadConfigDictionary()
-    ex_ModePipeline.m_RunModePipeline cfg, "ex_SimpleTestAction.m_RunMode", Nothing, False
+    ex_ModePipeline.m_RunModePipeline cfg, "ex_ModeSimpleTest.m_RunMode", Nothing, False
 End Sub
 
 Public Function m_RunMode(ByVal cfg As Object, ByVal modeInput As Object, ByVal preProcessContext As Object) As Object
@@ -90,10 +90,10 @@ Private Function mp_LoadConfigDictionary() As Object
     On Error GoTo 0
 
     If tbl Is Nothing Then
-        Err.Raise vbObjectError + 6401, "ex_SimpleTestAction", "Config table '" & DEV_CONFIG_TABLE_NAME & "' was not found on sheet '" & ws.Name & "'."
+        Err.Raise vbObjectError + 6401, "ex_ModeSimpleTest", "Config table '" & DEV_CONFIG_TABLE_NAME & "' was not found on sheet '" & ws.Name & "'."
     End If
     If tbl.DataBodyRange Is Nothing Then
-        Err.Raise vbObjectError + 6402, "ex_SimpleTestAction", "Config table '" & DEV_CONFIG_TABLE_NAME & "' has no data rows."
+        Err.Raise vbObjectError + 6402, "ex_ModeSimpleTest", "Config table '" & DEV_CONFIG_TABLE_NAME & "' has no data rows."
     End If
 
     Set cfg = CreateObject("Scripting.Dictionary")
