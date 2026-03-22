@@ -225,6 +225,7 @@ Private Function mp_ApplyFetchDslRowsFromSource( _
     Dim rowValues As Object
     Dim generatedRows As Collection
     Dim fieldIndexMap As Object
+    Dim fieldTypeByToken As Object
     Dim appendValues() As Variant
     Dim appendCount As Long
     Dim baseRowCount As Long
@@ -254,7 +255,9 @@ Private Function mp_ApplyFetchDslRowsFromSource( _
     End If
 
     Set fieldOrdByToken = mp_FetchDslBuildSourceFieldOrdinals(cfg, sourceAlias, tableAlias, dslPlan, rs)
+    Set fieldTypeByToken = mp_FetchDslBuildSourceFieldTypes(fieldOrdByToken, rs)
     Set dslPlan("__FieldOrdByToken") = fieldOrdByToken
+    Set dslPlan("__FieldTypeByToken") = fieldTypeByToken
     rowsData = rs.GetRows
     rs.Close
     Set rs = Nothing
@@ -1290,6 +1293,31 @@ Private Function mp_FetchDslBuildRecordsetFieldOrdinals(ByVal rs As Object) As O
     Set mp_FetchDslBuildRecordsetFieldOrdinals = result
 End Function
 
+Private Function mp_FetchDslBuildSourceFieldTypes(ByVal fieldOrdByToken As Object, ByVal rs As Object) As Object
+    Dim result As Object
+    Dim token As Variant
+    Dim ordinal As Long
+
+    Set result = mp_FetchDslCreateDictionary()
+    If fieldOrdByToken Is Nothing Then
+        Set mp_FetchDslBuildSourceFieldTypes = result
+        Exit Function
+    End If
+    If rs Is Nothing Then
+        Set mp_FetchDslBuildSourceFieldTypes = result
+        Exit Function
+    End If
+
+    For Each token In fieldOrdByToken.Keys
+        ordinal = CLng(fieldOrdByToken(CStr(token)))
+        If ordinal >= 0 And ordinal < rs.Fields.Count Then
+            result(CStr(token)) = CLng(rs.Fields(ordinal).Type)
+        End If
+    Next token
+
+    Set mp_FetchDslBuildSourceFieldTypes = result
+End Function
+
 Private Function mp_FetchDslResolveSourceHeader(ByVal cfg As Object, ByVal sourceAlias As String, ByVal tableAlias As String, ByVal fieldToken As String) As String
     Dim mapKey As String
     mapKey = sourceAlias & ".Sheet[" & tableAlias & "].Map[" & fieldToken & "]"
@@ -1460,13 +1488,15 @@ Private Function mp_FetchDslEvalConditionNode( _
     Dim item As Variant
     Dim nestedNode As Object
     Dim fnName As String
+    Dim fieldTypeByToken As Object
 
     If condNode Is Nothing Then Exit Function
     kindName = UCase$(CStr(condNode("Kind")))
+    If plan.Exists("__FieldTypeByToken") Then Set fieldTypeByToken = plan("__FieldTypeByToken")
 
     Select Case kindName
         Case "EQ"
-            lhsText = mp_FetchDslGetSourceValue(rowsData, sourceRowIndex, CStr(condNode("Field")), fieldOrdByToken)
+            lhsText = mp_FetchDslGetSourceValue(rowsData, sourceRowIndex, CStr(condNode("Field")), fieldOrdByToken, fieldTypeByToken)
             rhsText = mp_FetchDslEvalExpr(condNode("RhsExpr"), rowsData, sourceRowIndex, plan, keyValue, fieldOrdByToken, runtimeCtx, keyRowIndex, foreachItem)
             mp_FetchDslEvalConditionNode = (StrComp(lhsText, rhsText, vbTextCompare) = 0)
 
@@ -1531,9 +1561,11 @@ Private Function mp_FetchDslEvalExpr( _
     Dim ctxName As String
     Dim ctxRows As Collection
     Dim lastItem As Object
+    Dim fieldTypeByToken As Object
 
     If expr Is Nothing Then Exit Function
     kindName = CStr(expr("Kind"))
+    If plan.Exists("__FieldTypeByToken") Then Set fieldTypeByToken = plan("__FieldTypeByToken")
 
     Select Case UCase$(kindName)
         Case "LITERAL"
@@ -1550,9 +1582,9 @@ Private Function mp_FetchDslEvalExpr( _
             refField = CStr(expr("Field"))
             If StrComp(refAlias, CStr(plan("SourceAlias")), vbTextCompare) = 0 Then
                 If sourceRowIndex >= 0 Then
-                    mp_FetchDslEvalExpr = mp_FetchDslGetSourceValue(rowsData, sourceRowIndex, refField, fieldOrdByToken)
+                    mp_FetchDslEvalExpr = mp_FetchDslGetSourceValue(rowsData, sourceRowIndex, refField, fieldOrdByToken, fieldTypeByToken)
                 Else
-                    mp_FetchDslEvalExpr = mp_FetchDslGetSourceValue(rowsData, keyRowIndex, refField, fieldOrdByToken)
+                    mp_FetchDslEvalExpr = mp_FetchDslGetSourceValue(rowsData, keyRowIndex, refField, fieldOrdByToken, fieldTypeByToken)
                 End If
             ElseIf Not foreachItem Is Nothing And foreachItem.Exists(refField) Then
                 mp_FetchDslEvalExpr = CStr(foreachItem(refField))
@@ -1580,14 +1612,27 @@ Private Function mp_FetchDslEvalExpr( _
     End Select
 End Function
 
-Private Function mp_FetchDslGetSourceValue(ByVal rowsData As Variant, ByVal rowIndex As Long, ByVal fieldToken As String, ByVal fieldOrdByToken As Object) As String
+Private Function mp_FetchDslGetSourceValue( _
+    ByVal rowsData As Variant, _
+    ByVal rowIndex As Long, _
+    ByVal fieldToken As String, _
+    ByVal fieldOrdByToken As Object, _
+    Optional ByVal fieldTypeByToken As Object = Nothing _
+) As String
     Dim tokenKey As String
     Dim ordinal As Long
+    Dim adoFieldType As Long
 
     tokenKey = mp_FetchDslNormalizeToken(fieldToken)
     If Not fieldOrdByToken.Exists(tokenKey) Then Exit Function
     ordinal = CLng(fieldOrdByToken(tokenKey))
-    mp_FetchDslGetSourceValue = Trim$(mp_ToSafeText(rowsData(ordinal, rowIndex)))
+    adoFieldType = -1
+    If Not fieldTypeByToken Is Nothing Then
+        If fieldTypeByToken.Exists(tokenKey) Then
+            adoFieldType = CLng(fieldTypeByToken(tokenKey))
+        End If
+    End If
+    mp_FetchDslGetSourceValue = Trim$(ex_SqlAdoHelpers.m_ToNormalizedText(rowsData(ordinal, rowIndex), adoFieldType))
 End Function
 
 Private Function mp_FetchDslEvaluateAssignments( _

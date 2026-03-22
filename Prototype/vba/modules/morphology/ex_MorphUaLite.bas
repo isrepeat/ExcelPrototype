@@ -12,7 +12,7 @@ Private Const USE_PURE_FIO_CONVERTERS As Boolean = True
 Private Const USE_SELECTION_TEXT_CONVERTERS As Boolean = False
 Private Const USE_ENHANCED_PHRASE_INFLECTION As Boolean = True
 Private Const USE_LEGACY_PHRASE_FALLBACK As Boolean = False
-Private Const ENHANCED_MAX_WORDS_PER_SEGMENT As Long = 20
+Private Const ENHANCED_MAX_WORDS_PER_SEGMENT As Long = 4
 Private Const NBSP_CODE_POINT As Long = 160
 Private Const NARROW_NBSP_CODE_POINT As Long = 8239
 
@@ -148,6 +148,11 @@ Public Function m_InflectPhraseToCase(ByVal sourceText As String, ByVal targetCa
     normalizedText = m_NormalizeFioInput(sourceText)
     If Len(normalizedText) = 0 Then
         m_InflectPhraseToCase = sourceText
+        Exit Function
+    End If
+
+    If mp_ShouldSkipPhraseInflection(normalizedText) Then
+        m_InflectPhraseToCase = normalizedText
         Exit Function
     End If
 
@@ -326,6 +331,7 @@ Private Function mp_InflectWordsInSegmentToCaseEnhanced(ByVal segmentText As Str
     Dim parts() As String
     Dim i As Long
     Dim changedCount As Long
+    Dim candidateCount As Long
     Dim tokenText As String
     Dim prefix As String
     Dim core As String
@@ -339,6 +345,7 @@ Private Function mp_InflectWordsInSegmentToCaseEnhanced(ByVal segmentText As Str
     parts = Split(segmentText, " ")
     For i = LBound(parts) To UBound(parts)
         If changedCount >= maxWordsToInflect Then Exit For
+        If i > 10 Then Exit For
 
         tokenText = CStr(parts(i))
         If Len(tokenText) = 0 Then GoTo ContinueLoop
@@ -358,6 +365,9 @@ Private Function mp_InflectWordsInSegmentToCaseEnhanced(ByVal segmentText As Str
             lowPrevCore = vbNullString
         End If
 
+        candidateCount = candidateCount + 1
+        If candidateCount > maxWordsToInflect Then Exit For
+
         lowCore = LCase$(core)
         If mp_ShouldKeepWordUnchangedByContext(lowPrevCore, lowCore, targetCase) Then GoTo ContinueLoop
 
@@ -372,6 +382,24 @@ ContinueLoop:
     Next i
 
     mp_InflectWordsInSegmentToCaseEnhanced = Join(parts, " ")
+End Function
+
+Private Function mp_ShouldSkipPhraseInflection(ByVal phraseText As String) As Boolean
+    Dim normalizedPhrase As String
+    normalizedPhrase = Trim$(phraseText)
+    If Len(normalizedPhrase) = 0 Then Exit Function
+
+    Dim parts() As String
+    parts = Split(normalizedPhrase, " ")
+    If UBound(parts) < 0 Then Exit Function
+
+    Dim firstWord As String
+    firstWord = LCase$(mp_TrimTokenPunctuation(parts(0)))
+
+    Select Case firstWord
+        Case "який", "яка", "яке", "які", "якого", "якої", "якому", "яким", "якій", "якими", "яких"
+            mp_ShouldSkipPhraseInflection = True
+    End Select
 End Function
 
 Private Sub mp_SplitTokenDecorations( _
@@ -1156,21 +1184,7 @@ Private Function mp_TryConvertSentenceWithFioToDative(ByVal normalizedText As St
 End Function
 
 Private Function mp_ShouldSkipTailInflection(ByVal tailPhrase As String) As Boolean
-    Dim normalizedTail As String
-    normalizedTail = Trim$(tailPhrase)
-    If Len(normalizedTail) = 0 Then Exit Function
-
-    Dim parts() As String
-    parts = Split(normalizedTail, " ")
-    If UBound(parts) < 0 Then Exit Function
-
-    Dim firstWord As String
-    firstWord = LCase$(mp_TrimTokenPunctuation(parts(0)))
-
-    Select Case firstWord
-        Case "який", "яка", "яке", "які", "якого", "якої", "якому", "яким", "якій", "якими", "яких"
-            mp_ShouldSkipTailInflection = True
-    End Select
+    mp_ShouldSkipTailInflection = mp_ShouldSkipPhraseInflection(tailPhrase)
 End Function
 
 Private Function mp_TryParseSentenceWithFio(ByVal normalizedText As String, ByRef leadPhrase As String, ByRef surname As String, ByRef firstName As String, ByRef patronymic As String, ByRef tailPhrase As String) As Boolean

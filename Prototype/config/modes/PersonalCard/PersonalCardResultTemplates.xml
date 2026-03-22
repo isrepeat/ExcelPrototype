@@ -16,7 +16,10 @@
 #_      {#endif}#^
 #_      Зарахувати на котлове забезпечення з {DATE|dateformat:"\dd"}{+1} {DATE|dateformat:"\month"} 2026 року.
 
-#_      Підстава: рапорт {RaportTvo} {RaportFrom} (вх. № {InNumFull} від {InDate})#^
+#_      {
+          #let IsRaportFromSelf = $ex_Helpers.m_RegexFirstMatch("{RaportFrom}", "^\s*[Сс][Аа][Мм]\s*$");
+        }#^
+#_      Підстава: рапорт {#if IsRaportFromSelf}{Rank|accusative|lowerFirstLetter} {FIO|genitive|fioSurname|capitalize} {FIO|fioInitials}{#endif}{#if #not IsRaportFromSelf}{RaportTvo} {RaportFrom}{#endif} (вх. № {InNumFull} від {InDate})#^
 #_      {#if HasDuplicateRaport}#^
 #_      , рапорт {DuplicateRaportTVO} {DuplicateRaportFrom} (вх. № {DuplicateInNumFull} від {DuplicateInDate})#^
 #_      {#endif}#^
@@ -41,7 +44,10 @@
 #_      {#endif}#^
 #_      Зарахувати на котлове забезпечення з {DATE|dateformat:"\dd"}{+1} {DATE|dateformat:"\month"} 2026 року.
 
-#_      Підстава: рапорт {RaportTvo} {RaportFrom} (вх. № {InNumFull} від {InDate})#^
+#_      {
+          #let IsRaportFromSelf = $ex_Helpers.m_RegexFirstMatch("{RaportFrom}", "^\s*[Сс][Аа][Мм]\s*$");
+        }#^
+#_      Підстава: рапорт {#if IsRaportFromSelf}{Rank|accusative|lowerFirstLetter} {FIO|genitive|fioSurname|capitalize} {FIO|fioInitials}{#endif}{#if #not IsRaportFromSelf}{RaportTvo} {RaportFrom}{#endif} (вх. № {InNumFull} від {InDate})#^
 #_      , відпускний квиток № 3/71/{VkNum} від {VkDate}#^
 #_      .#^
 #_    ]]>
@@ -58,7 +64,13 @@
 #_      {#endif}#^
 #_      Зарахувати на котлове забезпечення з {DATE|dateformat:"\dd"}{+1} {DATE|dateformat:"\month"} 2026 року.
 
-#_      Підстава: рапорт {RaportTvo} {RaportFrom} (вх. № {InNumFull} від {InDate})#^
+#_      {
+          #let IsRaportFromSelf = $ex_Helpers.m_RegexFirstMatch("{RaportFrom}", "^\s*[Сс][Аа][Мм]\s*$");
+        }#^
+#_      Підстава: рапорт {#if IsRaportFromSelf}{Rank|accusative|lowerFirstLetter} {FIO|genitive|fioSurname|capitalize} {FIO|fioInitials}{#endif}{#if #not IsRaportFromSelf}{RaportTvo} {RaportFrom}{#endif} (вх. № {InNumFull} від {InDate})#^
+#_      {#if HasDuplicateRaport}#^
+#_      , рапорт {DuplicateRaportTVO} {DuplicateRaportFrom} (вх. № {DuplicateInNumFull} від {DuplicateInDate})#^
+#_      {#endif}#^
 #_      , відпускний квиток № 3/71/{VkNum} від {VkDate}#^
 #_      .#^
 #_    ]]>
@@ -74,7 +86,10 @@
 #_      {#endif}#^
 #_      Зарахувати на котлове забезпечення з {DATE|dateformat:"\dd"}{+1} {DATE|dateformat:"\month"} 2026 року.
 
-#_      Підстава: рапорт {RaportTvo} {RaportFrom} (вх. № {InNumFull} від {InDate})#^
+#_      {
+          #let IsRaportFromSelf = $ex_Helpers.m_RegexFirstMatch("{RaportFrom}", "^\s*[Сс][Аа][Мм]\s*$");
+        }#^
+#_      Підстава: рапорт {#if IsRaportFromSelf}{Rank|accusative|lowerFirstLetter} {FIO|genitive|fioSurname|capitalize} {FIO|fioInitials}{#endif}{#if #not IsRaportFromSelf}{RaportTvo} {RaportFrom}{#endif} (вх. № {InNumFull} від {InDate})#^
 #_      , відпускний квиток № 3/71/{VkNum} від {VkDate}#^
 #_      .#^
 #_    ]]>
@@ -85,7 +100,10 @@
       <![CDATA[#^
 #_      {Rank|accusative} {FIO|accusative}, {Position|accusative|lowerFirstLetter}.
 
-#_      Підстава: рапорт {RaportTvo} {RaportFrom} (вх. № {InNumFull} від {InDate})#^
+#_      {
+          #let IsRaportFromSelf = $ex_Helpers.m_RegexFirstMatch("{RaportFrom}", "^\s*[Сс][Аа][Мм]\s*$");
+        }#^
+#_      Підстава: рапорт {#if IsRaportFromSelf}{Rank|accusative|lowerFirstLetter} {FIO|genitive|fioSurname|capitalize} {FIO|fioInitials}{#endif}{#if #not IsRaportFromSelf}{RaportTvo} {RaportFrom}{#endif} (вх. № {InNumFull} від {InDate})#^
 #_      , довідка військово-лікарської комісії № {VlkNum} від {VlkDate}#^
 #_      .#^
 #_    ]]>
@@ -109,7 +127,10 @@
 #_      Видати продовольчий атестат.
 #_      {#endif}#^
 
-#_      Підстава: рапорт {RaportTvo} {RaportFrom} (вх. № {InNumFull} від {InDate})#^
+#_      {
+          #let IsRaportFromSelf = $ex_Helpers.m_RegexFirstMatch("{RaportFrom}", "^\s*[Сс][Аа][Мм]\s*$");
+        }#^
+#_      Підстава: рапорт {#if IsRaportFromSelf}{Rank|accusative|lowerFirstLetter} {FIO|genitive|fioSurname|capitalize} {FIO|fioInitials}{#endif}{#if #not IsRaportFromSelf}{RaportTvo} {RaportFrom}{#endif} (вх. № {InNumFull} від {InDate})#^
 #_      {#if HasDuplicateRaport}#^
 #_      , рапорт {DuplicateRaportTVO} {DuplicateRaportFrom} (вх. № {DuplicateInNumFull} від {DuplicateInDate})#^
 #_      {#endif}#^
@@ -243,7 +264,10 @@
       <![CDATA[#^
 #_      {Rank|accusative} {FIO|accusative}, {Position|accusative|lowerFirstLetter}.
 
-#_      Підстава: рапорт {RaportTvo} {RaportFrom} (вх. № {InNumFull} від {InDate})#^
+#_      {
+          #let IsRaportFromSelf = $ex_Helpers.m_RegexFirstMatch("{RaportFrom}", "^\s*[Сс][Аа][Мм]\s*$");
+        }#^
+#_      Підстава: рапорт {#if IsRaportFromSelf}{Rank|accusative|lowerFirstLetter} {FIO|genitive|fioSurname|capitalize} {FIO|fioInitials}{#endif}{#if #not IsRaportFromSelf}{RaportTvo} {RaportFrom}{#endif} (вх. № {InNumFull} від {InDate})#^
 #_      .#^
 #_    ]]>
     </text>
@@ -271,6 +295,9 @@
 #_      {#endif}#^
 
 #_      Підстава: рапорт {Rank|accusative|lowerFirstLetter} {FIO|genitive|fioSurname|capitalize} {FIO|fioInitials} (вх. № {InNumFull} від {InDate})#^
+#_      {#if HasDuplicateRaport}#^
+#_      , рапорт {DuplicateRaportTVO} {DuplicateRaportFrom} (вх. № {DuplicateInNumFull} від {DuplicateInDate})#^
+#_      {#endif}#^
 #_      , довідка військово-лікарської комісії № {VlkNum} від {VlkDate}#^
 #_      {#if DocNum #or DocDate}#^
 #_      , {DocNote
@@ -319,7 +346,10 @@
 #_      який перебував у відпустці для лікування, вважати таким, що перебуває на лікуванні у {Hospital}, #^
 #_      з {OutDate|dateformat:"\dd \month"} 2026 року.
 
-#_      Підстава: рапорт {RaportTvo} {RaportFrom} (вх. № {InNumFull} від {InDate})#^
+#_      {
+          #let IsRaportFromSelf = $ex_Helpers.m_RegexFirstMatch("{RaportFrom}", "^\s*[Сс][Аа][Мм]\s*$");
+        }#^
+#_      Підстава: рапорт {#if IsRaportFromSelf}{Rank|accusative|lowerFirstLetter} {FIO|genitive|fioSurname|capitalize} {FIO|fioInitials}{#endif}{#if #not IsRaportFromSelf}{RaportTvo} {RaportFrom}{#endif} (вх. № {InNumFull} від {InDate})#^
 #_      {#if DocNum #or DocDate}#^
 #_      , {DocNote
             |regexreplace:"^[ \t\r\n]*([\s\S]*?)[ \t\r\n]*$","$1"
@@ -338,7 +368,10 @@
 #_      який перебував у відпустці для лікування, вважати таким, що перебуває на медичному огляді військово лікарської комісії, #^
 #_      з {OutDate|dateformat:"\dd \month"} 2026 року.
 
-#_      Підстава: рапорт {RaportTvo} {RaportFrom} (вх. № {InNumFull} від {InDate})#^
+#_      {
+          #let IsRaportFromSelf = $ex_Helpers.m_RegexFirstMatch("{RaportFrom}", "^\s*[Сс][Аа][Мм]\s*$");
+        }#^
+#_      Підстава: рапорт {#if IsRaportFromSelf}{Rank|accusative|lowerFirstLetter} {FIO|genitive|fioSurname|capitalize} {FIO|fioInitials}{#endif}{#if #not IsRaportFromSelf}{RaportTvo} {RaportFrom}{#endif} (вх. № {InNumFull} від {InDate})#^
 #_      , направлення на медичний огляд військово-лікарською-комісією № {DocNum} від {DocDate}#^
 #_      , відпускний квиток № 3/71/{PrevVkNum} від {PrevVkDate}#^
 #_      .#^
@@ -367,7 +400,10 @@
 #_      з {OutDate|dateformat:"\dd \month"} по {ReturnDate|dateformat:"\dd \month"} 2026 року.
 #_      {#endif}#^
 
-#_      Підстава: рапорт {RaportTvo} {RaportFrom} (вх. № {InNumFull} від {InDate})#^
+#_      {
+          #let IsRaportFromSelf = $ex_Helpers.m_RegexFirstMatch("{RaportFrom}", "^\s*[Сс][Аа][Мм]\s*$");
+        }#^
+#_      Підстава: рапорт {#if IsRaportFromSelf}{Rank|accusative|lowerFirstLetter} {FIO|genitive|fioSurname|capitalize} {FIO|fioInitials}{#endif}{#if #not IsRaportFromSelf}{RaportTvo} {RaportFrom}{#endif} (вх. № {InNumFull} від {InDate})#^
 #_      , довідка військово-лікарської комісії № {VlkNum} від {VlkDate}#^
 #_      , відпускний квиток № 3/71/{VkNum} від {VkDate}#^
 #_      .#^

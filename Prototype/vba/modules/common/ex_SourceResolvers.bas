@@ -2,6 +2,20 @@ Attribute VB_Name = "ex_SourceResolvers"
 Option Explicit
 
 Private Const ERR_BASE As Long = vbObjectError + 3700
+Private Const TEMPLATE_ERROR_PREFIX As String = "[TEMPLATE ERROR]"
+
+Public Function m_ResolveWithDateFormatter( _
+    ByVal sourceText As String, _
+    Optional ByVal resolverArgs As String = vbNullString _
+) As String
+    sourceText = CStr(sourceText)
+    resolverArgs = Trim$(resolverArgs)
+    If Len(resolverArgs) > 0 Then
+        ' Reserved for future resolver options.
+    End If
+
+    m_ResolveWithDateFormatter = mp_ResolveConfigReferenceTokens(sourceText)
+End Function
 
 Public Function m_ResolveLatestByDmyPattern( _
     ByVal filePathPattern As String, _
@@ -82,6 +96,85 @@ Public Function m_ResolveLatestByDmyPattern( _
     End If
 
     m_ResolveLatestByDmyPattern = bestPath
+End Function
+
+Private Function mp_ResolveConfigReferenceTokens(ByVal templateText As String) As String
+    Dim resultText As String
+    Dim tokenStart As Long
+    Dim tokenClose As Long
+    Dim tokenBody As String
+    Dim replacementText As String
+    Dim scanPos As Long
+
+    resultText = CStr(templateText)
+    scanPos = 1
+
+    Do
+        tokenStart = InStr(scanPos, resultText, "{$", vbBinaryCompare)
+        If tokenStart = 0 Then Exit Do
+
+        tokenClose = InStr(tokenStart + 2, resultText, "}", vbBinaryCompare)
+        If tokenClose = 0 Then
+            Err.Raise ERR_BASE + 8, "ex_SourceResolvers", "Unclosed config token in resolver value: " & templateText
+        End If
+
+        tokenBody = Mid$(resultText, tokenStart + 2, tokenClose - tokenStart - 2)
+        replacementText = mp_ResolveSingleConfigToken(tokenBody)
+
+        resultText = Left$(resultText, tokenStart - 1) & replacementText & Mid$(resultText, tokenClose + 1)
+        scanPos = tokenStart + Len(replacementText)
+    Loop
+
+    mp_ResolveConfigReferenceTokens = resultText
+End Function
+
+Private Function mp_ResolveSingleConfigToken(ByVal tokenBody As String) As String
+    Dim pipePos As Long
+    Dim keyName As String
+    Dim formatterPipeline As String
+    Dim keyValue As String
+    Dim formattedValue As String
+    Dim formatterTemplate As String
+
+    tokenBody = Trim$(CStr(tokenBody))
+    If Len(tokenBody) = 0 Then
+        Err.Raise ERR_BASE + 9, "ex_SourceResolvers", "Empty config token body in resolver value."
+    End If
+
+    pipePos = InStr(1, tokenBody, "|", vbBinaryCompare)
+    If pipePos > 0 Then
+        keyName = Trim$(Left$(tokenBody, pipePos - 1))
+        formatterPipeline = Mid$(tokenBody, pipePos + 1)
+    Else
+        keyName = tokenBody
+        formatterPipeline = vbNullString
+    End If
+
+    If Len(keyName) = 0 Then
+        Err.Raise ERR_BASE + 10, "ex_SourceResolvers", "Config token key is empty in '{$" & tokenBody & "}'."
+    End If
+
+    keyValue = CStr(ex_ConfigProvider.m_GetConfigValue(keyName, vbNullString))
+    If Len(Trim$(keyValue)) = 0 Then
+        Err.Raise ERR_BASE + 11, "ex_SourceResolvers", "Config key '" & keyName & "' is missing or empty for resolver token '{$" & tokenBody & "}'."
+    End If
+
+    formatterPipeline = Trim$(formatterPipeline)
+    If Len(formatterPipeline) = 0 Then
+        mp_ResolveSingleConfigToken = keyValue
+        Exit Function
+    End If
+
+    formatterTemplate = "{V|" & formatterPipeline & "}"
+    formattedValue = ex_ResultTemplatesParser.m_ReplacePlaceholder(formatterTemplate, "V", keyValue)
+    If Len(formattedValue) >= Len(TEMPLATE_ERROR_PREFIX) Then
+        If StrComp(Left$(formattedValue, Len(TEMPLATE_ERROR_PREFIX)), TEMPLATE_ERROR_PREFIX, vbTextCompare) = 0 Then
+            Err.Raise ERR_BASE + 12, "ex_SourceResolvers", _
+                "Formatter pipeline failed for '{$" & tokenBody & "}': " & formattedValue
+        End If
+    End If
+
+    mp_ResolveSingleConfigToken = formattedValue
 End Function
 
 Private Function mp_ValidateDmyPattern(ByVal filePattern As String, ByRef outErrorText As String) As Boolean

@@ -16,85 +16,265 @@ Private Const XML_ATTR_MUTABLE As String = "mutable"
 Public Sub m_WriteSheetValuesToProfile(ByVal ws As Worksheet, ByVal doc As Object, ByVal profileNode As Object)
     Dim entries As Variant
     Dim i As Long
-    Dim vNode As Object
-    Dim child As Object
+    Dim existingNodes As Collection
+    Dim existingNode As Object
+    Dim entryQueueByKey As Object
+    Dim handledEntryIndexes As Object
+    Dim visibleKeySet As Object
+    Dim keyIdentity As String
+    Dim entryIndex As Long
+    Dim isHiddenNode As Boolean
     Dim keyName As String
+    Dim vNode As Object
     Dim preservedByKey As Object
-    Dim preservedItem As Object
-    Dim hiddenNodes As Collection
-    Dim hiddenItem As Object
-    Dim visibleKeys As Object
-    Dim hiddenKey As String
 
     Set preservedByKey = mp_ReadPreservedByKey(profileNode)
-    Set hiddenNodes = mp_ReadHiddenNodes(profileNode)
-    Set visibleKeys = CreateObject("Scripting.Dictionary")
-    visibleKeys.CompareMode = 1
-
-    For Each child In profileNode.selectNodes("p:v")
-        profileNode.removeChild child
-    Next child
+    Set existingNodes = mp_ReadProfileVNodeList(profileNode)
+    Set handledEntryIndexes = CreateObject("Scripting.Dictionary")
+    handledEntryIndexes.CompareMode = 1
 
     entries = m_ReadConfigTableEntries(ws)
+    Set entryQueueByKey = mp_BuildEntryIndexQueueByKey(entries)
+    Set visibleKeySet = mp_BuildVisibleKeySet(entries)
+
+    For Each existingNode In existingNodes
+        keyName = mp_NodeAttrText(existingNode, "key")
+        keyIdentity = mp_NormalizeEntryKey(keyName)
+        isHiddenNode = mp_NodeHasAttr(existingNode, XML_ATTR_HIDDEN)
+
+        If isHiddenNode Then
+            If Len(keyIdentity) > 0 Then
+                If visibleKeySet.Exists(keyIdentity) Then
+                    profileNode.removeChild existingNode
+                    GoTo ContinueExistingNode
+                End If
+            End If
+            GoTo ContinueExistingNode
+        End If
+
+        entryIndex = mp_DequeueEntryIndexForKey(entryQueueByKey, keyIdentity)
+        If entryIndex <= 0 Then
+            profileNode.removeChild existingNode
+            GoTo ContinueExistingNode
+        End If
+
+        mp_UpdateVisibleProfileVNode existingNode, entries, entryIndex, preservedByKey
+        handledEntryIndexes(CStr(entryIndex)) = True
+ContinueExistingNode:
+    Next existingNode
+
     If mp_ArrayHasItems(entries) Then
         For i = LBound(entries, 1) To UBound(entries, 1)
-            Set vNode = doc.createNode(1, "v", PROFILES_NS)
-            If Len(Trim$(CStr(entries(i, DEV_CONFIG_MARKER_COL)))) > 0 Then
-                vNode.setAttribute "type", CStr(entries(i, DEV_CONFIG_MARKER_COL))
-            End If
-            keyName = CStr(entries(i, DEV_CONFIG_KEY_COL))
-            vNode.setAttribute "key", keyName
-
-            If Len(Trim$(keyName)) > 0 Then visibleKeys(Trim$(keyName)) = True
-
-            If Not preservedByKey Is Nothing Then
-                If preservedByKey.Exists(keyName) Then
-                    Set preservedItem = preservedByKey(keyName)
-                    If CBool(preservedItem("HasMutable")) Then
-                        vNode.setAttribute XML_ATTR_MUTABLE, CStr(preservedItem("MutableAttrValue"))
-                    End If
-                    If CBool(preservedItem("HasLockedWithPlaceholder")) Then
-                        vNode.setAttribute XML_ATTR_LOCKED_WITH_PLACEHOLDER, CStr(preservedItem("LockedWithPlaceholder"))
-                        vNode.Text = CStr(preservedItem("PreservedValue"))
-                    Else
-                        vNode.Text = CStr(entries(i, DEV_CONFIG_VALUE_COL))
-                    End If
-                Else
-                    vNode.Text = CStr(entries(i, DEV_CONFIG_VALUE_COL))
-                End If
-            Else
-                vNode.Text = CStr(entries(i, DEV_CONFIG_VALUE_COL))
-            End If
+            If handledEntryIndexes.Exists(CStr(i)) Then GoTo ContinueAppendRemaining
+            Set vNode = mp_CreateVisibleProfileVNode(doc, entries, i, preservedByKey)
             profileNode.appendChild vNode
+ContinueAppendRemaining:
         Next i
     End If
-
-    If Not hiddenNodes Is Nothing Then
-        For Each hiddenItem In hiddenNodes
-            hiddenKey = Trim$(CStr(hiddenItem("Key")))
-            If Len(hiddenKey) > 0 Then
-                If visibleKeys.Exists(hiddenKey) Then GoTo ContinueHiddenNode
-            End If
-
-            Set vNode = doc.createNode(1, "v", PROFILES_NS)
-            If Len(Trim$(CStr(hiddenItem("Type")))) > 0 Then
-                vNode.setAttribute "type", CStr(hiddenItem("Type"))
-            End If
-            vNode.setAttribute "key", CStr(hiddenItem("Key"))
-
-            vNode.setAttribute XML_ATTR_HIDDEN, CStr(hiddenItem("HiddenAttrValue"))
-            If CBool(hiddenItem("HasLockedWithPlaceholder")) Then
-                vNode.setAttribute XML_ATTR_LOCKED_WITH_PLACEHOLDER, CStr(hiddenItem("LockedWithPlaceholder"))
-            End If
-            If CBool(hiddenItem("HasMutable")) Then
-                vNode.setAttribute XML_ATTR_MUTABLE, CStr(hiddenItem("MutableAttrValue"))
-            End If
-            vNode.Text = CStr(hiddenItem("Value"))
-            profileNode.appendChild vNode
-ContinueHiddenNode:
-        Next hiddenItem
-    End If
 End Sub
+
+Private Sub mp_UpdateVisibleProfileVNode( _
+    ByVal vNode As Object, _
+    ByVal entries As Variant, _
+    ByVal entryIndex As Long, _
+    ByVal preservedByKey As Object _
+)
+    Dim keyName As String
+    Dim markerText As String
+    Dim entryValue As String
+    Dim preservedItem As Object
+
+    keyName = CStr(entries(entryIndex, DEV_CONFIG_KEY_COL))
+    markerText = Trim$(CStr(entries(entryIndex, DEV_CONFIG_MARKER_COL)))
+    entryValue = CStr(entries(entryIndex, DEV_CONFIG_VALUE_COL))
+
+    vNode.setAttribute "key", keyName
+    mp_SetOrClearNodeAttr vNode, "type", markerText
+    mp_RemoveNodeAttr vNode, XML_ATTR_HIDDEN
+
+    If Not preservedByKey Is Nothing Then
+        If preservedByKey.Exists(keyName) Then
+            Set preservedItem = preservedByKey(keyName)
+            If CBool(preservedItem("HasMutable")) Then
+                mp_SetOrClearNodeAttr vNode, XML_ATTR_MUTABLE, CStr(preservedItem("MutableAttrValue"))
+            Else
+                mp_RemoveNodeAttr vNode, XML_ATTR_MUTABLE
+            End If
+
+            If CBool(preservedItem("HasLockedWithPlaceholder")) Then
+                mp_SetOrClearNodeAttr vNode, XML_ATTR_LOCKED_WITH_PLACEHOLDER, CStr(preservedItem("LockedWithPlaceholder"))
+                vNode.Text = CStr(preservedItem("PreservedValue"))
+            Else
+                mp_RemoveNodeAttr vNode, XML_ATTR_LOCKED_WITH_PLACEHOLDER
+                vNode.Text = entryValue
+            End If
+            Exit Sub
+        End If
+    End If
+
+    mp_RemoveNodeAttr vNode, XML_ATTR_MUTABLE
+    mp_RemoveNodeAttr vNode, XML_ATTR_LOCKED_WITH_PLACEHOLDER
+    vNode.Text = entryValue
+End Sub
+
+Private Function mp_CreateVisibleProfileVNode( _
+    ByVal doc As Object, _
+    ByVal entries As Variant, _
+    ByVal entryIndex As Long, _
+    ByVal preservedByKey As Object _
+) As Object
+    Dim vNode As Object
+    Dim keyName As String
+    Dim preservedItem As Object
+
+    Set vNode = doc.createNode(1, "v", PROFILES_NS)
+    If Len(Trim$(CStr(entries(entryIndex, DEV_CONFIG_MARKER_COL)))) > 0 Then
+        vNode.setAttribute "type", CStr(entries(entryIndex, DEV_CONFIG_MARKER_COL))
+    End If
+
+    keyName = CStr(entries(entryIndex, DEV_CONFIG_KEY_COL))
+    vNode.setAttribute "key", keyName
+
+    If Not preservedByKey Is Nothing Then
+        If preservedByKey.Exists(keyName) Then
+            Set preservedItem = preservedByKey(keyName)
+            If CBool(preservedItem("HasMutable")) Then
+                vNode.setAttribute XML_ATTR_MUTABLE, CStr(preservedItem("MutableAttrValue"))
+            End If
+            If CBool(preservedItem("HasLockedWithPlaceholder")) Then
+                vNode.setAttribute XML_ATTR_LOCKED_WITH_PLACEHOLDER, CStr(preservedItem("LockedWithPlaceholder"))
+                vNode.Text = CStr(preservedItem("PreservedValue"))
+            Else
+                vNode.Text = CStr(entries(entryIndex, DEV_CONFIG_VALUE_COL))
+            End If
+        Else
+            vNode.Text = CStr(entries(entryIndex, DEV_CONFIG_VALUE_COL))
+        End If
+    Else
+        vNode.Text = CStr(entries(entryIndex, DEV_CONFIG_VALUE_COL))
+    End If
+
+    Set mp_CreateVisibleProfileVNode = vNode
+End Function
+
+Private Sub mp_SetOrClearNodeAttr(ByVal node As Object, ByVal attrName As String, ByVal attrValue As String)
+    attrValue = Trim$(CStr(attrValue))
+    If Len(attrValue) = 0 Then
+        mp_RemoveNodeAttr node, attrName
+        Exit Sub
+    End If
+    node.setAttribute attrName, attrValue
+End Sub
+
+Private Sub mp_RemoveNodeAttr(ByVal node As Object, ByVal attrName As String)
+    Dim attrNode As Object
+
+    On Error Resume Next
+    Set attrNode = node.selectSingleNode("@*[local-name()='" & attrName & "']")
+    If Not attrNode Is Nothing Then
+        node.Attributes.removeNamedItem attrNode.nodeName
+    End If
+    On Error GoTo 0
+End Sub
+
+Private Function mp_ReadProfileVNodeList(ByVal profileNode As Object) As Collection
+    Dim result As New Collection
+    Dim nodes As Object
+    Dim i As Long
+
+    If profileNode Is Nothing Then
+        Set mp_ReadProfileVNodeList = result
+        Exit Function
+    End If
+
+    Set nodes = profileNode.selectNodes("p:v")
+    If nodes Is Nothing Then
+        Set mp_ReadProfileVNodeList = result
+        Exit Function
+    End If
+
+    For i = 0 To nodes.Length - 1
+        result.Add nodes.Item(i)
+    Next i
+
+    Set mp_ReadProfileVNodeList = result
+End Function
+
+Private Function mp_BuildEntryIndexQueueByKey(ByVal entries As Variant) As Object
+    Dim result As Object
+    Dim keyName As String
+    Dim queue As Collection
+    Dim i As Long
+
+    Set result = CreateObject("Scripting.Dictionary")
+    result.CompareMode = 1
+
+    If Not mp_ArrayHasItems(entries) Then
+        Set mp_BuildEntryIndexQueueByKey = result
+        Exit Function
+    End If
+
+    For i = LBound(entries, 1) To UBound(entries, 1)
+        keyName = mp_NormalizeEntryKey(CStr(entries(i, DEV_CONFIG_KEY_COL)))
+        If Not result.Exists(keyName) Then
+            Set queue = New Collection
+            result.Add keyName, queue
+        End If
+        Set queue = result(keyName)
+        queue.Add CLng(i)
+    Next i
+
+    Set mp_BuildEntryIndexQueueByKey = result
+End Function
+
+Private Function mp_BuildVisibleKeySet(ByVal entries As Variant) As Object
+    Dim result As Object
+    Dim keyName As String
+    Dim i As Long
+
+    Set result = CreateObject("Scripting.Dictionary")
+    result.CompareMode = 1
+
+    If Not mp_ArrayHasItems(entries) Then
+        Set mp_BuildVisibleKeySet = result
+        Exit Function
+    End If
+
+    For i = LBound(entries, 1) To UBound(entries, 1)
+        keyName = mp_NormalizeEntryKey(CStr(entries(i, DEV_CONFIG_KEY_COL)))
+        If Len(keyName) = 0 Then GoTo ContinueEntry
+        result(keyName) = True
+ContinueEntry:
+    Next i
+
+    Set mp_BuildVisibleKeySet = result
+End Function
+
+Private Function mp_HasQueuedEntryForKey(ByVal queueByKey As Object, ByVal keyName As String) As Boolean
+    Dim queue As Collection
+
+    If queueByKey Is Nothing Then Exit Function
+    keyName = mp_NormalizeEntryKey(keyName)
+    If Not queueByKey.Exists(keyName) Then Exit Function
+
+    Set queue = queueByKey(keyName)
+    mp_HasQueuedEntryForKey = (queue.Count > 0)
+End Function
+
+Private Function mp_DequeueEntryIndexForKey(ByVal queueByKey As Object, ByVal keyName As String) As Long
+    Dim queue As Collection
+
+    If Not mp_HasQueuedEntryForKey(queueByKey, keyName) Then Exit Function
+
+    keyName = mp_NormalizeEntryKey(keyName)
+    Set queue = queueByKey(keyName)
+    mp_DequeueEntryIndexForKey = CLng(queue(1))
+    queue.Remove 1
+End Function
+
+Private Function mp_NormalizeEntryKey(ByVal keyName As String) As String
+    mp_NormalizeEntryKey = Trim$(CStr(keyName))
+End Function
 
 Private Function mp_ReadPreservedByKey(ByVal profileNode As Object) As Object
     Dim result As Object

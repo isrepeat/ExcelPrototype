@@ -133,18 +133,19 @@
 		</ui>
 		<!-- <v key="Source.Main.FilePath">..\dsc_StateTest.xlsx</v> -->
 		<!-- <v key="Source.Main.FilePath">..\dsc_State.xlsx</v> -->
+		<!-- <v key="Source.Events.FilePath">..\dsc_EventsTest.xlsx</v> -->
+		<!-- <v key="Source.Events.FilePath">..\dsc_Events.xlsx</v> -->
+		<!-- <v key="Source.Daily.FilePath">..\DailyScopeTest.xlsx</v> -->
 		<v key="Source.Main.FilePath">C:\Users\SVI\Desktop\{yyyy}-{mm}-{dd} А7383 Особовий склад.xlsx</v>
 		<v key="Source.Main.FileResolver">ex_SourceResolvers.m_ResolveLatestByDmyPattern</v>
 		<v key="Source.Main.SheetAliases">StateMain</v>
-		<!-- <v key="Source.Events.FilePath">..\dsc_EventsTest.xlsx</v> -->
-		<!-- <v key="Source.Events.FilePath">..\dsc_Events.xlsx</v> -->
 		<v key="Source.Events.FilePath">C:\Users\SVI\Desktop\ТП+ТВ {dd}.{mm}.{yyyy}.xlsx</v>
 		<v key="Source.Events.FileResolver">ex_SourceResolvers.m_ResolveLatestByDmyPattern</v>
 		<v key="Source.Events.SheetAliases">EventsIn; EventsOut</v>
-		<!-- <v key="Source.Daily.FilePath">..\DailyScopeTest.xlsx</v> -->
 		<v key="Source.Daily.FilePath">..\..\..\WORK Alexandr Bondarenko\НАКАЗИ\DailyScope.xlsx</v>
 		<v key="Source.Daily.SheetAliases">DailyEvents</v>
-		<v key="CommonKey" mutable="true">КАЗНАЧЄЄВ Владислав Геннадійович</v>
+		<v key="BaseDate">20</v>
+		<v key="CommonKey" mutable="true">ШЕВЧУК Василь Петрович</v>
 		<v type="#" key="StateMain"/>
 		<v key="Main.Sheet[StateMain].Type">State</v>
 		<v key="Main.Sheet[StateMain].SheetName">ШПС</v>
@@ -166,10 +167,8 @@
 		<v type="#" key="EventsOut"/>
 		<v key="Events.Sheet[EventsOut].Type">Events</v>
 		<v key="Events.Sheet[EventsOut].SheetName">5. Тимчасово відсутні</v>
-		<v key="Events.Sheet[EventsOut].FieldsAliases">
-			ZV; FIO; EventReason; City; OutDate; OutCommandDate; OutCommandNumber;
-			DaysCount; PlannedReturnDate; FactArrivalDate; ArrivalCommandDate; Note; Ticket
-		</v>
+		<v key="Events.Sheet[EventsOut].FieldsAliases">ZV; FIO; EventReason; City; OutDate; OutCommandDate; OutCommandNumber;
+			DaysCount; PlannedReturnDate; FactArrivalDate; ArrivalCommandDate; Note; Ticket</v>
 		<v key="Events.Sheet[EventsOut].Key">FIO</v>
 		<v key="Events.Sheet[EventsOut].Sort">OutCommandDate</v>
 		<v key="Events.Sheet[EventsOut].Map[ZV]">65|Звання</v>
@@ -187,7 +186,8 @@
 		<v key="Events.Sheet[EventsOut].Map[Ticket]">Стовпець1|Номер квитка</v>
 		<v type="#" key="DailyEvents"/>
 		<v key="Daily.Sheet[DailyEvents].Type">Events</v>
-		<v key="Daily.Sheet[DailyEvents].SheetName">17_03</v>
+		<v key="Daily.Sheet[DailyEvents].SheetName">{$BaseDate|dateformat:"\dd_\mm"}</v>
+		<v key="Daily.Sheet[DailyEvents].SheetNameResolver">ex_SourceResolvers.m_ResolveWithDateFormatter</v>
 		<v key="Daily.Sheet[DailyEvents].RangeStartMarker">StartTable_DailyEvents</v>
 		<v key="Daily.Sheet[DailyEvents].RangeEndMarker">EndTable_DailyEvents</v>
 		<v key="Daily.Sheet[DailyEvents].FieldsAliases">Hospital; Vacation; Rank; FIO; Position; RaportTVO; RaportFrom; InNum; InDate; DocNote; DocNum; DocDate; DaysCount; DateFrom; DateTo; VkNum; VkDate; VlkNum; VlkDate; Type</v>
@@ -213,8 +213,7 @@
 		<v key="Daily.Sheet[DailyEvents].Map[VlkNum]">ВЛК №</v>
 		<v key="Daily.Sheet[DailyEvents].Map[VlkDate]">ВЛК дата</v>
 		<v key="Daily.Sheet[DailyEvents].Map[Type]">Type</v>
-		<v key="Daily.Sheet[DailyEvents].Fetch.Dsl" lockedWithPlaceholder="hidden, edit in .xml">
-			DEFINE $CurrentTable AS Src;
+		<v key="Daily.Sheet[DailyEvents].Fetch.Dsl" lockedWithPlaceholder="hidden, edit in .xml">DEFINE $CurrentTable AS Src;
 
 			/* Контекст, который движок заполняет в SEARCH_* блоках */
 				DEFINE DATABASE Ctx {
@@ -289,8 +288,7 @@
 						};
 					};
 				}
-			}
-		</v>
+			}</v>
 		<v key=""/>
 		<v key="Output.Sheets">StateMain; EventsOut; EventsIn; DailyEvents</v>
 		<v key="Output.Layout.Gap.Default">1</v>
@@ -299,7 +297,7 @@
 		<v key="Export.OutputMode">CreateWithPostfix</v>
 		<v key="Export.OutputPostfix">_result</v>
 		<v key="Export.InsertMode">AppendToBottom</v>
-		<!-- <postProcessScript execution="Implicit">
+				<!-- <postProcessScript execution="Implicit">
 			<![CDATA[
 			let tvoNoteRegex = "ТВО";
 

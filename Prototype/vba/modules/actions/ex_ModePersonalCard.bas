@@ -124,7 +124,7 @@ Private Function mp_BuildAdoLookupCacheSignature(ByVal cfg As Object) As String
                     "|fra=" & mp_GetCfgOptional(cfg, sourcePrefix & ".FileResolverArgs", vbNullString) & _
                     "|fpr=" & mp_GetSourcePathSignatureValue(cfg, sourceAlias) & _
                     "|hh=" & mp_GetCfgOptional(cfg, sourcePrefix & ".HasHeaders", vbNullString) & _
-                    "|sn=" & mp_GetCfgOptional(cfg, sourceAlias & ".Sheet[" & tableAlias & "].SheetName", vbNullString) & _
+                    "|sn=" & ex_ConfigProvider.m_GetResolvedSheetName(sourceAlias, tableAlias, cfg, False, "ex_ModePersonalCard", 1370, 1371, 1763, 1764, 1765) & _
                     "|rsm=" & mp_GetCfgOptional(cfg, sourceAlias & ".Sheet[" & tableAlias & "].RangeStartMarker", vbNullString) & _
                     "|rem=" & mp_GetCfgOptional(cfg, sourceAlias & ".Sheet[" & tableAlias & "].RangeEndMarker", vbNullString) & _
                     "|k=" & keyAlias & _
@@ -176,21 +176,36 @@ Public Sub m_RunPersonalCard()
     Dim cfg As Object
     Dim fio As String
 
+    On Error GoTo EH
+
     fio = Trim$(ex_ConfigProvider.m_GetConfigValue("CommonKey", vbNullString))
 
-    Set cfg = mp_LoadConfigDictionary()
+    Set cfg = ex_ConfigProvider.m_LoadConfigDictionary("ex_ModePersonalCard", 1330, 1331)
     ex_ModePipeline.m_RunModePipeline cfg, "ex_ModePersonalCard.m_RunMode", mp_CreateScriptInputContext(fio), False
+    Exit Sub
+
+EH:
+    mp_RenderTimelineRunErrorBanner Err.Description, Err.Source, Err.Number, "ERROR: Timeline generation failed"
 End Sub
 
 Public Sub m_RunPersonalCardByKey(ByVal fio As String)
     Dim cfg As Object
 
-    Set cfg = mp_LoadConfigDictionary()
+    On Error GoTo EH
+
+    Set cfg = ex_ConfigProvider.m_LoadConfigDictionary("ex_ModePersonalCard", 1330, 1331)
     ex_ModePipeline.m_RunModePipeline cfg, "ex_ModePersonalCard.m_RunMode", mp_CreateScriptInputContext(fio), False
+    Exit Sub
+
+EH:
+    mp_RenderTimelineRunErrorBanner Err.Description, Err.Source, Err.Number, "ERROR: Timeline generation failed"
 End Sub
 
 Public Function m_RunMode(ByVal cfg As Object, ByVal modeInput As Object, ByVal preProcessContext As Object) As Object
     Dim fio As String
+    Dim errNumber As Long
+    Dim errSource As String
+    Dim errDescription As String
 
     On Error GoTo EH
 
@@ -200,8 +215,15 @@ Public Function m_RunMode(ByVal cfg As Object, ByVal modeInput As Object, ByVal 
     Exit Function
 
 EH:
-    MsgBox "PersonalCard failed: [" & Err.Source & " #" & CStr(Err.Number) & "] " & Err.Description, vbExclamation
-    Set m_RunMode = Nothing
+    errNumber = Err.Number
+    errSource = Err.Source
+    errDescription = Err.Description
+    mp_DebugLog "m_RunMode FAIL source='" & errSource & "' code=" & CStr(errNumber) & " description='" & errDescription & "'"
+    If errNumber = 0 Then errNumber = vbObjectError + 1309
+    If Len(errSource) = 0 Then errSource = "ex_ModePersonalCard"
+    If Len(errDescription) = 0 Then errDescription = "Mode run failed."
+    On Error GoTo 0
+    Err.Raise errNumber, errSource, errDescription
 End Function
 
 Private Function mp_ValidateTimelineEntryConfig(ByRef outErrorText As String) As Boolean
@@ -210,7 +232,7 @@ Private Function mp_ValidateTimelineEntryConfig(ByRef outErrorText As String) As
 
     On Error GoTo EH
 
-    Set cfg = mp_LoadConfigDictionary()
+    Set cfg = ex_ConfigProvider.m_LoadConfigDictionary("ex_ModePersonalCard", 1330, 1331)
     mode = ex_Settings.m_GetOutputMode()
 
     mp_ValidateTimelineEntryConfig = mp_ValidateTimelineConfig(cfg, mode, outErrorText)
@@ -370,7 +392,7 @@ Private Function mp_RunModeCore( _
         End If
 
         Dim adoObjectName As String
-        adoObjectName = mp_GetCfgOptional(cfg, sourceAlias & ".Sheet[" & tableAlias & "].SheetName", vbNullString)
+        adoObjectName = ex_ConfigProvider.m_GetResolvedSheetName(sourceAlias, tableAlias, cfg, True, "ex_ModePersonalCard", 1370, 1371, 1763, 1764, 1765)
 
         Dim sourceConn As Object
         Set sourceConn = mp_GetConnectionForSource(connCache, cfg, sourceAlias)
@@ -454,7 +476,6 @@ EH:
     Dim errNumber As Long
     Dim errSource As String
     Dim errDescription As String
-    Dim errOutputStyle As t_OutputSheetStyle
 
     errNumber = Err.Number
     errSource = Err.Source
@@ -484,16 +505,54 @@ EH:
         Set wsOut = mp_CreateOrClearSheet(RESULT_SHEET_NAME)
         ex_SheetViewZoom.m_ApplyProfileZoomForResultSheet wsOut, resultSheetExistedBeforeRender
     End If
-    On Error Resume Next
-    ex_OutputFormattingPipeline.m_ApplySheetPipeline wsOut
-    If ex_SheetStylesXmlProvider.m_GetOutputSheetStyle(errOutputStyle, ThisWorkbook) Then
-        ex_OutputPanel.m_RenderForSheet wsOut, errOutputStyle
-    End If
-    On Error GoTo 0
-    ex_Messaging.m_RenderErrorBanner wsOut, errDescription, errSource, errNumber, "ОШИБКА: Не удалось сформировать таймлайн", ex_SheetStylesXmlProvider.m_GetOutputErrorBannerRangeAddress(ThisWorkbook)
+    ex_Messaging.m_RenderErrorBanner wsOut, errDescription, errSource, errNumber, _
+        "ОШИБКА: Не удалось сформировать таймлайн", _
+        ex_SheetStylesXmlProvider.m_GetOutputErrorBannerRangeAddress(ThisWorkbook), _
+        True, _
+        ThisWorkbook
 
     Set mp_RunModeCore = Nothing
 End Function
+
+Private Sub mp_RenderTimelineRunErrorBanner( _
+    ByVal errDescription As String, _
+    ByVal errSource As String, _
+    ByVal errNumber As Long, _
+    ByVal titleText As String _
+)
+    Dim wsOut As Worksheet
+    Dim resultSheetExistedBeforeRender As Boolean
+
+    On Error GoTo Fallback
+
+    Set wsOut = Nothing
+    On Error Resume Next
+    Set wsOut = ThisWorkbook.Worksheets(RESULT_SHEET_NAME)
+    On Error GoTo Fallback
+
+    If wsOut Is Nothing Then
+        resultSheetExistedBeforeRender = mp_WorksheetExists(RESULT_SHEET_NAME)
+        Set wsOut = mp_CreateOrClearSheet(RESULT_SHEET_NAME)
+        If Not wsOut Is Nothing Then
+            ex_SheetViewZoom.m_ApplyProfileZoomForResultSheet wsOut, resultSheetExistedBeforeRender
+        End If
+    End If
+
+    If wsOut Is Nothing Then GoTo Fallback
+
+    ex_Messaging.m_RenderErrorBanner wsOut, errDescription, errSource, errNumber, _
+        titleText, _
+        ex_SheetStylesXmlProvider.m_GetOutputErrorBannerRangeAddress(ThisWorkbook), _
+        True, _
+        ThisWorkbook
+    Exit Sub
+
+Fallback:
+    On Error Resume Next
+    MsgBox titleText & vbCrLf & vbCrLf & errDescription & vbCrLf & _
+           "Source: " & errSource & vbCrLf & "Code: " & CStr(errNumber), vbExclamation
+    On Error GoTo 0
+End Sub
 
 Private Sub mp_DebugLog(ByVal messageText As String)
     On Error Resume Next
@@ -578,9 +637,21 @@ End Sub
 
 Private Function mp_CreateScriptInputContext(ByVal fio As String) As Object
     Dim ctx As obj_ScriptIOPayload
+    Dim baseDateRaw As String
+    Dim baseDateNormalized As String
+    Dim todayFullDate As String
 
     Set ctx = New obj_ScriptIOPayload
     ctx.m_SetString "CommonKey", CStr(fio)
+    
+    baseDateRaw = Trim$(ex_ConfigProvider.m_GetConfigValue("BaseDate", vbNullString))
+    If Len(baseDateRaw) > 0 Then
+        todayFullDate = Format$(Date, "dd.mm.yyyy")
+        baseDateNormalized = ex_DateHelpers.m_ToFullDate(baseDateRaw, todayFullDate)
+    Else
+        baseDateNormalized = vbNullString
+    End If
+    ctx.m_SetString "BaseDate", baseDateNormalized
 
     Set mp_CreateScriptInputContext = ctx
 End Function
@@ -639,12 +710,11 @@ Private Function mp_ValidateTimelineConfig( _
         End If
         If Not mp_ShouldRenderTableForMode(mode, tableType) Then GoTo ContinueAlias
 
-        Call mp_GetCfgRequired(cfg, sourceAlias & ".Sheet[" & tableAlias & "].SheetName")
         Call mp_GetCfgRequired(cfg, sourceAlias & ".Sheet[" & tableAlias & "].Key")
         Dim rangeStartMarker As String
         Dim rangeEndMarker As String
         Dim configuredSheetName As String
-        configuredSheetName = mp_GetCfgRequired(cfg, sourceAlias & ".Sheet[" & tableAlias & "].SheetName")
+        configuredSheetName = ex_ConfigProvider.m_GetResolvedSheetName(sourceAlias, tableAlias, cfg, True, "ex_ModePersonalCard", 1370, 1371, 1763, 1764, 1765)
         rangeStartMarker = mp_GetCfgOptional(cfg, sourceAlias & ".Sheet[" & tableAlias & "].RangeStartMarker", vbNullString)
         rangeEndMarker = mp_GetCfgOptional(cfg, sourceAlias & ".Sheet[" & tableAlias & "].RangeEndMarker", vbNullString)
         If (Len(rangeStartMarker) > 0 Xor Len(rangeEndMarker) > 0) Then
@@ -2080,57 +2150,6 @@ Private Sub mp_SortLongArray(ByRef values() As Long)
         Next j
     Next i
 End Sub
-
-Private Function mp_LoadConfigDictionary() As Object
-
-    Dim ws As Worksheet
-    Dim tbl As ListObject
-
-    Set ws = ws_Dev
-
-    On Error Resume Next
-    Set tbl = ws.ListObjects(DEV_CONFIG_TABLE_NAME)
-    On Error GoTo 0
-
-    If tbl Is Nothing Then
-        Err.Raise vbObjectError + 1330, "ex_ModePersonalCard", _
-            "Config table '" & DEV_CONFIG_TABLE_NAME & "' was not found on sheet '" & ws.Name & "'."
-    End If
-
-    If tbl.DataBodyRange Is Nothing Then
-        Err.Raise vbObjectError + 1331, "ex_ModePersonalCard", _
-            "Config table '" & DEV_CONFIG_TABLE_NAME & "' has no data rows."
-    End If
-
-    Dim dict As Object
-    Set dict = CreateObject("Scripting.Dictionary")
-    dict.CompareMode = 1
-
-    Dim dataRange As Range
-    Set dataRange = tbl.DataBodyRange
-
-    Dim r As Long
-    For r = 1 To dataRange.Rows.Count
-        Dim markerText As String
-        markerText = Trim$(CStr(dataRange.Cells(r, DEV_COL_MARKER).Value))
-        If StrComp(markerText, DEV_MARKER_SYMBOL, vbTextCompare) = 0 Then
-            GoTo ContinueRow
-        End If
-
-        Dim keyText As String
-        keyText = Trim$(CStr(dataRange.Cells(r, DEV_COL_KEY).Value))
-        If Len(keyText) = 0 Then
-            GoTo ContinueRow
-        End If
-
-        dict(keyText) = CStr(dataRange.Cells(r, DEV_COL_VALUE).Value)
-
-ContinueRow:
-    Next r
-
-    Set mp_LoadConfigDictionary = dict
-
-End Function
 
 Private Sub mp_AddResultFieldRange( _
     ByVal resultFieldRanges As Collection, _
