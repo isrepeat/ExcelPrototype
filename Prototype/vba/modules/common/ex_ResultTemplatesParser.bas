@@ -1039,29 +1039,90 @@ Private Function mp_IndexOfDelimiterOutsideQuotedLiterals( _
         If Len(quoteChar) = 0 Then
             If ch = """" Or ch = "'" Then
                 quoteChar = ch
-            ElseIf ch = delimiterChar Then
+                i = i + 1
+                GoTo ContinueLoop
+            End If
+            If ch = delimiterChar Then
                 mp_IndexOfDelimiterOutsideQuotedLiterals = i
                 Exit Function
             End If
             i = i + 1
-        Else
-            If ch = "\" Then
-                If i < textLen Then
-                    i = i + 2
-                Else
-                    i = i + 1
-                End If
-            ElseIf ch = quoteChar Then
-                quoteChar = vbNullString
-                i = i + 1
+            GoTo ContinueLoop
+        End If
+
+        If ch = "\" Then
+            If i < textLen Then
+                i = i + 2
             Else
                 i = i + 1
             End If
+            GoTo ContinueLoop
         End If
+
+        If ch = quoteChar Then
+            If i < textLen Then
+                If Mid$(sourceText, i + 1, 1) = quoteChar Then
+                    If mp_IsQuoteTerminatorForDelimiter(sourceText, i + 1, delimiterChar) Then
+                        quoteChar = vbNullString
+                    End If
+                    i = i + 2
+                    GoTo ContinueLoop
+                End If
+            End If
+
+            If mp_IsQuoteTerminatorForDelimiter(sourceText, i, delimiterChar) Then
+                quoteChar = vbNullString
+            End If
+            i = i + 1
+            GoTo ContinueLoop
+        End If
+
+        i = i + 1
+ContinueLoop:
     Loop
 
     If Len(quoteChar) > 0 Then
         Err.Raise vbObjectError + 1833, "ex_ResultTemplatesParser", "Unclosed string literal in formatter expression: '" & sourceText & "'."
+    End If
+End Function
+
+Private Function mp_IsQuoteTerminatorForDelimiter( _
+    ByVal sourceText As String, _
+    ByVal quotePos As Long, _
+    ByVal delimiterChar As String _
+) As Boolean
+    Dim nextPos As Long
+    Dim nextChar As String
+    Dim textLen As Long
+
+    sourceText = CStr(sourceText)
+    delimiterChar = CStr(delimiterChar)
+    If Len(delimiterChar) <> 1 Then Exit Function
+    If quotePos < 1 Then Exit Function
+
+    textLen = Len(sourceText)
+    nextPos = quotePos + 1
+    If nextPos > textLen Then
+        mp_IsQuoteTerminatorForDelimiter = True
+        Exit Function
+    End If
+
+    nextChar = Mid$(sourceText, nextPos, 1)
+    If nextChar = delimiterChar Then
+        mp_IsQuoteTerminatorForDelimiter = True
+        Exit Function
+    End If
+    If Not mp_IsWhitespaceChar(nextChar) Then Exit Function
+
+    nextPos = mp_FindNextNonWhitespacePosition(sourceText, nextPos + 1)
+    If nextPos = 0 Then
+        mp_IsQuoteTerminatorForDelimiter = True
+        Exit Function
+    End If
+
+    nextChar = Mid$(sourceText, nextPos, 1)
+    If nextChar = delimiterChar Then
+        mp_IsQuoteTerminatorForDelimiter = True
     End If
 End Function
 
@@ -1648,14 +1709,9 @@ Private Function mp_EvaluateTemplateLetExpression(ByVal expressionText As String
 End Function
 
 Private Function mp_SplitLetExpressionArgs(ByVal argsText As String) As Variant
+    Dim rawParts As Collection
     Dim parts() As String
-    Dim currentPart As String
-    Dim ch As String
     Dim i As Long
-    Dim normalizedPart As String
-    Dim count As Long
-    Dim inSingleQuote As Boolean
-    Dim inDoubleQuote As Boolean
 
     argsText = mp_TrimWhitespace(CStr(argsText))
     If Len(argsText) = 0 Then
@@ -1663,47 +1719,21 @@ Private Function mp_SplitLetExpressionArgs(ByVal argsText As String) As Variant
         Exit Function
     End If
 
-    ReDim parts(0 To Len(argsText))
-
-    For i = 1 To Len(argsText)
-        ch = Mid$(argsText, i, 1)
-        If ch = "'" And Not inDoubleQuote Then
-            inSingleQuote = Not inSingleQuote
-            currentPart = currentPart & ch
-            GoTo ContinueChar
-        End If
-        If ch = """" And Not inSingleQuote Then
-            inDoubleQuote = Not inDoubleQuote
-            currentPart = currentPart & ch
-            GoTo ContinueChar
-        End If
-
-        If ch = "," And Not inSingleQuote And Not inDoubleQuote Then
-            normalizedPart = mp_TrimWhitespace(currentPart)
-            If Len(normalizedPart) > 0 Then
-                parts(count) = normalizedPart
-                count = count + 1
-            End If
-            currentPart = vbNullString
-            GoTo ContinueChar
-        End If
-
-        currentPart = currentPart & ch
-ContinueChar:
-    Next i
-
-    normalizedPart = mp_TrimWhitespace(currentPart)
-    If Len(normalizedPart) > 0 Then
-        parts(count) = normalizedPart
-        count = count + 1
+    Set rawParts = mp_SplitByDelimiterOutsideQuotedLiterals(argsText, ",")
+    If rawParts Is Nothing Then
+        mp_SplitLetExpressionArgs = Array()
+        Exit Function
     End If
-
-    If count = 0 Then
+    If rawParts.Count = 0 Then
         mp_SplitLetExpressionArgs = Array()
         Exit Function
     End If
 
-    ReDim Preserve parts(0 To count - 1)
+    ReDim parts(0 To rawParts.Count - 1)
+    For i = 1 To rawParts.Count
+        parts(i - 1) = mp_TrimWhitespace(CStr(rawParts(i)))
+    Next i
+
     mp_SplitLetExpressionArgs = parts
 End Function
 
@@ -1723,6 +1753,7 @@ Private Function mp_RunExternalTemplateHelper(ByVal helperRef As String, ByVal a
     Dim parsedArgs() As Variant
     Dim i As Long
     Dim invokeResult As Variant
+    Dim argsPreview As String
 
     methodRef = mp_TrimWhitespace(CStr(helperRef))
     If Left$(methodRef, 1) = "$" Then methodRef = Mid$(methodRef, 2)
@@ -1748,6 +1779,7 @@ Private Function mp_RunExternalTemplateHelper(ByVal helperRef As String, ByVal a
         Next i
     End If
 
+    On Error GoTo InvokeErr
     Select Case argCount
         Case 0
             invokeResult = Application.Run(methodRef)
@@ -1762,8 +1794,16 @@ Private Function mp_RunExternalTemplateHelper(ByVal helperRef As String, ByVal a
         Case 5
             invokeResult = Application.Run(methodRef, parsedArgs(0), parsedArgs(1), parsedArgs(2), parsedArgs(3), parsedArgs(4))
     End Select
+    On Error GoTo 0
 
     mp_RunExternalTemplateHelper = mp_NormalizeTemplateHelperResult(invokeResult, helperRef)
+    Exit Function
+
+InvokeErr:
+    argsPreview = mp_FormatTemplateHelperArgsForError(args)
+    Err.Raise vbObjectError + 1834, "ex_ResultTemplatesParser", _
+        "Template helper '" & helperRef & "' failed with " & CStr(argCount) & " args (" & argsPreview & "): " & _
+        "[" & CStr(Err.Source) & " #" & CStr(Err.Number) & "] " & CStr(Err.Description)
 End Function
 
 Private Function mp_ParseTemplateHelperArgument(ByVal argText As String) As Variant
@@ -1807,6 +1847,22 @@ Private Function mp_ParseTemplateHelperArgument(ByVal argText As String) As Vari
     End If
 
     mp_ParseTemplateHelperArgument = normalized
+End Function
+
+Private Function mp_FormatTemplateHelperArgsForError(ByVal args As Variant) As String
+    Dim argCount As Long
+    Dim i As Long
+    Dim parts() As String
+
+    argCount = mp_GetArrayItemCount(args)
+    If argCount <= 0 Then Exit Function
+
+    ReDim parts(0 To argCount - 1)
+    For i = 0 To argCount - 1
+        parts(i) = """" & Replace(CStr(args(i)), """", """""") & """"
+    Next i
+
+    mp_FormatTemplateHelperArgsForError = Join(parts, ", ")
 End Function
 
 Private Sub mp_ValidateTemplateHelperArgumentRaw( _

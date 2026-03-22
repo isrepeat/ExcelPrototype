@@ -118,6 +118,128 @@ Public Function m_GetConfigValue( _
     m_GetConfigValue = defaultValue
 End Function
 
+Public Function m_LoadConfigDictionary( _
+    Optional ByVal errSource As String = "ex_ConfigProvider", _
+    Optional ByVal errNoTableCode As Long = 1330, _
+    Optional ByVal errNoRowsCode As Long = 1331 _
+) As Object
+    Dim wsDev As Worksheet
+    Dim cfgTable As ListObject
+    Dim dict As Object
+    Dim dataRange As Range
+    Dim r As Long
+    Dim markerText As String
+    Dim keyText As String
+
+    Set wsDev = mp_EnsureDevSheet()
+
+    On Error Resume Next
+    Set cfgTable = wsDev.ListObjects(DEV_CONFIG_TABLE_NAME)
+    On Error GoTo 0
+
+    If cfgTable Is Nothing Then
+        Err.Raise vbObjectError + errNoTableCode, CStr(errSource), _
+            "Config table '" & DEV_CONFIG_TABLE_NAME & "' was not found on sheet '" & wsDev.Name & "'."
+    End If
+    If cfgTable.DataBodyRange Is Nothing Then
+        Err.Raise vbObjectError + errNoRowsCode, CStr(errSource), _
+            "Config table '" & DEV_CONFIG_TABLE_NAME & "' has no data rows."
+    End If
+
+    Set dict = CreateObject("Scripting.Dictionary")
+    dict.CompareMode = 1
+    Set dataRange = cfgTable.DataBodyRange
+
+    For r = 1 To dataRange.Rows.Count
+        markerText = Trim$(CStr(dataRange.Cells(r, DEV_COL_MARKER).Value))
+        If StrComp(markerText, DEV_MARKER_SYMBOL, vbTextCompare) = 0 Then GoTo ContinueRow
+
+        keyText = Trim$(CStr(dataRange.Cells(r, DEV_COL_KEY).Value))
+        If Len(keyText) = 0 Then GoTo ContinueRow
+
+        dict(keyText) = CStr(dataRange.Cells(r, DEV_COL_VALUE).Value)
+ContinueRow:
+    Next r
+
+    Set m_LoadConfigDictionary = dict
+End Function
+
+Public Function m_GetResolvedSheetName( _
+    ByVal sourceAlias As String, _
+    ByVal tableAlias As String, _
+    Optional ByVal cfg As Object = Nothing, _
+    Optional ByVal required As Boolean = True, _
+    Optional ByVal errSource As String = "ex_ConfigProvider", _
+    Optional ByVal errMissingKeyCode As Long = 1900, _
+    Optional ByVal errEmptyValueCode As Long = 1901, _
+    Optional ByVal errMissingResolverCode As Long = 1902, _
+    Optional ByVal errEmptyResolvedValueCode As Long = 1903, _
+    Optional ByVal errResolverFailedCode As Long = 1904 _
+) As String
+    Dim sheetKey As String
+    Dim resolverKey As String
+    Dim resolverArgsKey As String
+    Dim rawSheetName As String
+    Dim resolverName As String
+    Dim resolverArgs As String
+    Dim resolverCallName As String
+    Dim resolvedValue As Variant
+    Dim resolvedSheetName As String
+
+    sourceAlias = Trim$(CStr(sourceAlias))
+    tableAlias = Trim$(CStr(tableAlias))
+    If Len(sourceAlias) = 0 Or Len(tableAlias) = 0 Then
+        Err.Raise vbObjectError + errMissingKeyCode, CStr(errSource), "Source alias and table alias are required for SheetName resolver."
+    End If
+
+    sheetKey = sourceAlias & ".Sheet[" & tableAlias & "].SheetName"
+    resolverKey = sourceAlias & ".Sheet[" & tableAlias & "].SheetNameResolver"
+    resolverArgsKey = sourceAlias & ".Sheet[" & tableAlias & "].SheetNameResolverArgs"
+
+    If required Then
+        rawSheetName = mp_GetConfigValueRequired(cfg, sheetKey, CStr(errSource), errMissingKeyCode, errEmptyValueCode)
+    Else
+        rawSheetName = mp_GetConfigValueOptional(cfg, sheetKey, vbNullString)
+        If Len(rawSheetName) = 0 Then Exit Function
+    End If
+
+    resolverName = mp_GetConfigValueOptional(cfg, resolverKey, vbNullString)
+    resolverArgs = mp_GetConfigValueOptional(cfg, resolverArgsKey, vbNullString)
+
+    If Len(resolverName) = 0 Then
+        If mp_HasPlaceholderTokens(rawSheetName) Then
+            Err.Raise vbObjectError + errMissingResolverCode, CStr(errSource), _
+                "SheetName contains placeholders but no resolver is configured for key '" & sheetKey & "'. " & _
+                "Set '" & resolverKey & "' (for example: ex_SourceResolvers.m_ResolveWithDateFormatter)."
+        End If
+        m_GetResolvedSheetName = rawSheetName
+        Exit Function
+    End If
+
+    If InStr(1, resolverName, "!", vbBinaryCompare) > 0 Then
+        resolverCallName = resolverName
+    Else
+        resolverCallName = "'" & ThisWorkbook.Name & "'!" & resolverName
+    End If
+
+    On Error GoTo ResolverEH
+    resolvedValue = Application.Run(resolverCallName, rawSheetName, resolverArgs)
+    On Error GoTo 0
+
+    resolvedSheetName = Trim$(CStr(resolvedValue))
+    If Len(resolvedSheetName) = 0 Then
+        Err.Raise vbObjectError + errEmptyResolvedValueCode, CStr(errSource), _
+            "SheetName resolver '" & resolverName & "' returned an empty value for key '" & sheetKey & "'."
+    End If
+
+    m_GetResolvedSheetName = resolvedSheetName
+    Exit Function
+
+ResolverEH:
+    Err.Raise vbObjectError + errResolverFailedCode, CStr(errSource), _
+        "SheetName resolver failed for key '" & sheetKey & "' (resolver='" & resolverName & "'): " & Err.Description
+End Function
+
 Public Function m_GetConfigStyle( _
     ByVal keyName As String, _
     Optional ByVal defaultValue As String = vbNullString _
@@ -397,6 +519,67 @@ Private Function mp_GetConfigTable(ByVal wsDev As Worksheet, Optional ByVal crea
     End If
 
     Set mp_GetConfigTable = cfgTable
+End Function
+
+Private Function mp_GetConfigValueOptional( _
+    ByVal cfg As Object, _
+    ByVal keyName As String, _
+    ByVal defaultValue As String _
+) As String
+    keyName = Trim$(CStr(keyName))
+    If Len(keyName) = 0 Then
+        mp_GetConfigValueOptional = CStr(defaultValue)
+        Exit Function
+    End If
+
+    If Not cfg Is Nothing Then
+        If cfg.Exists(keyName) Then
+            mp_GetConfigValueOptional = Trim$(CStr(cfg(keyName)))
+            Exit Function
+        End If
+    End If
+
+    mp_GetConfigValueOptional = Trim$(CStr(m_GetConfigValue(keyName, defaultValue)))
+End Function
+
+Private Function mp_GetConfigValueRequired( _
+    ByVal cfg As Object, _
+    ByVal keyName As String, _
+    ByVal errSource As String, _
+    ByVal errMissingKeyCode As Long, _
+    ByVal errEmptyValueCode As Long _
+) As String
+    keyName = Trim$(CStr(keyName))
+    If Len(keyName) = 0 Then
+        Err.Raise vbObjectError + errMissingKeyCode, CStr(errSource), "Config key name is empty."
+    End If
+
+    If Not cfg Is Nothing Then
+        If Not cfg.Exists(keyName) Then
+            Err.Raise vbObjectError + errMissingKeyCode, CStr(errSource), "Missing required config key '" & keyName & "'."
+        End If
+
+        mp_GetConfigValueRequired = Trim$(CStr(cfg(keyName)))
+        If Len(mp_GetConfigValueRequired) = 0 Then
+            Err.Raise vbObjectError + errEmptyValueCode, CStr(errSource), "Config key '" & keyName & "' is empty."
+        End If
+        Exit Function
+    End If
+
+    mp_GetConfigValueRequired = Trim$(CStr(m_GetConfigValue(keyName, vbNullString)))
+    If Len(mp_GetConfigValueRequired) = 0 Then
+        Err.Raise vbObjectError + errMissingKeyCode, CStr(errSource), "Missing required config key '" & keyName & "'."
+    End If
+End Function
+
+Private Function mp_HasPlaceholderTokens(ByVal valueText As String) As Boolean
+    Dim normalized As String
+
+    normalized = Trim$(valueText)
+    If Len(normalized) = 0 Then Exit Function
+
+    mp_HasPlaceholderTokens = (InStr(1, normalized, "{", vbBinaryCompare) > 0) _
+                              And (InStr(1, normalized, "}", vbBinaryCompare) > 0)
 End Function
 
 Private Sub mp_RenderConfigArea(ByVal wsDev As Worksheet)

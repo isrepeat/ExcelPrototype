@@ -10,11 +10,6 @@ Private Const BATCH_RUNTIME_VAR As String = "__Batch"
 Private Const UI_WARNING_TITLE As String = "WARNING: Mode UI is not loaded"
 Private Const UI_WARNING_TEXT As String = "Mode-specific UI config for ReportCreation is unavailable. Control panel/view-zone settings were not applied."
 
-Private Const DEV_CONFIG_TABLE_NAME As String = "tblDevConfig"
-Private Const DEV_MARKER_SYMBOL As String = "#"
-Private Const DEV_COL_MARKER As Long = 1
-Private Const DEV_COL_KEY As Long = 2
-Private Const DEV_COL_VALUE As Long = 3
 Private Const CONFIG_KEYS_COLLECTION_KEY As String = "KeysCollection"
 ' Явный alias для member-итерации в DSL: row.SrcTableRows -> <Source>.Sheet[<Table>]
 Private Const SRC_TABLE_ROWS_ALIAS As String = "SrcTableRows"
@@ -23,7 +18,7 @@ Public Sub m_RunKeysCollectionReport()
     Dim cfg As Object
     Dim pipelineInput As Object
 
-    Set cfg = mp_LoadConfigDictionary()
+    Set cfg = ex_ConfigProvider.m_LoadConfigDictionary("ex_ModeReportCreation", 6006, 6007)
     Set pipelineInput = mp_CreatePipelineInputForReport(cfg)
     ex_ModePipeline.m_RunModePipeline cfg, "ex_ModeReportCreation.m_RunMode", pipelineInput, False
 End Sub
@@ -883,46 +878,6 @@ Private Sub mp_MergeInjectedRuntimeContext( _
     Next scopeKey
 End Sub
 
-Private Function mp_LoadConfigDictionary() As Object
-    Dim ws As Worksheet
-    Dim tbl As ListObject
-    Dim dict As Object
-    Dim dataRange As Range
-    Dim r As Long
-    Dim markerText As String
-    Dim keyText As String
-
-    Set ws = ws_Dev
-
-    On Error Resume Next
-    Set tbl = ws.ListObjects(DEV_CONFIG_TABLE_NAME)
-    On Error GoTo 0
-
-    If tbl Is Nothing Then
-        Err.Raise vbObjectError + 6006, "ex_ModeReportCreation", "Config table '" & DEV_CONFIG_TABLE_NAME & "' was not found on sheet '" & ws.Name & "'."
-    End If
-    If tbl.DataBodyRange Is Nothing Then
-        Err.Raise vbObjectError + 6007, "ex_ModeReportCreation", "Config table '" & DEV_CONFIG_TABLE_NAME & "' has no data rows."
-    End If
-
-    Set dict = CreateObject("Scripting.Dictionary")
-    dict.CompareMode = 1
-    Set dataRange = tbl.DataBodyRange
-
-    For r = 1 To dataRange.Rows.Count
-        markerText = Trim$(CStr(dataRange.Cells(r, DEV_COL_MARKER).Value))
-        If StrComp(markerText, DEV_MARKER_SYMBOL, vbTextCompare) = 0 Then GoTo ContinueRow
-
-        keyText = Trim$(CStr(dataRange.Cells(r, DEV_COL_KEY).Value))
-        If Len(keyText) = 0 Then GoTo ContinueRow
-
-        dict(keyText) = CStr(dataRange.Cells(r, DEV_COL_VALUE).Value)
-ContinueRow:
-    Next r
-
-    Set mp_LoadConfigDictionary = dict
-End Function
-
 Private Function mp_OpenSourceConnection(ByVal sourceAlias As String) As Object
     Dim sourcePath As String
     Dim snapshotPath As String
@@ -945,10 +900,7 @@ End Function
 
 Private Function mp_BuildTableRef(ByVal sourceAlias As String, ByVal tableAlias As String) As String
     Dim sheetName As String
-    sheetName = Trim$(CStr(ex_ConfigProvider.m_GetConfigValue(sourceAlias & ".Sheet[" & tableAlias & "].SheetName", vbNullString)))
-    If Len(sheetName) = 0 Then
-        Err.Raise vbObjectError + 6003, "ex_ModeReportCreation", "Missing config key '" & sourceAlias & ".Sheet[" & tableAlias & "].SheetName'."
-    End If
+    sheetName = ex_ConfigProvider.m_GetResolvedSheetName(sourceAlias, tableAlias, Nothing, True, "ex_ModeReportCreation", 6003, 6003, 6022, 6023, 6024)
     mp_BuildTableRef = "[" & Replace$(sheetName, "]", "]]" ) & "$]"
 End Function
 

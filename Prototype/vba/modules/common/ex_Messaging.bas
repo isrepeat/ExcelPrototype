@@ -289,10 +289,14 @@ Public Sub m_RenderErrorBanner( _
     Optional ByVal errSource As String = vbNullString, _
     Optional ByVal errNumber As Long = 0, _
     Optional ByVal titleText As String = "ERROR: Operation failed", _
-    Optional ByVal bannerRangeAddress As String = vbNullString _
+    Optional ByVal bannerRangeAddress As String = vbNullString, _
+    Optional ByVal prepareOutputPanel As Boolean = False, _
+    Optional ByVal wb As Workbook _
 )
     Dim messageText As String
     Dim bodyLines As Collection
+    Dim targetWb As Workbook
+    Dim outputStyle As ex_SheetStylesXmlProvider.t_OutputSheetStyle
 
     If ws Is Nothing Then Exit Sub
 
@@ -305,6 +309,18 @@ Public Sub m_RenderErrorBanner( _
     bodyLines.Add messageText
     bodyLines.Add "Source: " & IIf(Len(Trim$(errSource)) > 0, errSource, "n/a")
     bodyLines.Add "Code: " & CStr(errNumber)
+
+    If prepareOutputPanel Then
+        Set targetWb = wb
+        If targetWb Is Nothing Then Set targetWb = ThisWorkbook
+
+        On Error Resume Next
+        ex_OutputFormattingPipeline.m_ApplySheetPipeline ws
+        If ex_SheetStylesXmlProvider.m_GetOutputSheetStyle(outputStyle, targetWb) Then
+            ex_OutputPanel.m_RenderForSheet ws, outputStyle
+        End If
+        On Error GoTo 0
+    End If
 
     m_RenderBanner ws, titleText, bodyLines, bannerRangeAddress, BANNER_KIND_ERROR, messageText
 End Sub

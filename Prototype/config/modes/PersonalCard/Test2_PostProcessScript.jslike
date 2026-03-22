@@ -1,20 +1,22 @@
-let baseDate = "14.03.2026";
+let input = callMacroObject("ex_ScriptIO.m_GetInput");
+let baseDate = callMacro("ex_ScriptIO.m_GetValue", input, "BaseDate", "");
+if (baseDate == "") {
+	callMacro("ex_PostProcessActions.m_ShowLogicError", "Config key 'BaseDate' is empty. Set it in profile and rerun.");
+	return;
+}
+
 let validationWarningsText = "";
 let hasValidationWarnings = "false";
 let validationWarningTitle = "DailyEvents validation warning";
 let validationErrorTitle = "DailyEvents validation error";
 let tvoNoteRegex = "ТВО";
-let unclosedReturnDateRegex = "^\\s*(\\?|)\\s*$";
+let unclosedReturnDateRegex = "^\\s*(\\?|-)?\\s*$";
 let resultTemplatesRelPath = "config\\modes\\PersonalCard\\PersonalCardResultTemplates.xml";
 let exportRuntimeWordAnchorPrefix = "Export.RuntimeDataBase.WordAnchor.";
 let logPath = "Logs\\personalcard_pipeline.log";
 
-let input = callMacroObject("ex_ScriptIO.m_GetInput");
 let inputCommonKey = callMacro("ex_ScriptIO.m_GetValue", input, "CommonKey", "");
-let inputMultiKeys = callMacro("ex_ScriptIO.m_GetValue", input, "MultiKeys", "");
-
 callMacro("ex_Messaging.m_LogToFile", "[POST][PC] input.CommonKey={inputCommonKey}", logPath);
-callMacro("ex_Messaging.m_LogToFile", "[POST][PC] input.MultiKeys={inputMultiKeys}", logPath);
 
 /* Логи временно отключены */
 // let debugLogPath = "Logs\\personalcard_pipeline.log";
@@ -33,6 +35,12 @@ for (let owner in Daily.Sheet[DailyEvents].rows) {
 		let lastEventsOutPlannedReturnDate = "";
 		let hasTreatmentEventsOutForOwner = "false";
 		let lastTreatmentEventsOutFactArrivalDate = "";
+		let hasVacationForCuringEventsOutForOwner = "false";
+		let lastVacationForCuringEventsOutDaysCount = "";
+		let lastVacationForCuringEventsOutOutDate = "";
+		let lastVacationForCuringEventsOutPlannedReturnDate = "";
+		let lastVacationForCuringEventsOutTicket = "";
+		let lastVacationForCuringEventsOutOutCommandDate = "";
 
 		for (let outRow in Events.Sheet[EventsOut].rows) {
 			if (outRow.column[FIO] == owner.column[FIO]) {
@@ -42,6 +50,17 @@ for (let owner in Daily.Sheet[DailyEvents].rows) {
 				if (outRow.column[EventReason] == "Лікування") {
 					hasTreatmentEventsOutForOwner = "true";
 					lastTreatmentEventsOutFactArrivalDate = outRow.column[FactArrivalDate];
+				}
+				if (outRow.column[EventReason] == "Відпустка для лікування") {
+					let outCommandDateFull = callMacro("ex_DateHelpers.m_ToFullDate", "{outRow.column[OutCommandDate]}", "{baseDate}");
+					if (outCommandDateFull == baseDate) {
+						hasVacationForCuringEventsOutForOwner = "true";
+						lastVacationForCuringEventsOutDaysCount = outRow.column[DaysCount];
+						lastVacationForCuringEventsOutOutDate = outRow.column[OutDate];
+						lastVacationForCuringEventsOutPlannedReturnDate = outRow.column[PlannedReturnDate];
+						lastVacationForCuringEventsOutTicket = outRow.column[Ticket];
+						lastVacationForCuringEventsOutOutCommandDate = outRow.column[OutCommandDate];
+					}
 				}
 			}
 		}
@@ -96,15 +115,211 @@ for (let owner in Daily.Sheet[DailyEvents].rows) {
 		}
 
 		// Валидация #3:
-		// если ключ в секции ToVacationForCuring (SectionType=9), то последняя запись EventsOut
-		// (независимо от EventReason) должна быть закрыта: поле PlannedReturnDate не должно быть пустым и не должно быть "?".
+		// если ключ в секции ToVacationForCuring (SectionType=9), то warning показываем только когда:
+		// 1) последняя запись EventsOut не закрыта (PlannedReturnDate пустой или '?')
+		// И
+		// 2) в текущем DailyEvents нет owner-записи по этому FIO в секции FromHospital (SectionType=1),
+		//    то есть лечение не закрывается "прямо сейчас" в рамках текущей таблицы.
 		if (owner.column[SectionType] == "9" && hasEventsOutForOwner == "true") {
 			let openLastEventsOutPlannedReturnDateMatch = callMacro("ex_Helpers.m_RegexFirstMatch", lastEventsOutPlannedReturnDate, unclosedReturnDateRegex);
 			if (openLastEventsOutPlannedReturnDateMatch != "") {
-				let errorLine = "FIO=" + owner.column[FIO] + ": ключ находится в секции ToVacationForCuring, но последняя запись EventsOut не закрыта (PlannedReturnDate пустой или '?').";
-				callMacro("ex_PostProcessActions.m_ShowBannerBeforeRowIndex", "TYPE_WARNING", validationWarningTitle, errorLine, ownerRowIndexForWarning, 0, 0);
-				hasValidationWarnings = "true";
+				let hasCurrentDailyFromHospitalOwnerRow = "false";
+
+				for (let candidateOwnerRow in Daily.Sheet[DailyEvents].rows) {
+					if (candidateOwnerRow.column[MetaType] == "owner" &&
+						candidateOwnerRow.column[FIO] == owner.column[FIO] &&
+						candidateOwnerRow.column[SectionType] == "1") {
+						hasCurrentDailyFromHospitalOwnerRow = "true";
+					}
+				}
+
+				if (hasCurrentDailyFromHospitalOwnerRow != "true") {
+					let errorLine = "FIO=" + owner.column[FIO] + ": ключ находится в секции ToVacationForCuring, но последняя запись EventsOut не закрыта (PlannedReturnDate пустой или '?') и в текущем DailyEvents нет owner-записи FromHospital (SectionType=1), которая закрывает лечение сейчас.";
+					callMacro("ex_PostProcessActions.m_ShowBannerBeforeRowIndex", "TYPE_WARNING", validationWarningTitle, errorLine, ownerRowIndexForWarning, 0, 0);
+					hasValidationWarnings = "true";
+				}
 			}
+		}
+
+		// Валидация #5:
+		// для секций ToVacationForCuring/MoveFromHospitalToVacationForCuring/MoveFromVacationForCuringToVacationForCuring
+		// данные должны совпадать с последней строкой EventsOut, где:
+		// - EventReason="Відпустка для лікування"
+		// - OutCommandDate == baseDate (после нормализации через m_ToFullDate).
+		// Если такой строки нет, валидацию #5 пропускаем.
+		if (owner.column[SectionType] == "9" ||
+			owner.column[SectionType] == "11" ||
+			owner.column[SectionType] == "12") {
+			if (hasVacationForCuringEventsOutForOwner == "true") {
+				let compareDaysPattern = "^\\s*(\\d+)(?:\\s*\\+\\s*(\\d+))?";
+				let compareNumPattern = "^\\s*(\\d+)\\s*$";
+				let mismatchFields = "";
+
+				let ownerDaysNormalized = owner.column[DaysCount];
+				let ownerDaysDigits = callMacro("ex_Helpers.m_RegexGetGroup", ownerDaysNormalized, compareDaysPattern, 1);
+				if (ownerDaysDigits != "") {
+					ownerDaysNormalized = ownerDaysDigits;
+				}
+				let eventsOutDaysNormalized = lastVacationForCuringEventsOutDaysCount;
+				let eventsOutDaysDigits = callMacro("ex_Helpers.m_RegexGetGroup", eventsOutDaysNormalized, compareDaysPattern, 1);
+				if (eventsOutDaysDigits != "") {
+					eventsOutDaysNormalized = eventsOutDaysDigits;
+				}
+				if (ownerDaysNormalized != eventsOutDaysNormalized) {
+					mismatchFields = mismatchFields + "DaysCount(Daily=" + owner.column[DaysCount] + "; EventsOut=" + lastVacationForCuringEventsOutDaysCount + "), ";
+				}
+
+				let ownerDateFromFull = callMacro("ex_DateHelpers.m_ToFullDate", "{owner.column[DateFrom]}", "{baseDate}");
+				let eventsOutDateFromFull = callMacro("ex_DateHelpers.m_ToFullDate", "{lastVacationForCuringEventsOutOutDate}", "{baseDate}");
+				if (ownerDateFromFull != eventsOutDateFromFull) {
+					mismatchFields = mismatchFields + "DateFrom/OutDate(Daily=" + owner.column[DateFrom] + "; EventsOut=" + lastVacationForCuringEventsOutOutDate + "), ";
+				}
+
+				let ownerDateToFull = callMacro("ex_DateHelpers.m_ToFullDate", "{owner.column[DateTo]}", "{baseDate}");
+				let eventsOutDateToFull = callMacro("ex_DateHelpers.m_ToFullDate", "{lastVacationForCuringEventsOutPlannedReturnDate}", "{baseDate}");
+				let eventsOutDateToMinusOneFull = callMacro("ex_DateHelpers.m_AddDaysToDate", "{eventsOutDateToFull}", "-1", "{baseDate}");
+				if (ownerDateToFull != eventsOutDateToMinusOneFull) {
+					mismatchFields = mismatchFields + "DateTo/PlannedReturnDate-1day(Daily=" + owner.column[DateTo] + "; EventsOut=" + lastVacationForCuringEventsOutPlannedReturnDate + "), ";
+				}
+
+				let ownerVkNumNormalized = owner.column[VkNum];
+				let ownerVkNumDigits = callMacro("ex_Helpers.m_RegexGetGroup", ownerVkNumNormalized, compareNumPattern, 1);
+				if (ownerVkNumDigits != "") {
+					ownerVkNumNormalized = ownerVkNumDigits;
+				}
+				let eventsOutTicketNormalized = lastVacationForCuringEventsOutTicket;
+				let eventsOutTicketDigits = callMacro("ex_Helpers.m_RegexGetGroup", eventsOutTicketNormalized, compareNumPattern, 1);
+				if (eventsOutTicketDigits != "") {
+					eventsOutTicketNormalized = eventsOutTicketDigits;
+				}
+				if (ownerVkNumNormalized != eventsOutTicketNormalized) {
+					mismatchFields = mismatchFields + "VkNum/Ticket(Daily=" + owner.column[VkNum] + "; EventsOut=" + lastVacationForCuringEventsOutTicket + "), ";
+				}
+
+				let ownerVkDateFull = callMacro("ex_DateHelpers.m_ToFullDate", "{owner.column[VkDate]}", "{baseDate}");
+				let eventsOutVkDateFull = callMacro("ex_DateHelpers.m_ToFullDate", "{lastVacationForCuringEventsOutOutCommandDate}", "{baseDate}");
+				if (ownerVkDateFull != eventsOutVkDateFull) {
+					mismatchFields = mismatchFields + "VkDate/OutCommandDate(Daily=" + owner.column[VkDate] + "; EventsOut=" + lastVacationForCuringEventsOutOutCommandDate + "), ";
+				}
+
+				if (mismatchFields != "") {
+					let mismatchErrorLine = "FIO=" + owner.column[FIO] + ", SectionType=" + owner.column[SectionType] + ": данные не совпадают с EventsOut строкой (EventReason='Відпустка для лікування', OutCommandDate=BaseDate): " + mismatchFields;
+					callMacro("ex_PostProcessActions.m_ShowBannerBeforeRowIndex", "TYPE_ERROR", validationErrorTitle, mismatchErrorLine, ownerRowIndexForWarning, 0, 0);
+					hasValidationWarnings = "true";
+				}
+			}
+		}
+
+		// Валидация #4: обязательные поля по секциям
+		let missingRequiredFields = "";
+		let sectionType = owner.column[SectionType];
+
+		if (owner.column[Rank] == "" || owner.column[Rank] == "?" || owner.column[Rank] == "-") {
+			missingRequiredFields = missingRequiredFields + "Rank, ";
+		}
+		if (owner.column[FIO] == "" || owner.column[FIO] == "?" || owner.column[FIO] == "-") {
+			missingRequiredFields = missingRequiredFields + "FIO, ";
+		}
+		if (owner.column[Position] == "" || owner.column[Position] == "?" || owner.column[Position] == "-") {
+			missingRequiredFields = missingRequiredFields + "Position, ";
+		}
+		if (sectionType != "7" &&
+			sectionType != "8" &&
+			sectionType != "9" &&
+			sectionType != "11" &&
+			sectionType != "12" &&
+			sectionType != "15") {
+			if (owner.column[RaportFrom] == "" || owner.column[RaportFrom] == "?" || owner.column[RaportFrom] == "-") {
+				missingRequiredFields = missingRequiredFields + "RaportFrom, ";
+			}
+		}
+		if (owner.column[InNum] == "" || owner.column[InNum] == "?" || owner.column[InNum] == "-") {
+			missingRequiredFields = missingRequiredFields + "InNum, ";
+		}
+		if (owner.column[InDate] == "" || owner.column[InDate] == "?" || owner.column[InDate] == "-") {
+			missingRequiredFields = missingRequiredFields + "InDate, ";
+		}
+
+		if (sectionType == "1" || sectionType == "6" || sectionType == "11" || sectionType == "13") {
+			if (owner.column[Hospital] == "" || owner.column[Hospital] == "?" || owner.column[Hospital] == "-") {
+				missingRequiredFields = missingRequiredFields + "Hospital, ";
+			}
+		}
+
+		if (sectionType == "7" ||
+			sectionType == "8" ||
+			sectionType == "9" ||
+			sectionType == "11" ||
+			sectionType == "12" ||
+			sectionType == "15") {
+			if (owner.column[Vacation] == "" || owner.column[Vacation] == "?" || owner.column[Vacation] == "-") {
+				missingRequiredFields = missingRequiredFields + "Vacation, ";
+			}
+			if (owner.column[DaysCount] == "" || owner.column[DaysCount] == "?" || owner.column[DaysCount] == "-") {
+				missingRequiredFields = missingRequiredFields + "DaysCount, ";
+			}
+		}
+
+		if (sectionType == "7" ||
+			sectionType == "8" ||
+			sectionType == "9" ||
+			sectionType == "11" ||
+			sectionType == "12" ||
+			sectionType == "13" ||
+			sectionType == "14" ||
+			sectionType == "15") {
+			if (owner.column[DateFrom] == "" || owner.column[DateFrom] == "?" || owner.column[DateFrom] == "-") {
+				missingRequiredFields = missingRequiredFields + "DateFrom, ";
+			}
+		}
+
+		if (sectionType == "7" ||
+			sectionType == "8" ||
+			sectionType == "9" ||
+			sectionType == "11" ||
+			sectionType == "12" ||
+			sectionType == "15") {
+			if (owner.column[DateTo] == "" || owner.column[DateTo] == "?" || owner.column[DateTo] == "-") {
+				missingRequiredFields = missingRequiredFields + "DateTo, ";
+			}
+		}
+
+		if (sectionType == "2" ||
+			sectionType == "3" ||
+			sectionType == "4" ||
+			sectionType == "7" ||
+			sectionType == "8" ||
+			sectionType == "9" ||
+			sectionType == "11" ||
+			sectionType == "12" ||
+			sectionType == "13" ||
+			sectionType == "14" ||
+			sectionType == "15") {
+			if (owner.column[VkNum] == "" || owner.column[VkNum] == "?" || owner.column[VkNum] == "-") {
+				missingRequiredFields = missingRequiredFields + "VkNum, ";
+			}
+			if (owner.column[VkDate] == "" || owner.column[VkDate] == "?" || owner.column[VkDate] == "-") {
+				missingRequiredFields = missingRequiredFields + "VkDate, ";
+			}
+		}
+
+		if (sectionType == "5" ||
+			sectionType == "9" ||
+			sectionType == "11" ||
+			sectionType == "12" ||
+			sectionType == "15") {
+			if (owner.column[VlkNum] == "" || owner.column[VlkNum] == "?" || owner.column[VlkNum] == "-") {
+				missingRequiredFields = missingRequiredFields + "VlkNum, ";
+			}
+			if (owner.column[VlkDate] == "" || owner.column[VlkDate] == "?" || owner.column[VlkDate] == "-") {
+				missingRequiredFields = missingRequiredFields + "VlkDate, ";
+			}
+		}
+
+		if (missingRequiredFields != "") {
+			let requiredFieldsErrorLine = "FIO=" + owner.column[FIO] + ", SectionType=" + sectionType + ": не заполнены обязательные поля: " + missingRequiredFields;
+			callMacro("ex_PostProcessActions.m_ShowBannerBeforeRowIndex", "TYPE_ERROR", validationErrorTitle, requiredFieldsErrorLine, ownerRowIndexForWarning, 0, 0);
+			hasValidationWarnings = "true";
 		}
 	}
 }
@@ -218,23 +433,14 @@ for (let row in Daily.Sheet[DailyEvents].rows) {
 			needDateTo = "true";
 		}
 
-		if (row.column[InDate] != "" &&
-			row.column[InDate] != "?") {
-			fullInDate = callMacro("ex_DateHelpers.m_ToFullDate", "{row.column[InDate]}", "{baseDate}");
-		}
-		if (needDocDate == "true" &&
-			row.column[DocDate] != "" &&
-			row.column[DocDate] != "?") {
+		fullInDate = callMacro("ex_DateHelpers.m_ToFullDate", "{row.column[InDate]}", "{baseDate}");
+		if (needDocDate == "true") {
 			fullDocDate = callMacro("ex_DateHelpers.m_ToFullDate", "{row.column[DocDate]}", "{baseDate}");
 		}
-		if (needVkDate == "true" &&
-			row.column[VkDate] != "" &&
-			row.column[VkDate] != "?") {
+		if (needVkDate == "true") {
 			fullVkDate = callMacro("ex_DateHelpers.m_ToFullDate", "{row.column[VkDate]}", "{baseDate}");
 		}
-		if (needVlkDate == "true" &&
-			row.column[VlkDate] != "" &&
-			row.column[VlkDate] != "?") {
+		if (needVlkDate == "true") {
 			fullVlkDate = callMacro("ex_DateHelpers.m_ToFullDate", "{row.column[VlkDate]}", "{baseDate}");
 		}
 		if (needDateFrom == "true") {
@@ -340,9 +546,7 @@ for (let row in Daily.Sheet[DailyEvents].rows) {
 					duplicateInNumFull = "1656/" + duplicateInNumDigits + "-в";
 				}
 				duplicateInDate = metaRow.column[InDate];
-				if (duplicateInDate != "" && duplicateInDate != "?") {
-					duplicateInDate = callMacro("ex_DateHelpers.m_ToFullDate", "{duplicateInDate}", "{baseDate}");
-				}
+				duplicateInDate = callMacro("ex_DateHelpers.m_ToFullDate", "{duplicateInDate}", "{baseDate}");
 			}
 		}
 		if (sectionType == "1") {
@@ -375,6 +579,13 @@ for (let row in Daily.Sheet[DailyEvents].rows) {
 			txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "ReturnToDutyFIO", "{returnToDutyFIO}", "#66CCFF");
 			txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "ReturnToDutyPosition", "{returnToDutyPosition}", "#66CCFF");
 			txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "RaportFrom", "{row.column[RaportFrom]}", "#66CCFF");
+			if (sectionType == "3") {
+				txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "HasDuplicateRaport", "{hasDuplicateRaport}", "#66CCFF");
+				txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "DuplicateRaportFrom", "{duplicateRaportFrom}", "#66CCFF");
+				txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "DuplicateRaportTVO", "{duplicateRaportTVO}", "#66CCFF");
+				txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "DuplicateInNumFull", "{duplicateInNumFull}", "#66CCFF");
+				txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "DuplicateInDate", "{duplicateInDate}", "#66CCFF");
+			}
 			txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "InNumFull", "{inNumFull}", "#66CCFF");
 			txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "InDate", "{fullInDate}", "#66CCFF");
 			txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "VkNum", "{row.column[VkNum]}", "#66CCFF");
@@ -489,6 +700,11 @@ for (let row in Daily.Sheet[DailyEvents].rows) {
 			txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "ReturnDate", "{fullDateTo}", "#66CCFF");
 			txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "InNumFull", "{inNumFull}", "#66CCFF");
 			txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "InDate", "{fullInDate}", "#66CCFF");
+			txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "HasDuplicateRaport", "{hasDuplicateRaport}", "#66CCFF");
+			txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "DuplicateRaportFrom", "{duplicateRaportFrom}", "#66CCFF");
+			txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "DuplicateRaportTVO", "{duplicateRaportTVO}", "#66CCFF");
+			txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "DuplicateInNumFull", "{duplicateInNumFull}", "#66CCFF");
+			txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "DuplicateInDate", "{duplicateInDate}", "#66CCFF");
 			txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "VlkNum", "{row.column[VlkNum]}", "#66CCFF");
 			txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "VlkDate", "{fullVlkDate}", "#66CCFF");
 			txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "DocNum", "{row.column[DocNum]}", "#66CCFF");
@@ -561,6 +777,15 @@ for (let row in Daily.Sheet[DailyEvents].rows) {
 
 		txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "DocNote", "{row.column[DocNote]}", "#66CCFF");
 		txt = callMacro("ex_ResultTemplatesParser.m_ResolveTemplate", txt, "", "#66CCFF");
+		// let hasTemplateError = callMacro("ex_Helpers.m_RegexFirstMatch", txt, "^\\[TEMPLATE ERROR\\]");
+		// if (hasTemplateError != "") {
+		// 	let templateErrorLine = callMacro("ex_Helpers.m_RegexFirstMatch", txt, "^\\[TEMPLATE ERROR\\][^\\r\\n]*");
+		// 	let templateErrorBanner = "Template resolve failed: SectionType={sectionType}, Template={rowTemplateAnchor}, FIO={row.column[FIO]}. " + templateErrorLine;
+		// 	callMacro("ex_PostProcessActions.m_ShowBannerBeforeRowIndex", "TYPE_ERROR", "Template resolve error", templateErrorBanner, ownerRowIndex, 0, 0);
+		// 	let templateErrorLogText = "[POST][PC] " + templateErrorBanner;
+		// 	callMacro("ex_Messaging.m_LogToFile", templateErrorLogText, logPath);
+		// 	return;
+		// }
 		
 		let txtForWord = callMacro("ex_ResultTemplatesParser.m_RemoveHighlightMarkers", txt);
 		let exportAnchorRuntimeKey = exportRuntimeWordAnchorPrefix + rowTemplateAnchor;
