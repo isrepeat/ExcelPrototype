@@ -41,6 +41,9 @@ Private Const RUNTIME_ROW_ANCHOR_PREFIX As String = "__pcRuntimeRow_"
 Private Const RESULT_BLOCK_ANCHOR_PREFIX As String = "__pcResultBlock_"
 Private Const RESULT_BLOCK_ANCHOR_MAX_INDEX As Long = 9999
 Private Const RESULT_BLOCK_LAST_ANCHOR_NAME As String = "__pcResultBlockLast"
+Private Const BANNER_ANCHOR_PREFIX As String = "__pcBanner_"
+Private Const BANNER_MESSAGE_ANCHOR_PREFIX As String = "__pcBannerMsg_"
+Private Const RESULT_BLOCK_IDENTITY_TOKEN As String = "__resultblock__"
 Private Const RESULT_BLOCK_PLACEHOLDER_HIGHLIGHT_COLOR As String = "#66CCFF"
 
 Private Type t_PostProcessHeaderStyle
@@ -2869,9 +2872,12 @@ End Function
 Private Sub mp_ClearPreviousResultBlocks(ByVal ws As Worksheet)
     Dim namedEntry As Name
     Dim normalizedName As String
+    Dim localName As String
     Dim refersRange As Range
     Dim blocks As Collection
+    Dim resultBlockMessageRanges As Collection
     Dim namesToDelete As Collection
+    Dim bannerAnchorNamesToDelete As Collection
     Dim entry As Object
     Dim maxRow As Long
     Dim maxIndex As Long
@@ -2884,10 +2890,13 @@ Private Sub mp_ClearPreviousResultBlocks(ByVal ws As Worksheet)
 
     Set blocks = New Collection
     Set namesToDelete = New Collection
+    Set bannerAnchorNamesToDelete = New Collection
+    Set resultBlockMessageRanges = mp_CollectResultBlockMessageAnchorRanges(ws)
 
     For Each namedEntry In ws.Names
-        normalizedName = LCase$(CStr(namedEntry.Name))
-        If InStr(1, normalizedName, LCase$(RESULT_BLOCK_ANCHOR_PREFIX), vbBinaryCompare) > 0 Then
+        localName = mp_GetLocalNameText(CStr(namedEntry.Name))
+        normalizedName = LCase$(localName)
+        If StrComp(Left$(normalizedName, Len(LCase$(RESULT_BLOCK_ANCHOR_PREFIX))), LCase$(RESULT_BLOCK_ANCHOR_PREFIX), vbBinaryCompare) = 0 Then
             namesToDelete.Add CStr(namedEntry.Name)
             Set refersRange = Nothing
             On Error Resume Next
@@ -2898,6 +2907,7 @@ Private Sub mp_ClearPreviousResultBlocks(ByVal ws As Worksheet)
                 entry.CompareMode = 1
                 entry("RowStart") = CLng(refersRange.Row)
                 entry("RowEnd") = CLng(refersRange.Row + refersRange.Rows.Count - 1)
+                entry("CanDeleteRows") = mp_HasRowOverlapWithRanges(CLng(entry("RowStart")), CLng(entry("RowEnd")), resultBlockMessageRanges)
                 blocks.Add entry
             End If
         End If
@@ -2920,7 +2930,8 @@ Private Sub mp_ClearPreviousResultBlocks(ByVal ws As Worksheet)
         rowEnd = CLng(entry("RowEnd"))
         If rowStart < 1 Then rowStart = 1
         If rowEnd > ws.Rows.Count Then rowEnd = ws.Rows.Count
-        If rowEnd >= rowStart Then
+        If CBool(entry("CanDeleteRows")) And rowEnd >= rowStart Then
+            mp_CollectBannerAnchorNamesInRowSpan ws, rowStart, rowEnd, bannerAnchorNamesToDelete
             On Error Resume Next
             ws.Rows(CStr(rowStart) & ":" & CStr(rowEnd)).Delete Shift:=xlUp
             On Error GoTo 0
@@ -2934,9 +2945,134 @@ Private Sub mp_ClearPreviousResultBlocks(ByVal ws As Worksheet)
         ThisWorkbook.Names(CStr(deleteName)).Delete
         On Error GoTo 0
     Next deleteName
+    
+    For Each deleteName In bannerAnchorNamesToDelete
+        On Error Resume Next
+        ws.Names(CStr(deleteName)).Delete
+        ThisWorkbook.Names(CStr(deleteName)).Delete
+        On Error GoTo 0
+    Next deleteName
 
     mp_ClearNamedRowAnchor ws, RESULT_BLOCK_LAST_ANCHOR_NAME
 End Sub
+
+Private Function mp_CollectResultBlockMessageAnchorRanges(ByVal ws As Worksheet) As Collection
+    Dim result As Collection
+    Dim namedEntry As Name
+    Dim localName As String
+    Dim normalizedName As String
+    Dim refersRange As Range
+    Dim entry As Object
+
+    Set result = New Collection
+    If ws Is Nothing Then
+        Set mp_CollectResultBlockMessageAnchorRanges = result
+        Exit Function
+    End If
+
+    For Each namedEntry In ws.Names
+        localName = mp_GetLocalNameText(CStr(namedEntry.Name))
+        normalizedName = LCase$(localName)
+        If StrComp(Left$(normalizedName, Len(LCase$(BANNER_MESSAGE_ANCHOR_PREFIX))), LCase$(BANNER_MESSAGE_ANCHOR_PREFIX), vbBinaryCompare) <> 0 Then GoTo ContinueName
+        If InStr(1, normalizedName, LCase$(RESULT_BLOCK_IDENTITY_TOKEN), vbBinaryCompare) <= 0 _
+            And InStr(1, normalizedName, "resultblock", vbBinaryCompare) <= 0 Then GoTo ContinueName
+
+        Set refersRange = Nothing
+        On Error Resume Next
+        Set refersRange = namedEntry.RefersToRange
+        On Error GoTo 0
+        If refersRange Is Nothing Then GoTo ContinueName
+
+        Set entry = CreateObject("Scripting.Dictionary")
+        entry.CompareMode = 1
+        entry("RowStart") = CLng(refersRange.Row)
+        entry("RowEnd") = CLng(refersRange.Row + refersRange.Rows.Count - 1)
+        result.Add entry
+
+ContinueName:
+    Next namedEntry
+
+    Set mp_CollectResultBlockMessageAnchorRanges = result
+End Function
+
+Private Function mp_HasRowOverlapWithRanges( _
+    ByVal rowStart As Long, _
+    ByVal rowEnd As Long, _
+    ByVal ranges As Collection _
+) As Boolean
+    Dim i As Long
+    Dim entry As Object
+    Dim otherStart As Long
+    Dim otherEnd As Long
+
+    If rowEnd < rowStart Then rowEnd = rowStart
+    If ranges Is Nothing Then Exit Function
+    If ranges.Count = 0 Then Exit Function
+
+    For i = 1 To ranges.Count
+        Set entry = ranges(i)
+        If entry Is Nothing Then GoTo ContinueEntry
+        otherStart = CLng(entry("RowStart"))
+        otherEnd = CLng(entry("RowEnd"))
+        If otherEnd < otherStart Then otherEnd = otherStart
+        If Not (rowEnd < otherStart Or otherEnd < rowStart) Then
+            mp_HasRowOverlapWithRanges = True
+            Exit Function
+        End If
+ContinueEntry:
+    Next i
+End Function
+
+Private Sub mp_CollectBannerAnchorNamesInRowSpan( _
+    ByVal ws As Worksheet, _
+    ByVal rowStart As Long, _
+    ByVal rowEnd As Long, _
+    ByVal targetNames As Collection _
+)
+    Dim namedEntry As Name
+    Dim localName As String
+    Dim normalizedName As String
+    Dim refersRange As Range
+    Dim anchorRowStart As Long
+    Dim anchorRowEnd As Long
+
+    If ws Is Nothing Then Exit Sub
+    If targetNames Is Nothing Then Exit Sub
+    If rowStart < 1 Then rowStart = 1
+    If rowEnd < rowStart Then rowEnd = rowStart
+
+    For Each namedEntry In ws.Names
+        localName = mp_GetLocalNameText(CStr(namedEntry.Name))
+        normalizedName = LCase$(localName)
+        If StrComp(Left$(normalizedName, Len(LCase$(BANNER_ANCHOR_PREFIX))), LCase$(BANNER_ANCHOR_PREFIX), vbBinaryCompare) <> 0 _
+            And StrComp(Left$(normalizedName, Len(LCase$(BANNER_MESSAGE_ANCHOR_PREFIX))), LCase$(BANNER_MESSAGE_ANCHOR_PREFIX), vbBinaryCompare) <> 0 Then GoTo ContinueName
+
+        Set refersRange = Nothing
+        On Error Resume Next
+        Set refersRange = namedEntry.RefersToRange
+        On Error GoTo 0
+        If refersRange Is Nothing Then GoTo ContinueName
+
+        anchorRowStart = CLng(refersRange.Row)
+        anchorRowEnd = CLng(refersRange.Row + refersRange.Rows.Count - 1)
+        If anchorRowEnd < anchorRowStart Then anchorRowEnd = anchorRowStart
+        If Not (rowEnd < anchorRowStart Or anchorRowEnd < rowStart) Then
+            targetNames.Add CStr(namedEntry.Name)
+        End If
+
+ContinueName:
+    Next namedEntry
+End Sub
+
+Private Function mp_GetLocalNameText(ByVal fullNameText As String) As String
+    Dim delimiterPos As Long
+
+    mp_GetLocalNameText = Trim$(fullNameText)
+    delimiterPos = InStrRev(mp_GetLocalNameText, "!", -1, vbBinaryCompare)
+    If delimiterPos > 0 Then
+        mp_GetLocalNameText = Mid$(mp_GetLocalNameText, delimiterPos + 1)
+    End If
+End Function
 
 Private Sub mp_SetScriptHeaderAnchors(ByVal ws As Worksheet, ByVal rowIndex As Long)
     If ws Is Nothing Then Exit Sub

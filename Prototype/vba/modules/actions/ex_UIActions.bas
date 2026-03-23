@@ -221,7 +221,9 @@ Public Sub m_OutputPanelStartSearch_OnClick()
     End If
 
     ex_ConfigProvider.m_SetConfigValue configKey, searchKey, True
-    ex_ModePersonalCard.m_RunPersonalCardByKey searchKey
+    ' Use the same run path as DevUI "PersonalCard" button
+    ' to avoid any divergence between entry points.
+    ex_ModePersonalCard.m_RunPersonalCard
     Exit Sub
 
 EH:
