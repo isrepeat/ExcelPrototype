@@ -103,9 +103,9 @@ for (let owner in Daily.Sheet[DailyEvents].rows) {
 		}
 
 		// Валидация #2:
-		// если ключ в секции ToHospital (SectionType=6), то последняя запись EventsOut
+		// если ключ в секции ToHospital (SectionType=7), то последняя запись EventsOut
 		// с EventReason="Лікування" должна быть закрыта: поле FactArrivalDate не должно быть пустым и не должно быть "?".
-		if (owner.column[SectionType] == "6" && hasTreatmentEventsOutForOwner == "true") {
+		if (owner.column[SectionType] == "7" && hasTreatmentEventsOutForOwner == "true") {
 			let openTreatmentFactArrivalDateMatch = callMacro("ex_Helpers.m_RegexFirstMatch", lastTreatmentEventsOutFactArrivalDate, unclosedReturnDateRegex);
 			if (openTreatmentFactArrivalDateMatch != "") {
 				let errorLine = "FIO=" + owner.column[FIO] + ": ключ находится в секции ToHospital, но последняя запись EventsOut с EventReason=Лікування не закрыта (FactArrivalDate пустой или '?'). Ключ должен быть в секции MoveVacationForCuringToHospital.";
@@ -115,12 +115,12 @@ for (let owner in Daily.Sheet[DailyEvents].rows) {
 		}
 
 		// Валидация #3:
-		// если ключ в секции ToVacationForCuring (SectionType=9), то warning показываем только когда:
+		// если ключ в секции ToVacationForCuring (SectionType=10), то warning показываем только когда:
 		// 1) последняя запись EventsOut не закрыта (PlannedReturnDate пустой или '?')
 		// И
 		// 2) в текущем DailyEvents нет owner-записи по этому FIO в секции FromHospital (SectionType=1),
 		//    то есть лечение не закрывается "прямо сейчас" в рамках текущей таблицы.
-		if (owner.column[SectionType] == "9" && hasEventsOutForOwner == "true") {
+		if (owner.column[SectionType] == "10" && hasEventsOutForOwner == "true") {
 			let openLastEventsOutPlannedReturnDateMatch = callMacro("ex_Helpers.m_RegexFirstMatch", lastEventsOutPlannedReturnDate, unclosedReturnDateRegex);
 			if (openLastEventsOutPlannedReturnDateMatch != "") {
 				let hasCurrentDailyFromHospitalOwnerRow = "false";
@@ -147,9 +147,9 @@ for (let owner in Daily.Sheet[DailyEvents].rows) {
 		// - EventReason="Відпустка для лікування"
 		// - OutCommandDate == baseDate (после нормализации через m_ToFullDate).
 		// Если такой строки нет, валидацию #5 пропускаем.
-		if (owner.column[SectionType] == "9" ||
-			owner.column[SectionType] == "11" ||
-			owner.column[SectionType] == "12") {
+		if (owner.column[SectionType] == "10" ||
+			owner.column[SectionType] == "13" ||
+			owner.column[SectionType] == "14") {
 			if (hasVacationForCuringEventsOutForOwner == "true") {
 				let compareDaysPattern = "^\\s*(\\d+)(?:\\s*\\+\\s*(\\d+))?";
 				let compareNumPattern = "^\\s*(\\d+)\\s*$";
@@ -223,12 +223,12 @@ for (let owner in Daily.Sheet[DailyEvents].rows) {
 		if (owner.column[Position] == "" || owner.column[Position] == "?" || owner.column[Position] == "-") {
 			missingRequiredFields = missingRequiredFields + "Position, ";
 		}
-		if (sectionType != "7" &&
-			sectionType != "8" &&
+		if (sectionType != "8" &&
 			sectionType != "9" &&
-			sectionType != "11" &&
-			sectionType != "12" &&
-			sectionType != "15") {
+			sectionType != "10" &&
+			sectionType != "13" &&
+			sectionType != "14" &&
+			sectionType != "17") {
 			if (owner.column[RaportFrom] == "" || owner.column[RaportFrom] == "?" || owner.column[RaportFrom] == "-") {
 				missingRequiredFields = missingRequiredFields + "RaportFrom, ";
 			}
@@ -240,18 +240,18 @@ for (let owner in Daily.Sheet[DailyEvents].rows) {
 			missingRequiredFields = missingRequiredFields + "InDate, ";
 		}
 
-		if (sectionType == "1" || sectionType == "6" || sectionType == "11" || sectionType == "13") {
+		if (sectionType == "1" || sectionType == "7" || sectionType == "13" || sectionType == "15" || sectionType == "18") {
 			if (owner.column[Hospital] == "" || owner.column[Hospital] == "?" || owner.column[Hospital] == "-") {
 				missingRequiredFields = missingRequiredFields + "Hospital, ";
 			}
 		}
 
-		if (sectionType == "7" ||
-			sectionType == "8" ||
+		if (sectionType == "8" ||
 			sectionType == "9" ||
-			sectionType == "11" ||
-			sectionType == "12" ||
-			sectionType == "15") {
+			sectionType == "10" ||
+			sectionType == "13" ||
+			sectionType == "14" ||
+			sectionType == "17") {
 			if (owner.column[Vacation] == "" || owner.column[Vacation] == "?" || owner.column[Vacation] == "-") {
 				missingRequiredFields = missingRequiredFields + "Vacation, ";
 			}
@@ -260,25 +260,26 @@ for (let owner in Daily.Sheet[DailyEvents].rows) {
 			}
 		}
 
-		if (sectionType == "7" ||
-			sectionType == "8" ||
+		if (sectionType == "8" ||
 			sectionType == "9" ||
-			sectionType == "11" ||
-			sectionType == "12" ||
+			sectionType == "10" ||
 			sectionType == "13" ||
 			sectionType == "14" ||
-			sectionType == "15") {
+			sectionType == "15" ||
+			sectionType == "16" ||
+			sectionType == "17" ||
+			sectionType == "18") {
 			if (owner.column[DateFrom] == "" || owner.column[DateFrom] == "?" || owner.column[DateFrom] == "-") {
 				missingRequiredFields = missingRequiredFields + "DateFrom, ";
 			}
 		}
 
-		if (sectionType == "7" ||
-			sectionType == "8" ||
+		if (sectionType == "8" ||
 			sectionType == "9" ||
-			sectionType == "11" ||
-			sectionType == "12" ||
-			sectionType == "15") {
+			sectionType == "10" ||
+			sectionType == "13" ||
+			sectionType == "14" ||
+			sectionType == "17") {
 			if (owner.column[DateTo] == "" || owner.column[DateTo] == "?" || owner.column[DateTo] == "-") {
 				missingRequiredFields = missingRequiredFields + "DateTo, ";
 			}
@@ -287,14 +288,14 @@ for (let owner in Daily.Sheet[DailyEvents].rows) {
 		if (sectionType == "2" ||
 			sectionType == "3" ||
 			sectionType == "4" ||
-			sectionType == "7" ||
 			sectionType == "8" ||
 			sectionType == "9" ||
-			sectionType == "11" ||
-			sectionType == "12" ||
+			sectionType == "10" ||
 			sectionType == "13" ||
 			sectionType == "14" ||
-			sectionType == "15") {
+			sectionType == "15" ||
+			sectionType == "16" ||
+			sectionType == "17") {
 			if (owner.column[VkNum] == "" || owner.column[VkNum] == "?" || owner.column[VkNum] == "-") {
 				missingRequiredFields = missingRequiredFields + "VkNum, ";
 			}
@@ -303,11 +304,11 @@ for (let owner in Daily.Sheet[DailyEvents].rows) {
 			}
 		}
 
-		if (sectionType == "5" ||
-			sectionType == "9" ||
-			sectionType == "11" ||
-			sectionType == "12" ||
-			sectionType == "15") {
+		if (sectionType == "10" ||
+			sectionType == "13" ||
+			sectionType == "14" ||
+			sectionType == "17" ||
+			sectionType == "18") {
 			if (owner.column[VlkNum] == "" || owner.column[VlkNum] == "?" || owner.column[VlkNum] == "-") {
 				missingRequiredFields = missingRequiredFields + "VlkNum, ";
 			}
@@ -348,18 +349,20 @@ for (let row in Daily.Sheet[DailyEvents].rows) {
 		if (sectionType == "2") { rowTemplateAnchor = "FromVacationForCuring"; }
 		if (sectionType == "3") { rowTemplateAnchor = "FromAnnualMainVacation"; }
 		if (sectionType == "4") { rowTemplateAnchor = "FromVacationForFamily"; }
-		if (sectionType == "5") { rowTemplateAnchor = "FromOutpatientExaminationOrVlk"; }
-		if (sectionType == "6") { rowTemplateAnchor = "ToHospital"; }
-		if (sectionType == "7") { rowTemplateAnchor = "ToAnnualMainVacation"; }
-		if (sectionType == "8") { rowTemplateAnchor = "ToVacationForFamily"; }
-		if (sectionType == "9") { rowTemplateAnchor = "ToVacationForCuring"; }
-		if (sectionType == "10") { rowTemplateAnchor = "ToOutpatientExaminationOrVlk"; }
-		if (sectionType == "11") { rowTemplateAnchor = "MoveFromHospitalToVacationForCuring"; }
-		if (sectionType == "12") { rowTemplateAnchor = "MoveFromVacationForCuringToVacationForCuring"; }
-		if (sectionType == "13") { rowTemplateAnchor = "MoveFromVacationForCuringToHospital"; }
-		if (sectionType == "14") { rowTemplateAnchor = "MoveFromVacationForCuringToVlk"; }
-		if (sectionType == "15") { rowTemplateAnchor = "MoveFromVlkToVacationForCuring"; }
-		if (sectionType == "21") { rowTemplateAnchor = "ToMedicalCompanyForTreatment"; }
+		if (sectionType == "5") { rowTemplateAnchor = "FromMedicalCompanyForTreatment"; }
+		if (sectionType == "6") { rowTemplateAnchor = "FromOutpatientExaminationOrVlk"; }
+		if (sectionType == "7") { rowTemplateAnchor = "ToHospital"; }
+		if (sectionType == "8") { rowTemplateAnchor = "ToAnnualMainVacation"; }
+		if (sectionType == "9") { rowTemplateAnchor = "ToVacationForFamily"; }
+		if (sectionType == "10") { rowTemplateAnchor = "ToVacationForCuring"; }
+		if (sectionType == "11") { rowTemplateAnchor = "ToMedicalCompanyForTreatment"; }
+		if (sectionType == "12") { rowTemplateAnchor = "ToOutpatientExaminationOrVlk"; }
+		if (sectionType == "13") { rowTemplateAnchor = "MoveFromHospitalToVacationForCuring"; }
+		if (sectionType == "14") { rowTemplateAnchor = "MoveFromVacationForCuringToVacationForCuring"; }
+		if (sectionType == "15") { rowTemplateAnchor = "MoveFromVacationForCuringToHospital"; }
+		if (sectionType == "16") { rowTemplateAnchor = "MoveFromVacationForCuringToVlk"; }
+		if (sectionType == "17") { rowTemplateAnchor = "MoveFromVlkToVacationForCuring"; }
+		if (sectionType == "18") { rowTemplateAnchor = "MoveFromVlkToHospital"; }
 
 		if (sectionType != "" && rowTemplateAnchor == "") {
 			callMacro("ex_PostProcessActions.m_ShowLogicError", "Unsupported SectionType for export mapping: {sectionType}");
@@ -389,48 +392,51 @@ for (let row in Daily.Sheet[DailyEvents].rows) {
 		let needDateTo = "false";
 
 		if (sectionType == "1" ||
-			sectionType == "6" ||
-			sectionType == "11" ||
+			sectionType == "7" ||
 			sectionType == "13" ||
-			sectionType == "14") {
+			sectionType == "15" ||
+			sectionType == "16" ||
+			sectionType == "18") {
 			needDocDate = "true";
 		}
 		if (sectionType == "2" ||
 			sectionType == "3" ||
 			sectionType == "4" ||
-			sectionType == "7" ||
 			sectionType == "8" ||
 			sectionType == "9" ||
-			sectionType == "11" ||
-			sectionType == "12" ||
+			sectionType == "10" ||
 			sectionType == "13" ||
 			sectionType == "14" ||
-			sectionType == "15") {
+			sectionType == "15" ||
+			sectionType == "16" ||
+			sectionType == "17") {
 			needVkDate = "true";
 		}
-		if (sectionType == "5" ||
-			sectionType == "9" ||
-			sectionType == "11" ||
-			sectionType == "12" ||
-			sectionType == "15") {
-			needVlkDate = "true";
-		}
-		if (sectionType == "7" ||
-			sectionType == "8" ||
-			sectionType == "9" ||
-			sectionType == "11" ||
-			sectionType == "12" ||
+		if (sectionType == "6" ||
+			sectionType == "10" ||
 			sectionType == "13" ||
 			sectionType == "14" ||
-			sectionType == "15") {
+			sectionType == "17" ||
+			sectionType == "18") {
+			needVlkDate = "true";
+		}
+		if (sectionType == "8" ||
+			sectionType == "9" ||
+			sectionType == "10" ||
+			sectionType == "13" ||
+			sectionType == "14" ||
+			sectionType == "15" ||
+			sectionType == "16" ||
+			sectionType == "17" ||
+			sectionType == "18") {
 			needDateFrom = "true";
 		}
-		if (sectionType == "7" ||
-			sectionType == "8" ||
+		if (sectionType == "8" ||
 			sectionType == "9" ||
-			sectionType == "11" ||
-			sectionType == "12" ||
-			sectionType == "15") {
+			sectionType == "10" ||
+			sectionType == "13" ||
+			sectionType == "14" ||
+			sectionType == "17") {
 			needDateTo = "true";
 		}
 
@@ -451,7 +457,7 @@ for (let row in Daily.Sheet[DailyEvents].rows) {
 			fullDateTo = callMacro("ex_DateHelpers.m_ToFullDate", "{row.column[DateTo]}", "{baseDate}");
 		}
 
-		// if (sectionType == "13" || sectionType == "14") {
+		// if (sectionType == "15" || sectionType == "16") {
 		// 	let hasPrevVacationForCuringEvent = "false";
 		// 	for (let outRow in Events.Sheet[EventsOut].rows) {
 		// 		if (outRow.column[FIO] == row.column[FIO] &&
@@ -600,11 +606,20 @@ for (let row in Daily.Sheet[DailyEvents].rows) {
 			txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "RaportFrom", "{row.column[RaportFrom]}", "#66CCFF");
 			txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "InNumFull", "{inNumFull}", "#66CCFF");
 			txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "InDate", "{fullInDate}", "#66CCFF");
+		}
+
+		if (sectionType == "6") {
+			txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "Rank", "{row.column[Rank]}", "#66CCFF");
+			txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "FIO", "{row.column[FIO]}", "#66CCFF");
+			txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "Position", "{row.column[Position]}", "#66CCFF");
+			txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "RaportFrom", "{row.column[RaportFrom]}", "#66CCFF");
+			txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "InNumFull", "{inNumFull}", "#66CCFF");
+			txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "InDate", "{fullInDate}", "#66CCFF");
 			txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "VlkNum", "{row.column[VlkNum]}", "#66CCFF");
 			txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "VlkDate", "{fullVlkDate}", "#66CCFF");
 		}
 
-		if (sectionType == "6") {
+		if (sectionType == "7") {
 			txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "Hospital", "{row.column[Hospital]}", "#66CCFF");
 			txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "Rank", "{row.column[Rank]}", "#66CCFF");
 			txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "FIO", "{row.column[FIO]}", "#66CCFF");
@@ -625,7 +640,7 @@ for (let row in Daily.Sheet[DailyEvents].rows) {
 			txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "DocDate", "{fullDocDate}", "#66CCFF");
 		}
 
-		if (sectionType == "21") {
+		if (sectionType == "11") {
 			txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "Rank", "{row.column[Rank]}", "#66CCFF");
 			txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "FIO", "{row.column[FIO]}", "#66CCFF");
 			txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "Position", "{row.column[Position]}", "#66CCFF");
@@ -638,7 +653,7 @@ for (let row in Daily.Sheet[DailyEvents].rows) {
 			txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "InDate", "{fullInDate}", "#66CCFF");
 		}
 
-		if (sectionType == "7" || sectionType == "8") {
+		if (sectionType == "8" || sectionType == "9") {
 			txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "Rank", "{row.column[Rank]}", "#66CCFF");
 			txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "FIO", "{row.column[FIO]}", "#66CCFF");
 			txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "Position", "{row.column[Position]}", "#66CCFF");
@@ -658,7 +673,7 @@ for (let row in Daily.Sheet[DailyEvents].rows) {
 			txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "VkDate", "{fullVkDate}", "#66CCFF");
 		}
 
-		if (sectionType == "9") {
+		if (sectionType == "10") {
 			txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "Rank", "{row.column[Rank]}", "#66CCFF");
 			txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "FIO", "{row.column[FIO]}", "#66CCFF");
 			txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "Position", "{row.column[Position]}", "#66CCFF");
@@ -680,7 +695,7 @@ for (let row in Daily.Sheet[DailyEvents].rows) {
 			txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "VkDate", "{fullVkDate}", "#66CCFF");
 		}
 
-		if (sectionType == "10") {
+		if (sectionType == "12") {
 			txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "Rank", "{row.column[Rank]}", "#66CCFF");
 			txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "FIO", "{row.column[FIO]}", "#66CCFF");
 			txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "Position", "{row.column[Position]}", "#66CCFF");
@@ -689,7 +704,7 @@ for (let row in Daily.Sheet[DailyEvents].rows) {
 			txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "InDate", "{fullInDate}", "#66CCFF");
 		}
 
-		if (sectionType == "11") {
+		if (sectionType == "13") {
 			let hospitalForMoveFromHospital = row.column[Hospital];
 			let hospitalSourceText = row.column[Hospital];
 
@@ -727,7 +742,7 @@ for (let row in Daily.Sheet[DailyEvents].rows) {
 			txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "VkDate", "{fullVkDate}", "#66CCFF");
 		}
 
-		if (sectionType == "12") {
+		if (sectionType == "14") {
 			txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "Rank", "{row.column[Rank]}", "#66CCFF");
 			txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "FIO", "{row.column[FIO]}", "#66CCFF");
 			txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "Position", "{row.column[Position]}", "#66CCFF");
@@ -743,7 +758,7 @@ for (let row in Daily.Sheet[DailyEvents].rows) {
 			txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "VkDate", "{fullVkDate}", "#66CCFF");
 		}
 
-		if (sectionType == "13") {
+		if (sectionType == "15") {
 			txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "Rank", "{row.column[Rank]}", "#66CCFF");
 			txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "FIO", "{row.column[FIO]}", "#66CCFF");
 			txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "Position", "{row.column[Position]}", "#66CCFF");
@@ -758,7 +773,7 @@ for (let row in Daily.Sheet[DailyEvents].rows) {
 			txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "PrevVkDate", "{prevVkDate}", "#66CCFF");
 		}
 
-		if (sectionType == "14") {
+		if (sectionType == "16") {
 			txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "Rank", "{row.column[Rank]}", "#66CCFF");
 			txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "FIO", "{row.column[FIO]}", "#66CCFF");
 			txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "Position", "{row.column[Position]}", "#66CCFF");
@@ -772,7 +787,7 @@ for (let row in Daily.Sheet[DailyEvents].rows) {
 			txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "PrevVkDate", "{prevVkDate}", "#66CCFF");
 		}
 
-		if (sectionType == "15") {
+		if (sectionType == "17") {
 			txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "Rank", "{row.column[Rank]}", "#66CCFF");
 			txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "FIO", "{row.column[FIO]}", "#66CCFF");
 			txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "Position", "{row.column[Position]}", "#66CCFF");
@@ -787,6 +802,21 @@ for (let row in Daily.Sheet[DailyEvents].rows) {
 			txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "VlkDate", "{fullVlkDate}", "#66CCFF");
 			txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "VkNum", "{row.column[VkNum]}", "#66CCFF");
 			txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "VkDate", "{fullVkDate}", "#66CCFF");
+		}
+
+		if (sectionType == "18") {
+			txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "Rank", "{row.column[Rank]}", "#66CCFF");
+			txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "FIO", "{row.column[FIO]}", "#66CCFF");
+			txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "Position", "{row.column[Position]}", "#66CCFF");
+			txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "Hospital", "{row.column[Hospital]}", "#66CCFF");
+			txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "OutDate", "{fullDateFrom}", "#66CCFF");
+			txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "RaportFrom", "{row.column[RaportFrom]}", "#66CCFF");
+			txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "InNumFull", "{inNumFull}", "#66CCFF");
+			txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "InDate", "{fullInDate}", "#66CCFF");
+			txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "VlkNum", "{row.column[VlkNum]}", "#66CCFF");
+			txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "VlkDate", "{fullVlkDate}", "#66CCFF");
+			txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "DocNum", "{row.column[DocNum]}", "#66CCFF");
+			txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "DocDate", "{fullDocDate}", "#66CCFF");
 		}
 
 		txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "DocNote", "{row.column[DocNote]}", "#66CCFF");

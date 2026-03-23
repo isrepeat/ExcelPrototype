@@ -95,6 +95,23 @@
 #_    ]]>
     </text>
   </template>
+  <template id="FromMedicalCompanyForTreatment">
+    <text>
+      <![CDATA[#^
+#_      {Rank|accusative|upperFirstLetter} {FIO|accusative}, {Position|accusative|lowerFirstLetter}.
+#_      {#if IsReturnToDuty}#^
+#_      {ReturnToDutyRank|dative|upperFirstLetter} {ReturnToDutyFIO|dative} #^
+#_      повернутись до виконання обов'язків {ReturnToDutyPosition|accusative|lowerFirstLetter}.
+#_      {#endif}#^
+
+#_      {
+          #let IsRaportFromSelf = $ex_Helpers.m_RegexFirstMatch("{RaportFrom}", "^\s*[Сс][Аа][Мм]\s*$");
+        }#^
+#_      Підстава: рапорт {#if IsRaportFromSelf}{Rank|accusative|lowerFirstLetter} {FIO|genitive|fioSurname|capitalize} {FIO|fioInitials}{#endif}{#if #not IsRaportFromSelf}{RaportTvo} {RaportFrom}{#endif} (вх. № {InNumFull} від {InDate})#^
+#_      .#^
+#_    ]]>
+    </text>
+  </template>
   <template id="FromOutpatientExaminationOrVlk">
     <text>
       <![CDATA[#^
@@ -104,7 +121,9 @@
           #let IsRaportFromSelf = $ex_Helpers.m_RegexFirstMatch("{RaportFrom}", "^\s*[Сс][Аа][Мм]\s*$");
         }#^
 #_      Підстава: рапорт {#if IsRaportFromSelf}{Rank|accusative|lowerFirstLetter} {FIO|genitive|fioSurname|capitalize} {FIO|fioInitials}{#endif}{#if #not IsRaportFromSelf}{RaportTvo} {RaportFrom}{#endif} (вх. № {InNumFull} від {InDate})#^
+#_      {#if VlkNum #and VlkDate}#^
 #_      , довідка військово-лікарської комісії № {VlkNum} від {VlkDate}#^
+#_      {#endif}#^
 #_      .#^
 #_    ]]>
     </text>
@@ -141,22 +160,6 @@
         } {#if DocNum}№ {DocNum}{#endif}{#if DocDate} від {DocDate}{#endif}#^
 #_      .#^
 #_      {#endif}#^
-#_    ]]>
-    </text>
-  </template>
-  <template id="ToMedicalCompanyForTreatment">
-    <text>
-      <![CDATA[#^
-#_      До медичної роти військової частини А7383, з {DATE|dateformat:"\dd \month"} 2026 року:
-
-#_      {Rank|accusative} {FIO|accusative}, {Position|accusative|lowerFirstLetter}.
-#_      {#if IsAssignToDuty}#^
-#_      Тимчасове виконання обов'язків за посадою {Position|accusative|lowerFirstLetter} покласти на #^
-#_      {AssignToDutyRank|accusative|lowerFirstLetter} {AssignToDutyFIO|accusative}, {AssignToDutyPosition|accusative|lowerFirstLetter}.
-#_      {#endif}#^
-
-#_      Підстава: рапорт {RaportTvo} {RaportFrom} (вх. № {InNumFull} від {InDate})#^
-#_      .#^
 #_    ]]>
     </text>
   </template>
@@ -271,6 +274,20 @@
 #_      Підстава: рапорт {Rank|accusative|lowerFirstLetter} {FIO|genitive|fioSurname|capitalize} {FIO|fioInitials} (вх. № {InNumFull} від {InDate})#^
 #_      , довідка військово-лікарської комісії № {VlkNum} від {VlkDate}#^
 #_      , відпускний квиток № 3/71/{VkNum} від {VkDate}#^
+#_      .#^
+#_    ]]>
+    </text>
+  </template>
+  <template id="ToMedicalCompanyForTreatment">
+    <text>
+      <![CDATA[#^
+#_      {Rank|accusative} {FIO|accusative}, {Position|accusative|lowerFirstLetter}.
+#_      {#if IsAssignToDuty}#^
+#_      Тимчасове виконання обов'язків за посадою {Position|accusative|lowerFirstLetter} покласти на #^
+#_      {AssignToDutyRank|accusative|lowerFirstLetter} {AssignToDutyFIO|accusative}, {AssignToDutyPosition|accusative|lowerFirstLetter}.
+#_      {#endif}#^
+
+#_      Підстава: рапорт {RaportTvo} {RaportFrom} (вх. № {InNumFull} від {InDate})#^
 #_      .#^
 #_    ]]>
     </text>
@@ -422,6 +439,28 @@
 #_      Підстава: рапорт {#if IsRaportFromSelf}{Rank|accusative|lowerFirstLetter} {FIO|genitive|fioSurname|capitalize} {FIO|fioInitials}{#endif}{#if #not IsRaportFromSelf}{RaportTvo} {RaportFrom}{#endif} (вх. № {InNumFull} від {InDate})#^
 #_      , довідка військово-лікарської комісії № {VlkNum} від {VlkDate}#^
 #_      , відпускний квиток № 3/71/{VkNum} від {VkDate}#^
+#_      .#^
+#_    ]]>
+    </text>
+  </template>
+  <template id="MoveFromVlkToHospital">
+    <text>
+      <![CDATA[#^
+#_      NN. {Rank|accusative|upperFirstLetter} {FIO|accusative}, {Position|accusative|lowerFirstLetter}, #^
+#_      який перебував на медичному огляді військово лікарської комісії, вважати таким, що перебуває на лікуванні у {Hospital}, #^
+#_      з {OutDate|dateformat:"\dd \month"} 2026 року.
+
+#_      {
+          #let IsRaportFromSelf = $ex_Helpers.m_RegexFirstMatch("{RaportFrom}", "^\s*[Сс][Аа][Мм]\s*$");
+        }#^
+#_      Підстава: рапорт {#if IsRaportFromSelf}{Rank|accusative|lowerFirstLetter} {FIO|genitive|fioSurname|capitalize} {FIO|fioInitials}{#endif}{#if #not IsRaportFromSelf}{RaportTvo} {RaportFrom}{#endif} (вх. № {InNumFull} від {InDate})#^
+#_      , довідка військово-лікарської комісії № {VlkNum} від {VlkDate}#^
+#_      {#if DocNum #or DocDate}#^
+#_      , {DocNote
+            |regexreplace:"^[ \t\r\n]*([\s\S]*?)[ \t\r\n]*$","$1"
+            |regexreplace:"^м/к$","медична карта стаціонарного хворого"
+        } {#if DocNum}№ {DocNum}{#endif}{#if DocDate} від {DocDate}{#endif}#^
+#_      {#endif}#^
 #_      .#^
 #_    ]]>
     </text>
