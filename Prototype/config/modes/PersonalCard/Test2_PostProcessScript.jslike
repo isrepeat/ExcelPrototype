@@ -13,6 +13,7 @@ let tvoNoteRegex = "ТВО";
 let unclosedReturnDateRegex = "^\\s*(\\?|-)?\\s*$";
 let resultTemplatesRelPath = "config\\modes\\PersonalCard\\PersonalCardResultTemplates.xml";
 let exportRuntimeWordAnchorPrefix = "Export.RuntimeDataBase.WordAnchor.";
+let exportRuntimeWordRecordKeyPrefix = "Export.RuntimeDataBase.WordRecordKey.";
 let logPath = "Logs\\personalcard_pipeline.log";
 
 let inputCommonKey = callMacro("ex_ScriptIO.m_GetValue", input, "CommonKey", "");
@@ -370,6 +371,10 @@ for (let row in Daily.Sheet[DailyEvents].rows) {
 		}
 
 		exportWordPasteAnchor = rowTemplateAnchor;
+		let recordKeyFio = row.column[FIO];
+		let exportRecordRuntimeKey = exportRuntimeWordRecordKeyPrefix + ownerRowIndex;
+		let exportRecordRuntimeValue = rowTemplateAnchor + "|" + recordKeyFio;
+		callMacro("ex_PostProcessActions.m_SetRuntimeData", exportRecordRuntimeKey, exportRecordRuntimeValue);
 
 		let txt = callMacro("ex_ResultTemplatesParser.m_GetTemplateText", rowTemplateAnchor, resultTemplatesRelPath);
 		txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "DATE", "{baseDate}", "#66CCFF");
