@@ -73,6 +73,12 @@
                      buttonBorderColor="#1F3F6B"/>
           </modeVariants>
         </toggleButton>
+        <button caption="Done"
+                macro="ex_UIActions.m_ExportFooterReportDone_OnClick"
+                buttonBackColor="#6A994E"
+                buttonTextColor="#FFFFFF"
+                buttonBorderColor="#386641"
+                />
       </inputConfigRefField>
     </fields>
   </controlPanel>

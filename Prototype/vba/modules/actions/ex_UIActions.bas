@@ -155,6 +155,11 @@ Public Sub m_ExportFooterReportToWord_OnClick()
     ex_WordPlaceholderReports.m_API_ExportActiveSheetFooterPlaceholderReport
 End Sub
 
+Public Sub m_ExportFooterReportDone_OnClick()
+    ex_CustomDropdown.m_OnManagedButtonClick
+    ex_WordPlaceholderReports.m_API_CleanupExportAnchorMarkers
+End Sub
+
 Public Sub m_OutputPanelToggleButton_OnClick()
     ex_CustomDropdown.m_OnManagedButtonClick
     ex_OutputPanel.m_HandleToggleButtonOnClick

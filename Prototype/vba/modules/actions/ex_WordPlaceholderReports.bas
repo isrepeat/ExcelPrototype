@@ -13,8 +13,13 @@ Private Const EXPORT_INSERT_MODE_APPEND_BOTTOM As String = "APPENDTOBOTTOM"
 Private Const EXPORT_RUNTIME_WORD_RESULTS_PLACE As String = "Export.RuntimeDataBase.WordResultsPlace"
 Private Const EXPORT_RUNTIME_WORD_PASTE_ANCHOR As String = "Export.RuntimeDataBase.WordPasteAnchor"
 Private Const EXPORT_RUNTIME_WORD_ANCHOR_PREFIX As String = "Export.RuntimeDataBase.WordAnchor."
+Private Const EXPORT_RUNTIME_WORD_RECORD_KEY_PREFIX As String = "Export.RuntimeDataBase.WordRecordKey."
 Private Const EXPORT_APPEND_SEPARATOR As String = vbCrLf & vbCrLf
+Private Const EXPORT_ANCHOR_MARKER_PREFIX As String = "{\export:"
+Private Const EXPORT_ANCHOR_MARKER_BEGIN_SUFFIX As String = "_Begin}"
+Private Const EXPORT_ANCHOR_MARKER_END_SUFFIX As String = "_End}"
 Private Const EXPORT_BOOKMARK_PREFIX As String = "EP_Anchor_"
+Private Const EXPORT_BOOKMARK_RECORD_PREFIX As String = "EP_Record_"
 Private Const EXPORT_BOOKMARK_TOP_SUFFIX As String = "_Top"
 Private Const EXPORT_BOOKMARK_BOTTOM_SUFFIX As String = "_Bottom"
 Private Const EXPORT_BOOKMARK_MAX_LEN As Long = 40
@@ -23,7 +28,6 @@ Private Const EXPORT_HASH_MODULO As Double = 2147483629#
 
 Private g_WordApp As Object
 Private g_WordAppOwnedByModule As Boolean
-Private g_LastExportHashBySheet As Object
 
 Public Sub m_API_ExportActiveSheetFooterPlaceholderReport()
     Dim ws As Worksheet
@@ -37,8 +41,8 @@ Public Sub m_API_ExportActiveSheetFooterPlaceholderReport()
     Dim wordResultsPlace As String
     Dim wordPasteAnchor As String
     Dim sourceText As String
-    Dim currentExportHash As String
     Dim placeholderMapFromAnchors As Object
+    Dim currentRecordKeySet As Object
     Dim hasMultiRuntimeAnchors As Boolean
 
     On Error GoTo EH
@@ -64,13 +68,19 @@ Public Sub m_API_ExportActiveSheetFooterPlaceholderReport()
     If Len(outputPath) = 0 Then
         Err.Raise vbObjectError + 1766, "ex_WordPlaceholderReports", "Unable to build output path by mode '" & outputMode & "' from template path: " & templatePath
     End If
+    If mp_FileExists(outputPath) Then
+        If mp_IsFileLocked(outputPath) Then
+            MsgBox "Word export is blocked: target file is currently open." & vbCrLf & _
+                   "Close the file and retry: " & outputPath, vbExclamation
+            Exit Sub
+        End If
+    End If
 
     Set placeholderMapFromAnchors = mp_BuildPlaceholderMapFromRuntimeAnchors(ws)
     If Not placeholderMapFromAnchors Is Nothing Then
         If placeholderMapFromAnchors.Count > 0 Then
             hasMultiRuntimeAnchors = True
             Set placeholderMap = placeholderMapFromAnchors
-            currentExportHash = mp_ComputeTextHashHex(mp_BuildPlaceholderMapHashSource(placeholderMap))
         End If
     End If
 
@@ -90,22 +100,63 @@ Public Sub m_API_ExportActiveSheetFooterPlaceholderReport()
         End If
 
         sourceText = mp_ReadSheetTextByRuntimePointer(ws, wordResultsPlace)
-        currentExportHash = mp_ComputeTextHashHex(wordPasteAnchor & vbLf & sourceText)
         Set placeholderMap = m_BuildPlaceholderMapFromPairs(wordPasteAnchor, sourceText)
     End If
 
-    If Not mp_ConfirmProceedForExportHash(ws, currentExportHash) Then
+    Set currentRecordKeySet = mp_BuildRecordKeySetFromRuntime(ws)
+    If Not mp_ConfirmProceedForExport(templatePath, outputPath, outputMode, insertMode, currentRecordKeySet) Then
         ex_Messaging.m_ShowNotice "Export canceled.", 3
         Exit Sub
     End If
 
-    reportPath = m_CreateWordReportFromTemplate(templatePath, outputPath, placeholderMap, True, insertMode)
-    mp_SaveLastExportHash ws, currentExportHash
+    reportPath = m_CreateWordReportFromTemplate(templatePath, outputPath, placeholderMap, True, insertMode, currentRecordKeySet)
     ex_Messaging.m_ShowNotice "Word report created: " & reportPath, 5
     Exit Sub
 
 EH:
     MsgBox "Word footer export failed: " & Err.Description, vbExclamation
+End Sub
+
+Public Sub m_API_CleanupExportAnchorMarkers()
+    Dim templatePath As String
+    Dim outputPath As String
+    Dim outputMode As String
+    Dim outputPostfix As String
+    Dim targetPath As String
+    Dim removedCount As Long
+
+    On Error GoTo EH
+
+    templatePath = mp_ResolvePath(Trim$(ex_ConfigProvider.m_GetConfigValue("Export.WordTemplatePath", vbNullString)))
+    If Len(templatePath) = 0 Then
+        Err.Raise vbObjectError + 1787, "ex_WordPlaceholderReports", "Missing required config key 'Export.WordTemplatePath'."
+    End If
+    If Not mp_FileExists(templatePath) Then
+        Err.Raise vbObjectError + 1788, "ex_WordPlaceholderReports", "Word template not found by config key 'Export.WordTemplatePath': " & templatePath
+    End If
+
+    outputMode = mp_NormalizeOutputMode(ex_ConfigProvider.m_GetConfigValue("Export.OutputMode", "CreateWithPostfix"))
+    outputPostfix = CStr(ex_ConfigProvider.m_GetConfigValue("Export.OutputPostfix", "_result"))
+    outputPath = mp_BuildOutputPathByMode(templatePath, outputMode, outputPostfix)
+    targetPath = mp_BuildDuplicateCheckDocumentPath(templatePath, outputPath, outputMode)
+    If Len(targetPath) = 0 Then
+        Err.Raise vbObjectError + 1789, "ex_WordPlaceholderReports", "Unable to resolve target document path for export anchor cleanup."
+    End If
+    If Not mp_FileExists(targetPath) Then
+        If StrComp(outputMode, EXPORT_OUTPUT_MODE_CREATE_WITH_POSTFIX, vbTextCompare) = 0 Then
+            targetPath = templatePath
+        End If
+    End If
+    If Not mp_FileExists(targetPath) Then
+        Err.Raise vbObjectError + 1790, "ex_WordPlaceholderReports", "Target document for export anchor cleanup was not found: " & targetPath
+    End If
+
+    removedCount = mp_RemoveExportAnchorMarkersFromDocumentPath(targetPath)
+    ex_Messaging.m_ShowNotice "Export anchors cleanup finished. Removed markers: " & CStr(removedCount), 5
+    Exit Sub
+
+EH:
+    MsgBox "Word export anchors cleanup failed: " & Err.Description, vbExclamation
 End Sub
 
 Private Function mp_BuildPlaceholderMapFromRuntimeAnchors(ByVal ws As Worksheet) As Object
@@ -143,55 +194,69 @@ ContinueKey:
     If result.Count > 0 Then Set mp_BuildPlaceholderMapFromRuntimeAnchors = result
 End Function
 
-Private Function mp_BuildPlaceholderMapHashSource(ByVal placeholderMap As Object) As String
-    Dim keys() As String
-    Dim token As Variant
-    Dim i As Long
+Private Function mp_BuildRecordKeySetFromRuntime(ByVal ws As Worksheet) As Object
+    Dim runtimeEntries As Object
+    Dim result As Object
+    Dim dataKey As Variant
+    Dim valueText As String
+    Dim recordKey As String
 
-    If placeholderMap Is Nothing Then Exit Function
-    If placeholderMap.Count = 0 Then Exit Function
+    If ws Is Nothing Then Exit Function
 
-    ReDim keys(0 To placeholderMap.Count - 1)
-    i = 0
-    For Each token In placeholderMap.Keys
-        keys(i) = CStr(token)
-        i = i + 1
-    Next token
+    Set runtimeEntries = ex_PostProcessActions.m_GetRuntimeDataEntriesByPrefix(EXPORT_RUNTIME_WORD_RECORD_KEY_PREFIX, ws)
+    If runtimeEntries Is Nothing Then Exit Function
+    If runtimeEntries.Count = 0 Then Exit Function
 
-    mp_SortTextArray keys
+    Set result = CreateObject("Scripting.Dictionary")
+    result.CompareMode = 1 ' vbTextCompare
 
-    For i = LBound(keys) To UBound(keys)
-        mp_BuildPlaceholderMapHashSource = mp_BuildPlaceholderMapHashSource & _
-            "{" & keys(i) & "}=" & CStr(placeholderMap(keys(i))) & vbLf
-    Next i
+    For Each dataKey In runtimeEntries.Keys
+        valueText = CStr(runtimeEntries(CStr(dataKey)))
+        recordKey = valueText
+        recordKey = mp_NormalizeRecordKey(recordKey)
+        If Len(recordKey) = 0 Then GoTo ContinueKey
+        result(recordKey) = "1"
+ContinueKey:
+    Next dataKey
+
+    If result.Count > 0 Then Set mp_BuildRecordKeySetFromRuntime = result
 End Function
 
-Private Sub mp_SortTextArray(ByRef values() As String)
-    Dim i As Long
-    Dim j As Long
-    Dim tmp As String
+Private Function mp_NormalizeRecordKey(ByVal recordKey As String) As String
+    Dim delimiterPos As Long
+    Dim sectionName As String
+    Dim fioText As String
 
-    On Error GoTo EmptyArray
-    For i = LBound(values) To UBound(values) - 1
-        For j = i + 1 To UBound(values)
-            If StrComp(values(i), values(j), vbTextCompare) > 0 Then
-                tmp = values(i)
-                values(i) = values(j)
-                values(j) = tmp
-            End If
-        Next j
-    Next i
-    Exit Sub
+    recordKey = Replace$(recordKey, vbCr, " ")
+    recordKey = Replace$(recordKey, vbLf, " ")
+    recordKey = Replace$(recordKey, vbTab, " ")
 
-EmptyArray:
-End Sub
+    delimiterPos = InStr(1, recordKey, "|", vbBinaryCompare)
+    If delimiterPos <= 0 Then Exit Function
+
+    sectionName = mp_NormalizeRecordKeyPart(Left$(recordKey, delimiterPos - 1))
+    fioText = mp_NormalizeRecordKeyPart(Mid$(recordKey, delimiterPos + 1))
+    If Len(sectionName) = 0 Or Len(fioText) = 0 Then Exit Function
+
+    mp_NormalizeRecordKey = sectionName & "|" & fioText
+End Function
+
+Private Function mp_NormalizeRecordKeyPart(ByVal valueText As String) As String
+    valueText = Replace$(valueText, Chr$(160), " ")
+    valueText = Trim$(LCase$(valueText))
+    Do While InStr(1, valueText, "  ", vbBinaryCompare) > 0
+        valueText = Replace$(valueText, "  ", " ")
+    Loop
+    mp_NormalizeRecordKeyPart = valueText
+End Function
 
 Public Function m_CreateWordReportFromTemplate( _
     ByVal templatePath As String, _
     ByVal outputPath As String, _
     ByVal placeholderMap As Object, _
     Optional ByVal failIfPlaceholderMissing As Boolean = True, _
-    Optional ByVal insertMode As String = "ReplaceAll" _
+    Optional ByVal insertMode As String = "ReplaceAll", _
+    Optional ByVal recordKeySet As Object = Nothing _
 ) As String
     Dim wdApp As Object
     Dim wdDoc As Object
@@ -203,7 +268,6 @@ Public Function m_CreateWordReportFromTemplate( _
     Dim normalizedMap As Object
     Dim saveInPlace As Boolean
     Dim useExistingOutput As Boolean
-    Dim retriedFromTemplate As Boolean
     Dim failureSource As String
     Dim failureDescription As String
     Dim failureNumber As Long
@@ -255,25 +319,13 @@ Public Function m_CreateWordReportFromTemplate( _
     End If
 
     totalReplacements = mp_ApplyPlaceholderMapInDocument(wdDoc, normalizedMap, missingTokens, normalizedInsertMode)
-    If Len(missingTokens) > 0 And useExistingOutput Then
-        On Error Resume Next
-        wdDoc.Close False
-        On Error GoTo EH
-
-        Set wdDoc = wdApp.Documents.Add(normalizedTemplatePath)
-        useExistingOutput = False
-        retriedFromTemplate = True
-        missingTokens = vbNullString
-        totalReplacements = mp_ApplyPlaceholderMapInDocument(wdDoc, normalizedMap, missingTokens, normalizedInsertMode)
-    End If
 
     If failIfPlaceholderMissing And Len(missingTokens) > 0 Then
-        If retriedFromTemplate Then
-            Err.Raise vbObjectError + 1756, "ex_WordPlaceholderReports", "Placeholders not found in template: " & missingTokens
-        Else
-            Err.Raise vbObjectError + 1756, "ex_WordPlaceholderReports", "Placeholders not found in template/output: " & missingTokens
-        End If
+        Err.Raise vbObjectError + 1756, "ex_WordPlaceholderReports", _
+            "Export anchor(s) were not found in target document. Missing placeholders: " & missingTokens
     End If
+
+    mp_UpsertRecordKeyBookmarks wdDoc, recordKeySet
 
     If saveInPlace Or useExistingOutput Then
         wdDoc.Save
@@ -299,26 +351,139 @@ EH:
         "Failed to build Word report. Cause: [" & failureSource & " #" & CStr(failureNumber) & "] " & failureDescription
 End Function
 
-Private Function mp_ConfirmProceedForExportHash(ByVal ws As Worksheet, ByVal currentExportHash As String) As Boolean
-    Dim previousHash As String
+Private Function mp_ConfirmProceedForExport( _
+    ByVal templatePath As String, _
+    ByVal outputPath As String, _
+    ByVal outputMode As String, _
+    ByVal insertMode As String, _
+    ByVal currentRecordKeySet As Object _
+) As Boolean
+    Dim docPathForDuplicateCheck As String
+    Dim duplicateRecordKeys As Object
     Dim messageText As String
     Dim response As VbMsgBoxResult
+    Dim duplicatesPreview As String
+    Dim duplicateCount As Long
+    Dim totalCount As Long
 
-    previousHash = mp_GetLastExportHash(ws)
-    If Len(previousHash) = 0 Then
-        mp_ConfirmProceedForExportHash = True
-        Exit Function
+    mp_ConfirmProceedForExport = True
+
+    If currentRecordKeySet Is Nothing Then Exit Function
+    If currentRecordKeySet.Count = 0 Then Exit Function
+    If Not mp_ShouldCheckDuplicatesByBookmarks(insertMode) Then Exit Function
+
+    docPathForDuplicateCheck = mp_BuildDuplicateCheckDocumentPath(templatePath, outputPath, outputMode)
+    If Len(docPathForDuplicateCheck) = 0 Then Exit Function
+    If Not mp_FileExists(docPathForDuplicateCheck) Then Exit Function
+
+    Set duplicateRecordKeys = mp_FindDuplicateRecordKeysInDocument(docPathForDuplicateCheck, currentRecordKeySet)
+    If duplicateRecordKeys Is Nothing Then Exit Function
+
+    duplicateCount = duplicateRecordKeys.Count
+    If duplicateCount <= 0 Then Exit Function
+
+    totalCount = currentRecordKeySet.Count
+    duplicatesPreview = mp_BuildDuplicateRecordPreview(duplicateRecordKeys, 5)
+
+    messageText = "The current export has " & CStr(duplicateCount) & " duplicate record(s) out of " & CStr(totalCount) & _
+                  " (matched by Section + FIO bookmarks)." & vbCrLf & vbCrLf & _
+                  "Document: " & docPathForDuplicateCheck & vbCrLf
+    If Len(duplicatesPreview) > 0 Then
+        messageText = messageText & vbCrLf & "Examples:" & vbCrLf & duplicatesPreview
     End If
+    messageText = messageText & vbCrLf & vbCrLf & "Do you want to export anyway?"
 
-    If StrComp(previousHash, currentExportHash, vbBinaryCompare) <> 0 Then
-        mp_ConfirmProceedForExportHash = True
-        Exit Function
-    End If
-
-    messageText = "The current Post Process result matches the previously exported content (hash: " & currentExportHash & ")." & vbCrLf & vbCrLf & _
-                  "Do you want to export the same content again?"
     response = MsgBox(messageText, vbQuestion + vbYesNo + vbDefaultButton2, EXPORT_DUPLICATE_CONFIRM_TITLE)
-    mp_ConfirmProceedForExportHash = (response = vbYes)
+    mp_ConfirmProceedForExport = (response = vbYes)
+End Function
+
+Private Function mp_ShouldCheckDuplicatesByBookmarks(ByVal insertMode As String) As Boolean
+    If StrComp(insertMode, EXPORT_INSERT_MODE_APPEND_TOP, vbTextCompare) = 0 Then
+        mp_ShouldCheckDuplicatesByBookmarks = True
+    ElseIf StrComp(insertMode, EXPORT_INSERT_MODE_APPEND_BOTTOM, vbTextCompare) = 0 Then
+        mp_ShouldCheckDuplicatesByBookmarks = True
+    End If
+End Function
+
+Private Function mp_BuildDuplicateCheckDocumentPath( _
+    ByVal templatePath As String, _
+    ByVal outputPath As String, _
+    ByVal outputMode As String _
+) As String
+    Select Case mp_NormalizeOutputMode(outputMode)
+        Case EXPORT_OUTPUT_MODE_OVERWRITE_TEMPLATE
+            mp_BuildDuplicateCheckDocumentPath = Trim$(templatePath)
+        Case EXPORT_OUTPUT_MODE_CREATE_WITH_POSTFIX
+            mp_BuildDuplicateCheckDocumentPath = Trim$(outputPath)
+    End Select
+End Function
+
+Private Function mp_FindDuplicateRecordKeysInDocument(ByVal documentPath As String, ByVal currentRecordKeySet As Object) As Object
+    Dim wdApp As Object
+    Dim wdDoc As Object
+    Dim result As Object
+    Dim recordKey As Variant
+    Dim bookmarkName As String
+
+    Set result = CreateObject("Scripting.Dictionary")
+    result.CompareMode = 1 ' vbTextCompare
+
+    If currentRecordKeySet Is Nothing Then
+        Set mp_FindDuplicateRecordKeysInDocument = result
+        Exit Function
+    End If
+    If currentRecordKeySet.Count = 0 Then
+        Set mp_FindDuplicateRecordKeysInDocument = result
+        Exit Function
+    End If
+
+    On Error GoTo EH
+    Set wdApp = mp_GetOrCreateWordApp()
+    Set wdDoc = wdApp.Documents.Open(documentPath, False, True)
+
+    For Each recordKey In currentRecordKeySet.Keys
+        bookmarkName = mp_BuildRecordBookmarkName(CStr(recordKey))
+        If Len(bookmarkName) > 0 Then
+            If wdDoc.Bookmarks.Exists(bookmarkName) Then
+                result(CStr(recordKey)) = bookmarkName
+            End If
+        End If
+    Next recordKey
+
+    On Error Resume Next
+    wdDoc.Close False
+    On Error GoTo 0
+
+    Set mp_FindDuplicateRecordKeysInDocument = result
+    Exit Function
+
+EH:
+    On Error Resume Next
+    If Not wdDoc Is Nothing Then wdDoc.Close False
+    On Error GoTo 0
+    Err.Raise vbObjectError + 1782, "ex_WordPlaceholderReports", _
+        "Failed to check duplicate record bookmarks in document '" & documentPath & "': " & Err.Description
+End Function
+
+Private Function mp_BuildDuplicateRecordPreview(ByVal duplicateRecordKeys As Object, ByVal maxItems As Long) As String
+    Dim key As Variant
+    Dim i As Long
+
+    If duplicateRecordKeys Is Nothing Then Exit Function
+    If duplicateRecordKeys.Count = 0 Then Exit Function
+    If maxItems <= 0 Then maxItems = 1
+
+    For Each key In duplicateRecordKeys.Keys
+        mp_BuildDuplicateRecordPreview = mp_BuildDuplicateRecordPreview & " - " & CStr(key) & vbCrLf
+        i = i + 1
+        If i >= maxItems Then Exit For
+    Next key
+
+    If duplicateRecordKeys.Count > i Then
+        mp_BuildDuplicateRecordPreview = mp_BuildDuplicateRecordPreview & " - ... (" & CStr(duplicateRecordKeys.Count - i) & " more)"
+    ElseIf Len(mp_BuildDuplicateRecordPreview) > 0 Then
+        mp_BuildDuplicateRecordPreview = Left$(mp_BuildDuplicateRecordPreview, Len(mp_BuildDuplicateRecordPreview) - Len(vbCrLf))
+    End If
 End Function
 
 Private Function mp_ComputeTextHashHex(ByVal valueText As String) As String
@@ -339,51 +504,6 @@ Private Function mp_ComputeTextHashHex(ByVal valueText As String) As String
     mp_ComputeTextHashHex = Right$("00000000" & Hex$(CLng(acc)), 8)
 End Function
 
-Private Function mp_GetLastExportHash(ByVal ws As Worksheet) As String
-    Dim cache As Object
-    Dim cacheKey As String
-
-    If ws Is Nothing Then Exit Function
-    Set cache = mp_EnsureLastExportHashCache()
-    cacheKey = mp_BuildSheetExportCacheKey(ws)
-    If Len(cacheKey) = 0 Then Exit Function
-
-    If cache.Exists(cacheKey) Then
-        mp_GetLastExportHash = CStr(cache(cacheKey))
-    End If
-End Function
-
-Private Sub mp_SaveLastExportHash(ByVal ws As Worksheet, ByVal exportHash As String)
-    Dim cache As Object
-    Dim cacheKey As String
-
-    If ws Is Nothing Then Exit Sub
-    Set cache = mp_EnsureLastExportHashCache()
-    cacheKey = mp_BuildSheetExportCacheKey(ws)
-    If Len(cacheKey) = 0 Then Exit Sub
-
-    cache(cacheKey) = CStr(exportHash)
-End Sub
-
-Private Function mp_EnsureLastExportHashCache() As Object
-    If g_LastExportHashBySheet Is Nothing Then
-        Set g_LastExportHashBySheet = CreateObject("Scripting.Dictionary")
-        g_LastExportHashBySheet.CompareMode = 1 ' vbTextCompare
-    End If
-    Set mp_EnsureLastExportHashCache = g_LastExportHashBySheet
-End Function
-
-Private Function mp_BuildSheetExportCacheKey(ByVal ws As Worksheet) As String
-    Dim wbName As String
-    If ws Is Nothing Then Exit Function
-
-    On Error Resume Next
-    wbName = CStr(ws.Parent.Name)
-    On Error GoTo 0
-
-    mp_BuildSheetExportCacheKey = LCase$(Trim$(wbName) & "|" & Trim$(ws.Name))
-End Function
-
 Public Sub m_ResetWordSession(Optional ByVal quitIfOwned As Boolean = True)
     On Error Resume Next
     If Not g_WordApp Is Nothing Then
@@ -393,7 +513,6 @@ Public Sub m_ResetWordSession(Optional ByVal quitIfOwned As Boolean = True)
     End If
     Set g_WordApp = Nothing
     g_WordAppOwnedByModule = False
-    Set g_LastExportHashBySheet = Nothing
     On Error GoTo 0
 End Sub
 
@@ -504,25 +623,24 @@ Private Function mp_ReplaceTokenInDocumentByMode( _
 ) As Long
     Dim story As Object
     Dim currentRange As Object
-    Dim firstHit As Object
-    Dim lastHit As Object
-    Dim topBookmarkRange As Object
-    Dim bottomBookmarkRange As Object
+    Dim anchorName As String
+    Dim beginMarker As String
+    Dim endMarker As String
+    Dim beginMarkerRange As Object
+    Dim endMarkerRange As Object
+    Dim contentBetweenMarkers As Object
     Dim insertionRange As Object
-    Dim appliedRange As Object
-    Dim preservedRange As Object
-    Dim topStart As Long
-    Dim topEnd As Long
-    Dim bottomStart As Long
-    Dim bottomEnd As Long
-    Dim insertLength As Long
-    Dim separatorLength As Long
     Dim appendSeparatorText As String
-    Dim hitCount As Long
+    Dim insertionText As String
+    Dim hasMeaningfulContentBetweenMarkers As Boolean
+    Dim insertionPos As Long
+    Dim charAfterBegin As String
+    Dim charBeforeEnd As String
+    Dim needPrefixLineBreak As Boolean
+    Dim needSuffixLineBreak As Boolean
 
     replacementText = mp_NormalizeTextForWord(replacementText)
     appendSeparatorText = mp_NormalizeTextForWord(EXPORT_APPEND_SEPARATOR)
-    separatorLength = Len(appendSeparatorText)
 
     If StrComp(insertMode, EXPORT_INSERT_MODE_REPLACE_ALL, vbTextCompare) = 0 Then
         For Each story In doc.StoryRanges
@@ -535,61 +653,57 @@ Private Function mp_ReplaceTokenInDocumentByMode( _
         Exit Function
     End If
 
-    For Each story In doc.StoryRanges
-        Set currentRange = story
-        Do While Not currentRange Is Nothing
-            hitCount = hitCount + mp_CaptureTokenHitsInRange(currentRange, token, firstHit, lastHit)
-            Set currentRange = currentRange.NextStoryRange
-        Loop
-    Next story
+    anchorName = mp_ExtractAnchorNameFromToken(token)
+    If Len(anchorName) = 0 Then Exit Function
 
-    If hitCount > 0 Then
-        If StrComp(insertMode, EXPORT_INSERT_MODE_APPEND_TOP, vbTextCompare) = 0 Then
-            firstHit.Text = replacementText
-            Set appliedRange = firstHit.Duplicate
-            mp_UpsertAnchorBookmarkPair doc, token, appliedRange, appliedRange
-        ElseIf StrComp(insertMode, EXPORT_INSERT_MODE_APPEND_BOTTOM, vbTextCompare) = 0 Then
-            lastHit.Text = replacementText
-            Set appliedRange = lastHit.Duplicate
-            mp_UpsertAnchorBookmarkPair doc, token, appliedRange, appliedRange
-        Else
-            Err.Raise vbObjectError + 1769, "ex_WordPlaceholderReports", "Unsupported insert mode: " & insertMode
-        End If
-        mp_ReplaceTokenInDocumentByMode = 1
-        Exit Function
-    End If
+    beginMarker = mp_BuildExplicitAnchorMarker(anchorName, True)
+    endMarker = mp_BuildExplicitAnchorMarker(anchorName, False)
+    If Not mp_TryFindExplicitAnchorMarkerPair(doc, beginMarker, endMarker, beginMarkerRange, endMarkerRange) Then Exit Function
+    mp_EnsureExplicitAnchorGapForSingleLineBreak doc, beginMarker, endMarker, beginMarkerRange, endMarkerRange
 
-    If Not mp_TryGetAnchorBookmarkPair(doc, token, topBookmarkRange, bottomBookmarkRange) Then Exit Function
-    topStart = topBookmarkRange.Start
-    topEnd = topBookmarkRange.End
-    bottomStart = bottomBookmarkRange.Start
-    bottomEnd = bottomBookmarkRange.End
+    Set contentBetweenMarkers = doc.Range(beginMarkerRange.End, endMarkerRange.Start)
+    hasMeaningfulContentBetweenMarkers = mp_RangeHasMeaningfulText(contentBetweenMarkers)
 
     If StrComp(insertMode, EXPORT_INSERT_MODE_APPEND_TOP, vbTextCompare) = 0 Then
-        Set insertionRange = topBookmarkRange.Duplicate
-        insertionRange.Collapse WD_COLLAPSE_START
-        insertionRange.Text = replacementText & appendSeparatorText
-        insertLength = insertionRange.End - insertionRange.Start
-        Set appliedRange = insertionRange.Duplicate
-        mp_TrimInsertedRangeForAppendTop appliedRange, separatorLength
-        mp_UpsertAnchorBookmarkByRole doc, token, True, appliedRange
-
-        Set preservedRange = mp_CreateRangeSafe(doc, bottomStart + insertLength, bottomEnd + insertLength)
-        If Not preservedRange Is Nothing Then
-            mp_UpsertAnchorBookmarkByRole doc, token, False, preservedRange
+        insertionPos = beginMarkerRange.End
+        charAfterBegin = mp_GetDocumentCharAt(doc, insertionPos)
+        If StrComp(charAfterBegin, vbCr, vbBinaryCompare) = 0 Then
+            insertionPos = insertionPos + 1
+        Else
+            needPrefixLineBreak = True
         End If
+
+        insertionText = replacementText
+        If needPrefixLineBreak Then
+            insertionText = vbCr & insertionText
+        End If
+        If hasMeaningfulContentBetweenMarkers Then
+            insertionText = insertionText & appendSeparatorText
+        End If
+        Set insertionRange = doc.Range(insertionPos, insertionPos)
+        insertionRange.Text = insertionText
     ElseIf StrComp(insertMode, EXPORT_INSERT_MODE_APPEND_BOTTOM, vbTextCompare) = 0 Then
-        Set insertionRange = bottomBookmarkRange.Duplicate
-        insertionRange.Collapse WD_COLLAPSE_END
-        insertionRange.Text = appendSeparatorText & replacementText
-        Set appliedRange = insertionRange.Duplicate
-        mp_TrimInsertedRangeForAppendBottom appliedRange, separatorLength
-        mp_UpsertAnchorBookmarkByRole doc, token, False, appliedRange
-
-        Set preservedRange = mp_CreateRangeSafe(doc, topStart, topEnd)
-        If Not preservedRange Is Nothing Then
-            mp_UpsertAnchorBookmarkByRole doc, token, True, preservedRange
+        insertionPos = endMarkerRange.Start
+        If insertionPos > 0 Then
+            charBeforeEnd = mp_GetDocumentCharAt(doc, insertionPos - 1)
+            If StrComp(charBeforeEnd, vbCr, vbBinaryCompare) = 0 Then
+                insertionPos = insertionPos - 1
+            Else
+                needSuffixLineBreak = True
+            End If
+        Else
+            needSuffixLineBreak = True
         End If
+
+        insertionText = replacementText
+        If hasMeaningfulContentBetweenMarkers Then
+            insertionText = appendSeparatorText & insertionText
+        End If
+        If needSuffixLineBreak Then
+            insertionText = insertionText & vbCr
+        End If
+        Set insertionRange = doc.Range(insertionPos, insertionPos)
+        insertionRange.Text = insertionText
     Else
         Err.Raise vbObjectError + 1769, "ex_WordPlaceholderReports", "Unsupported insert mode: " & insertMode
     End If
@@ -628,20 +742,71 @@ Private Function mp_ReplaceTokenInRange( _
     Loop
 End Function
 
-Private Function mp_CaptureTokenHitsInRange( _
-    ByVal sourceRange As Object, _
-    ByVal token As String, _
-    ByRef firstHit As Object, _
-    ByRef lastHit As Object _
-) As Long
+Private Function mp_ExtractAnchorNameFromToken(ByVal tokenText As String) As String
+    tokenText = Trim$(tokenText)
+    If Len(tokenText) = 0 Then Exit Function
+
+    If Left$(tokenText, 1) = "{" And Right$(tokenText, 1) = "}" Then
+        tokenText = Mid$(tokenText, 2, Len(tokenText) - 2)
+    End If
+
+    mp_ExtractAnchorNameFromToken = Trim$(tokenText)
+End Function
+
+Private Function mp_BuildExplicitAnchorMarker(ByVal anchorName As String, ByVal isBeginMarker As Boolean) As String
+    anchorName = Trim$(anchorName)
+    If Len(anchorName) = 0 Then Exit Function
+
+    If isBeginMarker Then
+        mp_BuildExplicitAnchorMarker = EXPORT_ANCHOR_MARKER_PREFIX & anchorName & EXPORT_ANCHOR_MARKER_BEGIN_SUFFIX
+    Else
+        mp_BuildExplicitAnchorMarker = EXPORT_ANCHOR_MARKER_PREFIX & anchorName & EXPORT_ANCHOR_MARKER_END_SUFFIX
+    End If
+End Function
+
+Private Function mp_TryFindExplicitAnchorMarkerPair( _
+    ByVal doc As Object, _
+    ByVal beginMarker As String, _
+    ByVal endMarker As String, _
+    ByRef outBeginMarkerRange As Object, _
+    ByRef outEndMarkerRange As Object _
+) As Boolean
+    Dim story As Object
+    Dim currentRange As Object
+    Dim rangeAfterBeginMarker As Object
+
+    If doc Is Nothing Then Exit Function
+    If Len(beginMarker) = 0 Or Len(endMarker) = 0 Then Exit Function
+
+    For Each story In doc.StoryRanges
+        Set currentRange = story
+        Do While Not currentRange Is Nothing
+            If mp_TryFindTextInRange(currentRange, beginMarker, outBeginMarkerRange) Then
+                Set rangeAfterBeginMarker = currentRange.Duplicate
+                rangeAfterBeginMarker.Start = outBeginMarkerRange.End
+                If rangeAfterBeginMarker.Start <= rangeAfterBeginMarker.End Then
+                    If mp_TryFindTextInRange(rangeAfterBeginMarker, endMarker, outEndMarkerRange) Then
+                        mp_TryFindExplicitAnchorMarkerPair = True
+                        Exit Function
+                    End If
+                End If
+            End If
+            Set currentRange = currentRange.NextStoryRange
+        Loop
+    Next story
+End Function
+
+Private Function mp_TryFindTextInRange(ByVal sourceRange As Object, ByVal targetText As String, ByRef outFoundRange As Object) As Boolean
     Dim findRange As Object
 
-    Set findRange = sourceRange.Duplicate
+    If sourceRange Is Nothing Then Exit Function
+    If Len(targetText) = 0 Then Exit Function
 
+    Set findRange = sourceRange.Duplicate
     With findRange.Find
         .ClearFormatting
         .Replacement.ClearFormatting
-        .Text = token
+        .Text = targetText
         .Replacement.Text = vbNullString
         .Forward = True
         .Wrap = WD_FIND_STOP
@@ -653,14 +818,75 @@ Private Function mp_CaptureTokenHitsInRange( _
         .MatchAllWordForms = False
     End With
 
-    Do While findRange.Find.Execute
-        If firstHit Is Nothing Then
-            Set firstHit = findRange.Duplicate
-        End If
-        Set lastHit = findRange.Duplicate
-        mp_CaptureTokenHitsInRange = mp_CaptureTokenHitsInRange + 1
-        findRange.Collapse WD_COLLAPSE_END
-    Loop
+    If findRange.Find.Execute Then
+        Set outFoundRange = findRange.Duplicate
+        mp_TryFindTextInRange = True
+    End If
+End Function
+
+Private Sub mp_EnsureExplicitAnchorGapForSingleLineBreak( _
+    ByVal doc As Object, _
+    ByVal beginMarker As String, _
+    ByVal endMarker As String, _
+    ByRef beginMarkerRange As Object, _
+    ByRef endMarkerRange As Object _
+)
+    Dim betweenRange As Object
+    Dim betweenText As String
+
+    If doc Is Nothing Then Exit Sub
+    If beginMarkerRange Is Nothing Then Exit Sub
+    If endMarkerRange Is Nothing Then Exit Sub
+
+    Set betweenRange = doc.Range(beginMarkerRange.End, endMarkerRange.Start)
+    betweenText = CStr(betweenRange.Text)
+    If mp_IsOnlySingleLineBreakBetweenAnchors(betweenText) Then
+        betweenRange.Text = vbCr & vbCr
+        mp_TryFindExplicitAnchorMarkerPair doc, beginMarker, endMarker, beginMarkerRange, endMarkerRange
+    End If
+End Sub
+
+Private Function mp_IsOnlySingleLineBreakBetweenAnchors(ByVal betweenText As String) As Boolean
+    betweenText = Replace$(betweenText, vbTab, vbNullString)
+    betweenText = Replace$(betweenText, " ", vbNullString)
+    betweenText = Replace$(betweenText, Chr$(160), vbNullString)
+    betweenText = Replace$(betweenText, vbLf, vbNullString)
+
+    mp_IsOnlySingleLineBreakBetweenAnchors = (StrComp(betweenText, vbCr, vbBinaryCompare) = 0)
+End Function
+
+Private Function mp_RangeHasMeaningfulText(ByVal sourceRange As Object) As Boolean
+    Dim textValue As String
+
+    If sourceRange Is Nothing Then Exit Function
+
+    textValue = CStr(sourceRange.Text)
+    textValue = Replace$(textValue, vbCr, vbNullString)
+    textValue = Replace$(textValue, vbLf, vbNullString)
+    textValue = Replace$(textValue, vbTab, vbNullString)
+    textValue = Replace$(textValue, Chr$(160), vbNullString)
+    textValue = Replace$(textValue, " ", vbNullString)
+
+    mp_RangeHasMeaningfulText = (Len(textValue) > 0)
+End Function
+
+Private Function mp_GetDocumentCharAt(ByVal doc As Object, ByVal charPos As Long) As String
+    Dim docEnd As Long
+    Dim charRange As Object
+
+    If doc Is Nothing Then Exit Function
+    If charPos < 0 Then Exit Function
+
+    On Error GoTo CleanFail
+    docEnd = CLng(doc.Content.End)
+    If charPos >= docEnd Then Exit Function
+
+    Set charRange = doc.Range(charPos, charPos + 1)
+    mp_GetDocumentCharAt = CStr(charRange.Text)
+    Exit Function
+
+CleanFail:
+    mp_GetDocumentCharAt = vbNullString
 End Function
 
 Private Function mp_NormalizePlaceholderToken(ByVal tokenText As String) As String
@@ -765,6 +991,220 @@ Private Sub mp_UpsertBookmarkByName(ByVal doc As Object, ByVal bookmarkName As S
     doc.Bookmarks.Add bookmarkName, targetRange
     On Error GoTo 0
 End Sub
+
+Private Sub mp_UpsertRecordKeyBookmarks(ByVal doc As Object, ByVal recordKeySet As Object)
+    Dim markerRange As Object
+    Dim recordKey As Variant
+    Dim bookmarkName As String
+
+    If doc Is Nothing Then Exit Sub
+    If recordKeySet Is Nothing Then Exit Sub
+    If recordKeySet.Count = 0 Then Exit Sub
+
+    Set markerRange = doc.Content.Duplicate
+    markerRange.Collapse WD_COLLAPSE_END
+
+    For Each recordKey In recordKeySet.Keys
+        bookmarkName = mp_BuildRecordBookmarkName(CStr(recordKey))
+        If Len(bookmarkName) > 0 Then
+            mp_UpsertBookmarkByName doc, bookmarkName, markerRange
+        End If
+    Next recordKey
+End Sub
+
+Private Function mp_BuildRecordBookmarkName(ByVal recordKey As String) As String
+    Dim normalizedRecordKey As String
+    Dim hashA As String
+    Dim hashB As String
+
+    normalizedRecordKey = mp_NormalizeRecordKey(recordKey)
+    If Len(normalizedRecordKey) = 0 Then Exit Function
+
+    hashA = mp_ComputeTextHashHex(normalizedRecordKey)
+    hashB = mp_ComputeTextHashHex("record|" & normalizedRecordKey)
+    mp_BuildRecordBookmarkName = EXPORT_BOOKMARK_RECORD_PREFIX & hashA & hashB
+End Function
+
+Private Function mp_RemoveExportAnchorMarkersFromDocumentPath(ByVal documentPath As String) As Long
+    Dim wdApp As Object
+    Dim wdDoc As Object
+    Dim previousScreenUpdating As Boolean
+
+    On Error GoTo EH
+
+    Set wdApp = mp_GetOrCreateWordApp()
+    On Error Resume Next
+    previousScreenUpdating = CBool(wdApp.ScreenUpdating)
+    wdApp.ScreenUpdating = False
+    On Error GoTo EH
+
+    Set wdDoc = wdApp.Documents.Open(documentPath, False, False)
+    mp_RemoveExportAnchorMarkersFromDocumentPath = mp_RemoveExportAnchorMarkersFromDocument(wdDoc)
+    wdDoc.Save
+
+    On Error Resume Next
+    wdDoc.Close False
+    wdApp.ScreenUpdating = previousScreenUpdating
+    On Error GoTo 0
+    Exit Function
+
+EH:
+    On Error Resume Next
+    If Not wdDoc Is Nothing Then wdDoc.Close False
+    If Not wdApp Is Nothing Then wdApp.ScreenUpdating = previousScreenUpdating
+    On Error GoTo 0
+    Err.Raise vbObjectError + 1791, "ex_WordPlaceholderReports", _
+        "Failed to cleanup export anchor markers in document '" & documentPath & "': " & Err.Description
+End Function
+
+Private Function mp_RemoveExportAnchorMarkersFromDocument(ByVal doc As Object) As Long
+    Dim mainRange As Object
+
+    If doc Is Nothing Then Exit Function
+
+    ' Export anchors are generated in the main document body.
+    Set mainRange = doc.Content
+    mp_RemoveExportAnchorMarkersFromDocument = mp_RemoveExportAnchorMarkersInRange(doc, mainRange)
+End Function
+
+Private Function mp_RemoveExportAnchorMarkersInRange(ByVal doc As Object, ByVal sourceRange As Object) As Long
+    Dim sourceText As String
+    Dim prefixText As String
+    Dim scanPos As Long
+    Dim markerEndPos As Long
+    Dim tokenText As String
+    Dim tokenRemoveStartPos As Long
+    Dim tokenRemoveEndPos As Long
+    Dim markerCount As Long
+    Dim mergedCount As Long
+    Dim deleteStart() As Long
+    Dim deleteEnd() As Long
+    Dim i As Long
+    Dim baseStartPos As Long
+    Dim absDeleteStart As Long
+    Dim absDeleteEnd As Long
+
+    If doc Is Nothing Then Exit Function
+    If sourceRange Is Nothing Then Exit Function
+
+    sourceText = CStr(sourceRange.Text)
+    If Len(sourceText) = 0 Then Exit Function
+
+    prefixText = EXPORT_ANCHOR_MARKER_PREFIX
+    scanPos = InStr(1, sourceText, prefixText, vbTextCompare)
+    Do While scanPos > 0
+        markerEndPos = InStr(scanPos + Len(prefixText), sourceText, "}", vbBinaryCompare)
+        If markerEndPos <= 0 Then Exit Do
+
+        tokenText = Mid$(sourceText, scanPos, markerEndPos - scanPos + 1)
+        If mp_IsExplicitExportMarkerToken(tokenText) Then
+            tokenRemoveStartPos = scanPos
+            tokenRemoveEndPos = markerEndPos
+
+            Do While tokenRemoveEndPos < Len(sourceText)
+                If StrComp(Mid$(sourceText, tokenRemoveEndPos + 1, 1), "}", vbBinaryCompare) <> 0 Then Exit Do
+                tokenRemoveEndPos = tokenRemoveEndPos + 1
+            Loop
+
+            ' Remove the marker line itself: marker token + trailing line break (if present).
+            If tokenRemoveEndPos < Len(sourceText) Then
+                If StrComp(Mid$(sourceText, tokenRemoveEndPos + 1, 1), vbCr, vbBinaryCompare) = 0 Then
+                    tokenRemoveEndPos = tokenRemoveEndPos + 1
+                End If
+            End If
+
+            markerCount = markerCount + 1
+            mp_AddDeleteInterval deleteStart, deleteEnd, mergedCount, tokenRemoveStartPos, tokenRemoveEndPos
+        End If
+
+        scanPos = InStr(markerEndPos + 1, sourceText, prefixText, vbTextCompare)
+    Loop
+
+    If markerCount <= 0 Then Exit Function
+    If mergedCount <= 0 Then Exit Function
+
+    mp_MergeDeleteIntervals deleteStart, deleteEnd, mergedCount
+    baseStartPos = CLng(sourceRange.Start)
+    For i = mergedCount To 1 Step -1
+        absDeleteStart = baseStartPos + deleteStart(i) - 1
+        absDeleteEnd = baseStartPos + deleteEnd(i)
+
+        Do While StrComp(mp_GetDocumentCharAt(doc, absDeleteEnd), "}", vbBinaryCompare) = 0
+            absDeleteEnd = absDeleteEnd + 1
+        Loop
+
+        doc.Range(absDeleteStart, absDeleteEnd).Text = vbNullString
+    Next i
+
+    mp_RemoveExportAnchorMarkersInRange = markerCount
+End Function
+
+Private Sub mp_AddDeleteInterval( _
+    ByRef deleteStart() As Long, _
+    ByRef deleteEnd() As Long, _
+    ByRef intervalCount As Long, _
+    ByVal startPos As Long, _
+    ByVal endPos As Long _
+)
+    If endPos < startPos Then Exit Sub
+
+    intervalCount = intervalCount + 1
+    If intervalCount = 1 Then
+        ReDim deleteStart(1 To 1)
+        ReDim deleteEnd(1 To 1)
+    Else
+        ReDim Preserve deleteStart(1 To intervalCount)
+        ReDim Preserve deleteEnd(1 To intervalCount)
+    End If
+
+    deleteStart(intervalCount) = startPos
+    deleteEnd(intervalCount) = endPos
+End Sub
+
+Private Sub mp_MergeDeleteIntervals( _
+    ByRef deleteStart() As Long, _
+    ByRef deleteEnd() As Long, _
+    ByRef intervalCount As Long _
+)
+    Dim i As Long
+    Dim writePos As Long
+
+    If intervalCount <= 1 Then Exit Sub
+
+    writePos = 1
+    For i = 2 To intervalCount
+        If deleteStart(i) <= deleteEnd(writePos) + 1 Then
+            If deleteEnd(i) > deleteEnd(writePos) Then
+                deleteEnd(writePos) = deleteEnd(i)
+            End If
+        Else
+            writePos = writePos + 1
+            deleteStart(writePos) = deleteStart(i)
+            deleteEnd(writePos) = deleteEnd(i)
+        End If
+    Next i
+
+    intervalCount = writePos
+    ReDim Preserve deleteStart(1 To intervalCount)
+    ReDim Preserve deleteEnd(1 To intervalCount)
+End Sub
+
+Private Function mp_IsExplicitExportMarkerToken(ByVal candidateToken As String) As Boolean
+    Dim tokenLower As String
+
+    candidateToken = Trim$(candidateToken)
+    If Len(candidateToken) = 0 Then Exit Function
+
+    tokenLower = LCase$(candidateToken)
+    If Left$(tokenLower, Len(LCase$(EXPORT_ANCHOR_MARKER_PREFIX))) <> LCase$(EXPORT_ANCHOR_MARKER_PREFIX) Then Exit Function
+    If Right$(tokenLower, Len(LCase$(EXPORT_ANCHOR_MARKER_BEGIN_SUFFIX))) = LCase$(EXPORT_ANCHOR_MARKER_BEGIN_SUFFIX) Then
+        mp_IsExplicitExportMarkerToken = True
+        Exit Function
+    End If
+    If Right$(tokenLower, Len(LCase$(EXPORT_ANCHOR_MARKER_END_SUFFIX))) = LCase$(EXPORT_ANCHOR_MARKER_END_SUFFIX) Then
+        mp_IsExplicitExportMarkerToken = True
+    End If
+End Function
 
 Private Function mp_TryGetAnchorBookmarkRange(ByVal doc As Object, ByVal token As String, ByRef outRange As Object) As Boolean
     Dim topRange As Object
@@ -1035,6 +1475,25 @@ End Function
 
 Private Function mp_FileExists(ByVal filePath As String) As Boolean
     mp_FileExists = Len(Dir$(filePath, vbNormal)) > 0
+End Function
+
+Private Function mp_IsFileLocked(ByVal filePath As String) As Boolean
+    Dim fileHandle As Integer
+
+    If Len(Trim$(filePath)) = 0 Then Exit Function
+    If Not mp_FileExists(filePath) Then Exit Function
+
+    On Error GoTo Locked
+    fileHandle = FreeFile
+    Open filePath For Binary Access Read Write Lock Read Write As #fileHandle
+    Close #fileHandle
+    Exit Function
+
+Locked:
+    mp_IsFileLocked = True
+    On Error Resume Next
+    If fileHandle > 0 Then Close #fileHandle
+    On Error GoTo 0
 End Function
 
 Private Function mp_GetOrCreateWordApp() As Object
