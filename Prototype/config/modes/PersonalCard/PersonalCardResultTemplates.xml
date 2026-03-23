@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resultTemplates xmlns="urn:excelprototype:profiles" version="1">
-  <!-- Template note:
+  <!-- NOTE:
        In conditions like {#if InNumFull}...{#endif} a placeholder is treated as empty
        if it is empty ("") or equals "-" / "?". -->
   <template id="FromHospital">
