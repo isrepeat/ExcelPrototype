@@ -144,6 +144,22 @@
 #_    ]]>
     </text>
   </template>
+  <template id="ToMedicalCompanyForTreatment">
+    <text>
+      <![CDATA[#^
+#_      До медичної роти військової частини А7383, з {DATE|dateformat:"\dd \month"} 2026 року:
+
+#_      {Rank|accusative} {FIO|accusative}, {Position|accusative|lowerFirstLetter}.
+#_      {#if IsAssignToDuty}#^
+#_      Тимчасове виконання обов'язків за посадою {Position|accusative|lowerFirstLetter} покласти на #^
+#_      {AssignToDutyRank|accusative|lowerFirstLetter} {AssignToDutyFIO|accusative}, {AssignToDutyPosition|accusative|lowerFirstLetter}.
+#_      {#endif}#^
+
+#_      Підстава: рапорт {RaportTvo} {RaportFrom} (вх. № {InNumFull} від {InDate})#^
+#_      .#^
+#_    ]]>
+    </text>
+  </template>
   <template id="ToAnnualMainVacation">
     <text>
       <![CDATA[#^
