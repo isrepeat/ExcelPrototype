@@ -682,6 +682,13 @@ End Function
 Private Function mp_ShouldKeepWordUnchangedByContext(ByVal lowPrevCore As String, ByVal lowCore As String, ByVal targetCase As String) As Boolean
     If Len(lowCore) = 0 Then Exit Function
 
+    ' Do not re-inflect likely instrumental forms when context already governs instrumental.
+    ' Example: "забезпечення продовольством" must keep "продовольством" unchanged.
+    If mp_IsLikelyInstrumentalGovernanceContext(lowPrevCore) And mp_IsLikelyInstrumentalForm(lowCore) Then
+        mp_ShouldKeepWordUnchangedByContext = True
+        Exit Function
+    End If
+
     If targetCase = CASE_ACCUSATIVE Then
         If mp_IsLikelyAlreadyAccusative(lowCore) Or mp_IsLikelyAlreadyGenitive(lowCore) Then
             mp_ShouldKeepWordUnchangedByContext = True
@@ -703,6 +710,37 @@ Private Function mp_ShouldKeepWordUnchangedByContext(ByVal lowPrevCore As String
         If mp_HasConsonantClusterEnding(lowCore) Or mp_IsLikelyMasculineGenitiveOnA(lowCore) Then
             mp_ShouldKeepWordUnchangedByContext = True
         End If
+    End If
+End Function
+
+Private Function mp_IsLikelyInstrumentalGovernanceContext(ByVal lowWord As String) As Boolean
+    If Len(lowWord) = 0 Then Exit Function
+
+    Select Case lowWord
+        Case "з", "із", "зі", "перед", "над", "під", "між", "за"
+            mp_IsLikelyInstrumentalGovernanceContext = True
+            Exit Function
+    End Select
+
+    If mp_EndsWith(lowWord, "ення") Or mp_EndsWith(lowWord, "єння") Or mp_EndsWith(lowWord, "іння") Or _
+       mp_EndsWith(lowWord, "ання") Or mp_EndsWith(lowWord, "ття") Or mp_EndsWith(lowWord, "лля") Then
+        mp_IsLikelyInstrumentalGovernanceContext = True
+        Exit Function
+    End If
+
+    If mp_EndsWith(lowWord, "им") Or mp_EndsWith(lowWord, "ім") Then
+        mp_IsLikelyInstrumentalGovernanceContext = True
+    End If
+End Function
+
+Private Function mp_IsLikelyInstrumentalForm(ByVal lowWord As String) As Boolean
+    If Len(lowWord) < 4 Then Exit Function
+
+    If mp_EndsWith(lowWord, "ом") Or mp_EndsWith(lowWord, "ем") Or _
+       mp_EndsWith(lowWord, "ою") Or mp_EndsWith(lowWord, "ею") Or mp_EndsWith(lowWord, "єю") Or _
+       mp_EndsWith(lowWord, "ами") Or mp_EndsWith(lowWord, "ями") Or mp_EndsWith(lowWord, "ьми") Or _
+       mp_EndsWith(lowWord, "им") Or mp_EndsWith(lowWord, "ім") Then
+        mp_IsLikelyInstrumentalForm = True
     End If
 End Function
 
@@ -1945,6 +1983,12 @@ Private Function mp_InflectPatronymicPartToDative(ByVal originalPart As String, 
 End Function
 
 Private Function mp_IsIndeclinableSurname(ByVal lowSurname As String, ByVal gender As String) As Boolean
+    ' Surnames like "КАНІВСЬКИХ" are indeclinable in Ukrainian for both genders.
+    If mp_EndsWith(lowSurname, "их") Or mp_EndsWith(lowSurname, "їх") Or mp_EndsWith(lowSurname, "ых") Then
+        mp_IsIndeclinableSurname = True
+        Exit Function
+    End If
+
     If gender = "female" Then
         If mp_EndsWith(lowSurname, "енко") Or mp_EndsWith(lowSurname, "ко") Then
             mp_IsIndeclinableSurname = True

@@ -359,6 +359,7 @@ for (let row in Daily.Sheet[DailyEvents].rows) {
 		if (sectionType == "13") { rowTemplateAnchor = "MoveFromVacationForCuringToHospital"; }
 		if (sectionType == "14") { rowTemplateAnchor = "MoveFromVacationForCuringToVlk"; }
 		if (sectionType == "15") { rowTemplateAnchor = "MoveFromVlkToVacationForCuring"; }
+		if (sectionType == "21") { rowTemplateAnchor = "ToMedicalCompanyForTreatment"; }
 
 		if (sectionType != "" && rowTemplateAnchor == "") {
 			callMacro("ex_PostProcessActions.m_ShowLogicError", "Unsupported SectionType for export mapping: {sectionType}");
@@ -624,6 +625,19 @@ for (let row in Daily.Sheet[DailyEvents].rows) {
 			txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "DocDate", "{fullDocDate}", "#66CCFF");
 		}
 
+		if (sectionType == "21") {
+			txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "Rank", "{row.column[Rank]}", "#66CCFF");
+			txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "FIO", "{row.column[FIO]}", "#66CCFF");
+			txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "Position", "{row.column[Position]}", "#66CCFF");
+			txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "IsAssignToDuty", "{isAssignToDuty}", "#66CCFF");
+			txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "AssignToDutyRank", "{assignToDutyRank}", "#66CCFF");
+			txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "AssignToDutyFIO", "{assignToDutyFIO}", "#66CCFF");
+			txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "AssignToDutyPosition", "{assignToDutyPosition}", "#66CCFF");
+			txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "RaportFrom", "{row.column[RaportFrom]}", "#66CCFF");
+			txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "InNumFull", "{inNumFull}", "#66CCFF");
+			txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "InDate", "{fullInDate}", "#66CCFF");
+		}
+
 		if (sectionType == "7" || sectionType == "8") {
 			txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "Rank", "{row.column[Rank]}", "#66CCFF");
 			txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "FIO", "{row.column[FIO]}", "#66CCFF");
@@ -777,15 +791,6 @@ for (let row in Daily.Sheet[DailyEvents].rows) {
 
 		txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "DocNote", "{row.column[DocNote]}", "#66CCFF");
 		txt = callMacro("ex_ResultTemplatesParser.m_ResolveTemplate", txt, "", "#66CCFF");
-		// let hasTemplateError = callMacro("ex_Helpers.m_RegexFirstMatch", txt, "^\\[TEMPLATE ERROR\\]");
-		// if (hasTemplateError != "") {
-		// 	let templateErrorLine = callMacro("ex_Helpers.m_RegexFirstMatch", txt, "^\\[TEMPLATE ERROR\\][^\\r\\n]*");
-		// 	let templateErrorBanner = "Template resolve failed: SectionType={sectionType}, Template={rowTemplateAnchor}, FIO={row.column[FIO]}. " + templateErrorLine;
-		// 	callMacro("ex_PostProcessActions.m_ShowBannerBeforeRowIndex", "TYPE_ERROR", "Template resolve error", templateErrorBanner, ownerRowIndex, 0, 0);
-		// 	let templateErrorLogText = "[POST][PC] " + templateErrorBanner;
-		// 	callMacro("ex_Messaging.m_LogToFile", templateErrorLogText, logPath);
-		// 	return;
-		// }
 		
 		let txtForWord = callMacro("ex_ResultTemplatesParser.m_RemoveHighlightMarkers", txt);
 		let exportAnchorRuntimeKey = exportRuntimeWordAnchorPrefix + rowTemplateAnchor;
