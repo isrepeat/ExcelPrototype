@@ -6,7 +6,7 @@
   <template id="FromHospital">
     <text>
       <![CDATA[#^
-#_      З {Hospital}, з {DATE|dateformat:"\dd \month"} 2026 року:
+#_      З {Hospital}, з {#if OutDate}{OutDate|dateformat:"\dd \month"}{#endif}{#if #not OutDate}{DATE|dateformat:"\dd \month"}{#endif} 2026 року:
 
 #_      {Rank|accusative} {FIO|accusative}, {Position|accusative|lowerFirstLetter}.
 #_      {#if IsReturnToDuty}#^
@@ -14,7 +14,7 @@
 #_      {ReturnToDutyFIO|dative} #^
 #_      повернутись до виконання обов'язків {ReturnToDutyPosition|accusative|lowerFirstLetter}.
 #_      {#endif}#^
-#_      Зарахувати на котлове забезпечення з {DATE|dateformat:"\dd"}{+1} {DATE|dateformat:"\month"} 2026 року.
+#_      Зарахувати на котлове забезпечення з {#if OutDate}{OutDate|dateformat:"\dd"}{+1} {OutDate|dateformat:"\month"}{#endif}{#if #not OutDate}{DATE|dateformat:"\dd"}{+1} {DATE|dateformat:"\month"}{#endif} 2026 року.
 
 #_      {
           #let IsRaportFromSelf = $ex_Helpers.m_RegexFirstMatch("{RaportFrom}", "^\s*[Сс][Аа][Мм]\s*$");
@@ -28,8 +28,8 @@
             |regexreplace:"^[ \t\r\n]*([\s\S]*?)[ \t\r\n]*$","$1"
             |regexreplace:"^м/к$","виписка із медичної карти стаціонарного хворого"
         } {#if DocNum}№ {DocNum}{#endif}{#if DocDate} від {DocDate}{#endif}#^
-#_      .#^
 #_      {#endif}#^
+#_      .#^
 #_    ]]>
    </text>
   </template>
@@ -108,6 +108,12 @@
           #let IsRaportFromSelf = $ex_Helpers.m_RegexFirstMatch("{RaportFrom}", "^\s*[Сс][Аа][Мм]\s*$");
         }#^
 #_      Підстава: рапорт {#if IsRaportFromSelf}{Rank|accusative|lowerFirstLetter} {FIO|genitive|fioSurname|capitalize} {FIO|fioInitials}{#endif}{#if #not IsRaportFromSelf}{RaportTvo} {RaportFrom}{#endif} (вх. № {InNumFull} від {InDate})#^
+#_      {#if DocNum #or DocDate}#^
+#_      , {DocNote
+            |regexreplace:"^[ \t\r\n]*([\s\S]*?)[ \t\r\n]*$","$1"
+            |regexreplace:"^м/к$","виписка із медичної карти стаціонарного хворого"
+        } {#if DocNum}№ {DocNum}{#endif}{#if DocDate} від {DocDate}{#endif}#^
+#_      {#endif}#^
 #_      .#^
 #_    ]]>
     </text>
@@ -131,14 +137,14 @@
   <template id="ToHospital">
     <text>
       <![CDATA[#^
-#_      До {Hospital}, з {DATE|dateformat:"\dd \month"} 2026 року:
+#_      До {Hospital}, з {#if OutDate}{OutDate|dateformat:"\dd \month"}{#endif}{#if #not OutDate}{DATE|dateformat:"\dd \month"}{#endif} 2026 року:
 
 #_      {Rank|accusative} {FIO|accusative}, {Position|accusative|lowerFirstLetter}.
 #_      {#if IsAssignToDuty}#^
 #_      Тимчасове виконання обов'язків за посадою {Position|accusative|lowerFirstLetter} покласти на #^
 #_      {AssignToDutyRank|accusative|lowerFirstLetter} {AssignToDutyFIO|accusative}, {AssignToDutyPosition|accusative|lowerFirstLetter}.
 #_      {#endif}#^
-#_      Зняти з котлового забезпечення з {DATE|dateformat:"\dd"} {DATE|dateformat:"\month"} 2026 року.
+#_      Зняти з котлового забезпечення з {#if OutDate}{OutDate|dateformat:"\dd"} {OutDate|dateformat:"\month"}{#endif}{#if #not OutDate}{DATE|dateformat:"\dd"} {DATE|dateformat:"\month"}{#endif} 2026 року.
 #_      {
           #let HasFoodAttestatLine = $ex_Helpers.m_RegexFirstMatch("{Hospital}", "центру\s+[Пп]івнічного\s+регіону|центру\s+[Зз]ахідного\s+регіону");
         }#^
@@ -158,8 +164,8 @@
             |regexreplace:"^[ \t\r\n]*([\s\S]*?)[ \t\r\n]*$","$1"
             |regexreplace:"^м/к$","медична карта стаціонарного хворого"
         } {#if DocNum}№ {DocNum}{#endif}{#if DocDate} від {DocDate}{#endif}#^
-#_      .#^
 #_      {#endif}#^
+#_      .#^
 #_    ]]>
     </text>
   </template>
