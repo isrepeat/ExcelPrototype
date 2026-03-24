@@ -615,7 +615,9 @@ End Sub
 
 Public Sub m_ResetResultPageSessionState()
     mp_ResetAdoLookupCaches
-    ex_ScriptDSL.m_ResetScriptCache
+    ' Keep compiled/validated DSL caches between result-page resets.
+    ' Cache keys include script text/signature, so this is safe and avoids
+    ' recompilation/validation overhead on repeated searches.
     Set g_LastPostProcessCfg = Nothing
     Set g_LastPostProcessTables = Nothing
     Set g_LastPostProcessInput = Nothing

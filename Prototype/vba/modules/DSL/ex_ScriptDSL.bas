@@ -38,6 +38,7 @@ Private Const EXEC_FLOW_RETURN As String = "return"
 
 Private g_ParsedBlocksByScriptCacheKey As Object
 Private g_ValidationCacheBySignatureKey As Object
+Private g_ParseHasTripleBackticks As Boolean
 
 Public Sub m_ResetScriptCache()
     Set g_ParsedBlocksByScriptCacheKey = Nothing
@@ -427,12 +428,26 @@ Private Function mp_ParseScript(ByVal scriptText As String, ByRef outBlocks As C
     Dim sourceText As String
     Dim pos As Long
     Dim lineNo As Long
+    Dim prevParseHasTripleBackticks As Boolean
+
+    On Error GoTo EH
 
     sourceText = ex_ScriptDslParser.m_NormalizeScript(scriptText)
+    prevParseHasTripleBackticks = g_ParseHasTripleBackticks
+    g_ParseHasTripleBackticks = (InStr(1, sourceText, "```", vbBinaryCompare) > 0)
     pos = 1
     lineNo = 1
-    If Not mp_ParseStatements(sourceText, pos, lineNo, outBlocks, False, outErrorText) Then Exit Function
+    If Not mp_ParseStatements(sourceText, pos, lineNo, outBlocks, False, outErrorText) Then
+        g_ParseHasTripleBackticks = prevParseHasTripleBackticks
+        Exit Function
+    End If
+    g_ParseHasTripleBackticks = prevParseHasTripleBackticks
     mp_ParseScript = True
+    Exit Function
+
+EH:
+    g_ParseHasTripleBackticks = prevParseHasTripleBackticks
+    Err.Raise Err.Number, Err.Source, Err.Description
 End Function
 
 Private Function mp_ValidateBlocks( _
@@ -1837,6 +1852,8 @@ Private Function mp_ReadBalanced( _
     Dim i As Long
     Dim ch As String
     Dim inQuotes As Boolean
+    Dim inTripleLiteral As Boolean
+    Dim nextTriplePos As Long
 
     mp_SkipWhitespace sourceText, pos, lineNo
     If pos > Len(sourceText) Or Mid$(sourceText, pos, 1) <> openChar Then Exit Function
@@ -1844,26 +1861,42 @@ Private Function mp_ReadBalanced( _
     startPos = pos + 1
     depth = 1
     i = pos + 1
+    If g_ParseHasTripleBackticks Then
+        nextTriplePos = InStr(i, sourceText, "```", vbBinaryCompare)
+    Else
+        nextTriplePos = 0
+    End If
     Do While i <= Len(sourceText)
         ch = Mid$(sourceText, i, 1)
+
+        If nextTriplePos > 0 And i = nextTriplePos And (inTripleLiteral Or Not inQuotes) Then
+            inTripleLiteral = Not inTripleLiteral
+            nextTriplePos = InStr(i + 3, sourceText, "```", vbBinaryCompare)
+            i = i + 3
+            GoTo ContinueLoop
+        End If
+
         If ch = vbLf Then lineNo = lineNo + 1
 
-        If ch = """" And Not mp_IsEscapedQuote(sourceText, i) Then
-            inQuotes = Not inQuotes
-        ElseIf Not inQuotes Then
-            If ch = openChar Then
-                depth = depth + 1
-            ElseIf ch = closeChar Then
-                depth = depth - 1
-                If depth = 0 Then
-                    outInnerText = Mid$(sourceText, startPos, i - startPos)
-                    pos = i + 1
-                    mp_ReadBalanced = True
-                    Exit Function
+        If Not inTripleLiteral Then
+            If ch = """" And Not mp_IsEscapedQuote(sourceText, i) Then
+                inQuotes = Not inQuotes
+            ElseIf Not inQuotes Then
+                If ch = openChar Then
+                    depth = depth + 1
+                ElseIf ch = closeChar Then
+                    depth = depth - 1
+                    If depth = 0 Then
+                        outInnerText = Mid$(sourceText, startPos, i - startPos)
+                        pos = i + 1
+                        mp_ReadBalanced = True
+                        Exit Function
+                    End If
                 End If
             End If
         End If
         i = i + 1
+ContinueLoop:
     Loop
 
     outErrorText = "Missing '" & closeChar & "' for expression started at line " & CStr(lineNo)
@@ -1881,37 +1914,60 @@ Private Function mp_ReadStatementToSemicolon( _
     Dim ch As String
     Dim inQuotes As Boolean
     Dim depth As Long
+    Dim inTripleLiteral As Boolean
+    Dim nextTriplePos As Long
 
     mp_SkipWhitespace sourceText, pos, lineNo
     If pos > Len(sourceText) Then Exit Function
 
     startPos = pos
     i = pos
+    If g_ParseHasTripleBackticks Then
+        nextTriplePos = InStr(i, sourceText, "```", vbBinaryCompare)
+    Else
+        nextTriplePos = 0
+    End If
     Do While i <= Len(sourceText)
         ch = Mid$(sourceText, i, 1)
+
+        If nextTriplePos > 0 And i = nextTriplePos And (inTripleLiteral Or Not inQuotes) Then
+            inTripleLiteral = Not inTripleLiteral
+            nextTriplePos = InStr(i + 3, sourceText, "```", vbBinaryCompare)
+            i = i + 3
+            GoTo ContinueLoop
+        End If
+
         If ch = vbLf Then lineNo = lineNo + 1
 
-        If ch = """" And Not mp_IsEscapedQuote(sourceText, i) Then
-            inQuotes = Not inQuotes
-        ElseIf Not inQuotes Then
-            If ch = "(" Then
-                depth = depth + 1
-            ElseIf ch = ")" Then
-                depth = depth - 1
-                If depth < 0 Then
-                    outErrorText = "Unexpected ')' at line " & CStr(lineNo)
+        If Not inTripleLiteral Then
+            If ch = """" And Not mp_IsEscapedQuote(sourceText, i) Then
+                inQuotes = Not inQuotes
+            ElseIf Not inQuotes Then
+                If ch = "(" Then
+                    depth = depth + 1
+                ElseIf ch = ")" Then
+                    depth = depth - 1
+                    If depth < 0 Then
+                        outErrorText = "Unexpected ')' at line " & CStr(lineNo)
+                        Exit Function
+                    End If
+                ElseIf ch = ";" And depth = 0 Then
+                    outStatementText = Trim$(Mid$(sourceText, startPos, i - startPos + 1))
+                    pos = i + 1
+                    mp_ReadStatementToSemicolon = True
                     Exit Function
                 End If
-            ElseIf ch = ";" And depth = 0 Then
-                outStatementText = Trim$(Mid$(sourceText, startPos, i - startPos + 1))
-                pos = i + 1
-                mp_ReadStatementToSemicolon = True
-                Exit Function
             End If
         End If
 
         i = i + 1
+ContinueLoop:
     Loop
+
+    If inTripleLiteral Then
+        outErrorText = "Unterminated triple-backtick string literal (```...```) near line " & CStr(lineNo)
+        Exit Function
+    End If
 
     outErrorText = "Missing ';' at end of statement near line " & CStr(lineNo)
 End Function
@@ -2325,7 +2381,16 @@ End Function
 
 Private Function mp_TryParseQuotedString(ByVal valueText As String, ByRef outValue As String) As Boolean
     Dim rawInner As String
-    valueText = Trim$(valueText)
+    valueText = mp_TrimOuterWhitespace(valueText)
+
+    If Len(valueText) >= 6 Then
+        If Left$(valueText, 3) = "```" And Right$(valueText, 3) = "```" Then
+            outValue = Mid$(valueText, 4, Len(valueText) - 6)
+            mp_TryParseQuotedString = True
+            Exit Function
+        End If
+    End If
+
     If Len(valueText) < 2 Then Exit Function
     If Left$(valueText, 1) <> """" Then Exit Function
     If Right$(valueText, 1) <> """" Then Exit Function
@@ -2333,6 +2398,19 @@ Private Function mp_TryParseQuotedString(ByVal valueText As String, ByRef outVal
     rawInner = Mid$(valueText, 2, Len(valueText) - 2)
     outValue = mp_DecodeEscapes(rawInner)
     mp_TryParseQuotedString = True
+End Function
+
+Private Function mp_TryParseDoubleQuotedString(ByVal valueText As String, ByRef outValue As String) As Boolean
+    Dim rawInner As String
+
+    valueText = mp_TrimOuterWhitespace(valueText)
+    If Len(valueText) < 2 Then Exit Function
+    If Left$(valueText, 1) <> """" Then Exit Function
+    If Right$(valueText, 1) <> """" Then Exit Function
+
+    rawInner = Mid$(valueText, 2, Len(valueText) - 2)
+    outValue = mp_DecodeEscapes(rawInner)
+    mp_TryParseDoubleQuotedString = True
 End Function
 
 Private Function mp_DecodeEscapes(ByVal textValue As String) As String
@@ -2429,6 +2507,7 @@ Private Function mp_NormalizeScript(ByVal scriptText As String) As String
     Dim rawLine As String
     Dim cleaned As String
     Dim normalized As String
+    Dim inTripleLiteral As Boolean
 
     scriptText = Replace(scriptText, vbCrLf, vbLf)
     scriptText = Replace(scriptText, vbCr, vbLf)
@@ -2439,7 +2518,7 @@ Private Function mp_NormalizeScript(ByVal scriptText As String) As String
         rawLine = CStr(lines(i))
         rawLine = Replace(rawLine, vbTab, " ")
         rawLine = Replace(rawLine, ChrW$(160), " ")
-        rawLine = mp_StripSingleLineComment(rawLine)
+        rawLine = mp_StripSingleLineComment(rawLine, inTripleLiteral)
         cleaned = Trim$(rawLine)
         If Len(normalized) > 0 Then normalized = normalized & vbLf
         normalized = normalized & cleaned
@@ -2454,10 +2533,18 @@ Private Function mp_StripMultiLineComments(ByVal sourceText As String) As String
     Dim nextCh As String
     Dim inQuotes As Boolean
     Dim inCommentBlock As Boolean
+    Dim inTripleLiteral As Boolean
     Dim result As String
 
     i = 1
     Do While i <= Len(sourceText)
+        If mp_IsTripleBacktickAt(sourceText, i) And (inTripleLiteral Or Not inQuotes) Then
+            inTripleLiteral = Not inTripleLiteral
+            result = result & "```"
+            i = i + 3
+            GoTo ContinueLoop
+        End If
+
         ch = Mid$(sourceText, i, 1)
 
         If inCommentBlock Then
@@ -2475,20 +2562,22 @@ Private Function mp_StripMultiLineComments(ByVal sourceText As String) As String
             GoTo ContinueLoop
         End If
 
-        If ch = """" And Not mp_IsEscapedQuote(sourceText, i) Then
-            inQuotes = Not inQuotes
-            result = result & ch
-            i = i + 1
-            GoTo ContinueLoop
-        End If
-
-        If Not inQuotes And ch = "/" And i < Len(sourceText) Then
-            nextCh = Mid$(sourceText, i + 1, 1)
-            If nextCh = "*" Then
-                inCommentBlock = True
-                result = result & " "
-                i = i + 2
+        If Not inTripleLiteral Then
+            If ch = """" And Not mp_IsEscapedQuote(sourceText, i) Then
+                inQuotes = Not inQuotes
+                result = result & ch
+                i = i + 1
                 GoTo ContinueLoop
+            End If
+
+            If Not inQuotes And ch = "/" And i < Len(sourceText) Then
+                nextCh = Mid$(sourceText, i + 1, 1)
+                If nextCh = "*" Then
+                    inCommentBlock = True
+                    result = result & " "
+                    i = i + 2
+                    GoTo ContinueLoop
+                End If
             End If
         End If
 
@@ -2500,26 +2589,38 @@ ContinueLoop:
     mp_StripMultiLineComments = result
 End Function
 
-Private Function mp_StripSingleLineComment(ByVal lineText As String) As String
+Private Function mp_StripSingleLineComment( _
+    ByVal lineText As String, _
+    ByRef inTripleLiteral As Boolean _
+) As String
     Dim i As Long
     Dim inQuotes As Boolean
     Dim ch As String
     Dim nextCh As String
 
     For i = 1 To Len(lineText)
-        ch = Mid$(lineText, i, 1)
-        If ch = """" And Not mp_IsEscapedQuote(lineText, i) Then
-            inQuotes = Not inQuotes
+        If mp_IsTripleBacktickAt(lineText, i) And (inTripleLiteral Or Not inQuotes) Then
+            inTripleLiteral = Not inTripleLiteral
+            i = i + 2
+            GoTo ContinueLoop
         End If
-        If Not inQuotes And ch = "/" Then
-            If i < Len(lineText) Then
-                nextCh = Mid$(lineText, i + 1, 1)
-                If nextCh = "/" Then
-                    mp_StripSingleLineComment = Left$(lineText, i - 1)
-                    Exit Function
+
+        ch = Mid$(lineText, i, 1)
+        If Not inTripleLiteral Then
+            If ch = """" And Not mp_IsEscapedQuote(lineText, i) Then
+                inQuotes = Not inQuotes
+            End If
+            If Not inQuotes And ch = "/" Then
+                If i < Len(lineText) Then
+                    nextCh = Mid$(lineText, i + 1, 1)
+                    If nextCh = "/" Then
+                        mp_StripSingleLineComment = Left$(lineText, i - 1)
+                        Exit Function
+                    End If
                 End If
             End If
         End If
+ContinueLoop:
     Next i
 
     mp_StripSingleLineComment = lineText
@@ -2580,7 +2681,7 @@ Private Function mp_TryParseCallMacroArgs( _
     Dim partText As String
     Dim argSpec As Object
 
-    argsText = Trim$(argsText)
+    argsText = mp_TrimOuterWhitespace(argsText)
     If Len(argsText) = 0 Then
         outErrorText = "callMacro/callMacroObject requires at least macro name: callMacro(""Module.Proc"", ...)"
         Exit Function
@@ -2592,7 +2693,7 @@ Private Function mp_TryParseCallMacroArgs( _
         Exit Function
     End If
 
-    If Not mp_TryParseQuotedString(CStr(parts(1)), outMacroName) Then
+    If Not mp_TryParseDoubleQuotedString(CStr(parts(1)), outMacroName) Then
         outErrorText = "callMacro/callMacroObject first argument must be quoted macro name."
         Exit Function
     End If
@@ -2604,13 +2705,13 @@ Private Function mp_TryParseCallMacroArgs( _
 
     Set outArgSpecs = New Collection
     For i = 2 To parts.Count
-        partText = Trim$(CStr(parts(i)))
+        partText = mp_TrimOuterWhitespace(CStr(parts(i)))
         If Len(partText) = 0 Then
             outErrorText = "callMacro/callMacroObject argument #" & CStr(i - 1) & " is empty."
             Exit Function
         End If
         If Not mp_TryParseMacroArg(partText, argSpec) Then
-            outErrorText = "Unsupported macro argument '" & partText & "'. Use variable, numeric literal, quoted string, Source.Sheet[Table].row[N], Source.Sheet[Table].lastRow, Source.Sheet[Table].prevRow, or a .column[Field] variant."
+            outErrorText = "Unsupported macro argument '" & partText & "'. Use variable, numeric literal, quoted string, triple-backtick string (```...```), Source.Sheet[Table].row[N], Source.Sheet[Table].lastRow, Source.Sheet[Table].prevRow, or a .column[Field] variant."
             Exit Function
         End If
         outArgSpecs.Add argSpec
@@ -3085,6 +3186,8 @@ Private Function mp_TrySplitAssignmentStatement( _
     Dim inQuotes As Boolean
     Dim depth As Long
     Dim assignPos As Long
+    Dim inTripleLiteral As Boolean
+    Dim nextTriplePos As Long
 
     statementText = Trim$(statementText)
     If Len(statementText) = 0 Then Exit Function
@@ -3096,25 +3199,46 @@ Private Function mp_TrySplitAssignmentStatement( _
     bodyText = Trim$(Left$(statementText, Len(statementText) - 1))
     If Len(bodyText) = 0 Then Exit Function
 
+    If g_ParseHasTripleBackticks Then
+        nextTriplePos = InStr(1, bodyText, "```", vbBinaryCompare)
+    Else
+        nextTriplePos = 0
+    End If
+
     For i = 1 To Len(bodyText)
+        If nextTriplePos > 0 And i = nextTriplePos And (inTripleLiteral Or Not inQuotes) Then
+            inTripleLiteral = Not inTripleLiteral
+            nextTriplePos = InStr(i + 3, bodyText, "```", vbBinaryCompare)
+            i = i + 2
+            GoTo ContinueLoop
+        End If
+
         ch = Mid$(bodyText, i, 1)
-        If ch = """" And Not mp_IsEscapedQuote(bodyText, i) Then
-            inQuotes = Not inQuotes
-        ElseIf Not inQuotes Then
-            If ch = "(" Then
-                depth = depth + 1
-            ElseIf ch = ")" Then
-                If depth > 0 Then depth = depth - 1
-            ElseIf ch = "=" And depth = 0 Then
-                If i < Len(bodyText) And Mid$(bodyText, i + 1, 1) = "=" Then
-                    outErrorText = "Invalid assignment syntax."
-                    Exit Function
+        If Not inTripleLiteral Then
+            If ch = """" And Not mp_IsEscapedQuote(bodyText, i) Then
+                inQuotes = Not inQuotes
+            ElseIf Not inQuotes Then
+                If ch = "(" Then
+                    depth = depth + 1
+                ElseIf ch = ")" Then
+                    If depth > 0 Then depth = depth - 1
+                ElseIf ch = "=" And depth = 0 Then
+                    If i < Len(bodyText) And Mid$(bodyText, i + 1, 1) = "=" Then
+                        outErrorText = "Invalid assignment syntax."
+                        Exit Function
+                    End If
+                    assignPos = i
+                    Exit For
                 End If
-                assignPos = i
-                Exit For
             End If
         End If
+ContinueLoop:
     Next i
+
+    If inTripleLiteral Then
+        outErrorText = "Unterminated triple-backtick string literal (```...```) in assignment statement."
+        Exit Function
+    End If
 
     If assignPos <= 1 Then Exit Function
 
@@ -3134,35 +3258,95 @@ Private Function mp_SplitArgs(ByVal argsText As String, ByRef outParts As Collec
     Dim ch As String
     Dim partText As String
     Dim inQuotes As Boolean
+    Dim inTripleLiteral As Boolean
+    Dim nextTriplePos As Long
 
     Set outParts = New Collection
     partText = vbNullString
+    If g_ParseHasTripleBackticks Then
+        nextTriplePos = InStr(1, argsText, "```", vbBinaryCompare)
+    Else
+        nextTriplePos = 0
+    End If
 
     For i = 1 To Len(argsText)
-        ch = Mid$(argsText, i, 1)
-        If ch = """" And Not mp_IsEscapedQuote(argsText, i) Then
-            inQuotes = Not inQuotes
-            partText = partText & ch
-        ElseIf ch = "," And Not inQuotes Then
-            outParts.Add Trim$(partText)
-            partText = vbNullString
-        Else
-            partText = partText & ch
+        If nextTriplePos > 0 And i = nextTriplePos And (inTripleLiteral Or Not inQuotes) Then
+            inTripleLiteral = Not inTripleLiteral
+            partText = partText & "```"
+            nextTriplePos = InStr(i + 3, argsText, "```", vbBinaryCompare)
+            i = i + 2
+            GoTo ContinueLoop
         End If
+
+        ch = Mid$(argsText, i, 1)
+        If Not inTripleLiteral Then
+            If ch = """" And Not mp_IsEscapedQuote(argsText, i) Then
+                inQuotes = Not inQuotes
+                partText = partText & ch
+                GoTo ContinueLoop
+            End If
+
+            If ch = "," And Not inQuotes Then
+                outParts.Add mp_TrimOuterWhitespace(partText)
+                partText = vbNullString
+                GoTo ContinueLoop
+            End If
+        End If
+
+        partText = partText & ch
+ContinueLoop:
     Next i
 
     If inQuotes Then
         outErrorText = "Unterminated quoted string in callMacro arguments."
         Exit Function
     End If
+    If inTripleLiteral Then
+        outErrorText = "Unterminated triple-backtick string literal (```...```) in callMacro arguments."
+        Exit Function
+    End If
 
-    outParts.Add Trim$(partText)
+    outParts.Add mp_TrimOuterWhitespace(partText)
     mp_SplitArgs = True
 End Function
 
 Private Function mp_IsEscapedQuote(ByVal textValue As String, ByVal pos As Long) As Boolean
     If pos <= 1 Then Exit Function
     mp_IsEscapedQuote = (Mid$(textValue, pos, 1) = """" And Mid$(textValue, pos - 1, 1) = "\")
+End Function
+
+Private Function mp_IsTripleBacktickAt(ByVal textValue As String, ByVal pos As Long) As Boolean
+    If pos < 1 Then Exit Function
+    If pos + 2 > Len(textValue) Then Exit Function
+    mp_IsTripleBacktickAt = (Mid$(textValue, pos, 3) = "```")
+End Function
+
+Private Function mp_TrimOuterWhitespace(ByVal textValue As String) As String
+    Dim startPos As Long
+    Dim endPos As Long
+    Dim ch As String
+
+    textValue = CStr(textValue)
+    startPos = 1
+    endPos = Len(textValue)
+
+    Do While startPos <= endPos
+        ch = Mid$(textValue, startPos, 1)
+        If ch <> " " And ch <> vbTab And ch <> vbCr And ch <> vbLf Then Exit Do
+        startPos = startPos + 1
+    Loop
+
+    Do While endPos >= startPos
+        ch = Mid$(textValue, endPos, 1)
+        If ch <> " " And ch <> vbTab And ch <> vbCr And ch <> vbLf Then Exit Do
+        endPos = endPos - 1
+    Loop
+
+    If endPos < startPos Then
+        mp_TrimOuterWhitespace = vbNullString
+    Else
+        mp_TrimOuterWhitespace = Mid$(textValue, startPos, endPos - startPos + 1)
+    End If
 End Function
 
 Private Function mp_TrimDslWhitespace(ByVal textValue As String) As String

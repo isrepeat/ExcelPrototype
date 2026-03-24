@@ -188,7 +188,10 @@ Public Sub m_OutputPanelStartSearch_OnClick()
         Application.EnableEvents = True
     End If
 
-    ex_ConfigProfilesManager.m_ReapplyActiveProfileIfSourceChanged ws
+    ' Keep UI (Dev table) as the authoritative runtime config during searches.
+    ' Profile XML reapply is intentionally not triggered from output-panel search,
+    ' to avoid overwriting current UI config/state mid-session.
+    ' Profile refresh is handled explicitly by mode/profile change and Update UI.
 
     configKey = "CommonKey"
     If ex_SheetStylesXmlProvider.m_GetOutputSheetStyle(outputStyle, ThisWorkbook) Then
