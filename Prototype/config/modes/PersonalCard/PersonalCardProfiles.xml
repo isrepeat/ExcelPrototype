@@ -213,26 +213,27 @@
 		<v key="Daily.Sheet[DailyEvents].Map[VlkNum]">ВЛК №</v>
 		<v key="Daily.Sheet[DailyEvents].Map[VlkDate]">ВЛК дата</v>
 		<v key="Daily.Sheet[DailyEvents].Map[Type]">Type</v>
-		<v key="Daily.Sheet[DailyEvents].Fetch.Dsl" lockedWithPlaceholder="hidden, edit in .xml">DEFINE $CurrentTable AS Src;
+		<fetchAdditionalData tableRef="Daily.Sheet[DailyEvents]">
+			DEFINE $CurrentTable AS Src;
 
 			/* Контекст, который движок заполняет в SEARCH_* блоках */
-				DEFINE DATABASE Ctx {
-					sectionData: [
-						sectionType,
-						sectionTitle
-					],
-					metaData: [
-						metaVacation,
-						metaRank,
-						metaFio,
-						metaPosition,
-						metaRaportTVO,
-						metaRaportFrom,
-						metaInNum,
-						metaInDate,
-						metaDocNote
-					]
-				};
+			DEFINE DATABASE Ctx {
+				sectionData: [
+					sectionType,
+					sectionTitle
+				],
+				metaData: [
+					metaVacation,
+					metaRank,
+					metaFio,
+					metaPosition,
+					metaRaportTVO,
+					metaRaportFrom,
+					metaInNum,
+					metaInDate,
+					metaDocNote
+				]
+			};
 
 			FIND[Src.FIO == $Key] {
 				// Ищем последний заголовок раздела выше owner-строки
@@ -288,7 +289,8 @@
 						};
 					};
 				}
-			}</v>
+			}
+		</fetchAdditionalData>
 		<v key=""/>
 		<v key="Output.Sheets">StateMain; EventsOut; EventsIn; DailyEvents</v>
 		<v key="Output.Layout.Gap.Default">1</v>

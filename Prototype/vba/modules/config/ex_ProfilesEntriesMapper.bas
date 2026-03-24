@@ -10,7 +10,6 @@ Private Const DEV_CONFIG_VALUE_COL As Long = 3
 Private Const DEV_CONFIG_STYLES_COL As Long = 4
 Private Const DEV_CONFIG_COL_COUNT As Long = 4
 Private Const XML_ATTR_HIDDEN As String = "hidden"
-Private Const XML_ATTR_LOCKED_WITH_PLACEHOLDER As String = "lockedWithPlaceholder"
 Private Const XML_ATTR_MUTABLE As String = "mutable"
 
 Public Sub m_WriteSheetValuesToProfile(ByVal ws As Worksheet, ByVal doc As Object, ByVal profileNode As Object)
@@ -100,20 +99,12 @@ Private Sub mp_UpdateVisibleProfileVNode( _
             Else
                 mp_RemoveNodeAttr vNode, XML_ATTR_MUTABLE
             End If
-
-            If CBool(preservedItem("HasLockedWithPlaceholder")) Then
-                mp_SetOrClearNodeAttr vNode, XML_ATTR_LOCKED_WITH_PLACEHOLDER, CStr(preservedItem("LockedWithPlaceholder"))
-                vNode.Text = CStr(preservedItem("PreservedValue"))
-            Else
-                mp_RemoveNodeAttr vNode, XML_ATTR_LOCKED_WITH_PLACEHOLDER
-                vNode.Text = entryValue
-            End If
+            vNode.Text = entryValue
             Exit Sub
         End If
     End If
 
     mp_RemoveNodeAttr vNode, XML_ATTR_MUTABLE
-    mp_RemoveNodeAttr vNode, XML_ATTR_LOCKED_WITH_PLACEHOLDER
     vNode.Text = entryValue
 End Sub
 
@@ -141,12 +132,7 @@ Private Function mp_CreateVisibleProfileVNode( _
             If CBool(preservedItem("HasMutable")) Then
                 vNode.setAttribute XML_ATTR_MUTABLE, CStr(preservedItem("MutableAttrValue"))
             End If
-            If CBool(preservedItem("HasLockedWithPlaceholder")) Then
-                vNode.setAttribute XML_ATTR_LOCKED_WITH_PLACEHOLDER, CStr(preservedItem("LockedWithPlaceholder"))
-                vNode.Text = CStr(preservedItem("PreservedValue"))
-            Else
-                vNode.Text = CStr(entries(entryIndex, DEV_CONFIG_VALUE_COL))
-            End If
+            vNode.Text = CStr(entries(entryIndex, DEV_CONFIG_VALUE_COL))
         Else
             vNode.Text = CStr(entries(entryIndex, DEV_CONFIG_VALUE_COL))
         End If
@@ -281,7 +267,6 @@ Private Function mp_ReadPreservedByKey(ByVal profileNode As Object) As Object
     Dim nodes As Object
     Dim node As Object
     Dim keyName As String
-    Dim placeholderText As String
     Dim item As Object
 
     Set result = CreateObject("Scripting.Dictionary")
@@ -300,16 +285,12 @@ Private Function mp_ReadPreservedByKey(ByVal profileNode As Object) As Object
 
     For Each node In nodes
         keyName = mp_NodeAttrText(node, "key")
-        placeholderText = mp_NodeAttrText(node, XML_ATTR_LOCKED_WITH_PLACEHOLDER)
         If Len(keyName) = 0 Then GoTo ContinueNode
 
         Set item = CreateObject("Scripting.Dictionary")
         item.CompareMode = 1
-        item("HasLockedWithPlaceholder") = mp_NodeHasAttr(node, XML_ATTR_LOCKED_WITH_PLACEHOLDER)
-        item("LockedWithPlaceholder") = placeholderText
         item("HasMutable") = mp_NodeHasAttr(node, XML_ATTR_MUTABLE)
         item("MutableAttrValue") = mp_NodeAttrText(node, XML_ATTR_MUTABLE)
-        item("PreservedValue") = CStr(node.Text)
         Set result(keyName) = item
 
 ContinueNode:
@@ -344,8 +325,6 @@ Private Function mp_ReadHiddenNodes(ByVal profileNode As Object) As Collection
         item("Key") = mp_NodeAttrText(node, "key")
         item("Value") = CStr(node.Text)
         item("HiddenAttrValue") = mp_NodeAttrText(node, XML_ATTR_HIDDEN)
-        item("HasLockedWithPlaceholder") = mp_NodeHasAttr(node, XML_ATTR_LOCKED_WITH_PLACEHOLDER)
-        item("LockedWithPlaceholder") = mp_NodeAttrText(node, XML_ATTR_LOCKED_WITH_PLACEHOLDER)
         item("HasMutable") = mp_NodeHasAttr(node, XML_ATTR_MUTABLE)
         item("MutableAttrValue") = mp_NodeAttrText(node, XML_ATTR_MUTABLE)
         result.Add item

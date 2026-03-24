@@ -25,6 +25,8 @@ Private Const DEV_COL_VALUE As Long = 3
 Private Const DEV_COL_STYLES As Long = 4
 Private Const DEV_HEADER_STYLES As String = "Styles"
 Private Const CONFIG_TITLE_TEMPLATE As String = "Config [profile = <CURRENT_PROFILE>]"
+Private Const FETCH_ADDITIONAL_DATA_NODE As String = "fetchAdditionalData"
+Private Const FETCH_ADDITIONAL_DATA_ATTR_TABLE_REF As String = "tableRef"
 
 Private Const CONFIG_TOP As Long = 1
 Private Const CONFIG_LEFT As Long = 1
@@ -160,6 +162,8 @@ Public Function m_LoadConfigDictionary( _
         dict(keyText) = CStr(dataRange.Cells(r, DEV_COL_VALUE).Value)
 ContinueRow:
     Next r
+
+    mp_AppendFetchAdditionalDataFromActiveProfile dict, wsDev, CStr(errSource)
 
     Set m_LoadConfigDictionary = dict
 End Function
@@ -353,7 +357,6 @@ Public Sub m_RefreshConfigTitle( _
     Dim titleText As String
     Dim resolvedProfile As String
     Dim cfgTable As ListObject
-    Dim wasProtected As Boolean
 
     If wsDev Is Nothing Then
         Set wsDev = mp_EnsureDevSheet()
@@ -375,33 +378,9 @@ Public Sub m_RefreshConfigTitle( _
     titleText = Replace(CONFIG_TITLE_TEMPLATE, "<CURRENT_PROFILE>", resolvedProfile)
 
     If StrComp(CStr(titleCell.Value2), titleText, vbBinaryCompare) = 0 Then Exit Sub
-
-    wasProtected = wsDev.ProtectContents
-    If wasProtected Then
-        On Error Resume Next
-        wsDev.Unprotect
-        If Err.Number <> 0 Or wsDev.ProtectContents Then
-            Err.Clear
-            On Error GoTo 0
-            Exit Sub
-        End If
-        On Error GoTo 0
-    End If
-
-    On Error GoTo SafeExit
+    On Error Resume Next
     titleCell.Value2 = titleText
-
-SafeExit:
-    If wasProtected Then
-        On Error Resume Next
-        wsDev.Protect DrawingObjects:=False, Contents:=True, Scenarios:=False, UserInterfaceOnly:=True, _
-                      AllowFormattingCells:=True, AllowFormattingColumns:=True, AllowFormattingRows:=True, _
-                      AllowInsertingColumns:=True, AllowInsertingRows:=True, AllowInsertingHyperlinks:=True, _
-                      AllowDeletingColumns:=True, AllowDeletingRows:=True, AllowSorting:=True, _
-                      AllowFiltering:=True, AllowUsingPivotTables:=True
-        wsDev.EnableSelection = xlNoRestrictions
-        On Error GoTo 0
-    End If
+    On Error GoTo 0
 End Sub
 
 ' =============================================================================
@@ -580,6 +559,73 @@ Private Function mp_HasPlaceholderTokens(ByVal valueText As String) As Boolean
 
     mp_HasPlaceholderTokens = (InStr(1, normalized, "{", vbBinaryCompare) > 0) _
                               And (InStr(1, normalized, "}", vbBinaryCompare) > 0)
+End Function
+
+Private Sub mp_AppendFetchAdditionalDataFromActiveProfile( _
+    ByVal cfg As Object, _
+    Optional ByVal ws As Worksheet = Nothing, _
+    Optional ByVal errSource As String = "ex_ConfigProvider" _
+)
+    Dim modeKey As String
+    Dim profileName As String
+    Dim filePath As String
+    Dim doc As Object
+    Dim profileNode As Object
+    Dim fetchNodes As Object
+    Dim fetchNode As Object
+    Dim tableRef As String
+    Dim dslText As String
+    Dim cfgKey As String
+
+    If cfg Is Nothing Then Exit Sub
+
+    If ws Is Nothing Then
+        Set ws = ws_Dev
+    End If
+
+    modeKey = Trim$(ex_ConfigProfilesManager.m_GetActiveModeKey(ws))
+    profileName = Trim$(ex_ConfigProfilesManager.m_GetActiveProfileName(ws))
+    If Len(modeKey) = 0 Or Len(profileName) = 0 Then Exit Sub
+
+    filePath = Trim$(ex_ProfilesStore.m_GetProfilesFilePath(modeKey, ThisWorkbook))
+    If Len(filePath) = 0 Then Exit Sub
+
+    Set doc = ex_ProfilesStore.m_LoadProfilesDom(filePath)
+    If doc Is Nothing Then Exit Sub
+
+    Set profileNode = ex_ProfilesStore.m_GetProfileNode(doc, profileName, False)
+    If profileNode Is Nothing Then Exit Sub
+
+    Set fetchNodes = profileNode.selectNodes("p:" & FETCH_ADDITIONAL_DATA_NODE)
+    If fetchNodes Is Nothing Then Exit Sub
+    If fetchNodes.Length = 0 Then Exit Sub
+
+    For Each fetchNode In fetchNodes
+        tableRef = Trim$(mp_NodeAttrText(fetchNode, FETCH_ADDITIONAL_DATA_ATTR_TABLE_REF))
+        If Len(tableRef) = 0 Then
+            Err.Raise vbObjectError + 1837, CStr(errSource), _
+                "Attribute '" & FETCH_ADDITIONAL_DATA_ATTR_TABLE_REF & "' is required for <" & FETCH_ADDITIONAL_DATA_NODE & "> in profile '" & profileName & "'."
+        End If
+
+        dslText = Trim$(CStr(fetchNode.Text))
+        If Len(dslText) = 0 Then
+            Err.Raise vbObjectError + 1838, CStr(errSource), _
+                "<" & FETCH_ADDITIONAL_DATA_NODE & "> for tableRef '" & tableRef & "' is empty in profile '" & profileName & "'."
+        End If
+
+        cfgKey = tableRef & ".Fetch.Dsl"
+        cfg(cfgKey) = dslText
+    Next fetchNode
+End Sub
+
+Private Function mp_NodeAttrText(ByVal node As Object, ByVal attrName As String) As String
+    On Error Resume Next
+    mp_NodeAttrText = CStr(node.selectSingleNode("@*[local-name()='" & attrName & "']").Text)
+    If Err.Number <> 0 Then
+        Err.Clear
+        mp_NodeAttrText = vbNullString
+    End If
+    On Error GoTo 0
 End Function
 
 Private Sub mp_RenderConfigArea(ByVal wsDev As Worksheet)
