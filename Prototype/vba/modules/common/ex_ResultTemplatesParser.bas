@@ -159,6 +159,102 @@ EH:
     m_ReplacePlaceholder = mp_PrependTemplateError(resultText, "m_ReplacePlaceholder('" & CStr(placeholderName) & "')")
 End Function
 
+Public Function m_ReplaceMultiPlaceholders( _
+    ByVal sourceText As String, _
+    ByVal placeholderMapText As String, _
+    Optional ByVal highlightColorHex As String = vbNullString _
+) As String
+    Dim resultText As String
+    Dim normalized As String
+    Dim lines As Variant
+    Dim parts As Variant
+    Dim itemSeparator As String
+    Dim i As Long
+
+    On Error GoTo EH
+
+    resultText = CStr(sourceText)
+    normalized = CStr(placeholderMapText)
+    normalized = Replace(normalized, vbCrLf, vbLf)
+    normalized = Replace(normalized, vbCr, vbLf)
+
+    If Len(Trim$(normalized)) = 0 Then
+        m_ReplaceMultiPlaceholders = resultText
+        Exit Function
+    End If
+
+    If InStr(1, normalized, vbLf, vbBinaryCompare) > 0 Then
+        lines = Split(normalized, vbLf)
+        For i = LBound(lines) To UBound(lines)
+            mp_ApplyPlaceholderMapEntry resultText, CStr(lines(i)), True, highlightColorHex
+        Next i
+        m_ReplaceMultiPlaceholders = resultText
+        Exit Function
+    End If
+
+    itemSeparator = ";"
+    If InStr(1, normalized, ";", vbBinaryCompare) = 0 Then
+        If InStr(1, normalized, ",", vbBinaryCompare) > 0 Then itemSeparator = ","
+    End If
+
+    parts = Split(normalized, itemSeparator)
+    For i = LBound(parts) To UBound(parts)
+        mp_ApplyPlaceholderMapEntry resultText, CStr(parts(i)), False, highlightColorHex
+    Next i
+
+    m_ReplaceMultiPlaceholders = resultText
+    Exit Function
+
+EH:
+    If Len(resultText) = 0 Then resultText = CStr(sourceText)
+    m_ReplaceMultiPlaceholders = mp_PrependTemplateError(resultText, "m_ReplaceMultiPlaceholders")
+End Function
+
+' Backward-compatible alias. Prefer m_ReplaceMultiPlaceholders in new scripts.
+Public Function m_ReplacePlaceholder2( _
+    ByVal sourceText As String, _
+    ByVal placeholderMapText As String, _
+    Optional ByVal highlightColorHex As String = vbNullString _
+) As String
+    m_ReplacePlaceholder2 = m_ReplaceMultiPlaceholders(sourceText, placeholderMapText, highlightColorHex)
+End Function
+
+Private Sub mp_ApplyPlaceholderMapEntry( _
+    ByRef sourceText As String, _
+    ByVal rawEntry As String, _
+    ByVal allowTrailingSemicolon As Boolean, _
+    ByVal highlightColorHex As String _
+)
+    Dim entryText As String
+    Dim sepPos As Long
+    Dim nameText As String
+    Dim valueText As String
+
+    entryText = Trim$(CStr(rawEntry))
+    If Len(entryText) = 0 Then Exit Sub
+
+    If allowTrailingSemicolon Then
+        If Right$(entryText, 1) = ";" Then
+            entryText = Trim$(Left$(entryText, Len(entryText) - 1))
+            If Len(entryText) = 0 Then Exit Sub
+        End If
+    End If
+
+    sepPos = InStr(1, entryText, ":", vbBinaryCompare)
+    If sepPos <= 1 Then
+        Err.Raise vbObjectError + 1835, "ex_ResultTemplatesParser", _
+            "Invalid placeholder map entry '" & entryText & "'. Expected 'Name:Value'."
+    End If
+
+    nameText = Trim$(Left$(entryText, sepPos - 1))
+    If Len(nameText) = 0 Then
+        Err.Raise vbObjectError + 1836, "ex_ResultTemplatesParser", "Placeholder name cannot be empty in map entry."
+    End If
+
+    valueText = Trim$(Mid$(entryText, sepPos + 1))
+    sourceText = m_ReplacePlaceholder(sourceText, nameText, valueText, highlightColorHex)
+End Sub
+
 Private Function mp_ResolveNumericOffsetForPlaceholderValue( _
     ByVal sourceValue As String, _
     ByVal offsetText As String, _

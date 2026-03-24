@@ -397,6 +397,7 @@ for (let row in Daily.Sheet[DailyEvents].rows) {
 		let needDateTo = "false";
 
 		if (sectionType == "1" ||
+			sectionType == "5" ||
 			sectionType == "7" ||
 			sectionType == "13" ||
 			sectionType == "15" ||
@@ -564,153 +565,230 @@ for (let row in Daily.Sheet[DailyEvents].rows) {
 			}
 		}
 		if (sectionType == "1") {
-			txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "Hospital", "{row.column[Hospital]}", "#66CCFF");
-			txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "Rank", "{row.column[Rank]}", "#66CCFF");
-			txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "FIO", "{row.column[FIO]}", "#66CCFF");
-			txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "Position", "{row.column[Position]}", "#66CCFF");
-			txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "OutDate", "{fullDateFrom}", "#66CCFF");
-			txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "IsReturnToDuty", "{isReturnToDuty}", "#66CCFF");
-			txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "ReturnToDutyRank", "{returnToDutyRank}", "#66CCFF");
-			txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "ReturnToDutyFIO", "{returnToDutyFIO}", "#66CCFF");
-			txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "ReturnToDutyPosition", "{returnToDutyPosition}", "#66CCFF");
-			txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "RaportFrom", "{row.column[RaportFrom]}", "#66CCFF");
-			txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "HasDuplicateRaport", "{hasDuplicateRaport}", "#66CCFF");
-			txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "DuplicateRaportFrom", "{duplicateRaportFrom}", "#66CCFF");
-			txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "DuplicateRaportTVO", "{duplicateRaportTVO}", "#66CCFF");
-			txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "DuplicateInNumFull", "{duplicateInNumFull}", "#66CCFF");
-			txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "DuplicateInDate", "{duplicateInDate}", "#66CCFF");
-			txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "InNumFull", "{inNumFull}", "#66CCFF");
-			txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "InDate", "{fullInDate}", "#66CCFF");
-			txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "DocNum", "{row.column[DocNum]}", "#66CCFF");
-			txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "DocDate", "{fullDocDate}", "#66CCFF");
+			txt = callMacro(
+				"ex_ResultTemplatesParser.m_ReplaceMultiPlaceholders",
+				txt,
+				```
+				Hospital:{row.column[Hospital]};
+				Rank:{row.column[Rank]};
+				FIO:{row.column[FIO]};
+				Position:{row.column[Position]};
+				OutDate:{fullDateFrom};
+				IsReturnToDuty:{isReturnToDuty};
+				ReturnToDutyRank:{returnToDutyRank};
+				ReturnToDutyFIO:{returnToDutyFIO};
+				ReturnToDutyPosition:{returnToDutyPosition};
+				RaportFrom:{row.column[RaportFrom]};
+				HasDuplicateRaport:{hasDuplicateRaport};
+				DuplicateRaportFrom:{duplicateRaportFrom};
+				DuplicateRaportTVO:{duplicateRaportTVO};
+				DuplicateInNumFull:{duplicateInNumFull};
+				DuplicateInDate:{duplicateInDate};
+				InNumFull:{inNumFull};
+				InDate:{fullInDate};
+				DocNum:{row.column[DocNum]};
+				DocDate:{fullDocDate};
+				```,
+				"#66CCFF"
+			);
 		}
 
 		if (sectionType == "2" || sectionType == "3" || sectionType == "4") {
-			txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "Rank", "{row.column[Rank]}", "#66CCFF");
-			txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "FIO", "{row.column[FIO]}", "#66CCFF");
-			txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "Position", "{row.column[Position]}", "#66CCFF");
-			txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "IsReturnToDuty", "{isReturnToDuty}", "#66CCFF");
-			txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "ReturnToDutyRank", "{returnToDutyRank}", "#66CCFF");
-			txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "ReturnToDutyFIO", "{returnToDutyFIO}", "#66CCFF");
-			txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "ReturnToDutyPosition", "{returnToDutyPosition}", "#66CCFF");
-			txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "RaportFrom", "{row.column[RaportFrom]}", "#66CCFF");
+			txt = callMacro(
+				"ex_ResultTemplatesParser.m_ReplaceMultiPlaceholders",
+				txt,
+				```
+				Rank:{row.column[Rank]};
+				FIO:{row.column[FIO]};
+				Position:{row.column[Position]};
+				IsReturnToDuty:{isReturnToDuty};
+				ReturnToDutyRank:{returnToDutyRank};
+				ReturnToDutyFIO:{returnToDutyFIO};
+				ReturnToDutyPosition:{returnToDutyPosition};
+				RaportFrom:{row.column[RaportFrom]};
+				InNumFull:{inNumFull};
+				InDate:{fullInDate};
+				VkNum:{row.column[VkNum]};
+				VkDate:{fullVkDate};
+				```,
+				"#66CCFF"
+			);
 			if (sectionType == "3") {
-				txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "HasDuplicateRaport", "{hasDuplicateRaport}", "#66CCFF");
-				txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "DuplicateRaportFrom", "{duplicateRaportFrom}", "#66CCFF");
-				txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "DuplicateRaportTVO", "{duplicateRaportTVO}", "#66CCFF");
-				txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "DuplicateInNumFull", "{duplicateInNumFull}", "#66CCFF");
-				txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "DuplicateInDate", "{duplicateInDate}", "#66CCFF");
+				txt = callMacro(
+					"ex_ResultTemplatesParser.m_ReplaceMultiPlaceholders",
+					txt,
+					```
+					HasDuplicateRaport:{hasDuplicateRaport};
+					DuplicateRaportFrom:{duplicateRaportFrom};
+					DuplicateRaportTVO:{duplicateRaportTVO};
+					DuplicateInNumFull:{duplicateInNumFull};
+					DuplicateInDate:{duplicateInDate};
+					```,
+					"#66CCFF"
+				);
 			}
-			txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "InNumFull", "{inNumFull}", "#66CCFF");
-			txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "InDate", "{fullInDate}", "#66CCFF");
-			txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "VkNum", "{row.column[VkNum]}", "#66CCFF");
-			txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "VkDate", "{fullVkDate}", "#66CCFF");
 		}
 
 		if (sectionType == "5") {
-			txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "Rank", "{row.column[Rank]}", "#66CCFF");
-			txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "FIO", "{row.column[FIO]}", "#66CCFF");
-			txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "Position", "{row.column[Position]}", "#66CCFF");
-			txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "RaportFrom", "{row.column[RaportFrom]}", "#66CCFF");
-			txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "InNumFull", "{inNumFull}", "#66CCFF");
-			txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "InDate", "{fullInDate}", "#66CCFF");
+			txt = callMacro(
+				"ex_ResultTemplatesParser.m_ReplaceMultiPlaceholders",
+				txt,
+				```
+				Rank:{row.column[Rank]};
+				FIO:{row.column[FIO]};
+				Position:{row.column[Position]};
+				IsReturnToDuty:{isReturnToDuty};
+				ReturnToDutyRank:{returnToDutyRank};
+				ReturnToDutyFIO:{returnToDutyFIO};
+				ReturnToDutyPosition:{returnToDutyPosition};
+				RaportFrom:{row.column[RaportFrom]};
+				InNumFull:{inNumFull};
+				InDate:{fullInDate};
+				DocNote:{row.column[DocNote]};
+				DocNum:{row.column[DocNum]};
+				DocDate:{fullDocDate};
+				```,
+				"#66CCFF"
+			);
 		}
 
 		if (sectionType == "6") {
-			txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "Rank", "{row.column[Rank]}", "#66CCFF");
-			txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "FIO", "{row.column[FIO]}", "#66CCFF");
-			txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "Position", "{row.column[Position]}", "#66CCFF");
-			txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "RaportFrom", "{row.column[RaportFrom]}", "#66CCFF");
-			txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "InNumFull", "{inNumFull}", "#66CCFF");
-			txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "InDate", "{fullInDate}", "#66CCFF");
-			txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "VlkNum", "{row.column[VlkNum]}", "#66CCFF");
-			txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "VlkDate", "{fullVlkDate}", "#66CCFF");
+			txt = callMacro(
+				"ex_ResultTemplatesParser.m_ReplaceMultiPlaceholders",
+				txt,
+				```
+				Rank:{row.column[Rank]};
+				FIO:{row.column[FIO]};
+				Position:{row.column[Position]};
+				RaportFrom:{row.column[RaportFrom]};
+				InNumFull:{inNumFull};
+				InDate:{fullInDate};
+				VlkNum:{row.column[VlkNum]};
+				VlkDate:{fullVlkDate};
+				```,
+				"#66CCFF"
+			);
 		}
 
 		if (sectionType == "7") {
-			txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "Hospital", "{row.column[Hospital]}", "#66CCFF");
-			txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "Rank", "{row.column[Rank]}", "#66CCFF");
-			txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "FIO", "{row.column[FIO]}", "#66CCFF");
-			txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "Position", "{row.column[Position]}", "#66CCFF");
-			txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "OutDate", "{fullDateFrom}", "#66CCFF");
-			txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "IsAssignToDuty", "{isAssignToDuty}", "#66CCFF");
-			txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "AssignToDutyRank", "{assignToDutyRank}", "#66CCFF");
-			txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "AssignToDutyFIO", "{assignToDutyFIO}", "#66CCFF");
-			txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "AssignToDutyPosition", "{assignToDutyPosition}", "#66CCFF");
-			txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "RaportFrom", "{row.column[RaportFrom]}", "#66CCFF");
-			txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "HasDuplicateRaport", "{hasDuplicateRaport}", "#66CCFF");
-			txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "DuplicateRaportFrom", "{duplicateRaportFrom}", "#66CCFF");
-			txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "DuplicateRaportTVO", "{duplicateRaportTVO}", "#66CCFF");
-			txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "DuplicateInNumFull", "{duplicateInNumFull}", "#66CCFF");
-			txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "DuplicateInDate", "{duplicateInDate}", "#66CCFF");
-			txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "InNumFull", "{inNumFull}", "#66CCFF");
-			txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "InDate", "{fullInDate}", "#66CCFF");
-			txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "DocNum", "{row.column[DocNum]}", "#66CCFF");
-			txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "DocDate", "{fullDocDate}", "#66CCFF");
+			txt = callMacro(
+				"ex_ResultTemplatesParser.m_ReplaceMultiPlaceholders",
+				txt,
+				```
+				Hospital:{row.column[Hospital]};
+				Rank:{row.column[Rank]};
+				FIO:{row.column[FIO]};
+				Position:{row.column[Position]};
+				OutDate:{fullDateFrom};
+				IsAssignToDuty:{isAssignToDuty};
+				AssignToDutyRank:{assignToDutyRank};
+				AssignToDutyFIO:{assignToDutyFIO};
+				AssignToDutyPosition:{assignToDutyPosition};
+				RaportFrom:{row.column[RaportFrom]};
+				HasDuplicateRaport:{hasDuplicateRaport};
+				DuplicateRaportFrom:{duplicateRaportFrom};
+				DuplicateRaportTVO:{duplicateRaportTVO};
+				DuplicateInNumFull:{duplicateInNumFull};
+				DuplicateInDate:{duplicateInDate};
+				InNumFull:{inNumFull};
+				InDate:{fullInDate};
+				DocNum:{row.column[DocNum]};
+				DocDate:{fullDocDate};
+				```,
+				"#66CCFF"
+			);
 		}
 
 		if (sectionType == "11") {
-			txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "Rank", "{row.column[Rank]}", "#66CCFF");
-			txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "FIO", "{row.column[FIO]}", "#66CCFF");
-			txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "Position", "{row.column[Position]}", "#66CCFF");
-			txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "IsAssignToDuty", "{isAssignToDuty}", "#66CCFF");
-			txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "AssignToDutyRank", "{assignToDutyRank}", "#66CCFF");
-			txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "AssignToDutyFIO", "{assignToDutyFIO}", "#66CCFF");
-			txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "AssignToDutyPosition", "{assignToDutyPosition}", "#66CCFF");
-			txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "RaportFrom", "{row.column[RaportFrom]}", "#66CCFF");
-			txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "InNumFull", "{inNumFull}", "#66CCFF");
-			txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "InDate", "{fullInDate}", "#66CCFF");
+			txt = callMacro(
+				"ex_ResultTemplatesParser.m_ReplaceMultiPlaceholders",
+				txt,
+				```
+				Rank:{row.column[Rank]};
+				FIO:{row.column[FIO]};
+				Position:{row.column[Position]};
+				IsAssignToDuty:{isAssignToDuty};
+				AssignToDutyRank:{assignToDutyRank};
+				AssignToDutyFIO:{assignToDutyFIO};
+				AssignToDutyPosition:{assignToDutyPosition};
+				RaportFrom:{row.column[RaportFrom]};
+				InNumFull:{inNumFull};
+				InDate:{fullInDate};
+				```,
+				"#66CCFF"
+			);
 		}
 
 		if (sectionType == "8" || sectionType == "9") {
-			txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "Rank", "{row.column[Rank]}", "#66CCFF");
-			txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "FIO", "{row.column[FIO]}", "#66CCFF");
-			txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "Position", "{row.column[Position]}", "#66CCFF");
-			txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "City", "{row.column[Vacation]}", "#66CCFF");
-			txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "DaysCount", "{normalizedDaysCount}", "#66CCFF");
-			txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "AdditionalWayDays", "{additionalWayDays}", "#66CCFF");
-			txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "OutDate", "{fullDateFrom}", "#66CCFF");
-			txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "ReturnDate", "{fullDateTo}", "#66CCFF");
-			txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "IsAssignToDuty", "{isAssignToDuty}", "#66CCFF");
-			txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "AssignToDutyRank", "{assignToDutyRank}", "#66CCFF");
-			txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "AssignToDutyFIO", "{assignToDutyFIO}", "#66CCFF");
-			txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "AssignToDutyPosition", "{assignToDutyPosition}", "#66CCFF");
-			txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "RaportFrom", "{row.column[RaportFrom]}", "#66CCFF");
-			txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "InNumFull", "{inNumFull}", "#66CCFF");
-			txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "InDate", "{fullInDate}", "#66CCFF");
-			txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "VkNum", "{row.column[VkNum]}", "#66CCFF");
-			txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "VkDate", "{fullVkDate}", "#66CCFF");
+			txt = callMacro(
+				"ex_ResultTemplatesParser.m_ReplaceMultiPlaceholders",
+				txt,
+				```
+				Rank:{row.column[Rank]};
+				FIO:{row.column[FIO]};
+				Position:{row.column[Position]};
+				City:{row.column[Vacation]};
+				DaysCount:{normalizedDaysCount};
+				AdditionalWayDays:{additionalWayDays};
+				OutDate:{fullDateFrom};
+				ReturnDate:{fullDateTo};
+				IsAssignToDuty:{isAssignToDuty};
+				AssignToDutyRank:{assignToDutyRank};
+				AssignToDutyFIO:{assignToDutyFIO};
+				AssignToDutyPosition:{assignToDutyPosition};
+				RaportFrom:{row.column[RaportFrom]};
+				InNumFull:{inNumFull};
+				InDate:{fullInDate};
+				VkNum:{row.column[VkNum]};
+				VkDate:{fullVkDate};
+				```,
+				"#66CCFF"
+			);
 		}
 
 		if (sectionType == "10") {
-			txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "Rank", "{row.column[Rank]}", "#66CCFF");
-			txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "FIO", "{row.column[FIO]}", "#66CCFF");
-			txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "Position", "{row.column[Position]}", "#66CCFF");
-			txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "City", "{row.column[Vacation]}", "#66CCFF");
-			txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "DaysCount", "{normalizedDaysCount}", "#66CCFF");
-			txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "AdditionalWayDays", "{additionalWayDays}", "#66CCFF");
-			txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "OutDate", "{fullDateFrom}", "#66CCFF");
-			txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "ReturnDate", "{fullDateTo}", "#66CCFF");
-			txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "IsAssignToDuty", "{isAssignToDuty}", "#66CCFF");
-			txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "AssignToDutyRank", "{assignToDutyRank}", "#66CCFF");
-			txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "AssignToDutyFIO", "{assignToDutyFIO}", "#66CCFF");
-			txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "AssignToDutyPosition", "{assignToDutyPosition}", "#66CCFF");
-			txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "RaportFrom", "{row.column[RaportFrom]}", "#66CCFF");
-			txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "InNumFull", "{inNumFull}", "#66CCFF");
-			txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "InDate", "{fullInDate}", "#66CCFF");
-			txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "VlkNum", "{row.column[VlkNum]}", "#66CCFF");
-			txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "VlkDate", "{fullVlkDate}", "#66CCFF");
-			txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "VkNum", "{row.column[VkNum]}", "#66CCFF");
-			txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "VkDate", "{fullVkDate}", "#66CCFF");
+			txt = callMacro(
+				"ex_ResultTemplatesParser.m_ReplaceMultiPlaceholders",
+				txt,
+				```
+				Rank:{row.column[Rank]};
+				FIO:{row.column[FIO]};
+				Position:{row.column[Position]};
+				City:{row.column[Vacation]};
+				DaysCount:{normalizedDaysCount};
+				AdditionalWayDays:{additionalWayDays};
+				OutDate:{fullDateFrom};
+				ReturnDate:{fullDateTo};
+				IsAssignToDuty:{isAssignToDuty};
+				AssignToDutyRank:{assignToDutyRank};
+				AssignToDutyFIO:{assignToDutyFIO};
+				AssignToDutyPosition:{assignToDutyPosition};
+				RaportFrom:{row.column[RaportFrom]};
+				InNumFull:{inNumFull};
+				InDate:{fullInDate};
+				VlkNum:{row.column[VlkNum]};
+				VlkDate:{fullVlkDate};
+				VkNum:{row.column[VkNum]};
+				VkDate:{fullVkDate};
+				```,
+				"#66CCFF"
+			);
 		}
 
 		if (sectionType == "12") {
-			txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "Rank", "{row.column[Rank]}", "#66CCFF");
-			txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "FIO", "{row.column[FIO]}", "#66CCFF");
-			txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "Position", "{row.column[Position]}", "#66CCFF");
-			txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "RaportFrom", "{row.column[RaportFrom]}", "#66CCFF");
-			txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "InNumFull", "{inNumFull}", "#66CCFF");
-			txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "InDate", "{fullInDate}", "#66CCFF");
+			txt = callMacro(
+				"ex_ResultTemplatesParser.m_ReplaceMultiPlaceholders",
+				txt,
+				```
+				Rank:{row.column[Rank]};
+				FIO:{row.column[FIO]};
+				Position:{row.column[Position]};
+				RaportFrom:{row.column[RaportFrom]};
+				InNumFull:{inNumFull};
+				InDate:{fullInDate};
+				```,
+				"#66CCFF"
+			);
 		}
 
 		if (sectionType == "13") {
@@ -728,104 +806,146 @@ for (let row in Daily.Sheet[DailyEvents].rows) {
 				hospitalForMoveFromHospital = callMacro("ex_Helpers.m_ReplaceLeadingPhraseIfMatched", hospitalSourceText, "медичної роти військової частини", "медичній роті військової частини");
 			}
 
-			txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "Rank", "{row.column[Rank]}", "#66CCFF");
-			txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "FIO", "{row.column[FIO]}", "#66CCFF");
-			txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "Position", "{row.column[Position]}", "#66CCFF");
-			txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "Hospital", "{hospitalForMoveFromHospital}", "#66CCFF");
-			txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "City", "{row.column[Vacation]}", "#66CCFF");
-			txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "DaysCount", "{normalizedDaysCount}", "#66CCFF");
-			txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "OutDate", "{fullDateFrom}", "#66CCFF");
-			txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "ReturnDate", "{fullDateTo}", "#66CCFF");
-			txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "InNumFull", "{inNumFull}", "#66CCFF");
-			txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "InDate", "{fullInDate}", "#66CCFF");
-			txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "HasDuplicateRaport", "{hasDuplicateRaport}", "#66CCFF");
-			txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "DuplicateRaportFrom", "{duplicateRaportFrom}", "#66CCFF");
-			txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "DuplicateRaportTVO", "{duplicateRaportTVO}", "#66CCFF");
-			txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "DuplicateInNumFull", "{duplicateInNumFull}", "#66CCFF");
-			txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "DuplicateInDate", "{duplicateInDate}", "#66CCFF");
-			txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "VlkNum", "{row.column[VlkNum]}", "#66CCFF");
-			txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "VlkDate", "{fullVlkDate}", "#66CCFF");
-			txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "DocNum", "{row.column[DocNum]}", "#66CCFF");
-			txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "DocDate", "{fullDocDate}", "#66CCFF");
-			txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "VkNum", "{row.column[VkNum]}", "#66CCFF");
-			txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "VkDate", "{fullVkDate}", "#66CCFF");
+			txt = callMacro(
+				"ex_ResultTemplatesParser.m_ReplaceMultiPlaceholders",
+				txt,
+				```
+				Rank:{row.column[Rank]};
+				FIO:{row.column[FIO]};
+				Position:{row.column[Position]};
+				Hospital:{hospitalForMoveFromHospital};
+				City:{row.column[Vacation]};
+				DaysCount:{normalizedDaysCount};
+				OutDate:{fullDateFrom};
+				ReturnDate:{fullDateTo};
+				InNumFull:{inNumFull};
+				InDate:{fullInDate};
+				HasDuplicateRaport:{hasDuplicateRaport};
+				DuplicateRaportFrom:{duplicateRaportFrom};
+				DuplicateRaportTVO:{duplicateRaportTVO};
+				DuplicateInNumFull:{duplicateInNumFull};
+				DuplicateInDate:{duplicateInDate};
+				VlkNum:{row.column[VlkNum]};
+				VlkDate:{fullVlkDate};
+				DocNum:{row.column[DocNum]};
+				DocDate:{fullDocDate};
+				VkNum:{row.column[VkNum]};
+				VkDate:{fullVkDate};
+				```,
+				"#66CCFF"
+			);
 		}
 
 		if (sectionType == "14") {
-			txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "Rank", "{row.column[Rank]}", "#66CCFF");
-			txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "FIO", "{row.column[FIO]}", "#66CCFF");
-			txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "Position", "{row.column[Position]}", "#66CCFF");
-			txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "City", "{row.column[Vacation]}", "#66CCFF");
-			txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "DaysCount", "{normalizedDaysCount}", "#66CCFF");
-			txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "OutDate", "{fullDateFrom}", "#66CCFF");
-			txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "ReturnDate", "{fullDateTo}", "#66CCFF");
-			txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "InNumFull", "{inNumFull}", "#66CCFF");
-			txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "InDate", "{fullInDate}", "#66CCFF");
-			txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "VlkNum", "{row.column[VlkNum]}", "#66CCFF");
-			txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "VlkDate", "{fullVlkDate}", "#66CCFF");
-			txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "VkNum", "{row.column[VkNum]}", "#66CCFF");
-			txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "VkDate", "{fullVkDate}", "#66CCFF");
+			txt = callMacro(
+				"ex_ResultTemplatesParser.m_ReplaceMultiPlaceholders",
+				txt,
+				```
+				Rank:{row.column[Rank]};
+				FIO:{row.column[FIO]};
+				Position:{row.column[Position]};
+				City:{row.column[Vacation]};
+				DaysCount:{normalizedDaysCount};
+				OutDate:{fullDateFrom};
+				ReturnDate:{fullDateTo};
+				InNumFull:{inNumFull};
+				InDate:{fullInDate};
+				VlkNum:{row.column[VlkNum]};
+				VlkDate:{fullVlkDate};
+				VkNum:{row.column[VkNum]};
+				VkDate:{fullVkDate};
+				```,
+				"#66CCFF"
+			);
 		}
 
 		if (sectionType == "15") {
-			txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "Rank", "{row.column[Rank]}", "#66CCFF");
-			txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "FIO", "{row.column[FIO]}", "#66CCFF");
-			txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "Position", "{row.column[Position]}", "#66CCFF");
-			txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "Hospital", "{row.column[Hospital]}", "#66CCFF");
-			txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "OutDate", "{fullDateFrom}", "#66CCFF");
-			txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "RaportFrom", "{row.column[RaportFrom]}", "#66CCFF");
-			txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "InNumFull", "{inNumFull}", "#66CCFF");
-			txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "InDate", "{fullInDate}", "#66CCFF");
-			txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "DocNum", "{row.column[DocNum]}", "#66CCFF");
-			txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "DocDate", "{fullDocDate}", "#66CCFF");
-			txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "PrevVkNum", "{prevVkNum}", "#66CCFF");
-			txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "PrevVkDate", "{prevVkDate}", "#66CCFF");
+			txt = callMacro(
+				"ex_ResultTemplatesParser.m_ReplaceMultiPlaceholders",
+				txt,
+				```
+				Rank:{row.column[Rank]};
+				FIO:{row.column[FIO]};
+				Position:{row.column[Position]};
+				Hospital:{row.column[Hospital]};
+				OutDate:{fullDateFrom};
+				RaportFrom:{row.column[RaportFrom]};
+				InNumFull:{inNumFull};
+				InDate:{fullInDate};
+				DocNum:{row.column[DocNum]};
+				DocDate:{fullDocDate};
+				PrevVkNum:{prevVkNum};
+				PrevVkDate:{prevVkDate};
+				```,
+				"#66CCFF"
+			);
 		}
 
 		if (sectionType == "16") {
-			txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "Rank", "{row.column[Rank]}", "#66CCFF");
-			txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "FIO", "{row.column[FIO]}", "#66CCFF");
-			txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "Position", "{row.column[Position]}", "#66CCFF");
-			txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "OutDate", "{fullDateFrom}", "#66CCFF");
-			txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "RaportFrom", "{row.column[RaportFrom]}", "#66CCFF");
-			txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "InNumFull", "{inNumFull}", "#66CCFF");
-			txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "InDate", "{fullInDate}", "#66CCFF");
-			txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "DocNum", "{row.column[DocNum]}", "#66CCFF");
-			txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "DocDate", "{fullDocDate}", "#66CCFF");
-			txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "PrevVkNum", "{prevVkNum}", "#66CCFF");
-			txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "PrevVkDate", "{prevVkDate}", "#66CCFF");
+			txt = callMacro(
+				"ex_ResultTemplatesParser.m_ReplaceMultiPlaceholders",
+				txt,
+				```
+				Rank:{row.column[Rank]};
+				FIO:{row.column[FIO]};
+				Position:{row.column[Position]};
+				OutDate:{fullDateFrom};
+				RaportFrom:{row.column[RaportFrom]};
+				InNumFull:{inNumFull};
+				InDate:{fullInDate};
+				DocNum:{row.column[DocNum]};
+				DocDate:{fullDocDate};
+				PrevVkNum:{prevVkNum};
+				PrevVkDate:{prevVkDate};
+				```,
+				"#66CCFF"
+			);
 		}
 
 		if (sectionType == "17") {
-			txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "Rank", "{row.column[Rank]}", "#66CCFF");
-			txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "FIO", "{row.column[FIO]}", "#66CCFF");
-			txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "Position", "{row.column[Position]}", "#66CCFF");
-			txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "City", "{row.column[Vacation]}", "#66CCFF");
-			txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "DaysCount", "{normalizedDaysCount}", "#66CCFF");
-			txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "OutDate", "{fullDateFrom}", "#66CCFF");
-			txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "ReturnDate", "{fullDateTo}", "#66CCFF");
-			txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "RaportFrom", "{row.column[RaportFrom]}", "#66CCFF");
-			txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "InNumFull", "{inNumFull}", "#66CCFF");
-			txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "InDate", "{fullInDate}", "#66CCFF");
-			txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "VlkNum", "{row.column[VlkNum]}", "#66CCFF");
-			txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "VlkDate", "{fullVlkDate}", "#66CCFF");
-			txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "VkNum", "{row.column[VkNum]}", "#66CCFF");
-			txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "VkDate", "{fullVkDate}", "#66CCFF");
+			txt = callMacro(
+				"ex_ResultTemplatesParser.m_ReplaceMultiPlaceholders",
+				txt,
+				```
+				Rank:{row.column[Rank]};
+				FIO:{row.column[FIO]};
+				Position:{row.column[Position]};
+				City:{row.column[Vacation]};
+				DaysCount:{normalizedDaysCount};
+				OutDate:{fullDateFrom};
+				ReturnDate:{fullDateTo};
+				RaportFrom:{row.column[RaportFrom]};
+				InNumFull:{inNumFull};
+				InDate:{fullInDate};
+				VlkNum:{row.column[VlkNum]};
+				VlkDate:{fullVlkDate};
+				VkNum:{row.column[VkNum]};
+				VkDate:{fullVkDate};
+				```,
+				"#66CCFF"
+			);
 		}
 
 		if (sectionType == "18") {
-			txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "Rank", "{row.column[Rank]}", "#66CCFF");
-			txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "FIO", "{row.column[FIO]}", "#66CCFF");
-			txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "Position", "{row.column[Position]}", "#66CCFF");
-			txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "Hospital", "{row.column[Hospital]}", "#66CCFF");
-			txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "OutDate", "{fullDateFrom}", "#66CCFF");
-			txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "RaportFrom", "{row.column[RaportFrom]}", "#66CCFF");
-			txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "InNumFull", "{inNumFull}", "#66CCFF");
-			txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "InDate", "{fullInDate}", "#66CCFF");
-			txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "VlkNum", "{row.column[VlkNum]}", "#66CCFF");
-			txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "VlkDate", "{fullVlkDate}", "#66CCFF");
-			txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "DocNum", "{row.column[DocNum]}", "#66CCFF");
-			txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "DocDate", "{fullDocDate}", "#66CCFF");
+			txt = callMacro(
+				"ex_ResultTemplatesParser.m_ReplaceMultiPlaceholders",
+				txt,
+				```
+				Rank:{row.column[Rank]};
+				FIO:{row.column[FIO]};
+				Position:{row.column[Position]};
+				Hospital:{row.column[Hospital]};
+				OutDate:{fullDateFrom};
+				RaportFrom:{row.column[RaportFrom]};
+				InNumFull:{inNumFull};
+				InDate:{fullInDate};
+				VlkNum:{row.column[VlkNum]};
+				VlkDate:{fullVlkDate};
+				DocNum:{row.column[DocNum]};
+				DocDate:{fullDocDate};
+				```,
+				"#66CCFF"
+			);
 		}
 
 		txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "DocNote", "{row.column[DocNote]}", "#66CCFF");

@@ -598,7 +598,15 @@ End Function
 Private Function mp_TryParseQuotedString(ByVal valueText As String, ByRef outValue As String) As Boolean
     Dim rawInner As String
 
-    valueText = Trim$(valueText)
+    valueText = mp_TrimOuterWhitespace(valueText)
+    If Len(valueText) >= 6 Then
+        If Left$(valueText, 3) = "```" And Right$(valueText, 3) = "```" Then
+            outValue = Mid$(valueText, 4, Len(valueText) - 6)
+            mp_TryParseQuotedString = True
+            Exit Function
+        End If
+    End If
+
     If Len(valueText) < 2 Then Exit Function
     If Left$(valueText, 1) <> """" Then Exit Function
     If Right$(valueText, 1) <> """" Then Exit Function
@@ -616,4 +624,32 @@ Private Function mp_DecodeEscapes(ByVal textValue As String) As String
     result = Replace(result, "\\", "\")
 
     mp_DecodeEscapes = result
+End Function
+
+Private Function mp_TrimOuterWhitespace(ByVal textValue As String) As String
+    Dim startPos As Long
+    Dim endPos As Long
+    Dim ch As String
+
+    textValue = CStr(textValue)
+    startPos = 1
+    endPos = Len(textValue)
+
+    Do While startPos <= endPos
+        ch = Mid$(textValue, startPos, 1)
+        If ch <> " " And ch <> vbTab And ch <> vbCr And ch <> vbLf Then Exit Do
+        startPos = startPos + 1
+    Loop
+
+    Do While endPos >= startPos
+        ch = Mid$(textValue, endPos, 1)
+        If ch <> " " And ch <> vbTab And ch <> vbCr And ch <> vbLf Then Exit Do
+        endPos = endPos - 1
+    Loop
+
+    If endPos < startPos Then
+        mp_TrimOuterWhitespace = vbNullString
+    Else
+        mp_TrimOuterWhitespace = Mid$(textValue, startPos, endPos - startPos + 1)
+    End If
 End Function
