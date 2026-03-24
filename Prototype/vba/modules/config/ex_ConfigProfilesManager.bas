@@ -56,7 +56,6 @@ Private Const PFUI_POSTPROCESS_SCRIPT_BUTTON_SHAPE As String = "btnPostProcessSc
 Private Const STATE_ACTIVE_MODE_KEY_PROP As String = "Settings.ActiveModeKey"
 Private Const STATE_ACTIVE_PROFILE_PROP_PREFIX As String = "Settings.ActiveProfile."
 Private Const STATE_PROFILE_FILE_SIGNATURE_PROP_PREFIX As String = "Settings.ProfileFileSignature."
-Private Const XML_ATTR_LOCKED_WITH_PLACEHOLDER As String = "lockedWithPlaceholder"
 Private Const XML_ATTR_MUTABLE As String = "mutable"
 
 ' =============================================================================
@@ -74,7 +73,6 @@ Public Sub m_ApplyProfileFromDev(Optional ByVal profileName As String = vbNullSt
     Dim doc As Object
     Dim profileNode As Object
     Dim entries As Variant
-    Dim lockedWithPlaceholder As Object
     Dim mutableKeys As Object
     Dim cfgTable As ListObject
     Dim profiles As Variant
@@ -110,7 +108,6 @@ Public Sub m_ApplyProfileFromDev(Optional ByVal profileName As String = vbNullSt
 
     stepName = "read-profile-entries"
     entries = ex_ProfilesEntriesMapper.m_ReadProfileEntries(ws, profileNode)
-    Set lockedWithPlaceholder = mp_ReadLockedWithPlaceholder(profileNode)
     Set mutableKeys = mp_ReadMutableKeys(profileNode)
 
     Application.EnableEvents = False
@@ -122,13 +119,13 @@ Public Sub m_ApplyProfileFromDev(Optional ByVal profileName As String = vbNullSt
     stepName = "apply-config-styles"
     If Not mp_ApplyProfileConfigStyles(ws, profileNode, targetStableZoneLeft) Then GoTo EH
 
-    stepName = "apply-locked-placeholders"
+    stepName = "apply-config-value-cell-state"
     Set cfgTable = ex_ConfigTableStore.m_GetConfigTable(ws, True)
     If cfgTable Is Nothing Then
         MsgBox "Config table '" & DEV_CONFIG_TABLE_NAME & "' was not found on sheet '" & ws.Name & "'.", vbExclamation
         GoTo EH
     End If
-    mp_ApplyLockedPlaceholderCells ws, cfgTable, lockedWithPlaceholder, mutableKeys
+    mp_ApplyConfigValueCells ws, cfgTable, mutableKeys
 
     stepName = "refresh-title"
     On Error Resume Next
@@ -1085,11 +1082,6 @@ Private Sub mp_WriteEntriesToConfigTable(ByVal ws As Worksheet, ByVal entries As
     Dim values() As Variant
     Dim i As Long
 
-    ' Table normalization/writes can fail if previous profile left sheet protected.
-    On Error Resume Next
-    ws.Unprotect
-    On Error GoTo 0
-
     Set tbl = ex_ConfigTableStore.m_GetConfigTable(ws, True)
     If tbl Is Nothing Then
         MsgBox "Config table '" & DEV_CONFIG_TABLE_NAME & "' was not found on sheet '" & ws.Name & "'.", vbExclamation
@@ -1116,145 +1108,19 @@ Private Sub mp_WriteEntriesToConfigTable(ByVal ws As Worksheet, ByVal entries As
     ex_ConfigTableStore.m_ApplyConfigMarkerStyles tbl
 End Sub
 
-Private Sub mp_ApplyLockedPlaceholderCells( _
+Private Sub mp_ApplyConfigValueCells( _
     ByVal ws As Worksheet, _
     ByVal tbl As ListObject, _
-    ByVal lockedWithPlaceholder As Object, _
     ByVal mutableKeys As Object _
 )
-    Dim r As Long
-    Dim markerText As String
-    Dim keyText As String
-    Dim hasLockedCells As Boolean
-    Dim placeholderText As String
-    Dim cell As Range
-    Dim lockedRows As Collection
-
     If ws Is Nothing Then Exit Sub
     If tbl Is Nothing Then Exit Sub
-
-    On Error Resume Next
-    ws.Unprotect
-    On Error GoTo EH
-
-    ws.EnableSelection = xlNoRestrictions
-    ' Base policy for Dev sheet: unlock everything, then lock only explicit placeholder cells.
-    ws.Cells.Locked = False
-    Set lockedRows = New Collection
 
     If Not tbl.DataBodyRange Is Nothing Then
         tbl.DataBodyRange.Columns(DEV_CONFIG_VALUE_COL).NumberFormat = "General"
-
-        For r = 1 To tbl.DataBodyRange.Rows.Count
-            markerText = Trim$(CStr(tbl.DataBodyRange.Cells(r, DEV_CONFIG_MARKER_COL).Value))
-            If StrComp(markerText, DEV_MARKER_SYMBOL, vbTextCompare) = 0 Then GoTo ContinueRow
-
-            keyText = Trim$(CStr(tbl.DataBodyRange.Cells(r, DEV_CONFIG_KEY_COL).Value))
-            If lockedWithPlaceholder Is Nothing Then GoTo ContinueRow
-            If Not lockedWithPlaceholder.Exists(keyText) Then GoTo ContinueRow
-            placeholderText = Trim$(CStr(lockedWithPlaceholder(keyText)))
-            If Len(placeholderText) = 0 Then GoTo ContinueRow
-
-            Set cell = tbl.DataBodyRange.Cells(r, DEV_CONFIG_VALUE_COL)
-            cell.Locked = True
-            cell.NumberFormat = mp_BuildLockedPlaceholderFormat(placeholderText)
-            lockedRows.Add cell.Row
-            hasLockedCells = True
-
-ContinueRow:
-        Next r
     End If
 
-    If hasLockedCells Then
-        mp_ApplyLockedPlaceholderStylePipeline ws, tbl, lockedRows, mutableKeys
-        ws.Protect DrawingObjects:=False, Contents:=True, Scenarios:=False, UserInterfaceOnly:=True, _
-                   AllowFormattingCells:=True, AllowFormattingColumns:=True, AllowFormattingRows:=True, _
-                   AllowInsertingColumns:=True, AllowInsertingRows:=True, AllowInsertingHyperlinks:=True, _
-                   AllowDeletingColumns:=True, AllowDeletingRows:=True, AllowSorting:=True, _
-                   AllowFiltering:=True, AllowUsingPivotTables:=True
-        ws.EnableSelection = xlNoRestrictions
-    Else
-        mp_ApplyMutableStylePipeline ws, tbl, mutableKeys
-        ws.EnableSelection = xlNoRestrictions
-    End If
-    Exit Sub
-
-EH:
-    MsgBox "Failed to apply locked-placeholder masking/protection on sheet '" & ws.Name & "': " & Err.Description, vbExclamation
-End Sub
-
-Private Sub mp_ApplyLockedPlaceholderStylePipeline( _
-    ByVal ws As Worksheet, _
-    ByVal tbl As ListObject, _
-    ByVal lockedRows As Collection, _
-    ByVal mutableKeys As Object _
-)
-    Dim rowKindRanges As Object
-    Dim allRows As Collection
-    Dim headerRows As Collection
-    Dim dataRows As Collection
-    Dim markerRows As Collection
-    Dim mutableRows As Collection
-    Dim rowCount As Long
-    Dim i As Long
-    Dim rowIndex As Long
-    Dim markerKind As String
-    Dim keyText As String
-    Dim targetStableZoneLeft As Double
-
-    If ws Is Nothing Then Exit Sub
-    If tbl Is Nothing Then Exit Sub
-    If lockedRows Is Nothing Then Exit Sub
-    If lockedRows.Count = 0 Then Exit Sub
-    targetStableZoneLeft = ex_CustomDropdown.m_GetStableZoneStartLeft(ws)
-
-    Set rowKindRanges = CreateObject("Scripting.Dictionary")
-    rowKindRanges.CompareMode = 1
-
-    Set allRows = New Collection
-    Set headerRows = New Collection
-    Set dataRows = New Collection
-    Set markerRows = New Collection
-    Set mutableRows = New Collection
-
-    rowIndex = tbl.HeaderRowRange.Row
-    allRows.Add rowIndex
-    headerRows.Add rowIndex
-
-    If Not tbl.DataBodyRange Is Nothing Then
-        rowCount = tbl.DataBodyRange.Rows.Count
-        For i = 1 To rowCount
-            rowIndex = tbl.DataBodyRange.Row + i - 1
-            allRows.Add rowIndex
-
-            markerKind = Trim$(CStr(tbl.DataBodyRange.Cells(i, DEV_CONFIG_MARKER_COL).Value))
-            keyText = Trim$(CStr(tbl.DataBodyRange.Cells(i, DEV_CONFIG_KEY_COL).Value))
-            If StrComp(markerKind, DEV_MARKER_SYMBOL, vbTextCompare) = 0 Or mp_IsMarkerKey(keyText) Then
-                markerRows.Add rowIndex
-            Else
-                dataRows.Add rowIndex
-                If mp_IsMutableKey(mutableKeys, keyText) Then
-                    mutableRows.Add rowIndex
-                End If
-            End If
-        Next i
-    End If
-
-    Set rowKindRanges("configall") = allRows
-    Set rowKindRanges("configheader") = headerRows
-    Set rowKindRanges("configdata") = dataRows
-    Set rowKindRanges("configmarker") = markerRows
-    Set rowKindRanges("configmutable") = mutableRows
-    Set rowKindRanges("configlockedplaceholder") = lockedRows
-
-    ex_OutputFormattingPipeline.m_ApplySheetPipeline ws, Nothing, Nothing, rowKindRanges
-    ' Keep explicit width declarations from DevSheetStylesPipeline.
-    ' Global AutoFit here would overwrite configured widths.
-    If targetStableZoneLeft >= 0 Then
-        ex_CustomDropdown.m_StabilizeChooseModeAnchorX ws, targetStableZoneLeft
-        ex_ConfigTableStore.m_ScaleConfigColumnsToStableTarget ws, tbl.Range.Column, DEV_CONFIG_COL_COUNT, targetStableZoneLeft
-        ex_CustomDropdown.m_StabilizeChooseModeAnchorX ws, targetStableZoneLeft
-    End If
+    mp_ApplyMutableStylePipeline ws, tbl, mutableKeys
 End Sub
 
 Private Sub mp_ApplyMutableStylePipeline(ByVal ws As Worksheet, ByVal tbl As ListObject, ByVal mutableKeys As Object)
@@ -1330,39 +1196,6 @@ Private Function mp_IsMutableKey(ByVal mutableKeys As Object, ByVal keyText As S
     If mutableKeys.Exists(keyText) Then mp_IsMutableKey = True
 End Function
 
-Private Function mp_ReadLockedWithPlaceholder(ByVal profileNode As Object) As Object
-    Dim result As Object
-    Dim nodes As Object
-    Dim node As Object
-    Dim keyText As String
-    Dim placeholderText As String
-
-    Set result = CreateObject("Scripting.Dictionary")
-    result.CompareMode = 1
-
-    If profileNode Is Nothing Then
-        Set mp_ReadLockedWithPlaceholder = result
-        Exit Function
-    End If
-
-    Set nodes = profileNode.selectNodes("p:v")
-    If nodes Is Nothing Then
-        Set mp_ReadLockedWithPlaceholder = result
-        Exit Function
-    End If
-
-    For Each node In nodes
-        keyText = Trim$(mp_NodeAttrText(node, "key"))
-        placeholderText = Trim$(mp_NodeAttrText(node, XML_ATTR_LOCKED_WITH_PLACEHOLDER))
-        If Len(keyText) = 0 Then GoTo ContinueNode
-        If Len(placeholderText) = 0 Then GoTo ContinueNode
-        result(keyText) = placeholderText
-ContinueNode:
-    Next node
-
-    Set mp_ReadLockedWithPlaceholder = result
-End Function
-
 Private Function mp_ReadMutableKeys(ByVal profileNode As Object) As Object
     Dim result As Object
     Dim nodes As Object
@@ -1401,11 +1234,6 @@ Private Function mp_IsXmlBooleanTrue(ByVal valueText As String) As Boolean
         Case "1", "true", "yes", "y"
             mp_IsXmlBooleanTrue = True
     End Select
-End Function
-
-Private Function mp_BuildLockedPlaceholderFormat(ByVal placeholderText As String) As String
-    placeholderText = Replace(placeholderText, """", """""")
-    mp_BuildLockedPlaceholderFormat = ";;;""" & placeholderText & """"
 End Function
 
 Private Function mp_IsMarkerKey(ByVal keyText As String) As Boolean
