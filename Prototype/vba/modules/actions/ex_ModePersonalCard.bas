@@ -9,6 +9,8 @@ Private Const DEV_COL_VALUE As Long = 3
 Private Const RESULT_SHEET_NAME As String = "g_PersonTimeline"
 Private Const POST_PROCESS_SCRIPT_KEY_EXPLICIT As String = "PostProcess.Script.Explicit"
 Private Const INPUT_KEY_USE_RESULT_LAYOUT As String = "__UseResultLayoutScript"
+Private Const INPUT_KEY_QUERY_TABLE_REFS As String = "Query.TableRefs"
+Private Const PREPROCESS_CONTEXT_HAS_SCRIPT As String = "HasScript"
 Private Const TIMELINE_DEBUG_LOG_PATH As String = "Logs\personalcard_pipeline.log"
 
 Private g_LastPostProcessCfg As Object
@@ -104,8 +106,8 @@ Private Function mp_BuildAdoLookupCacheSignature(ByVal cfg As Object) As String
 
     ex_ConfigVirtualSources.m_ExpandVirtualSourcesAndOutput cfg, "ex_ModePersonalCard"
 
-    signature = "cfg:" & CStr(cfg.Count) & "|out=" & mp_GetCfgOptional(cfg, "Output.Sheets", vbNullString)
-    Set outputEntries = ex_ConfigVirtualSources.m_BuildOutputEntries(cfg, "ex_ModePersonalCard")
+    signature = "cfg:" & CStr(cfg.Count) & "|tables=" & ex_ConfigVirtualSources.m_BuildAllTableRefsText(cfg, "ex_ModePersonalCard")
+    Set outputEntries = ex_ConfigVirtualSources.m_BuildAllOutputEntries(cfg, "ex_ModePersonalCard")
     If outputEntries Is Nothing Then
         mp_BuildAdoLookupCacheSignature = signature
         Exit Function
@@ -218,7 +220,7 @@ Public Function m_RunMode(ByVal cfg As Object, ByVal modeInput As Object, ByVal 
 
     fio = Trim$(ex_ScriptIO.m_GetStringOrDefault(modeInput, "CommonKey", vbNullString))
 
-    Set m_RunMode = mp_RunModeCore(fio, cfg, modeInput)
+    Set m_RunMode = mp_RunModeCore(fio, cfg, modeInput, preProcessContext)
     Exit Function
 
 EH:
@@ -235,14 +237,14 @@ End Function
 
 Private Function mp_ValidateTimelineEntryConfig(ByRef outErrorText As String) As Boolean
     Dim cfg As Object
-    Dim mode As OutputMode
+    Dim outputEntries As Collection
 
     On Error GoTo EH
 
     Set cfg = ex_ConfigProvider.m_LoadConfigDictionary("ex_ModePersonalCard", 1330, 1331)
-    mode = ex_Settings.m_GetOutputMode()
+    Set outputEntries = ex_ConfigVirtualSources.m_BuildAllOutputEntries(cfg, "ex_ModePersonalCard")
 
-    mp_ValidateTimelineEntryConfig = mp_ValidateTimelineConfig(cfg, mode, outErrorText)
+    mp_ValidateTimelineEntryConfig = mp_ValidateTimelineConfig(cfg, outputEntries, outErrorText)
     Exit Function
 
 EH:
@@ -253,7 +255,8 @@ End Function
 Private Function mp_RunModeCore( _
     ByVal fio As String, _
     ByVal cfg As Object, _
-    ByVal preparedPostProcessInput As Object _
+    ByVal preparedPostProcessInput As Object, _
+    Optional ByVal preProcessContext As Object = Nothing _
 ) As Object
 
     On Error GoTo EH
@@ -267,6 +270,7 @@ Private Function mp_RunModeCore( _
     Dim postProcessInput As Object
     Dim modeResult As Object
     Dim useResultLayoutScript As Boolean
+    Dim outputEntries As Collection
 
     stageName = "init"
     mp_DebugLog "START mp_RunModeCore fio='" & CStr(fio) & "'"
@@ -298,23 +302,6 @@ Private Function mp_RunModeCore( _
     stageName = "ensure-ado-caches"
     mp_EnsureAdoLookupCaches cfg
 
-    Dim mode As OutputMode
-    stageName = "read-output-mode"
-    mode = ex_Settings.m_GetOutputMode()
-
-    Dim validationError As String
-    stageName = "validate-config"
-    If Not mp_ValidateTimelineConfig(cfg, mode, validationError) Then
-        Application.EnableEvents = prevEnableEvents
-        Application.DisplayAlerts = prevDisplayAlerts
-        Application.ScreenUpdating = prevScreenUpdating
-        Application.CalculateBeforeSave = prevCalculateBeforeSave
-        Application.Calculation = prevCalculation
-        MsgBox validationError, vbExclamation
-        Set mp_RunModeCore = Nothing
-        Exit Function
-    End If
-
     stageName = "prepare-mode-input"
     Set postProcessInput = preparedPostProcessInput
     If postProcessInput Is Nothing Then
@@ -325,6 +312,22 @@ Private Function mp_RunModeCore( _
         ex_ScriptIO.m_GetStringOrDefault(postProcessInput, INPUT_KEY_USE_RESULT_LAYOUT, "0"), _
         "1", _
         vbTextCompare) = 0)
+
+    stageName = "resolve-query-output-entries"
+    Set outputEntries = mp_ResolveQueryOutputEntries(cfg, postProcessInput, preProcessContext)
+
+    Dim validationError As String
+    stageName = "validate-config"
+    If Not mp_ValidateTimelineConfig(cfg, outputEntries, validationError) Then
+        Application.EnableEvents = prevEnableEvents
+        Application.DisplayAlerts = prevDisplayAlerts
+        Application.ScreenUpdating = prevScreenUpdating
+        Application.CalculateBeforeSave = prevCalculateBeforeSave
+        Application.Calculation = prevCalculation
+        MsgBox validationError, vbExclamation
+        Set mp_RunModeCore = Nothing
+        Exit Function
+    End If
 
     stageName = "prepare-output-sheet"
     resultSheetExistedBeforeRender = mp_WorksheetExists(RESULT_SHEET_NAME)
@@ -349,13 +352,6 @@ Private Function mp_RunModeCore( _
         Err.Raise vbObjectError + 1304, "ex_ModePersonalCard", "Failed to initialize style registry."
     End If
     hasOutputStyle = ex_SheetStylesXmlProvider.m_GetOutputSheetStyle(outputStyle, ThisWorkbook)
-
-    stageName = "resolve-output-aliases"
-    Dim outputEntries As Collection
-    Set outputEntries = ex_ConfigVirtualSources.m_BuildOutputEntries(cfg, "ex_ModePersonalCard")
-    If outputEntries Is Nothing Or outputEntries.Count = 0 Then
-        Err.Raise vbObjectError + 1380, "ex_ModePersonalCard", "List is empty for config key: Output.Sheets"
-    End If
 
     Dim connCache As Object
     Set connCache = CreateObject("Scripting.Dictionary")
@@ -406,10 +402,6 @@ Private Function mp_RunModeCore( _
             Err.Raise vbObjectError + 1301, "ex_ModePersonalCard", _
                 "Unsupported table type for alias '" & tableAlias & "': " & tableType
         End If
-        If Not mp_ShouldRenderTableForMode(mode, tableType) Then
-            GoTo ContinueAlias
-        End If
-
         Dim adoObjectName As String
         adoObjectName = ex_ConfigProvider.m_GetResolvedSheetName(sourceAlias, tableAlias, cfg, True, "ex_ModePersonalCard", 1370, 1371, 1763, 1764, 1765)
 
@@ -420,7 +412,7 @@ Private Function mp_RunModeCore( _
             Dim stateRendered As Boolean
             rowIndex = mp_WriteStateCardGeneric(wsOut, sourceConn, adoObjectName, fio, rowIndex, cfg, resultFieldRanges, resultTables, resultTablesByRef, sourceAlias, tableAlias, headerRows, sectionRows, pendingWarningBanners, partialMatchRowRanges, stateRendered)
             If stateRendered Then
-                rowIndex = mp_AdvanceRowIndexAfterRenderedTable(cfg, outputEntries, i, mode, tableAlias, tableType, rowIndex)
+                rowIndex = mp_AdvanceRowIndexAfterRenderedTable(cfg, outputEntries, i, tableAlias, tableType, rowIndex)
                 renderedCount = renderedCount + 1
             End If
         Else
@@ -430,16 +422,14 @@ Private Function mp_RunModeCore( _
 
             eventsSectionRow = rowIndex
 
-            If mode <> StateTableOnly Then
-                wsOut.Cells(rowIndex, 1).Value = "Events [" & tableAlias & "]"
-                wsOut.Cells(rowIndex, 1).Font.Bold = True
-                sectionRows.Add rowIndex
-                eventsSectionAdded = True
-                rowIndex = rowIndex + 1
-            End If
+            wsOut.Cells(rowIndex, 1).Value = "Events [" & tableAlias & "]"
+            wsOut.Cells(rowIndex, 1).Font.Bold = True
+            sectionRows.Add rowIndex
+            eventsSectionAdded = True
+            rowIndex = rowIndex + 1
             rowIndex = mp_WriteEventsGeneric(wsOut, sourceConn, adoObjectName, fio, rowIndex, cfg, resultFieldRanges, resultTables, resultTablesByRef, sourceAlias, tableAlias, headerRows, pendingWarningBanners, partialMatchRowRanges, eventsRendered)
             If eventsRendered Then
-                rowIndex = mp_AdvanceRowIndexAfterRenderedTable(cfg, outputEntries, i, mode, tableAlias, tableType, rowIndex)
+                rowIndex = mp_AdvanceRowIndexAfterRenderedTable(cfg, outputEntries, i, tableAlias, tableType, rowIndex)
                 renderedCount = renderedCount + 1
             Else
                 If eventsSectionAdded Then
@@ -456,7 +446,7 @@ ContinueAlias:
     stageName = "validate-rendered-count"
     If renderedCount = 0 Then
         Err.Raise vbObjectError + 1303, "ex_ModePersonalCard", _
-            "No sheets were rendered for mode '" & ex_Settings.m_GetOutputModeDisplay() & "'. Check Output.Sheets and sheet Type."
+            "No tables were rendered. Check Query.TableRefs and table Type."
     End If
 
     stageName = "apply-styles"
@@ -679,6 +669,44 @@ Private Function mp_CreateScriptInputContext(ByVal fio As String) As Object
     Set mp_CreateScriptInputContext = ctx
 End Function
 
+Private Function mp_ResolveQueryOutputEntries( _
+    ByVal cfg As Object, _
+    ByVal modeInput As Object, _
+    ByVal preProcessContext As Object _
+) As Collection
+    Dim tableRefsText As String
+    Dim hasPreProcessScript As Boolean
+
+    hasPreProcessScript = mp_PreProcessHasScript(preProcessContext)
+    tableRefsText = Trim$(ex_ScriptIO.m_GetStringOrDefault(modeInput, INPUT_KEY_QUERY_TABLE_REFS, vbNullString))
+
+    If Len(tableRefsText) = 0 Then
+        If hasPreProcessScript Then
+            Err.Raise vbObjectError + 1381, "ex_ModePersonalCard", _
+                "PreProcess script must explicitly pass or set input key 'Query.TableRefs'."
+        End If
+
+        tableRefsText = ex_ConfigVirtualSources.m_BuildAllTableRefsText(cfg, "ex_ModePersonalCard")
+        tableRefsText = Trim$(tableRefsText)
+        If Len(tableRefsText) = 0 Then
+            Err.Raise vbObjectError + 1382, "ex_ModePersonalCard", _
+                "Failed to build default Query.TableRefs from Source.*.SheetAliases."
+        End If
+        ex_ScriptIO.m_SetString modeInput, INPUT_KEY_QUERY_TABLE_REFS, tableRefsText
+    End If
+
+    Set mp_ResolveQueryOutputEntries = ex_ConfigVirtualSources.m_BuildOutputEntriesFromTableRefs( _
+        cfg, tableRefsText, "ex_ModePersonalCard")
+End Function
+
+Private Function mp_PreProcessHasScript(ByVal preProcessContext As Object) As Boolean
+    If preProcessContext Is Nothing Then Exit Function
+    mp_PreProcessHasScript = (StrComp( _
+        ex_ScriptIO.m_GetStringOrDefault(preProcessContext, PREPROCESS_CONTEXT_HAS_SCRIPT, "false"), _
+        "true", _
+        vbTextCompare) = 0)
+End Function
+
 Private Function mp_ShouldStrictPreflightValidation() As Boolean
     Dim valueText As String
     Dim parsed As Boolean
@@ -693,10 +721,9 @@ End Function
 
 Private Function mp_ValidateTimelineConfig( _
     ByVal cfg As Object, _
-    ByVal mode As OutputMode, _
+    ByVal outputEntries As Collection, _
     ByRef outErrorText As String _
 ) As Boolean
-    Dim outputEntries As Collection
     Dim outputEntry As Object
     Dim resultFieldRanges As Collection
     Dim activeModeKey As String
@@ -705,10 +732,8 @@ Private Function mp_ValidateTimelineConfig( _
 
     On Error GoTo EH
 
-    ex_ConfigVirtualSources.m_ExpandVirtualSourcesAndOutput cfg, "ex_ModePersonalCard"
-    Set outputEntries = ex_ConfigVirtualSources.m_BuildOutputEntries(cfg, "ex_ModePersonalCard")
     If outputEntries Is Nothing Or outputEntries.Count = 0 Then
-        Err.Raise vbObjectError + 1380, "ex_ModePersonalCard", "List is empty for config key: Output.Sheets"
+        Err.Raise vbObjectError + 1380, "ex_ModePersonalCard", "List is empty for input key: Query.TableRefs"
     End If
 
     Set resultFieldRanges = New Collection
@@ -734,8 +759,6 @@ Private Function mp_ValidateTimelineConfig( _
             Err.Raise vbObjectError + 1301, "ex_ModePersonalCard", _
                 "Unsupported table type for alias '" & tableAlias & "': " & tableType
         End If
-        If Not mp_ShouldRenderTableForMode(mode, tableType) Then GoTo ContinueAlias
-
         Call mp_GetCfgRequired(cfg, sourceAlias & ".Sheet[" & tableAlias & "].Key")
         Dim rangeStartMarker As String
         Dim rangeEndMarker As String
@@ -807,6 +830,7 @@ Private Function mp_IsConfigValidationError(ByVal errNumber As Long) As Boolean
         Case vbObjectError + 1300, vbObjectError + 1301, vbObjectError + 1335, _
              vbObjectError + 1340, vbObjectError + 1341, vbObjectError + 1360, _
              vbObjectError + 1370, vbObjectError + 1371, vbObjectError + 1380, _
+             vbObjectError + 1381, vbObjectError + 1382, _
              vbObjectError + 1390, vbObjectError + 1491, vbObjectError + 1492, _
              vbObjectError + 1710, vbObjectError + 1711, vbObjectError + 1712, _
              vbObjectError + 1713, vbObjectError + 1714, vbObjectError + 1715, _
@@ -2331,7 +2355,6 @@ Private Function mp_AdvanceRowIndexAfterRenderedTable( _
     ByVal cfg As Object, _
     ByVal outputEntries As Collection, _
     ByVal currentIndex As Long, _
-    ByVal mode As OutputMode, _
     ByVal currentTableAlias As String, _
     ByVal currentTableType As String, _
     ByVal rowIndexAfterCurrentTable As Long _
@@ -2342,12 +2365,6 @@ End Function
 
 Private Function mp_IsSupportedOutputTableType(ByVal tableType As String) As Boolean
     mp_IsSupportedOutputTableType = (tableType = "state" Or tableType = "events")
-End Function
-
-Private Function mp_ShouldRenderTableForMode(ByVal mode As OutputMode, ByVal tableType As String) As Boolean
-    If mode = StateTableOnly And tableType <> "state" Then Exit Function
-    If mode = EventsTableOnly And tableType <> "events" Then Exit Function
-    mp_ShouldRenderTableForMode = True
 End Function
 
 Private Function mp_GetConnectionForSource(ByVal connCache As Object, ByVal cfg As Object, ByVal sourceAlias As String) As Object

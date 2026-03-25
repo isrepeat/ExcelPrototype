@@ -39,7 +39,6 @@
     <v key="Events.Sheet[EventsMain].Map[Position]">Посада</v>
     <v key="Events.Sheet[EventsMain].Map[Salary]">Оклад</v>
 
-    <v key="Output.Sheets">StateMain; EventsMain</v>
     <v key="Output.Layout.Gap.Default">1</v>
     <v key="Output.Layout.Gap.OwnerDivider">0</v>
 

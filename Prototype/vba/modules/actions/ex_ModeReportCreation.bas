@@ -609,20 +609,26 @@ Private Sub mp_ResolveOutputTables( _
     ByRef outEventsSourceAlias As String, _
     ByRef outEventsTableAlias As String _
 )
-    Dim outputTables As Collection
+    Dim outputEntries As Collection
+    Dim outputEntry As Object
     Dim i As Long
     Dim tableAlias As String
     Dim sourceAlias As String
     Dim tableType As String
 
-    Set outputTables = mp_ParseSemicolonList(mp_GetRequiredConfigFromDict(cfg, "Output.Sheets"))
-    If outputTables Is Nothing Or outputTables.Count = 0 Then
-        Err.Raise vbObjectError + 6013, "ex_ModeReportCreation", "Config key 'Output.Sheets' is empty."
+    Set outputEntries = ex_ConfigVirtualSources.m_BuildAllOutputEntries(cfg, "ex_ModeReportCreation")
+    If outputEntries Is Nothing Or outputEntries.Count = 0 Then
+        Err.Raise vbObjectError + 6013, "ex_ModeReportCreation", _
+            "No tables were found in Source.*.SheetAliases."
     End If
 
-    For i = 1 To outputTables.Count
-        tableAlias = CStr(outputTables(i))
-        sourceAlias = mp_GetSourceAliasForTable(cfg, tableAlias)
+    For i = 1 To outputEntries.Count
+        Set outputEntry = outputEntries(i)
+        tableAlias = Trim$(CStr(outputEntry("TableAlias")))
+        sourceAlias = Trim$(CStr(outputEntry("SourceAlias")))
+        If Len(tableAlias) = 0 Then GoTo ContinueEntry
+        If Len(sourceAlias) = 0 Then GoTo ContinueEntry
+
         tableType = LCase$(mp_GetRequiredConfigFromDict(cfg, sourceAlias & ".Sheet[" & tableAlias & "].Type"))
 
         Select Case tableType
@@ -633,13 +639,16 @@ Private Sub mp_ResolveOutputTables( _
                 outEventsSourceAlias = sourceAlias
                 outEventsTableAlias = tableAlias
         End Select
+ContinueEntry:
     Next i
 
     If Len(outStateSourceAlias) = 0 Or Len(outStateTableAlias) = 0 Then
-        Err.Raise vbObjectError + 6014, "ex_ModeReportCreation", "Output table with Type='State' was not found in Output.Sheets."
+        Err.Raise vbObjectError + 6014, "ex_ModeReportCreation", _
+            "Output table with Type='State' was not found in configured Source.*.SheetAliases."
     End If
     If Len(outEventsSourceAlias) = 0 Or Len(outEventsTableAlias) = 0 Then
-        Err.Raise vbObjectError + 6015, "ex_ModeReportCreation", "Output table with Type='Events' was not found in Output.Sheets."
+        Err.Raise vbObjectError + 6015, "ex_ModeReportCreation", _
+            "Output table with Type='Events' was not found in configured Source.*.SheetAliases."
     End If
 End Sub
 

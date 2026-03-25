@@ -5,6 +5,8 @@ Private Const SUMMARY_SHEET_NAME As String = "g_MultiSources"
 Private Const RESULT_SHEET_PREFIX As String = "g_MS_"
 Private Const SCRIPT_INPUT_RESULT_TABLES_KEY As String = "__ResultTables"
 Private Const INPUT_KEY_USE_RESULT_LAYOUT As String = "__UseResultLayoutScript"
+Private Const INPUT_KEY_QUERY_TABLE_REFS As String = "Query.TableRefs"
+Private Const PREPROCESS_CONTEXT_HAS_SCRIPT As String = "HasScript"
 Private Const LIKE_DIALECT_UNKNOWN As String = "unknown"
 Private Const LIKE_DIALECT_STAR As String = "star"
 Private Const LIKE_DIALECT_PERCENT As String = "percent"
@@ -93,9 +95,9 @@ Public Function m_RunMode(ByVal cfg As Object, ByVal modeInput As Object, ByVal 
     End If
 
     ex_ConfigVirtualSources.m_ExpandVirtualSourcesAndOutput cfg, "ex_ModeMultiSources"
-    Set outputEntries = ex_ConfigVirtualSources.m_BuildOutputEntries(cfg, "ex_ModeMultiSources")
+    Set outputEntries = mp_ResolveQueryOutputEntries(cfg, modeInput, preProcessContext)
     If outputEntries Is Nothing Or outputEntries.Count = 0 Then
-        Err.Raise vbObjectError + 6504, "ex_ModeMultiSources", "List is empty for config key: Output.Sheets"
+        Err.Raise vbObjectError + 6504, "ex_ModeMultiSources", "List is empty for input key: Query.TableRefs"
     End If
 
     commonKey = Trim$(ex_ScriptIO.m_GetStringOrDefault(modeInput, "CommonKey", vbNullString))
@@ -269,6 +271,44 @@ EH:
     On Error Resume Next
     Set m_RunMode = mp_BuildFailureModeResult(modeInput, errNumber, errSource, errDescription)
     On Error GoTo 0
+End Function
+
+Private Function mp_ResolveQueryOutputEntries( _
+    ByVal cfg As Object, _
+    ByVal modeInput As Object, _
+    ByVal preProcessContext As Object _
+) As Collection
+    Dim tableRefsText As String
+    Dim hasPreProcessScript As Boolean
+
+    hasPreProcessScript = mp_PreProcessHasScript(preProcessContext)
+    tableRefsText = Trim$(ex_ScriptIO.m_GetStringOrDefault(modeInput, INPUT_KEY_QUERY_TABLE_REFS, vbNullString))
+
+    If Len(tableRefsText) = 0 Then
+        If hasPreProcessScript Then
+            Err.Raise vbObjectError + 6542, "ex_ModeMultiSources", _
+                "PreProcess script must explicitly pass or set input key 'Query.TableRefs'."
+        End If
+
+        tableRefsText = ex_ConfigVirtualSources.m_BuildAllTableRefsText(cfg, "ex_ModeMultiSources")
+        tableRefsText = Trim$(tableRefsText)
+        If Len(tableRefsText) = 0 Then
+            Err.Raise vbObjectError + 6543, "ex_ModeMultiSources", _
+                "Failed to build default Query.TableRefs from Source.*.SheetAliases."
+        End If
+        ex_ScriptIO.m_SetString modeInput, INPUT_KEY_QUERY_TABLE_REFS, tableRefsText
+    End If
+
+    Set mp_ResolveQueryOutputEntries = ex_ConfigVirtualSources.m_BuildOutputEntriesFromTableRefs( _
+        cfg, tableRefsText, "ex_ModeMultiSources")
+End Function
+
+Private Function mp_PreProcessHasScript(ByVal preProcessContext As Object) As Boolean
+    If preProcessContext Is Nothing Then Exit Function
+    mp_PreProcessHasScript = (StrComp( _
+        ex_ScriptIO.m_GetStringOrDefault(preProcessContext, PREPROCESS_CONTEXT_HAS_SCRIPT, "false"), _
+        "true", _
+        vbTextCompare) = 0)
 End Function
 
 Private Sub mp_RestoreExcelUiStateSafe()

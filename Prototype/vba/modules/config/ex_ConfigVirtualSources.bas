@@ -138,7 +138,8 @@ ContinueCandidate:
 ContinueTemplate:
     Next sourceAlias
 
-    mp_ExpandOutputSheetsTemplates cfg, generatedByTemplate, errSource
+    ' Query-table selection is resolved from Source.*.SheetAliases and
+    ' optional runtime key Query.TableRefs.
     cfg(RUNTIME_EXPANDED_FLAG_KEY) = "true"
 End Sub
 
@@ -146,27 +147,105 @@ Public Function m_BuildOutputEntries( _
     ByVal cfg As Object, _
     Optional ByVal errSource As String = "ex_ConfigVirtualSources" _
 ) As Collection
+    Set m_BuildOutputEntries = m_BuildAllOutputEntries(cfg, errSource)
+End Function
+
+Public Function m_BuildAllOutputEntries( _
+    ByVal cfg As Object, _
+    Optional ByVal errSource As String = "ex_ConfigVirtualSources" _
+) As Collection
     Dim result As Collection
-    Dim outputAliases As Variant
+    Dim sourceAliases As Variant
+    Dim sourceAlias As String
+    Dim tableAliases As Variant
+    Dim i As Long
+    Dim j As Long
+    Dim tokenText As String
+    Dim tableAlias As String
+    Dim entry As Object
+    Dim seenRefs As Object
+
+    m_ExpandVirtualSourcesAndOutput cfg, errSource
+
+    Set result = New Collection
+    Set seenRefs = CreateObject("Scripting.Dictionary")
+    seenRefs.CompareMode = 1
+
+    sourceAliases = mp_GetSourceAliases(cfg, errSource)
+    mp_SortVariantTextArray sourceAliases
+
+    For i = LBound(sourceAliases) To UBound(sourceAliases)
+        sourceAlias = Trim$(CStr(sourceAliases(i)))
+        If Len(sourceAlias) = 0 Then GoTo ContinueSource
+        If mp_IsSourceAliasTemplate(sourceAlias) Then GoTo ContinueSource
+
+        tableAliases = mp_GetListRequired(cfg, "Source." & sourceAlias & ".SheetAliases", errSource)
+        For j = LBound(tableAliases) To UBound(tableAliases)
+            tableAlias = Trim$(CStr(tableAliases(j)))
+            If Len(tableAlias) = 0 Then GoTo ContinueTableAlias
+
+            tokenText = sourceAlias & ".Sheet[" & tableAlias & "]"
+            If seenRefs.Exists(tokenText) Then GoTo ContinueTableAlias
+            seenRefs(tokenText) = True
+
+            Set entry = CreateObject("Scripting.Dictionary")
+            entry.CompareMode = 1
+            entry("RawToken") = tokenText
+            entry("SourceAlias") = sourceAlias
+            entry("TableAlias") = tableAlias
+            result.Add entry
+ContinueTableAlias:
+        Next j
+ContinueSource:
+    Next i
+
+    If result.Count = 0 Then
+        Err.Raise vbObjectError + 1380, errSource, _
+            "No tables were found in Source.*.SheetAliases."
+    End If
+
+    Set m_BuildAllOutputEntries = result
+End Function
+
+Public Function m_BuildOutputEntriesFromTableRefs( _
+    ByVal cfg As Object, _
+    ByVal tableRefsText As String, _
+    Optional ByVal errSource As String = "ex_ConfigVirtualSources" _
+) As Collection
+    Dim result As Collection
+    Dim refs As Variant
     Dim i As Long
     Dim tokenText As String
     Dim sourceAlias As String
     Dim tableAlias As String
     Dim entry As Object
+    Dim normalizedRef As String
+    Dim seenRefs As Object
 
     m_ExpandVirtualSourcesAndOutput cfg, errSource
+    tableRefsText = Trim$(tableRefsText)
+    refs = mp_SplitList(tableRefsText)
+
+    If mp_IsEmptyVariantArray(refs) Then
+        Err.Raise vbObjectError + 1380, errSource, "List is empty for input key: Query.TableRefs"
+    End If
 
     Set result = New Collection
-    outputAliases = mp_GetListRequired(cfg, "Output.Sheets", errSource)
+    Set seenRefs = CreateObject("Scripting.Dictionary")
+    seenRefs.CompareMode = 1
 
-    For i = LBound(outputAliases) To UBound(outputAliases)
-        tokenText = Trim$(CStr(outputAliases(i)))
+    For i = LBound(refs) To UBound(refs)
+        tokenText = Trim$(CStr(refs(i)))
         If Len(tokenText) = 0 Then GoTo ContinueToken
 
         If Not mp_TryResolveOutputSheetEntry(cfg, tokenText, sourceAlias, tableAlias, errSource) Then
             Err.Raise vbObjectError + ERR_INVALID_CONFIG, errSource, _
-                "Invalid Output.Sheets entry '" & tokenText & "'. Expected table alias or '<source>.Sheet[TableAlias]'."
+                "Invalid Query.TableRefs entry '" & tokenText & "'. Expected table alias or '<source>.Sheet[TableAlias]'."
         End If
+
+        normalizedRef = sourceAlias & ".Sheet[" & tableAlias & "]"
+        If seenRefs.Exists(normalizedRef) Then GoTo ContinueToken
+        seenRefs(normalizedRef) = True
 
         Set entry = CreateObject("Scripting.Dictionary")
         entry.CompareMode = 1
@@ -177,7 +256,32 @@ Public Function m_BuildOutputEntries( _
 ContinueToken:
     Next i
 
-    Set m_BuildOutputEntries = result
+    If result.Count = 0 Then
+        Err.Raise vbObjectError + 1380, errSource, "List is empty for input key: Query.TableRefs"
+    End If
+
+    Set m_BuildOutputEntriesFromTableRefs = result
+End Function
+
+Public Function m_BuildAllTableRefsText( _
+    ByVal cfg As Object, _
+    Optional ByVal errSource As String = "ex_ConfigVirtualSources" _
+) As String
+    Dim entries As Collection
+    Dim i As Long
+    Dim entry As Object
+
+    Set entries = m_BuildAllOutputEntries(cfg, errSource)
+    If entries Is Nothing Then Exit Function
+
+    For i = 1 To entries.Count
+        Set entry = entries(i)
+        If entry Is Nothing Then GoTo ContinueEntry
+        If Len(m_BuildAllTableRefsText) > 0 Then m_BuildAllTableRefsText = m_BuildAllTableRefsText & "; "
+        m_BuildAllTableRefsText = m_BuildAllTableRefsText & _
+            CStr(entry("SourceAlias")) & ".Sheet[" & CStr(entry("TableAlias")) & "]"
+ContinueEntry:
+    Next i
 End Function
 
 Public Function m_TryParseQualifiedOutputSheetRef( _
@@ -694,7 +798,7 @@ Private Sub mp_CloneTemplateSheetConfig( _
     Next i
 End Sub
 
-Private Sub mp_ExpandOutputSheetsTemplates( _
+Private Sub mp_ExpandQueryTableRefsTemplates( _
     ByVal cfg As Object, _
     ByVal generatedByTemplate As Object, _
     ByVal errSource As String _
@@ -708,7 +812,7 @@ Private Sub mp_ExpandOutputSheetsTemplates( _
     Dim concreteAliases As Collection
     Dim concreteAlias As Variant
 
-    outputAliases = mp_GetListRequired(cfg, "Output.Sheets", errSource)
+    outputAliases = mp_GetListRequired(cfg, "Query.TableRefs", errSource)
     Set expanded = New Collection
 
     For i = LBound(outputAliases) To UBound(outputAliases)
@@ -719,7 +823,7 @@ Private Sub mp_ExpandOutputSheetsTemplates( _
             If mp_IsSourceAliasTemplate(sourceAlias) Then
                 If generatedByTemplate Is Nothing Or Not generatedByTemplate.Exists(sourceAlias) Then
                     Err.Raise vbObjectError + ERR_INVALID_CONFIG, errSource, _
-                        "Output.Sheets entry '" & tokenText & "' references unresolved template source '" & sourceAlias & "'."
+                        "Query.TableRefs entry '" & tokenText & "' references unresolved template source '" & sourceAlias & "'."
                 End If
                 Set concreteAliases = generatedByTemplate(sourceAlias)
                 For Each concreteAlias In concreteAliases
@@ -734,7 +838,7 @@ Private Sub mp_ExpandOutputSheetsTemplates( _
 ContinueToken:
     Next i
 
-    cfg("Output.Sheets") = mp_JoinCollectionItems(expanded, "; ")
+    cfg("Query.TableRefs") = mp_JoinCollectionItems(expanded, "; ")
 End Sub
 
 Private Function mp_JoinCollectionItems(ByVal values As Collection, ByVal delimiter As String) As String
@@ -761,7 +865,7 @@ Private Function mp_FindSourceAliasForTable( _
 
     tableAlias = Trim$(tableAlias)
     If Len(tableAlias) = 0 Then
-        Err.Raise vbObjectError + ERR_EMPTY_TABLE_ALIAS, errSource, "Output.Sheets contains an empty table alias."
+        Err.Raise vbObjectError + ERR_EMPTY_TABLE_ALIAS, errSource, "Query.TableRefs contains an empty table alias."
     End If
 
     sourceAliases = mp_GetSourceAliases(cfg, errSource)
@@ -859,6 +963,25 @@ Private Function mp_ArrayContainsText(ByVal arr As Variant, ByVal wanted As Stri
         End If
     Next i
 End Function
+
+Private Sub mp_SortVariantTextArray(ByRef arr As Variant)
+    Dim i As Long
+    Dim j As Long
+    Dim tmp As Variant
+
+    If mp_IsEmptyVariantArray(arr) Then Exit Sub
+    If UBound(arr) <= LBound(arr) Then Exit Sub
+
+    For i = LBound(arr) To UBound(arr) - 1
+        For j = i + 1 To UBound(arr)
+            If StrComp(CStr(arr(i)), CStr(arr(j)), vbTextCompare) > 0 Then
+                tmp = arr(i)
+                arr(i) = arr(j)
+                arr(j) = tmp
+            End If
+        Next j
+    Next i
+End Sub
 
 Private Function mp_IsEmptyVariantArray(ByVal arr As Variant) As Boolean
     If Not IsArray(arr) Then

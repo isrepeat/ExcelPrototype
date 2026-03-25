@@ -48,7 +48,6 @@ Private Const LEGACY_MODE_DROPDOWN_SHAPE As String = "ddMode"
 Private Const PFUI_UPDATE_BUTTON_SHAPE As String = "btnUpdateCode"
 Private Const PFUI_UPDATE_UI_BUTTON_SHAPE As String = "btnUpdateUI"
 Private Const PFUI_CLEAR_BUTTON_SHAPE As String = "btnClear"
-Private Const PFUI_MODE_BUTTON_SHAPE As String = "btnMode"
 Private Const PFUI_PERSONAL_BUTTON_SHAPE As String = "btnPersonalCard"
 Private Const PFUI_COMPARING_BUTTON_SHAPE As String = "btnComparing"
 Private Const PFUI_PREPROCESS_SCRIPT_BUTTON_SHAPE As String = "btnPreProcessScript"
@@ -1610,7 +1609,7 @@ Public Sub m_InitUiBlockLayoutAndGroup(Optional ByVal ws As Worksheet)
     pfui_UngroupManagedUiShapes ws
     On Error GoTo 0
 
-    names = Array(PFUI_MODE_DROPDOWN_SHAPE, PFUI_CLEAR_BUTTON_SHAPE, PFUI_MODE_BUTTON_SHAPE, PFUI_PERSONAL_BUTTON_SHAPE, PFUI_COMPARING_BUTTON_SHAPE)
+    names = Array(PFUI_MODE_DROPDOWN_SHAPE, PFUI_CLEAR_BUTTON_SHAPE, PFUI_PERSONAL_BUTTON_SHAPE, PFUI_COMPARING_BUTTON_SHAPE)
     For Each shapeName In names
         Set shp = m_GetShapeByName(ws, CStr(shapeName))
         If shp Is Nothing Then

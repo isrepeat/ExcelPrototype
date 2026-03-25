@@ -3,7 +3,6 @@
 	<profile name="Default" resultZoom="100">
 		<ui>
 			<control name="btnClear" visible="true"/>
-			<control name="btnMode" visible="true"/>
 			<control name="btnPersonalCard" visible="true"/>
 			<control name="btnComparing" visible="false"/>
 			<control name="btnUpdateCode" visible="true"/>
@@ -38,7 +37,6 @@
 		<v key="Events.Sheet[EventsMain].Map[Position]">Посада</v>
 		<v key="Events.Sheet[EventsMain].Map[Salary]">Оклад</v>
 		<v key=""/>
-		<v key="Output.Sheets">StateMain; EventsMain</v>
 		<resultLayoutScript include="PersonalCard_ResultLayoutScript.jslike"/>
 	</profile>
 	<profile name="Test" resultZoom="100">
@@ -79,7 +77,6 @@
 		<v key="Events.Sheet[EventsOut].Map[Ticket]">Стовпець1|Номер квитка</v>
 		<v key="Events.Sheet[EventsOut].Map[Note]">76|Замітки</v>
 		<v key=""/>
-		<v key="Output.Sheets">StateMain; EventsOut; EventsIn</v>
 		<resultLayoutScript include="PersonalCard_ResultLayoutScript.jslike"/>
 		<postProcessScript execution="Explicit">
 			for (let row in Events.Sheet[EventsOut].rows) {
@@ -113,7 +110,6 @@
 		</postProcessScript>
 		<ui>
 			<control name="btnClear" visible="true"/>
-			<control name="btnMode" visible="true"/>
 			<control name="btnPersonalCard" visible="true"/>
 			<control name="btnComparing" visible="false"/>
 			<control name="btnUpdateCode" visible="true"/>
@@ -124,7 +120,6 @@
 	<profile name="Test2" resultZoom="90">
 		<ui>
 			<control name="btnClear" visible="true"/>
-			<control name="btnMode" visible="true"/>
 			<control name="btnPersonalCard" visible="true"/>
 			<control name="btnComparing" visible="false"/>
 			<control name="btnUpdateCode" visible="true"/>
@@ -292,7 +287,6 @@
 			}
 		</fetchAdditionalData>
 		<v key=""/>
-		<v key="Output.Sheets">StateMain; EventsOut; EventsIn; DailyEvents</v>
 		<v key=""/>
 		<v key="Export.WordTemplatePath">Templates\Template.docx</v>
 		<v key="Export.OutputMode">CreateWithPostfix</v>

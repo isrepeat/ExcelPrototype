@@ -15,6 +15,7 @@ Private Const INPUT_KEY_LAYOUT_WORKSHEET As String = "__ResultLayoutWorksheet"
 Private Const INPUT_KEY_LAYOUT_ROWKINDS As String = "__ResultLayoutRowKinds"
 Private Const INPUT_KEY_LAYOUT_FIELDRANGES As String = "__ResultLayoutFieldRanges"
 Private Const INPUT_KEY_RESULT_TABLES As String = "__ResultTables"
+Private Const INPUT_KEY_QUERY_TABLE_REFS As String = "Query.TableRefs"
 
 Private Const AUTO_POSTPROCESS_SCRIPT_KEY As String = "PostProcess.Script.Implicit"
 Private Const DEBUG_LOG_PATH As String = "Logs\personalcard_pipeline.log"
@@ -60,6 +61,12 @@ Public Function m_RunModePipeline( _
         mp_DebugLog "pipelineInput auto-created"
     End If
 
+    requireResultLayoutScript = mp_RequireResultLayoutScript(modeExecutorMacro)
+    If requireResultLayoutScript Then
+        stageName = "prepare-default-query-tabrefs"
+        mp_EnsureDefaultQueryTableRefs cfg, pipelineInput
+    End If
+
     stageName = "run-preprocess"
     Set preProcessContext = ex_PreProcessPipeline.m_Run(cfg, pipelineInput, requirePreScript)
     Set modeInput = pipelineInput
@@ -79,7 +86,6 @@ Public Function m_RunModePipeline( _
         Exit Function
     End If
 
-    requireResultLayoutScript = mp_RequireResultLayoutScript(modeExecutorMacro)
     If requireResultLayoutScript Then
         ex_ScriptIO.m_SetString modeInput, INPUT_KEY_USE_RESULT_LAYOUT, "1"
     Else
@@ -188,6 +194,25 @@ Private Sub mp_BeginPipelineBusy()
 
     g_PipelineBusyDepth = g_PipelineBusyDepth + 1
     On Error GoTo 0
+End Sub
+
+Private Sub mp_EnsureDefaultQueryTableRefs(ByVal cfg As Object, ByVal pipelineInput As Object)
+    Dim tableRefsText As String
+
+    If pipelineInput Is Nothing Then Exit Sub
+    If cfg Is Nothing Then Exit Sub
+
+    tableRefsText = Trim$(ex_ScriptIO.m_GetStringOrDefault(pipelineInput, INPUT_KEY_QUERY_TABLE_REFS, vbNullString))
+    If Len(tableRefsText) > 0 Then Exit Sub
+
+    tableRefsText = ex_ConfigVirtualSources.m_BuildAllTableRefsText(cfg, "ex_ModePipeline")
+    tableRefsText = Trim$(tableRefsText)
+    If Len(tableRefsText) = 0 Then
+        Err.Raise vbObjectError + 6119, "ex_ModePipeline", _
+            "Failed to build default Query.TableRefs from Source.*.SheetAliases."
+    End If
+
+    ex_ScriptIO.m_SetString pipelineInput, INPUT_KEY_QUERY_TABLE_REFS, tableRefsText
 End Sub
 
 Private Sub mp_EndPipelineBusy()
