@@ -1,0 +1,148 @@
+<?xml version="1.0" standalone="yes"?>
+<stylePipeline xmlns="urn:excelprototype:profiles" version="1">
+  <sheetPipeline page="g_MultiSources">
+    <stage name="default">
+      <layer name="rc-base" priority="100" enabled="true">
+        <rule target="sheet"
+              styles="{
+                fontName:'Times New Roman';
+                fontSize:12;
+                backColor:#222222;
+                fontColor:#EBEBEB;
+                horizontal:center;
+                vertical:center;
+                rowHeight:20;
+                borderColor:#000000;
+                borderWeight:thin;
+              }"/>
+      </layer>
+
+      <layer name="ms-pre-autofit" priority="200" enabled="true">
+        <rule target="row"
+              selector="kind=header"
+              styles="{
+                overflow:clip;
+              }"/>
+        <rule target="row"
+              selector="kind=section"
+              styles="{
+                overflow:clip;
+              }"/>
+      </layer>
+
+      <layer name="ms-autofit" priority="210" enabled="true">
+        <rule target="sheet"
+              styles="{
+                autoFitColumns:true;
+              }"/>
+      </layer>
+
+      <layer name="ms-clamp-columns" priority="220" enabled="true">
+        <rule target="sheet"
+              styles="{
+                minWidth:5;
+                maxWidth:32;
+              }"/>
+      </layer>
+
+      <layer name="ms-section" priority="230" enabled="true">
+        <rule target="row"
+              selector="kind=section"
+              styles="{
+                backColor:#161616;
+                fontColor:#D7A763;
+                fontBold:true;
+                horizontal:left;
+                overflow:clip;
+                rowHeight:20;
+              }"/>
+        <rule target="row"
+              selector="kind=section;col=1:3"
+              styles="{
+                mergeColumns:3;
+                horizontal:center;
+                vertical:center;
+              }"/>
+      </layer>
+
+      <layer name="ms-header" priority="240" enabled="true">
+        <rule target="row"
+              selector="kind=header"
+              styles="{
+                backColor:#222222;
+                fontColor:#68D947;
+                fontBold:true;
+                overflow:wrap;
+                autoHeight:true;
+              }"/>
+      </layer>
+
+      <layer name="ms-content" priority="250" enabled="true">
+        <rule target="row"
+              selector="kind=content"
+              styles="{
+                backColor:#222222;
+                fontColor:#EBEBEB;
+                overflow:wrap;
+                autoHeight:true;
+              }"/>
+      </layer>
+    </stage>
+
+    <stage name="banners">
+      <layer name="ms-banner-base" priority="100" enabled="true">
+        <rule target="row"
+              selector="kind=errorbanner|warningbanner|notebanner;col=1:8"
+              styles="{
+                mergeColumns:8;
+                overflow:wrap;
+                horizontal:left;
+                vertical:center;
+                minRowHeight:24;
+                autoHeight:true;
+                customAutoHeight-margin-top:5;
+                customAutoHeight-margin-bottom:5;
+                borderWeight:thin;
+              }"/>
+      </layer>
+
+      <layer name="ms-banner-warning" priority="110" enabled="true">
+        <rule target="row"
+              selector="kind=warningbanner;col=1:8"
+              styles="{
+                backColor:#4C3F10;
+                fontColor:#FFE599;
+                borderColor:#3B320D;
+              }"/>
+      </layer>
+
+      <layer name="ms-banner-error" priority="120" enabled="true">
+        <rule target="row"
+              selector="kind=errorbanner;col=1:8"
+              styles="{
+                backColor:#161616;
+                fontColor:#FFFFFF;
+                borderColor:#111111;
+              }"/>
+      </layer>
+
+      <layer name="ms-banner-note" priority="125" enabled="true">
+        <rule target="row"
+              selector="kind=notebanner;col=1:8"
+              styles="{
+                backColor:#2A2A2A;
+                fontColor:#FFE599;
+                borderColor:#575757;
+              }"/>
+      </layer>
+
+      <layer name="ms-banner-title" priority="130" enabled="true">
+        <rule target="row"
+              selector="kind=errorbannertitle|warningbannertitle|notebannertitle;col=1:8"
+              styles="{
+                fontBold:true;
+              }"/>
+      </layer>
+    </stage>
+  </sheetPipeline>
+</stylePipeline>

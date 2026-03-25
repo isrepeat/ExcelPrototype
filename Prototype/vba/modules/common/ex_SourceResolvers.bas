@@ -98,6 +98,108 @@ Public Function m_ResolveLatestByDmyPattern( _
     m_ResolveLatestByDmyPattern = bestPath
 End Function
 
+Public Function m_ResolveAllByDmyPattern( _
+    ByVal filePathPattern As String, _
+    Optional ByVal resolverArgs As String = vbNullString _
+) As Collection
+    Dim normalizedPattern As String
+    Dim absolutePattern As String
+    Dim folderPath As String
+    Dim filePattern As String
+    Dim searchMask As String
+    Dim candidateName As String
+    Dim candidatePath As String
+    Dim candidateDate As Date
+    Dim candidateWriteTime As Date
+    Dim validationError As String
+    Dim hasFrom As Boolean
+    Dim hasTo As Boolean
+    Dim fromDate As Date
+    Dim toDate As Date
+    Dim sortDesc As Boolean
+    Dim limitCount As Long
+    Dim paths() As String
+    Dim dates() As Date
+    Dim writes() As Date
+    Dim itemCount As Long
+    Dim i As Long
+    Dim result As Collection
+
+    mp_ParseResolveAllArgs resolverArgs, hasFrom, fromDate, hasTo, toDate, sortDesc, limitCount
+
+    normalizedPattern = mp_NormalizeFilePath(filePathPattern)
+    If Len(normalizedPattern) = 0 Then
+        Err.Raise ERR_BASE + 1, "ex_SourceResolvers", "Resolver pattern is empty."
+    End If
+
+    absolutePattern = mp_ToAbsolutePath(normalizedPattern)
+    If Len(absolutePattern) = 0 Then
+        Err.Raise ERR_BASE + 2, "ex_SourceResolvers", "Resolver pattern could not be converted to an absolute path: " & normalizedPattern
+    End If
+
+    folderPath = mp_GetParentDirectory(absolutePattern)
+    filePattern = mp_GetFileName(absolutePattern)
+    If Len(folderPath) = 0 Or Len(filePattern) = 0 Then
+        Err.Raise ERR_BASE + 3, "ex_SourceResolvers", "Resolver pattern must include both folder and file name: " & absolutePattern
+    End If
+
+    If Not mp_ValidateDmyPattern(filePattern, validationError) Then
+        Err.Raise ERR_BASE + 4, "ex_SourceResolvers", validationError & " Pattern: " & absolutePattern
+    End If
+
+    If Len(Dir$(folderPath, vbDirectory)) = 0 Then
+        Err.Raise ERR_BASE + 5, "ex_SourceResolvers", "Resolver folder was not found: " & folderPath
+    End If
+
+    If (GetAttr(folderPath) And vbDirectory) = 0 Then
+        Err.Raise ERR_BASE + 6, "ex_SourceResolvers", "Resolver path is not a folder: " & folderPath
+    End If
+
+    searchMask = mp_BuildSearchMask(filePattern)
+    candidateName = Dir$(folderPath & "\" & searchMask, vbNormal Or vbReadOnly Or vbHidden Or vbSystem)
+
+    Do While Len(candidateName) > 0
+        If mp_TryExtractDateByPattern(filePattern, candidateName, candidateDate) Then
+            If hasFrom Then
+                If candidateDate < fromDate Then GoTo ContinueCandidate
+            End If
+            If hasTo Then
+                If candidateDate > toDate Then GoTo ContinueCandidate
+            End If
+
+            candidatePath = folderPath & "\" & candidateName
+            candidateWriteTime = FileDateTime(candidatePath)
+
+            itemCount = itemCount + 1
+            ReDim Preserve paths(1 To itemCount)
+            ReDim Preserve dates(1 To itemCount)
+            ReDim Preserve writes(1 To itemCount)
+            paths(itemCount) = candidatePath
+            dates(itemCount) = candidateDate
+            writes(itemCount) = candidateWriteTime
+        End If
+ContinueCandidate:
+        candidateName = Dir$
+    Loop
+
+    If itemCount = 0 Then
+        Err.Raise ERR_BASE + 7, "ex_SourceResolvers", _
+            "No files matched the date pattern and filter. Pattern: " & absolutePattern & ", search mask: " & searchMask
+    End If
+
+    mp_SortResolvedByDate paths, dates, writes, itemCount, sortDesc
+
+    Set result = New Collection
+    For i = 1 To itemCount
+        If limitCount > 0 Then
+            If result.Count >= limitCount Then Exit For
+        End If
+        result.Add paths(i)
+    Next i
+
+    Set m_ResolveAllByDmyPattern = result
+End Function
+
 Private Function mp_ResolveConfigReferenceTokens(ByVal templateText As String) As String
     Dim resultText As String
     Dim tokenStart As Long
@@ -417,3 +519,171 @@ Private Function mp_GetFileName(ByVal filePath As String) As String
         mp_GetFileName = Mid$(filePath, slashPos + 1)
     End If
 End Function
+
+Private Sub mp_ParseResolveAllArgs( _
+    ByVal resolverArgs As String, _
+    ByRef outHasFrom As Boolean, _
+    ByRef outFromDate As Date, _
+    ByRef outHasTo As Boolean, _
+    ByRef outToDate As Date, _
+    ByRef outSortDesc As Boolean, _
+    ByRef outLimit As Long _
+)
+    Dim normalized As String
+    Dim parts As Variant
+    Dim i As Long
+    Dim partText As String
+    Dim eqPos As Long
+    Dim keyName As String
+    Dim valueText As String
+    Dim parsedDate As Date
+
+    normalized = Trim$(resolverArgs)
+    If Len(normalized) = 0 Then Exit Sub
+
+    parts = Split(normalized, ";")
+    For i = LBound(parts) To UBound(parts)
+        partText = Trim$(CStr(parts(i)))
+        If Len(partText) = 0 Then GoTo ContinuePart
+
+        eqPos = InStr(1, partText, "=", vbBinaryCompare)
+        If eqPos <= 1 Then
+            Err.Raise ERR_BASE + 13, "ex_SourceResolvers", _
+                "Invalid resolverArgs item '" & partText & "'. Expected key=value."
+        End If
+
+        keyName = LCase$(Trim$(Left$(partText, eqPos - 1)))
+        valueText = Trim$(Mid$(partText, eqPos + 1))
+        If Len(valueText) = 0 Then
+            Err.Raise ERR_BASE + 14, "ex_SourceResolvers", _
+                "Resolver arg '" & keyName & "' must not be empty."
+        End If
+
+        Select Case keyName
+            Case "from"
+                If Not mp_TryParseResolverDateArg(valueText, parsedDate) Then
+                    Err.Raise ERR_BASE + 15, "ex_SourceResolvers", _
+                        "Invalid 'from' date in resolverArgs. Expected dd.mm.yyyy or yyyy-mm-dd, got: " & valueText
+                End If
+                outHasFrom = True
+                outFromDate = parsedDate
+            Case "to"
+                If Not mp_TryParseResolverDateArg(valueText, parsedDate) Then
+                    Err.Raise ERR_BASE + 16, "ex_SourceResolvers", _
+                        "Invalid 'to' date in resolverArgs. Expected dd.mm.yyyy or yyyy-mm-dd, got: " & valueText
+                End If
+                outHasTo = True
+                outToDate = parsedDate
+            Case "order"
+                Select Case LCase$(valueText)
+                    Case "asc"
+                        outSortDesc = False
+                    Case "desc"
+                        outSortDesc = True
+                    Case Else
+                        Err.Raise ERR_BASE + 17, "ex_SourceResolvers", _
+                            "Unsupported 'order' value '" & valueText & "'. Allowed: asc, desc."
+                End Select
+            Case "limit"
+                If Not IsNumeric(valueText) Then
+                    Err.Raise ERR_BASE + 18, "ex_SourceResolvers", _
+                        "Resolver arg 'limit' must be a positive integer, got: " & valueText
+                End If
+                outLimit = CLng(valueText)
+                If outLimit <= 0 Then
+                    Err.Raise ERR_BASE + 19, "ex_SourceResolvers", _
+                        "Resolver arg 'limit' must be greater than zero, got: " & valueText
+                End If
+            Case Else
+                Err.Raise ERR_BASE + 20, "ex_SourceResolvers", _
+                    "Unsupported resolver arg '" & keyName & "'. Allowed: from, to, order, limit."
+        End Select
+ContinuePart:
+    Next i
+
+    If outHasFrom And outHasTo Then
+        If outFromDate > outToDate Then
+            Err.Raise ERR_BASE + 21, "ex_SourceResolvers", _
+                "Resolver arg range is invalid: 'from' is greater than 'to'."
+        End If
+    End If
+End Sub
+
+Private Function mp_TryParseResolverDateArg(ByVal valueText As String, ByRef outDate As Date) As Boolean
+    Dim normalized As String
+    Dim parts As Variant
+    Dim dd As Long
+    Dim mm As Long
+    Dim yyyy As Long
+
+    normalized = Trim$(valueText)
+    If Len(normalized) = 0 Then Exit Function
+
+    normalized = Replace$(normalized, "/", ".")
+    normalized = Replace$(normalized, "-", ".")
+    parts = Split(normalized, ".")
+    If UBound(parts) - LBound(parts) <> 2 Then Exit Function
+    If Not IsNumeric(parts(0)) Or Not IsNumeric(parts(1)) Or Not IsNumeric(parts(2)) Then Exit Function
+
+    If Len(Trim$(CStr(parts(0)))) = 4 Then
+        yyyy = CLng(parts(0))
+        mm = CLng(parts(1))
+        dd = CLng(parts(2))
+    Else
+        dd = CLng(parts(0))
+        mm = CLng(parts(1))
+        yyyy = CLng(parts(2))
+    End If
+
+    mp_TryParseResolverDateArg = mp_TryBuildExactDate(yyyy, mm, dd, outDate)
+End Function
+
+Private Sub mp_SortResolvedByDate( _
+    ByRef paths() As String, _
+    ByRef dates() As Date, _
+    ByRef writes() As Date, _
+    ByVal itemCount As Long, _
+    ByVal sortDesc As Boolean _
+)
+    Dim i As Long
+    Dim j As Long
+    Dim leftDate As Date
+    Dim rightDate As Date
+    Dim leftWrite As Date
+    Dim rightWrite As Date
+    Dim swapNeeded As Boolean
+    Dim tempPath As String
+    Dim tempDate As Date
+    Dim tempWrite As Date
+
+    If itemCount <= 1 Then Exit Sub
+
+    For i = 1 To itemCount - 1
+        For j = i + 1 To itemCount
+            leftDate = dates(i)
+            rightDate = dates(j)
+            leftWrite = writes(i)
+            rightWrite = writes(j)
+
+            If sortDesc Then
+                swapNeeded = (leftDate < rightDate) Or (leftDate = rightDate And leftWrite < rightWrite)
+            Else
+                swapNeeded = (leftDate > rightDate) Or (leftDate = rightDate And leftWrite > rightWrite)
+            End If
+
+            If swapNeeded Then
+                tempPath = paths(i)
+                tempDate = dates(i)
+                tempWrite = writes(i)
+
+                paths(i) = paths(j)
+                dates(i) = dates(j)
+                writes(i) = writes(j)
+
+                paths(j) = tempPath
+                dates(j) = tempDate
+                writes(j) = tempWrite
+            End If
+        Next j
+    Next i
+End Sub

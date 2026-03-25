@@ -120,6 +120,72 @@ Public Function m_GetConfigValue( _
     m_GetConfigValue = defaultValue
 End Function
 
+' Возвращает значение атрибута `type` (первая колонка таблицы Dev config)
+' для строки с указанным ключом.
+' Пример: если у `CommonKey` в колонке marker стоит `rx`,
+' функция вернет `rx`.
+Public Function m_GetConfigEntryType( _
+    ByVal keyName As String, _
+    Optional ByVal defaultValue As String = vbNullString _
+) As String
+    Dim wsDev As Worksheet
+    Dim cfgTable As ListObject
+    Dim dataRange As Range
+    Dim r As Long
+    Dim markerText As String
+    Dim keyText As String
+    Dim keyCol As Long
+    Dim markerCol As Long
+
+    keyName = Trim$(CStr(keyName))
+    If Len(keyName) = 0 Then
+        m_GetConfigEntryType = defaultValue
+        Exit Function
+    End If
+
+    Set wsDev = mp_EnsureDevSheet()
+    mp_EnsureConfigArea wsDev
+
+    Set cfgTable = mp_GetConfigTable(wsDev, True)
+    If cfgTable Is Nothing Then
+        m_GetConfigEntryType = defaultValue
+        Exit Function
+    End If
+    If cfgTable.DataBodyRange Is Nothing Then
+        m_GetConfigEntryType = defaultValue
+        Exit Function
+    End If
+
+    Set dataRange = cfgTable.DataBodyRange
+    keyCol = DEV_COL_KEY
+    markerCol = DEV_COL_MARKER
+    If cfgTable.ListColumns.Count < DEV_COL_VALUE Then
+        keyCol = 1
+        markerCol = 0
+    End If
+
+    For r = 1 To dataRange.Rows.Count
+        markerText = vbNullString
+        If markerCol > 0 Then
+            markerText = Trim$(CStr(dataRange.Cells(r, markerCol).Value))
+        End If
+        keyText = Trim$(CStr(dataRange.Cells(r, keyCol).Value))
+
+        If StrComp(markerText, DEV_MARKER_SYMBOL, vbTextCompare) <> 0 Then
+            If StrComp(keyText, keyName, vbTextCompare) = 0 Then
+                If Len(markerText) = 0 Then
+                    m_GetConfigEntryType = defaultValue
+                Else
+                    m_GetConfigEntryType = markerText
+                End If
+                Exit Function
+            End If
+        End If
+    Next r
+
+    m_GetConfigEntryType = defaultValue
+End Function
+
 Public Function m_LoadConfigDictionary( _
     Optional ByVal errSource As String = "ex_ConfigProvider", _
     Optional ByVal errNoTableCode As Long = 1330, _

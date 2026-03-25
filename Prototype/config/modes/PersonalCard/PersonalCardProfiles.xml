@@ -98,15 +98,15 @@
 			}
 
 			if (Events.Sheet[EventsOut].count != "0") {
-				callMacro("ex_PostProcessActions.m_AppendPostProcessFooterText", "EventsOut rows: {Events.Sheet[EventsOut].count}. Last date: {Events.Sheet[EventsOut].lastRow.column[Date]}");
+				callMacro("ex_PostProcessActions.m_AppendPostProcessFooterText", $`EventsOut rows: {Events.Sheet[EventsOut].count}. Last date: {Events.Sheet[EventsOut].lastRow.column[Date]}`);
 			}
 
 			if (Events.Sheet[EventsOut].count != "0" and Events.Sheet[EventsOut].count != "1") {
-				callMacro("ex_PostProcessActions.m_AppendPostProcessFooterText", "Prev date: {Events.Sheet[EventsOut].prevRow.column[Date]}");
+				callMacro("ex_PostProcessActions.m_AppendPostProcessFooterText", $`Prev date: {Events.Sheet[EventsOut].prevRow.column[Date]}`);
 			}
 
 			let dateMapKey = callMacro("ex_ResultRuntimeAdapter.m_BuildMapKey", "Events", "EventsOut", "Date");
-			callMacro("ex_PostProcessActions.m_AppendPostProcessFooterText", "DSL var test. dateMapKey={dateMapKey}");
+			callMacro("ex_PostProcessActions.m_AppendPostProcessFooterText", $`DSL var test. dateMapKey={dateMapKey}`);
 			if (dateMapKey == "Events.Sheet[EventsOut].Map[Date]") {
 				callMacro("ex_PostProcessActions.m_AppendPostProcessFooterText", dateMapKey);
 			}

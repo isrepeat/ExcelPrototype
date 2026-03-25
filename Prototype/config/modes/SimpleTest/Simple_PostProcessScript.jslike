@@ -19,13 +19,13 @@ let demoCollectionCount = callMacro("ex_ScriptIO.m_CollectionCount", demoCollect
 if (preHello == "") {
 	callMacro("ex_Messaging.m_LogToFile", "[POST][SIMPLE] PreHello is empty", logPath);
 } else {
-	callMacro("ex_Messaging.m_LogToFile", "[POST][SIMPLE] PreHello={preHello}", logPath);
+	callMacro("ex_Messaging.m_LogToFile", $`[POST][SIMPLE] PreHello={preHello}`, logPath);
 }
 
-callMacro("ex_Messaging.m_LogToFile", "[POST][SIMPLE] demoObject.type={demoObjectType}", logPath);
-callMacro("ex_Messaging.m_LogToFile", "[POST][SIMPLE] demoDictionary.payload.type={payloadObjectType}", logPath);
-callMacro("ex_Messaging.m_LogToFile", "[POST][SIMPLE] demoCollection.count={demoCollectionCount}", logPath);
-callMacro("ex_Messaging.m_LogToFile", "[POST][SIMPLE] demoCollection.first={firstCollectionItem}", logPath);
+callMacro("ex_Messaging.m_LogToFile", $`[POST][SIMPLE] demoObject.type={demoObjectType}`, logPath);
+callMacro("ex_Messaging.m_LogToFile", $`[POST][SIMPLE] demoDictionary.payload.type={payloadObjectType}`, logPath);
+callMacro("ex_Messaging.m_LogToFile", $`[POST][SIMPLE] demoCollection.count={demoCollectionCount}`, logPath);
+callMacro("ex_Messaging.m_LogToFile", $`[POST][SIMPLE] demoCollection.first={firstCollectionItem}`, logPath);
 
 callMacro("ex_ModeSimpleTest.m_LogInputObjectField", "DemoCollection", logPath);
 callMacro("ex_ModeSimpleTest.m_LogInputObjectField", "DemoDictionary", logPath);

@@ -1,0 +1,41 @@
+<?xml version="1.0" standalone="yes"?>
+<profiles version="1" xmlns="urn:excelprototype:profiles">
+  <profile name="Default" resultZoom="90">
+    <ui>
+      <control name="btnClear" visible="true"/>
+      <control name="btnMultiSources" visible="true"/>
+      <control name="btnUpdateCode" visible="true"/>
+      <control name="btnCustomProfile" visible="true"/>
+      <control name="btnCustomMode" visible="true"/>
+    </ui>
+
+    <!-- <v key="Source.{Main-{dd}.{mm}.{yyyy}}.FilePath">..\TESTS\MultiSources\medical_notes_{dd}.{mm}.{yyyy}.xlsx</v> -->
+    <v key="Source.{Main-{dd}.{mm}.{yyyy}}.FilePath">..\..\..\WORK Alexandr Bondarenko\НАКАЗИ\Ст. запис. мед. 2026.03 (березень)\Стройова записка медичної служби станом на {dd}.{mm}.{yyyy}.xlsx</v>
+    <v key="Source.{Main-{dd}.{mm}.{yyyy}}.FileResolver">ex_SourceResolvers.m_ResolveAllByDmyPattern</v>
+    <v key="Source.{Main-{dd}.{mm}.{yyyy}}.FileResolverArgs">order=asc</v>
+    <v key="Source.{Main-{dd}.{mm}.{yyyy}}.SheetAliases">StateMain</v>
+    <v key="CommonKey" type="rx" mutable="true">18.03.2026</v>
+		<v type="#" key=""/>
+    <v key="{Main-{dd}.{mm}.{yyyy}}.Sheet[StateMain].Type">Events</v>
+    <v key="{Main-{dd}.{mm}.{yyyy}}.Sheet[StateMain].SheetName">Аркуш1$A3:I1048576</v>
+    <v key="{Main-{dd}.{mm}.{yyyy}}.Sheet[StateMain].Key">HospitalizationDate</v>
+    <v key="{Main-{dd}.{mm}.{yyyy}}.Sheet[StateMain].FieldsAliases">No; Unit; Rank; FIO; HospitalizationDate; BasisDocName; BasisDocDate; BasisDocNumber; CombatInjury</v>
+    <v key="{Main-{dd}.{mm}.{yyyy}}.Sheet[StateMain].Sort">HospitalizationDate</v>
+    <v key="{Main-{dd}.{mm}.{yyyy}}.Sheet[StateMain].Map[No]">№ з/п</v>
+    <v key="{Main-{dd}.{mm}.{yyyy}}.Sheet[StateMain].Map[Unit]">В/ч</v>
+    <v key="{Main-{dd}.{mm}.{yyyy}}.Sheet[StateMain].Map[Rank]">Військове звання</v>
+    <v key="{Main-{dd}.{mm}.{yyyy}}.Sheet[StateMain].Map[FIO]">П.І.Б.</v>
+    <v key="{Main-{dd}.{mm}.{yyyy}}.Sheet[StateMain].Map[HospitalizationDate]">Дата госпіталізації / переведення</v>
+    <v key="{Main-{dd}.{mm}.{yyyy}}.Sheet[StateMain].Map[BasisDocName]">На підставі чого госпіталізований (Назва документу)</v>
+    <v key="{Main-{dd}.{mm}.{yyyy}}.Sheet[StateMain].Map[BasisDocDate]">На підставі чого госпіталізований (дата, документу)</v>
+    <v key="{Main-{dd}.{mm}.{yyyy}}.Sheet[StateMain].Map[BasisDocNumber]">На підставі чого госпіталізований (№ документу)</v>
+    <v key="{Main-{dd}.{mm}.{yyyy}}.Sheet[StateMain].Map[CombatInjury]">Бойове поранення</v>
+    <v type="#" key=""/>
+    <v key="HospitalizationDate.MatchDate" mutable="true">05.03.2026</v>
+    <v key="Output.Layout.Gap.Default">1</v>
+    <v key="Output.Sheets">{Main-{dd}.{mm}.{yyyy}}.Sheet[StateMain]</v>
+
+    <preProcessScript><![CDATA[]]></preProcessScript>
+    <postProcessScript execution="Implicit" include="MultiSources_PostProcessScript.jslike"><![CDATA[]]></postProcessScript>
+  </profile>
+</profiles>

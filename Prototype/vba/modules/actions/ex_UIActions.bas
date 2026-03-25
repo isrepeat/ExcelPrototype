@@ -119,6 +119,15 @@ Public Sub m_ShowSimpleTest_OnClick()
     ex_ModeSimpleTest.m_RunSimpleTest
 End Sub
 
+Public Sub m_ShowMultiSources_OnClick()
+    On Error GoTo EH
+    ex_CustomDropdown.m_OnManagedButtonClick
+    ex_ModeMultiSources.m_RunMultiSources
+    Exit Sub
+EH:
+    MsgBox "MultiSources action failed: [" & Err.Source & " #" & CStr(Err.Number) & "] " & Err.Description, vbExclamation
+End Sub
+
 Public Sub m_RunComparingTables_OnClick()
     ex_CustomDropdown.m_OnManagedButtonClick
     ex_ModeTablesComparing.m_RunComparing
@@ -172,6 +181,7 @@ Public Sub m_OutputPanelStartSearch_OnClick()
     Dim configKey As String
     Dim callerName As String
     Dim fieldIndex As Long
+    Dim activeModeKey As String
     Dim errNumber As Long
     Dim errSource As String
     Dim errDescription As String
@@ -224,9 +234,24 @@ Public Sub m_OutputPanelStartSearch_OnClick()
     End If
 
     ex_ConfigProvider.m_SetConfigValue configKey, searchKey, True
-    ' Use the same run path as DevUI "PersonalCard" button
-    ' to avoid any divergence between entry points.
-    ex_ModePersonalCard.m_RunPersonalCard
+    activeModeKey = Trim$(ex_ConfigProfilesManager.m_GetActiveModeKey())
+    If Len(activeModeKey) = 0 Then
+        Err.Raise vbObjectError + 2403, "ex_UIActions.m_OutputPanelStartSearch_OnClick", "Active mode key is empty."
+    End If
+
+    Select Case LCase$(activeModeKey)
+        Case "personalcard"
+            ex_ModePersonalCard.m_RunPersonalCard
+        Case "multisources"
+            ex_ModeMultiSources.m_RunMultiSources
+        Case "simpletest"
+            ex_ModeSimpleTest.m_RunSimpleTest
+        Case "reportcreation"
+            ex_ModeReportCreation.m_RunKeysCollectionReport
+        Case Else
+            Err.Raise vbObjectError + 2404, "ex_UIActions.m_OutputPanelStartSearch_OnClick", _
+                "Output panel Search is not configured for mode '" & activeModeKey & "'."
+    End Select
     Exit Sub
 
 EH:
@@ -247,7 +272,7 @@ EH:
         ex_OutputPanel.m_RenderForSheet ws, outputStyle
     End If
     On Error GoTo 0
-    ex_Messaging.m_RenderErrorBanner ws, errDescription, errSource, errNumber, "ERROR: Timeline generation failed", ex_SheetStylesXmlProvider.m_GetOutputErrorBannerRangeAddress(ThisWorkbook)
+    ex_Messaging.m_RenderErrorBanner ws, errDescription, errSource, errNumber, "ERROR: Search failed", ex_SheetStylesXmlProvider.m_GetOutputErrorBannerRangeAddress(ThisWorkbook)
 End Sub
 
 Private Sub mp_OpenActiveProfileScriptSource(ByVal isPreProcess As Boolean)

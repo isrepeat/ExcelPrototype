@@ -21,7 +21,7 @@ Public Function m_TryParseSpecialRowColumnRef( _
     If sheetPos <= 1 Then Exit Function
 
     outSourceAlias = Trim$(Left$(refText, sheetPos - 1))
-    If Len(outSourceAlias) = 0 Then Exit Function
+    If Not ex_ScriptParserCore.m_TryNormalizeSourceAliasToken(outSourceAlias, outSourceAlias) Then Exit Function
 
     tableEndPos = InStr(sheetPos + Len(".Sheet["), refText, "]", vbBinaryCompare)
     If tableEndPos <= sheetPos + Len(".Sheet[") Then Exit Function
@@ -74,7 +74,7 @@ Public Function m_TryParseTableSpecialRowRef( _
     If sheetPos <= 1 Then Exit Function
 
     outSourceAlias = Trim$(Left$(refText, sheetPos - 1))
-    If Len(outSourceAlias) = 0 Then Exit Function
+    If Not ex_ScriptParserCore.m_TryNormalizeSourceAliasToken(outSourceAlias, outSourceAlias) Then Exit Function
 
     tableEndPos = InStr(sheetPos + Len(".Sheet["), refText, "]", vbBinaryCompare)
     If tableEndPos <= sheetPos + Len(".Sheet[") Then Exit Function
@@ -115,7 +115,7 @@ Public Function m_TryParseTableScalarRef( _
     If sheetPos <= 1 Then Exit Function
 
     outSourceAlias = Trim$(Left$(refText, sheetPos - 1))
-    If Len(outSourceAlias) = 0 Then Exit Function
+    If Not ex_ScriptParserCore.m_TryNormalizeSourceAliasToken(outSourceAlias, outSourceAlias) Then Exit Function
 
     tableEndPos = InStr(sheetPos + Len(".Sheet["), refText, "]", vbBinaryCompare)
     If tableEndPos <= sheetPos + Len(".Sheet[") Then Exit Function
@@ -150,7 +150,7 @@ Public Function m_TryParseTableRowsRef(ByVal refText As String, ByRef outTableRe
     If sheetPos <= 1 Then Exit Function
 
     sourceAlias = Trim$(Left$(refText, sheetPos - 1))
-    If Len(sourceAlias) = 0 Then Exit Function
+    If Not ex_ScriptParserCore.m_TryNormalizeSourceAliasToken(sourceAlias, sourceAlias) Then Exit Function
 
     tableEndPos = InStr(sheetPos + Len(".Sheet["), refText, "]", vbBinaryCompare)
     If tableEndPos <= sheetPos + Len(".Sheet[") Then Exit Function
@@ -193,7 +193,7 @@ Public Function m_TryParseFullRowColumnRef( _
     If Right$(refText, 1) <> "]" Then Exit Function
 
     outSourceAlias = Trim$(Left$(refText, sheetPos - 1))
-    If Len(outSourceAlias) = 0 Then Exit Function
+    If Not ex_ScriptParserCore.m_TryNormalizeSourceAliasToken(outSourceAlias, outSourceAlias) Then Exit Function
 
     outTableAlias = Trim$(Mid$(refText, sheetPos + Len(".Sheet["), rowPos - (sheetPos + Len(".Sheet["))))
     If Len(outTableAlias) = 0 Then Exit Function
@@ -237,7 +237,7 @@ Public Function m_TryParseTableRowRef( _
     If Right$(refText, 1) <> "]" Then Exit Function
 
     outSourceAlias = Trim$(Left$(refText, sheetPos - 1))
-    If Len(outSourceAlias) = 0 Then Exit Function
+    If Not ex_ScriptParserCore.m_TryNormalizeSourceAliasToken(outSourceAlias, outSourceAlias) Then Exit Function
 
     outTableAlias = Trim$(Mid$(refText, sheetPos + Len(".Sheet["), rowPos - (sheetPos + Len(".Sheet["))))
     If Len(outTableAlias) = 0 Then Exit Function
