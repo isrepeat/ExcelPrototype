@@ -14,5 +14,8 @@
       <item key="SimpleTest"
             caption="Simple Test"
             setContext="activeMode=SimpleTest"/>
+      <item key="MultiSources"
+            caption="Multi Sources"
+            setContext="activeMode=MultiSources"/>
   </list>
 </dropdownItems>

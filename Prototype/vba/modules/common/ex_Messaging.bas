@@ -617,7 +617,6 @@ Public Sub m_RenderTextBannerAtTable( _
     Optional ByVal gapRowsAfter As Long = 1, _
     Optional ByVal insertRows As Boolean = True _
 )
-    Dim existingBannerRange As Range
     Dim tableStartRow As Long
     Dim tableEndRow As Long
     Dim bannerColumns As Long
@@ -636,11 +635,6 @@ Public Sub m_RenderTextBannerAtTable( _
     End If
     If gapRowsBefore < 0 Then gapRowsBefore = 0
     If gapRowsAfter < 0 Then gapRowsAfter = 0
-
-    If mp_TryGetBannerRangeByMessage(ws, bannerText, existingBannerRange) Then
-        m_RenderTextBanner ws, bannerText, titleText, existingBannerRange.Address(False, False, xlA1), bannerKind
-        Exit Sub
-    End If
 
     If Not mp_TryGetResultTableBounds(ws, tableRef, tableStartRow, tableEndRow) Then
         Err.Raise vbObjectError + 1763, "ex_Messaging", "Table anchor is not found for tableRef '" & tableRef & "' on sheet '" & ws.Name & "'."

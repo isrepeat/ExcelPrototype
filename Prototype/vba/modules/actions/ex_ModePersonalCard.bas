@@ -77,9 +77,9 @@ Private Sub mp_EnsureAdoLookupCacheContainers()
 End Sub
 
 Private Function mp_BuildAdoLookupCacheSignature(ByVal cfg As Object) As String
-    Dim outputAliases As Variant
+    Dim outputEntries As Collection
+    Dim outputEntry As Object
     Dim fieldAliases As Variant
-    Dim i As Long
     Dim j As Long
     Dim tableAlias As String
     Dim sourceAlias As String
@@ -101,19 +101,25 @@ Private Function mp_BuildAdoLookupCacheSignature(ByVal cfg As Object) As String
         Exit Function
     End If
 
+    ex_ConfigVirtualSources.m_ExpandVirtualSourcesAndOutput cfg, "ex_ModePersonalCard"
+
     signature = "cfg:" & CStr(cfg.Count) & "|out=" & mp_GetCfgOptional(cfg, "Output.Sheets", vbNullString)
-    outputAliases = mp_SplitList(mp_GetCfgOptional(cfg, "Output.Sheets", vbNullString))
-    If mp_IsEmptyVariantArray(outputAliases) Then
+    Set outputEntries = ex_ConfigVirtualSources.m_BuildOutputEntries(cfg, "ex_ModePersonalCard")
+    If outputEntries Is Nothing Then
+        mp_BuildAdoLookupCacheSignature = signature
+        Exit Function
+    End If
+    If outputEntries.Count = 0 Then
         mp_BuildAdoLookupCacheSignature = signature
         Exit Function
     End If
 
-    For i = LBound(outputAliases) To UBound(outputAliases)
-        tableAlias = Trim$(CStr(outputAliases(i)))
+    For Each outputEntry In outputEntries
+        sourceAlias = Trim$(CStr(outputEntry("SourceAlias")))
+        tableAlias = Trim$(CStr(outputEntry("TableAlias")))
+        If Len(sourceAlias) = 0 Then GoTo ContinueTable
         If Len(tableAlias) = 0 Then GoTo ContinueTable
 
-        sourceAlias = mp_GetCfgOptional(cfg, "Output.Sheet[" & tableAlias & "].SourceAlias", vbNullString)
-        If Len(sourceAlias) = 0 Then sourceAlias = tableAlias
         sourcePrefix = "Source." & sourceAlias
 
         keyAlias = mp_GetCfgOptional(cfg, sourceAlias & ".Sheet[" & tableAlias & "].Key", vbNullString)
@@ -144,7 +150,7 @@ ContinueField:
             Next j
         End If
 ContinueTable:
-    Next i
+    Next outputEntry
 
     mp_BuildAdoLookupCacheSignature = signature
     Exit Function
@@ -284,6 +290,9 @@ Private Function mp_RunModeCore( _
             "Config key 'CommonKey' is empty."
     End If
 
+    stageName = "expand-virtual-sources"
+    ex_ConfigVirtualSources.m_ExpandVirtualSourcesAndOutput cfg, "ex_ModePersonalCard"
+
     stageName = "ensure-ado-caches"
     mp_EnsureAdoLookupCaches cfg
 
@@ -336,12 +345,11 @@ Private Function mp_RunModeCore( _
     hasOutputStyle = ex_SheetStylesXmlProvider.m_GetOutputSheetStyle(outputStyle, ThisWorkbook)
 
     stageName = "resolve-output-aliases"
-    Dim outputAliases As Variant
-    outputAliases = mp_GetListRequired(cfg, "Output.Sheets")
-
-    Dim tableSourceMap As Object
-    Set tableSourceMap = CreateObject("Scripting.Dictionary")
-    tableSourceMap.CompareMode = 1
+    Dim outputEntries As Collection
+    Set outputEntries = ex_ConfigVirtualSources.m_BuildOutputEntries(cfg, "ex_ModePersonalCard")
+    If outputEntries Is Nothing Or outputEntries.Count = 0 Then
+        Err.Raise vbObjectError + 1380, "ex_ModePersonalCard", "List is empty for config key: Output.Sheets"
+    End If
 
     Dim connCache As Object
     Set connCache = CreateObject("Scripting.Dictionary")
@@ -369,16 +377,21 @@ Private Function mp_RunModeCore( _
     renderedCount = 0
 
     Dim i As Long
+    Dim outputEntry As Object
     stageName = "render-output-tables"
-    For i = LBound(outputAliases) To UBound(outputAliases)
+    For i = 1 To outputEntries.Count
+        Set outputEntry = outputEntries(i)
         Dim tableAlias As String
-        tableAlias = Trim$(CStr(outputAliases(i)))
+        tableAlias = Trim$(CStr(outputEntry("TableAlias")))
         If Len(tableAlias) = 0 Then
             GoTo ContinueAlias
         End If
 
         Dim sourceAlias As String
-        sourceAlias = mp_GetSourceAliasCached(cfg, tableAlias, tableSourceMap)
+        sourceAlias = Trim$(CStr(outputEntry("SourceAlias")))
+        If Len(sourceAlias) = 0 Then
+            GoTo ContinueAlias
+        End If
 
         Dim tableType As String
         tableType = LCase$(mp_GetCfgRequired(cfg, sourceAlias & ".Sheet[" & tableAlias & "].Type"))
@@ -401,7 +414,7 @@ Private Function mp_RunModeCore( _
             Dim stateRendered As Boolean
             rowIndex = mp_WriteStateCardGeneric(wsOut, sourceConn, adoObjectName, fio, rowIndex, cfg, resultFieldRanges, resultTables, resultTablesByRef, sourceAlias, tableAlias, headerRows, sectionRows, pendingWarningBanners, partialMatchRowRanges, stateRendered)
             If stateRendered Then
-                rowIndex = mp_AdvanceRowIndexAfterRenderedTable(cfg, outputAliases, i, mode, tableSourceMap, tableAlias, tableType, rowIndex)
+                rowIndex = mp_AdvanceRowIndexAfterRenderedTable(cfg, outputEntries, i, mode, tableAlias, tableType, rowIndex)
                 renderedCount = renderedCount + 1
             End If
         Else
@@ -420,7 +433,7 @@ Private Function mp_RunModeCore( _
             End If
             rowIndex = mp_WriteEventsGeneric(wsOut, sourceConn, adoObjectName, fio, rowIndex, cfg, resultFieldRanges, resultTables, resultTablesByRef, sourceAlias, tableAlias, headerRows, pendingWarningBanners, partialMatchRowRanges, eventsRendered)
             If eventsRendered Then
-                rowIndex = mp_AdvanceRowIndexAfterRenderedTable(cfg, outputAliases, i, mode, tableSourceMap, tableAlias, tableType, rowIndex)
+                rowIndex = mp_AdvanceRowIndexAfterRenderedTable(cfg, outputEntries, i, mode, tableAlias, tableType, rowIndex)
                 renderedCount = renderedCount + 1
             Else
                 If eventsSectionAdded Then
@@ -675,8 +688,8 @@ Private Function mp_ValidateTimelineConfig( _
     ByVal mode As OutputMode, _
     ByRef outErrorText As String _
 ) As Boolean
-    Dim outputAliases As Variant
-    Dim tableSourceMap As Object
+    Dim outputEntries As Collection
+    Dim outputEntry As Object
     Dim resultFieldRanges As Collection
     Dim activeModeKey As String
     Dim strictPreflight As Boolean
@@ -684,14 +697,15 @@ Private Function mp_ValidateTimelineConfig( _
 
     On Error GoTo EH
 
-    outputAliases = mp_GetListRequired(cfg, "Output.Sheets")
-
-    Set tableSourceMap = CreateObject("Scripting.Dictionary")
-    tableSourceMap.CompareMode = 1
+    ex_ConfigVirtualSources.m_ExpandVirtualSourcesAndOutput cfg, "ex_ModePersonalCard"
+    Set outputEntries = ex_ConfigVirtualSources.m_BuildOutputEntries(cfg, "ex_ModePersonalCard")
+    If outputEntries Is Nothing Or outputEntries.Count = 0 Then
+        Err.Raise vbObjectError + 1380, "ex_ModePersonalCard", "List is empty for config key: Output.Sheets"
+    End If
 
     Set resultFieldRanges = New Collection
 
-    For i = LBound(outputAliases) To UBound(outputAliases)
+    For i = 1 To outputEntries.Count
         Dim tableAlias As String
         Dim sourceAlias As String
         Dim tableType As String
@@ -700,10 +714,12 @@ Private Function mp_ValidateTimelineConfig( _
     Dim fieldAlias As String
     Dim isVirtualField As Boolean
 
-        tableAlias = Trim$(CStr(outputAliases(i)))
+        Set outputEntry = outputEntries(i)
+        tableAlias = Trim$(CStr(outputEntry("TableAlias")))
         If Len(tableAlias) = 0 Then GoTo ContinueAlias
 
-        sourceAlias = mp_GetSourceAliasCached(cfg, tableAlias, tableSourceMap)
+        sourceAlias = Trim$(CStr(outputEntry("SourceAlias")))
+        If Len(sourceAlias) = 0 Then GoTo ContinueAlias
         tableType = LCase$(mp_GetCfgRequired(cfg, sourceAlias & ".Sheet[" & tableAlias & "].Type"))
 
         If Not mp_IsSupportedOutputTableType(tableType) Then
@@ -795,6 +811,7 @@ Private Function mp_IsConfigValidationError(ByVal errNumber As Long) As Boolean
              vbObjectError + 1748, vbObjectError + 1749, vbObjectError + 1750, _
              vbObjectError + 1751, vbObjectError + 1752, vbObjectError + 1753, _
              vbObjectError + 1754, vbObjectError + 1755, vbObjectError + 1756, _
+             vbObjectError + 1760, vbObjectError + 1761, _
              vbObjectError + 1590, vbObjectError + 1591, vbObjectError + 1592, _
              vbObjectError + 1593, vbObjectError + 1594, vbObjectError + 1595, _
              vbObjectError + 1596, vbObjectError + 1597, _
@@ -1878,7 +1895,7 @@ Private Function mp_GetSourceAliasCached(ByVal cfg As Object, ByVal tableAlias A
         End If
     End If
 
-    mp_GetSourceAliasCached = mp_FindSourceAliasForTable(cfg, tableAlias)
+    mp_GetSourceAliasCached = ex_ConfigVirtualSources.m_FindSourceAliasForTable(cfg, tableAlias, "ex_ModePersonalCard")
 
     If Not cache Is Nothing Then
         cache(tableAlias) = mp_GetSourceAliasCached
@@ -2447,10 +2464,9 @@ End Function
 
 Private Function mp_AdvanceRowIndexAfterRenderedTable( _
     ByVal cfg As Object, _
-    ByVal outputAliases As Variant, _
+    ByVal outputEntries As Collection, _
     ByVal currentIndex As Long, _
     ByVal mode As OutputMode, _
-    ByVal tableSourceMap As Object, _
     ByVal currentTableAlias As String, _
     ByVal currentTableType As String, _
     ByVal rowIndexAfterCurrentTable As Long _
@@ -2462,7 +2478,7 @@ Private Function mp_AdvanceRowIndexAfterRenderedTable( _
 
     mp_AdvanceRowIndexAfterRenderedTable = rowIndexAfterCurrentTable
 
-    If Not mp_TryGetNextRenderableOutputTable(cfg, outputAliases, currentIndex, mode, tableSourceMap, nextSourceAlias, nextTableAlias, nextTableType) Then
+    If Not mp_TryGetNextRenderableOutputTable(cfg, outputEntries, currentIndex, mode, nextSourceAlias, nextTableAlias, nextTableType) Then
         Exit Function
     End If
 
@@ -2474,10 +2490,9 @@ End Function
 
 Private Function mp_TryGetNextRenderableOutputTable( _
     ByVal cfg As Object, _
-    ByVal outputAliases As Variant, _
+    ByVal outputEntries As Collection, _
     ByVal fromIndex As Long, _
     ByVal mode As OutputMode, _
-    ByVal tableSourceMap As Object, _
     ByRef outSourceAlias As String, _
     ByRef outTableAlias As String, _
     ByRef outTableType As String _
@@ -2486,12 +2501,19 @@ Private Function mp_TryGetNextRenderableOutputTable( _
     Dim candidateAlias As String
     Dim candidateSourceAlias As String
     Dim candidateTableType As String
+    Dim outputEntry As Object
 
-    For i = fromIndex + 1 To UBound(outputAliases)
-        candidateAlias = Trim$(CStr(outputAliases(i)))
+    If outputEntries Is Nothing Then Exit Function
+
+    For i = fromIndex + 1 To outputEntries.Count
+        Set outputEntry = outputEntries(i)
+        If outputEntry Is Nothing Then GoTo ContinueCandidate
+
+        candidateAlias = Trim$(CStr(outputEntry("TableAlias")))
         If Len(candidateAlias) = 0 Then GoTo ContinueCandidate
 
-        candidateSourceAlias = mp_GetSourceAliasCached(cfg, candidateAlias, tableSourceMap)
+        candidateSourceAlias = Trim$(CStr(outputEntry("SourceAlias")))
+        If Len(candidateSourceAlias) = 0 Then GoTo ContinueCandidate
         candidateTableType = LCase$(mp_GetCfgRequired(cfg, candidateSourceAlias & ".Sheet[" & candidateAlias & "].Type"))
 
         If Not mp_IsSupportedOutputTableType(candidateTableType) Then
@@ -2613,81 +2635,6 @@ Private Function mp_TryParseNonNegativeLong(ByVal rawValue As String, ByRef outV
 
 ParseEH:
     mp_TryParseNonNegativeLong = False
-End Function
-
-Private Function mp_FindSourceAliasForTable(ByVal cfg As Object, ByVal tableAlias As String) As String
-    Dim sourceAliases As Variant
-    Dim aliases As Variant
-    Dim i As Long
-    Dim src As String
-    Dim found As String
-
-    tableAlias = Trim$(tableAlias)
-    If Len(tableAlias) = 0 Then
-        Err.Raise vbObjectError + 1335, "ex_ModePersonalCard", "Output.Sheets contains an empty table alias."
-    End If
-
-    sourceAliases = mp_GetSourceAliases(cfg)
-    For i = LBound(sourceAliases) To UBound(sourceAliases)
-        src = CStr(sourceAliases(i))
-        aliases = mp_GetListRequired(cfg, "Source." & src & ".SheetAliases")
-        If mp_ArrayContainsText(aliases, tableAlias) Then
-            If Len(found) > 0 Then
-                Err.Raise vbObjectError + 1340, "ex_ModePersonalCard", _
-                    "Sheet alias '" & tableAlias & "' is declared in multiple sources: '" & found & "' and '" & src & "'."
-            End If
-            found = src
-        End If
-    Next i
-
-    If Len(found) = 0 Then
-        Err.Raise vbObjectError + 1341, "ex_ModePersonalCard", _
-            "Sheet alias '" & tableAlias & "' is not declared in any Source.*.SheetAliases."
-    End If
-
-    mp_FindSourceAliasForTable = found
-End Function
-
-Private Function mp_GetSourceAliases(ByVal cfg As Object) As Variant
-
-    Dim d As Object
-    Set d = CreateObject("Scripting.Dictionary")
-    d.CompareMode = 1
-
-    Dim key As Variant
-    For Each key In cfg.Keys
-        Dim k As String
-        k = CStr(key)
-
-        If LCase$(Left$(k, 7)) = "source." Then
-            Dim p As Long
-            p = InStr(8, k, ".", vbBinaryCompare)
-            If p > 8 Then
-                Dim srcAlias As String
-                srcAlias = Mid$(k, 8, p - 8)
-                If Len(srcAlias) > 0 Then
-                    d(srcAlias) = srcAlias
-                End If
-            End If
-        End If
-    Next key
-
-    If d.Count = 0 Then
-        Err.Raise vbObjectError + 1350, "ex_ModePersonalCard", "No Source.* keys found in config."
-    End If
-
-    Dim arr() As String
-    ReDim arr(0 To d.Count - 1)
-
-    Dim i As Long
-    i = 0
-    For Each key In d.Keys
-        arr(i) = CStr(key)
-        i = i + 1
-    Next key
-
-    mp_GetSourceAliases = arr
-
 End Function
 
 Private Function mp_GetConnectionForSource(ByVal connCache As Object, ByVal cfg As Object, ByVal sourceAlias As String) As Object

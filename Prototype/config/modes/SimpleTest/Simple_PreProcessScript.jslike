@@ -10,7 +10,7 @@ if (keysText == "") {
 	keysText = callMacro("ex_ConfigProvider.m_GetConfigValue", "CommonKey", "");
 }
 
-callMacro("ex_Messaging.m_LogToFile", "[PRE] keys resolved: {keysText}", logPath);
+callMacro("ex_Messaging.m_LogToFile", $`[PRE] keys resolved: {keysText}`, logPath);
 
 let hello = "Hi from pre process";
 let demoCollection = callMacroObject("ex_ScriptIO.m_CreateCollection");

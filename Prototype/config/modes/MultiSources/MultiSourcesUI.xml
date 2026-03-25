@@ -1,0 +1,45 @@
+<?xml version="1.0" standalone="yes"?>
+<uiDefinition xmlns="urn:excelprototype:profiles" version="1">
+  <controlPanel
+    title="Quick Search"
+    startColumn="1"
+    minStartColumn="1"
+    offsetColumns="2"
+    widthColumns="5"
+    heightRows="5"
+    topRow="1"
+    labelColumns="1"
+    valueColumns="2"
+    fieldRowSpan="1"
+    fieldSpacingRows="0"
+    viewZoneGapRows="2"
+    panelColumnWidth="12"
+    panelBackColor="#1E1E1E"
+    panelBorderColor="#505050"
+    titleColor="#D7A763"
+    labelColor="#EBEBEB"
+    inputBackColor="#262626"
+    inputFontColor="#EBEBEB"
+    buttonBackColor="#3C7D22"
+    buttonTextColor="#0A0A0A"
+    buttonBorderColor="#3C7D22"
+    errorBackColor="#FF0000"
+    errorFontColor="#0A0A0A"
+    buttonAnchorColumn="3"
+    buttonWidthColumns="1"
+    fixedWidthKey="20"
+    fixedWidthValue="28"
+    fixedWidthButton="20"
+    fixedFieldRowHeight="32">
+    <fields>
+      <inputConfigRefField
+        label="Common Key"
+        inputName="CommonKey"
+        inputConfigKey="CommonKey"
+        onChange="ex_UIActions.m_OutputPanelStartSearch_OnClick">
+        <button caption="Search"
+                macro="ex_UIActions.m_OutputPanelStartSearch_OnClick"/>
+      </inputConfigRefField>
+    </fields>
+  </controlPanel>
+</uiDefinition>

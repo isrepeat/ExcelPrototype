@@ -17,20 +17,20 @@ Public Function m_NormalizeScript(ByVal scriptText As String) As String
     Dim rawLine As String
     Dim cleaned As String
     Dim normalized As String
-    Dim inTripleLiteral As Boolean
-    Dim hasTripleBackticks As Boolean
+    Dim inBacktickLiteral As Boolean
+    Dim hasBacktickLiterals As Boolean
 
     scriptText = Replace(scriptText, vbCrLf, vbLf)
     scriptText = Replace(scriptText, vbCr, vbLf)
-    hasTripleBackticks = (InStr(1, scriptText, "```", vbBinaryCompare) > 0)
-    scriptText = mp_StripMultiLineComments(scriptText, hasTripleBackticks)
+    hasBacktickLiterals = (InStr(1, scriptText, "`", vbBinaryCompare) > 0)
+    scriptText = mp_StripMultiLineComments(scriptText, hasBacktickLiterals)
     lines = Split(scriptText, vbLf)
 
     For i = LBound(lines) To UBound(lines)
         rawLine = CStr(lines(i))
         rawLine = Replace(rawLine, vbTab, " ")
         rawLine = Replace(rawLine, ChrW$(160), " ")
-        rawLine = mp_StripSingleLineComment(rawLine, inTripleLiteral, hasTripleBackticks)
+        rawLine = mp_StripSingleLineComment(rawLine, inBacktickLiteral, hasBacktickLiterals)
         cleaned = Trim$(rawLine)
         If Len(normalized) > 0 Then normalized = normalized & vbLf
         normalized = normalized & cleaned
@@ -101,7 +101,7 @@ Public Function m_ParseQuotedArgs(ByVal argsText As String) As Collection
                 currentArg = currentArg & ch
             End If
         Else
-            If ch = """" Or ch = "'" Then
+            If ch = """" Or ch = "`" Then
                 inQuote = True
                 quoteChar = ch
                 currentArg = vbNullString
@@ -123,23 +123,23 @@ End Function
 
 Private Function mp_StripMultiLineComments( _
     ByVal sourceText As String, _
-    Optional ByVal hasTripleBackticks As Boolean = True _
+    Optional ByVal hasBacktickLiterals As Boolean = True _
 ) As String
     Dim i As Long
     Dim ch As String
     Dim nextCh As String
     Dim inQuotes As Boolean
     Dim inCommentBlock As Boolean
-    Dim inTripleLiteral As Boolean
+    Dim inBacktickLiteral As Boolean
     Dim result As String
 
     i = 1
     Do While i <= Len(sourceText)
-        If hasTripleBackticks Then
-            If mp_IsTripleBacktickAt(sourceText, i) And (inTripleLiteral Or Not inQuotes) Then
-                inTripleLiteral = Not inTripleLiteral
-                result = result & "```"
-                i = i + 3
+        If hasBacktickLiterals Then
+            If mp_IsBacktickAt(sourceText, i) And Not inQuotes Then
+                inBacktickLiteral = Not inBacktickLiteral
+                result = result & "`"
+                i = i + 1
                 GoTo ContinueLoop
             End If
         End If
@@ -161,7 +161,7 @@ Private Function mp_StripMultiLineComments( _
             GoTo ContinueLoop
         End If
 
-        If Not inTripleLiteral Then
+        If Not inBacktickLiteral Then
             If ch = """" Then
                 inQuotes = Not inQuotes
                 result = result & ch
@@ -192,8 +192,8 @@ End Function
 
 Private Function mp_StripSingleLineComment( _
     ByVal lineText As String, _
-    ByRef inTripleLiteral As Boolean, _
-    Optional ByVal hasTripleBackticks As Boolean = True _
+    ByRef inBacktickLiteral As Boolean, _
+    Optional ByVal hasBacktickLiterals As Boolean = True _
 ) As String
     Dim i As Long
     Dim inQuotes As Boolean
@@ -201,16 +201,15 @@ Private Function mp_StripSingleLineComment( _
     Dim nextCh As String
 
     For i = 1 To Len(lineText)
-        If hasTripleBackticks Then
-            If mp_IsTripleBacktickAt(lineText, i) And (inTripleLiteral Or Not inQuotes) Then
-                inTripleLiteral = Not inTripleLiteral
-                i = i + 2
+        If hasBacktickLiterals Then
+            If mp_IsBacktickAt(lineText, i) And Not inQuotes Then
+                inBacktickLiteral = Not inBacktickLiteral
                 GoTo ContinueLoop
             End If
         End If
 
         ch = Mid$(lineText, i, 1)
-        If Not inTripleLiteral Then
+        If Not inBacktickLiteral Then
             If ch = """" Then
                 inQuotes = Not inQuotes
             End If
@@ -231,8 +230,8 @@ ContinueLoop:
     mp_StripSingleLineComment = lineText
 End Function
 
-Private Function mp_IsTripleBacktickAt(ByVal textValue As String, ByVal pos As Long) As Boolean
+Private Function mp_IsBacktickAt(ByVal textValue As String, ByVal pos As Long) As Boolean
     If pos < 1 Then Exit Function
-    If pos + 2 > Len(textValue) Then Exit Function
-    mp_IsTripleBacktickAt = (Mid$(textValue, pos, 3) = "```")
+    If pos > Len(textValue) Then Exit Function
+    mp_IsBacktickAt = (Mid$(textValue, pos, 1) = "`")
 End Function

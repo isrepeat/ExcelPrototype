@@ -1,0 +1,27 @@
+let input = callMacroObject("ex_ScriptIO.m_GetInput");
+let resultTables = callMacroObject("ex_ScriptIO.m_GetObject", input, "__ResultTables");
+let resultTableRefs = callMacroObject("ex_ScriptIO.m_GetObject", input, "__ResultTableRefs");
+
+let tableLoopContext = callMacroObject("ex_ScriptIO.m_CreateDictionary");
+callMacro("ex_ScriptIO.m_SetScopeObject", tableLoopContext, "tables", resultTables);
+
+let processedTables = callMacroObject("ex_ScriptIO.m_CreateCollection");
+
+for (let table in tableLoopContext.tables) {
+	callMacro("ex_ScriptIO.m_CollectionAddString", processedTables, "1");
+	let tableOrdinal = callMacro("ex_ScriptIO.m_CollectionCount", processedTables);
+	let tableRef = callMacro("ex_ScriptIO.m_CollectionGetStringOrDefault", resultTableRefs, tableOrdinal, "");
+
+	let rowsCounter = callMacroObject("ex_ScriptIO.m_CreateCollection");
+	for (let row in table.rows) {
+		callMacro("ex_ScriptIO.m_CollectionAddString", rowsCounter, "1");
+	}
+
+	let matchesCount = callMacro("ex_ScriptIO.m_CollectionCount", rowsCounter);
+	let bannerTitle = tableRef;
+	let bannerText = "Кількість знайдених записів: " + matchesCount + ".";
+
+	if (tableRef != "" && matchesCount != 0) {
+		callMacro("ex_PostProcessActions.m_ShowBannerAtTable", "TYPE_NOTE", tableRef, bannerTitle, bannerText, "before", 0, 0);
+	}
+}

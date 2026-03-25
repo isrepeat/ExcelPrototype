@@ -17,7 +17,7 @@ let exportRuntimeWordRecordKeyPrefix = "Export.RuntimeDataBase.WordRecordKey.";
 let logPath = "Logs\\personalcard_pipeline.log";
 
 let inputCommonKey = callMacro("ex_ScriptIO.m_GetValue", input, "CommonKey", "");
-callMacro("ex_Messaging.m_LogToFile", "[POST][PC] input.CommonKey={inputCommonKey}", logPath);
+callMacro("ex_Messaging.m_LogToFile", $`[POST][PC] input.CommonKey={inputCommonKey}`, logPath);
 
 /* Логи временно отключены */
 // let debugLogPath = "Logs\\personalcard_pipeline.log";
@@ -53,7 +53,7 @@ for (let owner in Daily.Sheet[DailyEvents].rows) {
 					lastTreatmentEventsOutFactArrivalDate = outRow.column[FactArrivalDate];
 				}
 				if (outRow.column[EventReason] == "Відпустка для лікування") {
-					let outCommandDateFull = callMacro("ex_DateHelpers.m_ToFullDate", "{outRow.column[OutCommandDate]}", "{baseDate}");
+					let outCommandDateFull = callMacro("ex_DateHelpers.m_ToFullDate", $`{outRow.column[OutCommandDate]}`, $`{baseDate}`);
 					if (outCommandDateFull == baseDate) {
 						hasVacationForCuringEventsOutForOwner = "true";
 						lastVacationForCuringEventsOutDaysCount = outRow.column[DaysCount];
@@ -170,15 +170,15 @@ for (let owner in Daily.Sheet[DailyEvents].rows) {
 					mismatchFields = mismatchFields + "DaysCount(Daily=" + owner.column[DaysCount] + "; EventsOut=" + lastVacationForCuringEventsOutDaysCount + "), ";
 				}
 
-				let ownerDateFromFull = callMacro("ex_DateHelpers.m_ToFullDate", "{owner.column[DateFrom]}", "{baseDate}");
-				let eventsOutDateFromFull = callMacro("ex_DateHelpers.m_ToFullDate", "{lastVacationForCuringEventsOutOutDate}", "{baseDate}");
+				let ownerDateFromFull = callMacro("ex_DateHelpers.m_ToFullDate", $`{owner.column[DateFrom]}`, $`{baseDate}`);
+				let eventsOutDateFromFull = callMacro("ex_DateHelpers.m_ToFullDate", $`{lastVacationForCuringEventsOutOutDate}`, $`{baseDate}`);
 				if (ownerDateFromFull != eventsOutDateFromFull) {
 					mismatchFields = mismatchFields + "DateFrom/OutDate(Daily=" + owner.column[DateFrom] + "; EventsOut=" + lastVacationForCuringEventsOutOutDate + "), ";
 				}
 
-				let ownerDateToFull = callMacro("ex_DateHelpers.m_ToFullDate", "{owner.column[DateTo]}", "{baseDate}");
-				let eventsOutDateToFull = callMacro("ex_DateHelpers.m_ToFullDate", "{lastVacationForCuringEventsOutPlannedReturnDate}", "{baseDate}");
-				let eventsOutDateToMinusOneFull = callMacro("ex_DateHelpers.m_AddDaysToDate", "{eventsOutDateToFull}", "-1", "{baseDate}");
+				let ownerDateToFull = callMacro("ex_DateHelpers.m_ToFullDate", $`{owner.column[DateTo]}`, $`{baseDate}`);
+				let eventsOutDateToFull = callMacro("ex_DateHelpers.m_ToFullDate", $`{lastVacationForCuringEventsOutPlannedReturnDate}`, $`{baseDate}`);
+				let eventsOutDateToMinusOneFull = callMacro("ex_DateHelpers.m_AddDaysToDate", $`{eventsOutDateToFull}`, "-1", $`{baseDate}`);
 				if (ownerDateToFull != eventsOutDateToMinusOneFull) {
 					mismatchFields = mismatchFields + "DateTo/PlannedReturnDate-1day(Daily=" + owner.column[DateTo] + "; EventsOut=" + lastVacationForCuringEventsOutPlannedReturnDate + "), ";
 				}
@@ -197,8 +197,8 @@ for (let owner in Daily.Sheet[DailyEvents].rows) {
 					mismatchFields = mismatchFields + "VkNum/Ticket(Daily=" + owner.column[VkNum] + "; EventsOut=" + lastVacationForCuringEventsOutTicket + "), ";
 				}
 
-				let ownerVkDateFull = callMacro("ex_DateHelpers.m_ToFullDate", "{owner.column[VkDate]}", "{baseDate}");
-				let eventsOutVkDateFull = callMacro("ex_DateHelpers.m_ToFullDate", "{lastVacationForCuringEventsOutOutCommandDate}", "{baseDate}");
+				let ownerVkDateFull = callMacro("ex_DateHelpers.m_ToFullDate", $`{owner.column[VkDate]}`, $`{baseDate}`);
+				let eventsOutVkDateFull = callMacro("ex_DateHelpers.m_ToFullDate", $`{lastVacationForCuringEventsOutOutCommandDate}`, $`{baseDate}`);
 				if (ownerVkDateFull != eventsOutVkDateFull) {
 					mismatchFields = mismatchFields + "VkDate/OutCommandDate(Daily=" + owner.column[VkDate] + "; EventsOut=" + lastVacationForCuringEventsOutOutCommandDate + "), ";
 				}
@@ -366,7 +366,7 @@ for (let row in Daily.Sheet[DailyEvents].rows) {
 		if (sectionType == "18") { rowTemplateAnchor = "MoveFromVlkToHospital"; }
 
 		if (sectionType != "" && rowTemplateAnchor == "") {
-			callMacro("ex_PostProcessActions.m_ShowLogicError", "Unsupported SectionType for export mapping: {sectionType}");
+			callMacro("ex_PostProcessActions.m_ShowLogicError", $`Unsupported SectionType for export mapping: {sectionType}`);
 			return;
 		}
 
@@ -377,8 +377,8 @@ for (let row in Daily.Sheet[DailyEvents].rows) {
 		callMacro("ex_PostProcessActions.m_SetRuntimeData", exportRecordRuntimeKey, exportRecordRuntimeValue);
 
 		let txt = callMacro("ex_ResultTemplatesParser.m_GetTemplateText", rowTemplateAnchor, resultTemplatesRelPath);
-		txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "DATE", "{baseDate}", "#66CCFF");
-		txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "RaportTvo", "{row.column[RaportTVO]}", "#66CCFF");
+		txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "DATE", $`{baseDate}`, "#66CCFF");
+		txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "RaportTvo", $`{row.column[RaportTVO]}`, "#66CCFF");
 
 		/* Нормализация дат для всех секций: в шаблоны передаем уже полные даты */
 		let fullInDate = row.column[InDate];
@@ -448,21 +448,21 @@ for (let row in Daily.Sheet[DailyEvents].rows) {
 			needDateTo = "true";
 		}
 
-		fullInDate = callMacro("ex_DateHelpers.m_ToFullDate", "{row.column[InDate]}", "{baseDate}");
+		fullInDate = callMacro("ex_DateHelpers.m_ToFullDate", $`{row.column[InDate]}`, $`{baseDate}`);
 		if (needDocDate == "true") {
-			fullDocDate = callMacro("ex_DateHelpers.m_ToFullDate", "{row.column[DocDate]}", "{baseDate}");
+			fullDocDate = callMacro("ex_DateHelpers.m_ToFullDate", $`{row.column[DocDate]}`, $`{baseDate}`);
 		}
 		if (needVkDate == "true") {
-			fullVkDate = callMacro("ex_DateHelpers.m_ToFullDate", "{row.column[VkDate]}", "{baseDate}");
+			fullVkDate = callMacro("ex_DateHelpers.m_ToFullDate", $`{row.column[VkDate]}`, $`{baseDate}`);
 		}
 		if (needVlkDate == "true") {
-			fullVlkDate = callMacro("ex_DateHelpers.m_ToFullDate", "{row.column[VlkDate]}", "{baseDate}");
+			fullVlkDate = callMacro("ex_DateHelpers.m_ToFullDate", $`{row.column[VlkDate]}`, $`{baseDate}`);
 		}
 		if (needDateFrom == "true") {
-			fullDateFrom = callMacro("ex_DateHelpers.m_ToFullDate", "{row.column[DateFrom]}", "{baseDate}");
+			fullDateFrom = callMacro("ex_DateHelpers.m_ToFullDate", $`{row.column[DateFrom]}`, $`{baseDate}`);
 		}
 		if (needDateTo == "true") {
-			fullDateTo = callMacro("ex_DateHelpers.m_ToFullDate", "{row.column[DateTo]}", "{baseDate}");
+			fullDateTo = callMacro("ex_DateHelpers.m_ToFullDate", $`{row.column[DateTo]}`, $`{baseDate}`);
 		}
 
 		// if (sectionType == "15" || sectionType == "16") {
@@ -477,19 +477,19 @@ for (let row in Daily.Sheet[DailyEvents].rows) {
 		// 	}
 
 		// 	if (hasPrevVacationForCuringEvent != "true") {
-		// 		callMacro("ex_PostProcessActions.m_ShowLogicError", "SectionType={sectionType}, FIO={row.column[FIO]}: not found EventsOut row with EventReason='Відпустка для лікування' to fill PrevVkNum/PrevVkDate.");
+		// 		callMacro("ex_PostProcessActions.m_ShowLogicError", $`SectionType={sectionType}, FIO={row.column[FIO]}: not found EventsOut row with EventReason='Відпустка для лікування' to fill PrevVkNum/PrevVkDate.`);
 		// 		return;
 		// 	}
 		// 	if (prevVkNum == "" || prevVkNum == "?") {
-		// 		callMacro("ex_PostProcessActions.m_ShowLogicError", "SectionType={sectionType}, FIO={row.column[FIO]}: EventsOut.Ticket is empty for last row with EventReason='Відпустка для лікування'.");
+		// 		callMacro("ex_PostProcessActions.m_ShowLogicError", $`SectionType={sectionType}, FIO={row.column[FIO]}: EventsOut.Ticket is empty for last row with EventReason='Відпустка для лікування'.`);
 		// 		return;
 		// 	}
 		// 	if (prevVkDateRaw == "" || prevVkDateRaw == "?") {
-		// 		callMacro("ex_PostProcessActions.m_ShowLogicError", "SectionType={sectionType}, FIO={row.column[FIO]}: EventsOut.OutCommandDate is empty for last row with EventReason='Відпустка для лікування'.");
+		// 		callMacro("ex_PostProcessActions.m_ShowLogicError", $`SectionType={sectionType}, FIO={row.column[FIO]}: EventsOut.OutCommandDate is empty for last row with EventReason='Відпустка для лікування'.`);
 		// 		return;
 		// 	}
 			
-		// 	prevVkDate = callMacro("ex_DateHelpers.m_ToFullDate", "{prevVkDateRaw}", "{baseDate}");
+		// 	prevVkDate = callMacro("ex_DateHelpers.m_ToFullDate", $`{prevVkDateRaw}`, $`{baseDate}`);
 		// }
 
 		// Парсим DaysCount по шаблону "N+X ...":
@@ -561,14 +561,14 @@ for (let row in Daily.Sheet[DailyEvents].rows) {
 					duplicateInNumFull = "1656/" + duplicateInNumDigits + "-в";
 				}
 				duplicateInDate = metaRow.column[InDate];
-				duplicateInDate = callMacro("ex_DateHelpers.m_ToFullDate", "{duplicateInDate}", "{baseDate}");
+				duplicateInDate = callMacro("ex_DateHelpers.m_ToFullDate", $`{duplicateInDate}`, $`{baseDate}`);
 			}
 		}
 		if (sectionType == "1") {
 			txt = callMacro(
 				"ex_ResultTemplatesParser.m_ReplaceMultiPlaceholders",
 				txt,
-				```
+				$`
 				Hospital:{row.column[Hospital]};
 				Rank:{row.column[Rank]};
 				FIO:{row.column[FIO]};
@@ -588,7 +588,7 @@ for (let row in Daily.Sheet[DailyEvents].rows) {
 				InDate:{fullInDate};
 				DocNum:{row.column[DocNum]};
 				DocDate:{fullDocDate};
-				```,
+				`,
 				"#66CCFF"
 			);
 		}
@@ -597,7 +597,7 @@ for (let row in Daily.Sheet[DailyEvents].rows) {
 			txt = callMacro(
 				"ex_ResultTemplatesParser.m_ReplaceMultiPlaceholders",
 				txt,
-				```
+				$`
 				Rank:{row.column[Rank]};
 				FIO:{row.column[FIO]};
 				Position:{row.column[Position]};
@@ -610,20 +610,20 @@ for (let row in Daily.Sheet[DailyEvents].rows) {
 				InDate:{fullInDate};
 				VkNum:{row.column[VkNum]};
 				VkDate:{fullVkDate};
-				```,
+				`,
 				"#66CCFF"
 			);
 			if (sectionType == "3") {
 				txt = callMacro(
 					"ex_ResultTemplatesParser.m_ReplaceMultiPlaceholders",
 					txt,
-					```
+					$`
 					HasDuplicateRaport:{hasDuplicateRaport};
 					DuplicateRaportFrom:{duplicateRaportFrom};
 					DuplicateRaportTVO:{duplicateRaportTVO};
 					DuplicateInNumFull:{duplicateInNumFull};
 					DuplicateInDate:{duplicateInDate};
-					```,
+					`,
 					"#66CCFF"
 				);
 			}
@@ -633,7 +633,7 @@ for (let row in Daily.Sheet[DailyEvents].rows) {
 			txt = callMacro(
 				"ex_ResultTemplatesParser.m_ReplaceMultiPlaceholders",
 				txt,
-				```
+				$`
 				Rank:{row.column[Rank]};
 				FIO:{row.column[FIO]};
 				Position:{row.column[Position]};
@@ -647,7 +647,7 @@ for (let row in Daily.Sheet[DailyEvents].rows) {
 				DocNote:{row.column[DocNote]};
 				DocNum:{row.column[DocNum]};
 				DocDate:{fullDocDate};
-				```,
+				`,
 				"#66CCFF"
 			);
 		}
@@ -656,7 +656,7 @@ for (let row in Daily.Sheet[DailyEvents].rows) {
 			txt = callMacro(
 				"ex_ResultTemplatesParser.m_ReplaceMultiPlaceholders",
 				txt,
-				```
+				$`
 				Rank:{row.column[Rank]};
 				FIO:{row.column[FIO]};
 				Position:{row.column[Position]};
@@ -665,7 +665,7 @@ for (let row in Daily.Sheet[DailyEvents].rows) {
 				InDate:{fullInDate};
 				VlkNum:{row.column[VlkNum]};
 				VlkDate:{fullVlkDate};
-				```,
+				`,
 				"#66CCFF"
 			);
 		}
@@ -674,7 +674,7 @@ for (let row in Daily.Sheet[DailyEvents].rows) {
 			txt = callMacro(
 				"ex_ResultTemplatesParser.m_ReplaceMultiPlaceholders",
 				txt,
-				```
+				$`
 				Hospital:{row.column[Hospital]};
 				Rank:{row.column[Rank]};
 				FIO:{row.column[FIO]};
@@ -694,7 +694,7 @@ for (let row in Daily.Sheet[DailyEvents].rows) {
 				InDate:{fullInDate};
 				DocNum:{row.column[DocNum]};
 				DocDate:{fullDocDate};
-				```,
+				`,
 				"#66CCFF"
 			);
 		}
@@ -703,7 +703,7 @@ for (let row in Daily.Sheet[DailyEvents].rows) {
 			txt = callMacro(
 				"ex_ResultTemplatesParser.m_ReplaceMultiPlaceholders",
 				txt,
-				```
+				$`
 				Rank:{row.column[Rank]};
 				FIO:{row.column[FIO]};
 				Position:{row.column[Position]};
@@ -714,7 +714,7 @@ for (let row in Daily.Sheet[DailyEvents].rows) {
 				RaportFrom:{row.column[RaportFrom]};
 				InNumFull:{inNumFull};
 				InDate:{fullInDate};
-				```,
+				`,
 				"#66CCFF"
 			);
 		}
@@ -723,7 +723,7 @@ for (let row in Daily.Sheet[DailyEvents].rows) {
 			txt = callMacro(
 				"ex_ResultTemplatesParser.m_ReplaceMultiPlaceholders",
 				txt,
-				```
+				$`
 				Rank:{row.column[Rank]};
 				FIO:{row.column[FIO]};
 				Position:{row.column[Position]};
@@ -741,7 +741,7 @@ for (let row in Daily.Sheet[DailyEvents].rows) {
 				InDate:{fullInDate};
 				VkNum:{row.column[VkNum]};
 				VkDate:{fullVkDate};
-				```,
+				`,
 				"#66CCFF"
 			);
 		}
@@ -750,7 +750,7 @@ for (let row in Daily.Sheet[DailyEvents].rows) {
 			txt = callMacro(
 				"ex_ResultTemplatesParser.m_ReplaceMultiPlaceholders",
 				txt,
-				```
+				$`
 				Rank:{row.column[Rank]};
 				FIO:{row.column[FIO]};
 				Position:{row.column[Position]};
@@ -770,7 +770,7 @@ for (let row in Daily.Sheet[DailyEvents].rows) {
 				VlkDate:{fullVlkDate};
 				VkNum:{row.column[VkNum]};
 				VkDate:{fullVkDate};
-				```,
+				`,
 				"#66CCFF"
 			);
 		}
@@ -779,14 +779,14 @@ for (let row in Daily.Sheet[DailyEvents].rows) {
 			txt = callMacro(
 				"ex_ResultTemplatesParser.m_ReplaceMultiPlaceholders",
 				txt,
-				```
+				$`
 				Rank:{row.column[Rank]};
 				FIO:{row.column[FIO]};
 				Position:{row.column[Position]};
 				RaportFrom:{row.column[RaportFrom]};
 				InNumFull:{inNumFull};
 				InDate:{fullInDate};
-				```,
+				`,
 				"#66CCFF"
 			);
 		}
@@ -809,7 +809,7 @@ for (let row in Daily.Sheet[DailyEvents].rows) {
 			txt = callMacro(
 				"ex_ResultTemplatesParser.m_ReplaceMultiPlaceholders",
 				txt,
-				```
+				$`
 				Rank:{row.column[Rank]};
 				FIO:{row.column[FIO]};
 				Position:{row.column[Position]};
@@ -831,7 +831,7 @@ for (let row in Daily.Sheet[DailyEvents].rows) {
 				DocDate:{fullDocDate};
 				VkNum:{row.column[VkNum]};
 				VkDate:{fullVkDate};
-				```,
+				`,
 				"#66CCFF"
 			);
 		}
@@ -840,7 +840,7 @@ for (let row in Daily.Sheet[DailyEvents].rows) {
 			txt = callMacro(
 				"ex_ResultTemplatesParser.m_ReplaceMultiPlaceholders",
 				txt,
-				```
+				$`
 				Rank:{row.column[Rank]};
 				FIO:{row.column[FIO]};
 				Position:{row.column[Position]};
@@ -854,7 +854,7 @@ for (let row in Daily.Sheet[DailyEvents].rows) {
 				VlkDate:{fullVlkDate};
 				VkNum:{row.column[VkNum]};
 				VkDate:{fullVkDate};
-				```,
+				`,
 				"#66CCFF"
 			);
 		}
@@ -863,7 +863,7 @@ for (let row in Daily.Sheet[DailyEvents].rows) {
 			txt = callMacro(
 				"ex_ResultTemplatesParser.m_ReplaceMultiPlaceholders",
 				txt,
-				```
+				$`
 				Rank:{row.column[Rank]};
 				FIO:{row.column[FIO]};
 				Position:{row.column[Position]};
@@ -876,7 +876,7 @@ for (let row in Daily.Sheet[DailyEvents].rows) {
 				DocDate:{fullDocDate};
 				PrevVkNum:{prevVkNum};
 				PrevVkDate:{prevVkDate};
-				```,
+				`,
 				"#66CCFF"
 			);
 		}
@@ -885,7 +885,7 @@ for (let row in Daily.Sheet[DailyEvents].rows) {
 			txt = callMacro(
 				"ex_ResultTemplatesParser.m_ReplaceMultiPlaceholders",
 				txt,
-				```
+				$`
 				Rank:{row.column[Rank]};
 				FIO:{row.column[FIO]};
 				Position:{row.column[Position]};
@@ -897,7 +897,7 @@ for (let row in Daily.Sheet[DailyEvents].rows) {
 				DocDate:{fullDocDate};
 				PrevVkNum:{prevVkNum};
 				PrevVkDate:{prevVkDate};
-				```,
+				`,
 				"#66CCFF"
 			);
 		}
@@ -906,7 +906,7 @@ for (let row in Daily.Sheet[DailyEvents].rows) {
 			txt = callMacro(
 				"ex_ResultTemplatesParser.m_ReplaceMultiPlaceholders",
 				txt,
-				```
+				$`
 				Rank:{row.column[Rank]};
 				FIO:{row.column[FIO]};
 				Position:{row.column[Position]};
@@ -921,7 +921,7 @@ for (let row in Daily.Sheet[DailyEvents].rows) {
 				VlkDate:{fullVlkDate};
 				VkNum:{row.column[VkNum]};
 				VkDate:{fullVkDate};
-				```,
+				`,
 				"#66CCFF"
 			);
 		}
@@ -930,7 +930,7 @@ for (let row in Daily.Sheet[DailyEvents].rows) {
 			txt = callMacro(
 				"ex_ResultTemplatesParser.m_ReplaceMultiPlaceholders",
 				txt,
-				```
+				$`
 				Rank:{row.column[Rank]};
 				FIO:{row.column[FIO]};
 				Position:{row.column[Position]};
@@ -943,12 +943,12 @@ for (let row in Daily.Sheet[DailyEvents].rows) {
 				VlkDate:{fullVlkDate};
 				DocNum:{row.column[DocNum]};
 				DocDate:{fullDocDate};
-				```,
+				`,
 				"#66CCFF"
 			);
 		}
 
-		txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "DocNote", "{row.column[DocNote]}", "#66CCFF");
+		txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "DocNote", $`{row.column[DocNote]}`, "#66CCFF");
 		txt = callMacro("ex_ResultTemplatesParser.m_ResolveTemplate", txt, "", "#66CCFF");
 		
 		let txtForWord = callMacro("ex_ResultTemplatesParser.m_RemoveHighlightMarkers", txt);
