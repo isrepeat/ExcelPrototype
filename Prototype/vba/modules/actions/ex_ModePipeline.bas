@@ -4,11 +4,17 @@ Option Explicit
 Private Const CONTEXT_FIELD_PREPROCESS_OUTPUT As String = "PreProcessOutput"
 Private Const CONTEXT_FIELD_PREPROCESS_CONTEXT As String = "PreProcessContext"
 Private Const CONTEXT_FIELD_MODE_OUTPUT As String = "ModeOutput"
+Private Const CONTEXT_FIELD_RESULTLAYOUT_EXECUTED As String = "ResultLayoutExecuted"
 Private Const CONTEXT_FIELD_POST_EXECUTED As String = "PostExecuted"
 
 Private Const MODE_RESULT_FIELD_OUTPUT As String = "Output"
 Private Const MODE_RESULT_FIELD_WORKSHEET As String = "Worksheet"
 Private Const MODE_RESULT_FIELD_RESULT_TABLES As String = "ResultTables"
+Private Const INPUT_KEY_USE_RESULT_LAYOUT As String = "__UseResultLayoutScript"
+Private Const INPUT_KEY_LAYOUT_WORKSHEET As String = "__ResultLayoutWorksheet"
+Private Const INPUT_KEY_LAYOUT_ROWKINDS As String = "__ResultLayoutRowKinds"
+Private Const INPUT_KEY_LAYOUT_FIELDRANGES As String = "__ResultLayoutFieldRanges"
+Private Const INPUT_KEY_RESULT_TABLES As String = "__ResultTables"
 
 Private Const AUTO_POSTPROCESS_SCRIPT_KEY As String = "PostProcess.Script.Implicit"
 Private Const DEBUG_LOG_PATH As String = "Logs\personalcard_pipeline.log"
@@ -32,6 +38,8 @@ Public Function m_RunModePipeline( _
     Dim modeSheet As Worksheet
     Dim modeTables As Collection
     Dim modeOutput As Object
+    Dim resultLayoutExecuted As Boolean
+    Dim requireResultLayoutScript As Boolean
     Dim busyScopeActive As Boolean
 
     On Error GoTo EH
@@ -71,6 +79,13 @@ Public Function m_RunModePipeline( _
         Exit Function
     End If
 
+    requireResultLayoutScript = mp_RequireResultLayoutScript(modeExecutorMacro)
+    If requireResultLayoutScript Then
+        ex_ScriptIO.m_SetString modeInput, INPUT_KEY_USE_RESULT_LAYOUT, "1"
+    Else
+        ex_ScriptIO.m_SetString modeInput, INPUT_KEY_USE_RESULT_LAYOUT, "0"
+    End If
+
     stageName = "run-mode-executor"
     Set modeResult = mp_RunModeExecutor(modeExecutorMacro, cfg, modeInput, preProcessContext)
     Set ctx(CONTEXT_FIELD_MODE_OUTPUT) = modeResult
@@ -90,6 +105,22 @@ Public Function m_RunModePipeline( _
     End If
     If Not mp_TryGetModeResultTables(modeResult, modeTables) Then
         Err.Raise vbObjectError + 6115, "ex_ModePipeline", "Mode result must provide ResultTables for post-process execution."
+    End If
+
+    stageName = "run-result-layout"
+    resultLayoutExecuted = ex_ResultLayoutPipeline.m_Run( _
+        cfg, _
+        modeSheet, _
+        modeTables, _
+        modeOutput, _
+        requireResultLayoutScript)
+    If resultLayoutExecuted Then
+        ctx(CONTEXT_FIELD_RESULTLAYOUT_EXECUTED) = "true"
+        mp_RefreshModeResultFromLayoutState modeResult, modeOutput, modeSheet, modeTables
+        stageName = "apply-result-layout-styles"
+        mp_ApplyLayoutSheetStyling modeSheet, modeOutput
+    Else
+        ctx(CONTEXT_FIELD_RESULTLAYOUT_EXECUTED) = "false"
     End If
 
     stageName = "run-postprocess"
@@ -126,6 +157,22 @@ EH:
         busyScopeActive = False
     End If
     Err.Raise errNumber, errSource, errDescription
+End Function
+
+Private Function mp_RequireResultLayoutScript(ByVal modeExecutorMacro As String) As Boolean
+    Dim executorName As String
+
+    executorName = LCase$(Trim$(modeExecutorMacro))
+    If Len(executorName) = 0 Then Exit Function
+
+    If InStr(1, executorName, "ex_modepersonalcard", vbTextCompare) > 0 Then
+        mp_RequireResultLayoutScript = True
+        Exit Function
+    End If
+
+    If InStr(1, executorName, "ex_modemultisources", vbTextCompare) > 0 Then
+        mp_RequireResultLayoutScript = True
+    End If
 End Function
 
 Private Sub mp_BeginPipelineBusy()
@@ -220,6 +267,74 @@ Private Sub mp_DebugLog(ByVal messageText As String)
     On Error Resume Next
     ex_Messaging.m_LogToFile "[ex_ModePipeline] " & CStr(messageText), DEBUG_LOG_PATH
     On Error GoTo 0
+End Sub
+
+Private Sub mp_RefreshModeResultFromLayoutState( _
+    ByVal modeResult As Object, _
+    ByVal modeOutput As Object, _
+    ByRef ioModeSheet As Worksheet, _
+    ByRef ioModeTables As Collection _
+)
+    Dim objectValue As Object
+
+    If modeOutput Is Nothing Then Exit Sub
+
+    If ex_ScriptIO.m_TryGetObject(modeOutput, INPUT_KEY_LAYOUT_WORKSHEET, objectValue) Then
+        If Not objectValue Is Nothing Then
+            If TypeOf objectValue Is Worksheet Then
+                Set ioModeSheet = objectValue
+            End If
+        End If
+    End If
+
+    If ex_ScriptIO.m_TryGetObject(modeOutput, INPUT_KEY_RESULT_TABLES, objectValue) Then
+        If Not objectValue Is Nothing Then
+            If TypeName(objectValue) = "Collection" Then
+                Set ioModeTables = objectValue
+            End If
+        End If
+    End If
+
+    If Not modeResult Is Nothing Then
+        Set modeResult(MODE_RESULT_FIELD_WORKSHEET) = ioModeSheet
+        Set modeResult(MODE_RESULT_FIELD_RESULT_TABLES) = ioModeTables
+    End If
+End Sub
+
+Private Sub mp_ApplyLayoutSheetStyling(ByVal ws As Worksheet, ByVal modeOutput As Object)
+    Dim objectValue As Object
+    Dim rowKindRanges As Object
+    Dim resultFieldRanges As Collection
+    Dim hasOutputStyle As Boolean
+    Dim outputStyle As t_OutputSheetStyle
+
+    If ws Is Nothing Then Exit Sub
+
+    Set resultFieldRanges = Nothing
+    If Not modeOutput Is Nothing Then
+        Set objectValue = Nothing
+        If ex_ScriptIO.m_TryGetObject(modeOutput, INPUT_KEY_LAYOUT_FIELDRANGES, objectValue) Then
+            If Not objectValue Is Nothing Then
+                If TypeName(objectValue) = "Collection" Then
+                    Set resultFieldRanges = objectValue
+                End If
+            End If
+        End If
+
+        Set objectValue = Nothing
+        If ex_ScriptIO.m_TryGetObject(modeOutput, INPUT_KEY_LAYOUT_ROWKINDS, objectValue) Then
+            If Not objectValue Is Nothing Then
+                Set rowKindRanges = objectValue
+            End If
+        End If
+    End If
+
+    ex_OutputFormattingPipeline.m_ApplySheetPipeline ws, resultFieldRanges, Nothing, rowKindRanges
+
+    hasOutputStyle = ex_SheetStylesXmlProvider.m_GetOutputSheetStyle(outputStyle, ThisWorkbook)
+    If hasOutputStyle Then
+        ex_OutputPanel.m_RenderForSheet ws, outputStyle
+    End If
 End Sub
 
 Private Sub mp_ResetDebugLog()

@@ -52,6 +52,7 @@ Private Const PFUI_MODE_BUTTON_SHAPE As String = "btnMode"
 Private Const PFUI_PERSONAL_BUTTON_SHAPE As String = "btnPersonalCard"
 Private Const PFUI_COMPARING_BUTTON_SHAPE As String = "btnComparing"
 Private Const PFUI_PREPROCESS_SCRIPT_BUTTON_SHAPE As String = "btnPreProcessScript"
+Private Const PFUI_RESULTLAYOUT_SCRIPT_BUTTON_SHAPE As String = "btnResultLayoutScript"
 Private Const PFUI_POSTPROCESS_SCRIPT_BUTTON_SHAPE As String = "btnPostProcessScript"
 Private Const STATE_ACTIVE_MODE_KEY_PROP As String = "Settings.ActiveModeKey"
 Private Const STATE_ACTIVE_PROFILE_PROP_PREFIX As String = "Settings.ActiveProfile."
@@ -1671,12 +1672,15 @@ End Sub
 
 Private Sub mp_ApplyScriptButtonsVisibility(ByVal ws As Worksheet, ByVal profileNode As Object)
     Dim hasPreScript As Boolean
+    Dim hasResultLayoutScript As Boolean
     Dim hasPostScript As Boolean
 
-    hasPreScript = mp_ProfileHasScriptDefinition(profileNode, True)
-    hasPostScript = mp_ProfileHasScriptDefinition(profileNode, False)
+    hasPreScript = mp_ProfileHasScriptDefinition(profileNode, "preprocess")
+    hasResultLayoutScript = mp_ProfileHasScriptDefinition(profileNode, "resultlayout")
+    hasPostScript = mp_ProfileHasScriptDefinition(profileNode, "postprocess")
 
     pfui_SetButtonVisibility ws, PFUI_PREPROCESS_SCRIPT_BUTTON_SHAPE, hasPreScript
+    pfui_SetButtonVisibility ws, PFUI_RESULTLAYOUT_SCRIPT_BUTTON_SHAPE, hasResultLayoutScript
     pfui_SetButtonVisibility ws, PFUI_POSTPROCESS_SCRIPT_BUTTON_SHAPE, hasPostScript
 End Sub
 
@@ -1688,7 +1692,7 @@ Private Sub pfui_SetButtonVisibility(ByVal ws As Worksheet, ByVal shapeName As S
     shp.Visible = IIf(isVisible, msoTrue, msoFalse)
 End Sub
 
-Private Function mp_ProfileHasScriptDefinition(ByVal profileNode As Object, ByVal isPreProcess As Boolean) As Boolean
+Private Function mp_ProfileHasScriptDefinition(ByVal profileNode As Object, ByVal scriptKind As String) As Boolean
     Dim scriptNodes As Object
     Dim scriptNode As Object
     Dim includePath As String
@@ -1696,11 +1700,17 @@ Private Function mp_ProfileHasScriptDefinition(ByVal profileNode As Object, ByVa
 
     If profileNode Is Nothing Then Exit Function
 
-    If isPreProcess Then
-        Set scriptNodes = profileNode.selectNodes("p:preProcessScript")
-    Else
-        Set scriptNodes = profileNode.selectNodes("p:postProcessScript")
-    End If
+    scriptKind = LCase$(Trim$(scriptKind))
+    Select Case scriptKind
+        Case "preprocess"
+            Set scriptNodes = profileNode.selectNodes("p:preProcessScript")
+        Case "resultlayout"
+            Set scriptNodes = profileNode.selectNodes("p:resultLayoutScript")
+        Case "postprocess"
+            Set scriptNodes = profileNode.selectNodes("p:postProcessScript")
+        Case Else
+            Exit Function
+    End Select
     If scriptNodes Is Nothing Then Exit Function
     If scriptNodes.Length = 0 Then Exit Function
 

@@ -4,6 +4,7 @@ Option Explicit
 Private Const SUMMARY_SHEET_NAME As String = "g_MultiSources"
 Private Const RESULT_SHEET_PREFIX As String = "g_MS_"
 Private Const SCRIPT_INPUT_RESULT_TABLES_KEY As String = "__ResultTables"
+Private Const INPUT_KEY_USE_RESULT_LAYOUT As String = "__UseResultLayoutScript"
 Private Const LIKE_DIALECT_UNKNOWN As String = "unknown"
 Private Const LIKE_DIALECT_STAR As String = "star"
 Private Const LIKE_DIALECT_PERCENT As String = "percent"
@@ -64,7 +65,6 @@ Public Function m_RunMode(ByVal cfg As Object, ByVal modeInput As Object, ByVal 
     Dim keyFieldAlias As String
     Dim tableRef As String
     Dim hasRows As Boolean
-    Dim gapRows As Long
     Dim fieldAlias As String
     Dim colIndex As Long
     Dim rowIndex As Long
@@ -81,6 +81,7 @@ Public Function m_RunMode(ByVal cfg As Object, ByVal modeInput As Object, ByVal 
     Dim hasOutputStyle As Boolean
     Dim outputStyle As ex_SheetStylesXmlProvider.t_OutputSheetStyle
     Dim summaryTopRow As Long
+    Dim useResultLayoutScript As Boolean
     Dim errNumber As Long
     Dim errSource As String
     Dim errDescription As String
@@ -103,6 +104,10 @@ Public Function m_RunMode(ByVal cfg As Object, ByVal modeInput As Object, ByVal 
     End If
     commonKeyType = LCase$(Trim$(ex_ConfigProvider.m_GetConfigEntryType("CommonKey", vbNullString)))
     useLikeMatch = (StrComp(commonKeyType, "rx", vbTextCompare) = 0)
+    useResultLayoutScript = (StrComp( _
+        ex_ScriptIO.m_GetStringOrDefault(modeInput, INPUT_KEY_USE_RESULT_LAYOUT, "0"), _
+        "1", _
+        vbTextCompare) = 0)
 
     mp_DeleteGeneratedResultSheets
     Set summarySheet = mp_CreateOrClearSheet(SUMMARY_SHEET_NAME)
@@ -122,16 +127,21 @@ Public Function m_RunMode(ByVal cfg As Object, ByVal modeInput As Object, ByVal 
     Set resultTables = New Collection
     Set resultTableRefs = New Collection
 
-    gapRows = mp_GetGapRows(cfg)
     rowIndex = summaryTopRow
     For i = 1 To outputEntries.Count
         tableVisualStartRow = rowIndex
         Set entry = outputEntries(i)
         sourceAlias = Trim$(CStr(entry("SourceAlias")))
         tableAlias = Trim$(CStr(entry("TableAlias")))
+        If Len(sourceAlias) = 0 Then
+            Err.Raise vbObjectError + 6540, "ex_ModeMultiSources", "Output entry #" & CStr(i) & " has empty SourceAlias."
+        End If
+        If Len(tableAlias) = 0 Then
+            Err.Raise vbObjectError + 6541, "ex_ModeMultiSources", "Output entry #" & CStr(i) & " has empty TableAlias."
+        End If
         rawToken = Trim$(CStr(entry("RawToken")))
 
-        sourceFilePath = mp_ResolvePathLocal(mp_GetCfgRequired(cfg, "Source." & sourceAlias & ".FilePath"))
+        sourceFilePath = mp_GetResolvedSourcePath(cfg, sourceAlias)
         If Len(sourceFilePath) = 0 Or Len(Dir$(sourceFilePath)) = 0 Then
             Err.Raise vbObjectError + 6506, "ex_ModeMultiSources", "Source file was not found: " & sourceFilePath
         End If
@@ -208,9 +218,7 @@ Public Function m_RunMode(ByVal cfg As Object, ByVal modeInput As Object, ByVal 
         Set rs = Nothing
         Set conn = Nothing
 
-        If i < outputEntries.Count Then
-            rowIndex = rowIndex + gapRows
-        End If
+        ' Inter-table spacing is controlled by ResultLayout script.
     Next i
 
     Set rowKindRanges = CreateObject("Scripting.Dictionary")
@@ -219,9 +227,11 @@ Public Function m_RunMode(ByVal cfg As Object, ByVal modeInput As Object, ByVal 
     Set rowKindRanges("section") = sectionRows
     Set rowKindRanges("content") = contentRows
 
-    mp_ApplySheetPipelineForPage summarySheet, "MultiSources", SUMMARY_SHEET_NAME, rowKindRanges
-    If hasOutputStyle Then
-        ex_OutputPanel.m_RenderForSheet summarySheet, outputStyle
+    If Not useResultLayoutScript Then
+        mp_ApplySheetPipelineForPage summarySheet, "MultiSources", SUMMARY_SHEET_NAME, rowKindRanges
+        If hasOutputStyle Then
+            ex_OutputPanel.m_RenderForSheet summarySheet, outputStyle
+        End If
     End If
     summarySheet.Activate
 
@@ -355,23 +365,6 @@ Private Sub mp_ApplySheetPipelineForPage( _
 SoftFail:
     On Error GoTo 0
 End Sub
-
-Private Function mp_GetGapRows(ByVal cfg As Object) As Long
-    Dim rawValue As String
-
-    rawValue = mp_GetCfgOptional(cfg, "Output.Layout.Gap.Default", "1")
-    If Len(rawValue) = 0 Then
-        mp_GetGapRows = 1
-        Exit Function
-    End If
-    If Not IsNumeric(rawValue) Then
-        mp_GetGapRows = 1
-        Exit Function
-    End If
-
-    mp_GetGapRows = CLng(rawValue)
-    If mp_GetGapRows < 0 Then mp_GetGapRows = 0
-End Function
 
 Private Function mp_BuildSectionTitle( _
     ByVal ordinal As Long, _
@@ -507,16 +500,8 @@ Private Function mp_BuildFilteredSelectSql( _
     Optional ByVal useLike As Boolean = False, _
     Optional ByVal likeDialect As String = LIKE_DIALECT_UNKNOWN _
 ) As String
-    If useLike Then
-        mp_BuildFilteredSelectSql = _
-            "SELECT * FROM " & tableRef & _
-            " WHERE " & mp_BuildAdoWhereLikePattern(keySourceFieldName, Trim$(keyValue), likeDialect)
-        Exit Function
-    End If
-
-    mp_BuildFilteredSelectSql = _
-        "SELECT * FROM " & tableRef & _
-        " WHERE " & mp_QuoteIdentifier(keySourceFieldName) & " = " & mp_QuoteSqlStringLiteral(Trim$(keyValue))
+    mp_BuildFilteredSelectSql = ex_ResultSqlEngine.m_BuildFilteredSelectSql( _
+        tableRef, keySourceFieldName, keyValue, useLike, likeDialect)
 End Function
 
 Private Function mp_BuildAdoWhereLikePattern( _
@@ -595,21 +580,7 @@ Private Sub mp_EnsureLikeDialectCache()
 End Sub
 
 Private Function mp_GetLikeDialectForConnection(ByVal conn As Object) As String
-    Dim cacheKey As String
-    Dim detected As String
-
-    mp_EnsureLikeDialectCache
-    cacheKey = mp_GetConnectionCacheKey(conn)
-    If Len(cacheKey) > 0 Then
-        If g_LikeDialectByConnection.Exists(cacheKey) Then
-            mp_GetLikeDialectForConnection = CStr(g_LikeDialectByConnection(cacheKey))
-            Exit Function
-        End If
-    End If
-
-    detected = mp_DetectLikeDialect(conn)
-    If Len(cacheKey) > 0 Then g_LikeDialectByConnection(cacheKey) = detected
-    mp_GetLikeDialectForConnection = detected
+    mp_GetLikeDialectForConnection = ex_ResultSqlEngine.m_GetLikeDialectForConnection(conn)
 End Function
 
 Private Function mp_GetConnectionCacheKey(ByVal conn As Object) As String
@@ -692,21 +663,15 @@ Private Function mp_MappedHeader( _
     ByVal tableAlias As String, _
     ByVal fieldAlias As String _
 ) As String
-    Dim rawValue As String
-    Dim splitPos As Long
-
-    rawValue = mp_GetCfgRequired(cfg, sourceAlias & ".Sheet[" & tableAlias & "].Map[" & fieldAlias & "]")
-    splitPos = InStr(1, rawValue, "|", vbBinaryCompare)
-    If splitPos > 0 Then
-        mp_MappedHeader = Trim$(Left$(rawValue, splitPos - 1))
-    Else
-        mp_MappedHeader = Trim$(rawValue)
-    End If
-
-    If Len(mp_MappedHeader) = 0 Then
-        Err.Raise vbObjectError + 6523, "ex_ModeMultiSources", _
-            "Mapped source header is empty for " & sourceAlias & ".Sheet[" & tableAlias & "].Map[" & fieldAlias & "]"
-    End If
+    mp_MappedHeader = ex_ResultSqlEngine.m_MappedHeader( _
+        cfg, _
+        sourceAlias, _
+        tableAlias, _
+        fieldAlias, _
+        "ex_ModeMultiSources", _
+        vbObjectError + 6523, _
+        vbObjectError + 6518, _
+        vbObjectError + 6519)
 End Function
 
 Private Function mp_GetExpectedMappedHeaders( _
@@ -715,76 +680,31 @@ Private Function mp_GetExpectedMappedHeaders( _
     ByVal tableAlias As String, _
     ByVal fields As Collection _
 ) As Variant
-    Dim arr() As String
-    Dim i As Long
-    Dim headerText As String
-
-    If fields Is Nothing Then
-        mp_GetExpectedMappedHeaders = Array()
-        Exit Function
-    End If
-    If fields.Count = 0 Then
-        mp_GetExpectedMappedHeaders = Array()
-        Exit Function
-    End If
-
-    ReDim arr(0 To fields.Count - 1)
-    For i = 1 To fields.Count
-        headerText = mp_MappedHeader(cfg, sourceAlias, tableAlias, CStr(fields(i)))
-        arr(i - 1) = headerText
-    Next i
-    mp_GetExpectedMappedHeaders = arr
+    mp_GetExpectedMappedHeaders = ex_ResultSqlEngine.m_GetExpectedMappedHeaders( _
+        cfg, _
+        sourceAlias, _
+        tableAlias, _
+        fields, _
+        "ex_ModeMultiSources", _
+        vbObjectError + 6523, _
+        vbObjectError + 6518, _
+        vbObjectError + 6519)
 End Function
 
 Private Function mp_IsExplicitAdoRangeReference(ByVal value As String) As Boolean
-    value = Trim$(value)
-    If InStr(1, value, "$", vbBinaryCompare) <= 0 Then Exit Function
-    If InStr(1, value, ":", vbBinaryCompare) <= 0 Then Exit Function
-    mp_IsExplicitAdoRangeReference = True
+    mp_IsExplicitAdoRangeReference = ex_ResultSqlEngine.m_IsExplicitAdoRangeReference(value)
 End Function
 
 Private Function mp_UnquoteSqlIdentifier(ByVal value As String) As String
-    value = Trim$(value)
-    If Len(value) >= 2 Then
-        If Left$(value, 1) = "[" And Right$(value, 1) = "]" Then
-            value = Mid$(value, 2, Len(value) - 2)
-        End If
-    End If
-    mp_UnquoteSqlIdentifier = Replace$(value, "]]", "]")
+    mp_UnquoteSqlIdentifier = ex_ResultSqlEngine.m_UnquoteSqlIdentifier(value)
 End Function
 
 Private Function mp_ExtractAdoSheetPrefix(ByVal tableRef As String) As String
-    Dim objectName As String
-    Dim dollarPos As Long
-
-    objectName = mp_UnquoteSqlIdentifier(tableRef)
-    If Len(objectName) = 0 Then Exit Function
-
-    dollarPos = InStr(1, objectName, "$", vbBinaryCompare)
-    If dollarPos <= 0 Then Exit Function
-
-    mp_ExtractAdoSheetPrefix = Left$(objectName, dollarPos)
+    mp_ExtractAdoSheetPrefix = ex_ResultSqlEngine.m_ExtractAdoSheetPrefix(tableRef)
 End Function
 
 Private Function mp_BuildNormalizedHeaderTokenSet(ByVal expectedHeaders As Variant, ByVal keyHeader As String) As Object
-    Dim d As Object
-    Dim i As Long
-    Dim token As String
-
-    Set d = CreateObject("Scripting.Dictionary")
-    d.CompareMode = 1
-
-    token = mp_NormalizeHeader(keyHeader)
-    If Len(token) > 0 Then d(token) = True
-
-    If Not mp_IsEmptyVariantArray(expectedHeaders) Then
-        For i = LBound(expectedHeaders) To UBound(expectedHeaders)
-            token = mp_NormalizeHeader(CStr(expectedHeaders(i)))
-            If Len(token) > 0 Then d(token) = True
-        Next i
-    End If
-
-    Set mp_BuildNormalizedHeaderTokenSet = d
+    Set mp_BuildNormalizedHeaderTokenSet = ex_ResultSqlEngine.m_BuildNormalizedHeaderTokenSet(expectedHeaders, keyHeader)
 End Function
 
 Private Function mp_TryDetectHeaderRangeFromTopRows( _
@@ -794,120 +714,8 @@ Private Function mp_TryDetectHeaderRangeFromTopRows( _
     ByVal keyHeader As String, _
     ByRef outDetectedRef As String _
 ) As Boolean
-    Const MAX_HEADER_ALIGNMENT_SHIFT As Long = 20
-    Dim sheetPrefix As String
-    Dim probeRef As String
-    Dim rs As Object
-    Dim rowsData As Variant
-    Dim rowLower As Long
-    Dim rowUpper As Long
-    Dim fieldLower As Long
-    Dim fieldUpper As Long
-    Dim rowIndex As Long
-    Dim colIndex As Long
-    Dim bestRowIndex As Long
-    Dim bestScore As Long
-    Dim bestLastCol As Long
-    Dim rowTokens As Object
-    Dim expectedSet As Object
-    Dim keyToken As String
-    Dim cellText As String
-    Dim normalized As String
-    Dim lastNonEmptyCol As Long
-    Dim currentScore As Long
-    Dim token As Variant
-    Dim headerRowAbs As Long
-    Dim colLetter As String
-    Dim fallbackRowAbs As Long
-    Dim alignmentShift As Long
-
-    sheetPrefix = mp_ExtractAdoSheetPrefix(tableRef)
-    If Len(sheetPrefix) = 0 Then Exit Function
-
-    probeRef = "[" & sheetPrefix & "A1:ZZ200]"
-
-    Set expectedSet = mp_BuildNormalizedHeaderTokenSet(expectedHeaders, keyHeader)
-    If expectedSet Is Nothing Then Exit Function
-    If expectedSet.Count = 0 Then Exit Function
-
-    keyToken = mp_NormalizeHeader(keyHeader)
-    If Len(keyToken) = 0 Then Exit Function
-
-    On Error GoTo EH
-    Set rs = CreateObject("ADODB.Recordset")
-    rs.Open "SELECT * FROM " & probeRef, adoConn, 0, 1
-    If rs.EOF Then
-        rs.Close
-        Exit Function
-    End If
-
-    rowsData = rs.GetRows
-    rs.Close
-
-    rowLower = LBound(rowsData, 2)
-    rowUpper = UBound(rowsData, 2)
-    fieldLower = LBound(rowsData, 1)
-    fieldUpper = UBound(rowsData, 1)
-    bestRowIndex = -1
-    bestScore = 0
-
-    For rowIndex = rowLower To rowUpper
-        Set rowTokens = CreateObject("Scripting.Dictionary")
-        rowTokens.CompareMode = 1
-        lastNonEmptyCol = 0
-
-        For colIndex = fieldLower To fieldUpper
-            cellText = mp_ToSafeText(rowsData(colIndex, rowIndex))
-            normalized = mp_NormalizeHeader(cellText)
-            If Len(normalized) > 0 Then
-                rowTokens(normalized) = True
-                lastNonEmptyCol = (colIndex - fieldLower + 1)
-            End If
-        Next colIndex
-
-        If rowTokens.Exists(keyToken) Then
-            currentScore = 0
-            For Each token In expectedSet.Keys
-                If rowTokens.Exists(CStr(token)) Then currentScore = currentScore + 1
-            Next token
-
-            If currentScore > bestScore Then
-                bestScore = currentScore
-                bestRowIndex = rowIndex
-                bestLastCol = lastNonEmptyCol
-            End If
-        End If
-    Next rowIndex
-
-    If bestRowIndex < 0 Then Exit Function
-    If bestLastCol <= 0 Then bestLastCol = (fieldUpper - fieldLower + 1)
-    If bestLastCol <= 0 Then Exit Function
-
-    colLetter = mp_ToColumnLetter(bestLastCol)
-    If Len(colLetter) = 0 Then Exit Function
-
-    For alignmentShift = 1 To MAX_HEADER_ALIGNMENT_SHIFT
-        headerRowAbs = (bestRowIndex - rowLower) + alignmentShift
-        If headerRowAbs > 0 Then
-            If mp_TryBuildValidatedHeaderRangeRef(adoConn, sheetPrefix, headerRowAbs, colLetter, keyHeader, outDetectedRef) Then
-                mp_TryDetectHeaderRangeFromTopRows = True
-                Exit Function
-            End If
-        End If
-    Next alignmentShift
-
-    fallbackRowAbs = (bestRowIndex - rowLower) + 1
-    If fallbackRowAbs <= 0 Then Exit Function
-    outDetectedRef = "[" & sheetPrefix & "A" & CStr(fallbackRowAbs) & ":" & colLetter & "1048576]"
-    mp_TryDetectHeaderRangeFromTopRows = True
-    Exit Function
-
-EH:
-    On Error Resume Next
-    If Not rs Is Nothing Then
-        If rs.State <> 0 Then rs.Close
-    End If
-    On Error GoTo 0
+    mp_TryDetectHeaderRangeFromTopRows = ex_ResultSqlEngine.m_TryDetectHeaderRangeFromTopRows( _
+        adoConn, tableRef, expectedHeaders, keyHeader, outDetectedRef)
 End Function
 
 Private Function mp_TryBuildValidatedHeaderRangeRef( _
@@ -918,106 +726,42 @@ Private Function mp_TryBuildValidatedHeaderRangeRef( _
     ByVal keyHeader As String, _
     ByRef outRangeRef As String _
 ) As Boolean
-    Dim rs As Object
-    Dim candidateRef As String
-
-    If adoConn Is Nothing Then Exit Function
-    If headerRowAbs <= 0 Then Exit Function
-    If Len(Trim$(sheetPrefix)) = 0 Then Exit Function
-    If Len(Trim$(colLetter)) = 0 Then Exit Function
-    If Len(Trim$(keyHeader)) = 0 Then Exit Function
-
-    candidateRef = "[" & sheetPrefix & "A" & CStr(headerRowAbs) & ":" & colLetter & "1048576]"
-
-    On Error GoTo EH
-    Set rs = CreateObject("ADODB.Recordset")
-    rs.Open "SELECT * FROM " & candidateRef & " WHERE 1=0", adoConn, 0, 1
-    If mp_RecordsetGetFieldOrdinal(rs, keyHeader) >= 0 Then
-        outRangeRef = candidateRef
-        mp_TryBuildValidatedHeaderRangeRef = True
-    End If
-    rs.Close
-    Exit Function
-
-EH:
-    On Error Resume Next
-    If Not rs Is Nothing Then
-        If rs.State <> 0 Then rs.Close
-    End If
-    On Error GoTo 0
+    mp_TryBuildValidatedHeaderRangeRef = ex_ResultSqlEngine.m_TryBuildValidatedHeaderRangeRef( _
+        adoConn, sheetPrefix, headerRowAbs, colLetter, keyHeader, outRangeRef)
 End Function
 
 Private Function mp_OpenSourceConnection(ByVal cfg As Object, ByVal sourceAlias As String) As Object
-    Dim sourcePath As String
-    Dim snapshotPath As String
-    Dim conn As Object
-
-    sourcePath = mp_ResolvePathLocal(mp_GetCfgRequired(cfg, "Source." & sourceAlias & ".FilePath"))
-    If Len(sourcePath) = 0 Then
-        Err.Raise vbObjectError + 6524, "ex_ModeMultiSources", "Source file path is empty for alias '" & sourceAlias & "'."
-    End If
-    If Dir$(sourcePath) = vbNullString Then
-        Err.Raise vbObjectError + 6525, "ex_ModeMultiSources", "Source file not found: " & sourcePath
-    End If
-
-    snapshotPath = ex_SourceSnapshot.m_GetSnapshotPath(sourcePath, "Source." & sourceAlias)
-    Set conn = CreateObject("ADODB.Connection")
-    conn.Open mp_BuildAdoConnectionString(snapshotPath)
-
-    Set mp_OpenSourceConnection = conn
+    Set mp_OpenSourceConnection = ex_ResultSqlEngine.m_OpenSourceConnection( _
+        cfg, _
+        sourceAlias, _
+        "ex_ModeMultiSources", _
+        vbObjectError + 6524, _
+        vbObjectError + 6525, _
+        vbObjectError + 6526, _
+        vbObjectError + 6515, _
+        vbObjectError + 6516, _
+        vbObjectError + 6517, _
+        vbObjectError + 6518, _
+        vbObjectError + 6519)
 End Function
 
 Private Function mp_BuildTableRef(ByVal sourceAlias As String, ByVal tableAlias As String, ByVal cfg As Object) As String
     Dim sheetName As String
 
     sheetName = ex_ConfigProvider.m_GetResolvedSheetName(sourceAlias, tableAlias, cfg, True, "ex_ModeMultiSources", 6530, 6531, 6532, 6533, 6534)
-    sheetName = Trim$(sheetName)
-    If Len(sheetName) = 0 Then
-        Err.Raise vbObjectError + 6535, "ex_ModeMultiSources", _
-            "Resolved SheetName is empty for " & sourceAlias & ".Sheet[" & tableAlias & "]."
-    End If
-
-    If Left$(sheetName, 1) = "[" And Right$(sheetName, 1) = "]" Then
-        mp_BuildTableRef = sheetName
-        Exit Function
-    End If
-
-    If InStr(1, sheetName, "$", vbBinaryCompare) > 0 Then
-        mp_BuildTableRef = "[" & Replace$(sheetName, "]", "]]") & "]"
-    Else
-        mp_BuildTableRef = "[" & Replace$(sheetName, "]", "]]") & "$]"
-    End If
+    mp_BuildTableRef = ex_ResultSqlEngine.m_BuildTableRefFromSheetName(sheetName, "ex_ModeMultiSources", vbObjectError + 6535)
 End Function
 
 Private Function mp_QuoteIdentifier(ByVal valueText As String) As String
-    mp_QuoteIdentifier = "[" & Replace$(Trim$(valueText), "]", "]]") & "]"
+    mp_QuoteIdentifier = ex_ResultSqlEngine.m_QuoteIdentifier(valueText)
 End Function
 
 Private Function mp_QuoteSqlStringLiteral(ByVal valueText As String) As String
-    mp_QuoteSqlStringLiteral = "'" & Replace$(CStr(valueText), "'", "''") & "'"
+    mp_QuoteSqlStringLiteral = ex_ResultSqlEngine.m_QuoteSqlStringLiteral(valueText)
 End Function
 
 Private Function mp_BuildAdoConnectionString(ByVal sourcePath As String) As String
-    Dim ext As String
-    Dim props As String
-
-    ext = LCase$(Mid$(sourcePath, InStrRev(sourcePath, ".") + 1))
-    Select Case ext
-        Case "xls"
-            props = "Excel 8.0;HDR=YES;IMEX=1;ReadOnly=True"
-        Case "xlsx"
-            props = "Excel 12.0 Xml;HDR=YES;IMEX=1;ReadOnly=True"
-        Case "xlsm"
-            props = "Excel 12.0 Macro;HDR=YES;IMEX=1;ReadOnly=True"
-        Case "xlsb"
-            props = "Excel 12.0;HDR=YES;IMEX=1;ReadOnly=True"
-        Case Else
-            Err.Raise vbObjectError + 6526, "ex_ModeMultiSources", _
-                "Unsupported source file extension for ADO: ." & ext
-    End Select
-
-    mp_BuildAdoConnectionString = _
-        "Provider=Microsoft.ACE.OLEDB.12.0;Data Source=" & sourcePath & ";Extended Properties=""" & props & """;"
+    mp_BuildAdoConnectionString = ex_ResultSqlEngine.m_BuildAdoConnectionString(sourcePath, "ex_ModeMultiSources", vbObjectError + 6526)
 End Function
 
 Private Function mp_BuildFieldOrdinals( _
@@ -1027,63 +771,17 @@ Private Function mp_BuildFieldOrdinals( _
     ByVal tableAlias As String, _
     ByVal fields As Collection _
 ) As Object
-    Dim byExact As Object
-    Dim byLoose As Object
-    Dim result As Object
-    Dim i As Long
-    Dim fieldName As String
-    Dim fieldAlias As String
-    Dim desiredHeader As String
-    Dim exactToken As String
-    Dim looseToken As String
-    Dim availableFields As String
-    Dim hintText As String
-
-    If rs Is Nothing Then Exit Function
-    If fields Is Nothing Then Exit Function
-
-    Set byExact = CreateObject("Scripting.Dictionary")
-    byExact.CompareMode = 1
-    Set byLoose = CreateObject("Scripting.Dictionary")
-    byLoose.CompareMode = 1
-
-    For i = 0 To rs.Fields.Count - 1
-        fieldName = CStr(rs.Fields(i).Name)
-        exactToken = mp_NormalizeHeader(fieldName)
-        looseToken = mp_NormalizeHeaderLoose(fieldName)
-        If Len(exactToken) > 0 Then
-            If Not byExact.Exists(exactToken) Then byExact(exactToken) = i
-        End If
-        If Len(looseToken) > 0 Then
-            If Not byLoose.Exists(looseToken) Then byLoose(looseToken) = i
-        End If
-    Next i
-
-    Set result = CreateObject("Scripting.Dictionary")
-    result.CompareMode = 1
-
-    For i = 1 To fields.Count
-        fieldAlias = CStr(fields(i))
-        desiredHeader = mp_MappedHeader(cfg, sourceAlias, tableAlias, fieldAlias)
-        exactToken = mp_NormalizeHeader(desiredHeader)
-        looseToken = mp_NormalizeHeaderLoose(desiredHeader)
-
-        If Len(exactToken) > 0 And byExact.Exists(exactToken) Then
-            result(fieldAlias) = CLng(byExact(exactToken))
-        ElseIf Len(looseToken) > 0 And byLoose.Exists(looseToken) Then
-            result(fieldAlias) = CLng(byLoose(looseToken))
-        Else
-            availableFields = mp_ListRecordsetFields(rs, 40)
-            If mp_RecordsetLooksLikeGenericFields(rs) Then
-                hintText = " Hint: ADO returned generic fields (F1..Fn). Set SheetName as explicit range with header row, e.g. 'Аркуш1$A3:I1048576'."
-            End If
-            Err.Raise vbObjectError + 6536, "ex_ModeMultiSources", _
-                "Configured source header '" & desiredHeader & "' is not found for " & sourceAlias & ".Sheet[" & tableAlias & "].Map[" & fieldAlias & "]. " & _
-                "Available fields: " & availableFields & "." & hintText
-        End If
-    Next i
-
-    Set mp_BuildFieldOrdinals = result
+    Set mp_BuildFieldOrdinals = ex_ResultSqlEngine.m_BuildFieldOrdinals( _
+        cfg, _
+        rs, _
+        sourceAlias, _
+        tableAlias, _
+        fields, _
+        "ex_ModeMultiSources", _
+        vbObjectError + 6536, _
+        vbObjectError + 6523, _
+        vbObjectError + 6518, _
+        vbObjectError + 6519)
 End Function
 
 Private Function mp_RecordsetFieldNameByOrdinal( _
@@ -1093,14 +791,15 @@ Private Function mp_RecordsetFieldNameByOrdinal( _
     ByVal tableAlias As String, _
     ByVal fieldAlias As String _
 ) As String
-    If rs Is Nothing Then
-        Err.Raise vbObjectError + 6538, "ex_ModeMultiSources", "Recordset is not initialized while resolving source field name."
-    End If
-    If fieldOrdinal < 0 Or fieldOrdinal >= rs.Fields.Count Then
-        Err.Raise vbObjectError + 6539, "ex_ModeMultiSources", _
-            "Field ordinal is out of range for " & sourceAlias & ".Sheet[" & tableAlias & "].Map[" & fieldAlias & "]."
-    End If
-    mp_RecordsetFieldNameByOrdinal = CStr(rs.Fields(fieldOrdinal).Name)
+    mp_RecordsetFieldNameByOrdinal = ex_ResultSqlEngine.m_RecordsetFieldNameByOrdinal( _
+        rs, _
+        fieldOrdinal, _
+        sourceAlias, _
+        tableAlias, _
+        fieldAlias, _
+        "ex_ModeMultiSources", _
+        vbObjectError + 6538, _
+        vbObjectError + 6539)
 End Function
 
 Private Function mp_AppendFilteredRows( _
@@ -1117,56 +816,19 @@ Private Function mp_AppendFilteredRows( _
     ByVal keyValue As String, _
     Optional ByVal useLike As Boolean = False _
 ) As Boolean
-    Dim nextRow As Long
-    Dim rowIndex As Long
-    Dim colIndex As Long
-    Dim fieldAlias As String
-    Dim fieldOrdinal As Long
-    Dim valueText As String
-    Dim keyOrdinal As Long
-    Dim currentKey As String
-    Dim tableRef As String
-    Dim rowObj As obj_ResultRow
-    Dim rowAnchorName As String
-    Dim isMatch As Boolean
-
-    If rs Is Nothing Then Exit Function
-    If fields Is Nothing Then Exit Function
-    If fieldOrdinals Is Nothing Then Exit Function
-    If fields.Count = 0 Then Exit Function
-    If Not fieldOrdinals.Exists(keyFieldAlias) Then Exit Function
-    If rs.EOF Then Exit Function
-
-    keyValue = Trim$(keyValue)
-    keyOrdinal = CLng(fieldOrdinals(keyFieldAlias))
-    nextRow = startRow
-    tableRef = sourceAlias & ".Sheet[" & tableAlias & "]"
-
-    Do While Not rs.EOF
-        currentKey = mp_AsText(rs.Fields(keyOrdinal).Value, rs.Fields(keyOrdinal).Type)
-        isMatch = useLike Or (StrComp(Trim$(currentKey), keyValue, vbTextCompare) = 0)
-        If isMatch Then
-            rowIndex = resultTable.Count
-            For colIndex = 1 To fields.Count
-                fieldAlias = CStr(fields(colIndex))
-                fieldOrdinal = CLng(fieldOrdinals(fieldAlias))
-                valueText = mp_AsText(rs.Fields(fieldOrdinal).Value, rs.Fields(fieldOrdinal).Type)
-                ws.Cells(nextRow, colIndex).Value = valueText
-                mp_AddResultCell resultTable, rowIndex, sourceAlias, tableAlias, fieldAlias, valueText
-            Next colIndex
-            Set rowObj = resultTable.EnsureRow(rowIndex)
-            rowAnchorName = ex_Messaging.m_BuildResultRowAnchorName(tableRef, rowIndex + 1)
-            If Len(rowAnchorName) > 0 Then
-                rowObj.RowAnchorName = rowAnchorName
-                ex_Messaging.m_RegisterResultRowAnchor ws, rowAnchorName, nextRow
-            End If
-            contentRows.Add nextRow
-            nextRow = nextRow + 1
-        End If
-        rs.MoveNext
-    Loop
-
-    mp_AppendFilteredRows = (nextRow > startRow)
+    mp_AppendFilteredRows = ex_ResultSqlEngine.m_AppendFilteredRows( _
+        ws, _
+        rs, _
+        startRow, _
+        contentRows, _
+        resultTable, _
+        sourceAlias, _
+        tableAlias, _
+        fields, _
+        fieldOrdinals, _
+        keyFieldAlias, _
+        keyValue, _
+        useLike)
 End Function
 
 Private Function mp_AsText(ByVal valueIn As Variant, Optional ByVal adoFieldType As Long = -1) As String
@@ -1174,164 +836,35 @@ Private Function mp_AsText(ByVal valueIn As Variant, Optional ByVal adoFieldType
 End Function
 
 Private Function mp_ListRecordsetFields(ByVal rs As Object, Optional ByVal maxCount As Long = 25) As String
-    Dim i As Long
-    Dim count As Long
-    Dim fieldName As String
-
-    If rs Is Nothing Then Exit Function
-    If maxCount <= 0 Then maxCount = 25
-
-    For i = 0 To rs.Fields.Count - 1
-        fieldName = Trim$(CStr(rs.Fields(i).Name))
-        If Len(fieldName) = 0 Then fieldName = "(empty)"
-        If count > 0 Then mp_ListRecordsetFields = mp_ListRecordsetFields & ", "
-        mp_ListRecordsetFields = mp_ListRecordsetFields & "[" & fieldName & "]"
-        count = count + 1
-        If count >= maxCount Then Exit For
-    Next i
-
-    If rs.Fields.Count > maxCount Then
-        mp_ListRecordsetFields = mp_ListRecordsetFields & ", ..."
-    End If
+    mp_ListRecordsetFields = ex_ResultSqlEngine.m_ListRecordsetFields(rs, maxCount)
 End Function
 
 Private Function mp_RecordsetLooksLikeGenericFields(ByVal rs As Object) As Boolean
-    Dim i As Long
-    Dim probeCount As Long
-    Dim fieldName As String
-
-    If rs Is Nothing Then Exit Function
-    If rs.Fields.Count = 0 Then Exit Function
-
-    probeCount = rs.Fields.Count
-    If probeCount > 10 Then probeCount = 10
-
-    For i = 0 To probeCount - 1
-        fieldName = UCase$(Trim$(CStr(rs.Fields(i).Name)))
-        If Len(fieldName) < 2 Then Exit Function
-        If Left$(fieldName, 1) <> "F" Then Exit Function
-        If Not IsNumeric(Mid$(fieldName, 2)) Then Exit Function
-    Next i
-
-    mp_RecordsetLooksLikeGenericFields = True
+    mp_RecordsetLooksLikeGenericFields = ex_ResultSqlEngine.m_RecordsetLooksLikeGenericFields(rs)
 End Function
 
 Private Function mp_RecordsetGetFieldOrdinal(ByVal rs As Object, ByVal fieldName As String) As Long
-    Dim i As Long
-    Dim targetToken As String
-
-    mp_RecordsetGetFieldOrdinal = -1
-    If rs Is Nothing Then Exit Function
-
-    targetToken = mp_NormalizeHeader(fieldName)
-    If Len(targetToken) = 0 Then Exit Function
-
-    For i = 0 To rs.Fields.Count - 1
-        If StrComp(mp_NormalizeHeader(CStr(rs.Fields(i).Name)), targetToken, vbTextCompare) = 0 Then
-            mp_RecordsetGetFieldOrdinal = i
-            Exit Function
-        End If
-    Next i
+    mp_RecordsetGetFieldOrdinal = ex_ResultSqlEngine.m_RecordsetGetFieldOrdinal(rs, fieldName)
 End Function
 
 Private Function mp_ToSafeText(ByVal valueIn As Variant) As String
-    If IsError(valueIn) Then Exit Function
-    If IsNull(valueIn) Then Exit Function
-    If IsEmpty(valueIn) Then Exit Function
-
-    mp_ToSafeText = Trim$(CStr(valueIn))
+    mp_ToSafeText = ex_ResultSqlEngine.m_ToSafeText(valueIn)
 End Function
 
 Private Function mp_IsEmptyVariantArray(ByVal valueRef As Variant) As Boolean
-    Dim lb As Long
-    Dim ub As Long
-
-    If IsEmpty(valueRef) Then
-        mp_IsEmptyVariantArray = True
-        Exit Function
-    End If
-    If Not IsArray(valueRef) Then
-        mp_IsEmptyVariantArray = True
-        Exit Function
-    End If
-
-    On Error GoTo ErrHandler
-    lb = LBound(valueRef)
-    ub = UBound(valueRef)
-    mp_IsEmptyVariantArray = (ub < lb)
-    Exit Function
-
-ErrHandler:
-    mp_IsEmptyVariantArray = True
+    mp_IsEmptyVariantArray = ex_ResultSqlEngine.m_IsEmptyVariantArray(valueRef)
 End Function
 
 Private Function mp_ToColumnLetter(ByVal columnIndex As Long) As String
-    Dim n As Long
-    Dim remainder As Long
-
-    If columnIndex < 1 Then columnIndex = 1
-    n = columnIndex
-
-    Do While n > 0
-        remainder = (n - 1) Mod 26
-        mp_ToColumnLetter = Chr$(65 + remainder) & mp_ToColumnLetter
-        n = (n - remainder - 1) \ 26
-    Loop
+    mp_ToColumnLetter = ex_ResultSqlEngine.m_ToColumnLetter(columnIndex)
 End Function
 
 Private Function mp_NormalizeHeader(ByVal valueText As String) As String
-    Dim normalized As String
-
-    normalized = CStr(valueText)
-    normalized = Replace$(normalized, vbCr, " ")
-    normalized = Replace$(normalized, vbLf, " ")
-    normalized = Replace$(normalized, vbTab, " ")
-    normalized = Replace$(normalized, ChrW$(160), " ")
-    normalized = Replace$(normalized, "#", ".")
-    normalized = Replace$(normalized, ChrW$(&H2019), "'")
-    normalized = Replace$(normalized, ChrW$(&H2BC), "'")
-    normalized = Replace$(normalized, ChrW$(&H60), "'")
-    normalized = Replace$(normalized, ChrW$(&HB4), "'")
-    normalized = Replace$(normalized, "  ", " ")
-    normalized = Replace$(normalized, "  ", " ")
-    normalized = Trim$(normalized)
-    normalized = LCase$(normalized)
-
-    mp_NormalizeHeader = normalized
+    mp_NormalizeHeader = ex_ResultSqlEngine.m_NormalizeHeader(valueText)
 End Function
 
 Private Function mp_NormalizeHeaderLoose(ByVal valueText As String) As String
-    Dim normalized As String
-    Dim i As Long
-    Dim ch As String
-    Dim codePoint As Long
-    Dim resultText As String
-
-    normalized = mp_NormalizeHeader(valueText)
-    If Len(normalized) = 0 Then Exit Function
-
-    For i = 1 To Len(normalized)
-        ch = Mid$(normalized, i, 1)
-        codePoint = AscW(ch)
-        If (codePoint >= 48 And codePoint <= 57) _
-           Or (codePoint >= 65 And codePoint <= 90) _
-           Or (codePoint >= 97 And codePoint <= 122) _
-           Or (codePoint >= &H410 And codePoint <= &H44F) _
-           Or codePoint = &H401 _
-           Or codePoint = &H451 _
-           Or codePoint = &H404 _
-           Or codePoint = &H454 _
-           Or codePoint = &H406 _
-           Or codePoint = &H456 _
-           Or codePoint = &H407 _
-           Or codePoint = &H457 _
-           Or codePoint = &H490 _
-           Or codePoint = &H491 Then
-            resultText = resultText & ch
-        End If
-    Next i
-
-    mp_NormalizeHeaderLoose = resultText
+    mp_NormalizeHeaderLoose = ex_ResultSqlEngine.m_NormalizeHeaderLoose(valueText)
 End Function
 
 Private Function mp_GetNextOutputRow(ByVal ws As Worksheet) As Long
@@ -1350,21 +883,7 @@ Private Function mp_CreateResultTableFromFields( _
     ByVal tableAlias As String, _
     ByVal fields As Collection _
 ) As obj_ResultTable
-    Dim tableObj As obj_ResultTable
-    Dim i As Long
-    Dim fieldAlias As String
-
-    Set tableObj = New obj_ResultTable
-    tableObj.Initialize sourceAlias & ".Sheet[" & tableAlias & "]"
-
-    For i = 1 To fields.Count
-        fieldAlias = Trim$(CStr(fields(i)))
-        If Len(fieldAlias) > 0 Then
-            tableObj.AddFieldMap fieldAlias, ex_ResultRuntimeAdapter.m_BuildMapKey(sourceAlias, tableAlias, fieldAlias)
-        End If
-    Next i
-
-    Set mp_CreateResultTableFromFields = tableObj
+    Set mp_CreateResultTableFromFields = ex_ResultSqlEngine.m_CreateResultTableFromFields(sourceAlias, tableAlias, fields)
 End Function
 
 Private Sub mp_AddResultCell( _
@@ -1375,8 +894,7 @@ Private Sub mp_AddResultCell( _
     ByVal fieldAlias As String, _
     ByVal valueText As String _
 )
-    If resultTable Is Nothing Then Exit Sub
-    resultTable.SetRowValue rowIndex, fieldAlias, ex_ResultRuntimeAdapter.m_BuildMapKey(sourceAlias, tableAlias, fieldAlias), valueText
+    ex_ResultSqlEngine.m_AddResultCell resultTable, rowIndex, sourceAlias, tableAlias, fieldAlias, valueText
 End Sub
 
 Private Function mp_CreateScriptInputContext(ByVal fio As String) As Object
@@ -1501,73 +1019,24 @@ Private Function mp_NormalizeSheetName(ByVal rawName As String) As String
 End Function
 
 Private Function mp_GetResolvedSourcePath(ByVal cfg As Object, ByVal sourceAlias As String) As String
-    Dim sourcePrefix As String
-    Dim fileKey As String
-    Dim resolverKey As String
-    Dim resolverArgsKey As String
-    Dim rawPath As String
-    Dim resolverName As String
-    Dim resolverCallName As String
-    Dim resolverArgs As String
-    Dim resolvedValue As Variant
-    Dim resolvedPath As String
-
-    sourcePrefix = "Source." & Trim$(sourceAlias)
-    fileKey = sourcePrefix & ".FilePath"
-    resolverKey = sourcePrefix & ".FileResolver"
-    resolverArgsKey = sourcePrefix & ".FileResolverArgs"
-
-    rawPath = mp_GetCfgRequired(cfg, fileKey)
-    resolverName = mp_GetCfgOptional(cfg, resolverKey, vbNullString)
-    resolverArgs = mp_GetCfgOptional(cfg, resolverArgsKey, vbNullString)
-
-    If Len(resolverName) = 0 Then
-        If mp_HasPlaceholderTokens(rawPath) Then
-            Err.Raise vbObjectError + 6515, "ex_ModeMultiSources", _
-                "Source path contains placeholders but no resolver is configured for key '" & fileKey & "'."
-        End If
-
-        mp_GetResolvedSourcePath = mp_ResolvePathLocal(rawPath)
-        Exit Function
-    End If
-
-    If InStr(1, resolverName, "!", vbBinaryCompare) > 0 Then
-        resolverCallName = resolverName
-    Else
-        resolverCallName = "'" & ThisWorkbook.Name & "'!" & resolverName
-    End If
-
-    On Error GoTo ResolverEH
-    resolvedValue = Application.Run(resolverCallName, rawPath, resolverArgs)
-    On Error GoTo 0
-
-    resolvedPath = Trim$(CStr(resolvedValue))
-    If Len(resolvedPath) = 0 Then
-        Err.Raise vbObjectError + 6516, "ex_ModeMultiSources", _
-            "Source file resolver '" & resolverName & "' returned an empty path for key '" & fileKey & "'."
-    End If
-
-    mp_GetResolvedSourcePath = mp_ResolvePathLocal(resolvedPath)
-    Exit Function
-
-ResolverEH:
-    Err.Raise vbObjectError + 6517, "ex_ModeMultiSources", _
-        "Source file resolver failed for key '" & fileKey & "' (resolver='" & resolverName & "'): " & Err.Description
+    mp_GetResolvedSourcePath = ex_ResultSqlEngine.m_GetResolvedSourcePath( _
+        cfg, _
+        sourceAlias, _
+        "ex_ModeMultiSources", _
+        vbObjectError + 6515, _
+        vbObjectError + 6516, _
+        vbObjectError + 6517, _
+        vbObjectError + 6518, _
+        vbObjectError + 6519)
 End Function
 
 Private Function mp_GetCfgRequired(ByVal cfg As Object, ByVal keyName As String) As String
-    Dim valueText As String
-
-    If cfg Is Nothing Or Not cfg.Exists(keyName) Then
-        Err.Raise vbObjectError + 6518, "ex_ModeMultiSources", "Missing config key: " & keyName
-    End If
-
-    valueText = Trim$(CStr(cfg(keyName)))
-    If Len(valueText) = 0 Then
-        Err.Raise vbObjectError + 6519, "ex_ModeMultiSources", "Empty config value: " & keyName
-    End If
-
-    mp_GetCfgRequired = valueText
+    mp_GetCfgRequired = ex_ResultSqlEngine.m_GetCfgRequired( _
+        cfg, _
+        keyName, _
+        "ex_ModeMultiSources", _
+        vbObjectError + 6518, _
+        vbObjectError + 6519)
 End Function
 
 Private Function mp_GetCfgOptional(ByVal cfg As Object, ByVal keyName As String, Optional ByVal defaultValue As String = vbNullString) As String
@@ -1585,35 +1054,9 @@ Private Function mp_GetCfgOptional(ByVal cfg As Object, ByVal keyName As String,
 End Function
 
 Private Function mp_HasPlaceholderTokens(ByVal valueText As String) As Boolean
-    Dim normalized As String
-
-    normalized = Trim$(valueText)
-    If Len(normalized) = 0 Then Exit Function
-
-    mp_HasPlaceholderTokens = (InStr(1, normalized, "{", vbBinaryCompare) > 0) _
-                              And (InStr(1, normalized, "}", vbBinaryCompare) > 0)
+    mp_HasPlaceholderTokens = ex_ResultSqlEngine.m_HasPlaceholderTokens(valueText)
 End Function
 
 Private Function mp_ResolvePathLocal(ByVal inputPath As String) As String
-    Dim basePath As String
-
-    inputPath = Trim$(inputPath)
-    If Len(inputPath) = 0 Then Exit Function
-
-    If Left$(inputPath, 2) = "\\" Or InStr(1, inputPath, ":\", vbTextCompare) > 0 Then
-        mp_ResolvePathLocal = inputPath
-        Exit Function
-    End If
-
-    basePath = ThisWorkbook.Path
-    If Len(basePath) = 0 Then
-        mp_ResolvePathLocal = inputPath
-        Exit Function
-    End If
-
-    If Right$(basePath, 1) <> "\" Then
-        basePath = basePath & "\"
-    End If
-
-    mp_ResolvePathLocal = basePath & inputPath
+    mp_ResolvePathLocal = ex_ResultSqlEngine.m_ResolvePathLocal(inputPath)
 End Function
