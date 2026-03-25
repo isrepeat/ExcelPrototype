@@ -155,6 +155,20 @@
          spanCols="2"
          spanRows="2"/>
 
+    <control name="btnResultLayoutScript"
+         type="button"
+         sheet="Dev"
+         required="true"
+         createIfMissing="true"
+         macro="ex_UIActions.m_OpenResultLayoutScript_OnClick"
+         caption="ResultLayout"
+         globalVisible="false"
+         style="actionNeutral"
+         placement="moveAndSize"
+         anchorCell="Q14"
+         spanCols="2"
+         spanRows="2"/>
+
     <control name="btnPostProcessScript"
          type="button"
          sheet="Dev"
@@ -165,7 +179,7 @@
          globalVisible="false"
          style="actionNeutral"
          placement="moveAndSize"
-         anchorCell="Q14"
+         anchorCell="Q17"
          spanCols="2"
          spanRows="2"/>
 

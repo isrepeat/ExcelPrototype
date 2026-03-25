@@ -38,8 +38,8 @@
 		<v key="Events.Sheet[EventsMain].Map[Position]">Посада</v>
 		<v key="Events.Sheet[EventsMain].Map[Salary]">Оклад</v>
 		<v key=""/>
-		<v key="Output.Layout.Gap.Default">1</v>
 		<v key="Output.Sheets">StateMain; EventsMain</v>
+		<resultLayoutScript include="PersonalCard_ResultLayoutScript.jslike"/>
 	</profile>
 	<profile name="Test" resultZoom="100">
 		<v key="Source.Main.FilePath">..\dsc_StateSrc.xlsx</v>
@@ -79,8 +79,8 @@
 		<v key="Events.Sheet[EventsOut].Map[Ticket]">Стовпець1|Номер квитка</v>
 		<v key="Events.Sheet[EventsOut].Map[Note]">76|Замітки</v>
 		<v key=""/>
-		<v key="Output.Layout.Gap.Default">1</v>
 		<v key="Output.Sheets">StateMain; EventsOut; EventsIn</v>
+		<resultLayoutScript include="PersonalCard_ResultLayoutScript.jslike"/>
 		<postProcessScript execution="Explicit">
 			for (let row in Events.Sheet[EventsOut].rows) {
 				/*
@@ -293,7 +293,6 @@
 		</fetchAdditionalData>
 		<v key=""/>
 		<v key="Output.Sheets">StateMain; EventsOut; EventsIn; DailyEvents</v>
-		<v key="Output.Layout.Gap.Default">1</v>
 		<v key=""/>
 		<v key="Export.WordTemplatePath">Templates\Template.docx</v>
 		<v key="Export.OutputMode">CreateWithPostfix</v>
@@ -313,6 +312,7 @@
 			}
 			]]>
 		</postProcessScript> -->
+		<resultLayoutScript include="PersonalCard_ResultLayoutScript.jslike"/>
 		<preProcessScript include="Test2_PreProcessScript.jslike"/>
 		<postProcessScript execution="Implicit" include="Test2_PostProcessScript.jslike"/>
 		<postProcessScript execution="Explicit" include="Test2_PostProcessScript.jslike"/>

@@ -4,6 +4,9 @@ Option Explicit
 Private Const PROFILES_NS As String = "urn:excelprototype:profiles"
 Private Const ASCII_UPPER As String = "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
 Private Const ASCII_LOWER As String = "abcdefghijklmnopqrstuvwxyz"
+Private Const SCRIPT_KIND_PREPROCESS As String = "preprocess"
+Private Const SCRIPT_KIND_RESULTLAYOUT As String = "resultlayout"
+Private Const SCRIPT_KIND_POSTPROCESS As String = "postprocess"
 
 ' UI entrypoints layer: keeps user-triggered callbacks in actions/*
 ' and delegates work to domain/config modules.
@@ -139,12 +142,17 @@ End Sub
 
 Public Sub m_OpenPreProcessScript_OnClick()
     ex_CustomDropdown.m_OnManagedButtonClick
-    mp_OpenActiveProfileScriptSource True
+    mp_OpenActiveProfileScriptSource SCRIPT_KIND_PREPROCESS
+End Sub
+
+Public Sub m_OpenResultLayoutScript_OnClick()
+    ex_CustomDropdown.m_OnManagedButtonClick
+    mp_OpenActiveProfileScriptSource SCRIPT_KIND_RESULTLAYOUT
 End Sub
 
 Public Sub m_OpenPostProcessScript_OnClick()
     ex_CustomDropdown.m_OnManagedButtonClick
-    mp_OpenActiveProfileScriptSource False
+    mp_OpenActiveProfileScriptSource SCRIPT_KIND_POSTPROCESS
 End Sub
 
 Public Sub m_ReportCreationRunPostProcess_OnClick()
@@ -275,7 +283,7 @@ EH:
     ex_Messaging.m_RenderErrorBanner ws, errDescription, errSource, errNumber, "ERROR: Search failed", ex_SheetStylesXmlProvider.m_GetOutputErrorBannerRangeAddress(ThisWorkbook)
 End Sub
 
-Private Sub mp_OpenActiveProfileScriptSource(ByVal isPreProcess As Boolean)
+Private Sub mp_OpenActiveProfileScriptSource(ByVal scriptKind As String)
     Dim modeKey As String
     Dim profileName As String
     Dim profilesFilePath As String
@@ -297,7 +305,7 @@ Private Sub mp_OpenActiveProfileScriptSource(ByVal isPreProcess As Boolean)
         Exit Sub
     End If
 
-    If Not mp_TryResolveActiveProfileScriptSourcePath(profilesFilePath, profileName, isPreProcess, targetFilePath, sourceLabel, errText) Then
+    If Not mp_TryResolveActiveProfileScriptSourcePath(profilesFilePath, profileName, scriptKind, targetFilePath, sourceLabel, errText) Then
         MsgBox "Script open failed: " & errText, vbExclamation
         Exit Sub
     End If
@@ -307,11 +315,7 @@ Private Sub mp_OpenActiveProfileScriptSource(ByVal isPreProcess As Boolean)
         Exit Sub
     End If
 
-    If isPreProcess Then
-        openLabel = "Pre Process Script"
-    Else
-        openLabel = "Post Process Script"
-    End If
+    openLabel = mp_GetScriptKindDisplayLabel(scriptKind)
 
     If Not mp_OpenFileInNotepad(targetFilePath, errText) Then
         MsgBox "Failed to open " & openLabel & " (" & sourceLabel & "): " & errText, vbExclamation
@@ -321,7 +325,7 @@ End Sub
 Private Function mp_TryResolveActiveProfileScriptSourcePath( _
     ByVal profilesFilePath As String, _
     ByVal profileName As String, _
-    ByVal isPreProcess As Boolean, _
+    ByVal scriptKind As String, _
     ByRef outSourcePath As String, _
     ByRef outSourceLabel As String, _
     ByRef outErrorText As String _
@@ -352,13 +356,21 @@ Private Function mp_TryResolveActiveProfileScriptSourcePath( _
         Exit Function
     End If
 
-    If isPreProcess Then
-        Set scriptNode = mp_GetPreProcessScriptNode(profileNode)
-        outSourceLabel = "preProcessScript"
-    Else
-        Set scriptNode = mp_GetPostProcessScriptNode(profileNode)
-        outSourceLabel = "postProcessScript"
-    End If
+    scriptKind = LCase$(Trim$(scriptKind))
+    Select Case scriptKind
+        Case SCRIPT_KIND_PREPROCESS
+            Set scriptNode = mp_GetPreProcessScriptNode(profileNode)
+            outSourceLabel = "preProcessScript"
+        Case SCRIPT_KIND_RESULTLAYOUT
+            Set scriptNode = mp_GetResultLayoutScriptNode(profileNode)
+            outSourceLabel = "resultLayoutScript"
+        Case SCRIPT_KIND_POSTPROCESS
+            Set scriptNode = mp_GetPostProcessScriptNode(profileNode)
+            outSourceLabel = "postProcessScript"
+        Case Else
+            outErrorText = "Unknown script kind: '" & scriptKind & "'."
+            Exit Function
+    End Select
 
     If scriptNode Is Nothing Then
         outErrorText = "Script definition is not configured for active profile '" & profileName & "'."
@@ -383,6 +395,10 @@ End Function
 
 Private Function mp_GetPreProcessScriptNode(ByVal profileNode As Object) As Object
     Set mp_GetPreProcessScriptNode = profileNode.selectSingleNode("p:preProcessScript")
+End Function
+
+Private Function mp_GetResultLayoutScriptNode(ByVal profileNode As Object) As Object
+    Set mp_GetResultLayoutScriptNode = profileNode.selectSingleNode("p:resultLayoutScript")
 End Function
 
 Private Function mp_GetPostProcessScriptNode(ByVal profileNode As Object) As Object
@@ -410,6 +426,21 @@ Private Function mp_GetPostProcessScriptNode(ByVal profileNode As Object) As Obj
             Set mp_GetPostProcessScriptNode = nodes.Item(0)
         End If
     End If
+End Function
+
+Private Function mp_GetScriptKindDisplayLabel(ByVal scriptKind As String) As String
+    scriptKind = LCase$(Trim$(scriptKind))
+
+    Select Case scriptKind
+        Case SCRIPT_KIND_PREPROCESS
+            mp_GetScriptKindDisplayLabel = "Pre Process Script"
+        Case SCRIPT_KIND_RESULTLAYOUT
+            mp_GetScriptKindDisplayLabel = "Result Layout Script"
+        Case SCRIPT_KIND_POSTPROCESS
+            mp_GetScriptKindDisplayLabel = "Post Process Script"
+        Case Else
+            mp_GetScriptKindDisplayLabel = "Script"
+    End Select
 End Function
 
 Private Function mp_OpenFileInNotepad(ByVal filePath As String, ByRef outErrorText As String) As Boolean

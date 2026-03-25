@@ -31,10 +31,9 @@
     <v key="{Main-{dd}.{mm}.{yyyy}}.Sheet[StateMain].Map[BasisDocNumber]">На підставі чого госпіталізований (№ документу)</v>
     <v key="{Main-{dd}.{mm}.{yyyy}}.Sheet[StateMain].Map[CombatInjury]">Бойове поранення</v>
     <v type="#" key=""/>
-    <v key="HospitalizationDate.MatchDate" mutable="true">05.03.2026</v>
-    <v key="Output.Layout.Gap.Default">1</v>
     <v key="Output.Sheets">{Main-{dd}.{mm}.{yyyy}}.Sheet[StateMain]</v>
 
+    <resultLayoutScript include="MultiSources_ResultLayoutScript.jslike"/>
     <preProcessScript><![CDATA[]]></preProcessScript>
     <postProcessScript execution="Implicit" include="MultiSources_PostProcessScript.jslike"><![CDATA[]]></postProcessScript>
   </profile>

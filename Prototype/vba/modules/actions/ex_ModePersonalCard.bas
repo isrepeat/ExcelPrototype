@@ -8,6 +8,7 @@ Private Const DEV_COL_KEY As Long = 2
 Private Const DEV_COL_VALUE As Long = 3
 Private Const RESULT_SHEET_NAME As String = "g_PersonTimeline"
 Private Const POST_PROCESS_SCRIPT_KEY_EXPLICIT As String = "PostProcess.Script.Explicit"
+Private Const INPUT_KEY_USE_RESULT_LAYOUT As String = "__UseResultLayoutScript"
 Private Const TIMELINE_DEBUG_LOG_PATH As String = "Logs\personalcard_pipeline.log"
 
 Private g_LastPostProcessCfg As Object
@@ -265,6 +266,7 @@ Private Function mp_RunModeCore( _
     Dim stageName As String
     Dim postProcessInput As Object
     Dim modeResult As Object
+    Dim useResultLayoutScript As Boolean
 
     stageName = "init"
     mp_DebugLog "START mp_RunModeCore fio='" & CStr(fio) & "'"
@@ -319,6 +321,10 @@ Private Function mp_RunModeCore( _
         Set postProcessInput = mp_CreateScriptInputContext(fio)
     End If
     fio = Trim$(ex_ScriptIO.m_GetStringOrDefault(postProcessInput, "CommonKey", fio))
+    useResultLayoutScript = (StrComp( _
+        ex_ScriptIO.m_GetStringOrDefault(postProcessInput, INPUT_KEY_USE_RESULT_LAYOUT, "0"), _
+        "1", _
+        vbTextCompare) = 0)
 
     stageName = "prepare-output-sheet"
     resultSheetExistedBeforeRender = mp_WorksheetExists(RESULT_SHEET_NAME)
@@ -454,11 +460,13 @@ ContinueAlias:
     End If
 
     stageName = "apply-styles"
-    If hasOutputStyle Then
-        ex_OutputPanel.m_RenderForSheet wsOut, outputStyle
+    If Not useResultLayoutScript Then
+        If hasOutputStyle Then
+            ex_OutputPanel.m_RenderForSheet wsOut, outputStyle
+        End If
+        mp_ApplyTimelineStyleLayers wsOut, headerRows, sectionRows, resultFieldRanges, resultTables, partialMatchRowRanges, hasOutputStyle, outputStyle, pendingWarningBanners
+        mp_RenderPendingWarningBanners wsOut, pendingWarningBanners
     End If
-    mp_ApplyTimelineStyleLayers wsOut, headerRows, sectionRows, resultFieldRanges, resultTables, partialMatchRowRanges, hasOutputStyle, outputStyle, pendingWarningBanners
-    mp_RenderPendingWarningBanners wsOut, pendingWarningBanners
 
     stageName = "prepare-postprocess-input"
     ex_ScriptIO.m_SetInput postProcessInput
@@ -1728,126 +1736,8 @@ Private Function mp_TryDetectHeaderRangeFromTopRows( _
     ByVal keyHeader As String, _
     ByRef outDetectedRef As String _
 ) As Boolean
-    Const MAX_HEADER_ALIGNMENT_SHIFT As Long = 20
-    Dim sheetPrefix As String
-    Dim probeRef As String
-    Dim rs As Object
-    Dim rowsData As Variant
-    Dim rowLower As Long
-    Dim rowUpper As Long
-    Dim fieldLower As Long
-    Dim fieldUpper As Long
-    Dim rowIndex As Long
-    Dim colIndex As Long
-    Dim bestRowIndex As Long
-    Dim bestScore As Long
-    Dim bestLastCol As Long
-    Dim rowTokens As Object
-    Dim expectedSet As Object
-    Dim keyToken As String
-    Dim cellText As String
-    Dim normalized As String
-    Dim lastNonEmptyCol As Long
-    Dim currentScore As Long
-    Dim token As Variant
-    Dim headerRowAbs As Long
-    Dim colLetter As String
-    Dim fallbackRowAbs As Long
-    Dim alignmentShift As Long
-
-    sheetPrefix = mp_ExtractAdoSheetPrefix(tableRef)
-    If Len(sheetPrefix) = 0 Then Exit Function
-
-    probeRef = "[" & sheetPrefix & "A1:ZZ200]"
-
-    Set expectedSet = mp_BuildNormalizedHeaderTokenSet(expectedHeaders, keyHeader)
-    If expectedSet Is Nothing Then Exit Function
-    If expectedSet.Count = 0 Then Exit Function
-
-    keyToken = mp_NormalizeHeader(keyHeader)
-    If Len(keyToken) = 0 Then Exit Function
-
-    On Error GoTo EH
-    Set rs = CreateObject("ADODB.Recordset")
-    rs.Open "SELECT * FROM " & probeRef, adoConn, 0, 1
-    If rs.EOF Then
-        rs.Close
-        Exit Function
-    End If
-
-    rowsData = rs.GetRows
-    rs.Close
-
-    rowLower = LBound(rowsData, 2)
-    rowUpper = UBound(rowsData, 2)
-    fieldLower = LBound(rowsData, 1)
-    fieldUpper = UBound(rowsData, 1)
-    bestRowIndex = -1
-    bestScore = 0
-
-    For rowIndex = rowLower To rowUpper
-        Set rowTokens = CreateObject("Scripting.Dictionary")
-        rowTokens.CompareMode = 1
-        lastNonEmptyCol = 0
-
-        For colIndex = fieldLower To fieldUpper
-            cellText = mp_ToSafeText(rowsData(colIndex, rowIndex))
-            normalized = mp_NormalizeHeader(cellText)
-            If Len(normalized) > 0 Then
-                rowTokens(normalized) = True
-                lastNonEmptyCol = (colIndex - fieldLower + 1)
-            End If
-        Next colIndex
-
-        If rowTokens.Exists(keyToken) Then
-            currentScore = 0
-            For Each token In expectedSet.Keys
-                If rowTokens.Exists(CStr(token)) Then
-                    currentScore = currentScore + 1
-                End If
-            Next token
-
-            If currentScore > bestScore Then
-                bestScore = currentScore
-                bestRowIndex = rowIndex
-                bestLastCol = lastNonEmptyCol
-            End If
-        End If
-    Next rowIndex
-
-    If bestRowIndex < 0 Then Exit Function
-    If bestLastCol <= 0 Then bestLastCol = (fieldUpper - fieldLower + 1)
-    If bestLastCol <= 0 Then Exit Function
-
-    colLetter = mp_ToColumnLetter(bestLastCol)
-    If Len(colLetter) = 0 Then Exit Function
-
-    ' Provider alignment can drift from A1 (A1, A2, A3...).
-    ' Probe a bounded set of shifts and keep the first candidate
-    ' that exposes keyHeader in WHERE 1=0 metadata.
-    For alignmentShift = 1 To MAX_HEADER_ALIGNMENT_SHIFT
-        headerRowAbs = (bestRowIndex - rowLower) + alignmentShift
-        If headerRowAbs > 0 Then
-            If mp_TryBuildValidatedHeaderRangeRef(adoConn, sheetPrefix, headerRowAbs, colLetter, keyHeader, outDetectedRef) Then
-                mp_TryDetectHeaderRangeFromTopRows = True
-                Exit Function
-            End If
-        End If
-    Next alignmentShift
-
-    ' Last resort: keep deterministic fallback based on +1.
-    fallbackRowAbs = (bestRowIndex - rowLower) + 1
-    If fallbackRowAbs <= 0 Then Exit Function
-    outDetectedRef = "[" & sheetPrefix & "A" & CStr(fallbackRowAbs) & ":" & colLetter & "1048576]"
-    mp_TryDetectHeaderRangeFromTopRows = True
-    Exit Function
-
-EH:
-    On Error Resume Next
-    If Not rs Is Nothing Then
-        If rs.State <> 0 Then rs.Close
-    End If
-    On Error GoTo 0
+    mp_TryDetectHeaderRangeFromTopRows = ex_ResultSqlEngine.m_TryDetectHeaderRangeFromTopRows( _
+        adoConn, tableRef, expectedHeaders, keyHeader, outDetectedRef)
 End Function
 
 Private Function mp_TryBuildValidatedHeaderRangeRef( _
@@ -1858,33 +1748,8 @@ Private Function mp_TryBuildValidatedHeaderRangeRef( _
     ByVal keyHeader As String, _
     ByRef outRangeRef As String _
 ) As Boolean
-    Dim rs As Object
-    Dim candidateRef As String
-
-    If adoConn Is Nothing Then Exit Function
-    If headerRowAbs <= 0 Then Exit Function
-    If Len(Trim$(sheetPrefix)) = 0 Then Exit Function
-    If Len(Trim$(colLetter)) = 0 Then Exit Function
-    If Len(Trim$(keyHeader)) = 0 Then Exit Function
-
-    candidateRef = "[" & sheetPrefix & "A" & CStr(headerRowAbs) & ":" & colLetter & "1048576]"
-
-    On Error GoTo EH
-    Set rs = CreateObject("ADODB.Recordset")
-    rs.Open "SELECT * FROM " & candidateRef & " WHERE 1=0", adoConn, 0, 1
-    If mp_RecordsetGetFieldOrdinal(rs, keyHeader) >= 0 Then
-        outRangeRef = candidateRef
-        mp_TryBuildValidatedHeaderRangeRef = True
-    End If
-    rs.Close
-    Exit Function
-
-EH:
-    On Error Resume Next
-    If Not rs Is Nothing Then
-        If rs.State <> 0 Then rs.Close
-    End If
-    On Error GoTo 0
+    mp_TryBuildValidatedHeaderRangeRef = ex_ResultSqlEngine.m_TryBuildValidatedHeaderRangeRef( _
+        adoConn, sheetPrefix, headerRowAbs, colLetter, keyHeader, outRangeRef)
 End Function
 
 Private Function mp_GetSourceAliasCached(ByVal cfg As Object, ByVal tableAlias As String, ByVal cache As Object) As String
@@ -2471,114 +2336,8 @@ Private Function mp_AdvanceRowIndexAfterRenderedTable( _
     ByVal currentTableType As String, _
     ByVal rowIndexAfterCurrentTable As Long _
 ) As Long
-    Dim nextSourceAlias As String
-    Dim nextTableAlias As String
-    Dim nextTableType As String
-    Dim gapRows As Long
-
+    ' Inter-table spacing is fully controlled by ResultLayout script.
     mp_AdvanceRowIndexAfterRenderedTable = rowIndexAfterCurrentTable
-
-    If Not mp_TryGetNextRenderableOutputTable(cfg, outputEntries, currentIndex, mode, nextSourceAlias, nextTableAlias, nextTableType) Then
-        Exit Function
-    End If
-
-    gapRows = mp_GetOutputTablesGapRows(cfg, currentTableAlias, currentTableType, nextTableAlias, nextTableType)
-    If gapRows > 0 Then
-        mp_AdvanceRowIndexAfterRenderedTable = rowIndexAfterCurrentTable + gapRows
-    End If
-End Function
-
-Private Function mp_TryGetNextRenderableOutputTable( _
-    ByVal cfg As Object, _
-    ByVal outputEntries As Collection, _
-    ByVal fromIndex As Long, _
-    ByVal mode As OutputMode, _
-    ByRef outSourceAlias As String, _
-    ByRef outTableAlias As String, _
-    ByRef outTableType As String _
-) As Boolean
-    Dim i As Long
-    Dim candidateAlias As String
-    Dim candidateSourceAlias As String
-    Dim candidateTableType As String
-    Dim outputEntry As Object
-
-    If outputEntries Is Nothing Then Exit Function
-
-    For i = fromIndex + 1 To outputEntries.Count
-        Set outputEntry = outputEntries(i)
-        If outputEntry Is Nothing Then GoTo ContinueCandidate
-
-        candidateAlias = Trim$(CStr(outputEntry("TableAlias")))
-        If Len(candidateAlias) = 0 Then GoTo ContinueCandidate
-
-        candidateSourceAlias = Trim$(CStr(outputEntry("SourceAlias")))
-        If Len(candidateSourceAlias) = 0 Then GoTo ContinueCandidate
-        candidateTableType = LCase$(mp_GetCfgRequired(cfg, candidateSourceAlias & ".Sheet[" & candidateAlias & "].Type"))
-
-        If Not mp_IsSupportedOutputTableType(candidateTableType) Then
-            Err.Raise vbObjectError + 1301, "ex_ModePersonalCard", _
-                "Unsupported table type for alias '" & candidateAlias & "': " & candidateTableType
-        End If
-
-        If Not mp_ShouldRenderTableForMode(mode, candidateTableType) Then
-            GoTo ContinueCandidate
-        End If
-
-        outSourceAlias = candidateSourceAlias
-        outTableAlias = candidateAlias
-        outTableType = candidateTableType
-        mp_TryGetNextRenderableOutputTable = True
-        Exit Function
-ContinueCandidate:
-    Next i
-End Function
-
-Private Function mp_GetOutputTablesGapRows( _
-    ByVal cfg As Object, _
-    ByVal currentTableAlias As String, _
-    ByVal currentTableType As String, _
-    ByVal nextTableAlias As String, _
-    ByVal nextTableType As String _
-) As Long
-    Dim keyName As String
-    Dim currentTypeToken As String
-    Dim nextTypeToken As String
-
-    currentTypeToken = mp_ToOutputTableTypeToken(currentTableType)
-    nextTypeToken = mp_ToOutputTableTypeToken(nextTableType)
-
-    keyName = "Output.Layout.Gap.Between[" & currentTableAlias & "->" & nextTableAlias & "]"
-    If cfg.Exists(keyName) Then
-        mp_GetOutputTablesGapRows = mp_GetCfgNonNegativeLongValue(cfg, keyName)
-        Exit Function
-    End If
-
-    keyName = "Output.Layout.Gap.BetweenType[" & currentTypeToken & "->" & nextTypeToken & "]"
-    If cfg.Exists(keyName) Then
-        mp_GetOutputTablesGapRows = mp_GetCfgNonNegativeLongValue(cfg, keyName)
-        Exit Function
-    End If
-
-    keyName = "Output.Layout.Gap.After[" & currentTableAlias & "]"
-    If cfg.Exists(keyName) Then
-        mp_GetOutputTablesGapRows = mp_GetCfgNonNegativeLongValue(cfg, keyName)
-        Exit Function
-    End If
-
-    keyName = "Output.Layout.Gap.AfterType[" & currentTypeToken & "]"
-    If cfg.Exists(keyName) Then
-        mp_GetOutputTablesGapRows = mp_GetCfgNonNegativeLongValue(cfg, keyName)
-        Exit Function
-    End If
-
-    keyName = "Output.Layout.Gap.Default"
-    If cfg.Exists(keyName) Then
-        mp_GetOutputTablesGapRows = mp_GetCfgNonNegativeLongValue(cfg, keyName)
-        Exit Function
-    End If
-
-    mp_GetOutputTablesGapRows = 1
 End Function
 
 Private Function mp_IsSupportedOutputTableType(ByVal tableType As String) As Boolean
@@ -2589,52 +2348,6 @@ Private Function mp_ShouldRenderTableForMode(ByVal mode As OutputMode, ByVal tab
     If mode = StateTableOnly And tableType <> "state" Then Exit Function
     If mode = EventsTableOnly And tableType <> "events" Then Exit Function
     mp_ShouldRenderTableForMode = True
-End Function
-
-Private Function mp_ToOutputTableTypeToken(ByVal tableType As String) As String
-    Select Case LCase$(Trim$(tableType))
-        Case "state"
-            mp_ToOutputTableTypeToken = "State"
-        Case "events"
-            mp_ToOutputTableTypeToken = "Events"
-        Case Else
-            mp_ToOutputTableTypeToken = Trim$(tableType)
-    End Select
-End Function
-
-Private Function mp_GetCfgNonNegativeLongValue(ByVal cfg As Object, ByVal keyName As String) As Long
-    Dim rawValue As String
-    Dim parsedValue As Long
-
-    rawValue = mp_GetCfgRequired(cfg, keyName)
-    If Not mp_TryParseNonNegativeLong(rawValue, parsedValue) Then
-        Err.Raise vbObjectError + 1760, "ex_ModePersonalCard", _
-            "Config key '" & keyName & "' must be a non-negative integer, got: '" & rawValue & "'."
-    End If
-
-    mp_GetCfgNonNegativeLongValue = parsedValue
-End Function
-
-Private Function mp_TryParseNonNegativeLong(ByVal rawValue As String, ByRef outValue As Long) As Boolean
-    Dim textValue As String
-    Dim i As Long
-    Dim ch As String
-
-    textValue = Trim$(rawValue)
-    If Len(textValue) = 0 Then Exit Function
-
-    For i = 1 To Len(textValue)
-        ch = Mid$(textValue, i, 1)
-        If ch < "0" Or ch > "9" Then Exit Function
-    Next i
-
-    On Error GoTo ParseEH
-    outValue = CLng(textValue)
-    mp_TryParseNonNegativeLong = True
-    Exit Function
-
-ParseEH:
-    mp_TryParseNonNegativeLong = False
 End Function
 
 Private Function mp_GetConnectionForSource(ByVal connCache As Object, ByVal cfg As Object, ByVal sourceAlias As String) As Object
@@ -2687,25 +2400,7 @@ Private Sub mp_CloseConnections(ByVal connCache As Object)
 End Sub
 
 Private Function mp_BuildAdoConnectionString(ByVal sourcePath As String) As String
-    Dim ext As String
-    Dim props As String
-
-    ext = LCase$(Mid$(sourcePath, InStrRev(sourcePath, ".") + 1))
-
-    Select Case ext
-        Case "xls"
-            props = "Excel 8.0;HDR=YES;IMEX=1;ReadOnly=True"
-        Case "xlsx"
-            props = "Excel 12.0 Xml;HDR=YES;IMEX=1;ReadOnly=True"
-        Case "xlsm"
-            props = "Excel 12.0 Macro;HDR=YES;IMEX=1;ReadOnly=True"
-        Case "xlsb"
-            props = "Excel 12.0;HDR=YES;IMEX=1;ReadOnly=True"
-        Case Else
-            Err.Raise vbObjectError + 1363, "ex_ModePersonalCard", "Unsupported source file extension for ADO: ." & ext
-    End Select
-
-    mp_BuildAdoConnectionString = "Provider=Microsoft.ACE.OLEDB.12.0;Data Source=" & sourcePath & ";Extended Properties=""" & props & """;"
+    mp_BuildAdoConnectionString = ex_ResultSqlEngine.m_BuildAdoConnectionString(sourcePath, "ex_ModePersonalCard", vbObjectError + 1363)
 End Function
 
 Private Function mp_ResolveAdoTableReference(ByVal adoConn As Object, ByVal tableName As String, Optional ByVal expectedHeaders As Variant, Optional ByVal keyHeader As String = vbNullString, Optional ByVal keyValue As String = vbNullString) As String
@@ -2931,10 +2626,7 @@ Private Function mp_IsMatchingConfiguredAdoObject(ByVal candidate As String, ByV
 End Function
 
 Private Function mp_IsExplicitAdoRangeReference(ByVal value As String) As Boolean
-    value = Trim$(value)
-    If InStr(1, value, "$", vbBinaryCompare) <= 0 Then Exit Function
-    If InStr(1, value, ":", vbBinaryCompare) <= 0 Then Exit Function
-    mp_IsExplicitAdoRangeReference = True
+    mp_IsExplicitAdoRangeReference = ex_ResultSqlEngine.m_IsExplicitAdoRangeReference(value)
 End Function
 
 Private Function mp_NormalizeAdoObjectName(ByVal value As String) As String
@@ -3005,47 +2697,15 @@ Private Function mp_StripAdoObjectOrdinalPrefix(ByVal value As String) As String
 End Function
 
 Private Function mp_UnquoteSqlIdentifier(ByVal value As String) As String
-    value = Trim$(value)
-    If Len(value) >= 2 Then
-        If Left$(value, 1) = "[" And Right$(value, 1) = "]" Then
-            value = Mid$(value, 2, Len(value) - 2)
-        End If
-    End If
-    mp_UnquoteSqlIdentifier = Replace$(value, "]]", "]")
+    mp_UnquoteSqlIdentifier = ex_ResultSqlEngine.m_UnquoteSqlIdentifier(value)
 End Function
 
 Private Function mp_ExtractAdoSheetPrefix(ByVal tableRef As String) As String
-    Dim objectName As String
-    Dim dollarPos As Long
-
-    objectName = mp_UnquoteSqlIdentifier(tableRef)
-    If Len(objectName) = 0 Then Exit Function
-
-    dollarPos = InStr(1, objectName, "$", vbBinaryCompare)
-    If dollarPos <= 0 Then Exit Function
-
-    mp_ExtractAdoSheetPrefix = Left$(objectName, dollarPos)
+    mp_ExtractAdoSheetPrefix = ex_ResultSqlEngine.m_ExtractAdoSheetPrefix(tableRef)
 End Function
 
 Private Function mp_BuildNormalizedHeaderTokenSet(ByVal expectedHeaders As Variant, ByVal keyHeader As String) As Object
-    Dim d As Object
-    Dim i As Long
-    Dim token As String
-
-    Set d = CreateObject("Scripting.Dictionary")
-    d.CompareMode = 1
-
-    token = mp_NormalizeHeader(keyHeader)
-    If Len(token) > 0 Then d(token) = True
-
-    If Not mp_IsEmptyVariantArray(expectedHeaders) Then
-        For i = LBound(expectedHeaders) To UBound(expectedHeaders)
-            token = mp_NormalizeHeader(CStr(expectedHeaders(i)))
-            If Len(token) > 0 Then d(token) = True
-        Next i
-    End If
-
-    Set mp_BuildNormalizedHeaderTokenSet = d
+    Set mp_BuildNormalizedHeaderTokenSet = ex_ResultSqlEngine.m_BuildNormalizedHeaderTokenSet(expectedHeaders, keyHeader)
 End Function
 
 Private Function mp_BuildExpectedHeadersSignature(ByVal expectedHeaders As Variant) As String
@@ -3209,25 +2869,7 @@ EH:
 End Function
 
 Private Function mp_ListAdoRecordsetFields(ByVal rs As Object, Optional ByVal maxCount As Long = 25) As String
-    Dim i As Long
-    Dim count As Long
-    Dim nameText As String
-
-    If rs Is Nothing Then Exit Function
-    If maxCount <= 0 Then maxCount = 25
-
-    For i = 0 To rs.Fields.Count - 1
-        If count > 0 Then mp_ListAdoRecordsetFields = mp_ListAdoRecordsetFields & ", "
-        nameText = Trim$(CStr(rs.Fields(i).Name))
-        If Len(nameText) = 0 Then nameText = "(empty)"
-        mp_ListAdoRecordsetFields = mp_ListAdoRecordsetFields & "[" & nameText & "]"
-        count = count + 1
-        If count >= maxCount Then Exit For
-    Next i
-
-    If rs.Fields.Count > maxCount Then
-        mp_ListAdoRecordsetFields = mp_ListAdoRecordsetFields & ", ..."
-    End If
+    mp_ListAdoRecordsetFields = ex_ResultSqlEngine.m_ListRecordsetFields(rs, maxCount)
 End Function
 
 Private Function mp_RecordsetLooksLikeUnnamedFields(ByVal rs As Object) As Boolean
@@ -3287,25 +2929,11 @@ Private Function mp_EscapeAdoLikeValue(ByVal valueText As String) As String
 End Function
 
 Private Function mp_RecordsetGetFieldOrdinal(ByVal rs As Object, ByVal fieldName As String) As Long
-    Dim i As Long
-
-    mp_RecordsetGetFieldOrdinal = -1
-    If rs Is Nothing Then Exit Function
-
-    For i = 0 To rs.Fields.Count - 1
-        If StrComp(mp_NormalizeHeader(CStr(rs.Fields(i).Name)), mp_NormalizeHeader(fieldName), vbTextCompare) = 0 Then
-            mp_RecordsetGetFieldOrdinal = i
-            Exit Function
-        End If
-    Next i
+    mp_RecordsetGetFieldOrdinal = ex_ResultSqlEngine.m_RecordsetGetFieldOrdinal(rs, fieldName)
 End Function
 
 Private Function mp_ToSafeText(ByVal valueIn As Variant) As String
-    If IsError(valueIn) Then Exit Function
-    If IsNull(valueIn) Then Exit Function
-    If IsEmpty(valueIn) Then Exit Function
-
-    mp_ToSafeText = Trim$(CStr(valueIn))
+    mp_ToSafeText = ex_ResultSqlEngine.m_ToSafeText(valueIn)
 End Function
 
 Private Function mp_NormalizeSearchToken(ByVal valueText As String) As String
@@ -3483,17 +3111,7 @@ Private Sub mp_GetWarningBannerDimensions(ByRef outColumns As Long, ByRef outRow
 End Sub
 
 Private Function mp_ToColumnLetter(ByVal columnIndex As Long) As String
-    Dim n As Long
-    Dim remainder As Long
-
-    If columnIndex < 1 Then columnIndex = 1
-    n = columnIndex
-
-    Do While n > 0
-        remainder = (n - 1) Mod 26
-        mp_ToColumnLetter = Chr$(65 + remainder) & mp_ToColumnLetter
-        n = (n - remainder - 1) \ 26
-    Loop
+    mp_ToColumnLetter = ex_ResultSqlEngine.m_ToColumnLetter(columnIndex)
 End Function
 
 Private Function mp_ToCellValue(ByVal valueIn As Variant, Optional ByVal adoFieldType As Long = -1) As Variant
@@ -3941,20 +3559,7 @@ ClearFallback:
 End Function
 
 Private Function mp_NormalizeHeader(ByVal s As String) As String
-    s = Replace$(s, vbCr, " ")
-    s = Replace$(s, vbLf, " ")
-    s = Replace$(s, vbTab, " ")
-    s = Replace$(s, ChrW$(160), " ")
-    ' ACE/OLEDB can expose dots in Excel headers as '#', e.g. "Вх. №" -> "Вх# №".
-    s = Replace$(s, "#", ".")
-    s = Replace$(s, ChrW$(&H2019), "'")
-    s = Replace$(s, ChrW$(&H2BC), "'")
-    s = Replace$(s, ChrW$(&H60), "'")
-    s = Replace$(s, ChrW$(&HB4), "'")
-    s = Replace$(s, "  ", " ")
-    s = Replace$(s, "  ", " ")
-    mp_NormalizeHeader = LCase$(Trim$(s))
-
+    mp_NormalizeHeader = ex_ResultSqlEngine.m_NormalizeHeader(s)
 End Function
 
 Private Function mp_FindListObjectByName(ByVal wbSrc As Workbook, ByVal tableName As String) As ListObject
@@ -4197,59 +3802,15 @@ EH:
 End Function
 
 Private Function mp_GetResolvedSourcePath(ByVal cfg As Object, ByVal sourceAlias As String) As String
-    Dim sourcePrefix As String
-    Dim fileKey As String
-    Dim resolverKey As String
-    Dim resolverArgsKey As String
-    Dim rawPath As String
-    Dim resolverName As String
-    Dim resolverCallName As String
-    Dim resolverArgs As String
-    Dim resolvedValue As Variant
-    Dim resolvedPath As String
-
-    sourcePrefix = "Source." & Trim$(sourceAlias)
-    fileKey = sourcePrefix & ".FilePath"
-    resolverKey = sourcePrefix & ".FileResolver"
-    resolverArgsKey = sourcePrefix & ".FileResolverArgs"
-
-    rawPath = mp_GetCfgRequired(cfg, fileKey)
-    resolverName = mp_GetCfgOptional(cfg, resolverKey, vbNullString)
-    resolverArgs = mp_GetCfgOptional(cfg, resolverArgsKey, vbNullString)
-
-    If Len(resolverName) = 0 Then
-        If mp_HasPlaceholderTokens(rawPath) Then
-            Err.Raise vbObjectError + 1762, "ex_ModePersonalCard", _
-                "Source path contains placeholders but no resolver is configured for key '" & fileKey & "'. " & _
-                "Set '" & resolverKey & "' (for example: ex_SourceResolvers.m_ResolveLatestByDmyPattern)."
-        End If
-
-        mp_GetResolvedSourcePath = mp_ResolvePathLocal(rawPath)
-        Exit Function
-    End If
-
-    If InStr(1, resolverName, "!", vbBinaryCompare) > 0 Then
-        resolverCallName = resolverName
-    Else
-        resolverCallName = "'" & ThisWorkbook.Name & "'!" & resolverName
-    End If
-
-    On Error GoTo ResolverEH
-    resolvedValue = Application.Run(resolverCallName, rawPath, resolverArgs)
-    On Error GoTo 0
-
-    resolvedPath = Trim$(CStr(resolvedValue))
-    If Len(resolvedPath) = 0 Then
-        Err.Raise vbObjectError + 1760, "ex_ModePersonalCard", _
-            "Source file resolver '" & resolverName & "' returned an empty path for key '" & fileKey & "'."
-    End If
-
-    mp_GetResolvedSourcePath = mp_ResolvePathLocal(resolvedPath)
-    Exit Function
-
-ResolverEH:
-    Err.Raise vbObjectError + 1761, "ex_ModePersonalCard", _
-        "Source file resolver failed for key '" & fileKey & "' (resolver='" & resolverName & "'): " & Err.Description
+    mp_GetResolvedSourcePath = ex_ResultSqlEngine.m_GetResolvedSourcePath( _
+        cfg, _
+        sourceAlias, _
+        "ex_ModePersonalCard", _
+        vbObjectError + 1762, _
+        vbObjectError + 1760, _
+        vbObjectError + 1761, _
+        vbObjectError + 1370, _
+        vbObjectError + 1371)
 End Function
 
 Private Function mp_GetSourcePathSignatureValue(ByVal cfg As Object, ByVal sourceAlias As String) As String
@@ -4263,59 +3824,13 @@ EH:
 End Function
 
 Private Function mp_HasPlaceholderTokens(ByVal valueText As String) As Boolean
-    Dim normalized As String
-
-    normalized = Trim$(valueText)
-    If Len(normalized) = 0 Then Exit Function
-
-    mp_HasPlaceholderTokens = (InStr(1, normalized, "{", vbBinaryCompare) > 0) _
-                              And (InStr(1, normalized, "}", vbBinaryCompare) > 0)
+    mp_HasPlaceholderTokens = ex_ResultSqlEngine.m_HasPlaceholderTokens(valueText)
 End Function
 
 Private Function mp_ResolvePathLocal(ByVal inputPath As String) As String
-
-    Dim basePath As String
-
-    inputPath = Trim$(inputPath)
-    If Len(inputPath) = 0 Then Exit Function
-
-    If Left$(inputPath, 2) = "\\" Or InStr(1, inputPath, ":\", vbTextCompare) > 0 Then
-        mp_ResolvePathLocal = inputPath
-        Exit Function
-    End If
-
-    basePath = ThisWorkbook.Path
-    If Len(basePath) = 0 Then
-        mp_ResolvePathLocal = inputPath
-        Exit Function
-    End If
-
-    If Right$(basePath, 1) <> "\" Then
-        basePath = basePath & "\"
-    End If
-
-    mp_ResolvePathLocal = basePath & inputPath
-
+    mp_ResolvePathLocal = ex_ResultSqlEngine.m_ResolvePathLocal(inputPath)
 End Function
 
 Private Function mp_IsEmptyVariantArray(ByVal v As Variant) As Boolean
-
-    On Error GoTo EH
-
-    If IsArray(v) = False Then
-        mp_IsEmptyVariantArray = True
-        Exit Function
-    End If
-
-    If UBound(v) < LBound(v) Then
-        mp_IsEmptyVariantArray = True
-        Exit Function
-    End If
-
-    mp_IsEmptyVariantArray = False
-    Exit Function
-
-EH:
-    mp_IsEmptyVariantArray = True
-
+    mp_IsEmptyVariantArray = ex_ResultSqlEngine.m_IsEmptyVariantArray(v)
 End Function
