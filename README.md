@@ -28,7 +28,124 @@ git config --show-origin --get-regexp '^alias\.'
 
 ## PostProcess DSL
 
-Подробное описание синтаксиса, правил и примеров вынесено в отдельный файл: [DSL.md](DSL.md).
+Подробное описание синтаксиса, правил и примеров Пвынесено в отдельный файл: [DSL.md](DSL.md).
+
+## Mode Pipeline (PreProcess -> Mode -> ResultLayout -> PostProcess)
+
+Основной оркестратор: `Prototype/vba/modules/actions/ex_ModePipeline.bas`, метод `m_RunModePipeline`.
+
+### Этапы конвейера
+Плюс добавил нормализацию ; после удаления, чтобы список Query.TableRefs оставался валидным.
+
+
+
+1. `prepare-input`
+   - Если входной объект не передан, создается `obj_ScriptIOPayload`.
+2. `prepare-default-query-tabrefs` (для `PersonalCard` и `MultiSources`)
+   - Если в input нет `Query.TableRefs`, pipeline формирует его автоматически из `Source.*.SheetAliases`.
+3. `run-preprocess`
+   - Запускается `ex_PreProcessPipeline.m_Run`.
+   - Источник скрипта: `Input.PreProcessScript` (`<preProcessScript .../>` в профиле).
+4. `run-mode-executor`
+   - Вызывается mode-метод `m_RunMode(cfg, modeInput, preProcessContext)`.
+   - Mode должен вернуть объект-словарь результата.
+5. `run-result-layout`
+   - Запускается `ex_ResultLayoutPipeline.m_Run`.
+   - Источник скрипта: `ResultLayout.Script` (`<resultLayoutScript .../>`).
+   - Для `PersonalCard`/`MultiSources` скрипт `ResultLayout` обязателен.
+6. `apply-result-layout-styles`
+   - Применяется `ex_OutputFormattingPipeline.m_ApplySheetPipeline` с картой колонок и row kinds из `ResultLayout`.
+7. `run-postprocess`
+   - Запускается `ex_PostProcessPipeline.m_Run`.
+   - Используется `PostProcess.Script.Implicit` (`<postProcessScript execution="Implicit" .../>`).
+
+### Контракт объектов между этапами
+
+1. Вход/выход скриптов (`ScriptIO payload`)
+   - Тип: `obj_ScriptIOPayload`.
+   - Хранит пары `key -> value` (строка или объект).
+   - В DSL доступ через:
+     - `callMacroObject("ex_ScriptIO.m_GetInput")`
+     - `callMacroObject("ex_ScriptIO.m_CreateOutput")`
+     - `callMacro("ex_ScriptIO.m_SetString", ...)`
+     - `callMacro("ex_ScriptIO.m_SetObject", ...)`
+
+2. Контекст pre-process (`preProcessContext`)
+   - Тип: `Dictionary`.
+   - Поля:
+     - `HasScript` (`"true"`/`"false"`)
+     - `Output` (объект, который пойдет в mode как `modeInput`)
+
+3. Результат mode (`modeResult`)
+   - Тип: `Dictionary`.
+   - Обязательные поля:
+     - `Output` (объект для следующих этапов)
+     - `Worksheet` (`Worksheet`)
+     - `ResultTables` (`Collection` из `obj_ResultTable`)
+
+4. `ResultTables`
+   - `obj_ResultTable`:
+     - `TableRef` (например, `Events.Sheet[EventsOut]`)
+     - `Rows` (`Collection` из `obj_ResultRow`)
+     - `FieldMapByAlias` (alias -> mapKey)
+   - `obj_ResultRow`:
+     - значения колонок по alias/mapKey
+     - `Kind`
+     - `RowAnchorName`
+
+### Что должны возвращать скрипты
+
+1. `preProcessScript`
+   - Должен вызвать `ex_ScriptIO.m_CreateOutput()` и заполнить output.
+   - Если скрипт не создал output, pipeline завершится ошибкой.
+   - Если pre-process скрипта нет, в mode уходит исходный input (fallback).
+
+2. `resultLayoutScript`
+   - Отдельный output не возвращает.
+   - Работает через мутацию входного объекта:
+     - читает `__ResultTables`
+     - может изменить их через `ex_TableLayoutActions`
+     - строит финальный лист через `ex_ResultLayoutActions`
+     - записывает служебные ключи layout обратно в input.
+
+3. `postProcessScript` (Implicit/Explicit)
+   - Отдельный output не возвращает.
+   - Применяет side-effects к листу/строкам/ячейкам и использует runtime-объекты (`ResultTables`, input-контекст).
+
+### Служебные ключи input (runtime)
+
+1. Бизнес-ключи (пример): `CommonKey`, `BaseDate`, `Query.TableRefs`, `KeysCollection`.
+2. Служебные ключи pipeline/layout:
+   - `__UseResultLayoutScript`
+   - `__ResultTables`
+   - `__ResultLayoutWorksheet`
+   - `__ResultLayoutSheetName`
+   - `__ResultLayoutRowKinds`
+   - `__ResultLayoutFieldRanges`
+3. Дополнительные mode-ключи (пример): `__Batch`, `__ResultTableRefs`.
+
+Примечание: ключи с префиксом `__` считаются внутренними runtime-ключами.
+
+### Поведение `Query.TableRefs`
+
+1. Единый источник выбора таблиц для SQL-запросов.
+2. Формат: `Source.Sheet[Table]; Source2.Sheet[Table2]`.
+3. Парсер принимает также короткие alias таблиц, но рекомендуемый формат: полный `Source.Sheet[Table]`.
+4. Если `Query.TableRefs` не задан:
+   - для `PersonalCard`/`MultiSources` pipeline строит дефолт из `Source.*.SheetAliases`.
+5. Если подключен `preProcessScript`:
+   - для `PersonalCard`/`MultiSources` скрипт должен явно прокинуть `Query.TableRefs` в output (или изменить его).
+6. Кнопка режима `State | Events | Timeline` удалена из логики выполнения.
+   - Отбор таблиц теперь делается через `Query.TableRefs` в pre-process.
+
+### Кэширование скриптов/DSL
+
+1. `ex_ScriptSourceLoader`
+   - кэш текста скрипта по контексту `(mode, profile, scriptKey, profilesFilePath)`;
+   - инвалидация по `DateLastModified/Size` файла профилей и include-файлов.
+2. `ex_ScriptDSL`
+   - кэш распарсенных блоков по `(scriptKey + scriptText)`;
+   - кэш валидации по сигнатуре доступных таблиц/полей.
 
 ## ResultTemplatesParser
 
@@ -337,7 +454,7 @@ ex_OutputFormattingPipeline.m_ApplySheetPipeline wsResult, Nothing, Nothing, row
 Пример:
 
 ```xml
-<v key="Output.Sheets">StateMain; EventsOut; EventsIn; DailyEvents</v>
+<v key="Query.TableRefs">Main.Sheet[StateMain]; Events.Sheet[EventsOut]; Events.Sheet[EventsIn]; Daily.Sheet[DailyEvents]</v>
 <v key="Output.Layout.Gap.Default">1</v>
 <v key="Output.Layout.Gap.AfterType[Events]">1</v>
 <v key="Output.Layout.Gap.Between[EventsOut->EventsIn]">0</v>
@@ -356,5 +473,5 @@ ex_OutputFormattingPipeline.m_ApplySheetPipeline wsResult, Nothing, Nothing, row
 Важные детали:
 
 1. Значения gap должны быть целыми `>= 0`, иначе рендер завершится с ошибкой валидации ключа.
-2. Gap применяется только между реально отрисованными таблицами с учетом режима (`StateTableOnly`/`EventsTableOnly`).
+2. Gap применяется только между реально отрисованными таблицами.
 3. `StylePipeline` управляет визуальным стилем строк/ячеек, но не структурным количеством пустых строк между таблицами.

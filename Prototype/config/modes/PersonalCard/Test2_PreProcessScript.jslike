@@ -6,6 +6,16 @@ let output = callMacroObject("ex_ScriptIO.m_CreateOutput");
 
 let commonKey = callMacro("ex_ScriptIO.m_GetValue", input, "CommonKey", "");
 let baseDateNormalized = callMacro("ex_ScriptIO.m_GetValue", input, "BaseDate", "");
+let queryTableRefs = callMacro("ex_ScriptIO.m_GetValue", input, "Query.TableRefs", "");
+
+// Remove State table from SQL query plan for this profile run.
+queryTableRefs = callMacro(
+	"ex_Helpers.m_RegexReplace",
+	queryTableRefs,
+	"(^|\\s*;\\s*)Main\\.Sheet\\[StateMain\\](\\s*;\\s*|$)",
+	"$1"
+);
+
 if (baseDateNormalized == "") {
 	let baseDate = callMacro("ex_ConfigProvider.m_GetConfigValue", "BaseDate", "");
 	if (baseDate != "") {
@@ -15,3 +25,4 @@ if (baseDateNormalized == "") {
 
 callMacro("ex_ScriptIO.m_SetString", output, "CommonKey", commonKey);
 callMacro("ex_ScriptIO.m_SetString", output, "BaseDate", baseDateNormalized);
+callMacro("ex_ScriptIO.m_SetString", output, "Query.TableRefs", queryTableRefs);

@@ -20,11 +20,6 @@ EH:
     MsgBox "Clear failed: [" & Err.Source & " #" & CStr(Err.Number) & "] " & Err.Description, vbExclamation
 End Sub
 
-Public Sub m_SwitchMode_OnClick()
-    ex_CustomDropdown.m_OnManagedButtonClick
-    ex_Settings.m_SwitchMode_OnClick
-End Sub
-
 Public Sub m_OnProfileChanged_OnClick()
     ex_ConfigProfilesManager.m_OnProfileChanged
 End Sub
