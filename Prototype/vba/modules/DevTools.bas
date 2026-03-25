@@ -13,6 +13,9 @@ Private Const COMP_TYPE_CLASS As String = "class"
 Private Const COMP_TYPE_FORM As String = "form"
 Private Const COMP_TYPE_SHEET As String = "sheet"
 Private Const COMP_TYPE_WORKBOOK As String = "workbook"
+' True  -> legacy fast import for .bas via VBComponents.Import.
+' False -> current UTF-safe import path via AddFromString.
+Private Const USE_LEGACY_FAST_BAS_IMPORT As Boolean = True
 
 ' Main updater (legacy name preserved).
 Public Sub dev_UpdateCode()
@@ -314,6 +317,7 @@ Private Sub mp_ImportFolderRecursive( _
     Dim importedComp As Object
     Dim sourceText As String
     Dim fileStamp As String
+    Dim importStamp As String
     Dim cacheKey As String
     Dim compType As String
     Dim fallbackName As String
@@ -327,6 +331,7 @@ Private Sub mp_ImportFolderRecursive( _
                 On Error GoTo EH_IMPORT_FILE
 
                 fileStamp = mp_BuildFileStampFromFileObject(fileObj)
+                importStamp = mp_BuildImportStampByFileType(fileExt, fileStamp)
                 cacheKey = mp_NormalizeCacheKey(importPath)
                 fallbackName = mp_GetFileStem(CStr(fileObj.Name))
                 sourceText = vbNullString
@@ -340,9 +345,9 @@ Private Sub mp_ImportFolderRecursive( _
                 End If
 
                 If fastMode Then
-                    If mp_TryGetCachedComponentNameByStamp(prevCache, cacheKey, compType, fileStamp, componentName) Then
+                    If mp_TryGetCachedComponentNameByStamp(prevCache, cacheKey, compType, importStamp, componentName) Then
                         If mp_IsComponentPresentForType(componentName, compType) Then
-                            mp_SetCacheRecord nextCache, cacheKey, compType, componentName, fileStamp
+                            mp_SetCacheRecord nextCache, cacheKey, compType, componentName, importStamp
                             GoTo ContinueNextFile
                         End If
                     End If
@@ -359,7 +364,15 @@ Private Sub mp_ImportFolderRecursive( _
                 Set importedComp = Nothing
                 Select Case fileExt
                     Case ".bas"
-                        mp_ImportStandardModuleFromSource componentName, importPath, sourceText
+                        If USE_LEGACY_FAST_BAS_IMPORT Then
+                            Set importedComp = ThisWorkbook.VBProject.VBComponents.Import(importPath)
+                            If importedComp Is Nothing Or importedComp.Type <> 1 Then ' vbext_ct_StdModule
+                                mp_RemoveComponentIfExists componentName
+                                mp_ImportStandardModuleFromSource componentName, importPath, sourceText
+                            End If
+                        Else
+                            mp_ImportStandardModuleFromSource componentName, importPath, sourceText
+                        End If
                     Case ".cls"
                         Set importedComp = ThisWorkbook.VBProject.VBComponents.Import(importPath)
                         If importedComp Is Nothing Or importedComp.Type <> 2 Then ' vbext_ct_ClassModule
@@ -369,7 +382,7 @@ Private Sub mp_ImportFolderRecursive( _
                     Case Else
                         Set importedComp = ThisWorkbook.VBProject.VBComponents.Import(importPath)
                 End Select
-                mp_SetCacheRecord nextCache, cacheKey, compType, componentName, fileStamp
+                mp_SetCacheRecord nextCache, cacheKey, compType, componentName, importStamp
                 On Error GoTo 0
             End If
         End If
@@ -575,6 +588,22 @@ Private Function mp_GetFileStem(ByVal fileName As String) As String
         mp_GetFileStem = fileName
     Else
         mp_GetFileStem = Left$(fileName, dotPos - 1)
+    End If
+End Function
+
+Private Function mp_BuildImportStampByFileType(ByVal fileExt As String, ByVal fileStamp As String) As String
+    mp_BuildImportStampByFileType = fileStamp
+
+    If StrComp(fileExt, ".bas", vbTextCompare) = 0 Then
+        mp_BuildImportStampByFileType = fileStamp & "|basMode=" & mp_GetBasImportModeToken()
+    End If
+End Function
+
+Private Function mp_GetBasImportModeToken() As String
+    If USE_LEGACY_FAST_BAS_IMPORT Then
+        mp_GetBasImportModeToken = "legacyFastImport"
+    Else
+        mp_GetBasImportModeToken = "utfSafeAddFromString"
     End If
 End Function
 
