@@ -1024,6 +1024,8 @@ Private Function mp_GetOnChangeMacroName(ByVal ws As Worksheet, ByVal target As 
     If outputStyle.PanelFieldCount <= 0 Then Exit Function
 
     For fieldIndex = 1 To outputStyle.PanelFieldCount
+        If Not outputStyle.PanelFields(fieldIndex).OnChangeEnabled Then GoTo ContinueField
+
         macroName = Trim$(outputStyle.PanelFields(fieldIndex).OnChangeMacroName)
         If Len(macroName) = 0 Then GoTo ContinueField
 
