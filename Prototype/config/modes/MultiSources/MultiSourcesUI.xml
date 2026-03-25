@@ -36,7 +36,8 @@
         label="Common Key"
         inputName="CommonKey"
         inputConfigKey="CommonKey"
-        onChange="ex_UIActions.m_OutputPanelStartSearch_OnClick">
+        onChange="ex_UIActions.m_OutputPanelStartSearch_OnClick"
+        onChangeEnabled="false">
         <button caption="Search"
                 macro="ex_UIActions.m_OutputPanelStartSearch_OnClick"/>
       </inputConfigRefField>

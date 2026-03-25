@@ -42,6 +42,7 @@ End Type
 Public Type t_ControlPanelFieldStyle
     IsConfigRefField As Boolean
     ShowInput As Boolean
+    OnChangeEnabled As Boolean
     Label As String
     InputConfigKey As String
     InputName As String
@@ -835,6 +836,7 @@ Private Function mp_LoadControlPanelFieldNode( _
     fieldTagName = LCase$(Trim$(CStr(fieldNode.baseName)))
     fieldStyle.IsConfigRefField = (fieldTagName = "inputconfigreffield")
     If Not mp_ReadOptionalAttrBoolean(fieldNode, "showInput", fieldStyle.ShowInput, True, "controlPanel field@showInput") Then Exit Function
+    If Not mp_ReadOptionalAttrBoolean(fieldNode, "onChangeEnabled", fieldStyle.OnChangeEnabled, True, "controlPanel field@onChangeEnabled") Then Exit Function
 
     If fieldTagName <> "inputconfigreffield" And fieldTagName <> "field" Then
         MsgBox "Invalid control panel field tag: '" & fieldTagName & "'. Allowed tags: field, inputConfigRefField.", vbExclamation
@@ -845,6 +847,7 @@ Private Function mp_LoadControlPanelFieldNode( _
     fieldStyle.InputConfigKey = mp_ReadOptionalAttrText(fieldNode, "inputConfigKey", vbNullString)
     fieldStyle.InputName = mp_ReadOptionalAttrText(fieldNode, "inputName", vbNullString)
     fieldStyle.OnChangeMacroName = mp_ReadOptionalAttrText(fieldNode, "onChange", vbNullString)
+    If Not fieldStyle.OnChangeEnabled Then fieldStyle.OnChangeMacroName = vbNullString
     fieldStyle.InputOverflowStyle = mp_ReadOptionalAttrText(fieldNode, "inputOverflowStyle", "wrap")
 
     If Not mp_NormalizeInputOverflowStyle(fieldStyle.InputOverflowStyle, fieldStyle.InputOverflowStyle, fieldTagName, fieldIndex) Then Exit Function
