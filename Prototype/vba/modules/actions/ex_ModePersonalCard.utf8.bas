@@ -3879,6 +3879,7 @@ Private Sub mp_TryHydrateEventsOutValuesFromWorksheet( _
     Dim keyAlias As String
     Dim keyHeaderName As String
     Dim keyCol As Long
+    Dim hasUncachedLongText As Boolean
     Dim i As Long
     Dim fieldAlias As String
     Dim fieldHeaderName As String
@@ -3892,6 +3893,17 @@ Private Sub mp_TryHydrateEventsOutValuesFromWorksheet( _
     If Len(Trim$(keyValue)) = 0 Then Exit Sub
     If mp_IsExplicitAdoRangeReference(configuredSheetName) Then Exit Sub
     If wbCache Is Nothing Then Exit Sub
+
+    hasUncachedLongText = ex_ResultSqlEngine.m_ApplyLongTextRuntimeCache( _
+        outValues, _
+        rowCount, _
+        fields, _
+        sourceAlias, _
+        tableAlias, _
+        configuredSheetName, _
+        keyValue, _
+        longTextRuntimeCache)
+    If Not hasUncachedLongText Then Exit Sub
 
     rangeStartMarker = mp_GetCfgOptional(cfg, sourceAlias & ".Sheet[" & tableAlias & "].RangeStartMarker", vbNullString)
     rangeEndMarker = mp_GetCfgOptional(cfg, sourceAlias & ".Sheet[" & tableAlias & "].RangeEndMarker", vbNullString)
