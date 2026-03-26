@@ -6,6 +6,7 @@ Private Const LIKE_DIALECT_STAR As String = "star"
 Private Const LIKE_DIALECT_PERCENT As String = "percent"
 
 Private g_LikeDialectByConnection As Object
+Private g_LongTextRuntimeCacheBySignature As Object
 
 Public Function m_GetCfgRequired( _
     ByVal cfg As Object, _
@@ -155,13 +156,13 @@ Public Function m_BuildAdoConnectionString( _
     ext = LCase$(Mid$(sourcePath, InStrRev(sourcePath, ".") + 1))
     Select Case ext
         Case "xls"
-            props = "Excel 8.0;HDR=YES;IMEX=1;ReadOnly=True"
+            props = "Excel 8.0;HDR=YES;IMEX=1;ReadOnly=True;TypeGuessRows=0;ImportMixedTypes=Text;MAXSCANROWS=0"
         Case "xlsx"
-            props = "Excel 12.0 Xml;HDR=YES;IMEX=1;ReadOnly=True"
+            props = "Excel 12.0 Xml;HDR=YES;IMEX=1;ReadOnly=True;TypeGuessRows=0;ImportMixedTypes=Text;MAXSCANROWS=0"
         Case "xlsm"
-            props = "Excel 12.0 Macro;HDR=YES;IMEX=1;ReadOnly=True"
+            props = "Excel 12.0 Macro;HDR=YES;IMEX=1;ReadOnly=True;TypeGuessRows=0;ImportMixedTypes=Text;MAXSCANROWS=0"
         Case "xlsb"
-            props = "Excel 12.0;HDR=YES;IMEX=1;ReadOnly=True"
+            props = "Excel 12.0;HDR=YES;IMEX=1;ReadOnly=True;TypeGuessRows=0;ImportMixedTypes=Text;MAXSCANROWS=0"
         Case Else
             Err.Raise errUnsupportedExtensionCode, errSource, _
                 "Unsupported source file extension for ADO: ." & ext
@@ -441,6 +442,225 @@ Public Function m_ExtractAdoSheetPrefix(ByVal tableRef As String) As String
 
     m_ExtractAdoSheetPrefix = Left$(objectName, dollarPos)
 End Function
+
+Public Sub m_ResetLongTextRuntimeCache(Optional ByVal cacheSignature As String = vbNullString)
+    Dim normalizedSignature As String
+
+    mp_EnsureLongTextRuntimeCacheStorage
+    normalizedSignature = mp_NormalizeLongTextRuntimeCacheSignature(cacheSignature)
+
+    If Len(normalizedSignature) = 0 Then
+        g_LongTextRuntimeCacheBySignature.RemoveAll
+        Exit Sub
+    End If
+
+    If g_LongTextRuntimeCacheBySignature.Exists(normalizedSignature) Then
+        g_LongTextRuntimeCacheBySignature.Remove normalizedSignature
+    End If
+End Sub
+
+Public Function m_GetLongTextRuntimeCache(ByVal cacheSignature As String) As Object
+    Dim normalizedSignature As String
+    Dim runtimeCache As Object
+
+    mp_EnsureLongTextRuntimeCacheStorage
+    normalizedSignature = mp_NormalizeLongTextRuntimeCacheSignature(cacheSignature)
+    If Len(normalizedSignature) = 0 Then normalizedSignature = "__default__"
+
+    If g_LongTextRuntimeCacheBySignature.Exists(normalizedSignature) Then
+        Set m_GetLongTextRuntimeCache = g_LongTextRuntimeCacheBySignature(normalizedSignature)
+        Exit Function
+    End If
+
+    Set runtimeCache = CreateObject("Scripting.Dictionary")
+    runtimeCache.CompareMode = 1
+    g_LongTextRuntimeCacheBySignature.Add normalizedSignature, runtimeCache
+
+    Set m_GetLongTextRuntimeCache = runtimeCache
+End Function
+
+Public Function m_FindHeaderColumnInWorksheetRow( _
+    ByVal ws As Worksheet, _
+    ByVal headerRow As Long, _
+    ByVal maxCol As Long, _
+    ByVal headerName As String _
+) As Long
+    Dim needle As String
+    Dim needleAlt As String
+    Dim c As Long
+    Dim currentHeader As String
+    Dim currentNorm As String
+
+    If ws Is Nothing Then Exit Function
+    If headerRow <= 0 Then Exit Function
+    If maxCol <= 0 Then Exit Function
+
+    needle = m_NormalizeHeader(headerName)
+    needleAlt = m_NormalizeHeader(Replace$(headerName, "#", "."))
+
+    For c = 1 To maxCol
+        currentHeader = CStr(ws.Cells(headerRow, c).Value2)
+        currentNorm = m_NormalizeHeader(currentHeader)
+        If currentNorm = needle Or currentNorm = needleAlt Then
+            m_FindHeaderColumnInWorksheetRow = c
+            Exit Function
+        End If
+    Next c
+
+    m_FindHeaderColumnInWorksheetRow = -1
+End Function
+
+Public Sub m_TryHydrateLongAdoValuesFromWorksheet( _
+    ByRef outValues As Variant, _
+    ByVal rowCount As Long, _
+    ByVal fields As Variant, _
+    ByVal fieldColsByIdx As Object, _
+    ByVal ws As Worksheet, _
+    ByVal dataStartRow As Long, _
+    ByVal dataEndRow As Long, _
+    ByVal keyCol As Long, _
+    ByVal keyValue As String, _
+    ByVal sourceAlias As String, _
+    ByVal tableAlias As String, _
+    ByVal configuredSheetName As String, _
+    ByVal runtimeCache As Object _
+)
+    Dim unresolvedCellKeys As Object
+    Dim unresolvedFieldIdx As Object
+    Dim fieldArraysByIdx As Object
+    Dim matches As Collection
+    Dim hasRuntimeCache As Boolean
+    Dim outIndex As Long
+    Dim i As Long
+    Dim outCol As Long
+    Dim outValueText As String
+    Dim cacheKey As String
+    Dim cellKey As String
+    Dim fieldKey As Variant
+    Dim keyArray As Variant
+    Dim keyArrayIsSingleCell As Boolean
+    Dim r As Long
+    Dim fieldCol As Long
+    Dim fieldArray As Variant
+    Dim fieldArrayIsSingleCell As Boolean
+    Dim parsedRowIdx As Long
+    Dim parsedFieldIdx As Long
+    Dim sourceRow As Long
+    Dim sourceOffset As Long
+    Dim normalizedValue As Variant
+
+    On Error GoTo SafeExit
+
+    If rowCount <= 0 Then Exit Sub
+    If ws Is Nothing Then Exit Sub
+    If fieldColsByIdx Is Nothing Then Exit Sub
+    If m_IsEmptyVariantArray(fields) Then Exit Sub
+    If Len(Trim$(keyValue)) = 0 Then Exit Sub
+    If dataStartRow <= 0 Or dataEndRow < dataStartRow Then Exit Sub
+    If keyCol <= 0 Then Exit Sub
+
+    hasRuntimeCache = Not runtimeCache Is Nothing
+
+    Set unresolvedCellKeys = CreateObject("Scripting.Dictionary")
+    unresolvedCellKeys.CompareMode = 1
+    Set unresolvedFieldIdx = CreateObject("Scripting.Dictionary")
+    unresolvedFieldIdx.CompareMode = 1
+
+    For outIndex = 1 To rowCount
+        For i = LBound(fields) To UBound(fields)
+            outCol = 1 + (i - LBound(fields))
+            outValueText = CStr(outValues(outIndex, outCol))
+
+            If Len(outValueText) > 250 Then
+                If Not fieldColsByIdx.Exists(CStr(i)) Then GoTo ContinueFieldCandidate
+                fieldCol = CLng(fieldColsByIdx(CStr(i)))
+                If fieldCol <= 0 Then GoTo ContinueFieldCandidate
+
+                cellKey = mp_BuildLongTextCellKey(outIndex, i)
+                cacheKey = mp_BuildLongTextRuntimeCacheKey(sourceAlias, tableAlias, configuredSheetName, keyValue, outIndex, i)
+
+                If hasRuntimeCache And runtimeCache.Exists(cacheKey) Then
+                    outValues(outIndex, outCol) = CStr(runtimeCache(cacheKey))
+                Else
+                    unresolvedCellKeys(cellKey) = cacheKey
+                    unresolvedFieldIdx(CStr(i)) = True
+                End If
+            End If
+ContinueFieldCandidate:
+        Next i
+    Next outIndex
+
+    If unresolvedCellKeys.Count = 0 Then Exit Sub
+    If unresolvedFieldIdx.Count = 0 Then Exit Sub
+
+    keyArray = ws.Range(ws.Cells(dataStartRow, keyCol), ws.Cells(dataEndRow, keyCol)).Value2
+    Set matches = New Collection
+    keyArrayIsSingleCell = Not IsArray(keyArray)
+
+    If keyArrayIsSingleCell Then
+        If StrComp(Trim$(CStr(keyArray)), Trim$(keyValue), vbTextCompare) = 0 Then
+            matches.Add dataStartRow
+        End If
+    Else
+        For r = 1 To UBound(keyArray, 1)
+            If StrComp(Trim$(CStr(keyArray(r, 1))), Trim$(keyValue), vbTextCompare) = 0 Then
+                matches.Add (dataStartRow + r - 1)
+            End If
+        Next r
+    End If
+    If matches.Count = 0 Then Exit Sub
+
+    Set fieldArraysByIdx = CreateObject("Scripting.Dictionary")
+    fieldArraysByIdx.CompareMode = 1
+
+    For Each fieldKey In unresolvedFieldIdx.Keys
+        i = CLng(fieldKey)
+        If Not fieldColsByIdx.Exists(CStr(i)) Then GoTo ContinueFieldArray
+
+        fieldCol = CLng(fieldColsByIdx(CStr(i)))
+        If fieldCol <= 0 Then GoTo ContinueFieldArray
+
+        fieldArray = ws.Range(ws.Cells(dataStartRow, fieldCol), ws.Cells(dataEndRow, fieldCol)).Value2
+        fieldArraysByIdx(CStr(i)) = fieldArray
+ContinueFieldArray:
+    Next fieldKey
+
+    If fieldArraysByIdx.Count = 0 Then Exit Sub
+
+    For Each fieldKey In unresolvedCellKeys.Keys
+        cellKey = CStr(fieldKey)
+        If Not mp_TryParseLongTextCellKey(cellKey, parsedRowIdx, parsedFieldIdx) Then GoTo ContinueHydrateCell
+        If parsedRowIdx < 1 Then GoTo ContinueHydrateCell
+        If parsedRowIdx > matches.Count Then GoTo ContinueHydrateCell
+        If parsedFieldIdx < LBound(fields) Or parsedFieldIdx > UBound(fields) Then GoTo ContinueHydrateCell
+        If Not fieldArraysByIdx.Exists(CStr(parsedFieldIdx)) Then GoTo ContinueHydrateCell
+
+        sourceRow = CLng(matches(parsedRowIdx))
+        sourceOffset = sourceRow - dataStartRow + 1
+        If sourceOffset < 1 Then GoTo ContinueHydrateCell
+
+        fieldArray = fieldArraysByIdx(CStr(parsedFieldIdx))
+        fieldArrayIsSingleCell = Not IsArray(fieldArray)
+        If fieldArrayIsSingleCell Then
+            normalizedValue = ex_SqlAdoHelpers.m_ToNormalizedCellValue(fieldArray)
+        Else
+            If sourceOffset > UBound(fieldArray, 1) Then GoTo ContinueHydrateCell
+            normalizedValue = ex_SqlAdoHelpers.m_ToNormalizedCellValue(fieldArray(sourceOffset, 1))
+        End If
+
+        outCol = 1 + (parsedFieldIdx - LBound(fields))
+        outValues(parsedRowIdx, outCol) = normalizedValue
+
+        If hasRuntimeCache Then
+            cacheKey = CStr(unresolvedCellKeys(cellKey))
+            runtimeCache(cacheKey) = CStr(normalizedValue)
+        End If
+ContinueHydrateCell:
+    Next fieldKey
+
+SafeExit:
+    On Error GoTo 0
+End Sub
 
 Public Function m_BuildNormalizedHeaderTokenSet(ByVal expectedHeaders As Variant, ByVal keyHeader As String) As Object
     Dim d As Object
@@ -1097,6 +1317,56 @@ Private Function mp_ConvertPatternForLikeDialect(ByVal patternText As String, By
     End If
 
     mp_ConvertPatternForLikeDialect = patternText
+End Function
+
+Private Sub mp_EnsureLongTextRuntimeCacheStorage()
+    If g_LongTextRuntimeCacheBySignature Is Nothing Then
+        Set g_LongTextRuntimeCacheBySignature = CreateObject("Scripting.Dictionary")
+        g_LongTextRuntimeCacheBySignature.CompareMode = 1
+    End If
+End Sub
+
+Private Function mp_NormalizeLongTextRuntimeCacheSignature(ByVal cacheSignature As String) As String
+    mp_NormalizeLongTextRuntimeCacheSignature = LCase$(Trim$(cacheSignature))
+End Function
+
+Private Function mp_BuildLongTextCellKey(ByVal outRowIndex As Long, ByVal fieldIndex As Long) As String
+    mp_BuildLongTextCellKey = CStr(outRowIndex) & "|" & CStr(fieldIndex)
+End Function
+
+Private Function mp_TryParseLongTextCellKey(ByVal cellKey As String, ByRef outRowIndex As Long, ByRef outFieldIndex As Long) As Boolean
+    Dim sepPos As Long
+    Dim leftPart As String
+    Dim rightPart As String
+
+    sepPos = InStr(1, cellKey, "|", vbBinaryCompare)
+    If sepPos <= 1 Then Exit Function
+    If sepPos >= Len(cellKey) Then Exit Function
+
+    leftPart = Mid$(cellKey, 1, sepPos - 1)
+    rightPart = Mid$(cellKey, sepPos + 1)
+    If Not IsNumeric(leftPart) Then Exit Function
+    If Not IsNumeric(rightPart) Then Exit Function
+
+    outRowIndex = CLng(leftPart)
+    outFieldIndex = CLng(rightPart)
+    mp_TryParseLongTextCellKey = True
+End Function
+
+Private Function mp_BuildLongTextRuntimeCacheKey( _
+    ByVal sourceAlias As String, _
+    ByVal tableAlias As String, _
+    ByVal configuredSheetName As String, _
+    ByVal keyValue As String, _
+    ByVal outRowIndex As Long, _
+    ByVal fieldIndex As Long _
+) As String
+    mp_BuildLongTextRuntimeCacheKey = LCase$(Trim$(sourceAlias)) & "|" & _
+                                     LCase$(Trim$(tableAlias)) & "|" & _
+                                     LCase$(Trim$(configuredSheetName)) & "|" & _
+                                     Trim$(keyValue) & "|" & _
+                                     CStr(outRowIndex) & "|" & _
+                                     CStr(fieldIndex)
 End Function
 
 Private Function mp_AsText(ByVal valueIn As Variant, Optional ByVal adoFieldType As Long = -1) As String
