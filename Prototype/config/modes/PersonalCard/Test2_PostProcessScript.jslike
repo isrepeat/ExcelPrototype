@@ -294,8 +294,6 @@ for (let owner in Daily.Sheet[DailyEvents].rows) {
 			sectionType == "10" ||
 			sectionType == "13" ||
 			sectionType == "14" ||
-			sectionType == "15" ||
-			sectionType == "16" ||
 			sectionType == "17") {
 			if (owner.column[VkNum] == "" || owner.column[VkNum] == "?" || owner.column[VkNum] == "-") {
 				missingRequiredFields = missingRequiredFields + "VkNum, ";
@@ -527,6 +525,22 @@ for (let row in Daily.Sheet[DailyEvents].rows) {
 		let duplicateRaportTVO = "";
 		let duplicateInNumFull = "";
 		let duplicateInDate = "";
+		let hospitalForMoveFromHospital = row.column[Hospital];
+
+		if (sectionType == "13" || sectionType == "15" || sectionType == "18") {
+			let hospitalSourceText = row.column[Hospital];
+
+			hospitalForMoveFromHospital = callMacro("ex_Helpers.m_ReplaceLeadingPhraseIfMatched", hospitalSourceText, "комунального некомерційного підприємства", "комунальному некомерційному підприємстві");
+			if (hospitalForMoveFromHospital == hospitalSourceText) {
+				hospitalForMoveFromHospital = callMacro("ex_Helpers.m_ReplaceLeadingPhraseIfMatched", hospitalSourceText, "державної установи", "державній установі");
+			}
+			if (hospitalForMoveFromHospital == hospitalSourceText) {
+				hospitalForMoveFromHospital = callMacro("ex_Helpers.m_ReplaceLeadingPhraseIfMatched", hospitalSourceText, "клінічного санаторію", "клінічному санаторії");
+			}
+			if (hospitalForMoveFromHospital == hospitalSourceText) {
+				hospitalForMoveFromHospital = callMacro("ex_Helpers.m_ReplaceLeadingPhraseIfMatched", hospitalSourceText, "медичної роти військової частини", "медичній роті військової частини");
+			}
+		}
 
 		for (let metaRow in Daily.Sheet[DailyEvents].rows) {
 			if (metaRow.column[MetaType] == "meta" &&
@@ -792,20 +806,6 @@ for (let row in Daily.Sheet[DailyEvents].rows) {
 		}
 
 		if (sectionType == "13") {
-			let hospitalForMoveFromHospital = row.column[Hospital];
-			let hospitalSourceText = row.column[Hospital];
-
-			hospitalForMoveFromHospital = callMacro("ex_Helpers.m_ReplaceLeadingPhraseIfMatched", hospitalSourceText, "комунального некомерційного підприємства", "комунальному некомерційному підприємстві");
-			if (hospitalForMoveFromHospital == hospitalSourceText) {
-				hospitalForMoveFromHospital = callMacro("ex_Helpers.m_ReplaceLeadingPhraseIfMatched", hospitalSourceText, "державної установи", "державній установі");
-			}
-			if (hospitalForMoveFromHospital == hospitalSourceText) {
-				hospitalForMoveFromHospital = callMacro("ex_Helpers.m_ReplaceLeadingPhraseIfMatched", hospitalSourceText, "клінічного санаторію", "клінічному санаторії");
-			}
-			if (hospitalForMoveFromHospital == hospitalSourceText) {
-				hospitalForMoveFromHospital = callMacro("ex_Helpers.m_ReplaceLeadingPhraseIfMatched", hospitalSourceText, "медичної роти військової частини", "медичній роті військової частини");
-			}
-
 			txt = callMacro(
 				"ex_ResultTemplatesParser.m_ReplaceMultiPlaceholders",
 				txt,
@@ -867,7 +867,7 @@ for (let row in Daily.Sheet[DailyEvents].rows) {
 				Rank:{row.column[Rank]};
 				FIO:{row.column[FIO]};
 				Position:{row.column[Position]};
-				Hospital:{row.column[Hospital]};
+				Hospital:{hospitalForMoveFromHospital};
 				OutDate:{fullDateFrom};
 				RaportFrom:{row.column[RaportFrom]};
 				InNumFull:{inNumFull};
@@ -934,7 +934,7 @@ for (let row in Daily.Sheet[DailyEvents].rows) {
 				Rank:{row.column[Rank]};
 				FIO:{row.column[FIO]};
 				Position:{row.column[Position]};
-				Hospital:{row.column[Hospital]};
+				Hospital:{hospitalForMoveFromHospital};
 				OutDate:{fullDateFrom};
 				RaportFrom:{row.column[RaportFrom]};
 				InNumFull:{inNumFull};
