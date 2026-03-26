@@ -13,6 +13,7 @@ Private Const COMP_TYPE_CLASS As String = "class"
 Private Const COMP_TYPE_FORM As String = "form"
 Private Const COMP_TYPE_SHEET As String = "sheet"
 Private Const COMP_TYPE_WORKBOOK As String = "workbook"
+Private Const UTF8_BAS_FILENAME_SUFFIX As String = ".utf8.bas"
 ' True  -> legacy fast import for .bas via VBComponents.Import.
 ' False -> current UTF-safe import path via AddFromString.
 Private Const USE_LEGACY_FAST_BAS_IMPORT As Boolean = True
@@ -331,7 +332,7 @@ Private Sub mp_ImportFolderRecursive( _
                 On Error GoTo EH_IMPORT_FILE
 
                 fileStamp = mp_BuildFileStampFromFileObject(fileObj)
-                importStamp = mp_BuildImportStampByFileType(fileExt, fileStamp)
+                importStamp = mp_BuildImportStampByFileType(fileExt, fileStamp, importPath)
                 cacheKey = mp_NormalizeCacheKey(importPath)
                 fallbackName = mp_GetFileStem(CStr(fileObj.Name))
                 sourceText = vbNullString
@@ -364,7 +365,7 @@ Private Sub mp_ImportFolderRecursive( _
                 Set importedComp = Nothing
                 Select Case fileExt
                     Case ".bas"
-                        If USE_LEGACY_FAST_BAS_IMPORT Then
+                        If mp_ShouldUseLegacyFastImportForBas(importPath) Then
                             Set importedComp = ThisWorkbook.VBProject.VBComponents.Import(importPath)
                             If importedComp Is Nothing Or importedComp.Type <> 1 Then ' vbext_ct_StdModule
                                 mp_RemoveComponentIfExists componentName
@@ -591,20 +592,45 @@ Private Function mp_GetFileStem(ByVal fileName As String) As String
     End If
 End Function
 
-Private Function mp_BuildImportStampByFileType(ByVal fileExt As String, ByVal fileStamp As String) As String
+Private Function mp_BuildImportStampByFileType( _
+    ByVal fileExt As String, _
+    ByVal fileStamp As String, _
+    Optional ByVal importPath As String = vbNullString _
+) As String
     mp_BuildImportStampByFileType = fileStamp
 
     If StrComp(fileExt, ".bas", vbTextCompare) = 0 Then
-        mp_BuildImportStampByFileType = fileStamp & "|basMode=" & mp_GetBasImportModeToken()
+        mp_BuildImportStampByFileType = fileStamp & "|basMode=" & mp_GetBasImportModeToken(importPath)
     End If
 End Function
 
-Private Function mp_GetBasImportModeToken() As String
-    If USE_LEGACY_FAST_BAS_IMPORT Then
+Private Function mp_GetBasImportModeToken(ByVal importPath As String) As String
+    If mp_ShouldUseLegacyFastImportForBas(importPath) Then
         mp_GetBasImportModeToken = "legacyFastImport"
+    ElseIf USE_LEGACY_FAST_BAS_IMPORT Then
+        mp_GetBasImportModeToken = "utfSafeAddFromString_utf8Marker"
     Else
         mp_GetBasImportModeToken = "utfSafeAddFromString"
     End If
+End Function
+
+Private Function mp_ShouldUseLegacyFastImportForBas(ByVal importPath As String) As Boolean
+    mp_ShouldUseLegacyFastImportForBas = USE_LEGACY_FAST_BAS_IMPORT
+    If Not mp_ShouldUseLegacyFastImportForBas Then Exit Function
+
+    If mp_IsUtf8MarkedBasFile(importPath) Then
+        mp_ShouldUseLegacyFastImportForBas = False
+    End If
+End Function
+
+Private Function mp_IsUtf8MarkedBasFile(ByVal importPath As String) As Boolean
+    Dim normalizedPath As String
+
+    normalizedPath = LCase$(Replace$(Trim$(CStr(importPath)), "/", "\"))
+    If Len(normalizedPath) < Len(UTF8_BAS_FILENAME_SUFFIX) Then Exit Function
+
+    mp_IsUtf8MarkedBasFile = _
+        (Right$(normalizedPath, Len(UTF8_BAS_FILENAME_SUFFIX)) = UTF8_BAS_FILENAME_SUFFIX)
 End Function
 
 Private Function mp_CreateDictionary() As Object
@@ -699,6 +725,8 @@ Private Function mp_LoadImportCache(ByVal cachePath As String) As Object
     Dim lineText As String
     Dim parts() As String
     Dim f As Integer
+    Dim stampText As String
+    Dim i As Long
 
     Set cache = mp_CreateDictionary()
     If Len(Dir(cachePath)) = 0 Then
@@ -713,7 +741,13 @@ Private Function mp_LoadImportCache(ByVal cachePath As String) As Object
         If Len(Trim$(lineText)) = 0 Then GoTo ContinueLoop
         parts = Split(lineText, "|")
         If UBound(parts) < 3 Then GoTo ContinueLoop
-        mp_SetCacheRecord cache, CStr(parts(0)), CStr(parts(1)), CStr(parts(2)), CStr(parts(3))
+        stampText = CStr(parts(3))
+        If UBound(parts) > 3 Then
+            For i = 4 To UBound(parts)
+                stampText = stampText & "|" & CStr(parts(i))
+            Next i
+        End If
+        mp_SetCacheRecord cache, CStr(parts(0)), CStr(parts(1)), CStr(parts(2)), stampText
 ContinueLoop:
     Loop
     Close #f
