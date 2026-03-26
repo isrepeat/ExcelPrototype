@@ -47,6 +47,7 @@ Private Sub mp_ResetAdoLookupCaches()
     Set g_AdoFieldListByTableRef = Nothing
     Set g_AdoFieldGenericByTableRef = Nothing
     Set g_AdoMarkerRangeRefBySignature = Nothing
+    ex_ResultSqlEngine.m_ResetLongTextRuntimeCache
     ex_FetchDslEngine.m_ResetPlanCache
 
     mp_EnsureAdoLookupCacheContainers
@@ -356,6 +357,11 @@ Private Function mp_RunModeCore( _
     Dim connCache As Object
     Set connCache = CreateObject("Scripting.Dictionary")
     connCache.CompareMode = 1
+    Dim wbCache As Object
+    Set wbCache = CreateObject("Scripting.Dictionary")
+    wbCache.CompareMode = 1
+    Dim longTextRuntimeCache As Object
+    Set longTextRuntimeCache = ex_ResultSqlEngine.m_GetLongTextRuntimeCache(g_AdoLookupCacheSignature)
 
     Dim rowIndex As Long
     rowIndex = 1
@@ -427,7 +433,7 @@ Private Function mp_RunModeCore( _
             sectionRows.Add rowIndex
             eventsSectionAdded = True
             rowIndex = rowIndex + 1
-            rowIndex = mp_WriteEventsGeneric(wsOut, sourceConn, adoObjectName, fio, rowIndex, cfg, resultFieldRanges, resultTables, resultTablesByRef, sourceAlias, tableAlias, headerRows, pendingWarningBanners, partialMatchRowRanges, eventsRendered)
+            rowIndex = mp_WriteEventsGeneric(wsOut, sourceConn, adoObjectName, fio, rowIndex, cfg, wbCache, longTextRuntimeCache, resultFieldRanges, resultTables, resultTablesByRef, sourceAlias, tableAlias, headerRows, pendingWarningBanners, partialMatchRowRanges, eventsRendered)
             If eventsRendered Then
                 rowIndex = mp_AdvanceRowIndexAfterRenderedTable(cfg, outputEntries, i, tableAlias, tableType, rowIndex)
                 renderedCount = renderedCount + 1
@@ -473,6 +479,7 @@ ContinueAlias:
 
     stageName = "close-connections"
     mp_CloseConnections connCache
+    mp_CloseWorkbooks wbCache
 
     Application.EnableEvents = prevEnableEvents
     Application.DisplayAlerts = prevDisplayAlerts
@@ -498,6 +505,7 @@ EH:
 
     On Error Resume Next
     mp_CloseConnections connCache
+    mp_CloseWorkbooks wbCache
     Application.EnableEvents = prevEnableEvents
     Application.DisplayAlerts = prevDisplayAlerts
     Application.ScreenUpdating = prevScreenUpdating
@@ -1080,6 +1088,8 @@ Private Function mp_WriteEventsGeneric( _
     ByVal fio As String, _
     ByVal rowIndex As Long, _
     ByVal cfg As Object, _
+    ByVal wbCache As Object, _
+    ByVal longTextRuntimeCache As Object, _
     ByVal resultFieldRanges As Collection, _
     ByVal resultTables As Collection, _
     ByVal resultTablesByRef As Object, _
@@ -1250,6 +1260,10 @@ Private Function mp_WriteEventsGeneric( _
             End If
         Next i
     Next outIndex
+
+    ' ADO/OLEDB may truncate long text cells for some Excel columns.
+    ' Refresh only candidate cells (identified by long ADO text values) from worksheet snapshot.
+    mp_TryHydrateEventsOutValuesFromWorksheet outValues, rowCount, fields, cfg, wbCache, longTextRuntimeCache, sourceAlias, tableAlias, adoObjectName, fio
 
     stepName = "collect-fetch-metadata"
     fetchDslApplied = mp_AppendFetchRowsFromSource( _
@@ -3839,6 +3853,109 @@ Private Function mp_GetSourcePathSignatureValue(ByVal cfg As Object, ByVal sourc
 EH:
     mp_GetSourcePathSignatureValue = "#ERR:" & CStr(Err.Number) & ":" & Err.Description
 End Function
+
+Private Sub mp_TryHydrateEventsOutValuesFromWorksheet( _
+    ByRef outValues As Variant, _
+    ByVal rowCount As Long, _
+    ByVal fields As Variant, _
+    ByVal cfg As Object, _
+    ByVal wbCache As Object, _
+    ByVal longTextRuntimeCache As Object, _
+    ByVal sourceAlias As String, _
+    ByVal tableAlias As String, _
+    ByVal configuredSheetName As String, _
+    ByVal keyValue As String _
+)
+    Dim rangeStartMarker As String
+    Dim rangeEndMarker As String
+    Dim wb As Workbook
+    Dim ws As Worksheet
+    Dim startCell As Range
+    Dim endCell As Range
+    Dim headerRow As Long
+    Dim dataStartRow As Long
+    Dim dataEndRow As Long
+    Dim markerCol As Long
+    Dim keyAlias As String
+    Dim keyHeaderName As String
+    Dim keyCol As Long
+    Dim i As Long
+    Dim fieldAlias As String
+    Dim fieldHeaderName As String
+    Dim fieldCol As Long
+    Dim fieldColsByIdx As Object
+
+    On Error GoTo SafeExit
+
+    If rowCount <= 0 Then Exit Sub
+    If mp_IsEmptyVariantArray(fields) Then Exit Sub
+    If Len(Trim$(keyValue)) = 0 Then Exit Sub
+    If mp_IsExplicitAdoRangeReference(configuredSheetName) Then Exit Sub
+    If wbCache Is Nothing Then Exit Sub
+
+    rangeStartMarker = mp_GetCfgOptional(cfg, sourceAlias & ".Sheet[" & tableAlias & "].RangeStartMarker", vbNullString)
+    rangeEndMarker = mp_GetCfgOptional(cfg, sourceAlias & ".Sheet[" & tableAlias & "].RangeEndMarker", vbNullString)
+    If Len(rangeStartMarker) = 0 Or Len(rangeEndMarker) = 0 Then Exit Sub
+
+    Set wb = mp_GetWorkbookForSource(wbCache, cfg, sourceAlias)
+    If wb Is Nothing Then Exit Sub
+
+    Set ws = mp_FindWorksheetByConfiguredAdoName(wb, configuredSheetName)
+    If ws Is Nothing Then GoTo SafeExit
+
+    Set startCell = mp_FindFirstMarkerCell(ws, rangeStartMarker)
+    If startCell Is Nothing Then GoTo SafeExit
+
+    markerCol = startCell.Column
+    Set endCell = mp_FindMarkerCellInColumnAfterRow(ws, markerCol, rangeEndMarker, startCell.Row)
+    If endCell Is Nothing Then GoTo SafeExit
+
+    headerRow = startCell.Row - 1
+    dataStartRow = startCell.Row
+    dataEndRow = endCell.Row - 1
+    If headerRow < 1 Or dataEndRow < dataStartRow Then GoTo SafeExit
+
+    keyAlias = mp_GetCfgRequired(cfg, sourceAlias & ".Sheet[" & tableAlias & "].Key")
+    keyHeaderName = mp_GetMappedSourceHeader(cfg, sourceAlias, tableAlias, keyAlias)
+    keyCol = ex_ResultSqlEngine.m_FindHeaderColumnInWorksheetRow(ws, headerRow, markerCol, keyHeaderName)
+    If keyCol <= 0 Then GoTo SafeExit
+
+    Set fieldColsByIdx = CreateObject("Scripting.Dictionary")
+    fieldColsByIdx.CompareMode = 1
+
+    For i = LBound(fields) To UBound(fields)
+        fieldAlias = Trim$(CStr(fields(i)))
+        If Len(fieldAlias) = 0 Then GoTo ContinueFieldAlias
+        If mp_IsVirtualFieldAlias(cfg, sourceAlias, tableAlias, fieldAlias) Then GoTo ContinueFieldAlias
+
+        fieldHeaderName = mp_GetMappedSourceHeader(cfg, sourceAlias, tableAlias, fieldAlias)
+        fieldCol = ex_ResultSqlEngine.m_FindHeaderColumnInWorksheetRow(ws, headerRow, markerCol, fieldHeaderName)
+        If fieldCol > 0 Then
+            fieldColsByIdx(CStr(i)) = fieldCol
+        End If
+ContinueFieldAlias:
+    Next i
+
+    If fieldColsByIdx.Count = 0 Then Exit Sub
+
+    ex_ResultSqlEngine.m_TryHydrateLongAdoValuesFromWorksheet _
+        outValues, _
+        rowCount, _
+        fields, _
+        fieldColsByIdx, _
+        ws, _
+        dataStartRow, _
+        dataEndRow, _
+        keyCol, _
+        keyValue, _
+        sourceAlias, _
+        tableAlias, _
+        configuredSheetName, _
+        longTextRuntimeCache
+
+SafeExit:
+    On Error GoTo 0
+End Sub
 
 Private Function mp_HasPlaceholderTokens(ByVal valueText As String) As Boolean
     mp_HasPlaceholderTokens = ex_ResultSqlEngine.m_HasPlaceholderTokens(valueText)
