@@ -130,6 +130,12 @@
 #_      {#if VlkNum #and VlkDate}#^
 #_      , довідка військово-лікарської комісії № {VlkNum} від {VlkDate}#^
 #_      {#endif}#^
+#_      {#if DocNum #or DocDate}#^
+#_      , {DocNote
+            |regexreplace:"^[ \t\r\n]*([\s\S]*?)[ \t\r\n]*$","$1"
+            |regexreplace:"^м/к$","виписка із медичної карти стаціонарного хворого"
+        } {#if DocNum}№ {DocNum}{#endif}{#if DocDate} від {DocDate}{#endif}#^
+#_      {#endif}#^
 #_      .#^
 #_    ]]>
     </text>
@@ -293,7 +299,16 @@
 #_      {AssignToDutyRank|accusative|lowerFirstLetter} {AssignToDutyFIO|accusative}, {AssignToDutyPosition|accusative|lowerFirstLetter}.
 #_      {#endif}#^
 
-#_      Підстава: рапорт {RaportTvo} {RaportFrom} (вх. № {InNumFull} від {InDate})#^
+#_      {
+          #let IsRaportFromSelf = $ex_Helpers.m_RegexFirstMatch("{RaportFrom}", "^\s*[Сс][Аа][Мм]\s*$");
+        }#^
+#_      Підстава: рапорт {#if IsRaportFromSelf}{Rank|accusative|lowerFirstLetter} {FIO|genitive|fioSurname|capitalize} {FIO|fioInitials}{#endif}{#if #not IsRaportFromSelf}{RaportTvo} {RaportFrom}{#endif} (вх. № {InNumFull} від {InDate})#^
+#_      {#if DocNum #or DocDate}#^
+#_      , {DocNote
+            |regexreplace:"^[ \t\r\n]*([\s\S]*?)[ \t\r\n]*$","$1"
+            |regexreplace:"^м/к$","медична карта стаціонарного хворого"
+        } {#if DocNum}№ {DocNum}{#endif}{#if DocDate} від {DocDate}{#endif}#^
+#_      {#endif}#^
 #_      .#^
 #_    ]]>
     </text>
@@ -307,6 +322,12 @@
           #let IsRaportFromSelf = $ex_Helpers.m_RegexFirstMatch("{RaportFrom}", "^\s*[Сс][Аа][Мм]\s*$");
         }#^
 #_      Підстава: рапорт {#if IsRaportFromSelf}{Rank|accusative|lowerFirstLetter} {FIO|genitive|fioSurname|capitalize} {FIO|fioInitials}{#endif}{#if #not IsRaportFromSelf}{RaportTvo} {RaportFrom}{#endif} (вх. № {InNumFull} від {InDate})#^
+#_      {#if DocNum #or DocDate}#^
+#_      , {DocNote
+            |regexreplace:"^[ \t\r\n]*([\s\S]*?)[ \t\r\n]*$","$1"
+            |regexreplace:"^м/к$","медична карта стаціонарного хворого"
+        } {#if DocNum}№ {DocNum}{#endif}{#if DocDate} від {DocDate}{#endif}#^
+#_      {#endif}#^
 #_      .#^
 #_    ]]>
     </text>
