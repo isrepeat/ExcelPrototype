@@ -510,6 +510,46 @@ Public Function m_FindHeaderColumnInWorksheetRow( _
     m_FindHeaderColumnInWorksheetRow = -1
 End Function
 
+Public Function m_ApplyLongTextRuntimeCache( _
+    ByRef outValues As Variant, _
+    ByVal rowCount As Long, _
+    ByVal fields As Variant, _
+    ByVal sourceAlias As String, _
+    ByVal tableAlias As String, _
+    ByVal configuredSheetName As String, _
+    ByVal keyValue As String, _
+    ByVal runtimeCache As Object _
+) As Boolean
+    Dim hasRuntimeCache As Boolean
+    Dim outIndex As Long
+    Dim i As Long
+    Dim outCol As Long
+    Dim outValueText As String
+    Dim cacheKey As String
+
+    If rowCount <= 0 Then Exit Function
+    If m_IsEmptyVariantArray(fields) Then Exit Function
+    If Len(Trim$(keyValue)) = 0 Then Exit Function
+
+    hasRuntimeCache = Not runtimeCache Is Nothing
+
+    For outIndex = 1 To rowCount
+        For i = LBound(fields) To UBound(fields)
+            outCol = 1 + (i - LBound(fields))
+            outValueText = CStr(outValues(outIndex, outCol))
+
+            If Len(outValueText) > 250 Then
+                cacheKey = mp_BuildLongTextRuntimeCacheKey(sourceAlias, tableAlias, configuredSheetName, keyValue, outIndex, i)
+                If hasRuntimeCache And runtimeCache.Exists(cacheKey) Then
+                    outValues(outIndex, outCol) = CStr(runtimeCache(cacheKey))
+                Else
+                    m_ApplyLongTextRuntimeCache = True
+                End If
+            End If
+        Next i
+    Next outIndex
+End Function
+
 Public Sub m_TryHydrateLongAdoValuesFromWorksheet( _
     ByRef outValues As Variant, _
     ByVal rowCount As Long, _
