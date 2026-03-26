@@ -395,8 +395,11 @@ for (let row in Daily.Sheet[DailyEvents].rows) {
 		let needDateTo = "false";
 
 		if (sectionType == "1" ||
+			sectionType == "6" ||
 			sectionType == "5" ||
 			sectionType == "7" ||
+			sectionType == "11" ||
+			sectionType == "12" ||
 			sectionType == "13" ||
 			sectionType == "15" ||
 			sectionType == "16" ||
@@ -679,6 +682,8 @@ for (let row in Daily.Sheet[DailyEvents].rows) {
 				InDate:{fullInDate};
 				VlkNum:{row.column[VlkNum]};
 				VlkDate:{fullVlkDate};
+				DocNum:{row.column[DocNum]};
+				DocDate:{fullDocDate};
 				`,
 				"#66CCFF"
 			);
@@ -728,6 +733,8 @@ for (let row in Daily.Sheet[DailyEvents].rows) {
 				RaportFrom:{row.column[RaportFrom]};
 				InNumFull:{inNumFull};
 				InDate:{fullInDate};
+				DocNum:{row.column[DocNum]};
+				DocDate:{fullDocDate};
 				`,
 				"#66CCFF"
 			);
@@ -800,6 +807,8 @@ for (let row in Daily.Sheet[DailyEvents].rows) {
 				RaportFrom:{row.column[RaportFrom]};
 				InNumFull:{inNumFull};
 				InDate:{fullInDate};
+				DocNum:{row.column[DocNum]};
+				DocDate:{fullDocDate};
 				`,
 				"#66CCFF"
 			);
