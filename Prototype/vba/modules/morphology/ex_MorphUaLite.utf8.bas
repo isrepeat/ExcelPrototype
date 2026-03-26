@@ -1712,6 +1712,14 @@ Private Function mp_InflectSurnamePartToAccusative(ByVal originalPart As String,
     low = LCase$(originalPart)
     low = mp_NormalizeTrailingYiSoftSign(low)
 
+    Dim exceptions As Object
+    Set exceptions = mp_GetSurnameExceptionsAccusativeDict()
+    If exceptions.Exists(low) Then
+        partResult = mp_ApplyWordCase(originalPart, CStr(exceptions(low)))
+        mp_InflectSurnamePartToAccusative = True
+        Exit Function
+    End If
+
     If mp_IsIndeclinableSurname(low, gender) Then
         partResult = originalPart
         mp_InflectSurnamePartToAccusative = True
@@ -1844,6 +1852,14 @@ Private Function mp_InflectSurnamePartToDative(ByVal originalPart As String, ByV
     Dim low As String
     low = LCase$(originalPart)
     low = mp_NormalizeTrailingYiSoftSign(low)
+
+    Dim exceptions As Object
+    Set exceptions = mp_GetSurnameExceptionsDativeDict()
+    If exceptions.Exists(low) Then
+        partResult = mp_ApplyWordCase(originalPart, CStr(exceptions(low)))
+        mp_InflectSurnamePartToDative = True
+        Exit Function
+    End If
 
     If mp_IsIndeclinableSurname(low, gender) Then
         partResult = originalPart
@@ -2056,8 +2072,29 @@ Private Function mp_GetSurnameExceptionsDict() As Object
     d.CompareMode = 1
 
     d("середа") = "середи"
+    d("швець") = "швеця"
 
     Set mp_GetSurnameExceptionsDict = d
+End Function
+
+Private Function mp_GetSurnameExceptionsAccusativeDict() As Object
+    Dim d As Object
+    Set d = CreateObject("Scripting.Dictionary")
+    d.CompareMode = 1
+
+    d("швець") = "швеця"
+
+    Set mp_GetSurnameExceptionsAccusativeDict = d
+End Function
+
+Private Function mp_GetSurnameExceptionsDativeDict() As Object
+    Dim d As Object
+    Set d = CreateObject("Scripting.Dictionary")
+    d.CompareMode = 1
+
+    d("швець") = "швецю"
+
+    Set mp_GetSurnameExceptionsDativeDict = d
 End Function
 
 Private Function mp_GetPatronymicExceptionsDict() As Object
