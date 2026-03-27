@@ -607,6 +607,17 @@ Public Function m_FindMarkerCellInColumnAfterRow( _
     Loop While currentFound.Address <> firstAddress
 End Function
 
+' Hydration entrypoint for ADO-truncated long text.
+'
+' High-level flow:
+' 1) Quick exits for unsupported or incomplete context (no rows/fields/key/markers/cache).
+' 2) Try to satisfy long-text cells from runtime cache first (strict + loose keys).
+' 3) If unresolved candidates remain, open worksheet snapshot and locate marker-bounded data range.
+' 4) Resolve key/field columns and run worksheet hydration for unresolved candidates only.
+'
+' Note:
+' - This logic is intentionally marker-based to avoid scanning arbitrary used ranges.
+' - Hydration is skipped for explicit ADO range references because markers are not applicable there.
 Public Sub m_HydrateAdoLongTextFromWorksheetIfNeeded( _
     ByRef outValues As Variant, _
     ByVal rowCount As Long, _
@@ -755,6 +766,13 @@ SafeExit:
     On Error GoTo 0
 End Sub
 
+' Fast cache pass for long text candidates.
+'
+' Returns True when at least one candidate still needs worksheet hydration.
+' Key strategy:
+' - strict key: includes output row index + field index + normalized prefix token.
+' - loose key: excludes output row index (survives row reordering by ADO).
+' - ambiguous loose values are never auto-applied.
 Public Function m_ApplyLongTextRuntimeCache( _
     ByRef outValues As Variant, _
     ByVal rowCount As Long, _
@@ -785,24 +803,27 @@ Public Function m_ApplyLongTextRuntimeCache( _
 
     hasRuntimeCache = Not runtimeCache Is Nothing
 
+    ' Detect only long-text cells because ADO truncation affects those.
     For outIndex = 1 To rowCount
         For i = LBound(fields) To UBound(fields)
             outCol = 1 + (i - LBound(fields))
             outValueText = CStr(outValues(outIndex, outCol))
 
-            If Len(outValueText) > 250 Then
+            If Len(outValueText) > 254 Then
                 candidates = candidates + 1
                 prefixToken = mp_BuildLongTextPrefixToken(outValueText)
                 cacheKey = mp_BuildLongTextRuntimeCacheKey(sourceAlias, tableAlias, configuredSheetName, keyValue, outIndex, i, prefixToken)
                 looseCacheKey = mp_BuildLongTextLooseCacheKey(sourceAlias, tableAlias, configuredSheetName, keyValue, i, prefixToken)
 
                 If hasRuntimeCache Then
+                    ' Strict hit is the safest path: exact row/field/prefix identity.
                     If runtimeCache.Exists(cacheKey) Then
                         strictHits = strictHits + 1
                         outValues(outIndex, outCol) = CStr(runtimeCache(cacheKey))
                         GoTo ContinueCacheCandidate
                     End If
 
+                    ' Loose hit allows reuse when provider reordered matched rows.
                     If runtimeCache.Exists(looseCacheKey) Then
                         cachedText = CStr(runtimeCache(looseCacheKey))
                         If StrComp(cachedText, LONG_TEXT_CACHE_AMBIGUOUS, vbBinaryCompare) <> 0 Then
@@ -830,6 +851,19 @@ ContinueCacheCandidate:
     End If
 End Function
 
+' Core worksheet hydration stage for unresolved long-text candidates.
+'
+' Matching model:
+' - Key match: rows in worksheet where source key equals requested key (with loose normalization fallback).
+' - Prefix buckets: for each field, group matched source rows by normalized 255-char prefix.
+' - Candidate resolution:
+'   a) unique prefix bucket -> direct source row
+'   b) ambiguous prefix bucket -> prefer positional row when available
+'   c) no bucket -> positional fallback (legacy-compatible safety)
+'
+' Cache writeback:
+' - strict cache is always updated per hydrated cell.
+' - loose cache stores value only when non-conflicting; conflicts become #AMBIGUOUS#.
 Public Sub m_TryHydrateLongAdoValuesFromWorksheet( _
     ByRef outValues As Variant, _
     ByVal rowCount As Long, _
@@ -912,12 +946,13 @@ Public Sub m_TryHydrateLongAdoValuesFromWorksheet( _
     Set neededPrefixesByFieldIdx = CreateObject("Scripting.Dictionary")
     neededPrefixesByFieldIdx.CompareMode = 1
 
+    ' Pass 1: collect unresolved long-text candidates and required field-prefix sets.
     For outIndex = 1 To rowCount
         For i = LBound(fields) To UBound(fields)
             outCol = 1 + (i - LBound(fields))
             outValueText = CStr(outValues(outIndex, outCol))
 
-            If Len(outValueText) > 250 Then
+            If Len(outValueText) > 254 Then
                 If Not fieldColsByIdx.Exists(CStr(i)) Then GoTo ContinueFieldCandidate
                 fieldCol = CLng(fieldColsByIdx(CStr(i)))
                 If fieldCol <= 0 Then GoTo ContinueFieldCandidate
@@ -966,6 +1001,7 @@ ContinueFieldCandidate:
 
     unresolvedCount = unresolvedCellKeys.Count
 
+    ' Pass 2: find all source worksheet rows matching the requested key.
     keyArray = ws.Range(ws.Cells(dataStartRow, keyCol), ws.Cells(dataEndRow, keyCol)).Value2
     Set matches = New Collection
     keyArrayIsSingleCell = Not IsArray(keyArray)
@@ -1012,6 +1048,7 @@ ContinueFieldArray:
     Set sourceRowsByFieldPrefix = CreateObject("Scripting.Dictionary")
     sourceRowsByFieldPrefix.CompareMode = 1
 
+    ' Pass 3: build prefix buckets from matched source rows per field.
     For Each fieldKey In unresolvedFieldIdx.Keys
         i = CLng(fieldKey)
         If Not fieldArraysByIdx.Exists(CStr(i)) Then GoTo ContinueFieldPrefixIndex
@@ -1045,6 +1082,7 @@ ContinueFieldPrefixIndex:
 
     prefixBucketCount = sourceRowsByFieldPrefix.Count
 
+    ' Pass 4: resolve each unresolved output cell to a source row and hydrate value.
     For Each fieldKey In unresolvedCellKeys.Keys
         cellKey = CStr(fieldKey)
         If Not mp_TryParseLongTextCellKey(cellKey, parsedRowIdx, parsedFieldIdx) Then GoTo ContinueHydrateCell
@@ -1422,6 +1460,13 @@ Public Function m_RecordsetFieldNameByOrdinal( _
     m_RecordsetFieldNameByOrdinal = CStr(rs.Fields(fieldOrdinal).Name)
 End Function
 
+' Shared row appender for modes that read filtered ADO rows.
+'
+' Important behavior:
+' - Rows are buffered in-memory first.
+' - Optional hydration is applied on the buffered 2D array.
+' - Final values are written to worksheet and result table only after hydration.
+' This guarantees both visual cells and ResultTable store the same corrected long text.
 Public Function m_AppendFilteredRows( _
     ByVal ws As Worksheet, _
     ByVal rs As Object, _
@@ -1434,11 +1479,17 @@ Public Function m_AppendFilteredRows( _
     ByVal fieldOrdinals As Object, _
     ByVal keyFieldAlias As String, _
     ByVal keyValue As String, _
-    Optional ByVal useLike As Boolean = False _
+    Optional ByVal useLike As Boolean = False, _
+    Optional ByVal cfg As Object = Nothing, _
+    Optional ByVal configuredSheetName As String = vbNullString, _
+    Optional ByVal wbCache As Object = Nothing, _
+    Optional ByVal runtimeCache As Object = Nothing _
 ) As Boolean
     Dim nextRow As Long
     Dim rowIndex As Long
     Dim colIndex As Long
+    Dim outRow As Long
+    Dim fieldCount As Long
     Dim fieldAlias As String
     Dim fieldOrdinal As Long
     Dim valueText As String
@@ -1448,6 +1499,11 @@ Public Function m_AppendFilteredRows( _
     Dim rowObj As obj_ResultRow
     Dim rowAnchorName As String
     Dim isMatch As Boolean
+    Dim rowBuffers As Collection
+    Dim rowValueArr() As Variant
+    Dim bufferedRow As Variant
+    Dim outValues() As Variant
+    Dim fieldAliases() As String
 
     If rs Is Nothing Then Exit Function
     If fields Is Nothing Then Exit Function
@@ -1457,34 +1513,82 @@ Public Function m_AppendFilteredRows( _
     If rs.EOF Then Exit Function
 
     keyValue = Trim$(keyValue)
+    fieldCount = fields.Count
     keyOrdinal = CLng(fieldOrdinals(keyFieldAlias))
     nextRow = startRow
     tableRef = sourceAlias & ".Sheet[" & tableAlias & "]"
+    Set rowBuffers = New Collection
 
+    ' Build a buffered row set from filtered recordset matches.
     Do While Not rs.EOF
         currentKey = mp_AsText(rs.Fields(keyOrdinal).Value, rs.Fields(keyOrdinal).Type)
         isMatch = useLike Or (StrComp(Trim$(currentKey), keyValue, vbTextCompare) = 0)
         If isMatch Then
-            rowIndex = resultTable.Count
-            For colIndex = 1 To fields.Count
+            ReDim rowValueArr(1 To fieldCount)
+            For colIndex = 1 To fieldCount
                 fieldAlias = CStr(fields(colIndex))
                 fieldOrdinal = CLng(fieldOrdinals(fieldAlias))
                 valueText = mp_AsText(rs.Fields(fieldOrdinal).Value, rs.Fields(fieldOrdinal).Type)
-                ws.Cells(nextRow, colIndex).Value = valueText
-                m_AddResultCell resultTable, rowIndex, sourceAlias, tableAlias, fieldAlias, valueText
+                rowValueArr(colIndex) = valueText
             Next colIndex
-            Set rowObj = resultTable.EnsureRow(rowIndex)
-            rowAnchorName = ex_Messaging.m_BuildResultRowAnchorName(tableRef, rowIndex + 1)
-            If Len(rowAnchorName) > 0 Then
-                rowObj.RowAnchorName = rowAnchorName
-                ex_Messaging.m_RegisterResultRowAnchor ws, rowAnchorName, nextRow
-            End If
-            contentRows.Add nextRow
-            nextRow = nextRow + 1
+            rowBuffers.Add rowValueArr
         End If
         rs.MoveNext
     Loop
 
+    If rowBuffers.Count = 0 Then Exit Function
+
+    ' Convert row buffers into rectangular 2D array for optional hydration + bulk write.
+    ReDim outValues(1 To rowBuffers.Count, 1 To fieldCount)
+    ReDim fieldAliases(0 To fieldCount - 1)
+
+    For colIndex = 1 To fieldCount
+        fieldAliases(colIndex - 1) = CStr(fields(colIndex))
+    Next colIndex
+
+    For outRow = 1 To rowBuffers.Count
+        bufferedRow = rowBuffers(outRow)
+        For colIndex = 1 To fieldCount
+            outValues(outRow, colIndex) = bufferedRow(colIndex)
+        Next colIndex
+    Next outRow
+
+    ' Hydration requires config + source sheet context; skip when not provided by caller.
+    If Not cfg Is Nothing Then
+        m_HydrateAdoLongTextFromWorksheetIfNeeded _
+            outValues, _
+            rowBuffers.Count, _
+            fieldAliases, _
+            cfg, _
+            sourceAlias, _
+            tableAlias, _
+            configuredSheetName, _
+            keyValue, _
+            wbCache, _
+            runtimeCache
+    End If
+
+    ws.Range(ws.Cells(startRow, 1), ws.Cells(startRow + rowBuffers.Count - 1, fieldCount)).Value2 = outValues
+
+    ' Populate result model from final (already hydrated) values.
+    For outRow = 1 To rowBuffers.Count
+        rowIndex = resultTable.Count
+        For colIndex = 1 To fieldCount
+            fieldAlias = CStr(fields(colIndex))
+            valueText = CStr(outValues(outRow, colIndex))
+            m_AddResultCell resultTable, rowIndex, sourceAlias, tableAlias, fieldAlias, valueText
+        Next colIndex
+
+        Set rowObj = resultTable.EnsureRow(rowIndex)
+        rowAnchorName = ex_Messaging.m_BuildResultRowAnchorName(tableRef, rowIndex + 1)
+        If Len(rowAnchorName) > 0 Then
+            rowObj.RowAnchorName = rowAnchorName
+            ex_Messaging.m_RegisterResultRowAnchor ws, rowAnchorName, startRow + outRow - 1
+        End If
+        contentRows.Add startRow + outRow - 1
+    Next outRow
+
+    nextRow = startRow + rowBuffers.Count
     m_AppendFilteredRows = (nextRow > startRow)
 End Function
 
@@ -1812,6 +1916,7 @@ Private Function mp_NormalizeLongTextRuntimeCacheSignature(ByVal cacheSignature 
     mp_NormalizeLongTextRuntimeCacheSignature = LCase$(Trim$(cacheSignature))
 End Function
 
+' Per-cell unresolved candidate key inside current output matrix.
 Private Function mp_BuildLongTextCellKey(ByVal outRowIndex As Long, ByVal fieldIndex As Long) As String
     mp_BuildLongTextCellKey = CStr(outRowIndex) & "|" & CStr(fieldIndex)
 End Function
@@ -1835,6 +1940,8 @@ Private Function mp_TryParseLongTextCellKey(ByVal cellKey As String, ByRef outRo
     mp_TryParseLongTextCellKey = True
 End Function
 
+' Strict runtime cache key:
+' source/table/sheet/key + output row index + field index + prefix token.
 Private Function mp_BuildLongTextRuntimeCacheKey( _
     ByVal sourceAlias As String, _
     ByVal tableAlias As String, _
@@ -1853,6 +1960,8 @@ Private Function mp_BuildLongTextRuntimeCacheKey( _
                                      prefixToken
 End Function
 
+' Loose runtime cache key:
+' source/table/sheet/key + field index + prefix token (no output row index).
 Private Function mp_BuildLongTextLooseCacheKey( _
     ByVal sourceAlias As String, _
     ByVal tableAlias As String, _
@@ -1869,6 +1978,13 @@ Private Function mp_BuildLongTextLooseCacheKey( _
                                     prefixToken
 End Function
 
+' Build normalized prefix token used by cache and worksheet prefix buckets.
+'
+' Rules:
+' - unify line breaks/tabs/non-breaking spaces
+' - collapse repeated spaces
+' - trim + lowercase
+' - cap at 255 chars to mirror ADO truncation boundary behavior
 Private Function mp_BuildLongTextPrefixToken(ByVal valueText As String) As String
     Dim token As String
 
@@ -1888,6 +2004,8 @@ Private Function mp_BuildLongTextPrefixToken(ByVal valueText As String) As Strin
     mp_BuildLongTextPrefixToken = LCase$(token)
 End Function
 
+' Key equality helper for hydration row matching.
+' First tries plain case-insensitive equality, then looser normalized comparison.
 Private Function mp_IsSameHydrationKeyValue(ByVal leftValue As Variant, ByVal rightText As String) As Boolean
     Dim leftTrimmed As String
     Dim rightTrimmed As String
@@ -1909,10 +2027,12 @@ Private Function mp_IsSameHydrationKeyValue(ByVal leftValue As Variant, ByVal ri
     mp_IsSameHydrationKeyValue = (StrComp(leftLoose, rightLoose, vbTextCompare) = 0)
 End Function
 
+' Prefix-bucket lookup key: field index + normalized prefix token.
 Private Function mp_BuildFieldPrefixLookupKey(ByVal fieldIndex As Long, ByVal prefixToken As String) As String
     mp_BuildFieldPrefixLookupKey = CStr(fieldIndex) & "|" & prefixToken
 End Function
 
+' Add source row to field-prefix bucket.
 Private Sub mp_AddRowToMatchBucket(ByVal buckets As Object, ByVal lookupKey As String, ByVal sourceRow As Long)
     Dim rowsBucket As Collection
 
@@ -1929,6 +2049,7 @@ Private Sub mp_AddRowToMatchBucket(ByVal buckets As Object, ByVal lookupKey As S
     rowsBucket.Add sourceRow
 End Sub
 
+' Utility: check whether preferred source row exists in ambiguous bucket.
 Private Function mp_CollectionContainsLong(ByVal values As Collection, ByVal needle As Long) As Boolean
     Dim i As Long
 
@@ -1943,6 +2064,7 @@ Private Function mp_CollectionContainsLong(ByVal values As Collection, ByVal nee
     Next i
 End Function
 
+' Open (or reuse from cache) hidden workbook snapshot for source alias.
 Private Function mp_GetWorkbookForSource(ByVal wbCache As Object, ByVal cfg As Object, ByVal sourceAlias As String) As Workbook
     Dim sourcePath As String
     Dim snapshotPath As String
@@ -1980,6 +2102,7 @@ Private Function mp_GetWorkbookForSource(ByVal wbCache As Object, ByVal cfg As O
     Set mp_GetWorkbookForSource = wb
 End Function
 
+' Resolve mapped source header for hydration and normalize bracketed identifier syntax.
 Private Function mp_GetMappedSourceHeaderForHydration( _
     ByVal cfg As Object, _
     ByVal sourceAlias As String, _
@@ -2013,6 +2136,7 @@ Private Function mp_GetMappedSourceHeaderForHydration( _
     mp_GetMappedSourceHeaderForHydration = mappedHeader
 End Function
 
+' Build map of field-index -> source worksheet column index used by hydration core.
 Private Function mp_FindFieldColumnsForHydration( _
     ByVal fields As Variant, _
     ByVal cfg As Object, _
