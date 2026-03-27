@@ -7,6 +7,11 @@ Private Const ASCII_LOWER As String = "abcdefghijklmnopqrstuvwxyz"
 Private Const SCRIPT_KIND_PREPROCESS As String = "preprocess"
 Private Const SCRIPT_KIND_RESULTLAYOUT As String = "resultlayout"
 Private Const SCRIPT_KIND_POSTPROCESS As String = "postprocess"
+Private Const SETTINGS_KEY_FILE_LOG_ENABLED As String = "st_FileLogEnabled"
+Private Const PERSONALCARD_LOG_REL_PATH As String = "Logs\personalcard_pipeline.log"
+Private Const LOGS_TOGGLE_BUTTON_NAME As String = "btnLogsToggle"
+Private Const LOGS_ON_BUTTON_LEGACY_NAME As String = "btnLogsOn"
+Private Const LOGS_OFF_BUTTON_LEGACY_NAME As String = "btnLogsOff"
 
 ' UI entrypoints layer: keeps user-triggered callbacks in actions/*
 ' and delegates work to domain/config modules.
@@ -41,6 +46,7 @@ Public Sub m_UpdateUi_OnClick()
     ex_UILoader.m_LoadUiFromConfig ThisWorkbook
     Application.Run "ex_ConfigProfilesManager.m_RestoreSelectionState"
     ex_CustomDropdown.m_InitDevTestDropdown ThisWorkbook
+    mp_RefreshLogsToggleVisualFromSettings
     Exit Sub
 EH:
     MsgBox "Update UI failed: " & Err.Description, vbExclamation
@@ -148,6 +154,53 @@ End Sub
 Public Sub m_OpenPostProcessScript_OnClick()
     ex_CustomDropdown.m_OnManagedButtonClick
     mp_OpenActiveProfileScriptSource SCRIPT_KIND_POSTPROCESS
+End Sub
+
+Public Sub m_ToggleLogs_OnClick()
+    Dim currentValue As String
+    Dim isEnabled As Boolean
+    Dim newEnabled As Boolean
+
+    On Error GoTo EH
+    ex_CustomDropdown.m_OnManagedButtonClick
+
+    currentValue = ex_XmlCore.m_GetSettingsValue(SETTINGS_KEY_FILE_LOG_ENABLED, "false")
+    If Not ex_XmlCore.m_TryParseBoolean(currentValue, isEnabled) Then
+        isEnabled = False
+    End If
+    newEnabled = Not isEnabled
+
+    ex_XmlCore.m_SetSettingsValue SETTINGS_KEY_FILE_LOG_ENABLED, IIf(newEnabled, "true", "false")
+    mp_UpdateLogsToggleButtonVisual newEnabled
+    Exit Sub
+EH:
+    MsgBox "Logs toggle failed: [" & Err.Source & " #" & CStr(Err.Number) & "] " & Err.Description, vbExclamation
+End Sub
+
+Public Sub m_OpenLogsFile_OnClick()
+    Dim logFilePath As String
+    Dim errText As String
+
+    On Error GoTo EH
+    ex_CustomDropdown.m_OnManagedButtonClick
+
+    logFilePath = mp_GetPersonalCardLogFilePath()
+    If Len(logFilePath) = 0 Then
+        MsgBox "Failed to resolve logs file path.", vbExclamation
+        Exit Sub
+    End If
+
+    If Not mp_EnsureFileReady(logFilePath, errText) Then
+        MsgBox "Failed to prepare logs file: " & errText, vbExclamation
+        Exit Sub
+    End If
+
+    If Not mp_OpenFileInNotepad(logFilePath, errText) Then
+        MsgBox "Failed to open logs file: " & errText, vbExclamation
+    End If
+    Exit Sub
+EH:
+    MsgBox "Open logs failed: [" & Err.Source & " #" & CStr(Err.Number) & "] " & Err.Description, vbExclamation
 End Sub
 
 Public Sub m_ReportCreationRunPostProcess_OnClick()
@@ -451,6 +504,96 @@ Private Function mp_OpenFileInNotepad(ByVal filePath As String, ByRef outErrorTe
     mp_OpenFileInNotepad = True
     Exit Function
 EH:
+    outErrorText = Err.Description
+End Function
+
+Private Function mp_GetPersonalCardLogFilePath() As String
+    Dim basePath As String
+
+    basePath = Trim$(ThisWorkbook.Path)
+    If Len(basePath) = 0 Then
+        basePath = CurDir$
+    End If
+    If Len(basePath) = 0 Then Exit Function
+
+    mp_GetPersonalCardLogFilePath = mp_NormalizeFilePath(basePath & "\" & PERSONALCARD_LOG_REL_PATH)
+End Function
+
+Private Sub mp_UpdateLogsToggleButtonVisual(ByVal isEnabled As Boolean)
+    Dim ws As Worksheet
+    Dim shp As Shape
+    Dim legacyOn As Shape
+    Dim legacyOff As Shape
+
+    Set ws = ws_Dev
+    If ws Is Nothing Then Exit Sub
+
+    Set shp = ex_ConfigProfilesManager.m_GetShapeByName(ws, LOGS_TOGGLE_BUTTON_NAME)
+    If Not shp Is Nothing Then
+        On Error Resume Next
+        shp.TextFrame.Characters.Text = IIf(isEnabled, "Logs [On]", "Logs [Off]")
+        If isEnabled Then
+            shp.Fill.ForeColor.RGB = RGB(31, 94, 156)
+            shp.Line.ForeColor.RGB = RGB(22, 63, 105)
+            shp.TextFrame.Characters.Font.Color = RGB(255, 255, 255)
+        Else
+            shp.Fill.ForeColor.RGB = RGB(58, 63, 69)
+            shp.Line.ForeColor.RGB = RGB(58, 63, 69)
+            shp.TextFrame.Characters.Font.Color = RGB(255, 217, 102)
+        End If
+        On Error GoTo 0
+    End If
+
+    Set legacyOn = ex_ConfigProfilesManager.m_GetShapeByName(ws, LOGS_ON_BUTTON_LEGACY_NAME)
+    Set legacyOff = ex_ConfigProfilesManager.m_GetShapeByName(ws, LOGS_OFF_BUTTON_LEGACY_NAME)
+
+    On Error Resume Next
+    If Not legacyOn Is Nothing Then legacyOn.Visible = IIf(isEnabled, msoTrue, msoFalse)
+    If Not legacyOff Is Nothing Then legacyOff.Visible = IIf(isEnabled, msoFalse, msoTrue)
+    On Error GoTo 0
+End Sub
+
+Private Sub mp_RefreshLogsToggleVisualFromSettings()
+    Dim currentValue As String
+    Dim isEnabled As Boolean
+
+    currentValue = ex_XmlCore.m_GetSettingsValue(SETTINGS_KEY_FILE_LOG_ENABLED, "false")
+    If Not ex_XmlCore.m_TryParseBoolean(currentValue, isEnabled) Then
+        isEnabled = False
+    End If
+
+    mp_UpdateLogsToggleButtonVisual isEnabled
+End Sub
+
+Private Function mp_EnsureFileReady(ByVal filePath As String, ByRef outErrorText As String) As Boolean
+    Dim folderPath As String
+    Dim fileNo As Integer
+
+    outErrorText = vbNullString
+    folderPath = mp_GetParentDirectory(filePath)
+    If Len(folderPath) = 0 Then
+        outErrorText = "Unable to resolve logs folder from path: " & filePath
+        Exit Function
+    End If
+
+    On Error GoTo EH
+
+    If Len(Dir$(folderPath, vbDirectory)) = 0 Then
+        MkDir folderPath
+    End If
+
+    If Len(Dir$(filePath)) = 0 Then
+        fileNo = FreeFile
+        Open filePath For Output As #fileNo
+        Close #fileNo
+    End If
+
+    mp_EnsureFileReady = True
+    Exit Function
+EH:
+    On Error Resume Next
+    If fileNo > 0 Then Close #fileNo
+    On Error GoTo 0
     outErrorText = Err.Description
 End Function
 
