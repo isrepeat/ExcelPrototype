@@ -125,6 +125,12 @@ Public Function m_Apply(ByVal plan As Object) As String
     Dim sectionRows As Collection
     Dim contentRows As Collection
     Dim rowKinds As Object
+    Dim rowKindTokenRows As Object
+    Dim cfg As Object
+    Dim tokenName As Variant
+    Dim tokenRows As Object
+    Dim rowKey As Variant
+    Dim tokenRowsCollection As Collection
 
     Set inputObject = mp_GetPlanInput(plan)
     Set resultTables = mp_GetPlanResultTables(plan)
@@ -144,11 +150,14 @@ Public Function m_Apply(ByVal plan As Object) As String
     rowIndex = startRow
 
     Set tablesByRef = mp_BuildTablesByRef(resultTables)
+    Set cfg = ex_ConfigProvider.m_LoadConfigDictionary("ex_ResultLayoutActions", 6473, 6474)
     Set resultFieldRanges = New Collection
 
     Set headerRows = New Collection
     Set sectionRows = New Collection
     Set contentRows = New Collection
+    Set rowKindTokenRows = CreateObject("Scripting.Dictionary")
+    rowKindTokenRows.CompareMode = 1
 
     pendingSpacerRows = 0
     lastRenderedTable = False
@@ -176,7 +185,7 @@ Public Function m_Apply(ByVal plan As Object) As String
                 End If
                 pendingSpacerRows = 0
 
-                rowIndex = mp_RenderTableBlock(ws, resultTable, rowIndex, headerRows, sectionRows, contentRows, resultFieldRanges)
+                rowIndex = mp_RenderTableBlock(ws, resultTable, rowIndex, headerRows, sectionRows, contentRows, resultFieldRanges, cfg, rowKindTokenRows)
                 lastRenderedTable = True
         End Select
 ContinueItem:
@@ -187,6 +196,23 @@ ContinueItem:
     Set rowKinds("header") = headerRows
     Set rowKinds("section") = sectionRows
     Set rowKinds("content") = contentRows
+
+    For Each tokenName In rowKindTokenRows.Keys
+        Set tokenRows = rowKindTokenRows(CStr(tokenName))
+        If tokenRows Is Nothing Then GoTo ContinueToken
+
+        If rowKinds.Exists(CStr(tokenName)) Then
+            Set tokenRowsCollection = rowKinds(CStr(tokenName))
+        Else
+            Set tokenRowsCollection = New Collection
+            Set rowKinds(CStr(tokenName)) = tokenRowsCollection
+        End If
+
+        For Each rowKey In tokenRows.Keys
+            tokenRowsCollection.Add CLng(rowKey)
+        Next rowKey
+ContinueToken:
+    Next tokenName
 
     ex_ScriptIO.m_SetObject inputObject, INPUT_KEY_RESULT_TABLES, resultTables
     ex_ScriptIO.m_SetObject inputObject, INPUT_KEY_LAYOUT_WORKSHEET, ws
@@ -268,7 +294,9 @@ Private Function mp_RenderTableBlock( _
     ByVal headerRows As Collection, _
     ByVal sectionRows As Collection, _
     ByVal contentRows As Collection, _
-    ByVal resultFieldRanges As Collection _
+    ByVal resultFieldRanges As Collection, _
+    ByVal cfg As Object, _
+    ByVal rowKindTokenRows As Object _
 ) As Long
     Dim rowIndex As Long
     Dim sectionRow As Long
@@ -317,13 +345,15 @@ Private Function mp_RenderTableBlock( _
             ex_Messaging.m_RegisterResultRowAnchor ws, rowAnchorName, rowIndex
         End If
 
+        mp_RegisterRowKindTokens rowObj.Kind, rowIndex, rowKindTokenRows
+
         rowIndex = rowIndex + 1
     Next i
 
     tableEndRow = rowIndex - 1
     If tableEndRow < sectionRow Then tableEndRow = sectionRow
     ex_Messaging.m_RegisterResultTableAnchor ws, resultTable.TableRef, sectionRow, tableEndRow
-    mp_AddRenderedFieldRanges resultFieldRanges, resultTable, fieldAliases, sectionRow + 1, tableEndRow
+    mp_AddRenderedFieldRanges resultFieldRanges, resultTable, fieldAliases, sectionRow + 1, tableEndRow, cfg
 
     mp_RenderTableBlock = rowIndex
 End Function
@@ -333,12 +363,13 @@ Private Sub mp_AddRenderedFieldRanges( _
     ByVal resultTable As obj_ResultTable, _
     ByVal fieldAliases As Collection, _
     ByVal rowStart As Long, _
-    ByVal rowEnd As Long _
+    ByVal rowEnd As Long, _
+    ByVal cfg As Object _
 )
     Dim i As Long
     Dim fieldAlias As String
     Dim mapKey As String
-    Dim target As Object
+    Dim isVirtualField As Boolean
 
     If resultFieldRanges Is Nothing Then Exit Sub
     If resultTable Is Nothing Then Exit Sub
@@ -358,17 +389,144 @@ Private Sub mp_AddRenderedFieldRanges( _
         End If
         On Error GoTo 0
 
-        Set target = CreateObject("Scripting.Dictionary")
-        target.CompareMode = 1
-        target("MapKey") = CStr(mapKey)
-        target("ColumnIndex") = CLng(i)
-        target("RowStart") = CLng(rowStart)
-        target("RowEnd") = CLng(rowEnd)
-
-        resultFieldRanges.Add target
+        isVirtualField = mp_IsVirtualFieldByAlias(resultTable, fieldAlias, cfg)
+        If isVirtualField Then
+            mp_AddRenderedFieldTarget resultFieldRanges, CStr(mapKey), CLng(i), CLng(rowStart), CLng(rowStart), "header|virtual"
+            If rowEnd >= (rowStart + 1) Then
+                mp_AddRenderedFieldTarget resultFieldRanges, CStr(mapKey), CLng(i), CLng(rowStart + 1), CLng(rowEnd), "content|virtual"
+            End If
+        Else
+            mp_AddRenderedFieldTarget resultFieldRanges, CStr(mapKey), CLng(i), CLng(rowStart), CLng(rowEnd)
+        End If
 ContinueField:
     Next i
 End Sub
+
+Private Sub mp_AddRenderedFieldTarget( _
+    ByVal resultFieldRanges As Collection, _
+    ByVal mapKey As String, _
+    ByVal columnIndex As Long, _
+    ByVal rowStart As Long, _
+    ByVal rowEnd As Long, _
+    Optional ByVal fieldKind As String = vbNullString _
+)
+    Dim target As Object
+
+    If resultFieldRanges Is Nothing Then Exit Sub
+    If columnIndex <= 0 Then Exit Sub
+    If rowStart <= 0 Then Exit Sub
+    If rowEnd < rowStart Then rowEnd = rowStart
+
+    Set target = CreateObject("Scripting.Dictionary")
+    target.CompareMode = 1
+    target("MapKey") = CStr(mapKey)
+    target("ColumnIndex") = CLng(columnIndex)
+    target("RowStart") = CLng(rowStart)
+    target("RowEnd") = CLng(rowEnd)
+    fieldKind = LCase$(Trim$(fieldKind))
+    If Len(fieldKind) > 0 Then target("Kind") = fieldKind
+
+    resultFieldRanges.Add target
+End Sub
+
+Private Sub mp_RegisterRowKindTokens( _
+    ByVal rowKindText As String, _
+    ByVal rowIndex As Long, _
+    ByVal rowKindTokenRows As Object _
+)
+    Dim kindTokens As Variant
+    Dim token As Variant
+    Dim tokenText As String
+    Dim rowsMap As Object
+
+    If rowKindTokenRows Is Nothing Then Exit Sub
+    If rowIndex <= 0 Then Exit Sub
+
+    rowKindText = Trim$(rowKindText)
+    If Len(rowKindText) = 0 Then Exit Sub
+
+    kindTokens = Split(rowKindText, "|")
+    For Each token In kindTokens
+        tokenText = LCase$(Trim$(CStr(token)))
+        If Len(tokenText) = 0 Then GoTo ContinueToken
+
+        If rowKindTokenRows.Exists(tokenText) Then
+            Set rowsMap = rowKindTokenRows(tokenText)
+        Else
+            Set rowsMap = CreateObject("Scripting.Dictionary")
+            rowsMap.CompareMode = 1
+            Set rowKindTokenRows(tokenText) = rowsMap
+        End If
+        rowsMap(CStr(rowIndex)) = True
+ContinueToken:
+    Next token
+End Sub
+
+Private Function mp_IsVirtualFieldByAlias( _
+    ByVal resultTable As obj_ResultTable, _
+    ByVal fieldAlias As String, _
+    ByVal cfg As Object _
+) As Boolean
+    Dim mapKey As String
+    Dim sourceAlias As String
+    Dim tableAlias As String
+    Dim mappedFieldAlias As String
+    Dim resolvedSourceAlias As String
+
+    If resultTable Is Nothing Then Exit Function
+    If cfg Is Nothing Then Exit Function
+
+    fieldAlias = Trim$(fieldAlias)
+    If Len(fieldAlias) = 0 Then Exit Function
+
+    On Error Resume Next
+    If resultTable.HasFieldAlias(fieldAlias) Then
+        mapKey = Trim$(resultTable.MapKeyByAlias(fieldAlias))
+    End If
+    On Error GoTo 0
+
+    If Not mp_TryParseMapKeyParts(mapKey, sourceAlias, tableAlias, mappedFieldAlias) Then Exit Function
+    If Len(mappedFieldAlias) = 0 Then mappedFieldAlias = fieldAlias
+
+    mp_IsVirtualFieldByAlias = ex_FetchDslEngine.m_IsVirtualFieldAlias(cfg, sourceAlias, tableAlias, mappedFieldAlias)
+    If mp_IsVirtualFieldByAlias Then Exit Function
+
+    On Error Resume Next
+    resolvedSourceAlias = Trim$(ex_ConfigVirtualSources.m_FindSourceAliasForTable(cfg, tableAlias, "ex_ResultLayoutActions"))
+    On Error GoTo 0
+    If Len(resolvedSourceAlias) = 0 Then Exit Function
+    If StrComp(resolvedSourceAlias, sourceAlias, vbTextCompare) = 0 Then Exit Function
+
+    mp_IsVirtualFieldByAlias = ex_FetchDslEngine.m_IsVirtualFieldAlias(cfg, resolvedSourceAlias, tableAlias, mappedFieldAlias)
+End Function
+
+Private Function mp_TryParseMapKeyParts( _
+    ByVal mapKey As String, _
+    ByRef outSourceAlias As String, _
+    ByRef outTableAlias As String, _
+    ByRef outFieldAlias As String _
+) As Boolean
+    Dim rx As Object
+    Dim matches As Object
+
+    mapKey = Trim$(mapKey)
+    If Len(mapKey) = 0 Then Exit Function
+
+    Set rx = CreateObject("VBScript.RegExp")
+    rx.Global = False
+    rx.IgnoreCase = True
+    rx.Pattern = "^\s*([^\.]+)\.Sheet\[([^\]]+)\]\.Map\[([^\]]+)\]\s*$"
+
+    If Not rx.Test(mapKey) Then Exit Function
+    Set matches = rx.Execute(mapKey)
+    If matches.Count = 0 Then Exit Function
+
+    outSourceAlias = Trim$(CStr(matches(0).SubMatches(0)))
+    outTableAlias = Trim$(CStr(matches(0).SubMatches(1)))
+    outFieldAlias = Trim$(CStr(matches(0).SubMatches(2)))
+
+    mp_TryParseMapKeyParts = (Len(outSourceAlias) > 0 And Len(outTableAlias) > 0 And Len(outFieldAlias) > 0)
+End Function
 
 Private Function mp_BuildTablesByRef(ByVal resultTables As Collection) As Object
     Dim result As Object
