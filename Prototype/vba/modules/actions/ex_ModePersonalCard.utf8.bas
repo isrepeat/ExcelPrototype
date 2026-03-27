@@ -1262,8 +1262,18 @@ Private Function mp_WriteEventsGeneric( _
     Next outIndex
 
     ' ADO/OLEDB may truncate long text cells for some Excel columns.
-    ' Refresh only candidate cells (identified by long ADO text values) from worksheet snapshot.
-    mp_TryHydrateEventsOutValuesFromWorksheet outValues, rowCount, fields, cfg, wbCache, longTextRuntimeCache, sourceAlias, tableAlias, adoObjectName, fio
+    ' Restore candidate cells from worksheet snapshot via shared SQL engine API.
+    ex_ResultSqlEngine.m_HydrateAdoLongTextFromWorksheetIfNeeded _
+        outValues, _
+        rowCount, _
+        fields, _
+        cfg, _
+        sourceAlias, _
+        tableAlias, _
+        adoObjectName, _
+        fio, _
+        wbCache, _
+        longTextRuntimeCache
 
     stepName = "collect-fetch-metadata"
     fetchDslApplied = mp_AppendFetchRowsFromSource( _
@@ -1430,20 +1440,20 @@ Private Function mp_BuildAdoRangeReferenceFromMarkers( _
     wb.Windows(1).Visible = False
     On Error GoTo EH
 
-    Set ws = mp_FindWorksheetByConfiguredAdoName(wb, configuredSheetName)
+    Set ws = ex_ResultSqlEngine.m_FindWorksheetByConfiguredAdoName(wb, configuredSheetName)
     If ws Is Nothing Then
         Err.Raise vbObjectError + 1749, "ex_ModePersonalCard", _
             "Worksheet for configured SheetName '" & configuredSheetName & "' was not found in source '" & sourceAlias & "'."
     End If
 
-    Set startCell = mp_FindFirstMarkerCell(ws, startMarker)
+    Set startCell = ex_ResultSqlEngine.m_FindFirstMarkerCell(ws, startMarker)
     If startCell Is Nothing Then
         Err.Raise vbObjectError + 1750, "ex_ModePersonalCard", _
             "Start marker '" & startMarker & "' was not found on sheet '" & ws.Name & "'."
     End If
 
     markerCol = startCell.Column
-    Set endCell = mp_FindMarkerCellInColumnAfterRow(ws, markerCol, endMarker, startCell.Row)
+    Set endCell = ex_ResultSqlEngine.m_FindMarkerCellInColumnAfterRow(ws, markerCol, endMarker, startCell.Row)
     If endCell Is Nothing Then
         Err.Raise vbObjectError + 1751, "ex_ModePersonalCard", _
             "End marker '" & endMarker & "' was not found below start marker '" & startMarker & "' in column " & CStr(markerCol) & " on sheet '" & ws.Name & "'."
@@ -1509,120 +1519,6 @@ EH:
     If errNo <> 0 Then Err.Raise errNo, errSrc, innerErr
 End Function
 
-Private Function mp_FindWorksheetByConfiguredAdoName(ByVal wb As Workbook, ByVal configuredSheetName As String) As Worksheet
-    Dim ws As Worksheet
-    Dim needle As String
-    Dim needleAlt As String
-
-    needle = mp_ExtractSheetNameToken(configuredSheetName)
-    If Len(needle) = 0 Then Exit Function
-    needleAlt = Replace$(needle, "#", ".")
-
-    For Each ws In wb.Worksheets
-        If StrComp(Trim$(ws.Name), needle, vbTextCompare) = 0 Then
-            Set mp_FindWorksheetByConfiguredAdoName = ws
-            Exit Function
-        End If
-        If StrComp(Replace$(Trim$(ws.Name), ".", "#"), needle, vbTextCompare) = 0 Then
-            Set mp_FindWorksheetByConfiguredAdoName = ws
-            Exit Function
-        End If
-        If StrComp(Trim$(ws.Name), needleAlt, vbTextCompare) = 0 Then
-            Set mp_FindWorksheetByConfiguredAdoName = ws
-            Exit Function
-        End If
-    Next ws
-End Function
-
-Private Function mp_FindFirstMarkerCell(ByVal ws As Worksheet, ByVal markerText As String) As Range
-    Dim searchRange As Range
-
-    If ws Is Nothing Then Exit Function
-    markerText = Trim$(markerText)
-    If Len(markerText) = 0 Then Exit Function
-
-    Set searchRange = ws.UsedRange
-    If searchRange Is Nothing Then Exit Function
-
-    Set mp_FindFirstMarkerCell = searchRange.Find( _
-        What:=markerText, _
-        After:=searchRange.Cells(searchRange.Cells.Count), _
-        LookIn:=xlValues, _
-        LookAt:=xlWhole, _
-        SearchOrder:=xlByRows, _
-        SearchDirection:=xlNext, _
-        MatchCase:=False)
-End Function
-
-Private Function mp_FindMarkerCellInColumnAfterRow( _
-    ByVal ws As Worksheet, _
-    ByVal markerColumn As Long, _
-    ByVal markerText As String, _
-    ByVal minExclusiveRow As Long _
-) As Range
-    Dim searchRange As Range
-    Dim firstFound As Range
-    Dim currentFound As Range
-    Dim firstAddress As String
-    Dim bestRow As Long
-
-    If ws Is Nothing Then Exit Function
-    If markerColumn <= 0 Then Exit Function
-    markerText = Trim$(markerText)
-    If Len(markerText) = 0 Then Exit Function
-
-    On Error Resume Next
-    Set searchRange = Intersect(ws.Columns(markerColumn), ws.UsedRange)
-    On Error GoTo 0
-    If searchRange Is Nothing Then
-        Set searchRange = ws.Columns(markerColumn)
-    End If
-
-    Set firstFound = searchRange.Find( _
-        What:=markerText, _
-        After:=searchRange.Cells(searchRange.Cells.Count), _
-        LookIn:=xlValues, _
-        LookAt:=xlWhole, _
-        SearchOrder:=xlByRows, _
-        SearchDirection:=xlNext, _
-        MatchCase:=False)
-    If firstFound Is Nothing Then Exit Function
-
-    bestRow = 0
-    firstAddress = firstFound.Address
-    Set currentFound = firstFound
-
-    Do
-        If currentFound.Row > minExclusiveRow Then
-            If bestRow = 0 Or currentFound.Row < bestRow Then
-                bestRow = currentFound.Row
-                Set mp_FindMarkerCellInColumnAfterRow = currentFound
-            End If
-        End If
-        Set currentFound = searchRange.FindNext(currentFound)
-        If currentFound Is Nothing Then Exit Do
-    Loop While currentFound.Address <> firstAddress
-End Function
-
-Private Function mp_ExtractSheetNameToken(ByVal configuredSheetName As String) As String
-    Dim token As String
-    Dim dollarPos As Long
-
-    token = Trim$(configuredSheetName)
-    If Len(token) = 0 Then Exit Function
-
-    If Left$(token, 1) = "[" And Right$(token, 1) = "]" Then
-        token = Mid$(token, 2, Len(token) - 2)
-    End If
-    token = mp_CleanAdoSchemaObjectName(token)
-
-    dollarPos = InStr(1, token, "$", vbBinaryCompare)
-    If dollarPos > 0 Then
-        token = Left$(token, dollarPos - 1)
-    End If
-
-    mp_ExtractSheetNameToken = Trim$(token)
-End Function
 
 Private Function mp_BuildAdoSheetToken(ByVal configuredSheetName As String) As String
     Dim token As String
@@ -3149,35 +3045,6 @@ Private Function mp_ToCellValue(ByVal valueIn As Variant, Optional ByVal adoFiel
     mp_ToCellValue = ex_SqlAdoHelpers.m_ToNormalizedCellValue(valueIn, adoFieldType)
 End Function
 
-Private Function mp_GetWorkbookForSource(ByVal wbCache As Object, ByVal cfg As Object, ByVal sourceAlias As String) As Workbook
-    Dim sourcePath As String
-    Dim snapshotPath As String
-
-    If wbCache.Exists(sourceAlias) Then
-        Set mp_GetWorkbookForSource = wbCache(sourceAlias)
-        Exit Function
-    End If
-
-    sourcePath = mp_GetResolvedSourcePath(cfg, sourceAlias)
-
-    If Dir(sourcePath) = vbNullString Then
-        Err.Raise vbObjectError + 1360, "ex_ModePersonalCard", "Source file not found: " & sourcePath
-    End If
-
-    snapshotPath = ex_SourceSnapshot.m_GetSnapshotPath(sourcePath, "Source." & sourceAlias)
-
-    Dim wb As Workbook
-    Set wb = Workbooks.Open(Filename:=snapshotPath, ReadOnly:=True, UpdateLinks:=0)
-
-    On Error Resume Next
-    wb.Windows(1).Visible = False
-    On Error GoTo 0
-
-    wbCache.Add sourceAlias, wb
-    Set mp_GetWorkbookForSource = wb
-
-End Function
-
 Private Sub mp_CloseWorkbooks(ByVal wbCache As Object)
 
     If wbCache Is Nothing Then Exit Sub
@@ -3853,121 +3720,6 @@ Private Function mp_GetSourcePathSignatureValue(ByVal cfg As Object, ByVal sourc
 EH:
     mp_GetSourcePathSignatureValue = "#ERR:" & CStr(Err.Number) & ":" & Err.Description
 End Function
-
-Private Sub mp_TryHydrateEventsOutValuesFromWorksheet( _
-    ByRef outValues As Variant, _
-    ByVal rowCount As Long, _
-    ByVal fields As Variant, _
-    ByVal cfg As Object, _
-    ByVal wbCache As Object, _
-    ByVal longTextRuntimeCache As Object, _
-    ByVal sourceAlias As String, _
-    ByVal tableAlias As String, _
-    ByVal configuredSheetName As String, _
-    ByVal keyValue As String _
-)
-    Dim rangeStartMarker As String
-    Dim rangeEndMarker As String
-    Dim wb As Workbook
-    Dim ws As Worksheet
-    Dim startCell As Range
-    Dim endCell As Range
-    Dim headerRow As Long
-    Dim dataStartRow As Long
-    Dim dataEndRow As Long
-    Dim markerCol As Long
-    Dim keyAlias As String
-    Dim keyHeaderName As String
-    Dim keyCol As Long
-    Dim hasUncachedLongText As Boolean
-    Dim i As Long
-    Dim fieldAlias As String
-    Dim fieldHeaderName As String
-    Dim fieldCol As Long
-    Dim fieldColsByIdx As Object
-
-    On Error GoTo SafeExit
-
-    If rowCount <= 0 Then Exit Sub
-    If mp_IsEmptyVariantArray(fields) Then Exit Sub
-    If Len(Trim$(keyValue)) = 0 Then Exit Sub
-    If mp_IsExplicitAdoRangeReference(configuredSheetName) Then Exit Sub
-    If wbCache Is Nothing Then Exit Sub
-
-    hasUncachedLongText = ex_ResultSqlEngine.m_ApplyLongTextRuntimeCache( _
-        outValues, _
-        rowCount, _
-        fields, _
-        sourceAlias, _
-        tableAlias, _
-        configuredSheetName, _
-        keyValue, _
-        longTextRuntimeCache)
-    If Not hasUncachedLongText Then Exit Sub
-
-    rangeStartMarker = mp_GetCfgOptional(cfg, sourceAlias & ".Sheet[" & tableAlias & "].RangeStartMarker", vbNullString)
-    rangeEndMarker = mp_GetCfgOptional(cfg, sourceAlias & ".Sheet[" & tableAlias & "].RangeEndMarker", vbNullString)
-    If Len(rangeStartMarker) = 0 Or Len(rangeEndMarker) = 0 Then Exit Sub
-
-    Set wb = mp_GetWorkbookForSource(wbCache, cfg, sourceAlias)
-    If wb Is Nothing Then Exit Sub
-
-    Set ws = mp_FindWorksheetByConfiguredAdoName(wb, configuredSheetName)
-    If ws Is Nothing Then GoTo SafeExit
-
-    Set startCell = mp_FindFirstMarkerCell(ws, rangeStartMarker)
-    If startCell Is Nothing Then GoTo SafeExit
-
-    markerCol = startCell.Column
-    Set endCell = mp_FindMarkerCellInColumnAfterRow(ws, markerCol, rangeEndMarker, startCell.Row)
-    If endCell Is Nothing Then GoTo SafeExit
-
-    headerRow = startCell.Row - 1
-    dataStartRow = startCell.Row
-    dataEndRow = endCell.Row - 1
-    If headerRow < 1 Or dataEndRow < dataStartRow Then GoTo SafeExit
-
-    keyAlias = mp_GetCfgRequired(cfg, sourceAlias & ".Sheet[" & tableAlias & "].Key")
-    keyHeaderName = mp_GetMappedSourceHeader(cfg, sourceAlias, tableAlias, keyAlias)
-    keyCol = ex_ResultSqlEngine.m_FindHeaderColumnInWorksheetRow(ws, headerRow, markerCol, keyHeaderName)
-    If keyCol <= 0 Then GoTo SafeExit
-
-    Set fieldColsByIdx = CreateObject("Scripting.Dictionary")
-    fieldColsByIdx.CompareMode = 1
-
-    For i = LBound(fields) To UBound(fields)
-        fieldAlias = Trim$(CStr(fields(i)))
-        If Len(fieldAlias) = 0 Then GoTo ContinueFieldAlias
-        If mp_IsVirtualFieldAlias(cfg, sourceAlias, tableAlias, fieldAlias) Then GoTo ContinueFieldAlias
-
-        fieldHeaderName = mp_GetMappedSourceHeader(cfg, sourceAlias, tableAlias, fieldAlias)
-        fieldCol = ex_ResultSqlEngine.m_FindHeaderColumnInWorksheetRow(ws, headerRow, markerCol, fieldHeaderName)
-        If fieldCol > 0 Then
-            fieldColsByIdx(CStr(i)) = fieldCol
-        End If
-ContinueFieldAlias:
-    Next i
-
-    If fieldColsByIdx.Count = 0 Then Exit Sub
-
-    ex_ResultSqlEngine.m_TryHydrateLongAdoValuesFromWorksheet _
-        outValues, _
-        rowCount, _
-        fields, _
-        fieldColsByIdx, _
-        ws, _
-        dataStartRow, _
-        dataEndRow, _
-        keyCol, _
-        keyValue, _
-        sourceAlias, _
-        tableAlias, _
-        configuredSheetName, _
-        longTextRuntimeCache
-
-SafeExit:
-    On Error GoTo 0
-End Sub
 
 Private Function mp_HasPlaceholderTokens(ByVal valueText As String) As Boolean
     mp_HasPlaceholderTokens = ex_ResultSqlEngine.m_HasPlaceholderTokens(valueText)
