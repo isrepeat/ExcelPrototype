@@ -84,6 +84,8 @@ Public Function m_RunMode(ByVal cfg As Object, ByVal modeInput As Object, ByVal 
     Dim outputStyle As ex_SheetStylesXmlProvider.t_OutputSheetStyle
     Dim summaryTopRow As Long
     Dim useResultLayoutScript As Boolean
+    Dim wbCache As Object
+    Dim longTextRuntimeCache As Object
     Dim errNumber As Long
     Dim errSource As String
     Dim errDescription As String
@@ -128,6 +130,9 @@ Public Function m_RunMode(ByVal cfg As Object, ByVal modeInput As Object, ByVal 
     Set contentRows = New Collection
     Set resultTables = New Collection
     Set resultTableRefs = New Collection
+    Set wbCache = CreateObject("Scripting.Dictionary")
+    wbCache.CompareMode = 1
+    Set longTextRuntimeCache = ex_ResultSqlEngine.m_GetLongTextRuntimeCache("multisources")
 
     rowIndex = summaryTopRow
     For i = 1 To outputEntries.Count
@@ -203,7 +208,23 @@ Public Function m_RunMode(ByVal cfg As Object, ByVal modeInput As Object, ByVal 
         Set rs = CreateObject("ADODB.Recordset")
         rs.Open selectSql, conn, 0, 1
 
-        hasRows = mp_AppendFilteredRows(summarySheet, rs, rowIndex, contentRows, resultTable, sourceAlias, tableAlias, fields, fieldOrdinals, keyFieldAlias, commonKey, useLikeMatch)
+        hasRows = mp_AppendFilteredRows( _
+            summarySheet, _
+            rs, _
+            rowIndex, _
+            contentRows, _
+            resultTable, _
+            sourceAlias, _
+            tableAlias, _
+            fields, _
+            fieldOrdinals, _
+            keyFieldAlias, _
+            commonKey, _
+            useLikeMatch, _
+            cfg, _
+            sheetName, _
+            wbCache, _
+            longTextRuntimeCache)
         If hasRows Then
             rowIndex = mp_GetNextOutputRow(summarySheet)
         Else
@@ -245,6 +266,8 @@ Public Function m_RunMode(ByVal cfg As Object, ByVal modeInput As Object, ByVal 
     ex_ScriptIO.m_SetObject modeInput, SCRIPT_INPUT_RESULT_TABLES_KEY, resultTables
     ex_ScriptIO.m_SetObject modeInput, "__ResultTableRefs", resultTableRefs
 
+    mp_CloseWorkbooks wbCache
+
     Set m_RunMode = modeResult
     Exit Function
 
@@ -266,6 +289,7 @@ EH:
     If Not conn Is Nothing Then
         If conn.State <> 0 Then conn.Close
     End If
+    mp_CloseWorkbooks wbCache
     On Error GoTo 0
 
     On Error Resume Next
@@ -854,7 +878,11 @@ Private Function mp_AppendFilteredRows( _
     ByVal fieldOrdinals As Object, _
     ByVal keyFieldAlias As String, _
     ByVal keyValue As String, _
-    Optional ByVal useLike As Boolean = False _
+    Optional ByVal useLike As Boolean = False, _
+    Optional ByVal cfg As Object = Nothing, _
+    Optional ByVal configuredSheetName As String = vbNullString, _
+    Optional ByVal wbCache As Object = Nothing, _
+    Optional ByVal runtimeCache As Object = Nothing _
 ) As Boolean
     mp_AppendFilteredRows = ex_ResultSqlEngine.m_AppendFilteredRows( _
         ws, _
@@ -868,8 +896,27 @@ Private Function mp_AppendFilteredRows( _
         fieldOrdinals, _
         keyFieldAlias, _
         keyValue, _
-        useLike)
+        useLike, _
+        cfg, _
+        configuredSheetName, _
+        wbCache, _
+        runtimeCache)
 End Function
+
+Private Sub mp_CloseWorkbooks(ByVal wbCache As Object)
+    Dim key As Variant
+    Dim wb As Workbook
+
+    If wbCache Is Nothing Then Exit Sub
+
+    On Error Resume Next
+    For Each key In wbCache.Keys
+        Set wb = wbCache(key)
+        If Not wb Is Nothing Then wb.Close SaveChanges:=False
+    Next key
+    wbCache.RemoveAll
+    On Error GoTo 0
+End Sub
 
 Private Function mp_AsText(ByVal valueIn As Variant, Optional ByVal adoFieldType As Long = -1) As String
     mp_AsText = ex_SqlAdoHelpers.m_ToNormalizedText(valueIn, adoFieldType)
