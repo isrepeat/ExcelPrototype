@@ -4,6 +4,8 @@ Option Explicit
 Private Const LIKE_DIALECT_UNKNOWN As String = "unknown"
 Private Const LIKE_DIALECT_STAR As String = "star"
 Private Const LIKE_DIALECT_PERCENT As String = "percent"
+Private Const LONG_TEXT_CACHE_AMBIGUOUS As String = "#AMBIGUOUS#"
+Private Const HYDRATION_DEBUG_LOG_PATH As String = "Logs\personalcard_pipeline.log"
 
 Private g_LikeDialectByConnection As Object
 Private g_LongTextRuntimeCacheBySignature As Object
@@ -510,6 +512,249 @@ Public Function m_FindHeaderColumnInWorksheetRow( _
     m_FindHeaderColumnInWorksheetRow = -1
 End Function
 
+Public Function m_FindWorksheetByConfiguredAdoName(ByVal wb As Workbook, ByVal configuredSheetName As String) As Worksheet
+    Dim ws As Worksheet
+    Dim needle As String
+    Dim needleAlt As String
+
+    needle = mp_ExtractSheetNameToken(configuredSheetName)
+    If Len(needle) = 0 Then Exit Function
+    needleAlt = Replace$(needle, "#", ".")
+
+    For Each ws In wb.Worksheets
+        If StrComp(Trim$(ws.Name), needle, vbTextCompare) = 0 Then
+            Set m_FindWorksheetByConfiguredAdoName = ws
+            Exit Function
+        End If
+        If StrComp(Replace$(Trim$(ws.Name), ".", "#"), needle, vbTextCompare) = 0 Then
+            Set m_FindWorksheetByConfiguredAdoName = ws
+            Exit Function
+        End If
+        If StrComp(Trim$(ws.Name), needleAlt, vbTextCompare) = 0 Then
+            Set m_FindWorksheetByConfiguredAdoName = ws
+            Exit Function
+        End If
+    Next ws
+End Function
+
+Public Function m_FindFirstMarkerCell(ByVal ws As Worksheet, ByVal markerText As String) As Range
+    Dim searchRange As Range
+
+    If ws Is Nothing Then Exit Function
+    markerText = Trim$(markerText)
+    If Len(markerText) = 0 Then Exit Function
+
+    Set searchRange = ws.UsedRange
+    If searchRange Is Nothing Then Exit Function
+
+    Set m_FindFirstMarkerCell = searchRange.Find( _
+        What:=markerText, _
+        After:=searchRange.Cells(searchRange.Cells.Count), _
+        LookIn:=xlValues, _
+        LookAt:=xlWhole, _
+        SearchOrder:=xlByRows, _
+        SearchDirection:=xlNext, _
+        MatchCase:=False)
+End Function
+
+Public Function m_FindMarkerCellInColumnAfterRow( _
+    ByVal ws As Worksheet, _
+    ByVal markerColumn As Long, _
+    ByVal markerText As String, _
+    ByVal minExclusiveRow As Long _
+) As Range
+    Dim searchRange As Range
+    Dim firstFound As Range
+    Dim currentFound As Range
+    Dim firstAddress As String
+    Dim bestRow As Long
+
+    If ws Is Nothing Then Exit Function
+    If markerColumn <= 0 Then Exit Function
+    markerText = Trim$(markerText)
+    If Len(markerText) = 0 Then Exit Function
+
+    On Error Resume Next
+    Set searchRange = Intersect(ws.Columns(markerColumn), ws.UsedRange)
+    On Error GoTo 0
+    If searchRange Is Nothing Then
+        Set searchRange = ws.Columns(markerColumn)
+    End If
+
+    Set firstFound = searchRange.Find( _
+        What:=markerText, _
+        After:=searchRange.Cells(searchRange.Cells.Count), _
+        LookIn:=xlValues, _
+        LookAt:=xlWhole, _
+        SearchOrder:=xlByRows, _
+        SearchDirection:=xlNext, _
+        MatchCase:=False)
+    If firstFound Is Nothing Then Exit Function
+
+    bestRow = 0
+    firstAddress = firstFound.Address
+    Set currentFound = firstFound
+
+    Do
+        If currentFound.Row > minExclusiveRow Then
+            If bestRow = 0 Or currentFound.Row < bestRow Then
+                bestRow = currentFound.Row
+                Set m_FindMarkerCellInColumnAfterRow = currentFound
+            End If
+        End If
+        Set currentFound = searchRange.FindNext(currentFound)
+        If currentFound Is Nothing Then Exit Do
+    Loop While currentFound.Address <> firstAddress
+End Function
+
+Public Sub m_HydrateAdoLongTextFromWorksheetIfNeeded( _
+    ByRef outValues As Variant, _
+    ByVal rowCount As Long, _
+    ByVal fields As Variant, _
+    ByVal cfg As Object, _
+    ByVal sourceAlias As String, _
+    ByVal tableAlias As String, _
+    ByVal configuredSheetName As String, _
+    ByVal keyValue As String, _
+    ByVal wbCache As Object, _
+    ByVal runtimeCache As Object _
+)
+    Dim hasUncachedLongText As Boolean
+    Dim rangeStartMarker As String
+    Dim rangeEndMarker As String
+    Dim wb As Workbook
+    Dim ws As Worksheet
+    Dim startCell As Range
+    Dim endCell As Range
+    Dim markerCol As Long
+    Dim headerRow As Long
+    Dim dataStartRow As Long
+    Dim dataEndRow As Long
+    Dim keyAlias As String
+    Dim keyHeaderName As String
+    Dim keyCol As Long
+    Dim fieldColsByIdx As Object
+
+    On Error GoTo SafeExit
+
+    If rowCount <= 0 Then
+        mp_DebugHydrationLog "hydrate", "skip reason=rowCount<=0 src='" & sourceAlias & "' tbl='" & tableAlias & "'"
+        Exit Sub
+    End If
+    If m_IsEmptyVariantArray(fields) Then
+        mp_DebugHydrationLog "hydrate", "skip reason=fields-empty src='" & sourceAlias & "' tbl='" & tableAlias & "'"
+        Exit Sub
+    End If
+    If Len(Trim$(keyValue)) = 0 Then
+        mp_DebugHydrationLog "hydrate", "skip reason=empty-key src='" & sourceAlias & "' tbl='" & tableAlias & "'"
+        Exit Sub
+    End If
+    If m_IsExplicitAdoRangeReference(configuredSheetName) Then
+        mp_DebugHydrationLog "hydrate", "skip reason=explicit-range src='" & sourceAlias & "' tbl='" & tableAlias & "' sheet='" & configuredSheetName & "'"
+        Exit Sub
+    End If
+    If wbCache Is Nothing Then
+        mp_DebugHydrationLog "hydrate", "skip reason=wbCache-nothing src='" & sourceAlias & "' tbl='" & tableAlias & "'"
+        Exit Sub
+    End If
+
+    mp_DebugHydrationLog "hydrate", "start src='" & sourceAlias & "' tbl='" & tableAlias & "' key='" & mp_DebugToken(keyValue, 80) & "' rows=" & CStr(rowCount)
+
+    hasUncachedLongText = m_ApplyLongTextRuntimeCache( _
+        outValues, _
+        rowCount, _
+        fields, _
+        sourceAlias, _
+        tableAlias, _
+        configuredSheetName, _
+        keyValue, _
+        runtimeCache)
+    If Not hasUncachedLongText Then Exit Sub
+
+    rangeStartMarker = m_GetCfgOptional(cfg, sourceAlias & ".Sheet[" & tableAlias & "].RangeStartMarker", vbNullString)
+    rangeEndMarker = m_GetCfgOptional(cfg, sourceAlias & ".Sheet[" & tableAlias & "].RangeEndMarker", vbNullString)
+    If Len(rangeStartMarker) = 0 Or Len(rangeEndMarker) = 0 Then
+        mp_DebugHydrationLog "hydrate", "skip reason=markers-missing src='" & sourceAlias & "' tbl='" & tableAlias & "'"
+        Exit Sub
+    End If
+
+    Set wb = mp_GetWorkbookForSource(wbCache, cfg, sourceAlias)
+    If wb Is Nothing Then
+        mp_DebugHydrationLog "hydrate", "skip reason=workbook-not-opened src='" & sourceAlias & "' tbl='" & tableAlias & "'"
+        Exit Sub
+    End If
+
+    Set ws = m_FindWorksheetByConfiguredAdoName(wb, configuredSheetName)
+    If ws Is Nothing Then
+        mp_DebugHydrationLog "hydrate", "skip reason=worksheet-not-found src='" & sourceAlias & "' tbl='" & tableAlias & "' sheet='" & configuredSheetName & "'"
+        Exit Sub
+    End If
+
+    Set startCell = m_FindFirstMarkerCell(ws, rangeStartMarker)
+    If startCell Is Nothing Then
+        mp_DebugHydrationLog "hydrate", "skip reason=start-marker-not-found src='" & sourceAlias & "' tbl='" & tableAlias & "' marker='" & mp_DebugToken(rangeStartMarker, 60) & "'"
+        Exit Sub
+    End If
+
+    markerCol = startCell.Column
+    Set endCell = m_FindMarkerCellInColumnAfterRow(ws, markerCol, rangeEndMarker, startCell.Row)
+    If endCell Is Nothing Then
+        mp_DebugHydrationLog "hydrate", "skip reason=end-marker-not-found src='" & sourceAlias & "' tbl='" & tableAlias & "' marker='" & mp_DebugToken(rangeEndMarker, 60) & "'"
+        Exit Sub
+    End If
+
+    headerRow = startCell.Row - 1
+    dataStartRow = startCell.Row
+    dataEndRow = endCell.Row - 1
+    If headerRow < 1 Or dataEndRow < dataStartRow Then
+        mp_DebugHydrationLog "hydrate", "skip reason=invalid-data-range src='" & sourceAlias & "' tbl='" & tableAlias & "'"
+        Exit Sub
+    End If
+
+    keyAlias = m_GetCfgRequired(cfg, sourceAlias & ".Sheet[" & tableAlias & "].Key", "ex_ResultSqlEngine", vbObjectError + 1370, vbObjectError + 1371)
+    keyHeaderName = mp_GetMappedSourceHeaderForHydration(cfg, sourceAlias, tableAlias, keyAlias)
+    keyCol = m_FindHeaderColumnInWorksheetRow(ws, headerRow, markerCol, keyHeaderName)
+    If keyCol <= 0 Then
+        mp_DebugHydrationLog "hydrate", "skip reason=key-column-not-found src='" & sourceAlias & "' tbl='" & tableAlias & "' keyAlias='" & keyAlias & "'"
+        Exit Sub
+    End If
+
+    Set fieldColsByIdx = mp_FindFieldColumnsForHydration(fields, cfg, sourceAlias, tableAlias, ws, headerRow, markerCol)
+    If fieldColsByIdx Is Nothing Then
+        mp_DebugHydrationLog "hydrate", "skip reason=field-map-nothing src='" & sourceAlias & "' tbl='" & tableAlias & "'"
+        Exit Sub
+    End If
+    If fieldColsByIdx.Count = 0 Then
+        mp_DebugHydrationLog "hydrate", "skip reason=field-map-empty src='" & sourceAlias & "' tbl='" & tableAlias & "'"
+        Exit Sub
+    End If
+
+    mp_DebugHydrationLog "hydrate", "worksheet-ready src='" & sourceAlias & "' tbl='" & tableAlias & "' dataRows=" & CStr(dataEndRow - dataStartRow + 1) & " mappedFields=" & CStr(fieldColsByIdx.Count)
+
+    m_TryHydrateLongAdoValuesFromWorksheet _
+        outValues, _
+        rowCount, _
+        fields, _
+        fieldColsByIdx, _
+        ws, _
+        dataStartRow, _
+        dataEndRow, _
+        keyCol, _
+        keyValue, _
+        sourceAlias, _
+        tableAlias, _
+        configuredSheetName, _
+        runtimeCache
+
+    mp_DebugHydrationLog "hydrate", "done src='" & sourceAlias & "' tbl='" & tableAlias & "'"
+
+SafeExit:
+    If Err.Number <> 0 Then
+        mp_DebugHydrationLog "hydrate", "error src='" & sourceAlias & "' tbl='" & tableAlias & "' err=['" & Err.Source & "' #" & CStr(Err.Number) & "] " & Err.Description
+    End If
+    On Error GoTo 0
+End Sub
+
 Public Function m_ApplyLongTextRuntimeCache( _
     ByRef outValues As Variant, _
     ByVal rowCount As Long, _
@@ -525,7 +770,14 @@ Public Function m_ApplyLongTextRuntimeCache( _
     Dim i As Long
     Dim outCol As Long
     Dim outValueText As String
+    Dim prefixToken As String
     Dim cacheKey As String
+    Dim looseCacheKey As String
+    Dim cachedText As String
+    Dim candidates As Long
+    Dim strictHits As Long
+    Dim looseHits As Long
+    Dim misses As Long
 
     If rowCount <= 0 Then Exit Function
     If m_IsEmptyVariantArray(fields) Then Exit Function
@@ -539,15 +791,43 @@ Public Function m_ApplyLongTextRuntimeCache( _
             outValueText = CStr(outValues(outIndex, outCol))
 
             If Len(outValueText) > 250 Then
-                cacheKey = mp_BuildLongTextRuntimeCacheKey(sourceAlias, tableAlias, configuredSheetName, keyValue, outIndex, i)
-                If hasRuntimeCache And runtimeCache.Exists(cacheKey) Then
-                    outValues(outIndex, outCol) = CStr(runtimeCache(cacheKey))
-                Else
-                    m_ApplyLongTextRuntimeCache = True
+                candidates = candidates + 1
+                prefixToken = mp_BuildLongTextPrefixToken(outValueText)
+                cacheKey = mp_BuildLongTextRuntimeCacheKey(sourceAlias, tableAlias, configuredSheetName, keyValue, outIndex, i, prefixToken)
+                looseCacheKey = mp_BuildLongTextLooseCacheKey(sourceAlias, tableAlias, configuredSheetName, keyValue, i, prefixToken)
+
+                If hasRuntimeCache Then
+                    If runtimeCache.Exists(cacheKey) Then
+                        strictHits = strictHits + 1
+                        outValues(outIndex, outCol) = CStr(runtimeCache(cacheKey))
+                        GoTo ContinueCacheCandidate
+                    End If
+
+                    If runtimeCache.Exists(looseCacheKey) Then
+                        cachedText = CStr(runtimeCache(looseCacheKey))
+                        If StrComp(cachedText, LONG_TEXT_CACHE_AMBIGUOUS, vbBinaryCompare) <> 0 Then
+                            looseHits = looseHits + 1
+                            outValues(outIndex, outCol) = cachedText
+                            GoTo ContinueCacheCandidate
+                        End If
+                    End If
                 End If
+
+                misses = misses + 1
+                m_ApplyLongTextRuntimeCache = True
             End If
+ContinueCacheCandidate:
         Next i
     Next outIndex
+
+    If candidates > 0 Then
+        mp_DebugHydrationLog "cache-pass", _
+            "src='" & sourceAlias & "' tbl='" & tableAlias & "' key='" & mp_DebugToken(keyValue, 80) & _
+            "' candidates=" & CStr(candidates) & _
+            " strictHit=" & CStr(strictHits) & _
+            " looseHit=" & CStr(looseHits) & _
+            " miss=" & CStr(misses)
+    End If
 End Function
 
 Public Sub m_TryHydrateLongAdoValuesFromWorksheet( _
@@ -566,8 +846,11 @@ Public Sub m_TryHydrateLongAdoValuesFromWorksheet( _
     ByVal runtimeCache As Object _
 )
     Dim unresolvedCellKeys As Object
+    Dim unresolvedPrefixesByCellKey As Object
     Dim unresolvedFieldIdx As Object
+    Dim neededPrefixesByFieldIdx As Object
     Dim fieldArraysByIdx As Object
+    Dim sourceRowsByFieldPrefix As Object
     Dim matches As Collection
     Dim hasRuntimeCache As Boolean
     Dim outIndex As Long
@@ -575,19 +858,38 @@ Public Sub m_TryHydrateLongAdoValuesFromWorksheet( _
     Dim outCol As Long
     Dim outValueText As String
     Dim cacheKey As String
+    Dim looseCacheKey As String
+    Dim cachedText As String
     Dim cellKey As String
     Dim fieldKey As Variant
+    Dim prefixKey As Variant
     Dim keyArray As Variant
     Dim keyArrayIsSingleCell As Boolean
     Dim r As Long
     Dim fieldCol As Long
     Dim fieldArray As Variant
     Dim fieldArrayIsSingleCell As Boolean
+    Dim neededPrefixes As Object
+    Dim rowsBucket As Collection
+    Dim preferredRow As Long
+    Dim lookupKey As String
+    Dim prefixToken As String
     Dim parsedRowIdx As Long
     Dim parsedFieldIdx As Long
     Dim sourceRow As Long
     Dim sourceOffset As Long
     Dim normalizedValue As Variant
+    Dim unresolvedCount As Long
+    Dim keyMatchCount As Long
+    Dim prefixBucketCount As Long
+    Dim hydratedCount As Long
+    Dim prefixUniqueCount As Long
+    Dim prefixAmbiguousCount As Long
+    Dim fallbackCount As Long
+    Dim unresolvedWithoutBucketCount As Long
+    Dim strictHitCount As Long
+    Dim looseHitCount As Long
+    Dim usedFallback As Boolean
 
     On Error GoTo SafeExit
 
@@ -603,8 +905,12 @@ Public Sub m_TryHydrateLongAdoValuesFromWorksheet( _
 
     Set unresolvedCellKeys = CreateObject("Scripting.Dictionary")
     unresolvedCellKeys.CompareMode = 1
+    Set unresolvedPrefixesByCellKey = CreateObject("Scripting.Dictionary")
+    unresolvedPrefixesByCellKey.CompareMode = 1
     Set unresolvedFieldIdx = CreateObject("Scripting.Dictionary")
     unresolvedFieldIdx.CompareMode = 1
+    Set neededPrefixesByFieldIdx = CreateObject("Scripting.Dictionary")
+    neededPrefixesByFieldIdx.CompareMode = 1
 
     For outIndex = 1 To rowCount
         For i = LBound(fields) To UBound(fields)
@@ -617,14 +923,39 @@ Public Sub m_TryHydrateLongAdoValuesFromWorksheet( _
                 If fieldCol <= 0 Then GoTo ContinueFieldCandidate
 
                 cellKey = mp_BuildLongTextCellKey(outIndex, i)
-                cacheKey = mp_BuildLongTextRuntimeCacheKey(sourceAlias, tableAlias, configuredSheetName, keyValue, outIndex, i)
+                prefixToken = mp_BuildLongTextPrefixToken(outValueText)
+                cacheKey = mp_BuildLongTextRuntimeCacheKey(sourceAlias, tableAlias, configuredSheetName, keyValue, outIndex, i, prefixToken)
+                looseCacheKey = mp_BuildLongTextLooseCacheKey(sourceAlias, tableAlias, configuredSheetName, keyValue, i, prefixToken)
 
-                If hasRuntimeCache And runtimeCache.Exists(cacheKey) Then
-                    outValues(outIndex, outCol) = CStr(runtimeCache(cacheKey))
-                Else
-                    unresolvedCellKeys(cellKey) = cacheKey
-                    unresolvedFieldIdx(CStr(i)) = True
+                If hasRuntimeCache Then
+                    If runtimeCache.Exists(cacheKey) Then
+                        strictHitCount = strictHitCount + 1
+                        outValues(outIndex, outCol) = CStr(runtimeCache(cacheKey))
+                        GoTo ContinueFieldCandidate
+                    End If
+
+                    If runtimeCache.Exists(looseCacheKey) Then
+                        cachedText = CStr(runtimeCache(looseCacheKey))
+                        If StrComp(cachedText, LONG_TEXT_CACHE_AMBIGUOUS, vbBinaryCompare) <> 0 Then
+                            looseHitCount = looseHitCount + 1
+                            outValues(outIndex, outCol) = cachedText
+                            GoTo ContinueFieldCandidate
+                        End If
+                    End If
                 End If
+
+                unresolvedCellKeys(cellKey) = cacheKey
+                unresolvedPrefixesByCellKey(cellKey) = prefixToken
+                unresolvedFieldIdx(CStr(i)) = True
+
+                If Not neededPrefixesByFieldIdx.Exists(CStr(i)) Then
+                    Set neededPrefixes = CreateObject("Scripting.Dictionary")
+                    neededPrefixes.CompareMode = 1
+                    Set neededPrefixesByFieldIdx(CStr(i)) = neededPrefixes
+                Else
+                    Set neededPrefixes = neededPrefixesByFieldIdx(CStr(i))
+                End If
+                neededPrefixes(prefixToken) = True
             End If
 ContinueFieldCandidate:
         Next i
@@ -633,22 +964,33 @@ ContinueFieldCandidate:
     If unresolvedCellKeys.Count = 0 Then Exit Sub
     If unresolvedFieldIdx.Count = 0 Then Exit Sub
 
+    unresolvedCount = unresolvedCellKeys.Count
+
     keyArray = ws.Range(ws.Cells(dataStartRow, keyCol), ws.Cells(dataEndRow, keyCol)).Value2
     Set matches = New Collection
     keyArrayIsSingleCell = Not IsArray(keyArray)
 
     If keyArrayIsSingleCell Then
-        If StrComp(Trim$(CStr(keyArray)), Trim$(keyValue), vbTextCompare) = 0 Then
+        If mp_IsSameHydrationKeyValue(keyArray, keyValue) Then
             matches.Add dataStartRow
         End If
     Else
         For r = 1 To UBound(keyArray, 1)
-            If StrComp(Trim$(CStr(keyArray(r, 1))), Trim$(keyValue), vbTextCompare) = 0 Then
+            If mp_IsSameHydrationKeyValue(keyArray(r, 1), keyValue) Then
                 matches.Add (dataStartRow + r - 1)
             End If
         Next r
     End If
-    If matches.Count = 0 Then Exit Sub
+    keyMatchCount = matches.Count
+    If matches.Count = 0 Then
+        mp_DebugHydrationLog "hydrate-core", _
+            "src='" & sourceAlias & "' tbl='" & tableAlias & "' key='" & mp_DebugToken(keyValue, 80) & _
+            "' unresolved=" & CStr(unresolvedCount) & _
+            " cacheStrictHit=" & CStr(strictHitCount) & _
+            " cacheLooseHit=" & CStr(looseHitCount) & _
+            " keyMatches=0"
+        Exit Sub
+    End If
 
     Set fieldArraysByIdx = CreateObject("Scripting.Dictionary")
     fieldArraysByIdx.CompareMode = 1
@@ -667,15 +1009,80 @@ ContinueFieldArray:
 
     If fieldArraysByIdx.Count = 0 Then Exit Sub
 
+    Set sourceRowsByFieldPrefix = CreateObject("Scripting.Dictionary")
+    sourceRowsByFieldPrefix.CompareMode = 1
+
+    For Each fieldKey In unresolvedFieldIdx.Keys
+        i = CLng(fieldKey)
+        If Not fieldArraysByIdx.Exists(CStr(i)) Then GoTo ContinueFieldPrefixIndex
+        If Not neededPrefixesByFieldIdx.Exists(CStr(i)) Then GoTo ContinueFieldPrefixIndex
+
+        fieldArray = fieldArraysByIdx(CStr(i))
+        fieldArrayIsSingleCell = Not IsArray(fieldArray)
+        Set neededPrefixes = neededPrefixesByFieldIdx(CStr(i))
+
+        For r = 1 To matches.Count
+            sourceRow = CLng(matches(r))
+            sourceOffset = sourceRow - dataStartRow + 1
+            If sourceOffset < 1 Then GoTo ContinueMatchRow
+
+            If fieldArrayIsSingleCell Then
+                normalizedValue = ex_SqlAdoHelpers.m_ToNormalizedCellValue(fieldArray)
+            Else
+                If sourceOffset > UBound(fieldArray, 1) Then GoTo ContinueMatchRow
+                normalizedValue = ex_SqlAdoHelpers.m_ToNormalizedCellValue(fieldArray(sourceOffset, 1))
+            End If
+
+            prefixToken = mp_BuildLongTextPrefixToken(CStr(normalizedValue))
+            If neededPrefixes.Exists(prefixToken) Then
+                lookupKey = mp_BuildFieldPrefixLookupKey(i, prefixToken)
+                mp_AddRowToMatchBucket sourceRowsByFieldPrefix, lookupKey, sourceRow
+            End If
+ContinueMatchRow:
+        Next r
+ContinueFieldPrefixIndex:
+    Next fieldKey
+
+    prefixBucketCount = sourceRowsByFieldPrefix.Count
+
     For Each fieldKey In unresolvedCellKeys.Keys
         cellKey = CStr(fieldKey)
         If Not mp_TryParseLongTextCellKey(cellKey, parsedRowIdx, parsedFieldIdx) Then GoTo ContinueHydrateCell
         If parsedRowIdx < 1 Then GoTo ContinueHydrateCell
-        If parsedRowIdx > matches.Count Then GoTo ContinueHydrateCell
         If parsedFieldIdx < LBound(fields) Or parsedFieldIdx > UBound(fields) Then GoTo ContinueHydrateCell
         If Not fieldArraysByIdx.Exists(CStr(parsedFieldIdx)) Then GoTo ContinueHydrateCell
+        If Not unresolvedPrefixesByCellKey.Exists(cellKey) Then GoTo ContinueHydrateCell
 
-        sourceRow = CLng(matches(parsedRowIdx))
+        sourceRow = 0
+        prefixToken = CStr(unresolvedPrefixesByCellKey(cellKey))
+        lookupKey = mp_BuildFieldPrefixLookupKey(parsedFieldIdx, prefixToken)
+        If sourceRowsByFieldPrefix.Exists(lookupKey) Then
+            Set rowsBucket = sourceRowsByFieldPrefix(lookupKey)
+            If rowsBucket.Count = 1 Then
+                prefixUniqueCount = prefixUniqueCount + 1
+                sourceRow = CLng(rowsBucket(1))
+            ElseIf rowsBucket.Count > 1 Then
+                prefixAmbiguousCount = prefixAmbiguousCount + 1
+                If parsedRowIdx <= matches.Count Then
+                    preferredRow = CLng(matches(parsedRowIdx))
+                    If mp_CollectionContainsLong(rowsBucket, preferredRow) Then
+                        sourceRow = preferredRow
+                    End If
+                End If
+                If sourceRow = 0 Then
+                    sourceRow = CLng(rowsBucket(1))
+                End If
+            End If
+        Else
+            unresolvedWithoutBucketCount = unresolvedWithoutBucketCount + 1
+        End If
+        If sourceRow = 0 Then
+            ' Safety fallback: keep previous behavior if prefix lookup is ambiguous/missing.
+            If parsedRowIdx > matches.Count Then GoTo ContinueHydrateCell
+            sourceRow = CLng(matches(parsedRowIdx))
+            fallbackCount = fallbackCount + 1
+            usedFallback = True
+        End If
         sourceOffset = sourceRow - dataStartRow + 1
         If sourceOffset < 1 Then GoTo ContinueHydrateCell
 
@@ -690,15 +1097,50 @@ ContinueFieldArray:
 
         outCol = 1 + (parsedFieldIdx - LBound(fields))
         outValues(parsedRowIdx, outCol) = normalizedValue
+    hydratedCount = hydratedCount + 1
 
         If hasRuntimeCache Then
             cacheKey = CStr(unresolvedCellKeys(cellKey))
             runtimeCache(cacheKey) = CStr(normalizedValue)
+
+            looseCacheKey = mp_BuildLongTextLooseCacheKey( _
+                sourceAlias, _
+                tableAlias, _
+                configuredSheetName, _
+                keyValue, _
+                parsedFieldIdx, _
+                CStr(unresolvedPrefixesByCellKey(cellKey)))
+
+            If runtimeCache.Exists(looseCacheKey) Then
+                cachedText = CStr(runtimeCache(looseCacheKey))
+                If StrComp(cachedText, CStr(normalizedValue), vbBinaryCompare) <> 0 Then
+                    runtimeCache(looseCacheKey) = LONG_TEXT_CACHE_AMBIGUOUS
+                End If
+            Else
+                runtimeCache(looseCacheKey) = CStr(normalizedValue)
+            End If
         End If
 ContinueHydrateCell:
     Next fieldKey
 
+    mp_DebugHydrationLog "hydrate-core", _
+        "src='" & sourceAlias & "' tbl='" & tableAlias & "' key='" & mp_DebugToken(keyValue, 80) & _
+        "' unresolved=" & CStr(unresolvedCount) & _
+        " cacheStrictHit=" & CStr(strictHitCount) & _
+        " cacheLooseHit=" & CStr(looseHitCount) & _
+        " keyMatches=" & CStr(keyMatchCount) & _
+        " prefixBuckets=" & CStr(prefixBucketCount) & _
+        " prefixUnique=" & CStr(prefixUniqueCount) & _
+        " prefixAmbiguous=" & CStr(prefixAmbiguousCount) & _
+        " noPrefixBucket=" & CStr(unresolvedWithoutBucketCount) & _
+        " fallback=" & CStr(fallbackCount) & _
+        " hydrated=" & CStr(hydratedCount) & _
+        " usedFallback=" & LCase$(CStr(usedFallback))
+
 SafeExit:
+    If Err.Number <> 0 Then
+        mp_DebugHydrationLog "hydrate-core", "error src='" & sourceAlias & "' tbl='" & tableAlias & "' err=['" & Err.Source & "' #" & CStr(Err.Number) & "] " & Err.Description
+    End If
     On Error GoTo 0
 End Sub
 
@@ -1399,14 +1841,275 @@ Private Function mp_BuildLongTextRuntimeCacheKey( _
     ByVal configuredSheetName As String, _
     ByVal keyValue As String, _
     ByVal outRowIndex As Long, _
-    ByVal fieldIndex As Long _
+    ByVal fieldIndex As Long, _
+    ByVal prefixToken As String _
 ) As String
     mp_BuildLongTextRuntimeCacheKey = LCase$(Trim$(sourceAlias)) & "|" & _
                                      LCase$(Trim$(tableAlias)) & "|" & _
                                      LCase$(Trim$(configuredSheetName)) & "|" & _
                                      Trim$(keyValue) & "|" & _
-                                     CStr(outRowIndex) & "|" & _
-                                     CStr(fieldIndex)
+                                     "idx:" & CStr(outRowIndex) & "|" & _
+                                     CStr(fieldIndex) & "|" & _
+                                     prefixToken
+End Function
+
+Private Function mp_BuildLongTextLooseCacheKey( _
+    ByVal sourceAlias As String, _
+    ByVal tableAlias As String, _
+    ByVal configuredSheetName As String, _
+    ByVal keyValue As String, _
+    ByVal fieldIndex As Long, _
+    ByVal prefixToken As String _
+) As String
+    mp_BuildLongTextLooseCacheKey = LCase$(Trim$(sourceAlias)) & "|" & _
+                                    LCase$(Trim$(tableAlias)) & "|" & _
+                                    LCase$(Trim$(configuredSheetName)) & "|" & _
+                                    Trim$(keyValue) & "|" & _
+                                    "fld:" & CStr(fieldIndex) & "|" & _
+                                    prefixToken
+End Function
+
+Private Function mp_BuildLongTextPrefixToken(ByVal valueText As String) As String
+    Dim token As String
+
+    token = CStr(valueText)
+    token = Replace$(token, vbCrLf, vbLf)
+    token = Replace$(token, vbCr, vbLf)
+    token = Replace$(token, vbLf, " ")
+    token = Replace$(token, vbTab, " ")
+    token = Replace$(token, ChrW$(160), " ")
+
+    Do While InStr(1, token, "  ", vbBinaryCompare) > 0
+        token = Replace$(token, "  ", " ")
+    Loop
+
+    token = Trim$(token)
+    If Len(token) > 255 Then token = Left$(token, 255)
+    mp_BuildLongTextPrefixToken = LCase$(token)
+End Function
+
+Private Function mp_IsSameHydrationKeyValue(ByVal leftValue As Variant, ByVal rightText As String) As Boolean
+    Dim leftTrimmed As String
+    Dim rightTrimmed As String
+    Dim leftLoose As String
+    Dim rightLoose As String
+
+    leftTrimmed = Trim$(CStr(leftValue))
+    rightTrimmed = Trim$(rightText)
+
+    If StrComp(leftTrimmed, rightTrimmed, vbTextCompare) = 0 Then
+        mp_IsSameHydrationKeyValue = True
+        Exit Function
+    End If
+
+    leftLoose = m_NormalizeHeaderLoose(leftTrimmed)
+    rightLoose = m_NormalizeHeaderLoose(rightTrimmed)
+    If Len(leftLoose) = 0 Or Len(rightLoose) = 0 Then Exit Function
+
+    mp_IsSameHydrationKeyValue = (StrComp(leftLoose, rightLoose, vbTextCompare) = 0)
+End Function
+
+Private Function mp_BuildFieldPrefixLookupKey(ByVal fieldIndex As Long, ByVal prefixToken As String) As String
+    mp_BuildFieldPrefixLookupKey = CStr(fieldIndex) & "|" & prefixToken
+End Function
+
+Private Sub mp_AddRowToMatchBucket(ByVal buckets As Object, ByVal lookupKey As String, ByVal sourceRow As Long)
+    Dim rowsBucket As Collection
+
+    If buckets Is Nothing Then Exit Sub
+    If Len(lookupKey) = 0 Then Exit Sub
+
+    If buckets.Exists(lookupKey) Then
+        Set rowsBucket = buckets(lookupKey)
+    Else
+        Set rowsBucket = New Collection
+        Set buckets(lookupKey) = rowsBucket
+    End If
+
+    rowsBucket.Add sourceRow
+End Sub
+
+Private Function mp_CollectionContainsLong(ByVal values As Collection, ByVal needle As Long) As Boolean
+    Dim i As Long
+
+    If values Is Nothing Then Exit Function
+    If values.Count = 0 Then Exit Function
+
+    For i = 1 To values.Count
+        If CLng(values(i)) = needle Then
+            mp_CollectionContainsLong = True
+            Exit Function
+        End If
+    Next i
+End Function
+
+Private Function mp_GetWorkbookForSource(ByVal wbCache As Object, ByVal cfg As Object, ByVal sourceAlias As String) As Workbook
+    Dim sourcePath As String
+    Dim snapshotPath As String
+    Dim wb As Workbook
+
+    If wbCache Is Nothing Then Exit Function
+
+    If wbCache.Exists(sourceAlias) Then
+        Set mp_GetWorkbookForSource = wbCache(sourceAlias)
+        Exit Function
+    End If
+
+    sourcePath = m_GetResolvedSourcePath( _
+        cfg, _
+        sourceAlias, _
+        "ex_ResultSqlEngine", _
+        vbObjectError + 1762, _
+        vbObjectError + 1760, _
+        vbObjectError + 1761, _
+        vbObjectError + 1370, _
+        vbObjectError + 1371)
+
+    If Dir(sourcePath) = vbNullString Then
+        Err.Raise vbObjectError + 1360, "ex_ResultSqlEngine", "Source file not found: " & sourcePath
+    End If
+
+    snapshotPath = ex_SourceSnapshot.m_GetSnapshotPath(sourcePath, "Source." & sourceAlias)
+    Set wb = Workbooks.Open(Filename:=snapshotPath, ReadOnly:=True, UpdateLinks:=0)
+
+    On Error Resume Next
+    wb.Windows(1).Visible = False
+    On Error GoTo 0
+
+    wbCache.Add sourceAlias, wb
+    Set mp_GetWorkbookForSource = wb
+End Function
+
+Private Function mp_GetMappedSourceHeaderForHydration( _
+    ByVal cfg As Object, _
+    ByVal sourceAlias As String, _
+    ByVal tableAlias As String, _
+    ByVal fieldAlias As String _
+) As String
+    Dim mappedHeader As String
+
+    mappedHeader = m_MappedHeader( _
+        cfg, _
+        sourceAlias, _
+        tableAlias, _
+        fieldAlias, _
+        "ex_ResultSqlEngine", _
+        vbObjectError + 1390, _
+        vbObjectError + 1370, _
+        vbObjectError + 1371)
+
+    mappedHeader = Trim$(mappedHeader)
+    If Len(mappedHeader) >= 2 Then
+        If Left$(mappedHeader, 1) = "[" And Right$(mappedHeader, 1) = "]" Then
+            mappedHeader = Trim$(Mid$(mappedHeader, 2, Len(mappedHeader) - 2))
+        End If
+    End If
+
+    If Len(mappedHeader) = 0 Then
+        Err.Raise vbObjectError + 1390, "ex_ResultSqlEngine", _
+            "Mapped source header is empty for " & sourceAlias & ".Sheet[" & tableAlias & "].Map[" & fieldAlias & "]"
+    End If
+
+    mp_GetMappedSourceHeaderForHydration = mappedHeader
+End Function
+
+Private Function mp_FindFieldColumnsForHydration( _
+    ByVal fields As Variant, _
+    ByVal cfg As Object, _
+    ByVal sourceAlias As String, _
+    ByVal tableAlias As String, _
+    ByVal ws As Worksheet, _
+    ByVal headerRow As Long, _
+    ByVal markerCol As Long _
+) As Object
+    Dim fieldColsByIdx As Object
+    Dim i As Long
+    Dim fieldAlias As String
+    Dim fieldHeaderName As String
+    Dim fieldCol As Long
+
+    Set fieldColsByIdx = CreateObject("Scripting.Dictionary")
+    fieldColsByIdx.CompareMode = 1
+
+    For i = LBound(fields) To UBound(fields)
+        fieldAlias = Trim$(CStr(fields(i)))
+        If Len(fieldAlias) = 0 Then GoTo ContinueFieldAlias
+        If ex_FetchDslEngine.m_IsVirtualFieldAlias(cfg, sourceAlias, tableAlias, fieldAlias) Then GoTo ContinueFieldAlias
+
+        fieldHeaderName = mp_GetMappedSourceHeaderForHydration(cfg, sourceAlias, tableAlias, fieldAlias)
+        fieldCol = m_FindHeaderColumnInWorksheetRow(ws, headerRow, markerCol, fieldHeaderName)
+        If fieldCol > 0 Then
+            fieldColsByIdx(CStr(i)) = fieldCol
+        End If
+ContinueFieldAlias:
+    Next i
+
+    Set mp_FindFieldColumnsForHydration = fieldColsByIdx
+End Function
+
+Private Function mp_ExtractSheetNameToken(ByVal configuredSheetName As String) As String
+    Dim token As String
+    Dim dollarPos As Long
+
+    token = Trim$(configuredSheetName)
+    If Len(token) = 0 Then Exit Function
+
+    If Left$(token, 1) = "[" And Right$(token, 1) = "]" Then
+        token = Mid$(token, 2, Len(token) - 2)
+    End If
+    token = mp_CleanAdoSchemaObjectName(token)
+
+    dollarPos = InStr(1, token, "$", vbBinaryCompare)
+    If dollarPos > 0 Then
+        token = Left$(token, dollarPos - 1)
+    End If
+
+    mp_ExtractSheetNameToken = Trim$(token)
+End Function
+
+Private Function mp_NormalizeAdoObjectNameExact(ByVal value As String) As String
+    mp_NormalizeAdoObjectNameExact = LCase$(Trim$(mp_CleanAdoSchemaObjectName(value)))
+End Function
+
+Private Function mp_CleanAdoSchemaObjectName(ByVal value As String) As String
+    Dim cleaned As String
+
+    cleaned = Trim$(value)
+    If Len(cleaned) = 0 Then Exit Function
+
+    If Left$(cleaned, 1) = "[" And Right$(cleaned, 1) = "]" Then
+        cleaned = Mid$(cleaned, 2, Len(cleaned) - 2)
+    End If
+
+    cleaned = Replace$(cleaned, "]]", "]")
+    cleaned = Replace$(cleaned, "'", vbNullString)
+    cleaned = Replace$(cleaned, "`", vbNullString)
+
+    mp_CleanAdoSchemaObjectName = Trim$(cleaned)
+End Function
+
+Private Sub mp_DebugHydrationLog(ByVal stage As String, ByVal messageText As String)
+    On Error Resume Next
+    ex_Messaging.m_LogToFile "[ex_ResultSqlEngine][" & CStr(stage) & "] " & CStr(messageText), HYDRATION_DEBUG_LOG_PATH
+    On Error GoTo 0
+End Sub
+
+Private Function mp_DebugToken(ByVal valueText As String, Optional ByVal maxLen As Long = 120) As String
+    Dim token As String
+
+    token = CStr(valueText)
+    token = Replace$(token, vbCrLf, " ")
+    token = Replace$(token, vbCr, " ")
+    token = Replace$(token, vbLf, " ")
+    token = Trim$(token)
+
+    If maxLen > 0 Then
+        If Len(token) > maxLen Then
+            token = Left$(token, maxLen) & "..."
+        End If
+    End If
+
+    mp_DebugToken = token
 End Function
 
 Private Function mp_AsText(ByVal valueIn As Variant, Optional ByVal adoFieldType As Long = -1) As String
