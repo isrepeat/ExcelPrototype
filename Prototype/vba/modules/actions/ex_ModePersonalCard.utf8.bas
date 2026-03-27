@@ -1300,8 +1300,7 @@ Private Function mp_WriteEventsGeneric( _
 
         If sortOutCol > 0 Then
             On Error GoTo SortEH
-            mp_NormalizeDateColumn wsOut, outHeaderRow + 1, outDataRow - 1, sortOutCol
-            mp_SortRangeByColumnIndex wsOut, outHeaderRow, outDataRow - 1, 1, fieldCount, sortOutCol
+            mp_SortRangeByColumnIndexWithHelperKey wsOut, outHeaderRow, outDataRow - 1, 1, fieldCount, sortOutCol
             On Error GoTo EH
         End If
     End If
@@ -3580,6 +3579,59 @@ Private Sub mp_SortRangeByColumnIndex(ByVal ws As Worksheet, ByVal topRow As Lon
     Set rng = ws.Range(ws.Cells(topRow, leftCol), ws.Cells(bottomRow, rightCol))
 
     rng.Sort Key1:=ws.Cells(topRow + 1, leftCol + sortColRelative - 1), Order1:=xlAscending, Header:=xlYes
+
+End Sub
+
+Private Sub mp_SortRangeByColumnIndexWithHelperKey( _
+    ByVal ws As Worksheet, _
+    ByVal topRow As Long, _
+    ByVal bottomRow As Long, _
+    ByVal leftCol As Long, _
+    ByVal rightCol As Long, _
+    ByVal sortColRelative As Long)
+
+    Dim helperCol As Long
+    Dim rowCount As Long
+    Dim sourceValues As Variant
+    Dim helperValues() As Variant
+    Dim sortRange As Range
+    Dim r As Long
+    Dim valueIn As Variant
+    Dim parsedDate As Date
+
+    If ws Is Nothing Then Exit Sub
+    If topRow <= 0 Or bottomRow <= topRow Then Exit Sub
+    If leftCol <= 0 Or rightCol < leftCol Then Exit Sub
+    If sortColRelative <= 0 Then Exit Sub
+    If (leftCol + sortColRelative - 1) > rightCol Then Exit Sub
+
+    helperCol = rightCol + 1
+    If helperCol > ws.Columns.Count Then Exit Sub
+
+    rowCount = bottomRow - topRow
+    If rowCount <= 0 Then Exit Sub
+
+    sourceValues = ws.Range( _
+        ws.Cells(topRow + 1, leftCol + sortColRelative - 1), _
+        ws.Cells(bottomRow, leftCol + sortColRelative - 1)).Value2
+
+    ReDim helperValues(1 To rowCount, 1 To 1)
+    For r = 1 To rowCount
+        valueIn = sourceValues(r, 1)
+        If mp_TryParseDate(valueIn, parsedDate) Then
+            helperValues(r, 1) = CDbl(parsedDate)
+        Else
+            helperValues(r, 1) = valueIn
+        End If
+    Next r
+
+    ws.Cells(topRow, helperCol).Value2 = "__sort_helper__"
+    ws.Range(ws.Cells(topRow + 1, helperCol), ws.Cells(bottomRow, helperCol)).Value2 = helperValues
+
+    Set sortRange = ws.Range(ws.Cells(topRow, leftCol), ws.Cells(bottomRow, helperCol))
+    sortRange.Sort Key1:=ws.Cells(topRow + 1, helperCol), Order1:=xlAscending, Header:=xlYes
+
+    ws.Range(ws.Cells(topRow, helperCol), ws.Cells(bottomRow, helperCol)).ClearContents
 
 End Sub
 
