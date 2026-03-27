@@ -183,6 +183,34 @@
          spanCols="2"
          spanRows="2"/>
 
+          <control name="btnLogsToggle"
+            type="button"
+            sheet="Dev"
+            required="true"
+            createIfMissing="true"
+            macro="ex_UIActions.m_ToggleLogs_OnClick"
+            caption="Logs [Off]"
+            globalVisible="true"
+            style="actionNeutral"
+            placement="moveAndSize"
+            anchorCell="Q20"
+            spanCols="2"
+            spanRows="2"/>
+
+          <control name="btnOpenLogsFile"
+            type="button"
+            sheet="Dev"
+            required="true"
+            createIfMissing="true"
+            macro="ex_UIActions.m_OpenLogsFile_OnClick"
+            caption="Open Logs"
+            globalVisible="true"
+            style="actionNeutral"
+            placement="moveAndSize"
+            anchorCell="Q23"
+            spanCols="2"
+            spanRows="2"/>
+
     <control name="btnClear"
              type="button"
              sheet="Dev"
