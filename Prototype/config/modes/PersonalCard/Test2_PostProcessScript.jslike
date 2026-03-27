@@ -543,6 +543,12 @@ for (let row in Daily.Sheet[DailyEvents].rows) {
 			if (hospitalForMoveFromHospital == hospitalSourceText) {
 				hospitalForMoveFromHospital = callMacro("ex_Helpers.m_ReplaceLeadingPhraseIfMatched", hospitalSourceText, "медичної роти військової частини", "медичній роті військової частини");
 			}
+			if (hospitalForMoveFromHospital == hospitalSourceText) {
+				hospitalForMoveFromHospital = callMacro("ex_Helpers.m_ReplaceLeadingPhraseIfMatched", hospitalSourceText, "військово-медичного клінічного центру", "військово-медичному клінічному центрі");
+			}
+			if (hospitalForMoveFromHospital == hospitalSourceText) {
+				hospitalForMoveFromHospital = callMacro("ex_Helpers.m_ReplaceLeadingPhraseIfMatched", hospitalSourceText, "військової частини", "військовій частині");
+			}
 		}
 
 		for (let metaRow in Daily.Sheet[DailyEvents].rows) {
