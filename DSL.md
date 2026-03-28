@@ -16,7 +16,7 @@
 
 ## Зарезервированные слова
 
-`if`, `else`, `for`, `let`, `in`, `callMacro`, `callMacroObject`, `break`, `continue`, `return`, `and`, `or`, `gt`, `lt`, `gte`, `lte`.
+`if`, `else`, `for`, `let`, `in`, `callMacro`, `callMacroObject`, `break`, `continue`, `return`.
 
 ## Поддерживаемые конструкции
 
@@ -80,14 +80,14 @@ let <y> = "<text>";
 ```js
 if (<leftToken> == "<literal>") { ... }
 if (<leftToken> != <rightToken>) { ... }
-if (<leftToken> gt "100" and <otherToken> != "") { ... }
+if (<leftToken> > "100" && <otherToken> != "") { ... }
 ```
 
 Особенности:
 
 1. Левая часть должна быть поддерживаемым токеном.
 2. Правая часть может быть либо строковым литералом, либо токеном.
-3. Для `gt/lt/gte/lte` сравнение числовое, если обе стороны парсятся как числа; иначе строковое.
+3. Для `>`, `<`, `>=`, `<=` сравнение числовое, если обе стороны парсятся как числа; иначе строковое.
 
 ### 3) Доступ в `for` (target)
 
@@ -215,18 +215,20 @@ for (let <keyResult> in <batch>.keysResults) {
 
 1. `==`
 2. `!=`
-3. `gt`, `lt`
-4. `gte`, `lte`
+3. `>`
+4. `<`
+5. `>=`
+6. `<=`
 
 Логические связки:
 
-1. `and`
-2. `or`
+1. `&&`
+2. `||`
 
 Пример:
 
 ```js
-if (<row>.column[EventNum] gt "20000" and <row>.column[Date] != "") {
+if (<row>.column[EventNum] > "20000" && <row>.column[Date] != "") {
     callMacro("ex_PostProcessActions.m_HighlightRow", <row>, "#FF0000");
 }
 ```

@@ -1,4 +1,9 @@
 let input = callMacroObject("ex_ScriptIO.m_GetInput");
+// let resultTables = callMacroObject("ex_ScriptIO.m_GetObject", input, "__ResultTables");
+// let resultTableRefs = callMacroObject("ex_ScriptIO.m_GetObject", input, "__ResultTableRefs");
+
+// let ctx = callMacroObject("ex_ScriptIO.m_CreateDictionary");
+// callMacro("ex_ScriptIO.m_SetScopeObject", ctx, "tables", resultTables);
 
 // -------- 1) tableLayout --------
 let tablePlan = callMacroObject("ex_TableLayoutActions.m_CreatePlan", input);
@@ -6,5 +11,29 @@ callMacro("ex_TableLayoutActions.m_Apply", tablePlan);
 
 // -------- 2) resultLayout --------
 let resultPlan = callMacroObject("ex_ResultLayoutActions.m_CreatePlan", input);
-callMacro("ex_ResultLayoutActions.m_PushAllTablesIfNotEmpty", resultPlan);
+//callMacro("ex_ResultLayoutActions.m_PushAllTablesIfNotEmpty", resultPlan);
+
+// let resultLayoutOrdinals = callMacroObject("ex_ScriptIO.m_CreateCollection");
+// let datePattern = "^\\{?Main-(\\d{2})\\.(\\d{2})\\.(\\d{4})\\}?\\.Sheet\\[StateMain\\]$";
+// let minDateKey = "20260319";
+
+// for (let table in ctx.tables) {
+// 	callMacro("ex_ScriptIO.m_CollectionAddString", resultLayoutOrdinals, "1");
+// 	let tableOrdinal = callMacro("ex_ScriptIO.m_CollectionCount", resultLayoutOrdinals);
+// 	let tableRef = callMacro("ex_ScriptIO.m_CollectionGetStringOrDefault", resultTableRefs, tableOrdinal, "");
+// 	let logMessage = "[MultiSources_ResultLayout] tableRef=" + tableRef;
+// 	callMacro("ex_Messaging.m_LogToFile", logMessage);
+
+// 	let day = callMacro("ex_Helpers.m_RegexGetGroup", tableRef, datePattern, 1);
+// 	let month = callMacro("ex_Helpers.m_RegexGetGroup", tableRef, datePattern, 2);
+// 	let year = callMacro("ex_Helpers.m_RegexGetGroup", tableRef, datePattern, 3);
+
+// 	if (year != "" && month != "" && day != "") {
+// 		let dateKey = year + month + day;
+// 		if (dateKey >= minDateKey) {
+// 			callMacro("ex_ResultLayoutActions.m_PushTableIfNotEmpty", resultPlan, tableRef);
+// 		}
+// 	}
+// }
+
 callMacro("ex_ResultLayoutActions.m_Apply", resultPlan);

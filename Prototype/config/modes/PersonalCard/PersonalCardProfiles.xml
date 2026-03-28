@@ -98,7 +98,7 @@
 				callMacro("ex_PostProcessActions.m_AppendPostProcessFooterText", $`EventsOut rows: {Events.Sheet[EventsOut].count}. Last date: {Events.Sheet[EventsOut].lastRow.column[Date]}`);
 			}
 
-			if (Events.Sheet[EventsOut].count != "0" and Events.Sheet[EventsOut].count != "1") {
+			if (Events.Sheet[EventsOut].count != "0" && Events.Sheet[EventsOut].count != "1") {
 				callMacro("ex_PostProcessActions.m_AppendPostProcessFooterText", $`Prev date: {Events.Sheet[EventsOut].prevRow.column[Date]}`);
 			}
 

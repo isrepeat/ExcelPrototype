@@ -1256,6 +1256,14 @@ Public Function m_ShowBannerAtTable( _
     If ws Is Nothing Then
         Err.Raise vbObjectError + 1731, "ex_PostProcessActions", "Active sheet is not available for table banner placement."
     End If
+
+    ' Layout scripts can intentionally skip some result tables.
+    ' In that case, table anchors are absent and banner placement should be a no-op.
+    If Not ex_Messaging.m_HasResultTableAnchor(ws, tableRef) Then
+        m_ShowBannerAtTable = bannerText
+        Exit Function
+    End If
+
     If mp_IsDeferredRenderActiveForSheet(ws) Then
         mp_QueueDeferredOperation ws, DEFER_OP_SHOW_BANNER_AT_TABLE, Array(CStr(bannerType), CStr(tableRef), CStr(titleText), CStr(bannerText), CStr(positionText), CLng(gapRowsBefore), CLng(gapRowsAfter))
         m_ShowBannerAtTable = bannerText

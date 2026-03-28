@@ -1784,7 +1784,7 @@ End Function
 
 Private Function mp_IsReservedDslKeyword(ByVal tokenText As String) As Boolean
     Select Case LCase$(Trim$(tokenText))
-        Case "if", "else", "for", "callmacro", "callmacroobject", "let", "in", "and", "or", "gt", "lt", "gte", "lte", "break", "continue", "return"
+        Case "if", "else", "for", "callmacro", "callmacroobject", "let", "in", "break", "continue", "return"
             mp_IsReservedDslKeyword = True
     End Select
 End Function
@@ -2028,13 +2028,13 @@ Private Function mp_EvaluateCondition( _
                 partResult = (compareResult = 0)
             Case "!="
                 partResult = (compareResult <> 0)
-            Case "gt"
+            Case ">"
                 partResult = (compareResult > 0)
-            Case "lt"
+            Case "<"
                 partResult = (compareResult < 0)
-            Case "gte"
+            Case ">="
                 partResult = (compareResult >= 0)
-            Case "lte"
+            Case "<="
                 partResult = (compareResult <= 0)
             Case Else
                 Err.Raise vbObjectError + 1596, "ex_ScriptDSL", "Unsupported operator in condition: " & opText
@@ -2046,9 +2046,9 @@ Private Function mp_EvaluateCondition( _
         Else
             boolOp = LCase$(Trim$(CStr(condOps(i - 1))))
             Select Case boolOp
-                Case "and"
+                Case "&&"
                     currentTerm = (currentTerm And partResult)
-                Case "or"
+                Case "||"
                     If Not hasFinalResult Then
                         finalResult = currentTerm
                         hasFinalResult = True
@@ -2136,31 +2136,23 @@ Private Function mp_ParseConditionPart( _
     ByRef outValueIsToken As Boolean _
 ) As Boolean
     Dim part As String
-    Dim partLower As String
     Dim opPos As Long
     Dim opLen As Long
     Dim rhs As String
 
     part = mp_TrimDslWhitespace(rawPart)
-    partLower = LCase$(part)
-    opPos = InStr(1, part, "==", vbBinaryCompare)
-    If opPos > 0 Then
+    If mp_TryFindConditionSymbolOperator(part, "==", opPos, opLen) Then
         outOp = "=="
-        opLen = 2
-    Else
-        opPos = InStr(1, part, "!=", vbBinaryCompare)
-        If opPos > 0 Then
-            outOp = "!="
-            opLen = 2
-        ElseIf mp_TryFindConditionWordOperator(partLower, "gte", opPos, opLen) Then
-            outOp = "gte"
-        ElseIf mp_TryFindConditionWordOperator(partLower, "lte", opPos, opLen) Then
-            outOp = "lte"
-        ElseIf mp_TryFindConditionWordOperator(partLower, "gt", opPos, opLen) Then
-            outOp = "gt"
-        ElseIf mp_TryFindConditionWordOperator(partLower, "lt", opPos, opLen) Then
-            outOp = "lt"
-        End If
+    ElseIf mp_TryFindConditionSymbolOperator(part, "!=", opPos, opLen) Then
+        outOp = "!="
+    ElseIf mp_TryFindConditionSymbolOperator(part, ">=", opPos, opLen) Then
+        outOp = ">="
+    ElseIf mp_TryFindConditionSymbolOperator(part, "<=", opPos, opLen) Then
+        outOp = "<="
+    ElseIf mp_TryFindConditionSymbolOperator(part, ">", opPos, opLen) Then
+        outOp = ">"
+    ElseIf mp_TryFindConditionSymbolOperator(part, "<", opPos, opLen) Then
+        outOp = "<"
     End If
     If opPos <= 1 Then Exit Function
 
@@ -2179,6 +2171,43 @@ Private Function mp_ParseConditionPart( _
     End If
 
     mp_ParseConditionPart = True
+End Function
+
+Private Function mp_TryFindConditionSymbolOperator( _
+    ByVal textValue As String, _
+    ByVal opSymbol As String, _
+    ByRef outPos As Long, _
+    ByRef outLen As Long _
+) As Boolean
+    Dim i As Long
+    Dim inQuotes As Boolean
+    Dim inBacktickLiteral As Boolean
+    Dim ch As String
+
+    outLen = Len(opSymbol)
+    If outLen = 0 Then Exit Function
+    If Len(textValue) < outLen Then Exit Function
+
+    For i = 1 To Len(textValue) - outLen + 1
+        ch = Mid$(textValue, i, 1)
+        If ch = """" And Not mp_IsEscapedQuote(textValue, i) Then
+            If Not inBacktickLiteral Then inQuotes = Not inQuotes
+            GoTo ContinueLoop
+        End If
+        If ch = "`" Then
+            If Not inQuotes Then inBacktickLiteral = Not inBacktickLiteral
+            GoTo ContinueLoop
+        End If
+
+        If Not inQuotes And Not inBacktickLiteral Then
+            If Mid$(textValue, i, outLen) = opSymbol Then
+                outPos = i
+                mp_TryFindConditionSymbolOperator = True
+                Exit Function
+            End If
+        End If
+ContinueLoop:
+    Next i
 End Function
 
 Private Function mp_TryFindConditionWordOperator( _
@@ -2300,28 +2329,14 @@ Private Function mp_TrySplitConditionExpression( _
 
         If Not inQuotes And Not inBacktickLiteral Then
             If Mid$(conditionText, i, 2) = "&&" Then
-                If Not mp_TryPushConditionPart(partText, "and", outParts, outOps, outErrorText) Then Exit Function
+                If Not mp_TryPushConditionPart(partText, "&&", outParts, outOps, outErrorText) Then Exit Function
                 partText = vbNullString
                 i = i + 2
                 GoTo ContinueLoop
             End If
 
             If Mid$(conditionText, i, 2) = "||" Then
-                If Not mp_TryPushConditionPart(partText, "or", outParts, outOps, outErrorText) Then Exit Function
-                partText = vbNullString
-                i = i + 2
-                GoTo ContinueLoop
-            End If
-
-            If mp_IsWordOperatorAt(conditionText, i, "and") Then
-                If Not mp_TryPushConditionPart(partText, "and", outParts, outOps, outErrorText) Then Exit Function
-                partText = vbNullString
-                i = i + 3
-                GoTo ContinueLoop
-            End If
-
-            If mp_IsWordOperatorAt(conditionText, i, "or") Then
-                If Not mp_TryPushConditionPart(partText, "or", outParts, outOps, outErrorText) Then Exit Function
+                If Not mp_TryPushConditionPart(partText, "||", outParts, outOps, outErrorText) Then Exit Function
                 partText = vbNullString
                 i = i + 2
                 GoTo ContinueLoop

@@ -452,6 +452,16 @@ Public Sub m_RegisterResultTableAnchor( _
     mp_SetNamedRangeAnchor ws, anchorName, anchorRange
 End Sub
 
+Public Function m_HasResultTableAnchor( _
+    ByVal ws As Worksheet, _
+    ByVal tableRef As String _
+) As Boolean
+    Dim rowStart As Long
+    Dim rowEnd As Long
+
+    m_HasResultTableAnchor = mp_TryGetResultTableBounds(ws, tableRef, rowStart, rowEnd)
+End Function
+
 Public Sub m_RenderTextBanner( _
     ByVal ws As Worksheet, _
     ByVal bannerText As String, _
