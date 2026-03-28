@@ -17,9 +17,9 @@
     <v key="CommonKey" type="rx" mutable="true">18.03.2026</v>
 		<v type="#" key=""/>
     <v key="{Main-{dd}.{mm}.{yyyy}}.Sheet[StateMain].Type">Events</v>
-    <v key="{Main-{dd}.{mm}.{yyyy}}.Sheet[StateMain].SheetName">Аркуш1$A3:I1048576</v>
+    <v key="{Main-{dd}.{mm}.{yyyy}}.Sheet[StateMain].SheetName">Аркуш1$A3:N1048576</v>
     <v key="{Main-{dd}.{mm}.{yyyy}}.Sheet[StateMain].Key">HospitalizationDate</v>
-    <v key="{Main-{dd}.{mm}.{yyyy}}.Sheet[StateMain].FieldsAliases">No; Unit; Rank; FIO; HospitalizationDate; BasisDocName; BasisDocDate; BasisDocNumber; CombatInjury</v>
+    <v key="{Main-{dd}.{mm}.{yyyy}}.Sheet[StateMain].FieldsAliases">No; Unit; Rank; FIO; HospitalizationDate; BasisDocName; BasisDocDate; BasisDocNumber; CombatInjury; FullHospitalName; Diagnosis; AfterTreatmentDocName; AfterTreatmentDocDate; AfterTreatmentDocNumber</v>
     <v key="{Main-{dd}.{mm}.{yyyy}}.Sheet[StateMain].Sort">HospitalizationDate</v>
     <v key="{Main-{dd}.{mm}.{yyyy}}.Sheet[StateMain].Map[No]">№ з/п</v>
     <v key="{Main-{dd}.{mm}.{yyyy}}.Sheet[StateMain].Map[Unit]">В/ч</v>
@@ -30,6 +30,11 @@
     <v key="{Main-{dd}.{mm}.{yyyy}}.Sheet[StateMain].Map[BasisDocDate]">На підставі чого госпіталізований (дата, документу)</v>
     <v key="{Main-{dd}.{mm}.{yyyy}}.Sheet[StateMain].Map[BasisDocNumber]">На підставі чого госпіталізований (№ документу)</v>
     <v key="{Main-{dd}.{mm}.{yyyy}}.Sheet[StateMain].Map[CombatInjury]">Бойове поранення</v>
+    <v key="{Main-{dd}.{mm}.{yyyy}}.Sheet[StateMain].Map[FullHospitalName]">Повна назва лікувального закладу</v>
+    <v key="{Main-{dd}.{mm}.{yyyy}}.Sheet[StateMain].Map[Diagnosis]">Діагноз</v>
+    <v key="{Main-{dd}.{mm}.{yyyy}}.Sheet[StateMain].Map[AfterTreatmentDocName]">Назва документу який він отримав після вибуття з лікування</v>
+    <v key="{Main-{dd}.{mm}.{yyyy}}.Sheet[StateMain].Map[AfterTreatmentDocDate]">Дата документу який він отримав після вибуття з лікування</v>
+    <v key="{Main-{dd}.{mm}.{yyyy}}.Sheet[StateMain].Map[AfterTreatmentDocNumber]">№ документу який він отримав після вибуття з лікування</v>
     <v type="#" key=""/>
     <resultLayoutScript include="MultiSources_ResultLayoutScript.jslike"/>
     <preProcessScript><![CDATA[]]></preProcessScript>

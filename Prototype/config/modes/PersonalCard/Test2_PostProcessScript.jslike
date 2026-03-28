@@ -42,6 +42,12 @@ for (let owner in Daily.Sheet[DailyEvents].rows) {
 		let lastVacationForCuringEventsOutPlannedReturnDate = "";
 		let lastVacationForCuringEventsOutTicket = "";
 		let lastVacationForCuringEventsOutOutCommandDate = "";
+		let hasVacationEventsOutForOwner = "false";
+		let lastVacationEventsOutDaysCount = "";
+		let lastVacationEventsOutOutDate = "";
+		let lastVacationEventsOutPlannedReturnDate = "";
+		let lastVacationEventsOutTicket = "";
+		let lastVacationEventsOutOutCommandDate = "";
 
 		for (let outRow in Events.Sheet[EventsOut].rows) {
 			if (outRow.column[FIO] == owner.column[FIO]) {
@@ -61,6 +67,17 @@ for (let owner in Daily.Sheet[DailyEvents].rows) {
 						lastVacationForCuringEventsOutPlannedReturnDate = outRow.column[PlannedReturnDate];
 						lastVacationForCuringEventsOutTicket = outRow.column[Ticket];
 						lastVacationForCuringEventsOutOutCommandDate = outRow.column[OutCommandDate];
+					}
+				}
+				if (outRow.column[EventReason] == "Відпустка") {
+					let outCommandDateFull = callMacro("ex_DateHelpers.m_ToFullDate", $`{outRow.column[OutCommandDate]}`, $`{baseDate}`);
+					if (outCommandDateFull == baseDate) {
+						hasVacationEventsOutForOwner = "true";
+						lastVacationEventsOutDaysCount = outRow.column[DaysCount];
+						lastVacationEventsOutOutDate = outRow.column[OutDate];
+						lastVacationEventsOutPlannedReturnDate = outRow.column[PlannedReturnDate];
+						lastVacationEventsOutTicket = outRow.column[Ticket];
+						lastVacationEventsOutOutCommandDate = outRow.column[OutCommandDate];
 					}
 				}
 			}
@@ -143,15 +160,35 @@ for (let owner in Daily.Sheet[DailyEvents].rows) {
 		}
 
 		// Валидация #5:
-		// для секций ToVacationForCuring/MoveFromHospitalToVacationForCuring/MoveFromVacationForCuringToVacationForCuring
+		// для секций ToAnnualMainVacation/ToVacationForCuring/MoveFromHospitalToVacationForCuring/MoveFromVacationForCuringToVacationForCuring
 		// данные должны совпадать с последней строкой EventsOut, где:
-		// - EventReason="Відпустка для лікування"
+		// - для SectionType=8: EventReason="Відпустка"
+		// - для SectionType=10/13/14: EventReason="Відпустка для лікування"
 		// - OutCommandDate == baseDate (после нормализации через m_ToFullDate).
 		// Если такой строки нет, валидацию #5 пропускаем.
-		if (owner.column[SectionType] == "10" ||
+		if (owner.column[SectionType] == "8" ||
+			owner.column[SectionType] == "10" ||
 			owner.column[SectionType] == "13" ||
 			owner.column[SectionType] == "14") {
-			if (hasVacationForCuringEventsOutForOwner == "true") {
+			let hasSelectedVacationEventsOutForOwner = hasVacationForCuringEventsOutForOwner;
+			let selectedEventReason = "Відпустка для лікування";
+			let selectedEventsOutDaysCount = lastVacationForCuringEventsOutDaysCount;
+			let selectedEventsOutOutDate = lastVacationForCuringEventsOutOutDate;
+			let selectedEventsOutPlannedReturnDate = lastVacationForCuringEventsOutPlannedReturnDate;
+			let selectedEventsOutTicket = lastVacationForCuringEventsOutTicket;
+			let selectedEventsOutOutCommandDate = lastVacationForCuringEventsOutOutCommandDate;
+
+			if (owner.column[SectionType] == "8") {
+				hasSelectedVacationEventsOutForOwner = hasVacationEventsOutForOwner;
+				selectedEventReason = "Відпустка";
+				selectedEventsOutDaysCount = lastVacationEventsOutDaysCount;
+				selectedEventsOutOutDate = lastVacationEventsOutOutDate;
+				selectedEventsOutPlannedReturnDate = lastVacationEventsOutPlannedReturnDate;
+				selectedEventsOutTicket = lastVacationEventsOutTicket;
+				selectedEventsOutOutCommandDate = lastVacationEventsOutOutCommandDate;
+			}
+
+			if (hasSelectedVacationEventsOutForOwner == "true") {
 				let compareDaysPattern = "^\\s*(\\d+)(?:\\s*\\+\\s*(\\d+))?";
 				let compareNumPattern = "^\\s*(\\d+)\\s*$";
 				let mismatchFields = "";
@@ -161,50 +198,52 @@ for (let owner in Daily.Sheet[DailyEvents].rows) {
 				if (ownerDaysDigits != "") {
 					ownerDaysNormalized = ownerDaysDigits;
 				}
-				let eventsOutDaysNormalized = lastVacationForCuringEventsOutDaysCount;
+				let eventsOutDaysNormalized = selectedEventsOutDaysCount;
 				let eventsOutDaysDigits = callMacro("ex_Helpers.m_RegexGetGroup", eventsOutDaysNormalized, compareDaysPattern, 1);
 				if (eventsOutDaysDigits != "") {
 					eventsOutDaysNormalized = eventsOutDaysDigits;
 				}
 				if (ownerDaysNormalized != eventsOutDaysNormalized) {
-					mismatchFields = mismatchFields + "DaysCount(Daily=" + owner.column[DaysCount] + "; EventsOut=" + lastVacationForCuringEventsOutDaysCount + "), ";
+					mismatchFields = mismatchFields + "DaysCount(Daily=" + owner.column[DaysCount] + "; EventsOut=" + selectedEventsOutDaysCount + "), ";
 				}
 
 				let ownerDateFromFull = callMacro("ex_DateHelpers.m_ToFullDate", $`{owner.column[DateFrom]}`, $`{baseDate}`);
-				let eventsOutDateFromFull = callMacro("ex_DateHelpers.m_ToFullDate", $`{lastVacationForCuringEventsOutOutDate}`, $`{baseDate}`);
+				let eventsOutDateFromFull = callMacro("ex_DateHelpers.m_ToFullDate", $`{selectedEventsOutOutDate}`, $`{baseDate}`);
 				if (ownerDateFromFull != eventsOutDateFromFull) {
-					mismatchFields = mismatchFields + "DateFrom/OutDate(Daily=" + owner.column[DateFrom] + "; EventsOut=" + lastVacationForCuringEventsOutOutDate + "), ";
+					mismatchFields = mismatchFields + "DateFrom/OutDate(Daily=" + owner.column[DateFrom] + "; EventsOut=" + selectedEventsOutOutDate + "), ";
 				}
 
 				let ownerDateToFull = callMacro("ex_DateHelpers.m_ToFullDate", $`{owner.column[DateTo]}`, $`{baseDate}`);
-				let eventsOutDateToFull = callMacro("ex_DateHelpers.m_ToFullDate", $`{lastVacationForCuringEventsOutPlannedReturnDate}`, $`{baseDate}`);
+				let eventsOutDateToFull = callMacro("ex_DateHelpers.m_ToFullDate", $`{selectedEventsOutPlannedReturnDate}`, $`{baseDate}`);
 				let eventsOutDateToMinusOneFull = callMacro("ex_DateHelpers.m_AddDaysToDate", $`{eventsOutDateToFull}`, "-1", $`{baseDate}`);
 				if (ownerDateToFull != eventsOutDateToMinusOneFull) {
-					mismatchFields = mismatchFields + "DateTo/PlannedReturnDate-1day(Daily=" + owner.column[DateTo] + "; EventsOut=" + lastVacationForCuringEventsOutPlannedReturnDate + "), ";
+					mismatchFields = mismatchFields + "DateTo/PlannedReturnDate-1day(Daily=" + owner.column[DateTo] + "; EventsOut=" + selectedEventsOutPlannedReturnDate + "), ";
 				}
 
-				let ownerVkNumNormalized = owner.column[VkNum];
-				let ownerVkNumDigits = callMacro("ex_Helpers.m_RegexGetGroup", ownerVkNumNormalized, compareNumPattern, 1);
-				if (ownerVkNumDigits != "") {
-					ownerVkNumNormalized = ownerVkNumDigits;
-				}
-				let eventsOutTicketNormalized = lastVacationForCuringEventsOutTicket;
-				let eventsOutTicketDigits = callMacro("ex_Helpers.m_RegexGetGroup", eventsOutTicketNormalized, compareNumPattern, 1);
-				if (eventsOutTicketDigits != "") {
-					eventsOutTicketNormalized = eventsOutTicketDigits;
-				}
-				if (ownerVkNumNormalized != eventsOutTicketNormalized) {
-					mismatchFields = mismatchFields + "VkNum/Ticket(Daily=" + owner.column[VkNum] + "; EventsOut=" + lastVacationForCuringEventsOutTicket + "), ";
-				}
+				if (owner.column[SectionType] != "8") {
+					let ownerVkNumNormalized = owner.column[VkNum];
+					let ownerVkNumDigits = callMacro("ex_Helpers.m_RegexGetGroup", ownerVkNumNormalized, compareNumPattern, 1);
+					if (ownerVkNumDigits != "") {
+						ownerVkNumNormalized = ownerVkNumDigits;
+					}
+					let eventsOutTicketNormalized = selectedEventsOutTicket;
+					let eventsOutTicketDigits = callMacro("ex_Helpers.m_RegexGetGroup", eventsOutTicketNormalized, compareNumPattern, 1);
+					if (eventsOutTicketDigits != "") {
+						eventsOutTicketNormalized = eventsOutTicketDigits;
+					}
+					if (ownerVkNumNormalized != eventsOutTicketNormalized) {
+						mismatchFields = mismatchFields + "VkNum/Ticket(Daily=" + owner.column[VkNum] + "; EventsOut=" + selectedEventsOutTicket + "), ";
+					}
 
-				let ownerVkDateFull = callMacro("ex_DateHelpers.m_ToFullDate", $`{owner.column[VkDate]}`, $`{baseDate}`);
-				let eventsOutVkDateFull = callMacro("ex_DateHelpers.m_ToFullDate", $`{lastVacationForCuringEventsOutOutCommandDate}`, $`{baseDate}`);
-				if (ownerVkDateFull != eventsOutVkDateFull) {
-					mismatchFields = mismatchFields + "VkDate/OutCommandDate(Daily=" + owner.column[VkDate] + "; EventsOut=" + lastVacationForCuringEventsOutOutCommandDate + "), ";
+					let ownerVkDateFull = callMacro("ex_DateHelpers.m_ToFullDate", $`{owner.column[VkDate]}`, $`{baseDate}`);
+					let eventsOutVkDateFull = callMacro("ex_DateHelpers.m_ToFullDate", $`{selectedEventsOutOutCommandDate}`, $`{baseDate}`);
+					if (ownerVkDateFull != eventsOutVkDateFull) {
+						mismatchFields = mismatchFields + "VkDate/OutCommandDate(Daily=" + owner.column[VkDate] + "; EventsOut=" + selectedEventsOutOutCommandDate + "), ";
+					}
 				}
 
 				if (mismatchFields != "") {
-					let mismatchErrorLine = "FIO=" + owner.column[FIO] + ", SectionType=" + owner.column[SectionType] + ": данные не совпадают с EventsOut строкой (EventReason='Відпустка для лікування', OutCommandDate=BaseDate): " + mismatchFields;
+					let mismatchErrorLine = "FIO=" + owner.column[FIO] + ", SectionType=" + owner.column[SectionType] + ": данные не совпадают с EventsOut строкой (EventReason='" + selectedEventReason + "', OutCommandDate=BaseDate): " + mismatchFields;
 					callMacro("ex_PostProcessActions.m_ShowBannerBeforeRowIndex", "TYPE_ERROR", validationErrorTitle, mismatchErrorLine, ownerRowIndexForWarning, 0, 0);
 					hasValidationWarnings = "true";
 				}
