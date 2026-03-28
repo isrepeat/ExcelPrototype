@@ -42,9 +42,9 @@ Public Sub m_UpdateUi_OnClick()
     On Error GoTo EH
 
     ex_CustomDropdown.m_OnManagedButtonClick
-    ex_OutputFormattingPipeline.m_ApplySheetPipeline ws_Dev
     ex_UILoader.m_LoadUiFromConfig ThisWorkbook
-    Application.Run "ex_ConfigProfilesManager.m_RestoreSelectionState"
+    ex_ConfigProfilesManager.m_RestoreSelectionState ws_Dev
+
     ex_CustomDropdown.m_InitDevTestDropdown ThisWorkbook
     mp_RefreshLogsToggleVisualFromSettings
     Exit Sub

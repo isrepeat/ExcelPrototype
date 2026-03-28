@@ -1,6 +1,8 @@
 Attribute VB_Name = "ex_ConfigTableStore"
 Option Explicit
 
+' TODO: Refactor config style application flow and remove duplicated pipeline logic shared with ex_ConfigProfilesManager.
+
 Private Const DEV_CONFIG_TABLE_NAME As String = "tblDevConfig"
 Private Const DEV_CONFIG_HEADER_ROW As Long = 1
 Private Const DEV_CONFIG_MARKER_COL As Long = 1
@@ -305,12 +307,14 @@ Private Sub mp_ApplyConfigStylesFromPipeline(ByVal tbl As ListObject)
     Set rowKindRanges("configdata") = dataRows
     Set rowKindRanges("configmarker") = markerRows
 
-    ex_OutputFormattingPipeline.m_ApplySheetPipeline ws, Nothing, Nothing, rowKindRanges
-    ' Keep explicit width declarations from DevSheetStylesPipeline.
-    ' Global AutoFit here would overwrite configured widths.
     If targetStableZoneLeft >= 0 Then
         ex_CustomDropdown.m_StabilizeChooseModeAnchorX ws, targetStableZoneLeft
         m_ScaleConfigColumnsToStableTarget ws, tbl.Range.Column, DEV_CONFIG_COL_COUNT, targetStableZoneLeft
+        ex_CustomDropdown.m_StabilizeChooseModeAnchorX ws, targetStableZoneLeft
+    End If
+
+    ex_OutputFormattingPipeline.m_ApplySheetPipeline ws, Nothing, Nothing, rowKindRanges
+    If targetStableZoneLeft >= 0 Then
         ex_CustomDropdown.m_StabilizeChooseModeAnchorX ws, targetStableZoneLeft
     End If
 End Sub
