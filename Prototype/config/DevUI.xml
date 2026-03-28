@@ -239,6 +239,20 @@
              spanCols="3"
              spanRows="2"/>
 
+    <control name="btnHealthBenefits"
+         type="button"
+         sheet="Dev"
+         required="true"
+         createIfMissing="true"
+         macro="ex_UIActions.m_ShowHealthBenefits_OnClick"
+         caption="Health Benefits"
+         globalVisible="false"
+         style="modePrimary"
+         placement="moveAndSize"
+         anchorCell="K8"
+         spanCols="3"
+         spanRows="2"/>
+
     <control name="btnComparing"
              type="button"
              sheet="Dev"

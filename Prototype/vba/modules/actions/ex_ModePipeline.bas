@@ -61,7 +61,7 @@ Public Function m_RunModePipeline( _
         mp_DebugLog "pipelineInput auto-created"
     End If
 
-    requireResultLayoutScript = mp_RequireResultLayoutScript(modeExecutorMacro)
+    requireResultLayoutScript = mp_RequireResultLayoutScript(cfg)
     If requireResultLayoutScript Then
         stageName = "prepare-default-query-tabrefs"
         mp_EnsureDefaultQueryTableRefs cfg, pipelineInput
@@ -165,20 +165,20 @@ EH:
     Err.Raise errNumber, errSource, errDescription
 End Function
 
-Private Function mp_RequireResultLayoutScript(ByVal modeExecutorMacro As String) As Boolean
-    Dim executorName As String
+Private Function mp_RequireResultLayoutScript(ByVal cfg As Object) As Boolean
+    Dim scriptRef As String
+    Dim scriptLoadError As String
 
-    executorName = LCase$(Trim$(modeExecutorMacro))
-    If Len(executorName) = 0 Then Exit Function
+    If cfg Is Nothing Then Exit Function
 
-    If InStr(1, executorName, "ex_modepersonalcard", vbTextCompare) > 0 Then
-        mp_RequireResultLayoutScript = True
+    scriptLoadError = vbNullString
+    scriptRef = vbNullString
+
+    If Not ex_ScriptSourceLoader.m_TryGetScriptText(cfg, "ResultLayout.Script", scriptRef, scriptLoadError) Then
         Exit Function
     End If
 
-    If InStr(1, executorName, "ex_modemultisources", vbTextCompare) > 0 Then
-        mp_RequireResultLayoutScript = True
-    End If
+    mp_RequireResultLayoutScript = (Len(Trim$(scriptRef)) > 0)
 End Function
 
 Private Sub mp_BeginPipelineBusy()
