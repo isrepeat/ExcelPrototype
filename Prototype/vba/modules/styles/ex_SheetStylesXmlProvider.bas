@@ -534,6 +534,7 @@ Public Sub m_DeleteResultSheets()
 
     On Error GoTo EH
     ex_ModePersonalCard.m_ResetResultPageSessionState
+        ex_ModeHealthBenefits.m_ResetResultPageSessionState
     ex_SheetViewZoom.m_ResetZoomCache
 
     Application.DisplayAlerts = False

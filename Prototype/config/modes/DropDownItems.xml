@@ -5,6 +5,9 @@
           caption="Personal Card"
           default="true"
           setContext="activeMode=PersonalCard"/>
+    <item key="HealthBenefits"
+          caption="Health Benefits"
+          setContext="activeMode=HealthBenefits"/>
     <item key="TablesComparing"
           caption="Comparing"
           setContext="activeMode=TablesComparing"/>

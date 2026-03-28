@@ -113,6 +113,11 @@ Public Sub m_ShowPersonalCard_OnClick()
     ex_ModePersonalCard.m_RunPersonalCard
 End Sub
 
+Public Sub m_ShowHealthBenefits_OnClick()
+    ex_CustomDropdown.m_OnManagedButtonClick
+    ex_ModeHealthBenefits.m_RunHealthBenefits
+End Sub
+
 Public Sub m_ShowReportCreation_OnClick()
     ex_CustomDropdown.m_OnManagedButtonClick
     ex_ModeReportCreation.m_RunKeysCollectionReport
@@ -138,7 +143,15 @@ Public Sub m_RunComparingTables_OnClick()
 End Sub
 
 Public Sub m_OutputPanelRunPostProcess_OnClick()
-    ex_ModePersonalCard.m_RunPostProcessForActiveSheet
+    Dim activeModeKey As String
+
+    activeModeKey = LCase$(Trim$(ex_ConfigProfilesManager.m_GetActiveModeKey()))
+    Select Case activeModeKey
+        Case "healthbenefits"
+            ex_ModeHealthBenefits.m_RunPostProcessForActiveSheet
+        Case Else
+            ex_ModePersonalCard.m_RunPostProcessForActiveSheet
+    End Select
 End Sub
 
 Public Sub m_OpenPreProcessScript_OnClick()
@@ -298,6 +311,8 @@ Public Sub m_OutputPanelStartSearch_OnClick()
     Select Case LCase$(activeModeKey)
         Case "personalcard"
             ex_ModePersonalCard.m_RunPersonalCard
+        Case "healthbenefits"
+            ex_ModeHealthBenefits.m_RunHealthBenefits
         Case "multisources"
             ex_ModeMultiSources.m_RunMultiSources
         Case "simpletest"
