@@ -11,7 +11,7 @@ callMacro("ex_TableLayoutActions.m_Apply", tablePlan);
 
 // -------- 2) resultLayout --------
 let resultPlan = callMacroObject("ex_ResultLayoutActions.m_CreatePlan", input);
-//callMacro("ex_ResultLayoutActions.m_PushAllTablesIfNotEmpty", resultPlan);
+callMacro("ex_ResultLayoutActions.m_PushAllTablesIfNotEmpty", resultPlan);
 
 // let resultLayoutOrdinals = callMacroObject("ex_ScriptIO.m_CreateCollection");
 // let datePattern = "^\\{?Main-(\\d{2})\\.(\\d{2})\\.(\\d{4})\\}?\\.Sheet\\[StateMain\\]$";

@@ -1383,36 +1383,15 @@ Private Function mp_CreateDeferredAutoHeightRowState( _
 End Function
 
 Private Sub mp_ApplyAutoHeightToRowSpan(ByVal ws As Worksheet, ByVal rowStart As Long, ByVal rowEnd As Long)
-    Dim prevHeights() As Double
-    Dim currentHeight As Double
-    Dim rowIndex As Long
-    Dim itemIndex As Long
-
     If ws Is Nothing Then Exit Sub
     If rowStart <= 0 Then Exit Sub
     If rowEnd < rowStart Then Exit Sub
     If rowStart > ws.Rows.Count Then Exit Sub
     If rowEnd > ws.Rows.Count Then rowEnd = ws.Rows.Count
 
-    ReDim prevHeights(1 To rowEnd - rowStart + 1)
-    itemIndex = 0
-    For rowIndex = rowStart To rowEnd
-        itemIndex = itemIndex + 1
-        prevHeights(itemIndex) = ws.Rows(rowIndex).RowHeight
-    Next rowIndex
-
     On Error Resume Next
     ws.Rows(CStr(rowStart) & ":" & CStr(rowEnd)).AutoFit
     On Error GoTo 0
-
-    itemIndex = 0
-    For rowIndex = rowStart To rowEnd
-        itemIndex = itemIndex + 1
-        currentHeight = ws.Rows(rowIndex).RowHeight
-        If currentHeight < prevHeights(itemIndex) Then
-            ws.Rows(rowIndex).RowHeight = prevHeights(itemIndex)
-        End If
-    Next rowIndex
 End Sub
 
 Private Sub mp_CollectEnabledAutoHeightRows( _

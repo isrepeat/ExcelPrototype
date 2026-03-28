@@ -1,6 +1,8 @@
 Attribute VB_Name = "ex_ConfigProfilesManager"
 Option Explicit
 
+' TODO: Refactor config style application flow and remove duplicated pipeline logic shared with ex_ConfigTableStore.
+
 ' =============================================================================
 ' ex_ConfigProfilesManager
 ' =============================================================================
@@ -40,23 +42,18 @@ Private Const PROFILE_CFG_COL_KEY As String = "key"
 Private Const PROFILE_CFG_COL_VALUE As String = "value"
 Private Const PROFILE_CFG_COL_STYLES As String = "styles"
 Private Const PFUI_UI_DEFINITION_REL_PATH As String = "config\DevUI.xml"
-Private Const PFUI_UI_BLOCK_GROUP_NAME As String = "grpUiBlock"
-Private Const PFUI_PROFILE_DROPDOWN_SHAPE As String = "btnCustomProfile"
-Private Const PFUI_MODE_DROPDOWN_SHAPE As String = "btnCustomMode"
-Private Const LEGACY_PROFILE_DROPDOWN_SHAPE As String = "ddProfile"
-Private Const LEGACY_MODE_DROPDOWN_SHAPE As String = "ddMode"
-Private Const PFUI_UPDATE_BUTTON_SHAPE As String = "btnUpdateCode"
-Private Const PFUI_UPDATE_UI_BUTTON_SHAPE As String = "btnUpdateUI"
-Private Const PFUI_CLEAR_BUTTON_SHAPE As String = "btnClear"
-Private Const PFUI_PERSONAL_BUTTON_SHAPE As String = "btnPersonalCard"
-Private Const PFUI_COMPARING_BUTTON_SHAPE As String = "btnComparing"
-Private Const PFUI_PREPROCESS_SCRIPT_BUTTON_SHAPE As String = "btnPreProcessScript"
-Private Const PFUI_RESULTLAYOUT_SCRIPT_BUTTON_SHAPE As String = "btnResultLayoutScript"
-Private Const PFUI_POSTPROCESS_SCRIPT_BUTTON_SHAPE As String = "btnPostProcessScript"
 Private Const STATE_ACTIVE_MODE_KEY_PROP As String = "Settings.ActiveModeKey"
 Private Const STATE_ACTIVE_PROFILE_PROP_PREFIX As String = "Settings.ActiveProfile."
 Private Const STATE_PROFILE_FILE_SIGNATURE_PROP_PREFIX As String = "Settings.ProfileFileSignature."
 Private Const XML_ATTR_MUTABLE As String = "mutable"
+Private Const TEMP_PARSE_ERROR_PROFILE_NAME As String = "error"
+Private Const DEV_PROFILE_ERROR_BANNER_RANGE As String = "B4:C4"
+Private Const DEV_PROFILE_ERROR_BANNER_KIND As String = "errorbanner"
+
+Private g_LastProfilesLoadFilePath As String
+Private g_LastProfilesLoadError As String
+Private g_LastProfilesLoadWasParseError As Boolean
+Private g_LastProfilesLoadFileMissing As Boolean
 
 ' =============================================================================
 ' Public API (сверху по требованию рефакторинга)
@@ -76,6 +73,9 @@ Public Sub m_ApplyProfileFromDev(Optional ByVal profileName As String = vbNullSt
     Dim mutableKeys As Object
     Dim cfgTable As ListObject
     Dim profiles As Variant
+    Dim requestedProfileName As String
+    Dim fallbackProfileName As String
+    Dim failureReasonText As String
     Dim prevEvents As Boolean
     Dim targetStableZoneLeft As Double
     Dim stepName As String
@@ -85,6 +85,7 @@ Public Sub m_ApplyProfileFromDev(Optional ByVal profileName As String = vbNullSt
     stepName = "resolve-sheet"
 
     Set ws = ws_Dev
+    mp_ClearProfileErrorBanner ws
     targetStableZoneLeft = ex_CustomDropdown.m_GetStableZoneStartLeft(ws)
 
     stepName = "resolve-profile-name"
@@ -96,14 +97,68 @@ Public Sub m_ApplyProfileFromDev(Optional ByVal profileName As String = vbNullSt
     End If
     profileName = Trim$(profileName)
     If Len(profileName) = 0 Then Exit Sub
+    requestedProfileName = profileName
+
+    If Not mp_ArrayHasItems(profiles) Then
+        profiles = mp_GetProfileNames(ws)
+    End If
 
     stepName = "load-profile-dom"
     Set doc = mp_LoadProfilesDom(ws)
-    stepName = "resolve-profile-node"
-    Set profileNode = mp_GetProfileNode(doc, profileName, False)
-    If profileNode Is Nothing Then
-        MsgBox "Profile '" & profileName & "' was not found in config file: " & mp_GetProfilesFilePath(), vbExclamation
+    If doc Is Nothing Then
+        failureReasonText = mp_BuildProfileLoadFailureReason(profileName)
+        mp_ClearConfigForProfileLoadError ws
+        On Error Resume Next
+        ex_ConfigProvider.m_RefreshConfigTitle ws, TEMP_PARSE_ERROR_PROFILE_NAME
+        On Error GoTo 0
+        mp_RenderProfileErrorBanner ws, requestedProfileName, TEMP_PARSE_ERROR_PROFILE_NAME, failureReasonText
         Exit Sub
+    End If
+
+    stepName = "resolve-profile-node"
+    If g_LastProfilesLoadWasParseError Then
+        failureReasonText = mp_BuildProfileLoadFailureReason(profileName)
+
+        fallbackProfileName = TEMP_PARSE_ERROR_PROFILE_NAME
+
+        Set profileNode = mp_GetProfileNode(doc, fallbackProfileName, True)
+        If profileNode Is Nothing Then
+            mp_RenderProfileErrorBanner ws, requestedProfileName, fallbackProfileName, _
+                failureReasonText & vbCrLf & "Failed to create temporary empty fallback profile in in-memory DOM."
+            Exit Sub
+        End If
+
+        profileName = fallbackProfileName
+        mp_ClearConfigForProfileLoadError ws
+        On Error Resume Next
+        ex_ConfigProvider.m_RefreshConfigTitle ws, profileName
+        On Error GoTo 0
+        mp_RenderProfileErrorBanner ws, requestedProfileName, profileName, failureReasonText
+        Exit Sub
+    Else
+        Set profileNode = mp_GetProfileNode(doc, profileName, False)
+        If profileNode Is Nothing Then
+            failureReasonText = mp_BuildProfileLoadFailureReason(profileName)
+
+            fallbackProfileName = mp_FindPreviousExistingProfileName(doc, profiles, profileName)
+            If Len(fallbackProfileName) > 0 Then
+                Set profileNode = mp_GetProfileNode(doc, fallbackProfileName, False)
+                If Not profileNode Is Nothing Then
+                    profileName = fallbackProfileName
+                    m_SetActiveProfileName profileName, mp_GetSelectedModeKey(ws), ws
+                    MsgBox "Profile '" & requestedProfileName & "' was not loaded." & vbCrLf & _
+                           failureReasonText & vbCrLf & _
+                           "Fallback applied: '" & profileName & "'.", vbInformation
+                End If
+            End If
+
+            If profileNode Is Nothing Then
+                MsgBox "Profile '" & requestedProfileName & "' was not loaded." & vbCrLf & _
+                       failureReasonText & vbCrLf & _
+                       "Fallback profile is unavailable (checked previous profiles down to the first item).", vbExclamation
+                Exit Sub
+            End If
+        End If
     End If
 
     stepName = "read-profile-entries"
@@ -131,6 +186,7 @@ Public Sub m_ApplyProfileFromDev(Optional ByVal profileName As String = vbNullSt
     On Error Resume Next
     ex_ConfigProvider.m_RefreshConfigTitle ws, profileName
     On Error GoTo 0
+
     stepName = "apply-profile-ui"
     ex_ConfigProfilesManager.m_ApplyProfileUI ws, profileNode, profileName
     stepName = "apply-mode-visibility"
@@ -231,6 +287,93 @@ Public Function m_GetActiveModeKey(Optional ByVal ws As Worksheet) As String
     m_GetActiveModeKey = modeKey
 End Function
 
+Private Sub mp_ClearConfigForProfileLoadError(ByVal ws As Worksheet)
+    Dim tbl As ListObject
+    Dim i As Long
+
+    If ws Is Nothing Then Exit Sub
+
+    Set tbl = ex_ConfigTableStore.m_GetConfigTable(ws, True)
+    If tbl Is Nothing Then Exit Sub
+
+    On Error GoTo SafeFallback
+
+    ' Remove every data row to keep only table headers.
+    If tbl.ListRows.Count > 0 Then
+        For i = tbl.ListRows.Count To 1 Step -1
+            tbl.ListRows(i).Delete
+        Next i
+    End If
+
+    ex_ConfigTableStore.m_ApplyConfigMarkerStyles tbl
+    Exit Sub
+
+SafeFallback:
+    Err.Clear
+    On Error Resume Next
+    If tbl.ListRows.Count = 0 Then
+        tbl.ListRows.Add
+    End If
+    If Not tbl.DataBodyRange Is Nothing Then
+        tbl.DataBodyRange.ClearContents
+    End If
+    ex_ConfigTableStore.m_ApplyConfigMarkerStyles tbl
+    On Error GoTo 0
+End Sub
+
+Private Sub mp_RenderProfileErrorBanner( _
+    ByVal ws As Worksheet, _
+    ByVal requestedProfileName As String, _
+    ByVal appliedProfileName As String, _
+    ByVal reasonText As String _
+)
+    Dim bannerText As String
+    Dim titleText As String
+
+    If ws Is Nothing Then Exit Sub
+
+    requestedProfileName = Trim$(requestedProfileName)
+    appliedProfileName = Trim$(appliedProfileName)
+    reasonText = Trim$(reasonText)
+
+    If Len(requestedProfileName) = 0 Then requestedProfileName = "<unknown>"
+    If Len(appliedProfileName) = 0 Then appliedProfileName = TEMP_PARSE_ERROR_PROFILE_NAME
+    If Len(reasonText) = 0 Then reasonText = "Unknown profile load failure."
+
+    bannerText = "Config [profile = " & appliedProfileName & "]" & vbLf & _
+                 "PROFILE LOAD ERROR: '" & requestedProfileName & "'" & vbLf & _
+                 reasonText
+    titleText = "Error"
+
+    mp_ClearProfileErrorBanner ws
+
+    On Error Resume Next
+    ex_Messaging.m_RenderTextBanner ws, bannerText, titleText, DEV_PROFILE_ERROR_BANNER_RANGE, DEV_PROFILE_ERROR_BANNER_KIND
+    If Err.Number <> 0 Then
+        Err.Clear
+        ws.Range("B4").Value2 = titleText & ": " & bannerText
+        ws.Range("B4").WrapText = True
+        ws.Range("B4").HorizontalAlignment = xlLeft
+        ws.Range("B4").VerticalAlignment = xlTop
+        ws.Range("B4").Font.Bold = True
+        ws.Range("B4").Font.Color = RGB(255, 236, 236)
+        ws.Range("B4:C4").Interior.Color = RGB(96, 34, 34)
+        ws.Rows(4).AutoFit
+    End If
+    On Error GoTo 0
+End Sub
+
+Private Sub mp_ClearProfileErrorBanner(ByVal ws As Worksheet)
+    If ws Is Nothing Then Exit Sub
+
+    On Error Resume Next
+    ex_Messaging.m_ClearBannerAnchors ws
+    If ws.Range("B4").MergeCells Then
+        ws.Range("B4:C4").UnMerge
+    End If
+    On Error GoTo 0
+End Sub
+
 Public Function m_GetActiveModeName(Optional ByVal ws As Worksheet) As String
     Dim modeName As String
     Dim modeKey As String
@@ -246,7 +389,7 @@ Public Function m_GetActiveModeName(Optional ByVal ws As Worksheet) As String
     modeKey = m_GetActiveModeKey(ws)
 
     If Len(modeName) = 0 Then
-        modeName = Trim$(ex_UiXmlProvider.m_GetDropdownItemCaptionByKey(PFUI_MODE_DROPDOWN_SHAPE, modeKey, ThisWorkbook))
+        modeName = Trim$(ex_UiXmlProvider.m_GetDropdownItemCaptionByKey("btnCustomMode", modeKey, ThisWorkbook))
     End If
     If Len(modeName) = 0 Then
         modeName = modeKey
@@ -329,7 +472,7 @@ Public Sub m_SetActiveModeKey(ByVal modeKey As String, Optional ByVal ws As Work
 
     resolvedModeKey = modeKey
     If Not mp_IsModeKeyValid(resolvedModeKey) Then
-        MsgBox "Mode key '" & modeKey & "' is not available in control '" & PFUI_MODE_DROPDOWN_SHAPE & "'.", vbExclamation
+        MsgBox "Mode key '" & modeKey & "' is not available in control 'btnCustomMode'.", vbExclamation
         Exit Sub
     End If
 
@@ -354,7 +497,7 @@ Public Sub m_SetActiveProfileName(ByVal profileName As String, Optional ByVal mo
     End If
     If Len(resolvedModeKey) = 0 Then Exit Sub
 
-    availableProfiles = ex_UiXmlProvider.m_GetDropdownItemsByName(PFUI_PROFILE_DROPDOWN_SHAPE, ThisWorkbook, resolvedModeKey)
+    availableProfiles = ex_UiXmlProvider.m_GetDropdownItemsByName("btnCustomProfile", ThisWorkbook, resolvedModeKey)
     If mp_ArrayHasItems(availableProfiles) Then
         If Not mp_ArrayContains(availableProfiles, profileName) Then
             MsgBox "Profile '" & profileName & "' is not available for mode '" & resolvedModeKey & "'.", vbExclamation
@@ -657,7 +800,7 @@ Private Function mp_GetProfileNames(Optional ByVal ws As Worksheet) As Variant
     End If
 
     modeKey = m_GetActiveModeKey(ws)
-    mp_GetProfileNames = ex_UiXmlProvider.m_GetDropdownItemsByName(PFUI_PROFILE_DROPDOWN_SHAPE, ThisWorkbook, modeKey)
+    mp_GetProfileNames = ex_UiXmlProvider.m_GetDropdownItemsByName("btnCustomProfile", ThisWorkbook, modeKey)
 End Function
 
 Private Function mp_ArrayHasItems(ByVal values As Variant) As Boolean
@@ -731,7 +874,7 @@ Private Sub m_EnsureModeDropdown(ByVal ws As Worksheet)
 
     modeKey = Trim$(mp_GetSelectedModeKey(ws))
     If Len(modeKey) = 0 Then
-        MsgBox "Mode list is empty for control '" & PFUI_MODE_DROPDOWN_SHAPE & "' in config\DevUI.xml.", vbExclamation
+        MsgBox "Mode list is empty for control 'btnCustomMode' in config\DevUI.xml.", vbExclamation
         Exit Sub
     End If
 
@@ -798,9 +941,9 @@ Private Function mp_ResolveModeKeyByName(ByVal modeName As String) As String
     modeName = Trim$(modeName)
     If Len(modeName) = 0 Then Exit Function
 
-    modeKey = Trim$(ex_UiXmlProvider.m_GetDropdownItemKeyByTarget(PFUI_MODE_DROPDOWN_SHAPE, modeName, ThisWorkbook))
+    modeKey = Trim$(ex_UiXmlProvider.m_GetDropdownItemKeyByTarget("btnCustomMode", modeName, ThisWorkbook))
     If Len(modeKey) = 0 Then
-        existingCaption = Trim$(ex_UiXmlProvider.m_GetDropdownItemCaptionByKey(PFUI_MODE_DROPDOWN_SHAPE, modeName, ThisWorkbook))
+        existingCaption = Trim$(ex_UiXmlProvider.m_GetDropdownItemCaptionByKey("btnCustomMode", modeName, ThisWorkbook))
         If Len(existingCaption) > 0 Then modeKey = modeName
     End If
 
@@ -813,7 +956,7 @@ Private Function mp_ResolveModeNameByKey(ByVal modeKey As String) As String
     modeKey = Trim$(modeKey)
     If Len(modeKey) = 0 Then Exit Function
 
-    modeName = Trim$(ex_UiXmlProvider.m_GetDropdownItemCaptionByKey(PFUI_MODE_DROPDOWN_SHAPE, modeKey, ThisWorkbook))
+    modeName = Trim$(ex_UiXmlProvider.m_GetDropdownItemCaptionByKey("btnCustomMode", modeKey, ThisWorkbook))
     If Len(modeName) = 0 Then modeName = modeKey
 
     mp_ResolveModeNameByKey = modeName
@@ -874,7 +1017,7 @@ Private Function mp_IsModeKeyValid(ByVal modeKey As String) As Boolean
     modeKey = Trim$(modeKey)
     If Len(modeKey) = 0 Then Exit Function
 
-    modeRecords = ex_UiXmlProvider.m_GetDropdownItemRecordsByControl(PFUI_MODE_DROPDOWN_SHAPE, ThisWorkbook)
+    modeRecords = ex_UiXmlProvider.m_GetDropdownItemRecordsByControl("btnCustomMode", ThisWorkbook)
     If Not mp_ArrayHasItems(modeRecords) Then Exit Function
 
     For i = LBound(modeRecords, 1) To UBound(modeRecords, 1)
@@ -900,6 +1043,63 @@ Private Function mp_FindProfileIndexByName(ByVal profiles As Variant, ByVal prof
         End If
     Next i
 End Function
+
+Private Function mp_FindPreviousExistingProfileName(ByVal doc As Object, ByVal profiles As Variant, ByVal profileName As String) As String
+    Dim profileIndex As Long
+    Dim candidateOrderIndex As Long
+    Dim candidateArrayIndex As Long
+    Dim candidateName As String
+
+    If doc Is Nothing Then Exit Function
+    If Not mp_ArrayHasItems(profiles) Then Exit Function
+
+    profileIndex = mp_FindProfileIndexByName(profiles, profileName)
+    If profileIndex <= 0 Then
+        profileIndex = mp_ArrayLength(profiles) + 1
+    End If
+    If profileIndex <= 1 Then Exit Function
+
+    For candidateOrderIndex = profileIndex - 1 To 1 Step -1
+        candidateArrayIndex = LBound(profiles) + candidateOrderIndex - 1
+        candidateName = Trim$(CStr(profiles(candidateArrayIndex)))
+        If Len(candidateName) = 0 Then GoTo ContinueCandidate
+        If Not mp_GetProfileNode(doc, candidateName, False) Is Nothing Then
+            mp_FindPreviousExistingProfileName = candidateName
+            Exit Function
+        End If
+ContinueCandidate:
+    Next candidateOrderIndex
+End Function
+
+Private Function mp_BuildProfileLoadFailureReason(ByVal profileName As String) As String
+    Dim filePath As String
+
+    filePath = Trim$(g_LastProfilesLoadFilePath)
+    If Len(filePath) = 0 Then filePath = Trim$(mp_GetProfilesFilePath())
+
+    If g_LastProfilesLoadWasParseError Then
+        If Len(g_LastProfilesLoadError) > 0 Then
+            mp_BuildProfileLoadFailureReason = "Reason: XML parse error." & vbCrLf & g_LastProfilesLoadError
+        Else
+            mp_BuildProfileLoadFailureReason = "Reason: failed to parse XML config file: " & filePath
+        End If
+        Exit Function
+    End If
+
+    If g_LastProfilesLoadFileMissing Then
+        mp_BuildProfileLoadFailureReason = "Reason: profiles config file was not found: " & filePath
+        Exit Function
+    End If
+
+    mp_BuildProfileLoadFailureReason = "Reason: profile '" & profileName & "' was not found in config file: " & filePath
+End Function
+
+Private Sub mp_ResetProfilesLoadDiagnostics()
+    g_LastProfilesLoadFilePath = vbNullString
+    g_LastProfilesLoadError = vbNullString
+    g_LastProfilesLoadWasParseError = False
+    g_LastProfilesLoadFileMissing = False
+End Sub
 
 Private Function mp_GetSavedProfileNameForModeKey(ByVal modeKey As String) As String
     Dim propName As String
@@ -994,16 +1194,27 @@ End Sub
 Private Function mp_LoadProfilesDom(Optional ByVal ws As Worksheet) As Object
     Dim filePath As String
     Dim modeKey As String
+    Dim parseErrorMessage As String
+    Dim usedTemplateFallback As Boolean
+    Dim isMissingFile As Boolean
 
     If ws Is Nothing Then
         Set ws = ws_Dev
     End If
 
+    mp_ResetProfilesLoadDiagnostics
+
     modeKey = mp_GetSelectedModeKey(ws)
     filePath = mp_GetProfilesFilePath(modeKey)
     If Len(filePath) = 0 Then Exit Function
+    g_LastProfilesLoadFilePath = filePath
 
-    Set mp_LoadProfilesDom = ex_ProfilesStore.m_LoadProfilesDom(filePath)
+    Set mp_LoadProfilesDom = ex_ProfilesStore.m_LoadProfilesDomWithStatus(filePath, parseErrorMessage, usedTemplateFallback, isMissingFile)
+    g_LastProfilesLoadFileMissing = isMissingFile
+    If Len(parseErrorMessage) > 0 Then
+        g_LastProfilesLoadWasParseError = True
+        g_LastProfilesLoadError = parseErrorMessage
+    End If
 End Function
 
 Private Sub mp_SaveProfilesDom(ByVal doc As Object)
@@ -1139,8 +1350,6 @@ Private Sub mp_ApplyMutableStylePipeline(ByVal ws As Worksheet, ByVal tbl As Lis
 
     If ws Is Nothing Then Exit Sub
     If tbl Is Nothing Then Exit Sub
-    If mutableKeys Is Nothing Then Exit Sub
-    If mutableKeys.Count = 0 Then Exit Sub
     targetStableZoneLeft = ex_CustomDropdown.m_GetStableZoneStartLeft(ws)
 
     Set rowKindRanges = CreateObject("Scripting.Dictionary")
@@ -1181,10 +1390,14 @@ Private Sub mp_ApplyMutableStylePipeline(ByVal ws As Worksheet, ByVal tbl As Lis
     Set rowKindRanges("configmarker") = markerRows
     Set rowKindRanges("configmutable") = mutableRows
 
-    ex_OutputFormattingPipeline.m_ApplySheetPipeline ws, Nothing, Nothing, rowKindRanges
     If targetStableZoneLeft >= 0 Then
         ex_CustomDropdown.m_StabilizeChooseModeAnchorX ws, targetStableZoneLeft
         ex_ConfigTableStore.m_ScaleConfigColumnsToStableTarget ws, tbl.Range.Column, DEV_CONFIG_COL_COUNT, targetStableZoneLeft
+        ex_CustomDropdown.m_StabilizeChooseModeAnchorX ws, targetStableZoneLeft
+    End If
+
+    ex_OutputFormattingPipeline.m_ApplySheetPipeline ws, Nothing, Nothing, rowKindRanges
+    If targetStableZoneLeft >= 0 Then
         ex_CustomDropdown.m_StabilizeChooseModeAnchorX ws, targetStableZoneLeft
     End If
 End Sub
@@ -1295,7 +1508,6 @@ Private Function mp_ApplyProfileConfigStyles( _
     Dim verticalAlign As Long
     Dim bodyRange As Range
     Dim normalizedOverflow As String
-    Dim shouldAutoFitConfigRows As Boolean
     Dim didScale As Boolean
 
     If ws Is Nothing Then
@@ -1399,16 +1611,9 @@ Private Function mp_ApplyProfileConfigStyles( _
                     Exit Function
             End Select
 
-            If normalizedOverflow = "wrap" Then
-                shouldAutoFitConfigRows = True
-            End If
         End If
 NextCfgNode:
     Next cfgNode
-
-    If shouldAutoFitConfigRows Then
-        mp_AutoFitConfigRangeRows ws, tbl
-    End If
 
     If targetStableZoneLeft >= 0 Then
         ex_CustomDropdown.m_StabilizeChooseModeAnchorX ws, targetStableZoneLeft
@@ -1502,21 +1707,6 @@ Private Function mp_TryParseProfileConfigAlign(ByVal alignText As String, ByRef 
     mp_TryParseProfileConfigAlign = True
 End Function
 
-Private Sub mp_AutoFitConfigRangeRows(ByVal ws As Worksheet, ByVal tbl As ListObject)
-    Dim topRow As Long
-    Dim bottomRow As Long
-
-    If ws Is Nothing Then Exit Sub
-    If tbl Is Nothing Then Exit Sub
-    If tbl.Range Is Nothing Then Exit Sub
-
-    topRow = tbl.Range.Row
-    bottomRow = topRow + tbl.Range.Rows.Count - 1
-    If bottomRow < topRow Then Exit Sub
-
-    ws.Rows(CStr(topRow) & ":" & CStr(bottomRow)).AutoFit
-End Sub
-
 ' =============================================================================
 ' Profile UI helpers (migrated from ex_ProfileUI)
 ' =============================================================================
@@ -1552,8 +1742,8 @@ Public Sub m_ApplyProfileUI(ByVal ws As Worksheet, ByVal profileNode As Object, 
 
         Set shp = m_GetShapeByName(ws, shapeName)
         If shp Is Nothing Then
-            If StrComp(shapeName, LEGACY_PROFILE_DROPDOWN_SHAPE, vbTextCompare) = 0 Then GoTo NextNode
-            If StrComp(shapeName, LEGACY_MODE_DROPDOWN_SHAPE, vbTextCompare) = 0 Then GoTo NextNode
+            If StrComp(shapeName, "ddProfile", vbTextCompare) = 0 Then GoTo NextNode
+            If StrComp(shapeName, "ddMode", vbTextCompare) = 0 Then GoTo NextNode
             If pfui_IsButtonShapeName(shapeName) Then GoTo NextNode
             MsgBox "Profile UI shape '" & shapeName & "' was not found on sheet '" & ws.Name & "'.", vbExclamation
             Exit Sub
@@ -1566,68 +1756,9 @@ NextNode:
     Next node
 End Sub
 
-Public Sub m_EnsureUiControlsAbsolute(Optional ByVal ws As Worksheet)
-    Dim shp As Shape
-
-    If ws Is Nothing Then
-        Set ws = ws_Dev
-    End If
-    If ws Is Nothing Then
-        MsgBox "Failed to apply absolute UI layout: worksheet is not specified.", vbExclamation
-        Exit Sub
-    End If
-
-    For Each shp In ws.Shapes
-        If pfui_IsManagedUiBlockShape(shp.Name) Then
-            On Error GoTo EH_PLACEMENT
-            shp.Placement = xlFreeFloating
-            On Error GoTo 0
-        End If
-    Next shp
-
-    Exit Sub
-EH_PLACEMENT:
-    MsgBox "Failed to set absolute placement for shape '" & shp.Name & "': " & Err.Description, vbExclamation
-End Sub
-
 Public Sub m_InitUiBlockLayoutAndGroup(Optional ByVal ws As Worksheet)
-    Dim shp As Shape
-    Dim names As Variant
-    Dim groupShape As Shape
-    Dim shapeName As Variant
-
-    If ws Is Nothing Then
-        Set ws = ws_Dev
-    End If
-    If ws Is Nothing Then
-        MsgBox "Failed to initialize UI block group: worksheet is not specified.", vbExclamation
-        Exit Sub
-    End If
-
-    m_EnsureUiControlsAbsolute ws
-    On Error GoTo EH_UNGROUP
-    pfui_UngroupManagedUiShapes ws
-    On Error GoTo 0
-
-    names = Array(PFUI_MODE_DROPDOWN_SHAPE, PFUI_CLEAR_BUTTON_SHAPE, PFUI_PERSONAL_BUTTON_SHAPE, PFUI_COMPARING_BUTTON_SHAPE)
-    For Each shapeName In names
-        Set shp = m_GetShapeByName(ws, CStr(shapeName))
-        If shp Is Nothing Then
-            MsgBox "Failed to initialize UI block group: shape '" & CStr(shapeName) & "' was not found on sheet '" & ws.Name & "'.", vbExclamation
-            Exit Sub
-        End If
-    Next shapeName
-
-    On Error GoTo EH_GROUP
-    Set groupShape = ws.Shapes.Range(names).Group
-    groupShape.Name = PFUI_UI_BLOCK_GROUP_NAME
-    Exit Sub
-
-EH_UNGROUP:
-    MsgBox "Failed to ungroup existing UI block shapes before creating '" & PFUI_UI_BLOCK_GROUP_NAME & "': " & Err.Description, vbExclamation
-    Exit Sub
-EH_GROUP:
-    MsgBox "Failed to create group '" & PFUI_UI_BLOCK_GROUP_NAME & "'. Group " & PFUI_MODE_DROPDOWN_SHAPE & " + buttons manually if needed: " & Err.Description, vbExclamation
+    ' Grouping logic is intentionally disabled.
+    ' Kept as a compatibility entrypoint for callers.
 End Sub
 
 Public Sub m_ApplyModeVisibility(ByVal ws As Worksheet, ByVal profileNode As Object)
@@ -1678,9 +1809,9 @@ Private Sub mp_ApplyScriptButtonsVisibility(ByVal ws As Worksheet, ByVal profile
     hasResultLayoutScript = mp_ProfileHasScriptDefinition(profileNode, "resultlayout")
     hasPostScript = mp_ProfileHasScriptDefinition(profileNode, "postprocess")
 
-    pfui_SetButtonVisibility ws, PFUI_PREPROCESS_SCRIPT_BUTTON_SHAPE, hasPreScript
-    pfui_SetButtonVisibility ws, PFUI_RESULTLAYOUT_SCRIPT_BUTTON_SHAPE, hasResultLayoutScript
-    pfui_SetButtonVisibility ws, PFUI_POSTPROCESS_SCRIPT_BUTTON_SHAPE, hasPostScript
+    pfui_SetButtonVisibility ws, "btnPreProcessScript", hasPreScript
+    pfui_SetButtonVisibility ws, "btnResultLayoutScript", hasResultLayoutScript
+    pfui_SetButtonVisibility ws, "btnPostProcessScript", hasPostScript
 End Sub
 
 Private Sub pfui_SetButtonVisibility(ByVal ws As Worksheet, ByVal shapeName As String, ByVal isVisible As Boolean)
@@ -1870,72 +2001,8 @@ Private Function pfui_FindShapeInContainer(ByVal shapeContainer As Object, ByVal
     Next shp
 End Function
 
-Private Sub pfui_UngroupManagedUiShapes(ByVal ws As Worksheet)
-    Dim hasGroupsToUngroup As Boolean
-    Dim i As Long
-    Dim shp As Shape
-
-    Do
-        hasGroupsToUngroup = False
-        For i = ws.Shapes.Count To 1 Step -1
-            Set shp = ws.Shapes(i)
-            If shp.Type = msoGroup Then
-                If pfui_GroupContainsManagedShapes(shp) Then
-                    shp.Ungroup
-                    hasGroupsToUngroup = True
-                    Exit For
-                End If
-            End If
-        Next i
-    Loop While hasGroupsToUngroup
-End Sub
-
-Private Function pfui_GroupContainsManagedShapes(ByVal groupShape As Shape) As Boolean
-    Dim groupItem As Shape
-
-    For Each groupItem In groupShape.GroupItems
-        If pfui_IsManagedUiBlockShape(groupItem.Name) Then
-            pfui_GroupContainsManagedShapes = True
-            Exit Function
-        End If
-    Next groupItem
-End Function
-
 Private Function pfui_IsButtonShapeName(ByVal shapeName As String) As Boolean
     pfui_IsButtonShapeName = (LCase$(Left$(Trim$(shapeName), 3)) = "btn")
-End Function
-
-Private Function pfui_IsManagedUiBlockShape(ByVal shapeName As String) As Boolean
-    Dim normalized As String
-
-    normalized = Trim$(shapeName)
-    If Len(normalized) = 0 Then Exit Function
-
-    If StrComp(normalized, PFUI_PROFILE_DROPDOWN_SHAPE, vbTextCompare) = 0 Then
-        pfui_IsManagedUiBlockShape = True
-        Exit Function
-    End If
-
-    If StrComp(normalized, LEGACY_PROFILE_DROPDOWN_SHAPE, vbTextCompare) = 0 Then
-        pfui_IsManagedUiBlockShape = True
-        Exit Function
-    End If
-
-    If StrComp(normalized, PFUI_MODE_DROPDOWN_SHAPE, vbTextCompare) = 0 Then
-        pfui_IsManagedUiBlockShape = True
-        Exit Function
-    End If
-
-    If StrComp(normalized, LEGACY_MODE_DROPDOWN_SHAPE, vbTextCompare) = 0 Then
-        pfui_IsManagedUiBlockShape = True
-        Exit Function
-    End If
-
-    If pfui_IsButtonShapeName(normalized) Then
-        pfui_IsManagedUiBlockShape = ( _
-            StrComp(normalized, PFUI_UPDATE_BUTTON_SHAPE, vbTextCompare) <> 0 _
-            And StrComp(normalized, PFUI_UPDATE_UI_BUTTON_SHAPE, vbTextCompare) <> 0)
-    End If
 End Function
 
 Private Function pfui_LoadUiDefinitionDom() As Object
