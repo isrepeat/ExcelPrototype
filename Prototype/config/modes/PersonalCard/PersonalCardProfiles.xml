@@ -126,11 +126,6 @@
 			<control name="btnCustomProfile" visible="true"/>
 			<control name="btnCustomMode" visible="true"/>
 		</ui>
-		<!-- <v key="Source.Main.FilePath">..\dsc_StateTest.xlsx</v> -->
-		<!-- <v key="Source.Main.FilePath">..\dsc_State.xlsx</v> -->
-		<!-- <v key="Source.Events.FilePath">..\dsc_EventsTest.xlsx</v> -->
-		<!-- <v key="Source.Events.FilePath">..\dsc_Events.xlsx</v> -->
-		<!-- <v key="Source.Daily.FilePath">..\DailyScopeTest.xlsx</v> -->
 		<v key="Source.Main.FilePath">C:\Users\SVI\Desktop\{yyyy}-{mm}-{dd} А7383 Особовий склад.xlsx</v>
 		<v key="Source.Main.FileResolver">ex_SourceResolvers.m_ResolveLatestByDmyPattern</v>
 		<v key="Source.Main.SheetAliases">StateMain</v>
@@ -139,8 +134,8 @@
 		<v key="Source.Events.SheetAliases">EventsIn; EventsOut</v>
 		<v key="Source.Daily.FilePath">..\..\..\WORK Alexandr Bondarenko\НАКАЗИ\DailyScope.xlsx</v>
 		<v key="Source.Daily.SheetAliases">DailyEvents</v>
-		<v key="BaseDate">20</v>
-		<v key="CommonKey" mutable="true">ШЕВЧУК Василь Петрович</v>
+		<v key="BaseDate">27</v>
+		<v key="CommonKey" mutable="true">МІТЯГІН Вадим Юрійович</v>
 		<v type="#" key="StateMain"/>
 		<v key="Main.Sheet[StateMain].Type">State</v>
 		<v key="Main.Sheet[StateMain].SheetName">ШПС</v>
@@ -181,7 +176,7 @@
 		<v key="Events.Sheet[EventsOut].Map[Ticket]">Стовпець1|Номер квитка</v>
 		<v type="#" key="DailyEvents"/>
 		<v key="Daily.Sheet[DailyEvents].Type">Events</v>
-		<v key="Daily.Sheet[DailyEvents].SheetName">{$BaseDate|dateformat:"\dd_\mm"}</v>
+		<v key="Daily.Sheet[DailyEvents].SheetName">{$BaseDate|dateformat:"\dd_\mm_test"}</v>
 		<v key="Daily.Sheet[DailyEvents].SheetNameResolver">ex_SourceResolvers.m_ResolveWithDateFormatter</v>
 		<v key="Daily.Sheet[DailyEvents].RangeStartMarker">StartTable_DailyEvents</v>
 		<v key="Daily.Sheet[DailyEvents].RangeEndMarker">EndTable_DailyEvents</v>
@@ -211,24 +206,26 @@
 		<fetchAdditionalData tableRef="Daily.Sheet[DailyEvents]">
 			DEFINE $CurrentTable AS Src;
 
-			/* Контекст, который движок заполняет в SEARCH_* блоках */
-			DEFINE DATABASE Ctx {
-				sectionData: [
-					sectionType,
-					sectionTitle
-				],
-				metaData: [
-					metaVacation,
-					metaRank,
-					metaFio,
-					metaPosition,
-					metaRaportTVO,
-					metaRaportFrom,
-					metaInNum,
-					metaInDate,
-					metaDocNote
-				]
-			};
+				/* Контекст, который движок заполняет в SEARCH_* блоках */
+				DEFINE DATABASE Ctx {
+					sectionData: [
+						sectionType,
+						sectionTitle
+					],
+					metaData: [
+						metaVacation,
+						metaRank,
+						metaFio,
+						metaPosition,
+						metaRaportTVO,
+						metaRaportFrom,
+						metaInNum,
+						metaInDate,
+						metaDocNote,
+						metaDocNum,
+						metaDocDate
+					]
+				};
 
 			FIND[Src.FIO == $Key] {
 				// Ищем последний заголовок раздела выше owner-строки
@@ -240,10 +237,11 @@
 					}
 					@KEEP(LAST);
 
-				// Собираем все meta-строки ниже owner-строки:
-				// Vacation=ТВО или DocNote=дублікат
+					// Собираем meta-строки ниже owner-строки.
+					// Остановка contiguous-блока: первая строка с непустым FIO и DocNote != "ТВО",
+					// а также пустая служебная строка (FIO="" и DocNote="").
 					SEARCH_BELOW
-						@IF(Src.Vacation == "ТВО" OR Src.DocNote == "дублікат")
+						@IF(Src.DocNote == "ТВО" OR (Src.FIO == "" AND NOT @IsEmpty(Src.DocNote)))
 						@PUSH(Ctx.metaData) {
 							.metaVacation = Src.Vacation,
 							.metaRank = Src.Rank,
@@ -253,7 +251,9 @@
 							.metaRaportFrom = Src.RaportFrom,
 							.metaInNum = Src.InNum,
 							.metaInDate = Src.InDate,
-							.metaDocNote = Src.DocNote
+							.metaDocNote = Src.DocNote,
+							.metaDocNum = Src.DocNum,
+							.metaDocDate = Src.DocDate
 						}
 						@KEEP(CONTIGUOUS);
 
@@ -277,6 +277,8 @@
 							InNum = md.metaInNum,
 							InDate = md.metaInDate,
 							DocNote = md.metaDocNote,
+							DocNum = md.metaDocNum,
+							DocDate = md.metaDocDate,
 							MetaType = "meta",
 							OwnerFio = $Key,
 							SectionType = @LAST(Ctx.sectionData).sectionType,

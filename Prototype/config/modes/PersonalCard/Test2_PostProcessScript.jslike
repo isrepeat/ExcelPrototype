@@ -11,6 +11,10 @@ let validationWarningTitle = "DailyEvents validation warning";
 let validationErrorTitle = "DailyEvents validation error";
 let tvoNoteRegex = "ТВО";
 let unclosedReturnDateRegex = "^\\s*(\\?|-)?\\s*$";
+let emptyOrPlaceholderPattern = "^\\s*[\\?-]?\\s*$";
+let metaKeywordTvoPattern = "^\\s*ТВО\\s*$";
+let metaKeywordDuplicatePattern = "^\\s*дублікат\\s*$";
+let metaAttributeMarkerPattern = "^\\s*!\\s*$";
 let resultTemplatesRelPath = "config\\modes\\PersonalCard\\PersonalCardResultTemplates.xml";
 let exportRuntimeWordAnchorPrefix = "Export.RuntimeDataBase.WordAnchor.";
 let exportRuntimeWordRecordKeyPrefix = "Export.RuntimeDataBase.WordRecordKey.";
@@ -83,42 +87,49 @@ for (let owner in Daily.Sheet[DailyEvents].rows) {
 			}
 		}
 
-		// Валидация #1:
-		// если в последней записи EventsOut.Note есть ТВО, то сразу после owner
-		// в DailyEvents должна идти корректная meta-строка:
-		// Vacation=ТВО + заполненные Rank/FIO/Position.
-		if (hasEventsOutForOwner == "true") {
-			let hasTvoInLastEventsOutNote = "false";
-			let lastNoteTvoMatch = callMacro("ex_Helpers.m_RegexFirstMatch", lastEventsOutNote, tvoNoteRegex);
-			if (lastNoteTvoMatch != "") {
-				hasTvoInLastEventsOutNote = "true";
-			}
+			// Валидация #1:
+			// если в последней записи EventsOut.Note есть ТВО, то сразу после owner
+			// в DailyEvents должна идти корректная meta-строка:
+			// DocNote=ТВО + заполненные Rank/FIO/Position.
+			if (hasEventsOutForOwner == "true") {
+				let hasTvoInLastEventsOutNote = "false";
+				let lastNoteTvoMatch = callMacro("ex_Helpers.m_RegexFirstMatch", lastEventsOutNote, tvoNoteRegex);
+				if (lastNoteTvoMatch != "") {
+					hasTvoInLastEventsOutNote = "true";
+				}
 
-			if (hasTvoInLastEventsOutNote == "true") {
-				let hasValidTvoMetaRow = "false";
+				if (hasTvoInLastEventsOutNote == "true") {
+					let hasValidTvoMetaRow = "false";
 
-				for (let candidateMetaRow in Daily.Sheet[DailyEvents].rows) {
-					if (candidateMetaRow.column[MetaType] == "meta" &&
-						candidateMetaRow.column[OwnerFio] == owner.column[FIO] &&
-						candidateMetaRow.column[SectionType] == owner.column[SectionType] &&
-						candidateMetaRow.column[Vacation] == "ТВО" &&
-						candidateMetaRow.column[Rank] != "" &&
-						candidateMetaRow.column[Rank] != "?" &&
-						candidateMetaRow.column[FIO] != "" &&
-						candidateMetaRow.column[FIO] != "?" &&
-						candidateMetaRow.column[Position] != "" &&
-						candidateMetaRow.column[Position] != "?") {
-						hasValidTvoMetaRow = "true";
+					for (let candidateMetaRow in Daily.Sheet[DailyEvents].rows) {
+						let candidateDocNoteNormalized = callMacro(
+							"ex_Helpers.m_RegexReplace",
+							candidateMetaRow.column[DocNote],
+							"^[ \\t\\r\\n]*([\\s\\S]*?)[ \\t\\r\\n]*$",
+							"$1"
+						);
+						let candidateDocNoteHasTvo = callMacro("ex_Helpers.m_RegexIsMatch", candidateDocNoteNormalized, metaKeywordTvoPattern);
+						if (candidateMetaRow.column[MetaType] == "meta" &&
+							candidateMetaRow.column[OwnerFio] == owner.column[FIO] &&
+							candidateMetaRow.column[SectionType] == owner.column[SectionType] &&
+							candidateDocNoteHasTvo == "True" &&
+							candidateMetaRow.column[Rank] != "" &&
+							candidateMetaRow.column[Rank] != "?" &&
+							candidateMetaRow.column[FIO] != "" &&
+							candidateMetaRow.column[FIO] != "?" &&
+							candidateMetaRow.column[Position] != "" &&
+							candidateMetaRow.column[Position] != "?") {
+							hasValidTvoMetaRow = "true";
+						}
+					}
+
+					if (hasValidTvoMetaRow != "true") {
+						let errorLine = "FIO=" + owner.column[FIO] + ": в последней записи EventsOut.Note есть пометка ТВО, но после owner отсутствует корректная meta-строка (MetaType=meta, DocNote=ТВО, заполнены Rank/FIO/Position).";
+						callMacro("ex_PostProcessActions.m_ShowBannerBeforeRowIndex", "TYPE_WARNING", validationWarningTitle, errorLine, ownerRowIndexForWarning, 0, 0);
+						hasValidationWarnings = "true";
 					}
 				}
-
-				if (hasValidTvoMetaRow != "true") {
-					let errorLine = "FIO=" + owner.column[FIO] + ": в последней записи EventsOut.Note есть пометка ТВО, но после owner отсутствует корректная meta-строка (MetaType=meta, Vacation=ТВО, заполнены Rank/FIO/Position).";
-					callMacro("ex_PostProcessActions.m_ShowBannerBeforeRowIndex", "TYPE_WARNING", validationWarningTitle, errorLine, ownerRowIndexForWarning, 0, 0);
-					hasValidationWarnings = "true";
-				}
 			}
-		}
 
 		// Валидация #2:
 		// если ключ в секции ToHospital (SectionType=7), то последняя запись EventsOut
@@ -413,9 +424,10 @@ for (let row in Daily.Sheet[DailyEvents].rows) {
 		let exportRecordRuntimeValue = rowTemplateAnchor + "|" + recordKeyFio;
 		callMacro("ex_PostProcessActions.m_SetRuntimeData", exportRecordRuntimeKey, exportRecordRuntimeValue);
 
-		let txt = callMacro("ex_ResultTemplatesParser.m_GetTemplateText", rowTemplateAnchor, resultTemplatesRelPath);
-		txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "DATE", $`{baseDate}`, "#66CCFF");
-		txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "RaportTvo", $`{row.column[RaportTVO]}`, "#66CCFF");
+			let txt = callMacro("ex_ResultTemplatesParser.m_GetTemplateText", rowTemplateAnchor, resultTemplatesRelPath);
+			txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "DATE", $`{baseDate}`, "#66CCFF");
+			txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "RaportTvo", $`{row.column[RaportTVO]}`, "#66CCFF");
+			callMacro("ex_ResultTemplatesParser.m_ClearCollections");
 
 		/* Нормализация дат для всех секций: в шаблоны передаем уже полные даты */
 		let fullInDate = row.column[InDate];
@@ -562,11 +574,7 @@ for (let row in Daily.Sheet[DailyEvents].rows) {
 		let assignToDutyRank = "";
 		let assignToDutyFIO = "";
 		let assignToDutyPosition = "";
-		let hasDuplicateRaport = "false";
-		let duplicateRaportFrom = "";
-		let duplicateRaportTVO = "";
-		let duplicateInNumFull = "";
-		let duplicateInDate = "";
+		let metadataAttributes = "";
 		let hospitalForMoveFromHospital = row.column[Hospital];
 
 		if (sectionType == "13" || sectionType == "15" || sectionType == "18") {
@@ -590,40 +598,167 @@ for (let row in Daily.Sheet[DailyEvents].rows) {
 			}
 		}
 
+		let ownerDocNote = row.column[DocNote];
+		let ownerDocNum = row.column[DocNum];
+		let ownerDocDateForBasis = fullDocDate;
+		let ownerDocNoteNormalized = callMacro("ex_Helpers.m_RegexReplace", ownerDocNote, "^[ \\t\\r\\n]*([\\s\\S]*?)[ \\t\\r\\n]*$", "$1");
+		let ownerDocNumNormalized = callMacro("ex_Helpers.m_RegexReplace", ownerDocNum, "^[ \\t\\r\\n]*([\\s\\S]*?)[ \\t\\r\\n]*$", "$1");
+		let ownerDocDateNormalized = callMacro("ex_Helpers.m_RegexReplace", ownerDocDateForBasis, "^[ \\t\\r\\n]*([\\s\\S]*?)[ \\t\\r\\n]*$", "$1");
+		let ownerDocNoteIsTvo = callMacro("ex_Helpers.m_RegexIsMatch", ownerDocNoteNormalized, metaKeywordTvoPattern);
+		let ownerDocNoteIsDuplicate = callMacro("ex_Helpers.m_RegexIsMatch", ownerDocNoteNormalized, metaKeywordDuplicatePattern);
+		let ownerDocNumIsAttributeMarker = callMacro("ex_Helpers.m_RegexIsMatch", ownerDocNumNormalized, metaAttributeMarkerPattern);
+		let ownerDocNoteIsEmpty = "false";
+		let ownerDocDateIsEmpty = "false";
+		let ownerDocNumIsEmpty = "false";
+		if (ownerDocNoteNormalized == "" || ownerDocNoteNormalized == "?" || ownerDocNoteNormalized == "-") {
+			ownerDocNoteIsEmpty = "True";
+		}
+		if (ownerDocDateNormalized == "" || ownerDocDateNormalized == "?" || ownerDocDateNormalized == "-") {
+			ownerDocDateIsEmpty = "True";
+		}
+		if (ownerDocNumNormalized == "" || ownerDocNumNormalized == "?" || ownerDocNumNormalized == "-") {
+			ownerDocNumIsEmpty = "True";
+		}
+		if (ownerDocNoteIsEmpty != "True" &&
+			ownerDocNoteIsTvo != "True" &&
+			ownerDocNoteIsDuplicate != "True" &&
+			ownerDocNumIsAttributeMarker != "True") {
+			let ownerDocTitle = ownerDocNoteNormalized;
+			let ownerDocNumForBasis = "";
+			let ownerDocDateForCollection = "";
+			if (ownerDocNumIsEmpty != "True") {
+				ownerDocNumForBasis = ownerDocNumNormalized;
+			}
+			if (ownerDocDateIsEmpty != "True") {
+				ownerDocDateForCollection = ownerDocDateForBasis;
+			}
+			callMacro(
+				"ex_ResultTemplatesParser.m_AddCollectionItem",
+				"BasisDocuments",
+				$`
+				Note:{ownerDocTitle};
+				Num:{ownerDocNumForBasis};
+				Date:{ownerDocDateForCollection};
+				`
+			);
+		}
+
 		for (let metaRow in Daily.Sheet[DailyEvents].rows) {
 			if (metaRow.column[MetaType] == "meta" &&
 				metaRow.column[OwnerFio] == row.column[FIO] &&
-				metaRow.column[SectionType] == row.column[SectionType] &&
-				isReturnToDuty != "true" &&
-				metaRow.column[Vacation] == "ТВО" &&
-				metaRow.column[Rank] != "" &&
-				metaRow.column[FIO] != "" &&
-				metaRow.column[Position] != "") {
-				isReturnToDuty = "true";
-				returnToDutyRank = metaRow.column[Rank];
-				returnToDutyFIO = metaRow.column[FIO];
-				returnToDutyPosition = metaRow.column[Position];
-				isAssignToDuty = "true";
-				assignToDutyRank = metaRow.column[Rank];
-				assignToDutyFIO = metaRow.column[FIO];
-				assignToDutyPosition = metaRow.column[Position];
-			}
-
-			if (metaRow.column[MetaType] == "meta" &&
-				metaRow.column[OwnerFio] == row.column[FIO] &&
-				metaRow.column[SectionType] == row.column[SectionType] &&
-				hasDuplicateRaport != "true" &&
-				metaRow.column[DocNote] == "дублікат") {
-				hasDuplicateRaport = "true";
-				duplicateRaportFrom = metaRow.column[RaportFrom];
-				duplicateRaportTVO = metaRow.column[RaportTVO];
-				duplicateInNumFull = metaRow.column[InNum];
-				let duplicateInNumDigits = callMacro("ex_Helpers.m_RegexGetGroup", duplicateInNumFull, inNumDigitsPattern, 1);
-				if (duplicateInNumDigits != "") {
-					duplicateInNumFull = "1656/" + duplicateInNumDigits + "-в";
+				metaRow.column[SectionType] == row.column[SectionType]) {
+				let metaDocNote = metaRow.column[DocNote];
+				let metaDocNum = metaRow.column[DocNum];
+				let metaDocDateRaw = metaRow.column[DocDate];
+				let metaDocNoteNormalized = callMacro("ex_Helpers.m_RegexReplace", metaDocNote, "^[ \\t\\r\\n]*([\\s\\S]*?)[ \\t\\r\\n]*$", "$1");
+				let metaDocNumNormalized = callMacro("ex_Helpers.m_RegexReplace", metaDocNum, "^[ \\t\\r\\n]*([\\s\\S]*?)[ \\t\\r\\n]*$", "$1");
+				let metaDocDateNormalized = callMacro("ex_Helpers.m_RegexReplace", metaDocDateRaw, "^[ \\t\\r\\n]*([\\s\\S]*?)[ \\t\\r\\n]*$", "$1");
+				let metaInDateNormalized = callMacro("ex_Helpers.m_RegexReplace", metaRow.column[InDate], "^[ \\t\\r\\n]*([\\s\\S]*?)[ \\t\\r\\n]*$", "$1");
+				let metaDocNoteIsTvo = callMacro("ex_Helpers.m_RegexIsMatch", metaDocNoteNormalized, metaKeywordTvoPattern);
+				let metaDocNoteIsDuplicate = callMacro("ex_Helpers.m_RegexIsMatch", metaDocNoteNormalized, metaKeywordDuplicatePattern);
+				let metaDocNumIsAttributeMarker = callMacro("ex_Helpers.m_RegexIsMatch", metaDocNumNormalized, metaAttributeMarkerPattern);
+				let metaDocNoteIsEmpty = "false";
+				let metaDocDateIsEmpty = "false";
+				let metaDocNumIsEmpty = "false";
+				let metaInDateIsEmpty = "false";
+				if (metaDocNoteNormalized == "" || metaDocNoteNormalized == "?" || metaDocNoteNormalized == "-") {
+					metaDocNoteIsEmpty = "True";
 				}
-				duplicateInDate = metaRow.column[InDate];
-				duplicateInDate = callMacro("ex_DateHelpers.m_ToFullDate", $`{duplicateInDate}`, $`{baseDate}`);
+				if (metaDocDateNormalized == "" || metaDocDateNormalized == "?" || metaDocDateNormalized == "-") {
+					metaDocDateIsEmpty = "True";
+				}
+				if (metaDocNumNormalized == "" || metaDocNumNormalized == "?" || metaDocNumNormalized == "-") {
+					metaDocNumIsEmpty = "True";
+				}
+				if (metaInDateNormalized == "" || metaInDateNormalized == "?" || metaInDateNormalized == "-") {
+					metaInDateIsEmpty = "True";
+				}
+				let metaDocHasTvoMarker = "false";
+				if (metaDocNoteIsTvo == "True") {
+					metaDocHasTvoMarker = "true";
+				}
+
+				if (isReturnToDuty != "true" &&
+					metaDocHasTvoMarker == "true" &&
+					metaRow.column[Rank] != "" &&
+					metaRow.column[Rank] != "?" &&
+					metaRow.column[FIO] != "" &&
+					metaRow.column[FIO] != "?" &&
+					metaRow.column[Position] != "" &&
+					metaRow.column[Position] != "?") {
+					isReturnToDuty = "true";
+					returnToDutyRank = metaRow.column[Rank];
+					returnToDutyFIO = metaRow.column[FIO];
+					returnToDutyPosition = metaRow.column[Position];
+					isAssignToDuty = "true";
+					assignToDutyRank = metaRow.column[Rank];
+					assignToDutyFIO = metaRow.column[FIO];
+					assignToDutyPosition = metaRow.column[Position];
+				}
+
+				if (metaDocNoteIsDuplicate == "True") {
+					let duplicateEntryInNumFull = metaRow.column[InNum];
+					let duplicateInNumDigits = callMacro("ex_Helpers.m_RegexGetGroup", duplicateEntryInNumFull, inNumDigitsPattern, 1);
+					if (duplicateInNumDigits != "") {
+						duplicateEntryInNumFull = "1656/" + duplicateInNumDigits + "-в";
+					}
+					let duplicateEntryInDate = metaRow.column[InDate];
+					if (duplicateEntryInDate != "" && metaInDateIsEmpty != "True") {
+						duplicateEntryInDate = callMacro("ex_DateHelpers.m_ToFullDate", $`{duplicateEntryInDate}`, $`{baseDate}`);
+					}
+					callMacro(
+						"ex_ResultTemplatesParser.m_AddCollectionItem",
+						"DuplicateRaports",
+						$`
+						RaportTVO:{metaRow.column[RaportTVO]};
+						RaportFrom:{metaRow.column[RaportFrom]};
+						InNumFull:{duplicateEntryInNumFull};
+						InDate:{duplicateEntryInDate};
+						`
+					);
+				}
+
+				if (metaDocNumIsAttributeMarker == "True" &&
+					metaDocNoteIsEmpty != "True" &&
+					metaDocNoteIsDuplicate != "True" &&
+					metaDocHasTvoMarker != "true") {
+					callMacro(
+						"ex_ResultTemplatesParser.m_AddCollectionItem",
+						"MetadataAttributes",
+						$`
+						Value:{metaDocNoteNormalized};
+						`
+					);
+
+					if (metadataAttributes != "") {
+						metadataAttributes = metadataAttributes + "; ";
+					}
+					metadataAttributes = metadataAttributes + metaDocNoteNormalized;
+				}
+
+				if (metaDocNoteIsEmpty != "True" &&
+					metaDocNoteIsDuplicate != "True" &&
+					metaDocHasTvoMarker != "true" &&
+					metaDocNumIsAttributeMarker != "True") {
+					let metaDocTitle = metaDocNoteNormalized;
+					let metaDocNumForBasis = "";
+					let metaDocDateForCollection = "";
+					if (metaDocNumIsEmpty != "True") {
+						metaDocNumForBasis = metaDocNumNormalized;
+					}
+					if (metaDocDateIsEmpty != "True") {
+						metaDocDateForCollection = callMacro("ex_DateHelpers.m_ToFullDate", $`{metaDocDateRaw}`, $`{baseDate}`);
+					}
+					callMacro(
+						"ex_ResultTemplatesParser.m_AddCollectionItem",
+						"BasisDocuments",
+						$`
+						Note:{metaDocTitle};
+						Num:{metaDocNumForBasis};
+						Date:{metaDocDateForCollection};
+						`
+					);
+				}
 			}
 		}
 		if (sectionType == "1") {
@@ -641,11 +776,6 @@ for (let row in Daily.Sheet[DailyEvents].rows) {
 				ReturnToDutyFIO:{returnToDutyFIO};
 				ReturnToDutyPosition:{returnToDutyPosition};
 				RaportFrom:{row.column[RaportFrom]};
-				HasDuplicateRaport:{hasDuplicateRaport};
-				DuplicateRaportFrom:{duplicateRaportFrom};
-				DuplicateRaportTVO:{duplicateRaportTVO};
-				DuplicateInNumFull:{duplicateInNumFull};
-				DuplicateInDate:{duplicateInDate};
 				InNumFull:{inNumFull};
 				InDate:{fullInDate};
 				DocNum:{row.column[DocNum]};
@@ -675,21 +805,7 @@ for (let row in Daily.Sheet[DailyEvents].rows) {
 				`,
 				"#66CCFF"
 			);
-			if (sectionType == "3") {
-				txt = callMacro(
-					"ex_ResultTemplatesParser.m_ReplaceMultiPlaceholders",
-					txt,
-					$`
-					HasDuplicateRaport:{hasDuplicateRaport};
-					DuplicateRaportFrom:{duplicateRaportFrom};
-					DuplicateRaportTVO:{duplicateRaportTVO};
-					DuplicateInNumFull:{duplicateInNumFull};
-					DuplicateInDate:{duplicateInDate};
-					`,
-					"#66CCFF"
-				);
 			}
-		}
 
 		if (sectionType == "5") {
 			txt = callMacro(
@@ -749,11 +865,6 @@ for (let row in Daily.Sheet[DailyEvents].rows) {
 				AssignToDutyFIO:{assignToDutyFIO};
 				AssignToDutyPosition:{assignToDutyPosition};
 				RaportFrom:{row.column[RaportFrom]};
-				HasDuplicateRaport:{hasDuplicateRaport};
-				DuplicateRaportFrom:{duplicateRaportFrom};
-				DuplicateRaportTVO:{duplicateRaportTVO};
-				DuplicateInNumFull:{duplicateInNumFull};
-				DuplicateInDate:{duplicateInDate};
 				InNumFull:{inNumFull};
 				InDate:{fullInDate};
 				DocNum:{row.column[DocNum]};
@@ -874,11 +985,6 @@ for (let row in Daily.Sheet[DailyEvents].rows) {
 				ReturnDate:{fullDateTo};
 				InNumFull:{inNumFull};
 				InDate:{fullInDate};
-				HasDuplicateRaport:{hasDuplicateRaport};
-				DuplicateRaportFrom:{duplicateRaportFrom};
-				DuplicateRaportTVO:{duplicateRaportTVO};
-				DuplicateInNumFull:{duplicateInNumFull};
-				DuplicateInDate:{duplicateInDate};
 				VlkNum:{row.column[VlkNum]};
 				VlkDate:{fullVlkDate};
 				DocNum:{row.column[DocNum]};
@@ -1002,6 +1108,7 @@ for (let row in Daily.Sheet[DailyEvents].rows) {
 			);
 		}
 
+		txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "MetadataAttributes", $`{metadataAttributes}`, "#66CCFF");
 		txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "DocNote", $`{row.column[DocNote]}`, "#66CCFF");
 		txt = callMacro("ex_ResultTemplatesParser.m_ResolveTemplate", txt, "", "#66CCFF");
 		
