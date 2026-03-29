@@ -556,22 +556,18 @@ Private Function mp_FetchDslParseSearchRule( _
     Dim pushCtxAlias As String
     Dim pushCtxName As String
     Dim assigns As Collection
-    Dim idxShift As Long
 
-    pattern = blockName & "\s*" & DSL_KW_IF & "\((([^()]|\([^()]*\))*)\)\s*" & DSL_KW_PUSH & "\(\s*([A-Za-z_][A-Za-z0-9_]*)\.([A-Za-z_][A-Za-z0-9_]*)\s*\)\s*\{([\s\S]*?)\}\s*" & DSL_KW_KEEP & "\(\s*([A-Za-z_][A-Za-z0-9_]*)\s*\)\s*;"
+    pattern = blockName & "\s*" & DSL_KW_IF & "\(\s*([\s\S]*?)\s*\)\s*" & DSL_KW_PUSH & "\(\s*([A-Za-z_][A-Za-z0-9_]*)\.([A-Za-z_][A-Za-z0-9_]*)\s*\)\s*\{([\s\S]*?)\}\s*" & DSL_KW_KEEP & "\(\s*([A-Za-z_][A-Za-z0-9_]*)\s*\)\s*;"
     Set m = mp_FetchDslMatchOne(findBody, pattern)
     If m Is Nothing Then
         Err.Raise vbObjectError + 1776, "ex_FetchDslEngine", "Fetch DSL: block '" & blockName & "' is invalid or missing."
     End If
 
-    idxShift = 0
-    If m.SubMatches.Count >= 6 Then idxShift = 1
-
     condText = Trim$(CStr(m.SubMatches(0)))
-    pushCtxAlias = Trim$(CStr(m.SubMatches(1 + idxShift)))
-    pushCtxName = Trim$(CStr(m.SubMatches(2 + idxShift)))
-    pushText = CStr(m.SubMatches(3 + idxShift))
-    keepMode = UCase$(Trim$(CStr(m.SubMatches(4 + idxShift))))
+    pushCtxAlias = Trim$(CStr(m.SubMatches(1)))
+    pushCtxName = Trim$(CStr(m.SubMatches(2)))
+    pushText = CStr(m.SubMatches(3))
+    keepMode = UCase$(Trim$(CStr(m.SubMatches(4))))
 
     If StrComp(pushCtxAlias, contextAlias, vbTextCompare) <> 0 Then
         Err.Raise vbObjectError + 1777, "ex_FetchDslEngine", "Fetch DSL: " & blockName & " must push into " & contextAlias & ".<name>."
@@ -1105,8 +1101,13 @@ Private Function mp_FetchDslSplitCsv(ByVal csvText As String) As Variant
 End Function
 
 Private Function mp_FetchDslTrimToken(ByVal textValue As String) As String
+    textValue = Replace(textValue, vbCrLf, " ")
+    textValue = Replace(textValue, vbCr, " ")
+    textValue = Replace(textValue, vbLf, " ")
     textValue = Replace(textValue, vbTab, " ")
     textValue = Replace(textValue, ChrW$(160), " ")
+    textValue = Replace(textValue, "  ", " ")
+    textValue = Replace(textValue, "  ", " ")
     mp_FetchDslTrimToken = Trim$(textValue)
 End Function
 
