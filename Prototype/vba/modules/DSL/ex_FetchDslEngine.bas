@@ -547,8 +547,10 @@ Private Function mp_FetchDslParseSearchRule( _
     ByVal contextAlias As String, _
     ByVal contexts As Object _
 ) As Object
-    Dim pattern As String
+    Dim headPattern As String
+    Dim tailPattern As String
     Dim m As Object
+    Dim mTail As Object
     Dim rule As Object
     Dim condText As String
     Dim pushText As String
@@ -556,18 +558,35 @@ Private Function mp_FetchDslParseSearchRule( _
     Dim pushCtxAlias As String
     Dim pushCtxName As String
     Dim assigns As Collection
+    Dim condOpenPos As Long
+    Dim condClosePos As Long
+    Dim tailText As String
 
-    pattern = blockName & "\s*" & DSL_KW_IF & "\(\s*([\s\S]*?)\s*\)\s*" & DSL_KW_PUSH & "\(\s*([A-Za-z_][A-Za-z0-9_]*)\.([A-Za-z_][A-Za-z0-9_]*)\s*\)\s*\{([\s\S]*?)\}\s*" & DSL_KW_KEEP & "\(\s*([A-Za-z_][A-Za-z0-9_]*)\s*\)\s*;"
-    Set m = mp_FetchDslMatchOne(findBody, pattern)
+    headPattern = blockName & "\s*" & DSL_KW_IF & "\s*\("
+    Set m = mp_FetchDslMatchOne(findBody, headPattern)
     If m Is Nothing Then
         Err.Raise vbObjectError + 1776, "ex_FetchDslEngine", "Fetch DSL: block '" & blockName & "' is invalid or missing."
     End If
 
-    condText = Trim$(CStr(m.SubMatches(0)))
-    pushCtxAlias = Trim$(CStr(m.SubMatches(1)))
-    pushCtxName = Trim$(CStr(m.SubMatches(2)))
-    pushText = CStr(m.SubMatches(3))
-    keepMode = UCase$(Trim$(CStr(m.SubMatches(4))))
+    condOpenPos = CLng(m.FirstIndex) + Len(CStr(m.Value))
+    condClosePos = mp_FetchDslFindMatchingParenPos(findBody, condOpenPos)
+    If condClosePos = 0 Then
+        Err.Raise vbObjectError + 1776, "ex_FetchDslEngine", "Fetch DSL: block '" & blockName & "' has unbalanced @IF(...) parentheses."
+    End If
+
+    condText = Trim$(Mid$(findBody, condOpenPos + 1, condClosePos - condOpenPos - 1))
+    tailText = Mid$(findBody, condClosePos + 1)
+
+    tailPattern = "^\s*" & DSL_KW_PUSH & "\(\s*([A-Za-z_][A-Za-z0-9_]*)\.([A-Za-z_][A-Za-z0-9_]*)\s*\)\s*\{([\s\S]*?)\}\s*" & DSL_KW_KEEP & "\(\s*([A-Za-z_][A-Za-z0-9_]*)\s*\)\s*;"
+    Set mTail = mp_FetchDslMatchOne(tailText, tailPattern)
+    If mTail Is Nothing Then
+        Err.Raise vbObjectError + 1776, "ex_FetchDslEngine", "Fetch DSL: block '" & blockName & "' is invalid or missing."
+    End If
+
+    pushCtxAlias = Trim$(CStr(mTail.SubMatches(0)))
+    pushCtxName = Trim$(CStr(mTail.SubMatches(1)))
+    pushText = CStr(mTail.SubMatches(2))
+    keepMode = UCase$(Trim$(CStr(mTail.SubMatches(3))))
 
     If StrComp(pushCtxAlias, contextAlias, vbTextCompare) <> 0 Then
         Err.Raise vbObjectError + 1777, "ex_FetchDslEngine", "Fetch DSL: " & blockName & " must push into " & contextAlias & ".<name>."
@@ -589,6 +608,48 @@ Private Function mp_FetchDslParseSearchRule( _
     End If
 
     Set mp_FetchDslParseSearchRule = rule
+End Function
+
+Private Function mp_FetchDslFindMatchingParenPos(ByVal textIn As String, ByVal openParenPos As Long) As Long
+    Dim i As Long
+    Dim ch As String
+    Dim depth As Long
+    Dim inQuotes As Boolean
+    Dim nextCh As String
+
+    If openParenPos <= 0 Or openParenPos > Len(textIn) Then Exit Function
+    If Mid$(textIn, openParenPos, 1) <> "(" Then Exit Function
+
+    For i = openParenPos To Len(textIn)
+        ch = Mid$(textIn, i, 1)
+        If ch = """" Then
+            If inQuotes Then
+                If i < Len(textIn) Then
+                    nextCh = Mid$(textIn, i + 1, 1)
+                Else
+                    nextCh = vbNullString
+                End If
+                If nextCh = """" Then
+                    i = i + 1
+                Else
+                    inQuotes = False
+                End If
+            Else
+                inQuotes = True
+            End If
+        ElseIf Not inQuotes Then
+            If ch = "(" Then
+                depth = depth + 1
+            ElseIf ch = ")" Then
+                depth = depth - 1
+                If depth = 0 Then
+                    mp_FetchDslFindMatchingParenPos = i
+                    Exit Function
+                End If
+                If depth < 0 Then Exit Function
+            End If
+        End If
+    Next i
 End Function
 
 Private Function mp_FetchDslExtractGenerateBody(ByVal findBody As String) As String

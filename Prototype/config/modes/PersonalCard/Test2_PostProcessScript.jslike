@@ -517,32 +517,32 @@ for (let row in Daily.Sheet[DailyEvents].rows) {
 			fullDateTo = callMacro("ex_DateHelpers.m_ToFullDate", $`{row.column[DateTo]}`, $`{baseDate}`);
 		}
 
-		// if (sectionType == "15" || sectionType == "16") {
-		// 	let hasPrevVacationForCuringEvent = "false";
-		// 	for (let outRow in Events.Sheet[EventsOut].rows) {
-		// 		if (outRow.column[FIO] == row.column[FIO] &&
-		// 			outRow.column[EventReason] == "Відпустка для лікування") {
-		// 			hasPrevVacationForCuringEvent = "true";
-		// 			prevVkNum = outRow.column[Ticket];
-		// 			prevVkDateRaw = outRow.column[OutCommandDate];
-		// 		}
-		// 	}
+		if (sectionType == "15" || sectionType == "16") {
+			let hasPrevVacationForCuringEvent = "false";
+			for (let outRow in Events.Sheet[EventsOut].rows) {
+				if (outRow.column[FIO] == row.column[FIO] &&
+					outRow.column[EventReason] == "Відпустка для лікування") {
+					hasPrevVacationForCuringEvent = "true";
+					prevVkNum = outRow.column[Ticket];
+					prevVkDateRaw = outRow.column[OutCommandDate];
+				}
+			}
 
-		// 	if (hasPrevVacationForCuringEvent != "true") {
-		// 		callMacro("ex_PostProcessActions.m_ShowLogicError", $`SectionType={sectionType}, FIO={row.column[FIO]}: not found EventsOut row with EventReason='Відпустка для лікування' to fill PrevVkNum/PrevVkDate.`);
-		// 		return;
-		// 	}
-		// 	if (prevVkNum == "" || prevVkNum == "?") {
-		// 		callMacro("ex_PostProcessActions.m_ShowLogicError", $`SectionType={sectionType}, FIO={row.column[FIO]}: EventsOut.Ticket is empty for last row with EventReason='Відпустка для лікування'.`);
-		// 		return;
-		// 	}
-		// 	if (prevVkDateRaw == "" || prevVkDateRaw == "?") {
-		// 		callMacro("ex_PostProcessActions.m_ShowLogicError", $`SectionType={sectionType}, FIO={row.column[FIO]}: EventsOut.OutCommandDate is empty for last row with EventReason='Відпустка для лікування'.`);
-		// 		return;
-		// 	}
+			if (hasPrevVacationForCuringEvent != "true") {
+				callMacro("ex_PostProcessActions.m_ShowLogicError", $`SectionType={sectionType}, FIO={row.column[FIO]}: not found EventsOut row with EventReason='Відпустка для лікування' to fill PrevVkNum/PrevVkDate.`);
+				return;
+			}
+			if (prevVkNum == "" || prevVkNum == "?") {
+				callMacro("ex_PostProcessActions.m_ShowLogicError", $`SectionType={sectionType}, FIO={row.column[FIO]}: EventsOut.Ticket is empty for last row with EventReason='Відпустка для лікування'.`);
+				return;
+			}
+			if (prevVkDateRaw == "" || prevVkDateRaw == "?") {
+				callMacro("ex_PostProcessActions.m_ShowLogicError", $`SectionType={sectionType}, FIO={row.column[FIO]}: EventsOut.OutCommandDate is empty for last row with EventReason='Відпустка для лікування'.`);
+				return;
+			}
 			
-		// 	prevVkDate = callMacro("ex_DateHelpers.m_ToFullDate", $`{prevVkDateRaw}`, $`{baseDate}`);
-		// }
+			prevVkDate = callMacro("ex_DateHelpers.m_ToFullDate", $`{prevVkDateRaw}`, $`{baseDate}`);
+		}
 
 		// Парсим DaysCount по шаблону "N+X ...":
 		// - группа 1: базовое количество дней N
