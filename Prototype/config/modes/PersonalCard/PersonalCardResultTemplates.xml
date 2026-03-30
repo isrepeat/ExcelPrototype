@@ -2,7 +2,15 @@
 <resultTemplates xmlns="urn:excelprototype:profiles" version="1">
   <!-- NOTE:
        In conditions like {#if InNumFull}...{#endif} a placeholder is treated as empty
-       if it is empty ("") or equals "-" / "?". -->
+       if it is empty ("") or equals "-" / "?".
+       
+       
+       #_      Attributes: 
+#_      {#for item in MetadataAttributes}
+#_      , {item.Value}
+#_      {#endfor}
+       
+        -->
   <template id="FromHospital">
     <text>
       <![CDATA[#^
@@ -15,11 +23,6 @@
 #_      повернутись до виконання обов'язків {ReturnToDutyPosition|accusative|lowerFirstLetter}.
 #_      {#endif}#^
 #_      Зарахувати на котлове забезпечення з {#if OutDate}{OutDate|dateformat:"\dd"}{+1} {OutDate|dateformat:"\month"}{#endif}{#if #not OutDate}{DATE|dateformat:"\dd"}{+1} {DATE|dateformat:"\month"}{#endif} 2026 року.
-
-#_      Attributes: 
-#_      {#for item in MetadataAttributes}
-#_      , {item.Value}
-#_      {#endfor}
 
 #_      {
           #let IsRaportFromSelf = $ex_Helpers.m_RegexFirstMatch("{RaportFrom}", "^\s*[Сс][Аа][Мм]\s*$");
