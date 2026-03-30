@@ -981,8 +981,10 @@ for (let row in Daily.Sheet[DailyEvents].rows) {
 				Hospital:{hospitalForMoveFromHospital};
 				City:{row.column[Vacation]};
 				DaysCount:{normalizedDaysCount};
+				AdditionalWayDays:{additionalWayDays};
 				OutDate:{fullDateFrom};
 				ReturnDate:{fullDateTo};
+				RaportFrom:{row.column[RaportFrom]};
 				InNumFull:{inNumFull};
 				InDate:{fullInDate};
 				VlkNum:{row.column[VlkNum]};
@@ -1006,8 +1008,10 @@ for (let row in Daily.Sheet[DailyEvents].rows) {
 				Position:{row.column[Position]};
 				City:{row.column[Vacation]};
 				DaysCount:{normalizedDaysCount};
+				AdditionalWayDays:{additionalWayDays};
 				OutDate:{fullDateFrom};
 				ReturnDate:{fullDateTo};
+				RaportFrom:{row.column[RaportFrom]};
 				InNumFull:{inNumFull};
 				InDate:{fullInDate};
 				VlkNum:{row.column[VlkNum]};
@@ -1072,6 +1076,7 @@ for (let row in Daily.Sheet[DailyEvents].rows) {
 				Position:{row.column[Position]};
 				City:{row.column[Vacation]};
 				DaysCount:{normalizedDaysCount};
+				AdditionalWayDays:{additionalWayDays};
 				OutDate:{fullDateFrom};
 				ReturnDate:{fullDateTo};
 				RaportFrom:{row.column[RaportFrom]};
