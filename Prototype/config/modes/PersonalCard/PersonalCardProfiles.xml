@@ -176,7 +176,7 @@
 		<v key="Events.Sheet[EventsOut].Map[Ticket]">Стовпець1|Номер квитка</v>
 		<v type="#" key="DailyEvents"/>
 		<v key="Daily.Sheet[DailyEvents].Type">Events</v>
-		<v key="Daily.Sheet[DailyEvents].SheetName">{$BaseDate|dateformat:"\dd_\mm"}</v>
+		<v key="Daily.Sheet[DailyEvents].SheetName">{$BaseDate|dateformat:"\dd_\mm_test"}</v>
 		<v key="Daily.Sheet[DailyEvents].SheetNameResolver">ex_SourceResolvers.m_ResolveWithDateFormatter</v>
 		<v key="Daily.Sheet[DailyEvents].RangeStartMarker">StartTable_DailyEvents</v>
 		<v key="Daily.Sheet[DailyEvents].RangeEndMarker">EndTable_DailyEvents</v>

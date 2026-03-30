@@ -14,6 +14,9 @@ Private Const PROFILES_NS As String = "urn:excelprototype:profiles"
 ' - {#_}
 ' Reserved trim-indentation token:
 ' - #_    (removes token and horizontal whitespace after it)
+' Reserved forced line-break token:
+' - #newline
+' - {#newline}
 ' Reserved computed-value token:
 ' - #let varName = $ModuleName.MethodName(arg1, arg2);
 ' Reserved if-condition unary operator:
@@ -29,6 +32,8 @@ Private Const RESERVED_JOINLINE_TOKEN As String = "{#^}"
 Private Const RESERVED_JOINLINE_TOKEN_SHORT As String = "#^"
 Private Const RESERVED_JOINLINE_TOKEN_LEGACY As String = "{#_}"
 Private Const RESERVED_TRIMINDENT_TOKEN_SHORT As String = "#_"
+Private Const RESERVED_NEWLINE_TOKEN As String = "{#newline}"
+Private Const RESERVED_NEWLINE_TOKEN_SHORT As String = "#newline"
 Private Const IF_BLOCK_OPEN As String = "{#if"
 Private Const IF_BLOCK_CLOSE As String = "{#endif}"
 Private Const FOR_BLOCK_OPEN As String = "{#for"
@@ -250,6 +255,116 @@ Public Sub m_AddCollectionItem( _
     collectionItems.Add itemValues
 End Sub
 
+Public Function m_GetFirstCollectionItemFieldByRegex( _
+    ByVal collectionName As String, _
+    ByVal matchFieldName As String, _
+    ByVal regexPattern As String, _
+    Optional ByVal returnFieldName As String = vbNullString _
+) As String
+    Dim collectionItems As Collection
+    Dim itemValues As Object
+    Dim i As Long
+    Dim normalizedMatchFieldName As String
+    Dim normalizedReturnFieldName As String
+    Dim candidateValue As String
+    Dim regexFirstMatch As String
+
+    normalizedMatchFieldName = mp_TrimWhitespace(CStr(matchFieldName))
+    normalizedReturnFieldName = mp_TrimWhitespace(CStr(returnFieldName))
+    If Len(normalizedMatchFieldName) = 0 Then Exit Function
+    If Len(normalizedReturnFieldName) = 0 Then normalizedReturnFieldName = normalizedMatchFieldName
+
+    Set collectionItems = mp_GetTemplateCollectionItems(collectionName)
+    If collectionItems Is Nothing Then Exit Function
+    If collectionItems.Count = 0 Then Exit Function
+
+    For i = 1 To collectionItems.Count
+        Set itemValues = collectionItems(i)
+        candidateValue = mp_GetCollectionItemFieldValue(itemValues, normalizedMatchFieldName)
+        regexFirstMatch = ex_Helpers.m_RegexFirstMatch(candidateValue, CStr(regexPattern))
+        If Len(regexFirstMatch) > 0 Then
+            m_GetFirstCollectionItemFieldByRegex = mp_GetCollectionItemFieldValue(itemValues, normalizedReturnFieldName)
+            Exit Function
+        End If
+    Next i
+End Function
+
+Public Function m_HasCollectionItemFieldByRegex( _
+    ByVal collectionName As String, _
+    ByVal matchFieldName As String, _
+    ByVal regexPattern As String _
+) As String
+    Dim collectionItems As Collection
+    Dim itemValues As Object
+    Dim i As Long
+    Dim normalizedMatchFieldName As String
+    Dim candidateValue As String
+    Dim regexFirstMatch As String
+
+    normalizedMatchFieldName = mp_TrimWhitespace(CStr(matchFieldName))
+    If Len(normalizedMatchFieldName) = 0 Then
+        m_HasCollectionItemFieldByRegex = BOOLEAN_FALSE
+        Exit Function
+    End If
+
+    Set collectionItems = mp_GetTemplateCollectionItems(collectionName)
+    If collectionItems Is Nothing Then
+        m_HasCollectionItemFieldByRegex = BOOLEAN_FALSE
+        Exit Function
+    End If
+    If collectionItems.Count = 0 Then
+        m_HasCollectionItemFieldByRegex = BOOLEAN_FALSE
+        Exit Function
+    End If
+
+    For i = 1 To collectionItems.Count
+        Set itemValues = collectionItems(i)
+        candidateValue = mp_GetCollectionItemFieldValue(itemValues, normalizedMatchFieldName)
+        regexFirstMatch = ex_Helpers.m_RegexFirstMatch(candidateValue, CStr(regexPattern))
+        If Len(regexFirstMatch) > 0 Then
+            m_HasCollectionItemFieldByRegex = BOOLEAN_TRUE
+            Exit Function
+        End If
+    Next i
+
+    m_HasCollectionItemFieldByRegex = BOOLEAN_FALSE
+End Function
+
+Public Function m_ExtractFirstCollectionItemFieldByRegex( _
+    ByVal collectionName As String, _
+    ByVal matchFieldName As String, _
+    ByVal regexPattern As String, _
+    Optional ByVal returnFieldName As String = vbNullString _
+) As String
+    Dim collectionItems As Collection
+    Dim itemValues As Object
+    Dim i As Long
+    Dim normalizedMatchFieldName As String
+    Dim normalizedReturnFieldName As String
+    Dim candidateValue As String
+    Dim regexFirstMatch As String
+
+    normalizedMatchFieldName = mp_TrimWhitespace(CStr(matchFieldName))
+    normalizedReturnFieldName = mp_TrimWhitespace(CStr(returnFieldName))
+    If Len(normalizedMatchFieldName) = 0 Then Exit Function
+    If Len(normalizedReturnFieldName) = 0 Then normalizedReturnFieldName = normalizedMatchFieldName
+
+    Set collectionItems = mp_GetTemplateCollectionItems(collectionName)
+    If collectionItems Is Nothing Then Exit Function
+    If collectionItems.Count = 0 Then Exit Function
+
+    For i = 1 To collectionItems.Count
+        Set itemValues = collectionItems(i)
+        candidateValue = mp_GetCollectionItemFieldValue(itemValues, normalizedMatchFieldName)
+        regexFirstMatch = ex_Helpers.m_RegexFirstMatch(candidateValue, CStr(regexPattern))
+        If Len(regexFirstMatch) > 0 Then
+            m_ExtractFirstCollectionItemFieldByRegex = mp_GetCollectionItemFieldValue(itemValues, normalizedReturnFieldName)
+            collectionItems.Remove i
+            Exit Function
+        End If
+    Next i
+End Function
+
 Private Sub mp_ApplyPlaceholderMapEntry( _
     ByRef sourceText As String, _
     ByVal rawEntry As String, _
@@ -410,6 +525,18 @@ Private Function mp_GetTemplateCollectionItems(ByVal collectionName As String) A
     Set mp_GetTemplateCollectionItems = g_TemplateCollections(normalizedName)
 End Function
 
+Private Function mp_GetCollectionItemFieldValue( _
+    ByVal itemValues As Object, _
+    ByVal fieldName As String _
+) As String
+    Dim normalizedFieldName As String
+    normalizedFieldName = mp_TrimWhitespace(CStr(fieldName))
+    If Len(normalizedFieldName) = 0 Then Exit Function
+    If itemValues Is Nothing Then Exit Function
+    If Not itemValues.Exists(normalizedFieldName) Then Exit Function
+    mp_GetCollectionItemFieldValue = CStr(itemValues(normalizedFieldName))
+End Function
+
 Private Sub mp_EnsureTemplateCollectionsStore()
     If g_TemplateCollections Is Nothing Then
         Set g_TemplateCollections = CreateObject("Scripting.Dictionary")
@@ -463,6 +590,7 @@ Public Function m_ResolveTemplate( _
     m_ResolveTemplate = mp_ResolveConditionalBlocks(m_ResolveTemplate)
     m_ResolveTemplate = mp_ResolveJoinLineTokens(m_ResolveTemplate)
     m_ResolveTemplate = mp_ResolveTrimIndentTokens(m_ResolveTemplate)
+    m_ResolveTemplate = mp_ResolveNewLineTokens(m_ResolveTemplate)
     m_ResolveTemplate = mp_ResolveDateExpressions(m_ResolveTemplate, baseDateText)
     m_ResolveTemplate = mp_CollapseUnresolvedPlaceholders(m_ResolveTemplate)
     m_ResolveTemplate = mp_CollapseHorizontalWhitespaceRuns(m_ResolveTemplate)
@@ -2416,6 +2544,15 @@ Private Function mp_ResolveTrimIndentTokens(ByVal sourceText As String) As Strin
     resultText = CStr(sourceText)
     resultText = mp_ResolveTrimIndentToken(resultText, RESERVED_TRIMINDENT_TOKEN_SHORT)
     mp_ResolveTrimIndentTokens = resultText
+End Function
+
+Private Function mp_ResolveNewLineTokens(ByVal sourceText As String) As String
+    Dim resultText As String
+
+    resultText = CStr(sourceText)
+    resultText = Replace(resultText, RESERVED_NEWLINE_TOKEN, vbLf)
+    resultText = Replace(resultText, RESERVED_NEWLINE_TOKEN_SHORT, vbLf)
+    mp_ResolveNewLineTokens = resultText
 End Function
 
 Private Function mp_ResolveTrimIndentToken(ByVal sourceText As String, ByVal tokenText As String) As String
