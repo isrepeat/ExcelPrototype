@@ -20,7 +20,7 @@
           #let __AttrMoveToSomethingAtThisDay = $ex_ResultTemplatesParser.m_ExtractFirstCollectionItemFieldByRegex("MetadataAttributes", "Value", "^\s*[Йй]де\s+(у|на)\s+.+\s*$");
         }#^
 #_      З {Hospital}, з {#if OutDate}{OutDate|dateformat:"\dd \month"}{#endif}{#if #not OutDate}{DATE|dateformat:"\dd \month"}{#endif} 2026 року:
-#_      {#for item in MetadataAttributes}{#if #not item.__first}, {#endif}({item.Value}){#if item.__last}{#newline}{#endif}{#endfor}#^
+#_      {#for item in MetadataAttributes}{#if #not item.__first}, {#endif}({item.Value}){#if item.__last}{#endif}{#endfor}
 #_      {Rank|accusative} {FIO|accusative}, {Position|accusative|lowerFirstLetter}.
 #_      {#if IsReturnToDuty}{ReturnToDutyRank|dative|upperFirstLetter} {ReturnToDutyFIO|dative} повернутись до виконання обов'язків {ReturnToDutyPosition|accusative|lowerFirstLetter}.{#newline}{#endif}#^
 #_      {#if #not __AttrMoveToSomethingAtThisDay}Зарахувати на котлове забезпечення з {#if OutDate}{OutDate|dateformat:"\dd"}{+1} {OutDate|dateformat:"\month"}{#endif}{#if #not OutDate}{DATE|dateformat:"\dd"}{+1} {DATE|dateformat:"\month"}{#endif} 2026 року.{#newline}{#endif}#^
@@ -172,7 +172,7 @@
           #let __AttrNotEnrolledToFoodSupport = $ex_ResultTemplatesParser.m_ExtractFirstCollectionItemFieldByRegex("MetadataAttributes", "Value", "^\s*[Нн]е\s+зараховували\s+на\s+котлове\s*$");
         }#^
 #_      До {Hospital}, з {#if OutDate}{OutDate|dateformat:"\dd \month"}{#endif}{#if #not OutDate}{DATE|dateformat:"\dd \month"}{#endif} 2026 року:
-#_      {#for item in MetadataAttributes}{#if #not item.__first}, {#endif}({item.Value}){#if item.__last}{#newline}{#endif}{#endfor}#^
+#_      {#for item in MetadataAttributes}{#if #not item.__first}, {#endif}({item.Value}){#if item.__last}{#endif}{#endfor}
 #_      {Rank|accusative} {FIO|accusative}, {Position|accusative|lowerFirstLetter}.
 #_      {#if IsAssignToDuty}#^
 #_      Тимчасове виконання обов'язків за посадою {Position|accusative|lowerFirstLetter} покласти на #^
