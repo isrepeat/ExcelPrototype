@@ -15,6 +15,7 @@ Private Const EXPORT_RUNTIME_WORD_PASTE_ANCHOR As String = "Export.RuntimeDataBa
 Private Const EXPORT_RUNTIME_WORD_ANCHOR_PREFIX As String = "Export.RuntimeDataBase.WordAnchor."
 Private Const EXPORT_RUNTIME_WORD_RECORD_KEY_PREFIX As String = "Export.RuntimeDataBase.WordRecordKey."
 Private Const EXPORT_APPEND_SEPARATOR As String = vbCrLf & vbCrLf
+Private Const EXPORT_DEFAULT_HIGHLIGHT_COLOR As String = "#66CCFF"
 Private Const EXPORT_ANCHOR_MARKER_PREFIX As String = "{\export:"
 Private Const EXPORT_ANCHOR_MARKER_BEGIN_SUFFIX As String = "_Begin}"
 Private Const EXPORT_ANCHOR_MARKER_END_SUFFIX As String = "_End}"
@@ -638,15 +639,23 @@ Private Function mp_ReplaceTokenInDocumentByMode( _
     Dim charBeforeEnd As String
     Dim needPrefixLineBreak As Boolean
     Dim needSuffixLineBreak As Boolean
+    Dim replacementSegments As Collection
+    Dim replacementPlainText As String
+    Dim textSegmentOffset As Long
 
-    replacementText = mp_NormalizeTextForWord(replacementText)
+    replacementText = ex_ResultTemplatesParser.m_ExtractHighlightSegments( _
+        mp_NormalizeTextForWord(replacementText), _
+        replacementSegments, _
+        EXPORT_DEFAULT_HIGHLIGHT_COLOR _
+    )
+    replacementPlainText = replacementText
     appendSeparatorText = mp_NormalizeTextForWord(EXPORT_APPEND_SEPARATOR)
 
     If StrComp(insertMode, EXPORT_INSERT_MODE_REPLACE_ALL, vbTextCompare) = 0 Then
         For Each story In doc.StoryRanges
             Set currentRange = story
             Do While Not currentRange Is Nothing
-                mp_ReplaceTokenInDocumentByMode = mp_ReplaceTokenInDocumentByMode + mp_ReplaceTokenInRange(currentRange, token, replacementText)
+                mp_ReplaceTokenInDocumentByMode = mp_ReplaceTokenInDocumentByMode + mp_ReplaceTokenInRange(currentRange, token, replacementPlainText, replacementSegments, 0)
                 Set currentRange = currentRange.NextStoryRange
             Loop
         Next story
@@ -673,15 +682,17 @@ Private Function mp_ReplaceTokenInDocumentByMode( _
             needPrefixLineBreak = True
         End If
 
-        insertionText = replacementText
+        insertionText = replacementPlainText
+        textSegmentOffset = 0
         If needPrefixLineBreak Then
             insertionText = vbCr & insertionText
+            textSegmentOffset = 1
         End If
         If hasMeaningfulContentBetweenMarkers Then
             insertionText = insertionText & appendSeparatorText
         End If
         Set insertionRange = doc.Range(insertionPos, insertionPos)
-        insertionRange.Text = insertionText
+        mp_SetRangeTextWithHighlightSegments insertionRange, insertionText, replacementSegments, textSegmentOffset
     ElseIf StrComp(insertMode, EXPORT_INSERT_MODE_APPEND_BOTTOM, vbTextCompare) = 0 Then
         insertionPos = endMarkerRange.Start
         If insertionPos > 0 Then
@@ -695,15 +706,17 @@ Private Function mp_ReplaceTokenInDocumentByMode( _
             needSuffixLineBreak = True
         End If
 
-        insertionText = replacementText
+        insertionText = replacementPlainText
+        textSegmentOffset = 0
         If hasMeaningfulContentBetweenMarkers Then
             insertionText = appendSeparatorText & insertionText
+            textSegmentOffset = Len(appendSeparatorText)
         End If
         If needSuffixLineBreak Then
             insertionText = insertionText & vbCr
         End If
         Set insertionRange = doc.Range(insertionPos, insertionPos)
-        insertionRange.Text = insertionText
+        mp_SetRangeTextWithHighlightSegments insertionRange, insertionText, replacementSegments, textSegmentOffset
     Else
         Err.Raise vbObjectError + 1769, "ex_WordPlaceholderReports", "Unsupported insert mode: " & insertMode
     End If
@@ -714,7 +727,9 @@ End Function
 Private Function mp_ReplaceTokenInRange( _
     ByVal sourceRange As Object, _
     ByVal token As String, _
-    ByVal replacementText As String _
+    ByVal replacementText As String, _
+    Optional ByVal highlightSegments As Collection = Nothing, _
+    Optional ByVal segmentStartOffset As Long = 0 _
 ) As Long
     Dim findRange As Object
 
@@ -736,11 +751,71 @@ Private Function mp_ReplaceTokenInRange( _
     End With
 
     Do While findRange.Find.Execute
-        findRange.Text = replacementText
+        mp_SetRangeTextWithHighlightSegments findRange, replacementText, highlightSegments, segmentStartOffset
         mp_ReplaceTokenInRange = mp_ReplaceTokenInRange + 1
         findRange.Collapse WD_COLLAPSE_END
     Loop
 End Function
+
+Private Sub mp_SetRangeTextWithHighlightSegments( _
+    ByVal targetRange As Object, _
+    ByVal replacementText As String, _
+    ByVal highlightSegments As Collection, _
+    Optional ByVal segmentStartOffset As Long = 0 _
+)
+    If targetRange Is Nothing Then Exit Sub
+
+    targetRange.Text = replacementText
+    mp_ApplyWordHighlightSegments targetRange, highlightSegments, segmentStartOffset
+End Sub
+
+Private Sub mp_ApplyWordHighlightSegments( _
+    ByVal targetRange As Object, _
+    ByVal highlightSegments As Collection, _
+    Optional ByVal segmentStartOffset As Long = 0 _
+)
+    Dim segment As Variant
+    Dim segmentStart As Long
+    Dim segmentLength As Long
+    Dim colorHex As String
+    Dim fontColor As Long
+    Dim absoluteStart As Long
+    Dim absoluteEnd As Long
+    Dim colorRange As Object
+
+    If targetRange Is Nothing Then Exit Sub
+    If highlightSegments Is Nothing Then Exit Sub
+    If highlightSegments.Count = 0 Then Exit Sub
+
+    For Each segment In highlightSegments
+        If Not IsObject(segment) Then GoTo NextSegment
+        If Not segment.Exists("Start") Then GoTo NextSegment
+        If Not segment.Exists("Length") Then GoTo NextSegment
+
+        segmentStart = CLng(segment("Start")) + CLng(segmentStartOffset)
+        segmentLength = CLng(segment("Length"))
+        If segmentStart < 1 Then GoTo NextSegment
+        If segmentLength <= 0 Then GoTo NextSegment
+
+        absoluteStart = CLng(targetRange.Start) + segmentStart - 1
+        absoluteEnd = absoluteStart + segmentLength
+        If absoluteStart < CLng(targetRange.Start) Then GoTo NextSegment
+        If absoluteStart >= CLng(targetRange.End) Then GoTo NextSegment
+        If absoluteEnd > CLng(targetRange.End) Then absoluteEnd = CLng(targetRange.End)
+        If absoluteEnd <= absoluteStart Then GoTo NextSegment
+
+        colorHex = EXPORT_DEFAULT_HIGHLIGHT_COLOR
+        If segment.Exists("ColorHex") Then colorHex = CStr(segment("ColorHex"))
+        If Not ex_XmlCore.m_TryParseColor(colorHex, fontColor) Then
+            If Not ex_XmlCore.m_TryParseColor(EXPORT_DEFAULT_HIGHLIGHT_COLOR, fontColor) Then GoTo NextSegment
+        End If
+
+        Set colorRange = targetRange.Document.Range(absoluteStart, absoluteEnd)
+        colorRange.Font.Color = fontColor
+
+NextSegment:
+    Next segment
+End Sub
 
 Private Function mp_ExtractAnchorNameFromToken(ByVal tokenText As String) As String
     tokenText = Trim$(tokenText)

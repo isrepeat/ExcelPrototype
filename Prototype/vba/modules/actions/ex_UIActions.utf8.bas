@@ -7,6 +7,9 @@ Private Const ASCII_LOWER As String = "abcdefghijklmnopqrstuvwxyz"
 Private Const SCRIPT_KIND_PREPROCESS As String = "preprocess"
 Private Const SCRIPT_KIND_RESULTLAYOUT As String = "resultlayout"
 Private Const SCRIPT_KIND_POSTPROCESS As String = "postprocess"
+Private Const PERSONALCARD_PROFILES_REL_PATH As String = "config\modes\PersonalCard\PersonalCardProfiles.xml"
+Private Const PERSONALCARD_RESULT_TEMPLATES_REL_PATH As String = "config\modes\PersonalCard\PersonalCardResultTemplates.xml"
+Private Const PERSONALCARD_SHEET_STYLES_PIPELINE_REL_PATH As String = "config\modes\PersonalCard\PersonalCardSheetStylesPipeline.xml"
 Private Const SETTINGS_KEY_FILE_LOG_ENABLED As String = "st_FileLogEnabled"
 Private Const PERSONALCARD_LOG_REL_PATH As String = "Logs\personalcard_pipeline.log"
 Private Const LOGS_TOGGLE_BUTTON_NAME As String = "btnLogsToggle"
@@ -167,6 +170,21 @@ End Sub
 Public Sub m_OpenPostProcessScript_OnClick()
     ex_CustomDropdown.m_OnManagedButtonClick
     mp_OpenActiveProfileScriptSource SCRIPT_KIND_POSTPROCESS
+End Sub
+
+Public Sub m_OpenPersonalCardProfiles_OnClick()
+    ex_CustomDropdown.m_OnManagedButtonClick
+    mp_OpenProjectRelativeFile PERSONALCARD_PROFILES_REL_PATH, "PersonalCardProfiles"
+End Sub
+
+Public Sub m_OpenPersonalCardResultTemplates_OnClick()
+    ex_CustomDropdown.m_OnManagedButtonClick
+    mp_OpenProjectRelativeFile PERSONALCARD_RESULT_TEMPLATES_REL_PATH, "PersonalCardResultTemplates"
+End Sub
+
+Public Sub m_OpenPersonalCardSheetStylesPipeline_OnClick()
+    ex_CustomDropdown.m_OnManagedButtonClick
+    mp_OpenProjectRelativeFile PERSONALCARD_SHEET_STYLES_PIPELINE_REL_PATH, "PersonalCardSheetStylesPipeline"
 End Sub
 
 Public Sub m_ToggleLogs_OnClick()
@@ -382,6 +400,36 @@ Private Sub mp_OpenActiveProfileScriptSource(ByVal scriptKind As String)
 
     If Not mp_OpenFileInNotepad(targetFilePath, errText) Then
         MsgBox "Failed to open " & openLabel & " (" & sourceLabel & "): " & errText, vbExclamation
+    End If
+End Sub
+
+Private Sub mp_OpenProjectRelativeFile(ByVal relativePath As String, ByVal openLabel As String)
+    Dim basePath As String
+    Dim targetFilePath As String
+    Dim errText As String
+
+    basePath = Trim$(ThisWorkbook.Path)
+    If Len(basePath) = 0 Then
+        basePath = CurDir$
+    End If
+    If Len(basePath) = 0 Then
+        MsgBox "Cannot open " & openLabel & ": workbook base path is empty.", vbExclamation
+        Exit Sub
+    End If
+
+    targetFilePath = mp_NormalizeFilePath(basePath & "\" & relativePath)
+    If Len(targetFilePath) = 0 Then
+        MsgBox "Cannot open " & openLabel & ": target file path is empty.", vbExclamation
+        Exit Sub
+    End If
+
+    If Len(Dir$(targetFilePath)) = 0 Then
+        MsgBox openLabel & " file was not found: " & targetFilePath, vbExclamation
+        Exit Sub
+    End If
+
+    If Not mp_OpenFileInNotepad(targetFilePath, errText) Then
+        MsgBox "Failed to open " & openLabel & ": " & errText, vbExclamation
     End If
 End Sub
 

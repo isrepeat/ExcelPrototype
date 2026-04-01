@@ -740,20 +740,29 @@ End Function
 Public Function m_ExtractHighlightSegments( _
     ByVal sourceText As String, _
     ByRef outSegments As Collection, _
-    Optional ByVal fallbackColorHex As String = vbNullString _
+    Optional ByVal fallbackColorHex As String = vbNullString, _
+    Optional ByVal includeNamedColorTags As Boolean = True _
 ) As String
     Dim resultText As String
     Dim scanPos As Long
-    Dim startPos As Long
-    Dim valueStartPos As Long
-    Dim endPos As Long
-    Dim prefixText As String
-    Dim valueText As String
+    Dim nextStartPos As Long
+    Dim nextEndPos As Long
+    Dim markerPos As Long
+    Dim markerTailPos As Long
+    Dim markerEndPos As Long
+    Dim isStartMarker As Boolean
+    Dim textChunk As String
     Dim colorHex As String
     Dim colorStartPos As Long
     Dim colorEndPos As Long
     Dim segmentStart As Long
+    Dim segmentLength As Long
     Dim segment As Object
+    Dim markerStartLen As Long
+    Dim markerEndLen As Long
+    Dim stackSize As Long
+    Dim stackStarts() As Long
+    Dim stackColors() As String
 
     On Error GoTo EH
 
@@ -762,53 +771,115 @@ Public Function m_ExtractHighlightSegments( _
     sourceText = CStr(sourceText)
     fallbackColorHex = mp_TrimWhitespace(CStr(fallbackColorHex))
     If Len(fallbackColorHex) = 0 Then fallbackColorHex = DEFAULT_HIGHLIGHT_COLOR_HEX
+    If includeNamedColorTags Then
+        sourceText = mp_ConvertNamedColorTagsToHighlightMarkers(sourceText)
+    End If
 
+    markerStartLen = Len(HIGHLIGHT_MARKER_START)
+    markerEndLen = Len(HIGHLIGHT_MARKER_END)
     scanPos = 1
-    Do
-        startPos = InStr(scanPos, sourceText, HIGHLIGHT_MARKER_START, vbBinaryCompare)
-        If startPos = 0 Then
+    Do While scanPos <= Len(sourceText)
+        nextStartPos = InStr(scanPos, sourceText, HIGHLIGHT_MARKER_START, vbBinaryCompare)
+        nextEndPos = InStr(scanPos, sourceText, HIGHLIGHT_MARKER_END, vbBinaryCompare)
+
+        If nextStartPos = 0 And nextEndPos = 0 Then
             resultText = resultText & Mid$(sourceText, scanPos)
             Exit Do
         End If
 
-        prefixText = Mid$(sourceText, scanPos, startPos - scanPos)
-        resultText = resultText & prefixText
+        isStartMarker = False
+        markerPos = 0
+        If nextStartPos > 0 Then
+            If nextEndPos = 0 Or nextStartPos <= nextEndPos Then
+                isStartMarker = True
+                markerPos = nextStartPos
+            Else
+                markerPos = nextEndPos
+            End If
+        Else
+            markerPos = nextEndPos
+        End If
 
-        valueStartPos = startPos + Len(HIGHLIGHT_MARKER_START)
-        colorHex = fallbackColorHex
+        If markerPos > scanPos Then
+            textChunk = Mid$(sourceText, scanPos, markerPos - scanPos)
+            resultText = resultText & textChunk
+        End If
 
-        If valueStartPos <= Len(sourceText) Then
-            If Mid$(sourceText, valueStartPos, 1) = "(" Then
-                colorStartPos = valueStartPos + 1
-                colorEndPos = InStr(colorStartPos, sourceText, ")", vbBinaryCompare)
-                If colorEndPos > 0 Then
-                    colorHex = mp_TrimWhitespace(Mid$(sourceText, colorStartPos, colorEndPos - colorStartPos))
-                    If Len(colorHex) = 0 Then colorHex = fallbackColorHex
-                    valueStartPos = colorEndPos + 1
+        If isStartMarker Then
+            markerTailPos = markerPos + markerStartLen
+            colorHex = fallbackColorHex
+
+            If markerTailPos <= Len(sourceText) Then
+                If Mid$(sourceText, markerTailPos, 1) = "(" Then
+                    colorStartPos = markerTailPos + 1
+                    colorEndPos = InStr(colorStartPos, sourceText, ")", vbBinaryCompare)
+                    If colorEndPos > 0 Then
+                        colorHex = mp_TrimWhitespace(Mid$(sourceText, colorStartPos, colorEndPos - colorStartPos))
+                        If Len(colorHex) = 0 Then colorHex = fallbackColorHex
+                        markerTailPos = colorEndPos + 1
+                    End If
                 End If
             End If
+
+            stackSize = stackSize + 1
+            ReDim Preserve stackStarts(1 To stackSize)
+            ReDim Preserve stackColors(1 To stackSize)
+            stackStarts(stackSize) = CLng(Len(resultText) + 1)
+            stackColors(stackSize) = CStr(colorHex)
+
+            scanPos = markerTailPos
+        Else
+            markerEndPos = markerPos + markerEndLen
+            If stackSize > 0 Then
+                segmentStart = CLng(stackStarts(stackSize))
+                colorHex = CStr(stackColors(stackSize))
+                segmentLength = Len(resultText) - segmentStart + 1
+                If segmentStart > 0 And segmentLength > 0 Then
+                    Set segment = CreateObject("Scripting.Dictionary")
+                    segment.CompareMode = 1 ' vbTextCompare
+                    segment("Start") = segmentStart
+                    segment("Length") = CLng(segmentLength)
+                    segment("ColorHex") = CStr(colorHex)
+                    outSegments.Add segment
+                End If
+
+                stackSize = stackSize - 1
+                If stackSize > 0 Then
+                    ReDim Preserve stackStarts(1 To stackSize)
+                    ReDim Preserve stackColors(1 To stackSize)
+                Else
+                    Erase stackStarts
+                    Erase stackColors
+                End If
+            Else
+                resultText = resultText & HIGHLIGHT_MARKER_END
+            End If
+
+            scanPos = markerEndPos
         End If
+    Loop
 
-        endPos = InStr(valueStartPos, sourceText, HIGHLIGHT_MARKER_END, vbBinaryCompare)
-        If endPos = 0 Then
-            resultText = resultText & Mid$(sourceText, startPos)
-            Exit Do
-        End If
-
-        valueText = Mid$(sourceText, valueStartPos, endPos - valueStartPos)
-        segmentStart = Len(resultText) + 1
-        resultText = resultText & valueText
-
-        If Len(valueText) > 0 Then
+    Do While stackSize > 0
+        segmentStart = CLng(stackStarts(stackSize))
+        colorHex = CStr(stackColors(stackSize))
+        segmentLength = Len(resultText) - segmentStart + 1
+        If segmentStart > 0 And segmentLength > 0 Then
             Set segment = CreateObject("Scripting.Dictionary")
             segment.CompareMode = 1 ' vbTextCompare
-            segment("Start") = CLng(segmentStart)
-            segment("Length") = CLng(Len(valueText))
+            segment("Start") = segmentStart
+            segment("Length") = CLng(segmentLength)
             segment("ColorHex") = CStr(colorHex)
             outSegments.Add segment
         End If
 
-        scanPos = endPos + Len(HIGHLIGHT_MARKER_END)
+        stackSize = stackSize - 1
+        If stackSize > 0 Then
+            ReDim Preserve stackStarts(1 To stackSize)
+            ReDim Preserve stackColors(1 To stackSize)
+        Else
+            Erase stackStarts
+            Erase stackColors
+        End If
     Loop
 
     m_ExtractHighlightSegments = resultText
@@ -822,7 +893,145 @@ End Function
 Public Function m_RemoveHighlightMarkers(ByVal sourceText As String) As String
     Dim segments As Collection
 
-    m_RemoveHighlightMarkers = m_ExtractHighlightSegments(CStr(sourceText), segments, DEFAULT_HIGHLIGHT_COLOR_HEX)
+    m_RemoveHighlightMarkers = m_ExtractHighlightSegments(CStr(sourceText), segments, DEFAULT_HIGHLIGHT_COLOR_HEX, False)
+End Function
+
+Private Function mp_ConvertNamedColorTagsToHighlightMarkers(ByVal sourceText As String) As String
+    Dim rxBegin As Object
+    Dim rxEnd As Object
+    Dim matches As Object
+    Dim colorToken As String
+    Dim colorHex As String
+    Dim matchStart As Long
+    Dim matchLen As Long
+    Dim resultText As String
+
+    resultText = CStr(sourceText)
+    If Len(resultText) = 0 Then
+        mp_ConvertNamedColorTagsToHighlightMarkers = resultText
+        Exit Function
+    End If
+
+    Set rxBegin = CreateObject("VBScript.RegExp")
+    rxBegin.Global = False
+    rxBegin.IgnoreCase = True
+    rxBegin.MultiLine = True
+    rxBegin.Pattern = "\{#color_([A-Za-z0-9_-]+)_begin\}"
+
+    Do
+        Set matches = rxBegin.Execute(resultText)
+        If matches Is Nothing Then Exit Do
+        If matches.Count = 0 Then Exit Do
+
+        colorToken = CStr(matches(0).SubMatches(0))
+        If Not mp_TryResolveNamedColorHex(colorToken, colorHex) Then
+            Err.Raise vbObjectError + 1851, "ex_ResultTemplatesParser", _
+                "Unknown named color token '#color_" & colorToken & "_begin'. Use known color name (red/green/blue/...) or hex form 'hex_RRGGBB'."
+        End If
+
+        matchStart = CLng(matches(0).FirstIndex) + 1
+        matchLen = CLng(matches(0).Length)
+        resultText = Left$(resultText, matchStart - 1) & HIGHLIGHT_MARKER_START & "(" & colorHex & ")" & Mid$(resultText, matchStart + matchLen)
+    Loop
+
+    Set rxEnd = CreateObject("VBScript.RegExp")
+    rxEnd.Global = True
+    rxEnd.IgnoreCase = True
+    rxEnd.MultiLine = True
+    rxEnd.Pattern = "\{#color_[A-Za-z0-9_-]+_end\}"
+    resultText = rxEnd.Replace(resultText, HIGHLIGHT_MARKER_END)
+
+    rxEnd.Pattern = "\{#color_end\}"
+    resultText = rxEnd.Replace(resultText, HIGHLIGHT_MARKER_END)
+
+    mp_ConvertNamedColorTagsToHighlightMarkers = resultText
+End Function
+
+Private Function mp_TryResolveNamedColorHex( _
+    ByVal colorToken As String, _
+    ByRef outColorHex As String _
+) As Boolean
+    Dim normalized As String
+
+    normalized = LCase$(mp_TrimWhitespace(CStr(colorToken)))
+    If Len(normalized) = 0 Then Exit Function
+
+    Select Case normalized
+        Case "red"
+            outColorHex = "#FF0000"
+            mp_TryResolveNamedColorHex = True
+            Exit Function
+        Case "green"
+            outColorHex = "#008000"
+            mp_TryResolveNamedColorHex = True
+            Exit Function
+        Case "blue"
+            outColorHex = "#0000FF"
+            mp_TryResolveNamedColorHex = True
+            Exit Function
+        Case "cyan"
+            outColorHex = "#00B7FF"
+            mp_TryResolveNamedColorHex = True
+            Exit Function
+        Case "orange"
+            outColorHex = "#FFA500"
+            mp_TryResolveNamedColorHex = True
+            Exit Function
+        Case "yellow"
+            outColorHex = "#FFD700"
+            mp_TryResolveNamedColorHex = True
+            Exit Function
+        Case "purple"
+            outColorHex = "#800080"
+            mp_TryResolveNamedColorHex = True
+            Exit Function
+        Case "teal"
+            outColorHex = "#008080"
+            mp_TryResolveNamedColorHex = True
+            Exit Function
+        Case "gray", "grey"
+            outColorHex = "#808080"
+            mp_TryResolveNamedColorHex = True
+            Exit Function
+        Case "black"
+            outColorHex = "#000000"
+            mp_TryResolveNamedColorHex = True
+            Exit Function
+        Case "white"
+            outColorHex = "#FFFFFF"
+            mp_TryResolveNamedColorHex = True
+            Exit Function
+    End Select
+
+    If Left$(normalized, 4) = "hex_" Then
+        normalized = Mid$(normalized, 5)
+    End If
+    If Left$(normalized, 1) = "#" Then
+        normalized = Mid$(normalized, 2)
+    End If
+
+    If mp_IsHexColorLiteral(normalized) Then
+        outColorHex = "#" & UCase$(normalized)
+        mp_TryResolveNamedColorHex = True
+    End If
+End Function
+
+Private Function mp_IsHexColorLiteral(ByVal colorText As String) As Boolean
+    Dim rx As Object
+    Dim matches As Object
+
+    colorText = mp_TrimWhitespace(CStr(colorText))
+    If Len(colorText) = 0 Then Exit Function
+
+    Set rx = CreateObject("VBScript.RegExp")
+    rx.Global = False
+    rx.IgnoreCase = True
+    rx.MultiLine = False
+    rx.Pattern = "^[0-9A-F]{6}([0-9A-F]{2})?$"
+
+    Set matches = rx.Execute(UCase$(colorText))
+    If matches Is Nothing Then Exit Function
+    If matches.Count > 0 Then mp_IsHexColorLiteral = True
 End Function
 
 Private Function mp_ShouldCollapsePlaceholderValue(ByVal replacementText As String) As Boolean

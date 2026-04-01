@@ -183,6 +183,48 @@
          spanCols="2"
          spanRows="2"/>
 
+    <control name="btnOpenPersonalCardProfiles"
+         type="button"
+         sheet="Dev"
+         required="true"
+         createIfMissing="true"
+         macro="ex_UIActions.m_OpenPersonalCardProfiles_OnClick"
+         caption="PC Profiles"
+         globalVisible="false"
+         style="actionNeutral"
+         placement="moveAndSize"
+         anchorCell="S11"
+         spanCols="2"
+         spanRows="2"/>
+
+    <control name="btnOpenPersonalCardResultTemplates"
+         type="button"
+         sheet="Dev"
+         required="true"
+         createIfMissing="true"
+         macro="ex_UIActions.m_OpenPersonalCardResultTemplates_OnClick"
+         caption="PC Templates"
+         globalVisible="false"
+         style="actionNeutral"
+         placement="moveAndSize"
+         anchorCell="S14"
+         spanCols="2"
+         spanRows="2"/>
+
+    <control name="btnOpenPersonalCardSheetStylesPipeline"
+         type="button"
+         sheet="Dev"
+         required="true"
+         createIfMissing="true"
+         macro="ex_UIActions.m_OpenPersonalCardSheetStylesPipeline_OnClick"
+         caption="PC Styles"
+         globalVisible="false"
+         style="actionNeutral"
+         placement="moveAndSize"
+         anchorCell="S17"
+         spanCols="2"
+         spanRows="2"/>
+
           <control name="btnLogsToggle"
             type="button"
             sheet="Dev"
