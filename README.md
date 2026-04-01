@@ -437,7 +437,7 @@ ex_OutputFormattingPipeline.m_ApplySheetPipeline wsResult, Nothing, Nothing, row
 Для профилей режимов (PersonalCard/TablesComparing) можно задать дефолтный zoom результата атрибутом профиля:
 
 ```xml
-<profile name="Test2" resultZoom="115">
+<profile name="Default" resultZoom="115">
 ```
 
 Поведение:

@@ -357,6 +357,7 @@ Public Sub m_SetConfigValue( _
         MsgBox "Config table '" & DEV_CONFIG_TABLE_NAME & "' was not found on sheet '" & wsDev.Name & "'.", vbExclamation
         Exit Sub
     End If
+    ex_ConfigTableStore.m_EnsureConfigTableTextFormat cfgTable
 
     keyCol = DEV_COL_KEY
     valueCol = DEV_COL_VALUE
@@ -377,7 +378,8 @@ Public Sub m_SetConfigValue( _
             keyText = Trim$(CStr(dataRange.Cells(r, keyCol).Value))
             If StrComp(markerText, DEV_MARKER_SYMBOL, vbTextCompare) <> 0 Then
                 If StrComp(keyText, keyName, vbTextCompare) = 0 Then
-                    dataRange.Cells(r, valueCol).Value = valueText
+                    dataRange.Cells(r, valueCol).NumberFormat = "@"
+                    dataRange.Cells(r, valueCol).Value2 = CStr(valueText)
                     Exit Sub
                 End If
             End If
@@ -396,10 +398,13 @@ Public Sub m_SetConfigValue( _
     End If
 
     If markerCol > 0 Then
-        newRow.Range.Cells(1, markerCol).Value = vbNullString
+        newRow.Range.Cells(1, markerCol).NumberFormat = "@"
+        newRow.Range.Cells(1, markerCol).Value2 = vbNullString
     End If
-    newRow.Range.Cells(1, keyCol).Value = keyName
-    newRow.Range.Cells(1, valueCol).Value = valueText
+    newRow.Range.Cells(1, keyCol).NumberFormat = "@"
+    newRow.Range.Cells(1, keyCol).Value2 = CStr(keyName)
+    newRow.Range.Cells(1, valueCol).NumberFormat = "@"
+    newRow.Range.Cells(1, valueCol).Value2 = CStr(valueText)
 End Sub
 
 Public Sub m_SetConfigStyle( _

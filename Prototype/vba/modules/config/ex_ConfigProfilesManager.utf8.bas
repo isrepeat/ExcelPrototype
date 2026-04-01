@@ -1313,6 +1313,7 @@ Private Sub mp_WriteEntriesToConfigTable(ByVal ws As Worksheet, ByVal entries As
             values(i, DEV_CONFIG_STYLES_COL) = CStr(entries(i, DEV_CONFIG_STYLES_COL))
         Next i
 
+        ex_ConfigTableStore.m_EnsureConfigTableTextFormat tbl
         tbl.DataBodyRange.Cells(1, 1).Resize(rowCount, DEV_CONFIG_COL_COUNT).Value = values
     End If
 
@@ -1328,7 +1329,7 @@ Private Sub mp_ApplyConfigValueCells( _
     If tbl Is Nothing Then Exit Sub
 
     If Not tbl.DataBodyRange Is Nothing Then
-        tbl.DataBodyRange.Columns(DEV_CONFIG_VALUE_COL).NumberFormat = "General"
+        ex_ConfigTableStore.m_EnsureConfigTableTextFormat tbl
     End If
 
     mp_ApplyMutableStylePipeline ws, tbl, mutableKeys

@@ -26,6 +26,8 @@ Private Const PROFILES_NS As String = "urn:excelprototype:profiles"
 ' Reserved loop block:
 ' - {#for item in Collection}
 ' - {#endfor}
+' Reserved shared-template include token:
+' - {#include SharedTemplateId}
 Private Const NUMERIC_OFFSET_TOKEN_PATTERN As String = "\{([+-]\d+)\}"
 Private Const LEGACY_DAY_TOKEN_PATTERN As String = "\{#dd(?:[+-]\d+)?\}"
 Private Const RESERVED_JOINLINE_TOKEN As String = "{#^}"
@@ -38,6 +40,7 @@ Private Const IF_BLOCK_OPEN As String = "{#if"
 Private Const IF_BLOCK_CLOSE As String = "{#endif}"
 Private Const FOR_BLOCK_OPEN As String = "{#for"
 Private Const FOR_BLOCK_CLOSE As String = "{#endfor}"
+Private Const INCLUDE_BLOCK_OPEN As String = "{#include"
 Private Const BOOLEAN_TRUE As String = "true"
 Private Const BOOLEAN_FALSE As String = "false"
 
@@ -115,11 +118,145 @@ Public Function m_GetTemplateText( _
     End If
 
     templateText = CStr(node.Text)
+    templateText = mp_ExpandSharedTemplateIncludes(templateText, doc, templateId)
     m_GetTemplateText = mp_NormalizeTemplateText(templateText)
     Exit Function
 
 EH:
     m_GetTemplateText = mp_PrependTemplateError(vbNullString, "m_GetTemplateText('" & templateId & "', '" & templatesPath & "')")
+End Function
+
+Private Function mp_ExpandSharedTemplateIncludes( _
+    ByVal sourceText As String, _
+    ByVal doc As Object, _
+    ByVal templateId As String _
+) As String
+    Dim includeChain As Collection
+
+    Set includeChain = New Collection
+    mp_ExpandSharedTemplateIncludes = mp_ExpandSharedTemplateIncludesRecursive( _
+        CStr(sourceText), _
+        doc, _
+        CStr(templateId), _
+        includeChain _
+    )
+End Function
+
+Private Function mp_ExpandSharedTemplateIncludesRecursive( _
+    ByVal sourceText As String, _
+    ByVal doc As Object, _
+    ByVal ownerName As String, _
+    ByVal includeChain As Collection _
+) As String
+    Dim resultText As String
+    Dim rx As Object
+    Dim matches As Object
+    Dim includeId As String
+    Dim includeText As String
+    Dim expandedIncludeText As String
+    Dim matchStart As Long
+    Dim matchLen As Long
+
+    resultText = CStr(sourceText)
+    If Len(resultText) = 0 Then
+        mp_ExpandSharedTemplateIncludesRecursive = resultText
+        Exit Function
+    End If
+
+    Set rx = CreateObject("VBScript.RegExp")
+    rx.Global = False
+    rx.IgnoreCase = True
+    rx.MultiLine = True
+    rx.Pattern = "\{#include\s+([A-Za-z_][A-Za-z0-9_.-]*)\s*\}"
+
+    Do
+        Set matches = rx.Execute(resultText)
+        If matches Is Nothing Then Exit Do
+        If matches.Count = 0 Then Exit Do
+
+        includeId = mp_TrimWhitespace(CStr(matches(0).SubMatches(0)))
+        If Len(includeId) = 0 Then
+            Err.Raise vbObjectError + 1846, "ex_ResultTemplatesParser", _
+                "Invalid #include syntax in '" & CStr(ownerName) & "'. Use '{#include SharedTemplateId}'."
+        End If
+
+        If mp_IncludeChainContains(includeChain, includeId) Then
+            Err.Raise vbObjectError + 1847, "ex_ResultTemplatesParser", _
+                "Circular shared template include detected: " & mp_BuildIncludeChainText(includeChain, includeId) & "."
+        End If
+
+        includeText = mp_GetSharedTemplateTextById(doc, includeId)
+        includeChain.Add includeId
+        expandedIncludeText = mp_ExpandSharedTemplateIncludesRecursive(includeText, doc, "sharedTemplate '" & includeId & "'", includeChain)
+        includeChain.Remove includeChain.Count
+
+        matchStart = CLng(matches(0).FirstIndex)
+        matchLen = CLng(matches(0).Length)
+        resultText = Left$(resultText, matchStart) & expandedIncludeText & Mid$(resultText, matchStart + matchLen + 1)
+    Loop
+
+    If InStr(1, resultText, INCLUDE_BLOCK_OPEN, vbTextCompare) > 0 Then
+        Err.Raise vbObjectError + 1848, "ex_ResultTemplatesParser", _
+            "Invalid #include directive in '" & CStr(ownerName) & "'. Use '{#include SharedTemplateId}'."
+    End If
+
+    mp_ExpandSharedTemplateIncludesRecursive = resultText
+End Function
+
+Private Function mp_GetSharedTemplateTextById( _
+    ByVal doc As Object, _
+    ByVal sharedTemplateId As String _
+) As String
+    Dim node As Object
+    Dim xpath As String
+
+    sharedTemplateId = mp_TrimWhitespace(CStr(sharedTemplateId))
+    If Len(sharedTemplateId) = 0 Then
+        Err.Raise vbObjectError + 1849, "ex_ResultTemplatesParser", "Shared template id is empty."
+    End If
+
+    xpath = "/p:resultTemplates/p:sharedTemplates/p:sharedTemplate[@id=" & ex_XmlCore.m_XPathLiteral(sharedTemplateId) & "]/p:text"
+    Set node = doc.selectSingleNode(xpath)
+    If node Is Nothing Then
+        Err.Raise vbObjectError + 1850, "ex_ResultTemplatesParser", "Shared template not found: '" & sharedTemplateId & "'."
+    End If
+
+    mp_GetSharedTemplateTextById = CStr(node.Text)
+End Function
+
+Private Function mp_IncludeChainContains( _
+    ByVal includeChain As Collection, _
+    ByVal includeId As String _
+) As Boolean
+    Dim i As Long
+
+    If includeChain Is Nothing Then Exit Function
+
+    For i = 1 To includeChain.Count
+        If StrComp(CStr(includeChain(i)), CStr(includeId), vbBinaryCompare) = 0 Then
+            mp_IncludeChainContains = True
+            Exit Function
+        End If
+    Next i
+End Function
+
+Private Function mp_BuildIncludeChainText( _
+    ByVal includeChain As Collection, _
+    ByVal closingIncludeId As String _
+) As String
+    Dim i As Long
+
+    If Not includeChain Is Nothing Then
+        For i = 1 To includeChain.Count
+            If Len(mp_BuildIncludeChainText) > 0 Then mp_BuildIncludeChainText = mp_BuildIncludeChainText & " -> "
+            mp_BuildIncludeChainText = mp_BuildIncludeChainText & "'" & CStr(includeChain(i)) & "'"
+        Next i
+    End If
+
+    If Len(mp_BuildIncludeChainText) > 0 Then
+        mp_BuildIncludeChainText = mp_BuildIncludeChainText & " -> "
+    End If
+    mp_BuildIncludeChainText = mp_BuildIncludeChainText & "'" & CStr(closingIncludeId) & "'"
 End Function
 
 Public Function m_ReplaceToken( _

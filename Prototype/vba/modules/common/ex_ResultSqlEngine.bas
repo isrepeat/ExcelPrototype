@@ -537,6 +537,43 @@ Public Function m_FindWorksheetByConfiguredAdoName(ByVal wb As Workbook, ByVal c
     Next ws
 End Function
 
+Public Function m_GetWorksheetNamesPreview( _
+    ByVal wb As Workbook, _
+    Optional ByVal maxCount As Long = 12 _
+) As String
+    Dim ws As Worksheet
+    Dim preview As String
+    Dim totalCount As Long
+    Dim shownCount As Long
+
+    If wb Is Nothing Then
+        m_GetWorksheetNamesPreview = "<workbook is nothing>"
+        Exit Function
+    End If
+
+    If maxCount <= 0 Then maxCount = 12
+
+    For Each ws In wb.Worksheets
+        totalCount = totalCount + 1
+        If shownCount < maxCount Then
+            If Len(preview) > 0 Then preview = preview & ", "
+            preview = preview & "'" & ws.Name & "'"
+            shownCount = shownCount + 1
+        End If
+    Next ws
+
+    If totalCount = 0 Then
+        m_GetWorksheetNamesPreview = "<no worksheets>"
+        Exit Function
+    End If
+
+    If totalCount > shownCount Then
+        preview = preview & ", ... (+" & CStr(totalCount - shownCount) & " more)"
+    End If
+
+    m_GetWorksheetNamesPreview = preview
+End Function
+
 Public Function m_FindFirstMarkerCell(ByVal ws As Worksheet, ByVal markerText As String) As Range
     Dim searchRange As Range
 

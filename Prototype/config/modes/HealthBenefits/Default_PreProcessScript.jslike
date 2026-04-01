@@ -1,4 +1,4 @@
-// HealthBenefits Test2 pre-process script.
+// HealthBenefits Default pre-process script.
 // Pass-through pipeline input: copy key fields into ScriptIO output.
 
 let input = callMacroObject("ex_ScriptIO.m_GetInput");

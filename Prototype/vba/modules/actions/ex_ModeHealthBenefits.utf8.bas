@@ -1442,7 +1442,12 @@ Private Function mp_BuildAdoRangeReferenceFromMarkers( _
     Set ws = ex_ResultSqlEngine.m_FindWorksheetByConfiguredAdoName(wb, configuredSheetName)
     If ws Is Nothing Then
         Err.Raise vbObjectError + 1749, "ex_ModeHealthBenefits", _
-            "Worksheet for configured SheetName '" & configuredSheetName & "' was not found in source '" & sourceAlias & "'."
+            "Worksheet was not found for resolved SheetName '" & configuredSheetName & "'." & vbCrLf & _
+            "Source alias: '" & sourceAlias & "', table alias: '" & tableAlias & "'." & vbCrLf & _
+            "Resolved source file: " & sourcePath & vbCrLf & _
+            "Config keys: '" & sourceAlias & ".Sheet[" & tableAlias & "].SheetName' and '" & sourceAlias & ".Sheet[" & tableAlias & "].SheetNameResolver'." & vbCrLf & _
+            "Available worksheets: " & ex_ResultSqlEngine.m_GetWorksheetNamesPreview(wb, 20) & vbCrLf & _
+            "Hint: check BaseDate/date format in SheetNameResolver result (for example, month mismatch)."
     End If
 
     Set startCell = ex_ResultSqlEngine.m_FindFirstMarkerCell(ws, startMarker)

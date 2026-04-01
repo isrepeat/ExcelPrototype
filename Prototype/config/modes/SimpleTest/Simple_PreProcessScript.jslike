@@ -1,8 +1,8 @@
-// PersonalCard Test2 pre-process script.
+// PersonalCard Default pre-process script.
 // Safe for the unified pipeline: always creates ScriptIO output with Keys.
 
 let logPath = "Logs\\personalcard_pipeline.log";
-callMacro("ex_Messaging.m_LogToFile", "[PRE] START Test2_PreProcessScript", logPath);
+callMacro("ex_Messaging.m_LogToFile", "[PRE] START Default_PreProcessScript", logPath);
 
 let keysText = callMacro("ex_ConfigProvider.m_GetConfigValue", "MultiKeys", "");
 
@@ -35,4 +35,4 @@ callMacro("ex_ScriptIO.m_SetString", output, "PreHello", hello);
 callMacro("ex_ScriptIO.m_SetObject", output, "DemoCollection", demoCollection);
 callMacro("ex_ScriptIO.m_SetObject", output, "DemoDictionary", demoDictionary);
 callMacro("ex_ScriptIO.m_SetObject", output, "DemoObject", demoObject);
-callMacro("ex_Messaging.m_LogToFile", "[PRE] END Test2_PreProcessScript", logPath);
+callMacro("ex_Messaging.m_LogToFile", "[PRE] END Default_PreProcessScript", logPath);
