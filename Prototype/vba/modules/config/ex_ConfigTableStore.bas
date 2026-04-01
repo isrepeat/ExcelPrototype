@@ -34,6 +34,7 @@ Public Function m_GetConfigTable(ByVal ws As Worksheet, Optional ByVal createIfM
         Set tbl = m_CreateConfigTable(ws)
     End If
 
+    m_EnsureConfigTableTextFormat tbl
     Set m_GetConfigTable = tbl
 End Function
 
@@ -42,6 +43,14 @@ Public Function m_GetTableDataRowCount(ByVal tbl As ListObject) As Long
     If tbl.DataBodyRange Is Nothing Then Exit Function
     m_GetTableDataRowCount = tbl.DataBodyRange.Rows.Count
 End Function
+
+Public Sub m_EnsureConfigTableTextFormat(ByVal tbl As ListObject)
+    If tbl Is Nothing Then Exit Sub
+
+    On Error Resume Next
+    tbl.Range.NumberFormat = "@"
+    On Error GoTo 0
+End Sub
 
 Public Sub m_ResizeConfigTableRows(ByVal ws As Worksheet, ByVal tbl As ListObject, ByVal rowCount As Long)
     Dim topRow As Long
@@ -59,6 +68,7 @@ Public Sub m_ResizeConfigTableRows(ByVal ws As Worksheet, ByVal tbl As ListObjec
 
     Set resizeRange = ws.Range(ws.Cells(topRow, leftCol), ws.Cells(bottomRow, rightCol))
     tbl.Resize resizeRange
+    m_EnsureConfigTableTextFormat tbl
 End Sub
 
 Public Sub m_ClearConfigDataArea(ByVal ws As Worksheet, ByVal tbl As ListObject)
@@ -375,6 +385,7 @@ Private Function m_CreateConfigTable(ByVal ws As Worksheet) As ListObject
     On Error Resume Next
     m_CreateConfigTable.Name = DEV_CONFIG_TABLE_NAME
     ex_ConfigProvider.m_RefreshConfigTitle ws
+    m_EnsureConfigTableTextFormat m_CreateConfigTable
     On Error GoTo 0
 End Function
 
@@ -471,6 +482,7 @@ Private Function mp_RecreateTableAtHeaderRow(ByVal ws As Worksheet, ByVal tbl As
         ws.Cells(DEV_CONFIG_HEADER_ROW + rowCount, leftCol + colCount - 1) _
     )
     targetRange.Clear
+    targetRange.NumberFormat = "@"
     targetRange.Cells(1, 1).Resize(1, colCount).Value = headerValues
     If rowCount > 0 Then
         targetRange.Cells(2, 1).Resize(rowCount, colCount).Value = bodyValues
