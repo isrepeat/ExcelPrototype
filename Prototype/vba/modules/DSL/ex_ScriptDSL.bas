@@ -1646,20 +1646,29 @@ Private Function mp_ValidateConditionText( _
     Dim rightIsToken As Boolean
     Dim resolvedTableRef As String
     Dim resolvedMapKey As String
+    Dim partText As String
+    Dim groupedConditionText As String
 
     If Not mp_TrySplitConditionExpression(conditionText, condParts, condOps, outErrorText) Then Exit Function
 
     For i = 1 To condParts.Count
-        If Not mp_ParseConditionPart(CStr(condParts(i)), leftTokenText, opText, rightTokenText, rightIsToken) Then
-            outErrorText = "Unsupported condition token: '" & Trim$(CStr(condParts(i))) & "'."
-            Exit Function
-        End If
-        If Not mp_TryResolveConditionTokenForValidation(leftTokenText, currentTableRef, currentRowVar, scopeVarTypes, allowedTableFields, resolvedTableRef, resolvedMapKey, outErrorText) Then
-            Exit Function
-        End If
-        If rightIsToken Then
-            If Not mp_TryResolveConditionTokenForValidation(rightTokenText, currentTableRef, currentRowVar, scopeVarTypes, allowedTableFields, resolvedTableRef, resolvedMapKey, outErrorText) Then
+        partText = CStr(condParts(i))
+        If mp_TryUnwrapConditionGroup(partText, groupedConditionText) Then
+            If Not mp_ValidateConditionText(groupedConditionText, currentTableRef, currentRowVar, scopeVarTypes, allowedTableFields, outErrorText) Then
                 Exit Function
+            End If
+        Else
+            If Not mp_ParseConditionPart(partText, leftTokenText, opText, rightTokenText, rightIsToken) Then
+                outErrorText = "Unsupported condition token: '" & Trim$(partText) & "'."
+                Exit Function
+            End If
+            If Not mp_TryResolveConditionTokenForValidation(leftTokenText, currentTableRef, currentRowVar, scopeVarTypes, allowedTableFields, resolvedTableRef, resolvedMapKey, outErrorText) Then
+                Exit Function
+            End If
+            If rightIsToken Then
+                If Not mp_TryResolveConditionTokenForValidation(rightTokenText, currentTableRef, currentRowVar, scopeVarTypes, allowedTableFields, resolvedTableRef, resolvedMapKey, outErrorText) Then
+                    Exit Function
+                End If
             End If
         End If
     Next i
@@ -2002,43 +2011,50 @@ Private Function mp_EvaluateCondition( _
     Dim finalResult As Boolean
     Dim hasCurrentTerm As Boolean
     Dim hasFinalResult As Boolean
+    Dim partText As String
+    Dim groupedConditionText As String
 
     If Not mp_TrySplitConditionExpression(conditionText, condParts, condOps, resolveError) Then
         Err.Raise vbObjectError + 1594, "ex_ScriptDSL", resolveError
     End If
 
     For i = 1 To condParts.Count
-        If Not mp_ParseConditionPart(CStr(condParts(i)), refToken, opText, expectedValueRaw, expectedIsToken) Then
-            Err.Raise vbObjectError + 1594, "ex_ScriptDSL", "Invalid condition: " & Trim$(CStr(condParts(i)))
-        End If
-        If Not mp_TryResolveRuntimeValue(refToken, currentTableRef, currentRowVar, currentRowRef, tablesByRef, runtimeVars, actualValue, resolveError) Then
-            Err.Raise vbObjectError + 1595, "ex_ScriptDSL", resolveError
-        End If
-        If expectedIsToken Then
-            If Not mp_TryResolveRuntimeValue(expectedValueRaw, currentTableRef, currentRowVar, currentRowRef, tablesByRef, runtimeVars, expectedValue, resolveError) Then
+        partText = CStr(condParts(i))
+        If mp_TryUnwrapConditionGroup(partText, groupedConditionText) Then
+            partResult = mp_EvaluateCondition(groupedConditionText, currentTableRef, currentRowVar, currentRowRef, tablesByRef, runtimeVars)
+        Else
+            If Not mp_ParseConditionPart(partText, refToken, opText, expectedValueRaw, expectedIsToken) Then
+                Err.Raise vbObjectError + 1594, "ex_ScriptDSL", "Invalid condition: " & Trim$(partText)
+            End If
+            If Not mp_TryResolveRuntimeValue(refToken, currentTableRef, currentRowVar, currentRowRef, tablesByRef, runtimeVars, actualValue, resolveError) Then
                 Err.Raise vbObjectError + 1595, "ex_ScriptDSL", resolveError
             End If
-        Else
-            expectedValue = expectedValueRaw
-        End If
+            If expectedIsToken Then
+                If Not mp_TryResolveRuntimeValue(expectedValueRaw, currentTableRef, currentRowVar, currentRowRef, tablesByRef, runtimeVars, expectedValue, resolveError) Then
+                    Err.Raise vbObjectError + 1595, "ex_ScriptDSL", resolveError
+                End If
+            Else
+                expectedValue = expectedValueRaw
+            End If
 
-        compareResult = mp_CompareConditionValues(actualValue, expectedValue)
-        Select Case opText
-            Case "=="
-                partResult = (compareResult = 0)
-            Case "!="
-                partResult = (compareResult <> 0)
-            Case ">"
-                partResult = (compareResult > 0)
-            Case "<"
-                partResult = (compareResult < 0)
-            Case ">="
-                partResult = (compareResult >= 0)
-            Case "<="
-                partResult = (compareResult <= 0)
-            Case Else
-                Err.Raise vbObjectError + 1596, "ex_ScriptDSL", "Unsupported operator in condition: " & opText
-        End Select
+            compareResult = mp_CompareConditionValues(actualValue, expectedValue)
+            Select Case opText
+                Case "=="
+                    partResult = (compareResult = 0)
+                Case "!="
+                    partResult = (compareResult <> 0)
+                Case ">"
+                    partResult = (compareResult > 0)
+                Case "<"
+                    partResult = (compareResult < 0)
+                Case ">="
+                    partResult = (compareResult >= 0)
+                Case "<="
+                    partResult = (compareResult <= 0)
+                Case Else
+                    Err.Raise vbObjectError + 1596, "ex_ScriptDSL", "Unsupported operator in condition: " & opText
+            End Select
+        End If
 
         If Not hasCurrentTerm Then
             currentTerm = partResult
@@ -2301,6 +2317,7 @@ Private Function mp_TrySplitConditionExpression( _
     Dim partText As String
     Dim inQuotes As Boolean
     Dim inBacktickLiteral As Boolean
+    Dim parenDepth As Long
 
     Set outParts = New Collection
     Set outOps = New Collection
@@ -2328,14 +2345,24 @@ Private Function mp_TrySplitConditionExpression( _
         End If
 
         If Not inQuotes And Not inBacktickLiteral Then
-            If Mid$(conditionText, i, 2) = "&&" Then
+            If ch = "(" Then
+                parenDepth = parenDepth + 1
+            ElseIf ch = ")" Then
+                parenDepth = parenDepth - 1
+                If parenDepth < 0 Then
+                    outErrorText = "Unexpected ')' in condition."
+                    Exit Function
+                End If
+            End If
+
+            If parenDepth = 0 And Mid$(conditionText, i, 2) = "&&" Then
                 If Not mp_TryPushConditionPart(partText, "&&", outParts, outOps, outErrorText) Then Exit Function
                 partText = vbNullString
                 i = i + 2
                 GoTo ContinueLoop
             End If
 
-            If Mid$(conditionText, i, 2) = "||" Then
+            If parenDepth = 0 And Mid$(conditionText, i, 2) = "||" Then
                 If Not mp_TryPushConditionPart(partText, "||", outParts, outOps, outErrorText) Then Exit Function
                 partText = vbNullString
                 i = i + 2
@@ -2356,6 +2383,10 @@ ContinueLoop:
         outErrorText = "Unterminated backtick string in condition."
         Exit Function
     End If
+    If parenDepth <> 0 Then
+        outErrorText = "Unbalanced parentheses in condition."
+        Exit Function
+    End If
 
     partText = Trim$(partText)
     If Len(partText) = 0 Then
@@ -2365,6 +2396,63 @@ ContinueLoop:
     outParts.Add partText
 
     mp_TrySplitConditionExpression = True
+End Function
+
+Private Function mp_TryUnwrapConditionGroup( _
+    ByVal sourceText As String, _
+    ByRef outInnerText As String _
+) As Boolean
+    Dim normalized As String
+
+    normalized = mp_TrimDslWhitespace(sourceText)
+    If Len(normalized) < 2 Then Exit Function
+    If Left$(normalized, 1) <> "(" Or Right$(normalized, 1) <> ")" Then Exit Function
+    If Not mp_IsConditionWrappedByOuterParens(normalized) Then Exit Function
+
+    outInnerText = mp_TrimDslWhitespace(Mid$(normalized, 2, Len(normalized) - 2))
+    If Len(outInnerText) = 0 Then Exit Function
+    mp_TryUnwrapConditionGroup = True
+End Function
+
+Private Function mp_IsConditionWrappedByOuterParens(ByVal textValue As String) As Boolean
+    Dim i As Long
+    Dim depth As Long
+    Dim ch As String
+    Dim inQuotes As Boolean
+    Dim inBacktickLiteral As Boolean
+
+    textValue = mp_TrimDslWhitespace(textValue)
+    If Len(textValue) < 2 Then Exit Function
+    If Left$(textValue, 1) <> "(" Or Right$(textValue, 1) <> ")" Then Exit Function
+
+    For i = 1 To Len(textValue)
+        ch = Mid$(textValue, i, 1)
+
+        If ch = "`" And Not inQuotes Then
+            inBacktickLiteral = Not inBacktickLiteral
+            GoTo ContinueLoop
+        End If
+
+        If Not inBacktickLiteral Then
+            If ch = """" And Not mp_IsEscapedQuote(textValue, i) Then
+                inQuotes = Not inQuotes
+                GoTo ContinueLoop
+            End If
+            If Not inQuotes Then
+                If ch = "(" Then
+                    depth = depth + 1
+                ElseIf ch = ")" Then
+                    depth = depth - 1
+                    If depth < 0 Then Exit Function
+                    If depth = 0 And i < Len(textValue) Then Exit Function
+                End If
+            End If
+        End If
+ContinueLoop:
+    Next i
+
+    If inQuotes Or inBacktickLiteral Then Exit Function
+    mp_IsConditionWrappedByOuterParens = (depth = 0)
 End Function
 
 Private Function mp_TryPushConditionPart( _

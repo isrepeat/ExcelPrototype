@@ -9,6 +9,7 @@ let validationWarningsText = "";
 let hasValidationWarnings = "false";
 let validationWarningTitle = "DailyEvents validation warning";
 let validationErrorTitle = "DailyEvents validation error";
+let exportErrorTitle = "DailyEvents export error";
 let tvoNoteRegex = "ТВО";
 let unclosedReturnDateRegex = "^\\s*(\\?|-)?\\s*$";
 let emptyOrPlaceholderPattern = "^\\s*[\\?-]?\\s*$";
@@ -535,7 +536,8 @@ for (let row in Daily.Sheet[DailyEvents].rows) {
 			let hasPrevVacationForCuringEvent = "false";
 			for (let outRow in Events.Sheet[EventsOut].rows) {
 				if (outRow.column[FIO] == row.column[FIO] &&
-					outRow.column[EventReason] == "Відпустка для лікування") {
+					(outRow.column[EventReason] == "Відпустка для лікування" ||
+					 outRow.column[EventReason] == "Відпустка")) {
 					hasPrevVacationForCuringEvent = "true";
 					prevVkNum = outRow.column[Ticket];
 					prevVkDateRaw = outRow.column[OutCommandDate];
@@ -543,15 +545,39 @@ for (let row in Daily.Sheet[DailyEvents].rows) {
 			}
 
 			if (hasPrevVacationForCuringEvent != "true") {
-				callMacro("ex_PostProcessActions.m_ShowLogicError", $`SectionType={sectionType}, FIO={row.column[FIO]}: not found EventsOut row with EventReason='Відпустка для лікування' to fill PrevVkNum/PrevVkDate.`);
+				callMacro(
+					"ex_PostProcessActions.m_ShowBannerBeforeRowIndex",
+					"TYPE_ERROR",
+					exportErrorTitle,
+					$`SectionType={sectionType}, FIO={row.column[FIO]}: not found EventsOut row with EventReason='Відпустка для лікування' or 'Відпустка' to fill PrevVkNum/PrevVkDate.`,
+					ownerRowIndex,
+					0,
+					0
+				);
 				return;
 			}
 			if (prevVkNum == "" || prevVkNum == "?") {
-				callMacro("ex_PostProcessActions.m_ShowLogicError", $`SectionType={sectionType}, FIO={row.column[FIO]}: EventsOut.Ticket is empty for last row with EventReason='Відпустка для лікування'.`);
+				callMacro(
+					"ex_PostProcessActions.m_ShowBannerBeforeRowIndex",
+					"TYPE_ERROR",
+					exportErrorTitle,
+					$`SectionType={sectionType}, FIO={row.column[FIO]}: EventsOut.Ticket is empty for last row with EventReason='Відпустка для лікування' or 'Відпустка'.`,
+					ownerRowIndex,
+					0,
+					0
+				);
 				return;
 			}
 			if (prevVkDateRaw == "" || prevVkDateRaw == "?") {
-				callMacro("ex_PostProcessActions.m_ShowLogicError", $`SectionType={sectionType}, FIO={row.column[FIO]}: EventsOut.OutCommandDate is empty for last row with EventReason='Відпустка для лікування'.`);
+				callMacro(
+					"ex_PostProcessActions.m_ShowBannerBeforeRowIndex",
+					"TYPE_ERROR",
+					exportErrorTitle,
+					$`SectionType={sectionType}, FIO={row.column[FIO]}: EventsOut.OutCommandDate is empty for last row with EventReason='Відпустка для лікування' or 'Відпустка'.`,
+					ownerRowIndex,
+					0,
+					0
+				);
 				return;
 			}
 			
