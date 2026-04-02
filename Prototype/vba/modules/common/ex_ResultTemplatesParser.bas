@@ -59,6 +59,7 @@ Private Const FORMATTER_TRUNCATE As String = "truncate"
 Private Const FORMATTER_REPLACE As String = "replace"
 Private Const FORMATTER_REGEX_REPLACE As String = "regexreplace"
 Private Const FORMATTER_DATEFORMAT As String = "dateformat"
+Private Const FORMATTER_DATEOFFSET As String = "dateoffset"
 Private Const FORMATTER_TO_DATE_DAY As String = "todate_day"
 Private Const FORMATTER_TO_DATE_DAY_WITH_MONTH As String = "todate_daywithmonth"
 Private Const FORMATTER_CALENDAR_DAYS_UA As String = "calendardaysua"
@@ -1637,6 +1638,7 @@ Private Function mp_ApplyFormatterAction(ByVal sourceValue As String, ByVal acti
     Dim regexPattern As String
     Dim regexReplaceTo As String
     Dim maxLen As Long
+    Dim dateOffsetValue As Double
 
     actionSpec = mp_TrimWhitespace(CStr(actionSpec))
     colonPos = InStr(1, actionSpec, ":", vbBinaryCompare)
@@ -1697,6 +1699,17 @@ Private Function mp_ApplyFormatterAction(ByVal sourceValue As String, ByVal acti
                 Err.Raise vbObjectError + 1801, "ex_ResultTemplatesParser", "dateformat requires non-empty format argument: '" & actionSpec & "'."
             End If
             mp_ApplyFormatterAction = ex_DateHelpers.m_FormatDateByPattern(CStr(sourceValue), actionArgs)
+            Exit Function
+
+        Case FORMATTER_DATEOFFSET
+            actionArgs = mp_UnquoteFormatterArgument(actionArgs)
+            If Len(actionArgs) = 0 Then
+                Err.Raise vbObjectError + 1852, "ex_ResultTemplatesParser", "dateoffset requires signed integer argument: '" & actionSpec & "'."
+            End If
+            If Not mp_TryParseSignedInteger(actionArgs, dateOffsetValue) Then
+                Err.Raise vbObjectError + 1853, "ex_ResultTemplatesParser", "dateoffset requires signed integer argument like '+1' or '-1': '" & actionSpec & "'."
+            End If
+            mp_ApplyFormatterAction = ex_DateHelpers.m_AddDaysToDate(CStr(sourceValue), CStr(CLng(dateOffsetValue)), CStr(sourceValue))
             Exit Function
 
         Case Else
