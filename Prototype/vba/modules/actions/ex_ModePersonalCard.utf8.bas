@@ -10,6 +10,7 @@ Private Const RESULT_SHEET_NAME As String = "g_PersonTimeline"
 Private Const POST_PROCESS_SCRIPT_KEY_EXPLICIT As String = "PostProcess.Script.Explicit"
 Private Const INPUT_KEY_USE_RESULT_LAYOUT As String = "__UseResultLayoutScript"
 Private Const INPUT_KEY_QUERY_TABLE_REFS As String = "Query.TableRefs"
+Private Const INPUT_KEY_POSTPROCESS_VALIDATION_MODE As String = "PostProcess.ValidationMode"
 Private Const PREPROCESS_CONTEXT_HAS_SCRIPT As String = "HasScript"
 Private Const TIMELINE_DEBUG_LOG_PATH As String = "Logs\personalcard_pipeline.log"
 
@@ -308,6 +309,7 @@ Private Function mp_RunModeCore( _
     If postProcessInput Is Nothing Then
         Set postProcessInput = mp_CreateScriptInputContext(fio)
     End If
+    mp_SyncPostProcessRuntimeInput postProcessInput
     fio = Trim$(ex_ScriptIO.m_GetStringOrDefault(postProcessInput, "CommonKey", fio))
     useResultLayoutScript = (StrComp( _
         ex_ScriptIO.m_GetStringOrDefault(postProcessInput, INPUT_KEY_USE_RESULT_LAYOUT, "0"), _
@@ -613,6 +615,7 @@ Public Sub m_RunPostProcessForActiveSheet()
         ex_OutputPanel.m_DeletePanelButtonsForSheet ws
     End If
 
+    mp_SyncPostProcessRuntimeInput g_LastPostProcessInput
     ex_ScriptIO.m_SetInput g_LastPostProcessInput
     ex_ScriptDSL.m_ApplyScriptToSheet ws, g_LastPostProcessCfg, g_LastPostProcessTables, POST_PROCESS_SCRIPT_KEY_EXPLICIT
     If hasOutputStyle Then
@@ -673,9 +676,25 @@ Private Function mp_CreateScriptInputContext(ByVal fio As String) As Object
         baseDateNormalized = vbNullString
     End If
     ctx.m_SetString "BaseDate", baseDateNormalized
+    mp_SyncPostProcessRuntimeInput ctx
 
     Set mp_CreateScriptInputContext = ctx
 End Function
+
+Private Sub mp_SyncPostProcessRuntimeInput(ByVal inputContext As Object)
+    Dim validationMode As String
+    Dim wsRuntime As Worksheet
+
+    If inputContext Is Nothing Then Exit Sub
+
+    On Error Resume Next
+    Set wsRuntime = ThisWorkbook.Worksheets(RESULT_SHEET_NAME)
+    On Error GoTo 0
+
+    validationMode = Trim$(ex_ModePersonalCardState.m_GetValidationMode(wsRuntime, "Enabled"))
+    If Len(validationMode) = 0 Then validationMode = "Enabled"
+    ex_ScriptIO.m_SetString inputContext, INPUT_KEY_POSTPROCESS_VALIDATION_MODE, validationMode
+End Sub
 
 Private Function mp_ResolveQueryOutputEntries( _
     ByVal cfg As Object, _

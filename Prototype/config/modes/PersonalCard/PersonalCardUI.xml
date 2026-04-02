@@ -6,7 +6,7 @@
     minStartColumn="1"
     offsetColumns="2"
     widthColumns="5"
-    heightRows="5"
+    heightRows="6"
     topRow="1"
     labelColumns="1"
     valueColumns="2"
@@ -71,6 +71,27 @@
                      buttonBackColor="#2B579A"
                      buttonTextColor="#FFFFFF"
                      buttonBorderColor="#1F3F6B"/>
+          </modeVariants>
+        </toggleButton>
+        <toggleButton
+                      source="PostProcess.ValidationMode"
+                      macro="ex_UIActions.m_OutputPanelToggleButton_OnClick"
+                      buttonBackColor="#5A4B2A"
+                      buttonTextColor="#FFFFFF"
+                      buttonBorderColor="#9C7A37">
+          <modeVariants>
+            <variant value="Enabled"
+                     display="Enabled"
+                     caption="Validation [On]"
+                     buttonBackColor="#6A994E"
+                     buttonTextColor="#FFFFFF"
+                     buttonBorderColor="#386641"/>
+            <variant value="Disabled"
+                     display="Disabled"
+                     caption="Validation [Off]"
+                     buttonBackColor="#8A8A8A"
+                     buttonTextColor="#FFFFFF"
+                     buttonBorderColor="#5E5E5E"/>
           </modeVariants>
         </toggleButton>
         <button caption="Done"

@@ -1,4 +1,4 @@
-Attribute VB_Name = "ex_WordPlaceholderReports"
+Attribute VB_Name = "ex_WordExporter"
 Option Explicit
 
 Private Const WD_FIND_STOP As Long = 0
@@ -50,24 +50,24 @@ Public Sub m_API_ExportActiveSheetFooterPlaceholderReport()
 
     Set ws = ActiveSheet
     If ws Is Nothing Then
-        Err.Raise vbObjectError + 1751, "ex_WordPlaceholderReports", "Active sheet is not available for Word export."
+        Err.Raise vbObjectError + 1751, "ex_WordExporter", "Active sheet is not available for Word export."
     End If
 
     templatePath = mp_ResolvePath(Trim$(ex_ConfigProvider.m_GetConfigValue("Export.WordTemplatePath", vbNullString)))
     If Len(templatePath) = 0 Then
-        Err.Raise vbObjectError + 1763, "ex_WordPlaceholderReports", "Missing required config key 'Export.WordTemplatePath'."
+        Err.Raise vbObjectError + 1763, "ex_WordExporter", "Missing required config key 'Export.WordTemplatePath'."
     End If
     If Not mp_FileExists(templatePath) Then
-        Err.Raise vbObjectError + 1764, "ex_WordPlaceholderReports", "Word template not found by config key 'Export.WordTemplatePath': " & templatePath
+        Err.Raise vbObjectError + 1764, "ex_WordExporter", "Word template not found by config key 'Export.WordTemplatePath': " & templatePath
     End If
 
-    insertMode = mp_NormalizeInsertMode(ex_ConfigProvider.m_GetConfigValue("Export.InsertMode", "ReplaceAll"))
+    insertMode = mp_NormalizeInsertMode(ex_WordExporterState.m_GetInsertMode(ws, "AppendToBottom"))
     outputMode = mp_NormalizeOutputMode(ex_ConfigProvider.m_GetConfigValue("Export.OutputMode", "CreateWithPostfix"))
     outputPostfix = CStr(ex_ConfigProvider.m_GetConfigValue("Export.OutputPostfix", "_result"))
 
     outputPath = mp_BuildOutputPathByMode(templatePath, outputMode, outputPostfix)
     If Len(outputPath) = 0 Then
-        Err.Raise vbObjectError + 1766, "ex_WordPlaceholderReports", "Unable to build output path by mode '" & outputMode & "' from template path: " & templatePath
+        Err.Raise vbObjectError + 1766, "ex_WordExporter", "Unable to build output path by mode '" & outputMode & "' from template path: " & templatePath
     End If
     If mp_FileExists(outputPath) Then
         If mp_IsFileLocked(outputPath) Then
@@ -88,14 +88,14 @@ Public Sub m_API_ExportActiveSheetFooterPlaceholderReport()
     If Not hasMultiRuntimeAnchors Then
         wordResultsPlace = Trim$(ex_PostProcessActions.m_GetRuntimeData(EXPORT_RUNTIME_WORD_RESULTS_PLACE, vbNullString, ws))
         If Len(wordResultsPlace) = 0 Then
-            Err.Raise vbObjectError + 1774, "ex_WordPlaceholderReports", _
+            Err.Raise vbObjectError + 1774, "ex_WordExporter", _
                 "Missing runtime export value '" & EXPORT_RUNTIME_WORD_RESULTS_PLACE & "'. " & _
                 "Run Search -> Post Process and ensure at least one export results block was generated."
         End If
 
         wordPasteAnchor = Trim$(ex_PostProcessActions.m_GetRuntimeData(EXPORT_RUNTIME_WORD_PASTE_ANCHOR, vbNullString, ws))
         If Len(wordPasteAnchor) = 0 Then
-            Err.Raise vbObjectError + 1775, "ex_WordPlaceholderReports", _
+            Err.Raise vbObjectError + 1775, "ex_WordExporter", _
                 "Missing runtime export value '" & EXPORT_RUNTIME_WORD_PASTE_ANCHOR & "'. " & _
                 "Run Post Process to prepare export anchor."
         End If
@@ -130,10 +130,10 @@ Public Sub m_API_CleanupExportAnchorMarkers()
 
     templatePath = mp_ResolvePath(Trim$(ex_ConfigProvider.m_GetConfigValue("Export.WordTemplatePath", vbNullString)))
     If Len(templatePath) = 0 Then
-        Err.Raise vbObjectError + 1787, "ex_WordPlaceholderReports", "Missing required config key 'Export.WordTemplatePath'."
+        Err.Raise vbObjectError + 1787, "ex_WordExporter", "Missing required config key 'Export.WordTemplatePath'."
     End If
     If Not mp_FileExists(templatePath) Then
-        Err.Raise vbObjectError + 1788, "ex_WordPlaceholderReports", "Word template not found by config key 'Export.WordTemplatePath': " & templatePath
+        Err.Raise vbObjectError + 1788, "ex_WordExporter", "Word template not found by config key 'Export.WordTemplatePath': " & templatePath
     End If
 
     outputMode = mp_NormalizeOutputMode(ex_ConfigProvider.m_GetConfigValue("Export.OutputMode", "CreateWithPostfix"))
@@ -141,7 +141,7 @@ Public Sub m_API_CleanupExportAnchorMarkers()
     outputPath = mp_BuildOutputPathByMode(templatePath, outputMode, outputPostfix)
     targetPath = mp_BuildDuplicateCheckDocumentPath(templatePath, outputPath, outputMode)
     If Len(targetPath) = 0 Then
-        Err.Raise vbObjectError + 1789, "ex_WordPlaceholderReports", "Unable to resolve target document path for export anchor cleanup."
+        Err.Raise vbObjectError + 1789, "ex_WordExporter", "Unable to resolve target document path for export anchor cleanup."
     End If
     If Not mp_FileExists(targetPath) Then
         If StrComp(outputMode, EXPORT_OUTPUT_MODE_CREATE_WITH_POSTFIX, vbTextCompare) = 0 Then
@@ -149,7 +149,7 @@ Public Sub m_API_CleanupExportAnchorMarkers()
         End If
     End If
     If Not mp_FileExists(targetPath) Then
-        Err.Raise vbObjectError + 1790, "ex_WordPlaceholderReports", "Target document for export anchor cleanup was not found: " & targetPath
+        Err.Raise vbObjectError + 1790, "ex_WordExporter", "Target document for export anchor cleanup was not found: " & targetPath
     End If
 
     removedCount = mp_RemoveExportAnchorMarkersFromDocumentPath(targetPath)
@@ -277,10 +277,10 @@ Public Function m_CreateWordReportFromTemplate( _
 
     normalizedTemplatePath = Trim$(templatePath)
     If Len(normalizedTemplatePath) = 0 Then
-        Err.Raise vbObjectError + 1752, "ex_WordPlaceholderReports", "Template path is empty."
+        Err.Raise vbObjectError + 1752, "ex_WordExporter", "Template path is empty."
     End If
     If Not mp_FileExists(normalizedTemplatePath) Then
-        Err.Raise vbObjectError + 1753, "ex_WordPlaceholderReports", "Template file not found: " & normalizedTemplatePath
+        Err.Raise vbObjectError + 1753, "ex_WordExporter", "Template file not found: " & normalizedTemplatePath
     End If
 
     normalizedOutputPath = Trim$(outputPath)
@@ -288,13 +288,13 @@ Public Function m_CreateWordReportFromTemplate( _
         normalizedOutputPath = mp_BuildDefaultOutputPath(normalizedTemplatePath)
     End If
     If Len(normalizedOutputPath) = 0 Then
-        Err.Raise vbObjectError + 1754, "ex_WordPlaceholderReports", "Output path is empty."
+        Err.Raise vbObjectError + 1754, "ex_WordExporter", "Output path is empty."
     End If
 
     normalizedInsertMode = mp_NormalizeInsertMode(insertMode)
 
     If placeholderMap Is Nothing Then
-        Err.Raise vbObjectError + 1755, "ex_WordPlaceholderReports", "Placeholder map is not provided."
+        Err.Raise vbObjectError + 1755, "ex_WordExporter", "Placeholder map is not provided."
     End If
 
     Set normalizedMap = mp_BuildNormalizedPlaceholderMap(placeholderMap)
@@ -322,7 +322,7 @@ Public Function m_CreateWordReportFromTemplate( _
     totalReplacements = mp_ApplyPlaceholderMapInDocument(wdDoc, normalizedMap, missingTokens, normalizedInsertMode)
 
     If failIfPlaceholderMissing And Len(missingTokens) > 0 Then
-        Err.Raise vbObjectError + 1756, "ex_WordPlaceholderReports", _
+        Err.Raise vbObjectError + 1756, "ex_WordExporter", _
             "Export anchor(s) were not found in target document. Missing placeholders: " & missingTokens
     End If
 
@@ -348,7 +348,7 @@ EH:
     On Error Resume Next
     If Not wdDoc Is Nothing Then wdDoc.Close False
     On Error GoTo 0
-    Err.Raise vbObjectError + 1757, "ex_WordPlaceholderReports", _
+    Err.Raise vbObjectError + 1757, "ex_WordExporter", _
         "Failed to build Word report. Cause: [" & failureSource & " #" & CStr(failureNumber) & "] " & failureDescription
 End Function
 
@@ -462,7 +462,7 @@ EH:
     On Error Resume Next
     If Not wdDoc Is Nothing Then wdDoc.Close False
     On Error GoTo 0
-    Err.Raise vbObjectError + 1782, "ex_WordPlaceholderReports", _
+    Err.Raise vbObjectError + 1782, "ex_WordExporter", _
         "Failed to check duplicate record bookmarks in document '" & documentPath & "': " & Err.Description
 End Function
 
@@ -534,17 +534,17 @@ Public Function m_BuildPlaceholderMapFromPairs(ParamArray keyValuePairs() As Var
     On Error GoTo 0
 
     If upperBound < lowerBound Then
-        Err.Raise vbObjectError + 1762, "ex_WordPlaceholderReports", "Placeholder map is empty."
+        Err.Raise vbObjectError + 1762, "ex_WordExporter", "Placeholder map is empty."
     End If
 
     If (upperBound - lowerBound + 1) Mod 2 <> 0 Then
-        Err.Raise vbObjectError + 1758, "ex_WordPlaceholderReports", "Placeholder pairs must be [key, value, key, value]."
+        Err.Raise vbObjectError + 1758, "ex_WordExporter", "Placeholder pairs must be [key, value, key, value]."
     End If
 
     For i = lowerBound To upperBound Step 2
         keyText = Trim$(CStr(keyValuePairs(i)))
         If Len(keyText) = 0 Then
-            Err.Raise vbObjectError + 1759, "ex_WordPlaceholderReports", "Placeholder key is empty in key/value pairs."
+            Err.Raise vbObjectError + 1759, "ex_WordExporter", "Placeholder key is empty in key/value pairs."
         End If
         valueText = CStr(keyValuePairs(i + 1))
         result(keyText) = valueText
@@ -554,7 +554,7 @@ Public Function m_BuildPlaceholderMapFromPairs(ParamArray keyValuePairs() As Var
     Exit Function
 
 NoPairs:
-    Err.Raise vbObjectError + 1762, "ex_WordPlaceholderReports", "Placeholder map is empty."
+    Err.Raise vbObjectError + 1762, "ex_WordExporter", "Placeholder map is empty."
 End Function
 
 Private Function mp_BuildNormalizedPlaceholderMap(ByVal sourceMap As Object) As Object
@@ -568,13 +568,13 @@ Private Function mp_BuildNormalizedPlaceholderMap(ByVal sourceMap As Object) As 
     For Each token In sourceMap.Keys
         normalizedToken = mp_NormalizePlaceholderToken(CStr(token))
         If Len(normalizedToken) = 0 Then
-            Err.Raise vbObjectError + 1760, "ex_WordPlaceholderReports", "Placeholder key cannot be empty."
+            Err.Raise vbObjectError + 1760, "ex_WordExporter", "Placeholder key cannot be empty."
         End If
         result(normalizedToken) = CStr(sourceMap(token))
     Next token
 
     If result.Count = 0 Then
-        Err.Raise vbObjectError + 1761, "ex_WordPlaceholderReports", "Placeholder map is empty."
+        Err.Raise vbObjectError + 1761, "ex_WordExporter", "Placeholder map is empty."
     End If
 
     Set mp_BuildNormalizedPlaceholderMap = result
@@ -718,7 +718,7 @@ Private Function mp_ReplaceTokenInDocumentByMode( _
         Set insertionRange = doc.Range(insertionPos, insertionPos)
         mp_SetRangeTextWithHighlightSegments insertionRange, insertionText, replacementSegments, textSegmentOffset
     Else
-        Err.Raise vbObjectError + 1769, "ex_WordPlaceholderReports", "Unsupported insert mode: " & insertMode
+        Err.Raise vbObjectError + 1769, "ex_WordExporter", "Unsupported insert mode: " & insertMode
     End If
 
     mp_ReplaceTokenInDocumentByMode = 1
@@ -1128,7 +1128,7 @@ EH:
     If Not wdDoc Is Nothing Then wdDoc.Close False
     If Not wdApp Is Nothing Then wdApp.ScreenUpdating = previousScreenUpdating
     On Error GoTo 0
-    Err.Raise vbObjectError + 1791, "ex_WordPlaceholderReports", _
+    Err.Raise vbObjectError + 1791, "ex_WordExporter", _
         "Failed to cleanup export anchor markers in document '" & documentPath & "': " & Err.Description
 End Function
 
@@ -1424,12 +1424,12 @@ Private Function mp_ReadSheetTextByRuntimePointer( _
     Dim prefixCandidate As String
 
     If ws Is Nothing Then
-        Err.Raise vbObjectError + 1776, "ex_WordPlaceholderReports", "Target worksheet is missing for runtime source pointer."
+        Err.Raise vbObjectError + 1776, "ex_WordExporter", "Target worksheet is missing for runtime source pointer."
     End If
 
     normalizedPointer = Trim$(sourcePointer)
     If Len(normalizedPointer) = 0 Then
-        Err.Raise vbObjectError + 1777, "ex_WordPlaceholderReports", "Runtime source pointer is empty."
+        Err.Raise vbObjectError + 1777, "ex_WordExporter", "Runtime source pointer is empty."
     End If
 
     colonPos = InStr(1, normalizedPointer, ":", vbBinaryCompare)
@@ -1452,34 +1452,34 @@ Private Function mp_ReadSheetTextByRuntimePointer( _
         Set namedEntry = ws.Names(nameText)
         On Error GoTo ResolveErr
         If namedEntry Is Nothing Then
-            Err.Raise vbObjectError + 1780, "ex_WordPlaceholderReports", "Unable to resolve runtime source pointer '" & normalizedPointer & "' on sheet '" & ws.Name & "'."
+            Err.Raise vbObjectError + 1780, "ex_WordExporter", "Unable to resolve runtime source pointer '" & normalizedPointer & "' on sheet '" & ws.Name & "'."
         End If
         On Error Resume Next
         Set pointerRange = namedEntry.RefersToRange
         On Error GoTo ResolveErr
         If pointerRange Is Nothing Then
-            Err.Raise vbObjectError + 1780, "ex_WordPlaceholderReports", "Unable to resolve runtime source pointer '" & normalizedPointer & "' on sheet '" & ws.Name & "'."
+            Err.Raise vbObjectError + 1780, "ex_WordExporter", "Unable to resolve runtime source pointer '" & normalizedPointer & "' on sheet '" & ws.Name & "'."
         End If
         mp_ReadSheetTextByRuntimePointer = CStr(pointerRange.Cells(1, 1).Value)
         Exit Function
     End If
 
     If Len(addressText) = 0 Then
-        Err.Raise vbObjectError + 1779, "ex_WordPlaceholderReports", "Runtime source pointer address is empty in '" & normalizedPointer & "'."
+        Err.Raise vbObjectError + 1779, "ex_WordExporter", "Runtime source pointer address is empty in '" & normalizedPointer & "'."
     End If
 
     On Error GoTo ResolveErr
     Set pointerRange = ws.Range(addressText)
     On Error GoTo 0
     If pointerRange Is Nothing Then
-        Err.Raise vbObjectError + 1780, "ex_WordPlaceholderReports", "Unable to resolve runtime source pointer '" & normalizedPointer & "' on sheet '" & ws.Name & "'."
+        Err.Raise vbObjectError + 1780, "ex_WordExporter", "Unable to resolve runtime source pointer '" & normalizedPointer & "' on sheet '" & ws.Name & "'."
     End If
 
     mp_ReadSheetTextByRuntimePointer = CStr(pointerRange.Cells(1, 1).Value)
     Exit Function
 
 ResolveErr:
-    Err.Raise vbObjectError + 1781, "ex_WordPlaceholderReports", "Invalid runtime source pointer '" & normalizedPointer & "' on sheet '" & ws.Name & "': " & Err.Description
+    Err.Raise vbObjectError + 1781, "ex_WordExporter", "Invalid runtime source pointer '" & normalizedPointer & "' on sheet '" & ws.Name & "': " & Err.Description
 End Function
 
 Private Function mp_BuildOutputPathByMode( _
@@ -1493,7 +1493,7 @@ Private Function mp_BuildOutputPathByMode( _
         Case EXPORT_OUTPUT_MODE_CREATE_WITH_POSTFIX
             mp_BuildOutputPathByMode = mp_BuildPostfixedOutputPath(templatePath, outputPostfix)
         Case Else
-            Err.Raise vbObjectError + 1770, "ex_WordPlaceholderReports", "Unsupported output mode: " & outputMode
+            Err.Raise vbObjectError + 1770, "ex_WordExporter", "Unsupported output mode: " & outputMode
     End Select
 End Function
 
@@ -1511,7 +1511,7 @@ Private Function mp_BuildPostfixedOutputPath(ByVal templatePath As String, ByVal
     outputPostfix = Trim$(outputPostfix)
     If Len(outputPostfix) = 0 Then outputPostfix = "_result"
     If InStr(1, outputPostfix, "\", vbBinaryCompare) > 0 Or InStr(1, outputPostfix, "/", vbBinaryCompare) > 0 Then
-        Err.Raise vbObjectError + 1771, "ex_WordPlaceholderReports", "Export.OutputPostfix must not contain path separators: " & outputPostfix
+        Err.Raise vbObjectError + 1771, "ex_WordExporter", "Export.OutputPostfix must not contain path separators: " & outputPostfix
     End If
 
     dotPos = InStrRev(fileNameOnly, ".")
@@ -1584,7 +1584,7 @@ Private Function mp_GetOrCreateWordApp() As Object
 
     Set wdApp = CreateObject("Word.Application")
     If wdApp Is Nothing Then
-        Err.Raise vbObjectError + 1765, "ex_WordPlaceholderReports", "Unable to start Word.Application."
+        Err.Raise vbObjectError + 1765, "ex_WordExporter", "Unable to start Word.Application."
     End If
     wdApp.Visible = False
     On Error Resume Next
@@ -1638,7 +1638,7 @@ Private Function mp_NormalizeInsertMode(ByVal modeText As String) As String
         Case EXPORT_INSERT_MODE_REPLACE_ALL, EXPORT_INSERT_MODE_APPEND_TOP, EXPORT_INSERT_MODE_APPEND_BOTTOM
             mp_NormalizeInsertMode = modeText
         Case Else
-            Err.Raise vbObjectError + 1772, "ex_WordPlaceholderReports", "Invalid Export.InsertMode '" & modeText & "'. Expected: ReplaceAll, AppendToTop, AppendToBottom."
+            Err.Raise vbObjectError + 1772, "ex_WordExporter", "Invalid Export.InsertMode '" & modeText & "'. Expected: ReplaceAll, AppendToTop, AppendToBottom."
     End Select
 End Function
 
@@ -1650,7 +1650,7 @@ Private Function mp_NormalizeOutputMode(ByVal modeText As String) As String
         Case EXPORT_OUTPUT_MODE_CREATE_WITH_POSTFIX, EXPORT_OUTPUT_MODE_OVERWRITE_TEMPLATE
             mp_NormalizeOutputMode = modeText
         Case Else
-            Err.Raise vbObjectError + 1773, "ex_WordPlaceholderReports", "Invalid Export.OutputMode '" & modeText & "'. Expected: CreateWithPostfix, OverwriteTemplate."
+            Err.Raise vbObjectError + 1773, "ex_WordExporter", "Invalid Export.OutputMode '" & modeText & "'. Expected: CreateWithPostfix, OverwriteTemplate."
     End Select
 End Function
 
