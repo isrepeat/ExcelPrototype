@@ -171,7 +171,7 @@
 #_      {#include block.MetadataAttributesInline}
 #_      {Rank|accusative} {FIO|accusative}, {Position|accusative|lowerFirstLetter}.
 #_      {#include block.ReturnToDuty}#^
-#_      {#if #not __FlagDoNotEnrollToFoodSupport #and #not __AttrMoveToSomethingAtThisDay}Зарахувати на котлове забезпечення з {#if OutDate}{OutDate|dateformat:"\dd"}{+1} {OutDate|dateformat:"\month"}{#endif}{#if #not OutDate}{DATE|dateformat:"\dd"}{+1} {DATE|dateformat:"\month"}{#endif} 2026 року.{#newline}{#endif}#^
+#_      {#if #not __FlagDoNotEnrollToFoodSupport #and #not __AttrMoveToSomethingAtThisDay}Зарахувати на котлове забезпечення з {DATE|dateformat:"\dd"}{+1} {DATE|dateformat:"\month"} 2026 року.{#newline}{#endif}#^
 #_      {#color_red_begin}{#if __AttrMoveToSomethingAtThisDay}({__AttrMoveToSomethingAtThisDay}) {#endif}{#color_red_end}#^
 #_      {#color_red_begin}{#if __AttrRaportFromAnotherDate}({__AttrRaportFromAnotherDate}) {#endif}{#color_red_end}
 #_      {#include block.ToBasisRaports}#^
@@ -189,9 +189,9 @@
           {#include vars.FlagDoNotEnrollToFoodSupport}
         }#^
 #_      {#include block.MetadataAttributesWithNewline}#^
-#_      {Rank|accusative} {FIO|accusative}, {Position|accusative|lowerFirstLetter}.
+#_      {Rank|accusative|upperFirstLetter} {FIO|accusative}, {Position|accusative|lowerFirstLetter}.
 #_      {#include block.ReturnToDuty}#^
-#_      {#if #not __FlagDoNotEnrollToFoodSupport #and #not __AttrMoveToSomethingAtThisDay}Зарахувати на котлове забезпечення з {#if OutDate}{OutDate|dateformat:"\dd"}{+1} {OutDate|dateformat:"\month"}{#endif}{#if #not OutDate}{DATE|dateformat:"\dd"}{+1} {DATE|dateformat:"\month"}{#endif} 2026 року.{#newline}{#endif}#^
+#_      {#if #not __FlagDoNotEnrollToFoodSupport #and #not __AttrMoveToSomethingAtThisDay}Зарахувати на котлове забезпечення з {DATE|dateformat:"\dd"}{+1} {DATE|dateformat:"\month"} 2026 року.{#newline}{#endif}#^
 #_      {#color_red_begin}{#if __AttrMoveToSomethingAtThisDay}({__AttrMoveToSomethingAtThisDay}) {#endif}{#color_red_end}#^
 #_      {#color_red_begin}{#if __AttrRaportFromAnotherDate}({__AttrRaportFromAnotherDate}) {#endif}{#color_red_end}
 #_      {#include block.ToBasisRaports}#^
@@ -211,7 +211,7 @@
 #_      {#include block.MetadataAttributesWithNewline}#^
 #_      {Rank|accusative|upperFirstLetter} {FIO|accusative}, {Position|accusative|lowerFirstLetter}.
 #_      {#include block.ReturnToDuty}#^
-#_      {#if #not __FlagDoNotEnrollToFoodSupport #and #not __AttrMoveToSomethingAtThisDay}Зарахувати на котлове забезпечення з {#if OutDate}{OutDate|dateformat:"\dd"}{+1} {OutDate|dateformat:"\month"}{#endif}{#if #not OutDate}{DATE|dateformat:"\dd"}{+1} {DATE|dateformat:"\month"}{#endif} 2026 року.{#newline}{#endif}#^
+#_      {#if #not __FlagDoNotEnrollToFoodSupport #and #not __AttrMoveToSomethingAtThisDay}Зарахувати на котлове забезпечення з {DATE|dateformat:"\dd"}{+1} {DATE|dateformat:"\month"} 2026 року.{#newline}{#endif}#^
 #_      {#color_red_begin}{#if __AttrMoveToSomethingAtThisDay}({__AttrMoveToSomethingAtThisDay}) {#endif}{#color_red_end}#^
 #_      {#color_red_begin}{#if __AttrRaportFromAnotherDate}({__AttrRaportFromAnotherDate}) {#endif}{#color_red_end}
 #_      {#include block.ToBasisRaports}#^
@@ -231,7 +231,7 @@
 #_      {#include block.MetadataAttributesWithNewline}#^
 #_      {Rank|accusative|upperFirstLetter} {FIO|accusative}, {Position|accusative|lowerFirstLetter}.
 #_      {#include block.ReturnToDuty}#^
-#_      {#if #not __FlagDoNotEnrollToFoodSupport #and #not __AttrMoveToSomethingAtThisDay}Зарахувати на котлове забезпечення з {#if OutDate}{OutDate|dateformat:"\dd"}{+1} {OutDate|dateformat:"\month"}{#endif}{#if #not OutDate}{DATE|dateformat:"\dd"}{+1} {DATE|dateformat:"\month"}{#endif} 2026 року.{#newline}{#endif}#^
+#_      {#if #not __FlagDoNotEnrollToFoodSupport #and #not __AttrMoveToSomethingAtThisDay}Зарахувати на котлове забезпечення з {DATE|dateformat:"\dd"}{+1} {DATE|dateformat:"\month"} 2026 року.{#newline}{#endif}#^
 #_      {#color_red_begin}{#if __AttrMoveToSomethingAtThisDay}({__AttrMoveToSomethingAtThisDay}) {#endif}{#color_red_end}#^
 #_      {#color_red_begin}{#if __AttrRaportFromAnotherDate}({__AttrRaportFromAnotherDate}) {#endif}{#color_red_end}
 #_      {#include block.ToBasisRaports}#^
@@ -402,7 +402,7 @@
 #_      {#include block.MetadataAttributesWithNewline}#^
 #_      NN. {Rank|accusative|upperFirstLetter} {FIO|accusative}, {Position|accusative|lowerFirstLetter}, #^
 #_      який перебував на лікуванні у {Hospital}, вважати таким, що перебуває у відпустці для лікування, #^
-#_      {#include block.VacationDestinationPeriod}
+#_      {#include block.VacationDestinationPeriod}#^
 #_      {#color_red_begin}{#if __AttrRaportFromAnotherDate}({__AttrRaportFromAnotherDate}) {#endif}{#color_red_end}
 #_      {#include block.ToBasisRaports}#^
 #_      , довідка військово-лікарської комісії № {VlkNum} від {VlkDate}#^
@@ -421,7 +421,7 @@
 #_      {#include block.MetadataAttributesWithNewline}#^
 #_      NN. {Rank|accusative|upperFirstLetter} {FIO|accusative}, {Position|accusative|lowerFirstLetter}, #^
 #_      який перебував у відпустці для лікування, вважати таким, що перебуває у відпустці для лікування, #^
-#_      {#include block.VacationDestinationPeriod}
+#_      {#include block.VacationDestinationPeriod}#^
 #_      {#color_red_begin}{#if __AttrRaportFromAnotherDate}({__AttrRaportFromAnotherDate}) {#endif}{#color_red_end}
 #_      {#include block.ToBasisRaports}#^
 #_      , довідка військово-лікарської комісії № {VlkNum} від {VlkDate}#^
@@ -476,7 +476,7 @@
 #_      {#include block.MetadataAttributesWithNewline}#^
 #_      NN. {Rank|accusative|upperFirstLetter} {FIO|accusative}, {Position|accusative|lowerFirstLetter}, #^
 #_      який перебував на медичному огляді військово лікарської комісії, вважати таким, що перебуває у відпустці для лікування, #^
-#_      {#include block.VacationDestinationPeriod}
+#_      {#include block.VacationDestinationPeriod}#^
 #_      {#color_red_begin}{#if __FlagRemoveFromFoodSupport}Зняти з котлового забезпечення з {#if OutDate}{OutDate|dateformat:"\dd \month"}{#endif}{#if #not OutDate}{DATE|dateformat:"\dd \month"}{#endif} 2026 року.{#newline}{#endif}{#color_red_end}#^
 #_      {#color_red_begin}{#if __AttrRaportFromAnotherDate}({__AttrRaportFromAnotherDate}) {#endif}{#color_red_end}
 #_      {#include block.ToBasisRaports}#^

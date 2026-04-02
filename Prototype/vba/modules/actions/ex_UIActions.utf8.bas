@@ -248,17 +248,26 @@ End Sub
 
 Public Sub m_ExportFooterReportToWord_OnClick()
     ex_CustomDropdown.m_OnManagedButtonClick
-    ex_WordPlaceholderReports.m_API_ExportActiveSheetFooterPlaceholderReport
+    ex_WordExporter.m_API_ExportActiveSheetFooterPlaceholderReport
 End Sub
 
 Public Sub m_ExportFooterReportDone_OnClick()
     ex_CustomDropdown.m_OnManagedButtonClick
-    ex_WordPlaceholderReports.m_API_CleanupExportAnchorMarkers
+    ex_WordExporter.m_API_CleanupExportAnchorMarkers
 End Sub
 
 Public Sub m_OutputPanelToggleButton_OnClick()
-    ex_CustomDropdown.m_OnManagedButtonClick
-    ex_OutputPanel.m_HandleToggleButtonOnClick
+    Dim callerName As String
+    Dim ws As Worksheet
+
+    Set ws = ActiveSheet
+    On Error Resume Next
+    callerName = CStr(Application.Caller)
+    On Error GoTo 0
+
+    ' Toggle buttons live on output sheets and do not depend on Dev dropdown state.
+    ' Avoid side effects from dropdown helpers before resolving caller/indices.
+    ex_OutputPanel.m_HandleToggleButtonOnClick ws, callerName
 End Sub
 
 Public Sub m_OutputPanelStartSearch_OnClick()

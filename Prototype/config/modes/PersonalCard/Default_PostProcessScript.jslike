@@ -21,7 +21,19 @@ let exportRuntimeWordRecordKeyPrefix = "Export.RuntimeDataBase.WordRecordKey.";
 let logPath = "Logs\\personalcard_pipeline.log";
 
 let inputCommonKey = callMacro("ex_ScriptIO.m_GetValue", input, "CommonKey", "");
+let postProcessValidationMode = callMacro("ex_ScriptIO.m_GetValue", input, "PostProcess.ValidationMode", "Enabled");
+let postProcessValidationModeNormalized = callMacro(
+	"ex_Helpers.m_RegexReplace",
+	postProcessValidationMode,
+	"^[ \\t\\r\\n]*([\\s\\S]*?)[ \\t\\r\\n]*$",
+	"$1"
+);
+let validationIsDisabled = "false";
+if (postProcessValidationModeNormalized == "Disabled" || postProcessValidationModeNormalized == "disabled") {
+	validationIsDisabled = "true";
+}
 callMacro("ex_Messaging.m_LogToFile", $`[POST][PC] input.CommonKey={inputCommonKey}`, logPath);
+callMacro("ex_Messaging.m_LogToFile", $`[POST][PC] validation.Mode={postProcessValidationModeNormalized}; disabled={validationIsDisabled}`, logPath);
 
 /* Логи временно отключены */
 // let debugLogPath = "Logs\\personalcard_pipeline.log";
@@ -29,6 +41,7 @@ callMacro("ex_Messaging.m_LogToFile", $`[POST][PC] input.CommonKey={inputCommonK
 // callMacro("ex_Messaging.m_LogToFile", "START explicit postprocess", debugLogPath);
 
 /* Единый проход валидации по owner-строкам DailyEvents перед формированием экспорта */
+if (validationIsDisabled != "true") {
 for (let owner in Daily.Sheet[DailyEvents].rows) {
 	if (owner.column[MetaType] == "owner") {
 		let ownerRowIndexForWarning = callMacro("ex_PostProcessActions.m_GetRowIndex", owner);
@@ -378,6 +391,7 @@ if (hasValidationWarnings == "true") {
 	//callMacro("ex_Messaging.m_LogToFile", "[POST] STOP validation failed", logPath);
 	callMacro("ex_PostProcessActions.m_ShowBannerAfterBanner", "TYPE_NOTE", "WARNING", "Валидация не пройдена.", 0, 0, 0);
 	return;
+}
 }
 
 let exportWordPasteAnchor = "";
@@ -838,6 +852,10 @@ for (let row in Daily.Sheet[DailyEvents].rows) {
 				Rank:{row.column[Rank]};
 				FIO:{row.column[FIO]};
 				Position:{row.column[Position]};
+				IsReturnToDuty:false;
+				ReturnToDutyRank:;
+				ReturnToDutyFIO:;
+				ReturnToDutyPosition:;
 				RaportFrom:{row.column[RaportFrom]};
 				InNumFull:{inNumFull};
 				InDate:{fullInDate};

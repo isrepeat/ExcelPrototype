@@ -175,7 +175,6 @@
 		<v key="Export.WordTemplatePath">Templates\Template_03.docx</v>
 		<v key="Export.OutputMode">CreateWithPostfix</v>
 		<v key="Export.OutputPostfix">_result</v>
-		<v key="Export.InsertMode">AppendToBottom</v>
 		<resultLayoutScript include="PersonalCard_ResultLayoutScript.jslike"/>
 		<preProcessScript include="Default_PreProcessScript.jslike"/>
 		<postProcessScript execution="Implicit" include="Default_PostProcessScript.jslike"/>

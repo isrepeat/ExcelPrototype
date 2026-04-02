@@ -190,7 +190,7 @@ Public Sub m_RenderForSheet(ByVal ws As Worksheet, ByRef style As ex_SheetStyles
             buttonName = mp_GetButtonName(ws, fieldIndex, buttonIndex)
             Set buttonShape = ws.Shapes.AddShape(msoShapeRectangle, buttonLeft, buttonTop, buttonWidth, buttonHeight)
             buttonShape.Name = buttonName
-            mp_ResolveButtonVisual style, fieldIndex, buttonIndex, buttonCaption, buttonBackColor, buttonTextColor, buttonBorderColor
+            mp_ResolveButtonVisual ws, style, fieldIndex, buttonIndex, buttonCaption, buttonBackColor, buttonTextColor, buttonBorderColor
             buttonShape.TextFrame.Characters.Text = buttonCaption
             buttonShape.Fill.Solid
             buttonShape.Fill.ForeColor.RGB = buttonBackColor
@@ -698,6 +698,7 @@ Private Function mp_NormalizeOverflowText(ByVal overflowStyle As String) As Stri
 End Function
 
 Private Sub mp_ResolveButtonVisual( _
+    ByVal ws As Worksheet, _
     ByRef style As ex_SheetStylesXmlProvider.t_OutputSheetStyle, _
     ByVal fieldIndex As Long, _
     ByVal buttonIndex As Long, _
@@ -719,7 +720,7 @@ Private Sub mp_ResolveButtonVisual( _
         Exit Sub
     End If
 
-    variantIndex = mp_GetToggleVariantIndex(style, fieldIndex, buttonIndex)
+    variantIndex = mp_GetToggleVariantIndex(style, fieldIndex, buttonIndex, ws)
     If variantIndex <= 0 Or variantIndex > style.PanelFields(fieldIndex).Buttons(buttonIndex).ToggleVariantCount Then
         If Len(Trim$(outCaption)) = 0 Then outCaption = "Toggle " & CStr(buttonIndex)
         Exit Sub
@@ -746,7 +747,8 @@ End Function
 Private Function mp_GetToggleVariantIndex( _
     ByRef style As ex_SheetStylesXmlProvider.t_OutputSheetStyle, _
     ByVal fieldIndex As Long, _
-    ByVal buttonIndex As Long _
+    ByVal buttonIndex As Long, _
+    Optional ByVal ws As Worksheet = Nothing _
 ) As Long
     Dim currentValue As String
     Dim variantIndex As Long
@@ -757,7 +759,10 @@ Private Function mp_GetToggleVariantIndex( _
     If Not mp_IsToggleButtonType(style.PanelFields(fieldIndex).Buttons(buttonIndex).ButtonType) Then Exit Function
     If style.PanelFields(fieldIndex).Buttons(buttonIndex).ToggleVariantCount <= 0 Then Exit Function
 
-    currentValue = Trim$(CStr(ex_ConfigProvider.m_GetConfigValue(style.PanelFields(fieldIndex).Buttons(buttonIndex).ToggleSource, vbNullString)))
+    currentValue = ex_ToggleStateRouter.m_GetToggleValue( _
+        style.PanelFields(fieldIndex).Buttons(buttonIndex).ToggleSource, _
+        vbNullString, _
+        ws)
     If Len(currentValue) = 0 Then
         mp_GetToggleVariantIndex = 1
         Exit Function
@@ -822,6 +827,9 @@ Public Sub m_HandleToggleButtonOnClick(Optional ByVal ws As Worksheet = Nothing,
     Dim nextVariantIndex As Long
     Dim nextValue As String
     Dim onToggleMacro As String
+    Dim toggleSource As String
+    Dim valueAfterSet As String
+    Dim wsNameForLog As String
     Dim prevEnableEvents As Boolean
     Dim prevScreenUpdating As Boolean
     Dim hasUiStateSnapshot As Boolean
@@ -866,12 +874,13 @@ Public Sub m_HandleToggleButtonOnClick(Optional ByVal ws As Worksheet = Nothing,
         Err.Raise vbObjectError + 2468, "ex_OutputPanel.m_HandleToggleButtonOnClick", "Toggle button source config key is empty."
     End If
 
-    currentVariantIndex = mp_GetToggleVariantIndex(outputStyle, fieldIndex, buttonIndex)
+    currentVariantIndex = mp_GetToggleVariantIndex(outputStyle, fieldIndex, buttonIndex, ws)
     If currentVariantIndex <= 0 Then currentVariantIndex = 1
 
     nextVariantIndex = currentVariantIndex + 1
     If nextVariantIndex > outputStyle.PanelFields(fieldIndex).Buttons(buttonIndex).ToggleVariantCount Then nextVariantIndex = 1
 
+    toggleSource = Trim$(outputStyle.PanelFields(fieldIndex).Buttons(buttonIndex).ToggleSource)
     nextValue = Trim$(outputStyle.PanelFields(fieldIndex).Buttons(buttonIndex).ToggleVariants(nextVariantIndex).Value)
     If Len(nextValue) = 0 Then
         Err.Raise vbObjectError + 2469, "ex_OutputPanel.m_HandleToggleButtonOnClick", "Toggle variant value is empty for next variant."
@@ -883,7 +892,22 @@ Public Sub m_HandleToggleButtonOnClick(Optional ByVal ws As Worksheet = Nothing,
     Application.EnableEvents = False
     Application.ScreenUpdating = False
 
-    ex_ConfigProvider.m_SetConfigValue outputStyle.PanelFields(fieldIndex).Buttons(buttonIndex).ToggleSource, nextValue, True
+    ex_ToggleStateRouter.m_SetToggleValue _
+        toggleSource, _
+        nextValue, _
+        ws
+    valueAfterSet = ex_ToggleStateRouter.m_GetToggleValue(toggleSource, vbNullString, ws)
+    wsNameForLog = vbNullString
+    If Not ws Is Nothing Then wsNameForLog = ws.Name
+    On Error Resume Next
+    ex_Messaging.m_LogToFile "[TOGGLE] ws=" & wsNameForLog & _
+        "; caller=" & callerName & _
+        "; source=" & toggleSource & _
+        "; currentIdx=" & CStr(currentVariantIndex) & _
+        "; nextIdx=" & CStr(nextVariantIndex) & _
+        "; nextValue=" & nextValue & _
+        "; stored=" & valueAfterSet, "Logs\personalcard_pipeline.log"
+    On Error GoTo EH
     m_RenderForSheet ws, outputStyle
 
     onToggleMacro = Trim$(outputStyle.PanelFields(fieldIndex).Buttons(buttonIndex).ToggleChangedMacroName)
@@ -908,6 +932,14 @@ Done:
     End If
     Exit Sub
 End Sub
+
+Public Function m_GetToggleValue( _
+    ByVal toggleSource As String, _
+    Optional ByVal defaultValue As String = vbNullString, _
+    Optional ByVal ws As Worksheet = Nothing _
+) As String
+    m_GetToggleValue = ex_ToggleStateRouter.m_GetToggleValue(toggleSource, defaultValue, ws)
+End Function
 
 Private Function mp_GetLastUsedColumn(ByVal ws As Worksheet) As Long
     Dim lastCell As Range
