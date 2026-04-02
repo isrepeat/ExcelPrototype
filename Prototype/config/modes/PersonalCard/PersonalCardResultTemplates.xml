@@ -171,7 +171,7 @@
 #_      {#include block.MetadataAttributesInline}
 #_      {Rank|accusative} {FIO|accusative}, {Position|accusative|lowerFirstLetter}.
 #_      {#include block.ReturnToDuty}#^
-#_      {#if #not __FlagDoNotEnrollToFoodSupport #and #not __AttrMoveToSomethingAtThisDay}Зарахувати на котлове забезпечення з {DATE|dateformat:"\dd"}{+1} {DATE|dateformat:"\month"} 2026 року.{#newline}{#endif}#^
+#_      {#if #not __FlagDoNotEnrollToFoodSupport #and #not __AttrMoveToSomethingAtThisDay}Зарахувати на котлове забезпечення з {DATE|dateoffset:"+1"|dateformat:"\dd \month"} 2026 року.{#newline}{#endif}#^
 #_      {#color_red_begin}{#if __AttrMoveToSomethingAtThisDay}({__AttrMoveToSomethingAtThisDay}) {#endif}{#color_red_end}#^
 #_      {#color_red_begin}{#if __AttrRaportFromAnotherDate}({__AttrRaportFromAnotherDate}) {#endif}{#color_red_end}
 #_      {#include block.ToBasisRaports}#^
@@ -191,7 +191,7 @@
 #_      {#include block.MetadataAttributesWithNewline}#^
 #_      {Rank|accusative|upperFirstLetter} {FIO|accusative}, {Position|accusative|lowerFirstLetter}.
 #_      {#include block.ReturnToDuty}#^
-#_      {#if #not __FlagDoNotEnrollToFoodSupport #and #not __AttrMoveToSomethingAtThisDay}Зарахувати на котлове забезпечення з {DATE|dateformat:"\dd"}{+1} {DATE|dateformat:"\month"} 2026 року.{#newline}{#endif}#^
+#_      {#if #not __FlagDoNotEnrollToFoodSupport #and #not __AttrMoveToSomethingAtThisDay}Зарахувати на котлове забезпечення з {DATE|dateoffset:"+1"|dateformat:"\dd \month"} 2026 року.{#newline}{#endif}#^
 #_      {#color_red_begin}{#if __AttrMoveToSomethingAtThisDay}({__AttrMoveToSomethingAtThisDay}) {#endif}{#color_red_end}#^
 #_      {#color_red_begin}{#if __AttrRaportFromAnotherDate}({__AttrRaportFromAnotherDate}) {#endif}{#color_red_end}
 #_      {#include block.ToBasisRaports}#^
@@ -211,7 +211,7 @@
 #_      {#include block.MetadataAttributesWithNewline}#^
 #_      {Rank|accusative|upperFirstLetter} {FIO|accusative}, {Position|accusative|lowerFirstLetter}.
 #_      {#include block.ReturnToDuty}#^
-#_      {#if #not __FlagDoNotEnrollToFoodSupport #and #not __AttrMoveToSomethingAtThisDay}Зарахувати на котлове забезпечення з {DATE|dateformat:"\dd"}{+1} {DATE|dateformat:"\month"} 2026 року.{#newline}{#endif}#^
+#_      {#if #not __FlagDoNotEnrollToFoodSupport #and #not __AttrMoveToSomethingAtThisDay}Зарахувати на котлове забезпечення з {DATE|dateoffset:"+1"|dateformat:"\dd \month"} 2026 року.{#newline}{#endif}#^
 #_      {#color_red_begin}{#if __AttrMoveToSomethingAtThisDay}({__AttrMoveToSomethingAtThisDay}) {#endif}{#color_red_end}#^
 #_      {#color_red_begin}{#if __AttrRaportFromAnotherDate}({__AttrRaportFromAnotherDate}) {#endif}{#color_red_end}
 #_      {#include block.ToBasisRaports}#^
@@ -231,7 +231,7 @@
 #_      {#include block.MetadataAttributesWithNewline}#^
 #_      {Rank|accusative|upperFirstLetter} {FIO|accusative}, {Position|accusative|lowerFirstLetter}.
 #_      {#include block.ReturnToDuty}#^
-#_      {#if #not __FlagDoNotEnrollToFoodSupport #and #not __AttrMoveToSomethingAtThisDay}Зарахувати на котлове забезпечення з {DATE|dateformat:"\dd"}{+1} {DATE|dateformat:"\month"} 2026 року.{#newline}{#endif}#^
+#_      {#if #not __FlagDoNotEnrollToFoodSupport #and #not __AttrMoveToSomethingAtThisDay}Зарахувати на котлове забезпечення з {DATE|dateoffset:"+1"|dateformat:"\dd \month"} 2026 року.{#newline}{#endif}#^
 #_      {#color_red_begin}{#if __AttrMoveToSomethingAtThisDay}({__AttrMoveToSomethingAtThisDay}) {#endif}{#color_red_end}#^
 #_      {#color_red_begin}{#if __AttrRaportFromAnotherDate}({__AttrRaportFromAnotherDate}) {#endif}{#color_red_end}
 #_      {#include block.ToBasisRaports}#^
