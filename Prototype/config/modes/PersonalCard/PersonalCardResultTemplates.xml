@@ -477,10 +477,12 @@
 #_      NN. {Rank|accusative|upperFirstLetter} {FIO|accusative}, {Position|accusative|lowerFirstLetter}, #^
 #_      який перебував на медичному огляді військово лікарської комісії, вважати таким, що перебуває у відпустці для лікування, #^
 #_      {#include block.VacationDestinationPeriod}#^
-#_      {#color_red_begin}{#if __FlagRemoveFromFoodSupport}Зняти з котлового забезпечення з {#if OutDate}{OutDate|dateformat:"\dd \month"}{#endif}{#if #not OutDate}{DATE|dateformat:"\dd \month"}{#endif} 2026 року.{#newline}{#endif}{#color_red_end}#^
+#_      {#if __FlagRemoveFromFoodSupport}Зняти з котлового забезпечення з {#if OutDate}{OutDate|dateformat:"\dd \month"}{#endif}{#if #not OutDate}{DATE|dateformat:"\dd \month"}{#endif} 2026 року.{#newline}{#endif}#^
 #_      {#color_red_begin}{#if __AttrRaportFromAnotherDate}({__AttrRaportFromAnotherDate}) {#endif}{#color_red_end}
 #_      {#include block.ToBasisRaports}#^
+#_      {#if VlkNum #and VlkDate}#^
 #_      , довідка військово-лікарської комісії № {VlkNum} від {VlkDate}#^
+#_      {#endif}#^
 #_      , відпускний квиток № 3/71/{VkNum} від {VkDate}#^
 #_      .#^
 #_    ]]>
@@ -497,10 +499,12 @@
 #_      NN. {Rank|accusative|upperFirstLetter} {FIO|accusative}, {Position|accusative|lowerFirstLetter}, #^
 #_      який перебував на медичному огляді військово лікарської комісії, вважати таким, що перебуває на лікуванні у {Hospital}, #^
 #_      з {OutDate|dateformat:"\dd \month"} 2026 року.
-#_      {#color_red_begin}{#if __FlagRemoveFromFoodSupport}Зняти з котлового забезпечення з {#if OutDate}{OutDate|dateformat:"\dd \month"}{#endif}{#if #not OutDate}{DATE|dateformat:"\dd \month"}{#endif} 2026 року.{#newline}{#endif}{#color_red_end}#^
+#_      {#if __FlagRemoveFromFoodSupport}Зняти з котлового забезпечення з {#if OutDate}{OutDate|dateformat:"\dd \month"}{#endif}{#if #not OutDate}{DATE|dateformat:"\dd \month"}{#endif} 2026 року.{#newline}{#endif}#^
 #_      {#color_red_begin}{#if __AttrRaportFromAnotherDate}({__AttrRaportFromAnotherDate}) {#endif}{#color_red_end}
 #_      {#include block.ToBasisRaports}#^
+#_      {#if VlkNum #and VlkDate}#^
 #_      , довідка військово-лікарської комісії № {VlkNum} від {VlkDate}#^
+#_      {#endif}#^
 #_      {#include block.BasisDocumentsMedicalCard}#^
 #_      .#^
 #_    ]]>
