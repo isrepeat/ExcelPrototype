@@ -401,7 +401,7 @@
         }#^
 #_      {#include block.MetadataAttributesWithNewline}#^
 #_      NN. {Rank|accusative|upperFirstLetter} {FIO|accusative}, {Position|accusative|lowerFirstLetter}, #^
-#_      який перебував на лікуванні у {Hospital}, вважати таким, що перебуває у відпустці для лікування, #^
+#_      який перебував на лікуванні у {Hospital}, вважати таким, що перебуває у відпустці для лікування#^
 #_      {#include block.VacationDestinationPeriod}#^
 #_      {#color_red_begin}{#if __AttrRaportFromAnotherDate}({__AttrRaportFromAnotherDate}) {#endif}{#color_red_end}
 #_      {#include block.ToBasisRaports}#^
@@ -420,7 +420,7 @@
         }#^
 #_      {#include block.MetadataAttributesWithNewline}#^
 #_      NN. {Rank|accusative|upperFirstLetter} {FIO|accusative}, {Position|accusative|lowerFirstLetter}, #^
-#_      який перебував у відпустці для лікування, вважати таким, що перебуває у відпустці для лікування, #^
+#_      який перебував у відпустці для лікування, вважати таким, що перебуває у відпустці для лікування#^
 #_      {#include block.VacationDestinationPeriod}#^
 #_      {#color_red_begin}{#if __AttrRaportFromAnotherDate}({__AttrRaportFromAnotherDate}) {#endif}{#color_red_end}
 #_      {#include block.ToBasisRaports}#^
@@ -475,7 +475,7 @@
         }#^
 #_      {#include block.MetadataAttributesWithNewline}#^
 #_      NN. {Rank|accusative|upperFirstLetter} {FIO|accusative}, {Position|accusative|lowerFirstLetter}, #^
-#_      який перебував на медичному огляді військово лікарської комісії, вважати таким, що перебуває у відпустці для лікування, #^
+#_      який перебував на медичному огляді військово лікарської комісії, вважати таким, що перебуває у відпустці для лікування#^
 #_      {#include block.VacationDestinationPeriod}#^
 #_      {#if __FlagRemoveFromFoodSupport}Зняти з котлового забезпечення з {#if OutDate}{OutDate|dateformat:"\dd \month"}{#endif}{#if #not OutDate}{DATE|dateformat:"\dd \month"}{#endif} 2026 року.{#newline}{#endif}#^
 #_      {#color_red_begin}{#if __AttrRaportFromAnotherDate}({__AttrRaportFromAnotherDate}) {#endif}{#color_red_end}
