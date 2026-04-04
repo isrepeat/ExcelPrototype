@@ -143,6 +143,8 @@ Public Sub m_OnManagedButtonClick(Optional ByVal callerName As String = vbNullSt
     Set ws = mp_GetDevSheet(ThisWorkbook)
     If ws Is Nothing Then Exit Sub
 
+    ex_ManagedDropdownRuntime.m_HideAllOptions ThisWorkbook
+
     If Len(Trim$(callerName)) = 0 Then
         On Error Resume Next
         callerName = CStr(Application.Caller)

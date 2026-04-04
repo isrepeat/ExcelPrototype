@@ -9,6 +9,7 @@ Private m_TableRef As String
 Private m_Rows As Collection
 Private m_RowsByIndex As Object
 Private m_FieldMapByAlias As Object
+Private m_MetaInfo As Object
 
 Public Sub Initialize(ByVal tableRef As String)
     m_TableRef = Trim$(tableRef)
@@ -17,6 +18,9 @@ Public Sub Initialize(ByVal tableRef As String)
     m_RowsByIndex.CompareMode = 1
     Set m_FieldMapByAlias = CreateObject("Scripting.Dictionary")
     m_FieldMapByAlias.CompareMode = 1
+    Set m_MetaInfo = CreateObject("Scripting.Dictionary")
+    m_MetaInfo.CompareMode = 1
+    m_MetaInfo("Name") = m_TableRef
 End Sub
 
 Public Property Get TableRef() As String
@@ -63,6 +67,42 @@ End Function
 Public Property Get FieldMapByAlias() As Object
     Set FieldMapByAlias = m_FieldMapByAlias
 End Property
+
+Public Property Get MetaInfo() As Object
+    If m_MetaInfo Is Nothing Then
+        Set m_MetaInfo = CreateObject("Scripting.Dictionary")
+        m_MetaInfo.CompareMode = 1
+        m_MetaInfo("Name") = m_TableRef
+    End If
+    Set MetaInfo = m_MetaInfo
+End Property
+
+Public Sub SetMetaInfoValue(ByVal keyName As String, ByVal value As Variant)
+    keyName = Trim$(keyName)
+    If Len(keyName) = 0 Then Exit Sub
+    If m_MetaInfo Is Nothing Then
+        Set m_MetaInfo = CreateObject("Scripting.Dictionary")
+        m_MetaInfo.CompareMode = 1
+    End If
+    m_MetaInfo(keyName) = value
+End Sub
+
+Public Function GetMetaInfoValue(ByVal keyName As String, Optional ByVal defaultValue As String = vbNullString) As String
+    keyName = Trim$(keyName)
+    If Len(keyName) = 0 Then
+        GetMetaInfoValue = defaultValue
+        Exit Function
+    End If
+    If m_MetaInfo Is Nothing Then
+        GetMetaInfoValue = defaultValue
+        Exit Function
+    End If
+    If Not m_MetaInfo.Exists(keyName) Then
+        GetMetaInfoValue = defaultValue
+        Exit Function
+    End If
+    GetMetaInfoValue = CStr(m_MetaInfo(keyName))
+End Function
 
 Public Function HasRow(ByVal rowIndex As Long) As Boolean
     HasRow = m_RowsByIndex.Exists(CStr(rowIndex))

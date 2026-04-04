@@ -41,10 +41,12 @@ Private Const RUNTIME_ROW_ANCHOR_PREFIX As String = "__pcRuntimeRow_"
 Private Const RESULT_BLOCK_ANCHOR_PREFIX As String = "__pcResultBlock_"
 Private Const RESULT_BLOCK_ANCHOR_MAX_INDEX As Long = 9999
 Private Const RESULT_BLOCK_LAST_ANCHOR_NAME As String = "__pcResultBlockLast"
+Private Const RESULT_TABLE_ANCHOR_PREFIX As String = "__pcTable_"
 Private Const BANNER_ANCHOR_PREFIX As String = "__pcBanner_"
 Private Const BANNER_MESSAGE_ANCHOR_PREFIX As String = "__pcBannerMsg_"
 Private Const RESULT_BLOCK_IDENTITY_TOKEN As String = "__resultblock__"
 Private Const RESULT_BLOCK_PLACEHOLDER_HIGHLIGHT_COLOR As String = "#66CCFF"
+Private Const LAYOUT_ITEMSOURCE_RESULT_BANNERS As String = "ResultBanners"
 
 Private Type t_PostProcessHeaderStyle
     Columns As Long
@@ -320,6 +322,7 @@ Public Sub m_ResetScriptHeaderCursor(Optional ByVal targetSheet As Worksheet)
         If Not ws Is Nothing Then
             mp_ClearPreviousSingleScriptHeader ws
             mp_ClearPreviousResultBlocks ws
+            mp_ClearLayoutResultBanners ws
         End If
     Else
         g_PostProcessHeaderSheetKey = mp_BuildSheetKey(targetSheet)
@@ -328,6 +331,7 @@ Public Sub m_ResetScriptHeaderCursor(Optional ByVal targetSheet As Worksheet)
         mp_SetDeferredRenderActive targetSheet, False
         mp_ClearPreviousSingleScriptHeader targetSheet
         mp_ClearPreviousResultBlocks targetSheet
+        mp_ClearLayoutResultBanners targetSheet
     End If
 End Sub
 
@@ -584,6 +588,8 @@ Public Function m_AppendResultBlock( _
     Dim anchorName As String
     Dim nextBlockIndex As Long
     Dim highlightSegments As Collection
+    Dim layoutHandled As Boolean
+    Dim layoutErrorText As String
 
     blockText = Trim$(blockText)
     If Len(blockText) = 0 Then Exit Function
@@ -602,6 +608,7 @@ Public Function m_AppendResultBlock( _
     mp_ValidateBannerGapRows gapRowsBefore, gapRowsAfter, "result block"
     bannerKind = mp_MapBannerTypeToKind(blockType)
     titleText = Trim$(titleText)
+    If Len(titleText) = 0 Then titleText = mp_MapBannerKindToDefaultTitle(bannerKind)
     blockText = ex_ResultTemplatesParser.m_ExtractHighlightSegments(blockText, highlightSegments, RESULT_BLOCK_PLACEHOLDER_HIGHLIGHT_COLOR)
     If Len(Trim$(blockText)) = 0 Then Exit Function
 
@@ -621,6 +628,20 @@ Public Function m_AppendResultBlock( _
     If insertRow < 1 Then insertRow = 1
     If insertRow > ws.Rows.Count Then insertRow = ws.Rows.Count
 
+    nextBlockIndex = g_ResultBlockCount + 1
+    If mp_TryAppendResultBlockToLayoutItemsSource(ws, sheetKey, nextBlockIndex, titleText, blockText, bannerKind, layoutHandled, layoutErrorText) Then
+        If layoutHandled Then
+            g_ResultBlockCount = nextBlockIndex
+            g_ResultBlockLastRowIndex = mp_GetScriptHeaderInsertStartRow(ws)
+            g_ResultBlockNextInsertRow = g_ResultBlockLastRowIndex
+            mp_SetNamedRowAnchor ws, RESULT_BLOCK_LAST_ANCHOR_NAME, g_ResultBlockLastRowIndex
+            m_AppendResultBlock = blockText
+            Exit Function
+        End If
+    ElseIf Len(layoutErrorText) > 0 Then
+        Err.Raise vbObjectError + 1785, "ex_PostProcessActions", layoutErrorText
+    End If
+
     mp_GetWarningBannerDimensions bannerCols, bannerRows, bannerKind
     rowsToInsert = gapRowsBefore + bannerRows + gapRowsAfter
     If rowsToInsert <= 0 Then rowsToInsert = 1
@@ -638,7 +659,6 @@ Public Function m_AppendResultBlock( _
 
     Set bodyLines = New Collection
     bodyLines.Add blockText
-    nextBlockIndex = g_ResultBlockCount + 1
     ex_Messaging.m_RenderBanner ws, titleText, bodyLines, bannerRangeAddress, bannerKind, mp_BuildResultBlockIdentity(sheetKey, nextBlockIndex, blockText)
     mp_ApplyResultBlockHighlightSegments ws, blockRow, titleText, blockText, highlightSegments
 
@@ -656,6 +676,84 @@ Public Function m_AppendResultBlock( _
     mp_SetNamedRowAnchor ws, RESULT_BLOCK_LAST_ANCHOR_NAME, blockRow
     m_AppendResultBlock = blockText
 End Function
+
+Private Function mp_TryAppendResultBlockToLayoutItemsSource( _
+    ByVal ws As Worksheet, _
+    ByVal sheetKey As String, _
+    ByVal blockIndex As Long, _
+    ByVal titleText As String, _
+    ByVal bodyText As String, _
+    ByVal bannerKind As String, _
+    ByRef outHandled As Boolean, _
+    ByRef outErrorText As String _
+) As Boolean
+    Dim itemsSourceObj As Object
+    Dim itemsSource As Collection
+    Dim bannerItem As Object
+    Dim createdSource As Boolean
+
+    outHandled = False
+    outErrorText = vbNullString
+
+    If ws Is Nothing Then
+        mp_TryAppendResultBlockToLayoutItemsSource = True
+        Exit Function
+    End If
+
+    If Not ex_ResultLayoutItemsRt.m_IsItemsSourceBound(ws, LAYOUT_ITEMSOURCE_RESULT_BANNERS) Then
+        mp_TryAppendResultBlockToLayoutItemsSource = True
+        Exit Function
+    End If
+
+    If ex_ResultLayoutItemsRt.m_TryGetItemsSource(ws, LAYOUT_ITEMSOURCE_RESULT_BANNERS, itemsSourceObj) Then
+        If IsObject(itemsSourceObj) Then
+            If TypeName(itemsSourceObj) = "Collection" Then
+                Set itemsSource = itemsSourceObj
+            End If
+        End If
+    End If
+    If itemsSource Is Nothing Then
+        Set itemsSource = New Collection
+        createdSource = True
+    End If
+
+    Set bannerItem = CreateObject("Scripting.Dictionary")
+    bannerItem.CompareMode = 1
+    bannerItem("__raw") = CStr(bodyText)
+    bannerItem("Title") = CStr(titleText)
+    bannerItem("Body") = CStr(bodyText)
+    bannerItem("Kind") = CStr(bannerKind)
+    bannerItem("Identity") = mp_BuildResultBlockIdentity(sheetKey, blockIndex, bodyText)
+    itemsSource.Add bannerItem
+
+    If createdSource Then
+        If Not ex_ResultLayoutItemsRt.m_SetItemsSource(ws, LAYOUT_ITEMSOURCE_RESULT_BANNERS, itemsSource, True, outErrorText) Then
+            Exit Function
+        End If
+    Else
+        If Not ex_ResultLayoutItemsRt.m_NotifyItemsSourceChanged(ws, LAYOUT_ITEMSOURCE_RESULT_BANNERS, True, outErrorText) Then
+            Exit Function
+        End If
+    End If
+
+    outHandled = True
+    mp_TryAppendResultBlockToLayoutItemsSource = True
+End Function
+
+Private Sub mp_ClearLayoutResultBanners(ByVal ws As Worksheet)
+    Dim emptyItems As Collection
+    Dim clearErrorText As String
+
+    If ws Is Nothing Then Exit Sub
+    If Not ex_ResultLayoutItemsRt.m_IsItemsSourceBound(ws, LAYOUT_ITEMSOURCE_RESULT_BANNERS) Then Exit Sub
+
+    Set emptyItems = New Collection
+    If Not ex_ResultLayoutItemsRt.m_SetItemsSource(ws, LAYOUT_ITEMSOURCE_RESULT_BANNERS, emptyItems, True, clearErrorText) Then
+        If Len(clearErrorText) > 0 Then
+            ex_Messaging.m_LogToFile "[ex_PostProcessActions] mp_ClearLayoutResultBanners skipped: " & clearErrorText, "Logs\layout_engine.log"
+        End If
+    End If
+End Sub
 
 Private Sub mp_ApplyResultBlockHighlightSegments( _
     ByVal ws As Worksheet, _
@@ -1498,6 +1596,17 @@ Private Function mp_MapBannerTypeToKind(ByVal bannerType As String) As String
     End Select
 End Function
 
+Private Function mp_MapBannerKindToDefaultTitle(ByVal bannerKind As String) As String
+    Select Case LCase$(Trim$(bannerKind))
+        Case LCase$(BANNER_KIND_ERROR)
+            mp_MapBannerKindToDefaultTitle = BANNER_TITLE_ERROR
+        Case LCase$(BANNER_KIND_NOTE)
+            mp_MapBannerKindToDefaultTitle = BANNER_TITLE_NOTE
+        Case Else
+            mp_MapBannerKindToDefaultTitle = BANNER_TITLE_WARNING
+    End Select
+End Function
+
 Private Function mp_ResolveBannerTitle(ByVal titleText As String, ByVal bannerType As String) As String
     titleText = Trim$(titleText)
     If Len(titleText) > 0 Then
@@ -2081,17 +2190,66 @@ End Function
 
 Private Function mp_GetScriptHeaderInsertStartRow(ByVal ws As Worksheet) As Long
     Dim outputViewStartRow As Long
+    Dim firstTableRow As Long
 
     If ws Is Nothing Then
         Err.Raise vbObjectError + 1735, "ex_PostProcessActions", "Target sheet is not available for postProcessHeader insert start row."
     End If
 
     outputViewStartRow = ex_SheetStylesXmlProvider.m_GetOutputViewStartRow(ThisWorkbook)
+    If mp_TryGetFirstResultTableAnchorRow(ws, firstTableRow) Then
+        If firstTableRow > 0 Then outputViewStartRow = firstTableRow
+    End If
     If outputViewStartRow < 1 Then
         Err.Raise vbObjectError + 1736, "ex_PostProcessActions", "Unable to resolve valid output view start row for postProcessHeader."
     End If
 
     mp_GetScriptHeaderInsertStartRow = outputViewStartRow
+End Function
+
+Private Function mp_TryGetFirstResultTableAnchorRow( _
+    ByVal ws As Worksheet, _
+    ByRef outRowIndex As Long _
+) As Boolean
+    Dim i As Long
+    Dim entry As Name
+    Dim localName As String
+    Dim namePos As Long
+    Dim anchorRange As Range
+    Dim rowIndex As Long
+    Dim prefixText As String
+
+    If ws Is Nothing Then Exit Function
+    prefixText = LCase$(RESULT_TABLE_ANCHOR_PREFIX)
+    If Len(prefixText) = 0 Then Exit Function
+
+    On Error Resume Next
+    For i = 1 To ws.Names.Count
+        Set entry = ws.Names(i)
+        If entry Is Nothing Then GoTo NextEntry
+
+        localName = CStr(entry.Name)
+        namePos = InStrRev(localName, "!", vbBinaryCompare)
+        If namePos > 0 Then localName = Mid$(localName, namePos + 1)
+        localName = LCase$(Trim$(localName))
+        If Len(localName) < Len(prefixText) Then GoTo NextEntry
+        If Left$(localName, Len(prefixText)) <> prefixText Then GoTo NextEntry
+
+        Set anchorRange = entry.RefersToRange
+        If anchorRange Is Nothing Then GoTo NextEntry
+        rowIndex = CLng(anchorRange.Row)
+        If rowIndex < 1 Or rowIndex > ws.Rows.Count Then GoTo NextEntry
+
+        If outRowIndex = 0 Or rowIndex < outRowIndex Then
+            outRowIndex = rowIndex
+        End If
+NextEntry:
+        Set anchorRange = Nothing
+        Set entry = Nothing
+    Next i
+    On Error GoTo 0
+
+    mp_TryGetFirstResultTableAnchorRow = (outRowIndex > 0)
 End Function
 
 Private Function mp_IsRowBlankSegment( _

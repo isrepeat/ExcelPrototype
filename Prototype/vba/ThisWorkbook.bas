@@ -34,7 +34,7 @@ End Sub
 Private Sub Workbook_SheetChange(ByVal Sh As Object, ByVal Target As Range)
     On Error Resume Next
     If TypeOf Sh Is Worksheet Then
-        ex_OutputPanel.m_HandleSheetInputChange Sh, Target
+        ex_LayoutBindingsRuntime.m_HandleSheetInputChange Sh, Target
     End If
     On Error GoTo 0
 End Sub

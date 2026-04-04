@@ -173,7 +173,7 @@ Private Function mp_ReadProfileVNodeList(ByVal profileNode As Object) As Collect
         Exit Function
     End If
 
-    Set nodes = profileNode.selectNodes("p:v")
+    Set nodes = profileNode.selectNodes("*[local-name()='v']")
     If nodes Is Nothing Then
         Set mp_ReadProfileVNodeList = result
         Exit Function
@@ -277,7 +277,7 @@ Private Function mp_ReadPreservedByKey(ByVal profileNode As Object) As Object
         Exit Function
     End If
 
-    Set nodes = profileNode.selectNodes("p:v")
+    Set nodes = profileNode.selectNodes("*[local-name()='v']")
     If nodes Is Nothing Then
         Set mp_ReadPreservedByKey = result
         Exit Function
@@ -310,7 +310,7 @@ Private Function mp_ReadHiddenNodes(ByVal profileNode As Object) As Collection
         Exit Function
     End If
 
-    Set nodes = profileNode.selectNodes("p:v")
+    Set nodes = profileNode.selectNodes("*[local-name()='v']")
     If nodes Is Nothing Then
         Set mp_ReadHiddenNodes = result
         Exit Function
@@ -343,7 +343,7 @@ Public Function m_ReadProfileEntries(ByVal ws As Worksheet, ByVal profileNode As
     Dim visibleCount As Long
     Dim writeIndex As Long
 
-    Set nodes = profileNode.selectNodes("p:v")
+    Set nodes = profileNode.selectNodes("*[local-name()='v']")
     If nodes Is Nothing Then
         m_ReadProfileEntries = Array()
         Exit Function

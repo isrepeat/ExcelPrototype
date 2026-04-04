@@ -4,7 +4,6 @@ Option Explicit
 Private Const SUMMARY_SHEET_NAME As String = "g_MultiSources"
 Private Const RESULT_SHEET_PREFIX As String = "g_MS_"
 Private Const SCRIPT_INPUT_RESULT_TABLES_KEY As String = "__ResultTables"
-Private Const INPUT_KEY_USE_RESULT_LAYOUT As String = "__UseResultLayoutScript"
 Private Const INPUT_KEY_QUERY_TABLE_REFS As String = "Query.TableRefs"
 Private Const PREPROCESS_CONTEXT_HAS_SCRIPT As String = "HasScript"
 Private Const LIKE_DIALECT_UNKNOWN As String = "unknown"
@@ -25,7 +24,7 @@ Public Sub m_RunMultiSources()
     fio = Trim$(ex_ConfigProvider.m_GetConfigValue("CommonKey", vbNullString))
 
     Set cfg = ex_ConfigProvider.m_LoadConfigDictionary("ex_ModeMultiSources", 6501, 6502)
-    ex_ModePipeline.m_RunModePipeline cfg, "ex_ModeMultiSources.m_RunMode", mp_CreateScriptInputContext(fio), False
+    ex_ModePipeline.m_RunModePipeline cfg, "ex_ModeMultiSources.m_RunMode", mp_CreateScriptInputContext(fio, cfg), False
     Exit Sub
 
 EH:
@@ -83,7 +82,6 @@ Public Function m_RunMode(ByVal cfg As Object, ByVal modeInput As Object, ByVal 
     Dim hasOutputStyle As Boolean
     Dim outputStyle As ex_SheetStylesXmlProvider.t_OutputSheetStyle
     Dim summaryTopRow As Long
-    Dim useResultLayoutScript As Boolean
     Dim wbCache As Object
     Dim longTextRuntimeCache As Object
     Dim errNumber As Long
@@ -108,10 +106,6 @@ Public Function m_RunMode(ByVal cfg As Object, ByVal modeInput As Object, ByVal 
     End If
     commonKeyType = LCase$(Trim$(ex_ConfigProvider.m_GetConfigEntryType("CommonKey", vbNullString)))
     useLikeMatch = (StrComp(commonKeyType, "rx", vbTextCompare) = 0)
-    useResultLayoutScript = (StrComp( _
-        ex_ScriptIO.m_GetStringOrDefault(modeInput, INPUT_KEY_USE_RESULT_LAYOUT, "0"), _
-        "1", _
-        vbTextCompare) = 0)
 
     mp_DeleteGeneratedResultSheets
     Set summarySheet = mp_CreateOrClearSheet(SUMMARY_SHEET_NAME)
@@ -181,6 +175,10 @@ Public Function m_RunMode(ByVal cfg As Object, ByVal modeInput As Object, ByVal 
             likeDialect = mp_GetLikeDialectForConnection(conn)
         End If
         tableRef = mp_BuildTableRef(sourceAlias, tableAlias, cfg)
+        If isExplicitSheetRange Then
+            tableRef = ex_ResultSqlEngine.m_ResolveAdoTableRefForQuery( _
+                conn, tableRef, "ex_ModeMultiSources", vbObjectError + 6544)
+        End If
 
         Set schemaRs = CreateObject("ADODB.Recordset")
         schemaRs.Open "SELECT * FROM " & tableRef & " WHERE 1=0", conn, 0, 1
@@ -241,7 +239,7 @@ Public Function m_RunMode(ByVal cfg As Object, ByVal modeInput As Object, ByVal 
         Set rs = Nothing
         Set conn = Nothing
 
-        ' Inter-table spacing is controlled by ResultLayout script.
+        ' Inter-table spacing is controlled by current sheet layout/rendering rules.
     Next i
 
     Set rowKindRanges = CreateObject("Scripting.Dictionary")
@@ -250,12 +248,7 @@ Public Function m_RunMode(ByVal cfg As Object, ByVal modeInput As Object, ByVal 
     Set rowKindRanges("section") = sectionRows
     Set rowKindRanges("content") = contentRows
 
-    If Not useResultLayoutScript Then
-        mp_ApplySheetPipelineForPage summarySheet, "MultiSources", SUMMARY_SHEET_NAME, rowKindRanges
-        If hasOutputStyle Then
-            ex_OutputPanel.m_RenderForSheet summarySheet, outputStyle
-        End If
-    End If
+    mp_ApplySheetPipelineForPage summarySheet, "MultiSources", SUMMARY_SHEET_NAME, rowKindRanges
     summarySheet.Activate
 
     Set modeResult = CreateObject("Scripting.Dictionary")
@@ -379,9 +372,6 @@ Private Function mp_BuildFailureModeResult( _
     summarySheet.Cells(summaryTopRow + 4, 2).Value = errDescription
 
     mp_ApplySheetPipelineForPage summarySheet, "MultiSources", SUMMARY_SHEET_NAME
-    If hasOutputStyle Then
-        ex_OutputPanel.m_RenderForSheet summarySheet, outputStyle
-    End If
     summarySheet.Activate
 
     Set modeResult = CreateObject("Scripting.Dictionary")
@@ -984,11 +974,22 @@ Private Sub mp_AddResultCell( _
     ex_ResultSqlEngine.m_AddResultCell resultTable, rowIndex, sourceAlias, tableAlias, fieldAlias, valueText
 End Sub
 
-Private Function mp_CreateScriptInputContext(ByVal fio As String) As Object
+Private Function mp_CreateScriptInputContext( _
+    ByVal fio As String, _
+    Optional ByVal cfg As Object = Nothing _
+) As Object
     Dim payload As obj_ScriptIOPayload
+    Dim defaultTableRefs As String
 
     Set payload = New obj_ScriptIOPayload
     payload.m_SetString "CommonKey", Trim$(fio)
+
+    If Not cfg Is Nothing Then
+        defaultTableRefs = Trim$(ex_ConfigVirtualSources.m_BuildAllTableRefsText(cfg, "ex_ModeMultiSources"))
+        If Len(defaultTableRefs) > 0 Then
+            payload.m_SetString INPUT_KEY_QUERY_TABLE_REFS, defaultTableRefs
+        End If
+    End If
 
     Set mp_CreateScriptInputContext = payload
 End Function

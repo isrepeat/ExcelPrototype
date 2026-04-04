@@ -683,7 +683,7 @@ Public Sub m_ResetDevUILayout(Optional ByVal ws As Worksheet)
     ' Layer 3 (disabled): stable-zone compensation via buffer column.
     ' ex_CustomDropdown.m_StabilizeChooseModeAnchorX ws, ex_CustomDropdown.m_GetStableZoneStartLeft(ws)
 
-    ex_CustomDropdown.m_InitDevTestDropdown ThisWorkbook
+    ex_UILoader.m_LoadUiFromConfig ThisWorkbook
 End Sub
 
 Public Sub m_ResetDevUILayout_UI()
@@ -1425,7 +1425,7 @@ Private Function mp_ReadMutableKeys(ByVal profileNode As Object) As Object
         Exit Function
     End If
 
-    Set nodes = profileNode.selectNodes("p:v")
+    Set nodes = profileNode.selectNodes("*[local-name()='v']")
     If nodes Is Nothing Then
         Set mp_ReadMutableKeys = result
         Exit Function
@@ -1524,7 +1524,7 @@ Private Function mp_ApplyProfileConfigStyles( _
     profileNode.OwnerDocument.setProperty "SelectionNamespaces", "xmlns:p='" & PROFILES_NS & "'"
     On Error GoTo 0
 
-    Set cfgNodes = profileNode.selectNodes("p:styles/p:config/p:column")
+    Set cfgNodes = profileNode.selectNodes("*[local-name()='styles']/*[local-name()='config']/*[local-name()='column']")
     If cfgNodes Is Nothing Then
         mp_ApplyProfileConfigStyles = True
         Exit Function
@@ -1730,7 +1730,7 @@ Public Sub m_ApplyProfileUI(ByVal ws As Worksheet, ByVal profileNode As Object, 
     profileNode.OwnerDocument.setProperty "SelectionNamespaces", "xmlns:p='" & PROFILES_NS & "'"
     On Error GoTo 0
 
-    Set uiNodes = profileNode.selectNodes("p:ui/p:control")
+    Set uiNodes = profileNode.selectNodes("*[local-name()='ui']/*[local-name()='control']")
     If uiNodes Is Nothing Then Exit Sub
     If uiNodes.Length = 0 Then Exit Sub
 
@@ -1743,8 +1743,6 @@ Public Sub m_ApplyProfileUI(ByVal ws As Worksheet, ByVal profileNode As Object, 
 
         Set shp = m_GetShapeByName(ws, shapeName)
         If shp Is Nothing Then
-            If StrComp(shapeName, "ddProfile", vbTextCompare) = 0 Then GoTo NextNode
-            If StrComp(shapeName, "ddMode", vbTextCompare) = 0 Then GoTo NextNode
             If pfui_IsButtonShapeName(shapeName) Then GoTo NextNode
             MsgBox "Profile UI shape '" & shapeName & "' was not found on sheet '" & ws.Name & "'.", vbExclamation
             Exit Sub
@@ -1785,14 +1783,14 @@ Public Sub m_ApplyModeVisibility(ByVal ws As Worksheet, ByVal profileNode As Obj
     Set uiDefDoc = pfui_LoadUiDefinitionDom()
     If uiDefDoc Is Nothing Then Exit Sub
 
-    Set uiControlNodes = uiDefDoc.selectNodes("/p:uiDefinition/p:controls/p:control")
+    Set uiControlNodes = uiDefDoc.selectNodes("/p:uiDefinition/p:layout//p:control")
     If uiControlNodes Is Nothing Then
-        MsgBox "Invalid UI definition format. Expected '/uiDefinition/controls/control'.", vbExclamation
+        MsgBox "Invalid UI definition format. Expected controls in '/uiDefinition/layout//control'.", vbExclamation
         Exit Sub
     End If
     pfui_ApplyGlobalVisibilityFromUiControls ws, uiControlNodes
 
-    Set uiNodes = profileNode.selectNodes("p:ui/p:control")
+    Set uiNodes = profileNode.selectNodes("*[local-name()='ui']/*[local-name()='control']")
     If Not uiNodes Is Nothing Then
         If uiNodes.Length > 0 Then
             pfui_ApplyFilteredVisibilityFromNodes ws, uiNodes
@@ -1803,19 +1801,16 @@ End Sub
 
 Private Sub mp_ApplyScriptButtonsVisibility(ByVal ws As Worksheet, ByVal profileNode As Object)
     Dim hasPreScript As Boolean
-    Dim hasResultLayoutScript As Boolean
     Dim hasPostScript As Boolean
     Dim hasPersonalCardConfigButtons As Boolean
     Dim modeKey As String
 
     hasPreScript = mp_ProfileHasScriptDefinition(profileNode, "preprocess")
-    hasResultLayoutScript = mp_ProfileHasScriptDefinition(profileNode, "resultlayout")
     hasPostScript = mp_ProfileHasScriptDefinition(profileNode, "postprocess")
     modeKey = LCase$(Trim$(m_GetActiveModeKey(ws)))
     hasPersonalCardConfigButtons = (modeKey = "personalcard")
 
     pfui_SetButtonVisibility ws, "btnPreProcessScript", hasPreScript
-    pfui_SetButtonVisibility ws, "btnResultLayoutScript", hasResultLayoutScript
     pfui_SetButtonVisibility ws, "btnPostProcessScript", hasPostScript
     pfui_SetButtonVisibility ws, "btnOpenPersonalCardProfiles", hasPersonalCardConfigButtons
     pfui_SetButtonVisibility ws, "btnOpenPersonalCardResultTemplates", hasPersonalCardConfigButtons
@@ -1841,11 +1836,9 @@ Private Function mp_ProfileHasScriptDefinition(ByVal profileNode As Object, ByVa
     scriptKind = LCase$(Trim$(scriptKind))
     Select Case scriptKind
         Case "preprocess"
-            Set scriptNodes = profileNode.selectNodes("p:preProcessScript")
-        Case "resultlayout"
-            Set scriptNodes = profileNode.selectNodes("p:resultLayoutScript")
+            Set scriptNodes = profileNode.selectNodes("*[local-name()='preProcessScript']")
         Case "postprocess"
-            Set scriptNodes = profileNode.selectNodes("p:postProcessScript")
+            Set scriptNodes = profileNode.selectNodes("*[local-name()='postProcessScript']")
         Case Else
             Exit Function
     End Select

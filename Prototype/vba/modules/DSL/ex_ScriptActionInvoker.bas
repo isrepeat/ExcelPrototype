@@ -3,7 +3,7 @@ Option Explicit
 
 Private Const ERR_SOURCE As String = "ex_ScriptDsl"
 Private Const DEBUG_LOG_PATH As String = "Logs\personalcard_pipeline.log"
-Private Const DEBUG_LOG_ENABLED As Boolean = True
+Private Const DEBUG_LOG_ENABLED As Boolean = False
 
 Public Sub m_RunMacroWithArgs(ByVal macroName As String, ByVal args As Collection)
     m_RunMacroWithArgsReturn macroName, args

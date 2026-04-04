@@ -5,7 +5,6 @@ Private Const DEFAULT_SCRIPT_KEY As String = "PostProcess.Script"
 Private Const IMPLICIT_SCRIPT_KEY As String = "PostProcess.Script.Implicit"
 Private Const EXPLICIT_SCRIPT_KEY As String = "PostProcess.Script.Explicit"
 Private Const PREPROCESS_SCRIPT_KEY As String = "Input.PreProcessScript"
-Private Const RESULTLAYOUT_SCRIPT_KEY As String = "ResultLayout.Script"
 Private Const EXECUTION_MODE_IMPLICIT As String = "implicit"
 Private Const EXECUTION_MODE_EXPLICIT As String = "explicit"
 Private Const ASCII_UPPER As String = "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
@@ -129,38 +128,6 @@ Private Function mp_TryGetScriptTextFromActiveProfile( _
 
         For Each scriptNode In preScriptNodes
             outScriptText = mp_GetScriptNodeText(scriptNode, filePath, "preProcessScript", includeFullPath)
-            mp_AddIncludePathIfMissing includePaths, includeFullPath
-            Exit For
-        Next scriptNode
-
-        includePathsToken = mp_BuildIncludePathsToken(includePaths)
-        includeSignature = mp_BuildIncludeSignatureFromToken(includePathsToken)
-        mp_SetCachedScriptText cacheKey, profileStamp, includePathsToken, includeSignature, outScriptText
-
-        mp_TryGetScriptTextFromActiveProfile = True
-        Exit Function
-    End If
-
-    If StrComp(normalizedScriptKey, RESULTLAYOUT_SCRIPT_KEY, vbTextCompare) = 0 Then
-        stepName = "read-resultlayout-script-node"
-        Set preScriptNodes = profileNode.selectNodes("p:resultLayoutScript")
-        If preScriptNodes Is Nothing Then
-            outErrorText = "resultLayoutScript node is required for key '" & RESULTLAYOUT_SCRIPT_KEY & "'."
-            Exit Function
-        End If
-
-        If preScriptNodes.Length = 0 Then
-            outErrorText = "resultLayoutScript node is required for key '" & RESULTLAYOUT_SCRIPT_KEY & "'."
-            Exit Function
-        End If
-
-        If preScriptNodes.Length > 1 Then
-            Err.Raise vbObjectError + 1777, "ex_ScriptSourceLoader", _
-                "Only one resultLayoutScript node is allowed per profile."
-        End If
-
-        For Each scriptNode In preScriptNodes
-            outScriptText = mp_GetScriptNodeText(scriptNode, filePath, "resultLayoutScript", includeFullPath)
             mp_AddIncludePathIfMissing includePaths, includeFullPath
             Exit For
         Next scriptNode

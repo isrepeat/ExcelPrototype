@@ -24,8 +24,6 @@ Public Sub Startup_Open()
     ex_UILoader.m_LoadUiFromConfig ThisWorkbook
     stepName = "restore-selection-state"
     Application.Run "ex_ConfigProfilesManager.m_RestoreSelectionState"
-    stepName = "init-custom-dropdowns"
-    ex_CustomDropdown.m_InitDevTestDropdown ThisWorkbook
     Exit Sub
 EH:
     MsgBox "Startup initialization failed at step '" & stepName & "': [" & Err.Source & " #" & CStr(Err.Number) & "] " & Err.Description, vbExclamation

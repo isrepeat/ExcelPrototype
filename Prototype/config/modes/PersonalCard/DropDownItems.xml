@@ -5,4 +5,18 @@
           caption="Default"
           setContext="activeProfile=Default"/>
   </list>
+
+  <list name="panel.exportInsertMode">
+    <item key="AppendToTop"
+          caption="Append [Top]"/>
+    <item key="AppendToBottom"
+          caption="Append [Bottom]"/>
+  </list>
+
+  <list name="panel.validationMode">
+    <item key="Enabled"
+          caption="Validation [On]"/>
+    <item key="Disabled"
+          caption="Validation [Off]"/>
+  </list>
 </dropdownItems>

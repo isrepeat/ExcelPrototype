@@ -115,9 +115,19 @@ Public Function m_GetProfileNode(ByVal doc As Object, ByVal profileName As Strin
     profileName = Trim$(profileName)
     If Len(profileName) = 0 Then Exit Function
 
+    On Error Resume Next
+    doc.setProperty "SelectionNamespaces", "xmlns:p='" & PROFILES_NS & "'"
+    On Error GoTo 0
+
     Set node = doc.selectSingleNode("/p:profiles/p:profile[@name=" & ex_XmlCore.m_XPathLiteral(profileName) & "]")
+    If node Is Nothing Then
+        Set node = doc.selectSingleNode("/*[local-name()='profiles']/*[local-name()='profile'][@name=" & ex_XmlCore.m_XPathLiteral(profileName) & "]")
+    End If
     If node Is Nothing And createIfMissing Then
         Set root = doc.selectSingleNode("/p:profiles")
+        If root Is Nothing Then
+            Set root = doc.selectSingleNode("/*[local-name()='profiles']")
+        End If
         If root Is Nothing Then Exit Function
         Set node = doc.createNode(1, "profile", PROFILES_NS)
         node.setAttribute "name", profileName

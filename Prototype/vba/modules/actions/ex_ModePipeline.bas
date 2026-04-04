@@ -10,12 +10,8 @@ Private Const CONTEXT_FIELD_POST_EXECUTED As String = "PostExecuted"
 Private Const MODE_RESULT_FIELD_OUTPUT As String = "Output"
 Private Const MODE_RESULT_FIELD_WORKSHEET As String = "Worksheet"
 Private Const MODE_RESULT_FIELD_RESULT_TABLES As String = "ResultTables"
-Private Const INPUT_KEY_USE_RESULT_LAYOUT As String = "__UseResultLayoutScript"
-Private Const INPUT_KEY_LAYOUT_WORKSHEET As String = "__ResultLayoutWorksheet"
 Private Const INPUT_KEY_LAYOUT_ROWKINDS As String = "__ResultLayoutRowKinds"
 Private Const INPUT_KEY_LAYOUT_FIELDRANGES As String = "__ResultLayoutFieldRanges"
-Private Const INPUT_KEY_RESULT_TABLES As String = "__ResultTables"
-Private Const INPUT_KEY_QUERY_TABLE_REFS As String = "Query.TableRefs"
 
 Private Const AUTO_POSTPROCESS_SCRIPT_KEY As String = "PostProcess.Script.Implicit"
 Private Const DEBUG_LOG_PATH As String = "Logs\personalcard_pipeline.log"
@@ -33,6 +29,8 @@ Public Function m_RunModePipeline( _
 ) As Object
     Dim ctx As Object
     Dim stageName As String
+    Dim runStartStamp As Double
+    Dim stageStartStamp As Double
     Dim preProcessContext As Object
     Dim modeInput As Object
     Dim modeResult As Object
@@ -40,11 +38,12 @@ Public Function m_RunModePipeline( _
     Dim modeTables As Collection
     Dim modeOutput As Object
     Dim resultLayoutExecuted As Boolean
-    Dim requireResultLayoutScript As Boolean
+    Dim layoutRefreshError As String
     Dim busyScopeActive As Boolean
 
     On Error GoTo EH
 
+    runStartStamp = Timer
     stageName = "init"
     mp_BeginPipelineBusy
     busyScopeActive = True
@@ -53,22 +52,18 @@ Public Function m_RunModePipeline( _
     Set ctx = CreateObject("Scripting.Dictionary")
     ctx.CompareMode = 1
     ctx(CONTEXT_FIELD_POST_EXECUTED) = "false"
-    mp_DebugLog "RUN START modeExecutor='" & CStr(modeExecutorMacro) & "'"
+    ' mp_DebugLog "RUN START modeExecutor='" & CStr(modeExecutorMacro) & "'"
 
     stageName = "prepare-input"
     If pipelineInput Is Nothing Then
         Set pipelineInput = New obj_ScriptIOPayload
-        mp_DebugLog "pipelineInput auto-created"
-    End If
-
-    requireResultLayoutScript = mp_RequireResultLayoutScript(cfg)
-    If requireResultLayoutScript Then
-        stageName = "prepare-default-query-tabrefs"
-        mp_EnsureDefaultQueryTableRefs cfg, pipelineInput
+        ' mp_DebugLog "pipelineInput auto-created"
     End If
 
     stageName = "run-preprocess"
+    stageStartStamp = Timer
     Set preProcessContext = ex_PreProcessPipeline.m_Run(cfg, pipelineInput, requirePreScript)
+    mp_DebugLog "stage-done stage='run-preprocess' duration=" & mp_FormatElapsedSeconds(mp_StageElapsedSeconds(stageStartStamp))
     Set modeInput = pipelineInput
     If Not preProcessContext Is Nothing Then
         If preProcessContext.Exists("Output") Then
@@ -81,19 +76,15 @@ Public Function m_RunModePipeline( _
     stageName = "check-mode-executor"
     If Len(Trim$(modeExecutorMacro)) = 0 Then
         Set ctx(CONTEXT_FIELD_MODE_OUTPUT) = modeInput
-        mp_DebugLog "SKIP mode executor is empty"
+        ' mp_DebugLog "SKIP mode executor is empty"
         Set m_RunModePipeline = ctx
         Exit Function
     End If
 
-    If requireResultLayoutScript Then
-        ex_ScriptIO.m_SetString modeInput, INPUT_KEY_USE_RESULT_LAYOUT, "1"
-    Else
-        ex_ScriptIO.m_SetString modeInput, INPUT_KEY_USE_RESULT_LAYOUT, "0"
-    End If
-
     stageName = "run-mode-executor"
+    stageStartStamp = Timer
     Set modeResult = mp_RunModeExecutor(modeExecutorMacro, cfg, modeInput, preProcessContext)
+    mp_DebugLog "stage-done stage='run-mode-executor' duration=" & mp_FormatElapsedSeconds(mp_StageElapsedSeconds(stageStartStamp))
     Set ctx(CONTEXT_FIELD_MODE_OUTPUT) = modeResult
 
     If modeResult Is Nothing Then
@@ -114,31 +105,51 @@ Public Function m_RunModePipeline( _
     End If
 
     stageName = "run-result-layout"
+    stageStartStamp = Timer
     resultLayoutExecuted = ex_ResultLayoutPipeline.m_Run( _
         cfg, _
         modeSheet, _
         modeTables, _
-        modeOutput, _
-        requireResultLayoutScript)
+        modeOutput)
+    mp_DebugLog "stage-done stage='run-result-layout' duration=" & mp_FormatElapsedSeconds(mp_StageElapsedSeconds(stageStartStamp))
     If resultLayoutExecuted Then
         ctx(CONTEXT_FIELD_RESULTLAYOUT_EXECUTED) = "true"
-        mp_RefreshModeResultFromLayoutState modeResult, modeOutput, modeSheet, modeTables
-        stageName = "apply-result-layout-styles"
-        mp_ApplyLayoutSheetStyling modeSheet, modeOutput
     Else
         ctx(CONTEXT_FIELD_RESULTLAYOUT_EXECUTED) = "false"
     End If
 
     stageName = "run-postprocess"
-    If ex_PostProcessPipeline.m_Run(modeSheet, cfg, modeTables, modeOutput, AUTO_POSTPROCESS_SCRIPT_KEY, False) Then
+    stageStartStamp = Timer
+    If ex_PostProcessPipeline.m_Run(modeSheet, cfg, modeTables, modeOutput, AUTO_POSTPROCESS_SCRIPT_KEY, False, False) Then
+        mp_DebugLog "stage-done stage='run-postprocess' duration=" & mp_FormatElapsedSeconds(mp_StageElapsedSeconds(stageStartStamp))
         ctx(CONTEXT_FIELD_POST_EXECUTED) = "true"
-        mp_DebugLog "post process executed scriptKey='" & AUTO_POSTPROCESS_SCRIPT_KEY & "'"
+        ' mp_DebugLog "post process executed scriptKey='" & AUTO_POSTPROCESS_SCRIPT_KEY & "'"
     Else
-        mp_DebugLog "post process skipped scriptKey='" & AUTO_POSTPROCESS_SCRIPT_KEY & "'"
+        mp_DebugLog "stage-done stage='run-postprocess' duration=" & mp_FormatElapsedSeconds(mp_StageElapsedSeconds(stageStartStamp))
+        ' mp_DebugLog "post process skipped scriptKey='" & AUTO_POSTPROCESS_SCRIPT_KEY & "'"
+    End If
+
+    If resultLayoutExecuted Then
+        If LCase$(CStr(ctx(CONTEXT_FIELD_POST_EXECUTED))) = "true" Then
+            stageName = "refresh-layout-after-postprocess"
+            stageStartStamp = Timer
+            layoutRefreshError = vbNullString
+            If Not ex_ResultLayoutItemsRt.m_Refresh(modeSheet, vbNullString, layoutRefreshError) Then
+                If Len(layoutRefreshError) = 0 Then layoutRefreshError = "Unknown layout refresh error after implicit post-process."
+                Err.Raise vbObjectError + 6119, "ex_ModePipeline", layoutRefreshError
+            End If
+            mp_DebugLog "stage-done stage='refresh-layout-after-postprocess' duration=" & mp_FormatElapsedSeconds(mp_StageElapsedSeconds(stageStartStamp))
+        Else
+            stageName = "apply-result-layout-styles"
+            stageStartStamp = Timer
+            mp_ApplyLayoutSheetStyling modeSheet, modeOutput
+            mp_DebugLog "stage-done stage='apply-result-layout-styles' duration=" & mp_FormatElapsedSeconds(mp_StageElapsedSeconds(stageStartStamp))
+        End If
     End If
 
     stageName = "done"
-    mp_DebugLog "RUN END modeExecutor='" & CStr(modeExecutorMacro) & "'"
+    mp_DebugLog "RUN DURATION total=" & mp_FormatElapsedSeconds(mp_StageElapsedSeconds(runStartStamp))
+    ' mp_DebugLog "RUN END modeExecutor='" & CStr(modeExecutorMacro) & "'"
     If busyScopeActive Then
         mp_EndPipelineBusy
         busyScopeActive = False
@@ -154,7 +165,7 @@ EH:
     errNumber = Err.Number
     errSource = Err.Source
     errDescription = Err.Description
-    mp_DebugLog "FAIL stage='" & stageName & "' err=[" & errSource & " #" & CStr(errNumber) & "] " & errDescription
+    mp_DebugLog "FAIL stage='" & stageName & "' err=[" & errSource & " #" & CStr(errNumber) & "] " & errDescription & " | elapsed=" & mp_FormatElapsedSeconds(mp_StageElapsedSeconds(runStartStamp))
     If errNumber = 0 Then errNumber = vbObjectError + 6116
     If Len(errSource) = 0 Then errSource = "ex_ModePipeline"
     If Len(errDescription) = 0 Then errDescription = "Unknown pipeline failure."
@@ -165,20 +176,13 @@ EH:
     Err.Raise errNumber, errSource, errDescription
 End Function
 
-Private Function mp_RequireResultLayoutScript(ByVal cfg As Object) As Boolean
-    Dim scriptRef As String
-    Dim scriptLoadError As String
+Private Function mp_StageElapsedSeconds(ByVal startStamp As Double) As Double
+    mp_StageElapsedSeconds = Timer - startStamp
+    If mp_StageElapsedSeconds < 0# Then mp_StageElapsedSeconds = mp_StageElapsedSeconds + 86400#
+End Function
 
-    If cfg Is Nothing Then Exit Function
-
-    scriptLoadError = vbNullString
-    scriptRef = vbNullString
-
-    If Not ex_ScriptSourceLoader.m_TryGetScriptText(cfg, "ResultLayout.Script", scriptRef, scriptLoadError) Then
-        Exit Function
-    End If
-
-    mp_RequireResultLayoutScript = (Len(Trim$(scriptRef)) > 0)
+Private Function mp_FormatElapsedSeconds(ByVal elapsedSeconds As Double) As String
+    mp_FormatElapsedSeconds = Format$(elapsedSeconds, "0.000") & "s"
 End Function
 
 Private Sub mp_BeginPipelineBusy()
@@ -194,25 +198,6 @@ Private Sub mp_BeginPipelineBusy()
 
     g_PipelineBusyDepth = g_PipelineBusyDepth + 1
     On Error GoTo 0
-End Sub
-
-Private Sub mp_EnsureDefaultQueryTableRefs(ByVal cfg As Object, ByVal pipelineInput As Object)
-    Dim tableRefsText As String
-
-    If pipelineInput Is Nothing Then Exit Sub
-    If cfg Is Nothing Then Exit Sub
-
-    tableRefsText = Trim$(ex_ScriptIO.m_GetStringOrDefault(pipelineInput, INPUT_KEY_QUERY_TABLE_REFS, vbNullString))
-    If Len(tableRefsText) > 0 Then Exit Sub
-
-    tableRefsText = ex_ConfigVirtualSources.m_BuildAllTableRefsText(cfg, "ex_ModePipeline")
-    tableRefsText = Trim$(tableRefsText)
-    If Len(tableRefsText) = 0 Then
-        Err.Raise vbObjectError + 6119, "ex_ModePipeline", _
-            "Failed to build default Query.TableRefs from Source.*.SheetAliases."
-    End If
-
-    ex_ScriptIO.m_SetString pipelineInput, INPUT_KEY_QUERY_TABLE_REFS, tableRefsText
 End Sub
 
 Private Sub mp_EndPipelineBusy()
@@ -294,44 +279,10 @@ Private Sub mp_DebugLog(ByVal messageText As String)
     On Error GoTo 0
 End Sub
 
-Private Sub mp_RefreshModeResultFromLayoutState( _
-    ByVal modeResult As Object, _
-    ByVal modeOutput As Object, _
-    ByRef ioModeSheet As Worksheet, _
-    ByRef ioModeTables As Collection _
-)
-    Dim objectValue As Object
-
-    If modeOutput Is Nothing Then Exit Sub
-
-    If ex_ScriptIO.m_TryGetObject(modeOutput, INPUT_KEY_LAYOUT_WORKSHEET, objectValue) Then
-        If Not objectValue Is Nothing Then
-            If TypeOf objectValue Is Worksheet Then
-                Set ioModeSheet = objectValue
-            End If
-        End If
-    End If
-
-    If ex_ScriptIO.m_TryGetObject(modeOutput, INPUT_KEY_RESULT_TABLES, objectValue) Then
-        If Not objectValue Is Nothing Then
-            If TypeName(objectValue) = "Collection" Then
-                Set ioModeTables = objectValue
-            End If
-        End If
-    End If
-
-    If Not modeResult Is Nothing Then
-        Set modeResult(MODE_RESULT_FIELD_WORKSHEET) = ioModeSheet
-        Set modeResult(MODE_RESULT_FIELD_RESULT_TABLES) = ioModeTables
-    End If
-End Sub
-
 Private Sub mp_ApplyLayoutSheetStyling(ByVal ws As Worksheet, ByVal modeOutput As Object)
     Dim objectValue As Object
     Dim rowKindRanges As Object
     Dim resultFieldRanges As Collection
-    Dim hasOutputStyle As Boolean
-    Dim outputStyle As t_OutputSheetStyle
 
     If ws Is Nothing Then Exit Sub
 
@@ -356,10 +307,6 @@ Private Sub mp_ApplyLayoutSheetStyling(ByVal ws As Worksheet, ByVal modeOutput A
 
     ex_OutputFormattingPipeline.m_ApplySheetPipeline ws, resultFieldRanges, Nothing, rowKindRanges
 
-    hasOutputStyle = ex_SheetStylesXmlProvider.m_GetOutputSheetStyle(outputStyle, ThisWorkbook)
-    If hasOutputStyle Then
-        ex_OutputPanel.m_RenderForSheet ws, outputStyle
-    End If
 End Sub
 
 Private Sub mp_ResetDebugLog()

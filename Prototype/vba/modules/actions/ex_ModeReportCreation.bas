@@ -124,9 +124,7 @@ Public Function m_RunMode(ByVal cfg As Object, ByVal modeInput As Object, ByVal 
     ex_Messaging.m_ClearResultTableAnchors wsOut
     ex_Messaging.m_ClearResultRowAnchors wsOut
     hasOutputStyle = ex_SheetStylesXmlProvider.m_GetOutputSheetStyle(outputStyle, ThisWorkbook)
-    If hasOutputStyle Then
-        ex_OutputPanel.m_RenderForSheet wsOut, outputStyle
-    Else
+    If Not hasOutputStyle Then
         warningRangeAddress = ex_SheetStylesXmlProvider.m_GetOutputWarningBannerRangeAddress(ThisWorkbook)
         ex_Messaging.m_RenderWarningBanner wsOut, UI_WARNING_TEXT, UI_WARNING_TITLE, warningRangeAddress
     End If
