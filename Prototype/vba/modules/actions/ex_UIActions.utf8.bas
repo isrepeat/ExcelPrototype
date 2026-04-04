@@ -5,7 +5,6 @@ Private Const PROFILES_NS As String = "urn:excelprototype:profiles"
 Private Const ASCII_UPPER As String = "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
 Private Const ASCII_LOWER As String = "abcdefghijklmnopqrstuvwxyz"
 Private Const SCRIPT_KIND_PREPROCESS As String = "preprocess"
-Private Const SCRIPT_KIND_RESULTLAYOUT As String = "resultlayout"
 Private Const SCRIPT_KIND_POSTPROCESS As String = "postprocess"
 Private Const PERSONALCARD_PROFILES_REL_PATH As String = "config\modes\PersonalCard\PersonalCardProfiles.xml"
 Private Const PERSONALCARD_RESULT_TEMPLATES_REL_PATH As String = "config\modes\PersonalCard\PersonalCardResultTemplates.xml"
@@ -38,25 +37,37 @@ End Sub
 
 Public Sub m_ToggleDropdownButton_OnClick()
     ex_CustomDropdown.m_OnManagedButtonClick
+    If ex_ManagedDropdownRuntime.m_TryToggleByCaller(ThisWorkbook) Then Exit Sub
     ex_CustomDropdown.m_ToggleDropdownButton ThisWorkbook
 End Sub
 
 Public Sub m_UpdateUi_OnClick()
+    Dim errText As String
+
     On Error GoTo EH
 
+    Application.Cursor = xlWait
     ex_CustomDropdown.m_OnManagedButtonClick
     ex_UILoader.m_LoadUiFromConfig ThisWorkbook
     ex_ConfigProfilesManager.m_RestoreSelectionState ws_Dev
 
-    ex_CustomDropdown.m_InitDevTestDropdown ThisWorkbook
     mp_RefreshLogsToggleVisualFromSettings
-    Exit Sub
+    GoTo CleanExit
 EH:
-    MsgBox "Update UI failed: " & Err.Description, vbExclamation
+    errText = Err.Description
+CleanExit:
+    On Error Resume Next
+    Application.Cursor = xlDefault
+    On Error GoTo 0
+
+    If Len(errText) > 0 Then
+        MsgBox "Update UI failed: " & errText, vbExclamation
+    End If
 End Sub
 
 Public Sub m_SelectDropdownOption_OnClick()
     ex_CustomDropdown.m_OnManagedButtonClick
+    If ex_ManagedDropdownRuntime.m_TrySelectByCaller(ThisWorkbook) Then Exit Sub
     ex_CustomDropdown.m_SelectDropdownOption ThisWorkbook
 End Sub
 
@@ -105,6 +116,40 @@ Public Sub m_OnProfileOptionSelected(Optional ByVal selectedKey As String = vbNu
     End If
 
     ex_ConfigProfilesManager.m_OnProfileChanged
+End Sub
+
+Public Sub m_OnLayoutDropdownConfigSelected(Optional ByVal selectedKey As String = vbNullString, Optional ByVal selectedCaption As String = vbNullString, Optional ByVal sourceControlName As String = vbNullString)
+    Dim selectedValue As String
+    Dim configKey As String
+    Dim sourceKey As String
+
+    On Error GoTo EH
+
+    sourceKey = LCase$(Trim$(sourceControlName))
+    selectedValue = Trim$(selectedKey)
+    If Len(selectedValue) = 0 Then selectedValue = Trim$(selectedCaption)
+    If Len(selectedValue) = 0 Then
+        MsgBox "Dropdown selection is empty for control '" & sourceControlName & "'.", vbExclamation
+        Exit Sub
+    End If
+
+    Select Case sourceKey
+        Case "ddinsertmode"
+            configKey = "Export.InsertMode"
+        Case "ddvalidationmode"
+            configKey = "PostProcess.ValidationMode"
+        Case Else
+            ex_Messaging.m_LogToFile "[ex_UIActions] layout dropdown selection placeholder: no config mapping for source='" & sourceControlName & "' value='" & selectedValue & "'.", PERSONALCARD_LOG_REL_PATH
+            Exit Sub
+    End Select
+
+    ex_ConfigProvider.m_SetConfigValue configKey, selectedValue, True
+    ex_Messaging.m_LogToFile "[ex_UIActions] layout dropdown selection applied source='" & sourceControlName & "' configKey='" & configKey & "' value='" & selectedValue & "'.", PERSONALCARD_LOG_REL_PATH
+    Exit Sub
+
+EH:
+    ex_Messaging.m_LogToFile "[ex_UIActions] layout dropdown selection failed source='" & sourceControlName & "' error='" & Err.Description & "'.", PERSONALCARD_LOG_REL_PATH
+    MsgBox "Dropdown selection apply failed: " & Err.Description, vbExclamation
 End Sub
 
 Public Sub m_HelloWorld_OnClick()
@@ -160,11 +205,6 @@ End Sub
 Public Sub m_OpenPreProcessScript_OnClick()
     ex_CustomDropdown.m_OnManagedButtonClick
     mp_OpenActiveProfileScriptSource SCRIPT_KIND_PREPROCESS
-End Sub
-
-Public Sub m_OpenResultLayoutScript_OnClick()
-    ex_CustomDropdown.m_OnManagedButtonClick
-    mp_OpenActiveProfileScriptSource SCRIPT_KIND_RESULTLAYOUT
 End Sub
 
 Public Sub m_OpenPostProcessScript_OnClick()
@@ -257,26 +297,17 @@ Public Sub m_ExportFooterReportDone_OnClick()
 End Sub
 
 Public Sub m_OutputPanelToggleButton_OnClick()
-    Dim callerName As String
-    Dim ws As Worksheet
-
-    Set ws = ActiveSheet
-    On Error Resume Next
-    callerName = CStr(Application.Caller)
-    On Error GoTo 0
-
-    ' Toggle buttons live on output sheets and do not depend on Dev dropdown state.
-    ' Avoid side effects from dropdown helpers before resolving caller/indices.
-    ex_OutputPanel.m_HandleToggleButtonOnClick ws, callerName
+    ex_CustomDropdown.m_OnManagedButtonClick
+    If ex_ManagedDropdownRuntime.m_TryToggleByCaller(ThisWorkbook) Then Exit Sub
+    ex_CustomDropdown.m_ToggleDropdownButton ThisWorkbook
 End Sub
 
 Public Sub m_OutputPanelStartSearch_OnClick()
     Dim ws As Worksheet
     Dim searchKey As String
-    Dim outputStyle As ex_SheetStylesXmlProvider.t_OutputSheetStyle
     Dim configKey As String
-    Dim callerName As String
-    Dim fieldIndex As Long
+    Dim resolvedConfigKey As String
+    Dim primaryConfigKey As String
     Dim activeModeKey As String
     Dim errNumber As Long
     Dim errSource As String
@@ -300,36 +331,33 @@ Public Sub m_OutputPanelStartSearch_OnClick()
     ' Profile refresh is handled explicitly by mode/profile change and Update UI.
 
     configKey = "CommonKey"
-    If ex_SheetStylesXmlProvider.m_GetOutputSheetStyle(outputStyle, ThisWorkbook) Then
-        callerName = vbNullString
-        On Error Resume Next
-        callerName = CStr(Application.Caller)
-        On Error GoTo EH
+    If ex_LayoutBindingsRuntime.m_TryGetPrimaryConfigKey(ws, primaryConfigKey) Then
+        primaryConfigKey = Trim$(primaryConfigKey)
+        If Len(primaryConfigKey) > 0 Then configKey = primaryConfigKey
+    End If
 
-        If ex_OutputPanel.m_TryGetClickedFieldIndex(ws, callerName, fieldIndex) Then
-            If fieldIndex >= 1 And fieldIndex <= outputStyle.PanelFieldCount Then
-                searchKey = ex_OutputPanel.m_ReadFieldValue(ws, outputStyle.PanelFields(fieldIndex).InputName)
-                configKey = Trim$(outputStyle.PanelFields(fieldIndex).InputConfigKey)
-            End If
-        End If
-
-        If Len(searchKey) = 0 Then
-            searchKey = ex_OutputPanel.m_ReadSearchValue(ws)
-        End If
-        If Len(Trim$(configKey)) = 0 Then
-            If outputStyle.PanelFieldCount >= 1 Then
-                configKey = Trim$(outputStyle.PanelFields(1).InputConfigKey)
-            End If
-        End If
+    resolvedConfigKey = configKey
+    searchKey = ex_LayoutBindingsRuntime.m_ReadInputValueByName(ws, resolvedConfigKey)
+    If Len(searchKey) = 0 Then
+        searchKey = ex_LayoutBindingsRuntime.m_ReadInputValueByName(ws, "CommonKey")
+        If Len(searchKey) > 0 Then resolvedConfigKey = "CommonKey"
     End If
     If Len(searchKey) = 0 Then
-        searchKey = ex_OutputPanel.m_ReadSearchValue(ws)
+        searchKey = ex_LayoutBindingsRuntime.m_ReadPrimaryInputValue(ws)
     End If
+    If Len(searchKey) = 0 Then
+        searchKey = Trim$(ex_ConfigProvider.m_GetConfigValue(resolvedConfigKey, vbNullString))
+    End If
+
+    ex_Messaging.m_LogToFile _
+        "[ex_UIActions] search resolve ws='" & ws.Name & "' configKey='" & resolvedConfigKey & "' valueLen=" & CStr(Len(searchKey)) & ".", _
+        PERSONALCARD_LOG_REL_PATH
+
     If Len(searchKey) = 0 Then
         Err.Raise vbObjectError + 2402, "ex_UIActions.m_OutputPanelStartSearch_OnClick", "Введите значение ключа в панели поиска."
     End If
 
-    ex_ConfigProvider.m_SetConfigValue configKey, searchKey, True
+    ex_ConfigProvider.m_SetConfigValue resolvedConfigKey, searchKey, True
     activeModeKey = Trim$(ex_ConfigProfilesManager.m_GetActiveModeKey())
     If Len(activeModeKey) = 0 Then
         Err.Raise vbObjectError + 2403, "ex_UIActions.m_OutputPanelStartSearch_OnClick", "Active mode key is empty."
@@ -366,9 +394,6 @@ EH:
 
     On Error Resume Next
     ex_OutputFormattingPipeline.m_ApplySheetPipeline ws
-    If ex_SheetStylesXmlProvider.m_GetOutputSheetStyle(outputStyle, ThisWorkbook) Then
-        ex_OutputPanel.m_RenderForSheet ws, outputStyle
-    End If
     On Error GoTo 0
     ex_Messaging.m_RenderErrorBanner ws, errDescription, errSource, errNumber, "ERROR: Search failed", ex_SheetStylesXmlProvider.m_GetOutputErrorBannerRangeAddress(ThisWorkbook)
 End Sub
@@ -481,9 +506,6 @@ Private Function mp_TryResolveActiveProfileScriptSourcePath( _
         Case SCRIPT_KIND_PREPROCESS
             Set scriptNode = mp_GetPreProcessScriptNode(profileNode)
             outSourceLabel = "preProcessScript"
-        Case SCRIPT_KIND_RESULTLAYOUT
-            Set scriptNode = mp_GetResultLayoutScriptNode(profileNode)
-            outSourceLabel = "resultLayoutScript"
         Case SCRIPT_KIND_POSTPROCESS
             Set scriptNode = mp_GetPostProcessScriptNode(profileNode)
             outSourceLabel = "postProcessScript"
@@ -515,10 +537,6 @@ End Function
 
 Private Function mp_GetPreProcessScriptNode(ByVal profileNode As Object) As Object
     Set mp_GetPreProcessScriptNode = profileNode.selectSingleNode("p:preProcessScript")
-End Function
-
-Private Function mp_GetResultLayoutScriptNode(ByVal profileNode As Object) As Object
-    Set mp_GetResultLayoutScriptNode = profileNode.selectSingleNode("p:resultLayoutScript")
 End Function
 
 Private Function mp_GetPostProcessScriptNode(ByVal profileNode As Object) As Object
@@ -554,8 +572,6 @@ Private Function mp_GetScriptKindDisplayLabel(ByVal scriptKind As String) As Str
     Select Case scriptKind
         Case SCRIPT_KIND_PREPROCESS
             mp_GetScriptKindDisplayLabel = "Pre Process Script"
-        Case SCRIPT_KIND_RESULTLAYOUT
-            mp_GetScriptKindDisplayLabel = "Result Layout Script"
         Case SCRIPT_KIND_POSTPROCESS
             mp_GetScriptKindDisplayLabel = "Post Process Script"
         Case Else

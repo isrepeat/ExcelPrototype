@@ -172,7 +172,8 @@ Public Function m_BuildAllOutputEntries( _
     seenRefs.CompareMode = 1
 
     sourceAliases = mp_GetSourceAliases(cfg, errSource)
-    mp_SortVariantTextArray sourceAliases
+    ' Preserve source declaration order from config; do not sort alphabetically.
+    ' This keeps Query.TableRefs/result tables aligned with Source.* and SheetAliases definition order.
 
     For i = LBound(sourceAliases) To UBound(sourceAliases)
         sourceAlias = Trim$(CStr(sourceAliases(i)))

@@ -52,15 +52,34 @@ Public Sub m_EnsureConfigTableTextFormat(ByVal tbl As ListObject)
     On Error GoTo 0
 End Sub
 
-Public Sub m_ResizeConfigTableRows(ByVal ws As Worksheet, ByVal tbl As ListObject, ByVal rowCount As Long)
+Public Sub m_ResizeConfigTableRows(ByVal ws As Worksheet, ByRef tbl As ListObject, ByVal rowCount As Long)
     Dim topRow As Long
     Dim leftCol As Long
     Dim bottomRow As Long
     Dim rightCol As Long
     Dim resizeRange As Range
+    Dim rebuilt As ListObject
+    Dim rebuildAttempted As Boolean
+
+    If ws Is Nothing Then Exit Sub
+    If tbl Is Nothing Then
+        Set tbl = m_GetConfigTable(ws, True)
+        If tbl Is Nothing Then Exit Sub
+    End If
 
     If rowCount < 0 Then rowCount = 0
 
+    If tbl.ListColumns.Count <> DEV_CONFIG_COL_COUNT Or tbl.HeaderRowRange.Row <> DEV_CONFIG_HEADER_ROW Then
+        Set rebuilt = mp_RebuildConfigTableAfterResizeFailure(ws, tbl, rowCount)
+        If rebuilt Is Nothing Then
+            MsgBox "Failed to normalize config table layout before resize.", vbExclamation
+            Exit Sub
+        End If
+        Set tbl = rebuilt
+    End If
+
+TRY_RESIZE:
+    On Error GoTo EH_RESIZE
     topRow = tbl.HeaderRowRange.Row
     leftCol = tbl.Range.Column
     rightCol = leftCol + DEV_CONFIG_COL_COUNT - 1
@@ -68,7 +87,25 @@ Public Sub m_ResizeConfigTableRows(ByVal ws As Worksheet, ByVal tbl As ListObjec
 
     Set resizeRange = ws.Range(ws.Cells(topRow, leftCol), ws.Cells(bottomRow, rightCol))
     tbl.Resize resizeRange
+    On Error GoTo 0
     m_EnsureConfigTableTextFormat tbl
+    Exit Sub
+
+EH_RESIZE:
+    If rebuildAttempted Then
+        MsgBox "Failed to resize config table '" & tbl.Name & "': " & Err.Description, vbExclamation
+        Exit Sub
+    End If
+
+    rebuildAttempted = True
+    Err.Clear
+    Set rebuilt = mp_RebuildConfigTableAfterResizeFailure(ws, tbl, rowCount)
+    If rebuilt Is Nothing Then
+        MsgBox "Failed to recover config table layout for resize.", vbExclamation
+        Exit Sub
+    End If
+    Set tbl = rebuilt
+    GoTo TRY_RESIZE
 End Sub
 
 Public Sub m_ClearConfigDataArea(ByVal ws As Worksheet, ByVal tbl As ListObject)
@@ -522,6 +559,55 @@ Private Function m_IsMarkerKey(ByVal keyText As String) As Boolean
     keyText = Trim$(keyText)
     If Len(keyText) < Len(DEV_MARKER_PREFIX) Then Exit Function
     m_IsMarkerKey = (StrComp(Left$(keyText, Len(DEV_MARKER_PREFIX)), DEV_MARKER_PREFIX, vbTextCompare) = 0)
+End Function
+
+Private Function mp_RebuildConfigTableAfterResizeFailure( _
+    ByVal ws As Worksheet, _
+    ByVal tbl As ListObject, _
+    ByVal rowCount As Long) As ListObject
+
+    Dim tableName As String
+    Dim leftCol As Long
+    Dim valueHeaderText As String
+    Dim targetRange As Range
+
+    If ws Is Nothing Then Exit Function
+    If tbl Is Nothing Then Exit Function
+
+    If rowCount < 0 Then rowCount = 0
+
+    tableName = DEV_CONFIG_TABLE_NAME
+    On Error Resume Next
+    If Len(Trim$(tbl.Name)) > 0 Then tableName = tbl.Name
+    leftCol = tbl.Range.Column
+    If tbl.ListColumns.Count >= DEV_CONFIG_VALUE_COL Then
+        valueHeaderText = Trim$(CStr(tbl.HeaderRowRange.Cells(1, DEV_CONFIG_VALUE_COL).Value))
+    End If
+    On Error GoTo 0
+    If leftCol < 1 Then leftCol = DEV_CONFIG_MARKER_COL
+    If Len(valueHeaderText) = 0 Then valueHeaderText = "Config"
+
+    On Error GoTo EH
+    tbl.Unlist
+    Set targetRange = ws.Range( _
+        ws.Cells(DEV_CONFIG_HEADER_ROW, leftCol), _
+        ws.Cells(DEV_CONFIG_HEADER_ROW + rowCount, leftCol + DEV_CONFIG_COL_COUNT - 1) _
+    )
+    targetRange.Clear
+    targetRange.NumberFormat = "@"
+    targetRange.Cells(1, DEV_CONFIG_MARKER_COL).Value = DEV_MARKER_HEADER
+    targetRange.Cells(1, DEV_CONFIG_KEY_COL).Value = "Key"
+    targetRange.Cells(1, DEV_CONFIG_VALUE_COL).Value = valueHeaderText
+    targetRange.Cells(1, DEV_CONFIG_STYLES_COL).Value = DEV_HEADER_STYLES
+
+    Set mp_RebuildConfigTableAfterResizeFailure = ws.ListObjects.Add(xlSrcRange, targetRange, , xlYes)
+    On Error Resume Next
+    mp_RebuildConfigTableAfterResizeFailure.Name = tableName
+    On Error GoTo 0
+    m_EnsureConfigTableTextFormat mp_RebuildConfigTableAfterResizeFailure
+    Exit Function
+EH:
+    Set mp_RebuildConfigTableAfterResizeFailure = Nothing
 End Function
 
 Private Sub mp_ShrinkConfigColumnsToMaxWidth( _

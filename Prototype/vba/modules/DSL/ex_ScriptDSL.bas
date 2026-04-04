@@ -29,7 +29,7 @@ Private Const BATCH_CONTEXT_KEYS_RESULTS_TABLE_REF As String = "KeysResultsTable
 Private Const BATCH_KEYRESULT_KEY_ALIAS As String = "Key"
 Private Const BATCH_KEYRESULT_KEYFIELD_SUFFIX As String = ".KeyFieldAlias"
 Private Const DEBUG_LOG_PATH As String = "Logs\personalcard_pipeline.log"
-Private Const DEBUG_LOG_ENABLED As Boolean = True
+Private Const DEBUG_LOG_ENABLED As Boolean = False
 
 Private Const EXEC_FLOW_NONE As String = ""
 Private Const EXEC_FLOW_BREAK As String = "break"
@@ -99,7 +99,8 @@ Public Sub m_ApplyScriptToSheet( _
     ByVal ws As Worksheet, _
     ByVal cfg As Object, _
     ByVal resultTables As Collection, _
-    Optional ByVal scriptConfigKey As String = SCRIPT_KEY _
+    Optional ByVal scriptConfigKey As String = SCRIPT_KEY, _
+    Optional ByVal layoutBatchApplyRefresh As Boolean = True _
 )
     Dim scriptText As String
     Dim blocks As Collection
@@ -110,6 +111,8 @@ Public Sub m_ApplyScriptToSheet( _
     Dim postProcessFooterLines As Collection
     Dim usedCols As Long
     Dim startedDeferredRender As Boolean
+    Dim startedLayoutBatch As Boolean
+    Dim layoutBatchError As String
     Dim prevScreenUpdating As Boolean
     Dim runStamp As String
     Dim prevActiveSheet As Worksheet
@@ -154,6 +157,8 @@ Public Sub m_ApplyScriptToSheet( _
     usedCols = mp_GetLastUsedColumn(ws)
     If usedCols <= 0 Then usedCols = 1
 
+    ex_ResultLayoutItemsRt.m_BeginBatchUpdate ws
+    startedLayoutBatch = True
     ex_PostProcessActions.m_ResetScriptHeaderCursor ws
     ex_PostProcessActions.m_ResetScriptFooterCursor ws
     ex_PostProcessActions.m_SetExecutionSheetContext ws
@@ -172,6 +177,11 @@ Public Sub m_ApplyScriptToSheet( _
     mp_DebugLog "execute blocks ok"
     ex_PostProcessActions.m_CommitDeferredRender ws
     mp_DebugLog "deferred commit ok"
+    If Not ex_ResultLayoutItemsRt.m_EndBatchUpdate(ws, layoutBatchApplyRefresh, layoutBatchError) Then
+        If Len(layoutBatchError) = 0 Then layoutBatchError = "Layout batch update failed."
+        Err.Raise vbObjectError + 1593, "ex_ScriptDSL", layoutBatchError
+    End If
+    startedLayoutBatch = False
 
     If Len(prevActiveSheetName) > 0 Then
         On Error Resume Next
@@ -199,6 +209,12 @@ EH:
     If startedDeferredRender Then
         On Error Resume Next
         ex_PostProcessActions.m_EndDeferredRender ws
+        On Error GoTo 0
+    End If
+    If startedLayoutBatch Then
+        On Error Resume Next
+        layoutBatchError = vbNullString
+        ex_ResultLayoutItemsRt.m_EndBatchUpdate ws, False, layoutBatchError
         On Error GoTo 0
     End If
     If Len(prevActiveSheetName) > 0 Then

@@ -9,7 +9,27 @@
             "approve": true,
             "matchCommandLine": true
         },
-        "mv": true
+        "mv": true,
+        "/^perl -e 'my \\$n=-2147215386; printf\\(\"%X\\\\n\", \\$n & 0xFFFFFFFF\\);'$/": {
+            "approve": true,
+            "matchCommandLine": true
+        },
+        "/^python3 - <<'PY'\nfrom pathlib import Path\np=Path\\('/workspaces/ExcelPrototype/Prototype/config/modes/PersonalCard/PersonalCardProfiles\\.xml'\\)\ntext=p\\.read_text\\(encoding='utf-8'\\)\nfor marker in \\['Map\\[OutCommandDate\\]','Map\\[OutCommandNumber\\]','Map\\[ArrivalCommandDate\\]'\\]:\n    i=text\\.find\\(marker\\)\n    if i==-1:\n        continue\n    s=text\\.rfind\\('<v',0,i\\)\n    e=text\\.find\\('</v>',i\\)\n    line=text\\[s:e\\+4\\]\n    print\\('\\\\n',marker,':',line\\)\n    for ch in line:\n        if ch in 'AАБB':\n            print\\(' char',ch,'U\\+%04X'%ord\\(ch\\)\\)\nPY$/": {
+            "approve": true,
+            "matchCommandLine": true
+        },
+        "/^python3 - <<'PY'\nfrom pathlib import Path\np=Path\\('/workspaces/ExcelPrototype/Prototype/config/modes/PersonalCard/PersonalCardProfiles\\.xml'\\)\ntext=p\\.read_text\\(encoding='utf-8'\\)\nfor marker in \\['Map\\[OutCommandDate\\]','Map\\[ArrivalCommandDate\\]'\\]:\n    i=text\\.find\\(marker\\)\n    s=text\\.rfind\\('<v',0,i\\)\n    e=text\\.find\\('</v>',i\\)\n    line=text\\[s:e\\+4\\]\n    print\\(line\\)\n    for ch in line:\n        if ch in 'AА':\n            print\\(ch, 'U\\+%04X'%ord\\(ch\\)\\)\nPY$/": {
+            "approve": true,
+            "matchCommandLine": true
+        },
+        "/^cd /workspaces/ExcelPrototype && git rev-parse --short HEAD && git log --oneline -n 5$/": {
+            "approve": true,
+            "matchCommandLine": true
+        },
+        "/^cd /workspaces/ExcelPrototype && grep -RIn \"target=\\\\\"column\\\\\"\" Prototype/config/modes \\| cut -d: -f1 \\| sort -u \\| while read f; do grep -n \"target=\\\\\"column\\\\\"\\\\\\|selector=\\\\\"kind=\" \"\\$f\"; echo \"--- \\$f\"; done$/": {
+            "approve": true,
+            "matchCommandLine": true
+        }
     },
     "files.associations": {
         "*.jslike": "javascript"

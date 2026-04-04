@@ -34,7 +34,6 @@
 		<v key="Export.WordTemplatePath">Templates\TemplateOZD.docx</v>
 		<v key="Export.OutputMode">CreateWithPostfix</v>
 		<v key="Export.OutputPostfix">_result</v>
-		<resultLayoutScript include="HealthBenefits_ResultLayoutScript.jslike"/>
 		<preProcessScript include="Default_PreProcessScript.jslike"/>
 		<postProcessScript execution="Implicit" include="Default_PostProcessScript.jslike"/>
 		<postProcessScript execution="Explicit" include="Default_PostProcessScript.jslike"/>

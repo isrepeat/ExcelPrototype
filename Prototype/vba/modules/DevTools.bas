@@ -14,6 +14,7 @@ Private Const COMP_TYPE_FORM As String = "form"
 Private Const COMP_TYPE_SHEET As String = "sheet"
 Private Const COMP_TYPE_WORKBOOK As String = "workbook"
 Private Const UTF8_BAS_FILENAME_SUFFIX As String = ".utf8.bas"
+Private Const MAX_VBA_COMPONENT_NAME_LEN As Long = 31
 ' True  -> legacy fast import for .bas via VBComponents.Import.
 ' False -> current UTF-safe import path via AddFromString.
 Private Const USE_LEGACY_FAST_BAS_IMPORT As Boolean = True
@@ -360,6 +361,7 @@ Private Sub mp_ImportFolderRecursive( _
                 Else
                     componentName = fallbackName
                 End If
+                mp_EnsureValidComponentNameLength componentName, importPath
 
                 mp_RemoveComponentIfExists componentName
                 Set importedComp = Nothing
@@ -403,6 +405,13 @@ EH_IMPORT_FILE:
     Err.Clear
     On Error GoTo 0
     GoTo ContinueNextFile
+End Sub
+
+Private Sub mp_EnsureValidComponentNameLength(ByVal componentName As String, ByVal importPath As String)
+    If Len(componentName) <= MAX_VBA_COMPONENT_NAME_LEN Then Exit Sub
+    Err.Raise vbObjectError + 1010, "mp_EnsureValidComponentNameLength", _
+              "VBA component name '" & componentName & "' is too long (" & CStr(Len(componentName)) & _
+              "). Maximum allowed is " & CStr(MAX_VBA_COMPONENT_NAME_LEN) & ". File: " & importPath
 End Sub
 
 Private Sub mp_ImportStandardModuleFromSource( _

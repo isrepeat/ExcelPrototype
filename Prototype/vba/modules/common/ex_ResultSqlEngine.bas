@@ -6,6 +6,7 @@ Private Const LIKE_DIALECT_STAR As String = "star"
 Private Const LIKE_DIALECT_PERCENT As String = "percent"
 Private Const LONG_TEXT_CACHE_AMBIGUOUS As String = "#AMBIGUOUS#"
 Private Const HYDRATION_DEBUG_LOG_PATH As String = "Logs\personalcard_pipeline.log"
+Private Const HYDRATION_DEBUG_LOG_ENABLED As Boolean = False
 
 Private g_LikeDialectByConnection As Object
 Private g_LongTextRuntimeCacheBySignature As Object
@@ -234,6 +235,635 @@ Public Function m_BuildTableRefFromSheetName( _
         m_BuildTableRefFromSheetName = "[" & Replace$(sheetName, "]", "]]" ) & "]"
     Else
         m_BuildTableRefFromSheetName = "[" & Replace$(sheetName, "]", "]]" ) & "$]"
+    End If
+End Function
+
+Public Function m_ResolveAdoTableRefForQuery( _
+    ByVal adoConn As Object, _
+    ByVal tableRef As String, _
+    ByVal errSource As String, _
+    ByVal errCannotOpenCode As Long _
+) As String
+    Dim primaryErr As String
+    Dim altRef As String
+    Dim altErr As String
+    Dim schemaRef As String
+    Dim schemaErr As String
+    Dim rawRef As String
+
+    tableRef = Trim$(tableRef)
+    If Len(tableRef) = 0 Then
+        Err.Raise errCannotOpenCode, errSource, "Table reference is empty."
+    End If
+    If adoConn Is Nothing Then
+        Err.Raise errCannotOpenCode, errSource, "ADO connection is not initialized for table reference '" & tableRef & "'."
+    End If
+
+    If mp_CanOpenAdoTableRef(adoConn, tableRef, primaryErr) Then
+        m_ResolveAdoTableRefForQuery = tableRef
+        Exit Function
+    End If
+
+    rawRef = m_UnquoteSqlIdentifier(tableRef)
+    If Not m_IsExplicitAdoRangeReference(rawRef) Then
+        Err.Raise errCannotOpenCode, errSource, _
+            "Failed to open table reference '" & tableRef & "'. ADO error: " & primaryErr
+    End If
+
+    altRef = mp_BuildExplicitAdoTableRefAlt(rawRef)
+    If Len(altRef) > 0 Then
+        If StrComp(altRef, tableRef, vbBinaryCompare) <> 0 Then
+            If mp_CanOpenAdoTableRef(adoConn, altRef, altErr) Then
+                m_ResolveAdoTableRefForQuery = altRef
+                Exit Function
+            End If
+        End If
+    End If
+
+    If mp_TryResolveExplicitRangeBySchema(adoConn, rawRef, schemaRef, schemaErr) Then
+        If Len(schemaRef) > 0 Then
+            If StrComp(schemaRef, tableRef, vbBinaryCompare) <> 0 Then
+                If mp_CanOpenAdoTableRef(adoConn, schemaRef, schemaErr) Then
+                    m_ResolveAdoTableRefForQuery = schemaRef
+                    Exit Function
+                End If
+            End If
+        End If
+    End If
+
+    Err.Raise errCannotOpenCode, errSource, _
+        "Failed to open explicit range table reference. Primary='" & tableRef & "' error: " & primaryErr & _
+        "; Alt='" & altRef & "' error: " & altErr & _
+        "; Schema='" & schemaRef & "' error: " & schemaErr
+End Function
+
+Public Function m_ResolveExplicitAdoObjectReference( _
+    ByVal adoConn As Object, _
+    ByVal configuredName As String, _
+    ByVal sourceAlias As String, _
+    ByVal tableAlias As String, _
+    Optional ByVal resolvedCache As Object = Nothing, _
+    Optional ByVal errSource As String = "ex_ResultSqlEngine", _
+    Optional ByVal errNotFoundCode As Long = vbObjectError + 1336 _
+) As String
+    Dim schemaRs As Object
+    Dim schemaName As String
+    Dim schemaNameClean As String
+    Dim listedNames As String
+    Dim listedCount As Long
+    Dim cacheKey As String
+
+    configuredName = mp_CleanAdoSchemaObjectName(Trim$(configuredName))
+    cacheKey = LCase$(Trim$(sourceAlias) & "|" & Trim$(tableAlias) & "|" & mp_NormalizeAdoObjectNameExactForLookup(configuredName))
+
+    If Not resolvedCache Is Nothing Then
+        If resolvedCache.Exists(cacheKey) Then
+            m_ResolveExplicitAdoObjectReference = CStr(resolvedCache(cacheKey))
+            Exit Function
+        End If
+    End If
+
+    If m_IsExplicitAdoRangeReference(configuredName) Then
+        m_ResolveExplicitAdoObjectReference = m_QuoteIdentifier(configuredName)
+        If Not resolvedCache Is Nothing Then
+            resolvedCache(cacheKey) = m_ResolveExplicitAdoObjectReference
+        End If
+        Exit Function
+    End If
+
+    Set schemaRs = adoConn.OpenSchema(20)
+    Do While Not schemaRs.EOF
+        schemaName = CStr(schemaRs.Fields("TABLE_NAME").Value)
+        schemaNameClean = mp_CleanAdoSchemaObjectName(schemaName)
+
+        If listedCount < 20 Then
+            If Len(listedNames) > 0 Then listedNames = listedNames & ", "
+            listedNames = listedNames & schemaNameClean
+            listedCount = listedCount + 1
+        End If
+
+        If mp_IsMatchingConfiguredAdoObject(schemaNameClean, configuredName) Then
+            schemaRs.Close
+            m_ResolveExplicitAdoObjectReference = m_QuoteIdentifier(schemaNameClean)
+            If Not resolvedCache Is Nothing Then
+                resolvedCache(cacheKey) = m_ResolveExplicitAdoObjectReference
+            End If
+            Exit Function
+        End If
+
+        schemaRs.MoveNext
+    Loop
+    schemaRs.Close
+
+    Err.Raise errNotFoundCode, errSource, _
+        "Configured SheetName '" & configuredName & "' for " & sourceAlias & ".Sheet[" & tableAlias & "] was not found. Available objects: " & listedNames
+End Function
+
+Public Function m_TryAutoDetectHeaderRangeReference( _
+    ByVal adoConn As Object, _
+    ByVal tableRef As String, _
+    ByVal expectedHeaders As Variant, _
+    ByVal keyHeader As String, _
+    ByVal sourceAlias As String, _
+    ByVal tableAlias As String, _
+    Optional ByVal autoTableRefCache As Object = Nothing _
+) As String
+    Dim rs As Object
+    Dim keyOrdinal As Long
+    Dim detectedRef As String
+    Dim sourceRef As String
+    Dim autoKey As String
+
+    m_TryAutoDetectHeaderRangeReference = tableRef
+    If Len(Trim$(tableRef)) = 0 Then Exit Function
+    If Len(Trim$(keyHeader)) = 0 Then Exit Function
+
+    sourceRef = m_UnquoteSqlIdentifier(tableRef)
+    If InStr(1, sourceRef, "$", vbBinaryCompare) = 0 Then Exit Function
+    If m_IsExplicitAdoRangeReference(sourceRef) Then Exit Function
+
+    autoKey = LCase$(Trim$(sourceAlias) & "|" & Trim$(tableAlias) & "|" & mp_NormalizeAdoObjectNameExactForLookup(sourceRef) & "|" & _
+                     m_NormalizeHeader(keyHeader) & "|" & mp_BuildExpectedHeadersSignature(expectedHeaders))
+    If Not autoTableRefCache Is Nothing Then
+        If autoTableRefCache.Exists(autoKey) Then
+            m_TryAutoDetectHeaderRangeReference = CStr(autoTableRefCache(autoKey))
+            Exit Function
+        End If
+    End If
+
+    On Error GoTo EH
+    Set rs = CreateObject("ADODB.Recordset")
+    rs.Open "SELECT * FROM " & tableRef & " WHERE 1=0", adoConn, 0, 1
+    keyOrdinal = m_RecordsetGetFieldOrdinal(rs, keyHeader)
+    If keyOrdinal >= 0 Then
+        rs.Close
+        If Not autoTableRefCache Is Nothing Then
+            autoTableRefCache(autoKey) = tableRef
+        End If
+        Exit Function
+    End If
+    rs.Close
+
+    If m_TryDetectHeaderRangeFromTopRows(adoConn, tableRef, expectedHeaders, keyHeader, detectedRef) Then
+        m_TryAutoDetectHeaderRangeReference = detectedRef
+    End If
+    If Not autoTableRefCache Is Nothing Then
+        autoTableRefCache(autoKey) = m_TryAutoDetectHeaderRangeReference
+    End If
+    Exit Function
+
+EH:
+    On Error Resume Next
+    If Not rs Is Nothing Then
+        If rs.State <> 0 Then rs.Close
+    End If
+    On Error GoTo 0
+End Function
+
+Public Function m_FinalizeAdoTableReferenceForQuery( _
+    ByVal adoConn As Object, _
+    ByVal tableRef As String, _
+    ByVal expectedHeaders As Variant, _
+    ByVal keyHeader As String, _
+    ByVal sourceAlias As String, _
+    ByVal tableAlias As String, _
+    Optional ByVal autoTableRefCache As Object = Nothing, _
+    Optional ByVal errSource As String = "ex_ResultSqlEngine", _
+    Optional ByVal errCannotOpenCode As Long = vbObjectError + 1781 _
+) As String
+    Dim detectedRef As String
+
+    detectedRef = m_TryAutoDetectHeaderRangeReference( _
+        adoConn, tableRef, expectedHeaders, keyHeader, sourceAlias, tableAlias, autoTableRefCache)
+
+    If m_IsExplicitAdoRangeReference(m_UnquoteSqlIdentifier(detectedRef)) Then
+        detectedRef = m_ResolveAdoTableRefForQuery(adoConn, detectedRef, errSource, errCannotOpenCode)
+    End If
+
+    m_FinalizeAdoTableReferenceForQuery = detectedRef
+End Function
+
+Public Function m_BuildAdoRangeReferenceFromMarkers( _
+    ByVal sourcePath As String, _
+    ByVal sourceAlias As String, _
+    ByVal tableAlias As String, _
+    ByVal configuredSheetName As String, _
+    ByVal startMarker As String, _
+    ByVal endMarker As String, _
+    Optional ByVal markerRangeRefCache As Object = Nothing, _
+    Optional ByVal errSource As String = "ex_ResultSqlEngine", _
+    Optional ByVal errExplicitRangeCode As Long = vbObjectError + 1748, _
+    Optional ByVal errSourceNotFoundCode As Long = vbObjectError + 1360, _
+    Optional ByVal errWorksheetNotFoundCode As Long = vbObjectError + 1749, _
+    Optional ByVal errStartMarkerNotFoundCode As Long = vbObjectError + 1750, _
+    Optional ByVal errEndMarkerNotFoundCode As Long = vbObjectError + 1751, _
+    Optional ByVal errHeaderRowCode As Long = vbObjectError + 1752, _
+    Optional ByVal errEmptyRangeCode As Long = vbObjectError + 1753, _
+    Optional ByVal errHeaderCellsMissingCode As Long = vbObjectError + 1754, _
+    Optional ByVal errRangeBoundsCode As Long = vbObjectError + 1755, _
+    Optional ByVal errSheetTokenCode As Long = vbObjectError + 1756 _
+) As String
+    Dim snapshotPath As String
+    Dim cacheKey As String
+    Dim normalizedSheetName As String
+    Dim wb As Workbook
+    Dim ws As Worksheet
+    Dim startCell As Range
+    Dim endCell As Range
+    Dim markerCol As Long
+    Dim headerRow As Long
+    Dim dataLastRow As Long
+    Dim firstHeaderCell As Range
+    Dim firstCol As Long
+    Dim markerColLetter As String
+    Dim firstColLetter As String
+    Dim sheetToken As String
+
+    On Error GoTo EH
+
+    If m_IsExplicitAdoRangeReference(configuredSheetName) Then
+        Err.Raise errExplicitRangeCode, errSource, _
+            "Auto-range markers are not allowed with explicit range SheetName for " & _
+            sourceAlias & ".Sheet[" & tableAlias & "].SheetName."
+    End If
+
+    sourcePath = Trim$(sourcePath)
+    If Dir$(sourcePath) = vbNullString Then
+        Err.Raise errSourceNotFoundCode, errSource, "Source file not found: " & sourcePath
+    End If
+
+    snapshotPath = ex_SourceSnapshot.m_GetSnapshotPath(sourcePath, "Source." & sourceAlias)
+    normalizedSheetName = mp_NormalizeAdoObjectNameExactForLookup(configuredSheetName)
+    cacheKey = LCase$(snapshotPath & "|" & normalizedSheetName & "|" & Trim$(startMarker) & "|" & Trim$(endMarker))
+
+    If Not markerRangeRefCache Is Nothing Then
+        If markerRangeRefCache.Exists(cacheKey) Then
+            m_BuildAdoRangeReferenceFromMarkers = CStr(markerRangeRefCache(cacheKey))
+            Exit Function
+        End If
+    End If
+
+    Set wb = Workbooks.Open(Filename:=snapshotPath, ReadOnly:=True, UpdateLinks:=0)
+
+    On Error Resume Next
+    wb.Windows(1).Visible = False
+    On Error GoTo EH
+
+    Set ws = m_FindWorksheetByConfiguredAdoName(wb, configuredSheetName)
+    If ws Is Nothing Then
+        Err.Raise errWorksheetNotFoundCode, errSource, _
+            "Worksheet was not found for resolved SheetName '" & configuredSheetName & "'." & vbCrLf & _
+            "Source alias: '" & sourceAlias & "', table alias: '" & tableAlias & "'." & vbCrLf & _
+            "Resolved source file: " & sourcePath & vbCrLf & _
+            "Config keys: '" & sourceAlias & ".Sheet[" & tableAlias & "].SheetName' and '" & sourceAlias & ".Sheet[" & tableAlias & "].SheetNameResolver'." & vbCrLf & _
+            "Available worksheets: " & m_GetWorksheetNamesPreview(wb, 20) & vbCrLf & _
+            "Hint: check BaseDate/date format in SheetNameResolver result (for example, month mismatch)."
+    End If
+
+    Set startCell = m_FindFirstMarkerCell(ws, startMarker)
+    If startCell Is Nothing Then
+        Err.Raise errStartMarkerNotFoundCode, errSource, _
+            "Start marker '" & startMarker & "' was not found on sheet '" & ws.Name & "'."
+    End If
+
+    markerCol = startCell.Column
+    Set endCell = m_FindMarkerCellInColumnAfterRow(ws, markerCol, endMarker, startCell.Row)
+    If endCell Is Nothing Then
+        Err.Raise errEndMarkerNotFoundCode, errSource, _
+            "End marker '" & endMarker & "' was not found below start marker '" & startMarker & "' in column " & CStr(markerCol) & " on sheet '" & ws.Name & "'."
+    End If
+
+    headerRow = startCell.Row - 1
+    If headerRow < 1 Then
+        Err.Raise errHeaderRowCode, errSource, _
+            "Header row cannot be determined: start marker '" & startMarker & "' is located at row " & CStr(startCell.Row) & "."
+    End If
+
+    dataLastRow = endCell.Row - 1
+    If dataLastRow < startCell.Row Then
+        Err.Raise errEmptyRangeCode, errSource, _
+            "Detected marker range is empty: end marker '" & endMarker & "' is at row " & CStr(endCell.Row) & "."
+    End If
+
+    Set firstHeaderCell = ws.Range(ws.Cells(headerRow, 1), ws.Cells(headerRow, markerCol)).Find( _
+        What:="*", _
+        After:=ws.Cells(headerRow, markerCol), _
+        LookIn:=xlValues, _
+        LookAt:=xlPart, _
+        SearchOrder:=xlByColumns, _
+        SearchDirection:=xlNext, _
+        MatchCase:=False)
+    If firstHeaderCell Is Nothing Then
+        Err.Raise errHeaderCellsMissingCode, errSource, _
+            "Header row " & CStr(headerRow) & " contains no header cells before marker column."
+    End If
+
+    firstCol = firstHeaderCell.Column
+    If firstCol > markerCol Then
+        Err.Raise errRangeBoundsCode, errSource, _
+            "Invalid detected range bounds: first column " & CStr(firstCol) & " is greater than marker column " & CStr(markerCol) & "."
+    End If
+
+    firstColLetter = m_ToColumnLetter(firstCol)
+    markerColLetter = m_ToColumnLetter(markerCol)
+    sheetToken = mp_BuildAdoSheetTokenForRange(configuredSheetName)
+    If Len(sheetToken) = 0 Then
+        Err.Raise errSheetTokenCode, errSource, _
+            "Failed to build ADO sheet token from SheetName '" & configuredSheetName & "'."
+    End If
+
+    m_BuildAdoRangeReferenceFromMarkers = sheetToken & firstColLetter & CStr(headerRow) & ":" & markerColLetter & CStr(dataLastRow)
+    If Not markerRangeRefCache Is Nothing Then
+        markerRangeRefCache(cacheKey) = m_BuildAdoRangeReferenceFromMarkers
+    End If
+
+    On Error Resume Next
+    If Not wb Is Nothing Then wb.Close SaveChanges:=False
+    On Error GoTo 0
+    Exit Function
+
+EH:
+    Dim errNo As Long
+    Dim errSrc As String
+    Dim innerErr As String
+    errNo = Err.Number
+    errSrc = Err.Source
+    innerErr = Err.Description
+    On Error Resume Next
+    If Not wb Is Nothing Then wb.Close SaveChanges:=False
+    On Error GoTo 0
+    If errNo <> 0 Then Err.Raise errNo, errSrc, innerErr
+End Function
+
+Private Function mp_CanOpenAdoTableRef( _
+    ByVal adoConn As Object, _
+    ByVal tableRef As String, _
+    ByRef outErrorText As String _
+) As Boolean
+    Dim rs As Object
+
+    On Error GoTo EH
+    Set rs = CreateObject("ADODB.Recordset")
+    rs.Open "SELECT * FROM " & tableRef & " WHERE 1=0", adoConn, 0, 1
+    rs.Close
+    mp_CanOpenAdoTableRef = True
+    Exit Function
+
+EH:
+    outErrorText = "[" & Err.Source & " #" & CStr(Err.Number) & "] " & Err.Description
+    On Error Resume Next
+    If Not rs Is Nothing Then
+        If rs.State <> 0 Then rs.Close
+    End If
+    On Error GoTo 0
+End Function
+
+Private Function mp_BuildExpectedHeadersSignature(ByVal expectedHeaders As Variant) As String
+    Dim d As Object
+    Dim i As Long
+    Dim token As String
+
+    Set d = CreateObject("Scripting.Dictionary")
+    d.CompareMode = 1
+
+    If Not m_IsEmptyVariantArray(expectedHeaders) Then
+        For i = LBound(expectedHeaders) To UBound(expectedHeaders)
+            token = m_NormalizeHeader(CStr(expectedHeaders(i)))
+            If Len(token) > 0 Then
+                If Not d.Exists(token) Then
+                    d(token) = True
+                    If Len(mp_BuildExpectedHeadersSignature) > 0 Then
+                        mp_BuildExpectedHeadersSignature = mp_BuildExpectedHeadersSignature & "|"
+                    End If
+                    mp_BuildExpectedHeadersSignature = mp_BuildExpectedHeadersSignature & token
+                End If
+            End If
+        Next i
+    End If
+
+    If Len(mp_BuildExpectedHeadersSignature) = 0 Then
+        mp_BuildExpectedHeadersSignature = "-"
+    End If
+End Function
+
+Private Function mp_BuildAdoSheetTokenForRange(ByVal configuredSheetName As String) As String
+    Dim token As String
+    Dim dollarPos As Long
+
+    token = Trim$(configuredSheetName)
+    If Len(token) = 0 Then Exit Function
+
+    If Left$(token, 1) = "[" And Right$(token, 1) = "]" Then
+        token = Mid$(token, 2, Len(token) - 2)
+    End If
+    token = mp_CleanAdoSchemaObjectName(token)
+    token = Trim$(token)
+    If Len(token) = 0 Then Exit Function
+
+    dollarPos = InStr(1, token, "$", vbBinaryCompare)
+    If dollarPos > 0 Then
+        mp_BuildAdoSheetTokenForRange = Left$(token, dollarPos)
+    Else
+        mp_BuildAdoSheetTokenForRange = token & "$"
+    End If
+End Function
+
+Private Function mp_IsMatchingConfiguredAdoObject(ByVal candidate As String, ByVal configured As String) As Boolean
+    Dim candidateExact As String
+    Dim configuredExact As String
+
+    candidateExact = mp_NormalizeAdoObjectNameExactForLookup(candidate)
+    configuredExact = mp_NormalizeAdoObjectNameExactForLookup(configured)
+
+    If StrComp(candidateExact, configuredExact, vbTextCompare) = 0 Then
+        mp_IsMatchingConfiguredAdoObject = True
+        Exit Function
+    End If
+
+    If InStr(1, configuredExact, "$", vbBinaryCompare) = 0 Then
+        If StrComp(mp_NormalizeAdoObjectNameForLookup(candidateExact), mp_NormalizeAdoObjectNameForLookup(configuredExact), vbTextCompare) = 0 Then
+            mp_IsMatchingConfiguredAdoObject = True
+            Exit Function
+        End If
+    End If
+End Function
+
+Private Function mp_NormalizeAdoObjectNameForLookup(ByVal value As String) As String
+    Dim dollarPos As Long
+
+    value = mp_NormalizeAdoObjectNameExactForLookup(value)
+
+    dollarPos = InStr(1, value, "$", vbBinaryCompare)
+    If dollarPos > 0 Then
+        value = Left$(value, dollarPos - 1)
+    End If
+
+    mp_NormalizeAdoObjectNameForLookup = LCase$(Trim$(value))
+End Function
+
+Private Function mp_NormalizeAdoObjectNameExactForLookup(ByVal value As String) As String
+    value = mp_CleanAdoSchemaObjectName(value)
+    value = mp_StripAdoObjectOrdinalPrefix(value)
+
+    If Len(value) >= 2 Then
+        If Left$(value, 1) = "[" And Right$(value, 1) = "]" Then
+            value = Mid$(value, 2, Len(value) - 2)
+        End If
+    End If
+
+    If Len(value) >= 2 Then
+        If Left$(value, 1) = "'" And Right$(value, 1) = "'" Then
+            value = Mid$(value, 2, Len(value) - 2)
+        End If
+    End If
+
+    mp_NormalizeAdoObjectNameExactForLookup = LCase$(Trim$(value))
+End Function
+
+Private Function mp_StripAdoObjectOrdinalPrefix(ByVal value As String) As String
+    Dim i As Long
+    Dim j As Long
+    Dim prefix As String
+    Dim marker As String
+
+    value = Trim$(value)
+    If Len(value) = 0 Then
+        mp_StripAdoObjectOrdinalPrefix = value
+        Exit Function
+    End If
+
+    j = 1
+    Do While j <= Len(value)
+        If Mid$(value, j, 1) < "0" Or Mid$(value, j, 1) > "9" Then Exit Do
+        j = j + 1
+    Loop
+
+    If j > 1 And j <= Len(value) Then
+        marker = Mid$(value, j, 1)
+        If marker = "#" Or marker = "." Or marker = ")" Or marker = "-" Then
+            prefix = Trim$(Left$(value, j - 1))
+            If IsNumeric(prefix) Then
+                i = j + 1
+                Do While i <= Len(value) And Mid$(value, i, 1) = " "
+                    i = i + 1
+                Loop
+                value = Mid$(value, i)
+            End If
+        End If
+    End If
+
+    mp_StripAdoObjectOrdinalPrefix = value
+End Function
+
+Private Function mp_BuildExplicitAdoTableRefAlt(ByVal rawRef As String) As String
+    rawRef = Trim$(rawRef)
+    If Len(rawRef) = 0 Then Exit Function
+    If Not m_IsExplicitAdoRangeReference(rawRef) Then Exit Function
+
+    If Left$(rawRef, 1) = "'" And Right$(rawRef, 1) = "'" Then
+        rawRef = Mid$(rawRef, 2, Len(rawRef) - 2)
+    End If
+
+    mp_BuildExplicitAdoTableRefAlt = "['" & Replace$(rawRef, "'", "''") & "']"
+End Function
+
+Private Function mp_TryResolveExplicitRangeBySchema( _
+    ByVal adoConn As Object, _
+    ByVal rawRef As String, _
+    ByRef outTableRef As String, _
+    ByRef outErrorText As String _
+) As Boolean
+    Dim schemaRs As Object
+    Dim configuredSheetToken As String
+    Dim rangeAddress As String
+    Dim schemaName As String
+    Dim candidateSheetToken As String
+
+    If adoConn Is Nothing Then Exit Function
+    rawRef = Trim$(rawRef)
+    If Len(rawRef) = 0 Then Exit Function
+    If Not m_IsExplicitAdoRangeReference(rawRef) Then Exit Function
+    If Not mp_TrySplitExplicitRangeRawRef(rawRef, configuredSheetToken, rangeAddress) Then Exit Function
+
+    On Error GoTo EH
+    Set schemaRs = adoConn.OpenSchema(20)
+    Do While Not schemaRs.EOF
+        schemaName = mp_CleanAdoSchemaObjectName(CStr(schemaRs.Fields("TABLE_NAME").Value))
+        candidateSheetToken = mp_ExtractSheetNameToken(schemaName)
+
+        If mp_IsMatchingConfiguredSheetToken(candidateSheetToken, configuredSheetToken) Then
+            outTableRef = "[" & Replace$(candidateSheetToken & "$" & rangeAddress, "]", "]]" ) & "]"
+            mp_TryResolveExplicitRangeBySchema = True
+            Exit Do
+        End If
+
+        schemaRs.MoveNext
+    Loop
+
+Cleanup:
+    On Error Resume Next
+    If Not schemaRs Is Nothing Then
+        schemaRs.Close
+    End If
+    On Error GoTo 0
+    Exit Function
+
+EH:
+    outErrorText = "[" & Err.Source & " #" & CStr(Err.Number) & "] " & Err.Description
+    Resume Cleanup
+End Function
+
+Private Function mp_TrySplitExplicitRangeRawRef( _
+    ByVal rawRef As String, _
+    ByRef outSheetToken As String, _
+    ByRef outRangeAddress As String _
+) As Boolean
+    Dim dollarPos As Long
+
+    rawRef = Trim$(rawRef)
+    If Len(rawRef) = 0 Then Exit Function
+
+    dollarPos = InStr(1, rawRef, "$", vbBinaryCompare)
+    If dollarPos <= 1 Then Exit Function
+    If dollarPos >= Len(rawRef) Then Exit Function
+
+    outSheetToken = Trim$(Left$(rawRef, dollarPos - 1))
+    outRangeAddress = Trim$(Mid$(rawRef, dollarPos + 1))
+    If Len(outSheetToken) = 0 Then Exit Function
+    If Len(outRangeAddress) = 0 Then Exit Function
+
+    mp_TrySplitExplicitRangeRawRef = True
+End Function
+
+Private Function mp_IsMatchingConfiguredSheetToken( _
+    ByVal candidateSheetToken As String, _
+    ByVal configuredSheetToken As String _
+) As Boolean
+    Dim candidateNorm As String
+    Dim configuredNorm As String
+    Dim candidateAlt As String
+    Dim configuredAlt As String
+
+    candidateNorm = LCase$(Trim$(mp_CleanAdoSchemaObjectName(candidateSheetToken)))
+    configuredNorm = LCase$(Trim$(mp_CleanAdoSchemaObjectName(configuredSheetToken)))
+    If Len(candidateNorm) = 0 Or Len(configuredNorm) = 0 Then Exit Function
+
+    If StrComp(candidateNorm, configuredNorm, vbTextCompare) = 0 Then
+        mp_IsMatchingConfiguredSheetToken = True
+        Exit Function
+    End If
+
+    candidateAlt = Replace$(candidateNorm, "#", ".")
+    configuredAlt = Replace$(configuredNorm, "#", ".")
+    If StrComp(candidateAlt, configuredAlt, vbTextCompare) = 0 Then
+        mp_IsMatchingConfiguredSheetToken = True
+        Exit Function
+    End If
+
+    candidateAlt = Replace$(candidateNorm, ".", "#")
+    configuredAlt = Replace$(configuredNorm, ".", "#")
+    If StrComp(candidateAlt, configuredAlt, vbTextCompare) = 0 Then
+        mp_IsMatchingConfiguredSheetToken = True
     End If
 End Function
 
@@ -2250,6 +2880,7 @@ Private Function mp_CleanAdoSchemaObjectName(ByVal value As String) As String
 End Function
 
 Private Sub mp_DebugHydrationLog(ByVal stage As String, ByVal messageText As String)
+    If Not HYDRATION_DEBUG_LOG_ENABLED Then Exit Sub
     On Error Resume Next
     ex_Messaging.m_LogToFile "[ex_ResultSqlEngine][" & CStr(stage) & "] " & CStr(messageText), HYDRATION_DEBUG_LOG_PATH
     On Error GoTo 0

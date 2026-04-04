@@ -39,7 +39,7 @@
 		<v key="Events.Sheet[EventsIn].Map[ComesFrom]">58|Звідки прибув</v>
 		<v type="#" key="EventsOut"/>
 		<v key="Events.Sheet[EventsOut].Type">Events</v>
-		<v key="Events.Sheet[EventsOut].SheetName">5. Тимчасово відсутні</v>
+		<v key="Events.Sheet[EventsOut].SheetName">5. Тимчасово відсутні$A5:R10000</v>
 		<v key="Events.Sheet[EventsOut].FieldsAliases">ZV; FIO; EventReason; City; OutDate; OutCommandDate; OutCommandNumber;
 			DaysCount; PlannedReturnDate; FactArrivalDate; ArrivalCommandDate; Note; Ticket</v>
 		<v key="Events.Sheet[EventsOut].Key">FIO</v>
@@ -175,7 +175,6 @@
 		<v key="Export.WordTemplatePath">Templates\Template_03.docx</v>
 		<v key="Export.OutputMode">CreateWithPostfix</v>
 		<v key="Export.OutputPostfix">_result</v>
-		<resultLayoutScript include="PersonalCard_ResultLayoutScript.jslike"/>
 		<preProcessScript include="Default_PreProcessScript.jslike"/>
 		<postProcessScript execution="Implicit" include="Default_PostProcessScript.jslike"/>
 	</profile>
