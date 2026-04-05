@@ -1966,7 +1966,7 @@ Private Function mp_ApplyTableControl( _
         If fieldCount > 0 Then
             ReDim headerValues(1 To 1, 1 To fieldCount)
             For colIndex = 1 To fieldCount
-                headerValues(1, colIndex) = CStr(fieldAliases(colIndex))
+                headerValues(1, colIndex) = mp_GetFieldHeaderText(tableObj, CStr(fieldAliases(colIndex)))
             Next colIndex
             Set writeRange = ws.Range(ws.Cells(headerRow, nodeCol), ws.Cells(headerRow, nodeCol + fieldCount - 1))
             writeRange.Value = headerValues
@@ -3046,6 +3046,19 @@ Private Function mp_GetFieldAliasesForTable(ByVal tableObj As obj_ResultTable, B
     End If
 
     Set mp_GetFieldAliasesForTable = aliases
+End Function
+
+Private Function mp_GetFieldHeaderText(ByVal tableObj As obj_ResultTable, ByVal fieldAlias As String) As String
+    fieldAlias = Trim$(fieldAlias)
+    If Len(fieldAlias) = 0 Then Exit Function
+
+    mp_GetFieldHeaderText = fieldAlias
+    If tableObj Is Nothing Then Exit Function
+
+    On Error Resume Next
+    mp_GetFieldHeaderText = tableObj.LabelByAlias(fieldAlias, fieldAlias)
+    If Len(Trim$(mp_GetFieldHeaderText)) = 0 Then mp_GetFieldHeaderText = fieldAlias
+    On Error GoTo 0
 End Function
 
 Private Sub mp_ResolveTableKindConfig( _

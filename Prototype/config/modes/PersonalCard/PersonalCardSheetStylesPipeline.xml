@@ -192,7 +192,7 @@
 
     <stage name="banners">
       <layer name="pc-banner-base" priority="100" enabled="true">
-        <rule target="row"
+        <rule target="rowkind"
               selector="kind=errorbanner|warningbanner|notebanner;col=1:8"
               styles="{
                 mergeColumns:8;
@@ -208,7 +208,7 @@
       </layer>
 
       <layer name="pc-banner-warning" priority="110" enabled="true">
-        <rule target="row"
+        <rule target="rowkind"
               selector="kind=warningbanner;col=1:8"
               styles="{
                 backColor:#4C3F10;
@@ -218,7 +218,7 @@
       </layer>
 
       <layer name="pc-banner-error" priority="120" enabled="true">
-        <rule target="row"
+        <rule target="rowkind"
               selector="kind=errorbanner;col=1:8"
               styles="{
                 backColor:#161616;
@@ -228,7 +228,7 @@
       </layer>
 
       <layer name="pc-banner-note" priority="125" enabled="true">
-        <rule target="row"
+        <rule target="rowkind"
               selector="kind=notebanner;col=1:8"
               styles="{
                 backColor:#2A2A2A;
@@ -238,7 +238,7 @@
       </layer>
 
       <layer name="pc-banner-title" priority="130" enabled="true">
-        <rule target="row"
+        <rule target="rowkind"
               selector="kind=errorbannertitle|warningbannertitle|notebannertitle;col=1:8"
               styles="{
                 fontBold:true;
@@ -246,8 +246,8 @@
       </layer>
 
       <layer name="pc-layout-banner-base" priority="140" enabled="true">
-        <rule target="row"
-              selector="kind=errorbannerlayout|warningbannerlayout|notebannerlayout;col=1:8"
+        <rule target="rowkind"
+              selector="kind=errorbannerlayout|warningbannerlayout|notebannerlayout"
               styles="{
                 mergeColumns:8;
                 overflow:wrap;
@@ -262,8 +262,8 @@
       </layer>
 
       <layer name="pc-layout-banner-warning" priority="150" enabled="true">
-        <rule target="row"
-              selector="kind=warningbannerlayout;col=1:8"
+        <rule target="rowkind"
+              selector="kind=warningbannerlayout"
               styles="{
                 backColor:#4C3F10;
                 fontColor:#FFE599;
@@ -272,8 +272,8 @@
       </layer>
 
       <layer name="pc-layout-banner-error" priority="160" enabled="true">
-        <rule target="row"
-              selector="kind=errorbannerlayout;col=1:8"
+        <rule target="rowkind"
+              selector="kind=errorbannerlayout"
               styles="{
                 backColor:#161616;
                 fontColor:#FFFFFF;
@@ -282,8 +282,8 @@
       </layer>
 
       <layer name="pc-layout-banner-note" priority="170" enabled="true">
-        <rule target="row"
-              selector="kind=notebannerlayout;col=1:8"
+        <rule target="rowkind"
+              selector="kind=notebannerlayout"
               styles="{
                 backColor:#2A2A2A;
                 fontColor:#FFE599;
@@ -292,8 +292,8 @@
       </layer>
 
       <layer name="pc-layout-banner-title" priority="180" enabled="true">
-        <rule target="row"
-              selector="kind=errorbannerlayouttitle|warningbannerlayouttitle|notebannerlayouttitle;col=1:8"
+        <rule target="rowkind"
+              selector="kind=errorbannerlayouttitle|warningbannerlayouttitle|notebannerlayouttitle"
               styles="{
                 fontBold:true;
               }"/>
