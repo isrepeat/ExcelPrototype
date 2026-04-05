@@ -190,7 +190,15 @@
       </stackPanel>
 
       <stackPanel at="r8c1" spanCells="4" spanRows="auto" orientation="vertical">
+        <control type="banner"
+                 name="pcWarningBannerSlot"
+                 spanCells="4"
+                 spanRows="2"/>
+
+        <border spanCells="4" spanRows="1"/>
+
         <control type="itemsPanel"
+                 name="pcResultBanners"
                  itemsSource="ResultBanners"
                  itemTemplate="ResultBannerTemplate"
                  orientation="vertical"
@@ -200,6 +208,7 @@
         <border spanCells="4" spanRows="1"/>
 
         <control type="itemsPanel"
+                 name="pcResultTables"
                  itemsSource="ResultTables"
                  itemTemplate="ResultTableTemplate"
                  orientation="vertical"
@@ -221,8 +230,9 @@
         <control type="label"
                  text="{Binding Body}"
                  rowKind="{Binding Kind}"
+                 highlightSegments="{Binding HighlightSegments}"
                  spanCells="4"
-                 spanRows="5"/>
+                 spanRows="1"/>
 
         <border spanCells="4" spanRows="1"/>
       </stackPanel>
@@ -240,9 +250,9 @@
                  itemsSource="{Binding Rows}"
                  rowKindHeader="header"
                  rowKindContent="content"
-                 fieldKindHeader="header"
-                 fieldKindContent="content"
-                 fieldKindVirtual="virtual"
+                 columnKindHeader="header"
+                 columnKindContent="content"
+                 columnKindVirtual="virtual"
                  spanCells="4"
                  spanRows="auto"/>
 

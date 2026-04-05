@@ -1427,31 +1427,26 @@ Private Sub mp_ApplyTimelineStyleLayers( _
     ByRef outputStyle As t_OutputSheetStyle, _
     ByVal pendingWarningBanners As Collection _
 )
-    Dim rowKindRanges As Object
-    Dim partialRowKindRanges As Object
-    Dim fetchDslRowKindRanges As Object
+    Dim kindRanges As Object
+    Dim partialKindRanges As Object
+    Dim fetchDslKindRanges As Object
 
-    Set rowKindRanges = mp_BuildTimelineRowKindRanges(headerRows, sectionRows, resultFieldRanges)
-    Set partialRowKindRanges = mp_BuildPartialMatchRowKindRanges(partialMatchRowRanges)
-    Set fetchDslRowKindRanges = mp_BuildFetchDslRowKindRanges(resultTables)
-    mp_MergeRowKindRanges rowKindRanges, partialRowKindRanges
-    mp_MergeRowKindRanges rowKindRanges, fetchDslRowKindRanges
+    Set kindRanges = mp_BuildTimelineKindRanges(headerRows, sectionRows, resultFieldRanges)
+    Set partialKindRanges = mp_BuildPartialMatchKindRanges(partialMatchRowRanges)
+    Set fetchDslKindRanges = mp_BuildFetchDslKindRanges(resultTables)
+    mp_MergeKindRanges kindRanges, partialKindRanges
+    mp_MergeKindRanges kindRanges, fetchDslKindRanges
 
-    ex_OutputFormattingPipeline.m_ApplySheetPipeline ws, resultFieldRanges, Nothing, rowKindRanges
+    ex_OutputFormattingPipeline.m_ApplySheetPipeline ws, resultFieldRanges, Nothing, kindRanges
 End Sub
 
-Private Function mp_BuildFetchDslRowKindRanges(ByVal resultTables As Collection) As Object
+Private Function mp_BuildFetchDslKindRanges(ByVal resultTables As Collection) As Object
     Dim result As Object
     Dim tableObj As obj_ResultTable
     Dim rowObj As obj_ResultRow
-    Dim kindRows As Collection
     Dim rowKindValue As String
-    Dim rowKindTokens As Variant
-    Dim tokenIndex As Long
-    Dim tokenText As String
 
-    Set result = CreateObject("Scripting.Dictionary")
-    result.CompareMode = 1
+    Set result = ex_StylePipelineEngine.m_CreateKindRanges()
 
     If Not resultTables Is Nothing Then
         For Each tableObj In resultTables
@@ -1463,27 +1458,17 @@ Private Function mp_BuildFetchDslRowKindRanges(ByVal resultTables As Collection)
                 rowKindValue = Trim$(rowObj.Kind)
                 If Len(rowKindValue) = 0 Then GoTo ContinueRow
 
-                rowKindTokens = Split(rowKindValue, "|")
-                For tokenIndex = LBound(rowKindTokens) To UBound(rowKindTokens)
-                    tokenText = LCase$(Trim$(CStr(rowKindTokens(tokenIndex))))
-                    If Len(tokenText) = 0 Then GoTo ContinueToken
-                    If Not result.Exists(tokenText) Then
-                        Set kindRows = New Collection
-                        Set result(tokenText) = kindRows
-                    End If
-                    result(tokenText).Add CLng(rowObj.RowIndex)
-ContinueToken:
-                Next tokenIndex
+                ex_StylePipelineEngine.m_AddKindRange result, rowKindValue, CLng(rowObj.RowIndex), 1, CLng(rowObj.RowIndex), 0
 ContinueRow:
             Next rowObj
 ContinueTable:
         Next tableObj
     End If
 
-    Set mp_BuildFetchDslRowKindRanges = result
+    Set mp_BuildFetchDslKindRanges = result
 End Function
 
-Private Function mp_BuildTimelineRowKindRanges( _
+Private Function mp_BuildTimelineKindRanges( _
     ByVal headerRows As Collection, _
     ByVal sectionRows As Collection, _
     ByVal resultFieldRanges As Collection _
@@ -1497,9 +1482,9 @@ Private Function mp_BuildTimelineRowKindRanges( _
     Dim rowEnd As Long
     Dim rowIndex As Long
     Dim rowKey As String
+    Dim rowRangeEntry As Variant
 
-    Set result = CreateObject("Scripting.Dictionary")
-    result.CompareMode = 1
+    Set result = ex_StylePipelineEngine.m_CreateKindRanges()
 
     Set headerRowsMap = mp_BuildRowsMap(headerRows)
     Set sectionRowsMap = mp_BuildRowsMap(sectionRows)
@@ -1528,13 +1513,22 @@ ContinueTarget:
         Next target
     End If
 
-    Set result("header") = mp_RowsMapToRangeCollection(headerRowsMap)
-    Set result("section") = mp_RowsMapToRangeCollection(sectionRowsMap)
-    Set result("content") = mp_RowsMapToRangeCollection(contentRowsMap)
-    Set mp_BuildTimelineRowKindRanges = result
+    For Each rowRangeEntry In mp_RowsMapToRangeCollection(headerRowsMap)
+        ex_StylePipelineEngine.m_AddKindRangeFromRowEntry result, "header", rowRangeEntry, 1, 0
+    Next rowRangeEntry
+
+    For Each rowRangeEntry In mp_RowsMapToRangeCollection(sectionRowsMap)
+        ex_StylePipelineEngine.m_AddKindRangeFromRowEntry result, "section", rowRangeEntry, 1, 0
+    Next rowRangeEntry
+
+    For Each rowRangeEntry In mp_RowsMapToRangeCollection(contentRowsMap)
+        ex_StylePipelineEngine.m_AddKindRangeFromRowEntry result, "content", rowRangeEntry, 1, 0
+    Next rowRangeEntry
+
+    Set mp_BuildTimelineKindRanges = result
 End Function
 
-Private Sub mp_MergeRowKindRanges(ByVal targetRanges As Object, ByVal sourceRanges As Object)
+Private Sub mp_MergeKindRanges(ByVal targetRanges As Object, ByVal sourceRanges As Object)
     Dim kindName As Variant
     Dim targetCollection As Collection
     Dim sourceCollection As Collection
@@ -1561,23 +1555,19 @@ ContinueKind:
     Next kindName
 End Sub
 
-Private Function mp_BuildPartialMatchRowKindRanges(ByVal partialMatchRowRanges As Collection) As Object
+Private Function mp_BuildPartialMatchKindRanges(ByVal partialMatchRowRanges As Collection) As Object
     Dim result As Object
-    Dim partialRanges As Collection
     Dim rowItem As Variant
 
-    Set result = CreateObject("Scripting.Dictionary")
-    result.CompareMode = 1
-    Set partialRanges = New Collection
+    Set result = ex_StylePipelineEngine.m_CreateKindRanges()
 
     If Not partialMatchRowRanges Is Nothing Then
         For Each rowItem In partialMatchRowRanges
-            partialRanges.Add rowItem
+            ex_StylePipelineEngine.m_AddKindRangeFromRowEntry result, "partialmatch", rowItem, 1, 0
         Next rowItem
     End If
 
-    Set result("partialmatch") = partialRanges
-    Set mp_BuildPartialMatchRowKindRanges = result
+    Set mp_BuildPartialMatchKindRanges = result
 End Function
 
 Private Function mp_BuildRowsMap(ByVal rowsCollection As Collection) As Object
@@ -1770,7 +1760,7 @@ Private Sub mp_ApplyResultTableMetaInfo( _
 
     virtualKind = LCase$(Trim$(ex_FetchDslEngine.m_GetGeneratedKindValue()))
     If Len(virtualKind) > 0 Then
-        tableObj.SetMetaInfoValue "VirtualFieldKind", virtualKind
+        tableObj.SetMetaInfoValue "VirtualColumnKind", virtualKind
     End If
 
     virtualColumns = ex_FetchDslEngine.m_GetVirtualColumns(cfg, sourceAlias, tableAlias)

@@ -306,7 +306,7 @@ End Sub
 
 Private Sub mp_ApplyConfigStylesFromPipeline(ByVal tbl As ListObject)
     Dim ws As Worksheet
-    Dim rowKindRanges As Object
+    Dim kindRanges As Object
     Dim allRows As Collection
     Dim headerRows As Collection
     Dim dataRows As Collection
@@ -323,8 +323,7 @@ Private Sub mp_ApplyConfigStylesFromPipeline(ByVal tbl As ListObject)
     If ws Is Nothing Then Exit Sub
     targetStableZoneLeft = ex_CustomDropdown.m_GetStableZoneStartLeft(ws)
 
-    Set rowKindRanges = CreateObject("Scripting.Dictionary")
-    rowKindRanges.CompareMode = 1
+    Set kindRanges = ex_StylePipelineEngine.m_CreateKindRanges()
 
     Set allRows = New Collection
     Set headerRows = New Collection
@@ -349,10 +348,10 @@ Private Sub mp_ApplyConfigStylesFromPipeline(ByVal tbl As ListObject)
         End If
     Next i
 
-    Set rowKindRanges("configall") = allRows
-    Set rowKindRanges("configheader") = headerRows
-    Set rowKindRanges("configdata") = dataRows
-    Set rowKindRanges("configmarker") = markerRows
+    mp_AddKindEntriesFromRows kindRanges, "configall", allRows
+    mp_AddKindEntriesFromRows kindRanges, "configheader", headerRows
+    mp_AddKindEntriesFromRows kindRanges, "configdata", dataRows
+    mp_AddKindEntriesFromRows kindRanges, "configmarker", markerRows
 
     If targetStableZoneLeft >= 0 Then
         ex_CustomDropdown.m_StabilizeChooseModeAnchorX ws, targetStableZoneLeft
@@ -360,10 +359,25 @@ Private Sub mp_ApplyConfigStylesFromPipeline(ByVal tbl As ListObject)
         ex_CustomDropdown.m_StabilizeChooseModeAnchorX ws, targetStableZoneLeft
     End If
 
-    ex_OutputFormattingPipeline.m_ApplySheetPipeline ws, Nothing, Nothing, rowKindRanges
+    ex_OutputFormattingPipeline.m_ApplySheetPipeline ws, Nothing, Nothing, kindRanges
     If targetStableZoneLeft >= 0 Then
         ex_CustomDropdown.m_StabilizeChooseModeAnchorX ws, targetStableZoneLeft
     End If
+End Sub
+
+Private Sub mp_AddKindEntriesFromRows( _
+    ByVal kindRanges As Object, _
+    ByVal kindName As String, _
+    ByVal rows As Collection _
+)
+    Dim rowItem As Variant
+
+    If kindRanges Is Nothing Then Exit Sub
+    If rows Is Nothing Then Exit Sub
+
+    For Each rowItem In rows
+        ex_StylePipelineEngine.m_AddKindRangeFromRowEntry kindRanges, kindName, rowItem, 1, 0
+    Next rowItem
 End Sub
 
 Public Sub m_NormalizeLegacyMarkerEntry(ByRef entries As Variant, ByVal rowIndex As Long)

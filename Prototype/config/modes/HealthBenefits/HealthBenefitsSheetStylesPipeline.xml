@@ -122,15 +122,15 @@
       </layer>
 
       <layer name="pc-virtual-added" priority="305" enabled="true">
-        <rule target="column"
-              selector="kind=header|virtual"
+          <rule target="columnkind"
+            selector="kind=header|virtual"
               styles="{
                 backColor:#3A2E1A;
                 fontColor:#FFDFA8;
                 fontBold:true;
               }"/>
-        <rule target="column"
-              selector="kind=content|virtual"
+          <rule target="columnkind"
+            selector="kind=content|virtual"
               styles="{
                 backColor:#2A2418;
                 fontColor:#F5E6C5;

@@ -17,8 +17,8 @@
 		<v key="Source.Events.SheetAliases">EventsIn; EventsOut</v>
 		<v key="Source.Daily.FilePath">..\..\..\WORK Alexandr Bondarenko\НАКАЗИ\DailyScope.xlsx</v>
 		<v key="Source.Daily.SheetAliases">DailyEvents</v>
-		<v key="BaseDate">30.03</v>
-		<v key="CommonKey" mutable="true">ТІМАЧЕВ Олексій Олександрович</v>
+		<v key="BaseDate">27.03</v>
+		<v key="CommonKey" mutable="true">ОНАЦЬКИЙ Олексій Петрович</v>
 		<v type="#" key="StateMain"/>
 		<v key="Main.Sheet[StateMain].Type">State</v>
 		<v key="Main.Sheet[StateMain].SheetName">ШПС</v>
@@ -30,7 +30,7 @@
 		<v key="Main.Sheet[StateMain].Map[IPN]">ІПН</v>
 		<v type="#" key="EventsIn"/>
 		<v key="Events.Sheet[EventsIn].Type">Events</v>
-		<v key="Events.Sheet[EventsIn].SheetName">4. Тимчасово прибулі</v>
+		<v key="Events.Sheet[EventsIn].SheetName">4. Тимчасово прибулі$A5:R10000</v>
 		<v key="Events.Sheet[EventsIn].FieldsAliases">ZV; FIO; ComesFrom;</v>
 		<v key="Events.Sheet[EventsIn].Key">FIO</v>
 		<v key="Events.Sheet[EventsIn].Sort">FIO</v>
@@ -59,7 +59,7 @@
 		<v key="Events.Sheet[EventsOut].Map[Ticket]">Стовпець1|Номер квитка</v>
 		<v type="#" key="DailyEvents"/>
 		<v key="Daily.Sheet[DailyEvents].Type">Events</v>
-		<v key="Daily.Sheet[DailyEvents].SheetName">{$BaseDate|dateformat:"\dd_\mm"}</v>
+		<v key="Daily.Sheet[DailyEvents].SheetName">{$BaseDate|dateformat:"\dd_\mm_test"}</v>
 		<v key="Daily.Sheet[DailyEvents].SheetNameResolver">ex_SourceResolvers.m_ResolveWithDateFormatter</v>
 		<v key="Daily.Sheet[DailyEvents].RangeStartMarker">StartTable_DailyEvents</v>
 		<v key="Daily.Sheet[DailyEvents].RangeEndMarker">EndTable_DailyEvents</v>
@@ -177,5 +177,6 @@
 		<v key="Export.OutputPostfix">_result</v>
 		<preProcessScript include="Default_PreProcessScript.jslike"/>
 		<postProcessScript execution="Implicit" include="Default_PostProcessScript.jslike"/>
+		<v key="PostProcess.ValidationMode">Enabled</v>
 	</profile>
 </profiles>

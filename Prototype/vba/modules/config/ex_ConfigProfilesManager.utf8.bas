@@ -1336,7 +1336,7 @@ Private Sub mp_ApplyConfigValueCells( _
 End Sub
 
 Private Sub mp_ApplyMutableStylePipeline(ByVal ws As Worksheet, ByVal tbl As ListObject, ByVal mutableKeys As Object)
-    Dim rowKindRanges As Object
+    Dim kindRanges As Object
     Dim allRows As Collection
     Dim headerRows As Collection
     Dim dataRows As Collection
@@ -1353,8 +1353,7 @@ Private Sub mp_ApplyMutableStylePipeline(ByVal ws As Worksheet, ByVal tbl As Lis
     If tbl Is Nothing Then Exit Sub
     targetStableZoneLeft = ex_CustomDropdown.m_GetStableZoneStartLeft(ws)
 
-    Set rowKindRanges = CreateObject("Scripting.Dictionary")
-    rowKindRanges.CompareMode = 1
+    Set kindRanges = ex_StylePipelineEngine.m_CreateKindRanges()
 
     Set allRows = New Collection
     Set headerRows = New Collection
@@ -1385,11 +1384,11 @@ Private Sub mp_ApplyMutableStylePipeline(ByVal ws As Worksheet, ByVal tbl As Lis
         Next i
     End If
 
-    Set rowKindRanges("configall") = allRows
-    Set rowKindRanges("configheader") = headerRows
-    Set rowKindRanges("configdata") = dataRows
-    Set rowKindRanges("configmarker") = markerRows
-    Set rowKindRanges("configmutable") = mutableRows
+    mp_AddKindEntriesFromRows kindRanges, "configall", allRows
+    mp_AddKindEntriesFromRows kindRanges, "configheader", headerRows
+    mp_AddKindEntriesFromRows kindRanges, "configdata", dataRows
+    mp_AddKindEntriesFromRows kindRanges, "configmarker", markerRows
+    mp_AddKindEntriesFromRows kindRanges, "configmutable", mutableRows
 
     If targetStableZoneLeft >= 0 Then
         ex_CustomDropdown.m_StabilizeChooseModeAnchorX ws, targetStableZoneLeft
@@ -1397,10 +1396,25 @@ Private Sub mp_ApplyMutableStylePipeline(ByVal ws As Worksheet, ByVal tbl As Lis
         ex_CustomDropdown.m_StabilizeChooseModeAnchorX ws, targetStableZoneLeft
     End If
 
-    ex_OutputFormattingPipeline.m_ApplySheetPipeline ws, Nothing, Nothing, rowKindRanges
+    ex_OutputFormattingPipeline.m_ApplySheetPipeline ws, Nothing, Nothing, kindRanges
     If targetStableZoneLeft >= 0 Then
         ex_CustomDropdown.m_StabilizeChooseModeAnchorX ws, targetStableZoneLeft
     End If
+End Sub
+
+Private Sub mp_AddKindEntriesFromRows( _
+    ByVal kindRanges As Object, _
+    ByVal kindName As String, _
+    ByVal rows As Collection _
+)
+    Dim rowItem As Variant
+
+    If kindRanges Is Nothing Then Exit Sub
+    If rows Is Nothing Then Exit Sub
+
+    For Each rowItem In rows
+        ex_StylePipelineEngine.m_AddKindRangeFromRowEntry kindRanges, kindName, rowItem, 1, 0
+    Next rowItem
 End Sub
 
 Private Function mp_IsMutableKey(ByVal mutableKeys As Object, ByVal keyText As String) As Boolean

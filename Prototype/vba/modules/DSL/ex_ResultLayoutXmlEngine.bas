@@ -2,18 +2,26 @@ Attribute VB_Name = "ex_ResultLayoutXmlEngine"
 Option Explicit
 
 Private Const PROFILES_NS As String = "urn:excelprototype:profiles"
-Private Const INPUT_KEY_LAYOUT_ROWKINDS As String = "__ResultLayoutRowKinds"
 Private Const INPUT_KEY_LAYOUT_FIELDRANGES As String = "__ResultLayoutFieldRanges"
+Private Const INPUT_KEY_LAYOUT_KINDRANGES As String = "__ResultLayoutKindRanges"
 Private Const INPUT_KEY_LAYOUT_ITEMSOURCES As String = "__ResultLayoutItemsSources"
 Private Const META_KEY_VIRTUAL_FIELD_ALIASES As String = "VirtualFieldAliases"
-Private Const META_KEY_VIRTUAL_FIELD_KIND As String = "VirtualFieldKind"
+Private Const META_KEY_VIRTUAL_COLUMN_KIND As String = "VirtualColumnKind"
 Private Const TABLE_ATTR_ROW_KIND_HEADER As String = "rowKindHeader"
 Private Const TABLE_ATTR_ROW_KIND_CONTENT As String = "rowKindContent"
-Private Const TABLE_ATTR_FIELD_KIND_HEADER As String = "fieldKindHeader"
-Private Const TABLE_ATTR_FIELD_KIND_CONTENT As String = "fieldKindContent"
-Private Const TABLE_ATTR_FIELD_KIND_VIRTUAL As String = "fieldKindVirtual"
+Private Const TABLE_ATTR_COLUMN_KIND_HEADER As String = "columnKindHeader"
+Private Const TABLE_ATTR_COLUMN_KIND_CONTENT As String = "columnKindContent"
+Private Const TABLE_ATTR_COLUMN_KIND_VIRTUAL As String = "columnKindVirtual"
 Private Const DEFAULT_TABLE_ROW_KIND_HEADER As String = "header"
 Private Const DEFAULT_TABLE_ROW_KIND_CONTENT As String = "content"
+Private Const DEFAULT_TABLE_COLUMN_KIND_HEADER As String = "header"
+Private Const DEFAULT_TABLE_COLUMN_KIND_CONTENT As String = "content"
+Private Const DEFAULT_TABLE_COLUMN_KIND_VIRTUAL As String = "virtual"
+Private Const KIND_SCOPE_ROW As String = "row"
+Private Const KIND_SCOPE_COLUMN As String = "column"
+Private Const DEFAULT_BANNER_KIND As String = "notebanner"
+Private Const LAYOUT_ITEMSOURCE_BANNER_CONTROL_PREFIX As String = "__LayoutBannerControl."
+Private Const DEFAULT_BANNER_CONTROL_ROWS As Long = 2
 Private Const DEBUG_LOG_PATH As String = "Logs\layout_engine.log"
 Private Const DEBUG_LOG_ENABLED As Boolean = False
 Private Const ROOT_BOUNDS_FIELD_ROW As String = "row"
@@ -23,6 +31,7 @@ Private Const ROOT_BOUNDS_FIELD_HEIGHT As String = "height"
 Private g_ButtonStylesMap As Object
 Private g_RootBoundsBySheet As Object
 Private g_VirtualAliasesLookupByText As Object
+Private g_CurrentKindRanges As Object
 
 Public Function m_ApplyResultLayoutFromDom( _
     ByVal doc As Object, _
@@ -77,10 +86,11 @@ Public Function m_ApplyResultLayoutFromDom( _
     If gridNodes.Length = 0 Then Exit Function
     mp_DebugLog "m_ApplyResultLayoutFromDom: grid count=" & CStr(gridNodes.Length)
 
-    stageName = "init-rowKinds"
+    stageName = "init-kindRanges"
     Set g_VirtualAliasesLookupByText = Nothing
-    Set rowKinds = CreateObject("Scripting.Dictionary")
-    rowKinds.CompareMode = 1
+    Set rowKinds = Nothing
+    Set g_CurrentKindRanges = CreateObject("Scripting.Dictionary")
+    g_CurrentKindRanges.CompareMode = 1
 
     Set resultFieldRanges = New Collection
 
@@ -125,8 +135,8 @@ ContinueGrid:
     Next gridNode
 
     If Not inputObject Is Nothing Then
-        ex_ScriptIO.m_SetObject inputObject, INPUT_KEY_LAYOUT_ROWKINDS, rowKinds
         ex_ScriptIO.m_SetObject inputObject, INPUT_KEY_LAYOUT_FIELDRANGES, resultFieldRanges
+        ex_ScriptIO.m_SetObject inputObject, INPUT_KEY_LAYOUT_KINDRANGES, g_CurrentKindRanges
     End If
 
     m_ApplyResultLayoutFromDom = True
@@ -211,8 +221,9 @@ Public Function m_ApplyResultLayoutPartialFromDom( _
 
     stageName = "init-stub-context"
     Set g_VirtualAliasesLookupByText = Nothing
-    Set rowKinds = CreateObject("Scripting.Dictionary")
-    rowKinds.CompareMode = 1
+    Set rowKinds = Nothing
+    Set g_CurrentKindRanges = CreateObject("Scripting.Dictionary")
+    g_CurrentKindRanges.CompareMode = 1
     Set resultFieldRanges = New Collection
 
     stageName = "apply-partial-layout"
@@ -874,6 +885,18 @@ Private Function mp_MeasureControl( _
             Else
                 outHeight = 1
             End If
+        Case "banner"
+            If hasHeightSpec Then
+                If heightAuto Then
+                    outHeight = DEFAULT_BANNER_CONTROL_ROWS
+                Else
+                    outHeight = heightValue
+                End If
+            ElseIf hasParentHeight Then
+                outHeight = parentHeight
+            Else
+                outHeight = DEFAULT_BANNER_CONTROL_ROWS
+            End If
         Case "table"
             If hasHeightSpec Then
                 If heightAuto Then
@@ -1416,6 +1439,8 @@ Private Function mp_ApplyControl( _
     Select Case controlType
         Case "label"
             mp_ApplyControl = mp_ApplyLabelControl(node, ws, dataItem, nodeRow, nodeCol, nodeWidth, nodeHeight, rowKinds, outErrorText)
+        Case "banner"
+            mp_ApplyControl = mp_ApplyBannerControl(node, ws, dataItem, nodeRow, nodeCol, nodeWidth, nodeHeight, rowKinds, outErrorText)
         Case "table"
             mp_ApplyControl = mp_ApplyTableControl(node, ws, dataItem, nodeRow, nodeCol, nodeWidth, nodeHeight, rowKinds, resultFieldRanges, outErrorText)
         Case "itemspanel"
@@ -1455,6 +1480,8 @@ Private Function mp_ApplyLabelControl( _
     Dim targetRange As Range
     Dim textValue As String
     Dim rowKindText As String
+    Dim highlightBinding As String
+    Dim highlightSegments As Object
 
     If nodeWidth <= 0 Then
         outErrorText = "Label control requires width > 0."
@@ -1478,12 +1505,296 @@ Private Function mp_ApplyLabelControl( _
     targetRange.HorizontalAlignment = xlLeft
     targetRange.VerticalAlignment = xlTop
 
+    highlightBinding = Trim$(mp_NodeAttrText(node, "highlightSegments"))
+    If Len(highlightBinding) > 0 Then
+        Set highlightSegments = Nothing
+        If mp_TryResolveBindingObject(highlightBinding, dataItem, highlightSegments) Then
+            If TypeName(highlightSegments) = "Collection" Then
+                mp_ApplyLabelHighlightSegments targetRange.Cells(1, 1), textValue, highlightSegments
+            End If
+        End If
+    End If
+
     rowKindText = Trim$(mp_ResolveTemplateText(mp_NodeAttrText(node, "rowKind"), dataItem))
     If Len(rowKindText) > 0 Then
         mp_RegisterRowKinds rowKindText, targetRange.Row, rowKinds
+        mp_RegisterKindRanges rowKindText, targetRange.Row, targetRange.Column, targetRange.Row + targetRange.Rows.Count - 1, targetRange.Column + targetRange.Columns.Count - 1
     End If
 
     mp_ApplyLabelControl = True
+End Function
+
+Private Function mp_ApplyBannerControl( _
+    ByVal node As Object, _
+    ByVal ws As Worksheet, _
+    ByVal dataItem As Object, _
+    ByVal nodeRow As Long, _
+    ByVal nodeCol As Long, _
+    ByVal nodeWidth As Long, _
+    ByVal nodeHeight As Long, _
+    ByVal rowKinds As Object, _
+    ByRef outErrorText As String _
+) As Boolean
+
+    Dim targetRange As Range
+    Dim titleRange As Range
+    Dim bodyRange As Range
+    Dim titleText As String
+    Dim bodyText As String
+    Dim bannerKind As String
+    Dim composedText As String
+    Dim highlightSegments As Object
+    Dim highlightBinding As String
+    Dim bannerItem As Object
+    Dim rowIndex As Long
+
+    If nodeWidth <= 0 Then
+        outErrorText = "Banner control requires width > 0."
+        Exit Function
+    End If
+    If nodeHeight <= 0 Then nodeHeight = DEFAULT_BANNER_CONTROL_ROWS
+
+    If Not mp_TryBuildRangeByTracks(ws, nodeRow, nodeCol, nodeHeight, nodeWidth, targetRange) Then
+        outErrorText = "Banner control resolved to invalid grid bounds."
+        Exit Function
+    End If
+
+    If Not mp_TryGetBannerControlItem(node, dataItem, bannerItem, outErrorText) Then Exit Function
+
+    titleText = vbNullString
+    bodyText = vbNullString
+    bannerKind = vbNullString
+    Set highlightSegments = Nothing
+
+    If Not bannerItem Is Nothing Then
+        titleText = mp_ReadBannerItemString(bannerItem, "Title")
+        bodyText = mp_ReadBannerItemString(bannerItem, "Body")
+        bannerKind = LCase$(Trim$(mp_ReadBannerItemString(bannerItem, "Kind")))
+        Call mp_TryGetDictionaryObjectRef(bannerItem, "HighlightSegments", highlightSegments)
+    End If
+
+    If Len(titleText) = 0 Then titleText = mp_ResolveTextValue(mp_NodeAttrText(node, "title"), dataItem)
+    If Len(bodyText) = 0 Then bodyText = mp_ResolveTextValue(mp_NodeAttrText(node, "text"), dataItem)
+
+    If Len(bannerKind) = 0 Then
+        bannerKind = LCase$(Trim$(mp_ResolveTemplateText(mp_NodeAttrText(node, "kind"), dataItem)))
+    End If
+    If Len(bannerKind) = 0 Then
+        bannerKind = LCase$(Trim$(mp_ResolveTemplateText(mp_NodeAttrText(node, "rowKind"), dataItem)))
+    End If
+    If Len(bannerKind) = 0 Then bannerKind = DEFAULT_BANNER_KIND
+
+    If highlightSegments Is Nothing Then
+        highlightBinding = Trim$(mp_NodeAttrText(node, "highlightSegments"))
+        If Len(highlightBinding) > 0 Then
+            If mp_TryResolveBindingObject(highlightBinding, dataItem, highlightSegments) Then
+                If TypeName(highlightSegments) <> "Collection" Then Set highlightSegments = Nothing
+            End If
+        End If
+    End If
+
+    If Len(titleText) = 0 And Len(bodyText) = 0 Then
+        targetRange.UnMerge
+        targetRange.ClearContents
+        mp_ApplyBannerControl = True
+        Exit Function
+    End If
+
+    targetRange.UnMerge
+
+    If nodeHeight >= 2 Then
+        Set titleRange = ws.Range(ws.Cells(nodeRow, nodeCol), ws.Cells(nodeRow, nodeCol + nodeWidth - 1))
+        titleRange.UnMerge
+        If titleRange.Cells.CountLarge > 1 Then titleRange.Merge
+        titleRange.Value = titleText
+        titleRange.WrapText = True
+        titleRange.HorizontalAlignment = xlLeft
+        titleRange.VerticalAlignment = xlTop
+
+        Set bodyRange = ws.Range(ws.Cells(nodeRow + 1, nodeCol), ws.Cells(nodeRow + nodeHeight - 1, nodeCol + nodeWidth - 1))
+        bodyRange.UnMerge
+        If bodyRange.Cells.CountLarge > 1 Then bodyRange.Merge
+        bodyRange.Value = bodyText
+        bodyRange.WrapText = True
+        bodyRange.HorizontalAlignment = xlLeft
+        bodyRange.VerticalAlignment = xlTop
+
+        If Not highlightSegments Is Nothing Then
+            If TypeName(highlightSegments) = "Collection" Then
+                mp_ApplyLabelHighlightSegments bodyRange.Cells(1, 1), bodyText, highlightSegments
+            End If
+        End If
+
+        mp_RegisterRowKinds bannerKind & "title", titleRange.Row, rowKinds
+        mp_RegisterKindRanges bannerKind & "title", titleRange.Row, titleRange.Column, titleRange.Row + titleRange.Rows.Count - 1, titleRange.Column + titleRange.Columns.Count - 1
+        For rowIndex = bodyRange.Row To bodyRange.Row + bodyRange.Rows.Count - 1
+            mp_RegisterRowKinds bannerKind, rowIndex, rowKinds
+        Next rowIndex
+        mp_RegisterKindRanges bannerKind, bodyRange.Row, bodyRange.Column, bodyRange.Row + bodyRange.Rows.Count - 1, bodyRange.Column + bodyRange.Columns.Count - 1
+    Else
+        composedText = bodyText
+        If Len(titleText) > 0 And Len(bodyText) > 0 Then
+            composedText = titleText & vbLf & vbLf & bodyText
+        ElseIf Len(titleText) > 0 Then
+            composedText = titleText
+        End If
+
+        targetRange.UnMerge
+        If targetRange.Cells.CountLarge > 1 Then targetRange.Merge
+        targetRange.Value = composedText
+        targetRange.WrapText = True
+        targetRange.HorizontalAlignment = xlLeft
+        targetRange.VerticalAlignment = xlTop
+
+        If Not highlightSegments Is Nothing Then
+            If TypeName(highlightSegments) = "Collection" Then
+                mp_ApplyLabelHighlightSegments targetRange.Cells(1, 1), composedText, highlightSegments
+            End If
+        End If
+
+        mp_RegisterRowKinds bannerKind, targetRange.Row, rowKinds
+        mp_RegisterKindRanges bannerKind, targetRange.Row, targetRange.Column, targetRange.Row + targetRange.Rows.Count - 1, targetRange.Column + targetRange.Columns.Count - 1
+    End If
+
+    mp_ApplyBannerControl = True
+End Function
+
+Private Function mp_TryGetBannerControlItem( _
+    ByVal bannerNode As Object, _
+    ByVal dataItem As Object, _
+    ByRef outItem As Object, _
+    ByRef outErrorText As String _
+) As Boolean
+    Dim controlName As String
+    Dim sourceKey As String
+    Dim sourceRef As Object
+    Dim sourceItems As Collection
+    Dim firstItem As Object
+    Dim legacyItemsSource As String
+
+    Set outItem = Nothing
+    controlName = Trim$(mp_NodeAttrText(bannerNode, "name"))
+    If Len(controlName) = 0 Then
+        outErrorText = "Banner control requires non-empty attribute 'name'."
+        Exit Function
+    End If
+
+    legacyItemsSource = Trim$(mp_NodeAttrText(bannerNode, "itemsSource"))
+    If Len(legacyItemsSource) > 0 Then
+        outErrorText = "Banner control '" & controlName & "' does not support itemsSource attribute. Use control name with script API m_ShowBannerAtLayoutBannerControl."
+        Exit Function
+    End If
+
+    sourceKey = LAYOUT_ITEMSOURCE_BANNER_CONTROL_PREFIX & controlName
+    If Not dataItem Is Nothing Then
+        If mp_TryGetDictionaryObjectRef(dataItem, sourceKey, sourceRef) Then
+            If TypeName(sourceRef) = "Collection" Then
+                Set sourceItems = sourceRef
+            End If
+        End If
+    End If
+
+    If sourceItems Is Nothing Then
+        mp_TryGetBannerControlItem = True
+        Exit Function
+    End If
+    If sourceItems.Count = 0 Then
+        mp_TryGetBannerControlItem = True
+        Exit Function
+    End If
+
+    On Error Resume Next
+    Set firstItem = sourceItems.Item(1)
+    If Err.Number <> 0 Then
+        Err.Clear
+        Set firstItem = Nothing
+    End If
+    On Error GoTo 0
+
+    If Not firstItem Is Nothing Then Set outItem = firstItem
+
+    mp_TryGetBannerControlItem = True
+End Function
+
+Private Function mp_ReadBannerItemString(ByVal itemObj As Object, ByVal keyName As String) As String
+    Dim valueObj As Variant
+
+    If itemObj Is Nothing Then Exit Function
+    If Not mp_TryGetDictionaryObject(itemObj, keyName, valueObj) Then Exit Function
+    On Error Resume Next
+    If IsObject(valueObj) Then
+        mp_ReadBannerItemString = vbNullString
+    Else
+        mp_ReadBannerItemString = CStr(valueObj)
+    End If
+    On Error GoTo 0
+End Function
+
+Private Sub mp_ApplyLabelHighlightSegments( _
+    ByVal targetCell As Range, _
+    ByVal fullText As String, _
+    ByVal highlightSegments As Object _
+)
+    Dim segment As Variant
+    Dim segmentStart As Long
+    Dim segmentLength As Long
+    Dim colorHex As String
+    Dim fontColor As Long
+
+    If targetCell Is Nothing Then Exit Sub
+    If Len(fullText) = 0 Then Exit Sub
+    If highlightSegments Is Nothing Then Exit Sub
+    If TypeName(highlightSegments) <> "Collection" Then Exit Sub
+    If highlightSegments.Count = 0 Then Exit Sub
+
+    For Each segment In highlightSegments
+        If Not IsObject(segment) Then GoTo NextSegment
+
+        On Error Resume Next
+        segmentStart = CLng(segment("Start"))
+        segmentLength = CLng(segment("Length"))
+        colorHex = CStr(segment("ColorHex"))
+        If Err.Number <> 0 Then
+            Err.Clear
+            On Error GoTo 0
+            GoTo NextSegment
+        End If
+        On Error GoTo 0
+
+        If segmentLength <= 0 Then GoTo NextSegment
+        If segmentStart < 1 Then GoTo NextSegment
+        If segmentStart > Len(fullText) Then GoTo NextSegment
+        If segmentStart + segmentLength - 1 > Len(fullText) Then
+            segmentLength = Len(fullText) - segmentStart + 1
+            If segmentLength <= 0 Then GoTo NextSegment
+        End If
+
+        If Len(Trim$(colorHex)) = 0 Then colorHex = "#66CCFF"
+        If Not ex_XmlCore.m_TryParseColor(colorHex, fontColor) Then
+            If Not ex_XmlCore.m_TryParseColor("#66CCFF", fontColor) Then GoTo NextSegment
+        End If
+
+        targetCell.Characters(segmentStart, segmentLength).Font.Color = fontColor
+NextSegment:
+    Next segment
+End Sub
+
+Private Function mp_TryResolveBindingObject( _
+    ByVal rawText As String, _
+    ByVal dataItem As Object, _
+    ByRef outObject As Object _
+) As Boolean
+    If dataItem Is Nothing Then Exit Function
+    If Len(Trim$(rawText)) = 0 Then Exit Function
+
+    On Error Resume Next
+    Set outObject = mp_ResolveBindingValue(rawText, dataItem)
+    If Err.Number = 0 Then
+        If Not outObject Is Nothing Then mp_TryResolveBindingObject = True
+    Else
+        Err.Clear
+    End If
+    On Error GoTo 0
 End Function
 
 Private Function mp_ApplyInputControl( _
@@ -1567,6 +1878,7 @@ Private Function mp_ApplyInputControl( _
     rowKindText = Trim$(mp_ResolveTemplateText(mp_NodeAttrText(node, "rowKind"), dataItem))
     If Len(rowKindText) > 0 Then
         mp_RegisterRowKinds rowKindText, targetRange.Row, rowKinds
+        mp_RegisterKindRanges rowKindText, targetRange.Row, targetRange.Column, targetRange.Row + targetRange.Rows.Count - 1, targetRange.Column + targetRange.Columns.Count - 1
     End If
 
     mp_ApplyInputControl = True
@@ -1603,9 +1915,9 @@ Private Function mp_ApplyTableControl( _
     Dim rowObjectKind As String
     Dim headerRowKind As String
     Dim contentRowKind As String
-    Dim headerFieldKind As String
-    Dim contentFieldKind As String
-    Dim virtualFieldKind As String
+    Dim headerColumnKind As String
+    Dim contentColumnKind As String
+    Dim virtualColumnKind As String
     Dim virtualAliasLookup As Object
     Dim fieldCount As Long
     Dim rowCount As Long
@@ -1615,6 +1927,7 @@ Private Function mp_ApplyTableControl( _
     Dim writeRange As Range
     Dim contentRowKindCache As Object
     Dim rowKindCacheKey As String
+    Dim kindColEnd As Long
 
     showHeader = True
     If Len(Trim$(mp_NodeAttrText(node, "showHeader"))) > 0 Then
@@ -1626,7 +1939,7 @@ Private Function mp_ApplyTableControl( _
 
     Set rowsObj = mp_ResolveRowsObjectForTableNode(node, dataItem)
     Set tableObj = mp_ResolveTableObjectForNode(node, dataItem)
-    mp_ResolveTableKindConfig node, dataItem, tableObj, headerRowKind, contentRowKind, headerFieldKind, contentFieldKind, virtualFieldKind
+    mp_ResolveTableKindConfig node, dataItem, tableObj, headerRowKind, contentRowKind, headerColumnKind, contentColumnKind, virtualColumnKind
     Set virtualAliasLookup = mp_GetResultTableVirtualAliasLookup(tableObj)
     Set contentRowKindCache = CreateObject("Scripting.Dictionary")
     contentRowKindCache.CompareMode = 1
@@ -1647,6 +1960,9 @@ Private Function mp_ApplyTableControl( _
     rowIndex = nodeRow
     If showHeader Then
         headerRow = rowIndex
+        kindColEnd = nodeCol + nodeWidth - 1
+        If fieldCount > 0 Then kindColEnd = nodeCol + fieldCount - 1
+        If kindColEnd < nodeCol Then kindColEnd = nodeCol
         If fieldCount > 0 Then
             ReDim headerValues(1 To 1, 1 To fieldCount)
             For colIndex = 1 To fieldCount
@@ -1657,6 +1973,7 @@ Private Function mp_ApplyTableControl( _
         End If
         If Len(headerRowKind) > 0 Then
             mp_RegisterRowKinds headerRowKind, headerRow, rowKinds
+            mp_RegisterKindRanges headerRowKind, headerRow, nodeCol, headerRow, kindColEnd
         End If
         rowIndex = rowIndex + 1
     End If
@@ -1712,6 +2029,10 @@ Private Function mp_ApplyTableControl( _
         End If
         If Len(rowKindText) > 0 Then
             mp_RegisterRowKinds rowKindText, rowIndex, rowKinds
+            kindColEnd = nodeCol + nodeWidth - 1
+            If fieldCount > 0 Then kindColEnd = nodeCol + fieldCount - 1
+            If kindColEnd < nodeCol Then kindColEnd = nodeCol
+            mp_RegisterKindRanges rowKindText, rowIndex, nodeCol, rowIndex, kindColEnd
         End If
         rowIndex = rowIndex + 1
     Next i
@@ -1722,12 +2043,12 @@ Private Function mp_ApplyTableControl( _
     End If
 
     If showHeader Then
-        mp_AddFieldRangesFromAliases resultFieldRanges, tableObj, fieldAliases, nodeCol, headerRow, headerRow, headerFieldKind, virtualFieldKind, virtualAliasLookup
+        mp_AddFieldRangesFromAliases resultFieldRanges, tableObj, fieldAliases, nodeCol, headerRow, headerRow, headerColumnKind, virtualColumnKind, virtualAliasLookup
         If rowIndex - 1 >= headerRow + 1 Then
-            mp_AddFieldRangesFromAliases resultFieldRanges, tableObj, fieldAliases, nodeCol, headerRow + 1, rowIndex - 1, contentFieldKind, virtualFieldKind, virtualAliasLookup
+            mp_AddFieldRangesFromAliases resultFieldRanges, tableObj, fieldAliases, nodeCol, headerRow + 1, rowIndex - 1, contentColumnKind, virtualColumnKind, virtualAliasLookup
         End If
     Else
-        mp_AddFieldRangesFromAliases resultFieldRanges, tableObj, fieldAliases, nodeCol, nodeRow, rowIndex - 1, contentFieldKind, virtualFieldKind, virtualAliasLookup
+        mp_AddFieldRangesFromAliases resultFieldRanges, tableObj, fieldAliases, nodeCol, nodeRow, rowIndex - 1, contentColumnKind, virtualColumnKind, virtualAliasLookup
     End If
 
     ex_Messaging.m_RegisterResultTableAnchor ws, tableRef, nodeRow, rowIndex - 1
@@ -2733,15 +3054,15 @@ Private Sub mp_ResolveTableKindConfig( _
     ByVal tableObj As obj_ResultTable, _
     ByRef outHeaderRowKind As String, _
     ByRef outContentRowKind As String, _
-    ByRef outHeaderFieldKind As String, _
-    ByRef outContentFieldKind As String, _
-    ByRef outVirtualFieldKind As String _
+    ByRef outHeaderColumnKind As String, _
+    ByRef outContentColumnKind As String, _
+    ByRef outVirtualColumnKind As String _
 )
     outHeaderRowKind = mp_ResolveTableKindAttr(tableNode, dataItem, TABLE_ATTR_ROW_KIND_HEADER, DEFAULT_TABLE_ROW_KIND_HEADER)
     outContentRowKind = mp_ResolveTableKindAttr(tableNode, dataItem, TABLE_ATTR_ROW_KIND_CONTENT, DEFAULT_TABLE_ROW_KIND_CONTENT)
-    outHeaderFieldKind = mp_ResolveTableKindAttr(tableNode, dataItem, TABLE_ATTR_FIELD_KIND_HEADER, outHeaderRowKind)
-    outContentFieldKind = mp_ResolveTableKindAttr(tableNode, dataItem, TABLE_ATTR_FIELD_KIND_CONTENT, outContentRowKind)
-    outVirtualFieldKind = mp_ResolveTableVirtualFieldKind(tableNode, dataItem, tableObj)
+    outHeaderColumnKind = mp_ResolveTableKindAttr(tableNode, dataItem, TABLE_ATTR_COLUMN_KIND_HEADER, DEFAULT_TABLE_COLUMN_KIND_HEADER)
+    outContentColumnKind = mp_ResolveTableKindAttr(tableNode, dataItem, TABLE_ATTR_COLUMN_KIND_CONTENT, DEFAULT_TABLE_COLUMN_KIND_CONTENT)
+    outVirtualColumnKind = mp_ResolveTableVirtualColumnKind(tableNode, dataItem, tableObj)
 End Sub
 
 Private Function mp_ResolveTableKindAttr( _
@@ -2760,22 +3081,25 @@ Private Function mp_ResolveTableKindAttr( _
     End If
 End Function
 
-Private Function mp_ResolveTableVirtualFieldKind( _
+Private Function mp_ResolveTableVirtualColumnKind( _
     ByVal tableNode As Object, _
     ByVal dataItem As Object, _
     ByVal tableObj As obj_ResultTable _
 ) As String
     Dim rawText As String
 
-    rawText = Trim$(mp_NodeAttrText(tableNode, TABLE_ATTR_FIELD_KIND_VIRTUAL))
+    rawText = Trim$(mp_NodeAttrText(tableNode, TABLE_ATTR_COLUMN_KIND_VIRTUAL))
     If Len(rawText) > 0 Then
-        mp_ResolveTableVirtualFieldKind = mp_NormalizeKindTags(mp_ResolveTemplateText(rawText, dataItem))
+        mp_ResolveTableVirtualColumnKind = mp_NormalizeKindTags(mp_ResolveTemplateText(rawText, dataItem))
         Exit Function
     End If
 
     If Not tableObj Is Nothing Then
-        mp_ResolveTableVirtualFieldKind = mp_NormalizeKindTags(tableObj.GetMetaInfoValue(META_KEY_VIRTUAL_FIELD_KIND, vbNullString))
+        mp_ResolveTableVirtualColumnKind = mp_NormalizeKindTags(tableObj.GetMetaInfoValue(META_KEY_VIRTUAL_COLUMN_KIND, vbNullString))
+        If Len(mp_ResolveTableVirtualColumnKind) > 0 Then Exit Function
     End If
+
+    mp_ResolveTableVirtualColumnKind = DEFAULT_TABLE_COLUMN_KIND_VIRTUAL
 End Function
 
 Private Function mp_GetResultTableVirtualAliasLookup(ByVal tableObj As obj_ResultTable) As Object
@@ -2852,6 +3176,9 @@ Private Sub mp_AddFieldRangesFromAliases( _
         End If
 
         mp_AddRenderedFieldTarget resultFieldRanges, mapKey, startCol + i - 1, rowStart, rowEnd, targetKind
+        If Len(targetKind) > 0 Then
+            mp_RegisterKindRanges targetKind, rowStart, startCol + i - 1, rowEnd, startCol + i - 1, Nothing, KIND_SCOPE_COLUMN
+        End If
     Next i
 End Sub
 
@@ -2993,6 +3320,60 @@ Private Sub mp_RegisterRowKinds(ByVal rowKindText As String, ByVal rowIndex As L
         End If
 
         rowsCollection.Add CLng(rowIndex)
+ContinueToken:
+    Next token
+End Sub
+
+Private Sub mp_RegisterKindRanges( _
+    ByVal kindText As String, _
+    ByVal rowStart As Long, _
+    ByVal colStart As Long, _
+    ByVal rowEnd As Long, _
+    ByVal colEnd As Long, _
+    Optional ByVal kindRanges As Object = Nothing, _
+    Optional ByVal scopeName As String = KIND_SCOPE_ROW _
+)
+    Dim normalizedKinds As String
+    Dim tokens As Variant
+    Dim token As Variant
+    Dim tokenText As String
+    Dim entries As Collection
+    Dim rangeEntry As Object
+    Dim normalizedScope As String
+
+    If kindRanges Is Nothing Then Set kindRanges = g_CurrentKindRanges
+    If kindRanges Is Nothing Then Exit Sub
+
+    normalizedKinds = mp_NormalizeKindTags(kindText)
+    If Len(normalizedKinds) = 0 Then Exit Sub
+    If rowStart <= 0 Then Exit Sub
+    If colStart <= 0 Then Exit Sub
+    If rowEnd < rowStart Then rowEnd = rowStart
+    If colEnd < colStart Then colEnd = colStart
+    normalizedScope = LCase$(Trim$(scopeName))
+    If StrComp(normalizedScope, KIND_SCOPE_COLUMN, vbTextCompare) <> 0 Then normalizedScope = KIND_SCOPE_ROW
+
+    Set rangeEntry = CreateObject("Scripting.Dictionary")
+    rangeEntry.CompareMode = 1
+    rangeEntry("RowStart") = CLng(rowStart)
+    rangeEntry("RowEnd") = CLng(rowEnd)
+    rangeEntry("ColStart") = CLng(colStart)
+    rangeEntry("ColEnd") = CLng(colEnd)
+    rangeEntry("KindTags") = normalizedKinds
+    rangeEntry("Scope") = normalizedScope
+
+    tokens = Split(normalizedKinds, "|")
+    For Each token In tokens
+        tokenText = LCase$(Trim$(CStr(token)))
+        If Len(tokenText) = 0 Then GoTo ContinueToken
+
+        If kindRanges.Exists(tokenText) Then
+            Set entries = kindRanges(tokenText)
+        Else
+            Set entries = New Collection
+            Set kindRanges(tokenText) = entries
+        End If
+        entries.Add rangeEntry
 ContinueToken:
     Next token
 End Sub
@@ -3438,30 +3819,55 @@ End Function
 Private Function mp_NodeDependsOnItemsSourceKey(ByVal node As Object, ByVal itemsSourceKey As String) As Boolean
     Dim controlNodes As Object
     Dim controlNode As Object
-    Dim sourceText As String
 
     itemsSourceKey = Trim$(itemsSourceKey)
     If node Is Nothing Then Exit Function
     If Len(itemsSourceKey) = 0 Then Exit Function
 
-    If StrComp(mp_NodeTag(node), "control", vbTextCompare) = 0 Then
-        sourceText = Trim$(mp_NodeAttrText(node, "itemsSource"))
-        If mp_SourceDependsOnItemsSourceKey(sourceText, itemsSourceKey) Then
-            mp_NodeDependsOnItemsSourceKey = True
-            Exit Function
-        End If
+    If mp_ControlNodeDependsOnItemsSourceKey(node, itemsSourceKey) Then
+        mp_NodeDependsOnItemsSourceKey = True
+        Exit Function
     End If
 
-    Set controlNodes = node.selectNodes(".//*[local-name()='control'][@itemsSource]")
+    Set controlNodes = node.selectNodes(".//*[local-name()='control']")
     If controlNodes Is Nothing Then Exit Function
 
     For Each controlNode In controlNodes
-        sourceText = Trim$(mp_NodeAttrText(controlNode, "itemsSource"))
-        If mp_SourceDependsOnItemsSourceKey(sourceText, itemsSourceKey) Then
+        If mp_ControlNodeDependsOnItemsSourceKey(controlNode, itemsSourceKey) Then
             mp_NodeDependsOnItemsSourceKey = True
             Exit Function
         End If
     Next controlNode
+End Function
+
+Private Function mp_ControlNodeDependsOnItemsSourceKey( _
+    ByVal controlNode As Object, _
+    ByVal itemsSourceKey As String _
+) As Boolean
+    Dim sourceText As String
+    Dim controlType As String
+    Dim controlName As String
+    Dim bannerSourceKey As String
+
+    If controlNode Is Nothing Then Exit Function
+    If StrComp(mp_NodeTag(controlNode), "control", vbTextCompare) <> 0 Then Exit Function
+
+    sourceText = Trim$(mp_NodeAttrText(controlNode, "itemsSource"))
+    If mp_SourceDependsOnItemsSourceKey(sourceText, itemsSourceKey) Then
+        mp_ControlNodeDependsOnItemsSourceKey = True
+        Exit Function
+    End If
+
+    controlType = LCase$(Trim$(mp_NodeAttrText(controlNode, "type")))
+    If StrComp(controlType, "banner", vbTextCompare) <> 0 Then Exit Function
+
+    controlName = Trim$(mp_NodeAttrText(controlNode, "name"))
+    If Len(controlName) = 0 Then Exit Function
+
+    bannerSourceKey = LAYOUT_ITEMSOURCE_BANNER_CONTROL_PREFIX & controlName
+    If StrComp(bannerSourceKey, itemsSourceKey, vbTextCompare) = 0 Then
+        mp_ControlNodeDependsOnItemsSourceKey = True
+    End If
 End Function
 
 Private Function mp_SourceDependsOnItemsSourceKey(ByVal sourceText As String, ByVal itemsSourceKey As String) As Boolean

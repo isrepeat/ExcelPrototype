@@ -3,19 +3,23 @@ Option Explicit
 
 Private Const TIMELINE_MIN_COLUMN_WIDTH As Double = 5#
 Private Const TIMELINE_MAX_COLUMN_WIDTH As Double = 30#
+Private Const STYLE_STAGE_BANNERS As String = "banners"
+Private Const DEFAULT_SEGMENT_HIGHLIGHT_COLOR As String = "#66CCFF"
 
 Public Sub m_ApplySheetPipeline( _
     ByVal ws As Worksheet, _
     Optional ByVal resultFieldRanges As Collection = Nothing, _
     Optional ByVal cfgStyles As Object = Nothing, _
-    Optional ByVal rowKindRanges As Object = Nothing, _
+    Optional ByVal kindRanges As Object = Nothing, _
     Optional ByVal activeModeKey As String = vbNullString, _
     Optional ByVal autoHeightOnly As Boolean = False, _
     Optional ByVal runtimeLayers As Collection = Nothing _
 )
     Dim resolvedModeKey As String
     Dim pipeline As Collection
+    Dim stagePipeline As Collection
     Dim runtimeLayer As obj_StyleLayer
+    Dim stageLayer As obj_StyleLayer
 
     If ws Is Nothing Then Exit Sub
 
@@ -38,8 +42,232 @@ Public Sub m_ApplySheetPipeline( _
             End If
         Next runtimeLayer
     End If
-    ex_StylePipelineEngine.m_ApplyColumnStylesPipeline ws, resultFieldRanges, pipeline, resolvedModeKey, rowKindRanges, autoHeightOnly
+    ex_StylePipelineEngine.m_ApplyColumnStylesPipeline ws, resultFieldRanges, pipeline, resolvedModeKey, kindRanges, autoHeightOnly
+
+    If mp_HasBannerKinds(kindRanges) Then
+        Set stagePipeline = ex_StylePipelineEngine.m_CreatePipeline()
+        For Each stageLayer In ex_StylePipelineEngine.m_LoadSheetPipelineLayers(ws.Name, ThisWorkbook, STYLE_STAGE_BANNERS)
+            If Not stageLayer Is Nothing Then
+                ex_StylePipelineEngine.m_AddLayer stagePipeline, stageLayer
+            End If
+        Next stageLayer
+        If stagePipeline.Count > 0 Then
+            ex_StylePipelineEngine.m_ApplyColumnStylesPipeline ws, resultFieldRanges, stagePipeline, resolvedModeKey, kindRanges, autoHeightOnly
+        End If
+
+        ' Banner fontColor rules are applied at row level and can overwrite rich-text colors.
+        ' Reapply per-segment highlight after final style pass.
+        mp_ReapplyBannerHighlightSegments ws, kindRanges
+    End If
 End Sub
+
+Private Sub mp_ReapplyBannerHighlightSegments(ByVal ws As Worksheet, ByVal kindRanges As Object)
+    Dim itemsMapObj As Object
+    Dim sourceKey As Variant
+    Dim itemsSourceObj As Object
+    Dim bannerItems As Collection
+    Dim bannerItem As Variant
+    Dim bannerObj As Object
+    Dim segmentItems As Object
+    Dim kindEntries As Collection
+    Dim kindCursors As Object
+    Dim bannerKind As String
+    Dim bodyText As String
+    Dim displayText As String
+    Dim currentIndex As Long
+    Dim targetRow As Long
+    Dim targetCol As Long
+    Dim bannerCell As Range
+
+    If ws Is Nothing Then Exit Sub
+    If kindRanges Is Nothing Then Exit Sub
+
+    If Not ex_ResultLayoutItemsRt.m_TryGetItemsSourcesMap(ws, itemsMapObj) Then Exit Sub
+    If itemsMapObj Is Nothing Then Exit Sub
+
+    Set kindCursors = CreateObject("Scripting.Dictionary")
+    kindCursors.CompareMode = 1
+
+    For Each sourceKey In itemsMapObj.Keys
+        Set itemsSourceObj = Nothing
+        On Error Resume Next
+        Set itemsSourceObj = itemsMapObj(sourceKey)
+        On Error GoTo 0
+
+        If itemsSourceObj Is Nothing Then GoTo ContinueSource
+        If TypeName(itemsSourceObj) <> "Collection" Then GoTo ContinueSource
+
+        Set bannerItems = itemsSourceObj
+        If bannerItems.Count = 0 Then GoTo ContinueSource
+
+        For Each bannerItem In bannerItems
+            If Not IsObject(bannerItem) Then GoTo ContinueItem
+            Set bannerObj = bannerItem
+
+            If Not mp_TryGetObjectStringValue(bannerObj, "Kind", bannerKind) Then GoTo ContinueItem
+            bannerKind = LCase$(Trim$(bannerKind))
+            If Len(bannerKind) = 0 Then GoTo ContinueItem
+            If Not kindRanges.Exists(bannerKind) Then GoTo ContinueItem
+
+            Set kindEntries = kindRanges(bannerKind)
+            If kindEntries Is Nothing Then GoTo ContinueItem
+
+            currentIndex = 1
+            If kindCursors.Exists(bannerKind) Then currentIndex = CLng(kindCursors(bannerKind))
+            If currentIndex < 1 Or currentIndex > kindEntries.Count Then GoTo ContinueItem
+
+            If Not mp_TryResolveBannerCellFromKindEntry(kindEntries(currentIndex), targetRow, targetCol) Then GoTo ContinueItem
+            kindCursors(bannerKind) = currentIndex + 1
+
+            Set bannerCell = ws.Cells(targetRow, targetCol)
+            displayText = CStr(bannerCell.Value)
+            If Len(displayText) = 0 Then
+                If mp_TryGetObjectStringValue(bannerObj, "Body", bodyText) Then
+                    displayText = bodyText
+                End If
+            End If
+            ex_Messaging.m_ApplyBannerAutoHeightForRange ws, bannerCell, displayText, bannerKind
+
+            If Not mp_TryGetObjectValue(bannerObj, "HighlightSegments", segmentItems) Then GoTo ContinueItem
+            If segmentItems Is Nothing Then GoTo ContinueItem
+            If TypeName(segmentItems) <> "Collection" Then GoTo ContinueItem
+            If segmentItems.Count = 0 Then GoTo ContinueItem
+
+            If Not mp_TryGetObjectStringValue(bannerObj, "Body", bodyText) Then
+                bodyText = displayText
+            End If
+
+            mp_ApplyCellHighlightSegments ws.Cells(targetRow, targetCol), bodyText, segmentItems
+ContinueItem:
+        Next bannerItem
+ContinueSource:
+    Next sourceKey
+End Sub
+
+Private Function mp_TryResolveBannerCellFromKindEntry( _
+    ByVal rangeEntry As Variant, _
+    ByRef outRow As Long, _
+    ByRef outCol As Long _
+) As Boolean
+    Dim entryObj As Object
+
+    If Not IsObject(rangeEntry) Then Exit Function
+
+    Set entryObj = rangeEntry
+    If entryObj Is Nothing Then Exit Function
+
+    On Error Resume Next
+    outRow = CLng(entryObj("RowStart"))
+    outCol = CLng(entryObj("ColStart"))
+    If Err.Number <> 0 Then
+        Err.Clear
+        On Error GoTo 0
+        Exit Function
+    End If
+    On Error GoTo 0
+
+    If outRow <= 0 Then Exit Function
+    If outCol <= 0 Then outCol = 1
+    mp_TryResolveBannerCellFromKindEntry = True
+End Function
+
+Private Sub mp_ApplyCellHighlightSegments( _
+    ByVal targetCell As Range, _
+    ByVal fullText As String, _
+    ByVal highlightSegments As Object _
+)
+    Dim segment As Variant
+    Dim segmentStart As Long
+    Dim segmentLength As Long
+    Dim colorHex As String
+    Dim fontColor As Long
+
+    If targetCell Is Nothing Then Exit Sub
+    If Len(fullText) = 0 Then Exit Sub
+    If highlightSegments Is Nothing Then Exit Sub
+    If TypeName(highlightSegments) <> "Collection" Then Exit Sub
+    If highlightSegments.Count = 0 Then Exit Sub
+
+    For Each segment In highlightSegments
+        If Not IsObject(segment) Then GoTo NextSegment
+
+        On Error Resume Next
+        segmentStart = CLng(segment("Start"))
+        segmentLength = CLng(segment("Length"))
+        colorHex = CStr(segment("ColorHex"))
+        If Err.Number <> 0 Then
+            Err.Clear
+            On Error GoTo 0
+            GoTo NextSegment
+        End If
+        On Error GoTo 0
+
+        If segmentLength <= 0 Then GoTo NextSegment
+        If segmentStart < 1 Then GoTo NextSegment
+        If segmentStart > Len(fullText) Then GoTo NextSegment
+        If segmentStart + segmentLength - 1 > Len(fullText) Then
+            segmentLength = Len(fullText) - segmentStart + 1
+            If segmentLength <= 0 Then GoTo NextSegment
+        End If
+
+        If Len(Trim$(colorHex)) = 0 Then colorHex = DEFAULT_SEGMENT_HIGHLIGHT_COLOR
+        If Not ex_XmlCore.m_TryParseColor(colorHex, fontColor) Then
+            If Not ex_XmlCore.m_TryParseColor(DEFAULT_SEGMENT_HIGHLIGHT_COLOR, fontColor) Then GoTo NextSegment
+        End If
+
+        targetCell.Characters(segmentStart, segmentLength).Font.Color = fontColor
+NextSegment:
+    Next segment
+End Sub
+
+Private Function mp_TryGetObjectValue(ByVal source As Object, ByVal memberName As String, ByRef outObject As Object) As Boolean
+    Set outObject = Nothing
+    If source Is Nothing Then Exit Function
+    If Len(Trim$(memberName)) = 0 Then Exit Function
+
+    On Error Resume Next
+    Set outObject = source(memberName)
+    If Err.Number = 0 Then
+        mp_TryGetObjectValue = Not (outObject Is Nothing)
+    Else
+        Err.Clear
+    End If
+    On Error GoTo 0
+End Function
+
+Private Function mp_TryGetObjectStringValue(ByVal source As Object, ByVal memberName As String, ByRef outValue As String) As Boolean
+    outValue = vbNullString
+    If source Is Nothing Then Exit Function
+    If Len(Trim$(memberName)) = 0 Then Exit Function
+
+    On Error Resume Next
+    outValue = CStr(source(memberName))
+    If Err.Number = 0 Then
+        mp_TryGetObjectStringValue = True
+    Else
+        Err.Clear
+        outValue = vbNullString
+    End If
+    On Error GoTo 0
+End Function
+
+Private Function mp_HasBannerKinds(ByVal kindRanges As Object) As Boolean
+    If kindRanges Is Nothing Then Exit Function
+
+    mp_HasBannerKinds = _
+        kindRanges.Exists("warningbanner") Or _
+        kindRanges.Exists("errorbanner") Or _
+        kindRanges.Exists("notebanner") Or _
+        kindRanges.Exists("warningbannertitle") Or _
+        kindRanges.Exists("errorbannertitle") Or _
+        kindRanges.Exists("notebannertitle") Or _
+        kindRanges.Exists("warningbannerlayout") Or _
+        kindRanges.Exists("errorbannerlayout") Or _
+        kindRanges.Exists("notebannerlayout") Or _
+        kindRanges.Exists("warningbannerlayouttitle") Or _
+        kindRanges.Exists("errorbannerlayouttitle") Or _
+        kindRanges.Exists("notebannerlayouttitle")
+End Function
 
 Public Sub m_FormatAsTable(ByVal ws As Worksheet, ByVal startRow As Long, ByVal rowCount As Long, ByVal colCount As Long)
     Dim headerRange As Range

@@ -10,8 +10,8 @@ Private Const CONTEXT_FIELD_POST_EXECUTED As String = "PostExecuted"
 Private Const MODE_RESULT_FIELD_OUTPUT As String = "Output"
 Private Const MODE_RESULT_FIELD_WORKSHEET As String = "Worksheet"
 Private Const MODE_RESULT_FIELD_RESULT_TABLES As String = "ResultTables"
-Private Const INPUT_KEY_LAYOUT_ROWKINDS As String = "__ResultLayoutRowKinds"
 Private Const INPUT_KEY_LAYOUT_FIELDRANGES As String = "__ResultLayoutFieldRanges"
+Private Const INPUT_KEY_LAYOUT_KINDRANGES As String = "__ResultLayoutKindRanges"
 
 Private Const AUTO_POSTPROCESS_SCRIPT_KEY As String = "PostProcess.Script.Implicit"
 Private Const DEBUG_LOG_PATH As String = "Logs\personalcard_pipeline.log"
@@ -138,6 +138,7 @@ Public Function m_RunModePipeline( _
                 If Len(layoutRefreshError) = 0 Then layoutRefreshError = "Unknown layout refresh error after implicit post-process."
                 Err.Raise vbObjectError + 6119, "ex_ModePipeline", layoutRefreshError
             End If
+            ex_PostProcessActions.m_FlushPostLayoutDeferredBanners modeSheet
             mp_DebugLog "stage-done stage='refresh-layout-after-postprocess' duration=" & mp_FormatElapsedSeconds(mp_StageElapsedSeconds(stageStartStamp))
         Else
             stageName = "apply-result-layout-styles"
@@ -281,8 +282,8 @@ End Sub
 
 Private Sub mp_ApplyLayoutSheetStyling(ByVal ws As Worksheet, ByVal modeOutput As Object)
     Dim objectValue As Object
-    Dim rowKindRanges As Object
     Dim resultFieldRanges As Collection
+    Dim kindRanges As Object
 
     If ws Is Nothing Then Exit Sub
 
@@ -298,14 +299,14 @@ Private Sub mp_ApplyLayoutSheetStyling(ByVal ws As Worksheet, ByVal modeOutput A
         End If
 
         Set objectValue = Nothing
-        If ex_ScriptIO.m_TryGetObject(modeOutput, INPUT_KEY_LAYOUT_ROWKINDS, objectValue) Then
+        If ex_ScriptIO.m_TryGetObject(modeOutput, INPUT_KEY_LAYOUT_KINDRANGES, objectValue) Then
             If Not objectValue Is Nothing Then
-                Set rowKindRanges = objectValue
+                Set kindRanges = objectValue
             End If
         End If
     End If
 
-    ex_OutputFormattingPipeline.m_ApplySheetPipeline ws, resultFieldRanges, Nothing, rowKindRanges
+    ex_OutputFormattingPipeline.m_ApplySheetPipeline ws, resultFieldRanges, Nothing, kindRanges
 
 End Sub
 

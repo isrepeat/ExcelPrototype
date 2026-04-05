@@ -89,7 +89,7 @@ Public Function m_RunMode(ByVal cfg As Object, ByVal modeInput As Object, ByVal 
     Dim sectionRows As Collection
     Dim contentRows As Collection
     Dim ownerDividerRows As Collection
-    Dim rowKindRanges As Object
+    Dim kindRanges As Object
     Dim nextRow As Long
     Dim gapRows As Long
     Dim ownerDividerGapRows As Long
@@ -162,14 +162,13 @@ Public Function m_RunMode(ByVal cfg As Object, ByVal modeInput As Object, ByVal 
     nextRow = mp_AppendGapRows(nextRow, gapRows)
     nextRow = mp_RenderTableRows(wsOut, keys, nextRow, headerRows, sectionRows, contentRows, ownerDividerRows, eventsResultTable, eventsSourceAlias, eventsTableAlias, eventsFields, ownerDividerGapRows)
 
-    Set rowKindRanges = CreateObject("Scripting.Dictionary")
-    rowKindRanges.CompareMode = 1
-    Set rowKindRanges(KIND_HEADER) = headerRows
-    Set rowKindRanges(KIND_SECTION) = sectionRows
-    Set rowKindRanges(KIND_CONTENT) = contentRows
-    Set rowKindRanges(KIND_OWNER_DIVIDER) = ownerDividerRows
+    Set kindRanges = ex_StylePipelineEngine.m_CreateKindRanges()
+    mp_AddKindEntriesFromRows kindRanges, KIND_HEADER, headerRows
+    mp_AddKindEntriesFromRows kindRanges, KIND_SECTION, sectionRows
+    mp_AddKindEntriesFromRows kindRanges, KIND_CONTENT, contentRows
+    mp_AddKindEntriesFromRows kindRanges, KIND_OWNER_DIVIDER, ownerDividerRows
 
-    ex_OutputFormattingPipeline.m_ApplySheetPipeline wsOut, Nothing, Nothing, rowKindRanges, "ReportCreation"
+    ex_OutputFormattingPipeline.m_ApplySheetPipeline wsOut, Nothing, Nothing, kindRanges, "ReportCreation"
 
     ' Передаем __Batch как саму таблицу __Batch.Sheet[KeyResults].
     If mp_TryGetBatchKeyResultsTable(resultTables, batchKeyResultsTable) Then
@@ -189,6 +188,21 @@ EH:
     MsgBox "ReportCreation failed: [" & Err.Source & " #" & CStr(Err.Number) & "] " & Err.Description, vbExclamation
     Set m_RunMode = Nothing
 End Function
+
+Private Sub mp_AddKindEntriesFromRows( _
+    ByVal kindRanges As Object, _
+    ByVal kindName As String, _
+    ByVal rows As Collection _
+)
+    Dim rowItem As Variant
+
+    If kindRanges Is Nothing Then Exit Sub
+    If rows Is Nothing Then Exit Sub
+
+    For Each rowItem In rows
+        ex_StylePipelineEngine.m_AddKindRangeFromRowEntry kindRanges, kindName, rowItem, 1, 0
+    Next rowItem
+End Sub
 
 Private Function mp_TryGetBatchKeyResultsTable( _
     ByVal resultTables As Collection, _

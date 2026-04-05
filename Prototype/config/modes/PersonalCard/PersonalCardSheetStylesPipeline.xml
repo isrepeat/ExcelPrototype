@@ -122,20 +122,20 @@
       </layer>
 
       <layer name="pc-virtual-added" priority="305" enabled="true">
-        <rule target="column"
-              selector="kind=header|virtual"
+          <rule target="columnkind"
+            selector="kind=header|virtual"
               styles="{
                 backColor:#3A2E1A;
                 fontColor:#FFDFA8;
                 fontBold:true;
               }"/>
-        <rule target="column"
-              selector="kind=content|virtual"
+          <rule target="columnkind"
+            selector="kind=content|virtual"
               styles="{
                 backColor:#2A2418;
                 fontColor:#F5E6C5;
               }"/>
-        <rule target="row"
+        <rule target="rowkind"
               selector="kind=virtual"
               styles="{
                 backColor:#2A2418;
@@ -201,8 +201,8 @@
                 vertical:center;
                 minRowHeight:24;
                 autoHeight:true;
-                customAutoHeight-margin-top:5;
-                customAutoHeight-margin-bottom:5;
+                customAutoHeight-margin-top:10;
+                customAutoHeight-margin-bottom:10;
                 borderWeight:thin;
               }"/>
       </layer>
@@ -240,6 +240,60 @@
       <layer name="pc-banner-title" priority="130" enabled="true">
         <rule target="row"
               selector="kind=errorbannertitle|warningbannertitle|notebannertitle;col=1:8"
+              styles="{
+                fontBold:true;
+              }"/>
+      </layer>
+
+      <layer name="pc-layout-banner-base" priority="140" enabled="true">
+        <rule target="row"
+              selector="kind=errorbannerlayout|warningbannerlayout|notebannerlayout;col=1:8"
+              styles="{
+                mergeColumns:8;
+                overflow:wrap;
+                horizontal:left;
+                vertical:center;
+                minRowHeight:24;
+                autoHeight:true;
+                customAutoHeight-margin-top:10;
+                customAutoHeight-margin-bottom:10;
+                borderWeight:thin;
+              }"/>
+      </layer>
+
+      <layer name="pc-layout-banner-warning" priority="150" enabled="true">
+        <rule target="row"
+              selector="kind=warningbannerlayout;col=1:8"
+              styles="{
+                backColor:#4C3F10;
+                fontColor:#FFE599;
+                borderColor:#3B320D;
+              }"/>
+      </layer>
+
+      <layer name="pc-layout-banner-error" priority="160" enabled="true">
+        <rule target="row"
+              selector="kind=errorbannerlayout;col=1:8"
+              styles="{
+                backColor:#161616;
+                fontColor:#FFFFFF;
+                borderColor:#111111;
+              }"/>
+      </layer>
+
+      <layer name="pc-layout-banner-note" priority="170" enabled="true">
+        <rule target="row"
+              selector="kind=notebannerlayout;col=1:8"
+              styles="{
+                backColor:#2A2A2A;
+                fontColor:#FFE599;
+                borderColor:#575757;
+              }"/>
+      </layer>
+
+      <layer name="pc-layout-banner-title" priority="180" enabled="true">
+        <rule target="row"
+              selector="kind=errorbannerlayouttitle|warningbannerlayouttitle|notebannerlayouttitle;col=1:8"
               styles="{
                 fontBold:true;
               }"/>

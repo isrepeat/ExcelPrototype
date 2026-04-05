@@ -47,7 +47,7 @@ Public Function m_RunMode(ByVal cfg As Object, ByVal modeInput As Object, ByVal 
     Dim commonKey As String
     Dim commonKeyType As String
     Dim useLikeMatch As Boolean
-    Dim rowKindRanges As Object
+    Dim kindRanges As Object
     Dim headerRows As Collection
     Dim sectionRows As Collection
     Dim contentRows As Collection
@@ -242,13 +242,12 @@ Public Function m_RunMode(ByVal cfg As Object, ByVal modeInput As Object, ByVal 
         ' Inter-table spacing is controlled by current sheet layout/rendering rules.
     Next i
 
-    Set rowKindRanges = CreateObject("Scripting.Dictionary")
-    rowKindRanges.CompareMode = 1
-    Set rowKindRanges("header") = headerRows
-    Set rowKindRanges("section") = sectionRows
-    Set rowKindRanges("content") = contentRows
+    Set kindRanges = ex_StylePipelineEngine.m_CreateKindRanges()
+    mp_AddKindEntriesFromRows kindRanges, "header", headerRows
+    mp_AddKindEntriesFromRows kindRanges, "section", sectionRows
+    mp_AddKindEntriesFromRows kindRanges, "content", contentRows
 
-    mp_ApplySheetPipelineForPage summarySheet, "MultiSources", SUMMARY_SHEET_NAME, rowKindRanges
+    mp_ApplySheetPipelineForPage summarySheet, "MultiSources", SUMMARY_SHEET_NAME, kindRanges
     summarySheet.Activate
 
     Set modeResult = CreateObject("Scripting.Dictionary")
@@ -398,7 +397,7 @@ Private Sub mp_ApplySheetPipelineForPage( _
     ByVal ws As Worksheet, _
     ByVal modeKey As String, _
     ByVal pipelinePageName As String, _
-    Optional ByVal rowKindRanges As Object = Nothing _
+    Optional ByVal kindRanges As Object = Nothing _
 )
     Dim pipeline As Collection
 
@@ -412,12 +411,28 @@ Private Sub mp_ApplySheetPipelineForPage( _
         ThisWorkbook, _
         Trim$(pipelinePageName) _
     )
-    ex_StylePipelineEngine.m_ApplyColumnStylesPipeline ws, Nothing, pipeline, Trim$(modeKey), rowKindRanges
+
+    ex_StylePipelineEngine.m_ApplyColumnStylesPipeline ws, Nothing, pipeline, Trim$(modeKey), kindRanges
     On Error GoTo 0
     Exit Sub
 
 SoftFail:
     On Error GoTo 0
+End Sub
+
+Private Sub mp_AddKindEntriesFromRows( _
+    ByVal kindRanges As Object, _
+    ByVal kindName As String, _
+    ByVal rows As Collection _
+)
+    Dim rowItem As Variant
+
+    If kindRanges Is Nothing Then Exit Sub
+    If rows Is Nothing Then Exit Sub
+
+    For Each rowItem In rows
+        ex_StylePipelineEngine.m_AddKindRangeFromRowEntry kindRanges, kindName, rowItem, 1, 0
+    Next rowItem
 End Sub
 
 Private Function mp_BuildSectionTitle( _
