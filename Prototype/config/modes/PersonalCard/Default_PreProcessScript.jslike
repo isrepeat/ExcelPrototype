@@ -16,6 +16,13 @@ queryTableRefs = callMacro(
 	"$1"
 );
 
+queryTableRefs = callMacro(
+	"ex_Helpers.m_RegexReplace",
+	queryTableRefs,
+	"(^|\\s*;\\s*)Events\\.Sheet\\[EventsIn\\](\\s*;\\s*|$)",
+	"$1"
+);
+
 if (baseDateNormalized == "") {
 	let baseDate = callMacro("ex_ConfigProvider.m_GetConfigValue", "BaseDate", "");
 	if (baseDate != "") {

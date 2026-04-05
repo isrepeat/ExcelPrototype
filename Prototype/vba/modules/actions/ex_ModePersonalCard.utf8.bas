@@ -907,7 +907,7 @@ Private Function mp_WriteStateCardGeneric( _
     fields = mp_GetEffectiveFieldAliases(cfg, sourceAlias, tableAlias)
     Dim resultTable As obj_ResultTable
     Set resultTable = mp_EnsureResultTable(resultTables, resultTablesByRef, sourceAlias, tableAlias, cfg)
-    mp_RegisterResultTableFieldAliases resultTable, sourceAlias, tableAlias, fields
+    mp_RegisterResultTableFieldAliases resultTable, cfg, sourceAlias, tableAlias, fields
 
     showNoStateRow = mp_IsLikelyFullPersonKey(fio)
     outTableRendered = False
@@ -1131,7 +1131,7 @@ Private Function mp_WriteEventsGeneric( _
     fields = mp_GetEffectiveFieldAliases(cfg, sourceAlias, tableAlias)
     Dim resultTable As obj_ResultTable
     Set resultTable = mp_EnsureResultTable(resultTables, resultTablesByRef, sourceAlias, tableAlias, cfg)
-    mp_RegisterResultTableFieldAliases resultTable, sourceAlias, tableAlias, fields
+    mp_RegisterResultTableFieldAliases resultTable, cfg, sourceAlias, tableAlias, fields
 
     Dim fieldCount As Long
     fieldCount = UBound(fields) - LBound(fields) + 1
@@ -1781,6 +1781,7 @@ End Sub
 
 Private Sub mp_RegisterResultTableFieldAliases( _
     ByVal resultTable As obj_ResultTable, _
+    ByVal cfg As Object, _
     ByVal sourceAlias As String, _
     ByVal tableAlias As String, _
     ByVal fields As Variant _
@@ -1788,6 +1789,7 @@ Private Sub mp_RegisterResultTableFieldAliases( _
     Dim i As Long
     Dim fieldAlias As String
     Dim mapKey As String
+    Dim fieldLabel As String
 
     If resultTable Is Nothing Then Exit Sub
     If mp_IsEmptyVariantArray(fields) Then Exit Sub
@@ -1796,7 +1798,8 @@ Private Sub mp_RegisterResultTableFieldAliases( _
         fieldAlias = Trim$(CStr(fields(i)))
         If Len(fieldAlias) = 0 Then GoTo ContinueField
         mapKey = sourceAlias & ".Sheet[" & tableAlias & "].Map[" & fieldAlias & "]"
-        resultTable.AddFieldMap fieldAlias, mapKey
+        fieldLabel = mp_GetFieldLabel(cfg, sourceAlias, tableAlias, fieldAlias)
+        resultTable.AddFieldMap fieldAlias, mapKey, fieldLabel
 ContinueField:
     Next i
 End Sub

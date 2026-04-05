@@ -887,7 +887,11 @@ Private Sub mp_LoadBannerAutoHeightMargins( _
         If layerObj Is Nothing Then GoTo ContinueLayer
         For Each ruleObj In layerObj.Rules
             If ruleObj Is Nothing Then GoTo ContinueRule
-            If StrComp(LCase$(Trim$(ruleObj.Target)), "row", vbBinaryCompare) <> 0 Then GoTo ContinueRule
+            Select Case LCase$(Trim$(ruleObj.Target))
+                Case "row", "rowkind"
+                Case Else
+                    GoTo ContinueRule
+            End Select
             If Not mp_BannerRuleMatchesKind(ruleObj.Selector, bannerKind) Then GoTo ContinueRule
 
             Set declarations = ruleObj.Declarations
