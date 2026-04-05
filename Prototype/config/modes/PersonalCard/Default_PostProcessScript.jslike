@@ -35,6 +35,7 @@ if (postProcessValidationModeNormalized == "Disabled" || postProcessValidationMo
 }
 callMacro("ex_Messaging.m_LogToFile", $`[POST][PC] input.CommonKey={inputCommonKey}`, logPath);
 callMacro("ex_Messaging.m_LogToFile", $`[POST][PC] validation.Mode={postProcessValidationModeNormalized}; disabled={validationIsDisabled}`, logPath);
+callMacro("ex_PostProcessActions.m_ShowBannerAtLayoutBannerControl", "TYPE_NOTE", "pcWarningBannerSlot", "", "");
 
 /* Логи временно отключены */
 // let debugLogPath = "Logs\\personalcard_pipeline.log";
@@ -139,7 +140,7 @@ for (let owner in Daily.Sheet[DailyEvents].rows) {
 
 					if (hasValidTvoMetaRow != "true") {
 						let errorLine = "FIO=" + owner.column[FIO] + ": в последней записи EventsOut.Note есть пометка ТВО, но после owner отсутствует корректная meta-строка (MetaType=meta, DocNote=ТВО, заполнены Rank/FIO/Position).";
-						callMacro("ex_PostProcessActions.m_ShowBannerBeforeRowIndex", "TYPE_WARNING", validationWarningTitle, errorLine, ownerRowIndexForWarning, 0, 0);
+						callMacro("ex_PostProcessActions.m_ShowBannerBeforeRowRef", "TYPE_WARNING", validationWarningTitle, errorLine, owner, 0, 0);
 						hasValidationWarnings = "true";
 					}
 				}
@@ -152,7 +153,7 @@ for (let owner in Daily.Sheet[DailyEvents].rows) {
 			let openTreatmentFactArrivalDateMatch = callMacro("ex_Helpers.m_RegexFirstMatch", lastTreatmentEventsOutFactArrivalDate, unclosedReturnDateRegex);
 			if (openTreatmentFactArrivalDateMatch != "") {
 				let errorLine = "FIO=" + owner.column[FIO] + ": ключ находится в секции ToHospital, но последняя запись EventsOut с EventReason=Лікування не закрыта (FactArrivalDate пустой или '?'). Ключ должен быть в секции MoveVacationForCuringToHospital.";
-				callMacro("ex_PostProcessActions.m_ShowBannerBeforeRowIndex", "TYPE_WARNING", validationWarningTitle, errorLine, ownerRowIndexForWarning, 0, 0);
+				callMacro("ex_PostProcessActions.m_ShowBannerBeforeRowRef", "TYPE_WARNING", validationWarningTitle, errorLine, owner, 0, 0);
 				hasValidationWarnings = "true";
 			}
 		}
@@ -178,7 +179,7 @@ for (let owner in Daily.Sheet[DailyEvents].rows) {
 
 				if (hasCurrentDailyFromHospitalOwnerRow != "true") {
 					let errorLine = "FIO=" + owner.column[FIO] + ": ключ находится в секции ToVacationForCuring, но последняя запись EventsOut не закрыта (PlannedReturnDate пустой или '?') и в текущем DailyEvents нет owner-записи FromHospital (SectionType=1), которая закрывает лечение сейчас.";
-					callMacro("ex_PostProcessActions.m_ShowBannerBeforeRowIndex", "TYPE_WARNING", validationWarningTitle, errorLine, ownerRowIndexForWarning, 0, 0);
+					callMacro("ex_PostProcessActions.m_ShowBannerBeforeRowRef", "TYPE_WARNING", validationWarningTitle, errorLine, owner, 0, 0);
 					hasValidationWarnings = "true";
 				}
 			}
@@ -269,7 +270,7 @@ for (let owner in Daily.Sheet[DailyEvents].rows) {
 
 				if (mismatchFields != "") {
 					let mismatchErrorLine = "FIO=" + owner.column[FIO] + ", SectionType=" + owner.column[SectionType] + ": данные не совпадают с EventsOut строкой (EventReason='" + selectedEventReason + "', OutCommandDate=BaseDate): " + mismatchFields;
-					callMacro("ex_PostProcessActions.m_ShowBannerBeforeRowIndex", "TYPE_ERROR", validationErrorTitle, mismatchErrorLine, ownerRowIndexForWarning, 0, 0);
+					callMacro("ex_PostProcessActions.m_ShowBannerBeforeRowRef", "TYPE_ERROR", validationErrorTitle, mismatchErrorLine, owner, 0, 0);
 					hasValidationWarnings = "true";
 				}
 			}
@@ -382,7 +383,7 @@ for (let owner in Daily.Sheet[DailyEvents].rows) {
 
 		if (missingRequiredFields != "") {
 			let requiredFieldsErrorLine = "FIO=" + owner.column[FIO] + ", SectionType=" + sectionType + ": не заполнены обязательные поля: " + missingRequiredFields;
-			callMacro("ex_PostProcessActions.m_ShowBannerBeforeRowIndex", "TYPE_ERROR", validationErrorTitle, requiredFieldsErrorLine, ownerRowIndexForWarning, 0, 0);
+			callMacro("ex_PostProcessActions.m_ShowBannerBeforeRowRef", "TYPE_ERROR", validationErrorTitle, requiredFieldsErrorLine, owner, 0, 0);
 			hasValidationWarnings = "true";
 		}
 	}
@@ -390,7 +391,7 @@ for (let owner in Daily.Sheet[DailyEvents].rows) {
 
 if (hasValidationWarnings == "true") {
 	//callMacro("ex_Messaging.m_LogToFile", "[POST] STOP validation failed", logPath);
-	callMacro("ex_PostProcessActions.m_ShowBannerAfterBanner", "TYPE_NOTE", "WARNING", "Валидация не пройдена.", 0, 0, 0);
+	callMacro("ex_PostProcessActions.m_ShowBannerAtLayoutBannerControl", "TYPE_WARNING", "pcWarningBannerSlot", validationWarningTitle, "Валидация не пройдена.");
 	return;
 }
 }
@@ -546,11 +547,11 @@ for (let row in Daily.Sheet[DailyEvents].rows) {
 
 			if (hasPrevVacationForCuringEvent != "true") {
 				callMacro(
-					"ex_PostProcessActions.m_ShowBannerBeforeRowIndex",
+					"ex_PostProcessActions.m_ShowBannerBeforeRowRef",
 					"TYPE_ERROR",
 					exportErrorTitle,
 					$`SectionType={sectionType}, FIO={row.column[FIO]}: not found EventsOut row with EventReason='Відпустка для лікування' or 'Відпустка' to fill PrevVkNum/PrevVkDate.`,
-					ownerRowIndex,
+					row,
 					0,
 					0
 				);
@@ -558,11 +559,11 @@ for (let row in Daily.Sheet[DailyEvents].rows) {
 			}
 			if (prevVkNum == "" || prevVkNum == "?") {
 				callMacro(
-					"ex_PostProcessActions.m_ShowBannerBeforeRowIndex",
+					"ex_PostProcessActions.m_ShowBannerBeforeRowRef",
 					"TYPE_ERROR",
 					exportErrorTitle,
 					$`SectionType={sectionType}, FIO={row.column[FIO]}: EventsOut.Ticket is empty for last row with EventReason='Відпустка для лікування' or 'Відпустка'.`,
-					ownerRowIndex,
+					row,
 					0,
 					0
 				);
@@ -570,11 +571,11 @@ for (let row in Daily.Sheet[DailyEvents].rows) {
 			}
 			if (prevVkDateRaw == "" || prevVkDateRaw == "?") {
 				callMacro(
-					"ex_PostProcessActions.m_ShowBannerBeforeRowIndex",
+					"ex_PostProcessActions.m_ShowBannerBeforeRowRef",
 					"TYPE_ERROR",
 					exportErrorTitle,
 					$`SectionType={sectionType}, FIO={row.column[FIO]}: EventsOut.OutCommandDate is empty for last row with EventReason='Відпустка для лікування' or 'Відпустка'.`,
-					ownerRowIndex,
+					row,
 					0,
 					0
 				);
@@ -1167,7 +1168,7 @@ for (let row in Daily.Sheet[DailyEvents].rows) {
 		let mergedAnchorExportText = callMacro("ex_PostProcessActions.m_TextAppend", currentAnchorExportText, txtForWord, "\n\n");
 		callMacro("ex_PostProcessActions.m_SetRuntimeData", exportAnchorRuntimeKey, mergedAnchorExportText);
 
-		let appendedBlockText = callMacro("ex_PostProcessActions.m_AppendResultBlock", txt, "", "TYPE_NOTE", 0, 1);
+		let appendedBlockText = callMacro("ex_PostProcessActions.m_AddResultBannerToItemsSource", "pcResultBanners", "TYPE_NOTE", "", txt);
 		if (appendedBlockText != "") {
 			hasExportBlocks = "true";
 		}

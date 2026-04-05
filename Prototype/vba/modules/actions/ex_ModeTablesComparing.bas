@@ -401,7 +401,7 @@ Private Sub mp_WriteComparingResultSheet(ByVal tableData As Variant)
     Dim startRow As Long
     Dim fullRowCount As Long
     Dim targetRange As Range
-    Dim rowKindRanges As Object
+    Dim kindRanges As Object
 
     On Error GoTo EH
 
@@ -419,8 +419,8 @@ Private Sub mp_WriteComparingResultSheet(ByVal tableData As Variant)
     targetRange.Value = tableData
 
     mp_ApplyResultAutoFilter ws, startRow, dataRows, colCount
-    Set rowKindRanges = mp_BuildComparingRowKindRanges(tableData, startRow)
-    ex_OutputFormattingPipeline.m_ApplySheetPipeline ws, Nothing, Nothing, rowKindRanges, "TablesComparing"
+    Set kindRanges = mp_BuildComparingKindRanges(tableData, startRow)
+    ex_OutputFormattingPipeline.m_ApplySheetPipeline ws, Nothing, Nothing, kindRanges, "TablesComparing"
 
     Exit Sub
 EH:
@@ -464,11 +464,11 @@ Private Sub mp_ApplyResultAutoFilter( _
     tableRange.AutoFilter
 End Sub
 
-Private Function mp_BuildComparingRowKindRanges( _
+Private Function mp_BuildComparingKindRanges( _
     ByVal tableData As Variant, _
     ByVal startRow As Long _
 ) As Object
-    Dim rowKindRanges As Object
+    Dim kindRanges As Object
     Dim allRows As Collection
     Dim headerRows As Collection
     Dim dataRows As Collection
@@ -481,8 +481,7 @@ Private Function mp_BuildComparingRowKindRanges( _
     Dim sheetRow As Long
     Dim statusValue As String
 
-    Set rowKindRanges = CreateObject("Scripting.Dictionary")
-    rowKindRanges.CompareMode = 1
+    Set kindRanges = ex_StylePipelineEngine.m_CreateKindRanges()
 
     Set allRows = New Collection
     Set headerRows = New Collection
@@ -494,7 +493,7 @@ Private Function mp_BuildComparingRowKindRanges( _
 
     totalRows = UBound(tableData, 1)
     If totalRows <= 0 Then
-        Set mp_BuildComparingRowKindRanges = rowKindRanges
+        Set mp_BuildComparingKindRanges = kindRanges
         Exit Function
     End If
 
@@ -519,13 +518,28 @@ Private Function mp_BuildComparingRowKindRanges( _
         End Select
     Next tableRow
 
-    Set rowKindRanges("comparingall") = allRows
-    Set rowKindRanges("comparingheader") = headerRows
-    Set rowKindRanges("comparingdata") = dataRows
-    Set rowKindRanges("statusadded") = statusAddedRows
-    Set rowKindRanges("statuschanged") = statusChangedRows
-    Set rowKindRanges("statusremoved") = statusRemovedRows
-    Set rowKindRanges("statusdefault") = statusDefaultRows
+    mp_AddKindEntriesFromRows kindRanges, "comparingall", allRows
+    mp_AddKindEntriesFromRows kindRanges, "comparingheader", headerRows
+    mp_AddKindEntriesFromRows kindRanges, "comparingdata", dataRows
+    mp_AddKindEntriesFromRows kindRanges, "statusadded", statusAddedRows
+    mp_AddKindEntriesFromRows kindRanges, "statuschanged", statusChangedRows
+    mp_AddKindEntriesFromRows kindRanges, "statusremoved", statusRemovedRows
+    mp_AddKindEntriesFromRows kindRanges, "statusdefault", statusDefaultRows
 
-    Set mp_BuildComparingRowKindRanges = rowKindRanges
+    Set mp_BuildComparingKindRanges = kindRanges
 End Function
+
+Private Sub mp_AddKindEntriesFromRows( _
+    ByVal kindRanges As Object, _
+    ByVal kindName As String, _
+    ByVal rows As Collection _
+)
+    Dim rowItem As Variant
+
+    If kindRanges Is Nothing Then Exit Sub
+    If rows Is Nothing Then Exit Sub
+
+    For Each rowItem In rows
+        ex_StylePipelineEngine.m_AddKindRangeFromRowEntry kindRanges, kindName, rowItem, 1, 0
+    Next rowItem
+End Sub

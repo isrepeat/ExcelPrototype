@@ -2,10 +2,11 @@ Attribute VB_Name = "ex_ResultLayoutItemsRt"
 Option Explicit
 
 Private Const INPUT_KEY_LAYOUT_ITEMSOURCES As String = "__ResultLayoutItemsSources"
-Private Const INPUT_KEY_LAYOUT_ROWKINDS As String = "__ResultLayoutRowKinds"
 Private Const INPUT_KEY_LAYOUT_FIELDRANGES As String = "__ResultLayoutFieldRanges"
+Private Const INPUT_KEY_LAYOUT_KINDRANGES As String = "__ResultLayoutKindRanges"
+Private Const LAYOUT_ITEMSOURCE_BANNER_CONTROL_PREFIX As String = "__LayoutBannerControl."
 Private Const DEBUG_LOG_PATH As String = "Logs\layout_engine.log"
-Private Const DEBUG_LOG_ENABLED As Boolean = False
+Private Const DEBUG_LOG_ENABLED As Boolean = True
 
 Private Const SESSION_KEY_PREFIX As String = "sheet::"
 Private Const SESSION_FIELD_DOC As String = "doc"
@@ -85,6 +86,14 @@ Public Sub m_BeginBatchUpdate(ByVal ws As Worksheet)
     mp_DebugLog "m_BeginBatchUpdate: ws='" & ws.Name & "' depth=" & CStr(batchDepth) & "."
 End Sub
 
+Public Function m_IsBatchUpdateActive(ByVal ws As Worksheet) As Boolean
+    Dim session As Object
+
+    If ws Is Nothing Then Exit Function
+    If Not mp_TryGetSession(ws, session) Then Exit Function
+    m_IsBatchUpdateActive = mp_IsSessionBatchActive(session)
+End Function
+
 Public Function m_EndBatchUpdate( _
     ByVal ws As Worksheet, _
     Optional ByVal applyRefresh As Boolean = True, _
@@ -125,6 +134,12 @@ Public Function m_EndBatchUpdate( _
                 If Not m_Refresh(ws, CStr(dirtyKey), outErrorText) Then Exit Function
             Next dirtyKey
         End If
+    End If
+
+    If applyRefresh Then
+        ex_PostProcessActions.m_FlushPostLayoutDeferredBanners ws
+    Else
+        mp_DebugLog "m_EndBatchUpdate: deferred banner flush postponed ws='" & ws.Name & "' applyRefresh=false."
     End If
     mp_ClearSessionDirtyKeys session
 
@@ -287,6 +302,21 @@ Public Function m_TryGetItemsSource( _
     m_TryGetItemsSource = Not (outItemsSource Is Nothing)
 End Function
 
+Public Function m_TryGetItemsSourcesMap( _
+    ByVal ws As Worksheet, _
+    ByRef outItemsMap As Object _
+) As Boolean
+    Dim session As Object
+
+    Set outItemsMap = Nothing
+    If ws Is Nothing Then Exit Function
+    If Not mp_TryGetSession(ws, session) Then Exit Function
+
+    Set outItemsMap = session(SESSION_FIELD_ITEMS_MAP)
+    If outItemsMap Is Nothing Then Exit Function
+    m_TryGetItemsSourcesMap = True
+End Function
+
 Public Function m_IsItemsSourceBound( _
     ByVal ws As Worksheet, _
     ByVal itemsSourceKey As String _
@@ -304,6 +334,115 @@ Public Function m_IsItemsSourceBound( _
     If layoutDoc Is Nothing Then Exit Function
 
     m_IsItemsSourceBound = mp_LayoutUsesItemsSourceKey(layoutDoc, normalizedKey)
+End Function
+
+Public Function m_TryResolveItemsPanelItemsSourceKey( _
+    ByVal ws As Worksheet, _
+    ByVal controlName As String, _
+    ByRef outItemsSourceKey As String, _
+    Optional ByRef outErrorText As String _
+) As Boolean
+    Dim session As Object
+    Dim layoutDoc As Object
+    Dim controlNode As Object
+    Dim controlType As String
+    Dim sourceText As String
+    Dim normalizedName As String
+
+    outItemsSourceKey = vbNullString
+    outErrorText = vbNullString
+    normalizedName = Trim$(controlName)
+
+    If ws Is Nothing Then
+        outErrorText = "Worksheet is required for control lookup."
+        Exit Function
+    End If
+    If Len(normalizedName) = 0 Then
+        outErrorText = "Control name is required for itemsPanel lookup."
+        Exit Function
+    End If
+    If Not mp_TryGetSession(ws, session) Then
+        outErrorText = "Result layout session is not registered for sheet '" & ws.Name & "'."
+        Exit Function
+    End If
+
+    Set layoutDoc = session(SESSION_FIELD_DOC)
+    If layoutDoc Is Nothing Then
+        outErrorText = "Layout DOM is not available for control lookup."
+        Exit Function
+    End If
+    If Not mp_TryGetControlNodeByName(layoutDoc, normalizedName, controlNode) Then
+        outErrorText = "Control '" & normalizedName & "' is not present in current layout."
+        Exit Function
+    End If
+
+    controlType = LCase$(Trim$(mp_NodeAttrText(controlNode, "type")))
+    If StrComp(controlType, "itemspanel", vbTextCompare) <> 0 Then
+        outErrorText = "Control '" & normalizedName & "' must be type='itemsPanel', got type='" & controlType & "'."
+        Exit Function
+    End If
+
+    sourceText = Trim$(mp_NodeAttrText(controlNode, "itemsSource"))
+    If Len(sourceText) = 0 Then
+        outErrorText = "itemsPanel control '" & normalizedName & "' requires non-empty itemsSource."
+        Exit Function
+    End If
+    If mp_IsBindingExpression(sourceText) Then
+        outErrorText = "itemsPanel control '" & normalizedName & "' uses binding itemsSource; direct key is required for script updates."
+        Exit Function
+    End If
+
+    outItemsSourceKey = sourceText
+    m_TryResolveItemsPanelItemsSourceKey = True
+End Function
+
+Public Function m_TryResolveBannerControlItemsSourceKey( _
+    ByVal ws As Worksheet, _
+    ByVal controlName As String, _
+    ByRef outItemsSourceKey As String, _
+    Optional ByRef outErrorText As String _
+) As Boolean
+    Dim session As Object
+    Dim layoutDoc As Object
+    Dim controlNode As Object
+    Dim controlType As String
+    Dim normalizedName As String
+
+    outItemsSourceKey = vbNullString
+    outErrorText = vbNullString
+    normalizedName = Trim$(controlName)
+
+    If ws Is Nothing Then
+        outErrorText = "Worksheet is required for control lookup."
+        Exit Function
+    End If
+    If Len(normalizedName) = 0 Then
+        outErrorText = "Control name is required for banner layout target."
+        Exit Function
+    End If
+    If Not mp_TryGetSession(ws, session) Then
+        outErrorText = "Result layout session is not registered for sheet '" & ws.Name & "'."
+        Exit Function
+    End If
+
+    Set layoutDoc = session(SESSION_FIELD_DOC)
+    If layoutDoc Is Nothing Then
+        outErrorText = "Layout DOM is not available for control lookup."
+        Exit Function
+    End If
+    If Not mp_TryGetControlNodeByName(layoutDoc, normalizedName, controlNode) Then
+        outErrorText = "Control '" & normalizedName & "' is not present in current layout."
+        Exit Function
+    End If
+
+    controlType = LCase$(Trim$(mp_NodeAttrText(controlNode, "type")))
+    If StrComp(controlType, "banner", vbTextCompare) <> 0 Then
+        outErrorText = "Control '" & normalizedName & "' must be type='banner', got type='" & controlType & "'."
+        Exit Function
+    End If
+
+    outItemsSourceKey = LAYOUT_ITEMSOURCE_BANNER_CONTROL_PREFIX & normalizedName
+    m_TryResolveBannerControlItemsSourceKey = True
 End Function
 
 Private Function mp_EnsureItemsSourceMap(ByVal inputObject As Object) As Object
@@ -421,8 +560,8 @@ Private Function mp_ApplyRefreshSheetStyling( _
     ByRef outErrorText As String _
 ) As Boolean
     Dim objectValue As Object
-    Dim rowKindRanges As Object
     Dim resultFieldRanges As Collection
+    Dim kindRanges As Object
 
     On Error GoTo EH
 
@@ -432,7 +571,6 @@ Private Function mp_ApplyRefreshSheetStyling( _
     End If
 
     Set resultFieldRanges = Nothing
-    Set rowKindRanges = Nothing
 
     If Not layoutInput Is Nothing Then
         Set objectValue = Nothing
@@ -445,14 +583,14 @@ Private Function mp_ApplyRefreshSheetStyling( _
         End If
 
         Set objectValue = Nothing
-        If ex_ScriptIO.m_TryGetObject(layoutInput, INPUT_KEY_LAYOUT_ROWKINDS, objectValue) Then
+        If ex_ScriptIO.m_TryGetObject(layoutInput, INPUT_KEY_LAYOUT_KINDRANGES, objectValue) Then
             If Not objectValue Is Nothing Then
-                Set rowKindRanges = objectValue
+                Set kindRanges = objectValue
             End If
         End If
     End If
 
-    ex_OutputFormattingPipeline.m_ApplySheetPipeline ws, resultFieldRanges, Nothing, rowKindRanges
+    ex_OutputFormattingPipeline.m_ApplySheetPipeline ws, resultFieldRanges, Nothing, kindRanges
     mp_ApplyRefreshSheetStyling = True
     Exit Function
 EH:
@@ -489,6 +627,39 @@ ContinueNode:
 EH:
     On Error Resume Next
     mp_DebugLog "mp_LayoutUsesItemsSourceKey failed key='" & itemsSourceKey & "' err='[" & Err.Source & " #" & CStr(Err.Number) & "] " & Err.Description & "'."
+    On Error GoTo 0
+End Function
+
+Private Function mp_TryGetControlNodeByName( _
+    ByVal layoutDoc As Object, _
+    ByVal controlName As String, _
+    ByRef outControlNode As Object _
+) As Boolean
+    Dim controlNodes As Object
+    Dim controlNode As Object
+    Dim nodeName As String
+
+    Set outControlNode = Nothing
+    controlName = Trim$(controlName)
+    If layoutDoc Is Nothing Then Exit Function
+    If Len(controlName) = 0 Then Exit Function
+
+    On Error GoTo EH
+    Set controlNodes = layoutDoc.selectNodes("//*[local-name()='control'][@name]")
+    If controlNodes Is Nothing Then Exit Function
+
+    For Each controlNode In controlNodes
+        nodeName = Trim$(mp_NodeAttrText(controlNode, "name"))
+        If StrComp(nodeName, controlName, vbTextCompare) = 0 Then
+            Set outControlNode = controlNode
+            mp_TryGetControlNodeByName = True
+            Exit Function
+        End If
+    Next controlNode
+    Exit Function
+EH:
+    On Error Resume Next
+    mp_DebugLog "mp_TryGetControlNodeByName failed control='" & controlName & "' err='[" & Err.Source & " #" & CStr(Err.Number) & "] " & Err.Description & "'."
     On Error GoTo 0
 End Function
 
