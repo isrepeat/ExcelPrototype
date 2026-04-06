@@ -27,6 +27,7 @@ Private Const BANNER_TITLE_NOTE As String = "NOTE"
 Private Const BANNER_KIND_WARNING As String = "warningbanner"
 Private Const BANNER_KIND_ERROR As String = "errorbanner"
 Private Const BANNER_KIND_NOTE As String = "notebanner"
+Private Const BANNER_KIND_LAYOUT_SUFFIX As String = "layout"
 Private Const DEFER_OP_APPEND_HEADER_TEXT As String = "append_single_header_text"
 Private Const DEFER_OP_APPEND_FOOTER_TEXT As String = "append_single_footer_text"
 Private Const DEFER_OP_APPEND_HEADER_ROW As String = "append_header_row"
@@ -35,13 +36,24 @@ Private Const DEFER_OP_SHOW_BANNER_AT_CELL As String = "show_banner_at_cell"
 Private Const DEFER_OP_SHOW_BANNER_AFTER_BANNER As String = "show_banner_after_banner"
 Private Const DEFER_OP_SHOW_BANNER_AT_TABLE As String = "show_banner_at_table"
 Private Const DEFER_OP_SHOW_BANNER_BEFORE_ROW As String = "show_banner_before_row"
-Private Const DEFER_OP_APPEND_RESULT_BLOCK As String = "append_result_block"
 Private Const DEFER_ROW_ANCHOR_PREFIX As String = "__pcDeferredRow_"
 Private Const RUNTIME_ROW_ANCHOR_PREFIX As String = "__pcRuntimeRow_"
 Private Const RESULT_BLOCK_ANCHOR_PREFIX As String = "__pcResultBlock_"
 Private Const RESULT_BLOCK_ANCHOR_MAX_INDEX As Long = 9999
 Private Const RESULT_BLOCK_LAST_ANCHOR_NAME As String = "__pcResultBlockLast"
+Private Const RESULT_TABLE_ANCHOR_PREFIX As String = "__pcTable_"
+Private Const BANNER_ANCHOR_PREFIX As String = "__pcBanner_"
+Private Const BANNER_MESSAGE_ANCHOR_PREFIX As String = "__pcBannerMsg_"
+Private Const RESULT_BLOCK_IDENTITY_TOKEN As String = "__resultblock__"
 Private Const RESULT_BLOCK_PLACEHOLDER_HIGHLIGHT_COLOR As String = "#66CCFF"
+Private Const COLOR_MARKER_PREFIX As String = "\color_"
+Private Const COLOR_MARKER_BEGIN_SUFFIX As String = "_begin"
+Private Const COLOR_MARKER_END_SUFFIX As String = "_end"
+Private Const POST_LAYOUT_BANNER_OP_BEFORE_ROW As String = "before_row"
+Private Const POST_LAYOUT_BANNER_OP_AT_TABLE As String = "at_table"
+Private Const POST_LAYOUT_ROW_ANCHOR_PREFIX As String = "__pcPostLayoutRow_"
+Private Const BANNER_TRACE_LOG_ENABLED As Boolean = True
+Private Const BANNER_TRACE_LOG_PATH As String = "Logs\layout_engine.log"
 
 Private Type t_PostProcessHeaderStyle
     Columns As Long
@@ -84,6 +96,7 @@ Private g_RuntimeDataBySheetAndKey As Object
 Private g_DeferredSingleHeaderTextBySheet As Object
 Private g_DeferredSingleFooterTextBySheet As Object
 Private g_DeferredRowAnchorSeqBySheet As Object
+Private g_PostLayoutDeferredBannersBySheet As Object
 Private g_ExecutionSheet As Worksheet
 
 Public Sub m_SetExecutionSheetContext(Optional ByVal targetSheet As Worksheet = Nothing)
@@ -310,6 +323,7 @@ Public Sub m_ResetScriptHeaderCursor(Optional ByVal targetSheet As Worksheet)
         Set g_DeferredSingleHeaderTextBySheet = Nothing
         Set g_DeferredSingleFooterTextBySheet = Nothing
         Set g_DeferredRowAnchorSeqBySheet = Nothing
+        Set g_PostLayoutDeferredBannersBySheet = Nothing
         ex_RenderQueue.m_ClearAll
         On Error Resume Next
         Set ws = ActiveSheet
@@ -317,14 +331,17 @@ Public Sub m_ResetScriptHeaderCursor(Optional ByVal targetSheet As Worksheet)
         If Not ws Is Nothing Then
             mp_ClearPreviousSingleScriptHeader ws
             mp_ClearPreviousResultBlocks ws
+            mp_ClearLayoutResultBanners ws
         End If
     Else
         g_PostProcessHeaderSheetKey = mp_BuildSheetKey(targetSheet)
         mp_ClearRuntimeDataForSheet targetSheet
+        mp_ClearPostLayoutDeferredBannerQueue targetSheet
         mp_ClearDeferredRenderSheetState targetSheet
         mp_SetDeferredRenderActive targetSheet, False
         mp_ClearPreviousSingleScriptHeader targetSheet
         mp_ClearPreviousResultBlocks targetSheet
+        mp_ClearLayoutResultBanners targetSheet
     End If
 End Sub
 
@@ -343,6 +360,7 @@ Public Sub m_ResetScriptFooterCursor(Optional ByVal targetSheet As Worksheet)
         Set g_DeferredSingleHeaderTextBySheet = Nothing
         Set g_DeferredSingleFooterTextBySheet = Nothing
         Set g_DeferredRowAnchorSeqBySheet = Nothing
+        Set g_PostLayoutDeferredBannersBySheet = Nothing
         ex_RenderQueue.m_ClearAll
         On Error Resume Next
         Set ws = ActiveSheet
@@ -354,6 +372,7 @@ Public Sub m_ResetScriptFooterCursor(Optional ByVal targetSheet As Worksheet)
     Else
         g_PostProcessFooterSheetKey = mp_BuildSheetKey(targetSheet)
         mp_ClearRuntimeDataForSheet targetSheet
+        mp_ClearPostLayoutDeferredBannerQueue targetSheet
         mp_ClearDeferredRenderSheetState targetSheet
         mp_SetDeferredRenderActive targetSheet, False
         mp_ClearPreviousSingleScriptFooter targetSheet
@@ -560,99 +579,35 @@ Public Sub m_AppendToSingleScriptHeaderText( _
     g_PostProcessHeaderHasAppended = True
 End Sub
 
-Public Function m_AppendResultBlock( _
-    ByVal blockText As String, _
-    Optional ByVal titleText As String = vbNullString, _
-    Optional ByVal blockType As String = BANNER_TYPE_NOTE, _
-    Optional ByVal gapRowsBefore As Long = 0, _
-    Optional ByVal gapRowsAfter As Long = 1 _
-) As String
-    Dim ws As Worksheet
-    Dim sheetKey As String
-    Dim insertRow As Long
-    Dim rowsToInsert As Long
-    Dim blockRow As Long
-    Dim bannerCols As Long
-    Dim bannerRows As Long
-    Dim bannerKind As String
-    Dim bannerRangeAddress As String
-    Dim bodyLines As Collection
-    Dim insertedRange As Range
-    Dim anchorName As String
-    Dim nextBlockIndex As Long
-    Dim highlightSegments As Collection
+Private Sub mp_ResetResultBlockStateForSheet(ByVal sheetKey As String)
+    If StrComp(g_ResultBlockSheetKey, sheetKey, vbTextCompare) = 0 Then Exit Sub
 
-    blockText = Trim$(blockText)
-    If Len(blockText) = 0 Then Exit Function
+    g_ResultBlockSheetKey = sheetKey
+    g_ResultBlockNextInsertRow = 0
+    g_ResultBlockLastRowIndex = 0
+    g_ResultBlockCount = 0
+End Sub
 
-    Set ws = ActiveSheet
-    If ws Is Nothing Then
-        Err.Raise vbObjectError + 1782, "ex_PostProcessActions", "Active sheet is not available for result block render."
-    End If
+Private Function mp_TryAppendBannerToLayoutItemsSource( _
+    ByVal ws As Worksheet, _
+    ByVal titleText As String, _
+    ByVal bodyText As String, _
+    ByVal bannerKind As String, _
+    ByRef outHandled As Boolean, _
+    ByRef outErrorText As String _
+) As Boolean
+    outHandled = False
+    outErrorText = vbNullString
 
-    If mp_IsDeferredRenderActiveForSheet(ws) Then
-        mp_QueueDeferredOperation ws, DEFER_OP_APPEND_RESULT_BLOCK, Array(CStr(blockText), CStr(titleText), CStr(blockType), CLng(gapRowsBefore), CLng(gapRowsAfter))
-        m_AppendResultBlock = blockText
-        Exit Function
-    End If
-
-    mp_ValidateBannerGapRows gapRowsBefore, gapRowsAfter, "result block"
-    bannerKind = mp_MapBannerTypeToKind(blockType)
-    titleText = Trim$(titleText)
-    blockText = ex_ResultTemplatesParser.m_ExtractHighlightSegments(blockText, highlightSegments, RESULT_BLOCK_PLACEHOLDER_HIGHLIGHT_COLOR)
-    If Len(Trim$(blockText)) = 0 Then Exit Function
-
-    sheetKey = mp_BuildSheetKey(ws)
-    If StrComp(g_ResultBlockSheetKey, sheetKey, vbTextCompare) <> 0 Then
-        g_ResultBlockSheetKey = sheetKey
-        g_ResultBlockNextInsertRow = 0
-        g_ResultBlockLastRowIndex = 0
-        g_ResultBlockCount = 0
-    End If
-
-    If g_ResultBlockNextInsertRow <= 0 Then
-        insertRow = mp_GetScriptHeaderInsertStartRow(ws)
-    Else
-        insertRow = g_ResultBlockNextInsertRow
-    End If
-    If insertRow < 1 Then insertRow = 1
-    If insertRow > ws.Rows.Count Then insertRow = ws.Rows.Count
-
-    mp_GetWarningBannerDimensions bannerCols, bannerRows, bannerKind
-    rowsToInsert = gapRowsBefore + bannerRows + gapRowsAfter
-    If rowsToInsert <= 0 Then rowsToInsert = 1
-    If insertRow + rowsToInsert - 1 > ws.Rows.Count Then
-        rowsToInsert = ws.Rows.Count - insertRow + 1
-    End If
-
-    ws.Rows(CStr(insertRow) & ":" & CStr(insertRow + rowsToInsert - 1)).Insert Shift:=xlDown
-    mp_UnmergeRowsSafe ws, insertRow, gapRowsBefore
-
-    blockRow = insertRow + gapRowsBefore
-    If blockRow > ws.Rows.Count Then blockRow = ws.Rows.Count
-
-    bannerRangeAddress = "A" & CStr(blockRow) & ":" & mp_ToColumnLetter(bannerCols) & CStr(blockRow + bannerRows - 1)
-
-    Set bodyLines = New Collection
-    bodyLines.Add blockText
-    nextBlockIndex = g_ResultBlockCount + 1
-    ex_Messaging.m_RenderBanner ws, titleText, bodyLines, bannerRangeAddress, bannerKind, mp_BuildResultBlockIdentity(sheetKey, nextBlockIndex, blockText)
-    mp_ApplyResultBlockHighlightSegments ws, blockRow, titleText, blockText, highlightSegments
-
-    mp_UnmergeRowsSafe ws, blockRow + bannerRows, gapRowsAfter
-    Set insertedRange = ws.Range(ws.Cells(insertRow, 1), ws.Cells(insertRow + rowsToInsert - 1, bannerCols))
-    anchorName = mp_NextResultBlockAnchorName(ws)
-    If Len(anchorName) > 0 Then
-        mp_SetNamedRangeAnchor ws, anchorName, insertedRange
-    End If
-
-    g_ResultBlockCount = nextBlockIndex
-    g_ResultBlockLastRowIndex = blockRow
-    g_ResultBlockNextInsertRow = insertRow + rowsToInsert
-    If g_ResultBlockNextInsertRow > ws.Rows.Count Then g_ResultBlockNextInsertRow = ws.Rows.Count
-    mp_SetNamedRowAnchor ws, RESULT_BLOCK_LAST_ANCHOR_NAME, blockRow
-    m_AppendResultBlock = blockText
+    ' Implicit layout routing is disabled for generic banner APIs.
+    ' Use m_ShowBannerAtLayoutItemsSource or m_AddResultBannerToItemsSource with explicit control name from script.
+    mp_TryAppendBannerToLayoutItemsSource = True
 End Function
+
+Private Sub mp_ClearLayoutResultBanners(ByVal ws As Worksheet)
+    ' No implicit target control for layout result banners.
+    ' Clearing should be done explicitly from script via m_ClearLayoutItemsPanel.
+End Sub
 
 Private Sub mp_ApplyResultBlockHighlightSegments( _
     ByVal ws As Worksheet, _
@@ -715,6 +670,215 @@ Private Sub mp_ApplyResultBlockHighlightSegments( _
 
 NextSegment:
     Next segment
+End Sub
+
+Private Sub mp_ExtractBannerHighlightSegments( _
+    ByRef textValue As String, _
+    ByRef outSegments As Collection _
+)
+    Dim parserSegments As Collection
+
+    Set outSegments = New Collection
+    textValue = ex_ResultTemplatesParser.m_ExtractHighlightSegments(textValue, parserSegments, RESULT_BLOCK_PLACEHOLDER_HIGHLIGHT_COLOR)
+    mp_AppendHighlightSegments outSegments, parserSegments
+    mp_ExtractNamedColorMarkerSegments textValue, outSegments
+End Sub
+
+Private Sub mp_ExtractNamedColorMarkerSegments( _
+    ByRef textValue As String, _
+    ByVal targetSegments As Collection _
+)
+    Dim markerRegex As Object
+    Dim markerMatches As Object
+    Dim markerMatch As Object
+    Dim markerStack As Collection
+    Dim stackEntry As Object
+    Dim closeEntry As Object
+    Dim outputText As String
+    Dim scanPos As Long
+    Dim markerPos As Long
+    Dim markerTokenLen As Long
+    Dim colorToken As String
+    Dim markerAction As String
+    Dim colorHex As String
+    Dim segmentStart As Long
+    Dim segmentLength As Long
+    Dim stackIndex As Long
+
+    If targetSegments Is Nothing Then Exit Sub
+    If Len(textValue) = 0 Then Exit Sub
+
+    Set markerRegex = CreateObject("VBScript.RegExp")
+    markerRegex.Global = False
+    markerRegex.IgnoreCase = True
+    markerRegex.Pattern = "^\\color_([A-Za-z0-9#]+)_(begin|end)"
+
+    Set markerStack = New Collection
+    outputText = vbNullString
+    scanPos = 1
+
+    Do
+        markerPos = InStr(scanPos, textValue, COLOR_MARKER_PREFIX, vbTextCompare)
+        If markerPos <= 0 Then Exit Do
+
+        If markerPos > scanPos Then
+            outputText = outputText & Mid$(textValue, scanPos, markerPos - scanPos)
+        End If
+
+        Set markerMatches = markerRegex.Execute(Mid$(textValue, markerPos))
+        If markerMatches Is Nothing Then GoTo AppendRawMarker
+        If markerMatches.Count = 0 Then GoTo AppendRawMarker
+
+        Set markerMatch = markerMatches(0)
+        markerTokenLen = CLng(markerMatch.Length)
+        colorToken = LCase$(Trim$(CStr(markerMatch.SubMatches(0))))
+        markerAction = LCase$(Trim$(CStr(markerMatch.SubMatches(1))))
+
+        If StrComp(markerAction, "begin", vbTextCompare) = 0 Then
+            If Not mp_TryResolveColorMarkerName(colorToken, colorHex) Then
+                colorHex = RESULT_BLOCK_PLACEHOLDER_HIGHLIGHT_COLOR
+            End If
+
+            Set stackEntry = CreateObject("Scripting.Dictionary")
+            stackEntry.CompareMode = 1
+            stackEntry("Token") = colorToken
+            stackEntry("ColorHex") = colorHex
+            stackEntry("Start") = Len(outputText) + 1
+            markerStack.Add stackEntry
+        ElseIf StrComp(markerAction, "end", vbTextCompare) = 0 Then
+            If mp_TryPopColorMarkerScope(markerStack, colorToken, closeEntry) Then
+                segmentStart = CLng(closeEntry("Start"))
+                segmentLength = Len(outputText) - segmentStart + 1
+                If segmentLength > 0 Then
+                    mp_AddHighlightSegment targetSegments, segmentStart, segmentLength, CStr(closeEntry("ColorHex"))
+                End If
+            End If
+        End If
+
+        scanPos = markerPos + markerTokenLen
+        GoTo ContinueScan
+
+AppendRawMarker:
+        outputText = outputText & Mid$(textValue, markerPos, 1)
+        scanPos = markerPos + 1
+ContinueScan:
+    Loop
+
+    If scanPos <= Len(textValue) Then
+        outputText = outputText & Mid$(textValue, scanPos)
+    End If
+
+    For stackIndex = markerStack.Count To 1 Step -1
+        Set closeEntry = markerStack(stackIndex)
+        segmentStart = CLng(closeEntry("Start"))
+        segmentLength = Len(outputText) - segmentStart + 1
+        If segmentLength > 0 Then
+            mp_AddHighlightSegment targetSegments, segmentStart, segmentLength, CStr(closeEntry("ColorHex"))
+        End If
+    Next stackIndex
+
+    textValue = outputText
+End Sub
+
+Private Function mp_TryResolveColorMarkerName( _
+    ByVal colorName As String, _
+    ByRef outColorHex As String _
+) As Boolean
+    colorName = LCase$(Trim$(colorName))
+    outColorHex = vbNullString
+    If Len(colorName) = 0 Then Exit Function
+
+    If Left$(colorName, 1) = "#" Then
+        outColorHex = colorName
+        mp_TryResolveColorMarkerName = True
+        Exit Function
+    End If
+
+    Select Case colorName
+        Case "red"
+            outColorHex = "#FF4D4D"
+        Case "green"
+            outColorHex = "#66CC66"
+        Case "blue"
+            outColorHex = "#66B3FF"
+        Case "yellow"
+            outColorHex = "#FFE066"
+        Case "orange"
+            outColorHex = "#FFB347"
+        Case "cyan"
+            outColorHex = "#66E0FF"
+        Case "magenta"
+            outColorHex = "#FF77FF"
+        Case "white"
+            outColorHex = "#FFFFFF"
+        Case "black"
+            outColorHex = "#111111"
+        Case "gray", "grey"
+            outColorHex = "#B0B0B0"
+    End Select
+
+    mp_TryResolveColorMarkerName = (Len(outColorHex) > 0)
+End Function
+
+Private Function mp_TryPopColorMarkerScope( _
+    ByVal markerStack As Collection, _
+    ByVal colorToken As String, _
+    ByRef outEntry As Object _
+) As Boolean
+    Dim stackIndex As Long
+    Dim itemObj As Object
+
+    Set outEntry = Nothing
+    If markerStack Is Nothing Then Exit Function
+    If markerStack.Count = 0 Then Exit Function
+
+    colorToken = LCase$(Trim$(colorToken))
+    For stackIndex = markerStack.Count To 1 Step -1
+        Set itemObj = markerStack(stackIndex)
+        If itemObj Is Nothing Then GoTo ContinueIndex
+        If StrComp(LCase$(Trim$(CStr(itemObj("Token")))), colorToken, vbTextCompare) = 0 Then
+            Set outEntry = itemObj
+            markerStack.Remove stackIndex
+            mp_TryPopColorMarkerScope = True
+            Exit Function
+        End If
+ContinueIndex:
+    Next stackIndex
+End Function
+
+Private Sub mp_AppendHighlightSegments( _
+    ByVal targetSegments As Collection, _
+    ByVal sourceSegments As Collection _
+)
+    Dim item As Variant
+
+    If targetSegments Is Nothing Then Exit Sub
+    If sourceSegments Is Nothing Then Exit Sub
+    If sourceSegments.Count = 0 Then Exit Sub
+
+    For Each item In sourceSegments
+        targetSegments.Add item
+    Next item
+End Sub
+
+Private Sub mp_AddHighlightSegment( _
+    ByVal targetSegments As Collection, _
+    ByVal segmentStart As Long, _
+    ByVal segmentLength As Long, _
+    ByVal colorHex As String _
+)
+    Dim segmentObj As Object
+
+    If targetSegments Is Nothing Then Exit Sub
+    If segmentStart < 1 Then Exit Sub
+    If segmentLength <= 0 Then Exit Sub
+
+    Set segmentObj = CreateObject("Scripting.Dictionary")
+    segmentObj.CompareMode = 1
+    segmentObj("Start") = CLng(segmentStart)
+    segmentObj("Length") = CLng(segmentLength)
+    segmentObj("ColorHex") = CStr(colorHex)
+    targetSegments.Add segmentObj
 End Sub
 
 Public Function m_GetLastResultBlockCellRef(Optional ByVal targetSheet As Worksheet = Nothing) As String
@@ -1172,6 +1336,8 @@ Public Function m_ShowBannerAtCell( _
 ) As String
     Dim ws As Worksheet
     Dim bannerKind As String
+    Dim layoutHandled As Boolean
+    Dim layoutErrorText As String
 
     bannerText = Trim$(bannerText)
     If Len(bannerText) = 0 Then Exit Function
@@ -1183,12 +1349,24 @@ Public Function m_ShowBannerAtCell( _
     If ws Is Nothing Then
         Err.Raise vbObjectError + 1726, "ex_PostProcessActions", "Active sheet is not available for banner at cell."
     End If
+    If mp_TryAppendBannerToLayoutItemsSource(ws, titleText, bannerText, bannerKind, layoutHandled, layoutErrorText) Then
+        If layoutHandled Then
+            mp_BannerTrace "show-at-cell routed to layout itemsSource: ws='" & ws.Name & "' title='" & titleText & "'."
+            m_ShowBannerAtCell = bannerText
+            Exit Function
+        End If
+    ElseIf Len(layoutErrorText) > 0 Then
+        mp_BannerTrace "show-at-cell layout append error: ws='" & ws.Name & "' err='" & layoutErrorText & "'."
+        Err.Raise vbObjectError + 1790, "ex_PostProcessActions", layoutErrorText
+    End If
     If mp_IsDeferredRenderActiveForSheet(ws) Then
         mp_QueueDeferredOperation ws, DEFER_OP_SHOW_BANNER_AT_CELL, Array(CStr(bannerType), CStr(titleText), CStr(bannerText), CStr(topLeftCellRef), CLng(gapRowsBefore), CLng(gapRowsAfter))
+        mp_BannerTrace "show-at-cell queued deferred-render: ws='" & ws.Name & "' cell='" & topLeftCellRef & "'."
         m_ShowBannerAtCell = bannerText
         Exit Function
     End If
 
+    mp_BannerTrace "show-at-cell render direct: ws='" & ws.Name & "' cell='" & topLeftCellRef & "'."
     ex_Messaging.m_RenderTextBannerAtCell ws, bannerText, topLeftCellRef, titleText, bannerKind, gapRowsBefore, gapRowsAfter
     m_ShowBannerAtCell = bannerText
 End Function
@@ -1203,6 +1381,8 @@ Public Function m_ShowBannerAfterBanner( _
 ) As String
     Dim ws As Worksheet
     Dim bannerKind As String
+    Dim layoutHandled As Boolean
+    Dim layoutErrorText As String
 
     bannerText = Trim$(bannerText)
     If Len(bannerText) = 0 Then Exit Function
@@ -1216,15 +1396,434 @@ Public Function m_ShowBannerAfterBanner( _
     If ws Is Nothing Then
         Err.Raise vbObjectError + 1729, "ex_PostProcessActions", "Active sheet is not available for 'after banner' placement."
     End If
+    If mp_TryAppendBannerToLayoutItemsSource(ws, titleText, bannerText, bannerKind, layoutHandled, layoutErrorText) Then
+        If layoutHandled Then
+            mp_BannerTrace "show-after-banner routed to layout itemsSource: ws='" & ws.Name & "' afterIndex=" & CStr(afterBannerIndex) & "."
+            m_ShowBannerAfterBanner = bannerText
+            Exit Function
+        End If
+    ElseIf Len(layoutErrorText) > 0 Then
+        mp_BannerTrace "show-after-banner layout append error: ws='" & ws.Name & "' err='" & layoutErrorText & "'."
+        Err.Raise vbObjectError + 1791, "ex_PostProcessActions", layoutErrorText
+    End If
     mp_ValidateBannerGapRows gapRowsBefore, gapRowsAfter, "after banner"
     If mp_IsDeferredRenderActiveForSheet(ws) Then
         mp_QueueDeferredOperation ws, DEFER_OP_SHOW_BANNER_AFTER_BANNER, Array(CStr(bannerType), CStr(titleText), CStr(bannerText), CLng(afterBannerIndex), CLng(gapRowsBefore), CLng(gapRowsAfter))
+        mp_BannerTrace "show-after-banner queued deferred-render: ws='" & ws.Name & "' afterIndex=" & CStr(afterBannerIndex) & "."
         m_ShowBannerAfterBanner = bannerText
         Exit Function
     End If
 
+    mp_BannerTrace "show-after-banner render direct: ws='" & ws.Name & "' afterIndex=" & CStr(afterBannerIndex) & "."
     ex_Messaging.m_RenderTextBannerAfterBanner ws, bannerText, afterBannerIndex, titleText, bannerKind, gapRowsBefore, gapRowsAfter
     m_ShowBannerAfterBanner = bannerText
+End Function
+
+Public Function m_ShowBannerAtLayoutItemsSource( _
+    ByVal bannerType As String, _
+    ByVal itemsPanelControlName As String, _
+    Optional ByVal titleText As String = vbNullString, _
+    Optional ByVal bannerText As String = vbNullString _
+) As String
+    Dim ws As Worksheet
+    Dim bannerKind As String
+    Dim layoutErrorText As String
+
+    itemsPanelControlName = Trim$(itemsPanelControlName)
+    If Len(itemsPanelControlName) = 0 Then
+        Err.Raise vbObjectError + 1795, "ex_PostProcessActions", "itemsPanel control name is required for layout banner target."
+    End If
+
+    Set ws = ActiveSheet
+    If ws Is Nothing Then
+        Err.Raise vbObjectError + 1796, "ex_PostProcessActions", "Active sheet is not available for layout itemsPanel banner target."
+    End If
+
+    bannerText = Trim$(bannerText)
+    If Len(bannerText) > 0 Then
+        bannerKind = mp_ToLayoutControlBannerKind(mp_MapBannerTypeToKind(bannerType))
+        titleText = mp_ResolveBannerTitle(titleText, bannerType)
+    Else
+        bannerKind = mp_ToLayoutControlBannerKind(BANNER_KIND_NOTE)
+        titleText = Trim$(titleText)
+    End If
+
+    If Len(titleText) = 0 And Len(bannerText) = 0 Then
+        m_ShowBannerAtLayoutItemsSource = vbNullString
+        Exit Function
+    End If
+
+    If Not mp_AddBannerItemToItemsPanelControl(ws, itemsPanelControlName, titleText, bannerText, bannerKind, vbNullString, bannerText, layoutErrorText) Then
+        If Len(layoutErrorText) = 0 Then layoutErrorText = "Failed to append banner to layout itemsPanel '" & itemsPanelControlName & "'."
+        Err.Raise vbObjectError + 1797, "ex_PostProcessActions", layoutErrorText
+    End If
+
+    mp_BannerTrace "show-layout-items-panel: ws='" & ws.Name & "' control='" & itemsPanelControlName & "' kind='" & bannerKind & "' textLen=" & CStr(Len(bannerText)) & "."
+    m_ShowBannerAtLayoutItemsSource = bannerText
+End Function
+
+Public Function m_AddResultBannerToItemsSource( _
+    ByVal itemsPanelControlName As String, _
+    ByVal bannerType As String, _
+    Optional ByVal titleText As String = vbNullString, _
+    Optional ByVal bannerText As String = vbNullString, _
+    Optional ByVal bannerIdentity As String = vbNullString _
+) As String
+    Dim ws As Worksheet
+    Dim bannerKind As String
+    Dim layoutErrorText As String
+    Dim sheetKey As String
+    Dim nextBlockIndex As Long
+    Dim markerRow As Long
+
+    itemsPanelControlName = Trim$(itemsPanelControlName)
+    If Len(itemsPanelControlName) = 0 Then
+        Err.Raise vbObjectError + 1810, "ex_PostProcessActions", "itemsPanel control name is required for result banner target."
+    End If
+
+    Set ws = ActiveSheet
+    If ws Is Nothing Then
+        Err.Raise vbObjectError + 1811, "ex_PostProcessActions", "Active sheet is not available for result banner target."
+    End If
+
+    bannerText = Trim$(bannerText)
+    If Len(bannerText) > 0 Then
+        bannerKind = mp_MapBannerTypeToKind(bannerType)
+        titleText = mp_ResolveBannerTitle(titleText, bannerType)
+    Else
+        bannerKind = BANNER_KIND_NOTE
+        titleText = Trim$(titleText)
+    End If
+
+    If Len(titleText) = 0 And Len(bannerText) = 0 Then
+        m_AddResultBannerToItemsSource = vbNullString
+        Exit Function
+    End If
+
+    sheetKey = mp_BuildSheetKey(ws)
+    mp_ResetResultBlockStateForSheet sheetKey
+    nextBlockIndex = g_ResultBlockCount + 1
+    If Len(Trim$(bannerIdentity)) = 0 Then
+        bannerIdentity = mp_BuildResultBlockIdentity(sheetKey, nextBlockIndex, bannerText)
+    End If
+
+    If Not mp_AddBannerItemToItemsPanelControl(ws, itemsPanelControlName, titleText, bannerText, bannerKind, bannerIdentity, bannerText, layoutErrorText) Then
+        If Len(layoutErrorText) = 0 Then layoutErrorText = "Failed to append result banner to itemsPanel '" & itemsPanelControlName & "'."
+        Err.Raise vbObjectError + 1812, "ex_PostProcessActions", layoutErrorText
+    End If
+
+    markerRow = mp_GetScriptHeaderInsertStartRow(ws)
+    If markerRow < 1 Then markerRow = 1
+    If markerRow > ws.Rows.Count Then markerRow = ws.Rows.Count
+    g_ResultBlockCount = nextBlockIndex
+    g_ResultBlockLastRowIndex = markerRow
+    g_ResultBlockNextInsertRow = markerRow
+    mp_SetNamedRowAnchor ws, RESULT_BLOCK_LAST_ANCHOR_NAME, markerRow
+
+    m_AddResultBannerToItemsSource = bannerText
+End Function
+
+Public Function m_ShowBannerAtLayoutBannerControl( _
+    ByVal bannerType As String, _
+    ByVal controlName As String, _
+    Optional ByVal titleText As String = vbNullString, _
+    Optional ByVal bannerText As String = vbNullString _
+) As String
+    Dim ws As Worksheet
+    Dim bannerKind As String
+    Dim layoutErrorText As String
+
+    controlName = Trim$(controlName)
+    If Len(controlName) = 0 Then
+        Err.Raise vbObjectError + 1798, "ex_PostProcessActions", "Banner control name is required for layout banner target."
+    End If
+
+    Set ws = ActiveSheet
+    If ws Is Nothing Then
+        Err.Raise vbObjectError + 1799, "ex_PostProcessActions", "Active sheet is not available for layout banner target."
+    End If
+
+    bannerText = Trim$(bannerText)
+    If Len(bannerText) > 0 Then
+        bannerKind = mp_ToLayoutControlBannerKind(mp_MapBannerTypeToKind(bannerType))
+        titleText = mp_ResolveBannerTitle(titleText, bannerType)
+    Else
+        bannerKind = mp_ToLayoutControlBannerKind(BANNER_KIND_NOTE)
+        titleText = Trim$(titleText)
+    End If
+
+    If Not mp_SetSingleLayoutBannerControl(ws, controlName, titleText, bannerText, bannerKind, layoutErrorText) Then
+        If Len(layoutErrorText) = 0 Then layoutErrorText = "Failed to set banner control '" & controlName & "'."
+        Err.Raise vbObjectError + 1800, "ex_PostProcessActions", layoutErrorText
+    End If
+
+    mp_BannerTrace "show-layout-banner-control: ws='" & ws.Name & "' control='" & controlName & "' kind='" & bannerKind & "' textLen=" & CStr(Len(bannerText)) & "."
+    m_ShowBannerAtLayoutBannerControl = bannerText
+End Function
+
+Public Function m_AppendLayoutItemsPanelItem( _
+    ByVal itemsPanelControlName As String, _
+    ByVal itemValue As Variant, _
+    Optional ByVal clearBeforeAppend As Boolean = False _
+) As Long
+    Dim ws As Worksheet
+    Dim layoutErrorText As String
+    Dim itemsSourceCount As Long
+
+    itemsPanelControlName = Trim$(itemsPanelControlName)
+    If Len(itemsPanelControlName) = 0 Then
+        Err.Raise vbObjectError + 1801, "ex_PostProcessActions", "itemsPanel control name is required."
+    End If
+
+    Set ws = ActiveSheet
+    If ws Is Nothing Then
+        Err.Raise vbObjectError + 1802, "ex_PostProcessActions", "Active sheet is not available for itemsPanel update."
+    End If
+
+    If Not mp_AppendLayoutItemsPanelItem(ws, itemsPanelControlName, itemValue, clearBeforeAppend, layoutErrorText, itemsSourceCount) Then
+        If Len(layoutErrorText) = 0 Then layoutErrorText = "Failed to append item to itemsPanel control '" & itemsPanelControlName & "'."
+        Err.Raise vbObjectError + 1803, "ex_PostProcessActions", layoutErrorText
+    End If
+
+    m_AppendLayoutItemsPanelItem = itemsSourceCount
+End Function
+
+Public Function m_ClearLayoutItemsPanel( _
+    ByVal itemsPanelControlName As String _
+) As Long
+    Dim ws As Worksheet
+    Dim layoutErrorText As String
+
+    itemsPanelControlName = Trim$(itemsPanelControlName)
+    If Len(itemsPanelControlName) = 0 Then
+        Err.Raise vbObjectError + 1804, "ex_PostProcessActions", "itemsPanel control name is required."
+    End If
+
+    Set ws = ActiveSheet
+    If ws Is Nothing Then
+        Err.Raise vbObjectError + 1805, "ex_PostProcessActions", "Active sheet is not available for itemsPanel clear."
+    End If
+
+    If Not mp_ClearLayoutItemsPanel(ws, itemsPanelControlName, layoutErrorText) Then
+        If Len(layoutErrorText) = 0 Then layoutErrorText = "Failed to clear itemsPanel control '" & itemsPanelControlName & "'."
+        Err.Raise vbObjectError + 1806, "ex_PostProcessActions", layoutErrorText
+    End If
+
+    m_ClearLayoutItemsPanel = 0
+End Function
+
+Private Function mp_SetSingleLayoutBannerControl( _
+    ByVal ws As Worksheet, _
+    ByVal controlName As String, _
+    ByVal titleText As String, _
+    ByVal bannerText As String, _
+    ByVal bannerKind As String, _
+    ByRef outErrorText As String _
+) As Boolean
+    Dim itemsSourceKey As String
+    Dim items As Collection
+    Dim bannerItem As Object
+    Dim normalizedBodyText As String
+
+    outErrorText = vbNullString
+    If ws Is Nothing Then
+        outErrorText = "Worksheet is required for layout banner target."
+        Exit Function
+    End If
+    controlName = Trim$(controlName)
+    If Len(controlName) = 0 Then
+        outErrorText = "Banner control name is empty for layout banner target."
+        Exit Function
+    End If
+
+    If Not ex_ResultLayoutItemsRt.m_TryResolveBannerControlItemsSourceKey(ws, controlName, itemsSourceKey, outErrorText) Then
+        If Len(outErrorText) = 0 Then outErrorText = "Failed to resolve banner control '" & controlName & "'."
+        Exit Function
+    End If
+
+    Set items = New Collection
+    If Len(Trim$(titleText)) > 0 Or Len(Trim$(bannerText)) > 0 Then
+        Set bannerItem = mp_CreateBannerItem(titleText, bannerText, bannerKind)
+        normalizedBodyText = CStr(bannerItem("Body"))
+        If Len(Trim$(titleText)) > 0 Or Len(Trim$(normalizedBodyText)) > 0 Then
+            items.Add bannerItem
+        End If
+    End If
+
+    If Not ex_ResultLayoutItemsRt.m_SetItemsSource(ws, itemsSourceKey, items, True, outErrorText) Then Exit Function
+    mp_SetSingleLayoutBannerControl = True
+End Function
+
+Private Function mp_AddBannerItemToItemsPanelControl( _
+    ByVal ws As Worksheet, _
+    ByVal itemsPanelControlName As String, _
+    ByVal titleText As String, _
+    ByVal bannerText As String, _
+    ByVal bannerKind As String, _
+    Optional ByVal bannerIdentity As String = vbNullString, _
+    Optional ByRef outNormalizedBodyText As String = vbNullString, _
+    Optional ByRef outErrorText As String = vbNullString _
+) As Boolean
+    Dim bannerItem As Object
+
+    outErrorText = vbNullString
+    outNormalizedBodyText = vbNullString
+
+    If ws Is Nothing Then
+        outErrorText = "Worksheet is required for itemsPanel banner append."
+        Exit Function
+    End If
+    itemsPanelControlName = Trim$(itemsPanelControlName)
+    If Len(itemsPanelControlName) = 0 Then
+        outErrorText = "itemsPanel control name is required for banner append."
+        Exit Function
+    End If
+
+    Set bannerItem = mp_CreateBannerItem(titleText, bannerText, bannerKind, bannerIdentity)
+    outNormalizedBodyText = CStr(bannerItem("Body"))
+
+    If Len(Trim$(titleText)) = 0 And Len(Trim$(outNormalizedBodyText)) = 0 Then
+        mp_AddBannerItemToItemsPanelControl = True
+        Exit Function
+    End If
+
+    If Not mp_AppendLayoutItemsPanelItem(ws, itemsPanelControlName, bannerItem, False, outErrorText) Then Exit Function
+    mp_AddBannerItemToItemsPanelControl = True
+End Function
+
+Private Function mp_CreateBannerItem( _
+    ByVal titleText As String, _
+    ByVal bodyText As String, _
+    ByVal bannerKind As String, _
+    Optional ByVal bannerIdentity As String = vbNullString _
+) As Object
+    Dim bannerItem As Object
+    Dim normalizedBody As String
+    Dim highlightSegments As Collection
+
+    normalizedBody = CStr(bodyText)
+    mp_ExtractBannerHighlightSegments normalizedBody, highlightSegments
+
+    Set bannerItem = CreateObject("Scripting.Dictionary")
+    bannerItem.CompareMode = 1
+    bannerItem("__raw") = normalizedBody
+    bannerItem("Title") = CStr(titleText)
+    bannerItem("Body") = normalizedBody
+    bannerItem("Kind") = CStr(bannerKind)
+    If Len(Trim$(bannerIdentity)) > 0 Then
+        bannerItem("Identity") = CStr(bannerIdentity)
+    End If
+    If Not highlightSegments Is Nothing Then
+        If highlightSegments.Count > 0 Then
+            Set bannerItem("HighlightSegments") = highlightSegments
+        End If
+    End If
+
+    Set mp_CreateBannerItem = bannerItem
+End Function
+
+Private Function mp_AppendLayoutItemsPanelItem( _
+    ByVal ws As Worksheet, _
+    ByVal itemsPanelControlName As String, _
+    ByVal itemValue As Variant, _
+    ByVal clearBeforeAppend As Boolean, _
+    ByRef outErrorText As String, _
+    Optional ByRef outItemsSourceCount As Long = 0 _
+) As Boolean
+    Dim itemsSourceKey As String
+    Dim itemsSourceObj As Object
+    Dim itemsSource As Collection
+    Dim createdSource As Boolean
+    Dim scalarItem As Object
+
+    outErrorText = vbNullString
+    outItemsSourceCount = 0
+
+    If ws Is Nothing Then
+        outErrorText = "Worksheet is required for itemsPanel update."
+        Exit Function
+    End If
+
+    itemsPanelControlName = Trim$(itemsPanelControlName)
+    If Len(itemsPanelControlName) = 0 Then
+        outErrorText = "itemsPanel control name is required."
+        Exit Function
+    End If
+
+    If Not ex_ResultLayoutItemsRt.m_TryResolveItemsPanelItemsSourceKey(ws, itemsPanelControlName, itemsSourceKey, outErrorText) Then
+        If Len(outErrorText) = 0 Then outErrorText = "Failed to resolve itemsPanel control '" & itemsPanelControlName & "'."
+        Exit Function
+    End If
+
+    If Not clearBeforeAppend Then
+        If ex_ResultLayoutItemsRt.m_TryGetItemsSource(ws, itemsSourceKey, itemsSourceObj) Then
+            If IsObject(itemsSourceObj) Then
+                If TypeName(itemsSourceObj) = "Collection" Then
+                    Set itemsSource = itemsSourceObj
+                Else
+                    outErrorText = "itemsSource '" & itemsSourceKey & "' is not a Collection."
+                    Exit Function
+                End If
+            End If
+        End If
+    End If
+
+    If itemsSource Is Nothing Then
+        Set itemsSource = New Collection
+        createdSource = True
+    End If
+
+    If IsObject(itemValue) Then
+        If itemValue Is Nothing Then
+            outErrorText = "Cannot append Nothing item to itemsPanel control '" & itemsPanelControlName & "'."
+            Exit Function
+        End If
+        itemsSource.Add itemValue
+    Else
+        Set scalarItem = CreateObject("Scripting.Dictionary")
+        scalarItem.CompareMode = 1
+        scalarItem("Value") = itemValue
+        itemsSource.Add scalarItem
+    End If
+
+    If createdSource Then
+        If Not ex_ResultLayoutItemsRt.m_SetItemsSource(ws, itemsSourceKey, itemsSource, True, outErrorText) Then Exit Function
+    Else
+        If Not ex_ResultLayoutItemsRt.m_NotifyItemsSourceChanged(ws, itemsSourceKey, True, outErrorText) Then Exit Function
+    End If
+
+    outItemsSourceCount = itemsSource.Count
+    mp_AppendLayoutItemsPanelItem = True
+End Function
+
+Private Function mp_ClearLayoutItemsPanel( _
+    ByVal ws As Worksheet, _
+    ByVal itemsPanelControlName As String, _
+    ByRef outErrorText As String _
+) As Boolean
+    Dim itemsSourceKey As String
+    Dim emptyItems As Collection
+
+    outErrorText = vbNullString
+    If ws Is Nothing Then
+        outErrorText = "Worksheet is required for itemsPanel clear."
+        Exit Function
+    End If
+
+    itemsPanelControlName = Trim$(itemsPanelControlName)
+    If Len(itemsPanelControlName) = 0 Then
+        outErrorText = "itemsPanel control name is required."
+        Exit Function
+    End If
+
+    If Not ex_ResultLayoutItemsRt.m_TryResolveItemsPanelItemsSourceKey(ws, itemsPanelControlName, itemsSourceKey, outErrorText) Then
+        If Len(outErrorText) = 0 Then outErrorText = "Failed to resolve itemsPanel control '" & itemsPanelControlName & "'."
+        Exit Function
+    End If
+
+    Set emptyItems = New Collection
+    If Not ex_ResultLayoutItemsRt.m_SetItemsSource(ws, itemsSourceKey, emptyItems, True, outErrorText) Then Exit Function
+    mp_ClearLayoutItemsPanel = True
 End Function
 
 Public Function m_ShowBannerAtTable( _
@@ -1253,12 +1852,30 @@ Public Function m_ShowBannerAtTable( _
     If ws Is Nothing Then
         Err.Raise vbObjectError + 1731, "ex_PostProcessActions", "Active sheet is not available for table banner placement."
     End If
-    If mp_IsDeferredRenderActiveForSheet(ws) Then
-        mp_QueueDeferredOperation ws, DEFER_OP_SHOW_BANNER_AT_TABLE, Array(CStr(bannerType), CStr(tableRef), CStr(titleText), CStr(bannerText), CStr(positionText), CLng(gapRowsBefore), CLng(gapRowsAfter))
+
+    ' Layout scripts can intentionally skip some result tables.
+    ' In that case, table anchors are absent and banner placement should be a no-op.
+    If Not ex_Messaging.m_HasResultTableAnchor(ws, tableRef) Then
+        mp_BannerTrace "show-at-table skipped: ws='" & ws.Name & "' tableRef='" & tableRef & "' anchor-missing."
         m_ShowBannerAtTable = bannerText
         Exit Function
     End If
 
+    If mp_ShouldDeferBannerUntilPostLayout(ws) Then
+        mp_QueuePostLayoutDeferredBannerAtTable ws, bannerType, tableRef, titleText, bannerText, positionText, gapRowsBefore, gapRowsAfter
+        mp_BannerTrace "show-at-table deferred-post-layout: ws='" & ws.Name & "' tableRef='" & tableRef & "' position='" & positionText & "'."
+        m_ShowBannerAtTable = bannerText
+        Exit Function
+    End If
+
+    If mp_IsDeferredRenderActiveForSheet(ws) Then
+        mp_QueueDeferredOperation ws, DEFER_OP_SHOW_BANNER_AT_TABLE, Array(CStr(bannerType), CStr(tableRef), CStr(titleText), CStr(bannerText), CStr(positionText), CLng(gapRowsBefore), CLng(gapRowsAfter))
+        mp_BannerTrace "show-at-table queued deferred-render: ws='" & ws.Name & "' tableRef='" & tableRef & "'."
+        m_ShowBannerAtTable = bannerText
+        Exit Function
+    End If
+
+    mp_BannerTrace "show-at-table render direct: ws='" & ws.Name & "' tableRef='" & tableRef & "' position='" & positionText & "'."
     ex_Messaging.m_RenderTextBannerAtTable ws, bannerText, tableRef, positionText, titleText, bannerKind, gapRowsBefore, gapRowsAfter
     m_ShowBannerAtTable = bannerText
 End Function
@@ -1376,8 +1993,17 @@ Public Function m_ShowBannerBeforeRowIndex( _
     If ws Is Nothing Then
         Err.Raise vbObjectError + 1724, "ex_PostProcessActions", "Active sheet is not available for banner insert."
     End If
+
+    If mp_ShouldDeferBannerUntilPostLayout(ws) Then
+        mp_QueuePostLayoutDeferredBannerBeforeRow ws, bannerType, titleText, bannerText, rowIndex, gapRowsBefore, gapRowsAfter
+        mp_BannerTrace "show-before-row deferred-post-layout: ws='" & ws.Name & "' rowIndex=" & CStr(rowIndex) & " gapBefore=" & CStr(gapRowsBefore) & " gapAfter=" & CStr(gapRowsAfter) & "."
+        m_ShowBannerBeforeRowIndex = bannerText
+        Exit Function
+    End If
+
     If mp_IsDeferredRenderActiveForSheet(ws) Then
         mp_QueueDeferredOperation ws, DEFER_OP_SHOW_BANNER_BEFORE_ROW, Array(CStr(bannerType), CStr(titleText), CStr(bannerText), CLng(rowIndex), CLng(gapRowsBefore), CLng(gapRowsAfter))
+        mp_BannerTrace "show-before-row queued deferred-render: ws='" & ws.Name & "' rowIndex=" & CStr(rowIndex) & "."
         m_ShowBannerBeforeRowIndex = bannerText
         Exit Function
     End If
@@ -1393,6 +2019,7 @@ Public Function m_ShowBannerBeforeRowIndex( _
             ' Если текущий баннер уже стоит перед нужной строкой,
             ' просто обновляем его содержимое на месте.
             If existingRange.Row = bannerStartRow Then
+                mp_BannerTrace "show-before-row reuse-existing: ws='" & ws.Name & "' row=" & CStr(existingRange.Row) & "."
                 ex_Messaging.m_RenderTextBanner ws, bannerText, titleText, existingRangeAddress, bannerKind
                 m_ShowBannerBeforeRowIndex = bannerText
                 Exit Function
@@ -1409,6 +2036,7 @@ Public Function m_ShowBannerBeforeRowIndex( _
                 existingRange.UnMerge
                 ws.Rows(CStr(existingStartRow) & ":" & CStr(existingEndRow)).Delete Shift:=xlUp
                 On Error GoTo 0
+                mp_BannerTrace "show-before-row removed-stale-banner: ws='" & ws.Name & "' oldStart=" & CStr(existingStartRow) & " rows=" & CStr(existingRowCount) & "."
 
                 ' Если удалили строки выше целевой owner-строки, сдвигаем rowIndex вверх.
                 If existingStartRow < rowIndex Then
@@ -1425,11 +2053,58 @@ Public Function m_ShowBannerBeforeRowIndex( _
         ws.Rows(CStr(rowIndex) & ":" & CStr(rowIndex + rowsToInsert - 1)).Insert Shift:=xlDown
         mp_UnmergeRowsSafe ws, rowIndex, gapRowsBefore
         mp_UnmergeRowsSafe ws, rowIndex + gapRowsBefore + bannerRows, gapRowsAfter
+        mp_BannerTrace "show-before-row inserted-rows: ws='" & ws.Name & "' startRow=" & CStr(rowIndex) & " inserted=" & CStr(rowsToInsert) & "."
     End If
 
     bannerRangeAddress = "A" & CStr(rowIndex + gapRowsBefore) & ":" & mp_ToColumnLetter(bannerCols) & CStr(rowIndex + gapRowsBefore + bannerRows - 1)
+    mp_BannerTrace "show-before-row render direct: ws='" & ws.Name & "' rowIndex=" & CStr(rowIndex) & " bannerRange='" & bannerRangeAddress & "'."
     ex_Messaging.m_RenderTextBanner ws, bannerText, titleText, bannerRangeAddress, bannerKind
     m_ShowBannerBeforeRowIndex = bannerText
+End Function
+
+Public Function m_ShowBannerBeforeRowRef( _
+    ByVal bannerType As String, _
+    Optional ByVal titleText As String = vbNullString, _
+    Optional ByVal bannerText As String = vbNullString, _
+    Optional ByVal rowRef As Object = Nothing, _
+    Optional ByVal gapRowsBefore As Long = 0, _
+    Optional ByVal gapRowsAfter As Long = 1 _
+) As String
+    Dim ws As Worksheet
+    Dim sourceRowRef As obj_ResultRow
+    Dim rowIndex As Long
+    Dim targetRowAnchorName As String
+
+    bannerText = Trim$(bannerText)
+    If Len(bannerText) = 0 Then Exit Function
+    titleText = mp_ResolveBannerTitle(titleText, bannerType)
+
+    If rowRef Is Nothing Then
+        Err.Raise vbObjectError + 1792, "ex_PostProcessActions", "Row reference is required for banner insert."
+    End If
+    If Not TypeOf rowRef Is obj_ResultRow Then
+        Err.Raise vbObjectError + 1793, "ex_PostProcessActions", "Row reference must be obj_ResultRow for banner insert."
+    End If
+    Set sourceRowRef = rowRef
+
+    mp_ValidateBannerGapRows gapRowsBefore, gapRowsAfter, "banner insert"
+
+    Set ws = ActiveSheet
+    If ws Is Nothing Then
+        Err.Raise vbObjectError + 1794, "ex_PostProcessActions", "Active sheet is not available for banner insert."
+    End If
+
+    targetRowAnchorName = Trim$(sourceRowRef.RowAnchorName)
+    rowIndex = mp_ResolveAnchoredRowIndex(ws, sourceRowRef, "banner insert")
+
+    If mp_ShouldDeferBannerUntilPostLayout(ws) Then
+        mp_QueuePostLayoutDeferredBannerBeforeRow ws, bannerType, titleText, bannerText, rowIndex, gapRowsBefore, gapRowsAfter, targetRowAnchorName
+        mp_BannerTrace "show-before-row-ref deferred-post-layout: ws='" & ws.Name & "' rowIndex=" & CStr(rowIndex) & " targetAnchor='" & targetRowAnchorName & "'."
+        m_ShowBannerBeforeRowRef = bannerText
+        Exit Function
+    End If
+
+    m_ShowBannerBeforeRowRef = m_ShowBannerBeforeRowIndex(bannerType, titleText, bannerText, rowIndex, gapRowsBefore, gapRowsAfter)
 End Function
 
 Private Sub mp_UnmergeRowsSafe(ByVal ws As Worksheet, ByVal startRow As Long, ByVal rowCount As Long)
@@ -1485,6 +2160,36 @@ Private Function mp_MapBannerTypeToKind(ByVal bannerType As String) As String
         Case Else
             mp_MapBannerTypeToKind = BANNER_KIND_WARNING
     End Select
+End Function
+
+Private Function mp_MapBannerKindToDefaultTitle(ByVal bannerKind As String) As String
+    bannerKind = LCase$(Trim$(bannerKind))
+    If Right$(bannerKind, Len(BANNER_KIND_LAYOUT_SUFFIX)) = BANNER_KIND_LAYOUT_SUFFIX Then
+        bannerKind = Left$(bannerKind, Len(bannerKind) - Len(BANNER_KIND_LAYOUT_SUFFIX))
+    End If
+
+    Select Case bannerKind
+        Case LCase$(BANNER_KIND_ERROR)
+            mp_MapBannerKindToDefaultTitle = BANNER_TITLE_ERROR
+        Case LCase$(BANNER_KIND_NOTE)
+            mp_MapBannerKindToDefaultTitle = BANNER_TITLE_NOTE
+        Case Else
+            mp_MapBannerKindToDefaultTitle = BANNER_TITLE_WARNING
+    End Select
+End Function
+
+Private Function mp_ToLayoutControlBannerKind(ByVal baseKind As String) As String
+    Dim normalized As String
+
+    normalized = LCase$(Trim$(baseKind))
+    If Len(normalized) = 0 Then
+        normalized = BANNER_KIND_WARNING
+    End If
+
+    If Right$(normalized, Len(BANNER_KIND_LAYOUT_SUFFIX)) <> BANNER_KIND_LAYOUT_SUFFIX Then
+        normalized = normalized & BANNER_KIND_LAYOUT_SUFFIX
+    End If
+    mp_ToLayoutControlBannerKind = normalized
 End Function
 
 Private Function mp_ResolveBannerTitle(ByVal titleText As String, ByVal bannerType As String) As String
@@ -1902,8 +2607,7 @@ Private Sub mp_ApplyScriptHeaderKindStyle( _
     Dim stageLayers As Collection
     Dim headerLayer As obj_StyleLayer
     Dim headerPipeline As Collection
-    Dim rowKindRanges As Object
-    Dim headerRows As Collection
+    Dim kindRanges As Object
     Dim emptyTargets As Collection
 
     If ws Is Nothing Then Exit Sub
@@ -1924,14 +2628,11 @@ Private Sub mp_ApplyScriptHeaderKindStyle( _
     Set headerPipeline = ex_StylePipelineEngine.m_CreatePipeline()
     ex_StylePipelineEngine.m_AddLayer headerPipeline, headerLayer
 
-    Set rowKindRanges = CreateObject("Scripting.Dictionary")
-    rowKindRanges.CompareMode = 1
-    Set headerRows = New Collection
-    headerRows.Add CLng(rowIndex)
-    Set rowKindRanges(POST_PROCESS_HEADER_ROW_KIND) = headerRows
+    Set kindRanges = ex_StylePipelineEngine.m_CreateKindRanges()
+    ex_StylePipelineEngine.m_AddKindRange kindRanges, POST_PROCESS_HEADER_ROW_KIND, rowIndex, 1, rowIndex, 0
 
     Set emptyTargets = New Collection
-    ex_StylePipelineEngine.m_ApplyColumnStylesPipeline ws, emptyTargets, headerPipeline, vbNullString, rowKindRanges
+    ex_StylePipelineEngine.m_ApplyColumnStylesPipeline ws, emptyTargets, headerPipeline, vbNullString, kindRanges
 End Sub
 
 Private Sub mp_ApplyScriptFooterKindStyle( _
@@ -1941,8 +2642,7 @@ Private Sub mp_ApplyScriptFooterKindStyle( _
     Dim stageLayers As Collection
     Dim footerLayer As obj_StyleLayer
     Dim footerPipeline As Collection
-    Dim rowKindRanges As Object
-    Dim footerRows As Collection
+    Dim kindRanges As Object
     Dim emptyTargets As Collection
 
     If ws Is Nothing Then Exit Sub
@@ -1963,14 +2663,11 @@ Private Sub mp_ApplyScriptFooterKindStyle( _
     Set footerPipeline = ex_StylePipelineEngine.m_CreatePipeline()
     ex_StylePipelineEngine.m_AddLayer footerPipeline, footerLayer
 
-    Set rowKindRanges = CreateObject("Scripting.Dictionary")
-    rowKindRanges.CompareMode = 1
-    Set footerRows = New Collection
-    footerRows.Add CLng(rowIndex)
-    Set rowKindRanges(POST_PROCESS_FOOTER_ROW_KIND) = footerRows
+    Set kindRanges = ex_StylePipelineEngine.m_CreateKindRanges()
+    ex_StylePipelineEngine.m_AddKindRange kindRanges, POST_PROCESS_FOOTER_ROW_KIND, rowIndex, 1, rowIndex, 0
 
     Set emptyTargets = New Collection
-    ex_StylePipelineEngine.m_ApplyColumnStylesPipeline ws, emptyTargets, footerPipeline, vbNullString, rowKindRanges
+    ex_StylePipelineEngine.m_ApplyColumnStylesPipeline ws, emptyTargets, footerPipeline, vbNullString, kindRanges
 End Sub
 
 Private Sub mp_ApplyScriptHeaderRowHeight( _
@@ -2070,17 +2767,66 @@ End Function
 
 Private Function mp_GetScriptHeaderInsertStartRow(ByVal ws As Worksheet) As Long
     Dim outputViewStartRow As Long
+    Dim firstTableRow As Long
 
     If ws Is Nothing Then
         Err.Raise vbObjectError + 1735, "ex_PostProcessActions", "Target sheet is not available for postProcessHeader insert start row."
     End If
 
     outputViewStartRow = ex_SheetStylesXmlProvider.m_GetOutputViewStartRow(ThisWorkbook)
+    If mp_TryGetFirstResultTableAnchorRow(ws, firstTableRow) Then
+        If firstTableRow > 0 Then outputViewStartRow = firstTableRow
+    End If
     If outputViewStartRow < 1 Then
         Err.Raise vbObjectError + 1736, "ex_PostProcessActions", "Unable to resolve valid output view start row for postProcessHeader."
     End If
 
     mp_GetScriptHeaderInsertStartRow = outputViewStartRow
+End Function
+
+Private Function mp_TryGetFirstResultTableAnchorRow( _
+    ByVal ws As Worksheet, _
+    ByRef outRowIndex As Long _
+) As Boolean
+    Dim i As Long
+    Dim entry As Name
+    Dim localName As String
+    Dim namePos As Long
+    Dim anchorRange As Range
+    Dim rowIndex As Long
+    Dim prefixText As String
+
+    If ws Is Nothing Then Exit Function
+    prefixText = LCase$(RESULT_TABLE_ANCHOR_PREFIX)
+    If Len(prefixText) = 0 Then Exit Function
+
+    On Error Resume Next
+    For i = 1 To ws.Names.Count
+        Set entry = ws.Names(i)
+        If entry Is Nothing Then GoTo NextEntry
+
+        localName = CStr(entry.Name)
+        namePos = InStrRev(localName, "!", vbBinaryCompare)
+        If namePos > 0 Then localName = Mid$(localName, namePos + 1)
+        localName = LCase$(Trim$(localName))
+        If Len(localName) < Len(prefixText) Then GoTo NextEntry
+        If Left$(localName, Len(prefixText)) <> prefixText Then GoTo NextEntry
+
+        Set anchorRange = entry.RefersToRange
+        If anchorRange Is Nothing Then GoTo NextEntry
+        rowIndex = CLng(anchorRange.Row)
+        If rowIndex < 1 Or rowIndex > ws.Rows.Count Then GoTo NextEntry
+
+        If outRowIndex = 0 Or rowIndex < outRowIndex Then
+            outRowIndex = rowIndex
+        End If
+NextEntry:
+        Set anchorRange = Nothing
+        Set entry = Nothing
+    Next i
+    On Error GoTo 0
+
+    mp_TryGetFirstResultTableAnchorRow = (outRowIndex > 0)
 End Function
 
 Private Function mp_IsRowBlankSegment( _
@@ -2473,6 +3219,213 @@ Private Sub mp_QueueDeferredOperation( _
     queue.Add op
 End Sub
 
+Private Function mp_ShouldDeferBannerUntilPostLayout(ByVal ws As Worksheet) As Boolean
+    Dim isBatchActive As Boolean
+
+    If ws Is Nothing Then Exit Function
+    isBatchActive = ex_ResultLayoutItemsRt.m_IsBatchUpdateActive(ws)
+    If Not isBatchActive Then Exit Function
+    mp_BannerTrace "defer-until-post-layout: ws='" & ws.Name & "' batchActive=true."
+    mp_ShouldDeferBannerUntilPostLayout = True
+End Function
+
+Private Sub mp_QueuePostLayoutDeferredBannerBeforeRow( _
+    ByVal ws As Worksheet, _
+    ByVal bannerType As String, _
+    ByVal titleText As String, _
+    ByVal bannerText As String, _
+    ByVal rowIndex As Long, _
+    ByVal gapRowsBefore As Long, _
+    ByVal gapRowsAfter As Long, _
+    Optional ByVal targetRowAnchorName As String = vbNullString _
+)
+    Dim queue As Collection
+    Dim op As Object
+    Dim rowAnchorName As String
+
+    Set queue = mp_GetPostLayoutDeferredBannerQueue(ws, True)
+    If queue Is Nothing Then Exit Sub
+
+    Set op = CreateObject("Scripting.Dictionary")
+    op.CompareMode = 1
+    op("Type") = POST_LAYOUT_BANNER_OP_BEFORE_ROW
+    op("BannerType") = CStr(bannerType)
+    op("Title") = CStr(titleText)
+    op("Text") = CStr(bannerText)
+    op("RowIndex") = CLng(rowIndex)
+    op("GapBefore") = CLng(gapRowsBefore)
+    op("GapAfter") = CLng(gapRowsAfter)
+    targetRowAnchorName = Trim$(targetRowAnchorName)
+    If Len(targetRowAnchorName) > 0 Then
+        op("TargetRowAnchorName") = targetRowAnchorName
+    End If
+
+    If rowIndex >= 1 And rowIndex <= ws.Rows.Count Then
+        rowAnchorName = mp_NextSequentialRowAnchorName(ws, POST_LAYOUT_ROW_ANCHOR_PREFIX)
+        If Len(rowAnchorName) > 0 Then
+            mp_SetNamedRowAnchor ws, rowAnchorName, rowIndex
+            op("RowAnchorName") = rowAnchorName
+        End If
+    End If
+
+    queue.Add op
+    mp_BannerTrace "post-layout queue add: ws='" & ws.Name & "' type='before_row' rowIndex=" & CStr(rowIndex) & " anchor='" & rowAnchorName & "' targetAnchor='" & targetRowAnchorName & "' count=" & CStr(queue.Count) & "."
+End Sub
+
+Private Sub mp_QueuePostLayoutDeferredBannerAtTable( _
+    ByVal ws As Worksheet, _
+    ByVal bannerType As String, _
+    ByVal tableRef As String, _
+    ByVal titleText As String, _
+    ByVal bannerText As String, _
+    ByVal positionText As String, _
+    ByVal gapRowsBefore As Long, _
+    ByVal gapRowsAfter As Long _
+)
+    Dim queue As Collection
+    Dim op As Object
+
+    Set queue = mp_GetPostLayoutDeferredBannerQueue(ws, True)
+    If queue Is Nothing Then Exit Sub
+
+    Set op = CreateObject("Scripting.Dictionary")
+    op.CompareMode = 1
+    op("Type") = POST_LAYOUT_BANNER_OP_AT_TABLE
+    op("BannerType") = CStr(bannerType)
+    op("TableRef") = CStr(tableRef)
+    op("Title") = CStr(titleText)
+    op("Text") = CStr(bannerText)
+    op("Position") = CStr(positionText)
+    op("GapBefore") = CLng(gapRowsBefore)
+    op("GapAfter") = CLng(gapRowsAfter)
+
+    queue.Add op
+    mp_BannerTrace "post-layout queue add: ws='" & ws.Name & "' type='at_table' tableRef='" & tableRef & "' position='" & positionText & "' count=" & CStr(queue.Count) & "."
+End Sub
+
+Public Sub m_FlushPostLayoutDeferredBanners(Optional ByVal targetSheet As Worksheet = Nothing)
+    Dim ws As Worksheet
+    Dim queue As Collection
+    Dim op As Object
+    Dim opType As String
+    Dim rowIndex As Long
+    Dim resolvedRowIndex As Long
+    Dim targetRowAnchorName As String
+    Dim hasTargetRowResolved As Boolean
+
+    If targetSheet Is Nothing Then
+        Set ws = ActiveSheet
+    Else
+        Set ws = targetSheet
+    End If
+    If ws Is Nothing Then Exit Sub
+
+    Set queue = mp_GetPostLayoutDeferredBannerQueue(ws, False)
+    If queue Is Nothing Then
+        mp_BannerTrace "post-layout flush skipped: ws='" & ws.Name & "' queue=Nothing."
+        Exit Sub
+    End If
+    If queue.Count = 0 Then
+        mp_BannerTrace "post-layout flush skipped: ws='" & ws.Name & "' queueCount=0."
+        mp_ClearPostLayoutDeferredBannerQueue ws
+        Exit Sub
+    End If
+
+    mp_BannerTrace "post-layout flush start: ws='" & ws.Name & "' queueCount=" & CStr(queue.Count) & "."
+    mp_ClearPostLayoutDeferredBannerQueue ws
+
+    For Each op In queue
+        If op Is Nothing Then GoTo NextOp
+        If Not op.Exists("Type") Then GoTo NextOp
+
+        opType = LCase$(Trim$(CStr(op("Type"))))
+        Select Case opType
+            Case POST_LAYOUT_BANNER_OP_BEFORE_ROW
+                rowIndex = CLng(op("RowIndex"))
+                resolvedRowIndex = 0
+                hasTargetRowResolved = False
+                targetRowAnchorName = vbNullString
+                If op.Exists("TargetRowAnchorName") Then
+                    targetRowAnchorName = Trim$(CStr(op("TargetRowAnchorName")))
+                    If Len(targetRowAnchorName) > 0 Then
+                        If mp_TryGetNamedRowAnchor(ws, targetRowAnchorName, resolvedRowIndex) Then
+                            rowIndex = resolvedRowIndex
+                            hasTargetRowResolved = True
+                            mp_BannerTrace "post-layout flush resolve target anchor: ws='" & ws.Name & "' anchor='" & targetRowAnchorName & "' rowIndex=" & CStr(rowIndex) & "."
+                        Else
+                            mp_BannerTrace "post-layout flush missing target anchor: ws='" & ws.Name & "' anchor='" & targetRowAnchorName & "'."
+                        End If
+                    End If
+                End If
+                If op.Exists("RowAnchorName") Then
+                    If Len(Trim$(CStr(op("RowAnchorName")))) > 0 Then
+                        If mp_TryGetNamedRowAnchor(ws, CStr(op("RowAnchorName")), resolvedRowIndex) Then
+                            If Not hasTargetRowResolved Then
+                                rowIndex = resolvedRowIndex
+                                mp_BannerTrace "post-layout flush resolve row anchor: ws='" & ws.Name & "' anchor='" & CStr(op("RowAnchorName")) & "' rowIndex=" & CStr(rowIndex) & "."
+                            Else
+                                mp_BannerTrace "post-layout flush skip row-anchor override: ws='" & ws.Name & "' anchor='" & CStr(op("RowAnchorName")) & "' targetRowIndex=" & CStr(rowIndex) & "."
+                            End If
+                        Else
+                            mp_BannerTrace "post-layout flush missing row anchor: ws='" & ws.Name & "' anchor='" & CStr(op("RowAnchorName")) & "'."
+                        End If
+                        mp_ClearNamedRowAnchor ws, CStr(op("RowAnchorName"))
+                    End If
+                End If
+                mp_BannerTrace "post-layout flush apply before_row: ws='" & ws.Name & "' rowIndex=" & CStr(rowIndex) & " title='" & CStr(op("Title")) & "'."
+                Call m_ShowBannerBeforeRowIndex(CStr(op("BannerType")), CStr(op("Title")), CStr(op("Text")), rowIndex, CLng(op("GapBefore")), CLng(op("GapAfter")))
+            Case POST_LAYOUT_BANNER_OP_AT_TABLE
+                mp_BannerTrace "post-layout flush apply at_table: ws='" & ws.Name & "' tableRef='" & CStr(op("TableRef")) & "' position='" & CStr(op("Position")) & "'."
+                Call m_ShowBannerAtTable(CStr(op("BannerType")), CStr(op("TableRef")), CStr(op("Title")), CStr(op("Text")), CStr(op("Position")), CLng(op("GapBefore")), CLng(op("GapAfter")))
+        End Select
+NextOp:
+    Next op
+
+    mp_BannerTrace "post-layout flush complete: ws='" & ws.Name & "'."
+End Sub
+
+Private Function mp_GetPostLayoutDeferredBannerQueue( _
+    ByVal ws As Worksheet, _
+    Optional ByVal createIfMissing As Boolean = False _
+) As Collection
+    Dim sheetKey As String
+    Dim queue As Collection
+
+    If ws Is Nothing Then Exit Function
+    sheetKey = mp_BuildSheetKey(ws)
+    If Len(sheetKey) = 0 Then Exit Function
+
+    If g_PostLayoutDeferredBannersBySheet Is Nothing Then
+        If Not createIfMissing Then Exit Function
+        Set g_PostLayoutDeferredBannersBySheet = CreateObject("Scripting.Dictionary")
+        g_PostLayoutDeferredBannersBySheet.CompareMode = 1
+    End If
+
+    If g_PostLayoutDeferredBannersBySheet.Exists(sheetKey) Then
+        Set mp_GetPostLayoutDeferredBannerQueue = g_PostLayoutDeferredBannersBySheet(sheetKey)
+        Exit Function
+    End If
+
+    If createIfMissing Then
+        Set queue = New Collection
+        Set g_PostLayoutDeferredBannersBySheet(sheetKey) = queue
+        Set mp_GetPostLayoutDeferredBannerQueue = queue
+    End If
+End Function
+
+Private Sub mp_ClearPostLayoutDeferredBannerQueue(ByVal ws As Worksheet)
+    Dim sheetKey As String
+
+    If ws Is Nothing Then Exit Sub
+    If g_PostLayoutDeferredBannersBySheet Is Nothing Then Exit Sub
+
+    sheetKey = mp_BuildSheetKey(ws)
+    If Len(sheetKey) = 0 Then Exit Sub
+    If g_PostLayoutDeferredBannersBySheet.Exists(sheetKey) Then
+        g_PostLayoutDeferredBannersBySheet.Remove sheetKey
+    End If
+End Sub
+
 Private Sub mp_ApplyDeferredOperation(ByVal ws As Worksheet, ByVal op As Object)
     Dim args As Variant
     Dim opType As String
@@ -2512,8 +3465,6 @@ Private Sub mp_ApplyDeferredOperation(ByVal ws As Worksheet, ByVal op As Object)
                 End If
             End If
             Call m_ShowBannerBeforeRowIndex(CStr(args(0)), CStr(args(1)), CStr(args(2)), rowIndexValue, mp_RequireLongArg(args, 4, "banner insert"), mp_RequireLongArg(args, 5, "banner insert"))
-        Case DEFER_OP_APPEND_RESULT_BLOCK
-            Call m_AppendResultBlock(CStr(args(0)), CStr(args(1)), CStr(args(2)), mp_RequireLongArg(args, 3, "result block"), mp_RequireLongArg(args, 4, "result block"))
     End Select
 End Sub
 
@@ -2614,6 +3565,7 @@ End Function
 Private Sub mp_ClearDeferredRowAnchors(ByVal ws As Worksheet)
     mp_ClearRowAnchorsByPrefix ws, DEFER_ROW_ANCHOR_PREFIX
     mp_ClearRowAnchorsByPrefix ws, RUNTIME_ROW_ANCHOR_PREFIX
+    mp_ClearRowAnchorsByPrefix ws, POST_LAYOUT_ROW_ANCHOR_PREFIX
 End Sub
 
 Private Sub mp_ClearRowAnchorsByPrefix(ByVal ws As Worksheet, ByVal anchorPrefix As String)
@@ -2869,9 +3821,12 @@ End Function
 Private Sub mp_ClearPreviousResultBlocks(ByVal ws As Worksheet)
     Dim namedEntry As Name
     Dim normalizedName As String
+    Dim localName As String
     Dim refersRange As Range
     Dim blocks As Collection
+    Dim resultBlockMessageRanges As Collection
     Dim namesToDelete As Collection
+    Dim bannerAnchorNamesToDelete As Collection
     Dim entry As Object
     Dim maxRow As Long
     Dim maxIndex As Long
@@ -2884,10 +3839,13 @@ Private Sub mp_ClearPreviousResultBlocks(ByVal ws As Worksheet)
 
     Set blocks = New Collection
     Set namesToDelete = New Collection
+    Set bannerAnchorNamesToDelete = New Collection
+    Set resultBlockMessageRanges = mp_CollectResultBlockMessageAnchorRanges(ws)
 
     For Each namedEntry In ws.Names
-        normalizedName = LCase$(CStr(namedEntry.Name))
-        If InStr(1, normalizedName, LCase$(RESULT_BLOCK_ANCHOR_PREFIX), vbBinaryCompare) > 0 Then
+        localName = mp_GetLocalNameText(CStr(namedEntry.Name))
+        normalizedName = LCase$(localName)
+        If StrComp(Left$(normalizedName, Len(LCase$(RESULT_BLOCK_ANCHOR_PREFIX))), LCase$(RESULT_BLOCK_ANCHOR_PREFIX), vbBinaryCompare) = 0 Then
             namesToDelete.Add CStr(namedEntry.Name)
             Set refersRange = Nothing
             On Error Resume Next
@@ -2898,6 +3856,7 @@ Private Sub mp_ClearPreviousResultBlocks(ByVal ws As Worksheet)
                 entry.CompareMode = 1
                 entry("RowStart") = CLng(refersRange.Row)
                 entry("RowEnd") = CLng(refersRange.Row + refersRange.Rows.Count - 1)
+                entry("CanDeleteRows") = mp_HasRowOverlapWithRanges(CLng(entry("RowStart")), CLng(entry("RowEnd")), resultBlockMessageRanges)
                 blocks.Add entry
             End If
         End If
@@ -2920,7 +3879,8 @@ Private Sub mp_ClearPreviousResultBlocks(ByVal ws As Worksheet)
         rowEnd = CLng(entry("RowEnd"))
         If rowStart < 1 Then rowStart = 1
         If rowEnd > ws.Rows.Count Then rowEnd = ws.Rows.Count
-        If rowEnd >= rowStart Then
+        If CBool(entry("CanDeleteRows")) And rowEnd >= rowStart Then
+            mp_CollectBannerAnchorNamesInRowSpan ws, rowStart, rowEnd, bannerAnchorNamesToDelete
             On Error Resume Next
             ws.Rows(CStr(rowStart) & ":" & CStr(rowEnd)).Delete Shift:=xlUp
             On Error GoTo 0
@@ -2934,9 +3894,134 @@ Private Sub mp_ClearPreviousResultBlocks(ByVal ws As Worksheet)
         ThisWorkbook.Names(CStr(deleteName)).Delete
         On Error GoTo 0
     Next deleteName
+    
+    For Each deleteName In bannerAnchorNamesToDelete
+        On Error Resume Next
+        ws.Names(CStr(deleteName)).Delete
+        ThisWorkbook.Names(CStr(deleteName)).Delete
+        On Error GoTo 0
+    Next deleteName
 
     mp_ClearNamedRowAnchor ws, RESULT_BLOCK_LAST_ANCHOR_NAME
 End Sub
+
+Private Function mp_CollectResultBlockMessageAnchorRanges(ByVal ws As Worksheet) As Collection
+    Dim result As Collection
+    Dim namedEntry As Name
+    Dim localName As String
+    Dim normalizedName As String
+    Dim refersRange As Range
+    Dim entry As Object
+
+    Set result = New Collection
+    If ws Is Nothing Then
+        Set mp_CollectResultBlockMessageAnchorRanges = result
+        Exit Function
+    End If
+
+    For Each namedEntry In ws.Names
+        localName = mp_GetLocalNameText(CStr(namedEntry.Name))
+        normalizedName = LCase$(localName)
+        If StrComp(Left$(normalizedName, Len(LCase$(BANNER_MESSAGE_ANCHOR_PREFIX))), LCase$(BANNER_MESSAGE_ANCHOR_PREFIX), vbBinaryCompare) <> 0 Then GoTo ContinueName
+        If InStr(1, normalizedName, LCase$(RESULT_BLOCK_IDENTITY_TOKEN), vbBinaryCompare) <= 0 _
+            And InStr(1, normalizedName, "resultblock", vbBinaryCompare) <= 0 Then GoTo ContinueName
+
+        Set refersRange = Nothing
+        On Error Resume Next
+        Set refersRange = namedEntry.RefersToRange
+        On Error GoTo 0
+        If refersRange Is Nothing Then GoTo ContinueName
+
+        Set entry = CreateObject("Scripting.Dictionary")
+        entry.CompareMode = 1
+        entry("RowStart") = CLng(refersRange.Row)
+        entry("RowEnd") = CLng(refersRange.Row + refersRange.Rows.Count - 1)
+        result.Add entry
+
+ContinueName:
+    Next namedEntry
+
+    Set mp_CollectResultBlockMessageAnchorRanges = result
+End Function
+
+Private Function mp_HasRowOverlapWithRanges( _
+    ByVal rowStart As Long, _
+    ByVal rowEnd As Long, _
+    ByVal ranges As Collection _
+) As Boolean
+    Dim i As Long
+    Dim entry As Object
+    Dim otherStart As Long
+    Dim otherEnd As Long
+
+    If rowEnd < rowStart Then rowEnd = rowStart
+    If ranges Is Nothing Then Exit Function
+    If ranges.Count = 0 Then Exit Function
+
+    For i = 1 To ranges.Count
+        Set entry = ranges(i)
+        If entry Is Nothing Then GoTo ContinueEntry
+        otherStart = CLng(entry("RowStart"))
+        otherEnd = CLng(entry("RowEnd"))
+        If otherEnd < otherStart Then otherEnd = otherStart
+        If Not (rowEnd < otherStart Or otherEnd < rowStart) Then
+            mp_HasRowOverlapWithRanges = True
+            Exit Function
+        End If
+ContinueEntry:
+    Next i
+End Function
+
+Private Sub mp_CollectBannerAnchorNamesInRowSpan( _
+    ByVal ws As Worksheet, _
+    ByVal rowStart As Long, _
+    ByVal rowEnd As Long, _
+    ByVal targetNames As Collection _
+)
+    Dim namedEntry As Name
+    Dim localName As String
+    Dim normalizedName As String
+    Dim refersRange As Range
+    Dim anchorRowStart As Long
+    Dim anchorRowEnd As Long
+
+    If ws Is Nothing Then Exit Sub
+    If targetNames Is Nothing Then Exit Sub
+    If rowStart < 1 Then rowStart = 1
+    If rowEnd < rowStart Then rowEnd = rowStart
+
+    For Each namedEntry In ws.Names
+        localName = mp_GetLocalNameText(CStr(namedEntry.Name))
+        normalizedName = LCase$(localName)
+        If StrComp(Left$(normalizedName, Len(LCase$(BANNER_ANCHOR_PREFIX))), LCase$(BANNER_ANCHOR_PREFIX), vbBinaryCompare) <> 0 _
+            And StrComp(Left$(normalizedName, Len(LCase$(BANNER_MESSAGE_ANCHOR_PREFIX))), LCase$(BANNER_MESSAGE_ANCHOR_PREFIX), vbBinaryCompare) <> 0 Then GoTo ContinueName
+
+        Set refersRange = Nothing
+        On Error Resume Next
+        Set refersRange = namedEntry.RefersToRange
+        On Error GoTo 0
+        If refersRange Is Nothing Then GoTo ContinueName
+
+        anchorRowStart = CLng(refersRange.Row)
+        anchorRowEnd = CLng(refersRange.Row + refersRange.Rows.Count - 1)
+        If anchorRowEnd < anchorRowStart Then anchorRowEnd = anchorRowStart
+        If Not (rowEnd < anchorRowStart Or anchorRowEnd < rowStart) Then
+            targetNames.Add CStr(namedEntry.Name)
+        End If
+
+ContinueName:
+    Next namedEntry
+End Sub
+
+Private Function mp_GetLocalNameText(ByVal fullNameText As String) As String
+    Dim delimiterPos As Long
+
+    mp_GetLocalNameText = Trim$(fullNameText)
+    delimiterPos = InStrRev(mp_GetLocalNameText, "!", -1, vbBinaryCompare)
+    If delimiterPos > 0 Then
+        mp_GetLocalNameText = Mid$(mp_GetLocalNameText, delimiterPos + 1)
+    End If
+End Function
 
 Private Sub mp_SetScriptHeaderAnchors(ByVal ws As Worksheet, ByVal rowIndex As Long)
     If ws Is Nothing Then Exit Sub
@@ -3353,4 +4438,16 @@ Private Sub mp_AssignRuntimeRowAnchor( _
     End If
     mp_SetNamedRowAnchor ws, anchorName, rowIndex
     rowRef.RowAnchorName = anchorName
+End Sub
+
+Private Sub mp_BannerTrace(ByVal messageText As String)
+    Dim lineText As String
+
+    If Not BANNER_TRACE_LOG_ENABLED Then Exit Sub
+    lineText = "[ex_PostProcessActions][banner] " & CStr(messageText)
+
+    On Error Resume Next
+    Debug.Print lineText
+    ex_Messaging.m_LogToFile lineText, BANNER_TRACE_LOG_PATH
+    On Error GoTo 0
 End Sub

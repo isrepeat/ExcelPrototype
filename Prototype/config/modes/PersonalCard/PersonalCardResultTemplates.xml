@@ -1,47 +1,200 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resultTemplates xmlns="urn:excelprototype:profiles" version="1">
-  <!-- Template note:
+  <!-- NOTE:
        In conditions like {#if InNumFull}...{#endif} a placeholder is treated as empty
-       if it is empty ("") or equals "-" / "?". -->
+       if it is empty ("") or equals "-" / "?".
+       
+       
+       #_      Attributes: 
+#_      {#for item in MetadataAttributes}
+#_      , {item.Value}
+#_      {#endfor}
+       
+        -->
+  <sharedTemplates>
+    <sharedTemplate id="vars.AttrRaportFromAnotherDate">
+      <text>
+        <![CDATA[
+          #let __AttrRaportFromAnotherDate = $ex_ResultTemplatesParser.m_ExtractFirstCollectionItemFieldByRegex("MetadataAttributes", "Value", "^\s*[Рр]апорт\s+від\s+.+$");
+        ]]>
+      </text>
+    </sharedTemplate>
+    <sharedTemplate id="vars.AttrMoveToSomethingAtThisDay">
+      <text>
+        <![CDATA[
+          #let __AttrMoveToSomethingAtThisDay = $ex_ResultTemplatesParser.m_ExtractFirstCollectionItemFieldByRegex("MetadataAttributes", "Value", "^\s*[Йй]де\s+(на\s+лікування|у\s+відпустку\s+для\s+лікування)\s*$");
+        ]]>
+      </text>
+    </sharedTemplate>
+    <sharedTemplate id="vars.AttrNotEnrolledToFoodSupport">
+      <text>
+        <![CDATA[
+          #let __AttrNotEnrolledToFoodSupport = $ex_ResultTemplatesParser.m_ExtractFirstCollectionItemFieldByRegex("MetadataAttributes", "Value", "^\s*[Нн]е\s+зараховували\s+на\s+котлове\s*$");
+        ]]>
+      </text>
+    </sharedTemplate>
+    <sharedTemplate id="vars.FlagEnrollToFoodSupport">
+      <text>
+        <![CDATA[
+          #let __FlagEnrollToFoodSupport = $ex_ResultTemplatesParser.m_ExtractFirstCollectionItemFieldByRegex("MetadataAttributes", "Value", "^\s*[Сс]тавимо\s+на\s+котел\s*$");
+        ]]>
+      </text>
+    </sharedTemplate>
+    <sharedTemplate id="vars.FlagDoNotEnrollToFoodSupport">
+      <text>
+        <![CDATA[
+          #let __FlagDoNotEnrollToFoodSupport = $ex_ResultTemplatesParser.m_ExtractFirstCollectionItemFieldByRegex("MetadataAttributes", "Value", "^\s*[Нн]е\s+ставимо\s+на\s+котел\s*$");
+        ]]>
+      </text>
+    </sharedTemplate>
+    <sharedTemplate id="vars.FlagRemoveFromFoodSupport">
+      <text>
+        <![CDATA[
+          #let __FlagRemoveFromFoodSupport = $ex_ResultTemplatesParser.m_ExtractFirstCollectionItemFieldByRegex("MetadataAttributes", "Value", "^\s*[Зз]німаємо\s+з\s+котла\s*$");
+        ]]>
+      </text>
+    </sharedTemplate>
+    <sharedTemplate id="vars.FlagDoNotRemoveFromFoodSupport">
+      <text>
+        <![CDATA[
+          #let __FlagDoNotRemoveFromFoodSupport = $ex_ResultTemplatesParser.m_ExtractFirstCollectionItemFieldByRegex("MetadataAttributes", "Value", "^\s*[Нн]е\s+знімаємо\s+з\s+котла\s*$");
+        ]]>
+      </text>
+    </sharedTemplate>
+    <sharedTemplate id="block.MetadataAttributesInline">
+      <text>
+        <![CDATA[#^
+#_      {#color_red_begin}{#for item in MetadataAttributes}{#if #not item.__first}, {#endif}({item.Value}){#if item.__last}{#endif}{#endfor}{#color_red_end}#^
+        ]]>
+      </text>
+    </sharedTemplate>
+    <sharedTemplate id="block.MetadataAttributesWithNewline">
+      <text>
+        <![CDATA[#^
+#_      {#color_red_begin}{#for item in MetadataAttributes}{#if #not item.__first}, {#endif}({item.Value}){#if item.__last}{#newline}{#endif}{#endfor}{#color_red_end}#^
+        ]]>
+      </text>
+    </sharedTemplate>
+    <sharedTemplate id="block.VacationDestinationPeriod">
+      <text>
+        <![CDATA[#^
+#_      {
+          #let __isSameMonth = $ex_DateHelpers.m_IsSameMonth({OutDate}, {ReturnDate});
+        }#^
+#_      ,  до {City
+            |regexreplace:"[Мм]\.[ \t]*","м. "
+            |regexreplace:"[Сс]ел\.[ \t]*","сел. "
+            |regexreplace:"[Сс]\.[ \t]*","с. "
+            |regexreplace:"обл\.","області"
+        }, #^
+#_      терміном на {DaysCount|calendarDaysUa}, #^
+#_      {#if AdditionalWayDays == 1}без урахування 1 доби, необхідної для проїзду до місця проведення відпустки та назад, {#endif}#^
+#_      {#if AdditionalWayDays > 1}без урахування {AdditionalWayDays} діб, необхідних для проїзду до місця проведення відпустки та назад, {#endif}#^
+#_      {#if __isSameMonth}з {OutDate|dateformat:"\dd"} по {ReturnDate|dateformat:"\dd \month"} 2026 року.{#newline}{#endif}#^
+#_      {#if #not __isSameMonth}з {OutDate|dateformat:"\dd \month"} по {ReturnDate|dateformat:"\dd \month"} 2026 року.{#newline}{#endif}#^
+        ]]>
+      </text>
+    </sharedTemplate>
+    <sharedTemplate id="block.ReturnToDuty">
+      <text>
+        <![CDATA[#^
+#_      {#if IsReturnToDuty}{ReturnToDutyRank|dative|upperFirstLetter} {ReturnToDutyFIO|dative} повернутись до виконання обов'язків {ReturnToDutyPosition|accusative|lowerFirstLetter}.{#newline}{#endif}#^
+        ]]>
+      </text>
+    </sharedTemplate>
+    <sharedTemplate id="block.AssignToDuty">
+      <text>
+        <![CDATA[#^
+#_      {#if IsAssignToDuty}#^
+#_      Тимчасове виконання обов'язків за посадою {Position|accusative|lowerFirstLetter} покласти на #^
+#_      {AssignToDutyRank|accusative|lowerFirstLetter} {AssignToDutyFIO|accusative}, {AssignToDutyPosition|accusative|lowerFirstLetter}.
+#_      {#endif}#^
+        ]]>
+      </text>
+    </sharedTemplate>
+    <sharedTemplate id="block.ToBasisRaports">
+      <text>
+        <![CDATA[#^
+#_      {
+          #let __IsRaportFromSelf = $ex_Helpers.m_RegexIsMatch("{RaportFrom}", "^\s*$|^\s*[Сс][Аа][Мм]\s*$");
+        }#^
+#_      Підстава: рапорт {#if __IsRaportFromSelf}{Rank|accusative|lowerFirstLetter} {FIO|genitive|fioSurname|capitalize} {FIO|fioInitials}{#endif}{#if #not __IsRaportFromSelf}{RaportTvo} {RaportFrom}{#endif} (вх. № {InNumFull} від {InDate})#^
+#_      {#for item in DuplicateRaports}#^
+#_      , рапорт {item.RaportTVO} {item.RaportFrom} (вх. № {item.InNumFull} від {item.InDate})#^
+#_      {#endfor}#^
+        ]]>
+      </text>
+    </sharedTemplate>
+    <sharedTemplate id="block.BasisDocumentsMedicalCardExtract">
+      <text>
+        <![CDATA[#^
+#_      {#for item in BasisDocuments}#^
+#_        {#if item.Note #and item.Date}#^
+#_        , {item.Note
+              |regexreplace:"^[ \t\r\n]*([\s\S]*?)[ \t\r\n]*$","$1"
+              |regexreplace:"^м/к$","виписка із медичної карти стаціонарного хворого"
+          } {#if item.Num}№ {item.Num}{#endif} від {item.Date}#^
+#_        {#endif}#^
+#_      {#endfor}#^
+        ]]>
+      </text>
+    </sharedTemplate>
+    <sharedTemplate id="block.BasisDocumentsMedicalCard">
+      <text>
+        <![CDATA[#^
+#_      {#for item in BasisDocuments}#^
+#_        {#if item.Note #and item.Date}#^
+#_        , {item.Note
+              |regexreplace:"^[ \t\r\n]*([\s\S]*?)[ \t\r\n]*$","$1"
+              |regexreplace:"^м/к$","медична карта стаціонарного хворого"
+          } {#if item.Num}№ {item.Num}{#endif} від {item.Date}#^
+#_        {#endif}#^
+#_      {#endfor}#^
+        ]]>
+      </text>
+    </sharedTemplate>
+  </sharedTemplates>
+
+
+
+
+  
   <template id="FromHospital">
     <text>
       <![CDATA[#^
-#_      З {Hospital}, з {DATE|dateformat:"\dd \month"} 2026 року:
-
+#_      {
+          {#include vars.AttrRaportFromAnotherDate}
+          {#include vars.AttrMoveToSomethingAtThisDay}
+          {#include vars.FlagDoNotEnrollToFoodSupport}
+        }#^
+#_      З {Hospital}, з {#if OutDate}{OutDate|dateformat:"\dd \month"}{#endif}{#if #not OutDate}{DATE|dateformat:"\dd \month"}{#endif} 2026 року:
+#_      {#include block.MetadataAttributesInline}
 #_      {Rank|accusative} {FIO|accusative}, {Position|accusative|lowerFirstLetter}.
-#_      {#if IsReturnToDuty}#^
-#_      {ReturnToDutyRank|dative|upperFirstLetter} #^
-#_      {ReturnToDutyFIO|dative} #^
-#_      повернутись до виконання обов'язків {ReturnToDutyPosition|accusative|lowerFirstLetter}.
-#_      {#endif}#^
-#_      Зарахувати на котлове забезпечення з {DATE|dateformat:"\dd"}{+1} {DATE|dateformat:"\month"} 2026 року.
-
-#_      Підстава: рапорт {RaportTvo} {RaportFrom} (вх. № {InNumFull} від {InDate})#^
-#_      {#if HasDuplicateRaport}#^
-#_      , рапорт {DuplicateRaportTVO} {DuplicateRaportFrom} (вх. № {DuplicateInNumFull} від {DuplicateInDate})#^
-#_      {#endif}#^
-#_      {#if DocNum #or DocDate}#^
-#_      , {DocNote
-            |regexreplace:"^[ \t\r\n]*([\s\S]*?)[ \t\r\n]*$","$1"
-            |regexreplace:"^м/к$","виписка із медичної карти стаціонарного хворого"
-        } {#if DocNum}№ {DocNum}{#endif}{#if DocDate} від {DocDate}{#endif}#^
+#_      {#include block.ReturnToDuty}#^
+#_      {#if #not __FlagDoNotEnrollToFoodSupport #and #not __AttrMoveToSomethingAtThisDay}Зарахувати на котлове забезпечення з {DATE|dateoffset:"+1"|dateformat:"\dd \month"} 2026 року.{#newline}{#endif}#^
+#_      {#color_red_begin}{#if __AttrMoveToSomethingAtThisDay}({__AttrMoveToSomethingAtThisDay}) {#endif}{#color_red_end}#^
+#_      {#color_red_begin}{#if __AttrRaportFromAnotherDate}({__AttrRaportFromAnotherDate}) {#endif}{#color_red_end}
+#_      {#include block.ToBasisRaports}#^
+#_      {#include block.BasisDocumentsMedicalCardExtract}#^
 #_      .#^
-#_      {#endif}#^
 #_    ]]>
    </text>
   </template>
   <template id="FromVacationForCuring">
     <text>
       <![CDATA[#^
+#_      {
+          {#include vars.AttrRaportFromAnotherDate}
+          {#include vars.AttrMoveToSomethingAtThisDay}
+          {#include vars.FlagDoNotEnrollToFoodSupport}
+        }#^
+#_      {#include block.MetadataAttributesWithNewline}#^
 #_      {Rank|accusative|upperFirstLetter} {FIO|accusative}, {Position|accusative|lowerFirstLetter}.
-#_      {#if IsReturnToDuty}#^
-#_      {ReturnToDutyRank|dative|upperFirstLetter} #^
-#_      {ReturnToDutyFIO|dative} #^
-#_      повернутись до виконання обов'язків {ReturnToDutyPosition|accusative|lowerFirstLetter}.
-#_      {#endif}#^
-#_      Зарахувати на котлове забезпечення з {DATE|dateformat:"\dd"}{+1} {DATE|dateformat:"\month"} 2026 року.
-
-#_      Підстава: рапорт {RaportTvo} {RaportFrom} (вх. № {InNumFull} від {InDate})#^
+#_      {#include block.ReturnToDuty}#^
+#_      {#if #not __FlagDoNotEnrollToFoodSupport #and #not __AttrMoveToSomethingAtThisDay}Зарахувати на котлове забезпечення з {DATE|dateoffset:"+1"|dateformat:"\dd \month"} 2026 року.{#newline}{#endif}#^
+#_      {#color_red_begin}{#if __AttrMoveToSomethingAtThisDay}({__AttrMoveToSomethingAtThisDay}) {#endif}{#color_red_end}#^
+#_      {#color_red_begin}{#if __AttrRaportFromAnotherDate}({__AttrRaportFromAnotherDate}) {#endif}{#color_red_end}
+#_      {#include block.ToBasisRaports}#^
 #_      , відпускний квиток № 3/71/{VkNum} від {VkDate}#^
 #_      .#^
 #_    ]]>
@@ -50,32 +203,55 @@
   <template id="FromAnnualMainVacation">
     <text>
       <![CDATA[#^
+#_      {
+          {#include vars.AttrRaportFromAnotherDate}
+          {#include vars.AttrMoveToSomethingAtThisDay}
+          {#include vars.FlagDoNotEnrollToFoodSupport}
+        }#^
+#_      {#include block.MetadataAttributesWithNewline}#^
 #_      {Rank|accusative|upperFirstLetter} {FIO|accusative}, {Position|accusative|lowerFirstLetter}.
-#_      {#if IsReturnToDuty}#^
-#_      {ReturnToDutyRank|dative|upperFirstLetter} #^
-#_      {ReturnToDutyFIO|dative} #^
-#_      повернутись до виконання обов'язків {ReturnToDutyPosition|accusative|lowerFirstLetter}.
-#_      {#endif}#^
-#_      Зарахувати на котлове забезпечення з {DATE|dateformat:"\dd"}{+1} {DATE|dateformat:"\month"} 2026 року.
-
-#_      Підстава: рапорт {RaportTvo} {RaportFrom} (вх. № {InNumFull} від {InDate})#^
+#_      {#include block.ReturnToDuty}#^
+#_      {#if #not __FlagDoNotEnrollToFoodSupport #and #not __AttrMoveToSomethingAtThisDay}Зарахувати на котлове забезпечення з {DATE|dateoffset:"+1"|dateformat:"\dd \month"} 2026 року.{#newline}{#endif}#^
+#_      {#color_red_begin}{#if __AttrMoveToSomethingAtThisDay}({__AttrMoveToSomethingAtThisDay}) {#endif}{#color_red_end}#^
+#_      {#color_red_begin}{#if __AttrRaportFromAnotherDate}({__AttrRaportFromAnotherDate}) {#endif}{#color_red_end}
+#_      {#include block.ToBasisRaports}#^
 #_      , відпускний квиток № 3/71/{VkNum} від {VkDate}#^
 #_      .#^
 #_    ]]>
-    </text>
+   </text>
   </template>
   <template id="FromVacationForFamily">
     <text>
       <![CDATA[#^
+#_      {
+          {#include vars.AttrRaportFromAnotherDate}
+          {#include vars.AttrMoveToSomethingAtThisDay}
+          {#include vars.FlagDoNotEnrollToFoodSupport}
+        }#^
+#_      {#include block.MetadataAttributesWithNewline}#^
 #_      {Rank|accusative|upperFirstLetter} {FIO|accusative}, {Position|accusative|lowerFirstLetter}.
-#_      {#if IsReturnToDuty}#^
-#_      {ReturnToDutyRank|dative|upperFirstLetter} {ReturnToDutyFIO|dative} #^
-#_      повернутись до виконання обов'язків {ReturnToDutyPosition|accusative|lowerFirstLetter}.
-#_      {#endif}#^
-#_      Зарахувати на котлове забезпечення з {DATE|dateformat:"\dd"}{+1} {DATE|dateformat:"\month"} 2026 року.
-
-#_      Підстава: рапорт {RaportTvo} {RaportFrom} (вх. № {InNumFull} від {InDate})#^
+#_      {#include block.ReturnToDuty}#^
+#_      {#if #not __FlagDoNotEnrollToFoodSupport #and #not __AttrMoveToSomethingAtThisDay}Зарахувати на котлове забезпечення з {DATE|dateoffset:"+1"|dateformat:"\dd \month"} 2026 року.{#newline}{#endif}#^
+#_      {#color_red_begin}{#if __AttrMoveToSomethingAtThisDay}({__AttrMoveToSomethingAtThisDay}) {#endif}{#color_red_end}#^
+#_      {#color_red_begin}{#if __AttrRaportFromAnotherDate}({__AttrRaportFromAnotherDate}) {#endif}{#color_red_end}
+#_      {#include block.ToBasisRaports}#^
 #_      , відпускний квиток № 3/71/{VkNum} від {VkDate}#^
+#_      .#^
+#_    ]]>
+   </text>
+  </template>
+  <template id="FromMedicalCompanyForTreatment">
+    <text>
+      <![CDATA[#^
+#_      {
+          {#include vars.AttrRaportFromAnotherDate}
+        }#^
+#_      {#include block.MetadataAttributesWithNewline}#^
+#_      {Rank|accusative|upperFirstLetter} {FIO|accusative}, {Position|accusative|lowerFirstLetter}.
+#_      {#include block.ReturnToDuty}#^
+#_      {#color_red_begin}{#if __AttrRaportFromAnotherDate}({__AttrRaportFromAnotherDate})  {#endif}{#color_red_end}
+#_      {#include block.ToBasisRaports}#^
+#_      {#include block.BasisDocumentsMedicalCardExtract}#^
 #_      .#^
 #_    ]]>
     </text>
@@ -83,10 +259,18 @@
   <template id="FromOutpatientExaminationOrVlk">
     <text>
       <![CDATA[#^
-#_      {Rank|accusative} {FIO|accusative}, {Position|accusative|lowerFirstLetter}.
-
-#_      Підстава: рапорт {RaportTvo} {RaportFrom} (вх. № {InNumFull} від {InDate})#^
+#_      {
+          {#include vars.AttrRaportFromAnotherDate}
+        }#^
+#_      {#include block.MetadataAttributesWithNewline}#^
+#_      {Rank|accusative|upperFirstLetter} {FIO|accusative}, {Position|accusative|lowerFirstLetter}.
+#_      {#include block.ReturnToDuty}#^
+#_      {#color_red_begin}{#if __AttrRaportFromAnotherDate}({__AttrRaportFromAnotherDate})  {#endif}{#color_red_end}
+#_      {#include block.ToBasisRaports}#^ 
+#_      {#include block.BasisDocumentsMedicalCardExtract}#^
+#_      {#if VlkNum #and VlkDate}#^
 #_      , довідка військово-лікарської комісії № {VlkNum} від {VlkDate}#^
+#_      {#endif}#^
 #_      .#^
 #_    ]]>
     </text>
@@ -94,68 +278,42 @@
   <template id="ToHospital">
     <text>
       <![CDATA[#^
-#_      До {Hospital}, з {DATE|dateformat:"\dd \month"} 2026 року:
-
-#_      {Rank|accusative} {FIO|accusative}, {Position|accusative|lowerFirstLetter}.
-#_      {#if IsAssignToDuty}#^
-#_      Тимчасове виконання обов'язків за посадою {Position|accusative|lowerFirstLetter} покласти на #^
-#_      {AssignToDutyRank|accusative|lowerFirstLetter} {AssignToDutyFIO|accusative}, {AssignToDutyPosition|accusative|lowerFirstLetter}.
-#_      {#endif}#^
-#_      Зняти з котлового забезпечення з {DATE|dateformat:"\dd"} {DATE|dateformat:"\month"} 2026 року.
 #_      {
-          #let HasFoodAttestatLine = $ex_Helpers.m_RegexFirstMatch("{Hospital}", "центру\s+[Пп]івнічного\s+регіону|центру\s+[Зз]ахідного\s+регіону");
+          {#include vars.AttrRaportFromAnotherDate}
+          {#include vars.AttrNotEnrolledToFoodSupport}
+          {#include vars.FlagDoNotRemoveFromFoodSupport}
+          #let __HasFoodAttestatLine = $ex_Helpers.m_RegexFirstMatch("{Hospital}", "центру\s+[Пп]івнічного\s+регіону|центру\s+[Зз]ахідного\s+регіону");
         }#^
-#_      {#if HasFoodAttestatLine}#^
-#_      Видати продовольчий атестат.
-#_      {#endif}#^
-
-#_      Підстава: рапорт {RaportTvo} {RaportFrom} (вх. № {InNumFull} від {InDate})#^
-#_      {#if HasDuplicateRaport}#^
-#_      , рапорт {DuplicateRaportTVO} {DuplicateRaportFrom} (вх. № {DuplicateInNumFull} від {DuplicateInDate})#^
-#_      {#endif}#^
-#_      {#if DocNum #or DocDate}#^
-#_      , {DocNote
-            |regexreplace:"^[ \t\r\n]*([\s\S]*?)[ \t\r\n]*$","$1"
-            |regexreplace:"^м/к$","медична карта стаціонарного хворого"
-        } {#if DocNum}№ {DocNum}{#endif}{#if DocDate} від {DocDate}{#endif}#^
+#_      До {Hospital}, з {#if OutDate}{OutDate|dateformat:"\dd \month"}{#endif}{#if #not OutDate}{DATE|dateformat:"\dd \month"}{#endif} 2026 року:
+#_      {#include block.MetadataAttributesInline}
+#_      {Rank|accusative} {FIO|accusative}, {Position|accusative|lowerFirstLetter}.
+#_      {#include block.AssignToDuty}#^
+#_      {#if #not __FlagDoNotRemoveFromFoodSupport #and #not __AttrNotEnrolledToFoodSupport}Зняти з котлового забезпечення з {#if OutDate}{OutDate|dateformat:"\dd \month"}{#endif}{#if #not OutDate}{DATE|dateformat:"\dd \month"}{#endif} 2026 року.{#newline}{#endif}#^
+#_      {#if __HasFoodAttestatLine}Видати продовольчий атестат.{#newline}{#endif}#^
+#_      {#color_red_begin}{#if __AttrNotEnrolledToFoodSupport}({__AttrNotEnrolledToFoodSupport}) {#endif}{#color_red_end}#^
+#_      {#color_red_begin}{#if __AttrRaportFromAnotherDate}({__AttrRaportFromAnotherDate}) {#endif}{#color_red_end}
+#_      {#include block.ToBasisRaports}#^
+#_      {#include block.BasisDocumentsMedicalCard}#^
 #_      .#^
-#_      {#endif}#^
 #_    ]]>
     </text>
   </template>
   <template id="ToAnnualMainVacation">
     <text>
       <![CDATA[#^
-#_      {Rank|accusative|upperFirstLetter} {FIO|accusative}, {Position|accusative|lowerFirstLetter}, #^
-#_      до {City
-            |regexreplace:"[Мм]\.[ \t]*","м. "
-            |regexreplace:"[Сс]ел\.[ \t]*","сел. "
-            |regexreplace:"[Сс]\.[ \t]*","с. "
-            |regexreplace:"обл\.","області"
-        }, #^
-#_      терміном на {DaysCount|calendarDaysUa}, #^
-#_      {#if AdditionalWayDays == 1}#^
-#_      без урахування 1 доби, необхідної для проїзду до місця проведення відпустки та назад, #^
-#_      {#endif}#^
-#_      {#if AdditionalWayDays > 1}#^
-#_      без урахування {AdditionalWayDays} діб, необхідних для проїзду до місця проведення відпустки та назад, #^
-#_      {#endif}#^
 #_      {
-          #let isSameMonth = $ex_DateHelpers.m_IsSameMonth({OutDate}, {ReturnDate});
+          {#include vars.AttrRaportFromAnotherDate}
+          {#include vars.AttrNotEnrolledToFoodSupport}
+          {#include vars.FlagDoNotRemoveFromFoodSupport}
         }#^
-#_      {#if isSameMonth}#^
-#_      з {OutDate|dateformat:"\dd"} по {ReturnDate|dateformat:"\dd \month"} 2026 року.
-#_      {#endif}#^
-#_      {#if #not isSameMonth}#^
-#_      з {OutDate|dateformat:"\dd \month"} по {ReturnDate|dateformat:"\dd \month"} 2026 року.
-#_      {#endif}#^
-#_      {#if IsAssignToDuty}#^
-#_      Тимчасове виконання обов'язків за посадою {Position|accusative|lowerFirstLetter} покласти на #^
-#_      {AssignToDutyRank|accusative|lowerFirstLetter} {AssignToDutyFIO|accusative}, {AssignToDutyPosition|accusative|lowerFirstLetter}.
-#_      {#endif}#^
-#_      Зняти з котлового забезпечення з {OutDate|dateformat:"\dd \month"} 2026 року.
-
-#_      Підстава: рапорт {Rank|accusative|lowerFirstLetter} {FIO|genitive|fioSurname|capitalize} {FIO|fioInitials} (вх. № {InNumFull} від {InDate})#^
+#_      {#include block.MetadataAttributesWithNewline}#^
+#_      {Rank|accusative|upperFirstLetter} {FIO|accusative}, {Position|accusative|lowerFirstLetter}#^
+#_      {#include block.VacationDestinationPeriod}#^
+#_      {#include block.AssignToDuty}#^
+#_      {#if #not __FlagDoNotRemoveFromFoodSupport #and #not __AttrNotEnrolledToFoodSupport}Зняти з котлового забезпечення з {#if OutDate}{OutDate|dateformat:"\dd \month"}{#endif}{#if #not OutDate}{DATE|dateformat:"\dd \month"}{#endif} 2026 року.{#newline}{#endif}#^
+#_      {#color_red_begin}{#if __AttrNotEnrolledToFoodSupport}({__AttrNotEnrolledToFoodSupport}) {#endif}{#color_red_end}#^
+#_      {#color_red_begin}{#if __AttrRaportFromAnotherDate}({__AttrRaportFromAnotherDate}) {#endif}{#color_red_end}
+#_      {#include block.ToBasisRaports}#^
 #_      , відпускний квиток № 3/71/{VkNum} від {VkDate}#^
 #_      .#^
 #_    ]]>
@@ -164,36 +322,19 @@
   <template id="ToVacationForFamily">
     <text>
       <![CDATA[#^
-#_      {Rank|accusative|upperFirstLetter} {FIO|accusative}, {Position|accusative|lowerFirstLetter}, #^
-#_      до {City
-            |regexreplace:"[Мм]\.[ \t]*","м. "
-            |regexreplace:"[Сс]ел\.[ \t]*","сел. "
-            |regexreplace:"[Сс]\.[ \t]*","с. "
-            |regexreplace:"обл\.","області"
-        }, #^
-#_      терміном на {DaysCount|calendarDaysUa}, #^
-#_      {#if AdditionalWayDays == 1}#^
-#_      без урахування 1 доби, необхідної для проїзду до місця проведення відпустки та назад, #^
-#_      {#endif}#^
-#_      {#if AdditionalWayDays > 1}#^
-#_      без урахування {AdditionalWayDays} діб, необхідних для проїзду до місця проведення відпустки та назад, #^
-#_      {#endif}#^
 #_      {
-          #let isSameMonth = $ex_DateHelpers.m_IsSameMonth({OutDate}, {ReturnDate});
+          {#include vars.AttrRaportFromAnotherDate}
+          {#include vars.AttrNotEnrolledToFoodSupport}
+          {#include vars.FlagDoNotRemoveFromFoodSupport}
         }#^
-#_      {#if isSameMonth}#^
-#_      з {OutDate|dateformat:"\dd"} по {ReturnDate|dateformat:"\dd \month"} 2026 року.
-#_      {#endif}#^
-#_      {#if #not isSameMonth}#^
-#_      з {OutDate|dateformat:"\dd \month"} по {ReturnDate|dateformat:"\dd \month"} 2026 року.
-#_      {#endif}#^
-#_      {#if IsAssignToDuty}#^
-#_      Тимчасове виконання обов'язків за посадою {Position|accusative|lowerFirstLetter} покласти на #^
-#_      {AssignToDutyRank|accusative|lowerFirstLetter} {AssignToDutyFIO|accusative}, {AssignToDutyPosition|accusative|lowerFirstLetter}.
-#_      {#endif}#^
-#_      Зняти з котлового забезпечення з {OutDate|dateformat:"\dd \month"} 2026 року.
-
-#_      Підстава: рапорт {Rank|accusative|lowerFirstLetter} {FIO|genitive|fioSurname|capitalize} {FIO|fioInitials} (вх. № {InNumFull} від {InDate})#^
+#_      {#include block.MetadataAttributesWithNewline}#^
+#_      {Rank|accusative|upperFirstLetter} {FIO|accusative}, {Position|accusative|lowerFirstLetter}#^
+#_      {#include block.VacationDestinationPeriod}#^
+#_      {#include block.AssignToDuty}#^
+#_      {#if #not __FlagDoNotRemoveFromFoodSupport #and #not __AttrNotEnrolledToFoodSupport}Зняти з котлового забезпечення з {#if OutDate}{OutDate|dateformat:"\dd \month"}{#endif}{#if #not OutDate}{DATE|dateformat:"\dd \month"}{#endif} 2026 року.{#newline}{#endif}#^
+#_      {#color_red_begin}{#if __AttrNotEnrolledToFoodSupport}({__AttrNotEnrolledToFoodSupport}) {#endif}{#color_red_end}#^
+#_      {#color_red_begin}{#if __AttrRaportFromAnotherDate}({__AttrRaportFromAnotherDate}) {#endif}{#color_red_end}
+#_      {#include block.ToBasisRaports}#^
 #_      , відпускний квиток № 3/71/{VkNum} від {VkDate}#^
 #_      .#^
 #_    ]]>
@@ -202,38 +343,37 @@
   <template id="ToVacationForCuring">
     <text>
       <![CDATA[#^
-#_      {Rank|accusative|upperFirstLetter} {FIO|accusative}, {Position|accusative|lowerFirstLetter}, #^
-#_      до {City
-            |regexreplace:"[Мм]\.[ \t]*","м. "
-            |regexreplace:"[Сс]ел\.[ \t]*","сел. "
-            |regexreplace:"[Сс]\.[ \t]*","с. "
-            |regexreplace:"обл\.","області"
-        }, #^
-#_      терміном на {DaysCount|calendarDaysUa}, #^
-#_      {#if AdditionalWayDays == 1}#^
-#_      без урахування 1 доби, необхідної для проїзду до місця проведення відпустки та назад, #^
-#_      {#endif}#^
-#_      {#if AdditionalWayDays > 1}#^
-#_      без урахування {AdditionalWayDays} діб, необхідних для проїзду до місця проведення відпустки та назад, #^
-#_      {#endif}#^
 #_      {
-          #let isSameMonth = $ex_DateHelpers.m_IsSameMonth({OutDate}, {ReturnDate});
+          {#include vars.AttrRaportFromAnotherDate}
+          {#include vars.AttrNotEnrolledToFoodSupport}
+          {#include vars.FlagDoNotRemoveFromFoodSupport}
         }#^
-#_      {#if isSameMonth}#^
-#_      з {OutDate|dateformat:"\dd"} по {ReturnDate|dateformat:"\dd \month"} 2026 року.
-#_      {#endif}#^
-#_      {#if #not isSameMonth}#^
-#_      з {OutDate|dateformat:"\dd \month"} по {ReturnDate|dateformat:"\dd \month"} 2026 року.
-#_      {#endif}#^
-#_      {#if IsAssignToDuty}#^
-#_      Тимчасове виконання обов'язків за посадою {Position|accusative|lowerFirstLetter} покласти на #^
-#_      {AssignToDutyRank|accusative|lowerFirstLetter} {AssignToDutyFIO|accusative}, {AssignToDutyPosition|accusative|lowerFirstLetter}.
-#_      {#endif}#^
-#_      Зняти з котлового забезпечення з {OutDate|dateformat:"\dd \month"} 2026 року.
-
-#_      Підстава: рапорт {Rank|accusative|lowerFirstLetter} {FIO|genitive|fioSurname|capitalize} {FIO|fioInitials} (вх. № {InNumFull} від {InDate})#^
+#_      {#include block.MetadataAttributesWithNewline}#^
+#_      {Rank|accusative|upperFirstLetter} {FIO|accusative}, {Position|accusative|lowerFirstLetter}#^
+#_      {#include block.VacationDestinationPeriod}#^
+#_      {#include block.AssignToDuty}#^
+#_      {#if #not __FlagDoNotRemoveFromFoodSupport #and #not __AttrNotEnrolledToFoodSupport}Зняти з котлового забезпечення з {#if OutDate}{OutDate|dateformat:"\dd \month"}{#endif}{#if #not OutDate}{DATE|dateformat:"\dd \month"}{#endif} 2026 року.{#newline}{#endif}#^
+#_      {#color_red_begin}{#if __AttrNotEnrolledToFoodSupport}({__AttrNotEnrolledToFoodSupport}) {#endif}{#color_red_end}#^
+#_      {#color_red_begin}{#if __AttrRaportFromAnotherDate}({__AttrRaportFromAnotherDate}) {#endif}{#color_red_end}
+#_      {#include block.ToBasisRaports}#^
 #_      , довідка військово-лікарської комісії № {VlkNum} від {VlkDate}#^
 #_      , відпускний квиток № 3/71/{VkNum} від {VkDate}#^
+#_      .#^
+#_    ]]>
+    </text>
+  </template>
+  <template id="ToMedicalCompanyForTreatment">
+    <text>
+      <![CDATA[#^
+#_      {
+          {#include vars.AttrRaportFromAnotherDate}
+        }#^
+#_      {#include block.MetadataAttributesWithNewline}#^
+#_      {Rank|accusative} {FIO|accusative}, {Position|accusative|lowerFirstLetter}.
+#_      {#include block.AssignToDuty}#^
+#_      {#color_red_begin}{#if __AttrRaportFromAnotherDate}({__AttrRaportFromAnotherDate}) {#endif}{#color_red_end}
+#_      {#include block.ToBasisRaports}#^
+#_      {#include block.BasisDocumentsMedicalCard}#^
 #_      .#^
 #_    ]]>
     </text>
@@ -241,9 +381,14 @@
   <template id="ToOutpatientExaminationOrVlk">
     <text>
       <![CDATA[#^
-#_      {Rank|accusative} {FIO|accusative}, {Position|accusative|lowerFirstLetter}.
-
-#_      Підстава: рапорт {RaportTvo} {RaportFrom} (вх. № {InNumFull} від {InDate})#^
+#_      {
+          {#include vars.AttrRaportFromAnotherDate}
+        }#^
+#_      {#include block.MetadataAttributesWithNewline}#^
+#_      {Rank|accusative|upperFirstLetter} {FIO|accusative}, {Position|accusative|lowerFirstLetter}.
+#_      {#color_red_begin}{#if __AttrRaportFromAnotherDate}({__AttrRaportFromAnotherDate}) {#endif}{#color_red_end}
+#_      {#include block.ToBasisRaports}#^
+#_      {#include block.BasisDocumentsMedicalCard}#^
 #_      .#^
 #_    ]]>
     </text>
@@ -251,33 +396,17 @@
   <template id="MoveFromHospitalToVacationForCuring">
     <text>
       <![CDATA[#^
-#_      NN. {Rank|accusative|upperFirstLetter} {FIO|accusative}, {Position|accusative|lowerFirstLetter}, #^
-#_      який перебував на лікуванні у {Hospital}, вважати таким, що перебуває у відпустці для лікування, #^
-#_      до {City
-            |regexreplace:"[Мм]\.[ \t]*","м. "
-            |regexreplace:"[Сс]ел\.[ \t]*","сел. "
-            |regexreplace:"[Сс]\.[ \t]*","с. "
-            |regexreplace:"обл\.","області"
-        }, #^
-#_      терміном на {DaysCount|calendarDaysUa}, #^
 #_      {
-          #let isSameMonth = $ex_DateHelpers.m_IsSameMonth({OutDate}, {ReturnDate});
+          {#include vars.AttrRaportFromAnotherDate}
         }#^
-#_      {#if isSameMonth}#^
-#_      з {OutDate|dateformat:"\dd"} по {ReturnDate|dateformat:"\dd \month"} 2026 року.
-#_      {#endif}#^
-#_      {#if #not isSameMonth}#^
-#_      з {OutDate|dateformat:"\dd \month"} по {ReturnDate|dateformat:"\dd \month"} 2026 року.
-#_      {#endif}#^
-
-#_      Підстава: рапорт {Rank|accusative|lowerFirstLetter} {FIO|genitive|fioSurname|capitalize} {FIO|fioInitials} (вх. № {InNumFull} від {InDate})#^
+#_      {#include block.MetadataAttributesWithNewline}#^
+#_      NN. {Rank|accusative|upperFirstLetter} {FIO|accusative}, {Position|accusative|lowerFirstLetter}, #^
+#_      який перебував на лікуванні у {Hospital}, вважати таким, що перебуває у відпустці для лікування#^
+#_      {#include block.VacationDestinationPeriod}#^
+#_      {#color_red_begin}{#if __AttrRaportFromAnotherDate}({__AttrRaportFromAnotherDate}) {#endif}{#color_red_end}
+#_      {#include block.ToBasisRaports}#^
 #_      , довідка військово-лікарської комісії № {VlkNum} від {VlkDate}#^
-#_      {#if DocNum #or DocDate}#^
-#_      , {DocNote
-            |regexreplace:"^[ \t\r\n]*([\s\S]*?)[ \t\r\n]*$","$1"
-            |regexreplace:"^м/к$","виписка із медичної карти стаціонарного хворого"
-        } {#if DocNum}№ {DocNum}{#endif}{#if DocDate} від {DocDate}{#endif}#^
-#_      {#endif}#^
+#_      {#include block.BasisDocumentsMedicalCardExtract}#^
 #_      , відпускний квиток № 3/71/{VkNum} від {VkDate}#^
 #_      .#^
 #_    ]]>
@@ -286,26 +415,15 @@
   <template id="MoveFromVacationForCuringToVacationForCuring">
     <text>
       <![CDATA[#^
-#_      NN. {Rank|accusative|upperFirstLetter} {FIO|accusative}, {Position|accusative|lowerFirstLetter}, #^
-#_      який перебував у відпустці для лікування, вважати таким, що перебуває у відпустці для лікування, #^
-#_      до {City
-            |regexreplace:"[Мм]\.[ \t]*","м. "
-            |regexreplace:"[Сс]ел\.[ \t]*","сел. "
-            |regexreplace:"[Сс]\.[ \t]*","с. "
-            |regexreplace:"обл\.","області"
-        }, #^
-#_      терміном на {DaysCount|calendarDaysUa}, #^
 #_      {
-          #let isSameMonth = $ex_DateHelpers.m_IsSameMonth({OutDate}, {ReturnDate});
+          {#include vars.AttrRaportFromAnotherDate}
         }#^
-#_      {#if isSameMonth}#^
-#_      з {OutDate|dateformat:"\dd"} по {ReturnDate|dateformat:"\dd \month"} 2026 року.
-#_      {#endif}#^
-#_      {#if #not isSameMonth}#^
-#_      з {OutDate|dateformat:"\dd \month"} по {ReturnDate|dateformat:"\dd \month"} 2026 року.
-#_      {#endif}#^
-
-#_      Підстава: рапорт {Rank|accusative|lowerFirstLetter} {FIO|genitive|fioSurname|capitalize} {FIO|fioInitials} (вх. № {InNumFull} від {InDate})#^
+#_      {#include block.MetadataAttributesWithNewline}#^
+#_      NN. {Rank|accusative|upperFirstLetter} {FIO|accusative}, {Position|accusative|lowerFirstLetter}, #^
+#_      який перебував у відпустці для лікування, вважати таким, що перебуває у відпустці для лікування#^
+#_      {#include block.VacationDestinationPeriod}#^
+#_      {#color_red_begin}{#if __AttrRaportFromAnotherDate}({__AttrRaportFromAnotherDate}) {#endif}{#color_red_end}
+#_      {#include block.ToBasisRaports}#^
 #_      , довідка військово-лікарської комісії № {VlkNum} від {VlkDate}#^
 #_      , відпускний квиток № 3/71/{VkNum} від {VkDate}#^
 #_      .#^
@@ -315,17 +433,16 @@
   <template id="MoveFromVacationForCuringToHospital">
     <text>
       <![CDATA[#^
+#_      {
+          {#include vars.AttrRaportFromAnotherDate}
+        }#^
+#_      {#include block.MetadataAttributesWithNewline}#^
 #_      NN. {Rank|accusative|upperFirstLetter} {FIO|accusative}, {Position|accusative|lowerFirstLetter}, #^
 #_      який перебував у відпустці для лікування, вважати таким, що перебуває на лікуванні у {Hospital}, #^
 #_      з {OutDate|dateformat:"\dd \month"} 2026 року.
-
-#_      Підстава: рапорт {RaportTvo} {RaportFrom} (вх. № {InNumFull} від {InDate})#^
-#_      {#if DocNum #or DocDate}#^
-#_      , {DocNote
-            |regexreplace:"^[ \t\r\n]*([\s\S]*?)[ \t\r\n]*$","$1"
-            |regexreplace:"^м/к$","медична карта стаціонарного хворого"
-        } {#if DocNum}№ {DocNum}{#endif}{#if DocDate} від {DocDate}{#endif}#^
-#_      {#endif}#^
+#_      {#color_red_begin}{#if __AttrRaportFromAnotherDate}({__AttrRaportFromAnotherDate}) {#endif}{#color_red_end}
+#_      {#include block.ToBasisRaports}#^
+#_      {#include block.BasisDocumentsMedicalCard}#^
 #_      , відпускний квиток № 3/71/{PrevVkNum} від {PrevVkDate}#^
 #_      .#^
 #_    ]]>
@@ -334,11 +451,15 @@
   <template id="MoveFromVacationForCuringToVlk">
     <text>
       <![CDATA[#^
+#_      {
+          {#include vars.AttrRaportFromAnotherDate}
+        }#^
+#_      {#include block.MetadataAttributesWithNewline}#^
 #_      NN. {Rank|accusative|upperFirstLetter} {FIO|accusative}, {Position|accusative|lowerFirstLetter}, #^
 #_      який перебував у відпустці для лікування, вважати таким, що перебуває на медичному огляді військово лікарської комісії, #^
 #_      з {OutDate|dateformat:"\dd \month"} 2026 року.
-
-#_      Підстава: рапорт {RaportTvo} {RaportFrom} (вх. № {InNumFull} від {InDate})#^
+#_      {#color_red_begin}{#if __AttrRaportFromAnotherDate}({__AttrRaportFromAnotherDate}) {#endif}{#color_red_end}
+#_      {#include block.ToBasisRaports}#^
 #_      , направлення на медичний огляд військово-лікарською-комісією № {DocNum} від {DocDate}#^
 #_      , відпускний квиток № 3/71/{PrevVkNum} від {PrevVkDate}#^
 #_      .#^
@@ -348,28 +469,43 @@
   <template id="MoveFromVlkToVacationForCuring">
     <text>
       <![CDATA[#^
-#_      NN. {Rank|accusative|upperFirstLetter} {FIO|accusative}, {Position|accusative|lowerFirstLetter}, #^
-#_      який перебував на медичному огляді військово лікарської комісії, вважати таким, що перебуває у відпустці для лікування, #^
-#_      до {City
-            |regexreplace:"[Мм]\.[ \t]*","м. "
-            |regexreplace:"[Сс]ел\.[ \t]*","сел. "
-            |regexreplace:"[Сс]\.[ \t]*","с. "
-            |regexreplace:"обл\.","області"
-        }, #^
-#_      терміном на {DaysCount|calendarDaysUa}, #^
 #_      {
-          #let isSameMonth = $ex_DateHelpers.m_IsSameMonth({OutDate}, {ReturnDate});
+          {#include vars.AttrRaportFromAnotherDate}
+          {#include vars.FlagRemoveFromFoodSupport}
         }#^
-#_      {#if isSameMonth}#^
-#_      з {OutDate|dateformat:"\dd"} по {ReturnDate|dateformat:"\dd \month"} 2026 року.
-#_      {#endif}#^
-#_      {#if #not isSameMonth}#^
-#_      з {OutDate|dateformat:"\dd \month"} по {ReturnDate|dateformat:"\dd \month"} 2026 року.
-#_      {#endif}#^
-
-#_      Підстава: рапорт {RaportTvo} {RaportFrom} (вх. № {InNumFull} від {InDate})#^
+#_      {#include block.MetadataAttributesWithNewline}#^
+#_      NN. {Rank|accusative|upperFirstLetter} {FIO|accusative}, {Position|accusative|lowerFirstLetter}, #^
+#_      який перебував на медичному огляді військово лікарської комісії, вважати таким, що перебуває у відпустці для лікування#^
+#_      {#include block.VacationDestinationPeriod}#^
+#_      {#if __FlagRemoveFromFoodSupport}Зняти з котлового забезпечення з {#if OutDate}{OutDate|dateformat:"\dd \month"}{#endif}{#if #not OutDate}{DATE|dateformat:"\dd \month"}{#endif} 2026 року.{#newline}{#endif}#^
+#_      {#color_red_begin}{#if __AttrRaportFromAnotherDate}({__AttrRaportFromAnotherDate}) {#endif}{#color_red_end}
+#_      {#include block.ToBasisRaports}#^
+#_      {#if VlkNum #and VlkDate}#^
 #_      , довідка військово-лікарської комісії № {VlkNum} від {VlkDate}#^
+#_      {#endif}#^
 #_      , відпускний квиток № 3/71/{VkNum} від {VkDate}#^
+#_      .#^
+#_    ]]>
+    </text>
+  </template>
+  <template id="MoveFromVlkToHospital">
+    <text>
+      <![CDATA[#^
+#_      {
+          {#include vars.AttrRaportFromAnotherDate}
+          {#include vars.FlagRemoveFromFoodSupport}
+        }#^
+#_      {#include block.MetadataAttributesWithNewline}#^
+#_      NN. {Rank|accusative|upperFirstLetter} {FIO|accusative}, {Position|accusative|lowerFirstLetter}, #^
+#_      який перебував на медичному огляді військово лікарської комісії, вважати таким, що перебуває на лікуванні у {Hospital}, #^
+#_      з {OutDate|dateformat:"\dd \month"} 2026 року.
+#_      {#if __FlagRemoveFromFoodSupport}Зняти з котлового забезпечення з {#if OutDate}{OutDate|dateformat:"\dd \month"}{#endif}{#if #not OutDate}{DATE|dateformat:"\dd \month"}{#endif} 2026 року.{#newline}{#endif}#^
+#_      {#color_red_begin}{#if __AttrRaportFromAnotherDate}({__AttrRaportFromAnotherDate}) {#endif}{#color_red_end}
+#_      {#include block.ToBasisRaports}#^
+#_      {#if VlkNum #and VlkDate}#^
+#_      , довідка військово-лікарської комісії № {VlkNum} від {VlkDate}#^
+#_      {#endif}#^
+#_      {#include block.BasisDocumentsMedicalCard}#^
 #_      .#^
 #_    ]]>
     </text>

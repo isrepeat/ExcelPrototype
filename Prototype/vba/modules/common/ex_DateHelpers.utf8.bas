@@ -1,9 +1,11 @@
 Attribute VB_Name = "ex_DateHelpers"
 Option Explicit
 
+Private Const DATE_HELPERS_LOG_PATH As String = "Logs\datehelpers_trace.log"
+
 Public Function m_ToFullDate( _
-    ByVal sourceDateText As String, _
-    Optional ByVal baseDateText As String = vbNullString _
+    ByVal sourceDateText As Variant, _
+    Optional ByVal baseDateText As Variant = vbNullString _
 ) As String
     Dim normalized As String
     Dim baseDate As Date
@@ -13,17 +15,32 @@ Public Function m_ToFullDate( _
     Dim parts() As String
     Dim dt As Date
 
-    normalized = Trim$(CStr(sourceDateText))
-    If Len(normalized) = 0 Then
-        Err.Raise vbObjectError + 1788, "ex_DateHelpers", "ToFullDate: source date is empty."
+    On Error GoTo EH
+
+    normalized = mp_NormalizeText(sourceDateText)
+    mp_DebugLog "m_ToFullDate START sourceRaw=" & mp_FormatVariantForLog(sourceDateText) & _
+                " baseRaw=" & mp_FormatVariantForLog(baseDateText) & _
+                " normalized='" & mp_EscapeLogText(normalized) & "'"
+
+    If Len(normalized) = 0 Or mp_IsEmptyDatePlaceholder(normalized) Then
+        m_ToFullDate = vbNullString
+        mp_DebugLog "m_ToFullDate RETURN empty (placeholder or blank) sourceRaw=" & mp_FormatVariantForLog(sourceDateText)
+        Exit Function
     End If
 
     baseDate = mp_ParseBaseDate(baseDateText)
+    mp_DebugLog "m_ToFullDate baseDate='" & Format$(baseDate, "dd.mm.yyyy") & "'"
 
     normalized = Replace(normalized, "-", ".")
     normalized = Replace(normalized, "/", ".")
 
     If InStr(1, normalized, ".", vbBinaryCompare) = 0 Then
+        If mp_TryParseExcelSerialDate(normalized, dt) Then
+            m_ToFullDate = Format$(dt, "dd.mm.yyyy")
+            mp_DebugLog "m_ToFullDate RETURN(serial) '" & m_ToFullDate & "' sourceRaw=" & mp_FormatVariantForLog(sourceDateText)
+            Exit Function
+        End If
+
         If Not mp_TryParsePositiveInteger(normalized, dayValue) Then
             Err.Raise vbObjectError + 1789, "ex_DateHelpers", "ToFullDate: invalid day value '" & sourceDateText & "'."
         End If
@@ -72,10 +89,18 @@ Public Function m_ToFullDate( _
     dt = DateSerial(yearValue, monthValue, dayValue)
     If Day(dt) <> dayValue Or Month(dt) <> monthValue Or Year(dt) <> yearValue Then GoTo InvalidDate
     m_ToFullDate = Format$(dt, "dd.mm.yyyy")
+    mp_DebugLog "m_ToFullDate RETURN '" & m_ToFullDate & "' sourceRaw=" & mp_FormatVariantForLog(sourceDateText)
     Exit Function
 
 InvalidDate:
+    On Error GoTo EH
     Err.Raise vbObjectError + 1799, "ex_DateHelpers", "ToFullDate: invalid calendar date '" & sourceDateText & "'."
+
+EH:
+    mp_DebugLog "m_ToFullDate ERROR sourceRaw=" & mp_FormatVariantForLog(sourceDateText) & _
+                " baseRaw=" & mp_FormatVariantForLog(baseDateText) & _
+                " normalized='" & mp_EscapeLogText(normalized) & "' err=[" & Err.Source & " #" & CStr(Err.Number) & "] " & Err.Description
+    Err.Raise Err.Number, Err.Source, Err.Description
 End Function
 
 Public Function m_FormatDateDay(ByVal sourceDateText As String) As String
@@ -83,9 +108,16 @@ Public Function m_FormatDateDay(ByVal sourceDateText As String) As String
     Dim monthValue As Long
     Dim yearValue As Long
     Dim hasYear As Boolean
+    Dim normalized As String
 
-    If Not mp_TryParseDayMonthYear(sourceDateText, dayValue, monthValue, yearValue, hasYear) Then
-        m_FormatDateDay = Trim$(CStr(sourceDateText))
+    normalized = Trim$(CStr(sourceDateText))
+    If mp_IsEmptyDatePlaceholder(normalized) Then
+        m_FormatDateDay = vbNullString
+        Exit Function
+    End If
+
+    If Not mp_TryParseDayMonthYear(normalized, dayValue, monthValue, yearValue, hasYear) Then
+        m_FormatDateDay = normalized
         Exit Function
     End If
 
@@ -97,9 +129,16 @@ Public Function m_FormatDateDayWithMonth(ByVal sourceDateText As String) As Stri
     Dim monthValue As Long
     Dim yearValue As Long
     Dim hasYear As Boolean
+    Dim normalized As String
 
-    If Not mp_TryParseDayMonthYear(sourceDateText, dayValue, monthValue, yearValue, hasYear) Then
-        m_FormatDateDayWithMonth = Trim$(CStr(sourceDateText))
+    normalized = Trim$(CStr(sourceDateText))
+    If mp_IsEmptyDatePlaceholder(normalized) Then
+        m_FormatDateDayWithMonth = vbNullString
+        Exit Function
+    End If
+
+    If Not mp_TryParseDayMonthYear(normalized, dayValue, monthValue, yearValue, hasYear) Then
+        m_FormatDateDayWithMonth = normalized
         Exit Function
     End If
 
@@ -122,6 +161,11 @@ Public Function m_FormatDateByPattern(ByVal sourceDateText As String, ByVal patt
     Dim tokenLen As Long
 
     normalizedDate = Trim$(CStr(sourceDateText))
+    If mp_IsEmptyDatePlaceholder(normalizedDate) Then
+        m_FormatDateByPattern = vbNullString
+        Exit Function
+    End If
+
     If Len(normalizedDate) = 0 Then
         Err.Raise vbObjectError + 1801, "ex_DateHelpers", "FormatDateByPattern: source date is empty."
     End If
@@ -178,37 +222,111 @@ DateParseError:
     Err.Raise vbObjectError + 1806, "ex_DateHelpers", "FormatDateByPattern: invalid date value '" & CStr(sourceDateText) & "'."
 End Function
 
-Public Function m_IsSameMonth(ByVal leftDateText As String, ByVal rightDateText As String) As Boolean
+Public Function m_IsSameMonth( _
+    Optional ByVal leftDateText As Variant = vbNullString, _
+    Optional ByVal rightDateText As Variant = vbNullString _
+) As Boolean
     Dim leftMonth As Long
     Dim rightMonth As Long
     Dim normalizedLeft As String
     Dim normalizedRight As String
 
-    normalizedLeft = Trim$(CStr(leftDateText))
-    normalizedRight = Trim$(CStr(rightDateText))
+    On Error GoTo EH
+
+    normalizedLeft = mp_NormalizeText(leftDateText)
+    normalizedRight = mp_NormalizeText(rightDateText)
+    mp_DebugLog "m_IsSameMonth START leftRaw=" & mp_FormatVariantForLog(leftDateText) & _
+                " rightRaw=" & mp_FormatVariantForLog(rightDateText) & _
+                " leftNorm='" & mp_EscapeLogText(normalizedLeft) & "'" & _
+                " rightNorm='" & mp_EscapeLogText(normalizedRight) & "'"
 
     If mp_IsUnresolvedTemplateToken(normalizedLeft) Then
-        Err.Raise vbObjectError + 1810, "ex_DateHelpers", "IsSameMonth: first date contains unresolved placeholder '" & normalizedLeft & "'. Expected concrete date (dd.mm or dd.mm.yyyy). Check DateFrom/OutDate placeholder replacement in post-process script."
+        mp_DebugLog "m_IsSameMonth RETURN False (left unresolved token)"
+        Exit Function
     End If
     If mp_IsUnresolvedTemplateToken(normalizedRight) Then
-        Err.Raise vbObjectError + 1811, "ex_DateHelpers", "IsSameMonth: second date contains unresolved placeholder '" & normalizedRight & "'. Expected concrete date (dd.mm or dd.mm.yyyy). Check DateTo/ReturnDate placeholder replacement in post-process script."
+        mp_DebugLog "m_IsSameMonth RETURN False (right unresolved token)"
+        Exit Function
     End If
-
-    If Len(normalizedLeft) = 0 Or normalizedLeft = "?" Then
-        Err.Raise vbObjectError + 1812, "ex_DateHelpers", "IsSameMonth: first date is empty or '?'. Expected concrete date (dd.mm or dd.mm.yyyy)."
+    If Len(normalizedLeft) = 0 Or mp_IsEmptyDatePlaceholder(normalizedLeft) Then
+        mp_DebugLog "m_IsSameMonth RETURN False (left empty/placeholder)"
+        Exit Function
     End If
-    If Len(normalizedRight) = 0 Or normalizedRight = "?" Then
-        Err.Raise vbObjectError + 1813, "ex_DateHelpers", "IsSameMonth: second date is empty or '?'. Expected concrete date (dd.mm or dd.mm.yyyy)."
+    If Len(normalizedRight) = 0 Or mp_IsEmptyDatePlaceholder(normalizedRight) Then
+        mp_DebugLog "m_IsSameMonth RETURN False (right empty/placeholder)"
+        Exit Function
     End If
 
     If Not mp_TryParseMonth(normalizedLeft, leftMonth) Then
-        Err.Raise vbObjectError + 1786, "ex_DateHelpers", "IsSameMonth: invalid first date '" & normalizedLeft & "'. Expected format dd.mm or dd.mm.yyyy."
+        mp_DebugLog "m_IsSameMonth RETURN False (left parse month failed) leftNorm='" & mp_EscapeLogText(normalizedLeft) & "'"
+        Exit Function
     End If
     If Not mp_TryParseMonth(normalizedRight, rightMonth) Then
-        Err.Raise vbObjectError + 1787, "ex_DateHelpers", "IsSameMonth: invalid second date '" & normalizedRight & "'. Expected format dd.mm or dd.mm.yyyy."
+        mp_DebugLog "m_IsSameMonth RETURN False (right parse month failed) rightNorm='" & mp_EscapeLogText(normalizedRight) & "'"
+        Exit Function
     End If
 
     m_IsSameMonth = (leftMonth = rightMonth)
+    mp_DebugLog "m_IsSameMonth RETURN " & LCase$(CStr(m_IsSameMonth)) & _
+                " leftMonth=" & CStr(leftMonth) & " rightMonth=" & CStr(rightMonth)
+    Exit Function
+
+EH:
+    mp_DebugLog "m_IsSameMonth ERROR leftRaw=" & mp_FormatVariantForLog(leftDateText) & _
+                " rightRaw=" & mp_FormatVariantForLog(rightDateText) & _
+                " leftNorm='" & mp_EscapeLogText(normalizedLeft) & "'" & _
+                " rightNorm='" & mp_EscapeLogText(normalizedRight) & "'" & _
+                " err=[" & Err.Source & " #" & CStr(Err.Number) & "] " & Err.Description
+    Err.Raise Err.Number, Err.Source, Err.Description
+End Function
+
+Public Function m_AddDaysToDate( _
+    ByVal sourceDateText As Variant, _
+    ByVal daysOffset As Variant, _
+    Optional ByVal baseDateText As Variant = vbNullString _
+) As String
+    Dim normalized As String
+    Dim normalizedFull As String
+    Dim dayValue As Long
+    Dim monthValue As Long
+    Dim yearValue As Long
+    Dim hasYear As Boolean
+    Dim offsetDays As Long
+    Dim baseDate As Date
+    Dim shiftedDate As Date
+
+    On Error GoTo EH
+
+    normalized = mp_NormalizeText(sourceDateText)
+    If Len(normalized) = 0 Or mp_IsEmptyDatePlaceholder(normalized) Then
+        m_AddDaysToDate = vbNullString
+        Exit Function
+    End If
+
+    If Not ex_XmlCore.m_TryParseLong(mp_NormalizeText(daysOffset), offsetDays) Then
+        Err.Raise vbObjectError + 1814, "ex_DateHelpers", "AddDaysToDate: invalid days offset '" & CStr(daysOffset) & "'."
+    End If
+
+    normalizedFull = m_ToFullDate(normalized, baseDateText)
+    If Len(normalizedFull) = 0 Then
+        m_AddDaysToDate = vbNullString
+        Exit Function
+    End If
+    If Not mp_TryParseDayMonthYear(normalizedFull, dayValue, monthValue, yearValue, hasYear) Or Not hasYear Then
+        Err.Raise vbObjectError + 1815, "ex_DateHelpers", "AddDaysToDate: invalid normalized date '" & normalizedFull & "'."
+    End If
+
+    baseDate = DateSerial(yearValue, monthValue, dayValue)
+    shiftedDate = DateAdd("d", offsetDays, baseDate)
+    m_AddDaysToDate = Format$(shiftedDate, "dd.mm.yyyy")
+    Exit Function
+
+EH:
+    mp_DebugLog "m_AddDaysToDate ERROR sourceRaw=" & mp_FormatVariantForLog(sourceDateText) & _
+                " offsetRaw=" & mp_FormatVariantForLog(daysOffset) & _
+                " baseRaw=" & mp_FormatVariantForLog(baseDateText) & _
+                " err=[" & Err.Source & " #" & CStr(Err.Number) & "] " & Err.Description
+    Err.Raise Err.Number, Err.Source, Err.Description
 End Function
 
 Public Function m_FormatCalendarDaysUa(ByVal dayCountText As String) As String
@@ -238,10 +356,10 @@ Private Function mp_TryParseMonth(ByVal sourceDateText As String, ByRef outMonth
     mp_TryParseMonth = True
 End Function
 
-Private Function mp_ParseBaseDate(ByVal baseDateText As String) As Date
+Private Function mp_ParseBaseDate(ByVal baseDateText As Variant) As Date
     Dim normalized As String
 
-    normalized = Trim$(CStr(baseDateText))
+    normalized = mp_NormalizeText(baseDateText)
     If Len(normalized) = 0 Then
         mp_ParseBaseDate = Date
         Exit Function
@@ -253,6 +371,48 @@ Private Function mp_ParseBaseDate(ByVal baseDateText As String) As Date
 
 ParseErr:
     Err.Raise vbObjectError + 1800, "ex_DateHelpers", "ToFullDate: invalid base date '" & baseDateText & "'."
+End Function
+
+Private Function mp_IsEmptyDatePlaceholder(ByVal sourceText As Variant) As Boolean
+    Dim normalized As String
+    normalized = mp_NormalizeText(sourceText)
+
+    Select Case normalized
+        Case vbNullString, "-", "?"
+            mp_IsEmptyDatePlaceholder = True
+    End Select
+End Function
+
+Private Function mp_NormalizeText(ByVal rawValue As Variant) As String
+    If IsObject(rawValue) Then Exit Function
+    If IsNull(rawValue) Then Exit Function
+    If IsError(rawValue) Then Exit Function
+    mp_NormalizeText = Trim$(CStr(rawValue))
+End Function
+
+Private Function mp_TryParseExcelSerialDate(ByVal serialText As String, ByRef outDate As Date) As Boolean
+    Dim normalized As String
+    Dim serialValue As Double
+    Dim candidate As Date
+
+    normalized = Trim$(CStr(serialText))
+    If Len(normalized) = 0 Then Exit Function
+    If Not IsNumeric(normalized) Then Exit Function
+
+    serialValue = CDbl(normalized)
+    If serialValue <= 31# Then Exit Function
+    If serialValue < 1# Or serialValue > 2958465# Then Exit Function
+
+    On Error GoTo ParseErr
+    candidate = CDate(serialValue)
+    If Year(candidate) < 1900 Or Year(candidate) > 9999 Then Exit Function
+
+    outDate = DateSerial(Year(candidate), Month(candidate), Day(candidate))
+    mp_TryParseExcelSerialDate = True
+    Exit Function
+
+ParseErr:
+    On Error GoTo 0
 End Function
 
 Private Function mp_TryParsePositiveInteger(ByVal textValue As String, ByRef outValue As Long) As Boolean
@@ -376,4 +536,43 @@ Private Function mp_IsUnresolvedTemplateToken(ByVal sourceText As String) As Boo
 
     mp_IsUnresolvedTemplateToken = _
         (Left$(normalized, 1) = "{") And (Right$(normalized, 1) = "}")
+End Function
+
+Private Sub mp_DebugLog(ByVal messageText As String)
+    On Error Resume Next
+    ex_Messaging.m_LogToFile "[ex_DateHelpers] " & CStr(messageText), DATE_HELPERS_LOG_PATH
+    On Error GoTo 0
+End Sub
+
+Private Function mp_FormatVariantForLog(ByVal rawValue As Variant) As String
+    If IsObject(rawValue) Then
+        mp_FormatVariantForLog = "<object>"
+        Exit Function
+    End If
+    If IsNull(rawValue) Then
+        mp_FormatVariantForLog = "<null>"
+        Exit Function
+    End If
+    If IsError(rawValue) Then
+        mp_FormatVariantForLog = "<error-variant>"
+        Exit Function
+    End If
+
+    mp_FormatVariantForLog = """" & mp_EscapeLogText(CStr(rawValue)) & """"
+End Function
+
+Private Function mp_EscapeLogText(ByVal valueText As String) As String
+    Dim normalized As String
+
+    normalized = CStr(valueText)
+    normalized = Replace$(normalized, vbCrLf, "\n")
+    normalized = Replace$(normalized, vbCr, "\n")
+    normalized = Replace$(normalized, vbLf, "\n")
+    normalized = Replace$(normalized, """", """""")
+
+    If Len(normalized) > 220 Then
+        mp_EscapeLogText = Left$(normalized, 220) & "...(truncated)"
+    Else
+        mp_EscapeLogText = normalized
+    End If
 End Function

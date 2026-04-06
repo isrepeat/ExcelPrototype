@@ -4,13 +4,14 @@ Option Explicit
 Private Const CONTEXT_FIELD_PREPROCESS_OUTPUT As String = "PreProcessOutput"
 Private Const CONTEXT_FIELD_PREPROCESS_CONTEXT As String = "PreProcessContext"
 Private Const CONTEXT_FIELD_MODE_OUTPUT As String = "ModeOutput"
+Private Const CONTEXT_FIELD_RESULTLAYOUT_EXECUTED As String = "ResultLayoutExecuted"
 Private Const CONTEXT_FIELD_POST_EXECUTED As String = "PostExecuted"
 
 Private Const MODE_RESULT_FIELD_OUTPUT As String = "Output"
 Private Const MODE_RESULT_FIELD_WORKSHEET As String = "Worksheet"
 Private Const MODE_RESULT_FIELD_RESULT_TABLES As String = "ResultTables"
-Private Const MODE_RESULT_FIELD_RUNTIME_VARS As String = "InjectedRuntimeVars"
-Private Const MODE_RESULT_FIELD_RUNTIME_TYPES As String = "InjectedRuntimeVarTypes"
+Private Const INPUT_KEY_LAYOUT_FIELDRANGES As String = "__ResultLayoutFieldRanges"
+Private Const INPUT_KEY_LAYOUT_KINDRANGES As String = "__ResultLayoutKindRanges"
 
 Private Const AUTO_POSTPROCESS_SCRIPT_KEY As String = "PostProcess.Script.Implicit"
 Private Const DEBUG_LOG_PATH As String = "Logs\personalcard_pipeline.log"
@@ -28,18 +29,21 @@ Public Function m_RunModePipeline( _
 ) As Object
     Dim ctx As Object
     Dim stageName As String
+    Dim runStartStamp As Double
+    Dim stageStartStamp As Double
     Dim preProcessContext As Object
     Dim modeInput As Object
     Dim modeResult As Object
     Dim modeSheet As Worksheet
     Dim modeTables As Collection
     Dim modeOutput As Object
-    Dim injectedRuntimeVars As Object
-    Dim injectedRuntimeVarTypes As Object
+    Dim resultLayoutExecuted As Boolean
+    Dim layoutRefreshError As String
     Dim busyScopeActive As Boolean
 
     On Error GoTo EH
 
+    runStartStamp = Timer
     stageName = "init"
     mp_BeginPipelineBusy
     busyScopeActive = True
@@ -48,16 +52,18 @@ Public Function m_RunModePipeline( _
     Set ctx = CreateObject("Scripting.Dictionary")
     ctx.CompareMode = 1
     ctx(CONTEXT_FIELD_POST_EXECUTED) = "false"
-    mp_DebugLog "RUN START modeExecutor='" & CStr(modeExecutorMacro) & "'"
+    ' mp_DebugLog "RUN START modeExecutor='" & CStr(modeExecutorMacro) & "'"
 
     stageName = "prepare-input"
     If pipelineInput Is Nothing Then
         Set pipelineInput = New obj_ScriptIOPayload
-        mp_DebugLog "pipelineInput auto-created"
+        ' mp_DebugLog "pipelineInput auto-created"
     End If
 
     stageName = "run-preprocess"
+    stageStartStamp = Timer
     Set preProcessContext = ex_PreProcessPipeline.m_Run(cfg, pipelineInput, requirePreScript)
+    mp_DebugLog "stage-done stage='run-preprocess' duration=" & mp_FormatElapsedSeconds(mp_StageElapsedSeconds(stageStartStamp))
     Set modeInput = pipelineInput
     If Not preProcessContext Is Nothing Then
         If preProcessContext.Exists("Output") Then
@@ -70,13 +76,15 @@ Public Function m_RunModePipeline( _
     stageName = "check-mode-executor"
     If Len(Trim$(modeExecutorMacro)) = 0 Then
         Set ctx(CONTEXT_FIELD_MODE_OUTPUT) = modeInput
-        mp_DebugLog "SKIP mode executor is empty"
+        ' mp_DebugLog "SKIP mode executor is empty"
         Set m_RunModePipeline = ctx
         Exit Function
     End If
 
     stageName = "run-mode-executor"
+    stageStartStamp = Timer
     Set modeResult = mp_RunModeExecutor(modeExecutorMacro, cfg, modeInput, preProcessContext)
+    mp_DebugLog "stage-done stage='run-mode-executor' duration=" & mp_FormatElapsedSeconds(mp_StageElapsedSeconds(stageStartStamp))
     Set ctx(CONTEXT_FIELD_MODE_OUTPUT) = modeResult
 
     If modeResult Is Nothing Then
@@ -96,19 +104,53 @@ Public Function m_RunModePipeline( _
         Err.Raise vbObjectError + 6115, "ex_ModePipeline", "Mode result must provide ResultTables for post-process execution."
     End If
 
-    mp_TryGetModeResultObject modeResult, MODE_RESULT_FIELD_RUNTIME_VARS, injectedRuntimeVars
-    mp_TryGetModeResultObject modeResult, MODE_RESULT_FIELD_RUNTIME_TYPES, injectedRuntimeVarTypes
+    stageName = "run-result-layout"
+    stageStartStamp = Timer
+    resultLayoutExecuted = ex_ResultLayoutPipeline.m_Run( _
+        cfg, _
+        modeSheet, _
+        modeTables, _
+        modeOutput)
+    mp_DebugLog "stage-done stage='run-result-layout' duration=" & mp_FormatElapsedSeconds(mp_StageElapsedSeconds(stageStartStamp))
+    If resultLayoutExecuted Then
+        ctx(CONTEXT_FIELD_RESULTLAYOUT_EXECUTED) = "true"
+    Else
+        ctx(CONTEXT_FIELD_RESULTLAYOUT_EXECUTED) = "false"
+    End If
 
     stageName = "run-postprocess"
-    If ex_PostProcessPipeline.m_Run(modeSheet, cfg, modeTables, modeOutput, AUTO_POSTPROCESS_SCRIPT_KEY, injectedRuntimeVars, injectedRuntimeVarTypes, False) Then
+    stageStartStamp = Timer
+    If ex_PostProcessPipeline.m_Run(modeSheet, cfg, modeTables, modeOutput, AUTO_POSTPROCESS_SCRIPT_KEY, False, False) Then
+        mp_DebugLog "stage-done stage='run-postprocess' duration=" & mp_FormatElapsedSeconds(mp_StageElapsedSeconds(stageStartStamp))
         ctx(CONTEXT_FIELD_POST_EXECUTED) = "true"
-        mp_DebugLog "post process executed scriptKey='" & AUTO_POSTPROCESS_SCRIPT_KEY & "'"
+        ' mp_DebugLog "post process executed scriptKey='" & AUTO_POSTPROCESS_SCRIPT_KEY & "'"
     Else
-        mp_DebugLog "post process skipped scriptKey='" & AUTO_POSTPROCESS_SCRIPT_KEY & "'"
+        mp_DebugLog "stage-done stage='run-postprocess' duration=" & mp_FormatElapsedSeconds(mp_StageElapsedSeconds(stageStartStamp))
+        ' mp_DebugLog "post process skipped scriptKey='" & AUTO_POSTPROCESS_SCRIPT_KEY & "'"
+    End If
+
+    If resultLayoutExecuted Then
+        If LCase$(CStr(ctx(CONTEXT_FIELD_POST_EXECUTED))) = "true" Then
+            stageName = "refresh-layout-after-postprocess"
+            stageStartStamp = Timer
+            layoutRefreshError = vbNullString
+            If Not ex_ResultLayoutItemsRt.m_Refresh(modeSheet, vbNullString, layoutRefreshError) Then
+                If Len(layoutRefreshError) = 0 Then layoutRefreshError = "Unknown layout refresh error after implicit post-process."
+                Err.Raise vbObjectError + 6119, "ex_ModePipeline", layoutRefreshError
+            End If
+            ex_PostProcessActions.m_FlushPostLayoutDeferredBanners modeSheet
+            mp_DebugLog "stage-done stage='refresh-layout-after-postprocess' duration=" & mp_FormatElapsedSeconds(mp_StageElapsedSeconds(stageStartStamp))
+        Else
+            stageName = "apply-result-layout-styles"
+            stageStartStamp = Timer
+            mp_ApplyLayoutSheetStyling modeSheet, modeOutput
+            mp_DebugLog "stage-done stage='apply-result-layout-styles' duration=" & mp_FormatElapsedSeconds(mp_StageElapsedSeconds(stageStartStamp))
+        End If
     End If
 
     stageName = "done"
-    mp_DebugLog "RUN END modeExecutor='" & CStr(modeExecutorMacro) & "'"
+    mp_DebugLog "RUN DURATION total=" & mp_FormatElapsedSeconds(mp_StageElapsedSeconds(runStartStamp))
+    ' mp_DebugLog "RUN END modeExecutor='" & CStr(modeExecutorMacro) & "'"
     If busyScopeActive Then
         mp_EndPipelineBusy
         busyScopeActive = False
@@ -124,7 +166,7 @@ EH:
     errNumber = Err.Number
     errSource = Err.Source
     errDescription = Err.Description
-    mp_DebugLog "FAIL stage='" & stageName & "' err=[" & errSource & " #" & CStr(errNumber) & "] " & errDescription
+    mp_DebugLog "FAIL stage='" & stageName & "' err=[" & errSource & " #" & CStr(errNumber) & "] " & errDescription & " | elapsed=" & mp_FormatElapsedSeconds(mp_StageElapsedSeconds(runStartStamp))
     If errNumber = 0 Then errNumber = vbObjectError + 6116
     If Len(errSource) = 0 Then errSource = "ex_ModePipeline"
     If Len(errDescription) = 0 Then errDescription = "Unknown pipeline failure."
@@ -133,6 +175,15 @@ EH:
         busyScopeActive = False
     End If
     Err.Raise errNumber, errSource, errDescription
+End Function
+
+Private Function mp_StageElapsedSeconds(ByVal startStamp As Double) As Double
+    mp_StageElapsedSeconds = Timer - startStamp
+    If mp_StageElapsedSeconds < 0# Then mp_StageElapsedSeconds = mp_StageElapsedSeconds + 86400#
+End Function
+
+Private Function mp_FormatElapsedSeconds(ByVal elapsedSeconds As Double) As String
+    mp_FormatElapsedSeconds = Format$(elapsedSeconds, "0.000") & "s"
 End Function
 
 Private Sub mp_BeginPipelineBusy()
@@ -227,6 +278,36 @@ Private Sub mp_DebugLog(ByVal messageText As String)
     On Error Resume Next
     ex_Messaging.m_LogToFile "[ex_ModePipeline] " & CStr(messageText), DEBUG_LOG_PATH
     On Error GoTo 0
+End Sub
+
+Private Sub mp_ApplyLayoutSheetStyling(ByVal ws As Worksheet, ByVal modeOutput As Object)
+    Dim objectValue As Object
+    Dim resultFieldRanges As Collection
+    Dim kindRanges As Object
+
+    If ws Is Nothing Then Exit Sub
+
+    Set resultFieldRanges = Nothing
+    If Not modeOutput Is Nothing Then
+        Set objectValue = Nothing
+        If ex_ScriptIO.m_TryGetObject(modeOutput, INPUT_KEY_LAYOUT_FIELDRANGES, objectValue) Then
+            If Not objectValue Is Nothing Then
+                If TypeName(objectValue) = "Collection" Then
+                    Set resultFieldRanges = objectValue
+                End If
+            End If
+        End If
+
+        Set objectValue = Nothing
+        If ex_ScriptIO.m_TryGetObject(modeOutput, INPUT_KEY_LAYOUT_KINDRANGES, objectValue) Then
+            If Not objectValue Is Nothing Then
+                Set kindRanges = objectValue
+            End If
+        End If
+    End If
+
+    ex_OutputFormattingPipeline.m_ApplySheetPipeline ws, resultFieldRanges, Nothing, kindRanges
+
 End Sub
 
 Private Sub mp_ResetDebugLog()

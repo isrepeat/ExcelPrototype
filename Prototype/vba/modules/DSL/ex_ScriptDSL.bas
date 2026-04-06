@@ -29,7 +29,7 @@ Private Const BATCH_CONTEXT_KEYS_RESULTS_TABLE_REF As String = "KeysResultsTable
 Private Const BATCH_KEYRESULT_KEY_ALIAS As String = "Key"
 Private Const BATCH_KEYRESULT_KEYFIELD_SUFFIX As String = ".KeyFieldAlias"
 Private Const DEBUG_LOG_PATH As String = "Logs\personalcard_pipeline.log"
-Private Const DEBUG_LOG_ENABLED As Boolean = True
+Private Const DEBUG_LOG_ENABLED As Boolean = False
 
 Private Const EXEC_FLOW_NONE As String = ""
 Private Const EXEC_FLOW_BREAK As String = "break"
@@ -38,6 +38,7 @@ Private Const EXEC_FLOW_RETURN As String = "return"
 
 Private g_ParsedBlocksByScriptCacheKey As Object
 Private g_ValidationCacheBySignatureKey As Object
+Private g_ParseHasBacktickLiterals As Boolean
 
 Public Sub m_ResetScriptCache()
     Set g_ParsedBlocksByScriptCacheKey = Nothing
@@ -56,8 +57,7 @@ Public Function m_ValidateScriptAgainstConfig( _
     ByVal cfg As Object, _
     ByVal allowedTableFields As Object, _
     ByRef outErrorText As String, _
-    Optional ByVal scriptConfigKey As String = SCRIPT_KEY, _
-    Optional ByVal injectedScopeVarTypes As Object = Nothing _
+    Optional ByVal scriptConfigKey As String = SCRIPT_KEY _
 ) As Boolean
     Dim scriptText As String
     Dim blocks As Collection
@@ -80,7 +80,7 @@ Public Function m_ValidateScriptAgainstConfig( _
     End If
 
     stepName = "validate-blocks"
-    If Not mp_ValidateBlocks(blocks, allowedTableFields, outErrorText, injectedScopeVarTypes) Then Exit Function
+    If Not mp_ValidateBlocks(blocks, allowedTableFields, outErrorText) Then Exit Function
     mp_MarkValidationCache scriptConfigKey, scriptText, validationSignature
 
     m_ValidateScriptAgainstConfig = True
@@ -100,8 +100,7 @@ Public Sub m_ApplyScriptToSheet( _
     ByVal cfg As Object, _
     ByVal resultTables As Collection, _
     Optional ByVal scriptConfigKey As String = SCRIPT_KEY, _
-    Optional ByVal injectedRuntimeVars As Object = Nothing, _
-    Optional ByVal injectedRuntimeVarTypes As Object = Nothing _
+    Optional ByVal layoutBatchApplyRefresh As Boolean = True _
 )
     Dim scriptText As String
     Dim blocks As Collection
@@ -112,6 +111,8 @@ Public Sub m_ApplyScriptToSheet( _
     Dim postProcessFooterLines As Collection
     Dim usedCols As Long
     Dim startedDeferredRender As Boolean
+    Dim startedLayoutBatch As Boolean
+    Dim layoutBatchError As String
     Dim prevScreenUpdating As Boolean
     Dim runStamp As String
     Dim prevActiveSheet As Worksheet
@@ -139,10 +140,10 @@ Public Sub m_ApplyScriptToSheet( _
     ex_ResultRuntimeAdapter.m_BuildRuntimeContext resultTables, ctxTablesByRef, ctxFields
     mp_DebugLog "runtime context built"
 
-    runtimeValidationSignature = mp_BuildValidationSignature(ctxFields) & mp_BuildRuntimeScopeSignature(injectedRuntimeVarTypes)
+    runtimeValidationSignature = mp_BuildValidationSignature(ctxFields)
     If Not mp_IsValidationCacheHit(scriptConfigKey, scriptText, runtimeValidationSignature) Then
         mp_DebugLog "validate start"
-        If Not mp_ValidateBlocks(blocks, ctxFields, parseOrValidationError, injectedRuntimeVarTypes) Then
+        If Not mp_ValidateBlocks(blocks, ctxFields, parseOrValidationError) Then
             mp_DebugLog "validate failed: " & parseOrValidationError
             Err.Raise vbObjectError + 1591, "ex_ScriptDSL", "Script validation failed: " & parseOrValidationError
         End If
@@ -156,6 +157,8 @@ Public Sub m_ApplyScriptToSheet( _
     usedCols = mp_GetLastUsedColumn(ws)
     If usedCols <= 0 Then usedCols = 1
 
+    ex_ResultLayoutItemsRt.m_BeginBatchUpdate ws
+    startedLayoutBatch = True
     ex_PostProcessActions.m_ResetScriptHeaderCursor ws
     ex_PostProcessActions.m_ResetScriptFooterCursor ws
     ex_PostProcessActions.m_SetExecutionSheetContext ws
@@ -170,10 +173,15 @@ Public Sub m_ApplyScriptToSheet( _
     If Not ws Is ActiveSheet Then ws.Activate
 
     mp_DebugLog "execute blocks start"
-    mp_ExecuteBlocks ws, blocks, ctxTablesByRef, postProcessFooterLines, usedCols, injectedRuntimeVars
+    mp_ExecuteBlocks ws, blocks, ctxTablesByRef, postProcessFooterLines, usedCols
     mp_DebugLog "execute blocks ok"
     ex_PostProcessActions.m_CommitDeferredRender ws
     mp_DebugLog "deferred commit ok"
+    If Not ex_ResultLayoutItemsRt.m_EndBatchUpdate(ws, layoutBatchApplyRefresh, layoutBatchError) Then
+        If Len(layoutBatchError) = 0 Then layoutBatchError = "Layout batch update failed."
+        Err.Raise vbObjectError + 1593, "ex_ScriptDSL", layoutBatchError
+    End If
+    startedLayoutBatch = False
 
     If Len(prevActiveSheetName) > 0 Then
         On Error Resume Next
@@ -189,10 +197,24 @@ Public Sub m_ApplyScriptToSheet( _
     Exit Sub
 
 EH:
+    Dim errNumber As Long
+    Dim errSource As String
+    Dim errDescription As String
+
+    errNumber = Err.Number
+    errSource = Err.Source
+    errDescription = Err.Description
+
     mp_DebugLog "ERROR: [" & Err.Source & " #" & CStr(Err.Number) & "] " & Err.Description
     If startedDeferredRender Then
         On Error Resume Next
         ex_PostProcessActions.m_EndDeferredRender ws
+        On Error GoTo 0
+    End If
+    If startedLayoutBatch Then
+        On Error Resume Next
+        layoutBatchError = vbNullString
+        ex_ResultLayoutItemsRt.m_EndBatchUpdate ws, False, layoutBatchError
         On Error GoTo 0
     End If
     If Len(prevActiveSheetName) > 0 Then
@@ -206,7 +228,10 @@ EH:
     On Error Resume Next
     Application.ScreenUpdating = prevScreenUpdating
     On Error GoTo 0
-    Err.Raise Err.Number, Err.Source, Err.Description
+    If errNumber = 0 Then errNumber = vbObjectError + 1590
+    If Len(errSource) = 0 Then errSource = "ex_ScriptDSL"
+    If Len(errDescription) = 0 Then errDescription = "Unknown script execution failure."
+    Err.Raise errNumber, errSource, errDescription
 End Sub
 
 ' Backward-compatible wrappers for existing callers.
@@ -430,19 +455,32 @@ Private Function mp_ParseScript(ByVal scriptText As String, ByRef outBlocks As C
     Dim sourceText As String
     Dim pos As Long
     Dim lineNo As Long
+    Dim prevParseHasBacktickLiterals As Boolean
+
+    On Error GoTo EH
 
     sourceText = ex_ScriptDslParser.m_NormalizeScript(scriptText)
+    prevParseHasBacktickLiterals = g_ParseHasBacktickLiterals
+    g_ParseHasBacktickLiterals = (InStr(1, sourceText, "`", vbBinaryCompare) > 0)
     pos = 1
     lineNo = 1
-    If Not mp_ParseStatements(sourceText, pos, lineNo, outBlocks, False, outErrorText) Then Exit Function
+    If Not mp_ParseStatements(sourceText, pos, lineNo, outBlocks, False, outErrorText) Then
+        g_ParseHasBacktickLiterals = prevParseHasBacktickLiterals
+        Exit Function
+    End If
+    g_ParseHasBacktickLiterals = prevParseHasBacktickLiterals
     mp_ParseScript = True
+    Exit Function
+
+EH:
+    g_ParseHasBacktickLiterals = prevParseHasBacktickLiterals
+    Err.Raise Err.Number, Err.Source, Err.Description
 End Function
 
 Private Function mp_ValidateBlocks( _
     ByVal blocks As Collection, _
     ByVal allowedTableFields As Object, _
-    ByRef outErrorText As String, _
-    Optional ByVal injectedScopeVarTypes As Object = Nothing _
+    ByRef outErrorText As String _
 ) As Boolean
     Dim rootScopeVarTypes As Object
 
@@ -452,7 +490,6 @@ Private Function mp_ValidateBlocks( _
     End If
 
     Set rootScopeVarTypes = mp_CreateVarScope()
-    mp_ApplyInjectedScopeVarTypes rootScopeVarTypes, injectedScopeVarTypes
     mp_ValidateBlocks = mp_ValidateStatements(blocks, allowedTableFields, vbNullString, vbNullString, rootScopeVarTypes, 0, outErrorText)
 End Function
 
@@ -461,14 +498,12 @@ Private Sub mp_ExecuteBlocks( _
     ByVal blocks As Collection, _
     ByVal tablesByRef As Object, _
     ByVal postProcessFooterLines As Collection, _
-    ByVal usedCols As Long, _
-    Optional ByVal injectedRuntimeVars As Object = Nothing _
+    ByVal usedCols As Long _
 )
     Dim rootRuntimeVars As Object
     Dim execFlow As String
 
     Set rootRuntimeVars = mp_CreateVarScope()
-    mp_ApplyInjectedRuntimeVars rootRuntimeVars, injectedRuntimeVars
     execFlow = mp_ExecuteStatements(ws, blocks, tablesByRef, postProcessFooterLines, usedCols, vbNullString, vbNullString, Nothing, rootRuntimeVars)
     Select Case LCase$(execFlow)
         Case EXEC_FLOW_NONE, EXEC_FLOW_RETURN
@@ -1058,7 +1093,7 @@ Private Function mp_TryParseTableRef( _
     If sheetPos <= 1 Then Exit Function
 
     outSourceAlias = Trim$(Left$(tableRef, sheetPos - 1))
-    If Len(outSourceAlias) = 0 Then Exit Function
+    If Not ex_ScriptParserCore.m_TryNormalizeSourceAliasToken(outSourceAlias, outSourceAlias) Then Exit Function
 
     sheetStart = sheetPos + Len(".Sheet[")
     sheetEnd = InStr(sheetStart, tableRef, "]", vbBinaryCompare)
@@ -1384,6 +1419,7 @@ Private Function mp_TrySplitStringExpressionTerms( _
     Dim ch As String
     Dim currentTerm As String
     Dim inQuotes As Boolean
+    Dim inBacktickLiteral As Boolean
     Dim parenDepth As Long
     Dim bracketDepth As Long
     Dim braceDepth As Long
@@ -1394,9 +1430,12 @@ Private Function mp_TrySplitStringExpressionTerms( _
     For i = 1 To Len(expressionBody)
         ch = Mid$(expressionBody, i, 1)
         If ch = """" And Not mp_IsEscapedQuote(expressionBody, i) Then
-            inQuotes = Not inQuotes
+            If Not inBacktickLiteral Then inQuotes = Not inQuotes
             currentTerm = currentTerm & ch
-        ElseIf Not inQuotes Then
+        ElseIf ch = "`" Then
+            If Not inQuotes Then inBacktickLiteral = Not inBacktickLiteral
+            currentTerm = currentTerm & ch
+        ElseIf Not inQuotes And Not inBacktickLiteral Then
             Select Case ch
                 Case "("
                     parenDepth = parenDepth + 1
@@ -1437,6 +1476,10 @@ Private Function mp_TrySplitStringExpressionTerms( _
 
     If inQuotes Then
         outErrorText = "Unterminated quoted string in string expression."
+        Exit Function
+    End If
+    If inBacktickLiteral Then
+        outErrorText = "Unterminated backtick string in string expression."
         Exit Function
     End If
 
@@ -1619,20 +1662,29 @@ Private Function mp_ValidateConditionText( _
     Dim rightIsToken As Boolean
     Dim resolvedTableRef As String
     Dim resolvedMapKey As String
+    Dim partText As String
+    Dim groupedConditionText As String
 
     If Not mp_TrySplitConditionExpression(conditionText, condParts, condOps, outErrorText) Then Exit Function
 
     For i = 1 To condParts.Count
-        If Not mp_ParseConditionPart(CStr(condParts(i)), leftTokenText, opText, rightTokenText, rightIsToken) Then
-            outErrorText = "Unsupported condition token: '" & Trim$(CStr(condParts(i))) & "'."
-            Exit Function
-        End If
-        If Not mp_TryResolveConditionTokenForValidation(leftTokenText, currentTableRef, currentRowVar, scopeVarTypes, allowedTableFields, resolvedTableRef, resolvedMapKey, outErrorText) Then
-            Exit Function
-        End If
-        If rightIsToken Then
-            If Not mp_TryResolveConditionTokenForValidation(rightTokenText, currentTableRef, currentRowVar, scopeVarTypes, allowedTableFields, resolvedTableRef, resolvedMapKey, outErrorText) Then
+        partText = CStr(condParts(i))
+        If mp_TryUnwrapConditionGroup(partText, groupedConditionText) Then
+            If Not mp_ValidateConditionText(groupedConditionText, currentTableRef, currentRowVar, scopeVarTypes, allowedTableFields, outErrorText) Then
                 Exit Function
+            End If
+        Else
+            If Not mp_ParseConditionPart(partText, leftTokenText, opText, rightTokenText, rightIsToken) Then
+                outErrorText = "Unsupported condition token: '" & Trim$(partText) & "'."
+                Exit Function
+            End If
+            If Not mp_TryResolveConditionTokenForValidation(leftTokenText, currentTableRef, currentRowVar, scopeVarTypes, allowedTableFields, resolvedTableRef, resolvedMapKey, outErrorText) Then
+                Exit Function
+            End If
+            If rightIsToken Then
+                If Not mp_TryResolveConditionTokenForValidation(rightTokenText, currentTableRef, currentRowVar, scopeVarTypes, allowedTableFields, resolvedTableRef, resolvedMapKey, outErrorText) Then
+                    Exit Function
+                End If
             End If
         End If
     Next i
@@ -1757,81 +1809,10 @@ End Function
 
 Private Function mp_IsReservedDslKeyword(ByVal tokenText As String) As Boolean
     Select Case LCase$(Trim$(tokenText))
-        Case "if", "else", "for", "callmacro", "callmacroobject", "let", "in", "and", "or", "gt", "lt", "gte", "lte", "break", "continue", "return"
+        Case "if", "else", "for", "callmacro", "callmacroobject", "let", "in", "break", "continue", "return"
             mp_IsReservedDslKeyword = True
     End Select
 End Function
-
-Private Function mp_BuildRuntimeScopeSignature(ByVal scopeVarTypes As Object) As String
-    Dim keys As Variant
-    Dim i As Long
-
-    On Error GoTo EH
-
-    If scopeVarTypes Is Nothing Then
-        mp_BuildRuntimeScopeSignature = "|S:none"
-        Exit Function
-    End If
-
-    keys = scopeVarTypes.Keys
-    If mp_IsEmptyArrayLocal(keys) Then
-        mp_BuildRuntimeScopeSignature = "|S:empty"
-        Exit Function
-    End If
-
-    mp_SortVariantTextArrayLocal keys
-    mp_BuildRuntimeScopeSignature = "|S"
-    For i = LBound(keys) To UBound(keys)
-        mp_BuildRuntimeScopeSignature = mp_BuildRuntimeScopeSignature & ";" & CStr(keys(i)) & ":" & LCase$(CStr(scopeVarTypes(CStr(keys(i)))))
-    Next i
-    Exit Function
-
-EH:
-    mp_BuildRuntimeScopeSignature = "|S:error:" & CStr(Err.Number)
-End Function
-
-Private Sub mp_ApplyInjectedScopeVarTypes(ByVal targetScope As Object, ByVal injectedScopeVarTypes As Object)
-    Dim scopeKey As Variant
-    Dim normalizedType As String
-
-    If targetScope Is Nothing Then Exit Sub
-    If injectedScopeVarTypes Is Nothing Then Exit Sub
-
-    For Each scopeKey In injectedScopeVarTypes.Keys
-        normalizedType = LCase$(Trim$(CStr(injectedScopeVarTypes(CStr(scopeKey)))))
-        Select Case normalizedType
-            Case VAR_TYPE_ROW, VAR_TYPE_COLUMN, VAR_TYPE_STRING, VAR_TYPE_OBJECT
-                mp_SetScopeValue targetScope, CStr(scopeKey), normalizedType
-            Case Else
-                Err.Raise vbObjectError + 1627, "ex_ScriptDSL", "Unsupported injected variable type for '" & CStr(scopeKey) & "': " & CStr(injectedScopeVarTypes(CStr(scopeKey)))
-        End Select
-    Next scopeKey
-End Sub
-
-Private Sub mp_ApplyInjectedRuntimeVars(ByVal targetScope As Object, ByVal injectedRuntimeVars As Object)
-    Dim scopeKey As Variant
-    Dim rawValue As Variant
-    Dim rawObject As Object
-    Dim scopeValue As obj_ScriptScopeValue
-
-    If targetScope Is Nothing Then Exit Sub
-    If injectedRuntimeVars Is Nothing Then Exit Sub
-
-    For Each scopeKey In injectedRuntimeVars.Keys
-        rawValue = injectedRuntimeVars(CStr(scopeKey))
-        If IsObject(rawValue) Then
-            Set rawObject = rawValue
-            If TypeOf rawObject Is obj_ScriptScopeValue Then
-                Set scopeValue = rawObject
-                mp_SetRuntimeScopeValue targetScope, CStr(scopeKey), scopeValue
-            Else
-                mp_SetRuntimeScopeObject targetScope, CStr(scopeKey), rawObject
-            End If
-        Else
-            mp_SetRuntimeScopeString targetScope, CStr(scopeKey), CStr(rawValue)
-        End If
-    Next scopeKey
-End Sub
 
 Private Sub mp_SkipWhitespace(ByVal sourceText As String, ByRef pos As Long, ByRef lineNo As Long)
     Dim ch As String
@@ -1915,6 +1896,7 @@ Private Function mp_ReadBalanced( _
     Dim i As Long
     Dim ch As String
     Dim inQuotes As Boolean
+    Dim inBacktickLiteral As Boolean
 
     mp_SkipWhitespace sourceText, pos, lineNo
     If pos > Len(sourceText) Or Mid$(sourceText, pos, 1) <> openChar Then Exit Function
@@ -1924,24 +1906,34 @@ Private Function mp_ReadBalanced( _
     i = pos + 1
     Do While i <= Len(sourceText)
         ch = Mid$(sourceText, i, 1)
+
+        If g_ParseHasBacktickLiterals And ch = "`" And Not inQuotes Then
+            inBacktickLiteral = Not inBacktickLiteral
+            i = i + 1
+            GoTo ContinueLoop
+        End If
+
         If ch = vbLf Then lineNo = lineNo + 1
 
-        If ch = """" And Not mp_IsEscapedQuote(sourceText, i) Then
-            inQuotes = Not inQuotes
-        ElseIf Not inQuotes Then
-            If ch = openChar Then
-                depth = depth + 1
-            ElseIf ch = closeChar Then
-                depth = depth - 1
-                If depth = 0 Then
-                    outInnerText = Mid$(sourceText, startPos, i - startPos)
-                    pos = i + 1
-                    mp_ReadBalanced = True
-                    Exit Function
+        If Not inBacktickLiteral Then
+            If ch = """" And Not mp_IsEscapedQuote(sourceText, i) Then
+                inQuotes = Not inQuotes
+            ElseIf Not inQuotes Then
+                If ch = openChar Then
+                    depth = depth + 1
+                ElseIf ch = closeChar Then
+                    depth = depth - 1
+                    If depth = 0 Then
+                        outInnerText = Mid$(sourceText, startPos, i - startPos)
+                        pos = i + 1
+                        mp_ReadBalanced = True
+                        Exit Function
+                    End If
                 End If
             End If
         End If
         i = i + 1
+ContinueLoop:
     Loop
 
     outErrorText = "Missing '" & closeChar & "' for expression started at line " & CStr(lineNo)
@@ -1959,6 +1951,7 @@ Private Function mp_ReadStatementToSemicolon( _
     Dim ch As String
     Dim inQuotes As Boolean
     Dim depth As Long
+    Dim inBacktickLiteral As Boolean
 
     mp_SkipWhitespace sourceText, pos, lineNo
     If pos > Len(sourceText) Then Exit Function
@@ -1967,29 +1960,44 @@ Private Function mp_ReadStatementToSemicolon( _
     i = pos
     Do While i <= Len(sourceText)
         ch = Mid$(sourceText, i, 1)
+
+        If g_ParseHasBacktickLiterals And ch = "`" And Not inQuotes Then
+            inBacktickLiteral = Not inBacktickLiteral
+            i = i + 1
+            GoTo ContinueLoop
+        End If
+
         If ch = vbLf Then lineNo = lineNo + 1
 
-        If ch = """" And Not mp_IsEscapedQuote(sourceText, i) Then
-            inQuotes = Not inQuotes
-        ElseIf Not inQuotes Then
-            If ch = "(" Then
-                depth = depth + 1
-            ElseIf ch = ")" Then
-                depth = depth - 1
-                If depth < 0 Then
-                    outErrorText = "Unexpected ')' at line " & CStr(lineNo)
+        If Not inBacktickLiteral Then
+            If ch = """" And Not mp_IsEscapedQuote(sourceText, i) Then
+                inQuotes = Not inQuotes
+            ElseIf Not inQuotes Then
+                If ch = "(" Then
+                    depth = depth + 1
+                ElseIf ch = ")" Then
+                    depth = depth - 1
+                    If depth < 0 Then
+                        outErrorText = "Unexpected ')' at line " & CStr(lineNo)
+                        Exit Function
+                    End If
+                ElseIf ch = ";" And depth = 0 Then
+                    outStatementText = Trim$(Mid$(sourceText, startPos, i - startPos + 1))
+                    pos = i + 1
+                    mp_ReadStatementToSemicolon = True
                     Exit Function
                 End If
-            ElseIf ch = ";" And depth = 0 Then
-                outStatementText = Trim$(Mid$(sourceText, startPos, i - startPos + 1))
-                pos = i + 1
-                mp_ReadStatementToSemicolon = True
-                Exit Function
             End If
         End If
 
         i = i + 1
+ContinueLoop:
     Loop
+
+    If inBacktickLiteral Then
+        outErrorText = "Unterminated backtick string literal (`...`) near line " & CStr(lineNo)
+        Exit Function
+    End If
 
     outErrorText = "Missing ';' at end of statement near line " & CStr(lineNo)
 End Function
@@ -2019,43 +2027,50 @@ Private Function mp_EvaluateCondition( _
     Dim finalResult As Boolean
     Dim hasCurrentTerm As Boolean
     Dim hasFinalResult As Boolean
+    Dim partText As String
+    Dim groupedConditionText As String
 
     If Not mp_TrySplitConditionExpression(conditionText, condParts, condOps, resolveError) Then
         Err.Raise vbObjectError + 1594, "ex_ScriptDSL", resolveError
     End If
 
     For i = 1 To condParts.Count
-        If Not mp_ParseConditionPart(CStr(condParts(i)), refToken, opText, expectedValueRaw, expectedIsToken) Then
-            Err.Raise vbObjectError + 1594, "ex_ScriptDSL", "Invalid condition: " & Trim$(CStr(condParts(i)))
-        End If
-        If Not mp_TryResolveRuntimeValue(refToken, currentTableRef, currentRowVar, currentRowRef, tablesByRef, runtimeVars, actualValue, resolveError) Then
-            Err.Raise vbObjectError + 1595, "ex_ScriptDSL", resolveError
-        End If
-        If expectedIsToken Then
-            If Not mp_TryResolveRuntimeValue(expectedValueRaw, currentTableRef, currentRowVar, currentRowRef, tablesByRef, runtimeVars, expectedValue, resolveError) Then
+        partText = CStr(condParts(i))
+        If mp_TryUnwrapConditionGroup(partText, groupedConditionText) Then
+            partResult = mp_EvaluateCondition(groupedConditionText, currentTableRef, currentRowVar, currentRowRef, tablesByRef, runtimeVars)
+        Else
+            If Not mp_ParseConditionPart(partText, refToken, opText, expectedValueRaw, expectedIsToken) Then
+                Err.Raise vbObjectError + 1594, "ex_ScriptDSL", "Invalid condition: " & Trim$(partText)
+            End If
+            If Not mp_TryResolveRuntimeValue(refToken, currentTableRef, currentRowVar, currentRowRef, tablesByRef, runtimeVars, actualValue, resolveError) Then
                 Err.Raise vbObjectError + 1595, "ex_ScriptDSL", resolveError
             End If
-        Else
-            expectedValue = expectedValueRaw
-        End If
+            If expectedIsToken Then
+                If Not mp_TryResolveRuntimeValue(expectedValueRaw, currentTableRef, currentRowVar, currentRowRef, tablesByRef, runtimeVars, expectedValue, resolveError) Then
+                    Err.Raise vbObjectError + 1595, "ex_ScriptDSL", resolveError
+                End If
+            Else
+                expectedValue = expectedValueRaw
+            End If
 
-        compareResult = mp_CompareConditionValues(actualValue, expectedValue)
-        Select Case opText
-            Case "=="
-                partResult = (compareResult = 0)
-            Case "!="
-                partResult = (compareResult <> 0)
-            Case "gt"
-                partResult = (compareResult > 0)
-            Case "lt"
-                partResult = (compareResult < 0)
-            Case "gte"
-                partResult = (compareResult >= 0)
-            Case "lte"
-                partResult = (compareResult <= 0)
-            Case Else
-                Err.Raise vbObjectError + 1596, "ex_ScriptDSL", "Unsupported operator in condition: " & opText
-        End Select
+            compareResult = mp_CompareConditionValues(actualValue, expectedValue)
+            Select Case opText
+                Case "=="
+                    partResult = (compareResult = 0)
+                Case "!="
+                    partResult = (compareResult <> 0)
+                Case ">"
+                    partResult = (compareResult > 0)
+                Case "<"
+                    partResult = (compareResult < 0)
+                Case ">="
+                    partResult = (compareResult >= 0)
+                Case "<="
+                    partResult = (compareResult <= 0)
+                Case Else
+                    Err.Raise vbObjectError + 1596, "ex_ScriptDSL", "Unsupported operator in condition: " & opText
+            End Select
+        End If
 
         If Not hasCurrentTerm Then
             currentTerm = partResult
@@ -2063,9 +2078,9 @@ Private Function mp_EvaluateCondition( _
         Else
             boolOp = LCase$(Trim$(CStr(condOps(i - 1))))
             Select Case boolOp
-                Case "and"
+                Case "&&"
                     currentTerm = (currentTerm And partResult)
-                Case "or"
+                Case "||"
                     If Not hasFinalResult Then
                         finalResult = currentTerm
                         hasFinalResult = True
@@ -2153,31 +2168,23 @@ Private Function mp_ParseConditionPart( _
     ByRef outValueIsToken As Boolean _
 ) As Boolean
     Dim part As String
-    Dim partLower As String
     Dim opPos As Long
     Dim opLen As Long
     Dim rhs As String
 
     part = mp_TrimDslWhitespace(rawPart)
-    partLower = LCase$(part)
-    opPos = InStr(1, part, "==", vbBinaryCompare)
-    If opPos > 0 Then
+    If mp_TryFindConditionSymbolOperator(part, "==", opPos, opLen) Then
         outOp = "=="
-        opLen = 2
-    Else
-        opPos = InStr(1, part, "!=", vbBinaryCompare)
-        If opPos > 0 Then
-            outOp = "!="
-            opLen = 2
-        ElseIf mp_TryFindConditionWordOperator(partLower, "gte", opPos, opLen) Then
-            outOp = "gte"
-        ElseIf mp_TryFindConditionWordOperator(partLower, "lte", opPos, opLen) Then
-            outOp = "lte"
-        ElseIf mp_TryFindConditionWordOperator(partLower, "gt", opPos, opLen) Then
-            outOp = "gt"
-        ElseIf mp_TryFindConditionWordOperator(partLower, "lt", opPos, opLen) Then
-            outOp = "lt"
-        End If
+    ElseIf mp_TryFindConditionSymbolOperator(part, "!=", opPos, opLen) Then
+        outOp = "!="
+    ElseIf mp_TryFindConditionSymbolOperator(part, ">=", opPos, opLen) Then
+        outOp = ">="
+    ElseIf mp_TryFindConditionSymbolOperator(part, "<=", opPos, opLen) Then
+        outOp = "<="
+    ElseIf mp_TryFindConditionSymbolOperator(part, ">", opPos, opLen) Then
+        outOp = ">"
+    ElseIf mp_TryFindConditionSymbolOperator(part, "<", opPos, opLen) Then
+        outOp = "<"
     End If
     If opPos <= 1 Then Exit Function
 
@@ -2198,6 +2205,43 @@ Private Function mp_ParseConditionPart( _
     mp_ParseConditionPart = True
 End Function
 
+Private Function mp_TryFindConditionSymbolOperator( _
+    ByVal textValue As String, _
+    ByVal opSymbol As String, _
+    ByRef outPos As Long, _
+    ByRef outLen As Long _
+) As Boolean
+    Dim i As Long
+    Dim inQuotes As Boolean
+    Dim inBacktickLiteral As Boolean
+    Dim ch As String
+
+    outLen = Len(opSymbol)
+    If outLen = 0 Then Exit Function
+    If Len(textValue) < outLen Then Exit Function
+
+    For i = 1 To Len(textValue) - outLen + 1
+        ch = Mid$(textValue, i, 1)
+        If ch = """" And Not mp_IsEscapedQuote(textValue, i) Then
+            If Not inBacktickLiteral Then inQuotes = Not inQuotes
+            GoTo ContinueLoop
+        End If
+        If ch = "`" Then
+            If Not inQuotes Then inBacktickLiteral = Not inBacktickLiteral
+            GoTo ContinueLoop
+        End If
+
+        If Not inQuotes And Not inBacktickLiteral Then
+            If Mid$(textValue, i, outLen) = opSymbol Then
+                outPos = i
+                mp_TryFindConditionSymbolOperator = True
+                Exit Function
+            End If
+        End If
+ContinueLoop:
+    Next i
+End Function
+
 Private Function mp_TryFindConditionWordOperator( _
     ByVal textValue As String, _
     ByVal opWord As String, _
@@ -2206,6 +2250,7 @@ Private Function mp_TryFindConditionWordOperator( _
 ) As Boolean
     Dim i As Long
     Dim inQuotes As Boolean
+    Dim inBacktickLiteral As Boolean
     Dim ch As String
     Dim prevCh As String
     Dim nextCh As String
@@ -2218,11 +2263,15 @@ Private Function mp_TryFindConditionWordOperator( _
     For i = 1 To Len(textValue) - outLen + 1
         ch = Mid$(textValue, i, 1)
         If ch = """" And Not mp_IsEscapedQuote(textValue, i) Then
-            inQuotes = Not inQuotes
+            If Not inBacktickLiteral Then inQuotes = Not inQuotes
+            GoTo ContinueLoop
+        End If
+        If ch = "`" Then
+            If Not inQuotes Then inBacktickLiteral = Not inBacktickLiteral
             GoTo ContinueLoop
         End If
 
-        If Not inQuotes Then
+        If Not inQuotes And Not inBacktickLiteral Then
             opText = Mid$(textValue, i, outLen)
             If opText = opWord Then
                 If i > 1 Then
@@ -2283,6 +2332,8 @@ Private Function mp_TrySplitConditionExpression( _
     Dim ch As String
     Dim partText As String
     Dim inQuotes As Boolean
+    Dim inBacktickLiteral As Boolean
+    Dim parenDepth As Long
 
     Set outParts = New Collection
     Set outOps = New Collection
@@ -2297,36 +2348,38 @@ Private Function mp_TrySplitConditionExpression( _
     Do While i <= Len(conditionText)
         ch = Mid$(conditionText, i, 1)
         If ch = """" And Not mp_IsEscapedQuote(conditionText, i) Then
-            inQuotes = Not inQuotes
+            If Not inBacktickLiteral Then inQuotes = Not inQuotes
+            partText = partText & ch
+            i = i + 1
+            GoTo ContinueLoop
+        End If
+        If ch = "`" Then
+            If Not inQuotes Then inBacktickLiteral = Not inBacktickLiteral
             partText = partText & ch
             i = i + 1
             GoTo ContinueLoop
         End If
 
-        If Not inQuotes Then
-            If Mid$(conditionText, i, 2) = "&&" Then
-                If Not mp_TryPushConditionPart(partText, "and", outParts, outOps, outErrorText) Then Exit Function
+        If Not inQuotes And Not inBacktickLiteral Then
+            If ch = "(" Then
+                parenDepth = parenDepth + 1
+            ElseIf ch = ")" Then
+                parenDepth = parenDepth - 1
+                If parenDepth < 0 Then
+                    outErrorText = "Unexpected ')' in condition."
+                    Exit Function
+                End If
+            End If
+
+            If parenDepth = 0 And Mid$(conditionText, i, 2) = "&&" Then
+                If Not mp_TryPushConditionPart(partText, "&&", outParts, outOps, outErrorText) Then Exit Function
                 partText = vbNullString
                 i = i + 2
                 GoTo ContinueLoop
             End If
 
-            If Mid$(conditionText, i, 2) = "||" Then
-                If Not mp_TryPushConditionPart(partText, "or", outParts, outOps, outErrorText) Then Exit Function
-                partText = vbNullString
-                i = i + 2
-                GoTo ContinueLoop
-            End If
-
-            If mp_IsWordOperatorAt(conditionText, i, "and") Then
-                If Not mp_TryPushConditionPart(partText, "and", outParts, outOps, outErrorText) Then Exit Function
-                partText = vbNullString
-                i = i + 3
-                GoTo ContinueLoop
-            End If
-
-            If mp_IsWordOperatorAt(conditionText, i, "or") Then
-                If Not mp_TryPushConditionPart(partText, "or", outParts, outOps, outErrorText) Then Exit Function
+            If parenDepth = 0 And Mid$(conditionText, i, 2) = "||" Then
+                If Not mp_TryPushConditionPart(partText, "||", outParts, outOps, outErrorText) Then Exit Function
                 partText = vbNullString
                 i = i + 2
                 GoTo ContinueLoop
@@ -2342,6 +2395,14 @@ ContinueLoop:
         outErrorText = "Unterminated quoted string in condition."
         Exit Function
     End If
+    If inBacktickLiteral Then
+        outErrorText = "Unterminated backtick string in condition."
+        Exit Function
+    End If
+    If parenDepth <> 0 Then
+        outErrorText = "Unbalanced parentheses in condition."
+        Exit Function
+    End If
 
     partText = Trim$(partText)
     If Len(partText) = 0 Then
@@ -2351,6 +2412,63 @@ ContinueLoop:
     outParts.Add partText
 
     mp_TrySplitConditionExpression = True
+End Function
+
+Private Function mp_TryUnwrapConditionGroup( _
+    ByVal sourceText As String, _
+    ByRef outInnerText As String _
+) As Boolean
+    Dim normalized As String
+
+    normalized = mp_TrimDslWhitespace(sourceText)
+    If Len(normalized) < 2 Then Exit Function
+    If Left$(normalized, 1) <> "(" Or Right$(normalized, 1) <> ")" Then Exit Function
+    If Not mp_IsConditionWrappedByOuterParens(normalized) Then Exit Function
+
+    outInnerText = mp_TrimDslWhitespace(Mid$(normalized, 2, Len(normalized) - 2))
+    If Len(outInnerText) = 0 Then Exit Function
+    mp_TryUnwrapConditionGroup = True
+End Function
+
+Private Function mp_IsConditionWrappedByOuterParens(ByVal textValue As String) As Boolean
+    Dim i As Long
+    Dim depth As Long
+    Dim ch As String
+    Dim inQuotes As Boolean
+    Dim inBacktickLiteral As Boolean
+
+    textValue = mp_TrimDslWhitespace(textValue)
+    If Len(textValue) < 2 Then Exit Function
+    If Left$(textValue, 1) <> "(" Or Right$(textValue, 1) <> ")" Then Exit Function
+
+    For i = 1 To Len(textValue)
+        ch = Mid$(textValue, i, 1)
+
+        If ch = "`" And Not inQuotes Then
+            inBacktickLiteral = Not inBacktickLiteral
+            GoTo ContinueLoop
+        End If
+
+        If Not inBacktickLiteral Then
+            If ch = """" And Not mp_IsEscapedQuote(textValue, i) Then
+                inQuotes = Not inQuotes
+                GoTo ContinueLoop
+            End If
+            If Not inQuotes Then
+                If ch = "(" Then
+                    depth = depth + 1
+                ElseIf ch = ")" Then
+                    depth = depth - 1
+                    If depth < 0 Then Exit Function
+                    If depth = 0 And i < Len(textValue) Then Exit Function
+                End If
+            End If
+        End If
+ContinueLoop:
+    Next i
+
+    If inQuotes Or inBacktickLiteral Then Exit Function
+    mp_IsConditionWrappedByOuterParens = (depth = 0)
 End Function
 
 Private Function mp_TryPushConditionPart( _
@@ -2403,7 +2521,13 @@ End Function
 
 Private Function mp_TryParseQuotedString(ByVal valueText As String, ByRef outValue As String) As Boolean
     Dim rawInner As String
-    valueText = Trim$(valueText)
+    valueText = mp_TrimOuterWhitespace(valueText)
+
+    If mp_TryParseBacktickString(valueText, outValue) Then
+        mp_TryParseQuotedString = True
+        Exit Function
+    End If
+
     If Len(valueText) < 2 Then Exit Function
     If Left$(valueText, 1) <> """" Then Exit Function
     If Right$(valueText, 1) <> """" Then Exit Function
@@ -2411,6 +2535,29 @@ Private Function mp_TryParseQuotedString(ByVal valueText As String, ByRef outVal
     rawInner = Mid$(valueText, 2, Len(valueText) - 2)
     outValue = mp_DecodeEscapes(rawInner)
     mp_TryParseQuotedString = True
+End Function
+
+Private Function mp_TryParseBacktickString(ByVal valueText As String, ByRef outValue As String) As Boolean
+    valueText = mp_TrimOuterWhitespace(valueText)
+    If Len(valueText) < 2 Then Exit Function
+    If Left$(valueText, 1) <> "`" Then Exit Function
+    If Right$(valueText, 1) <> "`" Then Exit Function
+
+    outValue = Mid$(valueText, 2, Len(valueText) - 2)
+    mp_TryParseBacktickString = True
+End Function
+
+Private Function mp_TryParseDoubleQuotedString(ByVal valueText As String, ByRef outValue As String) As Boolean
+    Dim rawInner As String
+
+    valueText = mp_TrimOuterWhitespace(valueText)
+    If Len(valueText) < 2 Then Exit Function
+    If Left$(valueText, 1) <> """" Then Exit Function
+    If Right$(valueText, 1) <> """" Then Exit Function
+
+    rawInner = Mid$(valueText, 2, Len(valueText) - 2)
+    outValue = mp_DecodeEscapes(rawInner)
+    mp_TryParseDoubleQuotedString = True
 End Function
 
 Private Function mp_DecodeEscapes(ByVal textValue As String) As String
@@ -2507,6 +2654,7 @@ Private Function mp_NormalizeScript(ByVal scriptText As String) As String
     Dim rawLine As String
     Dim cleaned As String
     Dim normalized As String
+    Dim inBacktickLiteral As Boolean
 
     scriptText = Replace(scriptText, vbCrLf, vbLf)
     scriptText = Replace(scriptText, vbCr, vbLf)
@@ -2517,7 +2665,7 @@ Private Function mp_NormalizeScript(ByVal scriptText As String) As String
         rawLine = CStr(lines(i))
         rawLine = Replace(rawLine, vbTab, " ")
         rawLine = Replace(rawLine, ChrW$(160), " ")
-        rawLine = mp_StripSingleLineComment(rawLine)
+        rawLine = mp_StripSingleLineComment(rawLine, inBacktickLiteral)
         cleaned = Trim$(rawLine)
         If Len(normalized) > 0 Then normalized = normalized & vbLf
         normalized = normalized & cleaned
@@ -2532,10 +2680,20 @@ Private Function mp_StripMultiLineComments(ByVal sourceText As String) As String
     Dim nextCh As String
     Dim inQuotes As Boolean
     Dim inCommentBlock As Boolean
+    Dim inBacktickLiteral As Boolean
     Dim result As String
 
     i = 1
     Do While i <= Len(sourceText)
+        If g_ParseHasBacktickLiterals Then
+            If mp_IsBacktickAt(sourceText, i) And Not inQuotes Then
+                inBacktickLiteral = Not inBacktickLiteral
+                result = result & "`"
+                i = i + 1
+                GoTo ContinueLoop
+            End If
+        End If
+
         ch = Mid$(sourceText, i, 1)
 
         If inCommentBlock Then
@@ -2553,20 +2711,22 @@ Private Function mp_StripMultiLineComments(ByVal sourceText As String) As String
             GoTo ContinueLoop
         End If
 
-        If ch = """" And Not mp_IsEscapedQuote(sourceText, i) Then
-            inQuotes = Not inQuotes
-            result = result & ch
-            i = i + 1
-            GoTo ContinueLoop
-        End If
-
-        If Not inQuotes And ch = "/" And i < Len(sourceText) Then
-            nextCh = Mid$(sourceText, i + 1, 1)
-            If nextCh = "*" Then
-                inCommentBlock = True
-                result = result & " "
-                i = i + 2
+        If Not inBacktickLiteral Then
+            If ch = """" And Not mp_IsEscapedQuote(sourceText, i) Then
+                inQuotes = Not inQuotes
+                result = result & ch
+                i = i + 1
                 GoTo ContinueLoop
+            End If
+
+            If Not inQuotes And ch = "/" And i < Len(sourceText) Then
+                nextCh = Mid$(sourceText, i + 1, 1)
+                If nextCh = "*" Then
+                    inCommentBlock = True
+                    result = result & " "
+                    i = i + 2
+                    GoTo ContinueLoop
+                End If
             End If
         End If
 
@@ -2578,26 +2738,39 @@ ContinueLoop:
     mp_StripMultiLineComments = result
 End Function
 
-Private Function mp_StripSingleLineComment(ByVal lineText As String) As String
+Private Function mp_StripSingleLineComment( _
+    ByVal lineText As String, _
+    ByRef inBacktickLiteral As Boolean _
+) As String
     Dim i As Long
     Dim inQuotes As Boolean
     Dim ch As String
     Dim nextCh As String
 
     For i = 1 To Len(lineText)
-        ch = Mid$(lineText, i, 1)
-        If ch = """" And Not mp_IsEscapedQuote(lineText, i) Then
-            inQuotes = Not inQuotes
+        If g_ParseHasBacktickLiterals Then
+            If mp_IsBacktickAt(lineText, i) And Not inQuotes Then
+                inBacktickLiteral = Not inBacktickLiteral
+                GoTo ContinueLoop
+            End If
         End If
-        If Not inQuotes And ch = "/" Then
-            If i < Len(lineText) Then
-                nextCh = Mid$(lineText, i + 1, 1)
-                If nextCh = "/" Then
-                    mp_StripSingleLineComment = Left$(lineText, i - 1)
-                    Exit Function
+
+        ch = Mid$(lineText, i, 1)
+        If Not inBacktickLiteral Then
+            If ch = """" And Not mp_IsEscapedQuote(lineText, i) Then
+                inQuotes = Not inQuotes
+            End If
+            If Not inQuotes And ch = "/" Then
+                If i < Len(lineText) Then
+                    nextCh = Mid$(lineText, i + 1, 1)
+                    If nextCh = "/" Then
+                        mp_StripSingleLineComment = Left$(lineText, i - 1)
+                        Exit Function
+                    End If
                 End If
             End If
         End If
+ContinueLoop:
     Next i
 
     mp_StripSingleLineComment = lineText
@@ -2658,7 +2831,7 @@ Private Function mp_TryParseCallMacroArgs( _
     Dim partText As String
     Dim argSpec As Object
 
-    argsText = Trim$(argsText)
+    argsText = mp_TrimOuterWhitespace(argsText)
     If Len(argsText) = 0 Then
         outErrorText = "callMacro/callMacroObject requires at least macro name: callMacro(""Module.Proc"", ...)"
         Exit Function
@@ -2682,13 +2855,13 @@ Private Function mp_TryParseCallMacroArgs( _
 
     Set outArgSpecs = New Collection
     For i = 2 To parts.Count
-        partText = Trim$(CStr(parts(i)))
+        partText = mp_TrimOuterWhitespace(CStr(parts(i)))
         If Len(partText) = 0 Then
             outErrorText = "callMacro/callMacroObject argument #" & CStr(i - 1) & " is empty."
             Exit Function
         End If
         If Not mp_TryParseMacroArg(partText, argSpec) Then
-            outErrorText = "Unsupported macro argument '" & partText & "'. Use variable, numeric literal, quoted string, Source.Sheet[Table].row[N], Source.Sheet[Table].lastRow, Source.Sheet[Table].prevRow, or a .column[Field] variant."
+            outErrorText = "Unsupported macro argument '" & partText & "'. Use variable, numeric literal, string literal (""..."" or `...`), template string ($`...`), Source.Sheet[Table].row[N], Source.Sheet[Table].lastRow, Source.Sheet[Table].prevRow, or a .column[Field] variant."
             Exit Function
         End If
         outArgSpecs.Add argSpec
@@ -2796,6 +2969,8 @@ Private Function mp_BuildMacroRuntimeArgs( _
                 End If
                 result.Add renderedText
             Case "string"
+                result.Add CStr(argSpec("Value"))
+            Case "template"
                 renderedText = mp_RenderTemplate(CStr(argSpec("Value")), currentTableRef, currentRowVar, currentRowRef, tablesByRef, runtimeVars)
                 result.Add renderedText
             Case Else
@@ -2910,6 +3085,19 @@ Private Function mp_TryResolveVariableMemberValue( _
     ByRef outErrorText As String _
 ) As Boolean
     Dim columnObj As obj_ResultColumn
+    Dim rowObj As obj_ResultRow
+
+    If TypeOf variableObject Is obj_ResultRow Then
+        Set rowObj = variableObject
+        If Not rowObj.HasAlias(memberName) Then
+            outErrorText = "Unknown row field alias '" & memberName & "' in token '" & tokenText & "'."
+            Exit Function
+        End If
+
+        outValue = rowObj.Column(memberName)
+        mp_TryResolveVariableMemberValue = True
+        Exit Function
+    End If
 
     If TypeOf variableObject Is obj_ResultColumn Then
         Set columnObj = variableObject
@@ -3150,6 +3338,7 @@ Private Function mp_TrySplitAssignmentStatement( _
     Dim inQuotes As Boolean
     Dim depth As Long
     Dim assignPos As Long
+    Dim inBacktickLiteral As Boolean
 
     statementText = Trim$(statementText)
     If Len(statementText) = 0 Then Exit Function
@@ -3163,23 +3352,36 @@ Private Function mp_TrySplitAssignmentStatement( _
 
     For i = 1 To Len(bodyText)
         ch = Mid$(bodyText, i, 1)
-        If ch = """" And Not mp_IsEscapedQuote(bodyText, i) Then
-            inQuotes = Not inQuotes
-        ElseIf Not inQuotes Then
-            If ch = "(" Then
-                depth = depth + 1
-            ElseIf ch = ")" Then
-                If depth > 0 Then depth = depth - 1
-            ElseIf ch = "=" And depth = 0 Then
-                If i < Len(bodyText) And Mid$(bodyText, i + 1, 1) = "=" Then
-                    outErrorText = "Invalid assignment syntax."
-                    Exit Function
+        If g_ParseHasBacktickLiterals And ch = "`" And Not inQuotes Then
+            inBacktickLiteral = Not inBacktickLiteral
+            GoTo ContinueLoop
+        End If
+
+        If Not inBacktickLiteral Then
+            If ch = """" And Not mp_IsEscapedQuote(bodyText, i) Then
+                inQuotes = Not inQuotes
+            ElseIf Not inQuotes Then
+                If ch = "(" Then
+                    depth = depth + 1
+                ElseIf ch = ")" Then
+                    If depth > 0 Then depth = depth - 1
+                ElseIf ch = "=" And depth = 0 Then
+                    If i < Len(bodyText) And Mid$(bodyText, i + 1, 1) = "=" Then
+                        outErrorText = "Invalid assignment syntax."
+                        Exit Function
+                    End If
+                    assignPos = i
+                    Exit For
                 End If
-                assignPos = i
-                Exit For
             End If
         End If
+ContinueLoop:
     Next i
+
+    If inBacktickLiteral Then
+        outErrorText = "Unterminated backtick string literal (`...`) in assignment statement."
+        Exit Function
+    End If
 
     If assignPos <= 1 Then Exit Function
 
@@ -3199,35 +3401,87 @@ Private Function mp_SplitArgs(ByVal argsText As String, ByRef outParts As Collec
     Dim ch As String
     Dim partText As String
     Dim inQuotes As Boolean
+    Dim inBacktickLiteral As Boolean
 
     Set outParts = New Collection
     partText = vbNullString
 
     For i = 1 To Len(argsText)
         ch = Mid$(argsText, i, 1)
-        If ch = """" And Not mp_IsEscapedQuote(argsText, i) Then
-            inQuotes = Not inQuotes
+        If g_ParseHasBacktickLiterals And ch = "`" And Not inQuotes Then
+            inBacktickLiteral = Not inBacktickLiteral
             partText = partText & ch
-        ElseIf ch = "," And Not inQuotes Then
-            outParts.Add Trim$(partText)
-            partText = vbNullString
-        Else
-            partText = partText & ch
+            GoTo ContinueLoop
         End If
+
+        If Not inBacktickLiteral Then
+            If ch = """" And Not mp_IsEscapedQuote(argsText, i) Then
+                inQuotes = Not inQuotes
+                partText = partText & ch
+                GoTo ContinueLoop
+            End If
+
+            If ch = "," And Not inQuotes Then
+                outParts.Add mp_TrimOuterWhitespace(partText)
+                partText = vbNullString
+                GoTo ContinueLoop
+            End If
+        End If
+
+        partText = partText & ch
+ContinueLoop:
     Next i
 
     If inQuotes Then
         outErrorText = "Unterminated quoted string in callMacro arguments."
         Exit Function
     End If
+    If inBacktickLiteral Then
+        outErrorText = "Unterminated backtick string literal (`...`) in callMacro arguments."
+        Exit Function
+    End If
 
-    outParts.Add Trim$(partText)
+    outParts.Add mp_TrimOuterWhitespace(partText)
     mp_SplitArgs = True
 End Function
 
 Private Function mp_IsEscapedQuote(ByVal textValue As String, ByVal pos As Long) As Boolean
     If pos <= 1 Then Exit Function
     mp_IsEscapedQuote = (Mid$(textValue, pos, 1) = """" And Mid$(textValue, pos - 1, 1) = "\")
+End Function
+
+Private Function mp_IsBacktickAt(ByVal textValue As String, ByVal pos As Long) As Boolean
+    If pos < 1 Then Exit Function
+    If pos > Len(textValue) Then Exit Function
+    mp_IsBacktickAt = (Mid$(textValue, pos, 1) = "`")
+End Function
+
+Private Function mp_TrimOuterWhitespace(ByVal textValue As String) As String
+    Dim startPos As Long
+    Dim endPos As Long
+    Dim ch As String
+
+    textValue = CStr(textValue)
+    startPos = 1
+    endPos = Len(textValue)
+
+    Do While startPos <= endPos
+        ch = Mid$(textValue, startPos, 1)
+        If ch <> " " And ch <> vbTab And ch <> vbCr And ch <> vbLf Then Exit Do
+        startPos = startPos + 1
+    Loop
+
+    Do While endPos >= startPos
+        ch = Mid$(textValue, endPos, 1)
+        If ch <> " " And ch <> vbTab And ch <> vbCr And ch <> vbLf Then Exit Do
+        endPos = endPos - 1
+    Loop
+
+    If endPos < startPos Then
+        mp_TrimOuterWhitespace = vbNullString
+    Else
+        mp_TrimOuterWhitespace = Mid$(textValue, startPos, endPos - startPos + 1)
+    End If
 End Function
 
 Private Function mp_TrimDslWhitespace(ByVal textValue As String) As String

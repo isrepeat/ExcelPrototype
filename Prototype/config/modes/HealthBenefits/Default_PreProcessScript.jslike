@@ -1,0 +1,20 @@
+// HealthBenefits Default pre-process script.
+// Pass-through pipeline input: copy key fields into ScriptIO output.
+
+let input = callMacroObject("ex_ScriptIO.m_GetInput");
+let output = callMacroObject("ex_ScriptIO.m_CreateOutput");
+
+let commonKey = callMacro("ex_ScriptIO.m_GetValue", input, "CommonKey", "");
+let baseDateNormalized = callMacro("ex_ScriptIO.m_GetValue", input, "BaseDate", "");
+let queryTableRefs = callMacro("ex_ScriptIO.m_GetValue", input, "Query.TableRefs", "");
+
+if (baseDateNormalized == "") {
+	let baseDate = callMacro("ex_ConfigProvider.m_GetConfigValue", "BaseDate", "");
+	if (baseDate != "") {
+		baseDateNormalized = callMacro("ex_DateHelpers.m_ToFullDate", baseDate, "");
+	}
+}
+
+callMacro("ex_ScriptIO.m_SetString", output, "CommonKey", commonKey);
+callMacro("ex_ScriptIO.m_SetString", output, "BaseDate", baseDateNormalized);
+callMacro("ex_ScriptIO.m_SetString", output, "Query.TableRefs", queryTableRefs);

@@ -320,6 +320,13 @@ Public Function m_TryParseMacroArg(ByVal argText As String, ByRef outArgSpec As 
     Set outArgSpec = CreateObject("Scripting.Dictionary")
     outArgSpec.CompareMode = 1
 
+    If mp_TryParseTemplateLiteral(argText, literalText) Then
+        outArgSpec("Kind") = "template"
+        outArgSpec("Value") = literalText
+        m_TryParseMacroArg = True
+        Exit Function
+    End If
+
     If mp_TryParseQuotedString(argText, literalText) Then
         outArgSpec("Kind") = "string"
         outArgSpec("Value") = literalText
@@ -386,6 +393,17 @@ Public Function m_TryParseMacroArg(ByVal argText As String, ByRef outArgSpec As 
         m_TryParseMacroArg = True
         Exit Function
     End If
+End Function
+
+Private Function mp_TryParseTemplateLiteral(ByVal valueText As String, ByRef outValue As String) As Boolean
+    Dim innerText As String
+
+    valueText = mp_TrimOuterWhitespace(valueText)
+    If Len(valueText) < 2 Then Exit Function
+    If Left$(valueText, 1) <> "$" Then Exit Function
+
+    innerText = Mid$(valueText, 2)
+    mp_TryParseTemplateLiteral = mp_TryParseBacktickString(innerText, outValue)
 End Function
 
 Public Function m_ValidateMacroArgSpec( _
@@ -598,7 +616,12 @@ End Function
 Private Function mp_TryParseQuotedString(ByVal valueText As String, ByRef outValue As String) As Boolean
     Dim rawInner As String
 
-    valueText = Trim$(valueText)
+    valueText = mp_TrimOuterWhitespace(valueText)
+    If mp_TryParseBacktickString(valueText, outValue) Then
+        mp_TryParseQuotedString = True
+        Exit Function
+    End If
+
     If Len(valueText) < 2 Then Exit Function
     If Left$(valueText, 1) <> """" Then Exit Function
     If Right$(valueText, 1) <> """" Then Exit Function
@@ -606,6 +629,16 @@ Private Function mp_TryParseQuotedString(ByVal valueText As String, ByRef outVal
     rawInner = Mid$(valueText, 2, Len(valueText) - 2)
     outValue = mp_DecodeEscapes(rawInner)
     mp_TryParseQuotedString = True
+End Function
+
+Private Function mp_TryParseBacktickString(ByVal valueText As String, ByRef outValue As String) As Boolean
+    valueText = mp_TrimOuterWhitespace(valueText)
+    If Len(valueText) < 2 Then Exit Function
+    If Left$(valueText, 1) <> "`" Then Exit Function
+    If Right$(valueText, 1) <> "`" Then Exit Function
+
+    outValue = Mid$(valueText, 2, Len(valueText) - 2)
+    mp_TryParseBacktickString = True
 End Function
 
 Private Function mp_DecodeEscapes(ByVal textValue As String) As String
@@ -616,4 +649,32 @@ Private Function mp_DecodeEscapes(ByVal textValue As String) As String
     result = Replace(result, "\\", "\")
 
     mp_DecodeEscapes = result
+End Function
+
+Private Function mp_TrimOuterWhitespace(ByVal textValue As String) As String
+    Dim startPos As Long
+    Dim endPos As Long
+    Dim ch As String
+
+    textValue = CStr(textValue)
+    startPos = 1
+    endPos = Len(textValue)
+
+    Do While startPos <= endPos
+        ch = Mid$(textValue, startPos, 1)
+        If ch <> " " And ch <> vbTab And ch <> vbCr And ch <> vbLf Then Exit Do
+        startPos = startPos + 1
+    Loop
+
+    Do While endPos >= startPos
+        ch = Mid$(textValue, endPos, 1)
+        If ch <> " " And ch <> vbTab And ch <> vbCr And ch <> vbLf Then Exit Do
+        endPos = endPos - 1
+    Loop
+
+    If endPos < startPos Then
+        mp_TrimOuterWhitespace = vbNullString
+    Else
+        mp_TrimOuterWhitespace = Mid$(textValue, startPos, endPos - startPos + 1)
+    End If
 End Function

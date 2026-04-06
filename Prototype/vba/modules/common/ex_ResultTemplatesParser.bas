@@ -14,20 +14,33 @@ Private Const PROFILES_NS As String = "urn:excelprototype:profiles"
 ' - {#_}
 ' Reserved trim-indentation token:
 ' - #_    (removes token and horizontal whitespace after it)
+' Reserved forced line-break token:
+' - #newline
+' - {#newline}
 ' Reserved computed-value token:
 ' - #let varName = $ModuleName.MethodName(arg1, arg2);
 ' Reserved if-condition unary operator:
 ' - #not
 ' Reserved if-condition numeric comparison operators:
 ' - ==, !=, >, <, >=, <=
+' Reserved loop block:
+' - {#for item in Collection}
+' - {#endfor}
+' Reserved shared-template include token:
+' - {#include SharedTemplateId}
 Private Const NUMERIC_OFFSET_TOKEN_PATTERN As String = "\{([+-]\d+)\}"
 Private Const LEGACY_DAY_TOKEN_PATTERN As String = "\{#dd(?:[+-]\d+)?\}"
 Private Const RESERVED_JOINLINE_TOKEN As String = "{#^}"
 Private Const RESERVED_JOINLINE_TOKEN_SHORT As String = "#^"
 Private Const RESERVED_JOINLINE_TOKEN_LEGACY As String = "{#_}"
 Private Const RESERVED_TRIMINDENT_TOKEN_SHORT As String = "#_"
+Private Const RESERVED_NEWLINE_TOKEN As String = "{#newline}"
+Private Const RESERVED_NEWLINE_TOKEN_SHORT As String = "#newline"
 Private Const IF_BLOCK_OPEN As String = "{#if"
 Private Const IF_BLOCK_CLOSE As String = "{#endif}"
+Private Const FOR_BLOCK_OPEN As String = "{#for"
+Private Const FOR_BLOCK_CLOSE As String = "{#endfor}"
+Private Const INCLUDE_BLOCK_OPEN As String = "{#include"
 Private Const BOOLEAN_TRUE As String = "true"
 Private Const BOOLEAN_FALSE As String = "false"
 
@@ -46,6 +59,7 @@ Private Const FORMATTER_TRUNCATE As String = "truncate"
 Private Const FORMATTER_REPLACE As String = "replace"
 Private Const FORMATTER_REGEX_REPLACE As String = "regexreplace"
 Private Const FORMATTER_DATEFORMAT As String = "dateformat"
+Private Const FORMATTER_DATEOFFSET As String = "dateoffset"
 Private Const FORMATTER_TO_DATE_DAY As String = "todate_day"
 Private Const FORMATTER_TO_DATE_DAY_WITH_MONTH As String = "todate_daywithmonth"
 Private Const FORMATTER_CALENDAR_DAYS_UA As String = "calendardaysua"
@@ -63,6 +77,8 @@ Private Const TEMPLATE_ERROR_PREFIX As String = "[TEMPLATE ERROR]"
 Private Const HIGHLIGHT_MARKER_START As String = "/Start"
 Private Const HIGHLIGHT_MARKER_END As String = "/End"
 Private Const DEFAULT_HIGHLIGHT_COLOR_HEX As String = "#66CCFF"
+
+Private g_TemplateCollections As Object
 
 Public Function m_GetTemplateText( _
     ByVal templateId As String, _
@@ -103,11 +119,145 @@ Public Function m_GetTemplateText( _
     End If
 
     templateText = CStr(node.Text)
+    templateText = mp_ExpandSharedTemplateIncludes(templateText, doc, templateId)
     m_GetTemplateText = mp_NormalizeTemplateText(templateText)
     Exit Function
 
 EH:
     m_GetTemplateText = mp_PrependTemplateError(vbNullString, "m_GetTemplateText('" & templateId & "', '" & templatesPath & "')")
+End Function
+
+Private Function mp_ExpandSharedTemplateIncludes( _
+    ByVal sourceText As String, _
+    ByVal doc As Object, _
+    ByVal templateId As String _
+) As String
+    Dim includeChain As Collection
+
+    Set includeChain = New Collection
+    mp_ExpandSharedTemplateIncludes = mp_ExpandSharedTemplateIncludesRecursive( _
+        CStr(sourceText), _
+        doc, _
+        CStr(templateId), _
+        includeChain _
+    )
+End Function
+
+Private Function mp_ExpandSharedTemplateIncludesRecursive( _
+    ByVal sourceText As String, _
+    ByVal doc As Object, _
+    ByVal ownerName As String, _
+    ByVal includeChain As Collection _
+) As String
+    Dim resultText As String
+    Dim rx As Object
+    Dim matches As Object
+    Dim includeId As String
+    Dim includeText As String
+    Dim expandedIncludeText As String
+    Dim matchStart As Long
+    Dim matchLen As Long
+
+    resultText = CStr(sourceText)
+    If Len(resultText) = 0 Then
+        mp_ExpandSharedTemplateIncludesRecursive = resultText
+        Exit Function
+    End If
+
+    Set rx = CreateObject("VBScript.RegExp")
+    rx.Global = False
+    rx.IgnoreCase = True
+    rx.MultiLine = True
+    rx.Pattern = "\{#include\s+([A-Za-z_][A-Za-z0-9_.-]*)\s*\}"
+
+    Do
+        Set matches = rx.Execute(resultText)
+        If matches Is Nothing Then Exit Do
+        If matches.Count = 0 Then Exit Do
+
+        includeId = mp_TrimWhitespace(CStr(matches(0).SubMatches(0)))
+        If Len(includeId) = 0 Then
+            Err.Raise vbObjectError + 1846, "ex_ResultTemplatesParser", _
+                "Invalid #include syntax in '" & CStr(ownerName) & "'. Use '{#include SharedTemplateId}'."
+        End If
+
+        If mp_IncludeChainContains(includeChain, includeId) Then
+            Err.Raise vbObjectError + 1847, "ex_ResultTemplatesParser", _
+                "Circular shared template include detected: " & mp_BuildIncludeChainText(includeChain, includeId) & "."
+        End If
+
+        includeText = mp_GetSharedTemplateTextById(doc, includeId)
+        includeChain.Add includeId
+        expandedIncludeText = mp_ExpandSharedTemplateIncludesRecursive(includeText, doc, "sharedTemplate '" & includeId & "'", includeChain)
+        includeChain.Remove includeChain.Count
+
+        matchStart = CLng(matches(0).FirstIndex)
+        matchLen = CLng(matches(0).Length)
+        resultText = Left$(resultText, matchStart) & expandedIncludeText & Mid$(resultText, matchStart + matchLen + 1)
+    Loop
+
+    If InStr(1, resultText, INCLUDE_BLOCK_OPEN, vbTextCompare) > 0 Then
+        Err.Raise vbObjectError + 1848, "ex_ResultTemplatesParser", _
+            "Invalid #include directive in '" & CStr(ownerName) & "'. Use '{#include SharedTemplateId}'."
+    End If
+
+    mp_ExpandSharedTemplateIncludesRecursive = resultText
+End Function
+
+Private Function mp_GetSharedTemplateTextById( _
+    ByVal doc As Object, _
+    ByVal sharedTemplateId As String _
+) As String
+    Dim node As Object
+    Dim xpath As String
+
+    sharedTemplateId = mp_TrimWhitespace(CStr(sharedTemplateId))
+    If Len(sharedTemplateId) = 0 Then
+        Err.Raise vbObjectError + 1849, "ex_ResultTemplatesParser", "Shared template id is empty."
+    End If
+
+    xpath = "/p:resultTemplates/p:sharedTemplates/p:sharedTemplate[@id=" & ex_XmlCore.m_XPathLiteral(sharedTemplateId) & "]/p:text"
+    Set node = doc.selectSingleNode(xpath)
+    If node Is Nothing Then
+        Err.Raise vbObjectError + 1850, "ex_ResultTemplatesParser", "Shared template not found: '" & sharedTemplateId & "'."
+    End If
+
+    mp_GetSharedTemplateTextById = CStr(node.Text)
+End Function
+
+Private Function mp_IncludeChainContains( _
+    ByVal includeChain As Collection, _
+    ByVal includeId As String _
+) As Boolean
+    Dim i As Long
+
+    If includeChain Is Nothing Then Exit Function
+
+    For i = 1 To includeChain.Count
+        If StrComp(CStr(includeChain(i)), CStr(includeId), vbBinaryCompare) = 0 Then
+            mp_IncludeChainContains = True
+            Exit Function
+        End If
+    Next i
+End Function
+
+Private Function mp_BuildIncludeChainText( _
+    ByVal includeChain As Collection, _
+    ByVal closingIncludeId As String _
+) As String
+    Dim i As Long
+
+    If Not includeChain Is Nothing Then
+        For i = 1 To includeChain.Count
+            If Len(mp_BuildIncludeChainText) > 0 Then mp_BuildIncludeChainText = mp_BuildIncludeChainText & " -> "
+            mp_BuildIncludeChainText = mp_BuildIncludeChainText & "'" & CStr(includeChain(i)) & "'"
+        Next i
+    End If
+
+    If Len(mp_BuildIncludeChainText) > 0 Then
+        mp_BuildIncludeChainText = mp_BuildIncludeChainText & " -> "
+    End If
+    mp_BuildIncludeChainText = mp_BuildIncludeChainText & "'" & CStr(closingIncludeId) & "'"
 End Function
 
 Public Function m_ReplaceToken( _
@@ -159,6 +309,379 @@ EH:
     m_ReplacePlaceholder = mp_PrependTemplateError(resultText, "m_ReplacePlaceholder('" & CStr(placeholderName) & "')")
 End Function
 
+Public Function m_ReplaceMultiPlaceholders( _
+    ByVal sourceText As String, _
+    ByVal placeholderMapText As String, _
+    Optional ByVal highlightColorHex As String = vbNullString _
+) As String
+    Dim resultText As String
+    Dim normalized As String
+    Dim lines As Variant
+    Dim parts As Variant
+    Dim itemSeparator As String
+    Dim i As Long
+
+    On Error GoTo EH
+
+    resultText = CStr(sourceText)
+    normalized = CStr(placeholderMapText)
+    normalized = Replace(normalized, vbCrLf, vbLf)
+    normalized = Replace(normalized, vbCr, vbLf)
+
+    If Len(Trim$(normalized)) = 0 Then
+        m_ReplaceMultiPlaceholders = resultText
+        Exit Function
+    End If
+
+    If InStr(1, normalized, vbLf, vbBinaryCompare) > 0 Then
+        lines = Split(normalized, vbLf)
+        For i = LBound(lines) To UBound(lines)
+            mp_ApplyPlaceholderMapEntry resultText, CStr(lines(i)), True, highlightColorHex
+        Next i
+        m_ReplaceMultiPlaceholders = resultText
+        Exit Function
+    End If
+
+    itemSeparator = ";"
+    If InStr(1, normalized, ";", vbBinaryCompare) = 0 Then
+        If InStr(1, normalized, ",", vbBinaryCompare) > 0 Then itemSeparator = ","
+    End If
+
+    parts = Split(normalized, itemSeparator)
+    For i = LBound(parts) To UBound(parts)
+        mp_ApplyPlaceholderMapEntry resultText, CStr(parts(i)), False, highlightColorHex
+    Next i
+
+    m_ReplaceMultiPlaceholders = resultText
+    Exit Function
+
+EH:
+    If Len(resultText) = 0 Then resultText = CStr(sourceText)
+    m_ReplaceMultiPlaceholders = mp_PrependTemplateError(resultText, "m_ReplaceMultiPlaceholders")
+End Function
+
+' Backward-compatible alias. Prefer m_ReplaceMultiPlaceholders in new scripts.
+Public Function m_ReplacePlaceholder2( _
+    ByVal sourceText As String, _
+    ByVal placeholderMapText As String, _
+    Optional ByVal highlightColorHex As String = vbNullString _
+) As String
+    m_ReplacePlaceholder2 = m_ReplaceMultiPlaceholders(sourceText, placeholderMapText, highlightColorHex)
+End Function
+
+Public Sub m_ClearCollections()
+    If Not g_TemplateCollections Is Nothing Then
+        g_TemplateCollections.RemoveAll
+    End If
+End Sub
+
+Public Sub m_AddCollectionItem( _
+    ByVal collectionName As String, _
+    ByVal itemMapText As String _
+)
+    Dim normalizedName As String
+    Dim collectionItems As Collection
+    Dim itemValues As Object
+
+    normalizedName = mp_TrimWhitespace(CStr(collectionName))
+    If Len(normalizedName) = 0 Then
+        Err.Raise vbObjectError + 1838, "ex_ResultTemplatesParser", "Collection name is empty for m_AddCollectionItem."
+    End If
+
+    Set itemValues = mp_ParsePlaceholderMapTextToDictionary(itemMapText)
+    Set collectionItems = mp_GetOrCreateTemplateCollection(normalizedName)
+    collectionItems.Add itemValues
+End Sub
+
+Public Function m_GetFirstCollectionItemFieldByRegex( _
+    ByVal collectionName As String, _
+    ByVal matchFieldName As String, _
+    ByVal regexPattern As String, _
+    Optional ByVal returnFieldName As String = vbNullString _
+) As String
+    Dim collectionItems As Collection
+    Dim itemValues As Object
+    Dim i As Long
+    Dim normalizedMatchFieldName As String
+    Dim normalizedReturnFieldName As String
+    Dim candidateValue As String
+    Dim regexFirstMatch As String
+
+    normalizedMatchFieldName = mp_TrimWhitespace(CStr(matchFieldName))
+    normalizedReturnFieldName = mp_TrimWhitespace(CStr(returnFieldName))
+    If Len(normalizedMatchFieldName) = 0 Then Exit Function
+    If Len(normalizedReturnFieldName) = 0 Then normalizedReturnFieldName = normalizedMatchFieldName
+
+    Set collectionItems = mp_GetTemplateCollectionItems(collectionName)
+    If collectionItems Is Nothing Then Exit Function
+    If collectionItems.Count = 0 Then Exit Function
+
+    For i = 1 To collectionItems.Count
+        Set itemValues = collectionItems(i)
+        candidateValue = mp_GetCollectionItemFieldValue(itemValues, normalizedMatchFieldName)
+        regexFirstMatch = ex_Helpers.m_RegexFirstMatch(candidateValue, CStr(regexPattern))
+        If Len(regexFirstMatch) > 0 Then
+            m_GetFirstCollectionItemFieldByRegex = mp_GetCollectionItemFieldValue(itemValues, normalizedReturnFieldName)
+            Exit Function
+        End If
+    Next i
+End Function
+
+Public Function m_HasCollectionItemFieldByRegex( _
+    ByVal collectionName As String, _
+    ByVal matchFieldName As String, _
+    ByVal regexPattern As String _
+) As String
+    Dim collectionItems As Collection
+    Dim itemValues As Object
+    Dim i As Long
+    Dim normalizedMatchFieldName As String
+    Dim candidateValue As String
+    Dim regexFirstMatch As String
+
+    normalizedMatchFieldName = mp_TrimWhitespace(CStr(matchFieldName))
+    If Len(normalizedMatchFieldName) = 0 Then
+        m_HasCollectionItemFieldByRegex = BOOLEAN_FALSE
+        Exit Function
+    End If
+
+    Set collectionItems = mp_GetTemplateCollectionItems(collectionName)
+    If collectionItems Is Nothing Then
+        m_HasCollectionItemFieldByRegex = BOOLEAN_FALSE
+        Exit Function
+    End If
+    If collectionItems.Count = 0 Then
+        m_HasCollectionItemFieldByRegex = BOOLEAN_FALSE
+        Exit Function
+    End If
+
+    For i = 1 To collectionItems.Count
+        Set itemValues = collectionItems(i)
+        candidateValue = mp_GetCollectionItemFieldValue(itemValues, normalizedMatchFieldName)
+        regexFirstMatch = ex_Helpers.m_RegexFirstMatch(candidateValue, CStr(regexPattern))
+        If Len(regexFirstMatch) > 0 Then
+            m_HasCollectionItemFieldByRegex = BOOLEAN_TRUE
+            Exit Function
+        End If
+    Next i
+
+    m_HasCollectionItemFieldByRegex = BOOLEAN_FALSE
+End Function
+
+Public Function m_ExtractFirstCollectionItemFieldByRegex( _
+    ByVal collectionName As String, _
+    ByVal matchFieldName As String, _
+    ByVal regexPattern As String, _
+    Optional ByVal returnFieldName As String = vbNullString _
+) As String
+    Dim collectionItems As Collection
+    Dim itemValues As Object
+    Dim i As Long
+    Dim normalizedMatchFieldName As String
+    Dim normalizedReturnFieldName As String
+    Dim candidateValue As String
+    Dim regexFirstMatch As String
+
+    normalizedMatchFieldName = mp_TrimWhitespace(CStr(matchFieldName))
+    normalizedReturnFieldName = mp_TrimWhitespace(CStr(returnFieldName))
+    If Len(normalizedMatchFieldName) = 0 Then Exit Function
+    If Len(normalizedReturnFieldName) = 0 Then normalizedReturnFieldName = normalizedMatchFieldName
+
+    Set collectionItems = mp_GetTemplateCollectionItems(collectionName)
+    If collectionItems Is Nothing Then Exit Function
+    If collectionItems.Count = 0 Then Exit Function
+
+    For i = 1 To collectionItems.Count
+        Set itemValues = collectionItems(i)
+        candidateValue = mp_GetCollectionItemFieldValue(itemValues, normalizedMatchFieldName)
+        regexFirstMatch = ex_Helpers.m_RegexFirstMatch(candidateValue, CStr(regexPattern))
+        If Len(regexFirstMatch) > 0 Then
+            m_ExtractFirstCollectionItemFieldByRegex = mp_GetCollectionItemFieldValue(itemValues, normalizedReturnFieldName)
+            collectionItems.Remove i
+            Exit Function
+        End If
+    Next i
+End Function
+
+Private Sub mp_ApplyPlaceholderMapEntry( _
+    ByRef sourceText As String, _
+    ByVal rawEntry As String, _
+    ByVal allowTrailingSemicolon As Boolean, _
+    ByVal highlightColorHex As String _
+)
+    Dim entryText As String
+    Dim sepPos As Long
+    Dim nameText As String
+    Dim valueText As String
+
+    entryText = Trim$(CStr(rawEntry))
+    If Len(entryText) = 0 Then Exit Sub
+
+    If allowTrailingSemicolon Then
+        If Right$(entryText, 1) = ";" Then
+            entryText = Trim$(Left$(entryText, Len(entryText) - 1))
+            If Len(entryText) = 0 Then Exit Sub
+        End If
+    End If
+
+    sepPos = InStr(1, entryText, ":", vbBinaryCompare)
+    If sepPos <= 1 Then
+        Err.Raise vbObjectError + 1835, "ex_ResultTemplatesParser", _
+            "Invalid placeholder map entry '" & entryText & "'. Expected 'Name:Value'."
+    End If
+
+    nameText = Trim$(Left$(entryText, sepPos - 1))
+    If Len(nameText) = 0 Then
+        Err.Raise vbObjectError + 1836, "ex_ResultTemplatesParser", "Placeholder name cannot be empty in map entry."
+    End If
+
+    valueText = Trim$(Mid$(entryText, sepPos + 1))
+    sourceText = m_ReplacePlaceholder(sourceText, nameText, valueText, highlightColorHex)
+End Sub
+
+Private Function mp_ParsePlaceholderMapTextToDictionary(ByVal placeholderMapText As String) As Object
+    Dim normalized As String
+    Dim lines As Variant
+    Dim parts As Variant
+    Dim itemSeparator As String
+    Dim i As Long
+    Dim valuesByKey As Object
+
+    normalized = CStr(placeholderMapText)
+    normalized = Replace(normalized, vbCrLf, vbLf)
+    normalized = Replace(normalized, vbCr, vbLf)
+    normalized = mp_TrimWhitespace(normalized)
+
+    Set valuesByKey = CreateObject("Scripting.Dictionary")
+    valuesByKey.CompareMode = 1 ' vbTextCompare
+
+    If Len(normalized) = 0 Then
+        Set mp_ParsePlaceholderMapTextToDictionary = valuesByKey
+        Exit Function
+    End If
+
+    If InStr(1, normalized, vbLf, vbBinaryCompare) > 0 Then
+        lines = Split(normalized, vbLf)
+        For i = LBound(lines) To UBound(lines)
+            mp_ApplyPlaceholderMapEntryToDictionary valuesByKey, CStr(lines(i)), True
+        Next i
+        Set mp_ParsePlaceholderMapTextToDictionary = valuesByKey
+        Exit Function
+    End If
+
+    itemSeparator = ";"
+    If InStr(1, normalized, ";", vbBinaryCompare) = 0 Then
+        If InStr(1, normalized, ",", vbBinaryCompare) > 0 Then itemSeparator = ","
+    End If
+
+    parts = Split(normalized, itemSeparator)
+    For i = LBound(parts) To UBound(parts)
+        mp_ApplyPlaceholderMapEntryToDictionary valuesByKey, CStr(parts(i)), False
+    Next i
+
+    Set mp_ParsePlaceholderMapTextToDictionary = valuesByKey
+End Function
+
+Private Sub mp_ApplyPlaceholderMapEntryToDictionary( _
+    ByVal valuesByKey As Object, _
+    ByVal rawEntry As String, _
+    ByVal allowTrailingSemicolon As Boolean _
+)
+    Dim entryText As String
+    Dim sepPos As Long
+    Dim nameText As String
+    Dim valueText As String
+
+    If valuesByKey Is Nothing Then
+        Err.Raise vbObjectError + 1839, "ex_ResultTemplatesParser", "Internal error: placeholder map dictionary is not initialized."
+    End If
+
+    entryText = Trim$(CStr(rawEntry))
+    If Len(entryText) = 0 Then Exit Sub
+
+    If allowTrailingSemicolon Then
+        If Right$(entryText, 1) = ";" Then
+            entryText = Trim$(Left$(entryText, Len(entryText) - 1))
+            If Len(entryText) = 0 Then Exit Sub
+        End If
+    End If
+
+    sepPos = InStr(1, entryText, ":", vbBinaryCompare)
+    If sepPos <= 1 Then
+        Err.Raise vbObjectError + 1840, "ex_ResultTemplatesParser", _
+            "Invalid collection item map entry '" & entryText & "'. Expected 'Name:Value'."
+    End If
+
+    nameText = Trim$(Left$(entryText, sepPos - 1))
+    If Len(nameText) = 0 Then
+        Err.Raise vbObjectError + 1841, "ex_ResultTemplatesParser", "Collection item field name cannot be empty in map entry."
+    End If
+
+    valueText = Trim$(Mid$(entryText, sepPos + 1))
+    valuesByKey(nameText) = valueText
+End Sub
+
+Private Function mp_GetOrCreateTemplateCollection(ByVal collectionName As String) As Collection
+    Dim normalizedName As String
+    Dim collectionItems As Collection
+
+    normalizedName = mp_TrimWhitespace(CStr(collectionName))
+    If Len(normalizedName) = 0 Then
+        Err.Raise vbObjectError + 1842, "ex_ResultTemplatesParser", "Collection name is empty."
+    End If
+
+    mp_EnsureTemplateCollectionsStore
+    If g_TemplateCollections.Exists(normalizedName) Then
+        Set mp_GetOrCreateTemplateCollection = g_TemplateCollections(normalizedName)
+        Exit Function
+    End If
+
+    Set collectionItems = New Collection
+    g_TemplateCollections.Add normalizedName, collectionItems
+    Set mp_GetOrCreateTemplateCollection = collectionItems
+End Function
+
+Private Function mp_GetTemplateCollectionItems(ByVal collectionName As String) As Collection
+    Dim normalizedName As String
+
+    normalizedName = mp_TrimWhitespace(CStr(collectionName))
+    If Len(normalizedName) = 0 Then
+        Set mp_GetTemplateCollectionItems = New Collection
+        Exit Function
+    End If
+
+    If g_TemplateCollections Is Nothing Then
+        Set mp_GetTemplateCollectionItems = New Collection
+        Exit Function
+    End If
+
+    If Not g_TemplateCollections.Exists(normalizedName) Then
+        Set mp_GetTemplateCollectionItems = New Collection
+        Exit Function
+    End If
+
+    Set mp_GetTemplateCollectionItems = g_TemplateCollections(normalizedName)
+End Function
+
+Private Function mp_GetCollectionItemFieldValue( _
+    ByVal itemValues As Object, _
+    ByVal fieldName As String _
+) As String
+    Dim normalizedFieldName As String
+    normalizedFieldName = mp_TrimWhitespace(CStr(fieldName))
+    If Len(normalizedFieldName) = 0 Then Exit Function
+    If itemValues Is Nothing Then Exit Function
+    If Not itemValues.Exists(normalizedFieldName) Then Exit Function
+    mp_GetCollectionItemFieldValue = CStr(itemValues(normalizedFieldName))
+End Function
+
+Private Sub mp_EnsureTemplateCollectionsStore()
+    If g_TemplateCollections Is Nothing Then
+        Set g_TemplateCollections = CreateObject("Scripting.Dictionary")
+        g_TemplateCollections.CompareMode = 1 ' vbTextCompare
+    End If
+End Sub
+
 Private Function mp_ResolveNumericOffsetForPlaceholderValue( _
     ByVal sourceValue As String, _
     ByVal offsetText As String, _
@@ -201,9 +724,11 @@ Public Function m_ResolveTemplate( _
     On Error GoTo EH
     ' Final pass for template text.
     m_ResolveTemplate = mp_ResolveTemplateLetBindings(CStr(sourceText), highlightColorHex)
+    m_ResolveTemplate = mp_ResolveForBlocks(m_ResolveTemplate, highlightColorHex)
     m_ResolveTemplate = mp_ResolveConditionalBlocks(m_ResolveTemplate)
     m_ResolveTemplate = mp_ResolveJoinLineTokens(m_ResolveTemplate)
     m_ResolveTemplate = mp_ResolveTrimIndentTokens(m_ResolveTemplate)
+    m_ResolveTemplate = mp_ResolveNewLineTokens(m_ResolveTemplate)
     m_ResolveTemplate = mp_ResolveDateExpressions(m_ResolveTemplate, baseDateText)
     m_ResolveTemplate = mp_CollapseUnresolvedPlaceholders(m_ResolveTemplate)
     m_ResolveTemplate = mp_CollapseHorizontalWhitespaceRuns(m_ResolveTemplate)
@@ -216,20 +741,29 @@ End Function
 Public Function m_ExtractHighlightSegments( _
     ByVal sourceText As String, _
     ByRef outSegments As Collection, _
-    Optional ByVal fallbackColorHex As String = vbNullString _
+    Optional ByVal fallbackColorHex As String = vbNullString, _
+    Optional ByVal includeNamedColorTags As Boolean = True _
 ) As String
     Dim resultText As String
     Dim scanPos As Long
-    Dim startPos As Long
-    Dim valueStartPos As Long
-    Dim endPos As Long
-    Dim prefixText As String
-    Dim valueText As String
+    Dim nextStartPos As Long
+    Dim nextEndPos As Long
+    Dim markerPos As Long
+    Dim markerTailPos As Long
+    Dim markerEndPos As Long
+    Dim isStartMarker As Boolean
+    Dim textChunk As String
     Dim colorHex As String
     Dim colorStartPos As Long
     Dim colorEndPos As Long
     Dim segmentStart As Long
+    Dim segmentLength As Long
     Dim segment As Object
+    Dim markerStartLen As Long
+    Dim markerEndLen As Long
+    Dim stackSize As Long
+    Dim stackStarts() As Long
+    Dim stackColors() As String
 
     On Error GoTo EH
 
@@ -238,53 +772,115 @@ Public Function m_ExtractHighlightSegments( _
     sourceText = CStr(sourceText)
     fallbackColorHex = mp_TrimWhitespace(CStr(fallbackColorHex))
     If Len(fallbackColorHex) = 0 Then fallbackColorHex = DEFAULT_HIGHLIGHT_COLOR_HEX
+    If includeNamedColorTags Then
+        sourceText = mp_ConvertNamedColorTagsToHighlightMarkers(sourceText)
+    End If
 
+    markerStartLen = Len(HIGHLIGHT_MARKER_START)
+    markerEndLen = Len(HIGHLIGHT_MARKER_END)
     scanPos = 1
-    Do
-        startPos = InStr(scanPos, sourceText, HIGHLIGHT_MARKER_START, vbBinaryCompare)
-        If startPos = 0 Then
+    Do While scanPos <= Len(sourceText)
+        nextStartPos = InStr(scanPos, sourceText, HIGHLIGHT_MARKER_START, vbBinaryCompare)
+        nextEndPos = InStr(scanPos, sourceText, HIGHLIGHT_MARKER_END, vbBinaryCompare)
+
+        If nextStartPos = 0 And nextEndPos = 0 Then
             resultText = resultText & Mid$(sourceText, scanPos)
             Exit Do
         End If
 
-        prefixText = Mid$(sourceText, scanPos, startPos - scanPos)
-        resultText = resultText & prefixText
+        isStartMarker = False
+        markerPos = 0
+        If nextStartPos > 0 Then
+            If nextEndPos = 0 Or nextStartPos <= nextEndPos Then
+                isStartMarker = True
+                markerPos = nextStartPos
+            Else
+                markerPos = nextEndPos
+            End If
+        Else
+            markerPos = nextEndPos
+        End If
 
-        valueStartPos = startPos + Len(HIGHLIGHT_MARKER_START)
-        colorHex = fallbackColorHex
+        If markerPos > scanPos Then
+            textChunk = Mid$(sourceText, scanPos, markerPos - scanPos)
+            resultText = resultText & textChunk
+        End If
 
-        If valueStartPos <= Len(sourceText) Then
-            If Mid$(sourceText, valueStartPos, 1) = "(" Then
-                colorStartPos = valueStartPos + 1
-                colorEndPos = InStr(colorStartPos, sourceText, ")", vbBinaryCompare)
-                If colorEndPos > 0 Then
-                    colorHex = mp_TrimWhitespace(Mid$(sourceText, colorStartPos, colorEndPos - colorStartPos))
-                    If Len(colorHex) = 0 Then colorHex = fallbackColorHex
-                    valueStartPos = colorEndPos + 1
+        If isStartMarker Then
+            markerTailPos = markerPos + markerStartLen
+            colorHex = fallbackColorHex
+
+            If markerTailPos <= Len(sourceText) Then
+                If Mid$(sourceText, markerTailPos, 1) = "(" Then
+                    colorStartPos = markerTailPos + 1
+                    colorEndPos = InStr(colorStartPos, sourceText, ")", vbBinaryCompare)
+                    If colorEndPos > 0 Then
+                        colorHex = mp_TrimWhitespace(Mid$(sourceText, colorStartPos, colorEndPos - colorStartPos))
+                        If Len(colorHex) = 0 Then colorHex = fallbackColorHex
+                        markerTailPos = colorEndPos + 1
+                    End If
                 End If
             End If
+
+            stackSize = stackSize + 1
+            ReDim Preserve stackStarts(1 To stackSize)
+            ReDim Preserve stackColors(1 To stackSize)
+            stackStarts(stackSize) = CLng(Len(resultText) + 1)
+            stackColors(stackSize) = CStr(colorHex)
+
+            scanPos = markerTailPos
+        Else
+            markerEndPos = markerPos + markerEndLen
+            If stackSize > 0 Then
+                segmentStart = CLng(stackStarts(stackSize))
+                colorHex = CStr(stackColors(stackSize))
+                segmentLength = Len(resultText) - segmentStart + 1
+                If segmentStart > 0 And segmentLength > 0 Then
+                    Set segment = CreateObject("Scripting.Dictionary")
+                    segment.CompareMode = 1 ' vbTextCompare
+                    segment("Start") = segmentStart
+                    segment("Length") = CLng(segmentLength)
+                    segment("ColorHex") = CStr(colorHex)
+                    outSegments.Add segment
+                End If
+
+                stackSize = stackSize - 1
+                If stackSize > 0 Then
+                    ReDim Preserve stackStarts(1 To stackSize)
+                    ReDim Preserve stackColors(1 To stackSize)
+                Else
+                    Erase stackStarts
+                    Erase stackColors
+                End If
+            Else
+                resultText = resultText & HIGHLIGHT_MARKER_END
+            End If
+
+            scanPos = markerEndPos
         End If
+    Loop
 
-        endPos = InStr(valueStartPos, sourceText, HIGHLIGHT_MARKER_END, vbBinaryCompare)
-        If endPos = 0 Then
-            resultText = resultText & Mid$(sourceText, startPos)
-            Exit Do
-        End If
-
-        valueText = Mid$(sourceText, valueStartPos, endPos - valueStartPos)
-        segmentStart = Len(resultText) + 1
-        resultText = resultText & valueText
-
-        If Len(valueText) > 0 Then
+    Do While stackSize > 0
+        segmentStart = CLng(stackStarts(stackSize))
+        colorHex = CStr(stackColors(stackSize))
+        segmentLength = Len(resultText) - segmentStart + 1
+        If segmentStart > 0 And segmentLength > 0 Then
             Set segment = CreateObject("Scripting.Dictionary")
             segment.CompareMode = 1 ' vbTextCompare
-            segment("Start") = CLng(segmentStart)
-            segment("Length") = CLng(Len(valueText))
+            segment("Start") = segmentStart
+            segment("Length") = CLng(segmentLength)
             segment("ColorHex") = CStr(colorHex)
             outSegments.Add segment
         End If
 
-        scanPos = endPos + Len(HIGHLIGHT_MARKER_END)
+        stackSize = stackSize - 1
+        If stackSize > 0 Then
+            ReDim Preserve stackStarts(1 To stackSize)
+            ReDim Preserve stackColors(1 To stackSize)
+        Else
+            Erase stackStarts
+            Erase stackColors
+        End If
     Loop
 
     m_ExtractHighlightSegments = resultText
@@ -298,7 +894,145 @@ End Function
 Public Function m_RemoveHighlightMarkers(ByVal sourceText As String) As String
     Dim segments As Collection
 
-    m_RemoveHighlightMarkers = m_ExtractHighlightSegments(CStr(sourceText), segments, DEFAULT_HIGHLIGHT_COLOR_HEX)
+    m_RemoveHighlightMarkers = m_ExtractHighlightSegments(CStr(sourceText), segments, DEFAULT_HIGHLIGHT_COLOR_HEX, False)
+End Function
+
+Private Function mp_ConvertNamedColorTagsToHighlightMarkers(ByVal sourceText As String) As String
+    Dim rxBegin As Object
+    Dim rxEnd As Object
+    Dim matches As Object
+    Dim colorToken As String
+    Dim colorHex As String
+    Dim matchStart As Long
+    Dim matchLen As Long
+    Dim resultText As String
+
+    resultText = CStr(sourceText)
+    If Len(resultText) = 0 Then
+        mp_ConvertNamedColorTagsToHighlightMarkers = resultText
+        Exit Function
+    End If
+
+    Set rxBegin = CreateObject("VBScript.RegExp")
+    rxBegin.Global = False
+    rxBegin.IgnoreCase = True
+    rxBegin.MultiLine = True
+    rxBegin.Pattern = "\{#color_([A-Za-z0-9_-]+)_begin\}"
+
+    Do
+        Set matches = rxBegin.Execute(resultText)
+        If matches Is Nothing Then Exit Do
+        If matches.Count = 0 Then Exit Do
+
+        colorToken = CStr(matches(0).SubMatches(0))
+        If Not mp_TryResolveNamedColorHex(colorToken, colorHex) Then
+            Err.Raise vbObjectError + 1851, "ex_ResultTemplatesParser", _
+                "Unknown named color token '#color_" & colorToken & "_begin'. Use known color name (red/green/blue/...) or hex form 'hex_RRGGBB'."
+        End If
+
+        matchStart = CLng(matches(0).FirstIndex) + 1
+        matchLen = CLng(matches(0).Length)
+        resultText = Left$(resultText, matchStart - 1) & HIGHLIGHT_MARKER_START & "(" & colorHex & ")" & Mid$(resultText, matchStart + matchLen)
+    Loop
+
+    Set rxEnd = CreateObject("VBScript.RegExp")
+    rxEnd.Global = True
+    rxEnd.IgnoreCase = True
+    rxEnd.MultiLine = True
+    rxEnd.Pattern = "\{#color_[A-Za-z0-9_-]+_end\}"
+    resultText = rxEnd.Replace(resultText, HIGHLIGHT_MARKER_END)
+
+    rxEnd.Pattern = "\{#color_end\}"
+    resultText = rxEnd.Replace(resultText, HIGHLIGHT_MARKER_END)
+
+    mp_ConvertNamedColorTagsToHighlightMarkers = resultText
+End Function
+
+Private Function mp_TryResolveNamedColorHex( _
+    ByVal colorToken As String, _
+    ByRef outColorHex As String _
+) As Boolean
+    Dim normalized As String
+
+    normalized = LCase$(mp_TrimWhitespace(CStr(colorToken)))
+    If Len(normalized) = 0 Then Exit Function
+
+    Select Case normalized
+        Case "red"
+            outColorHex = "#FF0000"
+            mp_TryResolveNamedColorHex = True
+            Exit Function
+        Case "green"
+            outColorHex = "#008000"
+            mp_TryResolveNamedColorHex = True
+            Exit Function
+        Case "blue"
+            outColorHex = "#0000FF"
+            mp_TryResolveNamedColorHex = True
+            Exit Function
+        Case "cyan"
+            outColorHex = "#00B7FF"
+            mp_TryResolveNamedColorHex = True
+            Exit Function
+        Case "orange"
+            outColorHex = "#FFA500"
+            mp_TryResolveNamedColorHex = True
+            Exit Function
+        Case "yellow"
+            outColorHex = "#FFD700"
+            mp_TryResolveNamedColorHex = True
+            Exit Function
+        Case "purple"
+            outColorHex = "#800080"
+            mp_TryResolveNamedColorHex = True
+            Exit Function
+        Case "teal"
+            outColorHex = "#008080"
+            mp_TryResolveNamedColorHex = True
+            Exit Function
+        Case "gray", "grey"
+            outColorHex = "#808080"
+            mp_TryResolveNamedColorHex = True
+            Exit Function
+        Case "black"
+            outColorHex = "#000000"
+            mp_TryResolveNamedColorHex = True
+            Exit Function
+        Case "white"
+            outColorHex = "#FFFFFF"
+            mp_TryResolveNamedColorHex = True
+            Exit Function
+    End Select
+
+    If Left$(normalized, 4) = "hex_" Then
+        normalized = Mid$(normalized, 5)
+    End If
+    If Left$(normalized, 1) = "#" Then
+        normalized = Mid$(normalized, 2)
+    End If
+
+    If mp_IsHexColorLiteral(normalized) Then
+        outColorHex = "#" & UCase$(normalized)
+        mp_TryResolveNamedColorHex = True
+    End If
+End Function
+
+Private Function mp_IsHexColorLiteral(ByVal colorText As String) As Boolean
+    Dim rx As Object
+    Dim matches As Object
+
+    colorText = mp_TrimWhitespace(CStr(colorText))
+    If Len(colorText) = 0 Then Exit Function
+
+    Set rx = CreateObject("VBScript.RegExp")
+    rx.Global = False
+    rx.IgnoreCase = True
+    rx.MultiLine = False
+    rx.Pattern = "^[0-9A-F]{6}([0-9A-F]{2})?$"
+
+    Set matches = rx.Execute(UCase$(colorText))
+    If matches Is Nothing Then Exit Function
+    If matches.Count > 0 Then mp_IsHexColorLiteral = True
 End Function
 
 Private Function mp_ShouldCollapsePlaceholderValue(ByVal replacementText As String) As Boolean
@@ -646,7 +1380,8 @@ Private Function mp_IsPlaceholderNamePartChar(ByVal ch As String) As Boolean
         ((ch >= "A" And ch <= "Z") Or _
          (ch >= "a" And ch <= "z") Or _
          (ch >= "0" And ch <= "9") Or _
-         ch = "_")
+         ch = "_" Or _
+         ch = ".")
 End Function
 
 Private Function mp_FindNextNonWhitespacePosition( _
@@ -903,6 +1638,7 @@ Private Function mp_ApplyFormatterAction(ByVal sourceValue As String, ByVal acti
     Dim regexPattern As String
     Dim regexReplaceTo As String
     Dim maxLen As Long
+    Dim dateOffsetValue As Double
 
     actionSpec = mp_TrimWhitespace(CStr(actionSpec))
     colonPos = InStr(1, actionSpec, ":", vbBinaryCompare)
@@ -963,6 +1699,17 @@ Private Function mp_ApplyFormatterAction(ByVal sourceValue As String, ByVal acti
                 Err.Raise vbObjectError + 1801, "ex_ResultTemplatesParser", "dateformat requires non-empty format argument: '" & actionSpec & "'."
             End If
             mp_ApplyFormatterAction = ex_DateHelpers.m_FormatDateByPattern(CStr(sourceValue), actionArgs)
+            Exit Function
+
+        Case FORMATTER_DATEOFFSET
+            actionArgs = mp_UnquoteFormatterArgument(actionArgs)
+            If Len(actionArgs) = 0 Then
+                Err.Raise vbObjectError + 1852, "ex_ResultTemplatesParser", "dateoffset requires signed integer argument: '" & actionSpec & "'."
+            End If
+            If Not mp_TryParseSignedInteger(actionArgs, dateOffsetValue) Then
+                Err.Raise vbObjectError + 1853, "ex_ResultTemplatesParser", "dateoffset requires signed integer argument like '+1' or '-1': '" & actionSpec & "'."
+            End If
+            mp_ApplyFormatterAction = ex_DateHelpers.m_AddDaysToDate(CStr(sourceValue), CStr(CLng(dateOffsetValue)), CStr(sourceValue))
             Exit Function
 
         Case Else
@@ -1039,29 +1786,90 @@ Private Function mp_IndexOfDelimiterOutsideQuotedLiterals( _
         If Len(quoteChar) = 0 Then
             If ch = """" Or ch = "'" Then
                 quoteChar = ch
-            ElseIf ch = delimiterChar Then
+                i = i + 1
+                GoTo ContinueLoop
+            End If
+            If ch = delimiterChar Then
                 mp_IndexOfDelimiterOutsideQuotedLiterals = i
                 Exit Function
             End If
             i = i + 1
-        Else
-            If ch = "\" Then
-                If i < textLen Then
-                    i = i + 2
-                Else
-                    i = i + 1
-                End If
-            ElseIf ch = quoteChar Then
-                quoteChar = vbNullString
-                i = i + 1
+            GoTo ContinueLoop
+        End If
+
+        If ch = "\" Then
+            If i < textLen Then
+                i = i + 2
             Else
                 i = i + 1
             End If
+            GoTo ContinueLoop
         End If
+
+        If ch = quoteChar Then
+            If i < textLen Then
+                If Mid$(sourceText, i + 1, 1) = quoteChar Then
+                    If mp_IsQuoteTerminatorForDelimiter(sourceText, i + 1, delimiterChar) Then
+                        quoteChar = vbNullString
+                    End If
+                    i = i + 2
+                    GoTo ContinueLoop
+                End If
+            End If
+
+            If mp_IsQuoteTerminatorForDelimiter(sourceText, i, delimiterChar) Then
+                quoteChar = vbNullString
+            End If
+            i = i + 1
+            GoTo ContinueLoop
+        End If
+
+        i = i + 1
+ContinueLoop:
     Loop
 
     If Len(quoteChar) > 0 Then
         Err.Raise vbObjectError + 1833, "ex_ResultTemplatesParser", "Unclosed string literal in formatter expression: '" & sourceText & "'."
+    End If
+End Function
+
+Private Function mp_IsQuoteTerminatorForDelimiter( _
+    ByVal sourceText As String, _
+    ByVal quotePos As Long, _
+    ByVal delimiterChar As String _
+) As Boolean
+    Dim nextPos As Long
+    Dim nextChar As String
+    Dim textLen As Long
+
+    sourceText = CStr(sourceText)
+    delimiterChar = CStr(delimiterChar)
+    If Len(delimiterChar) <> 1 Then Exit Function
+    If quotePos < 1 Then Exit Function
+
+    textLen = Len(sourceText)
+    nextPos = quotePos + 1
+    If nextPos > textLen Then
+        mp_IsQuoteTerminatorForDelimiter = True
+        Exit Function
+    End If
+
+    nextChar = Mid$(sourceText, nextPos, 1)
+    If nextChar = delimiterChar Then
+        mp_IsQuoteTerminatorForDelimiter = True
+        Exit Function
+    End If
+    If Not mp_IsWhitespaceChar(nextChar) Then Exit Function
+
+    nextPos = mp_FindNextNonWhitespacePosition(sourceText, nextPos + 1)
+    If nextPos = 0 Then
+        mp_IsQuoteTerminatorForDelimiter = True
+        Exit Function
+    End If
+
+    nextChar = Mid$(sourceText, nextPos, 1)
+    If nextChar = delimiterChar Then
+        mp_IsQuoteTerminatorForDelimiter = True
     End If
 End Function
 
@@ -1648,14 +2456,9 @@ Private Function mp_EvaluateTemplateLetExpression(ByVal expressionText As String
 End Function
 
 Private Function mp_SplitLetExpressionArgs(ByVal argsText As String) As Variant
+    Dim rawParts As Collection
     Dim parts() As String
-    Dim currentPart As String
-    Dim ch As String
     Dim i As Long
-    Dim normalizedPart As String
-    Dim count As Long
-    Dim inSingleQuote As Boolean
-    Dim inDoubleQuote As Boolean
 
     argsText = mp_TrimWhitespace(CStr(argsText))
     If Len(argsText) = 0 Then
@@ -1663,47 +2466,21 @@ Private Function mp_SplitLetExpressionArgs(ByVal argsText As String) As Variant
         Exit Function
     End If
 
-    ReDim parts(0 To Len(argsText))
-
-    For i = 1 To Len(argsText)
-        ch = Mid$(argsText, i, 1)
-        If ch = "'" And Not inDoubleQuote Then
-            inSingleQuote = Not inSingleQuote
-            currentPart = currentPart & ch
-            GoTo ContinueChar
-        End If
-        If ch = """" And Not inSingleQuote Then
-            inDoubleQuote = Not inDoubleQuote
-            currentPart = currentPart & ch
-            GoTo ContinueChar
-        End If
-
-        If ch = "," And Not inSingleQuote And Not inDoubleQuote Then
-            normalizedPart = mp_TrimWhitespace(currentPart)
-            If Len(normalizedPart) > 0 Then
-                parts(count) = normalizedPart
-                count = count + 1
-            End If
-            currentPart = vbNullString
-            GoTo ContinueChar
-        End If
-
-        currentPart = currentPart & ch
-ContinueChar:
-    Next i
-
-    normalizedPart = mp_TrimWhitespace(currentPart)
-    If Len(normalizedPart) > 0 Then
-        parts(count) = normalizedPart
-        count = count + 1
+    Set rawParts = mp_SplitByDelimiterOutsideQuotedLiterals(argsText, ",")
+    If rawParts Is Nothing Then
+        mp_SplitLetExpressionArgs = Array()
+        Exit Function
     End If
-
-    If count = 0 Then
+    If rawParts.Count = 0 Then
         mp_SplitLetExpressionArgs = Array()
         Exit Function
     End If
 
-    ReDim Preserve parts(0 To count - 1)
+    ReDim parts(0 To rawParts.Count - 1)
+    For i = 1 To rawParts.Count
+        parts(i - 1) = mp_TrimWhitespace(CStr(rawParts(i)))
+    Next i
+
     mp_SplitLetExpressionArgs = parts
 End Function
 
@@ -1723,6 +2500,7 @@ Private Function mp_RunExternalTemplateHelper(ByVal helperRef As String, ByVal a
     Dim parsedArgs() As Variant
     Dim i As Long
     Dim invokeResult As Variant
+    Dim argsPreview As String
 
     methodRef = mp_TrimWhitespace(CStr(helperRef))
     If Left$(methodRef, 1) = "$" Then methodRef = Mid$(methodRef, 2)
@@ -1748,6 +2526,7 @@ Private Function mp_RunExternalTemplateHelper(ByVal helperRef As String, ByVal a
         Next i
     End If
 
+    On Error GoTo InvokeErr
     Select Case argCount
         Case 0
             invokeResult = Application.Run(methodRef)
@@ -1762,8 +2541,16 @@ Private Function mp_RunExternalTemplateHelper(ByVal helperRef As String, ByVal a
         Case 5
             invokeResult = Application.Run(methodRef, parsedArgs(0), parsedArgs(1), parsedArgs(2), parsedArgs(3), parsedArgs(4))
     End Select
+    On Error GoTo 0
 
     mp_RunExternalTemplateHelper = mp_NormalizeTemplateHelperResult(invokeResult, helperRef)
+    Exit Function
+
+InvokeErr:
+    argsPreview = mp_FormatTemplateHelperArgsForError(args)
+    Err.Raise vbObjectError + 1834, "ex_ResultTemplatesParser", _
+        "Template helper '" & helperRef & "' failed with " & CStr(argCount) & " args (" & argsPreview & "): " & _
+        "[" & CStr(Err.Source) & " #" & CStr(Err.Number) & "] " & CStr(Err.Description)
 End Function
 
 Private Function mp_ParseTemplateHelperArgument(ByVal argText As String) As Variant
@@ -1807,6 +2594,22 @@ Private Function mp_ParseTemplateHelperArgument(ByVal argText As String) As Vari
     End If
 
     mp_ParseTemplateHelperArgument = normalized
+End Function
+
+Private Function mp_FormatTemplateHelperArgsForError(ByVal args As Variant) As String
+    Dim argCount As Long
+    Dim i As Long
+    Dim parts() As String
+
+    argCount = mp_GetArrayItemCount(args)
+    If argCount <= 0 Then Exit Function
+
+    ReDim parts(0 To argCount - 1)
+    For i = 0 To argCount - 1
+        parts(i) = """" & Replace(CStr(args(i)), """", """""") & """"
+    Next i
+
+    mp_FormatTemplateHelperArgsForError = Join(parts, ", ")
 End Function
 
 Private Sub mp_ValidateTemplateHelperArgumentRaw( _
@@ -1879,6 +2682,165 @@ Private Function mp_NormalizeTemplateHelperResult(ByVal resultValue As Variant, 
     End If
 End Function
 
+Private Function mp_ResolveForBlocks( _
+    ByVal sourceText As String, _
+    Optional ByVal highlightColorHex As String = vbNullString _
+) As String
+    Dim resultText As String
+    Dim forOpenPos As Long
+    Dim headerEndPos As Long
+    Dim closeStartPos As Long
+    Dim closeEndPos As Long
+    Dim itemVarName As String
+    Dim collectionName As String
+    Dim innerTemplateText As String
+    Dim replacementText As String
+    Dim collectionItems As Collection
+
+    resultText = CStr(sourceText)
+
+    Do
+        forOpenPos = InStr(1, resultText, FOR_BLOCK_OPEN, vbTextCompare)
+        If forOpenPos = 0 Then Exit Do
+
+        If Not mp_TryParseForHeader(resultText, forOpenPos, headerEndPos, itemVarName, collectionName) Then
+            Err.Raise vbObjectError + 1843, "ex_ResultTemplatesParser", "Invalid for-block syntax near position " & CStr(forOpenPos) & ". Use '{#for item in Collection}'."
+        End If
+
+        If Not mp_TryFindMatchingForClose(resultText, headerEndPos + 1, closeStartPos, closeEndPos) Then
+            Err.Raise vbObjectError + 1844, "ex_ResultTemplatesParser", "Missing closing {#endfor} for for-block near position " & CStr(forOpenPos) & "."
+        End If
+
+        innerTemplateText = Mid$(resultText, headerEndPos + 1, closeStartPos - headerEndPos - 1)
+        Set collectionItems = mp_GetTemplateCollectionItems(collectionName)
+        replacementText = mp_RenderForBlock(innerTemplateText, itemVarName, collectionItems, highlightColorHex)
+
+        resultText = Left$(resultText, forOpenPos - 1) & replacementText & Mid$(resultText, closeEndPos + 1)
+    Loop
+
+    If InStr(1, resultText, FOR_BLOCK_CLOSE, vbTextCompare) > 0 Then
+        Err.Raise vbObjectError + 1845, "ex_ResultTemplatesParser", "Unexpected {#endfor} without matching {#for ...}."
+    End If
+
+    mp_ResolveForBlocks = resultText
+End Function
+
+Private Function mp_RenderForBlock( _
+    ByVal innerTemplateText As String, _
+    ByVal itemVarName As String, _
+    ByVal collectionItems As Collection, _
+    ByVal highlightColorHex As String _
+) As String
+    Dim i As Long
+    Dim itemValues As Object
+    Dim key As Variant
+    Dim iterationText As String
+    Dim itemPrefix As String
+    Dim loopFlag As String
+
+    itemPrefix = CStr(itemVarName) & "."
+
+    If collectionItems Is Nothing Then Exit Function
+    If collectionItems.Count = 0 Then Exit Function
+
+    For i = 1 To collectionItems.Count
+        iterationText = CStr(innerTemplateText)
+
+        Set itemValues = collectionItems(i)
+        If Not itemValues Is Nothing Then
+            For Each key In itemValues.Keys
+                iterationText = m_ReplacePlaceholder( _
+                    iterationText, _
+                    itemPrefix & CStr(key), _
+                    CStr(itemValues(CStr(key))), _
+                    highlightColorHex _
+                )
+            Next key
+        End If
+
+        iterationText = m_ReplacePlaceholder(iterationText, itemPrefix & "__index", CStr(i - 1), highlightColorHex)
+        loopFlag = BOOLEAN_FALSE
+        If i = 1 Then loopFlag = BOOLEAN_TRUE
+        iterationText = m_ReplacePlaceholder(iterationText, itemPrefix & "__first", loopFlag, highlightColorHex)
+        loopFlag = BOOLEAN_FALSE
+        If i = collectionItems.Count Then loopFlag = BOOLEAN_TRUE
+        iterationText = m_ReplacePlaceholder(iterationText, itemPrefix & "__last", loopFlag, highlightColorHex)
+
+        iterationText = mp_ResolveForBlocks(iterationText, highlightColorHex)
+        mp_RenderForBlock = mp_RenderForBlock & iterationText
+    Next i
+End Function
+
+Private Function mp_TryParseForHeader( _
+    ByVal sourceText As String, _
+    ByVal forOpenPos As Long, _
+    ByRef outHeaderEndPos As Long, _
+    ByRef outItemVarName As String, _
+    ByRef outCollectionName As String _
+) As Boolean
+    Dim closePos As Long
+    Dim rawHeader As String
+    Dim rx As Object
+    Dim matches As Object
+
+    If StrComp(Mid$(sourceText, forOpenPos, Len(FOR_BLOCK_OPEN)), FOR_BLOCK_OPEN, vbTextCompare) <> 0 Then Exit Function
+
+    closePos = InStr(forOpenPos + Len(FOR_BLOCK_OPEN), sourceText, "}", vbBinaryCompare)
+    If closePos = 0 Then Exit Function
+
+    rawHeader = Mid$(sourceText, forOpenPos + Len(FOR_BLOCK_OPEN), closePos - forOpenPos - Len(FOR_BLOCK_OPEN))
+    rawHeader = mp_TrimWhitespace(rawHeader)
+    If Len(rawHeader) = 0 Then Exit Function
+
+    Set rx = CreateObject("VBScript.RegExp")
+    rx.Global = False
+    rx.IgnoreCase = True
+    rx.MultiLine = False
+    rx.Pattern = "^([A-Za-z_][A-Za-z0-9_]*)\s+in\s+([A-Za-z_][A-Za-z0-9_]*)$"
+
+    Set matches = rx.Execute(rawHeader)
+    If matches Is Nothing Then Exit Function
+    If matches.Count = 0 Then Exit Function
+
+    outItemVarName = CStr(matches(0).SubMatches(0))
+    outCollectionName = CStr(matches(0).SubMatches(1))
+    outHeaderEndPos = closePos
+    mp_TryParseForHeader = True
+End Function
+
+Private Function mp_TryFindMatchingForClose( _
+    ByVal sourceText As String, _
+    ByVal searchFromPos As Long, _
+    ByRef outCloseStartPos As Long, _
+    ByRef outCloseEndPos As Long _
+) As Boolean
+    Dim depth As Long
+    Dim nextOpenPos As Long
+    Dim nextClosePos As Long
+
+    depth = 1
+    Do While searchFromPos <= Len(sourceText)
+        nextOpenPos = InStr(searchFromPos, sourceText, FOR_BLOCK_OPEN, vbTextCompare)
+        nextClosePos = InStr(searchFromPos, sourceText, FOR_BLOCK_CLOSE, vbTextCompare)
+
+        If nextClosePos = 0 Then Exit Function
+
+        If nextOpenPos > 0 And nextOpenPos < nextClosePos Then
+            depth = depth + 1
+            searchFromPos = nextOpenPos + Len(FOR_BLOCK_OPEN)
+        Else
+            depth = depth - 1
+            If depth = 0 Then
+                outCloseStartPos = nextClosePos
+                outCloseEndPos = nextClosePos + Len(FOR_BLOCK_CLOSE) - 1
+                mp_TryFindMatchingForClose = True
+                Exit Function
+            End If
+            searchFromPos = nextClosePos + Len(FOR_BLOCK_CLOSE)
+        End If
+    Loop
+End Function
+
 Private Function mp_ResolveConditionalBlocks(ByVal sourceText As String) As String
     Dim resultText As String
     Dim openPos As Long
@@ -1941,6 +2903,15 @@ Private Function mp_ResolveTrimIndentTokens(ByVal sourceText As String) As Strin
     resultText = CStr(sourceText)
     resultText = mp_ResolveTrimIndentToken(resultText, RESERVED_TRIMINDENT_TOKEN_SHORT)
     mp_ResolveTrimIndentTokens = resultText
+End Function
+
+Private Function mp_ResolveNewLineTokens(ByVal sourceText As String) As String
+    Dim resultText As String
+
+    resultText = CStr(sourceText)
+    resultText = Replace(resultText, RESERVED_NEWLINE_TOKEN, vbLf)
+    resultText = Replace(resultText, RESERVED_NEWLINE_TOKEN_SHORT, vbLf)
+    mp_ResolveNewLineTokens = resultText
 End Function
 
 Private Function mp_ResolveTrimIndentToken(ByVal sourceText As String, ByVal tokenText As String) As String

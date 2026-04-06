@@ -14,12 +14,7 @@
     <v key="Source.Events.FilePath">..\TESTS\GetReferences\PeopleEventsUA.xlsx</v>
     <v key="Source.Events.SheetAliases">EventsMain</v>
 
-    <v key="MultiKeys">Іванов Іван Іванович; Сидорова Анна Сергіївна</v>
-        <!-- Optional script-driven input mode:
-          <v key="Input.Mode">Script</v>
-          <preProcessScript include="ReportCreation_PreProcess_Implicit.jslike"/>
-        -->
-
+    <v key="KeysCollection" mutable="true">Іванов Іван Іванович; Сидорова Анна Сергіївна</v>
     <v type="#" key="StateMain"/>
     <v key="Main.Sheet[StateMain].Type">State</v>
     <v key="Main.Sheet[StateMain].SheetName">StateSheet</v>
@@ -44,10 +39,10 @@
     <v key="Events.Sheet[EventsMain].Map[Position]">Посада</v>
     <v key="Events.Sheet[EventsMain].Map[Salary]">Оклад</v>
 
-    <v key="Output.Sheets">StateMain; EventsMain</v>
     <v key="Output.Layout.Gap.Default">1</v>
     <v key="Output.Layout.Gap.OwnerDivider">0</v>
 
-    <postProcessScript execution="Implicit" include="ReportCreation_BatchHighlight_Implicit.jslike"/>
+		<preProcessScript include="PreProcessScript.jslike"/>
+    <postProcessScript execution="Implicit" include="PostProcessScript.jslike"/>
   </profile>
 </profiles>

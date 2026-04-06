@@ -4,6 +4,8 @@ Option Explicit
 Private Const PROFILES_NS As String = "urn:excelprototype:profiles"
 Private Const STYLE_PIPELINE_REL_PATH As String = "config\StylePipeline.xml"
 Private Const DEFAULT_STAGE_NAME As String = "default"
+Private Const KIND_SCOPE_ROW As String = "row"
+Private Const KIND_SCOPE_COLUMN As String = "column"
 Private Const SHEET_SCOPE_MIN_COL As Long = 40      ' AN
 Private Const SHEET_SCOPE_MIN_ROW As Long = 100
 Private Const SHEET_SCOPE_EXPAND_STEP As Long = 30
@@ -65,23 +67,176 @@ Public Sub m_AddLayer(ByVal pipeline As Collection, ByVal layer As obj_StyleLaye
     pipeline.Add layer
 End Sub
 
+Public Function m_CreateKindRanges() As Object
+    Set m_CreateKindRanges = CreateObject("Scripting.Dictionary")
+    m_CreateKindRanges.CompareMode = 1
+End Function
+
+Public Sub m_AddKindRange( _
+    ByVal kindRanges As Object, _
+    ByVal kindTags As String, _
+    ByVal rowStart As Long, _
+    ByVal colStart As Long, _
+    Optional ByVal rowEnd As Long = 0, _
+    Optional ByVal colEnd As Long = 0, _
+    Optional ByVal scopeName As String = KIND_SCOPE_ROW _
+)
+    Dim normalizedKinds As String
+    Dim tokens As Variant
+    Dim token As Variant
+    Dim tokenText As String
+    Dim entries As Collection
+    Dim entry As Object
+    Dim normalizedScope As String
+
+    If kindRanges Is Nothing Then Exit Sub
+
+    normalizedKinds = mp_NormalizeKindTags(kindTags)
+    If Len(normalizedKinds) = 0 Then Exit Sub
+    If rowStart <= 0 Then Exit Sub
+    If colStart <= 0 Then colStart = 1
+    If rowEnd <= 0 Then rowEnd = rowStart
+    If rowEnd < rowStart Then rowEnd = rowStart
+    If colEnd < 0 Then colEnd = 0
+    If colEnd > 0 And colEnd < colStart Then colEnd = colStart
+    normalizedScope = mp_NormalizeKindRangeScope(scopeName)
+
+    Set entry = CreateObject("Scripting.Dictionary")
+    entry.CompareMode = 1
+    entry("RowStart") = CLng(rowStart)
+    entry("RowEnd") = CLng(rowEnd)
+    entry("ColStart") = CLng(colStart)
+    entry("ColEnd") = CLng(colEnd)
+    entry("KindTags") = normalizedKinds
+    entry("Scope") = normalizedScope
+
+    tokens = Split(normalizedKinds, "|")
+    For Each token In tokens
+        tokenText = LCase$(Trim$(CStr(token)))
+        If Len(tokenText) = 0 Then GoTo ContinueToken
+
+        If kindRanges.Exists(tokenText) Then
+            Set entries = kindRanges(tokenText)
+        Else
+            Set entries = New Collection
+            Set kindRanges(tokenText) = entries
+        End If
+
+        entries.Add entry
+ContinueToken:
+    Next token
+End Sub
+
+Public Sub m_AddKindRangeFromRowEntry( _
+    ByVal kindRanges As Object, _
+    ByVal kindTags As String, _
+    ByVal rowEntry As Variant, _
+    Optional ByVal colStart As Long = 1, _
+    Optional ByVal colEnd As Long = 0, _
+    Optional ByVal scopeName As String = KIND_SCOPE_ROW _
+)
+    Dim obj As Object
+    Dim rowStart As Long
+    Dim rowEnd As Long
+
+    If kindRanges Is Nothing Then Exit Sub
+
+    If IsObject(rowEntry) Then
+        Set obj = rowEntry
+        If obj Is Nothing Then Exit Sub
+
+        On Error Resume Next
+        rowStart = CLng(obj("RowStart"))
+        rowEnd = CLng(obj("RowEnd"))
+        If Err.Number <> 0 Then
+            Err.Clear
+            On Error GoTo 0
+            Exit Sub
+        End If
+        On Error GoTo 0
+
+        If rowStart <= 0 Then Exit Sub
+        If rowEnd <= 0 Then rowEnd = rowStart
+        If rowEnd < rowStart Then rowEnd = rowStart
+        m_AddKindRange kindRanges, kindTags, rowStart, colStart, rowEnd, colEnd, scopeName
+        Exit Sub
+    End If
+
+    If IsNumeric(rowEntry) Then
+        rowStart = CLng(rowEntry)
+        If rowStart <= 0 Then Exit Sub
+        m_AddKindRange kindRanges, kindTags, rowStart, colStart, rowStart, colEnd, scopeName
+    End If
+End Sub
+
+Private Function mp_NormalizeKindRangeScope(ByVal scopeName As String) As String
+    scopeName = LCase$(Trim$(scopeName))
+    Select Case scopeName
+        Case KIND_SCOPE_COLUMN
+            mp_NormalizeKindRangeScope = KIND_SCOPE_COLUMN
+        Case Else
+            mp_NormalizeKindRangeScope = KIND_SCOPE_ROW
+    End Select
+End Function
+
+Private Function mp_NormalizeKindTags(ByVal rawKinds As String) As String
+    Dim result As String
+    Dim parts As Variant
+    Dim token As Variant
+    Dim tokenText As String
+
+    rawKinds = Trim$(rawKinds)
+    If Len(rawKinds) = 0 Then Exit Function
+
+    parts = Split(rawKinds, "|")
+    For Each token In parts
+        tokenText = LCase$(Trim$(CStr(token)))
+        If Len(tokenText) = 0 Then GoTo ContinueToken
+        If Len(result) = 0 Then
+            result = tokenText
+        ElseIf InStr(1, "|" & result & "|", "|" & tokenText & "|", vbBinaryCompare) = 0 Then
+            result = result & "|" & tokenText
+        End If
+ContinueToken:
+    Next token
+
+    mp_NormalizeKindTags = result
+End Function
+
 Private Sub mp_ApplyRowKindRule( _
     ByVal ws As Worksheet, _
     ByVal selector As Object, _
     ByVal declarations As Object, _
-    ByVal rowKindRanges As Object, _
     ByVal ruleId As String, _
+    ByVal kindRanges As Object, _
+    Optional ByVal kindSelectorCache As Object = Nothing, _
     Optional ByVal autoHeightState As Object = Nothing, _
-    Optional ByVal autoHeightOnly As Boolean = False _
+    Optional ByVal autoHeightOnly As Boolean = False, _
+    Optional ByVal expandNonFieldKindsToFullWidth As Boolean = True _
 )
     Dim kindName As String
-    Dim kindRanges As Collection
-    Dim rowEntry As Variant
+    Dim matchedRanges As Collection
+    Dim rangeEntry As Variant
+    Dim appliedRowSpans As Object
     Dim rowStart As Long
     Dim rowEnd As Long
     Dim colStart As Long
     Dim colEnd As Long
-    Dim scopeRange As Range
+    Dim entryColStart As Long
+    Dim entryColEnd As Long
+    Dim entryScope As String
+    Dim selectorRowStart As Long
+    Dim selectorRowEnd As Long
+    Dim selectorColStart As Long
+    Dim selectorColEnd As Long
+    Dim hasSelectorCol As Boolean
+    Dim hasSelectorRow As Boolean
+    Dim defaultLastCol As Long
+    Dim fullWidthEndCol As Long
+    Dim rowSpanKey As String
+    Dim batchedRanges As Object
+
+    If kindRanges Is Nothing Then Exit Sub
 
     kindName = LCase$(Trim$(CStr(selector("kind"))))
     If Len(kindName) = 0 Then
@@ -89,33 +244,364 @@ Private Sub mp_ApplyRowKindRule( _
             "Row rule '" & ruleId & "' has empty selector kind."
     End If
 
-    If rowKindRanges Is Nothing Then Exit Sub
-    If Not rowKindRanges.Exists(kindName) Then Exit Sub
+    If selector.Exists("row") Then
+        If Not mp_TryResolveRowSpan(CStr(selector("row")), selectorRowStart, selectorRowEnd) Then
+            Err.Raise vbObjectError + 1722, "ex_StylePipelineEngine", _
+                "Invalid selector row span for rule '" & ruleId & "': " & CStr(selector("row"))
+        End If
+        hasSelectorRow = True
+    End If
 
-    Set kindRanges = rowKindRanges(kindName)
-    If kindRanges Is Nothing Then Exit Sub
-    If kindRanges.Count = 0 Then Exit Sub
-
-    colStart = 1
-    colEnd = mp_GetLastUsedColumn(ws)
-    If colEnd < colStart Then colEnd = colStart
     If selector.Exists("col") Then
-        If Not mp_TryResolveColumnSpan(CStr(selector("col")), colStart, colEnd) Then
+        If Not mp_TryResolveColumnSpan(CStr(selector("col")), selectorColStart, selectorColEnd) Then
             Err.Raise vbObjectError + 1723, "ex_StylePipelineEngine", _
                 "Invalid selector col span for rule '" & ruleId & "': " & CStr(selector("col"))
         End If
+        hasSelectorCol = True
     End If
 
-    For Each rowEntry In kindRanges
-        If Not mp_TryResolveRowEntry(rowEntry, rowStart, rowEnd) Then GoTo ContinueRow
-        If rowStart <= 0 Then GoTo ContinueRow
-        If rowEnd < rowStart Then rowEnd = rowStart
+    Set matchedRanges = mp_GetKindRangeEntriesBySelectorCached(kindName, kindRanges, kindSelectorCache)
+    If matchedRanges Is Nothing Then Exit Sub
+    If matchedRanges.Count = 0 Then Exit Sub
 
-        Set scopeRange = ws.Range(ws.Cells(rowStart, colStart), ws.Cells(rowEnd, colEnd))
-        mp_ApplyDeclarations scopeRange, Nothing, declarations, Nothing, autoHeightState, autoHeightOnly
-ContinueRow:
-    Next rowEntry
+    Set appliedRowSpans = mp_CreateStringDictionary()
+    Set batchedRanges = mp_CreateStringDictionary()
+
+    For Each rangeEntry In matchedRanges
+        If Not mp_TryResolveKindRangeEntry(rangeEntry, rowStart, rowEnd, entryColStart, entryColEnd) Then GoTo ContinueRange
+        entryScope = mp_GetKindRangeScope(rangeEntry)
+        If StrComp(entryScope, KIND_SCOPE_ROW, vbTextCompare) <> 0 Then GoTo ContinueRange
+
+        If hasSelectorRow Then
+            If Not mp_TryIntersectSpans(rowStart, rowEnd, selectorRowStart, selectorRowEnd, rowStart, rowEnd) Then GoTo ContinueRange
+        End If
+
+        If hasSelectorCol Then
+            colStart = entryColStart
+            colEnd = entryColEnd
+            If colEnd <= 0 Then
+                If defaultLastCol <= 0 Then defaultLastCol = mp_GetLastUsedColumn(ws)
+                colEnd = defaultLastCol
+            End If
+            If colEnd < colStart Then colEnd = colStart
+            If Not mp_TryIntersectSpans(colStart, colEnd, selectorColStart, selectorColEnd, colStart, colEnd) Then GoTo ContinueRange
+        Else
+            If expandNonFieldKindsToFullWidth Then
+                colStart = 1
+                If fullWidthEndCol <= 0 Then fullWidthEndCol = mp_GetLastUsedColumn(ws)
+                colEnd = fullWidthEndCol
+                If colEnd < colStart Then colEnd = colStart
+
+                rowSpanKey = CStr(rowStart) & ":" & CStr(rowEnd)
+                If appliedRowSpans.Exists(rowSpanKey) Then GoTo ContinueRange
+                appliedRowSpans(rowSpanKey) = True
+            Else
+                colStart = entryColStart
+                colEnd = entryColEnd
+                If colEnd <= 0 Then
+                    If defaultLastCol <= 0 Then defaultLastCol = mp_GetLastUsedColumn(ws)
+                    colEnd = defaultLastCol
+                End If
+                If colEnd < colStart Then colEnd = colStart
+            End If
+        End If
+
+        mp_AddRectBatch batchedRanges, rowStart, rowEnd, colStart, colEnd
+ContinueRange:
+    Next rangeEntry
+
+    mp_ApplyRectBatches ws, batchedRanges, declarations, False, autoHeightState, autoHeightOnly
 End Sub
+
+Private Function mp_GetKindRangeEntriesBySelectorCached( _
+    ByVal selectorKindText As String, _
+    ByVal kindRanges As Object, _
+    Optional ByVal cache As Object = Nothing _
+) As Collection
+    Dim cacheKey As String
+    Dim cachedValue As Object
+    Dim resolved As Collection
+
+    If kindRanges Is Nothing Then
+        Set resolved = New Collection
+        Set mp_GetKindRangeEntriesBySelectorCached = resolved
+        Exit Function
+    End If
+
+    cacheKey = LCase$(Trim$(selectorKindText))
+    If Len(cacheKey) = 0 Then
+        Set resolved = New Collection
+        Set mp_GetKindRangeEntriesBySelectorCached = resolved
+        Exit Function
+    End If
+
+    If Not cache Is Nothing Then
+        If cache.Exists(cacheKey) Then
+            Set cachedValue = cache(cacheKey)
+            If Not cachedValue Is Nothing Then
+                Set mp_GetKindRangeEntriesBySelectorCached = cachedValue
+                Exit Function
+            End If
+        End If
+    End If
+
+    Set resolved = mp_CollectKindRangeEntriesBySelector(cacheKey, kindRanges)
+    If Not cache Is Nothing Then Set cache(cacheKey) = resolved
+    Set mp_GetKindRangeEntriesBySelectorCached = resolved
+End Function
+
+Private Function mp_CollectKindRangeEntriesBySelector( _
+    ByVal selectorKindText As String, _
+    ByVal kindRanges As Object _
+) As Collection
+    Dim result As Collection
+    Dim normalizedSelector As String
+    Dim seen As Object
+    Dim kindMatchCache As Object
+    Dim kindKey As Variant
+    Dim entries As Collection
+    Dim entry As Variant
+    Dim kindTags As String
+    Dim isMatch As Boolean
+
+    Set result = New Collection
+    If kindRanges Is Nothing Then
+        Set mp_CollectKindRangeEntriesBySelector = result
+        Exit Function
+    End If
+
+    normalizedSelector = mp_NormalizeKindTags(selectorKindText)
+    If Len(normalizedSelector) = 0 Then
+        Set mp_CollectKindRangeEntriesBySelector = result
+        Exit Function
+    End If
+
+    If Not mp_SelectorKindUsesPatterns(normalizedSelector) Then
+        Set mp_CollectKindRangeEntriesBySelector = mp_CollectKindRangeEntriesByExactTokens(normalizedSelector, kindRanges)
+        Exit Function
+    End If
+
+    Set seen = CreateObject("Scripting.Dictionary")
+    seen.CompareMode = 1
+    Set kindMatchCache = CreateObject("Scripting.Dictionary")
+    kindMatchCache.CompareMode = 1
+
+    For Each kindKey In kindRanges.Keys
+        Set entries = kindRanges(kindKey)
+        If entries Is Nothing Then GoTo ContinueKind
+
+        For Each entry In entries
+            If Not mp_TryGetKindTagsFromRangeEntry(entry, CStr(kindKey), kindTags) Then GoTo ContinueEntry
+
+            If kindMatchCache.Exists(kindTags) Then
+                isMatch = CBool(kindMatchCache(kindTags))
+            Else
+                isMatch = mp_KindTagsMatchSelector(kindTags, normalizedSelector)
+                kindMatchCache(kindTags) = isMatch
+            End If
+            If Not isMatch Then GoTo ContinueEntry
+
+            mp_AppendKindRangeEntryUnique result, seen, entry, kindTags
+ContinueEntry:
+        Next entry
+ContinueKind:
+    Next kindKey
+
+    Set mp_CollectKindRangeEntriesBySelector = result
+End Function
+
+Private Function mp_CollectKindRangeEntriesByExactTokens( _
+    ByVal selectorKindText As String, _
+    ByVal kindRanges As Object _
+) As Collection
+    Dim result As Collection
+    Dim seen As Object
+    Dim kindMatchCache As Object
+    Dim tokens As Variant
+    Dim token As Variant
+    Dim tokenText As String
+    Dim entries As Collection
+    Dim entry As Variant
+    Dim kindTags As String
+    Dim isMatch As Boolean
+
+    Set result = New Collection
+    If kindRanges Is Nothing Then
+        Set mp_CollectKindRangeEntriesByExactTokens = result
+        Exit Function
+    End If
+
+    Set seen = CreateObject("Scripting.Dictionary")
+    seen.CompareMode = 1
+    Set kindMatchCache = CreateObject("Scripting.Dictionary")
+    kindMatchCache.CompareMode = 1
+
+    tokens = Split(selectorKindText, "|")
+    For Each token In tokens
+        tokenText = LCase$(Trim$(CStr(token)))
+        If Len(tokenText) = 0 Then GoTo ContinueToken
+        If Not kindRanges.Exists(tokenText) Then GoTo ContinueToken
+
+        Set entries = kindRanges(tokenText)
+        If entries Is Nothing Then GoTo ContinueToken
+
+        For Each entry In entries
+            If Not mp_TryGetKindTagsFromRangeEntry(entry, tokenText, kindTags) Then GoTo ContinueEntry
+
+            If kindMatchCache.Exists(kindTags) Then
+                isMatch = CBool(kindMatchCache(kindTags))
+            Else
+                isMatch = mp_KindTagsMatchSelector(kindTags, selectorKindText)
+                kindMatchCache(kindTags) = isMatch
+            End If
+            If Not isMatch Then GoTo ContinueEntry
+
+            mp_AppendKindRangeEntryUnique result, seen, entry, kindTags
+ContinueEntry:
+        Next entry
+ContinueToken:
+    Next token
+
+    Set mp_CollectKindRangeEntriesByExactTokens = result
+End Function
+
+Private Sub mp_AppendKindRangeEntryUnique( _
+    ByVal result As Collection, _
+    ByVal seen As Object, _
+    ByVal rangeEntry As Variant, _
+    ByVal kindTags As String _
+)
+    Dim rowStart As Long
+    Dim rowEnd As Long
+    Dim colStart As Long
+    Dim colEnd As Long
+    Dim dedupeKey As String
+
+    If result Is Nothing Then Exit Sub
+    If seen Is Nothing Then Exit Sub
+    If Not mp_TryResolveKindRangeEntry(rangeEntry, rowStart, rowEnd, colStart, colEnd) Then Exit Sub
+
+    dedupeKey = CStr(rowStart) & ":" & CStr(colStart) & ":" & CStr(rowEnd) & ":" & CStr(colEnd) & ":" & LCase$(Trim$(kindTags))
+    If seen.Exists(dedupeKey) Then Exit Sub
+    seen(dedupeKey) = True
+    result.Add rangeEntry
+End Sub
+
+Private Function mp_SelectorKindUsesPatterns(ByVal selectorKindText As String) As Boolean
+    Dim tokens As Variant
+    Dim token As Variant
+    Dim tokenText As String
+
+    selectorKindText = LCase$(Trim$(selectorKindText))
+    If Len(selectorKindText) = 0 Then Exit Function
+
+    tokens = Split(selectorKindText, "|")
+    For Each token In tokens
+        tokenText = Trim$(CStr(token))
+        If Len(tokenText) = 0 Then GoTo ContinueToken
+        If InStr(1, tokenText, "*", vbBinaryCompare) > 0 Then
+            mp_SelectorKindUsesPatterns = True
+            Exit Function
+        End If
+        If InStr(1, tokenText, "?", vbBinaryCompare) > 0 Then
+            mp_SelectorKindUsesPatterns = True
+            Exit Function
+        End If
+ContinueToken:
+    Next token
+End Function
+
+Private Function mp_TryGetKindTagsFromRangeEntry( _
+    ByVal rangeEntry As Variant, _
+    ByVal fallbackKind As String, _
+    ByRef outKindTags As String _
+) As Boolean
+    Dim entryObj As Object
+    Dim entryType As String
+
+    outKindTags = LCase$(Trim$(fallbackKind))
+    mp_TryGetKindTagsFromRangeEntry = True
+
+    If Not IsObject(rangeEntry) Then Exit Function
+
+    Set entryObj = rangeEntry
+    If entryObj Is Nothing Then Exit Function
+
+    entryType = TypeName(entryObj)
+    If StrComp(entryType, "Dictionary", vbTextCompare) <> 0 And StrComp(entryType, "Scripting.Dictionary", vbTextCompare) <> 0 Then Exit Function
+    If Not entryObj.Exists("KindTags") Then Exit Function
+
+    outKindTags = LCase$(Trim$(CStr(entryObj("KindTags"))))
+End Function
+
+Private Function mp_GetKindRangeScope(ByVal rangeEntry As Variant) As String
+    Dim entryObj As Object
+    Dim scopeValue As String
+
+    mp_GetKindRangeScope = KIND_SCOPE_ROW
+
+    If Not IsObject(rangeEntry) Then Exit Function
+    Set entryObj = rangeEntry
+    If entryObj Is Nothing Then Exit Function
+    If Not entryObj.Exists("Scope") Then Exit Function
+
+    scopeValue = LCase$(Trim$(CStr(entryObj("Scope"))))
+    If StrComp(scopeValue, KIND_SCOPE_COLUMN, vbTextCompare) = 0 Then
+        mp_GetKindRangeScope = KIND_SCOPE_COLUMN
+    Else
+        mp_GetKindRangeScope = KIND_SCOPE_ROW
+    End If
+End Function
+
+Private Function mp_TryResolveKindRangeEntry( _
+    ByVal rangeEntry As Variant, _
+    ByRef outRowStart As Long, _
+    ByRef outRowEnd As Long, _
+    ByRef outColStart As Long, _
+    ByRef outColEnd As Long _
+) As Boolean
+    Dim obj As Object
+
+    If Not IsObject(rangeEntry) Then Exit Function
+
+    Set obj = rangeEntry
+    If obj Is Nothing Then Exit Function
+
+    On Error Resume Next
+    outRowStart = CLng(obj("RowStart"))
+    outRowEnd = CLng(obj("RowEnd"))
+    outColStart = CLng(obj("ColStart"))
+    outColEnd = CLng(obj("ColEnd"))
+    If Err.Number <> 0 Then
+        Err.Clear
+        On Error GoTo 0
+        Exit Function
+    End If
+    On Error GoTo 0
+
+    If outRowStart <= 0 Then Exit Function
+    If outColStart <= 0 Then outColStart = 1
+    If outRowEnd < outRowStart Then outRowEnd = outRowStart
+    If outColEnd > 0 And outColEnd < outColStart Then outColEnd = outColStart
+    mp_TryResolveKindRangeEntry = True
+End Function
+
+Private Function mp_TryIntersectSpans( _
+    ByVal leftStart As Long, _
+    ByVal leftEnd As Long, _
+    ByVal rightStart As Long, _
+    ByVal rightEnd As Long, _
+    ByRef outStart As Long, _
+    ByRef outEnd As Long _
+) As Boolean
+    outStart = leftStart
+    If rightStart > outStart Then outStart = rightStart
+
+    outEnd = leftEnd
+    If rightEnd < outEnd Then outEnd = rightEnd
+
+    mp_TryIntersectSpans = (outEnd >= outStart)
+End Function
 
 Public Sub m_InsertLayer(ByVal pipeline As Collection, ByVal atIndex As Long, ByVal layer As obj_StyleLayer)
     If pipeline Is Nothing Then Exit Sub
@@ -361,7 +847,7 @@ Public Sub m_ApplyColumnStylesPipeline( _
     ByVal resultFieldRanges As Collection, _
     ByVal pipeline As Collection, _
     ByVal activeModeName As String, _
-    Optional ByVal rowKindRanges As Object = Nothing, _
+    Optional ByVal kindRanges As Object = Nothing, _
     Optional ByVal autoHeightOnly As Boolean = False _
 )
     Dim sortedLayers As Collection
@@ -371,12 +857,14 @@ Public Sub m_ApplyColumnStylesPipeline( _
     Dim targetsByMapKey As Object
     Dim targetsByKind As Object
     Dim autoHeightState As Object
+    Dim kindSelectorCache As Object
 
     If ws Is Nothing Then Exit Sub
     If pipeline Is Nothing Then Exit Sub
     If pipeline.Count = 0 Then Exit Sub
 
     Set autoHeightState = mp_CreateStringDictionary()
+    Set kindSelectorCache = mp_CreateStringDictionary()
 
     If Not resultFieldRanges Is Nothing Then
         If resultFieldRanges.Count > 0 Then
@@ -395,7 +883,7 @@ Public Sub m_ApplyColumnStylesPipeline( _
 
         For Each ruleObj In layerObj.Rules
             If ruleObj Is Nothing Then GoTo ContinueRule
-            mp_ApplyRule ws, resultFieldRanges, ruleObj, activeModeName, rowKindRanges, targetsByMapKey, targetsByKind, autoHeightState, autoHeightOnly
+                mp_ApplyRule ws, resultFieldRanges, ruleObj, activeModeName, targetsByMapKey, targetsByKind, autoHeightState, autoHeightOnly, kindRanges, kindSelectorCache
 ContinueRule:
         Next ruleObj
 ContinueLayer:
@@ -581,11 +1069,12 @@ Private Sub mp_ApplyRule( _
     ByVal resultFieldRanges As Collection, _
     ByVal ruleObj As obj_StyleRule, _
     ByVal activeModeName As String, _
-    Optional ByVal rowKindRanges As Object = Nothing, _
     Optional ByVal targetsByMapKey As Object = Nothing, _
     Optional ByVal targetsByKind As Object = Nothing, _
     Optional ByVal autoHeightState As Object = Nothing, _
-    Optional ByVal autoHeightOnly As Boolean = False _
+    Optional ByVal autoHeightOnly As Boolean = False, _
+    Optional ByVal kindRanges As Object = Nothing, _
+    Optional ByVal kindSelectorCache As Object = Nothing _
 )
     Dim selector As Object
     Dim targetName As String
@@ -604,6 +1093,7 @@ Private Sub mp_ApplyRule( _
     Dim mapRowEnd As Long
     Dim exactMapKey As String
     Dim candidateTargets As Collection
+    Dim batchedMapRanges As Object
 
     If ws Is Nothing Then Exit Sub
     If ruleObj Is Nothing Then Exit Sub
@@ -617,9 +1107,16 @@ Private Sub mp_ApplyRule( _
 
     Select Case targetName
         Case "column"
+            If selector.Exists("kind") Then
+                If Not mp_SelectorHasMapFilters(selector) Then
+                    If mp_ApplyColumnKindRangesRule(ws, selector, ruleObj.Declarations, kindRanges, ruleObj.RuleId, kindSelectorCache, autoHeightState, autoHeightOnly) Then Exit Sub
+                End If
+            End If
+
             If selector.Exists("mapkey") And Not targetsByMapKey Is Nothing Then
                 If mp_IsExactSelectorMapKey(CStr(selector("mapkey"))) Then
                     exactMapKey = LCase$(Trim$(CStr(selector("mapkey"))))
+                    Set batchedMapRanges = mp_CreateStringDictionary()
                     If targetsByMapKey.Exists(exactMapKey) Then
                         Set targetGroup = targetsByMapKey(exactMapKey)
                         For Each target In targetGroup
@@ -632,13 +1129,11 @@ Private Sub mp_ApplyRule( _
                             If mapCol <= 0 Then GoTo ContinueExactMapTarget
                             If mapRowStart <= 0 Then mapRowStart = 1
                             If mapRowEnd < mapRowStart Then mapRowEnd = mapRowStart
-
-                            Set scopeRange = ws.Range(ws.Cells(mapRowStart, mapCol), ws.Cells(mapRowEnd, mapCol))
-                            Set columnScope = ws.Columns(mapCol)
-                            mp_ApplyDeclarations scopeRange, columnScope, ruleObj.Declarations, Nothing, autoHeightState, autoHeightOnly
+                            mp_AddRectBatch batchedMapRanges, mapRowStart, mapRowEnd, mapCol, mapCol
 ContinueExactMapTarget:
                         Next target
                     End If
+                    mp_ApplyRectBatches ws, batchedMapRanges, ruleObj.Declarations, True, autoHeightState, autoHeightOnly
                     Exit Sub
                 End If
             End If
@@ -646,6 +1141,7 @@ ContinueExactMapTarget:
             If mp_SelectorHasMapFilters(selector) Or (Not selector.Exists("col") And Not selector.Exists("address")) Then
                 Set candidateTargets = mp_GetColumnRuleCandidateTargets(resultFieldRanges, selector, targetsByMapKey, targetsByKind)
                 If candidateTargets Is Nothing Then Exit Sub
+                Set batchedMapRanges = mp_CreateStringDictionary()
 
                 For Each target In candidateTargets
                     If target Is Nothing Then GoTo ContinueMapTarget
@@ -657,12 +1153,10 @@ ContinueExactMapTarget:
                     If mapCol <= 0 Then GoTo ContinueMapTarget
                     If mapRowStart <= 0 Then mapRowStart = 1
                     If mapRowEnd < mapRowStart Then mapRowEnd = mapRowStart
-
-                    Set scopeRange = ws.Range(ws.Cells(mapRowStart, mapCol), ws.Cells(mapRowEnd, mapCol))
-                    Set columnScope = ws.Columns(mapCol)
-                    mp_ApplyDeclarations scopeRange, columnScope, ruleObj.Declarations, Nothing, autoHeightState, autoHeightOnly
+                    mp_AddRectBatch batchedMapRanges, mapRowStart, mapRowEnd, mapCol, mapCol
 ContinueMapTarget:
                 Next target
+                mp_ApplyRectBatches ws, batchedMapRanges, ruleObj.Declarations, True, autoHeightState, autoHeightOnly
                 Exit Sub
             End If
 
@@ -695,7 +1189,7 @@ ContinueMapTarget:
 
         Case "row"
             If selector.Exists("kind") Then
-                mp_ApplyRowKindRule ws, selector, ruleObj.Declarations, rowKindRanges, ruleObj.RuleId, autoHeightState, autoHeightOnly
+                mp_ApplyRowKindRule ws, selector, ruleObj.Declarations, ruleObj.RuleId, kindRanges, kindSelectorCache, autoHeightState, autoHeightOnly
                 Exit Sub
             End If
 
@@ -724,6 +1218,24 @@ ContinueMapTarget:
             If colEnd < colStart Then colEnd = colStart
             Set scopeRange = ws.Range(ws.Cells(rowStart, colStart), ws.Cells(rowEnd, colEnd))
             mp_ApplyDeclarations scopeRange, Nothing, ruleObj.Declarations, Nothing, autoHeightState, autoHeightOnly
+
+        Case "rowkind"
+            If Not selector.Exists("kind") Then
+                Err.Raise vbObjectError + 1741, "ex_StylePipelineEngine", _
+                    "RowKind rule '" & ruleObj.RuleId & "' requires selector kind."
+            End If
+            mp_ApplyRowKindRule ws, selector, ruleObj.Declarations, ruleObj.RuleId, kindRanges, kindSelectorCache, autoHeightState, autoHeightOnly, False
+            Exit Sub
+
+        Case "columnkind"
+            If Not selector.Exists("kind") Then
+                Err.Raise vbObjectError + 1742, "ex_StylePipelineEngine", _
+                    "ColumnKind rule '" & ruleObj.RuleId & "' requires selector kind."
+            End If
+            If Not mp_ApplyColumnKindRangesRule(ws, selector, ruleObj.Declarations, kindRanges, ruleObj.RuleId, kindSelectorCache, autoHeightState, autoHeightOnly) Then
+                Exit Sub
+            End If
+            Exit Sub
 
         Case "cell"
             If selector.Exists("address") Then
@@ -768,6 +1280,285 @@ ContinueMapTarget:
             Err.Raise vbObjectError + 1728, "ex_StylePipelineEngine", _
                 "Unsupported style target '" & targetName & "' in rule '" & ruleObj.RuleId & "'."
     End Select
+End Sub
+
+Private Function mp_ApplyColumnKindRangesRule( _
+    ByVal ws As Worksheet, _
+    ByVal selector As Object, _
+    ByVal declarations As Object, _
+    ByVal kindRanges As Object, _
+    ByVal ruleId As String, _
+    Optional ByVal kindSelectorCache As Object = Nothing, _
+    Optional ByVal autoHeightState As Object = Nothing, _
+    Optional ByVal autoHeightOnly As Boolean = False _
+) As Boolean
+    Dim matches As Collection
+    Dim rangeEntry As Variant
+    Dim rowStart As Long
+    Dim rowEnd As Long
+    Dim colStart As Long
+    Dim colEnd As Long
+    Dim selectorRowStart As Long
+    Dim selectorRowEnd As Long
+    Dim selectorColStart As Long
+    Dim selectorColEnd As Long
+    Dim hasSelectorRow As Boolean
+    Dim hasSelectorCol As Boolean
+    Dim defaultLastCol As Long
+    Dim batchedRanges As Object
+
+    If kindRanges Is Nothing Then Exit Function
+    If selector Is Nothing Then Exit Function
+    If Not selector.Exists("kind") Then Exit Function
+
+    If selector.Exists("row") Then
+        If Not mp_TryResolveRowSpan(CStr(selector("row")), selectorRowStart, selectorRowEnd) Then
+            Err.Raise vbObjectError + 1721, "ex_StylePipelineEngine", _
+                "Invalid selector row span for rule '" & ruleId & "': " & CStr(selector("row"))
+        End If
+        hasSelectorRow = True
+    End If
+
+    If selector.Exists("col") Then
+        If Not mp_TryResolveColumnSpan(CStr(selector("col")), selectorColStart, selectorColEnd) Then
+            Err.Raise vbObjectError + 1720, "ex_StylePipelineEngine", _
+                "Invalid selector col span for rule '" & ruleId & "': " & CStr(selector("col"))
+        End If
+        hasSelectorCol = True
+    End If
+
+    Set matches = mp_GetKindRangeEntriesBySelectorCached(CStr(selector("kind")), kindRanges, kindSelectorCache)
+    mp_ApplyColumnKindRangesRule = True
+    If matches Is Nothing Then Exit Function
+    If matches.Count = 0 Then Exit Function
+
+    Set batchedRanges = mp_CreateStringDictionary()
+
+    For Each rangeEntry In matches
+        If Not mp_TryResolveKindRangeEntry(rangeEntry, rowStart, rowEnd, colStart, colEnd) Then GoTo ContinueEntry
+        If StrComp(mp_GetKindRangeScope(rangeEntry), KIND_SCOPE_COLUMN, vbTextCompare) <> 0 Then GoTo ContinueEntry
+
+        If colEnd <= 0 Then
+            If defaultLastCol <= 0 Then defaultLastCol = mp_GetLastUsedColumn(ws)
+            colEnd = defaultLastCol
+        End If
+        If colEnd < colStart Then colEnd = colStart
+
+        If hasSelectorRow Then
+            If Not mp_TryIntersectSpans(rowStart, rowEnd, selectorRowStart, selectorRowEnd, rowStart, rowEnd) Then GoTo ContinueEntry
+        End If
+        If hasSelectorCol Then
+            If Not mp_TryIntersectSpans(colStart, colEnd, selectorColStart, selectorColEnd, colStart, colEnd) Then GoTo ContinueEntry
+        End If
+
+        mp_AddRectBatch batchedRanges, rowStart, rowEnd, colStart, colEnd
+ContinueEntry:
+    Next rangeEntry
+
+    mp_ApplyRectBatches ws, batchedRanges, declarations, True, autoHeightState, autoHeightOnly
+End Function
+
+Private Sub mp_AddRectBatch( _
+    ByVal batches As Object, _
+    ByVal rowStart As Long, _
+    ByVal rowEnd As Long, _
+    ByVal colStart As Long, _
+    ByVal colEnd As Long _
+)
+    Dim keyText As String
+    Dim bucket As Collection
+    Dim span(1 To 2) As Long
+
+    If batches Is Nothing Then Exit Sub
+    If rowStart <= 0 Then Exit Sub
+    If rowEnd < rowStart Then rowEnd = rowStart
+    If colStart <= 0 Then colStart = 1
+    If colEnd < colStart Then colEnd = colStart
+
+    keyText = CStr(colStart) & ":" & CStr(colEnd)
+    If batches.Exists(keyText) Then
+        Set bucket = batches(keyText)
+    Else
+        Set bucket = New Collection
+        Set batches(keyText) = bucket
+    End If
+
+    span(1) = rowStart
+    span(2) = rowEnd
+    bucket.Add span
+End Sub
+
+Private Sub mp_ApplyRectBatches( _
+    ByVal ws As Worksheet, _
+    ByVal batches As Object, _
+    ByVal declarations As Object, _
+    ByVal useColumnScope As Boolean, _
+    Optional ByVal autoHeightState As Object = Nothing, _
+    Optional ByVal autoHeightOnly As Boolean = False _
+)
+    Dim keyText As Variant
+    Dim bucket As Collection
+    Dim parts As Variant
+    Dim colStart As Long
+    Dim colEnd As Long
+    Dim starts() As Long
+    Dim ends() As Long
+    Dim count As Long
+    Dim i As Long
+    Dim span As Variant
+    Dim runStart As Long
+    Dim runEnd As Long
+    Dim scopeRange As Range
+    Dim columnScope As Range
+    Dim rangeDeclarations As Object
+    Dim columnDeclarations As Object
+
+    If ws Is Nothing Then Exit Sub
+    If batches Is Nothing Then Exit Sub
+    If declarations Is Nothing Then Exit Sub
+    If batches.Count = 0 Then Exit Sub
+
+    If useColumnScope Then
+        If Not autoHeightOnly Then
+            Set columnDeclarations = mp_CreateDeclarationsSubset(declarations, True)
+        End If
+        Set rangeDeclarations = mp_CreateDeclarationsSubset(declarations, False)
+    Else
+        Set rangeDeclarations = declarations
+    End If
+
+    For Each keyText In batches.Keys
+        Set bucket = batches(CStr(keyText))
+        If bucket Is Nothing Then GoTo ContinueBatch
+        count = bucket.Count
+        If count <= 0 Then GoTo ContinueBatch
+
+        parts = Split(CStr(keyText), ":")
+        If UBound(parts) <> 1 Then GoTo ContinueBatch
+        If Not ex_XmlCore.m_TryParseLong(CStr(parts(0)), colStart) Then GoTo ContinueBatch
+        If Not ex_XmlCore.m_TryParseLong(CStr(parts(1)), colEnd) Then GoTo ContinueBatch
+        If colStart <= 0 Then colStart = 1
+        If colEnd < colStart Then colEnd = colStart
+
+        If useColumnScope Then
+            Set columnScope = ws.Range(ws.Columns(colStart), ws.Columns(colEnd))
+            If Not columnDeclarations Is Nothing Then
+                Set scopeRange = ws.Range(ws.Cells(1, colStart), ws.Cells(1, colEnd))
+                mp_ApplyDeclarations scopeRange, columnScope, columnDeclarations, Nothing, autoHeightState, autoHeightOnly
+            End If
+        Else
+            Set columnScope = Nothing
+        End If
+
+        If rangeDeclarations Is Nothing Then GoTo ContinueBatch
+
+        ReDim starts(1 To count)
+        ReDim ends(1 To count)
+        For i = 1 To count
+            span = bucket(i)
+            starts(i) = CLng(span(1))
+            ends(i) = CLng(span(2))
+            If ends(i) < starts(i) Then ends(i) = starts(i)
+        Next i
+
+        If count > 1 Then mp_QuickSortSpanPairs starts, ends, 1, count
+
+        runStart = starts(1)
+        runEnd = ends(1)
+        For i = 2 To count
+            If starts(i) <= runEnd + 1 Then
+                If ends(i) > runEnd Then runEnd = ends(i)
+            Else
+                Set scopeRange = ws.Range(ws.Cells(runStart, colStart), ws.Cells(runEnd, colEnd))
+                mp_ApplyDeclarations scopeRange, columnScope, rangeDeclarations, Nothing, autoHeightState, autoHeightOnly
+
+                runStart = starts(i)
+                runEnd = ends(i)
+            End If
+        Next i
+
+        Set scopeRange = ws.Range(ws.Cells(runStart, colStart), ws.Cells(runEnd, colEnd))
+        mp_ApplyDeclarations scopeRange, columnScope, rangeDeclarations, Nothing, autoHeightState, autoHeightOnly
+ContinueBatch:
+    Next keyText
+End Sub
+
+Private Function mp_IsColumnOnlyDeclaration(ByVal propName As String) As Boolean
+    propName = LCase$(Trim$(propName))
+    Select Case propName
+        Case STYLE_PROP_WIDTH, STYLE_PROP_MIN_WIDTH, STYLE_PROP_MAX_WIDTH, STYLE_PROP_AUTO_FIT_COLUMNS
+            mp_IsColumnOnlyDeclaration = True
+    End Select
+End Function
+
+Private Function mp_CreateDeclarationsSubset( _
+    ByVal declarations As Object, _
+    ByVal includeColumnOnlyProps As Boolean _
+) As Object
+    Dim keyName As Variant
+    Dim keyText As String
+    Dim isColumnOnly As Boolean
+    Dim subset As Object
+
+    If declarations Is Nothing Then Exit Function
+
+    Set subset = mp_CreateStringDictionary()
+    For Each keyName In declarations.Keys
+        keyText = LCase$(Trim$(CStr(keyName)))
+        If Len(keyText) = 0 Then GoTo ContinueKey
+
+        isColumnOnly = mp_IsColumnOnlyDeclaration(keyText)
+        If isColumnOnly = includeColumnOnlyProps Then
+            subset(keyText) = declarations(keyName)
+        End If
+ContinueKey:
+    Next keyName
+
+    If subset.Count = 0 Then Exit Function
+    Set mp_CreateDeclarationsSubset = subset
+End Function
+
+Private Sub mp_QuickSortSpanPairs( _
+    ByRef starts() As Long, _
+    ByRef ends() As Long, _
+    ByVal low As Long, _
+    ByVal high As Long _
+)
+    Dim i As Long
+    Dim j As Long
+    Dim pivot As Long
+    Dim tmpStart As Long
+    Dim tmpEnd As Long
+
+    If low >= high Then Exit Sub
+
+    i = low
+    j = high
+    pivot = starts((low + high) \ 2)
+
+    Do While i <= j
+        Do While starts(i) < pivot
+            i = i + 1
+        Loop
+        Do While starts(j) > pivot
+            j = j - 1
+        Loop
+        If i <= j Then
+            tmpStart = starts(i)
+            starts(i) = starts(j)
+            starts(j) = tmpStart
+
+            tmpEnd = ends(i)
+            ends(i) = ends(j)
+            ends(j) = tmpEnd
+
+            i = i + 1
+            j = j - 1
+        End If
+    Loop
+
+    If low < j Then mp_QuickSortSpanPairs starts, ends, low, j
+    If i < high Then mp_QuickSortSpanPairs starts, ends, i, high
 End Sub
 
 Private Function mp_IsExactSelectorMapKey(ByVal mapKeyText As String) As Boolean
@@ -1032,6 +1823,7 @@ Private Sub mp_ApplyDeclarations( _
         If hasRowHeight Then
             Exit Sub
         End If
+
         If declarations.Exists(STYLE_PROP_AUTO_HEIGHT) Then
             If Not mp_TryParseBoolean(CStr(declarations(STYLE_PROP_AUTO_HEIGHT)), autoHeightEnabled) Then
                 Err.Raise vbObjectError + 1731, "ex_StylePipelineEngine", "Invalid autoHeight declaration: " & CStr(declarations(STYLE_PROP_AUTO_HEIGHT))
@@ -1122,28 +1914,6 @@ Private Sub mp_ApplyDeclarations( _
         End Select
     End If
 
-    If hasRowHeight Then
-        operationRowRange.RowHeight = rowHeightValue
-    ElseIf declarations.Exists(STYLE_PROP_AUTO_HEIGHT) Then
-        If Not mp_TryParseBoolean(CStr(declarations(STYLE_PROP_AUTO_HEIGHT)), autoHeightEnabled) Then
-            Err.Raise vbObjectError + 1731, "ex_StylePipelineEngine", "Invalid autoHeight declaration: " & CStr(declarations(STYLE_PROP_AUTO_HEIGHT))
-        End If
-        If autoHeightState Is Nothing Then
-            If autoHeightEnabled Then
-                operationRowRange.EntireRow.AutoFit
-                If hasMinRowHeight Then
-                    mp_EnforceMinRowHeight operationRowRange, minRowHeightValue
-                End If
-            End If
-        Else
-            effectiveMinRowHeight = 0
-            If autoHeightEnabled And hasMinRowHeight Then
-                effectiveMinRowHeight = minRowHeightValue
-            End If
-            mp_RecordDeferredAutoHeight operationRowRange, autoHeightEnabled, autoHeightState, effectiveMinRowHeight
-        End If
-    End If
-
     If declarations.Exists(STYLE_PROP_MERGE_COLUMNS) Then
         If Not ex_XmlCore.m_TryParseLong(CStr(declarations(STYLE_PROP_MERGE_COLUMNS)), mergeColumnsValue) Then
             Err.Raise vbObjectError + 1731, "ex_StylePipelineEngine", "Invalid mergeColumns declaration: " & CStr(declarations(STYLE_PROP_MERGE_COLUMNS))
@@ -1152,6 +1922,12 @@ Private Sub mp_ApplyDeclarations( _
             Err.Raise vbObjectError + 1731, "ex_StylePipelineEngine", "Invalid mergeColumns declaration: " & CStr(declarations(STYLE_PROP_MERGE_COLUMNS))
         End If
         mp_MergeRowsInScope operationRowRange, mergeColumnsValue
+
+        ' Merge may drop WrapText in Excel for merged cells, so re-assert it before auto-height.
+        If StrComp(overflowValue, "wrap", vbBinaryCompare) = 0 Then
+            scopeRange.WrapText = True
+            scopeRange.ShrinkToFit = False
+        End If
     End If
 
     If declarations.Exists(STYLE_PROP_FONT_NAME) Then
@@ -1221,6 +1997,28 @@ Private Sub mp_ApplyDeclarations( _
     If declarations.Exists(STYLE_PROP_VERTICAL) Then
         verticalValue = LCase$(Trim$(CStr(declarations(STYLE_PROP_VERTICAL))))
         scopeRange.VerticalAlignment = mp_ParseVerticalAlignment(verticalValue)
+    End If
+
+    If hasRowHeight Then
+        operationRowRange.RowHeight = rowHeightValue
+    ElseIf declarations.Exists(STYLE_PROP_AUTO_HEIGHT) Then
+        If Not mp_TryParseBoolean(CStr(declarations(STYLE_PROP_AUTO_HEIGHT)), autoHeightEnabled) Then
+            Err.Raise vbObjectError + 1731, "ex_StylePipelineEngine", "Invalid autoHeight declaration: " & CStr(declarations(STYLE_PROP_AUTO_HEIGHT))
+        End If
+        If autoHeightState Is Nothing Then
+            If autoHeightEnabled Then
+                operationRowRange.EntireRow.AutoFit
+                If hasMinRowHeight Then
+                    mp_EnforceMinRowHeight operationRowRange, minRowHeightValue
+                End If
+            End If
+        Else
+            effectiveMinRowHeight = 0
+            If autoHeightEnabled And hasMinRowHeight Then
+                effectiveMinRowHeight = minRowHeightValue
+            End If
+            mp_RecordDeferredAutoHeight operationRowRange, autoHeightEnabled, autoHeightState, effectiveMinRowHeight
+        End If
     End If
 End Sub
 
@@ -1383,36 +2181,15 @@ Private Function mp_CreateDeferredAutoHeightRowState( _
 End Function
 
 Private Sub mp_ApplyAutoHeightToRowSpan(ByVal ws As Worksheet, ByVal rowStart As Long, ByVal rowEnd As Long)
-    Dim prevHeights() As Double
-    Dim currentHeight As Double
-    Dim rowIndex As Long
-    Dim itemIndex As Long
-
     If ws Is Nothing Then Exit Sub
     If rowStart <= 0 Then Exit Sub
     If rowEnd < rowStart Then Exit Sub
     If rowStart > ws.Rows.Count Then Exit Sub
     If rowEnd > ws.Rows.Count Then rowEnd = ws.Rows.Count
 
-    ReDim prevHeights(1 To rowEnd - rowStart + 1)
-    itemIndex = 0
-    For rowIndex = rowStart To rowEnd
-        itemIndex = itemIndex + 1
-        prevHeights(itemIndex) = ws.Rows(rowIndex).RowHeight
-    Next rowIndex
-
     On Error Resume Next
     ws.Rows(CStr(rowStart) & ":" & CStr(rowEnd)).AutoFit
     On Error GoTo 0
-
-    itemIndex = 0
-    For rowIndex = rowStart To rowEnd
-        itemIndex = itemIndex + 1
-        currentHeight = ws.Rows(rowIndex).RowHeight
-        If currentHeight < prevHeights(itemIndex) Then
-            ws.Rows(rowIndex).RowHeight = prevHeights(itemIndex)
-        End If
-    Next rowIndex
 End Sub
 
 Private Sub mp_CollectEnabledAutoHeightRows( _
@@ -1613,7 +2390,7 @@ End Sub
 
 Private Function mp_IsSupportedTarget(ByVal targetName As String) As Boolean
     Select Case LCase$(Trim$(targetName))
-        Case "sheet", "usedrange", "range", "row", "column", "cell"
+        Case "sheet", "usedrange", "range", "row", "column", "cell", "rowkind", "columnkind"
             mp_IsSupportedTarget = True
     End Select
 End Function

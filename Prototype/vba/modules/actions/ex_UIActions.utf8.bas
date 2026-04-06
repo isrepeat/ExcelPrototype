@@ -1,0 +1,748 @@
+Attribute VB_Name = "ex_UIActions"
+Option Explicit
+
+Private Const PROFILES_NS As String = "urn:excelprototype:profiles"
+Private Const ASCII_UPPER As String = "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
+Private Const ASCII_LOWER As String = "abcdefghijklmnopqrstuvwxyz"
+Private Const SCRIPT_KIND_PREPROCESS As String = "preprocess"
+Private Const SCRIPT_KIND_POSTPROCESS As String = "postprocess"
+Private Const PERSONALCARD_PROFILES_REL_PATH As String = "config\modes\PersonalCard\PersonalCardProfiles.xml"
+Private Const PERSONALCARD_RESULT_TEMPLATES_REL_PATH As String = "config\modes\PersonalCard\PersonalCardResultTemplates.xml"
+Private Const PERSONALCARD_SHEET_STYLES_PIPELINE_REL_PATH As String = "config\modes\PersonalCard\PersonalCardSheetStylesPipeline.xml"
+Private Const SETTINGS_KEY_FILE_LOG_ENABLED As String = "st_FileLogEnabled"
+Private Const PERSONALCARD_LOG_REL_PATH As String = "Logs\personalcard_pipeline.log"
+Private Const LOGS_TOGGLE_BUTTON_NAME As String = "btnLogsToggle"
+Private Const LOGS_ON_BUTTON_LEGACY_NAME As String = "btnLogsOn"
+Private Const LOGS_OFF_BUTTON_LEGACY_NAME As String = "btnLogsOff"
+
+' UI entrypoints layer: keeps user-triggered callbacks in actions/*
+' and delegates work to domain/config modules.
+
+Public Sub m_DeleteResultSheets_OnClick()
+    On Error GoTo EH
+    ex_CustomDropdown.m_OnManagedButtonClick
+    ex_SheetStylesXmlProvider.m_DeleteResultSheets
+    Exit Sub
+EH:
+    MsgBox "Clear failed: [" & Err.Source & " #" & CStr(Err.Number) & "] " & Err.Description, vbExclamation
+End Sub
+
+Public Sub m_OnProfileChanged_OnClick()
+    ex_ConfigProfilesManager.m_OnProfileChanged
+End Sub
+
+Public Sub m_OnModeChanged_OnClick()
+    ex_ConfigProfilesManager.m_OnModeChanged
+End Sub
+
+Public Sub m_ToggleDropdownButton_OnClick()
+    ex_CustomDropdown.m_OnManagedButtonClick
+    If ex_ManagedDropdownRuntime.m_TryToggleByCaller(ThisWorkbook) Then Exit Sub
+    ex_CustomDropdown.m_ToggleDropdownButton ThisWorkbook
+End Sub
+
+Public Sub m_UpdateUi_OnClick()
+    Dim errText As String
+
+    On Error GoTo EH
+
+    Application.Cursor = xlWait
+    ex_CustomDropdown.m_OnManagedButtonClick
+    ex_UILoader.m_LoadUiFromConfig ThisWorkbook
+    ex_ConfigProfilesManager.m_RestoreSelectionState ws_Dev
+
+    mp_RefreshLogsToggleVisualFromSettings
+    GoTo CleanExit
+EH:
+    errText = Err.Description
+CleanExit:
+    On Error Resume Next
+    Application.Cursor = xlDefault
+    On Error GoTo 0
+
+    If Len(errText) > 0 Then
+        MsgBox "Update UI failed: " & errText, vbExclamation
+    End If
+End Sub
+
+Public Sub m_SelectDropdownOption_OnClick()
+    ex_CustomDropdown.m_OnManagedButtonClick
+    If ex_ManagedDropdownRuntime.m_TrySelectByCaller(ThisWorkbook) Then Exit Sub
+    ex_CustomDropdown.m_SelectDropdownOption ThisWorkbook
+End Sub
+
+Public Sub m_OnModeOptionSelected(Optional ByVal selectedKey As String = vbNullString, Optional ByVal selectedCaption As String = vbNullString, Optional ByVal sourceControlName As String = vbNullString)
+    Dim modeKey As String
+
+    modeKey = Trim$(selectedKey)
+    If Len(modeKey) = 0 Then
+        modeKey = Trim$(selectedCaption)
+    End If
+    If Len(modeKey) = 0 Then
+        MsgBox "Mode option selection is empty for control '" & sourceControlName & "'.", vbExclamation
+        Exit Sub
+    End If
+
+    ex_ConfigProfilesManager.m_SetActiveModeKey modeKey
+    If StrComp(Trim$(ex_ConfigProfilesManager.m_GetActiveModeKey()), modeKey, vbTextCompare) <> 0 Then
+        Exit Sub
+    End If
+
+    ex_ConfigProfilesManager.m_OnModeChanged
+End Sub
+
+Public Sub m_OnProfileOptionSelected(Optional ByVal selectedKey As String = vbNullString, Optional ByVal selectedCaption As String = vbNullString, Optional ByVal sourceControlName As String = vbNullString)
+    Dim profileName As String
+    Dim activeModeKey As String
+
+    profileName = Trim$(selectedKey)
+    If Len(profileName) = 0 Then
+        profileName = Trim$(selectedCaption)
+    End If
+    If Len(profileName) = 0 Then
+        MsgBox "Profile option selection is empty for control '" & sourceControlName & "'.", vbExclamation
+        Exit Sub
+    End If
+
+    activeModeKey = Trim$(ex_ConfigProfilesManager.m_GetActiveModeKey())
+    If Len(activeModeKey) = 0 Then
+        MsgBox "Active mode key is empty while applying profile selection.", vbExclamation
+        Exit Sub
+    End If
+
+    ex_ConfigProfilesManager.m_SetActiveProfileName profileName, activeModeKey
+    If StrComp(Trim$(ex_ConfigProfilesManager.m_GetActiveProfileName()), profileName, vbTextCompare) <> 0 Then
+        Exit Sub
+    End If
+
+    ex_ConfigProfilesManager.m_OnProfileChanged
+End Sub
+
+Public Sub m_OnLayoutDropdownConfigSelected(Optional ByVal selectedKey As String = vbNullString, Optional ByVal selectedCaption As String = vbNullString, Optional ByVal sourceControlName As String = vbNullString)
+    Dim selectedValue As String
+    Dim configKey As String
+    Dim sourceKey As String
+
+    On Error GoTo EH
+
+    sourceKey = LCase$(Trim$(sourceControlName))
+    selectedValue = Trim$(selectedKey)
+    If Len(selectedValue) = 0 Then selectedValue = Trim$(selectedCaption)
+    If Len(selectedValue) = 0 Then
+        MsgBox "Dropdown selection is empty for control '" & sourceControlName & "'.", vbExclamation
+        Exit Sub
+    End If
+
+    Select Case sourceKey
+        Case "ddinsertmode"
+            configKey = "Export.InsertMode"
+        Case "ddvalidationmode"
+            configKey = "PostProcess.ValidationMode"
+        Case Else
+            ex_Messaging.m_LogToFile "[ex_UIActions] layout dropdown selection placeholder: no config mapping for source='" & sourceControlName & "' value='" & selectedValue & "'.", PERSONALCARD_LOG_REL_PATH
+            Exit Sub
+    End Select
+
+    ex_ConfigProvider.m_SetConfigValue configKey, selectedValue, True
+    ex_Messaging.m_LogToFile "[ex_UIActions] layout dropdown selection applied source='" & sourceControlName & "' configKey='" & configKey & "' value='" & selectedValue & "'.", PERSONALCARD_LOG_REL_PATH
+    Exit Sub
+
+EH:
+    ex_Messaging.m_LogToFile "[ex_UIActions] layout dropdown selection failed source='" & sourceControlName & "' error='" & Err.Description & "'.", PERSONALCARD_LOG_REL_PATH
+    MsgBox "Dropdown selection apply failed: " & Err.Description, vbExclamation
+End Sub
+
+Public Sub m_HelloWorld_OnClick()
+    ex_Startup.m_HelloWorld
+End Sub
+
+Public Sub m_ShowPersonalCard_OnClick()
+    ex_CustomDropdown.m_OnManagedButtonClick
+    ex_ModePersonalCard.m_RunPersonalCard
+End Sub
+
+Public Sub m_ShowHealthBenefits_OnClick()
+    ex_CustomDropdown.m_OnManagedButtonClick
+    ex_ModeHealthBenefits.m_RunHealthBenefits
+End Sub
+
+Public Sub m_ShowReportCreation_OnClick()
+    ex_CustomDropdown.m_OnManagedButtonClick
+    ex_ModeReportCreation.m_RunKeysCollectionReport
+End Sub
+
+Public Sub m_ShowSimpleTest_OnClick()
+    ex_CustomDropdown.m_OnManagedButtonClick
+    ex_ModeSimpleTest.m_RunSimpleTest
+End Sub
+
+Public Sub m_ShowMultiSources_OnClick()
+    On Error GoTo EH
+    ex_CustomDropdown.m_OnManagedButtonClick
+    ex_ModeMultiSources.m_RunMultiSources
+    Exit Sub
+EH:
+    MsgBox "MultiSources action failed: [" & Err.Source & " #" & CStr(Err.Number) & "] " & Err.Description, vbExclamation
+End Sub
+
+Public Sub m_RunComparingTables_OnClick()
+    ex_CustomDropdown.m_OnManagedButtonClick
+    ex_ModeTablesComparing.m_RunComparing
+End Sub
+
+Public Sub m_OutputPanelRunPostProcess_OnClick()
+    Dim activeModeKey As String
+
+    activeModeKey = LCase$(Trim$(ex_ConfigProfilesManager.m_GetActiveModeKey()))
+    Select Case activeModeKey
+        Case "healthbenefits"
+            ex_ModeHealthBenefits.m_RunPostProcessForActiveSheet
+        Case Else
+            ex_ModePersonalCard.m_RunPostProcessForActiveSheet
+    End Select
+End Sub
+
+Public Sub m_OpenPreProcessScript_OnClick()
+    ex_CustomDropdown.m_OnManagedButtonClick
+    mp_OpenActiveProfileScriptSource SCRIPT_KIND_PREPROCESS
+End Sub
+
+Public Sub m_OpenPostProcessScript_OnClick()
+    ex_CustomDropdown.m_OnManagedButtonClick
+    mp_OpenActiveProfileScriptSource SCRIPT_KIND_POSTPROCESS
+End Sub
+
+Public Sub m_OpenPersonalCardProfiles_OnClick()
+    ex_CustomDropdown.m_OnManagedButtonClick
+    mp_OpenProjectRelativeFile PERSONALCARD_PROFILES_REL_PATH, "PersonalCardProfiles"
+End Sub
+
+Public Sub m_OpenPersonalCardResultTemplates_OnClick()
+    ex_CustomDropdown.m_OnManagedButtonClick
+    mp_OpenProjectRelativeFile PERSONALCARD_RESULT_TEMPLATES_REL_PATH, "PersonalCardResultTemplates"
+End Sub
+
+Public Sub m_OpenPersonalCardSheetStylesPipeline_OnClick()
+    ex_CustomDropdown.m_OnManagedButtonClick
+    mp_OpenProjectRelativeFile PERSONALCARD_SHEET_STYLES_PIPELINE_REL_PATH, "PersonalCardSheetStylesPipeline"
+End Sub
+
+Public Sub m_ToggleLogs_OnClick()
+    Dim currentValue As String
+    Dim isEnabled As Boolean
+    Dim newEnabled As Boolean
+
+    On Error GoTo EH
+    ex_CustomDropdown.m_OnManagedButtonClick
+
+    currentValue = ex_XmlCore.m_GetSettingsValue(SETTINGS_KEY_FILE_LOG_ENABLED, "false")
+    If Not ex_XmlCore.m_TryParseBoolean(currentValue, isEnabled) Then
+        isEnabled = False
+    End If
+    newEnabled = Not isEnabled
+
+    ex_XmlCore.m_SetSettingsValue SETTINGS_KEY_FILE_LOG_ENABLED, IIf(newEnabled, "true", "false")
+    mp_UpdateLogsToggleButtonVisual newEnabled
+    Exit Sub
+EH:
+    MsgBox "Logs toggle failed: [" & Err.Source & " #" & CStr(Err.Number) & "] " & Err.Description, vbExclamation
+End Sub
+
+Public Sub m_OpenLogsFile_OnClick()
+    Dim logFilePath As String
+    Dim errText As String
+
+    On Error GoTo EH
+    ex_CustomDropdown.m_OnManagedButtonClick
+
+    logFilePath = mp_GetPersonalCardLogFilePath()
+    If Len(logFilePath) = 0 Then
+        MsgBox "Failed to resolve logs file path.", vbExclamation
+        Exit Sub
+    End If
+
+    If Not mp_EnsureFileReady(logFilePath, errText) Then
+        MsgBox "Failed to prepare logs file: " & errText, vbExclamation
+        Exit Sub
+    End If
+
+    If Not mp_OpenFileInNotepad(logFilePath, errText) Then
+        MsgBox "Failed to open logs file: " & errText, vbExclamation
+    End If
+    Exit Sub
+EH:
+    MsgBox "Open logs failed: [" & Err.Source & " #" & CStr(Err.Number) & "] " & Err.Description, vbExclamation
+End Sub
+
+Public Sub m_ReportCreationRunPostProcess_OnClick()
+    ' ReportCreation already applies implicit postprocess during generation,
+    ' so re-running ReportCreation refreshes output + postprocess in one action.
+    ex_CustomDropdown.m_OnManagedButtonClick
+    ex_ModeReportCreation.m_RunKeysCollectionReport
+End Sub
+
+Public Sub m_ReportCreationExport_OnClick()
+    ex_CustomDropdown.m_OnManagedButtonClick
+    MsgBox "ReportCreation export is not implemented yet.", vbInformation
+End Sub
+
+Public Sub m_ExportFooterReportToWord_OnClick()
+    ex_CustomDropdown.m_OnManagedButtonClick
+    ex_WordExporter.m_API_ExportActiveSheetFooterPlaceholderReport
+End Sub
+
+Public Sub m_ExportFooterReportDone_OnClick()
+    ex_CustomDropdown.m_OnManagedButtonClick
+    ex_WordExporter.m_API_CleanupExportAnchorMarkers
+End Sub
+
+Public Sub m_OutputPanelToggleButton_OnClick()
+    ex_CustomDropdown.m_OnManagedButtonClick
+    If ex_ManagedDropdownRuntime.m_TryToggleByCaller(ThisWorkbook) Then Exit Sub
+    ex_CustomDropdown.m_ToggleDropdownButton ThisWorkbook
+End Sub
+
+Public Sub m_OutputPanelStartSearch_OnClick()
+    Dim ws As Worksheet
+    Dim searchKey As String
+    Dim configKey As String
+    Dim resolvedConfigKey As String
+    Dim primaryConfigKey As String
+    Dim activeModeKey As String
+    Dim errNumber As Long
+    Dim errSource As String
+    Dim errDescription As String
+
+    On Error GoTo EH
+
+    Set ws = ActiveSheet
+    If ws Is Nothing Then
+        Err.Raise vbObjectError + 2401, "ex_UIActions.m_OutputPanelStartSearch_OnClick", "Active sheet is not available for output panel search."
+    End If
+
+    ' Self-heal: auto-search relies on Workbook_SheetChange, which won't fire when events are disabled.
+    If Application.EnableEvents = False Then
+        Application.EnableEvents = True
+    End If
+
+    ' Keep UI (Dev table) as the authoritative runtime config during searches.
+    ' Profile XML reapply is intentionally not triggered from output-panel search,
+    ' to avoid overwriting current UI config/state mid-session.
+    ' Profile refresh is handled explicitly by mode/profile change and Update UI.
+
+    configKey = "CommonKey"
+    If ex_LayoutBindingsRuntime.m_TryGetPrimaryConfigKey(ws, primaryConfigKey) Then
+        primaryConfigKey = Trim$(primaryConfigKey)
+        If Len(primaryConfigKey) > 0 Then configKey = primaryConfigKey
+    End If
+
+    resolvedConfigKey = configKey
+    searchKey = ex_LayoutBindingsRuntime.m_ReadInputValueByName(ws, resolvedConfigKey)
+    If Len(searchKey) = 0 Then
+        searchKey = ex_LayoutBindingsRuntime.m_ReadInputValueByName(ws, "CommonKey")
+        If Len(searchKey) > 0 Then resolvedConfigKey = "CommonKey"
+    End If
+    If Len(searchKey) = 0 Then
+        searchKey = ex_LayoutBindingsRuntime.m_ReadPrimaryInputValue(ws)
+    End If
+    If Len(searchKey) = 0 Then
+        searchKey = Trim$(ex_ConfigProvider.m_GetConfigValue(resolvedConfigKey, vbNullString))
+    End If
+
+    ex_Messaging.m_LogToFile _
+        "[ex_UIActions] search resolve ws='" & ws.Name & "' configKey='" & resolvedConfigKey & "' valueLen=" & CStr(Len(searchKey)) & ".", _
+        PERSONALCARD_LOG_REL_PATH
+
+    If Len(searchKey) = 0 Then
+        Err.Raise vbObjectError + 2402, "ex_UIActions.m_OutputPanelStartSearch_OnClick", "Введите значение ключа в панели поиска."
+    End If
+
+    ex_ConfigProvider.m_SetConfigValue resolvedConfigKey, searchKey, True
+    activeModeKey = Trim$(ex_ConfigProfilesManager.m_GetActiveModeKey())
+    If Len(activeModeKey) = 0 Then
+        Err.Raise vbObjectError + 2403, "ex_UIActions.m_OutputPanelStartSearch_OnClick", "Active mode key is empty."
+    End If
+
+    Select Case LCase$(activeModeKey)
+        Case "personalcard"
+            ex_ModePersonalCard.m_RunPersonalCard
+        Case "healthbenefits"
+            ex_ModeHealthBenefits.m_RunHealthBenefits
+        Case "multisources"
+            ex_ModeMultiSources.m_RunMultiSources
+        Case "simpletest"
+            ex_ModeSimpleTest.m_RunSimpleTest
+        Case "reportcreation"
+            ex_ModeReportCreation.m_RunKeysCollectionReport
+        Case Else
+            Err.Raise vbObjectError + 2404, "ex_UIActions.m_OutputPanelStartSearch_OnClick", _
+                "Output panel Search is not configured for mode '" & activeModeKey & "'."
+    End Select
+    Exit Sub
+
+EH:
+    errNumber = Err.Number
+    errSource = Err.Source
+    errDescription = Err.Description
+
+    If ws Is Nothing Then
+        On Error Resume Next
+        Set ws = ActiveSheet
+        On Error GoTo 0
+    End If
+    If ws Is Nothing Then Exit Sub
+
+    On Error Resume Next
+    ex_OutputFormattingPipeline.m_ApplySheetPipeline ws
+    On Error GoTo 0
+    ex_Messaging.m_RenderErrorBanner ws, errDescription, errSource, errNumber, "ERROR: Search failed", ex_SheetStylesXmlProvider.m_GetOutputErrorBannerRangeAddress(ThisWorkbook)
+End Sub
+
+Private Sub mp_OpenActiveProfileScriptSource(ByVal scriptKind As String)
+    Dim modeKey As String
+    Dim profileName As String
+    Dim profilesFilePath As String
+    Dim targetFilePath As String
+    Dim sourceLabel As String
+    Dim openLabel As String
+    Dim errText As String
+
+    modeKey = Trim$(ex_ConfigProfilesManager.m_GetActiveModeKey(ws_Dev))
+    profileName = Trim$(ex_ConfigProfilesManager.m_GetActiveProfileName(ws_Dev))
+    If Len(modeKey) = 0 Or Len(profileName) = 0 Then
+        MsgBox "Cannot open script source: active mode/profile is not selected.", vbExclamation
+        Exit Sub
+    End If
+
+    profilesFilePath = Trim$(ex_ProfilesStore.m_GetProfilesFilePath(modeKey, ThisWorkbook))
+    If Len(profilesFilePath) = 0 Then
+        MsgBox "Cannot open script source: profiles file path is empty for mode '" & modeKey & "'.", vbExclamation
+        Exit Sub
+    End If
+
+    If Not mp_TryResolveActiveProfileScriptSourcePath(profilesFilePath, profileName, scriptKind, targetFilePath, sourceLabel, errText) Then
+        MsgBox "Script open failed: " & errText, vbExclamation
+        Exit Sub
+    End If
+
+    If Len(Dir$(targetFilePath)) = 0 Then
+        MsgBox "Script source file was not found: " & targetFilePath, vbExclamation
+        Exit Sub
+    End If
+
+    openLabel = mp_GetScriptKindDisplayLabel(scriptKind)
+
+    If Not mp_OpenFileInNotepad(targetFilePath, errText) Then
+        MsgBox "Failed to open " & openLabel & " (" & sourceLabel & "): " & errText, vbExclamation
+    End If
+End Sub
+
+Private Sub mp_OpenProjectRelativeFile(ByVal relativePath As String, ByVal openLabel As String)
+    Dim basePath As String
+    Dim targetFilePath As String
+    Dim errText As String
+
+    basePath = Trim$(ThisWorkbook.Path)
+    If Len(basePath) = 0 Then
+        basePath = CurDir$
+    End If
+    If Len(basePath) = 0 Then
+        MsgBox "Cannot open " & openLabel & ": workbook base path is empty.", vbExclamation
+        Exit Sub
+    End If
+
+    targetFilePath = mp_NormalizeFilePath(basePath & "\" & relativePath)
+    If Len(targetFilePath) = 0 Then
+        MsgBox "Cannot open " & openLabel & ": target file path is empty.", vbExclamation
+        Exit Sub
+    End If
+
+    If Len(Dir$(targetFilePath)) = 0 Then
+        MsgBox openLabel & " file was not found: " & targetFilePath, vbExclamation
+        Exit Sub
+    End If
+
+    If Not mp_OpenFileInNotepad(targetFilePath, errText) Then
+        MsgBox "Failed to open " & openLabel & ": " & errText, vbExclamation
+    End If
+End Sub
+
+Private Function mp_TryResolveActiveProfileScriptSourcePath( _
+    ByVal profilesFilePath As String, _
+    ByVal profileName As String, _
+    ByVal scriptKind As String, _
+    ByRef outSourcePath As String, _
+    ByRef outSourceLabel As String, _
+    ByRef outErrorText As String _
+) As Boolean
+    Dim doc As Object
+    Dim profileNode As Object
+    Dim scriptNode As Object
+    Dim includePath As String
+
+    outSourcePath = vbNullString
+    outSourceLabel = vbNullString
+    outErrorText = vbNullString
+
+    If Len(Dir$(profilesFilePath)) = 0 Then
+        outErrorText = "Profiles file was not found: " & profilesFilePath
+        Exit Function
+    End If
+
+    Set doc = ex_XmlCore.m_CreateDom(PROFILES_NS)
+    If Not doc.Load(profilesFilePath) Then
+        outErrorText = "Failed to parse profiles file: " & profilesFilePath
+        Exit Function
+    End If
+
+    Set profileNode = doc.selectSingleNode("/p:profiles/p:profile[@name=" & ex_XmlCore.m_XPathLiteral(profileName) & "]")
+    If profileNode Is Nothing Then
+        outErrorText = "Active profile '" & profileName & "' was not found in " & profilesFilePath
+        Exit Function
+    End If
+
+    scriptKind = LCase$(Trim$(scriptKind))
+    Select Case scriptKind
+        Case SCRIPT_KIND_PREPROCESS
+            Set scriptNode = mp_GetPreProcessScriptNode(profileNode)
+            outSourceLabel = "preProcessScript"
+        Case SCRIPT_KIND_POSTPROCESS
+            Set scriptNode = mp_GetPostProcessScriptNode(profileNode)
+            outSourceLabel = "postProcessScript"
+        Case Else
+            outErrorText = "Unknown script kind: '" & scriptKind & "'."
+            Exit Function
+    End Select
+
+    If scriptNode Is Nothing Then
+        outErrorText = "Script definition is not configured for active profile '" & profileName & "'."
+        Exit Function
+    End If
+
+    includePath = Trim$(ex_XmlCore.m_NodeAttrText(scriptNode, "include"))
+    If Len(includePath) > 0 Then
+        outSourcePath = mp_ResolveIncludeFilePath(profilesFilePath, includePath)
+        If Len(outSourcePath) = 0 Then
+            outErrorText = "Unable to resolve include path: '" & includePath & "'."
+            Exit Function
+        End If
+        outSourceLabel = outSourceLabel & " include"
+    Else
+        outSourcePath = profilesFilePath
+        outSourceLabel = outSourceLabel & " inline"
+    End If
+
+    mp_TryResolveActiveProfileScriptSourcePath = True
+End Function
+
+Private Function mp_GetPreProcessScriptNode(ByVal profileNode As Object) As Object
+    Set mp_GetPreProcessScriptNode = profileNode.selectSingleNode("p:preProcessScript")
+End Function
+
+Private Function mp_GetPostProcessScriptNode(ByVal profileNode As Object) As Object
+    Dim nodes As Object
+
+    Set nodes = profileNode.selectNodes("p:postProcessScript[translate(normalize-space(@execution), '" & ASCII_UPPER & "', '" & ASCII_LOWER & "')='explicit']")
+    If Not nodes Is Nothing Then
+        If nodes.Length > 0 Then
+            Set mp_GetPostProcessScriptNode = nodes.Item(0)
+            Exit Function
+        End If
+    End If
+
+    Set nodes = profileNode.selectNodes("p:postProcessScript[translate(normalize-space(@execution), '" & ASCII_UPPER & "', '" & ASCII_LOWER & "')='implicit']")
+    If Not nodes Is Nothing Then
+        If nodes.Length > 0 Then
+            Set mp_GetPostProcessScriptNode = nodes.Item(0)
+            Exit Function
+        End If
+    End If
+
+    Set nodes = profileNode.selectNodes("p:postProcessScript")
+    If Not nodes Is Nothing Then
+        If nodes.Length > 0 Then
+            Set mp_GetPostProcessScriptNode = nodes.Item(0)
+        End If
+    End If
+End Function
+
+Private Function mp_GetScriptKindDisplayLabel(ByVal scriptKind As String) As String
+    scriptKind = LCase$(Trim$(scriptKind))
+
+    Select Case scriptKind
+        Case SCRIPT_KIND_PREPROCESS
+            mp_GetScriptKindDisplayLabel = "Pre Process Script"
+        Case SCRIPT_KIND_POSTPROCESS
+            mp_GetScriptKindDisplayLabel = "Post Process Script"
+        Case Else
+            mp_GetScriptKindDisplayLabel = "Script"
+    End Select
+End Function
+
+Private Function mp_OpenFileInNotepad(ByVal filePath As String, ByRef outErrorText As String) As Boolean
+    Dim commandText As String
+    Dim shellRunner As Object
+
+    outErrorText = vbNullString
+    commandText = "notepad.exe """ & filePath & """"
+
+    On Error GoTo EH
+    Set shellRunner = CreateObject("WScript.Shell")
+    shellRunner.Run commandText, vbNormalFocus, False
+    mp_OpenFileInNotepad = True
+    Exit Function
+EH:
+    outErrorText = Err.Description
+End Function
+
+Private Function mp_GetPersonalCardLogFilePath() As String
+    Dim basePath As String
+
+    basePath = Trim$(ThisWorkbook.Path)
+    If Len(basePath) = 0 Then
+        basePath = CurDir$
+    End If
+    If Len(basePath) = 0 Then Exit Function
+
+    mp_GetPersonalCardLogFilePath = mp_NormalizeFilePath(basePath & "\" & PERSONALCARD_LOG_REL_PATH)
+End Function
+
+Private Sub mp_UpdateLogsToggleButtonVisual(ByVal isEnabled As Boolean)
+    Dim ws As Worksheet
+    Dim shp As Shape
+    Dim legacyOn As Shape
+    Dim legacyOff As Shape
+
+    Set ws = ws_Dev
+    If ws Is Nothing Then Exit Sub
+
+    Set shp = ex_ConfigProfilesManager.m_GetShapeByName(ws, LOGS_TOGGLE_BUTTON_NAME)
+    If Not shp Is Nothing Then
+        On Error Resume Next
+        shp.TextFrame.Characters.Text = IIf(isEnabled, "Logs [On]", "Logs [Off]")
+        If isEnabled Then
+            shp.Fill.ForeColor.RGB = RGB(31, 94, 156)
+            shp.Line.ForeColor.RGB = RGB(22, 63, 105)
+            shp.TextFrame.Characters.Font.Color = RGB(255, 255, 255)
+        Else
+            shp.Fill.ForeColor.RGB = RGB(58, 63, 69)
+            shp.Line.ForeColor.RGB = RGB(58, 63, 69)
+            shp.TextFrame.Characters.Font.Color = RGB(255, 217, 102)
+        End If
+        On Error GoTo 0
+    End If
+
+    Set legacyOn = ex_ConfigProfilesManager.m_GetShapeByName(ws, LOGS_ON_BUTTON_LEGACY_NAME)
+    Set legacyOff = ex_ConfigProfilesManager.m_GetShapeByName(ws, LOGS_OFF_BUTTON_LEGACY_NAME)
+
+    On Error Resume Next
+    If Not legacyOn Is Nothing Then legacyOn.Visible = IIf(isEnabled, msoTrue, msoFalse)
+    If Not legacyOff Is Nothing Then legacyOff.Visible = IIf(isEnabled, msoFalse, msoTrue)
+    On Error GoTo 0
+End Sub
+
+Private Sub mp_RefreshLogsToggleVisualFromSettings()
+    Dim currentValue As String
+    Dim isEnabled As Boolean
+
+    currentValue = ex_XmlCore.m_GetSettingsValue(SETTINGS_KEY_FILE_LOG_ENABLED, "false")
+    If Not ex_XmlCore.m_TryParseBoolean(currentValue, isEnabled) Then
+        isEnabled = False
+    End If
+
+    mp_UpdateLogsToggleButtonVisual isEnabled
+End Sub
+
+Private Function mp_EnsureFileReady(ByVal filePath As String, ByRef outErrorText As String) As Boolean
+    Dim folderPath As String
+    Dim fileNo As Integer
+
+    outErrorText = vbNullString
+    folderPath = mp_GetParentDirectory(filePath)
+    If Len(folderPath) = 0 Then
+        outErrorText = "Unable to resolve logs folder from path: " & filePath
+        Exit Function
+    End If
+
+    On Error GoTo EH
+
+    If Len(Dir$(folderPath, vbDirectory)) = 0 Then
+        MkDir folderPath
+    End If
+
+    If Len(Dir$(filePath)) = 0 Then
+        fileNo = FreeFile
+        Open filePath For Output As #fileNo
+        Close #fileNo
+    End If
+
+    mp_EnsureFileReady = True
+    Exit Function
+EH:
+    On Error Resume Next
+    If fileNo > 0 Then Close #fileNo
+    On Error GoTo 0
+    outErrorText = Err.Description
+End Function
+
+Private Function mp_ResolveIncludeFilePath(ByVal ownerFilePath As String, ByVal includePath As String) As String
+    Dim normalizedIncludePath As String
+    Dim ownerDir As String
+    Dim combinedPath As String
+
+    normalizedIncludePath = mp_NormalizeFilePath(includePath)
+    If Len(normalizedIncludePath) = 0 Then Exit Function
+
+    If mp_IsAbsolutePath(normalizedIncludePath) Then
+        mp_ResolveIncludeFilePath = normalizedIncludePath
+        Exit Function
+    End If
+
+    ownerDir = mp_GetParentDirectory(ownerFilePath)
+    If Len(ownerDir) = 0 Then Exit Function
+
+    combinedPath = ownerDir & "\" & normalizedIncludePath
+    mp_ResolveIncludeFilePath = mp_NormalizeFilePath(combinedPath)
+End Function
+
+Private Function mp_GetParentDirectory(ByVal filePath As String) As String
+    Dim slashPos As Long
+    Dim normalized As String
+
+    normalized = mp_NormalizeFilePath(filePath)
+    If Len(normalized) = 0 Then Exit Function
+
+    slashPos = InStrRev(normalized, "\", -1, vbBinaryCompare)
+    If slashPos <= 0 Then Exit Function
+    If slashPos = 1 Then
+        mp_GetParentDirectory = "\"
+    Else
+        mp_GetParentDirectory = Left$(normalized, slashPos - 1)
+    End If
+End Function
+
+Private Function mp_IsAbsolutePath(ByVal filePath As String) As Boolean
+    Dim normalized As String
+
+    normalized = mp_NormalizeFilePath(filePath)
+    If Len(normalized) = 0 Then Exit Function
+
+    If Left$(normalized, 2) = "\\" Then
+        mp_IsAbsolutePath = True
+        Exit Function
+    End If
+
+    If Len(normalized) >= 3 Then
+        If Mid$(normalized, 2, 1) = ":" And Mid$(normalized, 3, 1) = "\" Then
+            mp_IsAbsolutePath = True
+            Exit Function
+        End If
+    End If
+End Function
+
+Private Function mp_NormalizeFilePath(ByVal filePath As String) As String
+    filePath = Trim$(filePath)
+    If Len(filePath) = 0 Then Exit Function
+    filePath = Replace$(filePath, "/", "\\")
+    mp_NormalizeFilePath = filePath
+End Function

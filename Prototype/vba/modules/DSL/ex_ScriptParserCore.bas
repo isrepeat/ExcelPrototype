@@ -31,7 +31,7 @@ Public Function m_IsSheetRef(ByVal refText As String) As Boolean
     If sheetPos <= 1 Then Exit Function
 
     sourceAlias = Trim$(Left$(refText, sheetPos - 1))
-    If Len(sourceAlias) = 0 Then Exit Function
+    If Not m_TryNormalizeSourceAliasToken(sourceAlias, sourceAlias) Then Exit Function
 
     openPos = sheetPos + Len(".Sheet[")
     closePos = InStr(openPos, refText, "]", vbBinaryCompare)
@@ -42,4 +42,29 @@ Public Function m_IsSheetRef(ByVal refText As String) As Boolean
     If Len(tableAlias) = 0 Then Exit Function
 
     m_IsSheetRef = True
+End Function
+
+Public Function m_TryNormalizeSourceAliasToken( _
+    ByVal rawAlias As String, _
+    ByRef outAlias As String _
+) As Boolean
+    Dim normalized As String
+
+    normalized = Trim$(rawAlias)
+    If Len(normalized) = 0 Then Exit Function
+
+    If Left$(normalized, 1) = """" Or Right$(normalized, 1) = """" Then
+        If Len(normalized) < 2 Then Exit Function
+        If Left$(normalized, 1) <> """" Then Exit Function
+        If Right$(normalized, 1) <> """" Then Exit Function
+        normalized = Mid$(normalized, 2, Len(normalized) - 2)
+    ElseIf InStr(1, normalized, """", vbBinaryCompare) > 0 Then
+        Exit Function
+    End If
+
+    normalized = Trim$(normalized)
+    If Len(normalized) = 0 Then Exit Function
+
+    outAlias = normalized
+    m_TryNormalizeSourceAliasToken = True
 End Function

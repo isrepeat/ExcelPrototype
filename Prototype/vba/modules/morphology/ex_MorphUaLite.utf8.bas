@@ -12,7 +12,7 @@ Private Const USE_PURE_FIO_CONVERTERS As Boolean = True
 Private Const USE_SELECTION_TEXT_CONVERTERS As Boolean = False
 Private Const USE_ENHANCED_PHRASE_INFLECTION As Boolean = True
 Private Const USE_LEGACY_PHRASE_FALLBACK As Boolean = False
-Private Const ENHANCED_MAX_WORDS_PER_SEGMENT As Long = 20
+Private Const ENHANCED_MAX_WORDS_PER_SEGMENT As Long = 4
 Private Const NBSP_CODE_POINT As Long = 160
 Private Const NARROW_NBSP_CODE_POINT As Long = 8239
 
@@ -148,6 +148,11 @@ Public Function m_InflectPhraseToCase(ByVal sourceText As String, ByVal targetCa
     normalizedText = m_NormalizeFioInput(sourceText)
     If Len(normalizedText) = 0 Then
         m_InflectPhraseToCase = sourceText
+        Exit Function
+    End If
+
+    If mp_ShouldSkipPhraseInflection(normalizedText) Then
+        m_InflectPhraseToCase = normalizedText
         Exit Function
     End If
 
@@ -326,6 +331,7 @@ Private Function mp_InflectWordsInSegmentToCaseEnhanced(ByVal segmentText As Str
     Dim parts() As String
     Dim i As Long
     Dim changedCount As Long
+    Dim candidateCount As Long
     Dim tokenText As String
     Dim prefix As String
     Dim core As String
@@ -339,6 +345,7 @@ Private Function mp_InflectWordsInSegmentToCaseEnhanced(ByVal segmentText As Str
     parts = Split(segmentText, " ")
     For i = LBound(parts) To UBound(parts)
         If changedCount >= maxWordsToInflect Then Exit For
+        If i > 10 Then Exit For
 
         tokenText = CStr(parts(i))
         If Len(tokenText) = 0 Then GoTo ContinueLoop
@@ -358,6 +365,9 @@ Private Function mp_InflectWordsInSegmentToCaseEnhanced(ByVal segmentText As Str
             lowPrevCore = vbNullString
         End If
 
+        candidateCount = candidateCount + 1
+        If candidateCount > maxWordsToInflect Then Exit For
+
         lowCore = LCase$(core)
         If mp_ShouldKeepWordUnchangedByContext(lowPrevCore, lowCore, targetCase) Then GoTo ContinueLoop
 
@@ -372,6 +382,24 @@ ContinueLoop:
     Next i
 
     mp_InflectWordsInSegmentToCaseEnhanced = Join(parts, " ")
+End Function
+
+Private Function mp_ShouldSkipPhraseInflection(ByVal phraseText As String) As Boolean
+    Dim normalizedPhrase As String
+    normalizedPhrase = Trim$(phraseText)
+    If Len(normalizedPhrase) = 0 Then Exit Function
+
+    Dim parts() As String
+    parts = Split(normalizedPhrase, " ")
+    If UBound(parts) < 0 Then Exit Function
+
+    Dim firstWord As String
+    firstWord = LCase$(mp_TrimTokenPunctuation(parts(0)))
+
+    Select Case firstWord
+        Case "який", "яка", "яке", "які", "якого", "якої", "якому", "яким", "якій", "якими", "яких"
+            mp_ShouldSkipPhraseInflection = True
+    End Select
 End Function
 
 Private Sub mp_SplitTokenDecorations( _
@@ -654,6 +682,13 @@ End Function
 Private Function mp_ShouldKeepWordUnchangedByContext(ByVal lowPrevCore As String, ByVal lowCore As String, ByVal targetCase As String) As Boolean
     If Len(lowCore) = 0 Then Exit Function
 
+    ' Do not re-inflect likely instrumental forms when context already governs instrumental.
+    ' Example: "забезпечення продовольством" must keep "продовольством" unchanged.
+    If mp_IsLikelyInstrumentalGovernanceContext(lowPrevCore) And mp_IsLikelyInstrumentalForm(lowCore) Then
+        mp_ShouldKeepWordUnchangedByContext = True
+        Exit Function
+    End If
+
     If targetCase = CASE_ACCUSATIVE Then
         If mp_IsLikelyAlreadyAccusative(lowCore) Or mp_IsLikelyAlreadyGenitive(lowCore) Then
             mp_ShouldKeepWordUnchangedByContext = True
@@ -675,6 +710,37 @@ Private Function mp_ShouldKeepWordUnchangedByContext(ByVal lowPrevCore As String
         If mp_HasConsonantClusterEnding(lowCore) Or mp_IsLikelyMasculineGenitiveOnA(lowCore) Then
             mp_ShouldKeepWordUnchangedByContext = True
         End If
+    End If
+End Function
+
+Private Function mp_IsLikelyInstrumentalGovernanceContext(ByVal lowWord As String) As Boolean
+    If Len(lowWord) = 0 Then Exit Function
+
+    Select Case lowWord
+        Case "з", "із", "зі", "перед", "над", "під", "між", "за"
+            mp_IsLikelyInstrumentalGovernanceContext = True
+            Exit Function
+    End Select
+
+    If mp_EndsWith(lowWord, "ення") Or mp_EndsWith(lowWord, "єння") Or mp_EndsWith(lowWord, "іння") Or _
+       mp_EndsWith(lowWord, "ання") Or mp_EndsWith(lowWord, "ття") Or mp_EndsWith(lowWord, "лля") Then
+        mp_IsLikelyInstrumentalGovernanceContext = True
+        Exit Function
+    End If
+
+    If mp_EndsWith(lowWord, "им") Or mp_EndsWith(lowWord, "ім") Then
+        mp_IsLikelyInstrumentalGovernanceContext = True
+    End If
+End Function
+
+Private Function mp_IsLikelyInstrumentalForm(ByVal lowWord As String) As Boolean
+    If Len(lowWord) < 4 Then Exit Function
+
+    If mp_EndsWith(lowWord, "ом") Or mp_EndsWith(lowWord, "ем") Or _
+       mp_EndsWith(lowWord, "ою") Or mp_EndsWith(lowWord, "ею") Or mp_EndsWith(lowWord, "єю") Or _
+       mp_EndsWith(lowWord, "ами") Or mp_EndsWith(lowWord, "ями") Or mp_EndsWith(lowWord, "ьми") Or _
+       mp_EndsWith(lowWord, "им") Or mp_EndsWith(lowWord, "ім") Then
+        mp_IsLikelyInstrumentalForm = True
     End If
 End Function
 
@@ -1156,21 +1222,7 @@ Private Function mp_TryConvertSentenceWithFioToDative(ByVal normalizedText As St
 End Function
 
 Private Function mp_ShouldSkipTailInflection(ByVal tailPhrase As String) As Boolean
-    Dim normalizedTail As String
-    normalizedTail = Trim$(tailPhrase)
-    If Len(normalizedTail) = 0 Then Exit Function
-
-    Dim parts() As String
-    parts = Split(normalizedTail, " ")
-    If UBound(parts) < 0 Then Exit Function
-
-    Dim firstWord As String
-    firstWord = LCase$(mp_TrimTokenPunctuation(parts(0)))
-
-    Select Case firstWord
-        Case "який", "яка", "яке", "які", "якого", "якої", "якому", "яким", "якій", "якими", "яких"
-            mp_ShouldSkipTailInflection = True
-    End Select
+    mp_ShouldSkipTailInflection = mp_ShouldSkipPhraseInflection(tailPhrase)
 End Function
 
 Private Function mp_TryParseSentenceWithFio(ByVal normalizedText As String, ByRef leadPhrase As String, ByRef surname As String, ByRef firstName As String, ByRef patronymic As String, ByRef tailPhrase As String) As Boolean
@@ -1660,6 +1712,14 @@ Private Function mp_InflectSurnamePartToAccusative(ByVal originalPart As String,
     low = LCase$(originalPart)
     low = mp_NormalizeTrailingYiSoftSign(low)
 
+    Dim exceptions As Object
+    Set exceptions = mp_GetSurnameExceptionsAccusativeDict()
+    If exceptions.Exists(low) Then
+        partResult = mp_ApplyWordCase(originalPart, CStr(exceptions(low)))
+        mp_InflectSurnamePartToAccusative = True
+        Exit Function
+    End If
+
     If mp_IsIndeclinableSurname(low, gender) Then
         partResult = originalPart
         mp_InflectSurnamePartToAccusative = True
@@ -1792,6 +1852,14 @@ Private Function mp_InflectSurnamePartToDative(ByVal originalPart As String, ByV
     Dim low As String
     low = LCase$(originalPart)
     low = mp_NormalizeTrailingYiSoftSign(low)
+
+    Dim exceptions As Object
+    Set exceptions = mp_GetSurnameExceptionsDativeDict()
+    If exceptions.Exists(low) Then
+        partResult = mp_ApplyWordCase(originalPart, CStr(exceptions(low)))
+        mp_InflectSurnamePartToDative = True
+        Exit Function
+    End If
 
     If mp_IsIndeclinableSurname(low, gender) Then
         partResult = originalPart
@@ -1931,6 +1999,12 @@ Private Function mp_InflectPatronymicPartToDative(ByVal originalPart As String, 
 End Function
 
 Private Function mp_IsIndeclinableSurname(ByVal lowSurname As String, ByVal gender As String) As Boolean
+    ' Surnames like "КАНІВСЬКИХ" are indeclinable in Ukrainian for both genders.
+    If mp_EndsWith(lowSurname, "их") Or mp_EndsWith(lowSurname, "їх") Or mp_EndsWith(lowSurname, "ых") Then
+        mp_IsIndeclinableSurname = True
+        Exit Function
+    End If
+
     If gender = "female" Then
         If mp_EndsWith(lowSurname, "енко") Or mp_EndsWith(lowSurname, "ко") Then
             mp_IsIndeclinableSurname = True
@@ -1998,8 +2072,29 @@ Private Function mp_GetSurnameExceptionsDict() As Object
     d.CompareMode = 1
 
     d("середа") = "середи"
+    d("швець") = "швеця"
 
     Set mp_GetSurnameExceptionsDict = d
+End Function
+
+Private Function mp_GetSurnameExceptionsAccusativeDict() As Object
+    Dim d As Object
+    Set d = CreateObject("Scripting.Dictionary")
+    d.CompareMode = 1
+
+    d("швець") = "швеця"
+
+    Set mp_GetSurnameExceptionsAccusativeDict = d
+End Function
+
+Private Function mp_GetSurnameExceptionsDativeDict() As Object
+    Dim d As Object
+    Set d = CreateObject("Scripting.Dictionary")
+    d.CompareMode = 1
+
+    d("швець") = "швецю"
+
+    Set mp_GetSurnameExceptionsDativeDict = d
 End Function
 
 Private Function mp_GetPatronymicExceptionsDict() As Object

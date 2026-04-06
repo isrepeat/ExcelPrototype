@@ -1,0 +1,1187 @@
+let input = callMacroObject("ex_ScriptIO.m_GetInput");
+let baseDate = callMacro("ex_ScriptIO.m_GetValue", input, "BaseDate", "");
+if (baseDate == "") {
+	callMacro("ex_PostProcessActions.m_ShowLogicError", "Config key 'BaseDate' is empty. Set it in profile and rerun.");
+	return;
+}
+
+let validationWarningsText = "";
+let hasValidationWarnings = "false";
+let validationWarningTitle = "DailyEvents validation warning";
+let validationErrorTitle = "DailyEvents validation error";
+let exportErrorTitle = "DailyEvents export error";
+let tvoNoteRegex = "ТВО";
+let unclosedReturnDateRegex = "^\\s*(\\?|-)?\\s*$";
+let emptyOrPlaceholderPattern = "^\\s*[\\?-]?\\s*$";
+let metaKeywordTvoPattern = "^\\s*ТВО\\s*$";
+let metaKeywordDuplicatePattern = "^\\s*дублікат\\s*$";
+let metaAttributeMarkerPattern = "^\\s*!\\s*$";
+let resultTemplatesRelPath = "config\\modes\\PersonalCard\\PersonalCardResultTemplates.xml";
+let exportRuntimeWordAnchorPrefix = "Export.RuntimeDataBase.WordAnchor.";
+let exportRuntimeWordRecordKeyPrefix = "Export.RuntimeDataBase.WordRecordKey.";
+let logPath = "Logs\\personalcard_pipeline.log";
+
+let inputCommonKey = callMacro("ex_ScriptIO.m_GetValue", input, "CommonKey", "");
+let postProcessValidationMode = callMacro("ex_ScriptIO.m_GetValue", input, "PostProcess.ValidationMode", "Enabled");
+let postProcessValidationModeNormalized = callMacro(
+	"ex_Helpers.m_RegexReplace",
+	postProcessValidationMode,
+	"^[ \\t\\r\\n]*([\\s\\S]*?)[ \\t\\r\\n]*$",
+	"$1"
+);
+let validationIsDisabled = "false";
+if (postProcessValidationModeNormalized == "Disabled" || postProcessValidationModeNormalized == "disabled") {
+	validationIsDisabled = "true";
+}
+callMacro("ex_Messaging.m_LogToFile", $`[POST][PC] input.CommonKey={inputCommonKey}`, logPath);
+callMacro("ex_Messaging.m_LogToFile", $`[POST][PC] validation.Mode={postProcessValidationModeNormalized}; disabled={validationIsDisabled}`, logPath);
+callMacro("ex_PostProcessActions.m_ShowBannerAtLayoutBannerControl", "TYPE_NOTE", "pcWarningBannerSlot", "", "");
+
+/* Логи временно отключены */
+// let debugLogPath = "Logs\\personalcard_pipeline.log";
+// сallMacro("ex_Messaging.m_ClearLogFile", debugLogPath);
+// callMacro("ex_Messaging.m_LogToFile", "START explicit postprocess", debugLogPath);
+
+/* Единый проход валидации по owner-строкам DailyEvents перед формированием экспорта */
+if (validationIsDisabled != "true") {
+for (let owner in Daily.Sheet[DailyEvents].rows) {
+	if (owner.column[MetaType] == "owner") {
+		let ownerRowIndexForWarning = callMacro("ex_PostProcessActions.m_GetRowIndex", owner);
+		// Вспомогательные значения по текущему owner, собираем из EventsOut:
+		// - последнюю заметку (для проверки ТВО),
+		// - последнюю строку с причиной "Лікування" и ее FactArrivalDate (для проверки закрытия лечения).
+		let hasEventsOutForOwner = "false";
+		let lastEventsOutNote = "";
+		let lastEventsOutPlannedReturnDate = "";
+		let hasTreatmentEventsOutForOwner = "false";
+		let lastTreatmentEventsOutFactArrivalDate = "";
+		let hasVacationForCuringEventsOutForOwner = "false";
+		let lastVacationForCuringEventsOutDaysCount = "";
+		let lastVacationForCuringEventsOutOutDate = "";
+		let lastVacationForCuringEventsOutPlannedReturnDate = "";
+		let lastVacationForCuringEventsOutTicket = "";
+		let lastVacationForCuringEventsOutOutCommandDate = "";
+		let hasVacationEventsOutForOwner = "false";
+		let lastVacationEventsOutDaysCount = "";
+		let lastVacationEventsOutOutDate = "";
+		let lastVacationEventsOutPlannedReturnDate = "";
+		let lastVacationEventsOutTicket = "";
+		let lastVacationEventsOutOutCommandDate = "";
+
+		for (let outRow in Events.Sheet[EventsOut].rows) {
+			if (outRow.column[FIO] == owner.column[FIO]) {
+				hasEventsOutForOwner = "true";
+				lastEventsOutNote = outRow.column[Note];
+				lastEventsOutPlannedReturnDate = outRow.column[PlannedReturnDate];
+				if (outRow.column[EventReason] == "Лікування") {
+					hasTreatmentEventsOutForOwner = "true";
+					lastTreatmentEventsOutFactArrivalDate = outRow.column[FactArrivalDate];
+				}
+				if (outRow.column[EventReason] == "Відпустка для лікування") {
+					let outCommandDateFull = callMacro("ex_DateHelpers.m_ToFullDate", $`{outRow.column[OutCommandDate]}`, $`{baseDate}`);
+					if (outCommandDateFull == baseDate) {
+						hasVacationForCuringEventsOutForOwner = "true";
+						lastVacationForCuringEventsOutDaysCount = outRow.column[DaysCount];
+						lastVacationForCuringEventsOutOutDate = outRow.column[OutDate];
+						lastVacationForCuringEventsOutPlannedReturnDate = outRow.column[PlannedReturnDate];
+						lastVacationForCuringEventsOutTicket = outRow.column[Ticket];
+						lastVacationForCuringEventsOutOutCommandDate = outRow.column[OutCommandDate];
+					}
+				}
+				if (outRow.column[EventReason] == "Відпустка") {
+					let outCommandDateFull = callMacro("ex_DateHelpers.m_ToFullDate", $`{outRow.column[OutCommandDate]}`, $`{baseDate}`);
+					if (outCommandDateFull == baseDate) {
+						hasVacationEventsOutForOwner = "true";
+						lastVacationEventsOutDaysCount = outRow.column[DaysCount];
+						lastVacationEventsOutOutDate = outRow.column[OutDate];
+						lastVacationEventsOutPlannedReturnDate = outRow.column[PlannedReturnDate];
+						lastVacationEventsOutTicket = outRow.column[Ticket];
+						lastVacationEventsOutOutCommandDate = outRow.column[OutCommandDate];
+					}
+				}
+			}
+		}
+
+			// Валидация #1:
+			// если в последней записи EventsOut.Note есть ТВО, то сразу после owner
+			// в DailyEvents должна идти корректная meta-строка:
+			// DocNote=ТВО + заполненные Rank/FIO/Position.
+			if (hasEventsOutForOwner == "true") {
+				let hasTvoInLastEventsOutNote = "false";
+				let lastNoteTvoMatch = callMacro("ex_Helpers.m_RegexFirstMatch", lastEventsOutNote, tvoNoteRegex);
+				if (lastNoteTvoMatch != "") {
+					hasTvoInLastEventsOutNote = "true";
+				}
+
+				if (hasTvoInLastEventsOutNote == "true") {
+					let hasValidTvoMetaRow = "false";
+
+					for (let candidateMetaRow in Daily.Sheet[DailyEvents].rows) {
+						let candidateDocNoteNormalized = callMacro(
+							"ex_Helpers.m_RegexReplace",
+							candidateMetaRow.column[DocNote],
+							"^[ \\t\\r\\n]*([\\s\\S]*?)[ \\t\\r\\n]*$",
+							"$1"
+						);
+						let candidateDocNoteHasTvo = callMacro("ex_Helpers.m_RegexIsMatch", candidateDocNoteNormalized, metaKeywordTvoPattern);
+						if (candidateMetaRow.column[MetaType] == "meta" &&
+							candidateMetaRow.column[OwnerFio] == owner.column[FIO] &&
+							candidateMetaRow.column[SectionType] == owner.column[SectionType] &&
+							candidateDocNoteHasTvo == "True" &&
+							candidateMetaRow.column[Rank] != "" &&
+							candidateMetaRow.column[Rank] != "?" &&
+							candidateMetaRow.column[FIO] != "" &&
+							candidateMetaRow.column[FIO] != "?" &&
+							candidateMetaRow.column[Position] != "" &&
+							candidateMetaRow.column[Position] != "?") {
+							hasValidTvoMetaRow = "true";
+						}
+					}
+
+					if (hasValidTvoMetaRow != "true") {
+						let errorLine = "FIO=" + owner.column[FIO] + ": в последней записи EventsOut.Note есть пометка ТВО, но после owner отсутствует корректная meta-строка (MetaType=meta, DocNote=ТВО, заполнены Rank/FIO/Position).";
+						callMacro("ex_PostProcessActions.m_ShowBannerBeforeRowRef", "TYPE_WARNING", validationWarningTitle, errorLine, owner, 0, 0);
+						hasValidationWarnings = "true";
+					}
+				}
+			}
+
+		// Валидация #2:
+		// если ключ в секции ToHospital (SectionType=7), то последняя запись EventsOut
+		// с EventReason="Лікування" должна быть закрыта: поле FactArrivalDate не должно быть пустым и не должно быть "?".
+		if (owner.column[SectionType] == "7" && hasTreatmentEventsOutForOwner == "true") {
+			let openTreatmentFactArrivalDateMatch = callMacro("ex_Helpers.m_RegexFirstMatch", lastTreatmentEventsOutFactArrivalDate, unclosedReturnDateRegex);
+			if (openTreatmentFactArrivalDateMatch != "") {
+				let errorLine = "FIO=" + owner.column[FIO] + ": ключ находится в секции ToHospital, но последняя запись EventsOut с EventReason=Лікування не закрыта (FactArrivalDate пустой или '?'). Ключ должен быть в секции MoveVacationForCuringToHospital.";
+				callMacro("ex_PostProcessActions.m_ShowBannerBeforeRowRef", "TYPE_WARNING", validationWarningTitle, errorLine, owner, 0, 0);
+				hasValidationWarnings = "true";
+			}
+		}
+
+		// Валидация #3:
+		// если ключ в секции ToVacationForCuring (SectionType=10), то warning показываем только когда:
+		// 1) последняя запись EventsOut не закрыта (PlannedReturnDate пустой или '?')
+		// И
+		// 2) в текущем DailyEvents нет owner-записи по этому FIO в секции FromHospital (SectionType=1),
+		//    то есть лечение не закрывается "прямо сейчас" в рамках текущей таблицы.
+		if (owner.column[SectionType] == "10" && hasEventsOutForOwner == "true") {
+			let openLastEventsOutPlannedReturnDateMatch = callMacro("ex_Helpers.m_RegexFirstMatch", lastEventsOutPlannedReturnDate, unclosedReturnDateRegex);
+			if (openLastEventsOutPlannedReturnDateMatch != "") {
+				let hasCurrentDailyFromHospitalOwnerRow = "false";
+
+				for (let candidateOwnerRow in Daily.Sheet[DailyEvents].rows) {
+					if (candidateOwnerRow.column[MetaType] == "owner" &&
+						candidateOwnerRow.column[FIO] == owner.column[FIO] &&
+						candidateOwnerRow.column[SectionType] == "1") {
+						hasCurrentDailyFromHospitalOwnerRow = "true";
+					}
+				}
+
+				if (hasCurrentDailyFromHospitalOwnerRow != "true") {
+					let errorLine = "FIO=" + owner.column[FIO] + ": ключ находится в секции ToVacationForCuring, но последняя запись EventsOut не закрыта (PlannedReturnDate пустой или '?') и в текущем DailyEvents нет owner-записи FromHospital (SectionType=1), которая закрывает лечение сейчас.";
+					callMacro("ex_PostProcessActions.m_ShowBannerBeforeRowRef", "TYPE_WARNING", validationWarningTitle, errorLine, owner, 0, 0);
+					hasValidationWarnings = "true";
+				}
+			}
+		}
+
+		// Валидация #5:
+		// для секций ToAnnualMainVacation/ToVacationForCuring/MoveFromHospitalToVacationForCuring/MoveFromVacationForCuringToVacationForCuring
+		// данные должны совпадать с последней строкой EventsOut, где:
+		// - для SectionType=8: EventReason="Відпустка"
+		// - для SectionType=10/13/14: EventReason="Відпустка для лікування"
+		// - OutCommandDate == baseDate (после нормализации через m_ToFullDate).
+		// Если такой строки нет, валидацию #5 пропускаем.
+		if (owner.column[SectionType] == "8" ||
+			owner.column[SectionType] == "10" ||
+			owner.column[SectionType] == "13" ||
+			owner.column[SectionType] == "14") {
+			let hasSelectedVacationEventsOutForOwner = hasVacationForCuringEventsOutForOwner;
+			let selectedEventReason = "Відпустка для лікування";
+			let selectedEventsOutDaysCount = lastVacationForCuringEventsOutDaysCount;
+			let selectedEventsOutOutDate = lastVacationForCuringEventsOutOutDate;
+			let selectedEventsOutPlannedReturnDate = lastVacationForCuringEventsOutPlannedReturnDate;
+			let selectedEventsOutTicket = lastVacationForCuringEventsOutTicket;
+			let selectedEventsOutOutCommandDate = lastVacationForCuringEventsOutOutCommandDate;
+
+			if (owner.column[SectionType] == "8") {
+				hasSelectedVacationEventsOutForOwner = hasVacationEventsOutForOwner;
+				selectedEventReason = "Відпустка";
+				selectedEventsOutDaysCount = lastVacationEventsOutDaysCount;
+				selectedEventsOutOutDate = lastVacationEventsOutOutDate;
+				selectedEventsOutPlannedReturnDate = lastVacationEventsOutPlannedReturnDate;
+				selectedEventsOutTicket = lastVacationEventsOutTicket;
+				selectedEventsOutOutCommandDate = lastVacationEventsOutOutCommandDate;
+			}
+
+			if (hasSelectedVacationEventsOutForOwner == "true") {
+				let compareDaysPattern = "^\\s*(\\d+)(?:\\s*\\+\\s*(\\d+))?";
+				let compareNumPattern = "^\\s*(\\d+)\\s*$";
+				let mismatchFields = "";
+
+				let ownerDaysNormalized = owner.column[DaysCount];
+				let ownerDaysDigits = callMacro("ex_Helpers.m_RegexGetGroup", ownerDaysNormalized, compareDaysPattern, 1);
+				if (ownerDaysDigits != "") {
+					ownerDaysNormalized = ownerDaysDigits;
+				}
+				let eventsOutDaysNormalized = selectedEventsOutDaysCount;
+				let eventsOutDaysDigits = callMacro("ex_Helpers.m_RegexGetGroup", eventsOutDaysNormalized, compareDaysPattern, 1);
+				if (eventsOutDaysDigits != "") {
+					eventsOutDaysNormalized = eventsOutDaysDigits;
+				}
+				if (ownerDaysNormalized != eventsOutDaysNormalized) {
+					mismatchFields = mismatchFields + "DaysCount(Daily=" + owner.column[DaysCount] + "; EventsOut=" + selectedEventsOutDaysCount + "), ";
+				}
+
+				let ownerDateFromFull = callMacro("ex_DateHelpers.m_ToFullDate", $`{owner.column[DateFrom]}`, $`{baseDate}`);
+				let eventsOutDateFromFull = callMacro("ex_DateHelpers.m_ToFullDate", $`{selectedEventsOutOutDate}`, $`{baseDate}`);
+				if (ownerDateFromFull != eventsOutDateFromFull) {
+					mismatchFields = mismatchFields + "DateFrom/OutDate(Daily=" + owner.column[DateFrom] + "; EventsOut=" + selectedEventsOutOutDate + "), ";
+				}
+
+				let ownerDateToFull = callMacro("ex_DateHelpers.m_ToFullDate", $`{owner.column[DateTo]}`, $`{baseDate}`);
+				let eventsOutDateToFull = callMacro("ex_DateHelpers.m_ToFullDate", $`{selectedEventsOutPlannedReturnDate}`, $`{baseDate}`);
+				let eventsOutDateToMinusOneFull = callMacro("ex_DateHelpers.m_AddDaysToDate", $`{eventsOutDateToFull}`, "-1", $`{baseDate}`);
+				if (ownerDateToFull != eventsOutDateToMinusOneFull) {
+					mismatchFields = mismatchFields + "DateTo/PlannedReturnDate-1day(Daily=" + owner.column[DateTo] + "; EventsOut=" + selectedEventsOutPlannedReturnDate + "), ";
+				}
+
+				if (owner.column[SectionType] != "8") {
+					let ownerVkNumNormalized = owner.column[VkNum];
+					let ownerVkNumDigits = callMacro("ex_Helpers.m_RegexGetGroup", ownerVkNumNormalized, compareNumPattern, 1);
+					if (ownerVkNumDigits != "") {
+						ownerVkNumNormalized = ownerVkNumDigits;
+					}
+					let eventsOutTicketNormalized = selectedEventsOutTicket;
+					let eventsOutTicketDigits = callMacro("ex_Helpers.m_RegexGetGroup", eventsOutTicketNormalized, compareNumPattern, 1);
+					if (eventsOutTicketDigits != "") {
+						eventsOutTicketNormalized = eventsOutTicketDigits;
+					}
+					if (ownerVkNumNormalized != eventsOutTicketNormalized) {
+						mismatchFields = mismatchFields + "VkNum/Ticket(Daily=" + owner.column[VkNum] + "; EventsOut=" + selectedEventsOutTicket + "), ";
+					}
+
+					let ownerVkDateFull = callMacro("ex_DateHelpers.m_ToFullDate", $`{owner.column[VkDate]}`, $`{baseDate}`);
+					let eventsOutVkDateFull = callMacro("ex_DateHelpers.m_ToFullDate", $`{selectedEventsOutOutCommandDate}`, $`{baseDate}`);
+					if (ownerVkDateFull != eventsOutVkDateFull) {
+						mismatchFields = mismatchFields + "VkDate/OutCommandDate(Daily=" + owner.column[VkDate] + "; EventsOut=" + selectedEventsOutOutCommandDate + "), ";
+					}
+				}
+
+				if (mismatchFields != "") {
+					let mismatchErrorLine = "FIO=" + owner.column[FIO] + ", SectionType=" + owner.column[SectionType] + ": данные не совпадают с EventsOut строкой (EventReason='" + selectedEventReason + "', OutCommandDate=BaseDate): " + mismatchFields;
+					callMacro("ex_PostProcessActions.m_ShowBannerBeforeRowRef", "TYPE_ERROR", validationErrorTitle, mismatchErrorLine, owner, 0, 0);
+					hasValidationWarnings = "true";
+				}
+			}
+		}
+
+		// Валидация #4: обязательные поля по секциям
+		let missingRequiredFields = "";
+		let sectionType = owner.column[SectionType];
+
+		if (owner.column[Rank] == "" || owner.column[Rank] == "?" || owner.column[Rank] == "-") {
+			missingRequiredFields = missingRequiredFields + "Rank, ";
+		}
+		if (owner.column[FIO] == "" || owner.column[FIO] == "?" || owner.column[FIO] == "-") {
+			missingRequiredFields = missingRequiredFields + "FIO, ";
+		}
+		if (owner.column[Position] == "" || owner.column[Position] == "?" || owner.column[Position] == "-") {
+			missingRequiredFields = missingRequiredFields + "Position, ";
+		}
+		if (sectionType != "8" &&
+			sectionType != "9" &&
+			sectionType != "10" &&
+			sectionType != "13" &&
+			sectionType != "14" &&
+			sectionType != "17") {
+			if (owner.column[RaportFrom] == "" || owner.column[RaportFrom] == "?" || owner.column[RaportFrom] == "-") {
+				missingRequiredFields = missingRequiredFields + "RaportFrom, ";
+			}
+		}
+		if (owner.column[InNum] == "" || owner.column[InNum] == "?" || owner.column[InNum] == "-") {
+			missingRequiredFields = missingRequiredFields + "InNum, ";
+		}
+		if (owner.column[InDate] == "" || owner.column[InDate] == "?" || owner.column[InDate] == "-") {
+			missingRequiredFields = missingRequiredFields + "InDate, ";
+		}
+
+		if (sectionType == "1" || sectionType == "7" || sectionType == "13" || sectionType == "15" || sectionType == "18") {
+			if (owner.column[Hospital] == "" || owner.column[Hospital] == "?" || owner.column[Hospital] == "-") {
+				missingRequiredFields = missingRequiredFields + "Hospital, ";
+			}
+		}
+
+		if (sectionType == "8" ||
+			sectionType == "9" ||
+			sectionType == "10" ||
+			sectionType == "13" ||
+			sectionType == "14" ||
+			sectionType == "17") {
+			if (owner.column[Vacation] == "" || owner.column[Vacation] == "?" || owner.column[Vacation] == "-") {
+				missingRequiredFields = missingRequiredFields + "Vacation, ";
+			}
+			if (owner.column[DaysCount] == "" || owner.column[DaysCount] == "?" || owner.column[DaysCount] == "-") {
+				missingRequiredFields = missingRequiredFields + "DaysCount, ";
+			}
+		}
+
+		if (sectionType == "8" ||
+			sectionType == "9" ||
+			sectionType == "10" ||
+			sectionType == "13" ||
+			sectionType == "14" ||
+			sectionType == "15" ||
+			sectionType == "16" ||
+			sectionType == "17" ||
+			sectionType == "18") {
+			if (owner.column[DateFrom] == "" || owner.column[DateFrom] == "?" || owner.column[DateFrom] == "-") {
+				missingRequiredFields = missingRequiredFields + "DateFrom, ";
+			}
+		}
+
+		if (sectionType == "8" ||
+			sectionType == "9" ||
+			sectionType == "10" ||
+			sectionType == "13" ||
+			sectionType == "14" ||
+			sectionType == "17") {
+			if (owner.column[DateTo] == "" || owner.column[DateTo] == "?" || owner.column[DateTo] == "-") {
+				missingRequiredFields = missingRequiredFields + "DateTo, ";
+			}
+		}
+
+		if (sectionType == "2" ||
+			sectionType == "3" ||
+			sectionType == "4" ||
+			sectionType == "8" ||
+			sectionType == "9" ||
+			sectionType == "10" ||
+			sectionType == "13" ||
+			sectionType == "14" ||
+			sectionType == "17") {
+			if (owner.column[VkNum] == "" || owner.column[VkNum] == "?" || owner.column[VkNum] == "-") {
+				missingRequiredFields = missingRequiredFields + "VkNum, ";
+			}
+			if (owner.column[VkDate] == "" || owner.column[VkDate] == "?" || owner.column[VkDate] == "-") {
+				missingRequiredFields = missingRequiredFields + "VkDate, ";
+			}
+		}
+
+		if (sectionType == "10" ||
+			sectionType == "13" ||
+			sectionType == "14" ||
+			sectionType == "17" ||
+			sectionType == "18") {
+			if (owner.column[VlkNum] == "" || owner.column[VlkNum] == "?" || owner.column[VlkNum] == "-") {
+				missingRequiredFields = missingRequiredFields + "VlkNum, ";
+			}
+			if (owner.column[VlkDate] == "" || owner.column[VlkDate] == "?" || owner.column[VlkDate] == "-") {
+				missingRequiredFields = missingRequiredFields + "VlkDate, ";
+			}
+		}
+
+		if (missingRequiredFields != "") {
+			let requiredFieldsErrorLine = "FIO=" + owner.column[FIO] + ", SectionType=" + sectionType + ": не заполнены обязательные поля: " + missingRequiredFields;
+			callMacro("ex_PostProcessActions.m_ShowBannerBeforeRowRef", "TYPE_ERROR", validationErrorTitle, requiredFieldsErrorLine, owner, 0, 0);
+			hasValidationWarnings = "true";
+		}
+	}
+}
+
+if (hasValidationWarnings == "true") {
+	//callMacro("ex_Messaging.m_LogToFile", "[POST] STOP validation failed", logPath);
+	callMacro("ex_PostProcessActions.m_ShowBannerAtLayoutBannerControl", "TYPE_WARNING", "pcWarningBannerSlot", validationWarningTitle, "Валидация не пройдена.");
+	return;
+}
+}
+
+let exportWordPasteAnchor = "";
+let hasExportBlocks = "false";
+
+for (let row in Daily.Sheet[DailyEvents].rows) {
+	if (row.column[MetaType] == "owner") {
+		let sectionType = row.column[SectionType];
+		let ownerRowIndex = callMacro("ex_PostProcessActions.m_GetRowIndex", row);
+
+		let rowTemplateAnchor = "";
+		if (sectionType == "") {
+			callMacro("ex_PostProcessActions.m_ShowLogicError", "SectionType is empty for owner row.");
+			return;
+		}
+
+		if (sectionType == "1") { rowTemplateAnchor = "FromHospital"; }
+		if (sectionType == "2") { rowTemplateAnchor = "FromVacationForCuring"; }
+		if (sectionType == "3") { rowTemplateAnchor = "FromAnnualMainVacation"; }
+		if (sectionType == "4") { rowTemplateAnchor = "FromVacationForFamily"; }
+		if (sectionType == "5") { rowTemplateAnchor = "FromMedicalCompanyForTreatment"; }
+		if (sectionType == "6") { rowTemplateAnchor = "FromOutpatientExaminationOrVlk"; }
+		if (sectionType == "7") { rowTemplateAnchor = "ToHospital"; }
+		if (sectionType == "8") { rowTemplateAnchor = "ToAnnualMainVacation"; }
+		if (sectionType == "9") { rowTemplateAnchor = "ToVacationForFamily"; }
+		if (sectionType == "10") { rowTemplateAnchor = "ToVacationForCuring"; }
+		if (sectionType == "11") { rowTemplateAnchor = "ToMedicalCompanyForTreatment"; }
+		if (sectionType == "12") { rowTemplateAnchor = "ToOutpatientExaminationOrVlk"; }
+		if (sectionType == "13") { rowTemplateAnchor = "MoveFromHospitalToVacationForCuring"; }
+		if (sectionType == "14") { rowTemplateAnchor = "MoveFromVacationForCuringToVacationForCuring"; }
+		if (sectionType == "15") { rowTemplateAnchor = "MoveFromVacationForCuringToHospital"; }
+		if (sectionType == "16") { rowTemplateAnchor = "MoveFromVacationForCuringToVlk"; }
+		if (sectionType == "17") { rowTemplateAnchor = "MoveFromVlkToVacationForCuring"; }
+		if (sectionType == "18") { rowTemplateAnchor = "MoveFromVlkToHospital"; }
+
+		if (sectionType != "" && rowTemplateAnchor == "") {
+			callMacro("ex_PostProcessActions.m_ShowLogicError", $`Unsupported SectionType for export mapping: {sectionType}`);
+			return;
+		}
+
+		exportWordPasteAnchor = rowTemplateAnchor;
+		let recordKeyFio = row.column[FIO];
+		let exportRecordRuntimeKey = exportRuntimeWordRecordKeyPrefix + ownerRowIndex;
+		let exportRecordRuntimeValue = rowTemplateAnchor + "|" + recordKeyFio;
+		callMacro("ex_PostProcessActions.m_SetRuntimeData", exportRecordRuntimeKey, exportRecordRuntimeValue);
+
+			let txt = callMacro("ex_ResultTemplatesParser.m_GetTemplateText", rowTemplateAnchor, resultTemplatesRelPath);
+			txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "DATE", $`{baseDate}`, "#66CCFF");
+			txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "RaportTvo", $`{row.column[RaportTVO]}`, "#66CCFF");
+			callMacro("ex_ResultTemplatesParser.m_ClearCollections");
+
+		/* Нормализация дат для всех секций: в шаблоны передаем уже полные даты */
+		let fullInDate = row.column[InDate];
+		let fullDocDate = row.column[DocDate];
+		let fullVkDate = row.column[VkDate];
+		let fullVlkDate = row.column[VlkDate];
+		let fullDateFrom = row.column[DateFrom];
+		let fullDateTo = row.column[DateTo];
+		let prevVkNum = "";
+		let prevVkDateRaw = "";
+		let prevVkDate = "";
+		let needDocDate = "false";
+		let needVkDate = "false";
+		let needVlkDate = "false";
+		let needDateFrom = "false";
+		let needDateTo = "false";
+
+		if (sectionType == "1" ||
+			sectionType == "6" ||
+			sectionType == "5" ||
+			sectionType == "7" ||
+			sectionType == "11" ||
+			sectionType == "12" ||
+			sectionType == "13" ||
+			sectionType == "15" ||
+			sectionType == "16" ||
+			sectionType == "18") {
+			needDocDate = "true";
+		}
+		if (sectionType == "2" ||
+			sectionType == "3" ||
+			sectionType == "4" ||
+			sectionType == "8" ||
+			sectionType == "9" ||
+			sectionType == "10" ||
+			sectionType == "13" ||
+			sectionType == "14" ||
+			sectionType == "15" ||
+			sectionType == "16" ||
+			sectionType == "17") {
+			needVkDate = "true";
+		}
+		if (sectionType == "6" ||
+			sectionType == "10" ||
+			sectionType == "13" ||
+			sectionType == "14" ||
+			sectionType == "17" ||
+			sectionType == "18") {
+			needVlkDate = "true";
+		}
+		if (sectionType == "8" ||
+			sectionType == "9" ||
+			sectionType == "10" ||
+			sectionType == "1" ||
+			sectionType == "7" ||
+			sectionType == "13" ||
+			sectionType == "14" ||
+			sectionType == "15" ||
+			sectionType == "16" ||
+			sectionType == "17" ||
+			sectionType == "18") {
+			needDateFrom = "true";
+		}
+		if (sectionType == "8" ||
+			sectionType == "9" ||
+			sectionType == "10" ||
+			sectionType == "13" ||
+			sectionType == "14" ||
+			sectionType == "17") {
+			needDateTo = "true";
+		}
+
+		fullInDate = callMacro("ex_DateHelpers.m_ToFullDate", $`{row.column[InDate]}`, $`{baseDate}`);
+		if (needDocDate == "true") {
+			fullDocDate = callMacro("ex_DateHelpers.m_ToFullDate", $`{row.column[DocDate]}`, $`{baseDate}`);
+		}
+		if (needVkDate == "true") {
+			fullVkDate = callMacro("ex_DateHelpers.m_ToFullDate", $`{row.column[VkDate]}`, $`{baseDate}`);
+		}
+		if (needVlkDate == "true") {
+			fullVlkDate = callMacro("ex_DateHelpers.m_ToFullDate", $`{row.column[VlkDate]}`, $`{baseDate}`);
+		}
+		if (needDateFrom == "true") {
+			fullDateFrom = callMacro("ex_DateHelpers.m_ToFullDate", $`{row.column[DateFrom]}`, $`{baseDate}`);
+		}
+		if (needDateTo == "true") {
+			fullDateTo = callMacro("ex_DateHelpers.m_ToFullDate", $`{row.column[DateTo]}`, $`{baseDate}`);
+		}
+
+		if (sectionType == "15" || sectionType == "16") {
+			let hasPrevVacationForCuringEvent = "false";
+			for (let outRow in Events.Sheet[EventsOut].rows) {
+				if (outRow.column[FIO] == row.column[FIO] &&
+					(outRow.column[EventReason] == "Відпустка для лікування" ||
+					 outRow.column[EventReason] == "Відпустка")) {
+					hasPrevVacationForCuringEvent = "true";
+					prevVkNum = outRow.column[Ticket];
+					prevVkDateRaw = outRow.column[OutCommandDate];
+				}
+			}
+
+			if (hasPrevVacationForCuringEvent != "true") {
+				callMacro(
+					"ex_PostProcessActions.m_ShowBannerBeforeRowRef",
+					"TYPE_ERROR",
+					exportErrorTitle,
+					$`SectionType={sectionType}, FIO={row.column[FIO]}: not found EventsOut row with EventReason='Відпустка для лікування' or 'Відпустка' to fill PrevVkNum/PrevVkDate.`,
+					row,
+					0,
+					0
+				);
+				return;
+			}
+			if (prevVkNum == "" || prevVkNum == "?") {
+				callMacro(
+					"ex_PostProcessActions.m_ShowBannerBeforeRowRef",
+					"TYPE_ERROR",
+					exportErrorTitle,
+					$`SectionType={sectionType}, FIO={row.column[FIO]}: EventsOut.Ticket is empty for last row with EventReason='Відпустка для лікування' or 'Відпустка'.`,
+					row,
+					0,
+					0
+				);
+				return;
+			}
+			if (prevVkDateRaw == "" || prevVkDateRaw == "?") {
+				callMacro(
+					"ex_PostProcessActions.m_ShowBannerBeforeRowRef",
+					"TYPE_ERROR",
+					exportErrorTitle,
+					$`SectionType={sectionType}, FIO={row.column[FIO]}: EventsOut.OutCommandDate is empty for last row with EventReason='Відпустка для лікування' or 'Відпустка'.`,
+					row,
+					0,
+					0
+				);
+				return;
+			}
+			
+			prevVkDate = callMacro("ex_DateHelpers.m_ToFullDate", $`{prevVkDateRaw}`, $`{baseDate}`);
+		}
+
+		// Парсим DaysCount по шаблону "N+X ...":
+		// - группа 1: базовое количество дней N
+		// - группа 2: доп. дни дороги X (после первого '+')
+		let normalizedDaysCount = row.column[DaysCount];
+		let additionalWayDays = "0";
+		let sourceDaysCount = normalizedDaysCount;
+		let daysCountPattern = "^\\s*(\\d+)(?:\\s*\\+\\s*(\\d+))?";
+		let inNumFull = row.column[InNum];
+		let inNumDigitsPattern = "^\\s*(\\d+)\\s*$";
+		let inNumDigits = callMacro("ex_Helpers.m_RegexGetGroup", inNumFull, inNumDigitsPattern, 1);
+		if (inNumDigits != "") {
+			inNumFull = "1656/" + inNumDigits + "-в";
+		}
+		let baseDaysDigits = callMacro("ex_Helpers.m_RegexGetGroup", sourceDaysCount, daysCountPattern, 1);
+		if (baseDaysDigits != "") {
+			normalizedDaysCount = baseDaysDigits;
+		}
+		let additionalDaysDigits = callMacro("ex_Helpers.m_RegexGetGroup", sourceDaysCount, daysCountPattern, 2);
+		if (additionalDaysDigits != "") {
+			additionalWayDays = additionalDaysDigits;
+		}
+
+		let isReturnToDuty = "false";
+		let returnToDutyRank = "";
+		let returnToDutyFIO = "";
+		let returnToDutyPosition = "";
+		let isAssignToDuty = "false";
+		let assignToDutyRank = "";
+		let assignToDutyFIO = "";
+		let assignToDutyPosition = "";
+		let metadataAttributes = "";
+		let hospitalForMoveFromHospital = row.column[Hospital];
+
+		if (sectionType == "13" || sectionType == "15" || sectionType == "18") {
+			let hospitalSourceText = row.column[Hospital];
+
+			hospitalForMoveFromHospital = callMacro("ex_Helpers.m_ReplaceLeadingPhraseIfMatched", hospitalSourceText, "комунального некомерційного підприємства", "комунальному некомерційному підприємстві");
+			if (hospitalForMoveFromHospital == hospitalSourceText) {
+				hospitalForMoveFromHospital = callMacro("ex_Helpers.m_ReplaceLeadingPhraseIfMatched", hospitalSourceText, "державної установи", "державній установі");
+			}
+			if (hospitalForMoveFromHospital == hospitalSourceText) {
+				hospitalForMoveFromHospital = callMacro("ex_Helpers.m_ReplaceLeadingPhraseIfMatched", hospitalSourceText, "клінічного санаторію", "клінічному санаторії");
+			}
+			if (hospitalForMoveFromHospital == hospitalSourceText) {
+				hospitalForMoveFromHospital = callMacro("ex_Helpers.m_ReplaceLeadingPhraseIfMatched", hospitalSourceText, "медичної роти військової частини", "медичній роті військової частини");
+			}
+			if (hospitalForMoveFromHospital == hospitalSourceText) {
+				hospitalForMoveFromHospital = callMacro("ex_Helpers.m_ReplaceLeadingPhraseIfMatched", hospitalSourceText, "військово-медичного клінічного центру", "військово-медичному клінічному центрі");
+			}
+			if (hospitalForMoveFromHospital == hospitalSourceText) {
+				hospitalForMoveFromHospital = callMacro("ex_Helpers.m_ReplaceLeadingPhraseIfMatched", hospitalSourceText, "військової частини", "військовій частині");
+			}
+		}
+
+		let ownerDocNote = row.column[DocNote];
+		let ownerDocNum = row.column[DocNum];
+		let ownerDocDateForBasis = fullDocDate;
+		let ownerDocNoteNormalized = callMacro("ex_Helpers.m_RegexReplace", ownerDocNote, "^[ \\t\\r\\n]*([\\s\\S]*?)[ \\t\\r\\n]*$", "$1");
+		let ownerDocNumNormalized = callMacro("ex_Helpers.m_RegexReplace", ownerDocNum, "^[ \\t\\r\\n]*([\\s\\S]*?)[ \\t\\r\\n]*$", "$1");
+		let ownerDocDateNormalized = callMacro("ex_Helpers.m_RegexReplace", ownerDocDateForBasis, "^[ \\t\\r\\n]*([\\s\\S]*?)[ \\t\\r\\n]*$", "$1");
+		let ownerDocNoteIsTvo = callMacro("ex_Helpers.m_RegexIsMatch", ownerDocNoteNormalized, metaKeywordTvoPattern);
+		let ownerDocNoteIsDuplicate = callMacro("ex_Helpers.m_RegexIsMatch", ownerDocNoteNormalized, metaKeywordDuplicatePattern);
+		let ownerDocNumIsAttributeMarker = callMacro("ex_Helpers.m_RegexIsMatch", ownerDocNumNormalized, metaAttributeMarkerPattern);
+		let ownerDocNoteIsEmpty = "false";
+		let ownerDocDateIsEmpty = "false";
+		let ownerDocNumIsEmpty = "false";
+		if (ownerDocNoteNormalized == "" || ownerDocNoteNormalized == "?" || ownerDocNoteNormalized == "-") {
+			ownerDocNoteIsEmpty = "True";
+		}
+		if (ownerDocDateNormalized == "" || ownerDocDateNormalized == "?" || ownerDocDateNormalized == "-") {
+			ownerDocDateIsEmpty = "True";
+		}
+		if (ownerDocNumNormalized == "" || ownerDocNumNormalized == "?" || ownerDocNumNormalized == "-") {
+			ownerDocNumIsEmpty = "True";
+		}
+		if (ownerDocNoteIsEmpty != "True" &&
+			ownerDocNoteIsTvo != "True" &&
+			ownerDocNoteIsDuplicate != "True" &&
+			ownerDocNumIsAttributeMarker != "True") {
+			let ownerDocTitle = ownerDocNoteNormalized;
+			let ownerDocNumForBasis = "";
+			let ownerDocDateForCollection = "";
+			if (ownerDocNumIsEmpty != "True") {
+				ownerDocNumForBasis = ownerDocNumNormalized;
+			}
+			if (ownerDocDateIsEmpty != "True") {
+				ownerDocDateForCollection = ownerDocDateForBasis;
+			}
+			callMacro(
+				"ex_ResultTemplatesParser.m_AddCollectionItem",
+				"BasisDocuments",
+				$`
+				Note:{ownerDocTitle};
+				Num:{ownerDocNumForBasis};
+				Date:{ownerDocDateForCollection};
+				`
+			);
+		}
+
+		for (let metaRow in Daily.Sheet[DailyEvents].rows) {
+			if (metaRow.column[MetaType] == "meta" &&
+				metaRow.column[OwnerFio] == row.column[FIO] &&
+				metaRow.column[SectionType] == row.column[SectionType]) {
+				let metaDocNote = metaRow.column[DocNote];
+				let metaDocNum = metaRow.column[DocNum];
+				let metaDocDateRaw = metaRow.column[DocDate];
+				let metaDocNoteNormalized = callMacro("ex_Helpers.m_RegexReplace", metaDocNote, "^[ \\t\\r\\n]*([\\s\\S]*?)[ \\t\\r\\n]*$", "$1");
+				let metaDocNumNormalized = callMacro("ex_Helpers.m_RegexReplace", metaDocNum, "^[ \\t\\r\\n]*([\\s\\S]*?)[ \\t\\r\\n]*$", "$1");
+				let metaDocDateNormalized = callMacro("ex_Helpers.m_RegexReplace", metaDocDateRaw, "^[ \\t\\r\\n]*([\\s\\S]*?)[ \\t\\r\\n]*$", "$1");
+				let metaInDateNormalized = callMacro("ex_Helpers.m_RegexReplace", metaRow.column[InDate], "^[ \\t\\r\\n]*([\\s\\S]*?)[ \\t\\r\\n]*$", "$1");
+				let metaDocNoteIsTvo = callMacro("ex_Helpers.m_RegexIsMatch", metaDocNoteNormalized, metaKeywordTvoPattern);
+				let metaDocNoteIsDuplicate = callMacro("ex_Helpers.m_RegexIsMatch", metaDocNoteNormalized, metaKeywordDuplicatePattern);
+				let metaDocNumIsAttributeMarker = callMacro("ex_Helpers.m_RegexIsMatch", metaDocNumNormalized, metaAttributeMarkerPattern);
+				let metaDocNoteIsEmpty = "false";
+				let metaDocDateIsEmpty = "false";
+				let metaDocNumIsEmpty = "false";
+				let metaInDateIsEmpty = "false";
+				if (metaDocNoteNormalized == "" || metaDocNoteNormalized == "?" || metaDocNoteNormalized == "-") {
+					metaDocNoteIsEmpty = "True";
+				}
+				if (metaDocDateNormalized == "" || metaDocDateNormalized == "?" || metaDocDateNormalized == "-") {
+					metaDocDateIsEmpty = "True";
+				}
+				if (metaDocNumNormalized == "" || metaDocNumNormalized == "?" || metaDocNumNormalized == "-") {
+					metaDocNumIsEmpty = "True";
+				}
+				if (metaInDateNormalized == "" || metaInDateNormalized == "?" || metaInDateNormalized == "-") {
+					metaInDateIsEmpty = "True";
+				}
+				let metaDocHasTvoMarker = "false";
+				if (metaDocNoteIsTvo == "True") {
+					metaDocHasTvoMarker = "true";
+				}
+
+				if (isReturnToDuty != "true" &&
+					metaDocHasTvoMarker == "true" &&
+					metaRow.column[Rank] != "" &&
+					metaRow.column[Rank] != "?" &&
+					metaRow.column[FIO] != "" &&
+					metaRow.column[FIO] != "?" &&
+					metaRow.column[Position] != "" &&
+					metaRow.column[Position] != "?") {
+					isReturnToDuty = "true";
+					returnToDutyRank = metaRow.column[Rank];
+					returnToDutyFIO = metaRow.column[FIO];
+					returnToDutyPosition = metaRow.column[Position];
+					isAssignToDuty = "true";
+					assignToDutyRank = metaRow.column[Rank];
+					assignToDutyFIO = metaRow.column[FIO];
+					assignToDutyPosition = metaRow.column[Position];
+				}
+
+				if (metaDocNoteIsDuplicate == "True") {
+					let duplicateEntryInNumFull = metaRow.column[InNum];
+					let duplicateInNumDigits = callMacro("ex_Helpers.m_RegexGetGroup", duplicateEntryInNumFull, inNumDigitsPattern, 1);
+					if (duplicateInNumDigits != "") {
+						duplicateEntryInNumFull = "1656/" + duplicateInNumDigits + "-в";
+					}
+					let duplicateEntryInDate = metaRow.column[InDate];
+					if (duplicateEntryInDate != "" && metaInDateIsEmpty != "True") {
+						duplicateEntryInDate = callMacro("ex_DateHelpers.m_ToFullDate", $`{duplicateEntryInDate}`, $`{baseDate}`);
+					}
+					callMacro(
+						"ex_ResultTemplatesParser.m_AddCollectionItem",
+						"DuplicateRaports",
+						$`
+						RaportTVO:{metaRow.column[RaportTVO]};
+						RaportFrom:{metaRow.column[RaportFrom]};
+						InNumFull:{duplicateEntryInNumFull};
+						InDate:{duplicateEntryInDate};
+						`
+					);
+				}
+
+				if (metaDocNumIsAttributeMarker == "True" &&
+					metaDocNoteIsEmpty != "True" &&
+					metaDocNoteIsDuplicate != "True" &&
+					metaDocHasTvoMarker != "true") {
+					callMacro(
+						"ex_ResultTemplatesParser.m_AddCollectionItem",
+						"MetadataAttributes",
+						$`
+						Value:{metaDocNoteNormalized};
+						`
+					);
+
+					if (metadataAttributes != "") {
+						metadataAttributes = metadataAttributes + "; ";
+					}
+					metadataAttributes = metadataAttributes + metaDocNoteNormalized;
+				}
+
+				if (metaDocNoteIsEmpty != "True" &&
+					metaDocNoteIsDuplicate != "True" &&
+					metaDocHasTvoMarker != "true" &&
+					metaDocNumIsAttributeMarker != "True") {
+					let metaDocTitle = metaDocNoteNormalized;
+					let metaDocNumForBasis = "";
+					let metaDocDateForCollection = "";
+					if (metaDocNumIsEmpty != "True") {
+						metaDocNumForBasis = metaDocNumNormalized;
+					}
+					if (metaDocDateIsEmpty != "True") {
+						metaDocDateForCollection = callMacro("ex_DateHelpers.m_ToFullDate", $`{metaDocDateRaw}`, $`{baseDate}`);
+					}
+					callMacro(
+						"ex_ResultTemplatesParser.m_AddCollectionItem",
+						"BasisDocuments",
+						$`
+						Note:{metaDocTitle};
+						Num:{metaDocNumForBasis};
+						Date:{metaDocDateForCollection};
+						`
+					);
+				}
+			}
+		}
+		if (sectionType == "1") {
+			txt = callMacro(
+				"ex_ResultTemplatesParser.m_ReplaceMultiPlaceholders",
+				txt,
+				$`
+				Hospital:{row.column[Hospital]};
+				Rank:{row.column[Rank]};
+				FIO:{row.column[FIO]};
+				Position:{row.column[Position]};
+				OutDate:{fullDateFrom};
+				IsReturnToDuty:{isReturnToDuty};
+				ReturnToDutyRank:{returnToDutyRank};
+				ReturnToDutyFIO:{returnToDutyFIO};
+				ReturnToDutyPosition:{returnToDutyPosition};
+				RaportFrom:{row.column[RaportFrom]};
+				InNumFull:{inNumFull};
+				InDate:{fullInDate};
+				DocNum:{row.column[DocNum]};
+				DocDate:{fullDocDate};
+				`,
+				"#66CCFF"
+			);
+		}
+
+		if (sectionType == "2" || sectionType == "3" || sectionType == "4") {
+			txt = callMacro(
+				"ex_ResultTemplatesParser.m_ReplaceMultiPlaceholders",
+				txt,
+				$`
+				Rank:{row.column[Rank]};
+				FIO:{row.column[FIO]};
+				Position:{row.column[Position]};
+				IsReturnToDuty:{isReturnToDuty};
+				ReturnToDutyRank:{returnToDutyRank};
+				ReturnToDutyFIO:{returnToDutyFIO};
+				ReturnToDutyPosition:{returnToDutyPosition};
+				RaportFrom:{row.column[RaportFrom]};
+				InNumFull:{inNumFull};
+				InDate:{fullInDate};
+				VkNum:{row.column[VkNum]};
+				VkDate:{fullVkDate};
+				`,
+				"#66CCFF"
+			);
+			}
+
+		if (sectionType == "5") {
+			txt = callMacro(
+				"ex_ResultTemplatesParser.m_ReplaceMultiPlaceholders",
+				txt,
+				$`
+				Rank:{row.column[Rank]};
+				FIO:{row.column[FIO]};
+				Position:{row.column[Position]};
+				IsReturnToDuty:{isReturnToDuty};
+				ReturnToDutyRank:{returnToDutyRank};
+				ReturnToDutyFIO:{returnToDutyFIO};
+				ReturnToDutyPosition:{returnToDutyPosition};
+				RaportFrom:{row.column[RaportFrom]};
+				InNumFull:{inNumFull};
+				InDate:{fullInDate};
+				DocNote:{row.column[DocNote]};
+				DocNum:{row.column[DocNum]};
+				DocDate:{fullDocDate};
+				`,
+				"#66CCFF"
+			);
+		}
+
+		if (sectionType == "6") {
+			txt = callMacro(
+				"ex_ResultTemplatesParser.m_ReplaceMultiPlaceholders",
+				txt,
+				$`
+				Rank:{row.column[Rank]};
+				FIO:{row.column[FIO]};
+				Position:{row.column[Position]};
+				IsReturnToDuty:false;
+				ReturnToDutyRank:;
+				ReturnToDutyFIO:;
+				ReturnToDutyPosition:;
+				RaportFrom:{row.column[RaportFrom]};
+				InNumFull:{inNumFull};
+				InDate:{fullInDate};
+				VlkNum:{row.column[VlkNum]};
+				VlkDate:{fullVlkDate};
+				DocNum:{row.column[DocNum]};
+				DocDate:{fullDocDate};
+				`,
+				"#66CCFF"
+			);
+		}
+
+		if (sectionType == "7") {
+			txt = callMacro(
+				"ex_ResultTemplatesParser.m_ReplaceMultiPlaceholders",
+				txt,
+				$`
+				Hospital:{row.column[Hospital]};
+				Rank:{row.column[Rank]};
+				FIO:{row.column[FIO]};
+				Position:{row.column[Position]};
+				OutDate:{fullDateFrom};
+				IsAssignToDuty:{isAssignToDuty};
+				AssignToDutyRank:{assignToDutyRank};
+				AssignToDutyFIO:{assignToDutyFIO};
+				AssignToDutyPosition:{assignToDutyPosition};
+				RaportFrom:{row.column[RaportFrom]};
+				InNumFull:{inNumFull};
+				InDate:{fullInDate};
+				DocNum:{row.column[DocNum]};
+				DocDate:{fullDocDate};
+				`,
+				"#66CCFF"
+			);
+		}
+
+		if (sectionType == "11") {
+			txt = callMacro(
+				"ex_ResultTemplatesParser.m_ReplaceMultiPlaceholders",
+				txt,
+				$`
+				Rank:{row.column[Rank]};
+				FIO:{row.column[FIO]};
+				Position:{row.column[Position]};
+				IsAssignToDuty:{isAssignToDuty};
+				AssignToDutyRank:{assignToDutyRank};
+				AssignToDutyFIO:{assignToDutyFIO};
+				AssignToDutyPosition:{assignToDutyPosition};
+				RaportFrom:{row.column[RaportFrom]};
+				InNumFull:{inNumFull};
+				InDate:{fullInDate};
+				DocNum:{row.column[DocNum]};
+				DocDate:{fullDocDate};
+				`,
+				"#66CCFF"
+			);
+		}
+
+		if (sectionType == "8" || sectionType == "9") {
+			txt = callMacro(
+				"ex_ResultTemplatesParser.m_ReplaceMultiPlaceholders",
+				txt,
+				$`
+				Rank:{row.column[Rank]};
+				FIO:{row.column[FIO]};
+				Position:{row.column[Position]};
+				City:{row.column[Vacation]};
+				DaysCount:{normalizedDaysCount};
+				AdditionalWayDays:{additionalWayDays};
+				OutDate:{fullDateFrom};
+				ReturnDate:{fullDateTo};
+				IsAssignToDuty:{isAssignToDuty};
+				AssignToDutyRank:{assignToDutyRank};
+				AssignToDutyFIO:{assignToDutyFIO};
+				AssignToDutyPosition:{assignToDutyPosition};
+				RaportFrom:{row.column[RaportFrom]};
+				InNumFull:{inNumFull};
+				InDate:{fullInDate};
+				VkNum:{row.column[VkNum]};
+				VkDate:{fullVkDate};
+				`,
+				"#66CCFF"
+			);
+		}
+
+		if (sectionType == "10") {
+			txt = callMacro(
+				"ex_ResultTemplatesParser.m_ReplaceMultiPlaceholders",
+				txt,
+				$`
+				Rank:{row.column[Rank]};
+				FIO:{row.column[FIO]};
+				Position:{row.column[Position]};
+				City:{row.column[Vacation]};
+				DaysCount:{normalizedDaysCount};
+				AdditionalWayDays:{additionalWayDays};
+				OutDate:{fullDateFrom};
+				ReturnDate:{fullDateTo};
+				IsAssignToDuty:{isAssignToDuty};
+				AssignToDutyRank:{assignToDutyRank};
+				AssignToDutyFIO:{assignToDutyFIO};
+				AssignToDutyPosition:{assignToDutyPosition};
+				RaportFrom:{row.column[RaportFrom]};
+				InNumFull:{inNumFull};
+				InDate:{fullInDate};
+				VlkNum:{row.column[VlkNum]};
+				VlkDate:{fullVlkDate};
+				VkNum:{row.column[VkNum]};
+				VkDate:{fullVkDate};
+				`,
+				"#66CCFF"
+			);
+		}
+
+		if (sectionType == "12") {
+			txt = callMacro(
+				"ex_ResultTemplatesParser.m_ReplaceMultiPlaceholders",
+				txt,
+				$`
+				Rank:{row.column[Rank]};
+				FIO:{row.column[FIO]};
+				Position:{row.column[Position]};
+				RaportFrom:{row.column[RaportFrom]};
+				InNumFull:{inNumFull};
+				InDate:{fullInDate};
+				DocNum:{row.column[DocNum]};
+				DocDate:{fullDocDate};
+				`,
+				"#66CCFF"
+			);
+		}
+
+		if (sectionType == "13") {
+			txt = callMacro(
+				"ex_ResultTemplatesParser.m_ReplaceMultiPlaceholders",
+				txt,
+				$`
+				Rank:{row.column[Rank]};
+				FIO:{row.column[FIO]};
+				Position:{row.column[Position]};
+				Hospital:{hospitalForMoveFromHospital};
+				City:{row.column[Vacation]};
+				DaysCount:{normalizedDaysCount};
+				AdditionalWayDays:{additionalWayDays};
+				OutDate:{fullDateFrom};
+				ReturnDate:{fullDateTo};
+				RaportFrom:{row.column[RaportFrom]};
+				InNumFull:{inNumFull};
+				InDate:{fullInDate};
+				VlkNum:{row.column[VlkNum]};
+				VlkDate:{fullVlkDate};
+				DocNum:{row.column[DocNum]};
+				DocDate:{fullDocDate};
+				VkNum:{row.column[VkNum]};
+				VkDate:{fullVkDate};
+				`,
+				"#66CCFF"
+			);
+		}
+
+		if (sectionType == "14") {
+			txt = callMacro(
+				"ex_ResultTemplatesParser.m_ReplaceMultiPlaceholders",
+				txt,
+				$`
+				Rank:{row.column[Rank]};
+				FIO:{row.column[FIO]};
+				Position:{row.column[Position]};
+				City:{row.column[Vacation]};
+				DaysCount:{normalizedDaysCount};
+				AdditionalWayDays:{additionalWayDays};
+				OutDate:{fullDateFrom};
+				ReturnDate:{fullDateTo};
+				RaportFrom:{row.column[RaportFrom]};
+				InNumFull:{inNumFull};
+				InDate:{fullInDate};
+				VlkNum:{row.column[VlkNum]};
+				VlkDate:{fullVlkDate};
+				VkNum:{row.column[VkNum]};
+				VkDate:{fullVkDate};
+				`,
+				"#66CCFF"
+			);
+		}
+
+		if (sectionType == "15") {
+			txt = callMacro(
+				"ex_ResultTemplatesParser.m_ReplaceMultiPlaceholders",
+				txt,
+				$`
+				Rank:{row.column[Rank]};
+				FIO:{row.column[FIO]};
+				Position:{row.column[Position]};
+				Hospital:{hospitalForMoveFromHospital};
+				OutDate:{fullDateFrom};
+				RaportFrom:{row.column[RaportFrom]};
+				InNumFull:{inNumFull};
+				InDate:{fullInDate};
+				DocNum:{row.column[DocNum]};
+				DocDate:{fullDocDate};
+				PrevVkNum:{prevVkNum};
+				PrevVkDate:{prevVkDate};
+				`,
+				"#66CCFF"
+			);
+		}
+
+		if (sectionType == "16") {
+			txt = callMacro(
+				"ex_ResultTemplatesParser.m_ReplaceMultiPlaceholders",
+				txt,
+				$`
+				Rank:{row.column[Rank]};
+				FIO:{row.column[FIO]};
+				Position:{row.column[Position]};
+				OutDate:{fullDateFrom};
+				RaportFrom:{row.column[RaportFrom]};
+				InNumFull:{inNumFull};
+				InDate:{fullInDate};
+				DocNum:{row.column[DocNum]};
+				DocDate:{fullDocDate};
+				PrevVkNum:{prevVkNum};
+				PrevVkDate:{prevVkDate};
+				`,
+				"#66CCFF"
+			);
+		}
+
+		if (sectionType == "17") {
+			txt = callMacro(
+				"ex_ResultTemplatesParser.m_ReplaceMultiPlaceholders",
+				txt,
+				$`
+				Rank:{row.column[Rank]};
+				FIO:{row.column[FIO]};
+				Position:{row.column[Position]};
+				City:{row.column[Vacation]};
+				DaysCount:{normalizedDaysCount};
+				AdditionalWayDays:{additionalWayDays};
+				OutDate:{fullDateFrom};
+				ReturnDate:{fullDateTo};
+				RaportFrom:{row.column[RaportFrom]};
+				InNumFull:{inNumFull};
+				InDate:{fullInDate};
+				VlkNum:{row.column[VlkNum]};
+				VlkDate:{fullVlkDate};
+				VkNum:{row.column[VkNum]};
+				VkDate:{fullVkDate};
+				`,
+				"#66CCFF"
+			);
+		}
+
+		if (sectionType == "18") {
+			txt = callMacro(
+				"ex_ResultTemplatesParser.m_ReplaceMultiPlaceholders",
+				txt,
+				$`
+				Rank:{row.column[Rank]};
+				FIO:{row.column[FIO]};
+				Position:{row.column[Position]};
+				Hospital:{hospitalForMoveFromHospital};
+				OutDate:{fullDateFrom};
+				RaportFrom:{row.column[RaportFrom]};
+				InNumFull:{inNumFull};
+				InDate:{fullInDate};
+				VlkNum:{row.column[VlkNum]};
+				VlkDate:{fullVlkDate};
+				DocNum:{row.column[DocNum]};
+				DocDate:{fullDocDate};
+				`,
+				"#66CCFF"
+			);
+		}
+
+		txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "MetadataAttributes", $`{metadataAttributes}`, "#66CCFF");
+		txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "DocNote", $`{row.column[DocNote]}`, "#66CCFF");
+		txt = callMacro("ex_ResultTemplatesParser.m_ResolveTemplate", txt, "", "#66CCFF");
+		
+		let txtForWord = callMacro("ex_ResultTemplatesParser.m_RemoveHighlightMarkers", txt);
+		let exportAnchorRuntimeKey = exportRuntimeWordAnchorPrefix + rowTemplateAnchor;
+		let currentAnchorExportText = callMacro("ex_PostProcessActions.m_GetRuntimeData", exportAnchorRuntimeKey, "");
+		let mergedAnchorExportText = callMacro("ex_PostProcessActions.m_TextAppend", currentAnchorExportText, txtForWord, "\n\n");
+		callMacro("ex_PostProcessActions.m_SetRuntimeData", exportAnchorRuntimeKey, mergedAnchorExportText);
+
+		let appendedBlockText = callMacro("ex_PostProcessActions.m_AddResultBannerToItemsSource", "pcResultBanners", "TYPE_NOTE", "", txt);
+		if (appendedBlockText != "") {
+			hasExportBlocks = "true";
+		}
+	}
+} // for (let row in Daily.Sheet[DailyEvents].rows)
+
+if (hasExportBlocks == "true") {
+	let wordResultsPlace = callMacro("ex_PostProcessActions.m_GetLastResultBlockCellRef");
+	callMacro("ex_PostProcessActions.m_SetRuntimeData", "Export.RuntimeDataBase.WordResultsPlace", wordResultsPlace);
+	callMacro("ex_PostProcessActions.m_SetRuntimeData", "Export.RuntimeDataBase.WordPasteAnchor", exportWordPasteAnchor);
+	//callMacro("ex_Messaging.m_LogToFile", "[POST] END success. Anchor=" + exportWordPasteAnchor, logPath);
+} else {
+	callMacro("ex_Messaging.m_LogToFile", "[POST] STOP no export blocks", logPath);
+	callMacro("ex_PostProcessActions.m_ShowLogicError", "Post Process generated no export blocks for current key. Check CommonKey and DailyEvents source rows.");
+	return;
+}

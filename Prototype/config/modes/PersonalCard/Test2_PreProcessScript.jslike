@@ -1,9 +1,0 @@
-// PersonalCard Test2 pre-process script.
-// Pass-through pipeline input: copy key fields into ScriptIO output.
-
-let input = callMacroObject("ex_ScriptIO.m_GetInput");
-let output = callMacroObject("ex_ScriptIO.m_CreateOutput");
-
-let commonKey = callMacro("ex_ScriptIO.m_GetValue", input, "CommonKey", "");
-
-callMacro("ex_ScriptIO.m_SetString", output, "CommonKey", commonKey);

@@ -1,0 +1,78 @@
+let input = callMacroObject("ex_ScriptIO.m_GetInput");
+let baseDate = callMacro("ex_ScriptIO.m_GetValue", input, "BaseDate", "");
+let inputCommonKey = callMacro("ex_ScriptIO.m_GetValue", input, "CommonKey", "");
+if (baseDate == "") {
+	callMacro("ex_PostProcessActions.m_ShowLogicError", "Config key 'BaseDate' is empty. Set it in profile and rerun.");
+	return;
+}
+
+let resultTemplatesRelPath = "config\\modes\\HealthBenefits\\HealthBenefitsResultTemplates.xml";
+let exportRuntimeWordAnchorPrefix = "Export.RuntimeDataBase.WordAnchor.";
+let exportRuntimeWordRecordKeyPrefix = "Export.RuntimeDataBase.WordRecordKey.";
+let exportWordPasteAnchor = "GiveHealthBenefits";
+let typeDigitsPattern = "^\\s*(\\d+)";
+let hasExportBlocks = "false";
+let trimPattern = "^\\s+|\\s+$";
+let normalizedInputCommonKey = callMacro("ex_Helpers.m_RegexReplace", inputCommonKey, trimPattern, "");
+
+for (let row in Daily.Sheet[DailyEvents].rows) {
+	let fioText = callMacro("ex_Helpers.m_RegexReplace", row.column[FIO], trimPattern, "");
+	if (fioText == "") {
+		continue;
+	}
+
+	if (normalizedInputCommonKey != "" && fioText != normalizedInputCommonKey) {
+		continue;
+	}
+
+	let sectionType = callMacro("ex_Helpers.m_RegexGetGroup", row.column[Type], typeDigitsPattern, 1);
+	if (sectionType == "") {
+		sectionType = "1";
+	}
+	if (sectionType != "1") {
+		continue;
+	}
+
+	let txt = callMacro("ex_ResultTemplatesParser.m_GetTemplateText", exportWordPasteAnchor, resultTemplatesRelPath);
+
+	let inNumFull = row.column[InNum];
+	let fullInDate = callMacro("ex_DateHelpers.m_ToFullDate", $`{row.column[InDate]}`, $`{baseDate}`);
+
+	txt = callMacro(
+		"ex_ResultTemplatesParser.m_ReplaceMultiPlaceholders",
+		txt,
+		$`
+		Rank:{row.column[Rank]};
+		FIO:{row.column[FIO]};
+		Position:{row.column[Position]};
+		InNumFull:{inNumFull};
+		InDate:{fullInDate};
+		`,
+		"#66CCFF"
+	);
+	txt = callMacro("ex_ResultTemplatesParser.m_ResolveTemplate", txt, "", "#66CCFF");
+
+	let txtForWord = callMacro("ex_ResultTemplatesParser.m_RemoveHighlightMarkers", txt);
+	let rowIndex = callMacro("ex_PostProcessActions.m_GetRowIndex", row);
+	let exportRecordRuntimeKey = exportRuntimeWordRecordKeyPrefix + rowIndex;
+	let exportRecordRuntimeValue = exportWordPasteAnchor + "|" + row.column[FIO];
+	callMacro("ex_PostProcessActions.m_SetRuntimeData", exportRecordRuntimeKey, exportRecordRuntimeValue);
+
+	let exportAnchorRuntimeKey = exportRuntimeWordAnchorPrefix + exportWordPasteAnchor;
+	let currentAnchorExportText = callMacro("ex_PostProcessActions.m_GetRuntimeData", exportAnchorRuntimeKey, "");
+	let mergedAnchorExportText = callMacro("ex_PostProcessActions.m_TextAppend", currentAnchorExportText, txtForWord, "\n\n");
+	callMacro("ex_PostProcessActions.m_SetRuntimeData", exportAnchorRuntimeKey, mergedAnchorExportText);
+
+	let appendedBlockText = callMacro("ex_PostProcessActions.m_AppendResultBlock", txt, "", "TYPE_NOTE", 0, 1);
+	if (appendedBlockText != "") {
+		hasExportBlocks = "true";
+	}
+}
+
+if (hasExportBlocks == "true") {
+	let wordResultsPlace = callMacro("ex_PostProcessActions.m_GetLastResultBlockCellRef");
+	callMacro("ex_PostProcessActions.m_SetRuntimeData", "Export.RuntimeDataBase.WordResultsPlace", wordResultsPlace);
+	callMacro("ex_PostProcessActions.m_SetRuntimeData", "Export.RuntimeDataBase.WordPasteAnchor", exportWordPasteAnchor);
+} else {
+	callMacro("ex_PostProcessActions.m_ShowLogicError", "No DailyEvents rows were found for current key in section Type=1.");
+}

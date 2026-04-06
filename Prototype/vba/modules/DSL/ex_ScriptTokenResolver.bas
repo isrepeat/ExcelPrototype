@@ -55,6 +55,11 @@ Public Function m_TryResolveTokenForValidation( _
 
         variableType = LCase$(CStr(scopeVarTypes(variableName)))
         Select Case variableType
+            Case VAR_TYPE_ROW
+                outResolvedTableRef = vbNullString
+                outResolvedMapKey = vbNullString
+                m_TryResolveTokenForValidation = True
+                Exit Function
             Case VAR_TYPE_COLUMN
                 If Not ex_ScriptDslContracts.m_IsMemberAllowed(ex_ScriptDslContracts.TYPE_COLUMN, memberName) Then
                     outErrorText = "Unsupported column member '" & memberName & "' in token '" & tokenText & "'."
@@ -404,6 +409,19 @@ Private Function mp_TryResolveVariableMemberValue( _
     ByRef outErrorText As String _
 ) As Boolean
     Dim columnObj As obj_ResultColumn
+    Dim rowObj As obj_ResultRow
+
+    If TypeOf variableObject Is obj_ResultRow Then
+        Set rowObj = variableObject
+        If Not rowObj.HasAlias(memberName) Then
+            outErrorText = "Unknown row field alias '" & memberName & "' in token '" & tokenText & "'."
+            Exit Function
+        End If
+
+        outValue = rowObj.Column(memberName)
+        mp_TryResolveVariableMemberValue = True
+        Exit Function
+    End If
 
     If TypeOf variableObject Is obj_ResultColumn Then
         Set columnObj = variableObject

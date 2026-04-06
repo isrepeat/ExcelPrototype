@@ -1,0 +1,41 @@
+﻿<?xml version="1.0" standalone="yes"?>
+<profiles version="1" xmlns="urn:excelprototype:profiles">
+	<profile name="Default" resultZoom="90">
+		<ui>
+			<control name="btnClear" visible="true"/>
+			<control name="btnHealthBenefits" visible="true"/>
+			<control name="btnComparing" visible="false"/>
+			<control name="btnUpdateCode" visible="true"/>
+			<control name="btnCustomProfile" visible="true"/>
+			<control name="btnCustomMode" visible="true"/>
+		</ui>
+		<v key="Source.Daily.FilePath">..\..\..\WORK Alexandr Bondarenko\НАКАЗИ\DailyScope.xlsx</v>
+		<v key="Source.Daily.SheetAliases">DailyEvents</v>
+		<v key="BaseDate">27</v>
+		<v key="CommonKey" mutable="true">ШЕВЧУК Василь Петрович</v>
+		<v type="#" key="DailyEvents"/>
+		<v key="Daily.Sheet[DailyEvents].Type">Events</v>
+		<v key="Daily.Sheet[DailyEvents].SheetName">{$BaseDate|dateformat:"\dd_\mm_OZD"}</v>
+		<v key="Daily.Sheet[DailyEvents].SheetNameResolver">ex_SourceResolvers.m_ResolveWithDateFormatter</v>
+		<v key="Daily.Sheet[DailyEvents].RangeStartMarker">StartTable_DailyEvents</v>
+		<v key="Daily.Sheet[DailyEvents].RangeEndMarker">EndTable_DailyEvents</v>
+		<v key="Daily.Sheet[DailyEvents].FieldsAliases">Rank; FIO; Position; RaportTVO; RaportFrom; InNum; InDate; Type</v>
+		<v key="Daily.Sheet[DailyEvents].Key">FIO</v>
+		<v key="Daily.Sheet[DailyEvents].Sort">InDate</v>
+		<v key="Daily.Sheet[DailyEvents].Map[Rank]">Звання</v>
+		<v key="Daily.Sheet[DailyEvents].Map[FIO]">ПІБ</v>
+		<v key="Daily.Sheet[DailyEvents].Map[Position]">Посада</v>
+		<v key="Daily.Sheet[DailyEvents].Map[RaportTVO]">Рапорт ТВО</v>
+		<v key="Daily.Sheet[DailyEvents].Map[RaportFrom]">Рапорт кого</v>
+		<v key="Daily.Sheet[DailyEvents].Map[InNum]">Вх. №</v>
+		<v key="Daily.Sheet[DailyEvents].Map[InDate]">Вх. Дата</v>
+		<v key="Daily.Sheet[DailyEvents].Map[Type]">Type</v>
+		<v key=""/>
+		<v key="Export.WordTemplatePath">Templates\TemplateOZD.docx</v>
+		<v key="Export.OutputMode">CreateWithPostfix</v>
+		<v key="Export.OutputPostfix">_result</v>
+		<preProcessScript include="Default_PreProcessScript.jslike"/>
+		<postProcessScript execution="Implicit" include="Default_PostProcessScript.jslike"/>
+		<postProcessScript execution="Explicit" include="Default_PostProcessScript.jslike"/>
+	</profile>
+</profiles>

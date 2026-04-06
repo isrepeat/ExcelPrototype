@@ -1,79 +1,263 @@
 <?xml version="1.0" standalone="yes"?>
-<uiDefinition xmlns="urn:excelprototype:profiles" version="1">
-  <controlPanel
-    title="Quick Search"
-    startColumn="1"
-    minStartColumn="1"
-    offsetColumns="2"
-    widthColumns="5"
-    heightRows="5"
-    topRow="1"
-    labelColumns="1"
-    valueColumns="2"
-    fieldRowSpan="1"
-    fieldSpacingRows="0"
-    viewZoneGapRows="2"
-    panelColumnWidth="12"
-    panelBackColor="#1E1E1E"
-    panelBorderColor="#505050"
-    titleColor="#D7A763"
-    labelColor="#EBEBEB"
-    inputBackColor="#262626"
-    inputFontColor="#EBEBEB"
-    buttonBackColor="#3C7D22"
-    buttonTextColor="#0A0A0A"
-    buttonBorderColor="#3C7D22"
-    errorBackColor="#FF0000"
-    errorFontColor="#0A0A0A"
-    buttonAnchorColumn="3"
-    buttonWidthColumns="1"
-    fixedWidthKey="20"
-    fixedWidthValue="28"
-    fixedWidthButton="20"
-    fixedFieldRowHeight="32">
-    <fields>
-      <inputConfigRefField
-        label="Common Key"
-        inputName="CommonKey"
-        inputConfigKey="CommonKey"
-        onChange="ex_UIActions.m_OutputPanelStartSearch_OnClick">
-        <button caption="Search"
-                macro="ex_UIActions.m_OutputPanelStartSearch_OnClick"
-                />
-        <button caption="Post Process"
-                macro="ex_UIActions.m_OutputPanelRunPostProcess_OnClick"
-                buttonBackColor="#C62828"
-                buttonTextColor="#FFFFFF"
-                buttonBorderColor="#8E0000"
-                />
-        <button caption="Export"
-                macro="ex_UIActions.m_ExportFooterReportToWord_OnClick"
-                buttonBackColor="#2B579A"
-                buttonTextColor="#FFFFFF"
-                buttonBorderColor="#1F3F6B"
-                />
-        <toggleButton
-                      source="Export.InsertMode"
-                      macro="ex_UIActions.m_OutputPanelToggleButton_OnClick"
-                      buttonBackColor="#5A4B2A"
-                      buttonTextColor="#FFFFFF"
-                      buttonBorderColor="#9C7A37">
-          <modeVariants>
-            <variant value="AppendToTop"
-                     display="AppendToTop"
-                     caption="Append to [Top]"
-                     buttonBackColor="#2B579A"
-                     buttonTextColor="#FFFFFF"
-                     buttonBorderColor="#1F3F6B"/>
-            <variant value="AppendToBottom"
-                     display="AppendToBottom"
-                     caption="Append to [Bottom]"
-                     buttonBackColor="#2B579A"
-                     buttonTextColor="#FFFFFF"
-                     buttonBorderColor="#1F3F6B"/>
-          </modeVariants>
-        </toggleButton>
-      </inputConfigRefField>
-    </fields>
-  </controlPanel>
+<uiDefinition xmlns="urn:excelprototype:profiles" version="2">
+  <dataSources>
+    <itemsSource name="panel.exportInsertMode"
+                 uri="config\modes\PersonalCard\DropDownItems.xml#panel.exportInsertMode"/>
+    <itemsSource name="panel.validationMode"
+                 uri="config\modes\PersonalCard\DropDownItems.xml#panel.validationMode"/>
+  </dataSources>
+
+  <styles>
+    <controlStyle name="panelInput"
+                  backColor="#262626"
+                  textColor="#EBEBEB"
+                  borderColor="#505050"
+                  borderWeight="1"
+                  fontName="Calibri"
+                  fontSize="11"
+                  fontBold="false"/>
+
+    <controlStyle name="panelActionPrimary"
+                  backColor="#3C7D22"
+                  textColor="#0A0A0A"
+                  borderColor="#3C7D22"
+                  borderWeight="1"
+                  fontName="Calibri"
+                  fontSize="10"
+                  fontBold="true"/>
+
+    <controlStyle name="panelActionDanger"
+                  backColor="#C62828"
+                  textColor="#FFFFFF"
+                  borderColor="#8E0000"
+                  borderWeight="1"
+                  fontName="Calibri"
+                  fontSize="10"
+                  fontBold="true"/>
+
+    <controlStyle name="panelActionInfo"
+                  backColor="#2B579A"
+                  textColor="#FFFFFF"
+                  borderColor="#1F3F6B"
+                  borderWeight="1"
+                  fontName="Calibri"
+                  fontSize="10"
+                  fontBold="true"/>
+
+    <controlStyle name="panelActionSuccess"
+                  backColor="#6A994E"
+                  textColor="#FFFFFF"
+                  borderColor="#386641"
+                  borderWeight="1"
+                  fontName="Calibri"
+                  fontSize="10"
+                  fontBold="true"/>
+
+    <controlStyle name="panelDropdownHeader"
+                  backColor="#5A4B2A"
+                  textColor="#FFFFFF"
+                  borderColor="#9C7A37"
+                  borderWeight="1"
+                  fontName="Calibri"
+                  fontSize="10"
+                  fontBold="true"/>
+
+    <controlStyle name="panelDropdownOption"
+                  backColor="#3A3F45"
+                  textColor="#FFFFFF"
+                  borderColor="#3A3F45"
+                  borderWeight="1"
+                  fontName="Calibri"
+                  fontSize="10"
+                  fontBold="false"/>
+  </styles>
+
+  <layout>
+    <grid anchorCell="A1">
+      <columns>
+        <col i="1" width="20" lockWidth="true"/>
+        <col i="2" width="28" lockWidth="true"/>
+        <col i="3" width="20" lockWidth="true"/>
+        <col i="4" width="20"/>
+        <col i="5" width="20"/>
+        <col i="6" width="20"/>
+        <col i="7" width="20"/>
+        <col i="8" width="20"/>
+      </columns>
+
+      <stackPanel at="r1c1" spanCells="3" spanRows="auto" orientation="vertical">
+        <control type="label"
+                 name="lblQuickSearch"
+                 text="Quick Search"
+                 spanCells="3"
+                 spanRows="1"/>
+
+        <border spanCells="3" spanRows="1"/>
+
+        <stackPanel orientation="horizontal" spanCells="3" spanRows="1">
+          <control type="label"
+                   name="lblCommonKey"
+                   text="Common Key"
+                   spanCells="1"
+                   spanRows="1"/>
+
+          <control type="input"
+                   name="inpCommonKey"
+                   inputName="CommonKey"
+                   bind="{Binding Config.CommonKey}"
+                   onChange="ex_UIActions.m_OutputPanelStartSearch_OnClick"
+                   inputPrimary="true"
+                   style="panelInput"
+                   spanCells="1"
+                   spanRows="1"/>
+
+          <control type="button"
+                   name="btnPanelSearch"
+                   caption="Search"
+                   macro="ex_UIActions.m_OutputPanelStartSearch_OnClick"
+                   style="panelActionPrimary"
+                   spanCells="1"
+                   spanRows="1"/>
+        </stackPanel>
+
+        <border spanCells="3" spanRows="1"/>
+
+        <stackPanel orientation="horizontal" spanCells="3" spanRows="1">
+          <control type="button"
+                   name="btnPanelPostProcess"
+                   caption="Post Process"
+                   macro="ex_UIActions.m_OutputPanelRunPostProcess_OnClick"
+                   style="panelActionDanger"
+                   spanCells="1"
+                   spanRows="1"/>
+
+          <control type="button"
+                   name="btnPanelExport"
+                   caption="Export"
+                   macro="ex_UIActions.m_ExportFooterReportToWord_OnClick"
+                   style="panelActionInfo"
+                   spanCells="1"
+                   spanRows="1"/>
+
+          <control type="button"
+                   name="btnPanelDone"
+                   caption="Done"
+                   macro="ex_UIActions.m_ExportFooterReportDone_OnClick"
+                   style="panelActionSuccess"
+                   spanCells="1"
+                   spanRows="1"/>
+        </stackPanel>
+
+        <border spanCells="3" spanRows="1"/>
+
+        <stackPanel orientation="horizontal" spanCells="3" spanRows="1">
+          <control name="ddInsertMode"
+                   type="dropdownButton"
+                   macro="ex_UIActions.m_ToggleDropdownButton_OnClick"
+                   caption="Insert Mode"
+                   itemsSource="panel.exportInsertMode"
+                   selectionChangedMacro="ex_UIActions.m_OnLayoutDropdownConfigSelected"
+                   selectedItem="AppendToTop"
+                   itemStyle="panelDropdownOption"
+                   itemMarginLeft="0"
+                   itemFirstGap="2"
+                   itemGap="2"
+                   itemHeight="16"
+                   itemMatchWidth="true"
+                   style="panelDropdownHeader"
+                   spanCells="1"
+                   spanRows="1"/>
+
+          <control name="ddValidationMode"
+                   type="dropdownButton"
+                   macro="ex_UIActions.m_ToggleDropdownButton_OnClick"
+                   caption="Validation"
+                   itemsSource="panel.validationMode"
+                   selectionChangedMacro="ex_UIActions.m_OnLayoutDropdownConfigSelected"
+                   selectedItem="Enabled"
+                   itemStyle="panelDropdownOption"
+                   itemMarginLeft="0"
+                   itemFirstGap="2"
+                   itemGap="2"
+                   itemHeight="16"
+                   itemMatchWidth="true"
+                   style="panelDropdownHeader"
+                   spanCells="1"
+                   spanRows="1"/>
+
+          <border spanCells="1" spanRows="1"/>
+        </stackPanel>
+      </stackPanel>
+
+      <stackPanel at="r8c1" spanCells="4" spanRows="auto" orientation="vertical">
+        <control type="banner"
+                 name="pcWarningBannerSlot"
+                 spanCells="4"
+                 spanRows="2"/>
+
+        <border spanCells="4" spanRows="1"/>
+
+        <control type="itemsPanel"
+                 name="pcResultBanners"
+                 itemsSource="ResultBanners"
+                 itemTemplate="ResultBannerTemplate"
+                 orientation="vertical"
+                 spanCells="4"
+                 spanRows="auto"/>
+
+        <border spanCells="4" spanRows="1"/>
+
+        <control type="itemsPanel"
+                 name="pcResultTables"
+                 itemsSource="ResultTables"
+                 itemTemplate="ResultTableTemplate"
+                 orientation="vertical"
+                 spanCells="4"
+                 spanRows="auto"/>
+      </stackPanel>
+    </grid>
+  </layout>
+
+  <templates>
+    <template name="ResultBannerTemplate">
+      <stackPanel orientation="vertical" spanCells="4" spanRows="auto">
+        <control type="label"
+                 text="{Binding Title}"
+                 rowKind="{Binding Kind}title"
+                 spanCells="4"
+                 spanRows="1"/>
+
+        <control type="label"
+                 text="{Binding Body}"
+                 rowKind="{Binding Kind}"
+                 highlightSegments="{Binding HighlightSegments}"
+                 spanCells="4"
+                 spanRows="1"/>
+
+        <border spanCells="4" spanRows="1"/>
+      </stackPanel>
+    </template>
+
+    <template name="ResultTableTemplate">
+      <stackPanel orientation="vertical" spanCells="4" spanRows="auto">
+        <control type="label"
+                 text="{Binding TableRef}"
+                 rowKind="section"
+                 spanCells="4"
+                 spanRows="1"/>
+
+        <control type="table"
+                 itemsSource="{Binding Rows}"
+                 rowKindHeader="header"
+                 rowKindContent="content"
+                 columnKindHeader="header"
+                 columnKindContent="content"
+                 columnKindVirtual="virtual"
+                 spanCells="4"
+                 spanRows="auto"/>
+
+        <border spanCells="4" spanRows="1"/>
+      </stackPanel>
+    </template>
+  </templates>
 </uiDefinition>

@@ -289,7 +289,9 @@ Public Sub m_RenderErrorBanner( _
     Optional ByVal errSource As String = vbNullString, _
     Optional ByVal errNumber As Long = 0, _
     Optional ByVal titleText As String = "ERROR: Operation failed", _
-    Optional ByVal bannerRangeAddress As String = vbNullString _
+    Optional ByVal bannerRangeAddress As String = vbNullString, _
+    Optional ByVal prepareOutputPanel As Boolean = False, _
+    Optional ByVal wb As Workbook _
 )
     Dim messageText As String
     Dim bodyLines As Collection
@@ -305,6 +307,12 @@ Public Sub m_RenderErrorBanner( _
     bodyLines.Add messageText
     bodyLines.Add "Source: " & IIf(Len(Trim$(errSource)) > 0, errSource, "n/a")
     bodyLines.Add "Code: " & CStr(errNumber)
+
+    If prepareOutputPanel Then
+        On Error Resume Next
+        ex_OutputFormattingPipeline.m_ApplySheetPipeline ws
+        On Error GoTo 0
+    End If
 
     m_RenderBanner ws, titleText, bodyLines, bannerRangeAddress, BANNER_KIND_ERROR, messageText
 End Sub
@@ -435,6 +443,16 @@ Public Sub m_RegisterResultTableAnchor( _
     Set anchorRange = ws.Range(ws.Cells(rowStart, 1), ws.Cells(rowEnd, 1))
     mp_SetNamedRangeAnchor ws, anchorName, anchorRange
 End Sub
+
+Public Function m_HasResultTableAnchor( _
+    ByVal ws As Worksheet, _
+    ByVal tableRef As String _
+) As Boolean
+    Dim rowStart As Long
+    Dim rowEnd As Long
+
+    m_HasResultTableAnchor = mp_TryGetResultTableBounds(ws, tableRef, rowStart, rowEnd)
+End Function
 
 Public Sub m_RenderTextBanner( _
     ByVal ws As Worksheet, _
@@ -601,7 +619,6 @@ Public Sub m_RenderTextBannerAtTable( _
     Optional ByVal gapRowsAfter As Long = 1, _
     Optional ByVal insertRows As Boolean = True _
 )
-    Dim existingBannerRange As Range
     Dim tableStartRow As Long
     Dim tableEndRow As Long
     Dim bannerColumns As Long
@@ -620,11 +637,6 @@ Public Sub m_RenderTextBannerAtTable( _
     End If
     If gapRowsBefore < 0 Then gapRowsBefore = 0
     If gapRowsAfter < 0 Then gapRowsAfter = 0
-
-    If mp_TryGetBannerRangeByMessage(ws, bannerText, existingBannerRange) Then
-        m_RenderTextBanner ws, bannerText, titleText, existingBannerRange.Address(False, False, xlA1), bannerKind
-        Exit Sub
-    End If
 
     If Not mp_TryGetResultTableBounds(ws, tableRef, tableStartRow, tableEndRow) Then
         Err.Raise vbObjectError + 1763, "ex_Messaging", "Table anchor is not found for tableRef '" & tableRef & "' on sheet '" & ws.Name & "'."
@@ -776,6 +788,28 @@ Private Function mp_ComposeBannerText( _
     End If
 End Function
 
+Public Sub m_ApplyBannerAutoHeightForRange( _
+    ByVal ws As Worksheet, _
+    ByVal targetRange As Range, _
+    ByVal bannerText As String, _
+    Optional ByVal bannerKind As String = BANNER_KIND_WARNING _
+)
+    Dim effectiveRange As Range
+
+    If ws Is Nothing Then Exit Sub
+    If targetRange Is Nothing Then Exit Sub
+
+    Set effectiveRange = targetRange
+    On Error Resume Next
+    If CBool(effectiveRange.MergeCells) Then
+        Set effectiveRange = effectiveRange.MergeArea
+    End If
+    On Error GoTo 0
+    If effectiveRange Is Nothing Then Exit Sub
+
+    mp_ApplyBannerAutoHeight ws, effectiveRange, CStr(bannerText), CStr(bannerKind)
+End Sub
+
 Private Sub mp_ApplyBannerAutoHeight( _
     ByVal ws As Worksheet, _
     ByVal bannerRange As Range, _
@@ -853,7 +887,11 @@ Private Sub mp_LoadBannerAutoHeightMargins( _
         If layerObj Is Nothing Then GoTo ContinueLayer
         For Each ruleObj In layerObj.Rules
             If ruleObj Is Nothing Then GoTo ContinueRule
-            If StrComp(LCase$(Trim$(ruleObj.Target)), "row", vbBinaryCompare) <> 0 Then GoTo ContinueRule
+            Select Case LCase$(Trim$(ruleObj.Target))
+                Case "row", "rowkind"
+                Case Else
+                    GoTo ContinueRule
+            End Select
             If Not mp_BannerRuleMatchesKind(ruleObj.Selector, bannerKind) Then GoTo ContinueRule
 
             Set declarations = ruleObj.Declarations
@@ -957,10 +995,8 @@ Private Sub mp_ApplyBannerKindPipeline( _
     Dim stageLayers As Collection
     Dim bannerPipeline As Collection
     Dim layerObj As obj_StyleLayer
-    Dim rowKindRanges As Object
-    Dim bannerRows As Collection
+    Dim kindRanges As Object
     Dim emptyTargets As Collection
-    Dim rowIndex As Long
     Dim normalizedKind As String
 
     If ws Is Nothing Then Exit Sub
@@ -981,17 +1017,11 @@ Private Sub mp_ApplyBannerKindPipeline( _
         ex_StylePipelineEngine.m_AddLayer bannerPipeline, layerObj
     Next layerObj
 
-    Set rowKindRanges = CreateObject("Scripting.Dictionary")
-    rowKindRanges.CompareMode = 1 ' vbTextCompare
-
-    Set bannerRows = New Collection
-    For rowIndex = startRow To startRow + rowCount - 1
-        bannerRows.Add CLng(rowIndex)
-    Next rowIndex
-    Set rowKindRanges(normalizedKind) = bannerRows
+    Set kindRanges = ex_StylePipelineEngine.m_CreateKindRanges()
+    ex_StylePipelineEngine.m_AddKindRange kindRanges, normalizedKind, startRow, 1, startRow + rowCount - 1, 0
 
     Set emptyTargets = New Collection
-    ex_StylePipelineEngine.m_ApplyColumnStylesPipeline ws, emptyTargets, bannerPipeline, vbNullString, rowKindRanges
+    ex_StylePipelineEngine.m_ApplyColumnStylesPipeline ws, emptyTargets, bannerPipeline, vbNullString, kindRanges
 End Sub
 
 Private Function mp_GetRequiredBannerRowsFromText( _

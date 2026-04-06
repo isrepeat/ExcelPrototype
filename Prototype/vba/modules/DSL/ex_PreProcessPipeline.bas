@@ -18,15 +18,19 @@ Public Function m_Run( _
     Dim context As Object
     Dim resultTables As Collection
     Dim stageName As String
+    Dim runStartStamp As Double
+    Dim stageStartStamp As Double
 
     On Error GoTo EH
 
+    runStartStamp = Timer
     stageName = "init"
     Set context = CreateObject("Scripting.Dictionary")
     context.CompareMode = 1
-    mp_DebugLog "RUN START"
+    ' mp_DebugLog "RUN START"
 
     stageName = "read-script-ref"
+    stageStartStamp = Timer
     scriptLoadError = vbNullString
     If Not ex_ScriptSourceLoader.m_TryGetScriptText(cfg, PREPROCESS_SCRIPT_KEY, scriptRef, scriptLoadError) Then
         Err.Raise vbObjectError + 6156, "ex_PreProcessPipeline", scriptLoadError
@@ -35,7 +39,8 @@ Public Function m_Run( _
     If Len(scriptLoadError) > 0 Then
         Err.Raise vbObjectError + 6156, "ex_PreProcessPipeline", scriptLoadError
     End If
-    mp_DebugLog "scriptLoaded=" & LCase$(CStr(Len(scriptRef) > 0)) & " scriptLength=" & CStr(Len(scriptRef)) & " requireScript=" & LCase$(CStr(requireScript))
+    mp_DebugLog "stage-done stage='read-script-ref' duration=" & mp_FormatElapsedSeconds(mp_StageElapsedSeconds(stageStartStamp))
+    ' mp_DebugLog "scriptLoaded=" & LCase$(CStr(Len(scriptRef) > 0)) & " scriptLength=" & CStr(Len(scriptRef)) & " requireScript=" & LCase$(CStr(requireScript))
 
     stageName = "reset-scriptio-context"
     ex_ScriptIO.m_ResetContext inputObject
@@ -50,14 +55,17 @@ Public Function m_Run( _
 
         context(CONTEXT_FIELD_HAS_SCRIPT) = "false"
         Set context(CONTEXT_FIELD_OUTPUT) = outputObject
-        mp_DebugLog "RUN END fallback"
+        mp_DebugLog "RUN DURATION total=" & mp_FormatElapsedSeconds(mp_StageElapsedSeconds(runStartStamp))
+        ' mp_DebugLog "RUN END fallback"
         Set m_Run = context
         Exit Function
     End If
 
     stageName = "run-preprocess-script"
+    stageStartStamp = Timer
     Set resultTables = New Collection
     ex_ScriptDSL.m_ApplyScriptToSheet mp_GetExecutionSheet(), cfg, resultTables, PREPROCESS_SCRIPT_KEY
+    mp_DebugLog "stage-done stage='run-preprocess-script' duration=" & mp_FormatElapsedSeconds(mp_StageElapsedSeconds(stageStartStamp))
 
     stageName = "read-script-output"
     Set outputObject = ex_ScriptIO.m_GetLastOutput()
@@ -67,7 +75,8 @@ Public Function m_Run( _
 
     context(CONTEXT_FIELD_HAS_SCRIPT) = "true"
     Set context(CONTEXT_FIELD_OUTPUT) = outputObject
-    mp_DebugLog "RUN END script"
+    mp_DebugLog "RUN DURATION total=" & mp_FormatElapsedSeconds(mp_StageElapsedSeconds(runStartStamp))
+    ' mp_DebugLog "RUN END script"
     Set m_Run = context
     Exit Function
 
@@ -79,11 +88,20 @@ EH:
     errNumber = Err.Number
     errSource = Err.Source
     errDescription = Err.Description
-    mp_DebugLog "FAIL stage='" & stageName & "' err=[" & errSource & " #" & CStr(errNumber) & "] " & errDescription
+    mp_DebugLog "FAIL stage='" & stageName & "' err=[" & errSource & " #" & CStr(errNumber) & "] " & errDescription & " | elapsed=" & mp_FormatElapsedSeconds(mp_StageElapsedSeconds(runStartStamp))
     If errNumber = 0 Then errNumber = vbObjectError + 6155
     If Len(errSource) = 0 Then errSource = "ex_PreProcessPipeline"
     If Len(errDescription) = 0 Then errDescription = "Unknown pre-process pipeline failure."
     Err.Raise errNumber, errSource, errDescription
+End Function
+
+Private Function mp_StageElapsedSeconds(ByVal startStamp As Double) As Double
+    mp_StageElapsedSeconds = Timer - startStamp
+    If mp_StageElapsedSeconds < 0# Then mp_StageElapsedSeconds = mp_StageElapsedSeconds + 86400#
+End Function
+
+Private Function mp_FormatElapsedSeconds(ByVal elapsedSeconds As Double) As String
+    mp_FormatElapsedSeconds = Format$(elapsedSeconds, "0.000") & "s"
 End Function
 
 Private Function mp_CreateFallbackOutput(ByVal inputObject As Object) As Object

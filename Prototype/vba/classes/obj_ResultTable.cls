@@ -9,6 +9,8 @@ Private m_TableRef As String
 Private m_Rows As Collection
 Private m_RowsByIndex As Object
 Private m_FieldMapByAlias As Object
+Private m_FieldLabelByAlias As Object
+Private m_MetaInfo As Object
 
 Public Sub Initialize(ByVal tableRef As String)
     m_TableRef = Trim$(tableRef)
@@ -17,6 +19,11 @@ Public Sub Initialize(ByVal tableRef As String)
     m_RowsByIndex.CompareMode = 1
     Set m_FieldMapByAlias = CreateObject("Scripting.Dictionary")
     m_FieldMapByAlias.CompareMode = 1
+    Set m_FieldLabelByAlias = CreateObject("Scripting.Dictionary")
+    m_FieldLabelByAlias.CompareMode = 1
+    Set m_MetaInfo = CreateObject("Scripting.Dictionary")
+    m_MetaInfo.CompareMode = 1
+    m_MetaInfo("Name") = m_TableRef
 End Sub
 
 Public Property Get TableRef() As String
@@ -48,8 +55,22 @@ Public Property Get PrevRow() As obj_ResultRow
     Set PrevRow = m_Rows(m_Rows.Count - 1)
 End Property
 
-Public Sub AddFieldMap(ByVal fieldAlias As String, ByVal mapKey As String)
-    m_FieldMapByAlias(Trim$(fieldAlias)) = Trim$(mapKey)
+Public Sub AddFieldMap( _
+    ByVal fieldAlias As String, _
+    ByVal mapKey As String, _
+    Optional ByVal fieldLabel As String = vbNullString _
+)
+    fieldAlias = Trim$(fieldAlias)
+    If Len(fieldAlias) = 0 Then Exit Sub
+
+    m_FieldMapByAlias(fieldAlias) = Trim$(mapKey)
+
+    fieldLabel = Trim$(fieldLabel)
+    If Len(fieldLabel) > 0 Then
+        m_FieldLabelByAlias(fieldAlias) = fieldLabel
+    ElseIf m_FieldLabelByAlias.Exists(fieldAlias) Then
+        m_FieldLabelByAlias.Remove fieldAlias
+    End If
 End Sub
 
 Public Function HasFieldAlias(ByVal fieldAlias As String) As Boolean
@@ -63,6 +84,65 @@ End Function
 Public Property Get FieldMapByAlias() As Object
     Set FieldMapByAlias = m_FieldMapByAlias
 End Property
+
+Public Property Get FieldLabelByAlias() As Object
+    Set FieldLabelByAlias = m_FieldLabelByAlias
+End Property
+
+Public Function LabelByAlias(ByVal fieldAlias As String, Optional ByVal fallbackText As String = vbNullString) As String
+    fieldAlias = Trim$(fieldAlias)
+    If Len(fieldAlias) = 0 Then
+        LabelByAlias = fallbackText
+        Exit Function
+    End If
+
+    If m_FieldLabelByAlias Is Nothing Then
+        LabelByAlias = fallbackText
+        Exit Function
+    End If
+
+    If m_FieldLabelByAlias.Exists(fieldAlias) Then
+        LabelByAlias = CStr(m_FieldLabelByAlias(fieldAlias))
+    Else
+        LabelByAlias = fallbackText
+    End If
+End Function
+
+Public Property Get MetaInfo() As Object
+    If m_MetaInfo Is Nothing Then
+        Set m_MetaInfo = CreateObject("Scripting.Dictionary")
+        m_MetaInfo.CompareMode = 1
+        m_MetaInfo("Name") = m_TableRef
+    End If
+    Set MetaInfo = m_MetaInfo
+End Property
+
+Public Sub SetMetaInfoValue(ByVal keyName As String, ByVal value As Variant)
+    keyName = Trim$(keyName)
+    If Len(keyName) = 0 Then Exit Sub
+    If m_MetaInfo Is Nothing Then
+        Set m_MetaInfo = CreateObject("Scripting.Dictionary")
+        m_MetaInfo.CompareMode = 1
+    End If
+    m_MetaInfo(keyName) = value
+End Sub
+
+Public Function GetMetaInfoValue(ByVal keyName As String, Optional ByVal defaultValue As String = vbNullString) As String
+    keyName = Trim$(keyName)
+    If Len(keyName) = 0 Then
+        GetMetaInfoValue = defaultValue
+        Exit Function
+    End If
+    If m_MetaInfo Is Nothing Then
+        GetMetaInfoValue = defaultValue
+        Exit Function
+    End If
+    If Not m_MetaInfo.Exists(keyName) Then
+        GetMetaInfoValue = defaultValue
+        Exit Function
+    End If
+    GetMetaInfoValue = CStr(m_MetaInfo(keyName))
+End Function
 
 Public Function HasRow(ByVal rowIndex As Long) As Boolean
     HasRow = m_RowsByIndex.Exists(CStr(rowIndex))
