@@ -186,11 +186,25 @@ Private Function mp_TryGetScriptTextFromActiveProfile( _
 
     Set scriptNodes = profileNode.selectNodes(xpath)
     If scriptNodes Is Nothing Then
+        If StrComp(executionMode, EXECUTION_MODE_IMPLICIT, vbTextCompare) = 0 Then
+            includePathsToken = mp_BuildIncludePathsToken(includePaths)
+            includeSignature = mp_BuildIncludeSignatureFromToken(includePathsToken)
+            mp_SetCachedScriptText cacheKey, profileStamp, includePathsToken, includeSignature, vbNullString
+            mp_TryGetScriptTextFromActiveProfile = True
+            Exit Function
+        End If
         outErrorText = "postProcessScript execution='" & executionMode & "' is required for key '" & normalizedScriptKey & "'."
         Exit Function
     End If
 
     If scriptNodes.Length = 0 Then
+        If StrComp(executionMode, EXECUTION_MODE_IMPLICIT, vbTextCompare) = 0 Then
+            includePathsToken = mp_BuildIncludePathsToken(includePaths)
+            includeSignature = mp_BuildIncludeSignatureFromToken(includePathsToken)
+            mp_SetCachedScriptText cacheKey, profileStamp, includePathsToken, includeSignature, vbNullString
+            mp_TryGetScriptTextFromActiveProfile = True
+            Exit Function
+        End If
         outErrorText = "postProcessScript execution='" & executionMode & "' is required for key '" & normalizedScriptKey & "'."
         Exit Function
     End If
