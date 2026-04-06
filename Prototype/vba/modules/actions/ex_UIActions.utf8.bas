@@ -36,8 +36,11 @@ Public Sub m_OnModeChanged_OnClick()
 End Sub
 
 Public Sub m_ToggleDropdownButton_OnClick()
+    If ex_ManagedDropdownRuntime.m_TryToggleByCaller(ThisWorkbook) Then
+        ex_CustomDropdown.m_HideDevTestDropdown
+        Exit Sub
+    End If
     ex_CustomDropdown.m_OnManagedButtonClick
-    If ex_ManagedDropdownRuntime.m_TryToggleByCaller(ThisWorkbook) Then Exit Sub
     ex_CustomDropdown.m_ToggleDropdownButton ThisWorkbook
 End Sub
 
@@ -120,8 +123,10 @@ End Sub
 
 Public Sub m_OnLayoutDropdownConfigSelected(Optional ByVal selectedKey As String = vbNullString, Optional ByVal selectedCaption As String = vbNullString, Optional ByVal sourceControlName As String = vbNullString)
     Dim selectedValue As String
-    Dim configKey As String
+    Dim toggleSource As String
+    Dim appliedValue As String
     Dim sourceKey As String
+    Dim wsContext As Worksheet
 
     On Error GoTo EH
 
@@ -135,16 +140,19 @@ Public Sub m_OnLayoutDropdownConfigSelected(Optional ByVal selectedKey As String
 
     Select Case sourceKey
         Case "ddinsertmode"
-            configKey = "Export.InsertMode"
+            toggleSource = "Export.InsertMode"
         Case "ddvalidationmode"
-            configKey = "PostProcess.ValidationMode"
+            toggleSource = "PostProcess.ValidationMode"
         Case Else
             ex_Messaging.m_LogToFile "[ex_UIActions] layout dropdown selection placeholder: no config mapping for source='" & sourceControlName & "' value='" & selectedValue & "'.", PERSONALCARD_LOG_REL_PATH
             Exit Sub
     End Select
 
-    ex_ConfigProvider.m_SetConfigValue configKey, selectedValue, True
-    ex_Messaging.m_LogToFile "[ex_UIActions] layout dropdown selection applied source='" & sourceControlName & "' configKey='" & configKey & "' value='" & selectedValue & "'.", PERSONALCARD_LOG_REL_PATH
+    Set wsContext = ActiveSheet
+    ex_ToggleStateRouter.m_SetToggleValue toggleSource, selectedValue, wsContext
+    appliedValue = ex_ToggleStateRouter.m_GetToggleValue(toggleSource, selectedValue, wsContext)
+
+    ex_Messaging.m_LogToFile "[ex_UIActions] layout dropdown selection applied source='" & sourceControlName & "' toggleSource='" & toggleSource & "' value='" & appliedValue & "'.", PERSONALCARD_LOG_REL_PATH
     Exit Sub
 
 EH:
@@ -297,8 +305,11 @@ Public Sub m_ExportFooterReportDone_OnClick()
 End Sub
 
 Public Sub m_OutputPanelToggleButton_OnClick()
+    If ex_ManagedDropdownRuntime.m_TryToggleByCaller(ThisWorkbook) Then
+        ex_CustomDropdown.m_HideDevTestDropdown
+        Exit Sub
+    End If
     ex_CustomDropdown.m_OnManagedButtonClick
-    If ex_ManagedDropdownRuntime.m_TryToggleByCaller(ThisWorkbook) Then Exit Sub
     ex_CustomDropdown.m_ToggleDropdownButton ThisWorkbook
 End Sub
 

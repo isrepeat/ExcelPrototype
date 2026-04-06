@@ -156,7 +156,6 @@
 		<v key="Export.OutputPostfix">_result</v>
 		<preProcessScript include="Default_PreProcessScript.jslike"/>
 		<postProcessScript execution="Implicit" include="Default_PostProcessScript.jslike"/>
-		<v key="PostProcess.ValidationMode">Enabled</v>
 	</profile>
 	<profile name="StateAndEvents" resultZoom="90">
 		<ui>

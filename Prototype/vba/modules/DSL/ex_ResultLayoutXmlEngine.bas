@@ -2445,7 +2445,7 @@ Private Function mp_ApplyManagedDropdownButton( _
     selectedItem = mp_ResolveTextValue(mp_NodeAttrText(node, "selectedItem"), dataItem)
 
     If Not mp_TryReadOptionalDouble(node, "itemMarginLeft", 0, itemMarginLeft, "control '" & controlName & "'", outErrorText) Then Exit Function
-    If Not mp_TryReadOptionalDouble(node, "itemFirstGap", 2, itemFirstGap, "control '" & controlName & "'", outErrorText) Then Exit Function
+    If Not mp_TryReadOptionalDouble(node, "itemFirstGap", 0, itemFirstGap, "control '" & controlName & "'", outErrorText) Then Exit Function
     If Not mp_TryReadOptionalDouble(node, "itemGap", 2, itemGap, "control '" & controlName & "'", outErrorText) Then Exit Function
     If Not mp_TryReadOptionalDouble(node, "itemHeight", 16, itemHeight, "control '" & controlName & "'", outErrorText) Then Exit Function
     If itemHeight <= 0 Then
