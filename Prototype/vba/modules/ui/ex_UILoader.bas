@@ -1419,7 +1419,7 @@ Private Function mp_RebuildManagedDropdownButton( _
     selectedItem = Trim$(mp_NodeAttrText(controlNode, "selectedItem"))
 
     If Not mp_TryReadOptionalNodeDouble(controlNode, "itemMarginLeft", 0, itemMarginLeft, controlName) Then Exit Function
-    If Not mp_TryReadOptionalNodeDouble(controlNode, "itemFirstGap", 2, itemFirstGap, controlName) Then Exit Function
+    If Not mp_TryReadOptionalNodeDouble(controlNode, "itemFirstGap", 0, itemFirstGap, controlName) Then Exit Function
     If Not mp_TryReadOptionalNodeDouble(controlNode, "itemGap", 2, itemGap, controlName) Then Exit Function
     If Not mp_TryReadOptionalNodeDouble(controlNode, "itemHeight", 16, itemHeight, controlName) Then Exit Function
     If itemHeight <= 0 Then

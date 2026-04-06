@@ -15,6 +15,10 @@ Private Const TAG_SELECTION_CHANGED_MACRO As String = "dd_selectionChangedMacro"
 Private Const TAG_KEY As String = "dd_key"
 Private Const TAG_SET_CONTEXT As String = "dd_setContext"
 Private Const TAG_HEADER_SHOW_SELECTION As String = "dd_headerShowsSelection"
+Private Const TAG_ITEM_MARGIN_LEFT As String = "md_itemMarginLeft"
+Private Const TAG_ITEM_FIRST_GAP As String = "md_itemFirstGap"
+Private Const TAG_ITEM_GAP As String = "md_itemGap"
+Private Const TAG_ITEM_MATCH_WIDTH As String = "md_itemMatchWidth"
 Private Const DEFAULT_OPTION_MACRO As String = "ex_UIActions.m_SelectDropdownOption_OnClick"
 
 Public Sub m_SetHeaderMetadata( _
@@ -23,7 +27,11 @@ Public Sub m_SetHeaderMetadata( _
     ByVal optionPrefix As String, _
     ByVal optionCount As Long, _
     ByVal selectionChangedMacro As String, _
-    ByVal headerShowsSelection As Boolean)
+    ByVal headerShowsSelection As Boolean, _
+    Optional ByVal itemMarginLeft As Double = 0, _
+    Optional ByVal itemFirstGap As Double = 0, _
+    Optional ByVal itemGap As Double = 2, _
+    Optional ByVal itemMatchWidth As Boolean = True)
 
     Dim meta As Object
 
@@ -37,6 +45,10 @@ Public Sub m_SetHeaderMetadata( _
     mp_SetMetaValue meta, TAG_OPTION_COUNT, CStr(optionCount)
     mp_SetMetaValue meta, TAG_SELECTION_CHANGED_MACRO, selectionChangedMacro
     mp_SetMetaValue meta, TAG_HEADER_SHOW_SELECTION, IIf(headerShowsSelection, "true", "false")
+    mp_SetMetaValue meta, TAG_ITEM_MARGIN_LEFT, CStr(itemMarginLeft)
+    mp_SetMetaValue meta, TAG_ITEM_FIRST_GAP, CStr(itemFirstGap)
+    mp_SetMetaValue meta, TAG_ITEM_GAP, CStr(itemGap)
+    mp_SetMetaValue meta, TAG_ITEM_MATCH_WIDTH, IIf(itemMatchWidth, "true", "false")
     mp_WriteShapeMetaMap headerShape, meta
 End Sub
 
@@ -73,9 +85,14 @@ Public Function m_TryToggleByCaller(Optional ByVal wb As Workbook, Optional ByVa
     Dim ws As Worksheet
     Dim meta As Object
     Dim roleText As String
+    Dim sourceControlName As String
     Dim optionPrefix As String
     Dim optionCount As Long
     Dim shouldShow As Boolean
+    Dim itemMarginLeft As Double
+    Dim itemFirstGap As Double
+    Dim itemGap As Double
+    Dim itemMatchWidth As Boolean
 
     Set shp = mp_ResolveCallerShape(wb, callerName, ws)
     If shp Is Nothing Then Exit Function
@@ -84,6 +101,7 @@ Public Function m_TryToggleByCaller(Optional ByVal wb As Workbook, Optional ByVa
     roleText = LCase$(Trim$(mp_GetMetaValue(meta, TAG_ROLE)))
     If StrComp(roleText, TAG_ROLE_HEADER, vbTextCompare) <> 0 Then Exit Function
 
+    sourceControlName = Trim$(mp_GetMetaValue(meta, TAG_SOURCE_CONTROL))
     optionPrefix = Trim$(mp_GetMetaValue(meta, TAG_OPTION_PREFIX))
     optionCount = mp_ParseLongOrDefault(mp_GetMetaValue(meta, TAG_OPTION_COUNT), 0)
     If Len(optionPrefix) = 0 Or optionCount <= 0 Then
@@ -92,6 +110,14 @@ Public Function m_TryToggleByCaller(Optional ByVal wb As Workbook, Optional ByVa
     End If
 
     shouldShow = Not mp_AnyOptionVisible(ws, optionPrefix, optionCount)
+    If shouldShow Then
+        itemMarginLeft = mp_ParseDoubleOrDefault(mp_GetMetaValue(meta, TAG_ITEM_MARGIN_LEFT), 0)
+        itemFirstGap = mp_ParseDoubleOrDefault(mp_GetMetaValue(meta, TAG_ITEM_FIRST_GAP), 0)
+        itemGap = mp_ParseDoubleOrDefault(mp_GetMetaValue(meta, TAG_ITEM_GAP), 2)
+        itemMatchWidth = mp_ParseBooleanOrDefault(mp_GetMetaValue(meta, TAG_ITEM_MATCH_WIDTH), True)
+        mp_RepositionOptionsToHeader ws, shp, optionPrefix, optionCount, itemMarginLeft, itemFirstGap, itemGap, itemMatchWidth
+    End If
+
     mp_SetAllManagedOptionsVisible ws, False
     mp_SetOptionsVisible ws, optionPrefix, optionCount, shouldShow
     m_TryToggleByCaller = True
@@ -217,7 +243,7 @@ Public Function m_RebuildDropdownButton( _
     If itemGap < 0 Then itemGap = 0
 
     If Not mp_HasRecords(itemRecords) Then
-        m_SetHeaderMetadata headerShape, sourceControlName, optionPrefix, 0, selectionChangedMacro, headerShowsSelection
+        m_SetHeaderMetadata headerShape, sourceControlName, optionPrefix, 0, selectionChangedMacro, headerShowsSelection, marginLeft, firstGap, itemGap, itemMatchWidth
         m_RebuildDropdownButton = True
         Exit Function
     End If
@@ -289,7 +315,7 @@ Public Function m_RebuildDropdownButton( _
 ContinueRow:
     Next i
 
-    m_SetHeaderMetadata headerShape, sourceControlName, optionPrefix, optionIndex, selectionChangedMacro, headerShowsSelection
+    m_SetHeaderMetadata headerShape, sourceControlName, optionPrefix, optionIndex, selectionChangedMacro, headerShowsSelection, marginLeft, firstGap, itemGap, itemMatchWidth
 
     If headerShowsSelection And selectedIndex > 0 Then
         On Error Resume Next
@@ -386,6 +412,40 @@ Private Function mp_AnyOptionVisible(ByVal ws As Worksheet, ByVal optionPrefix A
         End If
     Next i
 End Function
+
+Private Sub mp_RepositionOptionsToHeader( _
+    ByVal ws As Worksheet, _
+    ByVal headerShape As Shape, _
+    ByVal optionPrefix As String, _
+    ByVal optionCount As Long, _
+    ByVal itemMarginLeft As Double, _
+    ByVal itemFirstGap As Double, _
+    ByVal itemGap As Double, _
+    ByVal itemMatchWidth As Boolean)
+
+    Dim i As Long
+    Dim shp As Shape
+    Dim currentTop As Double
+
+    If ws Is Nothing Then Exit Sub
+    If headerShape Is Nothing Then Exit Sub
+    If Len(Trim$(optionPrefix)) = 0 Then Exit Sub
+    If optionCount <= 0 Then Exit Sub
+
+    If itemFirstGap < 0 Then itemFirstGap = 0
+    If itemGap < 0 Then itemGap = 0
+
+    currentTop = headerShape.Top + headerShape.Height + itemFirstGap
+    For i = 1 To optionCount
+        Set shp = ex_ConfigProfilesManager.m_GetShapeByName(ws, optionPrefix & CStr(i))
+        If Not shp Is Nothing Then
+            shp.Left = headerShape.Left + itemMarginLeft
+            shp.Top = currentTop
+            If itemMatchWidth Then shp.Width = headerShape.Width
+            currentTop = shp.Top + shp.Height + itemGap
+        End If
+    Next i
+End Sub
 
 Private Sub mp_SetOptionsVisible(ByVal ws As Worksheet, ByVal optionPrefix As String, ByVal optionCount As Long, ByVal isVisible As Boolean)
     Dim i As Long
@@ -703,4 +763,9 @@ End Function
 Private Function mp_ParseLongOrDefault(ByVal valueText As String, ByVal defaultValue As Long) As Long
     If ex_XmlCore.m_TryParseLong(Trim$(valueText), mp_ParseLongOrDefault) Then Exit Function
     mp_ParseLongOrDefault = defaultValue
+End Function
+
+Private Function mp_ParseDoubleOrDefault(ByVal valueText As String, ByVal defaultValue As Double) As Double
+    If ex_XmlCore.m_TryParseDouble(Trim$(valueText), mp_ParseDoubleOrDefault, True) Then Exit Function
+    mp_ParseDoubleOrDefault = defaultValue
 End Function
