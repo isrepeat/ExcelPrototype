@@ -1,4 +1,4 @@
-Attribute VB_Name = "ex_ReportCreation"
+Attribute VB_Name = "ex_ModeReportCreation"
 Option Explicit
 
 Private Const RESULT_SHEET_NAME As String = "g_ReportCreation"
@@ -10,78 +10,76 @@ Private Const BATCH_RUNTIME_VAR As String = "__Batch"
 Private Const UI_WARNING_TITLE As String = "WARNING: Mode UI is not loaded"
 Private Const UI_WARNING_TEXT As String = "Mode-specific UI config for ReportCreation is unavailable. Control panel/view-zone settings were not applied."
 
-Private Const DEV_CONFIG_TABLE_NAME As String = "tblDevConfig"
-Private Const DEV_MARKER_SYMBOL As String = "#"
-Private Const DEV_COL_MARKER As Long = 1
-Private Const DEV_COL_KEY As Long = 2
-Private Const DEV_COL_VALUE As Long = 3
-Private Const INPUT_MODE_EXPLICIT As String = "explicit"
-Private Const INPUT_MODE_SCRIPT As String = "script"
-Private Const INPUT_MODE_KEY As String = "Input.Mode"
-Private Const LEGACY_MULTI_KEYS_KEY As String = "MultiKeys"
+Private Const CONFIG_KEYS_COLLECTION_KEY As String = "KeysCollection"
+' Явный alias для member-итерации в DSL: row.SrcTableRows -> <Source>.Sheet[<Table>]
+Private Const SRC_TABLE_ROWS_ALIAS As String = "SrcTableRows"
 
-Public Sub m_RunMultiKeysFlatReport()
+Public Sub m_RunKeysCollectionReport()
     Dim cfg As Object
     Dim pipelineInput As Object
 
-    Set cfg = mp_LoadConfigDictionary()
+    Set cfg = ex_ConfigProvider.m_LoadConfigDictionary("ex_ModeReportCreation", 6006, 6007)
     Set pipelineInput = mp_CreatePipelineInputForReport(cfg)
-    ex_ModePipeline.m_RunModePipeline cfg, "ex_ReportCreation.m_RunMode", pipelineInput, False
+    ex_ModePipeline.m_RunModePipeline cfg, "ex_ModeReportCreation.m_RunMode", pipelineInput, False
 End Sub
 
 Private Function mp_CreatePipelineInputForReport(ByVal cfg As Object) As Object
-    Dim inputMode As String
     Dim rawKeys As String
     Dim explicitKeys As Collection
     Dim pipelineInput As obj_ScriptIOPayload
-    Dim firstKey As String
 
-    inputMode = LCase$(Trim$(mp_GetOptionalConfigFromDict(cfg, INPUT_MODE_KEY, "Explicit")))
-    If Len(inputMode) = 0 Then inputMode = INPUT_MODE_EXPLICIT
-
-    rawKeys = mp_GetOptionalConfigFromDict(cfg, LEGACY_MULTI_KEYS_KEY, vbNullString)
+    rawKeys = mp_GetOptionalConfigFromDict(cfg, CONFIG_KEYS_COLLECTION_KEY, vbNullString)
     If Len(Trim$(rawKeys)) > 0 Then
-        Set explicitKeys = ex_InputStage.m_ResolveExplicitKeys(rawKeys, LEGACY_MULTI_KEYS_KEY)
+        Set explicitKeys = mp_ResolveExplicitKeys(rawKeys, CONFIG_KEYS_COLLECTION_KEY)
     Else
         Set explicitKeys = New Collection
     End If
 
-    Select Case inputMode
-        Case INPUT_MODE_EXPLICIT
-            ' Unified pipeline: explicit mode still passes through pre-process stage.
-
-        Case INPUT_MODE_SCRIPT
-            ' Script mode relies on pre-process script for runtime keys.
-
-        Case Else
-            Err.Raise vbObjectError + 6110, "ex_ReportCreation", _
-                "Unsupported Input.Mode='" & inputMode & "'. Supported: Explicit, Script."
-    End Select
-
     Set pipelineInput = New obj_ScriptIOPayload
-    firstKey = mp_FirstNonEmptyCollectionItem(explicitKeys)
-    If Len(firstKey) > 0 Then
-        pipelineInput.m_SetString "CommonKey", firstKey
-    End If
     If Not explicitKeys Is Nothing Then
-        pipelineInput.m_SetObject "KeysCollection", explicitKeys
+        pipelineInput.m_SetObject CONFIG_KEYS_COLLECTION_KEY, explicitKeys
     End If
 
     Set mp_CreatePipelineInputForReport = pipelineInput
 End Function
 
-Private Function mp_FirstNonEmptyCollectionItem(ByVal values As Collection) As String
+Private Function mp_ResolveExplicitKeys( _
+    ByVal rawKeysText As String, _
+    Optional ByVal configKeyName As String = CONFIG_KEYS_COLLECTION_KEY _
+) As Collection
+    Dim parts() As String
     Dim i As Long
-    Dim valueText As String
+    Dim keyValue As String
+    Dim seen As Object
+    Dim result As Collection
 
-    If values Is Nothing Then Exit Function
-    For i = 1 To values.Count
-        valueText = Trim$(CStr(values(i)))
-        If Len(valueText) > 0 Then
-            mp_FirstNonEmptyCollectionItem = valueText
-            Exit Function
+    rawKeysText = Trim$(CStr(rawKeysText))
+    If Len(rawKeysText) = 0 Then
+        Err.Raise vbObjectError + 6101, "ex_ModeReportCreation", _
+            "Config key '" & Trim$(configKeyName) & "' is empty. Provide keys separated by ';'."
+    End If
+
+    parts = Split(rawKeysText, ";")
+    Set result = New Collection
+    Set seen = CreateObject("Scripting.Dictionary")
+    seen.CompareMode = 1
+
+    For i = LBound(parts) To UBound(parts)
+        keyValue = Trim$(parts(i))
+        If Len(keyValue) > 0 Then
+            If Not seen.Exists(keyValue) Then
+                seen.Add keyValue, True
+                result.Add keyValue
+            End If
         End If
     Next i
+
+    If result.Count = 0 Then
+        Err.Raise vbObjectError + 6102, "ex_ModeReportCreation", _
+            "Config key '" & Trim$(configKeyName) & "' contains no valid keys after parsing."
+    End If
+
+    Set mp_ResolveExplicitKeys = result
 End Function
 
 Public Function m_RunMode(ByVal cfg As Object, ByVal modeInput As Object, ByVal preProcessContext As Object) As Object
@@ -91,16 +89,13 @@ Public Function m_RunMode(ByVal cfg As Object, ByVal modeInput As Object, ByVal 
     Dim sectionRows As Collection
     Dim contentRows As Collection
     Dim ownerDividerRows As Collection
-    Dim rowKindRanges As Object
+    Dim kindRanges As Object
     Dim nextRow As Long
     Dim gapRows As Long
     Dim ownerDividerGapRows As Long
     Dim resultTables As Collection
     Dim stateResultTable As obj_ResultTable
     Dim eventsResultTable As obj_ResultTable
-    Dim cfg As Object
-    Dim injectedRuntimeVars As Object
-    Dim injectedRuntimeVarTypes As Object
     Dim stateSourceAlias As String
     Dim stateTableAlias As String
     Dim eventsSourceAlias As String
@@ -112,12 +107,13 @@ Public Function m_RunMode(ByVal cfg As Object, ByVal modeInput As Object, ByVal 
     Dim warningRangeAddress As String
     Dim warningRange As Range
     Dim modeResult As Object
+    Dim batchKeyResultsTable As obj_ResultTable
 
     On Error GoTo EH
 
     Set keys = mp_ResolveKeysFromModeInput(modeInput)
     If keys Is Nothing Or keys.Count = 0 Then
-        Err.Raise vbObjectError + 6000, "ex_ReportCreation", "ReportCreation mode input has no keys. Provide MultiKeys/CommonKey or KeysCollection in Output/Input."
+        Err.Raise vbObjectError + 6000, "ex_ModeReportCreation", "ReportCreation mode input has no keys. Provide KeysCollection in Output/Input."
     End If
 
     mp_ResolveOutputTables cfg, stateSourceAlias, stateTableAlias, eventsSourceAlias, eventsTableAlias
@@ -128,9 +124,7 @@ Public Function m_RunMode(ByVal cfg As Object, ByVal modeInput As Object, ByVal 
     ex_Messaging.m_ClearResultTableAnchors wsOut
     ex_Messaging.m_ClearResultRowAnchors wsOut
     hasOutputStyle = ex_SheetStylesXmlProvider.m_GetOutputSheetStyle(outputStyle, ThisWorkbook)
-    If hasOutputStyle Then
-        ex_OutputPanel.m_RenderForSheet wsOut, outputStyle
-    Else
+    If Not hasOutputStyle Then
         warningRangeAddress = ex_SheetStylesXmlProvider.m_GetOutputWarningBannerRangeAddress(ThisWorkbook)
         ex_Messaging.m_RenderWarningBanner wsOut, UI_WARNING_TEXT, UI_WARNING_TITLE, warningRangeAddress
     End If
@@ -168,16 +162,18 @@ Public Function m_RunMode(ByVal cfg As Object, ByVal modeInput As Object, ByVal 
     nextRow = mp_AppendGapRows(nextRow, gapRows)
     nextRow = mp_RenderTableRows(wsOut, keys, nextRow, headerRows, sectionRows, contentRows, ownerDividerRows, eventsResultTable, eventsSourceAlias, eventsTableAlias, eventsFields, ownerDividerGapRows)
 
-    Set rowKindRanges = CreateObject("Scripting.Dictionary")
-    rowKindRanges.CompareMode = 1
-    Set rowKindRanges(KIND_HEADER) = headerRows
-    Set rowKindRanges(KIND_SECTION) = sectionRows
-    Set rowKindRanges(KIND_CONTENT) = contentRows
-    Set rowKindRanges(KIND_OWNER_DIVIDER) = ownerDividerRows
+    Set kindRanges = ex_StylePipelineEngine.m_CreateKindRanges()
+    mp_AddKindEntriesFromRows kindRanges, KIND_HEADER, headerRows
+    mp_AddKindEntriesFromRows kindRanges, KIND_SECTION, sectionRows
+    mp_AddKindEntriesFromRows kindRanges, KIND_CONTENT, contentRows
+    mp_AddKindEntriesFromRows kindRanges, KIND_OWNER_DIVIDER, ownerDividerRows
 
-    ex_OutputFormattingPipeline.m_ApplySheetPipeline wsOut, Nothing, Nothing, rowKindRanges, "ReportCreation"
+    ex_OutputFormattingPipeline.m_ApplySheetPipeline wsOut, Nothing, Nothing, kindRanges, "ReportCreation"
 
-    mp_BuildBatchRuntimeContext resultTables, injectedRuntimeVars, injectedRuntimeVarTypes
+    ' Передаем __Batch как саму таблицу __Batch.Sheet[KeyResults].
+    If mp_TryGetBatchKeyResultsTable(resultTables, batchKeyResultsTable) Then
+        ex_ScriptIO.m_SetObject modeInput, BATCH_RUNTIME_VAR, batchKeyResultsTable
+    End If
 
     wsOut.Activate
     Set modeResult = CreateObject("Scripting.Dictionary")
@@ -185,37 +181,64 @@ Public Function m_RunMode(ByVal cfg As Object, ByVal modeInput As Object, ByVal 
     Set modeResult("Output") = modeInput
     Set modeResult("Worksheet") = wsOut
     Set modeResult("ResultTables") = resultTables
-    Set modeResult("InjectedRuntimeVars") = injectedRuntimeVars
-    Set modeResult("InjectedRuntimeVarTypes") = injectedRuntimeVarTypes
     Set m_RunMode = modeResult
     Exit Function
 
 EH:
     MsgBox "ReportCreation failed: [" & Err.Source & " #" & CStr(Err.Number) & "] " & Err.Description, vbExclamation
     Set m_RunMode = Nothing
+End Function
+
+Private Sub mp_AddKindEntriesFromRows( _
+    ByVal kindRanges As Object, _
+    ByVal kindName As String, _
+    ByVal rows As Collection _
+)
+    Dim rowItem As Variant
+
+    If kindRanges Is Nothing Then Exit Sub
+    If rows Is Nothing Then Exit Sub
+
+    For Each rowItem In rows
+        ex_StylePipelineEngine.m_AddKindRangeFromRowEntry kindRanges, kindName, rowItem, 1, 0
+    Next rowItem
 End Sub
+
+Private Function mp_TryGetBatchKeyResultsTable( _
+    ByVal resultTables As Collection, _
+    ByRef outBatchKeyResultsTable As obj_ResultTable _
+) As Boolean
+    Dim i As Long
+    Dim tableObj As obj_ResultTable
+
+    If resultTables Is Nothing Then Exit Function
+
+    ' Ищем служебную таблицу __Batch.Sheet[KeyResults] и передаем ее как объект __Batch.
+    For i = 1 To resultTables.Count
+        Set tableObj = resultTables(i)
+        If Not tableObj Is Nothing Then
+            If StrComp(tableObj.TableRef, "__Batch.Sheet[KeyResults]", vbTextCompare) = 0 Then
+                Set outBatchKeyResultsTable = tableObj
+                mp_TryGetBatchKeyResultsTable = Not (outBatchKeyResultsTable Is Nothing)
+                Exit Function
+            End If
+        End If
+    Next i
+End Function
 
 Private Function mp_ResolveKeysFromModeInput(ByVal modeInput As Object) As Collection
     Dim keys As Collection
     Dim keysObject As Object
-    Dim keysDelimited As String
-    Dim commonKey As String
 
     Set keys = New Collection
 
-    If ex_ScriptIO.m_TryGetObject(modeInput, "KeysCollection", keysObject) Then
+    If ex_ScriptIO.m_TryGetObject(modeInput, CONFIG_KEYS_COLLECTION_KEY, keysObject) Then
         If TypeName(keysObject) = "Collection" Then
             mp_AddUniqueKeysFromCollection keys, keysObject
         ElseIf TypeName(keysObject) = "Dictionary" Or TypeName(keysObject) = "Scripting.Dictionary" Then
             mp_AddUniqueKeysFromDictionary keys, keysObject
         End If
     End If
-
-    keysDelimited = ex_ScriptIO.m_GetStringOrDefault(modeInput, "MultiKeys", vbNullString)
-    mp_AddUniqueKeysFromDelimited keys, keysDelimited
-
-    commonKey = ex_ScriptIO.m_GetStringOrDefault(modeInput, "CommonKey", vbNullString)
-    mp_AddUniqueKey keys, commonKey
 
     Set mp_ResolveKeysFromModeInput = keys
 End Function
@@ -296,7 +319,7 @@ Private Function mp_RenderTableRows( _
 
     keyFieldAlias = mp_GetRequiredConfig(sourceAlias & ".Sheet[" & tableAlias & "].Key")
     If fieldAliases Is Nothing Or fieldAliases.Count = 0 Then
-        Err.Raise vbObjectError + 6010, "ex_ReportCreation", "Missing fields aliases for '" & sourceAlias & ".Sheet[" & tableAlias & "]'."
+        Err.Raise vbObjectError + 6010, "ex_ModeReportCreation", "Missing fields aliases for '" & sourceAlias & ".Sheet[" & tableAlias & "]'."
     End If
 
     Set conn = mp_OpenSourceConnection(sourceAlias)
@@ -357,6 +380,7 @@ Private Function mp_AppendRowsGeneric( _
     Dim colIndex As Long
     Dim fieldAlias As String
     Dim cellValue As String
+    Dim fieldType As Long
     Dim prevOwnerKey As String
     Dim currentOwnerKey As String
     Dim rowObj As obj_ResultRow
@@ -381,12 +405,19 @@ Private Function mp_AppendRowsGeneric( _
 
         For colIndex = 1 To fieldAliases.Count
             fieldAlias = CStr(fieldAliases(colIndex))
-            cellValue = mp_AsText(rs.Fields(fieldAlias).Value)
-            ws.Cells(nextRow, colIndex).Value = rs.Fields(fieldAlias).Value
+            fieldType = rs.Fields(fieldAlias).Type
+            cellValue = mp_AsText(rs.Fields(fieldAlias).Value, fieldType)
+            ws.Cells(nextRow, colIndex).Value = cellValue
             If Not resultTable Is Nothing Then
                 mp_AddResultCell resultTable, tableRowIndex, sourceAlias, tableAlias, fieldAlias, cellValue
             End If
         Next colIndex
+
+        If Not resultTable Is Nothing Then
+            ' Для каждой строки сохраняем ссылку на таблицу-источник.
+            ' Это позволяет в DSL писать: for (let r2 in row.SrcTableRows) { ... }
+            mp_AddResultCell resultTable, tableRowIndex, sourceAlias, tableAlias, SRC_TABLE_ROWS_ALIAS, sourceAlias & ".Sheet[" & tableAlias & "]"
+        End If
 
         If Not resultTable Is Nothing Then
             Set rowObj = resultTable.EnsureRow(tableRowIndex)
@@ -478,12 +509,8 @@ Private Function mp_GetOwnerDividerGapRows() As Long
     mp_GetOwnerDividerGapRows = parsedValue
 End Function
 
-Private Function mp_AsText(ByVal valueIn As Variant) As String
-    If IsNull(valueIn) Then
-        mp_AsText = vbNullString
-    Else
-        mp_AsText = CStr(valueIn)
-    End If
+Private Function mp_AsText(ByVal valueIn As Variant, Optional ByVal adoFieldType As Long = -1) As String
+    mp_AsText = ex_SqlAdoHelpers.m_ToNormalizedText(valueIn, adoFieldType)
 End Function
 
 Private Sub mp_SetSheetTextFormat(ByVal ws As Worksheet)
@@ -545,7 +572,7 @@ Private Function mp_BuildSelectFieldsSql( _
     Dim mappedHeader As String
 
     If fieldAliases Is Nothing Or fieldAliases.Count = 0 Then
-        Err.Raise vbObjectError + 6011, "ex_ReportCreation", "Cannot build SQL SELECT fields for empty fields list at '" & sourceAlias & ".Sheet[" & tableAlias & "]'."
+        Err.Raise vbObjectError + 6011, "ex_ModeReportCreation", "Cannot build SQL SELECT fields for empty fields list at '" & sourceAlias & ".Sheet[" & tableAlias & "]'."
     End If
 
     For i = 1 To fieldAliases.Count
@@ -576,7 +603,7 @@ Private Function mp_GetFieldsAliases(ByVal sourceAlias As String, ByVal tableAli
     rawList = mp_GetRequiredConfig(sourceAlias & ".Sheet[" & tableAlias & "].FieldsAliases")
     Set listItems = mp_ParseSemicolonList(rawList)
     If listItems Is Nothing Or listItems.Count = 0 Then
-        Err.Raise vbObjectError + 6012, "ex_ReportCreation", "Config key '" & sourceAlias & ".Sheet[" & tableAlias & "].FieldsAliases' is empty."
+        Err.Raise vbObjectError + 6012, "ex_ModeReportCreation", "Config key '" & sourceAlias & ".Sheet[" & tableAlias & "].FieldsAliases' is empty."
     End If
 
     keyAlias = mp_GetRequiredConfig(sourceAlias & ".Sheet[" & tableAlias & "].Key")
@@ -594,20 +621,26 @@ Private Sub mp_ResolveOutputTables( _
     ByRef outEventsSourceAlias As String, _
     ByRef outEventsTableAlias As String _
 )
-    Dim outputTables As Collection
+    Dim outputEntries As Collection
+    Dim outputEntry As Object
     Dim i As Long
     Dim tableAlias As String
     Dim sourceAlias As String
     Dim tableType As String
 
-    Set outputTables = mp_ParseSemicolonList(mp_GetRequiredConfigFromDict(cfg, "Output.Sheets"))
-    If outputTables Is Nothing Or outputTables.Count = 0 Then
-        Err.Raise vbObjectError + 6013, "ex_ReportCreation", "Config key 'Output.Sheets' is empty."
+    Set outputEntries = ex_ConfigVirtualSources.m_BuildAllOutputEntries(cfg, "ex_ModeReportCreation")
+    If outputEntries Is Nothing Or outputEntries.Count = 0 Then
+        Err.Raise vbObjectError + 6013, "ex_ModeReportCreation", _
+            "No tables were found in Source.*.SheetAliases."
     End If
 
-    For i = 1 To outputTables.Count
-        tableAlias = CStr(outputTables(i))
-        sourceAlias = mp_GetSourceAliasForTable(cfg, tableAlias)
+    For i = 1 To outputEntries.Count
+        Set outputEntry = outputEntries(i)
+        tableAlias = Trim$(CStr(outputEntry("TableAlias")))
+        sourceAlias = Trim$(CStr(outputEntry("SourceAlias")))
+        If Len(tableAlias) = 0 Then GoTo ContinueEntry
+        If Len(sourceAlias) = 0 Then GoTo ContinueEntry
+
         tableType = LCase$(mp_GetRequiredConfigFromDict(cfg, sourceAlias & ".Sheet[" & tableAlias & "].Type"))
 
         Select Case tableType
@@ -618,13 +651,16 @@ Private Sub mp_ResolveOutputTables( _
                 outEventsSourceAlias = sourceAlias
                 outEventsTableAlias = tableAlias
         End Select
+ContinueEntry:
     Next i
 
     If Len(outStateSourceAlias) = 0 Or Len(outStateTableAlias) = 0 Then
-        Err.Raise vbObjectError + 6014, "ex_ReportCreation", "Output table with Type='State' was not found in Output.Sheets."
+        Err.Raise vbObjectError + 6014, "ex_ModeReportCreation", _
+            "Output table with Type='State' was not found in configured Source.*.SheetAliases."
     End If
     If Len(outEventsSourceAlias) = 0 Or Len(outEventsTableAlias) = 0 Then
-        Err.Raise vbObjectError + 6015, "ex_ReportCreation", "Output table with Type='Events' was not found in Output.Sheets."
+        Err.Raise vbObjectError + 6015, "ex_ModeReportCreation", _
+            "Output table with Type='Events' was not found in configured Source.*.SheetAliases."
     End If
 End Sub
 
@@ -641,7 +677,7 @@ Private Function mp_GetSourceAliasForTable(ByVal cfg As Object, ByVal tableAlias
     End If
 
     If cfg Is Nothing Then
-        Err.Raise vbObjectError + 6016, "ex_ReportCreation", "Config dictionary is not available to resolve source alias for table '" & tableAlias & "'."
+        Err.Raise vbObjectError + 6016, "ex_ModeReportCreation", "Config dictionary is not available to resolve source alias for table '" & tableAlias & "'."
     End If
 
     For Each keyName In cfg.Keys
@@ -657,7 +693,7 @@ Private Function mp_GetSourceAliasForTable(ByVal cfg As Object, ByVal tableAlias
         End If
     Next keyName
 
-    Err.Raise vbObjectError + 6017, "ex_ReportCreation", "Cannot resolve source alias for table '" & tableAlias & "'. Add Output.Sheet[" & tableAlias & "].SourceAlias or include table alias in Source.<Alias>.SheetAliases."
+    Err.Raise vbObjectError + 6017, "ex_ModeReportCreation", "Cannot resolve source alias for table '" & tableAlias & "'. Add Output.Sheet[" & tableAlias & "].SourceAlias or include table alias in Source.<Alias>.SheetAliases."
 End Function
 
 Private Function mp_ParseSemicolonList(ByVal rawText As String) As Collection
@@ -706,7 +742,7 @@ End Function
 Private Function mp_GetRequiredConfig(ByVal keyName As String) As String
     mp_GetRequiredConfig = Trim$(CStr(ex_ConfigProvider.m_GetConfigValue(keyName, vbNullString)))
     If Len(mp_GetRequiredConfig) = 0 Then
-        Err.Raise vbObjectError + 6018, "ex_ReportCreation", "Missing required config key '" & keyName & "'."
+        Err.Raise vbObjectError + 6018, "ex_ModeReportCreation", "Missing required config key '" & keyName & "'."
     End If
 End Function
 
@@ -737,14 +773,14 @@ End Function
 
 Private Function mp_GetRequiredConfigFromDict(ByVal cfg As Object, ByVal keyName As String) As String
     If cfg Is Nothing Then
-        Err.Raise vbObjectError + 6019, "ex_ReportCreation", "Config dictionary is not initialized when reading key '" & keyName & "'."
+        Err.Raise vbObjectError + 6019, "ex_ModeReportCreation", "Config dictionary is not initialized when reading key '" & keyName & "'."
     End If
     If Not cfg.Exists(keyName) Then
-        Err.Raise vbObjectError + 6020, "ex_ReportCreation", "Missing required config key '" & keyName & "'."
+        Err.Raise vbObjectError + 6020, "ex_ModeReportCreation", "Missing required config key '" & keyName & "'."
     End If
     mp_GetRequiredConfigFromDict = Trim$(CStr(cfg(keyName)))
     If Len(mp_GetRequiredConfigFromDict) = 0 Then
-        Err.Raise vbObjectError + 6021, "ex_ReportCreation", "Config key '" & keyName & "' is empty."
+        Err.Raise vbObjectError + 6021, "ex_ModeReportCreation", "Config key '" & keyName & "' is empty."
     End If
 End Function
 
@@ -785,7 +821,7 @@ Private Function mp_CreateResultTableFromFields( _
     tableObj.Initialize sourceAlias & ".Sheet[" & tableAlias & "]"
 
     If fieldAliases Is Nothing Or fieldAliases.Count = 0 Then
-        Err.Raise vbObjectError + 6022, "ex_ReportCreation", "Cannot create result table for empty fields list at '" & sourceAlias & ".Sheet[" & tableAlias & "]'."
+        Err.Raise vbObjectError + 6022, "ex_ModeReportCreation", "Cannot create result table for empty fields list at '" & sourceAlias & ".Sheet[" & tableAlias & "]'."
     End If
 
     For i = 1 To fieldAliases.Count
@@ -820,69 +856,26 @@ Private Sub mp_AddBatchTables( _
     ByVal eventsTableAlias As String, _
     ByVal eventsKeyFieldAlias As String _
 )
-    Dim ownersTable As obj_ResultTable
     Dim keysResultsTable As obj_ResultTable
-    Dim contextTable As obj_ResultTable
     Dim i As Long
-    Dim stateCompositeAlias As String
-    Dim eventsCompositeAlias As String
+    Dim stateTableRowsAlias As String
+    Dim eventsTableRowsAlias As String
 
     If resultTables Is Nothing Then Exit Sub
     If keys Is Nothing Then Exit Sub
 
-    stateCompositeAlias = stateSourceAlias & "." & stateTableAlias & ".KeyFieldAlias"
-    eventsCompositeAlias = eventsSourceAlias & "." & eventsTableAlias & ".KeyFieldAlias"
+    ' __Batch состоит из одной таблицы KeyResults:
+    ' Key + ссылки на строки таблиц источников для каждого ключа.
+    stateTableRowsAlias = stateSourceAlias & "TableRows"
+    eventsTableRowsAlias = eventsSourceAlias & "TableRows"
 
-    Set ownersTable = mp_CreateResultTable("__Batch", "Owners", Array("Key", "Index"))
-    For i = 1 To keys.Count
-        mp_AddResultCell ownersTable, ownersTable.Count, "__Batch", "Owners", "Key", CStr(keys(i))
-        mp_AddResultCell ownersTable, ownersTable.Count - 1, "__Batch", "Owners", "Index", CStr(i)
-    Next i
-    resultTables.Add ownersTable
-
-    Set keysResultsTable = mp_CreateResultTable("__Batch", "KeyResults", Array("Key", stateCompositeAlias, eventsCompositeAlias))
+    Set keysResultsTable = mp_CreateResultTable("__Batch", "KeyResults", Array("Key", stateTableRowsAlias, eventsTableRowsAlias))
     For i = 1 To keys.Count
         mp_AddResultCell keysResultsTable, keysResultsTable.Count, "__Batch", "KeyResults", "Key", CStr(keys(i))
-        mp_AddResultCell keysResultsTable, keysResultsTable.Count - 1, "__Batch", "KeyResults", stateCompositeAlias, stateKeyFieldAlias
-        mp_AddResultCell keysResultsTable, keysResultsTable.Count - 1, "__Batch", "KeyResults", eventsCompositeAlias, eventsKeyFieldAlias
+        mp_AddResultCell keysResultsTable, keysResultsTable.Count - 1, "__Batch", "KeyResults", stateTableRowsAlias, stateSourceAlias & ".Sheet[" & stateTableAlias & "]"
+        mp_AddResultCell keysResultsTable, keysResultsTable.Count - 1, "__Batch", "KeyResults", eventsTableRowsAlias, eventsSourceAlias & ".Sheet[" & eventsTableAlias & "]"
     Next i
     resultTables.Add keysResultsTable
-
-    Set contextTable = mp_CreateResultTable("__Batch", "Context", Array("OwnerCount", "OwnersTableRef", "KeysResultsTableRef", "Mode"))
-    mp_AddResultCell contextTable, 0, "__Batch", "Context", "OwnerCount", CStr(keys.Count)
-    mp_AddResultCell contextTable, 0, "__Batch", "Context", "OwnersTableRef", "__Batch.Sheet[Owners]"
-    mp_AddResultCell contextTable, 0, "__Batch", "Context", "KeysResultsTableRef", "__Batch.Sheet[KeyResults]"
-    mp_AddResultCell contextTable, 0, "__Batch", "Context", "Mode", "ReportCreation"
-    resultTables.Add contextTable
-End Sub
-
-Private Sub mp_BuildBatchRuntimeContext( _
-    ByVal resultTables As Collection, _
-    ByRef outRuntimeVars As Object, _
-    ByRef outRuntimeVarTypes As Object _
-)
-    Dim i As Long
-    Dim tableObj As obj_ResultTable
-
-    Set outRuntimeVars = CreateObject("Scripting.Dictionary")
-    outRuntimeVars.CompareMode = 1
-    Set outRuntimeVarTypes = CreateObject("Scripting.Dictionary")
-    outRuntimeVarTypes.CompareMode = 1
-
-    If resultTables Is Nothing Then Exit Sub
-
-    For i = 1 To resultTables.Count
-        Set tableObj = resultTables(i)
-        If Not tableObj Is Nothing Then
-            If StrComp(tableObj.TableRef, "__Batch.Sheet[Context]", vbTextCompare) = 0 Then
-                If tableObj.Count > 0 Then
-                    Set outRuntimeVars(BATCH_RUNTIME_VAR) = tableObj.Row(0)
-                    outRuntimeVarTypes(BATCH_RUNTIME_VAR) = "row"
-                    Exit For
-                End If
-            End If
-        End If
-    Next i
 End Sub
 
 Private Sub mp_MergeInjectedRuntimeContext( _
@@ -906,46 +899,6 @@ Private Sub mp_MergeInjectedRuntimeContext( _
     Next scopeKey
 End Sub
 
-Private Function mp_LoadConfigDictionary() As Object
-    Dim ws As Worksheet
-    Dim tbl As ListObject
-    Dim dict As Object
-    Dim dataRange As Range
-    Dim r As Long
-    Dim markerText As String
-    Dim keyText As String
-
-    Set ws = ws_Dev
-
-    On Error Resume Next
-    Set tbl = ws.ListObjects(DEV_CONFIG_TABLE_NAME)
-    On Error GoTo 0
-
-    If tbl Is Nothing Then
-        Err.Raise vbObjectError + 6006, "ex_ReportCreation", "Config table '" & DEV_CONFIG_TABLE_NAME & "' was not found on sheet '" & ws.Name & "'."
-    End If
-    If tbl.DataBodyRange Is Nothing Then
-        Err.Raise vbObjectError + 6007, "ex_ReportCreation", "Config table '" & DEV_CONFIG_TABLE_NAME & "' has no data rows."
-    End If
-
-    Set dict = CreateObject("Scripting.Dictionary")
-    dict.CompareMode = 1
-    Set dataRange = tbl.DataBodyRange
-
-    For r = 1 To dataRange.Rows.Count
-        markerText = Trim$(CStr(dataRange.Cells(r, DEV_COL_MARKER).Value))
-        If StrComp(markerText, DEV_MARKER_SYMBOL, vbTextCompare) = 0 Then GoTo ContinueRow
-
-        keyText = Trim$(CStr(dataRange.Cells(r, DEV_COL_KEY).Value))
-        If Len(keyText) = 0 Then GoTo ContinueRow
-
-        dict(keyText) = CStr(dataRange.Cells(r, DEV_COL_VALUE).Value)
-ContinueRow:
-    Next r
-
-    Set mp_LoadConfigDictionary = dict
-End Function
-
 Private Function mp_OpenSourceConnection(ByVal sourceAlias As String) As Object
     Dim sourcePath As String
     Dim snapshotPath As String
@@ -953,10 +906,10 @@ Private Function mp_OpenSourceConnection(ByVal sourceAlias As String) As Object
 
     sourcePath = mp_ResolvePath(CStr(ex_ConfigProvider.m_GetConfigValue("Source." & sourceAlias & ".FilePath", vbNullString)))
     If Len(sourcePath) = 0 Then
-        Err.Raise vbObjectError + 6001, "ex_ReportCreation", "Missing config key 'Source." & sourceAlias & ".FilePath'."
+        Err.Raise vbObjectError + 6001, "ex_ModeReportCreation", "Missing config key 'Source." & sourceAlias & ".FilePath'."
     End If
     If Dir(sourcePath) = vbNullString Then
-        Err.Raise vbObjectError + 6002, "ex_ReportCreation", "Source file not found: " & sourcePath
+        Err.Raise vbObjectError + 6002, "ex_ModeReportCreation", "Source file not found: " & sourcePath
     End If
 
     snapshotPath = ex_SourceSnapshot.m_GetSnapshotPath(sourcePath, "Source." & sourceAlias)
@@ -968,10 +921,7 @@ End Function
 
 Private Function mp_BuildTableRef(ByVal sourceAlias As String, ByVal tableAlias As String) As String
     Dim sheetName As String
-    sheetName = Trim$(CStr(ex_ConfigProvider.m_GetConfigValue(sourceAlias & ".Sheet[" & tableAlias & "].SheetName", vbNullString)))
-    If Len(sheetName) = 0 Then
-        Err.Raise vbObjectError + 6003, "ex_ReportCreation", "Missing config key '" & sourceAlias & ".Sheet[" & tableAlias & "].SheetName'."
-    End If
+    sheetName = ex_ConfigProvider.m_GetResolvedSheetName(sourceAlias, tableAlias, Nothing, True, "ex_ModeReportCreation", 6003, 6003, 6022, 6023, 6024)
     mp_BuildTableRef = "[" & Replace$(sheetName, "]", "]]" ) & "$]"
 End Function
 
@@ -981,7 +931,7 @@ Private Function mp_MappedHeader(ByVal sourceAlias As String, ByVal tableAlias A
 
     rawValue = Trim$(CStr(ex_ConfigProvider.m_GetConfigValue(sourceAlias & ".Sheet[" & tableAlias & "].Map[" & fieldAlias & "]", vbNullString)))
     If Len(rawValue) = 0 Then
-        Err.Raise vbObjectError + 6004, "ex_ReportCreation", "Missing mapping config for " & sourceAlias & ".Sheet[" & tableAlias & "].Map[" & fieldAlias & "]"
+        Err.Raise vbObjectError + 6004, "ex_ModeReportCreation", "Missing mapping config for " & sourceAlias & ".Sheet[" & tableAlias & "].Map[" & fieldAlias & "]"
     End If
 
     splitPos = InStr(1, rawValue, "|", vbBinaryCompare)
@@ -1023,7 +973,7 @@ Private Function mp_BuildAdoConnectionString(ByVal sourcePath As String) As Stri
         Case "xlsb"
             props = "Excel 12.0;HDR=YES;IMEX=1;ReadOnly=True"
         Case Else
-            Err.Raise vbObjectError + 6005, "ex_ReportCreation", "Unsupported source file extension for ADO: ." & ext
+            Err.Raise vbObjectError + 6005, "ex_ModeReportCreation", "Unsupported source file extension for ADO: ." & ext
     End Select
 
     mp_BuildAdoConnectionString = "Provider=Microsoft.ACE.OLEDB.12.0;Data Source=" & sourcePath & ";Extended Properties=""" & props & """;"

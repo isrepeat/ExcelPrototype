@@ -28,145 +28,124 @@ git config --show-origin --get-regexp '^alias\.'
 
 ## PostProcess DSL
 
-`postProcessScript` задается в профиле, внутри `Prototype/config/modes/*/*Profiles.xml`.
+Подробное описание синтаксиса, правил и примеров Пвынесено в отдельный файл: [DSL.md](DSL.md).
 
-Пример размещения:
-```xml
-<postProcessScript>
-    // DSL-код
-</postProcessScript>
-```
+## Mode Pipeline (PreProcess -> Mode -> ResultLayout -> PostProcess)
 
-### Синтаксис и конструкции
+Основной оркестратор: `Prototype/vba/modules/actions/ex_ModePipeline.bas`, метод `m_RunModePipeline`.
 
-Поддерживаемые инструкции:
+### Этапы конвейера
+Плюс добавил нормализацию ; после удаления, чтобы список Query.TableRefs оставался валидным.
 
-1. `for (...) { ... }`
-2. `if (...) { ... }`
-3. `callMacro("Module.Proc", ...);`
-4. `let varName = callMacro("Module.Proc", ...);`
 
-Комментарии:
 
-1. Однострочные: `// comment`
-2. Многострочные: `/* comment */`
+1. `prepare-input`
+   - Если входной объект не передан, создается `obj_ScriptIOPayload`.
+2. `prepare-default-query-tabrefs` (для `PersonalCard` и `MultiSources`)
+   - Если в input нет `Query.TableRefs`, pipeline формирует его автоматически из `Source.*.SheetAliases`.
+3. `run-preprocess`
+   - Запускается `ex_PreProcessPipeline.m_Run`.
+   - Источник скрипта: `Input.PreProcessScript` (`<preProcessScript .../>` в профиле).
+4. `run-mode-executor`
+   - Вызывается mode-метод `m_RunMode(cfg, modeInput, preProcessContext)`.
+   - Mode должен вернуть объект-словарь результата.
+5. `run-result-layout`
+   - Запускается `ex_ResultLayoutPipeline.m_Run`.
+   - Источник скрипта: `ResultLayout.Script` (`<resultLayoutScript .../>`).
+   - Для `PersonalCard`/`MultiSources` скрипт `ResultLayout` обязателен.
+6. `apply-result-layout-styles`
+   - Применяется `ex_OutputFormattingPipeline.m_ApplySheetPipeline` с картой колонок и row kinds из `ResultLayout`.
+7. `run-postprocess`
+   - Запускается `ex_PostProcessPipeline.m_Run`.
+   - Используется `PostProcess.Script.Implicit` (`<postProcessScript execution="Implicit" .../>`).
 
-### Циклы
+### Контракт объектов между этапами
 
-Итерация по строкам таблицы:
-```text
-for (row in Events.Sheet[EventsOut].rows) {
-    ...
-}
-```
+1. Вход/выход скриптов (`ScriptIO payload`)
+   - Тип: `obj_ScriptIOPayload`.
+   - Хранит пары `key -> value` (строка или объект).
+   - В DSL доступ через:
+     - `callMacroObject("ex_ScriptIO.m_GetInput")`
+     - `callMacroObject("ex_ScriptIO.m_CreateOutput")`
+     - `callMacro("ex_ScriptIO.m_SetString", ...)`
+     - `callMacro("ex_ScriptIO.m_SetObject", ...)`
 
-Итерация по колонкам строки:
-```text
-for (col in row.columns) {
-    ...
-}
-```
+2. Контекст pre-process (`preProcessContext`)
+   - Тип: `Dictionary`.
+   - Поля:
+     - `HasScript` (`"true"`/`"false"`)
+     - `Output` (объект, который пойдет в mode как `modeInput`)
 
-`col` (объект колонки) поддерживает:
+3. Результат mode (`modeResult`)
+   - Тип: `Dictionary`.
+   - Обязательные поля:
+     - `Output` (объект для следующих этапов)
+     - `Worksheet` (`Worksheet`)
+     - `ResultTables` (`Collection` из `obj_ResultTable`)
 
-1. `col.alias` (или `col.name`)
-2. `col.mapKey`
-3. `col.value`
+4. `ResultTables`
+   - `obj_ResultTable`:
+     - `TableRef` (например, `Events.Sheet[EventsOut]`)
+     - `Rows` (`Collection` из `obj_ResultRow`)
+     - `FieldMapByAlias` (alias -> mapKey)
+   - `obj_ResultRow`:
+     - значения колонок по alias/mapKey
+     - `Kind`
+     - `RowAnchorName`
 
-### Условия
+### Что должны возвращать скрипты
 
-Поддерживаются операторы сравнения:
+1. `preProcessScript`
+   - Должен вызвать `ex_ScriptIO.m_CreateOutput()` и заполнить output.
+   - Если скрипт не создал output, pipeline завершится ошибкой.
+   - Если pre-process скрипта нет, в mode уходит исходный input (fallback).
 
-1. `==`
-2. `!=`
-3. `gt`, `lt`
-4. `gte`, `lte`
+2. `resultLayoutScript`
+   - Отдельный output не возвращает.
+   - Работает через мутацию входного объекта:
+     - читает `__ResultTables`
+     - может изменить их через `ex_TableLayoutActions`
+     - строит финальный лист через `ex_ResultLayoutActions`
+     - записывает служебные ключи layout обратно в input.
 
-И логические связки:
+3. `postProcessScript` (Implicit/Explicit)
+   - Отдельный output не возвращает.
+   - Применяет side-effects к листу/строкам/ячейкам и использует runtime-объекты (`ResultTables`, input-контекст).
 
-1. `and`, `or`
+### Служебные ключи input (runtime)
 
-Важно:
+1. Бизнес-ключи (пример): `CommonKey`, `BaseDate`, `Query.TableRefs`, `KeysCollection`.
+2. Служебные ключи pipeline/layout:
+   - `__UseResultLayoutScript`
+   - `__ResultTables`
+   - `__ResultLayoutWorksheet`
+   - `__ResultLayoutSheetName`
+   - `__ResultLayoutRowKinds`
+   - `__ResultLayoutFieldRanges`
+3. Дополнительные mode-ключи (пример): `__Batch`, `__ResultTableRefs`.
 
-1. Правая часть сравнения должна быть строковым литералом в кавычках.
-2. Для `gt/lt/gte/lte` сравнение числовое, если обе стороны парсятся как число; иначе строковое (без учета регистра).
-3. Пример: `if (row.column[EventNum] gt "20000" and row.column[Date] != "") { ... }`
+Примечание: ключи с префиксом `__` считаются внутренними runtime-ключами.
 
-### Переменные
+### Поведение `Query.TableRefs`
 
-Переменная создается только через `let` в связке с `callMacro` (и имеют строковый тип):
-```text
-let key = callMacro("ex_ResultRuntimeAdapter.m_BuildMapKey", "Events", "EventsOut", "Date");
-```
+1. Единый источник выбора таблиц для SQL-запросов.
+2. Формат: `Source.Sheet[Table]; Source2.Sheet[Table2]`.
+3. Парсер принимает также короткие alias таблиц, но рекомендуемый формат: полный `Source.Sheet[Table]`.
+4. Если `Query.TableRefs` не задан:
+   - для `PersonalCard`/`MultiSources` pipeline строит дефолт из `Source.*.SheetAliases`.
+5. Если подключен `preProcessScript`:
+   - для `PersonalCard`/`MultiSources` скрипт должен явно прокинуть `Query.TableRefs` в output (или изменить его).
+6. Кнопка режима `State | Events | Timeline` удалена из логики выполнения.
+   - Отбор таблиц теперь делается через `Query.TableRefs` в pre-process.
 
-Использование переменной:
+### Кэширование скриптов/DSL
 
-1. В `if`: `if (key == "Events.Sheet[EventsOut].Map[Date]") { ... }`
-2. В `callMacro` аргументах: `callMacro("Some.Proc", key);`
-3. В шаблонах строк: `"value={key}"`
-
-Ограничения на имя переменной (`let` и переменная цикла `for`):
-
-1. Только идентификатор: буквы/цифры/`_`.
-2. Первый символ: буква или `_` (цифра и спецсимволы запрещены).
-3. Нельзя использовать ключевые слова: `if`, `for`, `callMacro`, `let`, `in`, `and`, `or`, `gt`, `lt`, `gte`, `lte`.
-
-### Шаблоны строк
-
-В строковых аргументах `callMacro` поддерживается подстановка `{...}`:
-```text
-callMacro("ex_PostProcessActions.m_AppendPostProcessFooterText", "Rows: {Events.Sheet[EventsOut].count}");
-```
-
-### Ссылки на данные
-
-Поддерживаемые ссылки:
-
-1. `row.column[FieldAlias]`
-2. `Source.Sheet[TableAlias].row[N].column[FieldAlias]`
-3. `Source.Sheet[TableAlias].lastRow.column[FieldAlias]`
-4. `Source.Sheet[TableAlias].prevRow.column[FieldAlias]`
-5. `Source.Sheet[TableAlias].count`
-6. `Source.Sheet[TableAlias].rowCount`
-
-### callMacro
-
-Формат:
-```text
-callMacro("Module.Proc", arg1, arg2, ...);
-```
-
-Ограничение: максимум 5 аргументов.
-
-Поддерживаемые аргументы:
-
-1. Строковый литерал `"text"`
-2. Переменная `myVar`
-3. Текущая переменная строки `row`
-4. Ссылки на строки: `Source.Sheet[T].row[0]`, `.lastRow`, `.prevRow`
-5. Ссылки на ячейки: `...row[0].column[Date]`, `.lastRow.column[Date]`
-
-### Пример полного скрипта
-
-```text
-/* Подсветить нужные записи и отметить regex-совпадения в Note */
-for (row in Events.Sheet[EventsOut].rows) {
-    if (row.column[Date] == "12.07.2025") {
-        callMacro("ex_PostProcessActions.m_HighlightRow", row, "#FF0000");
-    }
-
-    let hasOrder = callMacro("ex_PostProcessActions.m_RowCellRegexIsMatch", row, "Note", "№\\s*[0-9]+");
-    if (hasOrder == "True") {
-        callMacro("ex_PostProcessActions.m_HighlightRowCell", row, "Note", "#404040");
-        callMacro("ex_PostProcessActions.m_EmphasizeRowCellTextByRegex", row, "Note", "№\\s*[0-9]+", "#FF0000", "false");
-    }
-}
-
-let mapKey = callMacro("ex_ResultRuntimeAdapter.m_BuildMapKey", "Events", "EventsOut", "Date");
-if (mapKey != "") {
-    callMacro("ex_PostProcessActions.m_AppendPostProcessFooterText", "Map key: {mapKey}");
-}
-```
+1. `ex_ScriptSourceLoader`
+   - кэш текста скрипта по контексту `(mode, profile, scriptKey, profilesFilePath)`;
+   - инвалидация по `DateLastModified/Size` файла профилей и include-файлов.
+2. `ex_ScriptDSL`
+   - кэш распарсенных блоков по `(scriptKey + scriptText)`;
+   - кэш валидации по сигнатуре доступных таблиц/полей.
 
 ## ResultTemplatesParser
 
@@ -230,12 +209,7 @@ if (mapKey != "") {
 
 Если форматтер неизвестен, модуль добавляет диагностическую строку в начало результата.
 
-Поддержка в `postProcessScript`:
-
-1. В строковых аргументах `callMacro` можно использовать тот же синтаксис форматтера:
-   - `{row.column[Rank]|accusative}`
-   - `{row.column[FIO]|genitive}`
-2. Форматирование выполняется через `ex_ResultTemplatesParser.m_FormatValue`.
+Поддержка в `postProcessScript` вынесена в [DSL.md](DSL.md).
 
 ### Условные блоки в шаблоне
 
@@ -284,14 +258,7 @@ if (mapKey != "") {
 
 ### Рекомендуемый pipeline в DSL
 
-```text
-let resultTemplatesRelPath = "config\\modes\\PersonalCard\\PersonalCardResultTemplates.xml";
-let txt = callMacro("ex_ResultTemplatesParser.m_GetTemplateText", "HospitalBrown", resultTemplatesRelPath);
-txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "Hospital", "{row.column[Hospital]}");
-txt = callMacro("ex_ResultTemplatesParser.m_ReplacePlaceholder", txt, "FIO", "{row.column[FIO]}");
-txt = callMacro("ex_ResultTemplatesParser.m_ResolveTemplate", txt);
-callMacro("ex_PostProcessActions.m_AppendToSinglePostProcessFooterText", txt, "\n\n");
-```
+См. пример в [DSL.md](DSL.md).
 
 ## StylePipeline (page-based, universal apply)
 
@@ -339,7 +306,7 @@ ex_OutputFormattingPipeline.m_ApplySheetPipeline _
 Ключевая архитектурная договоренность:
 
 1. В `ex_OutputFormattingPipeline` остается только универсальный apply API.
-2. Специфичный контекст страницы (какие `rowKindRanges` собрать, какие runtime слои добавить) живет в модуле страницы (`ex_PersonTimeline`, `ex_TableComparing`, и т.д.).
+2. Специфичный контекст страницы (какие `rowKindRanges` собрать, какие runtime слои добавить) живет в модуле страницы (`ex_ModePersonalCard`, `ex_ModeTablesComparing`, и т.д.).
 
 ### `runtimeLayers`: зачем и как использовать
 
@@ -470,7 +437,7 @@ ex_OutputFormattingPipeline.m_ApplySheetPipeline wsResult, Nothing, Nothing, row
 Для профилей режимов (PersonalCard/TablesComparing) можно задать дефолтный zoom результата атрибутом профиля:
 
 ```xml
-<profile name="Test2" resultZoom="115">
+<profile name="Default" resultZoom="115">
 ```
 
 Поведение:
@@ -478,7 +445,7 @@ ex_OutputFormattingPipeline.m_ApplySheetPipeline wsResult, Nothing, Nothing, row
 1. Если результатный лист создается впервые, применяется `resultZoom` активного профиля.
 2. Пока лист жив (не удален), сохраняется текущий zoom листа; in-memory cache используется как fallback.
 3. Повторный Search/Run не переустанавливает профильный zoom для уже существующей страницы.
-4. Логика общая и используется как в `ex_PersonTimeline`, так и в `ex_TableComparing` через `ex_SheetViewZoom`.
+4. Логика общая и используется как в `ex_ModePersonalCard`, так и в `ex_ModeTablesComparing` через `ex_SheetViewZoom`.
 
 ## Output Layout (gaps between result tables)
 
@@ -487,7 +454,7 @@ ex_OutputFormattingPipeline.m_ApplySheetPipeline wsResult, Nothing, Nothing, row
 Пример:
 
 ```xml
-<v key="Output.Sheets">StateMain; EventsOut; EventsIn; DailyEvents</v>
+<v key="Query.TableRefs">Main.Sheet[StateMain]; Events.Sheet[EventsOut]; Events.Sheet[EventsIn]; Daily.Sheet[DailyEvents]</v>
 <v key="Output.Layout.Gap.Default">1</v>
 <v key="Output.Layout.Gap.AfterType[Events]">1</v>
 <v key="Output.Layout.Gap.Between[EventsOut->EventsIn]">0</v>
@@ -506,5 +473,5 @@ ex_OutputFormattingPipeline.m_ApplySheetPipeline wsResult, Nothing, Nothing, row
 Важные детали:
 
 1. Значения gap должны быть целыми `>= 0`, иначе рендер завершится с ошибкой валидации ключа.
-2. Gap применяется только между реально отрисованными таблицами с учетом режима (`StateTableOnly`/`EventsTableOnly`).
+2. Gap применяется только между реально отрисованными таблицами.
 3. `StylePipeline` управляет визуальным стилем строк/ячеек, но не структурным количеством пустых строк между таблицами.

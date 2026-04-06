@@ -4,11 +4,19 @@
     <item key="Default"
           caption="Default"
           setContext="activeProfile=Default"/>
-    <item key="Test"
-          caption="Test"
-          setContext="activeProfile=Test"/>
-    <item key="Test2"
-          caption="Test2"
-          setContext="activeProfile=Test2"/>
+  </list>
+
+  <list name="panel.exportInsertMode">
+    <item key="AppendToTop"
+          caption="Append [Top]"/>
+    <item key="AppendToBottom"
+          caption="Append [Bottom]"/>
+  </list>
+
+  <list name="panel.validationMode">
+    <item key="Enabled"
+          caption="Validation [On]"/>
+    <item key="Disabled"
+          caption="Validation [Off]"/>
   </list>
 </dropdownItems>

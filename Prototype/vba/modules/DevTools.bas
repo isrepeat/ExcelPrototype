@@ -13,6 +13,11 @@ Private Const COMP_TYPE_CLASS As String = "class"
 Private Const COMP_TYPE_FORM As String = "form"
 Private Const COMP_TYPE_SHEET As String = "sheet"
 Private Const COMP_TYPE_WORKBOOK As String = "workbook"
+Private Const UTF8_BAS_FILENAME_SUFFIX As String = ".utf8.bas"
+Private Const MAX_VBA_COMPONENT_NAME_LEN As Long = 31
+' True  -> legacy fast import for .bas via VBComponents.Import.
+' False -> current UTF-safe import path via AddFromString.
+Private Const USE_LEGACY_FAST_BAS_IMPORT As Boolean = True
 
 ' Main updater (legacy name preserved).
 Public Sub dev_UpdateCode()
@@ -314,6 +319,7 @@ Private Sub mp_ImportFolderRecursive( _
     Dim importedComp As Object
     Dim sourceText As String
     Dim fileStamp As String
+    Dim importStamp As String
     Dim cacheKey As String
     Dim compType As String
     Dim fallbackName As String
@@ -327,6 +333,7 @@ Private Sub mp_ImportFolderRecursive( _
                 On Error GoTo EH_IMPORT_FILE
 
                 fileStamp = mp_BuildFileStampFromFileObject(fileObj)
+                importStamp = mp_BuildImportStampByFileType(fileExt, fileStamp, importPath)
                 cacheKey = mp_NormalizeCacheKey(importPath)
                 fallbackName = mp_GetFileStem(CStr(fileObj.Name))
                 sourceText = vbNullString
@@ -340,9 +347,9 @@ Private Sub mp_ImportFolderRecursive( _
                 End If
 
                 If fastMode Then
-                    If mp_TryGetCachedComponentNameByStamp(prevCache, cacheKey, compType, fileStamp, componentName) Then
+                    If mp_TryGetCachedComponentNameByStamp(prevCache, cacheKey, compType, importStamp, componentName) Then
                         If mp_IsComponentPresentForType(componentName, compType) Then
-                            mp_SetCacheRecord nextCache, cacheKey, compType, componentName, fileStamp
+                            mp_SetCacheRecord nextCache, cacheKey, compType, componentName, importStamp
                             GoTo ContinueNextFile
                         End If
                     End If
@@ -354,12 +361,21 @@ Private Sub mp_ImportFolderRecursive( _
                 Else
                     componentName = fallbackName
                 End If
+                mp_EnsureValidComponentNameLength componentName, importPath
 
                 mp_RemoveComponentIfExists componentName
                 Set importedComp = Nothing
                 Select Case fileExt
                     Case ".bas"
-                        mp_ImportStandardModuleFromSource componentName, importPath, sourceText
+                        If mp_ShouldUseLegacyFastImportForBas(importPath) Then
+                            Set importedComp = ThisWorkbook.VBProject.VBComponents.Import(importPath)
+                            If importedComp Is Nothing Or importedComp.Type <> 1 Then ' vbext_ct_StdModule
+                                mp_RemoveComponentIfExists componentName
+                                mp_ImportStandardModuleFromSource componentName, importPath, sourceText
+                            End If
+                        Else
+                            mp_ImportStandardModuleFromSource componentName, importPath, sourceText
+                        End If
                     Case ".cls"
                         Set importedComp = ThisWorkbook.VBProject.VBComponents.Import(importPath)
                         If importedComp Is Nothing Or importedComp.Type <> 2 Then ' vbext_ct_ClassModule
@@ -369,7 +385,7 @@ Private Sub mp_ImportFolderRecursive( _
                     Case Else
                         Set importedComp = ThisWorkbook.VBProject.VBComponents.Import(importPath)
                 End Select
-                mp_SetCacheRecord nextCache, cacheKey, compType, componentName, fileStamp
+                mp_SetCacheRecord nextCache, cacheKey, compType, componentName, importStamp
                 On Error GoTo 0
             End If
         End If
@@ -389,6 +405,13 @@ EH_IMPORT_FILE:
     Err.Clear
     On Error GoTo 0
     GoTo ContinueNextFile
+End Sub
+
+Private Sub mp_EnsureValidComponentNameLength(ByVal componentName As String, ByVal importPath As String)
+    If Len(componentName) <= MAX_VBA_COMPONENT_NAME_LEN Then Exit Sub
+    Err.Raise vbObjectError + 1010, "mp_EnsureValidComponentNameLength", _
+              "VBA component name '" & componentName & "' is too long (" & CStr(Len(componentName)) & _
+              "). Maximum allowed is " & CStr(MAX_VBA_COMPONENT_NAME_LEN) & ". File: " & importPath
 End Sub
 
 Private Sub mp_ImportStandardModuleFromSource( _
@@ -578,6 +601,47 @@ Private Function mp_GetFileStem(ByVal fileName As String) As String
     End If
 End Function
 
+Private Function mp_BuildImportStampByFileType( _
+    ByVal fileExt As String, _
+    ByVal fileStamp As String, _
+    Optional ByVal importPath As String = vbNullString _
+) As String
+    mp_BuildImportStampByFileType = fileStamp
+
+    If StrComp(fileExt, ".bas", vbTextCompare) = 0 Then
+        mp_BuildImportStampByFileType = fileStamp & "|basMode=" & mp_GetBasImportModeToken(importPath)
+    End If
+End Function
+
+Private Function mp_GetBasImportModeToken(ByVal importPath As String) As String
+    If mp_ShouldUseLegacyFastImportForBas(importPath) Then
+        mp_GetBasImportModeToken = "legacyFastImport"
+    ElseIf USE_LEGACY_FAST_BAS_IMPORT Then
+        mp_GetBasImportModeToken = "utfSafeAddFromString_utf8Marker"
+    Else
+        mp_GetBasImportModeToken = "utfSafeAddFromString"
+    End If
+End Function
+
+Private Function mp_ShouldUseLegacyFastImportForBas(ByVal importPath As String) As Boolean
+    mp_ShouldUseLegacyFastImportForBas = USE_LEGACY_FAST_BAS_IMPORT
+    If Not mp_ShouldUseLegacyFastImportForBas Then Exit Function
+
+    If mp_IsUtf8MarkedBasFile(importPath) Then
+        mp_ShouldUseLegacyFastImportForBas = False
+    End If
+End Function
+
+Private Function mp_IsUtf8MarkedBasFile(ByVal importPath As String) As Boolean
+    Dim normalizedPath As String
+
+    normalizedPath = LCase$(Replace$(Trim$(CStr(importPath)), "/", "\"))
+    If Len(normalizedPath) < Len(UTF8_BAS_FILENAME_SUFFIX) Then Exit Function
+
+    mp_IsUtf8MarkedBasFile = _
+        (Right$(normalizedPath, Len(UTF8_BAS_FILENAME_SUFFIX)) = UTF8_BAS_FILENAME_SUFFIX)
+End Function
+
 Private Function mp_CreateDictionary() As Object
     Set mp_CreateDictionary = CreateObject("Scripting.Dictionary")
     mp_CreateDictionary.CompareMode = 1
@@ -670,6 +734,8 @@ Private Function mp_LoadImportCache(ByVal cachePath As String) As Object
     Dim lineText As String
     Dim parts() As String
     Dim f As Integer
+    Dim stampText As String
+    Dim i As Long
 
     Set cache = mp_CreateDictionary()
     If Len(Dir(cachePath)) = 0 Then
@@ -684,7 +750,13 @@ Private Function mp_LoadImportCache(ByVal cachePath As String) As Object
         If Len(Trim$(lineText)) = 0 Then GoTo ContinueLoop
         parts = Split(lineText, "|")
         If UBound(parts) < 3 Then GoTo ContinueLoop
-        mp_SetCacheRecord cache, CStr(parts(0)), CStr(parts(1)), CStr(parts(2)), CStr(parts(3))
+        stampText = CStr(parts(3))
+        If UBound(parts) > 3 Then
+            For i = 4 To UBound(parts)
+                stampText = stampText & "|" & CStr(parts(i))
+            Next i
+        End If
+        mp_SetCacheRecord cache, CStr(parts(0)), CStr(parts(1)), CStr(parts(2)), stampText
 ContinueLoop:
     Loop
     Close #f

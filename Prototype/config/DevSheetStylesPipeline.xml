@@ -20,6 +20,7 @@
                 backColor:#1E1E1E;
                 fontColor:#EBEBEB;
                 fontBold:false;
+                autoHeight:true;
               }"/>
       </layer>
 
@@ -138,15 +139,51 @@
                 fontColor:#F5F5F5;
               }"/>
       </layer>
+    </stage>
 
-      <layer name="dev-config-table-locked-placeholder" priority="235" enabled="true">
+    <stage name="banners">
+      <layer name="dev-banner-base" priority="100" enabled="true">
         <rule target="row"
-              selector="kind=configlockedplaceholder;col=3"
+              selector="kind=errorbanner|warningbanner|notebanner;col=2:3"
               styles="{
-                backColor:#3A3220;
-                fontColor:#FFD27A;
-                fontBold:true;
+                overflow:wrap;
                 horizontal:left;
+                vertical:center;
+                minRowHeight:24;
+                autoHeight:true;
+                customAutoHeight-margin-top:4;
+                customAutoHeight-margin-bottom:4;
+                borderWeight:thin;
+              }"/>
+      </layer>
+
+      <layer name="dev-banner-error" priority="110" enabled="true">
+        <rule target="row"
+              selector="kind=errorbanner;col=2:3"
+              styles="{
+                backColor:#5C1F1F;
+                fontColor:#FFECEC;
+                borderColor:#401414;
+                fontBold:true;
+              }"/>
+      </layer>
+
+      <layer name="dev-banner-warning" priority="120" enabled="true">
+        <rule target="row"
+              selector="kind=warningbanner;col=2:3"
+              styles="{
+                backColor:#4C3F10;
+                fontColor:#FFE599;
+                borderColor:#3B320D;
+                fontBold:true;
+              }"/>
+      </layer>
+
+      <layer name="dev-banner-title" priority="130" enabled="true">
+        <rule target="row"
+              selector="kind=errorbannertitle|warningbannertitle|notebannertitle;col=2:3"
+              styles="{
+                fontBold:true;
               }"/>
       </layer>
     </stage>

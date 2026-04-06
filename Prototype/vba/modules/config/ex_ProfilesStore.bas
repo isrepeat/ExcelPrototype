@@ -25,7 +25,24 @@ Public Function m_GetProfilesFilePath(Optional ByVal modeKey As String = vbNullS
 End Function
 
 Public Function m_LoadProfilesDom(ByVal filePath As String) As Object
+    Dim parseErrorMessage As String
+    Dim usedTemplateFallback As Boolean
+    Dim isMissingFile As Boolean
+
+    Set m_LoadProfilesDom = m_LoadProfilesDomWithStatus(filePath, parseErrorMessage, usedTemplateFallback, isMissingFile)
+End Function
+
+Public Function m_LoadProfilesDomWithStatus( _
+    ByVal filePath As String, _
+    ByRef parseErrorMessage As String, _
+    ByRef usedTemplateFallback As Boolean, _
+    ByRef isMissingFile As Boolean _
+) As Object
     Dim doc As Object
+
+    parseErrorMessage = vbNullString
+    usedTemplateFallback = False
+    isMissingFile = False
 
     If Len(Trim$(filePath)) = 0 Then Exit Function
 
@@ -33,13 +50,45 @@ Public Function m_LoadProfilesDom(ByVal filePath As String) As Object
 
     If Len(Dir(filePath)) > 0 Then
         If Not doc.Load(filePath) Then
+            parseErrorMessage = mp_BuildParseErrorMessage(doc, filePath)
+            usedTemplateFallback = True
             doc.loadXML PROFILES_TEMPLATE
         End If
     Else
+        isMissingFile = True
+        usedTemplateFallback = True
         doc.loadXML PROFILES_TEMPLATE
     End If
 
-    Set m_LoadProfilesDom = doc
+    Set m_LoadProfilesDomWithStatus = doc
+End Function
+
+Private Function mp_BuildParseErrorMessage(ByVal doc As Object, ByVal filePath As String) As String
+    Dim reasonText As String
+    Dim sourceText As String
+    Dim lineNumber As Long
+    Dim linePosition As Long
+
+    On Error Resume Next
+    reasonText = Trim$(CStr(doc.parseError.reason))
+    sourceText = Trim$(CStr(doc.parseError.srcText))
+    lineNumber = CLng(doc.parseError.Line)
+    linePosition = CLng(doc.parseError.linepos)
+    On Error GoTo 0
+
+    If Len(reasonText) = 0 Then reasonText = "Unknown XML parse error."
+
+    mp_BuildParseErrorMessage = "Failed to parse profiles config file '" & filePath & "': " & reasonText
+    If lineNumber > 0 Then
+        mp_BuildParseErrorMessage = mp_BuildParseErrorMessage & " (line " & CStr(lineNumber)
+        If linePosition > 0 Then
+            mp_BuildParseErrorMessage = mp_BuildParseErrorMessage & ", pos " & CStr(linePosition)
+        End If
+        mp_BuildParseErrorMessage = mp_BuildParseErrorMessage & ")."
+    End If
+    If Len(sourceText) > 0 Then
+        mp_BuildParseErrorMessage = mp_BuildParseErrorMessage & " Source: " & sourceText
+    End If
 End Function
 
 Public Sub m_SaveProfilesDom(ByVal doc As Object, ByVal filePath As String)
@@ -66,9 +115,19 @@ Public Function m_GetProfileNode(ByVal doc As Object, ByVal profileName As Strin
     profileName = Trim$(profileName)
     If Len(profileName) = 0 Then Exit Function
 
+    On Error Resume Next
+    doc.setProperty "SelectionNamespaces", "xmlns:p='" & PROFILES_NS & "'"
+    On Error GoTo 0
+
     Set node = doc.selectSingleNode("/p:profiles/p:profile[@name=" & ex_XmlCore.m_XPathLiteral(profileName) & "]")
+    If node Is Nothing Then
+        Set node = doc.selectSingleNode("/*[local-name()='profiles']/*[local-name()='profile'][@name=" & ex_XmlCore.m_XPathLiteral(profileName) & "]")
+    End If
     If node Is Nothing And createIfMissing Then
         Set root = doc.selectSingleNode("/p:profiles")
+        If root Is Nothing Then
+            Set root = doc.selectSingleNode("/*[local-name()='profiles']")
+        End If
         If root Is Nothing Then Exit Function
         Set node = doc.createNode(1, "profile", PROFILES_NS)
         node.setAttribute "name", profileName

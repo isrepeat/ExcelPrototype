@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resultTemplates xmlns="urn:excelprototype:profiles" version="1">
+  <!-- NOTE:
+       In conditions like {#if InNumFull}...{#endif} a placeholder is treated as empty
+       if it is empty ("") or equals "-" / "?". -->
+  <template id="GiveHealthBenefits">
+    <text>
+      <![CDATA[#^
+#_      {Rank|dative|upperFirstLetter} {FIO|dative}, {Position|dative|lowerFirstLetter}.
+
+#_      Підстава: рапорт {Rank|accusative|lowerFirstLetter} {FIO|genitive|fioSurname|capitalize} {FIO|fioInitials} (вх. № {InNumFull} від {InDate})#^
+#_      .#^
+#_    ]]>
+    </text>
+  </template>
+</resultTemplates>

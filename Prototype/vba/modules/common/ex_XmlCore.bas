@@ -2,6 +2,7 @@ Attribute VB_Name = "ex_XmlCore"
 Option Explicit
 
 Private Const SETTINGS_REL_PATH As String = "config\Settings.xml"
+Private g_SettingsCacheVersion As Long
 
 Public Function m_CombineBasePath(ByVal wb As Workbook, ByVal relPath As String) As String
     Dim basePath As String
@@ -291,6 +292,60 @@ Public Function m_GetSettingsValue(ByVal keyName As String, Optional ByVal defau
     End If
 End Function
 
+Public Sub m_SetSettingsValue(ByVal keyName As String, ByVal valueText As String)
+    Dim settingsPath As String
+    Dim doc As Object
+    Dim rootNode As Object
+    Dim valueNode As Object
+
+    keyName = Trim$(keyName)
+    If Len(keyName) = 0 Then
+        MsgBox "Settings key is empty.", vbExclamation
+        Exit Sub
+    End If
+
+    settingsPath = m_CombineBasePath(ThisWorkbook, SETTINGS_REL_PATH)
+    If Len(settingsPath) = 0 Then
+        MsgBox "Failed to resolve Settings.xml path.", vbExclamation
+        Exit Sub
+    End If
+
+    Set doc = m_CreateDom(vbNullString)
+    If Len(Dir$(settingsPath)) > 0 Then
+        If Not doc.Load(settingsPath) Then
+            MsgBox "Failed to parse Settings file: " & settingsPath, vbExclamation
+            Exit Sub
+        End If
+    Else
+        doc.LoadXML "<?xml version=""1.0"" standalone=""yes""><settings version=""1""></settings>"
+    End If
+
+    Set rootNode = doc.selectSingleNode("/*[local-name()='settings']")
+    If rootNode Is Nothing Then
+        MsgBox "Invalid Settings XML format: root <settings> is required in '" & settingsPath & "'.", vbExclamation
+        Exit Sub
+    End If
+
+    Set valueNode = rootNode.selectSingleNode("*[local-name()=" & m_XPathLiteral(keyName) & "]")
+    If valueNode Is Nothing Then
+        Set valueNode = doc.createElement(keyName)
+        rootNode.appendChild valueNode
+    End If
+
+    valueNode.Text = CStr(valueText)
+
+    On Error GoTo SaveFailed
+    doc.Save settingsPath
+    On Error GoTo 0
+
+    g_SettingsCacheVersion = g_SettingsCacheVersion + 1
+    Exit Sub
+
+SaveFailed:
+    On Error GoTo 0
+    MsgBox "Failed to save Settings file: " & settingsPath, vbExclamation
+End Sub
+
 Private Function mp_TryEvaluateConfigCondition(ByVal conditionText As String, ByRef outResult As Boolean, ByRef outErrorText As String) As Boolean
     Dim parts() As String
     Dim part As Variant
@@ -457,6 +512,7 @@ Private Function mp_GetSettingsMap() As Object
     Static cachedMap As Object
     Static cachedPath As String
     Static cachedLastWrite As Date
+    Static cachedVersion As Long
     Dim currentPath As String
     Dim currentLastWrite As Date
     Dim doc As Object
@@ -480,11 +536,13 @@ Private Function mp_GetSettingsMap() As Object
 
     If cachedMap Is Nothing _
        Or StrComp(cachedPath, currentPath, vbTextCompare) <> 0 _
-       Or cachedLastWrite <> currentLastWrite Then
+       Or cachedLastWrite <> currentLastWrite _
+       Or cachedVersion <> g_SettingsCacheVersion Then
         Set cachedMap = CreateObject("Scripting.Dictionary")
         cachedMap.CompareMode = 1
         cachedPath = currentPath
         cachedLastWrite = currentLastWrite
+        cachedVersion = g_SettingsCacheVersion
 
         Set doc = m_LoadDomByRelativePath(ThisWorkbook, SETTINGS_REL_PATH, vbNullString, "Settings file was not found: ", "Failed to parse Settings file: ")
         If doc Is Nothing Then

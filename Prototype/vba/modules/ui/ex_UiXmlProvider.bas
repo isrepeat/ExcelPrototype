@@ -5,6 +5,8 @@ Private Const PROFILES_NS As String = "urn:excelprototype:profiles"
 Private Const DEV_UI_CONFIG_REL_PATH As String = "config\DevUI.xml"
 Private Const DROPDOWN_CONTEXT_PROP_PREFIX As String = "Settings.DropdownContext."
 Private Const STATE_ACTIVE_MODE_KEY_PROP As String = "Settings.ActiveModeKey"
+Private Const DEBUG_LOG_PATH As String = "Logs\layout_engine.log"
+Private Const DEBUG_LOG_ENABLED As Boolean = True
 
 Public Const DROPDOWN_ITEM_COL_KEY As Long = 1
 Public Const DROPDOWN_ITEM_COL_CAPTION As Long = 2
@@ -14,6 +16,7 @@ Public Const DROPDOWN_ITEM_COL_ACTION_KEY As Long = 5
 Public Const DROPDOWN_ITEM_COL_MACRO As Long = 6
 
 Private Const MODE_LIST_CONTROL As String = "btnCustomMode"
+Private Const PROFILE_LIST_CONTROL As String = "btnCustomProfile"
 Private Const PROFILES_FILE_SOURCE_NAME As String = "profilesFileByMode"
 
 Private g_DevUiDomCache As Object
@@ -90,6 +93,18 @@ Public Function m_GetDropdownItemRecordsByControl(ByVal controlName As String, O
     If controlNode Is Nothing Then Exit Function
 
     m_GetDropdownItemRecordsByControl = mp_GetDropdownItemRecordsFromControlNode(controlNode, wb, modeKey, doc)
+End Function
+
+Public Function m_GetDropdownItemRecordsFromControlNode(ByVal controlNode As Object, Optional ByVal wb As Workbook, Optional ByVal modeKey As String = vbNullString, Optional ByVal doc As Object = Nothing) As Variant
+    If wb Is Nothing Then Set wb = ThisWorkbook
+    If wb Is Nothing Then Exit Function
+    If controlNode Is Nothing Then Exit Function
+
+    m_GetDropdownItemRecordsFromControlNode = mp_GetDropdownItemRecordsFromControlNode(controlNode, wb, modeKey, doc)
+End Function
+
+Public Function m_HasDropdownItemRecords(ByVal itemRecords As Variant) As Boolean
+    m_HasDropdownItemRecords = mp_HasDropdownItemRecords(itemRecords)
 End Function
 
 Public Function m_GetDropdownItemKeyByTarget(ByVal controlName As String, ByVal targetText As String, Optional ByVal wb As Workbook) As String
@@ -408,29 +423,52 @@ End Function
 
 Public Function m_ReadButtonStyles(Optional ByVal wb As Workbook) As Object
     Dim doc As Object
+    Dim errorText As String
+
+    If wb Is Nothing Then Set wb = ThisWorkbook
+    If wb Is Nothing Then Exit Function
+
+    mp_DebugLog "m_ReadButtonStyles: loading DevUI styles."
+    Set doc = mp_LoadDevUiDom(wb)
+    If doc Is Nothing Then Exit Function
+
+    Set m_ReadButtonStyles = m_ReadButtonStylesFromDoc(doc, errorText)
+    If m_ReadButtonStyles Is Nothing And Len(errorText) > 0 Then
+        mp_DebugLog "m_ReadButtonStyles: failed. " & errorText
+        MsgBox errorText, vbExclamation
+        Exit Function
+    End If
+    mp_DebugLog "m_ReadButtonStyles: loaded styles count=" & mp_TryGetDictionaryCountText(m_ReadButtonStyles)
+End Function
+
+Public Function m_ReadButtonStylesFromDoc(ByVal doc As Object, Optional ByRef outErrorText As String) As Object
     Dim styleNodes As Object
     Dim styleNode As Object
     Dim styleName As String
     Dim stylesMap As Object
     Dim styleData As Object
 
-    If wb Is Nothing Then Set wb = ThisWorkbook
-    If wb Is Nothing Then Exit Function
-
-    Set doc = mp_LoadDevUiDom(wb)
-    If doc Is Nothing Then Exit Function
-
-    Set stylesMap = CreateObject("Scripting.Dictionary")
-    Set styleNodes = doc.selectNodes("/p:uiDefinition/p:styles/p:buttonStyle")
-    If styleNodes Is Nothing Then
-        Set m_ReadButtonStyles = stylesMap
+    outErrorText = vbNullString
+    If doc Is Nothing Then
+        outErrorText = "Failed to read UI styles: XML document is not specified."
+        mp_DebugLog "m_ReadButtonStylesFromDoc: " & outErrorText
         Exit Function
     End If
+
+    Set stylesMap = CreateObject("Scripting.Dictionary")
+    Set styleNodes = doc.selectNodes("/p:uiDefinition/p:styles/p:controlStyle")
+    If styleNodes Is Nothing Then
+        mp_DebugLog "m_ReadButtonStylesFromDoc: no /uiDefinition/styles/controlStyle nodes found."
+        Set m_ReadButtonStylesFromDoc = stylesMap
+        Exit Function
+    End If
+    mp_DebugLog "m_ReadButtonStylesFromDoc: style node count=" & CStr(styleNodes.Length)
 
     For Each styleNode In styleNodes
         styleName = Trim$(ex_XmlCore.m_NodeAttrText(styleNode, "name"))
         If Len(styleName) = 0 Then
-            MsgBox "UI config contains <buttonStyle> without 'name' attribute.", vbExclamation
+            outErrorText = "UI config contains <controlStyle> without 'name' attribute."
+            mp_DebugLog "m_ReadButtonStylesFromDoc: " & outErrorText
             Exit Function
         End If
 
@@ -446,7 +484,8 @@ Public Function m_ReadButtonStyles(Optional ByVal wb As Workbook) As Object
         Set stylesMap(styleName) = styleData
     Next styleNode
 
-    Set m_ReadButtonStyles = stylesMap
+    Set m_ReadButtonStylesFromDoc = stylesMap
+    mp_DebugLog "m_ReadButtonStylesFromDoc: parsed styles count=" & CStr(stylesMap.Count)
 End Function
 
 Public Function m_ApplyControlStyleByName(ByVal ws As Worksheet, ByVal controlName As String, ByVal styleName As String, Optional ByVal wb As Workbook) As Boolean
@@ -477,10 +516,12 @@ Public Function m_ApplyButtonStyleByName(ByVal shp As Shape, ByVal styleName As 
     Dim boolValue As Boolean
 
     If stylesMap Is Nothing Then
+        mp_DebugLog "m_ApplyButtonStyleByName: styles map is unavailable for shape='" & shp.Name & "', style='" & styleName & "'."
         MsgBox "UI style '" & styleName & "' is referenced by '" & shp.Name & "', but styles map is unavailable.", vbExclamation
         Exit Function
     End If
     If Not stylesMap.Exists(styleName) Then
+        mp_DebugLog "m_ApplyButtonStyleByName: missing style='" & styleName & "' for shape='" & shp.Name & "'."
         MsgBox "UI style '" & styleName & "' is referenced by '" & shp.Name & "' but not defined in /uiDefinition/styles.", vbExclamation
         Exit Function
     End If
@@ -551,23 +592,54 @@ Public Function m_ApplyButtonStyleByName(ByVal shp As Shape, ByVal styleName As 
     On Error GoTo EH
 
     m_ApplyButtonStyleByName = True
+    mp_DebugLog "m_ApplyButtonStyleByName: applied style='" & styleName & "' to shape='" & shp.Name & "'."
     Exit Function
 EH:
+    mp_DebugLog "m_ApplyButtonStyleByName: failed style='" & styleName & "' shape='" & shp.Name & "' error='" & Err.Description & "'."
     MsgBox "Failed to apply style '" & styleName & "' to shape '" & shp.Name & "': " & Err.Description, vbExclamation
 End Function
 
+Private Function mp_TryGetDictionaryCountText(ByVal dictObj As Object) As String
+    On Error Resume Next
+    If dictObj Is Nothing Then
+        mp_TryGetDictionaryCountText = "0"
+    Else
+        mp_TryGetDictionaryCountText = CStr(dictObj.Count)
+    End If
+    If Err.Number <> 0 Then
+        Err.Clear
+        mp_TryGetDictionaryCountText = "n/a"
+    End If
+    On Error GoTo 0
+End Function
+
+Private Sub mp_DebugLog(ByVal messageText As String)
+    If Not DEBUG_LOG_ENABLED Then Exit Sub
+    On Error Resume Next
+    ex_Messaging.m_LogToFile "[ex_UiXmlProvider] " & CStr(messageText), DEBUG_LOG_PATH
+    On Error GoTo 0
+End Sub
+
 Private Function mp_GetDropdownItemRecordsFromControlNode(ByVal controlNode As Object, ByVal wb As Workbook, Optional ByVal modeKey As String = vbNullString, Optional ByVal doc As Object = Nothing) As Variant
+    Dim itemRecords As Variant
     Dim sourceUri As String
     Dim sourceName As String
 
     sourceUri = mp_ResolveControlSourceUri(controlNode, wb, modeKey)
     If Len(sourceUri) > 0 Then
-        mp_GetDropdownItemRecordsFromControlNode = mp_GetDropdownItemRecordsBySourceUri(sourceUri, wb)
-        If mp_HasDropdownItemRecords(mp_GetDropdownItemRecordsFromControlNode) Then Exit Function
+        itemRecords = mp_GetDropdownItemRecordsBySourceUri(sourceUri, wb)
+        If mp_HasDropdownItemRecords(itemRecords) Then
+            mp_GetDropdownItemRecordsFromControlNode = mp_FilterControlDropdownItemRecords(controlNode, itemRecords, wb, modeKey)
+            Exit Function
+        End If
     End If
 
     sourceName = Trim$(ex_XmlCore.m_NodeAttrText(controlNode, "itemsSource"))
-    If Len(sourceName) = 0 Then Exit Function
+    If Len(sourceName) = 0 Then
+        itemRecords = mp_GetInlineDropdownItemRecords(controlNode)
+        mp_GetDropdownItemRecordsFromControlNode = mp_FilterControlDropdownItemRecords(controlNode, itemRecords, wb, modeKey)
+        Exit Function
+    End If
 
     If doc Is Nothing Then
         On Error Resume Next
@@ -580,7 +652,269 @@ Private Function mp_GetDropdownItemRecordsFromControlNode(ByVal controlNode As O
         If doc Is Nothing Then Exit Function
     End If
 
-    mp_GetDropdownItemRecordsFromControlNode = mp_GetDropdownItemRecordsByItemsSource(doc, sourceName, wb, modeKey)
+    itemRecords = mp_GetDropdownItemRecordsByItemsSource(doc, sourceName, wb, modeKey)
+    If mp_HasDropdownItemRecords(itemRecords) Then
+        mp_GetDropdownItemRecordsFromControlNode = mp_FilterControlDropdownItemRecords(controlNode, itemRecords, wb, modeKey)
+        Exit Function
+    End If
+
+    itemRecords = mp_GetInlineDropdownItemRecords(controlNode)
+    mp_GetDropdownItemRecordsFromControlNode = mp_FilterControlDropdownItemRecords(controlNode, itemRecords, wb, modeKey)
+End Function
+
+Private Function mp_FilterControlDropdownItemRecords( _
+    ByVal controlNode As Object, _
+    ByVal itemRecords As Variant, _
+    ByVal wb As Workbook, _
+    Optional ByVal modeKey As String = vbNullString) As Variant
+
+    Dim controlName As String
+
+    If Not mp_HasDropdownItemRecords(itemRecords) Then
+        mp_FilterControlDropdownItemRecords = itemRecords
+        Exit Function
+    End If
+    If controlNode Is Nothing Then
+        mp_FilterControlDropdownItemRecords = itemRecords
+        Exit Function
+    End If
+
+    controlName = Trim$(ex_XmlCore.m_NodeAttrText(controlNode, "name"))
+    If StrComp(controlName, PROFILE_LIST_CONTROL, vbTextCompare) <> 0 Then
+        mp_FilterControlDropdownItemRecords = itemRecords
+        Exit Function
+    End If
+
+    mp_FilterControlDropdownItemRecords = mp_FilterProfileDropdownItemRecordsByMode(itemRecords, wb, modeKey)
+End Function
+
+Private Function mp_FilterProfileDropdownItemRecordsByMode( _
+    ByVal itemRecords As Variant, _
+    ByVal wb As Workbook, _
+    Optional ByVal modeKey As String = vbNullString) As Variant
+
+    Dim resolvedModeKey As String
+    Dim profilesPath As String
+    Dim parseErrorMessage As String
+    Dim usedTemplateFallback As Boolean
+    Dim isMissingFile As Boolean
+    Dim profilesDoc As Object
+    Dim profileNames As Variant
+
+    If Not mp_HasDropdownItemRecords(itemRecords) Then
+        mp_FilterProfileDropdownItemRecordsByMode = itemRecords
+        Exit Function
+    End If
+
+    resolvedModeKey = Trim$(modeKey)
+    If Len(resolvedModeKey) = 0 Then
+        resolvedModeKey = Trim$(mp_GetContextOrFallbackValue("activeMode", vbNullString, vbNullString))
+    End If
+    If Len(resolvedModeKey) = 0 Then
+        resolvedModeKey = Trim$(m_GetDefaultModeKey(wb))
+    End If
+
+    profilesPath = ex_ProfilesStore.m_GetProfilesFilePath(resolvedModeKey, wb)
+    If Len(Trim$(profilesPath)) = 0 Then
+        mp_FilterProfileDropdownItemRecordsByMode = itemRecords
+        Exit Function
+    End If
+
+    Set profilesDoc = ex_ProfilesStore.m_LoadProfilesDomWithStatus(profilesPath, parseErrorMessage, usedTemplateFallback, isMissingFile)
+    If profilesDoc Is Nothing Then
+        mp_FilterProfileDropdownItemRecordsByMode = itemRecords
+        Exit Function
+    End If
+
+    profileNames = mp_GetProfileNamesFromProfilesDoc(profilesDoc)
+    If Not mp_HasSimpleArrayItems(profileNames) Then
+        mp_FilterProfileDropdownItemRecordsByMode = itemRecords
+        Exit Function
+    End If
+
+    mp_FilterProfileDropdownItemRecordsByMode = mp_FilterDropdownRecordsByKeys(itemRecords, profileNames)
+End Function
+
+Private Function mp_GetProfileNamesFromProfilesDoc(ByVal doc As Object) As Variant
+    Dim nodes As Object
+    Dim node As Object
+    Dim profileName As String
+    Dim result() As String
+    Dim writeIndex As Long
+
+    If doc Is Nothing Then Exit Function
+
+    On Error Resume Next
+    doc.setProperty "SelectionNamespaces", "xmlns:p='" & PROFILES_NS & "'"
+    On Error GoTo 0
+
+    Set nodes = doc.selectNodes("/*[local-name()='profiles']/*[local-name()='profile']")
+    If nodes Is Nothing Then Exit Function
+    If nodes.Length = 0 Then Exit Function
+
+    ReDim result(0 To nodes.Length - 1)
+    writeIndex = -1
+    For Each node In nodes
+        profileName = Trim$(ex_XmlCore.m_NodeAttrText(node, "name"))
+        If Len(profileName) = 0 Then GoTo ContinueNode
+        writeIndex = writeIndex + 1
+        result(writeIndex) = profileName
+ContinueNode:
+    Next node
+
+    If writeIndex < 0 Then Exit Function
+    ReDim Preserve result(0 To writeIndex)
+    mp_GetProfileNamesFromProfilesDoc = result
+End Function
+
+Private Function mp_FilterDropdownRecordsByKeys(ByVal itemRecords As Variant, ByVal allowedKeys As Variant) As Variant
+    Dim allowedSet As Object
+    Dim includedSet As Object
+    Dim lowerRow As Long
+    Dim upperRow As Long
+    Dim i As Long
+    Dim keyText As String
+    Dim keepCount As Long
+    Dim appendCount As Long
+    Dim totalCount As Long
+    Dim writeIndex As Long
+    Dim allowedKey As Variant
+    Dim filtered() As Variant
+
+    If Not mp_HasDropdownItemRecords(itemRecords) Then Exit Function
+    If Not mp_HasSimpleArrayItems(allowedKeys) Then
+        mp_FilterDropdownRecordsByKeys = itemRecords
+        Exit Function
+    End If
+
+    Set allowedSet = CreateObject("Scripting.Dictionary")
+    allowedSet.CompareMode = 1
+    Set includedSet = CreateObject("Scripting.Dictionary")
+    includedSet.CompareMode = 1
+
+    For Each allowedKey In allowedKeys
+        keyText = Trim$(CStr(allowedKey))
+        If Len(keyText) = 0 Then GoTo ContinueAllowed
+        If Not allowedSet.Exists(keyText) Then allowedSet.Add keyText, True
+ContinueAllowed:
+    Next allowedKey
+
+    lowerRow = LBound(itemRecords, 1)
+    upperRow = UBound(itemRecords, 1)
+
+    For i = lowerRow To upperRow
+        keyText = Trim$(CStr(itemRecords(i, DROPDOWN_ITEM_COL_KEY)))
+        If Len(keyText) = 0 Then GoTo ContinueKeepCount
+        If Not allowedSet.Exists(keyText) Then GoTo ContinueKeepCount
+        keepCount = keepCount + 1
+        includedSet(keyText) = True
+ContinueKeepCount:
+    Next i
+
+    For Each allowedKey In allowedKeys
+        keyText = Trim$(CStr(allowedKey))
+        If Len(keyText) = 0 Then GoTo ContinueAppendCount
+        If Not allowedSet.Exists(keyText) Then GoTo ContinueAppendCount
+        If Not includedSet.Exists(keyText) Then appendCount = appendCount + 1
+ContinueAppendCount:
+    Next allowedKey
+
+    totalCount = keepCount + appendCount
+    If totalCount <= 0 Then
+        mp_FilterDropdownRecordsByKeys = Array()
+        Exit Function
+    End If
+
+    ReDim filtered(1 To totalCount, 1 To DROPDOWN_ITEM_COL_MACRO)
+    writeIndex = 0
+
+    For i = lowerRow To upperRow
+        keyText = Trim$(CStr(itemRecords(i, DROPDOWN_ITEM_COL_KEY)))
+        If Len(keyText) = 0 Then GoTo ContinueCopyExisting
+        If Not allowedSet.Exists(keyText) Then GoTo ContinueCopyExisting
+
+        writeIndex = writeIndex + 1
+        filtered(writeIndex, DROPDOWN_ITEM_COL_KEY) = CStr(itemRecords(i, DROPDOWN_ITEM_COL_KEY))
+        filtered(writeIndex, DROPDOWN_ITEM_COL_CAPTION) = CStr(itemRecords(i, DROPDOWN_ITEM_COL_CAPTION))
+        filtered(writeIndex, DROPDOWN_ITEM_COL_TARGET) = CStr(itemRecords(i, DROPDOWN_ITEM_COL_TARGET))
+        filtered(writeIndex, DROPDOWN_ITEM_COL_SET_CONTEXT) = CStr(itemRecords(i, DROPDOWN_ITEM_COL_SET_CONTEXT))
+        filtered(writeIndex, DROPDOWN_ITEM_COL_ACTION_KEY) = CStr(itemRecords(i, DROPDOWN_ITEM_COL_ACTION_KEY))
+        filtered(writeIndex, DROPDOWN_ITEM_COL_MACRO) = CStr(itemRecords(i, DROPDOWN_ITEM_COL_MACRO))
+ContinueCopyExisting:
+    Next i
+
+    For Each allowedKey In allowedKeys
+        keyText = Trim$(CStr(allowedKey))
+        If Len(keyText) = 0 Then GoTo ContinueAppendMissing
+        If Not allowedSet.Exists(keyText) Then GoTo ContinueAppendMissing
+        If includedSet.Exists(keyText) Then GoTo ContinueAppendMissing
+
+        writeIndex = writeIndex + 1
+        filtered(writeIndex, DROPDOWN_ITEM_COL_KEY) = keyText
+        filtered(writeIndex, DROPDOWN_ITEM_COL_CAPTION) = keyText
+        filtered(writeIndex, DROPDOWN_ITEM_COL_TARGET) = vbNullString
+        filtered(writeIndex, DROPDOWN_ITEM_COL_SET_CONTEXT) = "activeProfile=" & keyText
+        filtered(writeIndex, DROPDOWN_ITEM_COL_ACTION_KEY) = vbNullString
+        filtered(writeIndex, DROPDOWN_ITEM_COL_MACRO) = vbNullString
+ContinueAppendMissing:
+    Next allowedKey
+
+    mp_FilterDropdownRecordsByKeys = filtered
+End Function
+
+Private Function mp_HasSimpleArrayItems(ByVal values As Variant) As Boolean
+    On Error GoTo EH
+    If IsArray(values) Then
+        mp_HasSimpleArrayItems = (UBound(values) >= LBound(values))
+    End If
+    Exit Function
+EH:
+    mp_HasSimpleArrayItems = False
+End Function
+
+Private Function mp_GetInlineDropdownItemRecords(ByVal controlNode As Object) As Variant
+    Dim itemNodes As Object
+    Dim itemNode As Object
+    Dim records() As Variant
+    Dim rowCount As Long
+    Dim rowIndex As Long
+    Dim keyText As String
+    Dim captionText As String
+
+    If controlNode Is Nothing Then Exit Function
+
+    Set itemNodes = controlNode.selectNodes("p:items/p:item")
+    If itemNodes Is Nothing Then Exit Function
+    If itemNodes.Length = 0 Then Exit Function
+
+    rowCount = CLng(itemNodes.Length)
+    ReDim records(1 To rowCount, 1 To DROPDOWN_ITEM_COL_MACRO)
+
+    rowIndex = 1
+    For Each itemNode In itemNodes
+        keyText = Trim$(ex_XmlCore.m_NodeAttrText(itemNode, "key"))
+        If Len(keyText) = 0 Then keyText = Trim$(ex_XmlCore.m_NodeAttrText(itemNode, "value"))
+        If Len(keyText) = 0 Then keyText = Trim$(CStr(itemNode.Text))
+        If Len(keyText) = 0 Then
+            MsgBox "Control '" & Trim$(ex_XmlCore.m_NodeAttrText(controlNode, "name")) & "' contains <item> with empty key/value.", vbExclamation
+            Exit Function
+        End If
+
+        captionText = Trim$(ex_XmlCore.m_NodeAttrText(itemNode, "caption"))
+        If Len(captionText) = 0 Then captionText = Trim$(ex_XmlCore.m_NodeAttrText(itemNode, "value"))
+        If Len(captionText) = 0 Then captionText = Trim$(CStr(itemNode.Text))
+        If Len(captionText) = 0 Then captionText = keyText
+
+        records(rowIndex, DROPDOWN_ITEM_COL_KEY) = keyText
+        records(rowIndex, DROPDOWN_ITEM_COL_CAPTION) = captionText
+        records(rowIndex, DROPDOWN_ITEM_COL_TARGET) = Trim$(ex_XmlCore.m_NodeAttrText(itemNode, "target"))
+        records(rowIndex, DROPDOWN_ITEM_COL_SET_CONTEXT) = Trim$(ex_XmlCore.m_NodeAttrText(itemNode, "setContext"))
+        records(rowIndex, DROPDOWN_ITEM_COL_ACTION_KEY) = Trim$(ex_XmlCore.m_NodeAttrText(itemNode, "actionKey"))
+        records(rowIndex, DROPDOWN_ITEM_COL_MACRO) = Trim$(ex_XmlCore.m_NodeAttrText(itemNode, "macro"))
+        rowIndex = rowIndex + 1
+    Next itemNode
+
+    mp_GetInlineDropdownItemRecords = records
 End Function
 
 Private Function mp_ResolveControlSourceUri(ByVal controlNode As Object, ByVal wb As Workbook, Optional ByVal modeKey As String = vbNullString) As String
@@ -1153,7 +1487,7 @@ Private Function mp_TryResolveSourceUriParts( _
 End Function
 
 Private Function mp_GetControlNode(ByVal doc As Object, ByVal controlName As String) As Object
-    Set mp_GetControlNode = doc.selectSingleNode("/p:uiDefinition/p:controls/p:control[@name=" & ex_XmlCore.m_XPathLiteral(controlName) & "]")
+    Set mp_GetControlNode = doc.selectSingleNode("/p:uiDefinition/p:layout//p:control[@name=" & ex_XmlCore.m_XPathLiteral(controlName) & "]")
     If mp_GetControlNode Is Nothing Then
         MsgBox "Control '" & controlName & "' was not found in UI config.", vbExclamation
     End If

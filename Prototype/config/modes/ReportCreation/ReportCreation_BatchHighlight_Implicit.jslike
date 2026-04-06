@@ -1,9 +1,0 @@
-for (let keyResults in __Batch.keysResults) {
-    for (let stateRow in keyResults.Main.Sheet[StateMain].rows) {
-        callMacro("ex_Helpers.m_EmphasizeRowCellTextByRegex", stateRow, "FIO", "^\\S+", "#FFD966", "false");
-    }
-
-    for (let eventsRow in keyResults.Events.Sheet[EventsMain].rows) {
-        callMacro("ex_Helpers.m_EmphasizeRowCellTextByRegex", eventsRow, "FIO", "^\\S+", "#FFD966", "false");
-    }
-}

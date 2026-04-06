@@ -427,6 +427,7 @@ Public Function m_DictionaryGetStringOrDefault( _
     Optional ByVal defaultValue As String = vbNullString _
 ) As String
     Dim rawObject As Object
+    Dim scopeValue As obj_ScriptScopeValue
 
     If sourceDictionary Is Nothing Then
         m_DictionaryGetStringOrDefault = CStr(defaultValue)
@@ -450,6 +451,16 @@ Public Function m_DictionaryGetStringOrDefault( _
     Set rawObject = sourceDictionary(keyName)
     On Error GoTo 0
     If Not rawObject Is Nothing Then
+        If TypeOf rawObject Is obj_ScriptScopeValue Then
+            Set scopeValue = rawObject
+            If scopeValue.HasObjectValue Then
+                m_DictionaryGetStringOrDefault = CStr(defaultValue)
+            Else
+                m_DictionaryGetStringOrDefault = CStr(scopeValue.TextValue)
+            End If
+            Exit Function
+        End If
+
         m_DictionaryGetStringOrDefault = CStr(defaultValue)
         Exit Function
     End If
@@ -500,7 +511,15 @@ Public Function m_SetScopeString(ByVal target As Object, ByVal keyName As String
         payload.m_SetString keyName, CStr(valueText)
     Else
         Set scopeValue = ex_ScriptScopeValue.m_CreateStringValue(CStr(valueText))
-        Set target(keyName) = scopeValue
+        If mp_IsDictionary(target) Then
+            If target.Exists(keyName) Then
+                target(keyName) = scopeValue
+            Else
+                target.Add keyName, scopeValue
+            End If
+        Else
+            Set target(keyName) = scopeValue
+        End If
     End If
 
     m_SetScopeString = CStr(valueText)
@@ -519,7 +538,15 @@ Public Function m_SetScopeObject(ByVal target As Object, ByVal keyName As String
         payload.m_SetObject keyName, valueObject
     Else
         Set scopeValue = ex_ScriptScopeValue.m_CreateObjectValue(valueObject)
-        Set target(keyName) = scopeValue
+        If mp_IsDictionary(target) Then
+            If target.Exists(keyName) Then
+                target(keyName) = scopeValue
+            Else
+                target.Add keyName, scopeValue
+            End If
+        Else
+            Set target(keyName) = scopeValue
+        End If
     End If
 End Function
 
@@ -576,4 +603,3 @@ Private Function mp_TryParseCollectionIndex(ByVal segmentText As String, ByRef o
 FailParse:
     outIndex = 0
 End Function
-
