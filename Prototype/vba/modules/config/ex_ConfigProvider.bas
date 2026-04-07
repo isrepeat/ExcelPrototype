@@ -667,7 +667,7 @@ Private Sub mp_AppendFetchAdditionalDataFromActiveProfile( _
     Set profileNode = ex_ProfilesStore.m_GetProfileNode(doc, profileName, False)
     If profileNode Is Nothing Then Exit Sub
 
-    Set fetchNodes = profileNode.selectNodes("p:" & FETCH_ADDITIONAL_DATA_NODE)
+    Set fetchNodes = profileNode.selectNodes("*[local-name()='" & FETCH_ADDITIONAL_DATA_NODE & "']")
     If fetchNodes Is Nothing Then Exit Sub
     If fetchNodes.Length = 0 Then Exit Sub
 

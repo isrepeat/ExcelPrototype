@@ -1,6 +1,7 @@
 <?xml version="1.0" standalone="yes"?>
-<profiles version="1" xmlns="urn:excelprototype:profiles">
-  <profile name="Default" resultZoom="115">
+<profiles version="1">
+  <list name="profiles.main">
+  <item key="Default" caption="Default" resultZoom="115">
     <v key="OldFilePath">..\TESTS\Comparing\OldTable.xlsx</v>
     <v key="OldTableName">TableSrc</v>
     <v key="NewFilePath">..\TESTS\Comparing\NewTable.xlsx</v>
@@ -14,8 +15,8 @@
       <control name="btnCustomProfile" visible="true"/>
       <control name="btnCustomMode" visible="true"/>
     </ui>
-  </profile>
-  <profile name="Test" resultZoom="115">
+  </item>
+  <item key="Test" caption="Test" resultZoom="115">
     <v key="OldFilePath">..\TESTS\Comparing\OldTable.xlsx</v>
     <v key="OldTableName">TableSrc</v>
     <v key="NewFilePath">..\TESTS\Comparing\NewTable.xlsx</v>
@@ -29,5 +30,6 @@
       <control name="btnCustomProfile" visible="true"/>
       <control name="btnCustomMode" visible="true"/>
     </ui>
-  </profile>
+  </item>
+  </list>
 </profiles>

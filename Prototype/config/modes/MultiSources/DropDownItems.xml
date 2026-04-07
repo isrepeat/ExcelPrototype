@@ -4,10 +4,10 @@
     <item key="FIO"
           caption="FIO"
           default="true"
-          setContext="activeProfile=FIO"/>
+/>
     <item key="HospitalizationDate"
           caption="HospitalizationDate"
           default="false"
-          setContext="activeProfile=HospitalizationDate"/>
+/>
   </list>
 </dropdownItems>

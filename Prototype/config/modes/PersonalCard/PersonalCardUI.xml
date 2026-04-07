@@ -2,9 +2,9 @@
 <uiDefinition xmlns="urn:excelprototype:profiles" version="2">
   <dataSources>
     <itemsSource name="panel.exportInsertMode"
-                 uri="config\modes\PersonalCard\DropDownItems.xml#panel.exportInsertMode"/>
+                 uri="config\modes\PersonalCard\DropDownItems.xml#xpath=/dropdownItems/list[@name='panel.exportInsertMode']"/>
     <itemsSource name="panel.validationMode"
-                 uri="config\modes\PersonalCard\DropDownItems.xml#panel.validationMode"/>
+                 uri="config\modes\PersonalCard\DropDownItems.xml#xpath=/dropdownItems/list[@name='panel.validationMode']"/>
   </dataSources>
 
   <styles>

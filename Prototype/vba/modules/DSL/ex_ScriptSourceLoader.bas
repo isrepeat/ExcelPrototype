@@ -110,7 +110,7 @@ Private Function mp_TryGetScriptTextFromActiveProfile( _
 
     If StrComp(normalizedScriptKey, PREPROCESS_SCRIPT_KEY, vbTextCompare) = 0 Then
         stepName = "read-preprocess-script-node"
-        Set preScriptNodes = profileNode.selectNodes("p:preProcessScript")
+        Set preScriptNodes = profileNode.selectNodes("*[local-name()='preProcessScript']")
         If preScriptNodes Is Nothing Then
             outErrorText = "preProcessScript node is required for key '" & PREPROCESS_SCRIPT_KEY & "'."
             Exit Function
@@ -141,7 +141,7 @@ Private Function mp_TryGetScriptTextFromActiveProfile( _
     End If
 
     stepName = "validate-script-execution"
-    Set scriptNodes = profileNode.selectNodes("p:postProcessScript")
+    Set scriptNodes = profileNode.selectNodes("*[local-name()='postProcessScript']")
     If Not scriptNodes Is Nothing Then
         If scriptNodes.Length > 2 Then
             Err.Raise vbObjectError + 1767, "ex_ScriptSourceLoader", _
@@ -179,9 +179,9 @@ Private Function mp_TryGetScriptTextFromActiveProfile( _
 
     stepName = "read-script-node"
     If StrComp(executionMode, EXECUTION_MODE_IMPLICIT, vbTextCompare) = 0 Then
-        xpath = "p:postProcessScript[translate(normalize-space(@execution), '" & ASCII_UPPER & "', '" & ASCII_LOWER & "')='implicit']"
+        xpath = "*[local-name()='postProcessScript' and translate(normalize-space(@execution), '" & ASCII_UPPER & "', '" & ASCII_LOWER & "')='implicit']"
     Else
-        xpath = "p:postProcessScript[translate(normalize-space(@execution), '" & ASCII_UPPER & "', '" & ASCII_LOWER & "')='explicit']"
+        xpath = "*[local-name()='postProcessScript' and translate(normalize-space(@execution), '" & ASCII_UPPER & "', '" & ASCII_LOWER & "')='explicit']"
     End If
 
     Set scriptNodes = profileNode.selectNodes(xpath)

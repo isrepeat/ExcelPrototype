@@ -1,6 +1,7 @@
 ﻿<?xml version="1.0" standalone="yes"?>
-<profiles version="1" xmlns="urn:excelprototype:profiles">
-	<profile name="Default" resultZoom="90">
+<profiles version="1">
+  <list name="profiles.main">
+	<item key="Default" caption="Default" resultZoom="90">
 		<ui>
 			<control name="btnClear" visible="true"/>
 			<control name="btnHealthBenefits" visible="true"/>
@@ -37,5 +38,6 @@
 		<preProcessScript include="Default_PreProcessScript.jslike"/>
 		<postProcessScript execution="Implicit" include="Default_PostProcessScript.jslike"/>
 		<postProcessScript execution="Explicit" include="Default_PostProcessScript.jslike"/>
-	</profile>
+	</item>
+  </list>
 </profiles>

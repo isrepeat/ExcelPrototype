@@ -2,11 +2,10 @@ Attribute VB_Name = "ex_CustomDropdown"
 Option Explicit
 
 Private Const DEV_SHEET_NAME As String = "Dev"
-Private Const HEADER_SHAPE_NAME As String = "btnCustomMode"
-Private Const OPTION_SHAPE_PREFIX As String = "btnCustomModeOption_"
+Private Const UI_MODE_SELECTION_CHANGED_MACRO As String = "ex_UIActions.m_OnModeOptionSelected"
+Private Const UI_PROFILE_SELECTION_CHANGED_MACRO As String = "ex_UIActions.m_OnProfileOptionSelected"
+Private Const OPTION_SHAPE_SUFFIX As String = "Option_"
 Private Const STATE_DROPDOWN_EXPANDED_FLAG As String = "Settings.CustomModeDropdownExpanded"
-Private Const PROFILE_HEADER_SHAPE_NAME As String = "btnCustomProfile"
-Private Const PROFILE_OPTION_SHAPE_PREFIX As String = "btnCustomProfileOption_"
 Private Const STATE_PROFILE_DROPDOWN_EXPANDED_FLAG As String = "Settings.CustomProfileDropdownExpanded"
 
 Private Const TAG_KEY As String = "dd_key"
@@ -18,6 +17,8 @@ Private Const META_BLOCK_END As String = "[[/EX_DD_META]]"
 
 Public Sub m_InitDevTestDropdown(Optional ByVal wb As Workbook)
     Dim ws As Worksheet
+    Dim modeOptionPrefix As String
+    Dim profileOptionPrefix As String
     Dim isExpanded As Boolean
     Dim isProfileExpanded As Boolean
 
@@ -30,19 +31,23 @@ Public Sub m_InitDevTestDropdown(Optional ByVal wb As Workbook)
     If Not mp_EnsureShapesExist(ws, wb) Then Exit Sub
     If Not mp_EnsureProfileShapesExist(ws, wb) Then Exit Sub
 
-    mp_SyncDropdownContext ws
+    modeOptionPrefix = mp_GetModeOptionPrefix(wb)
+    profileOptionPrefix = mp_GetProfileOptionPrefix(wb)
+
     mp_RebuildModeOptions ws
     mp_RebuildProfileOptions ws
 
     isExpanded = mp_GetExpandedState()
-    mp_SetOptionsVisible ws, OPTION_SHAPE_PREFIX, isExpanded
+    mp_SetOptionsVisible ws, modeOptionPrefix, isExpanded
 
     isProfileExpanded = mp_GetProfileExpandedState()
-    mp_SetOptionsVisible ws, PROFILE_OPTION_SHAPE_PREFIX, isProfileExpanded
+    mp_SetOptionsVisible ws, profileOptionPrefix, isProfileExpanded
 End Sub
 
 Public Sub m_ToggleDropdownButton(Optional ByVal wb As Workbook, Optional ByVal callerName As String = vbNullString)
     Dim ws As Worksheet
+    Dim modeHeaderName As String
+    Dim profileHeaderName As String
     Dim headerName As String
 
     If wb Is Nothing Then Set wb = ThisWorkbook
@@ -59,16 +64,18 @@ Public Sub m_ToggleDropdownButton(Optional ByVal wb As Workbook, Optional ByVal 
     End If
     If Len(headerName) = 0 Then Exit Sub
 
-    mp_SyncDropdownContext ws
+    modeHeaderName = mp_GetModeHeaderShapeName(wb)
+    profileHeaderName = mp_GetProfileHeaderShapeName(wb)
+    If Len(modeHeaderName) = 0 Or Len(profileHeaderName) = 0 Then Exit Sub
 
-    If StrComp(headerName, HEADER_SHAPE_NAME, vbTextCompare) = 0 Then
+    If StrComp(headerName, modeHeaderName, vbTextCompare) = 0 Then
         If Not mp_EnsureShapesExist(ws, wb) Then Exit Sub
         mp_RebuildModeOptions ws
         mp_ToggleModeDropdown ws
         Exit Sub
     End If
 
-    If StrComp(headerName, PROFILE_HEADER_SHAPE_NAME, vbTextCompare) = 0 Then
+    If StrComp(headerName, profileHeaderName, vbTextCompare) = 0 Then
         If Not mp_EnsureProfileShapesExist(ws, wb) Then Exit Sub
         mp_RebuildProfileOptions ws
         mp_ToggleProfileDropdown ws
@@ -77,6 +84,8 @@ End Sub
 
 Public Sub m_SelectDropdownOption(Optional ByVal wb As Workbook, Optional ByVal callerName As String = vbNullString)
     Dim ws As Worksheet
+    Dim modeOptionPrefix As String
+    Dim profileOptionPrefix As String
     Dim optionName As String
 
     If wb Is Nothing Then Set wb = ThisWorkbook
@@ -93,17 +102,21 @@ Public Sub m_SelectDropdownOption(Optional ByVal wb As Workbook, Optional ByVal 
     End If
     If Len(optionName) = 0 Then Exit Sub
 
-    If StrComp(Left$(optionName, Len(OPTION_SHAPE_PREFIX)), OPTION_SHAPE_PREFIX, vbTextCompare) = 0 Then
-        mp_HandleDynamicOptionSelect ws, OPTION_SHAPE_PREFIX
+    modeOptionPrefix = mp_GetModeOptionPrefix(wb)
+    profileOptionPrefix = mp_GetProfileOptionPrefix(wb)
+    If Len(modeOptionPrefix) = 0 Or Len(profileOptionPrefix) = 0 Then Exit Sub
+
+    If StrComp(Left$(optionName, Len(modeOptionPrefix)), modeOptionPrefix, vbTextCompare) = 0 Then
+        mp_HandleDynamicOptionSelect ws, modeOptionPrefix
         mp_SetExpandedState False
-        mp_SetOptionsVisible ws, OPTION_SHAPE_PREFIX, False
+        mp_SetOptionsVisible ws, modeOptionPrefix, False
         Exit Sub
     End If
 
-    If StrComp(Left$(optionName, Len(PROFILE_OPTION_SHAPE_PREFIX)), PROFILE_OPTION_SHAPE_PREFIX, vbTextCompare) = 0 Then
-        mp_HandleDynamicOptionSelect ws, PROFILE_OPTION_SHAPE_PREFIX
+    If StrComp(Left$(optionName, Len(profileOptionPrefix)), profileOptionPrefix, vbTextCompare) = 0 Then
+        mp_HandleDynamicOptionSelect ws, profileOptionPrefix
         mp_SetProfileExpandedState False
-        mp_SetOptionsVisible ws, PROFILE_OPTION_SHAPE_PREFIX, False
+        mp_SetOptionsVisible ws, profileOptionPrefix, False
     End If
 End Sub
 
@@ -118,27 +131,39 @@ Public Sub m_HideDevTestDropdown(Optional ByVal ws As Worksheet)
 End Sub
 
 Public Sub m_HideCustomModeDropdown(Optional ByVal ws As Worksheet)
+    Dim modeOptionPrefix As String
+
     If ws Is Nothing Then
         Set ws = mp_GetDevSheet(ThisWorkbook)
     End If
     If ws Is Nothing Then Exit Sub
 
+    modeOptionPrefix = mp_GetModeOptionPrefix(ThisWorkbook)
+    If Len(modeOptionPrefix) = 0 Then Exit Sub
+
     mp_SetExpandedState False
-    mp_SetOptionsVisible ws, OPTION_SHAPE_PREFIX, False
+    mp_SetOptionsVisible ws, modeOptionPrefix, False
 End Sub
 
 Public Sub m_HideCustomProfileDropdown(Optional ByVal ws As Worksheet)
+    Dim profileOptionPrefix As String
+
     If ws Is Nothing Then
         Set ws = mp_GetDevSheet(ThisWorkbook)
     End If
     If ws Is Nothing Then Exit Sub
 
+    profileOptionPrefix = mp_GetProfileOptionPrefix(ThisWorkbook)
+    If Len(profileOptionPrefix) = 0 Then Exit Sub
+
     mp_SetProfileExpandedState False
-    mp_SetOptionsVisible ws, PROFILE_OPTION_SHAPE_PREFIX, False
+    mp_SetOptionsVisible ws, profileOptionPrefix, False
 End Sub
 
 Public Sub m_OnManagedButtonClick(Optional ByVal callerName As String = vbNullString)
     Dim ws As Worksheet
+    Dim modeHeaderName As String
+    Dim profileHeaderName As String
 
     Set ws = mp_GetDevSheet(ThisWorkbook)
     If ws Is Nothing Then Exit Sub
@@ -152,12 +177,16 @@ Public Sub m_OnManagedButtonClick(Optional ByVal callerName As String = vbNullSt
     End If
     callerName = Trim$(callerName)
 
-    If StrComp(callerName, HEADER_SHAPE_NAME, vbTextCompare) = 0 Then
+    modeHeaderName = mp_GetModeHeaderShapeName(ThisWorkbook)
+    profileHeaderName = mp_GetProfileHeaderShapeName(ThisWorkbook)
+    If Len(modeHeaderName) = 0 Or Len(profileHeaderName) = 0 Then Exit Sub
+
+    If StrComp(callerName, modeHeaderName, vbTextCompare) = 0 Then
         m_HideCustomProfileDropdown ws
         Exit Sub
     End If
 
-    If StrComp(callerName, PROFILE_HEADER_SHAPE_NAME, vbTextCompare) = 0 Then
+    If StrComp(callerName, profileHeaderName, vbTextCompare) = 0 Then
         m_HideCustomModeDropdown ws
         Exit Sub
     End If
@@ -228,27 +257,45 @@ Public Function m_GetStableZoneStartLeft(Optional ByVal ws As Worksheet) As Doub
 End Function
 
 Private Sub mp_RebuildModeOptions(ByVal ws As Worksheet)
-    mp_RebuildDynamicOptions ws, HEADER_SHAPE_NAME, OPTION_SHAPE_PREFIX, HEADER_SHAPE_NAME, "ex_UIActions.m_SelectDropdownOption_OnClick"
+    Dim modeHeaderName As String
+
+    modeHeaderName = mp_GetModeHeaderShapeName(ThisWorkbook)
+    If Len(modeHeaderName) = 0 Then Exit Sub
+
+    mp_RebuildDynamicOptions ws, modeHeaderName, mp_GetOptionPrefix(modeHeaderName), modeHeaderName, "ex_UIActions.m_SelectDropdownOption_OnClick"
 End Sub
 
 Private Sub mp_RebuildProfileOptions(ByVal ws As Worksheet)
-    mp_RebuildDynamicOptions ws, PROFILE_HEADER_SHAPE_NAME, PROFILE_OPTION_SHAPE_PREFIX, PROFILE_HEADER_SHAPE_NAME, "ex_UIActions.m_SelectDropdownOption_OnClick"
+    Dim profileHeaderName As String
+
+    profileHeaderName = mp_GetProfileHeaderShapeName(ThisWorkbook)
+    If Len(profileHeaderName) = 0 Then Exit Sub
+
+    mp_RebuildDynamicOptions ws, profileHeaderName, mp_GetOptionPrefix(profileHeaderName), profileHeaderName, "ex_UIActions.m_SelectDropdownOption_OnClick"
 End Sub
 
 Private Sub mp_ToggleModeDropdown(ByVal ws As Worksheet)
+    Dim modeOptionPrefix As String
     Dim isExpanded As Boolean
+
+    modeOptionPrefix = mp_GetModeOptionPrefix(ThisWorkbook)
+    If Len(modeOptionPrefix) = 0 Then Exit Sub
 
     isExpanded = Not mp_GetExpandedState()
     mp_SetExpandedState isExpanded
-    mp_SetOptionsVisible ws, OPTION_SHAPE_PREFIX, isExpanded
+    mp_SetOptionsVisible ws, modeOptionPrefix, isExpanded
 End Sub
 
 Private Sub mp_ToggleProfileDropdown(ByVal ws As Worksheet)
+    Dim profileOptionPrefix As String
     Dim isExpanded As Boolean
+
+    profileOptionPrefix = mp_GetProfileOptionPrefix(ThisWorkbook)
+    If Len(profileOptionPrefix) = 0 Then Exit Sub
 
     isExpanded = Not mp_GetProfileExpandedState()
     mp_SetProfileExpandedState isExpanded
-    mp_SetOptionsVisible ws, PROFILE_OPTION_SHAPE_PREFIX, isExpanded
+    mp_SetOptionsVisible ws, profileOptionPrefix, isExpanded
 End Sub
 
 Private Sub mp_RebuildDynamicOptions( _
@@ -963,21 +1010,6 @@ Private Sub mp_SetOptionsVisible(ByVal ws As Worksheet, ByVal optionPrefix As St
     Next shp
 End Sub
 
-Private Sub mp_SyncDropdownContext(ByVal ws As Worksheet)
-    Dim modeKey As String
-    Dim profileName As String
-
-    modeKey = Trim$(ex_ConfigProfilesManager.m_GetActiveModeKey(ws))
-    If Len(modeKey) > 0 Then
-        ex_UiXmlProvider.m_SetDropdownContextValue "activeMode", modeKey
-    End If
-
-    profileName = Trim$(ex_ConfigProfilesManager.m_GetActiveProfileName(ws))
-    If Len(profileName) > 0 Then
-        ex_UiXmlProvider.m_SetDropdownContextValue "activeProfile", profileName
-    End If
-End Sub
-
 Private Function mp_TryGetStableZoneColumns(ByVal ws As Worksheet, ByRef stableStartCol As Long, ByRef bufferCol As Long) As Boolean
     Dim stableColText As String
 
@@ -1134,18 +1166,53 @@ Private Function mp_GetDevSheet(ByVal wb As Workbook) As Worksheet
     End If
 End Function
 
+Private Function mp_GetModeHeaderShapeName(Optional ByVal wb As Workbook) As String
+    If wb Is Nothing Then Set wb = ThisWorkbook
+    mp_GetModeHeaderShapeName = Trim$(ex_UiXmlProvider.m_GetControlNameBySelectionMacro(UI_MODE_SELECTION_CHANGED_MACRO, wb))
+End Function
+
+Private Function mp_GetProfileHeaderShapeName(Optional ByVal wb As Workbook) As String
+    If wb Is Nothing Then Set wb = ThisWorkbook
+    mp_GetProfileHeaderShapeName = Trim$(ex_UiXmlProvider.m_GetControlNameBySelectionMacro(UI_PROFILE_SELECTION_CHANGED_MACRO, wb))
+End Function
+
+Private Function mp_GetOptionPrefix(ByVal headerShapeName As String) As String
+    headerShapeName = Trim$(headerShapeName)
+    If Len(headerShapeName) = 0 Then Exit Function
+
+    mp_GetOptionPrefix = headerShapeName & OPTION_SHAPE_SUFFIX
+End Function
+
+Private Function mp_GetModeOptionPrefix(Optional ByVal wb As Workbook) As String
+    mp_GetModeOptionPrefix = mp_GetOptionPrefix(mp_GetModeHeaderShapeName(wb))
+End Function
+
+Private Function mp_GetProfileOptionPrefix(Optional ByVal wb As Workbook) As String
+    mp_GetProfileOptionPrefix = mp_GetOptionPrefix(mp_GetProfileHeaderShapeName(wb))
+End Function
+
 Private Function mp_EnsureShapesExist(ByVal ws As Worksheet, ByVal wb As Workbook) As Boolean
-    If ex_ConfigProfilesManager.m_GetShapeByName(ws, HEADER_SHAPE_NAME) Is Nothing Then
+    Dim modeHeaderName As String
+
+    modeHeaderName = mp_GetModeHeaderShapeName(wb)
+    If Len(modeHeaderName) = 0 Then Exit Function
+
+    If ex_ConfigProfilesManager.m_GetShapeByName(ws, modeHeaderName) Is Nothing Then
         ex_UILoader.m_LoadUiFromConfig wb
     End If
 
-    mp_EnsureShapesExist = Not (ex_ConfigProfilesManager.m_GetShapeByName(ws, HEADER_SHAPE_NAME) Is Nothing)
+    mp_EnsureShapesExist = Not (ex_ConfigProfilesManager.m_GetShapeByName(ws, modeHeaderName) Is Nothing)
 End Function
 
 Private Function mp_EnsureProfileShapesExist(ByVal ws As Worksheet, ByVal wb As Workbook) As Boolean
-    If ex_ConfigProfilesManager.m_GetShapeByName(ws, PROFILE_HEADER_SHAPE_NAME) Is Nothing Then
+    Dim profileHeaderName As String
+
+    profileHeaderName = mp_GetProfileHeaderShapeName(wb)
+    If Len(profileHeaderName) = 0 Then Exit Function
+
+    If ex_ConfigProfilesManager.m_GetShapeByName(ws, profileHeaderName) Is Nothing Then
         ex_UILoader.m_LoadUiFromConfig wb
     End If
 
-    mp_EnsureProfileShapesExist = Not (ex_ConfigProfilesManager.m_GetShapeByName(ws, PROFILE_HEADER_SHAPE_NAME) Is Nothing)
+    mp_EnsureProfileShapesExist = Not (ex_ConfigProfilesManager.m_GetShapeByName(ws, profileHeaderName) Is Nothing)
 End Function

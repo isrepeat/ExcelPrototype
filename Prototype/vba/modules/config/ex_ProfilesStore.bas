@@ -1,8 +1,7 @@
 Attribute VB_Name = "ex_ProfilesStore"
 Option Explicit
 
-Private Const PROFILES_NS As String = "urn:excelprototype:profiles"
-Private Const PROFILES_TEMPLATE As String = "<?xml version=""1.0"" encoding=""UTF-8"" standalone=""yes""?><profiles xmlns=""" & PROFILES_NS & """ version=""1""/>"
+Private Const PROFILES_TEMPLATE As String = "<?xml version=""1.0"" encoding=""UTF-8"" standalone=""yes""?><profiles version=""1""><list/></profiles>"
 
 Public Function m_GetProfilesFilePath(Optional ByVal modeKey As String = vbNullString, Optional ByVal wb As Workbook) As String
     Dim resolvedModeKey As String
@@ -46,7 +45,7 @@ Public Function m_LoadProfilesDomWithStatus( _
 
     If Len(Trim$(filePath)) = 0 Then Exit Function
 
-    Set doc = ex_XmlCore.m_CreateDom(PROFILES_NS)
+    Set doc = ex_XmlCore.m_CreateDom()
 
     If Len(Dir(filePath)) > 0 Then
         If Not doc.Load(filePath) Then
@@ -107,34 +106,85 @@ EH:
     MsgBox "Failed to save profiles config file '" & filePath & "': " & Err.Description, vbExclamation
 End Sub
 
+Public Function m_GetProfileNames(ByVal doc As Object) As Variant
+    Dim listNode As Object
+    Dim itemNodes As Object
+    Dim itemNode As Object
+    Dim profileName As String
+    Dim result() As String
+    Dim writeIndex As Long
+
+    If doc Is Nothing Then Exit Function
+
+    Set listNode = doc.selectSingleNode("/*/*[local-name()='list'][1]")
+    If listNode Is Nothing Then Exit Function
+
+    Set itemNodes = listNode.selectNodes("*[local-name()='item']")
+    If itemNodes Is Nothing Then Exit Function
+    If itemNodes.Length = 0 Then Exit Function
+
+    ReDim result(0 To itemNodes.Length - 1)
+    writeIndex = -1
+    For Each itemNode In itemNodes
+        profileName = Trim$(ex_XmlCore.m_NodeAttrText(itemNode, "key"))
+        If Len(profileName) = 0 Then GoTo ContinueNode
+
+        writeIndex = writeIndex + 1
+        result(writeIndex) = profileName
+ContinueNode:
+    Next itemNode
+
+    If writeIndex < 0 Then Exit Function
+    ReDim Preserve result(0 To writeIndex)
+    m_GetProfileNames = result
+End Function
+
 Public Function m_GetProfileNode(ByVal doc As Object, ByVal profileName As String, ByVal createIfMissing As Boolean) As Object
     Dim node As Object
-    Dim root As Object
+    Dim listNode As Object
 
     If doc Is Nothing Then Exit Function
     profileName = Trim$(profileName)
     If Len(profileName) = 0 Then Exit Function
 
-    On Error Resume Next
-    doc.setProperty "SelectionNamespaces", "xmlns:p='" & PROFILES_NS & "'"
-    On Error GoTo 0
+    Set node = doc.selectSingleNode("/*/*[local-name()='list']/*[local-name()='item'][@key=" & ex_XmlCore.m_XPathLiteral(profileName) & "]")
 
-    Set node = doc.selectSingleNode("/p:profiles/p:profile[@name=" & ex_XmlCore.m_XPathLiteral(profileName) & "]")
-    If node Is Nothing Then
-        Set node = doc.selectSingleNode("/*[local-name()='profiles']/*[local-name()='profile'][@name=" & ex_XmlCore.m_XPathLiteral(profileName) & "]")
-    End If
     If node Is Nothing And createIfMissing Then
-        Set root = doc.selectSingleNode("/p:profiles")
-        If root Is Nothing Then
-            Set root = doc.selectSingleNode("/*[local-name()='profiles']")
-        End If
-        If root Is Nothing Then Exit Function
-        Set node = doc.createNode(1, "profile", PROFILES_NS)
-        node.setAttribute "name", profileName
-        root.appendChild node
+        Set listNode = mp_GetOrCreateProfilesListNode(doc)
+        If listNode Is Nothing Then Exit Function
+
+        Set node = doc.createElement("item")
+        node.setAttribute "key", profileName
+        node.setAttribute "caption", profileName
+        listNode.appendChild node
     End If
 
     Set m_GetProfileNode = node
+End Function
+
+Private Function mp_GetOrCreateProfilesListNode(ByVal doc As Object) As Object
+    Dim root As Object
+    Dim listNode As Object
+
+    If doc Is Nothing Then Exit Function
+
+    Set listNode = doc.selectSingleNode("/*/*[local-name()='list'][1]")
+    If Not listNode Is Nothing Then
+        Set mp_GetOrCreateProfilesListNode = listNode
+        Exit Function
+    End If
+
+    Set root = doc.documentElement
+
+    If root Is Nothing Then
+        MsgBox "Invalid profiles XML root: document has no root element.", vbExclamation
+        Exit Function
+    End If
+
+    Set listNode = doc.createElement("list")
+    root.appendChild listNode
+
+    Set mp_GetOrCreateProfilesListNode = listNode
 End Function
 
 Private Sub mp_SaveXmlPretty(ByVal doc As Object, ByVal filePath As String)
