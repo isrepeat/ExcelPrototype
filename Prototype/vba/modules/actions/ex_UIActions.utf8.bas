@@ -313,6 +313,19 @@ Public Sub m_OutputPanelToggleButton_OnClick()
     ex_CustomDropdown.m_ToggleDropdownButton ThisWorkbook
 End Sub
 
+Public Sub m_LayoutToggleButton_OnClick()
+    ex_CustomDropdown.m_OnManagedButtonClick
+
+    If ex_LayoutToggleRuntime.m_TryAdvanceToggleByCaller(ThisWorkbook) Then Exit Sub
+
+    If ex_ManagedDropdownRuntime.m_TryToggleByCaller(ThisWorkbook) Then
+        ex_CustomDropdown.m_HideDevTestDropdown
+        Exit Sub
+    End If
+
+    ex_CustomDropdown.m_ToggleDropdownButton ThisWorkbook
+End Sub
+
 Public Sub m_OutputPanelStartSearch_OnClick()
     Dim ws As Worksheet
     Dim searchKey As String
@@ -500,13 +513,13 @@ Private Function mp_TryResolveActiveProfileScriptSourcePath( _
         Exit Function
     End If
 
-    Set doc = ex_XmlCore.m_CreateDom(PROFILES_NS)
-    If Not doc.Load(profilesFilePath) Then
+    Set doc = ex_ProfilesStore.m_LoadProfilesDom(profilesFilePath)
+    If doc Is Nothing Then
         outErrorText = "Failed to parse profiles file: " & profilesFilePath
         Exit Function
     End If
 
-    Set profileNode = doc.selectSingleNode("/p:profiles/p:profile[@name=" & ex_XmlCore.m_XPathLiteral(profileName) & "]")
+    Set profileNode = ex_ProfilesStore.m_GetProfileNode(doc, profileName, False)
     If profileNode Is Nothing Then
         outErrorText = "Active profile '" & profileName & "' was not found in " & profilesFilePath
         Exit Function
@@ -547,13 +560,13 @@ Private Function mp_TryResolveActiveProfileScriptSourcePath( _
 End Function
 
 Private Function mp_GetPreProcessScriptNode(ByVal profileNode As Object) As Object
-    Set mp_GetPreProcessScriptNode = profileNode.selectSingleNode("p:preProcessScript")
+    Set mp_GetPreProcessScriptNode = profileNode.selectSingleNode("*[local-name()='preProcessScript']")
 End Function
 
 Private Function mp_GetPostProcessScriptNode(ByVal profileNode As Object) As Object
     Dim nodes As Object
 
-    Set nodes = profileNode.selectNodes("p:postProcessScript[translate(normalize-space(@execution), '" & ASCII_UPPER & "', '" & ASCII_LOWER & "')='explicit']")
+    Set nodes = profileNode.selectNodes("*[local-name()='postProcessScript' and translate(normalize-space(@execution), '" & ASCII_UPPER & "', '" & ASCII_LOWER & "')='explicit']")
     If Not nodes Is Nothing Then
         If nodes.Length > 0 Then
             Set mp_GetPostProcessScriptNode = nodes.Item(0)
@@ -561,7 +574,7 @@ Private Function mp_GetPostProcessScriptNode(ByVal profileNode As Object) As Obj
         End If
     End If
 
-    Set nodes = profileNode.selectNodes("p:postProcessScript[translate(normalize-space(@execution), '" & ASCII_UPPER & "', '" & ASCII_LOWER & "')='implicit']")
+    Set nodes = profileNode.selectNodes("*[local-name()='postProcessScript' and translate(normalize-space(@execution), '" & ASCII_UPPER & "', '" & ASCII_LOWER & "')='implicit']")
     If Not nodes Is Nothing Then
         If nodes.Length > 0 Then
             Set mp_GetPostProcessScriptNode = nodes.Item(0)
@@ -569,7 +582,7 @@ Private Function mp_GetPostProcessScriptNode(ByVal profileNode As Object) As Obj
         End If
     End If
 
-    Set nodes = profileNode.selectNodes("p:postProcessScript")
+    Set nodes = profileNode.selectNodes("*[local-name()='postProcessScript']")
     If Not nodes Is Nothing Then
         If nodes.Length > 0 Then
             Set mp_GetPostProcessScriptNode = nodes.Item(0)

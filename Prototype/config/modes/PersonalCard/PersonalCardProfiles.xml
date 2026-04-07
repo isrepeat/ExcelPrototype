@@ -1,6 +1,7 @@
 ﻿<?xml version="1.0" standalone="yes"?>
-<profiles version="1" xmlns="urn:excelprototype:profiles">
-	<profile name="Default" resultZoom="90">
+<profiles version="1">
+  <list name="profiles.main">
+	<item key="Default" caption="Default" resultZoom="90">
 		<ui>
 			<control name="btnClear" visible="true"/>
 			<control name="btnPersonalCard" visible="true"/>
@@ -156,8 +157,8 @@
 		<v key="Export.OutputPostfix">_result</v>
 		<preProcessScript include="Default_PreProcessScript.jslike"/>
 		<postProcessScript execution="Implicit" include="Default_PostProcessScript.jslike"/>
-	</profile>
-	<profile name="StateAndEvents" resultZoom="90">
+	</item>
+	<item key="StateAndEvents" caption="StateAndEvents" resultZoom="90">
 		<ui>
 			<control name="btnClear" visible="true"/>
 			<control name="btnPersonalCard" visible="true"/>
@@ -212,5 +213,6 @@
 		<v key="Events.Sheet[EventsOut].Map[Note]">76|Замітки</v>
 		<v key="Events.Sheet[EventsOut].Map[Ticket]">Стовпець1|Номер квитка</v>
 		<preProcessScript include="Default_PreProcessScript.jslike"/>
-	</profile>
+	</item>
+  </list>
 </profiles>

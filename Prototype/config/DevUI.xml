@@ -2,12 +2,12 @@
 <uiDefinition xmlns="urn:excelprototype:profiles" version="2">
   <dataSources>
     <itemsSource name="modesMain"
-                 uri="config\modes\DropDownItems.xml#modes.main"/>
+                 uri="config\modes\DropDownItems.xml#xpath=/dropdownItems/list[@name='modes.main']"/>
     <itemsSource name="profilesMain"
-                 uriTemplate="config\modes\{activeMode}\DropDownItems.xml#profiles.main"/>
+                 uriTemplate="config\modes\{Binding State.Settings.ActiveMode}\{Binding State.Settings.ActiveMode}Profiles.xml#xpath=/profiles/list[@name='profiles.main']"/>
     <!-- TODO: try remove hardcoded source-name dependency in VBA (profilesFileByMode); -->
     <itemsSource name="profilesFileByMode"
-                 uriTemplate="config\modes\{activeMode}\{activeMode}Profiles.xml"/>
+                 uriTemplate="config\modes\{Binding State.Settings.ActiveMode}\{Binding State.Settings.ActiveMode}Profiles.xml"/>
   </dataSources>
 
   <styles>
@@ -103,6 +103,10 @@
 
   <layout>
     <stableZone startCol="H" minBufferWidth="5"/>
+
+    <control name="cfgProfileData"
+         type="config"
+             profileData="config\modes\{Binding State.Settings.ActiveMode}\{Binding State.Settings.ActiveMode}Profiles.xml#xpath=/profiles/list[@name='profiles.main']/item[@key='{Binding State.Settings.ActiveProfile}']"/>
 
     <grid sheet="Dev" anchorCell="A1">
       <stackPanel at="r2c5" spanCells="9" spanRows="2" orientation="horizontal">

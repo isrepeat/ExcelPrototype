@@ -1,6 +1,7 @@
 <?xml version="1.0" standalone="yes"?>
-<profiles version="1" xmlns="urn:excelprototype:profiles">
-  <profile name="FIO" resultZoom="90">
+<profiles version="1">
+  <list name="profiles.main">
+  <item key="FIO" caption="FIO" resultZoom="90">
     <ui>
       <control name="btnClear" visible="true"/>
       <control name="btnMultiSources" visible="true"/>
@@ -37,8 +38,8 @@
     <v type="#" key=""/>
     <preProcessScript><![CDATA[]]></preProcessScript>
     <postProcessScript execution="Implicit" include="MultiSources_PostProcessScript.jslike"><![CDATA[]]></postProcessScript>
-  </profile>
-  <profile name="HospitalizationDate" resultZoom="90">
+  </item>
+  <item key="HospitalizationDate" caption="HospitalizationDate" resultZoom="90">
     <ui>
       <control name="btnClear" visible="true"/>
       <control name="btnMultiSources" visible="true"/>
@@ -75,5 +76,6 @@
     <v type="#" key=""/>
     <preProcessScript><![CDATA[]]></preProcessScript>
     <postProcessScript execution="Implicit" include="MultiSources_PostProcessScript.jslike"><![CDATA[]]></postProcessScript>
-  </profile>
+  </item>
+  </list>
 </profiles>

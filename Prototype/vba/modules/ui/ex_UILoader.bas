@@ -16,6 +16,7 @@ Public Sub m_LoadUiFromConfig(Optional ByVal wb As Workbook)
     Dim ws As Worksheet
     Dim controlName As String
     Dim controlType As String
+    Dim controlTagName As String
     Dim sheetName As String
     Dim isRequired As Boolean
     Dim createIfMissing As Boolean
@@ -72,11 +73,20 @@ Public Sub m_LoadUiFromConfig(Optional ByVal wb As Workbook)
 
         controlType = mp_NormalizeControlType(mp_NodeAttrText(controlNode, "type"))
         If Len(controlType) = 0 Then
-            controlType = "button"
+            controlTagName = mp_LayoutNodeTag(controlNode)
+            If StrComp(controlTagName, "togglebutton", vbTextCompare) = 0 Then
+                controlType = "togglebutton"
+            Else
+                controlType = "button"
+            End If
         End If
         If Not mp_IsSupportedControlType(controlType) Then
             MsgBox "Unsupported UI control type '" & controlType & "' for control '" & controlName & "'.", vbExclamation
             Exit Sub
+        End If
+
+        If StrComp(controlType, "config", vbTextCompare) = 0 Then
+            GoTo NextControl
         End If
 
         sheetName = Trim$(mp_NodeAttrText(controlNode, "sheet"))
@@ -123,6 +133,8 @@ Public Sub m_LoadUiFromConfig(Optional ByVal wb As Workbook)
 
         If StrComp(controlType, "dropdownbutton", vbTextCompare) = 0 Then
             If Not mp_RebuildManagedDropdownButton(ws, controlNode, controlName, stylesMap) Then Exit Sub
+        ElseIf StrComp(controlType, "togglebutton", vbTextCompare) = 0 Then
+            If Not mp_ConfigureManagedToggleButton(ws, controlNode, controlName) Then Exit Sub
         End If
 
         If didUngroupUiBlock Then
@@ -139,6 +151,9 @@ NextControl:
             mp_TryRegroupUiBlock ws
         End If
     Next regroupSheetName
+
+    ex_UiXmlProvider.m_RefreshConfigBindings wb
+    ex_ConfigNewRuntime.m_ApplyConfigControls wb
     mp_DebugLog "m_LoadUiFromConfig: completed."
     Exit Sub
 
@@ -148,7 +163,7 @@ EH_LOAD:
 End Sub
 
 Private Function mp_SelectUiControlNodes(ByVal doc As Object) As Object
-    Set mp_SelectUiControlNodes = doc.selectNodes("/p:uiDefinition/p:layout//p:control")
+    Set mp_SelectUiControlNodes = doc.selectNodes("/p:uiDefinition/p:layout//p:control | /p:uiDefinition/p:layout//p:toggleButton")
 End Function
 
 Private Function mp_LoadUiDom(ByVal wb As Workbook) As Object
@@ -193,7 +208,7 @@ Private Function mp_ApplyGridLayouts(ByVal doc As Object, ByVal wb As Workbook) 
         If Not mp_LayoutTryResolveGridAnchorCell(ws, gridNode, anchorCell) Then Exit Function
         If Not mp_LayoutApplyGridColumns(ws, gridNode, anchorCell) Then Exit Function
 
-        Set rootNodes = gridNode.selectNodes("p:stackPanel | p:border | p:control")
+        Set rootNodes = gridNode.selectNodes("p:stackPanel | p:border | p:control | p:toggleButton")
         If rootNodes Is Nothing Then GoTo ContinueGrid
 
         For Each rootNode In rootNodes
@@ -322,10 +337,13 @@ Private Function mp_LayoutApplyNode( _
             mp_LayoutApplyNode = mp_LayoutApplyStackPanel(node, ws, gridAnchorRow, gridAnchorCol, nodeRow, nodeCol, nodeWidth, nodeHeight)
         Case "border"
             mp_LayoutApplyNode = mp_LayoutApplyBorder(node, ws, gridAnchorRow, gridAnchorCol, nodeRow, nodeCol, nodeWidth, nodeHeight)
-        Case "control"
+        Case "control", "togglebutton"
+            If StrComp(tagName, "togglebutton", vbTextCompare) = 0 Then
+                node.setAttribute "type", "toggleButton"
+            End If
             mp_LayoutApplyNode = mp_LayoutApplyControl(node, ws, nodeRow, nodeCol, nodeWidth, nodeHeight, isFlowChild)
         Case Else
-            MsgBox "Unsupported layout node '" & tagName & "'. Allowed: stackPanel, border, control.", vbExclamation
+            MsgBox "Unsupported layout node '" & tagName & "'. Allowed: stackPanel, border, control, toggleButton.", vbExclamation
     End Select
 End Function
 
@@ -349,7 +367,10 @@ Private Function mp_LayoutMeasureNode( _
             mp_LayoutMeasureNode = mp_LayoutMeasureStackPanel(node, ws, gridAnchorRow, gridAnchorCol, hasParentWidth, parentWidth, hasParentHeight, parentHeight, outWidth, outHeight)
         Case "border"
             mp_LayoutMeasureNode = mp_LayoutMeasureBorder(node, ws, gridAnchorRow, gridAnchorCol, hasParentWidth, parentWidth, hasParentHeight, parentHeight, outWidth, outHeight)
-        Case "control"
+        Case "control", "togglebutton"
+            If StrComp(tagName, "togglebutton", vbTextCompare) = 0 Then
+                node.setAttribute "type", "toggleButton"
+            End If
             mp_LayoutMeasureNode = mp_LayoutMeasureControl(node, hasParentWidth, parentWidth, hasParentHeight, parentHeight, outWidth, outHeight)
         Case Else
             MsgBox "Unsupported layout node '" & tagName & "' during measurement.", vbExclamation
@@ -755,7 +776,7 @@ Private Function mp_LayoutCollectActiveChildren(ByVal parentNode As Object, ByRe
     Dim isNodeEnabled As Boolean
     Dim contextText As String
 
-    Set childNodes = parentNode.selectNodes("p:stackPanel | p:border | p:control")
+    Set childNodes = parentNode.selectNodes("p:stackPanel | p:border | p:control | p:toggleButton")
     If childNodes Is Nothing Then
         mp_LayoutCollectActiveChildren = True
         Exit Function
@@ -945,7 +966,7 @@ End Function
 Private Function mp_IsSupportedControlType(ByVal controlType As String) As Boolean
     controlType = mp_NormalizeControlType(controlType)
     Select Case controlType
-        Case "button", "dropdownbutton", "input"
+        Case "button", "dropdownbutton", "togglebutton", "input", "config"
             mp_IsSupportedControlType = True
     End Select
 End Function
@@ -981,7 +1002,7 @@ Private Function mp_EnsureControlShape(ByVal ws As Worksheet, ByVal controlNode 
 
     controlType = mp_NormalizeControlType(controlType)
     Select Case controlType
-        Case "button", "dropdownbutton"
+        Case "button", "dropdownbutton", "togglebutton"
             If Not mp_TryCreateMissingButton(ws, controlNode, controlName, shp) Then Exit Function
         Case Else
             If isRequired Then
@@ -1181,7 +1202,7 @@ Private Function mp_ApplyControlAttributes(ByVal ws As Worksheet, ByVal controlN
     If Not mp_ApplyShapeGeometry(controlNode, shp, ws) Then Exit Function
 
     controlType = mp_NormalizeControlType(controlType)
-    If StrComp(controlType, "button", vbTextCompare) = 0 Or StrComp(controlType, "dropdownbutton", vbTextCompare) = 0 Then
+    If StrComp(controlType, "button", vbTextCompare) = 0 Or StrComp(controlType, "dropdownbutton", vbTextCompare) = 0 Or StrComp(controlType, "togglebutton", vbTextCompare) = 0 Then
         On Error Resume Next
         shp.AutoShapeType = msoShapeRectangle
         On Error GoTo 0
@@ -1546,11 +1567,25 @@ End Function
 Private Function mp_AssignShapeMacro(ByVal ws As Worksheet, ByVal controlNode As Object, ByVal controlName As String, ByVal wb As Workbook, ByVal isRequired As Boolean, ByRef didUngroupUiBlock As Boolean) As Boolean
     Dim shp As Shape
     Dim macroName As String
+    Dim controlType As String
     Dim onActionText As String
     Dim assignmentErr As String
     Dim parentGroupName As String
 
     macroName = Trim$(mp_NodeAttrText(controlNode, "macro"))
+    controlType = mp_NormalizeControlType(mp_NodeAttrText(controlNode, "type"))
+    If Len(controlType) = 0 Then
+        If StrComp(mp_LayoutNodeTag(controlNode), "togglebutton", vbTextCompare) = 0 Then
+            controlType = "togglebutton"
+        End If
+    End If
+
+    If Len(macroName) = 0 Then
+        If StrComp(controlType, "togglebutton", vbTextCompare) = 0 Then
+            macroName = "ex_UIActions.m_LayoutToggleButton_OnClick"
+        End If
+    End If
+
     didUngroupUiBlock = False
 
     If Len(macroName) = 0 Then
@@ -1612,6 +1647,157 @@ EH_ASSIGN_SECOND:
     Else
         mp_AssignShapeMacro = True
     End If
+End Function
+
+Private Function mp_ConfigureManagedToggleButton( _
+    ByVal ws As Worksheet, _
+    ByVal controlNode As Object, _
+    ByVal controlName As String) As Boolean
+
+    Dim shp As Shape
+    Dim toggleSource As String
+    Dim onToggleMacro As String
+    Dim variants As Collection
+    Dim selectedIndex As Long
+    Dim selectedValue As String
+
+    Set shp = ex_ConfigProfilesManager.m_GetShapeByName(ws, controlName)
+    If shp Is Nothing Then
+        MsgBox "ToggleButton '" & controlName & "' was not found on sheet '" & ws.Name & "'.", vbExclamation
+        Exit Function
+    End If
+
+    toggleSource = Trim$(mp_NodeAttrText(controlNode, "source"))
+    If Len(toggleSource) = 0 Then
+        MsgBox "ToggleButton '" & controlName & "' requires non-empty attribute 'source'.", vbExclamation
+        Exit Function
+    End If
+
+    onToggleMacro = Trim$(mp_NodeAttrText(controlNode, "onToggle"))
+
+    Set variants = mp_BuildToggleVariantRecordsFromControlNode(controlNode, controlName)
+    If variants Is Nothing Then Exit Function
+    If variants.Count = 0 Then
+        MsgBox "ToggleButton '" & controlName & "' requires at least one active modeVariants/variant node.", vbExclamation
+        Exit Function
+    End If
+
+    selectedValue = Trim$(ex_ToggleStateRouter.m_GetToggleValue(toggleSource, CStr(variants(1)("Value")), ws))
+    selectedIndex = mp_FindToggleVariantIndexByValue(variants, selectedValue)
+    If selectedIndex <= 0 Then selectedIndex = 1
+
+    ex_ToggleStateRouter.m_SetToggleValue toggleSource, CStr(variants(selectedIndex)("Value")), ws
+    If Not ex_LayoutToggleRuntime.m_ConfigureToggleShape(shp, toggleSource, variants, selectedIndex, onToggleMacro) Then
+        MsgBox "Failed to configure ToggleButton '" & controlName & "'.", vbExclamation
+        Exit Function
+    End If
+
+    mp_ConfigureManagedToggleButton = True
+End Function
+
+Private Function mp_BuildToggleVariantRecordsFromControlNode( _
+    ByVal controlNode As Object, _
+    ByVal controlName As String) As Collection
+
+    Dim variantNodes As Object
+    Dim variantNode As Object
+    Dim isNodeEnabled As Boolean
+    Dim variantMap As Object
+    Dim valueText As String
+    Dim captionText As String
+    Dim colorText As String
+    Dim colorValue As Long
+
+    Set variantNodes = controlNode.selectNodes("p:modeVariants/p:variant")
+    If variantNodes Is Nothing Or variantNodes.Length = 0 Then
+        MsgBox "ToggleButton '" & controlName & "' must define at least one modeVariants/variant.", vbExclamation
+        Exit Function
+    End If
+
+    Set mp_BuildToggleVariantRecordsFromControlNode = New Collection
+    For Each variantNode In variantNodes
+        If Not ex_XmlCore.m_TryEvaluateNodeCondition(variantNode, isNodeEnabled, "condition", "toggleButton '" & controlName & "' variant") Then Exit Function
+        If Not isNodeEnabled Then GoTo ContinueVariant
+
+        valueText = Trim$(mp_NodeAttrText(variantNode, "value"))
+        If Len(valueText) = 0 Then
+            MsgBox "ToggleButton '" & controlName & "' has variant without required attribute 'value'.", vbExclamation
+            Set mp_BuildToggleVariantRecordsFromControlNode = Nothing
+            Exit Function
+        End If
+
+        captionText = Trim$(mp_NodeAttrText(variantNode, "caption"))
+        If Len(captionText) = 0 Then captionText = Trim$(mp_NodeAttrText(variantNode, "display"))
+        If Len(captionText) = 0 Then captionText = valueText
+
+        Set variantMap = CreateObject("Scripting.Dictionary")
+        variantMap.CompareMode = 1
+        variantMap("Value") = valueText
+        variantMap("Caption") = captionText
+
+        colorText = Trim$(mp_NodeAttrText(variantNode, "buttonBackColor"))
+        If Len(colorText) > 0 Then
+            If Not ex_XmlCore.m_TryParseColor(colorText, colorValue) Then
+                MsgBox "ToggleButton '" & controlName & "' has invalid variant buttonBackColor='" & colorText & "'.", vbExclamation
+                Set mp_BuildToggleVariantRecordsFromControlNode = Nothing
+                Exit Function
+            End If
+            variantMap("HasBackColor") = True
+            variantMap("BackColor") = colorValue
+        Else
+            variantMap("HasBackColor") = False
+            variantMap("BackColor") = 0
+        End If
+
+        colorText = Trim$(mp_NodeAttrText(variantNode, "buttonTextColor"))
+        If Len(colorText) > 0 Then
+            If Not ex_XmlCore.m_TryParseColor(colorText, colorValue) Then
+                MsgBox "ToggleButton '" & controlName & "' has invalid variant buttonTextColor='" & colorText & "'.", vbExclamation
+                Set mp_BuildToggleVariantRecordsFromControlNode = Nothing
+                Exit Function
+            End If
+            variantMap("HasTextColor") = True
+            variantMap("TextColor") = colorValue
+        Else
+            variantMap("HasTextColor") = False
+            variantMap("TextColor") = 0
+        End If
+
+        colorText = Trim$(mp_NodeAttrText(variantNode, "buttonBorderColor"))
+        If Len(colorText) > 0 Then
+            If Not ex_XmlCore.m_TryParseColor(colorText, colorValue) Then
+                MsgBox "ToggleButton '" & controlName & "' has invalid variant buttonBorderColor='" & colorText & "'.", vbExclamation
+                Set mp_BuildToggleVariantRecordsFromControlNode = Nothing
+                Exit Function
+            End If
+            variantMap("HasBorderColor") = True
+            variantMap("BorderColor") = colorValue
+        Else
+            variantMap("HasBorderColor") = False
+            variantMap("BorderColor") = 0
+        End If
+
+        mp_BuildToggleVariantRecordsFromControlNode.Add variantMap
+ContinueVariant:
+    Next variantNode
+End Function
+
+Private Function mp_FindToggleVariantIndexByValue(ByVal variants As Collection, ByVal valueText As String) As Long
+    Dim i As Long
+    Dim variantMap As Object
+
+    If variants Is Nothing Then Exit Function
+
+    valueText = Trim$(valueText)
+    For i = 1 To variants.Count
+        Set variantMap = variants(i)
+        If variantMap Is Nothing Then GoTo ContinueVariant
+        If StrComp(Trim$(CStr(variantMap("Value"))), valueText, vbTextCompare) = 0 Then
+            mp_FindToggleVariantIndexByValue = i
+            Exit Function
+        End If
+ContinueVariant:
+    Next i
 End Function
 
 Private Function mp_TryUngroupParentShape(ByVal shp As Shape, ByRef parentGroupName As String) As Boolean

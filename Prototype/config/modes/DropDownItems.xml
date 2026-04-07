@@ -4,21 +4,21 @@
     <item key="PersonalCard"
           caption="Personal Card"
           default="true"
-          setContext="activeMode=PersonalCard"/>
+/>
     <item key="HealthBenefits"
           caption="Health Benefits"
-          setContext="activeMode=HealthBenefits"/>
+/>
     <item key="TablesComparing"
           caption="Comparing"
-          setContext="activeMode=TablesComparing"/>
+/>
     <item key="ReportCreation"
         caption="Report Creation"
-        setContext="activeMode=ReportCreation"/>
+/>
       <item key="SimpleTest"
             caption="Simple Test"
-            setContext="activeMode=SimpleTest"/>
+/>
       <item key="MultiSources"
             caption="Multi Sources"
-            setContext="activeMode=MultiSources"/>
+/>
   </list>
 </dropdownItems>
