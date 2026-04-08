@@ -5,10 +5,15 @@ Public Function m_CreateControlByTypeRoot(ByVal controlTypeRoot As String) As ob
     controlTypeRoot = LCase$(Trim$(controlTypeRoot))
 
     Select Case controlTypeRoot
-        Case "helloworld"
-            Dim helloVm As obj_HelloWorldControlViewModel
-            Set helloVm = New obj_HelloWorldControlViewModel
-            Set m_CreateControlByTypeRoot = helloVm
+        Case "button"
+            Dim buttonVm As obj_ButtonControlViewModel
+            Set buttonVm = New obj_ButtonControlViewModel
+            Set m_CreateControlByTypeRoot = buttonVm
+
+        Case "table"
+            Dim tableVm As obj_TableControlViewModel
+            Set tableVm = New obj_TableControlViewModel
+            Set m_CreateControlByTypeRoot = tableVm
 
         Case Else
             MsgBox "Control type '" & controlTypeRoot & "' is not supported in PrototypeNew runtime.", vbExclamation

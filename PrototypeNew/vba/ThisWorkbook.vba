@@ -1,9 +1,10 @@
-Attribute VB_Name = "ex_Actions"
 Option Explicit
 
-Public Sub m_LoadPrototypeNewUi()
+Private Sub Workbook_Open()
     Dim activeSheetObj As Object
     Dim ws As Worksheet
+
+    On Error GoTo EH
 
     Set activeSheetObj = ThisWorkbook.ActiveSheet
     If activeSheetObj Is Nothing Then
@@ -18,9 +19,7 @@ Public Sub m_LoadPrototypeNewUi()
 
     Set ws = activeSheetObj
     ex_SheetRenderer.m_RenderWorksheet ws
-End Sub
-
-Public Sub m_SetStateSimpleTestDefault()
-    ex_State.m_SetText ex_State.STATE_ACTIVE_MODE, "SimpleTest"
-    ex_State.m_SetText ex_State.STATE_ACTIVE_PROFILE, "Default"
+    Exit Sub
+EH:
+    MsgBox "PrototypeNew: Workbook_Open failed: " & Err.Description, vbExclamation
 End Sub

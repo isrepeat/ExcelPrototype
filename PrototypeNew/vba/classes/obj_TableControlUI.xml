@@ -1,11 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <uiDefinition xmlns="urn:excelprototype:profiles" version="1">
   <layout>
-    <control
-      name="default"
-      type="helloWorld"
-      sheet="Dev"
-      targetCell="B3"
-      text="Hello, World from ViewModel"/>
+    <control name="default" itemsSource="Test.Tables"/>
   </layout>
 </uiDefinition>
