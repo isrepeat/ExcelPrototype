@@ -2,7 +2,7 @@ VERSION 1.0 CLASS
 BEGIN
   MultiUse = -1  'True
 END
-Attribute VB_Name = "obj_TableControlVM"
+Attribute VB_Name = "obj_TableListControlVM"
 Option Explicit
 Implements obj_IControl
 
@@ -11,6 +11,7 @@ Implements obj_IControl
 
 Private m_ControlName As String
 Private m_ItemsSourceRaw As String
+Private m_ItemVisibilityRaw As String
 Private m_LayoutSheet As String
 Private m_RowStart As Long
 Private m_ColStart As Long
@@ -29,13 +30,14 @@ Private Sub obj_IControl_Configure(ByVal controlNode As Object)
     End If
 
     m_ControlName = Trim$(ex_XmlCore.m_NodeAttrText(controlNode, "name"))
-    If Len(m_ControlName) = 0 Then m_ControlName = "table"
+    If Len(m_ControlName) = 0 Then m_ControlName = "tablelist"
 
     m_ItemsSourceRaw = Trim$(CStr(ex_XmlCore.m_NodeAttrText(controlNode, "itemsSource")))
     If Len(m_ItemsSourceRaw) = 0 Then 
         MsgBox "Table: itemsSource is not specified for control '" & m_ControlName & "'.", vbExclamation
         Exit Sub
     End If
+    m_ItemVisibilityRaw = Trim$(CStr(ex_XmlCore.m_NodeAttrText(controlNode, "itemVisibility")))
 
     m_LayoutSheet = Trim$(ex_XmlCore.m_NodeAttrText(controlNode, "__layoutSheet"))
     If Len(m_LayoutSheet) = 0 Then
@@ -64,6 +66,7 @@ Private Sub obj_IControl_Configure(ByVal controlNode As Object)
     End If
 
     If Not ex_ListItemsSourceRuntime.m_TryResolveItemsSource(m_ItemsSourceRaw, m_TableItems) Then Exit Sub
+    If Not mp_TryApplyItemVisibilityFilter(m_TableItems) Then Exit Sub
 
     m_IsConfigured = True
 End Sub
@@ -117,9 +120,40 @@ End Sub
 
 Private Function obj_IControl_SupportsAttribute(ByVal attrName As String) As Boolean
     Select Case LCase$(Trim$(attrName))
-        Case "itemssource"
+        Case "itemssource", "itemvisibility"
             obj_IControl_SupportsAttribute = True
     End Select
+End Function
+
+Private Function mp_TryApplyItemVisibilityFilter(ByRef tableItems As Collection) As Boolean
+    Dim filteredItems As Collection
+    Dim tableItem As Variant
+    Dim isVisible As Boolean
+
+    If Len(m_ItemVisibilityRaw) = 0 Then
+        mp_TryApplyItemVisibilityFilter = True
+        Exit Function
+    End If
+
+    If tableItems Is Nothing Then
+        MsgBox "Table: itemsSource is not resolved for control '" & m_ControlName & "'.", vbExclamation
+        Exit Function
+    End If
+
+    Set filteredItems = New Collection
+
+    For Each tableItem In tableItems
+        If Not IsObject(tableItem) Then
+            MsgBox "Table: itemsSource entry must be an object for itemVisibility evaluation in control '" & m_ControlName & "'.", vbExclamation
+            Exit Function
+        End If
+
+        If Not ex_BindingRuntime.m_TryResolveVisibilityBinding(m_ItemVisibilityRaw, tableItem, isVisible) Then Exit Function
+        If isVisible Then filteredItems.Add tableItem
+    Next tableItem
+
+    Set tableItems = filteredItems
+    mp_TryApplyItemVisibilityFilter = True
 End Function
 
 Private Function mp_TryReadLayoutLongAttr( _
@@ -416,7 +450,7 @@ Private Function mp_TryRegisterControlPartSegments(ByVal ws As Worksheet, ByVal 
 
         If Not ex_ControlPartsRuntime.m_RegisterControlPart( _
             ws, _
-            "table", _
+            "tablelist", _
             m_ControlName, _
             partName, _
             segmentRange) Then Exit Function

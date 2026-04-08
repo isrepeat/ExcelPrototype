@@ -169,7 +169,7 @@ End Function
 
 Private Function mp_IsLayoutAttribute(ByVal attrName As String) As Boolean
     Select Case LCase$(Trim$(attrName))
-        Case "at", "spancells", "spanrows"
+        Case "at", "spancells", "spanrows", "visibility"
             mp_IsLayoutAttribute = True
     End Select
 End Function

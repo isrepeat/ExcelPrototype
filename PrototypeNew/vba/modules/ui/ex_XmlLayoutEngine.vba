@@ -5,6 +5,30 @@ Private Const UI_NS As String = "urn:excelprototype:profiles"
 Private g_ListRuntimeSourceSeed As Long
 Private g_ObjectRuntimeSourceSeed As Long
 
+Private Function mp_TryIsNodeVisible( _
+    ByVal node As Object, _
+    ByVal bindingSource As Object, _
+    ByRef outVisible As Boolean _
+) As Boolean
+    Dim visibilityRaw As String
+
+    If node Is Nothing Then
+        outVisible = True
+        mp_TryIsNodeVisible = True
+        Exit Function
+    End If
+
+    visibilityRaw = Trim$(CStr(ex_XmlCore.m_NodeAttrText(node, "visibility")))
+    If Len(visibilityRaw) = 0 Then
+        outVisible = True
+        mp_TryIsNodeVisible = True
+        Exit Function
+    End If
+
+    If Not ex_BindingRuntime.m_TryResolveVisibilityBinding(visibilityRaw, bindingSource, outVisible) Then Exit Function
+    mp_TryIsNodeVisible = True
+End Function
+
 Public Function m_RenderPageLayout( _
     ByVal wb As Workbook, _
     ByVal defaultWs As Worksheet, _
@@ -66,6 +90,7 @@ Private Function mp_RenderGridNodeOnWorksheet( _
     Dim anchorCell As Range
     Dim anchorCellAddr As String
     Dim childNode As Object
+    Dim isVisible As Boolean
 
     If wb Is Nothing Then Exit Function
     If defaultWs Is Nothing Then Exit Function
@@ -84,6 +109,8 @@ Private Function mp_RenderGridNodeOnWorksheet( _
 
     For Each childNode In gridNode.ChildNodes
         If childNode.NodeType <> 1 Then GoTo ContinueNode
+        If Not mp_TryIsNodeVisible(childNode, Nothing, isVisible) Then Exit Function
+        If Not isVisible Then GoTo ContinueNode
 
         Select Case LCase$(CStr(childNode.baseName))
             Case "stackpanel"
@@ -218,10 +245,11 @@ Private Function mp_RenderSingleControlOnWorksheet( _
     Dim spanCols As Long
 
     If Not mp_TryResolveNodeCellPosition(controlNode, anchorCell, rowIndex, colIndex) Then Exit Function
-
-    spanRows = mp_ReadPositiveLongAttr(controlNode, "spanRows", 1)
-    spanCols = mp_ReadPositiveLongAttr(controlNode, "spanCells", 1)
-    If spanRows <= 0 Or spanCols <= 0 Then Exit Function
+    If Not mp_TryGetEffectiveNodeSpan(controlNode, spanRows, spanCols) Then Exit Function
+    If spanRows <= 0 Or spanCols <= 0 Then
+        mp_RenderSingleControlOnWorksheet = True
+        Exit Function
+    End If
 
     mp_RenderSingleControlOnWorksheet = mp_RenderControlByWorksheetSpan(wb, ws, controlNode, rowIndex, colIndex, spanRows, spanCols)
 End Function
@@ -457,12 +485,20 @@ Private Function mp_TryGetEffectiveNodeSpan( _
     Optional ByVal bindingSource As Object _
 ) As Boolean
     Dim nodeKind As String
+    Dim isVisible As Boolean
     Dim explicitRows As Long
     Dim explicitCols As Long
     Dim measuredRows As Long
     Dim measuredCols As Long
 
     If node Is Nothing Then Exit Function
+    If Not mp_TryIsNodeVisible(node, bindingSource, isVisible) Then Exit Function
+    If Not isVisible Then
+        outSpanRows = 0
+        outSpanCols = 0
+        mp_TryGetEffectiveNodeSpan = True
+        Exit Function
+    End If
 
     explicitRows = mp_ReadPositiveLongAttr(node, "spanRows", 0)
     explicitCols = mp_ReadPositiveLongAttr(node, "spanCells", 0)
@@ -782,7 +818,8 @@ Private Function mp_RenderItemControlInBounds( _
     End If
 
     If Not mp_ApplyNodeBindingsRecursive(clonedNode, sourceObject) Then Exit Function
-    suffixValue = g_ObjectRuntimeSourceSeed + 1
+    g_ObjectRuntimeSourceSeed = g_ObjectRuntimeSourceSeed + 1
+    suffixValue = g_ObjectRuntimeSourceSeed
     mp_AppendSuffixToControlNames clonedNode, "_obj" & CStr(suffixValue)
     syntheticRoot.appendChild clonedNode
 
@@ -1173,6 +1210,7 @@ Private Function mp_ApplyNodeBindingsRecursive(ByVal rootNode As Object, ByVal b
     Dim attrName As String
     Dim rawText As String
     Dim resolvedValue As Variant
+    Dim resolvedVisible As Boolean
     Dim childNode As Object
     Dim runtimeListSourceKey As String
     Dim runtimeObjectSourceKey As String
@@ -1197,6 +1235,16 @@ Private Function mp_ApplyNodeBindingsRecursive(ByVal rootNode As Object, ByVal b
 
             rawText = CStr(attrNode.Text)
             If InStr(1, rawText, "{Binding ", vbTextCompare) = 0 Then GoTo ContinueAttr
+
+            If StrComp(LCase$(attrName), "visibility", vbBinaryCompare) = 0 Then
+                If Not ex_BindingRuntime.m_TryResolveVisibilityBinding(rawText, bindingSource, resolvedVisible) Then Exit Function
+                If resolvedVisible Then
+                    rootNode.setAttribute attrName, "true"
+                Else
+                    rootNode.setAttribute attrName, "false"
+                End If
+                GoTo ContinueAttr
+            End If
 
             If Not ex_BindingRuntime.m_TryResolveValueBinding(rawText, bindingSource, resolvedValue) Then Exit Function
 

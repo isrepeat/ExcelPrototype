@@ -3,7 +3,7 @@ Option Explicit
 
 Public Function m_IsCommonControlAttribute(ByVal attrName As String) As Boolean
     Select Case LCase$(Trim$(attrName))
-        Case "name", "type", "style", "spancells", "spanrows"
+        Case "name", "type", "style", "spancells", "spanrows", "visibility"
             m_IsCommonControlAttribute = True
     End Select
 End Function

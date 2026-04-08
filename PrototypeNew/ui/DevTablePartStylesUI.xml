@@ -24,7 +24,7 @@
 
       <layer name="table-part-styles" enabled="true">
         <rule target="controlPart"
-              selector="type=table;part=section"
+              selector="type=tablelist;part=section"
               styles="{
                 backColor:#1F4E79;
                 fontColor:#F2F8FF;
@@ -35,7 +35,7 @@
               }"/>
 
         <rule target="controlPart"
-              selector="type=table;part=header"
+              selector="type=tablelist;part=header"
               styles="{
                 backColor:#355D8C;
                 fontColor:#E7F1FF;
@@ -46,7 +46,7 @@
               }"/>
 
         <rule target="controlPart"
-              selector="type=table;part=rows"
+              selector="type=tablelist;part=rows"
               styles="{
                 backColor:#2F2F2F;
                 fontColor:#F5F5F5;
@@ -56,7 +56,7 @@
               }"/>
 
         <rule target="controlPart"
-              selector="type=table;name=TablesListStyled;part=rows"
+              selector="type=tablelist;name=TablesListStyled;part=rows"
               styles="{
                 horizontal:left;
                 vertical:center;
@@ -76,6 +76,7 @@
         spanCells="12"
         spanRows="3"/>
     </template>
+
   </templates>
 
   <layout>
@@ -124,9 +125,10 @@
           objectSourceTemplate="bannerObjectTpl"/>
 
         <control
-          type="Table"
+          type="TableList"
           name="TablesListStyled"
           itemsSource="RuntimeItems.Test.Tables"
+          itemVisibility="{Binding Path=RowCount; Op=gt; Value=3; TrueAs=Visible; FalseAs=Collapsed}"
           spanCells="12"
           spanRows="220"/>
       </stackPanel>

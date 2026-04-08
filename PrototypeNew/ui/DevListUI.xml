@@ -78,7 +78,7 @@
           spanRows="2"/>
 
         <control
-          type="Table"
+          type="TableList"
           name="TablesListFast"
           itemsSource="RuntimeItems.Test.Tables"
           spanCells="12"

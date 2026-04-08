@@ -37,7 +37,7 @@
           spanRows="2"/>
 
         <control
-          type="Table"
+          type="TableList"
           name="default"
           itemsSource="RuntimeItems.Test.Tables"
           spanCells="12"
