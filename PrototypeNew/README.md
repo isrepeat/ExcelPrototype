@@ -11,7 +11,7 @@ No hardcoded control names in VBA. UI page is described in XML, and runtime buil
 	- control UI: `PrototypeNew/vba/classes/obj_<Type>ControlUI.xml`
 	- VM class: `obj_<Type>ControlVM`
 - Build controls through `obj_IControl` + `ex_ControlFactory`.
-- Render controls through object VM classes (currently `obj_ButtonControlVM`, `obj_LabelControlVM`, `obj_TableControlVM`, `obj_TableSingleControlVM`, `obj_BannerControlVM`).
+- Render controls through object VM classes (currently `obj_ButtonControlVM`, `obj_LabelControlVM`, `obj_TableListControlVM`, `obj_TableSingleControlVM`, `obj_BannerControlVM`).
 - Button controls are rendered as Excel `Shape` objects (not Forms buttons) for richer visual customization.
   - shape bounds are derived from layout cell span (`row/col start/end`) instead of runtime point attributes.
 - Table controls render list data directly into worksheet cells (faster path for bulk row output).
@@ -48,7 +48,7 @@ Run from `ex_Test`:
 - `m_TEST_RenderDevListTableSingleUI`
 	- registers demo 20 tables and renders `ui\DevListTableSingleUI.xml` (`List + itemsSourceTemplate + TableSingle` per item).
 - `m_TEST_RenderDevTablePartStylesUI`
-	- renders `ui\DevTablePartStylesUI.xml` with `controlPart` selector rules for `Table` sections.
+	- renders `ui\DevTablePartStylesUI.xml` with `controlPart` selector rules for `TableList` sections.
 - `m_TEST_SetDemoTableItemsMany`
 	- updates `RuntimeItems.Test.Tables` with 20 tables; if a page was rendered already, triggers full page rerender.
 - `m_TEST_SetDemoTableItemsSingle`
@@ -57,6 +57,79 @@ Run from `ex_Test`:
 	- updates `RuntimeItems.Test.Banner` and inserts a `Banner` control before table list with full rerender.
 - `m_TEST_NoOp`
 	- empty click handler for display-only test controls.
+
+## Binding
+Binding expressions use:
+- `{Binding Path=<path>}`
+- `{Binding Module=<module>; Method=<method>}`
+
+If attribute value is not in `{Binding ...}` format, runtime treats it as literal value.
+
+### Path resolution
+- `Path=.` returns current source object.
+- `Path=A.B.C` traverses nested members.
+- Class members are resolved via `CallByName` (public properties/getters).
+- `Scripting.Dictionary` is resolved by key name.
+- VBA `Collection` supports:
+	- `Count` (example: `Path=Rows.Count`)
+	- 1-based numeric index (example: `Path=Rows.1`)
+
+### Where bindings are used
+- Text/value attrs (`caption`, `text`, `header`, `message`, etc.).
+- Macro attrs (for example `onClick`).
+- `visibility` on controls.
+- `itemVisibility` on `TableList` (per-item filter before render).
+- `itemsSource` and `objectSource` (resolved from runtime maps or by expression).
+- For any `{Binding Path=...}` expression, optional conditional args are supported:
+	- `Op`
+	- `Value`
+	- `TrueAs`
+	- `FalseAs`
+
+### Visibility expression format
+- Simple:
+	- `visibility="true"`
+	- `visibility="{Binding Path=Visible}"`
+- Conditional:
+	- `visibility="{Binding Path=Status; Op=eq; Value=Active}"`
+	- `itemVisibility="{Binding Path=RowCount; Op=gt; Value=3; TrueAs=Visible; FalseAs=Collapsed}"`
+
+Supported `Op`:
+- `eq`, `ne`, `gt`, `ge`, `lt`, `le`, `isTrue`, `isFalse`
+
+`TrueAs` / `FalseAs` map condition result to final text token.
+Default tokens when mapping is omitted: `True` / `False`.
+
+### VBA registration example
+```vb
+Dim tables As Collection
+Dim banner As obj_Banner
+
+Set tables = m_TEST_BuildDemoTableItems()
+Call ex_ListItemsSourceRuntime.m_SetItemsSource("RuntimeItems.Test.Tables", tables, True)
+
+Set banner = New obj_Banner
+banner.Header = "Data Source Updated"
+banner.Message = "Banner inserted from objectSource"
+banner.Visible = True
+Call ex_ObjectSourceRuntime.m_SetObjectSource("RuntimeObjects.Test.Banner", banner, True)
+```
+
+### XML examples
+```xml
+<control type="Button"
+         onClick="{Binding Module=ex_Test;Method=m_TEST_RenderDevUI}"/>
+
+<itemControl objectSource="RuntimeObjects.Test.Banner"
+             objectSourceTemplate="bannerObjectTpl"/>
+
+<control type="TableList"
+         itemsSource="RuntimeItems.Test.Tables"
+         itemVisibility="{Binding Path=RowCount; Op=gt; Value=3; TrueAs=Visible; FalseAs=Collapsed}"/>
+
+<control type="Label"
+         text="{Binding Path=Rows.1.CellCount}"/>
+```
 
 ## Runtime API
 - `ex_SheetRenderer.m_RenderWorksheet(ws, wsUiPath)`
@@ -84,9 +157,11 @@ Run from `ex_Test`:
 	- `itemsSourceTemplate` points to `/uiDefinition/templates/template[@name='<name>']` and template must contain exactly one visual root node (`control|stackPanel|grid|list`).
 	- optional `orientation` (`vertical` default, `horizontal`).
 
-- `control type="Table"` contract
+- `control type="TableList"` contract
 	- required attributes:
 		- `itemsSource`
+	- optional attributes:
+		- `itemVisibility` (visibility binding evaluated per itemsSource entry before render)
 	- uses runtime data from `ex_ListItemsSourceRuntime` (same source map as `list`).
 	- `itemsSource` entries must be table model objects:
 		- `obj_TableDynamic`, or
@@ -159,6 +234,6 @@ Run from `ex_Test`:
 	- `controlPart` target contract:
 		- required selector keys: `type`, `part`
 		- optional selector key: `name`
-		- currently registered control type: `table`
+		- currently registered control type: `tablelist`
 		- supported table parts: `section`, `header`, `rows`, `spacer`
 	- button visuals should be styled via `controlStyle`; pipeline rules are intended for sheet cell formatting.
