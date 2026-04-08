@@ -1,8 +1,99 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <uiDefinition xmlns="urn:excelprototype:profiles" version="1">
+  <styles>
+    <controlStyle
+      name="actionWarning"
+      backColor="#ED7D31"
+      textColor="#0A0A0A"
+      borderColor="#A84912"
+      borderWeight="1.25"
+      fontName="Calibri"
+      fontSize="11"
+      fontBold="false"/>
+
+    <stylePipelineStage name="default" enabled="true">
+      <layer name="dark-base" enabled="true">
+        <rule target="sheet"
+              styles="{ 
+                backColor:#262626;
+                fontColor:#EBEBEB;
+                borderColor:#000000;
+                borderWeight:thin;
+              }"/>
+      </layer>
+
+      <layer name="dark-primary-action" enabled="true">
+        <rule target="range"
+              selector="address=B2:D3"
+              styles="{ 
+                backColor:#0F766E;
+                fontColor:#E6FFFA;
+                borderColor:#134E4A;
+                fontBold:true;
+              }"/>
+      </layer>
+    </stylePipelineStage>
+  </styles>
   <layout>
-    <control
-      name="helloMain"
-      type="HelloWorld"/>
+    <grid anchorCell="A1">
+      <stackPanel at="r2c2" orientation="horizontal">
+        <control
+          type="Button"
+          name="UpdateCode"
+          caption="Update Code"
+          style="actionWarning"
+          onClick="{Binding Module=DevTools;Method=dev_UpdateCodeFast}"
+          spanCells="3"
+          spanRows="2"
+          />
+          <stackPanel orientation="vertical">
+            <control
+              type="Button"
+              name="Update 2"
+              caption="btn 2"
+              style="actionWarning"
+              onClick="{Binding Module=DevTools;Method=dev_UpdateCodeFast}"
+              spanCells="2"
+              spanRows="1"
+              />
+              <control
+                type="Button"
+                name="Update UI"
+                caption="Open Table List Demo"
+                style="actionWarning"
+                onClick="{Binding Module=ex_Test;Method=m_TEST_RenderDevTableListUI}"
+                spanCells="3"
+                spanRows="2"
+                />
+              <control
+                type="Button"
+                name="Update UI Single"
+                caption="Open Single Table Demo"
+                style="actionWarning"
+                onClick="{Binding Module=ex_Test;Method=m_TEST_RenderDevSingleTableUI}"
+                spanCells="3"
+                spanRows="2"
+                />
+              <control
+                type="Button"
+                name="Profile Table Render"
+                caption="Profile Table Render"
+                style="actionWarning"
+                onClick="{Binding Module=ex_Test;Method=m_TEST_ProfileDevTableListUI}"
+                spanCells="3"
+                spanRows="2"
+                />
+              <control
+                type="Button"
+                name="Fill Numbers Range"
+                caption="Fill L5:V28 Numbers"
+                style="actionWarning"
+                onClick="{Binding Module=ex_Test;Method=m_TEST_FillNumbersRangeSimple}"
+                spanCells="3"
+                spanRows="2"
+                />
+            </stackPanel>
+      </stackPanel>
+    </grid>
   </layout>
 </uiDefinition>

@@ -10,3 +10,6 @@ End Sub
 
 Public Sub Render(ByVal wb As Workbook)
 End Sub
+
+Public Function SupportsAttribute(ByVal attrName As String) As Boolean
+End Function
