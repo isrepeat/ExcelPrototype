@@ -2,7 +2,7 @@ VERSION 1.0 CLASS
 BEGIN
   MultiUse = -1  'True
 END
-Attribute VB_Name = "obj_TableControlViewModel"
+Attribute VB_Name = "obj_TableControlVM"
 Option Explicit
 Implements obj_IControl
 
@@ -107,6 +107,8 @@ Private Sub obj_IControl_Render(ByVal wb As Workbook)
 
     ' Single bulk assignment is significantly faster than incremental writes.
     targetRange.Value2 = valueBlock
+
+    If Not mp_TryRegisterControlPartSegments(ws, styleSegments) Then Exit Sub
 
 #If ENALBE_STYLES Then
     mp_ApplyStyleSegments ws, styleSegments
@@ -389,6 +391,54 @@ ContinueSegment:
 ContinueGroup:
     Next key
 End Sub
+
+Private Function mp_TryRegisterControlPartSegments(ByVal ws As Worksheet, ByVal styleSegments As Collection) As Boolean
+    Dim segment As Object
+    Dim partName As String
+    Dim segmentRange As Range
+
+    If ws Is Nothing Then Exit Function
+    If styleSegments Is Nothing Then
+        mp_TryRegisterControlPartSegments = True
+        Exit Function
+    End If
+
+    For Each segment In styleSegments
+        partName = mp_MapStyleKindToControlPart(CStr(segment("StyleKind")))
+        If Len(partName) = 0 Then GoTo ContinueSegment
+
+        Set segmentRange = mp_BuildSegmentRange( _
+            ws, _
+            CLng(segment("RowStart")), _
+            CLng(segment("RowEnd")), _
+            CLng(segment("ColumnCount")))
+        If segmentRange Is Nothing Then GoTo ContinueSegment
+
+        If Not ex_ControlPartsRuntime.m_RegisterControlPart( _
+            ws, _
+            "table", _
+            m_ControlName, _
+            partName, _
+            segmentRange) Then Exit Function
+
+ContinueSegment:
+    Next segment
+
+    mp_TryRegisterControlPartSegments = True
+End Function
+
+Private Function mp_MapStyleKindToControlPart(ByVal styleKind As String) As String
+    Select Case LCase$(Trim$(styleKind))
+        Case "section"
+            mp_MapStyleKindToControlPart = "section"
+        Case "header"
+            mp_MapStyleKindToControlPart = "header"
+        Case "data"
+            mp_MapStyleKindToControlPart = "rows"
+        Case "spacer"
+            mp_MapStyleKindToControlPart = "spacer"
+    End Select
+End Function
 
 Private Function mp_BuildSegmentRange( _
     ByVal ws As Worksheet, _

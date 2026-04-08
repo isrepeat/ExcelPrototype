@@ -240,7 +240,15 @@ Private Function mp_ApplySingleRule(ByVal ws As Worksheet, ByVal ruleNode As Obj
             Set scopeRange = mp_GetExpandedSheetScopeRange(ws)
             If scopeRange Is Nothing Then Exit Function
             Set columnScope = scopeRange.EntireColumn
+
+        Case "controlpart"
+            If Not mp_TryResolveControlPartTargetScope(ws, selector, scopeRange, columnScope) Then Exit Function
     End Select
+
+    If scopeRange Is Nothing Then
+        mp_ApplySingleRule = True
+        Exit Function
+    End If
 
     If Not mp_ApplyRangeDeclarations(scopeRange, columnScope, declarations, ruleTarget) Then Exit Function
 
@@ -423,7 +431,7 @@ Private Function mp_TryReadRuleSelector(ByVal ruleNode As Object, ByRef outSelec
         End If
 
         Select Case keyName
-            Case "col", "row", "address"
+            Case "col", "row", "address", "type", "name", "part"
                 If outSelector.Exists(keyName) Then
                     MsgBox "PrototypeNew: duplicate selector key '" & keyName & "'.", vbExclamation
                     Exit Function
@@ -443,9 +451,55 @@ End Function
 
 Private Function mp_RuleTargetIsSupported(ByVal targetName As String) As Boolean
     Select Case LCase$(Trim$(targetName))
-        Case "row", "column", "cell", "range", "usedrange", "sheet"
+        Case "row", "column", "cell", "range", "usedrange", "sheet", "controlpart"
             mp_RuleTargetIsSupported = True
     End Select
+End Function
+
+Private Function mp_TryResolveControlPartTargetScope( _
+    ByVal ws As Worksheet, _
+    ByVal selector As Object, _
+    ByRef outScope As Range, _
+    ByRef outColumnScope As Range _
+) As Boolean
+    Dim controlType As String
+    Dim controlName As String
+    Dim partName As String
+
+    If ws Is Nothing Then Exit Function
+    If selector Is Nothing Then
+        MsgBox "PrototypeNew: controlPart rule requires selector.", vbExclamation
+        Exit Function
+    End If
+
+    If Not selector.Exists("type") Then
+        MsgBox "PrototypeNew: controlPart rule requires selector key 'type'.", vbExclamation
+        Exit Function
+    End If
+    If Not selector.Exists("part") Then
+        MsgBox "PrototypeNew: controlPart rule requires selector key 'part'.", vbExclamation
+        Exit Function
+    End If
+
+    controlType = LCase$(Trim$(CStr(selector("type"))))
+    partName = LCase$(Trim$(CStr(selector("part"))))
+    If selector.Exists("name") Then
+        controlName = LCase$(Trim$(CStr(selector("name"))))
+    End If
+
+    If Len(controlType) = 0 Then
+        MsgBox "PrototypeNew: controlPart selector 'type' is empty.", vbExclamation
+        Exit Function
+    End If
+    If Len(partName) = 0 Then
+        MsgBox "PrototypeNew: controlPart selector 'part' is empty.", vbExclamation
+        Exit Function
+    End If
+
+    If Not ex_ControlPartsRuntime.m_TryResolveControlPartScope( _
+        ws, controlType, controlName, partName, outScope, outColumnScope) Then Exit Function
+
+    mp_TryResolveControlPartTargetScope = True
 End Function
 
 Private Function mp_TryResolveRowTargetScope( _

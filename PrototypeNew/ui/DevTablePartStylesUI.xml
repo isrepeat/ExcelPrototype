@@ -1,0 +1,135 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<uiDefinition xmlns="urn:excelprototype:profiles" version="1">
+  <styles>
+    <controlStyle
+      name="actionWarning"
+      backColor="#ED7D31"
+      textColor="#0A0A0A"
+      borderColor="#A84912"
+      borderWeight="1.25"
+      fontName="Calibri"
+      fontSize="11"
+      fontBold="true"/>
+
+    <stylePipelineStage name="default" enabled="true">
+      <layer name="sheet-base" enabled="true">
+        <rule target="sheet"
+              styles="{
+                backColor:#1F1F1F;
+                fontColor:#EAEAEA;
+                borderColor:#000000;
+                borderWeight:thin;
+              }"/>
+      </layer>
+
+      <layer name="table-part-styles" enabled="true">
+        <rule target="controlPart"
+              selector="type=table;part=section"
+              styles="{
+                backColor:#1F4E79;
+                fontColor:#F2F8FF;
+                borderColor:#143550;
+                borderWeight:thin;
+                fontBold:true;
+                fontSize:11;
+              }"/>
+
+        <rule target="controlPart"
+              selector="type=table;part=header"
+              styles="{
+                backColor:#355D8C;
+                fontColor:#E7F1FF;
+                borderColor:#274467;
+                borderWeight:thin;
+                fontBold:true;
+                horizontal:center;
+              }"/>
+
+        <rule target="controlPart"
+              selector="type=table;part=rows"
+              styles="{
+                backColor:#2F2F2F;
+                fontColor:#F5F5F5;
+                borderColor:#222222;
+                borderWeight:thin;
+                fontBold:false;
+              }"/>
+
+        <rule target="controlPart"
+              selector="type=table;name=TablesListStyled;part=rows"
+              styles="{
+                horizontal:left;
+                vertical:center;
+              }"/>
+      </layer>
+    </stylePipelineStage>
+  </styles>
+
+  <templates>
+    <template name="bannerObjectTpl">
+      <control
+        type="Banner"
+        name="TablesBanner"
+        header="{Binding Path=Header}"
+        message="{Binding Path=Message}"
+        visible="{Binding Path=Visible}"
+        spanCells="12"
+        spanRows="3"/>
+    </template>
+  </templates>
+
+  <layout>
+    <grid anchorCell="A1">
+      <stackPanel at="r2c2" orientation="vertical">
+        <control
+          type="Button"
+          name="BackToDev"
+          caption="Back To Dev UI"
+          style="actionWarning"
+          onClick="{Binding Module=ex_Test;Method=m_TEST_RenderDevUI}"
+          spanCells="4"
+          spanRows="2"/>
+
+        <stackPanel orientation="horizontal">
+          <control
+            type="Button"
+            name="SetManyTables"
+            caption="Set 20 Tables"
+            style="actionWarning"
+            onClick="{Binding Module=ex_Test;Method=m_TEST_SetDemoTableItemsMany}"
+            spanCells="3"
+            spanRows="2"/>
+
+          <control
+            type="Button"
+            name="SetSingleTable"
+            caption="Set 1 Table"
+            style="actionWarning"
+            onClick="{Binding Module=ex_Test;Method=m_TEST_SetDemoTableItemsSingle}"
+            spanCells="3"
+            spanRows="2"/>
+
+          <control
+            type="Button"
+            name="InsertBanner"
+            caption="Insert Banner"
+            style="actionWarning"
+            onClick="{Binding Module=ex_Test;Method=m_TEST_InsertDemoBanner}"
+            spanCells="3"
+            spanRows="2"/>
+        </stackPanel>
+
+        <itemControl
+          objectSource="RuntimeObjects.Test.Banner"
+          objectSourceTemplate="bannerObjectTpl"/>
+
+        <control
+          type="Table"
+          name="TablesListStyled"
+          itemsSource="RuntimeItems.Test.Tables"
+          spanCells="12"
+          spanRows="220"/>
+      </stackPanel>
+    </grid>
+  </layout>
+</uiDefinition>

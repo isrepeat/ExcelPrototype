@@ -2,7 +2,7 @@ VERSION 1.0 CLASS
 BEGIN
   MultiUse = -1  'True
 END
-Attribute VB_Name = "obj_ButtonControlViewModel"
+Attribute VB_Name = "obj_ButtonControlVM"
 Option Explicit
 Implements obj_IControl
 
@@ -15,10 +15,10 @@ Private m_StyleName As String
 Private m_CaptionText As String
 Private m_OnClickMacroRef As String
 Private m_LayoutSheet As String
-Private m_LayoutLeft As Double
-Private m_LayoutTop As Double
-Private m_LayoutWidth As Double
-Private m_LayoutHeight As Double
+Private m_RowStart As Long
+Private m_ColStart As Long
+Private m_RowEnd As Long
+Private m_ColEnd As Long
 Private m_IsConfigured As Boolean
 
 Private Sub obj_IControl_Configure(ByVal controlNode As Object)
@@ -52,13 +52,23 @@ Private Sub obj_IControl_Configure(ByVal controlNode As Object)
         Exit Sub
     End If
 
-    If Not mp_TryReadLayoutDoubleAttr(controlNode, "__layoutLeft", m_LayoutLeft) Then Exit Sub
-    If Not mp_TryReadLayoutDoubleAttr(controlNode, "__layoutTop", m_LayoutTop) Then Exit Sub
-    If Not mp_TryReadLayoutDoubleAttr(controlNode, "__layoutWidth", m_LayoutWidth) Then Exit Sub
-    If Not mp_TryReadLayoutDoubleAttr(controlNode, "__layoutHeight", m_LayoutHeight) Then Exit Sub
+    If Not mp_TryReadLayoutLongAttr(controlNode, "__layoutRowStart", m_RowStart) Then Exit Sub
+    If Not mp_TryReadLayoutLongAttr(controlNode, "__layoutColStart", m_ColStart) Then Exit Sub
+    If Not mp_TryReadLayoutLongAttr(controlNode, "__layoutRowEnd", m_RowEnd) Then Exit Sub
+    If Not mp_TryReadLayoutLongAttr(controlNode, "__layoutColEnd", m_ColEnd) Then Exit Sub
 
-    If m_LayoutWidth <= 0# Or m_LayoutHeight <= 0# Then
-        MsgBox "Button: runtime layout width/height must be greater than zero for control '" & m_ControlName & "'.", vbExclamation
+    If m_RowStart <= 0 Or m_ColStart <= 0 Then
+        MsgBox "Button: invalid row/column start for control '" & m_ControlName & "'.", vbExclamation
+        Exit Sub
+    End If
+
+    If m_RowEnd < m_RowStart Then
+        MsgBox "Button: control '" & m_ControlName & "' has invalid spanRows range.", vbExclamation
+        Exit Sub
+    End If
+
+    If m_ColEnd < m_ColStart Then
+        MsgBox "Button: control '" & m_ControlName & "' has invalid spanCells range.", vbExclamation
         Exit Sub
     End If
 
@@ -69,6 +79,7 @@ Private Sub obj_IControl_Render(ByVal wb As Workbook)
     Dim ws As Worksheet
     Dim shp As Shape
     Dim buttonName As String
+    Dim targetRange As Range
 
     If Not m_IsConfigured Then
         MsgBox "Button: control '" & m_ControlName & "' is not configured.", vbExclamation
@@ -87,13 +98,26 @@ Private Sub obj_IControl_Render(ByVal wb As Workbook)
         Exit Sub
     End If
 
+    On Error GoTo EH_RANGE
+    Set targetRange = ws.Range(ws.Cells(m_RowStart, m_ColStart), ws.Cells(m_RowEnd, m_ColEnd))
+    On Error GoTo 0
+
+    If targetRange Is Nothing Then
+        MsgBox "Button: failed to resolve target range for control '" & m_ControlName & "'.", vbExclamation
+        Exit Sub
+    End If
+    If targetRange.Width <= 0# Or targetRange.Height <= 0# Then
+        MsgBox "Button: target range has non-positive width/height for control '" & m_ControlName & "'.", vbExclamation
+        Exit Sub
+    End If
+
     buttonName = "btn_" & m_ControlName
 
     On Error Resume Next
     ws.Shapes(buttonName).Delete
     On Error GoTo EH_BUTTON
 
-    Set shp = ws.Shapes.AddShape(msoShapeRoundedRectangle, m_LayoutLeft, m_LayoutTop, m_LayoutWidth, m_LayoutHeight)
+    Set shp = ws.Shapes.AddShape(msoShapeRoundedRectangle, targetRange.Left, targetRange.Top, targetRange.Width, targetRange.Height)
     shp.Name = buttonName
     shp.Placement = xlMoveAndSize
     shp.OnAction = m_OnClickMacroRef
@@ -113,6 +137,10 @@ Private Sub obj_IControl_Render(ByVal wb As Workbook)
 
 EH_BUTTON:
     MsgBox "Button: failed to render control '" & m_ControlName & "': " & Err.Description, vbExclamation
+    Exit Sub
+
+EH_RANGE:
+    MsgBox "Button: failed to resolve target range for control '" & m_ControlName & "': " & Err.Description, vbExclamation
 End Sub
 
 Private Function obj_IControl_SupportsAttribute(ByVal attrName As String) As Boolean
@@ -122,10 +150,10 @@ Private Function obj_IControl_SupportsAttribute(ByVal attrName As String) As Boo
     End Select
 End Function
 
-Private Function mp_TryReadLayoutDoubleAttr( _
+Private Function mp_TryReadLayoutLongAttr( _
     ByVal controlNode As Object, _
     ByVal attrName As String, _
-    ByRef outValue As Double _
+    ByRef outValue As Long _
 ) As Boolean
     Dim rawText As String
 
@@ -140,8 +168,8 @@ Private Function mp_TryReadLayoutDoubleAttr( _
         Exit Function
     End If
 
-    outValue = CDbl(rawText)
-    mp_TryReadLayoutDoubleAttr = True
+    outValue = CLng(rawText)
+    mp_TryReadLayoutLongAttr = True
 End Function
 
 Private Function mp_GetWorksheetByName(ByVal wb As Workbook, ByVal sheetName As String) As Worksheet

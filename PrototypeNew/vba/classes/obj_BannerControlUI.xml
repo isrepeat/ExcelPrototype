@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <uiDefinition xmlns="urn:excelprototype:profiles" version="1">
   <layout>
-    <control name="default" itemsSource="RuntimeItems.Test.Tables"/>
+    <control name="default" header="" message="" visible="false"/>
   </layout>
 </uiDefinition>
