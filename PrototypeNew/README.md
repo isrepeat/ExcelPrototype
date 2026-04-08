@@ -9,11 +9,13 @@ No hardcoded control names in VBA. UI page is described in XML, and runtime buil
 - Read Dev layout from `PrototypeNew/ui/DevUI.xml`.
 - For each declared control, use `type` as root and auto-resolve:
 	- control UI: `PrototypeNew/vba/classes/obj_<Type>ControlUI.xml`
-	- ViewModel: `obj_<Type>ControlViewModel`
+	- VM class: `obj_<Type>ControlVM`
 - Build controls through `obj_IControl` + `ex_ControlFactory`.
-- Render controls through object ViewModels (currently `obj_ButtonControlViewModel`, `obj_TableControlViewModel`).
+- Render controls through object VM classes (currently `obj_ButtonControlVM`, `obj_LabelControlVM`, `obj_TableControlVM`, `obj_TableSingleControlVM`, `obj_BannerControlVM`).
 - Button controls are rendered as Excel `Shape` objects (not Forms buttons) for richer visual customization.
+  - shape bounds are derived from layout cell span (`row/col start/end`) instead of runtime point attributes.
 - Table controls render list data directly into worksheet cells (faster path for bulk row output).
+- Label controls render text directly into worksheet cells and can be used inside nested list templates.
 
 ## Shared control attributes
 All controls support these common layout attributes via shared contract validation:
@@ -41,6 +43,18 @@ Run from `ex_Test`:
 	- registers demo table collections and renders nested-list table demo `ui\DevListUI.xml`.
 - `m_TEST_RenderDevTableListUI`
 	- alias for table list demo render.
+- `m_TEST_RenderDevPrimitiveTableUI`
+	- renders `ui\DevPrimitiveTableUI.xml` with table-like nested list templates built from primitive controls.
+- `m_TEST_RenderDevListTableSingleUI`
+	- registers demo 20 tables and renders `ui\DevListTableSingleUI.xml` (`List + itemsSourceTemplate + TableSingle` per item).
+- `m_TEST_RenderDevTablePartStylesUI`
+	- renders `ui\DevTablePartStylesUI.xml` with `controlPart` selector rules for `Table` sections.
+- `m_TEST_SetDemoTableItemsMany`
+	- updates `RuntimeItems.Test.Tables` with 20 tables; if a page was rendered already, triggers full page rerender.
+- `m_TEST_SetDemoTableItemsSingle`
+	- updates `RuntimeItems.Test.Tables` with a single merged table; triggers full page rerender.
+- `m_TEST_InsertDemoBanner`
+	- updates `RuntimeItems.Test.Banner` and inserts a `Banner` control before table list with full rerender.
 - `m_TEST_NoOp`
 	- empty click handler for display-only test controls.
 
@@ -81,6 +95,25 @@ Run from `ex_Test`:
 	- column count is dynamic per table item and validated against control `spanCells`.
 	- renders rows directly into worksheet cells in control span area, without nested template expansion.
 
+- `control type="TableSingle"` contract
+	- required attributes:
+		- `itemsSource`
+	- expects one table model item in collection (or takes first item if collection has many entries):
+		- `obj_TableDynamic`, or
+		- `obj_Table` (auto-converted to dynamic model at render time).
+	- intended for `list` item templates with object binding:
+		- `itemsSource="{Binding Path=.}"`.
+	- renders one table block (section, header, rows, spacer) into allocated span.
+
+- `control type="Banner"` contract
+	- required attributes:
+		- `itemsSource`
+	- expects first item in collection with fields:
+		- `Header`
+		- `Message`
+		- `Visible` (`true/false`, optional; if absent inferred by non-empty header/message)
+	- when `Visible=false`, banner rows are collapsed (`Hidden=True`); when visible, header/message block is rendered.
+
 - table object model classes
 	- `obj_Table`
 		- fixed-size table; call `m_Init(rowCount, columnCount)` on creation.
@@ -94,19 +127,20 @@ Run from `ex_Test`:
 
 - `ex_ListItemsSourceRuntime`
 	- runtime source registry for `list` items.
-	- `m_SetItemsSource(key, itemsCollection)` registers list data for key-based `itemsSource`.
+	- `m_SetItemsSource(key, itemsCollection, notifyChange)` registers list data for key-based `itemsSource`.
+	- when `notifyChange=True` and key is not internal runtime key, runtime triggers full rerender of last rendered page.
 	- `m_ResetItemsSources()` clears runtime list sources.
 	- `itemsSource` can be:
 		- key registered through `m_SetItemsSource`,
 		- binding expression resolved against runtime items source map,
 		- inline scalar list (`a|b|c` or `a;b;c`).
 
-- `ex_XmlLayoutEngine.m_RenderTemplateChildren(wb, ws, templateControlNode, left, top, width, height, depth)`
+- `ex_XmlLayoutEngine.m_RenderTemplateChildren(wb, ws, templateControlNode, depth, layoutRowStart, layoutColStart, layoutRowEnd, layoutColEnd)`
 	- recursively renders composite controls declared inside control templates.
 
-- `ex_ControlRenderer.m_RenderControl(wb, ws, layoutControlNode, left, top, width, height, recursionDepth, layoutRowStart, layoutColStart, layoutRowEnd, layoutColEnd)`
+- `ex_ControlRenderer.m_RenderControl(wb, ws, layoutControlNode, recursionDepth, layoutRowStart, layoutColStart, layoutRowEnd, layoutColEnd)`
 	- validates control attributes against each control's contract (`obj_IControl.SupportsAttribute`).
-	- loads control template `obj_<Type>ControlUI.xml`, applies allowed overrides from page UI, and renders control ViewModel.
+	- loads control template `obj_<Type>ControlUI.xml`, applies allowed overrides from page UI, and renders control VM class.
 	- passes worksheet row/column bounds to controls rendered from worksheet-span layout path.
 	- triggers recursive rendering for template child controls via `ex_XmlLayoutEngine`.
 
@@ -120,6 +154,11 @@ Run from `ex_Test`:
 - `ex_StylePipelineEngine.m_ApplyPageStyleStage(ws, wsUiDoc, stageName)`
 	- explicit stage execution API.
 	- use for post-processing stages (analogue of old Prototype banners stage).
-	- `stylePipelineStage` supports only cell targets: `row`, `column`, `cell`, `range`, `usedrange`, `sheet`.
-	- supported rule selector keys: `col`, `row`, `address`.
+	- `stylePipelineStage` supports targets: `row`, `column`, `cell`, `range`, `usedrange`, `sheet`, `controlPart`.
+	- supported rule selector keys: `col`, `row`, `address`, `type`, `name`, `part`.
+	- `controlPart` target contract:
+		- required selector keys: `type`, `part`
+		- optional selector key: `name`
+		- currently registered control type: `table`
+		- supported table parts: `section`, `header`, `rows`, `spacer`
 	- button visuals should be styled via `controlStyle`; pipeline rules are intended for sheet cell formatting.

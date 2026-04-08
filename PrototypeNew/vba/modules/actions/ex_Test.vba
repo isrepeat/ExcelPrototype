@@ -24,6 +24,66 @@ Public Sub m_TEST_RenderDevTableListUI()
     m_TEST_RenderDevListUI
 End Sub
 
+Public Sub m_TEST_RenderDevPrimitiveTableUI()
+    Dim ws As Worksheet
+
+    Set ws = mp_GetActiveWorksheet()
+    If ws Is Nothing Then Exit Sub
+
+    If Not m_TEST_RegisterDemoTableItems() Then Exit Sub
+    ex_SheetRenderer.m_RenderWorksheet ws, "ui\DevPrimitiveTableUI.xml"
+End Sub
+
+Public Sub m_TEST_RenderDevListTableSingleUI()
+    Dim ws As Worksheet
+
+    Set ws = mp_GetActiveWorksheet()
+    If ws Is Nothing Then Exit Sub
+
+    If Not m_TEST_RegisterDemoTableItems() Then Exit Sub
+    ex_SheetRenderer.m_RenderWorksheet ws, "ui\DevListTableSingleUI.xml"
+End Sub
+
+Public Sub m_TEST_RenderDevTablePartStylesUI()
+    Dim ws As Worksheet
+    Dim tables As Collection
+
+    Set ws = mp_GetActiveWorksheet()
+    If ws Is Nothing Then Exit Sub
+
+    Set tables = m_TEST_BuildDemoTableItems()
+    If tables Is Nothing Then Exit Sub
+
+    ex_ListItemsSourceRuntime.m_ResetItemsSources
+    ex_ObjectSourceRuntime.m_ResetObjectSources
+    If Not ex_ListItemsSourceRuntime.m_SetItemsSource("RuntimeItems.Test.Tables", tables, False) Then Exit Sub
+    If Not m_TEST_RegisterDemoBannerItems(False, False) Then Exit Sub
+
+    ex_SheetRenderer.m_RenderWorksheet ws, "ui\DevTablePartStylesUI.xml"
+End Sub
+
+Public Sub m_TEST_SetDemoTableItemsMany()
+    Dim tables As Collection
+
+    Set tables = m_TEST_BuildDemoTableItems()
+    If tables Is Nothing Then Exit Sub
+
+    If Not ex_ListItemsSourceRuntime.m_SetItemsSource("RuntimeItems.Test.Tables", tables, True) Then Exit Sub
+End Sub
+
+Public Sub m_TEST_SetDemoTableItemsSingle()
+    Dim tables As Collection
+
+    Set tables = m_TEST_BuildDemoSingleTableItems()
+    If tables Is Nothing Then Exit Sub
+
+    If Not ex_ListItemsSourceRuntime.m_SetItemsSource("RuntimeItems.Test.Tables", tables, True) Then Exit Sub
+End Sub
+
+Public Sub m_TEST_InsertDemoBanner()
+    If Not m_TEST_RegisterDemoBannerItems(True, True) Then Exit Sub
+End Sub
+
 Public Sub m_TEST_ProfileDevTableListUI()
     Dim ws As Worksheet
     Dim tables As Collection
@@ -42,7 +102,7 @@ Public Sub m_TEST_ProfileDevTableListUI()
     If tables Is Nothing Then Exit Sub
 
     ex_ListItemsSourceRuntime.m_ResetItemsSources
-    If Not ex_ListItemsSourceRuntime.m_SetItemsSource("RuntimeItems.Test.Tables", tables) Then Exit Sub
+    If Not ex_ListItemsSourceRuntime.m_SetItemsSource("RuntimeItems.Test.Tables", tables, False) Then Exit Sub
     t2 = Timer
 
     ex_SheetRenderer.m_RenderWorksheet ws, "ui\DevListUI.xml"
@@ -90,40 +150,64 @@ Public Sub m_TEST_RenderDevSingleTableUI()
     ex_SheetRenderer.m_RenderWorksheet ws, "ui\DevListUI.xml"
 End Sub
 
-Public Function m_TEST_RegisterDemoListItems() As Boolean
+Public Function m_TEST_RegisterDemoListItems(Optional ByVal notifyChange As Boolean = False) As Boolean
     Dim items As Collection
 
     Set items = m_TEST_BuildDemoListItems()
     If items Is Nothing Then Exit Function
 
     ex_ListItemsSourceRuntime.m_ResetItemsSources
-    If Not ex_ListItemsSourceRuntime.m_SetItemsSource("RuntimeItems.Test.People", items) Then Exit Function
+    ex_ObjectSourceRuntime.m_ResetObjectSources
+    If Not ex_ListItemsSourceRuntime.m_SetItemsSource("RuntimeItems.Test.People", items, notifyChange) Then Exit Function
 
     m_TEST_RegisterDemoListItems = True
 End Function
 
-Public Function m_TEST_RegisterDemoTableItems() As Boolean
+Public Function m_TEST_RegisterDemoTableItems(Optional ByVal notifyChange As Boolean = False) As Boolean
     Dim tables As Collection
 
     Set tables = m_TEST_BuildDemoTableItems()
     If tables Is Nothing Then Exit Function
 
     ex_ListItemsSourceRuntime.m_ResetItemsSources
-    If Not ex_ListItemsSourceRuntime.m_SetItemsSource("RuntimeItems.Test.Tables", tables) Then Exit Function
+    ex_ObjectSourceRuntime.m_ResetObjectSources
+    If Not ex_ListItemsSourceRuntime.m_SetItemsSource("RuntimeItems.Test.Tables", tables, notifyChange) Then Exit Function
 
     m_TEST_RegisterDemoTableItems = True
 End Function
 
-Public Function m_TEST_RegisterDemoSingleTableItems() As Boolean
+Public Function m_TEST_RegisterDemoSingleTableItems(Optional ByVal notifyChange As Boolean = False) As Boolean
     Dim tables As Collection
 
     Set tables = m_TEST_BuildDemoSingleTableItems()
     If tables Is Nothing Then Exit Function
 
     ex_ListItemsSourceRuntime.m_ResetItemsSources
-    If Not ex_ListItemsSourceRuntime.m_SetItemsSource("RuntimeItems.Test.Tables", tables) Then Exit Function
+    ex_ObjectSourceRuntime.m_ResetObjectSources
+    If Not ex_ListItemsSourceRuntime.m_SetItemsSource("RuntimeItems.Test.Tables", tables, notifyChange) Then Exit Function
 
     m_TEST_RegisterDemoSingleTableItems = True
+End Function
+
+Public Function m_TEST_RegisterDemoBannerItems( _
+    Optional ByVal isVisible As Boolean = False, _
+    Optional ByVal notifyChange As Boolean = False _
+) As Boolean
+    Dim bannerObj As obj_Banner
+    Dim headerText As String
+    Dim messageText As String
+
+    If isVisible Then
+        headerText = "Data Source Updated"
+        messageText = "Banner was inserted before table list. Current layout was fully rerendered after objectSource update."
+        Set bannerObj = mp_CreateDemoBannerModel(headerText, messageText, isVisible)
+        If bannerObj Is Nothing Then Exit Function
+        If Not ex_ObjectSourceRuntime.m_SetObjectSource("RuntimeObjects.Test.Banner", bannerObj, notifyChange) Then Exit Function
+    Else
+        If Not ex_ObjectSourceRuntime.m_RemoveObjectSource("RuntimeObjects.Test.Banner", notifyChange) Then Exit Function
+    End If
+
+    m_TEST_RegisterDemoBannerItems = True
 End Function
 
 Public Function m_TEST_BuildDemoListItems() As Collection
@@ -285,6 +369,21 @@ Private Function mp_CreateDemoPerson(ByVal displayName As String, ByVal roleName
     rowObj("Role") = CStr(roleName)
 
     Set mp_CreateDemoPerson = rowObj
+End Function
+
+Private Function mp_CreateDemoBannerModel( _
+    ByVal headerText As String, _
+    ByVal messageText As String, _
+    ByVal isVisible As Boolean _
+) As obj_Banner
+    Dim bannerObj As obj_Banner
+
+    Set bannerObj = New obj_Banner
+    bannerObj.Header = CStr(headerText)
+    bannerObj.Message = CStr(messageText)
+    bannerObj.Visible = CBool(isVisible)
+
+    Set mp_CreateDemoBannerModel = bannerObj
 End Function
 
 Private Function mp_TryResolveDemoTableDynamic(ByVal tableObj As Variant, ByRef outTable As obj_TableDynamic) As Boolean

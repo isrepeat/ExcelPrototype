@@ -11,10 +11,6 @@ Public Function m_RenderControl( _
     ByVal wb As Workbook, _
     ByVal ws As Worksheet, _
     ByVal layoutControlNode As Object, _
-    ByVal leftPos As Double, _
-    ByVal topPos As Double, _
-    ByVal widthPos As Double, _
-    ByVal heightPos As Double, _
     Optional ByVal recursionDepth As Long = 0, _
     Optional ByVal layoutRowStart As Long = 0, _
     Optional ByVal layoutColStart As Long = 0, _
@@ -71,14 +67,14 @@ Public Function m_RenderControl( _
         wb, controlUiRelPath, layoutControlNode, control, layoutControlName, typeRoot)
     If runtimeControlNode Is Nothing Then Exit Function
 
-    mp_ApplyRuntimeLayoutBounds runtimeControlNode, ws.Name, leftPos, topPos, widthPos, heightPos, _
-        layoutRowStart, layoutColStart, layoutRowEnd, layoutColEnd
+    mp_ApplyRuntimeLayoutBounds runtimeControlNode, ws.Name, layoutRowStart, layoutColStart, layoutRowEnd, layoutColEnd
 
     control.Configure runtimeControlNode
     control.Render wb
 
     If Not ex_XmlLayoutEngine.m_RenderTemplateChildren( _
-        wb, ws, runtimeControlNode, leftPos, topPos, widthPos, heightPos, recursionDepth + 1) Then Exit Function
+        wb, ws, runtimeControlNode, recursionDepth + 1, _
+        layoutRowStart, layoutColStart, layoutRowEnd, layoutColEnd) Then Exit Function
 
     m_RenderControl = True
 End Function
@@ -181,20 +177,12 @@ End Function
 Private Sub mp_ApplyRuntimeLayoutBounds( _
     ByVal runtimeControlNode As Object, _
     ByVal sheetName As String, _
-    ByVal leftPos As Double, _
-    ByVal topPos As Double, _
-    ByVal widthPos As Double, _
-    ByVal heightPos As Double, _
     ByVal layoutRowStart As Long, _
     ByVal layoutColStart As Long, _
     ByVal layoutRowEnd As Long, _
     ByVal layoutColEnd As Long _
 )
     runtimeControlNode.setAttribute "__layoutSheet", sheetName
-    runtimeControlNode.setAttribute "__layoutLeft", CStr(leftPos)
-    runtimeControlNode.setAttribute "__layoutTop", CStr(topPos)
-    runtimeControlNode.setAttribute "__layoutWidth", CStr(widthPos)
-    runtimeControlNode.setAttribute "__layoutHeight", CStr(heightPos)
 
     If layoutRowStart > 0 Then runtimeControlNode.setAttribute "__layoutRowStart", CStr(layoutRowStart)
     If layoutColStart > 0 Then runtimeControlNode.setAttribute "__layoutColStart", CStr(layoutColStart)

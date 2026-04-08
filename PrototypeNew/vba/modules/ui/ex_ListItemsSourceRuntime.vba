@@ -2,12 +2,17 @@ Attribute VB_Name = "ex_ListItemsSourceRuntime"
 Option Explicit
 
 Private g_ItemsSourceMap As Object
+Private Const INTERNAL_RUNTIME_SOURCE_PREFIX As String = "__list_runtime_"
 
 Public Sub m_ResetItemsSources()
     Set g_ItemsSourceMap = Nothing
 End Sub
 
-Public Function m_SetItemsSource(ByVal itemsSourceKey As String, ByVal items As Collection) As Boolean
+Public Function m_SetItemsSource( _
+    ByVal itemsSourceKey As String, _
+    ByVal items As Collection, _
+    Optional ByVal notifyChange As Boolean = True _
+) As Boolean
     Dim normalizedKey As String
 
     normalizedKey = LCase$(Trim$(itemsSourceKey))
@@ -22,6 +27,13 @@ Public Function m_SetItemsSource(ByVal itemsSourceKey As String, ByVal items As 
 
     mp_EnsureItemsSourceMap
     Set g_ItemsSourceMap(normalizedKey) = items
+
+    If notifyChange Then
+        If Not mp_IsInternalRuntimeSourceKey(normalizedKey) Then
+            ex_SheetRenderer.m_TryRerenderLastRenderedPage "itemsSource:" & normalizedKey
+        End If
+    End If
+
     m_SetItemsSource = True
 End Function
 
@@ -78,6 +90,13 @@ Private Sub mp_EnsureItemsSourceMap()
     Set g_ItemsSourceMap = CreateObject("Scripting.Dictionary")
     g_ItemsSourceMap.CompareMode = 1
 End Sub
+
+Private Function mp_IsInternalRuntimeSourceKey(ByVal normalizedKey As String) As Boolean
+    normalizedKey = LCase$(Trim$(normalizedKey))
+    If Len(normalizedKey) = 0 Then Exit Function
+
+    mp_IsInternalRuntimeSourceKey = (Left$(normalizedKey, Len(INTERNAL_RUNTIME_SOURCE_PREFIX)) = INTERNAL_RUNTIME_SOURCE_PREFIX)
+End Function
 
 Private Function mp_TryParseInlineScalarList(ByVal rawText As String, ByRef outItems As Collection) As Boolean
     Dim normalized As String
