@@ -56,8 +56,10 @@ Public Sub m_RenderWorksheet(ByVal ws As Worksheet, Optional ByVal wsUiPath As S
     If wsUiDoc Is Nothing Then GoTo Cleanup
 
     ex_ControlPartsRuntime.m_ResetControlParts
+    ex_InlineTextRuntime.m_ResetInlineRuns
     If Not ex_XmlLayoutEngine.m_RenderPageLayout(wb, ws, wsUiDoc) Then GoTo Cleanup
     If Not ex_StylePipelineEngine.m_ApplyPageStyles(ws, wsUiDoc) Then GoTo Cleanup
+    If Not ex_InlineTextRuntime.m_ApplyInlineRuns(ws) Then GoTo Cleanup
 
 Cleanup:
     mp_LeaveFastRenderMode app, prevScreenUpdating, prevEnableEvents, prevDisplayAlerts, prevCalculation, prevStatusBar

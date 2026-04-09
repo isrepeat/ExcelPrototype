@@ -194,8 +194,8 @@ Public Function m_TEST_RegisterDemoBannerItems( _
     Dim messageText As String
 
     If isVisible Then
-        headerText = "Data Source Updated"
-        messageText = "Banner was inserted before table list. Current layout was fully rerendered after objectSource update."
+        headerText = "Data Source [[accent]]Updated[[/accent]]"
+        messageText = "Rows: [[ok]]20 tables[[/ok]]. State: [[warn]]runtime refresh[[/warn]]."
         Set bannerObj = mp_CreateDemoBannerModel(headerText, messageText, isVisible)
         If bannerObj Is Nothing Then Exit Function
         If Not ex_ObjectSourceRuntime.m_SetObjectSource("RuntimeObjects.Test.Banner", bannerObj, notifyChange) Then Exit Function
