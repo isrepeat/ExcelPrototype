@@ -13,6 +13,7 @@ Private Sub Class_Initialize()
     Set m_Model = New obj_Banner
     Set m_Presentation = New obj_Presentation
     m_Presentation.PartName = "banner"
+    m_Presentation.InlineMarkersEnabled = True
 End Sub
 
 Public Property Get Model() As obj_Banner
@@ -34,6 +35,8 @@ End Property
 Public Property Set Presentation(ByVal value As obj_Presentation)
     If value Is Nothing Then
         Set m_Presentation = New obj_Presentation
+        m_Presentation.PartName = "banner"
+        m_Presentation.InlineMarkersEnabled = True
     Else
         Set m_Presentation = value
     End If
@@ -73,6 +76,10 @@ Public Function m_Render( _
     Dim messageRange As Range
     Dim messageRowStart As Long
     Dim visibleNow As Boolean
+    Dim headerTextResolved As String
+    Dim messageTextResolved As String
+    Dim headerRuns As Collection
+    Dim messageRuns As Collection
 
     If ws Is Nothing Then
         MsgBox "BannerViewItem: worksheet is not specified.", vbExclamation
@@ -91,6 +98,9 @@ Public Function m_Render( _
     Set targetRange = ws.Range(ws.Cells(rowStart, colStart), ws.Cells(rowEnd, colEnd))
     On Error GoTo 0
 
+    If Not mp_TryResolveInlineText(m_Model.Header, headerTextResolved, headerRuns) Then Exit Function
+    If Not mp_TryResolveInlineText(m_Model.Message, messageTextResolved, messageRuns) Then Exit Function
+
     visibleNow = mp_IsVisibleResolved()
 
     targetRange.UnMerge
@@ -105,14 +115,14 @@ Public Function m_Render( _
     Set headerRange = ws.Range(ws.Cells(rowStart, colStart), ws.Cells(rowStart, colEnd))
     headerRange.UnMerge
     headerRange.Merge
-    headerRange.Value2 = m_Model.Header
+    headerRange.Value2 = headerTextResolved
 
     messageRowStart = rowStart + 1
     If messageRowStart > rowEnd Then messageRowStart = rowEnd
     Set messageRange = ws.Range(ws.Cells(messageRowStart, colStart), ws.Cells(rowEnd, colEnd))
     messageRange.UnMerge
     messageRange.Merge
-    messageRange.Value2 = m_Model.Message
+    messageRange.Value2 = messageTextResolved
 
     targetRange.Interior.Color = RGB(45, 74, 104)
     targetRange.Borders.LineStyle = xlContinuous
@@ -120,7 +130,7 @@ Public Function m_Render( _
     targetRange.Borders.Weight = xlThin
 
     headerRange.Font.Color = RGB(245, 251, 255)
-    headerRange.Font.Bold = True
+    headerRange.Font.Bold = False
     headerRange.Font.Size = 11
     headerRange.HorizontalAlignment = xlHAlignLeft
     headerRange.VerticalAlignment = xlVAlignCenter
@@ -132,6 +142,9 @@ Public Function m_Render( _
     messageRange.HorizontalAlignment = xlHAlignLeft
     messageRange.VerticalAlignment = xlVAlignTop
     messageRange.WrapText = True
+
+    If Not ex_InlineTextRuntime.m_RegisterInlineRuns(ws, headerRange, headerRuns, m_Presentation) Then Exit Function
+    If Not ex_InlineTextRuntime.m_RegisterInlineRuns(ws, messageRange, messageRuns, m_Presentation) Then Exit Function
 
     m_Render = True
     Exit Function
@@ -162,4 +175,20 @@ Private Function mp_IsVisibleResolved() As Boolean
     Else
         mp_IsVisibleResolved = (m_Model.Visible And m_Presentation.EffectiveVisible)
     End If
+End Function
+
+Private Function mp_TryResolveInlineText( _
+    ByVal rawText As String, _
+    ByRef outText As String, _
+    ByRef outRuns As Collection _
+) As Boolean
+    If m_Presentation Is Nothing Then
+        outText = rawText
+        Set outRuns = Nothing
+        mp_TryResolveInlineText = True
+        Exit Function
+    End If
+
+    If Not m_Presentation.m_TryResolveInlineText(rawText, outText, outRuns) Then Exit Function
+    mp_TryResolveInlineText = True
 End Function
