@@ -11,6 +11,46 @@
       fontSize="11"
       fontBold="true"/>
 
+    <controlStyle
+      name="tableSection"
+      backColor="#173A5E"
+      textColor="#EAF6FF"
+      borderColor="#0E2239"
+      borderWeight="1.25"
+      fontName="Calibri"
+      fontSize="11"
+      fontBold="true"/>
+
+    <controlStyle
+      name="tableHeader"
+      backColor="#2B4A6B"
+      textColor="#DDEEFF"
+      borderColor="#1F3650"
+      borderWeight="1"
+      fontName="Calibri"
+      fontSize="10"
+      fontBold="true"/>
+
+    <controlStyle
+      name="tableCell"
+      backColor="#3A3A3A"
+      textColor="#F0F0F0"
+      borderColor="#2A2A2A"
+      borderWeight="1"
+      fontName="Calibri"
+      fontSize="10"
+      fontBold="false"/>
+
+    <controlStyle
+      name="tableSpacer"
+      backColor="#1F1F1F"
+      textColor="#1F1F1F"
+      borderColor="#1F1F1F"
+      borderWeight="hairline"
+      fontName="Calibri"
+      fontSize="8"
+      fontBold="false"/>
+
     <stylePipelineStage name="default" enabled="true">
       <layer name="sheet-base" enabled="true">
         <rule target="sheet"
@@ -24,6 +64,7 @@
     </stylePipelineStage>
   </styles>
 
+ 
   <layout>
     <grid anchorCell="A1">
       <stackPanel at="r2c2" orientation="vertical">
@@ -37,11 +78,11 @@
           spanRows="2"/>
 
         <control
-          type="TableTpl"
-          name="default"
+          type="TableList"
+          name="TablesListFast"
           itemsSource="RuntimeItems.Test.Tables"
           spanCells="12"
-          spanRows="260"/>
+          spanRows="220"/>
       </stackPanel>
     </grid>
   </layout>

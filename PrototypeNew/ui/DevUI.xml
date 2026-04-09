@@ -65,7 +65,7 @@
                 spanCells="3"
                 spanRows="2"
                 />
-              <control
+              <!-- <control
                 type="Button"
                 name="Open Primitive Table UI"
                 caption="Open Primitive Table Demo"
@@ -73,7 +73,7 @@
                 onClick="{Binding Module=ex_Test;Method=m_TEST_RenderDevPrimitiveTableUI}"
                 spanCells="3"
                 spanRows="2"
-                />
+                /> -->
               <control
                 type="Button"
                 name="Open List TableSingle UI"
@@ -101,7 +101,7 @@
                 spanCells="3"
                 spanRows="2"
                 />
-              <control
+              <!-- <control
                 type="Button"
                 name="Profile Table Render"
                 caption="Profile Table Render"
@@ -118,7 +118,7 @@
                 onClick="{Binding Module=ex_Test;Method=m_TEST_FillNumbersRangeSimple}"
                 spanCells="3"
                 spanRows="2"
-                />
+                /> -->
             </stackPanel>
       </stackPanel>
     </grid>

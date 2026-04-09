@@ -10,18 +10,14 @@ Public Sub m_TEST_RenderDevUI()
     ex_SheetRenderer.m_RenderWorksheet ws, "ui\DevUI.xml"
 End Sub
 
-Public Sub m_TEST_RenderDevListUI()
+Public Sub m_TEST_RenderDevTableListUI()
     Dim ws As Worksheet
 
     Set ws = mp_GetActiveWorksheet()
     If ws Is Nothing Then Exit Sub
 
     If Not m_TEST_RegisterDemoTableItems() Then Exit Sub
-    ex_SheetRenderer.m_RenderWorksheet ws, "ui\DevListUI.xml"
-End Sub
-
-Public Sub m_TEST_RenderDevTableListUI()
-    m_TEST_RenderDevListUI
+    ex_SheetRenderer.m_RenderWorksheet ws, "ui\DevTableListUI.xml"
 End Sub
 
 Public Sub m_TEST_RenderDevPrimitiveTableUI()
@@ -105,7 +101,7 @@ Public Sub m_TEST_ProfileDevTableListUI()
     If Not ex_ListItemsSourceRuntime.m_SetItemsSource("RuntimeItems.Test.Tables", tables, False) Then Exit Sub
     t2 = Timer
 
-    ex_SheetRenderer.m_RenderWorksheet ws, "ui\DevListUI.xml"
+    ex_SheetRenderer.m_RenderWorksheet ws, "ui\DevProfileTableUI.xml"
     t3 = Timer
 
     MsgBox "Profile (ms):" & vbCrLf & _
@@ -147,7 +143,7 @@ Public Sub m_TEST_RenderDevSingleTableUI()
     If ws Is Nothing Then Exit Sub
 
     If Not m_TEST_RegisterDemoSingleTableItems() Then Exit Sub
-    ex_SheetRenderer.m_RenderWorksheet ws, "ui\DevListUI.xml"
+    ex_SheetRenderer.m_RenderWorksheet ws, "ui\DevSingleTableUI.xml"
 End Sub
 
 Public Function m_TEST_RegisterDemoListItems(Optional ByVal notifyChange As Boolean = False) As Boolean
