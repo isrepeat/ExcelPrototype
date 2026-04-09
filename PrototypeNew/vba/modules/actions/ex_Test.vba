@@ -42,38 +42,38 @@ End Sub
 
 Public Sub m_TEST_RenderDevTablePartStylesUI()
     Dim ws As Worksheet
-    Dim tables As Collection
+    Dim tableViews As Collection
 
     Set ws = mp_GetActiveWorksheet()
     If ws Is Nothing Then Exit Sub
 
-    Set tables = m_TEST_BuildDemoTableItems()
-    If tables Is Nothing Then Exit Sub
+    Set tableViews = m_TEST_BuildDemoTableViewItems(False, False)
+    If tableViews Is Nothing Then Exit Sub
 
     ex_ListItemsSourceRuntime.m_ResetItemsSources
     ex_ObjectSourceRuntime.m_ResetObjectSources
-    If Not ex_ListItemsSourceRuntime.m_SetItemsSource("RuntimeItems.Test.Tables", tables, False) Then Exit Sub
+    If Not ex_ListItemsSourceRuntime.m_SetItemsSource("RuntimeItems.Test.Tables", tableViews, False) Then Exit Sub
     If Not m_TEST_RegisterDemoBannerItems(False, False) Then Exit Sub
 
     ex_SheetRenderer.m_RenderWorksheet ws, "ui\DevTablePartStylesUI.xml"
 End Sub
 
 Public Sub m_TEST_SetDemoTableItemsMany()
-    Dim tables As Collection
+    Dim tableViews As Collection
 
-    Set tables = m_TEST_BuildDemoTableItems()
-    If tables Is Nothing Then Exit Sub
+    Set tableViews = m_TEST_BuildDemoTableViewItems(True, True)
+    If tableViews Is Nothing Then Exit Sub
 
-    If Not ex_ListItemsSourceRuntime.m_SetItemsSource("RuntimeItems.Test.Tables", tables, True) Then Exit Sub
+    If Not ex_ListItemsSourceRuntime.m_SetItemsSource("RuntimeItems.Test.Tables", tableViews, True) Then Exit Sub
 End Sub
 
 Public Sub m_TEST_SetDemoTableItemsSingle()
-    Dim tables As Collection
+    Dim tableViews As Collection
 
-    Set tables = m_TEST_BuildDemoSingleTableItems()
-    If tables Is Nothing Then Exit Sub
+    Set tableViews = m_TEST_BuildDemoSingleTableViewItems(True, True)
+    If tableViews Is Nothing Then Exit Sub
 
-    If Not ex_ListItemsSourceRuntime.m_SetItemsSource("RuntimeItems.Test.Tables", tables, True) Then Exit Sub
+    If Not ex_ListItemsSourceRuntime.m_SetItemsSource("RuntimeItems.Test.Tables", tableViews, True) Then Exit Sub
 End Sub
 
 Public Sub m_TEST_InsertDemoBanner()
@@ -240,6 +240,151 @@ Public Function m_TEST_BuildDemoTableItems() As Collection
     Set m_TEST_BuildDemoTableItems = result
 End Function
 
+Public Function m_TEST_BuildDemoTableViewItems( _
+    Optional ByVal includeTableBanners As Boolean = False, _
+    Optional ByVal includeRowBanners As Boolean = False _
+) As Collection
+    Dim sourceTables As Collection
+    Dim result As Collection
+    Dim tableObj As Variant
+    Dim tableModel As obj_TableDynamic
+    Dim tableView As obj_TableViewItem
+    Dim rowObj As Variant
+    Dim rowView As obj_RowViewItem
+    Dim tableIndex As Long
+    Dim rowIndex As Long
+    Dim rowBannerTargetIndex As Long
+    Dim rowBannerPositionName As String
+
+    Set sourceTables = m_TEST_BuildDemoTableItems()
+    If sourceTables Is Nothing Then Exit Function
+
+    Set result = New Collection
+    Randomize
+
+    tableIndex = 0
+    For Each tableObj In sourceTables
+        tableIndex = tableIndex + 1
+
+        If Not mp_TryResolveDemoTableDynamic(tableObj, tableModel) Then Exit Function
+        Set tableView = mp_CreateTableViewItemFromTable(tableModel)
+        If tableView Is Nothing Then Exit Function
+
+        If includeTableBanners Then
+            If (tableIndex Mod 5) = 0 Then
+                Set tableView.Banner = mp_CreateBannerViewItem( _
+                    "Team note / " & Format$(tableIndex, "00"), _
+                    "This banner is attached to table item " & CStr(tableIndex) & ".", _
+                    True, _
+                    2)
+            End If
+        End If
+
+        rowBannerTargetIndex = 0
+        rowBannerPositionName = vbNullString
+        If includeRowBanners Then
+            If (tableIndex Mod 4) = 0 Then
+                rowBannerTargetIndex = mp_GetRandomRowBannerTargetIndex(tableModel.RowCount, rowBannerPositionName)
+            End If
+        End If
+
+        rowIndex = 0
+        For Each rowObj In tableModel.Rows
+            rowIndex = rowIndex + 1
+
+            If TypeName(rowObj) <> "obj_Row" Then
+                MsgBox "PrototypeNew: expected obj_Row in table rows for table view.", vbExclamation
+                Exit Function
+            End If
+
+            Set rowView = mp_CreateRowViewItemFromRow(rowObj)
+            If rowView Is Nothing Then Exit Function
+
+            If includeRowBanners Then
+                If rowBannerTargetIndex > 0 And rowIndex = rowBannerTargetIndex Then
+                    Set rowView.Banner = mp_CreateBannerViewItem( _
+                        "Row banner", _
+                        "Attached to " & rowBannerPositionName & " row of Team " & Format$(tableIndex, "00") & ".", _
+                        True, _
+                        2)
+                End If
+
+                If rowIndex = tableModel.RowCount And (tableIndex Mod 3) = 0 Then
+                    rowView.SpacerRowsAfter = 1
+                End If
+            End If
+
+            tableView.RowItems.Add rowView
+        Next rowObj
+
+        result.Add tableView
+    Next tableObj
+
+    Set m_TEST_BuildDemoTableViewItems = result
+End Function
+
+Public Function m_TEST_BuildDemoSingleTableViewItems( _
+    Optional ByVal includeTableBanners As Boolean = False, _
+    Optional ByVal includeRowBanners As Boolean = False _
+) As Collection
+    Dim sourceTables As Collection
+    Dim result As Collection
+    Dim tableObj As Variant
+    Dim tableModel As obj_TableDynamic
+    Dim tableView As obj_TableViewItem
+    Dim rowObj As Variant
+    Dim rowView As obj_RowViewItem
+    Dim rowIndex As Long
+
+    Set sourceTables = m_TEST_BuildDemoSingleTableItems()
+    If sourceTables Is Nothing Then Exit Function
+
+    Set result = New Collection
+
+    For Each tableObj In sourceTables
+        If Not mp_TryResolveDemoTableDynamic(tableObj, tableModel) Then Exit Function
+        Set tableView = mp_CreateTableViewItemFromTable(tableModel)
+        If tableView Is Nothing Then Exit Function
+
+        If includeTableBanners Then
+            Set tableView.Banner = mp_CreateBannerViewItem( _
+                "Merged table note", _
+                "This banner is attached to merged single table view.", _
+                True, _
+                2)
+        End If
+
+        rowIndex = 0
+        For Each rowObj In tableModel.Rows
+            rowIndex = rowIndex + 1
+
+            If TypeName(rowObj) <> "obj_Row" Then
+                MsgBox "PrototypeNew: expected obj_Row in single table rows for table view.", vbExclamation
+                Exit Function
+            End If
+
+            Set rowView = mp_CreateRowViewItemFromRow(rowObj)
+            If rowView Is Nothing Then Exit Function
+
+            If includeRowBanners Then
+                If rowIndex = 1 Then
+                    Set rowView.Banner = mp_CreateBannerViewItem( _
+                        "First row", _
+                        "This row-level banner is attached before the first row.", _
+                        True, _
+                        2)
+                End If
+            End If
+
+            tableView.RowItems.Add rowView
+        Next rowObj
+
+        result.Add tableView
+    Next tableObj
+
+    Set m_TEST_BuildDemoSingleTableViewItems = result
+End Function
+
 Private Function mp_CreateGeneratedRowsForTeam( _
     ByVal tableIndex As Long, _
     ByVal rowsCount As Long, _
@@ -380,6 +525,84 @@ Private Function mp_CreateDemoBannerModel( _
     bannerObj.Visible = CBool(isVisible)
 
     Set mp_CreateDemoBannerModel = bannerObj
+End Function
+
+Private Function mp_CreateBannerViewItem( _
+    ByVal headerText As String, _
+    ByVal messageText As String, _
+    ByVal isVisible As Boolean, _
+    Optional ByVal spanRows As Long = 2 _
+) As obj_BannerViewItem
+    Dim bannerView As obj_BannerViewItem
+
+    Set bannerView = New obj_BannerViewItem
+    bannerView.Model.Header = CStr(headerText)
+    bannerView.Model.Message = CStr(messageText)
+    bannerView.Model.Visible = CBool(isVisible)
+    bannerView.Presentation.EffectiveVisible = CBool(isVisible)
+    bannerView.Presentation.SpanRows = spanRows
+
+    Set mp_CreateBannerViewItem = bannerView
+End Function
+
+Private Function mp_CreateTableViewItemFromTable(ByVal tableModel As obj_TableDynamic) As obj_TableViewItem
+    Dim tableView As obj_TableViewItem
+
+    If tableModel Is Nothing Then
+        MsgBox "PrototypeNew: table model is not specified for table view.", vbExclamation
+        Exit Function
+    End If
+
+    Set tableView = New obj_TableViewItem
+    Set tableView.Model = tableModel
+    tableView.ItemVisible = True
+
+    Set mp_CreateTableViewItemFromTable = tableView
+End Function
+
+Private Function mp_CreateRowViewItemFromRow(ByVal rowModel As obj_Row) As obj_RowViewItem
+    Dim rowView As obj_RowViewItem
+
+    If rowModel Is Nothing Then
+        MsgBox "PrototypeNew: row model is not specified for row view.", vbExclamation
+        Exit Function
+    End If
+
+    Set rowView = New obj_RowViewItem
+    Set rowView.Row = rowModel
+    rowView.RowVisible = True
+
+    Set mp_CreateRowViewItemFromRow = rowView
+End Function
+
+Private Function mp_GetRandomRowBannerTargetIndex( _
+    ByVal rowCount As Long, _
+    ByRef outPositionName As String _
+) As Long
+    Dim slotRoll As Long
+
+    outPositionName = "first"
+    If rowCount <= 0 Then Exit Function
+    If rowCount = 1 Then
+        mp_GetRandomRowBannerTargetIndex = 1
+        Exit Function
+    End If
+
+    slotRoll = Int(Rnd * 3) + 1
+
+    Select Case slotRoll
+        Case 1
+            mp_GetRandomRowBannerTargetIndex = 1
+            outPositionName = "first"
+
+        Case 2
+            mp_GetRandomRowBannerTargetIndex = ((rowCount - 1) \ 2) + 1
+            outPositionName = "middle"
+
+        Case Else
+            mp_GetRandomRowBannerTargetIndex = rowCount
+            outPositionName = "last"
+    End Select
 End Function
 
 Private Function mp_TryResolveDemoTableDynamic(ByVal tableObj As Variant, ByRef outTable As obj_TableDynamic) As Boolean

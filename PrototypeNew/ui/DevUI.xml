@@ -76,15 +76,6 @@
                 /> -->
               <control
                 type="Button"
-                name="Open List TableSingle UI"
-                caption="Open List + TableSingle Demo"
-                style="actionWarning"
-                onClick="{Binding Module=ex_Test;Method=m_TEST_RenderDevListTableSingleUI}"
-                spanCells="3"
-                spanRows="2"
-                />
-              <control
-                type="Button"
                 name="Open Table Part Styles UI"
                 caption="Open Table Part Styles Demo"
                 style="actionWarning"
@@ -92,6 +83,16 @@
                 spanCells="3"
                 spanRows="2"
                 />
+              <control
+                type="Button"
+                name="Open List TableSingle UI"
+                caption="Open List + TableSingle Demo"
+                style="actionWarning"
+                onClick="{Binding Module=ex_Test;Method=m_TEST_RenderDevListTableSingleUI}"
+                spanCells="3"
+                spanRows="2"
+                />
+              
               <control
                 type="Button"
                 name="Update UI Single"

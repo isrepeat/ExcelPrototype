@@ -20,12 +20,15 @@ Private m_ColEnd As Long
 Private m_TableItems As Collection
 Private m_IsConfigured As Boolean
 
+' //
+' // Interface
+' //
 Private Sub obj_IControl_Configure(ByVal controlNode As Object)
     m_IsConfigured = False
     Set m_TableItems = Nothing
 
     If controlNode Is Nothing Then
-        MsgBox "Table: control node is not specified.", vbExclamation
+        MsgBox "TableList: control node is not specified.", vbExclamation
         Exit Sub
     End If
 
@@ -33,15 +36,16 @@ Private Sub obj_IControl_Configure(ByVal controlNode As Object)
     If Len(m_ControlName) = 0 Then m_ControlName = "tablelist"
 
     m_ItemsSourceRaw = Trim$(CStr(ex_XmlCore.m_NodeAttrText(controlNode, "itemsSource")))
-    If Len(m_ItemsSourceRaw) = 0 Then 
-        MsgBox "Table: itemsSource is not specified for control '" & m_ControlName & "'.", vbExclamation
+    If Len(m_ItemsSourceRaw) = 0 Then
+        MsgBox "TableList: itemsSource is not specified for control '" & m_ControlName & "'.", vbExclamation
         Exit Sub
     End If
+
     m_ItemVisibilityRaw = Trim$(CStr(ex_XmlCore.m_NodeAttrText(controlNode, "itemVisibility")))
 
     m_LayoutSheet = Trim$(ex_XmlCore.m_NodeAttrText(controlNode, "__layoutSheet"))
     If Len(m_LayoutSheet) = 0 Then
-        MsgBox "Table: runtime layout sheet is missing for control '" & m_ControlName & "'.", vbExclamation
+        MsgBox "TableList: runtime layout sheet is missing for control '" & m_ControlName & "'.", vbExclamation
         Exit Sub
     End If
 
@@ -51,17 +55,17 @@ Private Sub obj_IControl_Configure(ByVal controlNode As Object)
     If Not mp_TryReadLayoutLongAttr(controlNode, "__layoutColEnd", m_ColEnd, True) Then Exit Sub
 
     If m_RowStart <= 0 Or m_ColStart <= 0 Then
-        MsgBox "Table: invalid row/column start for control '" & m_ControlName & "'.", vbExclamation
+        MsgBox "TableList: invalid row/column start for control '" & m_ControlName & "'.", vbExclamation
         Exit Sub
     End If
 
     If m_RowEnd < m_RowStart Then
-        MsgBox "Table: control '" & m_ControlName & "' has invalid spanRows range.", vbExclamation
+        MsgBox "TableList: control '" & m_ControlName & "' has invalid spanRows range.", vbExclamation
         Exit Sub
     End If
 
     If m_ColEnd < m_ColStart Then
-        MsgBox "Table: control '" & m_ControlName & "' has invalid spanCells range.", vbExclamation
+        MsgBox "TableList: control '" & m_ControlName & "' has invalid spanCells range.", vbExclamation
         Exit Sub
     End If
 
@@ -78,29 +82,28 @@ Private Sub obj_IControl_Render(ByVal wb As Workbook)
     Dim styleSegments As Collection
 
     If Not m_IsConfigured Then
-        MsgBox "Table: control '" & m_ControlName & "' is not configured.", vbExclamation
+        MsgBox "TableList: control '" & m_ControlName & "' is not configured.", vbExclamation
         Exit Sub
     End If
 
     If wb Is Nothing Then Set wb = ThisWorkbook
     If wb Is Nothing Then
-        MsgBox "Table: workbook is not specified for control '" & m_ControlName & "'.", vbExclamation
+        MsgBox "TableList: workbook is not specified for control '" & m_ControlName & "'.", vbExclamation
         Exit Sub
     End If
 
     Set ws = mp_GetWorksheetByName(wb, m_LayoutSheet)
     If ws Is Nothing Then
-        MsgBox "Table: sheet '" & m_LayoutSheet & "' was not found for control '" & m_ControlName & "'.", vbExclamation
+        MsgBox "TableList: sheet '" & m_LayoutSheet & "' was not found for control '" & m_ControlName & "'.", vbExclamation
         Exit Sub
     End If
 
     If m_TableItems Is Nothing Then
-        MsgBox "Table: itemsSource is not resolved for control '" & m_ControlName & "'.", vbExclamation
+        MsgBox "TableList: itemsSource is not resolved for control '" & m_ControlName & "'.", vbExclamation
         Exit Sub
     End If
 
-    ' Build a full in-memory block first, then write once to the sheet.
-    ' This avoids per-cell COM calls, which are the main render bottleneck.
+    ' Build in-memory first, then write once to minimize COM overhead.
     If Not mp_TryBuildRenderBuffer(valueBlock, styleSegments) Then Exit Sub
     If IsEmpty(valueBlock) Then Exit Sub
 
@@ -108,7 +111,6 @@ Private Sub obj_IControl_Render(ByVal wb As Workbook)
         ws.Cells(m_RowStart, m_ColStart), _
         ws.Cells(m_RowStart + UBound(valueBlock, 1) - 1, m_ColStart + UBound(valueBlock, 2) - 1))
 
-    ' Single bulk assignment is significantly faster than incremental writes.
     targetRange.Value2 = valueBlock
 
     If Not mp_TryRegisterControlPartSegments(ws, styleSegments) Then Exit Sub
@@ -125,6 +127,9 @@ Private Function obj_IControl_SupportsAttribute(ByVal attrName As String) As Boo
     End Select
 End Function
 
+' //
+' // Internal
+' //
 Private Function mp_TryApplyItemVisibilityFilter(ByRef tableItems As Collection) As Boolean
     Dim filteredItems As Collection
     Dim tableItem As Variant
@@ -136,7 +141,7 @@ Private Function mp_TryApplyItemVisibilityFilter(ByRef tableItems As Collection)
     End If
 
     If tableItems Is Nothing Then
-        MsgBox "Table: itemsSource is not resolved for control '" & m_ControlName & "'.", vbExclamation
+        MsgBox "TableList: itemsSource is not resolved for control '" & m_ControlName & "'.", vbExclamation
         Exit Function
     End If
 
@@ -144,7 +149,7 @@ Private Function mp_TryApplyItemVisibilityFilter(ByRef tableItems As Collection)
 
     For Each tableItem In tableItems
         If Not IsObject(tableItem) Then
-            MsgBox "Table: itemsSource entry must be an object for itemVisibility evaluation in control '" & m_ControlName & "'.", vbExclamation
+            MsgBox "TableList: itemsSource entry must be an object for itemVisibility evaluation in control '" & m_ControlName & "'.", vbExclamation
             Exit Function
         End If
 
@@ -167,7 +172,7 @@ Private Function mp_TryReadLayoutLongAttr( _
     rawText = Trim$(ex_XmlCore.m_NodeAttrText(controlNode, attrName))
     If Len(rawText) = 0 Then
         If isRequired Then
-            MsgBox "Table: runtime layout attribute '" & attrName & "' is missing for control '" & m_ControlName & "'.", vbExclamation
+            MsgBox "TableList: runtime layout attribute '" & attrName & "' is missing for control '" & m_ControlName & "'.", vbExclamation
             Exit Function
         End If
 
@@ -177,7 +182,7 @@ Private Function mp_TryReadLayoutLongAttr( _
     End If
 
     If Not IsNumeric(rawText) Then
-        MsgBox "Table: runtime layout attribute '" & attrName & "' must be numeric for control '" & m_ControlName & "'.", vbExclamation
+        MsgBox "TableList: runtime layout attribute '" & attrName & "' must be numeric for control '" & m_ControlName & "'.", vbExclamation
         Exit Function
     End If
 
@@ -187,61 +192,39 @@ End Function
 
 Private Function mp_TryBuildRenderBuffer(ByRef outValueBlock As Variant, ByRef outStyleSegments As Collection) As Boolean
     Dim tableItem As Variant
-    Dim tableModel As obj_TableDynamic
-    Dim tableRows As Collection
-    Dim tableColumnCount As Long
+    Dim tableView As obj_TableViewItem
     Dim availableCols As Long
     Dim maxRows As Long
     Dim plannedRows As Long
+    Dim rowsForItem As Long
     Dim currentOutputRow As Long
-    Dim dataRowsToWrite As Long
-    Dim rowItem As Variant
-    Dim rowModel As obj_Row
-    Dim colOffset As Long
-    Dim tokens As Variant
-    Dim writeStart As Long
-    Dim writeEnd As Long
 
     availableCols = mp_GetAvailableColumnCount()
     maxRows = m_RowEnd - m_RowStart + 1
 
     If availableCols <= 0 Or maxRows <= 0 Then
-        MsgBox "Table: invalid render bounds for control '" & m_ControlName & "'.", vbExclamation
+        MsgBox "TableList: invalid render bounds for control '" & m_ControlName & "'.", vbExclamation
         Exit Function
     End If
 
     plannedRows = 0
 
-    ' Pass 1: estimate final output size and validate table shape constraints.
-    ' Pre-sizing the matrix avoids repeated ReDim/Preserve in the hot path.
-
+    ' Pass 1: estimate output size up-front to allocate matrix once.
     For Each tableItem In m_TableItems
         If plannedRows >= maxRows Then Exit For
 
-        If Not mp_TryResolveTableModel(tableItem, tableModel) Then Exit Function
+        Set tableView = Nothing
+        If Not mp_TryResolveTableViewItem(tableItem, tableView) Then Exit Function
+        If tableView Is Nothing Then GoTo ContinueEstimate
 
-        tableColumnCount = tableModel.ColumnCount
-        If tableColumnCount <= 0 Then
-            MsgBox "Table: table item has no columns.", vbExclamation
-            Exit Function
-        End If
-
-        If tableColumnCount > availableCols Then
-            MsgBox "Table: control '" & m_ControlName & "' requires " & CStr(tableColumnCount) & _
-                   " columns, but span provides only " & CStr(availableCols) & ".", vbExclamation
-            Exit Function
-        End If
-
-        Set tableRows = tableModel.Rows
-        dataRowsToWrite = 0
-        If Not tableRows Is Nothing Then dataRowsToWrite = tableRows.Count
-
-        ' section + header + data + spacer
-        plannedRows = plannedRows + 2 + dataRowsToWrite + 1
+        If Not mp_TryEstimateTableOutputRows(tableView, availableCols, rowsForItem) Then Exit Function
+        plannedRows = plannedRows + rowsForItem
         If plannedRows > maxRows Then
             plannedRows = maxRows
             Exit For
         End If
+
+ContinueEstimate:
     Next tableItem
 
     If plannedRows = 0 Then
@@ -258,72 +241,341 @@ Private Function mp_TryBuildRenderBuffer(ByRef outValueBlock As Variant, ByRef o
 
     currentOutputRow = 0
 
-    ' Pass 2: fill matrix sequentially and collect compact style segments.
-    ' Data rows use obj_Row.m_CopyToMatrixRow to keep per-cell overhead minimal.
-
+    ' Pass 2: fill matrix sequentially.
     For Each tableItem In m_TableItems
         If currentOutputRow >= plannedRows Then Exit For
 
-        If Not mp_TryResolveTableModel(tableItem, tableModel) Then Exit Function
+        Set tableView = Nothing
+        If Not mp_TryResolveTableViewItem(tableItem, tableView) Then Exit Function
+        If tableView Is Nothing Then GoTo ContinueWrite
 
-        tableColumnCount = tableModel.ColumnCount
-        Set tableRows = tableModel.Rows
+        If Not mp_TryWriteTableItemToBuffer( _
+            tableView, outValueBlock, outStyleSegments, availableCols, plannedRows, currentOutputRow) Then Exit Function
 
-        ' Section row
-        currentOutputRow = currentOutputRow + 1
-        outValueBlock(currentOutputRow, 1) = tableModel.SectionTitle
-#If ENALBE_STYLES Then
-        mp_AddStyleSegment outStyleSegments, "section", tableColumnCount, currentOutputRow, currentOutputRow
-#End If
-        If currentOutputRow >= plannedRows Then Exit For
-
-        ' Header row
-        currentOutputRow = currentOutputRow + 1
-        tokens = Split(tableModel.HeaderText, "|")
-        For colOffset = 1 To tableColumnCount
-            If colOffset - 1 <= UBound(tokens) Then
-                outValueBlock(currentOutputRow, colOffset) = Trim$(CStr(tokens(colOffset - 1)))
-            End If
-        Next colOffset
-#If ENALBE_STYLES Then
-        mp_AddStyleSegment outStyleSegments, "header", tableColumnCount, currentOutputRow, currentOutputRow
-#End If
-        If currentOutputRow >= plannedRows Then Exit For
-
-        ' Data rows
-        writeStart = currentOutputRow + 1
-        If Not tableRows Is Nothing Then
-            On Error GoTo EH_INVALID_ROW
-            For Each rowItem In tableRows
-                If currentOutputRow >= plannedRows Then Exit For
-
-                currentOutputRow = currentOutputRow + 1
-                Set rowModel = rowItem
-                rowModel.m_CopyToMatrixRow outValueBlock, currentOutputRow, tableColumnCount
-            Next rowItem
-            On Error GoTo 0
-        End If
-        writeEnd = currentOutputRow
-#If ENALBE_STYLES Then
-        If writeEnd >= writeStart Then
-            mp_AddStyleSegment outStyleSegments, "data", tableColumnCount, writeStart, writeEnd
-        End If
-#End If
-        If currentOutputRow >= plannedRows Then Exit For
-
-        ' Spacer row
-        currentOutputRow = currentOutputRow + 1
-#If ENALBE_STYLES Then
-        mp_AddStyleSegment outStyleSegments, "spacer", tableColumnCount, currentOutputRow, currentOutputRow
-#End If
+ContinueWrite:
     Next tableItem
 
     mp_TryBuildRenderBuffer = True
+End Function
+
+Private Function mp_TryEstimateTableOutputRows( _
+    ByVal tableView As obj_TableViewItem, _
+    ByVal availableCols As Long, _
+    ByRef outRows As Long _
+) As Boolean
+    Dim tableModel As obj_TableDynamic
+    Dim rowItems As Collection
+    Dim rowItemRaw As Variant
+    Dim rowView As obj_RowViewItem
+
+    outRows = 0
+
+    If tableView Is Nothing Then
+        mp_TryEstimateTableOutputRows = True
+        Exit Function
+    End If
+
+    If Not tableView.m_IsVisible() Then
+        mp_TryEstimateTableOutputRows = True
+        Exit Function
+    End If
+
+    Set tableModel = tableView.Model
+    If tableModel Is Nothing Then
+        MsgBox "TableList: table view has no model.", vbExclamation
+        Exit Function
+    End If
+
+    If tableModel.ColumnCount <= 0 Then
+        MsgBox "TableList: table item has no columns.", vbExclamation
+        Exit Function
+    End If
+
+    If tableModel.ColumnCount > availableCols Then
+        MsgBox "TableList: control '" & m_ControlName & "' requires " & CStr(tableModel.ColumnCount) & _
+               " columns, but span provides only " & CStr(availableCols) & ".", vbExclamation
+        Exit Function
+    End If
+
+    outRows = outRows + mp_GetBannerRenderRows(tableView.Banner)
+
+    ' section + header
+    outRows = outRows + 2
+
+    Set rowItems = tableView.RowItems
+    If Not rowItems Is Nothing And rowItems.Count > 0 Then
+        For Each rowItemRaw In rowItems
+            Set rowView = Nothing
+            If Not mp_TryResolveRowViewItem(rowItemRaw, rowView) Then Exit Function
+            If rowView Is Nothing Then GoTo ContinueRowEstimate
+            If Not rowView.m_IsVisible() Then GoTo ContinueRowEstimate
+
+            outRows = outRows + mp_GetBannerRenderRows(rowView.Banner)
+            outRows = outRows + 1
+            outRows = outRows + rowView.SpacerRowsAfter
+
+ContinueRowEstimate:
+        Next rowItemRaw
+    Else
+        outRows = outRows + tableModel.RowCount
+    End If
+
+    ' Spacer after table
+    outRows = outRows + 1
+
+    mp_TryEstimateTableOutputRows = True
+End Function
+
+Private Function mp_TryWriteTableItemToBuffer( _
+    ByVal tableView As obj_TableViewItem, _
+    ByRef valueBlock As Variant, _
+    ByVal styleSegments As Collection, _
+    ByVal availableCols As Long, _
+    ByVal plannedRows As Long, _
+    ByRef ioCurrentOutputRow As Long _
+) As Boolean
+    Dim tableModel As obj_TableDynamic
+    Dim rowItems As Collection
+    Dim rowItemRaw As Variant
+    Dim rowView As obj_RowViewItem
+    Dim tableRows As Collection
+    Dim rowRaw As Variant
+    Dim rowModel As obj_Row
+    Dim colOffset As Long
+    Dim tokens As Variant
+    Dim writeStart As Long
+    Dim writeEnd As Long
+
+    If tableView Is Nothing Then
+        mp_TryWriteTableItemToBuffer = True
+        Exit Function
+    End If
+
+    If Not tableView.m_IsVisible() Then
+        mp_TryWriteTableItemToBuffer = True
+        Exit Function
+    End If
+
+    Set tableModel = tableView.Model
+    If tableModel Is Nothing Then
+        MsgBox "TableList: table view has no model.", vbExclamation
+        Exit Function
+    End If
+
+    If tableModel.ColumnCount <= 0 Then
+        MsgBox "TableList: table item has no columns.", vbExclamation
+        Exit Function
+    End If
+
+    If tableModel.ColumnCount > availableCols Then
+        MsgBox "TableList: control '" & m_ControlName & "' requires " & CStr(tableModel.ColumnCount) & _
+               " columns, but span provides only " & CStr(availableCols) & ".", vbExclamation
+        Exit Function
+    End If
+
+    If Not mp_TryAppendBannerBlock( _
+        tableView.Banner, "tablebanner", tableModel.ColumnCount, valueBlock, styleSegments, plannedRows, ioCurrentOutputRow) Then Exit Function
+    If ioCurrentOutputRow >= plannedRows Then
+        mp_TryWriteTableItemToBuffer = True
+        Exit Function
+    End If
+
+    ' Section row
+    ioCurrentOutputRow = ioCurrentOutputRow + 1
+    valueBlock(ioCurrentOutputRow, 1) = tableModel.SectionTitle
+#If ENALBE_STYLES Then
+    mp_AddStyleSegment styleSegments, "section", tableModel.ColumnCount, ioCurrentOutputRow, ioCurrentOutputRow
+#End If
+    If ioCurrentOutputRow >= plannedRows Then
+        mp_TryWriteTableItemToBuffer = True
+        Exit Function
+    End If
+
+    ' Header row
+    ioCurrentOutputRow = ioCurrentOutputRow + 1
+    tokens = Split(tableModel.HeaderText, "|")
+    For colOffset = 1 To tableModel.ColumnCount
+        If colOffset - 1 <= UBound(tokens) Then
+            valueBlock(ioCurrentOutputRow, colOffset) = Trim$(CStr(tokens(colOffset - 1)))
+        End If
+    Next colOffset
+#If ENALBE_STYLES Then
+    mp_AddStyleSegment styleSegments, "header", tableModel.ColumnCount, ioCurrentOutputRow, ioCurrentOutputRow
+#End If
+    If ioCurrentOutputRow >= plannedRows Then
+        mp_TryWriteTableItemToBuffer = True
+        Exit Function
+    End If
+
+    Set rowItems = tableView.RowItems
+
+    If Not rowItems Is Nothing And rowItems.Count > 0 Then
+        For Each rowItemRaw In rowItems
+            If ioCurrentOutputRow >= plannedRows Then Exit For
+
+            Set rowView = Nothing
+            If Not mp_TryResolveRowViewItem(rowItemRaw, rowView) Then Exit Function
+            If rowView Is Nothing Then GoTo ContinueRowView
+
+            If Not mp_TryAppendRowViewData( _
+                rowView, tableModel.ColumnCount, valueBlock, styleSegments, plannedRows, ioCurrentOutputRow) Then Exit Function
+
+ContinueRowView:
+        Next rowItemRaw
+    Else
+        Set tableRows = tableModel.Rows
+        If Not tableRows Is Nothing Then
+            writeStart = ioCurrentOutputRow + 1
+            On Error GoTo EH_INVALID_ROW
+            For Each rowRaw In tableRows
+                If ioCurrentOutputRow >= plannedRows Then Exit For
+
+                ioCurrentOutputRow = ioCurrentOutputRow + 1
+                Set rowModel = rowRaw
+                rowModel.m_CopyToMatrixRow valueBlock, ioCurrentOutputRow, tableModel.ColumnCount
+            Next rowRaw
+            On Error GoTo 0
+            writeEnd = ioCurrentOutputRow
+#If ENALBE_STYLES Then
+            If writeEnd >= writeStart Then
+                mp_AddStyleSegment styleSegments, "data", tableModel.ColumnCount, writeStart, writeEnd
+            End If
+#End If
+        End If
+    End If
+
+    If ioCurrentOutputRow >= plannedRows Then
+        mp_TryWriteTableItemToBuffer = True
+        Exit Function
+    End If
+
+    ' Spacer row
+    ioCurrentOutputRow = ioCurrentOutputRow + 1
+#If ENALBE_STYLES Then
+    mp_AddStyleSegment styleSegments, "spacer", tableModel.ColumnCount, ioCurrentOutputRow, ioCurrentOutputRow
+#End If
+
+    mp_TryWriteTableItemToBuffer = True
     Exit Function
 
 EH_INVALID_ROW:
     On Error GoTo 0
-    MsgBox "Table: unsupported row object in table rows. Expected obj_Row.", vbExclamation
+    MsgBox "TableList: unsupported row object in table rows. Expected obj_Row.", vbExclamation
+End Function
+
+Private Function mp_TryAppendRowViewData( _
+    ByVal rowView As obj_RowViewItem, _
+    ByVal columnCount As Long, _
+    ByRef valueBlock As Variant, _
+    ByVal styleSegments As Collection, _
+    ByVal plannedRows As Long, _
+    ByRef ioCurrentOutputRow As Long _
+) As Boolean
+    Dim rowModel As obj_Row
+    Dim spacerIndex As Long
+
+    If rowView Is Nothing Then
+        mp_TryAppendRowViewData = True
+        Exit Function
+    End If
+
+    If Not rowView.m_IsVisible() Then
+        mp_TryAppendRowViewData = True
+        Exit Function
+    End If
+
+    If Not mp_TryAppendBannerBlock( _
+        rowView.Banner, "rowbanner", columnCount, valueBlock, styleSegments, plannedRows, ioCurrentOutputRow) Then Exit Function
+
+    If ioCurrentOutputRow >= plannedRows Then
+        mp_TryAppendRowViewData = True
+        Exit Function
+    End If
+
+    Set rowModel = rowView.Row
+    If rowModel Is Nothing Then
+        MsgBox "TableList: row view item has no row model.", vbExclamation
+        Exit Function
+    End If
+
+    ioCurrentOutputRow = ioCurrentOutputRow + 1
+    rowModel.m_CopyToMatrixRow valueBlock, ioCurrentOutputRow, columnCount
+#If ENALBE_STYLES Then
+    mp_AddStyleSegment styleSegments, "data", columnCount, ioCurrentOutputRow, ioCurrentOutputRow
+#End If
+
+    For spacerIndex = 1 To rowView.SpacerRowsAfter
+        If ioCurrentOutputRow >= plannedRows Then Exit For
+
+        ioCurrentOutputRow = ioCurrentOutputRow + 1
+#If ENALBE_STYLES Then
+        mp_AddStyleSegment styleSegments, "spacer", columnCount, ioCurrentOutputRow, ioCurrentOutputRow
+#End If
+    Next spacerIndex
+
+    mp_TryAppendRowViewData = True
+End Function
+
+Private Function mp_TryAppendBannerBlock( _
+    ByVal bannerView As obj_BannerViewItem, _
+    ByVal styleKind As String, _
+    ByVal columnCount As Long, _
+    ByRef valueBlock As Variant, _
+    ByVal styleSegments As Collection, _
+    ByVal plannedRows As Long, _
+    ByRef ioCurrentOutputRow As Long _
+) As Boolean
+    Dim bannerRows As Long
+    Dim writeStart As Long
+    Dim writeEnd As Long
+    Dim bannerModel As obj_Banner
+    Dim rowOffset As Long
+
+    bannerRows = mp_GetBannerRenderRows(bannerView)
+    If bannerRows <= 0 Then
+        mp_TryAppendBannerBlock = True
+        Exit Function
+    End If
+
+    Set bannerModel = bannerView.Model
+    writeStart = ioCurrentOutputRow + 1
+
+    For rowOffset = 1 To bannerRows
+        If ioCurrentOutputRow >= plannedRows Then Exit For
+
+        ioCurrentOutputRow = ioCurrentOutputRow + 1
+
+        If Not bannerModel Is Nothing Then
+            If rowOffset = 1 Then
+                valueBlock(ioCurrentOutputRow, 1) = bannerModel.Header
+            ElseIf rowOffset = 2 Then
+                valueBlock(ioCurrentOutputRow, 1) = bannerModel.Message
+            End If
+        End If
+    Next rowOffset
+
+    writeEnd = ioCurrentOutputRow
+#If ENALBE_STYLES Then
+    If writeEnd >= writeStart Then
+        mp_AddStyleSegment styleSegments, styleKind, columnCount, writeStart, writeEnd
+    End If
+#End If
+
+    mp_TryAppendBannerBlock = True
+End Function
+
+Private Function mp_GetBannerRenderRows(ByVal bannerView As obj_BannerViewItem) As Long
+    Dim spanRows As Long
+
+    If bannerView Is Nothing Then Exit Function
+    If Not bannerView.m_IsVisible() Then Exit Function
+
+    If Not bannerView.Presentation Is Nothing Then
+        spanRows = bannerView.Presentation.SpanRows
+    End If
+
+    If spanRows <= 0 Then spanRows = 2
+    mp_GetBannerRenderRows = spanRows
 End Function
 
 Private Sub mp_AddStyleSegment( _
@@ -382,7 +634,6 @@ Private Sub mp_ApplyStyleSegments(ByVal ws As Worksheet, ByVal styleSegments As 
     If styleSegments Is Nothing Then Exit Sub
 
     ' Group by (style kind + column count) and union ranges.
-    ' This turns many small style calls into a few larger batch calls.
     Set groupedRanges = CreateObject("Scripting.Dictionary")
     groupedRanges.CompareMode = 1
 
@@ -471,6 +722,10 @@ Private Function mp_MapStyleKindToControlPart(ByVal styleKind As String) As Stri
             mp_MapStyleKindToControlPart = "rows"
         Case "spacer"
             mp_MapStyleKindToControlPart = "spacer"
+        Case "tablebanner"
+            mp_MapStyleKindToControlPart = "itembanner"
+        Case "rowbanner"
+            mp_MapStyleKindToControlPart = "rowbanner"
     End Select
 End Function
 
@@ -532,8 +787,22 @@ Private Function mp_TryResolveStylePreset( _
             fontSize = 8
             fontBold = False
 
+        Case "tablebanner"
+            backColor = RGB(45, 74, 104)
+            fontColor = RGB(245, 251, 255)
+            borderColor = RGB(26, 43, 61)
+            fontSize = 10
+            fontBold = True
+
+        Case "rowbanner"
+            backColor = RGB(52, 86, 118)
+            fontColor = RGB(240, 248, 255)
+            borderColor = RGB(33, 57, 82)
+            fontSize = 10
+            fontBold = False
+
         Case Else
-            MsgBox "Table: unsupported style segment kind '" & styleKind & "'.", vbExclamation
+            MsgBox "TableList: unsupported style segment kind '" & styleKind & "'.", vbExclamation
             Exit Function
     End Select
 
@@ -545,28 +814,109 @@ Private Function mp_GetAvailableColumnCount() As Long
     mp_GetAvailableColumnCount = m_ColEnd - m_ColStart + 1
 End Function
 
-Private Function mp_TryResolveTableModel(ByVal tableItem As Variant, ByRef outTable As obj_TableDynamic) As Boolean
+Private Function mp_TryResolveTableViewItem(ByVal rawItem As Variant, ByRef outTableView As obj_TableViewItem) As Boolean
+    Dim tableModel As obj_TableDynamic
+
+    If Not IsObject(rawItem) Then
+        MsgBox "TableList: itemsSource entry must be an object.", vbExclamation
+        Exit Function
+    End If
+
+    Select Case LCase$(TypeName(rawItem))
+        Case "obj_tableviewitem"
+            Set outTableView = rawItem
+            mp_TryResolveTableViewItem = True
+
+        Case "obj_tabledynamic", "obj_table"
+            If Not mp_TryResolveTableModelFromAny(rawItem, tableModel) Then Exit Function
+            Set outTableView = mp_CreateTableViewFromModel(tableModel)
+            If outTableView Is Nothing Then Exit Function
+            mp_TryResolveTableViewItem = True
+
+        Case Else
+            MsgBox "TableList: unsupported item type '" & TypeName(rawItem) & _
+                   "'. Expected obj_TableViewItem, obj_TableDynamic or obj_Table.", vbExclamation
+    End Select
+End Function
+
+Private Function mp_TryResolveTableModelFromAny(ByVal tableItem As Variant, ByRef outTable As obj_TableDynamic) As Boolean
     Dim fixedTable As obj_Table
 
     If Not IsObject(tableItem) Then
-        MsgBox "Table: itemsSource entry must be an object of type obj_TableDynamic or obj_Table.", vbExclamation
+        MsgBox "TableList: itemsSource entry must be an object of type obj_TableDynamic or obj_Table.", vbExclamation
         Exit Function
     End If
 
     Select Case LCase$(TypeName(tableItem))
         Case "obj_tabledynamic"
             Set outTable = tableItem
-            mp_TryResolveTableModel = True
+            mp_TryResolveTableModelFromAny = True
 
         Case "obj_table"
             Set fixedTable = tableItem
             Set outTable = mp_ConvertFixedTableToDynamic(fixedTable)
             If outTable Is Nothing Then Exit Function
-            mp_TryResolveTableModel = True
+            mp_TryResolveTableModelFromAny = True
 
         Case Else
-            MsgBox "Table: unsupported table model type '" & TypeName(tableItem) & "'. Expected obj_TableDynamic or obj_Table.", vbExclamation
+            MsgBox "TableList: unsupported table model type '" & TypeName(tableItem) & _
+                   "'. Expected obj_TableDynamic or obj_Table.", vbExclamation
     End Select
+End Function
+
+Private Function mp_CreateTableViewFromModel(ByVal tableModel As obj_TableDynamic) As obj_TableViewItem
+    Dim tableView As obj_TableViewItem
+
+    If tableModel Is Nothing Then
+        MsgBox "TableList: table model is not specified.", vbExclamation
+        Exit Function
+    End If
+
+    Set tableView = New obj_TableViewItem
+    Set tableView.Model = tableModel
+    tableView.ItemVisible = True
+
+    Set mp_CreateTableViewFromModel = tableView
+End Function
+
+Private Function mp_TryResolveRowViewItem(ByVal rawItem As Variant, ByRef outRowView As obj_RowViewItem) As Boolean
+    Dim rowModel As obj_Row
+
+    If Not IsObject(rawItem) Then
+        MsgBox "TableList: row item must be an object.", vbExclamation
+        Exit Function
+    End If
+
+    Select Case LCase$(TypeName(rawItem))
+        Case "obj_rowviewitem"
+            Set outRowView = rawItem
+            mp_TryResolveRowViewItem = True
+
+        Case "obj_row"
+            Set rowModel = rawItem
+            Set outRowView = mp_CreateRowViewFromModel(rowModel)
+            If outRowView Is Nothing Then Exit Function
+            mp_TryResolveRowViewItem = True
+
+        Case Else
+            MsgBox "TableList: unsupported row item type '" & TypeName(rawItem) & _
+                   "'. Expected obj_RowViewItem or obj_Row.", vbExclamation
+    End Select
+End Function
+
+Private Function mp_CreateRowViewFromModel(ByVal rowModel As obj_Row) As obj_RowViewItem
+    Dim rowView As obj_RowViewItem
+
+    If rowModel Is Nothing Then
+        MsgBox "TableList: row model is not specified.", vbExclamation
+        Exit Function
+    End If
+
+    Set rowView = New obj_RowViewItem
+    Set rowView.Row = rowModel
+    rowView.RowVisible = True
+
+    Set mp_CreateRowViewFromModel = rowView
 End Function
 
 Private Function mp_ConvertFixedTableToDynamic(ByVal fixedTable As obj_Table) As obj_TableDynamic
@@ -580,7 +930,7 @@ Private Function mp_ConvertFixedTableToDynamic(ByVal fixedTable As obj_Table) As
     Dim colIndex As Long
 
     If fixedTable Is Nothing Then
-        MsgBox "Table: fixed table model is not specified.", vbExclamation
+        MsgBox "TableList: fixed table model is not specified.", vbExclamation
         Exit Function
     End If
 
@@ -631,16 +981,6 @@ Private Sub mp_ApplyRowStyle( _
 #End If
     End With
 End Sub
-
-Private Function mp_CanWriteRow(ByVal rowIndex As Long) As Boolean
-    If rowIndex <= 0 Then Exit Function
-
-    If m_RowEnd > 0 Then
-        mp_CanWriteRow = (rowIndex <= m_RowEnd)
-    Else
-        mp_CanWriteRow = True
-    End If
-End Function
 
 Private Function mp_GetWorksheetByName(ByVal wb As Workbook, ByVal sheetName As String) As Worksheet
     On Error Resume Next
