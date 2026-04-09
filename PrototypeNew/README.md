@@ -8,7 +8,7 @@ No hardcoded control names in VBA. UI page is described in XML, and runtime buil
 ## Current scope
 - Read Dev layout from `PrototypeNew/ui/DevUI.xml`.
 - For each declared control, use `type` as root and auto-resolve:
-	- control UI: `PrototypeNew/vba/classes/obj_<Type>ControlUI.xml`
+	- control UI: `PrototypeNew/vba/controls/obj_<Type>ControlUI.xml`
 	- VM class: `obj_<Type>ControlVM`
 - Build controls through `obj_IControl` + `ex_ControlFactory`.
 - Render controls through object VM classes (currently `obj_ButtonControlVM`, `obj_LabelControlVM`, `obj_TableListControlVM`, `obj_TableSingleControlVM`, `obj_BannerControlVM`).
@@ -32,6 +32,17 @@ Run:
 - `ex_Actions.m_LoadPrototypeNewUi`
 
 This resolves `ThisWorkbook.ActiveSheet` and calls `ex_SheetRenderer.m_RenderWorksheet`.
+
+## DevTools Import Rules
+`DevTools.dev_UpdateCodeFast` scans only root `vba\` and imports recursively (max depth `4`).
+
+File classification is name-based (not folder-based):
+- standard module: `ex_<Name>.vba` or `ex_<Name>.utf8.vba`
+- class module: `obj_<Name>.cls.vba` or `obj_<Name>.cls.utf8.vba`
+- worksheet module: `ws_<SheetName>.vba` or `ws_<SheetName>.utf8.vba`
+- workbook module: `ThisWorkbook.vba` or `ThisWorkbook.utf8.vba`
+
+Files that do not match these patterns are ignored by importer.
 
 ## Test helpers
 Run from `ex_Test`:
