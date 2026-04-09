@@ -7,9 +7,7 @@ Option Explicit
 Implements obj_IControl
 
 Private m_ControlName As String
-Private m_HeaderText As String
-Private m_MessageText As String
-Private m_IsVisible As Boolean
+Private m_ViewItem As obj_BannerViewItem
 Private m_LayoutSheet As String
 Private m_RowStart As Long
 Private m_ColStart As Long
@@ -17,10 +15,17 @@ Private m_RowEnd As Long
 Private m_ColEnd As Long
 Private m_IsConfigured As Boolean
 
+' //
+' // Interface
+' //
 Private Sub obj_IControl_Configure(ByVal controlNode As Object)
+    Dim headerText As String
+    Dim messageText As String
     Dim visibleRaw As String
+    Dim isVisible As Boolean
 
     m_IsConfigured = False
+    Set m_ViewItem = Nothing
 
     If controlNode Is Nothing Then
         MsgBox "Banner: control node is not specified.", vbExclamation
@@ -30,15 +35,23 @@ Private Sub obj_IControl_Configure(ByVal controlNode As Object)
     m_ControlName = Trim$(ex_XmlCore.m_NodeAttrText(controlNode, "name"))
     If Len(m_ControlName) = 0 Then m_ControlName = "banner"
 
-    m_HeaderText = CStr(ex_XmlCore.m_NodeAttrText(controlNode, "header"))
-    m_MessageText = CStr(ex_XmlCore.m_NodeAttrText(controlNode, "message"))
+    headerText = CStr(ex_XmlCore.m_NodeAttrText(controlNode, "header"))
+    messageText = CStr(ex_XmlCore.m_NodeAttrText(controlNode, "message"))
     visibleRaw = Trim$(CStr(ex_XmlCore.m_NodeAttrText(controlNode, "visible")))
 
     If Len(visibleRaw) = 0 Then
-        m_IsVisible = (Len(Trim$(m_HeaderText)) > 0 Or Len(Trim$(m_MessageText)) > 0)
+        isVisible = (Len(Trim$(headerText)) > 0 Or Len(Trim$(messageText)) > 0)
     Else
-        m_IsVisible = mp_ParseBooleanText(visibleRaw)
+        isVisible = mp_ParseBooleanText(visibleRaw)
     End If
+
+    Set m_ViewItem = New obj_BannerViewItem
+    m_ViewItem.Model.Header = headerText
+    m_ViewItem.Model.Message = messageText
+    m_ViewItem.Model.Visible = isVisible
+    m_ViewItem.Presentation.EffectiveVisible = isVisible
+    m_ViewItem.Presentation.StyleName = Trim$(ex_XmlCore.m_NodeAttrText(controlNode, "style"))
+    m_ViewItem.Presentation.PartName = "banner"
 
     m_LayoutSheet = Trim$(ex_XmlCore.m_NodeAttrText(controlNode, "__layoutSheet"))
     If Len(m_LayoutSheet) = 0 Then
@@ -71,10 +84,6 @@ End Sub
 
 Private Sub obj_IControl_Render(ByVal wb As Workbook)
     Dim ws As Worksheet
-    Dim targetRange As Range
-    Dim headerRange As Range
-    Dim messageRange As Range
-    Dim messageRowStart As Long
 
     If Not m_IsConfigured Then
         MsgBox "Banner: control '" & m_ControlName & "' is not configured.", vbExclamation
@@ -93,54 +102,12 @@ Private Sub obj_IControl_Render(ByVal wb As Workbook)
         Exit Sub
     End If
 
-    On Error GoTo EH_RANGE
-    Set targetRange = ws.Range(ws.Cells(m_RowStart, m_ColStart), ws.Cells(m_RowEnd, m_ColEnd))
-    On Error GoTo 0
-
-    If Not m_IsVisible Then
-        targetRange.UnMerge
-        targetRange.ClearContents
-        targetRange.Interior.Pattern = xlNone
-        targetRange.Borders.LineStyle = xlNone
+    If m_ViewItem Is Nothing Then
+        MsgBox "Banner: view item is not configured for control '" & m_ControlName & "'.", vbExclamation
         Exit Sub
     End If
 
-    targetRange.UnMerge
-
-    Set headerRange = ws.Range(ws.Cells(m_RowStart, m_ColStart), ws.Cells(m_RowStart, m_ColEnd))
-    headerRange.UnMerge
-    headerRange.Merge
-    headerRange.Value2 = m_HeaderText
-
-    messageRowStart = m_RowStart + 1
-    If messageRowStart > m_RowEnd Then messageRowStart = m_RowEnd
-    Set messageRange = ws.Range(ws.Cells(messageRowStart, m_ColStart), ws.Cells(m_RowEnd, m_ColEnd))
-    messageRange.UnMerge
-    messageRange.Merge
-    messageRange.Value2 = m_MessageText
-
-    targetRange.Interior.Color = RGB(45, 74, 104)
-    targetRange.Borders.LineStyle = xlContinuous
-    targetRange.Borders.Color = RGB(26, 43, 61)
-    targetRange.Borders.Weight = xlThin
-
-    headerRange.Font.Color = RGB(245, 251, 255)
-    headerRange.Font.Bold = True
-    headerRange.Font.Size = 11
-    headerRange.HorizontalAlignment = xlHAlignLeft
-    headerRange.VerticalAlignment = xlVAlignCenter
-    headerRange.WrapText = False
-
-    messageRange.Font.Color = RGB(226, 238, 248)
-    messageRange.Font.Bold = False
-    messageRange.Font.Size = 10
-    messageRange.HorizontalAlignment = xlHAlignLeft
-    messageRange.VerticalAlignment = xlVAlignTop
-    messageRange.WrapText = True
-    Exit Sub
-
-EH_RANGE:
-    MsgBox "Banner: failed to resolve target range for control '" & m_ControlName & "'.", vbExclamation
+    If Not m_ViewItem.m_Render(ws, m_RowStart, m_ColStart, m_RowEnd, m_ColEnd, m_ControlName) Then Exit Sub
 End Sub
 
 Private Function obj_IControl_SupportsAttribute(ByVal attrName As String) As Boolean
@@ -150,6 +117,9 @@ Private Function obj_IControl_SupportsAttribute(ByVal attrName As String) As Boo
     End Select
 End Function
 
+' //
+' // Internal
+' //
 Private Function mp_ParseBooleanText(ByVal rawText As String) As Boolean
     rawText = LCase$(Trim$(rawText))
     mp_ParseBooleanText = (rawText = "1" Or rawText = "true" Or rawText = "yes")

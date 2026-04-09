@@ -61,6 +61,28 @@
                 horizontal:left;
                 vertical:center;
               }"/>
+
+        <rule target="controlPart"
+              selector="type=tablelist;part=itembanner"
+              styles="{
+                backColor:#2D4A68;
+                fontColor:#F5FBFF;
+                borderColor:#1A2B3D;
+                borderWeight:thin;
+                fontBold:true;
+                vertical:center;
+              }"/>
+
+        <rule target="controlPart"
+              selector="type=tablelist;part=rowbanner"
+              styles="{
+                backColor:#345676;
+                fontColor:#F0F8FF;
+                borderColor:#213952;
+                borderWeight:thin;
+                fontBold:false;
+                vertical:center;
+              }"/>
       </layer>
     </stylePipelineStage>
   </styles>
