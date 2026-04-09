@@ -2,11 +2,9 @@
 Option Explicit
 
 Private Const BASE_DIR As String = "vba\\"
-Private Const MODULES_DIR As String = "modules\\"
-Private Const CLASSES_DIR As String = "classes\\"
-Private Const SHEETS_DIR As String = "sheets\\"
 Private Const IMPORT_CACHE_FILE As String = ".devtools_import_cache.txt"
 Private Const ENABLE_CLASS_IMPORT_VALIDATION As Boolean = False
+Private Const MAX_IMPORT_RECURSION_DEPTH As Long = 4
 Private Const COMP_TYPE_MODULE As String = "module"
 Private Const COMP_TYPE_CLASS As String = "class"
 Private Const COMP_TYPE_SHEET As String = "sheet"
@@ -105,16 +103,10 @@ Private Sub mp_UpdateCodeCore(ByVal fastMode As Boolean)
         mp_RemoveImportedModules
     End If
 
-    mp_ImportFolder basePath & MODULES_DIR, fastMode, prevCache, nextCache
-    mp_ImportFolder basePath & CLASSES_DIR, fastMode, prevCache, nextCache
+    mp_ImportFolder basePath, fastMode, prevCache, nextCache
     If ENABLE_CLASS_IMPORT_VALIDATION Then
-        mp_ValidateClassImports basePath & CLASSES_DIR
+        mp_ValidateClassImports basePath
     End If
-
-    ' Refresh sheet modules from vba\sheets\*.vba
-    mp_UpdateSheetModulesFromFolder basePath & SHEETS_DIR, fastMode, prevCache, nextCache
-    ' Refresh ThisWorkbook module if provided
-    mp_UpdateWorkbookModule mp_ResolveWorkbookCodePath(basePath), fastMode, prevCache, nextCache
 
     If fastMode Then
         mp_RemoveStaleImportedComponents prevCache, nextCache
@@ -130,44 +122,59 @@ EH:
     MsgBox "Update Code failed: " & Err.Description, vbExclamation
 End Sub
 
-Private Sub mp_ValidateClassImports(ByVal classesPath As String)
+Private Sub mp_ValidateClassImports(ByVal rootPath As String)
     Dim fso As Object
-    Dim classesFolder As Object
-    Dim fileObj As Object
-    Dim className As String
-    Dim vbComp As Object
     Dim failed As String
-    Dim compType As String
-    Dim fallbackName As String
 
-    If Dir(classesPath, vbDirectory) = "" Then
-        Err.Raise vbObjectError + 1006, "mp_ValidateClassImports", "Classes folder not found: " & classesPath
+    If Dir(rootPath, vbDirectory) = "" Then
+        Err.Raise vbObjectError + 1006, "mp_ValidateClassImports", "VBA root folder not found: " & rootPath
     End If
 
     Set fso = CreateObject("Scripting.FileSystemObject")
-    Set classesFolder = fso.GetFolder(classesPath)
-
-    For Each fileObj In classesFolder.Files
-        If mp_TryResolveFileComponentType(CStr(fileObj.Name), compType, fallbackName) Then
-            If StrComp(compType, COMP_TYPE_CLASS, vbTextCompare) = 0 Then
-                className = mp_GetComponentNameFromSource(CStr(fileObj.Path))
-                Set vbComp = Nothing
-                On Error Resume Next
-                Set vbComp = ThisWorkbook.VBProject.VBComponents(className)
-                On Error GoTo 0
-
-                If vbComp Is Nothing Then
-                    failed = failed & vbCrLf & "- missing class: " & className
-                ElseIf vbComp.Type <> 2 Then ' vbext_ct_ClassModule
-                    failed = failed & vbCrLf & "- wrong component type for class '" & className & "': " & CStr(vbComp.Type)
-                End If
-            End If
-        End If
-    Next fileObj
+    mp_ValidateClassImportsRecursive fso.GetFolder(rootPath), 0, failed
 
     If Len(failed) > 0 Then
         Err.Raise vbObjectError + 1007, "mp_ValidateClassImports", "Class import validation failed:" & failed
     End If
+End Sub
+
+Private Sub mp_ValidateClassImportsRecursive( _
+    ByVal folderObj As Object, _
+    ByVal depth As Long, _
+    ByRef failed As String _
+)
+    Dim fileObj As Object
+    Dim subFolder As Object
+    Dim compType As String
+    Dim fallbackName As String
+    Dim className As String
+    Dim vbComp As Object
+
+    If folderObj Is Nothing Then Exit Sub
+    If depth > MAX_IMPORT_RECURSION_DEPTH Then Exit Sub
+
+    For Each fileObj In folderObj.Files
+        If Not mp_TryResolveFileComponentType(CStr(fileObj.Name), compType, fallbackName) Then GoTo ContinueFile
+        If StrComp(compType, COMP_TYPE_CLASS, vbTextCompare) <> 0 Then GoTo ContinueFile
+
+        className = mp_GetComponentNameFromSource(CStr(fileObj.Path))
+        Set vbComp = Nothing
+        On Error Resume Next
+        Set vbComp = ThisWorkbook.VBProject.VBComponents(className)
+        On Error GoTo 0
+
+        If vbComp Is Nothing Then
+            failed = failed & vbCrLf & "- missing class: " & className
+        ElseIf vbComp.Type <> 2 Then ' vbext_ct_ClassModule
+            failed = failed & vbCrLf & "- wrong component type for class '" & className & "': " & CStr(vbComp.Type)
+        End If
+
+ContinueFile:
+    Next fileObj
+
+    For Each subFolder In folderObj.SubFolders
+        mp_ValidateClassImportsRecursive subFolder, depth + 1, failed
+    Next subFolder
 End Sub
 
 Private Sub mp_ShowCodeUpdatedNotice()
@@ -228,7 +235,7 @@ Private Sub mp_ImportFolder( _
 
     Set fso = CreateObject("Scripting.FileSystemObject")
     Set rootFolder = fso.GetFolder(folderPath)
-    mp_ImportFolderRecursive rootFolder, failed, fastMode, prevCache, nextCache
+    mp_ImportFolderRecursive rootFolder, 0, failed, fastMode, prevCache, nextCache
 
     If Len(failed) > 0 Then
         Err.Raise vbObjectError + 1001, "mp_ImportFolder", "Import failed for file(s):" & failed
@@ -237,6 +244,7 @@ End Sub
 
 Private Sub mp_ImportFolderRecursive( _
     ByVal folderObj As Object, _
+    ByVal depth As Long, _
     ByRef failed As String, _
     ByVal fastMode As Boolean, _
     ByVal prevCache As Object, _
@@ -254,6 +262,11 @@ Private Sub mp_ImportFolderRecursive( _
     Dim cacheKey As String
     Dim compType As String
     Dim fallbackName As String
+    Dim componentNameForCache As String
+    Dim sourceEncodingIsUtf8 As Boolean
+
+    If folderObj Is Nothing Then Exit Sub
+    If depth > MAX_IMPORT_RECURSION_DEPTH Then Exit Sub
 
     For Each fileObj In folderObj.Files
         fileName = CStr(fileObj.Name)
@@ -267,33 +280,67 @@ Private Sub mp_ImportFolderRecursive( _
                 fileStamp = mp_BuildFileStampFromFileObject(fileObj)
                 cacheKey = mp_NormalizeCacheKey(importPath)
                 sourceText = vbNullString
+                sourceEncodingIsUtf8 = mp_HasUtf8MarkerBeforeVba(fileName)
 
-                If fastMode Then
-                    If mp_TryGetCachedComponentNameByStamp(prevCache, cacheKey, compType, fileStamp, componentName) Then
-                        If mp_IsComponentPresentForType(componentName, compType) Then
-                            mp_SetCacheRecord nextCache, cacheKey, compType, componentName, fileStamp
-                            GoTo ContinueNextFile
-                        End If
-                    End If
-                End If
-
-                If StrComp(compType, COMP_TYPE_MODULE, vbTextCompare) = 0 Or _
-                   StrComp(compType, COMP_TYPE_CLASS, vbTextCompare) = 0 Then
-                    sourceText = mp_ReadAllText(importPath)
-                    componentName = mp_GetComponentNameFromSourceText(sourceText, fallbackName)
-                Else
-                    componentName = fallbackName
-                End If
-                mp_EnsureValidComponentNameLength componentName, importPath
-
-                mp_RemoveComponentIfExists componentName
                 Select Case LCase$(compType)
-                    Case COMP_TYPE_MODULE
-                        mp_ImportStandardModuleFromSource componentName, importPath, sourceText
-                    Case COMP_TYPE_CLASS
-                        mp_ImportClassModuleFromSource componentName, importPath, sourceText
+                    Case COMP_TYPE_MODULE, COMP_TYPE_CLASS
+                        If fastMode Then
+                            If mp_TryGetCachedComponentNameByStamp(prevCache, cacheKey, compType, fileStamp, componentName) Then
+                                If mp_IsComponentPresentForType(componentName, compType) Then
+                                    mp_SetCacheRecord nextCache, cacheKey, compType, componentName, fileStamp
+                                    GoTo ContinueNextFile
+                                End If
+                            End If
+                        End If
+
+                        sourceText = mp_ReadAllText(importPath, sourceEncodingIsUtf8)
+                        componentName = mp_GetComponentNameFromSourceText(sourceText, fallbackName)
+                        mp_EnsureValidComponentNameLength componentName, importPath
+
+                        mp_RemoveComponentIfExists componentName
+                        If StrComp(compType, COMP_TYPE_MODULE, vbTextCompare) = 0 Then
+                            mp_ImportStandardModuleFromSource componentName, importPath, sourceText
+                        Else
+                            mp_ImportClassModuleFromSource componentName, importPath, sourceText
+                        End If
+                        mp_SetCacheRecord nextCache, cacheKey, compType, componentName, fileStamp
+
+                    Case COMP_TYPE_SHEET
+                        componentNameForCache = mp_ResolveSheetCodeName(fallbackName)
+                        If Len(componentNameForCache) = 0 Then GoTo ContinueNextFile
+
+                        If fastMode Then
+                            If mp_IsCacheRecordCurrent(prevCache, cacheKey, COMP_TYPE_SHEET, componentNameForCache, fileStamp) Then
+                                If mp_IsComponentPresentForType(componentNameForCache, COMP_TYPE_SHEET) Then
+                                    mp_SetCacheRecord nextCache, cacheKey, COMP_TYPE_SHEET, componentNameForCache, fileStamp
+                                    GoTo ContinueNextFile
+                                End If
+                            End If
+                        End If
+
+                        sourceText = mp_ReadAllText(importPath, sourceEncodingIsUtf8)
+                        If mp_UpdateSheetModule(componentNameForCache, importPath, sourceText) Then
+                            mp_SetCacheRecord nextCache, cacheKey, COMP_TYPE_SHEET, componentNameForCache, fileStamp
+                        End If
+
+                    Case COMP_TYPE_WORKBOOK
+                        componentNameForCache = mp_FindWorkbookComponentName()
+                        If Len(componentNameForCache) = 0 Then GoTo ContinueNextFile
+
+                        If fastMode Then
+                            If mp_IsCacheRecordCurrent(prevCache, cacheKey, COMP_TYPE_WORKBOOK, componentNameForCache, fileStamp) Then
+                                If mp_IsComponentPresentForType(componentNameForCache, COMP_TYPE_WORKBOOK) Then
+                                    mp_SetCacheRecord nextCache, cacheKey, COMP_TYPE_WORKBOOK, componentNameForCache, fileStamp
+                                    GoTo ContinueNextFile
+                                End If
+                            End If
+                        End If
+
+                        sourceText = mp_ReadAllText(importPath, sourceEncodingIsUtf8)
+                        If mp_UpdateWorkbookModuleFromText(componentNameForCache, sourceText) Then
+                            mp_SetCacheRecord nextCache, cacheKey, COMP_TYPE_WORKBOOK, componentNameForCache, fileStamp
+                        End If
                 End Select
-                mp_SetCacheRecord nextCache, cacheKey, compType, componentName, fileStamp
                 On Error GoTo 0
             End If
         End If
@@ -302,7 +349,7 @@ ContinueNextFile:
     Next fileObj
 
     For Each subFolder In folderObj.SubFolders
-        mp_ImportFolderRecursive subFolder, failed, fastMode, prevCache, nextCache
+        mp_ImportFolderRecursive subFolder, depth + 1, failed, fastMode, prevCache, nextCache
     Next subFolder
 
     Exit Sub
@@ -505,20 +552,41 @@ Private Function mp_TryResolveFileComponentType( _
     ByRef outFallbackName As String _
 ) As Boolean
     Dim normalizedName As String
+    Dim baseName As String
 
     normalizedName = LCase$(Trim$(fileName))
     outCompType = vbNullString
     outFallbackName = vbNullString
 
-    If mp_EndsWith(normalizedName, ".cls.vba") Then
-        outCompType = COMP_TYPE_CLASS
-        outFallbackName = Left$(fileName, Len(fileName) - Len(".cls.vba"))
+    If mp_EndsWith(normalizedName, ".utf8.vba") Then
+        baseName = Left$(fileName, Len(fileName) - Len(".utf8.vba"))
+        normalizedName = LCase$(Trim$(baseName))
     ElseIf mp_EndsWith(normalizedName, ".vba") Then
+        baseName = Left$(fileName, Len(fileName) - Len(".vba"))
+        normalizedName = LCase$(Trim$(baseName))
+    Else
+        Exit Function
+    End If
+
+    If StrComp(normalizedName, "thisworkbook", vbTextCompare) = 0 Then
+        outCompType = COMP_TYPE_WORKBOOK
+        outFallbackName = "ThisWorkbook"
+    ElseIf Left$(normalizedName, 3) = "ws_" Then
+        outCompType = COMP_TYPE_SHEET
+        outFallbackName = Mid$(baseName, 4)
+    ElseIf Left$(normalizedName, 3) = "ex_" Then
         outCompType = COMP_TYPE_MODULE
-        outFallbackName = Left$(fileName, Len(fileName) - Len(".vba"))
+        outFallbackName = baseName
+    ElseIf Left$(normalizedName, 4) = "obj_" And mp_EndsWith(normalizedName, ".cls") Then
+        outCompType = COMP_TYPE_CLASS
+        outFallbackName = Left$(baseName, Len(baseName) - Len(".cls"))
     End If
 
     mp_TryResolveFileComponentType = (Len(Trim$(outCompType)) > 0 And Len(Trim$(outFallbackName)) > 0)
+End Function
+
+Private Function mp_HasUtf8MarkerBeforeVba(ByVal fileName As String) As Boolean
+    mp_HasUtf8MarkerBeforeVba = mp_EndsWith(LCase$(Trim$(fileName)), ".utf8.vba")
 End Function
 
 Private Function mp_CreateDictionary() As Object
@@ -716,69 +784,6 @@ Private Function mp_UpdateSheetModule( _
     mp_UpdateSheetModule = True
 End Function
 
-Private Sub mp_UpdateSheetModulesFromFolder( _
-    ByVal sheetsPath As String, _
-    ByVal fastMode As Boolean, _
-    ByVal prevCache As Object, _
-    ByVal nextCache As Object _
-)
-    Dim fso As Object
-    Dim sheetsFolder As Object
-    Dim fileObj As Object
-    Dim fileName As String
-    Dim fileStem As String
-    Dim sheetCodeName As String
-    Dim importPath As String
-    Dim fileStamp As String
-    Dim cacheKey As String
-    Dim codeText As String
-    Dim compType As String
-
-    If Dir(sheetsPath, vbDirectory) = "" Then Exit Sub
-
-    Set fso = CreateObject("Scripting.FileSystemObject")
-    Set sheetsFolder = fso.GetFolder(sheetsPath)
-
-    For Each fileObj In sheetsFolder.Files
-        fileName = CStr(fileObj.Name)
-        If Not mp_TryResolveFileComponentType(fileName, compType, fileStem) Then GoTo ContinueLoop
-        If StrComp(compType, COMP_TYPE_MODULE, vbTextCompare) <> 0 Then GoTo ContinueLoop
-
-        If StrComp(fileStem, "ThisWorkbook", vbTextCompare) <> 0 Then
-            sheetCodeName = mp_ResolveSheetCodeName(fileStem)
-            If Len(sheetCodeName) > 0 Then
-                importPath = CStr(fileObj.Path)
-                cacheKey = mp_NormalizeCacheKey(importPath)
-                fileStamp = mp_BuildFileStampFromFileObject(fileObj)
-
-                If fastMode Then
-                    If mp_IsCacheRecordCurrent(prevCache, cacheKey, COMP_TYPE_SHEET, sheetCodeName, fileStamp) Then
-                        If mp_IsComponentPresentForType(sheetCodeName, COMP_TYPE_SHEET) Then
-                            mp_SetCacheRecord nextCache, cacheKey, COMP_TYPE_SHEET, sheetCodeName, fileStamp
-                            GoTo ContinueLoop
-                        End If
-                    End If
-                End If
-
-                codeText = mp_ReadAllText(importPath)
-                If mp_UpdateSheetModule(sheetCodeName, importPath, codeText) Then
-                    mp_SetCacheRecord nextCache, cacheKey, COMP_TYPE_SHEET, sheetCodeName, fileStamp
-                End If
-            End If
-        End If
-ContinueLoop:
-    Next fileObj
-End Sub
-
-Private Function mp_ResolveWorkbookCodePath(ByVal basePath As String) As String
-    Dim candidatePath As String
-
-    candidatePath = basePath & "ThisWorkbook.vba"
-    If Len(Dir(candidatePath)) > 0 Then
-        mp_ResolveWorkbookCodePath = candidatePath
-    End If
-End Function
-
 Private Function mp_ResolveSheetCodeName(ByVal fileStem As String) As String
     Dim ws As Worksheet
 
@@ -824,49 +829,43 @@ Private Function mp_FindWorkbookComponentName() As String
     Next i
 End Function
 
-Private Sub mp_UpdateWorkbookModule( _
-    ByVal workbookCodePath As String, _
-    ByVal fastMode As Boolean, _
-    ByVal prevCache As Object, _
-    ByVal nextCache As Object _
-)
+Private Function mp_UpdateWorkbookModuleFromText( _
+    ByVal workbookComponentName As String, _
+    ByVal codeText As String _
+) As Boolean
     Dim vbProj As Object
     Dim vbComp As Object
     Dim cm As Object
-    Dim codeText As String
-    Dim fileStamp As String
-    Dim cacheKey As String
-    Dim componentName As String
 
-    If Len(workbookCodePath) = 0 Then Exit Sub
-    If Dir(workbookCodePath) = vbNullString Then Exit Sub
+    If Len(Trim$(workbookComponentName)) = 0 Then Exit Function
+    If Len(codeText) = 0 Then Exit Function
 
-    fileStamp = mp_BuildFileStamp(workbookCodePath)
-    cacheKey = mp_NormalizeCacheKey(workbookCodePath)
-    componentName = mp_FindWorkbookComponentName()
-    If Len(componentName) = 0 Then Exit Sub
-
-    If fastMode Then
-        If mp_IsCacheRecordCurrent(prevCache, cacheKey, COMP_TYPE_WORKBOOK, componentName, fileStamp) Then
-            If mp_IsComponentPresentForType(componentName, COMP_TYPE_WORKBOOK) Then
-                mp_SetCacheRecord nextCache, cacheKey, COMP_TYPE_WORKBOOK, componentName, fileStamp
-                Exit Sub
-            End If
-        End If
-    End If
-
-    codeText = mp_ReadAllText(workbookCodePath)
     Set vbProj = ThisWorkbook.VBProject
-    Set vbComp = vbProj.VBComponents(componentName)
+    On Error Resume Next
+    Set vbComp = vbProj.VBComponents(workbookComponentName)
+    On Error GoTo 0
+    If vbComp Is Nothing Then Exit Function
 
     Set cm = vbComp.CodeModule
-
     cm.DeleteLines 1, cm.CountOfLines
     cm.AddFromString codeText
-    mp_SetCacheRecord nextCache, cacheKey, COMP_TYPE_WORKBOOK, componentName, fileStamp
-End Sub
 
-Private Function mp_ReadAllText(ByVal filePath As String) As String
+    mp_UpdateWorkbookModuleFromText = True
+End Function
+
+Private Function mp_ReadAllText( _
+    ByVal filePath As String, _
+    Optional ByVal preferUtf8 As Boolean = False _
+) As String
+    If preferUtf8 Then
+        On Error GoTo FallbackLegacy
+        mp_ReadAllText = mp_ReadAllTextByCharset(filePath, "utf-8")
+        If Left$(mp_ReadAllText, 1) = ChrW$(65279) Then
+            mp_ReadAllText = Mid$(mp_ReadAllText, 2)
+        End If
+        Exit Function
+    End If
+
     On Error GoTo FallbackLegacy
     mp_ReadAllText = mp_ReadAllTextByCharset(filePath, "utf-8")
     If Left$(mp_ReadAllText, 1) = ChrW$(65279) Then

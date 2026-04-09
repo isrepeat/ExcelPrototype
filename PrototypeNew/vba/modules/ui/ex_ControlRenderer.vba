@@ -2,7 +2,7 @@ Attribute VB_Name = "ex_ControlRenderer"
 Option Explicit
 
 Private Const UI_NS As String = "urn:excelprototype:profiles"
-Private Const CONTROL_UI_BASE_REL_PATH As String = "vba\classes\"
+Private Const CONTROL_UI_BASE_REL_PATH As String = "vba\controls\"
 Private Const CONTROL_UI_FILE_PREFIX As String = "obj_"
 Private Const CONTROL_UI_FILE_SUFFIX As String = "ControlUI.xml"
 Private Const MAX_TEMPLATE_RECURSION_DEPTH As Long = 12
