@@ -11,6 +11,36 @@
       fontSize="11"
       fontBold="false"/>
 
+    <controlStyle
+      name="configSelectHeader"
+      backColor="#438E20"
+      textColor="#0A0A0A"
+      borderColor="#285D14"
+      borderWeight="1"
+      fontName="Calibri"
+      fontSize="11"
+      fontBold="false"/>
+
+    <controlStyle
+      name="configSelectPanel"
+      backColor="#2B3138"
+      textColor="#F1F5F9"
+      borderColor="#1C2024"
+      borderWeight="0.75"
+      fontName="Calibri"
+      fontSize="10"
+      fontBold="false"/>
+
+    <controlStyle
+      name="configSelectItem"
+      backColor="#3B424A"
+      textColor="#F8FAFC"
+      borderColor="#282D32"
+      borderWeight="0.75"
+      fontName="Calibri"
+      fontSize="10"
+      fontBold="false"/>
+
     <stylePipelineStage name="default" enabled="true">
       <layer name="dark-base" enabled="true">
         <rule target="sheet"
@@ -30,6 +60,29 @@
                 fontColor:#E6FFFA;
                 borderColor:#134E4A;
                 fontBold:true;
+              }"/>
+      </layer>
+
+      <layer name="config-parts" enabled="true">
+        <rule target="controlPart"
+              selector="type=config;part=attrhash"
+              styles="{
+                backColor:#3A3422;
+                fontColor:#FDE68A;
+                borderColor:#594F2D;
+                borderWeight:thin;
+                fontBold:true;
+              }"/>
+
+        <rule target="controlPart"
+              selector="type=config;part=attrrx"
+              styles="{
+                backColor:#1D3342;
+                fontColor:#BAE6FD;
+                borderColor:#2A4A5F;
+                borderWeight:thin;
+                fontBold:false;
+                fontItalic:true;
               }"/>
       </layer>
     </stylePipelineStage>
@@ -121,6 +174,44 @@
                 spanRows="2"
                 /> -->
             </stackPanel>
+      </stackPanel>
+
+      <stackPanel at="r2c8" orientation="vertical">
+        <control
+          type="Select"
+          name="ConfigProfilePicker"
+          itemsSource="RuntimeItems.Test.ConfigProfiles"
+          selectedItem="RuntimeObjects.Test.SelectedConfigProfile"
+          placeholder="Choose profile"
+          style="configSelectHeader"
+          panelStyle="configSelectPanel"
+          itemStyle="configSelectItem"
+          itemHeight="18"
+          itemMargin="2"
+          spanCells="6"
+          spanRows="4"
+          />
+
+        <control
+          type="Config"
+          name="DevConfig"
+          itemsSource="RuntimeItems.Test.Config"
+          tableName="cfgDevUi"
+          spanCells="10"
+          spanRows="24"
+          />
+      </stackPanel>
+
+      <stackPanel at="r2c24" orientation="vertical">
+        <control
+          type="Button"
+          name="UpdateSheet"
+          caption="Update Sheet"
+          style="actionWarning"
+          onClick="{Binding Module=ex_Test;Method=m_TEST_UpdateCurrentPage}"
+          spanCells="3"
+          spanRows="2"
+          />
       </stackPanel>
     </grid>
   </layout>

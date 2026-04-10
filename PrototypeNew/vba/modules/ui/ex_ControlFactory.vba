@@ -20,6 +20,16 @@ Public Function m_CreateControlByTypeRoot(ByVal controlTypeRoot As String) As ob
             Set bannerVm = New obj_BannerControlVM
             Set m_CreateControlByTypeRoot = bannerVm
 
+        Case "config"
+            Dim configVm As obj_ConfigControlVM
+            Set configVm = New obj_ConfigControlVM
+            Set m_CreateControlByTypeRoot = configVm
+
+        Case "select"
+            Dim selectVm As obj_SelectControlVM
+            Set selectVm = New obj_SelectControlVM
+            Set m_CreateControlByTypeRoot = selectVm
+
         Case "tablelist"
             Dim tableListVm As obj_TableListControlVM
             Set tableListVm = New obj_TableListControlVM
