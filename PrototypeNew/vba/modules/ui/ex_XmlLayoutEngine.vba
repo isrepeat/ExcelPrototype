@@ -1455,24 +1455,10 @@ Private Sub mp_ClearWorksheet(ByVal ws As Worksheet)
 End Sub
 
 Private Function mp_IsGeneratedRuntimeShape(ByVal shp As Shape) As Boolean
-    Dim tagValue As String
+    Dim controlMeta As String
 
     If shp Is Nothing Then Exit Function
 
-    On Error Resume Next
-    tagValue = CStr(shp.Tags("pn.control"))
-    If Err.Number <> 0 Then
-        Err.Clear
-        tagValue = vbNullString
-    End If
-    On Error GoTo 0
-
-    If Len(Trim$(tagValue)) > 0 Then
-        mp_IsGeneratedRuntimeShape = True
-        Exit Function
-    End If
-
-    If LCase$(Left$(shp.Name, 4)) = "btn_" Then
-        mp_IsGeneratedRuntimeShape = True
-    End If
+    controlMeta = Trim$(ex_ShapeMetaRuntime.m_GetShapeMetaValue(shp, "pn.control", vbNullString))
+    mp_IsGeneratedRuntimeShape = (Len(controlMeta) > 0)
 End Function

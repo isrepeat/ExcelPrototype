@@ -61,7 +61,7 @@ Private Function mp_ApplyControlStyles(ByVal ws As Worksheet, ByVal stylesByName
     For Each shp In ws.Shapes
         If Not mp_IsControlShape(shp) Then GoTo ContinueShape
 
-        styleName = LCase$(Trim$(mp_ReadShapeTag(shp, "pn.style")))
+        styleName = LCase$(Trim$(mp_ReadShapeMetaValue(shp, "pn.style")))
         If Len(styleName) = 0 Then GoTo ContinueShape
 
         If Not stylesByName.Exists(styleName) Then
@@ -305,6 +305,7 @@ Private Function mp_ReadStyleDeclarations(ByVal styleNode As Object) As Object
     mp_TrySetDeclaration declarations, "fontName", ex_XmlCore.m_NodeAttrText(styleNode, "fontName")
     mp_TrySetDeclaration declarations, "fontSize", ex_XmlCore.m_NodeAttrText(styleNode, "fontSize")
     mp_TrySetDeclaration declarations, "fontBold", ex_XmlCore.m_NodeAttrText(styleNode, "fontBold")
+    mp_TrySetDeclaration declarations, "fontItalic", ex_XmlCore.m_NodeAttrText(styleNode, "fontItalic")
     mp_TrySetDeclaration declarations, "horizontal", ex_XmlCore.m_NodeAttrText(styleNode, "horizontal")
     mp_TrySetDeclaration declarations, "vertical", ex_XmlCore.m_NodeAttrText(styleNode, "vertical")
     mp_TrySetDeclaration declarations, "overflow", ex_XmlCore.m_NodeAttrText(styleNode, "overflow")
@@ -389,7 +390,7 @@ End Function
 
 Private Function mp_IsSupportedStyleKey(ByVal keyName As String) As Boolean
     Select Case LCase$(Trim$(keyName))
-        Case "backcolor", "fontcolor", "bordercolor", "borderweight", "fontname", "fontsize", "fontbold", "horizontal", "vertical", "overflow", "width", "rowheight"
+        Case "backcolor", "fontcolor", "bordercolor", "borderweight", "fontname", "fontsize", "fontbold", "fontitalic", "horizontal", "vertical", "overflow", "width", "rowheight"
             mp_IsSupportedStyleKey = True
     End Select
 End Function
@@ -760,6 +761,14 @@ Private Function mp_ApplyRangeDeclarations( _
         targetRange.Font.Bold = boolValue
     End If
 
+    If declarations.Exists("fontitalic") Then
+        If Not mp_TryParseBoolean(CStr(declarations("fontitalic")), boolValue) Then
+            MsgBox "PrototypeNew: invalid fontItalic in " & contextName & ".", vbExclamation
+            Exit Function
+        End If
+        targetRange.Font.Italic = boolValue
+    End If
+
     If declarations.Exists("horizontal") Then
         If Not mp_TryParseHorizontalAlignment(CStr(declarations("horizontal")), hAlign) Then
             MsgBox "PrototypeNew: invalid horizontal alignment in " & contextName & ".", vbExclamation
@@ -885,22 +894,27 @@ Private Function mp_ApplyShapeStyle(ByVal shp As Shape, ByVal declarations As Ob
         On Error GoTo 0
     End If
 
+    If declarations.Exists("fontitalic") Then
+        If Not mp_TryParseBoolean(CStr(declarations("fontitalic")), boolValue) Then
+            MsgBox "PrototypeNew: invalid fontItalic in style '" & styleName & "'.", vbExclamation
+            Exit Function
+        End If
+        On Error Resume Next
+        shp.TextFrame.Characters.Font.Italic = boolValue
+        shp.TextFrame2.TextRange.Font.Italic = boolValue
+        On Error GoTo 0
+    End If
+
     mp_ApplyShapeStyle = True
 End Function
 
-Private Function mp_ReadShapeTag(ByVal shp As Shape, ByVal tagName As String) As String
-    On Error Resume Next
-    mp_ReadShapeTag = CStr(shp.Tags(tagName))
-    If Err.Number <> 0 Then
-        Err.Clear
-        mp_ReadShapeTag = vbNullString
-    End If
-    On Error GoTo 0
+Private Function mp_ReadShapeMetaValue(ByVal shp As Shape, ByVal keyName As String) As String
+    mp_ReadShapeMetaValue = Trim$(ex_ShapeMetaRuntime.m_GetShapeMetaValue(shp, keyName, vbNullString))
 End Function
 
 Private Function mp_IsControlShape(ByVal shp As Shape) As Boolean
     If shp Is Nothing Then Exit Function
-    mp_IsControlShape = (Len(Trim$(mp_ReadShapeTag(shp, "pn.control"))) > 0)
+    mp_IsControlShape = (Len(Trim$(mp_ReadShapeMetaValue(shp, "pn.control"))) > 0)
 End Function
 
 Private Function mp_TryReadNodeEnabled( _
@@ -928,8 +942,28 @@ Private Function mp_TryReadNodeEnabled( _
 End Function
 
 Private Function mp_TryParsePositiveDouble(ByVal valueText As String, ByRef outValue As Double) As Boolean
-    If Not IsNumeric(valueText) Then Exit Function
-    outValue = CDbl(valueText)
+    Dim normalized As String
+    Dim decimalSep As String
+
+    valueText = Trim$(valueText)
+    If Len(valueText) = 0 Then Exit Function
+
+    If IsNumeric(valueText) Then
+        outValue = CDbl(valueText)
+        If outValue <= 0# Then Exit Function
+        mp_TryParsePositiveDouble = True
+        Exit Function
+    End If
+
+    ' Locale-safe parse for values like "0.75" on systems with decimal separator ",".
+    decimalSep = Application.DecimalSeparator
+    If Len(decimalSep) = 0 Then decimalSep = "."
+
+    normalized = Replace$(valueText, ".", decimalSep)
+    normalized = Replace$(normalized, ",", decimalSep)
+
+    If Not IsNumeric(normalized) Then Exit Function
+    outValue = CDbl(normalized)
     If outValue <= 0# Then Exit Function
     mp_TryParsePositiveDouble = True
 End Function

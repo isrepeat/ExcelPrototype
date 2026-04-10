@@ -1,13 +1,26 @@
 Attribute VB_Name = "ex_Test"
 Option Explicit
 
+Private Const DEMO_CONFIG_VARIANT_A As String = "hospitalizationdate"
+Private Const DEMO_CONFIG_VARIANT_B As String = "transfersheet"
+Private g_DemoConfigVariant As String
+
 Public Sub m_TEST_RenderDevUI()
     Dim ws As Worksheet
 
     Set ws = mp_GetActiveWorksheet()
     If ws Is Nothing Then Exit Sub
 
+    If Not mp_TryLoadDemoConfigVariantFromStore(ws) Then Exit Sub
+    If Not m_TEST_RegisterDemoConfigProfileItems(False) Then Exit Sub
+    If Not m_TEST_RegisterDemoConfigItemsByCurrentVariant(False) Then Exit Sub
     ex_SheetRenderer.m_RenderWorksheet ws, "ui\DevUI.xml"
+End Sub
+
+Public Sub m_TEST_UpdateCurrentPage()
+    If Not ex_SheetRenderer.m_TryRerenderLastRenderedPage("manual:update-sheet") Then
+        MsgBox "PrototypeNew: there is no rendered page context to update.", vbExclamation
+    End If
 End Sub
 
 Public Sub m_TEST_RenderDevTableListUI()
@@ -78,6 +91,22 @@ End Sub
 
 Public Sub m_TEST_InsertDemoBanner()
     If Not m_TEST_RegisterDemoBannerItems(True, True) Then Exit Sub
+End Sub
+
+Public Sub m_TEST_SetDemoConfigVariantA()
+    g_DemoConfigVariant = DEMO_CONFIG_VARIANT_A
+    If Not m_TEST_RegisterDemoConfigProfileItems(False) Then Exit Sub
+    If Not m_TEST_RegisterDemoConfigItemsVariantA(False) Then Exit Sub
+    If Not mp_TrySaveDemoConfigVariantToStoreForActiveSheet(g_DemoConfigVariant) Then Exit Sub
+    ex_SheetRenderer.m_TryRerenderLastRenderedPage "configVariant:" & g_DemoConfigVariant
+End Sub
+
+Public Sub m_TEST_SetDemoConfigVariantB()
+    g_DemoConfigVariant = DEMO_CONFIG_VARIANT_B
+    If Not m_TEST_RegisterDemoConfigProfileItems(False) Then Exit Sub
+    If Not m_TEST_RegisterDemoConfigItemsVariantB(False) Then Exit Sub
+    If Not mp_TrySaveDemoConfigVariantToStoreForActiveSheet(g_DemoConfigVariant) Then Exit Sub
+    ex_SheetRenderer.m_TryRerenderLastRenderedPage "configVariant:" & g_DemoConfigVariant
 End Sub
 
 Public Sub m_TEST_ProfileDevTableListUI()
@@ -206,6 +235,46 @@ Public Function m_TEST_RegisterDemoBannerItems( _
     m_TEST_RegisterDemoBannerItems = True
 End Function
 
+Public Function m_TEST_RegisterDemoConfigItemsVariantA(Optional ByVal notifyChange As Boolean = False) As Boolean
+    Dim items As Collection
+
+    Set items = m_TEST_BuildDemoConfigItemsVariantA()
+    If items Is Nothing Then Exit Function
+
+    If Not ex_ListItemsSourceRuntime.m_SetItemsSource("RuntimeItems.Test.Config", items, notifyChange) Then Exit Function
+    m_TEST_RegisterDemoConfigItemsVariantA = True
+End Function
+
+Public Function m_TEST_RegisterDemoConfigItemsVariantB(Optional ByVal notifyChange As Boolean = False) As Boolean
+    Dim items As Collection
+
+    Set items = m_TEST_BuildDemoConfigItemsVariantB()
+    If items Is Nothing Then Exit Function
+
+    If Not ex_ListItemsSourceRuntime.m_SetItemsSource("RuntimeItems.Test.Config", items, notifyChange) Then Exit Function
+    m_TEST_RegisterDemoConfigItemsVariantB = True
+End Function
+
+Public Function m_TEST_RegisterDemoConfigItemsByCurrentVariant(Optional ByVal notifyChange As Boolean = False) As Boolean
+    Select Case mp_GetDemoConfigVariantKey()
+        Case DEMO_CONFIG_VARIANT_B
+            m_TEST_RegisterDemoConfigItemsByCurrentVariant = m_TEST_RegisterDemoConfigItemsVariantB(notifyChange)
+
+        Case Else
+            m_TEST_RegisterDemoConfigItemsByCurrentVariant = m_TEST_RegisterDemoConfigItemsVariantA(notifyChange)
+    End Select
+End Function
+
+Public Function m_TEST_RegisterDemoConfigProfileItems(Optional ByVal notifyChange As Boolean = False) As Boolean
+    Dim options As Collection
+
+    Set options = m_TEST_BuildDemoConfigProfileItems()
+    If options Is Nothing Then Exit Function
+
+    If Not ex_ListItemsSourceRuntime.m_SetItemsSource("RuntimeItems.Test.ConfigProfiles", options, notifyChange) Then Exit Function
+    m_TEST_RegisterDemoConfigProfileItems = True
+End Function
+
 Public Function m_TEST_BuildDemoListItems() As Collection
     Dim result As Collection
 
@@ -215,6 +284,50 @@ Public Function m_TEST_BuildDemoListItems() As Collection
     result.Add mp_CreateDemoPerson("Maksym Kovalenko", "Developer")
 
     Set m_TEST_BuildDemoListItems = result
+End Function
+
+Public Function m_TEST_BuildDemoConfigItemsVariantA() As Collection
+    Dim result As Collection
+
+    Set result = New Collection
+    result.Add mp_CreateConfigViewItem("#", "Profile.Name", "HospitalizationDate")
+    result.Add mp_CreateConfigViewItem("rx", "Source.Main.FilePattern", "{Main-{dd}.{mm}.{yyyy}}")
+    result.Add mp_CreateConfigViewItem(vbNullString, "Sheet.StateMain.Key.HospitalizationDate", "No; Unit; Rank; FIO; HospitalizationDate")
+    result.Add mp_CreateConfigViewItem(vbNullString, "Sheet.StateMain.Map.1", "No з/п")
+    result.Add mp_CreateConfigViewItem("#", "Sheet.StateMain.Map.2", "В/ч")
+    result.Add mp_CreateConfigViewItem("rx", "Sheet.StateMain.Map.3", "П.І.Б.")
+
+    Set m_TEST_BuildDemoConfigItemsVariantA = result
+End Function
+
+Public Function m_TEST_BuildDemoConfigItemsVariantB() As Collection
+    Dim result As Collection
+
+    Set result = New Collection
+    result.Add mp_CreateConfigViewItem("#", "Profile.Name", "TransferSheet")
+    result.Add mp_CreateConfigViewItem("rx", "Source.Main.FileResolver", "ex_SourceResolvers.m_ResolveAllByPattern")
+    result.Add mp_CreateConfigViewItem(vbNullString, "Source.Main.SortOrder", "order=asc")
+    result.Add mp_CreateConfigViewItem(vbNullString, "Sheet.Aliases.StateMain", "StateMain")
+    result.Add mp_CreateConfigViewItem("rx", "Sheet.StateMain.Key.TransferDate", "{Main-{dd}.{mm}.{yyyy}}.DateTransfer")
+    result.Add mp_CreateConfigViewItem("#", "Sheet.StateMain.Key.DocName", "{Main-{dd}.{mm}.{yyyy}}.DocName")
+
+    Set m_TEST_BuildDemoConfigItemsVariantB = result
+End Function
+
+Public Function m_TEST_BuildDemoConfigProfileItems() As Collection
+    Dim result As Collection
+
+    Set result = New Collection
+    result.Add mp_CreateSelectOption( _
+        "HospitalizationDate", _
+        DEMO_CONFIG_VARIANT_A, _
+        "ex_Test.m_TEST_SetDemoConfigVariantA")
+    result.Add mp_CreateSelectOption( _
+        "TransferSheet", _
+        DEMO_CONFIG_VARIANT_B, _
+        "ex_Test.m_TEST_SetDemoConfigVariantB")
+
+    Set m_TEST_BuildDemoConfigProfileItems = result
 End Function
 
 Public Function m_TEST_BuildDemoTableItems() As Collection
@@ -512,6 +625,40 @@ Private Function mp_CreateDemoPerson(ByVal displayName As String, ByVal roleName
     Set mp_CreateDemoPerson = rowObj
 End Function
 
+Private Function mp_CreateConfigViewItem( _
+    ByVal attrText As String, _
+    ByVal keyText As String, _
+    ByVal valueText As String _
+) As obj_ConfigViewItem
+    Dim cfgModel As obj_Config
+    Dim cfgView As obj_ConfigViewItem
+
+    Set cfgModel = New obj_Config
+    cfgModel.Attr = CStr(attrText)
+    cfgModel.Key = CStr(keyText)
+    cfgModel.Value = CStr(valueText)
+
+    Set cfgView = New obj_ConfigViewItem
+    Set cfgView.Model = cfgModel
+
+    Set mp_CreateConfigViewItem = cfgView
+End Function
+
+Private Function mp_CreateSelectOption( _
+    ByVal captionText As String, _
+    ByVal idText As String, _
+    ByVal onSelectMacro As String _
+) As obj_SelectOption
+    Dim selectOption As obj_SelectOption
+
+    Set selectOption = New obj_SelectOption
+    selectOption.Caption = CStr(captionText)
+    selectOption.Id = CStr(idText)
+    selectOption.OnSelect = CStr(onSelectMacro)
+
+    Set mp_CreateSelectOption = selectOption
+End Function
+
 Private Function mp_CreateDemoBannerModel( _
     ByVal headerText As String, _
     ByVal messageText As String, _
@@ -766,4 +913,59 @@ Private Function mp_GetActiveWorksheet() As Worksheet
     End If
 
     Set mp_GetActiveWorksheet = activeSheetObj
+End Function
+
+Private Function mp_GetDemoConfigVariantKey() As String
+    g_DemoConfigVariant = LCase$(Trim$(g_DemoConfigVariant))
+    If Len(g_DemoConfigVariant) = 0 Then g_DemoConfigVariant = DEMO_CONFIG_VARIANT_A
+
+    Select Case g_DemoConfigVariant
+        Case DEMO_CONFIG_VARIANT_A, DEMO_CONFIG_VARIANT_B
+            mp_GetDemoConfigVariantKey = g_DemoConfigVariant
+
+        Case Else
+            g_DemoConfigVariant = DEMO_CONFIG_VARIANT_A
+            mp_GetDemoConfigVariantKey = g_DemoConfigVariant
+    End Select
+End Function
+
+Private Function mp_TryLoadDemoConfigVariantFromStore(ByVal ws As Worksheet) As Boolean
+    Dim selectStateKey As String
+    Dim storedSelectedId As String
+    Dim selectStatic As obj_SelectControlVMStatic
+
+    If ws Is Nothing Then
+        MsgBox "PrototypeNew: worksheet is not specified for config profile state restore.", vbExclamation
+        Exit Function
+    End If
+
+    selectStateKey = LCase$(ws.Name & "|ConfigProfilePicker")
+    Set selectStatic = New obj_SelectControlVMStatic
+    If Not selectStatic.m_TryGetSelectedId(selectStateKey, storedSelectedId) Then Exit Function
+
+    storedSelectedId = LCase$(Trim$(storedSelectedId))
+    Select Case storedSelectedId
+        Case DEMO_CONFIG_VARIANT_A, DEMO_CONFIG_VARIANT_B
+            g_DemoConfigVariant = storedSelectedId
+
+        Case Else
+            If Len(Trim$(g_DemoConfigVariant)) = 0 Then g_DemoConfigVariant = DEMO_CONFIG_VARIANT_A
+    End Select
+
+    mp_TryLoadDemoConfigVariantFromStore = True
+End Function
+
+Private Function mp_TrySaveDemoConfigVariantToStoreForActiveSheet(ByVal configVariant As String) As Boolean
+    Dim ws As Worksheet
+    Dim selectStateKey As String
+    Dim selectStatic As obj_SelectControlVMStatic
+
+    Set ws = mp_GetActiveWorksheet()
+    If ws Is Nothing Then Exit Function
+
+    selectStateKey = LCase$(ws.Name & "|ConfigProfilePicker")
+    Set selectStatic = New obj_SelectControlVMStatic
+    If Not selectStatic.m_SetSelectedId(selectStateKey, LCase$(Trim$(configVariant))) Then Exit Function
+
+    mp_TrySaveDemoConfigVariantToStoreForActiveSheet = True
 End Function

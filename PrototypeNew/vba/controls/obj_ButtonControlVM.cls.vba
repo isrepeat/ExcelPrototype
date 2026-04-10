@@ -11,18 +11,16 @@ Private Const DEFAULT_CAPTION As String = "Update Code"
 Private m_ControlName As String
 Private m_CaptionRaw As String
 Private m_OnClickRaw As String
-Private m_StyleName As String
+Private m_Layout As obj_ControlLayout
 Private m_CaptionText As String
 Private m_OnClickMacroRef As String
-Private m_LayoutSheet As String
-Private m_RowStart As Long
-Private m_ColStart As Long
-Private m_RowEnd As Long
-Private m_ColEnd As Long
+Private m_RuntimeControlKey As String
 Private m_IsConfigured As Boolean
 
 Private Sub obj_IControl_Configure(ByVal controlNode As Object)
     m_IsConfigured = False
+    Set m_Layout = Nothing
+    m_RuntimeControlKey = vbNullString
 
     If controlNode Is Nothing Then
         MsgBox "Button: control node is not specified.", vbExclamation
@@ -35,8 +33,6 @@ Private Sub obj_IControl_Configure(ByVal controlNode As Object)
     m_CaptionRaw = CStr(ex_XmlCore.m_NodeAttrText(controlNode, "caption"))
     If Len(m_CaptionRaw) = 0 Then m_CaptionRaw = DEFAULT_CAPTION
 
-    m_StyleName = Trim$(ex_XmlCore.m_NodeAttrText(controlNode, "style"))
-
     m_OnClickRaw = CStr(ex_XmlCore.m_NodeAttrText(controlNode, "onClick"))
     If Len(Trim$(m_OnClickRaw)) = 0 Then
         MsgBox "Button: onClick is required for control '" & m_ControlName & "'.", vbExclamation
@@ -46,31 +42,9 @@ Private Sub obj_IControl_Configure(ByVal controlNode As Object)
     If Not ex_BindingRuntime.m_TryResolveTextBinding(m_CaptionRaw, Me, m_CaptionText) Then Exit Sub
     If Not ex_BindingRuntime.m_TryResolveMacroBinding(m_OnClickRaw, Me, m_OnClickMacroRef) Then Exit Sub
 
-    m_LayoutSheet = Trim$(ex_XmlCore.m_NodeAttrText(controlNode, "__layoutSheet"))
-    If Len(m_LayoutSheet) = 0 Then
-        MsgBox "Button: runtime layout sheet is missing for control '" & m_ControlName & "'.", vbExclamation
-        Exit Sub
-    End If
-
-    If Not mp_TryReadLayoutLongAttr(controlNode, "__layoutRowStart", m_RowStart) Then Exit Sub
-    If Not mp_TryReadLayoutLongAttr(controlNode, "__layoutColStart", m_ColStart) Then Exit Sub
-    If Not mp_TryReadLayoutLongAttr(controlNode, "__layoutRowEnd", m_RowEnd) Then Exit Sub
-    If Not mp_TryReadLayoutLongAttr(controlNode, "__layoutColEnd", m_ColEnd) Then Exit Sub
-
-    If m_RowStart <= 0 Or m_ColStart <= 0 Then
-        MsgBox "Button: invalid row/column start for control '" & m_ControlName & "'.", vbExclamation
-        Exit Sub
-    End If
-
-    If m_RowEnd < m_RowStart Then
-        MsgBox "Button: control '" & m_ControlName & "' has invalid spanRows range.", vbExclamation
-        Exit Sub
-    End If
-
-    If m_ColEnd < m_ColStart Then
-        MsgBox "Button: control '" & m_ControlName & "' has invalid spanCells range.", vbExclamation
-        Exit Sub
-    End If
+    Set m_Layout = New obj_ControlLayout
+    If Not m_Layout.m_TryReadFromNode(controlNode, "Button", m_ControlName, "style") Then Exit Sub
+    m_RuntimeControlKey = "button|" & LCase$(Trim$(m_Layout.LayoutSheet & "|" & m_ControlName))
 
     m_IsConfigured = True
 End Sub
@@ -80,6 +54,8 @@ Private Sub obj_IControl_Render(ByVal wb As Workbook)
     Dim shp As Shape
     Dim buttonName As String
     Dim targetRange As Range
+    Dim metaMap As Object
+    Dim callbackMacroRef As String
 
     If Not m_IsConfigured Then
         MsgBox "Button: control '" & m_ControlName & "' is not configured.", vbExclamation
@@ -92,14 +68,14 @@ Private Sub obj_IControl_Render(ByVal wb As Workbook)
         Exit Sub
     End If
 
-    Set ws = mp_GetWorksheetByName(wb, m_LayoutSheet)
+    Set ws = mp_GetWorksheetByName(wb, m_Layout.LayoutSheet)
     If ws Is Nothing Then
-        MsgBox "Button: sheet '" & m_LayoutSheet & "' was not found for control '" & m_ControlName & "'.", vbExclamation
+        MsgBox "Button: sheet '" & m_Layout.LayoutSheet & "' was not found for control '" & m_ControlName & "'.", vbExclamation
         Exit Sub
     End If
 
     On Error GoTo EH_RANGE
-    Set targetRange = ws.Range(ws.Cells(m_RowStart, m_ColStart), ws.Cells(m_RowEnd, m_ColEnd))
+    Set targetRange = ws.Range(ws.Cells(m_Layout.RowStart, m_Layout.ColStart), ws.Cells(m_Layout.RowEnd, m_Layout.ColEnd))
     On Error GoTo 0
 
     If targetRange Is Nothing Then
@@ -112,6 +88,8 @@ Private Sub obj_IControl_Render(ByVal wb As Workbook)
     End If
 
     buttonName = "btn_" & m_ControlName
+    callbackMacroRef = mp_GetRuntimeCallbackMacroRef()
+    If Len(callbackMacroRef) = 0 Then Exit Sub
 
     On Error Resume Next
     ws.Shapes(buttonName).Delete
@@ -120,7 +98,10 @@ Private Sub obj_IControl_Render(ByVal wb As Workbook)
     Set shp = ws.Shapes.AddShape(msoShapeRoundedRectangle, targetRange.Left, targetRange.Top, targetRange.Width, targetRange.Height)
     shp.Name = buttonName
     shp.Placement = xlMoveAndSize
-    shp.OnAction = m_OnClickMacroRef
+    shp.OnAction = callbackMacroRef
+
+    If Not ex_ShapeClickDispatcher.m_RegisterControl(m_RuntimeControlKey, Me) Then Exit Sub
+    If Not ex_ShapeClickDispatcher.m_RegisterShapeRoute(shp.Name, m_RuntimeControlKey, "m_RuntimeHandleClick", False) Then Exit Sub
 
     On Error Resume Next
     shp.TextFrame2.TextRange.Text = m_CaptionText
@@ -129,8 +110,16 @@ Private Sub obj_IControl_Render(ByVal wb As Workbook)
     shp.TextFrame.Characters.Text = m_CaptionText
     shp.TextFrame.HorizontalAlignment = xlHAlignCenter
     shp.TextFrame.VerticalAlignment = xlVAlignCenter
-    shp.Tags.Add "pn.control", m_ControlName
-    shp.Tags.Add "pn.style", m_StyleName
+
+    Set metaMap = CreateObject("Scripting.Dictionary")
+    metaMap.CompareMode = 1
+    metaMap("pn.control") = m_ControlName
+    If Len(Trim$(m_Layout.StyleName)) > 0 Then
+        metaMap("pn.style") = m_Layout.StyleName
+    Else
+        metaMap("pn.style") = vbNullString
+    End If
+    If Not ex_ShapeMetaRuntime.m_TrySetShapeMetaValues(shp, metaMap) Then Exit Sub
     On Error GoTo EH_BUTTON
 
     Exit Sub
@@ -150,26 +139,33 @@ Private Function obj_IControl_SupportsAttribute(ByVal attrName As String) As Boo
     End Select
 End Function
 
-Private Function mp_TryReadLayoutLongAttr( _
-    ByVal controlNode As Object, _
-    ByVal attrName As String, _
-    ByRef outValue As Long _
-) As Boolean
-    Dim rawText As String
+Public Function m_RuntimeHandleClick() As Boolean
+    On Error GoTo EH_CLICK
+    Application.Run m_OnClickMacroRef
+    m_RuntimeHandleClick = True
+    Exit Function
 
-    rawText = Trim$(ex_XmlCore.m_NodeAttrText(controlNode, attrName))
-    If Len(rawText) = 0 Then
-        MsgBox "Button: runtime layout attribute '" & attrName & "' is missing for control '" & m_ControlName & "'.", vbExclamation
+EH_CLICK:
+    MsgBox "Button: failed to execute onClick for control '" & m_ControlName & "': " & Err.Description, vbExclamation
+End Function
+
+Private Function mp_GetRuntimeCallbackMacroRef() As String
+    mp_GetRuntimeCallbackMacroRef = mp_QualifyMacroName("ex_ShapeClickDispatcher.m_OnShapeClick")
+End Function
+
+Private Function mp_QualifyMacroName(ByVal macroName As String) As String
+    Dim wbName As String
+
+    macroName = Trim$(macroName)
+    If Len(macroName) = 0 Then Exit Function
+    If InStr(1, macroName, "!", vbBinaryCompare) > 0 Then
+        mp_QualifyMacroName = macroName
         Exit Function
     End If
 
-    If Not IsNumeric(rawText) Then
-        MsgBox "Button: runtime layout attribute '" & attrName & "' must be numeric for control '" & m_ControlName & "'.", vbExclamation
-        Exit Function
-    End If
-
-    outValue = CLng(rawText)
-    mp_TryReadLayoutLongAttr = True
+    wbName = ThisWorkbook.Name
+    wbName = Replace$(wbName, "'", "''")
+    mp_QualifyMacroName = "'" & wbName & "'!" & macroName
 End Function
 
 Private Function mp_GetWorksheetByName(ByVal wb As Workbook, ByVal sheetName As String) As Worksheet

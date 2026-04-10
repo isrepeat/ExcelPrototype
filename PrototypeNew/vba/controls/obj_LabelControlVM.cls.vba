@@ -9,16 +9,12 @@ Implements obj_IControl
 Private m_ControlName As String
 Private m_TextRaw As String
 Private m_TextResolved As String
-Private m_StyleName As String
-Private m_LayoutSheet As String
-Private m_RowStart As Long
-Private m_ColStart As Long
-Private m_RowEnd As Long
-Private m_ColEnd As Long
+Private m_Layout As obj_ControlLayout
 Private m_IsConfigured As Boolean
 
 Private Sub obj_IControl_Configure(ByVal controlNode As Object)
     m_IsConfigured = False
+    Set m_Layout = Nothing
 
     If controlNode Is Nothing Then
         MsgBox "Label: control node is not specified.", vbExclamation
@@ -32,35 +28,9 @@ Private Sub obj_IControl_Configure(ByVal controlNode As Object)
     If Len(Trim$(m_TextRaw)) = 0 Then
         m_TextRaw = CStr(ex_XmlCore.m_NodeAttrText(controlNode, "caption"))
     End If
-    m_StyleName = LCase$(Trim$(ex_XmlCore.m_NodeAttrText(controlNode, "style")))
-
     If Not ex_BindingRuntime.m_TryResolveTextBinding(m_TextRaw, Me, m_TextResolved) Then Exit Sub
-
-    m_LayoutSheet = Trim$(ex_XmlCore.m_NodeAttrText(controlNode, "__layoutSheet"))
-    If Len(m_LayoutSheet) = 0 Then
-        MsgBox "Label: runtime layout sheet is missing for control '" & m_ControlName & "'.", vbExclamation
-        Exit Sub
-    End If
-
-    If Not mp_TryReadLayoutLongAttr(controlNode, "__layoutRowStart", m_RowStart) Then Exit Sub
-    If Not mp_TryReadLayoutLongAttr(controlNode, "__layoutColStart", m_ColStart) Then Exit Sub
-    If Not mp_TryReadLayoutLongAttr(controlNode, "__layoutRowEnd", m_RowEnd) Then Exit Sub
-    If Not mp_TryReadLayoutLongAttr(controlNode, "__layoutColEnd", m_ColEnd) Then Exit Sub
-
-    If m_RowStart <= 0 Or m_ColStart <= 0 Then
-        MsgBox "Label: invalid row/column start for control '" & m_ControlName & "'.", vbExclamation
-        Exit Sub
-    End If
-
-    If m_RowEnd < m_RowStart Then
-        MsgBox "Label: control '" & m_ControlName & "' has invalid spanRows range.", vbExclamation
-        Exit Sub
-    End If
-
-    If m_ColEnd < m_ColStart Then
-        MsgBox "Label: control '" & m_ControlName & "' has invalid spanCells range.", vbExclamation
-        Exit Sub
-    End If
+    Set m_Layout = New obj_ControlLayout
+    If Not m_Layout.m_TryReadFromNode(controlNode, "Label", m_ControlName, "style") Then Exit Sub
 
     m_IsConfigured = True
 End Sub
@@ -80,21 +50,21 @@ Private Sub obj_IControl_Render(ByVal wb As Workbook)
         Exit Sub
     End If
 
-    Set ws = mp_GetWorksheetByName(wb, m_LayoutSheet)
+    Set ws = mp_GetWorksheetByName(wb, m_Layout.LayoutSheet)
     If ws Is Nothing Then
-        MsgBox "Label: sheet '" & m_LayoutSheet & "' was not found for control '" & m_ControlName & "'.", vbExclamation
+        MsgBox "Label: sheet '" & m_Layout.LayoutSheet & "' was not found for control '" & m_ControlName & "'.", vbExclamation
         Exit Sub
     End If
 
     On Error GoTo EH_RANGE
-    Set targetRange = ws.Range(ws.Cells(m_RowStart, m_ColStart), ws.Cells(m_RowEnd, m_ColEnd))
+    Set targetRange = ws.Range(ws.Cells(m_Layout.RowStart, m_Layout.ColStart), ws.Cells(m_Layout.RowEnd, m_Layout.ColEnd))
     On Error GoTo 0
 
     targetRange.Value2 = m_TextResolved
     targetRange.HorizontalAlignment = xlHAlignLeft
     targetRange.VerticalAlignment = xlVAlignCenter
     targetRange.WrapText = False
-    If Not mp_ApplyPresetStyle(targetRange, m_StyleName) Then Exit Sub
+    If Not mp_ApplyPresetStyle(targetRange, m_Layout.StyleName) Then Exit Sub
     Exit Sub
 
 EH_RANGE:
@@ -153,28 +123,6 @@ Private Function mp_ApplyPresetStyle(ByVal targetRange As Range, ByVal styleName
     End Select
 
     mp_ApplyPresetStyle = True
-End Function
-
-Private Function mp_TryReadLayoutLongAttr( _
-    ByVal controlNode As Object, _
-    ByVal attrName As String, _
-    ByRef outValue As Long _
-) As Boolean
-    Dim rawText As String
-
-    rawText = Trim$(ex_XmlCore.m_NodeAttrText(controlNode, attrName))
-    If Len(rawText) = 0 Then
-        MsgBox "Label: runtime layout attribute '" & attrName & "' is missing for control '" & m_ControlName & "'.", vbExclamation
-        Exit Function
-    End If
-
-    If Not IsNumeric(rawText) Then
-        MsgBox "Label: runtime layout attribute '" & attrName & "' must be numeric for control '" & m_ControlName & "'.", vbExclamation
-        Exit Function
-    End If
-
-    outValue = CLng(rawText)
-    mp_TryReadLayoutLongAttr = True
 End Function
 
 Private Function mp_GetWorksheetByName(ByVal wb As Workbook, ByVal sheetName As String) As Worksheet
