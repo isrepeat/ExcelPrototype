@@ -12,6 +12,9 @@ Private Sub Class_Initialize()
     m_CellCount = 0
 End Sub
 
+' //
+' // API
+' //
 Public Property Get CellCount() As Long
     CellCount = m_CellCount
 End Property
@@ -28,36 +31,36 @@ Public Property Get Cells() As Collection
     Set Cells = result
 End Property
 
-Public Sub m_AddCell(ByVal value As Variant)
-    If Not mp_EnsureCapacity(m_CellCount + 1) Then Exit Sub
+Public Sub AddCell(ByVal value As Variant)
+    If Not private_EnsureCapacity(m_CellCount + 1) Then Exit Sub
 
     m_CellCount = m_CellCount + 1
-    m_CellValues(m_CellCount) = CStr(value)
+    m_CellValues(m_CellCount) = VBA.CStr(value)
 End Sub
 
-Public Function m_SetCell(ByVal oneBasedIndex As Long, ByVal value As Variant) As Boolean
+Public Function SetCell(ByVal oneBasedIndex As Long, ByVal value As Variant) As Boolean
     If oneBasedIndex <= 0 Then
-        MsgBox "obj_Row: cell index must be greater than zero.", vbExclamation
+        VBA.MsgBox "obj_Row: cell index must be greater than zero.", VBA.vbExclamation
         Exit Function
     End If
 
     If oneBasedIndex > m_CellCount Then
-        If Not mp_EnsureCapacity(oneBasedIndex) Then Exit Function
+        If Not private_EnsureCapacity(oneBasedIndex) Then Exit Function
         m_CellCount = oneBasedIndex
     End If
 
-    m_CellValues(oneBasedIndex) = CStr(value)
-    m_SetCell = True
+    m_CellValues(oneBasedIndex) = VBA.CStr(value)
+    SetCell = True
 End Function
 
-Public Function m_GetCell(ByVal oneBasedIndex As Long) As String
+Public Function GetCell(ByVal oneBasedIndex As Long) As String
     If oneBasedIndex <= 0 Then Exit Function
     If oneBasedIndex > m_CellCount Then Exit Function
 
-    m_GetCell = m_CellValues(oneBasedIndex)
+    GetCell = m_CellValues(oneBasedIndex)
 End Function
 
-Public Sub m_CopyToMatrixRow(ByRef targetMatrix As Variant, ByVal matrixRow As Long, ByVal columnCount As Long)
+Public Sub CopyToMatrixRow(ByRef targetMatrix As Variant, ByVal matrixRow As Long, ByVal columnCount As Long)
     Dim i As Long
     Dim maxCols As Long
 
@@ -72,17 +75,20 @@ Public Sub m_CopyToMatrixRow(ByRef targetMatrix As Variant, ByVal matrixRow As L
     Next i
 End Sub
 
-Private Function mp_EnsureCapacity(ByVal requiredCount As Long) As Boolean
+' //
+' // Internal
+' //
+Private Function private_EnsureCapacity(ByVal requiredCount As Long) As Boolean
     Dim oldCount As Long
     Dim i As Long
 
     If requiredCount <= 0 Then
-        mp_EnsureCapacity = True
+        private_EnsureCapacity = True
         Exit Function
     End If
 
     If requiredCount <= m_CellCount Then
-        mp_EnsureCapacity = True
+        private_EnsureCapacity = True
         Exit Function
     End If
 
@@ -95,9 +101,9 @@ Private Function mp_EnsureCapacity(ByVal requiredCount As Long) As Boolean
 
     If oldCount + 1 <= requiredCount Then
         For i = oldCount + 1 To requiredCount
-            m_CellValues(i) = vbNullString
+            m_CellValues(i) = VBA.vbNullString
         Next i
     End If
 
-    mp_EnsureCapacity = True
+    private_EnsureCapacity = True
 End Function

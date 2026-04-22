@@ -6,32 +6,32 @@ Attribute VB_Name = "obj_TableTplControlVM"
 Option Explicit
 Implements obj_IControl
 
+Private m_Base As obj_ControlBase
 Private m_ControlName As String
 Private m_ItemsSourceRaw As String
 Private m_IsConfigured As Boolean
 
-Private Sub obj_IControl_Configure(ByVal controlNode As Object)
+' //
+' // Interface
+' //
+Private Sub obj_IControl_Configure(ByVal page As obj_PageBase, ByVal controlNode As Object)
     Dim listNode As Object
 
     m_IsConfigured = False
+    Set m_Base = Nothing
 
-    If controlNode Is Nothing Then
-        MsgBox "TableTpl: control node is not specified.", vbExclamation
+    Set m_Base = New obj_ControlBase
+    If Not m_Base.Configure(page, controlNode, "TableTpl", "tableTpl", m_ControlName) Then Exit Sub
+
+    m_ItemsSourceRaw = VBA.Trim$(ex_XmlCore.m_NodeAttrText(controlNode, "itemsSource"))
+    If VBA.Len(m_ItemsSourceRaw) = 0 Then
+        VBA.MsgBox "TableTpl: itemsSource is not specified for control '" & m_ControlName & "'.", VBA.vbExclamation
         Exit Sub
     End If
 
-    m_ControlName = Trim$(ex_XmlCore.m_NodeAttrText(controlNode, "name"))
-    If Len(m_ControlName) = 0 Then m_ControlName = "tableTpl"
-
-    m_ItemsSourceRaw = Trim$(ex_XmlCore.m_NodeAttrText(controlNode, "itemsSource"))
-    If Len(m_ItemsSourceRaw) = 0 Then
-        MsgBox "TableTpl: itemsSource is not specified for control '" & m_ControlName & "'.", vbExclamation
-        Exit Sub
-    End If
-
-    Set listNode = mp_FindFirstChildListNode(controlNode)
+    Set listNode = private_FindFirstChildListNode(controlNode)
     If listNode Is Nothing Then
-        MsgBox "TableTpl: primitive table layout must contain root <list>.", vbExclamation
+        VBA.MsgBox "TableTpl: primitive table layout must contain root <list>.", VBA.vbExclamation
         Exit Sub
     End If
 
@@ -39,9 +39,9 @@ Private Sub obj_IControl_Configure(ByVal controlNode As Object)
     m_IsConfigured = True
 End Sub
 
-Private Sub obj_IControl_Render(ByVal wb As Workbook)
+Private Sub obj_IControl_Render()
     If Not m_IsConfigured Then
-        MsgBox "TableTpl: control '" & m_ControlName & "' is not configured.", vbExclamation
+        VBA.MsgBox "TableTpl: control '" & m_ControlName & "' is not configured.", VBA.vbExclamation
         Exit Sub
     End If
 
@@ -49,21 +49,29 @@ Private Sub obj_IControl_Render(ByVal wb As Workbook)
 End Sub
 
 Private Function obj_IControl_SupportsAttribute(ByVal attrName As String) As Boolean
-    Select Case LCase$(Trim$(attrName))
+    Select Case VBA.LCase$(VBA.Trim$(attrName))
         Case "itemssource"
             obj_IControl_SupportsAttribute = True
     End Select
 End Function
 
-Private Function mp_FindFirstChildListNode(ByVal parentNode As Object) As Object
+' //
+' // API
+' //
+' (No public API yet.)
+'
+' //
+' // Internal
+' //
+Private Function private_FindFirstChildListNode(ByVal parentNode As Object) As Object
     Dim childNode As Object
 
     If parentNode Is Nothing Then Exit Function
 
     For Each childNode In parentNode.ChildNodes
         If childNode.NodeType <> 1 Then GoTo ContinueLoop
-        If StrComp(LCase$(CStr(childNode.baseName)), "list", vbBinaryCompare) = 0 Then
-            Set mp_FindFirstChildListNode = childNode
+        If VBA.StrComp(VBA.LCase$(VBA.CStr(childNode.baseName)), "list", VBA.vbBinaryCompare) = 0 Then
+            Set private_FindFirstChildListNode = childNode
             Exit Function
         End If
 ContinueLoop:

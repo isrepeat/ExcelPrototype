@@ -1,15 +1,18 @@
 Attribute VB_Name = "ex_CustomXmlPartStore"
 Option Explicit
 
+' //
+' // API
+' //
 Public Function m_TryFindPartByNamespace( _
     ByVal namespaceUri As String, _
     ByRef outPart As Object _
 ) As Boolean
     Dim parts As Object
 
-    namespaceUri = Trim$(namespaceUri)
-    If Len(namespaceUri) = 0 Then
-        MsgBox "CustomXmlPartStore: namespace is empty.", vbExclamation
+    namespaceUri = VBA.Trim$(namespaceUri)
+    If VBA.Len(namespaceUri) = 0 Then
+        VBA.MsgBox "CustomXmlPartStore: namespace is empty.", VBA.vbExclamation
         Exit Function
     End If
 
@@ -27,8 +30,9 @@ Public Function m_TryFindPartByNamespace( _
     Exit Function
 
 EH_FIND:
-    MsgBox "CustomXmlPartStore: failed to find XML part by namespace '" & namespaceUri & "': " & Err.Description, vbExclamation
+    VBA.MsgBox "CustomXmlPartStore: failed to find XML part by namespace '" & namespaceUri & "': " & Err.Description, VBA.vbExclamation
 End Function
+
 
 Public Function m_TryLoadDomFromXml( _
     ByVal xmlText As String, _
@@ -41,14 +45,15 @@ Public Function m_TryLoadDomFromXml( _
     dom.validateOnParse = False
     dom.setProperty "SelectionLanguage", "XPath"
 
-    If Not dom.LoadXML(CStr(xmlText)) Then
-        MsgBox "CustomXmlPartStore: failed to parse XML.", vbExclamation
+    If Not dom.LoadXML(VBA.CStr(xmlText)) Then
+        VBA.MsgBox "CustomXmlPartStore: failed to parse XML.", VBA.vbExclamation
         Exit Function
     End If
 
     Set outDom = dom
     m_TryLoadDomFromXml = True
 End Function
+
 
 Public Function m_TryCreateEmptyDom( _
     ByVal rootNodeName As String, _
@@ -57,15 +62,15 @@ Public Function m_TryCreateEmptyDom( _
 ) As Boolean
     Dim xmlText As String
 
-    rootNodeName = Trim$(rootNodeName)
-    namespaceUri = Trim$(namespaceUri)
+    rootNodeName = VBA.Trim$(rootNodeName)
+    namespaceUri = VBA.Trim$(namespaceUri)
 
-    If Len(rootNodeName) = 0 Then
-        MsgBox "CustomXmlPartStore: root node name is empty.", vbExclamation
+    If VBA.Len(rootNodeName) = 0 Then
+        VBA.MsgBox "CustomXmlPartStore: root node name is empty.", VBA.vbExclamation
         Exit Function
     End If
-    If Len(namespaceUri) = 0 Then
-        MsgBox "CustomXmlPartStore: namespace is empty.", vbExclamation
+    If VBA.Len(namespaceUri) = 0 Then
+        VBA.MsgBox "CustomXmlPartStore: namespace is empty.", VBA.vbExclamation
         Exit Function
     End If
 
@@ -76,18 +81,20 @@ Public Function m_TryCreateEmptyDom( _
     m_TryCreateEmptyDom = True
 End Function
 
+
 Public Function m_TryLoadPartDom( _
     ByVal partObj As Object, _
     ByRef outDom As Object _
 ) As Boolean
     If partObj Is Nothing Then
-        MsgBox "CustomXmlPartStore: part is not specified.", vbExclamation
+        VBA.MsgBox "CustomXmlPartStore: part is not specified.", VBA.vbExclamation
         Exit Function
     End If
 
-    If Not m_TryLoadDomFromXml(CStr(partObj.XML), outDom) Then Exit Function
+    If Not m_TryLoadDomFromXml(VBA.CStr(partObj.XML), outDom) Then Exit Function
     m_TryLoadPartDom = True
 End Function
+
 
 Public Function m_TrySaveDom( _
     ByVal dom As Object, _
@@ -96,13 +103,13 @@ Public Function m_TrySaveDom( _
     Dim xmlText As String
 
     If dom Is Nothing Then
-        MsgBox "CustomXmlPartStore: DOM is not specified.", vbExclamation
+        VBA.MsgBox "CustomXmlPartStore: DOM is not specified.", VBA.vbExclamation
         Exit Function
     End If
 
-    xmlText = CStr(dom.XML)
-    If Len(Trim$(xmlText)) = 0 Then
-        MsgBox "CustomXmlPartStore: state XML is empty.", vbExclamation
+    xmlText = VBA.CStr(dom.XML)
+    If VBA.Len(VBA.Trim$(xmlText)) = 0 Then
+        VBA.MsgBox "CustomXmlPartStore: state XML is empty.", VBA.vbExclamation
         Exit Function
     End If
 
@@ -113,6 +120,5 @@ Public Function m_TrySaveDom( _
     Exit Function
 
 EH_SAVE:
-    MsgBox "CustomXmlPartStore: failed to persist state XML: " & Err.Description, vbExclamation
+    VBA.MsgBox "CustomXmlPartStore: failed to persist state XML: " & Err.Description, VBA.vbExclamation
 End Function
-

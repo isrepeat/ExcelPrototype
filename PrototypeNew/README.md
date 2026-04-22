@@ -29,12 +29,118 @@ Common attribute checks are centralized in `ex_ControlAttributeContracts` to avo
 
 ## Entry macro
 Run:
-- `ex_Actions.m_LoadPrototypeNewUi`
+- `ThisWorkbook.m_ResetWorkbookAndCreateMainPage`
 
-This resolves `ThisWorkbook.ActiveSheet` and calls `ex_SheetRenderer.m_RenderWorksheet`.
+This resets workbook sheets, creates `Main` page and renders it via `rt_PageManager`.
+
+## Роутинг Кнопок И Обновление Модулей
+
+### Почему роуты это runtime-состояние
+Кнопки рендерятся как Excel Shape. Клик по Shape может вызвать только макрос по имени через `OnAction`, а не метод объекта напрямую.
+Из-за этого роутинг разбит на стабильные runtime-слои:
+
+1. `OnAction` указывает на стабильный bridge-макрос (`rt_Bridge.m_OnShapeClick`).
+2. Bridge делегирует диспетчеризацию в `rt_Router`.
+3. `rt_Router` хранит runtime-таблицы:
+	- имя shape -> запись маршрута
+	- ключ контрола -> объект VM
+4. Запись маршрута содержит, какой метод VM нужно вызвать.
+
+Такая схема позволяет XML-контролам (`onClick="{Binding Module=...;Method=...}"`) работать без хардкода макроса под каждую кнопку.
+
+### Полный путь клика
+
+1. `ex_SheetRenderer.m_RenderWorksheet` сбрасывает runtime-состояние кликов (`rt_Router.m_ResetRouter`).
+2. Во время рендера контролов создаются shape-кнопки и регистрируются маршруты через dispatcher/router.
+3. Пользователь кликает shape.
+4. Excel запускает макрос из `OnAction` (`rt_Bridge.m_OnShapeClick`).
+5. Bridge вызывает `rt_Router.m_OnShapeClick`.
+6. Router берет `Application.Caller`, находит маршрут, находит VM и вызывает целевой метод.
+
+### Почему роуты могут "сломаться" после реимпорта модулей
+
+Обновление модулей (`ex_Core.dev_Update*`) делает реимпорт VBA-модулей/классов. Для стандартных модулей и классов это фактически remove + add.
+Если обновление прошло без перерендера страницы, runtime-таблицы роутера могут остаться привязанными к старому VM/runtime-контексту.
+Итог: клики по кнопкам могут перестать работать до ручного перерендера, который пересоберет роуты.
+
+### Стратегии обновления: от простой к надежной
+
+1. Прямой вызов обновления в том же call stack
+	- Пример: вызывать `ex_Core.dev_UpdateCodeByDate` напрямую из кнопки UI.
+	- Плюсы: самая простая реализация.
+	- Минусы: нет гарантированной пересборки роутов; обработчики могут устареть до следующего рендера.
+
+2. Прямой update + ручной rerender после update
+	- Плюсы: лучше, чем прямой update без rerender.
+	- Минусы: легко забыть в отдельных точках входа; хрупко в сопровождении.
+
+3. Оркестрируемый deferred update + авто rerender (рекомендуется)
+	- Реализован в `rt_CoreActions`.
+	- Схема:
+	  1) сохранить контекст текущей страницы,
+	  2) запланировать update (`OnTime`),
+	  3) автоматически выполнить rerender.
+	- Плюсы: роуты и визуальное runtime-состояние пересобираются предсказуемо.
+	- Минусы: больше orchestration-кода.
+
+4. Транзакционный hot-reload с rollback
+	- Максимальная надежность, максимальная сложность.
+	- Обычно избыточно для текущего этапа проекта.
+
+### Текущее правило проекта
+
+Для UI-триггеров обновления кода использовать `rt_CoreActions`, а не прямой вызов `ex_Core.dev_Update*` из кнопок.
+Так гарантируется, что после update всегда будет rerender, и роуты кнопок будут пересобраны.
+
+### Flow обновления: новый `.xlsm`, только `ex_Core`
+
+Сценарий: открыт новый файл, в VBA пока добавлен только `ex_Core`, остальные runtime-модули еще не импортированы.
+
+```text
+[Запуск macro: ex_Core.dev_UpdateAllModules]
+        |
+        v
+private_TryQueueRuntimeUpdateWhenBridgeDispatch("full")
+        |
+        +-- rt_Bridge отсутствует -> queue = False (нормально для cold start)
+        |
+        v
+private_TryRunSafeUpdateByMode(...)
+        |
+        v
+private_TryBootstrapRuntimePipeline(...)
+        |
+        +-- runtime-компонентов нет -> bootstrapMode="full"
+                |
+                v
+        private_UpdateCodeByRegex(all, exclude ex_Core, FULL)
+        (импорт всех модулей/классов/листов/ThisWorkbook)
+                |
+                v
+        bootstrap done
+        |
+        v
+safe-update branch: "full-bootstrap-was-required"
+        |
+        v
+private_TryRecoverUiAfterUpdate(...)
+        |
+        +-- try restore snapshots/runtime (может быть пусто на первой загрузке)
+        +-- try rerender active page (обычно False на первой загрузке)
+        +-- fallback: ThisWorkbook.m_ResetWorkbookAndCreateMainPage(...)
+        +-- checkpoint: SavePageSnapshots + SaveRuntimeGlobalsSnapshot
+        +-- queue deferred restore (OnTime +1s)
+        |
+        v
+[через OnTime] rt_Snapshots.m_RunDeferredRuntimeStateRestore
+        |
+        +-- если runtime page уже есть -> restore globals
+        +-- иначе restore pages + restore globals
+        +-- если fail/restoredPages=0 -> fallback reset Main + resave checkpoints
+```
 
 ## DevTools Import Rules
-`DevTools.dev_UpdateCodeFast` scans only root `vba\` and imports recursively (max depth `4`).
+`DevTools.dev_UpdateCodeByDate` scans only root `vba\` and imports recursively (max depth `4`).
 
 File classification is name-based (not folder-based):
 - standard module: `ex_<Name>.vba` or `ex_<Name>.utf8.vba`
@@ -115,15 +221,16 @@ Default tokens when mapping is omitted: `True` / `False`.
 ```vb
 Dim tables As Collection
 Dim banner As obj_Banner
+Dim pageBase As obj_PageBase
 
 Set tables = m_TEST_BuildDemoTableItems()
-Call ex_ListItemsSourceRuntime.m_SetItemsSource("RuntimeItems.Test.Tables", tables, True)
+Call pageBase.RuntimeSources.SetItemsSource("RuntimeItems.Test.Tables", tables)
 
 Set banner = New obj_Banner
 banner.Header = "Data Source Updated"
 banner.Message = "Banner inserted from objectSource"
 banner.Visible = True
-Call ex_ObjectSourceRuntime.m_SetObjectSource("RuntimeObjects.Test.Banner", banner, True)
+Call pageBase.RuntimeSources.SetObjectSource("RuntimeObjects.Test.Banner", banner)
 ```
 
 ### XML examples
@@ -158,7 +265,7 @@ Call ex_ObjectSourceRuntime.m_SetObjectSource("RuntimeObjects.Test.Banner", bann
 - `ex_XmlLayoutEngine.m_RenderPageLayout(wb, ws, wsUiDoc)`
 	- parses and renders layout tags: `grid`, `stackPanel`, `control`, `list`.
 	- `grid@sheet` is ignored; render target worksheet is always the `ws` argument.
-	- computes control bounds and routes them to `ex_ControlRenderer`.
+	- computes control bounds and routes them to `ex_LayoutControlRenderer`.
 
 - `list` node contract
 	- can be used as child of `grid` or `stackPanel`.
@@ -173,7 +280,7 @@ Call ex_ObjectSourceRuntime.m_SetObjectSource("RuntimeObjects.Test.Banner", bann
 		- `itemsSource`
 	- optional attributes:
 		- `itemVisibility` (visibility binding evaluated per itemsSource entry before render)
-	- uses runtime data from `ex_ListItemsSourceRuntime` (same source map as `list`).
+	- uses runtime data from `pageBase.RuntimeSources` (same source map as `list`).
 	- `itemsSource` entries must be table model objects:
 		- `obj_TableDynamic`, or
 		- `obj_Table` (auto-converted to dynamic model at render time).
@@ -211,20 +318,17 @@ Call ex_ObjectSourceRuntime.m_SetObjectSource("RuntimeObjects.Test.Banner", bann
 	- `obj_Row`
 		- row cell container (`m_AddCell`, `m_SetCell`, `m_GetCell`).
 
-- `ex_ListItemsSourceRuntime`
-	- runtime source registry for `list` items.
-	- `m_SetItemsSource(key, itemsCollection, notifyChange)` registers list data for key-based `itemsSource`.
-	- when `notifyChange=True` and key is not internal runtime key, runtime triggers full rerender of last rendered page.
-	- `m_ResetItemsSources()` clears runtime list sources.
-	- `itemsSource` can be:
-		- key registered through `m_SetItemsSource`,
-		- binding expression resolved against runtime items source map,
-		- inline scalar list (`a|b|c` or `a;b;c`).
+- `obj_PageRuntimeSources` (owned by each `obj_PageBase`)
+	- page-local runtime source registry for `itemsSource` / `objectSource`.
+	- `SetItemsSource(key, itemsCollection)` registers list data for key-based `itemsSource`.
+	- `SetObjectSource(key, sourceObject)` registers data for key-based `objectSource`.
+	- `ResetItemsSources()` / `ResetObjectSources()` clear runtime maps.
+	- `TryResolveItemsSource()` / `TryResolveObjectSource()` resolve binding/key lookups against page-local maps.
 
 - `ex_XmlLayoutEngine.m_RenderTemplateChildren(wb, ws, templateControlNode, depth, layoutRowStart, layoutColStart, layoutRowEnd, layoutColEnd)`
 	- recursively renders composite controls declared inside control templates.
 
-- `ex_ControlRenderer.m_RenderControl(wb, ws, layoutControlNode, recursionDepth, layoutRowStart, layoutColStart, layoutRowEnd, layoutColEnd)`
+- `ex_LayoutControlRenderer.m_Render(renderCtx, layoutControlNode, layoutRowStart, layoutColStart, layoutRowEnd, layoutColEnd)`
 	- validates control attributes against each control's contract (`obj_IControl.SupportsAttribute`).
 	- loads control template `obj_<Type>ControlUI.xml`, applies allowed overrides from page UI, and renders control VM class.
 	- passes worksheet row/column bounds to controls rendered from worksheet-span layout path.

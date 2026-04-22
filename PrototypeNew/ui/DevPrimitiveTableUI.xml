@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<uiDefinition xmlns="urn:excelprototype:profiles" version="1">
+<page xmlns="urn:excelprototype:profiles" version="1">
   <styles>
     <controlStyle
       name="actionWarning"
@@ -23,8 +23,6 @@
       </layer>
     </stylePipelineStage>
   </styles>
-
-  <layout>
     <grid anchorCell="A1">
       <stackPanel at="r2c2" orientation="vertical">
         <control
@@ -44,5 +42,4 @@
           spanRows="260"/>
       </stackPanel>
     </grid>
-  </layout>
-</uiDefinition>
+</page>

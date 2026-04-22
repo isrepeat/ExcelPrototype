@@ -9,12 +9,15 @@ Private m_Header As String
 Private m_Message As String
 Private m_Visible As Boolean
 
+' //
+' // API
+' //
 Public Property Get Header() As String
     Header = m_Header
 End Property
 
 Public Property Let Header(ByVal value As String)
-    m_Header = CStr(value)
+    m_Header = VBA.CStr(value)
 End Property
 
 Public Property Get Message() As String
@@ -22,7 +25,7 @@ Public Property Get Message() As String
 End Property
 
 Public Property Let Message(ByVal value As String)
-    m_Message = CStr(value)
+    m_Message = VBA.CStr(value)
 End Property
 
 Public Property Get Visible() As Boolean
@@ -30,5 +33,5 @@ Public Property Get Visible() As Boolean
 End Property
 
 Public Property Let Visible(ByVal value As Boolean)
-    m_Visible = CBool(value)
+    m_Visible = VBA.CBool(value)
 End Property

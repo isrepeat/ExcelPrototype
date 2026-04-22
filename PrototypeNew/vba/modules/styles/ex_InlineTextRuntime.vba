@@ -3,9 +3,13 @@ Option Explicit
 
 Private g_InlineRuns As Collection
 
+' //
+' // API
+' //
 Public Sub m_ResetInlineRuns()
     Set g_InlineRuns = Nothing
 End Sub
+
 
 Public Function m_RegisterInlineRuns( _
     ByVal ws As Worksheet, _
@@ -42,17 +46,17 @@ Public Function m_RegisterInlineRuns( _
     Set firstCell = targetRange.Cells(1, 1)
 
     For Each runInfo In runs
-        tagName = LCase$(Trim$(CStr(runInfo("Tag"))))
-        runStart = CLng(runInfo("Start"))
-        runLength = CLng(runInfo("Length"))
+        tagName = VBA.LCase$(VBA.Trim$(VBA.CStr(runInfo("Tag"))))
+        runStart = VBA.CLng(runInfo("Start"))
+        runLength = VBA.CLng(runInfo("Length"))
 
         If runStart <= 0 Or runLength <= 0 Then GoTo ContinueRun
-        If Not presentation.m_TryResolveInlineRunStyle( _
+        If Not presentation.TryResolveInlineRunStyle( _
             tagName, fontColor, fontBold, fontItalic, fontUnderline) Then GoTo ContinueRun
 
         Set entry = CreateObject("Scripting.Dictionary")
         entry.CompareMode = 1
-        entry("SheetName") = LCase$(ws.Name)
+        entry("SheetName") = VBA.LCase$(ws.Name)
         entry("CellAddress") = firstCell.Address(False, False)
         entry("Start") = runStart
         entry("Length") = runLength
@@ -69,6 +73,7 @@ ContinueRun:
     m_RegisterInlineRuns = True
 End Function
 
+
 Public Function m_ApplyInlineRuns(ByVal ws As Worksheet) As Boolean
     Dim entry As Object
     Dim targetCell As Range
@@ -82,28 +87,28 @@ Public Function m_ApplyInlineRuns(ByVal ws As Worksheet) As Boolean
         Exit Function
     End If
 
-    wsKey = LCase$(ws.Name)
+    wsKey = VBA.LCase$(ws.Name)
 
     For Each entry In g_InlineRuns
-        If LCase$(CStr(entry("SheetName"))) <> wsKey Then GoTo ContinueEntry
+        If VBA.LCase$(VBA.CStr(entry("SheetName"))) <> wsKey Then GoTo ContinueEntry
 
         Set targetCell = Nothing
         On Error Resume Next
-        Set targetCell = ws.Range(CStr(entry("CellAddress")))
+        Set targetCell = ws.Range(VBA.CStr(entry("CellAddress")))
         On Error GoTo 0
         If targetCell Is Nothing Then GoTo ContinueEntry
 
-        If CBool(entry("FontUnderline")) Then
+        If VBA.CBool(entry("FontUnderline")) Then
             underlineValue = xlUnderlineStyleSingle
         Else
             underlineValue = xlUnderlineStyleNone
         End If
 
         On Error Resume Next
-        With targetCell.Characters(CLng(entry("Start")), CLng(entry("Length"))).Font
-            .Color = CLng(entry("FontColor"))
-            .Bold = CBool(entry("FontBold"))
-            .Italic = CBool(entry("FontItalic"))
+        With targetCell.Characters(VBA.CLng(entry("Start")), VBA.CLng(entry("Length"))).Font
+            .Color = VBA.CLng(entry("FontColor"))
+            .Bold = VBA.CBool(entry("FontBold"))
+            .Italic = VBA.CBool(entry("FontItalic"))
             .Underline = underlineValue
         End With
         On Error GoTo 0

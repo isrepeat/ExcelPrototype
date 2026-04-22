@@ -1,8 +1,11 @@
 Attribute VB_Name = "ex_ControlFactory"
 Option Explicit
 
+' //
+' // API
+' //
 Public Function m_CreateControlByTypeRoot(ByVal controlTypeRoot As String) As obj_IControl
-    controlTypeRoot = LCase$(Trim$(controlTypeRoot))
+    controlTypeRoot = VBA.LCase$(VBA.Trim$(controlTypeRoot))
 
     Select Case controlTypeRoot
         Case "button"
@@ -46,6 +49,6 @@ Public Function m_CreateControlByTypeRoot(ByVal controlTypeRoot As String) As ob
             Set m_CreateControlByTypeRoot = tableTemplateVm
 
         Case Else
-            MsgBox "Control type '" & controlTypeRoot & "' is not supported in PrototypeNew runtime.", vbExclamation
+            VBA.MsgBox "Control type '" & controlTypeRoot & "' is not supported in PrototypeNew runtime.", VBA.vbExclamation
     End Select
 End Function

@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<uiDefinition xmlns="urn:excelprototype:profiles" version="1">
+<page xmlns="urn:excelprototype:profiles" version="1">
   <styles>
     <controlStyle
       name="actionWarning"
@@ -87,28 +87,9 @@
       </layer>
     </stylePipelineStage>
   </styles>
-  <layout>
     <grid anchorCell="A1">
       <stackPanel at="r2c2" orientation="horizontal">
-        <control
-          type="Button"
-          name="UpdateCode"
-          caption="Update Code"
-          style="actionWarning"
-          onClick="{Binding Module=DevTools;Method=dev_UpdateCodeFast}"
-          spanCells="3"
-          spanRows="2"
-          />
           <stackPanel orientation="vertical">
-            <control
-              type="Button"
-              name="Update 2"
-              caption="btn 2"
-              style="actionWarning"
-              onClick="{Binding Module=DevTools;Method=dev_UpdateCodeFast}"
-              spanCells="2"
-              spanRows="1"
-              />
               <control
                 type="Button"
                 name="Open Table Part Styles UI"
@@ -205,6 +186,24 @@
       <stackPanel at="r2c24" orientation="vertical">
         <control
           type="Button"
+          name="OpenCoreModule"
+          caption="Open ex_Core"
+          style="actionWarning"
+          onClick="{Binding Module=ex_Core;Method=dev_OpenCoreModule}"
+          spanCells="3"
+          spanRows="2"
+          />
+        <control
+          type="Button"
+          name="RemoveAllModules"
+          caption="Remove All Modules"
+          style="actionWarning"
+          onClick="{Binding Module=ex_Core;Method=dev_RemoveAllModulesAndClasses}"
+          spanCells="3"
+          spanRows="2"
+          />
+        <control
+          type="Button"
           name="UpdateSheet"
           caption="Update Sheet"
           style="actionWarning"
@@ -212,7 +211,33 @@
           spanCells="3"
           spanRows="2"
           />
+        <control
+          type="Button"
+          name="UpdateCodeSize"
+          caption="Update Code Size"
+          style="actionWarning"
+          onClick="{Binding Module=ex_Core;Method=dev_UpdateCodeBySize}"
+          spanCells="3"
+          spanRows="2"
+          />
+        <control
+          type="Button"
+          name="UpdateCodeDate"
+          caption="Update Code Date"
+          style="actionWarning"
+          onClick="{Binding Module=ex_Core;Method=dev_UpdateCodeByDate}"
+          spanCells="3"
+          spanRows="2"
+          />
+        <control
+          type="Button"
+          name="UpdateCodeFull"
+          caption="Update Code Full"
+          style="actionWarning"
+          onClick="{Binding Module=ex_Core;Method=dev_UpdateAllModules}"
+          spanCells="3"
+          spanRows="2"
+          />
       </stackPanel>
     </grid>
-  </layout>
-</uiDefinition>
+</page>

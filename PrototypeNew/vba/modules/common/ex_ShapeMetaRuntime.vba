@@ -4,6 +4,9 @@ Option Explicit
 Private Const META_BLOCK_BEGIN As String = "[[EX_PN_META]]"
 Private Const META_BLOCK_END As String = "[[/EX_PN_META]]"
 
+' //
+' // API
+' //
 Public Function m_ReadShapeMetaMap(ByVal shp As Shape) As Object
     Dim meta As Object
     Dim altText As String
@@ -23,30 +26,30 @@ Public Function m_ReadShapeMetaMap(ByVal shp As Shape) As Object
     End If
 
     On Error Resume Next
-    altText = CStr(shp.AlternativeText)
+    altText = VBA.CStr(shp.AlternativeText)
     On Error GoTo 0
 
-    blockText = mp_GetMetaBlockContent(altText)
-    If Len(blockText) = 0 Then
+    blockText = private_GetMetaBlockContent(altText)
+    If VBA.Len(blockText) = 0 Then
         Set m_ReadShapeMetaMap = meta
         Exit Function
     End If
 
-    blockText = Replace$(blockText, vbCrLf, vbLf)
-    blockText = Replace$(blockText, vbCr, vbLf)
-    lines = Split(blockText, vbLf)
+    blockText = VBA.Replace$(blockText, VBA.vbCrLf, VBA.vbLf)
+    blockText = VBA.Replace$(blockText, VBA.vbCr, VBA.vbLf)
+    lines = VBA.Split(blockText, VBA.vbLf)
 
     For Each lineText In lines
-        lineText = Trim$(CStr(lineText))
-        If Len(CStr(lineText)) = 0 Then GoTo ContinueLine
+        lineText = VBA.Trim$(VBA.CStr(lineText))
+        If VBA.Len(VBA.CStr(lineText)) = 0 Then GoTo ContinueLine
 
-        sepPos = InStr(1, CStr(lineText), "=", vbBinaryCompare)
+        sepPos = VBA.InStr(1, VBA.CStr(lineText), "=", VBA.vbBinaryCompare)
         If sepPos <= 1 Then GoTo ContinueLine
 
-        keyName = Trim$(Left$(CStr(lineText), sepPos - 1))
-        If Len(keyName) = 0 Then GoTo ContinueLine
+        keyName = VBA.Trim$(VBA.Left$(VBA.CStr(lineText), sepPos - 1))
+        If VBA.Len(keyName) = 0 Then GoTo ContinueLine
 
-        valueText = Mid$(CStr(lineText), sepPos + 1)
+        valueText = VBA.Mid$(VBA.CStr(lineText), sepPos + 1)
         meta(keyName) = valueText
 
 ContinueLine:
@@ -55,15 +58,16 @@ ContinueLine:
     Set m_ReadShapeMetaMap = meta
 End Function
 
+
 Public Function m_GetShapeMetaValue( _
     ByVal shp As Shape, _
     ByVal keyName As String, _
-    Optional ByVal defaultValue As String = vbNullString _
+    Optional ByVal defaultValue As String = VBA.vbNullString _
 ) As String
     Dim meta As Object
 
-    keyName = Trim$(keyName)
-    If Len(keyName) = 0 Then
+    keyName = VBA.Trim$(keyName)
+    If VBA.Len(keyName) = 0 Then
         m_GetShapeMetaValue = defaultValue
         Exit Function
     End If
@@ -75,11 +79,12 @@ Public Function m_GetShapeMetaValue( _
     End If
 
     If meta.Exists(keyName) Then
-        m_GetShapeMetaValue = CStr(meta(keyName))
+        m_GetShapeMetaValue = VBA.CStr(meta(keyName))
     Else
         m_GetShapeMetaValue = defaultValue
     End If
 End Function
+
 
 Public Function m_TrySetShapeMetaValue( _
     ByVal shp As Shape, _
@@ -89,22 +94,23 @@ Public Function m_TrySetShapeMetaValue( _
     Dim meta As Object
 
     If shp Is Nothing Then
-        MsgBox "PrototypeNew: shape is not specified for metadata write.", vbExclamation
+        VBA.MsgBox "PrototypeNew: shape is not specified for metadata write.", VBA.vbExclamation
         Exit Function
     End If
 
-    keyName = Trim$(keyName)
-    If Len(keyName) = 0 Then
-        MsgBox "PrototypeNew: metadata key is empty.", vbExclamation
+    keyName = VBA.Trim$(keyName)
+    If VBA.Len(keyName) = 0 Then
+        VBA.MsgBox "PrototypeNew: metadata key is empty.", VBA.vbExclamation
         Exit Function
     End If
 
     Set meta = m_ReadShapeMetaMap(shp)
-    mp_SetMetaValue meta, keyName, valueText
-    If Not mp_TryWriteShapeMetaMap(shp, meta) Then Exit Function
+    private_SetMetaValue meta, keyName, valueText
+    If Not private_TryWriteShapeMetaMap(shp, meta) Then Exit Function
 
     m_TrySetShapeMetaValue = True
 End Function
+
 
 Public Function m_TrySetShapeMetaValues( _
     ByVal shp As Shape, _
@@ -114,121 +120,127 @@ Public Function m_TrySetShapeMetaValues( _
     Dim keyName As Variant
 
     If shp Is Nothing Then
-        MsgBox "PrototypeNew: shape is not specified for metadata write.", vbExclamation
+        VBA.MsgBox "PrototypeNew: shape is not specified for metadata write.", VBA.vbExclamation
         Exit Function
     End If
     If values Is Nothing Then
-        MsgBox "PrototypeNew: metadata values map is not specified.", vbExclamation
+        VBA.MsgBox "PrototypeNew: metadata values map is not specified.", VBA.vbExclamation
         Exit Function
     End If
 
     Set meta = m_ReadShapeMetaMap(shp)
 
     For Each keyName In values.Keys
-        mp_SetMetaValue meta, CStr(keyName), CStr(values(keyName))
+        private_SetMetaValue meta, VBA.CStr(keyName), VBA.CStr(values(keyName))
     Next keyName
 
-    If Not mp_TryWriteShapeMetaMap(shp, meta) Then Exit Function
+    If Not private_TryWriteShapeMetaMap(shp, meta) Then Exit Function
     m_TrySetShapeMetaValues = True
 End Function
 
-Private Sub mp_SetMetaValue(ByVal meta As Object, ByVal keyName As String, ByVal valueText As String)
-    keyName = Trim$(keyName)
-    If Len(keyName) = 0 Then Exit Sub
+' //
+' // Internal
+' //
+Private Sub private_SetMetaValue(ByVal meta As Object, ByVal keyName As String, ByVal valueText As String)
+    keyName = VBA.Trim$(keyName)
+    If VBA.Len(keyName) = 0 Then Exit Sub
     If meta Is Nothing Then Exit Sub
 
-    If Len(CStr(valueText)) = 0 Then
+    If VBA.Len(VBA.CStr(valueText)) = 0 Then
         If meta.Exists(keyName) Then meta.Remove keyName
         Exit Sub
     End If
 
-    meta(keyName) = CStr(valueText)
+    meta(keyName) = VBA.CStr(valueText)
 End Sub
 
-Private Function mp_TryWriteShapeMetaMap(ByVal shp As Shape, ByVal meta As Object) As Boolean
+
+Private Function private_TryWriteShapeMetaMap(ByVal shp As Shape, ByVal meta As Object) As Boolean
     Dim altText As String
     Dim baseText As String
     Dim blockText As String
 
     If shp Is Nothing Then
-        MsgBox "PrototypeNew: shape is not specified for metadata write.", vbExclamation
+        VBA.MsgBox "PrototypeNew: shape is not specified for metadata write.", VBA.vbExclamation
         Exit Function
     End If
 
     On Error Resume Next
-    altText = CStr(shp.AlternativeText)
+    altText = VBA.CStr(shp.AlternativeText)
     On Error GoTo 0
 
-    baseText = Trim$(mp_RemoveMetaBlock(altText))
-    blockText = mp_BuildMetaBlock(meta)
+    baseText = VBA.Trim$(private_RemoveMetaBlock(altText))
+    blockText = private_BuildMetaBlock(meta)
 
     On Error GoTo EH_WRITE
-    If Len(blockText) = 0 Then
+    If VBA.Len(blockText) = 0 Then
         shp.AlternativeText = baseText
-    ElseIf Len(baseText) = 0 Then
+    ElseIf VBA.Len(baseText) = 0 Then
         shp.AlternativeText = blockText
     Else
-        shp.AlternativeText = baseText & vbLf & blockText
+        shp.AlternativeText = baseText & VBA.vbLf & blockText
     End If
 
-    mp_TryWriteShapeMetaMap = True
+    private_TryWriteShapeMetaMap = True
     Exit Function
 
 EH_WRITE:
-    MsgBox "PrototypeNew: failed to write metadata to shape '" & shp.Name & "': " & Err.Description, vbExclamation
+    VBA.MsgBox "PrototypeNew: failed to write metadata to shape '" & shp.Name & "': " & Err.Description, VBA.vbExclamation
 End Function
 
-Private Function mp_GetMetaBlockContent(ByVal altText As String) As String
+
+Private Function private_GetMetaBlockContent(ByVal altText As String) As String
     Dim beginPos As Long
     Dim endPos As Long
     Dim contentStart As Long
 
-    beginPos = InStr(1, altText, META_BLOCK_BEGIN, vbTextCompare)
+    beginPos = VBA.InStr(1, altText, META_BLOCK_BEGIN, VBA.vbTextCompare)
     If beginPos = 0 Then Exit Function
 
-    contentStart = beginPos + Len(META_BLOCK_BEGIN)
-    endPos = InStr(contentStart, altText, META_BLOCK_END, vbTextCompare)
+    contentStart = beginPos + VBA.Len(META_BLOCK_BEGIN)
+    endPos = VBA.InStr(contentStart, altText, META_BLOCK_END, VBA.vbTextCompare)
     If endPos = 0 Then Exit Function
 
-    mp_GetMetaBlockContent = Mid$(altText, contentStart, endPos - contentStart)
+    private_GetMetaBlockContent = VBA.Mid$(altText, contentStart, endPos - contentStart)
 End Function
 
-Private Function mp_RemoveMetaBlock(ByVal altText As String) As String
+
+Private Function private_RemoveMetaBlock(ByVal altText As String) As String
     Dim beginPos As Long
     Dim endPos As Long
     Dim beforeText As String
     Dim afterText As String
 
-    beginPos = InStr(1, altText, META_BLOCK_BEGIN, vbTextCompare)
+    beginPos = VBA.InStr(1, altText, META_BLOCK_BEGIN, VBA.vbTextCompare)
     If beginPos = 0 Then
-        mp_RemoveMetaBlock = altText
+        private_RemoveMetaBlock = altText
         Exit Function
     End If
 
-    endPos = InStr(beginPos + Len(META_BLOCK_BEGIN), altText, META_BLOCK_END, vbTextCompare)
+    endPos = VBA.InStr(beginPos + VBA.Len(META_BLOCK_BEGIN), altText, META_BLOCK_END, VBA.vbTextCompare)
     If endPos = 0 Then
-        mp_RemoveMetaBlock = Left$(altText, beginPos - 1)
+        private_RemoveMetaBlock = VBA.Left$(altText, beginPos - 1)
         Exit Function
     End If
 
-    beforeText = Left$(altText, beginPos - 1)
-    afterText = Mid$(altText, endPos + Len(META_BLOCK_END))
-    mp_RemoveMetaBlock = beforeText & afterText
+    beforeText = VBA.Left$(altText, beginPos - 1)
+    afterText = VBA.Mid$(altText, endPos + VBA.Len(META_BLOCK_END))
+    private_RemoveMetaBlock = beforeText & afterText
 End Function
 
-Private Function mp_BuildMetaBlock(ByVal meta As Object) As String
+
+Private Function private_BuildMetaBlock(ByVal meta As Object) As String
     Dim keyName As Variant
     Dim resultText As String
 
     If meta Is Nothing Then Exit Function
     If meta.Count = 0 Then Exit Function
 
-    resultText = META_BLOCK_BEGIN & vbLf
+    resultText = META_BLOCK_BEGIN & VBA.vbLf
     For Each keyName In meta.Keys
-        resultText = resultText & CStr(keyName) & "=" & CStr(meta(keyName)) & vbLf
+        resultText = resultText & VBA.CStr(keyName) & "=" & VBA.CStr(meta(keyName)) & VBA.vbLf
     Next keyName
     resultText = resultText & META_BLOCK_END
 
-    mp_BuildMetaBlock = resultText
+    private_BuildMetaBlock = resultText
 End Function
-

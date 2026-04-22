@@ -25,7 +25,7 @@ Public Property Get EffectiveVisible() As Boolean
 End Property
 
 Public Property Let EffectiveVisible(ByVal value As Boolean)
-    m_EffectiveVisible = CBool(value)
+    m_EffectiveVisible = VBA.CBool(value)
 End Property
 
 Public Property Get StyleName() As String
@@ -33,7 +33,7 @@ Public Property Get StyleName() As String
 End Property
 
 Public Property Let StyleName(ByVal value As String)
-    m_StyleName = CStr(value)
+    m_StyleName = VBA.CStr(value)
 End Property
 
 Public Property Get PartName() As String
@@ -41,7 +41,7 @@ Public Property Get PartName() As String
 End Property
 
 Public Property Let PartName(ByVal value As String)
-    m_PartName = CStr(value)
+    m_PartName = VBA.CStr(value)
 End Property
 
 Public Property Get SpanRows() As Long
@@ -52,7 +52,7 @@ Public Property Let SpanRows(ByVal value As Long)
     If value < 0 Then
         m_SpanRows = 0
     Else
-        m_SpanRows = CLng(value)
+        m_SpanRows = VBA.CLng(value)
     End If
 End Property
 
@@ -64,7 +64,7 @@ Public Property Let SpacerRowsAfter(ByVal value As Long)
     If value < 0 Then
         m_SpacerRowsAfter = 0
     Else
-        m_SpacerRowsAfter = CLng(value)
+        m_SpacerRowsAfter = VBA.CLng(value)
     End If
 End Property
 
@@ -73,10 +73,10 @@ Public Property Get InlineMarkersEnabled() As Boolean
 End Property
 
 Public Property Let InlineMarkersEnabled(ByVal value As Boolean)
-    m_InlineMarkersEnabled = CBool(value)
+    m_InlineMarkersEnabled = VBA.CBool(value)
 End Property
 
-Public Function m_TryResolveInlineText( _
+Public Function TryResolveInlineText( _
     ByVal rawText As String, _
     ByRef outText As String, _
     ByRef outRuns As Collection _
@@ -84,28 +84,28 @@ Public Function m_TryResolveInlineText( _
     If Not m_InlineMarkersEnabled Then
         outText = rawText
         Set outRuns = Nothing
-        m_TryResolveInlineText = True
+        TryResolveInlineText = True
         Exit Function
     End If
 
-    If Not mp_TryParseInlineMarkers(rawText, outText, outRuns) Then Exit Function
-    m_TryResolveInlineText = True
+    If Not private_TryParseInlineMarkers(rawText, outText, outRuns) Then Exit Function
+    TryResolveInlineText = True
 End Function
 
-Public Function m_TryResolveInlineRunStyle( _
+Public Function TryResolveInlineRunStyle( _
     ByVal markerName As String, _
     ByRef outFontColor As Long, _
     ByRef outFontBold As Boolean, _
     ByRef outFontItalic As Boolean, _
     ByRef outFontUnderline As Boolean _
 ) As Boolean
-    If Not mp_TryResolveInlineMarkerStyle( _
+    If Not private_TryResolveInlineMarkerStyle( _
         markerName, outFontColor, outFontBold, outFontItalic, outFontUnderline) Then Exit Function
 
-    m_TryResolveInlineRunStyle = True
+    TryResolveInlineRunStyle = True
 End Function
 
-Public Sub m_ApplyInlineRuns(ByVal targetRange As Range, ByVal runs As Collection)
+Public Sub ApplyInlineRuns(ByVal targetRange As Range, ByVal runs As Collection)
     Dim runInfo As Object
     Dim tagName As String
     Dim startIndex As Long
@@ -120,12 +120,12 @@ Public Sub m_ApplyInlineRuns(ByVal targetRange As Range, ByVal runs As Collectio
     If runs Is Nothing Then Exit Sub
 
     For Each runInfo In runs
-        tagName = LCase$(CStr(runInfo("Tag")))
-        startIndex = CLng(runInfo("Start"))
-        runLength = CLng(runInfo("Length"))
+        tagName = VBA.LCase$(VBA.CStr(runInfo("Tag")))
+        startIndex = VBA.CLng(runInfo("Start"))
+        runLength = VBA.CLng(runInfo("Length"))
 
         If startIndex <= 0 Or runLength <= 0 Then GoTo ContinueRun
-        If Not mp_TryResolveInlineMarkerStyle(tagName, fontColor, fontBold, fontItalic, fontUnderline) Then GoTo ContinueRun
+        If Not private_TryResolveInlineMarkerStyle(tagName, fontColor, fontBold, fontItalic, fontUnderline) Then GoTo ContinueRun
 
         On Error Resume Next
         With targetRange.Characters(startIndex, runLength).Font
@@ -147,7 +147,7 @@ End Sub
 ' //
 ' // Internal
 ' //
-Private Function mp_TryParseInlineMarkers( _
+Private Function private_TryParseInlineMarkers( _
     ByVal rawText As String, _
     ByRef outText As String, _
     ByRef outRuns As Collection _
@@ -167,34 +167,34 @@ Private Function mp_TryParseInlineMarkers( _
 
     Set markerStack = New Collection
     Set outRuns = New Collection
-    outText = vbNullString
-    rawTextLower = LCase$(rawText)
-    textLen = Len(rawText)
+    outText = VBA.vbNullString
+    rawTextLower = VBA.LCase$(rawText)
+    textLen = VBA.Len(rawText)
     i = 1
 
     Do While i <= textLen
         If i < textLen Then
-            If Mid$(rawText, i, 2) = "[[" Then
-                closePos = InStr(i + 2, rawText, "]]", vbBinaryCompare)
+            If VBA.Mid$(rawText, i, 2) = "[[" Then
+                closePos = VBA.InStr(i + 2, rawText, "]]", VBA.vbBinaryCompare)
                 If closePos > 0 Then
-                    markerToken = Trim$(Mid$(rawText, i + 2, closePos - i - 2))
-                    isClosing = (Len(markerToken) > 0 And Left$(markerToken, 1) = "/")
+                    markerToken = VBA.Trim$(VBA.Mid$(rawText, i + 2, closePos - i - 2))
+                    isClosing = (VBA.Len(markerToken) > 0 And VBA.Left$(markerToken, 1) = "/")
 
                     If isClosing Then
-                        markerName = LCase$(Trim$(Mid$(markerToken, 2)))
+                        markerName = VBA.LCase$(VBA.Trim$(VBA.Mid$(markerToken, 2)))
                     Else
-                        markerName = LCase$(Trim$(markerToken))
+                        markerName = VBA.LCase$(VBA.Trim$(markerToken))
                     End If
 
-                    If mp_IsSupportedInlineMarkerName(markerName) Then
+                    If private_IsSupportedInlineMarkerName(markerName) Then
                         If isClosing Then
                             If markerStack.Count > 0 Then
                                 Set markerInfo = markerStack(markerStack.Count)
-                                If StrComp(CStr(markerInfo("Tag")), markerName, vbBinaryCompare) = 0 Then
-                                    runStart = CLng(markerInfo("Start"))
-                                    runLength = Len(outText) - runStart + 1
+                                If VBA.StrComp(VBA.CStr(markerInfo("Tag")), markerName, VBA.vbBinaryCompare) = 0 Then
+                                    runStart = VBA.CLng(markerInfo("Start"))
+                                    runLength = VBA.Len(outText) - runStart + 1
                                     If runLength > 0 Then
-                                        mp_AddInlineRun outRuns, markerName, runStart, runLength
+                                        private_AddInlineRun outRuns, markerName, runStart, runLength
                                     End If
 
                                     markerStack.Remove markerStack.Count
@@ -203,11 +203,11 @@ Private Function mp_TryParseInlineMarkers( _
                                 End If
                             End If
                         Else
-                            If InStr(closePos + 2, rawTextLower, "[[/" & markerName & "]]", vbBinaryCompare) > 0 Then
+                            If VBA.InStr(closePos + 2, rawTextLower, "[[/" & markerName & "]]", VBA.vbBinaryCompare) > 0 Then
                                 Set markerInfo = CreateObject("Scripting.Dictionary")
                                 markerInfo.CompareMode = 1
                                 markerInfo("Tag") = markerName
-                                markerInfo("Start") = Len(outText) + 1
+                                markerInfo("Start") = VBA.Len(outText) + 1
                                 markerStack.Add markerInfo
 
                                 i = closePos + 2
@@ -216,7 +216,7 @@ Private Function mp_TryParseInlineMarkers( _
                         End If
                     End If
 
-                    literalToken = Mid$(rawText, i, closePos - i + 2)
+                    literalToken = VBA.Mid$(rawText, i, closePos - i + 2)
                     outText = outText & literalToken
                     i = closePos + 2
                     GoTo ContinueLoop
@@ -224,16 +224,16 @@ Private Function mp_TryParseInlineMarkers( _
             End If
         End If
 
-        outText = outText & Mid$(rawText, i, 1)
+        outText = outText & VBA.Mid$(rawText, i, 1)
         i = i + 1
 
 ContinueLoop:
     Loop
 
-    mp_TryParseInlineMarkers = True
+    private_TryParseInlineMarkers = True
 End Function
 
-Private Sub mp_AddInlineRun( _
+Private Sub private_AddInlineRun( _
     ByVal runs As Collection, _
     ByVal tagName As String, _
     ByVal startIndex As Long, _
@@ -246,54 +246,54 @@ Private Sub mp_AddInlineRun( _
 
     Set runInfo = CreateObject("Scripting.Dictionary")
     runInfo.CompareMode = 1
-    runInfo("Tag") = LCase$(Trim$(tagName))
-    runInfo("Start") = CLng(startIndex)
-    runInfo("Length") = CLng(runLength)
+    runInfo("Tag") = VBA.LCase$(VBA.Trim$(tagName))
+    runInfo("Start") = VBA.CLng(startIndex)
+    runInfo("Length") = VBA.CLng(runLength)
 
     runs.Add runInfo
 End Sub
 
-Private Function mp_IsSupportedInlineMarkerName(ByVal markerName As String) As Boolean
-    Select Case LCase$(Trim$(markerName))
+Private Function private_IsSupportedInlineMarkerName(ByVal markerName As String) As Boolean
+    Select Case VBA.LCase$(VBA.Trim$(markerName))
         Case "ok", "warn", "error", "accent", "muted"
-            mp_IsSupportedInlineMarkerName = True
+            private_IsSupportedInlineMarkerName = True
     End Select
 End Function
 
-Private Function mp_TryResolveInlineMarkerStyle( _
+Private Function private_TryResolveInlineMarkerStyle( _
     ByVal markerName As String, _
     ByRef outFontColor As Long, _
     ByRef outFontBold As Boolean, _
     ByRef outFontItalic As Boolean, _
     ByRef outFontUnderline As Boolean _
 ) As Boolean
-    Select Case LCase$(Trim$(markerName))
+    Select Case VBA.LCase$(VBA.Trim$(markerName))
         Case "ok"
-            outFontColor = RGB(146, 208, 80)
+            outFontColor = VBA.RGB(146, 208, 80)
             outFontBold = True
             outFontItalic = False
             outFontUnderline = False
 
         Case "warn"
-            outFontColor = RGB(255, 192, 0)
+            outFontColor = VBA.RGB(255, 192, 0)
             outFontBold = True
             outFontItalic = False
             outFontUnderline = False
 
         Case "error"
-            outFontColor = RGB(255, 99, 71)
+            outFontColor = VBA.RGB(255, 99, 71)
             outFontBold = True
             outFontItalic = False
             outFontUnderline = False
 
         Case "accent"
-            outFontColor = RGB(91, 155, 213)
+            outFontColor = VBA.RGB(91, 155, 213)
             outFontBold = True
             outFontItalic = False
             outFontUnderline = False
 
         Case "muted"
-            outFontColor = RGB(180, 180, 180)
+            outFontColor = VBA.RGB(180, 180, 180)
             outFontBold = False
             outFontItalic = True
             outFontUnderline = False
@@ -302,5 +302,5 @@ Private Function mp_TryResolveInlineMarkerStyle( _
             Exit Function
     End Select
 
-    mp_TryResolveInlineMarkerStyle = True
+    private_TryResolveInlineMarkerStyle = True
 End Function

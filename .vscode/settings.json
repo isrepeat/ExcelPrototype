@@ -29,6 +29,30 @@
         "/^cd /workspaces/ExcelPrototype && grep -RIn \"target=\\\\\"column\\\\\"\" Prototype/config/modes \\| cut -d: -f1 \\| sort -u \\| while read f; do grep -n \"target=\\\\\"column\\\\\"\\\\\\|selector=\\\\\"kind=\" \"\\$f\"; echo \"--- \\$f\"; done$/": {
             "approve": true,
             "matchCommandLine": true
+        },
+        "/^set -e\ncd /workspaces/ExcelPrototype\nperl -0pi -e 's/Public Sub Render\\\\\\(ByVal wb As Workbook\\\\\\)/Public Sub Render\\(ByVal page As obj_PageBase\\)/g' PrototypeNew/vba/0_interfaces/obj_IControl\\.cls\\.vba\nperl -0pi -e 's/Private Sub obj_IControl_Render\\\\\\(ByVal wb As Workbook\\\\\\)/Private Sub obj_IControl_Render\\(ByVal page As obj_PageBase\\)/g' PrototypeNew/vba/controls/\\*\\.vba\n$/": {
+            "approve": true,
+            "matchCommandLine": true
+        },
+        "/^cd /workspaces/ExcelPrototype && perl -ne 'if\\(/\\^\\\\s\\*Private\\\\s\\+\\(\\?:Sub\\|Function\\|Property\\\\s\\+\\(\\?:Get\\|Let\\|Set\\)\\)\\\\s\\+\\(\\[A-Za-z_\\]\\[A-Za-z0-9_\\]\\*\\)/\\)\\{\\$n=\\$1; if\\(\\$n !~ /\\^_/ && \\$n !~ /\\^Class_/ && \\$n !~ /\\^obj_/\\)\\{print \"\\$ARGV:\\$\\.:\\$n\\\\n\"\\}\\}' \\$\\(find PrototypeNew/vba -type f -name '\\*\\.cls\\.vba'\\) \\| sed -n '1,200p'$/": {
+            "approve": true,
+            "matchCommandLine": true
+        },
+        "/^cd /workspaces/ExcelPrototype && perl -ne '\nif\\(/\\^\\\\s\\*\\(\\?:Public\\|Private\\)\\\\s\\+\\(\\?:Sub\\|Function\\|Property\\\\s\\+\\(\\?:Get\\|Let\\|Set\\)\\)\\\\s\\+\\(\\[A-Za-z_\\]\\[A-Za-z0-9_\\]\\*\\)\\\\b/\\)\\{\\$m\\{\\$1\\}=1; next\\}\nnext if /\\^\\\\s\\*\\\\'/;\nfor my \\$k \\(sort \\{length\\(\\$b\\)<=>length\\(\\$a\\)\\} keys %m\\)\\{\n  if\\(/\\(\\?<!\\[\\\\\\.\\\\w\\]\\)\\\\Q\\$k\\\\E\\\\s\\*\\\\\\(/\\)\\{\n    print \"\\$ARGV:\\$\\.:\\$_\"; last;\n  \\}\n\\}\n' \\$\\(find PrototypeNew/vba -type f -name '\\*\\.cls\\.vba'\\) \\| sed -n '1,120p'$/": {
+            "approve": true,
+            "matchCommandLine": true
+        },
+        "/^cd /workspaces/ExcelPrototype && perl -ne 'if\\(/\\^\\\\s\\*\\(\\?:Public\\|Private\\)\\\\s\\+\\(\\?:Sub\\|Function\\|Property\\\\s\\+\\(\\?:Get\\|Let\\|Set\\)\\)\\\\s\\+\\(\\[A-Za-z_\\]\\[A-Za-z0-9_\\]\\*\\)\\\\b/\\)\\{\\$m\\{\\$1\\}=1; next\\} next if /\\^\\\\s\\*\\\\'/; for my \\$k \\(sort \\{length\\(\\$b\\)<=>length\\(\\$a\\)\\} keys %m\\)\\{ if\\(/\\(\\?<!\\[\\\\\\.\\\\w\\]\\)\\\\Q\\$k\\\\E\\\\s\\*\\\\\\(/\\)\\{ print \"\\$ARGV:\\$\\.:\\$_\"; last; \\} \\}' \\$\\(find PrototypeNew/vba -type f -name '\\*\\.cls\\.vba'\\) \\| sed -n '1,120p'$/": {
+            "approve": true,
+            "matchCommandLine": true
+        },
+        "/^cd /workspaces/ExcelPrototype && perl /tmp/check_unqualified_me\\.pl \\$\\(find PrototypeNew/vba/classes PrototypeNew/vba/controls PrototypeNew/vba/0_interfaces -type f -name '\\*\\.cls\\.vba'\\) \\| sed -n '1,120p'$/": {
+            "approve": true,
+            "matchCommandLine": true
+        },
+        "/^cd /workspaces/ExcelPrototype && perl /tmp/find_unqualified_self_calls\\.pl \\\\\nPrototypeNew/vba/0_interfaces/obj_PageBase\\.cls\\.vba \\\\\nPrototypeNew/vba/classes/obj_PageMain\\.cls\\.vba \\\\\nPrototypeNew/vba/classes/obj_ControlLayout\\.cls\\.vba \\\\\nPrototypeNew/vba/controls/obj_ButtonControlVM\\.cls\\.vba \\\\\nPrototypeNew/vba/controls/obj_SelectControlVM\\.cls\\.vba \\\\\nPrototypeNew/vba/controls/obj_BannerControlVM\\.cls\\.vba \\\\\nPrototypeNew/vba/controls/obj_LabelControlVM\\.cls\\.vba \\\\\nPrototypeNew/vba/controls/obj_ConfigControlVM\\.cls\\.vba \\\\\nPrototypeNew/vba/controls/obj_TableListControlVM\\.cls\\.vba \\\\\nPrototypeNew/vba/controls/obj_TableSingleControlVM\\.cls\\.vba \\\\\nPrototypeNew/vba/controls/obj_StatusBarControlVM\\.cls\\.vba \\\\\nPrototypeNew/vba/0_interfaces/obj_ISerializable\\.cls\\.vba \\| sed -n '1,220p'$/": {
+            "approve": true,
+            "matchCommandLine": true
         }
     },
     "files.associations": {

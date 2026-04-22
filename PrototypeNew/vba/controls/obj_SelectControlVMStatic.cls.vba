@@ -15,14 +15,14 @@ Private Const VALUE_ATTR As String = "selectedId"
 ' //
 ' // API
 ' //
-Public Function m_TryGetSelectedId(ByVal selectKey As String, ByRef outSelectedId As String) As Boolean
-    selectKey = LCase$(Trim$(selectKey))
-    If Len(selectKey) = 0 Then
-        MsgBox "SelectControlVMStatic: select key is empty.", vbExclamation
+Public Function TryGetSelectedId(ByVal selectKey As String, ByRef outSelectedId As String) As Boolean
+    selectKey = VBA.LCase$(VBA.Trim$(selectKey))
+    If VBA.Len(selectKey) = 0 Then
+        VBA.MsgBox "SelectControlVMStatic: select key is empty.", VBA.vbExclamation
         Exit Function
     End If
 
-    m_TryGetSelectedId = ex_XmlKeyValueStateStore.m_TryGetValue( _
+    TryGetSelectedId = ex_XmlKeyValueStateStore.m_TryGetValue( _
         namespaceUri:=STATE_NS, _
         rootNodeName:=ROOT_NODE, _
         entryNodeName:=ENTRY_NODE, _
@@ -32,16 +32,16 @@ Public Function m_TryGetSelectedId(ByVal selectKey As String, ByRef outSelectedI
         outValue:=outSelectedId)
 End Function
 
-Public Function m_SetSelectedId(ByVal selectKey As String, ByVal selectedId As String) As Boolean
-    selectKey = LCase$(Trim$(selectKey))
-    selectedId = Trim$(selectedId)
+Public Function SetSelectedId(ByVal selectKey As String, ByVal selectedId As String) As Boolean
+    selectKey = VBA.LCase$(VBA.Trim$(selectKey))
+    selectedId = VBA.Trim$(selectedId)
 
-    If Len(selectKey) = 0 Then
-        MsgBox "SelectControlVMStatic: select key is empty.", vbExclamation
+    If VBA.Len(selectKey) = 0 Then
+        VBA.MsgBox "SelectControlVMStatic: select key is empty.", VBA.vbExclamation
         Exit Function
     End If
 
-    m_SetSelectedId = ex_XmlKeyValueStateStore.m_SetValue( _
+    SetSelectedId = ex_XmlKeyValueStateStore.m_SetValue( _
         namespaceUri:=STATE_NS, _
         rootNodeName:=ROOT_NODE, _
         entryNodeName:=ENTRY_NODE, _

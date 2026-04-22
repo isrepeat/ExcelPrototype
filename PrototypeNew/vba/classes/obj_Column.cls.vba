@@ -8,12 +8,15 @@ Option Explicit
 Private m_Name As String
 Private m_Position As Long
 
+' //
+' // API
+' //
 Public Property Get Name() As String
     Name = m_Name
 End Property
 
 Public Property Let Name(ByVal value As String)
-    m_Name = Trim$(value)
+    m_Name = VBA.Trim$(value)
 End Property
 
 Public Property Get Position() As Long

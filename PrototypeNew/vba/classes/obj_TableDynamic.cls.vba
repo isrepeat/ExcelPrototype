@@ -14,12 +14,15 @@ Private Sub Class_Initialize()
     Set m_Rows = New Collection
 End Sub
 
+' //
+' // API
+' //
 Public Property Get SectionTitle() As String
     SectionTitle = m_SectionTitle
 End Property
 
 Public Property Let SectionTitle(ByVal value As String)
-    m_SectionTitle = CStr(value)
+    m_SectionTitle = VBA.CStr(value)
 End Property
 
 Public Property Get ColumnCount() As Long
@@ -52,11 +55,11 @@ Public Property Get HeaderText() As String
     HeaderText = joined
 End Property
 
-Public Function m_AddColumn(ByVal tableColumn As obj_Column) As Boolean
+Public Function AddColumn(ByVal tableColumn As obj_Column) As Boolean
     Dim newColumn As obj_Column
 
     If tableColumn Is Nothing Then
-        MsgBox "obj_TableDynamic: column is not specified.", vbExclamation
+        VBA.MsgBox "obj_TableDynamic: column is not specified.", VBA.vbExclamation
         Exit Function
     End If
 
@@ -64,46 +67,49 @@ Public Function m_AddColumn(ByVal tableColumn As obj_Column) As Boolean
     newColumn.Name = tableColumn.Name
     newColumn.Position = m_Columns.Count + 1
 
-    If Len(newColumn.Name) = 0 Then
-        newColumn.Name = "Col" & CStr(newColumn.Position)
+    If VBA.Len(newColumn.Name) = 0 Then
+        newColumn.Name = "Col" & VBA.CStr(newColumn.Position)
     End If
 
     m_Columns.Add newColumn
-    m_AddColumn = True
+    AddColumn = True
 End Function
 
-Public Function m_AddRow(ByVal tableRow As obj_Row) As Boolean
+Public Function AddRow(ByVal tableRow As obj_Row) As Boolean
     Dim requiredCols As Long
 
     If tableRow Is Nothing Then
-        MsgBox "obj_TableDynamic: row is not specified.", vbExclamation
+        VBA.MsgBox "obj_TableDynamic: row is not specified.", VBA.vbExclamation
         Exit Function
     End If
 
     requiredCols = tableRow.CellCount
     If requiredCols > m_Columns.Count Then
-        If Not mp_EnsureColumns(requiredCols) Then Exit Function
+        If Not private_EnsureColumns(requiredCols) Then Exit Function
     End If
 
     m_Rows.Add tableRow
-    m_AddRow = True
+    AddRow = True
 End Function
 
-Private Function mp_EnsureColumns(ByVal requiredCount As Long) As Boolean
+' //
+' // Internal
+' //
+Private Function private_EnsureColumns(ByVal requiredCount As Long) As Boolean
     Dim i As Long
     Dim autoColumn As obj_Column
 
     If requiredCount <= m_Columns.Count Then
-        mp_EnsureColumns = True
+        private_EnsureColumns = True
         Exit Function
     End If
 
     For i = m_Columns.Count + 1 To requiredCount
         Set autoColumn = New obj_Column
         autoColumn.Position = i
-        autoColumn.Name = "Col" & CStr(i)
+        autoColumn.Name = "Col" & VBA.CStr(i)
         m_Columns.Add autoColumn
     Next i
 
-    mp_EnsureColumns = True
+    private_EnsureColumns = True
 End Function

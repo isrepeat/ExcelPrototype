@@ -17,7 +17,7 @@ Public Property Get Attr() As String
 End Property
 
 Public Property Let Attr(ByVal value As String)
-    m_Attr = CStr(value)
+    m_Attr = VBA.CStr(value)
 End Property
 
 Public Property Get Key() As String
@@ -25,7 +25,7 @@ Public Property Get Key() As String
 End Property
 
 Public Property Let Key(ByVal value As String)
-    m_Key = CStr(value)
+    m_Key = VBA.CStr(value)
 End Property
 
 Public Property Get Value() As String
@@ -33,5 +33,5 @@ Public Property Get Value() As String
 End Property
 
 Public Property Let Value(ByVal value As String)
-    m_Value = CStr(value)
+    m_Value = VBA.CStr(value)
 End Property
