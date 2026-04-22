@@ -6,7 +6,7 @@ Attribute VB_Name = "obj_ControlLayout"
 Option Explicit
 
 Private m_StyleName As String
-Private m_LayoutSheet As String
+Private m_LayoutSheetName As String
 Private m_RowStart As Long
 Private m_ColStart As Long
 Private m_RowEnd As Long
@@ -15,52 +15,75 @@ Private m_ColEnd As Long
 ' //
 ' // API
 ' //
-Public Function m_TryReadFromNode( _
+' Callstack[1]: rt_PageManager.m_RenderPage -> page.Render -> obj_PageBase.Render -> ex_XmlLayoutEngine.m_RenderNode -> ex_LayoutControlRenderer.m_Render -> obj_ButtonControlVM.obj_IControl_Configure -> m_Layout.TryReadFromNode -> obj_ControlLayout.TryReadFromNode
+' Callstack[2]: rt_PageManager.m_RenderPage -> page.Render -> obj_PageBase.Render -> ex_XmlLayoutEngine.m_RenderNode -> ex_LayoutControlRenderer.m_Render -> obj_BannerControlVM.obj_IControl_Configure -> m_Layout.TryReadFromNode -> obj_ControlLayout.TryReadFromNode
+' Callstack[3]: rt_PageManager.m_RenderPage -> page.Render -> obj_PageBase.Render -> ex_XmlLayoutEngine.m_RenderNode -> ex_LayoutControlRenderer.m_Render -> obj_LabelControlVM.obj_IControl_Configure -> m_Layout.TryReadFromNode -> obj_ControlLayout.TryReadFromNode
+' Callstack[4]: rt_PageManager.m_RenderPage -> page.Render -> obj_PageBase.Render -> ex_XmlLayoutEngine.m_RenderNode -> ex_LayoutControlRenderer.m_Render -> control.Configure(obj_IControl) -> m_Layout.TryReadFromNode -> obj_ControlLayout.TryReadFromNode
+' Callstack[5]: rt_PageManager.m_RenderPage -> page.Render -> obj_PageBase.Render -> ex_XmlLayoutEngine.m_RenderNode -> ex_LayoutControlRenderer.m_Render -> obj_ConfigControlVM.obj_IControl_Configure -> m_Layout.TryReadFromNode -> obj_ControlLayout.TryReadFromNode
+' Callstack[6]: rt_PageManager.m_RenderPage -> page.Render -> obj_PageBase.Render -> ex_XmlLayoutEngine.m_RenderNode -> ex_LayoutControlRenderer.m_Render -> obj_SelectControlVM.obj_IControl_Configure -> m_Layout.TryReadFromNode -> obj_ControlLayout.TryReadFromNode
+Public Function TryReadFromNode( _
     ByVal controlNode As Object, _
     ByVal controlTypeLabel As String, _
     ByVal controlName As String, _
     Optional ByVal styleAttrName As String = "style" _
 ) As Boolean
     If controlNode Is Nothing Then
-        MsgBox controlTypeLabel & ": control node is not specified.", vbExclamation
+        VBA.MsgBox controlTypeLabel & ": control node is not specified.", VBA.vbExclamation
         Exit Function
     End If
 
-    m_StyleName = Trim$(CStr(ex_XmlCore.m_NodeAttrText(controlNode, styleAttrName)))
+    m_StyleName = VBA.Trim$(VBA.CStr(ex_XmlCore.m_NodeAttrText(controlNode, styleAttrName)))
 
-    m_LayoutSheet = Trim$(CStr(ex_XmlCore.m_NodeAttrText(controlNode, "__layoutSheet")))
-    If Len(m_LayoutSheet) = 0 Then
-        MsgBox controlTypeLabel & ": runtime layout sheet is missing for control '" & controlName & "'.", vbExclamation
+    m_LayoutSheetName = VBA.Trim$(VBA.CStr(ex_XmlCore.m_NodeAttrText(controlNode, "__layoutSheetName")))
+    If VBA.Len(m_LayoutSheetName) = 0 Then
+        VBA.MsgBox controlTypeLabel & ": runtime layout sheet is missing for control '" & controlName & "'.", VBA.vbExclamation
         Exit Function
     End If
 
-    If Not mp_TryReadLayoutLongAttr(controlNode, "__layoutRowStart", controlTypeLabel, controlName, m_RowStart) Then Exit Function
-    If Not mp_TryReadLayoutLongAttr(controlNode, "__layoutColStart", controlTypeLabel, controlName, m_ColStart) Then Exit Function
-    If Not mp_TryReadLayoutLongAttr(controlNode, "__layoutRowEnd", controlTypeLabel, controlName, m_RowEnd) Then Exit Function
-    If Not mp_TryReadLayoutLongAttr(controlNode, "__layoutColEnd", controlTypeLabel, controlName, m_ColEnd) Then Exit Function
+    If Not private_TryReadLayoutLongAttr(controlNode, "__layoutRowStart", controlTypeLabel, controlName, m_RowStart) Then Exit Function
+    If Not private_TryReadLayoutLongAttr(controlNode, "__layoutColStart", controlTypeLabel, controlName, m_ColStart) Then Exit Function
+    If Not private_TryReadLayoutLongAttr(controlNode, "__layoutRowEnd", controlTypeLabel, controlName, m_RowEnd) Then Exit Function
+    If Not private_TryReadLayoutLongAttr(controlNode, "__layoutColEnd", controlTypeLabel, controlName, m_ColEnd) Then Exit Function
 
-    If m_RowStart <= 0 Or m_ColStart <= 0 Then
-        MsgBox controlTypeLabel & ": invalid row/column start for control '" & controlName & "'.", vbExclamation
-        Exit Function
-    End If
-    If m_RowEnd < m_RowStart Then
-        MsgBox controlTypeLabel & ": invalid spanRows range for control '" & controlName & "'.", vbExclamation
-        Exit Function
-    End If
-    If m_ColEnd < m_ColStart Then
-        MsgBox controlTypeLabel & ": invalid spanCells range for control '" & controlName & "'.", vbExclamation
+    If Not private_TryValidateLayoutBounds(controlTypeLabel, controlName) Then Exit Function
+
+    TryReadFromNode = True
+End Function
+
+' Callstack[1]: rt_Snapshots.m_RestorePageSnapshots -> serializablePage.TryDeserializeSnapshot(obj_PageMain) -> obj_PageMain.obj_IPage_Render -> obj_PageMain.private_TryRestorePendingControlSnapshots -> obj_PageBase.TryRestoreSerializableControlSnapshots -> serializableControl.TryDeserializeSnapshot(obj_ButtonControlVM) -> m_Layout.TryReadFromRuntimeValues -> obj_ControlLayout.TryReadFromRuntimeValues
+' Callstack[2]: rt_Snapshots.m_RestorePageSnapshots -> serializablePage.TryDeserializeSnapshot(obj_PageMain) -> obj_PageMain.obj_IPage_Render -> obj_PageMain.private_TryRestorePendingControlSnapshots -> obj_PageBase.TryRestoreSerializableControlSnapshots -> serializableControl.TryDeserializeSnapshot(obj_SelectControlVM) -> m_Layout.TryReadFromRuntimeValues -> obj_ControlLayout.TryReadFromRuntimeValues
+Public Function TryReadFromRuntimeValues( _
+    ByVal controlTypeLabel As String, _
+    ByVal controlName As String, _
+    ByVal layoutSheetName As String, _
+    ByVal rowStart As Long, _
+    ByVal colStart As Long, _
+    ByVal rowEnd As Long, _
+    ByVal colEnd As Long, _
+    Optional ByVal styleName As String = VBA.vbNullString _
+) As Boolean
+    m_StyleName = VBA.Trim$(VBA.CStr(styleName))
+    m_LayoutSheetName = VBA.Trim$(VBA.CStr(layoutSheetName))
+    m_RowStart = rowStart
+    m_ColStart = colStart
+    m_RowEnd = rowEnd
+    m_ColEnd = colEnd
+
+    If VBA.Len(m_LayoutSheetName) = 0 Then
+        VBA.MsgBox controlTypeLabel & ": runtime layout sheet is missing for control '" & controlName & "'.", VBA.vbExclamation
         Exit Function
     End If
 
-    m_TryReadFromNode = True
+    If Not private_TryValidateLayoutBounds(controlTypeLabel, controlName) Then Exit Function
+    TryReadFromRuntimeValues = True
 End Function
 
 Public Property Get StyleName() As String
     StyleName = m_StyleName
 End Property
 
-Public Property Get LayoutSheet() As String
-    LayoutSheet = m_LayoutSheet
+Public Property Get LayoutSheetName() As String
+    LayoutSheetName = m_LayoutSheetName
 End Property
 
 Public Property Get RowStart() As Long
@@ -82,7 +105,24 @@ End Property
 ' //
 ' // Internal
 ' //
-Private Function mp_TryReadLayoutLongAttr( _
+Private Function private_TryValidateLayoutBounds(ByVal controlTypeLabel As String, ByVal controlName As String) As Boolean
+    If m_RowStart <= 0 Or m_ColStart <= 0 Then
+        VBA.MsgBox controlTypeLabel & ": invalid row/column start for control '" & controlName & "'.", VBA.vbExclamation
+        Exit Function
+    End If
+    If m_RowEnd < m_RowStart Then
+        VBA.MsgBox controlTypeLabel & ": invalid spanRows range for control '" & controlName & "'.", VBA.vbExclamation
+        Exit Function
+    End If
+    If m_ColEnd < m_ColStart Then
+        VBA.MsgBox controlTypeLabel & ": invalid spanCells range for control '" & controlName & "'.", VBA.vbExclamation
+        Exit Function
+    End If
+
+    private_TryValidateLayoutBounds = True
+End Function
+
+Private Function private_TryReadLayoutLongAttr( _
     ByVal controlNode As Object, _
     ByVal attrName As String, _
     ByVal controlTypeLabel As String, _
@@ -91,17 +131,16 @@ Private Function mp_TryReadLayoutLongAttr( _
 ) As Boolean
     Dim rawText As String
 
-    rawText = Trim$(CStr(ex_XmlCore.m_NodeAttrText(controlNode, attrName)))
-    If Len(rawText) = 0 Then
-        MsgBox controlTypeLabel & ": runtime layout attribute '" & attrName & "' is missing for control '" & controlName & "'.", vbExclamation
+    rawText = VBA.Trim$(VBA.CStr(ex_XmlCore.m_NodeAttrText(controlNode, attrName)))
+    If VBA.Len(rawText) = 0 Then
+        VBA.MsgBox controlTypeLabel & ": runtime layout attribute '" & attrName & "' is missing for control '" & controlName & "'.", VBA.vbExclamation
         Exit Function
     End If
-    If Not IsNumeric(rawText) Then
-        MsgBox controlTypeLabel & ": runtime layout attribute '" & attrName & "' must be numeric for control '" & controlName & "'.", vbExclamation
+    If Not VBA.IsNumeric(rawText) Then
+        VBA.MsgBox controlTypeLabel & ": runtime layout attribute '" & attrName & "' must be numeric for control '" & controlName & "'.", VBA.vbExclamation
         Exit Function
     End If
 
-    outValue = CLng(rawText)
-    mp_TryReadLayoutLongAttr = True
+    outValue = VBA.CLng(rawText)
+    private_TryReadLayoutLongAttr = True
 End Function
-

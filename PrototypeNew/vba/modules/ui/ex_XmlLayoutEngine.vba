@@ -1,11 +1,231 @@
 Attribute VB_Name = "ex_XmlLayoutEngine"
 Option Explicit
 
-Private Const UI_NS As String = "urn:excelprototype:profiles"
-Private g_ListRuntimeSourceSeed As Long
-Private g_ObjectRuntimeSourceSeed As Long
+' Layout handlers and XML/binding utilities.
+' This module also routes visual node rendering by node kind.
 
-Private Function mp_TryIsNodeVisible( _
+' //
+' // API
+' //
+Public Function m_RenderNode( _
+    ByVal renderCtx As obj_LayoutRenderContext, _
+    ByVal layoutNode As Object, _
+    Optional ByVal rowStart As Long = 0, _
+    Optional ByVal colStart As Long = 0, _
+    Optional ByVal rowEnd As Long = 0, _
+    Optional ByVal colEnd As Long = 0 _
+) As Boolean
+    Dim wb As Workbook
+    Dim ws As Worksheet
+    Dim nodeKind As String
+
+    If Not private_TryGetPageRenderContext(renderCtx, wb, ws) Then Exit Function
+
+    If layoutNode Is Nothing Then
+        VBA.MsgBox "PrototypeNew: layout node is not specified.", VBA.vbExclamation
+        Exit Function
+    End If
+    If layoutNode.NodeType <> 1 Then
+        VBA.MsgBox "PrototypeNew: layout node must be an element.", VBA.vbExclamation
+        Exit Function
+    End If
+
+    nodeKind = VBA.LCase$(VBA.CStr(layoutNode.baseName))
+    Select Case nodeKind
+        Case "page"
+            m_RenderNode = ex_LayoutPageRenderer.m_Render(renderCtx, layoutNode)
+
+        Case "control", "stackpanel", "grid", "list", "itemcontrol"
+            If rowStart <= 0 Or colStart <= 0 Then
+                VBA.MsgBox "PrototypeNew: invalid layout node position.", VBA.vbExclamation
+                Exit Function
+            End If
+            If rowEnd < rowStart Or colEnd < colStart Then
+                VBA.MsgBox "PrototypeNew: invalid layout node bounds.", VBA.vbExclamation
+                Exit Function
+            End If
+
+            Select Case nodeKind
+                Case "control"
+                    m_RenderNode = ex_LayoutControlRenderer.m_Render( _
+                        renderCtx:=renderCtx, _
+                        layoutNode:=layoutNode, _
+                        rowStart:=rowStart, _
+                        colStart:=colStart, _
+                        rowEnd:=rowEnd, _
+                        colEnd:=colEnd)
+
+                Case "stackpanel"
+                    m_RenderNode = ex_LayoutStackPanelRenderer.m_Render( _
+                        renderCtx:=renderCtx, _
+                        layoutNode:=layoutNode, _
+                        rowStart:=rowStart, _
+                        colStart:=colStart, _
+                        rowEnd:=rowEnd, _
+                        colEnd:=colEnd)
+
+                Case "grid"
+                    m_RenderNode = ex_LayoutGridRenderer.m_Render( _
+                        renderCtx:=renderCtx, _
+                        layoutNode:=layoutNode, _
+                        rowStart:=rowStart, _
+                        colStart:=colStart, _
+                        rowEnd:=rowEnd, _
+                        colEnd:=colEnd)
+
+                Case "list"
+                    m_RenderNode = ex_LayoutListRenderer.m_Render( _
+                        renderCtx:=renderCtx, _
+                        layoutNode:=layoutNode, _
+                        rowStart:=rowStart, _
+                        colStart:=colStart, _
+                        rowEnd:=rowEnd, _
+                        colEnd:=colEnd)
+
+                Case "itemcontrol"
+                    m_RenderNode = ex_LayoutItemControlRenderer.m_Render( _
+                        renderCtx:=renderCtx, _
+                        layoutNode:=layoutNode, _
+                        rowStart:=rowStart, _
+                        colStart:=colStart, _
+                        rowEnd:=rowEnd, _
+                        colEnd:=colEnd)
+            End Select
+
+        Case Else
+            VBA.MsgBox "PrototypeNew: unsupported layout node '" & VBA.CStr(layoutNode.baseName) & "'.", VBA.vbExclamation
+    End Select
+End Function
+
+
+Public Function m_RenderTemplateChildren( _
+    ByVal renderCtx As obj_LayoutRenderContext, _
+    ByVal templateControlNode As Object, _
+    Optional ByVal layoutRowStart As Long = 0, _
+    Optional ByVal layoutColStart As Long = 0, _
+    Optional ByVal layoutRowEnd As Long = 0, _
+    Optional ByVal layoutColEnd As Long = 0 _
+) As Boolean
+    Dim wb As Workbook
+    Dim ws As Worksheet
+
+    If Not private_TryGetPageRenderContext(renderCtx, wb, ws) Then Exit Function
+    If templateControlNode Is Nothing Then Exit Function
+
+    m_RenderTemplateChildren = private_RenderContainerChildrenInBounds( _
+        renderCtx, templateControlNode, _
+        layoutRowStart, layoutColStart, layoutRowEnd, layoutColEnd)
+End Function
+
+
+Public Function m_TryResolveNodeBoundsFromAnchor( _
+    ByVal renderCtx As obj_LayoutRenderContext, _
+    ByVal node As Object, _
+    ByVal anchorCellAddr As String, _
+    ByRef outRow As Long, _
+    ByRef outCol As Long, _
+    ByRef outSpanRows As Long, _
+    ByRef outSpanCols As Long _
+) As Boolean
+    Dim wb As Workbook
+    Dim ws As Worksheet
+    Dim anchorCell As Range
+
+    If Not private_TryGetPageRenderContext(renderCtx, wb, ws) Then Exit Function
+    If node Is Nothing Then Exit Function
+
+    anchorCellAddr = VBA.Trim$(anchorCellAddr)
+    If VBA.Len(anchorCellAddr) = 0 Then anchorCellAddr = "A1"
+
+    On Error GoTo EH_ANCHOR
+    Set anchorCell = ws.Range(anchorCellAddr)
+    On Error GoTo 0
+
+    If Not private_TryResolveNodeCellPosition(node, anchorCell, outRow, outCol) Then Exit Function
+    If Not private_TryGetEffectiveNodeSpan(renderCtx, node, outSpanRows, outSpanCols) Then Exit Function
+
+    m_TryResolveNodeBoundsFromAnchor = True
+    Exit Function
+
+EH_ANCHOR:
+    VBA.MsgBox "PrototypeNew: invalid anchorCell '" & anchorCellAddr & "'.", VBA.vbExclamation
+End Function
+
+
+Public Function m_TryGetEffectiveNodeSpan( _
+    ByVal renderCtx As obj_LayoutRenderContext, _
+    ByVal node As Object, _
+    ByRef outSpanRows As Long, _
+    ByRef outSpanCols As Long, _
+    Optional ByVal bindingSource As Object _
+) As Boolean
+    m_TryGetEffectiveNodeSpan = private_TryGetEffectiveNodeSpan(renderCtx, node, outSpanRows, outSpanCols, bindingSource)
+End Function
+
+
+Public Function m_IsVisualLayoutNode(ByVal node As Object) As Boolean
+    m_IsVisualLayoutNode = private_IsVisualLayoutNode(node)
+End Function
+
+
+Public Function m_RenderNodeBySpan( _
+    ByVal renderCtx As obj_LayoutRenderContext, _
+    ByVal layoutNode As Object, _
+    ByVal rowIndex As Long, _
+    ByVal colIndex As Long, _
+    ByVal spanRows As Long, _
+    ByVal spanCols As Long _
+) As Boolean
+    If spanRows <= 0 Or spanCols <= 0 Then
+        m_RenderNodeBySpan = True
+        Exit Function
+    End If
+
+    m_RenderNodeBySpan = m_RenderNode( _
+        renderCtx:=renderCtx, _
+        layoutNode:=layoutNode, _
+        rowStart:=rowIndex, _
+        colStart:=colIndex, _
+        rowEnd:=rowIndex + spanRows - 1, _
+        colEnd:=colIndex + spanCols - 1)
+End Function
+
+
+Public Function m_RenderNodeInBounds( _
+    ByVal renderCtx As obj_LayoutRenderContext, _
+    ByVal layoutNode As Object, _
+    ByVal rowStart As Long, _
+    ByVal colStart As Long, _
+    ByVal rowEnd As Long, _
+    ByVal colEnd As Long _
+) As Boolean
+    m_RenderNodeInBounds = m_RenderNode( _
+        renderCtx:=renderCtx, _
+        layoutNode:=layoutNode, _
+        rowStart:=rowStart, _
+        colStart:=colStart, _
+        rowEnd:=rowEnd, _
+        colEnd:=colEnd)
+End Function
+
+
+Public Function m_RenderContainerNodeInBounds( _
+    ByVal renderCtx As obj_LayoutRenderContext, _
+    ByVal containerNode As Object, _
+    Optional ByVal layoutRowStart As Long = 0, _
+    Optional ByVal layoutColStart As Long = 0, _
+    Optional ByVal layoutRowEnd As Long = 0, _
+    Optional ByVal layoutColEnd As Long = 0 _
+) As Boolean
+    m_RenderContainerNodeInBounds = private_RenderContainerChildrenInBounds( _
+        renderCtx, containerNode, _
+        layoutRowStart, layoutColStart, layoutRowEnd, layoutColEnd)
+End Function
+
+' //
+' // Internal
+' //
+Private Function private_TryIsNodeVisible( _
     ByVal node As Object, _
     ByVal bindingSource As Object, _
     ByRef outVisible As Boolean _
@@ -14,371 +234,32 @@ Private Function mp_TryIsNodeVisible( _
 
     If node Is Nothing Then
         outVisible = True
-        mp_TryIsNodeVisible = True
+        private_TryIsNodeVisible = True
         Exit Function
     End If
 
-    visibilityRaw = Trim$(CStr(ex_XmlCore.m_NodeAttrText(node, "visibility")))
-    If Len(visibilityRaw) = 0 Then
+    visibilityRaw = VBA.Trim$(VBA.CStr(ex_XmlCore.m_NodeAttrText(node, "visibility")))
+    If VBA.Len(visibilityRaw) = 0 Then
         outVisible = True
-        mp_TryIsNodeVisible = True
+        private_TryIsNodeVisible = True
         Exit Function
     End If
 
     If Not ex_BindingRuntime.m_TryResolveVisibilityBinding(visibilityRaw, bindingSource, outVisible) Then Exit Function
-    mp_TryIsNodeVisible = True
+    private_TryIsNodeVisible = True
 End Function
 
-Public Function m_RenderPageLayout( _
-    ByVal wb As Workbook, _
-    ByVal defaultWs As Worksheet, _
-    ByVal wsUiDoc As Object _
-) As Boolean
-    Dim gridNode As Object
 
-    If wb Is Nothing Then
-        MsgBox "PrototypeNew: workbook is not specified.", vbExclamation
-        Exit Function
-    End If
-    If defaultWs Is Nothing Then
-        MsgBox "PrototypeNew: worksheet is not specified.", vbExclamation
-        Exit Function
-    End If
-    If wsUiDoc Is Nothing Then
-        MsgBox "PrototypeNew: page UI document is not specified.", vbExclamation
-        Exit Function
-    End If
-
-    Set gridNode = wsUiDoc.selectSingleNode("/p:uiDefinition/p:layout/p:grid")
-    If gridNode Is Nothing Then
-        MsgBox "PrototypeNew: layout must contain <grid> node.", vbExclamation
-        Exit Function
-    End If
-
-    ' Reuse runtime keys between renders to avoid unbounded key growth.
-    g_ListRuntimeSourceSeed = 0
-    g_ObjectRuntimeSourceSeed = 0
-
-    m_RenderPageLayout = mp_RenderGridNodeOnWorksheet(wb, defaultWs, gridNode)
-End Function
-
-Public Function m_RenderTemplateChildren( _
-    ByVal wb As Workbook, _
-    ByVal ws As Worksheet, _
-    ByVal templateControlNode As Object, _
-    ByVal recursionDepth As Long, _
-    Optional ByVal layoutRowStart As Long = 0, _
-    Optional ByVal layoutColStart As Long = 0, _
-    Optional ByVal layoutRowEnd As Long = 0, _
-    Optional ByVal layoutColEnd As Long = 0 _
-) As Boolean
-    If wb Is Nothing Then Exit Function
-    If ws Is Nothing Then Exit Function
-    If templateControlNode Is Nothing Then Exit Function
-
-    m_RenderTemplateChildren = mp_RenderContainerChildrenInBounds( _
-        wb, ws, templateControlNode, recursionDepth, _
-        layoutRowStart, layoutColStart, layoutRowEnd, layoutColEnd)
-End Function
-
-Private Function mp_RenderGridNodeOnWorksheet( _
-    ByVal wb As Workbook, _
-    ByVal defaultWs As Worksheet, _
-    ByVal gridNode As Object _
-) As Boolean
-    Dim ws As Worksheet
-    Dim anchorCell As Range
-    Dim anchorCellAddr As String
-    Dim childNode As Object
-    Dim isVisible As Boolean
-
-    If wb Is Nothing Then Exit Function
-    If defaultWs Is Nothing Then Exit Function
-    If gridNode Is Nothing Then Exit Function
-
-    Set ws = defaultWs
-
-    anchorCellAddr = Trim$(ex_XmlCore.m_NodeAttrText(gridNode, "anchorCell"))
-    If Len(anchorCellAddr) = 0 Then anchorCellAddr = "A1"
-
-    On Error GoTo EH_ANCHOR
-    Set anchorCell = ws.Range(anchorCellAddr)
-    On Error GoTo 0
-
-    mp_ClearWorksheet ws
-
-    For Each childNode In gridNode.ChildNodes
-        If childNode.NodeType <> 1 Then GoTo ContinueNode
-        If Not mp_TryIsNodeVisible(childNode, Nothing, isVisible) Then Exit Function
-        If Not isVisible Then GoTo ContinueNode
-
-        Select Case LCase$(CStr(childNode.baseName))
-            Case "stackpanel"
-                If Not mp_RenderStackPanelOnWorksheet(wb, ws, anchorCell, childNode) Then Exit Function
-
-            Case "control"
-                If Not mp_RenderSingleControlOnWorksheet(wb, ws, anchorCell, childNode) Then Exit Function
-
-            Case "list"
-                If Not mp_RenderSingleListOnWorksheet(wb, ws, anchorCell, childNode) Then Exit Function
-
-            Case "itemcontrol"
-                If Not mp_RenderSingleItemControlOnWorksheet(wb, ws, anchorCell, childNode) Then Exit Function
-
-            Case Else
-                MsgBox "PrototypeNew: unsupported node '" & CStr(childNode.baseName) & "' inside <grid>.", vbExclamation
-                Exit Function
-        End Select
-
-ContinueNode:
-    Next childNode
-
-    mp_RenderGridNodeOnWorksheet = True
-    Exit Function
-
-EH_ANCHOR:
-    MsgBox "PrototypeNew: invalid grid anchorCell '" & anchorCellAddr & "'.", vbExclamation
-End Function
-
-Private Function mp_RenderStackPanelOnWorksheet( _
-    ByVal wb As Workbook, _
-    ByVal ws As Worksheet, _
-    ByVal anchorCell As Range, _
-    ByVal panelNode As Object _
-) As Boolean
-    Dim panelStartRow As Long
-    Dim panelStartCol As Long
-    Dim cursorRow As Long
-    Dim cursorCol As Long
-    Dim orientation As String
-    Dim childNode As Object
-    Dim spanRows As Long
-    Dim spanCols As Long
-
-    If wb Is Nothing Then Exit Function
-    If ws Is Nothing Then Exit Function
-    If anchorCell Is Nothing Then Exit Function
-    If panelNode Is Nothing Then Exit Function
-
-    If Not mp_TryResolveNodeCellPosition(panelNode, anchorCell, panelStartRow, panelStartCol) Then Exit Function
-
-    orientation = LCase$(Trim$(ex_XmlCore.m_NodeAttrText(panelNode, "orientation")))
-    If Len(orientation) = 0 Then orientation = "vertical"
-    If StrComp(orientation, "vertical", vbBinaryCompare) <> 0 And _
-       StrComp(orientation, "horizontal", vbBinaryCompare) <> 0 Then
-        MsgBox "PrototypeNew: stackPanel orientation must be 'vertical' or 'horizontal'.", vbExclamation
-        Exit Function
-    End If
-
-    cursorRow = panelStartRow
-    cursorCol = panelStartCol
-
-    For Each childNode In panelNode.ChildNodes
-        If childNode.NodeType <> 1 Then GoTo ContinueNode
-
-        If Not mp_IsVisualLayoutNode(childNode) Then
-            MsgBox "PrototypeNew: stackPanel supports only <control>, <stackPanel>, <grid>, <list> or <itemControl> children.", vbExclamation
-            Exit Function
-        End If
-
-        If Not mp_TryGetEffectiveNodeSpan(childNode, spanRows, spanCols) Then Exit Function
-
-        If Not mp_RenderLayoutNodeByWorksheetSpan(wb, ws, childNode, cursorRow, cursorCol, spanRows, spanCols) Then Exit Function
-
-        If StrComp(orientation, "horizontal", vbBinaryCompare) = 0 Then
-            cursorCol = cursorCol + spanCols
-        Else
-            cursorRow = cursorRow + spanRows
-        End If
-
-ContinueNode:
-    Next childNode
-
-    mp_RenderStackPanelOnWorksheet = True
-End Function
-
-Private Function mp_RenderSingleListOnWorksheet( _
-    ByVal wb As Workbook, _
-    ByVal ws As Worksheet, _
-    ByVal anchorCell As Range, _
-    ByVal listNode As Object _
-) As Boolean
-    Dim rowIndex As Long
-    Dim colIndex As Long
-    Dim spanRows As Long
-    Dim spanCols As Long
-
-    If Not mp_TryResolveNodeCellPosition(listNode, anchorCell, rowIndex, colIndex) Then Exit Function
-    If Not mp_TryGetEffectiveNodeSpan(listNode, spanRows, spanCols) Then Exit Function
-
-    mp_RenderSingleListOnWorksheet = mp_RenderLayoutNodeByWorksheetSpan( _
-        wb, ws, listNode, rowIndex, colIndex, spanRows, spanCols)
-End Function
-
-Private Function mp_RenderSingleItemControlOnWorksheet( _
-    ByVal wb As Workbook, _
-    ByVal ws As Worksheet, _
-    ByVal anchorCell As Range, _
-    ByVal itemControlNode As Object _
-) As Boolean
-    Dim rowIndex As Long
-    Dim colIndex As Long
-    Dim spanRows As Long
-    Dim spanCols As Long
-
-    If Not mp_TryResolveNodeCellPosition(itemControlNode, anchorCell, rowIndex, colIndex) Then Exit Function
-    If Not mp_TryGetEffectiveNodeSpan(itemControlNode, spanRows, spanCols) Then Exit Function
-
-    mp_RenderSingleItemControlOnWorksheet = mp_RenderLayoutNodeByWorksheetSpan( _
-        wb, ws, itemControlNode, rowIndex, colIndex, spanRows, spanCols)
-End Function
-
-Private Function mp_RenderSingleControlOnWorksheet( _
-    ByVal wb As Workbook, _
-    ByVal ws As Worksheet, _
-    ByVal anchorCell As Range, _
-    ByVal controlNode As Object _
-) As Boolean
-    Dim rowIndex As Long
-    Dim colIndex As Long
-    Dim spanRows As Long
-    Dim spanCols As Long
-
-    If Not mp_TryResolveNodeCellPosition(controlNode, anchorCell, rowIndex, colIndex) Then Exit Function
-    If Not mp_TryGetEffectiveNodeSpan(controlNode, spanRows, spanCols) Then Exit Function
-    If spanRows <= 0 Or spanCols <= 0 Then
-        mp_RenderSingleControlOnWorksheet = True
-        Exit Function
-    End If
-
-    mp_RenderSingleControlOnWorksheet = mp_RenderControlByWorksheetSpan(wb, ws, controlNode, rowIndex, colIndex, spanRows, spanCols)
-End Function
-
-Private Function mp_RenderControlByWorksheetSpan( _
-    ByVal wb As Workbook, _
-    ByVal ws As Worksheet, _
-    ByVal controlNode As Object, _
-    ByVal rowIndex As Long, _
-    ByVal colIndex As Long, _
-    ByVal spanRows As Long, _
-    ByVal spanCols As Long _
-) As Boolean
-    Dim targetRange As Range
-
-    If rowIndex <= 0 Or colIndex <= 0 Then
-        MsgBox "PrototypeNew: invalid control position.", vbExclamation
-        Exit Function
-    End If
-
-    On Error GoTo EH_RANGE
-    Set targetRange = ws.Range(ws.Cells(rowIndex, colIndex), ws.Cells(rowIndex + spanRows - 1, colIndex + spanCols - 1))
-    On Error GoTo 0
-
-    mp_RenderControlByWorksheetSpan = ex_ControlRenderer.m_RenderControl( _
-        wb:=wb, _
-        ws:=ws, _
-        layoutControlNode:=controlNode, _
-        recursionDepth:=0, _
-        layoutRowStart:=rowIndex, _
-        layoutColStart:=colIndex, _
-        layoutRowEnd:=rowIndex + spanRows - 1, _
-        layoutColEnd:=colIndex + spanCols - 1)
-    Exit Function
-
-EH_RANGE:
-    MsgBox "PrototypeNew: failed to resolve control range for row=" & CStr(rowIndex) & ", col=" & CStr(colIndex) & ".", vbExclamation
-End Function
-
-Private Function mp_RenderLayoutNodeByWorksheetSpan( _
-    ByVal wb As Workbook, _
-    ByVal ws As Worksheet, _
-    ByVal layoutNode As Object, _
-    ByVal rowIndex As Long, _
-    ByVal colIndex As Long, _
-    ByVal spanRows As Long, _
-    ByVal spanCols As Long _
-) As Boolean
-    Dim targetRange As Range
-    Dim nodeKind As String
-
-    If rowIndex <= 0 Or colIndex <= 0 Then
-        MsgBox "PrototypeNew: invalid layout node position.", vbExclamation
-        Exit Function
-    End If
-    If spanRows <= 0 Or spanCols <= 0 Then
-        mp_RenderLayoutNodeByWorksheetSpan = True
-        Exit Function
-    End If
-
-    On Error GoTo EH_RANGE
-    Set targetRange = ws.Range(ws.Cells(rowIndex, colIndex), ws.Cells(rowIndex + spanRows - 1, colIndex + spanCols - 1))
-    On Error GoTo 0
-
-    nodeKind = LCase$(CStr(layoutNode.baseName))
-    Select Case nodeKind
-        Case "control"
-            mp_RenderLayoutNodeByWorksheetSpan = ex_ControlRenderer.m_RenderControl( _
-                wb:=wb, _
-                ws:=ws, _
-                layoutControlNode:=layoutNode, _
-                recursionDepth:=0, _
-                layoutRowStart:=rowIndex, _
-                layoutColStart:=colIndex, _
-                layoutRowEnd:=rowIndex + spanRows - 1, _
-                layoutColEnd:=colIndex + spanCols - 1)
-
-        Case "stackpanel", "grid"
-            mp_RenderLayoutNodeByWorksheetSpan = mp_RenderContainerChildrenInBounds( _
-                wb:=wb, _
-                ws:=ws, _
-                containerNode:=layoutNode, _
-                recursionDepth:=0, _
-                containerRowStart:=rowIndex, _
-                containerColStart:=colIndex, _
-                containerRowEnd:=rowIndex + spanRows - 1, _
-                containerColEnd:=colIndex + spanCols - 1)
-
-        Case "list"
-            mp_RenderLayoutNodeByWorksheetSpan = mp_RenderListInBounds( _
-                wb:=wb, _
-                ws:=ws, _
-                listNode:=layoutNode, _
-                recursionDepth:=0, _
-                layoutRowStart:=rowIndex, _
-                layoutColStart:=colIndex, _
-                layoutRowEnd:=rowIndex + spanRows - 1, _
-                layoutColEnd:=colIndex + spanCols - 1)
-
-        Case "itemcontrol"
-            mp_RenderLayoutNodeByWorksheetSpan = mp_RenderItemControlInBounds( _
-                wb:=wb, _
-                ws:=ws, _
-                itemControlNode:=layoutNode, _
-                recursionDepth:=0, _
-                layoutRowStart:=rowIndex, _
-                layoutColStart:=colIndex, _
-                layoutRowEnd:=rowIndex + spanRows - 1, _
-                layoutColEnd:=colIndex + spanCols - 1)
-
-        Case Else
-            MsgBox "PrototypeNew: unsupported layout node '" & CStr(layoutNode.baseName) & "'.", vbExclamation
-    End Select
-    Exit Function
-
-EH_RANGE:
-    MsgBox "PrototypeNew: failed to resolve layout range for row=" & CStr(rowIndex) & ", col=" & CStr(colIndex) & ".", vbExclamation
-End Function
-
-Private Function mp_RenderContainerChildrenInBounds( _
-    ByVal wb As Workbook, _
-    ByVal ws As Worksheet, _
+Private Function private_RenderContainerChildrenInBounds( _
+    ByVal renderCtx As obj_LayoutRenderContext, _
     ByVal containerNode As Object, _
-    ByVal recursionDepth As Long, _
     Optional ByVal containerRowStart As Long = 0, _
     Optional ByVal containerColStart As Long = 0, _
     Optional ByVal containerRowEnd As Long = 0, _
     Optional ByVal containerColEnd As Long = 0 _
 ) As Boolean
+    Dim wb As Workbook
+    Dim ws As Worksheet
     Dim visualCount As Long
     Dim maxRows As Long
     Dim maxCols As Long
@@ -396,21 +277,22 @@ Private Function mp_RenderContainerChildrenInBounds( _
     Dim childRowEnd As Long
     Dim childColEnd As Long
 
+    If Not private_TryGetPageRenderContext(renderCtx, wb, ws) Then Exit Function
     If containerNode Is Nothing Then
-        mp_RenderContainerChildrenInBounds = True
+        private_RenderContainerChildrenInBounds = True
         Exit Function
     End If
 
-    visualCount = mp_CountVisualChildren(containerNode)
+    visualCount = private_CountVisualChildren(containerNode)
     If visualCount = 0 Then
-        mp_RenderContainerChildrenInBounds = True
+        private_RenderContainerChildrenInBounds = True
         Exit Function
     End If
 
-    orientation = mp_GetContainerOrientation(containerNode)
+    orientation = private_GetContainerOrientation(containerNode)
     hasGridBounds = (containerRowStart > 0 And containerColStart > 0 And containerRowEnd >= containerRowStart And containerColEnd >= containerColStart)
     If Not hasGridBounds Then
-        MsgBox "PrototypeNew: container bounds are required for nested layout rendering.", vbExclamation
+        VBA.MsgBox "PrototypeNew: container bounds are required for nested layout rendering.", VBA.vbExclamation
         Exit Function
     End If
 
@@ -418,11 +300,11 @@ Private Function mp_RenderContainerChildrenInBounds( _
     seqCol = 1
 
     For Each childNode In containerNode.ChildNodes
-        If Not mp_IsVisualLayoutNode(childNode) Then GoTo ContinueFirstPass
+        If Not private_IsVisualLayoutNode(childNode) Then GoTo ContinueFirstPass
 
-        If Not mp_TryGetEffectiveNodeSpan(childNode, spanRows, spanCols) Then Exit Function
+        If Not private_TryGetEffectiveNodeSpan(renderCtx, childNode, spanRows, spanCols) Then Exit Function
 
-        If Not mp_ResolveChildGridPosition(childNode, orientation, seqRow, seqCol, rowIdx, colIdx, spanRows, spanCols) Then Exit Function
+        If Not private_ResolveChildGridPosition(childNode, orientation, seqRow, seqCol, rowIdx, colIdx, spanRows, spanCols) Then Exit Function
         If spanRows <= 0 Or spanCols <= 0 Then GoTo ContinueFirstPass
 
         If rowIdx + spanRows - 1 > maxRows Then maxRows = rowIdx + spanRows - 1
@@ -438,11 +320,11 @@ ContinueFirstPass:
     seqCol = 1
 
     For Each childNode In containerNode.ChildNodes
-        If Not mp_IsVisualLayoutNode(childNode) Then GoTo ContinueSecondPass
+        If Not private_IsVisualLayoutNode(childNode) Then GoTo ContinueSecondPass
 
-        If Not mp_TryGetEffectiveNodeSpan(childNode, spanRows, spanCols) Then Exit Function
+        If Not private_TryGetEffectiveNodeSpan(renderCtx, childNode, spanRows, spanCols) Then Exit Function
 
-        If Not mp_ResolveChildGridPosition(childNode, orientation, seqRow, seqCol, rowIdx, colIdx, spanRows, spanCols) Then Exit Function
+        If Not private_ResolveChildGridPosition(childNode, orientation, seqRow, seqCol, rowIdx, colIdx, spanRows, spanCols) Then Exit Function
         If spanRows <= 0 Or spanCols <= 0 Then GoTo ContinueSecondPass
 
         childRowStart = containerRowStart + rowIdx - 1
@@ -450,35 +332,23 @@ ContinueFirstPass:
         childRowEnd = childRowStart + spanRows - 1
         childColEnd = childColStart + spanCols - 1
 
-        Select Case LCase$(CStr(childNode.baseName))
-            Case "control"
-                If Not ex_ControlRenderer.m_RenderControl( _
-                    wb, ws, childNode, recursionDepth, _
-                    childRowStart, childColStart, childRowEnd, childColEnd) Then Exit Function
-
-            Case "stackpanel", "grid"
-                If Not mp_RenderContainerChildrenInBounds( _
-                    wb, ws, childNode, recursionDepth, _
-                    childRowStart, childColStart, childRowEnd, childColEnd) Then Exit Function
-
-            Case "list"
-                If Not mp_RenderListInBounds( _
-                    wb, ws, childNode, recursionDepth, _
-                    childRowStart, childColStart, childRowEnd, childColEnd) Then Exit Function
-
-            Case "itemcontrol"
-                If Not mp_RenderItemControlInBounds( _
-                    wb, ws, childNode, recursionDepth, _
-                    childRowStart, childColStart, childRowEnd, childColEnd) Then Exit Function
-        End Select
+        If Not m_RenderNodeInBounds( _
+            renderCtx:=renderCtx, _
+            layoutNode:=childNode, _
+            rowStart:=childRowStart, _
+            colStart:=childColStart, _
+            rowEnd:=childRowEnd, _
+            colEnd:=childColEnd) Then Exit Function
 
 ContinueSecondPass:
     Next childNode
 
-    mp_RenderContainerChildrenInBounds = True
+    private_RenderContainerChildrenInBounds = True
 End Function
 
-Private Function mp_TryGetEffectiveNodeSpan( _
+
+Private Function private_TryGetEffectiveNodeSpan( _
+    ByVal renderCtx As obj_LayoutRenderContext, _
     ByVal node As Object, _
     ByRef outSpanRows As Long, _
     ByRef outSpanCols As Long, _
@@ -492,24 +362,24 @@ Private Function mp_TryGetEffectiveNodeSpan( _
     Dim measuredCols As Long
 
     If node Is Nothing Then Exit Function
-    If Not mp_TryIsNodeVisible(node, bindingSource, isVisible) Then Exit Function
+    If Not private_TryIsNodeVisible(node, bindingSource, isVisible) Then Exit Function
     If Not isVisible Then
         outSpanRows = 0
         outSpanCols = 0
-        mp_TryGetEffectiveNodeSpan = True
+        private_TryGetEffectiveNodeSpan = True
         Exit Function
     End If
 
-    explicitRows = mp_ReadPositiveLongAttr(node, "spanRows", 0)
-    explicitCols = mp_ReadPositiveLongAttr(node, "spanCells", 0)
+    explicitRows = private_ReadPositiveLongAttr(node, "spanRows", 0)
+    explicitCols = private_ReadPositiveLongAttr(node, "spanCells", 0)
     If explicitRows > 0 And explicitCols > 0 Then
         outSpanRows = explicitRows
         outSpanCols = explicitCols
-        mp_TryGetEffectiveNodeSpan = True
+        private_TryGetEffectiveNodeSpan = True
         Exit Function
     End If
 
-    nodeKind = LCase$(CStr(node.baseName))
+    nodeKind = VBA.LCase$(VBA.CStr(node.baseName))
     Select Case nodeKind
         Case "control"
             If explicitRows > 0 Then
@@ -525,7 +395,7 @@ Private Function mp_TryGetEffectiveNodeSpan( _
             End If
 
         Case "stackpanel", "grid"
-            If Not mp_TryMeasureContainerContentSpan(node, measuredRows, measuredCols, bindingSource) Then Exit Function
+            If Not private_TryMeasureContainerContentSpan(renderCtx, node, measuredRows, measuredCols, bindingSource) Then Exit Function
 
             If explicitRows > 0 Then
                 outSpanRows = explicitRows
@@ -540,7 +410,7 @@ Private Function mp_TryGetEffectiveNodeSpan( _
             End If
 
         Case "list"
-            If Not mp_TryMeasureListContentSpan(node, measuredRows, measuredCols, bindingSource) Then Exit Function
+            If Not ex_LayoutListRenderer.m_TryMeasureContentSpan(renderCtx, node, measuredRows, measuredCols, bindingSource) Then Exit Function
 
             If explicitRows > 0 Then
                 outSpanRows = explicitRows
@@ -555,7 +425,7 @@ Private Function mp_TryGetEffectiveNodeSpan( _
             End If
 
         Case "itemcontrol"
-            If Not mp_TryMeasureItemControlContentSpan(node, measuredRows, measuredCols, bindingSource) Then Exit Function
+            If Not ex_LayoutItemControlRenderer.m_TryMeasureContentSpan(renderCtx, node, measuredRows, measuredCols, bindingSource) Then Exit Function
 
             If explicitRows > 0 Then
                 outSpanRows = explicitRows
@@ -570,21 +440,23 @@ Private Function mp_TryGetEffectiveNodeSpan( _
             End If
 
         Case Else
-            MsgBox "PrototypeNew: unsupported layout node '" & CStr(node.baseName) & "'.", vbExclamation
+            VBA.MsgBox "PrototypeNew: unsupported layout node '" & VBA.CStr(node.baseName) & "'.", VBA.vbExclamation
             Exit Function
     End Select
 
-    If StrComp(nodeKind, "itemcontrol", vbBinaryCompare) = 0 Then
+    If VBA.StrComp(nodeKind, "itemcontrol", VBA.vbBinaryCompare) = 0 Then
         If outSpanRows < 0 Then outSpanRows = 0
         If outSpanCols < 0 Then outSpanCols = 0
     Else
         If outSpanRows <= 0 Then outSpanRows = 1
         If outSpanCols <= 0 Then outSpanCols = 1
     End If
-    mp_TryGetEffectiveNodeSpan = True
+    private_TryGetEffectiveNodeSpan = True
 End Function
 
-Private Function mp_TryMeasureContainerContentSpan( _
+
+Private Function private_TryMeasureContainerContentSpan( _
+    ByVal renderCtx As obj_LayoutRenderContext, _
     ByVal containerNode As Object, _
     ByRef outSpanRows As Long, _
     ByRef outSpanCols As Long, _
@@ -603,8 +475,8 @@ Private Function mp_TryMeasureContainerContentSpan( _
 
     If containerNode Is Nothing Then Exit Function
 
-    orientation = mp_GetContainerOrientation(containerNode)
-    If StrComp(LCase$(CStr(containerNode.baseName)), "stackpanel", vbBinaryCompare) = 0 And Len(orientation) = 0 Then
+    orientation = private_GetContainerOrientation(containerNode)
+    If VBA.StrComp(VBA.LCase$(VBA.CStr(containerNode.baseName)), "stackpanel", VBA.vbBinaryCompare) = 0 And VBA.Len(orientation) = 0 Then
         Exit Function
     End If
 
@@ -612,10 +484,10 @@ Private Function mp_TryMeasureContainerContentSpan( _
     seqCol = 1
 
     For Each childNode In containerNode.ChildNodes
-        If Not mp_IsVisualLayoutNode(childNode) Then GoTo ContinueChild
+        If Not private_IsVisualLayoutNode(childNode) Then GoTo ContinueChild
 
-        If Not mp_TryGetEffectiveNodeSpan(childNode, childRows, childCols, bindingSource) Then Exit Function
-        If Not mp_ResolveChildGridPosition(childNode, orientation, seqRow, seqCol, rowIdx, colIdx, childRows, childCols) Then Exit Function
+        If Not private_TryGetEffectiveNodeSpan(renderCtx, childNode, childRows, childCols, bindingSource) Then Exit Function
+        If Not private_ResolveChildGridPosition(childNode, orientation, seqRow, seqCol, rowIdx, colIdx, childRows, childCols) Then Exit Function
         If childRows <= 0 Or childCols <= 0 Then GoTo ContinueChild
 
         If rowIdx + childRows - 1 > maxRows Then maxRows = rowIdx + childRows - 1
@@ -629,10 +501,11 @@ ContinueChild:
 
     outSpanRows = maxRows
     outSpanCols = maxCols
-    mp_TryMeasureContainerContentSpan = True
+    private_TryMeasureContainerContentSpan = True
 End Function
 
-Private Function mp_ResolveChildGridPosition( _
+
+Private Function private_ResolveChildGridPosition( _
     ByVal childNode As Object, _
     ByVal parentOrientation As String, _
     ByRef seqRow As Long, _
@@ -644,10 +517,10 @@ Private Function mp_ResolveChildGridPosition( _
 ) As Boolean
     Dim atText As String
 
-    atText = Trim$(ex_XmlCore.m_NodeAttrText(childNode, "at"))
-    If Len(atText) > 0 Then
-        If Not mp_TryParseAtAddress(atText, outRow, outCol) Then
-            MsgBox "PrototypeNew: invalid 'at' format '" & atText & "'. Expected format is rNcM.", vbExclamation
+    atText = VBA.Trim$(ex_XmlCore.m_NodeAttrText(childNode, "at"))
+    If VBA.Len(atText) > 0 Then
+        If Not private_TryParseAtAddress(atText, outRow, outCol) Then
+            VBA.MsgBox "PrototypeNew: invalid 'at' format '" & atText & "'. Expected format is rNcM.", VBA.vbExclamation
             Exit Function
         End If
     Else
@@ -666,690 +539,51 @@ Private Function mp_ResolveChildGridPosition( _
         End Select
     End If
 
-    mp_ResolveChildGridPosition = True
+    private_ResolveChildGridPosition = True
 End Function
 
-Private Function mp_GetContainerOrientation(ByVal node As Object) As String
+
+Private Function private_GetContainerOrientation(ByVal node As Object) As String
     If node Is Nothing Then Exit Function
 
-    If StrComp(LCase$(CStr(node.baseName)), "stackpanel", vbBinaryCompare) = 0 Then
-        mp_GetContainerOrientation = LCase$(Trim$(ex_XmlCore.m_NodeAttrText(node, "orientation")))
-        If Len(mp_GetContainerOrientation) = 0 Then
-            mp_GetContainerOrientation = "vertical"
-        ElseIf StrComp(mp_GetContainerOrientation, "vertical", vbBinaryCompare) <> 0 And _
-               StrComp(mp_GetContainerOrientation, "horizontal", vbBinaryCompare) <> 0 Then
-            MsgBox "PrototypeNew: stackPanel orientation must be 'vertical' or 'horizontal'.", vbExclamation
-            mp_GetContainerOrientation = vbNullString
+    If VBA.StrComp(VBA.LCase$(VBA.CStr(node.baseName)), "stackpanel", VBA.vbBinaryCompare) = 0 Then
+        private_GetContainerOrientation = VBA.LCase$(VBA.Trim$(ex_XmlCore.m_NodeAttrText(node, "orientation")))
+        If VBA.Len(private_GetContainerOrientation) = 0 Then
+            private_GetContainerOrientation = "vertical"
+        ElseIf VBA.StrComp(private_GetContainerOrientation, "vertical", VBA.vbBinaryCompare) <> 0 And _
+               VBA.StrComp(private_GetContainerOrientation, "horizontal", VBA.vbBinaryCompare) <> 0 Then
+            VBA.MsgBox "PrototypeNew: stackPanel orientation must be 'vertical' or 'horizontal'.", VBA.vbExclamation
+            private_GetContainerOrientation = VBA.vbNullString
         End If
     End If
 End Function
 
-Private Function mp_CountVisualChildren(ByVal node As Object) As Long
+
+Private Function private_CountVisualChildren(ByVal node As Object) As Long
     Dim childNode As Object
 
     If node Is Nothing Then Exit Function
 
     For Each childNode In node.ChildNodes
-        If mp_IsVisualLayoutNode(childNode) Then
-            mp_CountVisualChildren = mp_CountVisualChildren + 1
+        If private_IsVisualLayoutNode(childNode) Then
+            private_CountVisualChildren = private_CountVisualChildren + 1
         End If
     Next childNode
 End Function
 
-Private Function mp_IsVisualLayoutNode(ByVal node As Object) As Boolean
+
+Private Function private_IsVisualLayoutNode(ByVal node As Object) As Boolean
     If node Is Nothing Then Exit Function
     If node.NodeType <> 1 Then Exit Function
 
-    Select Case LCase$(CStr(node.baseName))
+    Select Case VBA.LCase$(VBA.CStr(node.baseName))
         Case "control", "stackpanel", "grid", "list", "itemcontrol"
-            mp_IsVisualLayoutNode = True
+            private_IsVisualLayoutNode = True
     End Select
 End Function
 
-Private Function mp_RenderListInBounds( _
-    ByVal wb As Workbook, _
-    ByVal ws As Worksheet, _
-    ByVal listNode As Object, _
-    ByVal recursionDepth As Long, _
-    Optional ByVal layoutRowStart As Long = 0, _
-    Optional ByVal layoutColStart As Long = 0, _
-    Optional ByVal layoutRowEnd As Long = 0, _
-    Optional ByVal layoutColEnd As Long = 0 _
-) As Boolean
-    Dim items As Collection
-    Dim templateRoot As Object
-    Dim listOrientation As String
-    Dim tempDoc As Object
-    Dim syntheticRoot As Object
-    Dim itemValue As Variant
-    Dim clonedNode As Object
-    Dim itemIndex As Long
 
-    If wb Is Nothing Then Exit Function
-    If ws Is Nothing Then Exit Function
-    If listNode Is Nothing Then Exit Function
-
-    If Not ex_ListItemsSourceRuntime.m_TryResolveItemsSource( _
-        ex_XmlCore.m_NodeAttrText(listNode, "itemsSource"), items) Then Exit Function
-
-    If items Is Nothing Then
-        MsgBox "PrototypeNew: list itemsSource resolved to Nothing.", vbExclamation
-        Exit Function
-    End If
-    If items.Count = 0 Then
-        mp_RenderListInBounds = True
-        Exit Function
-    End If
-
-    If Not mp_TryResolveListTemplateRoot(listNode, templateRoot) Then Exit Function
-
-    listOrientation = mp_GetListOrientation(listNode)
-    If Len(listOrientation) = 0 Then Exit Function
-
-    Set tempDoc = ex_XmlCore.m_CreateDom(UI_NS)
-    mp_CopyTemplatesToTempListDoc tempDoc, listNode.OwnerDocument
-
-    Set syntheticRoot = tempDoc.createNode(1, "stackPanel", UI_NS)
-    syntheticRoot.setAttribute "orientation", listOrientation
-
-    itemIndex = 0
-    For Each itemValue In items
-        itemIndex = itemIndex + 1
-
-        Set clonedNode = tempDoc.importNode(templateRoot, True)
-        If clonedNode Is Nothing Then
-            MsgBox "PrototypeNew: failed to clone list template node.", vbExclamation
-            Exit Function
-        End If
-
-        If Not mp_ApplyListItemBindings(clonedNode, itemValue) Then Exit Function
-        mp_AppendSuffixToControlNames clonedNode, "_" & CStr(itemIndex)
-        mp_ApplyListItemValueToTemplate clonedNode, itemValue
-        syntheticRoot.appendChild clonedNode
-    Next itemValue
-
-    mp_RenderListInBounds = mp_RenderContainerChildrenInBounds( _
-        wb, ws, syntheticRoot, recursionDepth, _
-        layoutRowStart, layoutColStart, layoutRowEnd, layoutColEnd)
-End Function
-
-Private Function mp_RenderItemControlInBounds( _
-    ByVal wb As Workbook, _
-    ByVal ws As Worksheet, _
-    ByVal itemControlNode As Object, _
-    ByVal recursionDepth As Long, _
-    Optional ByVal layoutRowStart As Long = 0, _
-    Optional ByVal layoutColStart As Long = 0, _
-    Optional ByVal layoutRowEnd As Long = 0, _
-    Optional ByVal layoutColEnd As Long = 0 _
-) As Boolean
-    Dim sourceObject As Object
-    Dim templateRoot As Object
-    Dim tempDoc As Object
-    Dim syntheticRoot As Object
-    Dim clonedNode As Object
-    Dim suffixValue As Long
-
-    If wb Is Nothing Then Exit Function
-    If ws Is Nothing Then Exit Function
-    If itemControlNode Is Nothing Then Exit Function
-
-    If Not ex_ObjectSourceRuntime.m_TryResolveObjectSource( _
-        ex_XmlCore.m_NodeAttrText(itemControlNode, "objectSource"), _
-        sourceObject, _
-        True) Then Exit Function
-    If sourceObject Is Nothing Then
-        mp_RenderItemControlInBounds = True
-        Exit Function
-    End If
-
-    If Not mp_TryResolveItemControlTemplateRoot(itemControlNode, templateRoot) Then Exit Function
-
-    Set tempDoc = ex_XmlCore.m_CreateDom(UI_NS)
-    mp_CopyTemplatesToTempListDoc tempDoc, itemControlNode.OwnerDocument
-
-    Set syntheticRoot = tempDoc.createNode(1, "stackPanel", UI_NS)
-    syntheticRoot.setAttribute "orientation", "vertical"
-
-    Set clonedNode = tempDoc.importNode(templateRoot, True)
-    If clonedNode Is Nothing Then
-        MsgBox "PrototypeNew: failed to clone itemControl template node.", vbExclamation
-        Exit Function
-    End If
-
-    If Not mp_ApplyNodeBindingsRecursive(clonedNode, sourceObject) Then Exit Function
-    g_ObjectRuntimeSourceSeed = g_ObjectRuntimeSourceSeed + 1
-    suffixValue = g_ObjectRuntimeSourceSeed
-    mp_AppendSuffixToControlNames clonedNode, "_obj" & CStr(suffixValue)
-    syntheticRoot.appendChild clonedNode
-
-    mp_RenderItemControlInBounds = mp_RenderContainerChildrenInBounds( _
-        wb, ws, syntheticRoot, recursionDepth, _
-        layoutRowStart, layoutColStart, layoutRowEnd, layoutColEnd)
-End Function
-
-Private Sub mp_CopyTemplatesToTempListDoc(ByVal targetDoc As Object, ByVal sourceDoc As Object)
-    Dim targetRoot As Object
-    Dim targetTemplatesNode As Object
-    Dim srcTemplateNodes As Object
-    Dim srcTemplateNode As Object
-    Dim templateName As String
-
-    If targetDoc Is Nothing Then Exit Sub
-    If sourceDoc Is Nothing Then Exit Sub
-
-    Set targetRoot = targetDoc.selectSingleNode("/p:uiDefinition")
-    If targetRoot Is Nothing Then
-        Set targetRoot = targetDoc.createNode(1, "uiDefinition", UI_NS)
-        targetRoot.setAttribute "version", "1"
-        targetDoc.appendChild targetRoot
-    End If
-
-    Set targetTemplatesNode = targetRoot.selectSingleNode("p:templates")
-    If targetTemplatesNode Is Nothing Then
-        Set targetTemplatesNode = targetDoc.createNode(1, "templates", UI_NS)
-        targetRoot.appendChild targetTemplatesNode
-    End If
-
-    Set srcTemplateNodes = sourceDoc.selectNodes("/p:uiDefinition/p:templates/p:template")
-    If srcTemplateNodes Is Nothing Then Exit Sub
-
-    For Each srcTemplateNode In srcTemplateNodes
-        templateName = Trim$(ex_XmlCore.m_NodeAttrText(srcTemplateNode, "name"))
-        If Len(templateName) = 0 Then GoTo ContinueTemplate
-
-        If Not targetTemplatesNode.selectSingleNode("p:template[@name=" & ex_XmlCore.m_XPathLiteral(templateName) & "]") Is Nothing Then
-            GoTo ContinueTemplate
-        End If
-
-        targetTemplatesNode.appendChild targetDoc.importNode(srcTemplateNode, True)
-
-ContinueTemplate:
-    Next srcTemplateNode
-End Sub
-
-Private Function mp_TryResolveListTemplateRoot(ByVal listNode As Object, ByRef outTemplateRoot As Object) As Boolean
-    Dim templateName As String
-    Dim ownerDoc As Object
-    Dim templateNode As Object
-    Dim rootNodes As Object
-
-    templateName = Trim$(ex_XmlCore.m_NodeAttrText(listNode, "itemsSourceTemplate"))
-    If Len(templateName) = 0 Then
-        MsgBox "PrototypeNew: list requires non-empty attribute 'itemsSourceTemplate'.", vbExclamation
-        Exit Function
-    End If
-
-    Set ownerDoc = listNode.OwnerDocument
-    If ownerDoc Is Nothing Then
-        MsgBox "PrototypeNew: failed to resolve owner document for list template.", vbExclamation
-        Exit Function
-    End If
-
-    Set templateNode = ownerDoc.selectSingleNode( _
-        "/p:uiDefinition/p:templates/p:template[@name=" & ex_XmlCore.m_XPathLiteral(templateName) & "]")
-    If templateNode Is Nothing Then
-        MsgBox "PrototypeNew: list references missing template '" & templateName & "'.", vbExclamation
-        Exit Function
-    End If
-
-    Set rootNodes = templateNode.selectNodes("p:control | p:stackPanel | p:grid | p:list | p:itemControl")
-    If rootNodes Is Nothing Or rootNodes.Length = 0 Then
-        MsgBox "PrototypeNew: template '" & templateName & "' has no visual root node.", vbExclamation
-        Exit Function
-    End If
-    If rootNodes.Length <> 1 Then
-        MsgBox "PrototypeNew: template '" & templateName & "' must contain exactly one visual root node.", vbExclamation
-        Exit Function
-    End If
-
-    Set outTemplateRoot = rootNodes.Item(0)
-    mp_TryResolveListTemplateRoot = True
-End Function
-
-Private Function mp_TryResolveItemControlTemplateRoot(ByVal itemControlNode As Object, ByRef outTemplateRoot As Object) As Boolean
-    Dim templateName As String
-    Dim ownerDoc As Object
-    Dim templateNode As Object
-    Dim rootNodes As Object
-
-    templateName = Trim$(ex_XmlCore.m_NodeAttrText(itemControlNode, "objectSourceTemplate"))
-    If Len(templateName) = 0 Then
-        MsgBox "PrototypeNew: itemControl requires non-empty attribute 'objectSourceTemplate'.", vbExclamation
-        Exit Function
-    End If
-
-    Set ownerDoc = itemControlNode.OwnerDocument
-    If ownerDoc Is Nothing Then
-        MsgBox "PrototypeNew: failed to resolve owner document for itemControl template.", vbExclamation
-        Exit Function
-    End If
-
-    Set templateNode = ownerDoc.selectSingleNode( _
-        "/p:uiDefinition/p:templates/p:template[@name=" & ex_XmlCore.m_XPathLiteral(templateName) & "]")
-    If templateNode Is Nothing Then
-        MsgBox "PrototypeNew: itemControl references missing template '" & templateName & "'.", vbExclamation
-        Exit Function
-    End If
-
-    Set rootNodes = templateNode.selectNodes("p:control | p:stackPanel | p:grid | p:list | p:itemControl")
-    If rootNodes Is Nothing Or rootNodes.Length = 0 Then
-        MsgBox "PrototypeNew: template '" & templateName & "' has no visual root node.", vbExclamation
-        Exit Function
-    End If
-    If rootNodes.Length <> 1 Then
-        MsgBox "PrototypeNew: template '" & templateName & "' must contain exactly one visual root node.", vbExclamation
-        Exit Function
-    End If
-
-    Set outTemplateRoot = rootNodes.Item(0)
-    mp_TryResolveItemControlTemplateRoot = True
-End Function
-
-Private Function mp_GetListOrientation(ByVal listNode As Object) As String
-    mp_GetListOrientation = LCase$(Trim$(ex_XmlCore.m_NodeAttrText(listNode, "orientation")))
-    If Len(mp_GetListOrientation) = 0 Then mp_GetListOrientation = "vertical"
-
-    If StrComp(mp_GetListOrientation, "vertical", vbBinaryCompare) <> 0 And _
-       StrComp(mp_GetListOrientation, "horizontal", vbBinaryCompare) <> 0 Then
-        MsgBox "PrototypeNew: list orientation must be 'vertical' or 'horizontal'.", vbExclamation
-        mp_GetListOrientation = vbNullString
-    End If
-End Function
-
-Private Function mp_TryMeasureListContentSpan( _
-    ByVal listNode As Object, _
-    ByRef outSpanRows As Long, _
-    ByRef outSpanCols As Long, _
-    Optional ByVal bindingSource As Object _
-) As Boolean
-    Dim items As Collection
-    Dim templateRoot As Object
-    Dim itemRows As Long
-    Dim itemCols As Long
-    Dim orientation As String
-    Dim itemValue As Variant
-    Dim itemBindingSource As Object
-
-    If listNode Is Nothing Then Exit Function
-
-    If Not mp_TryResolveItemsSourceForMeasure( _
-        ex_XmlCore.m_NodeAttrText(listNode, "itemsSource"), bindingSource, items) Then Exit Function
-
-    If items Is Nothing Or items.Count = 0 Then
-        outSpanRows = 1
-        outSpanCols = 1
-        mp_TryMeasureListContentSpan = True
-        Exit Function
-    End If
-
-    If Not mp_TryResolveListTemplateRoot(listNode, templateRoot) Then Exit Function
-
-    orientation = mp_GetListOrientation(listNode)
-    If Len(orientation) = 0 Then Exit Function
-
-    outSpanRows = 0
-    outSpanCols = 0
-
-    For Each itemValue In items
-        Set itemBindingSource = Nothing
-        If Not mp_TryCreateListItemBindingSource(itemValue, itemBindingSource) Then Exit Function
-        If Not mp_TryGetEffectiveNodeSpan(templateRoot, itemRows, itemCols, itemBindingSource) Then Exit Function
-
-        If StrComp(orientation, "horizontal", vbBinaryCompare) = 0 Then
-            If itemRows > outSpanRows Then outSpanRows = itemRows
-            outSpanCols = outSpanCols + itemCols
-        Else
-            outSpanRows = outSpanRows + itemRows
-            If itemCols > outSpanCols Then outSpanCols = itemCols
-        End If
-    Next itemValue
-
-    If outSpanRows <= 0 Then outSpanRows = 1
-    If outSpanCols <= 0 Then outSpanCols = 1
-    mp_TryMeasureListContentSpan = True
-End Function
-
-Private Function mp_TryMeasureItemControlContentSpan( _
-    ByVal itemControlNode As Object, _
-    ByRef outSpanRows As Long, _
-    ByRef outSpanCols As Long, _
-    Optional ByVal bindingSource As Object _
-) As Boolean
-    Dim sourceObject As Object
-    Dim templateRoot As Object
-
-    If itemControlNode Is Nothing Then Exit Function
-
-    If Not mp_TryResolveObjectSourceForMeasure( _
-        ex_XmlCore.m_NodeAttrText(itemControlNode, "objectSource"), _
-        bindingSource, _
-        sourceObject) Then Exit Function
-
-    If sourceObject Is Nothing Then
-        outSpanRows = 0
-        outSpanCols = 0
-        mp_TryMeasureItemControlContentSpan = True
-        Exit Function
-    End If
-
-    If Not mp_TryResolveItemControlTemplateRoot(itemControlNode, templateRoot) Then Exit Function
-    If Not mp_TryGetEffectiveNodeSpan(templateRoot, outSpanRows, outSpanCols, sourceObject) Then Exit Function
-    mp_TryMeasureItemControlContentSpan = True
-End Function
-
-Private Function mp_TryResolveItemsSourceForMeasure( _
-    ByVal rawItemsSource As String, _
-    ByVal bindingSource As Object, _
-    ByRef outItems As Collection _
-) As Boolean
-    Dim sourceText As String
-    Dim resolvedValue As Variant
-
-    sourceText = Trim$(rawItemsSource)
-    If Len(sourceText) = 0 Then
-        MsgBox "PrototypeNew: list itemsSource is required.", vbExclamation
-        Exit Function
-    End If
-
-    If mp_IsBindingExpression(sourceText) Then
-        If bindingSource Is Nothing Then
-            MsgBox "PrototypeNew: list itemsSource binding requires item context during layout measurement.", vbExclamation
-            Exit Function
-        End If
-
-        If Not ex_BindingRuntime.m_TryResolveValueBinding(sourceText, bindingSource, resolvedValue) Then Exit Function
-
-        If IsObject(resolvedValue) Then
-            If TypeName(resolvedValue) <> "Collection" Then
-                MsgBox "PrototypeNew: list itemsSource binding must resolve to Collection.", vbExclamation
-                Exit Function
-            End If
-
-            Set outItems = resolvedValue
-            mp_TryResolveItemsSourceForMeasure = True
-            Exit Function
-        End If
-
-        sourceText = Trim$(CStr(resolvedValue))
-        If Len(sourceText) = 0 Then
-            MsgBox "PrototypeNew: list itemsSource binding resolved to empty value.", vbExclamation
-            Exit Function
-        End If
-    End If
-
-    If Not ex_ListItemsSourceRuntime.m_TryResolveItemsSource(sourceText, outItems) Then Exit Function
-    mp_TryResolveItemsSourceForMeasure = True
-End Function
-
-Private Function mp_TryResolveObjectSourceForMeasure( _
-    ByVal rawObjectSource As String, _
-    ByVal bindingSource As Object, _
-    ByRef outObject As Object _
-) As Boolean
-    Dim sourceText As String
-    Dim resolvedValue As Variant
-
-    sourceText = Trim$(rawObjectSource)
-    If Len(sourceText) = 0 Then
-        mp_TryResolveObjectSourceForMeasure = True
-        Exit Function
-    End If
-
-    If mp_IsBindingExpression(sourceText) Then
-        If bindingSource Is Nothing Then
-            MsgBox "PrototypeNew: itemControl objectSource binding requires item context during layout measurement.", vbExclamation
-            Exit Function
-        End If
-
-        If Not ex_BindingRuntime.m_TryResolveValueBinding(sourceText, bindingSource, resolvedValue) Then Exit Function
-
-        If IsObject(resolvedValue) Then
-            Set outObject = resolvedValue
-            mp_TryResolveObjectSourceForMeasure = True
-            Exit Function
-        End If
-
-        sourceText = Trim$(CStr(resolvedValue))
-    End If
-
-    If Len(sourceText) = 0 Then
-        mp_TryResolveObjectSourceForMeasure = True
-        Exit Function
-    End If
-
-    If Not ex_ObjectSourceRuntime.m_TryResolveObjectSource(sourceText, outObject, True) Then Exit Function
-    mp_TryResolveObjectSourceForMeasure = True
-End Function
-
-Private Function mp_IsBindingExpression(ByVal rawText As String) As Boolean
-    Dim normalized As String
-
-    normalized = Trim$(rawText)
-    If Len(normalized) < 10 Then Exit Function
-    If StrComp(Left$(normalized, 9), "{Binding ", vbTextCompare) <> 0 Then Exit Function
-    If Right$(normalized, 1) <> "}" Then Exit Function
-
-    mp_IsBindingExpression = True
-End Function
-
-Private Sub mp_AppendSuffixToControlNames(ByVal rootNode As Object, ByVal suffix As String)
-    Dim childNode As Object
-    Dim baseName As String
-    Dim nodeName As String
-
-    If rootNode Is Nothing Then Exit Sub
-    If rootNode.NodeType <> 1 Then Exit Sub
-
-    baseName = LCase$(CStr(rootNode.baseName))
-    If StrComp(baseName, "control", vbBinaryCompare) = 0 Then
-        nodeName = Trim$(ex_XmlCore.m_NodeAttrText(rootNode, "name"))
-        If Len(nodeName) = 0 Then nodeName = "item"
-        rootNode.setAttribute "name", nodeName & suffix
-    End If
-
-    For Each childNode In rootNode.ChildNodes
-        mp_AppendSuffixToControlNames childNode, suffix
-    Next childNode
-End Sub
-
-Private Sub mp_ApplyListItemValueToTemplate(ByVal templateRoot As Object, ByVal itemValue As Variant)
-    Dim captionText As String
-    Dim targetControl As Object
-    Dim existingCaption As String
-
-    If IsObject(itemValue) Then Exit Sub
-
-    captionText = CStr(itemValue)
-    Set targetControl = mp_FindFirstControlNode(templateRoot)
-    If targetControl Is Nothing Then Exit Sub
-
-    existingCaption = Trim$(ex_XmlCore.m_NodeAttrText(targetControl, "caption"))
-    If Len(existingCaption) > 0 Then Exit Sub
-
-    targetControl.setAttribute "caption", captionText
-End Sub
-
-Private Function mp_ApplyListItemBindings(ByVal templateRoot As Object, ByVal itemValue As Variant) As Boolean
-    Dim bindingSource As Object
-
-    If Not mp_TryCreateListItemBindingSource(itemValue, bindingSource) Then Exit Function
-    If Not mp_ApplyNodeBindingsRecursive(templateRoot, bindingSource) Then Exit Function
-
-    mp_ApplyListItemBindings = True
-End Function
-
-Private Function mp_TryCreateListItemBindingSource(ByVal itemValue As Variant, ByRef outSource As Object) As Boolean
-    Dim scalarSource As Object
-    Dim scalarText As String
-
-    If IsObject(itemValue) Then
-        If itemValue Is Nothing Then
-            MsgBox "PrototypeNew: list item object is Nothing.", vbExclamation
-            Exit Function
-        End If
-
-        Set outSource = itemValue
-        mp_TryCreateListItemBindingSource = True
-        Exit Function
-    End If
-
-    scalarText = CStr(itemValue)
-    Set scalarSource = CreateObject("Scripting.Dictionary")
-    scalarSource.CompareMode = 1
-    scalarSource("Value") = scalarText
-    scalarSource("Text") = scalarText
-
-    Set outSource = scalarSource
-    mp_TryCreateListItemBindingSource = True
-End Function
-
-Private Function mp_ApplyNodeBindingsRecursive(ByVal rootNode As Object, ByVal bindingSource As Object) As Boolean
-    Dim attrs As Object
-    Dim attrNode As Object
-    Dim attrName As String
-    Dim rawText As String
-    Dim resolvedValue As Variant
-    Dim resolvedVisible As Boolean
-    Dim childNode As Object
-    Dim runtimeListSourceKey As String
-    Dim runtimeObjectSourceKey As String
-    Dim runtimeItems As Collection
-    Dim resolvedObject As Object
-    Dim rootNodeName As String
-
-    If rootNode Is Nothing Then
-        mp_ApplyNodeBindingsRecursive = True
-        Exit Function
-    End If
-    If rootNode.NodeType <> 1 Then
-        mp_ApplyNodeBindingsRecursive = True
-        Exit Function
-    End If
-
-    Set attrs = rootNode.selectNodes("@*")
-    If Not attrs Is Nothing Then
-        For Each attrNode In attrs
-            attrName = CStr(attrNode.nodeName)
-            If LCase$(Left$(attrName, 5)) = "xmlns" Then GoTo ContinueAttr
-
-            rawText = CStr(attrNode.Text)
-            If InStr(1, rawText, "{Binding ", vbTextCompare) = 0 Then GoTo ContinueAttr
-
-            If StrComp(LCase$(attrName), "visibility", vbBinaryCompare) = 0 Then
-                If Not ex_BindingRuntime.m_TryResolveVisibilityBinding(rawText, bindingSource, resolvedVisible) Then Exit Function
-                If resolvedVisible Then
-                    rootNode.setAttribute attrName, "true"
-                Else
-                    rootNode.setAttribute attrName, "false"
-                End If
-                GoTo ContinueAttr
-            End If
-
-            If Not ex_BindingRuntime.m_TryResolveValueBinding(rawText, bindingSource, resolvedValue) Then Exit Function
-
-            If IsObject(resolvedValue) Then
-                rootNodeName = LCase$(CStr(rootNode.baseName))
-
-                If StrComp(LCase$(attrName), "itemssource", vbBinaryCompare) = 0 And _
-                   (StrComp(rootNodeName, "list", vbBinaryCompare) = 0 Or _
-                    StrComp(rootNodeName, "control", vbBinaryCompare) = 0) Then
-
-                    If TypeName(resolvedValue) = "Collection" Then
-                        Set runtimeItems = resolvedValue
-                    ElseIf StrComp(rootNodeName, "control", vbBinaryCompare) = 0 Then
-                        Set runtimeItems = New Collection
-                        Set resolvedObject = resolvedValue
-                        If resolvedObject Is Nothing Then
-                            MsgBox "PrototypeNew: itemsSource binding resolved to Nothing object.", vbExclamation
-                            Exit Function
-                        End If
-                        runtimeItems.Add resolvedObject
-                    Else
-                        MsgBox "PrototypeNew: list itemsSource binding must resolve to Collection.", vbExclamation
-                        Exit Function
-                    End If
-
-                    runtimeListSourceKey = mp_RegisterRuntimeListItemsSourceKey(runtimeItems)
-                    If Len(runtimeListSourceKey) = 0 Then Exit Function
-                    rootNode.setAttribute attrName, runtimeListSourceKey
-                ElseIf StrComp(LCase$(attrName), "objectsource", vbBinaryCompare) = 0 And _
-                       StrComp(rootNodeName, "itemcontrol", vbBinaryCompare) = 0 Then
-
-                    Set resolvedObject = resolvedValue
-                    If resolvedObject Is Nothing Then
-                        rootNode.setAttribute attrName, vbNullString
-                    Else
-                        runtimeObjectSourceKey = mp_RegisterRuntimeObjectSourceKey(resolvedObject)
-                        If Len(runtimeObjectSourceKey) = 0 Then Exit Function
-                        rootNode.setAttribute attrName, runtimeObjectSourceKey
-                    End If
-                Else
-                    MsgBox "PrototypeNew: template binding for attribute '" & attrName & "' must resolve to scalar value.", vbExclamation
-                    Exit Function
-                End If
-            Else
-                rootNode.setAttribute attrName, CStr(resolvedValue)
-            End If
-
-ContinueAttr:
-        Next attrNode
-    End If
-
-    For Each childNode In rootNode.ChildNodes
-        If childNode.NodeType <> 1 Then GoTo ContinueChild
-        If Not mp_ApplyNodeBindingsRecursive(childNode, bindingSource) Then Exit Function
-ContinueChild:
-    Next childNode
-
-    mp_ApplyNodeBindingsRecursive = True
-End Function
-
-Private Function mp_RegisterRuntimeListItemsSourceKey(ByVal items As Collection) As String
-    Dim sourceKey As String
-
-    If items Is Nothing Then
-        MsgBox "PrototypeNew: runtime list items source is Nothing.", vbExclamation
-        Exit Function
-    End If
-
-    g_ListRuntimeSourceSeed = g_ListRuntimeSourceSeed + 1
-    sourceKey = "__list_runtime_" & CStr(g_ListRuntimeSourceSeed)
-
-    If Not ex_ListItemsSourceRuntime.m_SetItemsSource(sourceKey, items) Then Exit Function
-    mp_RegisterRuntimeListItemsSourceKey = sourceKey
-End Function
-
-Private Function mp_RegisterRuntimeObjectSourceKey(ByVal sourceObject As Object) As String
-    Dim sourceKey As String
-
-    If sourceObject Is Nothing Then Exit Function
-
-    g_ObjectRuntimeSourceSeed = g_ObjectRuntimeSourceSeed + 1
-    sourceKey = "__object_runtime_" & CStr(g_ObjectRuntimeSourceSeed)
-
-    If Not ex_ObjectSourceRuntime.m_SetObjectSource(sourceKey, sourceObject) Then Exit Function
-    mp_RegisterRuntimeObjectSourceKey = sourceKey
-End Function
-
-Private Function mp_FindFirstControlNode(ByVal rootNode As Object) As Object
-    Dim childNode As Object
-
-    If rootNode Is Nothing Then Exit Function
-    If rootNode.NodeType <> 1 Then Exit Function
-
-    If StrComp(LCase$(CStr(rootNode.baseName)), "control", vbBinaryCompare) = 0 Then
-        Set mp_FindFirstControlNode = rootNode
-        Exit Function
-    End If
-
-    For Each childNode In rootNode.ChildNodes
-        Set mp_FindFirstControlNode = mp_FindFirstControlNode(childNode)
-        If Not mp_FindFirstControlNode Is Nothing Then Exit Function
-    Next childNode
-End Function
-
-Private Function mp_TryResolveNodeCellPosition( _
+Private Function private_TryResolveNodeCellPosition( _
     ByVal node As Object, _
     ByVal anchorCell As Range, _
     ByRef outRow As Long, _
@@ -1362,23 +596,24 @@ Private Function mp_TryResolveNodeCellPosition( _
     If node Is Nothing Then Exit Function
     If anchorCell Is Nothing Then Exit Function
 
-    atText = Trim$(ex_XmlCore.m_NodeAttrText(node, "at"))
-    If Len(atText) = 0 Then
+    atText = VBA.Trim$(ex_XmlCore.m_NodeAttrText(node, "at"))
+    If VBA.Len(atText) = 0 Then
         relRow = 1
         relCol = 1
     Else
-        If Not mp_TryParseAtAddress(atText, relRow, relCol) Then
-            MsgBox "PrototypeNew: invalid 'at' format '" & atText & "'. Expected format is rNcM.", vbExclamation
+        If Not private_TryParseAtAddress(atText, relRow, relCol) Then
+            VBA.MsgBox "PrototypeNew: invalid 'at' format '" & atText & "'. Expected format is rNcM.", VBA.vbExclamation
             Exit Function
         End If
     End If
 
     outRow = anchorCell.Row + relRow - 1
     outCol = anchorCell.Column + relCol - 1
-    mp_TryResolveNodeCellPosition = True
+    private_TryResolveNodeCellPosition = True
 End Function
 
-Private Function mp_TryParseAtAddress( _
+
+Private Function private_TryParseAtAddress( _
     ByVal atText As String, _
     ByRef outRelRow As Long, _
     ByRef outRelCol As Long _
@@ -1388,77 +623,78 @@ Private Function mp_TryParseAtAddress( _
     Dim rowText As String
     Dim colText As String
 
-    normalized = LCase$(Trim$(atText))
-    If Len(normalized) < 4 Then Exit Function
-    If Left$(normalized, 1) <> "r" Then Exit Function
+    normalized = VBA.LCase$(VBA.Trim$(atText))
+    If VBA.Len(normalized) < 4 Then Exit Function
+    If VBA.Left$(normalized, 1) <> "r" Then Exit Function
 
-    cPos = InStr(2, normalized, "c", vbBinaryCompare)
+    cPos = VBA.InStr(2, normalized, "c", VBA.vbBinaryCompare)
     If cPos <= 2 Then Exit Function
-    If cPos >= Len(normalized) Then Exit Function
+    If cPos >= VBA.Len(normalized) Then Exit Function
 
-    rowText = Mid$(normalized, 2, cPos - 2)
-    colText = Mid$(normalized, cPos + 1)
+    rowText = VBA.Mid$(normalized, 2, cPos - 2)
+    colText = VBA.Mid$(normalized, cPos + 1)
 
-    If Not IsNumeric(rowText) Then Exit Function
-    If Not IsNumeric(colText) Then Exit Function
+    If Not VBA.IsNumeric(rowText) Then Exit Function
+    If Not VBA.IsNumeric(colText) Then Exit Function
 
-    outRelRow = CLng(rowText)
-    outRelCol = CLng(colText)
+    outRelRow = VBA.CLng(rowText)
+    outRelCol = VBA.CLng(colText)
     If outRelRow <= 0 Or outRelCol <= 0 Then Exit Function
 
-    mp_TryParseAtAddress = True
+    private_TryParseAtAddress = True
 End Function
 
-Private Function mp_ReadPositiveLongAttr( _
+
+Private Function private_ReadPositiveLongAttr( _
     ByVal node As Object, _
     ByVal attrName As String, _
     ByVal defaultValue As Long _
 ) As Long
     Dim rawText As String
 
-    rawText = Trim$(ex_XmlCore.m_NodeAttrText(node, attrName))
-    If Len(rawText) = 0 Then
-        mp_ReadPositiveLongAttr = defaultValue
+    rawText = VBA.Trim$(ex_XmlCore.m_NodeAttrText(node, attrName))
+    If VBA.Len(rawText) = 0 Then
+        private_ReadPositiveLongAttr = defaultValue
         Exit Function
     End If
 
-    If Not IsNumeric(rawText) Then
-        MsgBox "PrototypeNew: attribute '" & attrName & "' must be numeric.", vbExclamation
+    If Not VBA.IsNumeric(rawText) Then
+        VBA.MsgBox "PrototypeNew: attribute '" & attrName & "' must be numeric.", VBA.vbExclamation
         Exit Function
     End If
 
-    mp_ReadPositiveLongAttr = CLng(rawText)
-    If mp_ReadPositiveLongAttr <= 0 Then
-        MsgBox "PrototypeNew: attribute '" & attrName & "' must be greater than zero.", vbExclamation
-        mp_ReadPositiveLongAttr = 0
+    private_ReadPositiveLongAttr = VBA.CLng(rawText)
+    If private_ReadPositiveLongAttr <= 0 Then
+        VBA.MsgBox "PrototypeNew: attribute '" & attrName & "' must be greater than zero.", VBA.vbExclamation
+        private_ReadPositiveLongAttr = 0
     End If
 End Function
 
-Private Sub mp_ClearWorksheet(ByVal ws As Worksheet)
-    Dim i As Long
-    Dim clearRange As Range
 
-    If ws Is Nothing Then Exit Sub
+Private Function private_TryGetPageRenderContext( _
+    ByVal renderCtx As obj_LayoutRenderContext, _
+    ByRef outWb As Workbook, _
+    ByRef outWs As Worksheet _
+) As Boolean
+    Set outWb = Nothing
+    Set outWs = Nothing
 
-    On Error Resume Next
-    Set clearRange = ws.UsedRange
-    If Not clearRange Is Nothing Then clearRange.Clear
-    On Error GoTo 0
+    If renderCtx Is Nothing Then
+        VBA.MsgBox "PrototypeNew: render context is not specified.", VBA.vbExclamation
+        Exit Function
+    End If
 
-    On Error Resume Next
-    For i = ws.Shapes.Count To 1 Step -1
-        If mp_IsGeneratedRuntimeShape(ws.Shapes(i)) Then
-            ws.Shapes(i).Delete
-        End If
-    Next i
-    On Error GoTo 0
-End Sub
+    Set outWs = renderCtx.Worksheet
+    If outWs Is Nothing Then
+        VBA.MsgBox "PrototypeNew: worksheet is not specified.", VBA.vbExclamation
+        Exit Function
+    End If
 
-Private Function mp_IsGeneratedRuntimeShape(ByVal shp As Shape) As Boolean
-    Dim controlMeta As String
+    Set outWb = renderCtx.Workbook
+    If outWb Is Nothing Then
+        VBA.MsgBox "PrototypeNew: workbook is not specified.", VBA.vbExclamation
+        Exit Function
+    End If
 
-    If shp Is Nothing Then Exit Function
-
-    controlMeta = Trim$(ex_ShapeMetaRuntime.m_GetShapeMetaValue(shp, "pn.control", vbNullString))
-    mp_IsGeneratedRuntimeShape = (Len(controlMeta) > 0)
+    private_TryGetPageRenderContext = True
 End Function

@@ -6,6 +6,7 @@ Attribute VB_Name = "obj_BannerControlVM"
 Option Explicit
 Implements obj_IControl
 
+Private m_Base As obj_ControlBase
 Private m_ControlName As String
 Private m_ViewItem As obj_BannerViewItem
 Private m_Layout As obj_ControlLayout
@@ -14,7 +15,7 @@ Private m_IsConfigured As Boolean
 ' //
 ' // Interface
 ' //
-Private Sub obj_IControl_Configure(ByVal controlNode As Object)
+Private Sub obj_IControl_Configure(ByVal page As obj_PageBase, ByVal controlNode As Object)
     Dim headerText As String
     Dim messageText As String
     Dim visibleRaw As String
@@ -23,23 +24,19 @@ Private Sub obj_IControl_Configure(ByVal controlNode As Object)
     m_IsConfigured = False
     Set m_Layout = Nothing
     Set m_ViewItem = Nothing
+    Set m_Base = Nothing
 
-    If controlNode Is Nothing Then
-        MsgBox "Banner: control node is not specified.", vbExclamation
-        Exit Sub
-    End If
+    Set m_Base = New obj_ControlBase
+    If Not m_Base.Configure(page, controlNode, "Banner", "banner", m_ControlName) Then Exit Sub
 
-    m_ControlName = Trim$(ex_XmlCore.m_NodeAttrText(controlNode, "name"))
-    If Len(m_ControlName) = 0 Then m_ControlName = "banner"
+    headerText = VBA.CStr(ex_XmlCore.m_NodeAttrText(controlNode, "header"))
+    messageText = VBA.CStr(ex_XmlCore.m_NodeAttrText(controlNode, "message"))
+    visibleRaw = VBA.Trim$(VBA.CStr(ex_XmlCore.m_NodeAttrText(controlNode, "visible")))
 
-    headerText = CStr(ex_XmlCore.m_NodeAttrText(controlNode, "header"))
-    messageText = CStr(ex_XmlCore.m_NodeAttrText(controlNode, "message"))
-    visibleRaw = Trim$(CStr(ex_XmlCore.m_NodeAttrText(controlNode, "visible")))
-
-    If Len(visibleRaw) = 0 Then
-        isVisible = (Len(Trim$(headerText)) > 0 Or Len(Trim$(messageText)) > 0)
+    If VBA.Len(visibleRaw) = 0 Then
+        isVisible = (VBA.Len(VBA.Trim$(headerText)) > 0 Or VBA.Len(VBA.Trim$(messageText)) > 0)
     Else
-        isVisible = mp_ParseBooleanText(visibleRaw)
+        isVisible = private_ParseBooleanText(visibleRaw)
     End If
 
     Set m_ViewItem = New obj_BannerViewItem
@@ -50,57 +47,73 @@ Private Sub obj_IControl_Configure(ByVal controlNode As Object)
     m_ViewItem.Presentation.PartName = "banner"
 
     Set m_Layout = New obj_ControlLayout
-    If Not m_Layout.m_TryReadFromNode(controlNode, "Banner", m_ControlName, "style") Then Exit Sub
+    If Not m_Layout.TryReadFromNode(controlNode, "Banner", m_ControlName, "style") Then Exit Sub
     m_ViewItem.Presentation.StyleName = m_Layout.StyleName
 
     m_IsConfigured = True
 End Sub
 
-Private Sub obj_IControl_Render(ByVal wb As Workbook)
+Private Sub obj_IControl_Render()
     Dim ws As Worksheet
+    Dim page As obj_PageBase
 
     If Not m_IsConfigured Then
-        MsgBox "Banner: control '" & m_ControlName & "' is not configured.", vbExclamation
+        VBA.MsgBox "Banner: control '" & m_ControlName & "' is not configured.", VBA.vbExclamation
         Exit Sub
     End If
 
-    If wb Is Nothing Then Set wb = ThisWorkbook
-    If wb Is Nothing Then
-        MsgBox "Banner: workbook is not specified for control '" & m_ControlName & "'.", vbExclamation
+    Set page = Nothing
+    If Not m_Base Is Nothing Then Set page = m_Base.PageBase
+    If page Is Nothing Then
+        VBA.MsgBox "Banner: page is not specified for control '" & m_ControlName & "'.", VBA.vbExclamation
         Exit Sub
     End If
 
-    Set ws = mp_GetWorksheetByName(wb, m_Layout.LayoutSheet)
+    Set ws = private_GetWorksheetByName(page, m_Layout.LayoutSheetName)
     If ws Is Nothing Then
-        MsgBox "Banner: sheet '" & m_Layout.LayoutSheet & "' was not found for control '" & m_ControlName & "'.", vbExclamation
+        VBA.MsgBox "Banner: sheet '" & m_Layout.LayoutSheetName & "' was not found for control '" & m_ControlName & "'.", VBA.vbExclamation
         Exit Sub
     End If
 
     If m_ViewItem Is Nothing Then
-        MsgBox "Banner: view item is not configured for control '" & m_ControlName & "'.", vbExclamation
+        VBA.MsgBox "Banner: view item is not configured for control '" & m_ControlName & "'.", VBA.vbExclamation
         Exit Sub
     End If
 
-    If Not m_ViewItem.m_Render(ws, m_Layout.RowStart, m_Layout.ColStart, m_Layout.RowEnd, m_Layout.ColEnd, m_ControlName) Then Exit Sub
+    If Not m_ViewItem.Render(ws, m_Layout.RowStart, m_Layout.ColStart, m_Layout.RowEnd, m_Layout.ColEnd, m_ControlName) Then Exit Sub
 End Sub
 
 Private Function obj_IControl_SupportsAttribute(ByVal attrName As String) As Boolean
-    Select Case LCase$(Trim$(attrName))
+    Select Case VBA.LCase$(VBA.Trim$(attrName))
         Case "header", "message", "visible"
             obj_IControl_SupportsAttribute = True
     End Select
 End Function
 
 ' //
+' // API
+' //
+' (No public API yet.)
+'
+' //
 ' // Internal
 ' //
-Private Function mp_ParseBooleanText(ByVal rawText As String) As Boolean
-    rawText = LCase$(Trim$(rawText))
-    mp_ParseBooleanText = (rawText = "1" Or rawText = "true" Or rawText = "yes")
+Private Function private_ParseBooleanText(ByVal rawText As String) As Boolean
+    rawText = VBA.LCase$(VBA.Trim$(rawText))
+    private_ParseBooleanText = (rawText = "1" Or rawText = "true" Or rawText = "yes")
 End Function
 
-Private Function mp_GetWorksheetByName(ByVal wb As Workbook, ByVal sheetName As String) As Worksheet
-    On Error Resume Next
-    Set mp_GetWorksheetByName = wb.Worksheets(sheetName)
-    On Error GoTo 0
+Private Function private_GetWorksheetByName(ByVal page As obj_PageBase, ByVal sheetName As String) As Worksheet
+    Dim ws As Worksheet
+
+    If page Is Nothing Then Exit Function
+    Set ws = page.Worksheet
+    If ws Is Nothing Then Exit Function
+
+    sheetName = VBA.LCase$(VBA.Trim$(sheetName))
+    If VBA.Len(sheetName) > 0 Then
+        If VBA.StrComp(VBA.LCase$(VBA.Trim$(ws.Name)), sheetName, VBA.vbTextCompare) <> 0 Then Exit Function
+    End If
+
+    Set private_GetWorksheetByName = ws
 End Function

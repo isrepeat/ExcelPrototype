@@ -58,11 +58,11 @@ Public Property Set Banner(ByVal value As obj_BannerViewItem)
 End Property
 
 Public Property Get RowVisible() As Boolean
-    RowVisible = m_IsVisible()
+    RowVisible = Me.IsVisible()
 End Property
 
 Public Property Let RowVisible(ByVal value As Boolean)
-    m_Presentation.EffectiveVisible = CBool(value)
+    m_Presentation.EffectiveVisible = VBA.CBool(value)
 End Property
 
 Public Property Get SpacerRowsAfter() As Long
@@ -70,7 +70,7 @@ Public Property Get SpacerRowsAfter() As Long
 End Property
 
 Public Property Let SpacerRowsAfter(ByVal value As Long)
-    m_Presentation.SpacerRowsAfter = CLng(value)
+    m_Presentation.SpacerRowsAfter = VBA.CLng(value)
 End Property
 
 ' //
@@ -84,33 +84,33 @@ Private Function obj_IViewItem_Render( _
     ByVal colEnd As Long, _
     Optional ByVal viewName As String = "" _
 ) As Boolean
-    MsgBox "RowViewItem: direct render is not supported.", vbExclamation
+    VBA.MsgBox "RowViewItem: direct render is not supported.", VBA.vbExclamation
 End Function
 
 Private Function obj_IViewItem_IsVisible() As Boolean
-    obj_IViewItem_IsVisible = m_IsVisible()
+    obj_IViewItem_IsVisible = Me.IsVisible()
 End Function
 
 ' //
 ' // API
 ' //
-Public Function m_IsVisible() As Boolean
-    m_IsVisible = mp_IsVisibleResolved()
+Public Function IsVisible() As Boolean
+    IsVisible = private_IsVisibleResolved()
 End Function
 
-Public Function m_HasBanner() As Boolean
+Public Function HasBanner() As Boolean
     If m_Banner Is Nothing Then Exit Function
-    m_HasBanner = m_Banner.m_IsVisible()
+    HasBanner = m_Banner.IsVisible()
 End Function
 
 ' //
 ' // Internal
 ' //
-Private Function mp_IsVisibleResolved() As Boolean
+Private Function private_IsVisibleResolved() As Boolean
     If m_Presentation Is Nothing Then
-        mp_IsVisibleResolved = True
+        private_IsVisibleResolved = True
         Exit Function
     End If
 
-    mp_IsVisibleResolved = m_Presentation.EffectiveVisible
+    private_IsVisibleResolved = m_Presentation.EffectiveVisible
 End Function

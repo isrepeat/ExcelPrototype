@@ -17,7 +17,7 @@ Public Property Get Caption() As String
 End Property
 
 Public Property Let Caption(ByVal value As String)
-    m_Caption = CStr(value)
+    m_Caption = VBA.CStr(value)
 End Property
 
 Public Property Get Id() As String
@@ -25,7 +25,7 @@ Public Property Get Id() As String
 End Property
 
 Public Property Let Id(ByVal value As String)
-    m_Id = CStr(value)
+    m_Id = VBA.CStr(value)
 End Property
 
 Public Property Get OnSelect() As String
@@ -33,5 +33,5 @@ Public Property Get OnSelect() As String
 End Property
 
 Public Property Let OnSelect(ByVal value As String)
-    m_OnSelect = CStr(value)
+    m_OnSelect = VBA.CStr(value)
 End Property
