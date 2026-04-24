@@ -53,14 +53,14 @@ Public Function m_TryGetValue( _
         Exit Function
     End If
 
-    If Not ex_CustomXmlPartStore.m_TryFindPartByNamespace(namespaceUri, partObj) Then Exit Function
+    If Not ex_Core.m_CustomXmlPartStore_TryFindPartByNamespace(namespaceUri, partObj) Then Exit Function
     If partObj Is Nothing Then
         outValue = VBA.vbNullString
         m_TryGetValue = True
         Exit Function
     End If
 
-    If Not ex_CustomXmlPartStore.m_TryLoadPartDom(partObj, dom) Then Exit Function
+    If Not ex_Core.m_CustomXmlPartStore_TryLoadPartDom(partObj, dom) Then Exit Function
     Set rootNode = dom.DocumentElement
     If rootNode Is Nothing Then
         outValue = VBA.vbNullString
@@ -131,11 +131,11 @@ Public Function m_SetValue( _
         Exit Function
     End If
 
-    If Not ex_CustomXmlPartStore.m_TryFindPartByNamespace(namespaceUri, partObj) Then Exit Function
+    If Not ex_Core.m_CustomXmlPartStore_TryFindPartByNamespace(namespaceUri, partObj) Then Exit Function
     If partObj Is Nothing Then
-        If Not ex_CustomXmlPartStore.m_TryCreateEmptyDom(rootNodeName, namespaceUri, dom) Then Exit Function
+        If Not ex_Core.m_CustomXmlPartStore_TryCreateEmptyDom(rootNodeName, namespaceUri, dom) Then Exit Function
     Else
-        If Not ex_CustomXmlPartStore.m_TryLoadPartDom(partObj, dom) Then Exit Function
+        If Not ex_Core.m_CustomXmlPartStore_TryLoadPartDom(partObj, dom) Then Exit Function
     End If
 
     Set rootNode = dom.DocumentElement
@@ -161,7 +161,7 @@ Public Function m_SetValue( _
         entryNode.setAttribute valueAttrName, valueText
     End If
 
-    If Not ex_CustomXmlPartStore.m_TrySaveDom(dom, partObj) Then Exit Function
+    If Not ex_Core.m_CustomXmlPartStore_TrySaveDom(dom, partObj) Then Exit Function
     m_SetValue = True
 End Function
 

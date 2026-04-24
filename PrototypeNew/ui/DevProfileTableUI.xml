@@ -77,7 +77,7 @@
         <control
           type="TableList"
           name="TablesListFast"
-          itemsSource="RuntimeItems.Test.Tables"
+          itemsSource="{PageRuntimeSource='RuntimeItems.Test.Tables'}"
           spanCells="12"
           spanRows="220"/>
       </stackPanel>

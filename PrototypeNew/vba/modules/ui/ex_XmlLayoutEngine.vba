@@ -157,9 +157,9 @@ Public Function m_TryGetEffectiveNodeSpan( _
     ByVal node As Object, _
     ByRef outSpanRows As Long, _
     ByRef outSpanCols As Long, _
-    Optional ByVal bindingSource As Object _
+    Optional ByVal dataContext As Object _
 ) As Boolean
-    m_TryGetEffectiveNodeSpan = private_TryGetEffectiveNodeSpan(renderCtx, node, outSpanRows, outSpanCols, bindingSource)
+    m_TryGetEffectiveNodeSpan = private_TryGetEffectiveNodeSpan(renderCtx, node, outSpanRows, outSpanCols, dataContext)
 End Function
 
 
@@ -227,7 +227,7 @@ End Function
 ' //
 Private Function private_TryIsNodeVisible( _
     ByVal node As Object, _
-    ByVal bindingSource As Object, _
+    ByVal dataContext As Object, _
     ByRef outVisible As Boolean _
 ) As Boolean
     Dim visibilityRaw As String
@@ -245,7 +245,9 @@ Private Function private_TryIsNodeVisible( _
         Exit Function
     End If
 
-    If Not ex_BindingRuntime.m_TryResolveVisibilityBinding(visibilityRaw, bindingSource, outVisible) Then Exit Function
+    ' visibility всегда вычисляется относительно текущего dataContext узла.
+    ' Для вложенных list/itemControl этот контекст приходит от родительского итема.
+    If Not ex_BindingRuntime.m_TryResolveVisibilityBinding(visibilityRaw, dataContext, outVisible) Then Exit Function
     private_TryIsNodeVisible = True
 End Function
 
@@ -352,7 +354,7 @@ Private Function private_TryGetEffectiveNodeSpan( _
     ByVal node As Object, _
     ByRef outSpanRows As Long, _
     ByRef outSpanCols As Long, _
-    Optional ByVal bindingSource As Object _
+    Optional ByVal dataContext As Object _
 ) As Boolean
     Dim nodeKind As String
     Dim isVisible As Boolean
@@ -362,7 +364,7 @@ Private Function private_TryGetEffectiveNodeSpan( _
     Dim measuredCols As Long
 
     If node Is Nothing Then Exit Function
-    If Not private_TryIsNodeVisible(node, bindingSource, isVisible) Then Exit Function
+    If Not private_TryIsNodeVisible(node, dataContext, isVisible) Then Exit Function
     If Not isVisible Then
         outSpanRows = 0
         outSpanCols = 0
@@ -395,7 +397,9 @@ Private Function private_TryGetEffectiveNodeSpan( _
             End If
 
         Case "stackpanel", "grid"
-            If Not private_TryMeasureContainerContentSpan(renderCtx, node, measuredRows, measuredCols, bindingSource) Then Exit Function
+            ' Пробрасываем тот же dataContext в измерение контейнера:
+            ' visibility/binding дочерних узлов должны оцениваться в том же контексте.
+            If Not private_TryMeasureContainerContentSpan(renderCtx, node, measuredRows, measuredCols, dataContext) Then Exit Function
 
             If explicitRows > 0 Then
                 outSpanRows = explicitRows
@@ -410,7 +414,8 @@ Private Function private_TryGetEffectiveNodeSpan( _
             End If
 
         Case "list"
-            If Not ex_LayoutListRenderer.m_TryMeasureContentSpan(renderCtx, node, measuredRows, measuredCols, bindingSource) Then Exit Function
+            ' list измеряется на данных itemsSource; dataContext нужен для Binding-ветки.
+            If Not ex_LayoutListRenderer.m_TryMeasureContentSpan(renderCtx, node, measuredRows, measuredCols, dataContext) Then Exit Function
 
             If explicitRows > 0 Then
                 outSpanRows = explicitRows
@@ -425,7 +430,8 @@ Private Function private_TryGetEffectiveNodeSpan( _
             End If
 
         Case "itemcontrol"
-            If Not ex_LayoutItemControlRenderer.m_TryMeasureContentSpan(renderCtx, node, measuredRows, measuredCols, bindingSource) Then Exit Function
+            ' itemControl измеряется в контексте objectSource (или item dataContext).
+            If Not ex_LayoutItemControlRenderer.m_TryMeasureContentSpan(renderCtx, node, measuredRows, measuredCols, dataContext) Then Exit Function
 
             If explicitRows > 0 Then
                 outSpanRows = explicitRows
@@ -460,7 +466,7 @@ Private Function private_TryMeasureContainerContentSpan( _
     ByVal containerNode As Object, _
     ByRef outSpanRows As Long, _
     ByRef outSpanCols As Long, _
-    Optional ByVal bindingSource As Object _
+    Optional ByVal dataContext As Object _
 ) As Boolean
     Dim orientation As String
     Dim seqRow As Long
@@ -486,7 +492,8 @@ Private Function private_TryMeasureContainerContentSpan( _
     For Each childNode In containerNode.ChildNodes
         If Not private_IsVisualLayoutNode(childNode) Then GoTo ContinueChild
 
-        If Not private_TryGetEffectiveNodeSpan(renderCtx, childNode, childRows, childCols, bindingSource) Then Exit Function
+        ' Передаем родительский dataContext вниз по дереву измерения.
+        If Not private_TryGetEffectiveNodeSpan(renderCtx, childNode, childRows, childCols, dataContext) Then Exit Function
         If Not private_ResolveChildGridPosition(childNode, orientation, seqRow, seqCol, rowIdx, colIdx, childRows, childCols) Then Exit Function
         If childRows <= 0 Or childCols <= 0 Then GoTo ContinueChild
 

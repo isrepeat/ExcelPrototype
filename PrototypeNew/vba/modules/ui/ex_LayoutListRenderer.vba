@@ -43,7 +43,11 @@ Public Function m_Render( _
         Exit Function
     End If
 
-    If Not pageBase.RuntimeSources.TryResolveItemsSource( _
+    ' itemsSource резолвится единым resolver-ом:
+    ' - runtime source expression ({PageRuntimeSource/...}, {GlobalRuntimeSource/...})
+    ' - или Binding, возвращающий Collection.
+    If Not ex_RuntimeSourceResolver.m_TryResolveItemsSource( _
+        pageBase.RuntimeSources, _
         ex_XmlCore.m_NodeAttrText(layoutNode, "itemsSource"), _
         items) Then Exit Function
 
@@ -77,6 +81,8 @@ Public Function m_Render( _
             Exit Function
         End If
 
+        ' Для каждого итема создаем собственный dataContext и применяем Binding
+        ' ко всем атрибутам внутри template.
         If Not private_ApplyListItemBindings(clonedNode, itemValue, renderCtx) Then Exit Function
         private_AppendSuffixToControlNames clonedNode, "_" & VBA.CStr(itemIndex)
         private_ApplyListItemValueToTemplate clonedNode, itemValue
@@ -98,7 +104,7 @@ Public Function m_TryMeasureContentSpan( _
     ByVal listNode As Object, _
     ByRef outSpanRows As Long, _
     ByRef outSpanCols As Long, _
-    Optional ByVal bindingSource As Object _
+    Optional ByVal dataContext As Object _
 ) As Boolean
     Dim items As Collection
     Dim templateRoot As Object
@@ -115,7 +121,7 @@ Public Function m_TryMeasureContentSpan( _
     End If
 
     If Not private_TryResolveItemsSourceForMeasure( _
-        renderCtx, ex_XmlCore.m_NodeAttrText(listNode, "itemsSource"), bindingSource, items) Then Exit Function
+        renderCtx, ex_XmlCore.m_NodeAttrText(listNode, "itemsSource"), dataContext, items) Then Exit Function
 
     If items Is Nothing Or items.Count = 0 Then
         outSpanRows = 1
@@ -291,10 +297,10 @@ Private Function private_ApplyListItemBindings( _
     ByVal itemValue As Variant, _
     ByVal renderCtx As obj_LayoutRenderContext _
 ) As Boolean
-    Dim bindingSource As Object
+    Dim dataContext As Object
 
-    If Not private_TryCreateListItemBindingSource(itemValue, bindingSource) Then Exit Function
-    If Not private_ApplyNodeBindingsRecursive(templateRoot, bindingSource, renderCtx) Then Exit Function
+    If Not private_TryCreateListItemBindingSource(itemValue, dataContext) Then Exit Function
+    If Not private_ApplyNodeBindingsRecursive(templateRoot, dataContext, renderCtx) Then Exit Function
 
     private_ApplyListItemBindings = True
 End Function
@@ -315,6 +321,8 @@ Private Function private_TryCreateListItemBindingSource(ByVal itemValue As Varia
         Exit Function
     End If
 
+    ' Скалярные элементы оборачиваем в dictionary, чтобы Path=Value/Path=Text работал
+    ' так же, как для object-элементов списка.
     scalarText = VBA.CStr(itemValue)
     Set scalarSource = VBA.CreateObject("Scripting.Dictionary")
     scalarSource.CompareMode = 1
@@ -328,7 +336,7 @@ End Function
 
 Private Function private_ApplyNodeBindingsRecursive( _
     ByVal rootNode As Object, _
-    ByVal bindingSource As Object, _
+    ByVal dataContext As Object, _
     ByVal renderCtx As obj_LayoutRenderContext _
 ) As Boolean
     Dim attrs As Object
@@ -363,7 +371,7 @@ Private Function private_ApplyNodeBindingsRecursive( _
             If VBA.InStr(1, rawText, "{Binding ", VBA.vbTextCompare) = 0 Then GoTo ContinueAttr
 
             If VBA.StrComp(VBA.LCase$(attrName), "visibility", VBA.vbBinaryCompare) = 0 Then
-                If Not ex_BindingRuntime.m_TryResolveVisibilityBinding(rawText, bindingSource, resolvedVisible) Then Exit Function
+                If Not ex_BindingRuntime.m_TryResolveVisibilityBinding(rawText, dataContext, resolvedVisible) Then Exit Function
                 If resolvedVisible Then
                     rootNode.setAttribute attrName, "true"
                 Else
@@ -372,7 +380,10 @@ Private Function private_ApplyNodeBindingsRecursive( _
                 GoTo ContinueAttr
             End If
 
-            If Not ex_BindingRuntime.m_TryResolveValueBinding(rawText, bindingSource, resolvedValue) Then Exit Function
+            ' Binding вычисляется от dataContext конкретного элемента списка.
+            ' Объектные результаты не пишем в XML напрямую:
+            ' регистрируем runtime-source key и подставляем ключ в атрибут.
+            If Not ex_BindingRuntime.m_TryResolveValueBinding(rawText, dataContext, resolvedValue) Then Exit Function
 
             If VBA.IsObject(resolvedValue) Then
                 rootNodeName = VBA.LCase$(VBA.CStr(rootNode.baseName))
@@ -424,7 +435,7 @@ ContinueAttr:
 
     For Each childNode In rootNode.ChildNodes
         If childNode.NodeType <> 1 Then GoTo ContinueChild
-        If Not private_ApplyNodeBindingsRecursive(childNode, bindingSource, renderCtx) Then Exit Function
+        If Not private_ApplyNodeBindingsRecursive(childNode, dataContext, renderCtx) Then Exit Function
 ContinueChild:
     Next childNode
 
@@ -494,7 +505,7 @@ End Function
 Private Function private_TryResolveItemsSourceForMeasure( _
     ByVal renderCtx As obj_LayoutRenderContext, _
     ByVal rawItemsSource As String, _
-    ByVal bindingSource As Object, _
+    ByVal dataContext As Object, _
     ByRef outItems As Collection _
 ) As Boolean
     Dim pageBase As obj_PageBase
@@ -508,12 +519,14 @@ Private Function private_TryResolveItemsSourceForMeasure( _
     End If
 
     If private_IsBindingExpression(sourceText) Then
-        If bindingSource Is Nothing Then
+        If dataContext Is Nothing Then
             VBA.MsgBox "PrototypeNew: list itemsSource binding requires item context during layout measurement.", VBA.vbExclamation
             Exit Function
         End If
 
-        If Not ex_BindingRuntime.m_TryResolveValueBinding(sourceText, bindingSource, resolvedValue) Then Exit Function
+        ' На этапе measure binding тоже вычисляем, чтобы размер списка
+        ' соответствовал реальным данным того же dataContext.
+        If Not ex_BindingRuntime.m_TryResolveValueBinding(sourceText, dataContext, resolvedValue) Then Exit Function
 
         If VBA.IsObject(resolvedValue) Then
             If VBA.TypeName(resolvedValue) <> "Collection" Then
@@ -544,7 +557,8 @@ Private Function private_TryResolveItemsSourceForMeasure( _
         Exit Function
     End If
 
-    If Not pageBase.RuntimeSources.TryResolveItemsSource(sourceText, outItems) Then Exit Function
+    ' Небиндинговый текст source резолвим тем же путем, что и при render.
+    If Not ex_RuntimeSourceResolver.m_TryResolveItemsSource(pageBase.RuntimeSources, sourceText, outItems) Then Exit Function
     private_TryResolveItemsSourceForMeasure = True
 End Function
 

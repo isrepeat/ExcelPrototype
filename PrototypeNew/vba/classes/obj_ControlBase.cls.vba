@@ -6,6 +6,7 @@ Attribute VB_Name = "obj_ControlBase"
 Option Explicit
 
 Private m_Page As obj_PageBase
+Private m_DataContext As Object
 
 ' //
 ' // API
@@ -13,6 +14,7 @@ Private m_Page As obj_PageBase
 ' Callstack[1]: VBA.ImmediateWindow -> obj_ControlBase.Reset
 Public Sub Reset()
     Set m_Page = Nothing
+    Set m_DataContext = Nothing
 End Sub
 
 ' Callstack[1]: rt_PageManager.m_RenderPage -> page.Render -> obj_PageBase.Render -> ex_XmlLayoutEngine.m_RenderNode -> ex_LayoutControlRenderer.m_Render -> control.Configure(obj_IControl) -> obj_ButtonControlVM.obj_IControl_Configure -> m_Base.Configure -> obj_ControlBase.Configure
@@ -32,8 +34,11 @@ Public Function Configure( _
     ByRef outControlName As String _
 ) As Boolean
     Dim resolvedName As String
+    Dim dataContextRaw As String
+    Dim dataContext As Object
 
     outControlName = VBA.Trim$(defaultControlName)
+    Set m_DataContext = Nothing
 
     If page Is Nothing Then
         VBA.MsgBox controlTypeName & ": page is not specified for control configure.", VBA.vbExclamation
@@ -52,9 +57,27 @@ Public Function Configure( _
     End If
     outControlName = resolvedName
 
+    dataContextRaw = VBA.Trim$(VBA.CStr(ex_XmlCore.m_NodeAttrText(controlNode, "dataContext")))
+    If VBA.Len(dataContextRaw) > 0 Then
+        If page.RuntimeSources Is Nothing Then
+            VBA.MsgBox controlTypeName & ": runtime sources are not specified for control '" & outControlName & "'.", VBA.vbExclamation
+            Exit Function
+        End If
+        If Not ex_RuntimeSourceResolver.m_TryResolveObjectSource(page.RuntimeSources, dataContextRaw, dataContext, False) Then Exit Function
+        If dataContext Is Nothing Then
+            VBA.MsgBox controlTypeName & ": dataContext resolved to empty object for control '" & outControlName & "'.", VBA.vbExclamation
+            Exit Function
+        End If
+        Set m_DataContext = dataContext
+    End If
+
     Configure = True
 End Function
 
 Public Property Get PageBase() As obj_PageBase
     Set PageBase = m_Page
+End Property
+
+Public Property Get DataContext() As Object
+    Set DataContext = m_DataContext
 End Property

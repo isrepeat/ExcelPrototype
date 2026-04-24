@@ -161,7 +161,7 @@
         <control
           type="Select"
           name="ConfigProfilePicker"
-          itemsSource="RuntimeItems.Test.ConfigProfiles"
+          itemsSource="{PageRuntimeSource='RuntimeItems.Test.ConfigProfiles'}"
           selectedItem="RuntimeObjects.Test.SelectedConfigProfile"
           placeholder="Choose profile"
           style="configSelectHeader"
@@ -176,7 +176,7 @@
         <control
           type="Config"
           name="DevConfig"
-          itemsSource="RuntimeItems.Test.Config"
+          itemsSource="{PageRuntimeSource='RuntimeItems.Test.Config'}"
           tableName="cfgDevUi"
           spanCells="10"
           spanRows="24"
@@ -189,7 +189,17 @@
           name="OpenCoreModule"
           caption="Open ex_Core"
           style="actionWarning"
-          onClick="{Binding Module=ex_Core;Method=dev_OpenCoreModule}"
+          onClick="{Binding Module=ex_Core;Method=m_Dev_OpenCoreModule}"
+          spanCells="3"
+          spanRows="2"
+          />
+        <control
+          type="Button"
+          name="ToggleLogging"
+          dataContext="{GlobalRuntimeSource='Settings'}"
+          caption="{Binding Path=IsLoggingEnabled;TrueAs=Logging [On];FalseAs=Logging [Off]}"
+          style="actionWarning"
+          onClick="{Binding Module=ex_Core;Method=m_Dev_ToggleLogging}"
           spanCells="3"
           spanRows="2"
           />
@@ -198,7 +208,7 @@
           name="RemoveAllModules"
           caption="Remove All Modules"
           style="actionWarning"
-          onClick="{Binding Module=ex_Core;Method=dev_RemoveAllModulesAndClasses}"
+          onClick="{Binding Module=ex_Core;Method=m_Dev_RemoveAllModulesAndClasses}"
           spanCells="3"
           spanRows="2"
           />
@@ -216,7 +226,7 @@
           name="UpdateCodeSize"
           caption="Update Code Size"
           style="actionWarning"
-          onClick="{Binding Module=ex_Core;Method=dev_UpdateCodeBySize}"
+          onClick="{Binding Module=ex_Core;Method=m_Dev_UpdateCodeBySize}"
           spanCells="3"
           spanRows="2"
           />
@@ -225,7 +235,7 @@
           name="UpdateCodeDate"
           caption="Update Code Date"
           style="actionWarning"
-          onClick="{Binding Module=ex_Core;Method=dev_UpdateCodeByDate}"
+          onClick="{Binding Module=ex_Core;Method=m_Dev_UpdateCodeByDate}"
           spanCells="3"
           spanRows="2"
           />
@@ -234,7 +244,7 @@
           name="UpdateCodeFull"
           caption="Update Code Full"
           style="actionWarning"
-          onClick="{Binding Module=ex_Core;Method=dev_UpdateAllModules}"
+          onClick="{Binding Module=ex_Core;Method=m_Dev_UpdateAllModules}"
           spanCells="3"
           spanRows="2"
           />

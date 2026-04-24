@@ -18,7 +18,7 @@ Public Function m_TrySerializeModuleSnapshot(ByRef outSnapshotXml As String) As 
 
     outSnapshotXml = VBA.vbNullString
 
-    If Not ex_CustomXmlPartStore.m_TryCreateEmptyDom(MODULE_SNAPSHOT_ROOT, MODULE_SNAPSHOT_NS, dom) Then Exit Function
+    If Not ex_Core.m_CustomXmlPartStore_TryCreateEmptyDom(MODULE_SNAPSHOT_ROOT, MODULE_SNAPSHOT_NS, dom) Then Exit Function
     Set rootNode = dom.DocumentElement
     If rootNode Is Nothing Then
         VBA.MsgBox "PageManager: module snapshot root node is missing.", VBA.vbExclamation
@@ -46,7 +46,7 @@ Public Function m_TryDeserializeModuleSnapshot(ByVal snapshotXml As String) As B
         Exit Function
     End If
 
-    If Not ex_CustomXmlPartStore.m_TryLoadDomFromXml(snapshotXml, dom) Then Exit Function
+    If Not ex_Core.m_CustomXmlPartStore_TryLoadDomFromXml(snapshotXml, dom) Then Exit Function
     Set rootNode = dom.DocumentElement
     If rootNode Is Nothing Then
         VBA.MsgBox "PageManager: module snapshot root node is missing.", VBA.vbExclamation
@@ -149,7 +149,7 @@ Public Function m_TryGetPageByWorksheet(ByVal ws As Worksheet, ByRef outPage As 
 
     Set outPage = Nothing
     If ws Is Nothing Then
-        ex_Core.m_LogError "page-manager:get-by-worksheet input-invalid worksheet is not specified"
+        ex_Core.m_Diagnostic_LogError "page-manager:get-by-worksheet input-invalid worksheet is not specified"
         Exit Function
     End If
 
@@ -158,14 +158,14 @@ Public Function m_TryGetPageByWorksheet(ByVal ws As Worksheet, ByRef outPage As 
     If Err.Number <> 0 Then
         Err.Clear
         On Error GoTo 0
-        ex_Core.m_LogError "page-manager:get-by-worksheet worksheet-name-unavailable"
+        ex_Core.m_Diagnostic_LogError "page-manager:get-by-worksheet worksheet-name-unavailable"
         Exit Function
     End If
     On Error GoTo 0
 
     wsName = VBA.Replace$(wsName, "'", "''")
     If Not private_TryFindPageByWorksheet(ws, outPage, resolvedPageId) Then
-        ex_Core.m_LogError "page-manager:get-by-worksheet page-not-found sheet='" & wsName & "'"
+        ex_Core.m_Diagnostic_LogError "page-manager:get-by-worksheet page-not-found sheet='" & wsName & "'"
         Exit Function
     End If
 
@@ -226,7 +226,7 @@ Public Function m_RenderPageById(ByVal pageId As String, Optional ByVal reason A
     Dim page As obj_IPage
 
     If Not m_TryGetPageById(pageId, page) Then
-        ex_Core.m_LogError "page-manager:render-by-id input-invalid page is not found"
+        ex_Core.m_Diagnostic_LogError "page-manager:render-by-id input-invalid page is not found"
         Exit Function
     End If
 
@@ -251,18 +251,18 @@ Public Function m_RenderPage(ByVal page As obj_IPage, Optional ByVal reason As S
     Dim pageId As String
 
     If page Is Nothing Then
-        ex_Core.m_LogError "page-manager:render input-invalid page is not specified"
+        ex_Core.m_Diagnostic_LogError "page-manager:render input-invalid page is not specified"
         Exit Function
     End If
 
     Set pageBase = page.GetPageBase()
     If pageBase Is Nothing Then
-        ex_Core.m_LogError "page-manager:render input-invalid page base is not specified"
+        ex_Core.m_Diagnostic_LogError "page-manager:render input-invalid page base is not specified"
         Exit Function
     End If
 
     If pageBase.Worksheet Is Nothing Then
-        ex_Core.m_LogError "page-manager:render input-invalid worksheet is not specified"
+        ex_Core.m_Diagnostic_LogError "page-manager:render input-invalid worksheet is not specified"
         Exit Function
     End If
 
@@ -270,7 +270,7 @@ Public Function m_RenderPage(ByVal page As obj_IPage, Optional ByVal reason As S
     normalizedReason = VBA.Trim$(VBA.CStr(reason))
     If VBA.Len(normalizedReason) = 0 Then normalizedReason = "manual"
 
-    ex_Core.m_LogInfo "page-manager:render-start sheet='" & sheetName & "' reason='" & VBA.Replace$(normalizedReason, "'", "''") & "'"
+    ex_Core.m_Diagnostic_LogInfo "page-manager:render-start sheet='" & sheetName & "' reason='" & VBA.Replace$(normalizedReason, "'", "''") & "'"
 
     On Error GoTo EH_RENDER
     m_RenderPage = page.Render()
@@ -279,15 +279,15 @@ Public Function m_RenderPage(ByVal page As obj_IPage, Optional ByVal reason As S
         pageId = VBA.LCase$(VBA.Trim$(pageBase.PageId))
         If VBA.Len(pageId) = 0 Then pageId = private_TryResolvePageIdByObject(page)
         g_LastRenderedPageId = pageId
-        ex_Core.m_LogInfo "page-manager:render-done sheet='" & sheetName & "'"
+        ex_Core.m_Diagnostic_LogInfo "page-manager:render-done sheet='" & sheetName & "'"
     Else
-        ex_Core.m_LogError "page-manager:render-failed sheet='" & sheetName & "'"
+        ex_Core.m_Diagnostic_LogError "page-manager:render-failed sheet='" & sheetName & "'"
     End If
     Exit Function
 
 EH_RENDER:
     errDescription = Err.Description
-    ex_Core.m_LogError "page-manager:render-exception sheet='" & sheetName & "' err='" & VBA.Replace$(errDescription, "'", "''") & "'"
+    ex_Core.m_Diagnostic_LogError "page-manager:render-exception sheet='" & sheetName & "' err='" & VBA.Replace$(errDescription, "'", "''") & "'"
 End Function
 
 
@@ -456,7 +456,7 @@ Private Function private_RegisterPage(ByVal pageId As String, ByVal page As obj_
 
     sheetName = VBA.vbNullString
     If Not pageBase.Worksheet Is Nothing Then sheetName = VBA.Replace$(VBA.Trim$(VBA.CStr(pageBase.Worksheet.Name)), "'", "''")
-    ex_Core.m_LogInfo "page-manager:register-page pageId='" & VBA.Replace$(pageId, "'", "''") & "' sheet='" & sheetName & "'"
+    ex_Core.m_Diagnostic_LogInfo "page-manager:register-page pageId='" & VBA.Replace$(pageId, "'", "''") & "' sheet='" & sheetName & "'"
 
     private_RegisterPage = True
 End Function

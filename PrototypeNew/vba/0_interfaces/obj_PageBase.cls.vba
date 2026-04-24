@@ -608,7 +608,7 @@ Public Function TrySerializePageSnapshotEnvelope( _
         Exit Function
     End If
 
-    If Not ex_CustomXmlPartStore.m_TryCreateEmptyDom(PAGE_SNAPSHOT_ENTRY_ROOT, PAGE_SNAPSHOT_ENTRY_NS, dom) Then Exit Function
+    If Not ex_Core.m_CustomXmlPartStore_TryCreateEmptyDom(PAGE_SNAPSHOT_ENTRY_ROOT, PAGE_SNAPSHOT_ENTRY_NS, dom) Then Exit Function
 
     Set rootNode = dom.DocumentElement
     If rootNode Is Nothing Then
@@ -660,7 +660,7 @@ Public Function TryDeserializePageSnapshotEnvelope( _
     snapshotXml = VBA.Trim$(snapshotXml)
     If VBA.Len(snapshotXml) = 0 Then Exit Function
 
-    If Not ex_CustomXmlPartStore.m_TryLoadDomFromXml(snapshotXml, dom) Then Exit Function
+    If Not ex_Core.m_CustomXmlPartStore_TryLoadDomFromXml(snapshotXml, dom) Then Exit Function
 
     Set rootNode = dom.DocumentElement
     If rootNode Is Nothing Then
@@ -715,7 +715,7 @@ Public Function TryDeserializeControlSnapshotEnvelope( _
     snapshotXml = VBA.Trim$(snapshotXml)
     If VBA.Len(snapshotXml) = 0 Then Exit Function
 
-    If Not ex_CustomXmlPartStore.m_TryLoadDomFromXml(snapshotXml, dom) Then Exit Function
+    If Not ex_Core.m_CustomXmlPartStore_TryLoadDomFromXml(snapshotXml, dom) Then Exit Function
 
     Set rootNode = dom.DocumentElement
     If rootNode Is Nothing Then
@@ -760,7 +760,7 @@ Public Function TryCreateSnapshotRoot( _
         Exit Function
     End If
 
-    If Not ex_CustomXmlPartStore.m_TryCreateEmptyDom(rootName, "urn:excelprototype:serializable:page:v1", outDom) Then Exit Function
+    If Not ex_Core.m_CustomXmlPartStore_TryCreateEmptyDom(rootName, "urn:excelprototype:serializable:page:v1", outDom) Then Exit Function
     Set outRoot = outDom.DocumentElement
     If outRoot Is Nothing Then
         VBA.MsgBox "PageBase: snapshot root node is missing.", VBA.vbExclamation
@@ -793,7 +793,7 @@ Public Function TryLoadSnapshotRoot( _
         Exit Function
     End If
 
-    If Not ex_CustomXmlPartStore.m_TryLoadDomFromXml(snapshotXml, outDom) Then Exit Function
+    If Not ex_Core.m_CustomXmlPartStore_TryLoadDomFromXml(snapshotXml, outDom) Then Exit Function
     Set outRoot = outDom.DocumentElement
     If outRoot Is Nothing Then
         VBA.MsgBox "PageBase: snapshot root node is missing.", VBA.vbExclamation
@@ -998,7 +998,7 @@ Private Function private_TrySerializeControlSnapshotEnvelope( _
     If VBA.Len(typeRoot) = 0 Then Exit Function
     If VBA.Len(payloadXml) = 0 Then Exit Function
 
-    If Not ex_CustomXmlPartStore.m_TryCreateEmptyDom(CONTROL_SNAPSHOT_ENTRY_ROOT, CONTROL_SNAPSHOT_ENTRY_NS, dom) Then Exit Function
+    If Not ex_Core.m_CustomXmlPartStore_TryCreateEmptyDom(CONTROL_SNAPSHOT_ENTRY_ROOT, CONTROL_SNAPSHOT_ENTRY_NS, dom) Then Exit Function
 
     Set rootNode = dom.DocumentElement
     If rootNode Is Nothing Then
@@ -1225,14 +1225,14 @@ End Function
 
 Private Sub private_LogRuntimeInfo(ByVal messageText As String)
     On Error Resume Next
-    ex_Core.m_LogInfo "page-base:" & VBA.Trim$(messageText) & " " & private_BuildLogContext()
+    ex_Core.m_Diagnostic_LogInfo "page-base:" & VBA.Trim$(messageText) & " " & private_BuildLogContext()
     Err.Clear
     On Error GoTo 0
 End Sub
 
 Private Sub private_LogRuntimeError(ByVal messageText As String)
     On Error Resume Next
-    ex_Core.m_LogError "page-base:" & VBA.Trim$(messageText) & " " & private_BuildLogContext()
+    ex_Core.m_Diagnostic_LogError "page-base:" & VBA.Trim$(messageText) & " " & private_BuildLogContext()
     Err.Clear
     On Error GoTo 0
 End Sub

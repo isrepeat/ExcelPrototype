@@ -54,6 +54,7 @@ Public Function SetItemsSource(ByVal itemsSourceKey As String, ByVal items As Co
     SetItemsSource = True
 End Function
 
+
 ' Callstack[1]: ex_Test.private_TrySetObjectSource -> pageBase.RuntimeSources.SetObjectSource -> obj_PageRuntimeSources.SetObjectSource
 ' Callstack[2]: ex_LayoutListRenderer.private_RegisterRuntimeObjectSourceKey -> renderCtx.PageBase.RuntimeSources.SetObjectSource -> obj_PageRuntimeSources.SetObjectSource
 ' Callstack[3]: ex_LayoutItemControlRenderer.private_RegisterRuntimeObjectSourceKey -> renderCtx.PageBase.RuntimeSources.SetObjectSource -> obj_PageRuntimeSources.SetObjectSource
@@ -77,6 +78,7 @@ Public Function SetObjectSource(ByVal objectSourceKey As String, ByVal sourceObj
     SetObjectSource = True
 End Function
 
+
 ' Callstack[1]: ex_Test.private_TryRemoveObjectSource -> pageBase.RuntimeSources.RemoveObjectSource -> obj_PageRuntimeSources.RemoveObjectSource
 Public Function RemoveObjectSource(ByVal objectSourceKey As String) As Boolean
     Dim normalizedKey As String
@@ -95,114 +97,88 @@ Public Function RemoveObjectSource(ByVal objectSourceKey As String) As Boolean
     RemoveObjectSource = True
 End Function
 
-' Callstack[1]: obj_TableSingleControlVM.obj_IControl_Configure -> currentPage.RuntimeSources.TryResolveItemsSource -> obj_PageRuntimeSources.TryResolveItemsSource
-' Callstack[2]: obj_TableListControlVM.obj_IControl_Configure -> currentPage.RuntimeSources.TryResolveItemsSource -> obj_PageRuntimeSources.TryResolveItemsSource
-' Callstack[3]: obj_ConfigControlVM.obj_IControl_Configure -> currentPage.RuntimeSources.TryResolveItemsSource -> obj_PageRuntimeSources.TryResolveItemsSource
-' Callstack[4]: obj_SelectControlVM.obj_IControl_Configure -> currentPage.RuntimeSources.TryResolveItemsSource -> obj_PageRuntimeSources.TryResolveItemsSource
-' Callstack[5]: ex_LayoutListRenderer.m_Render -> pageBase.RuntimeSources.TryResolveItemsSource -> obj_PageRuntimeSources.TryResolveItemsSource
-' Callstack[6]: ex_LayoutListRenderer.m_TryMeasureContentSpan -> pageBase.RuntimeSources.TryResolveItemsSource -> obj_PageRuntimeSources.TryResolveItemsSource
-Public Function TryResolveItemsSource(ByVal rawSource As String, ByRef outItems As Collection) As Boolean
-    Dim resolvedValue As Variant
-    Dim sourceText As String
-    Dim sourceKey As String
 
-    rawSource = VBA.Trim$(rawSource)
-    If VBA.Len(rawSource) = 0 Then
-        VBA.MsgBox "PrototypeNew: list itemsSource is required.", VBA.vbExclamation
+Public Function TryGetItemsSourceByKey( _
+    ByVal itemsSourceKey As String, _
+    ByRef outItems As Collection, _
+    Optional ByVal allowMissing As Boolean = False _
+) As Boolean
+    Dim normalizedKey As String
+
+    Set outItems = Nothing
+    normalizedKey = VBA.LCase$(VBA.Trim$(itemsSourceKey))
+
+    If VBA.Len(normalizedKey) = 0 Then
+        If allowMissing Then
+            TryGetItemsSourceByKey = True
+            Exit Function
+        End If
+        VBA.MsgBox "PrototypeNew: itemsSource key is empty.", VBA.vbExclamation
         Exit Function
     End If
 
     private_EnsureItemsSourceMap
-    If Not ex_BindingRuntime.m_TryResolveValueBinding(rawSource, m_ItemsSourceMap, resolvedValue) Then Exit Function
-
-    If VBA.IsObject(resolvedValue) Then
-        If VBA.TypeName(resolvedValue) <> "Collection" Then
-            VBA.MsgBox "PrototypeNew: list itemsSource must resolve to Collection.", VBA.vbExclamation
-            Exit Function
-        End If
-
-        Set outItems = resolvedValue
-        TryResolveItemsSource = True
-        Exit Function
-    End If
-
-    sourceText = VBA.Trim$(VBA.CStr(resolvedValue))
-    If VBA.Len(sourceText) = 0 Then
-        VBA.MsgBox "PrototypeNew: list itemsSource resolved to empty key.", VBA.vbExclamation
-        Exit Function
-    End If
-
-    sourceKey = VBA.LCase$(sourceText)
-
-    If m_ItemsSourceMap.Exists(sourceKey) Then
-        Set outItems = m_ItemsSourceMap(sourceKey)
-        TryResolveItemsSource = True
-        Exit Function
-    End If
-
-    If private_TryParseInlineScalarList(sourceText, outItems) Then
-        TryResolveItemsSource = True
-        Exit Function
-    End If
-
-    VBA.MsgBox "PrototypeNew: list itemsSource '" & sourceText & "' is not registered.", VBA.vbExclamation
-End Function
-
-' Callstack[1]: ex_LayoutItemControlRenderer.m_Render -> pageBase.RuntimeSources.TryResolveObjectSource -> obj_PageRuntimeSources.TryResolveObjectSource
-' Callstack[2]: ex_LayoutItemControlRenderer.m_TryMeasureContentSpan -> pageBase.RuntimeSources.TryResolveObjectSource -> obj_PageRuntimeSources.TryResolveObjectSource
-Public Function TryResolveObjectSource( _
-    ByVal rawSource As String, _
-    ByRef outObject As Object, _
-    Optional ByVal allowMissing As Boolean = False _
-) As Boolean
-    Dim resolvedValue As Variant
-    Dim sourceText As String
-    Dim sourceKey As String
-
-    rawSource = VBA.Trim$(rawSource)
-    If VBA.Len(rawSource) = 0 Then
-        If allowMissing Then
-            TryResolveObjectSource = True
-            Exit Function
-        End If
-        VBA.MsgBox "PrototypeNew: itemControl objectSource is required.", VBA.vbExclamation
-        Exit Function
-    End If
-
-    private_EnsureObjectSourceMap
-    If Not ex_BindingRuntime.m_TryResolveValueBinding(rawSource, m_ObjectSourceMap, resolvedValue) Then Exit Function
-
-    If VBA.IsObject(resolvedValue) Then
-        Set outObject = resolvedValue
-        TryResolveObjectSource = True
-        Exit Function
-    End If
-
-    sourceText = VBA.Trim$(VBA.CStr(resolvedValue))
-    If VBA.Len(sourceText) = 0 Then
-        If allowMissing Then
-            TryResolveObjectSource = True
-            Exit Function
-        End If
-        VBA.MsgBox "PrototypeNew: objectSource resolved to empty key.", VBA.vbExclamation
-        Exit Function
-    End If
-
-    sourceKey = VBA.LCase$(sourceText)
-
-    If m_ObjectSourceMap.Exists(sourceKey) Then
-        Set outObject = m_ObjectSourceMap(sourceKey)
-        TryResolveObjectSource = True
+    If m_ItemsSourceMap.Exists(normalizedKey) Then
+        Set outItems = m_ItemsSourceMap(normalizedKey)
+        TryGetItemsSourceByKey = True
         Exit Function
     End If
 
     If allowMissing Then
-        TryResolveObjectSource = True
+        TryGetItemsSourceByKey = True
         Exit Function
     End If
 
-    VBA.MsgBox "PrototypeNew: objectSource '" & sourceText & "' is not registered.", VBA.vbExclamation
+    VBA.MsgBox "PrototypeNew: itemsSource '" & normalizedKey & "' is not registered in page runtime map.", VBA.vbExclamation
 End Function
+
+
+Public Function TryGetObjectSourceByKey( _
+    ByVal objectSourceKey As String, _
+    ByRef outObject As Object, _
+    Optional ByVal allowMissing As Boolean = False _
+) As Boolean
+    Dim normalizedKey As String
+
+    Set outObject = Nothing
+    normalizedKey = VBA.LCase$(VBA.Trim$(objectSourceKey))
+
+    If VBA.Len(normalizedKey) = 0 Then
+        If allowMissing Then
+            TryGetObjectSourceByKey = True
+            Exit Function
+        End If
+        VBA.MsgBox "PrototypeNew: objectSource key is empty.", VBA.vbExclamation
+        Exit Function
+    End If
+
+    private_EnsureObjectSourceMap
+    If m_ObjectSourceMap.Exists(normalizedKey) Then
+        Set outObject = m_ObjectSourceMap(normalizedKey)
+        TryGetObjectSourceByKey = True
+        Exit Function
+    End If
+
+    If allowMissing Then
+        TryGetObjectSourceByKey = True
+        Exit Function
+    End If
+
+    VBA.MsgBox "PrototypeNew: objectSource '" & normalizedKey & "' is not registered in page runtime map.", VBA.vbExclamation
+End Function
+
+
+Public Property Get ItemsSourceMap() As Object
+    private_EnsureItemsSourceMap
+    Set ItemsSourceMap = m_ItemsSourceMap
+End Property
+
+
+Public Property Get ObjectSourceMap() As Object
+    private_EnsureObjectSourceMap
+    Set ObjectSourceMap = m_ObjectSourceMap
+End Property
+
 
 ' //
 ' // Internal
@@ -214,45 +190,10 @@ Private Sub private_EnsureItemsSourceMap()
     m_ItemsSourceMap.CompareMode = 1
 End Sub
 
+
 Private Sub private_EnsureObjectSourceMap()
     If Not m_ObjectSourceMap Is Nothing Then Exit Sub
 
     Set m_ObjectSourceMap = VBA.CreateObject("Scripting.Dictionary")
     m_ObjectSourceMap.CompareMode = 1
 End Sub
-
-Private Function private_TryParseInlineScalarList(ByVal rawText As String, ByRef outItems As Collection) As Boolean
-    Dim normalized As String
-    Dim separator As String
-    Dim chunks As Variant
-    Dim i As Long
-    Dim itemText As String
-
-    normalized = VBA.Trim$(rawText)
-    If VBA.Len(normalized) = 0 Then Exit Function
-
-    If VBA.InStr(1, normalized, "|", VBA.vbBinaryCompare) > 0 Then
-        separator = "|"
-    ElseIf VBA.InStr(1, normalized, ";", VBA.vbBinaryCompare) > 0 Then
-        separator = ";"
-    Else
-        Exit Function
-    End If
-
-    chunks = VBA.Split(normalized, separator)
-    Set outItems = New Collection
-
-    For i = LBound(chunks) To UBound(chunks)
-        itemText = VBA.Trim$(VBA.CStr(chunks(i)))
-        If VBA.Len(itemText) = 0 Then GoTo ContinueChunk
-        outItems.Add itemText
-ContinueChunk:
-    Next i
-
-    If outItems.Count = 0 Then
-        Set outItems = Nothing
-        Exit Function
-    End If
-
-    private_TryParseInlineScalarList = True
-End Function

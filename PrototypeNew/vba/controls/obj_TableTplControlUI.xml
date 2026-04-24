@@ -52,9 +52,9 @@
   </templates>
 
   <layout>
-    <control name="default" itemsSource="RuntimeItems.Test.Tables">
+    <control name="default" itemsSource="{PageRuntimeSource='RuntimeItems.Test.Tables'}">
       <list
-        itemsSource="RuntimeItems.Test.Tables"
+        itemsSource="{PageRuntimeSource='RuntimeItems.Test.Tables'}"
         itemsSourceTemplate="primitiveTableTpl"
         orientation="vertical"/>
     </control>

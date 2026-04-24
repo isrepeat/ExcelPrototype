@@ -6,7 +6,7 @@ Option Explicit
 ' //
 Public Function m_IsCommonControlAttribute(ByVal attrName As String) As Boolean
     Select Case VBA.LCase$(VBA.Trim$(attrName))
-        Case "name", "type", "style", "spancells", "spanrows", "visibility"
+        Case "name", "type", "style", "spancells", "spanrows", "visibility", "datacontext"
             m_IsCommonControlAttribute = True
     End Select
 End Function

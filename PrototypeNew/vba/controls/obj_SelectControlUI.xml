@@ -3,7 +3,7 @@
   <layout>
     <control
       name="default"
-      itemsSource="RuntimeItems.Test.SelectOptions"
+      itemsSource="{PageRuntimeSource='RuntimeItems.Test.SelectOptions'}"
       placeholder="Choose option"/>
   </layout>
 </uiDefinition>

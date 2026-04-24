@@ -26,6 +26,8 @@ Private m_Page As obj_PageBase
 ' Configure поднимает контракт контрола из XML:
 ' читаем attrs -> резолвим биндинги -> нормализуем layout -> готовим runtime key.
 Private Sub obj_IControl_Configure(ByVal page As obj_PageBase, ByVal controlNode As Object)
+    Dim dataContext As Object
+
     m_IsConfigured = False
     Set m_Layout = Nothing
     Set m_Base = Nothing
@@ -45,9 +47,12 @@ Private Sub obj_IControl_Configure(ByVal page As obj_PageBase, ByVal controlNode
         Exit Sub
     End If
 
-    If Not ex_BindingRuntime.m_TryResolveTextBinding(m_CaptionRaw, Me, m_CaptionText) Then Exit Sub
-    If Not ex_BindingRuntime.m_TryResolveMacroBinding(m_OnClickRaw, Me, m_OnClickMacroRef) Then Exit Sub
-    m_OnClickMacroRef = private_NormalizeLegacyOnClickMacroRef(m_OnClickMacroRef)
+    Set dataContext = m_Base.DataContext
+    If dataContext Is Nothing Then Set dataContext = Me
+
+    If Not ex_BindingRuntime.m_TryResolveTextBinding(m_CaptionRaw, dataContext, m_CaptionText) Then Exit Sub
+    If Not ex_BindingRuntime.m_TryResolveMacroBinding(m_OnClickRaw, dataContext, m_OnClickMacroRef) Then Exit Sub
+    m_OnClickMacroRef = VBA.Trim$(m_OnClickMacroRef)
 
     Set m_Layout = New obj_ControlLayout
     If Not m_Layout.TryReadFromNode(controlNode, "Button", m_ControlName, "style") Then Exit Sub
@@ -227,7 +232,7 @@ Public Function TryDeserializeSnapshot(ByVal snapshotXml As String) As Boolean
     snapshotXml = VBA.Trim$(snapshotXml)
     If VBA.Len(snapshotXml) = 0 Then Exit Function
 
-    If Not ex_CustomXmlPartStore.m_TryLoadDomFromXml(snapshotXml, dom) Then Exit Function
+    If Not ex_Core.m_CustomXmlPartStore_TryLoadDomFromXml(snapshotXml, dom) Then Exit Function
     Set root = dom.DocumentElement
     If root Is Nothing Then Exit Function
     If VBA.LCase$(VBA.CStr(root.baseName)) <> "button" Then Exit Function
@@ -239,7 +244,7 @@ Public Function TryDeserializeSnapshot(ByVal snapshotXml As String) As Boolean
     m_CaptionText = VBA.CStr(root.getAttribute("captionText"))
     onClickMacroRef = VBA.Trim$(VBA.CStr(root.getAttribute("onClickMacroRef")))
     If VBA.Len(onClickMacroRef) = 0 Then onClickMacroRef = VBA.Trim$(VBA.CStr(root.getAttribute("onClick")))
-    m_OnClickMacroRef = private_NormalizeLegacyOnClickMacroRef(onClickMacroRef)
+    m_OnClickMacroRef = VBA.Trim$(onClickMacroRef)
     m_RuntimeControlKey = VBA.LCase$(VBA.Trim$(VBA.CStr(root.getAttribute("runtimeKey"))))
     shapeName = VBA.Trim$(VBA.CStr(root.getAttribute("shape")))
     layoutSheetName = VBA.Trim$(VBA.CStr(root.getAttribute("sheet")))
@@ -306,24 +311,24 @@ Private Function private_TryBindRuntimeRoute(ByVal shp As Shape) As Boolean
     Dim callbackMacroRef As String
 
     If shp Is Nothing Then
-        ex_Core.m_LogError "button:bind-route shape-missing control='" & VBA.Replace$(VBA.Trim$(m_ControlName), "'", "''") & "'"
+        ex_Core.m_Diagnostic_LogError "button:bind-route shape-missing control='" & VBA.Replace$(VBA.Trim$(m_ControlName), "'", "''") & "'"
         Exit Function
     End If
     If VBA.Len(VBA.Trim$(m_RuntimeControlKey)) = 0 Then
-        ex_Core.m_LogError "button:bind-route runtime-control-key-empty control='" & VBA.Replace$(VBA.Trim$(m_ControlName), "'", "''") & "'"
+        ex_Core.m_Diagnostic_LogError "button:bind-route runtime-control-key-empty control='" & VBA.Replace$(VBA.Trim$(m_ControlName), "'", "''") & "'"
         Exit Function
     End If
 
     callbackMacroRef = private_GetRuntimeCallbackMacroRef()
     If VBA.Len(callbackMacroRef) = 0 Then
-        ex_Core.m_LogError "button:bind-route callback-macro-empty control='" & VBA.Replace$(VBA.Trim$(m_ControlName), "'", "''") & "'"
+        ex_Core.m_Diagnostic_LogError "button:bind-route callback-macro-empty control='" & VBA.Replace$(VBA.Trim$(m_ControlName), "'", "''") & "'"
         Exit Function
     End If
 
     On Error Resume Next
     shp.OnAction = callbackMacroRef
     If Err.Number <> 0 Then
-        ex_Core.m_LogError "button:bind-route set-onaction-failed control='" & VBA.Replace$(VBA.Trim$(m_ControlName), "'", "''") & "' shape='" & VBA.Replace$(VBA.Trim$(shp.Name), "'", "''") & "' err='" & VBA.Replace$(Err.Description, "'", "''") & "'"
+        ex_Core.m_Diagnostic_LogError "button:bind-route set-onaction-failed control='" & VBA.Replace$(VBA.Trim$(m_ControlName), "'", "''") & "' shape='" & VBA.Replace$(VBA.Trim$(shp.Name), "'", "''") & "' err='" & VBA.Replace$(Err.Description, "'", "''") & "'"
         Err.Clear
         On Error GoTo 0
         Exit Function
@@ -331,19 +336,19 @@ Private Function private_TryBindRuntimeRoute(ByVal shp As Shape) As Boolean
     On Error GoTo 0
 
     If m_Page Is Nothing Then
-        ex_Core.m_LogError "button:bind-route page-base-missing control='" & VBA.Replace$(VBA.Trim$(m_ControlName), "'", "''") & "'"
+        ex_Core.m_Diagnostic_LogError "button:bind-route page-base-missing control='" & VBA.Replace$(VBA.Trim$(m_ControlName), "'", "''") & "'"
         Exit Function
     End If
     If Not m_Page.RegisterControl(m_RuntimeControlKey, Me) Then
-        ex_Core.m_LogError "button:bind-route register-control-failed control='" & VBA.Replace$(VBA.Trim$(m_ControlName), "'", "''") & "' key='" & VBA.Replace$(VBA.Trim$(m_RuntimeControlKey), "'", "''") & "'"
+        ex_Core.m_Diagnostic_LogError "button:bind-route register-control-failed control='" & VBA.Replace$(VBA.Trim$(m_ControlName), "'", "''") & "' key='" & VBA.Replace$(VBA.Trim$(m_RuntimeControlKey), "'", "''") & "'"
         Exit Function
     End If
     If Not m_Page.RegisterShapeRoute(shp.Name, m_RuntimeControlKey, "RuntimeHandleClick", False) Then
-        ex_Core.m_LogError "button:bind-route register-route-failed control='" & VBA.Replace$(VBA.Trim$(m_ControlName), "'", "''") & "' shape='" & VBA.Replace$(VBA.Trim$(shp.Name), "'", "''") & "'"
+        ex_Core.m_Diagnostic_LogError "button:bind-route register-route-failed control='" & VBA.Replace$(VBA.Trim$(m_ControlName), "'", "''") & "' shape='" & VBA.Replace$(VBA.Trim$(shp.Name), "'", "''") & "'"
         Exit Function
     End If
 
-    ex_Core.m_LogInfo "button:bind-route ok control='" & VBA.Replace$(VBA.Trim$(m_ControlName), "'", "''") & "' shape='" & VBA.Replace$(VBA.Trim$(shp.Name), "'", "''") & "' macro='" & VBA.Replace$(callbackMacroRef, "'", "''") & "'"
+    ex_Core.m_Diagnostic_LogInfo "button:bind-route ok control='" & VBA.Replace$(VBA.Trim$(m_ControlName), "'", "''") & "' shape='" & VBA.Replace$(VBA.Trim$(shp.Name), "'", "''") & "' macro='" & VBA.Replace$(callbackMacroRef, "'", "''") & "'"
 
     private_TryBindRuntimeRoute = True
 End Function
@@ -365,42 +370,6 @@ Private Function private_QualifyMacroName(ByVal macroName As String) As String
     wbName = ThisWorkbook.Name
     wbName = VBA.Replace$(wbName, "'", "''")
     private_QualifyMacroName = "'" & wbName & "'!" & macroName
-End Function
-
-
-Private Function private_NormalizeLegacyOnClickMacroRef(ByVal macroRef As String) As String
-    Dim bangPos As Long
-    Dim workbookPrefix As String
-    Dim methodName As String
-
-    macroRef = VBA.Trim$(macroRef)
-    If VBA.Len(macroRef) = 0 Then Exit Function
-
-    bangPos = VBA.InStr(1, macroRef, "!", VBA.vbBinaryCompare)
-    If bangPos > 0 Then
-        workbookPrefix = VBA.Left$(macroRef, bangPos)
-        methodName = VBA.Mid$(macroRef, bangPos + 1)
-    Else
-        workbookPrefix = VBA.vbNullString
-        methodName = macroRef
-    End If
-
-    Select Case VBA.LCase$(VBA.Trim$(methodName))
-        Case "rt_coreactions.m_updatecodefullandrerender", "ex_core.dev_updateallmodulesunsafe"
-            methodName = "ex_Core.dev_UpdateAllModules"
-        Case "rt_coreactions.m_updatecodedateandrerender", "ex_core.dev_updatecodebydateunsafe"
-            methodName = "ex_Core.dev_UpdateCodeByDate"
-        Case "ex_core.dev_updatecodebysizeunsafe"
-            methodName = "ex_Core.dev_UpdateCodeBySize"
-        Case "rt_coreactions.m_updatecodesizeandrerender"
-            methodName = "ex_Core.dev_UpdateCodeBySize"
-    End Select
-
-    If VBA.Len(workbookPrefix) > 0 Then
-        private_NormalizeLegacyOnClickMacroRef = workbookPrefix & methodName
-    Else
-        private_NormalizeLegacyOnClickMacroRef = methodName
-    End If
 End Function
 
 Public Property Get DefaultCaption() As String

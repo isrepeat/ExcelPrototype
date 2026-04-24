@@ -93,14 +93,14 @@ End Function
 
 Private Sub private_LogBridgeInfo(ByVal messageText As String)
     On Error Resume Next
-    ex_Core.m_LogInfo "bridge:" & VBA.Trim$(messageText)
+    ex_Core.m_Diagnostic_LogInfo "bridge:" & VBA.Trim$(messageText)
     Err.Clear
     On Error GoTo 0
 End Sub
 
 Private Sub private_LogBridgeError(ByVal messageText As String)
     On Error Resume Next
-    ex_Core.m_LogError "bridge:" & VBA.Trim$(messageText)
+    ex_Core.m_Diagnostic_LogError "bridge:" & VBA.Trim$(messageText)
     Err.Clear
     On Error GoTo 0
 End Sub

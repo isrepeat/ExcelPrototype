@@ -56,6 +56,7 @@ Private m_Page As obj_PageBase
 Private Sub obj_IControl_Configure(ByVal page As obj_PageBase, ByVal controlNode As Object)
     Dim currentPage As obj_PageBase
     Dim selectedIdText As String
+    Dim dataContext As Object
 
     ' Полный reset состояния: важно при повторной конфигурации того же VM.
     m_IsConfigured = False
@@ -105,7 +106,9 @@ Private Sub obj_IControl_Configure(ByVal page As obj_PageBase, ByVal controlNode
     m_OnChangeRaw = VBA.CStr(ex_XmlCore.m_NodeAttrText(controlNode, "onChange"))
     m_OnChangeMacroRef = VBA.vbNullString
     If VBA.Len(VBA.Trim$(m_OnChangeRaw)) > 0 Then
-        If Not ex_BindingRuntime.m_TryResolveMacroBinding(m_OnChangeRaw, Me, m_OnChangeMacroRef) Then Exit Sub
+        Set dataContext = m_Base.DataContext
+        If dataContext Is Nothing Then Set dataContext = Me
+        If Not ex_BindingRuntime.m_TryResolveMacroBinding(m_OnChangeRaw, dataContext, m_OnChangeMacroRef) Then Exit Sub
     End If
 
     ' 2) Читаем общий layout (лист + границы + style).
@@ -115,7 +118,7 @@ Private Sub obj_IControl_Configure(ByVal page As obj_PageBase, ByVal controlNode
     ' 3) Разрешаем itemsSource в runtime-коллекцию и готовим буферы.
     Set currentPage = m_Base.PageBase
     If currentPage Is Nothing Then Exit Sub
-    If Not currentPage.RuntimeSources.TryResolveItemsSource(m_ItemsSourceRaw, m_Items) Then Exit Sub
+    If Not ex_RuntimeSourceResolver.m_TryResolveItemsSource(currentPage.RuntimeSources, m_ItemsSourceRaw, m_Items) Then Exit Sub
     If Not private_TryBuildItemBuffers() Then Exit Sub
 
     ' 4) Определяем начальный выбранный элемент:
@@ -481,7 +484,7 @@ Public Function TryDeserializeSnapshot(ByVal snapshotXml As String) As Boolean
     snapshotXml = VBA.Trim$(snapshotXml)
     If VBA.Len(snapshotXml) = 0 Then Exit Function
 
-    If Not ex_CustomXmlPartStore.m_TryLoadDomFromXml(snapshotXml, dom) Then Exit Function
+    If Not ex_Core.m_CustomXmlPartStore_TryLoadDomFromXml(snapshotXml, dom) Then Exit Function
     Set root = dom.DocumentElement
     If root Is Nothing Then Exit Function
     If VBA.LCase$(VBA.CStr(root.baseName)) <> "select" Then Exit Function
@@ -610,69 +613,69 @@ Private Function private_TryBindRuntimeRoutes( _
     Dim i As Long
 
     If ws Is Nothing Then
-        ex_Core.m_LogError "select:bind-routes worksheet-missing control='" & VBA.Replace$(VBA.Trim$(m_ControlName), "'", "''") & "'"
+        ex_Core.m_Diagnostic_LogError "select:bind-routes worksheet-missing control='" & VBA.Replace$(VBA.Trim$(m_ControlName), "'", "''") & "'"
         Exit Function
     End If
     If itemShapeNames Is Nothing Then
-        ex_Core.m_LogError "select:bind-routes item-shapes-missing control='" & VBA.Replace$(VBA.Trim$(m_ControlName), "'", "''") & "'"
+        ex_Core.m_Diagnostic_LogError "select:bind-routes item-shapes-missing control='" & VBA.Replace$(VBA.Trim$(m_ControlName), "'", "''") & "'"
         Exit Function
     End If
 
     callbackMacroRef = private_GetRuntimeCallbackMacroRef()
     If VBA.Len(callbackMacroRef) = 0 Then
-        ex_Core.m_LogError "select:bind-routes callback-macro-empty control='" & VBA.Replace$(VBA.Trim$(m_ControlName), "'", "''") & "'"
+        ex_Core.m_Diagnostic_LogError "select:bind-routes callback-macro-empty control='" & VBA.Replace$(VBA.Trim$(m_ControlName), "'", "''") & "'"
         Exit Function
     End If
 
     Set headerShape = private_GetRuntimeShapeByName(ws, headerShapeName)
     If headerShape Is Nothing Then
-        ex_Core.m_LogError "select:bind-routes header-shape-missing control='" & VBA.Replace$(VBA.Trim$(m_ControlName), "'", "''") & "' shape='" & VBA.Replace$(VBA.Trim$(headerShapeName), "'", "''") & "'"
+        ex_Core.m_Diagnostic_LogError "select:bind-routes header-shape-missing control='" & VBA.Replace$(VBA.Trim$(m_ControlName), "'", "''") & "' shape='" & VBA.Replace$(VBA.Trim$(headerShapeName), "'", "''") & "'"
         Exit Function
     End If
     If Not private_TrySetShapeOnAction(headerShape, callbackMacroRef) Then
-        ex_Core.m_LogError "select:bind-routes header-onaction-failed control='" & VBA.Replace$(VBA.Trim$(m_ControlName), "'", "''") & "' shape='" & VBA.Replace$(VBA.Trim$(headerShape.Name), "'", "''") & "'"
+        ex_Core.m_Diagnostic_LogError "select:bind-routes header-onaction-failed control='" & VBA.Replace$(VBA.Trim$(m_ControlName), "'", "''") & "' shape='" & VBA.Replace$(VBA.Trim$(headerShape.Name), "'", "''") & "'"
         Exit Function
     End If
 
     For i = 1 To itemShapeNames.Count
         Set itemShape = private_GetRuntimeShapeByName(ws, VBA.CStr(itemShapeNames(i)))
         If itemShape Is Nothing Then
-            ex_Core.m_LogError "select:bind-routes item-shape-missing control='" & VBA.Replace$(VBA.Trim$(m_ControlName), "'", "''") & "' index=" & VBA.CStr(i)
+            ex_Core.m_Diagnostic_LogError "select:bind-routes item-shape-missing control='" & VBA.Replace$(VBA.Trim$(m_ControlName), "'", "''") & "' index=" & VBA.CStr(i)
             Exit Function
         End If
         If Not private_TrySetShapeOnAction(itemShape, callbackMacroRef) Then
-            ex_Core.m_LogError "select:bind-routes item-onaction-failed control='" & VBA.Replace$(VBA.Trim$(m_ControlName), "'", "''") & "' shape='" & VBA.Replace$(VBA.Trim$(itemShape.Name), "'", "''") & "'"
+            ex_Core.m_Diagnostic_LogError "select:bind-routes item-onaction-failed control='" & VBA.Replace$(VBA.Trim$(m_ControlName), "'", "''") & "' shape='" & VBA.Replace$(VBA.Trim$(itemShape.Name), "'", "''") & "'"
             Exit Function
         End If
     Next i
 
     selectId = VBA.LCase$(VBA.Trim$(m_SelectStateKey))
     If VBA.Len(selectId) = 0 Then
-        ex_Core.m_LogError "select:bind-routes select-id-empty control='" & VBA.Replace$(VBA.Trim$(m_ControlName), "'", "''") & "'"
+        ex_Core.m_Diagnostic_LogError "select:bind-routes select-id-empty control='" & VBA.Replace$(VBA.Trim$(m_ControlName), "'", "''") & "'"
         Exit Function
     End If
 
     If m_Page Is Nothing Then
-        ex_Core.m_LogError "select:bind-routes page-base-missing control='" & VBA.Replace$(VBA.Trim$(m_ControlName), "'", "''") & "'"
+        ex_Core.m_Diagnostic_LogError "select:bind-routes page-base-missing control='" & VBA.Replace$(VBA.Trim$(m_ControlName), "'", "''") & "'"
         Exit Function
     End If
     If Not m_Page.RegisterControl(selectId, Me) Then
-        ex_Core.m_LogError "select:bind-routes register-control-failed control='" & VBA.Replace$(VBA.Trim$(m_ControlName), "'", "''") & "' key='" & VBA.Replace$(selectId, "'", "''") & "'"
+        ex_Core.m_Diagnostic_LogError "select:bind-routes register-control-failed control='" & VBA.Replace$(VBA.Trim$(m_ControlName), "'", "''") & "' key='" & VBA.Replace$(selectId, "'", "''") & "'"
         Exit Function
     End If
     If Not m_Page.RegisterShapeRoute(headerShape.Name, selectId, "RuntimeHandleHeaderClick", False) Then
-        ex_Core.m_LogError "select:bind-routes register-header-route-failed control='" & VBA.Replace$(VBA.Trim$(m_ControlName), "'", "''") & "' shape='" & VBA.Replace$(VBA.Trim$(headerShape.Name), "'", "''") & "'"
+        ex_Core.m_Diagnostic_LogError "select:bind-routes register-header-route-failed control='" & VBA.Replace$(VBA.Trim$(m_ControlName), "'", "''") & "' shape='" & VBA.Replace$(VBA.Trim$(headerShape.Name), "'", "''") & "'"
         Exit Function
     End If
 
     For i = 1 To itemShapeNames.Count
         If Not m_Page.RegisterShapeRoute(VBA.CStr(itemShapeNames(i)), selectId, "RuntimeHandleItemClick", True, VBA.CLng(i)) Then
-            ex_Core.m_LogError "select:bind-routes register-item-route-failed control='" & VBA.Replace$(VBA.Trim$(m_ControlName), "'", "''") & "' index=" & VBA.CStr(i)
+            ex_Core.m_Diagnostic_LogError "select:bind-routes register-item-route-failed control='" & VBA.Replace$(VBA.Trim$(m_ControlName), "'", "''") & "' index=" & VBA.CStr(i)
             Exit Function
         End If
     Next i
 
-    ex_Core.m_LogInfo "select:bind-routes ok control='" & VBA.Replace$(VBA.Trim$(m_ControlName), "'", "''") & "' items=" & VBA.CStr(itemShapeNames.Count) & " macro='" & VBA.Replace$(callbackMacroRef, "'", "''") & "'"
+    ex_Core.m_Diagnostic_LogInfo "select:bind-routes ok control='" & VBA.Replace$(VBA.Trim$(m_ControlName), "'", "''") & "' items=" & VBA.CStr(itemShapeNames.Count) & " macro='" & VBA.Replace$(callbackMacroRef, "'", "''") & "'"
     private_TryBindRuntimeRoutes = True
 End Function
 
@@ -683,7 +686,7 @@ Private Function private_TrySetShapeOnAction(ByVal shp As Shape, ByVal callbackM
     On Error Resume Next
     shp.OnAction = callbackMacroRef
     If Err.Number <> 0 Then
-        ex_Core.m_LogError "select:set-onaction-failed control='" & VBA.Replace$(VBA.Trim$(m_ControlName), "'", "''") & "' shape='" & VBA.Replace$(VBA.Trim$(shp.Name), "'", "''") & "' err='" & VBA.Replace$(Err.Description, "'", "''") & "'"
+        ex_Core.m_Diagnostic_LogError "select:set-onaction-failed control='" & VBA.Replace$(VBA.Trim$(m_ControlName), "'", "''") & "' shape='" & VBA.Replace$(VBA.Trim$(shp.Name), "'", "''") & "' err='" & VBA.Replace$(Err.Description, "'", "''") & "'"
         Err.Clear
         On Error GoTo 0
         Exit Function

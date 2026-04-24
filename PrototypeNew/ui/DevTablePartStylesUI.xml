@@ -141,13 +141,13 @@
         </stackPanel>
 
         <itemControl
-          objectSource="RuntimeObjects.Test.Banner"
+          objectSource="{PageRuntimeSource='RuntimeObjects.Test.Banner'}"
           objectSourceTemplate="bannerObjectTpl"/>
 
         <control
           type="TableList"
           name="TablesListStyled"
-          itemsSource="RuntimeItems.Test.Tables"
+          itemsSource="{PageRuntimeSource='RuntimeItems.Test.Tables'}"
           itemVisibility="{Binding Path=RowCount; Op=gt; Value=3; TrueAs=Visible; FalseAs=Collapsed}"
           spanCells="12"
           spanRows="220"/>

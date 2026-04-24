@@ -17,6 +17,8 @@ Private m_IsConfigured As Boolean
 ' // Interface
 ' //
 Private Sub obj_IControl_Configure(ByVal page As obj_PageBase, ByVal controlNode As Object)
+    Dim dataContext As Object
+
     m_IsConfigured = False
     Set m_Layout = Nothing
     Set m_Base = Nothing
@@ -28,7 +30,11 @@ Private Sub obj_IControl_Configure(ByVal page As obj_PageBase, ByVal controlNode
     If VBA.Len(VBA.Trim$(m_TextRaw)) = 0 Then
         m_TextRaw = VBA.CStr(ex_XmlCore.m_NodeAttrText(controlNode, "caption"))
     End If
-    If Not ex_BindingRuntime.m_TryResolveTextBinding(m_TextRaw, Me, m_TextResolved) Then Exit Sub
+
+    Set dataContext = m_Base.DataContext
+    If dataContext Is Nothing Then Set dataContext = Me
+    If Not ex_BindingRuntime.m_TryResolveTextBinding(m_TextRaw, dataContext, m_TextResolved) Then Exit Sub
+
     Set m_Layout = New obj_ControlLayout
     If Not m_Layout.TryReadFromNode(controlNode, "Label", m_ControlName, "style") Then Exit Sub
 
