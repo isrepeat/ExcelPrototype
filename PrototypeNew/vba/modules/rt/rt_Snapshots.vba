@@ -79,7 +79,7 @@ Public Function m_SaveRuntimeGlobalsSnapshot() As Boolean
     Dim rootNode As Object
     Dim partObj As Object
 
-    If Not ex_CustomXmlPartStore.m_TryCreateEmptyDom(RUNTIME_GLOBALS_ROOT, RUNTIME_GLOBALS_NS, dom) Then Exit Function
+    If Not ex_Core.m_CustomXmlPartStore_TryCreateEmptyDom(RUNTIME_GLOBALS_ROOT, RUNTIME_GLOBALS_NS, dom) Then Exit Function
     Set rootNode = dom.DocumentElement
     If rootNode Is Nothing Then
         VBA.MsgBox "Snapshots: runtime globals root node is missing.", VBA.vbExclamation
@@ -88,8 +88,8 @@ Public Function m_SaveRuntimeGlobalsSnapshot() As Boolean
 
     If Not private_TryAppendModuleSnapshot(rootNode, MODULE_NAME_PAGE_MANAGER) Then Exit Function
 
-    If Not ex_CustomXmlPartStore.m_TryFindPartByNamespace(RUNTIME_GLOBALS_NS, partObj) Then Exit Function
-    If Not ex_CustomXmlPartStore.m_TrySaveDom(dom, partObj) Then Exit Function
+    If Not ex_Core.m_CustomXmlPartStore_TryFindPartByNamespace(RUNTIME_GLOBALS_NS, partObj) Then Exit Function
+    If Not ex_Core.m_CustomXmlPartStore_TrySaveDom(dom, partObj) Then Exit Function
 
     m_SaveRuntimeGlobalsSnapshot = True
 End Function
@@ -107,13 +107,13 @@ Public Function m_RestoreRuntimeGlobalsSnapshot() As Boolean
     Dim moduleName As String
     Dim snapshotXml As String
 
-    If Not ex_CustomXmlPartStore.m_TryFindPartByNamespace(RUNTIME_GLOBALS_NS, partObj) Then Exit Function
+    If Not ex_Core.m_CustomXmlPartStore_TryFindPartByNamespace(RUNTIME_GLOBALS_NS, partObj) Then Exit Function
     If partObj Is Nothing Then
         m_RestoreRuntimeGlobalsSnapshot = True
         Exit Function
     End If
 
-    If Not ex_CustomXmlPartStore.m_TryLoadPartDom(partObj, dom) Then Exit Function
+    If Not ex_Core.m_CustomXmlPartStore_TryLoadPartDom(partObj, dom) Then Exit Function
     Set rootNode = dom.DocumentElement
     If rootNode Is Nothing Then
         m_RestoreRuntimeGlobalsSnapshot = True
@@ -167,11 +167,11 @@ Public Function m_TryRestoreRuntimeStateFromSnapshots( _
     g_IsRuntimeStateRestoreRunning = True
     On Error GoTo EH_RESTORE
 
-    ex_Core.m_LogInfo "snapshots:restore-runtime-state start reason='" & VBA.Replace$(reasonText, "'", "''") & "'"
+    ex_Core.m_Diagnostic_LogInfo "snapshots:restore-runtime-state start reason='" & VBA.Replace$(reasonText, "'", "''") & "'"
 
     If private_HasRuntimePageForActiveWorksheet() Then
         If Not m_RestoreRuntimeGlobalsSnapshot() Then GoTo RestoreFailed
-        ex_Core.m_LogInfo "snapshots:restore-runtime-state done reason='" & VBA.Replace$(reasonText, "'", "''") & "' restoredPages=0"
+        ex_Core.m_Diagnostic_LogInfo "snapshots:restore-runtime-state done reason='" & VBA.Replace$(reasonText, "'", "''") & "' restoredPages=0"
         m_TryRestoreRuntimeStateFromSnapshots = True
         GoTo Cleanup
     End If
@@ -180,7 +180,7 @@ Public Function m_TryRestoreRuntimeStateFromSnapshots( _
     If outRestoredPagesCount <= 0 Then GoTo RestoreFailed
     If Not m_RestoreRuntimeGlobalsSnapshot() Then GoTo RestoreFailed
 
-    ex_Core.m_LogInfo "snapshots:restore-runtime-state done reason='" & VBA.Replace$(reasonText, "'", "''") & "' restoredPages=" & VBA.CStr(outRestoredPagesCount)
+    ex_Core.m_Diagnostic_LogInfo "snapshots:restore-runtime-state done reason='" & VBA.Replace$(reasonText, "'", "''") & "' restoredPages=" & VBA.CStr(outRestoredPagesCount)
     m_TryRestoreRuntimeStateFromSnapshots = True
 
 Cleanup:
@@ -197,11 +197,11 @@ RestoreFailed:
         m_TryRestoreRuntimeStateFromSnapshots = True
         GoTo Cleanup
     End If
-    ex_Core.m_LogError "snapshots:restore-runtime-state failed reason='" & VBA.Replace$(reasonText, "'", "''") & "' restoredPages=" & VBA.CStr(outRestoredPagesCount)
+    ex_Core.m_Diagnostic_LogError "snapshots:restore-runtime-state failed reason='" & VBA.Replace$(reasonText, "'", "''") & "' restoredPages=" & VBA.CStr(outRestoredPagesCount)
     GoTo Cleanup
 
 EH_RESTORE:
-    ex_Core.m_LogError "snapshots:restore-runtime-state exception reason='" & VBA.Replace$(reasonText, "'", "''") & "' err='" & VBA.Replace$(Err.Description, "'", "''") & "'"
+    ex_Core.m_Diagnostic_LogError "snapshots:restore-runtime-state exception reason='" & VBA.Replace$(reasonText, "'", "''") & "' err='" & VBA.Replace$(Err.Description, "'", "''") & "'"
     Resume Cleanup
 End Function
 
@@ -227,18 +227,18 @@ Private Function private_TryFallbackRestoreByResettingMainPage( _
             errDescription = Err.Description
             Err.Clear
             On Error GoTo 0
-            ex_Core.m_LogError "snapshots:restore-runtime-state fallback-main-reset failed reason='" & VBA.Replace$(reasonText, "'", "''") & "' err='" & VBA.Replace$(errDescription, "'", "''") & "'"
+            ex_Core.m_Diagnostic_LogError "snapshots:restore-runtime-state fallback-main-reset failed reason='" & VBA.Replace$(reasonText, "'", "''") & "' err='" & VBA.Replace$(errDescription, "'", "''") & "'"
             Exit Function
         End If
         On Error GoTo 0
-        ex_Core.m_LogError "snapshots:restore-runtime-state fallback-main-reset failed reason='" & VBA.Replace$(reasonText, "'", "''") & "' err='returned-false'"
+        ex_Core.m_Diagnostic_LogError "snapshots:restore-runtime-state fallback-main-reset failed reason='" & VBA.Replace$(reasonText, "'", "''") & "' err='returned-false'"
         Exit Function
     End If
     If Err.Number <> 0 Then
         errDescription = Err.Description
         Err.Clear
         On Error GoTo 0
-        ex_Core.m_LogError "snapshots:restore-runtime-state fallback-main-reset failed reason='" & VBA.Replace$(reasonText, "'", "''") & "' err='" & VBA.Replace$(errDescription, "'", "''") & "'"
+        ex_Core.m_Diagnostic_LogError "snapshots:restore-runtime-state fallback-main-reset failed reason='" & VBA.Replace$(reasonText, "'", "''") & "' err='" & VBA.Replace$(errDescription, "'", "''") & "'"
         Exit Function
     End If
     On Error GoTo 0
@@ -250,10 +250,10 @@ Private Function private_TryFallbackRestoreByResettingMainPage( _
     ' Даже если checkpoint сохранить не удалось, UI уже поднят и клики не должны "умирать".
     ' Ошибку логируем, чтобы можно было добить первопричину по core.log.
     If Not savePagesOk Or Not saveRuntimeOk Then
-        ex_Core.m_LogError "snapshots:restore-runtime-state fallback-checkpoint-failed reason='" & VBA.Replace$(reasonText, "'", "''") & "' savePages=" & VBA.CStr(savePagesOk) & " saveRuntime=" & VBA.CStr(saveRuntimeOk)
+        ex_Core.m_Diagnostic_LogError "snapshots:restore-runtime-state fallback-checkpoint-failed reason='" & VBA.Replace$(reasonText, "'", "''") & "' savePages=" & VBA.CStr(savePagesOk) & " saveRuntime=" & VBA.CStr(saveRuntimeOk)
     End If
 
-    ex_Core.m_LogInfo "snapshots:restore-runtime-state fallback-main-reset done reason='" & VBA.Replace$(reasonText, "'", "''") & "' restoredPages=" & VBA.CStr(outRestoredPagesCount)
+    ex_Core.m_Diagnostic_LogInfo "snapshots:restore-runtime-state fallback-main-reset done reason='" & VBA.Replace$(reasonText, "'", "''") & "' restoredPages=" & VBA.CStr(outRestoredPagesCount)
     private_TryFallbackRestoreByResettingMainPage = True
 End Function
 
@@ -436,7 +436,7 @@ Private Function private_TrySerializeRuntimeModuleSnapshot(ByVal moduleName As S
             private_TrySerializeRuntimeModuleSnapshot = rt_PageManager.m_TrySerializeModuleSnapshot(outSnapshotXml)
 
         Case Else
-            ex_Core.m_LogInfo "runtime-globals: serialize skipped for unknown module '" & moduleName & "'"
+            ex_Core.m_Diagnostic_LogInfo "runtime-globals: serialize skipped for unknown module '" & moduleName & "'"
             private_TrySerializeRuntimeModuleSnapshot = True
     End Select
 End Function
@@ -451,7 +451,7 @@ Private Function private_TryDeserializeRuntimeModuleSnapshot(ByVal moduleName As
             private_TryDeserializeRuntimeModuleSnapshot = rt_PageManager.m_TryDeserializeModuleSnapshot(snapshotXml)
 
         Case Else
-            ex_Core.m_LogInfo "runtime-globals: deserialize skipped for unknown module '" & moduleName & "'"
+            ex_Core.m_Diagnostic_LogInfo "runtime-globals: deserialize skipped for unknown module '" & moduleName & "'"
             private_TryDeserializeRuntimeModuleSnapshot = True
     End Select
 End Function
@@ -566,7 +566,7 @@ Private Function private_TrySaveSnapshotXmlCollection( _
     Dim payloadNode As Object
     Dim snapshotXml As String
 
-    If Not ex_CustomXmlPartStore.m_TryCreateEmptyDom(rootName, namespaceUri, dom) Then Exit Function
+    If Not ex_Core.m_CustomXmlPartStore_TryCreateEmptyDom(rootName, namespaceUri, dom) Then Exit Function
 
     Set rootNode = dom.DocumentElement
     If rootNode Is Nothing Then
@@ -590,8 +590,8 @@ ContinueSnapshot:
         Next item
     End If
 
-    If Not ex_CustomXmlPartStore.m_TryFindPartByNamespace(namespaceUri, partObj) Then Exit Function
-    If Not ex_CustomXmlPartStore.m_TrySaveDom(dom, partObj) Then Exit Function
+    If Not ex_Core.m_CustomXmlPartStore_TryFindPartByNamespace(namespaceUri, partObj) Then Exit Function
+    If Not ex_Core.m_CustomXmlPartStore_TrySaveDom(dom, partObj) Then Exit Function
 
     private_TrySaveSnapshotXmlCollection = True
 End Function
@@ -611,13 +611,13 @@ Private Function private_TryLoadSnapshotXmlCollection( _
 
     Set outSnapshots = New Collection
 
-    If Not ex_CustomXmlPartStore.m_TryFindPartByNamespace(namespaceUri, partObj) Then Exit Function
+    If Not ex_Core.m_CustomXmlPartStore_TryFindPartByNamespace(namespaceUri, partObj) Then Exit Function
     If partObj Is Nothing Then
         private_TryLoadSnapshotXmlCollection = True
         Exit Function
     End If
 
-    If Not ex_CustomXmlPartStore.m_TryLoadPartDom(partObj, dom) Then Exit Function
+    If Not ex_Core.m_CustomXmlPartStore_TryLoadPartDom(partObj, dom) Then Exit Function
 
     Set rootNode = dom.DocumentElement
     If rootNode Is Nothing Then

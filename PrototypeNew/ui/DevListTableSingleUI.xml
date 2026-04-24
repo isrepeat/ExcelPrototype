@@ -46,7 +46,7 @@
           spanRows="2"/>
 
         <list
-          itemsSource="RuntimeItems.Test.Tables"
+          itemsSource="{PageRuntimeSource='RuntimeItems.Test.Tables'}"
           itemsSourceTemplate="tableSingleItemTpl"
           orientation="vertical"
           spanCells="12"

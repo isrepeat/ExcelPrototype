@@ -48,7 +48,7 @@ Private Sub obj_IControl_Configure(ByVal page As obj_PageBase, ByVal controlNode
 
     Set currentPage = m_Base.PageBase
     If currentPage Is Nothing Then Exit Sub
-    If Not currentPage.RuntimeSources.TryResolveItemsSource(m_ItemsSourceRaw, m_ConfigItems) Then Exit Sub
+    If Not ex_RuntimeSourceResolver.m_TryResolveItemsSource(currentPage.RuntimeSources, m_ItemsSourceRaw, m_ConfigItems) Then Exit Sub
 
     m_IsConfigured = True
 End Sub

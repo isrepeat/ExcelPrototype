@@ -37,7 +37,7 @@
         <control
           type="TableTpl"
           name="default"
-          itemsSource="RuntimeItems.Test.Tables"
+          itemsSource="{PageRuntimeSource='RuntimeItems.Test.Tables'}"
           spanCells="12"
           spanRows="260"/>
       </stackPanel>

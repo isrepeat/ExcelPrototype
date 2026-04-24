@@ -33,6 +33,19 @@ Run:
 
 This resets workbook sheets, creates `Main` page and renders it via `rt_PageManager`.
 
+## Settings.xml (XML flags)
+- External file: `Settings.xml` рядом с `.xlsm` (папка `ThisWorkbook.Path`).
+- Если файла нет, `ex_Core.m_Settings_*` автоматически создает шаблон `Settings.xml`.
+- Current flag:
+  - `<EnableLogging>true|false</EnableLogging>`
+- Cache:
+  - используется file-cache в `ex_Core` (кэш текста + `DateLastModified`).
+  - `GlobalRuntimeSource='settings'` резолвится в snapshot-объект настроек через `ex_Core.m_Settings_TryGetObjectSource`.
+  - при изменении даты файла `Settings.xml` перечитывается автоматически.
+- Если запрошенного флага нет в `Settings.xml`, он автоматически добавляется со значением по умолчанию.
+- Main page button:
+  - `Toggle Logging` переключает `EnableLogging` в `Settings.xml`.
+
 ## Роутинг Кнопок И Обновление Модулей
 
 ### Почему роуты это runtime-состояние
@@ -59,14 +72,14 @@ This resets workbook sheets, creates `Main` page and renders it via `rt_PageMana
 
 ### Почему роуты могут "сломаться" после реимпорта модулей
 
-Обновление модулей (`ex_Core.dev_Update*`) делает реимпорт VBA-модулей/классов. Для стандартных модулей и классов это фактически remove + add.
+Обновление модулей (`ex_Core.m_Dev_Update*`) делает реимпорт VBA-модулей/классов. Для стандартных модулей и классов это фактически remove + add.
 Если обновление прошло без перерендера страницы, runtime-таблицы роутера могут остаться привязанными к старому VM/runtime-контексту.
 Итог: клики по кнопкам могут перестать работать до ручного перерендера, который пересоберет роуты.
 
 ### Стратегии обновления: от простой к надежной
 
 1. Прямой вызов обновления в том же call stack
-	- Пример: вызывать `ex_Core.dev_UpdateCodeByDate` напрямую из кнопки UI.
+	- Пример: вызывать `ex_Core.m_Dev_UpdateCodeByDate` напрямую из кнопки UI.
 	- Плюсы: самая простая реализация.
 	- Минусы: нет гарантированной пересборки роутов; обработчики могут устареть до следующего рендера.
 
@@ -89,7 +102,7 @@ This resets workbook sheets, creates `Main` page and renders it via `rt_PageMana
 
 ### Текущее правило проекта
 
-Для UI-триггеров обновления кода использовать `rt_CoreActions`, а не прямой вызов `ex_Core.dev_Update*` из кнопок.
+Для UI-триггеров обновления кода использовать `rt_CoreActions`, а не прямой вызов `ex_Core.m_Dev_Update*` из кнопок.
 Так гарантируется, что после update всегда будет rerender, и роуты кнопок будут пересобраны.
 
 ### Flow обновления: новый `.xlsm`, только `ex_Core`
@@ -97,7 +110,7 @@ This resets workbook sheets, creates `Main` page and renders it via `rt_PageMana
 Сценарий: открыт новый файл, в VBA пока добавлен только `ex_Core`, остальные runtime-модули еще не импортированы.
 
 ```text
-[Запуск macro: ex_Core.dev_UpdateAllModules]
+[Запуск macro: ex_Core.m_Dev_UpdateAllModules]
         |
         v
 private_TryQueueRuntimeUpdateWhenBridgeDispatch("full")
@@ -140,7 +153,7 @@ private_TryRecoverUiAfterUpdate(...)
 ```
 
 ## DevTools Import Rules
-`DevTools.dev_UpdateCodeByDate` scans only root `vba\` and imports recursively (max depth `4`).
+`ex_Core.m_Dev_UpdateCodeByDate` scans only root `vba\` and imports recursively (max depth `4`).
 
 File classification is name-based (not folder-based):
 - standard module: `ex_<Name>.vba` or `ex_<Name>.utf8.vba`
@@ -238,12 +251,20 @@ Call pageBase.RuntimeSources.SetObjectSource("RuntimeObjects.Test.Banner", banne
 <control type="Button"
          onClick="{Binding Module=ex_Test;Method=m_TEST_RenderDevUI}"/>
 
-<itemControl objectSource="RuntimeObjects.Test.Banner"
+<itemControl objectSource="{PageRuntimeSource='RuntimeObjects.Test.Banner'}"
              objectSourceTemplate="bannerObjectTpl"/>
 
 <control type="TableList"
-         itemsSource="RuntimeItems.Test.Tables"
+         itemsSource="{PageRuntimeSource='RuntimeItems.Test.Tables'}"
          itemVisibility="{Binding Path=RowCount; Op=gt; Value=3; TrueAs=Visible; FalseAs=Collapsed}"/>
+
+<control type="TableList"
+         itemsSource="{PageRuntimeSource='RuntimeItems.Test.Tables'}"/>
+
+<control type="Button"
+         dataContext="{GlobalRuntimeSource='settings'}"
+         caption="{Binding Path=EnableLogging;TrueAs=Disable Logging;FalseAs=Enable Logging}"
+         onClick="{Binding Module=ex_Core;Method=m_Dev_ToggleLogging}"/>
 
 <control type="Label"
          text="{Binding Path=Rows.1.CellCount}"/>
@@ -318,12 +339,16 @@ Call pageBase.RuntimeSources.SetObjectSource("RuntimeObjects.Test.Banner", banne
 	- `obj_Row`
 		- row cell container (`m_AddCell`, `m_SetCell`, `m_GetCell`).
 
-- `obj_PageRuntimeSources` (owned by each `obj_PageBase`)
-	- page-local runtime source registry for `itemsSource` / `objectSource`.
-	- `SetItemsSource(key, itemsCollection)` registers list data for key-based `itemsSource`.
-	- `SetObjectSource(key, sourceObject)` registers data for key-based `objectSource`.
-	- `ResetItemsSources()` / `ResetObjectSources()` clear runtime maps.
-	- `TryResolveItemsSource()` / `TryResolveObjectSource()` resolve binding/key lookups against page-local maps.
+	- `obj_PageRuntimeSources` (owned by each `obj_PageBase`)
+		- page-local runtime source registry for `itemsSource` / `objectSource`.
+		- `SetItemsSource(key, itemsCollection)` registers list data for key-based `itemsSource`.
+		- `SetObjectSource(key, sourceObject)` registers data for key-based `objectSource`.
+		- `ResetItemsSources()` / `ResetObjectSources()` clear runtime maps.
+		- `TryResolveItemsSource()` / `TryResolveObjectSource()` resolve binding/key lookups against page-local maps.
+		- source text can be:
+			- explicit runtime-source expression, e.g. `{PageRuntimeSource='RuntimeItems.Test.Tables'}`
+			- explicit global runtime-source expression, e.g. `{GlobalRuntimeSource='settings'}`
+			- binding expression that resolves directly to object/collection, e.g. `{Binding Path=.}` or `{Binding Path=Rows}`
 
 - `ex_XmlLayoutEngine.m_RenderTemplateChildren(wb, ws, templateControlNode, depth, layoutRowStart, layoutColStart, layoutRowEnd, layoutColEnd)`
 	- recursively renders composite controls declared inside control templates.

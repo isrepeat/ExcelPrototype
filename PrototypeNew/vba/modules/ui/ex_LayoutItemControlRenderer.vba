@@ -41,7 +41,11 @@ Public Function m_Render( _
         Exit Function
     End If
 
-    If Not pageBase.RuntimeSources.TryResolveObjectSource( _
+    ' objectSource для itemControl резолвится через общий resolver:
+    ' - runtime source expression ({PageRuntimeSource/...}, {GlobalRuntimeSource/...})
+    ' - либо Binding, который должен вернуть Object.
+    If Not ex_RuntimeSourceResolver.m_TryResolveObjectSource( _
+        pageBase.RuntimeSources, _
         ex_XmlCore.m_NodeAttrText(layoutNode, "objectSource"), _
         sourceObject, _
         True) Then Exit Function
@@ -84,7 +88,7 @@ Public Function m_TryMeasureContentSpan( _
     ByVal itemControlNode As Object, _
     ByRef outSpanRows As Long, _
     ByRef outSpanCols As Long, _
-    Optional ByVal bindingSource As Object _
+    Optional ByVal dataContext As Object _
 ) As Boolean
     Dim sourceObject As Object
     Dim templateRoot As Object
@@ -98,7 +102,7 @@ Public Function m_TryMeasureContentSpan( _
     If Not private_TryResolveObjectSourceForMeasure( _
         renderCtx, _
         ex_XmlCore.m_NodeAttrText(itemControlNode, "objectSource"), _
-        bindingSource, _
+        dataContext, _
         sourceObject) Then Exit Function
 
     If sourceObject Is Nothing Then
@@ -220,7 +224,7 @@ End Sub
 
 Private Function private_ApplyNodeBindingsRecursive( _
     ByVal rootNode As Object, _
-    ByVal bindingSource As Object, _
+    ByVal dataContext As Object, _
     ByVal renderCtx As obj_LayoutRenderContext _
 ) As Boolean
     Dim attrs As Object
@@ -255,7 +259,7 @@ Private Function private_ApplyNodeBindingsRecursive( _
             If VBA.InStr(1, rawText, "{Binding ", VBA.vbTextCompare) = 0 Then GoTo ContinueAttr
 
             If VBA.StrComp(VBA.LCase$(attrName), "visibility", VBA.vbBinaryCompare) = 0 Then
-                If Not ex_BindingRuntime.m_TryResolveVisibilityBinding(rawText, bindingSource, resolvedVisible) Then Exit Function
+                If Not ex_BindingRuntime.m_TryResolveVisibilityBinding(rawText, dataContext, resolvedVisible) Then Exit Function
                 If resolvedVisible Then
                     rootNode.setAttribute attrName, "true"
                 Else
@@ -264,7 +268,10 @@ Private Function private_ApplyNodeBindingsRecursive( _
                 GoTo ContinueAttr
             End If
 
-            If Not ex_BindingRuntime.m_TryResolveValueBinding(rawText, bindingSource, resolvedValue) Then Exit Function
+            ' Здесь binding применяется к текущему dataContext итема.
+            ' Для object-результата мы не оставляем сырой объект в XML-атрибуте,
+            ' а регистрируем его в RuntimeSources и подставляем ключ.
+            If Not ex_BindingRuntime.m_TryResolveValueBinding(rawText, dataContext, resolvedValue) Then Exit Function
 
             If VBA.IsObject(resolvedValue) Then
                 rootNodeName = VBA.LCase$(VBA.CStr(rootNode.baseName))
@@ -290,6 +297,7 @@ Private Function private_ApplyNodeBindingsRecursive( _
 
                     runtimeListSourceKey = private_RegisterRuntimeListItemsSourceKey(runtimeItems, renderCtx)
                     If VBA.Len(runtimeListSourceKey) = 0 Then Exit Function
+                    ' После этого itemsSource проходит обычный путь через RuntimeSourceResolver.
                     rootNode.setAttribute attrName, runtimeListSourceKey
                 ElseIf VBA.StrComp(VBA.LCase$(attrName), "objectsource", VBA.vbBinaryCompare) = 0 And _
                        VBA.StrComp(rootNodeName, "itemcontrol", VBA.vbBinaryCompare) = 0 Then
@@ -300,6 +308,7 @@ Private Function private_ApplyNodeBindingsRecursive( _
                     Else
                         runtimeObjectSourceKey = private_RegisterRuntimeObjectSourceKey(resolvedObject, renderCtx)
                         If VBA.Len(runtimeObjectSourceKey) = 0 Then Exit Function
+                        ' objectSource также преобразуем в runtime key вместо прямой object-ссылки.
                         rootNode.setAttribute attrName, runtimeObjectSourceKey
                     End If
                 Else
@@ -316,7 +325,7 @@ ContinueAttr:
 
     For Each childNode In rootNode.ChildNodes
         If childNode.NodeType <> 1 Then GoTo ContinueChild
-        If Not private_ApplyNodeBindingsRecursive(childNode, bindingSource, renderCtx) Then Exit Function
+        If Not private_ApplyNodeBindingsRecursive(childNode, dataContext, renderCtx) Then Exit Function
 ContinueChild:
     Next childNode
 
@@ -368,7 +377,7 @@ End Function
 Private Function private_TryResolveObjectSourceForMeasure( _
     ByVal renderCtx As obj_LayoutRenderContext, _
     ByVal rawObjectSource As String, _
-    ByVal bindingSource As Object, _
+    ByVal dataContext As Object, _
     ByRef outObject As Object _
 ) As Boolean
     Dim pageBase As obj_PageBase
@@ -382,12 +391,13 @@ Private Function private_TryResolveObjectSourceForMeasure( _
     End If
 
     If private_IsBindingExpression(sourceText) Then
-        If bindingSource Is Nothing Then
+        If dataContext Is Nothing Then
             VBA.MsgBox "PrototypeNew: itemControl objectSource binding requires item context during layout measurement.", VBA.vbExclamation
             Exit Function
         End If
 
-        If Not ex_BindingRuntime.m_TryResolveValueBinding(sourceText, bindingSource, resolvedValue) Then Exit Function
+        ' На этапе measure binding тоже должен быть вычислен, иначе span будет неточным.
+        If Not ex_BindingRuntime.m_TryResolveValueBinding(sourceText, dataContext, resolvedValue) Then Exit Function
 
         If VBA.IsObject(resolvedValue) Then
             Set outObject = resolvedValue
@@ -414,7 +424,8 @@ Private Function private_TryResolveObjectSourceForMeasure( _
         Exit Function
     End If
 
-    If Not pageBase.RuntimeSources.TryResolveObjectSource(sourceText, outObject, True) Then Exit Function
+    ' Если это не binding-объект, резолвим source текст тем же путем, что и в render.
+    If Not ex_RuntimeSourceResolver.m_TryResolveObjectSource(pageBase.RuntimeSources, sourceText, outObject, True) Then Exit Function
     private_TryResolveObjectSourceForMeasure = True
 End Function
 

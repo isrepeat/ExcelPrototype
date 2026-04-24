@@ -67,7 +67,7 @@ Public Sub m_ShowStatusBar(ByVal messageText As String, Optional ByVal timeoutSe
 EH_SCHEDULE:
     g_ScheduledHideAt = 0#
     g_ScheduledHideMacro = VBA.vbNullString
-    g_StatusBarMessage = "Error: Не удалось запланировать скрытие строки статуса: " & Err.Description
+    g_StatusBarMessage = "Error: Failed to schedule status bar hide: " & Err.Description
     private_ApplyNativeStatusBar
     private_LogStatusBarMessage "schedule-failed", g_StatusBarMessage
 End Sub
@@ -131,7 +131,7 @@ Private Sub private_LogStatusBarMessage( _
     Optional ByVal timeoutSeconds As Long = 0 _
 )
     On Error Resume Next
-    ex_Core.m_LogStatusBarMessage actionName, messageText, timeoutSeconds
+    ex_Core.m_Diagnostic_LogStatusBarMessage actionName, messageText, timeoutSeconds
     Err.Clear
     On Error GoTo 0
 End Sub

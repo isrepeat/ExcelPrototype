@@ -102,6 +102,7 @@ Public Function m_Render( _
         colEnd
 
     ' Передаем итоговый runtime-узел в VM и запускаем render контрола.
+    ' На этом шаге VM читает dataContext/objectSource/itemsSource и запускает resolve через RuntimeSourceResolver.
     control.Configure pageBase, runtimeControlNode
     control.Render
 
@@ -154,6 +155,8 @@ Private Function private_LoadControlNodeFromControlUi( _
 
     ' Накладываем атрибуты из page layout на template control по контракту:
     ' только поддерживаемые control-атрибуты, без layout-атрибутов позиции.
+    ' Сюда попадают и source-атрибуты (dataContext/itemsSource/objectSource) как исходный текст.
+    ' Их фактическое разрешение происходит позже в VM в runtime-контексте страницы.
     If Not private_ApplyLayoutControlOverridesByContract( _
         private_LoadControlNodeFromControlUi, layoutControlNode, control, controlName, typeRoot) Then
         Set private_LoadControlNodeFromControlUi = Nothing

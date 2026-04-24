@@ -90,8 +90,8 @@ End Function
 
 
 ' Callstack[1]: ex_BindingRuntime.m_TryResolveVisibilityBinding -> ex_BindingRuntime.m_TryResolveValueBinding
-' Callstack[2]: obj_PageRuntimeSources.TryResolveItemsSource -> ex_BindingRuntime.m_TryResolveValueBinding
-' Callstack[3]: obj_PageRuntimeSources.TryResolveObjectSource -> ex_BindingRuntime.m_TryResolveValueBinding
+' Callstack[2]: ex_RuntimeSourceResolver.m_TryResolveItemsSource -> ex_BindingRuntime.m_TryResolveValueBinding
+' Callstack[3]: ex_RuntimeSourceResolver.m_TryResolveObjectSource -> ex_BindingRuntime.m_TryResolveValueBinding
 ' Callstack[4]: ex_LayoutListRenderer.private_ApplyNodeBindingsRecursive -> ex_BindingRuntime.m_TryResolveValueBinding
 ' Callstack[5]: ex_LayoutListRenderer.private_TryResolveItemsSourceForMeasure -> ex_BindingRuntime.m_TryResolveValueBinding
 ' Callstack[6]: ex_LayoutItemControlRenderer.private_ApplyNodeBindingsRecursive -> ex_BindingRuntime.m_TryResolveValueBinding

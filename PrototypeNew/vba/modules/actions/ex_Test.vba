@@ -20,7 +20,7 @@ End Sub
 
 Public Sub m_TEST_UpdateCurrentPage()
     If Not ex_HelpersSheet.m_TryRerenderActivePage("manual:update-sheet") Then
-        rt_Messaging.m_ShowStatusBarWarning "Нет контекста отрисованной страницы для обновления.", 5
+        rt_Messaging.m_ShowStatusBarWarning "No rendered page context is available for update.", 5
     End If
 End Sub
 
