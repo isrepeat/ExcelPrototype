@@ -1,0 +1,45 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<page xmlns="urn:excelprototype:profiles" version="1">
+  <styles>
+    <controlStyle
+      name="actionWarning"
+      backColor="#ED7D31"
+      textColor="#0A0A0A"
+      borderColor="#A84912"
+      borderWeight="1.25"
+      fontName="Calibri"
+      fontSize="11"
+      fontBold="true"/>
+
+    <stylePipelineStage name="default" enabled="true">
+      <layer name="sheet-base" enabled="true">
+        <rule target="sheet"
+              styles="{
+                backColor:#1F1F1F;
+                fontColor:#EAEAEA;
+                borderColor:#000000;
+                borderWeight:thin;
+              }"/>
+      </layer>
+    </stylePipelineStage>
+  </styles>
+    <grid anchorCell="A1">
+      <stackPanel at="r2c2" orientation="vertical">
+        <control
+          type="Button"
+          name="BackToDev"
+          caption="Back To Dev UI"
+          style="actionWarning"
+          onClick="{Binding Module=ex_Test;Method=m_TEST_RenderDevUI}"
+          spanCells="4"
+          spanRows="2"/>
+
+        <control
+          type="TableTpl"
+          name="default"
+          itemsSource="{PageRuntimeSource='RuntimeItems.Test.Tables'}"
+          spanCells="12"
+          spanRows="260"/>
+      </stackPanel>
+    </grid>
+</page>

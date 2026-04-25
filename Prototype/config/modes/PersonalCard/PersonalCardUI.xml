@@ -2,9 +2,9 @@
 <uiDefinition xmlns="urn:excelprototype:profiles" version="2">
   <dataSources>
     <itemsSource name="panel.exportInsertMode"
-                 uri="config\modes\PersonalCard\DropDownItems.xml#panel.exportInsertMode"/>
+                 uri="config\modes\PersonalCard\DropDownItems.xml#xpath=/dropdownItems/list[@name='panel.exportInsertMode']"/>
     <itemsSource name="panel.validationMode"
-                 uri="config\modes\PersonalCard\DropDownItems.xml#panel.validationMode"/>
+                 uri="config\modes\PersonalCard\DropDownItems.xml#xpath=/dropdownItems/list[@name='panel.validationMode']"/>
   </dataSources>
 
   <styles>
@@ -160,7 +160,7 @@
                    selectedItem="AppendToTop"
                    itemStyle="panelDropdownOption"
                    itemMarginLeft="0"
-                   itemFirstGap="2"
+                   itemFirstGap="0"
                    itemGap="2"
                    itemHeight="16"
                    itemMatchWidth="true"
@@ -177,7 +177,7 @@
                    selectedItem="Enabled"
                    itemStyle="panelDropdownOption"
                    itemMarginLeft="0"
-                   itemFirstGap="2"
+                   itemFirstGap="0"
                    itemGap="2"
                    itemHeight="16"
                    itemMatchWidth="true"

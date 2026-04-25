@@ -1,0 +1,253 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<page xmlns="urn:excelprototype:profiles" version="1">
+  <styles>
+    <controlStyle
+      name="actionWarning"
+      backColor="#ED7D31"
+      textColor="#0A0A0A"
+      borderColor="#A84912"
+      borderWeight="1.25"
+      fontName="Calibri"
+      fontSize="11"
+      fontBold="false"/>
+
+    <controlStyle
+      name="configSelectHeader"
+      backColor="#438E20"
+      textColor="#0A0A0A"
+      borderColor="#285D14"
+      borderWeight="1"
+      fontName="Calibri"
+      fontSize="11"
+      fontBold="false"/>
+
+    <controlStyle
+      name="configSelectPanel"
+      backColor="#2B3138"
+      textColor="#F1F5F9"
+      borderColor="#1C2024"
+      borderWeight="0.75"
+      fontName="Calibri"
+      fontSize="10"
+      fontBold="false"/>
+
+    <controlStyle
+      name="configSelectItem"
+      backColor="#3B424A"
+      textColor="#F8FAFC"
+      borderColor="#282D32"
+      borderWeight="0.75"
+      fontName="Calibri"
+      fontSize="10"
+      fontBold="false"/>
+
+    <stylePipelineStage name="default" enabled="true">
+      <layer name="dark-base" enabled="true">
+        <rule target="sheet"
+              styles="{ 
+                backColor:#262626;
+                fontColor:#EBEBEB;
+                borderColor:#000000;
+                borderWeight:thin;
+              }"/>
+      </layer>
+
+      <layer name="dark-primary-action" enabled="true">
+        <rule target="range"
+              selector="address=B2:D3"
+              styles="{ 
+                backColor:#0F766E;
+                fontColor:#E6FFFA;
+                borderColor:#134E4A;
+                fontBold:true;
+              }"/>
+      </layer>
+
+      <layer name="config-parts" enabled="true">
+        <rule target="controlPart"
+              selector="type=config;part=attrhash"
+              styles="{
+                backColor:#3A3422;
+                fontColor:#FDE68A;
+                borderColor:#594F2D;
+                borderWeight:thin;
+                fontBold:true;
+              }"/>
+
+        <rule target="controlPart"
+              selector="type=config;part=attrrx"
+              styles="{
+                backColor:#1D3342;
+                fontColor:#BAE6FD;
+                borderColor:#2A4A5F;
+                borderWeight:thin;
+                fontBold:false;
+                fontItalic:true;
+              }"/>
+      </layer>
+    </stylePipelineStage>
+  </styles>
+    <grid anchorCell="A1">
+      <stackPanel at="r2c2" orientation="horizontal">
+          <stackPanel orientation="vertical">
+              <control
+                type="Button"
+                name="Open Table Part Styles UI"
+                caption="Open Table Part Styles Demo"
+                style="actionWarning"
+                onClick="{Binding Module=ex_Test;Method=m_TEST_RenderDevTablePartStylesUI}"
+                spanCells="3"
+                spanRows="2"
+                />
+              <control
+                type="Button"
+                name="Update UI"
+                caption="Open Table List Demo"
+                style="actionWarning"
+                onClick="{Binding Module=ex_Test;Method=m_TEST_RenderDevTableListUI}"
+                spanCells="3"
+                spanRows="2"
+                />
+              <!-- <control
+                type="Button"
+                name="Open Primitive Table UI"
+                caption="Open Primitive Table Demo"
+                style="actionWarning"
+                onClick="{Binding Module=ex_Test;Method=m_TEST_RenderDevPrimitiveTableUI}"
+                spanCells="3"
+                spanRows="2"
+                /> -->
+              <control
+                type="Button"
+                name="Open List TableSingle UI"
+                caption="Open List + TableSingle Demo"
+                style="actionWarning"
+                onClick="{Binding Module=ex_Test;Method=m_TEST_RenderDevListTableSingleUI}"
+                spanCells="3"
+                spanRows="2"
+                />
+              
+              <control
+                type="Button"
+                name="Update UI Single"
+                caption="Open Single Table Demo"
+                style="actionWarning"
+                onClick="{Binding Module=ex_Test;Method=m_TEST_RenderDevSingleTableUI}"
+                spanCells="3"
+                spanRows="2"
+                />
+              <!-- <control
+                type="Button"
+                name="Profile Table Render"
+                caption="Profile Table Render"
+                style="actionWarning"
+                onClick="{Binding Module=ex_Test;Method=m_TEST_ProfileDevTableListUI}"
+                spanCells="3"
+                spanRows="2"
+                />
+              <control
+                type="Button"
+                name="Fill Numbers Range"
+                caption="Fill L5:V28 Numbers"
+                style="actionWarning"
+                onClick="{Binding Module=ex_Test;Method=m_TEST_FillNumbersRangeSimple}"
+                spanCells="3"
+                spanRows="2"
+                /> -->
+            </stackPanel>
+      </stackPanel>
+
+      <stackPanel at="r2c8" orientation="vertical">
+        <control
+          type="Select"
+          name="ConfigProfilePicker"
+          itemsSource="{PageRuntimeSource='RuntimeItems.Test.ConfigProfiles'}"
+          selectedItem="RuntimeObjects.Test.SelectedConfigProfile"
+          placeholder="Choose profile"
+          style="configSelectHeader"
+          panelStyle="configSelectPanel"
+          itemStyle="configSelectItem"
+          itemHeight="18"
+          itemMargin="2"
+          spanCells="6"
+          spanRows="4"
+          />
+
+        <control
+          type="Config"
+          name="DevConfig"
+          itemsSource="{PageRuntimeSource='RuntimeItems.Test.Config'}"
+          tableName="cfgDevUi"
+          spanCells="10"
+          spanRows="24"
+          />
+      </stackPanel>
+
+      <stackPanel at="r2c24" orientation="vertical">
+        <control
+          type="Button"
+          name="OpenCoreModule"
+          caption="Open ex_Core"
+          style="actionWarning"
+          onClick="{Binding Module=ex_Core;Method=m_Dev_OpenCoreModule}"
+          spanCells="3"
+          spanRows="2"
+          />
+        <control
+          type="Button"
+          name="ToggleLogging"
+          dataContext="{GlobalRuntimeSource='Settings'}"
+          caption="{Binding Path=IsLoggingEnabled;TrueAs=Logging [On];FalseAs=Logging [Off]}"
+          style="actionWarning"
+          onClick="{Binding Module=ex_Core;Method=m_Dev_ToggleLogging}"
+          spanCells="3"
+          spanRows="2"
+          />
+        <control
+          type="Button"
+          name="RemoveAllModules"
+          caption="Remove All Modules"
+          style="actionWarning"
+          onClick="{Binding Module=ex_Core;Method=m_Dev_RemoveAllModulesAndClasses}"
+          spanCells="3"
+          spanRows="2"
+          />
+        <control
+          type="Button"
+          name="UpdateSheet"
+          caption="Update Sheet"
+          style="actionWarning"
+          onClick="{Binding Module=ex_Test;Method=m_TEST_UpdateCurrentPage}"
+          spanCells="3"
+          spanRows="2"
+          />
+        <control
+          type="Button"
+          name="UpdateCodeSize"
+          caption="Update Code Size"
+          style="actionWarning"
+          onClick="{Binding Module=ex_Core;Method=m_Dev_UpdateCodeBySize}"
+          spanCells="3"
+          spanRows="2"
+          />
+        <control
+          type="Button"
+          name="UpdateCodeDate"
+          caption="Update Code Date"
+          style="actionWarning"
+          onClick="{Binding Module=ex_Core;Method=m_Dev_UpdateCodeByDate}"
+          spanCells="3"
+          spanRows="2"
+          />
+        <control
+          type="Button"
+          name="UpdateCodeFull"
+          caption="Update Code Full"
+          style="actionWarning"
+          onClick="{Binding Module=ex_Core;Method=m_Dev_UpdateAllModules}"
+          spanCells="3"
+          spanRows="2"
+          />
+      </stackPanel>
+    </grid>
+</page>

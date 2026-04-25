@@ -3,7 +3,7 @@
   <list name="profiles.main">
     <item key="Default"
           caption="Default"
-          setContext="activeProfile=Default"/>
+/>
   </list>
 
   <list name="panel.exportInsertMode">
