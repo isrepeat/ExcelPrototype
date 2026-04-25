@@ -1313,17 +1313,49 @@ Public Sub m_UpdateManualNumberingWholeDocument()
         Exit Sub
     End If
 
+    Dim hasSelectionScope As Boolean
+    Dim scopeStart As Long
+    Dim scopeEnd As Long
+
+    If Not Selection Is Nothing Then
+        If Selection.Range.End > Selection.Range.Start Then
+            If Selection.Range.StoryType <> wdMainTextStory Then
+                MsgBox "Selected text is not in the main document body." & vbCrLf & _
+                       "Select a range in the main text or clear selection to process the whole document.", _
+                       vbExclamation, "Numbering Update"
+                Exit Sub
+            End If
+
+            hasSelectionScope = True
+            scopeStart = Selection.Range.Start
+            scopeEnd = Selection.Range.End
+        End If
+    End If
+
     Dim undoStarted As Boolean
     mp_BeginUndoGroup "Numbering Update", undoStarted
     On Error GoTo FailRenumber
 
     Dim changedCount As Long
-    changedCount = mp_UpdateManualNumberingWholeDocumentInternal(ActiveDocument)
+    changedCount = mp_UpdateManualNumberingWholeDocumentInternal( _
+        ActiveDocument, _
+        hasSelectionScope, _
+        scopeStart, _
+        scopeEnd, _
+        hasSelectionScope)
 
     If changedCount = 0 Then
-        mp_SetStatusBarMessage "Numbering is already up to date, or no manual items were found."
+        If hasSelectionScope Then
+            mp_SetStatusBarMessage "Numbering in selection is already up to date, or no manual items were found."
+        Else
+            mp_SetStatusBarMessage "Numbering is already up to date, or no manual items were found."
+        End If
     Else
-        mp_SetStatusBarMessage "Numbering update: items fixed: " & changedCount
+        If hasSelectionScope Then
+            mp_SetStatusBarMessage "Numbering update in selection: items fixed: " & changedCount
+        Else
+            mp_SetStatusBarMessage "Numbering update: items fixed: " & changedCount
+        End If
     End If
 
 Finalize:
@@ -1335,7 +1367,12 @@ FailRenumber:
     MsgBox "Numbering update error: " & Err.Description, vbExclamation, "Numbering Update"
 End Sub
 
-Private Function mp_UpdateManualNumberingWholeDocumentInternal(ByVal doc As Document) As Long
+Private Function mp_UpdateManualNumberingWholeDocumentInternal( _
+    ByVal doc As Document, _
+    Optional ByVal limitToRange As Boolean = False, _
+    Optional ByVal scopeStart As Long = 0, _
+    Optional ByVal scopeEnd As Long = 0, _
+    Optional ByVal useFirstInScopeAsAnchor As Boolean = False) As Long
     Dim mainStory As Range
     Set mainStory = doc.StoryRanges(wdMainTextStory)
     If mainStory Is Nothing Then Exit Function
@@ -1367,6 +1404,10 @@ Private Function mp_UpdateManualNumberingWholeDocumentInternal(ByVal doc As Docu
     Dim tailText As String
 
     For Each p In mainStory.Paragraphs
+        If limitToRange Then
+            If Not mp_ParagraphIntersectsRange(p.Range, scopeStart, scopeEnd) Then GoTo ContinueCollectLoop
+        End If
+
         If mp_IsPositionInProtectedBounds(p.Range.Start, templateBounds) Then GoTo ContinueCollectLoop
 
         bodyText = vbNullString
@@ -1426,14 +1467,20 @@ ContinueCollectLoop:
             currentItem("replace") = False
             hasState = True
         ElseIf Not hasState Then
-            mp_EnsureNumberStateCapacity state, currentLevel
-            For j = 1 To currentLevel
-                state(j) = 1
-            Next j
+            If useFirstInScopeAsAnchor And mp_TrySetNumberingStateFromPath(state, CStr(currentItem("path")), currentLevel) Then
+                currentItem("new_path") = CStr(currentItem("path"))
+                currentItem("replace") = False
+            Else
+                mp_EnsureNumberStateCapacity state, currentLevel
+                For j = 1 To currentLevel
+                    state(j) = 1
+                Next j
 
-            newPath = mp_BuildNumberPath(state, currentLevel)
-            currentItem("new_path") = newPath
-            currentItem("replace") = (StrComp(newPath, CStr(currentItem("path")), vbBinaryCompare) <> 0)
+                newPath = mp_BuildNumberPath(state, currentLevel)
+                currentItem("new_path") = newPath
+                currentItem("replace") = (StrComp(newPath, CStr(currentItem("path")), vbBinaryCompare) <> 0)
+            End If
+
             hasState = True
         Else
             mp_AdvanceNumberingState state, prevLevel, currentLevel
@@ -1463,6 +1510,13 @@ ContinueStateLoop:
 
 ContinueApplyLoop:
     Next i
+End Function
+
+Private Function mp_ParagraphIntersectsRange(ByVal paragraphRange As Range, ByVal scopeStart As Long, ByVal scopeEnd As Long) As Boolean
+    If paragraphRange Is Nothing Then Exit Function
+    If scopeEnd <= scopeStart Then Exit Function
+
+    mp_ParagraphIntersectsRange = (paragraphRange.End > scopeStart And paragraphRange.Start < scopeEnd)
 End Function
 
 Private Function mp_TrySetNumberingStateFromPath(ByRef values() As Long, ByVal numberPath As String, ByVal level As Long) As Boolean

@@ -4,6 +4,6 @@
     <item key="Default"
           caption="Default"
           default="true"
-          setContext="activeProfile=Default"/>
+/>
   </list>
 </dropdownItems>

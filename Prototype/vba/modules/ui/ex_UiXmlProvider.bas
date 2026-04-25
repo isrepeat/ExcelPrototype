@@ -4,7 +4,10 @@ Option Explicit
 Private Const PROFILES_NS As String = "urn:excelprototype:profiles"
 Private Const DEV_UI_CONFIG_REL_PATH As String = "config\DevUI.xml"
 Private Const DROPDOWN_CONTEXT_PROP_PREFIX As String = "Settings.DropdownContext."
+Private Const STATE_ACTIVE_MODE_PROP As String = "Settings.ActiveMode"
 Private Const STATE_ACTIVE_MODE_KEY_PROP As String = "Settings.ActiveModeKey"
+Private Const STATE_ACTIVE_PROFILE_PROP As String = "Settings.ActiveProfile"
+Private Const CONFIG_BINDING_PROP_PREFIX As String = "Settings.ConfigBinding."
 Private Const DEBUG_LOG_PATH As String = "Logs\layout_engine.log"
 Private Const DEBUG_LOG_ENABLED As Boolean = True
 
@@ -15,8 +18,8 @@ Public Const DROPDOWN_ITEM_COL_SET_CONTEXT As Long = 4
 Public Const DROPDOWN_ITEM_COL_ACTION_KEY As Long = 5
 Public Const DROPDOWN_ITEM_COL_MACRO As Long = 6
 
-Private Const MODE_LIST_CONTROL As String = "btnCustomMode"
-Private Const PROFILE_LIST_CONTROL As String = "btnCustomProfile"
+Private Const MODES_SOURCE_NAME As String = "modesMain"
+Private Const PROFILE_SELECTION_CHANGED_MACRO As String = "ex_UIActions.m_OnProfileOptionSelected"
 Private Const PROFILES_FILE_SOURCE_NAME As String = "profilesFileByMode"
 
 Private g_DevUiDomCache As Object
@@ -26,6 +29,7 @@ Private g_SourceUriRecordsCache As Object
 Private g_SourceUriRecordsStampCache As Object
 Private g_SourceUriDefaultKeyCache As Object
 Private g_SourceUriDefaultKeyStampCache As Object
+Private g_ConfigBindingApplyInProgress As Boolean
 
 Public Function m_GetDropdownItemsByName(ByVal controlName As String, Optional ByVal wb As Workbook, Optional ByVal modeKey As String = vbNullString) As Variant
     Dim doc As Object
@@ -93,6 +97,21 @@ Public Function m_GetDropdownItemRecordsByControl(ByVal controlName As String, O
     If controlNode Is Nothing Then Exit Function
 
     m_GetDropdownItemRecordsByControl = mp_GetDropdownItemRecordsFromControlNode(controlNode, wb, modeKey, doc)
+End Function
+
+Public Function m_GetDropdownItemRecordsBySourceName(ByVal sourceName As String, Optional ByVal wb As Workbook, Optional ByVal modeKey As String = vbNullString) As Variant
+    Dim doc As Object
+
+    sourceName = Trim$(sourceName)
+    If Len(sourceName) = 0 Then Exit Function
+
+    If wb Is Nothing Then Set wb = ThisWorkbook
+    If wb Is Nothing Then Exit Function
+
+    Set doc = mp_LoadDevUiDom(wb)
+    If doc Is Nothing Then Exit Function
+
+    m_GetDropdownItemRecordsBySourceName = mp_GetDropdownItemRecordsByItemsSource(doc, sourceName, wb, modeKey)
 End Function
 
 Public Function m_GetDropdownItemRecordsFromControlNode(ByVal controlNode As Object, Optional ByVal wb As Workbook, Optional ByVal modeKey As String = vbNullString, Optional ByVal doc As Object = Nothing) As Variant
@@ -183,8 +202,6 @@ End Function
 
 Public Function m_GetDefaultModeKey(Optional ByVal wb As Workbook) As String
     Dim doc As Object
-    Dim controlNode As Object
-    Dim sourceName As String
     Dim sourceUri As String
     Dim defaultModeKey As String
 
@@ -194,18 +211,10 @@ Public Function m_GetDefaultModeKey(Optional ByVal wb As Workbook) As String
     Set doc = mp_LoadDevUiDom(wb)
     If doc Is Nothing Then Exit Function
 
-    Set controlNode = mp_GetControlNode(doc, MODE_LIST_CONTROL)
-    If controlNode Is Nothing Then Exit Function
-
-    sourceUri = mp_ResolveControlSourceUri(controlNode, wb, vbNullString)
-    If Len(sourceUri) = 0 Then
-        sourceName = Trim$(ex_XmlCore.m_NodeAttrText(controlNode, "itemsSource"))
-        If Len(sourceName) = 0 Then Exit Function
-        sourceUri = mp_ResolveItemsSourceUriByName(doc, sourceName, wb, vbNullString)
-    End If
+    sourceUri = mp_ResolveItemsSourceUriByName(doc, MODES_SOURCE_NAME, wb, vbNullString)
     If Len(sourceUri) = 0 Then Exit Function
 
-    If Not mp_TryGetDefaultDropdownItemKeyBySourceUri(sourceUri, wb, defaultModeKey, MODE_LIST_CONTROL) Then
+    If Not mp_TryGetDefaultDropdownItemKeyBySourceUri(sourceUri, wb, defaultModeKey, MODES_SOURCE_NAME) Then
         Exit Function
     End If
 
@@ -226,7 +235,7 @@ Public Function m_GetModeKeyByIndex(ByVal modeIndex As Long, Optional ByVal wb A
     If wb Is Nothing Then Set wb = ThisWorkbook
     If wb Is Nothing Then Exit Function
 
-    modeRecords = m_GetDropdownItemRecordsByControl(MODE_LIST_CONTROL, wb)
+    modeRecords = m_GetDropdownItemRecordsBySourceName(MODES_SOURCE_NAME, wb)
     If Not mp_HasDropdownItemRecords(modeRecords) Then Exit Function
 
     rowStart = LBound(modeRecords, 1)
@@ -310,8 +319,12 @@ NextAssignment:
     Next assignment
 End Sub
 
-Public Function m_GetProfilesFilePathByMode(Optional ByVal modeKey As String = vbNullString, Optional ByVal wb As Workbook, Optional ByVal sourceName As String = PROFILES_FILE_SOURCE_NAME) As String
+Public Function m_GetProfilesFilePathByMode(Optional ByVal modeKey As String = vbNullString, Optional ByVal wb As Workbook, Optional ByVal sourceName As String = vbNullString) As String
     Dim doc As Object
+    Dim profileDataTemplate As String
+    Dim relPathTemplate As String
+    Dim resolvedRelPath As String
+    Dim hashPos As Long
     Dim sourceUri As String
 
     If wb Is Nothing Then Set wb = ThisWorkbook
@@ -319,6 +332,26 @@ Public Function m_GetProfilesFilePathByMode(Optional ByVal modeKey As String = v
 
     Set doc = mp_LoadDevUiDom(wb)
     If doc Is Nothing Then Exit Function
+
+    profileDataTemplate = Trim$(mp_GetFirstConfigControlAttributeValue(doc, "profileData"))
+    If Len(profileDataTemplate) > 0 Then
+        hashPos = InStr(1, profileDataTemplate, "#", vbBinaryCompare)
+        If hashPos > 1 Then
+            relPathTemplate = Left$(profileDataTemplate, hashPos - 1)
+        Else
+            relPathTemplate = profileDataTemplate
+        End If
+
+        resolvedRelPath = mp_ResolveTemplateValue(relPathTemplate, modeKey)
+        If Len(resolvedRelPath) > 0 Then
+            m_GetProfilesFilePathByMode = ex_XmlCore.m_CombineBasePath(wb, resolvedRelPath)
+            Exit Function
+        End If
+    End If
+
+    If Len(Trim$(sourceName)) = 0 Then
+        sourceName = PROFILES_FILE_SOURCE_NAME
+    End If
 
     sourceUri = mp_ResolveItemsSourceUriByName(doc, sourceName, wb, modeKey)
     If Len(sourceUri) = 0 Then Exit Function
@@ -403,6 +436,115 @@ Public Function m_GetControlAttribute(ByVal controlName As String, ByVal attrNam
     If controlNode Is Nothing Then Exit Function
 
     m_GetControlAttribute = Trim$(ex_XmlCore.m_NodeAttrText(controlNode, attrName))
+End Function
+
+Public Function m_GetControlNameBySelectionMacro(ByVal selectionChangedMacro As String, Optional ByVal wb As Workbook) As String
+    Dim doc As Object
+    Dim controlNode As Object
+
+    selectionChangedMacro = Trim$(selectionChangedMacro)
+    If Len(selectionChangedMacro) = 0 Then Exit Function
+
+    If wb Is Nothing Then Set wb = ThisWorkbook
+    If wb Is Nothing Then Exit Function
+
+    Set doc = mp_LoadDevUiDom(wb)
+    If doc Is Nothing Then Exit Function
+
+    Set controlNode = mp_GetControlNodeBySelectionMacro(doc, selectionChangedMacro)
+    If controlNode Is Nothing Then Exit Function
+
+    m_GetControlNameBySelectionMacro = Trim$(ex_XmlCore.m_NodeAttrText(controlNode, "name"))
+End Function
+
+Public Sub m_RefreshConfigBindings(Optional ByVal wb As Workbook)
+    Dim doc As Object
+    Dim configNodes As Object
+    Dim controlNode As Object
+    Dim attrMap As Object
+    Dim attrNode As Object
+    Dim controlName As String
+    Dim attrName As String
+    Dim attrValue As String
+    Dim resolvedValue As String
+    Dim previousValue As String
+    Dim activeModeValue As String
+    Dim activeProfileValue As String
+
+    If wb Is Nothing Then Set wb = ThisWorkbook
+    If wb Is Nothing Then Exit Sub
+
+    Set doc = mp_LoadDevUiDom(wb)
+    If doc Is Nothing Then Exit Sub
+
+    Set configNodes = doc.selectNodes("/p:uiDefinition/p:layout//p:control[translate(normalize-space(@type), 'ABCDEFGHIJKLMNOPQRSTUVWXYZ', 'abcdefghijklmnopqrstuvwxyz')='config']")
+    If configNodes Is Nothing Then Exit Sub
+    If configNodes.Length = 0 Then Exit Sub
+
+    activeModeValue = Trim$(mp_GetContextOrFallbackValue("activeMode"))
+    activeProfileValue = Trim$(mp_GetContextOrFallbackValue("activeProfile"))
+
+    For Each controlNode In configNodes
+        controlName = Trim$(ex_XmlCore.m_NodeAttrText(controlNode, "name"))
+        If Len(controlName) = 0 Then GoTo NextControl
+
+        Set attrMap = Nothing
+        On Error Resume Next
+        Set attrMap = controlNode.Attributes
+        On Error GoTo 0
+        If attrMap Is Nothing Then GoTo NextControl
+
+        For Each attrNode In attrMap
+            attrName = Trim$(CStr(attrNode.nodeName))
+            If Len(attrName) = 0 Then GoTo NextAttr
+            If StrComp(attrName, "name", vbTextCompare) = 0 Then GoTo NextAttr
+            If StrComp(attrName, "type", vbTextCompare) = 0 Then GoTo NextAttr
+
+            attrValue = Trim$(CStr(attrNode.Text))
+            If Len(attrValue) = 0 Then GoTo NextAttr
+
+            If InStr(1, attrValue, "{", vbBinaryCompare) > 0 Then
+                If InStr(1, attrValue, "{Binding State.Settings.ActiveMode}", vbTextCompare) > 0 Then
+                    If Len(activeModeValue) = 0 Then GoTo NextAttr
+                End If
+                If InStr(1, attrValue, "{Binding State.Settings.ActiveProfile}", vbTextCompare) > 0 Then
+                    If Len(activeProfileValue) = 0 Then GoTo NextAttr
+                End If
+
+                resolvedValue = mp_ResolveTemplateValue(attrValue, vbNullString, vbNullString, controlNode)
+            Else
+                resolvedValue = attrValue
+            End If
+
+            previousValue = m_GetConfigBindingValue(controlName, attrName, vbNullString)
+            If StrComp(previousValue, resolvedValue, vbBinaryCompare) <> 0 Then
+                mp_SetConfigBindingValue controlName, attrName, resolvedValue
+                mp_OnConfigBindingChanged controlName, attrName, previousValue, resolvedValue, wb
+            End If
+NextAttr:
+        Next attrNode
+NextControl:
+    Next controlNode
+End Sub
+
+Public Function m_GetConfigBindingValue( _
+    ByVal controlName As String, _
+    ByVal attrName As String, _
+    Optional ByVal defaultValue As String = vbNullString) As String
+
+    Dim propName As String
+
+    propName = mp_GetConfigBindingPropName(controlName, attrName)
+    If Len(propName) = 0 Then
+        m_GetConfigBindingValue = defaultValue
+        Exit Function
+    End If
+
+    On Error GoTo EH
+    m_GetConfigBindingValue = CStr(ThisWorkbook.CustomDocumentProperties(propName).Value)
+    Exit Function
+EH:
+    m_GetConfigBindingValue = defaultValue
 End Function
 
 Public Function m_GetLayoutAttribute(ByVal layoutNodeName As String, ByVal attrName As String, Optional ByVal wb As Workbook) As String
@@ -652,7 +794,7 @@ Private Function mp_GetDropdownItemRecordsFromControlNode(ByVal controlNode As O
         If doc Is Nothing Then Exit Function
     End If
 
-    itemRecords = mp_GetDropdownItemRecordsByItemsSource(doc, sourceName, wb, modeKey)
+    itemRecords = mp_GetDropdownItemRecordsByItemsSource(doc, sourceName, wb, modeKey, controlNode)
     If mp_HasDropdownItemRecords(itemRecords) Then
         mp_GetDropdownItemRecordsFromControlNode = mp_FilterControlDropdownItemRecords(controlNode, itemRecords, wb, modeKey)
         Exit Function
@@ -668,8 +810,6 @@ Private Function mp_FilterControlDropdownItemRecords( _
     ByVal wb As Workbook, _
     Optional ByVal modeKey As String = vbNullString) As Variant
 
-    Dim controlName As String
-
     If Not mp_HasDropdownItemRecords(itemRecords) Then
         mp_FilterControlDropdownItemRecords = itemRecords
         Exit Function
@@ -679,8 +819,7 @@ Private Function mp_FilterControlDropdownItemRecords( _
         Exit Function
     End If
 
-    controlName = Trim$(ex_XmlCore.m_NodeAttrText(controlNode, "name"))
-    If StrComp(controlName, PROFILE_LIST_CONTROL, vbTextCompare) <> 0 Then
+    If Not mp_ControlHasSelectionMacro(controlNode, PROFILE_SELECTION_CHANGED_MACRO) Then
         mp_FilterControlDropdownItemRecords = itemRecords
         Exit Function
     End If
@@ -708,7 +847,7 @@ Private Function mp_FilterProfileDropdownItemRecordsByMode( _
 
     resolvedModeKey = Trim$(modeKey)
     If Len(resolvedModeKey) = 0 Then
-        resolvedModeKey = Trim$(mp_GetContextOrFallbackValue("activeMode", vbNullString, vbNullString))
+        resolvedModeKey = Trim$(mp_GetStatePropertyText(STATE_ACTIVE_MODE_KEY_PROP))
     End If
     If Len(resolvedModeKey) = 0 Then
         resolvedModeKey = Trim$(m_GetDefaultModeKey(wb))
@@ -736,6 +875,7 @@ Private Function mp_FilterProfileDropdownItemRecordsByMode( _
 End Function
 
 Private Function mp_GetProfileNamesFromProfilesDoc(ByVal doc As Object) As Variant
+    Dim listNode As Object
     Dim nodes As Object
     Dim node As Object
     Dim profileName As String
@@ -744,18 +884,17 @@ Private Function mp_GetProfileNamesFromProfilesDoc(ByVal doc As Object) As Varia
 
     If doc Is Nothing Then Exit Function
 
-    On Error Resume Next
-    doc.setProperty "SelectionNamespaces", "xmlns:p='" & PROFILES_NS & "'"
-    On Error GoTo 0
+    Set listNode = doc.selectSingleNode("/*/*[local-name()='list'][1]")
+    If listNode Is Nothing Then Exit Function
 
-    Set nodes = doc.selectNodes("/*[local-name()='profiles']/*[local-name()='profile']")
+    Set nodes = listNode.selectNodes("*[local-name()='item']")
     If nodes Is Nothing Then Exit Function
     If nodes.Length = 0 Then Exit Function
 
     ReDim result(0 To nodes.Length - 1)
     writeIndex = -1
     For Each node In nodes
-        profileName = Trim$(ex_XmlCore.m_NodeAttrText(node, "name"))
+        profileName = Trim$(ex_XmlCore.m_NodeAttrText(node, "key"))
         If Len(profileName) = 0 Then GoTo ContinueNode
         writeIndex = writeIndex + 1
         result(writeIndex) = profileName
@@ -853,7 +992,7 @@ ContinueCopyExisting:
         filtered(writeIndex, DROPDOWN_ITEM_COL_KEY) = keyText
         filtered(writeIndex, DROPDOWN_ITEM_COL_CAPTION) = keyText
         filtered(writeIndex, DROPDOWN_ITEM_COL_TARGET) = vbNullString
-        filtered(writeIndex, DROPDOWN_ITEM_COL_SET_CONTEXT) = "activeProfile=" & keyText
+        filtered(writeIndex, DROPDOWN_ITEM_COL_SET_CONTEXT) = vbNullString
         filtered(writeIndex, DROPDOWN_ITEM_COL_ACTION_KEY) = vbNullString
         filtered(writeIndex, DROPDOWN_ITEM_COL_MACRO) = vbNullString
 ContinueAppendMissing:
@@ -927,27 +1066,35 @@ Private Function mp_ResolveControlSourceUri(ByVal controlNode As Object, ByVal w
     If Len(sourceUriTemplate) = 0 Then sourceUriTemplate = Trim$(ex_XmlCore.m_NodeAttrText(controlNode, "sourceUriTemplate"))
 
     If Len(sourceUriTemplate) > 0 Then
-        mp_ResolveControlSourceUri = mp_ResolveTemplateValue(sourceUriTemplate, modeKey)
+        mp_ResolveControlSourceUri = mp_ResolveTemplateValue(sourceUriTemplate, modeKey, vbNullString, controlNode)
         Exit Function
     End If
 
     mp_ResolveControlSourceUri = sourceUri
 End Function
 
-Private Function mp_GetDropdownItemRecordsByItemsSource(ByVal doc As Object, ByVal sourceName As String, ByVal wb As Workbook, Optional ByVal modeKey As String = vbNullString) As Variant
+Private Function mp_GetDropdownItemRecordsByItemsSource( _
+    ByVal doc As Object, _
+    ByVal sourceName As String, _
+    ByVal wb As Workbook, _
+    Optional ByVal modeKey As String = vbNullString, _
+    Optional ByVal bindingNode As Object = Nothing) As Variant
     Dim sourceUri As String
 
     sourceName = Trim$(sourceName)
     If Len(sourceName) = 0 Then Exit Function
     If doc Is Nothing Then Exit Function
 
-    sourceUri = mp_ResolveItemsSourceUriByName(doc, sourceName, wb, modeKey)
+    sourceUri = mp_ResolveItemsSourceUriByName(doc, sourceName, wb, modeKey, bindingNode)
     If Len(sourceUri) = 0 Then Exit Function
 
     mp_GetDropdownItemRecordsByItemsSource = mp_GetDropdownItemRecordsBySourceUri(sourceUri, wb)
 End Function
 
-Private Function mp_ResolveItemSourceUri(ByVal sourceNode As Object, Optional ByVal modeKey As String = vbNullString) As String
+Private Function mp_ResolveItemSourceUri( _
+    ByVal sourceNode As Object, _
+    Optional ByVal modeKey As String = vbNullString, _
+    Optional ByVal bindingNode As Object = Nothing) As String
     Dim sourceUri As String
     Dim sourceUriTemplate As String
 
@@ -955,7 +1102,7 @@ Private Function mp_ResolveItemSourceUri(ByVal sourceNode As Object, Optional By
     sourceUriTemplate = Trim$(ex_XmlCore.m_NodeAttrText(sourceNode, "uriTemplate"))
 
     If Len(sourceUriTemplate) > 0 Then
-        mp_ResolveItemSourceUri = mp_ResolveTemplateValue(sourceUriTemplate, modeKey)
+        mp_ResolveItemSourceUri = mp_ResolveTemplateValue(sourceUriTemplate, modeKey, vbNullString, bindingNode)
         Exit Function
     End If
 
@@ -970,7 +1117,8 @@ Private Function mp_ResolveItemsSourceUriByName( _
     ByVal doc As Object, _
     ByVal sourceName As String, _
     ByVal wb As Workbook, _
-    Optional ByVal modeKey As String = vbNullString) As String
+    Optional ByVal modeKey As String = vbNullString, _
+    Optional ByVal bindingNode As Object = Nothing) As String
 
     Dim sourceNode As Object
     Dim sourceUri As String
@@ -985,7 +1133,7 @@ Private Function mp_ResolveItemsSourceUriByName( _
         Exit Function
     End If
 
-    sourceUri = mp_ResolveItemSourceUri(sourceNode, modeKey)
+    sourceUri = mp_ResolveItemSourceUri(sourceNode, modeKey, bindingNode)
     If Len(sourceUri) = 0 Then
         MsgBox "Items source '" & sourceName & "' has empty uri/uriTemplate.", vbExclamation
         Exit Function
@@ -1037,13 +1185,13 @@ Private Function mp_GetDropdownItemRecordsBySourceUri(ByVal sourceUri As String,
     Set doc = mp_LoadPlainDomByFilePath(filePath, "DropDown items file was not found: ", "Failed to parse DropDown items file: ")
     If doc Is Nothing Then Exit Function
 
-    Set listNode = doc.selectSingleNode("/dropdownItems/list[@name=" & ex_XmlCore.m_XPathLiteral(listName) & "]")
+    Set listNode = mp_GetListNodeByFragment(doc, listName)
     If listNode Is Nothing Then
-        MsgBox "Dropdown list '" & listName & "' was not found in file: " & filePath, vbExclamation
+        MsgBox "Dropdown selector fragment '" & listName & "' was not found in file: " & filePath, vbExclamation
         Exit Function
     End If
 
-    Set itemNodes = listNode.selectNodes("item")
+    Set itemNodes = listNode.selectNodes("*[local-name()='item']")
     If itemNodes Is Nothing Then Exit Function
     If itemNodes.Length = 0 Then
         mp_GetDropdownItemRecordsBySourceUri = Array()
@@ -1142,13 +1290,13 @@ Private Function mp_TryGetDefaultDropdownItemKeyBySourceUri( _
     Set doc = mp_LoadPlainDomByFilePath(filePath, "DropDown items file was not found: ", "Failed to parse DropDown items file: ")
     If doc Is Nothing Then Exit Function
 
-    Set listNode = doc.selectSingleNode("/dropdownItems/list[@name=" & ex_XmlCore.m_XPathLiteral(listName) & "]")
+    Set listNode = mp_GetListNodeByFragment(doc, listName)
     If listNode Is Nothing Then
-        MsgBox "Dropdown list '" & listName & "' was not found in file: " & filePath, vbExclamation
+        MsgBox "Dropdown selector fragment '" & listName & "' was not found in file: " & filePath, vbExclamation
         Exit Function
     End If
 
-    Set itemNodes = listNode.selectNodes("item")
+    Set itemNodes = listNode.selectNodes("*[local-name()='item']")
     If itemNodes Is Nothing Then
         mp_TryGetDefaultDropdownItemKeyBySourceUri = True
         Exit Function
@@ -1250,11 +1398,17 @@ Private Function mp_BuildCaptionItemsFromRecords(ByVal itemRecords As Variant) A
     mp_BuildCaptionItemsFromRecords = result
 End Function
 
-Private Function mp_ResolveTemplateValue(ByVal templateText As String, Optional ByVal modeKeyOverride As String = vbNullString, Optional ByVal profileOverride As String = vbNullString) As String
+Private Function mp_ResolveTemplateValue( _
+    ByVal templateText As String, _
+    Optional ByVal modeKeyOverride As String = vbNullString, _
+    Optional ByVal profileOverride As String = vbNullString, _
+    Optional ByVal bindingNode As Object = Nothing) As String
+
     Dim resultText As String
     Dim startPos As Long
     Dim endPos As Long
     Dim tokenName As String
+    Dim bindingPath As String
     Dim tokenValue As String
 
     resultText = templateText
@@ -1273,7 +1427,11 @@ Private Function mp_ResolveTemplateValue(ByVal templateText As String, Optional 
             Exit Function
         End If
 
-        tokenValue = mp_GetContextOrFallbackValue(tokenName, modeKeyOverride, profileOverride)
+        If mp_TryParseBindingPlaceholderToken(tokenName, bindingPath) Then
+            tokenValue = mp_ResolveBindingPlaceholder(bindingPath, bindingNode, modeKeyOverride, profileOverride)
+        Else
+            tokenValue = mp_GetContextOrFallbackValue(tokenName, modeKeyOverride, profileOverride)
+        End If
         If Len(tokenValue) = 0 Then
             MsgBox "Unable to resolve uriTemplate placeholder '{" & tokenName & "}'.", vbExclamation
             Exit Function
@@ -1286,6 +1444,143 @@ Private Function mp_ResolveTemplateValue(ByVal templateText As String, Optional 
     mp_ResolveTemplateValue = resultText
 End Function
 
+Private Function mp_TryParseBindingPlaceholderToken(ByVal tokenText As String, ByRef outBindingPath As String) As Boolean
+    Dim normalized As String
+
+    normalized = Trim$(tokenText)
+    If Len(normalized) < 8 Then Exit Function
+    If StrComp(Left$(normalized, 8), "Binding ", vbTextCompare) <> 0 Then Exit Function
+
+    outBindingPath = Trim$(Mid$(normalized, 9))
+    If Len(outBindingPath) = 0 Then Exit Function
+
+    mp_TryParseBindingPlaceholderToken = True
+End Function
+
+Private Function mp_TryParseBindingExpression(ByVal rawText As String, ByRef outBindingPath As String) As Boolean
+    Dim normalized As String
+
+    normalized = Trim$(rawText)
+    If Len(normalized) < 10 Then Exit Function
+    If StrComp(Left$(normalized, 9), "{Binding ", vbTextCompare) <> 0 Then Exit Function
+    If Right$(normalized, 1) <> "}" Then Exit Function
+
+    outBindingPath = Trim$(Mid$(normalized, 10, Len(normalized) - 10))
+    If Len(outBindingPath) = 0 Then Exit Function
+
+    mp_TryParseBindingExpression = True
+End Function
+
+Private Function mp_ResolveBindingPlaceholder( _
+    ByVal bindingPath As String, _
+    ByVal bindingNode As Object, _
+    Optional ByVal modeKeyOverride As String = vbNullString, _
+    Optional ByVal profileOverride As String = vbNullString) As String
+
+    Dim pathLower As String
+    Dim suffixText As String
+    Dim valueText As String
+    Dim nestedBindingPath As String
+
+    bindingPath = Trim$(bindingPath)
+    If Len(bindingPath) = 0 Then Exit Function
+
+    pathLower = LCase$(bindingPath)
+
+    If Left$(pathLower, 8) = "context." Then
+        suffixText = Trim$(Mid$(bindingPath, 9))
+        If Len(suffixText) > 0 Then
+            mp_ResolveBindingPlaceholder = mp_GetContextOrFallbackValue(suffixText, modeKeyOverride, profileOverride)
+        End If
+        Exit Function
+    End If
+
+    If Left$(pathLower, 6) = "state." Then
+        suffixText = Trim$(Mid$(bindingPath, 7))
+        If Len(suffixText) > 0 Then
+            mp_ResolveBindingPlaceholder = Trim$(mp_GetStatePropertyText(suffixText))
+        End If
+        Exit Function
+    End If
+
+    If Left$(pathLower, 7) = "config." Then
+        suffixText = Trim$(Mid$(bindingPath, 8))
+        If Len(suffixText) > 0 Then
+            mp_ResolveBindingPlaceholder = Trim$(ex_ConfigProvider.m_GetConfigValue(suffixText, vbNullString))
+        End If
+        Exit Function
+    End If
+
+    If Left$(pathLower, 8) = "control." Then
+        suffixText = Trim$(Mid$(bindingPath, 9))
+        valueText = mp_ResolveControlBindingValue(suffixText, bindingNode)
+    Else
+        suffixText = bindingPath
+        If Not bindingNode Is Nothing Then
+            valueText = Trim$(ex_XmlCore.m_NodeAttrText(bindingNode, suffixText))
+        End If
+    End If
+
+    If Len(valueText) > 0 Then
+        If mp_TryParseBindingExpression(valueText, nestedBindingPath) Then
+            If StrComp(nestedBindingPath, bindingPath, vbTextCompare) <> 0 Then
+                valueText = mp_ResolveBindingPlaceholder(nestedBindingPath, bindingNode, modeKeyOverride, profileOverride)
+            Else
+                valueText = vbNullString
+            End If
+        ElseIf InStr(1, valueText, "{", vbBinaryCompare) > 0 Then
+            valueText = mp_ResolveTemplateValue(valueText, modeKeyOverride, profileOverride, bindingNode)
+        End If
+
+        If Len(Trim$(valueText)) > 0 Then
+            mp_ResolveBindingPlaceholder = Trim$(valueText)
+            Exit Function
+        End If
+    End If
+
+    If StrComp(pathLower, "activemode", vbTextCompare) = 0 Then
+        mp_ResolveBindingPlaceholder = mp_GetContextOrFallbackValue("activeMode", modeKeyOverride, profileOverride)
+        Exit Function
+    End If
+
+    If StrComp(pathLower, "activeprofile", vbTextCompare) = 0 Then
+        mp_ResolveBindingPlaceholder = mp_GetContextOrFallbackValue("activeProfile", modeKeyOverride, profileOverride)
+        Exit Function
+    End If
+
+    mp_ResolveBindingPlaceholder = mp_GetContextOrFallbackValue(bindingPath, modeKeyOverride, profileOverride)
+End Function
+
+Private Function mp_ResolveControlBindingValue(ByVal controlPath As String, ByVal bindingNode As Object) As String
+    Dim dotPos As Long
+    Dim controlName As String
+    Dim attrName As String
+    Dim ownerDoc As Object
+    Dim controlNode As Object
+
+    controlPath = Trim$(controlPath)
+    If Len(controlPath) = 0 Then Exit Function
+    If bindingNode Is Nothing Then Exit Function
+
+    dotPos = InStr(1, controlPath, ".", vbBinaryCompare)
+    If dotPos > 1 Then
+        controlName = Trim$(Left$(controlPath, dotPos - 1))
+        attrName = Trim$(Mid$(controlPath, dotPos + 1))
+        If Len(controlName) = 0 Or Len(attrName) = 0 Then Exit Function
+
+        Set ownerDoc = bindingNode.ownerDocument
+        If ownerDoc Is Nothing Then Exit Function
+
+        Set controlNode = mp_FindControlNodeByName(ownerDoc, controlName)
+        If controlNode Is Nothing Then Exit Function
+
+        mp_ResolveControlBindingValue = Trim$(ex_XmlCore.m_NodeAttrText(controlNode, attrName))
+        Exit Function
+    End If
+
+    mp_ResolveControlBindingValue = Trim$(ex_XmlCore.m_NodeAttrText(bindingNode, controlPath))
+End Function
+
 Private Function mp_GetContextOrFallbackValue(ByVal contextKey As String, Optional ByVal modeKeyOverride As String = vbNullString, Optional ByVal profileOverride As String = vbNullString) As String
     Dim valueText As String
 
@@ -1295,6 +1590,13 @@ Private Function mp_GetContextOrFallbackValue(ByVal contextKey As String, Option
             mp_GetContextOrFallbackValue = modeKeyOverride
             Exit Function
         End If
+
+        valueText = Trim$(mp_GetStatePropertyText(STATE_ACTIVE_MODE_KEY_PROP))
+        If Len(valueText) = 0 Then
+            valueText = Trim$(mp_GetStatePropertyText(STATE_ACTIVE_MODE_PROP))
+        End If
+        mp_GetContextOrFallbackValue = valueText
+        Exit Function
     End If
 
     If StrComp(contextKey, "activeProfile", vbTextCompare) = 0 Then
@@ -1303,16 +1605,14 @@ Private Function mp_GetContextOrFallbackValue(ByVal contextKey As String, Option
             mp_GetContextOrFallbackValue = profileOverride
             Exit Function
         End If
-    End If
 
-    valueText = m_GetDropdownContextValue(contextKey, vbNullString)
-    If Len(valueText) > 0 Then
+        valueText = Trim$(mp_GetStatePropertyText(STATE_ACTIVE_PROFILE_PROP))
         mp_GetContextOrFallbackValue = valueText
         Exit Function
     End If
 
-    If StrComp(contextKey, "activeMode", vbTextCompare) = 0 Then
-        valueText = Trim$(mp_GetStatePropertyText(STATE_ACTIVE_MODE_KEY_PROP))
+    valueText = m_GetDropdownContextValue(contextKey, vbNullString)
+    If Len(valueText) > 0 Then
         mp_GetContextOrFallbackValue = valueText
         Exit Function
     End If
@@ -1469,14 +1769,14 @@ Private Function mp_TryResolveSourceUriParts( _
 
     hashPos = InStrRev(sourceUri, "#")
     If hashPos <= 1 Or hashPos >= Len(sourceUri) Then
-        MsgBox messagePrefix & "Expected '<relative-path>#<list-name>'.", vbExclamation
+        MsgBox messagePrefix & "Expected '<relative-path>#<list-selector-or-xpath-fragment>'.", vbExclamation
         Exit Function
     End If
 
     relPath = Trim$(Left$(sourceUri, hashPos - 1))
     outListName = Trim$(Mid$(sourceUri, hashPos + 1))
     If Len(relPath) = 0 Or Len(outListName) = 0 Then
-        MsgBox messagePrefix & "Path or list name is empty.", vbExclamation
+        MsgBox messagePrefix & "Path or selector fragment is empty.", vbExclamation
         Exit Function
     End If
 
@@ -1486,11 +1786,169 @@ Private Function mp_TryResolveSourceUriParts( _
     mp_TryResolveSourceUriParts = True
 End Function
 
+Private Function mp_GetListNodeBySelector(ByVal doc As Object, ByVal listSelector As String) As Object
+    Dim rootName As String
+    Dim listName As String
+    Dim xpathExpr As String
+
+    If doc Is Nothing Then Exit Function
+    If Not mp_TrySplitListSelector(listSelector, rootName, listName) Then Exit Function
+
+    If Len(rootName) > 0 Then
+        xpathExpr = "/*[local-name()=" & ex_XmlCore.m_XPathLiteral(rootName) & "]/*[local-name()='list'][@name=" & ex_XmlCore.m_XPathLiteral(listName) & "]"
+    Else
+        xpathExpr = "/*/*[local-name()='list'][@name=" & ex_XmlCore.m_XPathLiteral(listName) & "]"
+    End If
+
+    Set mp_GetListNodeBySelector = doc.selectSingleNode(xpathExpr)
+End Function
+
+Private Function mp_GetListNodeByFragment(ByVal doc As Object, ByVal listFragment As String) As Object
+    Dim xpathExpr As String
+
+    If doc Is Nothing Then Exit Function
+
+    listFragment = Trim$(listFragment)
+    If Len(listFragment) = 0 Then Exit Function
+
+    If StrComp(Left$(listFragment, 6), "xpath=", vbTextCompare) = 0 Then
+        xpathExpr = Trim$(Mid$(listFragment, 7))
+        If Len(xpathExpr) = 0 Then Exit Function
+        Set mp_GetListNodeByFragment = doc.selectSingleNode(xpathExpr)
+        Exit Function
+    End If
+
+    Set mp_GetListNodeByFragment = mp_GetListNodeBySelector(doc, listFragment)
+End Function
+
+Private Function mp_TrySplitListSelector( _
+    ByVal listSelector As String, _
+    ByRef outRootName As String, _
+    ByRef outListName As String) As Boolean
+
+    Dim slashPos As Long
+
+    listSelector = Trim$(listSelector)
+    If Len(listSelector) = 0 Then Exit Function
+
+    slashPos = InStr(1, listSelector, "/", vbBinaryCompare)
+    If slashPos > 0 Then
+        outRootName = Trim$(Left$(listSelector, slashPos - 1))
+        outListName = Trim$(Mid$(listSelector, slashPos + 1))
+        If Len(outRootName) = 0 Or Len(outListName) = 0 Then Exit Function
+    Else
+        outRootName = vbNullString
+        outListName = listSelector
+        If Len(outListName) = 0 Then Exit Function
+    End If
+
+    mp_TrySplitListSelector = True
+End Function
+
 Private Function mp_GetControlNode(ByVal doc As Object, ByVal controlName As String) As Object
-    Set mp_GetControlNode = doc.selectSingleNode("/p:uiDefinition/p:layout//p:control[@name=" & ex_XmlCore.m_XPathLiteral(controlName) & "]")
+    Set mp_GetControlNode = mp_FindControlNodeByName(doc, controlName)
     If mp_GetControlNode Is Nothing Then
         MsgBox "Control '" & controlName & "' was not found in UI config.", vbExclamation
     End If
+End Function
+
+Private Function mp_FindControlNodeByName(ByVal doc As Object, ByVal controlName As String) As Object
+    If doc Is Nothing Then Exit Function
+
+    Set mp_FindControlNodeByName = doc.selectSingleNode("/p:uiDefinition/p:layout//p:control[@name=" & ex_XmlCore.m_XPathLiteral(controlName) & "]")
+    If mp_FindControlNodeByName Is Nothing Then
+        Set mp_FindControlNodeByName = doc.selectSingleNode("/p:uiDefinition/p:layout//p:toggleButton[@name=" & ex_XmlCore.m_XPathLiteral(controlName) & "]")
+    End If
+End Function
+
+Private Function mp_GetControlNodeBySelectionMacro(ByVal doc As Object, ByVal selectionChangedMacro As String) As Object
+    If doc Is Nothing Then Exit Function
+
+    selectionChangedMacro = Trim$(selectionChangedMacro)
+    If Len(selectionChangedMacro) = 0 Then Exit Function
+
+    Set mp_GetControlNodeBySelectionMacro = doc.selectSingleNode( _
+        "/p:uiDefinition/p:layout//p:control[translate(normalize-space(@selectionChangedMacro), 'ABCDEFGHIJKLMNOPQRSTUVWXYZ', 'abcdefghijklmnopqrstuvwxyz')=" & ex_XmlCore.m_XPathLiteral(LCase$(selectionChangedMacro)) & "]")
+End Function
+
+Private Function mp_ControlHasSelectionMacro(ByVal controlNode As Object, ByVal selectionChangedMacro As String) As Boolean
+    Dim nodeMacro As String
+
+    If controlNode Is Nothing Then Exit Function
+    selectionChangedMacro = Trim$(selectionChangedMacro)
+    If Len(selectionChangedMacro) = 0 Then Exit Function
+
+    nodeMacro = Trim$(ex_XmlCore.m_NodeAttrText(controlNode, "selectionChangedMacro"))
+    If StrComp(nodeMacro, selectionChangedMacro, vbTextCompare) = 0 Then
+        mp_ControlHasSelectionMacro = True
+    End If
+End Function
+
+Private Function mp_GetFirstConfigControlAttributeValue(ByVal doc As Object, ByVal attrName As String) As String
+    Dim configNodes As Object
+    Dim controlNode As Object
+    Dim valueText As String
+
+    If doc Is Nothing Then Exit Function
+
+    attrName = Trim$(attrName)
+    If Len(attrName) = 0 Then Exit Function
+
+    Set configNodes = doc.selectNodes("/p:uiDefinition/p:layout//p:control[translate(normalize-space(@type), 'ABCDEFGHIJKLMNOPQRSTUVWXYZ', 'abcdefghijklmnopqrstuvwxyz')='config']")
+    If configNodes Is Nothing Then Exit Function
+
+    For Each controlNode In configNodes
+        valueText = Trim$(ex_XmlCore.m_NodeAttrText(controlNode, attrName))
+        If Len(valueText) = 0 Then GoTo ContinueNode
+        mp_GetFirstConfigControlAttributeValue = valueText
+        Exit Function
+ContinueNode:
+    Next controlNode
+End Function
+
+Private Sub mp_OnConfigBindingChanged( _
+    ByVal controlName As String, _
+    ByVal attrName As String, _
+    ByVal oldValue As String, _
+    ByVal newValue As String, _
+    ByVal wb As Workbook)
+
+    If StrComp(Trim$(attrName), "profileData", vbTextCompare) <> 0 Then Exit Sub
+    If StrComp(oldValue, newValue, vbBinaryCompare) = 0 Then Exit Sub
+    If g_ConfigBindingApplyInProgress Then Exit Sub
+
+    g_ConfigBindingApplyInProgress = True
+    On Error GoTo CleanUp
+    ex_ConfigNewRuntime.m_ApplyConfigControlByName controlName, wb
+
+CleanUp:
+    g_ConfigBindingApplyInProgress = False
+End Sub
+
+Private Sub mp_SetConfigBindingValue(ByVal controlName As String, ByVal attrName As String, ByVal valueText As String)
+    Dim propName As String
+
+    propName = mp_GetConfigBindingPropName(controlName, attrName)
+    If Len(propName) = 0 Then Exit Sub
+
+    On Error GoTo AddProp
+    ThisWorkbook.CustomDocumentProperties(propName).Value = CStr(valueText)
+    Exit Sub
+AddProp:
+    ThisWorkbook.CustomDocumentProperties.Add _
+        Name:=propName, _
+        LinkToContent:=False, _
+        Type:=msoPropertyTypeString, _
+        Value:=CStr(valueText)
+End Sub
+
+Private Function mp_GetConfigBindingPropName(ByVal controlName As String, ByVal attrName As String) As String
+    controlName = Trim$(controlName)
+    attrName = Trim$(attrName)
+    If Len(controlName) = 0 Or Len(attrName) = 0 Then Exit Function
+
+    mp_GetConfigBindingPropName = CONFIG_BINDING_PROP_PREFIX & _
+        mp_NormalizeContextKey(controlName) & "." & mp_NormalizeContextKey(attrName)
 End Function
 
 Private Sub mp_SetStyleValue(ByVal styleData As Object, ByVal key As String, ByVal value As String)

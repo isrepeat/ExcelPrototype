@@ -1,0 +1,62 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<uiDefinition xmlns="urn:excelprototype:profiles" version="1">
+  <templates>
+    <template name="primitiveTableTpl">
+      <stackPanel orientation="vertical">
+        <control
+          type="Label"
+          name="SectionTitle"
+          text="{Binding Path=SectionTitle}"
+          style="tableSection"/>
+
+        <list
+          orientation="horizontal"
+          itemsSource="{Binding Path=Columns}"
+          itemsSourceTemplate="primitiveHeaderCellTpl"/>
+
+        <list
+          orientation="vertical"
+          itemsSource="{Binding Path=Rows}"
+          itemsSourceTemplate="primitiveDataRowTpl"/>
+
+        <control
+          type="Label"
+          name="Spacer"
+          text=" "
+          style="tableSpacer"/>
+      </stackPanel>
+    </template>
+
+    <template name="primitiveHeaderCellTpl">
+      <control
+        type="Label"
+        name="HeaderCell"
+        text="{Binding Path=Name}"
+        style="tableHeaderCell"/>
+    </template>
+
+    <template name="primitiveDataRowTpl">
+      <list
+        orientation="horizontal"
+        itemsSource="{Binding Path=Cells}"
+        itemsSourceTemplate="primitiveDataCellTpl"/>
+    </template>
+
+    <template name="primitiveDataCellTpl">
+      <control
+        type="Label"
+        name="DataCell"
+        text="{Binding Path=Value}"
+        style="tableDataCell"/>
+    </template>
+  </templates>
+
+  <layout>
+    <control name="default" itemsSource="{PageRuntimeSource='RuntimeItems.Test.Tables'}">
+      <list
+        itemsSource="{PageRuntimeSource='RuntimeItems.Test.Tables'}"
+        itemsSourceTemplate="primitiveTableTpl"
+        orientation="vertical"/>
+    </control>
+  </layout>
+</uiDefinition>

@@ -1,6 +1,7 @@
 <?xml version="1.0" standalone="yes"?>
-<profiles version="1" xmlns="urn:excelprototype:profiles">
-  <profile name="Default" resultZoom="100">
+<profiles version="1">
+  <list name="profiles.main">
+  <item key="Default" caption="Default" resultZoom="100">
     <ui>
       <control name="btnClear" visible="true"/>
       <control name="btnSimpleTest" visible="true"/>
@@ -14,5 +15,6 @@
     <v key="Main.Sheet[StateMain].Type">State</v>
     <preProcessScript include="Simple_PreProcessScript.jslike"/>
     <postProcessScript execution="Implicit" include="Simple_PostProcessScript.jslike"/>
-  </profile>
+  </item>
+  </list>
 </profiles>
