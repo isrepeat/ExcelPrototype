@@ -6,14 +6,18 @@ Attribute VB_Name = "obj_BannerViewItem"
 Option Explicit
 Implements obj_IViewItem
 
+Private Const INLINE_PART_BANNER As String = "banner"
+
 Private m_Model As obj_Banner
-Private m_Presentation As obj_Presentation
+Private m_Presentation As obj_ViewPresentation
+Private m_HeaderInlinePart As obj_InlineTextPart
+Private m_MessageInlinePart As obj_InlineTextPart
 
 Private Sub Class_Initialize()
     Set m_Model = New obj_Banner
-    Set m_Presentation = New obj_Presentation
-    m_Presentation.PartName = "banner"
-    m_Presentation.InlineMarkersEnabled = True
+    Set m_Presentation = New obj_ViewPresentation
+    Set m_HeaderInlinePart = New obj_InlineTextPart
+    Set m_MessageInlinePart = New obj_InlineTextPart
 End Sub
 
 Public Property Get Model() As obj_Banner
@@ -28,15 +32,13 @@ Public Property Set Model(ByVal value As obj_Banner)
     End If
 End Property
 
-Public Property Get Presentation() As obj_Presentation
+Public Property Get Presentation() As obj_ViewPresentation
     Set Presentation = m_Presentation
 End Property
 
-Public Property Set Presentation(ByVal value As obj_Presentation)
+Public Property Set Presentation(ByVal value As obj_ViewPresentation)
     If value Is Nothing Then
-        Set m_Presentation = New obj_Presentation
-        m_Presentation.PartName = "banner"
-        m_Presentation.InlineMarkersEnabled = True
+        Set m_Presentation = New obj_ViewPresentation
     Else
         Set m_Presentation = value
     End If
@@ -46,14 +48,14 @@ End Property
 ' // Interface
 ' //
 Private Function obj_IViewItem_Render( _
-    ByVal ws As Worksheet, _
+    ByVal page As obj_PageBase, _
     ByVal rowStart As Long, _
     ByVal colStart As Long, _
     ByVal rowEnd As Long, _
     ByVal colEnd As Long, _
     Optional ByVal viewName As String = "" _
 ) As Boolean
-    obj_IViewItem_Render = Me.Render(ws, rowStart, colStart, rowEnd, colEnd, viewName)
+    obj_IViewItem_Render = Me.Render(page, rowStart, colStart, rowEnd, colEnd, viewName)
 End Function
 
 Private Function obj_IViewItem_IsVisible() As Boolean
@@ -64,13 +66,14 @@ End Function
 ' // API
 ' //
 Public Function Render( _
-    ByVal ws As Worksheet, _
+    ByVal page As obj_PageBase, _
     ByVal rowStart As Long, _
     ByVal colStart As Long, _
     ByVal rowEnd As Long, _
     ByVal colEnd As Long, _
     Optional ByVal viewName As String = "" _
 ) As Boolean
+    Dim ws As Worksheet
     Dim targetRange As Range
     Dim headerRange As Range
     Dim messageRange As Range
@@ -78,11 +81,16 @@ Public Function Render( _
     Dim visibleNow As Boolean
     Dim headerTextResolved As String
     Dim messageTextResolved As String
-    Dim headerRuns As Collection
-    Dim messageRuns As Collection
+    Dim inlineProfile As obj_InlineTextProfile
 
+    If page Is Nothing Then
+        VBA.MsgBox "BannerViewItem: page is not specified.", VBA.vbExclamation
+        Exit Function
+    End If
+
+    Set ws = page.Worksheet
     If ws Is Nothing Then
-        VBA.MsgBox "BannerViewItem: worksheet is not specified.", VBA.vbExclamation
+        VBA.MsgBox "BannerViewItem: page worksheet is not specified.", VBA.vbExclamation
         Exit Function
     End If
     If rowStart <= 0 Or colStart <= 0 Then
@@ -98,8 +106,16 @@ Public Function Render( _
     Set targetRange = ws.Range(ws.Cells(rowStart, colStart), ws.Cells(rowEnd, colEnd))
     On Error GoTo 0
 
-    If Not private_TryResolveInlineText(m_Model.Header, headerTextResolved, headerRuns) Then Exit Function
-    If Not private_TryResolveInlineText(m_Model.Message, messageTextResolved, messageRuns) Then Exit Function
+    ' Flow: берем единый профиль страницы по partName -> назначаем его частям ->
+    ' resolve текста в plain text + runs.
+    If Not page.TryGetInlineTextProfile(INLINE_PART_BANNER, inlineProfile) Then Exit Function
+    Set m_HeaderInlinePart.InlineProfile = inlineProfile
+    Set m_MessageInlinePart.InlineProfile = inlineProfile
+
+    If Not m_HeaderInlinePart.Resolve(m_Model.Header) Then Exit Function
+    If Not m_MessageInlinePart.Resolve(m_Model.Message) Then Exit Function
+    headerTextResolved = m_HeaderInlinePart.ResolvedText
+    messageTextResolved = m_MessageInlinePart.ResolvedText
 
     visibleNow = private_IsVisibleResolved()
 
@@ -143,8 +159,9 @@ Public Function Render( _
     messageRange.VerticalAlignment = xlVAlignTop
     messageRange.WrapText = True
 
-    If Not ex_InlineTextRuntime.m_RegisterInlineRuns(ws, headerRange, headerRuns, m_Presentation) Then Exit Function
-    If Not ex_InlineTextRuntime.m_RegisterInlineRuns(ws, messageRange, messageRuns, m_Presentation) Then Exit Function
+    ' Регистрируем runs; фактическое применение централизованно делает PageBase.ApplyInlineRuns.
+    If Not m_HeaderInlinePart.RegisterForRange(page, headerRange) Then Exit Function
+    If Not m_MessageInlinePart.RegisterForRange(page, messageRange) Then Exit Function
 
     Render = True
     Exit Function
@@ -175,20 +192,4 @@ Private Function private_IsVisibleResolved() As Boolean
     Else
         private_IsVisibleResolved = (m_Model.Visible And m_Presentation.EffectiveVisible)
     End If
-End Function
-
-Private Function private_TryResolveInlineText( _
-    ByVal rawText As String, _
-    ByRef outText As String, _
-    ByRef outRuns As Collection _
-) As Boolean
-    If m_Presentation Is Nothing Then
-        outText = rawText
-        Set outRuns = Nothing
-        private_TryResolveInlineText = True
-        Exit Function
-    End If
-
-    If Not m_Presentation.TryResolveInlineText(rawText, outText, outRuns) Then Exit Function
-    private_TryResolveInlineText = True
 End Function

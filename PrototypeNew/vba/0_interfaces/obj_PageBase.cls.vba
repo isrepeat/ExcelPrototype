@@ -15,6 +15,13 @@ Private m_IsRendering As Boolean
 Private m_ControlByKey As Object
 Private m_RouteByShape As Object
 Private m_RuntimeSources As obj_PageRuntimeSources
+Private m_InlineRunEntries As Collection
+' Кэш inline-профилей на уровне страницы: ключ = partName (banner/button/...).
+' Почему в PageBase:
+' 1) не создаем десятки одинаковых профилей в каждом VM/ViewItem;
+' 2) все участники страницы используют один и тот же объект правил для partName;
+' 3) lifecycle привязан к странице (очищается в Dispose вместе с runtime-реестрами).
+Private m_InlineProfileByPart As Object
 
 Private Const ROUTE_TYPE_CONTROL As String = "control"
 Private Const UI_NS As String = "urn:excelprototype:profiles"
@@ -24,6 +31,8 @@ Private Const PAGE_SNAPSHOT_ENTRY_ROOT As String = "pageSnapshot"
 Private Const PAGE_SNAPSHOT_ENTRY_NS As String = "urn:excelprototype:runtime-page-snapshot-entry:v1"
 Private Const CONTROL_SNAPSHOT_ENTRY_ROOT As String = "controlSnapshot"
 Private Const CONTROL_SNAPSHOT_ENTRY_NS As String = "urn:excelprototype:runtime-control-snapshot-entry:v1"
+Private Const INLINE_TARGET_RANGE As String = "range"
+Private Const INLINE_TARGET_SHAPE As String = "shape"
 
 ' //
 ' // API
@@ -50,9 +59,48 @@ Public Function Initialize( _
     Set m_UiDom = Nothing
     m_IsRendering = False
     Set m_RuntimeSources = New obj_PageRuntimeSources
+    Set m_InlineRunEntries = Nothing
+    ' Реестр профилей стартует пустым и заполняется лениво по мере рендера.
+    Set m_InlineProfileByPart = Nothing
     Call Me.ResetControlActions
     Initialize = Me.IsReady()
 End Function
+
+' Callstack[1]: ThisWorkbook.Workbook_Open -> ThisWorkbook.m_ResetWorkbookAndCreateMainPage -> private_ResetWorkbookAndCreateMainPage -> rt_PageManager.m_DisposeAllPages -> page.Dispose(False) -> obj_PageMain.obj_IPage_Dispose -> obj_PageBase.Dispose
+' Callstack[2]: ThisWorkbook.Workbook_SheetBeforeDelete -> ex_HelpersSheet.m_RemovePageByWorksheet -> rt_PageManager.m_RemovePage -> page.Dispose(False) -> obj_PageMain.obj_IPage_Dispose -> obj_PageBase.Dispose
+' Callstack[3]: rt_PageManager.m_RemovePageById -> rt_PageManager.m_RemovePage -> page.Dispose(deleteWorksheet) -> obj_PageMain.obj_IPage_Dispose -> obj_PageBase.Dispose
+Public Sub Dispose(Optional ByVal deleteWorksheet As Boolean = True)
+    Dim ws As Worksheet
+
+    If m_IsDisposed Then Exit Sub
+
+    Set ws = m_Worksheet
+    Set m_Worksheet = Nothing
+    m_UiPath = VBA.vbNullString
+    m_PageId = VBA.vbNullString
+    m_PageType = 0
+    Set m_UiDom = Nothing
+    Set m_RuntimeSources = Nothing
+    Set m_InlineRunEntries = Nothing
+    ' Сбрасываем профильный кэш вместе со страницей (единый lifecycle PageBase).
+    Set m_InlineProfileByPart = Nothing
+    m_IsRendering = False
+    Call Me.ResetControlActions
+    m_IsDisposed = True
+
+    If Not deleteWorksheet Then Exit Sub
+    If ws Is Nothing Then Exit Sub
+
+    On Error GoTo EH_DELETE
+    Application.DisplayAlerts = False
+    ws.Delete
+    Application.DisplayAlerts = True
+    Exit Sub
+
+EH_DELETE:
+    Application.DisplayAlerts = True
+    VBA.MsgBox "PageBase: failed to delete worksheet during dispose: " & Err.Description, VBA.vbExclamation
+End Sub
 
 Public Property Get Worksheet() As Worksheet
     Set Worksheet = m_Worksheet
@@ -74,32 +122,10 @@ Public Property Get XmlDom() As Object
     Set XmlDom = m_UiDom
 End Property
 
-' Callstack[1]: obj_PageMain.private_PrepareDemoConfigRuntime -> m_Base.RuntimeSources -> obj_PageBase.RuntimeSources
-' Callstack[2]: obj_PageMain.private_RegisterDemoTableItems -> m_Base.RuntimeSources -> obj_PageBase.RuntimeSources
-' Callstack[3]: obj_PageMain.private_RegisterDemoSingleTableItems -> m_Base.RuntimeSources -> obj_PageBase.RuntimeSources
-' Callstack[4]: obj_PageMain.private_RegisterDemoTablePartStylesItems -> m_Base.RuntimeSources -> obj_PageBase.RuntimeSources
-' Callstack[5]: ex_Test.private_ResetItemsSources -> private_TryResolvePageBase -> ex_HelpersSheet.m_TryGetPageBaseByWorksheet -> rt_PageManager.m_TryGetPageByWorksheet -> page.GetPageBase -> obj_PageBase.RuntimeSources
-' Callstack[6]: ex_Test.private_ResetObjectSources -> private_TryResolvePageBase -> ex_HelpersSheet.m_TryGetPageBaseByWorksheet -> rt_PageManager.m_TryGetPageByWorksheet -> page.GetPageBase -> obj_PageBase.RuntimeSources
-' Callstack[7]: ex_LayoutListRenderer.m_Render -> renderCtx.PageBase.RuntimeSources -> obj_PageBase.RuntimeSources
-' Callstack[8]: ex_LayoutListRenderer.m_TryMeasureContentSpan -> renderCtx.PageBase.RuntimeSources -> obj_PageBase.RuntimeSources
-' Callstack[9]: ex_LayoutItemControlRenderer.m_Render -> renderCtx.PageBase.RuntimeSources -> obj_PageBase.RuntimeSources
-' Callstack[10]: ex_LayoutItemControlRenderer.m_TryMeasureContentSpan -> renderCtx.PageBase.RuntimeSources -> obj_PageBase.RuntimeSources
-' Callstack[11]: obj_TableSingleControlVM.obj_IControl_Configure -> m_Base.PageBase -> currentPage.RuntimeSources -> obj_PageBase.RuntimeSources
-' Callstack[12]: obj_TableListControlVM.obj_IControl_Configure -> m_Base.PageBase -> currentPage.RuntimeSources -> obj_PageBase.RuntimeSources
-' Callstack[13]: obj_ConfigControlVM.obj_IControl_Configure -> m_Base.PageBase -> currentPage.RuntimeSources -> obj_PageBase.RuntimeSources
-' Callstack[14]: obj_SelectControlVM.obj_IControl_Configure -> m_Base.PageBase -> currentPage.RuntimeSources -> obj_PageBase.RuntimeSources
 Public Property Get RuntimeSources() As obj_PageRuntimeSources
     If Not private_EnsureNotDisposed("RuntimeSources") Then Exit Property
     Set RuntimeSources = m_RuntimeSources
 End Property
-
-' Callstack[1]: rt_Snapshots.m_RestorePageSnapshots -> serializablePage.TryDeserializeSnapshot(obj_PageMain) -> m_Base.ReadBaseSnapshotAttributes -> obj_PageBase.SetUiPath
-' Callstack[2]: obj_PageBase.ReadBaseSnapshotAttributes -> obj_PageBase.SetUiPath
-Public Sub SetUiPath(ByVal uiPath As String)
-    If Not private_EnsureNotDisposed("SetUiPath") Then Exit Sub
-    m_UiPath = VBA.Trim$(uiPath)
-    Set m_UiDom = Nothing
-End Sub
 
 Public Property Get IsDisposed() As Boolean
     IsDisposed = m_IsDisposed
@@ -112,6 +138,19 @@ Public Function IsReady() As Boolean
     End If
     IsReady = Not m_Worksheet Is Nothing
 End Function
+
+Public Function GetPageBase() As obj_PageBase
+    If Not private_EnsureNotDisposed("GetPageBase") Then Exit Function
+    Set GetPageBase = Me
+End Function
+
+' Callstack[1]: rt_Snapshots.m_RestorePageSnapshots -> serializablePage.TryDeserializeSnapshot(obj_PageMain) -> m_Base.ReadBaseSnapshotAttributes -> obj_PageBase.SetUiPath
+' Callstack[2]: obj_PageBase.ReadBaseSnapshotAttributes -> obj_PageBase.SetUiPath
+Public Sub SetUiPath(ByVal uiPath As String)
+    If Not private_EnsureNotDisposed("SetUiPath") Then Exit Sub
+    m_UiPath = VBA.Trim$(uiPath)
+    Set m_UiDom = Nothing
+End Sub
 
 ' Callstack[1]: ThisWorkbook.Workbook_Open -> ThisWorkbook.m_ResetWorkbookAndCreateMainPage -> private_ResetWorkbookAndCreateMainPage -> rt_PageManager.m_RenderPageById -> rt_PageManager.m_RenderPage -> obj_PageMain.obj_IPage_Render -> obj_PageBase.Render
 ' Callstack[2]: ex_Core.private_TryRecoverUiAfterUpdate -> ThisWorkbook.m_ResetWorkbookAndCreateMainPage -> private_ResetWorkbookAndCreateMainPage -> rt_PageManager.m_RenderPageById -> rt_PageManager.m_RenderPage -> obj_PageMain.obj_IPage_Render -> obj_PageBase.Render
@@ -182,7 +221,7 @@ Public Function Render() As Boolean
 
     ' Сбрасываем runtime-реестры, чтобы не тянуть старые контролы/маршруты.
     ex_ControlPartsRuntime.m_ResetControlParts
-    ex_InlineTextRuntime.m_ResetInlineRuns
+    Me.ResetInlineRuns
     ex_ControlRefreshRuntime.m_ResetRegisteredControls
 
     If Not Me.ResetControlActions() Then GoTo Cleanup
@@ -192,7 +231,7 @@ Public Function Render() As Boolean
     If Not renderCtx.Initialize(Me) Then GoTo Cleanup
     If Not ex_XmlLayoutEngine.m_RenderNode(renderCtx, pageNode) Then GoTo Cleanup
     If Not ex_StylePipelineEngine.m_ApplyPageStyles(ws, m_UiDom) Then GoTo Cleanup
-    If Not ex_InlineTextRuntime.m_ApplyInlineRuns(ws) Then GoTo Cleanup
+    If Not Me.ApplyInlineRuns() Then GoTo Cleanup
 
     private_LogRuntimeInfo "render-bindings controls=" & VBA.CStr(private_GetDictionaryCount(m_ControlByKey)) & " routes=" & VBA.CStr(private_GetDictionaryCount(m_RouteByShape))
 
@@ -213,59 +252,310 @@ EH_RENDER:
     VBA.MsgBox "PrototypeNew: render failed: [" & errSource & " #" & VBA.CStr(errNumber) & "] " & errDescription, VBA.vbExclamation
 End Function
 
+' Callstack[1]: obj_BannerViewItem.Render -> m_PageBase.RegisterInlineRuns -> obj_PageBase.RegisterInlineRuns
+Public Function RegisterInlineRuns( _
+    ByVal targetRange As Range, _
+    ByVal runs As Collection, _
+    ByVal inlineProfile As obj_InlineTextProfile _
+) As Boolean
+    Dim firstCell As Range
+    Dim entry As Object
+    Dim targetKey As String
+
+    If Not private_EnsureNotDisposed("RegisterInlineRuns") Then Exit Function
+
+    If targetRange Is Nothing Then
+        RegisterInlineRuns = True
+        Exit Function
+    End If
+    If runs Is Nothing Then
+        RegisterInlineRuns = True
+        Exit Function
+    End If
+    If inlineProfile Is Nothing Then
+        RegisterInlineRuns = True
+        Exit Function
+    End If
+
+    Set firstCell = targetRange.Cells(1, 1)
+    targetKey = VBA.LCase$(firstCell.Address(False, False))
+    If m_InlineRunEntries Is Nothing Then Set m_InlineRunEntries = New Collection
+
+    private_RemoveInlineRunEntriesByTarget INLINE_TARGET_RANGE, targetKey
+
+    Set entry = VBA.CreateObject("Scripting.Dictionary")
+    entry.CompareMode = 1
+    entry("TargetType") = INLINE_TARGET_RANGE
+    entry("TargetKey") = targetKey
+    entry("CellAddress") = firstCell.Address(False, False)
+    Set entry("Runs") = runs
+    Set entry("InlineProfile") = inlineProfile
+
+    m_InlineRunEntries.Add entry
+    RegisterInlineRuns = True
+End Function
+
+Public Function TryResolveInlineTextByPart( _
+    ByVal partName As String, _
+    ByVal rawText As String, _
+    ByRef outText As String, _
+    ByRef outRuns As Collection _
+) As Boolean
+    Dim inlineProfile As obj_InlineTextProfile
+
+    If Not private_EnsureNotDisposed("TryResolveInlineTextByPart") Then Exit Function
+
+    ' partName = логический ключ части UI (например banner/button),
+    ' по нему выбираем профиль правил inline-текста.
+    partName = VBA.Trim$(partName)
+    If VBA.Len(partName) = 0 Then
+        VBA.MsgBox "PageBase: part name is empty for inline text resolve.", VBA.vbExclamation
+        Exit Function
+    End If
+
+    If Not Me.TryGetInlineTextProfile(partName, inlineProfile) Then Exit Function
+    If Not inlineProfile.TryResolveInlineText(rawText, outText, outRuns) Then Exit Function
+
+    TryResolveInlineTextByPart = True
+End Function
+
+Public Function TryGetInlineTextProfile( _
+    ByVal partName As String, _
+    ByRef outInlineProfile As obj_InlineTextProfile _
+) As Boolean
+    If Not private_EnsureNotDisposed("TryGetInlineTextProfile") Then Exit Function
+
+    partName = VBA.Trim$(partName)
+    If VBA.Len(partName) = 0 Then
+        VBA.MsgBox "PageBase: part name is empty for inline text profile.", VBA.vbExclamation
+        Exit Function
+    End If
+
+    ' Возвращаем профиль из кэша или создаем новый при первом обращении.
+    ' Это исключает дублирование одинаковых profile-объектов по разным VM/ViewItem.
+    If Not private_TryGetInlineProfileByPart(partName, outInlineProfile) Then Exit Function
+    TryGetInlineTextProfile = True
+End Function
+
+Public Function RegisterInlineRunsByPart( _
+    ByVal targetRange As Range, _
+    ByVal runs As Collection, _
+    ByVal partName As String _
+) As Boolean
+    Dim inlineProfile As obj_InlineTextProfile
+
+    If Not private_EnsureNotDisposed("RegisterInlineRunsByPart") Then Exit Function
+
+    partName = VBA.Trim$(partName)
+    If VBA.Len(partName) = 0 Then
+        VBA.MsgBox "PageBase: part name is empty for range inline runs registration.", VBA.vbExclamation
+        Exit Function
+    End If
+
+    If Not Me.TryGetInlineTextProfile(partName, inlineProfile) Then Exit Function
+    RegisterInlineRunsByPart = Me.RegisterInlineRuns(targetRange, runs, inlineProfile)
+End Function
+
+Public Function RegisterInlineRunsForShapeByPart( _
+    ByVal targetShape As Shape, _
+    ByVal runs As Collection, _
+    ByVal partName As String _
+) As Boolean
+    Dim inlineProfile As obj_InlineTextProfile
+
+    If Not private_EnsureNotDisposed("RegisterInlineRunsForShapeByPart") Then Exit Function
+
+    partName = VBA.Trim$(partName)
+    If VBA.Len(partName) = 0 Then
+        VBA.MsgBox "PageBase: part name is empty for shape inline runs registration.", VBA.vbExclamation
+        Exit Function
+    End If
+
+    If Not Me.TryGetInlineTextProfile(partName, inlineProfile) Then Exit Function
+    RegisterInlineRunsForShapeByPart = Me.RegisterInlineRunsForShape(targetShape, runs, inlineProfile)
+End Function
+
+
+Public Function RegisterInlineRunsForShape( _
+    ByVal targetShape As Shape, _
+    ByVal runs As Collection, _
+    ByVal inlineProfile As obj_InlineTextProfile _
+) As Boolean
+    Dim entry As Object
+    Dim targetKey As String
+
+    If Not private_EnsureNotDisposed("RegisterInlineRunsForShape") Then Exit Function
+
+    If targetShape Is Nothing Then
+        RegisterInlineRunsForShape = True
+        Exit Function
+    End If
+    If runs Is Nothing Then
+        RegisterInlineRunsForShape = True
+        Exit Function
+    End If
+    If inlineProfile Is Nothing Then
+        RegisterInlineRunsForShape = True
+        Exit Function
+    End If
+
+    targetKey = VBA.LCase$(VBA.Trim$(targetShape.Name))
+    If VBA.Len(targetKey) = 0 Then
+        RegisterInlineRunsForShape = True
+        Exit Function
+    End If
+
+    If m_InlineRunEntries Is Nothing Then Set m_InlineRunEntries = New Collection
+    private_RemoveInlineRunEntriesByTarget INLINE_TARGET_SHAPE, targetKey
+
+    Set entry = VBA.CreateObject("Scripting.Dictionary")
+    entry.CompareMode = 1
+    entry("TargetType") = INLINE_TARGET_SHAPE
+    entry("TargetKey") = targetKey
+    entry("ShapeName") = targetShape.Name
+    Set entry("Runs") = runs
+    Set entry("InlineProfile") = inlineProfile
+
+    m_InlineRunEntries.Add entry
+    RegisterInlineRunsForShape = True
+End Function
+
+' Callstack[1]: obj_PageBase.Render -> obj_PageBase.ApplyInlineRuns
+' Callstack[2]: ex_ControlRefreshRuntime.m_TryRefreshStaticControl -> pageBase.ApplyInlineRuns -> obj_PageBase.ApplyInlineRuns
+Public Function ApplyInlineRuns() As Boolean
+    Dim entry As Object
+    Dim targetCell As Range
+    Dim targetShape As Shape
+    Dim runs As Collection
+    Dim inlineProfile As obj_InlineTextProfile
+    Dim targetType As String
+
+    If Not private_EnsureNotDisposed("ApplyInlineRuns") Then Exit Function
+    If m_Worksheet Is Nothing Then
+        VBA.MsgBox "PageBase: worksheet is not specified for inline runs.", VBA.vbExclamation
+        Exit Function
+    End If
+
+    If m_InlineRunEntries Is Nothing Then
+        ApplyInlineRuns = True
+        Exit Function
+    End If
+
+    ' Post-style проход: применяем уже зарегистрированные runs
+    ' после того как базовые стили страницы/контролов выставлены.
+    For Each entry In m_InlineRunEntries
+        Set targetCell = Nothing
+        Set targetShape = Nothing
+        Set runs = Nothing
+        Set inlineProfile = Nothing
+        targetType = VBA.vbNullString
+
+        On Error Resume Next
+        targetType = VBA.LCase$(VBA.Trim$(VBA.CStr(entry("TargetType"))))
+        If targetType = INLINE_TARGET_RANGE Then
+            Set targetCell = m_Worksheet.Range(VBA.CStr(entry("CellAddress")))
+        ElseIf targetType = INLINE_TARGET_SHAPE Then
+            Set targetShape = m_Worksheet.Shapes(VBA.CStr(entry("ShapeName")))
+        End If
+        Set runs = entry("Runs")
+        Set inlineProfile = entry("InlineProfile")
+        On Error GoTo 0
+
+        If runs Is Nothing Then GoTo ContinueEntry
+        If inlineProfile Is Nothing Then GoTo ContinueEntry
+
+        If targetType = INLINE_TARGET_RANGE Then
+            If targetCell Is Nothing Then GoTo ContinueEntry
+            inlineProfile.ApplyInlineRuns targetCell, runs
+        ElseIf targetType = INLINE_TARGET_SHAPE Then
+            If targetShape Is Nothing Then GoTo ContinueEntry
+            inlineProfile.ApplyInlineRunsToShape targetShape, runs
+        End If
+
+ContinueEntry:
+    Next entry
+
+    ApplyInlineRuns = True
+End Function
+
+' Callstack[1]: obj_PageBase.Render -> obj_PageBase.ResetInlineRuns
+' Callstack[2]: obj_PageBase.Clear -> obj_PageBase.ResetInlineRuns
+Public Sub ResetInlineRuns()
+    If Not private_EnsureNotDisposed("ResetInlineRuns") Then Exit Sub
+    Set m_InlineRunEntries = Nothing
+End Sub
+
+Private Function private_TryGetInlineProfileByPart( _
+    ByVal partName As String, _
+    ByRef outInlineProfile As obj_InlineTextProfile _
+) As Boolean
+    Dim partKey As String
+    Dim inlineProfile As obj_InlineTextProfile
+
+    partKey = VBA.LCase$(VBA.Trim$(partName))
+    If VBA.Len(partKey) = 0 Then Exit Function
+
+    private_EnsureInlineProfileStorage
+    ' Если профиль уже создан для partName, переиспользуем его.
+    If m_InlineProfileByPart.Exists(partKey) Then
+        Set outInlineProfile = m_InlineProfileByPart(partKey)
+        private_TryGetInlineProfileByPart = True
+        Exit Function
+    End If
+
+    ' Ленивое создание профиля: сейчас правила одинаковые,
+    ' но архитектура позволяет отличать их по partName.
+    Set inlineProfile = New obj_InlineTextProfile
+    inlineProfile.PartName = partKey
+    inlineProfile.InlineMarkersEnabled = True
+    Set m_InlineProfileByPart(partKey) = inlineProfile
+    Set outInlineProfile = inlineProfile
+    private_TryGetInlineProfileByPart = True
+End Function
+
+Private Sub private_EnsureInlineProfileStorage()
+    If Not m_InlineProfileByPart Is Nothing Then Exit Sub
+
+    Set m_InlineProfileByPart = VBA.CreateObject("Scripting.Dictionary")
+    m_InlineProfileByPart.CompareMode = 1
+End Sub
+
+Private Sub private_RemoveInlineRunEntriesByTarget(ByVal targetType As String, ByVal targetKey As String)
+    Dim idx As Long
+    Dim entry As Object
+    Dim entryType As String
+    Dim entryKey As String
+
+    If m_InlineRunEntries Is Nothing Then Exit Sub
+
+    targetType = VBA.LCase$(VBA.Trim$(targetType))
+    targetKey = VBA.LCase$(VBA.Trim$(targetKey))
+    If VBA.Len(targetType) = 0 Or VBA.Len(targetKey) = 0 Then Exit Sub
+
+    For idx = m_InlineRunEntries.Count To 1 Step -1
+        Set entry = m_InlineRunEntries(idx)
+
+        entryType = VBA.vbNullString
+        entryKey = VBA.vbNullString
+        On Error Resume Next
+        entryType = VBA.LCase$(VBA.Trim$(VBA.CStr(entry("TargetType"))))
+        entryKey = VBA.LCase$(VBA.Trim$(VBA.CStr(entry("TargetKey"))))
+        On Error GoTo 0
+
+        If entryType = targetType And entryKey = targetKey Then
+            m_InlineRunEntries.Remove idx
+        End If
+    Next idx
+End Sub
+
 ' Callstack[1]: obj_PageMain.Clear -> obj_PageBase.Clear
 Public Sub Clear()
     If Not private_EnsureNotDisposed("Clear") Then Exit Sub
     If m_Worksheet Is Nothing Then Exit Sub
+    Call Me.ResetInlineRuns
     Call Me.ResetControlActions
     Call private_TryClearPageRuntime
 End Sub
-
-' Callstack[1]: ThisWorkbook.Workbook_Open -> ThisWorkbook.m_ResetWorkbookAndCreateMainPage -> private_ResetWorkbookAndCreateMainPage -> rt_PageManager.m_DisposeAllPages -> page.Dispose(False) -> obj_PageMain.obj_IPage_Dispose -> obj_PageBase.Dispose
-' Callstack[2]: ThisWorkbook.Workbook_SheetBeforeDelete -> ex_HelpersSheet.m_RemovePageByWorksheet -> rt_PageManager.m_RemovePage -> page.Dispose(False) -> obj_PageMain.obj_IPage_Dispose -> obj_PageBase.Dispose
-' Callstack[3]: rt_PageManager.m_RemovePageById -> rt_PageManager.m_RemovePage -> page.Dispose(deleteWorksheet) -> obj_PageMain.obj_IPage_Dispose -> obj_PageBase.Dispose
-Public Sub Dispose(Optional ByVal deleteWorksheet As Boolean = True)
-    Dim ws As Worksheet
-
-    If m_IsDisposed Then Exit Sub
-
-    Set ws = m_Worksheet
-    Set m_Worksheet = Nothing
-    m_UiPath = VBA.vbNullString
-    m_PageId = VBA.vbNullString
-    m_PageType = 0
-    Set m_UiDom = Nothing
-    Set m_RuntimeSources = Nothing
-    m_IsRendering = False
-    Call Me.ResetControlActions
-    m_IsDisposed = True
-
-    If Not deleteWorksheet Then Exit Sub
-    If ws Is Nothing Then Exit Sub
-
-    On Error GoTo EH_DELETE
-    Application.DisplayAlerts = False
-    ws.Delete
-    Application.DisplayAlerts = True
-    Exit Sub
-
-EH_DELETE:
-    Application.DisplayAlerts = True
-    VBA.MsgBox "PageBase: failed to delete worksheet during dispose: " & Err.Description, VBA.vbExclamation
-End Sub
-
-' Callstack[1]: rt_PageManager.m_RenderPage -> page.GetPageBase -> obj_PageMain.obj_IPage_GetPageBase -> obj_PageBase.GetPageBase
-' Callstack[2]: rt_PageManager.m_RemovePage -> page.GetPageBase -> obj_PageMain.obj_IPage_GetPageBase -> obj_PageBase.GetPageBase
-' Callstack[3]: rt_PageManager.m_TryGetPagesByType -> page.GetPageBase -> obj_PageMain.obj_IPage_GetPageBase -> obj_PageBase.GetPageBase
-' Callstack[4]: rt_PageManager.private_RegisterPage -> page.GetPageBase -> obj_PageMain.obj_IPage_GetPageBase -> obj_PageBase.GetPageBase
-' Callstack[5]: rt_Snapshots.m_SavePageSnapshots -> page.GetPageBase -> obj_PageMain.obj_IPage_GetPageBase -> obj_PageBase.GetPageBase
-' Callstack[6]: rt_Snapshots.m_RestorePageSnapshots -> page.GetPageBase -> obj_PageMain.obj_IPage_GetPageBase -> obj_PageBase.GetPageBase
-' Callstack[7]: ex_HelpersSheet.m_TryCastPageBase -> pageRef.GetPageBase -> obj_PageMain.obj_IPage_GetPageBase -> obj_PageBase.GetPageBase
-' Callstack[8]: ThisWorkbook.m_ResetWorkbookAndCreateMainPage -> private_ResetWorkbookAndCreateMainPage -> createdPage.GetPageBase -> obj_PageMain.obj_IPage_GetPageBase -> obj_PageBase.GetPageBase
-Public Function GetPageBase() As obj_PageBase
-    If Not private_EnsureNotDisposed("GetPageBase") Then Exit Function
-    Set GetPageBase = Me
-End Function
 
 ' Callstack[1]: rt_PageManager.m_RenderPage -> page.Render -> obj_PageBase.Render -> ex_XmlLayoutEngine.m_RenderNode -> ex_LayoutControlRenderer.m_Render -> obj_ButtonControlVM.obj_IControl_Render -> m_Page.RegisterControl -> obj_PageBase.RegisterControl
 ' Callstack[2]: rt_PageManager.m_RenderPage -> page.Render -> obj_PageBase.Render -> ex_XmlLayoutEngine.m_RenderNode -> ex_LayoutControlRenderer.m_Render -> obj_SelectControlVM.private_TryBindRuntimeRoutes -> m_Page.RegisterControl -> obj_PageBase.RegisterControl

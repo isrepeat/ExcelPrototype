@@ -6,7 +6,7 @@ Attribute VB_Name = "obj_IViewItem"
 Option Explicit
 
 Public Function Render( _
-    ByVal ws As Worksheet, _
+    ByVal page As obj_PageBase, _
     ByVal rowStart As Long, _
     ByVal colStart As Long, _
     ByVal rowEnd As Long, _

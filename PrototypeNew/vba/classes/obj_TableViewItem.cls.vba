@@ -7,16 +7,15 @@ Option Explicit
 Implements obj_IViewItem
 
 Private m_Model As obj_TableDynamic
-Private m_Presentation As obj_Presentation
+Private m_Presentation As obj_ViewPresentation
 Private m_Banner As obj_BannerViewItem
 Private m_RowItems As Collection
 
 Private Sub Class_Initialize()
     Set m_Model = New obj_TableDynamic
-    Set m_Presentation = New obj_Presentation
+    Set m_Presentation = New obj_ViewPresentation
     Set m_Banner = Nothing
     Set m_RowItems = New Collection
-    m_Presentation.PartName = "table"
 End Sub
 
 Public Property Get Model() As obj_TableDynamic
@@ -31,13 +30,13 @@ Public Property Set Model(ByVal value As obj_TableDynamic)
     End If
 End Property
 
-Public Property Get Presentation() As obj_Presentation
+Public Property Get Presentation() As obj_ViewPresentation
     Set Presentation = m_Presentation
 End Property
 
-Public Property Set Presentation(ByVal value As obj_Presentation)
+Public Property Set Presentation(ByVal value As obj_ViewPresentation)
     If value Is Nothing Then
-        Set m_Presentation = New obj_Presentation
+        Set m_Presentation = New obj_ViewPresentation
     Else
         Set m_Presentation = value
     End If
@@ -105,7 +104,7 @@ End Property
 ' // Interface
 ' //
 Private Function obj_IViewItem_Render( _
-    ByVal ws As Worksheet, _
+    ByVal page As obj_PageBase, _
     ByVal rowStart As Long, _
     ByVal colStart As Long, _
     ByVal rowEnd As Long, _

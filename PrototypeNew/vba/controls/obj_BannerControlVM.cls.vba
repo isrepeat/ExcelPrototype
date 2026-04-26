@@ -44,7 +44,6 @@ Private Sub obj_IControl_Configure(ByVal page As obj_PageBase, ByVal controlNode
     m_ViewItem.Model.Message = messageText
     m_ViewItem.Model.Visible = isVisible
     m_ViewItem.Presentation.EffectiveVisible = isVisible
-    m_ViewItem.Presentation.PartName = "banner"
 
     Set m_Layout = New obj_ControlLayout
     If Not m_Layout.TryReadFromNode(controlNode, "Banner", m_ControlName, "style") Then Exit Sub
@@ -80,7 +79,7 @@ Private Sub obj_IControl_Render()
         Exit Sub
     End If
 
-    If Not m_ViewItem.Render(ws, m_Layout.RowStart, m_Layout.ColStart, m_Layout.RowEnd, m_Layout.ColEnd, m_ControlName) Then Exit Sub
+    If Not m_ViewItem.Render(page, m_Layout.RowStart, m_Layout.ColStart, m_Layout.RowEnd, m_Layout.ColEnd, m_ControlName) Then Exit Sub
 End Sub
 
 Private Function obj_IControl_SupportsAttribute(ByVal attrName As String) As Boolean
