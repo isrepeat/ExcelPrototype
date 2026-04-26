@@ -113,7 +113,7 @@ Public Function m_TryRefreshStaticControl(ByVal controlName As String) As Boolea
         rowEnd:=VBA.CLng(entry("RowEnd")), _
         colEnd:=VBA.CLng(entry("ColEnd"))) Then Exit Function
 
-    If Not ex_InlineTextRuntime.m_ApplyInlineRuns(ws) Then Exit Function
+    If Not pageBase.ApplyInlineRuns() Then Exit Function
 
     m_TryRefreshStaticControl = True
 End Function

@@ -8,13 +8,16 @@ Implements obj_IControl
 Implements obj_ISerializable
 
 Private Const DEFAULT_CAPTION As String = "Update Code"
+Private Const INLINE_PART_BUTTON As String = "button"
 
 Private m_Base As obj_ControlBase
 Private m_ControlName As String
 Private m_CaptionRaw As String
+Private m_CaptionInlineSource As String
 Private m_OnClickRaw As String
 Private m_Layout As obj_ControlLayout
 Private m_CaptionText As String
+Private m_CaptionInlinePart As obj_InlineTextPart
 Private m_OnClickMacroRef As String
 Private m_RuntimeControlKey As String
 Private m_IsConfigured As Boolean
@@ -27,11 +30,15 @@ Private m_Page As obj_PageBase
 ' читаем attrs -> резолвим биндинги -> нормализуем layout -> готовим runtime key.
 Private Sub obj_IControl_Configure(ByVal page As obj_PageBase, ByVal controlNode As Object)
     Dim dataContext As Object
+    Dim captionTextResolved As String
 
     m_IsConfigured = False
     Set m_Layout = Nothing
     Set m_Base = Nothing
     Set m_Page = Nothing
+    Set m_CaptionInlinePart = New obj_InlineTextPart
+    m_CaptionInlineSource = VBA.vbNullString
+    m_CaptionText = VBA.vbNullString
     m_RuntimeControlKey = VBA.vbNullString
 
     Set m_Base = New obj_ControlBase
@@ -50,7 +57,9 @@ Private Sub obj_IControl_Configure(ByVal page As obj_PageBase, ByVal controlNode
     Set dataContext = m_Base.DataContext
     If dataContext Is Nothing Then Set dataContext = Me
 
-    If Not ex_BindingRuntime.m_TryResolveTextBinding(m_CaptionRaw, dataContext, m_CaptionText) Then Exit Sub
+    If Not ex_BindingRuntime.m_TryResolveTextBinding(m_CaptionRaw, dataContext, captionTextResolved) Then Exit Sub
+    m_CaptionInlineSource = captionTextResolved
+    If Not private_TryResolveCaptionInlineText(page, m_CaptionInlineSource) Then Exit Sub
     If Not ex_BindingRuntime.m_TryResolveMacroBinding(m_OnClickRaw, dataContext, m_OnClickMacroRef) Then Exit Sub
     m_OnClickMacroRef = VBA.Trim$(m_OnClickMacroRef)
 
@@ -122,6 +131,7 @@ Private Sub obj_IControl_Render()
     shp.TextFrame.Characters.Text = m_CaptionText
     shp.TextFrame.HorizontalAlignment = xlHAlignCenter
     shp.TextFrame.VerticalAlignment = xlVAlignCenter
+    If Not private_RegisterCaptionInlineRuns(page, shp) Then Exit Sub
 
     Set metaMap = VBA.CreateObject("Scripting.Dictionary")
     metaMap.CompareMode = 1
@@ -196,6 +206,7 @@ Public Function TrySerializeSnapshot(ByRef outSnapshotXml As String) As Boolean
         "<button version=""2""" & _
         " controlName=""" & ex_Helpers.m_EscapeXmlAttr(m_ControlName) & """" & _
         " captionRaw=""" & ex_Helpers.m_EscapeXmlAttr(m_CaptionRaw) & """" & _
+        " captionInlineSource=""" & ex_Helpers.m_EscapeXmlAttr(m_CaptionInlineSource) & """" & _
         " onClickRaw=""" & ex_Helpers.m_EscapeXmlAttr(m_OnClickRaw) & """" & _
         " captionText=""" & ex_Helpers.m_EscapeXmlAttr(m_CaptionText) & """" & _
         " onClickMacroRef=""" & ex_Helpers.m_EscapeXmlAttr(m_OnClickMacroRef) & """" & _
@@ -240,6 +251,7 @@ Public Function TryDeserializeSnapshot(ByVal snapshotXml As String) As Boolean
 
     m_ControlName = VBA.Trim$(VBA.CStr(root.getAttribute("controlName")))
     m_CaptionRaw = VBA.CStr(root.getAttribute("captionRaw"))
+    m_CaptionInlineSource = VBA.CStr(root.getAttribute("captionInlineSource"))
     m_OnClickRaw = VBA.CStr(root.getAttribute("onClickRaw"))
     m_CaptionText = VBA.CStr(root.getAttribute("captionText"))
     onClickMacroRef = VBA.Trim$(VBA.CStr(root.getAttribute("onClickMacroRef")))
@@ -260,7 +272,13 @@ Public Function TryDeserializeSnapshot(ByVal snapshotXml As String) As Boolean
     If VBA.Len(layoutSheetName) = 0 Then Exit Function
     If VBA.Len(m_CaptionRaw) = 0 Then m_CaptionRaw = m_CaptionText
     If VBA.Len(m_CaptionRaw) = 0 Then m_CaptionRaw = DEFAULT_CAPTION
-    If VBA.Len(m_CaptionText) = 0 Then m_CaptionText = m_CaptionRaw
+    Set m_CaptionInlinePart = New obj_InlineTextPart
+    If VBA.Len(m_CaptionInlineSource) = 0 Then
+        m_CaptionInlineSource = m_CaptionRaw
+        If VBA.InStr(1, m_CaptionInlineSource, "{Binding ", VBA.vbTextCompare) > 0 Then
+            m_CaptionInlineSource = m_CaptionText
+        End If
+    End If
     If VBA.Len(m_RuntimeControlKey) = 0 Then
         m_RuntimeControlKey = "button|" & VBA.LCase$(VBA.Trim$(layoutSheetName & "|" & m_ControlName))
     End If
@@ -286,6 +304,7 @@ Public Function TryDeserializeSnapshot(ByVal snapshotXml As String) As Boolean
     ' 3) Восстанавливаем page-контекст (PageBase) для этого листа,
     '    чтобы затем зарегистрировать control/route обратно в runtime-реестры страницы.
     If Not ex_HelpersSheet.m_TryGetPageBaseByWorksheetName(layoutSheetName, m_Page) Then Exit Function
+    If Not private_TryResolveCaptionInlineText(m_Page, m_CaptionInlineSource) Then Exit Function
 
     On Error Resume Next
     Set shp = ws.Shapes(shapeName)
@@ -293,6 +312,8 @@ Public Function TryDeserializeSnapshot(ByVal snapshotXml As String) As Boolean
     If shp Is Nothing Then Exit Function
 
     If Not private_TryBindRuntimeRoute(shp) Then Exit Function
+    If Not private_RegisterCaptionInlineRuns(m_Page, shp) Then Exit Function
+    If Not m_Page.ApplyInlineRuns() Then Exit Function
 
     If isConfiguredAttr = "false" Or isConfiguredAttr = "0" Then
         m_IsConfigured = False
@@ -351,6 +372,42 @@ Private Function private_TryBindRuntimeRoute(ByVal shp As Shape) As Boolean
     ex_Core.m_Diagnostic_LogInfo "button:bind-route ok control='" & VBA.Replace$(VBA.Trim$(m_ControlName), "'", "''") & "' shape='" & VBA.Replace$(VBA.Trim$(shp.Name), "'", "''") & "' macro='" & VBA.Replace$(callbackMacroRef, "'", "''") & "'"
 
     private_TryBindRuntimeRoute = True
+End Function
+
+Private Function private_RegisterCaptionInlineRuns(ByVal page As obj_PageBase, ByVal shp As Shape) As Boolean
+    If page Is Nothing Then Exit Function
+    If shp Is Nothing Then Exit Function
+    If m_CaptionInlinePart Is Nothing Then
+        VBA.MsgBox "Button: caption inline part is not initialized for control '" & m_ControlName & "'.", VBA.vbExclamation
+        Exit Function
+    End If
+    private_RegisterCaptionInlineRuns = m_CaptionInlinePart.RegisterForShape(page, shp)
+End Function
+
+Private Function private_TryResolveCaptionInlineText( _
+    ByVal page As obj_PageBase, _
+    ByVal rawCaptionText As String _
+) As Boolean
+    Dim inlineProfile As obj_InlineTextProfile
+
+    If page Is Nothing Then
+        VBA.MsgBox "Button: page is not specified for inline caption resolve in control '" & m_ControlName & "'.", VBA.vbExclamation
+        Exit Function
+    End If
+
+    If m_CaptionInlinePart Is Nothing Then
+        VBA.MsgBox "Button: caption inline part is not initialized for control '" & m_ControlName & "'.", VBA.vbExclamation
+        Exit Function
+    End If
+
+    ' Для caption используем тот же pipeline, что и для ViewItem:
+    ' profile(part) -> inline part -> resolve -> register.
+    If Not page.TryGetInlineTextProfile(INLINE_PART_BUTTON, inlineProfile) Then Exit Function
+    Set m_CaptionInlinePart.InlineProfile = inlineProfile
+
+    If Not m_CaptionInlinePart.Resolve(rawCaptionText) Then Exit Function
+    m_CaptionText = m_CaptionInlinePart.ResolvedText
+    private_TryResolveCaptionInlineText = True
 End Function
 
 Private Function private_GetRuntimeCallbackMacroRef() As String

@@ -6,12 +6,11 @@ Attribute VB_Name = "obj_ConfigViewItem"
 Option Explicit
 
 Private m_Model As obj_Config
-Private m_Presentation As obj_Presentation
+Private m_Presentation As obj_ViewPresentation
 
 Private Sub Class_Initialize()
     Set m_Model = New obj_Config
-    Set m_Presentation = New obj_Presentation
-    m_Presentation.PartName = "configrow"
+    Set m_Presentation = New obj_ViewPresentation
 End Sub
 
 ' //
@@ -29,14 +28,13 @@ Public Property Set Model(ByVal value As obj_Config)
     End If
 End Property
 
-Public Property Get Presentation() As obj_Presentation
+Public Property Get Presentation() As obj_ViewPresentation
     Set Presentation = m_Presentation
 End Property
 
-Public Property Set Presentation(ByVal value As obj_Presentation)
+Public Property Set Presentation(ByVal value As obj_ViewPresentation)
     If value Is Nothing Then
-        Set m_Presentation = New obj_Presentation
-        m_Presentation.PartName = "configrow"
+        Set m_Presentation = New obj_ViewPresentation
     Else
         Set m_Presentation = value
     End If

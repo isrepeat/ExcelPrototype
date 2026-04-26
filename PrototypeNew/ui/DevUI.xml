@@ -108,25 +108,6 @@
                 spanCells="3"
                 spanRows="2"
                 />
-              <!-- <control
-                type="Button"
-                name="Open Primitive Table UI"
-                caption="Open Primitive Table Demo"
-                style="actionWarning"
-                onClick="{Binding Module=ex_Test;Method=m_TEST_RenderDevPrimitiveTableUI}"
-                spanCells="3"
-                spanRows="2"
-                /> -->
-              <control
-                type="Button"
-                name="Open List TableSingle UI"
-                caption="Open List + TableSingle Demo"
-                style="actionWarning"
-                onClick="{Binding Module=ex_Test;Method=m_TEST_RenderDevListTableSingleUI}"
-                spanCells="3"
-                spanRows="2"
-                />
-              
               <control
                 type="Button"
                 name="Update UI Single"
@@ -136,24 +117,6 @@
                 spanCells="3"
                 spanRows="2"
                 />
-              <!-- <control
-                type="Button"
-                name="Profile Table Render"
-                caption="Profile Table Render"
-                style="actionWarning"
-                onClick="{Binding Module=ex_Test;Method=m_TEST_ProfileDevTableListUI}"
-                spanCells="3"
-                spanRows="2"
-                />
-              <control
-                type="Button"
-                name="Fill Numbers Range"
-                caption="Fill L5:V28 Numbers"
-                style="actionWarning"
-                onClick="{Binding Module=ex_Test;Method=m_TEST_FillNumbersRangeSimple}"
-                spanCells="3"
-                spanRows="2"
-                /> -->
             </stackPanel>
       </stackPanel>
 
@@ -186,10 +149,10 @@
       <stackPanel at="r2c24" orientation="vertical">
         <control
           type="Button"
-          name="OpenCoreModule"
-          caption="Open ex_Core"
+          name="UpdateSheet"
+          caption="Update Sheet"
           style="actionWarning"
-          onClick="{Binding Module=ex_Core;Method=m_Dev_OpenCoreModule}"
+          onClick="{Binding Module=ex_Test;Method=m_TEST_UpdateCurrentPage}"
           spanCells="3"
           spanRows="2"
           />
@@ -197,27 +160,9 @@
           type="Button"
           name="ToggleLogging"
           dataContext="{GlobalRuntimeSource='Settings'}"
-          caption="{Binding Path=IsLoggingEnabled;TrueAs=Logging [On];FalseAs=Logging [Off]}"
+          caption="{Binding Path=IsLoggingEnabled;TrueAs=Logging [[[ok]]On[[/ok]]];FalseAs=Logging [[[color=#FF0000]]Off[[/color]]]}"
           style="actionWarning"
           onClick="{Binding Module=ex_Core;Method=m_Dev_ToggleLogging}"
-          spanCells="3"
-          spanRows="2"
-          />
-        <control
-          type="Button"
-          name="RemoveAllModules"
-          caption="Remove All Modules"
-          style="actionWarning"
-          onClick="{Binding Module=ex_Core;Method=m_Dev_RemoveAllModulesAndClasses}"
-          spanCells="3"
-          spanRows="2"
-          />
-        <control
-          type="Button"
-          name="UpdateSheet"
-          caption="Update Sheet"
-          style="actionWarning"
-          onClick="{Binding Module=ex_Test;Method=m_TEST_UpdateCurrentPage}"
           spanCells="3"
           spanRows="2"
           />
@@ -245,6 +190,24 @@
           caption="Update Code Full"
           style="actionWarning"
           onClick="{Binding Module=ex_Core;Method=m_Dev_UpdateAllModules}"
+          spanCells="3"
+          spanRows="2"
+          />
+        <control
+          type="Button"
+          name="OpenCoreModule"
+          caption="Open ex_Core"
+          style="actionWarning"
+          onClick="{Binding Module=ex_Core;Method=m_Dev_OpenCoreModule}"
+          spanCells="3"
+          spanRows="2"
+          />
+        <control
+          type="Button"
+          name="RemoveAllModules"
+          caption="Remove All Modules"
+          style="actionWarning"
+          onClick="{Binding Module=ex_Core;Method=m_Dev_RemoveAllModulesAndClasses}"
           spanCells="3"
           spanRows="2"
           />
