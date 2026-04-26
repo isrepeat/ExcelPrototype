@@ -125,7 +125,6 @@
           type="Select"
           name="ConfigProfilePicker"
           itemsSource="{PageRuntimeSource='RuntimeItems.Test.ConfigProfiles'}"
-          selectedItem="RuntimeObjects.Test.SelectedConfigProfile"
           placeholder="Choose profile"
           style="configSelectHeader"
           panelStyle="configSelectPanel"

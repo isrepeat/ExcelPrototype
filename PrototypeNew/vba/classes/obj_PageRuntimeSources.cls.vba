@@ -58,7 +58,6 @@ End Function
 ' Callstack[1]: ex_Test.private_TrySetObjectSource -> pageBase.RuntimeSources.SetObjectSource -> obj_PageRuntimeSources.SetObjectSource
 ' Callstack[2]: ex_LayoutListRenderer.private_RegisterRuntimeObjectSourceKey -> renderCtx.PageBase.RuntimeSources.SetObjectSource -> obj_PageRuntimeSources.SetObjectSource
 ' Callstack[3]: ex_LayoutItemControlRenderer.private_RegisterRuntimeObjectSourceKey -> renderCtx.PageBase.RuntimeSources.SetObjectSource -> obj_PageRuntimeSources.SetObjectSource
-' Callstack[4]: obj_SelectControlVM.private_TryPublishRuntimeSelectedItem -> m_Page.RuntimeSources.SetObjectSource -> obj_PageRuntimeSources.SetObjectSource
 Public Function SetObjectSource(ByVal objectSourceKey As String, ByVal sourceObject As Object) As Boolean
     Dim normalizedKey As String
 
