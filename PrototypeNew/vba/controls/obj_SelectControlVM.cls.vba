@@ -21,7 +21,6 @@ Private m_PlaceholderText As String
 Private m_OnChangeRaw As String
 Private m_OnChangeMacroRef As String
 Private m_SelectedIdRaw As String
-Private m_SelectedItemSourceRaw As String
 Private m_ItemStyleName As String
 Private m_PanelStyleName As String
 Private m_ItemHeight As Double
@@ -89,10 +88,6 @@ Private Sub obj_IControl_Configure(ByVal page As obj_PageBase, ByVal controlNode
     End If
 
     m_SelectedIdRaw = VBA.Trim$(VBA.CStr(ex_XmlCore.m_NodeAttrText(controlNode, "selectedId")))
-    m_SelectedItemSourceRaw = VBA.Trim$(VBA.CStr(ex_XmlCore.m_NodeAttrText(controlNode, "selectedItem")))
-    If VBA.Len(m_SelectedItemSourceRaw) = 0 Then
-        m_SelectedItemSourceRaw = VBA.Trim$(VBA.CStr(ex_XmlCore.m_NodeAttrText(controlNode, "selectedItemSource")))
-    End If
 
     m_PlaceholderText = VBA.CStr(ex_XmlCore.m_NodeAttrText(controlNode, "placeholder"))
     If VBA.Len(VBA.Trim$(m_PlaceholderText)) = 0 Then m_PlaceholderText = DEFAULT_PLACEHOLDER
@@ -263,7 +258,7 @@ End Sub
 
 Private Function obj_IControl_SupportsAttribute(ByVal attrName As String) As Boolean
     Select Case VBA.LCase$(VBA.Trim$(attrName))
-        Case "itemssource", "placeholder", "onchange", "selectedid", "selecteditem", "selecteditemsource", _
+        Case "itemssource", "placeholder", "onchange", "selectedid", _
              "style", _
              "itemstyle", "panelstyle", "itemheight", "itemmargin"
             obj_IControl_SupportsAttribute = True
@@ -353,11 +348,9 @@ Public Function RuntimeHandleItemClick(ByVal itemIndex As Long) As Boolean
 
     ' При выборе item:
     ' 1) фиксируем selectedId в CustomXMLPart
-    ' 2) публикуем selectedItem в objectSource
-    ' 3) запускаем item macro и onChange.
+    ' 2) запускаем item macro и onChange.
     selectedId = Me.GetSelectedId()
     If Not private_TryPersistSelectedId(selectedId) Then Exit Function
-    If Not private_TryPublishRuntimeSelectedItem(itemIndex) Then Exit Function
 
     itemMacro = private_GetRuntimeCollectionText(m_RuntimeItemActionMacros, itemIndex)
     If VBA.Len(itemMacro) > 0 Then
@@ -427,7 +420,6 @@ Public Function TrySerializeSnapshot(ByRef outSnapshotXml As String) As Boolean
     outSnapshotXml = outSnapshotXml & " placeholder=""" & ex_Helpers.m_EscapeXmlAttr(m_PlaceholderText) & """"
     outSnapshotXml = outSnapshotXml & " onChangeRaw=""" & ex_Helpers.m_EscapeXmlAttr(m_OnChangeRaw) & """"
     outSnapshotXml = outSnapshotXml & " onChange=""" & ex_Helpers.m_EscapeXmlAttr(m_OnChangeMacroRef) & """"
-    outSnapshotXml = outSnapshotXml & " selectedItemSource=""" & ex_Helpers.m_EscapeXmlAttr(m_SelectedItemSourceRaw) & """"
     outSnapshotXml = outSnapshotXml & " itemStyle=""" & ex_Helpers.m_EscapeXmlAttr(m_ItemStyleName) & """"
     outSnapshotXml = outSnapshotXml & " panelStyle=""" & ex_Helpers.m_EscapeXmlAttr(m_PanelStyleName) & """"
     outSnapshotXml = outSnapshotXml & " itemHeight=""" & VBA.CStr(m_ItemHeight) & """"
@@ -496,7 +488,6 @@ Public Function TryDeserializeSnapshot(ByVal snapshotXml As String) As Boolean
     m_PlaceholderText = VBA.CStr(root.getAttribute("placeholder"))
     m_OnChangeRaw = VBA.CStr(root.getAttribute("onChangeRaw"))
     m_OnChangeMacroRef = VBA.Trim$(VBA.CStr(root.getAttribute("onChange")))
-    m_SelectedItemSourceRaw = VBA.Trim$(VBA.CStr(root.getAttribute("selectedItemSource")))
     m_ItemStyleName = VBA.Trim$(VBA.CStr(root.getAttribute("itemStyle")))
     m_PanelStyleName = VBA.Trim$(VBA.CStr(root.getAttribute("panelStyle")))
     m_ItemHeight = ex_Helpers.m_ReadSnapshotDoubleAttr(root, "itemHeight", DEFAULT_ITEM_HEIGHT)
@@ -757,10 +748,9 @@ Private Function private_InitializeRuntimeState( _
     If Not private_ApplyRuntimeVisualState() Then Exit Function
 
     If Me.RuntimeHasSelectedItem() Then
-        ' Сразу синхронизируем persistent state и selectedItem-source.
+        ' Сразу синхронизируем persistent state.
         selectedId = Me.GetSelectedId()
         If Not private_TryPersistSelectedId(selectedId) Then Exit Function
-        If Not private_TryPublishRuntimeSelectedItem(m_SelectedIndex) Then Exit Function
     End If
 
     private_InitializeRuntimeState = True
@@ -828,41 +818,6 @@ ContinueItem:
     Next i
 
     private_ApplyRuntimeVisualState = True
-End Function
-
-Private Function private_TryPublishRuntimeSelectedItem(ByVal itemIndex As Long) As Boolean
-    Dim selectedObject As Object
-    Dim selectedRaw As Variant
-
-    If VBA.Len(m_SelectedItemSourceRaw) = 0 Then
-        private_TryPublishRuntimeSelectedItem = True
-        Exit Function
-    End If
-
-    If m_RuntimeItemRawItems Is Nothing Then Exit Function
-    If itemIndex <= 0 Or itemIndex > m_RuntimeItemRawItems.Count Then Exit Function
-
-    ' Пытаемся отдать исходный объект как selectedItem.
-    Set selectedObject = Nothing
-    On Error Resume Next
-    Set selectedObject = m_RuntimeItemRawItems(itemIndex)
-    If Err.Number <> 0 Then Err.Clear
-    On Error GoTo 0
-
-    ' Для scalar item создаем dictionary-обертку.
-    If selectedObject Is Nothing Then
-        selectedRaw = m_RuntimeItemRawItems(itemIndex)
-
-        Set selectedObject = VBA.CreateObject("Scripting.Dictionary")
-        selectedObject.CompareMode = 1
-        selectedObject("Id") = VBA.CStr(m_RuntimeItemIds(itemIndex))
-        selectedObject("Caption") = VBA.CStr(m_RuntimeItemCaptions(itemIndex))
-        selectedObject("RawValue") = VBA.CStr(selectedRaw)
-    End If
-
-    If m_Page Is Nothing Then Exit Function
-    If Not m_Page.RuntimeSources.SetObjectSource(m_SelectedItemSourceRaw, selectedObject) Then Exit Function
-    private_TryPublishRuntimeSelectedItem = True
 End Function
 
 Private Function private_GetRuntimeCollectionText(ByVal values As Collection, ByVal idx As Long) As String
