@@ -1726,12 +1726,24 @@ Private Sub private_Dev_ImportFolder( _
     Dim fso As Object
     Dim rootFolder As Object
     Dim failed As String
+    Dim importPass As Long
 
     If Dir(folderPath, vbDirectory) = "" Then Exit Sub
 
     Set fso = CreateObject("Scripting.FileSystemObject")
     Set rootFolder = fso.GetFolder(folderPath)
-    private_Dev_ImportFolderRecursive rootFolder, 0, failed, updateMode, prevCache, nextCache, includeComponentPattern, excludeComponentPattern
+
+    ' Глобальные два прохода по всему дереву:
+    ' 1) сначала все компоненты кроме интерфейсов obj_I*;
+    ' 2) затем интерфейсы.
+    ' Важно: при импорте VBA сразу проверяет/компилирует сигнатуры членов класса.
+    ' Поэтому если интерфейс ссылается на тип (например As obj_PageBase), а этот
+    ' тип еще не импортирован, импорт падает с "User-defined type not defined".
+    ' Так интерфейсы всегда импортируются после потенциально зависимых классов
+    ' даже если они лежат в разных подпапках.
+    For importPass = 1 To 2
+        private_Dev_ImportFolderRecursive rootFolder, 0, failed, updateMode, prevCache, nextCache, includeComponentPattern, excludeComponentPattern, importPass
+    Next importPass
 
     If VBA.Len(failed) > 0 Then
         Err.Raise VBA.vbObjectError + 1001, "private_Dev_ImportFolder", "Import failed for file(s):" & failed
@@ -1747,7 +1759,8 @@ Private Sub private_Dev_ImportFolderRecursive( _
     ByVal prevCache As Object, _
     ByVal nextCache As Object, _
     Optional ByVal includeComponentPattern As String = VBA.vbNullString, _
-    Optional ByVal excludeComponentPattern As String = VBA.vbNullString _
+    Optional ByVal excludeComponentPattern As String = VBA.vbNullString, _
+    Optional ByVal importPass As Long = 1 _
 )
     Dim fileObj As Object
     Dim subFolder As Object
@@ -1764,7 +1777,6 @@ Private Sub private_Dev_ImportFolderRecursive( _
     Dim componentNameForCache As String
     Dim incrementalMode As Boolean
     Dim shouldProcess As Boolean
-
     If folderObj Is Nothing Then Exit Sub
     If depth > MAX_IMPORT_RECURSION_DEPTH Then Exit Sub
 
@@ -1772,6 +1784,7 @@ Private Sub private_Dev_ImportFolderRecursive( _
 
     For Each fileObj In folderObj.Files
         fileName = VBA.CStr(fileObj.Name)
+        If Not private_Dev_ShouldImportFileInPass(fileName, importPass) Then GoTo ContinueNextFile
 
         If private_Dev_TryResolveFileComponentType(fileName, compType, fallbackName) Then
             importPath = VBA.CStr(fileObj.Path)
@@ -1851,7 +1864,7 @@ ContinueNextFile:
     Next fileObj
 
     For Each subFolder In folderObj.SubFolders
-        private_Dev_ImportFolderRecursive subFolder, depth + 1, failed, updateMode, prevCache, nextCache, includeComponentPattern, excludeComponentPattern
+        private_Dev_ImportFolderRecursive subFolder, depth + 1, failed, updateMode, prevCache, nextCache, includeComponentPattern, excludeComponentPattern, importPass
     Next subFolder
 
     Exit Sub
@@ -1863,6 +1876,43 @@ EH_IMPORT_FILE:
     On Error GoTo 0
     GoTo ContinueNextFile
 End Sub
+
+
+Private Function private_Dev_ShouldImportFileInPass(ByVal fileName As String, ByVal importPass As Long) As Boolean
+    Dim normalizedName As String
+    Dim baseName As String
+    Dim componentStem As String
+    Dim markerChar As String
+    Dim isInterfaceClass As Boolean
+
+    normalizedName = VBA.LCase$(VBA.Trim$(fileName))
+    If m_Helpers_EndsWith(normalizedName, ".utf8.vba") Then
+        baseName = VBA.Left$(fileName, VBA.Len(fileName) - VBA.Len(".utf8.vba"))
+    ElseIf m_Helpers_EndsWith(normalizedName, ".vba") Then
+        baseName = VBA.Left$(fileName, VBA.Len(fileName) - VBA.Len(".vba"))
+    Else
+        private_Dev_ShouldImportFileInPass = False
+        Exit Function
+    End If
+
+    normalizedName = VBA.LCase$(VBA.Trim$(baseName))
+    isInterfaceClass = False
+    If m_Helpers_EndsWith(normalizedName, ".cls") Then
+        componentStem = VBA.Left$(baseName, VBA.Len(baseName) - VBA.Len(".cls"))
+        If VBA.Left$(componentStem, 5) = "obj_I" Then
+            markerChar = VBA.Mid$(componentStem, 6, 1)
+            If markerChar >= "A" And markerChar <= "Z" Then
+                isInterfaceClass = True
+            End If
+        End If
+    End If
+
+    If importPass <= 1 Then
+        private_Dev_ShouldImportFileInPass = Not isInterfaceClass
+    Else
+        private_Dev_ShouldImportFileInPass = isInterfaceClass
+    End If
+End Function
 
 
 Private Sub private_Dev_EnsureValidComponentNameLength(ByVal componentName As String, ByVal importPath As String)
