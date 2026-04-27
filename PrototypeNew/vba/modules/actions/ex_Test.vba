@@ -305,6 +305,79 @@ Public Function m_TEST_RegisterDemoConfigProfileItems( _
     m_TEST_RegisterDemoConfigProfileItems = True
 End Function
 
+Public Function m_TEST_RegisterConfigFromProfileNode( _
+    ByVal profileNode As Object, _
+    Optional ByVal notifyChange As Boolean = False, _
+    Optional ByVal preferredPageBase As Variant _
+) As Boolean
+    Dim configTable As obj_ConfigTable
+    Dim sourceItems As Collection
+
+    If profileNode Is Nothing Then
+        VBA.MsgBox "PrototypeNew: config profile node is not specified.", VBA.vbExclamation
+        Exit Function
+    End If
+
+    Set configTable = New obj_ConfigTable
+    If Not configTable.TryLoadFromXmlNode(profileNode, True) Then Exit Function
+
+    Set sourceItems = New Collection
+    sourceItems.Add configTable
+
+    If Not private_TrySetItemsSource("RuntimeItems.Test.Config", sourceItems, notifyChange, preferredPageBase) Then Exit Function
+    m_TEST_RegisterConfigFromProfileNode = True
+End Function
+
+Public Function m_TEST_RegisterConfigFromXmlProfile( _
+    ByVal filePath As String, _
+    ByVal profileKey As String, _
+    Optional ByVal notifyChange As Boolean = False, _
+    Optional ByVal preferredPageBase As Variant _
+) As Boolean
+    Dim normalizedFilePath As String
+    Dim normalizedProfileKey As String
+    Dim dom As Object
+    Dim profileNode As Object
+    Dim profileKeyLiteral As String
+    Dim profileXPath As String
+
+    normalizedFilePath = VBA.Trim$(filePath)
+    normalizedProfileKey = VBA.Trim$(profileKey)
+
+    If VBA.Len(normalizedFilePath) = 0 Then
+        VBA.MsgBox "PrototypeNew: config profiles file path is empty.", VBA.vbExclamation
+        Exit Function
+    End If
+    If VBA.Len(normalizedProfileKey) = 0 Then
+        VBA.MsgBox "PrototypeNew: config profile key is empty.", VBA.vbExclamation
+        Exit Function
+    End If
+
+    Set dom = ex_XmlCore.m_LoadDomByFilePath( _
+        normalizedFilePath, _
+        "PrototypeNew: config profiles file was not found: ", _
+        "PrototypeNew: failed to parse config profiles file: ", _
+        VBA.vbNullString)
+    If dom Is Nothing Then Exit Function
+
+    profileKeyLiteral = ex_XmlCore.m_XPathLiteral(normalizedProfileKey)
+    profileXPath = "//*[" & _
+                  "(@id=" & profileKeyLiteral & " or @name=" & profileKeyLiteral & " or @key=" & profileKeyLiteral & ")" & _
+                  " and " & _
+                  "(.//*[local-name()='item' or local-name()='row' or local-name()='entry' or local-name()='config']" & _
+                  " or *[local-name()='item' or local-name()='row' or local-name()='entry' or local-name()='config'])" & _
+                  "]"
+
+    Set profileNode = dom.selectSingleNode(profileXPath)
+    If profileNode Is Nothing Then
+        VBA.MsgBox "PrototypeNew: config profile '" & normalizedProfileKey & "' was not found in file '" & normalizedFilePath & "'.", VBA.vbExclamation
+        Exit Function
+    End If
+
+    If Not m_TEST_RegisterConfigFromProfileNode(profileNode, notifyChange, preferredPageBase) Then Exit Function
+    m_TEST_RegisterConfigFromXmlProfile = True
+End Function
+
 
 Public Function m_TEST_BuildDemoListItems() As Collection
     Dim result As Collection
@@ -398,7 +471,7 @@ Public Function m_TEST_BuildDemoTableViewItems( _
     Dim tableObj As Variant
     Dim tableModel As obj_TableDynamic
     Dim tableView As obj_TableViewItem
-    Dim rowObj As Variant
+    Dim rowViewRaw As Variant
     Dim rowView As obj_RowViewItem
     Dim tableIndex As Long
     Dim rowIndex As Long
@@ -438,16 +511,15 @@ Public Function m_TEST_BuildDemoTableViewItems( _
         End If
 
         rowIndex = 0
-        For Each rowObj In tableModel.Rows
+        For Each rowViewRaw In tableView.RowItems
             rowIndex = rowIndex + 1
 
-            If VBA.TypeName(rowObj) <> "obj_Row" Then
-                VBA.MsgBox "PrototypeNew: expected obj_Row in table rows for table view.", VBA.vbExclamation
+            If VBA.LCase$(VBA.TypeName(rowViewRaw)) <> "obj_rowviewitem" Then
+                VBA.MsgBox "PrototypeNew: expected obj_RowViewItem in table view row items.", VBA.vbExclamation
                 Exit Function
             End If
 
-            Set rowView = private_CreateRowViewItemFromRow(rowObj)
-            If rowView Is Nothing Then Exit Function
+            Set rowView = rowViewRaw
 
             If includeRowBanners Then
                 If rowBannerTargetIndex > 0 And rowIndex = rowBannerTargetIndex Then
@@ -462,9 +534,7 @@ Public Function m_TEST_BuildDemoTableViewItems( _
                     rowView.SpacerRowsAfter = 1
                 End If
             End If
-
-            tableView.RowItems.Add rowView
-        Next rowObj
+        Next rowViewRaw
 
         result.Add tableView
     Next tableObj
@@ -482,7 +552,7 @@ Public Function m_TEST_BuildDemoSingleTableViewItems( _
     Dim tableObj As Variant
     Dim tableModel As obj_TableDynamic
     Dim tableView As obj_TableViewItem
-    Dim rowObj As Variant
+    Dim rowViewRaw As Variant
     Dim rowView As obj_RowViewItem
     Dim rowIndex As Long
 
@@ -505,16 +575,15 @@ Public Function m_TEST_BuildDemoSingleTableViewItems( _
         End If
 
         rowIndex = 0
-        For Each rowObj In tableModel.Rows
+        For Each rowViewRaw In tableView.RowItems
             rowIndex = rowIndex + 1
 
-            If VBA.TypeName(rowObj) <> "obj_Row" Then
-                VBA.MsgBox "PrototypeNew: expected obj_Row in single table rows for table view.", VBA.vbExclamation
+            If VBA.LCase$(VBA.TypeName(rowViewRaw)) <> "obj_rowviewitem" Then
+                VBA.MsgBox "PrototypeNew: expected obj_RowViewItem in single table view row items.", VBA.vbExclamation
                 Exit Function
             End If
 
-            Set rowView = private_CreateRowViewItemFromRow(rowObj)
-            If rowView Is Nothing Then Exit Function
+            Set rowView = rowViewRaw
 
             If includeRowBanners Then
                 If rowIndex = 1 Then
@@ -525,9 +594,7 @@ Public Function m_TEST_BuildDemoSingleTableViewItems( _
                         2)
                 End If
             End If
-
-            tableView.RowItems.Add rowView
-        Next rowObj
+        Next rowViewRaw
 
         result.Add tableView
     Next tableObj
@@ -691,16 +758,16 @@ Private Function private_CreateConfigViewItem( _
     ByVal attrText As String, _
     ByVal keyText As String, _
     ByVal valueText As String _
-) As obj_ConfigViewItem
-    Dim cfgModel As obj_Config
-    Dim cfgView As obj_ConfigViewItem
+) As obj_ConfigEntryViewItem
+    Dim cfgModel As obj_ConfigEntry
+    Dim cfgView As obj_ConfigEntryViewItem
 
-    Set cfgModel = New obj_Config
+    Set cfgModel = New obj_ConfigEntry
     cfgModel.Attr = VBA.CStr(attrText)
     cfgModel.Key = VBA.CStr(keyText)
     cfgModel.Value = VBA.CStr(valueText)
 
-    Set cfgView = New obj_ConfigViewItem
+    Set cfgView = New obj_ConfigEntryViewItem
     Set cfgView.Model = cfgModel
 
     Set private_CreateConfigViewItem = cfgView
