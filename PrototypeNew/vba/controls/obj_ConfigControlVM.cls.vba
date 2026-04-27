@@ -69,7 +69,7 @@ Private Sub obj_IControl_Render()
     Dim dataRows As Long
     Dim idx As Long
     Dim rowOut As Long
-    Dim configItemRaw As Variant
+    Dim configEntryViewItem As obj_ConfigEntryViewItem
     Dim configEntry As obj_ConfigEntry
     Dim attrToken As String
     Dim absRow As Long
@@ -118,14 +118,21 @@ Private Sub obj_IControl_Render()
     valueBlock(1, 3) = "Value"
 
     idx = 0
-    For Each configItemRaw In m_ConfigTableViewItem.EntryItems
+    For Each configEntryViewItem In m_ConfigTableViewItem.EntryItems
         idx = idx + 1
         rowOut = idx + 1
         If rowOut > rowsToWrite Then Exit For
 
-        Set configEntry = Nothing
-        If Not private_TryResolveConfigItem(configItemRaw, configEntry) Then Exit Sub
-        If configEntry Is Nothing Then GoTo ContinueItem
+        If configEntryViewItem Is Nothing Then
+            ex_Core.m_Diagnostic_LogError "Config: entry view item is Nothing in control '" & m_ControlName & "'."
+            GoTo ContinueItem
+        End If
+
+        Set configEntry = configEntryViewItem.Model
+        If configEntry Is Nothing Then
+            ex_Core.m_Diagnostic_LogError "Config: entry view item has no model in control '" & m_ControlName & "'."
+            GoTo ContinueItem
+        End If
 
         valueBlock(rowOut, 1) = configEntry.Attr
         valueBlock(rowOut, 2) = configEntry.Key
@@ -144,7 +151,7 @@ Private Sub obj_IControl_Render()
         End Select
 
 ContinueItem:
-    Next configItemRaw
+    Next configEntryViewItem
 
     Set boundsRange = ws.Range( _
         ws.Cells(m_ControlLayout.RowStart, m_ControlLayout.ColStart), _
@@ -200,10 +207,7 @@ End Function
 ' // Internal
 ' //
 Private Function private_TryBuildConfigTable(ByVal sourceItems As Collection, ByRef outTable As obj_ConfigTable) As Boolean
-    Dim sourceItem As Variant
-    Dim sourceTypeName As String
-    Dim configEntry As obj_ConfigEntry
-    Dim configTableViewItem As obj_ConfigTableViewItem
+    Dim sourceConfigEntry As obj_ConfigEntry
 
     Set outTable = Nothing
     If sourceItems Is Nothing Then
@@ -213,76 +217,20 @@ Private Function private_TryBuildConfigTable(ByVal sourceItems As Collection, By
 
     Set outTable = New obj_ConfigTable
 
-    For Each sourceItem In sourceItems
-        sourceTypeName = VBA.LCase$(VBA.TypeName(sourceItem))
-        Select Case sourceTypeName
-            Case "obj_configtable"
-                If Not private_TryAppendConfigTable(outTable, sourceItem) Then Exit Function
-                GoTo ContinueSourceItem
-
-            Case "obj_configtableviewitem"
-                Set configTableViewItem = sourceItem
-                If configTableViewItem Is Nothing Then
-                    ex_Core.m_Diagnostic_LogError "Config: itemsSource contains empty obj_ConfigTableViewItem."
-                    Exit Function
-                End If
-                If Not private_TryAppendConfigTable(outTable, configTableViewItem.Model) Then Exit Function
-                GoTo ContinueSourceItem
-        End Select
-
-        Set configEntry = Nothing
-        If Not private_TryResolveConfigItem(sourceItem, configEntry) Then Exit Function
-        If configEntry Is Nothing Then GoTo ContinueSourceItem
-        If Not outTable.AddItem(configEntry) Then Exit Function
+    For Each sourceConfigEntry In sourceItems
+        If sourceConfigEntry Is Nothing Then
+            ex_Core.m_Diagnostic_LogError "Config: itemsSource contains empty obj_ConfigEntry in control '" & m_ControlName & "'."
+            GoTo ContinueSourceItem
+        End If
+        If Not outTable.AddItem(sourceConfigEntry) Then
+            ex_Core.m_Diagnostic_LogError "Config: failed to append resolved obj_ConfigEntry to table for control '" & m_ControlName & "'."
+            Exit Function
+        End If
 
 ContinueSourceItem:
-    Next sourceItem
+    Next sourceConfigEntry
 
     private_TryBuildConfigTable = True
-End Function
-
-Private Function private_TryAppendConfigTable(ByVal targetTable As obj_ConfigTable, ByVal sourceTable As obj_ConfigTable) As Boolean
-    Dim sourceItem As Variant
-    Dim configEntry As obj_ConfigEntry
-
-    If targetTable Is Nothing Then Exit Function
-    If sourceTable Is Nothing Then
-        ex_Core.m_Diagnostic_LogError "Config: source config table is not specified for control '" & m_ControlName & "'."
-        Exit Function
-    End If
-
-    For Each sourceItem In sourceTable.Items
-        Set configEntry = Nothing
-        If Not private_TryResolveConfigItem(sourceItem, configEntry) Then Exit Function
-        If configEntry Is Nothing Then GoTo ContinueTableItem
-        If Not targetTable.AddItem(configEntry) Then Exit Function
-ContinueTableItem:
-    Next sourceItem
-
-    private_TryAppendConfigTable = True
-End Function
-
-Private Function private_TryResolveConfigItem(ByVal rawItem As Variant, ByRef outItem As obj_ConfigEntry) As Boolean
-    Dim configEntryViewItem As obj_ConfigEntryViewItem
-
-    If Not VBA.IsObject(rawItem) Then
-        ex_Core.m_Diagnostic_LogError "Config: itemsSource entry must be an object."
-        Exit Function
-    End If
-
-    Select Case VBA.LCase$(VBA.TypeName(rawItem))
-        Case "obj_configentry"
-            Set outItem = rawItem
-            private_TryResolveConfigItem = True
-
-        Case "obj_configentryviewitem"
-            Set configEntryViewItem = rawItem
-            Set outItem = configEntryViewItem.Model
-            private_TryResolveConfigItem = True
-
-        Case Else
-            ex_Core.m_Diagnostic_LogError "Config: unsupported itemsSource type '" & VBA.TypeName(rawItem) & "'. Expected obj_ConfigEntry, obj_ConfigEntryViewItem, obj_ConfigTable or obj_ConfigTableViewItem."
-    End Select
 End Function
 
 Private Sub private_HandleAttrHash(ByVal configEntry As obj_ConfigEntry)
