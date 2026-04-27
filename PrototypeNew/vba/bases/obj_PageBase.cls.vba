@@ -53,7 +53,7 @@ Public Function Initialize( _
     m_PageType = VBA.CLng(pageType)
     m_PageId = VBA.Trim$(pageId)
     If VBA.Len(m_PageId) = 0 Then
-        VBA.MsgBox "PageBase: page id is empty during initialization.", VBA.vbExclamation
+        ex_Core.m_Diagnostic_LogError "PageBase: page id is empty during initialization."
         Exit Function
     End If
     Set m_UiDom = Nothing
@@ -99,7 +99,7 @@ Public Sub Dispose(Optional ByVal deleteWorksheet As Boolean = True)
 
 EH_DELETE:
     Application.DisplayAlerts = True
-    VBA.MsgBox "PageBase: failed to delete worksheet during dispose: " & Err.Description, VBA.vbExclamation
+    ex_Core.m_Diagnostic_LogError "PageBase: failed to delete worksheet during dispose: " & Err.Description
 End Sub
 
 Public Property Get Worksheet() As Worksheet
@@ -133,7 +133,7 @@ End Property
 
 Public Function IsReady() As Boolean
     If m_IsDisposed Then
-        VBA.MsgBox "Page was disposed", VBA.vbExclamation, "Error"
+        ex_Core.m_Diagnostic_LogError "Page was disposed"
         Exit Function
     End If
     IsReady = Not m_Worksheet Is Nothing
@@ -187,14 +187,14 @@ Public Function Render() As Boolean
     Set ws = m_Worksheet
     Set wb = ws.Parent
     If wb Is Nothing Then
-        VBA.MsgBox "PrototypeNew: workbook is not specified.", VBA.vbExclamation
+        ex_Core.m_Diagnostic_LogError "PrototypeNew: workbook is not specified."
         Exit Function
     End If
 
     ' Вычисляем фактический путь к разметке страницы для текущего рендера.
     resolvedUiPath = private_ResolvePageUiPath(m_UiPath)
     If VBA.Len(resolvedUiPath) = 0 Then
-        VBA.MsgBox "PrototypeNew: failed to resolve page UI path.", VBA.vbExclamation
+        ex_Core.m_Diagnostic_LogError "PrototypeNew: failed to resolve page UI path."
         Exit Function
     End If
 
@@ -209,7 +209,7 @@ Public Function Render() As Boolean
 
     Set pageNode = m_UiDom.selectSingleNode("/p:page")
     If pageNode Is Nothing Then
-        VBA.MsgBox "PrototypeNew: page UI root node <page> is missing.", VBA.vbExclamation
+        ex_Core.m_Diagnostic_LogError "PrototypeNew: page UI root node <page> is missing."
         Exit Function
     End If
 
@@ -249,7 +249,7 @@ EH_RENDER:
 
     private_LeaveFastRenderMode app, prevScreenUpdating, prevEnableEvents, prevDisplayAlerts, prevCalculation, prevStatusBar
     m_IsRendering = False
-    VBA.MsgBox "PrototypeNew: render failed: [" & errSource & " #" & VBA.CStr(errNumber) & "] " & errDescription, VBA.vbExclamation
+    ex_Core.m_Diagnostic_LogError "PrototypeNew: render failed: [" & errSource & " #" & VBA.CStr(errNumber) & "] " & errDescription
 End Function
 
 ' Callstack[1]: obj_BannerViewItem.Render -> m_PageBase.RegisterInlineRuns -> obj_PageBase.RegisterInlineRuns
@@ -309,7 +309,7 @@ Public Function TryResolveInlineTextByPart( _
     ' по нему выбираем профиль правил inline-текста.
     partName = VBA.Trim$(partName)
     If VBA.Len(partName) = 0 Then
-        VBA.MsgBox "PageBase: part name is empty for inline text resolve.", VBA.vbExclamation
+        ex_Core.m_Diagnostic_LogError "PageBase: part name is empty for inline text resolve."
         Exit Function
     End If
 
@@ -327,7 +327,7 @@ Public Function TryGetInlineTextProfile( _
 
     partName = VBA.Trim$(partName)
     If VBA.Len(partName) = 0 Then
-        VBA.MsgBox "PageBase: part name is empty for inline text profile.", VBA.vbExclamation
+        ex_Core.m_Diagnostic_LogError "PageBase: part name is empty for inline text profile."
         Exit Function
     End If
 
@@ -348,7 +348,7 @@ Public Function RegisterInlineRunsByPart( _
 
     partName = VBA.Trim$(partName)
     If VBA.Len(partName) = 0 Then
-        VBA.MsgBox "PageBase: part name is empty for range inline runs registration.", VBA.vbExclamation
+        ex_Core.m_Diagnostic_LogError "PageBase: part name is empty for range inline runs registration."
         Exit Function
     End If
 
@@ -367,7 +367,7 @@ Public Function RegisterInlineRunsForShapeByPart( _
 
     partName = VBA.Trim$(partName)
     If VBA.Len(partName) = 0 Then
-        VBA.MsgBox "PageBase: part name is empty for shape inline runs registration.", VBA.vbExclamation
+        ex_Core.m_Diagnostic_LogError "PageBase: part name is empty for shape inline runs registration."
         Exit Function
     End If
 
@@ -432,7 +432,7 @@ Public Function ApplyInlineRuns() As Boolean
 
     If Not private_EnsureNotDisposed("ApplyInlineRuns") Then Exit Function
     If m_Worksheet Is Nothing Then
-        VBA.MsgBox "PageBase: worksheet is not specified for inline runs.", VBA.vbExclamation
+        ex_Core.m_Diagnostic_LogError "PageBase: worksheet is not specified for inline runs."
         Exit Function
     End If
 
@@ -563,11 +563,11 @@ Public Function RegisterControl(ByVal controlKey As String, ByVal iControl As Ob
     If Not private_EnsureNotDisposed("RegisterControl") Then Exit Function
     controlKey = VBA.LCase$(VBA.Trim$(controlKey))
     If VBA.Len(controlKey) = 0 Then
-        VBA.MsgBox "PageBase: control key is empty.", VBA.vbExclamation
+        ex_Core.m_Diagnostic_LogError "PageBase: control key is empty."
         Exit Function
     End If
     If iControl Is Nothing Then
-        VBA.MsgBox "PageBase: control VM is not specified for key '" & controlKey & "'.", VBA.vbExclamation
+        ex_Core.m_Diagnostic_LogError "PageBase: control VM is not specified for key '" & controlKey & "'."
         Exit Function
     End If
 
@@ -595,21 +595,21 @@ Public Function RegisterShapeRoute( _
     methodName = VBA.Trim$(methodName)
 
     If VBA.Len(shapeKey) = 0 Then
-        VBA.MsgBox "PageBase: shape name is empty.", VBA.vbExclamation
+        ex_Core.m_Diagnostic_LogError "PageBase: shape name is empty."
         Exit Function
     End If
     If VBA.Len(controlKey) = 0 Then
-        VBA.MsgBox "PageBase: control key is empty for shape '" & shapeName & "'.", VBA.vbExclamation
+        ex_Core.m_Diagnostic_LogError "PageBase: control key is empty for shape '" & shapeName & "'."
         Exit Function
     End If
     If VBA.Len(methodName) = 0 Then
-        VBA.MsgBox "PageBase: method name is empty for shape '" & shapeName & "'.", VBA.vbExclamation
+        ex_Core.m_Diagnostic_LogError "PageBase: method name is empty for shape '" & shapeName & "'."
         Exit Function
     End If
 
     private_EnsureStorage
     If Not m_ControlByKey.Exists(controlKey) Then
-        VBA.MsgBox "PageBase: control '" & controlKey & "' is not registered for shape '" & shapeName & "'.", VBA.vbExclamation
+        ex_Core.m_Diagnostic_LogError "PageBase: control '" & controlKey & "' is not registered for shape '" & shapeName & "'."
         Exit Function
     End If
 
@@ -643,7 +643,7 @@ Public Function UnregisterControl(ByVal controlKey As String) As Boolean
     If Not private_EnsureNotDisposed("UnregisterControl") Then Exit Function
     controlKeyNorm = VBA.LCase$(VBA.Trim$(controlKey))
     If VBA.Len(controlKeyNorm) = 0 Then
-        VBA.MsgBox "PageBase: control key is empty.", VBA.vbExclamation
+        ex_Core.m_Diagnostic_LogError "PageBase: control key is empty."
         Exit Function
     End If
 
@@ -879,12 +879,12 @@ Public Function TrySerializePageSnapshotEnvelope( _
     outSnapshotXml = VBA.vbNullString
     typeRoot = VBA.LCase$(VBA.Trim$(typeRoot))
     If VBA.Len(typeRoot) = 0 Then
-        VBA.MsgBox "PageBase: page snapshot type root is empty.", VBA.vbExclamation
+        ex_Core.m_Diagnostic_LogError "PageBase: page snapshot type root is empty."
         Exit Function
     End If
 
     If m_Worksheet Is Nothing Then
-        VBA.MsgBox "PageBase: worksheet is not specified for page snapshot serialization.", VBA.vbExclamation
+        ex_Core.m_Diagnostic_LogError "PageBase: worksheet is not specified for page snapshot serialization."
         Exit Function
     End If
 
@@ -894,7 +894,7 @@ Public Function TrySerializePageSnapshotEnvelope( _
 
     If VBA.Len(codeNameValue) = 0 Then codeNameValue = sheetNameValue
     If VBA.Len(codeNameValue) = 0 Then
-        VBA.MsgBox "PageBase: worksheet codeName is empty for page snapshot serialization.", VBA.vbExclamation
+        ex_Core.m_Diagnostic_LogError "PageBase: worksheet codeName is empty for page snapshot serialization."
         Exit Function
     End If
 
@@ -902,7 +902,7 @@ Public Function TrySerializePageSnapshotEnvelope( _
 
     Set rootNode = dom.DocumentElement
     If rootNode Is Nothing Then
-        VBA.MsgBox "PageBase: page snapshot root node is missing.", VBA.vbExclamation
+        ex_Core.m_Diagnostic_LogError "PageBase: page snapshot root node is missing."
         Exit Function
     End If
 
@@ -954,11 +954,11 @@ Public Function TryDeserializePageSnapshotEnvelope( _
 
     Set rootNode = dom.DocumentElement
     If rootNode Is Nothing Then
-        VBA.MsgBox "PageBase: page snapshot root node is missing.", VBA.vbExclamation
+        ex_Core.m_Diagnostic_LogError "PageBase: page snapshot root node is missing."
         Exit Function
     End If
     If VBA.StrComp(VBA.LCase$(VBA.CStr(rootNode.baseName)), PAGE_SNAPSHOT_ENTRY_ROOT, VBA.vbTextCompare) <> 0 Then
-        VBA.MsgBox "PageBase: unexpected page snapshot root '" & VBA.CStr(rootNode.baseName) & "'.", VBA.vbExclamation
+        ex_Core.m_Diagnostic_LogError "PageBase: unexpected page snapshot root '" & VBA.CStr(rootNode.baseName) & "'."
         Exit Function
     End If
 
@@ -976,7 +976,7 @@ Public Function TryDeserializePageSnapshotEnvelope( _
     End If
 
     If VBA.Len(outCodeName) = 0 And VBA.Len(outSheetName) = 0 Then
-        VBA.MsgBox "PageBase: page snapshot has empty worksheet identity.", VBA.vbExclamation
+        ex_Core.m_Diagnostic_LogError "PageBase: page snapshot has empty worksheet identity."
         Exit Function
     End If
 
@@ -1009,11 +1009,11 @@ Public Function TryDeserializeControlSnapshotEnvelope( _
 
     Set rootNode = dom.DocumentElement
     If rootNode Is Nothing Then
-        VBA.MsgBox "PageBase: control snapshot root node is missing.", VBA.vbExclamation
+        ex_Core.m_Diagnostic_LogError "PageBase: control snapshot root node is missing."
         Exit Function
     End If
     If VBA.StrComp(VBA.LCase$(VBA.CStr(rootNode.baseName)), CONTROL_SNAPSHOT_ENTRY_ROOT, VBA.vbTextCompare) <> 0 Then
-        VBA.MsgBox "PageBase: unexpected control snapshot root '" & VBA.CStr(rootNode.baseName) & "'.", VBA.vbExclamation
+        ex_Core.m_Diagnostic_LogError "PageBase: unexpected control snapshot root '" & VBA.CStr(rootNode.baseName) & "'."
         Exit Function
     End If
 
@@ -1046,14 +1046,14 @@ Public Function TryCreateSnapshotRoot( _
 
     rootName = VBA.Trim$(rootName)
     If VBA.Len(rootName) = 0 Then
-        VBA.MsgBox "PageBase: snapshot root is empty.", VBA.vbExclamation
+        ex_Core.m_Diagnostic_LogError "PageBase: snapshot root is empty."
         Exit Function
     End If
 
     If Not ex_Core.m_CustomXmlPartStore_TryCreateEmptyDom(rootName, "urn:excelprototype:serializable:page:v1", outDom) Then Exit Function
     Set outRoot = outDom.DocumentElement
     If outRoot Is Nothing Then
-        VBA.MsgBox "PageBase: snapshot root node is missing.", VBA.vbExclamation
+        ex_Core.m_Diagnostic_LogError "PageBase: snapshot root node is missing."
         Exit Function
     End If
 
@@ -1075,22 +1075,22 @@ Public Function TryLoadSnapshotRoot( _
     expectedRootName = VBA.LCase$(VBA.Trim$(expectedRootName))
 
     If VBA.Len(snapshotXml) = 0 Then
-        VBA.MsgBox "PageBase: snapshot XML is empty.", VBA.vbExclamation
+        ex_Core.m_Diagnostic_LogError "PageBase: snapshot XML is empty."
         Exit Function
     End If
     If VBA.Len(expectedRootName) = 0 Then
-        VBA.MsgBox "PageBase: expected root name is empty.", VBA.vbExclamation
+        ex_Core.m_Diagnostic_LogError "PageBase: expected root name is empty."
         Exit Function
     End If
 
     If Not ex_Core.m_CustomXmlPartStore_TryLoadDomFromXml(snapshotXml, outDom) Then Exit Function
     Set outRoot = outDom.DocumentElement
     If outRoot Is Nothing Then
-        VBA.MsgBox "PageBase: snapshot root node is missing.", VBA.vbExclamation
+        ex_Core.m_Diagnostic_LogError "PageBase: snapshot root node is missing."
         Exit Function
     End If
     If VBA.StrComp(VBA.LCase$(VBA.CStr(outRoot.baseName)), expectedRootName, VBA.vbTextCompare) <> 0 Then
-        VBA.MsgBox "PageBase: unexpected snapshot root '" & VBA.CStr(outRoot.baseName) & "'.", VBA.vbExclamation
+        ex_Core.m_Diagnostic_LogError "PageBase: unexpected snapshot root '" & VBA.CStr(outRoot.baseName) & "'."
         Exit Function
     End If
 
@@ -1132,7 +1132,7 @@ Private Function private_TryClearPageRuntime() As Boolean
 
     Set ws = m_Worksheet
     If ws Is Nothing Then
-        VBA.MsgBox "PrototypeNew: worksheet is not specified.", VBA.vbExclamation
+        ex_Core.m_Diagnostic_LogError "PrototypeNew: worksheet is not specified."
         Exit Function
     End If
 
@@ -1292,7 +1292,7 @@ Private Function private_TrySerializeControlSnapshotEnvelope( _
 
     Set rootNode = dom.DocumentElement
     If rootNode Is Nothing Then
-        VBA.MsgBox "PageBase: control snapshot root node is missing.", VBA.vbExclamation
+        ex_Core.m_Diagnostic_LogError "PageBase: control snapshot root node is missing."
         Exit Function
     End If
 
@@ -1408,7 +1408,7 @@ Private Function private_TryNotifyGlobalClick( _
         If errNo <> 0 Then
             If errNo <> 438 Then
                 outReason = "global-hook-exception:" & VBA.TypeName(iControl)
-                VBA.MsgBox "PageBase: global click hook failed on '" & VBA.TypeName(iControl) & "'.", VBA.vbExclamation
+                ex_Core.m_Diagnostic_LogError "PageBase: global click hook failed on '" & VBA.TypeName(iControl) & "'."
                 Exit Function
             End If
         Else
@@ -1441,7 +1441,7 @@ Private Function private_TryInvokeControlAction( _
     methodName = VBA.Trim$(methodName)
     If VBA.Len(methodName) = 0 Then
         outErrorText = "method-name-empty"
-        VBA.MsgBox "PageBase: method name is empty.", VBA.vbExclamation
+        ex_Core.m_Diagnostic_LogError "PageBase: method name is empty."
         Exit Function
     End If
 
@@ -1465,7 +1465,7 @@ Private Function private_TryInvokeControlAction( _
 
 EH_INVOKE:
     outErrorText = Err.Description
-    VBA.MsgBox "PageBase: failed to invoke method '" & methodName & "' on '" & VBA.TypeName(iControl) & "': " & Err.Description, VBA.vbExclamation
+    ex_Core.m_Diagnostic_LogError "PageBase: failed to invoke method '" & methodName & "' on '" & VBA.TypeName(iControl) & "': " & Err.Description
 End Function
 
 Private Function private_TryCastSerializableControl(ByVal iControl As Object, ByRef outSerializableControl As obj_ISerializable) As Boolean
@@ -1529,7 +1529,7 @@ End Sub
 
 Private Function private_EnsureNotDisposed(ByVal methodName As String) As Boolean
     If m_IsDisposed Then
-        VBA.MsgBox "PageBase: method '" & methodName & "' cannot be used after Dispose.", VBA.vbExclamation
+        ex_Core.m_Diagnostic_LogError "PageBase: method '" & methodName & "' cannot be used after Dispose."
         Exit Function
     End If
 

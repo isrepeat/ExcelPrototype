@@ -37,21 +37,21 @@ Public Function m_Render( _
     Dim pageBase As obj_PageBase
 
     If renderCtx Is Nothing Then
-        VBA.MsgBox "PrototypeNew: render context is not specified for control render.", VBA.vbExclamation
+        ex_Core.m_Diagnostic_LogError "PrototypeNew: render context is not specified for control render."
         Exit Function
     End If
     If layoutNode Is Nothing Then
-        VBA.MsgBox "PrototypeNew: control node is not specified.", VBA.vbExclamation
+        ex_Core.m_Diagnostic_LogError "PrototypeNew: control node is not specified."
         Exit Function
     End If
     If VBA.StrComp(VBA.LCase$(VBA.CStr(layoutNode.baseName)), "control", VBA.vbBinaryCompare) <> 0 Then
-        VBA.MsgBox "PrototypeNew: ex_LayoutControlRenderer supports only <control> nodes.", VBA.vbExclamation
+        ex_Core.m_Diagnostic_LogError "PrototypeNew: ex_LayoutControlRenderer supports only <control> nodes."
         Exit Function
     End If
     If Not private_TryGetPageRenderContext(renderCtx, wb, ws) Then Exit Function
     Set pageBase = renderCtx.PageBase
     If pageBase Is Nothing Then
-        VBA.MsgBox "PrototypeNew: page base is not specified in render context.", VBA.vbExclamation
+        ex_Core.m_Diagnostic_LogError "PrototypeNew: page base is not specified in render context."
         Exit Function
     End If
 
@@ -61,15 +61,15 @@ Public Function m_Render( _
     typeRoot = private_NormalizeTypeRoot(controlType)
 
     If VBA.Len(layoutControlName) = 0 Then
-        VBA.MsgBox "PrototypeNew: page control is missing required attribute 'name'.", VBA.vbExclamation
+        ex_Core.m_Diagnostic_LogError "PrototypeNew: page control is missing required attribute 'name'."
         Exit Function
     End If
     If VBA.Len(controlType) = 0 Then
-        VBA.MsgBox "PrototypeNew: page control '" & layoutControlName & "' is missing required attribute 'type'.", VBA.vbExclamation
+        ex_Core.m_Diagnostic_LogError "PrototypeNew: page control '" & layoutControlName & "' is missing required attribute 'type'."
         Exit Function
     End If
     If VBA.Len(typeRoot) = 0 Then
-        VBA.MsgBox "PrototypeNew: page control '" & layoutControlName & "' has invalid type '" & controlType & "'.", VBA.vbExclamation
+        ex_Core.m_Diagnostic_LogError "PrototypeNew: page control '" & layoutControlName & "' has invalid type '" & controlType & "'."
         Exit Function
     End If
 
@@ -149,7 +149,7 @@ Private Function private_LoadControlNodeFromControlUi( _
     End If
 
     If private_LoadControlNodeFromControlUi Is Nothing Then
-        VBA.MsgBox "PrototypeNew: control template has no <control> node in UI file '" & controlUiRelPath & "'.", VBA.vbExclamation
+        ex_Core.m_Diagnostic_LogError "PrototypeNew: control template has no <control> node in UI file '" & controlUiRelPath & "'."
         Exit Function
     End If
 
@@ -198,14 +198,14 @@ Private Function private_ApplyLayoutControlOverridesByContract( _
 
         ' Строгая валидация: атрибут должен входить в контракт конкретного VM.
         If Not ex_ControlAttributeContracts.m_IsSupportedControlAttribute(control, attrName) Then
-            VBA.MsgBox "PrototypeNew: attribute '" & attrName & "' is not supported by control '" & controlName & "' of type '" & typeRoot & "'.", VBA.vbExclamation
+            ex_Core.m_Diagnostic_LogError "PrototypeNew: attribute '" & attrName & "' is not supported by control '" & controlName & "' of type '" & typeRoot & "'."
             Exit Function
         End If
 
         On Error Resume Next
         runtimeControlNode.setAttribute attrName, VBA.CStr(attrNode.Text)
         If Err.Number <> 0 Then
-            VBA.MsgBox "PrototypeNew: failed to apply attribute '" & attrName & "' to control '" & controlName & "': " & Err.Description, VBA.vbExclamation
+            ex_Core.m_Diagnostic_LogError "PrototypeNew: failed to apply attribute '" & attrName & "' to control '" & controlName & "': " & Err.Description
             Err.Clear
             On Error GoTo 0
             Exit Function
@@ -271,19 +271,19 @@ Private Function private_TryGetPageRenderContext( _
     Set outWs = Nothing
 
     If renderCtx Is Nothing Then
-        VBA.MsgBox "PrototypeNew: render context is not specified.", VBA.vbExclamation
+        ex_Core.m_Diagnostic_LogError "PrototypeNew: render context is not specified."
         Exit Function
     End If
 
     Set outWs = renderCtx.Worksheet
     If outWs Is Nothing Then
-        VBA.MsgBox "PrototypeNew: worksheet is not specified.", VBA.vbExclamation
+        ex_Core.m_Diagnostic_LogError "PrototypeNew: worksheet is not specified."
         Exit Function
     End If
 
     Set outWb = renderCtx.Workbook
     If outWb Is Nothing Then
-        VBA.MsgBox "PrototypeNew: workbook is not specified.", VBA.vbExclamation
+        ex_Core.m_Diagnostic_LogError "PrototypeNew: workbook is not specified."
         Exit Function
     End If
 

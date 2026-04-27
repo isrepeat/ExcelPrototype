@@ -15,11 +15,11 @@ Public Function m_Render( _
     ByVal colEnd As Long _
 ) As Boolean
     If layoutNode Is Nothing Then
-        VBA.MsgBox "PrototypeNew: grid node is not specified.", VBA.vbExclamation
+        ex_Core.m_Diagnostic_LogError "PrototypeNew: grid node is not specified."
         Exit Function
     End If
     If VBA.StrComp(VBA.LCase$(VBA.CStr(layoutNode.baseName)), "grid", VBA.vbBinaryCompare) <> 0 Then
-        VBA.MsgBox "PrototypeNew: ex_LayoutGridRenderer supports only <grid> nodes.", VBA.vbExclamation
+        ex_Core.m_Diagnostic_LogError "PrototypeNew: ex_LayoutGridRenderer supports only <grid> nodes."
         Exit Function
     End If
 

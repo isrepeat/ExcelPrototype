@@ -86,21 +86,21 @@ Public Function Render( _
     Dim inlineTextProfile As obj_InlineTextProfile
 
     If page Is Nothing Then
-        VBA.MsgBox "BannerViewItem: page is not specified.", VBA.vbExclamation
+        ex_Core.m_Diagnostic_LogError "BannerViewItem: page is not specified."
         Exit Function
     End If
 
     Set ws = page.Worksheet
     If ws Is Nothing Then
-        VBA.MsgBox "BannerViewItem: page worksheet is not specified.", VBA.vbExclamation
+        ex_Core.m_Diagnostic_LogError "BannerViewItem: page worksheet is not specified."
         Exit Function
     End If
     If rowStart <= 0 Or colStart <= 0 Then
-        VBA.MsgBox "BannerViewItem: invalid render start row/column.", VBA.vbExclamation
+        ex_Core.m_Diagnostic_LogError "BannerViewItem: invalid render start row/column."
         Exit Function
     End If
     If rowEnd < rowStart Or colEnd < colStart Then
-        VBA.MsgBox "BannerViewItem: invalid render bounds.", VBA.vbExclamation
+        ex_Core.m_Diagnostic_LogError "BannerViewItem: invalid render bounds."
         Exit Function
     End If
 
@@ -169,7 +169,7 @@ Public Function Render( _
     Exit Function
 
 EH_RANGE:
-    VBA.MsgBox "BannerViewItem: failed to resolve target range for view '" & viewName & "'.", VBA.vbExclamation
+    ex_Core.m_Diagnostic_LogError "BannerViewItem: failed to resolve target range for view '" & viewName & "'."
 End Function
 
 Public Function IsVisible() As Boolean

@@ -24,6 +24,7 @@ Public Function Initialize(ByVal value As obj_ConfigTable) As Boolean
     End If
 
     If Not private_TrySyncEntryItemsFromModel() Then
+        ex_Core.m_Diagnostic_LogInfo "warning: ConfigTableViewItem.Initialize: sync entry view items from model failed. Fallback to empty list."
         Set m_ConfigEntryViewItems = New list__obj_ConfigEntryViewItem
     End If
 
@@ -74,7 +75,7 @@ Private Function obj_IViewItem_Render( _
     ByVal colEnd As Long, _
     Optional ByVal viewName As String = "" _
 ) As Boolean
-    VBA.MsgBox "ConfigTableViewItem: direct render is not supported.", VBA.vbExclamation
+    ex_Core.m_Diagnostic_LogError "ConfigTableViewItem: direct render is not supported."
 End Function
 
 Private Function obj_IViewItem_IsVisible() As Boolean
@@ -101,6 +102,8 @@ Private Function private_TrySyncEntryItemsFromModel() As Boolean
     Dim sourceConfigEntry As obj_ConfigEntry
     Dim configEntryViewItem As obj_ConfigEntryViewItem
 
+    On Error GoTo EH_SYNC
+
     Set configEntryViewItems = New list__obj_ConfigEntryViewItem
     If m_ConfigTable Is Nothing Then
         Set m_ConfigEntryViewItems = configEntryViewItems
@@ -117,12 +120,19 @@ Private Function private_TrySyncEntryItemsFromModel() As Boolean
 
     For Each sourceConfigEntry In sourceConfigEntries
         Set configEntryViewItem = New obj_ConfigEntryViewItem
-        If Not configEntryViewItem.Initialize(sourceConfigEntry) Then Exit Function
+        If Not configEntryViewItem.Initialize(sourceConfigEntry) Then
+            ex_Core.m_Diagnostic_LogError "ConfigTableViewItem.private_TrySyncEntryItemsFromModel: failed to initialize obj_ConfigEntryViewItem from source entry."
+            Exit Function
+        End If
         configEntryViewItems.Add configEntryViewItem
     Next sourceConfigEntry
 
     Set m_ConfigEntryViewItems = configEntryViewItems
     private_TrySyncEntryItemsFromModel = True
+    Exit Function
+
+EH_SYNC:
+    ex_Core.m_Diagnostic_LogError "ConfigTableViewItem.private_TrySyncEntryItemsFromModel: unexpected error while syncing entry view items: " & Err.Description
 End Function
 
 Private Function private_IsVisibleResolved() As Boolean

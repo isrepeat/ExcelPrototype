@@ -36,7 +36,7 @@ Private Sub obj_IControl_Configure(ByVal page As obj_PageBase, ByVal controlNode
 
     m_ItemsSourceRaw = VBA.Trim$(VBA.CStr(ex_XmlCore.m_NodeAttrText(controlNode, "itemsSource")))
     If VBA.Len(m_ItemsSourceRaw) = 0 Then
-        VBA.MsgBox "TableList: itemsSource is not specified for control '" & m_ControlName & "'.", VBA.vbExclamation
+        ex_Core.m_Diagnostic_LogError "TableList: itemsSource is not specified for control '" & m_ControlName & "'."
         Exit Sub
     End If
 
@@ -44,7 +44,7 @@ Private Sub obj_IControl_Configure(ByVal page As obj_PageBase, ByVal controlNode
 
     m_LayoutSheetName = VBA.Trim$(ex_XmlCore.m_NodeAttrText(controlNode, "__layoutSheetName"))
     If VBA.Len(m_LayoutSheetName) = 0 Then
-        VBA.MsgBox "TableList: runtime layout sheet is missing for control '" & m_ControlName & "'.", VBA.vbExclamation
+        ex_Core.m_Diagnostic_LogError "TableList: runtime layout sheet is missing for control '" & m_ControlName & "'."
         Exit Sub
     End If
 
@@ -54,17 +54,17 @@ Private Sub obj_IControl_Configure(ByVal page As obj_PageBase, ByVal controlNode
     If Not private_TryReadLayoutLongAttr(controlNode, "__layoutColEnd", m_ColEnd, True) Then Exit Sub
 
     If m_RowStart <= 0 Or m_ColStart <= 0 Then
-        VBA.MsgBox "TableList: invalid row/column start for control '" & m_ControlName & "'.", VBA.vbExclamation
+        ex_Core.m_Diagnostic_LogError "TableList: invalid row/column start for control '" & m_ControlName & "'."
         Exit Sub
     End If
 
     If m_RowEnd < m_RowStart Then
-        VBA.MsgBox "TableList: control '" & m_ControlName & "' has invalid spanRows range.", VBA.vbExclamation
+        ex_Core.m_Diagnostic_LogError "TableList: control '" & m_ControlName & "' has invalid spanRows range."
         Exit Sub
     End If
 
     If m_ColEnd < m_ColStart Then
-        VBA.MsgBox "TableList: control '" & m_ControlName & "' has invalid spanCells range.", VBA.vbExclamation
+        ex_Core.m_Diagnostic_LogError "TableList: control '" & m_ControlName & "' has invalid spanCells range."
         Exit Sub
     End If
 
@@ -84,25 +84,25 @@ Private Sub obj_IControl_Render()
     Dim page As obj_PageBase
 
     If Not m_IsConfigured Then
-        VBA.MsgBox "TableList: control '" & m_ControlName & "' is not configured.", VBA.vbExclamation
+        ex_Core.m_Diagnostic_LogError "TableList: control '" & m_ControlName & "' is not configured."
         Exit Sub
     End If
 
     Set page = Nothing
     If Not m_ControlBase Is Nothing Then Set page = m_ControlBase.PageBase
     If page Is Nothing Then
-        VBA.MsgBox "TableList: page is not specified for control '" & m_ControlName & "'.", VBA.vbExclamation
+        ex_Core.m_Diagnostic_LogError "TableList: page is not specified for control '" & m_ControlName & "'."
         Exit Sub
     End If
 
     Set ws = private_GetWorksheetByName(page, m_LayoutSheetName)
     If ws Is Nothing Then
-        VBA.MsgBox "TableList: sheet '" & m_LayoutSheetName & "' was not found for control '" & m_ControlName & "'.", VBA.vbExclamation
+        ex_Core.m_Diagnostic_LogError "TableList: sheet '" & m_LayoutSheetName & "' was not found for control '" & m_ControlName & "'."
         Exit Sub
     End If
 
     If m_TableItems Is Nothing Then
-        VBA.MsgBox "TableList: itemsSource is not resolved for control '" & m_ControlName & "'.", VBA.vbExclamation
+        ex_Core.m_Diagnostic_LogError "TableList: itemsSource is not resolved for control '" & m_ControlName & "'."
         Exit Sub
     End If
 
@@ -149,7 +149,7 @@ Private Function private_TryApplyItemVisibilityFilter(ByRef tableItems As Collec
     End If
 
     If tableItems Is Nothing Then
-        VBA.MsgBox "TableList: itemsSource is not resolved for control '" & m_ControlName & "'.", VBA.vbExclamation
+        ex_Core.m_Diagnostic_LogError "TableList: itemsSource is not resolved for control '" & m_ControlName & "'."
         Exit Function
     End If
 
@@ -157,7 +157,7 @@ Private Function private_TryApplyItemVisibilityFilter(ByRef tableItems As Collec
 
     For Each tableItem In tableItems
         If Not VBA.IsObject(tableItem) Then
-            VBA.MsgBox "TableList: itemsSource entry must be an object for itemVisibility evaluation in control '" & m_ControlName & "'.", VBA.vbExclamation
+            ex_Core.m_Diagnostic_LogError "TableList: itemsSource entry must be an object for itemVisibility evaluation in control '" & m_ControlName & "'."
             Exit Function
         End If
 
@@ -180,7 +180,7 @@ Private Function private_TryReadLayoutLongAttr( _
     rawText = VBA.Trim$(ex_XmlCore.m_NodeAttrText(controlNode, attrName))
     If VBA.Len(rawText) = 0 Then
         If isRequired Then
-            VBA.MsgBox "TableList: runtime layout attribute '" & attrName & "' is missing for control '" & m_ControlName & "'.", VBA.vbExclamation
+            ex_Core.m_Diagnostic_LogError "TableList: runtime layout attribute '" & attrName & "' is missing for control '" & m_ControlName & "'."
             Exit Function
         End If
 
@@ -190,7 +190,7 @@ Private Function private_TryReadLayoutLongAttr( _
     End If
 
     If Not VBA.IsNumeric(rawText) Then
-        VBA.MsgBox "TableList: runtime layout attribute '" & attrName & "' must be numeric for control '" & m_ControlName & "'.", VBA.vbExclamation
+        ex_Core.m_Diagnostic_LogError "TableList: runtime layout attribute '" & attrName & "' must be numeric for control '" & m_ControlName & "'."
         Exit Function
     End If
 
@@ -211,7 +211,7 @@ Private Function private_TryBuildRenderBuffer(ByRef outValueBlock As Variant, By
     maxRows = m_RowEnd - m_RowStart + 1
 
     If availableCols <= 0 Or maxRows <= 0 Then
-        VBA.MsgBox "TableList: invalid render bounds for control '" & m_ControlName & "'.", VBA.vbExclamation
+        ex_Core.m_Diagnostic_LogError "TableList: invalid render bounds for control '" & m_ControlName & "'."
         Exit Function
     End If
 
@@ -290,18 +290,18 @@ Private Function private_TryEstimateTableOutputRows( _
 
     Set tableDynamic = tableViewItem.Model
     If tableDynamic Is Nothing Then
-        VBA.MsgBox "TableList: table view has no model.", VBA.vbExclamation
+        ex_Core.m_Diagnostic_LogError "TableList: table view has no model."
         Exit Function
     End If
 
     If tableDynamic.ColumnCount <= 0 Then
-        VBA.MsgBox "TableList: table item has no columns.", VBA.vbExclamation
+        ex_Core.m_Diagnostic_LogError "TableList: table item has no columns."
         Exit Function
     End If
 
     If tableDynamic.ColumnCount > availableCols Then
-        VBA.MsgBox "TableList: control '" & m_ControlName & "' requires " & VBA.CStr(tableDynamic.ColumnCount) & _
-               " columns, but span provides only " & VBA.CStr(availableCols) & ".", VBA.vbExclamation
+        ex_Core.m_Diagnostic_LogError "TableList: control '" & m_ControlName & "' requires " & VBA.CStr(tableDynamic.ColumnCount) & _
+               " columns, but span provides only " & VBA.CStr(availableCols) & "."
         Exit Function
     End If
 
@@ -366,18 +366,18 @@ Private Function private_TryWriteTableItemToBuffer( _
 
     Set tableDynamic = tableViewItem.Model
     If tableDynamic Is Nothing Then
-        VBA.MsgBox "TableList: table view has no model.", VBA.vbExclamation
+        ex_Core.m_Diagnostic_LogError "TableList: table view has no model."
         Exit Function
     End If
 
     If tableDynamic.ColumnCount <= 0 Then
-        VBA.MsgBox "TableList: table item has no columns.", VBA.vbExclamation
+        ex_Core.m_Diagnostic_LogError "TableList: table item has no columns."
         Exit Function
     End If
 
     If tableDynamic.ColumnCount > availableCols Then
-        VBA.MsgBox "TableList: control '" & m_ControlName & "' requires " & VBA.CStr(tableDynamic.ColumnCount) & _
-               " columns, but span provides only " & VBA.CStr(availableCols) & ".", VBA.vbExclamation
+        ex_Core.m_Diagnostic_LogError "TableList: control '" & m_ControlName & "' requires " & VBA.CStr(tableDynamic.ColumnCount) & _
+               " columns, but span provides only " & VBA.CStr(availableCols) & "."
         Exit Function
     End If
 
@@ -468,7 +468,7 @@ ContinueRowView:
 
 EH_INVALID_ROW:
     On Error GoTo 0
-    VBA.MsgBox "TableList: unsupported row object in table rows. Expected obj_Row.", VBA.vbExclamation
+    ex_Core.m_Diagnostic_LogError "TableList: unsupported row object in table rows. Expected obj_Row."
 End Function
 
 Private Function private_TryAppendRowViewData( _
@@ -502,7 +502,7 @@ Private Function private_TryAppendRowViewData( _
 
     Set row = rowViewItem.Model
     If row Is Nothing Then
-        VBA.MsgBox "TableList: row view item has no row model.", VBA.vbExclamation
+        ex_Core.m_Diagnostic_LogError "TableList: row view item has no row model."
         Exit Function
     End If
 
@@ -810,7 +810,7 @@ Private Function private_TryResolveStylePreset( _
             fontBold = False
 
         Case Else
-            VBA.MsgBox "TableList: unsupported style segment kind '" & styleKind & "'.", VBA.vbExclamation
+            ex_Core.m_Diagnostic_LogError "TableList: unsupported style segment kind '" & styleKind & "'."
             Exit Function
     End Select
 
@@ -826,7 +826,7 @@ Private Function private_TryResolveTableViewItem(ByVal rawItem As Variant, ByRef
     Dim tableDynamic As obj_TableDynamic
 
     If Not VBA.IsObject(rawItem) Then
-        VBA.MsgBox "TableList: itemsSource entry must be an object.", VBA.vbExclamation
+        ex_Core.m_Diagnostic_LogError "TableList: itemsSource entry must be an object."
         Exit Function
     End If
 
@@ -842,8 +842,8 @@ Private Function private_TryResolveTableViewItem(ByVal rawItem As Variant, ByRef
             private_TryResolveTableViewItem = True
 
         Case Else
-            VBA.MsgBox "TableList: unsupported item type '" & VBA.TypeName(rawItem) & _
-                   "'. Expected obj_TableViewItem, obj_TableDynamic or obj_Table.", VBA.vbExclamation
+            ex_Core.m_Diagnostic_LogError "TableList: unsupported item type '" & VBA.TypeName(rawItem) & _
+                   "'. Expected obj_TableViewItem, obj_TableDynamic or obj_Table."
     End Select
 End Function
 
@@ -851,7 +851,7 @@ Private Function private_TryResolveTableModelFromAny(ByVal tableItem As Variant,
     Dim fixedTable As obj_Table
 
     If Not VBA.IsObject(tableItem) Then
-        VBA.MsgBox "TableList: itemsSource entry must be an object of type obj_TableDynamic or obj_Table.", VBA.vbExclamation
+        ex_Core.m_Diagnostic_LogError "TableList: itemsSource entry must be an object of type obj_TableDynamic or obj_Table."
         Exit Function
     End If
 
@@ -867,8 +867,8 @@ Private Function private_TryResolveTableModelFromAny(ByVal tableItem As Variant,
             private_TryResolveTableModelFromAny = True
 
         Case Else
-            VBA.MsgBox "TableList: unsupported table model type '" & VBA.TypeName(tableItem) & _
-                   "'. Expected obj_TableDynamic or obj_Table.", VBA.vbExclamation
+            ex_Core.m_Diagnostic_LogError "TableList: unsupported table model type '" & VBA.TypeName(tableItem) & _
+                   "'. Expected obj_TableDynamic or obj_Table."
     End Select
 End Function
 
@@ -876,7 +876,7 @@ Private Function private_CreateTableViewFromModel(ByVal tableDynamic As obj_Tabl
     Dim tableViewItem As obj_TableViewItem
 
     If tableDynamic Is Nothing Then
-        VBA.MsgBox "TableList: table model is not specified.", VBA.vbExclamation
+        ex_Core.m_Diagnostic_LogError "TableList: table model is not specified."
         Exit Function
     End If
 
@@ -891,7 +891,7 @@ Private Function private_TryResolveRowViewItem(ByVal rawItem As Variant, ByRef o
     Dim row As obj_Row
 
     If Not VBA.IsObject(rawItem) Then
-        VBA.MsgBox "TableList: row item must be an object.", VBA.vbExclamation
+        ex_Core.m_Diagnostic_LogError "TableList: row item must be an object."
         Exit Function
     End If
 
@@ -907,8 +907,8 @@ Private Function private_TryResolveRowViewItem(ByVal rawItem As Variant, ByRef o
             private_TryResolveRowViewItem = True
 
         Case Else
-            VBA.MsgBox "TableList: unsupported row item type '" & VBA.TypeName(rawItem) & _
-                   "'. Expected obj_RowViewItem or obj_Row.", VBA.vbExclamation
+            ex_Core.m_Diagnostic_LogError "TableList: unsupported row item type '" & VBA.TypeName(rawItem) & _
+                   "'. Expected obj_RowViewItem or obj_Row."
     End Select
 End Function
 
@@ -916,7 +916,7 @@ Private Function private_CreateRowViewFromModel(ByVal row As obj_Row) As obj_Row
     Dim rowViewItem As obj_RowViewItem
 
     If row Is Nothing Then
-        VBA.MsgBox "TableList: row model is not specified.", VBA.vbExclamation
+        ex_Core.m_Diagnostic_LogError "TableList: row model is not specified."
         Exit Function
     End If
 
@@ -938,7 +938,7 @@ Private Function private_ConvertFixedTableToDynamic(ByVal fixedTable As obj_Tabl
     Dim colIndex As Long
 
     If fixedTable Is Nothing Then
-        VBA.MsgBox "TableList: fixed table model is not specified.", VBA.vbExclamation
+        ex_Core.m_Diagnostic_LogError "TableList: fixed table model is not specified."
         Exit Function
     End If
 

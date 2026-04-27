@@ -21,7 +21,7 @@ Public Function m_TrySerializeModuleSnapshot(ByRef outSnapshotXml As String) As 
     If Not ex_Core.m_CustomXmlPartStore_TryCreateEmptyDom(MODULE_SNAPSHOT_ROOT, MODULE_SNAPSHOT_NS, dom) Then Exit Function
     Set rootNode = dom.DocumentElement
     If rootNode Is Nothing Then
-        VBA.MsgBox "PageManager: module snapshot root node is missing.", VBA.vbExclamation
+        ex_Core.m_Diagnostic_LogError "PageManager: module snapshot root node is missing."
         Exit Function
     End If
 
@@ -49,7 +49,7 @@ Public Function m_TryDeserializeModuleSnapshot(ByVal snapshotXml As String) As B
     If Not ex_Core.m_CustomXmlPartStore_TryLoadDomFromXml(snapshotXml, dom) Then Exit Function
     Set rootNode = dom.DocumentElement
     If rootNode Is Nothing Then
-        VBA.MsgBox "PageManager: module snapshot root node is missing.", VBA.vbExclamation
+        ex_Core.m_Diagnostic_LogError "PageManager: module snapshot root node is missing."
         Exit Function
     End If
 
@@ -78,7 +78,7 @@ Public Function m_CreatePage( _
 
     Set wb = ThisWorkbook
     If wb Is Nothing Then
-        VBA.MsgBox "PageManager: workbook is not specified.", VBA.vbExclamation
+        ex_Core.m_Diagnostic_LogError "PageManager: workbook is not specified."
         Exit Function
     End If
 
@@ -112,7 +112,7 @@ EH_ADD:
 
 EH_CREATE:
     Application.DisplayAlerts = True
-    VBA.MsgBox "PageManager: failed to create worksheet for page: " & Err.Description, VBA.vbExclamation
+    ex_Core.m_Diagnostic_LogError "PageManager: failed to create worksheet for page: " & Err.Description
 End Function
 
 
@@ -427,22 +427,22 @@ Private Function private_RegisterPage(ByVal pageId As String, ByVal page As obj_
 
     pageId = VBA.LCase$(VBA.Trim$(pageId))
     If VBA.Len(pageId) = 0 Then
-        VBA.MsgBox "PageManager: page id is empty.", VBA.vbExclamation
+        ex_Core.m_Diagnostic_LogError "PageManager: page id is empty."
         Exit Function
     End If
     If page Is Nothing Then
-        VBA.MsgBox "PageManager: page instance is not specified.", VBA.vbExclamation
+        ex_Core.m_Diagnostic_LogError "PageManager: page instance is not specified."
         Exit Function
     End If
 
     Set pageBase = page.GetPageBase()
     If pageBase Is Nothing Then
-        VBA.MsgBox "PageManager: page base is not specified.", VBA.vbExclamation
+        ex_Core.m_Diagnostic_LogError "PageManager: page base is not specified."
         Exit Function
     End If
 
     If pageBase.Worksheet Is Nothing Then
-        VBA.MsgBox "PageManager: worksheet is not specified for page '" & pageId & "'.", VBA.vbExclamation
+        ex_Core.m_Diagnostic_LogError "PageManager: worksheet is not specified for page '" & pageId & "'."
         Exit Function
     End If
 

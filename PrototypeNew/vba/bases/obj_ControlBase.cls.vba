@@ -41,13 +41,13 @@ Public Function Configure( _
     Set m_DataContext = Nothing
 
     If page Is Nothing Then
-        VBA.MsgBox controlTypeName & ": page is not specified for control configure.", VBA.vbExclamation
+        ex_Core.m_Diagnostic_LogError controlTypeName & ": page is not specified for control configure."
         Exit Function
     End If
     Set m_PageBase = page
 
     If controlNode Is Nothing Then
-        VBA.MsgBox controlTypeName & ": control node is not specified.", VBA.vbExclamation
+        ex_Core.m_Diagnostic_LogError controlTypeName & ": control node is not specified."
         Exit Function
     End If
 
@@ -60,12 +60,12 @@ Public Function Configure( _
     dataContextRaw = VBA.Trim$(VBA.CStr(ex_XmlCore.m_NodeAttrText(controlNode, "dataContext")))
     If VBA.Len(dataContextRaw) > 0 Then
         If page.RuntimeSources Is Nothing Then
-            VBA.MsgBox controlTypeName & ": runtime sources are not specified for control '" & outControlName & "'.", VBA.vbExclamation
+            ex_Core.m_Diagnostic_LogError controlTypeName & ": runtime sources are not specified for control '" & outControlName & "'."
             Exit Function
         End If
         If Not ex_RuntimeSourceResolver.m_TryResolveObjectSource(page.RuntimeSources, dataContextRaw, dataContext, False) Then Exit Function
         If dataContext Is Nothing Then
-            VBA.MsgBox controlTypeName & ": dataContext resolved to empty object for control '" & outControlName & "'.", VBA.vbExclamation
+            ex_Core.m_Diagnostic_LogError controlTypeName & ": dataContext resolved to empty object for control '" & outControlName & "'."
             Exit Function
         End If
         Set m_DataContext = dataContext

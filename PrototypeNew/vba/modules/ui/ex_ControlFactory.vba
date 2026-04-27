@@ -49,6 +49,6 @@ Public Function m_CreateControlByTypeRoot(ByVal controlTypeRoot As String) As ob
             Set m_CreateControlByTypeRoot = tableTemplateVm
 
         Case Else
-            VBA.MsgBox "Control type '" & controlTypeRoot & "' is not supported in PrototypeNew runtime.", VBA.vbExclamation
+            ex_Core.m_Diagnostic_LogError "Control type '" & controlTypeRoot & "' is not supported in PrototypeNew runtime."
     End Select
 End Function

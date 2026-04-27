@@ -62,7 +62,7 @@ CleanExit:
 EH_CLICK:
     g_IsDispatchingClick = False
     private_LogBridgeError "click-exception err='" & private_EscapeForLog(Err.Description) & "'"
-    VBA.MsgBox "rt_Bridge: shape click dispatch failed: " & Err.Description, VBA.vbExclamation
+    ex_Core.m_Diagnostic_LogError "rt_Bridge: shape click dispatch failed: " & Err.Description
 End Sub
 
 
@@ -84,7 +84,7 @@ Public Function m_RunMacro(ByVal macroRef As String) As Boolean
     Exit Function
 
 EH_RUN:
-    VBA.MsgBox "rt_Bridge: failed to execute macro '" & macroRef & "': " & Err.Description, VBA.vbExclamation
+    ex_Core.m_Diagnostic_LogError "rt_Bridge: failed to execute macro '" & macroRef & "': " & Err.Description
 End Function
 
 Private Function private_EscapeForLog(ByVal valueText As String) As String

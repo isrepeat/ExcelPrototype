@@ -21,11 +21,11 @@ Public Function m_RegisterControlPart( _
     Dim entry As Object
 
     If ws Is Nothing Then
-        VBA.MsgBox "PrototypeNew: worksheet is not specified for control part registration.", VBA.vbExclamation
+        ex_Core.m_Diagnostic_LogError "PrototypeNew: worksheet is not specified for control part registration."
         Exit Function
     End If
     If partRange Is Nothing Then
-        VBA.MsgBox "PrototypeNew: range is not specified for control part registration.", VBA.vbExclamation
+        ex_Core.m_Diagnostic_LogError "PrototypeNew: range is not specified for control part registration."
         Exit Function
     End If
 
@@ -34,11 +34,11 @@ Public Function m_RegisterControlPart( _
     partName = VBA.LCase$(VBA.Trim$(partName))
 
     If VBA.Len(controlType) = 0 Then
-        VBA.MsgBox "PrototypeNew: control part registration requires non-empty control type.", VBA.vbExclamation
+        ex_Core.m_Diagnostic_LogError "PrototypeNew: control part registration requires non-empty control type."
         Exit Function
     End If
     If VBA.Len(partName) = 0 Then
-        VBA.MsgBox "PrototypeNew: control part registration requires non-empty part name.", VBA.vbExclamation
+        ex_Core.m_Diagnostic_LogError "PrototypeNew: control part registration requires non-empty part name."
         Exit Function
     End If
 
@@ -70,7 +70,7 @@ Public Function m_TryResolveControlPartScope( _
     Dim wsKey As String
 
     If ws Is Nothing Then
-        VBA.MsgBox "PrototypeNew: worksheet is not specified for control part selector.", VBA.vbExclamation
+        ex_Core.m_Diagnostic_LogError "PrototypeNew: worksheet is not specified for control part selector."
         Exit Function
     End If
 
@@ -80,11 +80,11 @@ Public Function m_TryResolveControlPartScope( _
     partName = VBA.LCase$(VBA.Trim$(partName))
 
     If VBA.Len(controlType) = 0 Then
-        VBA.MsgBox "PrototypeNew: control part selector requires non-empty type.", VBA.vbExclamation
+        ex_Core.m_Diagnostic_LogError "PrototypeNew: control part selector requires non-empty type."
         Exit Function
     End If
     If VBA.Len(partName) = 0 Then
-        VBA.MsgBox "PrototypeNew: control part selector requires non-empty part.", VBA.vbExclamation
+        ex_Core.m_Diagnostic_LogError "PrototypeNew: control part selector requires non-empty part."
         Exit Function
     End If
 

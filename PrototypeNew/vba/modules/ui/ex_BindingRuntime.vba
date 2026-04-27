@@ -19,7 +19,7 @@ Public Function m_TryResolveTextBinding( _
     If Not private_TryResolveBindingValue(rawText, sourceObject, resolvedValue) Then Exit Function
 
     If VBA.IsObject(resolvedValue) Then
-        VBA.MsgBox "PrototypeNew: text binding must resolve to scalar value.", VBA.vbExclamation
+        ex_Core.m_Diagnostic_LogError "PrototypeNew: text binding must resolve to scalar value."
         Exit Function
     End If
 
@@ -41,13 +41,13 @@ Public Function m_TryResolveMacroBinding( _
     If Not private_TryResolveBindingValue(rawText, sourceObject, resolvedValue) Then Exit Function
 
     If VBA.IsObject(resolvedValue) Then
-        VBA.MsgBox "PrototypeNew: macro binding must resolve to text value.", VBA.vbExclamation
+        ex_Core.m_Diagnostic_LogError "PrototypeNew: macro binding must resolve to text value."
         Exit Function
     End If
 
     macroName = VBA.Trim$(VBA.CStr(resolvedValue))
     If VBA.Len(macroName) = 0 Then
-        VBA.MsgBox "PrototypeNew: macro binding resolved to an empty value.", VBA.vbExclamation
+        ex_Core.m_Diagnostic_LogError "PrototypeNew: macro binding resolved to an empty value."
         Exit Function
     End If
 
@@ -78,9 +78,9 @@ Public Function m_TryResolveVisibilityBinding( _
     If Not m_TryResolveValueBinding(rawText, sourceObject, resolvedValue) Then Exit Function
     If Not private_TryParseBooleanVariant(resolvedValue, outVisible) Then
         If VBA.IsObject(resolvedValue) Then
-            VBA.MsgBox "PrototypeNew: visibility value resolved to object '" & VBA.TypeName(resolvedValue) & "'. Expected boolean-compatible value.", VBA.vbExclamation
+            ex_Core.m_Diagnostic_LogError "PrototypeNew: visibility value resolved to object '" & VBA.TypeName(resolvedValue) & "'. Expected boolean-compatible value."
         Else
-            VBA.MsgBox "PrototypeNew: visibility value '" & VBA.CStr(resolvedValue) & "' is invalid. Supported values: true/false/visible/collapsed.", VBA.vbExclamation
+            ex_Core.m_Diagnostic_LogError "PrototypeNew: visibility value '" & VBA.CStr(resolvedValue) & "' is invalid. Supported values: true/false/visible/collapsed."
         End If
         Exit Function
     End If
@@ -135,7 +135,7 @@ Private Function private_TryResolveBindingValue( _
 
         methodName = VBA.Trim$(methodName)
         If VBA.Len(methodName) = 0 Then
-            VBA.MsgBox "PrototypeNew: binding expression contains empty Method value.", VBA.vbExclamation
+            ex_Core.m_Diagnostic_LogError "PrototypeNew: binding expression contains empty Method value."
             Exit Function
         End If
 
@@ -196,7 +196,7 @@ Private Function private_TryResolveConditionalBindingAsText( _
     outUsedConditionalBranch = True
 
     If sourceObject Is Nothing Then
-        VBA.MsgBox "PrototypeNew: conditional binding requires source object.", VBA.vbExclamation
+        ex_Core.m_Diagnostic_LogError "PrototypeNew: conditional binding requires source object."
         Exit Function
     End If
 
@@ -209,7 +209,7 @@ Private Function private_TryResolveConditionalBindingAsText( _
     If Not private_TryReadBindingPathValue(sourceObject, bindingPath, resolvedValue) Then Exit Function
 
     If hasValue And Not hasOp Then
-        VBA.MsgBox "PrototypeNew: conditional binding argument 'Value' requires 'Op'.", VBA.vbExclamation
+        ex_Core.m_Diagnostic_LogError "PrototypeNew: conditional binding argument 'Value' requires 'Op'."
         Exit Function
     End If
 
@@ -218,7 +218,7 @@ Private Function private_TryResolveConditionalBindingAsText( _
         If Not private_TryEvaluateConditionalOperation(resolvedValue, opText, valueText, conditionResult) Then Exit Function
     Else
         If Not private_TryParseBooleanVariant(resolvedValue, conditionResult) Then
-            VBA.MsgBox "PrototypeNew: conditional binding path '" & bindingPath & "' must resolve to boolean-compatible value when Op is omitted.", VBA.vbExclamation
+            ex_Core.m_Diagnostic_LogError "PrototypeNew: conditional binding path '" & bindingPath & "' must resolve to boolean-compatible value when Op is omitted."
             Exit Function
         End If
     End If
@@ -335,7 +335,7 @@ Private Function private_TryReadBindingPathValue( _
     Dim memberScalar As Variant
 
     If sourceObject Is Nothing Then
-        VBA.MsgBox "PrototypeNew: binding source object is not specified.", VBA.vbExclamation
+        ex_Core.m_Diagnostic_LogError "PrototypeNew: binding source object is not specified."
         Exit Function
     End If
 
@@ -354,18 +354,18 @@ Private Function private_TryReadBindingPathValue( _
         If VBA.Len(segmentName) = 0 Then GoTo ContinueLoop
 
         If currentObject Is Nothing Then
-            VBA.MsgBox "PrototypeNew: binding path '" & bindingPath & "' reached Nothing before segment '" & segmentName & "'.", VBA.vbExclamation
+            ex_Core.m_Diagnostic_LogError "PrototypeNew: binding path '" & bindingPath & "' reached Nothing before segment '" & segmentName & "'."
             Exit Function
         End If
 
         If Not private_TryReadMemberValue(currentObject, segmentName, memberIsObject, memberObject, memberScalar) Then
-            VBA.MsgBox "PrototypeNew: member '" & segmentName & "' was not found on object '" & VBA.TypeName(currentObject) & "'.", VBA.vbExclamation
+            ex_Core.m_Diagnostic_LogError "PrototypeNew: member '" & segmentName & "' was not found on object '" & VBA.TypeName(currentObject) & "'."
             Exit Function
         End If
 
         If segmentIndex < UBound(segments) Then
             If Not memberIsObject Then
-                VBA.MsgBox "PrototypeNew: member '" & segmentName & "' in binding path '" & bindingPath & "' is not an object.", VBA.vbExclamation
+                ex_Core.m_Diagnostic_LogError "PrototypeNew: member '" & segmentName & "' in binding path '" & bindingPath & "' is not an object."
                 Exit Function
             End If
             Set currentObject = memberObject
@@ -532,11 +532,11 @@ Private Function private_TryEvaluateConditionalOperation( _
 
         Case "gt", "ge", "lt", "le"
             If Not private_TryParseNumberVariant(actualValue, actualNumber) Then
-                VBA.MsgBox "PrototypeNew: conditional operator '" & opText & "' requires numeric binding value.", VBA.vbExclamation
+                ex_Core.m_Diagnostic_LogError "PrototypeNew: conditional operator '" & opText & "' requires numeric binding value."
                 Exit Function
             End If
             If Not private_TryParseNumberText(expectedText, expectedNumber) Then
-                VBA.MsgBox "PrototypeNew: conditional operator '" & opText & "' requires numeric Value.", VBA.vbExclamation
+                ex_Core.m_Diagnostic_LogError "PrototypeNew: conditional operator '" & opText & "' requires numeric Value."
                 Exit Function
             End If
 
@@ -549,19 +549,19 @@ Private Function private_TryEvaluateConditionalOperation( _
 
         Case "istrue"
             If Not private_TryParseBooleanVariant(actualValue, outResult) Then
-                VBA.MsgBox "PrototypeNew: conditional operator 'isTrue' requires boolean-compatible value.", VBA.vbExclamation
+                ex_Core.m_Diagnostic_LogError "PrototypeNew: conditional operator 'isTrue' requires boolean-compatible value."
                 Exit Function
             End If
 
         Case "isfalse"
             If Not private_TryParseBooleanVariant(actualValue, outResult) Then
-                VBA.MsgBox "PrototypeNew: conditional operator 'isFalse' requires boolean-compatible value.", VBA.vbExclamation
+                ex_Core.m_Diagnostic_LogError "PrototypeNew: conditional operator 'isFalse' requires boolean-compatible value."
                 Exit Function
             End If
             outResult = Not outResult
 
         Case Else
-            VBA.MsgBox "PrototypeNew: unsupported conditional Op '" & opText & "'.", VBA.vbExclamation
+            ex_Core.m_Diagnostic_LogError "PrototypeNew: unsupported conditional Op '" & opText & "'."
             Exit Function
     End Select
 

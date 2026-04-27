@@ -161,11 +161,11 @@ Public Function m_RuntimeSource_SetGlobalItemsSource(ByVal sourceKey As String, 
 
     normalizedKey = private_RuntimeSource_NormalizeKey(sourceKey)
     If VBA.Len(normalizedKey) = 0 Then
-        VBA.MsgBox "RuntimeSource: global items source key is empty.", VBA.vbExclamation
+        ex_Core.m_Diagnostic_LogError "RuntimeSource: global items source key is empty."
         Exit Function
     End If
     If items Is Nothing Then
-        VBA.MsgBox "RuntimeSource: global items source collection is not specified for key '" & normalizedKey & "'.", VBA.vbExclamation
+        ex_Core.m_Diagnostic_LogError "RuntimeSource: global items source collection is not specified for key '" & normalizedKey & "'."
         Exit Function
     End If
 
@@ -181,7 +181,7 @@ Public Function m_RuntimeSource_RemoveGlobalItemsSource(ByVal sourceKey As Strin
 
     normalizedKey = private_RuntimeSource_NormalizeKey(sourceKey)
     If VBA.Len(normalizedKey) = 0 Then
-        VBA.MsgBox "RuntimeSource: global items source key is empty.", VBA.vbExclamation
+        ex_Core.m_Diagnostic_LogError "RuntimeSource: global items source key is empty."
         Exit Function
     End If
 
@@ -209,7 +209,7 @@ Public Function m_RuntimeSource_TryGetGlobalItemsSourceByKey( _
             m_RuntimeSource_TryGetGlobalItemsSourceByKey = True
             Exit Function
         End If
-        VBA.MsgBox "RuntimeSource: global items source key is empty.", VBA.vbExclamation
+        ex_Core.m_Diagnostic_LogError "RuntimeSource: global items source key is empty."
         Exit Function
     End If
 
@@ -225,7 +225,7 @@ Public Function m_RuntimeSource_TryGetGlobalItemsSourceByKey( _
         Exit Function
     End If
 
-    VBA.MsgBox "RuntimeSource: global items source '" & normalizedKey & "' is not registered.", VBA.vbExclamation
+    ex_Core.m_Diagnostic_LogError "RuntimeSource: global items source '" & normalizedKey & "' is not registered."
 End Function
 
 
@@ -235,11 +235,11 @@ Public Function m_RuntimeSource_SetGlobalObjectSource(ByVal sourceKey As String,
 
     normalizedKey = private_RuntimeSource_NormalizeKey(sourceKey)
     If VBA.Len(normalizedKey) = 0 Then
-        VBA.MsgBox "RuntimeSource: global object source key is empty.", VBA.vbExclamation
+        ex_Core.m_Diagnostic_LogError "RuntimeSource: global object source key is empty."
         Exit Function
     End If
     If sourceObject Is Nothing Then
-        VBA.MsgBox "RuntimeSource: global object source is not specified for key '" & normalizedKey & "'.", VBA.vbExclamation
+        ex_Core.m_Diagnostic_LogError "RuntimeSource: global object source is not specified for key '" & normalizedKey & "'."
         Exit Function
     End If
 
@@ -255,7 +255,7 @@ Public Function m_RuntimeSource_RemoveGlobalObjectSource(ByVal sourceKey As Stri
 
     normalizedKey = private_RuntimeSource_NormalizeKey(sourceKey)
     If VBA.Len(normalizedKey) = 0 Then
-        VBA.MsgBox "RuntimeSource: global object source key is empty.", VBA.vbExclamation
+        ex_Core.m_Diagnostic_LogError "RuntimeSource: global object source key is empty."
         Exit Function
     End If
 
@@ -283,7 +283,7 @@ Public Function m_RuntimeSource_TryGetGlobalObjectSourceByKey( _
             m_RuntimeSource_TryGetGlobalObjectSourceByKey = True
             Exit Function
         End If
-        VBA.MsgBox "RuntimeSource: global object source key is empty.", VBA.vbExclamation
+        ex_Core.m_Diagnostic_LogError "RuntimeSource: global object source key is empty."
         Exit Function
     End If
 
@@ -300,7 +300,7 @@ Public Function m_RuntimeSource_TryGetGlobalObjectSourceByKey( _
         Exit Function
     End If
 
-    VBA.MsgBox "RuntimeSource: global object source '" & normalizedKey & "' is not registered.", VBA.vbExclamation
+    ex_Core.m_Diagnostic_LogError "RuntimeSource: global object source '" & normalizedKey & "' is not registered."
 End Function
 ' --------------------------------------
 '  } // namespace RuntimeSource
@@ -325,7 +325,7 @@ Public Function m_Settings_TryGetFlagBoolean( _
     outValue = defaultValue
     normalizedFlagName = m_Helpers_NormilizeString(flagName)
     If VBA.Len(normalizedFlagName) = 0 Then
-        If showErrorUi Then VBA.MsgBox "Settings: flag name is empty.", VBA.vbExclamation
+        If showErrorUi Then ex_Core.m_Diagnostic_LogError "Settings: flag name is empty."
         Exit Function
     End If
 
@@ -341,7 +341,7 @@ Public Function m_Settings_TryGetFlagBoolean( _
     If m_Helpers_TryParseBooleanText(VBA.CStr(rawValue), parsedValue) Then
         outValue = parsedValue
     ElseIf showErrorUi Then
-        VBA.MsgBox "Settings: flag '" & normalizedFlagName & "' has non-boolean value '" & VBA.CStr(rawValue) & "'.", VBA.vbExclamation
+        ex_Core.m_Diagnostic_LogError "Settings: flag '" & normalizedFlagName & "' has non-boolean value '" & VBA.CStr(rawValue) & "'."
     End If
 
     m_Settings_TryGetFlagBoolean = True
@@ -358,7 +358,7 @@ Public Function m_Settings_TrySetFlagBoolean( _
 
     normalizedFlagName = m_Helpers_NormilizeString(flagName)
     If VBA.Len(normalizedFlagName) = 0 Then
-        If showErrorUi Then VBA.MsgBox "Settings: flag name is empty.", VBA.vbExclamation
+        If showErrorUi Then ex_Core.m_Diagnostic_LogError "Settings: flag name is empty."
         Exit Function
     End If
 
@@ -379,7 +379,7 @@ Public Function m_Settings_TryToggleFlagBoolean( _
     outValue = defaultValue
     normalizedFlagName = m_Helpers_NormilizeString(flagName)
     If VBA.Len(normalizedFlagName) = 0 Then
-        If showErrorUi Then VBA.MsgBox "Settings: flag name is empty.", VBA.vbExclamation
+        If showErrorUi Then ex_Core.m_Diagnostic_LogError "Settings: flag name is empty."
         Exit Function
     End If
 
@@ -479,7 +479,7 @@ Public Function m_CustomXmlPartStore_TryFindPartByNamespace( _
 
     namespaceUri = VBA.Trim$(namespaceUri)
     If VBA.Len(namespaceUri) = 0 Then
-        VBA.MsgBox "CustomXmlPartStore: namespace is empty.", VBA.vbExclamation
+        ex_Core.m_Diagnostic_LogError "CustomXmlPartStore: namespace is empty."
         Exit Function
     End If
 
@@ -497,7 +497,7 @@ Public Function m_CustomXmlPartStore_TryFindPartByNamespace( _
     Exit Function
 
 EH_FIND:
-    VBA.MsgBox "CustomXmlPartStore: failed to find XML part by namespace '" & namespaceUri & "': " & Err.Description, VBA.vbExclamation
+    ex_Core.m_Diagnostic_LogError "CustomXmlPartStore: failed to find XML part by namespace '" & namespaceUri & "': " & Err.Description
 End Function
 
 
@@ -513,7 +513,7 @@ Public Function m_CustomXmlPartStore_TryLoadDomFromXml( _
     dom.setProperty "SelectionLanguage", "XPath"
 
     If Not dom.LoadXML(VBA.CStr(xmlText)) Then
-        VBA.MsgBox "CustomXmlPartStore: failed to parse XML.", VBA.vbExclamation
+        ex_Core.m_Diagnostic_LogError "CustomXmlPartStore: failed to parse XML."
         Exit Function
     End If
 
@@ -533,11 +533,11 @@ Public Function m_CustomXmlPartStore_TryCreateEmptyDom( _
     namespaceUri = VBA.Trim$(namespaceUri)
 
     If VBA.Len(rootNodeName) = 0 Then
-        VBA.MsgBox "CustomXmlPartStore: root node name is empty.", VBA.vbExclamation
+        ex_Core.m_Diagnostic_LogError "CustomXmlPartStore: root node name is empty."
         Exit Function
     End If
     If VBA.Len(namespaceUri) = 0 Then
-        VBA.MsgBox "CustomXmlPartStore: namespace is empty.", VBA.vbExclamation
+        ex_Core.m_Diagnostic_LogError "CustomXmlPartStore: namespace is empty."
         Exit Function
     End If
 
@@ -554,7 +554,7 @@ Public Function m_CustomXmlPartStore_TryLoadPartDom( _
     ByRef outDom As Object _
 ) As Boolean
     If partObj Is Nothing Then
-        VBA.MsgBox "CustomXmlPartStore: part is not specified.", VBA.vbExclamation
+        ex_Core.m_Diagnostic_LogError "CustomXmlPartStore: part is not specified."
         Exit Function
     End If
 
@@ -570,13 +570,13 @@ Public Function m_CustomXmlPartStore_TrySaveDom( _
     Dim xmlText As String
 
     If dom Is Nothing Then
-        VBA.MsgBox "CustomXmlPartStore: DOM is not specified.", VBA.vbExclamation
+        ex_Core.m_Diagnostic_LogError "CustomXmlPartStore: DOM is not specified."
         Exit Function
     End If
 
     xmlText = VBA.CStr(dom.XML)
     If VBA.Len(VBA.Trim$(xmlText)) = 0 Then
-        VBA.MsgBox "CustomXmlPartStore: state XML is empty.", VBA.vbExclamation
+        ex_Core.m_Diagnostic_LogError "CustomXmlPartStore: state XML is empty."
         Exit Function
     End If
 
@@ -587,7 +587,7 @@ Public Function m_CustomXmlPartStore_TrySaveDom( _
     Exit Function
 
 EH_SAVE:
-    VBA.MsgBox "CustomXmlPartStore: failed to persist state XML: " & Err.Description, VBA.vbExclamation
+    ex_Core.m_Diagnostic_LogError "CustomXmlPartStore: failed to persist state XML: " & Err.Description
 End Function
 ' --------------------------------------
 '  } // namespace CustomXmlPartStore
@@ -728,7 +728,7 @@ Private Function private_Settings_TryGetSettingsDom( _
     Else
         If VBA.Len(Dir(settingsPath)) = 0 Then
             If showErrorUi Then
-                VBA.MsgBox "Settings: file '" & settingsPath & "' was not found.", VBA.vbExclamation
+                ex_Core.m_Diagnostic_LogError "Settings: file '" & settingsPath & "' was not found."
             End If
             Exit Function
         End If
@@ -771,7 +771,7 @@ Private Function private_Settings_TryEnsureSettingsStructure( _
             outIsChanged = True
         Else
             If showErrorUi Then
-                VBA.MsgBox "Settings: unexpected root node '" & VBA.CStr(settingsDom.DocumentElement.baseName) & "'. Expected '" & SETTINGS_ROOT_NODE & "'.", VBA.vbExclamation
+                ex_Core.m_Diagnostic_LogError "Settings: unexpected root node '" & VBA.CStr(settingsDom.DocumentElement.baseName) & "'. Expected '" & SETTINGS_ROOT_NODE & "'."
             End If
             Exit Function
         End If
@@ -911,7 +911,7 @@ Private Function private_Settings_TryGetOrCreateFlagNode( _
 
 EH_CREATE_FLAG:
     If showErrorUi Then
-        VBA.MsgBox "Settings: invalid flag name '" & normalizedFlagName & "' for XML node.", VBA.vbExclamation
+        ex_Core.m_Diagnostic_LogError "Settings: invalid flag name '" & normalizedFlagName & "' for XML node."
     End If
     On Error GoTo 0
 End Function
@@ -944,7 +944,7 @@ Private Function private_Settings_TryResolveFilePath(ByRef outSettingsPath As St
 
     workbookPath = VBA.Trim$(VBA.CStr(ThisWorkbook.Path))
     If VBA.Len(workbookPath) = 0 Then
-        If showErrorUi Then VBA.MsgBox "Settings: workbook is not saved. Save .xlsm first.", VBA.vbExclamation
+        If showErrorUi Then ex_Core.m_Diagnostic_LogError "Settings: workbook is not saved. Save .xlsm first."
         Exit Function
     End If
 
@@ -1038,7 +1038,7 @@ Private Function private_FileCache_TryGetFileStamp( _
     Exit Function
 
 EH_STAMP:
-    If showErrorUi Then VBA.MsgBox "FileCache: failed to read file modified date '" & filePath & "': " & Err.Description, VBA.vbExclamation
+    If showErrorUi Then ex_Core.m_Diagnostic_LogError "FileCache: failed to read file modified date '" & filePath & "': " & Err.Description
 End Function
 
 
@@ -1066,7 +1066,7 @@ EH_READ:
     On Error Resume Next
     If f > 0 Then Close #f
     On Error GoTo 0
-    If showErrorUi Then VBA.MsgBox "FileCache: failed to read file '" & filePath & "': " & Err.Description, VBA.vbExclamation
+    If showErrorUi Then ex_Core.m_Diagnostic_LogError "FileCache: failed to read file '" & filePath & "': " & Err.Description
 End Function
 
 
@@ -1092,7 +1092,7 @@ EH_WRITE:
     On Error Resume Next
     If f > 0 Then Close #f
     On Error GoTo 0
-    If showErrorUi Then VBA.MsgBox "FileCache: failed to write file '" & filePath & "': " & Err.Description, VBA.vbExclamation
+    If showErrorUi Then ex_Core.m_Diagnostic_LogError "FileCache: failed to write file '" & filePath & "': " & Err.Description
 End Function
 
 
@@ -1524,8 +1524,8 @@ EH:
     private_ShowStatusError fullErrorText, useNativeStatus, 6
 
     ' Статус-бар часто обрезает длинный текст ошибки импорта.
-    ' Показываем полную диагностику (включая список файлов) отдельным окном.
-    VBA.MsgBox fullErrorText, VBA.vbExclamation, "PrototypeNew: Update Code"
+    ' Пишем полную диагностику (включая список файлов) в лог.
+    ex_Core.m_Diagnostic_LogError fullErrorText
 
     ' Логируем ошибку напрямую в core.log, даже если CORE_ENABLE_SELF_LOGGING = False.
     private_Diagnostic_LogCoreEvent "update-fail: stage='" & stageName & "' err='" & VBA.Replace$(errDescription, "'", "''") & "'"

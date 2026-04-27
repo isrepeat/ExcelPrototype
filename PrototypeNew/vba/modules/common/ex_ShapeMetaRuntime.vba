@@ -94,13 +94,13 @@ Public Function m_TrySetShapeMetaValue( _
     Dim meta As Object
 
     If shp Is Nothing Then
-        VBA.MsgBox "PrototypeNew: shape is not specified for metadata write.", VBA.vbExclamation
+        ex_Core.m_Diagnostic_LogError "PrototypeNew: shape is not specified for metadata write."
         Exit Function
     End If
 
     keyName = VBA.Trim$(keyName)
     If VBA.Len(keyName) = 0 Then
-        VBA.MsgBox "PrototypeNew: metadata key is empty.", VBA.vbExclamation
+        ex_Core.m_Diagnostic_LogError "PrototypeNew: metadata key is empty."
         Exit Function
     End If
 
@@ -120,11 +120,11 @@ Public Function m_TrySetShapeMetaValues( _
     Dim keyName As Variant
 
     If shp Is Nothing Then
-        VBA.MsgBox "PrototypeNew: shape is not specified for metadata write.", VBA.vbExclamation
+        ex_Core.m_Diagnostic_LogError "PrototypeNew: shape is not specified for metadata write."
         Exit Function
     End If
     If values Is Nothing Then
-        VBA.MsgBox "PrototypeNew: metadata values map is not specified.", VBA.vbExclamation
+        ex_Core.m_Diagnostic_LogError "PrototypeNew: metadata values map is not specified."
         Exit Function
     End If
 
@@ -161,7 +161,7 @@ Private Function private_TryWriteShapeMetaMap(ByVal shp As Shape, ByVal meta As 
     Dim blockText As String
 
     If shp Is Nothing Then
-        VBA.MsgBox "PrototypeNew: shape is not specified for metadata write.", VBA.vbExclamation
+        ex_Core.m_Diagnostic_LogError "PrototypeNew: shape is not specified for metadata write."
         Exit Function
     End If
 
@@ -185,7 +185,7 @@ Private Function private_TryWriteShapeMetaMap(ByVal shp As Shape, ByVal meta As 
     Exit Function
 
 EH_WRITE:
-    VBA.MsgBox "PrototypeNew: failed to write metadata to shape '" & shp.Name & "': " & Err.Description, VBA.vbExclamation
+    ex_Core.m_Diagnostic_LogError "PrototypeNew: failed to write metadata to shape '" & shp.Name & "': " & Err.Description
 End Function
 
 

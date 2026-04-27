@@ -24,11 +24,11 @@ Public Function Init(ByVal rowCount As Long, ByVal columnCount As Long) As Boole
     Dim newRow As obj_Row
 
     If rowCount <= 0 Then
-        VBA.MsgBox "obj_Table: rowCount must be greater than zero.", VBA.vbExclamation
+        ex_Core.m_Diagnostic_LogError "obj_Table: rowCount must be greater than zero."
         Exit Function
     End If
     If columnCount <= 0 Then
-        VBA.MsgBox "obj_Table: columnCount must be greater than zero.", VBA.vbExclamation
+        ex_Core.m_Diagnostic_LogError "obj_Table: columnCount must be greater than zero."
         Exit Function
     End If
 
@@ -98,15 +98,15 @@ Public Function SetColumn(ByVal columnIndex As Long, ByVal tableColumn As obj_Co
     Dim targetColumn As obj_Column
 
     If Not m_IsInitialized Then
-        VBA.MsgBox "obj_Table: call Init before setting columns.", VBA.vbExclamation
+        ex_Core.m_Diagnostic_LogError "obj_Table: call Init before setting columns."
         Exit Function
     End If
     If tableColumn Is Nothing Then
-        VBA.MsgBox "obj_Table: tableColumn is not specified.", VBA.vbExclamation
+        ex_Core.m_Diagnostic_LogError "obj_Table: tableColumn is not specified."
         Exit Function
     End If
     If columnIndex <= 0 Or columnIndex > m_Columns.Count Then
-        VBA.MsgBox "obj_Table: column index is out of range.", VBA.vbExclamation
+        ex_Core.m_Diagnostic_LogError "obj_Table: column index is out of range."
         Exit Function
     End If
 
@@ -123,15 +123,15 @@ Public Function SetRow(ByVal rowIndex As Long, ByVal tableRow As obj_Row) As Boo
     Dim i As Long
 
     If Not m_IsInitialized Then
-        VBA.MsgBox "obj_Table: call Init before setting rows.", VBA.vbExclamation
+        ex_Core.m_Diagnostic_LogError "obj_Table: call Init before setting rows."
         Exit Function
     End If
     If tableRow Is Nothing Then
-        VBA.MsgBox "obj_Table: tableRow is not specified.", VBA.vbExclamation
+        ex_Core.m_Diagnostic_LogError "obj_Table: tableRow is not specified."
         Exit Function
     End If
     If rowIndex <= 0 Or rowIndex > m_Rows.Count Then
-        VBA.MsgBox "obj_Table: row index is out of range.", VBA.vbExclamation
+        ex_Core.m_Diagnostic_LogError "obj_Table: row index is out of range."
         Exit Function
     End If
 
@@ -148,15 +148,15 @@ Public Function SetCell(ByVal rowIndex As Long, ByVal columnIndex As Long, ByVal
     Dim targetRow As obj_Row
 
     If Not m_IsInitialized Then
-        VBA.MsgBox "obj_Table: call Init before setting cells.", VBA.vbExclamation
+        ex_Core.m_Diagnostic_LogError "obj_Table: call Init before setting cells."
         Exit Function
     End If
     If rowIndex <= 0 Or rowIndex > m_Rows.Count Then
-        VBA.MsgBox "obj_Table: row index is out of range.", VBA.vbExclamation
+        ex_Core.m_Diagnostic_LogError "obj_Table: row index is out of range."
         Exit Function
     End If
     If columnIndex <= 0 Or columnIndex > m_Columns.Count Then
-        VBA.MsgBox "obj_Table: column index is out of range.", VBA.vbExclamation
+        ex_Core.m_Diagnostic_LogError "obj_Table: column index is out of range."
         Exit Function
     End If
 

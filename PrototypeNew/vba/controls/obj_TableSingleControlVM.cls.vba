@@ -35,13 +35,13 @@ Private Sub obj_IControl_Configure(ByVal page As obj_PageBase, ByVal controlNode
 
     m_ItemsSourceRaw = VBA.Trim$(VBA.CStr(ex_XmlCore.m_NodeAttrText(controlNode, "itemsSource")))
     If VBA.Len(m_ItemsSourceRaw) = 0 Then
-        VBA.MsgBox "TableSingle: itemsSource is not specified for control '" & m_ControlName & "'.", VBA.vbExclamation
+        ex_Core.m_Diagnostic_LogError "TableSingle: itemsSource is not specified for control '" & m_ControlName & "'."
         Exit Sub
     End If
 
     m_LayoutSheetName = VBA.Trim$(ex_XmlCore.m_NodeAttrText(controlNode, "__layoutSheetName"))
     If VBA.Len(m_LayoutSheetName) = 0 Then
-        VBA.MsgBox "TableSingle: runtime layout sheet is missing for control '" & m_ControlName & "'.", VBA.vbExclamation
+        ex_Core.m_Diagnostic_LogError "TableSingle: runtime layout sheet is missing for control '" & m_ControlName & "'."
         Exit Sub
     End If
 
@@ -51,15 +51,15 @@ Private Sub obj_IControl_Configure(ByVal page As obj_PageBase, ByVal controlNode
     If Not private_TryReadLayoutLongAttr(controlNode, "__layoutColEnd", m_ColEnd, True) Then Exit Sub
 
     If m_RowStart <= 0 Or m_ColStart <= 0 Then
-        VBA.MsgBox "TableSingle: invalid row/column start for control '" & m_ControlName & "'.", VBA.vbExclamation
+        ex_Core.m_Diagnostic_LogError "TableSingle: invalid row/column start for control '" & m_ControlName & "'."
         Exit Sub
     End If
     If m_RowEnd < m_RowStart Then
-        VBA.MsgBox "TableSingle: control '" & m_ControlName & "' has invalid spanRows range.", VBA.vbExclamation
+        ex_Core.m_Diagnostic_LogError "TableSingle: control '" & m_ControlName & "' has invalid spanRows range."
         Exit Sub
     End If
     If m_ColEnd < m_ColStart Then
-        VBA.MsgBox "TableSingle: control '" & m_ControlName & "' has invalid spanCells range.", VBA.vbExclamation
+        ex_Core.m_Diagnostic_LogError "TableSingle: control '" & m_ControlName & "' has invalid spanCells range."
         Exit Sub
     End If
 
@@ -78,25 +78,25 @@ Private Sub obj_IControl_Render()
     Dim page As obj_PageBase
 
     If Not m_IsConfigured Then
-        VBA.MsgBox "TableSingle: control '" & m_ControlName & "' is not configured.", VBA.vbExclamation
+        ex_Core.m_Diagnostic_LogError "TableSingle: control '" & m_ControlName & "' is not configured."
         Exit Sub
     End If
 
     Set page = Nothing
     If Not m_ControlBase Is Nothing Then Set page = m_ControlBase.PageBase
     If page Is Nothing Then
-        VBA.MsgBox "TableSingle: page is not specified for control '" & m_ControlName & "'.", VBA.vbExclamation
+        ex_Core.m_Diagnostic_LogError "TableSingle: page is not specified for control '" & m_ControlName & "'."
         Exit Sub
     End If
 
     Set ws = private_GetWorksheetByName(page, m_LayoutSheetName)
     If ws Is Nothing Then
-        VBA.MsgBox "TableSingle: sheet '" & m_LayoutSheetName & "' was not found for control '" & m_ControlName & "'.", VBA.vbExclamation
+        ex_Core.m_Diagnostic_LogError "TableSingle: sheet '" & m_LayoutSheetName & "' was not found for control '" & m_ControlName & "'."
         Exit Sub
     End If
 
     If m_TableItems Is Nothing Then
-        VBA.MsgBox "TableSingle: itemsSource is not resolved for control '" & m_ControlName & "'.", VBA.vbExclamation
+        ex_Core.m_Diagnostic_LogError "TableSingle: itemsSource is not resolved for control '" & m_ControlName & "'."
         Exit Sub
     End If
 
@@ -142,7 +142,7 @@ Private Function private_TryReadLayoutLongAttr( _
     rawText = VBA.Trim$(ex_XmlCore.m_NodeAttrText(controlNode, attrName))
     If VBA.Len(rawText) = 0 Then
         If isRequired Then
-            VBA.MsgBox "TableSingle: runtime layout attribute '" & attrName & "' is missing for control '" & m_ControlName & "'.", VBA.vbExclamation
+            ex_Core.m_Diagnostic_LogError "TableSingle: runtime layout attribute '" & attrName & "' is missing for control '" & m_ControlName & "'."
             Exit Function
         End If
         outValue = 0
@@ -151,7 +151,7 @@ Private Function private_TryReadLayoutLongAttr( _
     End If
 
     If Not VBA.IsNumeric(rawText) Then
-        VBA.MsgBox "TableSingle: runtime layout attribute '" & attrName & "' must be numeric for control '" & m_ControlName & "'.", VBA.vbExclamation
+        ex_Core.m_Diagnostic_LogError "TableSingle: runtime layout attribute '" & attrName & "' must be numeric for control '" & m_ControlName & "'."
         Exit Function
     End If
 
@@ -178,7 +178,7 @@ Private Function private_TryBuildRenderBufferSingle(ByRef outValueBlock As Varia
     maxRows = m_RowEnd - m_RowStart + 1
 
     If availableCols <= 0 Or maxRows <= 0 Then
-        VBA.MsgBox "TableSingle: invalid render bounds for control '" & m_ControlName & "'.", VBA.vbExclamation
+        ex_Core.m_Diagnostic_LogError "TableSingle: invalid render bounds for control '" & m_ControlName & "'."
         Exit Function
     End If
 
@@ -191,12 +191,12 @@ Private Function private_TryBuildRenderBufferSingle(ByRef outValueBlock As Varia
 
     tableColumnCount = tableDynamic.ColumnCount
     If tableColumnCount <= 0 Then
-        VBA.MsgBox "TableSingle: table item has no columns.", VBA.vbExclamation
+        ex_Core.m_Diagnostic_LogError "TableSingle: table item has no columns."
         Exit Function
     End If
     If tableColumnCount > availableCols Then
-        VBA.MsgBox "TableSingle: control '" & m_ControlName & "' requires " & VBA.CStr(tableColumnCount) & _
-               " columns, but span provides only " & VBA.CStr(availableCols) & ".", VBA.vbExclamation
+        ex_Core.m_Diagnostic_LogError "TableSingle: control '" & m_ControlName & "' requires " & VBA.CStr(tableColumnCount) & _
+               " columns, but span provides only " & VBA.CStr(availableCols) & "."
         Exit Function
     End If
 
@@ -276,7 +276,7 @@ Private Function private_TryBuildRenderBufferSingle(ByRef outValueBlock As Varia
 
 EH_INVALID_ROW:
     On Error GoTo 0
-    VBA.MsgBox "TableSingle: unsupported row object in table rows. Expected obj_Row.", VBA.vbExclamation
+    ex_Core.m_Diagnostic_LogError "TableSingle: unsupported row object in table rows. Expected obj_Row."
 End Function
 
 Private Sub private_AddStyleSegment( _
@@ -481,7 +481,7 @@ Private Function private_TryResolveStylePreset( _
             fontBold = False
 
         Case Else
-            VBA.MsgBox "TableSingle: unsupported style segment kind '" & styleKind & "'.", VBA.vbExclamation
+            ex_Core.m_Diagnostic_LogError "TableSingle: unsupported style segment kind '" & styleKind & "'."
             Exit Function
     End Select
 
@@ -497,7 +497,7 @@ Private Function private_TryResolveSingleTableModel(ByRef outTable As obj_TableD
     Dim tableItem As Object
 
     If m_TableItems Is Nothing Then
-        VBA.MsgBox "TableSingle: itemsSource is not resolved for control '" & m_ControlName & "'.", VBA.vbExclamation
+        ex_Core.m_Diagnostic_LogError "TableSingle: itemsSource is not resolved for control '" & m_ControlName & "'."
         Exit Function
     End If
     If m_TableItems.Count = 0 Then
@@ -506,7 +506,7 @@ Private Function private_TryResolveSingleTableModel(ByRef outTable As obj_TableD
     End If
 
     If Not VBA.IsObject(m_TableItems(1)) Then
-        VBA.MsgBox "TableSingle: itemsSource entry must be obj_TableDynamic or obj_Table.", VBA.vbExclamation
+        ex_Core.m_Diagnostic_LogError "TableSingle: itemsSource entry must be obj_TableDynamic or obj_Table."
         Exit Function
     End If
 
@@ -519,7 +519,7 @@ Private Function private_TryResolveTableModel(ByVal tableItem As Variant, ByRef 
     Dim fixedTable As obj_Table
 
     If Not VBA.IsObject(tableItem) Then
-        VBA.MsgBox "TableSingle: itemsSource entry must be obj_TableDynamic or obj_Table.", VBA.vbExclamation
+        ex_Core.m_Diagnostic_LogError "TableSingle: itemsSource entry must be obj_TableDynamic or obj_Table."
         Exit Function
     End If
 
@@ -535,7 +535,7 @@ Private Function private_TryResolveTableModel(ByVal tableItem As Variant, ByRef 
             private_TryResolveTableModel = True
 
         Case Else
-            VBA.MsgBox "TableSingle: unsupported table model type '" & VBA.TypeName(tableItem) & "'. Expected obj_TableDynamic or obj_Table.", VBA.vbExclamation
+            ex_Core.m_Diagnostic_LogError "TableSingle: unsupported table model type '" & VBA.TypeName(tableItem) & "'. Expected obj_TableDynamic or obj_Table."
     End Select
 End Function
 
@@ -550,7 +550,7 @@ Private Function private_ConvertFixedTableToDynamic(ByVal fixedTable As obj_Tabl
     Dim colIndex As Long
 
     If fixedTable Is Nothing Then
-        VBA.MsgBox "TableSingle: fixed table model is not specified.", VBA.vbExclamation
+        ex_Core.m_Diagnostic_LogError "TableSingle: fixed table model is not specified."
         Exit Function
     End If
 

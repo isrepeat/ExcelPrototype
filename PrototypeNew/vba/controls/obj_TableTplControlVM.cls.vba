@@ -25,13 +25,13 @@ Private Sub obj_IControl_Configure(ByVal page As obj_PageBase, ByVal controlNode
 
     m_ItemsSourceRaw = VBA.Trim$(ex_XmlCore.m_NodeAttrText(controlNode, "itemsSource"))
     If VBA.Len(m_ItemsSourceRaw) = 0 Then
-        VBA.MsgBox "TableTpl: itemsSource is not specified for control '" & m_ControlName & "'.", VBA.vbExclamation
+        ex_Core.m_Diagnostic_LogError "TableTpl: itemsSource is not specified for control '" & m_ControlName & "'."
         Exit Sub
     End If
 
     Set listNode = private_FindFirstChildListNode(controlNode)
     If listNode Is Nothing Then
-        VBA.MsgBox "TableTpl: primitive table layout must contain root <list>.", VBA.vbExclamation
+        ex_Core.m_Diagnostic_LogError "TableTpl: primitive table layout must contain root <list>."
         Exit Sub
     End If
 
@@ -41,7 +41,7 @@ End Sub
 
 Private Sub obj_IControl_Render()
     If Not m_IsConfigured Then
-        VBA.MsgBox "TableTpl: control '" & m_ControlName & "' is not configured.", VBA.vbExclamation
+        ex_Core.m_Diagnostic_LogError "TableTpl: control '" & m_ControlName & "' is not configured."
         Exit Sub
     End If
 

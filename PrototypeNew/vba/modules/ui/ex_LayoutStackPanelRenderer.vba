@@ -15,11 +15,11 @@ Public Function m_Render( _
     ByVal colEnd As Long _
 ) As Boolean
     If layoutNode Is Nothing Then
-        VBA.MsgBox "PrototypeNew: stackPanel node is not specified.", VBA.vbExclamation
+        ex_Core.m_Diagnostic_LogError "PrototypeNew: stackPanel node is not specified."
         Exit Function
     End If
     If VBA.StrComp(VBA.LCase$(VBA.CStr(layoutNode.baseName)), "stackpanel", VBA.vbBinaryCompare) <> 0 Then
-        VBA.MsgBox "PrototypeNew: ex_LayoutStackPanelRenderer supports only <stackPanel> nodes.", VBA.vbExclamation
+        ex_Core.m_Diagnostic_LogError "PrototypeNew: ex_LayoutStackPanelRenderer supports only <stackPanel> nodes."
         Exit Function
     End If
 
