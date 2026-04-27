@@ -11,17 +11,12 @@ Private m_ViewPresentation As obj_ViewPresentation
 Private m_ConfigEntryViewItems As list__obj_ConfigEntryViewItem
 
 Private Sub Class_Initialize()
-    Set m_ConfigTable = New obj_ConfigTable
     Set m_ViewPresentation = New obj_ViewPresentation
     Set m_ConfigEntryViewItems = New list__obj_ConfigEntryViewItem
-    Call private_TrySyncEntryItemsFromModel()
+    Call Me.Initialize(Nothing)
 End Sub
 
-Public Property Get Model() As obj_ConfigTable
-    Set Model = m_ConfigTable
-End Property
-
-Public Property Set Model(ByVal value As obj_ConfigTable)
+Public Function Initialize(ByVal value As obj_ConfigTable) As Boolean
     If value Is Nothing Then
         Set m_ConfigTable = New obj_ConfigTable
     Else
@@ -31,6 +26,12 @@ Public Property Set Model(ByVal value As obj_ConfigTable)
     If Not private_TrySyncEntryItemsFromModel() Then
         Set m_ConfigEntryViewItems = New list__obj_ConfigEntryViewItem
     End If
+
+    Initialize = True
+End Function
+
+Public Property Get Model() As obj_ConfigTable
+    Set Model = m_ConfigTable
 End Property
 
 Public Property Get Presentation() As obj_ViewPresentation
@@ -47,14 +48,6 @@ End Property
 
 Public Property Get EntryItems() As list__obj_ConfigEntryViewItem
     Set EntryItems = m_ConfigEntryViewItems
-End Property
-
-Public Property Set EntryItems(ByVal value As list__obj_ConfigEntryViewItem)
-    If value Is Nothing Then
-        Set m_ConfigEntryViewItems = New list__obj_ConfigEntryViewItem
-    Else
-        Set m_ConfigEntryViewItems = value
-    End If
 End Property
 
 Public Property Get ItemVisible() As Boolean
@@ -124,7 +117,7 @@ Private Function private_TrySyncEntryItemsFromModel() As Boolean
 
     For Each sourceConfigEntry In sourceConfigEntries
         Set configEntryViewItem = New obj_ConfigEntryViewItem
-        Set configEntryViewItem.Model = sourceConfigEntry
+        If Not configEntryViewItem.Initialize(sourceConfigEntry) Then Exit Function
         configEntryViewItems.Add configEntryViewItem
     Next sourceConfigEntry
 

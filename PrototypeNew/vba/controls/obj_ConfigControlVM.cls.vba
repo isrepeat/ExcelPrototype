@@ -54,7 +54,7 @@ Private Sub obj_IControl_Configure(ByVal page As obj_PageBase, ByVal controlNode
     If Not private_TryBuildConfigTable(resolvedItems, configTable) Then Exit Sub
 
     Set m_ConfigTableViewItem = New obj_ConfigTableViewItem
-    Set m_ConfigTableViewItem.Model = configTable
+    If Not m_ConfigTableViewItem.Initialize(configTable) Then Exit Sub
 
     m_IsConfigured = True
 End Sub

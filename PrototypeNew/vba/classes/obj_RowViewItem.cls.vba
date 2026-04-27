@@ -11,29 +11,23 @@ Private m_ViewPresentation As obj_ViewPresentation
 Private m_BannerViewItem As obj_BannerViewItem
 
 Private Sub Class_Initialize()
-    Set m_Row = New obj_Row
     Set m_ViewPresentation = New obj_ViewPresentation
     Set m_BannerViewItem = Nothing
+    Call Me.Initialize(Nothing)
 End Sub
 
-Public Property Get Model() As obj_Row
-    Set Model = m_Row
-End Property
-
-Public Property Set Model(ByVal value As obj_Row)
+Public Function Initialize(ByVal value As obj_Row) As Boolean
     If value Is Nothing Then
         Set m_Row = New obj_Row
     Else
         Set m_Row = value
     End If
-End Property
 
-Public Property Get Row() As obj_Row
-    Set Row = m_Row
-End Property
+    Initialize = True
+End Function
 
-Public Property Set Row(ByVal value As obj_Row)
-    Set Model = value
+Public Property Get Model() As obj_Row
+    Set Model = m_Row
 End Property
 
 Public Property Get Presentation() As obj_ViewPresentation

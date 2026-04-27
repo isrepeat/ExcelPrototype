@@ -500,7 +500,7 @@ Private Function private_TryAppendRowViewData( _
         Exit Function
     End If
 
-    Set row = rowViewItem.Row
+    Set row = rowViewItem.Model
     If row Is Nothing Then
         VBA.MsgBox "TableList: row view item has no row model.", VBA.vbExclamation
         Exit Function
@@ -881,7 +881,7 @@ Private Function private_CreateTableViewFromModel(ByVal tableDynamic As obj_Tabl
     End If
 
     Set tableViewItem = New obj_TableViewItem
-    Set tableViewItem.Model = tableDynamic
+    If Not tableViewItem.Initialize(tableDynamic) Then Exit Function
     tableViewItem.ItemVisible = True
 
     Set private_CreateTableViewFromModel = tableViewItem
@@ -921,7 +921,7 @@ Private Function private_CreateRowViewFromModel(ByVal row As obj_Row) As obj_Row
     End If
 
     Set rowViewItem = New obj_RowViewItem
-    Set rowViewItem.Row = row
+    If Not rowViewItem.Initialize(row) Then Exit Function
     rowViewItem.RowVisible = True
 
     Set private_CreateRowViewFromModel = rowViewItem
