@@ -312,6 +312,7 @@ Public Function m_TEST_RegisterConfigFromProfileNode( _
 ) As Boolean
     Dim configTable As obj_ConfigTable
     Dim sourceItems As Collection
+    Dim sourceConfigEntry As obj_ConfigEntry
 
     If profileNode Is Nothing Then
         ex_Core.m_Diagnostic_LogError "PrototypeNew: config profile node is not specified."
@@ -322,7 +323,11 @@ Public Function m_TEST_RegisterConfigFromProfileNode( _
     If Not configTable.TryLoadFromXmlNode(profileNode, True) Then Exit Function
 
     Set sourceItems = New Collection
-    sourceItems.Add configTable
+    For Each sourceConfigEntry In configTable.Items
+        If sourceConfigEntry Is Nothing Then GoTo ContinueSourceConfigEntry
+        sourceItems.Add sourceConfigEntry
+ContinueSourceConfigEntry:
+    Next sourceConfigEntry
 
     If Not private_TrySetItemsSource("RuntimeItems.Test.Config", sourceItems, notifyChange, preferredPageBase) Then Exit Function
     m_TEST_RegisterConfigFromProfileNode = True
@@ -392,30 +397,30 @@ End Function
 
 
 Public Function m_TEST_BuildDemoConfigItemsVariantA() As Collection
-    Dim result As list__obj_ConfigEntryViewItem
+    Dim result As list__obj_ConfigEntry
 
-    Set result = New list__obj_ConfigEntryViewItem
-    result.Add private_CreateConfigViewItem("#", "Profile.Name", "HospitalizationDate")
-    result.Add private_CreateConfigViewItem("rx", "Source.Main.FilePattern", "{Main-{dd}.{mm}.{yyyy}}")
-    result.Add private_CreateConfigViewItem(VBA.vbNullString, "Sheet.StateMain.Key.HospitalizationDate", "No; Unit; Rank; FIO; HospitalizationDate")
-    result.Add private_CreateConfigViewItem(VBA.vbNullString, "Sheet.StateMain.Map.1", "No з/п")
-    result.Add private_CreateConfigViewItem("#", "Sheet.StateMain.Map.2", "В/ч")
-    result.Add private_CreateConfigViewItem("rx", "Sheet.StateMain.Map.3", "П.І.Б.")
+    Set result = New list__obj_ConfigEntry
+    result.Add private_CreateConfigEntry("#", "Profile.Name", "HospitalizationDate")
+    result.Add private_CreateConfigEntry("rx", "Source.Main.FilePattern", "{Main-{dd}.{mm}.{yyyy}}")
+    result.Add private_CreateConfigEntry(VBA.vbNullString, "Sheet.StateMain.Key.HospitalizationDate", "No; Unit; Rank; FIO; HospitalizationDate")
+    result.Add private_CreateConfigEntry(VBA.vbNullString, "Sheet.StateMain.Map.1", "No з/п")
+    result.Add private_CreateConfigEntry("#", "Sheet.StateMain.Map.2", "В/ч")
+    result.Add private_CreateConfigEntry("rx", "Sheet.StateMain.Map.3", "П.І.Б.")
 
     Set m_TEST_BuildDemoConfigItemsVariantA = result.AsCollection
 End Function
 
 
 Public Function m_TEST_BuildDemoConfigItemsVariantB() As Collection
-    Dim result As list__obj_ConfigEntryViewItem
+    Dim result As list__obj_ConfigEntry
 
-    Set result = New list__obj_ConfigEntryViewItem
-    result.Add private_CreateConfigViewItem("#", "Profile.Name", "TransferSheet")
-    result.Add private_CreateConfigViewItem("rx", "Source.Main.FileResolver", "ex_SourceResolvers.m_ResolveAllByPattern")
-    result.Add private_CreateConfigViewItem(VBA.vbNullString, "Source.Main.SortOrder", "order=asc")
-    result.Add private_CreateConfigViewItem(VBA.vbNullString, "Sheet.Aliases.StateMain", "StateMain")
-    result.Add private_CreateConfigViewItem("rx", "Sheet.StateMain.Key.TransferDate", "{Main-{dd}.{mm}.{yyyy}}.DateTransfer")
-    result.Add private_CreateConfigViewItem("#", "Sheet.StateMain.Key.DocName", "{Main-{dd}.{mm}.{yyyy}}.DocName")
+    Set result = New list__obj_ConfigEntry
+    result.Add private_CreateConfigEntry("#", "Profile.Name", "TransferSheet")
+    result.Add private_CreateConfigEntry("rx", "Source.Main.FileResolver", "ex_SourceResolvers.m_ResolveAllByPattern")
+    result.Add private_CreateConfigEntry(VBA.vbNullString, "Source.Main.SortOrder", "order=asc")
+    result.Add private_CreateConfigEntry(VBA.vbNullString, "Sheet.Aliases.StateMain", "StateMain")
+    result.Add private_CreateConfigEntry("rx", "Sheet.StateMain.Key.TransferDate", "{Main-{dd}.{mm}.{yyyy}}.DateTransfer")
+    result.Add private_CreateConfigEntry("#", "Sheet.StateMain.Key.DocName", "{Main-{dd}.{mm}.{yyyy}}.DocName")
 
     Set m_TEST_BuildDemoConfigItemsVariantB = result.AsCollection
 End Function
@@ -742,23 +747,19 @@ Private Function private_CreateDemoPerson(ByVal displayName As String, ByVal rol
 End Function
 
 
-Private Function private_CreateConfigViewItem( _
+Private Function private_CreateConfigEntry( _
     ByVal attrText As String, _
     ByVal keyText As String, _
     ByVal valueText As String _
-) As obj_ConfigEntryViewItem
+) As obj_ConfigEntry
     Dim configEntry As obj_ConfigEntry
-    Dim configEntryViewItem As obj_ConfigEntryViewItem
 
     Set configEntry = New obj_ConfigEntry
     configEntry.Attr = VBA.CStr(attrText)
     configEntry.Key = VBA.CStr(keyText)
     configEntry.Value = VBA.CStr(valueText)
 
-    Set configEntryViewItem = New obj_ConfigEntryViewItem
-    If Not configEntryViewItem.Initialize(configEntry) Then Exit Function
-
-    Set private_CreateConfigViewItem = configEntryViewItem
+    Set private_CreateConfigEntry = configEntry
 End Function
 
 
