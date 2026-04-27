@@ -6,64 +6,64 @@ Attribute VB_Name = "obj_TableViewItem"
 Option Explicit
 Implements obj_IViewItem
 
-Private m_Model As obj_TableDynamic
-Private m_Presentation As obj_ViewPresentation
-Private m_Banner As obj_BannerViewItem
-Private m_RowItems As list__obj_RowViewItem
+Private m_TableDynamic As obj_TableDynamic
+Private m_ViewPresentation As obj_ViewPresentation
+Private m_BannerViewItem As obj_BannerViewItem
+Private m_RowViewItems As list__obj_RowViewItem
 
 Private Sub Class_Initialize()
-    Set m_Model = New obj_TableDynamic
-    Set m_Presentation = New obj_ViewPresentation
-    Set m_Banner = Nothing
-    Set m_RowItems = New list__obj_RowViewItem
+    Set m_TableDynamic = New obj_TableDynamic
+    Set m_ViewPresentation = New obj_ViewPresentation
+    Set m_BannerViewItem = Nothing
+    Set m_RowViewItems = New list__obj_RowViewItem
     Call private_TrySyncRowItemsFromModel()
 End Sub
 
 Public Property Get Model() As obj_TableDynamic
-    Set Model = m_Model
+    Set Model = m_TableDynamic
 End Property
 
 Public Property Set Model(ByVal value As obj_TableDynamic)
     If value Is Nothing Then
-        Set m_Model = New obj_TableDynamic
+        Set m_TableDynamic = New obj_TableDynamic
     Else
-        Set m_Model = value
+        Set m_TableDynamic = value
     End If
 
     If Not private_TrySyncRowItemsFromModel() Then
-        Set m_RowItems = New list__obj_RowViewItem
+        Set m_RowViewItems = New list__obj_RowViewItem
     End If
 End Property
 
 Public Property Get Presentation() As obj_ViewPresentation
-    Set Presentation = m_Presentation
+    Set Presentation = m_ViewPresentation
 End Property
 
 Public Property Set Presentation(ByVal value As obj_ViewPresentation)
     If value Is Nothing Then
-        Set m_Presentation = New obj_ViewPresentation
+        Set m_ViewPresentation = New obj_ViewPresentation
     Else
-        Set m_Presentation = value
+        Set m_ViewPresentation = value
     End If
 End Property
 
 Public Property Get Banner() As obj_BannerViewItem
-    Set Banner = m_Banner
+    Set Banner = m_BannerViewItem
 End Property
 
 Public Property Set Banner(ByVal value As obj_BannerViewItem)
-    Set m_Banner = value
+    Set m_BannerViewItem = value
 End Property
 
 Public Property Get RowItems() As list__obj_RowViewItem
-    Set RowItems = m_RowItems
+    Set RowItems = m_RowViewItems
 End Property
 
 Public Property Set RowItems(ByVal value As list__obj_RowViewItem)
     If value Is Nothing Then
-        Set m_RowItems = New list__obj_RowViewItem
+        Set m_RowViewItems = New list__obj_RowViewItem
     Else
-        Set m_RowItems = value
+        Set m_RowViewItems = value
     End If
 End Property
 
@@ -72,37 +72,37 @@ Public Property Get ItemVisible() As Boolean
 End Property
 
 Public Property Let ItemVisible(ByVal value As Boolean)
-    m_Presentation.EffectiveVisible = VBA.CBool(value)
+    m_ViewPresentation.EffectiveVisible = VBA.CBool(value)
 End Property
 
 Public Property Get RowCount() As Long
-    If m_Model Is Nothing Then Exit Property
-    RowCount = m_Model.RowCount
+    If m_TableDynamic Is Nothing Then Exit Property
+    RowCount = m_TableDynamic.RowCount
 End Property
 
 Public Property Get ColumnCount() As Long
-    If m_Model Is Nothing Then Exit Property
-    ColumnCount = m_Model.ColumnCount
+    If m_TableDynamic Is Nothing Then Exit Property
+    ColumnCount = m_TableDynamic.ColumnCount
 End Property
 
 Public Property Get SectionTitle() As String
-    If m_Model Is Nothing Then Exit Property
-    SectionTitle = m_Model.SectionTitle
+    If m_TableDynamic Is Nothing Then Exit Property
+    SectionTitle = m_TableDynamic.SectionTitle
 End Property
 
 Public Property Let SectionTitle(ByVal value As String)
-    If m_Model Is Nothing Then Set m_Model = New obj_TableDynamic
-    m_Model.SectionTitle = VBA.CStr(value)
+    If m_TableDynamic Is Nothing Then Set m_TableDynamic = New obj_TableDynamic
+    m_TableDynamic.SectionTitle = VBA.CStr(value)
 End Property
 
 Public Property Get HeaderText() As String
-    If m_Model Is Nothing Then Exit Property
-    HeaderText = m_Model.HeaderText
+    If m_TableDynamic Is Nothing Then Exit Property
+    HeaderText = m_TableDynamic.HeaderText
 End Property
 
 Public Property Get Rows() As list__obj_Row
-    If m_Model Is Nothing Then Exit Property
-    Set Rows = m_Model.Rows
+    If m_TableDynamic Is Nothing Then Exit Property
+    Set Rows = m_TableDynamic.Rows
 End Property
 
 ' //
@@ -131,8 +131,8 @@ Public Function IsVisible() As Boolean
 End Function
 
 Public Function HasBanner() As Boolean
-    If m_Banner Is Nothing Then Exit Function
-    HasBanner = m_Banner.IsVisible()
+    If m_BannerViewItem Is Nothing Then Exit Function
+    HasBanner = m_BannerViewItem.IsVisible()
 End Function
 
 Public Function TryResyncRowItemsFromModel() As Boolean
@@ -143,42 +143,42 @@ End Function
 ' // Internal
 ' //
 Private Function private_TrySyncRowItemsFromModel() As Boolean
-    Dim rowModel As obj_Row
+    Dim sourceRow As obj_Row
     Dim sourceRows As list__obj_Row
 
-    Dim rowView As obj_RowViewItem
-    Dim syncedRows As list__obj_RowViewItem
+    Dim rowViewItem As obj_RowViewItem
+    Dim rowViewItems As list__obj_RowViewItem
 
-    Set syncedRows = New list__obj_RowViewItem
-    If m_Model Is Nothing Then
-        Set m_RowItems = syncedRows
+    Set rowViewItems = New list__obj_RowViewItem
+    If m_TableDynamic Is Nothing Then
+        Set m_RowViewItems = rowViewItems
         private_TrySyncRowItemsFromModel = True
         Exit Function
     End If
 
-    Set sourceRows = m_Model.Rows
+    Set sourceRows = m_TableDynamic.Rows
     If sourceRows Is Nothing Then
-        Set m_RowItems = syncedRows
+        Set m_RowViewItems = rowViewItems
         private_TrySyncRowItemsFromModel = True
         Exit Function
     End If
 
-    For Each rowModel In sourceRows
-        Set rowView = New obj_RowViewItem
-        Set rowView.Row = rowModel
-        rowView.RowVisible = True
-        syncedRows.Add rowView
-    Next rowModel
+    For Each sourceRow In sourceRows
+        Set rowViewItem = New obj_RowViewItem
+        Set rowViewItem.Row = sourceRow
+        rowViewItem.RowVisible = True
+        rowViewItems.Add rowViewItem
+    Next sourceRow
 
-    Set m_RowItems = syncedRows
+    Set m_RowViewItems = rowViewItems
     private_TrySyncRowItemsFromModel = True
 End Function
 
 Private Function private_IsVisibleResolved() As Boolean
-    If m_Presentation Is Nothing Then
+    If m_ViewPresentation Is Nothing Then
         private_IsVisibleResolved = True
         Exit Function
     End If
 
-    private_IsVisibleResolved = m_Presentation.EffectiveVisible
+    private_IsVisibleResolved = m_ViewPresentation.EffectiveVisible
 End Function

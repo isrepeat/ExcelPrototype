@@ -14,7 +14,7 @@ Private m_IsDisposed As Boolean
 Private m_IsRendering As Boolean
 Private m_ControlByKey As Object
 Private m_RouteByShape As Object
-Private m_RuntimeSources As obj_PageRuntimeSources
+Private m_PageRuntimeSources As obj_PageRuntimeSources
 Private m_InlineRunEntries As Collection
 ' Кэш inline-профилей на уровне страницы: ключ = partName (banner/button/...).
 ' Почему в PageBase:
@@ -58,7 +58,7 @@ Public Function Initialize( _
     End If
     Set m_UiDom = Nothing
     m_IsRendering = False
-    Set m_RuntimeSources = New obj_PageRuntimeSources
+    Set m_PageRuntimeSources = New obj_PageRuntimeSources
     Set m_InlineRunEntries = Nothing
     ' Реестр профилей стартует пустым и заполняется лениво по мере рендера.
     Set m_InlineProfileByPart = Nothing
@@ -80,7 +80,7 @@ Public Sub Dispose(Optional ByVal deleteWorksheet As Boolean = True)
     m_PageId = VBA.vbNullString
     m_PageType = 0
     Set m_UiDom = Nothing
-    Set m_RuntimeSources = Nothing
+    Set m_PageRuntimeSources = Nothing
     Set m_InlineRunEntries = Nothing
     ' Сбрасываем профильный кэш вместе со страницей (единый lifecycle PageBase).
     Set m_InlineProfileByPart = Nothing
@@ -124,7 +124,7 @@ End Property
 
 Public Property Get RuntimeSources() As obj_PageRuntimeSources
     If Not private_EnsureNotDisposed("RuntimeSources") Then Exit Property
-    Set RuntimeSources = m_RuntimeSources
+    Set RuntimeSources = m_PageRuntimeSources
 End Property
 
 Public Property Get IsDisposed() As Boolean
@@ -177,7 +177,7 @@ Public Function Render() As Boolean
     Dim errNumber As Long
     Dim errSource As String
     Dim errDescription As String
-    Dim renderCtx As obj_LayoutRenderContext
+    Dim layoutRenderContext As obj_LayoutRenderContext
 
     If Not private_EnsureNotDisposed("Render") Then Exit Function
     If Not Me.IsReady() Then Exit Function
@@ -227,9 +227,9 @@ Public Function Render() As Boolean
     If Not Me.ResetControlActions() Then GoTo Cleanup
     If Not private_TryClearPageRuntime() Then GoTo Cleanup
     ' Один контекст на один проход: worksheet/workbook и seed-ы runtime ключей.
-    Set renderCtx = New obj_LayoutRenderContext
-    If Not renderCtx.Initialize(Me) Then GoTo Cleanup
-    If Not ex_XmlLayoutEngine.m_RenderNode(renderCtx, pageNode) Then GoTo Cleanup
+    Set layoutRenderContext = New obj_LayoutRenderContext
+    If Not layoutRenderContext.Initialize(Me) Then GoTo Cleanup
+    If Not ex_XmlLayoutEngine.m_RenderNode(layoutRenderContext, pageNode) Then GoTo Cleanup
     If Not ex_StylePipelineEngine.m_ApplyPageStyles(ws, m_UiDom) Then GoTo Cleanup
     If Not Me.ApplyInlineRuns() Then GoTo Cleanup
 
@@ -256,7 +256,7 @@ End Function
 Public Function RegisterInlineRuns( _
     ByVal targetRange As Range, _
     ByVal runs As Collection, _
-    ByVal inlineProfile As obj_InlineTextProfile _
+    ByVal inlineTextProfile As obj_InlineTextProfile _
 ) As Boolean
     Dim firstCell As Range
     Dim entry As Object
@@ -272,7 +272,7 @@ Public Function RegisterInlineRuns( _
         RegisterInlineRuns = True
         Exit Function
     End If
-    If inlineProfile Is Nothing Then
+    If inlineTextProfile Is Nothing Then
         RegisterInlineRuns = True
         Exit Function
     End If
@@ -289,7 +289,7 @@ Public Function RegisterInlineRuns( _
     entry("TargetKey") = targetKey
     entry("CellAddress") = firstCell.Address(False, False)
     Set entry("Runs") = runs
-    Set entry("InlineProfile") = inlineProfile
+    Set entry("InlineProfile") = inlineTextProfile
 
     m_InlineRunEntries.Add entry
     RegisterInlineRuns = True
@@ -301,7 +301,7 @@ Public Function TryResolveInlineTextByPart( _
     ByRef outText As String, _
     ByRef outRuns As Collection _
 ) As Boolean
-    Dim inlineProfile As obj_InlineTextProfile
+    Dim inlineTextProfile As obj_InlineTextProfile
 
     If Not private_EnsureNotDisposed("TryResolveInlineTextByPart") Then Exit Function
 
@@ -313,8 +313,8 @@ Public Function TryResolveInlineTextByPart( _
         Exit Function
     End If
 
-    If Not Me.TryGetInlineTextProfile(partName, inlineProfile) Then Exit Function
-    If Not inlineProfile.TryResolveInlineText(rawText, outText, outRuns) Then Exit Function
+    If Not Me.TryGetInlineTextProfile(partName, inlineTextProfile) Then Exit Function
+    If Not inlineTextProfile.TryResolveInlineText(rawText, outText, outRuns) Then Exit Function
 
     TryResolveInlineTextByPart = True
 End Function
@@ -342,7 +342,7 @@ Public Function RegisterInlineRunsByPart( _
     ByVal runs As Collection, _
     ByVal partName As String _
 ) As Boolean
-    Dim inlineProfile As obj_InlineTextProfile
+    Dim inlineTextProfile As obj_InlineTextProfile
 
     If Not private_EnsureNotDisposed("RegisterInlineRunsByPart") Then Exit Function
 
@@ -352,8 +352,8 @@ Public Function RegisterInlineRunsByPart( _
         Exit Function
     End If
 
-    If Not Me.TryGetInlineTextProfile(partName, inlineProfile) Then Exit Function
-    RegisterInlineRunsByPart = Me.RegisterInlineRuns(targetRange, runs, inlineProfile)
+    If Not Me.TryGetInlineTextProfile(partName, inlineTextProfile) Then Exit Function
+    RegisterInlineRunsByPart = Me.RegisterInlineRuns(targetRange, runs, inlineTextProfile)
 End Function
 
 Public Function RegisterInlineRunsForShapeByPart( _
@@ -361,7 +361,7 @@ Public Function RegisterInlineRunsForShapeByPart( _
     ByVal runs As Collection, _
     ByVal partName As String _
 ) As Boolean
-    Dim inlineProfile As obj_InlineTextProfile
+    Dim inlineTextProfile As obj_InlineTextProfile
 
     If Not private_EnsureNotDisposed("RegisterInlineRunsForShapeByPart") Then Exit Function
 
@@ -371,15 +371,15 @@ Public Function RegisterInlineRunsForShapeByPart( _
         Exit Function
     End If
 
-    If Not Me.TryGetInlineTextProfile(partName, inlineProfile) Then Exit Function
-    RegisterInlineRunsForShapeByPart = Me.RegisterInlineRunsForShape(targetShape, runs, inlineProfile)
+    If Not Me.TryGetInlineTextProfile(partName, inlineTextProfile) Then Exit Function
+    RegisterInlineRunsForShapeByPart = Me.RegisterInlineRunsForShape(targetShape, runs, inlineTextProfile)
 End Function
 
 
 Public Function RegisterInlineRunsForShape( _
     ByVal targetShape As Shape, _
     ByVal runs As Collection, _
-    ByVal inlineProfile As obj_InlineTextProfile _
+    ByVal inlineTextProfile As obj_InlineTextProfile _
 ) As Boolean
     Dim entry As Object
     Dim targetKey As String
@@ -394,7 +394,7 @@ Public Function RegisterInlineRunsForShape( _
         RegisterInlineRunsForShape = True
         Exit Function
     End If
-    If inlineProfile Is Nothing Then
+    If inlineTextProfile Is Nothing Then
         RegisterInlineRunsForShape = True
         Exit Function
     End If
@@ -414,7 +414,7 @@ Public Function RegisterInlineRunsForShape( _
     entry("TargetKey") = targetKey
     entry("ShapeName") = targetShape.Name
     Set entry("Runs") = runs
-    Set entry("InlineProfile") = inlineProfile
+    Set entry("InlineProfile") = inlineTextProfile
 
     m_InlineRunEntries.Add entry
     RegisterInlineRunsForShape = True
@@ -427,7 +427,7 @@ Public Function ApplyInlineRuns() As Boolean
     Dim targetCell As Range
     Dim targetShape As Shape
     Dim runs As Collection
-    Dim inlineProfile As obj_InlineTextProfile
+    Dim inlineTextProfile As obj_InlineTextProfile
     Dim targetType As String
 
     If Not private_EnsureNotDisposed("ApplyInlineRuns") Then Exit Function
@@ -447,7 +447,7 @@ Public Function ApplyInlineRuns() As Boolean
         Set targetCell = Nothing
         Set targetShape = Nothing
         Set runs = Nothing
-        Set inlineProfile = Nothing
+        Set inlineTextProfile = Nothing
         targetType = VBA.vbNullString
 
         On Error Resume Next
@@ -458,18 +458,18 @@ Public Function ApplyInlineRuns() As Boolean
             Set targetShape = m_Worksheet.Shapes(VBA.CStr(entry("ShapeName")))
         End If
         Set runs = entry("Runs")
-        Set inlineProfile = entry("InlineProfile")
+        Set inlineTextProfile = entry("InlineProfile")
         On Error GoTo 0
 
         If runs Is Nothing Then GoTo ContinueEntry
-        If inlineProfile Is Nothing Then GoTo ContinueEntry
+        If inlineTextProfile Is Nothing Then GoTo ContinueEntry
 
         If targetType = INLINE_TARGET_RANGE Then
             If targetCell Is Nothing Then GoTo ContinueEntry
-            inlineProfile.ApplyInlineRuns targetCell, runs
+            inlineTextProfile.ApplyInlineRuns targetCell, runs
         ElseIf targetType = INLINE_TARGET_SHAPE Then
             If targetShape Is Nothing Then GoTo ContinueEntry
-            inlineProfile.ApplyInlineRunsToShape targetShape, runs
+            inlineTextProfile.ApplyInlineRunsToShape targetShape, runs
         End If
 
 ContinueEntry:
@@ -490,7 +490,7 @@ Private Function private_TryGetInlineProfileByPart( _
     ByRef outInlineProfile As obj_InlineTextProfile _
 ) As Boolean
     Dim partKey As String
-    Dim inlineProfile As obj_InlineTextProfile
+    Dim inlineTextProfile As obj_InlineTextProfile
 
     partKey = VBA.LCase$(VBA.Trim$(partName))
     If VBA.Len(partKey) = 0 Then Exit Function
@@ -505,11 +505,11 @@ Private Function private_TryGetInlineProfileByPart( _
 
     ' Ленивое создание профиля: сейчас правила одинаковые,
     ' но архитектура позволяет отличать их по partName.
-    Set inlineProfile = New obj_InlineTextProfile
-    inlineProfile.PartName = partKey
-    inlineProfile.InlineMarkersEnabled = True
-    Set m_InlineProfileByPart(partKey) = inlineProfile
-    Set outInlineProfile = inlineProfile
+    Set inlineTextProfile = New obj_InlineTextProfile
+    inlineTextProfile.PartName = partKey
+    inlineTextProfile.InlineMarkersEnabled = True
+    Set m_InlineProfileByPart(partKey) = inlineTextProfile
+    Set outInlineProfile = inlineTextProfile
     private_TryGetInlineProfileByPart = True
 End Function
 
@@ -559,20 +559,20 @@ End Sub
 
 ' Callstack[1]: rt_PageManager.m_RenderPage -> page.Render -> obj_PageBase.Render -> ex_XmlLayoutEngine.m_RenderNode -> ex_LayoutControlRenderer.m_Render -> obj_ButtonControlVM.obj_IControl_Render -> m_Page.RegisterControl -> obj_PageBase.RegisterControl
 ' Callstack[2]: rt_PageManager.m_RenderPage -> page.Render -> obj_PageBase.Render -> ex_XmlLayoutEngine.m_RenderNode -> ex_LayoutControlRenderer.m_Render -> obj_SelectControlVM.private_TryBindRuntimeRoutes -> m_Page.RegisterControl -> obj_PageBase.RegisterControl
-Public Function RegisterControl(ByVal controlKey As String, ByVal controlVm As Object) As Boolean
+Public Function RegisterControl(ByVal controlKey As String, ByVal iControl As Object) As Boolean
     If Not private_EnsureNotDisposed("RegisterControl") Then Exit Function
     controlKey = VBA.LCase$(VBA.Trim$(controlKey))
     If VBA.Len(controlKey) = 0 Then
         VBA.MsgBox "PageBase: control key is empty.", VBA.vbExclamation
         Exit Function
     End If
-    If controlVm Is Nothing Then
+    If iControl Is Nothing Then
         VBA.MsgBox "PageBase: control VM is not specified for key '" & controlKey & "'.", VBA.vbExclamation
         Exit Function
     End If
 
     private_EnsureStorage
-    Set m_ControlByKey(controlKey) = controlVm
+    Set m_ControlByKey(controlKey) = iControl
     private_LogRuntimeInfo "register-control key='" & private_EscapeForLog(controlKey) & "' controls=" & VBA.CStr(private_GetDictionaryCount(m_ControlByKey))
     RegisterControl = True
 End Function
@@ -689,7 +689,7 @@ Public Function DispatchShapeClick(ByVal shapeName As String) As Boolean
     Dim methodName As String
     Dim hasArg As Boolean
     Dim argValue As Variant
-    Dim controlVm As Object
+    Dim iControl As Object
     Dim actionOk As Boolean
     Dim failureReason As String
     Dim invokeErrorText As String
@@ -714,7 +714,7 @@ Public Function DispatchShapeClick(ByVal shapeName As String) As Boolean
         argValue = Empty
     End If
 
-    If Not private_TryGetControl(controlKey, controlVm, failureReason) Then
+    If Not private_TryGetControl(controlKey, iControl, failureReason) Then
         private_LogRuntimeError "dispatch-click control-miss shape='" & private_EscapeForLog(shapeName) & "' control='" & private_EscapeForLog(controlKey) & "' reason='" & private_EscapeForLog(failureReason) & "'"
         private_RemoveShapeRoute shapeName
         Exit Function
@@ -728,7 +728,7 @@ Public Function DispatchShapeClick(ByVal shapeName As String) As Boolean
         Exit Function
     End If
 
-    If Not private_TryInvokeControlAction(controlVm, methodName, hasArg, argValue, actionOk, invokeErrorText) Then
+    If Not private_TryInvokeControlAction(iControl, methodName, hasArg, argValue, actionOk, invokeErrorText) Then
         private_LogRuntimeError "dispatch-click invoke-failed shape='" & private_EscapeForLog(shapeName) & "' control='" & private_EscapeForLog(controlKey) & "' method='" & private_EscapeForLog(methodName) & "' err='" & private_EscapeForLog(invokeErrorText) & "'"
         Exit Function
     End If
@@ -747,8 +747,8 @@ End Function
 ' Callstack[3]: rt_CoreActions.m_UpdateCodeSizeAndRerender -> private_ScheduleUpdateAndRerender -> rt_Snapshots.m_SavePageSnapshots -> serializablePage.TrySerializeSnapshot(obj_PageMain) -> obj_PageMain.TrySerializeSnapshot -> m_Base.TryCollectSerializableControlSnapshots -> obj_PageBase.TryCollectSerializableControlSnapshots
 Public Function TryCollectSerializableControlSnapshots(ByRef outSnapshots As Collection) As Boolean
     Dim key As Variant
-    Dim controlVm As Object
-    Dim serializableControl As obj_ISerializable
+    Dim iControl As Object
+    Dim iSerializable As obj_ISerializable
     Dim typeRoot As String
     Dim payloadXml As String
     Dim controlKey As String
@@ -767,18 +767,18 @@ Public Function TryCollectSerializableControlSnapshots(ByRef outSnapshots As Col
     If VBA.Len(pageKey) = 0 Then Exit Function
 
     For Each key In m_ControlByKey.Keys
-        Set controlVm = m_ControlByKey(key)
-        If controlVm Is Nothing Then GoTo ContinueControl
-        If Not private_TryCastSerializableControl(controlVm, serializableControl) Then GoTo ContinueControl
+        Set iControl = m_ControlByKey(key)
+        If iControl Is Nothing Then GoTo ContinueControl
+        If Not private_TryCastSerializableControl(iControl, iSerializable) Then GoTo ContinueControl
 
         controlKey = VBA.LCase$(VBA.Trim$(VBA.CStr(key)))
         If VBA.Len(controlKey) = 0 Then GoTo ContinueControl
 
-        typeRoot = VBA.LCase$(VBA.Trim$(serializableControl.GetSerializableTypeRoot()))
+        typeRoot = VBA.LCase$(VBA.Trim$(iSerializable.GetSerializableTypeRoot()))
         If VBA.Len(typeRoot) = 0 Then GoTo ContinueControl
 
         payloadXml = VBA.vbNullString
-        If Not serializableControl.TrySerializeSnapshot(payloadXml) Then GoTo ContinueControl
+        If Not iSerializable.TrySerializeSnapshot(payloadXml) Then GoTo ContinueControl
         If VBA.Len(VBA.Trim$(payloadXml)) = 0 Then GoTo ContinueControl
 
         snapshotXml = VBA.vbNullString
@@ -801,8 +801,8 @@ Public Function TryRestoreSerializableControlSnapshots(ByVal snapshots As Collec
     Dim controlKey As String
     Dim typeRoot As String
     Dim payloadXml As String
-    Dim controlVm As obj_IControl
-    Dim serializableControl As obj_ISerializable
+    Dim iControl As obj_IControl
+    Dim iSerializable As obj_ISerializable
 
     If Not private_EnsureNotDisposed("TryRestoreSerializableControlSnapshots") Then Exit Function
     ' Восстанавливаем только runtime-состояние контролов из снапшотов.
@@ -826,12 +826,12 @@ Public Function TryRestoreSerializableControlSnapshots(ByVal snapshots As Collec
         If VBA.Len(typeRoot) = 0 Then GoTo ContinueSnapshot
         If VBA.Len(payloadXml) = 0 Then GoTo ContinueSnapshot
 
-        Set controlVm = ex_ControlFactory.m_CreateControlByTypeRoot(typeRoot)
-        If controlVm Is Nothing Then GoTo ContinueSnapshot
-        If Not private_TryCastSerializableControl(controlVm, serializableControl) Then GoTo ContinueSnapshot
-        If VBA.StrComp(VBA.LCase$(VBA.Trim$(serializableControl.GetSerializableTypeRoot())), typeRoot, VBA.vbTextCompare) <> 0 Then GoTo ContinueSnapshot
+        Set iControl = ex_ControlFactory.m_CreateControlByTypeRoot(typeRoot)
+        If iControl Is Nothing Then GoTo ContinueSnapshot
+        If Not private_TryCastSerializableControl(iControl, iSerializable) Then GoTo ContinueSnapshot
+        If VBA.StrComp(VBA.LCase$(VBA.Trim$(iSerializable.GetSerializableTypeRoot())), typeRoot, VBA.vbTextCompare) <> 0 Then GoTo ContinueSnapshot
 
-        If Not serializableControl.TryDeserializeSnapshot(payloadXml) Then GoTo ContinueSnapshot
+        If Not iSerializable.TryDeserializeSnapshot(payloadXml) Then GoTo ContinueSnapshot
 
 ContinueSnapshot:
     Next item
@@ -1383,7 +1383,7 @@ Private Function private_TryNotifyGlobalClick( _
     Optional ByRef outReason As String = VBA.vbNullString _
 ) As Boolean
     Dim key As Variant
-    Dim controlVm As Object
+    Dim iControl As Object
     Dim resultValue As Variant
     Dim errNo As Long
 
@@ -1396,25 +1396,25 @@ Private Function private_TryNotifyGlobalClick( _
     clickedControlKey = VBA.LCase$(VBA.Trim$(clickedControlKey))
 
     For Each key In m_ControlByKey.Keys
-        Set controlVm = m_ControlByKey(key)
-        If controlVm Is Nothing Then GoTo ContinueControl
+        Set iControl = m_ControlByKey(key)
+        If iControl Is Nothing Then GoTo ContinueControl
 
         On Error Resume Next
-        resultValue = VBA.CallByName(controlVm, "m_RuntimeOnGlobalClick", VbMethod, clickedControlKey)
+        resultValue = VBA.CallByName(iControl, "m_RuntimeOnGlobalClick", VbMethod, clickedControlKey)
         errNo = Err.Number
         Err.Clear
         On Error GoTo 0
 
         If errNo <> 0 Then
             If errNo <> 438 Then
-                outReason = "global-hook-exception:" & VBA.TypeName(controlVm)
-                VBA.MsgBox "PageBase: global click hook failed on '" & VBA.TypeName(controlVm) & "'.", VBA.vbExclamation
+                outReason = "global-hook-exception:" & VBA.TypeName(iControl)
+                VBA.MsgBox "PageBase: global click hook failed on '" & VBA.TypeName(iControl) & "'.", VBA.vbExclamation
                 Exit Function
             End If
         Else
             If VBA.VarType(resultValue) = vbBoolean Then
                 If Not VBA.CBool(resultValue) Then
-                    outReason = "global-hook-cancelled:" & VBA.TypeName(controlVm)
+                    outReason = "global-hook-cancelled:" & VBA.TypeName(iControl)
                     Exit Function
                 End If
             End If
@@ -1427,7 +1427,7 @@ ContinueControl:
 End Function
 
 Private Function private_TryInvokeControlAction( _
-    ByVal controlVm As Object, _
+    ByVal iControl As Object, _
     ByVal methodName As String, _
     ByVal hasArg As Boolean, _
     ByVal argValue As Variant, _
@@ -1437,7 +1437,7 @@ Private Function private_TryInvokeControlAction( _
     Dim resultValue As Variant
 
     outErrorText = VBA.vbNullString
-    If controlVm Is Nothing Then Exit Function
+    If iControl Is Nothing Then Exit Function
     methodName = VBA.Trim$(methodName)
     If VBA.Len(methodName) = 0 Then
         outErrorText = "method-name-empty"
@@ -1448,9 +1448,9 @@ Private Function private_TryInvokeControlAction( _
     On Error GoTo EH_INVOKE
     ' Поддерживаем сигнатуры действий как с аргументом, так и без аргумента.
     If hasArg Then
-        resultValue = VBA.CallByName(controlVm, methodName, VbMethod, argValue)
+        resultValue = VBA.CallByName(iControl, methodName, VbMethod, argValue)
     Else
-        resultValue = VBA.CallByName(controlVm, methodName, VbMethod)
+        resultValue = VBA.CallByName(iControl, methodName, VbMethod)
     End If
     On Error GoTo 0
 
@@ -1465,15 +1465,15 @@ Private Function private_TryInvokeControlAction( _
 
 EH_INVOKE:
     outErrorText = Err.Description
-    VBA.MsgBox "PageBase: failed to invoke method '" & methodName & "' on '" & VBA.TypeName(controlVm) & "': " & Err.Description, VBA.vbExclamation
+    VBA.MsgBox "PageBase: failed to invoke method '" & methodName & "' on '" & VBA.TypeName(iControl) & "': " & Err.Description, VBA.vbExclamation
 End Function
 
-Private Function private_TryCastSerializableControl(ByVal controlVm As Object, ByRef outSerializableControl As obj_ISerializable) As Boolean
-    If controlVm Is Nothing Then Exit Function
+Private Function private_TryCastSerializableControl(ByVal iControl As Object, ByRef outSerializableControl As obj_ISerializable) As Boolean
+    If iControl Is Nothing Then Exit Function
 
     Set outSerializableControl = Nothing
     On Error Resume Next
-    Set outSerializableControl = controlVm
+    Set outSerializableControl = iControl
     If Err.Number <> 0 Then
         Err.Clear
         On Error GoTo 0

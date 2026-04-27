@@ -6,7 +6,7 @@ Attribute VB_Name = "obj_TableTplControlVM"
 Option Explicit
 Implements obj_IControl
 
-Private m_Base As obj_ControlBase
+Private m_ControlBase As obj_ControlBase
 Private m_ControlName As String
 Private m_ItemsSourceRaw As String
 Private m_IsConfigured As Boolean
@@ -18,10 +18,10 @@ Private Sub obj_IControl_Configure(ByVal page As obj_PageBase, ByVal controlNode
     Dim listNode As Object
 
     m_IsConfigured = False
-    Set m_Base = Nothing
+    Set m_ControlBase = Nothing
 
-    Set m_Base = New obj_ControlBase
-    If Not m_Base.Configure(page, controlNode, "TableTpl", "tableTpl", m_ControlName) Then Exit Sub
+    Set m_ControlBase = New obj_ControlBase
+    If Not m_ControlBase.Configure(page, controlNode, "TableTpl", "tableTpl", m_ControlName) Then Exit Sub
 
     m_ItemsSourceRaw = VBA.Trim$(ex_XmlCore.m_NodeAttrText(controlNode, "itemsSource"))
     If VBA.Len(m_ItemsSourceRaw) = 0 Then

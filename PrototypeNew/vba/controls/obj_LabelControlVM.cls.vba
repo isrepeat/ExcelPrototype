@@ -6,11 +6,11 @@ Attribute VB_Name = "obj_LabelControlVM"
 Option Explicit
 Implements obj_IControl
 
-Private m_Base As obj_ControlBase
+Private m_ControlBase As obj_ControlBase
 Private m_ControlName As String
 Private m_TextRaw As String
 Private m_TextResolved As String
-Private m_Layout As obj_ControlLayout
+Private m_ControlLayout As obj_ControlLayout
 Private m_IsConfigured As Boolean
 
 ' //
@@ -20,23 +20,23 @@ Private Sub obj_IControl_Configure(ByVal page As obj_PageBase, ByVal controlNode
     Dim dataContext As Object
 
     m_IsConfigured = False
-    Set m_Layout = Nothing
-    Set m_Base = Nothing
+    Set m_ControlLayout = Nothing
+    Set m_ControlBase = Nothing
 
-    Set m_Base = New obj_ControlBase
-    If Not m_Base.Configure(page, controlNode, "Label", "label", m_ControlName) Then Exit Sub
+    Set m_ControlBase = New obj_ControlBase
+    If Not m_ControlBase.Configure(page, controlNode, "Label", "label", m_ControlName) Then Exit Sub
 
     m_TextRaw = VBA.CStr(ex_XmlCore.m_NodeAttrText(controlNode, "text"))
     If VBA.Len(VBA.Trim$(m_TextRaw)) = 0 Then
         m_TextRaw = VBA.CStr(ex_XmlCore.m_NodeAttrText(controlNode, "caption"))
     End If
 
-    Set dataContext = m_Base.DataContext
+    Set dataContext = m_ControlBase.DataContext
     If dataContext Is Nothing Then Set dataContext = Me
     If Not ex_BindingRuntime.m_TryResolveTextBinding(m_TextRaw, dataContext, m_TextResolved) Then Exit Sub
 
-    Set m_Layout = New obj_ControlLayout
-    If Not m_Layout.TryReadFromNode(controlNode, "Label", m_ControlName, "style") Then Exit Sub
+    Set m_ControlLayout = New obj_ControlLayout
+    If Not m_ControlLayout.TryReadFromNode(controlNode, "Label", m_ControlName, "style") Then Exit Sub
 
     m_IsConfigured = True
 End Sub
@@ -44,35 +44,35 @@ End Sub
 Private Sub obj_IControl_Render()
     Dim ws As Worksheet
     Dim targetRange As Range
-    Dim page As obj_PageBase
+    Dim pageBase As obj_PageBase
 
     If Not m_IsConfigured Then
         VBA.MsgBox "Label: control '" & m_ControlName & "' is not configured.", VBA.vbExclamation
         Exit Sub
     End If
 
-    Set page = Nothing
-    If Not m_Base Is Nothing Then Set page = m_Base.PageBase
-    If page Is Nothing Then
+    Set pageBase = Nothing
+    If Not m_ControlBase Is Nothing Then Set pageBase = m_ControlBase.PageBase
+    If pageBase Is Nothing Then
         VBA.MsgBox "Label: page is not specified for control '" & m_ControlName & "'.", VBA.vbExclamation
         Exit Sub
     End If
 
-    Set ws = private_GetWorksheetByName(page, m_Layout.LayoutSheetName)
+    Set ws = private_GetWorksheetByName(pageBase, m_ControlLayout.LayoutSheetName)
     If ws Is Nothing Then
-        VBA.MsgBox "Label: sheet '" & m_Layout.LayoutSheetName & "' was not found for control '" & m_ControlName & "'.", VBA.vbExclamation
+        VBA.MsgBox "Label: sheet '" & m_ControlLayout.LayoutSheetName & "' was not found for control '" & m_ControlName & "'.", VBA.vbExclamation
         Exit Sub
     End If
 
     On Error GoTo EH_RANGE
-    Set targetRange = ws.Range(ws.Cells(m_Layout.RowStart, m_Layout.ColStart), ws.Cells(m_Layout.RowEnd, m_Layout.ColEnd))
+    Set targetRange = ws.Range(ws.Cells(m_ControlLayout.RowStart, m_ControlLayout.ColStart), ws.Cells(m_ControlLayout.RowEnd, m_ControlLayout.ColEnd))
     On Error GoTo 0
 
     targetRange.Value2 = m_TextResolved
     targetRange.HorizontalAlignment = xlHAlignLeft
     targetRange.VerticalAlignment = xlVAlignCenter
     targetRange.WrapText = False
-    If Not private_ApplyPresetStyle(targetRange, m_Layout.StyleName) Then Exit Sub
+    If Not private_ApplyPresetStyle(targetRange, m_ControlLayout.StyleName) Then Exit Sub
     Exit Sub
 
 EH_RANGE:

@@ -5,34 +5,34 @@ END
 Attribute VB_Name = "obj_ConfigTable"
 Option Explicit
 
-Private m_Items As list__obj_ConfigEntry
+Private m_ConfigEntries As list__obj_ConfigEntry
 
 Private Sub Class_Initialize()
-    Set m_Items = New list__obj_ConfigEntry
+    Set m_ConfigEntries = New list__obj_ConfigEntry
 End Sub
 
 ' //
 ' // API
 ' //
 Public Property Get Items() As list__obj_ConfigEntry
-    Set Items = m_Items
+    Set Items = m_ConfigEntries
 End Property
 
 Public Property Get Count() As Long
-    Count = m_Items.Count
+    Count = m_ConfigEntries.Count
 End Property
 
 Public Sub Clear()
-    Set m_Items = New list__obj_ConfigEntry
+    Set m_ConfigEntries = New list__obj_ConfigEntry
 End Sub
 
-Public Function AddItem(ByVal cfgItem As obj_ConfigEntry) As Boolean
-    If cfgItem Is Nothing Then
+Public Function AddItem(ByVal configEntry As obj_ConfigEntry) As Boolean
+    If configEntry Is Nothing Then
         VBA.MsgBox "ConfigTable: item is not specified.", VBA.vbExclamation
         Exit Function
     End If
 
-    AddItem = m_Items.Add(cfgItem)
+    AddItem = m_ConfigEntries.Add(configEntry)
 End Function
 
 Public Function AddRow( _
@@ -40,14 +40,14 @@ Public Function AddRow( _
     ByVal keyText As String, _
     ByVal valueText As String _
 ) As Boolean
-    Dim cfgItem As obj_ConfigEntry
+    Dim configEntry As obj_ConfigEntry
 
-    Set cfgItem = New obj_ConfigEntry
-    cfgItem.Attr = VBA.CStr(attrText)
-    cfgItem.Key = VBA.CStr(keyText)
-    cfgItem.Value = VBA.CStr(valueText)
+    Set configEntry = New obj_ConfigEntry
+    configEntry.Attr = VBA.CStr(attrText)
+    configEntry.Key = VBA.CStr(keyText)
+    configEntry.Value = VBA.CStr(valueText)
 
-    AddRow = Me.AddItem(cfgItem)
+    AddRow = Me.AddItem(configEntry)
 End Function
 
 Public Function TryLoadFromXmlNode( _
@@ -70,7 +70,7 @@ Private Function private_TryLoadFromXmlNodeInternal( _
 ) As Boolean
     Dim rowNodes As Object
     Dim rowNode As Object
-    Dim cfgItem As obj_ConfigEntry
+    Dim configEntry As obj_ConfigEntry
 
     If profileNode Is Nothing Then
         VBA.MsgBox "ConfigTable: profile XML node is not specified.", VBA.vbExclamation
@@ -82,9 +82,9 @@ Private Function private_TryLoadFromXmlNodeInternal( _
     If Not private_TryCollectRowNodes(profileNode, rowNodes) Then Exit Function
 
     If rowNodes Is Nothing Then
-        If Not private_TryResolveSingleNodeAsRow(profileNode, cfgItem) Then Exit Function
-        If Not cfgItem Is Nothing Then
-            If Not Me.AddItem(cfgItem) Then Exit Function
+        If Not private_TryResolveSingleNodeAsRow(profileNode, configEntry) Then Exit Function
+        If Not configEntry Is Nothing Then
+            If Not Me.AddItem(configEntry) Then Exit Function
             private_TryLoadFromXmlNodeInternal = True
             Exit Function
         End If
@@ -94,9 +94,9 @@ Private Function private_TryLoadFromXmlNodeInternal( _
     End If
 
     If rowNodes.Length = 0 Then
-        If Not private_TryResolveSingleNodeAsRow(profileNode, cfgItem) Then Exit Function
-        If Not cfgItem Is Nothing Then
-            If Not Me.AddItem(cfgItem) Then Exit Function
+        If Not private_TryResolveSingleNodeAsRow(profileNode, configEntry) Then Exit Function
+        If Not configEntry Is Nothing Then
+            If Not Me.AddItem(configEntry) Then Exit Function
             private_TryLoadFromXmlNodeInternal = True
             Exit Function
         End If
@@ -106,10 +106,10 @@ Private Function private_TryLoadFromXmlNodeInternal( _
     End If
 
     For Each rowNode In rowNodes
-        Set cfgItem = Nothing
-        If Not private_TryCreateItemFromNode(rowNode, cfgItem) Then Exit Function
-        If cfgItem Is Nothing Then GoTo ContinueRow
-        If Not Me.AddItem(cfgItem) Then Exit Function
+        Set configEntry = Nothing
+        If Not private_TryCreateItemFromNode(rowNode, configEntry) Then Exit Function
+        If configEntry Is Nothing Then GoTo ContinueRow
+        If Not Me.AddItem(configEntry) Then Exit Function
 ContinueRow:
     Next rowNode
 

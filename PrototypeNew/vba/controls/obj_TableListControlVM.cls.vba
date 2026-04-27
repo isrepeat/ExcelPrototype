@@ -9,7 +9,7 @@ Implements obj_IControl
 #Const ENALBE_STYLES = True
 #Const ENALBE_BORDERS = True
 
-Private m_Base As obj_ControlBase
+Private m_ControlBase As obj_ControlBase
 Private m_ControlName As String
 Private m_ItemsSourceRaw As String
 Private m_ItemVisibilityRaw As String
@@ -25,14 +25,14 @@ Private m_IsConfigured As Boolean
 ' // Interface
 ' //
 Private Sub obj_IControl_Configure(ByVal page As obj_PageBase, ByVal controlNode As Object)
-    Dim currentPage As obj_PageBase
+    Dim pageBase As obj_PageBase
 
     m_IsConfigured = False
     Set m_TableItems = Nothing
-    Set m_Base = Nothing
+    Set m_ControlBase = Nothing
 
-    Set m_Base = New obj_ControlBase
-    If Not m_Base.Configure(page, controlNode, "TableList", "tablelist", m_ControlName) Then Exit Sub
+    Set m_ControlBase = New obj_ControlBase
+    If Not m_ControlBase.Configure(page, controlNode, "TableList", "tablelist", m_ControlName) Then Exit Sub
 
     m_ItemsSourceRaw = VBA.Trim$(VBA.CStr(ex_XmlCore.m_NodeAttrText(controlNode, "itemsSource")))
     If VBA.Len(m_ItemsSourceRaw) = 0 Then
@@ -68,9 +68,9 @@ Private Sub obj_IControl_Configure(ByVal page As obj_PageBase, ByVal controlNode
         Exit Sub
     End If
 
-    Set currentPage = m_Base.PageBase
-    If currentPage Is Nothing Then Exit Sub
-    If Not ex_RuntimeSourceResolver.m_TryResolveItemsSource(currentPage.RuntimeSources, m_ItemsSourceRaw, m_TableItems) Then Exit Sub
+    Set pageBase = m_ControlBase.PageBase
+    If pageBase Is Nothing Then Exit Sub
+    If Not ex_RuntimeSourceResolver.m_TryResolveItemsSource(pageBase.RuntimeSources, m_ItemsSourceRaw, m_TableItems) Then Exit Sub
     If Not private_TryApplyItemVisibilityFilter(m_TableItems) Then Exit Sub
 
     m_IsConfigured = True
@@ -89,7 +89,7 @@ Private Sub obj_IControl_Render()
     End If
 
     Set page = Nothing
-    If Not m_Base Is Nothing Then Set page = m_Base.PageBase
+    If Not m_ControlBase Is Nothing Then Set page = m_ControlBase.PageBase
     If page Is Nothing Then
         VBA.MsgBox "TableList: page is not specified for control '" & m_ControlName & "'.", VBA.vbExclamation
         Exit Sub
@@ -200,7 +200,7 @@ End Function
 
 Private Function private_TryBuildRenderBuffer(ByRef outValueBlock As Variant, ByRef outStyleSegments As Collection) As Boolean
     Dim tableItem As Variant
-    Dim tableView As obj_TableViewItem
+    Dim tableViewItem As obj_TableViewItem
     Dim availableCols As Long
     Dim maxRows As Long
     Dim plannedRows As Long
@@ -221,11 +221,11 @@ Private Function private_TryBuildRenderBuffer(ByRef outValueBlock As Variant, By
     For Each tableItem In m_TableItems
         If plannedRows >= maxRows Then Exit For
 
-        Set tableView = Nothing
-        If Not private_TryResolveTableViewItem(tableItem, tableView) Then Exit Function
-        If tableView Is Nothing Then GoTo ContinueEstimate
+        Set tableViewItem = Nothing
+        If Not private_TryResolveTableViewItem(tableItem, tableViewItem) Then Exit Function
+        If tableViewItem Is Nothing Then GoTo ContinueEstimate
 
-        If Not private_TryEstimateTableOutputRows(tableView, availableCols, rowsForItem) Then Exit Function
+        If Not private_TryEstimateTableOutputRows(tableViewItem, availableCols, rowsForItem) Then Exit Function
         plannedRows = plannedRows + rowsForItem
         If plannedRows > maxRows Then
             plannedRows = maxRows
@@ -253,12 +253,12 @@ ContinueEstimate:
     For Each tableItem In m_TableItems
         If currentOutputRow >= plannedRows Then Exit For
 
-        Set tableView = Nothing
-        If Not private_TryResolveTableViewItem(tableItem, tableView) Then Exit Function
-        If tableView Is Nothing Then GoTo ContinueWrite
+        Set tableViewItem = Nothing
+        If Not private_TryResolveTableViewItem(tableItem, tableViewItem) Then Exit Function
+        If tableViewItem Is Nothing Then GoTo ContinueWrite
 
         If Not private_TryWriteTableItemToBuffer( _
-            tableView, outValueBlock, outStyleSegments, availableCols, plannedRows, currentOutputRow) Then Exit Function
+            tableViewItem, outValueBlock, outStyleSegments, availableCols, plannedRows, currentOutputRow) Then Exit Function
 
 ContinueWrite:
     Next tableItem
@@ -267,65 +267,65 @@ ContinueWrite:
 End Function
 
 Private Function private_TryEstimateTableOutputRows( _
-    ByVal tableView As obj_TableViewItem, _
+    ByVal tableViewItem As obj_TableViewItem, _
     ByVal availableCols As Long, _
     ByRef outRows As Long _
 ) As Boolean
-    Dim tableModel As obj_TableDynamic
+    Dim tableDynamic As obj_TableDynamic
     Dim rowItems As list__obj_RowViewItem
     Dim rowItemRaw As Variant
-    Dim rowView As obj_RowViewItem
+    Dim rowViewItem As obj_RowViewItem
 
     outRows = 0
 
-    If tableView Is Nothing Then
+    If tableViewItem Is Nothing Then
         private_TryEstimateTableOutputRows = True
         Exit Function
     End If
 
-    If Not tableView.IsVisible() Then
+    If Not tableViewItem.IsVisible() Then
         private_TryEstimateTableOutputRows = True
         Exit Function
     End If
 
-    Set tableModel = tableView.Model
-    If tableModel Is Nothing Then
+    Set tableDynamic = tableViewItem.Model
+    If tableDynamic Is Nothing Then
         VBA.MsgBox "TableList: table view has no model.", VBA.vbExclamation
         Exit Function
     End If
 
-    If tableModel.ColumnCount <= 0 Then
+    If tableDynamic.ColumnCount <= 0 Then
         VBA.MsgBox "TableList: table item has no columns.", VBA.vbExclamation
         Exit Function
     End If
 
-    If tableModel.ColumnCount > availableCols Then
-        VBA.MsgBox "TableList: control '" & m_ControlName & "' requires " & VBA.CStr(tableModel.ColumnCount) & _
+    If tableDynamic.ColumnCount > availableCols Then
+        VBA.MsgBox "TableList: control '" & m_ControlName & "' requires " & VBA.CStr(tableDynamic.ColumnCount) & _
                " columns, but span provides only " & VBA.CStr(availableCols) & ".", VBA.vbExclamation
         Exit Function
     End If
 
-    outRows = outRows + private_GetBannerRenderRows(tableView.Banner)
+    outRows = outRows + private_GetBannerRenderRows(tableViewItem.Banner)
 
     ' section + header
     outRows = outRows + 2
 
-    Set rowItems = tableView.RowItems
+    Set rowItems = tableViewItem.RowItems
     If Not rowItems Is Nothing And rowItems.Count > 0 Then
         For Each rowItemRaw In rowItems
-            Set rowView = Nothing
-            If Not private_TryResolveRowViewItem(rowItemRaw, rowView) Then Exit Function
-            If rowView Is Nothing Then GoTo ContinueRowEstimate
-            If Not rowView.IsVisible() Then GoTo ContinueRowEstimate
+            Set rowViewItem = Nothing
+            If Not private_TryResolveRowViewItem(rowItemRaw, rowViewItem) Then Exit Function
+            If rowViewItem Is Nothing Then GoTo ContinueRowEstimate
+            If Not rowViewItem.IsVisible() Then GoTo ContinueRowEstimate
 
-            outRows = outRows + private_GetBannerRenderRows(rowView.Banner)
+            outRows = outRows + private_GetBannerRenderRows(rowViewItem.Banner)
             outRows = outRows + 1
-            outRows = outRows + rowView.SpacerRowsAfter
+            outRows = outRows + rowViewItem.SpacerRowsAfter
 
 ContinueRowEstimate:
         Next rowItemRaw
     Else
-        outRows = outRows + tableModel.RowCount
+        outRows = outRows + tableDynamic.RowCount
     End If
 
     ' Spacer after table
@@ -335,54 +335,54 @@ ContinueRowEstimate:
 End Function
 
 Private Function private_TryWriteTableItemToBuffer( _
-    ByVal tableView As obj_TableViewItem, _
+    ByVal tableViewItem As obj_TableViewItem, _
     ByRef valueBlock As Variant, _
     ByVal styleSegments As Collection, _
     ByVal availableCols As Long, _
     ByVal plannedRows As Long, _
     ByRef ioCurrentOutputRow As Long _
 ) As Boolean
-    Dim tableModel As obj_TableDynamic
+    Dim tableDynamic As obj_TableDynamic
     Dim rowItems As list__obj_RowViewItem
     Dim rowItemRaw As Variant
-    Dim rowView As obj_RowViewItem
+    Dim rowViewItem As obj_RowViewItem
     Dim tableRows As list__obj_Row
     Dim rowRaw As Variant
-    Dim rowModel As obj_Row
+    Dim row As obj_Row
     Dim colOffset As Long
     Dim tokens As Variant
     Dim writeStart As Long
     Dim writeEnd As Long
 
-    If tableView Is Nothing Then
+    If tableViewItem Is Nothing Then
         private_TryWriteTableItemToBuffer = True
         Exit Function
     End If
 
-    If Not tableView.IsVisible() Then
+    If Not tableViewItem.IsVisible() Then
         private_TryWriteTableItemToBuffer = True
         Exit Function
     End If
 
-    Set tableModel = tableView.Model
-    If tableModel Is Nothing Then
+    Set tableDynamic = tableViewItem.Model
+    If tableDynamic Is Nothing Then
         VBA.MsgBox "TableList: table view has no model.", VBA.vbExclamation
         Exit Function
     End If
 
-    If tableModel.ColumnCount <= 0 Then
+    If tableDynamic.ColumnCount <= 0 Then
         VBA.MsgBox "TableList: table item has no columns.", VBA.vbExclamation
         Exit Function
     End If
 
-    If tableModel.ColumnCount > availableCols Then
-        VBA.MsgBox "TableList: control '" & m_ControlName & "' requires " & VBA.CStr(tableModel.ColumnCount) & _
+    If tableDynamic.ColumnCount > availableCols Then
+        VBA.MsgBox "TableList: control '" & m_ControlName & "' requires " & VBA.CStr(tableDynamic.ColumnCount) & _
                " columns, but span provides only " & VBA.CStr(availableCols) & ".", VBA.vbExclamation
         Exit Function
     End If
 
     If Not private_TryAppendBannerBlock( _
-        tableView.Banner, "tablebanner", tableModel.ColumnCount, valueBlock, styleSegments, plannedRows, ioCurrentOutputRow) Then Exit Function
+        tableViewItem.Banner, "tablebanner", tableDynamic.ColumnCount, valueBlock, styleSegments, plannedRows, ioCurrentOutputRow) Then Exit Function
     If ioCurrentOutputRow >= plannedRows Then
         private_TryWriteTableItemToBuffer = True
         Exit Function
@@ -390,9 +390,9 @@ Private Function private_TryWriteTableItemToBuffer( _
 
     ' Section row
     ioCurrentOutputRow = ioCurrentOutputRow + 1
-    valueBlock(ioCurrentOutputRow, 1) = tableModel.SectionTitle
+    valueBlock(ioCurrentOutputRow, 1) = tableDynamic.SectionTitle
 #If ENALBE_STYLES Then
-    private_AddStyleSegment styleSegments, "section", tableModel.ColumnCount, ioCurrentOutputRow, ioCurrentOutputRow
+    private_AddStyleSegment styleSegments, "section", tableDynamic.ColumnCount, ioCurrentOutputRow, ioCurrentOutputRow
 #End If
     If ioCurrentOutputRow >= plannedRows Then
         private_TryWriteTableItemToBuffer = True
@@ -401,37 +401,37 @@ Private Function private_TryWriteTableItemToBuffer( _
 
     ' Header row
     ioCurrentOutputRow = ioCurrentOutputRow + 1
-    tokens = VBA.Split(tableModel.HeaderText, "|")
-    For colOffset = 1 To tableModel.ColumnCount
+    tokens = VBA.Split(tableDynamic.HeaderText, "|")
+    For colOffset = 1 To tableDynamic.ColumnCount
         If colOffset - 1 <= UBound(tokens) Then
             valueBlock(ioCurrentOutputRow, colOffset) = VBA.Trim$(VBA.CStr(tokens(colOffset - 1)))
         End If
     Next colOffset
 #If ENALBE_STYLES Then
-    private_AddStyleSegment styleSegments, "header", tableModel.ColumnCount, ioCurrentOutputRow, ioCurrentOutputRow
+    private_AddStyleSegment styleSegments, "header", tableDynamic.ColumnCount, ioCurrentOutputRow, ioCurrentOutputRow
 #End If
     If ioCurrentOutputRow >= plannedRows Then
         private_TryWriteTableItemToBuffer = True
         Exit Function
     End If
 
-    Set rowItems = tableView.RowItems
+    Set rowItems = tableViewItem.RowItems
 
     If Not rowItems Is Nothing And rowItems.Count > 0 Then
         For Each rowItemRaw In rowItems
             If ioCurrentOutputRow >= plannedRows Then Exit For
 
-            Set rowView = Nothing
-            If Not private_TryResolveRowViewItem(rowItemRaw, rowView) Then Exit Function
-            If rowView Is Nothing Then GoTo ContinueRowView
+            Set rowViewItem = Nothing
+            If Not private_TryResolveRowViewItem(rowItemRaw, rowViewItem) Then Exit Function
+            If rowViewItem Is Nothing Then GoTo ContinueRowView
 
             If Not private_TryAppendRowViewData( _
-                rowView, tableModel.ColumnCount, valueBlock, styleSegments, plannedRows, ioCurrentOutputRow) Then Exit Function
+                rowViewItem, tableDynamic.ColumnCount, valueBlock, styleSegments, plannedRows, ioCurrentOutputRow) Then Exit Function
 
 ContinueRowView:
         Next rowItemRaw
     Else
-        Set tableRows = tableModel.Rows
+        Set tableRows = tableDynamic.Rows
         If Not tableRows Is Nothing Then
             writeStart = ioCurrentOutputRow + 1
             On Error GoTo EH_INVALID_ROW
@@ -439,14 +439,14 @@ ContinueRowView:
                 If ioCurrentOutputRow >= plannedRows Then Exit For
 
                 ioCurrentOutputRow = ioCurrentOutputRow + 1
-                Set rowModel = rowRaw
-                rowModel.CopyToMatrixRow valueBlock, ioCurrentOutputRow, tableModel.ColumnCount
+                Set row = rowRaw
+                row.CopyToMatrixRow valueBlock, ioCurrentOutputRow, tableDynamic.ColumnCount
             Next rowRaw
             On Error GoTo 0
             writeEnd = ioCurrentOutputRow
 #If ENALBE_STYLES Then
             If writeEnd >= writeStart Then
-                private_AddStyleSegment styleSegments, "data", tableModel.ColumnCount, writeStart, writeEnd
+                private_AddStyleSegment styleSegments, "data", tableDynamic.ColumnCount, writeStart, writeEnd
             End If
 #End If
         End If
@@ -460,7 +460,7 @@ ContinueRowView:
     ' Spacer row
     ioCurrentOutputRow = ioCurrentOutputRow + 1
 #If ENALBE_STYLES Then
-    private_AddStyleSegment styleSegments, "spacer", tableModel.ColumnCount, ioCurrentOutputRow, ioCurrentOutputRow
+    private_AddStyleSegment styleSegments, "spacer", tableDynamic.ColumnCount, ioCurrentOutputRow, ioCurrentOutputRow
 #End If
 
     private_TryWriteTableItemToBuffer = True
@@ -472,47 +472,47 @@ EH_INVALID_ROW:
 End Function
 
 Private Function private_TryAppendRowViewData( _
-    ByVal rowView As obj_RowViewItem, _
+    ByVal rowViewItem As obj_RowViewItem, _
     ByVal columnCount As Long, _
     ByRef valueBlock As Variant, _
     ByVal styleSegments As Collection, _
     ByVal plannedRows As Long, _
     ByRef ioCurrentOutputRow As Long _
 ) As Boolean
-    Dim rowModel As obj_Row
+    Dim row As obj_Row
     Dim spacerIndex As Long
 
-    If rowView Is Nothing Then
+    If rowViewItem Is Nothing Then
         private_TryAppendRowViewData = True
         Exit Function
     End If
 
-    If Not rowView.IsVisible() Then
+    If Not rowViewItem.IsVisible() Then
         private_TryAppendRowViewData = True
         Exit Function
     End If
 
     If Not private_TryAppendBannerBlock( _
-        rowView.Banner, "rowbanner", columnCount, valueBlock, styleSegments, plannedRows, ioCurrentOutputRow) Then Exit Function
+        rowViewItem.Banner, "rowbanner", columnCount, valueBlock, styleSegments, plannedRows, ioCurrentOutputRow) Then Exit Function
 
     If ioCurrentOutputRow >= plannedRows Then
         private_TryAppendRowViewData = True
         Exit Function
     End If
 
-    Set rowModel = rowView.Row
-    If rowModel Is Nothing Then
+    Set row = rowViewItem.Row
+    If row Is Nothing Then
         VBA.MsgBox "TableList: row view item has no row model.", VBA.vbExclamation
         Exit Function
     End If
 
     ioCurrentOutputRow = ioCurrentOutputRow + 1
-    rowModel.CopyToMatrixRow valueBlock, ioCurrentOutputRow, columnCount
+    row.CopyToMatrixRow valueBlock, ioCurrentOutputRow, columnCount
 #If ENALBE_STYLES Then
     private_AddStyleSegment styleSegments, "data", columnCount, ioCurrentOutputRow, ioCurrentOutputRow
 #End If
 
-    For spacerIndex = 1 To rowView.SpacerRowsAfter
+    For spacerIndex = 1 To rowViewItem.SpacerRowsAfter
         If ioCurrentOutputRow >= plannedRows Then Exit For
 
         ioCurrentOutputRow = ioCurrentOutputRow + 1
@@ -536,7 +536,7 @@ Private Function private_TryAppendBannerBlock( _
     Dim bannerRows As Long
     Dim writeStart As Long
     Dim writeEnd As Long
-    Dim bannerModel As obj_Banner
+    Dim banner As obj_Banner
     Dim rowOffset As Long
 
     bannerRows = private_GetBannerRenderRows(bannerView)
@@ -545,7 +545,7 @@ Private Function private_TryAppendBannerBlock( _
         Exit Function
     End If
 
-    Set bannerModel = bannerView.Model
+    Set banner = bannerView.Model
     writeStart = ioCurrentOutputRow + 1
 
     For rowOffset = 1 To bannerRows
@@ -553,11 +553,11 @@ Private Function private_TryAppendBannerBlock( _
 
         ioCurrentOutputRow = ioCurrentOutputRow + 1
 
-        If Not bannerModel Is Nothing Then
+        If Not banner Is Nothing Then
             If rowOffset = 1 Then
-                valueBlock(ioCurrentOutputRow, 1) = bannerModel.Header
+                valueBlock(ioCurrentOutputRow, 1) = banner.Header
             ElseIf rowOffset = 2 Then
-                valueBlock(ioCurrentOutputRow, 1) = bannerModel.Message
+                valueBlock(ioCurrentOutputRow, 1) = banner.Message
             End If
         End If
     Next rowOffset
@@ -823,7 +823,7 @@ Private Function private_GetAvailableColumnCount() As Long
 End Function
 
 Private Function private_TryResolveTableViewItem(ByVal rawItem As Variant, ByRef outTableView As obj_TableViewItem) As Boolean
-    Dim tableModel As obj_TableDynamic
+    Dim tableDynamic As obj_TableDynamic
 
     If Not VBA.IsObject(rawItem) Then
         VBA.MsgBox "TableList: itemsSource entry must be an object.", VBA.vbExclamation
@@ -836,8 +836,8 @@ Private Function private_TryResolveTableViewItem(ByVal rawItem As Variant, ByRef
             private_TryResolveTableViewItem = True
 
         Case "obj_tabledynamic", "obj_table"
-            If Not private_TryResolveTableModelFromAny(rawItem, tableModel) Then Exit Function
-            Set outTableView = private_CreateTableViewFromModel(tableModel)
+            If Not private_TryResolveTableModelFromAny(rawItem, tableDynamic) Then Exit Function
+            Set outTableView = private_CreateTableViewFromModel(tableDynamic)
             If outTableView Is Nothing Then Exit Function
             private_TryResolveTableViewItem = True
 
@@ -872,23 +872,23 @@ Private Function private_TryResolveTableModelFromAny(ByVal tableItem As Variant,
     End Select
 End Function
 
-Private Function private_CreateTableViewFromModel(ByVal tableModel As obj_TableDynamic) As obj_TableViewItem
-    Dim tableView As obj_TableViewItem
+Private Function private_CreateTableViewFromModel(ByVal tableDynamic As obj_TableDynamic) As obj_TableViewItem
+    Dim tableViewItem As obj_TableViewItem
 
-    If tableModel Is Nothing Then
+    If tableDynamic Is Nothing Then
         VBA.MsgBox "TableList: table model is not specified.", VBA.vbExclamation
         Exit Function
     End If
 
-    Set tableView = New obj_TableViewItem
-    Set tableView.Model = tableModel
-    tableView.ItemVisible = True
+    Set tableViewItem = New obj_TableViewItem
+    Set tableViewItem.Model = tableDynamic
+    tableViewItem.ItemVisible = True
 
-    Set private_CreateTableViewFromModel = tableView
+    Set private_CreateTableViewFromModel = tableViewItem
 End Function
 
 Private Function private_TryResolveRowViewItem(ByVal rawItem As Variant, ByRef outRowView As obj_RowViewItem) As Boolean
-    Dim rowModel As obj_Row
+    Dim row As obj_Row
 
     If Not VBA.IsObject(rawItem) Then
         VBA.MsgBox "TableList: row item must be an object.", VBA.vbExclamation
@@ -901,8 +901,8 @@ Private Function private_TryResolveRowViewItem(ByVal rawItem As Variant, ByRef o
             private_TryResolveRowViewItem = True
 
         Case "obj_row"
-            Set rowModel = rawItem
-            Set outRowView = private_CreateRowViewFromModel(rowModel)
+            Set row = rawItem
+            Set outRowView = private_CreateRowViewFromModel(row)
             If outRowView Is Nothing Then Exit Function
             private_TryResolveRowViewItem = True
 
@@ -912,23 +912,23 @@ Private Function private_TryResolveRowViewItem(ByVal rawItem As Variant, ByRef o
     End Select
 End Function
 
-Private Function private_CreateRowViewFromModel(ByVal rowModel As obj_Row) As obj_RowViewItem
-    Dim rowView As obj_RowViewItem
+Private Function private_CreateRowViewFromModel(ByVal row As obj_Row) As obj_RowViewItem
+    Dim rowViewItem As obj_RowViewItem
 
-    If rowModel Is Nothing Then
+    If row Is Nothing Then
         VBA.MsgBox "TableList: row model is not specified.", VBA.vbExclamation
         Exit Function
     End If
 
-    Set rowView = New obj_RowViewItem
-    Set rowView.Row = rowModel
-    rowView.RowVisible = True
+    Set rowViewItem = New obj_RowViewItem
+    Set rowViewItem.Row = row
+    rowViewItem.RowVisible = True
 
-    Set private_CreateRowViewFromModel = rowView
+    Set private_CreateRowViewFromModel = rowViewItem
 End Function
 
 Private Function private_ConvertFixedTableToDynamic(ByVal fixedTable As obj_Table) As obj_TableDynamic
-    Dim dynamicTable As obj_TableDynamic
+    Dim tableDynamic As obj_TableDynamic
     Dim sourceColumns As list__obj_Column
     Dim sourceRows As list__obj_Row
     Dim sourceColumn As obj_Column
@@ -942,27 +942,27 @@ Private Function private_ConvertFixedTableToDynamic(ByVal fixedTable As obj_Tabl
         Exit Function
     End If
 
-    Set dynamicTable = New obj_TableDynamic
-    dynamicTable.SectionTitle = fixedTable.SectionTitle
+    Set tableDynamic = New obj_TableDynamic
+    tableDynamic.SectionTitle = fixedTable.SectionTitle
 
     Set sourceColumns = fixedTable.Columns
     For Each sourceColumn In sourceColumns
         Set targetColumn = New obj_Column
         targetColumn.Position = sourceColumn.Position
         targetColumn.Name = sourceColumn.Name
-        If Not dynamicTable.AddColumn(targetColumn) Then Exit Function
+        If Not tableDynamic.AddColumn(targetColumn) Then Exit Function
     Next sourceColumn
 
     Set sourceRows = fixedTable.Rows
     For Each sourceRow In sourceRows
         Set targetRow = New obj_Row
-        For colIndex = 1 To dynamicTable.ColumnCount
+        For colIndex = 1 To tableDynamic.ColumnCount
             targetRow.AddCell sourceRow.GetCell(colIndex)
         Next colIndex
-        If Not dynamicTable.AddRow(targetRow) Then Exit Function
+        If Not tableDynamic.AddRow(targetRow) Then Exit Function
     Next sourceRow
 
-    Set private_ConvertFixedTableToDynamic = dynamicTable
+    Set private_ConvertFixedTableToDynamic = tableDynamic
 End Function
 
 Private Sub private_ApplyRowStyle( _

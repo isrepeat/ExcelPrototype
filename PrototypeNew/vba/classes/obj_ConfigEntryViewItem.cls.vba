@@ -5,61 +5,61 @@ END
 Attribute VB_Name = "obj_ConfigEntryViewItem"
 Option Explicit
 
-Private m_Model As obj_ConfigEntry
-Private m_Presentation As obj_ViewPresentation
+Private m_ConfigEntry As obj_ConfigEntry
+Private m_ViewPresentation As obj_ViewPresentation
 
 Private Sub Class_Initialize()
-    Set m_Model = New obj_ConfigEntry
-    Set m_Presentation = New obj_ViewPresentation
+    Set m_ConfigEntry = New obj_ConfigEntry
+    Set m_ViewPresentation = New obj_ViewPresentation
 End Sub
 
 ' //
 ' // API
 ' //
 Public Property Get Model() As obj_ConfigEntry
-    Set Model = m_Model
+    Set Model = m_ConfigEntry
 End Property
 
 Public Property Set Model(ByVal value As obj_ConfigEntry)
     If value Is Nothing Then
-        Set m_Model = New obj_ConfigEntry
+        Set m_ConfigEntry = New obj_ConfigEntry
     Else
-        Set m_Model = value
+        Set m_ConfigEntry = value
     End If
 End Property
 
 Public Property Get Presentation() As obj_ViewPresentation
-    Set Presentation = m_Presentation
+    Set Presentation = m_ViewPresentation
 End Property
 
 Public Property Set Presentation(ByVal value As obj_ViewPresentation)
     If value Is Nothing Then
-        Set m_Presentation = New obj_ViewPresentation
+        Set m_ViewPresentation = New obj_ViewPresentation
     Else
-        Set m_Presentation = value
+        Set m_ViewPresentation = value
     End If
 End Property
 
 Public Property Get Attr() As String
-    Attr = m_Model.Attr
+    Attr = m_ConfigEntry.Attr
 End Property
 
 Public Property Let Attr(ByVal value As String)
-    m_Model.Attr = VBA.CStr(value)
+    m_ConfigEntry.Attr = VBA.CStr(value)
 End Property
 
 Public Property Get Key() As String
-    Key = m_Model.Key
+    Key = m_ConfigEntry.Key
 End Property
 
 Public Property Let Key(ByVal value As String)
-    m_Model.Key = VBA.CStr(value)
+    m_ConfigEntry.Key = VBA.CStr(value)
 End Property
 
 Public Property Get Value() As String
-    Value = m_Model.Value
+    Value = m_ConfigEntry.Value
 End Property
 
 Public Property Let Value(ByVal value As String)
-    m_Model.Value = VBA.CStr(value)
+    m_ConfigEntry.Value = VBA.CStr(value)
 End Property

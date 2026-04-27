@@ -8,29 +8,29 @@ Implements obj_IControl
 
 Private Const CONFIG_COL_COUNT As Long = 3
 
-Private m_Base As obj_ControlBase
+Private m_ControlBase As obj_ControlBase
 Private m_ControlName As String
 Private m_ItemsSourceRaw As String
 Private m_TableNameRaw As String
-Private m_Layout As obj_ControlLayout
-Private m_ViewItem As obj_ConfigTableViewItem
+Private m_ControlLayout As obj_ControlLayout
+Private m_ConfigTableViewItem As obj_ConfigTableViewItem
 Private m_IsConfigured As Boolean
 
 ' //
 ' // Interface
 ' //
 Private Sub obj_IControl_Configure(ByVal page As obj_PageBase, ByVal controlNode As Object)
-    Dim currentPage As obj_PageBase
+    Dim pageBase As obj_PageBase
     Dim resolvedItems As Collection
-    Dim configTableModel As obj_ConfigTable
+    Dim configTable As obj_ConfigTable
 
     m_IsConfigured = False
-    Set m_Layout = Nothing
-    Set m_ViewItem = Nothing
-    Set m_Base = Nothing
+    Set m_ControlLayout = Nothing
+    Set m_ConfigTableViewItem = Nothing
+    Set m_ControlBase = Nothing
 
-    Set m_Base = New obj_ControlBase
-    If Not m_Base.Configure(page, controlNode, "Config", "config", m_ControlName) Then Exit Sub
+    Set m_ControlBase = New obj_ControlBase
+    If Not m_ControlBase.Configure(page, controlNode, "Config", "config", m_ControlName) Then Exit Sub
 
     m_ItemsSourceRaw = VBA.Trim$(VBA.CStr(ex_XmlCore.m_NodeAttrText(controlNode, "itemsSource")))
     If VBA.Len(m_ItemsSourceRaw) = 0 Then
@@ -40,21 +40,21 @@ Private Sub obj_IControl_Configure(ByVal page As obj_PageBase, ByVal controlNode
 
     m_TableNameRaw = VBA.Trim$(VBA.CStr(ex_XmlCore.m_NodeAttrText(controlNode, "tableName")))
 
-    Set m_Layout = New obj_ControlLayout
-    If Not m_Layout.TryReadFromNode(controlNode, "Config", m_ControlName, "style") Then Exit Sub
+    Set m_ControlLayout = New obj_ControlLayout
+    If Not m_ControlLayout.TryReadFromNode(controlNode, "Config", m_ControlName, "style") Then Exit Sub
 
-    If (m_Layout.ColEnd - m_Layout.ColStart + 1) < CONFIG_COL_COUNT Then
+    If (m_ControlLayout.ColEnd - m_ControlLayout.ColStart + 1) < CONFIG_COL_COUNT Then
         VBA.MsgBox "Config: control '" & m_ControlName & "' requires at least 3 columns (Attr, Key, Value).", VBA.vbExclamation
         Exit Sub
     End If
 
-    Set currentPage = m_Base.PageBase
-    If currentPage Is Nothing Then Exit Sub
-    If Not ex_RuntimeSourceResolver.m_TryResolveItemsSource(currentPage.RuntimeSources, m_ItemsSourceRaw, resolvedItems) Then Exit Sub
-    If Not private_TryBuildConfigTable(resolvedItems, configTableModel) Then Exit Sub
+    Set pageBase = m_ControlBase.PageBase
+    If pageBase Is Nothing Then Exit Sub
+    If Not ex_RuntimeSourceResolver.m_TryResolveItemsSource(pageBase.RuntimeSources, m_ItemsSourceRaw, resolvedItems) Then Exit Sub
+    If Not private_TryBuildConfigTable(resolvedItems, configTable) Then Exit Sub
 
-    Set m_ViewItem = New obj_ConfigTableViewItem
-    Set m_ViewItem.Model = configTableModel
+    Set m_ConfigTableViewItem = New obj_ConfigTableViewItem
+    Set m_ConfigTableViewItem.Model = configTable
 
     m_IsConfigured = True
 End Sub
@@ -70,7 +70,7 @@ Private Sub obj_IControl_Render()
     Dim idx As Long
     Dim rowOut As Long
     Dim configItemRaw As Variant
-    Dim cfgItem As obj_ConfigEntry
+    Dim configEntry As obj_ConfigEntry
     Dim attrToken As String
     Dim absRow As Long
     Dim tableObj As ListObject
@@ -85,29 +85,29 @@ Private Sub obj_IControl_Render()
     End If
 
     Set page = Nothing
-    If Not m_Base Is Nothing Then Set page = m_Base.PageBase
+    If Not m_ControlBase Is Nothing Then Set page = m_ControlBase.PageBase
     If page Is Nothing Then
         VBA.MsgBox "Config: page is not specified for control '" & m_ControlName & "'.", VBA.vbExclamation
         Exit Sub
     End If
 
-    Set ws = private_GetWorksheetByName(page, m_Layout.LayoutSheetName)
+    Set ws = private_GetWorksheetByName(page, m_ControlLayout.LayoutSheetName)
     If ws Is Nothing Then
-        VBA.MsgBox "Config: sheet '" & m_Layout.LayoutSheetName & "' was not found for control '" & m_ControlName & "'.", VBA.vbExclamation
+        VBA.MsgBox "Config: sheet '" & m_ControlLayout.LayoutSheetName & "' was not found for control '" & m_ControlName & "'.", VBA.vbExclamation
         Exit Sub
     End If
 
-    If m_ViewItem Is Nothing Then
+    If m_ConfigTableViewItem Is Nothing Then
         VBA.MsgBox "Config: view item is not configured for control '" & m_ControlName & "'.", VBA.vbExclamation
         Exit Sub
     End If
-    If Not m_ViewItem.TryResyncEntryItemsFromModel() Then Exit Sub
+    If Not m_ConfigTableViewItem.TryResyncEntryItemsFromModel() Then Exit Sub
 
     Set hashRows = New Collection
     Set rxRows = New Collection
 
-    maxRows = m_Layout.RowEnd - m_Layout.RowStart + 1
-    dataRows = m_ViewItem.EntryItems.Count
+    maxRows = m_ControlLayout.RowEnd - m_ControlLayout.RowStart + 1
+    dataRows = m_ConfigTableViewItem.EntryItems.Count
     rowsToWrite = 1 + dataRows
     If rowsToWrite < 2 Then rowsToWrite = 2
     If rowsToWrite > maxRows Then rowsToWrite = maxRows
@@ -118,28 +118,28 @@ Private Sub obj_IControl_Render()
     valueBlock(1, 3) = "Value"
 
     idx = 0
-    For Each configItemRaw In m_ViewItem.EntryItems
+    For Each configItemRaw In m_ConfigTableViewItem.EntryItems
         idx = idx + 1
         rowOut = idx + 1
         If rowOut > rowsToWrite Then Exit For
 
-        Set cfgItem = Nothing
-        If Not private_TryResolveConfigItem(configItemRaw, cfgItem) Then Exit Sub
-        If cfgItem Is Nothing Then GoTo ContinueItem
+        Set configEntry = Nothing
+        If Not private_TryResolveConfigItem(configItemRaw, configEntry) Then Exit Sub
+        If configEntry Is Nothing Then GoTo ContinueItem
 
-        valueBlock(rowOut, 1) = cfgItem.Attr
-        valueBlock(rowOut, 2) = cfgItem.Key
-        valueBlock(rowOut, 3) = cfgItem.Value
+        valueBlock(rowOut, 1) = configEntry.Attr
+        valueBlock(rowOut, 2) = configEntry.Key
+        valueBlock(rowOut, 3) = configEntry.Value
 
-        absRow = m_Layout.RowStart + rowOut - 1
-        attrToken = VBA.LCase$(VBA.Trim$(cfgItem.Attr))
+        absRow = m_ControlLayout.RowStart + rowOut - 1
+        attrToken = VBA.LCase$(VBA.Trim$(configEntry.Attr))
         Select Case attrToken
             Case "#"
-                private_HandleAttrHash cfgItem
+                private_HandleAttrHash configEntry
                 hashRows.Add absRow
 
             Case "rx"
-                private_HandleAttrRx cfgItem
+                private_HandleAttrRx configEntry
                 rxRows.Add absRow
         End Select
 
@@ -147,8 +147,8 @@ ContinueItem:
     Next configItemRaw
 
     Set boundsRange = ws.Range( _
-        ws.Cells(m_Layout.RowStart, m_Layout.ColStart), _
-        ws.Cells(m_Layout.RowEnd, m_Layout.ColStart + CONFIG_COL_COUNT - 1))
+        ws.Cells(m_ControlLayout.RowStart, m_ControlLayout.ColStart), _
+        ws.Cells(m_ControlLayout.RowEnd, m_ControlLayout.ColStart + CONFIG_COL_COUNT - 1))
 
     If Not private_TryDeleteIntersectingTables(ws, boundsRange) Then Exit Sub
 
@@ -156,8 +156,8 @@ ContinueItem:
     boundsRange.ClearContents
 
     Set writeRange = ws.Range( _
-        ws.Cells(m_Layout.RowStart, m_Layout.ColStart), _
-        ws.Cells(m_Layout.RowStart + rowsToWrite - 1, m_Layout.ColStart + CONFIG_COL_COUNT - 1))
+        ws.Cells(m_ControlLayout.RowStart, m_ControlLayout.ColStart), _
+        ws.Cells(m_ControlLayout.RowStart + rowsToWrite - 1, m_ControlLayout.ColStart + CONFIG_COL_COUNT - 1))
     writeRange.Value2 = valueBlock
 
     On Error GoTo EH_TABLE
@@ -202,8 +202,8 @@ End Function
 Private Function private_TryBuildConfigTable(ByVal sourceItems As Collection, ByRef outTable As obj_ConfigTable) As Boolean
     Dim sourceItem As Variant
     Dim sourceTypeName As String
-    Dim cfgItem As obj_ConfigEntry
-    Dim cfgTableView As obj_ConfigTableViewItem
+    Dim configEntry As obj_ConfigEntry
+    Dim configTableViewItem As obj_ConfigTableViewItem
 
     Set outTable = Nothing
     If sourceItems Is Nothing Then
@@ -221,19 +221,19 @@ Private Function private_TryBuildConfigTable(ByVal sourceItems As Collection, By
                 GoTo ContinueSourceItem
 
             Case "obj_configtableviewitem"
-                Set cfgTableView = sourceItem
-                If cfgTableView Is Nothing Then
+                Set configTableViewItem = sourceItem
+                If configTableViewItem Is Nothing Then
                     VBA.MsgBox "Config: itemsSource contains empty obj_ConfigTableViewItem.", VBA.vbExclamation
                     Exit Function
                 End If
-                If Not private_TryAppendConfigTable(outTable, cfgTableView.Model) Then Exit Function
+                If Not private_TryAppendConfigTable(outTable, configTableViewItem.Model) Then Exit Function
                 GoTo ContinueSourceItem
         End Select
 
-        Set cfgItem = Nothing
-        If Not private_TryResolveConfigItem(sourceItem, cfgItem) Then Exit Function
-        If cfgItem Is Nothing Then GoTo ContinueSourceItem
-        If Not outTable.AddItem(cfgItem) Then Exit Function
+        Set configEntry = Nothing
+        If Not private_TryResolveConfigItem(sourceItem, configEntry) Then Exit Function
+        If configEntry Is Nothing Then GoTo ContinueSourceItem
+        If Not outTable.AddItem(configEntry) Then Exit Function
 
 ContinueSourceItem:
     Next sourceItem
@@ -243,7 +243,7 @@ End Function
 
 Private Function private_TryAppendConfigTable(ByVal targetTable As obj_ConfigTable, ByVal sourceTable As obj_ConfigTable) As Boolean
     Dim sourceItem As Variant
-    Dim cfgItem As obj_ConfigEntry
+    Dim configEntry As obj_ConfigEntry
 
     If targetTable Is Nothing Then Exit Function
     If sourceTable Is Nothing Then
@@ -252,10 +252,10 @@ Private Function private_TryAppendConfigTable(ByVal targetTable As obj_ConfigTab
     End If
 
     For Each sourceItem In sourceTable.Items
-        Set cfgItem = Nothing
-        If Not private_TryResolveConfigItem(sourceItem, cfgItem) Then Exit Function
-        If cfgItem Is Nothing Then GoTo ContinueTableItem
-        If Not targetTable.AddItem(cfgItem) Then Exit Function
+        Set configEntry = Nothing
+        If Not private_TryResolveConfigItem(sourceItem, configEntry) Then Exit Function
+        If configEntry Is Nothing Then GoTo ContinueTableItem
+        If Not targetTable.AddItem(configEntry) Then Exit Function
 ContinueTableItem:
     Next sourceItem
 
@@ -263,7 +263,7 @@ ContinueTableItem:
 End Function
 
 Private Function private_TryResolveConfigItem(ByVal rawItem As Variant, ByRef outItem As obj_ConfigEntry) As Boolean
-    Dim cfgView As obj_ConfigEntryViewItem
+    Dim configEntryViewItem As obj_ConfigEntryViewItem
 
     If Not VBA.IsObject(rawItem) Then
         VBA.MsgBox "Config: itemsSource entry must be an object.", VBA.vbExclamation
@@ -276,8 +276,8 @@ Private Function private_TryResolveConfigItem(ByVal rawItem As Variant, ByRef ou
             private_TryResolveConfigItem = True
 
         Case "obj_configentryviewitem"
-            Set cfgView = rawItem
-            Set outItem = cfgView.Model
+            Set configEntryViewItem = rawItem
+            Set outItem = configEntryViewItem.Model
             private_TryResolveConfigItem = True
 
         Case Else
@@ -285,14 +285,14 @@ Private Function private_TryResolveConfigItem(ByVal rawItem As Variant, ByRef ou
     End Select
 End Function
 
-Private Sub private_HandleAttrHash(ByVal cfgItem As obj_ConfigEntry)
-    If cfgItem Is Nothing Then Exit Sub
+Private Sub private_HandleAttrHash(ByVal configEntry As obj_ConfigEntry)
+    If configEntry Is Nothing Then Exit Sub
     ' Placeholder for special '#' semantics.
     ' Current behavior: the row is registered into attrhash part for style rules.
 End Sub
 
-Private Sub private_HandleAttrRx(ByVal cfgItem As obj_ConfigEntry)
-    If cfgItem Is Nothing Then Exit Sub
+Private Sub private_HandleAttrRx(ByVal configEntry As obj_ConfigEntry)
+    If configEntry Is Nothing Then Exit Sub
     ' Placeholder for special 'rx' semantics.
     ' Current behavior: the row is registered into attrrx part for style rules.
 End Sub
@@ -314,8 +314,8 @@ Private Function private_RegisterAttrRows(ByVal ws As Worksheet, ByVal partName 
 
     For Each rowNumber In rowNumbers
         Set rowRange = ws.Range( _
-            ws.Cells(VBA.CLng(rowNumber), m_Layout.ColStart), _
-            ws.Cells(VBA.CLng(rowNumber), m_Layout.ColStart + CONFIG_COL_COUNT - 1))
+            ws.Cells(VBA.CLng(rowNumber), m_ControlLayout.ColStart), _
+            ws.Cells(VBA.CLng(rowNumber), m_ControlLayout.ColStart + CONFIG_COL_COUNT - 1))
 
         If unionRange Is Nothing Then
             Set unionRange = rowRange
