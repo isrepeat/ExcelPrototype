@@ -8,39 +8,39 @@ Implements obj_IViewItem
 
 Private Const INLINE_PART_BANNER As String = "banner"
 
-Private m_Model As obj_Banner
-Private m_Presentation As obj_ViewPresentation
-Private m_HeaderInlinePart As obj_InlineTextPart
-Private m_MessageInlinePart As obj_InlineTextPart
+Private m_Banner As obj_Banner
+Private m_ViewPresentation As obj_ViewPresentation
+Private m_HeaderInlineTextPart As obj_InlineTextPart
+Private m_MessageInlineTextPart As obj_InlineTextPart
 
 Private Sub Class_Initialize()
-    Set m_Model = New obj_Banner
-    Set m_Presentation = New obj_ViewPresentation
-    Set m_HeaderInlinePart = New obj_InlineTextPart
-    Set m_MessageInlinePart = New obj_InlineTextPart
+    Set m_Banner = New obj_Banner
+    Set m_ViewPresentation = New obj_ViewPresentation
+    Set m_HeaderInlineTextPart = New obj_InlineTextPart
+    Set m_MessageInlineTextPart = New obj_InlineTextPart
 End Sub
 
 Public Property Get Model() As obj_Banner
-    Set Model = m_Model
+    Set Model = m_Banner
 End Property
 
 Public Property Set Model(ByVal value As obj_Banner)
     If value Is Nothing Then
-        Set m_Model = New obj_Banner
+        Set m_Banner = New obj_Banner
     Else
-        Set m_Model = value
+        Set m_Banner = value
     End If
 End Property
 
 Public Property Get Presentation() As obj_ViewPresentation
-    Set Presentation = m_Presentation
+    Set Presentation = m_ViewPresentation
 End Property
 
 Public Property Set Presentation(ByVal value As obj_ViewPresentation)
     If value Is Nothing Then
-        Set m_Presentation = New obj_ViewPresentation
+        Set m_ViewPresentation = New obj_ViewPresentation
     Else
-        Set m_Presentation = value
+        Set m_ViewPresentation = value
     End If
 End Property
 
@@ -81,7 +81,7 @@ Public Function Render( _
     Dim visibleNow As Boolean
     Dim headerTextResolved As String
     Dim messageTextResolved As String
-    Dim inlineProfile As obj_InlineTextProfile
+    Dim inlineTextProfile As obj_InlineTextProfile
 
     If page Is Nothing Then
         VBA.MsgBox "BannerViewItem: page is not specified.", VBA.vbExclamation
@@ -108,14 +108,14 @@ Public Function Render( _
 
     ' Flow: берем единый профиль страницы по partName -> назначаем его частям ->
     ' resolve текста в plain text + runs.
-    If Not page.TryGetInlineTextProfile(INLINE_PART_BANNER, inlineProfile) Then Exit Function
-    Set m_HeaderInlinePart.InlineProfile = inlineProfile
-    Set m_MessageInlinePart.InlineProfile = inlineProfile
+    If Not page.TryGetInlineTextProfile(INLINE_PART_BANNER, inlineTextProfile) Then Exit Function
+    Set m_HeaderInlineTextPart.InlineProfile = inlineTextProfile
+    Set m_MessageInlineTextPart.InlineProfile = inlineTextProfile
 
-    If Not m_HeaderInlinePart.Resolve(m_Model.Header) Then Exit Function
-    If Not m_MessageInlinePart.Resolve(m_Model.Message) Then Exit Function
-    headerTextResolved = m_HeaderInlinePart.ResolvedText
-    messageTextResolved = m_MessageInlinePart.ResolvedText
+    If Not m_HeaderInlineTextPart.Resolve(m_Banner.Header) Then Exit Function
+    If Not m_MessageInlineTextPart.Resolve(m_Banner.Message) Then Exit Function
+    headerTextResolved = m_HeaderInlineTextPart.ResolvedText
+    messageTextResolved = m_MessageInlineTextPart.ResolvedText
 
     visibleNow = private_IsVisibleResolved()
 
@@ -160,8 +160,8 @@ Public Function Render( _
     messageRange.WrapText = True
 
     ' Регистрируем runs; фактическое применение централизованно делает PageBase.ApplyInlineRuns.
-    If Not m_HeaderInlinePart.RegisterForRange(page, headerRange) Then Exit Function
-    If Not m_MessageInlinePart.RegisterForRange(page, messageRange) Then Exit Function
+    If Not m_HeaderInlineTextPart.RegisterForRange(page, headerRange) Then Exit Function
+    If Not m_MessageInlineTextPart.RegisterForRange(page, messageRange) Then Exit Function
 
     Render = True
     Exit Function
@@ -178,18 +178,18 @@ End Function
 ' // Internal
 ' //
 Private Function private_IsVisibleResolved() As Boolean
-    If m_Presentation Is Nothing Then
-        If m_Model Is Nothing Then
+    If m_ViewPresentation Is Nothing Then
+        If m_Banner Is Nothing Then
             private_IsVisibleResolved = False
         Else
-            private_IsVisibleResolved = m_Model.Visible
+            private_IsVisibleResolved = m_Banner.Visible
         End If
         Exit Function
     End If
 
-    If m_Model Is Nothing Then
-        private_IsVisibleResolved = m_Presentation.EffectiveVisible
+    If m_Banner Is Nothing Then
+        private_IsVisibleResolved = m_ViewPresentation.EffectiveVisible
     Else
-        private_IsVisibleResolved = (m_Model.Visible And m_Presentation.EffectiveVisible)
+        private_IsVisibleResolved = (m_Banner.Visible And m_ViewPresentation.EffectiveVisible)
     End If
 End Function

@@ -5,7 +5,7 @@ END
 Attribute VB_Name = "obj_InlineTextPart"
 Option Explicit
 
-Private m_InlineProfile As obj_InlineTextProfile
+Private m_InlineTextProfile As obj_InlineTextProfile
 Private m_ResolvedText As String
 Private m_Runs As Collection
 
@@ -15,11 +15,11 @@ Private Sub Class_Initialize()
 End Sub
 
 Public Property Get InlineProfile() As obj_InlineTextProfile
-    Set InlineProfile = m_InlineProfile
+    Set InlineProfile = m_InlineTextProfile
 End Property
 
 Public Property Set InlineProfile(ByVal value As obj_InlineTextProfile)
-    Set m_InlineProfile = value
+    Set m_InlineTextProfile = value
 End Property
 
 Public Property Get ResolvedText() As String
@@ -33,14 +33,14 @@ End Property
 Public Function Resolve(ByVal rawText As String) As Boolean
     ' InlinePart описывает конкретное текстовое поле (caption/header/message).
     ' Он не знает правил сам по себе, а делегирует их в назначенный профиль.
-    If m_InlineProfile Is Nothing Then
+    If m_InlineTextProfile Is Nothing Then
         m_ResolvedText = rawText
         Set m_Runs = Nothing
         Resolve = True
         Exit Function
     End If
 
-    If Not m_InlineProfile.TryResolveInlineText(rawText, m_ResolvedText, m_Runs) Then Exit Function
+    If Not m_InlineTextProfile.TryResolveInlineText(rawText, m_ResolvedText, m_Runs) Then Exit Function
     Resolve = True
 End Function
 
@@ -50,10 +50,10 @@ Public Function RegisterForRange(ByVal page As obj_PageBase, ByVal targetRange A
         RegisterForRange = True
         Exit Function
     End If
-    If m_InlineProfile Is Nothing Then Exit Function
+    If m_InlineTextProfile Is Nothing Then Exit Function
 
     ' Регистрируем runs в оркестраторе страницы; само применение будет позже (ApplyInlineRuns).
-    RegisterForRange = page.RegisterInlineRuns(targetRange, m_Runs, m_InlineProfile)
+    RegisterForRange = page.RegisterInlineRuns(targetRange, m_Runs, m_InlineTextProfile)
 End Function
 
 Public Function RegisterForShape(ByVal page As obj_PageBase, ByVal targetShape As Shape) As Boolean
@@ -62,8 +62,8 @@ Public Function RegisterForShape(ByVal page As obj_PageBase, ByVal targetShape A
         RegisterForShape = True
         Exit Function
     End If
-    If m_InlineProfile Is Nothing Then Exit Function
+    If m_InlineTextProfile Is Nothing Then Exit Function
 
     ' Аналогично для shape-целей.
-    RegisterForShape = page.RegisterInlineRunsForShape(targetShape, m_Runs, m_InlineProfile)
+    RegisterForShape = page.RegisterInlineRunsForShape(targetShape, m_Runs, m_InlineTextProfile)
 End Function

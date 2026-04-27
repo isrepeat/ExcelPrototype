@@ -6,54 +6,54 @@ Attribute VB_Name = "obj_ConfigTableViewItem"
 Option Explicit
 Implements obj_IViewItem
 
-Private m_Model As obj_ConfigTable
-Private m_Presentation As obj_ViewPresentation
-Private m_EntryItems As list__obj_ConfigEntryViewItem
+Private m_ConfigTable As obj_ConfigTable
+Private m_ViewPresentation As obj_ViewPresentation
+Private m_ConfigEntryViewItems As list__obj_ConfigEntryViewItem
 
 Private Sub Class_Initialize()
-    Set m_Model = New obj_ConfigTable
-    Set m_Presentation = New obj_ViewPresentation
-    Set m_EntryItems = New list__obj_ConfigEntryViewItem
+    Set m_ConfigTable = New obj_ConfigTable
+    Set m_ViewPresentation = New obj_ViewPresentation
+    Set m_ConfigEntryViewItems = New list__obj_ConfigEntryViewItem
     Call private_TrySyncEntryItemsFromModel()
 End Sub
 
 Public Property Get Model() As obj_ConfigTable
-    Set Model = m_Model
+    Set Model = m_ConfigTable
 End Property
 
 Public Property Set Model(ByVal value As obj_ConfigTable)
     If value Is Nothing Then
-        Set m_Model = New obj_ConfigTable
+        Set m_ConfigTable = New obj_ConfigTable
     Else
-        Set m_Model = value
+        Set m_ConfigTable = value
     End If
 
     If Not private_TrySyncEntryItemsFromModel() Then
-        Set m_EntryItems = New list__obj_ConfigEntryViewItem
+        Set m_ConfigEntryViewItems = New list__obj_ConfigEntryViewItem
     End If
 End Property
 
 Public Property Get Presentation() As obj_ViewPresentation
-    Set Presentation = m_Presentation
+    Set Presentation = m_ViewPresentation
 End Property
 
 Public Property Set Presentation(ByVal value As obj_ViewPresentation)
     If value Is Nothing Then
-        Set m_Presentation = New obj_ViewPresentation
+        Set m_ViewPresentation = New obj_ViewPresentation
     Else
-        Set m_Presentation = value
+        Set m_ViewPresentation = value
     End If
 End Property
 
 Public Property Get EntryItems() As list__obj_ConfigEntryViewItem
-    Set EntryItems = m_EntryItems
+    Set EntryItems = m_ConfigEntryViewItems
 End Property
 
 Public Property Set EntryItems(ByVal value As list__obj_ConfigEntryViewItem)
     If value Is Nothing Then
-        Set m_EntryItems = New list__obj_ConfigEntryViewItem
+        Set m_ConfigEntryViewItems = New list__obj_ConfigEntryViewItem
     Else
-        Set m_EntryItems = value
+        Set m_ConfigEntryViewItems = value
     End If
 End Property
 
@@ -62,12 +62,12 @@ Public Property Get ItemVisible() As Boolean
 End Property
 
 Public Property Let ItemVisible(ByVal value As Boolean)
-    m_Presentation.EffectiveVisible = VBA.CBool(value)
+    m_ViewPresentation.EffectiveVisible = VBA.CBool(value)
 End Property
 
 Public Property Get Count() As Long
-    If m_Model Is Nothing Then Exit Property
-    Count = m_Model.Count
+    If m_ConfigTable Is Nothing Then Exit Property
+    Count = m_ConfigTable.Count
 End Property
 
 ' //
@@ -103,40 +103,40 @@ End Function
 ' // Internal
 ' //
 Private Function private_TrySyncEntryItemsFromModel() As Boolean
-    Dim syncedEntries As list__obj_ConfigEntryViewItem
-    Dim sourceItems As list__obj_ConfigEntry
-    Dim entryModel As obj_ConfigEntry
-    Dim entryView As obj_ConfigEntryViewItem
+    Dim configEntryViewItems As list__obj_ConfigEntryViewItem
+    Dim sourceConfigEntries As list__obj_ConfigEntry
+    Dim sourceConfigEntry As obj_ConfigEntry
+    Dim configEntryViewItem As obj_ConfigEntryViewItem
 
-    Set syncedEntries = New list__obj_ConfigEntryViewItem
-    If m_Model Is Nothing Then
-        Set m_EntryItems = syncedEntries
+    Set configEntryViewItems = New list__obj_ConfigEntryViewItem
+    If m_ConfigTable Is Nothing Then
+        Set m_ConfigEntryViewItems = configEntryViewItems
         private_TrySyncEntryItemsFromModel = True
         Exit Function
     End If
 
-    Set sourceItems = m_Model.Items
-    If sourceItems Is Nothing Then
-        Set m_EntryItems = syncedEntries
+    Set sourceConfigEntries = m_ConfigTable.Items
+    If sourceConfigEntries Is Nothing Then
+        Set m_ConfigEntryViewItems = configEntryViewItems
         private_TrySyncEntryItemsFromModel = True
         Exit Function
     End If
 
-    For Each entryModel In sourceItems
-        Set entryView = New obj_ConfigEntryViewItem
-        Set entryView.Model = entryModel
-        syncedEntries.Add entryView
-    Next entryModel
+    For Each sourceConfigEntry In sourceConfigEntries
+        Set configEntryViewItem = New obj_ConfigEntryViewItem
+        Set configEntryViewItem.Model = sourceConfigEntry
+        configEntryViewItems.Add configEntryViewItem
+    Next sourceConfigEntry
 
-    Set m_EntryItems = syncedEntries
+    Set m_ConfigEntryViewItems = configEntryViewItems
     private_TrySyncEntryItemsFromModel = True
 End Function
 
 Private Function private_IsVisibleResolved() As Boolean
-    If m_Presentation Is Nothing Then
+    If m_ViewPresentation Is Nothing Then
         private_IsVisibleResolved = True
         Exit Function
     End If
 
-    private_IsVisibleResolved = m_Presentation.EffectiveVisible
+    private_IsVisibleResolved = m_ViewPresentation.EffectiveVisible
 End Function

@@ -10,18 +10,18 @@ Implements obj_ISerializable
 Private Const DEFAULT_CAPTION As String = "Update Code"
 Private Const INLINE_PART_BUTTON As String = "button"
 
-Private m_Base As obj_ControlBase
+Private m_ControlBase As obj_ControlBase
 Private m_ControlName As String
 Private m_CaptionRaw As String
 Private m_CaptionInlineSource As String
 Private m_OnClickRaw As String
-Private m_Layout As obj_ControlLayout
+Private m_ControlLayout As obj_ControlLayout
 Private m_CaptionText As String
-Private m_CaptionInlinePart As obj_InlineTextPart
+Private m_CaptionInlineTextPart As obj_InlineTextPart
 Private m_OnClickMacroRef As String
 Private m_RuntimeControlKey As String
 Private m_IsConfigured As Boolean
-Private m_Page As obj_PageBase
+Private m_PageBase As obj_PageBase
 
 ' //
 ' // Interface
@@ -33,17 +33,17 @@ Private Sub obj_IControl_Configure(ByVal page As obj_PageBase, ByVal controlNode
     Dim captionTextResolved As String
 
     m_IsConfigured = False
-    Set m_Layout = Nothing
-    Set m_Base = Nothing
-    Set m_Page = Nothing
-    Set m_CaptionInlinePart = New obj_InlineTextPart
+    Set m_ControlLayout = Nothing
+    Set m_ControlBase = Nothing
+    Set m_PageBase = Nothing
+    Set m_CaptionInlineTextPart = New obj_InlineTextPart
     m_CaptionInlineSource = VBA.vbNullString
     m_CaptionText = VBA.vbNullString
     m_RuntimeControlKey = VBA.vbNullString
 
-    Set m_Base = New obj_ControlBase
-    If Not m_Base.Configure(page, controlNode, "Button", "button", m_ControlName) Then Exit Sub
-    Set m_Page = m_Base.PageBase
+    Set m_ControlBase = New obj_ControlBase
+    If Not m_ControlBase.Configure(page, controlNode, "Button", "button", m_ControlName) Then Exit Sub
+    Set m_PageBase = m_ControlBase.PageBase
 
     m_CaptionRaw = VBA.CStr(ex_XmlCore.m_NodeAttrText(controlNode, "caption"))
     If VBA.Len(m_CaptionRaw) = 0 Then m_CaptionRaw = DEFAULT_CAPTION
@@ -54,7 +54,7 @@ Private Sub obj_IControl_Configure(ByVal page As obj_PageBase, ByVal controlNode
         Exit Sub
     End If
 
-    Set dataContext = m_Base.DataContext
+    Set dataContext = m_ControlBase.DataContext
     If dataContext Is Nothing Then Set dataContext = Me
 
     If Not ex_BindingRuntime.m_TryResolveTextBinding(m_CaptionRaw, dataContext, captionTextResolved) Then Exit Sub
@@ -63,9 +63,9 @@ Private Sub obj_IControl_Configure(ByVal page As obj_PageBase, ByVal controlNode
     If Not ex_BindingRuntime.m_TryResolveMacroBinding(m_OnClickRaw, dataContext, m_OnClickMacroRef) Then Exit Sub
     m_OnClickMacroRef = VBA.Trim$(m_OnClickMacroRef)
 
-    Set m_Layout = New obj_ControlLayout
-    If Not m_Layout.TryReadFromNode(controlNode, "Button", m_ControlName, "style") Then Exit Sub
-    m_RuntimeControlKey = "button|" & VBA.LCase$(VBA.Trim$(m_Layout.LayoutSheetName & "|" & m_ControlName))
+    Set m_ControlLayout = New obj_ControlLayout
+    If Not m_ControlLayout.TryReadFromNode(controlNode, "Button", m_ControlName, "style") Then Exit Sub
+    m_RuntimeControlKey = "button|" & VBA.LCase$(VBA.Trim$(m_ControlLayout.LayoutSheetName & "|" & m_ControlName))
 
     m_IsConfigured = True
 End Sub
@@ -78,30 +78,30 @@ Private Sub obj_IControl_Render()
     Dim buttonName As String
     Dim targetRange As Range
     Dim metaMap As Object
-    Dim page As obj_PageBase
+    Dim pageBase As obj_PageBase
 
     If Not m_IsConfigured Then
         VBA.MsgBox "Button: control '" & m_ControlName & "' is not configured.", VBA.vbExclamation
         Exit Sub
     End If
 
-    Set page = Nothing
-    If Not m_Base Is Nothing Then Set page = m_Base.PageBase
-    If page Is Nothing Then Set page = m_Page
-    If page Is Nothing Then
+    Set pageBase = Nothing
+    If Not m_ControlBase Is Nothing Then Set pageBase = m_ControlBase.PageBase
+    If pageBase Is Nothing Then Set pageBase = m_PageBase
+    If pageBase Is Nothing Then
         VBA.MsgBox "Button: page is not specified for control '" & m_ControlName & "'.", VBA.vbExclamation
         Exit Sub
     End If
-    Set m_Page = page
+    Set m_PageBase = pageBase
 
-    Set ws = page.Worksheet
+    Set ws = pageBase.Worksheet
     If ws Is Nothing Then
         VBA.MsgBox "Button: page worksheet is not specified for control '" & m_ControlName & "'.", VBA.vbExclamation
         Exit Sub
     End If
 
     On Error GoTo EH_RANGE
-    Set targetRange = ws.Range(ws.Cells(m_Layout.RowStart, m_Layout.ColStart), ws.Cells(m_Layout.RowEnd, m_Layout.ColEnd))
+    Set targetRange = ws.Range(ws.Cells(m_ControlLayout.RowStart, m_ControlLayout.ColStart), ws.Cells(m_ControlLayout.RowEnd, m_ControlLayout.ColEnd))
     On Error GoTo 0
 
     If targetRange Is Nothing Then
@@ -131,13 +131,13 @@ Private Sub obj_IControl_Render()
     shp.TextFrame.Characters.Text = m_CaptionText
     shp.TextFrame.HorizontalAlignment = xlHAlignCenter
     shp.TextFrame.VerticalAlignment = xlVAlignCenter
-    If Not private_RegisterCaptionInlineRuns(page, shp) Then Exit Sub
+    If Not private_RegisterCaptionInlineRuns(pageBase, shp) Then Exit Sub
 
     Set metaMap = VBA.CreateObject("Scripting.Dictionary")
     metaMap.CompareMode = 1
     metaMap("pn.control") = m_ControlName
-    If VBA.Len(VBA.Trim$(m_Layout.StyleName)) > 0 Then
-        metaMap("pn.style") = m_Layout.StyleName
+    If VBA.Len(VBA.Trim$(m_ControlLayout.StyleName)) > 0 Then
+        metaMap("pn.style") = m_ControlLayout.StyleName
     Else
         metaMap("pn.style") = VBA.vbNullString
     End If
@@ -194,12 +194,12 @@ Public Function TrySerializeSnapshot(ByRef outSnapshotXml As String) As Boolean
     If VBA.Len(VBA.Trim$(m_ControlName)) = 0 Then Exit Function
     If VBA.Len(VBA.Trim$(m_RuntimeControlKey)) = 0 Then Exit Function
     If VBA.Len(VBA.Trim$(m_OnClickMacroRef)) = 0 Then Exit Function
-    If m_Layout Is Nothing Then Exit Function
+    If m_ControlLayout Is Nothing Then Exit Function
 
-    sheetName = VBA.Trim$(m_Layout.LayoutSheetName)
+    sheetName = VBA.Trim$(m_ControlLayout.LayoutSheetName)
     If VBA.Len(sheetName) = 0 Then Exit Function
     shapeName = "btn_" & m_ControlName
-    styleName = VBA.Trim$(m_Layout.StyleName)
+    styleName = VBA.Trim$(m_ControlLayout.StyleName)
     isConfiguredText = VBA.IIf(m_IsConfigured, "true", "false")
 
     outSnapshotXml = _
@@ -212,10 +212,10 @@ Public Function TrySerializeSnapshot(ByRef outSnapshotXml As String) As Boolean
         " onClickMacroRef=""" & ex_Helpers.m_EscapeXmlAttr(m_OnClickMacroRef) & """" & _
         " runtimeKey=""" & ex_Helpers.m_EscapeXmlAttr(m_RuntimeControlKey) & """" & _
         " sheet=""" & ex_Helpers.m_EscapeXmlAttr(sheetName) & """" & _
-        " rowStart=""" & VBA.CStr(m_Layout.RowStart) & """" & _
-        " colStart=""" & VBA.CStr(m_Layout.ColStart) & """" & _
-        " rowEnd=""" & VBA.CStr(m_Layout.RowEnd) & """" & _
-        " colEnd=""" & VBA.CStr(m_Layout.ColEnd) & """" & _
+        " rowStart=""" & VBA.CStr(m_ControlLayout.RowStart) & """" & _
+        " colStart=""" & VBA.CStr(m_ControlLayout.ColStart) & """" & _
+        " rowEnd=""" & VBA.CStr(m_ControlLayout.RowEnd) & """" & _
+        " colEnd=""" & VBA.CStr(m_ControlLayout.ColEnd) & """" & _
         " style=""" & ex_Helpers.m_EscapeXmlAttr(styleName) & """" & _
         " isConfigured=""" & isConfiguredText & """" & _
         " shape=""" & ex_Helpers.m_EscapeXmlAttr(shapeName) & """" & _
@@ -272,7 +272,7 @@ Public Function TryDeserializeSnapshot(ByVal snapshotXml As String) As Boolean
     If VBA.Len(layoutSheetName) = 0 Then Exit Function
     If VBA.Len(m_CaptionRaw) = 0 Then m_CaptionRaw = m_CaptionText
     If VBA.Len(m_CaptionRaw) = 0 Then m_CaptionRaw = DEFAULT_CAPTION
-    Set m_CaptionInlinePart = New obj_InlineTextPart
+    Set m_CaptionInlineTextPart = New obj_InlineTextPart
     If VBA.Len(m_CaptionInlineSource) = 0 Then
         m_CaptionInlineSource = m_CaptionRaw
         If VBA.InStr(1, m_CaptionInlineSource, "{Binding ", VBA.vbTextCompare) > 0 Then
@@ -286,8 +286,8 @@ Public Function TryDeserializeSnapshot(ByVal snapshotXml As String) As Boolean
     If VBA.Len(shapeName) = 0 Then shapeName = "btn_" & m_ControlName
 
     ' 1) Восстанавливаем объект layout (лист/границы/style) из snapshot-атрибутов.
-    Set m_Layout = New obj_ControlLayout
-    If Not m_Layout.TryReadFromRuntimeValues( _
+    Set m_ControlLayout = New obj_ControlLayout
+    If Not m_ControlLayout.TryReadFromRuntimeValues( _
         "Button", _
         m_ControlName, _
         layoutSheetName, _
@@ -303,8 +303,8 @@ Public Function TryDeserializeSnapshot(ByVal snapshotXml As String) As Boolean
 
     ' 3) Восстанавливаем page-контекст (PageBase) для этого листа,
     '    чтобы затем зарегистрировать control/route обратно в runtime-реестры страницы.
-    If Not ex_HelpersSheet.m_TryGetPageBaseByWorksheetName(layoutSheetName, m_Page) Then Exit Function
-    If Not private_TryResolveCaptionInlineText(m_Page, m_CaptionInlineSource) Then Exit Function
+    If Not ex_HelpersSheet.m_TryGetPageBaseByWorksheetName(layoutSheetName, m_PageBase) Then Exit Function
+    If Not private_TryResolveCaptionInlineText(m_PageBase, m_CaptionInlineSource) Then Exit Function
 
     On Error Resume Next
     Set shp = ws.Shapes(shapeName)
@@ -312,8 +312,8 @@ Public Function TryDeserializeSnapshot(ByVal snapshotXml As String) As Boolean
     If shp Is Nothing Then Exit Function
 
     If Not private_TryBindRuntimeRoute(shp) Then Exit Function
-    If Not private_RegisterCaptionInlineRuns(m_Page, shp) Then Exit Function
-    If Not m_Page.ApplyInlineRuns() Then Exit Function
+    If Not private_RegisterCaptionInlineRuns(m_PageBase, shp) Then Exit Function
+    If Not m_PageBase.ApplyInlineRuns() Then Exit Function
 
     If isConfiguredAttr = "false" Or isConfiguredAttr = "0" Then
         m_IsConfigured = False
@@ -356,15 +356,15 @@ Private Function private_TryBindRuntimeRoute(ByVal shp As Shape) As Boolean
     End If
     On Error GoTo 0
 
-    If m_Page Is Nothing Then
+    If m_PageBase Is Nothing Then
         ex_Core.m_Diagnostic_LogError "button:bind-route page-base-missing control='" & VBA.Replace$(VBA.Trim$(m_ControlName), "'", "''") & "'"
         Exit Function
     End If
-    If Not m_Page.RegisterControl(m_RuntimeControlKey, Me) Then
+    If Not m_PageBase.RegisterControl(m_RuntimeControlKey, Me) Then
         ex_Core.m_Diagnostic_LogError "button:bind-route register-control-failed control='" & VBA.Replace$(VBA.Trim$(m_ControlName), "'", "''") & "' key='" & VBA.Replace$(VBA.Trim$(m_RuntimeControlKey), "'", "''") & "'"
         Exit Function
     End If
-    If Not m_Page.RegisterShapeRoute(shp.Name, m_RuntimeControlKey, "RuntimeHandleClick", False) Then
+    If Not m_PageBase.RegisterShapeRoute(shp.Name, m_RuntimeControlKey, "RuntimeHandleClick", False) Then
         ex_Core.m_Diagnostic_LogError "button:bind-route register-route-failed control='" & VBA.Replace$(VBA.Trim$(m_ControlName), "'", "''") & "' shape='" & VBA.Replace$(VBA.Trim$(shp.Name), "'", "''") & "'"
         Exit Function
     End If
@@ -377,36 +377,36 @@ End Function
 Private Function private_RegisterCaptionInlineRuns(ByVal page As obj_PageBase, ByVal shp As Shape) As Boolean
     If page Is Nothing Then Exit Function
     If shp Is Nothing Then Exit Function
-    If m_CaptionInlinePart Is Nothing Then
+    If m_CaptionInlineTextPart Is Nothing Then
         VBA.MsgBox "Button: caption inline part is not initialized for control '" & m_ControlName & "'.", VBA.vbExclamation
         Exit Function
     End If
-    private_RegisterCaptionInlineRuns = m_CaptionInlinePart.RegisterForShape(page, shp)
+    private_RegisterCaptionInlineRuns = m_CaptionInlineTextPart.RegisterForShape(page, shp)
 End Function
 
 Private Function private_TryResolveCaptionInlineText( _
     ByVal page As obj_PageBase, _
     ByVal rawCaptionText As String _
 ) As Boolean
-    Dim inlineProfile As obj_InlineTextProfile
+    Dim inlineTextProfile As obj_InlineTextProfile
 
     If page Is Nothing Then
         VBA.MsgBox "Button: page is not specified for inline caption resolve in control '" & m_ControlName & "'.", VBA.vbExclamation
         Exit Function
     End If
 
-    If m_CaptionInlinePart Is Nothing Then
+    If m_CaptionInlineTextPart Is Nothing Then
         VBA.MsgBox "Button: caption inline part is not initialized for control '" & m_ControlName & "'.", VBA.vbExclamation
         Exit Function
     End If
 
     ' Для caption используем тот же pipeline, что и для ViewItem:
     ' profile(part) -> inline part -> resolve -> register.
-    If Not page.TryGetInlineTextProfile(INLINE_PART_BUTTON, inlineProfile) Then Exit Function
-    Set m_CaptionInlinePart.InlineProfile = inlineProfile
+    If Not page.TryGetInlineTextProfile(INLINE_PART_BUTTON, inlineTextProfile) Then Exit Function
+    Set m_CaptionInlineTextPart.InlineProfile = inlineTextProfile
 
-    If Not m_CaptionInlinePart.Resolve(rawCaptionText) Then Exit Function
-    m_CaptionText = m_CaptionInlinePart.ResolvedText
+    If Not m_CaptionInlineTextPart.Resolve(rawCaptionText) Then Exit Function
+    m_CaptionText = m_CaptionInlineTextPart.ResolvedText
     private_TryResolveCaptionInlineText = True
 End Function
 

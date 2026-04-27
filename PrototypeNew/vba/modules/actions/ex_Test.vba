@@ -232,16 +232,16 @@ Public Function m_TEST_RegisterDemoBannerItems( _
     Optional ByVal notifyChange As Boolean = False, _
     Optional ByVal preferredPageBase As Variant _
 ) As Boolean
-    Dim bannerObj As obj_Banner
+    Dim banner As obj_Banner
     Dim headerText As String
     Dim messageText As String
 
     If isVisible Then
         headerText = "Data Source [[accent]]Updated[[/accent]]"
         messageText = "Rows: [[ok]]20 tables[[/ok]]. State: [[warn]]runtime refresh[[/warn]]."
-        Set bannerObj = private_CreateDemoBannerModel(headerText, messageText, isVisible)
-        If bannerObj Is Nothing Then Exit Function
-        If Not private_TrySetObjectSource("RuntimeObjects.Test.Banner", bannerObj, notifyChange, preferredPageBase) Then Exit Function
+        Set banner = private_CreateDemoBannerModel(headerText, messageText, isVisible)
+        If banner Is Nothing Then Exit Function
+        If Not private_TrySetObjectSource("RuntimeObjects.Test.Banner", banner, notifyChange, preferredPageBase) Then Exit Function
     Else
         If Not private_TryRemoveObjectSource("RuntimeObjects.Test.Banner", notifyChange, preferredPageBase) Then Exit Function
     End If
@@ -468,11 +468,11 @@ Public Function m_TEST_BuildDemoTableViewItems( _
 ) As Collection
     Dim sourceTables As Collection
     Dim result As list__obj_TableViewItem
-    Dim tableObj As Variant
-    Dim tableModel As obj_TableDynamic
-    Dim tableView As obj_TableViewItem
+    Dim sourceTableObj As Variant
+    Dim tableDynamic As obj_TableDynamic
+    Dim tableViewItem As obj_TableViewItem
     Dim rowViews As list__obj_RowViewItem
-    Dim rowView As obj_RowViewItem
+    Dim rowViewItem As obj_RowViewItem
     Dim tableIndex As Long
     Dim rowIndex As Long
     Dim rowBannerTargetIndex As Long
@@ -485,16 +485,16 @@ Public Function m_TEST_BuildDemoTableViewItems( _
     Randomize
 
     tableIndex = 0
-    For Each tableObj In sourceTables
+    For Each sourceTableObj In sourceTables
         tableIndex = tableIndex + 1
 
-        If Not private_TryResolveDemoTableDynamic(tableObj, tableModel) Then Exit Function
-        Set tableView = private_CreateTableViewItemFromTable(tableModel)
-        If tableView Is Nothing Then Exit Function
+        If Not private_TryResolveDemoTableDynamic(sourceTableObj, tableDynamic) Then Exit Function
+        Set tableViewItem = private_CreateTableViewItemFromTable(tableDynamic)
+        If tableViewItem Is Nothing Then Exit Function
 
         If includeTableBanners Then
             If (tableIndex Mod 5) = 0 Then
-                Set tableView.Banner = private_CreateBannerViewItem( _
+                Set tableViewItem.Banner = private_CreateBannerViewItem( _
                     "Team note / " & VBA.Format$(tableIndex, "00"), _
                     "This banner is attached to table item " & VBA.CStr(tableIndex) & ".", _
                     True, _
@@ -506,32 +506,32 @@ Public Function m_TEST_BuildDemoTableViewItems( _
         rowBannerPositionName = VBA.vbNullString
         If includeRowBanners Then
             If (tableIndex Mod 4) = 0 Then
-                rowBannerTargetIndex = private_GetRandomRowBannerTargetIndex(tableModel.RowCount, rowBannerPositionName)
+                rowBannerTargetIndex = private_GetRandomRowBannerTargetIndex(tableDynamic.RowCount, rowBannerPositionName)
             End If
         End If
 
         rowIndex = 0
-        Set rowViews = tableView.RowItems
-        For Each rowView In rowViews
+        Set rowViews = tableViewItem.RowItems
+        For Each rowViewItem In rowViews
             rowIndex = rowIndex + 1
 
             If includeRowBanners Then
                 If rowBannerTargetIndex > 0 And rowIndex = rowBannerTargetIndex Then
-                    Set rowView.Banner = private_CreateBannerViewItem( _
+                    Set rowViewItem.Banner = private_CreateBannerViewItem( _
                         "Row banner", _
                         "Attached to " & rowBannerPositionName & " row of Team " & VBA.Format$(tableIndex, "00") & ".", _
                         True, _
                         2)
                 End If
 
-                If rowIndex = tableModel.RowCount And (tableIndex Mod 3) = 0 Then
-                    rowView.SpacerRowsAfter = 1
+                If rowIndex = tableDynamic.RowCount And (tableIndex Mod 3) = 0 Then
+                    rowViewItem.SpacerRowsAfter = 1
                 End If
             End If
-        Next rowView
+        Next rowViewItem
 
-        result.Add tableView
-    Next tableObj
+        result.Add tableViewItem
+    Next sourceTableObj
 
     Set m_TEST_BuildDemoTableViewItems = result.AsCollection
 End Function
@@ -543,11 +543,11 @@ Public Function m_TEST_BuildDemoSingleTableViewItems( _
 ) As Collection
     Dim sourceTables As Collection
     Dim result As list__obj_TableViewItem
-    Dim tableObj As Variant
-    Dim tableModel As obj_TableDynamic
-    Dim tableView As obj_TableViewItem
+    Dim sourceTableObj As Variant
+    Dim tableDynamic As obj_TableDynamic
+    Dim tableViewItem As obj_TableViewItem
     Dim rowViews As list__obj_RowViewItem
-    Dim rowView As obj_RowViewItem
+    Dim rowViewItem As obj_RowViewItem
     Dim rowIndex As Long
 
     Set sourceTables = m_TEST_BuildDemoSingleTableItems()
@@ -555,13 +555,13 @@ Public Function m_TEST_BuildDemoSingleTableViewItems( _
 
     Set result = New list__obj_TableViewItem
 
-    For Each tableObj In sourceTables
-        If Not private_TryResolveDemoTableDynamic(tableObj, tableModel) Then Exit Function
-        Set tableView = private_CreateTableViewItemFromTable(tableModel)
-        If tableView Is Nothing Then Exit Function
+    For Each sourceTableObj In sourceTables
+        If Not private_TryResolveDemoTableDynamic(sourceTableObj, tableDynamic) Then Exit Function
+        Set tableViewItem = private_CreateTableViewItemFromTable(tableDynamic)
+        If tableViewItem Is Nothing Then Exit Function
 
         If includeTableBanners Then
-            Set tableView.Banner = private_CreateBannerViewItem( _
+            Set tableViewItem.Banner = private_CreateBannerViewItem( _
                 "Merged table note", _
                 "This banner is attached to merged single table view.", _
                 True, _
@@ -569,23 +569,23 @@ Public Function m_TEST_BuildDemoSingleTableViewItems( _
         End If
 
         rowIndex = 0
-        Set rowViews = tableView.RowItems
-        For Each rowView In rowViews
+        Set rowViews = tableViewItem.RowItems
+        For Each rowViewItem In rowViews
             rowIndex = rowIndex + 1
 
             If includeRowBanners Then
                 If rowIndex = 1 Then
-                    Set rowView.Banner = private_CreateBannerViewItem( _
+                    Set rowViewItem.Banner = private_CreateBannerViewItem( _
                         "First row", _
                         "This row-level banner is attached before the first row.", _
                         True, _
                         2)
                 End If
             End If
-        Next rowView
+        Next rowViewItem
 
-        result.Add tableView
-    Next tableObj
+        result.Add tableViewItem
+    Next sourceTableObj
 
     Set m_TEST_BuildDemoSingleTableViewItems = result.AsCollection
 End Function
@@ -595,11 +595,11 @@ Public Function m_TEST_BuildDemoSingleTableItems() As Collection
     Dim sourceTables As Collection
     Dim result As Collection
     Dim mergedTable As obj_TableDynamic
-    Dim tableObj As Variant
+    Dim sourceTableObj As Variant
     Dim sourceTable As obj_TableDynamic
     Dim sourceRow As Variant
     Dim targetRow As obj_Row
-    Dim sourceCol As obj_Column
+    Dim sourceColumn As obj_Column
     Dim i As Long
 
     Set sourceTables = m_TEST_BuildDemoTableItems()
@@ -608,13 +608,13 @@ Public Function m_TEST_BuildDemoSingleTableItems() As Collection
     Set mergedTable = New obj_TableDynamic
     mergedTable.SectionTitle = "People / All Teams (Merged)"
 
-    For Each tableObj In sourceTables
-        If Not private_TryResolveDemoTableDynamic(tableObj, sourceTable) Then Exit Function
+    For Each sourceTableObj In sourceTables
+        If Not private_TryResolveDemoTableDynamic(sourceTableObj, sourceTable) Then Exit Function
 
         If mergedTable.ColumnCount = 0 Then
-            For Each sourceCol In sourceTable.Columns
-                If Not mergedTable.AddColumn(sourceCol) Then Exit Function
-            Next sourceCol
+            For Each sourceColumn In sourceTable.Columns
+                If Not mergedTable.AddColumn(sourceColumn) Then Exit Function
+            Next sourceColumn
         End If
 
         For Each sourceRow In sourceTable.Rows
@@ -630,7 +630,7 @@ Public Function m_TEST_BuildDemoSingleTableItems() As Collection
 
             If Not mergedTable.AddRow(targetRow) Then Exit Function
         Next sourceRow
-    Next tableObj
+    Next sourceTableObj
 
     Set result = New Collection
     result.Add mergedTable
@@ -747,18 +747,18 @@ Private Function private_CreateConfigViewItem( _
     ByVal keyText As String, _
     ByVal valueText As String _
 ) As obj_ConfigEntryViewItem
-    Dim cfgModel As obj_ConfigEntry
-    Dim cfgView As obj_ConfigEntryViewItem
+    Dim configEntry As obj_ConfigEntry
+    Dim configEntryViewItem As obj_ConfigEntryViewItem
 
-    Set cfgModel = New obj_ConfigEntry
-    cfgModel.Attr = VBA.CStr(attrText)
-    cfgModel.Key = VBA.CStr(keyText)
-    cfgModel.Value = VBA.CStr(valueText)
+    Set configEntry = New obj_ConfigEntry
+    configEntry.Attr = VBA.CStr(attrText)
+    configEntry.Key = VBA.CStr(keyText)
+    configEntry.Value = VBA.CStr(valueText)
 
-    Set cfgView = New obj_ConfigEntryViewItem
-    Set cfgView.Model = cfgModel
+    Set configEntryViewItem = New obj_ConfigEntryViewItem
+    Set configEntryViewItem.Model = configEntry
 
-    Set private_CreateConfigViewItem = cfgView
+    Set private_CreateConfigViewItem = configEntryViewItem
 End Function
 
 
@@ -783,14 +783,14 @@ Private Function private_CreateDemoBannerModel( _
     ByVal messageText As String, _
     ByVal isVisible As Boolean _
 ) As obj_Banner
-    Dim bannerObj As obj_Banner
+    Dim banner As obj_Banner
 
-    Set bannerObj = New obj_Banner
-    bannerObj.Header = VBA.CStr(headerText)
-    bannerObj.Message = VBA.CStr(messageText)
-    bannerObj.Visible = VBA.CBool(isVisible)
+    Set banner = New obj_Banner
+    banner.Header = VBA.CStr(headerText)
+    banner.Message = VBA.CStr(messageText)
+    banner.Visible = VBA.CBool(isVisible)
 
-    Set private_CreateDemoBannerModel = bannerObj
+    Set private_CreateDemoBannerModel = banner
 End Function
 
 
@@ -813,35 +813,35 @@ Private Function private_CreateBannerViewItem( _
 End Function
 
 
-Private Function private_CreateTableViewItemFromTable(ByVal tableModel As obj_TableDynamic) As obj_TableViewItem
-    Dim tableView As obj_TableViewItem
+Private Function private_CreateTableViewItemFromTable(ByVal tableDynamic As obj_TableDynamic) As obj_TableViewItem
+    Dim tableViewItem As obj_TableViewItem
 
-    If tableModel Is Nothing Then
+    If tableDynamic Is Nothing Then
         VBA.MsgBox "PrototypeNew: table model is not specified for table view.", VBA.vbExclamation
         Exit Function
     End If
 
-    Set tableView = New obj_TableViewItem
-    Set tableView.Model = tableModel
-    tableView.ItemVisible = True
+    Set tableViewItem = New obj_TableViewItem
+    Set tableViewItem.Model = tableDynamic
+    tableViewItem.ItemVisible = True
 
-    Set private_CreateTableViewItemFromTable = tableView
+    Set private_CreateTableViewItemFromTable = tableViewItem
 End Function
 
 
-Private Function private_CreateRowViewItemFromRow(ByVal rowModel As obj_Row) As obj_RowViewItem
-    Dim rowView As obj_RowViewItem
+Private Function private_CreateRowViewItemFromRow(ByVal row As obj_Row) As obj_RowViewItem
+    Dim rowViewItem As obj_RowViewItem
 
-    If rowModel Is Nothing Then
+    If row Is Nothing Then
         VBA.MsgBox "PrototypeNew: row model is not specified for row view.", VBA.vbExclamation
         Exit Function
     End If
 
-    Set rowView = New obj_RowViewItem
-    Set rowView.Row = rowModel
-    rowView.RowVisible = True
+    Set rowViewItem = New obj_RowViewItem
+    Set rowViewItem.Row = row
+    rowViewItem.RowVisible = True
 
-    Set private_CreateRowViewItemFromRow = rowView
+    Set private_CreateRowViewItemFromRow = rowViewItem
 End Function
 
 
@@ -878,10 +878,10 @@ End Function
 
 Private Function private_TryResolveDemoTableDynamic(ByVal tableObj As Variant, ByRef outTable As obj_TableDynamic) As Boolean
     Dim fixedTable As obj_Table
-    Dim sourceCol As obj_Column
+    Dim sourceColumn As obj_Column
     Dim sourceRow As obj_Row
-    Dim dynamicTable As obj_TableDynamic
-    Dim targetCol As obj_Column
+    Dim tableDynamic As obj_TableDynamic
+    Dim targetColumn As obj_Column
     Dim targetRow As obj_Row
     Dim i As Long
 
@@ -897,25 +897,25 @@ Private Function private_TryResolveDemoTableDynamic(ByVal tableObj As Variant, B
 
         Case "obj_table"
             Set fixedTable = tableObj
-            Set dynamicTable = New obj_TableDynamic
-            dynamicTable.SectionTitle = fixedTable.SectionTitle
+            Set tableDynamic = New obj_TableDynamic
+            tableDynamic.SectionTitle = fixedTable.SectionTitle
 
-            For Each sourceCol In fixedTable.Columns
-                Set targetCol = New obj_Column
-                targetCol.Name = sourceCol.Name
-                targetCol.Position = sourceCol.Position
-                If Not dynamicTable.AddColumn(targetCol) Then Exit Function
-            Next sourceCol
+            For Each sourceColumn In fixedTable.Columns
+                Set targetColumn = New obj_Column
+                targetColumn.Name = sourceColumn.Name
+                targetColumn.Position = sourceColumn.Position
+                If Not tableDynamic.AddColumn(targetColumn) Then Exit Function
+            Next sourceColumn
 
             For Each sourceRow In fixedTable.Rows
                 Set targetRow = New obj_Row
-                For i = 1 To dynamicTable.ColumnCount
+                For i = 1 To tableDynamic.ColumnCount
                     targetRow.AddCell sourceRow.GetCell(i)
                 Next i
-                If Not dynamicTable.AddRow(targetRow) Then Exit Function
+                If Not tableDynamic.AddRow(targetRow) Then Exit Function
             Next sourceRow
 
-            Set outTable = dynamicTable
+            Set outTable = tableDynamic
             private_TryResolveDemoTableDynamic = True
 
         Case Else

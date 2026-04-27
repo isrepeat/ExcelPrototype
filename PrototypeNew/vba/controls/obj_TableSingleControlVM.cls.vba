@@ -9,7 +9,7 @@ Implements obj_IControl
 #Const ENALBE_STYLES = True
 #Const ENALBE_BORDERS = True
 
-Private m_Base As obj_ControlBase
+Private m_ControlBase As obj_ControlBase
 Private m_ControlName As String
 Private m_ItemsSourceRaw As String
 Private m_LayoutSheetName As String
@@ -24,14 +24,14 @@ Private m_IsConfigured As Boolean
 ' // Interface
 ' //
 Private Sub obj_IControl_Configure(ByVal page As obj_PageBase, ByVal controlNode As Object)
-    Dim currentPage As obj_PageBase
+    Dim pageBase As obj_PageBase
 
     m_IsConfigured = False
     Set m_TableItems = Nothing
-    Set m_Base = Nothing
+    Set m_ControlBase = Nothing
 
-    Set m_Base = New obj_ControlBase
-    If Not m_Base.Configure(page, controlNode, "TableSingle", "tableSingle", m_ControlName) Then Exit Sub
+    Set m_ControlBase = New obj_ControlBase
+    If Not m_ControlBase.Configure(page, controlNode, "TableSingle", "tableSingle", m_ControlName) Then Exit Sub
 
     m_ItemsSourceRaw = VBA.Trim$(VBA.CStr(ex_XmlCore.m_NodeAttrText(controlNode, "itemsSource")))
     If VBA.Len(m_ItemsSourceRaw) = 0 Then
@@ -63,9 +63,9 @@ Private Sub obj_IControl_Configure(ByVal page As obj_PageBase, ByVal controlNode
         Exit Sub
     End If
 
-    Set currentPage = m_Base.PageBase
-    If currentPage Is Nothing Then Exit Sub
-    If Not ex_RuntimeSourceResolver.m_TryResolveItemsSource(currentPage.RuntimeSources, m_ItemsSourceRaw, m_TableItems) Then Exit Sub
+    Set pageBase = m_ControlBase.PageBase
+    If pageBase Is Nothing Then Exit Sub
+    If Not ex_RuntimeSourceResolver.m_TryResolveItemsSource(pageBase.RuntimeSources, m_ItemsSourceRaw, m_TableItems) Then Exit Sub
 
     m_IsConfigured = True
 End Sub
@@ -83,7 +83,7 @@ Private Sub obj_IControl_Render()
     End If
 
     Set page = Nothing
-    If Not m_Base Is Nothing Then Set page = m_Base.PageBase
+    If Not m_ControlBase Is Nothing Then Set page = m_ControlBase.PageBase
     If page Is Nothing Then
         VBA.MsgBox "TableSingle: page is not specified for control '" & m_ControlName & "'.", VBA.vbExclamation
         Exit Sub
@@ -160,7 +160,7 @@ Private Function private_TryReadLayoutLongAttr( _
 End Function
 
 Private Function private_TryBuildRenderBufferSingle(ByRef outValueBlock As Variant, ByRef outStyleSegments As Collection) As Boolean
-    Dim tableModel As obj_TableDynamic
+    Dim tableDynamic As obj_TableDynamic
     Dim tableRows As list__obj_Row
     Dim tableColumnCount As Long
     Dim availableCols As Long
@@ -168,7 +168,7 @@ Private Function private_TryBuildRenderBufferSingle(ByRef outValueBlock As Varia
     Dim plannedRows As Long
     Dim currentOutputRow As Long
     Dim rowItem As Variant
-    Dim rowModel As obj_Row
+    Dim row As obj_Row
     Dim colOffset As Long
     Dim tokens As Variant
     Dim writeStart As Long
@@ -182,14 +182,14 @@ Private Function private_TryBuildRenderBufferSingle(ByRef outValueBlock As Varia
         Exit Function
     End If
 
-    If Not private_TryResolveSingleTableModel(tableModel) Then Exit Function
-    If tableModel Is Nothing Then
+    If Not private_TryResolveSingleTableModel(tableDynamic) Then Exit Function
+    If tableDynamic Is Nothing Then
         outValueBlock = Empty
         private_TryBuildRenderBufferSingle = True
         Exit Function
     End If
 
-    tableColumnCount = tableModel.ColumnCount
+    tableColumnCount = tableDynamic.ColumnCount
     If tableColumnCount <= 0 Then
         VBA.MsgBox "TableSingle: table item has no columns.", VBA.vbExclamation
         Exit Function
@@ -200,7 +200,7 @@ Private Function private_TryBuildRenderBufferSingle(ByRef outValueBlock As Varia
         Exit Function
     End If
 
-    Set tableRows = tableModel.Rows
+    Set tableRows = tableDynamic.Rows
     plannedRows = 3
     If Not tableRows Is Nothing Then plannedRows = 2 + tableRows.Count + 1
     If plannedRows > maxRows Then plannedRows = maxRows
@@ -220,7 +220,7 @@ Private Function private_TryBuildRenderBufferSingle(ByRef outValueBlock As Varia
     currentOutputRow = 0
 
     currentOutputRow = currentOutputRow + 1
-    outValueBlock(currentOutputRow, 1) = tableModel.SectionTitle
+    outValueBlock(currentOutputRow, 1) = tableDynamic.SectionTitle
 #If ENALBE_STYLES Then
     private_AddStyleSegment outStyleSegments, "section", tableColumnCount, currentOutputRow, currentOutputRow
 #End If
@@ -230,7 +230,7 @@ Private Function private_TryBuildRenderBufferSingle(ByRef outValueBlock As Varia
     End If
 
     currentOutputRow = currentOutputRow + 1
-    tokens = VBA.Split(tableModel.HeaderText, "|")
+    tokens = VBA.Split(tableDynamic.HeaderText, "|")
     For colOffset = 1 To tableColumnCount
         If colOffset - 1 <= UBound(tokens) Then
             outValueBlock(currentOutputRow, colOffset) = VBA.Trim$(VBA.CStr(tokens(colOffset - 1)))
@@ -250,8 +250,8 @@ Private Function private_TryBuildRenderBufferSingle(ByRef outValueBlock As Varia
         For Each rowItem In tableRows
             If currentOutputRow >= plannedRows Then Exit For
             currentOutputRow = currentOutputRow + 1
-            Set rowModel = rowItem
-            rowModel.CopyToMatrixRow outValueBlock, currentOutputRow, tableColumnCount
+            Set row = rowItem
+            row.CopyToMatrixRow outValueBlock, currentOutputRow, tableColumnCount
         Next rowItem
         On Error GoTo 0
     End If
@@ -540,7 +540,7 @@ Private Function private_TryResolveTableModel(ByVal tableItem As Variant, ByRef 
 End Function
 
 Private Function private_ConvertFixedTableToDynamic(ByVal fixedTable As obj_Table) As obj_TableDynamic
-    Dim dynamicTable As obj_TableDynamic
+    Dim tableDynamic As obj_TableDynamic
     Dim sourceColumns As list__obj_Column
     Dim sourceRows As list__obj_Row
     Dim sourceColumn As obj_Column
@@ -554,27 +554,27 @@ Private Function private_ConvertFixedTableToDynamic(ByVal fixedTable As obj_Tabl
         Exit Function
     End If
 
-    Set dynamicTable = New obj_TableDynamic
-    dynamicTable.SectionTitle = fixedTable.SectionTitle
+    Set tableDynamic = New obj_TableDynamic
+    tableDynamic.SectionTitle = fixedTable.SectionTitle
 
     Set sourceColumns = fixedTable.Columns
     For Each sourceColumn In sourceColumns
         Set targetColumn = New obj_Column
         targetColumn.Position = sourceColumn.Position
         targetColumn.Name = sourceColumn.Name
-        If Not dynamicTable.AddColumn(targetColumn) Then Exit Function
+        If Not tableDynamic.AddColumn(targetColumn) Then Exit Function
     Next sourceColumn
 
     Set sourceRows = fixedTable.Rows
     For Each sourceRow In sourceRows
         Set targetRow = New obj_Row
-        For colIndex = 1 To dynamicTable.ColumnCount
+        For colIndex = 1 To tableDynamic.ColumnCount
             targetRow.AddCell sourceRow.GetCell(colIndex)
         Next colIndex
-        If Not dynamicTable.AddRow(targetRow) Then Exit Function
+        If Not tableDynamic.AddRow(targetRow) Then Exit Function
     Next sourceRow
 
-    Set private_ConvertFixedTableToDynamic = dynamicTable
+    Set private_ConvertFixedTableToDynamic = tableDynamic
 End Function
 
 Private Sub private_ApplyRowStyle( _

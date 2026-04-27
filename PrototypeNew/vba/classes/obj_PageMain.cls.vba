@@ -14,12 +14,12 @@ Private Const SERIALIZABLE_TYPE_ROOT As String = "page.main"
 Private Const SNAPSHOT_ROOT_NODE As String = "pageState"
 Private Const CONTROL_SNAPSHOT_NODE As String = "controlSnapshot"
 
-Private m_Base As obj_PageBase
+Private m_PageBase As obj_PageBase
 Private m_DemoConfigVariant As String
 Private m_PendingControlSnapshots As Collection
 
 Private Sub Class_Initialize()
-    Set m_Base = New obj_PageBase
+    Set m_PageBase = New obj_PageBase
 End Sub
 
 ' //
@@ -34,8 +34,8 @@ Private Function obj_IPage_Initialize( _
     Optional ByVal pageType As Long = 1, _
     Optional ByVal pageId As String = VBA.vbNullString _
 ) As Boolean
-    If Not m_Base.Initialize(ws, uiPath, pageType, pageId) Then Exit Function
-    If Not private_PrepareRuntimeByUiPath(m_Base.UiPath, False) Then Exit Function
+    If Not m_PageBase.Initialize(ws, uiPath, pageType, pageId) Then Exit Function
+    If Not private_PrepareRuntimeByUiPath(m_PageBase.UiPath, False) Then Exit Function
 
     obj_IPage_Initialize = True
 End Function
@@ -47,8 +47,8 @@ End Function
 ' Callstack[5]: rt_Snapshots.m_RestorePageSnapshots(renderRestored:=True) -> rt_PageManager.m_RenderPage -> obj_PageMain.obj_IPage_Render
 ' Callstack[6]: obj_PageMain.private_TryRerenderByDataChange -> rt_PageManager.m_RenderPage -> obj_PageMain.obj_IPage_Render
 Private Function obj_IPage_Render() As Boolean
-    If Not m_Base.IsReady() Then Exit Function
-    If Not m_Base.Render() Then Exit Function
+    If Not m_PageBase.IsReady() Then Exit Function
+    If Not m_PageBase.Render() Then Exit Function
     If Not private_TryRestorePendingControlSnapshots() Then Exit Function
     obj_IPage_Render = True
 End Function
@@ -58,23 +58,23 @@ Private Function obj_IPage_UpdateUiPath( _
     ByVal uiPath As String, _
     Optional ByVal reason As String = VBA.vbNullString _
 ) As Boolean
-    Dim pageRef As obj_IPage
+    Dim iPage As obj_IPage
     Dim normalizedReason As String
     Dim normalizedUiPath As String
 
-    If Not m_Base.IsReady() Then Exit Function
+    If Not m_PageBase.IsReady() Then Exit Function
 
     normalizedUiPath = VBA.Trim$(uiPath)
     If VBA.Len(normalizedUiPath) = 0 Then Exit Function
 
-    m_Base.SetUiPath normalizedUiPath
+    m_PageBase.SetUiPath normalizedUiPath
     If Not private_PrepareRuntimeByUiPath(normalizedUiPath, False) Then Exit Function
 
     normalizedReason = VBA.Trim$(reason)
     If VBA.Len(normalizedReason) = 0 Then normalizedReason = "obj_PageMain.UpdateUiPath"
 
-    Set pageRef = Me
-    obj_IPage_UpdateUiPath = rt_PageManager.m_RenderPage(pageRef, normalizedReason)
+    Set iPage = Me
+    obj_IPage_UpdateUiPath = rt_PageManager.m_RenderPage(iPage, normalizedReason)
 End Function
 
 ' Callstack[1]: ThisWorkbook.Workbook_Open -> ThisWorkbook.m_ResetWorkbookAndCreateMainPage -> private_ResetWorkbookAndCreateMainPage -> rt_PageManager.m_DisposeAllPages -> page.Dispose(False) -> obj_PageMain.obj_IPage_Dispose
@@ -82,16 +82,16 @@ End Function
 ' Callstack[3]: rt_PageManager.m_RemovePageById -> rt_PageManager.m_RemovePage -> page.Dispose(deleteWorksheet) -> obj_PageMain.obj_IPage_Dispose
 Private Sub obj_IPage_Dispose(Optional ByVal deleteWorksheet As Boolean = True)
     Set m_PendingControlSnapshots = Nothing
-    m_Base.Dispose deleteWorksheet
+    m_PageBase.Dispose deleteWorksheet
 End Sub
 
 Private Function obj_IPage_GetPageBase() As obj_PageBase
-    Set obj_IPage_GetPageBase = m_Base.GetPageBase()
+    Set obj_IPage_GetPageBase = m_PageBase.GetPageBase()
 End Function
 
 ' Callstack[1]: obj_PageMain.RegisterControl -> obj_PageMain.obj_IPage_RegisterControl
 Private Function obj_IPage_RegisterControl(ByVal controlKey As String, ByVal controlVm As Object) As Boolean
-    obj_IPage_RegisterControl = m_Base.RegisterControl(controlKey, controlVm)
+    obj_IPage_RegisterControl = m_PageBase.RegisterControl(controlKey, controlVm)
 End Function
 
 ' Callstack[1]: obj_PageMain.RegisterShapeRoute -> obj_PageMain.obj_IPage_RegisterShapeRoute
@@ -102,37 +102,37 @@ Private Function obj_IPage_RegisterShapeRoute( _
     Optional ByVal hasArg As Boolean = False, _
     Optional ByVal argValue As Variant _
 ) As Boolean
-    obj_IPage_RegisterShapeRoute = m_Base.RegisterShapeRoute(shapeName, controlKey, methodName, hasArg, argValue)
+    obj_IPage_RegisterShapeRoute = m_PageBase.RegisterShapeRoute(shapeName, controlKey, methodName, hasArg, argValue)
 End Function
 
 ' Callstack[1]: obj_PageMain.UnregisterControl -> obj_PageMain.obj_IPage_UnregisterControl
 Private Function obj_IPage_UnregisterControl(ByVal controlKey As String) As Boolean
-    obj_IPage_UnregisterControl = m_Base.UnregisterControl(controlKey)
+    obj_IPage_UnregisterControl = m_PageBase.UnregisterControl(controlKey)
 End Function
 
 ' Callstack[1]: obj_PageMain.ResetControlActions -> obj_PageMain.obj_IPage_ResetControlActions
 Private Function obj_IPage_ResetControlActions() As Boolean
-    obj_IPage_ResetControlActions = m_Base.ResetControlActions()
+    obj_IPage_ResetControlActions = m_PageBase.ResetControlActions()
 End Function
 
 ' Callstack[1]: Shape.OnAction -> rt_Bridge.m_OnShapeClick -> rt_PageManager.m_TryGetPageByWorksheet -> page.DispatchShapeClick -> obj_PageMain.obj_IPage_DispatchShapeClick
 ' Callstack[2]: obj_PageMain.DispatchShapeClick -> obj_PageMain.obj_IPage_DispatchShapeClick
 Private Function obj_IPage_DispatchShapeClick(ByVal shapeName As String) As Boolean
-    obj_IPage_DispatchShapeClick = m_Base.DispatchShapeClick(shapeName)
+    obj_IPage_DispatchShapeClick = m_PageBase.DispatchShapeClick(shapeName)
 End Function
 
 ' Callstack[1]: obj_PageMain.TryCollectSerializableControlSnapshots -> obj_PageMain.obj_IPage_TryCollectSerializableControlSnapshots
 Private Function obj_IPage_TryCollectSerializableControlSnapshots(ByRef outSnapshots As Collection) As Boolean
-    obj_IPage_TryCollectSerializableControlSnapshots = m_Base.TryCollectSerializableControlSnapshots(outSnapshots)
+    obj_IPage_TryCollectSerializableControlSnapshots = m_PageBase.TryCollectSerializableControlSnapshots(outSnapshots)
 End Function
 
 ' Callstack[1]: obj_PageMain.TryRestoreSerializableControlSnapshots -> obj_PageMain.obj_IPage_TryRestoreSerializableControlSnapshots
 Private Function obj_IPage_TryRestoreSerializableControlSnapshots(ByVal snapshots As Collection) As Boolean
-    obj_IPage_TryRestoreSerializableControlSnapshots = m_Base.TryRestoreSerializableControlSnapshots(snapshots)
+    obj_IPage_TryRestoreSerializableControlSnapshots = m_PageBase.TryRestoreSerializableControlSnapshots(snapshots)
 End Function
 
 Private Function obj_IPage_TryGetRegisteredControls(ByRef outControlsByKey As Object) As Boolean
-    obj_IPage_TryGetRegisteredControls = m_Base.TryGetRegisteredControls(outControlsByKey)
+    obj_IPage_TryGetRegisteredControls = m_PageBase.TryGetRegisteredControls(outControlsByKey)
 End Function
 
 Private Function obj_ISerializable_GetSerializableTypeRoot() As String
@@ -233,9 +233,9 @@ Public Function TryGetRegisteredControls(ByRef outControlsByKey As Object) As Bo
     TryGetRegisteredControls = Me.obj_IPage_TryGetRegisteredControls(outControlsByKey)
 End Function
 
- ' Callstack[1]: VBA.ImmediateWindow -> obj_PageMain.Clear -> m_Base.Clear
+ ' Callstack[1]: VBA.ImmediateWindow -> obj_PageMain.Clear -> m_PageBase.Clear
 Public Sub Clear()
-    m_Base.Clear
+    m_PageBase.Clear
 End Sub
 
 Public Function GetSerializableTypeRoot() As String
@@ -256,13 +256,13 @@ Public Function TrySerializeSnapshot(ByRef outSnapshotXml As String) As Boolean
 
     outSnapshotXml = VBA.vbNullString
 
-    If Not m_Base.TryCreateSnapshotRoot(SNAPSHOT_ROOT_NODE, dom, rootNode) Then Exit Function
+    If Not m_PageBase.TryCreateSnapshotRoot(SNAPSHOT_ROOT_NODE, dom, rootNode) Then Exit Function
 
-    m_Base.WriteBaseSnapshotAttributes rootNode
+    m_PageBase.WriteBaseSnapshotAttributes rootNode
     rootNode.setAttribute "demoConfigVariant", private_GetDemoConfigVariantKey()
 
     Set controlSnapshots = Nothing
-    If Not m_Base.TryCollectSerializableControlSnapshots(controlSnapshots) Then Exit Function
+    If Not m_PageBase.TryCollectSerializableControlSnapshots(controlSnapshots) Then Exit Function
     If Not controlSnapshots Is Nothing Then
         For Each snapshotItem In controlSnapshots
             snapshotXml = VBA.Trim$(VBA.CStr(snapshotItem))
@@ -297,9 +297,9 @@ Public Function TryDeserializeSnapshot(ByVal snapshotXml As String) As Boolean
         Exit Function
     End If
 
-    If Not m_Base.TryLoadSnapshotRoot(snapshotXml, SNAPSHOT_ROOT_NODE, dom, rootNode) Then Exit Function
+    If Not m_PageBase.TryLoadSnapshotRoot(snapshotXml, SNAPSHOT_ROOT_NODE, dom, rootNode) Then Exit Function
 
-    m_Base.ReadBaseSnapshotAttributes rootNode
+    m_PageBase.ReadBaseSnapshotAttributes rootNode
 
     restoredVariant = VBA.LCase$(VBA.Trim$(VBA.CStr(rootNode.getAttribute("demoConfigVariant"))))
     Select Case restoredVariant
@@ -328,7 +328,7 @@ End Function
 ' // Internal
 ' //
 ' Callstack[1]: obj_PageMain.obj_IPage_Render -> obj_PageMain.private_TryRestorePendingControlSnapshots
-' Callstack[2]: obj_PageMain.private_TryRestorePendingControlSnapshots -> m_Base.TryRestoreSerializableControlSnapshots
+' Callstack[2]: obj_PageMain.private_TryRestorePendingControlSnapshots -> m_PageBase.TryRestoreSerializableControlSnapshots
 Private Function private_TryRestorePendingControlSnapshots() As Boolean
     If m_PendingControlSnapshots Is Nothing Then
         private_TryRestorePendingControlSnapshots = True
@@ -341,7 +341,7 @@ Private Function private_TryRestorePendingControlSnapshots() As Boolean
         Exit Function
     End If
 
-    If Not m_Base.TryRestoreSerializableControlSnapshots(m_PendingControlSnapshots) Then Exit Function
+    If Not m_PageBase.TryRestoreSerializableControlSnapshots(m_PendingControlSnapshots) Then Exit Function
     Set m_PendingControlSnapshots = Nothing
     private_TryRestorePendingControlSnapshots = True
 End Function
@@ -358,7 +358,7 @@ Private Function private_PrepareRuntimeByUiPath(ByVal uiPath As String, Optional
 
     Select Case normalizedUiPath
         Case "ui\devui.xml"
-            private_PrepareRuntimeByUiPath = private_PrepareDemoConfigRuntime(m_Base.Worksheet, notifyChange)
+            private_PrepareRuntimeByUiPath = private_PrepareDemoConfigRuntime(m_PageBase.Worksheet, notifyChange)
 
         Case "ui\devtablelistui.xml", "ui\devprimitivetableui.xml", "ui\devlisttablesingleui.xml", "ui\devprofiletableui.xml"
             private_PrepareRuntimeByUiPath = private_RegisterDemoTableItems(notifyChange)
@@ -379,9 +379,9 @@ Private Function private_PrepareDemoConfigRuntime(ByVal ws As Worksheet, Optiona
     If ws Is Nothing Then Exit Function
 
     If Not private_TryLoadDemoConfigVariantFromStore(ws) Then Exit Function
-    m_Base.RuntimeSources.ResetItemsSources
-    m_Base.RuntimeSources.ResetObjectSources
-    If Not ex_Test.m_TEST_RegisterDemoConfigProfileItems(notifyChange, m_Base) Then Exit Function
+    m_PageBase.RuntimeSources.ResetItemsSources
+    m_PageBase.RuntimeSources.ResetObjectSources
+    If Not ex_Test.m_TEST_RegisterDemoConfigProfileItems(notifyChange, m_PageBase) Then Exit Function
     If Not private_RegisterDemoConfigItemsByCurrentVariant(notifyChange) Then Exit Function
 
     private_PrepareDemoConfigRuntime = True
@@ -390,10 +390,10 @@ End Function
 Private Function private_RegisterDemoConfigItemsByCurrentVariant(Optional ByVal notifyChange As Boolean = False) As Boolean
     Select Case private_GetDemoConfigVariantKey()
         Case DEMO_CONFIG_VARIANT_B
-            private_RegisterDemoConfigItemsByCurrentVariant = ex_Test.m_TEST_RegisterDemoConfigItemsVariantB(notifyChange, m_Base)
+            private_RegisterDemoConfigItemsByCurrentVariant = ex_Test.m_TEST_RegisterDemoConfigItemsVariantB(notifyChange, m_PageBase)
 
         Case Else
-            private_RegisterDemoConfigItemsByCurrentVariant = ex_Test.m_TEST_RegisterDemoConfigItemsVariantA(notifyChange, m_Base)
+            private_RegisterDemoConfigItemsByCurrentVariant = ex_Test.m_TEST_RegisterDemoConfigItemsVariantA(notifyChange, m_PageBase)
     End Select
 End Function
 
@@ -403,9 +403,9 @@ Private Function private_RegisterDemoTableItems(Optional ByVal notifyChange As B
     Set tables = ex_Test.m_TEST_BuildDemoTableItems()
     If tables Is Nothing Then Exit Function
 
-    m_Base.RuntimeSources.ResetItemsSources
-    m_Base.RuntimeSources.ResetObjectSources
-    If Not m_Base.RuntimeSources.SetItemsSource("runtimeitems.test.tables", tables) Then Exit Function
+    m_PageBase.RuntimeSources.ResetItemsSources
+    m_PageBase.RuntimeSources.ResetObjectSources
+    If Not m_PageBase.RuntimeSources.SetItemsSource("runtimeitems.test.tables", tables) Then Exit Function
     If notifyChange Then If Not private_TryRerenderByDataChange("itemsSource:runtimeitems.test.tables") Then Exit Function
 
     private_RegisterDemoTableItems = True
@@ -417,9 +417,9 @@ Private Function private_RegisterDemoSingleTableItems(Optional ByVal notifyChang
     Set tables = ex_Test.m_TEST_BuildDemoSingleTableItems()
     If tables Is Nothing Then Exit Function
 
-    m_Base.RuntimeSources.ResetItemsSources
-    m_Base.RuntimeSources.ResetObjectSources
-    If Not m_Base.RuntimeSources.SetItemsSource("runtimeitems.test.tables", tables) Then Exit Function
+    m_PageBase.RuntimeSources.ResetItemsSources
+    m_PageBase.RuntimeSources.ResetObjectSources
+    If Not m_PageBase.RuntimeSources.SetItemsSource("runtimeitems.test.tables", tables) Then Exit Function
     If notifyChange Then If Not private_TryRerenderByDataChange("itemsSource:runtimeitems.test.tables") Then Exit Function
 
     private_RegisterDemoSingleTableItems = True
@@ -431,10 +431,10 @@ Private Function private_RegisterDemoTablePartStylesItems(Optional ByVal notifyC
     Set tableViews = ex_Test.m_TEST_BuildDemoTableViewItems(False, False)
     If tableViews Is Nothing Then Exit Function
 
-    m_Base.RuntimeSources.ResetItemsSources
-    m_Base.RuntimeSources.ResetObjectSources
-    If Not m_Base.RuntimeSources.SetItemsSource("runtimeitems.test.tables", tableViews) Then Exit Function
-    If Not ex_Test.m_TEST_RegisterDemoBannerItems(False, notifyChange, m_Base) Then Exit Function
+    m_PageBase.RuntimeSources.ResetItemsSources
+    m_PageBase.RuntimeSources.ResetObjectSources
+    If Not m_PageBase.RuntimeSources.SetItemsSource("runtimeitems.test.tables", tableViews) Then Exit Function
+    If Not ex_Test.m_TEST_RegisterDemoBannerItems(False, notifyChange, m_PageBase) Then Exit Function
     If notifyChange Then If Not private_TryRerenderByDataChange("itemsSource:runtimeitems.test.tables") Then Exit Function
 
     private_RegisterDemoTablePartStylesItems = True
@@ -442,13 +442,13 @@ End Function
 
 Private Function private_TryRerenderByDataChange(ByVal reason As String) As Boolean
     Dim ws As Worksheet
-    Dim pageRef As obj_IPage
+    Dim iPage As obj_IPage
 
-    Set ws = m_Base.Worksheet
+    Set ws = m_PageBase.Worksheet
     If ws Is Nothing Then Exit Function
 
-    If Not rt_PageManager.m_TryGetPageByWorksheet(ws, pageRef) Then Exit Function
-    private_TryRerenderByDataChange = rt_PageManager.m_RenderPage(pageRef, reason)
+    If Not rt_PageManager.m_TryGetPageByWorksheet(ws, iPage) Then Exit Function
+    private_TryRerenderByDataChange = rt_PageManager.m_RenderPage(iPage, reason)
 End Function
 
 Private Function private_GetDemoConfigVariantKey() As String
@@ -468,7 +468,7 @@ End Function
 Private Function private_TryLoadDemoConfigVariantFromStore(ByVal ws As Worksheet) As Boolean
     Dim selectStateKey As String
     Dim storedSelectedId As String
-    Dim selectStatic As obj_SelectControlVMStatic
+    Dim selectControlVMStatic As obj_SelectControlVMStatic
 
     If ws Is Nothing Then
         VBA.MsgBox "PrototypeNew: worksheet is not specified for config profile state restore.", VBA.vbExclamation
@@ -476,8 +476,8 @@ Private Function private_TryLoadDemoConfigVariantFromStore(ByVal ws As Worksheet
     End If
 
     selectStateKey = VBA.LCase$(ws.Name & "|ConfigProfilePicker")
-    Set selectStatic = New obj_SelectControlVMStatic
-    If Not selectStatic.TryGetSelectedId(selectStateKey, storedSelectedId) Then Exit Function
+    Set selectControlVMStatic = New obj_SelectControlVMStatic
+    If Not selectControlVMStatic.TryGetSelectedId(selectStateKey, storedSelectedId) Then Exit Function
 
     storedSelectedId = VBA.LCase$(VBA.Trim$(storedSelectedId))
     Select Case storedSelectedId

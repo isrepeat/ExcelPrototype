@@ -11,9 +11,9 @@ Private Const DEFAULT_PLACEHOLDER As String = "Choose option"
 Private Const DEFAULT_ITEM_HEIGHT As Double = 18#
 Private Const DEFAULT_ITEM_MARGIN As Double = 2#
 
-Private m_Base As obj_ControlBase
+Private m_ControlBase As obj_ControlBase
 ' Общие layout-параметры контрола (лист, границы в ячейках, style).
-Private m_Layout As obj_ControlLayout
+Private m_ControlLayout As obj_ControlLayout
 Private m_ControlName As String
 ' Значения, считанные из XML (raw-конфиг).
 Private m_ItemsSourceRaw As String
@@ -47,19 +47,19 @@ Private m_RuntimeItemActionMacros As Collection
 Private m_RuntimeItemRawItems As Collection
 Private m_RuntimeIsOpen As Boolean
 Private m_IsConfigured As Boolean
-Private m_Page As obj_PageBase
+Private m_PageBase As obj_PageBase
 
 ' //
 ' // Interface
 ' //
 Private Sub obj_IControl_Configure(ByVal page As obj_PageBase, ByVal controlNode As Object)
-    Dim currentPage As obj_PageBase
+    Dim pageBase As obj_PageBase
     Dim selectedIdText As String
     Dim dataContext As Object
 
     ' Полный reset состояния: важно при повторной конфигурации того же VM.
     m_IsConfigured = False
-    Set m_Layout = Nothing
+    Set m_ControlLayout = Nothing
     Set m_Items = Nothing
     Set m_ItemCaptions = Nothing
     Set m_ItemIds = Nothing
@@ -72,14 +72,14 @@ Private Sub obj_IControl_Configure(ByVal page As obj_PageBase, ByVal controlNode
     Set m_RuntimeItemIds = Nothing
     Set m_RuntimeItemActionMacros = Nothing
     Set m_RuntimeItemRawItems = Nothing
-    Set m_Base = Nothing
-    Set m_Page = Nothing
+    Set m_ControlBase = Nothing
+    Set m_PageBase = Nothing
     m_RuntimeIsOpen = False
     m_SelectedIndex = 0
 
-    Set m_Base = New obj_ControlBase
-    If Not m_Base.Configure(page, controlNode, "Select", "select", m_ControlName) Then Exit Sub
-    Set m_Page = m_Base.PageBase
+    Set m_ControlBase = New obj_ControlBase
+    If Not m_ControlBase.Configure(page, controlNode, "Select", "select", m_ControlName) Then Exit Sub
+    Set m_PageBase = m_ControlBase.PageBase
 
     m_ItemsSourceRaw = VBA.Trim$(VBA.CStr(ex_XmlCore.m_NodeAttrText(controlNode, "itemsSource")))
     If VBA.Len(m_ItemsSourceRaw) = 0 Then
@@ -101,24 +101,24 @@ Private Sub obj_IControl_Configure(ByVal page As obj_PageBase, ByVal controlNode
     m_OnChangeRaw = VBA.CStr(ex_XmlCore.m_NodeAttrText(controlNode, "onChange"))
     m_OnChangeMacroRef = VBA.vbNullString
     If VBA.Len(VBA.Trim$(m_OnChangeRaw)) > 0 Then
-        Set dataContext = m_Base.DataContext
+        Set dataContext = m_ControlBase.DataContext
         If dataContext Is Nothing Then Set dataContext = Me
         If Not ex_BindingRuntime.m_TryResolveMacroBinding(m_OnChangeRaw, dataContext, m_OnChangeMacroRef) Then Exit Sub
     End If
 
     ' 2) Читаем общий layout (лист + границы + style).
-    Set m_Layout = New obj_ControlLayout
-    If Not m_Layout.TryReadFromNode(controlNode, "Select", m_ControlName, "style") Then Exit Sub
+    Set m_ControlLayout = New obj_ControlLayout
+    If Not m_ControlLayout.TryReadFromNode(controlNode, "Select", m_ControlName, "style") Then Exit Sub
 
     ' 3) Разрешаем itemsSource в runtime-коллекцию и готовим буферы.
-    Set currentPage = m_Base.PageBase
-    If currentPage Is Nothing Then Exit Sub
-    If Not ex_RuntimeSourceResolver.m_TryResolveItemsSource(currentPage.RuntimeSources, m_ItemsSourceRaw, m_Items) Then Exit Sub
+    Set pageBase = m_ControlBase.PageBase
+    If pageBase Is Nothing Then Exit Sub
+    If Not ex_RuntimeSourceResolver.m_TryResolveItemsSource(pageBase.RuntimeSources, m_ItemsSourceRaw, m_Items) Then Exit Sub
     If Not private_TryBuildItemBuffers() Then Exit Sub
 
     ' 4) Определяем начальный выбранный элемент:
     '    selectedId из XML -> state store -> fallback на первый item.
-    m_SelectStateKey = VBA.LCase$(m_Layout.LayoutSheetName & "|" & m_ControlName)
+    m_SelectStateKey = VBA.LCase$(m_ControlLayout.LayoutSheetName & "|" & m_ControlName)
     If Not private_TryResolveSelectedIdText(selectedIdText) Then Exit Sub
     m_SelectedIndex = private_FindSelectedIndexById(selectedIdText)
 
@@ -155,23 +155,23 @@ Private Sub obj_IControl_Render()
     Dim itemLeft As Double
     Dim itemTop As Double
     Dim itemWidth As Double
-    Dim page As obj_PageBase
+    Dim pageBase As obj_PageBase
 
     If Not m_IsConfigured Then
         VBA.MsgBox "Select: control '" & m_ControlName & "' is not configured.", VBA.vbExclamation
         Exit Sub
     End If
 
-    Set page = Nothing
-    If Not m_Base Is Nothing Then Set page = m_Base.PageBase
-    If page Is Nothing Then Set page = m_Page
-    If page Is Nothing Then
+    Set pageBase = Nothing
+    If Not m_ControlBase Is Nothing Then Set pageBase = m_ControlBase.PageBase
+    If pageBase Is Nothing Then Set pageBase = m_PageBase
+    If pageBase Is Nothing Then
         VBA.MsgBox "Select: page is not specified for control '" & m_ControlName & "'.", VBA.vbExclamation
         Exit Sub
     End If
-    Set m_Page = page
+    Set m_PageBase = pageBase
 
-    Set ws = page.Worksheet
+    Set ws = pageBase.Worksheet
     If ws Is Nothing Then
         VBA.MsgBox "Select: page worksheet is not specified for control '" & m_ControlName & "'.", VBA.vbExclamation
         Exit Sub
@@ -393,7 +393,7 @@ Public Function TrySerializeSnapshot(ByRef outSnapshotXml As String) As Boolean
 
     outSnapshotXml = VBA.vbNullString
 
-    If m_Layout Is Nothing Then Exit Function
+    If m_ControlLayout Is Nothing Then Exit Function
     If VBA.Len(VBA.Trim$(m_ControlName)) = 0 Then Exit Function
     If VBA.Len(VBA.Trim$(m_RuntimeHeaderShapeName)) = 0 Then Exit Function
     If VBA.Len(VBA.Trim$(m_RuntimePanelShapeName)) = 0 Then Exit Function
@@ -410,12 +410,12 @@ Public Function TrySerializeSnapshot(ByRef outSnapshotXml As String) As Boolean
     outSnapshotXml = outSnapshotXml & " controlName=""" & ex_Helpers.m_EscapeXmlAttr(m_ControlName) & """"
     outSnapshotXml = outSnapshotXml & " itemsSource=""" & ex_Helpers.m_EscapeXmlAttr(m_ItemsSourceRaw) & """"
     outSnapshotXml = outSnapshotXml & " selectedIdRaw=""" & ex_Helpers.m_EscapeXmlAttr(m_SelectedIdRaw) & """"
-    outSnapshotXml = outSnapshotXml & " sheet=""" & ex_Helpers.m_EscapeXmlAttr(m_Layout.LayoutSheetName) & """"
-    outSnapshotXml = outSnapshotXml & " rowStart=""" & VBA.CStr(m_Layout.RowStart) & """"
-    outSnapshotXml = outSnapshotXml & " colStart=""" & VBA.CStr(m_Layout.ColStart) & """"
-    outSnapshotXml = outSnapshotXml & " rowEnd=""" & VBA.CStr(m_Layout.RowEnd) & """"
-    outSnapshotXml = outSnapshotXml & " colEnd=""" & VBA.CStr(m_Layout.ColEnd) & """"
-    outSnapshotXml = outSnapshotXml & " style=""" & ex_Helpers.m_EscapeXmlAttr(m_Layout.StyleName) & """"
+    outSnapshotXml = outSnapshotXml & " sheet=""" & ex_Helpers.m_EscapeXmlAttr(m_ControlLayout.LayoutSheetName) & """"
+    outSnapshotXml = outSnapshotXml & " rowStart=""" & VBA.CStr(m_ControlLayout.RowStart) & """"
+    outSnapshotXml = outSnapshotXml & " colStart=""" & VBA.CStr(m_ControlLayout.ColStart) & """"
+    outSnapshotXml = outSnapshotXml & " rowEnd=""" & VBA.CStr(m_ControlLayout.RowEnd) & """"
+    outSnapshotXml = outSnapshotXml & " colEnd=""" & VBA.CStr(m_ControlLayout.ColEnd) & """"
+    outSnapshotXml = outSnapshotXml & " style=""" & ex_Helpers.m_EscapeXmlAttr(m_ControlLayout.StyleName) & """"
     outSnapshotXml = outSnapshotXml & " selectKey=""" & ex_Helpers.m_EscapeXmlAttr(m_SelectStateKey) & """"
     outSnapshotXml = outSnapshotXml & " placeholder=""" & ex_Helpers.m_EscapeXmlAttr(m_PlaceholderText) & """"
     outSnapshotXml = outSnapshotXml & " onChangeRaw=""" & ex_Helpers.m_EscapeXmlAttr(m_OnChangeRaw) & """"
@@ -509,8 +509,8 @@ Public Function TryDeserializeSnapshot(ByVal snapshotXml As String) As Boolean
     If m_ItemHeight <= 0# Then m_ItemHeight = DEFAULT_ITEM_HEIGHT
     If m_ItemMargin < 0# Then m_ItemMargin = DEFAULT_ITEM_MARGIN
 
-    Set m_Layout = New obj_ControlLayout
-    If Not m_Layout.TryReadFromRuntimeValues( _
+    Set m_ControlLayout = New obj_ControlLayout
+    If Not m_ControlLayout.TryReadFromRuntimeValues( _
         "Select", _
         m_ControlName, _
         layoutSheetName, _
@@ -520,9 +520,9 @@ Public Function TryDeserializeSnapshot(ByVal snapshotXml As String) As Boolean
         layoutColEnd, _
         layoutStyle) Then Exit Function
 
-    Set ws = ex_HelpersSheet.m_GetRuntimeWorksheetByName(m_Layout.LayoutSheetName)
+    Set ws = ex_HelpersSheet.m_GetRuntimeWorksheetByName(m_ControlLayout.LayoutSheetName)
     If ws Is Nothing Then Exit Function
-    If Not ex_HelpersSheet.m_TryGetPageBaseByWorksheetName(m_Layout.LayoutSheetName, m_Page) Then Exit Function
+    If Not ex_HelpersSheet.m_TryGetPageBaseByWorksheetName(m_ControlLayout.LayoutSheetName, m_PageBase) Then Exit Function
 
     Set headerNode = root.selectSingleNode("*[local-name()='header']")
     If headerNode Is Nothing Then Exit Function
@@ -646,21 +646,21 @@ Private Function private_TryBindRuntimeRoutes( _
         Exit Function
     End If
 
-    If m_Page Is Nothing Then
+    If m_PageBase Is Nothing Then
         ex_Core.m_Diagnostic_LogError "select:bind-routes page-base-missing control='" & VBA.Replace$(VBA.Trim$(m_ControlName), "'", "''") & "'"
         Exit Function
     End If
-    If Not m_Page.RegisterControl(selectId, Me) Then
+    If Not m_PageBase.RegisterControl(selectId, Me) Then
         ex_Core.m_Diagnostic_LogError "select:bind-routes register-control-failed control='" & VBA.Replace$(VBA.Trim$(m_ControlName), "'", "''") & "' key='" & VBA.Replace$(selectId, "'", "''") & "'"
         Exit Function
     End If
-    If Not m_Page.RegisterShapeRoute(headerShape.Name, selectId, "RuntimeHandleHeaderClick", False) Then
+    If Not m_PageBase.RegisterShapeRoute(headerShape.Name, selectId, "RuntimeHandleHeaderClick", False) Then
         ex_Core.m_Diagnostic_LogError "select:bind-routes register-header-route-failed control='" & VBA.Replace$(VBA.Trim$(m_ControlName), "'", "''") & "' shape='" & VBA.Replace$(VBA.Trim$(headerShape.Name), "'", "''") & "'"
         Exit Function
     End If
 
     For i = 1 To itemShapeNames.Count
-        If Not m_Page.RegisterShapeRoute(VBA.CStr(itemShapeNames(i)), selectId, "RuntimeHandleItemClick", True, VBA.CLng(i)) Then
+        If Not m_PageBase.RegisterShapeRoute(VBA.CStr(itemShapeNames(i)), selectId, "RuntimeHandleItemClick", True, VBA.CLng(i)) Then
             ex_Core.m_Diagnostic_LogError "select:bind-routes register-item-route-failed control='" & VBA.Replace$(VBA.Trim$(m_ControlName), "'", "''") & "' index=" & VBA.CStr(i)
             Exit Function
         End If
@@ -768,7 +768,7 @@ Private Function private_ApplyRuntimeVisualState() As Boolean
     If m_RuntimeItemShapeNames Is Nothing Then Exit Function
     If m_RuntimeItemCaptions Is Nothing Then Exit Function
 
-    Set ws = ex_HelpersSheet.m_GetRuntimeWorksheetByName(m_Layout.LayoutSheetName)
+    Set ws = ex_HelpersSheet.m_GetRuntimeWorksheetByName(m_ControlLayout.LayoutSheetName)
     If ws Is Nothing Then Exit Function
 
     Set headerShape = private_GetRuntimeShapeByName(ws, m_RuntimeHeaderShapeName)
@@ -1014,7 +1014,7 @@ Private Function private_TryResolveSelectedIdText(ByRef outSelectedIdText As Str
 End Function
 
 Private Function private_TryPersistSelectedId(ByVal selectedId As String) As Boolean
-    Dim selectStatic As obj_SelectControlVMStatic
+    Dim selectControlVMStatic As obj_SelectControlVMStatic
 
     selectedId = VBA.Trim$(selectedId)
     If VBA.Len(VBA.Trim$(m_SelectStateKey)) = 0 Then
@@ -1022,20 +1022,20 @@ Private Function private_TryPersistSelectedId(ByVal selectedId As String) As Boo
         Exit Function
     End If
 
-    Set selectStatic = New obj_SelectControlVMStatic
-    private_TryPersistSelectedId = selectStatic.SetSelectedId(m_SelectStateKey, selectedId)
+    Set selectControlVMStatic = New obj_SelectControlVMStatic
+    private_TryPersistSelectedId = selectControlVMStatic.SetSelectedId(m_SelectStateKey, selectedId)
 End Function
 
 Private Function private_TryLoadStoredSelectedId(ByRef outSelectedId As String) As Boolean
-    Dim selectStatic As obj_SelectControlVMStatic
+    Dim selectControlVMStatic As obj_SelectControlVMStatic
 
     If VBA.Len(VBA.Trim$(m_SelectStateKey)) = 0 Then
         VBA.MsgBox "Select: state key is empty for control '" & m_ControlName & "'.", VBA.vbExclamation
         Exit Function
     End If
 
-    Set selectStatic = New obj_SelectControlVMStatic
-    private_TryLoadStoredSelectedId = selectStatic.TryGetSelectedId(m_SelectStateKey, outSelectedId)
+    Set selectControlVMStatic = New obj_SelectControlVMStatic
+    private_TryLoadStoredSelectedId = selectControlVMStatic.TryGetSelectedId(m_SelectStateKey, outSelectedId)
 End Function
 
 Private Function private_FindSelectedIndexById(ByVal selectedIdText As String) As Long
@@ -1062,7 +1062,7 @@ Private Function private_TryBuildHeaderRange(ByVal ws As Worksheet, ByRef outRan
     If ws Is Nothing Then Exit Function
 
     On Error GoTo EH_RANGE
-    Set outRange = ws.Range(ws.Cells(m_Layout.RowStart, m_Layout.ColStart), ws.Cells(m_Layout.RowEnd, m_Layout.ColEnd))
+    Set outRange = ws.Range(ws.Cells(m_ControlLayout.RowStart, m_ControlLayout.ColStart), ws.Cells(m_ControlLayout.RowEnd, m_ControlLayout.ColEnd))
     private_TryBuildHeaderRange = True
     Exit Function
 
@@ -1122,7 +1122,7 @@ Private Function private_CreateShapeByRange( _
     shapeStyle = VBA.vbNullString
     Select Case shapeRole
         Case "header"
-            shapeStyle = VBA.Trim$(m_Layout.StyleName)
+            shapeStyle = VBA.Trim$(m_ControlLayout.StyleName)
         Case "panel"
             shapeStyle = VBA.Trim$(m_PanelStyleName)
         Case Else
@@ -1200,7 +1200,7 @@ Private Function private_CreateShapeByBounds( _
     shapeStyle = VBA.vbNullString
     Select Case shapeRole
         Case "header"
-            shapeStyle = VBA.Trim$(m_Layout.StyleName)
+            shapeStyle = VBA.Trim$(m_ControlLayout.StyleName)
         Case "panel"
             shapeStyle = VBA.Trim$(m_PanelStyleName)
         Case Else

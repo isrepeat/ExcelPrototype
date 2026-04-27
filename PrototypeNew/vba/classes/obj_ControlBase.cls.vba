@@ -5,7 +5,7 @@ END
 Attribute VB_Name = "obj_ControlBase"
 Option Explicit
 
-Private m_Page As obj_PageBase
+Private m_PageBase As obj_PageBase
 Private m_DataContext As Object
 
 ' //
@@ -13,7 +13,7 @@ Private m_DataContext As Object
 ' //
 ' Callstack[1]: VBA.ImmediateWindow -> obj_ControlBase.Reset
 Public Sub Reset()
-    Set m_Page = Nothing
+    Set m_PageBase = Nothing
     Set m_DataContext = Nothing
 End Sub
 
@@ -44,7 +44,7 @@ Public Function Configure( _
         VBA.MsgBox controlTypeName & ": page is not specified for control configure.", VBA.vbExclamation
         Exit Function
     End If
-    Set m_Page = page
+    Set m_PageBase = page
 
     If controlNode Is Nothing Then
         VBA.MsgBox controlTypeName & ": control node is not specified.", VBA.vbExclamation
@@ -75,7 +75,7 @@ Public Function Configure( _
 End Function
 
 Public Property Get PageBase() As obj_PageBase
-    Set PageBase = m_Page
+    Set PageBase = m_PageBase
 End Property
 
 Public Property Get DataContext() As Object

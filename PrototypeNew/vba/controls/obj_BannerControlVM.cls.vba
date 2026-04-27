@@ -6,10 +6,10 @@ Attribute VB_Name = "obj_BannerControlVM"
 Option Explicit
 Implements obj_IControl
 
-Private m_Base As obj_ControlBase
+Private m_ControlBase As obj_ControlBase
 Private m_ControlName As String
-Private m_ViewItem As obj_BannerViewItem
-Private m_Layout As obj_ControlLayout
+Private m_BannerViewItem As obj_BannerViewItem
+Private m_ControlLayout As obj_ControlLayout
 Private m_IsConfigured As Boolean
 
 ' //
@@ -22,12 +22,12 @@ Private Sub obj_IControl_Configure(ByVal page As obj_PageBase, ByVal controlNode
     Dim isVisible As Boolean
 
     m_IsConfigured = False
-    Set m_Layout = Nothing
-    Set m_ViewItem = Nothing
-    Set m_Base = Nothing
+    Set m_ControlLayout = Nothing
+    Set m_BannerViewItem = Nothing
+    Set m_ControlBase = Nothing
 
-    Set m_Base = New obj_ControlBase
-    If Not m_Base.Configure(page, controlNode, "Banner", "banner", m_ControlName) Then Exit Sub
+    Set m_ControlBase = New obj_ControlBase
+    If Not m_ControlBase.Configure(page, controlNode, "Banner", "banner", m_ControlName) Then Exit Sub
 
     headerText = VBA.CStr(ex_XmlCore.m_NodeAttrText(controlNode, "header"))
     messageText = VBA.CStr(ex_XmlCore.m_NodeAttrText(controlNode, "message"))
@@ -39,47 +39,47 @@ Private Sub obj_IControl_Configure(ByVal page As obj_PageBase, ByVal controlNode
         isVisible = private_ParseBooleanText(visibleRaw)
     End If
 
-    Set m_ViewItem = New obj_BannerViewItem
-    m_ViewItem.Model.Header = headerText
-    m_ViewItem.Model.Message = messageText
-    m_ViewItem.Model.Visible = isVisible
-    m_ViewItem.Presentation.EffectiveVisible = isVisible
+    Set m_BannerViewItem = New obj_BannerViewItem
+    m_BannerViewItem.Model.Header = headerText
+    m_BannerViewItem.Model.Message = messageText
+    m_BannerViewItem.Model.Visible = isVisible
+    m_BannerViewItem.Presentation.EffectiveVisible = isVisible
 
-    Set m_Layout = New obj_ControlLayout
-    If Not m_Layout.TryReadFromNode(controlNode, "Banner", m_ControlName, "style") Then Exit Sub
-    m_ViewItem.Presentation.StyleName = m_Layout.StyleName
+    Set m_ControlLayout = New obj_ControlLayout
+    If Not m_ControlLayout.TryReadFromNode(controlNode, "Banner", m_ControlName, "style") Then Exit Sub
+    m_BannerViewItem.Presentation.StyleName = m_ControlLayout.StyleName
 
     m_IsConfigured = True
 End Sub
 
 Private Sub obj_IControl_Render()
     Dim ws As Worksheet
-    Dim page As obj_PageBase
+    Dim pageBase As obj_PageBase
 
     If Not m_IsConfigured Then
         VBA.MsgBox "Banner: control '" & m_ControlName & "' is not configured.", VBA.vbExclamation
         Exit Sub
     End If
 
-    Set page = Nothing
-    If Not m_Base Is Nothing Then Set page = m_Base.PageBase
-    If page Is Nothing Then
+    Set pageBase = Nothing
+    If Not m_ControlBase Is Nothing Then Set pageBase = m_ControlBase.PageBase
+    If pageBase Is Nothing Then
         VBA.MsgBox "Banner: page is not specified for control '" & m_ControlName & "'.", VBA.vbExclamation
         Exit Sub
     End If
 
-    Set ws = private_GetWorksheetByName(page, m_Layout.LayoutSheetName)
+    Set ws = private_GetWorksheetByName(pageBase, m_ControlLayout.LayoutSheetName)
     If ws Is Nothing Then
-        VBA.MsgBox "Banner: sheet '" & m_Layout.LayoutSheetName & "' was not found for control '" & m_ControlName & "'.", VBA.vbExclamation
+        VBA.MsgBox "Banner: sheet '" & m_ControlLayout.LayoutSheetName & "' was not found for control '" & m_ControlName & "'.", VBA.vbExclamation
         Exit Sub
     End If
 
-    If m_ViewItem Is Nothing Then
+    If m_BannerViewItem Is Nothing Then
         VBA.MsgBox "Banner: view item is not configured for control '" & m_ControlName & "'.", VBA.vbExclamation
         Exit Sub
     End If
 
-    If Not m_ViewItem.Render(page, m_Layout.RowStart, m_Layout.ColStart, m_Layout.RowEnd, m_Layout.ColEnd, m_ControlName) Then Exit Sub
+    If Not m_BannerViewItem.Render(pageBase, m_ControlLayout.RowStart, m_ControlLayout.ColStart, m_ControlLayout.RowEnd, m_ControlLayout.ColEnd, m_ControlName) Then Exit Sub
 End Sub
 
 Private Function obj_IControl_SupportsAttribute(ByVal attrName As String) As Boolean
