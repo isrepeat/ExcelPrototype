@@ -14,22 +14,24 @@ Private m_HeaderInlineTextPart As obj_InlineTextPart
 Private m_MessageInlineTextPart As obj_InlineTextPart
 
 Private Sub Class_Initialize()
-    Set m_Banner = New obj_Banner
     Set m_ViewPresentation = New obj_ViewPresentation
     Set m_HeaderInlineTextPart = New obj_InlineTextPart
     Set m_MessageInlineTextPart = New obj_InlineTextPart
+    Call Me.Initialize(Nothing)
 End Sub
 
-Public Property Get Model() As obj_Banner
-    Set Model = m_Banner
-End Property
-
-Public Property Set Model(ByVal value As obj_Banner)
+Public Function Initialize(ByVal value As obj_Banner) As Boolean
     If value Is Nothing Then
         Set m_Banner = New obj_Banner
     Else
         Set m_Banner = value
     End If
+
+    Initialize = True
+End Function
+
+Public Property Get Model() As obj_Banner
+    Set Model = m_Banner
 End Property
 
 Public Property Get Presentation() As obj_ViewPresentation

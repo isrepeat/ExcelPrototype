@@ -756,7 +756,7 @@ Private Function private_CreateConfigViewItem( _
     configEntry.Value = VBA.CStr(valueText)
 
     Set configEntryViewItem = New obj_ConfigEntryViewItem
-    Set configEntryViewItem.Model = configEntry
+    If Not configEntryViewItem.Initialize(configEntry) Then Exit Function
 
     Set private_CreateConfigViewItem = configEntryViewItem
 End Function
@@ -822,7 +822,7 @@ Private Function private_CreateTableViewItemFromTable(ByVal tableDynamic As obj_
     End If
 
     Set tableViewItem = New obj_TableViewItem
-    Set tableViewItem.Model = tableDynamic
+    If Not tableViewItem.Initialize(tableDynamic) Then Exit Function
     tableViewItem.ItemVisible = True
 
     Set private_CreateTableViewItemFromTable = tableViewItem
@@ -838,7 +838,7 @@ Private Function private_CreateRowViewItemFromRow(ByVal row As obj_Row) As obj_R
     End If
 
     Set rowViewItem = New obj_RowViewItem
-    Set rowViewItem.Row = row
+    If Not rowViewItem.Initialize(row) Then Exit Function
     rowViewItem.RowVisible = True
 
     Set private_CreateRowViewItemFromRow = rowViewItem

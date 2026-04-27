@@ -12,18 +12,13 @@ Private m_BannerViewItem As obj_BannerViewItem
 Private m_RowViewItems As list__obj_RowViewItem
 
 Private Sub Class_Initialize()
-    Set m_TableDynamic = New obj_TableDynamic
     Set m_ViewPresentation = New obj_ViewPresentation
     Set m_BannerViewItem = Nothing
     Set m_RowViewItems = New list__obj_RowViewItem
-    Call private_TrySyncRowItemsFromModel()
+    Call Me.Initialize(Nothing)
 End Sub
 
-Public Property Get Model() As obj_TableDynamic
-    Set Model = m_TableDynamic
-End Property
-
-Public Property Set Model(ByVal value As obj_TableDynamic)
+Public Function Initialize(ByVal value As obj_TableDynamic) As Boolean
     If value Is Nothing Then
         Set m_TableDynamic = New obj_TableDynamic
     Else
@@ -33,6 +28,12 @@ Public Property Set Model(ByVal value As obj_TableDynamic)
     If Not private_TrySyncRowItemsFromModel() Then
         Set m_RowViewItems = New list__obj_RowViewItem
     End If
+
+    Initialize = True
+End Function
+
+Public Property Get Model() As obj_TableDynamic
+    Set Model = m_TableDynamic
 End Property
 
 Public Property Get Presentation() As obj_ViewPresentation
@@ -57,14 +58,6 @@ End Property
 
 Public Property Get RowItems() As list__obj_RowViewItem
     Set RowItems = m_RowViewItems
-End Property
-
-Public Property Set RowItems(ByVal value As list__obj_RowViewItem)
-    If value Is Nothing Then
-        Set m_RowViewItems = New list__obj_RowViewItem
-    Else
-        Set m_RowViewItems = value
-    End If
 End Property
 
 Public Property Get ItemVisible() As Boolean
@@ -165,7 +158,7 @@ Private Function private_TrySyncRowItemsFromModel() As Boolean
 
     For Each sourceRow In sourceRows
         Set rowViewItem = New obj_RowViewItem
-        Set rowViewItem.Row = sourceRow
+        If Not rowViewItem.Initialize(sourceRow) Then Exit Function
         rowViewItem.RowVisible = True
         rowViewItems.Add rowViewItem
     Next sourceRow

@@ -9,23 +9,25 @@ Private m_ConfigEntry As obj_ConfigEntry
 Private m_ViewPresentation As obj_ViewPresentation
 
 Private Sub Class_Initialize()
-    Set m_ConfigEntry = New obj_ConfigEntry
     Set m_ViewPresentation = New obj_ViewPresentation
+    Call Me.Initialize(Nothing)
 End Sub
 
 ' //
 ' // API
 ' //
-Public Property Get Model() As obj_ConfigEntry
-    Set Model = m_ConfigEntry
-End Property
-
-Public Property Set Model(ByVal value As obj_ConfigEntry)
+Public Function Initialize(ByVal value As obj_ConfigEntry) As Boolean
     If value Is Nothing Then
         Set m_ConfigEntry = New obj_ConfigEntry
     Else
         Set m_ConfigEntry = value
     End If
+
+    Initialize = True
+End Function
+
+Public Property Get Model() As obj_ConfigEntry
+    Set Model = m_ConfigEntry
 End Property
 
 Public Property Get Presentation() As obj_ViewPresentation
