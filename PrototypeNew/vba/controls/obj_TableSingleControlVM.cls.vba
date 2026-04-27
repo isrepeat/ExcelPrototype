@@ -161,7 +161,7 @@ End Function
 
 Private Function private_TryBuildRenderBufferSingle(ByRef outValueBlock As Variant, ByRef outStyleSegments As Collection) As Boolean
     Dim tableModel As obj_TableDynamic
-    Dim tableRows As Collection
+    Dim tableRows As list__obj_Row
     Dim tableColumnCount As Long
     Dim availableCols As Long
     Dim maxRows As Long
@@ -541,8 +541,8 @@ End Function
 
 Private Function private_ConvertFixedTableToDynamic(ByVal fixedTable As obj_Table) As obj_TableDynamic
     Dim dynamicTable As obj_TableDynamic
-    Dim sourceColumns As Collection
-    Dim sourceRows As Collection
+    Dim sourceColumns As list__obj_Column
+    Dim sourceRows As list__obj_Row
     Dim sourceColumn As obj_Column
     Dim sourceRow As obj_Row
     Dim targetColumn As obj_Column

@@ -5,39 +5,34 @@ END
 Attribute VB_Name = "obj_ConfigTable"
 Option Explicit
 
-Private m_Items As Collection
+Private m_Items As list__obj_ConfigEntry
 
 Private Sub Class_Initialize()
-    Set m_Items = New Collection
+    Set m_Items = New list__obj_ConfigEntry
 End Sub
 
 ' //
 ' // API
 ' //
-Public Property Get Items() As Collection
-    private_EnsureItems
+Public Property Get Items() As list__obj_ConfigEntry
     Set Items = m_Items
 End Property
 
 Public Property Get Count() As Long
-    private_EnsureItems
     Count = m_Items.Count
 End Property
 
 Public Sub Clear()
-    Set m_Items = New Collection
+    Set m_Items = New list__obj_ConfigEntry
 End Sub
 
 Public Function AddItem(ByVal cfgItem As obj_ConfigEntry) As Boolean
-    private_EnsureItems
-
     If cfgItem Is Nothing Then
         VBA.MsgBox "ConfigTable: item is not specified.", VBA.vbExclamation
         Exit Function
     End If
 
-    m_Items.Add cfgItem
-    AddItem = True
+    AddItem = m_Items.Add(cfgItem)
 End Function
 
 Public Function AddRow( _
@@ -69,11 +64,6 @@ End Function
 ' //
 ' // Internal
 ' //
-Private Sub private_EnsureItems()
-    If Not m_Items Is Nothing Then Exit Sub
-    Set m_Items = New Collection
-End Sub
-
 Private Function private_TryLoadFromXmlNodeInternal( _
     ByVal profileNode As Object, _
     ByVal clearBefore As Boolean _
@@ -81,8 +71,6 @@ Private Function private_TryLoadFromXmlNodeInternal( _
     Dim rowNodes As Object
     Dim rowNode As Object
     Dim cfgItem As obj_ConfigEntry
-
-    private_EnsureItems
 
     If profileNode Is Nothing Then
         VBA.MsgBox "ConfigTable: profile XML node is not specified.", VBA.vbExclamation

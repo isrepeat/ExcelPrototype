@@ -392,9 +392,9 @@ End Function
 
 
 Public Function m_TEST_BuildDemoConfigItemsVariantA() As Collection
-    Dim result As Collection
+    Dim result As list__obj_ConfigEntryViewItem
 
-    Set result = New Collection
+    Set result = New list__obj_ConfigEntryViewItem
     result.Add private_CreateConfigViewItem("#", "Profile.Name", "HospitalizationDate")
     result.Add private_CreateConfigViewItem("rx", "Source.Main.FilePattern", "{Main-{dd}.{mm}.{yyyy}}")
     result.Add private_CreateConfigViewItem(VBA.vbNullString, "Sheet.StateMain.Key.HospitalizationDate", "No; Unit; Rank; FIO; HospitalizationDate")
@@ -402,14 +402,14 @@ Public Function m_TEST_BuildDemoConfigItemsVariantA() As Collection
     result.Add private_CreateConfigViewItem("#", "Sheet.StateMain.Map.2", "В/ч")
     result.Add private_CreateConfigViewItem("rx", "Sheet.StateMain.Map.3", "П.І.Б.")
 
-    Set m_TEST_BuildDemoConfigItemsVariantA = result
+    Set m_TEST_BuildDemoConfigItemsVariantA = result.AsCollection
 End Function
 
 
 Public Function m_TEST_BuildDemoConfigItemsVariantB() As Collection
-    Dim result As Collection
+    Dim result As list__obj_ConfigEntryViewItem
 
-    Set result = New Collection
+    Set result = New list__obj_ConfigEntryViewItem
     result.Add private_CreateConfigViewItem("#", "Profile.Name", "TransferSheet")
     result.Add private_CreateConfigViewItem("rx", "Source.Main.FileResolver", "ex_SourceResolvers.m_ResolveAllByPattern")
     result.Add private_CreateConfigViewItem(VBA.vbNullString, "Source.Main.SortOrder", "order=asc")
@@ -417,7 +417,7 @@ Public Function m_TEST_BuildDemoConfigItemsVariantB() As Collection
     result.Add private_CreateConfigViewItem("rx", "Sheet.StateMain.Key.TransferDate", "{Main-{dd}.{mm}.{yyyy}}.DateTransfer")
     result.Add private_CreateConfigViewItem("#", "Sheet.StateMain.Key.DocName", "{Main-{dd}.{mm}.{yyyy}}.DocName")
 
-    Set m_TEST_BuildDemoConfigItemsVariantB = result
+    Set m_TEST_BuildDemoConfigItemsVariantB = result.AsCollection
 End Function
 
 
@@ -467,11 +467,11 @@ Public Function m_TEST_BuildDemoTableViewItems( _
     Optional ByVal includeRowBanners As Boolean = False _
 ) As Collection
     Dim sourceTables As Collection
-    Dim result As Collection
+    Dim result As list__obj_TableViewItem
     Dim tableObj As Variant
     Dim tableModel As obj_TableDynamic
     Dim tableView As obj_TableViewItem
-    Dim rowViewRaw As Variant
+    Dim rowViews As list__obj_RowViewItem
     Dim rowView As obj_RowViewItem
     Dim tableIndex As Long
     Dim rowIndex As Long
@@ -481,7 +481,7 @@ Public Function m_TEST_BuildDemoTableViewItems( _
     Set sourceTables = m_TEST_BuildDemoTableItems()
     If sourceTables Is Nothing Then Exit Function
 
-    Set result = New Collection
+    Set result = New list__obj_TableViewItem
     Randomize
 
     tableIndex = 0
@@ -511,15 +511,9 @@ Public Function m_TEST_BuildDemoTableViewItems( _
         End If
 
         rowIndex = 0
-        For Each rowViewRaw In tableView.RowItems
+        Set rowViews = tableView.RowItems
+        For Each rowView In rowViews
             rowIndex = rowIndex + 1
-
-            If VBA.LCase$(VBA.TypeName(rowViewRaw)) <> "obj_rowviewitem" Then
-                VBA.MsgBox "PrototypeNew: expected obj_RowViewItem in table view row items.", VBA.vbExclamation
-                Exit Function
-            End If
-
-            Set rowView = rowViewRaw
 
             If includeRowBanners Then
                 If rowBannerTargetIndex > 0 And rowIndex = rowBannerTargetIndex Then
@@ -534,12 +528,12 @@ Public Function m_TEST_BuildDemoTableViewItems( _
                     rowView.SpacerRowsAfter = 1
                 End If
             End If
-        Next rowViewRaw
+        Next rowView
 
         result.Add tableView
     Next tableObj
 
-    Set m_TEST_BuildDemoTableViewItems = result
+    Set m_TEST_BuildDemoTableViewItems = result.AsCollection
 End Function
 
 
@@ -548,18 +542,18 @@ Public Function m_TEST_BuildDemoSingleTableViewItems( _
     Optional ByVal includeRowBanners As Boolean = False _
 ) As Collection
     Dim sourceTables As Collection
-    Dim result As Collection
+    Dim result As list__obj_TableViewItem
     Dim tableObj As Variant
     Dim tableModel As obj_TableDynamic
     Dim tableView As obj_TableViewItem
-    Dim rowViewRaw As Variant
+    Dim rowViews As list__obj_RowViewItem
     Dim rowView As obj_RowViewItem
     Dim rowIndex As Long
 
     Set sourceTables = m_TEST_BuildDemoSingleTableItems()
     If sourceTables Is Nothing Then Exit Function
 
-    Set result = New Collection
+    Set result = New list__obj_TableViewItem
 
     For Each tableObj In sourceTables
         If Not private_TryResolveDemoTableDynamic(tableObj, tableModel) Then Exit Function
@@ -575,15 +569,9 @@ Public Function m_TEST_BuildDemoSingleTableViewItems( _
         End If
 
         rowIndex = 0
-        For Each rowViewRaw In tableView.RowItems
+        Set rowViews = tableView.RowItems
+        For Each rowView In rowViews
             rowIndex = rowIndex + 1
-
-            If VBA.LCase$(VBA.TypeName(rowViewRaw)) <> "obj_rowviewitem" Then
-                VBA.MsgBox "PrototypeNew: expected obj_RowViewItem in single table view row items.", VBA.vbExclamation
-                Exit Function
-            End If
-
-            Set rowView = rowViewRaw
 
             If includeRowBanners Then
                 If rowIndex = 1 Then
@@ -594,12 +582,12 @@ Public Function m_TEST_BuildDemoSingleTableViewItems( _
                         2)
                 End If
             End If
-        Next rowViewRaw
+        Next rowView
 
         result.Add tableView
     Next tableObj
 
-    Set m_TEST_BuildDemoSingleTableViewItems = result
+    Set m_TEST_BuildDemoSingleTableViewItems = result.AsCollection
 End Function
 
 

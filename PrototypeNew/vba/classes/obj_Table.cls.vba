@@ -6,13 +6,13 @@ Attribute VB_Name = "obj_Table"
 Option Explicit
 
 Private m_SectionTitle As String
-Private m_Columns As Collection
-Private m_Rows As Collection
+Private m_Columns As list__obj_Column
+Private m_Rows As list__obj_Row
 Private m_IsInitialized As Boolean
 
 Private Sub Class_Initialize()
-    Set m_Columns = New Collection
-    Set m_Rows = New Collection
+    Set m_Columns = New list__obj_Column
+    Set m_Rows = New list__obj_Row
 End Sub
 
 ' //
@@ -32,8 +32,8 @@ Public Function Init(ByVal rowCount As Long, ByVal columnCount As Long) As Boole
         Exit Function
     End If
 
-    Set m_Columns = New Collection
-    Set m_Rows = New Collection
+    Set m_Columns = New list__obj_Column
+    Set m_Rows = New list__obj_Row
 
     For i = 1 To columnCount
         Set newColumn = New obj_Column
@@ -72,11 +72,11 @@ Public Property Get RowCount() As Long
     RowCount = m_Rows.Count
 End Property
 
-Public Property Get Columns() As Collection
+Public Property Get Columns() As list__obj_Column
     Set Columns = m_Columns
 End Property
 
-Public Property Get Rows() As Collection
+Public Property Get Rows() As list__obj_Row
     Set Rows = m_Rows
 End Property
 
@@ -86,7 +86,7 @@ Public Property Get HeaderText() As String
     Dim joined As String
 
     For i = 1 To m_Columns.Count
-        Set colObj = m_Columns(i)
+        Set colObj = m_Columns.Item(i)
         If i > 1 Then joined = joined & " | "
         joined = joined & colObj.Name
     Next i
@@ -110,7 +110,7 @@ Public Function SetColumn(ByVal columnIndex As Long, ByVal tableColumn As obj_Co
         Exit Function
     End If
 
-    Set targetColumn = m_Columns(columnIndex)
+    Set targetColumn = m_Columns.Item(columnIndex)
     targetColumn.Name = tableColumn.Name
     If VBA.Len(targetColumn.Name) = 0 Then targetColumn.Name = "Col" & VBA.CStr(columnIndex)
     targetColumn.Position = columnIndex
@@ -135,7 +135,7 @@ Public Function SetRow(ByVal rowIndex As Long, ByVal tableRow As obj_Row) As Boo
         Exit Function
     End If
 
-    Set targetRow = m_Rows(rowIndex)
+    Set targetRow = m_Rows.Item(rowIndex)
 
     For i = 1 To m_Columns.Count
         targetRow.SetCell i, tableRow.GetCell(i)
@@ -160,7 +160,7 @@ Public Function SetCell(ByVal rowIndex As Long, ByVal columnIndex As Long, ByVal
         Exit Function
     End If
 
-    Set targetRow = m_Rows(rowIndex)
+    Set targetRow = m_Rows.Item(rowIndex)
     SetCell = targetRow.SetCell(columnIndex, value)
 End Function
 
