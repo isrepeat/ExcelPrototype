@@ -2,27 +2,27 @@ VERSION 1.0 CLASS
 BEGIN
   MultiUse = -1  'True
 END
-Attribute VB_Name = "obj_ConfigViewItem"
+Attribute VB_Name = "obj_ConfigEntryViewItem"
 Option Explicit
 
-Private m_Model As obj_Config
+Private m_Model As obj_ConfigEntry
 Private m_Presentation As obj_ViewPresentation
 
 Private Sub Class_Initialize()
-    Set m_Model = New obj_Config
+    Set m_Model = New obj_ConfigEntry
     Set m_Presentation = New obj_ViewPresentation
 End Sub
 
 ' //
 ' // API
 ' //
-Public Property Get Model() As obj_Config
+Public Property Get Model() As obj_ConfigEntry
     Set Model = m_Model
 End Property
 
-Public Property Set Model(ByVal value As obj_Config)
+Public Property Set Model(ByVal value As obj_ConfigEntry)
     If value Is Nothing Then
-        Set m_Model = New obj_Config
+        Set m_Model = New obj_ConfigEntry
     Else
         Set m_Model = value
     End If

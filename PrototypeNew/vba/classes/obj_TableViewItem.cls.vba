@@ -16,6 +16,7 @@ Private Sub Class_Initialize()
     Set m_Presentation = New obj_ViewPresentation
     Set m_Banner = Nothing
     Set m_RowItems = New Collection
+    Call private_TrySyncRowItemsFromModel()
 End Sub
 
 Public Property Get Model() As obj_TableDynamic
@@ -27,6 +28,10 @@ Public Property Set Model(ByVal value As obj_TableDynamic)
         Set m_Model = New obj_TableDynamic
     Else
         Set m_Model = value
+    End If
+
+    If Not private_TrySyncRowItemsFromModel() Then
+        Set m_RowItems = New Collection
     End If
 End Property
 
@@ -130,9 +135,55 @@ Public Function HasBanner() As Boolean
     HasBanner = m_Banner.IsVisible()
 End Function
 
+Public Function TryResyncRowItemsFromModel() As Boolean
+    TryResyncRowItemsFromModel = private_TrySyncRowItemsFromModel()
+End Function
+
 ' //
 ' // Internal
 ' //
+Private Function private_TrySyncRowItemsFromModel() As Boolean
+    Dim syncedRows As Collection
+    Dim sourceRows As Collection
+    Dim rowRaw As Variant
+    Dim rowModel As obj_Row
+    Dim rowView As obj_RowViewItem
+
+    Set syncedRows = New Collection
+    If m_Model Is Nothing Then
+        Set m_RowItems = syncedRows
+        private_TrySyncRowItemsFromModel = True
+        Exit Function
+    End If
+
+    Set sourceRows = m_Model.Rows
+    If sourceRows Is Nothing Then
+        Set m_RowItems = syncedRows
+        private_TrySyncRowItemsFromModel = True
+        Exit Function
+    End If
+
+    For Each rowRaw In sourceRows
+        If Not VBA.IsObject(rowRaw) Then
+            VBA.MsgBox "TableViewItem: model rows must contain obj_Row objects.", VBA.vbExclamation
+            Exit Function
+        End If
+        If VBA.LCase$(VBA.TypeName(rowRaw)) <> "obj_row" Then
+            VBA.MsgBox "TableViewItem: unsupported row type '" & VBA.TypeName(rowRaw) & "'. Expected obj_Row.", VBA.vbExclamation
+            Exit Function
+        End If
+
+        Set rowModel = rowRaw
+        Set rowView = New obj_RowViewItem
+        Set rowView.Row = rowModel
+        rowView.RowVisible = True
+        syncedRows.Add rowView
+    Next rowRaw
+
+    Set m_RowItems = syncedRows
+    private_TrySyncRowItemsFromModel = True
+End Function
+
 Private Function private_IsVisibleResolved() As Boolean
     If m_Presentation Is Nothing Then
         private_IsVisibleResolved = True

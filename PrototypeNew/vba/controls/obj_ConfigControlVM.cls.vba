@@ -13,7 +13,7 @@ Private m_ControlName As String
 Private m_ItemsSourceRaw As String
 Private m_TableNameRaw As String
 Private m_Layout As obj_ControlLayout
-Private m_ConfigItems As Collection
+Private m_ViewItem As obj_ConfigTableViewItem
 Private m_IsConfigured As Boolean
 
 ' //
@@ -21,10 +21,12 @@ Private m_IsConfigured As Boolean
 ' //
 Private Sub obj_IControl_Configure(ByVal page As obj_PageBase, ByVal controlNode As Object)
     Dim currentPage As obj_PageBase
+    Dim resolvedItems As Collection
+    Dim configTableModel As obj_ConfigTable
 
     m_IsConfigured = False
     Set m_Layout = Nothing
-    Set m_ConfigItems = Nothing
+    Set m_ViewItem = Nothing
     Set m_Base = Nothing
 
     Set m_Base = New obj_ControlBase
@@ -48,7 +50,11 @@ Private Sub obj_IControl_Configure(ByVal page As obj_PageBase, ByVal controlNode
 
     Set currentPage = m_Base.PageBase
     If currentPage Is Nothing Then Exit Sub
-    If Not ex_RuntimeSourceResolver.m_TryResolveItemsSource(currentPage.RuntimeSources, m_ItemsSourceRaw, m_ConfigItems) Then Exit Sub
+    If Not ex_RuntimeSourceResolver.m_TryResolveItemsSource(currentPage.RuntimeSources, m_ItemsSourceRaw, resolvedItems) Then Exit Sub
+    If Not private_TryBuildConfigTable(resolvedItems, configTableModel) Then Exit Sub
+
+    Set m_ViewItem = New obj_ConfigTableViewItem
+    Set m_ViewItem.Model = configTableModel
 
     m_IsConfigured = True
 End Sub
@@ -64,7 +70,7 @@ Private Sub obj_IControl_Render()
     Dim idx As Long
     Dim rowOut As Long
     Dim configItemRaw As Variant
-    Dim configView As obj_ConfigViewItem
+    Dim cfgItem As obj_ConfigEntry
     Dim attrToken As String
     Dim absRow As Long
     Dim tableObj As ListObject
@@ -91,16 +97,17 @@ Private Sub obj_IControl_Render()
         Exit Sub
     End If
 
-    If m_ConfigItems Is Nothing Then
-        VBA.MsgBox "Config: itemsSource is not resolved for control '" & m_ControlName & "'.", VBA.vbExclamation
+    If m_ViewItem Is Nothing Then
+        VBA.MsgBox "Config: view item is not configured for control '" & m_ControlName & "'.", VBA.vbExclamation
         Exit Sub
     End If
+    If Not m_ViewItem.TryResyncEntryItemsFromModel() Then Exit Sub
 
     Set hashRows = New Collection
     Set rxRows = New Collection
 
     maxRows = m_Layout.RowEnd - m_Layout.RowStart + 1
-    dataRows = m_ConfigItems.Count
+    dataRows = m_ViewItem.EntryItems.Count
     rowsToWrite = 1 + dataRows
     If rowsToWrite < 2 Then rowsToWrite = 2
     If rowsToWrite > maxRows Then rowsToWrite = maxRows
@@ -111,28 +118,28 @@ Private Sub obj_IControl_Render()
     valueBlock(1, 3) = "Value"
 
     idx = 0
-    For Each configItemRaw In m_ConfigItems
+    For Each configItemRaw In m_ViewItem.EntryItems
         idx = idx + 1
         rowOut = idx + 1
         If rowOut > rowsToWrite Then Exit For
 
-        Set configView = Nothing
-        If Not private_TryResolveConfigViewItem(configItemRaw, configView) Then Exit Sub
-        If configView Is Nothing Then GoTo ContinueItem
+        Set cfgItem = Nothing
+        If Not private_TryResolveConfigItem(configItemRaw, cfgItem) Then Exit Sub
+        If cfgItem Is Nothing Then GoTo ContinueItem
 
-        valueBlock(rowOut, 1) = configView.Attr
-        valueBlock(rowOut, 2) = configView.Key
-        valueBlock(rowOut, 3) = configView.Value
+        valueBlock(rowOut, 1) = cfgItem.Attr
+        valueBlock(rowOut, 2) = cfgItem.Key
+        valueBlock(rowOut, 3) = cfgItem.Value
 
         absRow = m_Layout.RowStart + rowOut - 1
-        attrToken = VBA.LCase$(VBA.Trim$(configView.Attr))
+        attrToken = VBA.LCase$(VBA.Trim$(cfgItem.Attr))
         Select Case attrToken
             Case "#"
-                private_HandleAttrHash configView
+                private_HandleAttrHash cfgItem
                 hashRows.Add absRow
 
             Case "rx"
-                private_HandleAttrRx configView
+                private_HandleAttrRx cfgItem
                 rxRows.Add absRow
         End Select
 
@@ -187,13 +194,76 @@ End Function
 ' //
 ' // API
 ' //
-' (No public API yet.)
+
 '
 ' //
 ' // Internal
 ' //
-Private Function private_TryResolveConfigViewItem(ByVal rawItem As Variant, ByRef outView As obj_ConfigViewItem) As Boolean
-    Dim cfgModel As obj_Config
+Private Function private_TryBuildConfigTable(ByVal sourceItems As Collection, ByRef outTable As obj_ConfigTable) As Boolean
+    Dim sourceItem As Variant
+    Dim sourceTypeName As String
+    Dim cfgItem As obj_ConfigEntry
+    Dim cfgTableView As obj_ConfigTableViewItem
+
+    Set outTable = Nothing
+    If sourceItems Is Nothing Then
+        VBA.MsgBox "Config: itemsSource is not resolved for control '" & m_ControlName & "'.", VBA.vbExclamation
+        Exit Function
+    End If
+
+    Set outTable = New obj_ConfigTable
+
+    For Each sourceItem In sourceItems
+        sourceTypeName = VBA.LCase$(VBA.TypeName(sourceItem))
+        Select Case sourceTypeName
+            Case "obj_configtable"
+                If Not private_TryAppendConfigTable(outTable, sourceItem) Then Exit Function
+                GoTo ContinueSourceItem
+
+            Case "obj_configtableviewitem"
+                Set cfgTableView = sourceItem
+                If cfgTableView Is Nothing Then
+                    VBA.MsgBox "Config: itemsSource contains empty obj_ConfigTableViewItem.", VBA.vbExclamation
+                    Exit Function
+                End If
+                If Not private_TryAppendConfigTable(outTable, cfgTableView.Model) Then Exit Function
+                GoTo ContinueSourceItem
+        End Select
+
+        Set cfgItem = Nothing
+        If Not private_TryResolveConfigItem(sourceItem, cfgItem) Then Exit Function
+        If cfgItem Is Nothing Then GoTo ContinueSourceItem
+        If Not outTable.AddItem(cfgItem) Then Exit Function
+
+ContinueSourceItem:
+    Next sourceItem
+
+    private_TryBuildConfigTable = True
+End Function
+
+Private Function private_TryAppendConfigTable(ByVal targetTable As obj_ConfigTable, ByVal sourceTable As obj_ConfigTable) As Boolean
+    Dim sourceItem As Variant
+    Dim cfgItem As obj_ConfigEntry
+
+    If targetTable Is Nothing Then Exit Function
+    If sourceTable Is Nothing Then
+        VBA.MsgBox "Config: source config table is not specified for control '" & m_ControlName & "'.", VBA.vbExclamation
+        Exit Function
+    End If
+
+    For Each sourceItem In sourceTable.Items
+        Set cfgItem = Nothing
+        If Not private_TryResolveConfigItem(sourceItem, cfgItem) Then Exit Function
+        If cfgItem Is Nothing Then GoTo ContinueTableItem
+        If Not targetTable.AddItem(cfgItem) Then Exit Function
+ContinueTableItem:
+    Next sourceItem
+
+    private_TryAppendConfigTable = True
+End Function
+
+Private Function private_TryResolveConfigItem(ByVal rawItem As Variant, ByRef outItem As obj_ConfigEntry) As Boolean
+    Dim cfgView As obj_ConfigEntryViewItem
 
     If Not VBA.IsObject(rawItem) Then
         VBA.MsgBox "Config: itemsSource entry must be an object.", VBA.vbExclamation
@@ -201,29 +271,28 @@ Private Function private_TryResolveConfigViewItem(ByVal rawItem As Variant, ByRe
     End If
 
     Select Case VBA.LCase$(VBA.TypeName(rawItem))
-        Case "obj_configviewitem"
-            Set outView = rawItem
-            private_TryResolveConfigViewItem = True
+        Case "obj_configentry"
+            Set outItem = rawItem
+            private_TryResolveConfigItem = True
 
-        Case "obj_config"
-            Set cfgModel = rawItem
-            Set outView = New obj_ConfigViewItem
-            Set outView.Model = cfgModel
-            private_TryResolveConfigViewItem = True
+        Case "obj_configentryviewitem"
+            Set cfgView = rawItem
+            Set outItem = cfgView.Model
+            private_TryResolveConfigItem = True
 
         Case Else
-            VBA.MsgBox "Config: unsupported itemsSource type '" & VBA.TypeName(rawItem) & "'. Expected obj_ConfigViewItem or obj_Config.", VBA.vbExclamation
+            VBA.MsgBox "Config: unsupported itemsSource type '" & VBA.TypeName(rawItem) & "'. Expected obj_ConfigEntry, obj_ConfigEntryViewItem, obj_ConfigTable or obj_ConfigTableViewItem.", VBA.vbExclamation
     End Select
 End Function
 
-Private Sub private_HandleAttrHash(ByVal configView As obj_ConfigViewItem)
-    If configView Is Nothing Then Exit Sub
+Private Sub private_HandleAttrHash(ByVal cfgItem As obj_ConfigEntry)
+    If cfgItem Is Nothing Then Exit Sub
     ' Placeholder for special '#' semantics.
     ' Current behavior: the row is registered into attrhash part for style rules.
 End Sub
 
-Private Sub private_HandleAttrRx(ByVal configView As obj_ConfigViewItem)
-    If configView Is Nothing Then Exit Sub
+Private Sub private_HandleAttrRx(ByVal cfgItem As obj_ConfigEntry)
+    If cfgItem Is Nothing Then Exit Sub
     ' Placeholder for special 'rx' semantics.
     ' Current behavior: the row is registered into attrrx part for style rules.
 End Sub
