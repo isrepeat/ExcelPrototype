@@ -272,7 +272,7 @@ Private Function private_TryEstimateTableOutputRows( _
     ByRef outRows As Long _
 ) As Boolean
     Dim tableModel As obj_TableDynamic
-    Dim rowItems As Collection
+    Dim rowItems As list__obj_RowViewItem
     Dim rowItemRaw As Variant
     Dim rowView As obj_RowViewItem
 
@@ -343,10 +343,10 @@ Private Function private_TryWriteTableItemToBuffer( _
     ByRef ioCurrentOutputRow As Long _
 ) As Boolean
     Dim tableModel As obj_TableDynamic
-    Dim rowItems As Collection
+    Dim rowItems As list__obj_RowViewItem
     Dim rowItemRaw As Variant
     Dim rowView As obj_RowViewItem
-    Dim tableRows As Collection
+    Dim tableRows As list__obj_Row
     Dim rowRaw As Variant
     Dim rowModel As obj_Row
     Dim colOffset As Long
@@ -929,8 +929,8 @@ End Function
 
 Private Function private_ConvertFixedTableToDynamic(ByVal fixedTable As obj_Table) As obj_TableDynamic
     Dim dynamicTable As obj_TableDynamic
-    Dim sourceColumns As Collection
-    Dim sourceRows As Collection
+    Dim sourceColumns As list__obj_Column
+    Dim sourceRows As list__obj_Row
     Dim sourceColumn As obj_Column
     Dim sourceRow As obj_Row
     Dim targetColumn As obj_Column

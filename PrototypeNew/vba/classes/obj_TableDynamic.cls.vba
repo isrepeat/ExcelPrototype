@@ -6,12 +6,12 @@ Attribute VB_Name = "obj_TableDynamic"
 Option Explicit
 
 Private m_SectionTitle As String
-Private m_Columns As Collection
-Private m_Rows As Collection
+Private m_Columns As list__obj_Column
+Private m_Rows As list__obj_Row
 
 Private Sub Class_Initialize()
-    Set m_Columns = New Collection
-    Set m_Rows = New Collection
+    Set m_Columns = New list__obj_Column
+    Set m_Rows = New list__obj_Row
 End Sub
 
 ' //
@@ -33,11 +33,11 @@ Public Property Get RowCount() As Long
     RowCount = m_Rows.Count
 End Property
 
-Public Property Get Columns() As Collection
+Public Property Get Columns() As list__obj_Column
     Set Columns = m_Columns
 End Property
 
-Public Property Get Rows() As Collection
+Public Property Get Rows() As list__obj_Row
     Set Rows = m_Rows
 End Property
 
@@ -47,7 +47,7 @@ Public Property Get HeaderText() As String
     Dim joined As String
 
     For i = 1 To m_Columns.Count
-        Set colObj = m_Columns(i)
+        Set colObj = m_Columns.Item(i)
         If i > 1 Then joined = joined & " | "
         joined = joined & colObj.Name
     Next i
@@ -71,8 +71,7 @@ Public Function AddColumn(ByVal tableColumn As obj_Column) As Boolean
         newColumn.Name = "Col" & VBA.CStr(newColumn.Position)
     End If
 
-    m_Columns.Add newColumn
-    AddColumn = True
+    AddColumn = m_Columns.Add(newColumn)
 End Function
 
 Public Function AddRow(ByVal tableRow As obj_Row) As Boolean
@@ -88,8 +87,7 @@ Public Function AddRow(ByVal tableRow As obj_Row) As Boolean
         If Not private_EnsureColumns(requiredCols) Then Exit Function
     End If
 
-    m_Rows.Add tableRow
-    AddRow = True
+    AddRow = m_Rows.Add(tableRow)
 End Function
 
 ' //

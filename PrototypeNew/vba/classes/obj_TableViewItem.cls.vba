@@ -9,13 +9,13 @@ Implements obj_IViewItem
 Private m_Model As obj_TableDynamic
 Private m_Presentation As obj_ViewPresentation
 Private m_Banner As obj_BannerViewItem
-Private m_RowItems As Collection
+Private m_RowItems As list__obj_RowViewItem
 
 Private Sub Class_Initialize()
     Set m_Model = New obj_TableDynamic
     Set m_Presentation = New obj_ViewPresentation
     Set m_Banner = Nothing
-    Set m_RowItems = New Collection
+    Set m_RowItems = New list__obj_RowViewItem
     Call private_TrySyncRowItemsFromModel()
 End Sub
 
@@ -31,7 +31,7 @@ Public Property Set Model(ByVal value As obj_TableDynamic)
     End If
 
     If Not private_TrySyncRowItemsFromModel() Then
-        Set m_RowItems = New Collection
+        Set m_RowItems = New list__obj_RowViewItem
     End If
 End Property
 
@@ -55,13 +55,13 @@ Public Property Set Banner(ByVal value As obj_BannerViewItem)
     Set m_Banner = value
 End Property
 
-Public Property Get RowItems() As Collection
+Public Property Get RowItems() As list__obj_RowViewItem
     Set RowItems = m_RowItems
 End Property
 
-Public Property Set RowItems(ByVal value As Collection)
+Public Property Set RowItems(ByVal value As list__obj_RowViewItem)
     If value Is Nothing Then
-        Set m_RowItems = New Collection
+        Set m_RowItems = New list__obj_RowViewItem
     Else
         Set m_RowItems = value
     End If
@@ -100,7 +100,7 @@ Public Property Get HeaderText() As String
     HeaderText = m_Model.HeaderText
 End Property
 
-Public Property Get Rows() As Collection
+Public Property Get Rows() As list__obj_Row
     If m_Model Is Nothing Then Exit Property
     Set Rows = m_Model.Rows
 End Property
@@ -143,13 +143,13 @@ End Function
 ' // Internal
 ' //
 Private Function private_TrySyncRowItemsFromModel() As Boolean
-    Dim syncedRows As Collection
-    Dim sourceRows As Collection
-    Dim rowRaw As Variant
     Dim rowModel As obj_Row
-    Dim rowView As obj_RowViewItem
+    Dim sourceRows As list__obj_Row
 
-    Set syncedRows = New Collection
+    Dim rowView As obj_RowViewItem
+    Dim syncedRows As list__obj_RowViewItem
+
+    Set syncedRows = New list__obj_RowViewItem
     If m_Model Is Nothing Then
         Set m_RowItems = syncedRows
         private_TrySyncRowItemsFromModel = True
@@ -163,22 +163,12 @@ Private Function private_TrySyncRowItemsFromModel() As Boolean
         Exit Function
     End If
 
-    For Each rowRaw In sourceRows
-        If Not VBA.IsObject(rowRaw) Then
-            VBA.MsgBox "TableViewItem: model rows must contain obj_Row objects.", VBA.vbExclamation
-            Exit Function
-        End If
-        If VBA.LCase$(VBA.TypeName(rowRaw)) <> "obj_row" Then
-            VBA.MsgBox "TableViewItem: unsupported row type '" & VBA.TypeName(rowRaw) & "'. Expected obj_Row.", VBA.vbExclamation
-            Exit Function
-        End If
-
-        Set rowModel = rowRaw
+    For Each rowModel In sourceRows
         Set rowView = New obj_RowViewItem
         Set rowView.Row = rowModel
         rowView.RowVisible = True
         syncedRows.Add rowView
-    Next rowRaw
+    Next rowModel
 
     Set m_RowItems = syncedRows
     private_TrySyncRowItemsFromModel = True

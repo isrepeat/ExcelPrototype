@@ -8,12 +8,12 @@ Implements obj_IViewItem
 
 Private m_Model As obj_ConfigTable
 Private m_Presentation As obj_ViewPresentation
-Private m_EntryItems As Collection
+Private m_EntryItems As list__obj_ConfigEntryViewItem
 
 Private Sub Class_Initialize()
     Set m_Model = New obj_ConfigTable
     Set m_Presentation = New obj_ViewPresentation
-    Set m_EntryItems = New Collection
+    Set m_EntryItems = New list__obj_ConfigEntryViewItem
     Call private_TrySyncEntryItemsFromModel()
 End Sub
 
@@ -29,7 +29,7 @@ Public Property Set Model(ByVal value As obj_ConfigTable)
     End If
 
     If Not private_TrySyncEntryItemsFromModel() Then
-        Set m_EntryItems = New Collection
+        Set m_EntryItems = New list__obj_ConfigEntryViewItem
     End If
 End Property
 
@@ -45,13 +45,13 @@ Public Property Set Presentation(ByVal value As obj_ViewPresentation)
     End If
 End Property
 
-Public Property Get EntryItems() As Collection
+Public Property Get EntryItems() As list__obj_ConfigEntryViewItem
     Set EntryItems = m_EntryItems
 End Property
 
-Public Property Set EntryItems(ByVal value As Collection)
+Public Property Set EntryItems(ByVal value As list__obj_ConfigEntryViewItem)
     If value Is Nothing Then
-        Set m_EntryItems = New Collection
+        Set m_EntryItems = New list__obj_ConfigEntryViewItem
     Else
         Set m_EntryItems = value
     End If
@@ -103,13 +103,12 @@ End Function
 ' // Internal
 ' //
 Private Function private_TrySyncEntryItemsFromModel() As Boolean
-    Dim syncedEntries As Collection
-    Dim sourceItems As Collection
-    Dim itemRaw As Variant
+    Dim syncedEntries As list__obj_ConfigEntryViewItem
+    Dim sourceItems As list__obj_ConfigEntry
     Dim entryModel As obj_ConfigEntry
     Dim entryView As obj_ConfigEntryViewItem
 
-    Set syncedEntries = New Collection
+    Set syncedEntries = New list__obj_ConfigEntryViewItem
     If m_Model Is Nothing Then
         Set m_EntryItems = syncedEntries
         private_TrySyncEntryItemsFromModel = True
@@ -123,21 +122,11 @@ Private Function private_TrySyncEntryItemsFromModel() As Boolean
         Exit Function
     End If
 
-    For Each itemRaw In sourceItems
-        If Not VBA.IsObject(itemRaw) Then
-            VBA.MsgBox "ConfigTableViewItem: model items must contain obj_ConfigEntry objects.", VBA.vbExclamation
-            Exit Function
-        End If
-        If VBA.LCase$(VBA.TypeName(itemRaw)) <> "obj_configentry" Then
-            VBA.MsgBox "ConfigTableViewItem: unsupported row type '" & VBA.TypeName(itemRaw) & "'. Expected obj_ConfigEntry.", VBA.vbExclamation
-            Exit Function
-        End If
-
-        Set entryModel = itemRaw
+    For Each entryModel In sourceItems
         Set entryView = New obj_ConfigEntryViewItem
         Set entryView.Model = entryModel
         syncedEntries.Add entryView
-    Next itemRaw
+    Next entryModel
 
     Set m_EntryItems = syncedEntries
     private_TrySyncEntryItemsFromModel = True
