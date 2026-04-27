@@ -28,7 +28,7 @@ Public Function TryReadFromNode( _
     Optional ByVal styleAttrName As String = "style" _
 ) As Boolean
     If controlNode Is Nothing Then
-        VBA.MsgBox controlTypeLabel & ": control node is not specified.", VBA.vbExclamation
+        ex_Core.m_Diagnostic_LogError controlTypeLabel & ": control node is not specified."
         Exit Function
     End If
 
@@ -36,7 +36,7 @@ Public Function TryReadFromNode( _
 
     m_LayoutSheetName = VBA.Trim$(VBA.CStr(ex_XmlCore.m_NodeAttrText(controlNode, "__layoutSheetName")))
     If VBA.Len(m_LayoutSheetName) = 0 Then
-        VBA.MsgBox controlTypeLabel & ": runtime layout sheet is missing for control '" & controlName & "'.", VBA.vbExclamation
+        ex_Core.m_Diagnostic_LogError controlTypeLabel & ": runtime layout sheet is missing for control '" & controlName & "'."
         Exit Function
     End If
 
@@ -70,7 +70,7 @@ Public Function TryReadFromRuntimeValues( _
     m_ColEnd = colEnd
 
     If VBA.Len(m_LayoutSheetName) = 0 Then
-        VBA.MsgBox controlTypeLabel & ": runtime layout sheet is missing for control '" & controlName & "'.", VBA.vbExclamation
+        ex_Core.m_Diagnostic_LogError controlTypeLabel & ": runtime layout sheet is missing for control '" & controlName & "'."
         Exit Function
     End If
 
@@ -107,15 +107,15 @@ End Property
 ' //
 Private Function private_TryValidateLayoutBounds(ByVal controlTypeLabel As String, ByVal controlName As String) As Boolean
     If m_RowStart <= 0 Or m_ColStart <= 0 Then
-        VBA.MsgBox controlTypeLabel & ": invalid row/column start for control '" & controlName & "'.", VBA.vbExclamation
+        ex_Core.m_Diagnostic_LogError controlTypeLabel & ": invalid row/column start for control '" & controlName & "'."
         Exit Function
     End If
     If m_RowEnd < m_RowStart Then
-        VBA.MsgBox controlTypeLabel & ": invalid spanRows range for control '" & controlName & "'.", VBA.vbExclamation
+        ex_Core.m_Diagnostic_LogError controlTypeLabel & ": invalid spanRows range for control '" & controlName & "'."
         Exit Function
     End If
     If m_ColEnd < m_ColStart Then
-        VBA.MsgBox controlTypeLabel & ": invalid spanCells range for control '" & controlName & "'.", VBA.vbExclamation
+        ex_Core.m_Diagnostic_LogError controlTypeLabel & ": invalid spanCells range for control '" & controlName & "'."
         Exit Function
     End If
 
@@ -133,11 +133,11 @@ Private Function private_TryReadLayoutLongAttr( _
 
     rawText = VBA.Trim$(VBA.CStr(ex_XmlCore.m_NodeAttrText(controlNode, attrName)))
     If VBA.Len(rawText) = 0 Then
-        VBA.MsgBox controlTypeLabel & ": runtime layout attribute '" & attrName & "' is missing for control '" & controlName & "'.", VBA.vbExclamation
+        ex_Core.m_Diagnostic_LogError controlTypeLabel & ": runtime layout attribute '" & attrName & "' is missing for control '" & controlName & "'."
         Exit Function
     End If
     If Not VBA.IsNumeric(rawText) Then
-        VBA.MsgBox controlTypeLabel & ": runtime layout attribute '" & attrName & "' must be numeric for control '" & controlName & "'.", VBA.vbExclamation
+        ex_Core.m_Diagnostic_LogError controlTypeLabel & ": runtime layout attribute '" & attrName & "' must be numeric for control '" & controlName & "'."
         Exit Function
     End If
 

@@ -28,13 +28,13 @@ Public Function m_TryResolveItemsSource( _
     Set outItems = Nothing
 
     If runtimeSources Is Nothing Then
-        VBA.MsgBox "PrototypeNew: runtime sources are not specified for itemsSource resolve.", VBA.vbExclamation
+        ex_Core.m_Diagnostic_LogError "PrototypeNew: runtime sources are not specified for itemsSource resolve."
         Exit Function
     End If
 
     rawSource = VBA.Trim$(rawSource)
     If VBA.Len(rawSource) = 0 Then
-        VBA.MsgBox "PrototypeNew: list itemsSource is required.", VBA.vbExclamation
+        ex_Core.m_Diagnostic_LogError "PrototypeNew: list itemsSource is required."
         Exit Function
     End If
 
@@ -44,20 +44,20 @@ Public Function m_TryResolveItemsSource( _
         ' itemsSource должен быть runtime source expression
         ' или Binding, который резолвится сразу в Collection.
         If Not private_IsBindingExpression(rawSource) Then
-            VBA.MsgBox "PrototypeNew: list itemsSource must use runtime source expression ({PageRuntimeSource='...'} / {GlobalRuntimeSource='...'}) or Binding that resolves to Collection.", VBA.vbExclamation
+            ex_Core.m_Diagnostic_LogError "PrototypeNew: list itemsSource must use runtime source expression ({PageRuntimeSource='...'} / {GlobalRuntimeSource='...'}) or Binding that resolves to Collection."
             Exit Function
         End If
 
         Set sourceMap = runtimeSources.ItemsSourceMap
         If sourceMap Is Nothing Then
-            VBA.MsgBox "PrototypeNew: page itemsSource map is not initialized.", VBA.vbExclamation
+            ex_Core.m_Diagnostic_LogError "PrototypeNew: page itemsSource map is not initialized."
             Exit Function
         End If
 
         If Not ex_BindingRuntime.m_TryResolveValueBinding(rawSource, sourceMap, resolvedValue) Then Exit Function
         If VBA.IsObject(resolvedValue) Then
             If VBA.TypeName(resolvedValue) <> "Collection" Then
-                VBA.MsgBox "PrototypeNew: list itemsSource must resolve to Collection.", VBA.vbExclamation
+                ex_Core.m_Diagnostic_LogError "PrototypeNew: list itemsSource must resolve to Collection."
                 Exit Function
             End If
 
@@ -66,7 +66,7 @@ Public Function m_TryResolveItemsSource( _
             Exit Function
         End If
 
-        VBA.MsgBox "PrototypeNew: list itemsSource Binding must resolve to Collection object.", VBA.vbExclamation
+        ex_Core.m_Diagnostic_LogError "PrototypeNew: list itemsSource Binding must resolve to Collection object."
         Exit Function
     End If
 
@@ -82,7 +82,7 @@ Public Function m_TryResolveItemsSource( _
             Exit Function
     End Select
 
-    VBA.MsgBox "PrototypeNew: unsupported itemsSource runtime source type.", VBA.vbExclamation
+    ex_Core.m_Diagnostic_LogError "PrototypeNew: unsupported itemsSource runtime source type."
 End Function
 
 
@@ -103,7 +103,7 @@ Public Function m_TryResolveObjectSource( _
     Set outObject = Nothing
 
     If runtimeSources Is Nothing Then
-        VBA.MsgBox "PrototypeNew: runtime sources are not specified for objectSource resolve.", VBA.vbExclamation
+        ex_Core.m_Diagnostic_LogError "PrototypeNew: runtime sources are not specified for objectSource resolve."
         Exit Function
     End If
 
@@ -113,7 +113,7 @@ Public Function m_TryResolveObjectSource( _
             m_TryResolveObjectSource = True
             Exit Function
         End If
-        VBA.MsgBox "PrototypeNew: itemControl objectSource is required.", VBA.vbExclamation
+        ex_Core.m_Diagnostic_LogError "PrototypeNew: itemControl objectSource is required."
         Exit Function
     End If
 
@@ -123,13 +123,13 @@ Public Function m_TryResolveObjectSource( _
         ' objectSource/dataContext должен быть runtime source expression
         ' или Binding, который резолвится сразу в Object.
         If Not private_IsBindingExpression(rawSource) Then
-            VBA.MsgBox "PrototypeNew: objectSource must use runtime source expression ({PageRuntimeSource='...'} / {GlobalRuntimeSource='...'}) or Binding that resolves to object.", VBA.vbExclamation
+            ex_Core.m_Diagnostic_LogError "PrototypeNew: objectSource must use runtime source expression ({PageRuntimeSource='...'} / {GlobalRuntimeSource='...'}) or Binding that resolves to object."
             Exit Function
         End If
 
         Set sourceMap = runtimeSources.ObjectSourceMap
         If sourceMap Is Nothing Then
-            VBA.MsgBox "PrototypeNew: page objectSource map is not initialized.", VBA.vbExclamation
+            ex_Core.m_Diagnostic_LogError "PrototypeNew: page objectSource map is not initialized."
             Exit Function
         End If
 
@@ -140,7 +140,7 @@ Public Function m_TryResolveObjectSource( _
             Exit Function
         End If
 
-        VBA.MsgBox "PrototypeNew: objectSource Binding must resolve to object.", VBA.vbExclamation
+        ex_Core.m_Diagnostic_LogError "PrototypeNew: objectSource Binding must resolve to object."
         Exit Function
     End If
 
@@ -168,7 +168,7 @@ Public Function m_TryResolveObjectSource( _
             Exit Function
     End Select
 
-    VBA.MsgBox "PrototypeNew: unsupported objectSource runtime source type.", VBA.vbExclamation
+    ex_Core.m_Diagnostic_LogError "PrototypeNew: unsupported objectSource runtime source type."
 End Function
 
 
@@ -232,9 +232,9 @@ Private Function private_TryExtractRuntimeSourceBinding( _
     argValue = VBA.Trim$(VBA.Mid$(expressionBody, eqPos + 1))
     If VBA.Len(argValue) = 0 Then
         If outRuntimeSourceBindingType = RUNTIME_SOURCE_BINDING_EXPRESSION_TYPE_PAGE Then
-            VBA.MsgBox "PrototypeNew: PageRuntimeSource key is empty.", VBA.vbExclamation
+            ex_Core.m_Diagnostic_LogError "PrototypeNew: PageRuntimeSource key is empty."
         Else
-            VBA.MsgBox "PrototypeNew: GlobalRuntimeSource key is empty.", VBA.vbExclamation
+            ex_Core.m_Diagnostic_LogError "PrototypeNew: GlobalRuntimeSource key is empty."
         End If
         Exit Function
     End If
@@ -247,9 +247,9 @@ Private Function private_TryExtractRuntimeSourceBinding( _
     outRuntimeSourceKey = VBA.Trim$(argValue)
     If VBA.Len(outRuntimeSourceKey) = 0 Then
         If outRuntimeSourceBindingType = RUNTIME_SOURCE_BINDING_EXPRESSION_TYPE_PAGE Then
-            VBA.MsgBox "PrototypeNew: PageRuntimeSource key is empty.", VBA.vbExclamation
+            ex_Core.m_Diagnostic_LogError "PrototypeNew: PageRuntimeSource key is empty."
         Else
-            VBA.MsgBox "PrototypeNew: GlobalRuntimeSource key is empty.", VBA.vbExclamation
+            ex_Core.m_Diagnostic_LogError "PrototypeNew: GlobalRuntimeSource key is empty."
         End If
         Exit Function
     End If

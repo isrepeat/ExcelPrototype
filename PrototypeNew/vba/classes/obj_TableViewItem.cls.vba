@@ -26,6 +26,7 @@ Public Function Initialize(ByVal value As obj_TableDynamic) As Boolean
     End If
 
     If Not private_TrySyncRowItemsFromModel() Then
+        ex_Core.m_Diagnostic_LogInfo "warning: TableViewItem.Initialize: sync row view items from model failed. Fallback to empty list."
         Set m_RowViewItems = New list__obj_RowViewItem
     End If
 
@@ -109,7 +110,7 @@ Private Function obj_IViewItem_Render( _
     ByVal colEnd As Long, _
     Optional ByVal viewName As String = "" _
 ) As Boolean
-    VBA.MsgBox "TableViewItem: direct render is not supported.", VBA.vbExclamation
+    ex_Core.m_Diagnostic_LogError "TableViewItem: direct render is not supported."
 End Function
 
 Private Function obj_IViewItem_IsVisible() As Boolean
@@ -142,6 +143,8 @@ Private Function private_TrySyncRowItemsFromModel() As Boolean
     Dim rowViewItem As obj_RowViewItem
     Dim rowViewItems As list__obj_RowViewItem
 
+    On Error GoTo EH_SYNC
+
     Set rowViewItems = New list__obj_RowViewItem
     If m_TableDynamic Is Nothing Then
         Set m_RowViewItems = rowViewItems
@@ -158,13 +161,20 @@ Private Function private_TrySyncRowItemsFromModel() As Boolean
 
     For Each sourceRow In sourceRows
         Set rowViewItem = New obj_RowViewItem
-        If Not rowViewItem.Initialize(sourceRow) Then Exit Function
+        If Not rowViewItem.Initialize(sourceRow) Then
+            ex_Core.m_Diagnostic_LogError "TableViewItem.private_TrySyncRowItemsFromModel: failed to initialize obj_RowViewItem from source row."
+            Exit Function
+        End If
         rowViewItem.RowVisible = True
         rowViewItems.Add rowViewItem
     Next sourceRow
 
     Set m_RowViewItems = rowViewItems
     private_TrySyncRowItemsFromModel = True
+    Exit Function
+
+EH_SYNC:
+    ex_Core.m_Diagnostic_LogError "TableViewItem.private_TrySyncRowItemsFromModel: unexpected error while syncing row view items: " & Err.Description
 End Function
 
 Private Function private_IsVisibleResolved() As Boolean

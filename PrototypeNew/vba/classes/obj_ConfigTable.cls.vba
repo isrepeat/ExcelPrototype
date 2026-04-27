@@ -28,7 +28,7 @@ End Sub
 
 Public Function AddItem(ByVal configEntry As obj_ConfigEntry) As Boolean
     If configEntry Is Nothing Then
-        VBA.MsgBox "ConfigTable: item is not specified.", VBA.vbExclamation
+        ex_Core.m_Diagnostic_LogError "ConfigTable: item is not specified."
         Exit Function
     End If
 
@@ -73,7 +73,7 @@ Private Function private_TryLoadFromXmlNodeInternal( _
     Dim configEntry As obj_ConfigEntry
 
     If profileNode Is Nothing Then
-        VBA.MsgBox "ConfigTable: profile XML node is not specified.", VBA.vbExclamation
+        ex_Core.m_Diagnostic_LogError "ConfigTable: profile XML node is not specified."
         Exit Function
     End If
 
@@ -89,7 +89,7 @@ Private Function private_TryLoadFromXmlNodeInternal( _
             Exit Function
         End If
 
-        VBA.MsgBox "ConfigTable: profile node does not contain config rows.", VBA.vbExclamation
+        ex_Core.m_Diagnostic_LogError "ConfigTable: profile node does not contain config rows."
         Exit Function
     End If
 
@@ -101,7 +101,7 @@ Private Function private_TryLoadFromXmlNodeInternal( _
             Exit Function
         End If
 
-        VBA.MsgBox "ConfigTable: profile node does not contain config rows.", VBA.vbExclamation
+        ex_Core.m_Diagnostic_LogError "ConfigTable: profile node does not contain config rows."
         Exit Function
     End If
 
@@ -132,7 +132,7 @@ Private Function private_TryCollectRowNodes(ByVal profileNode As Object, ByRef o
     Exit Function
 
 EH_XML:
-    VBA.MsgBox "ConfigTable: failed to collect row nodes from profile XML: " & Err.Description, VBA.vbExclamation
+    ex_Core.m_Diagnostic_LogError "ConfigTable: failed to collect row nodes from profile XML: " & Err.Description
 End Function
 
 Private Function private_TryResolveSingleNodeAsRow(ByVal profileNode As Object, ByRef outItem As obj_ConfigEntry) As Boolean
@@ -187,7 +187,7 @@ Private Function private_TryCreateItemFromNode(ByVal rowNode As Object, ByRef ou
 
     If VBA.Len(VBA.Trim$(keyText)) = 0 Then
         localName = private_ReadNodeLocalName(rowNode)
-        VBA.MsgBox "ConfigTable: row node '" & localName & "' must contain non-empty key.", VBA.vbExclamation
+        ex_Core.m_Diagnostic_LogError "ConfigTable: row node '" & localName & "' must contain non-empty key."
         Exit Function
     End If
 
@@ -237,7 +237,7 @@ Private Function private_TryReadChildNodeText( _
     Exit Function
 
 EH_XML:
-    VBA.MsgBox "ConfigTable: failed to read child node '" & childLocalName & "': " & Err.Description, VBA.vbExclamation
+    ex_Core.m_Diagnostic_LogError "ConfigTable: failed to read child node '" & childLocalName & "': " & Err.Description
 End Function
 
 Private Function private_ReadNodeLocalName(ByVal nodeObj As Object) As String

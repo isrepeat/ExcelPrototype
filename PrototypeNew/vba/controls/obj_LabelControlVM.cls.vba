@@ -47,20 +47,20 @@ Private Sub obj_IControl_Render()
     Dim pageBase As obj_PageBase
 
     If Not m_IsConfigured Then
-        VBA.MsgBox "Label: control '" & m_ControlName & "' is not configured.", VBA.vbExclamation
+        ex_Core.m_Diagnostic_LogError "Label: control '" & m_ControlName & "' is not configured."
         Exit Sub
     End If
 
     Set pageBase = Nothing
     If Not m_ControlBase Is Nothing Then Set pageBase = m_ControlBase.PageBase
     If pageBase Is Nothing Then
-        VBA.MsgBox "Label: page is not specified for control '" & m_ControlName & "'.", VBA.vbExclamation
+        ex_Core.m_Diagnostic_LogError "Label: page is not specified for control '" & m_ControlName & "'."
         Exit Sub
     End If
 
     Set ws = private_GetWorksheetByName(pageBase, m_ControlLayout.LayoutSheetName)
     If ws Is Nothing Then
-        VBA.MsgBox "Label: sheet '" & m_ControlLayout.LayoutSheetName & "' was not found for control '" & m_ControlName & "'.", VBA.vbExclamation
+        ex_Core.m_Diagnostic_LogError "Label: sheet '" & m_ControlLayout.LayoutSheetName & "' was not found for control '" & m_ControlName & "'."
         Exit Sub
     End If
 
@@ -76,7 +76,7 @@ Private Sub obj_IControl_Render()
     Exit Sub
 
 EH_RANGE:
-    VBA.MsgBox "Label: failed to resolve target range for control '" & m_ControlName & "'.", VBA.vbExclamation
+    ex_Core.m_Diagnostic_LogError "Label: failed to resolve target range for control '" & m_ControlName & "'."
 End Sub
 
 Private Function obj_IControl_SupportsAttribute(ByVal attrName As String) As Boolean
@@ -134,7 +134,7 @@ Private Function private_ApplyPresetStyle(ByVal targetRange As Range, ByVal styl
             targetRange.Borders.Weight = xlHairline
 
         Case Else
-            VBA.MsgBox "Label: unsupported style '" & styleName & "' for control '" & m_ControlName & "'.", VBA.vbExclamation
+            ex_Core.m_Diagnostic_LogError "Label: unsupported style '" & styleName & "' for control '" & m_ControlName & "'."
             Exit Function
     End Select
 

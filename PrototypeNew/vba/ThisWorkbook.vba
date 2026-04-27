@@ -16,7 +16,7 @@ Private Sub Workbook_Open()
 
     Exit Sub
 EH:
-    VBA.MsgBox "PrototypeNew: Workbook_Open failed: " & Err.Description, VBA.vbExclamation
+    ex_Core.m_Diagnostic_LogError "PrototypeNew: Workbook_Open failed: " & Err.Description
 End Sub
 
 Private Sub Workbook_BeforeClose(Cancel As Boolean)
@@ -79,7 +79,7 @@ Private Function private_ResetWorkbookAndCreateMainPage( _
     tmpSheetName = private_BuildUniqueWorksheetName(wb, "__startup_tmp__")
     If VBA.Len(tmpSheetName) = 0 Then
         Application.DisplayAlerts = True
-        VBA.MsgBox "PrototypeNew: failed to prepare temporary worksheet name.", VBA.vbExclamation
+        ex_Core.m_Diagnostic_LogError "PrototypeNew: failed to prepare temporary worksheet name."
         Exit Function
     End If
     tmpWs.Name = tmpSheetName
@@ -121,14 +121,14 @@ Private Function private_ResetWorkbookAndCreateMainPage( _
 EH_RESET:
     Application.DisplayAlerts = True
     If showErrorUi Then
-        VBA.MsgBox "PrototypeNew: failed to reset workbook sheets: " & Err.Description, VBA.vbExclamation
+        ex_Core.m_Diagnostic_LogError "PrototypeNew: failed to reset workbook sheets: " & Err.Description
     End If
     Exit Function
 
 EH_CREATE:
     Application.DisplayAlerts = True
     If showErrorUi Then
-        VBA.MsgBox "PrototypeNew: failed to create default main page: " & Err.Description, VBA.vbExclamation
+        ex_Core.m_Diagnostic_LogError "PrototypeNew: failed to create default main page: " & Err.Description
     End If
 End Function
 

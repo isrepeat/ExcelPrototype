@@ -50,7 +50,7 @@ Private Sub obj_IControl_Configure(ByVal page As obj_PageBase, ByVal controlNode
 
     m_OnClickRaw = VBA.CStr(ex_XmlCore.m_NodeAttrText(controlNode, "onClick"))
     If VBA.Len(VBA.Trim$(m_OnClickRaw)) = 0 Then
-        VBA.MsgBox "Button: onClick is required for control '" & m_ControlName & "'.", VBA.vbExclamation
+        ex_Core.m_Diagnostic_LogError "Button: onClick is required for control '" & m_ControlName & "'."
         Exit Sub
     End If
 
@@ -81,7 +81,7 @@ Private Sub obj_IControl_Render()
     Dim pageBase As obj_PageBase
 
     If Not m_IsConfigured Then
-        VBA.MsgBox "Button: control '" & m_ControlName & "' is not configured.", VBA.vbExclamation
+        ex_Core.m_Diagnostic_LogError "Button: control '" & m_ControlName & "' is not configured."
         Exit Sub
     End If
 
@@ -89,14 +89,14 @@ Private Sub obj_IControl_Render()
     If Not m_ControlBase Is Nothing Then Set pageBase = m_ControlBase.PageBase
     If pageBase Is Nothing Then Set pageBase = m_PageBase
     If pageBase Is Nothing Then
-        VBA.MsgBox "Button: page is not specified for control '" & m_ControlName & "'.", VBA.vbExclamation
+        ex_Core.m_Diagnostic_LogError "Button: page is not specified for control '" & m_ControlName & "'."
         Exit Sub
     End If
     Set m_PageBase = pageBase
 
     Set ws = pageBase.Worksheet
     If ws Is Nothing Then
-        VBA.MsgBox "Button: page worksheet is not specified for control '" & m_ControlName & "'.", VBA.vbExclamation
+        ex_Core.m_Diagnostic_LogError "Button: page worksheet is not specified for control '" & m_ControlName & "'."
         Exit Sub
     End If
 
@@ -105,11 +105,11 @@ Private Sub obj_IControl_Render()
     On Error GoTo 0
 
     If targetRange Is Nothing Then
-        VBA.MsgBox "Button: failed to resolve target range for control '" & m_ControlName & "'.", VBA.vbExclamation
+        ex_Core.m_Diagnostic_LogError "Button: failed to resolve target range for control '" & m_ControlName & "'."
         Exit Sub
     End If
     If targetRange.Width <= 0# Or targetRange.Height <= 0# Then
-        VBA.MsgBox "Button: target range has non-positive width/height for control '" & m_ControlName & "'.", VBA.vbExclamation
+        ex_Core.m_Diagnostic_LogError "Button: target range has non-positive width/height for control '" & m_ControlName & "'."
         Exit Sub
     End If
 
@@ -147,11 +147,11 @@ Private Sub obj_IControl_Render()
     Exit Sub
 
 EH_BUTTON:
-    VBA.MsgBox "Button: failed to render control '" & m_ControlName & "': " & Err.Description, VBA.vbExclamation
+    ex_Core.m_Diagnostic_LogError "Button: failed to render control '" & m_ControlName & "': " & Err.Description
     Exit Sub
 
 EH_RANGE:
-    VBA.MsgBox "Button: failed to resolve target range for control '" & m_ControlName & "': " & Err.Description, VBA.vbExclamation
+    ex_Core.m_Diagnostic_LogError "Button: failed to resolve target range for control '" & m_ControlName & "': " & Err.Description
 End Sub
 
 Private Function obj_IControl_SupportsAttribute(ByVal attrName As String) As Boolean
@@ -378,7 +378,7 @@ Private Function private_RegisterCaptionInlineRuns(ByVal page As obj_PageBase, B
     If page Is Nothing Then Exit Function
     If shp Is Nothing Then Exit Function
     If m_CaptionInlineTextPart Is Nothing Then
-        VBA.MsgBox "Button: caption inline part is not initialized for control '" & m_ControlName & "'.", VBA.vbExclamation
+        ex_Core.m_Diagnostic_LogError "Button: caption inline part is not initialized for control '" & m_ControlName & "'."
         Exit Function
     End If
     private_RegisterCaptionInlineRuns = m_CaptionInlineTextPart.RegisterForShape(page, shp)
@@ -391,12 +391,12 @@ Private Function private_TryResolveCaptionInlineText( _
     Dim inlineTextProfile As obj_InlineTextProfile
 
     If page Is Nothing Then
-        VBA.MsgBox "Button: page is not specified for inline caption resolve in control '" & m_ControlName & "'.", VBA.vbExclamation
+        ex_Core.m_Diagnostic_LogError "Button: page is not specified for inline caption resolve in control '" & m_ControlName & "'."
         Exit Function
     End If
 
     If m_CaptionInlineTextPart Is Nothing Then
-        VBA.MsgBox "Button: caption inline part is not initialized for control '" & m_ControlName & "'.", VBA.vbExclamation
+        ex_Core.m_Diagnostic_LogError "Button: caption inline part is not initialized for control '" & m_ControlName & "'."
         Exit Function
     End If
 

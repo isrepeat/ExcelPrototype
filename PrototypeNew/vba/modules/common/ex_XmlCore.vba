@@ -62,13 +62,13 @@ Public Function m_LoadDomByFilePath( _
     If VBA.Len(filePath) = 0 Then Exit Function
 
     If VBA.Len(Dir(filePath)) = 0 Then
-        VBA.MsgBox missingPrefix & filePath, VBA.vbExclamation
+        ex_Core.m_Diagnostic_LogError missingPrefix & filePath
         Exit Function
     End If
 
     Set doc = m_CreateDom(nsUri)
     If Not doc.Load(filePath) Then
-        VBA.MsgBox parsePrefix & filePath, VBA.vbExclamation
+        ex_Core.m_Diagnostic_LogError parsePrefix & filePath
         Exit Function
     End If
 

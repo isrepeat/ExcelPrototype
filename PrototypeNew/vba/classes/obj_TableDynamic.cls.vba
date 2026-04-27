@@ -59,7 +59,7 @@ Public Function AddColumn(ByVal tableColumn As obj_Column) As Boolean
     Dim newColumn As obj_Column
 
     If tableColumn Is Nothing Then
-        VBA.MsgBox "obj_TableDynamic: column is not specified.", VBA.vbExclamation
+        ex_Core.m_Diagnostic_LogError "obj_TableDynamic: column is not specified."
         Exit Function
     End If
 
@@ -78,7 +78,7 @@ Public Function AddRow(ByVal tableRow As obj_Row) As Boolean
     Dim requiredCols As Long
 
     If tableRow Is Nothing Then
-        VBA.MsgBox "obj_TableDynamic: row is not specified.", VBA.vbExclamation
+        ex_Core.m_Diagnostic_LogError "obj_TableDynamic: row is not specified."
         Exit Function
     End If
 

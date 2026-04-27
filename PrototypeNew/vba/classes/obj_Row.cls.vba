@@ -40,7 +40,7 @@ End Sub
 
 Public Function SetCell(ByVal oneBasedIndex As Long, ByVal value As Variant) As Boolean
     If oneBasedIndex <= 0 Then
-        VBA.MsgBox "obj_Row: cell index must be greater than zero.", VBA.vbExclamation
+        ex_Core.m_Diagnostic_LogError "obj_Row: cell index must be greater than zero."
         Exit Function
     End If
 

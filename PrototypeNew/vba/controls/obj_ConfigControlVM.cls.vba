@@ -34,7 +34,7 @@ Private Sub obj_IControl_Configure(ByVal page As obj_PageBase, ByVal controlNode
 
     m_ItemsSourceRaw = VBA.Trim$(VBA.CStr(ex_XmlCore.m_NodeAttrText(controlNode, "itemsSource")))
     If VBA.Len(m_ItemsSourceRaw) = 0 Then
-        VBA.MsgBox "Config: itemsSource is not specified for control '" & m_ControlName & "'.", VBA.vbExclamation
+        ex_Core.m_Diagnostic_LogError "Config: itemsSource is not specified for control '" & m_ControlName & "'."
         Exit Sub
     End If
 
@@ -44,7 +44,7 @@ Private Sub obj_IControl_Configure(ByVal page As obj_PageBase, ByVal controlNode
     If Not m_ControlLayout.TryReadFromNode(controlNode, "Config", m_ControlName, "style") Then Exit Sub
 
     If (m_ControlLayout.ColEnd - m_ControlLayout.ColStart + 1) < CONFIG_COL_COUNT Then
-        VBA.MsgBox "Config: control '" & m_ControlName & "' requires at least 3 columns (Attr, Key, Value).", VBA.vbExclamation
+        ex_Core.m_Diagnostic_LogError "Config: control '" & m_ControlName & "' requires at least 3 columns (Attr, Key, Value)."
         Exit Sub
     End If
 
@@ -80,25 +80,25 @@ Private Sub obj_IControl_Render()
     Dim page As obj_PageBase
 
     If Not m_IsConfigured Then
-        VBA.MsgBox "Config: control '" & m_ControlName & "' is not configured.", VBA.vbExclamation
+        ex_Core.m_Diagnostic_LogError "Config: control '" & m_ControlName & "' is not configured."
         Exit Sub
     End If
 
     Set page = Nothing
     If Not m_ControlBase Is Nothing Then Set page = m_ControlBase.PageBase
     If page Is Nothing Then
-        VBA.MsgBox "Config: page is not specified for control '" & m_ControlName & "'.", VBA.vbExclamation
+        ex_Core.m_Diagnostic_LogError "Config: page is not specified for control '" & m_ControlName & "'."
         Exit Sub
     End If
 
     Set ws = private_GetWorksheetByName(page, m_ControlLayout.LayoutSheetName)
     If ws Is Nothing Then
-        VBA.MsgBox "Config: sheet '" & m_ControlLayout.LayoutSheetName & "' was not found for control '" & m_ControlName & "'.", VBA.vbExclamation
+        ex_Core.m_Diagnostic_LogError "Config: sheet '" & m_ControlLayout.LayoutSheetName & "' was not found for control '" & m_ControlName & "'."
         Exit Sub
     End If
 
     If m_ConfigTableViewItem Is Nothing Then
-        VBA.MsgBox "Config: view item is not configured for control '" & m_ControlName & "'.", VBA.vbExclamation
+        ex_Core.m_Diagnostic_LogError "Config: view item is not configured for control '" & m_ControlName & "'."
         Exit Sub
     End If
     If Not m_ConfigTableViewItem.TryResyncEntryItemsFromModel() Then Exit Sub
@@ -181,7 +181,7 @@ ContinueItem:
     Exit Sub
 
 EH_TABLE:
-    VBA.MsgBox "Config: failed to create table for control '" & m_ControlName & "': " & Err.Description, VBA.vbExclamation
+    ex_Core.m_Diagnostic_LogError "Config: failed to create table for control '" & m_ControlName & "': " & Err.Description
 End Sub
 
 Private Function obj_IControl_SupportsAttribute(ByVal attrName As String) As Boolean
@@ -207,7 +207,7 @@ Private Function private_TryBuildConfigTable(ByVal sourceItems As Collection, By
 
     Set outTable = Nothing
     If sourceItems Is Nothing Then
-        VBA.MsgBox "Config: itemsSource is not resolved for control '" & m_ControlName & "'.", VBA.vbExclamation
+        ex_Core.m_Diagnostic_LogError "Config: itemsSource is not resolved for control '" & m_ControlName & "'."
         Exit Function
     End If
 
@@ -223,7 +223,7 @@ Private Function private_TryBuildConfigTable(ByVal sourceItems As Collection, By
             Case "obj_configtableviewitem"
                 Set configTableViewItem = sourceItem
                 If configTableViewItem Is Nothing Then
-                    VBA.MsgBox "Config: itemsSource contains empty obj_ConfigTableViewItem.", VBA.vbExclamation
+                    ex_Core.m_Diagnostic_LogError "Config: itemsSource contains empty obj_ConfigTableViewItem."
                     Exit Function
                 End If
                 If Not private_TryAppendConfigTable(outTable, configTableViewItem.Model) Then Exit Function
@@ -247,7 +247,7 @@ Private Function private_TryAppendConfigTable(ByVal targetTable As obj_ConfigTab
 
     If targetTable Is Nothing Then Exit Function
     If sourceTable Is Nothing Then
-        VBA.MsgBox "Config: source config table is not specified for control '" & m_ControlName & "'.", VBA.vbExclamation
+        ex_Core.m_Diagnostic_LogError "Config: source config table is not specified for control '" & m_ControlName & "'."
         Exit Function
     End If
 
@@ -266,7 +266,7 @@ Private Function private_TryResolveConfigItem(ByVal rawItem As Variant, ByRef ou
     Dim configEntryViewItem As obj_ConfigEntryViewItem
 
     If Not VBA.IsObject(rawItem) Then
-        VBA.MsgBox "Config: itemsSource entry must be an object.", VBA.vbExclamation
+        ex_Core.m_Diagnostic_LogError "Config: itemsSource entry must be an object."
         Exit Function
     End If
 
@@ -281,7 +281,7 @@ Private Function private_TryResolveConfigItem(ByVal rawItem As Variant, ByRef ou
             private_TryResolveConfigItem = True
 
         Case Else
-            VBA.MsgBox "Config: unsupported itemsSource type '" & VBA.TypeName(rawItem) & "'. Expected obj_ConfigEntry, obj_ConfigEntryViewItem, obj_ConfigTable or obj_ConfigTableViewItem.", VBA.vbExclamation
+            ex_Core.m_Diagnostic_LogError "Config: unsupported itemsSource type '" & VBA.TypeName(rawItem) & "'. Expected obj_ConfigEntry, obj_ConfigEntryViewItem, obj_ConfigTable or obj_ConfigTableViewItem."
     End Select
 End Function
 

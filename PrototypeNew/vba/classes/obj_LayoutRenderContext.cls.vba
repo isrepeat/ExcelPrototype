@@ -31,19 +31,19 @@ Public Function Initialize(ByVal pageBase As obj_PageBase) As Boolean
     m_ObjectRenderSuffixSeed = 0
 
     If pageBase Is Nothing Then
-        VBA.MsgBox "PrototypeNew: page base is not specified.", VBA.vbExclamation
+        ex_Core.m_Diagnostic_LogError "PrototypeNew: page base is not specified."
         Exit Function
     End If
 
     Set m_Worksheet = pageBase.Worksheet
     If m_Worksheet Is Nothing Then
-        VBA.MsgBox "PrototypeNew: worksheet is not specified.", VBA.vbExclamation
+        ex_Core.m_Diagnostic_LogError "PrototypeNew: worksheet is not specified."
         Exit Function
     End If
 
     Set m_Workbook = m_Worksheet.Parent
     If m_Workbook Is Nothing Then
-        VBA.MsgBox "PrototypeNew: workbook is not specified.", VBA.vbExclamation
+        ex_Core.m_Diagnostic_LogError "PrototypeNew: workbook is not specified."
         Exit Function
     End If
 

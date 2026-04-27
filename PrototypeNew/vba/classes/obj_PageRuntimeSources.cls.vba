@@ -40,11 +40,11 @@ Public Function SetItemsSource(ByVal itemsSourceKey As String, ByVal items As Co
 
     normalizedKey = VBA.LCase$(VBA.Trim$(itemsSourceKey))
     If VBA.Len(normalizedKey) = 0 Then
-        VBA.MsgBox "PrototypeNew: itemsSource key is empty.", VBA.vbExclamation
+        ex_Core.m_Diagnostic_LogError "PrototypeNew: itemsSource key is empty."
         Exit Function
     End If
     If items Is Nothing Then
-        VBA.MsgBox "PrototypeNew: itemsSource collection is not specified for key '" & normalizedKey & "'.", VBA.vbExclamation
+        ex_Core.m_Diagnostic_LogError "PrototypeNew: itemsSource collection is not specified for key '" & normalizedKey & "'."
         Exit Function
     End If
 
@@ -63,11 +63,11 @@ Public Function SetObjectSource(ByVal objectSourceKey As String, ByVal sourceObj
 
     normalizedKey = VBA.LCase$(VBA.Trim$(objectSourceKey))
     If VBA.Len(normalizedKey) = 0 Then
-        VBA.MsgBox "PrototypeNew: objectSource key is empty.", VBA.vbExclamation
+        ex_Core.m_Diagnostic_LogError "PrototypeNew: objectSource key is empty."
         Exit Function
     End If
     If sourceObject Is Nothing Then
-        VBA.MsgBox "PrototypeNew: objectSource object is not specified for key '" & normalizedKey & "'.", VBA.vbExclamation
+        ex_Core.m_Diagnostic_LogError "PrototypeNew: objectSource object is not specified for key '" & normalizedKey & "'."
         Exit Function
     End If
 
@@ -84,7 +84,7 @@ Public Function RemoveObjectSource(ByVal objectSourceKey As String) As Boolean
 
     normalizedKey = VBA.LCase$(VBA.Trim$(objectSourceKey))
     If VBA.Len(normalizedKey) = 0 Then
-        VBA.MsgBox "PrototypeNew: objectSource key is empty.", VBA.vbExclamation
+        ex_Core.m_Diagnostic_LogError "PrototypeNew: objectSource key is empty."
         Exit Function
     End If
 
@@ -112,7 +112,7 @@ Public Function TryGetItemsSourceByKey( _
             TryGetItemsSourceByKey = True
             Exit Function
         End If
-        VBA.MsgBox "PrototypeNew: itemsSource key is empty.", VBA.vbExclamation
+        ex_Core.m_Diagnostic_LogError "PrototypeNew: itemsSource key is empty."
         Exit Function
     End If
 
@@ -128,7 +128,7 @@ Public Function TryGetItemsSourceByKey( _
         Exit Function
     End If
 
-    VBA.MsgBox "PrototypeNew: itemsSource '" & normalizedKey & "' is not registered in page runtime map.", VBA.vbExclamation
+    ex_Core.m_Diagnostic_LogError "PrototypeNew: itemsSource '" & normalizedKey & "' is not registered in page runtime map."
 End Function
 
 
@@ -147,7 +147,7 @@ Public Function TryGetObjectSourceByKey( _
             TryGetObjectSourceByKey = True
             Exit Function
         End If
-        VBA.MsgBox "PrototypeNew: objectSource key is empty.", VBA.vbExclamation
+        ex_Core.m_Diagnostic_LogError "PrototypeNew: objectSource key is empty."
         Exit Function
     End If
 
@@ -163,7 +163,7 @@ Public Function TryGetObjectSourceByKey( _
         Exit Function
     End If
 
-    VBA.MsgBox "PrototypeNew: objectSource '" & normalizedKey & "' is not registered in page runtime map.", VBA.vbExclamation
+    ex_Core.m_Diagnostic_LogError "PrototypeNew: objectSource '" & normalizedKey & "' is not registered in page runtime map."
 End Function
 
 

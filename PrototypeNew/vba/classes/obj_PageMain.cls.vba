@@ -471,7 +471,7 @@ Private Function private_TryLoadDemoConfigVariantFromStore(ByVal ws As Worksheet
     Dim selectControlVMStatic As obj_SelectControlVMStatic
 
     If ws Is Nothing Then
-        VBA.MsgBox "PrototypeNew: worksheet is not specified for config profile state restore.", VBA.vbExclamation
+        ex_Core.m_Diagnostic_LogError "PrototypeNew: worksheet is not specified for config profile state restore."
         Exit Function
     End If
 

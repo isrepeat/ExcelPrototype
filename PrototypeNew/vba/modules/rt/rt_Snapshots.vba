@@ -45,13 +45,13 @@ Public Function m_SavePageSnapshots() As Boolean
         If pageBase Is Nothing Then GoTo ContinuePage
 
         If Not private_TryCastSerializablePage(page, serializablePage) Then
-            VBA.MsgBox "Snapshots: page class '" & VBA.TypeName(page) & "' must implement obj_ISerializable.", VBA.vbExclamation
+            ex_Core.m_Diagnostic_LogError "Snapshots: page class '" & VBA.TypeName(page) & "' must implement obj_ISerializable."
             Exit Function
         End If
 
         typeRoot = VBA.LCase$(VBA.Trim$(serializablePage.GetSerializableTypeRoot()))
         If VBA.Len(typeRoot) = 0 Then
-            VBA.MsgBox "Snapshots: page serializable type root is empty for '" & VBA.TypeName(page) & "'.", VBA.vbExclamation
+            ex_Core.m_Diagnostic_LogError "Snapshots: page serializable type root is empty for '" & VBA.TypeName(page) & "'."
             Exit Function
         End If
 
@@ -82,7 +82,7 @@ Public Function m_SaveRuntimeGlobalsSnapshot() As Boolean
     If Not ex_Core.m_CustomXmlPartStore_TryCreateEmptyDom(RUNTIME_GLOBALS_ROOT, RUNTIME_GLOBALS_NS, dom) Then Exit Function
     Set rootNode = dom.DocumentElement
     If rootNode Is Nothing Then
-        VBA.MsgBox "Snapshots: runtime globals root node is missing.", VBA.vbExclamation
+        ex_Core.m_Diagnostic_LogError "Snapshots: runtime globals root node is missing."
         Exit Function
     End If
 
@@ -410,7 +410,7 @@ Private Function private_TryAppendModuleSnapshot(ByVal rootNode As Object, ByVal
 
     Set dom = rootNode.OwnerDocument
     If dom Is Nothing Then
-        VBA.MsgBox "Snapshots: runtime globals DOM owner is not available.", VBA.vbExclamation
+        ex_Core.m_Diagnostic_LogError "Snapshots: runtime globals DOM owner is not available."
         Exit Function
     End If
 
@@ -543,7 +543,7 @@ Private Function private_TryResetWorkbookBeforeRestore(ByRef outTemporaryWorkshe
 
 EH_RESET:
     Application.DisplayAlerts = True
-    VBA.MsgBox "Snapshots: failed to reset workbook before restore: " & Err.Description, VBA.vbExclamation
+    ex_Core.m_Diagnostic_LogError "Snapshots: failed to reset workbook before restore: " & Err.Description
 End Function
 
 
@@ -570,7 +570,7 @@ Private Function private_TrySaveSnapshotXmlCollection( _
 
     Set rootNode = dom.DocumentElement
     If rootNode Is Nothing Then
-        VBA.MsgBox "Snapshots: root node is missing for namespace '" & namespaceUri & "'.", VBA.vbExclamation
+        ex_Core.m_Diagnostic_LogError "Snapshots: root node is missing for namespace '" & namespaceUri & "'."
         Exit Function
     End If
 

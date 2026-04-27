@@ -83,7 +83,7 @@ Private Sub obj_IControl_Configure(ByVal page As obj_PageBase, ByVal controlNode
 
     m_ItemsSourceRaw = VBA.Trim$(VBA.CStr(ex_XmlCore.m_NodeAttrText(controlNode, "itemsSource")))
     If VBA.Len(m_ItemsSourceRaw) = 0 Then
-        VBA.MsgBox "Select: itemsSource is not specified for control '" & m_ControlName & "'.", VBA.vbExclamation
+        ex_Core.m_Diagnostic_LogError "Select: itemsSource is not specified for control '" & m_ControlName & "'."
         Exit Sub
     End If
 
@@ -158,7 +158,7 @@ Private Sub obj_IControl_Render()
     Dim pageBase As obj_PageBase
 
     If Not m_IsConfigured Then
-        VBA.MsgBox "Select: control '" & m_ControlName & "' is not configured.", VBA.vbExclamation
+        ex_Core.m_Diagnostic_LogError "Select: control '" & m_ControlName & "' is not configured."
         Exit Sub
     End If
 
@@ -166,19 +166,19 @@ Private Sub obj_IControl_Render()
     If Not m_ControlBase Is Nothing Then Set pageBase = m_ControlBase.PageBase
     If pageBase Is Nothing Then Set pageBase = m_PageBase
     If pageBase Is Nothing Then
-        VBA.MsgBox "Select: page is not specified for control '" & m_ControlName & "'.", VBA.vbExclamation
+        ex_Core.m_Diagnostic_LogError "Select: page is not specified for control '" & m_ControlName & "'."
         Exit Sub
     End If
     Set m_PageBase = pageBase
 
     Set ws = pageBase.Worksheet
     If ws Is Nothing Then
-        VBA.MsgBox "Select: page worksheet is not specified for control '" & m_ControlName & "'.", VBA.vbExclamation
+        ex_Core.m_Diagnostic_LogError "Select: page worksheet is not specified for control '" & m_ControlName & "'."
         Exit Sub
     End If
 
     If m_ItemCaptions Is Nothing Or m_ItemIds Is Nothing Or m_ItemActionMacros Is Nothing Or m_ItemRawItems Is Nothing Then
-        VBA.MsgBox "Select: item metadata is not configured for control '" & m_ControlName & "'.", VBA.vbExclamation
+        ex_Core.m_Diagnostic_LogError "Select: item metadata is not configured for control '" & m_ControlName & "'."
         Exit Sub
     End If
 
@@ -337,7 +337,7 @@ Public Function RuntimeHandleItemClick(ByVal itemIndex As Long) As Boolean
 
     If m_RuntimeItemCaptions Is Nothing Then Exit Function
     If itemIndex <= 0 Or itemIndex > m_RuntimeItemCaptions.Count Then
-        VBA.MsgBox "Select: selected item index is out of range for control '" & m_ControlName & "'.", VBA.vbExclamation
+        ex_Core.m_Diagnostic_LogError "Select: selected item index is out of range for control '" & m_ControlName & "'."
         Exit Function
     End If
 
@@ -727,7 +727,7 @@ Private Function private_InitializeRuntimeState( _
     ' Runtime-state хранит shape-имена и коллекции, с которыми работает click handler.
     ' Это позволяет обрабатывать клики без повторного рендера.
     If itemShapeNames Is Nothing Or itemCaptions Is Nothing Or itemIds Is Nothing Or itemActionMacros Is Nothing Or itemRawItems Is Nothing Then
-        VBA.MsgBox "Select: runtime item metadata collection is not specified for control '" & m_ControlName & "'.", VBA.vbExclamation
+        ex_Core.m_Diagnostic_LogError "Select: runtime item metadata collection is not specified for control '" & m_ControlName & "'."
         Exit Function
     End If
 
@@ -839,7 +839,7 @@ Private Function private_RunRuntimeMacro(ByVal macroRef As String) As Boolean
     Exit Function
 
 EH_RUN:
-    VBA.MsgBox "Select: failed to execute macro '" & macroRef & "' for control '" & m_ControlName & "': " & Err.Description, VBA.vbExclamation
+    ex_Core.m_Diagnostic_LogError "Select: failed to execute macro '" & macroRef & "' for control '" & m_ControlName & "': " & Err.Description
 End Function
 
 Private Function private_TryBuildItemBuffers() As Boolean
@@ -849,7 +849,7 @@ Private Function private_TryBuildItemBuffers() As Boolean
     Dim itemAction As String
 
     If m_Items Is Nothing Then
-        VBA.MsgBox "Select: itemsSource resolved to Nothing for control '" & m_ControlName & "'.", VBA.vbExclamation
+        ex_Core.m_Diagnostic_LogError "Select: itemsSource resolved to Nothing for control '" & m_ControlName & "'."
         Exit Function
     End If
 
@@ -912,7 +912,7 @@ Private Function private_TryResolveItemMetadata( _
     End Select
 
     If VBA.Len(VBA.Trim$(outId)) = 0 Then
-        VBA.MsgBox "Select: item Id is empty in control '" & m_ControlName & "'.", VBA.vbExclamation
+        ex_Core.m_Diagnostic_LogError "Select: item Id is empty in control '" & m_ControlName & "'."
         Exit Function
     End If
     If VBA.Len(VBA.Trim$(outCaption)) = 0 Then outCaption = outId
@@ -937,7 +937,7 @@ Private Function private_TryReadObjectMemberText( _
     outText = VBA.vbNullString
     If sourceObject Is Nothing Then
         If isRequired Then
-            VBA.MsgBox "Select: item object is Nothing while reading member '" & memberName & "'.", VBA.vbExclamation
+            ex_Core.m_Diagnostic_LogError "Select: item object is Nothing while reading member '" & memberName & "'."
             Exit Function
         End If
         private_TryReadObjectMemberText = True
@@ -948,7 +948,7 @@ Private Function private_TryReadObjectMemberText( _
     If Not dictObj Is Nothing Then
         If Not dictObj.Exists(memberName) Then
             If isRequired Then
-                VBA.MsgBox "Select: member '" & memberName & "' was not found on dictionary item.", VBA.vbExclamation
+                ex_Core.m_Diagnostic_LogError "Select: member '" & memberName & "' was not found on dictionary item."
                 Exit Function
             End If
 
@@ -958,7 +958,7 @@ Private Function private_TryReadObjectMemberText( _
 
         scalarValue = dictObj.Item(memberName)
         If VBA.IsObject(scalarValue) Then
-            VBA.MsgBox "Select: member '" & memberName & "' must resolve to scalar value.", VBA.vbExclamation
+            ex_Core.m_Diagnostic_LogError "Select: member '" & memberName & "' must resolve to scalar value."
             Exit Function
         End If
 
@@ -974,7 +974,7 @@ Private Function private_TryReadObjectMemberText( _
         On Error GoTo 0
 
         If isRequired Then
-            VBA.MsgBox "Select: member '" & memberName & "' was not found on object '" & VBA.TypeName(sourceObject) & "'.", VBA.vbExclamation
+            ex_Core.m_Diagnostic_LogError "Select: member '" & memberName & "' was not found on object '" & VBA.TypeName(sourceObject) & "'."
             Exit Function
         End If
 
@@ -984,7 +984,7 @@ Private Function private_TryReadObjectMemberText( _
     On Error GoTo 0
 
     If VBA.IsObject(scalarValue) Then
-        VBA.MsgBox "Select: member '" & memberName & "' on object '" & VBA.TypeName(sourceObject) & "' must resolve to scalar value.", VBA.vbExclamation
+        ex_Core.m_Diagnostic_LogError "Select: member '" & memberName & "' on object '" & VBA.TypeName(sourceObject) & "' must resolve to scalar value."
         Exit Function
     End If
 
@@ -1018,7 +1018,7 @@ Private Function private_TryPersistSelectedId(ByVal selectedId As String) As Boo
 
     selectedId = VBA.Trim$(selectedId)
     If VBA.Len(VBA.Trim$(m_SelectStateKey)) = 0 Then
-        VBA.MsgBox "Select: state key is empty for control '" & m_ControlName & "'.", VBA.vbExclamation
+        ex_Core.m_Diagnostic_LogError "Select: state key is empty for control '" & m_ControlName & "'."
         Exit Function
     End If
 
@@ -1030,7 +1030,7 @@ Private Function private_TryLoadStoredSelectedId(ByRef outSelectedId As String) 
     Dim selectControlVMStatic As obj_SelectControlVMStatic
 
     If VBA.Len(VBA.Trim$(m_SelectStateKey)) = 0 Then
-        VBA.MsgBox "Select: state key is empty for control '" & m_ControlName & "'.", VBA.vbExclamation
+        ex_Core.m_Diagnostic_LogError "Select: state key is empty for control '" & m_ControlName & "'."
         Exit Function
     End If
 
@@ -1067,7 +1067,7 @@ Private Function private_TryBuildHeaderRange(ByVal ws As Worksheet, ByRef outRan
     Exit Function
 
 EH_RANGE:
-    VBA.MsgBox "Select: failed to resolve header range for control '" & m_ControlName & "'.", VBA.vbExclamation
+    ex_Core.m_Diagnostic_LogError "Select: failed to resolve header range for control '" & m_ControlName & "'."
 End Function
 
 Private Function private_CalcPanelHeight(ByVal renderItemCount As Long) As Double
@@ -1095,7 +1095,7 @@ Private Function private_CreateShapeByRange( _
     If targetRange Is Nothing Then Exit Function
 
     If targetRange.Width <= 0# Or targetRange.Height <= 0# Then
-        VBA.MsgBox "Select: target range has non-positive width/height for control '" & m_ControlName & "'.", VBA.vbExclamation
+        ex_Core.m_Diagnostic_LogError "Select: target range has non-positive width/height for control '" & m_ControlName & "'."
         Exit Function
     End If
 
@@ -1112,7 +1112,7 @@ Private Function private_CreateShapeByRange( _
         On Error Resume Next
         shp.OnAction = onActionMacroRef
         If Err.Number <> 0 Then
-            VBA.MsgBox "Select: failed to bind click action for shape '" & shapeName & "' in control '" & m_ControlName & "'.", VBA.vbExclamation
+            ex_Core.m_Diagnostic_LogError "Select: failed to bind click action for shape '" & shapeName & "' in control '" & m_ControlName & "'."
             Err.Clear
         End If
         On Error GoTo EH_SHAPE
@@ -1153,7 +1153,7 @@ Private Function private_CreateShapeByRange( _
     Exit Function
 
 EH_SHAPE:
-    VBA.MsgBox "Select: failed to create shape '" & shapeName & "' for control '" & m_ControlName & "': " & Err.Description, VBA.vbExclamation
+    ex_Core.m_Diagnostic_LogError "Select: failed to create shape '" & shapeName & "' for control '" & m_ControlName & "': " & Err.Description
 End Function
 
 Private Function private_CreateShapeByBounds( _
@@ -1173,7 +1173,7 @@ Private Function private_CreateShapeByBounds( _
 
     If ws Is Nothing Then Exit Function
     If shapeWidth <= 0# Or shapeHeight <= 0# Then
-        VBA.MsgBox "Select: target bounds have non-positive width/height for control '" & m_ControlName & "'.", VBA.vbExclamation
+        ex_Core.m_Diagnostic_LogError "Select: target bounds have non-positive width/height for control '" & m_ControlName & "'."
         Exit Function
     End If
 
@@ -1190,7 +1190,7 @@ Private Function private_CreateShapeByBounds( _
         On Error Resume Next
         shp.OnAction = onActionMacroRef
         If Err.Number <> 0 Then
-            VBA.MsgBox "Select: failed to bind click action for shape '" & shapeName & "' in control '" & m_ControlName & "'.", VBA.vbExclamation
+            ex_Core.m_Diagnostic_LogError "Select: failed to bind click action for shape '" & shapeName & "' in control '" & m_ControlName & "'."
             Err.Clear
         End If
         On Error GoTo EH_SHAPE
@@ -1231,7 +1231,7 @@ Private Function private_CreateShapeByBounds( _
     Exit Function
 
 EH_SHAPE:
-    VBA.MsgBox "Select: failed to create floating shape '" & shapeName & "' for control '" & m_ControlName & "': " & Err.Description, VBA.vbExclamation
+    ex_Core.m_Diagnostic_LogError "Select: failed to create floating shape '" & shapeName & "' for control '" & m_ControlName & "': " & Err.Description
 End Function
 
 Private Sub private_ApplyHeaderVisualDefaults(ByVal shp As Shape)
@@ -1377,12 +1377,12 @@ Private Function private_TryReadPositiveDoubleAttr( _
     End If
 
     If Not private_TryParseFlexibleDouble(rawText, outValue) Then
-        VBA.MsgBox "Select: attribute '" & attrName & "' must be numeric for control '" & m_ControlName & "'.", VBA.vbExclamation
+        ex_Core.m_Diagnostic_LogError "Select: attribute '" & attrName & "' must be numeric for control '" & m_ControlName & "'."
         Exit Function
     End If
 
     If outValue <= 0# Then
-        VBA.MsgBox "Select: attribute '" & attrName & "' must be greater than zero for control '" & m_ControlName & "'.", VBA.vbExclamation
+        ex_Core.m_Diagnostic_LogError "Select: attribute '" & attrName & "' must be greater than zero for control '" & m_ControlName & "'."
         Exit Function
     End If
 
@@ -1405,12 +1405,12 @@ Private Function private_TryReadNonNegativeDoubleAttr( _
     End If
 
     If Not private_TryParseFlexibleDouble(rawText, outValue) Then
-        VBA.MsgBox "Select: attribute '" & attrName & "' must be numeric for control '" & m_ControlName & "'.", VBA.vbExclamation
+        ex_Core.m_Diagnostic_LogError "Select: attribute '" & attrName & "' must be numeric for control '" & m_ControlName & "'."
         Exit Function
     End If
 
     If outValue < 0# Then
-        VBA.MsgBox "Select: attribute '" & attrName & "' must be greater or equal to zero for control '" & m_ControlName & "'.", VBA.vbExclamation
+        ex_Core.m_Diagnostic_LogError "Select: attribute '" & attrName & "' must be greater or equal to zero for control '" & m_ControlName & "'."
         Exit Function
     End If
 

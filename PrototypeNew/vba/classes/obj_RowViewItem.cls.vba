@@ -77,7 +77,7 @@ Private Function obj_IViewItem_Render( _
     ByVal colEnd As Long, _
     Optional ByVal viewName As String = "" _
 ) As Boolean
-    VBA.MsgBox "RowViewItem: direct render is not supported.", VBA.vbExclamation
+    ex_Core.m_Diagnostic_LogError "RowViewItem: direct render is not supported."
 End Function
 
 Private Function obj_IViewItem_IsVisible() As Boolean

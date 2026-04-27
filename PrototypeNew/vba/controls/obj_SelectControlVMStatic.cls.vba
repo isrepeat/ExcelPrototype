@@ -18,7 +18,7 @@ Private Const VALUE_ATTR As String = "selectedId"
 Public Function TryGetSelectedId(ByVal selectKey As String, ByRef outSelectedId As String) As Boolean
     selectKey = VBA.LCase$(VBA.Trim$(selectKey))
     If VBA.Len(selectKey) = 0 Then
-        VBA.MsgBox "SelectControlVMStatic: select key is empty.", VBA.vbExclamation
+        ex_Core.m_Diagnostic_LogError "SelectControlVMStatic: select key is empty."
         Exit Function
     End If
 
@@ -37,7 +37,7 @@ Public Function SetSelectedId(ByVal selectKey As String, ByVal selectedId As Str
     selectedId = VBA.Trim$(selectedId)
 
     If VBA.Len(selectKey) = 0 Then
-        VBA.MsgBox "SelectControlVMStatic: select key is empty.", VBA.vbExclamation
+        ex_Core.m_Diagnostic_LogError "SelectControlVMStatic: select key is empty."
         Exit Function
     End If
 

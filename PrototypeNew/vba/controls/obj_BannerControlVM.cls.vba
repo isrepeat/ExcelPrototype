@@ -57,25 +57,25 @@ Private Sub obj_IControl_Render()
     Dim pageBase As obj_PageBase
 
     If Not m_IsConfigured Then
-        VBA.MsgBox "Banner: control '" & m_ControlName & "' is not configured.", VBA.vbExclamation
+        ex_Core.m_Diagnostic_LogError "Banner: control '" & m_ControlName & "' is not configured."
         Exit Sub
     End If
 
     Set pageBase = Nothing
     If Not m_ControlBase Is Nothing Then Set pageBase = m_ControlBase.PageBase
     If pageBase Is Nothing Then
-        VBA.MsgBox "Banner: page is not specified for control '" & m_ControlName & "'.", VBA.vbExclamation
+        ex_Core.m_Diagnostic_LogError "Banner: page is not specified for control '" & m_ControlName & "'."
         Exit Sub
     End If
 
     Set ws = private_GetWorksheetByName(pageBase, m_ControlLayout.LayoutSheetName)
     If ws Is Nothing Then
-        VBA.MsgBox "Banner: sheet '" & m_ControlLayout.LayoutSheetName & "' was not found for control '" & m_ControlName & "'.", VBA.vbExclamation
+        ex_Core.m_Diagnostic_LogError "Banner: sheet '" & m_ControlLayout.LayoutSheetName & "' was not found for control '" & m_ControlName & "'."
         Exit Sub
     End If
 
     If m_BannerViewItem Is Nothing Then
-        VBA.MsgBox "Banner: view item is not configured for control '" & m_ControlName & "'.", VBA.vbExclamation
+        ex_Core.m_Diagnostic_LogError "Banner: view item is not configured for control '" & m_ControlName & "'."
         Exit Sub
     End If
 

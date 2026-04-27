@@ -22,11 +22,11 @@ Public Function m_RenderNode( _
     If Not private_TryGetPageRenderContext(renderCtx, wb, ws) Then Exit Function
 
     If layoutNode Is Nothing Then
-        VBA.MsgBox "PrototypeNew: layout node is not specified.", VBA.vbExclamation
+        ex_Core.m_Diagnostic_LogError "PrototypeNew: layout node is not specified."
         Exit Function
     End If
     If layoutNode.NodeType <> 1 Then
-        VBA.MsgBox "PrototypeNew: layout node must be an element.", VBA.vbExclamation
+        ex_Core.m_Diagnostic_LogError "PrototypeNew: layout node must be an element."
         Exit Function
     End If
 
@@ -37,11 +37,11 @@ Public Function m_RenderNode( _
 
         Case "control", "stackpanel", "grid", "list", "itemcontrol"
             If rowStart <= 0 Or colStart <= 0 Then
-                VBA.MsgBox "PrototypeNew: invalid layout node position.", VBA.vbExclamation
+                ex_Core.m_Diagnostic_LogError "PrototypeNew: invalid layout node position."
                 Exit Function
             End If
             If rowEnd < rowStart Or colEnd < colStart Then
-                VBA.MsgBox "PrototypeNew: invalid layout node bounds.", VBA.vbExclamation
+                ex_Core.m_Diagnostic_LogError "PrototypeNew: invalid layout node bounds."
                 Exit Function
             End If
 
@@ -93,7 +93,7 @@ Public Function m_RenderNode( _
             End Select
 
         Case Else
-            VBA.MsgBox "PrototypeNew: unsupported layout node '" & VBA.CStr(layoutNode.baseName) & "'.", VBA.vbExclamation
+            ex_Core.m_Diagnostic_LogError "PrototypeNew: unsupported layout node '" & VBA.CStr(layoutNode.baseName) & "'."
     End Select
 End Function
 
@@ -148,7 +148,7 @@ Public Function m_TryResolveNodeBoundsFromAnchor( _
     Exit Function
 
 EH_ANCHOR:
-    VBA.MsgBox "PrototypeNew: invalid anchorCell '" & anchorCellAddr & "'.", VBA.vbExclamation
+    ex_Core.m_Diagnostic_LogError "PrototypeNew: invalid anchorCell '" & anchorCellAddr & "'."
 End Function
 
 
@@ -294,7 +294,7 @@ Private Function private_RenderContainerChildrenInBounds( _
     orientation = private_GetContainerOrientation(containerNode)
     hasGridBounds = (containerRowStart > 0 And containerColStart > 0 And containerRowEnd >= containerRowStart And containerColEnd >= containerColStart)
     If Not hasGridBounds Then
-        VBA.MsgBox "PrototypeNew: container bounds are required for nested layout rendering.", VBA.vbExclamation
+        ex_Core.m_Diagnostic_LogError "PrototypeNew: container bounds are required for nested layout rendering."
         Exit Function
     End If
 
@@ -446,7 +446,7 @@ Private Function private_TryGetEffectiveNodeSpan( _
             End If
 
         Case Else
-            VBA.MsgBox "PrototypeNew: unsupported layout node '" & VBA.CStr(node.baseName) & "'.", VBA.vbExclamation
+            ex_Core.m_Diagnostic_LogError "PrototypeNew: unsupported layout node '" & VBA.CStr(node.baseName) & "'."
             Exit Function
     End Select
 
@@ -527,7 +527,7 @@ Private Function private_ResolveChildGridPosition( _
     atText = VBA.Trim$(ex_XmlCore.m_NodeAttrText(childNode, "at"))
     If VBA.Len(atText) > 0 Then
         If Not private_TryParseAtAddress(atText, outRow, outCol) Then
-            VBA.MsgBox "PrototypeNew: invalid 'at' format '" & atText & "'. Expected format is rNcM.", VBA.vbExclamation
+            ex_Core.m_Diagnostic_LogError "PrototypeNew: invalid 'at' format '" & atText & "'. Expected format is rNcM."
             Exit Function
         End If
     Else
@@ -559,7 +559,7 @@ Private Function private_GetContainerOrientation(ByVal node As Object) As String
             private_GetContainerOrientation = "vertical"
         ElseIf VBA.StrComp(private_GetContainerOrientation, "vertical", VBA.vbBinaryCompare) <> 0 And _
                VBA.StrComp(private_GetContainerOrientation, "horizontal", VBA.vbBinaryCompare) <> 0 Then
-            VBA.MsgBox "PrototypeNew: stackPanel orientation must be 'vertical' or 'horizontal'.", VBA.vbExclamation
+            ex_Core.m_Diagnostic_LogError "PrototypeNew: stackPanel orientation must be 'vertical' or 'horizontal'."
             private_GetContainerOrientation = VBA.vbNullString
         End If
     End If
@@ -609,7 +609,7 @@ Private Function private_TryResolveNodeCellPosition( _
         relCol = 1
     Else
         If Not private_TryParseAtAddress(atText, relRow, relCol) Then
-            VBA.MsgBox "PrototypeNew: invalid 'at' format '" & atText & "'. Expected format is rNcM.", VBA.vbExclamation
+            ex_Core.m_Diagnostic_LogError "PrototypeNew: invalid 'at' format '" & atText & "'. Expected format is rNcM."
             Exit Function
         End If
     End If
@@ -666,13 +666,13 @@ Private Function private_ReadPositiveLongAttr( _
     End If
 
     If Not VBA.IsNumeric(rawText) Then
-        VBA.MsgBox "PrototypeNew: attribute '" & attrName & "' must be numeric.", VBA.vbExclamation
+        ex_Core.m_Diagnostic_LogError "PrototypeNew: attribute '" & attrName & "' must be numeric."
         Exit Function
     End If
 
     private_ReadPositiveLongAttr = VBA.CLng(rawText)
     If private_ReadPositiveLongAttr <= 0 Then
-        VBA.MsgBox "PrototypeNew: attribute '" & attrName & "' must be greater than zero.", VBA.vbExclamation
+        ex_Core.m_Diagnostic_LogError "PrototypeNew: attribute '" & attrName & "' must be greater than zero."
         private_ReadPositiveLongAttr = 0
     End If
 End Function
@@ -687,19 +687,19 @@ Private Function private_TryGetPageRenderContext( _
     Set outWs = Nothing
 
     If renderCtx Is Nothing Then
-        VBA.MsgBox "PrototypeNew: render context is not specified.", VBA.vbExclamation
+        ex_Core.m_Diagnostic_LogError "PrototypeNew: render context is not specified."
         Exit Function
     End If
 
     Set outWs = renderCtx.Worksheet
     If outWs Is Nothing Then
-        VBA.MsgBox "PrototypeNew: worksheet is not specified.", VBA.vbExclamation
+        ex_Core.m_Diagnostic_LogError "PrototypeNew: worksheet is not specified."
         Exit Function
     End If
 
     Set outWb = renderCtx.Workbook
     If outWb Is Nothing Then
-        VBA.MsgBox "PrototypeNew: workbook is not specified.", VBA.vbExclamation
+        ex_Core.m_Diagnostic_LogError "PrototypeNew: workbook is not specified."
         Exit Function
     End If
 
