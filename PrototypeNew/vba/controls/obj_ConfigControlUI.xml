@@ -3,7 +3,7 @@
   <layout>
     <control
       name="default"
-      itemsSource="{PageRuntimeSource='RuntimeItems.Test.Config'}"
+      itemsSource="{PageRuntimeSource='RuntimeItems.PageMain.Config'}"
       tableName="cfgDevUi"/>
   </layout>
 </uiDefinition>

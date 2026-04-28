@@ -259,7 +259,7 @@ Public Function m_TEST_RegisterDemoConfigItemsVariantA( _
     Set items = m_TEST_BuildDemoConfigItemsVariantA()
     If items Is Nothing Then Exit Function
 
-    If Not private_TrySetItemsSource("RuntimeItems.Test.Config", items, notifyChange, preferredPageBase) Then Exit Function
+    If Not private_TrySetItemsSource("RuntimeItems.PageMain.Config", items, notifyChange, preferredPageBase) Then Exit Function
     m_TEST_RegisterDemoConfigItemsVariantA = True
 End Function
 
@@ -273,7 +273,7 @@ Public Function m_TEST_RegisterDemoConfigItemsVariantB( _
     Set items = m_TEST_BuildDemoConfigItemsVariantB()
     If items Is Nothing Then Exit Function
 
-    If Not private_TrySetItemsSource("RuntimeItems.Test.Config", items, notifyChange, preferredPageBase) Then Exit Function
+    If Not private_TrySetItemsSource("RuntimeItems.PageMain.Config", items, notifyChange, preferredPageBase) Then Exit Function
     m_TEST_RegisterDemoConfigItemsVariantB = True
 End Function
 
@@ -301,86 +301,8 @@ Public Function m_TEST_RegisterDemoConfigProfileItems( _
     Set options = m_TEST_BuildDemoConfigProfileItems()
     If options Is Nothing Then Exit Function
 
-    If Not private_TrySetItemsSource("RuntimeItems.Test.ConfigProfiles", options, notifyChange, preferredPageBase) Then Exit Function
+    If Not private_TrySetItemsSource("RuntimeItems.PageMain.ConfigProfiles", options, notifyChange, preferredPageBase) Then Exit Function
     m_TEST_RegisterDemoConfigProfileItems = True
-End Function
-
-Public Function m_TEST_RegisterConfigFromProfileNode( _
-    ByVal profileNode As Object, _
-    Optional ByVal notifyChange As Boolean = False, _
-    Optional ByVal preferredPageBase As Variant _
-) As Boolean
-    Dim configTable As obj_ConfigTable
-    Dim sourceItems As Collection
-    Dim sourceConfigEntry As obj_ConfigEntry
-
-    If profileNode Is Nothing Then
-        ex_Core.m_Diagnostic_LogError "PrototypeNew: config profile node is not specified."
-        Exit Function
-    End If
-
-    Set configTable = New obj_ConfigTable
-    If Not configTable.TryLoadFromXmlNode(profileNode, True) Then Exit Function
-
-    Set sourceItems = New Collection
-    For Each sourceConfigEntry In configTable.Items
-        If sourceConfigEntry Is Nothing Then GoTo ContinueSourceConfigEntry
-        sourceItems.Add sourceConfigEntry
-ContinueSourceConfigEntry:
-    Next sourceConfigEntry
-
-    If Not private_TrySetItemsSource("RuntimeItems.Test.Config", sourceItems, notifyChange, preferredPageBase) Then Exit Function
-    m_TEST_RegisterConfigFromProfileNode = True
-End Function
-
-Public Function m_TEST_RegisterConfigFromXmlProfile( _
-    ByVal filePath As String, _
-    ByVal profileKey As String, _
-    Optional ByVal notifyChange As Boolean = False, _
-    Optional ByVal preferredPageBase As Variant _
-) As Boolean
-    Dim normalizedFilePath As String
-    Dim normalizedProfileKey As String
-    Dim dom As Object
-    Dim profileNode As Object
-    Dim profileKeyLiteral As String
-    Dim profileXPath As String
-
-    normalizedFilePath = VBA.Trim$(filePath)
-    normalizedProfileKey = VBA.Trim$(profileKey)
-
-    If VBA.Len(normalizedFilePath) = 0 Then
-        ex_Core.m_Diagnostic_LogError "PrototypeNew: config profiles file path is empty."
-        Exit Function
-    End If
-    If VBA.Len(normalizedProfileKey) = 0 Then
-        ex_Core.m_Diagnostic_LogError "PrototypeNew: config profile key is empty."
-        Exit Function
-    End If
-
-    Set dom = ex_XmlCore.m_LoadDomByFilePath( _
-        normalizedFilePath, _
-        "PrototypeNew: config profiles file was not found: ", _
-        "PrototypeNew: failed to parse config profiles file: ", _
-        VBA.vbNullString)
-    If dom Is Nothing Then Exit Function
-
-    profileKeyLiteral = ex_XmlCore.m_XPathLiteral(normalizedProfileKey)
-    profileXPath = "//*[" & _
-                  "(@id=" & profileKeyLiteral & " or @name=" & profileKeyLiteral & " or @key=" & profileKeyLiteral & ")" & _
-                  " and " & _
-                  "(.//*[local-name()='item' or local-name()='row' or local-name()='entry' or local-name()='config']" & _
-                  " or *[local-name()='item' or local-name()='row' or local-name()='entry' or local-name()='config'])" & _
-                  "]"
-
-    Set profileNode = dom.selectSingleNode(profileXPath)
-    If profileNode Is Nothing Then
-        ex_Core.m_Diagnostic_LogError "PrototypeNew: config profile '" & normalizedProfileKey & "' was not found in file '" & normalizedFilePath & "'."
-        Exit Function
-    End If
-
-    If Not m_TEST_RegisterConfigFromProfileNode(profileNode, notifyChange, preferredPageBase) Then Exit Function
-    m_TEST_RegisterConfigFromXmlProfile = True
 End Function
 
 
@@ -478,6 +400,7 @@ Public Function m_TEST_BuildDemoTableViewItems( _
     Dim tableViewItem As obj_TableViewItem
     Dim rowViews As list__obj_RowViewItem
     Dim rowViewItem As obj_RowViewItem
+    Dim rowViewIndex As Long
     Dim tableIndex As Long
     Dim rowIndex As Long
     Dim rowBannerTargetIndex As Long
@@ -517,7 +440,9 @@ Public Function m_TEST_BuildDemoTableViewItems( _
 
         rowIndex = 0
         Set rowViews = tableViewItem.RowItems
-        For Each rowViewItem In rowViews
+        For rowViewIndex = 1 To rowViews.Count
+            Set rowViewItem = rowViews.Item(rowViewIndex)
+            If rowViewItem Is Nothing Then GoTo ContinueRowViewItem
             rowIndex = rowIndex + 1
 
             If includeRowBanners Then
@@ -533,7 +458,8 @@ Public Function m_TEST_BuildDemoTableViewItems( _
                     rowViewItem.SpacerRowsAfter = 1
                 End If
             End If
-        Next rowViewItem
+ContinueRowViewItem:
+        Next rowViewIndex
 
         result.Add tableViewItem
     Next sourceTableObj
@@ -554,6 +480,7 @@ Public Function m_TEST_BuildDemoSingleTableViewItems( _
     Dim rowViews As list__obj_RowViewItem
     Dim rowViewItem As obj_RowViewItem
     Dim rowIndex As Long
+    Dim rowViewIndex As Long
 
     Set sourceTables = m_TEST_BuildDemoSingleTableItems()
     If sourceTables Is Nothing Then Exit Function
@@ -575,7 +502,9 @@ Public Function m_TEST_BuildDemoSingleTableViewItems( _
 
         rowIndex = 0
         Set rowViews = tableViewItem.RowItems
-        For Each rowViewItem In rowViews
+        For rowViewIndex = 1 To rowViews.Count
+            Set rowViewItem = rowViews.Item(rowViewIndex)
+            If rowViewItem Is Nothing Then GoTo ContinueSingleRowViewItem
             rowIndex = rowIndex + 1
 
             If includeRowBanners Then
@@ -587,7 +516,8 @@ Public Function m_TEST_BuildDemoSingleTableViewItems( _
                         2)
                 End If
             End If
-        Next rowViewItem
+ContinueSingleRowViewItem:
+        Next rowViewIndex
 
         result.Add tableViewItem
     Next sourceTableObj
@@ -606,6 +536,8 @@ Public Function m_TEST_BuildDemoSingleTableItems() As Collection
     Dim targetRow As obj_Row
     Dim sourceColumn As obj_Column
     Dim i As Long
+    Dim sourceColumnIndex As Long
+    Dim sourceRowIndex As Long
 
     Set sourceTables = m_TEST_BuildDemoTableItems()
     If sourceTables Is Nothing Then Exit Function
@@ -617,12 +549,17 @@ Public Function m_TEST_BuildDemoSingleTableItems() As Collection
         If Not private_TryResolveDemoTableDynamic(sourceTableObj, sourceTable) Then Exit Function
 
         If mergedTable.ColumnCount = 0 Then
-            For Each sourceColumn In sourceTable.Columns
+            For sourceColumnIndex = 1 To sourceTable.Columns.Count
+                Set sourceColumn = sourceTable.Columns.Item(sourceColumnIndex)
+                If sourceColumn Is Nothing Then GoTo ContinueMergedSourceColumn
                 If Not mergedTable.AddColumn(sourceColumn) Then Exit Function
-            Next sourceColumn
+ContinueMergedSourceColumn:
+            Next sourceColumnIndex
         End If
 
-        For Each sourceRow In sourceTable.Rows
+        For sourceRowIndex = 1 To sourceTable.Rows.Count
+            Set sourceRow = sourceTable.Rows.Item(sourceRowIndex)
+            If sourceRow Is Nothing Then GoTo ContinueMergedSourceRow
             If VBA.TypeName(sourceRow) <> "obj_Row" Then
                 ex_Core.m_Diagnostic_LogError "PrototypeNew: expected obj_Row in demo table rows."
                 Exit Function
@@ -634,7 +571,8 @@ Public Function m_TEST_BuildDemoSingleTableItems() As Collection
             Next i
 
             If Not mergedTable.AddRow(targetRow) Then Exit Function
-        Next sourceRow
+ContinueMergedSourceRow:
+        Next sourceRowIndex
     Next sourceTableObj
 
     Set result = New Collection
@@ -885,6 +823,8 @@ Private Function private_TryResolveDemoTableDynamic(ByVal tableObj As Variant, B
     Dim targetColumn As obj_Column
     Dim targetRow As obj_Row
     Dim i As Long
+    Dim sourceColumnIndex As Long
+    Dim sourceRowIndex As Long
 
     If Not VBA.IsObject(tableObj) Then
         ex_Core.m_Diagnostic_LogError "PrototypeNew: demo table item is not object."
@@ -901,20 +841,26 @@ Private Function private_TryResolveDemoTableDynamic(ByVal tableObj As Variant, B
             Set tableDynamic = New obj_TableDynamic
             tableDynamic.SectionTitle = fixedTable.SectionTitle
 
-            For Each sourceColumn In fixedTable.Columns
+            For sourceColumnIndex = 1 To fixedTable.Columns.Count
+                Set sourceColumn = fixedTable.Columns.Item(sourceColumnIndex)
+                If sourceColumn Is Nothing Then GoTo ContinueResolveColumn
                 Set targetColumn = New obj_Column
                 targetColumn.Name = sourceColumn.Name
                 targetColumn.Position = sourceColumn.Position
                 If Not tableDynamic.AddColumn(targetColumn) Then Exit Function
-            Next sourceColumn
+ContinueResolveColumn:
+            Next sourceColumnIndex
 
-            For Each sourceRow In fixedTable.Rows
+            For sourceRowIndex = 1 To fixedTable.Rows.Count
+                Set sourceRow = fixedTable.Rows.Item(sourceRowIndex)
+                If sourceRow Is Nothing Then GoTo ContinueResolveRow
                 Set targetRow = New obj_Row
                 For i = 1 To tableDynamic.ColumnCount
                     targetRow.AddCell sourceRow.GetCell(i)
                 Next i
                 If Not tableDynamic.AddRow(targetRow) Then Exit Function
-            Next sourceRow
+ContinueResolveRow:
+            Next sourceRowIndex
 
             Set outTable = tableDynamic
             private_TryResolveDemoTableDynamic = True
@@ -1076,7 +1022,6 @@ Private Function private_GetActiveWorksheet() As Worksheet
 
     Set private_GetActiveWorksheet = activeSheetObj
 End Function
-
 
 Private Function private_GetDemoConfigVariantKey() As String
     g_DemoConfigVariant = VBA.LCase$(VBA.Trim$(g_DemoConfigVariant))

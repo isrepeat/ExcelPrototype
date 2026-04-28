@@ -167,12 +167,13 @@ Private Function private_TryBuildRenderBufferSingle(ByRef outValueBlock As Varia
     Dim maxRows As Long
     Dim plannedRows As Long
     Dim currentOutputRow As Long
-    Dim rowItem As Variant
+    Dim sourceRow As obj_Row
     Dim row As obj_Row
     Dim colOffset As Long
     Dim tokens As Variant
     Dim writeStart As Long
     Dim writeEnd As Long
+    Dim rowIndex As Long
 
     availableCols = private_GetAvailableColumnCount()
     maxRows = m_RowEnd - m_RowStart + 1
@@ -246,14 +247,15 @@ Private Function private_TryBuildRenderBufferSingle(ByRef outValueBlock As Varia
 
     writeStart = currentOutputRow + 1
     If Not tableRows Is Nothing Then
-        On Error GoTo EH_INVALID_ROW
-        For Each rowItem In tableRows
+        For rowIndex = 1 To tableRows.Count
             If currentOutputRow >= plannedRows Then Exit For
+            Set sourceRow = tableRows.Item(rowIndex)
+            If sourceRow Is Nothing Then GoTo ContinueSourceRow
             currentOutputRow = currentOutputRow + 1
-            Set row = rowItem
+            Set row = sourceRow
             row.CopyToMatrixRow outValueBlock, currentOutputRow, tableColumnCount
-        Next rowItem
-        On Error GoTo 0
+ContinueSourceRow:
+        Next rowIndex
     End If
     writeEnd = currentOutputRow
 #If ENALBE_STYLES Then
@@ -272,11 +274,6 @@ Private Function private_TryBuildRenderBufferSingle(ByRef outValueBlock As Varia
 #End If
 
     private_TryBuildRenderBufferSingle = True
-    Exit Function
-
-EH_INVALID_ROW:
-    On Error GoTo 0
-    ex_Core.m_Diagnostic_LogError "TableSingle: unsupported row object in table rows. Expected obj_Row."
 End Function
 
 Private Sub private_AddStyleSegment( _
@@ -548,6 +545,8 @@ Private Function private_ConvertFixedTableToDynamic(ByVal fixedTable As obj_Tabl
     Dim targetColumn As obj_Column
     Dim targetRow As obj_Row
     Dim colIndex As Long
+    Dim sourceColumnIndex As Long
+    Dim sourceRowIndex As Long
 
     If fixedTable Is Nothing Then
         ex_Core.m_Diagnostic_LogError "TableSingle: fixed table model is not specified."
@@ -558,21 +557,27 @@ Private Function private_ConvertFixedTableToDynamic(ByVal fixedTable As obj_Tabl
     tableDynamic.SectionTitle = fixedTable.SectionTitle
 
     Set sourceColumns = fixedTable.Columns
-    For Each sourceColumn In sourceColumns
+    For sourceColumnIndex = 1 To sourceColumns.Count
+        Set sourceColumn = sourceColumns.Item(sourceColumnIndex)
+        If sourceColumn Is Nothing Then GoTo ContinueSourceColumn
         Set targetColumn = New obj_Column
         targetColumn.Position = sourceColumn.Position
         targetColumn.Name = sourceColumn.Name
         If Not tableDynamic.AddColumn(targetColumn) Then Exit Function
-    Next sourceColumn
+ContinueSourceColumn:
+    Next sourceColumnIndex
 
     Set sourceRows = fixedTable.Rows
-    For Each sourceRow In sourceRows
+    For sourceRowIndex = 1 To sourceRows.Count
+        Set sourceRow = sourceRows.Item(sourceRowIndex)
+        If sourceRow Is Nothing Then GoTo ContinueSourceRowInFixedTable
         Set targetRow = New obj_Row
         For colIndex = 1 To tableDynamic.ColumnCount
             targetRow.AddCell sourceRow.GetCell(colIndex)
         Next colIndex
         If Not tableDynamic.AddRow(targetRow) Then Exit Function
-    Next sourceRow
+ContinueSourceRowInFixedTable:
+    Next sourceRowIndex
 
     Set private_ConvertFixedTableToDynamic = tableDynamic
 End Function

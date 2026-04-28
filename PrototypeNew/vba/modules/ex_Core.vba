@@ -2164,7 +2164,7 @@ Private Function private_Dev_TryResolveFileComponentType( _
     ElseIf VBA.Left$(normalizedName, 3) = "ex_" Or VBA.Left$(normalizedName, 3) = "rt_" Then
         outCompType = COMP_TYPE_MODULE
         outFallbackName = baseName
-    ElseIf VBA.Left$(normalizedName, 4) = "obj_" And m_Helpers_EndsWith(normalizedName, ".cls") Then
+    ElseIf m_Helpers_EndsWith(normalizedName, ".cls") Then
         outCompType = COMP_TYPE_CLASS
         outFallbackName = VBA.Left$(baseName, VBA.Len(baseName) - VBA.Len(".cls"))
     End If
