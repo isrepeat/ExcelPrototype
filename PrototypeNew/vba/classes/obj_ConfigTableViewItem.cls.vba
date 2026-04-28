@@ -101,6 +101,7 @@ Private Function private_TrySyncEntryItemsFromModel() As Boolean
     Dim sourceConfigEntries As list__obj_ConfigEntry
     Dim sourceConfigEntry As obj_ConfigEntry
     Dim configEntryViewItem As obj_ConfigEntryViewItem
+    Dim entryIndex As Long
 
     On Error GoTo EH_SYNC
 
@@ -118,14 +119,18 @@ Private Function private_TrySyncEntryItemsFromModel() As Boolean
         Exit Function
     End If
 
-    For Each sourceConfigEntry In sourceConfigEntries
+    For entryIndex = 1 To sourceConfigEntries.Count
+        Set sourceConfigEntry = sourceConfigEntries.Item(entryIndex)
+        If sourceConfigEntry Is Nothing Then GoTo ContinueSourceEntry
+
         Set configEntryViewItem = New obj_ConfigEntryViewItem
         If Not configEntryViewItem.Initialize(sourceConfigEntry) Then
             ex_Core.m_Diagnostic_LogError "ConfigTableViewItem.private_TrySyncEntryItemsFromModel: failed to initialize obj_ConfigEntryViewItem from source entry."
             Exit Function
         End If
         configEntryViewItems.Add configEntryViewItem
-    Next sourceConfigEntry
+ContinueSourceEntry:
+    Next entryIndex
 
     Set m_ConfigEntryViewItems = configEntryViewItems
     private_TrySyncEntryItemsFromModel = True

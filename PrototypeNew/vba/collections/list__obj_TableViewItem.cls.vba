@@ -44,8 +44,3 @@ End Sub
 Public Property Get AsCollection() As Collection
     Set AsCollection = m_ObjectCollectionBase.AsCollection
 End Property
-
-Public Property Get NewEnum() As IUnknown
-Attribute NewEnum.VB_UserMemId = -4
-    Set NewEnum = m_ObjectCollectionBase.NewEnum
-End Property

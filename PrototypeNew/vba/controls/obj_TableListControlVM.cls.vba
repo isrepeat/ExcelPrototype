@@ -275,6 +275,7 @@ Private Function private_TryEstimateTableOutputRows( _
     Dim rowItems As list__obj_RowViewItem
     Dim rowItemRaw As Variant
     Dim rowViewItem As obj_RowViewItem
+    Dim rowItemIndex As Long
 
     outRows = 0
 
@@ -312,7 +313,8 @@ Private Function private_TryEstimateTableOutputRows( _
 
     Set rowItems = tableViewItem.RowItems
     If Not rowItems Is Nothing And rowItems.Count > 0 Then
-        For Each rowItemRaw In rowItems
+        For rowItemIndex = 1 To rowItems.Count
+            Set rowItemRaw = rowItems.Item(rowItemIndex)
             Set rowViewItem = Nothing
             If Not private_TryResolveRowViewItem(rowItemRaw, rowViewItem) Then Exit Function
             If rowViewItem Is Nothing Then GoTo ContinueRowEstimate
@@ -323,7 +325,7 @@ Private Function private_TryEstimateTableOutputRows( _
             outRows = outRows + rowViewItem.SpacerRowsAfter
 
 ContinueRowEstimate:
-        Next rowItemRaw
+        Next rowItemIndex
     Else
         outRows = outRows + tableDynamic.RowCount
     End If
@@ -347,12 +349,14 @@ Private Function private_TryWriteTableItemToBuffer( _
     Dim rowItemRaw As Variant
     Dim rowViewItem As obj_RowViewItem
     Dim tableRows As list__obj_Row
-    Dim rowRaw As Variant
+    Dim sourceRow As obj_Row
     Dim row As obj_Row
     Dim colOffset As Long
     Dim tokens As Variant
     Dim writeStart As Long
     Dim writeEnd As Long
+    Dim rowItemIndex As Long
+    Dim tableRowIndex As Long
 
     If tableViewItem Is Nothing Then
         private_TryWriteTableItemToBuffer = True
@@ -418,8 +422,9 @@ Private Function private_TryWriteTableItemToBuffer( _
     Set rowItems = tableViewItem.RowItems
 
     If Not rowItems Is Nothing And rowItems.Count > 0 Then
-        For Each rowItemRaw In rowItems
+        For rowItemIndex = 1 To rowItems.Count
             If ioCurrentOutputRow >= plannedRows Then Exit For
+            Set rowItemRaw = rowItems.Item(rowItemIndex)
 
             Set rowViewItem = Nothing
             If Not private_TryResolveRowViewItem(rowItemRaw, rowViewItem) Then Exit Function
@@ -429,20 +434,21 @@ Private Function private_TryWriteTableItemToBuffer( _
                 rowViewItem, tableDynamic.ColumnCount, valueBlock, styleSegments, plannedRows, ioCurrentOutputRow) Then Exit Function
 
 ContinueRowView:
-        Next rowItemRaw
+        Next rowItemIndex
     Else
         Set tableRows = tableDynamic.Rows
         If Not tableRows Is Nothing Then
             writeStart = ioCurrentOutputRow + 1
-            On Error GoTo EH_INVALID_ROW
-            For Each rowRaw In tableRows
+            For tableRowIndex = 1 To tableRows.Count
                 If ioCurrentOutputRow >= plannedRows Then Exit For
+                Set sourceRow = tableRows.Item(tableRowIndex)
+                If sourceRow Is Nothing Then GoTo ContinueTableRow
 
                 ioCurrentOutputRow = ioCurrentOutputRow + 1
-                Set row = rowRaw
+                Set row = sourceRow
                 row.CopyToMatrixRow valueBlock, ioCurrentOutputRow, tableDynamic.ColumnCount
-            Next rowRaw
-            On Error GoTo 0
+ContinueTableRow:
+            Next tableRowIndex
             writeEnd = ioCurrentOutputRow
 #If ENALBE_STYLES Then
             If writeEnd >= writeStart Then
@@ -464,11 +470,6 @@ ContinueRowView:
 #End If
 
     private_TryWriteTableItemToBuffer = True
-    Exit Function
-
-EH_INVALID_ROW:
-    On Error GoTo 0
-    ex_Core.m_Diagnostic_LogError "TableList: unsupported row object in table rows. Expected obj_Row."
 End Function
 
 Private Function private_TryAppendRowViewData( _
@@ -936,6 +937,8 @@ Private Function private_ConvertFixedTableToDynamic(ByVal fixedTable As obj_Tabl
     Dim targetColumn As obj_Column
     Dim targetRow As obj_Row
     Dim colIndex As Long
+    Dim sourceColumnIndex As Long
+    Dim sourceRowIndex As Long
 
     If fixedTable Is Nothing Then
         ex_Core.m_Diagnostic_LogError "TableList: fixed table model is not specified."
@@ -946,21 +949,27 @@ Private Function private_ConvertFixedTableToDynamic(ByVal fixedTable As obj_Tabl
     tableDynamic.SectionTitle = fixedTable.SectionTitle
 
     Set sourceColumns = fixedTable.Columns
-    For Each sourceColumn In sourceColumns
+    For sourceColumnIndex = 1 To sourceColumns.Count
+        Set sourceColumn = sourceColumns.Item(sourceColumnIndex)
+        If sourceColumn Is Nothing Then GoTo ContinueSourceColumn
         Set targetColumn = New obj_Column
         targetColumn.Position = sourceColumn.Position
         targetColumn.Name = sourceColumn.Name
         If Not tableDynamic.AddColumn(targetColumn) Then Exit Function
-    Next sourceColumn
+ContinueSourceColumn:
+    Next sourceColumnIndex
 
     Set sourceRows = fixedTable.Rows
-    For Each sourceRow In sourceRows
+    For sourceRowIndex = 1 To sourceRows.Count
+        Set sourceRow = sourceRows.Item(sourceRowIndex)
+        If sourceRow Is Nothing Then GoTo ContinueSourceRow
         Set targetRow = New obj_Row
         For colIndex = 1 To tableDynamic.ColumnCount
             targetRow.AddCell sourceRow.GetCell(colIndex)
         Next colIndex
         If Not tableDynamic.AddRow(targetRow) Then Exit Function
-    Next sourceRow
+ContinueSourceRow:
+    Next sourceRowIndex
 
     Set private_ConvertFixedTableToDynamic = tableDynamic
 End Function

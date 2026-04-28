@@ -73,29 +73,38 @@ Public Function m_CreatePage( _
     Dim ws As Worksheet
     Dim page As obj_IPage
     Dim pageId As String
+    Dim createStep As String
 
     outPageId = VBA.vbNullString
 
+    createStep = "resolve-workbook"
     Set wb = ThisWorkbook
     If wb Is Nothing Then
         ex_Core.m_Diagnostic_LogError "PageManager: workbook is not specified."
         Exit Function
     End If
 
+    createStep = "normalize-page-type"
     pageType = private_NormalizePageType(pageType)
 
     On Error GoTo EH_CREATE
+    createStep = "add-worksheet"
     Set ws = wb.Worksheets.Add(After:=wb.Worksheets(wb.Worksheets.Count))
 
+    createStep = "apply-sheet-name"
     sheetName = VBA.Trim$(sheetName)
     If VBA.Len(sheetName) > 0 Then ws.Name = sheetName
 
+    createStep = "generate-page-id"
     pageId = private_GeneratePageId(pageType)
     If VBA.Len(pageId) = 0 Then GoTo EH_ADD
 
+    createStep = "create-page-instance"
     If Not private_TryCreatePageByPageType(pageType, page) Then GoTo EH_ADD
     If page Is Nothing Then GoTo EH_ADD
+    createStep = "initialize-page-instance"
     If Not page.Initialize(ws, VBA.Trim$(xmlUiPath), VBA.CLng(pageType), pageId) Then GoTo EH_ADD
+    createStep = "register-page"
     If Not private_RegisterPage(pageId, page) Then GoTo EH_ADD
 
     outPageId = pageId
@@ -112,7 +121,7 @@ EH_ADD:
 
 EH_CREATE:
     Application.DisplayAlerts = True
-    ex_Core.m_Diagnostic_LogError "PageManager: failed to create worksheet for page: " & Err.Description
+    ex_Core.m_Diagnostic_LogError "PageManager: failed to create page at step '" & createStep & "': [" & VBA.CStr(Err.Number) & "] " & Err.Description
 End Function
 
 

@@ -378,11 +378,9 @@ End Function
 Private Function private_PrepareDemoConfigRuntime(ByVal ws As Worksheet, Optional ByVal notifyChange As Boolean = False) As Boolean
     If ws Is Nothing Then Exit Function
 
-    If Not private_TryLoadDemoConfigVariantFromStore(ws) Then Exit Function
     m_PageBase.RuntimeSources.ResetItemsSources
     m_PageBase.RuntimeSources.ResetObjectSources
-    If Not ex_Test.m_TEST_RegisterDemoConfigProfileItems(notifyChange, m_PageBase) Then Exit Function
-    If Not private_RegisterDemoConfigItemsByCurrentVariant(notifyChange) Then Exit Function
+    If Not ex_PageMainActions.m_PrepareModeProfileConfigRuntime(notifyChange, m_PageBase) Then Exit Function
 
     private_PrepareDemoConfigRuntime = True
 End Function

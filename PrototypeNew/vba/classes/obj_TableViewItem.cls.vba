@@ -142,6 +142,7 @@ Private Function private_TrySyncRowItemsFromModel() As Boolean
 
     Dim rowViewItem As obj_RowViewItem
     Dim rowViewItems As list__obj_RowViewItem
+    Dim rowIndex As Long
 
     On Error GoTo EH_SYNC
 
@@ -159,7 +160,10 @@ Private Function private_TrySyncRowItemsFromModel() As Boolean
         Exit Function
     End If
 
-    For Each sourceRow In sourceRows
+    For rowIndex = 1 To sourceRows.Count
+        Set sourceRow = sourceRows.Item(rowIndex)
+        If sourceRow Is Nothing Then GoTo ContinueSourceRow
+
         Set rowViewItem = New obj_RowViewItem
         If Not rowViewItem.Initialize(sourceRow) Then
             ex_Core.m_Diagnostic_LogError "TableViewItem.private_TrySyncRowItemsFromModel: failed to initialize obj_RowViewItem from source row."
@@ -167,7 +171,8 @@ Private Function private_TrySyncRowItemsFromModel() As Boolean
         End If
         rowViewItem.RowVisible = True
         rowViewItems.Add rowViewItem
-    Next sourceRow
+ContinueSourceRow:
+    Next rowIndex
 
     Set m_RowViewItems = rowViewItems
     private_TrySyncRowItemsFromModel = True

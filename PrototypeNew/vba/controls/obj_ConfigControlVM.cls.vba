@@ -70,6 +70,7 @@ Private Sub obj_IControl_Render()
     Dim idx As Long
     Dim rowOut As Long
     Dim configEntryViewItem As obj_ConfigEntryViewItem
+    Dim entryItems As list__obj_ConfigEntryViewItem
     Dim configEntry As obj_ConfigEntry
     Dim attrToken As String
     Dim absRow As Long
@@ -102,12 +103,14 @@ Private Sub obj_IControl_Render()
         Exit Sub
     End If
     If Not m_ConfigTableViewItem.TryResyncEntryItemsFromModel() Then Exit Sub
+    Set entryItems = m_ConfigTableViewItem.EntryItems
+    If entryItems Is Nothing Then Exit Sub
 
     Set hashRows = New Collection
     Set rxRows = New Collection
 
     maxRows = m_ControlLayout.RowEnd - m_ControlLayout.RowStart + 1
-    dataRows = m_ConfigTableViewItem.EntryItems.Count
+    dataRows = entryItems.Count
     rowsToWrite = 1 + dataRows
     If rowsToWrite < 2 Then rowsToWrite = 2
     If rowsToWrite > maxRows Then rowsToWrite = maxRows
@@ -117,9 +120,8 @@ Private Sub obj_IControl_Render()
     valueBlock(1, 2) = "Key"
     valueBlock(1, 3) = "Value"
 
-    idx = 0
-    For Each configEntryViewItem In m_ConfigTableViewItem.EntryItems
-        idx = idx + 1
+    For idx = 1 To entryItems.Count
+        Set configEntryViewItem = entryItems.Item(idx)
         rowOut = idx + 1
         If rowOut > rowsToWrite Then Exit For
 
@@ -151,7 +153,7 @@ Private Sub obj_IControl_Render()
         End Select
 
 ContinueItem:
-    Next configEntryViewItem
+    Next idx
 
     Set boundsRange = ws.Range( _
         ws.Cells(m_ControlLayout.RowStart, m_ControlLayout.ColStart), _

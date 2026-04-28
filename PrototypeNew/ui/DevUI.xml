@@ -123,8 +123,22 @@
       <stackPanel at="r2c8" orientation="vertical">
         <control
           type="Select"
+          name="ConfigModePicker"
+          itemsSource="{PageRuntimeSource='RuntimeItems.PageMain.ConfigModes'}"
+          placeholder="Choose mode"
+          style="configSelectHeader"
+          panelStyle="configSelectPanel"
+          itemStyle="configSelectItem"
+          itemHeight="18"
+          itemMargin="2"
+          spanCells="6"
+          spanRows="4"
+          />
+
+        <control
+          type="Select"
           name="ConfigProfilePicker"
-          itemsSource="{PageRuntimeSource='RuntimeItems.Test.ConfigProfiles'}"
+          itemsSource="{PageRuntimeSource='RuntimeItems.PageMain.ConfigProfiles'}"
           placeholder="Choose profile"
           style="configSelectHeader"
           panelStyle="configSelectPanel"
@@ -138,7 +152,7 @@
         <control
           type="Config"
           name="DevConfig"
-          itemsSource="{PageRuntimeSource='RuntimeItems.Test.Config'}"
+          itemsSource="{PageRuntimeSource='RuntimeItems.PageMain.Config'}"
           tableName="cfgDevUi"
           spanCells="10"
           spanRows="24"
