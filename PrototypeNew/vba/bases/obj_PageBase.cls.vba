@@ -4,6 +4,8 @@ BEGIN
 END
 Attribute VB_Name = "obj_PageBase"
 Option Explicit
+#Const LOGGING_DEBUG_ENABLED = True
+#Const LOGGING_VERBOSE_ENABLED = False
 
 Private m_Worksheet As Worksheet
 Private m_UiPath As String
@@ -34,18 +36,33 @@ Private Const CONTROL_SNAPSHOT_ENTRY_NS As String = "urn:excelprototype:runtime-
 Private Const INLINE_TARGET_RANGE As String = "range"
 Private Const INLINE_TARGET_SHAPE As String = "shape"
 
+Private Sub Class_Initialize()
+#If LOGGING_VERBOSE_ENABLED Then
+    ex_Core.m_Diagnostic_LogInfo "lifecycle:" & VBA.TypeName(Me) & ".Class_Initialize"
+#End If
+End Sub
+Private Sub Class_Terminate()
+#If LOGGING_VERBOSE_ENABLED Then
+    ex_Core.m_Diagnostic_LogInfo "lifecycle:" & VBA.TypeName(Me) & ".Class_Terminate"
+#End If
+    If m_IsDisposed Then Exit Sub
+    On Error Resume Next
+    Dispose False
+    On Error GoTo 0
+End Sub
+
 ' //
 ' // API
 ' //
-' Callstack[1]: ThisWorkbook.Workbook_Open -> ThisWorkbook.m_ResetWorkbookAndCreateMainPage -> private_ResetWorkbookAndCreateMainPage -> rt_PageManager.m_CreatePage -> obj_PageMain.obj_IPage_Initialize -> obj_PageBase.Initialize
-' Callstack[2]: ex_Core.private_TryRecoverUiAfterUpdate -> ThisWorkbook.m_ResetWorkbookAndCreateMainPage -> private_ResetWorkbookAndCreateMainPage -> rt_PageManager.m_CreatePage -> obj_PageMain.obj_IPage_Initialize -> obj_PageBase.Initialize
-' Callstack[3]: rt_Snapshots.m_RestorePageSnapshots -> rt_PageManager.m_CreatePage -> obj_PageMain.obj_IPage_Initialize -> obj_PageBase.Initialize
 Public Function Initialize( _
     ByVal ws As Worksheet, _
     Optional ByVal uiPath As String = VBA.vbNullString, _
     Optional ByVal pageType As Long = 1, _
     Optional ByVal pageId As String = VBA.vbNullString _
 ) As Boolean
+#If LOGGING_VERBOSE_ENABLED Then
+    ex_Core.m_Diagnostic_LogInfo "lifecycle:" & VBA.TypeName(Me) & ".Initialize"
+#End If
     If Not private_EnsureNotDisposed("Initialize") Then Exit Function
 
     Set m_Worksheet = ws
@@ -53,7 +70,9 @@ Public Function Initialize( _
     m_PageType = VBA.CLng(pageType)
     m_PageId = VBA.Trim$(pageId)
     If VBA.Len(m_PageId) = 0 Then
+#If LOGGING_DEBUG_ENABLED Then
         ex_Core.m_Diagnostic_LogError "PageBase: page id is empty during initialization."
+#End If
         Exit Function
     End If
     Set m_UiDom = Nothing
@@ -65,13 +84,12 @@ Public Function Initialize( _
     Call Me.ResetControlActions
     Initialize = Me.IsReady()
 End Function
-
-' Callstack[1]: ThisWorkbook.Workbook_Open -> ThisWorkbook.m_ResetWorkbookAndCreateMainPage -> private_ResetWorkbookAndCreateMainPage -> rt_PageManager.m_DisposeAllPages -> page.Dispose(False) -> obj_PageMain.obj_IPage_Dispose -> obj_PageBase.Dispose
-' Callstack[2]: ThisWorkbook.Workbook_SheetBeforeDelete -> ex_HelpersSheet.m_RemovePageByWorksheet -> rt_PageManager.m_RemovePage -> page.Dispose(False) -> obj_PageMain.obj_IPage_Dispose -> obj_PageBase.Dispose
-' Callstack[3]: rt_PageManager.m_RemovePageById -> rt_PageManager.m_RemovePage -> page.Dispose(deleteWorksheet) -> obj_PageMain.obj_IPage_Dispose -> obj_PageBase.Dispose
 Public Sub Dispose(Optional ByVal deleteWorksheet As Boolean = True)
     Dim ws As Worksheet
 
+#If LOGGING_VERBOSE_ENABLED Then
+    ex_Core.m_Diagnostic_LogInfo "lifecycle:" & VBA.TypeName(Me) & ".Dispose"
+#End If
     If m_IsDisposed Then Exit Sub
 
     Set ws = m_Worksheet
@@ -99,8 +117,18 @@ Public Sub Dispose(Optional ByVal deleteWorksheet As Boolean = True)
 
 EH_DELETE:
     Application.DisplayAlerts = True
+#If LOGGING_DEBUG_ENABLED Then
     ex_Core.m_Diagnostic_LogError "PageBase: failed to delete worksheet during dispose: " & Err.Description
+#End If
 End Sub
+
+' Callstack[1]: ThisWorkbook.Workbook_Open -> ThisWorkbook.m_ResetWorkbookAndCreateMainPage -> private_ResetWorkbookAndCreateMainPage -> rt_PageManager.m_CreatePage -> obj_PageMain.obj_IPage_Initialize -> obj_PageBase.Initialize
+' Callstack[2]: ex_Core.private_TryRecoverUiAfterUpdate -> ThisWorkbook.m_ResetWorkbookAndCreateMainPage -> private_ResetWorkbookAndCreateMainPage -> rt_PageManager.m_CreatePage -> obj_PageMain.obj_IPage_Initialize -> obj_PageBase.Initialize
+' Callstack[3]: rt_Snapshots.m_RestorePageSnapshots -> rt_PageManager.m_CreatePage -> obj_PageMain.obj_IPage_Initialize -> obj_PageBase.Initialize
+
+' Callstack[1]: ThisWorkbook.Workbook_Open -> ThisWorkbook.m_ResetWorkbookAndCreateMainPage -> private_ResetWorkbookAndCreateMainPage -> rt_PageManager.m_DisposeAllPages -> page.Dispose(False) -> obj_PageMain.obj_IPage_Dispose -> obj_PageBase.Dispose
+' Callstack[2]: ThisWorkbook.Workbook_SheetBeforeDelete -> ex_HelpersSheet.m_RemovePageByWorksheet -> rt_PageManager.m_RemovePage -> page.Dispose(False) -> obj_PageMain.obj_IPage_Dispose -> obj_PageBase.Dispose
+' Callstack[3]: rt_PageManager.m_RemovePageById -> rt_PageManager.m_RemovePage -> page.Dispose(deleteWorksheet) -> obj_PageMain.obj_IPage_Dispose -> obj_PageBase.Dispose
 
 Public Property Get Worksheet() As Worksheet
     Set Worksheet = m_Worksheet
@@ -133,7 +161,9 @@ End Property
 
 Public Function IsReady() As Boolean
     If m_IsDisposed Then
+#If LOGGING_DEBUG_ENABLED Then
         ex_Core.m_Diagnostic_LogError "Page was disposed"
+#End If
         Exit Function
     End If
     IsReady = Not m_Worksheet Is Nothing
@@ -187,14 +217,18 @@ Public Function Render() As Boolean
     Set ws = m_Worksheet
     Set wb = ws.Parent
     If wb Is Nothing Then
+#If LOGGING_DEBUG_ENABLED Then
         ex_Core.m_Diagnostic_LogError "PrototypeNew: workbook is not specified."
+#End If
         Exit Function
     End If
 
     ' Вычисляем фактический путь к разметке страницы для текущего рендера.
     resolvedUiPath = private_ResolvePageUiPath(m_UiPath)
     If VBA.Len(resolvedUiPath) = 0 Then
+#If LOGGING_DEBUG_ENABLED Then
         ex_Core.m_Diagnostic_LogError "PrototypeNew: failed to resolve page UI path."
+#End If
         Exit Function
     End If
 
@@ -209,7 +243,9 @@ Public Function Render() As Boolean
 
     Set pageNode = m_UiDom.selectSingleNode("/p:page")
     If pageNode Is Nothing Then
+#If LOGGING_DEBUG_ENABLED Then
         ex_Core.m_Diagnostic_LogError "PrototypeNew: page UI root node <page> is missing."
+#End If
         Exit Function
     End If
 
@@ -249,7 +285,9 @@ EH_RENDER:
 
     private_LeaveFastRenderMode app, prevScreenUpdating, prevEnableEvents, prevDisplayAlerts, prevCalculation, prevStatusBar
     m_IsRendering = False
+#If LOGGING_DEBUG_ENABLED Then
     ex_Core.m_Diagnostic_LogError "PrototypeNew: render failed: [" & errSource & " #" & VBA.CStr(errNumber) & "] " & errDescription
+#End If
 End Function
 
 ' Callstack[1]: obj_BannerViewItem.Render -> m_PageBase.RegisterInlineRuns -> obj_PageBase.RegisterInlineRuns
@@ -309,7 +347,9 @@ Public Function TryResolveInlineTextByPart( _
     ' по нему выбираем профиль правил inline-текста.
     partName = VBA.Trim$(partName)
     If VBA.Len(partName) = 0 Then
+#If LOGGING_DEBUG_ENABLED Then
         ex_Core.m_Diagnostic_LogError "PageBase: part name is empty for inline text resolve."
+#End If
         Exit Function
     End If
 
@@ -327,7 +367,9 @@ Public Function TryGetInlineTextProfile( _
 
     partName = VBA.Trim$(partName)
     If VBA.Len(partName) = 0 Then
+#If LOGGING_DEBUG_ENABLED Then
         ex_Core.m_Diagnostic_LogError "PageBase: part name is empty for inline text profile."
+#End If
         Exit Function
     End If
 
@@ -348,7 +390,9 @@ Public Function RegisterInlineRunsByPart( _
 
     partName = VBA.Trim$(partName)
     If VBA.Len(partName) = 0 Then
+#If LOGGING_DEBUG_ENABLED Then
         ex_Core.m_Diagnostic_LogError "PageBase: part name is empty for range inline runs registration."
+#End If
         Exit Function
     End If
 
@@ -367,14 +411,15 @@ Public Function RegisterInlineRunsForShapeByPart( _
 
     partName = VBA.Trim$(partName)
     If VBA.Len(partName) = 0 Then
+#If LOGGING_DEBUG_ENABLED Then
         ex_Core.m_Diagnostic_LogError "PageBase: part name is empty for shape inline runs registration."
+#End If
         Exit Function
     End If
 
     If Not Me.TryGetInlineTextProfile(partName, inlineTextProfile) Then Exit Function
     RegisterInlineRunsForShapeByPart = Me.RegisterInlineRunsForShape(targetShape, runs, inlineTextProfile)
 End Function
-
 
 Public Function RegisterInlineRunsForShape( _
     ByVal targetShape As Shape, _
@@ -432,7 +477,9 @@ Public Function ApplyInlineRuns() As Boolean
 
     If Not private_EnsureNotDisposed("ApplyInlineRuns") Then Exit Function
     If m_Worksheet Is Nothing Then
+#If LOGGING_DEBUG_ENABLED Then
         ex_Core.m_Diagnostic_LogError "PageBase: worksheet is not specified for inline runs."
+#End If
         Exit Function
     End If
 
@@ -563,11 +610,15 @@ Public Function RegisterControl(ByVal controlKey As String, ByVal iControl As Ob
     If Not private_EnsureNotDisposed("RegisterControl") Then Exit Function
     controlKey = VBA.LCase$(VBA.Trim$(controlKey))
     If VBA.Len(controlKey) = 0 Then
+#If LOGGING_DEBUG_ENABLED Then
         ex_Core.m_Diagnostic_LogError "PageBase: control key is empty."
+#End If
         Exit Function
     End If
     If iControl Is Nothing Then
+#If LOGGING_DEBUG_ENABLED Then
         ex_Core.m_Diagnostic_LogError "PageBase: control VM is not specified for key '" & controlKey & "'."
+#End If
         Exit Function
     End If
 
@@ -595,21 +646,29 @@ Public Function RegisterShapeRoute( _
     methodName = VBA.Trim$(methodName)
 
     If VBA.Len(shapeKey) = 0 Then
+#If LOGGING_DEBUG_ENABLED Then
         ex_Core.m_Diagnostic_LogError "PageBase: shape name is empty."
+#End If
         Exit Function
     End If
     If VBA.Len(controlKey) = 0 Then
+#If LOGGING_DEBUG_ENABLED Then
         ex_Core.m_Diagnostic_LogError "PageBase: control key is empty for shape '" & shapeName & "'."
+#End If
         Exit Function
     End If
     If VBA.Len(methodName) = 0 Then
+#If LOGGING_DEBUG_ENABLED Then
         ex_Core.m_Diagnostic_LogError "PageBase: method name is empty for shape '" & shapeName & "'."
+#End If
         Exit Function
     End If
 
     private_EnsureStorage
     If Not m_ControlByKey.Exists(controlKey) Then
+#If LOGGING_DEBUG_ENABLED Then
         ex_Core.m_Diagnostic_LogError "PageBase: control '" & controlKey & "' is not registered for shape '" & shapeName & "'."
+#End If
         Exit Function
     End If
 
@@ -643,7 +702,9 @@ Public Function UnregisterControl(ByVal controlKey As String) As Boolean
     If Not private_EnsureNotDisposed("UnregisterControl") Then Exit Function
     controlKeyNorm = VBA.LCase$(VBA.Trim$(controlKey))
     If VBA.Len(controlKeyNorm) = 0 Then
+#If LOGGING_DEBUG_ENABLED Then
         ex_Core.m_Diagnostic_LogError "PageBase: control key is empty."
+#End If
         Exit Function
     End If
 
@@ -675,7 +736,16 @@ End Function
 ' Callstack[5]: obj_PageBase.TryRestoreSerializableControlSnapshots -> ResetControlActions
 ' Callstack[6]: obj_PageMain.ResetControlActions -> obj_PageMain.obj_IPage_ResetControlActions -> obj_PageBase.ResetControlActions
 Public Function ResetControlActions() As Boolean
+    Dim key As Variant
+
     If Not private_EnsureNotDisposed("ResetControlActions") Then Exit Function
+
+    If Not m_ControlByKey Is Nothing Then
+        For Each key In m_ControlByKey.Keys
+            Set m_ControlByKey(key) = Nothing
+        Next key
+    End If
+
     Set m_ControlByKey = Nothing
     Set m_RouteByShape = Nothing
     private_LogRuntimeInfo "reset-control-actions"
@@ -879,12 +949,16 @@ Public Function TrySerializePageSnapshotEnvelope( _
     outSnapshotXml = VBA.vbNullString
     typeRoot = VBA.LCase$(VBA.Trim$(typeRoot))
     If VBA.Len(typeRoot) = 0 Then
+#If LOGGING_DEBUG_ENABLED Then
         ex_Core.m_Diagnostic_LogError "PageBase: page snapshot type root is empty."
+#End If
         Exit Function
     End If
 
     If m_Worksheet Is Nothing Then
+#If LOGGING_DEBUG_ENABLED Then
         ex_Core.m_Diagnostic_LogError "PageBase: worksheet is not specified for page snapshot serialization."
+#End If
         Exit Function
     End If
 
@@ -894,7 +968,9 @@ Public Function TrySerializePageSnapshotEnvelope( _
 
     If VBA.Len(codeNameValue) = 0 Then codeNameValue = sheetNameValue
     If VBA.Len(codeNameValue) = 0 Then
+#If LOGGING_DEBUG_ENABLED Then
         ex_Core.m_Diagnostic_LogError "PageBase: worksheet codeName is empty for page snapshot serialization."
+#End If
         Exit Function
     End If
 
@@ -902,7 +978,9 @@ Public Function TrySerializePageSnapshotEnvelope( _
 
     Set rootNode = dom.DocumentElement
     If rootNode Is Nothing Then
+#If LOGGING_DEBUG_ENABLED Then
         ex_Core.m_Diagnostic_LogError "PageBase: page snapshot root node is missing."
+#End If
         Exit Function
     End If
 
@@ -954,11 +1032,15 @@ Public Function TryDeserializePageSnapshotEnvelope( _
 
     Set rootNode = dom.DocumentElement
     If rootNode Is Nothing Then
+#If LOGGING_DEBUG_ENABLED Then
         ex_Core.m_Diagnostic_LogError "PageBase: page snapshot root node is missing."
+#End If
         Exit Function
     End If
     If VBA.StrComp(VBA.LCase$(VBA.CStr(rootNode.baseName)), PAGE_SNAPSHOT_ENTRY_ROOT, VBA.vbTextCompare) <> 0 Then
+#If LOGGING_DEBUG_ENABLED Then
         ex_Core.m_Diagnostic_LogError "PageBase: unexpected page snapshot root '" & VBA.CStr(rootNode.baseName) & "'."
+#End If
         Exit Function
     End If
 
@@ -976,7 +1058,9 @@ Public Function TryDeserializePageSnapshotEnvelope( _
     End If
 
     If VBA.Len(outCodeName) = 0 And VBA.Len(outSheetName) = 0 Then
+#If LOGGING_DEBUG_ENABLED Then
         ex_Core.m_Diagnostic_LogError "PageBase: page snapshot has empty worksheet identity."
+#End If
         Exit Function
     End If
 
@@ -1009,11 +1093,15 @@ Public Function TryDeserializeControlSnapshotEnvelope( _
 
     Set rootNode = dom.DocumentElement
     If rootNode Is Nothing Then
+#If LOGGING_DEBUG_ENABLED Then
         ex_Core.m_Diagnostic_LogError "PageBase: control snapshot root node is missing."
+#End If
         Exit Function
     End If
     If VBA.StrComp(VBA.LCase$(VBA.CStr(rootNode.baseName)), CONTROL_SNAPSHOT_ENTRY_ROOT, VBA.vbTextCompare) <> 0 Then
+#If LOGGING_DEBUG_ENABLED Then
         ex_Core.m_Diagnostic_LogError "PageBase: unexpected control snapshot root '" & VBA.CStr(rootNode.baseName) & "'."
+#End If
         Exit Function
     End If
 
@@ -1046,14 +1134,18 @@ Public Function TryCreateSnapshotRoot( _
 
     rootName = VBA.Trim$(rootName)
     If VBA.Len(rootName) = 0 Then
+#If LOGGING_DEBUG_ENABLED Then
         ex_Core.m_Diagnostic_LogError "PageBase: snapshot root is empty."
+#End If
         Exit Function
     End If
 
     If Not ex_Core.m_CustomXmlPartStore_TryCreateEmptyDom(rootName, "urn:excelprototype:serializable:page:v1", outDom) Then Exit Function
     Set outRoot = outDom.DocumentElement
     If outRoot Is Nothing Then
+#If LOGGING_DEBUG_ENABLED Then
         ex_Core.m_Diagnostic_LogError "PageBase: snapshot root node is missing."
+#End If
         Exit Function
     End If
 
@@ -1075,22 +1167,30 @@ Public Function TryLoadSnapshotRoot( _
     expectedRootName = VBA.LCase$(VBA.Trim$(expectedRootName))
 
     If VBA.Len(snapshotXml) = 0 Then
+#If LOGGING_DEBUG_ENABLED Then
         ex_Core.m_Diagnostic_LogError "PageBase: snapshot XML is empty."
+#End If
         Exit Function
     End If
     If VBA.Len(expectedRootName) = 0 Then
+#If LOGGING_DEBUG_ENABLED Then
         ex_Core.m_Diagnostic_LogError "PageBase: expected root name is empty."
+#End If
         Exit Function
     End If
 
     If Not ex_Core.m_CustomXmlPartStore_TryLoadDomFromXml(snapshotXml, outDom) Then Exit Function
     Set outRoot = outDom.DocumentElement
     If outRoot Is Nothing Then
+#If LOGGING_DEBUG_ENABLED Then
         ex_Core.m_Diagnostic_LogError "PageBase: snapshot root node is missing."
+#End If
         Exit Function
     End If
     If VBA.StrComp(VBA.LCase$(VBA.CStr(outRoot.baseName)), expectedRootName, VBA.vbTextCompare) <> 0 Then
+#If LOGGING_DEBUG_ENABLED Then
         ex_Core.m_Diagnostic_LogError "PageBase: unexpected snapshot root '" & VBA.CStr(outRoot.baseName) & "'."
+#End If
         Exit Function
     End If
 
@@ -1132,7 +1232,9 @@ Private Function private_TryClearPageRuntime() As Boolean
 
     Set ws = m_Worksheet
     If ws Is Nothing Then
+#If LOGGING_DEBUG_ENABLED Then
         ex_Core.m_Diagnostic_LogError "PrototypeNew: worksheet is not specified."
+#End If
         Exit Function
     End If
 
@@ -1248,7 +1350,6 @@ Private Function private_BuildPageKey() As String
     private_BuildPageKey = VBA.LCase$(VBA.Trim$(wb.Name) & "|" & codeNameValue)
 End Function
 
-
 Private Function private_BuildPageSheetKey() As String
     Dim wb As Workbook
     Dim sheetNameValue As String
@@ -1292,7 +1393,9 @@ Private Function private_TrySerializeControlSnapshotEnvelope( _
 
     Set rootNode = dom.DocumentElement
     If rootNode Is Nothing Then
+#If LOGGING_DEBUG_ENABLED Then
         ex_Core.m_Diagnostic_LogError "PageBase: control snapshot root node is missing."
+#End If
         Exit Function
     End If
 
@@ -1408,7 +1511,9 @@ Private Function private_TryNotifyGlobalClick( _
         If errNo <> 0 Then
             If errNo <> 438 Then
                 outReason = "global-hook-exception:" & VBA.TypeName(iControl)
+#If LOGGING_DEBUG_ENABLED Then
                 ex_Core.m_Diagnostic_LogError "PageBase: global click hook failed on '" & VBA.TypeName(iControl) & "'."
+#End If
                 Exit Function
             End If
         Else
@@ -1441,7 +1546,9 @@ Private Function private_TryInvokeControlAction( _
     methodName = VBA.Trim$(methodName)
     If VBA.Len(methodName) = 0 Then
         outErrorText = "method-name-empty"
+#If LOGGING_DEBUG_ENABLED Then
         ex_Core.m_Diagnostic_LogError "PageBase: method name is empty."
+#End If
         Exit Function
     End If
 
@@ -1465,7 +1572,9 @@ Private Function private_TryInvokeControlAction( _
 
 EH_INVOKE:
     outErrorText = Err.Description
+#If LOGGING_DEBUG_ENABLED Then
     ex_Core.m_Diagnostic_LogError "PageBase: failed to invoke method '" & methodName & "' on '" & VBA.TypeName(iControl) & "': " & Err.Description
+#End If
 End Function
 
 Private Function private_TryCastSerializableControl(ByVal iControl As Object, ByRef outSerializableControl As obj_ISerializable) As Boolean
@@ -1515,23 +1624,30 @@ End Function
 
 Private Sub private_LogRuntimeInfo(ByVal messageText As String)
     On Error Resume Next
+#If LOGGING_DEBUG_ENABLED Then
     ex_Core.m_Diagnostic_LogInfo "page-base:" & VBA.Trim$(messageText) & " " & private_BuildLogContext()
+#End If
     Err.Clear
     On Error GoTo 0
 End Sub
 
 Private Sub private_LogRuntimeError(ByVal messageText As String)
     On Error Resume Next
+#If LOGGING_DEBUG_ENABLED Then
     ex_Core.m_Diagnostic_LogError "page-base:" & VBA.Trim$(messageText) & " " & private_BuildLogContext()
+#End If
     Err.Clear
     On Error GoTo 0
 End Sub
 
 Private Function private_EnsureNotDisposed(ByVal methodName As String) As Boolean
     If m_IsDisposed Then
+#If LOGGING_DEBUG_ENABLED Then
         ex_Core.m_Diagnostic_LogError "PageBase: method '" & methodName & "' cannot be used after Dispose."
+#End If
         Exit Function
     End If
 
     private_EnsureNotDisposed = True
 End Function
+

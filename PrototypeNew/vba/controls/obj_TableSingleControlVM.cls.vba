@@ -4,6 +4,9 @@ BEGIN
 END
 Attribute VB_Name = "obj_TableSingleControlVM"
 Option Explicit
+#Const LOGGING_DEBUG_ENABLED = True
+#Const LOGGING_VERBOSE_ENABLED = False
+Private m_IsDisposed As Boolean
 Implements obj_IControl
 
 #Const ENALBE_STYLES = True
@@ -20,6 +23,21 @@ Private m_ColEnd As Long
 Private m_TableItems As Collection
 Private m_IsConfigured As Boolean
 
+Private Sub Class_Initialize()
+#If LOGGING_VERBOSE_ENABLED Then
+    ex_Core.m_Diagnostic_LogInfo "lifecycle:" & VBA.TypeName(Me) & ".Class_Initialize"
+#End If
+End Sub
+Private Sub Class_Terminate()
+#If LOGGING_VERBOSE_ENABLED Then
+    ex_Core.m_Diagnostic_LogInfo "lifecycle:" & VBA.TypeName(Me) & ".Class_Terminate"
+#End If
+    If m_IsDisposed Then Exit Sub
+    On Error Resume Next
+    Dispose
+    On Error GoTo 0
+End Sub
+
 ' //
 ' // Interface
 ' //
@@ -35,13 +53,17 @@ Private Sub obj_IControl_Configure(ByVal page As obj_PageBase, ByVal controlNode
 
     m_ItemsSourceRaw = VBA.Trim$(VBA.CStr(ex_XmlCore.m_NodeAttrText(controlNode, "itemsSource")))
     If VBA.Len(m_ItemsSourceRaw) = 0 Then
+#If LOGGING_DEBUG_ENABLED Then
         ex_Core.m_Diagnostic_LogError "TableSingle: itemsSource is not specified for control '" & m_ControlName & "'."
+#End If
         Exit Sub
     End If
 
     m_LayoutSheetName = VBA.Trim$(ex_XmlCore.m_NodeAttrText(controlNode, "__layoutSheetName"))
     If VBA.Len(m_LayoutSheetName) = 0 Then
+#If LOGGING_DEBUG_ENABLED Then
         ex_Core.m_Diagnostic_LogError "TableSingle: runtime layout sheet is missing for control '" & m_ControlName & "'."
+#End If
         Exit Sub
     End If
 
@@ -51,15 +73,21 @@ Private Sub obj_IControl_Configure(ByVal page As obj_PageBase, ByVal controlNode
     If Not private_TryReadLayoutLongAttr(controlNode, "__layoutColEnd", m_ColEnd, True) Then Exit Sub
 
     If m_RowStart <= 0 Or m_ColStart <= 0 Then
+#If LOGGING_DEBUG_ENABLED Then
         ex_Core.m_Diagnostic_LogError "TableSingle: invalid row/column start for control '" & m_ControlName & "'."
+#End If
         Exit Sub
     End If
     If m_RowEnd < m_RowStart Then
+#If LOGGING_DEBUG_ENABLED Then
         ex_Core.m_Diagnostic_LogError "TableSingle: control '" & m_ControlName & "' has invalid spanRows range."
+#End If
         Exit Sub
     End If
     If m_ColEnd < m_ColStart Then
+#If LOGGING_DEBUG_ENABLED Then
         ex_Core.m_Diagnostic_LogError "TableSingle: control '" & m_ControlName & "' has invalid spanCells range."
+#End If
         Exit Sub
     End If
 
@@ -78,25 +106,33 @@ Private Sub obj_IControl_Render()
     Dim page As obj_PageBase
 
     If Not m_IsConfigured Then
+#If LOGGING_DEBUG_ENABLED Then
         ex_Core.m_Diagnostic_LogError "TableSingle: control '" & m_ControlName & "' is not configured."
+#End If
         Exit Sub
     End If
 
     Set page = Nothing
     If Not m_ControlBase Is Nothing Then Set page = m_ControlBase.PageBase
     If page Is Nothing Then
+#If LOGGING_DEBUG_ENABLED Then
         ex_Core.m_Diagnostic_LogError "TableSingle: page is not specified for control '" & m_ControlName & "'."
+#End If
         Exit Sub
     End If
 
     Set ws = private_GetWorksheetByName(page, m_LayoutSheetName)
     If ws Is Nothing Then
+#If LOGGING_DEBUG_ENABLED Then
         ex_Core.m_Diagnostic_LogError "TableSingle: sheet '" & m_LayoutSheetName & "' was not found for control '" & m_ControlName & "'."
+#End If
         Exit Sub
     End If
 
     If m_TableItems Is Nothing Then
+#If LOGGING_DEBUG_ENABLED Then
         ex_Core.m_Diagnostic_LogError "TableSingle: itemsSource is not resolved for control '" & m_ControlName & "'."
+#End If
         Exit Sub
     End If
 
@@ -126,6 +162,25 @@ End Function
 ' //
 ' // API
 ' //
+Public Function Initialize() As Boolean
+#If LOGGING_VERBOSE_ENABLED Then
+    ex_Core.m_Diagnostic_LogInfo "lifecycle:" & VBA.TypeName(Me) & ".Initialize"
+#End If
+    Initialize = True
+End Function
+Public Sub Dispose()
+#If LOGGING_VERBOSE_ENABLED Then
+    ex_Core.m_Diagnostic_LogInfo "lifecycle:" & VBA.TypeName(Me) & ".Dispose"
+#End If
+    If m_IsDisposed Then Exit Sub
+    m_IsDisposed = True
+    On Error Resume Next
+    Err.Clear
+    Set m_ControlBase = Nothing
+    Set m_TableItems = Nothing
+    On Error GoTo 0
+End Sub
+
 ' (No public API yet.)
 '
 ' //
@@ -142,7 +197,9 @@ Private Function private_TryReadLayoutLongAttr( _
     rawText = VBA.Trim$(ex_XmlCore.m_NodeAttrText(controlNode, attrName))
     If VBA.Len(rawText) = 0 Then
         If isRequired Then
+#If LOGGING_DEBUG_ENABLED Then
             ex_Core.m_Diagnostic_LogError "TableSingle: runtime layout attribute '" & attrName & "' is missing for control '" & m_ControlName & "'."
+#End If
             Exit Function
         End If
         outValue = 0
@@ -151,7 +208,9 @@ Private Function private_TryReadLayoutLongAttr( _
     End If
 
     If Not VBA.IsNumeric(rawText) Then
+#If LOGGING_DEBUG_ENABLED Then
         ex_Core.m_Diagnostic_LogError "TableSingle: runtime layout attribute '" & attrName & "' must be numeric for control '" & m_ControlName & "'."
+#End If
         Exit Function
     End If
 
@@ -179,7 +238,9 @@ Private Function private_TryBuildRenderBufferSingle(ByRef outValueBlock As Varia
     maxRows = m_RowEnd - m_RowStart + 1
 
     If availableCols <= 0 Or maxRows <= 0 Then
+#If LOGGING_DEBUG_ENABLED Then
         ex_Core.m_Diagnostic_LogError "TableSingle: invalid render bounds for control '" & m_ControlName & "'."
+#End If
         Exit Function
     End If
 
@@ -192,12 +253,16 @@ Private Function private_TryBuildRenderBufferSingle(ByRef outValueBlock As Varia
 
     tableColumnCount = tableDynamic.ColumnCount
     If tableColumnCount <= 0 Then
+#If LOGGING_DEBUG_ENABLED Then
         ex_Core.m_Diagnostic_LogError "TableSingle: table item has no columns."
+#End If
         Exit Function
     End If
     If tableColumnCount > availableCols Then
+#If LOGGING_DEBUG_ENABLED Then
         ex_Core.m_Diagnostic_LogError "TableSingle: control '" & m_ControlName & "' requires " & VBA.CStr(tableColumnCount) & _
                " columns, but span provides only " & VBA.CStr(availableCols) & "."
+#End If
         Exit Function
     End If
 
@@ -478,7 +543,9 @@ Private Function private_TryResolveStylePreset( _
             fontBold = False
 
         Case Else
+#If LOGGING_DEBUG_ENABLED Then
             ex_Core.m_Diagnostic_LogError "TableSingle: unsupported style segment kind '" & styleKind & "'."
+#End If
             Exit Function
     End Select
 
@@ -494,7 +561,9 @@ Private Function private_TryResolveSingleTableModel(ByRef outTable As obj_TableD
     Dim tableItem As Object
 
     If m_TableItems Is Nothing Then
+#If LOGGING_DEBUG_ENABLED Then
         ex_Core.m_Diagnostic_LogError "TableSingle: itemsSource is not resolved for control '" & m_ControlName & "'."
+#End If
         Exit Function
     End If
     If m_TableItems.Count = 0 Then
@@ -503,7 +572,9 @@ Private Function private_TryResolveSingleTableModel(ByRef outTable As obj_TableD
     End If
 
     If Not VBA.IsObject(m_TableItems(1)) Then
+#If LOGGING_DEBUG_ENABLED Then
         ex_Core.m_Diagnostic_LogError "TableSingle: itemsSource entry must be obj_TableDynamic or obj_Table."
+#End If
         Exit Function
     End If
 
@@ -516,7 +587,9 @@ Private Function private_TryResolveTableModel(ByVal tableItem As Variant, ByRef 
     Dim fixedTable As obj_Table
 
     If Not VBA.IsObject(tableItem) Then
+#If LOGGING_DEBUG_ENABLED Then
         ex_Core.m_Diagnostic_LogError "TableSingle: itemsSource entry must be obj_TableDynamic or obj_Table."
+#End If
         Exit Function
     End If
 
@@ -532,7 +605,9 @@ Private Function private_TryResolveTableModel(ByVal tableItem As Variant, ByRef 
             private_TryResolveTableModel = True
 
         Case Else
+#If LOGGING_DEBUG_ENABLED Then
             ex_Core.m_Diagnostic_LogError "TableSingle: unsupported table model type '" & VBA.TypeName(tableItem) & "'. Expected obj_TableDynamic or obj_Table."
+#End If
     End Select
 End Function
 
@@ -549,7 +624,9 @@ Private Function private_ConvertFixedTableToDynamic(ByVal fixedTable As obj_Tabl
     Dim sourceRowIndex As Long
 
     If fixedTable Is Nothing Then
+#If LOGGING_DEBUG_ENABLED Then
         ex_Core.m_Diagnostic_LogError "TableSingle: fixed table model is not specified."
+#End If
         Exit Function
     End If
 
@@ -621,3 +698,4 @@ Private Function private_GetWorksheetByName(ByVal page As obj_PageBase, ByVal sh
 
     Set private_GetWorksheetByName = ws
 End Function
+

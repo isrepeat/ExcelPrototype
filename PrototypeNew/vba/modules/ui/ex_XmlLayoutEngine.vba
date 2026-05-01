@@ -1,5 +1,13 @@
 Attribute VB_Name = "ex_XmlLayoutEngine"
 Option Explicit
+#Const LOGGING_DEBUG_ENABLED = True
+#Const LOGGING_VERBOSE_ENABLED = False
+
+Public Sub m_Module_Dispose()
+#If LOGGING_VERBOSE_ENABLED Then
+    ex_Core.m_Diagnostic_LogInfo "lifecycle:ex_XmlLayoutEngine.m_Module_Dispose"
+#End If
+End Sub
 
 ' Layout handlers and XML/binding utilities.
 ' This module also routes visual node rendering by node kind.
@@ -22,11 +30,15 @@ Public Function m_RenderNode( _
     If Not private_TryGetPageRenderContext(renderCtx, wb, ws) Then Exit Function
 
     If layoutNode Is Nothing Then
+#If LOGGING_DEBUG_ENABLED Then
         ex_Core.m_Diagnostic_LogError "PrototypeNew: layout node is not specified."
+#End If
         Exit Function
     End If
     If layoutNode.NodeType <> 1 Then
+#If LOGGING_DEBUG_ENABLED Then
         ex_Core.m_Diagnostic_LogError "PrototypeNew: layout node must be an element."
+#End If
         Exit Function
     End If
 
@@ -37,11 +49,15 @@ Public Function m_RenderNode( _
 
         Case "control", "stackpanel", "grid", "list", "itemcontrol"
             If rowStart <= 0 Or colStart <= 0 Then
+#If LOGGING_DEBUG_ENABLED Then
                 ex_Core.m_Diagnostic_LogError "PrototypeNew: invalid layout node position."
+#End If
                 Exit Function
             End If
             If rowEnd < rowStart Or colEnd < colStart Then
+#If LOGGING_DEBUG_ENABLED Then
                 ex_Core.m_Diagnostic_LogError "PrototypeNew: invalid layout node bounds."
+#End If
                 Exit Function
             End If
 
@@ -93,7 +109,9 @@ Public Function m_RenderNode( _
             End Select
 
         Case Else
+#If LOGGING_DEBUG_ENABLED Then
             ex_Core.m_Diagnostic_LogError "PrototypeNew: unsupported layout node '" & VBA.CStr(layoutNode.baseName) & "'."
+#End If
     End Select
 End Function
 
@@ -148,7 +166,9 @@ Public Function m_TryResolveNodeBoundsFromAnchor( _
     Exit Function
 
 EH_ANCHOR:
+#If LOGGING_DEBUG_ENABLED Then
     ex_Core.m_Diagnostic_LogError "PrototypeNew: invalid anchorCell '" & anchorCellAddr & "'."
+#End If
 End Function
 
 
@@ -294,7 +314,9 @@ Private Function private_RenderContainerChildrenInBounds( _
     orientation = private_GetContainerOrientation(containerNode)
     hasGridBounds = (containerRowStart > 0 And containerColStart > 0 And containerRowEnd >= containerRowStart And containerColEnd >= containerColStart)
     If Not hasGridBounds Then
+#If LOGGING_DEBUG_ENABLED Then
         ex_Core.m_Diagnostic_LogError "PrototypeNew: container bounds are required for nested layout rendering."
+#End If
         Exit Function
     End If
 
@@ -446,7 +468,9 @@ Private Function private_TryGetEffectiveNodeSpan( _
             End If
 
         Case Else
+#If LOGGING_DEBUG_ENABLED Then
             ex_Core.m_Diagnostic_LogError "PrototypeNew: unsupported layout node '" & VBA.CStr(node.baseName) & "'."
+#End If
             Exit Function
     End Select
 
@@ -527,7 +551,9 @@ Private Function private_ResolveChildGridPosition( _
     atText = VBA.Trim$(ex_XmlCore.m_NodeAttrText(childNode, "at"))
     If VBA.Len(atText) > 0 Then
         If Not private_TryParseAtAddress(atText, outRow, outCol) Then
+#If LOGGING_DEBUG_ENABLED Then
             ex_Core.m_Diagnostic_LogError "PrototypeNew: invalid 'at' format '" & atText & "'. Expected format is rNcM."
+#End If
             Exit Function
         End If
     Else
@@ -559,7 +585,9 @@ Private Function private_GetContainerOrientation(ByVal node As Object) As String
             private_GetContainerOrientation = "vertical"
         ElseIf VBA.StrComp(private_GetContainerOrientation, "vertical", VBA.vbBinaryCompare) <> 0 And _
                VBA.StrComp(private_GetContainerOrientation, "horizontal", VBA.vbBinaryCompare) <> 0 Then
+#If LOGGING_DEBUG_ENABLED Then
             ex_Core.m_Diagnostic_LogError "PrototypeNew: stackPanel orientation must be 'vertical' or 'horizontal'."
+#End If
             private_GetContainerOrientation = VBA.vbNullString
         End If
     End If
@@ -609,7 +637,9 @@ Private Function private_TryResolveNodeCellPosition( _
         relCol = 1
     Else
         If Not private_TryParseAtAddress(atText, relRow, relCol) Then
+#If LOGGING_DEBUG_ENABLED Then
             ex_Core.m_Diagnostic_LogError "PrototypeNew: invalid 'at' format '" & atText & "'. Expected format is rNcM."
+#End If
             Exit Function
         End If
     End If
@@ -666,13 +696,17 @@ Private Function private_ReadPositiveLongAttr( _
     End If
 
     If Not VBA.IsNumeric(rawText) Then
+#If LOGGING_DEBUG_ENABLED Then
         ex_Core.m_Diagnostic_LogError "PrototypeNew: attribute '" & attrName & "' must be numeric."
+#End If
         Exit Function
     End If
 
     private_ReadPositiveLongAttr = VBA.CLng(rawText)
     If private_ReadPositiveLongAttr <= 0 Then
+#If LOGGING_DEBUG_ENABLED Then
         ex_Core.m_Diagnostic_LogError "PrototypeNew: attribute '" & attrName & "' must be greater than zero."
+#End If
         private_ReadPositiveLongAttr = 0
     End If
 End Function
@@ -687,19 +721,25 @@ Private Function private_TryGetPageRenderContext( _
     Set outWs = Nothing
 
     If renderCtx Is Nothing Then
+#If LOGGING_DEBUG_ENABLED Then
         ex_Core.m_Diagnostic_LogError "PrototypeNew: render context is not specified."
+#End If
         Exit Function
     End If
 
     Set outWs = renderCtx.Worksheet
     If outWs Is Nothing Then
+#If LOGGING_DEBUG_ENABLED Then
         ex_Core.m_Diagnostic_LogError "PrototypeNew: worksheet is not specified."
+#End If
         Exit Function
     End If
 
     Set outWb = renderCtx.Workbook
     If outWb Is Nothing Then
+#If LOGGING_DEBUG_ENABLED Then
         ex_Core.m_Diagnostic_LogError "PrototypeNew: workbook is not specified."
+#End If
         Exit Function
     End If
 

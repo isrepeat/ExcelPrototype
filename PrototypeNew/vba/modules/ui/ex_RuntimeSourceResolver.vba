@@ -1,5 +1,7 @@
 Attribute VB_Name = "ex_RuntimeSourceResolver"
 Option Explicit
+#Const LOGGING_DEBUG_ENABLED = True
+#Const LOGGING_VERBOSE_ENABLED = False
 
 Private Const PAGE_RUNTIME_SOURCE_ARG As String = "PageRuntimeSource"
 Private Const GLOBAL_RUNTIME_SOURCE_ARG As String = "GlobalRuntimeSource"
@@ -8,6 +10,11 @@ Private Const RUNTIME_SOURCE_BINDING_EXPRESSION_TYPE_NONE As Long = 0
 Private Const RUNTIME_SOURCE_BINDING_EXPRESSION_TYPE_PAGE As Long = 1
 Private Const RUNTIME_SOURCE_BINDING_EXPRESSION_TYPE_GLOBAL As Long = 2
 
+Public Sub m_Module_Dispose()
+#If LOGGING_VERBOSE_ENABLED Then
+    ex_Core.m_Diagnostic_LogInfo "lifecycle:ex_RuntimeSourceResolver.m_Module_Dispose"
+#End If
+End Sub
 ' //
 ' // API
 ' //
@@ -28,13 +35,17 @@ Public Function m_TryResolveItemsSource( _
     Set outItems = Nothing
 
     If runtimeSources Is Nothing Then
+#If LOGGING_DEBUG_ENABLED Then
         ex_Core.m_Diagnostic_LogError "PrototypeNew: runtime sources are not specified for itemsSource resolve."
+#End If
         Exit Function
     End If
 
     rawSource = VBA.Trim$(rawSource)
     If VBA.Len(rawSource) = 0 Then
+#If LOGGING_DEBUG_ENABLED Then
         ex_Core.m_Diagnostic_LogError "PrototypeNew: list itemsSource is required."
+#End If
         Exit Function
     End If
 
@@ -44,20 +55,26 @@ Public Function m_TryResolveItemsSource( _
         ' itemsSource должен быть runtime source expression
         ' или Binding, который резолвится сразу в Collection.
         If Not private_IsBindingExpression(rawSource) Then
+#If LOGGING_DEBUG_ENABLED Then
             ex_Core.m_Diagnostic_LogError "PrototypeNew: list itemsSource must use runtime source expression ({PageRuntimeSource='...'} / {GlobalRuntimeSource='...'}) or Binding that resolves to Collection."
+#End If
             Exit Function
         End If
 
         Set sourceMap = runtimeSources.ItemsSourceMap
         If sourceMap Is Nothing Then
+#If LOGGING_DEBUG_ENABLED Then
             ex_Core.m_Diagnostic_LogError "PrototypeNew: page itemsSource map is not initialized."
+#End If
             Exit Function
         End If
 
         If Not ex_BindingRuntime.m_TryResolveValueBinding(rawSource, sourceMap, resolvedValue) Then Exit Function
         If VBA.IsObject(resolvedValue) Then
             If VBA.TypeName(resolvedValue) <> "Collection" Then
+#If LOGGING_DEBUG_ENABLED Then
                 ex_Core.m_Diagnostic_LogError "PrototypeNew: list itemsSource must resolve to Collection."
+#End If
                 Exit Function
             End If
 
@@ -66,7 +83,9 @@ Public Function m_TryResolveItemsSource( _
             Exit Function
         End If
 
+#If LOGGING_DEBUG_ENABLED Then
         ex_Core.m_Diagnostic_LogError "PrototypeNew: list itemsSource Binding must resolve to Collection object."
+#End If
         Exit Function
     End If
 
@@ -82,9 +101,10 @@ Public Function m_TryResolveItemsSource( _
             Exit Function
     End Select
 
+#If LOGGING_DEBUG_ENABLED Then
     ex_Core.m_Diagnostic_LogError "PrototypeNew: unsupported itemsSource runtime source type."
+#End If
 End Function
-
 
 ' Callstack[1]: obj_ControlBase.TryResolveDataContext -> ex_RuntimeSourceResolver.m_TryResolveObjectSource
 ' Callstack[2]: ex_LayoutItemControlRenderer.private_TryResolveObjectSourceByText -> ex_RuntimeSourceResolver.m_TryResolveObjectSource
@@ -103,7 +123,9 @@ Public Function m_TryResolveObjectSource( _
     Set outObject = Nothing
 
     If runtimeSources Is Nothing Then
+#If LOGGING_DEBUG_ENABLED Then
         ex_Core.m_Diagnostic_LogError "PrototypeNew: runtime sources are not specified for objectSource resolve."
+#End If
         Exit Function
     End If
 
@@ -113,7 +135,9 @@ Public Function m_TryResolveObjectSource( _
             m_TryResolveObjectSource = True
             Exit Function
         End If
+#If LOGGING_DEBUG_ENABLED Then
         ex_Core.m_Diagnostic_LogError "PrototypeNew: itemControl objectSource is required."
+#End If
         Exit Function
     End If
 
@@ -123,13 +147,17 @@ Public Function m_TryResolveObjectSource( _
         ' objectSource/dataContext должен быть runtime source expression
         ' или Binding, который резолвится сразу в Object.
         If Not private_IsBindingExpression(rawSource) Then
+#If LOGGING_DEBUG_ENABLED Then
             ex_Core.m_Diagnostic_LogError "PrototypeNew: objectSource must use runtime source expression ({PageRuntimeSource='...'} / {GlobalRuntimeSource='...'}) or Binding that resolves to object."
+#End If
             Exit Function
         End If
 
         Set sourceMap = runtimeSources.ObjectSourceMap
         If sourceMap Is Nothing Then
+#If LOGGING_DEBUG_ENABLED Then
             ex_Core.m_Diagnostic_LogError "PrototypeNew: page objectSource map is not initialized."
+#End If
             Exit Function
         End If
 
@@ -140,7 +168,9 @@ Public Function m_TryResolveObjectSource( _
             Exit Function
         End If
 
+#If LOGGING_DEBUG_ENABLED Then
         ex_Core.m_Diagnostic_LogError "PrototypeNew: objectSource Binding must resolve to object."
+#End If
         Exit Function
     End If
 
@@ -168,9 +198,10 @@ Public Function m_TryResolveObjectSource( _
             Exit Function
     End Select
 
+#If LOGGING_DEBUG_ENABLED Then
     ex_Core.m_Diagnostic_LogError "PrototypeNew: unsupported objectSource runtime source type."
+#End If
 End Function
-
 
 ' //
 ' // Internal
@@ -232,9 +263,13 @@ Private Function private_TryExtractRuntimeSourceBinding( _
     argValue = VBA.Trim$(VBA.Mid$(expressionBody, eqPos + 1))
     If VBA.Len(argValue) = 0 Then
         If outRuntimeSourceBindingType = RUNTIME_SOURCE_BINDING_EXPRESSION_TYPE_PAGE Then
+#If LOGGING_DEBUG_ENABLED Then
             ex_Core.m_Diagnostic_LogError "PrototypeNew: PageRuntimeSource key is empty."
+#End If
         Else
+#If LOGGING_DEBUG_ENABLED Then
             ex_Core.m_Diagnostic_LogError "PrototypeNew: GlobalRuntimeSource key is empty."
+#End If
         End If
         Exit Function
     End If
@@ -247,9 +282,13 @@ Private Function private_TryExtractRuntimeSourceBinding( _
     outRuntimeSourceKey = VBA.Trim$(argValue)
     If VBA.Len(outRuntimeSourceKey) = 0 Then
         If outRuntimeSourceBindingType = RUNTIME_SOURCE_BINDING_EXPRESSION_TYPE_PAGE Then
+#If LOGGING_DEBUG_ENABLED Then
             ex_Core.m_Diagnostic_LogError "PrototypeNew: PageRuntimeSource key is empty."
+#End If
         Else
+#If LOGGING_DEBUG_ENABLED Then
             ex_Core.m_Diagnostic_LogError "PrototypeNew: GlobalRuntimeSource key is empty."
+#End If
         End If
         Exit Function
     End If

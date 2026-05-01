@@ -4,34 +4,15 @@ BEGIN
 END
 Attribute VB_Name = "obj_TableViewItem"
 Option Explicit
+#Const LOGGING_DEBUG_ENABLED = True
+#Const LOGGING_VERBOSE_ENABLED = False
+Private m_IsDisposed As Boolean
 Implements obj_IViewItem
 
 Private m_TableDynamic As obj_TableDynamic
 Private m_ViewPresentation As obj_ViewPresentation
 Private m_BannerViewItem As obj_BannerViewItem
 Private m_RowViewItems As list__obj_RowViewItem
-
-Private Sub Class_Initialize()
-    Set m_ViewPresentation = New obj_ViewPresentation
-    Set m_BannerViewItem = Nothing
-    Set m_RowViewItems = New list__obj_RowViewItem
-    Call Me.Initialize(Nothing)
-End Sub
-
-Public Function Initialize(ByVal value As obj_TableDynamic) As Boolean
-    If value Is Nothing Then
-        Set m_TableDynamic = New obj_TableDynamic
-    Else
-        Set m_TableDynamic = value
-    End If
-
-    If Not private_TrySyncRowItemsFromModel() Then
-        ex_Core.m_Diagnostic_LogInfo "warning: TableViewItem.Initialize: sync row view items from model failed. Fallback to empty list."
-        Set m_RowViewItems = New list__obj_RowViewItem
-    End If
-
-    Initialize = True
-End Function
 
 Public Property Get Model() As obj_TableDynamic
     Set Model = m_TableDynamic
@@ -99,6 +80,25 @@ Public Property Get Rows() As list__obj_Row
     Set Rows = m_TableDynamic.Rows
 End Property
 
+Private Sub Class_Initialize()
+#If LOGGING_VERBOSE_ENABLED Then
+    ex_Core.m_Diagnostic_LogInfo "lifecycle:" & VBA.TypeName(Me) & ".Class_Initialize"
+#End If
+    Set m_ViewPresentation = New obj_ViewPresentation
+    Set m_BannerViewItem = Nothing
+    Set m_RowViewItems = New list__obj_RowViewItem
+    Call Me.Initialize(Nothing)
+End Sub
+Private Sub Class_Terminate()
+#If LOGGING_VERBOSE_ENABLED Then
+    ex_Core.m_Diagnostic_LogInfo "lifecycle:" & VBA.TypeName(Me) & ".Class_Terminate"
+#End If
+    If m_IsDisposed Then Exit Sub
+    On Error Resume Next
+    Dispose
+    On Error GoTo 0
+End Sub
+
 ' //
 ' // Interface
 ' //
@@ -110,7 +110,9 @@ Private Function obj_IViewItem_Render( _
     ByVal colEnd As Long, _
     Optional ByVal viewName As String = "" _
 ) As Boolean
+#If LOGGING_DEBUG_ENABLED Then
     ex_Core.m_Diagnostic_LogError "TableViewItem: direct render is not supported."
+#End If
 End Function
 
 Private Function obj_IViewItem_IsVisible() As Boolean
@@ -120,6 +122,42 @@ End Function
 ' //
 ' // API
 ' //
+Public Function Initialize(ByVal value As obj_TableDynamic) As Boolean
+#If LOGGING_VERBOSE_ENABLED Then
+    ex_Core.m_Diagnostic_LogInfo "lifecycle:" & VBA.TypeName(Me) & ".Initialize"
+#End If
+    If value Is Nothing Then
+        Set m_TableDynamic = New obj_TableDynamic
+    Else
+        Set m_TableDynamic = value
+    End If
+
+    If Not private_TrySyncRowItemsFromModel() Then
+#If LOGGING_DEBUG_ENABLED Then
+        ex_Core.m_Diagnostic_LogInfo "warning: TableViewItem.Initialize: sync row view items from model failed. Fallback to empty list."
+#End If
+        Set m_RowViewItems = New list__obj_RowViewItem
+    End If
+
+    Initialize = True
+End Function
+Public Sub Dispose()
+#If LOGGING_VERBOSE_ENABLED Then
+    ex_Core.m_Diagnostic_LogInfo "lifecycle:" & VBA.TypeName(Me) & ".Dispose"
+#End If
+    If m_IsDisposed Then Exit Sub
+    m_IsDisposed = True
+    On Error Resume Next
+    Err.Clear
+    Err.Clear
+    Err.Clear
+    Set m_TableDynamic = Nothing
+    Set m_ViewPresentation = Nothing
+    Set m_BannerViewItem = Nothing
+    Set m_RowViewItems = Nothing
+    On Error GoTo 0
+End Sub
+
 Public Function IsVisible() As Boolean
     IsVisible = private_IsVisibleResolved()
 End Function
@@ -166,7 +204,9 @@ Private Function private_TrySyncRowItemsFromModel() As Boolean
 
         Set rowViewItem = New obj_RowViewItem
         If Not rowViewItem.Initialize(sourceRow) Then
+#If LOGGING_DEBUG_ENABLED Then
             ex_Core.m_Diagnostic_LogError "TableViewItem.private_TrySyncRowItemsFromModel: failed to initialize obj_RowViewItem from source row."
+#End If
             Exit Function
         End If
         rowViewItem.RowVisible = True
@@ -179,7 +219,9 @@ ContinueSourceRow:
     Exit Function
 
 EH_SYNC:
+#If LOGGING_DEBUG_ENABLED Then
     ex_Core.m_Diagnostic_LogError "TableViewItem.private_TrySyncRowItemsFromModel: unexpected error while syncing row view items: " & Err.Description
+#End If
 End Function
 
 Private Function private_IsVisibleResolved() As Boolean
@@ -190,3 +232,4 @@ Private Function private_IsVisibleResolved() As Boolean
 
     private_IsVisibleResolved = m_ViewPresentation.EffectiveVisible
 End Function
+

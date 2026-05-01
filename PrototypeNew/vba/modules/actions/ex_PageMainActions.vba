@@ -1,5 +1,7 @@
 Attribute VB_Name = "ex_PageMainActions"
 Option Explicit
+#Const LOGGING_DEBUG_ENABLED = True
+#Const LOGGING_VERBOSE_ENABLED = False
 
 Private Const MODES_ROOT_REL_PATH As String = "modes"
 Private Const MODE_PROFILES_FILE_SUFFIX As String = "Profiles.xml"
@@ -9,6 +11,11 @@ Private Const MODES_RUNTIME_KEY As String = "RuntimeItems.PageMain.ConfigModes"
 Private Const PROFILES_RUNTIME_KEY As String = "RuntimeItems.PageMain.ConfigProfiles"
 Private Const CONFIG_RUNTIME_KEY As String = "RuntimeItems.PageMain.Config"
 
+Public Sub m_Module_Dispose()
+#If LOGGING_VERBOSE_ENABLED Then
+    ex_Core.m_Diagnostic_LogInfo "lifecycle:ex_PageMainActions.m_Module_Dispose"
+#End If
+End Sub
 ' //
 ' // API
 ' //
@@ -194,7 +201,6 @@ ContinueSourceConfigEntry:
     m_RegisterConfigFromProfileNode = True
 End Function
 
-
 ' //
 ' // Internal
 ' //
@@ -203,7 +209,9 @@ Private Sub private_ReportRuntimeConfigError(ByVal messageText As String)
     If VBA.Len(messageText) = 0 Then Exit Sub
 
     ' Ошибку фиксируем в логах и показываем пользователю.
+#If LOGGING_DEBUG_ENABLED Then
     ex_Core.m_Diagnostic_LogError messageText
+#End If
     MsgBox messageText, vbExclamation, "PrototypeNew / Config runtime"
 End Sub
 

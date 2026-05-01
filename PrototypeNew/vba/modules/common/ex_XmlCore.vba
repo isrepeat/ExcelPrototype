@@ -1,8 +1,15 @@
 Attribute VB_Name = "ex_XmlCore"
 Option Explicit
+#Const LOGGING_DEBUG_ENABLED = True
+#Const LOGGING_VERBOSE_ENABLED = False
 
 Private Const UI_NS As String = "urn:excelprototype:profiles"
 
+Public Sub m_Module_Dispose()
+#If LOGGING_VERBOSE_ENABLED Then
+    ex_Core.m_Diagnostic_LogInfo "lifecycle:ex_XmlCore.m_Module_Dispose"
+#End If
+End Sub
 ' //
 ' // API
 ' //
@@ -62,13 +69,17 @@ Public Function m_LoadDomByFilePath( _
     If VBA.Len(filePath) = 0 Then Exit Function
 
     If VBA.Len(Dir(filePath)) = 0 Then
+#If LOGGING_DEBUG_ENABLED Then
         ex_Core.m_Diagnostic_LogError missingPrefix & filePath
+#End If
         Exit Function
     End If
 
     Set doc = m_CreateDom(nsUri)
     If Not doc.Load(filePath) Then
+#If LOGGING_DEBUG_ENABLED Then
         ex_Core.m_Diagnostic_LogError parsePrefix & filePath
+#End If
         Exit Function
     End If
 

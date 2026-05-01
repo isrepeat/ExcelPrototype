@@ -1,5 +1,13 @@
 Attribute VB_Name = "ex_LayoutStackPanelRenderer"
 Option Explicit
+#Const LOGGING_DEBUG_ENABLED = True
+#Const LOGGING_VERBOSE_ENABLED = False
+
+Public Sub m_Module_Dispose()
+#If LOGGING_VERBOSE_ENABLED Then
+    ex_Core.m_Diagnostic_LogInfo "lifecycle:ex_LayoutStackPanelRenderer.m_Module_Dispose"
+#End If
+End Sub
 
 ' Renderer for <stackPanel> nodes.
 
@@ -15,11 +23,15 @@ Public Function m_Render( _
     ByVal colEnd As Long _
 ) As Boolean
     If layoutNode Is Nothing Then
+#If LOGGING_DEBUG_ENABLED Then
         ex_Core.m_Diagnostic_LogError "PrototypeNew: stackPanel node is not specified."
+#End If
         Exit Function
     End If
     If VBA.StrComp(VBA.LCase$(VBA.CStr(layoutNode.baseName)), "stackpanel", VBA.vbBinaryCompare) <> 0 Then
+#If LOGGING_DEBUG_ENABLED Then
         ex_Core.m_Diagnostic_LogError "PrototypeNew: ex_LayoutStackPanelRenderer supports only <stackPanel> nodes."
+#End If
         Exit Function
     End If
 

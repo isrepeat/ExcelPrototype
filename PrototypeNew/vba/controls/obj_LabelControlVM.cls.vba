@@ -4,6 +4,9 @@ BEGIN
 END
 Attribute VB_Name = "obj_LabelControlVM"
 Option Explicit
+#Const LOGGING_DEBUG_ENABLED = True
+#Const LOGGING_VERBOSE_ENABLED = False
+Private m_IsDisposed As Boolean
 Implements obj_IControl
 
 Private m_ControlBase As obj_ControlBase
@@ -12,6 +15,21 @@ Private m_TextRaw As String
 Private m_TextResolved As String
 Private m_ControlLayout As obj_ControlLayout
 Private m_IsConfigured As Boolean
+
+Private Sub Class_Initialize()
+#If LOGGING_VERBOSE_ENABLED Then
+    ex_Core.m_Diagnostic_LogInfo "lifecycle:" & VBA.TypeName(Me) & ".Class_Initialize"
+#End If
+End Sub
+Private Sub Class_Terminate()
+#If LOGGING_VERBOSE_ENABLED Then
+    ex_Core.m_Diagnostic_LogInfo "lifecycle:" & VBA.TypeName(Me) & ".Class_Terminate"
+#End If
+    If m_IsDisposed Then Exit Sub
+    On Error Resume Next
+    Dispose
+    On Error GoTo 0
+End Sub
 
 ' //
 ' // Interface
@@ -47,20 +65,26 @@ Private Sub obj_IControl_Render()
     Dim pageBase As obj_PageBase
 
     If Not m_IsConfigured Then
+#If LOGGING_DEBUG_ENABLED Then
         ex_Core.m_Diagnostic_LogError "Label: control '" & m_ControlName & "' is not configured."
+#End If
         Exit Sub
     End If
 
     Set pageBase = Nothing
     If Not m_ControlBase Is Nothing Then Set pageBase = m_ControlBase.PageBase
     If pageBase Is Nothing Then
+#If LOGGING_DEBUG_ENABLED Then
         ex_Core.m_Diagnostic_LogError "Label: page is not specified for control '" & m_ControlName & "'."
+#End If
         Exit Sub
     End If
 
     Set ws = private_GetWorksheetByName(pageBase, m_ControlLayout.LayoutSheetName)
     If ws Is Nothing Then
+#If LOGGING_DEBUG_ENABLED Then
         ex_Core.m_Diagnostic_LogError "Label: sheet '" & m_ControlLayout.LayoutSheetName & "' was not found for control '" & m_ControlName & "'."
+#End If
         Exit Sub
     End If
 
@@ -76,7 +100,9 @@ Private Sub obj_IControl_Render()
     Exit Sub
 
 EH_RANGE:
+#If LOGGING_DEBUG_ENABLED Then
     ex_Core.m_Diagnostic_LogError "Label: failed to resolve target range for control '" & m_ControlName & "'."
+#End If
 End Sub
 
 Private Function obj_IControl_SupportsAttribute(ByVal attrName As String) As Boolean
@@ -89,6 +115,26 @@ End Function
 ' //
 ' // API
 ' //
+Public Function Initialize() As Boolean
+#If LOGGING_VERBOSE_ENABLED Then
+    ex_Core.m_Diagnostic_LogInfo "lifecycle:" & VBA.TypeName(Me) & ".Initialize"
+#End If
+    Initialize = True
+End Function
+Public Sub Dispose()
+#If LOGGING_VERBOSE_ENABLED Then
+    ex_Core.m_Diagnostic_LogInfo "lifecycle:" & VBA.TypeName(Me) & ".Dispose"
+#End If
+    If m_IsDisposed Then Exit Sub
+    m_IsDisposed = True
+    On Error Resume Next
+    Err.Clear
+    Err.Clear
+    Set m_ControlBase = Nothing
+    Set m_ControlLayout = Nothing
+    On Error GoTo 0
+End Sub
+
 ' (No public API yet.)
 '
 ' //
@@ -134,7 +180,9 @@ Private Function private_ApplyPresetStyle(ByVal targetRange As Range, ByVal styl
             targetRange.Borders.Weight = xlHairline
 
         Case Else
+#If LOGGING_DEBUG_ENABLED Then
             ex_Core.m_Diagnostic_LogError "Label: unsupported style '" & styleName & "' for control '" & m_ControlName & "'."
+#End If
             Exit Function
     End Select
 
@@ -155,3 +203,4 @@ Private Function private_GetWorksheetByName(ByVal page As obj_PageBase, ByVal sh
 
     Set private_GetWorksheetByName = ws
 End Function
+

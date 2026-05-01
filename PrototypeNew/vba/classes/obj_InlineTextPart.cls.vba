@@ -4,14 +4,50 @@ BEGIN
 END
 Attribute VB_Name = "obj_InlineTextPart"
 Option Explicit
+#Const LOGGING_VERBOSE_ENABLED = False
+Private m_IsDisposed As Boolean
 
 Private m_InlineTextProfile As obj_InlineTextProfile
 Private m_ResolvedText As String
 Private m_Runs As Collection
 
 Private Sub Class_Initialize()
+#If LOGGING_VERBOSE_ENABLED Then
+    ex_Core.m_Diagnostic_LogInfo "lifecycle:" & VBA.TypeName(Me) & ".Class_Initialize"
+#End If
     m_ResolvedText = VBA.vbNullString
     Set m_Runs = Nothing
+End Sub
+Private Sub Class_Terminate()
+#If LOGGING_VERBOSE_ENABLED Then
+    ex_Core.m_Diagnostic_LogInfo "lifecycle:" & VBA.TypeName(Me) & ".Class_Terminate"
+#End If
+    If m_IsDisposed Then Exit Sub
+    On Error Resume Next
+    Dispose
+    On Error GoTo 0
+End Sub
+
+' //
+' // API
+' //
+Public Function Initialize() As Boolean
+#If LOGGING_VERBOSE_ENABLED Then
+    ex_Core.m_Diagnostic_LogInfo "lifecycle:" & VBA.TypeName(Me) & ".Initialize"
+#End If
+    Initialize = True
+End Function
+
+Public Sub Dispose()
+#If LOGGING_VERBOSE_ENABLED Then
+    ex_Core.m_Diagnostic_LogInfo "lifecycle:" & VBA.TypeName(Me) & ".Dispose"
+#End If
+    If m_IsDisposed Then Exit Sub
+    m_IsDisposed = True
+    On Error Resume Next
+    Set m_InlineTextProfile = Nothing
+    Set m_Runs = Nothing
+    On Error GoTo 0
 End Sub
 
 Public Property Get InlineProfile() As obj_InlineTextProfile
@@ -67,3 +103,5 @@ Public Function RegisterForShape(ByVal page As obj_PageBase, ByVal targetShape A
     ' Аналогично для shape-целей.
     RegisterForShape = page.RegisterInlineRunsForShape(targetShape, m_Runs, m_InlineTextProfile)
 End Function
+
+

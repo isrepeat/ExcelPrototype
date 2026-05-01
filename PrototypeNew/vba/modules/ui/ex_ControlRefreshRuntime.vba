@@ -1,15 +1,25 @@
 Attribute VB_Name = "ex_ControlRefreshRuntime"
 Option Explicit
+#Const LOGGING_VERBOSE_ENABLED = False
 
 Private Const UI_NS As String = "urn:excelprototype:profiles"
 Private g_ControlRegistry As Object
 
+Public Sub m_Module_Dispose()
+#If LOGGING_VERBOSE_ENABLED Then
+    ex_Core.m_Diagnostic_LogInfo "lifecycle:ex_ControlRefreshRuntime.m_Module_Dispose"
+#End If
+    On Error Resume Next
+    Set g_ControlRegistry = Nothing
+    On Error GoTo 0
+End Sub
 ' //
 ' // API
 ' //
 Public Sub m_ResetRegisteredControls()
     Set g_ControlRegistry = private_CreateDictionary()
 End Sub
+
 
 Public Sub m_RegisterControlRenderBounds( _
     ByVal controlName As String, _

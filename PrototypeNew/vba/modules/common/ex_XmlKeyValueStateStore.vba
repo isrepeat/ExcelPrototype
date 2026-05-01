@@ -1,5 +1,13 @@
 Attribute VB_Name = "ex_XmlKeyValueStateStore"
 Option Explicit
+#Const LOGGING_DEBUG_ENABLED = True
+#Const LOGGING_VERBOSE_ENABLED = False
+
+Public Sub m_Module_Dispose()
+#If LOGGING_VERBOSE_ENABLED Then
+    ex_Core.m_Diagnostic_LogInfo "lifecycle:ex_XmlKeyValueStateStore.m_Module_Dispose"
+#End If
+End Sub
 
 ' Универсальное key/value хранилище поверх CustomXMLPart.
 ' Позволяет читать/писать valueAttr у entry-узла, найденного по keyAttr=keyValue.
@@ -29,27 +37,39 @@ Public Function m_TryGetValue( _
     keyValue = VBA.Trim$(keyValue)
 
     If VBA.Len(namespaceUri) = 0 Then
+#If LOGGING_DEBUG_ENABLED Then
         ex_Core.m_Diagnostic_LogError "XmlKeyValueStateStore: namespace is empty."
+#End If
         Exit Function
     End If
     If VBA.Len(rootNodeName) = 0 Then
+#If LOGGING_DEBUG_ENABLED Then
         ex_Core.m_Diagnostic_LogError "XmlKeyValueStateStore: root node name is empty."
+#End If
         Exit Function
     End If
     If VBA.Len(entryNodeName) = 0 Then
+#If LOGGING_DEBUG_ENABLED Then
         ex_Core.m_Diagnostic_LogError "XmlKeyValueStateStore: entry node name is empty."
+#End If
         Exit Function
     End If
     If VBA.Len(keyAttrName) = 0 Then
+#If LOGGING_DEBUG_ENABLED Then
         ex_Core.m_Diagnostic_LogError "XmlKeyValueStateStore: key attr name is empty."
+#End If
         Exit Function
     End If
     If VBA.Len(valueAttrName) = 0 Then
+#If LOGGING_DEBUG_ENABLED Then
         ex_Core.m_Diagnostic_LogError "XmlKeyValueStateStore: value attr name is empty."
+#End If
         Exit Function
     End If
     If VBA.Len(keyValue) = 0 Then
+#If LOGGING_DEBUG_ENABLED Then
         ex_Core.m_Diagnostic_LogError "XmlKeyValueStateStore: key value is empty."
+#End If
         Exit Function
     End If
 
@@ -68,7 +88,9 @@ Public Function m_TryGetValue( _
         Exit Function
     End If
     If VBA.LCase$(VBA.CStr(rootNode.baseName)) <> rootNodeName Then
+#If LOGGING_DEBUG_ENABLED Then
         ex_Core.m_Diagnostic_LogError "XmlKeyValueStateStore: unexpected root node '" & VBA.CStr(rootNode.baseName) & "'. Expected '" & rootNodeName & "'."
+#End If
         Exit Function
     End If
 
@@ -107,27 +129,39 @@ Public Function m_SetValue( _
     valueText = VBA.Trim$(valueText)
 
     If VBA.Len(namespaceUri) = 0 Then
+#If LOGGING_DEBUG_ENABLED Then
         ex_Core.m_Diagnostic_LogError "XmlKeyValueStateStore: namespace is empty."
+#End If
         Exit Function
     End If
     If VBA.Len(rootNodeName) = 0 Then
+#If LOGGING_DEBUG_ENABLED Then
         ex_Core.m_Diagnostic_LogError "XmlKeyValueStateStore: root node name is empty."
+#End If
         Exit Function
     End If
     If VBA.Len(entryNodeName) = 0 Then
+#If LOGGING_DEBUG_ENABLED Then
         ex_Core.m_Diagnostic_LogError "XmlKeyValueStateStore: entry node name is empty."
+#End If
         Exit Function
     End If
     If VBA.Len(keyAttrName) = 0 Then
+#If LOGGING_DEBUG_ENABLED Then
         ex_Core.m_Diagnostic_LogError "XmlKeyValueStateStore: key attr name is empty."
+#End If
         Exit Function
     End If
     If VBA.Len(valueAttrName) = 0 Then
+#If LOGGING_DEBUG_ENABLED Then
         ex_Core.m_Diagnostic_LogError "XmlKeyValueStateStore: value attr name is empty."
+#End If
         Exit Function
     End If
     If VBA.Len(keyValue) = 0 Then
+#If LOGGING_DEBUG_ENABLED Then
         ex_Core.m_Diagnostic_LogError "XmlKeyValueStateStore: key value is empty."
+#End If
         Exit Function
     End If
 
@@ -140,11 +174,15 @@ Public Function m_SetValue( _
 
     Set rootNode = dom.DocumentElement
     If rootNode Is Nothing Then
+#If LOGGING_DEBUG_ENABLED Then
         ex_Core.m_Diagnostic_LogError "XmlKeyValueStateStore: root node is missing."
+#End If
         Exit Function
     End If
     If VBA.LCase$(VBA.CStr(rootNode.baseName)) <> rootNodeName Then
+#If LOGGING_DEBUG_ENABLED Then
         ex_Core.m_Diagnostic_LogError "XmlKeyValueStateStore: unexpected root node '" & VBA.CStr(rootNode.baseName) & "'. Expected '" & rootNodeName & "'."
+#End If
         Exit Function
     End If
 

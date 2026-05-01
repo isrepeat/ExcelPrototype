@@ -1,11 +1,18 @@
 Attribute VB_Name = "ex_StylePipelineEngine"
 Option Explicit
+#Const LOGGING_DEBUG_ENABLED = True
+#Const LOGGING_VERBOSE_ENABLED = False
 
 Private Const UI_NS As String = "urn:excelprototype:profiles"
 Private Const SHEET_SCOPE_MIN_COL As Long = 40
 Private Const SHEET_SCOPE_MIN_ROW As Long = 100
 Private Const SHEET_SCOPE_EXPAND_STEP As Long = 30
 
+Public Sub m_Module_Dispose()
+#If LOGGING_VERBOSE_ENABLED Then
+    ex_Core.m_Diagnostic_LogInfo "lifecycle:ex_StylePipelineEngine.m_Module_Dispose"
+#End If
+End Sub
 ' //
 ' // API
 ' //
@@ -13,11 +20,15 @@ Public Function m_ApplyPageStyles(ByVal ws As Worksheet, ByVal wsUiDoc As Object
     Dim stylesByName As Object
 
     If ws Is Nothing Then
+#If LOGGING_DEBUG_ENABLED Then
         ex_Core.m_Diagnostic_LogError "PrototypeNew: worksheet is not specified for style pass."
+#End If
         Exit Function
     End If
     If wsUiDoc Is Nothing Then
+#If LOGGING_DEBUG_ENABLED Then
         ex_Core.m_Diagnostic_LogError "PrototypeNew: page UI document is not specified for style pass."
+#End If
         Exit Function
     End If
 
@@ -37,17 +48,23 @@ Public Function m_ApplyPageStyleStage( _
     ByVal stageName As String _
 ) As Boolean
     If ws Is Nothing Then
+#If LOGGING_DEBUG_ENABLED Then
         ex_Core.m_Diagnostic_LogError "PrototypeNew: worksheet is not specified for stage style pass."
+#End If
         Exit Function
     End If
     If wsUiDoc Is Nothing Then
+#If LOGGING_DEBUG_ENABLED Then
         ex_Core.m_Diagnostic_LogError "PrototypeNew: page UI document is not specified for stage style pass."
+#End If
         Exit Function
     End If
 
     stageName = VBA.Trim$(stageName)
     If VBA.Len(stageName) = 0 Then
+#If LOGGING_DEBUG_ENABLED Then
         ex_Core.m_Diagnostic_LogError "PrototypeNew: stage name is required for explicit style stage apply."
+#End If
         Exit Function
     End If
 
@@ -73,7 +90,9 @@ Private Function private_ApplyControlStyles(ByVal ws As Worksheet, ByVal stylesB
         If VBA.Len(styleName) = 0 Then GoTo ContinueShape
 
         If Not stylesByName.Exists(styleName) Then
+#If LOGGING_DEBUG_ENABLED Then
             ex_Core.m_Diagnostic_LogError "PrototypeNew: control style '" & styleName & "' is not declared in <styles>."
+#End If
             Exit Function
         End If
 
@@ -101,14 +120,18 @@ Private Function private_ApplyPipelineStageByName( _
 
     requestedStageKey = VBA.LCase$(VBA.Trim$(stageName))
     If VBA.Len(requestedStageKey) = 0 Then
+#If LOGGING_DEBUG_ENABLED Then
         ex_Core.m_Diagnostic_LogError "PrototypeNew: style stage name is required."
+#End If
         Exit Function
     End If
 
     Set stageNodes = wsUiDoc.selectNodes("/p:page/p:styles/p:stylePipelineStage | /p:uiDefinition/p:styles/p:stylePipelineStage")
     If stageNodes Is Nothing Or stageNodes.Length = 0 Then
         If stageMustExist Then
+#If LOGGING_DEBUG_ENABLED Then
             ex_Core.m_Diagnostic_LogError "PrototypeNew: style stage '" & requestedStageKey & "' was not found."
+#End If
             Exit Function
         End If
 
@@ -121,13 +144,17 @@ Private Function private_ApplyPipelineStageByName( _
 
         stageKey = VBA.LCase$(VBA.Trim$(ex_XmlCore.m_NodeAttrText(stageNode, "name")))
         If VBA.Len(stageKey) = 0 Then
+#If LOGGING_DEBUG_ENABLED Then
             ex_Core.m_Diagnostic_LogError "PrototypeNew: stylePipelineStage@name is required."
+#End If
             Exit Function
         End If
         If VBA.StrComp(stageKey, requestedStageKey, VBA.vbBinaryCompare) <> 0 Then GoTo ContinueStage
 
         If stageFound Then
+#If LOGGING_DEBUG_ENABLED Then
             ex_Core.m_Diagnostic_LogError "PrototypeNew: duplicate stylePipelineStage with name '" & stageKey & "'."
+#End If
             Exit Function
         End If
         stageFound = True
@@ -142,7 +169,9 @@ ContinueStage:
 
     If Not stageFound Then
         If stageMustExist Then
+#If LOGGING_DEBUG_ENABLED Then
             ex_Core.m_Diagnostic_LogError "PrototypeNew: style stage '" & requestedStageKey & "' was not found."
+#End If
             Exit Function
         End If
     End If
@@ -159,7 +188,9 @@ Private Function private_ApplyStageLayers(ByVal ws As Worksheet, ByVal stageNode
         If layerNode.NodeType <> 1 Then GoTo ContinueLayer
 
         If VBA.StrComp(VBA.LCase$(VBA.CStr(layerNode.baseName)), "layer", VBA.vbBinaryCompare) <> 0 Then
+#If LOGGING_DEBUG_ENABLED Then
             ex_Core.m_Diagnostic_LogError "PrototypeNew: stylePipelineStage supports only <layer> children."
+#End If
             Exit Function
         End If
 
@@ -183,7 +214,9 @@ Private Function private_ApplyLayerRules(ByVal ws As Worksheet, ByVal layerNode 
         If ruleNode.NodeType <> 1 Then GoTo ContinueRule
 
         If VBA.StrComp(VBA.LCase$(VBA.CStr(ruleNode.baseName)), "rule", VBA.vbBinaryCompare) <> 0 Then
+#If LOGGING_DEBUG_ENABLED Then
             ex_Core.m_Diagnostic_LogError "PrototypeNew: layer supports only <rule> children."
+#End If
             Exit Function
         End If
 
@@ -211,12 +244,16 @@ Private Function private_ApplySingleRule(ByVal ws As Worksheet, ByVal ruleNode A
 
     ruleTarget = VBA.LCase$(VBA.Trim$(ex_XmlCore.m_NodeAttrText(ruleNode, "target")))
     If VBA.Len(ruleTarget) = 0 Then
+#If LOGGING_DEBUG_ENABLED Then
         ex_Core.m_Diagnostic_LogError "PrototypeNew: rule target is required."
+#End If
         Exit Function
     End If
 
     If Not private_RuleTargetIsSupported(ruleTarget) Then
+#If LOGGING_DEBUG_ENABLED Then
         ex_Core.m_Diagnostic_LogError "PrototypeNew: unsupported rule target '" & ruleTarget & "'."
+#End If
         Exit Function
     End If
 
@@ -237,7 +274,9 @@ Private Function private_ApplySingleRule(ByVal ws As Worksheet, ByVal ruleNode A
 
         Case "range"
             If Not selector.Exists("address") Then
+#If LOGGING_DEBUG_ENABLED Then
                 ex_Core.m_Diagnostic_LogError "PrototypeNew: range rule requires selector address."
+#End If
                 Exit Function
             End If
             If Not private_TryGetRangeByAddress(ws, VBA.CStr(selector("address")), scopeRange) Then Exit Function
@@ -286,12 +325,16 @@ Private Function private_LoadControlStyles(ByVal wsUiDoc As Object) As Object
     For Each styleNode In styleNodes
         styleName = VBA.LCase$(VBA.Trim$(ex_XmlCore.m_NodeAttrText(styleNode, "name")))
         If VBA.Len(styleName) = 0 Then
+#If LOGGING_DEBUG_ENABLED Then
             ex_Core.m_Diagnostic_LogError "PrototypeNew: controlStyle has empty name."
+#End If
             Exit Function
         End If
 
         If result.Exists(styleName) Then
+#If LOGGING_DEBUG_ENABLED Then
             ex_Core.m_Diagnostic_LogError "PrototypeNew: duplicate controlStyle '" & styleName & "'."
+#End If
             Exit Function
         End If
 
@@ -369,7 +412,9 @@ Private Function private_ParseInlineStyles(ByVal stylesText As String, ByVal dec
 
         sepPos = VBA.InStr(1, pairText, ":", VBA.vbBinaryCompare)
         If sepPos <= 1 Or sepPos >= VBA.Len(pairText) Then
+#If LOGGING_DEBUG_ENABLED Then
             ex_Core.m_Diagnostic_LogError "PrototypeNew: invalid styles declaration segment '" & pairText & "'."
+#End If
             Exit Function
         End If
 
@@ -377,11 +422,15 @@ Private Function private_ParseInlineStyles(ByVal stylesText As String, ByVal dec
         keyValue = VBA.Trim$(VBA.Mid$(pairText, sepPos + 1))
 
         If Not private_IsSupportedStyleKey(keyName) Then
+#If LOGGING_DEBUG_ENABLED Then
             ex_Core.m_Diagnostic_LogError "PrototypeNew: unsupported style key '" & keyName & "' in styles declaration."
+#End If
             Exit Function
         End If
         If VBA.Len(keyValue) = 0 Then
+#If LOGGING_DEBUG_ENABLED Then
             ex_Core.m_Diagnostic_LogError "PrototypeNew: empty style value for key '" & keyName & "'."
+#End If
             Exit Function
         End If
 
@@ -439,27 +488,35 @@ Private Function private_TryReadRuleSelector(ByVal ruleNode As Object, ByRef out
 
         sepPos = VBA.InStr(1, pairText, "=", VBA.vbBinaryCompare)
         If sepPos <= 1 Or sepPos >= VBA.Len(pairText) Then
+#If LOGGING_DEBUG_ENABLED Then
             ex_Core.m_Diagnostic_LogError "PrototypeNew: invalid selector segment '" & pairText & "'."
+#End If
             Exit Function
         End If
 
         keyName = VBA.LCase$(VBA.Trim$(VBA.Left$(pairText, sepPos - 1)))
         keyValue = VBA.Trim$(VBA.Mid$(pairText, sepPos + 1))
         If VBA.Len(keyValue) = 0 Then
+#If LOGGING_DEBUG_ENABLED Then
             ex_Core.m_Diagnostic_LogError "PrototypeNew: selector value is empty for key '" & keyName & "'."
+#End If
             Exit Function
         End If
 
         Select Case keyName
             Case "col", "row", "address", "type", "name", "part"
                 If outSelector.Exists(keyName) Then
+#If LOGGING_DEBUG_ENABLED Then
                     ex_Core.m_Diagnostic_LogError "PrototypeNew: duplicate selector key '" & keyName & "'."
+#End If
                     Exit Function
                 End If
                 outSelector(keyName) = keyValue
 
             Case Else
+#If LOGGING_DEBUG_ENABLED Then
                 ex_Core.m_Diagnostic_LogError "PrototypeNew: unsupported selector key '" & keyName & "'."
+#End If
                 Exit Function
         End Select
 
@@ -490,16 +547,22 @@ Private Function private_TryResolveControlPartTargetScope( _
 
     If ws Is Nothing Then Exit Function
     If selector Is Nothing Then
+#If LOGGING_DEBUG_ENABLED Then
         ex_Core.m_Diagnostic_LogError "PrototypeNew: controlPart rule requires selector."
+#End If
         Exit Function
     End If
 
     If Not selector.Exists("type") Then
+#If LOGGING_DEBUG_ENABLED Then
         ex_Core.m_Diagnostic_LogError "PrototypeNew: controlPart rule requires selector key 'type'."
+#End If
         Exit Function
     End If
     If Not selector.Exists("part") Then
+#If LOGGING_DEBUG_ENABLED Then
         ex_Core.m_Diagnostic_LogError "PrototypeNew: controlPart rule requires selector key 'part'."
+#End If
         Exit Function
     End If
 
@@ -510,11 +573,15 @@ Private Function private_TryResolveControlPartTargetScope( _
     End If
 
     If VBA.Len(controlType) = 0 Then
+#If LOGGING_DEBUG_ENABLED Then
         ex_Core.m_Diagnostic_LogError "PrototypeNew: controlPart selector 'type' is empty."
+#End If
         Exit Function
     End If
     If VBA.Len(partName) = 0 Then
+#If LOGGING_DEBUG_ENABLED Then
         ex_Core.m_Diagnostic_LogError "PrototypeNew: controlPart selector 'part' is empty."
+#End If
         Exit Function
     End If
 
@@ -553,13 +620,17 @@ Private Function private_TryResolveRowTargetScope( _
 
     If selector.Exists("row") Then
         If Not private_TryResolveSpan(VBA.CStr(selector("row")), rowStart, rowEnd) Then
+#If LOGGING_DEBUG_ENABLED Then
             ex_Core.m_Diagnostic_LogError "PrototypeNew: invalid row selector span '" & VBA.CStr(selector("row")) & "'."
+#End If
             Exit Function
         End If
     End If
     If selector.Exists("col") Then
         If Not private_TryResolveSpan(VBA.CStr(selector("col")), colStart, colEnd) Then
+#If LOGGING_DEBUG_ENABLED Then
             ex_Core.m_Diagnostic_LogError "PrototypeNew: invalid col selector span '" & VBA.CStr(selector("col")) & "'."
+#End If
             Exit Function
         End If
     End If
@@ -601,13 +672,17 @@ Private Function private_TryResolveColumnTargetScope( _
 
     If selector.Exists("row") Then
         If Not private_TryResolveSpan(VBA.CStr(selector("row")), rowStart, rowEnd) Then
+#If LOGGING_DEBUG_ENABLED Then
             ex_Core.m_Diagnostic_LogError "PrototypeNew: invalid row selector span '" & VBA.CStr(selector("row")) & "'."
+#End If
             Exit Function
         End If
     End If
     If selector.Exists("col") Then
         If Not private_TryResolveSpan(VBA.CStr(selector("col")), colStart, colEnd) Then
+#If LOGGING_DEBUG_ENABLED Then
             ex_Core.m_Diagnostic_LogError "PrototypeNew: invalid col selector span '" & VBA.CStr(selector("col")) & "'."
+#End If
             Exit Function
         End If
     End If
@@ -643,16 +718,22 @@ Private Function private_TryResolveCellTargetScope( _
     End If
 
     If Not selector.Exists("row") Or Not selector.Exists("col") Then
+#If LOGGING_DEBUG_ENABLED Then
         ex_Core.m_Diagnostic_LogError "PrototypeNew: cell rule requires selector row+col or address."
+#End If
         Exit Function
     End If
 
     If Not private_TryResolveSpan(VBA.CStr(selector("row")), rowStart, rowEnd) Then
+#If LOGGING_DEBUG_ENABLED Then
         ex_Core.m_Diagnostic_LogError "PrototypeNew: invalid row selector span '" & VBA.CStr(selector("row")) & "'."
+#End If
         Exit Function
     End If
     If Not private_TryResolveSpan(VBA.CStr(selector("col")), colStart, colEnd) Then
+#If LOGGING_DEBUG_ENABLED Then
         ex_Core.m_Diagnostic_LogError "PrototypeNew: invalid col selector span '" & VBA.CStr(selector("col")) & "'."
+#End If
         Exit Function
     End If
 
@@ -698,7 +779,9 @@ Private Function private_TryGetRangeByAddress(ByVal ws As Worksheet, ByVal addre
 
     addressText = VBA.Trim$(addressText)
     If VBA.Len(addressText) = 0 Then
+#If LOGGING_DEBUG_ENABLED Then
         ex_Core.m_Diagnostic_LogError "PrototypeNew: selector address is empty."
+#End If
         Exit Function
     End If
 
@@ -710,7 +793,9 @@ Private Function private_TryGetRangeByAddress(ByVal ws As Worksheet, ByVal addre
     Exit Function
 
 EH_RANGE:
+#If LOGGING_DEBUG_ENABLED Then
     ex_Core.m_Diagnostic_LogError "PrototypeNew: invalid selector address '" & addressText & "'."
+#End If
 End Function
 
 
@@ -736,7 +821,9 @@ Private Function private_ApplyRangeDeclarations( _
 
     If declarations.Exists("backcolor") Then
         If Not private_TryParseColor(VBA.CStr(declarations("backcolor")), colorValue) Then
+#If LOGGING_DEBUG_ENABLED Then
             ex_Core.m_Diagnostic_LogError "PrototypeNew: invalid backColor in " & contextName & "."
+#End If
             Exit Function
         End If
         targetRange.Interior.Color = colorValue
@@ -744,7 +831,9 @@ Private Function private_ApplyRangeDeclarations( _
 
     If declarations.Exists("fontcolor") Then
         If Not private_TryParseColor(VBA.CStr(declarations("fontcolor")), colorValue) Then
+#If LOGGING_DEBUG_ENABLED Then
             ex_Core.m_Diagnostic_LogError "PrototypeNew: invalid fontColor in " & contextName & "."
+#End If
             Exit Function
         End If
         targetRange.Font.Color = colorValue
@@ -752,7 +841,9 @@ Private Function private_ApplyRangeDeclarations( _
 
     If declarations.Exists("bordercolor") Then
         If Not private_TryParseColor(VBA.CStr(declarations("bordercolor")), colorValue) Then
+#If LOGGING_DEBUG_ENABLED Then
             ex_Core.m_Diagnostic_LogError "PrototypeNew: invalid borderColor in " & contextName & "."
+#End If
             Exit Function
         End If
         targetRange.Borders.LineStyle = xlContinuous
@@ -761,7 +852,9 @@ Private Function private_ApplyRangeDeclarations( _
 
     If declarations.Exists("borderweight") Then
         If Not private_TryParseCellBorderWeight(VBA.CStr(declarations("borderweight")), borderWeightValue) Then
+#If LOGGING_DEBUG_ENABLED Then
             ex_Core.m_Diagnostic_LogError "PrototypeNew: invalid borderWeight in " & contextName & "."
+#End If
             Exit Function
         End If
         targetRange.Borders.LineStyle = xlContinuous
@@ -774,7 +867,9 @@ Private Function private_ApplyRangeDeclarations( _
 
     If declarations.Exists("fontsize") Then
         If Not private_TryParsePositiveDouble(VBA.CStr(declarations("fontsize")), sizeValue) Then
+#If LOGGING_DEBUG_ENABLED Then
             ex_Core.m_Diagnostic_LogError "PrototypeNew: invalid fontSize in " & contextName & "."
+#End If
             Exit Function
         End If
         targetRange.Font.Size = sizeValue
@@ -782,7 +877,9 @@ Private Function private_ApplyRangeDeclarations( _
 
     If declarations.Exists("fontbold") Then
         If Not private_TryParseBoolean(VBA.CStr(declarations("fontbold")), boolValue) Then
+#If LOGGING_DEBUG_ENABLED Then
             ex_Core.m_Diagnostic_LogError "PrototypeNew: invalid fontBold in " & contextName & "."
+#End If
             Exit Function
         End If
         targetRange.Font.Bold = boolValue
@@ -790,7 +887,9 @@ Private Function private_ApplyRangeDeclarations( _
 
     If declarations.Exists("fontitalic") Then
         If Not private_TryParseBoolean(VBA.CStr(declarations("fontitalic")), boolValue) Then
+#If LOGGING_DEBUG_ENABLED Then
             ex_Core.m_Diagnostic_LogError "PrototypeNew: invalid fontItalic in " & contextName & "."
+#End If
             Exit Function
         End If
         targetRange.Font.Italic = boolValue
@@ -798,7 +897,9 @@ Private Function private_ApplyRangeDeclarations( _
 
     If declarations.Exists("horizontal") Then
         If Not private_TryParseHorizontalAlignment(VBA.CStr(declarations("horizontal")), hAlign) Then
+#If LOGGING_DEBUG_ENABLED Then
             ex_Core.m_Diagnostic_LogError "PrototypeNew: invalid horizontal alignment in " & contextName & "."
+#End If
             Exit Function
         End If
         targetRange.HorizontalAlignment = hAlign
@@ -806,7 +907,9 @@ Private Function private_ApplyRangeDeclarations( _
 
     If declarations.Exists("vertical") Then
         If Not private_TryParseVerticalAlignment(VBA.CStr(declarations("vertical")), vAlign) Then
+#If LOGGING_DEBUG_ENABLED Then
             ex_Core.m_Diagnostic_LogError "PrototypeNew: invalid vertical alignment in " & contextName & "."
+#End If
             Exit Function
         End If
         targetRange.VerticalAlignment = vAlign
@@ -814,14 +917,18 @@ Private Function private_ApplyRangeDeclarations( _
 
     If declarations.Exists("overflow") Then
         If Not private_ApplyOverflow(VBA.CStr(declarations("overflow")), targetRange) Then
+#If LOGGING_DEBUG_ENABLED Then
             ex_Core.m_Diagnostic_LogError "PrototypeNew: invalid overflow value in " & contextName & "."
+#End If
             Exit Function
         End If
     End If
 
     If declarations.Exists("width") Then
         If Not private_TryParsePositiveDouble(VBA.CStr(declarations("width")), sizeValue) Then
+#If LOGGING_DEBUG_ENABLED Then
             ex_Core.m_Diagnostic_LogError "PrototypeNew: invalid width in " & contextName & "."
+#End If
             Exit Function
         End If
 
@@ -835,7 +942,9 @@ Private Function private_ApplyRangeDeclarations( _
 
     If declarations.Exists("rowheight") Then
         If Not private_TryParsePositiveDouble(VBA.CStr(declarations("rowheight")), sizeValue) Then
+#If LOGGING_DEBUG_ENABLED Then
             ex_Core.m_Diagnostic_LogError "PrototypeNew: invalid rowHeight in " & contextName & "."
+#End If
             Exit Function
         End If
         targetRange.EntireRow.RowHeight = sizeValue
@@ -858,7 +967,9 @@ Private Function private_ApplyShapeStyle(ByVal shp As Shape, ByVal declarations 
 
     If declarations.Exists("backcolor") Then
         If Not private_TryParseColor(VBA.CStr(declarations("backcolor")), colorValue) Then
+#If LOGGING_DEBUG_ENABLED Then
             ex_Core.m_Diagnostic_LogError "PrototypeNew: invalid backColor in style '" & styleName & "'."
+#End If
             Exit Function
         End If
         shp.Fill.Visible = msoTrue
@@ -867,7 +978,9 @@ Private Function private_ApplyShapeStyle(ByVal shp As Shape, ByVal declarations 
 
     If declarations.Exists("fontcolor") Then
         If Not private_TryParseColor(VBA.CStr(declarations("fontcolor")), colorValue) Then
+#If LOGGING_DEBUG_ENABLED Then
             ex_Core.m_Diagnostic_LogError "PrototypeNew: invalid fontColor in style '" & styleName & "'."
+#End If
             Exit Function
         End If
         On Error Resume Next
@@ -878,7 +991,9 @@ Private Function private_ApplyShapeStyle(ByVal shp As Shape, ByVal declarations 
 
     If declarations.Exists("bordercolor") Then
         If Not private_TryParseColor(VBA.CStr(declarations("bordercolor")), colorValue) Then
+#If LOGGING_DEBUG_ENABLED Then
             ex_Core.m_Diagnostic_LogError "PrototypeNew: invalid borderColor in style '" & styleName & "'."
+#End If
             Exit Function
         End If
         shp.Line.Visible = msoTrue
@@ -887,7 +1002,9 @@ Private Function private_ApplyShapeStyle(ByVal shp As Shape, ByVal declarations 
 
     If declarations.Exists("borderweight") Then
         If Not private_TryParseShapeBorderWeight(VBA.CStr(declarations("borderweight")), sizeValue) Then
+#If LOGGING_DEBUG_ENABLED Then
             ex_Core.m_Diagnostic_LogError "PrototypeNew: invalid borderWeight in style '" & styleName & "'."
+#End If
             Exit Function
         End If
         shp.Line.Weight = sizeValue
@@ -902,7 +1019,9 @@ Private Function private_ApplyShapeStyle(ByVal shp As Shape, ByVal declarations 
 
     If declarations.Exists("fontsize") Then
         If Not private_TryParsePositiveDouble(VBA.CStr(declarations("fontsize")), sizeValue) Then
+#If LOGGING_DEBUG_ENABLED Then
             ex_Core.m_Diagnostic_LogError "PrototypeNew: invalid fontSize in style '" & styleName & "'."
+#End If
             Exit Function
         End If
         On Error Resume Next
@@ -913,7 +1032,9 @@ Private Function private_ApplyShapeStyle(ByVal shp As Shape, ByVal declarations 
 
     If declarations.Exists("fontbold") Then
         If Not private_TryParseBoolean(VBA.CStr(declarations("fontbold")), boolValue) Then
+#If LOGGING_DEBUG_ENABLED Then
             ex_Core.m_Diagnostic_LogError "PrototypeNew: invalid fontBold in style '" & styleName & "'."
+#End If
             Exit Function
         End If
         On Error Resume Next
@@ -924,7 +1045,9 @@ Private Function private_ApplyShapeStyle(ByVal shp As Shape, ByVal declarations 
 
     If declarations.Exists("fontitalic") Then
         If Not private_TryParseBoolean(VBA.CStr(declarations("fontitalic")), boolValue) Then
+#If LOGGING_DEBUG_ENABLED Then
             ex_Core.m_Diagnostic_LogError "PrototypeNew: invalid fontItalic in style '" & styleName & "'."
+#End If
             Exit Function
         End If
         On Error Resume Next
@@ -965,7 +1088,9 @@ Private Function private_TryReadNodeEnabled( _
     End If
 
     If Not private_TryParseBoolean(rawValue, outEnabled) Then
+#If LOGGING_DEBUG_ENABLED Then
         ex_Core.m_Diagnostic_LogError "PrototypeNew: attribute 'enabled' must be boolean."
+#End If
         Exit Function
     End If
 

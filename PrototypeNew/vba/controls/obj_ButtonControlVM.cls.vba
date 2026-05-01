@@ -4,6 +4,9 @@ BEGIN
 END
 Attribute VB_Name = "obj_ButtonControlVM"
 Option Explicit
+#Const LOGGING_DEBUG_ENABLED = True
+#Const LOGGING_VERBOSE_ENABLED = False
+Private m_IsDisposed As Boolean
 Implements obj_IControl
 Implements obj_ISerializable
 
@@ -22,6 +25,21 @@ Private m_OnClickMacroRef As String
 Private m_RuntimeControlKey As String
 Private m_IsConfigured As Boolean
 Private m_PageBase As obj_PageBase
+
+Private Sub Class_Initialize()
+#If LOGGING_VERBOSE_ENABLED Then
+    ex_Core.m_Diagnostic_LogInfo "lifecycle:" & VBA.TypeName(Me) & ".Class_Initialize"
+#End If
+End Sub
+Private Sub Class_Terminate()
+#If LOGGING_VERBOSE_ENABLED Then
+    ex_Core.m_Diagnostic_LogInfo "lifecycle:" & VBA.TypeName(Me) & ".Class_Terminate"
+#End If
+    If m_IsDisposed Then Exit Sub
+    On Error Resume Next
+    Dispose
+    On Error GoTo 0
+End Sub
 
 ' //
 ' // Interface
@@ -50,7 +68,9 @@ Private Sub obj_IControl_Configure(ByVal page As obj_PageBase, ByVal controlNode
 
     m_OnClickRaw = VBA.CStr(ex_XmlCore.m_NodeAttrText(controlNode, "onClick"))
     If VBA.Len(VBA.Trim$(m_OnClickRaw)) = 0 Then
+#If LOGGING_DEBUG_ENABLED Then
         ex_Core.m_Diagnostic_LogError "Button: onClick is required for control '" & m_ControlName & "'."
+#End If
         Exit Sub
     End If
 
@@ -81,7 +101,9 @@ Private Sub obj_IControl_Render()
     Dim pageBase As obj_PageBase
 
     If Not m_IsConfigured Then
+#If LOGGING_DEBUG_ENABLED Then
         ex_Core.m_Diagnostic_LogError "Button: control '" & m_ControlName & "' is not configured."
+#End If
         Exit Sub
     End If
 
@@ -89,14 +111,18 @@ Private Sub obj_IControl_Render()
     If Not m_ControlBase Is Nothing Then Set pageBase = m_ControlBase.PageBase
     If pageBase Is Nothing Then Set pageBase = m_PageBase
     If pageBase Is Nothing Then
+#If LOGGING_DEBUG_ENABLED Then
         ex_Core.m_Diagnostic_LogError "Button: page is not specified for control '" & m_ControlName & "'."
+#End If
         Exit Sub
     End If
     Set m_PageBase = pageBase
 
     Set ws = pageBase.Worksheet
     If ws Is Nothing Then
+#If LOGGING_DEBUG_ENABLED Then
         ex_Core.m_Diagnostic_LogError "Button: page worksheet is not specified for control '" & m_ControlName & "'."
+#End If
         Exit Sub
     End If
 
@@ -105,11 +131,15 @@ Private Sub obj_IControl_Render()
     On Error GoTo 0
 
     If targetRange Is Nothing Then
+#If LOGGING_DEBUG_ENABLED Then
         ex_Core.m_Diagnostic_LogError "Button: failed to resolve target range for control '" & m_ControlName & "'."
+#End If
         Exit Sub
     End If
     If targetRange.Width <= 0# Or targetRange.Height <= 0# Then
+#If LOGGING_DEBUG_ENABLED Then
         ex_Core.m_Diagnostic_LogError "Button: target range has non-positive width/height for control '" & m_ControlName & "'."
+#End If
         Exit Sub
     End If
 
@@ -147,11 +177,15 @@ Private Sub obj_IControl_Render()
     Exit Sub
 
 EH_BUTTON:
+#If LOGGING_DEBUG_ENABLED Then
     ex_Core.m_Diagnostic_LogError "Button: failed to render control '" & m_ControlName & "': " & Err.Description
+#End If
     Exit Sub
 
 EH_RANGE:
+#If LOGGING_DEBUG_ENABLED Then
     ex_Core.m_Diagnostic_LogError "Button: failed to resolve target range for control '" & m_ControlName & "': " & Err.Description
+#End If
 End Sub
 
 Private Function obj_IControl_SupportsAttribute(ByVal attrName As String) As Boolean
@@ -176,6 +210,29 @@ End Function
 ' //
 ' // API
 ' //
+Public Function Initialize() As Boolean
+#If LOGGING_VERBOSE_ENABLED Then
+    ex_Core.m_Diagnostic_LogInfo "lifecycle:" & VBA.TypeName(Me) & ".Initialize"
+#End If
+    Initialize = True
+End Function
+Public Sub Dispose()
+#If LOGGING_VERBOSE_ENABLED Then
+    ex_Core.m_Diagnostic_LogInfo "lifecycle:" & VBA.TypeName(Me) & ".Dispose"
+#End If
+    If m_IsDisposed Then Exit Sub
+    m_IsDisposed = True
+    On Error Resume Next
+    Err.Clear
+    Err.Clear
+    Err.Clear
+    Set m_ControlBase = Nothing
+    Set m_ControlLayout = Nothing
+    Set m_CaptionInlineTextPart = Nothing
+    Set m_PageBase = Nothing
+    On Error GoTo 0
+End Sub
+
 Public Function RuntimeHandleClick() As Boolean
     If Not rt_Bridge.m_RunMacro(m_OnClickMacroRef) Then Exit Function
     RuntimeHandleClick = True
@@ -332,24 +389,32 @@ Private Function private_TryBindRuntimeRoute(ByVal shp As Shape) As Boolean
     Dim callbackMacroRef As String
 
     If shp Is Nothing Then
+#If LOGGING_DEBUG_ENABLED Then
         ex_Core.m_Diagnostic_LogError "button:bind-route shape-missing control='" & VBA.Replace$(VBA.Trim$(m_ControlName), "'", "''") & "'"
+#End If
         Exit Function
     End If
     If VBA.Len(VBA.Trim$(m_RuntimeControlKey)) = 0 Then
+#If LOGGING_DEBUG_ENABLED Then
         ex_Core.m_Diagnostic_LogError "button:bind-route runtime-control-key-empty control='" & VBA.Replace$(VBA.Trim$(m_ControlName), "'", "''") & "'"
+#End If
         Exit Function
     End If
 
     callbackMacroRef = private_GetRuntimeCallbackMacroRef()
     If VBA.Len(callbackMacroRef) = 0 Then
+#If LOGGING_DEBUG_ENABLED Then
         ex_Core.m_Diagnostic_LogError "button:bind-route callback-macro-empty control='" & VBA.Replace$(VBA.Trim$(m_ControlName), "'", "''") & "'"
+#End If
         Exit Function
     End If
 
     On Error Resume Next
     shp.OnAction = callbackMacroRef
     If Err.Number <> 0 Then
+#If LOGGING_DEBUG_ENABLED Then
         ex_Core.m_Diagnostic_LogError "button:bind-route set-onaction-failed control='" & VBA.Replace$(VBA.Trim$(m_ControlName), "'", "''") & "' shape='" & VBA.Replace$(VBA.Trim$(shp.Name), "'", "''") & "' err='" & VBA.Replace$(Err.Description, "'", "''") & "'"
+#End If
         Err.Clear
         On Error GoTo 0
         Exit Function
@@ -357,19 +422,27 @@ Private Function private_TryBindRuntimeRoute(ByVal shp As Shape) As Boolean
     On Error GoTo 0
 
     If m_PageBase Is Nothing Then
+#If LOGGING_DEBUG_ENABLED Then
         ex_Core.m_Diagnostic_LogError "button:bind-route page-base-missing control='" & VBA.Replace$(VBA.Trim$(m_ControlName), "'", "''") & "'"
+#End If
         Exit Function
     End If
     If Not m_PageBase.RegisterControl(m_RuntimeControlKey, Me) Then
+#If LOGGING_DEBUG_ENABLED Then
         ex_Core.m_Diagnostic_LogError "button:bind-route register-control-failed control='" & VBA.Replace$(VBA.Trim$(m_ControlName), "'", "''") & "' key='" & VBA.Replace$(VBA.Trim$(m_RuntimeControlKey), "'", "''") & "'"
+#End If
         Exit Function
     End If
     If Not m_PageBase.RegisterShapeRoute(shp.Name, m_RuntimeControlKey, "RuntimeHandleClick", False) Then
+#If LOGGING_DEBUG_ENABLED Then
         ex_Core.m_Diagnostic_LogError "button:bind-route register-route-failed control='" & VBA.Replace$(VBA.Trim$(m_ControlName), "'", "''") & "' shape='" & VBA.Replace$(VBA.Trim$(shp.Name), "'", "''") & "'"
+#End If
         Exit Function
     End If
 
+#If LOGGING_DEBUG_ENABLED Then
     ex_Core.m_Diagnostic_LogInfo "button:bind-route ok control='" & VBA.Replace$(VBA.Trim$(m_ControlName), "'", "''") & "' shape='" & VBA.Replace$(VBA.Trim$(shp.Name), "'", "''") & "' macro='" & VBA.Replace$(callbackMacroRef, "'", "''") & "'"
+#End If
 
     private_TryBindRuntimeRoute = True
 End Function
@@ -378,7 +451,9 @@ Private Function private_RegisterCaptionInlineRuns(ByVal page As obj_PageBase, B
     If page Is Nothing Then Exit Function
     If shp Is Nothing Then Exit Function
     If m_CaptionInlineTextPart Is Nothing Then
+#If LOGGING_DEBUG_ENABLED Then
         ex_Core.m_Diagnostic_LogError "Button: caption inline part is not initialized for control '" & m_ControlName & "'."
+#End If
         Exit Function
     End If
     private_RegisterCaptionInlineRuns = m_CaptionInlineTextPart.RegisterForShape(page, shp)
@@ -391,12 +466,16 @@ Private Function private_TryResolveCaptionInlineText( _
     Dim inlineTextProfile As obj_InlineTextProfile
 
     If page Is Nothing Then
+#If LOGGING_DEBUG_ENABLED Then
         ex_Core.m_Diagnostic_LogError "Button: page is not specified for inline caption resolve in control '" & m_ControlName & "'."
+#End If
         Exit Function
     End If
 
     If m_CaptionInlineTextPart Is Nothing Then
+#If LOGGING_DEBUG_ENABLED Then
         ex_Core.m_Diagnostic_LogError "Button: caption inline part is not initialized for control '" & m_ControlName & "'."
+#End If
         Exit Function
     End If
 
@@ -432,3 +511,4 @@ End Function
 Public Property Get DefaultCaption() As String
     DefaultCaption = DEFAULT_CAPTION
 End Property
+

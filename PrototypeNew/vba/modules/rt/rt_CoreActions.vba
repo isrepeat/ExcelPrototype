@@ -1,10 +1,18 @@
 Attribute VB_Name = "rt_CoreActions"
 Option Explicit
+#Const LOGGING_DEBUG_ENABLED = True
+#Const LOGGING_VERBOSE_ENABLED = False
 
 Private g_ScheduledUpdateAt As Date
 Private g_ScheduledUpdateMacro As String
 Private g_PendingUpdateMacroRef As String
 Private g_IsRunningScheduledUpdate As Boolean
+
+Public Sub m_Module_Dispose()
+#If LOGGING_VERBOSE_ENABLED Then
+    ex_Core.m_Diagnostic_LogInfo "lifecycle:rt_CoreActions.m_Module_Dispose"
+#End If
+End Sub
 
 ' //
 ' // API
@@ -28,31 +36,41 @@ Public Sub m_RerenderLastPageAfterUpdate()
     Dim restoredPagesCount As Long
 
     ex_HelpersSheet.m_SetBusyCursor True
+#If LOGGING_DEBUG_ENABLED Then
     ex_Core.m_Diagnostic_LogInfo "core-actions:rerender-after-update start"
+#End If
 
     On Error GoTo EH_RERENDER
     If Not rt_Snapshots.m_RestorePageSnapshots(True, "after-update", restoredPagesCount) Then
+#If LOGGING_DEBUG_ENABLED Then
         ex_Core.m_Diagnostic_LogError "core-actions:rerender-after-update restore-pages-failed"
+#End If
         rt_Messaging.m_ShowStatusBarError "Failed to restore pages after update.", 6
         ex_HelpersSheet.m_SetBusyCursor False
         Exit Sub
     End If
 
     If Not rt_Snapshots.m_RestoreRuntimeGlobalsSnapshot() Then
+#If LOGGING_DEBUG_ENABLED Then
         ex_Core.m_Diagnostic_LogError "core-actions:rerender-after-update restore-runtime-globals-failed"
+#End If
         rt_Messaging.m_ShowStatusBarError "Failed to restore runtime globals after update.", 6
         ex_HelpersSheet.m_SetBusyCursor False
         Exit Sub
     End If
 
     ex_HelpersSheet.m_SetBusyCursor False
+#If LOGGING_DEBUG_ENABLED Then
     ex_Core.m_Diagnostic_LogInfo "core-actions:rerender-after-update done restoredPages=" & VBA.CStr(restoredPagesCount)
+#End If
     rt_Messaging.m_ShowStatusBarSuccess "Update completed. Restored pages: " & VBA.CStr(restoredPagesCount) & "; runtime state refreshed.", 1
     Exit Sub
 
 EH_RERENDER:
     ex_HelpersSheet.m_SetBusyCursor False
+#If LOGGING_DEBUG_ENABLED Then
     ex_Core.m_Diagnostic_LogError "core-actions:rerender-after-update exception err='" & VBA.Replace$(Err.Description, "'", "''") & "'"
+#End If
     rt_Messaging.m_ShowStatusBarError "Failed to restore runtime state after update: " & Err.Description, 6
 End Sub
 
@@ -61,7 +79,9 @@ Public Sub m_RunScheduledUpdateAndRerender()
     Dim updateMacroRef As String
 
     If g_IsRunningScheduledUpdate Then
+#If LOGGING_DEBUG_ENABLED Then
         ex_Core.m_Diagnostic_LogError "core-actions:run-scheduled reentry-blocked"
+#End If
         Exit Sub
     End If
 
@@ -110,21 +130,29 @@ Private Sub private_ScheduleUpdateAndRerender(ByVal devToolsMethod As String)
         Exit Sub
     End If
     If g_IsRunningScheduledUpdate Then
+#If LOGGING_DEBUG_ENABLED Then
         ex_Core.m_Diagnostic_LogError "core-actions:schedule-update skipped reason='update-is-running' method='" & VBA.Replace$(updateMethod, "'", "''") & "'"
+#End If
         Exit Sub
     End If
+#If LOGGING_DEBUG_ENABLED Then
     ex_Core.m_Diagnostic_LogInfo "core-actions:schedule-update start method='" & VBA.Replace$(updateMethod, "'", "''") & "'"
+#End If
 
     ex_HelpersSheet.m_SetBusyCursor True
 
     If Not rt_Snapshots.m_SavePageSnapshots() Then
+#If LOGGING_DEBUG_ENABLED Then
         ex_Core.m_Diagnostic_LogError "core-actions:schedule-update save-page-snapshots-failed"
+#End If
         ex_HelpersSheet.m_SetBusyCursor False
         Exit Sub
     End If
 
     If Not rt_Snapshots.m_SaveRuntimeGlobalsSnapshot() Then
+#If LOGGING_DEBUG_ENABLED Then
         ex_Core.m_Diagnostic_LogError "core-actions:schedule-update save-runtime-globals-failed"
+#End If
         ex_HelpersSheet.m_SetBusyCursor False
         Exit Sub
     End If
@@ -146,16 +174,21 @@ Private Sub private_ScheduleUpdateAndRerender(ByVal devToolsMethod As String)
     Application.OnTime updateAt, updateMacroRef
     g_ScheduledUpdateAt = updateAt
     g_ScheduledUpdateMacro = updateMacroRef
+#If LOGGING_DEBUG_ENABLED Then
     ex_Core.m_Diagnostic_LogInfo "core-actions:schedule-update queued macro='" & VBA.Replace$(updateMacroRef, "'", "''") & "'"
+#End If
     rt_Messaging.m_ShowStatusBarNotice "Update start: task has been queued.", 1
     Exit Sub
 
 EH_SCHEDULE:
     ex_HelpersSheet.m_SetBusyCursor False
     g_PendingUpdateMacroRef = VBA.vbNullString
+#If LOGGING_DEBUG_ENABLED Then
     ex_Core.m_Diagnostic_LogError "core-actions:schedule-update ontime-failed err='" & VBA.Replace$(Err.Description, "'", "''") & "'"
+#End If
     rt_Messaging.m_ShowStatusBarError "Failed to schedule update: " & Err.Description, 6
 End Sub
+
 
 Private Function private_GetNextOnTimeTick() As Date
     Dim nowValue As Date
@@ -205,11 +238,15 @@ Private Sub private_QueueSafeCoreUpdate(ByVal coreMethod As String, ByVal update
     Application.OnTime EarliestTime:=scheduleAt, Procedure:=macroRef
     g_ScheduledUpdateAt = scheduleAt
     g_ScheduledUpdateMacro = macroRef
+#If LOGGING_DEBUG_ENABLED Then
     ex_Core.m_Diagnostic_LogInfo "core-actions:redirect-safe-update queued kind='" & VBA.Replace$(updateKind, "'", "''") & "' macro='" & VBA.Replace$(macroRef, "'", "''") & "'"
+#End If
     rt_Messaging.m_ShowStatusBarNotice "Update start: safe task has been queued.", 1
     Exit Sub
 
 EH_QUEUE:
+#If LOGGING_DEBUG_ENABLED Then
     ex_Core.m_Diagnostic_LogError "core-actions:redirect-safe-update ontime-failed kind='" & VBA.Replace$(updateKind, "'", "''") & "' err='" & VBA.Replace$(Err.Description, "'", "''") & "'"
+#End If
     rt_Messaging.m_ShowStatusBarError "Failed to schedule safe update: " & Err.Description, 6
 End Sub

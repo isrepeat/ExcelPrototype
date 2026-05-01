@@ -1,10 +1,17 @@
 Attribute VB_Name = "ex_Test"
 Option Explicit
+#Const LOGGING_DEBUG_ENABLED = True
+#Const LOGGING_VERBOSE_ENABLED = False
 
 Private Const DEMO_CONFIG_VARIANT_A As String = "hospitalizationdate"
 Private Const DEMO_CONFIG_VARIANT_B As String = "transfersheet"
 Private g_DemoConfigVariant As String
 
+Public Sub m_Module_Dispose()
+#If LOGGING_VERBOSE_ENABLED Then
+    ex_Core.m_Diagnostic_LogInfo "lifecycle:ex_Test.m_Module_Dispose"
+#End If
+End Sub
 ' //
 ' // API
 ' //
@@ -132,11 +139,13 @@ Public Sub m_TEST_ProfileDevTableListUI()
     private_RenderWorksheetPage ws, "ui\DevProfileTableUI.xml"
     t3 = VBA.Timer
 
+#If LOGGING_DEBUG_ENABLED Then
     ex_Core.m_Diagnostic_LogInfo "Profile (ms):" & VBA.vbCrLf & _
            "Build data: " & VBA.Format$((t1 - t0) * 1000#, "0") & VBA.vbCrLf & _
            "Register source: " & VBA.Format$((t2 - t1) * 1000#, "0") & VBA.vbCrLf & _
            "Render UI: " & VBA.Format$((t3 - t2) * 1000#, "0") & VBA.vbCrLf & _
            "Total: " & VBA.Format$((t3 - t0) * 1000#, "0")
+#End If
 End Sub
 
 
@@ -561,7 +570,9 @@ ContinueMergedSourceColumn:
             Set sourceRow = sourceTable.Rows.Item(sourceRowIndex)
             If sourceRow Is Nothing Then GoTo ContinueMergedSourceRow
             If VBA.TypeName(sourceRow) <> "obj_Row" Then
+#If LOGGING_DEBUG_ENABLED Then
                 ex_Core.m_Diagnostic_LogError "PrototypeNew: expected obj_Row in demo table rows."
+#End If
                 Exit Function
             End If
 
@@ -756,7 +767,9 @@ Private Function private_CreateTableViewItemFromTable(ByVal tableDynamic As obj_
     Dim tableViewItem As obj_TableViewItem
 
     If tableDynamic Is Nothing Then
+#If LOGGING_DEBUG_ENABLED Then
         ex_Core.m_Diagnostic_LogError "PrototypeNew: table model is not specified for table view."
+#End If
         Exit Function
     End If
 
@@ -772,7 +785,9 @@ Private Function private_CreateRowViewItemFromRow(ByVal row As obj_Row) As obj_R
     Dim rowViewItem As obj_RowViewItem
 
     If row Is Nothing Then
+#If LOGGING_DEBUG_ENABLED Then
         ex_Core.m_Diagnostic_LogError "PrototypeNew: row model is not specified for row view."
+#End If
         Exit Function
     End If
 
@@ -827,7 +842,9 @@ Private Function private_TryResolveDemoTableDynamic(ByVal tableObj As Variant, B
     Dim sourceRowIndex As Long
 
     If Not VBA.IsObject(tableObj) Then
+#If LOGGING_DEBUG_ENABLED Then
         ex_Core.m_Diagnostic_LogError "PrototypeNew: demo table item is not object."
+#End If
         Exit Function
     End If
 
@@ -866,7 +883,9 @@ ContinueResolveRow:
             private_TryResolveDemoTableDynamic = True
 
         Case Else
+#If LOGGING_DEBUG_ENABLED Then
             ex_Core.m_Diagnostic_LogError "PrototypeNew: unsupported demo table type '" & VBA.TypeName(tableObj) & "'."
+#End If
     End Select
 End Function
 
@@ -901,11 +920,15 @@ Private Function private_CreateDemoTable( _
 
     For Each rowObj In rows
         If rowObj Is Nothing Then
+#If LOGGING_DEBUG_ENABLED Then
             ex_Core.m_Diagnostic_LogError "PrototypeNew: table row is not specified."
+#End If
             Exit Function
         End If
         If rowObj.CellCount < tableObj.ColumnCount Then
+#If LOGGING_DEBUG_ENABLED Then
             ex_Core.m_Diagnostic_LogError "PrototypeNew: table row has fewer cells than table columns."
+#End If
             Exit Function
         End If
 
@@ -922,7 +945,9 @@ Private Function private_CreateDemoTableRows(ParamArray values() As Variant) As 
 
     Set result = New Collection
     If (UBound(values) - LBound(values) + 1) Mod 7 <> 0 Then
+#If LOGGING_DEBUG_ENABLED Then
         ex_Core.m_Diagnostic_LogError "PrototypeNew: private_CreateDemoTableRows expects values in septets (c1..c7)."
+#End If
         Set private_CreateDemoTableRows = result
         Exit Function
     End If
@@ -995,7 +1020,9 @@ Private Function private_TryResolveMainPage(ByRef outPage As obj_IPage) As Boole
         End If
     End If
 
+#If LOGGING_DEBUG_ENABLED Then
     ex_Core.m_Diagnostic_LogError "PrototypeNew: main page is not resolved for UI switch."
+#End If
 End Function
 
 
@@ -1005,23 +1032,30 @@ Private Function private_GetActiveWorksheet() As Worksheet
 
     Set wb = ThisWorkbook
     If wb Is Nothing Then
+#If LOGGING_DEBUG_ENABLED Then
         ex_Core.m_Diagnostic_LogError "PrototypeNew: workbook is not specified."
+#End If
         Exit Function
     End If
 
     Set activeSheetObj = wb.ActiveSheet
     If activeSheetObj Is Nothing Then
+#If LOGGING_DEBUG_ENABLED Then
         ex_Core.m_Diagnostic_LogError "PrototypeNew: active sheet is not specified."
+#End If
         Exit Function
     End If
 
     If Not TypeOf activeSheetObj Is Worksheet Then
+#If LOGGING_DEBUG_ENABLED Then
         ex_Core.m_Diagnostic_LogError "PrototypeNew: active sheet is not a worksheet."
+#End If
         Exit Function
     End If
 
     Set private_GetActiveWorksheet = activeSheetObj
 End Function
+
 
 Private Function private_GetDemoConfigVariantKey() As String
     g_DemoConfigVariant = VBA.LCase$(VBA.Trim$(g_DemoConfigVariant))
@@ -1057,14 +1091,18 @@ Private Function private_TryResolvePageBase( _
                     Exit Function
                 End If
 
+#If LOGGING_DEBUG_ENABLED Then
                 ex_Core.m_Diagnostic_LogError "PrototypeNew: preferred page runtime context has unsupported type '" & VBA.TypeName(preferredPageBase) & "'."
+#End If
                 Exit Function
             End If
         End If
     End If
 
     If Not ex_HelpersSheet.m_TryGetActivePageBase(outPageBase) Then
+#If LOGGING_DEBUG_ENABLED Then
         ex_Core.m_Diagnostic_LogError "PrototypeNew: page runtime context is not resolved for active worksheet."
+#End If
         Exit Function
     End If
     If outPageBase Is Nothing Then Exit Function
@@ -1172,7 +1210,9 @@ Private Function private_TryLoadDemoConfigVariantFromStore(ByVal ws As Worksheet
     Dim selectStatic As obj_SelectControlVMStatic
 
     If ws Is Nothing Then
+#If LOGGING_DEBUG_ENABLED Then
         ex_Core.m_Diagnostic_LogError "PrototypeNew: worksheet is not specified for config profile state restore."
+#End If
         Exit Function
     End If
 

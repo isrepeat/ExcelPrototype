@@ -4,6 +4,9 @@ BEGIN
 END
 Attribute VB_Name = "obj_PageMain"
 Option Explicit
+#Const LOGGING_DEBUG_ENABLED = True
+#Const LOGGING_VERBOSE_ENABLED = False
+Private m_IsDisposed As Boolean
 
 Implements obj_IPage
 Implements obj_ISerializable
@@ -19,7 +22,19 @@ Private m_DemoConfigVariant As String
 Private m_PendingControlSnapshots As Collection
 
 Private Sub Class_Initialize()
+#If LOGGING_VERBOSE_ENABLED Then
+    ex_Core.m_Diagnostic_LogInfo "lifecycle:" & VBA.TypeName(Me) & ".Class_Initialize"
+#End If
     Set m_PageBase = New obj_PageBase
+End Sub
+Private Sub Class_Terminate()
+#If LOGGING_VERBOSE_ENABLED Then
+    ex_Core.m_Diagnostic_LogInfo "lifecycle:" & VBA.TypeName(Me) & ".Class_Terminate"
+#End If
+    If m_IsDisposed Then Exit Sub
+    On Error Resume Next
+    Dispose False
+    On Error GoTo 0
 End Sub
 
 ' //
@@ -156,19 +171,31 @@ End Function
 ' //
 ' // API
 ' //
-' Callstack[1]: VBA.ImmediateWindow -> obj_PageMain.Initialize -> obj_PageMain.obj_IPage_Initialize
 Public Function Initialize( _
     ByVal ws As Worksheet, _
     Optional ByVal uiPath As String = VBA.vbNullString, _
     Optional ByVal pageType As Long = 1, _
     Optional ByVal pageId As String = VBA.vbNullString _
 ) As Boolean
-    Initialize = Me.obj_IPage_Initialize(ws, uiPath, pageType, pageId)
+#If LOGGING_VERBOSE_ENABLED Then
+    ex_Core.m_Diagnostic_LogInfo "lifecycle:" & VBA.TypeName(Me) & ".Initialize"
+#End If
+    Initialize = obj_IPage_Initialize(ws, uiPath, pageType, pageId)
 End Function
+Public Sub Dispose(Optional ByVal deleteWorksheet As Boolean = True)
+#If LOGGING_VERBOSE_ENABLED Then
+    ex_Core.m_Diagnostic_LogInfo "lifecycle:" & VBA.TypeName(Me) & ".Dispose"
+#End If
+    If m_IsDisposed Then Exit Sub
+    m_IsDisposed = True
+    obj_IPage_Dispose deleteWorksheet
+End Sub
+
+' Callstack[1]: VBA.ImmediateWindow -> obj_PageMain.Initialize -> obj_PageMain.obj_IPage_Initialize
 
 ' Callstack[1]: VBA.ImmediateWindow -> obj_PageMain.Render -> obj_PageMain.obj_IPage_Render
 Public Function Render() As Boolean
-    Render = Me.obj_IPage_Render()
+    Render = obj_IPage_Render()
 End Function
 
 ' Callstack[1]: ex_Test.private_RenderWorksheetPage -> page.UpdateUiPath -> obj_PageMain.obj_IPage_UpdateUiPath
@@ -176,21 +203,18 @@ Public Function UpdateUiPath( _
     ByVal uiPath As String, _
     Optional ByVal reason As String = VBA.vbNullString _
 ) As Boolean
-    UpdateUiPath = Me.obj_IPage_UpdateUiPath(uiPath, reason)
+    UpdateUiPath = obj_IPage_UpdateUiPath(uiPath, reason)
 End Function
 
 ' Callstack[1]: VBA.ImmediateWindow -> obj_PageMain.Dispose -> obj_PageMain.obj_IPage_Dispose
-Public Sub Dispose(Optional ByVal deleteWorksheet As Boolean = True)
-    Me.obj_IPage_Dispose deleteWorksheet
-End Sub
 
 Public Function GetPageBase() As obj_PageBase
-    Set GetPageBase = Me.obj_IPage_GetPageBase()
+    Set GetPageBase = obj_IPage_GetPageBase()
 End Function
 
  ' Callstack[1]: VBA.ImmediateWindow -> obj_PageMain.RegisterControl -> obj_PageMain.obj_IPage_RegisterControl
 Public Function RegisterControl(ByVal controlKey As String, ByVal controlVm As Object) As Boolean
-    RegisterControl = Me.obj_IPage_RegisterControl(controlKey, controlVm)
+    RegisterControl = obj_IPage_RegisterControl(controlKey, controlVm)
 End Function
 
 ' Callstack[1]: VBA.ImmediateWindow -> obj_PageMain.RegisterShapeRoute -> obj_PageMain.obj_IPage_RegisterShapeRoute
@@ -201,36 +225,36 @@ Public Function RegisterShapeRoute( _
     Optional ByVal hasArg As Boolean = False, _
     Optional ByVal argValue As Variant _
 ) As Boolean
-    RegisterShapeRoute = Me.obj_IPage_RegisterShapeRoute(shapeName, controlKey, methodName, hasArg, argValue)
+    RegisterShapeRoute = obj_IPage_RegisterShapeRoute(shapeName, controlKey, methodName, hasArg, argValue)
 End Function
 
 ' Callstack[1]: VBA.ImmediateWindow -> obj_PageMain.UnregisterControl -> obj_PageMain.obj_IPage_UnregisterControl
 Public Function UnregisterControl(ByVal controlKey As String) As Boolean
-    UnregisterControl = Me.obj_IPage_UnregisterControl(controlKey)
+    UnregisterControl = obj_IPage_UnregisterControl(controlKey)
 End Function
 
 ' Callstack[1]: VBA.ImmediateWindow -> obj_PageMain.ResetControlActions -> obj_PageMain.obj_IPage_ResetControlActions
 Public Function ResetControlActions() As Boolean
-    ResetControlActions = Me.obj_IPage_ResetControlActions()
+    ResetControlActions = obj_IPage_ResetControlActions()
 End Function
 
 ' Callstack[1]: VBA.ImmediateWindow -> obj_PageMain.DispatchShapeClick -> obj_PageMain.obj_IPage_DispatchShapeClick
 Public Function DispatchShapeClick(ByVal shapeName As String) As Boolean
-    DispatchShapeClick = Me.obj_IPage_DispatchShapeClick(shapeName)
+    DispatchShapeClick = obj_IPage_DispatchShapeClick(shapeName)
 End Function
 
 ' Callstack[1]: VBA.ImmediateWindow -> obj_PageMain.TryCollectSerializableControlSnapshots -> obj_PageMain.obj_IPage_TryCollectSerializableControlSnapshots
 Public Function TryCollectSerializableControlSnapshots(ByRef outSnapshots As Collection) As Boolean
-    TryCollectSerializableControlSnapshots = Me.obj_IPage_TryCollectSerializableControlSnapshots(outSnapshots)
+    TryCollectSerializableControlSnapshots = obj_IPage_TryCollectSerializableControlSnapshots(outSnapshots)
 End Function
 
 ' Callstack[1]: VBA.ImmediateWindow -> obj_PageMain.TryRestoreSerializableControlSnapshots -> obj_PageMain.obj_IPage_TryRestoreSerializableControlSnapshots
 Public Function TryRestoreSerializableControlSnapshots(ByVal snapshots As Collection) As Boolean
-    TryRestoreSerializableControlSnapshots = Me.obj_IPage_TryRestoreSerializableControlSnapshots(snapshots)
+    TryRestoreSerializableControlSnapshots = obj_IPage_TryRestoreSerializableControlSnapshots(snapshots)
 End Function
 
 Public Function TryGetRegisteredControls(ByRef outControlsByKey As Object) As Boolean
-    TryGetRegisteredControls = Me.obj_IPage_TryGetRegisteredControls(outControlsByKey)
+    TryGetRegisteredControls = obj_IPage_TryGetRegisteredControls(outControlsByKey)
 End Function
 
  ' Callstack[1]: VBA.ImmediateWindow -> obj_PageMain.Clear -> m_PageBase.Clear
@@ -239,7 +263,7 @@ Public Sub Clear()
 End Sub
 
 Public Function GetSerializableTypeRoot() As String
-    GetSerializableTypeRoot = Me.obj_ISerializable_GetSerializableTypeRoot()
+    GetSerializableTypeRoot = obj_ISerializable_GetSerializableTypeRoot()
 End Function
 
  ' Callstack[1]: ThisWorkbook.Workbook_BeforeClose -> rt_Snapshots.m_SavePageSnapshots -> serializablePage.TrySerializeSnapshot(obj_PageMain) -> obj_PageMain.obj_ISerializable_TrySerializeSnapshot -> obj_PageMain.TrySerializeSnapshot
@@ -346,7 +370,6 @@ Private Function private_TryRestorePendingControlSnapshots() As Boolean
     private_TryRestorePendingControlSnapshots = True
 End Function
 
-
 Private Function private_PrepareRuntimeByUiPath(ByVal uiPath As String, Optional ByVal notifyChange As Boolean = False) As Boolean
     Dim normalizedUiPath As String
 
@@ -373,7 +396,6 @@ Private Function private_PrepareRuntimeByUiPath(ByVal uiPath As String, Optional
             private_PrepareRuntimeByUiPath = True
     End Select
 End Function
-
 
 Private Function private_PrepareDemoConfigRuntime(ByVal ws As Worksheet, Optional ByVal notifyChange As Boolean = False) As Boolean
     If ws Is Nothing Then Exit Function
@@ -469,7 +491,9 @@ Private Function private_TryLoadDemoConfigVariantFromStore(ByVal ws As Worksheet
     Dim selectControlVMStatic As obj_SelectControlVMStatic
 
     If ws Is Nothing Then
+#If LOGGING_DEBUG_ENABLED Then
         ex_Core.m_Diagnostic_LogError "PrototypeNew: worksheet is not specified for config profile state restore."
+#End If
         Exit Function
     End If
 
@@ -488,3 +512,4 @@ Private Function private_TryLoadDemoConfigVariantFromStore(ByVal ws As Worksheet
 
     private_TryLoadDemoConfigVariantFromStore = True
 End Function
+
