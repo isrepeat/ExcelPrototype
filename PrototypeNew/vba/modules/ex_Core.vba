@@ -1602,12 +1602,27 @@ End Function
 
 
 Private Function private_Dev_IsRetryableSafeUpdateFailure() As Boolean
+    Dim errDescription As String
+
     ' Повторяем только узкий класс ошибок "still present after remove operation".
     ' Это симптом временного lock в VBIDE/COM, а не признак логической ошибки в коде.
-    If g_LastUpdateErrorNumber <> ERR_COMPONENT_STILL_PRESENT Then Exit Function
-    If VBA.Len(VBA.Trim$(g_LastUpdateErrorDescription)) = 0 Then Exit Function
-    If VBA.InStr(1, g_LastUpdateErrorDescription, "is still present after remove operation", VBA.vbTextCompare) = 0 Then Exit Function
-    private_Dev_IsRetryableSafeUpdateFailure = True
+    errDescription = VBA.Trim$(g_LastUpdateErrorDescription)
+    If VBA.Len(errDescription) = 0 Then Exit Function
+    If VBA.InStr(1, errDescription, "is still present after remove operation", VBA.vbTextCompare) = 0 Then Exit Function
+
+    If g_LastUpdateErrorNumber = ERR_COMPONENT_STILL_PRESENT Then
+        private_Dev_IsRetryableSafeUpdateFailure = True
+        Exit Function
+    End If
+
+    ' В import-folder ошибка remove компонента агрегируется в vbObjectError+1001,
+    ' поэтому допускаем retry и для обернутого случая.
+    If g_LastUpdateErrorNumber = VBA.vbObjectError + 1001 Then
+        If VBA.InStr(1, g_LastUpdateErrorSource, "private_Dev_ImportFolder", VBA.vbTextCompare) > 0 Then
+            private_Dev_IsRetryableSafeUpdateFailure = True
+            Exit Function
+        End If
+    End If
 End Function
 
 

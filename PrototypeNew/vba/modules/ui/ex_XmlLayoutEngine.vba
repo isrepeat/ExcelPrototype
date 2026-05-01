@@ -143,7 +143,7 @@ Public Function m_TryResolveNodeBoundsFromAnchor( _
     ByRef outRow As Long, _
     ByRef outCol As Long, _
     ByRef outSpanRows As Long, _
-    ByRef outSpanCols As Long _
+    ByRef outSpanColls As Long _
 ) As Boolean
     Dim wb As Workbook
     Dim ws As Worksheet
@@ -160,7 +160,7 @@ Public Function m_TryResolveNodeBoundsFromAnchor( _
     On Error GoTo 0
 
     If Not private_TryResolveNodeCellPosition(node, anchorCell, outRow, outCol) Then Exit Function
-    If Not private_TryGetEffectiveNodeSpan(renderCtx, node, outSpanRows, outSpanCols) Then Exit Function
+    If Not private_TryGetEffectiveNodeSpan(renderCtx, node, outSpanRows, outSpanColls) Then Exit Function
 
     m_TryResolveNodeBoundsFromAnchor = True
     Exit Function
@@ -176,10 +176,10 @@ Public Function m_TryGetEffectiveNodeSpan( _
     ByVal renderCtx As obj_LayoutRenderContext, _
     ByVal node As Object, _
     ByRef outSpanRows As Long, _
-    ByRef outSpanCols As Long, _
+    ByRef outSpanColls As Long, _
     Optional ByVal dataContext As Object _
 ) As Boolean
-    m_TryGetEffectiveNodeSpan = private_TryGetEffectiveNodeSpan(renderCtx, node, outSpanRows, outSpanCols, dataContext)
+    m_TryGetEffectiveNodeSpan = private_TryGetEffectiveNodeSpan(renderCtx, node, outSpanRows, outSpanColls, dataContext)
 End Function
 
 
@@ -194,9 +194,9 @@ Public Function m_RenderNodeBySpan( _
     ByVal rowIndex As Long, _
     ByVal colIndex As Long, _
     ByVal spanRows As Long, _
-    ByVal spanCols As Long _
+    ByVal spanColls As Long _
 ) As Boolean
-    If spanRows <= 0 Or spanCols <= 0 Then
+    If spanRows <= 0 Or spanColls <= 0 Then
         m_RenderNodeBySpan = True
         Exit Function
     End If
@@ -207,7 +207,7 @@ Public Function m_RenderNodeBySpan( _
         rowStart:=rowIndex, _
         colStart:=colIndex, _
         rowEnd:=rowIndex + spanRows - 1, _
-        colEnd:=colIndex + spanCols - 1)
+        colEnd:=colIndex + spanColls - 1)
 End Function
 
 
@@ -289,7 +289,7 @@ Private Function private_RenderContainerChildrenInBounds( _
     Dim rowIdx As Long
     Dim colIdx As Long
     Dim spanRows As Long
-    Dim spanCols As Long
+    Dim spanColls As Long
     Dim orientation As String
     Dim seqRow As Long
     Dim seqCol As Long
@@ -326,13 +326,13 @@ Private Function private_RenderContainerChildrenInBounds( _
     For Each childNode In containerNode.ChildNodes
         If Not private_IsVisualLayoutNode(childNode) Then GoTo ContinueFirstPass
 
-        If Not private_TryGetEffectiveNodeSpan(renderCtx, childNode, spanRows, spanCols) Then Exit Function
+        If Not private_TryGetEffectiveNodeSpan(renderCtx, childNode, spanRows, spanColls) Then Exit Function
 
-        If Not private_ResolveChildGridPosition(childNode, orientation, seqRow, seqCol, rowIdx, colIdx, spanRows, spanCols) Then Exit Function
-        If spanRows <= 0 Or spanCols <= 0 Then GoTo ContinueFirstPass
+        If Not private_ResolveChildGridPosition(childNode, orientation, seqRow, seqCol, rowIdx, colIdx, spanRows, spanColls) Then Exit Function
+        If spanRows <= 0 Or spanColls <= 0 Then GoTo ContinueFirstPass
 
         If rowIdx + spanRows - 1 > maxRows Then maxRows = rowIdx + spanRows - 1
-        If colIdx + spanCols - 1 > maxCols Then maxCols = colIdx + spanCols - 1
+        If colIdx + spanColls - 1 > maxCols Then maxCols = colIdx + spanColls - 1
 
 ContinueFirstPass:
     Next childNode
@@ -346,15 +346,15 @@ ContinueFirstPass:
     For Each childNode In containerNode.ChildNodes
         If Not private_IsVisualLayoutNode(childNode) Then GoTo ContinueSecondPass
 
-        If Not private_TryGetEffectiveNodeSpan(renderCtx, childNode, spanRows, spanCols) Then Exit Function
+        If Not private_TryGetEffectiveNodeSpan(renderCtx, childNode, spanRows, spanColls) Then Exit Function
 
-        If Not private_ResolveChildGridPosition(childNode, orientation, seqRow, seqCol, rowIdx, colIdx, spanRows, spanCols) Then Exit Function
-        If spanRows <= 0 Or spanCols <= 0 Then GoTo ContinueSecondPass
+        If Not private_ResolveChildGridPosition(childNode, orientation, seqRow, seqCol, rowIdx, colIdx, spanRows, spanColls) Then Exit Function
+        If spanRows <= 0 Or spanColls <= 0 Then GoTo ContinueSecondPass
 
         childRowStart = containerRowStart + rowIdx - 1
         childColStart = containerColStart + colIdx - 1
         childRowEnd = childRowStart + spanRows - 1
-        childColEnd = childColStart + spanCols - 1
+        childColEnd = childColStart + spanColls - 1
 
         If Not m_RenderNodeInBounds( _
             renderCtx:=renderCtx, _
@@ -375,7 +375,7 @@ Private Function private_TryGetEffectiveNodeSpan( _
     ByVal renderCtx As obj_LayoutRenderContext, _
     ByVal node As Object, _
     ByRef outSpanRows As Long, _
-    ByRef outSpanCols As Long, _
+    ByRef outSpanColls As Long, _
     Optional ByVal dataContext As Object _
 ) As Boolean
     Dim nodeKind As String
@@ -389,16 +389,16 @@ Private Function private_TryGetEffectiveNodeSpan( _
     If Not private_TryIsNodeVisible(node, dataContext, isVisible) Then Exit Function
     If Not isVisible Then
         outSpanRows = 0
-        outSpanCols = 0
+        outSpanColls = 0
         private_TryGetEffectiveNodeSpan = True
         Exit Function
     End If
 
     explicitRows = private_ReadPositiveLongAttr(node, "spanRows", 0)
-    explicitCols = private_ReadPositiveLongAttr(node, "spanCells", 0)
+    explicitCols = private_ReadPositiveLongAttr(node, "spanColls", 0)
     If explicitRows > 0 And explicitCols > 0 Then
         outSpanRows = explicitRows
-        outSpanCols = explicitCols
+        outSpanColls = explicitCols
         private_TryGetEffectiveNodeSpan = True
         Exit Function
     End If
@@ -413,9 +413,9 @@ Private Function private_TryGetEffectiveNodeSpan( _
             End If
 
             If explicitCols > 0 Then
-                outSpanCols = explicitCols
+                outSpanColls = explicitCols
             Else
-                outSpanCols = 1
+                outSpanColls = 1
             End If
 
         Case "stackpanel", "grid"
@@ -430,9 +430,9 @@ Private Function private_TryGetEffectiveNodeSpan( _
             End If
 
             If explicitCols > 0 Then
-                outSpanCols = explicitCols
+                outSpanColls = explicitCols
             Else
-                outSpanCols = measuredCols
+                outSpanColls = measuredCols
             End If
 
         Case "list"
@@ -446,9 +446,9 @@ Private Function private_TryGetEffectiveNodeSpan( _
             End If
 
             If explicitCols > 0 Then
-                outSpanCols = explicitCols
+                outSpanColls = explicitCols
             Else
-                outSpanCols = measuredCols
+                outSpanColls = measuredCols
             End If
 
         Case "itemcontrol"
@@ -462,9 +462,9 @@ Private Function private_TryGetEffectiveNodeSpan( _
             End If
 
             If explicitCols > 0 Then
-                outSpanCols = explicitCols
+                outSpanColls = explicitCols
             Else
-                outSpanCols = measuredCols
+                outSpanColls = measuredCols
             End If
 
         Case Else
@@ -476,10 +476,10 @@ Private Function private_TryGetEffectiveNodeSpan( _
 
     If VBA.StrComp(nodeKind, "itemcontrol", VBA.vbBinaryCompare) = 0 Then
         If outSpanRows < 0 Then outSpanRows = 0
-        If outSpanCols < 0 Then outSpanCols = 0
+        If outSpanColls < 0 Then outSpanColls = 0
     Else
         If outSpanRows <= 0 Then outSpanRows = 1
-        If outSpanCols <= 0 Then outSpanCols = 1
+        If outSpanColls <= 0 Then outSpanColls = 1
     End If
     private_TryGetEffectiveNodeSpan = True
 End Function
@@ -489,7 +489,7 @@ Private Function private_TryMeasureContainerContentSpan( _
     ByVal renderCtx As obj_LayoutRenderContext, _
     ByVal containerNode As Object, _
     ByRef outSpanRows As Long, _
-    ByRef outSpanCols As Long, _
+    ByRef outSpanColls As Long, _
     Optional ByVal dataContext As Object _
 ) As Boolean
     Dim orientation As String
@@ -531,7 +531,7 @@ ContinueChild:
     If maxCols <= 0 Then maxCols = 1
 
     outSpanRows = maxRows
-    outSpanCols = maxCols
+    outSpanColls = maxCols
     private_TryMeasureContainerContentSpan = True
 End Function
 
@@ -544,7 +544,7 @@ Private Function private_ResolveChildGridPosition( _
     ByRef outRow As Long, _
     ByRef outCol As Long, _
     ByVal spanRows As Long, _
-    ByVal spanCols As Long _
+    ByVal spanColls As Long _
 ) As Boolean
     Dim atText As String
 
@@ -561,7 +561,7 @@ Private Function private_ResolveChildGridPosition( _
             Case "horizontal"
                 outRow = 1
                 outCol = seqCol
-                seqCol = seqCol + spanCols
+                seqCol = seqCol + spanColls
             Case "vertical"
                 outRow = seqRow
                 outCol = 1

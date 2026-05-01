@@ -102,7 +102,7 @@ Public Function m_TryMeasureContentSpan( _
     ByVal renderCtx As obj_LayoutRenderContext, _
     ByVal itemControlNode As Object, _
     ByRef outSpanRows As Long, _
-    ByRef outSpanCols As Long, _
+    ByRef outSpanColls As Long, _
     Optional ByVal dataContext As Object _
 ) As Boolean
     Dim sourceObject As Object
@@ -124,13 +124,13 @@ Public Function m_TryMeasureContentSpan( _
 
     If sourceObject Is Nothing Then
         outSpanRows = 0
-        outSpanCols = 0
+        outSpanColls = 0
         m_TryMeasureContentSpan = True
         Exit Function
     End If
 
     If Not private_TryResolveItemControlTemplateRoot(itemControlNode, templateRoot) Then Exit Function
-    If Not ex_XmlLayoutEngine.m_TryGetEffectiveNodeSpan(renderCtx, templateRoot, outSpanRows, outSpanCols, sourceObject) Then Exit Function
+    If Not ex_XmlLayoutEngine.m_TryGetEffectiveNodeSpan(renderCtx, templateRoot, outSpanRows, outSpanColls, sourceObject) Then Exit Function
     m_TryMeasureContentSpan = True
 End Function
 

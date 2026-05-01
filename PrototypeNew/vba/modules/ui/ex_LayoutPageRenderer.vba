@@ -25,7 +25,7 @@ Public Function m_Render( _
     Dim rowIndex As Long
     Dim colIndex As Long
     Dim spanRows As Long
-    Dim spanCols As Long
+    Dim spanColls As Long
 
     If Not private_TryGetPageWorksheet(renderCtx, ws) Then Exit Function
     If pageNode Is Nothing Then
@@ -75,9 +75,9 @@ Public Function m_Render( _
             outRow:=rowIndex, _
             outCol:=colIndex, _
             outSpanRows:=spanRows, _
-            outSpanCols:=spanCols) Then Exit Function
+            outSpanColls:=spanColls) Then Exit Function
 
-        If spanRows <= 0 Or spanCols <= 0 Then GoTo ContinueNode
+        If spanRows <= 0 Or spanColls <= 0 Then GoTo ContinueNode
 
         If Not ex_XmlLayoutEngine.m_RenderNodeBySpan( _
             renderCtx:=renderCtx, _
@@ -85,7 +85,7 @@ Public Function m_Render( _
             rowIndex:=rowIndex, _
             colIndex:=colIndex, _
             spanRows:=spanRows, _
-            spanCols:=spanCols) Then Exit Function
+            spanColls:=spanColls) Then Exit Function
 
 ContinueNode:
     Next childNode

@@ -160,7 +160,7 @@ Private Function private_TryValidateLayoutBounds(ByVal controlTypeLabel As Strin
     End If
     If m_ColEnd < m_ColStart Then
 #If LOGGING_DEBUG_ENABLED Then
-        ex_Core.m_Diagnostic_LogError controlTypeLabel & ": invalid spanCells range for control '" & controlName & "'."
+        ex_Core.m_Diagnostic_LogError controlTypeLabel & ": invalid spanColls range for control '" & controlName & "'."
 #End If
         Exit Function
     End If
