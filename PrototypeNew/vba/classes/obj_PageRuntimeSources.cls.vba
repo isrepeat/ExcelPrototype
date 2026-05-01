@@ -4,13 +4,49 @@ BEGIN
 END
 Attribute VB_Name = "obj_PageRuntimeSources"
 Option Explicit
+#Const LOGGING_DEBUG_ENABLED = True
+#Const LOGGING_VERBOSE_ENABLED = False
+Private m_IsDisposed As Boolean
 
 Private m_ItemsSourceMap As Object
 Private m_ObjectSourceMap As Object
 
+Private Sub Class_Initialize()
+#If LOGGING_VERBOSE_ENABLED Then
+    ex_Core.m_Diagnostic_LogInfo "lifecycle:" & VBA.TypeName(Me) & ".Class_Initialize"
+#End If
+End Sub
+Private Sub Class_Terminate()
+#If LOGGING_VERBOSE_ENABLED Then
+    ex_Core.m_Diagnostic_LogInfo "lifecycle:" & VBA.TypeName(Me) & ".Class_Terminate"
+#End If
+    If m_IsDisposed Then Exit Sub
+    On Error Resume Next
+    Dispose
+    On Error GoTo 0
+End Sub
+
 ' //
 ' // API
 ' //
+Public Function Initialize() As Boolean
+#If LOGGING_VERBOSE_ENABLED Then
+    ex_Core.m_Diagnostic_LogInfo "lifecycle:" & VBA.TypeName(Me) & ".Initialize"
+#End If
+    Initialize = True
+End Function
+Public Sub Dispose()
+#If LOGGING_VERBOSE_ENABLED Then
+    ex_Core.m_Diagnostic_LogInfo "lifecycle:" & VBA.TypeName(Me) & ".Dispose"
+#End If
+    If m_IsDisposed Then Exit Sub
+    m_IsDisposed = True
+    On Error Resume Next
+    Set m_ItemsSourceMap = Nothing
+    Set m_ObjectSourceMap = Nothing
+    On Error GoTo 0
+End Sub
+
 ' Callstack[1]: obj_PageMain.private_PrepareDemoConfigRuntime -> m_Base.RuntimeSources.ResetItemsSources -> obj_PageRuntimeSources.ResetItemsSources
 ' Callstack[2]: obj_PageMain.private_RegisterDemoTableItems -> m_Base.RuntimeSources.ResetItemsSources -> obj_PageRuntimeSources.ResetItemsSources
 ' Callstack[3]: obj_PageMain.private_RegisterDemoSingleTableItems -> m_Base.RuntimeSources.ResetItemsSources -> obj_PageRuntimeSources.ResetItemsSources
@@ -40,11 +76,15 @@ Public Function SetItemsSource(ByVal itemsSourceKey As String, ByVal items As Co
 
     normalizedKey = VBA.LCase$(VBA.Trim$(itemsSourceKey))
     If VBA.Len(normalizedKey) = 0 Then
+#If LOGGING_DEBUG_ENABLED Then
         ex_Core.m_Diagnostic_LogError "PrototypeNew: itemsSource key is empty."
+#End If
         Exit Function
     End If
     If items Is Nothing Then
+#If LOGGING_DEBUG_ENABLED Then
         ex_Core.m_Diagnostic_LogError "PrototypeNew: itemsSource collection is not specified for key '" & normalizedKey & "'."
+#End If
         Exit Function
     End If
 
@@ -54,7 +94,6 @@ Public Function SetItemsSource(ByVal itemsSourceKey As String, ByVal items As Co
     SetItemsSource = True
 End Function
 
-
 ' Callstack[1]: ex_Test.private_TrySetObjectSource -> pageBase.RuntimeSources.SetObjectSource -> obj_PageRuntimeSources.SetObjectSource
 ' Callstack[2]: ex_LayoutListRenderer.private_RegisterRuntimeObjectSourceKey -> renderCtx.PageBase.RuntimeSources.SetObjectSource -> obj_PageRuntimeSources.SetObjectSource
 ' Callstack[3]: ex_LayoutItemControlRenderer.private_RegisterRuntimeObjectSourceKey -> renderCtx.PageBase.RuntimeSources.SetObjectSource -> obj_PageRuntimeSources.SetObjectSource
@@ -63,11 +102,15 @@ Public Function SetObjectSource(ByVal objectSourceKey As String, ByVal sourceObj
 
     normalizedKey = VBA.LCase$(VBA.Trim$(objectSourceKey))
     If VBA.Len(normalizedKey) = 0 Then
+#If LOGGING_DEBUG_ENABLED Then
         ex_Core.m_Diagnostic_LogError "PrototypeNew: objectSource key is empty."
+#End If
         Exit Function
     End If
     If sourceObject Is Nothing Then
+#If LOGGING_DEBUG_ENABLED Then
         ex_Core.m_Diagnostic_LogError "PrototypeNew: objectSource object is not specified for key '" & normalizedKey & "'."
+#End If
         Exit Function
     End If
 
@@ -77,14 +120,15 @@ Public Function SetObjectSource(ByVal objectSourceKey As String, ByVal sourceObj
     SetObjectSource = True
 End Function
 
-
 ' Callstack[1]: ex_Test.private_TryRemoveObjectSource -> pageBase.RuntimeSources.RemoveObjectSource -> obj_PageRuntimeSources.RemoveObjectSource
 Public Function RemoveObjectSource(ByVal objectSourceKey As String) As Boolean
     Dim normalizedKey As String
 
     normalizedKey = VBA.LCase$(VBA.Trim$(objectSourceKey))
     If VBA.Len(normalizedKey) = 0 Then
+#If LOGGING_DEBUG_ENABLED Then
         ex_Core.m_Diagnostic_LogError "PrototypeNew: objectSource key is empty."
+#End If
         Exit Function
     End If
 
@@ -95,7 +139,6 @@ Public Function RemoveObjectSource(ByVal objectSourceKey As String) As Boolean
 
     RemoveObjectSource = True
 End Function
-
 
 Public Function TryGetItemsSourceByKey( _
     ByVal itemsSourceKey As String, _
@@ -112,7 +155,9 @@ Public Function TryGetItemsSourceByKey( _
             TryGetItemsSourceByKey = True
             Exit Function
         End If
+#If LOGGING_DEBUG_ENABLED Then
         ex_Core.m_Diagnostic_LogError "PrototypeNew: itemsSource key is empty."
+#End If
         Exit Function
     End If
 
@@ -128,9 +173,10 @@ Public Function TryGetItemsSourceByKey( _
         Exit Function
     End If
 
+#If LOGGING_DEBUG_ENABLED Then
     ex_Core.m_Diagnostic_LogError "PrototypeNew: itemsSource '" & normalizedKey & "' is not registered in page runtime map."
+#End If
 End Function
-
 
 Public Function TryGetObjectSourceByKey( _
     ByVal objectSourceKey As String, _
@@ -147,7 +193,9 @@ Public Function TryGetObjectSourceByKey( _
             TryGetObjectSourceByKey = True
             Exit Function
         End If
+#If LOGGING_DEBUG_ENABLED Then
         ex_Core.m_Diagnostic_LogError "PrototypeNew: objectSource key is empty."
+#End If
         Exit Function
     End If
 
@@ -163,21 +211,20 @@ Public Function TryGetObjectSourceByKey( _
         Exit Function
     End If
 
+#If LOGGING_DEBUG_ENABLED Then
     ex_Core.m_Diagnostic_LogError "PrototypeNew: objectSource '" & normalizedKey & "' is not registered in page runtime map."
+#End If
 End Function
-
 
 Public Property Get ItemsSourceMap() As Object
     private_EnsureItemsSourceMap
     Set ItemsSourceMap = m_ItemsSourceMap
 End Property
 
-
 Public Property Get ObjectSourceMap() As Object
     private_EnsureObjectSourceMap
     Set ObjectSourceMap = m_ObjectSourceMap
 End Property
-
 
 ' //
 ' // Internal
@@ -189,10 +236,10 @@ Private Sub private_EnsureItemsSourceMap()
     m_ItemsSourceMap.CompareMode = 1
 End Sub
 
-
 Private Sub private_EnsureObjectSourceMap()
     If Not m_ObjectSourceMap Is Nothing Then Exit Sub
 
     Set m_ObjectSourceMap = VBA.CreateObject("Scripting.Dictionary")
     m_ObjectSourceMap.CompareMode = 1
 End Sub
+

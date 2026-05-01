@@ -1,5 +1,13 @@
 Attribute VB_Name = "ex_LayoutPageRenderer"
 Option Explicit
+#Const LOGGING_DEBUG_ENABLED = True
+#Const LOGGING_VERBOSE_ENABLED = False
+
+Public Sub m_Module_Dispose()
+#If LOGGING_VERBOSE_ENABLED Then
+    ex_Core.m_Diagnostic_LogInfo "lifecycle:ex_LayoutPageRenderer.m_Module_Dispose"
+#End If
+End Sub
 
 ' Renderer for <page> nodes.
 
@@ -21,15 +29,21 @@ Public Function m_Render( _
 
     If Not private_TryGetPageWorksheet(renderCtx, ws) Then Exit Function
     If pageNode Is Nothing Then
+#If LOGGING_DEBUG_ENABLED Then
         ex_Core.m_Diagnostic_LogError "PrototypeNew: page root node is not specified."
+#End If
         Exit Function
     End If
     If pageNode.NodeType <> 1 Then
+#If LOGGING_DEBUG_ENABLED Then
         ex_Core.m_Diagnostic_LogError "PrototypeNew: page root node must be an element."
+#End If
         Exit Function
     End If
     If VBA.StrComp(VBA.LCase$(VBA.CStr(pageNode.baseName)), "page", VBA.vbBinaryCompare) <> 0 Then
+#If LOGGING_DEBUG_ENABLED Then
         ex_Core.m_Diagnostic_LogError "PrototypeNew: expected <page> root node, got '" & VBA.CStr(pageNode.baseName) & "'."
+#End If
         Exit Function
     End If
 
@@ -45,7 +59,9 @@ Public Function m_Render( _
         End Select
 
         If Not ex_XmlLayoutEngine.m_IsVisualLayoutNode(childNode) Then
+#If LOGGING_DEBUG_ENABLED Then
             ex_Core.m_Diagnostic_LogError "PrototypeNew: unsupported node '" & VBA.CStr(childNode.baseName) & "' inside <page>."
+#End If
             Exit Function
         End If
 
@@ -83,13 +99,17 @@ End Function
 Private Function private_TryGetPageWorksheet(ByVal renderCtx As obj_LayoutRenderContext, ByRef outWorksheet As Worksheet) As Boolean
     Set outWorksheet = Nothing
     If renderCtx Is Nothing Then
+#If LOGGING_DEBUG_ENABLED Then
         ex_Core.m_Diagnostic_LogError "PrototypeNew: render context is not specified."
+#End If
         Exit Function
     End If
 
     Set outWorksheet = renderCtx.Worksheet
     If outWorksheet Is Nothing Then
+#If LOGGING_DEBUG_ENABLED Then
         ex_Core.m_Diagnostic_LogError "PrototypeNew: worksheet is not specified."
+#End If
         Exit Function
     End If
 

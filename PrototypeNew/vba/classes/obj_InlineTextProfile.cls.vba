@@ -4,6 +4,8 @@ BEGIN
 END
 Attribute VB_Name = "obj_InlineTextProfile"
 Option Explicit
+#Const LOGGING_VERBOSE_ENABLED = False
+Private m_IsDisposed As Boolean
 
 Private Const DELIMITER_DOUBLE As String = "double"
 Private Const DELIMITER_SINGLE As String = "single"
@@ -12,7 +14,39 @@ Private m_PartName As String
 Private m_InlineMarkersEnabled As Boolean
 
 Private Sub Class_Initialize()
+#If LOGGING_VERBOSE_ENABLED Then
+    ex_Core.m_Diagnostic_LogInfo "lifecycle:" & VBA.TypeName(Me) & ".Class_Initialize"
+#End If
     m_InlineMarkersEnabled = False
+End Sub
+Private Sub Class_Terminate()
+#If LOGGING_VERBOSE_ENABLED Then
+    ex_Core.m_Diagnostic_LogInfo "lifecycle:" & VBA.TypeName(Me) & ".Class_Terminate"
+#End If
+    If m_IsDisposed Then Exit Sub
+    On Error Resume Next
+    Dispose
+    On Error GoTo 0
+End Sub
+
+' //
+' // API
+' //
+Public Function Initialize() As Boolean
+#If LOGGING_VERBOSE_ENABLED Then
+    ex_Core.m_Diagnostic_LogInfo "lifecycle:" & VBA.TypeName(Me) & ".Initialize"
+#End If
+    Initialize = True
+End Function
+
+Public Sub Dispose()
+#If LOGGING_VERBOSE_ENABLED Then
+    ex_Core.m_Diagnostic_LogInfo "lifecycle:" & VBA.TypeName(Me) & ".Dispose"
+#End If
+    If m_IsDisposed Then Exit Sub
+    m_IsDisposed = True
+    On Error Resume Next
+    On Error GoTo 0
 End Sub
 
 Public Property Get PartName() As String
@@ -587,3 +621,5 @@ Private Function private_Unquote(ByVal textValue As String) As String
         private_Unquote = textValue
     End If
 End Function
+
+

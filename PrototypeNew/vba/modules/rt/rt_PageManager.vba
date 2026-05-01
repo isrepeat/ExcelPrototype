@@ -1,5 +1,7 @@
 Attribute VB_Name = "rt_PageManager"
 Option Explicit
+#Const LOGGING_DEBUG_ENABLED = True
+#Const LOGGING_VERBOSE_ENABLED = False
 
 Private g_PageById As Object
 Private g_LastRenderedPageId As String
@@ -7,6 +9,17 @@ Private g_PageIdSeed As Long
 Private Const MODULE_SNAPSHOT_ROOT As String = "pageManagerState"
 Private Const MODULE_SNAPSHOT_NS As String = "urn:excelprototype:runtime-module:page-manager:v1"
 
+Public Sub m_Module_Dispose()
+#If LOGGING_VERBOSE_ENABLED Then
+    ex_Core.m_Diagnostic_LogInfo "lifecycle:rt_PageManager.m_Module_Dispose"
+#End If
+    On Error Resume Next
+    m_DisposeAllPages
+    Err.Clear
+    Set g_PageById = Nothing
+    g_LastRenderedPageId = VBA.vbNullString
+    On Error GoTo 0
+End Sub
 ' //
 ' // API
 ' //
@@ -21,7 +34,9 @@ Public Function m_TrySerializeModuleSnapshot(ByRef outSnapshotXml As String) As 
     If Not ex_Core.m_CustomXmlPartStore_TryCreateEmptyDom(MODULE_SNAPSHOT_ROOT, MODULE_SNAPSHOT_NS, dom) Then Exit Function
     Set rootNode = dom.DocumentElement
     If rootNode Is Nothing Then
+#If LOGGING_DEBUG_ENABLED Then
         ex_Core.m_Diagnostic_LogError "PageManager: module snapshot root node is missing."
+#End If
         Exit Function
     End If
 
@@ -32,7 +47,6 @@ Public Function m_TrySerializeModuleSnapshot(ByRef outSnapshotXml As String) As 
     outSnapshotXml = VBA.CStr(dom.XML)
     m_TrySerializeModuleSnapshot = (VBA.Len(VBA.Trim$(outSnapshotXml)) > 0)
 End Function
-
 
 ' Callstack[1]: rt_Snapshots.m_RestoreRuntimeGlobalsSnapshot -> private_TryDeserializeRuntimeModuleSnapshot -> rt_PageManager.m_TryDeserializeModuleSnapshot
 Public Function m_TryDeserializeModuleSnapshot(ByVal snapshotXml As String) As Boolean
@@ -49,7 +63,9 @@ Public Function m_TryDeserializeModuleSnapshot(ByVal snapshotXml As String) As B
     If Not ex_Core.m_CustomXmlPartStore_TryLoadDomFromXml(snapshotXml, dom) Then Exit Function
     Set rootNode = dom.DocumentElement
     If rootNode Is Nothing Then
+#If LOGGING_DEBUG_ENABLED Then
         ex_Core.m_Diagnostic_LogError "PageManager: module snapshot root node is missing."
+#End If
         Exit Function
     End If
 
@@ -58,7 +74,6 @@ Public Function m_TryDeserializeModuleSnapshot(ByVal snapshotXml As String) As B
 
     m_TryDeserializeModuleSnapshot = True
 End Function
-
 
 ' Callstack[1]: ThisWorkbook.Workbook_Open -> ThisWorkbook.m_ResetWorkbookAndCreateMainPage -> private_ResetWorkbookAndCreateMainPage -> rt_PageManager.m_CreatePage
 ' Callstack[2]: ex_Core.private_TryRecoverUiAfterUpdate -> ThisWorkbook.m_ResetWorkbookAndCreateMainPage -> private_ResetWorkbookAndCreateMainPage -> rt_PageManager.m_CreatePage
@@ -80,7 +95,9 @@ Public Function m_CreatePage( _
     createStep = "resolve-workbook"
     Set wb = ThisWorkbook
     If wb Is Nothing Then
+#If LOGGING_DEBUG_ENABLED Then
         ex_Core.m_Diagnostic_LogError "PageManager: workbook is not specified."
+#End If
         Exit Function
     End If
 
@@ -121,9 +138,10 @@ EH_ADD:
 
 EH_CREATE:
     Application.DisplayAlerts = True
+#If LOGGING_DEBUG_ENABLED Then
     ex_Core.m_Diagnostic_LogError "PageManager: failed to create page at step '" & createStep & "': [" & VBA.CStr(Err.Number) & "] " & Err.Description
+#End If
 End Function
-
 
 ' Callstack[1]: rt_PageManager.m_RenderPageById -> rt_PageManager.m_TryGetPageById
 ' Callstack[2]: rt_PageManager.m_RemovePageById -> rt_PageManager.m_TryGetPageById
@@ -143,7 +161,6 @@ Public Function m_TryGetPageById(ByVal pageId As String, ByRef outPage As obj_IP
     m_TryGetPageById = True
 End Function
 
-
 ' Callstack[1]: Shape.OnAction -> rt_Bridge.m_OnShapeClick -> rt_PageManager.m_TryGetPageByWorksheet
 ' Callstack[2]: ex_Test.private_TryResolvePageBase -> ex_HelpersSheet.m_TryGetActivePageBase -> ex_HelpersSheet.m_TryGetPageBaseByWorksheet -> rt_PageManager.m_TryGetPageByWorksheet
 ' Callstack[3]: ex_Test.m_TEST_UpdateCurrentPage -> ex_HelpersSheet.m_TryRerenderActivePage -> rt_PageManager.m_TryGetPageByWorksheet
@@ -158,7 +175,9 @@ Public Function m_TryGetPageByWorksheet(ByVal ws As Worksheet, ByRef outPage As 
 
     Set outPage = Nothing
     If ws Is Nothing Then
+#If LOGGING_DEBUG_ENABLED Then
         ex_Core.m_Diagnostic_LogError "page-manager:get-by-worksheet input-invalid worksheet is not specified"
+#End If
         Exit Function
     End If
 
@@ -167,20 +186,23 @@ Public Function m_TryGetPageByWorksheet(ByVal ws As Worksheet, ByRef outPage As 
     If Err.Number <> 0 Then
         Err.Clear
         On Error GoTo 0
+#If LOGGING_DEBUG_ENABLED Then
         ex_Core.m_Diagnostic_LogError "page-manager:get-by-worksheet worksheet-name-unavailable"
+#End If
         Exit Function
     End If
     On Error GoTo 0
 
     wsName = VBA.Replace$(wsName, "'", "''")
     If Not private_TryFindPageByWorksheet(ws, outPage, resolvedPageId) Then
+#If LOGGING_DEBUG_ENABLED Then
         ex_Core.m_Diagnostic_LogError "page-manager:get-by-worksheet page-not-found sheet='" & wsName & "'"
+#End If
         Exit Function
     End If
 
     m_TryGetPageByWorksheet = True
 End Function
-
 
 ' Callstack[1]: ex_HelpersSheet.m_TryGetPageBaseByWorksheetName -> rt_PageManager.m_TryGetPageByWorksheetName
 Public Function m_TryGetPageByWorksheetName(ByVal worksheetName As String, ByRef outPage As obj_IPage) As Boolean
@@ -197,7 +219,6 @@ Public Function m_TryGetPageByWorksheetName(ByVal worksheetName As String, ByRef
 
     m_TryGetPageByWorksheetName = m_TryGetPageByWorksheet(ws, outPage)
 End Function
-
 
 ' Callstack[1]: rt_Snapshots.private_TryCollectAllPages -> rt_PageManager.m_TryGetPagesByType
 Public Function m_TryGetPagesByType(ByVal pageType As PageTypeEnum, ByRef outPages As Collection) As Boolean
@@ -228,20 +249,20 @@ ContinueLoop:
     m_TryGetPagesByType = True
 End Function
 
-
 ' Callstack[1]: ThisWorkbook.m_ResetWorkbookAndCreateMainPage -> private_ResetWorkbookAndCreateMainPage -> rt_PageManager.m_RenderPageById
 ' Callstack[2]: ex_Core.private_TryRecoverUiAfterUpdate -> ThisWorkbook.m_ResetWorkbookAndCreateMainPage -> private_ResetWorkbookAndCreateMainPage -> rt_PageManager.m_RenderPageById
 Public Function m_RenderPageById(ByVal pageId As String, Optional ByVal reason As String = VBA.vbNullString) As Boolean
     Dim page As obj_IPage
 
     If Not m_TryGetPageById(pageId, page) Then
+#If LOGGING_DEBUG_ENABLED Then
         ex_Core.m_Diagnostic_LogError "page-manager:render-by-id input-invalid page is not found"
+#End If
         Exit Function
     End If
 
     m_RenderPageById = m_RenderPage(page, reason)
 End Function
-
 
 ' Callstack[1]: rt_PageManager.m_RenderPageById -> rt_PageManager.m_RenderPage
 ' Callstack[2]: ex_Test.m_TEST_UpdateCurrentPage -> ex_HelpersSheet.m_TryRerenderActivePage -> rt_PageManager.m_RenderPage
@@ -260,18 +281,24 @@ Public Function m_RenderPage(ByVal page As obj_IPage, Optional ByVal reason As S
     Dim pageId As String
 
     If page Is Nothing Then
+#If LOGGING_DEBUG_ENABLED Then
         ex_Core.m_Diagnostic_LogError "page-manager:render input-invalid page is not specified"
+#End If
         Exit Function
     End If
 
     Set pageBase = page.GetPageBase()
     If pageBase Is Nothing Then
+#If LOGGING_DEBUG_ENABLED Then
         ex_Core.m_Diagnostic_LogError "page-manager:render input-invalid page base is not specified"
+#End If
         Exit Function
     End If
 
     If pageBase.Worksheet Is Nothing Then
+#If LOGGING_DEBUG_ENABLED Then
         ex_Core.m_Diagnostic_LogError "page-manager:render input-invalid worksheet is not specified"
+#End If
         Exit Function
     End If
 
@@ -279,7 +306,9 @@ Public Function m_RenderPage(ByVal page As obj_IPage, Optional ByVal reason As S
     normalizedReason = VBA.Trim$(VBA.CStr(reason))
     If VBA.Len(normalizedReason) = 0 Then normalizedReason = "manual"
 
+#If LOGGING_DEBUG_ENABLED Then
     ex_Core.m_Diagnostic_LogInfo "page-manager:render-start sheet='" & sheetName & "' reason='" & VBA.Replace$(normalizedReason, "'", "''") & "'"
+#End If
 
     On Error GoTo EH_RENDER
     m_RenderPage = page.Render()
@@ -288,17 +317,22 @@ Public Function m_RenderPage(ByVal page As obj_IPage, Optional ByVal reason As S
         pageId = VBA.LCase$(VBA.Trim$(pageBase.PageId))
         If VBA.Len(pageId) = 0 Then pageId = private_TryResolvePageIdByObject(page)
         g_LastRenderedPageId = pageId
+#If LOGGING_DEBUG_ENABLED Then
         ex_Core.m_Diagnostic_LogInfo "page-manager:render-done sheet='" & sheetName & "'"
+#End If
     Else
+#If LOGGING_DEBUG_ENABLED Then
         ex_Core.m_Diagnostic_LogError "page-manager:render-failed sheet='" & sheetName & "'"
+#End If
     End If
     Exit Function
 
 EH_RENDER:
     errDescription = Err.Description
+#If LOGGING_DEBUG_ENABLED Then
     ex_Core.m_Diagnostic_LogError "page-manager:render-exception sheet='" & sheetName & "' err='" & VBA.Replace$(errDescription, "'", "''") & "'"
+#End If
 End Function
-
 
 ' Callstack[1]: VBA.ImmediateWindow -> rt_PageManager.m_RemovePageById
 Public Function m_RemovePageById(ByVal pageId As String, Optional ByVal deleteWorksheet As Boolean = False) As Boolean
@@ -311,7 +345,6 @@ Public Function m_RemovePageById(ByVal pageId As String, Optional ByVal deleteWo
 
     m_RemovePageById = m_RemovePage(page, deleteWorksheet)
 End Function
-
 
 ' Callstack[1]: ThisWorkbook.Workbook_SheetBeforeDelete -> ex_HelpersSheet.m_RemovePageByWorksheet -> rt_PageManager.m_RemovePage
 ' Callstack[2]: rt_PageManager.m_RemovePageById -> rt_PageManager.m_RemovePage
@@ -345,7 +378,6 @@ Public Function m_RemovePage(ByVal page As obj_IPage, Optional ByVal deleteWorks
     m_RemovePage = True
 End Function
 
-
 ' Callstack[1]: ThisWorkbook.Workbook_Open -> ThisWorkbook.m_ResetWorkbookAndCreateMainPage -> private_ResetWorkbookAndCreateMainPage -> rt_PageManager.m_DisposeAllPages
 ' Callstack[2]: rt_Snapshots.private_TryResetWorkbookBeforeRestore -> rt_PageManager.m_DisposeAllPages
 Public Sub m_DisposeAllPages()
@@ -365,7 +397,6 @@ Public Sub m_DisposeAllPages()
     Set g_PageById = Nothing
     g_LastRenderedPageId = VBA.vbNullString
 End Sub
-
 
 ' Callstack[1]: rt_PageManager.m_TrySerializeModuleSnapshot -> rt_PageManager.m_TryGetLastRenderedWorksheetName
 Public Function m_TryGetLastRenderedWorksheetName(ByRef outWorksheetName As String) As Boolean
@@ -398,7 +429,6 @@ Public Function m_TryGetLastRenderedWorksheetName(ByRef outWorksheetName As Stri
     outWorksheetName = VBA.Trim$(VBA.CStr(pageBase.Worksheet.Name))
     m_TryGetLastRenderedWorksheetName = True
 End Function
-
 
 ' Callstack[1]: rt_PageManager.m_TryDeserializeModuleSnapshot -> rt_PageManager.m_TryRestoreLastRenderedWorksheetName
 Public Function m_TryRestoreLastRenderedWorksheetName(ByVal worksheetName As String) As Boolean
@@ -436,22 +466,30 @@ Private Function private_RegisterPage(ByVal pageId As String, ByVal page As obj_
 
     pageId = VBA.LCase$(VBA.Trim$(pageId))
     If VBA.Len(pageId) = 0 Then
+#If LOGGING_DEBUG_ENABLED Then
         ex_Core.m_Diagnostic_LogError "PageManager: page id is empty."
+#End If
         Exit Function
     End If
     If page Is Nothing Then
+#If LOGGING_DEBUG_ENABLED Then
         ex_Core.m_Diagnostic_LogError "PageManager: page instance is not specified."
+#End If
         Exit Function
     End If
 
     Set pageBase = page.GetPageBase()
     If pageBase Is Nothing Then
+#If LOGGING_DEBUG_ENABLED Then
         ex_Core.m_Diagnostic_LogError "PageManager: page base is not specified."
+#End If
         Exit Function
     End If
 
     If pageBase.Worksheet Is Nothing Then
+#If LOGGING_DEBUG_ENABLED Then
         ex_Core.m_Diagnostic_LogError "PageManager: worksheet is not specified for page '" & pageId & "'."
+#End If
         Exit Function
     End If
 
@@ -465,10 +503,13 @@ Private Function private_RegisterPage(ByVal pageId As String, ByVal page As obj_
 
     sheetName = VBA.vbNullString
     If Not pageBase.Worksheet Is Nothing Then sheetName = VBA.Replace$(VBA.Trim$(VBA.CStr(pageBase.Worksheet.Name)), "'", "''")
+#If LOGGING_DEBUG_ENABLED Then
     ex_Core.m_Diagnostic_LogInfo "page-manager:register-page pageId='" & VBA.Replace$(pageId, "'", "''") & "' sheet='" & sheetName & "'"
+#End If
 
     private_RegisterPage = True
 End Function
+
 
 Private Function private_TryFindPageByWorksheet( _
     ByVal ws As Worksheet, _

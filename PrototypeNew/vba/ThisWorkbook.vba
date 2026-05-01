@@ -1,4 +1,5 @@
 Option Explicit
+#Const LOGGING_DEBUG_ENABLED = True
 
 Private Sub Workbook_Open()
     Dim restoredPagesCount As Long
@@ -16,7 +17,9 @@ Private Sub Workbook_Open()
 
     Exit Sub
 EH:
+#If LOGGING_DEBUG_ENABLED Then
     ex_Core.m_Diagnostic_LogError "PrototypeNew: Workbook_Open failed: " & Err.Description
+#End If
 End Sub
 
 Private Sub Workbook_BeforeClose(Cancel As Boolean)
@@ -79,7 +82,9 @@ Private Function private_ResetWorkbookAndCreateMainPage( _
     tmpSheetName = private_BuildUniqueWorksheetName(wb, "__startup_tmp__")
     If VBA.Len(tmpSheetName) = 0 Then
         Application.DisplayAlerts = True
+#If LOGGING_DEBUG_ENABLED Then
         ex_Core.m_Diagnostic_LogError "PrototypeNew: failed to prepare temporary worksheet name."
+#End If
         Exit Function
     End If
     tmpWs.Name = tmpSheetName
@@ -121,14 +126,18 @@ Private Function private_ResetWorkbookAndCreateMainPage( _
 EH_RESET:
     Application.DisplayAlerts = True
     If showErrorUi Then
+#If LOGGING_DEBUG_ENABLED Then
         ex_Core.m_Diagnostic_LogError "PrototypeNew: failed to reset workbook sheets: " & Err.Description
+#End If
     End If
     Exit Function
 
 EH_CREATE:
     Application.DisplayAlerts = True
     If showErrorUi Then
+#If LOGGING_DEBUG_ENABLED Then
         ex_Core.m_Diagnostic_LogError "PrototypeNew: failed to create default main page: " & Err.Description
+#End If
     End If
 End Function
 

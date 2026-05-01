@@ -4,6 +4,9 @@ BEGIN
 END
 Attribute VB_Name = "obj_BannerViewItem"
 Option Explicit
+#Const LOGGING_DEBUG_ENABLED = True
+#Const LOGGING_VERBOSE_ENABLED = False
+Private m_IsDisposed As Boolean
 Implements obj_IViewItem
 
 Private Const INLINE_PART_BANNER As String = "banner"
@@ -12,23 +15,6 @@ Private m_Banner As obj_Banner
 Private m_ViewPresentation As obj_ViewPresentation
 Private m_HeaderInlineTextPart As obj_InlineTextPart
 Private m_MessageInlineTextPart As obj_InlineTextPart
-
-Private Sub Class_Initialize()
-    Set m_ViewPresentation = New obj_ViewPresentation
-    Set m_HeaderInlineTextPart = New obj_InlineTextPart
-    Set m_MessageInlineTextPart = New obj_InlineTextPart
-    Call Me.Initialize(Nothing)
-End Sub
-
-Public Function Initialize(ByVal value As obj_Banner) As Boolean
-    If value Is Nothing Then
-        Set m_Banner = New obj_Banner
-    Else
-        Set m_Banner = value
-    End If
-
-    Initialize = True
-End Function
 
 Public Property Get Model() As obj_Banner
     Set Model = m_Banner
@@ -45,6 +31,25 @@ Public Property Set Presentation(ByVal value As obj_ViewPresentation)
         Set m_ViewPresentation = value
     End If
 End Property
+
+Private Sub Class_Initialize()
+#If LOGGING_VERBOSE_ENABLED Then
+    ex_Core.m_Diagnostic_LogInfo "lifecycle:" & VBA.TypeName(Me) & ".Class_Initialize"
+#End If
+    Set m_ViewPresentation = New obj_ViewPresentation
+    Set m_HeaderInlineTextPart = New obj_InlineTextPart
+    Set m_MessageInlineTextPart = New obj_InlineTextPart
+    Call Me.Initialize(Nothing)
+End Sub
+Private Sub Class_Terminate()
+#If LOGGING_VERBOSE_ENABLED Then
+    ex_Core.m_Diagnostic_LogInfo "lifecycle:" & VBA.TypeName(Me) & ".Class_Terminate"
+#End If
+    If m_IsDisposed Then Exit Sub
+    On Error Resume Next
+    Dispose
+    On Error GoTo 0
+End Sub
 
 ' //
 ' // Interface
@@ -67,6 +72,36 @@ End Function
 ' //
 ' // API
 ' //
+Public Function Initialize(ByVal value As obj_Banner) As Boolean
+#If LOGGING_VERBOSE_ENABLED Then
+    ex_Core.m_Diagnostic_LogInfo "lifecycle:" & VBA.TypeName(Me) & ".Initialize"
+#End If
+    If value Is Nothing Then
+        Set m_Banner = New obj_Banner
+    Else
+        Set m_Banner = value
+    End If
+
+    Initialize = True
+End Function
+Public Sub Dispose()
+#If LOGGING_VERBOSE_ENABLED Then
+    ex_Core.m_Diagnostic_LogInfo "lifecycle:" & VBA.TypeName(Me) & ".Dispose"
+#End If
+    If m_IsDisposed Then Exit Sub
+    m_IsDisposed = True
+    On Error Resume Next
+    Err.Clear
+    Err.Clear
+    Err.Clear
+    Err.Clear
+    Set m_Banner = Nothing
+    Set m_ViewPresentation = Nothing
+    Set m_HeaderInlineTextPart = Nothing
+    Set m_MessageInlineTextPart = Nothing
+    On Error GoTo 0
+End Sub
+
 Public Function Render( _
     ByVal page As obj_PageBase, _
     ByVal rowStart As Long, _
@@ -86,21 +121,29 @@ Public Function Render( _
     Dim inlineTextProfile As obj_InlineTextProfile
 
     If page Is Nothing Then
+#If LOGGING_DEBUG_ENABLED Then
         ex_Core.m_Diagnostic_LogError "BannerViewItem: page is not specified."
+#End If
         Exit Function
     End If
 
     Set ws = page.Worksheet
     If ws Is Nothing Then
+#If LOGGING_DEBUG_ENABLED Then
         ex_Core.m_Diagnostic_LogError "BannerViewItem: page worksheet is not specified."
+#End If
         Exit Function
     End If
     If rowStart <= 0 Or colStart <= 0 Then
+#If LOGGING_DEBUG_ENABLED Then
         ex_Core.m_Diagnostic_LogError "BannerViewItem: invalid render start row/column."
+#End If
         Exit Function
     End If
     If rowEnd < rowStart Or colEnd < colStart Then
+#If LOGGING_DEBUG_ENABLED Then
         ex_Core.m_Diagnostic_LogError "BannerViewItem: invalid render bounds."
+#End If
         Exit Function
     End If
 
@@ -169,7 +212,9 @@ Public Function Render( _
     Exit Function
 
 EH_RANGE:
+#If LOGGING_DEBUG_ENABLED Then
     ex_Core.m_Diagnostic_LogError "BannerViewItem: failed to resolve target range for view '" & viewName & "'."
+#End If
 End Function
 
 Public Function IsVisible() As Boolean
@@ -195,3 +240,4 @@ Private Function private_IsVisibleResolved() As Boolean
         private_IsVisibleResolved = (m_Banner.Visible And m_ViewPresentation.EffectiveVisible)
     End If
 End Function
+

@@ -4,6 +4,9 @@ BEGIN
 END
 Attribute VB_Name = "obj_ConfigControlVM"
 Option Explicit
+#Const LOGGING_DEBUG_ENABLED = True
+#Const LOGGING_VERBOSE_ENABLED = False
+Private m_IsDisposed As Boolean
 Implements obj_IControl
 
 Private Const CONFIG_COL_COUNT As Long = 3
@@ -15,6 +18,21 @@ Private m_TableNameRaw As String
 Private m_ControlLayout As obj_ControlLayout
 Private m_ConfigTableViewItem As obj_ConfigTableViewItem
 Private m_IsConfigured As Boolean
+
+Private Sub Class_Initialize()
+#If LOGGING_VERBOSE_ENABLED Then
+    ex_Core.m_Diagnostic_LogInfo "lifecycle:" & VBA.TypeName(Me) & ".Class_Initialize"
+#End If
+End Sub
+Private Sub Class_Terminate()
+#If LOGGING_VERBOSE_ENABLED Then
+    ex_Core.m_Diagnostic_LogInfo "lifecycle:" & VBA.TypeName(Me) & ".Class_Terminate"
+#End If
+    If m_IsDisposed Then Exit Sub
+    On Error Resume Next
+    Dispose
+    On Error GoTo 0
+End Sub
 
 ' //
 ' // Interface
@@ -34,7 +52,9 @@ Private Sub obj_IControl_Configure(ByVal page As obj_PageBase, ByVal controlNode
 
     m_ItemsSourceRaw = VBA.Trim$(VBA.CStr(ex_XmlCore.m_NodeAttrText(controlNode, "itemsSource")))
     If VBA.Len(m_ItemsSourceRaw) = 0 Then
+#If LOGGING_DEBUG_ENABLED Then
         ex_Core.m_Diagnostic_LogError "Config: itemsSource is not specified for control '" & m_ControlName & "'."
+#End If
         Exit Sub
     End If
 
@@ -44,7 +64,9 @@ Private Sub obj_IControl_Configure(ByVal page As obj_PageBase, ByVal controlNode
     If Not m_ControlLayout.TryReadFromNode(controlNode, "Config", m_ControlName, "style") Then Exit Sub
 
     If (m_ControlLayout.ColEnd - m_ControlLayout.ColStart + 1) < CONFIG_COL_COUNT Then
+#If LOGGING_DEBUG_ENABLED Then
         ex_Core.m_Diagnostic_LogError "Config: control '" & m_ControlName & "' requires at least 3 columns (Attr, Key, Value)."
+#End If
         Exit Sub
     End If
 
@@ -81,25 +103,33 @@ Private Sub obj_IControl_Render()
     Dim page As obj_PageBase
 
     If Not m_IsConfigured Then
+#If LOGGING_DEBUG_ENABLED Then
         ex_Core.m_Diagnostic_LogError "Config: control '" & m_ControlName & "' is not configured."
+#End If
         Exit Sub
     End If
 
     Set page = Nothing
     If Not m_ControlBase Is Nothing Then Set page = m_ControlBase.PageBase
     If page Is Nothing Then
+#If LOGGING_DEBUG_ENABLED Then
         ex_Core.m_Diagnostic_LogError "Config: page is not specified for control '" & m_ControlName & "'."
+#End If
         Exit Sub
     End If
 
     Set ws = private_GetWorksheetByName(page, m_ControlLayout.LayoutSheetName)
     If ws Is Nothing Then
+#If LOGGING_DEBUG_ENABLED Then
         ex_Core.m_Diagnostic_LogError "Config: sheet '" & m_ControlLayout.LayoutSheetName & "' was not found for control '" & m_ControlName & "'."
+#End If
         Exit Sub
     End If
 
     If m_ConfigTableViewItem Is Nothing Then
+#If LOGGING_DEBUG_ENABLED Then
         ex_Core.m_Diagnostic_LogError "Config: view item is not configured for control '" & m_ControlName & "'."
+#End If
         Exit Sub
     End If
     If Not m_ConfigTableViewItem.TryResyncEntryItemsFromModel() Then Exit Sub
@@ -126,13 +156,17 @@ Private Sub obj_IControl_Render()
         If rowOut > rowsToWrite Then Exit For
 
         If configEntryViewItem Is Nothing Then
+#If LOGGING_DEBUG_ENABLED Then
             ex_Core.m_Diagnostic_LogError "Config: entry view item is Nothing in control '" & m_ControlName & "'."
+#End If
             GoTo ContinueItem
         End If
 
         Set configEntry = configEntryViewItem.Model
         If configEntry Is Nothing Then
+#If LOGGING_DEBUG_ENABLED Then
             ex_Core.m_Diagnostic_LogError "Config: entry view item has no model in control '" & m_ControlName & "'."
+#End If
             GoTo ContinueItem
         End If
 
@@ -190,7 +224,9 @@ ContinueItem:
     Exit Sub
 
 EH_TABLE:
+#If LOGGING_DEBUG_ENABLED Then
     ex_Core.m_Diagnostic_LogError "Config: failed to create table for control '" & m_ControlName & "': " & Err.Description
+#End If
 End Sub
 
 Private Function obj_IControl_SupportsAttribute(ByVal attrName As String) As Boolean
@@ -203,6 +239,27 @@ End Function
 ' //
 ' // API
 ' //
+Public Function Initialize() As Boolean
+#If LOGGING_VERBOSE_ENABLED Then
+    ex_Core.m_Diagnostic_LogInfo "lifecycle:" & VBA.TypeName(Me) & ".Initialize"
+#End If
+    Initialize = True
+End Function
+Public Sub Dispose()
+#If LOGGING_VERBOSE_ENABLED Then
+    ex_Core.m_Diagnostic_LogInfo "lifecycle:" & VBA.TypeName(Me) & ".Dispose"
+#End If
+    If m_IsDisposed Then Exit Sub
+    m_IsDisposed = True
+    On Error Resume Next
+    Err.Clear
+    Err.Clear
+    Err.Clear
+    Set m_ControlBase = Nothing
+    Set m_ControlLayout = Nothing
+    Set m_ConfigTableViewItem = Nothing
+    On Error GoTo 0
+End Sub
 
 '
 ' //
@@ -213,7 +270,9 @@ Private Function private_TryBuildConfigTable(ByVal sourceItems As Collection, By
 
     Set outTable = Nothing
     If sourceItems Is Nothing Then
+#If LOGGING_DEBUG_ENABLED Then
         ex_Core.m_Diagnostic_LogError "Config: itemsSource is not resolved for control '" & m_ControlName & "'."
+#End If
         Exit Function
     End If
 
@@ -221,11 +280,15 @@ Private Function private_TryBuildConfigTable(ByVal sourceItems As Collection, By
 
     For Each sourceConfigEntry In sourceItems
         If sourceConfigEntry Is Nothing Then
+#If LOGGING_DEBUG_ENABLED Then
             ex_Core.m_Diagnostic_LogError "Config: itemsSource contains empty obj_ConfigEntry in control '" & m_ControlName & "'."
+#End If
             GoTo ContinueSourceItem
         End If
         If Not outTable.AddItem(sourceConfigEntry) Then
+#If LOGGING_DEBUG_ENABLED Then
             ex_Core.m_Diagnostic_LogError "Config: failed to append resolved obj_ConfigEntry to table for control '" & m_ControlName & "'."
+#End If
             Exit Function
         End If
 
@@ -389,3 +452,4 @@ Private Function private_GetWorksheetByName(ByVal page As obj_PageBase, ByVal sh
 
     Set private_GetWorksheetByName = ws
 End Function
+

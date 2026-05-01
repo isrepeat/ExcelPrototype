@@ -53,6 +53,26 @@
         "/^cd /workspaces/ExcelPrototype && perl /tmp/find_unqualified_self_calls\\.pl \\\\\nPrototypeNew/vba/0_interfaces/obj_PageBase\\.cls\\.vba \\\\\nPrototypeNew/vba/classes/obj_PageMain\\.cls\\.vba \\\\\nPrototypeNew/vba/classes/obj_ControlLayout\\.cls\\.vba \\\\\nPrototypeNew/vba/controls/obj_ButtonControlVM\\.cls\\.vba \\\\\nPrototypeNew/vba/controls/obj_SelectControlVM\\.cls\\.vba \\\\\nPrototypeNew/vba/controls/obj_BannerControlVM\\.cls\\.vba \\\\\nPrototypeNew/vba/controls/obj_LabelControlVM\\.cls\\.vba \\\\\nPrototypeNew/vba/controls/obj_ConfigControlVM\\.cls\\.vba \\\\\nPrototypeNew/vba/controls/obj_TableListControlVM\\.cls\\.vba \\\\\nPrototypeNew/vba/controls/obj_TableSingleControlVM\\.cls\\.vba \\\\\nPrototypeNew/vba/controls/obj_StatusBarControlVM\\.cls\\.vba \\\\\nPrototypeNew/vba/0_interfaces/obj_ISerializable\\.cls\\.vba \\| sed -n '1,220p'$/": {
             "approve": true,
             "matchCommandLine": true
+        },
+        "/^git -C /workspaces/ExcelPrototype show --no-color -1 \\| rg '\\^\\\\\\+' \\| sed 's/\\^\\+//' \\| sort \\| uniq -c \\| sort -nr \\| head -n 120$/": {
+            "approve": true,
+            "matchCommandLine": true
+        },
+        "/^git -C /workspaces/ExcelPrototype show --no-color -1 \\| grep '\\^\\+' \\| sed 's/\\^\\+//' \\| sort \\| uniq -c \\| sort -nr \\| head -n 120$/": {
+            "approve": true,
+            "matchCommandLine": true
+        },
+        "/^cd /workspaces/ExcelPrototype && awk 'NR>=1&&NR<=260\\{print NR\":\"\\$0\\}' PrototypeNew/vba/modules/rt/rt_Snapshots\\.vba \\| sed -n '1,240p'$/": {
+            "approve": true,
+            "matchCommandLine": true
+        },
+        "/^cd /workspaces/ExcelPrototype && awk '\nFNR==1\\{firstProc=0\\}\n/\\^\\[\\[:space:\\]\\]\\*\\(Public\\|Private\\)\\[\\[:space:\\]\\]\\+\\(Sub\\|Function\\|Property\\)\\\\b/ && firstProc==0 \\{firstProc=FNR\\}\n/\\^\\[\\[:space:\\]\\]\\*\\(Public\\|Private\\)\\[\\[:space:\\]\\]\\+\\(Enum\\|Type\\)\\\\b/ \\{if\\(firstProc>0 && FNR>firstProc\\)\\{print FILENAME \":\" FNR \":declaration-after-proc\"\\}\\}\n' \\$\\(find PrototypeNew/vba/modules -type f -name '\\*\\.vba'\\)$/": {
+            "approve": true,
+            "matchCommandLine": true
+        },
+        "/^cd /workspaces/ExcelPrototype\nset -e\nmapfile -t bad < <\\(awk '\nFNR==1\\{disp=0;firstDecl=0\\}\n/\\^\\[\\[:space:\\]\\]\\*Public\\[\\[:space:\\]\\]\\+Sub\\[\\[:space:\\]\\]\\+m_Module_Dispose\\\\\\(\\\\\\)/ && disp==0\\{disp=FNR\\}\n/\\^\\[\\[:space:\\]\\]\\*\\(Private\\|Public\\)\\[\\[:space:\\]\\]\\+\\(Const\\|Dim\\|Enum\\|Type\\)\\(\\[\\[:space:\\]\\]\\|\\$\\)/ && firstDecl==0\\{firstDecl=FNR\\}\nENDFILE\\{if\\(disp>0 && firstDecl>0 && disp<firstDecl\\)\\{print FILENAME\\}\\}\n' \\$\\(find PrototypeNew/vba/modules -type f -name '\\*\\.vba'\\)\\)\n\nfor f in \"\\$\\{bad\\[@\\]\\}\"; do\n  perl -0777 -i -pe '\n    my \\$block = q\\{\\};\n    if \\(\\$_ =~ /\\(\\^Public Sub m_Module_Dispose\\\\\\(\\\\\\)\\\\R\\.\\*\\?\\^End Sub\\\\R\\?\\)/ms\\) \\{\n      \\$block = \\$1;\n      \\$_ =~ s/\\\\Q\\$block\\\\E\\\\R\\*//s;\n      if \\(\\$_ =~ /\\(\\^\\\\' \\\\/\\\\/\\\\R\\\\' \\\\/\\\\/ API\\\\R\\\\' \\\\/\\\\/\\\\R\\)/m\\) \\{\n        \\$_ =~ s/\\(\\^\\\\' \\\\/\\\\/\\\\R\\\\' \\\\/\\\\/ API\\\\R\\\\' \\\\/\\\\/\\\\R\\)/\\$block\\\\R\\$1/m;\n      \\} elsif \\(\\$_ =~ /\\^\\(\\?:Public\\|Private\\)\\\\s\\+\\(\\?:Sub\\|Function\\|Property\\)\\\\b/m\\) \\{\n        \\$_ =~ s/\\^\\(\\?:Public\\|Private\\)\\\\s\\+\\(\\?:Sub\\|Function\\|Property\\)\\\\b/\\$block\\\\R\\$&/m;\n      \\} else \\{\n        \\$_ \\.= \"\\\\R\" \\. \\$block;\n      \\}\n      \\$_ =~ s/\\(\\\\R\\)\\{4,\\}/\\$1\\$1\\$1/g;\n    \\}\n  ' \"\\$f\"\ndone\n\necho \"fixed=\\$\\{#bad\\[@\\]\\}\"$/": {
+            "approve": true,
+            "matchCommandLine": true
         }
     },
     "files.associations": {

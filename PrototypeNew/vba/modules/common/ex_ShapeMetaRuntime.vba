@@ -1,9 +1,16 @@
 Attribute VB_Name = "ex_ShapeMetaRuntime"
 Option Explicit
+#Const LOGGING_DEBUG_ENABLED = True
+#Const LOGGING_VERBOSE_ENABLED = False
 
 Private Const META_BLOCK_BEGIN As String = "[[EX_PN_META]]"
 Private Const META_BLOCK_END As String = "[[/EX_PN_META]]"
 
+Public Sub m_Module_Dispose()
+#If LOGGING_VERBOSE_ENABLED Then
+    ex_Core.m_Diagnostic_LogInfo "lifecycle:ex_ShapeMetaRuntime.m_Module_Dispose"
+#End If
+End Sub
 ' //
 ' // API
 ' //
@@ -94,13 +101,17 @@ Public Function m_TrySetShapeMetaValue( _
     Dim meta As Object
 
     If shp Is Nothing Then
+#If LOGGING_DEBUG_ENABLED Then
         ex_Core.m_Diagnostic_LogError "PrototypeNew: shape is not specified for metadata write."
+#End If
         Exit Function
     End If
 
     keyName = VBA.Trim$(keyName)
     If VBA.Len(keyName) = 0 Then
+#If LOGGING_DEBUG_ENABLED Then
         ex_Core.m_Diagnostic_LogError "PrototypeNew: metadata key is empty."
+#End If
         Exit Function
     End If
 
@@ -120,11 +131,15 @@ Public Function m_TrySetShapeMetaValues( _
     Dim keyName As Variant
 
     If shp Is Nothing Then
+#If LOGGING_DEBUG_ENABLED Then
         ex_Core.m_Diagnostic_LogError "PrototypeNew: shape is not specified for metadata write."
+#End If
         Exit Function
     End If
     If values Is Nothing Then
+#If LOGGING_DEBUG_ENABLED Then
         ex_Core.m_Diagnostic_LogError "PrototypeNew: metadata values map is not specified."
+#End If
         Exit Function
     End If
 
@@ -161,7 +176,9 @@ Private Function private_TryWriteShapeMetaMap(ByVal shp As Shape, ByVal meta As 
     Dim blockText As String
 
     If shp Is Nothing Then
+#If LOGGING_DEBUG_ENABLED Then
         ex_Core.m_Diagnostic_LogError "PrototypeNew: shape is not specified for metadata write."
+#End If
         Exit Function
     End If
 
@@ -185,7 +202,9 @@ Private Function private_TryWriteShapeMetaMap(ByVal shp As Shape, ByVal meta As 
     Exit Function
 
 EH_WRITE:
+#If LOGGING_DEBUG_ENABLED Then
     ex_Core.m_Diagnostic_LogError "PrototypeNew: failed to write metadata to shape '" & shp.Name & "': " & Err.Description
+#End If
 End Function
 
 

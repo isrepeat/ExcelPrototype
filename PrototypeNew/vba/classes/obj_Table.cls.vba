@@ -4,6 +4,9 @@ BEGIN
 END
 Attribute VB_Name = "obj_Table"
 Option Explicit
+#Const LOGGING_DEBUG_ENABLED = True
+#Const LOGGING_VERBOSE_ENABLED = False
+Private m_IsDisposed As Boolean
 
 Private m_SectionTitle As String
 Private m_Columns As list__obj_Column
@@ -11,24 +14,60 @@ Private m_Rows As list__obj_Row
 Private m_IsInitialized As Boolean
 
 Private Sub Class_Initialize()
+#If LOGGING_VERBOSE_ENABLED Then
+    ex_Core.m_Diagnostic_LogInfo "lifecycle:" & VBA.TypeName(Me) & ".Class_Initialize"
+#End If
     Set m_Columns = New list__obj_Column
     Set m_Rows = New list__obj_Row
+End Sub
+Private Sub Class_Terminate()
+#If LOGGING_VERBOSE_ENABLED Then
+    ex_Core.m_Diagnostic_LogInfo "lifecycle:" & VBA.TypeName(Me) & ".Class_Terminate"
+#End If
+    If m_IsDisposed Then Exit Sub
+    On Error Resume Next
+    Dispose
+    On Error GoTo 0
 End Sub
 
 ' //
 ' // API
 ' //
+Public Function Initialize() As Boolean
+#If LOGGING_VERBOSE_ENABLED Then
+    ex_Core.m_Diagnostic_LogInfo "lifecycle:" & VBA.TypeName(Me) & ".Initialize"
+#End If
+    Initialize = True
+End Function
+Public Sub Dispose()
+#If LOGGING_VERBOSE_ENABLED Then
+    ex_Core.m_Diagnostic_LogInfo "lifecycle:" & VBA.TypeName(Me) & ".Dispose"
+#End If
+    If m_IsDisposed Then Exit Sub
+    m_IsDisposed = True
+    On Error Resume Next
+    Err.Clear
+    Err.Clear
+    Set m_Columns = Nothing
+    Set m_Rows = Nothing
+    On Error GoTo 0
+End Sub
+
 Public Function Init(ByVal rowCount As Long, ByVal columnCount As Long) As Boolean
     Dim i As Long
     Dim newColumn As obj_Column
     Dim newRow As obj_Row
 
     If rowCount <= 0 Then
+#If LOGGING_DEBUG_ENABLED Then
         ex_Core.m_Diagnostic_LogError "obj_Table: rowCount must be greater than zero."
+#End If
         Exit Function
     End If
     If columnCount <= 0 Then
+#If LOGGING_DEBUG_ENABLED Then
         ex_Core.m_Diagnostic_LogError "obj_Table: columnCount must be greater than zero."
+#End If
         Exit Function
     End If
 
@@ -98,15 +137,21 @@ Public Function SetColumn(ByVal columnIndex As Long, ByVal tableColumn As obj_Co
     Dim targetColumn As obj_Column
 
     If Not m_IsInitialized Then
+#If LOGGING_DEBUG_ENABLED Then
         ex_Core.m_Diagnostic_LogError "obj_Table: call Init before setting columns."
+#End If
         Exit Function
     End If
     If tableColumn Is Nothing Then
+#If LOGGING_DEBUG_ENABLED Then
         ex_Core.m_Diagnostic_LogError "obj_Table: tableColumn is not specified."
+#End If
         Exit Function
     End If
     If columnIndex <= 0 Or columnIndex > m_Columns.Count Then
+#If LOGGING_DEBUG_ENABLED Then
         ex_Core.m_Diagnostic_LogError "obj_Table: column index is out of range."
+#End If
         Exit Function
     End If
 
@@ -123,15 +168,21 @@ Public Function SetRow(ByVal rowIndex As Long, ByVal tableRow As obj_Row) As Boo
     Dim i As Long
 
     If Not m_IsInitialized Then
+#If LOGGING_DEBUG_ENABLED Then
         ex_Core.m_Diagnostic_LogError "obj_Table: call Init before setting rows."
+#End If
         Exit Function
     End If
     If tableRow Is Nothing Then
+#If LOGGING_DEBUG_ENABLED Then
         ex_Core.m_Diagnostic_LogError "obj_Table: tableRow is not specified."
+#End If
         Exit Function
     End If
     If rowIndex <= 0 Or rowIndex > m_Rows.Count Then
+#If LOGGING_DEBUG_ENABLED Then
         ex_Core.m_Diagnostic_LogError "obj_Table: row index is out of range."
+#End If
         Exit Function
     End If
 
@@ -148,15 +199,21 @@ Public Function SetCell(ByVal rowIndex As Long, ByVal columnIndex As Long, ByVal
     Dim targetRow As obj_Row
 
     If Not m_IsInitialized Then
+#If LOGGING_DEBUG_ENABLED Then
         ex_Core.m_Diagnostic_LogError "obj_Table: call Init before setting cells."
+#End If
         Exit Function
     End If
     If rowIndex <= 0 Or rowIndex > m_Rows.Count Then
+#If LOGGING_DEBUG_ENABLED Then
         ex_Core.m_Diagnostic_LogError "obj_Table: row index is out of range."
+#End If
         Exit Function
     End If
     If columnIndex <= 0 Or columnIndex > m_Columns.Count Then
+#If LOGGING_DEBUG_ENABLED Then
         ex_Core.m_Diagnostic_LogError "obj_Table: column index is out of range."
+#End If
         Exit Function
     End If
 
@@ -174,3 +231,4 @@ Private Sub private_FillRowWithBlanks(ByVal tableRow As obj_Row, ByVal columnCou
         tableRow.AddCell VBA.vbNullString
     Next i
 End Sub
+

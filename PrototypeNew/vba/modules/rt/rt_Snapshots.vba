@@ -1,5 +1,7 @@
 Attribute VB_Name = "rt_Snapshots"
 Option Explicit
+#Const LOGGING_DEBUG_ENABLED = True
+#Const LOGGING_VERBOSE_ENABLED = False
 
 Private Const SNAPSHOT_PAYLOAD_NODE As String = "payload"
 
@@ -14,8 +16,11 @@ Private Const RUNTIME_GLOBALS_MODULE_NAME_ATTR As String = "name"
 Private Const RUNTIME_GLOBALS_MODULE_SNAPSHOT_NODE As String = "snapshot"
 Private Const MODULE_NAME_PAGE_MANAGER As String = "rt_PageManager"
 
-Private g_IsRuntimeStateRestoreRunning As Boolean
-
+Public Sub m_Module_Dispose()
+#If LOGGING_VERBOSE_ENABLED Then
+    ex_Core.m_Diagnostic_LogInfo "lifecycle:rt_Snapshots.m_Module_Dispose"
+#End If
+End Sub
 ' //
 ' // API
 ' //
@@ -45,13 +50,17 @@ Public Function m_SavePageSnapshots() As Boolean
         If pageBase Is Nothing Then GoTo ContinuePage
 
         If Not private_TryCastSerializablePage(page, serializablePage) Then
+#If LOGGING_DEBUG_ENABLED Then
             ex_Core.m_Diagnostic_LogError "Snapshots: page class '" & VBA.TypeName(page) & "' must implement obj_ISerializable."
+#End If
             Exit Function
         End If
 
         typeRoot = VBA.LCase$(VBA.Trim$(serializablePage.GetSerializableTypeRoot()))
         If VBA.Len(typeRoot) = 0 Then
+#If LOGGING_DEBUG_ENABLED Then
             ex_Core.m_Diagnostic_LogError "Snapshots: page serializable type root is empty for '" & VBA.TypeName(page) & "'."
+#End If
             Exit Function
         End If
 
@@ -71,7 +80,6 @@ ContinuePage:
     m_SavePageSnapshots = True
 End Function
 
-
 ' Callstack[1]: rt_CoreActions.private_ScheduleUpdateAndRerender -> rt_Snapshots.m_SaveRuntimeGlobalsSnapshot
 ' Callstack[2]: ThisWorkbook.Workbook_BeforeClose -> rt_Snapshots.m_SaveRuntimeGlobalsSnapshot
 Public Function m_SaveRuntimeGlobalsSnapshot() As Boolean
@@ -82,7 +90,9 @@ Public Function m_SaveRuntimeGlobalsSnapshot() As Boolean
     If Not ex_Core.m_CustomXmlPartStore_TryCreateEmptyDom(RUNTIME_GLOBALS_ROOT, RUNTIME_GLOBALS_NS, dom) Then Exit Function
     Set rootNode = dom.DocumentElement
     If rootNode Is Nothing Then
+#If LOGGING_DEBUG_ENABLED Then
         ex_Core.m_Diagnostic_LogError "Snapshots: runtime globals root node is missing."
+#End If
         Exit Function
     End If
 
@@ -93,7 +103,6 @@ Public Function m_SaveRuntimeGlobalsSnapshot() As Boolean
 
     m_SaveRuntimeGlobalsSnapshot = True
 End Function
-
 
 ' Callstack[1]: rt_CoreActions.m_RerenderLastPageAfterUpdate -> rt_Snapshots.m_RestoreRuntimeGlobalsSnapshot
 ' Callstack[2]: ThisWorkbook.Workbook_Open -> rt_Snapshots.m_RestoreRuntimeGlobalsSnapshot
@@ -143,7 +152,6 @@ ContinueModule:
     m_RestoreRuntimeGlobalsSnapshot = True
 End Function
 
-
 ' Callstack[1]: ex_Core.private_QueueRuntimeStateRestoreAfterUpdate (Application.OnTime) -> rt_Snapshots.m_RunDeferredRuntimeStateRestore
 Public Sub m_RunDeferredRuntimeStateRestore()
     Dim restoredPagesCount As Long
@@ -152,26 +160,31 @@ Public Sub m_RunDeferredRuntimeStateRestore()
     Call m_TryRestoreRuntimeStateFromSnapshots("deferred:on-time", restoredPagesCount)
 End Sub
 
-
 ' Callstack[1]: explicit recovery entrypoints -> rt_Snapshots.m_TryRestoreRuntimeStateFromSnapshots
 Public Function m_TryRestoreRuntimeStateFromSnapshots( _
     Optional ByVal reasonText As String = VBA.vbNullString, _
     Optional ByRef outRestoredPagesCount As Long = 0 _
 ) As Boolean
+    Static isRuntimeStateRestoreRunning As Boolean
+
     reasonText = VBA.Trim$(reasonText)
     If VBA.Len(reasonText) = 0 Then reasonText = "unknown"
 
     outRestoredPagesCount = 0
-    If g_IsRuntimeStateRestoreRunning Then Exit Function
+    If isRuntimeStateRestoreRunning Then Exit Function
 
-    g_IsRuntimeStateRestoreRunning = True
+    isRuntimeStateRestoreRunning = True
     On Error GoTo EH_RESTORE
 
+#If LOGGING_DEBUG_ENABLED Then
     ex_Core.m_Diagnostic_LogInfo "snapshots:restore-runtime-state start reason='" & VBA.Replace$(reasonText, "'", "''") & "'"
+#End If
 
     If private_HasRuntimePageForActiveWorksheet() Then
         If Not m_RestoreRuntimeGlobalsSnapshot() Then GoTo RestoreFailed
+#If LOGGING_DEBUG_ENABLED Then
         ex_Core.m_Diagnostic_LogInfo "snapshots:restore-runtime-state done reason='" & VBA.Replace$(reasonText, "'", "''") & "' restoredPages=0"
+#End If
         m_TryRestoreRuntimeStateFromSnapshots = True
         GoTo Cleanup
     End If
@@ -180,11 +193,13 @@ Public Function m_TryRestoreRuntimeStateFromSnapshots( _
     If outRestoredPagesCount <= 0 Then GoTo RestoreFailed
     If Not m_RestoreRuntimeGlobalsSnapshot() Then GoTo RestoreFailed
 
+#If LOGGING_DEBUG_ENABLED Then
     ex_Core.m_Diagnostic_LogInfo "snapshots:restore-runtime-state done reason='" & VBA.Replace$(reasonText, "'", "''") & "' restoredPages=" & VBA.CStr(outRestoredPagesCount)
+#End If
     m_TryRestoreRuntimeStateFromSnapshots = True
 
 Cleanup:
-    g_IsRuntimeStateRestoreRunning = False
+    isRuntimeStateRestoreRunning = False
     Exit Function
 
 RestoreFailed:
@@ -197,14 +212,17 @@ RestoreFailed:
         m_TryRestoreRuntimeStateFromSnapshots = True
         GoTo Cleanup
     End If
+#If LOGGING_DEBUG_ENABLED Then
     ex_Core.m_Diagnostic_LogError "snapshots:restore-runtime-state failed reason='" & VBA.Replace$(reasonText, "'", "''") & "' restoredPages=" & VBA.CStr(outRestoredPagesCount)
+#End If
     GoTo Cleanup
 
 EH_RESTORE:
+#If LOGGING_DEBUG_ENABLED Then
     ex_Core.m_Diagnostic_LogError "snapshots:restore-runtime-state exception reason='" & VBA.Replace$(reasonText, "'", "''") & "' err='" & VBA.Replace$(Err.Description, "'", "''") & "'"
+#End If
     Resume Cleanup
 End Function
-
 
 ' Callstack[1]: rt_Snapshots.m_TryRestoreRuntimeStateFromSnapshots -> private_TryFallbackRestoreByResettingMainPage
 Private Function private_TryFallbackRestoreByResettingMainPage( _
@@ -227,18 +245,24 @@ Private Function private_TryFallbackRestoreByResettingMainPage( _
             errDescription = Err.Description
             Err.Clear
             On Error GoTo 0
+#If LOGGING_DEBUG_ENABLED Then
             ex_Core.m_Diagnostic_LogError "snapshots:restore-runtime-state fallback-main-reset failed reason='" & VBA.Replace$(reasonText, "'", "''") & "' err='" & VBA.Replace$(errDescription, "'", "''") & "'"
+#End If
             Exit Function
         End If
         On Error GoTo 0
+#If LOGGING_DEBUG_ENABLED Then
         ex_Core.m_Diagnostic_LogError "snapshots:restore-runtime-state fallback-main-reset failed reason='" & VBA.Replace$(reasonText, "'", "''") & "' err='returned-false'"
+#End If
         Exit Function
     End If
     If Err.Number <> 0 Then
         errDescription = Err.Description
         Err.Clear
         On Error GoTo 0
+#If LOGGING_DEBUG_ENABLED Then
         ex_Core.m_Diagnostic_LogError "snapshots:restore-runtime-state fallback-main-reset failed reason='" & VBA.Replace$(reasonText, "'", "''") & "' err='" & VBA.Replace$(errDescription, "'", "''") & "'"
+#End If
         Exit Function
     End If
     On Error GoTo 0
@@ -250,13 +274,16 @@ Private Function private_TryFallbackRestoreByResettingMainPage( _
     ' Даже если checkpoint сохранить не удалось, UI уже поднят и клики не должны "умирать".
     ' Ошибку логируем, чтобы можно было добить первопричину по core.log.
     If Not savePagesOk Or Not saveRuntimeOk Then
+#If LOGGING_DEBUG_ENABLED Then
         ex_Core.m_Diagnostic_LogError "snapshots:restore-runtime-state fallback-checkpoint-failed reason='" & VBA.Replace$(reasonText, "'", "''") & "' savePages=" & VBA.CStr(savePagesOk) & " saveRuntime=" & VBA.CStr(saveRuntimeOk)
+#End If
     End If
 
+#If LOGGING_DEBUG_ENABLED Then
     ex_Core.m_Diagnostic_LogInfo "snapshots:restore-runtime-state fallback-main-reset done reason='" & VBA.Replace$(reasonText, "'", "''") & "' restoredPages=" & VBA.CStr(outRestoredPagesCount)
+#End If
     private_TryFallbackRestoreByResettingMainPage = True
 End Function
-
 
 ' Callstack[1]: ThisWorkbook.Workbook_Open -> rt_Snapshots.m_RestorePageSnapshots
 ' Callstack[2]: rt_CoreActions.m_RerenderLastPageAfterUpdate -> rt_Snapshots.m_RestorePageSnapshots
@@ -410,7 +437,9 @@ Private Function private_TryAppendModuleSnapshot(ByVal rootNode As Object, ByVal
 
     Set dom = rootNode.OwnerDocument
     If dom Is Nothing Then
+#If LOGGING_DEBUG_ENABLED Then
         ex_Core.m_Diagnostic_LogError "Snapshots: runtime globals DOM owner is not available."
+#End If
         Exit Function
     End If
 
@@ -425,7 +454,6 @@ Private Function private_TryAppendModuleSnapshot(ByVal rootNode As Object, ByVal
     private_TryAppendModuleSnapshot = True
 End Function
 
-
 ' Callstack[1]: rt_Snapshots.private_TryAppendModuleSnapshot -> private_TrySerializeRuntimeModuleSnapshot
 Private Function private_TrySerializeRuntimeModuleSnapshot(ByVal moduleName As String, ByRef outSnapshotXml As String) As Boolean
     outSnapshotXml = VBA.vbNullString
@@ -436,11 +464,12 @@ Private Function private_TrySerializeRuntimeModuleSnapshot(ByVal moduleName As S
             private_TrySerializeRuntimeModuleSnapshot = rt_PageManager.m_TrySerializeModuleSnapshot(outSnapshotXml)
 
         Case Else
+#If LOGGING_DEBUG_ENABLED Then
             ex_Core.m_Diagnostic_LogInfo "runtime-globals: serialize skipped for unknown module '" & moduleName & "'"
+#End If
             private_TrySerializeRuntimeModuleSnapshot = True
     End Select
 End Function
-
 
 ' Callstack[1]: rt_Snapshots.m_RestoreRuntimeGlobalsSnapshot -> private_TryDeserializeRuntimeModuleSnapshot
 Private Function private_TryDeserializeRuntimeModuleSnapshot(ByVal moduleName As String, ByVal snapshotXml As String) As Boolean
@@ -451,7 +480,9 @@ Private Function private_TryDeserializeRuntimeModuleSnapshot(ByVal moduleName As
             private_TryDeserializeRuntimeModuleSnapshot = rt_PageManager.m_TryDeserializeModuleSnapshot(snapshotXml)
 
         Case Else
+#If LOGGING_DEBUG_ENABLED Then
             ex_Core.m_Diagnostic_LogInfo "runtime-globals: deserialize skipped for unknown module '" & moduleName & "'"
+#End If
             private_TryDeserializeRuntimeModuleSnapshot = True
     End Select
 End Function
@@ -543,7 +574,9 @@ Private Function private_TryResetWorkbookBeforeRestore(ByRef outTemporaryWorkshe
 
 EH_RESET:
     Application.DisplayAlerts = True
+#If LOGGING_DEBUG_ENABLED Then
     ex_Core.m_Diagnostic_LogError "Snapshots: failed to reset workbook before restore: " & Err.Description
+#End If
 End Function
 
 
@@ -570,7 +603,9 @@ Private Function private_TrySaveSnapshotXmlCollection( _
 
     Set rootNode = dom.DocumentElement
     If rootNode Is Nothing Then
+#If LOGGING_DEBUG_ENABLED Then
         ex_Core.m_Diagnostic_LogError "Snapshots: root node is missing for namespace '" & namespaceUri & "'."
+#End If
         Exit Function
     End If
 

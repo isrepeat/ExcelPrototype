@@ -1,5 +1,13 @@
 Attribute VB_Name = "ex_ControlFactory"
 Option Explicit
+#Const LOGGING_DEBUG_ENABLED = True
+#Const LOGGING_VERBOSE_ENABLED = False
+
+Public Sub m_Module_Dispose()
+#If LOGGING_VERBOSE_ENABLED Then
+    ex_Core.m_Diagnostic_LogInfo "lifecycle:ex_ControlFactory.m_Module_Dispose"
+#End If
+End Sub
 
 ' //
 ' // API
@@ -49,6 +57,8 @@ Public Function m_CreateControlByTypeRoot(ByVal controlTypeRoot As String) As ob
             Set m_CreateControlByTypeRoot = tableTemplateVm
 
         Case Else
+#If LOGGING_DEBUG_ENABLED Then
             ex_Core.m_Diagnostic_LogError "Control type '" & controlTypeRoot & "' is not supported in PrototypeNew runtime."
+#End If
     End Select
 End Function

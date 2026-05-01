@@ -1,5 +1,12 @@
 Attribute VB_Name = "ex_Helpers"
 Option Explicit
+#Const LOGGING_VERBOSE_ENABLED = False
+
+Public Sub m_Module_Dispose()
+#If LOGGING_VERBOSE_ENABLED Then
+    ex_Core.m_Diagnostic_LogInfo "lifecycle:ex_Helpers.m_Module_Dispose"
+#End If
+End Sub
 
 ' //
 ' // API

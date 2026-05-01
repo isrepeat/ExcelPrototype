@@ -4,12 +4,30 @@ BEGIN
 END
 Attribute VB_Name = "obj_TableTplControlVM"
 Option Explicit
+#Const LOGGING_DEBUG_ENABLED = True
+#Const LOGGING_VERBOSE_ENABLED = False
+Private m_IsDisposed As Boolean
 Implements obj_IControl
 
 Private m_ControlBase As obj_ControlBase
 Private m_ControlName As String
 Private m_ItemsSourceRaw As String
 Private m_IsConfigured As Boolean
+
+Private Sub Class_Initialize()
+#If LOGGING_VERBOSE_ENABLED Then
+    ex_Core.m_Diagnostic_LogInfo "lifecycle:" & VBA.TypeName(Me) & ".Class_Initialize"
+#End If
+End Sub
+Private Sub Class_Terminate()
+#If LOGGING_VERBOSE_ENABLED Then
+    ex_Core.m_Diagnostic_LogInfo "lifecycle:" & VBA.TypeName(Me) & ".Class_Terminate"
+#End If
+    If m_IsDisposed Then Exit Sub
+    On Error Resume Next
+    Dispose
+    On Error GoTo 0
+End Sub
 
 ' //
 ' // Interface
@@ -25,13 +43,17 @@ Private Sub obj_IControl_Configure(ByVal page As obj_PageBase, ByVal controlNode
 
     m_ItemsSourceRaw = VBA.Trim$(ex_XmlCore.m_NodeAttrText(controlNode, "itemsSource"))
     If VBA.Len(m_ItemsSourceRaw) = 0 Then
+#If LOGGING_DEBUG_ENABLED Then
         ex_Core.m_Diagnostic_LogError "TableTpl: itemsSource is not specified for control '" & m_ControlName & "'."
+#End If
         Exit Sub
     End If
 
     Set listNode = private_FindFirstChildListNode(controlNode)
     If listNode Is Nothing Then
+#If LOGGING_DEBUG_ENABLED Then
         ex_Core.m_Diagnostic_LogError "TableTpl: primitive table layout must contain root <list>."
+#End If
         Exit Sub
     End If
 
@@ -41,7 +63,9 @@ End Sub
 
 Private Sub obj_IControl_Render()
     If Not m_IsConfigured Then
+#If LOGGING_DEBUG_ENABLED Then
         ex_Core.m_Diagnostic_LogError "TableTpl: control '" & m_ControlName & "' is not configured."
+#End If
         Exit Sub
     End If
 
@@ -58,6 +82,24 @@ End Function
 ' //
 ' // API
 ' //
+Public Function Initialize() As Boolean
+#If LOGGING_VERBOSE_ENABLED Then
+    ex_Core.m_Diagnostic_LogInfo "lifecycle:" & VBA.TypeName(Me) & ".Initialize"
+#End If
+    Initialize = True
+End Function
+Public Sub Dispose()
+#If LOGGING_VERBOSE_ENABLED Then
+    ex_Core.m_Diagnostic_LogInfo "lifecycle:" & VBA.TypeName(Me) & ".Dispose"
+#End If
+    If m_IsDisposed Then Exit Sub
+    m_IsDisposed = True
+    On Error Resume Next
+    Err.Clear
+    Set m_ControlBase = Nothing
+    On Error GoTo 0
+End Sub
+
 ' (No public API yet.)
 '
 ' //
@@ -77,3 +119,4 @@ Private Function private_FindFirstChildListNode(ByVal parentNode As Object) As O
 ContinueLoop:
     Next childNode
 End Function
+

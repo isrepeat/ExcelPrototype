@@ -1,9 +1,16 @@
 Attribute VB_Name = "ex_BindingRuntime"
 Option Explicit
+#Const LOGGING_DEBUG_ENABLED = True
+#Const LOGGING_VERBOSE_ENABLED = False
 
 Private Const BINDING_PREFIX As String = "{Binding "
 Private Const BINDING_SUFFIX As String = "}"
 
+Public Sub m_Module_Dispose()
+#If LOGGING_VERBOSE_ENABLED Then
+    ex_Core.m_Diagnostic_LogInfo "lifecycle:ex_BindingRuntime.m_Module_Dispose"
+#End If
+End Sub
 ' //
 ' // API
 ' //
@@ -19,14 +26,15 @@ Public Function m_TryResolveTextBinding( _
     If Not private_TryResolveBindingValue(rawText, sourceObject, resolvedValue) Then Exit Function
 
     If VBA.IsObject(resolvedValue) Then
+#If LOGGING_DEBUG_ENABLED Then
         ex_Core.m_Diagnostic_LogError "PrototypeNew: text binding must resolve to scalar value."
+#End If
         Exit Function
     End If
 
     outText = VBA.CStr(resolvedValue)
     m_TryResolveTextBinding = True
 End Function
-
 
 ' Callstack[1]: rt_PageManager.m_RenderPage -> page.Render -> obj_PageBase.Render -> ex_XmlLayoutEngine.m_RenderNode -> ex_LayoutControlRenderer.m_Render -> obj_ButtonControlVM.obj_IControl_Configure -> ex_BindingRuntime.m_TryResolveMacroBinding
 ' Callstack[2]: rt_PageManager.m_RenderPage -> page.Render -> obj_PageBase.Render -> ex_XmlLayoutEngine.m_RenderNode -> ex_LayoutControlRenderer.m_Render -> obj_SelectControlVM.obj_IControl_Configure -> ex_BindingRuntime.m_TryResolveMacroBinding
@@ -41,20 +49,23 @@ Public Function m_TryResolveMacroBinding( _
     If Not private_TryResolveBindingValue(rawText, sourceObject, resolvedValue) Then Exit Function
 
     If VBA.IsObject(resolvedValue) Then
+#If LOGGING_DEBUG_ENABLED Then
         ex_Core.m_Diagnostic_LogError "PrototypeNew: macro binding must resolve to text value."
+#End If
         Exit Function
     End If
 
     macroName = VBA.Trim$(VBA.CStr(resolvedValue))
     If VBA.Len(macroName) = 0 Then
+#If LOGGING_DEBUG_ENABLED Then
         ex_Core.m_Diagnostic_LogError "PrototypeNew: macro binding resolved to an empty value."
+#End If
         Exit Function
     End If
 
     outMacroRef = private_QualifyMacroName(macroName)
     m_TryResolveMacroBinding = True
 End Function
-
 
 ' // Helper for Visibility attribute.
 ' Callstack[1]: ex_XmlLayoutEngine.private_TryIsNodeVisible -> ex_BindingRuntime.m_TryResolveVisibilityBinding
@@ -78,16 +89,19 @@ Public Function m_TryResolveVisibilityBinding( _
     If Not m_TryResolveValueBinding(rawText, sourceObject, resolvedValue) Then Exit Function
     If Not private_TryParseBooleanVariant(resolvedValue, outVisible) Then
         If VBA.IsObject(resolvedValue) Then
+#If LOGGING_DEBUG_ENABLED Then
             ex_Core.m_Diagnostic_LogError "PrototypeNew: visibility value resolved to object '" & VBA.TypeName(resolvedValue) & "'. Expected boolean-compatible value."
+#End If
         Else
+#If LOGGING_DEBUG_ENABLED Then
             ex_Core.m_Diagnostic_LogError "PrototypeNew: visibility value '" & VBA.CStr(resolvedValue) & "' is invalid. Supported values: true/false/visible/collapsed."
+#End If
         End If
         Exit Function
     End If
 
     m_TryResolveVisibilityBinding = True
 End Function
-
 
 ' Callstack[1]: ex_BindingRuntime.m_TryResolveVisibilityBinding -> ex_BindingRuntime.m_TryResolveValueBinding
 ' Callstack[2]: ex_RuntimeSourceResolver.m_TryResolveItemsSource -> ex_BindingRuntime.m_TryResolveValueBinding
@@ -135,7 +149,9 @@ Private Function private_TryResolveBindingValue( _
 
         methodName = VBA.Trim$(methodName)
         If VBA.Len(methodName) = 0 Then
+#If LOGGING_DEBUG_ENABLED Then
             ex_Core.m_Diagnostic_LogError "PrototypeNew: binding expression contains empty Method value."
+#End If
             Exit Function
         End If
 
@@ -196,7 +212,9 @@ Private Function private_TryResolveConditionalBindingAsText( _
     outUsedConditionalBranch = True
 
     If sourceObject Is Nothing Then
+#If LOGGING_DEBUG_ENABLED Then
         ex_Core.m_Diagnostic_LogError "PrototypeNew: conditional binding requires source object."
+#End If
         Exit Function
     End If
 
@@ -209,7 +227,9 @@ Private Function private_TryResolveConditionalBindingAsText( _
     If Not private_TryReadBindingPathValue(sourceObject, bindingPath, resolvedValue) Then Exit Function
 
     If hasValue And Not hasOp Then
+#If LOGGING_DEBUG_ENABLED Then
         ex_Core.m_Diagnostic_LogError "PrototypeNew: conditional binding argument 'Value' requires 'Op'."
+#End If
         Exit Function
     End If
 
@@ -218,7 +238,9 @@ Private Function private_TryResolveConditionalBindingAsText( _
         If Not private_TryEvaluateConditionalOperation(resolvedValue, opText, valueText, conditionResult) Then Exit Function
     Else
         If Not private_TryParseBooleanVariant(resolvedValue, conditionResult) Then
+#If LOGGING_DEBUG_ENABLED Then
             ex_Core.m_Diagnostic_LogError "PrototypeNew: conditional binding path '" & bindingPath & "' must resolve to boolean-compatible value when Op is omitted."
+#End If
             Exit Function
         End If
     End If
@@ -335,7 +357,9 @@ Private Function private_TryReadBindingPathValue( _
     Dim memberScalar As Variant
 
     If sourceObject Is Nothing Then
+#If LOGGING_DEBUG_ENABLED Then
         ex_Core.m_Diagnostic_LogError "PrototypeNew: binding source object is not specified."
+#End If
         Exit Function
     End If
 
@@ -354,18 +378,24 @@ Private Function private_TryReadBindingPathValue( _
         If VBA.Len(segmentName) = 0 Then GoTo ContinueLoop
 
         If currentObject Is Nothing Then
+#If LOGGING_DEBUG_ENABLED Then
             ex_Core.m_Diagnostic_LogError "PrototypeNew: binding path '" & bindingPath & "' reached Nothing before segment '" & segmentName & "'."
+#End If
             Exit Function
         End If
 
         If Not private_TryReadMemberValue(currentObject, segmentName, memberIsObject, memberObject, memberScalar) Then
+#If LOGGING_DEBUG_ENABLED Then
             ex_Core.m_Diagnostic_LogError "PrototypeNew: member '" & segmentName & "' was not found on object '" & VBA.TypeName(currentObject) & "'."
+#End If
             Exit Function
         End If
 
         If segmentIndex < UBound(segments) Then
             If Not memberIsObject Then
+#If LOGGING_DEBUG_ENABLED Then
                 ex_Core.m_Diagnostic_LogError "PrototypeNew: member '" & segmentName & "' in binding path '" & bindingPath & "' is not an object."
+#End If
                 Exit Function
             End If
             Set currentObject = memberObject
@@ -532,11 +562,15 @@ Private Function private_TryEvaluateConditionalOperation( _
 
         Case "gt", "ge", "lt", "le"
             If Not private_TryParseNumberVariant(actualValue, actualNumber) Then
+#If LOGGING_DEBUG_ENABLED Then
                 ex_Core.m_Diagnostic_LogError "PrototypeNew: conditional operator '" & opText & "' requires numeric binding value."
+#End If
                 Exit Function
             End If
             If Not private_TryParseNumberText(expectedText, expectedNumber) Then
+#If LOGGING_DEBUG_ENABLED Then
                 ex_Core.m_Diagnostic_LogError "PrototypeNew: conditional operator '" & opText & "' requires numeric Value."
+#End If
                 Exit Function
             End If
 
@@ -549,19 +583,25 @@ Private Function private_TryEvaluateConditionalOperation( _
 
         Case "istrue"
             If Not private_TryParseBooleanVariant(actualValue, outResult) Then
+#If LOGGING_DEBUG_ENABLED Then
                 ex_Core.m_Diagnostic_LogError "PrototypeNew: conditional operator 'isTrue' requires boolean-compatible value."
+#End If
                 Exit Function
             End If
 
         Case "isfalse"
             If Not private_TryParseBooleanVariant(actualValue, outResult) Then
+#If LOGGING_DEBUG_ENABLED Then
                 ex_Core.m_Diagnostic_LogError "PrototypeNew: conditional operator 'isFalse' requires boolean-compatible value."
+#End If
                 Exit Function
             End If
             outResult = Not outResult
 
         Case Else
+#If LOGGING_DEBUG_ENABLED Then
             ex_Core.m_Diagnostic_LogError "PrototypeNew: unsupported conditional Op '" & opText & "'."
+#End If
             Exit Function
     End Select
 

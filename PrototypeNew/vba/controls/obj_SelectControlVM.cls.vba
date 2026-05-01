@@ -4,6 +4,9 @@ BEGIN
 END
 Attribute VB_Name = "obj_SelectControlVM"
 Option Explicit
+#Const LOGGING_DEBUG_ENABLED = True
+#Const LOGGING_VERBOSE_ENABLED = False
+Private m_IsDisposed As Boolean
 Implements obj_IControl
 Implements obj_ISerializable
 
@@ -49,6 +52,21 @@ Private m_RuntimeIsOpen As Boolean
 Private m_IsConfigured As Boolean
 Private m_PageBase As obj_PageBase
 
+Private Sub Class_Initialize()
+#If LOGGING_VERBOSE_ENABLED Then
+    ex_Core.m_Diagnostic_LogInfo "lifecycle:" & VBA.TypeName(Me) & ".Class_Initialize"
+#End If
+End Sub
+Private Sub Class_Terminate()
+#If LOGGING_VERBOSE_ENABLED Then
+    ex_Core.m_Diagnostic_LogInfo "lifecycle:" & VBA.TypeName(Me) & ".Class_Terminate"
+#End If
+    If m_IsDisposed Then Exit Sub
+    On Error Resume Next
+    Dispose
+    On Error GoTo 0
+End Sub
+
 ' //
 ' // Interface
 ' //
@@ -83,7 +101,9 @@ Private Sub obj_IControl_Configure(ByVal page As obj_PageBase, ByVal controlNode
 
     m_ItemsSourceRaw = VBA.Trim$(VBA.CStr(ex_XmlCore.m_NodeAttrText(controlNode, "itemsSource")))
     If VBA.Len(m_ItemsSourceRaw) = 0 Then
+#If LOGGING_DEBUG_ENABLED Then
         ex_Core.m_Diagnostic_LogError "Select: itemsSource is not specified for control '" & m_ControlName & "'."
+#End If
         Exit Sub
     End If
 
@@ -158,7 +178,9 @@ Private Sub obj_IControl_Render()
     Dim pageBase As obj_PageBase
 
     If Not m_IsConfigured Then
+#If LOGGING_DEBUG_ENABLED Then
         ex_Core.m_Diagnostic_LogError "Select: control '" & m_ControlName & "' is not configured."
+#End If
         Exit Sub
     End If
 
@@ -166,19 +188,25 @@ Private Sub obj_IControl_Render()
     If Not m_ControlBase Is Nothing Then Set pageBase = m_ControlBase.PageBase
     If pageBase Is Nothing Then Set pageBase = m_PageBase
     If pageBase Is Nothing Then
+#If LOGGING_DEBUG_ENABLED Then
         ex_Core.m_Diagnostic_LogError "Select: page is not specified for control '" & m_ControlName & "'."
+#End If
         Exit Sub
     End If
     Set m_PageBase = pageBase
 
     Set ws = pageBase.Worksheet
     If ws Is Nothing Then
+#If LOGGING_DEBUG_ENABLED Then
         ex_Core.m_Diagnostic_LogError "Select: page worksheet is not specified for control '" & m_ControlName & "'."
+#End If
         Exit Sub
     End If
 
     If m_ItemCaptions Is Nothing Or m_ItemIds Is Nothing Or m_ItemActionMacros Is Nothing Or m_ItemRawItems Is Nothing Then
+#If LOGGING_DEBUG_ENABLED Then
         ex_Core.m_Diagnostic_LogError "Select: item metadata is not configured for control '" & m_ControlName & "'."
+#End If
         Exit Sub
     End If
 
@@ -280,6 +308,42 @@ End Function
 ' //
 ' // API
 ' //
+Public Function Initialize() As Boolean
+#If LOGGING_VERBOSE_ENABLED Then
+    ex_Core.m_Diagnostic_LogInfo "lifecycle:" & VBA.TypeName(Me) & ".Initialize"
+#End If
+    Initialize = True
+End Function
+Public Sub Dispose()
+#If LOGGING_VERBOSE_ENABLED Then
+    ex_Core.m_Diagnostic_LogInfo "lifecycle:" & VBA.TypeName(Me) & ".Dispose"
+#End If
+    If m_IsDisposed Then Exit Sub
+    m_IsDisposed = True
+    On Error Resume Next
+    Err.Clear
+    Err.Clear
+    Err.Clear
+    Err.Clear
+    Err.Clear
+    Err.Clear
+    Err.Clear
+    Set m_ControlBase = Nothing
+    Set m_ControlLayout = Nothing
+    Set m_Items = Nothing
+    Set m_ItemCaptions = Nothing
+    Set m_ItemIds = Nothing
+    Set m_ItemActionMacros = Nothing
+    Set m_ItemRawItems = Nothing
+    Set m_RuntimeItemShapeNames = Nothing
+    Set m_RuntimeItemCaptions = Nothing
+    Set m_RuntimeItemIds = Nothing
+    Set m_RuntimeItemActionMacros = Nothing
+    Set m_RuntimeItemRawItems = Nothing
+    Set m_PageBase = Nothing
+    On Error GoTo 0
+End Sub
+
 Public Function GetSelectedId() As String
     If Not m_RuntimeItemIds Is Nothing Then
         If m_SelectedIndex <= 0 Or m_SelectedIndex > m_RuntimeItemIds.Count Then Exit Function
@@ -337,7 +401,9 @@ Public Function RuntimeHandleItemClick(ByVal itemIndex As Long) As Boolean
 
     If m_RuntimeItemCaptions Is Nothing Then Exit Function
     If itemIndex <= 0 Or itemIndex > m_RuntimeItemCaptions.Count Then
+#If LOGGING_DEBUG_ENABLED Then
         ex_Core.m_Diagnostic_LogError "Select: selected item index is out of range for control '" & m_ControlName & "'."
+#End If
         Exit Function
     End If
 
@@ -604,69 +670,95 @@ Private Function private_TryBindRuntimeRoutes( _
     Dim i As Long
 
     If ws Is Nothing Then
+#If LOGGING_DEBUG_ENABLED Then
         ex_Core.m_Diagnostic_LogError "select:bind-routes worksheet-missing control='" & VBA.Replace$(VBA.Trim$(m_ControlName), "'", "''") & "'"
+#End If
         Exit Function
     End If
     If itemShapeNames Is Nothing Then
+#If LOGGING_DEBUG_ENABLED Then
         ex_Core.m_Diagnostic_LogError "select:bind-routes item-shapes-missing control='" & VBA.Replace$(VBA.Trim$(m_ControlName), "'", "''") & "'"
+#End If
         Exit Function
     End If
 
     callbackMacroRef = private_GetRuntimeCallbackMacroRef()
     If VBA.Len(callbackMacroRef) = 0 Then
+#If LOGGING_DEBUG_ENABLED Then
         ex_Core.m_Diagnostic_LogError "select:bind-routes callback-macro-empty control='" & VBA.Replace$(VBA.Trim$(m_ControlName), "'", "''") & "'"
+#End If
         Exit Function
     End If
 
     Set headerShape = private_GetRuntimeShapeByName(ws, headerShapeName)
     If headerShape Is Nothing Then
+#If LOGGING_DEBUG_ENABLED Then
         ex_Core.m_Diagnostic_LogError "select:bind-routes header-shape-missing control='" & VBA.Replace$(VBA.Trim$(m_ControlName), "'", "''") & "' shape='" & VBA.Replace$(VBA.Trim$(headerShapeName), "'", "''") & "'"
+#End If
         Exit Function
     End If
     If Not private_TrySetShapeOnAction(headerShape, callbackMacroRef) Then
+#If LOGGING_DEBUG_ENABLED Then
         ex_Core.m_Diagnostic_LogError "select:bind-routes header-onaction-failed control='" & VBA.Replace$(VBA.Trim$(m_ControlName), "'", "''") & "' shape='" & VBA.Replace$(VBA.Trim$(headerShape.Name), "'", "''") & "'"
+#End If
         Exit Function
     End If
 
     For i = 1 To itemShapeNames.Count
         Set itemShape = private_GetRuntimeShapeByName(ws, VBA.CStr(itemShapeNames(i)))
         If itemShape Is Nothing Then
+#If LOGGING_DEBUG_ENABLED Then
             ex_Core.m_Diagnostic_LogError "select:bind-routes item-shape-missing control='" & VBA.Replace$(VBA.Trim$(m_ControlName), "'", "''") & "' index=" & VBA.CStr(i)
+#End If
             Exit Function
         End If
         If Not private_TrySetShapeOnAction(itemShape, callbackMacroRef) Then
+#If LOGGING_DEBUG_ENABLED Then
             ex_Core.m_Diagnostic_LogError "select:bind-routes item-onaction-failed control='" & VBA.Replace$(VBA.Trim$(m_ControlName), "'", "''") & "' shape='" & VBA.Replace$(VBA.Trim$(itemShape.Name), "'", "''") & "'"
+#End If
             Exit Function
         End If
     Next i
 
     selectId = VBA.LCase$(VBA.Trim$(m_SelectStateKey))
     If VBA.Len(selectId) = 0 Then
+#If LOGGING_DEBUG_ENABLED Then
         ex_Core.m_Diagnostic_LogError "select:bind-routes select-id-empty control='" & VBA.Replace$(VBA.Trim$(m_ControlName), "'", "''") & "'"
+#End If
         Exit Function
     End If
 
     If m_PageBase Is Nothing Then
+#If LOGGING_DEBUG_ENABLED Then
         ex_Core.m_Diagnostic_LogError "select:bind-routes page-base-missing control='" & VBA.Replace$(VBA.Trim$(m_ControlName), "'", "''") & "'"
+#End If
         Exit Function
     End If
     If Not m_PageBase.RegisterControl(selectId, Me) Then
+#If LOGGING_DEBUG_ENABLED Then
         ex_Core.m_Diagnostic_LogError "select:bind-routes register-control-failed control='" & VBA.Replace$(VBA.Trim$(m_ControlName), "'", "''") & "' key='" & VBA.Replace$(selectId, "'", "''") & "'"
+#End If
         Exit Function
     End If
     If Not m_PageBase.RegisterShapeRoute(headerShape.Name, selectId, "RuntimeHandleHeaderClick", False) Then
+#If LOGGING_DEBUG_ENABLED Then
         ex_Core.m_Diagnostic_LogError "select:bind-routes register-header-route-failed control='" & VBA.Replace$(VBA.Trim$(m_ControlName), "'", "''") & "' shape='" & VBA.Replace$(VBA.Trim$(headerShape.Name), "'", "''") & "'"
+#End If
         Exit Function
     End If
 
     For i = 1 To itemShapeNames.Count
         If Not m_PageBase.RegisterShapeRoute(VBA.CStr(itemShapeNames(i)), selectId, "RuntimeHandleItemClick", True, VBA.CLng(i)) Then
+#If LOGGING_DEBUG_ENABLED Then
             ex_Core.m_Diagnostic_LogError "select:bind-routes register-item-route-failed control='" & VBA.Replace$(VBA.Trim$(m_ControlName), "'", "''") & "' index=" & VBA.CStr(i)
+#End If
             Exit Function
         End If
     Next i
 
+#If LOGGING_DEBUG_ENABLED Then
     ex_Core.m_Diagnostic_LogInfo "select:bind-routes ok control='" & VBA.Replace$(VBA.Trim$(m_ControlName), "'", "''") & "' items=" & VBA.CStr(itemShapeNames.Count) & " macro='" & VBA.Replace$(callbackMacroRef, "'", "''") & "'"
+#End If
     private_TryBindRuntimeRoutes = True
 End Function
 
@@ -677,7 +769,9 @@ Private Function private_TrySetShapeOnAction(ByVal shp As Shape, ByVal callbackM
     On Error Resume Next
     shp.OnAction = callbackMacroRef
     If Err.Number <> 0 Then
+#If LOGGING_DEBUG_ENABLED Then
         ex_Core.m_Diagnostic_LogError "select:set-onaction-failed control='" & VBA.Replace$(VBA.Trim$(m_ControlName), "'", "''") & "' shape='" & VBA.Replace$(VBA.Trim$(shp.Name), "'", "''") & "' err='" & VBA.Replace$(Err.Description, "'", "''") & "'"
+#End If
         Err.Clear
         On Error GoTo 0
         Exit Function
@@ -727,7 +821,9 @@ Private Function private_InitializeRuntimeState( _
     ' Runtime-state хранит shape-имена и коллекции, с которыми работает click handler.
     ' Это позволяет обрабатывать клики без повторного рендера.
     If itemShapeNames Is Nothing Or itemCaptions Is Nothing Or itemIds Is Nothing Or itemActionMacros Is Nothing Or itemRawItems Is Nothing Then
+#If LOGGING_DEBUG_ENABLED Then
         ex_Core.m_Diagnostic_LogError "Select: runtime item metadata collection is not specified for control '" & m_ControlName & "'."
+#End If
         Exit Function
     End If
 
@@ -839,7 +935,9 @@ Private Function private_RunRuntimeMacro(ByVal macroRef As String) As Boolean
     Exit Function
 
 EH_RUN:
+#If LOGGING_DEBUG_ENABLED Then
     ex_Core.m_Diagnostic_LogError "Select: failed to execute macro '" & macroRef & "' for control '" & m_ControlName & "': " & Err.Description
+#End If
 End Function
 
 Private Function private_TryBuildItemBuffers() As Boolean
@@ -849,7 +947,9 @@ Private Function private_TryBuildItemBuffers() As Boolean
     Dim itemAction As String
 
     If m_Items Is Nothing Then
+#If LOGGING_DEBUG_ENABLED Then
         ex_Core.m_Diagnostic_LogError "Select: itemsSource resolved to Nothing for control '" & m_ControlName & "'."
+#End If
         Exit Function
     End If
 
@@ -912,7 +1012,9 @@ Private Function private_TryResolveItemMetadata( _
     End Select
 
     If VBA.Len(VBA.Trim$(outId)) = 0 Then
+#If LOGGING_DEBUG_ENABLED Then
         ex_Core.m_Diagnostic_LogError "Select: item Id is empty in control '" & m_ControlName & "'."
+#End If
         Exit Function
     End If
     If VBA.Len(VBA.Trim$(outCaption)) = 0 Then outCaption = outId
@@ -937,7 +1039,9 @@ Private Function private_TryReadObjectMemberText( _
     outText = VBA.vbNullString
     If sourceObject Is Nothing Then
         If isRequired Then
+#If LOGGING_DEBUG_ENABLED Then
             ex_Core.m_Diagnostic_LogError "Select: item object is Nothing while reading member '" & memberName & "'."
+#End If
             Exit Function
         End If
         private_TryReadObjectMemberText = True
@@ -948,7 +1052,9 @@ Private Function private_TryReadObjectMemberText( _
     If Not dictObj Is Nothing Then
         If Not dictObj.Exists(memberName) Then
             If isRequired Then
+#If LOGGING_DEBUG_ENABLED Then
                 ex_Core.m_Diagnostic_LogError "Select: member '" & memberName & "' was not found on dictionary item."
+#End If
                 Exit Function
             End If
 
@@ -958,7 +1064,9 @@ Private Function private_TryReadObjectMemberText( _
 
         scalarValue = dictObj.Item(memberName)
         If VBA.IsObject(scalarValue) Then
+#If LOGGING_DEBUG_ENABLED Then
             ex_Core.m_Diagnostic_LogError "Select: member '" & memberName & "' must resolve to scalar value."
+#End If
             Exit Function
         End If
 
@@ -974,7 +1082,9 @@ Private Function private_TryReadObjectMemberText( _
         On Error GoTo 0
 
         If isRequired Then
+#If LOGGING_DEBUG_ENABLED Then
             ex_Core.m_Diagnostic_LogError "Select: member '" & memberName & "' was not found on object '" & VBA.TypeName(sourceObject) & "'."
+#End If
             Exit Function
         End If
 
@@ -984,7 +1094,9 @@ Private Function private_TryReadObjectMemberText( _
     On Error GoTo 0
 
     If VBA.IsObject(scalarValue) Then
+#If LOGGING_DEBUG_ENABLED Then
         ex_Core.m_Diagnostic_LogError "Select: member '" & memberName & "' on object '" & VBA.TypeName(sourceObject) & "' must resolve to scalar value."
+#End If
         Exit Function
     End If
 
@@ -1018,7 +1130,9 @@ Private Function private_TryPersistSelectedId(ByVal selectedId As String) As Boo
 
     selectedId = VBA.Trim$(selectedId)
     If VBA.Len(VBA.Trim$(m_SelectStateKey)) = 0 Then
+#If LOGGING_DEBUG_ENABLED Then
         ex_Core.m_Diagnostic_LogError "Select: state key is empty for control '" & m_ControlName & "'."
+#End If
         Exit Function
     End If
 
@@ -1030,7 +1144,9 @@ Private Function private_TryLoadStoredSelectedId(ByRef outSelectedId As String) 
     Dim selectControlVMStatic As obj_SelectControlVMStatic
 
     If VBA.Len(VBA.Trim$(m_SelectStateKey)) = 0 Then
+#If LOGGING_DEBUG_ENABLED Then
         ex_Core.m_Diagnostic_LogError "Select: state key is empty for control '" & m_ControlName & "'."
+#End If
         Exit Function
     End If
 
@@ -1067,7 +1183,9 @@ Private Function private_TryBuildHeaderRange(ByVal ws As Worksheet, ByRef outRan
     Exit Function
 
 EH_RANGE:
+#If LOGGING_DEBUG_ENABLED Then
     ex_Core.m_Diagnostic_LogError "Select: failed to resolve header range for control '" & m_ControlName & "'."
+#End If
 End Function
 
 Private Function private_CalcPanelHeight(ByVal renderItemCount As Long) As Double
@@ -1095,7 +1213,9 @@ Private Function private_CreateShapeByRange( _
     If targetRange Is Nothing Then Exit Function
 
     If targetRange.Width <= 0# Or targetRange.Height <= 0# Then
+#If LOGGING_DEBUG_ENABLED Then
         ex_Core.m_Diagnostic_LogError "Select: target range has non-positive width/height for control '" & m_ControlName & "'."
+#End If
         Exit Function
     End If
 
@@ -1112,7 +1232,9 @@ Private Function private_CreateShapeByRange( _
         On Error Resume Next
         shp.OnAction = onActionMacroRef
         If Err.Number <> 0 Then
+#If LOGGING_DEBUG_ENABLED Then
             ex_Core.m_Diagnostic_LogError "Select: failed to bind click action for shape '" & shapeName & "' in control '" & m_ControlName & "'."
+#End If
             Err.Clear
         End If
         On Error GoTo EH_SHAPE
@@ -1153,7 +1275,9 @@ Private Function private_CreateShapeByRange( _
     Exit Function
 
 EH_SHAPE:
+#If LOGGING_DEBUG_ENABLED Then
     ex_Core.m_Diagnostic_LogError "Select: failed to create shape '" & shapeName & "' for control '" & m_ControlName & "': " & Err.Description
+#End If
 End Function
 
 Private Function private_CreateShapeByBounds( _
@@ -1173,7 +1297,9 @@ Private Function private_CreateShapeByBounds( _
 
     If ws Is Nothing Then Exit Function
     If shapeWidth <= 0# Or shapeHeight <= 0# Then
+#If LOGGING_DEBUG_ENABLED Then
         ex_Core.m_Diagnostic_LogError "Select: target bounds have non-positive width/height for control '" & m_ControlName & "'."
+#End If
         Exit Function
     End If
 
@@ -1190,7 +1316,9 @@ Private Function private_CreateShapeByBounds( _
         On Error Resume Next
         shp.OnAction = onActionMacroRef
         If Err.Number <> 0 Then
+#If LOGGING_DEBUG_ENABLED Then
             ex_Core.m_Diagnostic_LogError "Select: failed to bind click action for shape '" & shapeName & "' in control '" & m_ControlName & "'."
+#End If
             Err.Clear
         End If
         On Error GoTo EH_SHAPE
@@ -1231,7 +1359,9 @@ Private Function private_CreateShapeByBounds( _
     Exit Function
 
 EH_SHAPE:
+#If LOGGING_DEBUG_ENABLED Then
     ex_Core.m_Diagnostic_LogError "Select: failed to create floating shape '" & shapeName & "' for control '" & m_ControlName & "': " & Err.Description
+#End If
 End Function
 
 Private Sub private_ApplyHeaderVisualDefaults(ByVal shp As Shape)
@@ -1377,12 +1507,16 @@ Private Function private_TryReadPositiveDoubleAttr( _
     End If
 
     If Not private_TryParseFlexibleDouble(rawText, outValue) Then
+#If LOGGING_DEBUG_ENABLED Then
         ex_Core.m_Diagnostic_LogError "Select: attribute '" & attrName & "' must be numeric for control '" & m_ControlName & "'."
+#End If
         Exit Function
     End If
 
     If outValue <= 0# Then
+#If LOGGING_DEBUG_ENABLED Then
         ex_Core.m_Diagnostic_LogError "Select: attribute '" & attrName & "' must be greater than zero for control '" & m_ControlName & "'."
+#End If
         Exit Function
     End If
 
@@ -1405,12 +1539,16 @@ Private Function private_TryReadNonNegativeDoubleAttr( _
     End If
 
     If Not private_TryParseFlexibleDouble(rawText, outValue) Then
+#If LOGGING_DEBUG_ENABLED Then
         ex_Core.m_Diagnostic_LogError "Select: attribute '" & attrName & "' must be numeric for control '" & m_ControlName & "'."
+#End If
         Exit Function
     End If
 
     If outValue < 0# Then
+#If LOGGING_DEBUG_ENABLED Then
         ex_Core.m_Diagnostic_LogError "Select: attribute '" & attrName & "' must be greater or equal to zero for control '" & m_ControlName & "'."
+#End If
         Exit Function
     End If
 
@@ -1446,3 +1584,4 @@ Private Function private_GetRuntimeShapeByName(ByVal ws As Worksheet, ByVal shap
     Set private_GetRuntimeShapeByName = ws.Shapes(shapeName)
     On Error GoTo 0
 End Function
+

@@ -1,11 +1,18 @@
 Attribute VB_Name = "rt_Messaging"
 Option Explicit
+#Const LOGGING_VERBOSE_ENABLED = False
 
 ' Runtime messaging: живет в rt_* ядре и не переимпортируется при обычном обновлении кода.
 
 Private g_ScheduledHideAt As Date
 Private g_ScheduledHideMacro As String
 Private g_StatusBarMessage As String
+
+Public Sub m_Module_Dispose()
+#If LOGGING_VERBOSE_ENABLED Then
+    ex_Core.m_Diagnostic_LogInfo "lifecycle:rt_Messaging.m_Module_Dispose"
+#End If
+End Sub
 
 ' //
 ' // API
@@ -88,7 +95,6 @@ Public Sub m_HideStatusBarScheduled()
     private_ApplyNativeStatusBar
     private_LogStatusBarMessage "hide-scheduled", VBA.vbNullString
 End Sub
-
 
 ' Callstack[1]: VBA.ImmediateWindow -> rt_Messaging.m_TryGetStatusBarMessage
 Public Function m_TryGetStatusBarMessage(ByRef outMessage As String) As Boolean

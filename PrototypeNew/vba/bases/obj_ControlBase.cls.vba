@@ -4,13 +4,49 @@ BEGIN
 END
 Attribute VB_Name = "obj_ControlBase"
 Option Explicit
+#Const LOGGING_DEBUG_ENABLED = True
+#Const LOGGING_VERBOSE_ENABLED = False
+Private m_IsDisposed As Boolean
 
 Private m_PageBase As obj_PageBase
 Private m_DataContext As Object
 
+Private Sub Class_Initialize()
+#If LOGGING_VERBOSE_ENABLED Then
+    ex_Core.m_Diagnostic_LogInfo "lifecycle:" & VBA.TypeName(Me) & ".Class_Initialize"
+#End If
+End Sub
+Private Sub Class_Terminate()
+#If LOGGING_VERBOSE_ENABLED Then
+    ex_Core.m_Diagnostic_LogInfo "lifecycle:" & VBA.TypeName(Me) & ".Class_Terminate"
+#End If
+    If m_IsDisposed Then Exit Sub
+    On Error Resume Next
+    Dispose
+    On Error GoTo 0
+End Sub
+
 ' //
 ' // API
 ' //
+Public Function Initialize() As Boolean
+#If LOGGING_VERBOSE_ENABLED Then
+    ex_Core.m_Diagnostic_LogInfo "lifecycle:" & VBA.TypeName(Me) & ".Initialize"
+#End If
+    Initialize = True
+End Function
+Public Sub Dispose()
+#If LOGGING_VERBOSE_ENABLED Then
+    ex_Core.m_Diagnostic_LogInfo "lifecycle:" & VBA.TypeName(Me) & ".Dispose"
+#End If
+    If m_IsDisposed Then Exit Sub
+    m_IsDisposed = True
+    On Error Resume Next
+    Set m_PageBase = Nothing
+    Set m_DataContext = Nothing
+    On Error GoTo 0
+End Sub
+
 ' Callstack[1]: VBA.ImmediateWindow -> obj_ControlBase.Reset
 Public Sub Reset()
     Set m_PageBase = Nothing
@@ -41,13 +77,17 @@ Public Function Configure( _
     Set m_DataContext = Nothing
 
     If page Is Nothing Then
+#If LOGGING_DEBUG_ENABLED Then
         ex_Core.m_Diagnostic_LogError controlTypeName & ": page is not specified for control configure."
+#End If
         Exit Function
     End If
     Set m_PageBase = page
 
     If controlNode Is Nothing Then
+#If LOGGING_DEBUG_ENABLED Then
         ex_Core.m_Diagnostic_LogError controlTypeName & ": control node is not specified."
+#End If
         Exit Function
     End If
 
@@ -60,12 +100,16 @@ Public Function Configure( _
     dataContextRaw = VBA.Trim$(VBA.CStr(ex_XmlCore.m_NodeAttrText(controlNode, "dataContext")))
     If VBA.Len(dataContextRaw) > 0 Then
         If page.RuntimeSources Is Nothing Then
+#If LOGGING_DEBUG_ENABLED Then
             ex_Core.m_Diagnostic_LogError controlTypeName & ": runtime sources are not specified for control '" & outControlName & "'."
+#End If
             Exit Function
         End If
         If Not ex_RuntimeSourceResolver.m_TryResolveObjectSource(page.RuntimeSources, dataContextRaw, dataContext, False) Then Exit Function
         If dataContext Is Nothing Then
+#If LOGGING_DEBUG_ENABLED Then
             ex_Core.m_Diagnostic_LogError controlTypeName & ": dataContext resolved to empty object for control '" & outControlName & "'."
+#End If
             Exit Function
         End If
         Set m_DataContext = dataContext
@@ -81,3 +125,4 @@ End Property
 Public Property Get DataContext() As Object
     Set DataContext = m_DataContext
 End Property
+

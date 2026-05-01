@@ -1,10 +1,18 @@
 Attribute VB_Name = "rt_Bridge"
 Option Explicit
+#Const LOGGING_DEBUG_ENABLED = True
+#Const LOGGING_VERBOSE_ENABLED = False
 
 ' Стабильный мост между Shape.OnAction и rt_PageManager.
 ' Runtime-состояние контролов теперь принадлежит конкретной странице.
 
 Private g_IsDispatchingClick As Boolean
+
+Public Sub m_Module_Dispose()
+#If LOGGING_VERBOSE_ENABLED Then
+    ex_Core.m_Diagnostic_LogInfo "lifecycle:rt_Bridge.m_Module_Dispose"
+#End If
+End Sub
 
 ' //
 ' // API
@@ -62,7 +70,9 @@ CleanExit:
 EH_CLICK:
     g_IsDispatchingClick = False
     private_LogBridgeError "click-exception err='" & private_EscapeForLog(Err.Description) & "'"
+#If LOGGING_DEBUG_ENABLED Then
     ex_Core.m_Diagnostic_LogError "rt_Bridge: shape click dispatch failed: " & Err.Description
+#End If
 End Sub
 
 
@@ -84,23 +94,32 @@ Public Function m_RunMacro(ByVal macroRef As String) As Boolean
     Exit Function
 
 EH_RUN:
+#If LOGGING_DEBUG_ENABLED Then
     ex_Core.m_Diagnostic_LogError "rt_Bridge: failed to execute macro '" & macroRef & "': " & Err.Description
+#End If
 End Function
+
 
 Private Function private_EscapeForLog(ByVal valueText As String) As String
     private_EscapeForLog = VBA.Replace$(VBA.CStr(valueText), "'", "''")
 End Function
 
+
 Private Sub private_LogBridgeInfo(ByVal messageText As String)
     On Error Resume Next
+#If LOGGING_DEBUG_ENABLED Then
     ex_Core.m_Diagnostic_LogInfo "bridge:" & VBA.Trim$(messageText)
+#End If
     Err.Clear
     On Error GoTo 0
 End Sub
 
+
 Private Sub private_LogBridgeError(ByVal messageText As String)
     On Error Resume Next
+#If LOGGING_DEBUG_ENABLED Then
     ex_Core.m_Diagnostic_LogError "bridge:" & VBA.Trim$(messageText)
+#End If
     Err.Clear
     On Error GoTo 0
 End Sub

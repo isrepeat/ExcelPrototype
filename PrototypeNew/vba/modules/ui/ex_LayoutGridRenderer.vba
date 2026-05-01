@@ -1,5 +1,13 @@
 Attribute VB_Name = "ex_LayoutGridRenderer"
 Option Explicit
+#Const LOGGING_DEBUG_ENABLED = True
+#Const LOGGING_VERBOSE_ENABLED = False
+
+Public Sub m_Module_Dispose()
+#If LOGGING_VERBOSE_ENABLED Then
+    ex_Core.m_Diagnostic_LogInfo "lifecycle:ex_LayoutGridRenderer.m_Module_Dispose"
+#End If
+End Sub
 
 ' Renderer for <grid> nodes.
 
@@ -15,11 +23,15 @@ Public Function m_Render( _
     ByVal colEnd As Long _
 ) As Boolean
     If layoutNode Is Nothing Then
+#If LOGGING_DEBUG_ENABLED Then
         ex_Core.m_Diagnostic_LogError "PrototypeNew: grid node is not specified."
+#End If
         Exit Function
     End If
     If VBA.StrComp(VBA.LCase$(VBA.CStr(layoutNode.baseName)), "grid", VBA.vbBinaryCompare) <> 0 Then
+#If LOGGING_DEBUG_ENABLED Then
         ex_Core.m_Diagnostic_LogError "PrototypeNew: ex_LayoutGridRenderer supports only <grid> nodes."
+#End If
         Exit Function
     End If
 
