@@ -22,7 +22,7 @@ All controls support these common layout attributes via shared contract validati
 - `name`
 - `type`
 - `style`
-- `spanCells`
+- `spanColls`
 - `spanRows`
 
 Common attribute checks are centralized in `ex_ControlAttributeContracts` to avoid per-control duplication.
@@ -306,7 +306,7 @@ Call pageBase.RuntimeSources.SetObjectSource("RuntimeObjects.Test.Banner", banne
 		- `obj_TableDynamic`, or
 		- `obj_Table` (auto-converted to dynamic model at render time).
 	- rows inside table models must be `obj_Row`.
-	- column count is dynamic per table item and validated against control `spanCells`.
+	- column count is dynamic per table item and validated against control `spanColls`.
 	- renders rows directly into worksheet cells in control span area, without nested template expansion.
 
 - `control type="TableSingle"` contract

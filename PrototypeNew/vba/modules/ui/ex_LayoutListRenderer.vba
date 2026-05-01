@@ -120,7 +120,7 @@ Public Function m_TryMeasureContentSpan( _
     ByVal renderCtx As obj_LayoutRenderContext, _
     ByVal listNode As Object, _
     ByRef outSpanRows As Long, _
-    ByRef outSpanCols As Long, _
+    ByRef outSpanColls As Long, _
     Optional ByVal dataContext As Object _
 ) As Boolean
     Dim items As Collection
@@ -144,7 +144,7 @@ Public Function m_TryMeasureContentSpan( _
 
     If items Is Nothing Or items.Count = 0 Then
         outSpanRows = 1
-        outSpanCols = 1
+        outSpanColls = 1
         m_TryMeasureContentSpan = True
         Exit Function
     End If
@@ -155,7 +155,7 @@ Public Function m_TryMeasureContentSpan( _
     If VBA.Len(orientation) = 0 Then Exit Function
 
     outSpanRows = 0
-    outSpanCols = 0
+    outSpanColls = 0
 
     For Each itemValue In items
         Set itemBindingSource = Nothing
@@ -164,15 +164,15 @@ Public Function m_TryMeasureContentSpan( _
 
         If VBA.StrComp(orientation, "horizontal", VBA.vbBinaryCompare) = 0 Then
             If itemRows > outSpanRows Then outSpanRows = itemRows
-            outSpanCols = outSpanCols + itemCols
+            outSpanColls = outSpanColls + itemCols
         Else
             outSpanRows = outSpanRows + itemRows
-            If itemCols > outSpanCols Then outSpanCols = itemCols
+            If itemCols > outSpanColls Then outSpanColls = itemCols
         End If
     Next itemValue
 
     If outSpanRows <= 0 Then outSpanRows = 1
-    If outSpanCols <= 0 Then outSpanCols = 1
+    If outSpanColls <= 0 Then outSpanColls = 1
     m_TryMeasureContentSpan = True
 End Function
 

@@ -1,6 +1,73 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <page xmlns="urn:excelprototype:profiles" version="1">
-  <styles>
+  <templates>
+    <template name="bannerObjectTpl">
+      <control
+        type="Banner"
+        name="TablesBanner"
+        header="{Binding Path=Header}"
+        message="{Binding Path=Message}"
+        visible="{Binding Path=Visible}"
+        spanColls="12"
+        spanRows="3"/>
+    </template>
+
+  </templates>
+    <grid anchorCell="A1">
+      <stackPanel at="r2c2" orientation="vertical">
+        <control
+          type="Button"
+          name="BackToDev"
+          caption="Back To Dev UI"
+          style="actionWarning"
+          onClick="{Binding Module=ex_Test;Method=m_TEST_RenderDevUI}"
+          spanColls="4"
+          spanRows="2"/>
+
+        <stackPanel orientation="horizontal">
+          <control
+            type="Button"
+            name="SetManyTables"
+            caption="Set 20 Tables"
+            style="actionWarning"
+            onClick="{Binding Module=ex_Test;Method=m_TEST_SetDemoTableItemsMany}"
+            spanColls="3"
+            spanRows="2"/>
+
+          <control
+            type="Button"
+            name="SetSingleTable"
+            caption="Set 1 Table"
+            style="actionWarning"
+            onClick="{Binding Module=ex_Test;Method=m_TEST_SetDemoTableItemsSingle}"
+            spanColls="3"
+            spanRows="2"/>
+
+          <control
+            type="Button"
+            name="InsertBanner"
+            caption="Insert Banner"
+            style="actionWarning"
+            onClick="{Binding Module=ex_Test;Method=m_TEST_InsertDemoBanner}"
+            spanColls="3"
+            spanRows="2"/>
+        </stackPanel>
+
+        <itemControl
+          objectSource="{PageRuntimeSource='RuntimeObjects.Test.Banner'}"
+          objectSourceTemplate="bannerObjectTpl"/>
+
+        <control
+          type="TableList"
+          name="TablesListStyled"
+          itemsSource="{PageRuntimeSource='RuntimeItems.Test.Tables'}"
+          itemVisibility="{Binding Path=RowCount; Op=gt; Value=3; TrueAs=Visible; FalseAs=Collapsed}"
+          spanColls="12"
+          spanRows="220"/>
+      </stackPanel>
+    </grid>
+
+<styles>
     <controlStyle
       name="actionWarning"
       backColor="#ED7D31"
@@ -11,8 +78,8 @@
       fontSize="11"
       fontBold="true"/>
 
-    <stylePipelineStage name="default" enabled="true">
-      <layer name="sheet-base" enabled="true">
+    <stylePipelineStage name="default">
+      <layer name="sheet-base">
         <rule target="sheet"
               styles="{
                 backColor:#1F1F1F;
@@ -22,7 +89,7 @@
               }"/>
       </layer>
 
-      <layer name="table-part-styles" enabled="true">
+      <layer name="table-part-styles">
         <rule target="controlPart"
               selector="type=tablelist;part=section"
               styles="{
@@ -86,71 +153,4 @@
       </layer>
     </stylePipelineStage>
   </styles>
-
-  <templates>
-    <template name="bannerObjectTpl">
-      <control
-        type="Banner"
-        name="TablesBanner"
-        header="{Binding Path=Header}"
-        message="{Binding Path=Message}"
-        visible="{Binding Path=Visible}"
-        spanCells="12"
-        spanRows="3"/>
-    </template>
-
-  </templates>
-    <grid anchorCell="A1">
-      <stackPanel at="r2c2" orientation="vertical">
-        <control
-          type="Button"
-          name="BackToDev"
-          caption="Back To Dev UI"
-          style="actionWarning"
-          onClick="{Binding Module=ex_Test;Method=m_TEST_RenderDevUI}"
-          spanCells="4"
-          spanRows="2"/>
-
-        <stackPanel orientation="horizontal">
-          <control
-            type="Button"
-            name="SetManyTables"
-            caption="Set 20 Tables"
-            style="actionWarning"
-            onClick="{Binding Module=ex_Test;Method=m_TEST_SetDemoTableItemsMany}"
-            spanCells="3"
-            spanRows="2"/>
-
-          <control
-            type="Button"
-            name="SetSingleTable"
-            caption="Set 1 Table"
-            style="actionWarning"
-            onClick="{Binding Module=ex_Test;Method=m_TEST_SetDemoTableItemsSingle}"
-            spanCells="3"
-            spanRows="2"/>
-
-          <control
-            type="Button"
-            name="InsertBanner"
-            caption="Insert Banner"
-            style="actionWarning"
-            onClick="{Binding Module=ex_Test;Method=m_TEST_InsertDemoBanner}"
-            spanCells="3"
-            spanRows="2"/>
-        </stackPanel>
-
-        <itemControl
-          objectSource="{PageRuntimeSource='RuntimeObjects.Test.Banner'}"
-          objectSourceTemplate="bannerObjectTpl"/>
-
-        <control
-          type="TableList"
-          name="TablesListStyled"
-          itemsSource="{PageRuntimeSource='RuntimeItems.Test.Tables'}"
-          itemVisibility="{Binding Path=RowCount; Op=gt; Value=3; TrueAs=Visible; FalseAs=Collapsed}"
-          spanCells="12"
-          spanRows="220"/>
-      </stackPanel>
-    </grid>
 </page>

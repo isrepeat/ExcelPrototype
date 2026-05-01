@@ -102,6 +102,7 @@ Private Sub obj_IControl_Render()
     Dim rxRows As Collection
     Dim page As obj_PageBase
 
+    ' Базовые проверки: контрол должен быть настроен и привязан к странице/листу.
     If Not m_IsConfigured Then
 #If LOGGING_DEBUG_ENABLED Then
         ex_Core.m_Diagnostic_LogError "Config: control '" & m_ControlName & "' is not configured."
@@ -136,15 +137,18 @@ Private Sub obj_IControl_Render()
     Set entryItems = m_ConfigTableViewItem.EntryItems
     If entryItems Is Nothing Then Exit Sub
 
+    ' Собираем номера строк для специальных style-part (attrhash/attrrx).
     Set hashRows = New Collection
     Set rxRows = New Collection
 
+    ' Ограничиваем объем вывода доступной высотой контрола.
     maxRows = m_ControlLayout.RowEnd - m_ControlLayout.RowStart + 1
     dataRows = entryItems.Count
     rowsToWrite = 1 + dataRows
     If rowsToWrite < 2 Then rowsToWrite = 2
     If rowsToWrite > maxRows Then rowsToWrite = maxRows
 
+    ' Готовим буфер данных целиком и одной операцией выгружаем его в диапазон.
     ReDim valueBlock(1 To rowsToWrite, 1 To CONFIG_COL_COUNT)
     valueBlock(1, 1) = "Attr"
     valueBlock(1, 2) = "Key"
@@ -189,6 +193,7 @@ Private Sub obj_IControl_Render()
 ContinueItem:
     Next idx
 
+    ' Чистим целевую область и удаляем пересекающиеся таблицы, чтобы избежать конфликтов ListObject.
     Set boundsRange = ws.Range( _
         ws.Cells(m_ControlLayout.RowStart, m_ControlLayout.ColStart), _
         ws.Cells(m_ControlLayout.RowEnd, m_ControlLayout.ColStart + CONFIG_COL_COUNT - 1))
@@ -203,6 +208,7 @@ ContinueItem:
         ws.Cells(m_ControlLayout.RowStart + rowsToWrite - 1, m_ControlLayout.ColStart + CONFIG_COL_COUNT - 1))
     writeRange.Value2 = valueBlock
 
+    ' Преобразуем диапазон в ListObject, чтобы получить табличный рендер и фильтры Excel.
     On Error GoTo EH_TABLE
     Set tableObj = ws.ListObjects.Add(SourceType:=xlSrcRange, Source:=writeRange, XlListObjectHasHeaders:=xlYes)
     On Error GoTo 0
@@ -219,6 +225,12 @@ ContinueItem:
     tableObj.ShowAutoFilter = True
     On Error GoTo 0
 
+    ' Регистрируем именованные части колонок, чтобы pipeline мог адресно задавать их стиль/ширину.
+    If Not private_RegisterColumnPart(ws, "attr", writeRange.Columns(1)) Then Exit Sub
+    If Not private_RegisterColumnPart(ws, "key", writeRange.Columns(2)) Then Exit Sub
+    If Not private_RegisterColumnPart(ws, "value", writeRange.Columns(3)) Then Exit Sub
+
+    ' Регистрируем строковые части для специальных атрибутов (# и rx).
     If Not private_RegisterAttrRows(ws, "attrhash", hashRows) Then Exit Sub
     If Not private_RegisterAttrRows(ws, "attrrx", rxRows) Then Exit Sub
     Exit Sub
@@ -228,6 +240,24 @@ EH_TABLE:
     ex_Core.m_Diagnostic_LogError "Config: failed to create table for control '" & m_ControlName & "': " & Err.Description
 #End If
 End Sub
+
+Private Function private_RegisterColumnPart( _
+    ByVal ws As Worksheet, _
+    ByVal partName As String, _
+    ByVal columnRange As Range _
+) As Boolean
+    If ws Is Nothing Then Exit Function
+    If columnRange Is Nothing Then Exit Function
+
+    If Not ex_ControlPartsRuntime.m_RegisterControlPart( _
+        ws, _
+        "config", _
+        m_ControlName, _
+        VBA.LCase$(VBA.Trim$(partName)), _
+        columnRange) Then Exit Function
+
+    private_RegisterColumnPart = True
+End Function
 
 Private Function obj_IControl_SupportsAttribute(ByVal attrName As String) As Boolean
     Select Case VBA.LCase$(VBA.Trim$(attrName))

@@ -86,7 +86,7 @@ Private Sub obj_IControl_Configure(ByVal page As obj_PageBase, ByVal controlNode
     End If
     If m_ColEnd < m_ColStart Then
 #If LOGGING_DEBUG_ENABLED Then
-        ex_Core.m_Diagnostic_LogError "TableSingle: control '" & m_ControlName & "' has invalid spanCells range."
+        ex_Core.m_Diagnostic_LogError "TableSingle: control '" & m_ControlName & "' has invalid spanColls range."
 #End If
         Exit Sub
     End If

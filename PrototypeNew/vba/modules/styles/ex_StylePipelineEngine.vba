@@ -182,7 +182,6 @@ End Function
 
 Private Function private_ApplyStageLayers(ByVal ws As Worksheet, ByVal stageNode As Object) As Boolean
     Dim layerNode As Object
-    Dim layerEnabled As Boolean
 
     For Each layerNode In stageNode.ChildNodes
         If layerNode.NodeType <> 1 Then GoTo ContinueLayer
@@ -193,9 +192,6 @@ Private Function private_ApplyStageLayers(ByVal ws As Worksheet, ByVal stageNode
 #End If
             Exit Function
         End If
-
-        If Not private_TryReadNodeEnabled(layerNode, True, layerEnabled) Then Exit Function
-        If Not layerEnabled Then GoTo ContinueLayer
 
         If Not private_ApplyLayerRules(ws, layerNode) Then Exit Function
 
