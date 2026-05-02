@@ -361,7 +361,6 @@ Public Function TryDeserializeSnapshot(ByVal snapshotXml As String) As Boolean
     ' 3) Восстанавливаем page-контекст (PageBase) для этого листа,
     '    чтобы затем зарегистрировать control/route обратно в runtime-реестры страницы.
     If Not ex_HelpersSheet.m_TryGetPageBaseByWorksheetName(layoutSheetName, m_PageBase) Then Exit Function
-    If Not private_TryResolveCaptionInlineText(m_PageBase, m_CaptionInlineSource) Then Exit Function
 
     On Error Resume Next
     Set shp = ws.Shapes(shapeName)
@@ -369,8 +368,10 @@ Public Function TryDeserializeSnapshot(ByVal snapshotXml As String) As Boolean
     If shp Is Nothing Then Exit Function
 
     If Not private_TryBindRuntimeRoute(shp) Then Exit Function
-    If Not private_RegisterCaptionInlineRuns(m_PageBase, shp) Then Exit Function
-    If Not m_PageBase.ApplyInlineRuns() Then Exit Function
+
+    ' В restore-фазе страница уже отрисована и inline-стили caption уже применены.
+    ' Не накладываем inline-runs повторно из snapshot, иначе при рассинхроне
+    ' snapshot/state (например закрытие книги без сохранения) получаем смешанную подсветку.
 
     If isConfiguredAttr = "false" Or isConfiguredAttr = "0" Then
         m_IsConfigured = False
