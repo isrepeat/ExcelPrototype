@@ -250,7 +250,7 @@ Private Function private_IsLayoutAttribute(ByVal attrName As String) As Boolean
     ' Атрибуты раскладки страницы. Они управляют размещением в grid/stack/list,
     ' но не являются "настройками VM контрола".
     Select Case VBA.LCase$(VBA.Trim$(attrName))
-        Case "at", "spancells", "spanrows", "visibility"
+        Case "at", "spancolls", "spanrows", "visibility"
             private_IsLayoutAttribute = True
     End Select
 End Function

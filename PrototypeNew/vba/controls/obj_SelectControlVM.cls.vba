@@ -39,16 +39,16 @@ Private m_ItemRawItems As Collection
 Private m_SelectedIndex As Long
 Private m_SelectStateKey As String
 
-' Runtime-буферы уже отрисованного select.
-' Используются при кликах через page-owned runtime карты (без повторного configure/render).
-Private m_RuntimeHeaderShapeName As String
-Private m_RuntimePanelShapeName As String
-Private m_RuntimeItemShapeNames As Collection
-Private m_RuntimeItemCaptions As Collection
-Private m_RuntimeItemIds As Collection
-Private m_RuntimeItemActionMacros As Collection
-Private m_RuntimeItemRawItems As Collection
-Private m_RuntimeIsOpen As Boolean
+' UI-буферы уже отрисованного select.
+' Используются при кликах через page-owned карты (без повторного configure/render).
+Private m_UiHeaderShapeName As String
+Private m_UiDropdownPanelShapeName As String
+Private m_UiOptionShapeNames As Collection
+Private m_UiOptionCaptions As Collection
+Private m_UiOptionIds As Collection
+Private m_UiOptionActionMacros As Collection
+Private m_UiOptionRawItems As Collection
+Private m_IsDropdownExpanded As Boolean
 Private m_IsConfigured As Boolean
 Private m_PageBase As obj_PageBase
 
@@ -83,16 +83,16 @@ Private Sub obj_IControl_Configure(ByVal page As obj_PageBase, ByVal controlNode
     Set m_ItemIds = Nothing
     Set m_ItemActionMacros = Nothing
     Set m_ItemRawItems = Nothing
-    m_RuntimeHeaderShapeName = VBA.vbNullString
-    m_RuntimePanelShapeName = VBA.vbNullString
-    Set m_RuntimeItemShapeNames = Nothing
-    Set m_RuntimeItemCaptions = Nothing
-    Set m_RuntimeItemIds = Nothing
-    Set m_RuntimeItemActionMacros = Nothing
-    Set m_RuntimeItemRawItems = Nothing
+    m_UiHeaderShapeName = VBA.vbNullString
+    m_UiDropdownPanelShapeName = VBA.vbNullString
+    Set m_UiOptionShapeNames = Nothing
+    Set m_UiOptionCaptions = Nothing
+    Set m_UiOptionIds = Nothing
+    Set m_UiOptionActionMacros = Nothing
+    Set m_UiOptionRawItems = Nothing
     Set m_ControlBase = Nothing
     Set m_PageBase = Nothing
-    m_RuntimeIsOpen = False
+    m_IsDropdownExpanded = False
     m_SelectedIndex = 0
 
     Set m_ControlBase = New obj_ControlBase
@@ -271,7 +271,7 @@ Private Sub obj_IControl_Render()
     If selectedIndexRendered <= 0 Or selectedIndexRendered > renderItemCount Then selectedIndexRendered = 0
 
     ' Синхронизируем runtime-буферы VM с только что созданными shape.
-    If Not private_InitializeRuntimeState( _
+    If Not private_InitializeUiState( _
         headerShapeName:=headerShape.Name, _
         panelShapeName:=panelShape.Name, _
         itemShapeNames:=itemShapes, _
@@ -281,7 +281,7 @@ Private Sub obj_IControl_Render()
         itemRawItems:=itemRawItems, _
         selectedIndex:=selectedIndexRendered) Then Exit Sub
 
-    If Not private_TryBindRuntimeRoutes(ws, headerShape.Name, itemShapes) Then Exit Sub
+    If Not private_TryBindUiRoutes(ws, headerShape.Name, itemShapes) Then Exit Sub
 End Sub
 
 Private Function obj_IControl_SupportsAttribute(ByVal attrName As String) As Boolean
@@ -335,19 +335,19 @@ Public Sub Dispose()
     Set m_ItemIds = Nothing
     Set m_ItemActionMacros = Nothing
     Set m_ItemRawItems = Nothing
-    Set m_RuntimeItemShapeNames = Nothing
-    Set m_RuntimeItemCaptions = Nothing
-    Set m_RuntimeItemIds = Nothing
-    Set m_RuntimeItemActionMacros = Nothing
-    Set m_RuntimeItemRawItems = Nothing
+    Set m_UiOptionShapeNames = Nothing
+    Set m_UiOptionCaptions = Nothing
+    Set m_UiOptionIds = Nothing
+    Set m_UiOptionActionMacros = Nothing
+    Set m_UiOptionRawItems = Nothing
     Set m_PageBase = Nothing
     On Error GoTo 0
 End Sub
 
 Public Function GetSelectedId() As String
-    If Not m_RuntimeItemIds Is Nothing Then
-        If m_SelectedIndex <= 0 Or m_SelectedIndex > m_RuntimeItemIds.Count Then Exit Function
-        GetSelectedId = VBA.CStr(m_RuntimeItemIds(m_SelectedIndex))
+    If Not m_UiOptionIds Is Nothing Then
+        If m_SelectedIndex <= 0 Or m_SelectedIndex > m_UiOptionIds.Count Then Exit Function
+        GetSelectedId = VBA.CStr(m_UiOptionIds(m_SelectedIndex))
         Exit Function
     End If
 
@@ -357,9 +357,9 @@ Public Function GetSelectedId() As String
 End Function
 
 Public Function GetSelectedCaption() As String
-    If Not m_RuntimeItemCaptions Is Nothing Then
-        If m_SelectedIndex <= 0 Or m_SelectedIndex > m_RuntimeItemCaptions.Count Then Exit Function
-        GetSelectedCaption = VBA.CStr(m_RuntimeItemCaptions(m_SelectedIndex))
+    If Not m_UiOptionCaptions Is Nothing Then
+        If m_SelectedIndex <= 0 Or m_SelectedIndex > m_UiOptionCaptions.Count Then Exit Function
+        GetSelectedCaption = VBA.CStr(m_UiOptionCaptions(m_SelectedIndex))
         Exit Function
     End If
 
@@ -372,35 +372,35 @@ Public Function GetControlKey() As String
     GetControlKey = VBA.CStr(m_ControlName)
 End Function
 
-Public Function RuntimeHasSelectedItem() As Boolean
-    If m_RuntimeItemCaptions Is Nothing Then Exit Function
-    RuntimeHasSelectedItem = (m_SelectedIndex > 0 And m_SelectedIndex <= m_RuntimeItemCaptions.Count)
+Public Function HasSelectedOption() As Boolean
+    If m_UiOptionCaptions Is Nothing Then Exit Function
+    HasSelectedOption = (m_SelectedIndex > 0 And m_SelectedIndex <= m_UiOptionCaptions.Count)
 End Function
 
-Public Function RuntimeGetSelectedIndex() As Long
-    RuntimeGetSelectedIndex = m_SelectedIndex
+Public Function GetSelectedOptionIndex() As Long
+    GetSelectedOptionIndex = m_SelectedIndex
 End Function
 
-Public Function RuntimeGetSelectedCaption() As String
-    RuntimeGetSelectedCaption = Me.GetSelectedCaption()
+Public Function GetSelectedOptionCaption() As String
+    GetSelectedOptionCaption = Me.GetSelectedCaption()
 End Function
 
-Public Function RuntimeGetSelectedId() As String
-    RuntimeGetSelectedId = Me.GetSelectedId()
+Public Function GetSelectedOptionId() As String
+    GetSelectedOptionId = Me.GetSelectedId()
 End Function
 
-Public Function RuntimeHandleHeaderClick() As Boolean
+Public Function HandleHeaderClick() As Boolean
     ' Клик по header только переключает open/close dropdown panel.
-    m_RuntimeIsOpen = (Not m_RuntimeIsOpen)
-    RuntimeHandleHeaderClick = private_ApplyRuntimeVisualState()
+    m_IsDropdownExpanded = (Not m_IsDropdownExpanded)
+    HandleHeaderClick = private_ApplyUiStateToShapes()
 End Function
 
-Public Function RuntimeHandleItemClick(ByVal itemIndex As Long) As Boolean
+Public Function HandleOptionClick(ByVal itemIndex As Long) As Boolean
     Dim selectedId As String
     Dim itemMacro As String
 
-    If m_RuntimeItemCaptions Is Nothing Then Exit Function
-    If itemIndex <= 0 Or itemIndex > m_RuntimeItemCaptions.Count Then
+    If m_UiOptionCaptions Is Nothing Then Exit Function
+    If itemIndex <= 0 Or itemIndex > m_UiOptionCaptions.Count Then
 #If LOGGING_DEBUG_ENABLED Then
         ex_Core.m_Diagnostic_LogError "Select: selected item index is out of range for control '" & m_ControlName & "'."
 #End If
@@ -408,9 +408,9 @@ Public Function RuntimeHandleItemClick(ByVal itemIndex As Long) As Boolean
     End If
 
     m_SelectedIndex = itemIndex
-    m_RuntimeIsOpen = False
+    m_IsDropdownExpanded = False
 
-    If Not private_ApplyRuntimeVisualState() Then Exit Function
+    If Not private_ApplyUiStateToShapes() Then Exit Function
 
     ' При выборе item:
     ' 1) фиксируем selectedId в CustomXMLPart
@@ -418,59 +418,59 @@ Public Function RuntimeHandleItemClick(ByVal itemIndex As Long) As Boolean
     selectedId = Me.GetSelectedId()
     If Not private_TryPersistSelectedId(selectedId) Then Exit Function
 
-    itemMacro = private_GetRuntimeCollectionText(m_RuntimeItemActionMacros, itemIndex)
+    itemMacro = private_GetOptionCollectionText(m_UiOptionActionMacros, itemIndex)
     If VBA.Len(itemMacro) > 0 Then
-        If Not private_RunRuntimeMacro(itemMacro) Then Exit Function
+        If Not private_RunOptionMacro(itemMacro) Then Exit Function
     End If
 
     If VBA.Len(m_OnChangeMacroRef) > 0 Then
-        If Not private_RunRuntimeMacro(m_OnChangeMacroRef) Then Exit Function
+        If Not private_RunOptionMacro(m_OnChangeMacroRef) Then Exit Function
     End If
 
-    RuntimeHandleItemClick = True
+    HandleOptionClick = True
 End Function
 
-Public Function RuntimeCloseDropdown() As Boolean
+Public Function CollapseDropdown() As Boolean
     ' Явное закрытие dropdown (используется dispatcher-ом при клике по другим shape).
-    If Not m_RuntimeIsOpen Then
-        RuntimeCloseDropdown = True
+    If Not m_IsDropdownExpanded Then
+        CollapseDropdown = True
         Exit Function
     End If
 
-    m_RuntimeIsOpen = False
-    RuntimeCloseDropdown = private_ApplyRuntimeVisualState()
+    m_IsDropdownExpanded = False
+    CollapseDropdown = private_ApplyUiStateToShapes()
 End Function
 
-Public Function RuntimeOnGlobalClick(ByVal clickedControlKey As String) As Boolean
+Public Function HandleGlobalClick(ByVal clickedControlKey As String) As Boolean
     clickedControlKey = VBA.LCase$(VBA.Trim$(clickedControlKey))
 
     If clickedControlKey = VBA.LCase$(VBA.Trim$(m_SelectStateKey)) Then
-        RuntimeOnGlobalClick = True
+        HandleGlobalClick = True
         Exit Function
     End If
 
-    RuntimeOnGlobalClick = Me.RuntimeCloseDropdown()
+    HandleGlobalClick = Me.CollapseDropdown()
 End Function
 
 Public Function TrySerializeSnapshot(ByRef outSnapshotXml As String) As Boolean
     Dim i As Long
     Dim selectedIndexText As String
-    Dim runtimeIsOpenText As String
+    Dim isDropdownExpandedText As String
 
     outSnapshotXml = VBA.vbNullString
 
     If m_ControlLayout Is Nothing Then Exit Function
     If VBA.Len(VBA.Trim$(m_ControlName)) = 0 Then Exit Function
-    If VBA.Len(VBA.Trim$(m_RuntimeHeaderShapeName)) = 0 Then Exit Function
-    If VBA.Len(VBA.Trim$(m_RuntimePanelShapeName)) = 0 Then Exit Function
-    If m_RuntimeItemShapeNames Is Nothing Then Exit Function
-    If m_RuntimeItemCaptions Is Nothing Then Exit Function
-    If m_RuntimeItemIds Is Nothing Then Exit Function
-    If m_RuntimeItemActionMacros Is Nothing Then Exit Function
-    If m_RuntimeItemRawItems Is Nothing Then Exit Function
+    If VBA.Len(VBA.Trim$(m_UiHeaderShapeName)) = 0 Then Exit Function
+    If VBA.Len(VBA.Trim$(m_UiDropdownPanelShapeName)) = 0 Then Exit Function
+    If m_UiOptionShapeNames Is Nothing Then Exit Function
+    If m_UiOptionCaptions Is Nothing Then Exit Function
+    If m_UiOptionIds Is Nothing Then Exit Function
+    If m_UiOptionActionMacros Is Nothing Then Exit Function
+    If m_UiOptionRawItems Is Nothing Then Exit Function
 
     selectedIndexText = VBA.CStr(m_SelectedIndex)
-    runtimeIsOpenText = VBA.IIf(m_RuntimeIsOpen, "true", "false")
+    isDropdownExpandedText = VBA.IIf(m_IsDropdownExpanded, "true", "false")
 
     outSnapshotXml = "<select version=""2"""
     outSnapshotXml = outSnapshotXml & " controlName=""" & ex_Helpers.m_EscapeXmlAttr(m_ControlName) & """"
@@ -491,20 +491,20 @@ Public Function TrySerializeSnapshot(ByRef outSnapshotXml As String) As Boolean
     outSnapshotXml = outSnapshotXml & " itemHeight=""" & VBA.CStr(m_ItemHeight) & """"
     outSnapshotXml = outSnapshotXml & " itemMargin=""" & VBA.CStr(m_ItemMargin) & """"
     outSnapshotXml = outSnapshotXml & " selectedIndex=""" & ex_Helpers.m_EscapeXmlAttr(selectedIndexText) & """"
-    outSnapshotXml = outSnapshotXml & " isOpen=""" & runtimeIsOpenText & """"
+    outSnapshotXml = outSnapshotXml & " isOpen=""" & isDropdownExpandedText & """"
     outSnapshotXml = outSnapshotXml & " isConfigured=""" & VBA.IIf(m_IsConfigured, "true", "false") & """"
     outSnapshotXml = outSnapshotXml & ">"
-    outSnapshotXml = outSnapshotXml & "<header shape=""" & ex_Helpers.m_EscapeXmlAttr(m_RuntimeHeaderShapeName) & """ />"
-    outSnapshotXml = outSnapshotXml & "<panel shape=""" & ex_Helpers.m_EscapeXmlAttr(m_RuntimePanelShapeName) & """ />"
+    outSnapshotXml = outSnapshotXml & "<header shape=""" & ex_Helpers.m_EscapeXmlAttr(m_UiHeaderShapeName) & """ />"
+    outSnapshotXml = outSnapshotXml & "<panel shape=""" & ex_Helpers.m_EscapeXmlAttr(m_UiDropdownPanelShapeName) & """ />"
 
-    For i = 1 To m_RuntimeItemShapeNames.Count
+    For i = 1 To m_UiOptionShapeNames.Count
         outSnapshotXml = outSnapshotXml & _
             "<item" & _
-            " shape=""" & ex_Helpers.m_EscapeXmlAttr(VBA.CStr(m_RuntimeItemShapeNames(i))) & """" & _
-            " caption=""" & ex_Helpers.m_EscapeXmlAttr(VBA.CStr(m_RuntimeItemCaptions(i))) & """" & _
-            " id=""" & ex_Helpers.m_EscapeXmlAttr(VBA.CStr(m_RuntimeItemIds(i))) & """" & _
-            " action=""" & ex_Helpers.m_EscapeXmlAttr(VBA.CStr(m_RuntimeItemActionMacros(i))) & """" & _
-                " rawValue=""" & ex_Helpers.m_EscapeXmlAttr(ex_Helpers.m_GetSnapshotRawValueText(m_RuntimeItemRawItems, i, VBA.CStr(m_RuntimeItemIds(i)))) & """" & _
+            " shape=""" & ex_Helpers.m_EscapeXmlAttr(VBA.CStr(m_UiOptionShapeNames(i))) & """" & _
+            " caption=""" & ex_Helpers.m_EscapeXmlAttr(VBA.CStr(m_UiOptionCaptions(i))) & """" & _
+            " id=""" & ex_Helpers.m_EscapeXmlAttr(VBA.CStr(m_UiOptionIds(i))) & """" & _
+            " action=""" & ex_Helpers.m_EscapeXmlAttr(VBA.CStr(m_UiOptionActionMacros(i))) & """" & _
+                " rawValue=""" & ex_Helpers.m_EscapeXmlAttr(ex_Helpers.m_GetSnapshotRawValueText(m_UiOptionRawItems, i, VBA.CStr(m_UiOptionIds(i)))) & """" & _
             " />"
     Next i
 
@@ -526,7 +526,7 @@ Public Function TryDeserializeSnapshot(ByVal snapshotXml As String) As Boolean
     Dim itemActionMacros As Collection
     Dim itemRawItems As Collection
     Dim selectedIndex As Long
-    Dim runtimeIsOpen As Boolean
+    Dim isDropdownExpanded As Boolean
     Dim headerShapeName As String
     Dim panelShapeName As String
     Dim layoutSheetName As String
@@ -558,7 +558,7 @@ Public Function TryDeserializeSnapshot(ByVal snapshotXml As String) As Boolean
     m_PanelStyleName = VBA.Trim$(VBA.CStr(root.getAttribute("panelStyle")))
     m_ItemHeight = ex_Helpers.m_ReadSnapshotDoubleAttr(root, "itemHeight", DEFAULT_ITEM_HEIGHT)
     m_ItemMargin = ex_Helpers.m_ReadSnapshotDoubleAttr(root, "itemMargin", DEFAULT_ITEM_MARGIN)
-    runtimeIsOpen = ex_Helpers.m_ReadSnapshotBooleanAttr(root, "isOpen", False)
+    isDropdownExpanded = ex_Helpers.m_ReadSnapshotBooleanAttr(root, "isOpen", False)
     isConfiguredAttr = VBA.LCase$(VBA.Trim$(VBA.CStr(root.getAttribute("isConfigured"))))
     layoutSheetName = VBA.Trim$(VBA.CStr(root.getAttribute("sheet")))
     layoutRowStart = ex_Helpers.m_ReadSnapshotLongAttr(root, "rowStart", 1)
@@ -630,7 +630,7 @@ Public Function TryDeserializeSnapshot(ByVal snapshotXml As String) As Boolean
         selectedIndex = 0
     End If
 
-    If Not private_InitializeRuntimeState( _
+    If Not private_InitializeUiState( _
         headerShapeName:=headerShapeName, _
         panelShapeName:=panelShapeName, _
         itemShapeNames:=itemShapeNames, _
@@ -640,12 +640,12 @@ Public Function TryDeserializeSnapshot(ByVal snapshotXml As String) As Boolean
         itemRawItems:=itemRawItems, _
         selectedIndex:=selectedIndex) Then Exit Function
 
-    If Not private_SyncStaticBuffersFromRuntime() Then Exit Function
+    If Not private_SyncStaticBuffersFromUiState() Then Exit Function
 
-    m_RuntimeIsOpen = runtimeIsOpen
-    If Not private_ApplyRuntimeVisualState() Then Exit Function
+    m_IsDropdownExpanded = isDropdownExpanded
+    If Not private_ApplyUiStateToShapes() Then Exit Function
 
-    If Not private_TryBindRuntimeRoutes(ws, headerShapeName, itemShapeNames) Then Exit Function
+    If Not private_TryBindUiRoutes(ws, headerShapeName, itemShapeNames) Then Exit Function
 
     If isConfiguredAttr = "false" Or isConfiguredAttr = "0" Then
         m_IsConfigured = False
@@ -658,7 +658,7 @@ End Function
 ' //
 ' // Internal
 ' //
-Private Function private_TryBindRuntimeRoutes( _
+Private Function private_TryBindUiRoutes( _
     ByVal ws As Worksheet, _
     ByVal headerShapeName As String, _
     ByVal itemShapeNames As Collection _
@@ -690,7 +690,7 @@ Private Function private_TryBindRuntimeRoutes( _
         Exit Function
     End If
 
-    Set headerShape = private_GetRuntimeShapeByName(ws, headerShapeName)
+    Set headerShape = private_GetUiShapeByName(ws, headerShapeName)
     If headerShape Is Nothing Then
 #If LOGGING_DEBUG_ENABLED Then
         ex_Core.m_Diagnostic_LogError "select:bind-routes header-shape-missing control='" & VBA.Replace$(VBA.Trim$(m_ControlName), "'", "''") & "' shape='" & VBA.Replace$(VBA.Trim$(headerShapeName), "'", "''") & "'"
@@ -705,7 +705,7 @@ Private Function private_TryBindRuntimeRoutes( _
     End If
 
     For i = 1 To itemShapeNames.Count
-        Set itemShape = private_GetRuntimeShapeByName(ws, VBA.CStr(itemShapeNames(i)))
+        Set itemShape = private_GetUiShapeByName(ws, VBA.CStr(itemShapeNames(i)))
         If itemShape Is Nothing Then
 #If LOGGING_DEBUG_ENABLED Then
             ex_Core.m_Diagnostic_LogError "select:bind-routes item-shape-missing control='" & VBA.Replace$(VBA.Trim$(m_ControlName), "'", "''") & "' index=" & VBA.CStr(i)
@@ -740,7 +740,7 @@ Private Function private_TryBindRuntimeRoutes( _
 #End If
         Exit Function
     End If
-    If Not m_PageBase.RegisterShapeRoute(headerShape.Name, selectId, "RuntimeHandleHeaderClick", False) Then
+    If Not m_PageBase.RegisterShapeRoute(headerShape.Name, selectId, "HandleHeaderClick", False) Then
 #If LOGGING_DEBUG_ENABLED Then
         ex_Core.m_Diagnostic_LogError "select:bind-routes register-header-route-failed control='" & VBA.Replace$(VBA.Trim$(m_ControlName), "'", "''") & "' shape='" & VBA.Replace$(VBA.Trim$(headerShape.Name), "'", "''") & "'"
 #End If
@@ -748,7 +748,7 @@ Private Function private_TryBindRuntimeRoutes( _
     End If
 
     For i = 1 To itemShapeNames.Count
-        If Not m_PageBase.RegisterShapeRoute(VBA.CStr(itemShapeNames(i)), selectId, "RuntimeHandleItemClick", True, VBA.CLng(i)) Then
+        If Not m_PageBase.RegisterShapeRoute(VBA.CStr(itemShapeNames(i)), selectId, "HandleOptionClick", True, VBA.CLng(i)) Then
 #If LOGGING_DEBUG_ENABLED Then
             ex_Core.m_Diagnostic_LogError "select:bind-routes register-item-route-failed control='" & VBA.Replace$(VBA.Trim$(m_ControlName), "'", "''") & "' index=" & VBA.CStr(i)
 #End If
@@ -759,7 +759,7 @@ Private Function private_TryBindRuntimeRoutes( _
 #If LOGGING_DEBUG_ENABLED Then
     ex_Core.m_Diagnostic_LogInfo "select:bind-routes ok control='" & VBA.Replace$(VBA.Trim$(m_ControlName), "'", "''") & "' items=" & VBA.CStr(itemShapeNames.Count) & " macro='" & VBA.Replace$(callbackMacroRef, "'", "''") & "'"
 #End If
-    private_TryBindRuntimeRoutes = True
+    private_TryBindUiRoutes = True
 End Function
 
 Private Function private_TrySetShapeOnAction(ByVal shp As Shape, ByVal callbackMacroRef As String) As Boolean
@@ -781,13 +781,13 @@ Private Function private_TrySetShapeOnAction(ByVal shp As Shape, ByVal callbackM
     private_TrySetShapeOnAction = True
 End Function
 
-Private Function private_SyncStaticBuffersFromRuntime() As Boolean
+Private Function private_SyncStaticBuffersFromUiState() As Boolean
     Dim i As Long
 
-    If m_RuntimeItemCaptions Is Nothing Then Exit Function
-    If m_RuntimeItemIds Is Nothing Then Exit Function
-    If m_RuntimeItemActionMacros Is Nothing Then Exit Function
-    If m_RuntimeItemRawItems Is Nothing Then Exit Function
+    If m_UiOptionCaptions Is Nothing Then Exit Function
+    If m_UiOptionIds Is Nothing Then Exit Function
+    If m_UiOptionActionMacros Is Nothing Then Exit Function
+    If m_UiOptionRawItems Is Nothing Then Exit Function
 
     Set m_Items = New Collection
     Set m_ItemCaptions = New Collection
@@ -795,18 +795,18 @@ Private Function private_SyncStaticBuffersFromRuntime() As Boolean
     Set m_ItemActionMacros = New Collection
     Set m_ItemRawItems = New Collection
 
-    For i = 1 To m_RuntimeItemCaptions.Count
-        m_ItemCaptions.Add VBA.CStr(m_RuntimeItemCaptions(i))
-        m_ItemIds.Add VBA.CStr(m_RuntimeItemIds(i))
-        m_ItemActionMacros.Add VBA.CStr(m_RuntimeItemActionMacros(i))
-        m_ItemRawItems.Add m_RuntimeItemRawItems(i)
-        m_Items.Add m_RuntimeItemRawItems(i)
+    For i = 1 To m_UiOptionCaptions.Count
+        m_ItemCaptions.Add VBA.CStr(m_UiOptionCaptions(i))
+        m_ItemIds.Add VBA.CStr(m_UiOptionIds(i))
+        m_ItemActionMacros.Add VBA.CStr(m_UiOptionActionMacros(i))
+        m_ItemRawItems.Add m_UiOptionRawItems(i)
+        m_Items.Add m_UiOptionRawItems(i)
     Next i
 
-    private_SyncStaticBuffersFromRuntime = True
+    private_SyncStaticBuffersFromUiState = True
 End Function
 
-Private Function private_InitializeRuntimeState( _
+Private Function private_InitializeUiState( _
     ByVal headerShapeName As String, _
     ByVal panelShapeName As String, _
     ByVal itemShapeNames As Collection, _
@@ -818,7 +818,7 @@ Private Function private_InitializeRuntimeState( _
 ) As Boolean
     Dim selectedId As String
 
-    ' Runtime-state хранит shape-имена и коллекции, с которыми работает click handler.
+    ' UI-state хранит shape-имена и коллекции, с которыми работает click handler.
     ' Это позволяет обрабатывать клики без повторного рендера.
     If itemShapeNames Is Nothing Or itemCaptions Is Nothing Or itemIds Is Nothing Or itemActionMacros Is Nothing Or itemRawItems Is Nothing Then
 #If LOGGING_DEBUG_ENABLED Then
@@ -827,32 +827,32 @@ Private Function private_InitializeRuntimeState( _
         Exit Function
     End If
 
-    m_RuntimeHeaderShapeName = VBA.CStr(headerShapeName)
-    m_RuntimePanelShapeName = VBA.CStr(panelShapeName)
-    Set m_RuntimeItemShapeNames = itemShapeNames
-    Set m_RuntimeItemCaptions = itemCaptions
-    Set m_RuntimeItemIds = itemIds
-    Set m_RuntimeItemActionMacros = itemActionMacros
-    Set m_RuntimeItemRawItems = itemRawItems
-    m_RuntimeIsOpen = False
+    m_UiHeaderShapeName = VBA.CStr(headerShapeName)
+    m_UiDropdownPanelShapeName = VBA.CStr(panelShapeName)
+    Set m_UiOptionShapeNames = itemShapeNames
+    Set m_UiOptionCaptions = itemCaptions
+    Set m_UiOptionIds = itemIds
+    Set m_UiOptionActionMacros = itemActionMacros
+    Set m_UiOptionRawItems = itemRawItems
+    m_IsDropdownExpanded = False
 
     m_SelectedIndex = selectedIndex
     If m_SelectedIndex < 0 Then m_SelectedIndex = 0
-    If m_SelectedIndex > m_RuntimeItemCaptions.Count Then m_SelectedIndex = 0
+    If m_SelectedIndex > m_UiOptionCaptions.Count Then m_SelectedIndex = 0
 
     ' Первичная отрисовка состояния (текст header + видимость panel/items).
-    If Not private_ApplyRuntimeVisualState() Then Exit Function
+    If Not private_ApplyUiStateToShapes() Then Exit Function
 
-    If Me.RuntimeHasSelectedItem() Then
+    If Me.HasSelectedOption() Then
         ' Сразу синхронизируем persistent state.
         selectedId = Me.GetSelectedId()
         If Not private_TryPersistSelectedId(selectedId) Then Exit Function
     End If
 
-    private_InitializeRuntimeState = True
+    private_InitializeUiState = True
 End Function
 
-Private Function private_ApplyRuntimeVisualState() As Boolean
+Private Function private_ApplyUiStateToShapes() As Boolean
     Dim ws As Worksheet
     Dim headerShape As Shape
     Dim panelShape As Shape
@@ -860,30 +860,35 @@ Private Function private_ApplyRuntimeVisualState() As Boolean
     Dim i As Long
     Dim headerText As String
 
-    If VBA.Len(m_RuntimeHeaderShapeName) = 0 Then Exit Function
-    If m_RuntimeItemShapeNames Is Nothing Then Exit Function
-    If m_RuntimeItemCaptions Is Nothing Then Exit Function
+    If VBA.Len(m_UiHeaderShapeName) = 0 Then Exit Function
+    If m_UiOptionShapeNames Is Nothing Then Exit Function
+    If m_UiOptionCaptions Is Nothing Then Exit Function
 
     Set ws = ex_HelpersSheet.m_GetRuntimeWorksheetByName(m_ControlLayout.LayoutSheetName)
     If ws Is Nothing Then Exit Function
 
-    Set headerShape = private_GetRuntimeShapeByName(ws, m_RuntimeHeaderShapeName)
+    Set headerShape = private_GetUiShapeByName(ws, m_UiHeaderShapeName)
     If headerShape Is Nothing Then Exit Function
 
-    Set panelShape = private_GetRuntimeShapeByName(ws, m_RuntimePanelShapeName)
+    Set panelShape = private_GetUiShapeByName(ws, m_UiDropdownPanelShapeName)
+
+    If m_IsDropdownExpanded Then
+        Call private_ReanchorDropdownToHeader(ws, headerShape, panelShape)
+        Set panelShape = private_GetUiShapeByName(ws, m_UiDropdownPanelShapeName)
+    End If
 
     ' Header показывает либо выбранный caption, либо placeholder.
-    If Me.RuntimeHasSelectedItem() Then
+    If Me.HasSelectedOption() Then
         headerText = Me.GetSelectedCaption()
     Else
         headerText = m_PlaceholderText
     End If
 
-    If m_RuntimeItemShapeNames.Count = 0 Then
-        m_RuntimeIsOpen = False
+    If m_UiOptionShapeNames.Count = 0 Then
+        m_IsDropdownExpanded = False
     End If
 
-    If m_RuntimeIsOpen Then
+    If m_IsDropdownExpanded Then
         headerText = headerText & " ^"
     Else
         headerText = headerText & " v"
@@ -893,16 +898,16 @@ Private Function private_ApplyRuntimeVisualState() As Boolean
 
     ' Open/close panel + item-shapes.
     If Not panelShape Is Nothing Then
-        panelShape.Visible = VBA.IIf(m_RuntimeIsOpen, msoTrue, msoFalse)
-        If m_RuntimeIsOpen Then panelShape.ZOrder msoBringToFront
+        panelShape.Visible = VBA.IIf(m_IsDropdownExpanded, msoTrue, msoFalse)
+        If m_IsDropdownExpanded Then panelShape.ZOrder msoBringToFront
     End If
 
-    For i = 1 To m_RuntimeItemShapeNames.Count
-        Set itemShape = private_GetRuntimeShapeByName(ws, VBA.CStr(m_RuntimeItemShapeNames(i)))
+    For i = 1 To m_UiOptionShapeNames.Count
+        Set itemShape = private_GetUiShapeByName(ws, VBA.CStr(m_UiOptionShapeNames(i)))
         If itemShape Is Nothing Then GoTo ContinueItem
 
-        itemShape.Visible = VBA.IIf(m_RuntimeIsOpen, msoTrue, msoFalse)
-        If m_RuntimeIsOpen Then itemShape.ZOrder msoBringToFront
+        itemShape.Visible = VBA.IIf(m_IsDropdownExpanded, msoTrue, msoFalse)
+        If m_IsDropdownExpanded Then itemShape.ZOrder msoBringToFront
 
         ' Выделяем выбранный item через Bold.
         On Error Resume Next
@@ -913,25 +918,92 @@ Private Function private_ApplyRuntimeVisualState() As Boolean
 ContinueItem:
     Next i
 
-    private_ApplyRuntimeVisualState = True
+    private_ApplyUiStateToShapes = True
 End Function
 
-Private Function private_GetRuntimeCollectionText(ByVal values As Collection, ByVal idx As Long) As String
+Private Function private_ReanchorDropdownToHeader( _
+    ByVal ws As Worksheet, _
+    ByVal headerShape As Shape, _
+    ByVal panelShape As Shape _
+) As Boolean
+    Dim itemShape As Shape
+    Dim itemTop As Double
+    Dim itemWidth As Double
+    Dim panelLeft As Double
+    Dim panelTop As Double
+    Dim panelWidth As Double
+    Dim panelHeight As Double
+    Dim i As Long
+    Dim renderItemCount As Long
+
+    If ws Is Nothing Then Exit Function
+    If headerShape Is Nothing Then Exit Function
+
+    If m_UiOptionShapeNames Is Nothing Then
+        private_ReanchorDropdownToHeader = True
+        Exit Function
+    End If
+
+    renderItemCount = m_UiOptionShapeNames.Count
+    panelLeft = headerShape.Left
+    panelTop = headerShape.Top + headerShape.Height
+    panelWidth = headerShape.Width
+    panelHeight = private_CalcPanelHeight(renderItemCount)
+
+    If panelShape Is Nothing Then
+        Set panelShape = private_GetUiShapeByName(ws, m_UiDropdownPanelShapeName)
+    End If
+
+    If Not panelShape Is Nothing Then
+        On Error Resume Next
+        panelShape.Left = panelLeft
+        panelShape.Top = panelTop
+        panelShape.Width = panelWidth
+        If renderItemCount > 0 Then
+            panelShape.Height = panelHeight
+        Else
+            panelShape.Height = headerShape.Height
+        End If
+        If Err.Number <> 0 Then Err.Clear
+        On Error GoTo 0
+    End If
+
+    itemWidth = panelWidth
+    For i = 1 To renderItemCount
+        Set itemShape = private_GetUiShapeByName(ws, VBA.CStr(m_UiOptionShapeNames(i)))
+        If itemShape Is Nothing Then GoTo ContinueItem
+
+        itemTop = panelTop + VBA.CDbl(i - 1) * (m_ItemHeight + m_ItemMargin)
+        On Error Resume Next
+        itemShape.Left = panelLeft
+        itemShape.Top = itemTop
+        itemShape.Width = itemWidth
+        itemShape.Height = m_ItemHeight
+        If Err.Number <> 0 Then Err.Clear
+        On Error GoTo 0
+
+ContinueItem:
+    Next i
+
+    private_ReanchorDropdownToHeader = True
+End Function
+
+Private Function private_GetOptionCollectionText(ByVal values As Collection, ByVal idx As Long) As String
     If values Is Nothing Then Exit Function
     If idx <= 0 Or idx > values.Count Then Exit Function
-    private_GetRuntimeCollectionText = VBA.Trim$(VBA.CStr(values(idx)))
+    private_GetOptionCollectionText = VBA.Trim$(VBA.CStr(values(idx)))
 End Function
 
-Private Function private_RunRuntimeMacro(ByVal macroRef As String) As Boolean
+Private Function private_RunOptionMacro(ByVal macroRef As String) As Boolean
     macroRef = VBA.Trim$(macroRef)
     If VBA.Len(macroRef) = 0 Then
-        private_RunRuntimeMacro = True
+        private_RunOptionMacro = True
         Exit Function
     End If
 
     On Error GoTo EH_RUN
     Application.Run macroRef
-    private_RunRuntimeMacro = True
+    private_RunOptionMacro = True
     Exit Function
 
 EH_RUN:
@@ -1252,11 +1324,7 @@ Private Function private_CreateShapeByRange( _
     End Select
 
     On Error Resume Next
-    If shapeRole = "header" Then
-        shp.Placement = xlMoveAndSize
-    Else
-        shp.Placement = xlFreeFloating
-    End If
+    shp.Placement = xlMoveAndSize
     Err.Clear
     On Error GoTo EH_SHAPE
 
@@ -1336,11 +1404,7 @@ Private Function private_CreateShapeByBounds( _
     End Select
 
     On Error Resume Next
-    If shapeRole = "header" Then
-        shp.Placement = xlMoveAndSize
-    Else
-        shp.Placement = xlFreeFloating
-    End If
+    shp.Placement = xlMoveAndSize
     Err.Clear
     On Error GoTo EH_SHAPE
 
@@ -1576,12 +1640,12 @@ Private Function private_TryParseFlexibleDouble(ByVal rawText As String, ByRef o
     private_TryParseFlexibleDouble = True
 End Function
 
-Private Function private_GetRuntimeShapeByName(ByVal ws As Worksheet, ByVal shapeName As String) As Shape
+Private Function private_GetUiShapeByName(ByVal ws As Worksheet, ByVal shapeName As String) As Shape
     If ws Is Nothing Then Exit Function
     If VBA.Len(VBA.Trim$(shapeName)) = 0 Then Exit Function
 
     On Error Resume Next
-    Set private_GetRuntimeShapeByName = ws.Shapes(shapeName)
+    Set private_GetUiShapeByName = ws.Shapes(shapeName)
     On Error GoTo 0
 End Function
 
