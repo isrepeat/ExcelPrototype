@@ -9,6 +9,7 @@ Option Explicit
 
 Private m_Worksheet As Worksheet
 Private m_UiPath As String
+Private m_LastRenderedUiPath As String
 Private m_PageId As String
 Private m_PageType As Long
 Private m_UiDom As Object
@@ -67,6 +68,7 @@ Public Function Initialize( _
 
     Set m_Worksheet = ws
     m_UiPath = VBA.Trim$(uiPath)
+    m_LastRenderedUiPath = VBA.vbNullString
     m_PageType = VBA.CLng(pageType)
     m_PageId = VBA.Trim$(pageId)
     If VBA.Len(m_PageId) = 0 Then
@@ -95,6 +97,7 @@ Public Sub Dispose(Optional ByVal deleteWorksheet As Boolean = True)
     Set ws = m_Worksheet
     Set m_Worksheet = Nothing
     m_UiPath = VBA.vbNullString
+    m_LastRenderedUiPath = VBA.vbNullString
     m_PageId = VBA.vbNullString
     m_PageType = 0
     Set m_UiDom = Nothing
@@ -197,7 +200,9 @@ Public Function Render() As Boolean
     Dim wb As Workbook
     Dim ws As Worksheet
     Dim app As Application
+    Dim previousUiPath As String
     Dim resolvedUiPath As String
+    Dim retainGeneratedShapes As Boolean
     Dim pageNode As Object
     Dim prevScreenUpdating As Boolean
     Dim prevEnableEvents As Boolean
@@ -223,6 +228,9 @@ Public Function Render() As Boolean
         Exit Function
     End If
 
+    ' Важно: retained-mode должен сравнивать с последним УСПЕШНО отрендеренным UI,
+    ' а не с m_UiPath (он может быть уже заменен через UpdateUiPath до входа в Render).
+    previousUiPath = VBA.Trim$(m_LastRenderedUiPath)
     ' Вычисляем фактический путь к разметке страницы для текущего рендера.
     resolvedUiPath = private_ResolvePageUiPath(m_UiPath)
     If VBA.Len(resolvedUiPath) = 0 Then
@@ -250,6 +258,7 @@ Public Function Render() As Boolean
     End If
 
     m_UiPath = resolvedUiPath
+    retainGeneratedShapes = private_ShouldRetainGeneratedShapes(previousUiPath, resolvedUiPath)
     m_IsRendering = True
     Set app = Application
     private_EnterFastRenderMode app, prevScreenUpdating, prevEnableEvents, prevDisplayAlerts, prevCalculation, prevStatusBar
@@ -261,7 +270,7 @@ Public Function Render() As Boolean
     ex_ControlRefreshRuntime.m_ResetRegisteredControls
 
     If Not Me.ResetControlActions() Then GoTo Cleanup
-    If Not private_TryClearPageRuntime() Then GoTo Cleanup
+    If Not private_TryClearPageRuntime(Not retainGeneratedShapes) Then GoTo Cleanup
     ' Один контекст на один проход: worksheet/workbook и seed-ы runtime ключей.
     Set layoutRenderContext = New obj_LayoutRenderContext
     If Not layoutRenderContext.Initialize(Me) Then GoTo Cleanup
@@ -269,9 +278,16 @@ Public Function Render() As Boolean
     If Not ex_StylePipelineEngine.m_ApplyPageStyles(ws, m_UiDom) Then GoTo Cleanup
     If Not Me.ApplyInlineRuns() Then GoTo Cleanup
 
+    ' В retained-режиме глобально shape не удаляем до рендера.
+    ' После рендера чистим только orphan-shape (контролы, которые больше не присутствуют в текущем layout).
+    If retainGeneratedShapes Then
+        Call private_DeleteOrphanRuntimeShapesByControlRegistry(ws)
+    End If
+
     private_LogRuntimeInfo "render-bindings controls=" & VBA.CStr(private_GetDictionaryCount(m_ControlByKey)) & " routes=" & VBA.CStr(private_GetDictionaryCount(m_RouteByShape))
 
     Render = True
+    m_LastRenderedUiPath = resolvedUiPath
 
 Cleanup:
     private_LeaveFastRenderMode app, prevScreenUpdating, prevEnableEvents, prevDisplayAlerts, prevCalculation, prevStatusBar
@@ -874,18 +890,16 @@ Public Function TryRestoreSerializableControlSnapshots(ByVal snapshots As Collec
     Dim iSerializable As obj_ISerializable
 
     If Not private_EnsureNotDisposed("TryRestoreSerializableControlSnapshots") Then Exit Function
-    ' В restore-фазе страница уже отрисована и non-serializable контролы
-    ' (например Config) должны остаться в реестре.
-    ' Поэтому здесь чистим только serializable-контролы и их shape-роуты:
-    ' удаляем их текущие runtime-записи и затем восстанавливаем из snapshot.
-    ' Это сохраняет целостность snapshot-state для serializable VM и не
-    ' "выбрасывает" non-serializable VM, зарегистрированные обычным Render().
-    If Not private_TryResetSerializableControlActions() Then Exit Function
-
     If snapshots Is Nothing Then
         TryRestoreSerializableControlSnapshots = True
         Exit Function
     End If
+
+    ' В restore-фазе страница уже отрисована.
+    ' Важно: нельзя удалять все serializable-контролы, иначе новые контролы,
+    ' которых еще нет в старом snapshot, выпадут из runtime-реестра/route-map.
+    ' Поэтому удаляем только те controlKey, которые реально присутствуют в snapshots.
+    If Not private_TryResetSnapshotControlsActions(snapshots) Then Exit Function
 
     For Each item In snapshots
         snapshotXml = VBA.Trim$(VBA.CStr(item))
@@ -1276,7 +1290,7 @@ End Sub
 ' //
 ' // Internal
 ' //
-Private Function private_TryClearPageRuntime() As Boolean
+Private Function private_TryClearPageRuntime(Optional ByVal deleteGeneratedShapes As Boolean = True) As Boolean
     Dim ws As Worksheet
     Dim clearRange As Range
     Dim i As Long
@@ -1297,16 +1311,65 @@ Private Function private_TryClearPageRuntime() As Boolean
     If Not clearRange Is Nothing Then clearRange.Clear
     On Error GoTo 0
 
-    On Error Resume Next
-    For i = ws.Shapes.Count To 1 Step -1
-        If private_IsGeneratedRuntimeShape(ws.Shapes(i)) Then
-            ws.Shapes(i).Delete
-        End If
-    Next i
-    On Error GoTo 0
+    If deleteGeneratedShapes Then
+        On Error Resume Next
+        For i = ws.Shapes.Count To 1 Step -1
+            If private_IsGeneratedRuntimeShape(ws.Shapes(i)) Then
+                ws.Shapes(i).Delete
+            End If
+        Next i
+        On Error GoTo 0
+    End If
 
     private_TryClearPageRuntime = True
 End Function
+
+Private Function private_ShouldRetainGeneratedShapes(ByVal previousUiPath As String, ByVal currentUiPath As String) As Boolean
+    previousUiPath = VBA.LCase$(VBA.Trim$(previousUiPath))
+    currentUiPath = VBA.LCase$(VBA.Trim$(currentUiPath))
+    If VBA.Len(previousUiPath) = 0 Or VBA.Len(currentUiPath) = 0 Then Exit Function
+
+    ' Retained-режим используем только когда рендерим ту же самую страницу,
+    ' чтобы безопасно переиспользовать runtime-shape по стабильным именам.
+    private_ShouldRetainGeneratedShapes = (VBA.StrComp(previousUiPath, currentUiPath, VBA.vbBinaryCompare) = 0)
+End Function
+
+Private Sub private_DeleteOrphanRuntimeShapesByControlRegistry(ByVal ws As Worksheet)
+    Dim i As Long
+    Dim shp As Shape
+    Dim controlMeta As String
+    Dim activeControlNames As Object
+    Dim key As Variant
+    Dim controlName As String
+
+    If ws Is Nothing Then Exit Sub
+    If m_ControlByKey Is Nothing Then Exit Sub
+
+    Set activeControlNames = VBA.CreateObject("Scripting.Dictionary")
+    activeControlNames.CompareMode = 1
+
+    For Each key In m_ControlByKey.Keys
+        controlName = private_ExtractControlNameFromControlKey(VBA.CStr(key))
+        controlName = VBA.LCase$(VBA.Trim$(controlName))
+        If VBA.Len(controlName) = 0 Then GoTo ContinueKey
+        If Not activeControlNames.Exists(controlName) Then activeControlNames.Add controlName, True
+ContinueKey:
+    Next key
+
+    On Error Resume Next
+    For i = ws.Shapes.Count To 1 Step -1
+        Set shp = ws.Shapes(i)
+        If shp Is Nothing Then GoTo ContinueShape
+
+        controlMeta = VBA.LCase$(VBA.Trim$(ex_ShapeMetaRuntime.m_GetShapeMetaValue(shp, "pn.control", VBA.vbNullString)))
+        If VBA.Len(controlMeta) = 0 Then GoTo ContinueShape
+        If Not activeControlNames.Exists(controlMeta) Then
+            shp.Delete
+        End If
+ContinueShape:
+    Next i
+    On Error GoTo 0
+End Sub
 
 Private Function private_IsGeneratedRuntimeShape(ByVal shp As Shape) As Boolean
     Dim controlMeta As String
@@ -1677,6 +1740,47 @@ ContinueControl:
     Next removeKey
 
     private_TryResetSerializableControlActions = True
+End Function
+
+Private Function private_TryResetSnapshotControlsActions(ByVal snapshots As Collection) As Boolean
+    Dim item As Variant
+    Dim snapshotXml As String
+    Dim pageKey As String
+    Dim controlKey As String
+    Dim typeRoot As String
+    Dim payloadXml As String
+    Dim keysToRemove As Object
+    Dim removeKey As Variant
+
+    If snapshots Is Nothing Then
+        private_TryResetSnapshotControlsActions = True
+        Exit Function
+    End If
+
+    Set keysToRemove = VBA.CreateObject("Scripting.Dictionary")
+    keysToRemove.CompareMode = 1
+
+    For Each item In snapshots
+        snapshotXml = VBA.Trim$(VBA.CStr(item))
+        If VBA.Len(snapshotXml) = 0 Then GoTo ContinueSnapshot
+
+        pageKey = VBA.vbNullString
+        controlKey = VBA.vbNullString
+        typeRoot = VBA.vbNullString
+        payloadXml = VBA.vbNullString
+        If Not Me.TryDeserializeControlSnapshotEnvelope(snapshotXml, pageKey, controlKey, typeRoot, payloadXml) Then GoTo ContinueSnapshot
+
+        controlKey = VBA.LCase$(VBA.Trim$(controlKey))
+        If VBA.Len(controlKey) = 0 Then GoTo ContinueSnapshot
+        If Not keysToRemove.Exists(controlKey) Then keysToRemove.Add controlKey, True
+ContinueSnapshot:
+    Next item
+
+    For Each removeKey In keysToRemove.Keys
+        If Not Me.UnregisterControl(VBA.CStr(removeKey)) Then Exit Function
+    Next removeKey
+
+    private_TryResetSnapshotControlsActions = True
 End Function
 
 Private Function private_TryCastSerializableControl(ByVal iControl As Object, ByRef outSerializableControl As obj_ISerializable) As Boolean
