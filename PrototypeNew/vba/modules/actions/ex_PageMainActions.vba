@@ -5,6 +5,8 @@ Option Explicit
 
 Private Const MODES_ROOT_REL_PATH As String = "modes"
 Private Const MODE_PROFILES_FILE_SUFFIX As String = "Profiles.xml"
+Private Const MODE_ON_SELECT_MACRO As String = "ex_PageMainActions.m_OnConfigModeChanged"
+Private Const PROFILE_ON_SELECT_MACRO As String = "ex_PageMainActions.m_OnConfigProfileChanged"
 Private Const MODE_PICKER_CONTROL_NAME As String = "ConfigModePicker"
 Private Const PROFILE_PICKER_CONTROL_NAME As String = "ConfigProfilePicker"
 Private Const CONFIG_CONTROL_NAME As String = "DevConfig"
@@ -12,11 +14,23 @@ Private Const MODES_RUNTIME_KEY As String = "RuntimeItems.PageMain.ConfigModes"
 Private Const PROFILES_RUNTIME_KEY As String = "RuntimeItems.PageMain.ConfigProfiles"
 Private Const CONFIG_RUNTIME_KEY As String = "RuntimeItems.PageMain.Config"
 
+Private m_ModeItemsProvider As obj_SIP_ModeFolders
+Private m_ProfileItemsProvider As obj_SIP_ModeProfilesXml
+Private m_SelectItemsProvidersReady As Boolean
+
 Public Sub m_Module_Dispose()
     private_LogEnter "m_Module_Dispose"
 #If LOGGING_VERBOSE_ENABLED Then
     ex_Core.m_Diagnostic_LogInfo "lifecycle:ex_PageMainActions.m_Module_Dispose"
 #End If
+    On Error Resume Next
+    Call ex_SelectItemsSourceProviders.m_UnregisterProvider(MODES_RUNTIME_KEY)
+    Call ex_SelectItemsSourceProviders.m_UnregisterProvider(PROFILES_RUNTIME_KEY)
+    On Error GoTo 0
+
+    Set m_ModeItemsProvider = Nothing
+    Set m_ProfileItemsProvider = Nothing
+    m_SelectItemsProvidersReady = False
 End Sub
 
 
@@ -31,6 +45,75 @@ Public Function m_OnConfigModeChanged( _
     ' После смены режима нужно пересобрать runtime-источники.
     If Not private_TryPrepareModeProfileConfigRuntime(notifyChange, preferredPageBase) Then Exit Function
     m_OnConfigModeChanged = True
+End Function
+
+
+Public Function m_OnConfigModeDropDownOpened( _
+    Optional ByVal preferredPageBase As Object _
+)
+    private_LogEnter "m_OnConfigModeDropDownOpened"
+    Dim pageBase As obj_PageBase
+    Dim modeOptions As Collection
+    Dim usedCache As Boolean
+    Dim existingModeItems As Collection
+
+    ' DropDownOpened у mode-select обновляет только source режимов.
+    ' Сам select после callback перечитывает source и перерисовывает dropdown.
+    If Not private_TryResolvePageBase(pageBase, preferredPageBase) Then Exit Function
+    If pageBase Is Nothing Then Exit Function
+
+    If Not private_TryBuildModeSelectOptions(modeOptions, usedCache) Then Exit Function
+
+    ' Если получили cache-hit и источник уже зарегистрирован на странице,
+    ' повторная запись SetItemsSource не нужна.
+    If usedCache Then
+        If pageBase.RuntimeSources.TryGetItemsSourceByKey(MODES_RUNTIME_KEY, existingModeItems, True) Then
+            If Not existingModeItems Is Nothing Then
+#If LOGGING_DEBUG_ENABLED Then
+                ex_Core.m_Diagnostic_LogInfo "config-modes: skip-setitemsource reason='cache-hit-runtime-present'"
+#End If
+                m_OnConfigModeDropDownOpened = True
+                Exit Function
+            End If
+        End If
+    End If
+
+    If Not private_TrySetItemsSource(MODES_RUNTIME_KEY, modeOptions, False, pageBase) Then Exit Function
+
+    m_OnConfigModeDropDownOpened = True
+End Function
+
+
+Public Function m_OnConfigProfileDropDownOpened( _
+    Optional ByVal preferredPageBase As Object _
+)
+    private_LogEnter "m_OnConfigProfileDropDownOpened"
+    Dim pageBase As obj_PageBase
+    Dim ws As Worksheet
+    Dim modeOptions As Collection
+    Dim profileOptions As Collection
+    Dim selectedModeId As String
+    Dim profileFilePath As String
+
+    ' DropDownOpened у profile-select пересобирает:
+    ' 1) актуальные режимы
+    ' 2) профили для текущего выбранного режима
+    If Not private_TryResolvePageBase(pageBase, preferredPageBase) Then Exit Function
+    If pageBase Is Nothing Then Exit Function
+    Set ws = pageBase.Worksheet
+    If ws Is Nothing Then
+        private_ReportRuntimeConfigError "PrototypeNew: worksheet is not specified for profile dropdown refresh."
+        Exit Function
+    End If
+
+    If Not private_TryBuildModeSelectOptions(modeOptions) Then Exit Function
+    If Not private_TrySetItemsSource(MODES_RUNTIME_KEY, modeOptions, False, pageBase) Then Exit Function
+    If Not private_TryResolveSelectedIdForControl(ws, MODE_PICKER_CONTROL_NAME, modeOptions, selectedModeId) Then Exit Function
+
+    If Not private_TryBuildProfileSelectOptionsByMode(selectedModeId, profileOptions, profileFilePath) Then Exit Function
+    If Not private_TrySetItemsSource(PROFILES_RUNTIME_KEY, profileOptions, False, pageBase) Then Exit Function
+
+    m_OnConfigProfileDropDownOpened = True
 End Function
 
 
@@ -314,94 +397,71 @@ Private Function private_TryLoadProfileDomAndNode( _
 End Function
 
 
-Private Function private_GetModesRootFolderPath() As String
-    private_LogEnter "private_GetModesRootFolderPath"
-    ' Режимы всегда ожидаются рядом с Excel-файлом: <WorkbookPath>\modes
-    private_GetModesRootFolderPath = VBA.Trim$(ex_XmlCore.m_CombineBasePath(ThisWorkbook, MODES_ROOT_REL_PATH))
-End Function
-
-
-Private Function private_IsSafeModeId(ByVal modeId As String) As Boolean
-    private_LogEnter "private_IsSafeModeId"
-    ' Минимальная защита от path traversal и инъекций в имя режима.
-    modeId = VBA.Trim$(modeId)
-    If VBA.Len(modeId) = 0 Then Exit Function
-    If VBA.InStr(1, modeId, "\", VBA.vbBinaryCompare) > 0 Then Exit Function
-    If VBA.InStr(1, modeId, "/", VBA.vbBinaryCompare) > 0 Then Exit Function
-    If VBA.InStr(1, modeId, ":", VBA.vbBinaryCompare) > 0 Then Exit Function
-    If VBA.InStr(1, modeId, "..", VBA.vbBinaryCompare) > 0 Then Exit Function
-
-    private_IsSafeModeId = True
-End Function
-
-
-Private Function private_BuildModeProfilesFilePath(ByVal modeId As String) As String
-    private_LogEnter "private_BuildModeProfilesFilePath"
-    Dim modesRootPath As String
-
-    modeId = VBA.Trim$(modeId)
-    ' Проверяем, что mode id безопасен для подстановки в путь.
-    If Not private_IsSafeModeId(modeId) Then
-        private_ReportRuntimeConfigError "PrototypeNew: unsafe mode id '" & modeId & "'."
-        Exit Function
-    End If
-
-    modesRootPath = private_GetModesRootFolderPath()
-    If VBA.Len(modesRootPath) = 0 Then
-        private_ReportRuntimeConfigError "PrototypeNew: failed to resolve modes root path."
-        Exit Function
-    End If
-
-    private_BuildModeProfilesFilePath = modesRootPath & "\" & modeId & "\" & modeId & MODE_PROFILES_FILE_SUFFIX
-End Function
-
-
-Private Function private_TryBuildModeSelectOptions(ByRef outOptions As Collection) As Boolean
+Private Function private_TryBuildModeSelectOptions( _
+    ByRef outOptions As Collection, _
+    Optional ByRef outUsedCache As Boolean = False _
+) As Boolean
     private_LogEnter "private_TryBuildModeSelectOptions"
-    Dim modesRootPath As String
-    Dim folderName As String
-    Dim folderPath As String
-    Dim folderAttr As Long
-    Dim optionItem As obj_SelectOption
 
-    ' Собираем SelectOption по подпапкам modes.
-    Set outOptions = New Collection
-    modesRootPath = private_GetModesRootFolderPath()
-    If VBA.Len(modesRootPath) = 0 Then
-        private_ReportRuntimeConfigError "PrototypeNew: failed to resolve modes root path."
+    Set outOptions = Nothing
+    outUsedCache = False
+
+    ' Новый подход:
+    ' 1) ex_PageMainActions не знает деталей кеша/сканирования;
+    ' 2) просто запрашивает items по providerKey;
+    ' 3) provider+manager решают: cache-hit или rebuild.
+    If Not private_TryEnsureSelectItemsProvidersRegistered() Then Exit Function
+    If Not ex_SelectItemsSourceProviders.m_TryResolveItemsByProviderKey(MODES_RUNTIME_KEY, outOptions, outUsedCache) Then Exit Function
+    If outOptions Is Nothing Then
+        private_ReportRuntimeConfigError "PrototypeNew: mode source provider returned empty collection."
         Exit Function
     End If
-
-    If VBA.Len(Dir$(modesRootPath, vbDirectory)) = 0 Then
-        private_ReportRuntimeConfigError "PrototypeNew: modes folder was not found: " & modesRootPath
-        Exit Function
-    End If
-
-    folderName = Dir$(modesRootPath & "\*", vbDirectory)
-    Do While VBA.Len(folderName) > 0
-        If VBA.StrComp(folderName, ".", VBA.vbBinaryCompare) <> 0 And VBA.StrComp(folderName, "..", VBA.vbBinaryCompare) <> 0 Then
-            folderPath = modesRootPath & "\" & folderName
-            On Error Resume Next
-            folderAttr = GetAttr(folderPath)
-            If Err.Number = 0 Then
-                If (folderAttr And vbDirectory) = vbDirectory Then
-                    Set optionItem = private_CreateSelectOption(folderName, folderName, "ex_PageMainActions.m_OnConfigModeChanged")
-                    outOptions.Add optionItem
-                End If
-            End If
-            Err.Clear
-            On Error GoTo 0
-        End If
-
-        folderName = Dir$
-    Loop
-
     If outOptions.Count = 0 Then
-        private_ReportRuntimeConfigError "PrototypeNew: no mode folders were found under '" & modesRootPath & "'."
+        private_ReportRuntimeConfigError "PrototypeNew: mode source provider returned no mode options."
         Exit Function
     End If
+
+#If LOGGING_DEBUG_ENABLED Then
+    If outUsedCache Then
+        ex_Core.m_Diagnostic_LogInfo "config-modes: cache-hit count=" & VBA.CStr(outOptions.Count)
+    Else
+        ex_Core.m_Diagnostic_LogInfo "config-modes: cache-refresh count=" & VBA.CStr(outOptions.Count)
+    End If
+#End If
 
     private_TryBuildModeSelectOptions = True
+End Function
+
+
+Private Function private_TryEnsureSelectItemsProvidersRegistered() As Boolean
+    private_LogEnter "private_TryEnsureSelectItemsProvidersRegistered"
+
+    ' Регистрируем providers один раз за lifecycle модуля actions.
+    ' Дальше все resolve идут через ex_SelectItemsSourceProviders.
+    If m_SelectItemsProvidersReady Then
+        private_TryEnsureSelectItemsProvidersRegistered = True
+        Exit Function
+    End If
+
+    Set m_ModeItemsProvider = New obj_SIP_ModeFolders
+    If m_ModeItemsProvider Is Nothing Then
+        private_ReportRuntimeConfigError "PrototypeNew: failed to create mode source provider."
+        Exit Function
+    End If
+    If Not m_ModeItemsProvider.Initialize(MODES_RUNTIME_KEY, MODES_ROOT_REL_PATH, MODE_ON_SELECT_MACRO) Then Exit Function
+
+    Set m_ProfileItemsProvider = New obj_SIP_ModeProfilesXml
+    If m_ProfileItemsProvider Is Nothing Then
+        private_ReportRuntimeConfigError "PrototypeNew: failed to create profile source provider."
+        Exit Function
+    End If
+    If Not m_ProfileItemsProvider.Initialize(PROFILES_RUNTIME_KEY, MODES_ROOT_REL_PATH, MODE_PROFILES_FILE_SUFFIX, PROFILE_ON_SELECT_MACRO) Then Exit Function
+
+    If Not ex_SelectItemsSourceProviders.m_RegisterProvider(m_ModeItemsProvider, True) Then Exit Function
+    If Not ex_SelectItemsSourceProviders.m_RegisterProvider(m_ProfileItemsProvider, True) Then Exit Function
+
+    m_SelectItemsProvidersReady = True
+    private_TryEnsureSelectItemsProvidersRegistered = True
 End Function
 
 
@@ -411,201 +471,44 @@ Private Function private_TryBuildProfileSelectOptionsByMode( _
     ByRef outProfilesFilePath As String _
 ) As Boolean
     private_LogEnter "private_TryBuildProfileSelectOptionsByMode"
-    Dim dom As Object
+    Dim usedCache As Boolean
 
-    ' Строим путь <ModeName>\<ModeName>Profiles.xml.
     Set outOptions = Nothing
-    outProfilesFilePath = VBA.Trim$(private_BuildModeProfilesFilePath(modeId))
-    If VBA.Len(outProfilesFilePath) = 0 Then Exit Function
+    outProfilesFilePath = VBA.vbNullString
 
-    If VBA.Len(Dir$(outProfilesFilePath)) = 0 Then
-        private_ReportRuntimeConfigError "PrototypeNew: profiles file was not found for mode '" & modeId & "': " & outProfilesFilePath
+    ' Новый поток для профилей:
+    ' 1) передаем provider-у текущий modeId;
+    ' 2) cache manager сам решает cache-hit/cache-miss;
+    ' 3) получаем и options, и фактический путь <Mode>Profiles.xml.
+    If Not private_TryEnsureSelectItemsProvidersRegistered() Then Exit Function
+    If m_ProfileItemsProvider Is Nothing Then
+        private_ReportRuntimeConfigError "PrototypeNew: profile source provider is not initialized."
         Exit Function
     End If
+    If Not m_ProfileItemsProvider.SetCurrentModeId(modeId) Then Exit Function
 
-    ' Загружаем XML и извлекаем профили в select options.
-    Set dom = ex_XmlCore.m_LoadDomByFilePath( _
-        outProfilesFilePath, _
-        "PrototypeNew: profiles file was not found: ", _
-        "PrototypeNew: failed to parse profiles file: ", _
-        VBA.vbNullString)
-    If dom Is Nothing Then
-        private_ReportRuntimeConfigError "PrototypeNew: failed to load profiles file '" & outProfilesFilePath & "'."
-        Exit Function
-    End If
-
-    If Not private_TryCollectProfileSelectOptionsFromDom(dom, outOptions) Then Exit Function
+    If Not ex_SelectItemsSourceProviders.m_TryResolveItemsByProviderKey(PROFILES_RUNTIME_KEY, outOptions, usedCache) Then Exit Function
     If outOptions Is Nothing Then Exit Function
     If outOptions.Count = 0 Then
-        private_ReportRuntimeConfigError "PrototypeNew: profiles file '" & outProfilesFilePath & "' does not contain selectable profiles."
+        private_ReportRuntimeConfigError "PrototypeNew: profile source provider returned no profile options for mode '" & modeId & "'."
         Exit Function
     End If
+
+    outProfilesFilePath = VBA.Trim$(m_ProfileItemsProvider.CurrentProfilesFilePath)
+    If VBA.Len(outProfilesFilePath) = 0 Then
+        private_ReportRuntimeConfigError "PrototypeNew: profile source provider did not resolve profiles file path for mode '" & modeId & "'."
+        Exit Function
+    End If
+
+#If LOGGING_DEBUG_ENABLED Then
+    If usedCache Then
+        ex_Core.m_Diagnostic_LogInfo "config-profiles: cache-hit mode='" & VBA.Replace$(VBA.Trim$(modeId), "'", "''") & "' count=" & VBA.CStr(outOptions.Count)
+    Else
+        ex_Core.m_Diagnostic_LogInfo "config-profiles: cache-refresh mode='" & VBA.Replace$(VBA.Trim$(modeId), "'", "''") & "' count=" & VBA.CStr(outOptions.Count)
+    End If
+#End If
 
     private_TryBuildProfileSelectOptionsByMode = True
-End Function
-
-
-Private Function private_TryCollectProfileSelectOptionsFromDom(ByVal dom As Object, ByRef outOptions As Collection) As Boolean
-    private_LogEnter "private_TryCollectProfileSelectOptionsFromDom"
-    Dim profileNodes As Object
-    Dim profileNode As Object
-    Dim seenIds As Object
-    Dim optionItem As obj_SelectOption
-    Dim optionId As String
-
-    Set outOptions = New Collection
-    Set seenIds = VBA.CreateObject("Scripting.Dictionary")
-    seenIds.CompareMode = 1
-
-    ' Шаг 1: профильные узлы ожидаемых имен.
-    If dom Is Nothing Then
-        private_ReportRuntimeConfigError "PrototypeNew: profiles DOM is not specified."
-        Exit Function
-    End If
-
-    On Error GoTo EH_XML
-    Set profileNodes = dom.selectNodes("//*[local-name()='profile' or local-name()='configProfile' or local-name()='preset' or local-name()='variant']")
-    On Error GoTo 0
-
-    If Not profileNodes Is Nothing Then
-        For Each profileNode In profileNodes
-            Set optionItem = Nothing
-            If Not private_TryCreateProfileSelectOptionFromNode(profileNode, optionItem) Then Exit Function
-            If optionItem Is Nothing Then GoTo ContinueProfileNodePrimary
-
-            optionId = VBA.LCase$(VBA.Trim$(optionItem.Id))
-            If VBA.Len(optionId) = 0 Then GoTo ContinueProfileNodePrimary
-            If seenIds.Exists(optionId) Then GoTo ContinueProfileNodePrimary
-
-            seenIds(optionId) = True
-            outOptions.Add optionItem
-ContinueProfileNodePrimary:
-        Next profileNode
-    End If
-
-    If outOptions.Count > 0 Then
-        private_TryCollectProfileSelectOptionsFromDom = True
-        Exit Function
-    End If
-
-    ' Шаг 2 (fallback): любые узлы с id/name/key и config-строками.
-    On Error GoTo EH_XML
-    Set profileNodes = dom.selectNodes("//*[" & _
-                                      "(@id or @name or @key)" & _
-                                      " and " & _
-                                      "(.//*[local-name()='item' or local-name()='row' or local-name()='entry' or local-name()='config']" & _
-                                      " or *[local-name()='item' or local-name()='row' or local-name()='entry' or local-name()='config'])" & _
-                                      "]")
-    On Error GoTo 0
-
-    If Not profileNodes Is Nothing Then
-        For Each profileNode In profileNodes
-            Set optionItem = Nothing
-            If Not private_TryCreateProfileSelectOptionFromNode(profileNode, optionItem) Then Exit Function
-            If optionItem Is Nothing Then GoTo ContinueProfileNodeFallback
-
-            optionId = VBA.LCase$(VBA.Trim$(optionItem.Id))
-            If VBA.Len(optionId) = 0 Then GoTo ContinueProfileNodeFallback
-            If seenIds.Exists(optionId) Then GoTo ContinueProfileNodeFallback
-
-            seenIds(optionId) = True
-            outOptions.Add optionItem
-ContinueProfileNodeFallback:
-        Next profileNode
-    End If
-
-    private_TryCollectProfileSelectOptionsFromDom = True
-    Exit Function
-
-EH_XML:
-    private_ReportRuntimeConfigError "PrototypeNew: failed to read profile list from XML: " & Err.Description
-End Function
-
-
-Private Function private_TryCreateProfileSelectOptionFromNode( _
-    ByVal profileNode As Object, _
-    ByRef outOption As obj_SelectOption _
-) As Boolean
-    private_LogEnter "private_TryCreateProfileSelectOptionFromNode"
-    Dim profileId As String
-    Dim captionText As String
-    Dim onSelectText As String
-
-    ' Читаем id профиля из атрибутов/дочерних узлов.
-    Set outOption = Nothing
-    If profileNode Is Nothing Then
-        private_TryCreateProfileSelectOptionFromNode = True
-        Exit Function
-    End If
-
-    profileId = VBA.Trim$(VBA.CStr(ex_XmlCore.m_NodeAttrText(profileNode, "id")))
-    If VBA.Len(profileId) = 0 Then profileId = VBA.Trim$(VBA.CStr(ex_XmlCore.m_NodeAttrText(profileNode, "name")))
-    If VBA.Len(profileId) = 0 Then profileId = VBA.Trim$(VBA.CStr(ex_XmlCore.m_NodeAttrText(profileNode, "key")))
-    If VBA.Len(profileId) = 0 Then
-        If Not private_TryReadChildNodeText(profileNode, "id", profileId) Then Exit Function
-    End If
-    If VBA.Len(profileId) = 0 Then
-        If Not private_TryReadChildNodeText(profileNode, "name", profileId) Then Exit Function
-    End If
-    If VBA.Len(profileId) = 0 Then
-        If Not private_TryReadChildNodeText(profileNode, "key", profileId) Then Exit Function
-    End If
-    If VBA.Len(profileId) = 0 Then
-        private_TryCreateProfileSelectOptionFromNode = True
-        Exit Function
-    End If
-
-    ' Читаем подпись для UI (caption/title/display/name).
-    captionText = VBA.Trim$(VBA.CStr(ex_XmlCore.m_NodeAttrText(profileNode, "caption")))
-    If VBA.Len(captionText) = 0 Then captionText = VBA.Trim$(VBA.CStr(ex_XmlCore.m_NodeAttrText(profileNode, "title")))
-    If VBA.Len(captionText) = 0 Then captionText = VBA.Trim$(VBA.CStr(ex_XmlCore.m_NodeAttrText(profileNode, "display")))
-    If VBA.Len(captionText) = 0 Then captionText = VBA.Trim$(VBA.CStr(ex_XmlCore.m_NodeAttrText(profileNode, "name")))
-    If VBA.Len(captionText) = 0 Then
-        If Not private_TryReadChildNodeText(profileNode, "caption", captionText) Then Exit Function
-    End If
-    If VBA.Len(captionText) = 0 Then
-        If Not private_TryReadChildNodeText(profileNode, "title", captionText) Then Exit Function
-    End If
-    If VBA.Len(captionText) = 0 Then
-        If Not private_TryReadChildNodeText(profileNode, "display", captionText) Then Exit Function
-    End If
-    If VBA.Len(captionText) = 0 Then
-        If Not private_TryReadChildNodeText(profileNode, "name", captionText) Then Exit Function
-    End If
-    If VBA.Len(captionText) = 0 Then captionText = profileId
-
-    ' При выборе профиля перезапускаем runtime pipeline.
-    onSelectText = "ex_PageMainActions.m_OnConfigProfileChanged"
-    Set outOption = private_CreateSelectOption(captionText, profileId, onSelectText)
-    private_TryCreateProfileSelectOptionFromNode = True
-End Function
-
-
-Private Function private_TryReadChildNodeText( _
-    ByVal parentNode As Object, _
-    ByVal childLocalName As String, _
-    ByRef outText As String _
-) As Boolean
-    private_LogEnter "private_TryReadChildNodeText"
-    Dim childNode As Object
-
-    ' Доступ к child через local-name(), чтобы не зависеть от namespace.
-    outText = VBA.vbNullString
-    If parentNode Is Nothing Then
-        private_TryReadChildNodeText = True
-        Exit Function
-    End If
-
-    On Error GoTo EH_XML
-    Set childNode = parentNode.selectSingleNode("./*[local-name()='" & childLocalName & "']")
-    On Error GoTo 0
-
-    If Not childNode Is Nothing Then outText = VBA.Trim$(VBA.CStr(childNode.Text))
-    private_TryReadChildNodeText = True
-    Exit Function
-
-EH_XML:
-    private_ReportRuntimeConfigError "PrototypeNew: failed to read child node '" & childLocalName & "': " & Err.Description
 End Function
 
 
@@ -740,24 +643,6 @@ Private Function private_TrySetStoredSelectedIdForControl( _
 
     Set selectStatic = New obj_SelectControlVMStatic
     private_TrySetStoredSelectedIdForControl = selectStatic.SetSelectedId(selectKey, VBA.Trim$(selectedId))
-End Function
-
-
-Private Function private_CreateSelectOption( _
-    ByVal captionText As String, _
-    ByVal idText As String, _
-    ByVal onSelectMacro As String _
-) As obj_SelectOption
-    private_LogEnter "private_CreateSelectOption"
-    Dim selectOption As obj_SelectOption
-
-    ' Формируем объект, который читает obj_SelectControlVM.
-    Set selectOption = New obj_SelectOption
-    selectOption.Caption = VBA.CStr(captionText)
-    selectOption.Id = VBA.CStr(idText)
-    selectOption.OnSelect = VBA.CStr(onSelectMacro)
-
-    Set private_CreateSelectOption = selectOption
 End Function
 
 

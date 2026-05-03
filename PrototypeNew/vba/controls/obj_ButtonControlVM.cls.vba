@@ -145,12 +145,16 @@ Private Sub obj_IControl_Render()
 
     buttonName = "btn_" & m_ControlName
 
-    On Error Resume Next
-    ws.Shapes(buttonName).Delete
-    On Error GoTo EH_BUTTON
-
-    Set shp = ws.Shapes.AddShape(msoShapeRoundedRectangle, targetRange.Left, targetRange.Top, targetRange.Width, targetRange.Height)
-    shp.Name = buttonName
+    Set shp = private_GetUiShapeByName(ws, buttonName)
+    If shp Is Nothing Then
+        Set shp = ws.Shapes.AddShape(msoShapeRoundedRectangle, targetRange.Left, targetRange.Top, targetRange.Width, targetRange.Height)
+        shp.Name = buttonName
+    Else
+        shp.Left = targetRange.Left
+        shp.Top = targetRange.Top
+        shp.Width = targetRange.Width
+        shp.Height = targetRange.Height
+    End If
     shp.Placement = xlMoveAndSize
     If Not private_TryBindRuntimeRoute(shp) Then Exit Sub
 
@@ -410,17 +414,12 @@ Private Function private_TryBindRuntimeRoute(ByVal shp As Shape) As Boolean
         Exit Function
     End If
 
-    On Error Resume Next
-    shp.OnAction = callbackMacroRef
-    If Err.Number <> 0 Then
+    If Not private_TryAssignShapeOnActionIfChanged(shp, callbackMacroRef) Then
 #If LOGGING_DEBUG_ENABLED Then
-        ex_Core.m_Diagnostic_LogError "button:bind-route set-onaction-failed control='" & VBA.Replace$(VBA.Trim$(m_ControlName), "'", "''") & "' shape='" & VBA.Replace$(VBA.Trim$(shp.Name), "'", "''") & "' err='" & VBA.Replace$(Err.Description, "'", "''") & "'"
+        ex_Core.m_Diagnostic_LogError "button:bind-route set-onaction-failed control='" & VBA.Replace$(VBA.Trim$(m_ControlName), "'", "''") & "' shape='" & VBA.Replace$(VBA.Trim$(shp.Name), "'", "''") & "'"
 #End If
-        Err.Clear
-        On Error GoTo 0
         Exit Function
     End If
-    On Error GoTo 0
 
     If m_PageBase Is Nothing Then
 #If LOGGING_DEBUG_ENABLED Then
@@ -458,6 +457,47 @@ Private Function private_RegisterCaptionInlineRuns(ByVal page As obj_PageBase, B
         Exit Function
     End If
     private_RegisterCaptionInlineRuns = m_CaptionInlineTextPart.RegisterForShape(page, shp)
+End Function
+
+Private Function private_GetUiShapeByName(ByVal ws As Worksheet, ByVal shapeName As String) As Shape
+    If ws Is Nothing Then Exit Function
+    shapeName = VBA.Trim$(shapeName)
+    If VBA.Len(shapeName) = 0 Then Exit Function
+
+    On Error Resume Next
+    Set private_GetUiShapeByName = ws.Shapes(shapeName)
+    On Error GoTo 0
+End Function
+
+Private Function private_TryAssignShapeOnActionIfChanged(ByVal shp As Shape, ByVal macroRef As String) As Boolean
+    Dim currentMacroRef As String
+
+    If shp Is Nothing Then Exit Function
+    macroRef = VBA.Trim$(macroRef)
+    If VBA.Len(macroRef) = 0 Then
+        private_TryAssignShapeOnActionIfChanged = True
+        Exit Function
+    End If
+
+    On Error Resume Next
+    currentMacroRef = VBA.Trim$(VBA.CStr(shp.OnAction))
+    If Err.Number <> 0 Then
+        Err.Clear
+        currentMacroRef = VBA.vbNullString
+    End If
+    On Error GoTo 0
+
+    If VBA.StrComp(currentMacroRef, macroRef, VBA.vbBinaryCompare) <> 0 Then
+        On Error GoTo EH_SET
+        shp.OnAction = macroRef
+        On Error GoTo 0
+    End If
+
+    private_TryAssignShapeOnActionIfChanged = True
+    Exit Function
+
+EH_SET:
+    On Error GoTo 0
 End Function
 
 Private Function private_TryResolveCaptionInlineText( _
@@ -512,4 +552,3 @@ End Function
 Public Property Get DefaultCaption() As String
     DefaultCaption = DEFAULT_CAPTION
 End Property
-
