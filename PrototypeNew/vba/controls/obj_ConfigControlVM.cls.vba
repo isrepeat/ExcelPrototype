@@ -13,6 +13,9 @@ Private Const CONFIG_COL_COUNT As Long = 3
 
 Private m_ControlBase As obj_ControlBase
 Private m_ControlName As String
+Private m_PageBase As obj_PageBase
+Private m_RuntimeControlKey As String
+Private m_RuntimeTableName As String
 Private m_ItemsSourceRaw As String
 Private m_TableNameRaw As String
 Private m_ControlLayout As obj_ControlLayout
@@ -46,6 +49,9 @@ Private Sub obj_IControl_Configure(ByVal page As obj_PageBase, ByVal controlNode
     Set m_ControlLayout = Nothing
     Set m_ConfigTableViewItem = Nothing
     Set m_ControlBase = Nothing
+    Set m_PageBase = Nothing
+    m_RuntimeControlKey = VBA.vbNullString
+    m_RuntimeTableName = VBA.vbNullString
 
     Set m_ControlBase = New obj_ControlBase
     If Not m_ControlBase.Configure(page, controlNode, "Config", "config", m_ControlName) Then Exit Sub
@@ -72,6 +78,8 @@ Private Sub obj_IControl_Configure(ByVal page As obj_PageBase, ByVal controlNode
 
     Set pageBase = m_ControlBase.PageBase
     If pageBase Is Nothing Then Exit Sub
+    Set m_PageBase = pageBase
+    m_RuntimeControlKey = private_BuildRuntimeControlKey()
     If Not ex_RuntimeSourceResolver.m_TryResolveItemsSource(pageBase.RuntimeSources, m_ItemsSourceRaw, resolvedItems) Then Exit Sub
     If Not private_TryBuildConfigTable(resolvedItems, configTable) Then Exit Sub
 
@@ -112,12 +120,14 @@ Private Sub obj_IControl_Render()
 
     Set page = Nothing
     If Not m_ControlBase Is Nothing Then Set page = m_ControlBase.PageBase
+    If page Is Nothing Then Set page = m_PageBase
     If page Is Nothing Then
 #If LOGGING_DEBUG_ENABLED Then
         ex_Core.m_Diagnostic_LogError "Config: page is not specified for control '" & m_ControlName & "'."
 #End If
         Exit Sub
     End If
+    Set m_PageBase = page
 
     Set ws = private_GetWorksheetByName(page, m_ControlLayout.LayoutSheetName)
     If ws Is Nothing Then
@@ -224,6 +234,7 @@ ContinueItem:
     tableObj.TableStyle = "TableStyleMedium2"
     tableObj.ShowAutoFilter = True
     On Error GoTo 0
+    m_RuntimeTableName = VBA.Trim$(tableObj.Name)
 
     ' Регистрируем именованные части колонок, чтобы pipeline мог адресно задавать их стиль/ширину.
     If Not private_RegisterColumnPart(ws, "attr", writeRange.Columns(1)) Then Exit Sub
@@ -233,6 +244,7 @@ ContinueItem:
     ' Регистрируем строковые части для специальных атрибутов (# и rx).
     If Not private_RegisterAttrRows(ws, "attrhash", hashRows) Then Exit Sub
     If Not private_RegisterAttrRows(ws, "attrrx", rxRows) Then Exit Sub
+    If Not private_TryRegisterRuntimeControl() Then Exit Sub
     Exit Sub
 
 EH_TABLE:
@@ -275,6 +287,278 @@ Public Function Initialize() As Boolean
 #End If
     Initialize = True
 End Function
+
+Public Function TryGetRenderedConfigEntries(ByRef outEntries As Collection) As Boolean
+    Dim tableObj As ListObject
+    Dim headerRange As Range
+    Dim dataRange As Range
+    Dim rowIndex As Long
+    Dim colIndex As Long
+    Dim rowCount As Long
+    Dim colCount As Long
+    Dim attrColumnIndex As Long
+    Dim keyColumnIndex As Long
+    Dim valueColumnIndex As Long
+    Dim rawHeader As String
+    Dim normalizedAttrName As String
+    Dim cellText As String
+    Dim rowHasAnyValue As Boolean
+    Dim attrText As String
+    Dim keyText As String
+    Dim valueText As String
+    Dim configEntry As obj_ConfigEntry
+
+    Set outEntries = New Collection
+
+    If Not private_TryResolveRenderedTableObject(tableObj) Then Exit Function
+
+    Set headerRange = tableObj.HeaderRowRange
+    If headerRange Is Nothing Then
+#If LOGGING_DEBUG_ENABLED Then
+        ex_Core.m_Diagnostic_LogError "Config: table '" & tableObj.Name & "' has no header row for control '" & m_ControlName & "'."
+#End If
+        Exit Function
+    End If
+
+    colCount = headerRange.Columns.Count
+    If colCount <= 0 Then
+#If LOGGING_DEBUG_ENABLED Then
+        ex_Core.m_Diagnostic_LogError "Config: table '" & tableObj.Name & "' has no columns for control '" & m_ControlName & "'."
+#End If
+        Exit Function
+    End If
+
+    For colIndex = 1 To colCount
+        rawHeader = VBA.Trim$(VBA.CStr(headerRange.Cells(1, colIndex).Value2))
+        If Not private_TryNormalizeProfileAttrName(rawHeader, normalizedAttrName) Then Exit Function
+
+        Select Case VBA.LCase$(normalizedAttrName)
+            Case "attr"
+                If attrColumnIndex > 0 Then
+#If LOGGING_DEBUG_ENABLED Then
+                    ex_Core.m_Diagnostic_LogError "Config: duplicate 'Attr' header in table '" & tableObj.Name & "' for control '" & m_ControlName & "'."
+#End If
+                    Exit Function
+                End If
+                attrColumnIndex = colIndex
+
+            Case "key"
+                If keyColumnIndex > 0 Then
+#If LOGGING_DEBUG_ENABLED Then
+                    ex_Core.m_Diagnostic_LogError "Config: duplicate 'Key' header in table '" & tableObj.Name & "' for control '" & m_ControlName & "'."
+#End If
+                    Exit Function
+                End If
+                keyColumnIndex = colIndex
+
+            Case "value"
+                If valueColumnIndex > 0 Then
+#If LOGGING_DEBUG_ENABLED Then
+                    ex_Core.m_Diagnostic_LogError "Config: duplicate 'Value' header in table '" & tableObj.Name & "' for control '" & m_ControlName & "'."
+#End If
+                    Exit Function
+                End If
+                valueColumnIndex = colIndex
+        End Select
+    Next colIndex
+
+    If keyColumnIndex <= 0 Then
+#If LOGGING_DEBUG_ENABLED Then
+        ex_Core.m_Diagnostic_LogError "Config: table '" & tableObj.Name & "' must contain 'Key' column for control '" & m_ControlName & "'."
+#End If
+        Exit Function
+    End If
+
+    Set dataRange = tableObj.DataBodyRange
+    If dataRange Is Nothing Then
+#If LOGGING_DEBUG_ENABLED Then
+        ex_Core.m_Diagnostic_LogError "Config: table '" & tableObj.Name & "' has no data rows for control '" & m_ControlName & "'."
+#End If
+        Exit Function
+    End If
+
+    rowCount = dataRange.Rows.Count
+    For rowIndex = 1 To rowCount
+        rowHasAnyValue = False
+        For colIndex = 1 To colCount
+            cellText = VBA.Trim$(VBA.CStr(dataRange.Cells(rowIndex, colIndex).Value2))
+            If VBA.Len(cellText) > 0 Then
+                rowHasAnyValue = True
+                Exit For
+            End If
+        Next colIndex
+        If Not rowHasAnyValue Then GoTo ContinueRow
+
+        If attrColumnIndex > 0 Then
+            attrText = VBA.Trim$(VBA.CStr(dataRange.Cells(rowIndex, attrColumnIndex).Value2))
+        Else
+            attrText = VBA.vbNullString
+        End If
+        keyText = VBA.Trim$(VBA.CStr(dataRange.Cells(rowIndex, keyColumnIndex).Value2))
+        If valueColumnIndex > 0 Then
+            valueText = VBA.Trim$(VBA.CStr(dataRange.Cells(rowIndex, valueColumnIndex).Value2))
+        Else
+            valueText = VBA.vbNullString
+        End If
+
+        If VBA.Len(keyText) = 0 Then
+#If LOGGING_DEBUG_ENABLED Then
+            ex_Core.m_Diagnostic_LogError "Config: key is empty in row " & VBA.CStr(rowIndex + 1) & " of table '" & tableObj.Name & "'."
+#End If
+            Exit Function
+        End If
+
+        Set configEntry = New obj_ConfigEntry
+        configEntry.Attr = attrText
+        configEntry.Key = keyText
+        configEntry.Value = valueText
+        outEntries.Add configEntry
+ContinueRow:
+    Next rowIndex
+
+    If outEntries.Count = 0 Then
+#If LOGGING_DEBUG_ENABLED Then
+        ex_Core.m_Diagnostic_LogError "Config: table '" & tableObj.Name & "' has no non-empty key rows."
+#End If
+        Exit Function
+    End If
+
+    TryGetRenderedConfigEntries = True
+End Function
+
+Public Function TryBuildRenderedConfigNode(ByVal dom As Object, ByRef outConfigNode As Object) As Boolean
+    Dim tableObj As ListObject
+    Dim headerRange As Range
+    Dim dataRange As Range
+    Dim rowIndex As Long
+    Dim colIndex As Long
+    Dim colCount As Long
+    Dim keyColumnIndex As Long
+    Dim rowWrittenCount As Long
+    Dim rawHeader As String
+    Dim attrName As String
+    Dim cellText As String
+    Dim itemNode As Object
+    Dim hasAnyValue As Boolean
+    Dim normalizedHeaderNames() As String
+
+    ' Строим "source" XML-узел из текущего отрендеренного состояния таблицы.
+    ' Контракт метода: вернуть контейнер <config> с дочерними <item .../>.
+    ' Важно: метод не изменяет внешний profile-node и не сохраняет файл.
+    Set outConfigNode = Nothing
+    If dom Is Nothing Then
+#If LOGGING_DEBUG_ENABLED Then
+        ex_Core.m_Diagnostic_LogError "Config: DOM is not specified for config node build in control '" & m_ControlName & "'."
+#End If
+        Exit Function
+    End If
+
+    If Not private_TryResolveRenderedTableObject(tableObj) Then Exit Function
+
+    Set headerRange = tableObj.HeaderRowRange
+    If headerRange Is Nothing Then
+#If LOGGING_DEBUG_ENABLED Then
+        ex_Core.m_Diagnostic_LogError "Config: table '" & tableObj.Name & "' has no header row in control '" & m_ControlName & "'."
+#End If
+        Exit Function
+    End If
+
+    colCount = headerRange.Columns.Count
+    If colCount <= 0 Then
+#If LOGGING_DEBUG_ENABLED Then
+        ex_Core.m_Diagnostic_LogError "Config: table '" & tableObj.Name & "' has no columns in control '" & m_ControlName & "'."
+#End If
+        Exit Function
+    End If
+
+    ' Нормализуем заголовки таблицы в имена XML-атрибутов:
+    ' Attr/marker -> attr, Key/name -> key, Value -> value, остальные -> sanitize.
+    ReDim normalizedHeaderNames(1 To colCount)
+    For colIndex = 1 To colCount
+        rawHeader = VBA.Trim$(VBA.CStr(headerRange.Cells(1, colIndex).Value2))
+        If Not private_TryNormalizeProfileAttrName(rawHeader, attrName) Then Exit Function
+        normalizedHeaderNames(colIndex) = attrName
+        If VBA.StrComp(attrName, "key", VBA.vbTextCompare) = 0 Then keyColumnIndex = colIndex
+    Next colIndex
+
+    If keyColumnIndex <= 0 Then
+#If LOGGING_DEBUG_ENABLED Then
+        ex_Core.m_Diagnostic_LogError "Config: table '" & tableObj.Name & "' must contain 'Key' column for profile save in control '" & m_ControlName & "'."
+#End If
+        Exit Function
+    End If
+
+    Set dataRange = tableObj.DataBodyRange
+    If dataRange Is Nothing Then
+#If LOGGING_DEBUG_ENABLED Then
+        ex_Core.m_Diagnostic_LogError "Config: table '" & tableObj.Name & "' has no data rows for profile save in control '" & m_ControlName & "'."
+#End If
+        Exit Function
+    End If
+
+    On Error GoTo EH_XML
+    ' Source-контейнер создаем в универсальном виде.
+    ' Его дальше интерпретирует orchestration-слой (ex_PageMainActions).
+    Set outConfigNode = dom.createElement("config")
+    rowWrittenCount = 0
+
+    For rowIndex = 1 To dataRange.Rows.Count
+        hasAnyValue = False
+        For colIndex = 1 To colCount
+            cellText = VBA.Trim$(VBA.CStr(dataRange.Cells(rowIndex, colIndex).Value2))
+            If VBA.Len(cellText) > 0 Then
+                hasAnyValue = True
+                Exit For
+            End If
+        Next colIndex
+        If Not hasAnyValue Then GoTo ContinueRow
+
+        cellText = VBA.Trim$(VBA.CStr(dataRange.Cells(rowIndex, keyColumnIndex).Value2))
+        If VBA.Len(cellText) = 0 Then
+#If LOGGING_DEBUG_ENABLED Then
+            ex_Core.m_Diagnostic_LogError "Config: key is empty in row " & VBA.CStr(rowIndex + 1) & " of table '" & tableObj.Name & "'."
+#End If
+            Exit Function
+        End If
+
+        ' Каждая непустая строка таблицы превращается в отдельный <item/>.
+        Set itemNode = dom.createElement("item")
+
+        For colIndex = 1 To colCount
+            attrName = normalizedHeaderNames(colIndex)
+            If VBA.Len(attrName) = 0 Then GoTo ContinueCol
+
+            cellText = VBA.Trim$(VBA.CStr(dataRange.Cells(rowIndex, colIndex).Value2))
+            If VBA.StrComp(attrName, "attr", VBA.vbTextCompare) = 0 And VBA.Len(cellText) = 0 Then
+                GoTo ContinueCol
+            End If
+
+            ' Значения колонок пишем как XML-атрибуты item.
+            itemNode.setAttribute attrName, cellText
+ContinueCol:
+        Next colIndex
+
+        outConfigNode.appendChild itemNode
+        rowWrittenCount = rowWrittenCount + 1
+ContinueRow:
+    Next rowIndex
+
+    If rowWrittenCount = 0 Then
+#If LOGGING_DEBUG_ENABLED Then
+        ex_Core.m_Diagnostic_LogError "Config: table '" & tableObj.Name & "' does not contain non-empty rows for profile save in control '" & m_ControlName & "'."
+#End If
+        Exit Function
+    End If
+
+    TryBuildRenderedConfigNode = True
+    Exit Function
+
+EH_XML:
+#If LOGGING_DEBUG_ENABLED Then
+    ex_Core.m_Diagnostic_LogError "Config: failed to build XML node from rendered table in control '" & m_ControlName & "': " & Err.Description
+#End If
+End Function
+
 Public Sub Dispose()
 #If LOGGING_VERBOSE_ENABLED Then
     ex_Core.m_Diagnostic_LogInfo "lifecycle:" & VBA.TypeName(Me) & ".Dispose"
@@ -288,10 +572,12 @@ Public Sub Dispose()
     Set m_ControlBase = Nothing
     Set m_ControlLayout = Nothing
     Set m_ConfigTableViewItem = Nothing
+    Set m_PageBase = Nothing
+    m_RuntimeControlKey = VBA.vbNullString
+    m_RuntimeTableName = VBA.vbNullString
     On Error GoTo 0
 End Sub
 
-'
 ' //
 ' // Internal
 ' //
@@ -326,6 +612,152 @@ ContinueSourceItem:
     Next sourceConfigEntry
 
     private_TryBuildConfigTable = True
+End Function
+
+Private Function private_TryResolveRenderedTableObject(ByRef outTableObj As ListObject) As Boolean
+    Dim pageBase As obj_PageBase
+    Dim ws As Worksheet
+
+    Set outTableObj = Nothing
+    If Not m_IsConfigured Then
+#If LOGGING_DEBUG_ENABLED Then
+        ex_Core.m_Diagnostic_LogError "Config: control '" & m_ControlName & "' is not configured for save."
+#End If
+        Exit Function
+    End If
+
+    Set pageBase = Nothing
+    If Not m_ControlBase Is Nothing Then Set pageBase = m_ControlBase.PageBase
+    If pageBase Is Nothing Then Set pageBase = m_PageBase
+    If pageBase Is Nothing Then
+#If LOGGING_DEBUG_ENABLED Then
+        ex_Core.m_Diagnostic_LogError "Config: page is not specified for save in control '" & m_ControlName & "'."
+#End If
+        Exit Function
+    End If
+
+    If m_ControlLayout Is Nothing Then
+#If LOGGING_DEBUG_ENABLED Then
+        ex_Core.m_Diagnostic_LogError "Config: control layout is not configured for control '" & m_ControlName & "'."
+#End If
+        Exit Function
+    End If
+
+    Set ws = private_GetWorksheetByName(pageBase, m_ControlLayout.LayoutSheetName)
+    If ws Is Nothing Then
+#If LOGGING_DEBUG_ENABLED Then
+        ex_Core.m_Diagnostic_LogError "Config: sheet '" & m_ControlLayout.LayoutSheetName & "' was not found for save in control '" & m_ControlName & "'."
+#End If
+        Exit Function
+    End If
+
+    If VBA.Len(VBA.Trim$(m_RuntimeTableName)) = 0 Then
+#If LOGGING_DEBUG_ENABLED Then
+        ex_Core.m_Diagnostic_LogError "Config: runtime table name is not initialized for control '" & m_ControlName & "'."
+#End If
+        Exit Function
+    End If
+
+    On Error Resume Next
+    Set outTableObj = ws.ListObjects(m_RuntimeTableName)
+    On Error GoTo 0
+    If outTableObj Is Nothing Then
+#If LOGGING_DEBUG_ENABLED Then
+        ex_Core.m_Diagnostic_LogError "Config: table '" & m_RuntimeTableName & "' was not found for control '" & m_ControlName & "'."
+#End If
+        Exit Function
+    End If
+
+    private_TryResolveRenderedTableObject = True
+End Function
+
+Private Function private_TryNormalizeProfileAttrName(ByVal rawHeader As String, ByRef outAttrName As String) As Boolean
+    Dim normalizedHeader As String
+
+    outAttrName = VBA.vbNullString
+    normalizedHeader = VBA.LCase$(VBA.Trim$(rawHeader))
+    If VBA.Len(normalizedHeader) = 0 Then
+        private_TryNormalizeProfileAttrName = True
+        Exit Function
+    End If
+
+    Select Case normalizedHeader
+        Case "attr", "marker"
+            outAttrName = "attr"
+
+        Case "key", "name"
+            outAttrName = "key"
+
+        Case "value"
+            outAttrName = "value"
+
+        Case Else
+            outAttrName = private_SanitizeXmlAttrNameToken(normalizedHeader)
+            If VBA.Len(outAttrName) = 0 Then
+#If LOGGING_DEBUG_ENABLED Then
+                ex_Core.m_Diagnostic_LogError "Config: header '" & rawHeader & "' cannot be converted into valid XML attribute name for control '" & m_ControlName & "'."
+#End If
+                Exit Function
+            End If
+    End Select
+
+    private_TryNormalizeProfileAttrName = True
+End Function
+
+Private Function private_SanitizeXmlAttrNameToken(ByVal rawName As String) As String
+    Dim i As Long
+    Dim ch As String
+    Dim sanitized As String
+
+    rawName = VBA.Trim$(rawName)
+    If VBA.Len(rawName) = 0 Then Exit Function
+
+    For i = 1 To VBA.Len(rawName)
+        ch = VBA.Mid$(rawName, i, 1)
+        If (ch >= "a" And ch <= "z") Or (ch >= "A" And ch <= "Z") Or _
+           (ch >= "0" And ch <= "9") Or ch = "_" Or ch = "-" Then
+            sanitized = sanitized & ch
+        Else
+            sanitized = sanitized & "_"
+        End If
+    Next i
+
+    If VBA.Len(sanitized) = 0 Then Exit Function
+    If (VBA.Left$(sanitized, 1) >= "0" And VBA.Left$(sanitized, 1) <= "9") Or VBA.Left$(sanitized, 1) = "-" Then
+        sanitized = "c_" & sanitized
+    End If
+
+    private_SanitizeXmlAttrNameToken = sanitized
+End Function
+
+Private Function private_BuildRuntimeControlKey() As String
+    If m_ControlLayout Is Nothing Then Exit Function
+    private_BuildRuntimeControlKey = "config|" & VBA.LCase$(VBA.Trim$(m_ControlLayout.LayoutSheetName & "|" & m_ControlName))
+End Function
+
+Private Function private_TryRegisterRuntimeControl() As Boolean
+    If m_PageBase Is Nothing Then
+#If LOGGING_DEBUG_ENABLED Then
+        ex_Core.m_Diagnostic_LogError "Config: page is not specified for runtime registration in control '" & m_ControlName & "'."
+#End If
+        Exit Function
+    End If
+
+    If VBA.Len(VBA.Trim$(m_RuntimeControlKey)) = 0 Then
+#If LOGGING_DEBUG_ENABLED Then
+        ex_Core.m_Diagnostic_LogError "Config: runtime control key is empty in control '" & m_ControlName & "'."
+#End If
+        Exit Function
+    End If
+
+    If Not m_PageBase.RegisterControl(m_RuntimeControlKey, Me) Then
+#If LOGGING_DEBUG_ENABLED Then
+        ex_Core.m_Diagnostic_LogError "Config: failed to register runtime control key '" & m_RuntimeControlKey & "' for control '" & m_ControlName & "'."
+#End If
+        Exit Function
+    End If
+
+    private_TryRegisterRuntimeControl = True
 End Function
 
 Private Sub private_HandleAttrHash(ByVal configEntry As obj_ConfigEntry)
@@ -482,4 +914,3 @@ Private Function private_GetWorksheetByName(ByVal page As obj_PageBase, ByVal sh
 
     Set private_GetWorksheetByName = ws
 End Function
-

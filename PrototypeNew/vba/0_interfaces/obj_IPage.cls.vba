@@ -57,3 +57,9 @@ End Function
 
 Public Function TryGetRegisteredControls(ByRef outControlsByKey As Object) As Boolean
 End Function
+
+Public Function TryGetRegisteredControlByKey(ByVal controlKey As String, ByRef outControl As Object) As Boolean
+End Function
+
+Public Function TryGetRegisteredControlByName(ByVal controlName As String, ByRef outControl As Object) As Boolean
+End Function

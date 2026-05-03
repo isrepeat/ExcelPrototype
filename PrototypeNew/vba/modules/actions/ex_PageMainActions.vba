@@ -7,34 +7,58 @@ Private Const MODES_ROOT_REL_PATH As String = "modes"
 Private Const MODE_PROFILES_FILE_SUFFIX As String = "Profiles.xml"
 Private Const MODE_PICKER_CONTROL_NAME As String = "ConfigModePicker"
 Private Const PROFILE_PICKER_CONTROL_NAME As String = "ConfigProfilePicker"
+Private Const CONFIG_CONTROL_NAME As String = "DevConfig"
 Private Const MODES_RUNTIME_KEY As String = "RuntimeItems.PageMain.ConfigModes"
 Private Const PROFILES_RUNTIME_KEY As String = "RuntimeItems.PageMain.ConfigProfiles"
 Private Const CONFIG_RUNTIME_KEY As String = "RuntimeItems.PageMain.Config"
 
 Public Sub m_Module_Dispose()
+    private_LogEnter "m_Module_Dispose"
 #If LOGGING_VERBOSE_ENABLED Then
     ex_Core.m_Diagnostic_LogInfo "lifecycle:ex_PageMainActions.m_Module_Dispose"
 #End If
 End Sub
+
+
 ' //
 ' // API
 ' //
-Public Sub m_OnConfigModeChanged()
+Public Function m_OnConfigModeChanged( _
+    Optional ByVal notifyChange As Boolean = True, _
+    Optional ByVal preferredPageBase As Object _
+)
+    private_LogEnter "m_OnConfigModeChanged"
     ' После смены режима нужно пересобрать runtime-источники.
-    If Not m_PrepareModeProfileConfigRuntime(True) Then Exit Sub
-End Sub
+    If Not private_TryPrepareModeProfileConfigRuntime(notifyChange, preferredPageBase) Then Exit Function
+    m_OnConfigModeChanged = True
+End Function
 
 
-Public Sub m_OnConfigProfileChanged()
+Public Function m_OnConfigProfileChanged( _
+    Optional ByVal notifyChange As Boolean = True, _
+    Optional ByVal preferredPageBase As Object _
+)
+    private_LogEnter "m_OnConfigProfileChanged"
     ' После смены профиля также пересобираем runtime-состояние.
-    If Not m_PrepareModeProfileConfigRuntime(True) Then Exit Sub
+    If Not private_TryPrepareModeProfileConfigRuntime(notifyChange, preferredPageBase) Then Exit Function
+    m_OnConfigProfileChanged = True
+End Function
+
+
+Public Sub m_SaveCurrentConfigProfile()
+    private_LogEnter "m_SaveCurrentConfigProfile"
+    If Not private_TrySaveCurrentConfigProfile() Then Exit Sub
 End Sub
 
 
-Public Function m_PrepareModeProfileConfigRuntime( _
+' //
+' // Internal
+' //
+Private Function private_TryPrepareModeProfileConfigRuntime( _
     Optional ByVal notifyChange As Boolean = False, _
     Optional ByVal preferredPageBase As Object _
 ) As Boolean
+    private_LogEnter "private_TryPrepareModeProfileConfigRuntime"
     Dim pageBase As obj_PageBase
     Dim ws As Worksheet
     Dim modeOptions As Collection
@@ -42,15 +66,11 @@ Public Function m_PrepareModeProfileConfigRuntime( _
     Dim selectedModeId As String
     Dim selectedProfileId As String
     Dim profileFilePath As String
-    Dim prepareStep As String
 
     On Error GoTo EH_PREPARE_RUNTIME
     ' 1) Резолвим контекст текущей страницы.
-    prepareStep = "resolve-page-context"
     If Not private_TryResolvePageBase(pageBase, preferredPageBase) Then Exit Function
     If pageBase Is Nothing Then Exit Function
-
-    prepareStep = "resolve-worksheet"
     Set ws = pageBase.Worksheet
     If ws Is Nothing Then
         private_ReportRuntimeConfigError "PrototypeNew: worksheet is not specified for mode/profile config runtime prepare."
@@ -58,108 +78,134 @@ Public Function m_PrepareModeProfileConfigRuntime( _
     End If
 
     ' 2) Формируем источник для списка режимов.
-    prepareStep = "build-mode-options"
     If Not private_TryBuildModeSelectOptions(modeOptions) Then Exit Function
-    prepareStep = "register-mode-items-source"
     If Not private_TrySetItemsSource(MODES_RUNTIME_KEY, modeOptions, False, pageBase) Then Exit Function
 
     ' 3) Для выбранного режима собираем список профилей.
-    prepareStep = "resolve-selected-mode"
     If Not private_TryResolveSelectedIdForControl(ws, MODE_PICKER_CONTROL_NAME, modeOptions, selectedModeId) Then Exit Function
-    prepareStep = "build-profile-options"
     If Not private_TryBuildProfileSelectOptionsByMode(selectedModeId, profileOptions, profileFilePath) Then Exit Function
-    prepareStep = "register-profile-items-source"
     If Not private_TrySetItemsSource(PROFILES_RUNTIME_KEY, profileOptions, False, pageBase) Then Exit Function
 
     ' 4) Загружаем config из выбранного профиля.
-    prepareStep = "resolve-selected-profile"
     If Not private_TryResolveSelectedIdForControl(ws, PROFILE_PICKER_CONTROL_NAME, profileOptions, selectedProfileId) Then Exit Function
-    prepareStep = "register-config-from-profile"
-    If Not m_RegisterConfigFromXmlProfile(profileFilePath, selectedProfileId, False, pageBase) Then Exit Function
+    If Not private_TryRegisterConfigFromXmlProfile(profileFilePath, selectedProfileId, False, pageBase) Then Exit Function
 
     ' 5) По флагу обновляем UI.
     If notifyChange Then
-        prepareStep = "rerender-page"
         If Not private_TryRerenderPage(pageBase, "config:mode-profile-runtime") Then Exit Function
     End If
 
-    m_PrepareModeProfileConfigRuntime = True
+    private_TryPrepareModeProfileConfigRuntime = True
     On Error GoTo 0
     Exit Function
 
 EH_PREPARE_RUNTIME:
-    private_ReportRuntimeConfigError "PrototypeNew: exception in config runtime prepare at step '" & prepareStep & "': [" & VBA.CStr(Err.Number) & "] " & Err.Description
+    private_ReportRuntimeConfigError "PrototypeNew: exception in config runtime prepare: [" & VBA.CStr(Err.Number) & "] " & Err.Description
 End Function
 
 
-Public Function m_RegisterConfigFromXmlProfile( _
+Private Function private_TrySaveCurrentConfigProfile( _
+    Optional ByVal preferredPageBase As Object _
+) As Boolean
+    private_LogEnter "private_TrySaveCurrentConfigProfile"
+    Dim pageBase As obj_PageBase
+    Dim ws As Worksheet
+    Dim modeOptions As Collection
+    Dim profileOptions As Collection
+    Dim selectedModeId As String
+    Dim selectedProfileId As String
+    Dim profileFilePath As String
+    Dim configControl As obj_ConfigControlVM
+    Dim configEntries As Collection
+    Dim dom As Object
+    Dim profileNode As Object
+    Dim generatedConfigNode As Object
+
+    On Error GoTo EH_SAVE_PROFILE
+
+    ' 1) Резолвим runtime-контекст страницы/листа.
+    If Not private_TryResolvePageBase(pageBase, preferredPageBase) Then Exit Function
+    If pageBase Is Nothing Then Exit Function
+    Set ws = pageBase.Worksheet
+    If ws Is Nothing Then
+        private_ReportRuntimeConfigError "PrototypeNew: worksheet is not specified for config profile save."
+        Exit Function
+    End If
+
+    ' 2) Определяем текущие выбранные mode/profile и путь к соответствующему Profiles.xml.
+    If Not private_TryBuildModeSelectOptions(modeOptions) Then Exit Function
+    If Not private_TryResolveSelectedIdForControl(ws, MODE_PICKER_CONTROL_NAME, modeOptions, selectedModeId) Then Exit Function
+    If Not private_TryBuildProfileSelectOptionsByMode(selectedModeId, profileOptions, profileFilePath) Then Exit Function
+    If Not private_TryResolveSelectedIdForControl(ws, PROFILE_PICKER_CONTROL_NAME, profileOptions, selectedProfileId) Then Exit Function
+
+    ' 3) Резолвим Config-контрол.
+    ' Здесь же читаем "плоскую" runtime-модель obj_ConfigEntry (Attr/Key/Value),
+    ' она нужна для синхронизации RuntimeSources после успешного сохранения файла.
+    If Not private_TryResolveConfigControl(pageBase, configControl) Then Exit Function
+    If Not configControl.TryGetRenderedConfigEntries(configEntries) Then
+        private_ReportRuntimeConfigError "PrototypeNew: failed to read current entries from config control '" & CONFIG_CONTROL_NAME & "'."
+        Exit Function
+    End If
+
+    ' 4) Грузим профильный XML и находим именно тот profile-node,
+    ' который соответствует текущему выбору profileId.
+    If Not private_TryLoadProfileDomAndNode(profileFilePath, selectedProfileId, dom, profileNode) Then Exit Function
+
+    ' 5) Контрол формирует source-узел из текущего UI-рендера (без знания конкретного profile файла).
+    ' Затем оркестратор переносит строки из source-узла в target profile-node.
+    ' То есть ответственность разделена:
+    ' - ConfigControl: "как представить текущие данные в XML"
+    ' - Actions: "как применить этот XML к реальному профилю"
+    If Not configControl.TryBuildRenderedConfigNode(dom, generatedConfigNode) Then
+        private_ReportRuntimeConfigError "PrototypeNew: failed to build source config node from control '" & CONFIG_CONTROL_NAME & "'."
+        Exit Function
+    End If
+    If Not private_TryReplaceProfileRowsFromSourceNode(profileNode, generatedConfigNode) Then
+        Exit Function
+    End If
+    If Not private_TrySaveDomToFile(dom, profileFilePath) Then Exit Function
+
+    ' 6) После успешного Save обновляем in-memory source,
+    ' чтобы следующий render взял именно то состояние, которое ушло в файл.
+    If Not private_TrySetItemsSource(CONFIG_RUNTIME_KEY, configEntries, False, pageBase) Then Exit Function
+
+    rt_Messaging.m_ShowStatusBarSuccess "Config profile '" & selectedProfileId & "' saved to '" & profileFilePath & "'.", 4
+    private_TrySaveCurrentConfigProfile = True
+    On Error GoTo 0
+    Exit Function
+
+EH_SAVE_PROFILE:
+    private_ReportRuntimeConfigError "PrototypeNew: exception in config profile save: [" & VBA.CStr(Err.Number) & "] " & Err.Description
+End Function
+
+
+
+
+
+Private Function private_TryRegisterConfigFromXmlProfile( _
     ByVal filePath As String, _
     ByVal profileKey As String, _
     Optional ByVal notifyChange As Boolean = False, _
     Optional ByVal preferredPageBase As Object _
 ) As Boolean
-    Dim normalizedFilePath As String
-    Dim normalizedProfileKey As String
+    private_LogEnter "private_TryRegisterConfigFromXmlProfile"
     Dim dom As Object
     Dim profileNode As Object
-    Dim profileKeyLiteral As String
-    Dim profileXPath As String
+    ' Загружаем DOM + выбранный профильный узел из внешнего Profiles.xml.
+    If Not private_TryLoadProfileDomAndNode(filePath, profileKey, dom, profileNode) Then Exit Function
 
-    ' Нормализуем и валидируем вход.
-    normalizedFilePath = VBA.Trim$(filePath)
-    normalizedProfileKey = VBA.Trim$(profileKey)
-
-    If VBA.Len(normalizedFilePath) = 0 Then
-        private_ReportRuntimeConfigError "PrototypeNew: config profiles file path is empty."
-        Exit Function
-    End If
-    If VBA.Len(normalizedProfileKey) = 0 Then
-        private_ReportRuntimeConfigError "PrototypeNew: config profile key is empty."
-        Exit Function
-    End If
-
-    ' Загружаем XML с профилями.
-    Set dom = ex_XmlCore.m_LoadDomByFilePath( _
-        normalizedFilePath, _
-        "PrototypeNew: config profiles file was not found: ", _
-        "PrototypeNew: failed to parse config profiles file: ", _
-        VBA.vbNullString)
-    If dom Is Nothing Then
-        private_ReportRuntimeConfigError "PrototypeNew: failed to load config profiles file '" & normalizedFilePath & "'."
-        Exit Function
-    End If
-
-    ' Ищем профиль по id/name/key (атрибуты и дочерние элементы).
-    profileKeyLiteral = ex_XmlCore.m_XPathLiteral(normalizedProfileKey)
-    profileXPath = "//*[" & _
-                  "(" & _
-                  "@id=" & profileKeyLiteral & " or @name=" & profileKeyLiteral & " or @key=" & profileKeyLiteral & " or " & _
-                  "normalize-space(*[local-name()='id'][1])=" & profileKeyLiteral & " or " & _
-                  "normalize-space(*[local-name()='name'][1])=" & profileKeyLiteral & " or " & _
-                  "normalize-space(*[local-name()='key'][1])=" & profileKeyLiteral & _
-                  ")" & _
-                  " and " & _
-                  "(.//*[local-name()='item' or local-name()='row' or local-name()='entry' or local-name()='config']" & _
-                  " or *[local-name()='item' or local-name()='row' or local-name()='entry' or local-name()='config'])" & _
-                  "]"
-
-    Set profileNode = dom.selectSingleNode(profileXPath)
-    If profileNode Is Nothing Then
-        private_ReportRuntimeConfigError "PrototypeNew: config profile '" & normalizedProfileKey & "' was not found in file '" & normalizedFilePath & "'."
-        Exit Function
-    End If
-
-    ' Делегируем преобразование узла в runtime-коллекцию конфига.
-    If Not m_RegisterConfigFromProfileNode(profileNode, notifyChange, preferredPageBase) Then Exit Function
-    m_RegisterConfigFromXmlProfile = True
+    ' Преобразуем XML-узел профиля в runtime-коллекцию и регистрируем в RuntimeSources.
+    If Not private_TryRegisterConfigFromProfileNode(profileNode, notifyChange, preferredPageBase) Then Exit Function
+    private_TryRegisterConfigFromXmlProfile = True
 End Function
 
 
-Public Function m_RegisterConfigFromProfileNode( _
+Private Function private_TryRegisterConfigFromProfileNode( _
     ByVal profileNode As Object, _
     Optional ByVal notifyChange As Boolean = False, _
     Optional ByVal preferredPageBase As Object _
 ) As Boolean
+    private_LogEnter "private_TryRegisterConfigFromProfileNode"
     Dim configTable As obj_ConfigTable
     Dim configEntries As list__obj_ConfigEntry
     Dim sourceItems As Collection
@@ -172,14 +218,14 @@ Public Function m_RegisterConfigFromProfileNode( _
         Exit Function
     End If
 
-    ' Парсим профиль в модель таблицы конфига.
+    ' Парсим XML profile-node в typed-модель obj_ConfigTable/obj_ConfigEntry.
     Set configTable = New obj_ConfigTable
     If Not configTable.TryLoadFromXmlNode(profileNode, True) Then
         private_ReportRuntimeConfigError "PrototypeNew: failed to parse selected config profile node."
         Exit Function
     End If
 
-    ' Готовим Collection для runtime source map.
+    ' Готовим обычную Collection для runtime source map (совместимый формат источника).
     Set sourceItems = New Collection
     Set configEntries = configTable.Items
     If configEntries Is Nothing Then
@@ -196,33 +242,87 @@ Public Function m_RegisterConfigFromProfileNode( _
 ContinueSourceConfigEntry:
     Next i
 
-    ' Регистрируем источник для Config-контрола.
+    ' Публикуем источник для Config-контрола.
+    ' Если notifyChange=True, внешний слой может сделать немедленный rerender страницы.
     If Not private_TrySetItemsSource(CONFIG_RUNTIME_KEY, sourceItems, notifyChange, preferredPageBase) Then Exit Function
-    m_RegisterConfigFromProfileNode = True
+    private_TryRegisterConfigFromProfileNode = True
 End Function
 
-' //
-' // Internal
-' //
-Private Sub private_ReportRuntimeConfigError(ByVal messageText As String)
-    messageText = VBA.Trim$(messageText)
-    If VBA.Len(messageText) = 0 Then Exit Sub
 
-    ' Ошибку фиксируем в логах и показываем пользователю.
-#If LOGGING_DEBUG_ENABLED Then
-    ex_Core.m_Diagnostic_LogError messageText
-#End If
-    MsgBox messageText, vbExclamation, "PrototypeNew / Config runtime"
-End Sub
+Private Function private_TryLoadProfileDomAndNode( _
+    ByVal filePath As String, _
+    ByVal profileKey As String, _
+    ByRef outDom As Object, _
+    ByRef outProfileNode As Object _
+) As Boolean
+    private_LogEnter "private_TryLoadProfileDomAndNode"
+    Dim normalizedFilePath As String
+    Dim normalizedProfileKey As String
+    Dim profileKeyLiteral As String
+    Dim profileXPath As String
+
+    Set outDom = Nothing
+    Set outProfileNode = Nothing
+
+    normalizedFilePath = VBA.Trim$(filePath)
+    normalizedProfileKey = VBA.Trim$(profileKey)
+
+    If VBA.Len(normalizedFilePath) = 0 Then
+        private_ReportRuntimeConfigError "PrototypeNew: config profiles file path is empty."
+        Exit Function
+    End If
+    If VBA.Len(normalizedProfileKey) = 0 Then
+        private_ReportRuntimeConfigError "PrototypeNew: config profile key is empty."
+        Exit Function
+    End If
+
+    ' 1) Загружаем XML документ режима (например <Mode>Profiles.xml).
+    Set outDom = ex_XmlCore.m_LoadDomByFilePath( _
+        normalizedFilePath, _
+        "PrototypeNew: config profiles file was not found: ", _
+        "PrototypeNew: failed to parse config profiles file: ", _
+        VBA.vbNullString)
+    If outDom Is Nothing Then
+        private_ReportRuntimeConfigError "PrototypeNew: failed to load config profiles file '" & normalizedFilePath & "'."
+        Exit Function
+    End If
+
+    profileKeyLiteral = ex_XmlCore.m_XPathLiteral(normalizedProfileKey)
+    ' 2) XPath подбирает профиль по id/name/key (атрибуты или дочерние теги),
+    ' и одновременно гарантирует, что найденный узел действительно содержит
+    ' конфиг-строки (item/row/entry/config) в себе или в потомках.
+    profileXPath = "//*[" & _
+                  "(" & _
+                  "@id=" & profileKeyLiteral & " or @name=" & profileKeyLiteral & " or @key=" & profileKeyLiteral & " or " & _
+                  "normalize-space(*[local-name()='id'][1])=" & profileKeyLiteral & " or " & _
+                  "normalize-space(*[local-name()='name'][1])=" & profileKeyLiteral & " or " & _
+                  "normalize-space(*[local-name()='key'][1])=" & profileKeyLiteral & _
+                  ")" & _
+                  " and " & _
+                  "(.//*[local-name()='item' or local-name()='row' or local-name()='entry' or local-name()='config']" & _
+                  " or *[local-name()='item' or local-name()='row' or local-name()='entry' or local-name()='config'])" & _
+                  "]"
+
+    ' 3) Возвращаем ровно один целевой узел профиля для чтения/перезаписи.
+    Set outProfileNode = outDom.selectSingleNode(profileXPath)
+    If outProfileNode Is Nothing Then
+        private_ReportRuntimeConfigError "PrototypeNew: config profile '" & normalizedProfileKey & "' was not found in file '" & normalizedFilePath & "'."
+        Exit Function
+    End If
+
+    private_TryLoadProfileDomAndNode = True
+End Function
 
 
 Private Function private_GetModesRootFolderPath() As String
+    private_LogEnter "private_GetModesRootFolderPath"
     ' Режимы всегда ожидаются рядом с Excel-файлом: <WorkbookPath>\modes
     private_GetModesRootFolderPath = VBA.Trim$(ex_XmlCore.m_CombineBasePath(ThisWorkbook, MODES_ROOT_REL_PATH))
 End Function
 
 
 Private Function private_IsSafeModeId(ByVal modeId As String) As Boolean
+    private_LogEnter "private_IsSafeModeId"
     ' Минимальная защита от path traversal и инъекций в имя режима.
     modeId = VBA.Trim$(modeId)
     If VBA.Len(modeId) = 0 Then Exit Function
@@ -236,6 +336,7 @@ End Function
 
 
 Private Function private_BuildModeProfilesFilePath(ByVal modeId As String) As String
+    private_LogEnter "private_BuildModeProfilesFilePath"
     Dim modesRootPath As String
 
     modeId = VBA.Trim$(modeId)
@@ -256,6 +357,7 @@ End Function
 
 
 Private Function private_TryBuildModeSelectOptions(ByRef outOptions As Collection) As Boolean
+    private_LogEnter "private_TryBuildModeSelectOptions"
     Dim modesRootPath As String
     Dim folderName As String
     Dim folderPath As String
@@ -308,6 +410,7 @@ Private Function private_TryBuildProfileSelectOptionsByMode( _
     ByRef outOptions As Collection, _
     ByRef outProfilesFilePath As String _
 ) As Boolean
+    private_LogEnter "private_TryBuildProfileSelectOptionsByMode"
     Dim dom As Object
 
     ' Строим путь <ModeName>\<ModeName>Profiles.xml.
@@ -343,6 +446,7 @@ End Function
 
 
 Private Function private_TryCollectProfileSelectOptionsFromDom(ByVal dom As Object, ByRef outOptions As Collection) As Boolean
+    private_LogEnter "private_TryCollectProfileSelectOptionsFromDom"
     Dim profileNodes As Object
     Dim profileNode As Object
     Dim seenIds As Object
@@ -422,6 +526,7 @@ Private Function private_TryCreateProfileSelectOptionFromNode( _
     ByVal profileNode As Object, _
     ByRef outOption As obj_SelectOption _
 ) As Boolean
+    private_LogEnter "private_TryCreateProfileSelectOptionFromNode"
     Dim profileId As String
     Dim captionText As String
     Dim onSelectText As String
@@ -481,6 +586,7 @@ Private Function private_TryReadChildNodeText( _
     ByVal childLocalName As String, _
     ByRef outText As String _
 ) As Boolean
+    private_LogEnter "private_TryReadChildNodeText"
     Dim childNode As Object
 
     ' Доступ к child через local-name(), чтобы не зависеть от namespace.
@@ -509,6 +615,7 @@ Private Function private_TryResolveSelectedIdForControl( _
     ByVal options As Collection, _
     ByRef outSelectedId As String _
 ) As Boolean
+    private_LogEnter "private_TryResolveSelectedIdForControl"
     Dim storedId As String
     Dim firstId As String
 
@@ -548,6 +655,7 @@ End Function
 
 
 Private Function private_SelectOptionsContainsId(ByVal options As Collection, ByVal optionId As String) As Boolean
+    private_LogEnter "private_SelectOptionsContainsId"
     Dim itemObj As Variant
     Dim normalizedId As String
 
@@ -570,6 +678,7 @@ End Function
 
 
 Private Function private_TryGetFirstOptionId(ByVal options As Collection, ByRef outId As String) As Boolean
+    private_LogEnter "private_TryGetFirstOptionId"
     Dim itemObj As Variant
 
     outId = VBA.vbNullString
@@ -592,6 +701,7 @@ Private Function private_TryGetStoredSelectedIdForControl( _
     ByVal controlName As String, _
     ByRef outSelectedId As String _
 ) As Boolean
+    private_LogEnter "private_TryGetStoredSelectedIdForControl"
     Dim selectStatic As obj_SelectControlVMStatic
     Dim selectKey As String
 
@@ -615,6 +725,7 @@ Private Function private_TrySetStoredSelectedIdForControl( _
     ByVal controlName As String, _
     ByVal selectedId As String _
 ) As Boolean
+    private_LogEnter "private_TrySetStoredSelectedIdForControl"
     Dim selectStatic As obj_SelectControlVMStatic
     Dim selectKey As String
 
@@ -637,6 +748,7 @@ Private Function private_CreateSelectOption( _
     ByVal idText As String, _
     ByVal onSelectMacro As String _
 ) As obj_SelectOption
+    private_LogEnter "private_CreateSelectOption"
     Dim selectOption As obj_SelectOption
 
     ' Формируем объект, который читает obj_SelectControlVM.
@@ -653,6 +765,7 @@ Private Function private_TryResolvePageBase( _
     ByRef outPageBase As obj_PageBase, _
     Optional ByVal preferredPageBase As Object _
 ) As Boolean
+    private_LogEnter "private_TryResolvePageBase"
     Set outPageBase = Nothing
 
     ' Приоритет: явно переданный page context.
@@ -683,12 +796,135 @@ Private Function private_TryResolvePageBase( _
 End Function
 
 
+Private Function private_TryResolveConfigControl( _
+    ByVal pageBase As obj_PageBase, _
+    ByRef outConfigControl As obj_ConfigControlVM _
+) As Boolean
+    private_LogEnter "private_TryResolveConfigControl"
+    Dim rawControl As Object
+
+    Set outConfigControl = Nothing
+    If pageBase Is Nothing Then
+        private_ReportRuntimeConfigError "PrototypeNew: page base is not specified for config control resolve."
+        Exit Function
+    End If
+
+    If Not pageBase.TryGetRegisteredControlByName(CONFIG_CONTROL_NAME, rawControl) Then
+        private_ReportRuntimeConfigError "PrototypeNew: config control '" & CONFIG_CONTROL_NAME & "' was not found in runtime registry."
+        Exit Function
+    End If
+    If rawControl Is Nothing Then
+        private_ReportRuntimeConfigError "PrototypeNew: config control '" & CONFIG_CONTROL_NAME & "' runtime entry is empty."
+        Exit Function
+    End If
+    If Not TypeOf rawControl Is obj_ConfigControlVM Then
+        private_ReportRuntimeConfigError "PrototypeNew: config control '" & CONFIG_CONTROL_NAME & "' has unexpected type '" & VBA.TypeName(rawControl) & "'."
+        Exit Function
+    End If
+
+    Set outConfigControl = rawControl
+    private_TryResolveConfigControl = True
+End Function
+
+
+Private Function private_TryReplaceProfileRowsFromSourceNode( _
+    ByVal targetProfileNode As Object, _
+    ByVal sourceConfigNode As Object _
+) As Boolean
+    private_LogEnter "private_TryReplaceProfileRowsFromSourceNode"
+    Dim targetRowNodes As Object
+    Dim sourceRowNodes As Object
+    Dim rowIndex As Long
+    Dim sourceRowNode As Object
+    Dim clonedRowNode As Object
+
+    If targetProfileNode Is Nothing Then
+        private_ReportRuntimeConfigError "PrototypeNew: target profile node is not specified for save."
+        Exit Function
+    End If
+    If sourceConfigNode Is Nothing Then
+        private_ReportRuntimeConfigError "PrototypeNew: source config node is not specified for save."
+        Exit Function
+    End If
+
+    ' Этап A: очищаем у target-профиля все существующие row-узлы.
+    ' Это делает операцию save "полной заменой", а не частичным merge.
+    On Error GoTo EH_XML
+    Set targetRowNodes = targetProfileNode.selectNodes("./*[local-name()='item' or local-name()='row' or local-name()='entry' or local-name()='config']")
+    On Error GoTo 0
+
+    If Not targetRowNodes Is Nothing Then
+        For rowIndex = targetRowNodes.Length - 1 To 0 Step -1
+            targetProfileNode.removeChild targetRowNodes.Item(rowIndex)
+        Next rowIndex
+    End If
+
+    ' Этап B: читаем row-узлы из source, который сгенерировал ConfigControl.
+    On Error GoTo EH_XML
+    Set sourceRowNodes = sourceConfigNode.selectNodes("./*[local-name()='item' or local-name()='row' or local-name()='entry' or local-name()='config']")
+    On Error GoTo 0
+    If sourceRowNodes Is Nothing Then
+        private_ReportRuntimeConfigError "PrototypeNew: source config node does not contain readable rows for save."
+        Exit Function
+    End If
+    If sourceRowNodes.Length = 0 Then
+        private_ReportRuntimeConfigError "PrototypeNew: source config node is empty and cannot replace profile rows."
+        Exit Function
+    End If
+
+    ' Этап C: переносим source-узлы в target.
+    ' Используем cloneNode(True), чтобы перенос был независимым от исходного контейнера.
+    For rowIndex = 0 To sourceRowNodes.Length - 1
+        Set sourceRowNode = sourceRowNodes.Item(rowIndex)
+        If sourceRowNode Is Nothing Then GoTo ContinueSourceRow
+
+        ' В save-пайплайне source node строится тем же DOM, что и target profile node.
+        Set clonedRowNode = sourceRowNode.cloneNode(True)
+        If clonedRowNode Is Nothing Then
+            private_ReportRuntimeConfigError "PrototypeNew: failed to clone source row node while updating profile."
+            Exit Function
+        End If
+        targetProfileNode.appendChild clonedRowNode
+ContinueSourceRow:
+    Next rowIndex
+
+    private_TryReplaceProfileRowsFromSourceNode = True
+    Exit Function
+
+EH_XML:
+    private_ReportRuntimeConfigError "PrototypeNew: failed to transfer source config rows into profile node: " & Err.Description
+End Function
+
+
+Private Function private_TrySaveDomToFile(ByVal dom As Object, ByVal filePath As String) As Boolean
+    private_LogEnter "private_TrySaveDomToFile"
+    filePath = VBA.Trim$(filePath)
+    If dom Is Nothing Then
+        private_ReportRuntimeConfigError "PrototypeNew: DOM is not specified for file save."
+        Exit Function
+    End If
+    If VBA.Len(filePath) = 0 Then
+        private_ReportRuntimeConfigError "PrototypeNew: file path is empty for profile save."
+        Exit Function
+    End If
+
+    On Error GoTo EH_SAVE_DOM
+    dom.Save filePath
+    private_TrySaveDomToFile = True
+    Exit Function
+
+EH_SAVE_DOM:
+    private_ReportRuntimeConfigError "PrototypeNew: failed to write profile file '" & filePath & "': " & Err.Description
+End Function
+
+
 Private Function private_TrySetItemsSource( _
     ByVal sourceKey As String, _
     ByVal items As Collection, _
     ByVal notifyChange As Boolean, _
     Optional ByVal preferredPageBase As Object _
 ) As Boolean
+    private_LogEnter "private_TrySetItemsSource"
     Dim pageBase As obj_PageBase
     Dim normalizedKey As String
 
@@ -708,6 +944,7 @@ End Function
 
 
 Private Function private_TryRerenderPage(ByVal pageBase As obj_PageBase, ByVal reason As String) As Boolean
+    private_LogEnter "private_TryRerenderPage"
     Dim pageRef As obj_IPage
     Dim ws As Worksheet
 
@@ -719,3 +956,21 @@ Private Function private_TryRerenderPage(ByVal pageBase As obj_PageBase, ByVal r
     If Not rt_PageManager.m_TryGetPageByWorksheet(ws, pageRef) Then Exit Function
     private_TryRerenderPage = rt_PageManager.m_RenderPage(pageRef, reason)
 End Function
+
+Private Sub private_LogEnter(ByVal memberName As String)
+#If LOGGING_DEBUG_ENABLED Then
+    ex_Core.m_Diagnostic_LogInfo "enter:ex_PageMainActions." & VBA.Trim$(memberName)
+#End If
+End Sub
+
+Private Sub private_ReportRuntimeConfigError(ByVal messageText As String)
+    private_LogEnter "private_ReportRuntimeConfigError"
+    messageText = VBA.Trim$(messageText)
+    If VBA.Len(messageText) = 0 Then Exit Sub
+
+    ' Ошибку фиксируем в логах и показываем пользователю.
+#If LOGGING_DEBUG_ENABLED Then
+    ex_Core.m_Diagnostic_LogError messageText
+#End If
+    MsgBox messageText, vbExclamation, "PrototypeNew / Config runtime"
+End Sub
