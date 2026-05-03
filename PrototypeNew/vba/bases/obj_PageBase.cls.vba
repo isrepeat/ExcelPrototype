@@ -733,8 +733,7 @@ End Function
 ' Callstack[2]: obj_PageBase.Render -> ResetControlActions
 ' Callstack[3]: obj_PageBase.Clear -> ResetControlActions
 ' Callstack[4]: obj_PageBase.Dispose -> ResetControlActions
-' Callstack[5]: obj_PageBase.TryRestoreSerializableControlSnapshots -> ResetControlActions
-' Callstack[6]: obj_PageMain.ResetControlActions -> obj_PageMain.obj_IPage_ResetControlActions -> obj_PageBase.ResetControlActions
+' Callstack[5]: obj_PageMain.ResetControlActions -> obj_PageMain.obj_IPage_ResetControlActions -> obj_PageBase.ResetControlActions
 Public Function ResetControlActions() As Boolean
     Dim key As Variant
 
@@ -875,9 +874,13 @@ Public Function TryRestoreSerializableControlSnapshots(ByVal snapshots As Collec
     Dim iSerializable As obj_ISerializable
 
     If Not private_EnsureNotDisposed("TryRestoreSerializableControlSnapshots") Then Exit Function
-    ' Восстанавливаем только runtime-состояние контролов из снапшотов.
-    ' Визуальное дерево и маршруты shape пересоздаются обычным Render().
-    Call Me.ResetControlActions
+    ' В restore-фазе страница уже отрисована и non-serializable контролы
+    ' (например Config) должны остаться в реестре.
+    ' Поэтому здесь чистим только serializable-контролы и их shape-роуты:
+    ' удаляем их текущие runtime-записи и затем восстанавливаем из snapshot.
+    ' Это сохраняет целостность snapshot-state для serializable VM и не
+    ' "выбрасывает" non-serializable VM, зарегистрированные обычным Render().
+    If Not private_TryResetSerializableControlActions() Then Exit Function
 
     If snapshots Is Nothing Then
         TryRestoreSerializableControlSnapshots = True
@@ -928,6 +931,56 @@ Public Function TryGetRegisteredControls(ByRef outControlsByKey As Object) As Bo
     Next key
 
     TryGetRegisteredControls = True
+End Function
+
+Public Function TryGetRegisteredControlByKey(ByVal controlKey As String, ByRef outControl As Object) As Boolean
+    Dim reason As String
+
+    If Not private_EnsureNotDisposed("TryGetRegisteredControlByKey") Then Exit Function
+    Set outControl = Nothing
+
+    controlKey = VBA.LCase$(VBA.Trim$(controlKey))
+    If VBA.Len(controlKey) = 0 Then Exit Function
+
+    If Not private_TryGetControl(controlKey, outControl, reason) Then Exit Function
+    TryGetRegisteredControlByKey = True
+End Function
+
+Public Function TryGetRegisteredControlByName(ByVal controlName As String, ByRef outControl As Object) As Boolean
+    Dim key As Variant
+    Dim keyText As String
+    Dim keyControlName As String
+    Dim normalizedControlName As String
+    Dim matchCount As Long
+
+    If Not private_EnsureNotDisposed("TryGetRegisteredControlByName") Then Exit Function
+    Set outControl = Nothing
+
+    normalizedControlName = VBA.LCase$(VBA.Trim$(controlName))
+    If VBA.Len(normalizedControlName) = 0 Then Exit Function
+    If m_ControlByKey Is Nothing Then Exit Function
+
+    For Each key In m_ControlByKey.Keys
+        keyText = VBA.LCase$(VBA.Trim$(VBA.CStr(key)))
+        keyControlName = private_ExtractControlNameFromControlKey(keyText)
+        If VBA.StrComp(keyControlName, normalizedControlName, VBA.vbTextCompare) <> 0 Then GoTo ContinueControlByName
+
+        Set outControl = m_ControlByKey(key)
+        If outControl Is Nothing Then
+            Set outControl = Nothing
+            Exit Function
+        End If
+
+        matchCount = matchCount + 1
+        If matchCount > 1 Then
+            Set outControl = Nothing
+            Exit Function
+        End If
+
+ContinueControlByName:
+    Next key
+
+    TryGetRegisteredControlByName = (matchCount = 1 And Not outControl Is Nothing)
 End Function
 
 ' Callstack[1]: ThisWorkbook.Workbook_BeforeClose -> rt_Snapshots.m_SavePageSnapshots -> page.GetPageBase -> obj_PageBase.TrySerializePageSnapshotEnvelope
@@ -1481,6 +1534,21 @@ Private Function private_TryGetControl( _
     private_TryGetControl = True
 End Function
 
+Private Function private_ExtractControlNameFromControlKey(ByVal controlKey As String) As String
+    Dim delimiterPos As Long
+
+    controlKey = VBA.Trim$(controlKey)
+    If VBA.Len(controlKey) = 0 Then Exit Function
+
+    delimiterPos = VBA.InStrRev(controlKey, "|", -1, VBA.vbBinaryCompare)
+    If delimiterPos <= 0 Then
+        private_ExtractControlNameFromControlKey = VBA.LCase$(controlKey)
+        Exit Function
+    End If
+
+    private_ExtractControlNameFromControlKey = VBA.LCase$(VBA.Trim$(VBA.Mid$(controlKey, delimiterPos + 1)))
+End Function
+
 Private Function private_TryNotifyGlobalClick( _
     ByVal clickedControlKey As String, _
     Optional ByRef outReason As String = VBA.vbNullString _
@@ -1577,6 +1645,40 @@ EH_INVOKE:
 #End If
 End Function
 
+Private Function private_TryResetSerializableControlActions() As Boolean
+    Dim key As Variant
+    Dim keyText As String
+    Dim iControl As Object
+    Dim iSerializable As obj_ISerializable
+    Dim keysToRemove As Collection
+    Dim removeKey As Variant
+
+    private_EnsureStorage
+    If m_ControlByKey Is Nothing Then
+        private_TryResetSerializableControlActions = True
+        Exit Function
+    End If
+
+    Set keysToRemove = New Collection
+
+    For Each key In m_ControlByKey.Keys
+        Set iControl = m_ControlByKey(key)
+        If iControl Is Nothing Then GoTo ContinueControl
+        If Not private_TryCastSerializableControl(iControl, iSerializable) Then GoTo ContinueControl
+
+        keyText = VBA.LCase$(VBA.Trim$(VBA.CStr(key)))
+        If VBA.Len(keyText) = 0 Then GoTo ContinueControl
+        keysToRemove.Add keyText
+ContinueControl:
+    Next key
+
+    For Each removeKey In keysToRemove
+        If Not Me.UnregisterControl(VBA.CStr(removeKey)) Then Exit Function
+    Next removeKey
+
+    private_TryResetSerializableControlActions = True
+End Function
+
 Private Function private_TryCastSerializableControl(ByVal iControl As Object, ByRef outSerializableControl As obj_ISerializable) As Boolean
     If iControl Is Nothing Then Exit Function
 
@@ -1650,4 +1752,3 @@ Private Function private_EnsureNotDisposed(ByVal methodName As String) As Boolea
 
     private_EnsureNotDisposed = True
 End Function
-

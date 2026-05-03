@@ -150,6 +150,14 @@ Private Function obj_IPage_TryGetRegisteredControls(ByRef outControlsByKey As Ob
     obj_IPage_TryGetRegisteredControls = m_PageBase.TryGetRegisteredControls(outControlsByKey)
 End Function
 
+Private Function obj_IPage_TryGetRegisteredControlByKey(ByVal controlKey As String, ByRef outControl As Object) As Boolean
+    obj_IPage_TryGetRegisteredControlByKey = m_PageBase.TryGetRegisteredControlByKey(controlKey, outControl)
+End Function
+
+Private Function obj_IPage_TryGetRegisteredControlByName(ByVal controlName As String, ByRef outControl As Object) As Boolean
+    obj_IPage_TryGetRegisteredControlByName = m_PageBase.TryGetRegisteredControlByName(controlName, outControl)
+End Function
+
 Private Function obj_ISerializable_GetSerializableTypeRoot() As String
     obj_ISerializable_GetSerializableTypeRoot = SERIALIZABLE_TYPE_ROOT
 End Function
@@ -255,6 +263,14 @@ End Function
 
 Public Function TryGetRegisteredControls(ByRef outControlsByKey As Object) As Boolean
     TryGetRegisteredControls = obj_IPage_TryGetRegisteredControls(outControlsByKey)
+End Function
+
+Public Function TryGetRegisteredControlByKey(ByVal controlKey As String, ByRef outControl As Object) As Boolean
+    TryGetRegisteredControlByKey = obj_IPage_TryGetRegisteredControlByKey(controlKey, outControl)
+End Function
+
+Public Function TryGetRegisteredControlByName(ByVal controlName As String, ByRef outControl As Object) As Boolean
+    TryGetRegisteredControlByName = obj_IPage_TryGetRegisteredControlByName(controlName, outControl)
 End Function
 
  ' Callstack[1]: VBA.ImmediateWindow -> obj_PageMain.Clear -> m_PageBase.Clear
@@ -402,7 +418,7 @@ Private Function private_PrepareDemoConfigRuntime(ByVal ws As Worksheet, Optiona
 
     m_PageBase.RuntimeSources.ResetItemsSources
     m_PageBase.RuntimeSources.ResetObjectSources
-    If Not ex_PageMainActions.m_PrepareModeProfileConfigRuntime(notifyChange, m_PageBase) Then Exit Function
+    If Not ex_PageMainActions.m_OnConfigModeChanged(notifyChange, m_PageBase) Then Exit Function
 
     private_PrepareDemoConfigRuntime = True
 End Function
@@ -512,4 +528,3 @@ Private Function private_TryLoadDemoConfigVariantFromStore(ByVal ws As Worksheet
 
     private_TryLoadDemoConfigVariantFromStore = True
 End Function
-

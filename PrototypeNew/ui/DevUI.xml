@@ -72,6 +72,18 @@
                 spanColls="2"
                 spanRows="2"
                 />
+
+              <stackPanel spanColls="1" spanRows="1"/>
+
+              <control
+                type="Button"
+                name="SaveConfigProfile"
+                caption="Save Config Profile"
+                style="actionWarning"
+                onClick="{Binding Module=ex_PageMainActions;Method=m_SaveCurrentConfigProfile}"
+                spanColls="2"
+                spanRows="2"
+                />
           </stackPanel>
       </stackPanel>
 
