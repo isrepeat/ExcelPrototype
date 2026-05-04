@@ -1,0 +1,42 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<profiles>
+  <profile id="default" caption="Default">
+    <item attr="#" key="Profile.Name" value="Default"/>
+
+    <item key="Source.Daily.FilePath" value="..\..\..\WORK Alexandr Bondarenko\НАКАЗИ\DailyScope.xlsx"/>
+    <item key="Source.Daily.SheetAliases" value="DailyEvents"/>
+
+    <item key="BaseDate" value="01.05"/>
+    <item key="CommonKey" value="КОЛЕСНІК Віталій Вікторович"/>
+
+    <item attr="#" key="DailyEvents" value=""/>
+    <item key="Daily.Sheet[DailyEvents].Type" value="Events"/>
+    <item key="Daily.Sheet[DailyEvents].SheetName" value="01_05"/>
+    <!-- <item key="Daily.Sheet[DailyEvents].SheetNameResolver" value="ex_SourceResolvers.m_ResolveWithDateFormatter"/> -->
+    <item key="Daily.Sheet[DailyEvents].RangeStartMarker" value="StartTable_DailyEvents"/>
+    <item key="Daily.Sheet[DailyEvents].RangeEndMarker" value="EndTable_DailyEvents"/>
+    <item key="Daily.Sheet[DailyEvents].FieldsAliases" value="Hospital; Vacation; Rank; FIO; Position; RaportTVO; RaportFrom; InNum; InDate; DocNote; DocNum; DocDate; DaysCount; DateFrom; DateTo; VkNum; VkDate; VlkNum; VlkDate; Type"/>
+    <item key="Daily.Sheet[DailyEvents].Key" value="FIO"/>
+    <item key="Daily.Sheet[DailyEvents].Sort" value="InDate"/>
+    <item key="Daily.Sheet[DailyEvents].Map[Hospital]" value="Лікарня"/>
+    <item key="Daily.Sheet[DailyEvents].Map[Vacation]" value="Відпустка"/>
+    <item key="Daily.Sheet[DailyEvents].Map[Rank]" value="Звання"/>
+    <item key="Daily.Sheet[DailyEvents].Map[FIO]" value="ПІБ"/>
+    <item key="Daily.Sheet[DailyEvents].Map[Position]" value="Посада"/>
+    <item key="Daily.Sheet[DailyEvents].Map[RaportTVO]" value="Рапорт ТВО"/>
+    <item key="Daily.Sheet[DailyEvents].Map[RaportFrom]" value="Рапорт кого"/>
+    <item key="Daily.Sheet[DailyEvents].Map[InNum]" value="Вх. №"/>
+    <item key="Daily.Sheet[DailyEvents].Map[InDate]" value="Вх. Дата"/>
+    <item key="Daily.Sheet[DailyEvents].Map[DocNote]" value="Документ / Замітки"/>
+    <item key="Daily.Sheet[DailyEvents].Map[DocNum]" value="Док. №"/>
+    <item key="Daily.Sheet[DailyEvents].Map[DocDate]" value="Док. дата"/>
+    <item key="Daily.Sheet[DailyEvents].Map[DaysCount]" value="На скільки"/>
+    <item key="Daily.Sheet[DailyEvents].Map[DateFrom]" value="З"/>
+    <item key="Daily.Sheet[DailyEvents].Map[DateTo]" value="По"/>
+    <item key="Daily.Sheet[DailyEvents].Map[VkNum]" value="В/к №"/>
+    <item key="Daily.Sheet[DailyEvents].Map[VkDate]" value="В/к дата"/>
+    <item key="Daily.Sheet[DailyEvents].Map[VlkNum]" value="ВЛК №"/>
+    <item key="Daily.Sheet[DailyEvents].Map[VlkDate]" value="ВЛК дата"/>
+    <item key="Daily.Sheet[DailyEvents].Map[Type]" value="Type"/>
+  </profile>
+</profiles>

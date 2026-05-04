@@ -779,12 +779,18 @@ Public Function DispatchShapeClick(ByVal shapeName As String) As Boolean
     Dim failureReason As String
     Dim invokeErrorText As String
 
+    ' Центральная диспетчеризация клика внутри страницы.
+    ' Зачем нужна:
+    ' 1) Shape.OnAction может указывать только макрос, а не method class instance.
+    ' 2) Здесь мы превращаем shapeName в runtime-route:
+    '    shape -> controlKey -> methodName(+arg) и вызываем method у VM.
     If Not private_EnsureNotDisposed("DispatchShapeClick") Then Exit Function
     shapeName = VBA.Trim$(shapeName)
     If VBA.Len(shapeName) = 0 Then Exit Function
 
     private_LogRuntimeInfo "dispatch-click start shape='" & private_EscapeForLog(shapeName) & "' routes=" & VBA.CStr(private_GetDictionaryCount(m_RouteByShape)) & " controls=" & VBA.CStr(private_GetDictionaryCount(m_ControlByKey))
 
+    ' Шаг A: ищем зарегистрированный маршрут для shape.
     If Not private_TryGetShapeRoute(shapeName, routeEntry, failureReason) Then
         private_LogRuntimeError "dispatch-click route-miss shape='" & private_EscapeForLog(shapeName) & "' reason='" & private_EscapeForLog(failureReason) & "'"
         Exit Function
@@ -799,6 +805,7 @@ Public Function DispatchShapeClick(ByVal shapeName As String) As Boolean
         argValue = Empty
     End If
 
+    ' Шаг B: по controlKey получаем живой control VM объект.
     If Not private_TryGetControl(controlKey, iControl, failureReason) Then
         private_LogRuntimeError "dispatch-click control-miss shape='" & private_EscapeForLog(shapeName) & "' control='" & private_EscapeForLog(controlKey) & "' reason='" & private_EscapeForLog(failureReason) & "'"
         private_RemoveShapeRoute shapeName
@@ -813,6 +820,9 @@ Public Function DispatchShapeClick(ByVal shapeName As String) As Boolean
         Exit Function
     End If
 
+    ' Шаг C: динамический invoke через CallByName (внутри private_TryInvokeControlAction).
+    ' Именно это место дает возможность вызывать методы классов,
+    ' а не только модульные макросы.
     If Not private_TryInvokeControlAction(iControl, methodName, hasArg, argValue, actionOk, invokeErrorText) Then
         private_LogRuntimeError "dispatch-click invoke-failed shape='" & private_EscapeForLog(shapeName) & "' control='" & private_EscapeForLog(controlKey) & "' method='" & private_EscapeForLog(methodName) & "' err='" & private_EscapeForLog(invokeErrorText) & "'"
         Exit Function

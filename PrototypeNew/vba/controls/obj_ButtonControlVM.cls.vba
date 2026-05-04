@@ -22,6 +22,7 @@ Private m_ControlLayout As obj_ControlLayout
 Private m_CaptionText As String
 Private m_CaptionInlineTextPart As obj_InlineTextPart
 Private m_OnClickMacroRef As String
+Private m_OnClickCallbackContext As Object
 Private m_RuntimeControlKey As String
 Private m_IsConfigured As Boolean
 Private m_PageBase As obj_PageBase
@@ -48,7 +49,9 @@ End Sub
 ' читаем attrs -> резолвим биндинги -> нормализуем layout -> готовим runtime key.
 Private Sub obj_IControl_Configure(ByVal page As obj_PageBase, ByVal controlNode As Object)
     Dim dataContext As Object
+    Dim callbackContext As Object
     Dim captionTextResolved As String
+    Dim onClickResolved As Variant
 
     m_IsConfigured = False
     Set m_ControlLayout = Nothing
@@ -62,6 +65,7 @@ Private Sub obj_IControl_Configure(ByVal page As obj_PageBase, ByVal controlNode
     Set m_ControlBase = New obj_ControlBase
     If Not m_ControlBase.Configure(page, controlNode, "Button", "button", m_ControlName) Then Exit Sub
     Set m_PageBase = m_ControlBase.PageBase
+    Set m_OnClickCallbackContext = Nothing
 
     m_CaptionRaw = VBA.CStr(ex_XmlCore.m_NodeAttrText(controlNode, "caption"))
     If VBA.Len(m_CaptionRaw) = 0 Then m_CaptionRaw = DEFAULT_CAPTION
@@ -80,8 +84,24 @@ Private Sub obj_IControl_Configure(ByVal page As obj_PageBase, ByVal controlNode
     If Not ex_BindingRuntime.m_TryResolveTextBinding(m_CaptionRaw, dataContext, captionTextResolved) Then Exit Sub
     m_CaptionInlineSource = captionTextResolved
     If Not private_TryResolveCaptionInlineText(page, m_CaptionInlineSource) Then Exit Sub
-    If Not ex_BindingRuntime.m_TryResolveMacroBinding(m_OnClickRaw, dataContext, m_OnClickMacroRef) Then Exit Sub
+
+    Set callbackContext = m_ControlBase.DataContext
+    If Not ex_BindingRuntime.m_TryResolveValueBinding(m_OnClickRaw, callbackContext, onClickResolved) Then Exit Sub
+    If VBA.IsObject(onClickResolved) Then
+#If LOGGING_DEBUG_ENABLED Then
+        ex_Core.m_Diagnostic_LogError "Button: onClick binding must resolve to scalar callback value for control '" & m_ControlName & "'."
+#End If
+        Exit Sub
+    End If
+    m_OnClickMacroRef = VBA.Trim$(VBA.CStr(onClickResolved))
     m_OnClickMacroRef = VBA.Trim$(m_OnClickMacroRef)
+    If VBA.Len(m_OnClickMacroRef) = 0 Then
+#If LOGGING_DEBUG_ENABLED Then
+        ex_Core.m_Diagnostic_LogError "Button: onClick resolved to empty callback for control '" & m_ControlName & "'."
+#End If
+        Exit Sub
+    End If
+    Set m_OnClickCallbackContext = callbackContext
 
     Set m_ControlLayout = New obj_ControlLayout
     If Not m_ControlLayout.TryReadFromNode(controlNode, "Button", m_ControlName, "style") Then Exit Sub
@@ -233,12 +253,14 @@ Public Sub Dispose()
     Set m_ControlBase = Nothing
     Set m_ControlLayout = Nothing
     Set m_CaptionInlineTextPart = Nothing
+    Set m_OnClickCallbackContext = Nothing
     Set m_PageBase = Nothing
     On Error GoTo 0
 End Sub
 
+' Callstack[1]: Shape.OnAction -> rt_Bridge.m_OnShapeClick -> rt_PageManager.m_TryGetPageByWorksheet -> page.DispatchShapeClick -> obj_PageMain.obj_IPage_DispatchShapeClick -> obj_PageBase.DispatchShapeClick -> obj_PageBase.private_TryInvokeControlAction -> obj_ButtonControlVM.RuntimeHandleClick
 Public Function RuntimeHandleClick() As Boolean
-    If Not rt_Bridge.m_RunMacro(m_OnClickMacroRef) Then Exit Function
+    If Not rt_Bridge.m_RunCallback(m_OnClickMacroRef, m_OnClickCallbackContext) Then Exit Function
     RuntimeHandleClick = True
 End Function
 
@@ -365,6 +387,7 @@ Public Function TryDeserializeSnapshot(ByVal snapshotXml As String) As Boolean
     ' 3) Восстанавливаем page-контекст (PageBase) для этого листа,
     '    чтобы затем зарегистрировать control/route обратно в runtime-реестры страницы.
     If Not ex_HelpersSheet.m_TryGetPageBaseByWorksheetName(layoutSheetName, m_PageBase) Then Exit Function
+    If Not private_TryRestoreCallbackContextFromPage() Then Exit Function
 
     On Error Resume Next
     Set shp = ws.Shapes(shapeName)
@@ -383,6 +406,39 @@ Public Function TryDeserializeSnapshot(ByVal snapshotXml As String) As Boolean
         m_IsConfigured = True
     End If
     TryDeserializeSnapshot = True
+End Function
+
+Private Function private_TryRestoreCallbackContextFromPage() As Boolean
+    Dim callbackContext As Object
+    Dim ws As Worksheet
+    Dim iPage As obj_IPage
+
+    Set m_OnClickCallbackContext = Nothing
+    If m_PageBase Is Nothing Then
+        private_TryRestoreCallbackContextFromPage = True
+        Exit Function
+    End If
+    Set ws = m_PageBase.Worksheet
+    If ws Is Nothing Then
+        private_TryRestoreCallbackContextFromPage = True
+        Exit Function
+    End If
+    If Not rt_PageManager.m_TryGetPageByWorksheet(ws, iPage) Then
+        private_TryRestoreCallbackContextFromPage = True
+        Exit Function
+    End If
+    If iPage Is Nothing Then
+        private_TryRestoreCallbackContextFromPage = True
+        Exit Function
+    End If
+    If Not iPage.TryGetController(callbackContext) Then Exit Function
+    If callbackContext Is Nothing Then
+        private_TryRestoreCallbackContextFromPage = True
+        Exit Function
+    End If
+
+    Set m_OnClickCallbackContext = callbackContext
+    private_TryRestoreCallbackContextFromPage = True
 End Function
 
 ' //

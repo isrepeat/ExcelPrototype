@@ -498,7 +498,7 @@ Public Function TryBuildRenderedConfigNode(ByVal dom As Object, ByRef outConfigN
 
     On Error GoTo EH_XML
     ' Source-контейнер создаем в универсальном виде.
-    ' Его дальше интерпретирует orchestration-слой (ex_PageMainActions).
+    ' Его дальше интерпретирует caller
     Set outConfigNode = dom.createElement("config")
     rowWrittenCount = 0
 

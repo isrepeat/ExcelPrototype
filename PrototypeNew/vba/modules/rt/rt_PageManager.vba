@@ -591,15 +591,12 @@ End Function
 
 
 Private Function private_TryCreatePageByPageType(ByVal pageType As PageTypeEnum, ByRef outPage As obj_IPage) As Boolean
-    Dim pageMain As obj_PageMain
-
     Set outPage = Nothing
     pageType = private_NormalizePageType(pageType)
 
     Select Case pageType
         Case PageTypeMain, PageTypeGenerated
-            Set pageMain = New obj_PageMain
-            Set outPage = pageMain
+            Set outPage = New obj_PageMain
             private_TryCreatePageByPageType = True
     End Select
 End Function
