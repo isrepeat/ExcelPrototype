@@ -26,9 +26,15 @@ Public Sub m_OnShapeClick()
     Dim wsName As String
     Dim wsCodeName As String
 
+    ' Почему нужен bridge:
+    ' - Excel Shape.OnAction принимает только имя макроса (строку),
+    '   но не умеет вызывать method конкретного class instance.
+    ' - Поэтому все shape клики сходятся в один модульный entrypoint,
+    '   а дальше мы сами маршрутизируем к нужной странице/контролу.
     On Error GoTo EH_CLICK
     g_IsDispatchingClick = True
 
+    ' 1) Получаем имя shape, по которому кликнули (Application.Caller).
     On Error Resume Next
     callerShapeName = VBA.CStr(Application.Caller)
     On Error GoTo EH_CLICK
@@ -39,6 +45,7 @@ Public Sub m_OnShapeClick()
         GoTo CleanExit
     End If
 
+    ' 2) Определяем активный лист и находим page instance для этого листа.
     Set activeSheetObj = Application.ActiveSheet
     If Not TypeOf activeSheetObj Is Worksheet Then
         private_LogBridgeError "click-skip reason='active-sheet-not-worksheet' shape='" & private_EscapeForLog(callerShapeName) & "'"
@@ -55,6 +62,9 @@ Public Sub m_OnShapeClick()
         GoTo CleanExit
     End If
 
+    ' 3) Передаем shapeName в page-level dispatcher.
+    ' Дальше PageBase уже мапит shape -> (controlKey, methodName, arg)
+    ' и вызывает method у конкретного VM объекта.
     dispatchOk = page.DispatchShapeClick(callerShapeName)
     If Not dispatchOk Then
         private_LogBridgeError "click-dispatch-failed shape='" & private_EscapeForLog(callerShapeName) & "' sheet='" & private_EscapeForLog(wsName) & "'"
@@ -81,21 +91,50 @@ Public Function m_IsDispatchingClick() As Boolean
 End Function
 
 
-Public Function m_RunMacro(ByVal macroRef As String) As Boolean
-    macroRef = VBA.Trim$(macroRef)
-    If VBA.Len(macroRef) = 0 Then
-        m_RunMacro = True
+Public Function m_RunCallback( _
+    ByVal callbackRef As String, _
+    Optional ByVal callbackContext As Object _
+) As Boolean
+    Dim callbackResult As Variant
+    Dim qualifiedMacroRef As String
+    Dim wbName As String
+
+    callbackRef = VBA.Trim$(callbackRef)
+    If VBA.Len(callbackRef) = 0 Then
+        m_RunCallback = True
         Exit Function
     End If
 
     On Error GoTo EH_RUN
-    Application.Run macroRef
-    m_RunMacro = True
+
+    ' Если callback выглядит как имя метода без module/workbook,
+    ' и есть object-context (например PageMainController) — вызываем method напрямую.
+    If Not callbackContext Is Nothing Then
+        If VBA.InStr(1, callbackRef, ".", VBA.vbBinaryCompare) = 0 And _
+           VBA.InStr(1, callbackRef, "!", VBA.vbBinaryCompare) = 0 Then
+            callbackResult = VBA.CallByName(callbackContext, callbackRef, VbMethod)
+            If VBA.VarType(callbackResult) = vbBoolean Then
+                m_RunCallback = VBA.CBool(callbackResult)
+            Else
+                m_RunCallback = True
+            End If
+            Exit Function
+        End If
+    End If
+
+    qualifiedMacroRef = callbackRef
+    If VBA.InStr(1, qualifiedMacroRef, "!", VBA.vbBinaryCompare) = 0 Then
+        wbName = VBA.Replace$(ThisWorkbook.Name, "'", "''")
+        qualifiedMacroRef = "'" & wbName & "'!" & qualifiedMacroRef
+    End If
+
+    Application.Run qualifiedMacroRef
+    m_RunCallback = True
     Exit Function
 
 EH_RUN:
 #If LOGGING_DEBUG_ENABLED Then
-    ex_Core.m_Diagnostic_LogError "rt_Bridge: failed to execute macro '" & macroRef & "': " & Err.Description
+    ex_Core.m_Diagnostic_LogError "rt_Bridge: failed to execute callback '" & callbackRef & "' (context='" & VBA.TypeName(callbackContext) & "'): " & Err.Description
 #End If
 End Function
 

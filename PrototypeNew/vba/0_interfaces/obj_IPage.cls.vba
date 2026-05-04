@@ -13,19 +13,22 @@ Public Function Initialize( _
 ) As Boolean
 End Function
 
+Public Sub Dispose(Optional ByVal deleteWorksheet As Boolean = True)
+End Sub
+
 Public Function Render() As Boolean
 End Function
 
 Public Function UpdateUiPath( _
-    ByVal uiPath As String, _
-    Optional ByVal reason As String = VBA.vbNullString _
+ByVal uiPath As String, _
+Optional ByVal reason As String = VBA.vbNullString _
 ) As Boolean
 End Function
 
-Public Sub Dispose(Optional ByVal deleteWorksheet As Boolean = True)
-End Sub
-
 Public Function GetPageBase() As obj_PageBase
+End Function
+
+Public Function TryGetController(ByRef outController As Object) As Boolean
 End Function
 
 Public Function RegisterControl(ByVal controlKey As String, ByVal controlVm As Object) As Boolean

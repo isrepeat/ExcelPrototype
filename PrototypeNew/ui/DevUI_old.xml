@@ -2,6 +2,38 @@
 <page xmlns="urn:excelprototype:profiles" version="1">
   <grid anchorCell="A1">
       <stackPanel at="r2c2" orientation="horizontal">
+          <stackPanel orientation="vertical">
+              <control
+                type="Button"
+                name="Open Table Part Styles UI"
+                caption="Open Table Part Styles Demo"
+                style="actionWarning"
+                onClick="{Binding Module=ex_Test;Method=m_TEST_RenderDevTablePartStylesUI}"
+                spanColls="3"
+                spanRows="2"
+                />
+              <control
+                type="Button"
+                name="Update UI"
+                caption="Open Table List Demo"
+                style="actionWarning"
+                onClick="{Binding Module=ex_Test;Method=m_TEST_RenderDevTableListUI}"
+                spanColls="3"
+                spanRows="2"
+                />
+              <control
+                type="Button"
+                name="Update UI Single"
+                caption="Open Single Table Demo"
+                style="actionWarning"
+                onClick="{Binding Module=ex_Test;Method=m_TEST_RenderDevSingleTableUI}"
+                spanColls="3"
+                spanRows="2"
+                />
+            </stackPanel>
+      </stackPanel>
+
+      <stackPanel at="r2c6" orientation="horizontal">
           <control
             type="Config"
             name="DevConfig"
@@ -14,8 +46,8 @@
               <control
                 type="Select"
                 name="ConfigProfilePicker"
-                dataContext="{PageRuntimeSource='RuntimeObjects.PageMain.Controller'}"
                 itemsSource="{PageRuntimeSource='RuntimeItems.PageMain.ConfigProfiles'}"
+                dataContext="{PageRuntimeSource='RuntimeObjects.PageMain.Controller'}"
                 dropDownOpened="{Binding Method=OnConfigProfileDropDownOpened}"
                 placeholder="Choose profile"
                 style="configSelectHeader"
@@ -32,8 +64,8 @@
               <control
                 type="Select"
                 name="ConfigModePicker"
-                dataContext="{PageRuntimeSource='RuntimeObjects.PageMain.Controller'}"
                 itemsSource="{PageRuntimeSource='RuntimeItems.PageMain.ConfigModes'}"
+                dataContext="{PageRuntimeSource='RuntimeObjects.PageMain.Controller'}"
                 dropDownOpened="{Binding Method=OnConfigModeDropDownOpened}"
                 placeholder="Choose mode"
                 style="configSelectHeader"
@@ -170,6 +202,17 @@
                 borderWeight:thin;
                 width:8.625;
                 rowHeight:15.95;
+              }"/>
+      </layer>
+
+      <layer name="dark-primary-action">
+        <rule target="range"
+              selector="address=B2:D3"
+              styles="{ 
+                backColor:#0F766E;
+                fontColor:#E6FFFA;
+                borderColor:#134E4A;
+                fontBold:true;
               }"/>
       </layer>
 

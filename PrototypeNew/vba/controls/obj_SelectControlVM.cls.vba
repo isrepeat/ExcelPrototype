@@ -53,6 +53,7 @@ Private m_UiOptionRawItems As Collection
 Private m_IsDropdownExpanded As Boolean
 Private m_IsConfigured As Boolean
 Private m_PageBase As obj_PageBase
+Private m_CallbackContext As Object
 
 Private Sub Class_Initialize()
 #If LOGGING_VERBOSE_ENABLED Then
@@ -75,7 +76,6 @@ End Sub
 Private Sub obj_IControl_Configure(ByVal page As obj_PageBase, ByVal controlNode As Object)
     Dim pageBase As obj_PageBase
     Dim selectedIdText As String
-    Dim dataContext As Object
 
     ' Полный reset состояния: важно при повторной конфигурации того же VM.
     m_IsConfigured = False
@@ -94,6 +94,7 @@ Private Sub obj_IControl_Configure(ByVal page As obj_PageBase, ByVal controlNode
     Set m_UiOptionRawItems = Nothing
     Set m_ControlBase = Nothing
     Set m_PageBase = Nothing
+    Set m_CallbackContext = Nothing
     m_IsDropdownExpanded = False
     m_SelectedIndex = 0
 
@@ -120,20 +121,18 @@ Private Sub obj_IControl_Configure(ByVal page As obj_PageBase, ByVal controlNode
     If Not private_TryReadPositiveDoubleAttr(controlNode, "itemHeight", DEFAULT_ITEM_HEIGHT, m_ItemHeight) Then Exit Sub
     If Not private_TryReadNonNegativeDoubleAttr(controlNode, "itemMargin", DEFAULT_ITEM_MARGIN, m_ItemMargin) Then Exit Sub
 
+    Set m_CallbackContext = m_ControlBase.DataContext
+
     m_OnChangeRaw = VBA.CStr(ex_XmlCore.m_NodeAttrText(controlNode, "onChange"))
     m_OnChangeMacroRef = VBA.vbNullString
     If VBA.Len(VBA.Trim$(m_OnChangeRaw)) > 0 Then
-        Set dataContext = m_ControlBase.DataContext
-        If dataContext Is Nothing Then Set dataContext = Me
-        If Not ex_BindingRuntime.m_TryResolveMacroBinding(m_OnChangeRaw, dataContext, m_OnChangeMacroRef) Then Exit Sub
+        If Not private_TryResolveCallbackRef(m_OnChangeRaw, m_CallbackContext, m_OnChangeMacroRef) Then Exit Sub
     End If
 
     m_DropDownOpenedRaw = VBA.CStr(ex_XmlCore.m_NodeAttrText(controlNode, "dropDownOpened"))
     m_DropDownOpenedMacroRef = VBA.vbNullString
     If VBA.Len(VBA.Trim$(m_DropDownOpenedRaw)) > 0 Then
-        Set dataContext = m_ControlBase.DataContext
-        If dataContext Is Nothing Then Set dataContext = Me
-        If Not ex_BindingRuntime.m_TryResolveMacroBinding(m_DropDownOpenedRaw, dataContext, m_DropDownOpenedMacroRef) Then Exit Sub
+        If Not private_TryResolveCallbackRef(m_DropDownOpenedRaw, m_CallbackContext, m_DropDownOpenedMacroRef) Then Exit Sub
     End If
 
     ' 2) Читаем общий layout (лист + границы + style).
@@ -334,6 +333,7 @@ Public Sub Dispose()
     Set m_UiOptionIds = Nothing
     Set m_UiOptionActionMacros = Nothing
     Set m_UiOptionRawItems = Nothing
+    Set m_CallbackContext = Nothing
     Set m_PageBase = Nothing
     On Error GoTo 0
 End Sub
@@ -610,6 +610,7 @@ Public Function TryDeserializeSnapshot(ByVal snapshotXml As String) As Boolean
     Set ws = ex_HelpersSheet.m_GetRuntimeWorksheetByName(m_ControlLayout.LayoutSheetName)
     If ws Is Nothing Then Exit Function
     If Not ex_HelpersSheet.m_TryGetPageBaseByWorksheetName(m_ControlLayout.LayoutSheetName, m_PageBase) Then Exit Function
+    If Not private_TryRestoreCallbackContextFromPage() Then Exit Function
 
     Set headerNode = root.selectSingleNode("*[local-name()='header']")
     If headerNode Is Nothing Then Exit Function
@@ -1066,14 +1067,10 @@ Private Function private_RunOptionMacro(ByVal macroRef As String) As Boolean
         Exit Function
     End If
 
-    On Error GoTo EH_RUN
-    Application.Run macroRef
-    private_RunOptionMacro = True
-    Exit Function
-
-EH_RUN:
+    private_RunOptionMacro = rt_Bridge.m_RunCallback(macroRef, m_CallbackContext)
+    If private_RunOptionMacro Then Exit Function
 #If LOGGING_DEBUG_ENABLED Then
-    ex_Core.m_Diagnostic_LogError "Select: failed to execute macro '" & macroRef & "' for control '" & m_ControlName & "': " & Err.Description
+    ex_Core.m_Diagnostic_LogError "Select: failed to execute callback '" & macroRef & "' for control '" & m_ControlName & "'."
 #End If
 End Function
 
@@ -1321,7 +1318,11 @@ Private Function private_TryResolveItemMetadata( _
 
     outItemActionMacro = VBA.vbNullString
     If VBA.Len(actionRaw) > 0 Then
-        outItemActionMacro = private_QualifyMacroName(actionRaw)
+        If VBA.InStr(1, actionRaw, ".", VBA.vbBinaryCompare) > 0 Or VBA.InStr(1, actionRaw, "!", VBA.vbBinaryCompare) > 0 Then
+            outItemActionMacro = private_QualifyMacroName(actionRaw)
+        Else
+            outItemActionMacro = actionRaw
+        End If
     End If
 
     private_TryResolveItemMetadata = True
@@ -1820,6 +1821,72 @@ End Function
 
 Private Function private_GetRuntimeCallbackMacroRef() As String
     private_GetRuntimeCallbackMacroRef = private_QualifyMacroName("rt_Bridge.m_OnShapeClick")
+End Function
+
+Private Function private_TryResolveCallbackRef( _
+    ByVal rawText As String, _
+    ByVal dataContext As Object, _
+    ByRef outCallbackRef As String _
+) As Boolean
+    Dim resolvedValue As Variant
+
+    outCallbackRef = VBA.vbNullString
+    rawText = VBA.Trim$(rawText)
+    If VBA.Len(rawText) = 0 Then
+        private_TryResolveCallbackRef = True
+        Exit Function
+    End If
+
+    If Not ex_BindingRuntime.m_TryResolveValueBinding(rawText, dataContext, resolvedValue) Then Exit Function
+    If VBA.IsObject(resolvedValue) Then
+#If LOGGING_DEBUG_ENABLED Then
+        ex_Core.m_Diagnostic_LogError "Select: callback binding must resolve to scalar value for control '" & m_ControlName & "'."
+#End If
+        Exit Function
+    End If
+
+    outCallbackRef = VBA.Trim$(VBA.CStr(resolvedValue))
+    If VBA.Len(outCallbackRef) = 0 Then
+#If LOGGING_DEBUG_ENABLED Then
+        ex_Core.m_Diagnostic_LogError "Select: callback binding resolved to empty value for control '" & m_ControlName & "'."
+#End If
+        Exit Function
+    End If
+
+    private_TryResolveCallbackRef = True
+End Function
+
+Private Function private_TryRestoreCallbackContextFromPage() As Boolean
+    Dim callbackContext As Object
+    Dim ws As Worksheet
+    Dim iPage As obj_IPage
+
+    Set m_CallbackContext = Nothing
+    If m_PageBase Is Nothing Then
+        private_TryRestoreCallbackContextFromPage = True
+        Exit Function
+    End If
+    Set ws = m_PageBase.Worksheet
+    If ws Is Nothing Then
+        private_TryRestoreCallbackContextFromPage = True
+        Exit Function
+    End If
+    If Not rt_PageManager.m_TryGetPageByWorksheet(ws, iPage) Then
+        private_TryRestoreCallbackContextFromPage = True
+        Exit Function
+    End If
+    If iPage Is Nothing Then
+        private_TryRestoreCallbackContextFromPage = True
+        Exit Function
+    End If
+    If Not iPage.TryGetController(callbackContext) Then Exit Function
+    If callbackContext Is Nothing Then
+        private_TryRestoreCallbackContextFromPage = True
+        Exit Function
+    End If
+
+    Set m_CallbackContext = callbackContext
+    private_TryRestoreCallbackContextFromPage = True
 End Function
 
 Private Function private_QualifyMacroName(ByVal macroName As String) As String
