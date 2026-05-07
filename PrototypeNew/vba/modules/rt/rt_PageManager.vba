@@ -41,6 +41,7 @@ Public Function fn_TrySerializeModuleSnapshot(ByRef outSnapshotXml As String) As
     Dim payloadXml As String
     Dim pageId As String
     Dim worksheetName As String
+    Dim worksheetCodeName As String
 
     outSnapshotXml = VBA.vbNullString
 
@@ -64,6 +65,10 @@ Public Function fn_TrySerializeModuleSnapshot(ByRef outSnapshotXml As String) As
     ' Snapshot каждой страницы = transport envelope (id/type/sheet/uiPath)
     ' + page payload из obj_ISerializable.TrySerializeSnapshot.
     private_EnsureStorage
+    ' Важно: при ручном удалении листов через Excel UI в реестре могут остаться
+    ' "сироты" (page есть, а Worksheet уже COM-disconnected). Перед snapshot
+    ' чистим такие записи, иначе чтение Worksheet.Name/CodeName может упасть.
+    private_PruneInvalidPages "serialize-module-snapshot"
     For Each pageKey In g_PageById.Keys
         Set page = Nothing
         Set pageBase = Nothing
@@ -96,10 +101,19 @@ Public Function fn_TrySerializeModuleSnapshot(ByRef outSnapshotXml As String) As
         pageId = VBA.LCase$(VBA.Trim$(pageBase.PageId))
         If VBA.Len(pageId) = 0 Then pageId = VBA.LCase$(VBA.Trim$(VBA.CStr(pageKey)))
 
+        worksheetName = VBA.vbNullString
+        worksheetCodeName = VBA.vbNullString
+        If Not private_TryGetWorksheetIdentity(pageBase.Worksheet, worksheetName, worksheetCodeName) Then
+#If LOGGING_DEBUG_ENABLED Then
+            ex_Core.fn_Diagnostic_LogError "PageManager: worksheet identity is unavailable during module snapshot for pageId='" & VBA.Replace$(pageId, "'", "''") & "'."
+#End If
+            GoTo ContinuePage
+        End If
+
         Set pageNode = dom.createElement(MODULE_SNAPSHOT_PAGE_NODE)
         pageNode.setAttribute "pageId", pageId
-        pageNode.setAttribute "sheetName", VBA.Trim$(VBA.CStr(pageBase.Worksheet.Name))
-        pageNode.setAttribute "codeName", VBA.Trim$(VBA.CStr(pageBase.Worksheet.CodeName))
+        pageNode.setAttribute "sheetName", worksheetName
+        pageNode.setAttribute "codeName", worksheetCodeName
         pageNode.setAttribute "type", typeRoot
         pageNode.setAttribute "uiPath", pageBase.UiPath
 
@@ -346,6 +360,9 @@ Public Function fn_TryGetPageByWorksheet(ByVal ws As Worksheet, ByRef outPage As
     On Error GoTo 0
 
     wsName = VBA.Replace$(wsName, "'", "''")
+    ' На lookup по листу также делаем self-heal, чтобы маршрутизация клика
+    ' не опиралась на stale-страницы после ручного удаления worksheet.
+    private_PruneInvalidPages "get-page-by-worksheet"
     If Not private_TryFindPageByWorksheet(ws, outPage, resolvedPageId) Then
 #If LOGGING_DEBUG_ENABLED Then
         ex_Core.fn_Diagnostic_LogError "page-manager:get-by-worksheet page-not-found sheet='" & wsName & "'"
@@ -432,6 +449,7 @@ End Function
 Public Function fn_RenderPage(ByVal page As obj_IPage, Optional ByVal reason As String = VBA.vbNullString) As Boolean
     Dim pageBase As obj_PageBase
     Dim sheetName As String
+    Dim sheetCodeName As String
     Dim normalizedReason As String
     Dim errDescription As String
     Dim pageId As String
@@ -458,7 +476,16 @@ Public Function fn_RenderPage(ByVal page As obj_IPage, Optional ByVal reason As 
         Exit Function
     End If
 
-    sheetName = VBA.Replace$(VBA.CStr(pageBase.Worksheet.Name), "'", "''")
+    sheetName = VBA.vbNullString
+    sheetCodeName = VBA.vbNullString
+    If Not private_TryGetWorksheetIdentity(pageBase.Worksheet, sheetName, sheetCodeName) Then
+#If LOGGING_DEBUG_ENABLED Then
+        ex_Core.fn_Diagnostic_LogError "page-manager:render input-invalid worksheet identity is unavailable"
+#End If
+        Exit Function
+    End If
+
+    sheetName = VBA.Replace$(sheetName, "'", "''")
     normalizedReason = VBA.Trim$(VBA.CStr(reason))
     If VBA.Len(normalizedReason) = 0 Then normalizedReason = "manual"
 
@@ -559,8 +586,12 @@ Public Function fn_TryGetLastRenderedWorksheetName(ByRef outWorksheetName As Str
     Dim pageId As String
     Dim page As obj_IPage
     Dim pageBase As obj_PageBase
+    Dim worksheetCodeName As String
 
     outWorksheetName = VBA.vbNullString
+    ' LastRendered может ссылаться на страницу, чей worksheet удален вручную.
+    ' Сначала очищаем невалидные страницы, чтобы не ловить COM-ошибку на Name.
+    private_PruneInvalidPages "get-last-rendered-worksheet-name"
     pageId = VBA.LCase$(VBA.Trim$(g_LastRenderedPageId))
     If VBA.Len(pageId) = 0 Then
         fn_TryGetLastRenderedWorksheetName = True
@@ -582,7 +613,13 @@ Public Function fn_TryGetLastRenderedWorksheetName(ByRef outWorksheetName As Str
         Exit Function
     End If
 
-    outWorksheetName = VBA.Trim$(VBA.CStr(pageBase.Worksheet.Name))
+    outWorksheetName = VBA.vbNullString
+    worksheetCodeName = VBA.vbNullString
+    If Not private_TryGetWorksheetIdentity(pageBase.Worksheet, outWorksheetName, worksheetCodeName) Then
+        fn_TryGetLastRenderedWorksheetName = True
+        Exit Function
+    End If
+
     fn_TryGetLastRenderedWorksheetName = True
 End Function
 
@@ -659,6 +696,7 @@ End Function
 Private Function private_RegisterPage(ByVal pageId As String, ByVal page As obj_IPage) As Boolean
     Dim pageBase As obj_PageBase
     Dim sheetName As String
+    Dim sheetCodeName As String
 
     pageId = VBA.LCase$(VBA.Trim$(pageId))
     If VBA.Len(pageId) = 0 Then
@@ -698,7 +736,12 @@ Private Function private_RegisterPage(ByVal pageId As String, ByVal page As obj_
     Set g_PageById(pageId) = page
 
     sheetName = VBA.vbNullString
-    If Not pageBase.Worksheet Is Nothing Then sheetName = VBA.Replace$(VBA.Trim$(VBA.CStr(pageBase.Worksheet.Name)), "'", "''")
+    sheetCodeName = VBA.vbNullString
+    If Not pageBase.Worksheet Is Nothing Then
+        If private_TryGetWorksheetIdentity(pageBase.Worksheet, sheetName, sheetCodeName) Then
+            sheetName = VBA.Replace$(sheetName, "'", "''")
+        End If
+    End If
 #If LOGGING_DEBUG_ENABLED Then
     ex_Core.fn_Diagnostic_LogInfo "page-manager:register-page pageId='" & VBA.Replace$(pageId, "'", "''") & "' sheet='" & sheetName & "'"
 #End If
@@ -783,6 +826,144 @@ Private Function private_TryResolvePageIdByObject(ByVal page As obj_IPage) As St
             Exit Function
         End If
     Next key
+End Function
+
+
+Private Sub private_PruneInvalidPages(Optional ByVal reasonText As String = VBA.vbNullString)
+    Dim idsToRemove As Collection
+    Dim key As Variant
+    Dim page As obj_IPage
+    Dim pageBase As obj_PageBase
+    Dim pageId As String
+    Dim worksheetName As String
+    Dim worksheetCodeName As String
+    Dim removeItem As Variant
+
+    private_EnsureStorage
+    Set idsToRemove = New Collection
+    reasonText = VBA.Trim$(reasonText)
+    If VBA.Len(reasonText) = 0 Then reasonText = "unknown"
+
+    ' Self-heal проход:
+    ' 1) находим страницы без валидного Worksheet identity;
+    ' 2) мягко удаляем их из runtime-реестра;
+    ' 3) сбрасываем g_LastRenderedPageId, если он указывал на такую страницу.
+    '
+    ' Почему отдельный pre-scan + remove-pass:
+    ' - во время For Each по g_PageById.Keys нельзя безопасно удалять элементы
+    '   из того же словаря (получим нестабильное поведение итератора);
+    ' - поэтому сначала копим pageId кандидатов, потом удаляем отдельным циклом.
+    For Each key In g_PageById.Keys
+        pageId = VBA.LCase$(VBA.Trim$(VBA.CStr(key)))
+        If VBA.Len(pageId) = 0 Then GoTo ContinueScan
+
+        Set page = Nothing
+        Set pageBase = Nothing
+        Set page = g_PageById(VBA.CStr(key))
+        If page Is Nothing Then
+            idsToRemove.Add pageId
+            GoTo ContinueScan
+        End If
+
+        ' GetPageBase теоретически может бросить ошибку (например, если объект
+        ' уже в неконсистентном состоянии после внешнего удаления листа).
+        On Error Resume Next
+        Set pageBase = page.GetPageBase()
+        If Err.Number <> 0 Then
+            Err.Clear
+            On Error GoTo 0
+            idsToRemove.Add pageId
+            GoTo ContinueScan
+        End If
+        On Error GoTo 0
+
+        If pageBase Is Nothing Then
+            idsToRemove.Add pageId
+            GoTo ContinueScan
+        End If
+        If pageBase.Worksheet Is Nothing Then
+            idsToRemove.Add pageId
+            GoTo ContinueScan
+        End If
+
+        worksheetName = VBA.vbNullString
+        worksheetCodeName = VBA.vbNullString
+        ' Критичный шаг: проверяем, что worksheet не только "не Nothing",
+        ' но и реально живой COM-объект (Name/CodeName читаются без ошибки).
+        If Not private_TryGetWorksheetIdentity(pageBase.Worksheet, worksheetName, worksheetCodeName) Then
+            idsToRemove.Add pageId
+        End If
+
+ContinueScan:
+    Next key
+
+    For Each removeItem In idsToRemove
+        pageId = VBA.LCase$(VBA.Trim$(VBA.CStr(removeItem)))
+        If VBA.Len(pageId) = 0 Then GoTo ContinueRemove
+        If Not g_PageById.Exists(pageId) Then GoTo ContinueRemove
+
+        Set page = Nothing
+        Set page = g_PageById(pageId)
+        On Error Resume Next
+        ' Dispose False: освобождаем runtime-ссылки страницы, но не удаляем лист.
+        ' В нашем сценарии лист обычно уже удален вручную пользователем.
+        If Not page Is Nothing Then page.Dispose False
+        Err.Clear
+        On Error GoTo 0
+
+        ' Удаляем запись из реестра менеджера: после этого страница перестает
+        ' участвовать в snapshot/restore/dispatch и не ломает следующие циклы.
+        Set g_PageById(pageId) = Nothing
+        g_PageById.Remove pageId
+        If VBA.StrComp(g_LastRenderedPageId, pageId, VBA.vbTextCompare) = 0 Then
+            ' Если "последняя отрендеренная" указывала на сироту, очищаем указатель,
+            ' иначе fn_TryGetLastRenderedWorksheetName снова упрется в битый объект.
+            g_LastRenderedPageId = VBA.vbNullString
+        End If
+
+#If LOGGING_DEBUG_ENABLED Then
+        ex_Core.fn_Diagnostic_LogWarning "page-manager:prune-invalid-page pageId='" & VBA.Replace$(pageId, "'", "''") & "' reason='" & VBA.Replace$(reasonText, "'", "''") & "'"
+#End If
+
+ContinueRemove:
+    Next removeItem
+End Sub
+
+
+Private Function private_TryGetWorksheetIdentity( _
+    ByVal ws As Worksheet, _
+    ByRef outWorksheetName As String, _
+    ByRef outWorksheetCodeName As String _
+) As Boolean
+    ' Важный нюанс VBA/COM:
+    ' проверка "ws Is Nothing" недостаточна. После ручного удаления листа ссылка
+    ' может остаться объектом, но стать COM-disconnected (0x800401A8).
+    ' Поэтому валидность проверяем фактическим чтением стабильных свойств.
+    outWorksheetName = VBA.vbNullString
+    outWorksheetCodeName = VBA.vbNullString
+    If ws Is Nothing Then Exit Function
+
+    On Error Resume Next
+    outWorksheetName = VBA.Trim$(VBA.CStr(ws.Name))
+    If Err.Number <> 0 Then
+        Err.Clear
+        On Error GoTo 0
+        Exit Function
+    End If
+
+    ' Читаем и Name, и CodeName:
+    ' - Name нужен для UI/restore по имени листа;
+    ' - CodeName дополнительно подтверждает, что worksheet доступен целиком,
+    '   а не только частично через "живой" proxy.
+    outWorksheetCodeName = VBA.Trim$(VBA.CStr(ws.CodeName))
+    If Err.Number <> 0 Then
+        Err.Clear
+        On Error GoTo 0
+        Exit Function
+    End If
+    On Error GoTo 0
+
+    private_TryGetWorksheetIdentity = True
 End Function
 
 

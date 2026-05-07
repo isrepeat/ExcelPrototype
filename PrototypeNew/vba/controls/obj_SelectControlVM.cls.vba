@@ -298,6 +298,10 @@ Private Function obj_ISerializable_TryDeserializeSnapshot(ByVal snapshotXml As S
     obj_ISerializable_TryDeserializeSnapshot = Me.TryDeserializeSnapshot(snapshotXml)
 End Function
 
+Private Function obj_ISerializable_TryRestoreState() As Boolean
+    obj_ISerializable_TryRestoreState = True
+End Function
+
 ' //
 ' // API
 ' //
