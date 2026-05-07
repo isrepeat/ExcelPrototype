@@ -7,15 +7,15 @@ Option Explicit
 
 Private Const UI_NS As String = "urn:excelprototype:profiles"
 
-Public Sub m_Module_Dispose()
+Public Sub fn_Module_Dispose()
 #If LOGGING_VERBOSE_ENABLED Then
-    ex_Core.m_Diagnostic_LogInfo "lifecycle:ex_LayoutListRenderer.m_Module_Dispose"
+    ex_Core.fn_Diagnostic_LogInfo "lifecycle:ex_LayoutListRenderer.fn_Module_Dispose"
 #End If
 End Sub
 ' //
 ' // API
 ' //
-Public Function m_Render( _
+Public Function fn_Render( _
     ByVal renderCtx As obj_LayoutRenderContext, _
     ByVal layoutNode As Object, _
     ByVal rowStart As Long, _
@@ -37,13 +37,13 @@ Public Function m_Render( _
 
     If layoutNode Is Nothing Then
 #If LOGGING_DEBUG_ENABLED Then
-        ex_Core.m_Diagnostic_LogError "PrototypeNew: list node is not specified."
+        ex_Core.fn_Diagnostic_LogError "PrototypeNew: list node is not specified."
 #End If
         Exit Function
     End If
     If VBA.StrComp(VBA.LCase$(VBA.CStr(layoutNode.baseName)), "list", VBA.vbBinaryCompare) <> 0 Then
 #If LOGGING_DEBUG_ENABLED Then
-        ex_Core.m_Diagnostic_LogError "PrototypeNew: ex_LayoutListRenderer supports only <list> nodes."
+        ex_Core.fn_Diagnostic_LogError "PrototypeNew: ex_LayoutListRenderer supports only <list> nodes."
 #End If
         Exit Function
     End If
@@ -51,7 +51,7 @@ Public Function m_Render( _
     Set pageBase = renderCtx.PageBase
     If pageBase Is Nothing Then
 #If LOGGING_DEBUG_ENABLED Then
-        ex_Core.m_Diagnostic_LogError "PrototypeNew: page base is not specified for list renderer."
+        ex_Core.fn_Diagnostic_LogError "PrototypeNew: page base is not specified for list renderer."
 #End If
         Exit Function
     End If
@@ -59,19 +59,19 @@ Public Function m_Render( _
     ' itemsSource резолвится единым resolver-ом:
     ' - runtime source expression ({PageRuntimeSource/...}, {GlobalRuntimeSource/...})
     ' - или Binding, возвращающий Collection.
-    If Not ex_RuntimeSourceResolver.m_TryResolveItemsSource( _
+    If Not ex_RuntimeSourceResolver.fn_TryResolveItemsSource( _
         pageBase.RuntimeSources, _
-        ex_XmlCore.m_NodeAttrText(layoutNode, "itemsSource"), _
+        ex_XmlCore.fn_NodeAttrText(layoutNode, "itemsSource"), _
         items) Then Exit Function
 
     If items Is Nothing Then
 #If LOGGING_DEBUG_ENABLED Then
-        ex_Core.m_Diagnostic_LogError "PrototypeNew: list itemsSource resolved to Nothing."
+        ex_Core.fn_Diagnostic_LogError "PrototypeNew: list itemsSource resolved to Nothing."
 #End If
         Exit Function
     End If
     If items.Count = 0 Then
-        m_Render = True
+        fn_Render = True
         Exit Function
     End If
 
@@ -80,7 +80,7 @@ Public Function m_Render( _
     listOrientation = private_GetListOrientation(layoutNode)
     If VBA.Len(listOrientation) = 0 Then Exit Function
 
-    Set tempDoc = ex_XmlCore.m_CreateDom(UI_NS)
+    Set tempDoc = ex_XmlCore.fn_CreateDom(UI_NS)
     private_CopyTemplatesToTempListDoc tempDoc, layoutNode.OwnerDocument
 
     Set syntheticRoot = tempDoc.createNode(1, "stackPanel", UI_NS)
@@ -93,7 +93,7 @@ Public Function m_Render( _
         Set clonedNode = tempDoc.importNode(templateRoot, True)
         If clonedNode Is Nothing Then
 #If LOGGING_DEBUG_ENABLED Then
-            ex_Core.m_Diagnostic_LogError "PrototypeNew: failed to clone list template node."
+            ex_Core.fn_Diagnostic_LogError "PrototypeNew: failed to clone list template node."
 #End If
             Exit Function
         End If
@@ -106,7 +106,7 @@ Public Function m_Render( _
         syntheticRoot.appendChild clonedNode
     Next itemValue
 
-    m_Render = ex_XmlLayoutEngine.m_RenderContainerNodeInBounds( _
+    fn_Render = ex_XmlLayoutEngine.fn_RenderContainerNodeInBounds( _
         renderCtx:=renderCtx, _
         containerNode:=syntheticRoot, _
         layoutRowStart:=rowStart, _
@@ -116,7 +116,7 @@ Public Function m_Render( _
 End Function
 
 
-Public Function m_TryMeasureContentSpan( _
+Public Function fn_TryMeasureContentSpan( _
     ByVal renderCtx As obj_LayoutRenderContext, _
     ByVal listNode As Object, _
     ByRef outSpanRows As Long, _
@@ -134,18 +134,18 @@ Public Function m_TryMeasureContentSpan( _
     If listNode Is Nothing Then Exit Function
     If VBA.StrComp(VBA.LCase$(VBA.CStr(listNode.baseName)), "list", VBA.vbBinaryCompare) <> 0 Then
 #If LOGGING_DEBUG_ENABLED Then
-        ex_Core.m_Diagnostic_LogError "PrototypeNew: ex_LayoutListRenderer supports only <list> nodes."
+        ex_Core.fn_Diagnostic_LogError "PrototypeNew: ex_LayoutListRenderer supports only <list> nodes."
 #End If
         Exit Function
     End If
 
     If Not private_TryResolveItemsSourceForMeasure( _
-        renderCtx, ex_XmlCore.m_NodeAttrText(listNode, "itemsSource"), dataContext, items) Then Exit Function
+        renderCtx, ex_XmlCore.fn_NodeAttrText(listNode, "itemsSource"), dataContext, items) Then Exit Function
 
     If items Is Nothing Or items.Count = 0 Then
         outSpanRows = 1
         outSpanColls = 1
-        m_TryMeasureContentSpan = True
+        fn_TryMeasureContentSpan = True
         Exit Function
     End If
 
@@ -160,7 +160,7 @@ Public Function m_TryMeasureContentSpan( _
     For Each itemValue In items
         Set itemBindingSource = Nothing
         If Not private_TryCreateListItemBindingSource(itemValue, itemBindingSource) Then Exit Function
-        If Not ex_XmlLayoutEngine.m_TryGetEffectiveNodeSpan(renderCtx, templateRoot, itemRows, itemCols, itemBindingSource) Then Exit Function
+        If Not ex_XmlLayoutEngine.fn_TryGetEffectiveNodeSpan(renderCtx, templateRoot, itemRows, itemCols, itemBindingSource) Then Exit Function
 
         If VBA.StrComp(orientation, "horizontal", VBA.vbBinaryCompare) = 0 Then
             If itemRows > outSpanRows Then outSpanRows = itemRows
@@ -173,7 +173,7 @@ Public Function m_TryMeasureContentSpan( _
 
     If outSpanRows <= 0 Then outSpanRows = 1
     If outSpanColls <= 0 Then outSpanColls = 1
-    m_TryMeasureContentSpan = True
+    fn_TryMeasureContentSpan = True
 End Function
 
 ' //
@@ -206,10 +206,10 @@ Private Sub private_CopyTemplatesToTempListDoc(ByVal targetDoc As Object, ByVal 
     If srcTemplateNodes Is Nothing Then Exit Sub
 
     For Each srcTemplateNode In srcTemplateNodes
-        templateName = VBA.Trim$(ex_XmlCore.m_NodeAttrText(srcTemplateNode, "name"))
+        templateName = VBA.Trim$(ex_XmlCore.fn_NodeAttrText(srcTemplateNode, "name"))
         If VBA.Len(templateName) = 0 Then GoTo ContinueTemplate
 
-        If Not targetTemplatesNode.selectSingleNode("p:template[@name=" & ex_XmlCore.m_XPathLiteral(templateName) & "]") Is Nothing Then
+        If Not targetTemplatesNode.selectSingleNode("p:template[@name=" & ex_XmlCore.fn_XPathLiteral(templateName) & "]") Is Nothing Then
             GoTo ContinueTemplate
         End If
 
@@ -226,10 +226,10 @@ Private Function private_TryResolveListTemplateRoot(ByVal listNode As Object, By
     Dim templateNode As Object
     Dim rootNodes As Object
 
-    templateName = VBA.Trim$(ex_XmlCore.m_NodeAttrText(listNode, "itemsSourceTemplate"))
+    templateName = VBA.Trim$(ex_XmlCore.fn_NodeAttrText(listNode, "itemsSourceTemplate"))
     If VBA.Len(templateName) = 0 Then
 #If LOGGING_DEBUG_ENABLED Then
-        ex_Core.m_Diagnostic_LogError "PrototypeNew: list requires non-empty attribute 'itemsSourceTemplate'."
+        ex_Core.fn_Diagnostic_LogError "PrototypeNew: list requires non-empty attribute 'itemsSourceTemplate'."
 #End If
         Exit Function
     End If
@@ -237,16 +237,16 @@ Private Function private_TryResolveListTemplateRoot(ByVal listNode As Object, By
     Set ownerDoc = listNode.OwnerDocument
     If ownerDoc Is Nothing Then
 #If LOGGING_DEBUG_ENABLED Then
-        ex_Core.m_Diagnostic_LogError "PrototypeNew: failed to resolve owner document for list template."
+        ex_Core.fn_Diagnostic_LogError "PrototypeNew: failed to resolve owner document for list template."
 #End If
         Exit Function
     End If
 
     Set templateNode = ownerDoc.selectSingleNode( _
-        "/p:page/p:templates/p:template[@name=" & ex_XmlCore.m_XPathLiteral(templateName) & "] | /p:uiDefinition/p:templates/p:template[@name=" & ex_XmlCore.m_XPathLiteral(templateName) & "]")
+        "/p:page/p:templates/p:template[@name=" & ex_XmlCore.fn_XPathLiteral(templateName) & "] | /p:uiDefinition/p:templates/p:template[@name=" & ex_XmlCore.fn_XPathLiteral(templateName) & "]")
     If templateNode Is Nothing Then
 #If LOGGING_DEBUG_ENABLED Then
-        ex_Core.m_Diagnostic_LogError "PrototypeNew: list references missing template '" & templateName & "'."
+        ex_Core.fn_Diagnostic_LogError "PrototypeNew: list references missing template '" & templateName & "'."
 #End If
         Exit Function
     End If
@@ -254,13 +254,13 @@ Private Function private_TryResolveListTemplateRoot(ByVal listNode As Object, By
     Set rootNodes = templateNode.selectNodes("p:control | p:stackPanel | p:grid | p:list | p:itemControl")
     If rootNodes Is Nothing Or rootNodes.Length = 0 Then
 #If LOGGING_DEBUG_ENABLED Then
-        ex_Core.m_Diagnostic_LogError "PrototypeNew: template '" & templateName & "' has no visual root node."
+        ex_Core.fn_Diagnostic_LogError "PrototypeNew: template '" & templateName & "' has no visual root node."
 #End If
         Exit Function
     End If
     If rootNodes.Length <> 1 Then
 #If LOGGING_DEBUG_ENABLED Then
-        ex_Core.m_Diagnostic_LogError "PrototypeNew: template '" & templateName & "' must contain exactly one visual root node."
+        ex_Core.fn_Diagnostic_LogError "PrototypeNew: template '" & templateName & "' must contain exactly one visual root node."
 #End If
         Exit Function
     End If
@@ -271,13 +271,13 @@ End Function
 
 
 Private Function private_GetListOrientation(ByVal listNode As Object) As String
-    private_GetListOrientation = VBA.LCase$(VBA.Trim$(ex_XmlCore.m_NodeAttrText(listNode, "orientation")))
+    private_GetListOrientation = VBA.LCase$(VBA.Trim$(ex_XmlCore.fn_NodeAttrText(listNode, "orientation")))
     If VBA.Len(private_GetListOrientation) = 0 Then private_GetListOrientation = "vertical"
 
     If VBA.StrComp(private_GetListOrientation, "vertical", VBA.vbBinaryCompare) <> 0 And _
        VBA.StrComp(private_GetListOrientation, "horizontal", VBA.vbBinaryCompare) <> 0 Then
 #If LOGGING_DEBUG_ENABLED Then
-        ex_Core.m_Diagnostic_LogError "PrototypeNew: list orientation must be 'vertical' or 'horizontal'."
+        ex_Core.fn_Diagnostic_LogError "PrototypeNew: list orientation must be 'vertical' or 'horizontal'."
 #End If
         private_GetListOrientation = VBA.vbNullString
     End If
@@ -294,7 +294,7 @@ Private Sub private_AppendSuffixToControlNames(ByVal rootNode As Object, ByVal s
 
     baseName = VBA.LCase$(VBA.CStr(rootNode.baseName))
     If VBA.StrComp(baseName, "control", VBA.vbBinaryCompare) = 0 Then
-        nodeName = VBA.Trim$(ex_XmlCore.m_NodeAttrText(rootNode, "name"))
+        nodeName = VBA.Trim$(ex_XmlCore.fn_NodeAttrText(rootNode, "name"))
         If VBA.Len(nodeName) = 0 Then nodeName = "item"
         rootNode.setAttribute "name", nodeName & suffix
     End If
@@ -316,7 +316,7 @@ Private Sub private_ApplyListItemValueToTemplate(ByVal templateRoot As Object, B
     Set targetControl = private_FindFirstControlNode(templateRoot)
     If targetControl Is Nothing Then Exit Sub
 
-    existingCaption = VBA.Trim$(ex_XmlCore.m_NodeAttrText(targetControl, "caption"))
+    existingCaption = VBA.Trim$(ex_XmlCore.fn_NodeAttrText(targetControl, "caption"))
     If VBA.Len(existingCaption) > 0 Then Exit Sub
 
     targetControl.setAttribute "caption", captionText
@@ -344,7 +344,7 @@ Private Function private_TryCreateListItemBindingSource(ByVal itemValue As Varia
     If VBA.IsObject(itemValue) Then
         If itemValue Is Nothing Then
 #If LOGGING_DEBUG_ENABLED Then
-            ex_Core.m_Diagnostic_LogError "PrototypeNew: list item object is Nothing."
+            ex_Core.fn_Diagnostic_LogError "PrototypeNew: list item object is Nothing."
 #End If
             Exit Function
         End If
@@ -404,7 +404,7 @@ Private Function private_ApplyNodeBindingsRecursive( _
             If VBA.InStr(1, rawText, "{Binding ", VBA.vbTextCompare) = 0 Then GoTo ContinueAttr
 
             If VBA.StrComp(VBA.LCase$(attrName), "visibility", VBA.vbBinaryCompare) = 0 Then
-                If Not ex_BindingRuntime.m_TryResolveVisibilityBinding(rawText, dataContext, resolvedVisible) Then Exit Function
+                If Not ex_BindingRuntime.fn_TryResolveVisibilityBinding(rawText, dataContext, resolvedVisible) Then Exit Function
                 If resolvedVisible Then
                     rootNode.setAttribute attrName, "true"
                 Else
@@ -416,7 +416,7 @@ Private Function private_ApplyNodeBindingsRecursive( _
             ' Binding вычисляется от dataContext конкретного элемента списка.
             ' Объектные результаты не пишем в XML напрямую:
             ' регистрируем runtime-source key и подставляем ключ в атрибут.
-            If Not ex_BindingRuntime.m_TryResolveValueBinding(rawText, dataContext, resolvedValue) Then Exit Function
+            If Not ex_BindingRuntime.fn_TryResolveValueBinding(rawText, dataContext, resolvedValue) Then Exit Function
 
             If VBA.IsObject(resolvedValue) Then
                 rootNodeName = VBA.LCase$(VBA.CStr(rootNode.baseName))
@@ -432,14 +432,14 @@ Private Function private_ApplyNodeBindingsRecursive( _
                         Set resolvedObject = resolvedValue
                         If resolvedObject Is Nothing Then
 #If LOGGING_DEBUG_ENABLED Then
-                            ex_Core.m_Diagnostic_LogError "PrototypeNew: itemsSource binding resolved to Nothing object."
+                            ex_Core.fn_Diagnostic_LogError "PrototypeNew: itemsSource binding resolved to Nothing object."
 #End If
                             Exit Function
                         End If
                         runtimeItems.Add resolvedObject
                     Else
 #If LOGGING_DEBUG_ENABLED Then
-                        ex_Core.m_Diagnostic_LogError "PrototypeNew: list itemsSource binding must resolve to Collection."
+                        ex_Core.fn_Diagnostic_LogError "PrototypeNew: list itemsSource binding must resolve to Collection."
 #End If
                         Exit Function
                     End If
@@ -460,7 +460,7 @@ Private Function private_ApplyNodeBindingsRecursive( _
                     End If
                 Else
 #If LOGGING_DEBUG_ENABLED Then
-                    ex_Core.m_Diagnostic_LogError "PrototypeNew: template binding for attribute '" & attrName & "' must resolve to scalar value."
+                    ex_Core.fn_Diagnostic_LogError "PrototypeNew: template binding for attribute '" & attrName & "' must resolve to scalar value."
 #End If
                     Exit Function
                 End If
@@ -490,13 +490,13 @@ Private Function private_RegisterRuntimeListItemsSourceKey( _
 
     If items Is Nothing Then
 #If LOGGING_DEBUG_ENABLED Then
-        ex_Core.m_Diagnostic_LogError "PrototypeNew: runtime list items source is Nothing."
+        ex_Core.fn_Diagnostic_LogError "PrototypeNew: runtime list items source is Nothing."
 #End If
         Exit Function
     End If
     If renderCtx Is Nothing Then
 #If LOGGING_DEBUG_ENABLED Then
-        ex_Core.m_Diagnostic_LogError "PrototypeNew: render context is not specified."
+        ex_Core.fn_Diagnostic_LogError "PrototypeNew: render context is not specified."
 #End If
         Exit Function
     End If
@@ -517,7 +517,7 @@ Private Function private_RegisterRuntimeObjectSourceKey( _
     If sourceObject Is Nothing Then Exit Function
     If renderCtx Is Nothing Then
 #If LOGGING_DEBUG_ENABLED Then
-        ex_Core.m_Diagnostic_LogError "PrototypeNew: render context is not specified."
+        ex_Core.fn_Diagnostic_LogError "PrototypeNew: render context is not specified."
 #End If
         Exit Function
     End If
@@ -560,7 +560,7 @@ Private Function private_TryResolveItemsSourceForMeasure( _
     sourceText = VBA.Trim$(rawItemsSource)
     If VBA.Len(sourceText) = 0 Then
 #If LOGGING_DEBUG_ENABLED Then
-        ex_Core.m_Diagnostic_LogError "PrototypeNew: list itemsSource is required."
+        ex_Core.fn_Diagnostic_LogError "PrototypeNew: list itemsSource is required."
 #End If
         Exit Function
     End If
@@ -568,19 +568,19 @@ Private Function private_TryResolveItemsSourceForMeasure( _
     If private_IsBindingExpression(sourceText) Then
         If dataContext Is Nothing Then
 #If LOGGING_DEBUG_ENABLED Then
-            ex_Core.m_Diagnostic_LogError "PrototypeNew: list itemsSource binding requires item context during layout measurement."
+            ex_Core.fn_Diagnostic_LogError "PrototypeNew: list itemsSource binding requires item context during layout measurement."
 #End If
             Exit Function
         End If
 
         ' На этапе measure binding тоже вычисляем, чтобы размер списка
         ' соответствовал реальным данным того же dataContext.
-        If Not ex_BindingRuntime.m_TryResolveValueBinding(sourceText, dataContext, resolvedValue) Then Exit Function
+        If Not ex_BindingRuntime.fn_TryResolveValueBinding(sourceText, dataContext, resolvedValue) Then Exit Function
 
         If VBA.IsObject(resolvedValue) Then
             If VBA.TypeName(resolvedValue) <> "Collection" Then
 #If LOGGING_DEBUG_ENABLED Then
-                ex_Core.m_Diagnostic_LogError "PrototypeNew: list itemsSource binding must resolve to Collection."
+                ex_Core.fn_Diagnostic_LogError "PrototypeNew: list itemsSource binding must resolve to Collection."
 #End If
                 Exit Function
             End If
@@ -593,7 +593,7 @@ Private Function private_TryResolveItemsSourceForMeasure( _
         sourceText = VBA.Trim$(VBA.CStr(resolvedValue))
         If VBA.Len(sourceText) = 0 Then
 #If LOGGING_DEBUG_ENABLED Then
-            ex_Core.m_Diagnostic_LogError "PrototypeNew: list itemsSource binding resolved to empty value."
+            ex_Core.fn_Diagnostic_LogError "PrototypeNew: list itemsSource binding resolved to empty value."
 #End If
             Exit Function
         End If
@@ -601,7 +601,7 @@ Private Function private_TryResolveItemsSourceForMeasure( _
 
     If renderCtx Is Nothing Then
 #If LOGGING_DEBUG_ENABLED Then
-        ex_Core.m_Diagnostic_LogError "PrototypeNew: list measure render context is not specified."
+        ex_Core.fn_Diagnostic_LogError "PrototypeNew: list measure render context is not specified."
 #End If
         Exit Function
     End If
@@ -609,13 +609,13 @@ Private Function private_TryResolveItemsSourceForMeasure( _
     Set pageBase = renderCtx.PageBase
     If pageBase Is Nothing Then
 #If LOGGING_DEBUG_ENABLED Then
-        ex_Core.m_Diagnostic_LogError "PrototypeNew: list measure page context is not specified in render context."
+        ex_Core.fn_Diagnostic_LogError "PrototypeNew: list measure page context is not specified in render context."
 #End If
         Exit Function
     End If
 
     ' Небиндинговый текст source резолвим тем же путем, что и при render.
-    If Not ex_RuntimeSourceResolver.m_TryResolveItemsSource(pageBase.RuntimeSources, sourceText, outItems) Then Exit Function
+    If Not ex_RuntimeSourceResolver.fn_TryResolveItemsSource(pageBase.RuntimeSources, sourceText, outItems) Then Exit Function
     private_TryResolveItemsSourceForMeasure = True
 End Function
 
@@ -642,7 +642,7 @@ Private Function private_TryGetPageRenderContext( _
 
     If renderCtx Is Nothing Then
 #If LOGGING_DEBUG_ENABLED Then
-        ex_Core.m_Diagnostic_LogError "PrototypeNew: render context is not specified."
+        ex_Core.fn_Diagnostic_LogError "PrototypeNew: render context is not specified."
 #End If
         Exit Function
     End If
@@ -650,7 +650,7 @@ Private Function private_TryGetPageRenderContext( _
     Set outWs = renderCtx.Worksheet
     If outWs Is Nothing Then
 #If LOGGING_DEBUG_ENABLED Then
-        ex_Core.m_Diagnostic_LogError "PrototypeNew: worksheet is not specified."
+        ex_Core.fn_Diagnostic_LogError "PrototypeNew: worksheet is not specified."
 #End If
         Exit Function
     End If
@@ -658,7 +658,7 @@ Private Function private_TryGetPageRenderContext( _
     Set outWb = renderCtx.Workbook
     If outWb Is Nothing Then
 #If LOGGING_DEBUG_ENABLED Then
-        ex_Core.m_Diagnostic_LogError "PrototypeNew: workbook is not specified."
+        ex_Core.fn_Diagnostic_LogError "PrototypeNew: workbook is not specified."
 #End If
         Exit Function
     End If

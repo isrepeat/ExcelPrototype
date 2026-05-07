@@ -21,12 +21,12 @@ Private m_ObjectRenderSuffixSeed As Long
 
 Private Sub Class_Initialize()
 #If LOGGING_VERBOSE_ENABLED Then
-    ex_Core.m_Diagnostic_LogInfo "lifecycle:" & VBA.TypeName(Me) & ".Class_Initialize"
+    ex_Core.fn_Diagnostic_LogInfo "lifecycle:" & VBA.TypeName(Me) & ".Class_Initialize"
 #End If
 End Sub
 Private Sub Class_Terminate()
 #If LOGGING_VERBOSE_ENABLED Then
-    ex_Core.m_Diagnostic_LogInfo "lifecycle:" & VBA.TypeName(Me) & ".Class_Terminate"
+    ex_Core.fn_Diagnostic_LogInfo "lifecycle:" & VBA.TypeName(Me) & ".Class_Terminate"
 #End If
     If m_IsDisposed Then Exit Sub
     On Error Resume Next
@@ -39,7 +39,7 @@ End Sub
 ' //
 Public Function Initialize(ByVal pageBase As obj_PageBase) As Boolean
 #If LOGGING_VERBOSE_ENABLED Then
-    ex_Core.m_Diagnostic_LogInfo "lifecycle:" & VBA.TypeName(Me) & ".Initialize"
+    ex_Core.fn_Diagnostic_LogInfo "lifecycle:" & VBA.TypeName(Me) & ".Initialize"
 #End If
     Set m_PageBase = Nothing
     Set m_Worksheet = Nothing
@@ -51,7 +51,7 @@ Public Function Initialize(ByVal pageBase As obj_PageBase) As Boolean
 
     If pageBase Is Nothing Then
 #If LOGGING_DEBUG_ENABLED Then
-        ex_Core.m_Diagnostic_LogError "PrototypeNew: page base is not specified."
+        ex_Core.fn_Diagnostic_LogError "PrototypeNew: page base is not specified."
 #End If
         Exit Function
     End If
@@ -59,7 +59,7 @@ Public Function Initialize(ByVal pageBase As obj_PageBase) As Boolean
     Set m_Worksheet = pageBase.Worksheet
     If m_Worksheet Is Nothing Then
 #If LOGGING_DEBUG_ENABLED Then
-        ex_Core.m_Diagnostic_LogError "PrototypeNew: worksheet is not specified."
+        ex_Core.fn_Diagnostic_LogError "PrototypeNew: worksheet is not specified."
 #End If
         Exit Function
     End If
@@ -67,7 +67,7 @@ Public Function Initialize(ByVal pageBase As obj_PageBase) As Boolean
     Set m_Workbook = m_Worksheet.Parent
     If m_Workbook Is Nothing Then
 #If LOGGING_DEBUG_ENABLED Then
-        ex_Core.m_Diagnostic_LogError "PrototypeNew: workbook is not specified."
+        ex_Core.fn_Diagnostic_LogError "PrototypeNew: workbook is not specified."
 #End If
         Exit Function
     End If
@@ -78,7 +78,7 @@ Public Function Initialize(ByVal pageBase As obj_PageBase) As Boolean
 End Function
 Public Sub Dispose()
 #If LOGGING_VERBOSE_ENABLED Then
-    ex_Core.m_Diagnostic_LogInfo "lifecycle:" & VBA.TypeName(Me) & ".Dispose"
+    ex_Core.fn_Diagnostic_LogInfo "lifecycle:" & VBA.TypeName(Me) & ".Dispose"
 #End If
     If m_IsDisposed Then Exit Sub
     m_IsDisposed = True
@@ -90,7 +90,7 @@ Public Sub Dispose()
 End Sub
 
 ' Callstack[1]: obj_PageBase.Render -> renderCtx.Initialize(Me) -> obj_LayoutRenderContext.Initialize
-' Callstack[2]: ex_ControlRefreshRuntime.m_TryRefreshStaticControl -> renderCtx.Initialize(pageBase) -> obj_LayoutRenderContext.Initialize
+' Callstack[2]: ex_ControlRefreshRuntime.fn_TryRefreshStaticControl -> renderCtx.Initialize(pageBase) -> obj_LayoutRenderContext.Initialize
 
 Public Property Get PageBase() As obj_PageBase
     Set PageBase = m_PageBase
@@ -122,7 +122,7 @@ Public Function NextObjectRuntimeSourceKey() As String
     NextObjectRuntimeSourceKey = OBJECT_RUNTIME_KEY_PREFIX & m_RunToken & "_" & VBA.CStr(m_ObjectRuntimeSeed)
 End Function
 
-' Callstack[1]: ex_LayoutItemControlRenderer.m_Render -> renderCtx.NextObjectRenderSuffix -> obj_LayoutRenderContext.NextObjectRenderSuffix
+' Callstack[1]: ex_LayoutItemControlRenderer.fn_Render -> renderCtx.NextObjectRenderSuffix -> obj_LayoutRenderContext.NextObjectRenderSuffix
 Public Function NextObjectRenderSuffix() As Long
     m_ObjectRenderSuffixSeed = m_ObjectRenderSuffixSeed + 1
     NextObjectRenderSuffix = m_ObjectRenderSuffixSeed

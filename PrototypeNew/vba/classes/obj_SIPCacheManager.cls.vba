@@ -16,13 +16,13 @@ Private m_CacheByProviderKey As Object
 
 Private Sub Class_Initialize()
 #If LOGGING_VERBOSE_ENABLED Then
-    ex_Core.m_Diagnostic_LogInfo "lifecycle:" & VBA.TypeName(Me) & ".Class_Initialize"
+    ex_Core.fn_Diagnostic_LogInfo "lifecycle:" & VBA.TypeName(Me) & ".Class_Initialize"
 #End If
 End Sub
 
 Private Sub Class_Terminate()
 #If LOGGING_VERBOSE_ENABLED Then
-    ex_Core.m_Diagnostic_LogInfo "lifecycle:" & VBA.TypeName(Me) & ".Class_Terminate"
+    ex_Core.fn_Diagnostic_LogInfo "lifecycle:" & VBA.TypeName(Me) & ".Class_Terminate"
 #End If
     If m_IsDisposed Then Exit Sub
     On Error Resume Next
@@ -35,7 +35,7 @@ End Sub
 ' //
 Public Function Initialize() As Boolean
 #If LOGGING_VERBOSE_ENABLED Then
-    ex_Core.m_Diagnostic_LogInfo "lifecycle:" & VBA.TypeName(Me) & ".Initialize"
+    ex_Core.fn_Diagnostic_LogInfo "lifecycle:" & VBA.TypeName(Me) & ".Initialize"
 #End If
     private_EnsureProvidersMap
     private_EnsureCacheMap
@@ -44,7 +44,7 @@ End Function
 
 Public Sub Dispose()
 #If LOGGING_VERBOSE_ENABLED Then
-    ex_Core.m_Diagnostic_LogInfo "lifecycle:" & VBA.TypeName(Me) & ".Dispose"
+    ex_Core.fn_Diagnostic_LogInfo "lifecycle:" & VBA.TypeName(Me) & ".Dispose"
 #End If
     If m_IsDisposed Then Exit Sub
     m_IsDisposed = True
@@ -62,7 +62,7 @@ Public Function RegisterProvider( _
 
     If provider Is Nothing Then
 #If LOGGING_DEBUG_ENABLED Then
-        ex_Core.m_Diagnostic_LogError "SelectItemsSourceCacheManager: provider is not specified."
+        ex_Core.fn_Diagnostic_LogError "SelectItemsSourceCacheManager: provider is not specified."
 #End If
         Exit Function
     End If
@@ -70,7 +70,7 @@ Public Function RegisterProvider( _
     normalizedKey = private_NormalizeKey(provider.GetProviderKey())
     If VBA.Len(normalizedKey) = 0 Then
 #If LOGGING_DEBUG_ENABLED Then
-        ex_Core.m_Diagnostic_LogError "SelectItemsSourceCacheManager: provider key is empty."
+        ex_Core.fn_Diagnostic_LogError "SelectItemsSourceCacheManager: provider key is empty."
 #End If
         Exit Function
     End If
@@ -81,7 +81,7 @@ Public Function RegisterProvider( _
     If m_ProvidersByKey.Exists(normalizedKey) Then
         If Not replaceExisting Then
 #If LOGGING_DEBUG_ENABLED Then
-            ex_Core.m_Diagnostic_LogError "SelectItemsSourceCacheManager: provider '" & normalizedKey & "' is already registered."
+            ex_Core.fn_Diagnostic_LogError "SelectItemsSourceCacheManager: provider '" & normalizedKey & "' is already registered."
 #End If
             Exit Function
         End If
@@ -154,7 +154,7 @@ Public Function TryResolveItemsByProviderKey( _
             Exit Function
         End If
 #If LOGGING_DEBUG_ENABLED Then
-        ex_Core.m_Diagnostic_LogError "SelectItemsSourceCacheManager: provider key is empty."
+        ex_Core.fn_Diagnostic_LogError "SelectItemsSourceCacheManager: provider key is empty."
 #End If
         Exit Function
     End If
@@ -168,14 +168,14 @@ Public Function TryResolveItemsByProviderKey( _
             Exit Function
         End If
 #If LOGGING_DEBUG_ENABLED Then
-        ex_Core.m_Diagnostic_LogError "SelectItemsSourceCacheManager: provider '" & normalizedKey & "' is not registered."
+        ex_Core.fn_Diagnostic_LogError "SelectItemsSourceCacheManager: provider '" & normalizedKey & "' is not registered."
 #End If
         Exit Function
     End If
     Set provider = m_ProvidersByKey(normalizedKey)
     If provider Is Nothing Then
 #If LOGGING_DEBUG_ENABLED Then
-        ex_Core.m_Diagnostic_LogError "SelectItemsSourceCacheManager: provider '" & normalizedKey & "' is not initialized."
+        ex_Core.fn_Diagnostic_LogError "SelectItemsSourceCacheManager: provider '" & normalizedKey & "' is not initialized."
 #End If
         Exit Function
     End If
@@ -186,7 +186,7 @@ Public Function TryResolveItemsByProviderKey( _
     currentStamp = VBA.Trim$(currentStamp)
     If VBA.Len(currentStamp) = 0 Then
 #If LOGGING_DEBUG_ENABLED Then
-        ex_Core.m_Diagnostic_LogError "SelectItemsSourceCacheManager: provider '" & normalizedKey & "' returned empty stamp."
+        ex_Core.fn_Diagnostic_LogError "SelectItemsSourceCacheManager: provider '" & normalizedKey & "' returned empty stamp."
 #End If
         Exit Function
     End If
@@ -215,7 +215,7 @@ Public Function TryResolveItemsByProviderKey( _
     If Not provider.TryBuildItems(builtItems) Then Exit Function
     If builtItems Is Nothing Then
 #If LOGGING_DEBUG_ENABLED Then
-        ex_Core.m_Diagnostic_LogError "SelectItemsSourceCacheManager: provider '" & normalizedKey & "' returned empty items collection."
+        ex_Core.fn_Diagnostic_LogError "SelectItemsSourceCacheManager: provider '" & normalizedKey & "' returned empty items collection."
 #End If
         Exit Function
     End If

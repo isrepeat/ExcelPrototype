@@ -3,9 +3,9 @@ Option Explicit
 #Const LOGGING_DEBUG_ENABLED = True
 #Const LOGGING_VERBOSE_ENABLED = False
 
-Public Sub m_Module_Dispose()
+Public Sub fn_Module_Dispose()
 #If LOGGING_VERBOSE_ENABLED Then
-    ex_Core.m_Diagnostic_LogInfo "lifecycle:ex_XmlLayoutEngine.m_Module_Dispose"
+    ex_Core.fn_Diagnostic_LogInfo "lifecycle:ex_XmlLayoutEngine.fn_Module_Dispose"
 #End If
 End Sub
 
@@ -15,7 +15,7 @@ End Sub
 ' //
 ' // API
 ' //
-Public Function m_RenderNode( _
+Public Function fn_RenderNode( _
     ByVal renderCtx As obj_LayoutRenderContext, _
     ByVal layoutNode As Object, _
     Optional ByVal rowStart As Long = 0, _
@@ -31,13 +31,13 @@ Public Function m_RenderNode( _
 
     If layoutNode Is Nothing Then
 #If LOGGING_DEBUG_ENABLED Then
-        ex_Core.m_Diagnostic_LogError "PrototypeNew: layout node is not specified."
+        ex_Core.fn_Diagnostic_LogError "PrototypeNew: layout node is not specified."
 #End If
         Exit Function
     End If
     If layoutNode.NodeType <> 1 Then
 #If LOGGING_DEBUG_ENABLED Then
-        ex_Core.m_Diagnostic_LogError "PrototypeNew: layout node must be an element."
+        ex_Core.fn_Diagnostic_LogError "PrototypeNew: layout node must be an element."
 #End If
         Exit Function
     End If
@@ -45,25 +45,25 @@ Public Function m_RenderNode( _
     nodeKind = VBA.LCase$(VBA.CStr(layoutNode.baseName))
     Select Case nodeKind
         Case "page"
-            m_RenderNode = ex_LayoutPageRenderer.m_Render(renderCtx, layoutNode)
+            fn_RenderNode = ex_LayoutPageRenderer.fn_Render(renderCtx, layoutNode)
 
         Case "control", "stackpanel", "grid", "list", "itemcontrol"
             If rowStart <= 0 Or colStart <= 0 Then
 #If LOGGING_DEBUG_ENABLED Then
-                ex_Core.m_Diagnostic_LogError "PrototypeNew: invalid layout node position."
+                ex_Core.fn_Diagnostic_LogError "PrototypeNew: invalid layout node position."
 #End If
                 Exit Function
             End If
             If rowEnd < rowStart Or colEnd < colStart Then
 #If LOGGING_DEBUG_ENABLED Then
-                ex_Core.m_Diagnostic_LogError "PrototypeNew: invalid layout node bounds."
+                ex_Core.fn_Diagnostic_LogError "PrototypeNew: invalid layout node bounds."
 #End If
                 Exit Function
             End If
 
             Select Case nodeKind
                 Case "control"
-                    m_RenderNode = ex_LayoutControlRenderer.m_Render( _
+                    fn_RenderNode = ex_LayoutControlRenderer.fn_Render( _
                         renderCtx:=renderCtx, _
                         layoutNode:=layoutNode, _
                         rowStart:=rowStart, _
@@ -72,7 +72,7 @@ Public Function m_RenderNode( _
                         colEnd:=colEnd)
 
                 Case "stackpanel"
-                    m_RenderNode = ex_LayoutStackPanelRenderer.m_Render( _
+                    fn_RenderNode = ex_LayoutStackPanelRenderer.fn_Render( _
                         renderCtx:=renderCtx, _
                         layoutNode:=layoutNode, _
                         rowStart:=rowStart, _
@@ -81,7 +81,7 @@ Public Function m_RenderNode( _
                         colEnd:=colEnd)
 
                 Case "grid"
-                    m_RenderNode = ex_LayoutGridRenderer.m_Render( _
+                    fn_RenderNode = ex_LayoutGridRenderer.fn_Render( _
                         renderCtx:=renderCtx, _
                         layoutNode:=layoutNode, _
                         rowStart:=rowStart, _
@@ -90,7 +90,7 @@ Public Function m_RenderNode( _
                         colEnd:=colEnd)
 
                 Case "list"
-                    m_RenderNode = ex_LayoutListRenderer.m_Render( _
+                    fn_RenderNode = ex_LayoutListRenderer.fn_Render( _
                         renderCtx:=renderCtx, _
                         layoutNode:=layoutNode, _
                         rowStart:=rowStart, _
@@ -99,7 +99,7 @@ Public Function m_RenderNode( _
                         colEnd:=colEnd)
 
                 Case "itemcontrol"
-                    m_RenderNode = ex_LayoutItemControlRenderer.m_Render( _
+                    fn_RenderNode = ex_LayoutItemControlRenderer.fn_Render( _
                         renderCtx:=renderCtx, _
                         layoutNode:=layoutNode, _
                         rowStart:=rowStart, _
@@ -110,13 +110,13 @@ Public Function m_RenderNode( _
 
         Case Else
 #If LOGGING_DEBUG_ENABLED Then
-            ex_Core.m_Diagnostic_LogError "PrototypeNew: unsupported layout node '" & VBA.CStr(layoutNode.baseName) & "'."
+            ex_Core.fn_Diagnostic_LogError "PrototypeNew: unsupported layout node '" & VBA.CStr(layoutNode.baseName) & "'."
 #End If
     End Select
 End Function
 
 
-Public Function m_RenderTemplateChildren( _
+Public Function fn_RenderTemplateChildren( _
     ByVal renderCtx As obj_LayoutRenderContext, _
     ByVal templateControlNode As Object, _
     Optional ByVal layoutRowStart As Long = 0, _
@@ -130,13 +130,13 @@ Public Function m_RenderTemplateChildren( _
     If Not private_TryGetPageRenderContext(renderCtx, wb, ws) Then Exit Function
     If templateControlNode Is Nothing Then Exit Function
 
-    m_RenderTemplateChildren = private_RenderContainerChildrenInBounds( _
+    fn_RenderTemplateChildren = private_RenderContainerChildrenInBounds( _
         renderCtx, templateControlNode, _
         layoutRowStart, layoutColStart, layoutRowEnd, layoutColEnd)
 End Function
 
 
-Public Function m_TryResolveNodeBoundsFromAnchor( _
+Public Function fn_TryResolveNodeBoundsFromAnchor( _
     ByVal renderCtx As obj_LayoutRenderContext, _
     ByVal node As Object, _
     ByVal anchorCellAddr As String, _
@@ -162,33 +162,33 @@ Public Function m_TryResolveNodeBoundsFromAnchor( _
     If Not private_TryResolveNodeCellPosition(node, anchorCell, outRow, outCol) Then Exit Function
     If Not private_TryGetEffectiveNodeSpan(renderCtx, node, outSpanRows, outSpanColls) Then Exit Function
 
-    m_TryResolveNodeBoundsFromAnchor = True
+    fn_TryResolveNodeBoundsFromAnchor = True
     Exit Function
 
 EH_ANCHOR:
 #If LOGGING_DEBUG_ENABLED Then
-    ex_Core.m_Diagnostic_LogError "PrototypeNew: invalid anchorCell '" & anchorCellAddr & "'."
+    ex_Core.fn_Diagnostic_LogError "PrototypeNew: invalid anchorCell '" & anchorCellAddr & "'."
 #End If
 End Function
 
 
-Public Function m_TryGetEffectiveNodeSpan( _
+Public Function fn_TryGetEffectiveNodeSpan( _
     ByVal renderCtx As obj_LayoutRenderContext, _
     ByVal node As Object, _
     ByRef outSpanRows As Long, _
     ByRef outSpanColls As Long, _
     Optional ByVal dataContext As Object _
 ) As Boolean
-    m_TryGetEffectiveNodeSpan = private_TryGetEffectiveNodeSpan(renderCtx, node, outSpanRows, outSpanColls, dataContext)
+    fn_TryGetEffectiveNodeSpan = private_TryGetEffectiveNodeSpan(renderCtx, node, outSpanRows, outSpanColls, dataContext)
 End Function
 
 
-Public Function m_IsVisualLayoutNode(ByVal node As Object) As Boolean
-    m_IsVisualLayoutNode = private_IsVisualLayoutNode(node)
+Public Function fn_IsVisualLayoutNode(ByVal node As Object) As Boolean
+    fn_IsVisualLayoutNode = private_IsVisualLayoutNode(node)
 End Function
 
 
-Public Function m_RenderNodeBySpan( _
+Public Function fn_RenderNodeBySpan( _
     ByVal renderCtx As obj_LayoutRenderContext, _
     ByVal layoutNode As Object, _
     ByVal rowIndex As Long, _
@@ -197,11 +197,11 @@ Public Function m_RenderNodeBySpan( _
     ByVal spanColls As Long _
 ) As Boolean
     If spanRows <= 0 Or spanColls <= 0 Then
-        m_RenderNodeBySpan = True
+        fn_RenderNodeBySpan = True
         Exit Function
     End If
 
-    m_RenderNodeBySpan = m_RenderNode( _
+    fn_RenderNodeBySpan = fn_RenderNode( _
         renderCtx:=renderCtx, _
         layoutNode:=layoutNode, _
         rowStart:=rowIndex, _
@@ -211,7 +211,7 @@ Public Function m_RenderNodeBySpan( _
 End Function
 
 
-Public Function m_RenderNodeInBounds( _
+Public Function fn_RenderNodeInBounds( _
     ByVal renderCtx As obj_LayoutRenderContext, _
     ByVal layoutNode As Object, _
     ByVal rowStart As Long, _
@@ -219,7 +219,7 @@ Public Function m_RenderNodeInBounds( _
     ByVal rowEnd As Long, _
     ByVal colEnd As Long _
 ) As Boolean
-    m_RenderNodeInBounds = m_RenderNode( _
+    fn_RenderNodeInBounds = fn_RenderNode( _
         renderCtx:=renderCtx, _
         layoutNode:=layoutNode, _
         rowStart:=rowStart, _
@@ -229,7 +229,7 @@ Public Function m_RenderNodeInBounds( _
 End Function
 
 
-Public Function m_RenderContainerNodeInBounds( _
+Public Function fn_RenderContainerNodeInBounds( _
     ByVal renderCtx As obj_LayoutRenderContext, _
     ByVal containerNode As Object, _
     Optional ByVal layoutRowStart As Long = 0, _
@@ -237,7 +237,7 @@ Public Function m_RenderContainerNodeInBounds( _
     Optional ByVal layoutRowEnd As Long = 0, _
     Optional ByVal layoutColEnd As Long = 0 _
 ) As Boolean
-    m_RenderContainerNodeInBounds = private_RenderContainerChildrenInBounds( _
+    fn_RenderContainerNodeInBounds = private_RenderContainerChildrenInBounds( _
         renderCtx, containerNode, _
         layoutRowStart, layoutColStart, layoutRowEnd, layoutColEnd)
 End Function
@@ -258,7 +258,7 @@ Private Function private_TryIsNodeVisible( _
         Exit Function
     End If
 
-    visibilityRaw = VBA.Trim$(VBA.CStr(ex_XmlCore.m_NodeAttrText(node, "visibility")))
+    visibilityRaw = VBA.Trim$(VBA.CStr(ex_XmlCore.fn_NodeAttrText(node, "visibility")))
     If VBA.Len(visibilityRaw) = 0 Then
         outVisible = True
         private_TryIsNodeVisible = True
@@ -267,7 +267,7 @@ Private Function private_TryIsNodeVisible( _
 
     ' visibility всегда вычисляется относительно текущего dataContext узла.
     ' Для вложенных list/itemControl этот контекст приходит от родительского итема.
-    If Not ex_BindingRuntime.m_TryResolveVisibilityBinding(visibilityRaw, dataContext, outVisible) Then Exit Function
+    If Not ex_BindingRuntime.fn_TryResolveVisibilityBinding(visibilityRaw, dataContext, outVisible) Then Exit Function
     private_TryIsNodeVisible = True
 End Function
 
@@ -315,7 +315,7 @@ Private Function private_RenderContainerChildrenInBounds( _
     hasGridBounds = (containerRowStart > 0 And containerColStart > 0 And containerRowEnd >= containerRowStart And containerColEnd >= containerColStart)
     If Not hasGridBounds Then
 #If LOGGING_DEBUG_ENABLED Then
-        ex_Core.m_Diagnostic_LogError "PrototypeNew: container bounds are required for nested layout rendering."
+        ex_Core.fn_Diagnostic_LogError "PrototypeNew: container bounds are required for nested layout rendering."
 #End If
         Exit Function
     End If
@@ -356,7 +356,7 @@ ContinueFirstPass:
         childRowEnd = childRowStart + spanRows - 1
         childColEnd = childColStart + spanColls - 1
 
-        If Not m_RenderNodeInBounds( _
+        If Not fn_RenderNodeInBounds( _
             renderCtx:=renderCtx, _
             layoutNode:=childNode, _
             rowStart:=childRowStart, _
@@ -437,7 +437,7 @@ Private Function private_TryGetEffectiveNodeSpan( _
 
         Case "list"
             ' list измеряется на данных itemsSource; dataContext нужен для Binding-ветки.
-            If Not ex_LayoutListRenderer.m_TryMeasureContentSpan(renderCtx, node, measuredRows, measuredCols, dataContext) Then Exit Function
+            If Not ex_LayoutListRenderer.fn_TryMeasureContentSpan(renderCtx, node, measuredRows, measuredCols, dataContext) Then Exit Function
 
             If explicitRows > 0 Then
                 outSpanRows = explicitRows
@@ -453,7 +453,7 @@ Private Function private_TryGetEffectiveNodeSpan( _
 
         Case "itemcontrol"
             ' itemControl измеряется в контексте objectSource (или item dataContext).
-            If Not ex_LayoutItemControlRenderer.m_TryMeasureContentSpan(renderCtx, node, measuredRows, measuredCols, dataContext) Then Exit Function
+            If Not ex_LayoutItemControlRenderer.fn_TryMeasureContentSpan(renderCtx, node, measuredRows, measuredCols, dataContext) Then Exit Function
 
             If explicitRows > 0 Then
                 outSpanRows = explicitRows
@@ -469,7 +469,7 @@ Private Function private_TryGetEffectiveNodeSpan( _
 
         Case Else
 #If LOGGING_DEBUG_ENABLED Then
-            ex_Core.m_Diagnostic_LogError "PrototypeNew: unsupported layout node '" & VBA.CStr(node.baseName) & "'."
+            ex_Core.fn_Diagnostic_LogError "PrototypeNew: unsupported layout node '" & VBA.CStr(node.baseName) & "'."
 #End If
             Exit Function
     End Select
@@ -548,11 +548,11 @@ Private Function private_ResolveChildGridPosition( _
 ) As Boolean
     Dim atText As String
 
-    atText = VBA.Trim$(ex_XmlCore.m_NodeAttrText(childNode, "at"))
+    atText = VBA.Trim$(ex_XmlCore.fn_NodeAttrText(childNode, "at"))
     If VBA.Len(atText) > 0 Then
         If Not private_TryParseAtAddress(atText, outRow, outCol) Then
 #If LOGGING_DEBUG_ENABLED Then
-            ex_Core.m_Diagnostic_LogError "PrototypeNew: invalid 'at' format '" & atText & "'. Expected format is rNcM."
+            ex_Core.fn_Diagnostic_LogError "PrototypeNew: invalid 'at' format '" & atText & "'. Expected format is rNcM."
 #End If
             Exit Function
         End If
@@ -580,13 +580,13 @@ Private Function private_GetContainerOrientation(ByVal node As Object) As String
     If node Is Nothing Then Exit Function
 
     If VBA.StrComp(VBA.LCase$(VBA.CStr(node.baseName)), "stackpanel", VBA.vbBinaryCompare) = 0 Then
-        private_GetContainerOrientation = VBA.LCase$(VBA.Trim$(ex_XmlCore.m_NodeAttrText(node, "orientation")))
+        private_GetContainerOrientation = VBA.LCase$(VBA.Trim$(ex_XmlCore.fn_NodeAttrText(node, "orientation")))
         If VBA.Len(private_GetContainerOrientation) = 0 Then
             private_GetContainerOrientation = "vertical"
         ElseIf VBA.StrComp(private_GetContainerOrientation, "vertical", VBA.vbBinaryCompare) <> 0 And _
                VBA.StrComp(private_GetContainerOrientation, "horizontal", VBA.vbBinaryCompare) <> 0 Then
 #If LOGGING_DEBUG_ENABLED Then
-            ex_Core.m_Diagnostic_LogError "PrototypeNew: stackPanel orientation must be 'vertical' or 'horizontal'."
+            ex_Core.fn_Diagnostic_LogError "PrototypeNew: stackPanel orientation must be 'vertical' or 'horizontal'."
 #End If
             private_GetContainerOrientation = VBA.vbNullString
         End If
@@ -631,14 +631,14 @@ Private Function private_TryResolveNodeCellPosition( _
     If node Is Nothing Then Exit Function
     If anchorCell Is Nothing Then Exit Function
 
-    atText = VBA.Trim$(ex_XmlCore.m_NodeAttrText(node, "at"))
+    atText = VBA.Trim$(ex_XmlCore.fn_NodeAttrText(node, "at"))
     If VBA.Len(atText) = 0 Then
         relRow = 1
         relCol = 1
     Else
         If Not private_TryParseAtAddress(atText, relRow, relCol) Then
 #If LOGGING_DEBUG_ENABLED Then
-            ex_Core.m_Diagnostic_LogError "PrototypeNew: invalid 'at' format '" & atText & "'. Expected format is rNcM."
+            ex_Core.fn_Diagnostic_LogError "PrototypeNew: invalid 'at' format '" & atText & "'. Expected format is rNcM."
 #End If
             Exit Function
         End If
@@ -689,7 +689,7 @@ Private Function private_ReadPositiveLongAttr( _
 ) As Long
     Dim rawText As String
 
-    rawText = VBA.Trim$(ex_XmlCore.m_NodeAttrText(node, attrName))
+    rawText = VBA.Trim$(ex_XmlCore.fn_NodeAttrText(node, attrName))
     If VBA.Len(rawText) = 0 Then
         private_ReadPositiveLongAttr = defaultValue
         Exit Function
@@ -697,7 +697,7 @@ Private Function private_ReadPositiveLongAttr( _
 
     If Not VBA.IsNumeric(rawText) Then
 #If LOGGING_DEBUG_ENABLED Then
-        ex_Core.m_Diagnostic_LogError "PrototypeNew: attribute '" & attrName & "' must be numeric."
+        ex_Core.fn_Diagnostic_LogError "PrototypeNew: attribute '" & attrName & "' must be numeric."
 #End If
         Exit Function
     End If
@@ -705,7 +705,7 @@ Private Function private_ReadPositiveLongAttr( _
     private_ReadPositiveLongAttr = VBA.CLng(rawText)
     If private_ReadPositiveLongAttr <= 0 Then
 #If LOGGING_DEBUG_ENABLED Then
-        ex_Core.m_Diagnostic_LogError "PrototypeNew: attribute '" & attrName & "' must be greater than zero."
+        ex_Core.fn_Diagnostic_LogError "PrototypeNew: attribute '" & attrName & "' must be greater than zero."
 #End If
         private_ReadPositiveLongAttr = 0
     End If
@@ -722,7 +722,7 @@ Private Function private_TryGetPageRenderContext( _
 
     If renderCtx Is Nothing Then
 #If LOGGING_DEBUG_ENABLED Then
-        ex_Core.m_Diagnostic_LogError "PrototypeNew: render context is not specified."
+        ex_Core.fn_Diagnostic_LogError "PrototypeNew: render context is not specified."
 #End If
         Exit Function
     End If
@@ -730,7 +730,7 @@ Private Function private_TryGetPageRenderContext( _
     Set outWs = renderCtx.Worksheet
     If outWs Is Nothing Then
 #If LOGGING_DEBUG_ENABLED Then
-        ex_Core.m_Diagnostic_LogError "PrototypeNew: worksheet is not specified."
+        ex_Core.fn_Diagnostic_LogError "PrototypeNew: worksheet is not specified."
 #End If
         Exit Function
     End If
@@ -738,7 +738,7 @@ Private Function private_TryGetPageRenderContext( _
     Set outWb = renderCtx.Workbook
     If outWb Is Nothing Then
 #If LOGGING_DEBUG_ENABLED Then
-        ex_Core.m_Diagnostic_LogError "PrototypeNew: workbook is not specified."
+        ex_Core.fn_Diagnostic_LogError "PrototypeNew: workbook is not specified."
 #End If
         Exit Function
     End If

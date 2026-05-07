@@ -57,12 +57,12 @@ Private m_CallbackContext As Object
 
 Private Sub Class_Initialize()
 #If LOGGING_VERBOSE_ENABLED Then
-    ex_Core.m_Diagnostic_LogInfo "lifecycle:" & VBA.TypeName(Me) & ".Class_Initialize"
+    ex_Core.fn_Diagnostic_LogInfo "lifecycle:" & VBA.TypeName(Me) & ".Class_Initialize"
 #End If
 End Sub
 Private Sub Class_Terminate()
 #If LOGGING_VERBOSE_ENABLED Then
-    ex_Core.m_Diagnostic_LogInfo "lifecycle:" & VBA.TypeName(Me) & ".Class_Terminate"
+    ex_Core.fn_Diagnostic_LogInfo "lifecycle:" & VBA.TypeName(Me) & ".Class_Terminate"
 #End If
     If m_IsDisposed Then Exit Sub
     On Error Resume Next
@@ -102,34 +102,34 @@ Private Sub obj_IControl_Configure(ByVal page As obj_PageBase, ByVal controlNode
     If Not m_ControlBase.Configure(page, controlNode, "Select", "select", m_ControlName) Then Exit Sub
     Set m_PageBase = m_ControlBase.PageBase
 
-    m_ItemsSourceRaw = VBA.Trim$(VBA.CStr(ex_XmlCore.m_NodeAttrText(controlNode, "itemsSource")))
+    m_ItemsSourceRaw = VBA.Trim$(VBA.CStr(ex_XmlCore.fn_NodeAttrText(controlNode, "itemsSource")))
     If VBA.Len(m_ItemsSourceRaw) = 0 Then
 #If LOGGING_DEBUG_ENABLED Then
-        ex_Core.m_Diagnostic_LogError "Select: itemsSource is not specified for control '" & m_ControlName & "'."
+        ex_Core.fn_Diagnostic_LogError "Select: itemsSource is not specified for control '" & m_ControlName & "'."
 #End If
         Exit Sub
     End If
 
-    m_SelectedIdRaw = VBA.Trim$(VBA.CStr(ex_XmlCore.m_NodeAttrText(controlNode, "selectedId")))
+    m_SelectedIdRaw = VBA.Trim$(VBA.CStr(ex_XmlCore.fn_NodeAttrText(controlNode, "selectedId")))
 
-    m_PlaceholderText = VBA.CStr(ex_XmlCore.m_NodeAttrText(controlNode, "placeholder"))
+    m_PlaceholderText = VBA.CStr(ex_XmlCore.fn_NodeAttrText(controlNode, "placeholder"))
     If VBA.Len(VBA.Trim$(m_PlaceholderText)) = 0 Then m_PlaceholderText = DEFAULT_PLACEHOLDER
 
-    m_ItemStyleName = VBA.Trim$(VBA.CStr(ex_XmlCore.m_NodeAttrText(controlNode, "itemStyle")))
-    m_PanelStyleName = VBA.Trim$(VBA.CStr(ex_XmlCore.m_NodeAttrText(controlNode, "panelStyle")))
+    m_ItemStyleName = VBA.Trim$(VBA.CStr(ex_XmlCore.fn_NodeAttrText(controlNode, "itemStyle")))
+    m_PanelStyleName = VBA.Trim$(VBA.CStr(ex_XmlCore.fn_NodeAttrText(controlNode, "panelStyle")))
 
     If Not private_TryReadPositiveDoubleAttr(controlNode, "itemHeight", DEFAULT_ITEM_HEIGHT, m_ItemHeight) Then Exit Sub
     If Not private_TryReadNonNegativeDoubleAttr(controlNode, "itemMargin", DEFAULT_ITEM_MARGIN, m_ItemMargin) Then Exit Sub
 
     Set m_CallbackContext = m_ControlBase.DataContext
 
-    m_OnChangeRaw = VBA.CStr(ex_XmlCore.m_NodeAttrText(controlNode, "onChange"))
+    m_OnChangeRaw = VBA.CStr(ex_XmlCore.fn_NodeAttrText(controlNode, "onChange"))
     m_OnChangeMacroRef = VBA.vbNullString
     If VBA.Len(VBA.Trim$(m_OnChangeRaw)) > 0 Then
         If Not private_TryResolveCallbackRef(m_OnChangeRaw, m_CallbackContext, m_OnChangeMacroRef) Then Exit Sub
     End If
 
-    m_DropDownOpenedRaw = VBA.CStr(ex_XmlCore.m_NodeAttrText(controlNode, "dropDownOpened"))
+    m_DropDownOpenedRaw = VBA.CStr(ex_XmlCore.fn_NodeAttrText(controlNode, "dropDownOpened"))
     m_DropDownOpenedMacroRef = VBA.vbNullString
     If VBA.Len(VBA.Trim$(m_DropDownOpenedRaw)) > 0 Then
         If Not private_TryResolveCallbackRef(m_DropDownOpenedRaw, m_CallbackContext, m_DropDownOpenedMacroRef) Then Exit Sub
@@ -142,7 +142,7 @@ Private Sub obj_IControl_Configure(ByVal page As obj_PageBase, ByVal controlNode
     ' 3) Разрешаем itemsSource в runtime-коллекцию и готовим буферы.
     Set pageBase = m_ControlBase.PageBase
     If pageBase Is Nothing Then Exit Sub
-    If Not ex_RuntimeSourceResolver.m_TryResolveItemsSource(pageBase.RuntimeSources, m_ItemsSourceRaw, m_Items) Then Exit Sub
+    If Not ex_RuntimeSourceResolver.fn_TryResolveItemsSource(pageBase.RuntimeSources, m_ItemsSourceRaw, m_Items) Then Exit Sub
     If Not private_TryBuildItemBuffers() Then Exit Sub
 
     ' 4) Определяем начальный выбранный элемент:
@@ -183,7 +183,7 @@ Private Sub obj_IControl_Render()
 
     If Not m_IsConfigured Then
 #If LOGGING_DEBUG_ENABLED Then
-        ex_Core.m_Diagnostic_LogError "Select: control '" & m_ControlName & "' is not configured."
+        ex_Core.fn_Diagnostic_LogError "Select: control '" & m_ControlName & "' is not configured."
 #End If
         Exit Sub
     End If
@@ -193,7 +193,7 @@ Private Sub obj_IControl_Render()
     If pageBase Is Nothing Then Set pageBase = m_PageBase
     If pageBase Is Nothing Then
 #If LOGGING_DEBUG_ENABLED Then
-        ex_Core.m_Diagnostic_LogError "Select: page is not specified for control '" & m_ControlName & "'."
+        ex_Core.fn_Diagnostic_LogError "Select: page is not specified for control '" & m_ControlName & "'."
 #End If
         Exit Sub
     End If
@@ -202,20 +202,20 @@ Private Sub obj_IControl_Render()
     Set ws = pageBase.Worksheet
     If ws Is Nothing Then
 #If LOGGING_DEBUG_ENABLED Then
-        ex_Core.m_Diagnostic_LogError "Select: page worksheet is not specified for control '" & m_ControlName & "'."
+        ex_Core.fn_Diagnostic_LogError "Select: page worksheet is not specified for control '" & m_ControlName & "'."
 #End If
         Exit Sub
     End If
 
     If m_ItemCaptions Is Nothing Or m_ItemIds Is Nothing Or m_ItemActionMacros Is Nothing Or m_ItemRawItems Is Nothing Then
 #If LOGGING_DEBUG_ENABLED Then
-        ex_Core.m_Diagnostic_LogError "Select: item metadata is not configured for control '" & m_ControlName & "'."
+        ex_Core.fn_Diagnostic_LogError "Select: item metadata is not configured for control '" & m_ControlName & "'."
 #End If
         Exit Sub
     End If
 
     ' Shape.OnAction вызывает только модульный макрос,
-    ' поэтому указываем стабильный bridge rt_Bridge.m_OnShapeClick.
+    ' поэтому указываем стабильный bridge rt_Bridge.fn_OnShapeClick.
     callbackMacroRef = private_GetRuntimeCallbackMacroRef()
     If VBA.Len(callbackMacroRef) = 0 Then Exit Sub
 
@@ -303,13 +303,13 @@ End Function
 ' //
 Public Function Initialize() As Boolean
 #If LOGGING_VERBOSE_ENABLED Then
-    ex_Core.m_Diagnostic_LogInfo "lifecycle:" & VBA.TypeName(Me) & ".Initialize"
+    ex_Core.fn_Diagnostic_LogInfo "lifecycle:" & VBA.TypeName(Me) & ".Initialize"
 #End If
     Initialize = True
 End Function
 Public Sub Dispose()
 #If LOGGING_VERBOSE_ENABLED Then
-    ex_Core.m_Diagnostic_LogInfo "lifecycle:" & VBA.TypeName(Me) & ".Dispose"
+    ex_Core.fn_Diagnostic_LogInfo "lifecycle:" & VBA.TypeName(Me) & ".Dispose"
 #End If
     If m_IsDisposed Then Exit Sub
     m_IsDisposed = True
@@ -414,7 +414,7 @@ Public Function HandleOptionClick(ByVal itemIndex As Long) As Boolean
     If m_UiOptionCaptions Is Nothing Then Exit Function
     If itemIndex <= 0 Or itemIndex > m_UiOptionCaptions.Count Then
 #If LOGGING_DEBUG_ENABLED Then
-        ex_Core.m_Diagnostic_LogError "Select: selected item index is out of range for control '" & m_ControlName & "'."
+        ex_Core.fn_Diagnostic_LogError "Select: selected item index is out of range for control '" & m_ControlName & "'."
 #End If
         Exit Function
     End If
@@ -489,41 +489,41 @@ Public Function TrySerializeSnapshot(ByRef outSnapshotXml As String) As Boolean
     isDropdownExpandedText = VBA.IIf(m_IsDropdownExpanded, "true", "false")
 
     outSnapshotXml = "<select version=""2"""
-    outSnapshotXml = outSnapshotXml & " controlName=""" & ex_Helpers.m_EscapeXmlAttr(m_ControlName) & """"
-    outSnapshotXml = outSnapshotXml & " itemsSource=""" & ex_Helpers.m_EscapeXmlAttr(m_ItemsSourceRaw) & """"
-    outSnapshotXml = outSnapshotXml & " selectedIdRaw=""" & ex_Helpers.m_EscapeXmlAttr(m_SelectedIdRaw) & """"
-    outSnapshotXml = outSnapshotXml & " sheet=""" & ex_Helpers.m_EscapeXmlAttr(m_ControlLayout.LayoutSheetName) & """"
+    outSnapshotXml = outSnapshotXml & " controlName=""" & ex_Helpers.fn_EscapeXmlAttr(m_ControlName) & """"
+    outSnapshotXml = outSnapshotXml & " itemsSource=""" & ex_Helpers.fn_EscapeXmlAttr(m_ItemsSourceRaw) & """"
+    outSnapshotXml = outSnapshotXml & " selectedIdRaw=""" & ex_Helpers.fn_EscapeXmlAttr(m_SelectedIdRaw) & """"
+    outSnapshotXml = outSnapshotXml & " sheet=""" & ex_Helpers.fn_EscapeXmlAttr(m_ControlLayout.LayoutSheetName) & """"
     outSnapshotXml = outSnapshotXml & " rowStart=""" & VBA.CStr(m_ControlLayout.RowStart) & """"
     outSnapshotXml = outSnapshotXml & " colStart=""" & VBA.CStr(m_ControlLayout.ColStart) & """"
     outSnapshotXml = outSnapshotXml & " rowEnd=""" & VBA.CStr(m_ControlLayout.RowEnd) & """"
     outSnapshotXml = outSnapshotXml & " colEnd=""" & VBA.CStr(m_ControlLayout.ColEnd) & """"
-    outSnapshotXml = outSnapshotXml & " style=""" & ex_Helpers.m_EscapeXmlAttr(m_ControlLayout.StyleName) & """"
-    outSnapshotXml = outSnapshotXml & " selectKey=""" & ex_Helpers.m_EscapeXmlAttr(m_SelectStateKey) & """"
-    outSnapshotXml = outSnapshotXml & " placeholder=""" & ex_Helpers.m_EscapeXmlAttr(m_PlaceholderText) & """"
-    outSnapshotXml = outSnapshotXml & " onChangeRaw=""" & ex_Helpers.m_EscapeXmlAttr(m_OnChangeRaw) & """"
-    outSnapshotXml = outSnapshotXml & " onChange=""" & ex_Helpers.m_EscapeXmlAttr(m_OnChangeMacroRef) & """"
-    outSnapshotXml = outSnapshotXml & " dropDownOpenedRaw=""" & ex_Helpers.m_EscapeXmlAttr(m_DropDownOpenedRaw) & """"
-    outSnapshotXml = outSnapshotXml & " dropDownOpened=""" & ex_Helpers.m_EscapeXmlAttr(m_DropDownOpenedMacroRef) & """"
-    outSnapshotXml = outSnapshotXml & " itemStyle=""" & ex_Helpers.m_EscapeXmlAttr(m_ItemStyleName) & """"
-    outSnapshotXml = outSnapshotXml & " panelStyle=""" & ex_Helpers.m_EscapeXmlAttr(m_PanelStyleName) & """"
+    outSnapshotXml = outSnapshotXml & " style=""" & ex_Helpers.fn_EscapeXmlAttr(m_ControlLayout.StyleName) & """"
+    outSnapshotXml = outSnapshotXml & " selectKey=""" & ex_Helpers.fn_EscapeXmlAttr(m_SelectStateKey) & """"
+    outSnapshotXml = outSnapshotXml & " placeholder=""" & ex_Helpers.fn_EscapeXmlAttr(m_PlaceholderText) & """"
+    outSnapshotXml = outSnapshotXml & " onChangeRaw=""" & ex_Helpers.fn_EscapeXmlAttr(m_OnChangeRaw) & """"
+    outSnapshotXml = outSnapshotXml & " onChange=""" & ex_Helpers.fn_EscapeXmlAttr(m_OnChangeMacroRef) & """"
+    outSnapshotXml = outSnapshotXml & " dropDownOpenedRaw=""" & ex_Helpers.fn_EscapeXmlAttr(m_DropDownOpenedRaw) & """"
+    outSnapshotXml = outSnapshotXml & " dropDownOpened=""" & ex_Helpers.fn_EscapeXmlAttr(m_DropDownOpenedMacroRef) & """"
+    outSnapshotXml = outSnapshotXml & " itemStyle=""" & ex_Helpers.fn_EscapeXmlAttr(m_ItemStyleName) & """"
+    outSnapshotXml = outSnapshotXml & " panelStyle=""" & ex_Helpers.fn_EscapeXmlAttr(m_PanelStyleName) & """"
     outSnapshotXml = outSnapshotXml & " itemHeight=""" & VBA.CStr(m_ItemHeight) & """"
     outSnapshotXml = outSnapshotXml & " itemMargin=""" & VBA.CStr(m_ItemMargin) & """"
-    outSnapshotXml = outSnapshotXml & " selectedIndex=""" & ex_Helpers.m_EscapeXmlAttr(selectedIndexText) & """"
+    outSnapshotXml = outSnapshotXml & " selectedIndex=""" & ex_Helpers.fn_EscapeXmlAttr(selectedIndexText) & """"
     outSnapshotXml = outSnapshotXml & " isOpen=""" & isDropdownExpandedText & """"
     outSnapshotXml = outSnapshotXml & " isConfigured=""" & VBA.IIf(m_IsConfigured, "true", "false") & """"
     outSnapshotXml = outSnapshotXml & ">"
-    outSnapshotXml = outSnapshotXml & "<header shape=""" & ex_Helpers.m_EscapeXmlAttr(m_UiHeaderShapeName) & """ />"
-    outSnapshotXml = outSnapshotXml & "<panel shape=""" & ex_Helpers.m_EscapeXmlAttr(m_UiDropdownPanelShapeName) & """ />"
+    outSnapshotXml = outSnapshotXml & "<header shape=""" & ex_Helpers.fn_EscapeXmlAttr(m_UiHeaderShapeName) & """ />"
+    outSnapshotXml = outSnapshotXml & "<panel shape=""" & ex_Helpers.fn_EscapeXmlAttr(m_UiDropdownPanelShapeName) & """ />"
 
     For i = 1 To m_UiOptionIds.Count
         shapeName = private_GetSnapshotOptionShapeName(i)
         outSnapshotXml = outSnapshotXml & _
             "<item" & _
-            " shape=""" & ex_Helpers.m_EscapeXmlAttr(shapeName) & """" & _
-            " caption=""" & ex_Helpers.m_EscapeXmlAttr(VBA.CStr(m_UiOptionCaptions(i))) & """" & _
-            " id=""" & ex_Helpers.m_EscapeXmlAttr(VBA.CStr(m_UiOptionIds(i))) & """" & _
-            " action=""" & ex_Helpers.m_EscapeXmlAttr(VBA.CStr(m_UiOptionActionMacros(i))) & """" & _
-                " rawValue=""" & ex_Helpers.m_EscapeXmlAttr(ex_Helpers.m_GetSnapshotRawValueText(m_UiOptionRawItems, i, VBA.CStr(m_UiOptionIds(i)))) & """" & _
+            " shape=""" & ex_Helpers.fn_EscapeXmlAttr(shapeName) & """" & _
+            " caption=""" & ex_Helpers.fn_EscapeXmlAttr(VBA.CStr(m_UiOptionCaptions(i))) & """" & _
+            " id=""" & ex_Helpers.fn_EscapeXmlAttr(VBA.CStr(m_UiOptionIds(i))) & """" & _
+            " action=""" & ex_Helpers.fn_EscapeXmlAttr(VBA.CStr(m_UiOptionActionMacros(i))) & """" & _
+                " rawValue=""" & ex_Helpers.fn_EscapeXmlAttr(ex_Helpers.fn_GetSnapshotRawValueText(m_UiOptionRawItems, i, VBA.CStr(m_UiOptionIds(i)))) & """" & _
             " />"
     Next i
 
@@ -561,7 +561,7 @@ Public Function TryDeserializeSnapshot(ByVal snapshotXml As String) As Boolean
     snapshotXml = VBA.Trim$(snapshotXml)
     If VBA.Len(snapshotXml) = 0 Then Exit Function
 
-    If Not ex_Core.m_CustomXmlPartStore_TryLoadDomFromXml(snapshotXml, dom) Then Exit Function
+    If Not ex_Core.fn_CustomXmlPartStore_TryLoadDomFromXml(snapshotXml, dom) Then Exit Function
     Set root = dom.DocumentElement
     If root Is Nothing Then Exit Function
     If VBA.LCase$(VBA.CStr(root.baseName)) <> "select" Then Exit Function
@@ -577,15 +577,15 @@ Public Function TryDeserializeSnapshot(ByVal snapshotXml As String) As Boolean
     m_DropDownOpenedMacroRef = VBA.Trim$(VBA.CStr(root.getAttribute("dropDownOpened")))
     m_ItemStyleName = VBA.Trim$(VBA.CStr(root.getAttribute("itemStyle")))
     m_PanelStyleName = VBA.Trim$(VBA.CStr(root.getAttribute("panelStyle")))
-    m_ItemHeight = ex_Helpers.m_ReadSnapshotDoubleAttr(root, "itemHeight", DEFAULT_ITEM_HEIGHT)
-    m_ItemMargin = ex_Helpers.m_ReadSnapshotDoubleAttr(root, "itemMargin", DEFAULT_ITEM_MARGIN)
-    isDropdownExpanded = ex_Helpers.m_ReadSnapshotBooleanAttr(root, "isOpen", False)
+    m_ItemHeight = ex_Helpers.fn_ReadSnapshotDoubleAttr(root, "itemHeight", DEFAULT_ITEM_HEIGHT)
+    m_ItemMargin = ex_Helpers.fn_ReadSnapshotDoubleAttr(root, "itemMargin", DEFAULT_ITEM_MARGIN)
+    isDropdownExpanded = ex_Helpers.fn_ReadSnapshotBooleanAttr(root, "isOpen", False)
     isConfiguredAttr = VBA.LCase$(VBA.Trim$(VBA.CStr(root.getAttribute("isConfigured"))))
     layoutSheetName = VBA.Trim$(VBA.CStr(root.getAttribute("sheet")))
-    layoutRowStart = ex_Helpers.m_ReadSnapshotLongAttr(root, "rowStart", 1)
-    layoutColStart = ex_Helpers.m_ReadSnapshotLongAttr(root, "colStart", 1)
-    layoutRowEnd = ex_Helpers.m_ReadSnapshotLongAttr(root, "rowEnd", layoutRowStart)
-    layoutColEnd = ex_Helpers.m_ReadSnapshotLongAttr(root, "colEnd", layoutColStart)
+    layoutRowStart = ex_Helpers.fn_ReadSnapshotLongAttr(root, "rowStart", 1)
+    layoutColStart = ex_Helpers.fn_ReadSnapshotLongAttr(root, "colStart", 1)
+    layoutRowEnd = ex_Helpers.fn_ReadSnapshotLongAttr(root, "rowEnd", layoutRowStart)
+    layoutColEnd = ex_Helpers.fn_ReadSnapshotLongAttr(root, "colEnd", layoutColStart)
     layoutStyle = VBA.Trim$(VBA.CStr(root.getAttribute("style")))
 
     If VBA.Len(m_ControlName) = 0 Then Exit Function
@@ -607,9 +607,9 @@ Public Function TryDeserializeSnapshot(ByVal snapshotXml As String) As Boolean
         layoutColEnd, _
         layoutStyle) Then Exit Function
 
-    Set ws = ex_HelpersSheet.m_GetRuntimeWorksheetByName(m_ControlLayout.LayoutSheetName)
+    Set ws = ex_HelpersSheet.fn_GetRuntimeWorksheetByName(m_ControlLayout.LayoutSheetName)
     If ws Is Nothing Then Exit Function
-    If Not ex_HelpersSheet.m_TryGetPageBaseByWorksheetName(m_ControlLayout.LayoutSheetName, m_PageBase) Then Exit Function
+    If Not ex_HelpersSheet.fn_TryGetPageBaseByWorksheetName(m_ControlLayout.LayoutSheetName, m_PageBase) Then Exit Function
     If Not private_TryRestoreCallbackContextFromPage() Then Exit Function
 
     Set headerNode = root.selectSingleNode("*[local-name()='header']")
@@ -651,7 +651,7 @@ Public Function TryDeserializeSnapshot(ByVal snapshotXml As String) As Boolean
     If itemCaptions.Count = 0 Then
         If Not m_PageBase Is Nothing Then
             If VBA.Len(VBA.Trim$(m_ItemsSourceRaw)) > 0 Then
-                If ex_RuntimeSourceResolver.m_TryResolveItemsSource(m_PageBase.RuntimeSources, m_ItemsSourceRaw, m_Items) Then
+                If ex_RuntimeSourceResolver.fn_TryResolveItemsSource(m_PageBase.RuntimeSources, m_ItemsSourceRaw, m_Items) Then
                     If private_TryBuildItemBuffers() Then
                         Set itemCaptions = m_ItemCaptions
                         Set itemIds = m_ItemIds
@@ -714,13 +714,13 @@ Private Function private_TryBindUiRoutes( _
 
     If ws Is Nothing Then
 #If LOGGING_DEBUG_ENABLED Then
-        ex_Core.m_Diagnostic_LogError "select:bind-routes worksheet-missing control='" & VBA.Replace$(VBA.Trim$(m_ControlName), "'", "''") & "'"
+        ex_Core.fn_Diagnostic_LogError "select:bind-routes worksheet-missing control='" & VBA.Replace$(VBA.Trim$(m_ControlName), "'", "''") & "'"
 #End If
         Exit Function
     End If
     If itemShapeNames Is Nothing Then
 #If LOGGING_DEBUG_ENABLED Then
-        ex_Core.m_Diagnostic_LogError "select:bind-routes item-shapes-missing control='" & VBA.Replace$(VBA.Trim$(m_ControlName), "'", "''") & "'"
+        ex_Core.fn_Diagnostic_LogError "select:bind-routes item-shapes-missing control='" & VBA.Replace$(VBA.Trim$(m_ControlName), "'", "''") & "'"
 #End If
         Exit Function
     End If
@@ -728,7 +728,7 @@ Private Function private_TryBindUiRoutes( _
     callbackMacroRef = private_GetRuntimeCallbackMacroRef()
     If VBA.Len(callbackMacroRef) = 0 Then
 #If LOGGING_DEBUG_ENABLED Then
-        ex_Core.m_Diagnostic_LogError "select:bind-routes callback-macro-empty control='" & VBA.Replace$(VBA.Trim$(m_ControlName), "'", "''") & "'"
+        ex_Core.fn_Diagnostic_LogError "select:bind-routes callback-macro-empty control='" & VBA.Replace$(VBA.Trim$(m_ControlName), "'", "''") & "'"
 #End If
         Exit Function
     End If
@@ -736,13 +736,13 @@ Private Function private_TryBindUiRoutes( _
     Set headerShape = private_GetUiShapeByName(ws, headerShapeName)
     If headerShape Is Nothing Then
 #If LOGGING_DEBUG_ENABLED Then
-        ex_Core.m_Diagnostic_LogError "select:bind-routes header-shape-missing control='" & VBA.Replace$(VBA.Trim$(m_ControlName), "'", "''") & "' shape='" & VBA.Replace$(VBA.Trim$(headerShapeName), "'", "''") & "'"
+        ex_Core.fn_Diagnostic_LogError "select:bind-routes header-shape-missing control='" & VBA.Replace$(VBA.Trim$(m_ControlName), "'", "''") & "' shape='" & VBA.Replace$(VBA.Trim$(headerShapeName), "'", "''") & "'"
 #End If
         Exit Function
     End If
     If Not private_TrySetShapeOnAction(headerShape, callbackMacroRef) Then
 #If LOGGING_DEBUG_ENABLED Then
-        ex_Core.m_Diagnostic_LogError "select:bind-routes header-onaction-failed control='" & VBA.Replace$(VBA.Trim$(m_ControlName), "'", "''") & "' shape='" & VBA.Replace$(VBA.Trim$(headerShape.Name), "'", "''") & "'"
+        ex_Core.fn_Diagnostic_LogError "select:bind-routes header-onaction-failed control='" & VBA.Replace$(VBA.Trim$(m_ControlName), "'", "''") & "' shape='" & VBA.Replace$(VBA.Trim$(headerShape.Name), "'", "''") & "'"
 #End If
         Exit Function
     End If
@@ -754,13 +754,13 @@ Private Function private_TryBindUiRoutes( _
         Set itemShape = private_GetUiShapeByName(ws, VBA.CStr(itemShapeNames(i)))
         If itemShape Is Nothing Then
 #If LOGGING_DEBUG_ENABLED Then
-            ex_Core.m_Diagnostic_LogInfo "select:bind-routes item-shape-missing-skip control='" & VBA.Replace$(VBA.Trim$(m_ControlName), "'", "''") & "' index=" & VBA.CStr(i)
+            ex_Core.fn_Diagnostic_LogInfo "select:bind-routes item-shape-missing-skip control='" & VBA.Replace$(VBA.Trim$(m_ControlName), "'", "''") & "' index=" & VBA.CStr(i)
 #End If
             GoTo ContinueBindItem
         End If
         If Not private_TrySetShapeOnAction(itemShape, callbackMacroRef) Then
 #If LOGGING_DEBUG_ENABLED Then
-            ex_Core.m_Diagnostic_LogInfo "select:bind-routes item-onaction-failed-skip control='" & VBA.Replace$(VBA.Trim$(m_ControlName), "'", "''") & "' shape='" & VBA.Replace$(VBA.Trim$(itemShape.Name), "'", "''") & "'"
+            ex_Core.fn_Diagnostic_LogInfo "select:bind-routes item-onaction-failed-skip control='" & VBA.Replace$(VBA.Trim$(m_ControlName), "'", "''") & "' shape='" & VBA.Replace$(VBA.Trim$(itemShape.Name), "'", "''") & "'"
 #End If
             GoTo ContinueBindItem
         End If
@@ -772,26 +772,26 @@ ContinueBindItem:
     selectId = VBA.LCase$(VBA.Trim$(m_SelectStateKey))
     If VBA.Len(selectId) = 0 Then
 #If LOGGING_DEBUG_ENABLED Then
-        ex_Core.m_Diagnostic_LogError "select:bind-routes select-id-empty control='" & VBA.Replace$(VBA.Trim$(m_ControlName), "'", "''") & "'"
+        ex_Core.fn_Diagnostic_LogError "select:bind-routes select-id-empty control='" & VBA.Replace$(VBA.Trim$(m_ControlName), "'", "''") & "'"
 #End If
         Exit Function
     End If
 
     If m_PageBase Is Nothing Then
 #If LOGGING_DEBUG_ENABLED Then
-        ex_Core.m_Diagnostic_LogError "select:bind-routes page-base-missing control='" & VBA.Replace$(VBA.Trim$(m_ControlName), "'", "''") & "'"
+        ex_Core.fn_Diagnostic_LogError "select:bind-routes page-base-missing control='" & VBA.Replace$(VBA.Trim$(m_ControlName), "'", "''") & "'"
 #End If
         Exit Function
     End If
     If Not m_PageBase.RegisterControl(selectId, Me) Then
 #If LOGGING_DEBUG_ENABLED Then
-        ex_Core.m_Diagnostic_LogError "select:bind-routes register-control-failed control='" & VBA.Replace$(VBA.Trim$(m_ControlName), "'", "''") & "' key='" & VBA.Replace$(selectId, "'", "''") & "'"
+        ex_Core.fn_Diagnostic_LogError "select:bind-routes register-control-failed control='" & VBA.Replace$(VBA.Trim$(m_ControlName), "'", "''") & "' key='" & VBA.Replace$(selectId, "'", "''") & "'"
 #End If
         Exit Function
     End If
     If Not m_PageBase.RegisterShapeRoute(headerShape.Name, selectId, "HandleHeaderClick", False) Then
 #If LOGGING_DEBUG_ENABLED Then
-        ex_Core.m_Diagnostic_LogError "select:bind-routes register-header-route-failed control='" & VBA.Replace$(VBA.Trim$(m_ControlName), "'", "''") & "' shape='" & VBA.Replace$(VBA.Trim$(headerShape.Name), "'", "''") & "'"
+        ex_Core.fn_Diagnostic_LogError "select:bind-routes register-header-route-failed control='" & VBA.Replace$(VBA.Trim$(m_ControlName), "'", "''") & "' shape='" & VBA.Replace$(VBA.Trim$(headerShape.Name), "'", "''") & "'"
 #End If
         Exit Function
     End If
@@ -799,7 +799,7 @@ ContinueBindItem:
     For i = 1 To boundItemShapeNames.Count
         If Not m_PageBase.RegisterShapeRoute(VBA.CStr(boundItemShapeNames(i)), selectId, "HandleOptionClick", True, VBA.CLng(boundItemIndexes(i))) Then
 #If LOGGING_DEBUG_ENABLED Then
-            ex_Core.m_Diagnostic_LogError "select:bind-routes register-item-route-failed control='" & VBA.Replace$(VBA.Trim$(m_ControlName), "'", "''") & "' index=" & VBA.CStr(i)
+            ex_Core.fn_Diagnostic_LogError "select:bind-routes register-item-route-failed control='" & VBA.Replace$(VBA.Trim$(m_ControlName), "'", "''") & "' index=" & VBA.CStr(i)
 #End If
             Exit Function
         End If
@@ -807,7 +807,7 @@ ContinueBindItem:
 
     boundCount = boundItemShapeNames.Count
 #If LOGGING_DEBUG_ENABLED Then
-    ex_Core.m_Diagnostic_LogInfo "select:bind-routes ok control='" & VBA.Replace$(VBA.Trim$(m_ControlName), "'", "''") & "' items=" & VBA.CStr(boundCount) & " macro='" & VBA.Replace$(callbackMacroRef, "'", "''") & "'"
+    ex_Core.fn_Diagnostic_LogInfo "select:bind-routes ok control='" & VBA.Replace$(VBA.Trim$(m_ControlName), "'", "''") & "' items=" & VBA.CStr(boundCount) & " macro='" & VBA.Replace$(callbackMacroRef, "'", "''") & "'"
 #End If
     private_TryBindUiRoutes = True
 End Function
@@ -820,7 +820,7 @@ Private Function private_TrySetShapeOnAction(ByVal shp As Shape, ByVal callbackM
     shp.OnAction = callbackMacroRef
     If Err.Number <> 0 Then
 #If LOGGING_DEBUG_ENABLED Then
-        ex_Core.m_Diagnostic_LogError "select:set-onaction-failed control='" & VBA.Replace$(VBA.Trim$(m_ControlName), "'", "''") & "' shape='" & VBA.Replace$(VBA.Trim$(shp.Name), "'", "''") & "' err='" & VBA.Replace$(Err.Description, "'", "''") & "'"
+        ex_Core.fn_Diagnostic_LogError "select:set-onaction-failed control='" & VBA.Replace$(VBA.Trim$(m_ControlName), "'", "''") & "' shape='" & VBA.Replace$(VBA.Trim$(shp.Name), "'", "''") & "' err='" & VBA.Replace$(Err.Description, "'", "''") & "'"
 #End If
         Err.Clear
         On Error GoTo 0
@@ -872,7 +872,7 @@ Private Function private_InitializeUiState( _
     ' Это позволяет обрабатывать клики без повторного рендера.
     If itemShapeNames Is Nothing Or itemCaptions Is Nothing Or itemIds Is Nothing Or itemActionMacros Is Nothing Or itemRawItems Is Nothing Then
 #If LOGGING_DEBUG_ENABLED Then
-        ex_Core.m_Diagnostic_LogError "Select: runtime item metadata collection is not specified for control '" & m_ControlName & "'."
+        ex_Core.fn_Diagnostic_LogError "Select: runtime item metadata collection is not specified for control '" & m_ControlName & "'."
 #End If
         Exit Function
     End If
@@ -914,7 +914,7 @@ Private Function private_ApplyUiStateToShapes() As Boolean
     If m_UiOptionShapeNames Is Nothing Then Exit Function
     If m_UiOptionCaptions Is Nothing Then Exit Function
 
-    Set ws = ex_HelpersSheet.m_GetRuntimeWorksheetByName(m_ControlLayout.LayoutSheetName)
+    Set ws = ex_HelpersSheet.fn_GetRuntimeWorksheetByName(m_ControlLayout.LayoutSheetName)
     If ws Is Nothing Then Exit Function
 
     Set headerShape = private_GetUiShapeByName(ws, m_UiHeaderShapeName)
@@ -1067,10 +1067,10 @@ Private Function private_RunOptionMacro(ByVal macroRef As String) As Boolean
         Exit Function
     End If
 
-    private_RunOptionMacro = rt_Bridge.m_RunCallback(macroRef, m_CallbackContext)
+    private_RunOptionMacro = rt_Bridge.fn_RunCallback(macroRef, m_CallbackContext)
     If private_RunOptionMacro Then Exit Function
 #If LOGGING_DEBUG_ENABLED Then
-    ex_Core.m_Diagnostic_LogError "Select: failed to execute callback '" & macroRef & "' for control '" & m_ControlName & "'."
+    ex_Core.fn_Diagnostic_LogError "Select: failed to execute callback '" & macroRef & "' for control '" & m_ControlName & "'."
 #End If
 End Function
 
@@ -1088,7 +1088,7 @@ Private Function private_TryRefreshItemsAndRerenderAfterDropDownOpenedCallback()
     End If
     If pageBase Is Nothing Then
 #If LOGGING_DEBUG_ENABLED Then
-        ex_Core.m_Diagnostic_LogError "Select: page base is not resolved for DropDownOpened refresh in control '" & m_ControlName & "'."
+        ex_Core.fn_Diagnostic_LogError "Select: page base is not resolved for DropDownOpened refresh in control '" & m_ControlName & "'."
 #End If
         Exit Function
     End If
@@ -1097,7 +1097,7 @@ Private Function private_TryRefreshItemsAndRerenderAfterDropDownOpenedCallback()
     If VBA.Len(currentSelectedId) = 0 Then currentSelectedId = VBA.Trim$(m_SelectedIdRaw)
 
     ' 1) Перечитываем itemsSource после DropDownOpened callback.
-    If Not ex_RuntimeSourceResolver.m_TryResolveItemsSource(pageBase.RuntimeSources, m_ItemsSourceRaw, m_Items) Then Exit Function
+    If Not ex_RuntimeSourceResolver.fn_TryResolveItemsSource(pageBase.RuntimeSources, m_ItemsSourceRaw, m_Items) Then Exit Function
     ' 2) Пересобираем плоские буферы caption/id/action/raw.
     If Not private_TryBuildItemBuffers() Then Exit Function
 
@@ -1114,7 +1114,7 @@ Private Function private_TryRefreshItemsAndRerenderAfterDropDownOpenedCallback()
     ' это самый дорогой шаг при открытии dropdown.
     If private_AreResolvedItemBuffersEqualToUiState() Then
 #If LOGGING_DEBUG_ENABLED Then
-        ex_Core.m_Diagnostic_LogInfo "select:dropdown-refresh skip-rerender control='" & VBA.Replace$(VBA.Trim$(m_ControlName), "'", "''") & "'"
+        ex_Core.fn_Diagnostic_LogInfo "select:dropdown-refresh skip-rerender control='" & VBA.Replace$(VBA.Trim$(m_ControlName), "'", "''") & "'"
 #End If
         Set m_UiOptionCaptions = m_ItemCaptions
         Set m_UiOptionIds = m_ItemIds
@@ -1152,7 +1152,7 @@ Private Function private_TryEnsureDropdownItemsReady() As Boolean
     If m_UiOptionActionMacros Is Nothing Then Exit Function
     If m_UiOptionRawItems Is Nothing Then Exit Function
 
-    Set ws = ex_HelpersSheet.m_GetRuntimeWorksheetByName(m_ControlLayout.LayoutSheetName)
+    Set ws = ex_HelpersSheet.fn_GetRuntimeWorksheetByName(m_ControlLayout.LayoutSheetName)
     If ws Is Nothing Then Exit Function
 
     Set headerShape = private_GetUiShapeByName(ws, m_UiHeaderShapeName)
@@ -1245,7 +1245,7 @@ Private Function private_TryBuildItemBuffers() As Boolean
 
     If m_Items Is Nothing Then
 #If LOGGING_DEBUG_ENABLED Then
-        ex_Core.m_Diagnostic_LogError "Select: itemsSource resolved to Nothing for control '" & m_ControlName & "'."
+        ex_Core.fn_Diagnostic_LogError "Select: itemsSource resolved to Nothing for control '" & m_ControlName & "'."
 #End If
         Exit Function
     End If
@@ -1310,7 +1310,7 @@ Private Function private_TryResolveItemMetadata( _
 
     If VBA.Len(VBA.Trim$(outId)) = 0 Then
 #If LOGGING_DEBUG_ENABLED Then
-        ex_Core.m_Diagnostic_LogError "Select: item Id is empty in control '" & m_ControlName & "'."
+        ex_Core.fn_Diagnostic_LogError "Select: item Id is empty in control '" & m_ControlName & "'."
 #End If
         Exit Function
     End If
@@ -1341,7 +1341,7 @@ Private Function private_TryReadObjectMemberText( _
     If sourceObject Is Nothing Then
         If isRequired Then
 #If LOGGING_DEBUG_ENABLED Then
-            ex_Core.m_Diagnostic_LogError "Select: item object is Nothing while reading member '" & memberName & "'."
+            ex_Core.fn_Diagnostic_LogError "Select: item object is Nothing while reading member '" & memberName & "'."
 #End If
             Exit Function
         End If
@@ -1354,7 +1354,7 @@ Private Function private_TryReadObjectMemberText( _
         If Not dictObj.Exists(memberName) Then
             If isRequired Then
 #If LOGGING_DEBUG_ENABLED Then
-                ex_Core.m_Diagnostic_LogError "Select: member '" & memberName & "' was not found on dictionary item."
+                ex_Core.fn_Diagnostic_LogError "Select: member '" & memberName & "' was not found on dictionary item."
 #End If
                 Exit Function
             End If
@@ -1366,7 +1366,7 @@ Private Function private_TryReadObjectMemberText( _
         scalarValue = dictObj.Item(memberName)
         If VBA.IsObject(scalarValue) Then
 #If LOGGING_DEBUG_ENABLED Then
-            ex_Core.m_Diagnostic_LogError "Select: member '" & memberName & "' must resolve to scalar value."
+            ex_Core.fn_Diagnostic_LogError "Select: member '" & memberName & "' must resolve to scalar value."
 #End If
             Exit Function
         End If
@@ -1384,7 +1384,7 @@ Private Function private_TryReadObjectMemberText( _
 
         If isRequired Then
 #If LOGGING_DEBUG_ENABLED Then
-            ex_Core.m_Diagnostic_LogError "Select: member '" & memberName & "' was not found on object '" & VBA.TypeName(sourceObject) & "'."
+            ex_Core.fn_Diagnostic_LogError "Select: member '" & memberName & "' was not found on object '" & VBA.TypeName(sourceObject) & "'."
 #End If
             Exit Function
         End If
@@ -1396,7 +1396,7 @@ Private Function private_TryReadObjectMemberText( _
 
     If VBA.IsObject(scalarValue) Then
 #If LOGGING_DEBUG_ENABLED Then
-        ex_Core.m_Diagnostic_LogError "Select: member '" & memberName & "' on object '" & VBA.TypeName(sourceObject) & "' must resolve to scalar value."
+        ex_Core.fn_Diagnostic_LogError "Select: member '" & memberName & "' on object '" & VBA.TypeName(sourceObject) & "' must resolve to scalar value."
 #End If
         Exit Function
     End If
@@ -1432,7 +1432,7 @@ Private Function private_TryPersistSelectedId(ByVal selectedId As String) As Boo
     selectedId = VBA.Trim$(selectedId)
     If VBA.Len(VBA.Trim$(m_SelectStateKey)) = 0 Then
 #If LOGGING_DEBUG_ENABLED Then
-        ex_Core.m_Diagnostic_LogError "Select: state key is empty for control '" & m_ControlName & "'."
+        ex_Core.fn_Diagnostic_LogError "Select: state key is empty for control '" & m_ControlName & "'."
 #End If
         Exit Function
     End If
@@ -1446,7 +1446,7 @@ Private Function private_TryLoadStoredSelectedId(ByRef outSelectedId As String) 
 
     If VBA.Len(VBA.Trim$(m_SelectStateKey)) = 0 Then
 #If LOGGING_DEBUG_ENABLED Then
-        ex_Core.m_Diagnostic_LogError "Select: state key is empty for control '" & m_ControlName & "'."
+        ex_Core.fn_Diagnostic_LogError "Select: state key is empty for control '" & m_ControlName & "'."
 #End If
         Exit Function
     End If
@@ -1485,7 +1485,7 @@ Private Function private_TryBuildHeaderRange(ByVal ws As Worksheet, ByRef outRan
 
 EH_RANGE:
 #If LOGGING_DEBUG_ENABLED Then
-    ex_Core.m_Diagnostic_LogError "Select: failed to resolve header range for control '" & m_ControlName & "'."
+    ex_Core.fn_Diagnostic_LogError "Select: failed to resolve header range for control '" & m_ControlName & "'."
 #End If
 End Function
 
@@ -1515,7 +1515,7 @@ Private Function private_CreateShapeByRange( _
 
     If targetRange.Width <= 0# Or targetRange.Height <= 0# Then
 #If LOGGING_DEBUG_ENABLED Then
-        ex_Core.m_Diagnostic_LogError "Select: target range has non-positive width/height for control '" & m_ControlName & "'."
+        ex_Core.fn_Diagnostic_LogError "Select: target range has non-positive width/height for control '" & m_ControlName & "'."
 #End If
         Exit Function
     End If
@@ -1536,7 +1536,7 @@ Private Function private_CreateShapeByRange( _
     If VBA.Len(VBA.Trim$(onActionMacroRef)) > 0 Then
         If Not private_TryAssignShapeOnActionIfChanged(shp, onActionMacroRef) Then
 #If LOGGING_DEBUG_ENABLED Then
-            ex_Core.m_Diagnostic_LogError "Select: failed to bind click action for shape '" & shapeName & "' in control '" & m_ControlName & "'."
+            ex_Core.fn_Diagnostic_LogError "Select: failed to bind click action for shape '" & shapeName & "' in control '" & m_ControlName & "'."
 #End If
             Exit Function
         End If
@@ -1567,14 +1567,14 @@ Private Function private_CreateShapeByRange( _
     Else
         metaMap("pn.style") = VBA.vbNullString
     End If
-    If Not ex_ShapeMetaRuntime.m_TrySetShapeMetaValues(shp, metaMap) Then Exit Function
+    If Not ex_ShapeMetaRuntime.fn_TrySetShapeMetaValues(shp, metaMap) Then Exit Function
 
     Set private_CreateShapeByRange = shp
     Exit Function
 
 EH_SHAPE:
 #If LOGGING_DEBUG_ENABLED Then
-    ex_Core.m_Diagnostic_LogError "Select: failed to create shape '" & shapeName & "' for control '" & m_ControlName & "': " & Err.Description
+    ex_Core.fn_Diagnostic_LogError "Select: failed to create shape '" & shapeName & "' for control '" & m_ControlName & "': " & Err.Description
 #End If
 End Function
 
@@ -1596,7 +1596,7 @@ Private Function private_CreateShapeByBounds( _
     If ws Is Nothing Then Exit Function
     If shapeWidth <= 0# Or shapeHeight <= 0# Then
 #If LOGGING_DEBUG_ENABLED Then
-        ex_Core.m_Diagnostic_LogError "Select: target bounds have non-positive width/height for control '" & m_ControlName & "'."
+        ex_Core.fn_Diagnostic_LogError "Select: target bounds have non-positive width/height for control '" & m_ControlName & "'."
 #End If
         Exit Function
     End If
@@ -1617,7 +1617,7 @@ Private Function private_CreateShapeByBounds( _
     If VBA.Len(VBA.Trim$(onActionMacroRef)) > 0 Then
         If Not private_TryAssignShapeOnActionIfChanged(shp, onActionMacroRef) Then
 #If LOGGING_DEBUG_ENABLED Then
-            ex_Core.m_Diagnostic_LogError "Select: failed to bind click action for shape '" & shapeName & "' in control '" & m_ControlName & "'."
+            ex_Core.fn_Diagnostic_LogError "Select: failed to bind click action for shape '" & shapeName & "' in control '" & m_ControlName & "'."
 #End If
             Exit Function
         End If
@@ -1648,14 +1648,14 @@ Private Function private_CreateShapeByBounds( _
     Else
         metaMap("pn.style") = VBA.vbNullString
     End If
-    If Not ex_ShapeMetaRuntime.m_TrySetShapeMetaValues(shp, metaMap) Then Exit Function
+    If Not ex_ShapeMetaRuntime.fn_TrySetShapeMetaValues(shp, metaMap) Then Exit Function
 
     Set private_CreateShapeByBounds = shp
     Exit Function
 
 EH_SHAPE:
 #If LOGGING_DEBUG_ENABLED Then
-    ex_Core.m_Diagnostic_LogError "Select: failed to create floating shape '" & shapeName & "' for control '" & m_ControlName & "': " & Err.Description
+    ex_Core.fn_Diagnostic_LogError "Select: failed to create floating shape '" & shapeName & "' for control '" & m_ControlName & "': " & Err.Description
 #End If
 End Function
 
@@ -1727,7 +1727,7 @@ Private Sub private_DeleteControlShapes(ByVal ws As Worksheet)
 
     For i = ws.Shapes.Count To 1 Step -1
         Set shp = ws.Shapes(i)
-        controlMeta = VBA.LCase$(VBA.Trim$(ex_ShapeMetaRuntime.m_GetShapeMetaValue(shp, "pn.control", VBA.vbNullString)))
+        controlMeta = VBA.LCase$(VBA.Trim$(ex_ShapeMetaRuntime.fn_GetShapeMetaValue(shp, "pn.control", VBA.vbNullString)))
         If VBA.Len(controlMeta) = 0 Then GoTo ContinueShape
         If controlMeta = VBA.LCase$(VBA.Trim$(m_ControlName)) Then
             shp.Delete
@@ -1820,7 +1820,7 @@ Private Function private_NormalizeNamePart(ByVal rawText As String) As String
 End Function
 
 Private Function private_GetRuntimeCallbackMacroRef() As String
-    private_GetRuntimeCallbackMacroRef = private_QualifyMacroName("rt_Bridge.m_OnShapeClick")
+    private_GetRuntimeCallbackMacroRef = private_QualifyMacroName("rt_Bridge.fn_OnShapeClick")
 End Function
 
 Private Function private_TryResolveCallbackRef( _
@@ -1837,10 +1837,10 @@ Private Function private_TryResolveCallbackRef( _
         Exit Function
     End If
 
-    If Not ex_BindingRuntime.m_TryResolveValueBinding(rawText, dataContext, resolvedValue) Then Exit Function
+    If Not ex_BindingRuntime.fn_TryResolveValueBinding(rawText, dataContext, resolvedValue) Then Exit Function
     If VBA.IsObject(resolvedValue) Then
 #If LOGGING_DEBUG_ENABLED Then
-        ex_Core.m_Diagnostic_LogError "Select: callback binding must resolve to scalar value for control '" & m_ControlName & "'."
+        ex_Core.fn_Diagnostic_LogError "Select: callback binding must resolve to scalar value for control '" & m_ControlName & "'."
 #End If
         Exit Function
     End If
@@ -1848,7 +1848,7 @@ Private Function private_TryResolveCallbackRef( _
     outCallbackRef = VBA.Trim$(VBA.CStr(resolvedValue))
     If VBA.Len(outCallbackRef) = 0 Then
 #If LOGGING_DEBUG_ENABLED Then
-        ex_Core.m_Diagnostic_LogError "Select: callback binding resolved to empty value for control '" & m_ControlName & "'."
+        ex_Core.fn_Diagnostic_LogError "Select: callback binding resolved to empty value for control '" & m_ControlName & "'."
 #End If
         Exit Function
     End If
@@ -1871,7 +1871,7 @@ Private Function private_TryRestoreCallbackContextFromPage() As Boolean
         private_TryRestoreCallbackContextFromPage = True
         Exit Function
     End If
-    If Not rt_PageManager.m_TryGetPageByWorksheet(ws, iPage) Then
+    If Not rt_PageManager.fn_TryGetPageByWorksheet(ws, iPage) Then
         private_TryRestoreCallbackContextFromPage = True
         Exit Function
     End If
@@ -1912,7 +1912,7 @@ Private Function private_TryReadPositiveDoubleAttr( _
 ) As Boolean
     Dim rawText As String
 
-    rawText = VBA.Trim$(VBA.CStr(ex_XmlCore.m_NodeAttrText(controlNode, attrName)))
+    rawText = VBA.Trim$(VBA.CStr(ex_XmlCore.fn_NodeAttrText(controlNode, attrName)))
     If VBA.Len(rawText) = 0 Then
         outValue = defaultValue
         private_TryReadPositiveDoubleAttr = True
@@ -1921,14 +1921,14 @@ Private Function private_TryReadPositiveDoubleAttr( _
 
     If Not private_TryParseFlexibleDouble(rawText, outValue) Then
 #If LOGGING_DEBUG_ENABLED Then
-        ex_Core.m_Diagnostic_LogError "Select: attribute '" & attrName & "' must be numeric for control '" & m_ControlName & "'."
+        ex_Core.fn_Diagnostic_LogError "Select: attribute '" & attrName & "' must be numeric for control '" & m_ControlName & "'."
 #End If
         Exit Function
     End If
 
     If outValue <= 0# Then
 #If LOGGING_DEBUG_ENABLED Then
-        ex_Core.m_Diagnostic_LogError "Select: attribute '" & attrName & "' must be greater than zero for control '" & m_ControlName & "'."
+        ex_Core.fn_Diagnostic_LogError "Select: attribute '" & attrName & "' must be greater than zero for control '" & m_ControlName & "'."
 #End If
         Exit Function
     End If
@@ -1944,7 +1944,7 @@ Private Function private_TryReadNonNegativeDoubleAttr( _
 ) As Boolean
     Dim rawText As String
 
-    rawText = VBA.Trim$(VBA.CStr(ex_XmlCore.m_NodeAttrText(controlNode, attrName)))
+    rawText = VBA.Trim$(VBA.CStr(ex_XmlCore.fn_NodeAttrText(controlNode, attrName)))
     If VBA.Len(rawText) = 0 Then
         outValue = defaultValue
         private_TryReadNonNegativeDoubleAttr = True
@@ -1953,14 +1953,14 @@ Private Function private_TryReadNonNegativeDoubleAttr( _
 
     If Not private_TryParseFlexibleDouble(rawText, outValue) Then
 #If LOGGING_DEBUG_ENABLED Then
-        ex_Core.m_Diagnostic_LogError "Select: attribute '" & attrName & "' must be numeric for control '" & m_ControlName & "'."
+        ex_Core.fn_Diagnostic_LogError "Select: attribute '" & attrName & "' must be numeric for control '" & m_ControlName & "'."
 #End If
         Exit Function
     End If
 
     If outValue < 0# Then
 #If LOGGING_DEBUG_ENABLED Then
-        ex_Core.m_Diagnostic_LogError "Select: attribute '" & attrName & "' must be greater or equal to zero for control '" & m_ControlName & "'."
+        ex_Core.fn_Diagnostic_LogError "Select: attribute '" & attrName & "' must be greater or equal to zero for control '" & m_ControlName & "'."
 #End If
         Exit Function
     End If

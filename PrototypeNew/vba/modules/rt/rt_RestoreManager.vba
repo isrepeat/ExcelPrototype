@@ -10,31 +10,31 @@ Private Const RUNTIME_GLOBALS_MODULE_NAME_ATTR As String = "name"
 Private Const RUNTIME_GLOBALS_MODULE_SNAPSHOT_NODE As String = "snapshot"
 Private Const MODULE_NAME_PAGE_MANAGER As String = "rt_PageManager"
 
-' Callstack[1]: ex_Core.private_Dev_TryPrepareRuntimeForHotUpdate -> private_Dev_TryRunModuleDisposers -> Application.Run(rt_RestoreManager.m_Module_Dispose)
-Public Sub m_Module_Dispose()
+' Callstack[1]: ex_Core.private_Dev_TryPrepareRuntimeForHotUpdate -> private_Dev_TryRunModuleDisposers -> Application.Run(rt_RestoreManager.fn_Module_Dispose)
+Public Sub fn_Module_Dispose()
 #If LOGGING_VERBOSE_ENABLED Then
-    ex_Core.m_Diagnostic_LogInfo "lifecycle:rt_RestoreManager.m_Module_Dispose"
+    ex_Core.fn_Diagnostic_LogInfo "lifecycle:rt_RestoreManager.fn_Module_Dispose"
 #End If
 End Sub
 
 ' //
 ' // API
 ' //
-' Callstack[1]: ThisWorkbook.Workbook_BeforeClose -> rt_RestoreManager.m_SaveRuntimeState
-' Callstack[2]: rt_CoreActions.private_ScheduleUpdateAndRerender -> rt_RestoreManager.m_SaveRuntimeState
-' Callstack[3]: ex_Core.private_Dev_TryRunSafeUpdateByMode -> private_Dev_TryRunRuntimeBooleanFunction("rt_RestoreManager","m_SaveRuntimeState")
-' Callstack[4]: rt_RestoreManager.private_TryFallbackRestoreByResettingMainPage -> rt_RestoreManager.m_SaveRuntimeState
-Public Function m_SaveRuntimeState() As Boolean
+' Callstack[1]: ThisWorkbook.Workbook_BeforeClose -> rt_RestoreManager.fn_SaveRuntimeState
+' Callstack[2]: rt_CoreActions.private_ScheduleUpdateAndRerender -> rt_RestoreManager.fn_SaveRuntimeState
+' Callstack[3]: ex_Core.private_Dev_TryRunSafeUpdateByMode -> private_Dev_TryRunRuntimeBooleanFunction("rt_RestoreManager","fn_SaveRuntimeState")
+' Callstack[4]: rt_RestoreManager.private_TryFallbackRestoreByResettingMainPage -> rt_RestoreManager.fn_SaveRuntimeState
+Public Function fn_SaveRuntimeState() As Boolean
     ' Единая точка сохранения runtime-состояния.
     ' Сейчас сохраняется модульный snapshot rt_PageManager, но формат рассчитан
     ' на добавление других runtime-модулей без изменения внешнего API.
-    m_SaveRuntimeState = private_TrySaveRuntimeGlobalsSnapshot()
+    fn_SaveRuntimeState = private_TrySaveRuntimeGlobalsSnapshot()
 End Function
 
-' Callstack[1]: ThisWorkbook.Workbook_Open -> rt_RestoreManager.m_RestoreRuntimeState
-' Callstack[2]: rt_CoreActions.m_RerenderLastPageAfterUpdate -> rt_RestoreManager.m_RestoreRuntimeState
-' Callstack[3]: rt_RestoreManager.m_RunDeferredRuntimeStateRestore -> rt_RestoreManager.m_RestoreRuntimeState
-Public Function m_RestoreRuntimeState( _
+' Callstack[1]: ThisWorkbook.Workbook_Open -> rt_RestoreManager.fn_RestoreRuntimeState
+' Callstack[2]: rt_CoreActions.fn_RerenderLastPageAfterUpdate -> rt_RestoreManager.fn_RestoreRuntimeState
+' Callstack[3]: rt_RestoreManager.fn_RunDeferredRuntimeStateRestore -> rt_RestoreManager.fn_RestoreRuntimeState
+Public Function fn_RestoreRuntimeState( _
     Optional ByVal reasonText As String = VBA.vbNullString, _
     Optional ByRef outRestoredPagesCount As Long = 0 _
 ) As Boolean
@@ -50,7 +50,7 @@ Public Function m_RestoreRuntimeState( _
     On Error GoTo EH_RESTORE
 
 #If LOGGING_DEBUG_ENABLED Then
-    ex_Core.m_Diagnostic_LogInfo "restore-manager:restore-runtime-state start reason='" & VBA.Replace$(reasonText, "'", "''") & "'"
+    ex_Core.fn_Diagnostic_LogInfo "restore-manager:restore-runtime-state start reason='" & VBA.Replace$(reasonText, "'", "''") & "'"
 #End If
 
     ' Быстрый путь: если активный лист уже привязан к runtime-странице,
@@ -59,9 +59,9 @@ Public Function m_RestoreRuntimeState( _
         If Not private_TryRestoreRuntimeGlobalsSnapshot() Then GoTo RestoreFailed
         If Not private_TryGetPagesCount(outRestoredPagesCount) Then GoTo RestoreFailed
 #If LOGGING_DEBUG_ENABLED Then
-        ex_Core.m_Diagnostic_LogInfo "restore-manager:restore-runtime-state done reason='" & VBA.Replace$(reasonText, "'", "''") & "' restoredPages=" & VBA.CStr(outRestoredPagesCount)
+        ex_Core.fn_Diagnostic_LogInfo "restore-manager:restore-runtime-state done reason='" & VBA.Replace$(reasonText, "'", "''") & "' restoredPages=" & VBA.CStr(outRestoredPagesCount)
 #End If
-        m_RestoreRuntimeState = True
+        fn_RestoreRuntimeState = True
         GoTo Cleanup
     End If
 
@@ -70,9 +70,9 @@ Public Function m_RestoreRuntimeState( _
     If outRestoredPagesCount <= 0 Then GoTo RestoreFailed
 
 #If LOGGING_DEBUG_ENABLED Then
-    ex_Core.m_Diagnostic_LogInfo "restore-manager:restore-runtime-state done reason='" & VBA.Replace$(reasonText, "'", "''") & "' restoredPages=" & VBA.CStr(outRestoredPagesCount)
+    ex_Core.fn_Diagnostic_LogInfo "restore-manager:restore-runtime-state done reason='" & VBA.Replace$(reasonText, "'", "''") & "' restoredPages=" & VBA.CStr(outRestoredPagesCount)
 #End If
-    m_RestoreRuntimeState = True
+    fn_RestoreRuntimeState = True
 
 Cleanup:
     isRuntimeStateRestoreRunning = False
@@ -80,30 +80,30 @@ Cleanup:
 
 RestoreFailed:
     If private_TryFallbackRestoreByResettingMainPage(reasonText, outRestoredPagesCount) Then
-        m_RestoreRuntimeState = True
+        fn_RestoreRuntimeState = True
         GoTo Cleanup
     End If
 #If LOGGING_DEBUG_ENABLED Then
-    ex_Core.m_Diagnostic_LogError "restore-manager:restore-runtime-state failed reason='" & VBA.Replace$(reasonText, "'", "''") & "' restoredPages=" & VBA.CStr(outRestoredPagesCount)
+    ex_Core.fn_Diagnostic_LogError "restore-manager:restore-runtime-state failed reason='" & VBA.Replace$(reasonText, "'", "''") & "' restoredPages=" & VBA.CStr(outRestoredPagesCount)
 #End If
     GoTo Cleanup
 
 EH_RESTORE:
 #If LOGGING_DEBUG_ENABLED Then
-    ex_Core.m_Diagnostic_LogError "restore-manager:restore-runtime-state exception reason='" & VBA.Replace$(reasonText, "'", "''") & "' err='" & VBA.Replace$(Err.Description, "'", "''") & "'"
+    ex_Core.fn_Diagnostic_LogError "restore-manager:restore-runtime-state exception reason='" & VBA.Replace$(reasonText, "'", "''") & "' err='" & VBA.Replace$(Err.Description, "'", "''") & "'"
 #End If
     Resume Cleanup
 End Function
 
-' Callstack[1]: ex_Core.private_Dev_QueueRuntimeStateRestoreAfterUpdate -> Application.OnTime -> rt_RestoreManager.m_RunDeferredRuntimeStateRestore
-Public Sub m_RunDeferredRuntimeStateRestore()
+' Callstack[1]: ex_Core.private_Dev_QueueRuntimeStateRestoreAfterUpdate -> Application.OnTime -> rt_RestoreManager.fn_RunDeferredRuntimeStateRestore
+Public Sub fn_RunDeferredRuntimeStateRestore()
     Dim restoredPagesCount As Long
 
-    Call m_RestoreRuntimeState("deferred:on-time", restoredPagesCount)
+    Call fn_RestoreRuntimeState("deferred:on-time", restoredPagesCount)
 End Sub
 
-' Callstack[1]: rt_RestoreManager.private_TryDeserializeRuntimeModuleSnapshot(rt_PageManager) -> rt_PageManager.m_TryDeserializeModuleSnapshot -> rt_RestoreManager.m_TryPrepareWorkbookForRestore
-Public Function m_TryPrepareWorkbookForRestore(ByRef outTemporaryWorksheet As Worksheet) As Boolean
+' Callstack[1]: rt_RestoreManager.private_TryDeserializeRuntimeModuleSnapshot(rt_PageManager) -> rt_PageManager.fn_TryDeserializeModuleSnapshot -> rt_RestoreManager.fn_TryPrepareWorkbookForRestore
+Public Function fn_TryPrepareWorkbookForRestore(ByRef outTemporaryWorksheet As Worksheet) As Boolean
     Dim wb As Workbook
     Dim tmpName As String
 
@@ -113,7 +113,7 @@ Public Function m_TryPrepareWorkbookForRestore(ByRef outTemporaryWorksheet As Wo
 
     ' Перед восстановлением очищаем runtime-реестр страниц, чтобы избежать
     ' смешивания старых инстансов с восстанавливаемыми.
-    rt_PageManager.m_DisposeAllPages
+    rt_PageManager.fn_DisposeAllPages
 
     On Error GoTo EH_RESET
     Application.DisplayAlerts = False
@@ -131,21 +131,21 @@ Public Function m_TryPrepareWorkbookForRestore(ByRef outTemporaryWorksheet As Wo
     Err.Clear
     On Error GoTo 0
 
-    m_TryPrepareWorkbookForRestore = True
+    fn_TryPrepareWorkbookForRestore = True
     Exit Function
 
 EH_RESET:
     Application.DisplayAlerts = True
 #If LOGGING_DEBUG_ENABLED Then
-    ex_Core.m_Diagnostic_LogError "RestoreManager: failed to reset workbook before restore: " & Err.Description
+    ex_Core.fn_Diagnostic_LogError "RestoreManager: failed to reset workbook before restore: " & Err.Description
 #End If
 End Function
 
-' Callstack[1]: rt_RestoreManager.private_TryDeserializeRuntimeModuleSnapshot(rt_PageManager) -> rt_PageManager.m_TryDeserializeModuleSnapshot -> rt_RestoreManager.m_TryFinalizeWorkbookAfterRestore
-Public Function m_TryFinalizeWorkbookAfterRestore(ByVal temporaryWorksheet As Worksheet) As Boolean
+' Callstack[1]: rt_RestoreManager.private_TryDeserializeRuntimeModuleSnapshot(rt_PageManager) -> rt_PageManager.fn_TryDeserializeModuleSnapshot -> rt_RestoreManager.fn_TryFinalizeWorkbookAfterRestore
+Public Function fn_TryFinalizeWorkbookAfterRestore(ByVal temporaryWorksheet As Worksheet) As Boolean
     Dim wb As Workbook
 
-    m_TryFinalizeWorkbookAfterRestore = True
+    fn_TryFinalizeWorkbookAfterRestore = True
     If temporaryWorksheet Is Nothing Then Exit Function
 
     Set wb = ThisWorkbook
@@ -160,16 +160,16 @@ Public Function m_TryFinalizeWorkbookAfterRestore(ByVal temporaryWorksheet As Wo
     Application.DisplayAlerts = True
     If Err.Number <> 0 Then
 #If LOGGING_DEBUG_ENABLED Then
-        ex_Core.m_Diagnostic_LogError "RestoreManager: failed to finalize restore temporary worksheet: " & Err.Description
+        ex_Core.fn_Diagnostic_LogError "RestoreManager: failed to finalize restore temporary worksheet: " & Err.Description
 #End If
         Err.Clear
-        m_TryFinalizeWorkbookAfterRestore = False
+        fn_TryFinalizeWorkbookAfterRestore = False
     End If
     On Error GoTo 0
 End Function
 
-' Callstack[1]: rt_RestoreManager.private_TryDeserializeRuntimeModuleSnapshot(rt_PageManager) -> rt_PageManager.m_TryDeserializeModuleSnapshot -> rt_RestoreManager.m_TryRestoreSerializableCollectionState
-Public Function m_TryRestoreSerializableCollectionState( _
+' Callstack[1]: rt_RestoreManager.private_TryDeserializeRuntimeModuleSnapshot(rt_PageManager) -> rt_PageManager.fn_TryDeserializeModuleSnapshot -> rt_RestoreManager.fn_TryRestoreSerializableCollectionState
+Public Function fn_TryRestoreSerializableCollectionState( _
     ByVal serializableItems As Collection, _
     Optional ByVal ownerName As String = VBA.vbNullString _
 ) As Boolean
@@ -177,7 +177,7 @@ Public Function m_TryRestoreSerializableCollectionState( _
     Dim serializableItem As obj_ISerializable
     Dim typeName As String
 
-    m_TryRestoreSerializableCollectionState = True
+    fn_TryRestoreSerializableCollectionState = True
     ownerName = VBA.Trim$(ownerName)
     If VBA.Len(ownerName) = 0 Then ownerName = "unknown"
 
@@ -197,9 +197,9 @@ Public Function m_TryRestoreSerializableCollectionState( _
             Err.Clear
             On Error GoTo 0
 #If LOGGING_DEBUG_ENABLED Then
-            ex_Core.m_Diagnostic_LogError "RestoreManager: collection item does not implement obj_ISerializable. owner='" & VBA.Replace$(ownerName, "'", "''") & "' type='" & VBA.Replace$(typeName, "'", "''") & "'."
+            ex_Core.fn_Diagnostic_LogError "RestoreManager: collection item does not implement obj_ISerializable. owner='" & VBA.Replace$(ownerName, "'", "''") & "' type='" & VBA.Replace$(typeName, "'", "''") & "'."
 #End If
-            m_TryRestoreSerializableCollectionState = False
+            fn_TryRestoreSerializableCollectionState = False
             Exit Function
         End If
         On Error GoTo 0
@@ -208,9 +208,9 @@ Public Function m_TryRestoreSerializableCollectionState( _
         If serializableItem.TryRestoreState() Then GoTo ContinueItem
 
 #If LOGGING_DEBUG_ENABLED Then
-        ex_Core.m_Diagnostic_LogError "RestoreManager: TryRestoreState failed. owner='" & VBA.Replace$(ownerName, "'", "''") & "' type='" & VBA.Replace$(typeName, "'", "''") & "'."
+        ex_Core.fn_Diagnostic_LogError "RestoreManager: TryRestoreState failed. owner='" & VBA.Replace$(ownerName, "'", "''") & "' type='" & VBA.Replace$(typeName, "'", "''") & "'."
 #End If
-        m_TryRestoreSerializableCollectionState = False
+        fn_TryRestoreSerializableCollectionState = False
         Exit Function
 
 ContinueItem:
@@ -227,19 +227,19 @@ Private Function private_TrySaveRuntimeGlobalsSnapshot() As Boolean
 
     ' Корневой snapshot runtime содержит набор "module" узлов.
     ' Каждый модуль сам сериализует свой внутренний state в XML-строку.
-    If Not ex_Core.m_CustomXmlPartStore_TryCreateEmptyDom(RUNTIME_GLOBALS_ROOT, RUNTIME_GLOBALS_NS, dom) Then Exit Function
+    If Not ex_Core.fn_CustomXmlPartStore_TryCreateEmptyDom(RUNTIME_GLOBALS_ROOT, RUNTIME_GLOBALS_NS, dom) Then Exit Function
     Set rootNode = dom.DocumentElement
     If rootNode Is Nothing Then
 #If LOGGING_DEBUG_ENABLED Then
-        ex_Core.m_Diagnostic_LogError "RestoreManager: runtime globals root node is missing."
+        ex_Core.fn_Diagnostic_LogError "RestoreManager: runtime globals root node is missing."
 #End If
         Exit Function
     End If
 
     If Not private_TryAppendModuleSnapshot(rootNode, MODULE_NAME_PAGE_MANAGER) Then Exit Function
 
-    If Not ex_Core.m_CustomXmlPartStore_TryFindPartByNamespace(RUNTIME_GLOBALS_NS, partObj) Then Exit Function
-    If Not ex_Core.m_CustomXmlPartStore_TrySaveDom(dom, partObj) Then Exit Function
+    If Not ex_Core.fn_CustomXmlPartStore_TryFindPartByNamespace(RUNTIME_GLOBALS_NS, partObj) Then Exit Function
+    If Not ex_Core.fn_CustomXmlPartStore_TrySaveDom(dom, partObj) Then Exit Function
 
     private_TrySaveRuntimeGlobalsSnapshot = True
 End Function
@@ -254,14 +254,14 @@ Private Function private_TryRestoreRuntimeGlobalsSnapshot() As Boolean
     Dim moduleName As String
     Dim snapshotXml As String
 
-    If Not ex_Core.m_CustomXmlPartStore_TryFindPartByNamespace(RUNTIME_GLOBALS_NS, partObj) Then Exit Function
+    If Not ex_Core.fn_CustomXmlPartStore_TryFindPartByNamespace(RUNTIME_GLOBALS_NS, partObj) Then Exit Function
     If partObj Is Nothing Then
         ' Отсутствие runtime snapshot на первой загрузке — нормальный сценарий.
         private_TryRestoreRuntimeGlobalsSnapshot = True
         Exit Function
     End If
 
-    If Not ex_Core.m_CustomXmlPartStore_TryLoadPartDom(partObj, dom) Then Exit Function
+    If Not ex_Core.fn_CustomXmlPartStore_TryLoadPartDom(partObj, dom) Then Exit Function
     Set rootNode = dom.DocumentElement
     If rootNode Is Nothing Then
         private_TryRestoreRuntimeGlobalsSnapshot = True
@@ -308,7 +308,7 @@ Private Function private_TryAppendModuleSnapshot(ByVal rootNode As Object, ByVal
     Set dom = rootNode.OwnerDocument
     If dom Is Nothing Then
 #If LOGGING_DEBUG_ENABLED Then
-        ex_Core.m_Diagnostic_LogError "RestoreManager: runtime globals DOM owner is not available."
+        ex_Core.fn_Diagnostic_LogError "RestoreManager: runtime globals DOM owner is not available."
 #End If
         Exit Function
     End If
@@ -331,11 +331,11 @@ Private Function private_TrySerializeRuntimeModuleSnapshot(ByVal moduleName As S
     ' Таблица диспетчеризации сериализации runtime-модулей.
     Select Case moduleName
         Case VBA.LCase$(MODULE_NAME_PAGE_MANAGER)
-            private_TrySerializeRuntimeModuleSnapshot = rt_PageManager.m_TrySerializeModuleSnapshot(outSnapshotXml)
+            private_TrySerializeRuntimeModuleSnapshot = rt_PageManager.fn_TrySerializeModuleSnapshot(outSnapshotXml)
 
         Case Else
 #If LOGGING_DEBUG_ENABLED Then
-            ex_Core.m_Diagnostic_LogInfo "restore-manager: serialize skipped for unknown module '" & moduleName & "'"
+            ex_Core.fn_Diagnostic_LogInfo "restore-manager: serialize skipped for unknown module '" & moduleName & "'"
 #End If
             ' Неизвестные модули пропускаем мягко, чтобы не ломать совместимость.
             private_TrySerializeRuntimeModuleSnapshot = True
@@ -348,11 +348,11 @@ Private Function private_TryDeserializeRuntimeModuleSnapshot(ByVal moduleName As
     ' Таблица диспетчеризации десериализации runtime-модулей.
     Select Case moduleName
         Case VBA.LCase$(MODULE_NAME_PAGE_MANAGER)
-            private_TryDeserializeRuntimeModuleSnapshot = rt_PageManager.m_TryDeserializeModuleSnapshot(snapshotXml)
+            private_TryDeserializeRuntimeModuleSnapshot = rt_PageManager.fn_TryDeserializeModuleSnapshot(snapshotXml)
 
         Case Else
 #If LOGGING_DEBUG_ENABLED Then
-            ex_Core.m_Diagnostic_LogInfo "restore-manager: deserialize skipped for unknown module '" & moduleName & "'"
+            ex_Core.fn_Diagnostic_LogInfo "restore-manager: deserialize skipped for unknown module '" & moduleName & "'"
 #End If
             ' Неизвестные модули пропускаем мягко, чтобы старые snapshot-части
             ' не блокировали запуск новой версии runtime.
@@ -377,12 +377,12 @@ Private Function private_HasRuntimePageForActiveWorksheet() As Boolean
 
     If ws Is Nothing Then Exit Function
 
-    private_HasRuntimePageForActiveWorksheet = rt_PageManager.m_TryGetPageByWorksheet(ws, page)
+    private_HasRuntimePageForActiveWorksheet = rt_PageManager.fn_TryGetPageByWorksheet(ws, page)
 End Function
 
 Private Function private_TryGetPagesCount(ByRef outPagesCount As Long) As Boolean
     outPagesCount = 0
-    private_TryGetPagesCount = rt_PageManager.m_TryGetPagesCount(outPagesCount)
+    private_TryGetPagesCount = rt_PageManager.fn_TryGetPagesCount(outPagesCount)
 End Function
 
 Private Function private_TryFallbackRestoreByResettingMainPage( _
@@ -404,13 +404,13 @@ Private Function private_TryFallbackRestoreByResettingMainPage( _
             Err.Clear
             On Error GoTo 0
 #If LOGGING_DEBUG_ENABLED Then
-            ex_Core.m_Diagnostic_LogError "restore-manager:restore-runtime-state fallback-main-reset failed reason='" & VBA.Replace$(reasonText, "'", "''") & "' err='" & VBA.Replace$(errDescription, "'", "''") & "'"
+            ex_Core.fn_Diagnostic_LogError "restore-manager:restore-runtime-state fallback-main-reset failed reason='" & VBA.Replace$(reasonText, "'", "''") & "' err='" & VBA.Replace$(errDescription, "'", "''") & "'"
 #End If
             Exit Function
         End If
         On Error GoTo 0
 #If LOGGING_DEBUG_ENABLED Then
-        ex_Core.m_Diagnostic_LogError "restore-manager:restore-runtime-state fallback-main-reset failed reason='" & VBA.Replace$(reasonText, "'", "''") & "' err='returned-false'"
+        ex_Core.fn_Diagnostic_LogError "restore-manager:restore-runtime-state fallback-main-reset failed reason='" & VBA.Replace$(reasonText, "'", "''") & "' err='returned-false'"
 #End If
         Exit Function
     End If
@@ -419,23 +419,23 @@ Private Function private_TryFallbackRestoreByResettingMainPage( _
         Err.Clear
         On Error GoTo 0
 #If LOGGING_DEBUG_ENABLED Then
-        ex_Core.m_Diagnostic_LogError "restore-manager:restore-runtime-state fallback-main-reset failed reason='" & VBA.Replace$(reasonText, "'", "''") & "' err='" & VBA.Replace$(errDescription, "'", "''") & "'"
+        ex_Core.fn_Diagnostic_LogError "restore-manager:restore-runtime-state fallback-main-reset failed reason='" & VBA.Replace$(reasonText, "'", "''") & "' err='" & VBA.Replace$(errDescription, "'", "''") & "'"
 #End If
         Exit Function
     End If
     On Error GoTo 0
 
     outRestoredPagesCount = 1
-    saveRuntimeOk = m_SaveRuntimeState()
+    saveRuntimeOk = fn_SaveRuntimeState()
 
     If Not saveRuntimeOk Then
 #If LOGGING_DEBUG_ENABLED Then
-        ex_Core.m_Diagnostic_LogError "restore-manager:restore-runtime-state fallback-checkpoint-failed reason='" & VBA.Replace$(reasonText, "'", "''") & "' saveRuntime=" & VBA.CStr(saveRuntimeOk)
+        ex_Core.fn_Diagnostic_LogError "restore-manager:restore-runtime-state fallback-checkpoint-failed reason='" & VBA.Replace$(reasonText, "'", "''") & "' saveRuntime=" & VBA.CStr(saveRuntimeOk)
 #End If
     End If
 
 #If LOGGING_DEBUG_ENABLED Then
-    ex_Core.m_Diagnostic_LogInfo "restore-manager:restore-runtime-state fallback-main-reset done reason='" & VBA.Replace$(reasonText, "'", "''") & "' restoredPages=" & VBA.CStr(outRestoredPagesCount)
+    ex_Core.fn_Diagnostic_LogInfo "restore-manager:restore-runtime-state fallback-main-reset done reason='" & VBA.Replace$(reasonText, "'", "''") & "' restoredPages=" & VBA.CStr(outRestoredPagesCount)
 #End If
     private_TryFallbackRestoreByResettingMainPage = True
 End Function

@@ -17,12 +17,12 @@ Private Const VALUE_ATTR As String = "selectedId"
 
 Private Sub Class_Initialize()
 #If LOGGING_VERBOSE_ENABLED Then
-    ex_Core.m_Diagnostic_LogInfo "lifecycle:" & VBA.TypeName(Me) & ".Class_Initialize"
+    ex_Core.fn_Diagnostic_LogInfo "lifecycle:" & VBA.TypeName(Me) & ".Class_Initialize"
 #End If
 End Sub
 Private Sub Class_Terminate()
 #If LOGGING_VERBOSE_ENABLED Then
-    ex_Core.m_Diagnostic_LogInfo "lifecycle:" & VBA.TypeName(Me) & ".Class_Terminate"
+    ex_Core.fn_Diagnostic_LogInfo "lifecycle:" & VBA.TypeName(Me) & ".Class_Terminate"
 #End If
     If m_IsDisposed Then Exit Sub
     On Error Resume Next
@@ -35,13 +35,13 @@ End Sub
 ' //
 Public Function Initialize() As Boolean
 #If LOGGING_VERBOSE_ENABLED Then
-    ex_Core.m_Diagnostic_LogInfo "lifecycle:" & VBA.TypeName(Me) & ".Initialize"
+    ex_Core.fn_Diagnostic_LogInfo "lifecycle:" & VBA.TypeName(Me) & ".Initialize"
 #End If
     Initialize = True
 End Function
 Public Sub Dispose()
 #If LOGGING_VERBOSE_ENABLED Then
-    ex_Core.m_Diagnostic_LogInfo "lifecycle:" & VBA.TypeName(Me) & ".Dispose"
+    ex_Core.fn_Diagnostic_LogInfo "lifecycle:" & VBA.TypeName(Me) & ".Dispose"
 #End If
     If m_IsDisposed Then Exit Sub
     m_IsDisposed = True
@@ -53,12 +53,12 @@ Public Function TryGetSelectedId(ByVal selectKey As String, ByRef outSelectedId 
     selectKey = VBA.LCase$(VBA.Trim$(selectKey))
     If VBA.Len(selectKey) = 0 Then
 #If LOGGING_DEBUG_ENABLED Then
-        ex_Core.m_Diagnostic_LogError "SelectControlVMStatic: select key is empty."
+        ex_Core.fn_Diagnostic_LogError "SelectControlVMStatic: select key is empty."
 #End If
         Exit Function
     End If
 
-    TryGetSelectedId = ex_XmlKeyValueStateStore.m_TryGetValue( _
+    TryGetSelectedId = ex_XmlKeyValueStateStore.fn_TryGetValue( _
         namespaceUri:=STATE_NS, _
         rootNodeName:=ROOT_NODE, _
         entryNodeName:=ENTRY_NODE, _
@@ -74,12 +74,12 @@ Public Function SetSelectedId(ByVal selectKey As String, ByVal selectedId As Str
 
     If VBA.Len(selectKey) = 0 Then
 #If LOGGING_DEBUG_ENABLED Then
-        ex_Core.m_Diagnostic_LogError "SelectControlVMStatic: select key is empty."
+        ex_Core.fn_Diagnostic_LogError "SelectControlVMStatic: select key is empty."
 #End If
         Exit Function
     End If
 
-    SetSelectedId = ex_XmlKeyValueStateStore.m_SetValue( _
+    SetSelectedId = ex_XmlKeyValueStateStore.fn_SetValue( _
         namespaceUri:=STATE_NS, _
         rootNodeName:=ROOT_NODE, _
         entryNodeName:=ENTRY_NODE, _

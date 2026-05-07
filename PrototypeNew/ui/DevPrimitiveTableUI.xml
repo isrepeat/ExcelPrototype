@@ -7,7 +7,7 @@
           name="BackToDev"
           caption="Back To Dev UI"
           style="actionWarning"
-          onClick="{Binding Module=ex_Test;Method=m_TEST_RenderDevUI}"
+          onClick="{Binding Module=ex_Test;Method=fn_TEST_RenderDevUI}"
           spanColls="4"
           spanRows="2"/>
 

@@ -52,9 +52,9 @@ Private g_LastUpdateErrorNumber As Long
 Private g_LastUpdateErrorSource As String
 Private g_LastUpdateErrorDescription As String
 
-Public Sub m_Module_Dispose()
+Public Sub fn_Module_Dispose()
 #If LOGGING_VERBOSE_ENABLED Then
-    ex_Core.m_Diagnostic_LogInfo "lifecycle:ex_Core.m_Module_Dispose"
+    ex_Core.fn_Diagnostic_LogInfo "lifecycle:ex_Core.fn_Module_Dispose"
 #End If
     On Error Resume Next
     Set g_FileCacheMap = Nothing
@@ -69,7 +69,7 @@ End Sub
 ' --------------------------------------
 '  namespace Dev {
 ' --------------------------------------
-Public Sub m_Dev_OpenCoreModule()
+Public Sub fn_Dev_OpenCoreModule()
     Dim comp As Object
     Dim cp As Object
 
@@ -99,7 +99,7 @@ EH:
 End Sub
 
 
-Public Sub m_Dev_RemoveAllModulesAndClasses()
+Public Sub fn_Dev_RemoveAllModulesAndClasses()
     On Error GoTo EH
     Application.ScreenUpdating = False
 
@@ -121,9 +121,9 @@ EH:
 End Sub
 
 
-' Callstack[1]: VBA.Macros(ex_Core.m_Dev_UpdateAllModules) -> ex_Core.m_Dev_UpdateAllModules
-' Callstack[2]: DevUI(onClick: ex_Core.m_Dev_UpdateAllModules) -> ex_Core.m_Dev_UpdateAllModules
-Public Sub m_Dev_UpdateAllModules()
+' Callstack[1]: VBA.Macros(ex_Core.fn_Dev_UpdateAllModules) -> ex_Core.fn_Dev_UpdateAllModules
+' Callstack[2]: DevUI(onClick: ex_Core.fn_Dev_UpdateAllModules) -> ex_Core.fn_Dev_UpdateAllModules
+Public Sub fn_Dev_UpdateAllModules()
     ' Если обновление запущено из bridge-click dispatch, переносим запуск на следующий тик.
     ' Это защищает от reentry: нельзя безопасно переимпортировать модули в середине обработки клика.
     If private_Dev_TryQueueRuntimeUpdateWhenBridgeDispatch("full") Then Exit Sub
@@ -132,8 +132,8 @@ Public Sub m_Dev_UpdateAllModules()
 End Sub
 
 
-' Callstack[1]: VBA.Macros(ex_Core.m_Dev_UpdateCodeByDate) -> ex_Core.m_Dev_UpdateCodeByDate
-Public Sub m_Dev_UpdateCodeByDate()
+' Callstack[1]: VBA.Macros(ex_Core.fn_Dev_UpdateCodeByDate) -> ex_Core.fn_Dev_UpdateCodeByDate
+Public Sub fn_Dev_UpdateCodeByDate()
     ' Та же логика, что и для full: если мы внутри bridge-dispatch, только очередь через OnTime.
     If private_Dev_TryQueueRuntimeUpdateWhenBridgeDispatch("date") Then Exit Sub
     If private_Dev_TryRunSafeUpdateByMode(UPDATE_MODE_DATE, PATTERN_MAIN_COMPONENTS, PATTERN_EXCLUDE_CORE, False, "date") Then Exit Sub
@@ -141,8 +141,8 @@ Public Sub m_Dev_UpdateCodeByDate()
 End Sub
 
 
-' Callstack[1]: VBA.Macros(ex_Core.m_Dev_UpdateCodeBySize) -> ex_Core.m_Dev_UpdateCodeBySize
-Public Sub m_Dev_UpdateCodeBySize()
+' Callstack[1]: VBA.Macros(ex_Core.fn_Dev_UpdateCodeBySize) -> ex_Core.fn_Dev_UpdateCodeBySize
+Public Sub fn_Dev_UpdateCodeBySize()
     ' Та же логика, что и для full/date: отложенный запуск только если идет dispatch клика.
     If private_Dev_TryQueueRuntimeUpdateWhenBridgeDispatch("size") Then Exit Sub
     If private_Dev_TryRunSafeUpdateByMode(UPDATE_MODE_SIZE, PATTERN_MAIN_COMPONENTS, PATTERN_EXCLUDE_CORE, False, "size") Then Exit Sub
@@ -152,17 +152,17 @@ End Sub
 
 ' Отдельная процедура для ядра рантайма (rt_*):
 ' Инкрементальные обновления по дате/размеру эти модули не затрагивают.
-Public Sub m_Dev_UpdateRuntimeCore()
+Public Sub fn_Dev_UpdateRuntimeCore()
     If private_Dev_UpdateCodeByRegex(PATTERN_RUNTIME_COMPONENTS, PATTERN_EXCLUDE_CORE, UPDATE_MODE_FULL, True) Then Exit Sub
     private_ShowStatusError "Runtime core update did not complete. Check core.log.", True, 6
 End Sub
 
 
-' Callstack[1]: DevUI(onClick: ex_Core.m_Dev_ToggleLogging) -> ex_Core.m_Dev_ToggleLogging
-Public Sub m_Dev_ToggleLogging()
+' Callstack[1]: DevUI(onClick: ex_Core.fn_Dev_ToggleLogging) -> ex_Core.fn_Dev_ToggleLogging
+Public Sub fn_Dev_ToggleLogging()
     Dim isEnabled As Boolean
 
-    If Not m_Settings_TryToggleFlagBoolean(SETTINGS_FLAG_IS_LOGGING_ENABLED, SETTINGS_FLAG_IS_LOGGING_ENABLED_DEFAULT, isEnabled, True) Then
+    If Not fn_Settings_TryToggleFlagBoolean(SETTINGS_FLAG_IS_LOGGING_ENABLED, SETTINGS_FLAG_IS_LOGGING_ENABLED_DEFAULT, isEnabled, True) Then
         private_ShowStatusError "Failed to update EnableLogging in Settings.xml.", True, 6
         Exit Sub
     End If
@@ -176,7 +176,7 @@ Public Sub m_Dev_ToggleLogging()
         private_ShowStatusWarning "Logging is disabled (Settings.xml).", True, 3
     End If
 
-    Call ex_HelpersSheet.m_TryRerenderActivePage("settings:toggle-logging")
+    Call ex_HelpersSheet.fn_TryRerenderActivePage("settings:toggle-logging")
 End Sub
 ' --------------------------------------
 '  } // namespace Dev
@@ -185,39 +185,39 @@ End Sub
 ' --------------------------------------
 '  namespace RuntimeSource {
 ' --------------------------------------
-' Callstack[1]: External bootstrap/init -> ex_Core.m_RuntimeSource_SetGlobalItemsSource
+' Callstack[1]: External bootstrap/init -> ex_Core.fn_RuntimeSource_SetGlobalItemsSource
 ' Глобальные sources живут в ex_Core, чтобы избежать зависимости Settings/Diagnostic логики от rt_PageManager.
-Public Function m_RuntimeSource_SetGlobalItemsSource(ByVal sourceKey As String, ByVal items As Collection) As Boolean
+Public Function fn_RuntimeSource_SetGlobalItemsSource(ByVal sourceKey As String, ByVal items As Collection) As Boolean
     Dim normalizedKey As String
 
     normalizedKey = private_RuntimeSource_NormalizeKey(sourceKey)
     If VBA.Len(normalizedKey) = 0 Then
 #If LOGGING_DEBUG_ENABLED Then
-        ex_Core.m_Diagnostic_LogError "RuntimeSource: global items source key is empty."
+        ex_Core.fn_Diagnostic_LogError "RuntimeSource: global items source key is empty."
 #End If
         Exit Function
     End If
     If items Is Nothing Then
 #If LOGGING_DEBUG_ENABLED Then
-        ex_Core.m_Diagnostic_LogError "RuntimeSource: global items source collection is not specified for key '" & normalizedKey & "'."
+        ex_Core.fn_Diagnostic_LogError "RuntimeSource: global items source collection is not specified for key '" & normalizedKey & "'."
 #End If
         Exit Function
     End If
 
     private_RuntimeSource_EnsureStorage
     Set g_GlobalItemsSourceMap(normalizedKey) = items
-    m_RuntimeSource_SetGlobalItemsSource = True
+    fn_RuntimeSource_SetGlobalItemsSource = True
 End Function
 
 
-' Callstack[1]: External bootstrap/reset -> ex_Core.m_RuntimeSource_RemoveGlobalItemsSource
-Public Function m_RuntimeSource_RemoveGlobalItemsSource(ByVal sourceKey As String) As Boolean
+' Callstack[1]: External bootstrap/reset -> ex_Core.fn_RuntimeSource_RemoveGlobalItemsSource
+Public Function fn_RuntimeSource_RemoveGlobalItemsSource(ByVal sourceKey As String) As Boolean
     Dim normalizedKey As String
 
     normalizedKey = private_RuntimeSource_NormalizeKey(sourceKey)
     If VBA.Len(normalizedKey) = 0 Then
 #If LOGGING_DEBUG_ENABLED Then
-        ex_Core.m_Diagnostic_LogError "RuntimeSource: global items source key is empty."
+        ex_Core.fn_Diagnostic_LogError "RuntimeSource: global items source key is empty."
 #End If
         Exit Function
     End If
@@ -226,12 +226,12 @@ Public Function m_RuntimeSource_RemoveGlobalItemsSource(ByVal sourceKey As Strin
     If g_GlobalItemsSourceMap.Exists(normalizedKey) Then
         g_GlobalItemsSourceMap.Remove normalizedKey
     End If
-    m_RuntimeSource_RemoveGlobalItemsSource = True
+    fn_RuntimeSource_RemoveGlobalItemsSource = True
 End Function
 
 
-' Callstack[1]: ex_RuntimeSourceResolver.m_TryResolveItemsSource -> ex_Core.m_RuntimeSource_TryGetGlobalItemsSourceByKey
-Public Function m_RuntimeSource_TryGetGlobalItemsSourceByKey( _
+' Callstack[1]: ex_RuntimeSourceResolver.fn_TryResolveItemsSource -> ex_Core.fn_RuntimeSource_TryGetGlobalItemsSourceByKey
+Public Function fn_RuntimeSource_TryGetGlobalItemsSourceByKey( _
     ByVal sourceKey As String, _
     ByRef outItems As Collection, _
     Optional ByVal allowMissing As Boolean = False _
@@ -243,11 +243,11 @@ Public Function m_RuntimeSource_TryGetGlobalItemsSourceByKey( _
 
     If VBA.Len(normalizedKey) = 0 Then
         If allowMissing Then
-            m_RuntimeSource_TryGetGlobalItemsSourceByKey = True
+            fn_RuntimeSource_TryGetGlobalItemsSourceByKey = True
             Exit Function
         End If
 #If LOGGING_DEBUG_ENABLED Then
-        ex_Core.m_Diagnostic_LogError "RuntimeSource: global items source key is empty."
+        ex_Core.fn_Diagnostic_LogError "RuntimeSource: global items source key is empty."
 #End If
         Exit Function
     End If
@@ -255,53 +255,53 @@ Public Function m_RuntimeSource_TryGetGlobalItemsSourceByKey( _
     private_RuntimeSource_EnsureStorage
     If g_GlobalItemsSourceMap.Exists(normalizedKey) Then
         Set outItems = g_GlobalItemsSourceMap(normalizedKey)
-        m_RuntimeSource_TryGetGlobalItemsSourceByKey = True
+        fn_RuntimeSource_TryGetGlobalItemsSourceByKey = True
         Exit Function
     End If
 
     If allowMissing Then
-        m_RuntimeSource_TryGetGlobalItemsSourceByKey = True
+        fn_RuntimeSource_TryGetGlobalItemsSourceByKey = True
         Exit Function
     End If
 
 #If LOGGING_DEBUG_ENABLED Then
-    ex_Core.m_Diagnostic_LogError "RuntimeSource: global items source '" & normalizedKey & "' is not registered."
+    ex_Core.fn_Diagnostic_LogError "RuntimeSource: global items source '" & normalizedKey & "' is not registered."
 #End If
 End Function
 
 
-' Callstack[1]: External bootstrap/init -> ex_Core.m_RuntimeSource_SetGlobalObjectSource
-Public Function m_RuntimeSource_SetGlobalObjectSource(ByVal sourceKey As String, ByVal sourceObject As Object) As Boolean
+' Callstack[1]: External bootstrap/init -> ex_Core.fn_RuntimeSource_SetGlobalObjectSource
+Public Function fn_RuntimeSource_SetGlobalObjectSource(ByVal sourceKey As String, ByVal sourceObject As Object) As Boolean
     Dim normalizedKey As String
 
     normalizedKey = private_RuntimeSource_NormalizeKey(sourceKey)
     If VBA.Len(normalizedKey) = 0 Then
 #If LOGGING_DEBUG_ENABLED Then
-        ex_Core.m_Diagnostic_LogError "RuntimeSource: global object source key is empty."
+        ex_Core.fn_Diagnostic_LogError "RuntimeSource: global object source key is empty."
 #End If
         Exit Function
     End If
     If sourceObject Is Nothing Then
 #If LOGGING_DEBUG_ENABLED Then
-        ex_Core.m_Diagnostic_LogError "RuntimeSource: global object source is not specified for key '" & normalizedKey & "'."
+        ex_Core.fn_Diagnostic_LogError "RuntimeSource: global object source is not specified for key '" & normalizedKey & "'."
 #End If
         Exit Function
     End If
 
     private_RuntimeSource_EnsureStorage
     Set g_GlobalObjectSourceMap(normalizedKey) = sourceObject
-    m_RuntimeSource_SetGlobalObjectSource = True
+    fn_RuntimeSource_SetGlobalObjectSource = True
 End Function
 
 
-' Callstack[1]: External bootstrap/reset -> ex_Core.m_RuntimeSource_RemoveGlobalObjectSource
-Public Function m_RuntimeSource_RemoveGlobalObjectSource(ByVal sourceKey As String) As Boolean
+' Callstack[1]: External bootstrap/reset -> ex_Core.fn_RuntimeSource_RemoveGlobalObjectSource
+Public Function fn_RuntimeSource_RemoveGlobalObjectSource(ByVal sourceKey As String) As Boolean
     Dim normalizedKey As String
 
     normalizedKey = private_RuntimeSource_NormalizeKey(sourceKey)
     If VBA.Len(normalizedKey) = 0 Then
 #If LOGGING_DEBUG_ENABLED Then
-        ex_Core.m_Diagnostic_LogError "RuntimeSource: global object source key is empty."
+        ex_Core.fn_Diagnostic_LogError "RuntimeSource: global object source key is empty."
 #End If
         Exit Function
     End If
@@ -310,12 +310,12 @@ Public Function m_RuntimeSource_RemoveGlobalObjectSource(ByVal sourceKey As Stri
     If g_GlobalObjectSourceMap.Exists(normalizedKey) Then
         g_GlobalObjectSourceMap.Remove normalizedKey
     End If
-    m_RuntimeSource_RemoveGlobalObjectSource = True
+    fn_RuntimeSource_RemoveGlobalObjectSource = True
 End Function
 
 
-' Callstack[1]: ex_RuntimeSourceResolver.m_TryResolveObjectSource -> ex_Core.m_RuntimeSource_TryGetGlobalObjectSourceByKey
-Public Function m_RuntimeSource_TryGetGlobalObjectSourceByKey( _
+' Callstack[1]: ex_RuntimeSourceResolver.fn_TryResolveObjectSource -> ex_Core.fn_RuntimeSource_TryGetGlobalObjectSourceByKey
+Public Function fn_RuntimeSource_TryGetGlobalObjectSourceByKey( _
     ByVal sourceKey As String, _
     ByRef outObject As Object, _
     Optional ByVal allowMissing As Boolean = False _
@@ -327,11 +327,11 @@ Public Function m_RuntimeSource_TryGetGlobalObjectSourceByKey( _
 
     If VBA.Len(normalizedKey) = 0 Then
         If allowMissing Then
-            m_RuntimeSource_TryGetGlobalObjectSourceByKey = True
+            fn_RuntimeSource_TryGetGlobalObjectSourceByKey = True
             Exit Function
         End If
 #If LOGGING_DEBUG_ENABLED Then
-        ex_Core.m_Diagnostic_LogError "RuntimeSource: global object source key is empty."
+        ex_Core.fn_Diagnostic_LogError "RuntimeSource: global object source key is empty."
 #End If
         Exit Function
     End If
@@ -340,17 +340,17 @@ Public Function m_RuntimeSource_TryGetGlobalObjectSourceByKey( _
 
     If g_GlobalObjectSourceMap.Exists(normalizedKey) Then
         Set outObject = g_GlobalObjectSourceMap(normalizedKey)
-        m_RuntimeSource_TryGetGlobalObjectSourceByKey = True
+        fn_RuntimeSource_TryGetGlobalObjectSourceByKey = True
         Exit Function
     End If
 
     If allowMissing Then
-        m_RuntimeSource_TryGetGlobalObjectSourceByKey = True
+        fn_RuntimeSource_TryGetGlobalObjectSourceByKey = True
         Exit Function
     End If
 
 #If LOGGING_DEBUG_ENABLED Then
-    ex_Core.m_Diagnostic_LogError "RuntimeSource: global object source '" & normalizedKey & "' is not registered."
+    ex_Core.fn_Diagnostic_LogError "RuntimeSource: global object source '" & normalizedKey & "' is not registered."
 #End If
 End Function
 ' --------------------------------------
@@ -360,9 +360,9 @@ End Function
 ' --------------------------------------
 '  namespace Settings {
 ' --------------------------------------
-' Callstack[1]: ex_Core.m_Settings_TryToggleFlagBoolean -> ex_Core.m_Settings_TryGetFlagBoolean
-' Callstack[2]: ex_Core.private_Diagnostic_LogCoreEvent -> ex_Core.m_Settings_TryGetFlagBoolean
-Public Function m_Settings_TryGetFlagBoolean( _
+' Callstack[1]: ex_Core.fn_Settings_TryToggleFlagBoolean -> ex_Core.fn_Settings_TryGetFlagBoolean
+' Callstack[2]: ex_Core.private_Diagnostic_LogCoreEvent -> ex_Core.fn_Settings_TryGetFlagBoolean
+Public Function fn_Settings_TryGetFlagBoolean( _
     ByVal flagName As String, _
     ByVal defaultValue As Boolean, _
     ByRef outValue As Boolean, _
@@ -374,9 +374,9 @@ Public Function m_Settings_TryGetFlagBoolean( _
     Dim normalizedFlagName As String
 
     outValue = defaultValue
-    normalizedFlagName = m_Helpers_NormilizeString(flagName)
+    normalizedFlagName = fn_Helpers_NormilizeString(flagName)
     If VBA.Len(normalizedFlagName) = 0 Then
-        If showErrorUi Then ex_Core.m_Diagnostic_LogError "Settings: flag name is empty."
+        If showErrorUi Then ex_Core.fn_Diagnostic_LogError "Settings: flag name is empty."
         Exit Function
     End If
 
@@ -384,43 +384,43 @@ Public Function m_Settings_TryGetFlagBoolean( _
     If flagsMap Is Nothing Then Exit Function
 
     If Not flagsMap.Exists(normalizedFlagName) Then
-        m_Settings_TryGetFlagBoolean = True
+        fn_Settings_TryGetFlagBoolean = True
         Exit Function
     End If
 
     rawValue = flagsMap(normalizedFlagName)
-    If m_Helpers_TryParseBooleanText(VBA.CStr(rawValue), parsedValue) Then
+    If fn_Helpers_TryParseBooleanText(VBA.CStr(rawValue), parsedValue) Then
         outValue = parsedValue
     ElseIf showErrorUi Then
 #If LOGGING_DEBUG_ENABLED Then
-        ex_Core.m_Diagnostic_LogError "Settings: flag '" & normalizedFlagName & "' has non-boolean value '" & VBA.CStr(rawValue) & "'."
+        ex_Core.fn_Diagnostic_LogError "Settings: flag '" & normalizedFlagName & "' has non-boolean value '" & VBA.CStr(rawValue) & "'."
 #End If
     End If
 
-    m_Settings_TryGetFlagBoolean = True
+    fn_Settings_TryGetFlagBoolean = True
 End Function
 
 
-' Callstack[1]: External caller (macro/runtime action) -> ex_Core.m_Settings_TrySetFlagBoolean
-Public Function m_Settings_TrySetFlagBoolean( _
+' Callstack[1]: External caller (macro/runtime action) -> ex_Core.fn_Settings_TrySetFlagBoolean
+Public Function fn_Settings_TrySetFlagBoolean( _
     ByVal flagName As String, _
     ByVal newValue As Boolean, _
     Optional ByVal showErrorUi As Boolean = True _
 ) As Boolean
     Dim normalizedFlagName As String
 
-    normalizedFlagName = m_Helpers_NormilizeString(flagName)
+    normalizedFlagName = fn_Helpers_NormilizeString(flagName)
     If VBA.Len(normalizedFlagName) = 0 Then
-        If showErrorUi Then ex_Core.m_Diagnostic_LogError "Settings: flag name is empty."
+        If showErrorUi Then ex_Core.fn_Diagnostic_LogError "Settings: flag name is empty."
         Exit Function
     End If
 
-    m_Settings_TrySetFlagBoolean = private_Settings_TryWriteFlagBoolean(normalizedFlagName, VBA.CBool(newValue), showErrorUi)
+    fn_Settings_TrySetFlagBoolean = private_Settings_TryWriteFlagBoolean(normalizedFlagName, VBA.CBool(newValue), showErrorUi)
 End Function
 
 
-' Callstack[1]: ex_Core.m_Dev_ToggleLogging -> ex_Core.m_Settings_TryToggleFlagBoolean
-Public Function m_Settings_TryToggleFlagBoolean( _
+' Callstack[1]: ex_Core.fn_Dev_ToggleLogging -> ex_Core.fn_Settings_TryToggleFlagBoolean
+Public Function fn_Settings_TryToggleFlagBoolean( _
     ByVal flagName As String, _
     ByVal defaultValue As Boolean, _
     ByRef outValue As Boolean, _
@@ -431,25 +431,25 @@ Public Function m_Settings_TryToggleFlagBoolean( _
     Dim normalizedFlagName As String
 
     outValue = defaultValue
-    normalizedFlagName = m_Helpers_NormilizeString(flagName)
+    normalizedFlagName = fn_Helpers_NormilizeString(flagName)
     If VBA.Len(normalizedFlagName) = 0 Then
-        If showErrorUi Then ex_Core.m_Diagnostic_LogError "Settings: flag name is empty."
+        If showErrorUi Then ex_Core.fn_Diagnostic_LogError "Settings: flag name is empty."
         Exit Function
     End If
 
-    If Not m_Settings_TryGetFlagBoolean(normalizedFlagName, defaultValue, currentValue, showErrorUi) Then Exit Function
+    If Not fn_Settings_TryGetFlagBoolean(normalizedFlagName, defaultValue, currentValue, showErrorUi) Then Exit Function
     nextValue = Not currentValue
     If Not private_Settings_TryWriteFlagBoolean(normalizedFlagName, nextValue, showErrorUi) Then Exit Function
 
     outValue = nextValue
 
-    m_Settings_TryToggleFlagBoolean = True
+    fn_Settings_TryToggleFlagBoolean = True
 End Function
 
 
-' Callstack[1]: External caller (debug/runtime action) -> ex_Core.m_Settings_TryGetDom
+' Callstack[1]: External caller (debug/runtime action) -> ex_Core.fn_Settings_TryGetDom
 ' forceReload очищает только file-text cache; сам файл остается источником истины.
-Public Function m_Settings_TryGetDom( _
+Public Function fn_Settings_TryGetDom( _
     ByRef outDom As Object, _
     Optional ByVal forceReload As Boolean = False, _
     Optional ByVal showErrorUi As Boolean = True _
@@ -465,13 +465,13 @@ Public Function m_Settings_TryGetDom( _
     End If
 
     If Not private_Settings_TryGetSettingsDom(outDom, partObj, True, showErrorUi) Then Exit Function
-    m_Settings_TryGetDom = True
+    fn_Settings_TryGetDom = True
 End Function
 
 
-' Callstack[1]: ex_RuntimeSourceResolver.m_TryResolveObjectSource(GlobalRuntimeSource='settings') -> ex_Core.m_Settings_TryGetObjectSource
+' Callstack[1]: ex_RuntimeSourceResolver.fn_TryResolveObjectSource(GlobalRuntimeSource='settings') -> ex_Core.fn_Settings_TryGetObjectSource
 ' Возвращает snapshot-объект настроек из Settings.xml; чтение XML переиспользует общий file-cache по DateLastModified.
-Public Function m_Settings_TryGetObjectSource( _
+Public Function fn_Settings_TryGetObjectSource( _
     ByRef outObjectSource As Object, _
     Optional ByVal showErrorUi As Boolean = True _
 ) As Boolean
@@ -485,7 +485,7 @@ Public Function m_Settings_TryGetObjectSource( _
     If Not private_Settings_TryFillObjectSourceMap(settingsMap, showErrorUi) Then Exit Function
 
     Set outObjectSource = settingsMap
-    m_Settings_TryGetObjectSource = True
+    fn_Settings_TryGetObjectSource = True
 End Function
 ' --------------------------------------
 '  } // namespace Settings
@@ -494,14 +494,14 @@ End Function
 ' --------------------------------------
 '  namespace Diagnostic {
 ' --------------------------------------
-Public Sub m_Diagnostic_LogInfo(ByVal messageText As String)
+Public Sub fn_Diagnostic_LogInfo(ByVal messageText As String)
 #If LOGGING_DEBUG_ENABLED Then
     private_Diagnostic_LogCoreEvent VBA.CStr(messageText)
 #End If
 End Sub
 
 
-Public Sub m_Diagnostic_LogError(ByVal messageText As String)
+Public Sub fn_Diagnostic_LogError(ByVal messageText As String)
     messageText = VBA.Trim$(VBA.CStr(messageText))
     If VBA.Len(messageText) = 0 Then Exit Sub
 #If LOGGING_DEBUG_ENABLED Then
@@ -510,7 +510,7 @@ Public Sub m_Diagnostic_LogError(ByVal messageText As String)
 End Sub
 
 
-Public Sub m_Diagnostic_LogWarning(ByVal messageText As String)
+Public Sub fn_Diagnostic_LogWarning(ByVal messageText As String)
     messageText = VBA.Trim$(VBA.CStr(messageText))
     If VBA.Len(messageText) = 0 Then Exit Sub
 #If LOGGING_DEBUG_ENABLED Then
@@ -519,7 +519,7 @@ Public Sub m_Diagnostic_LogWarning(ByVal messageText As String)
 End Sub
 
 
-Public Sub m_Diagnostic_LogStatusBarMessage( _
+Public Sub fn_Diagnostic_LogStatusBarMessage( _
     ByVal actionName As String, _
     ByVal messageText As String, _
     Optional ByVal timeoutSeconds As Long = 0 _
@@ -528,7 +528,7 @@ Public Sub m_Diagnostic_LogStatusBarMessage( _
 End Sub
 
 
-Public Sub m_Diagnostic_ClearCoreLog()
+Public Sub fn_Diagnostic_ClearCoreLog()
     private_Diagnostic_ClearCoreLogFile
 End Sub
 ' --------------------------------------
@@ -538,7 +538,7 @@ End Sub
 ' --------------------------------------
 '  namespace CustomXmlPartStore {
 ' --------------------------------------
-Public Function m_CustomXmlPartStore_TryFindPartByNamespace( _
+Public Function fn_CustomXmlPartStore_TryFindPartByNamespace( _
     ByVal namespaceUri As String, _
     ByRef outPart As Object _
 ) As Boolean
@@ -547,7 +547,7 @@ Public Function m_CustomXmlPartStore_TryFindPartByNamespace( _
     namespaceUri = VBA.Trim$(namespaceUri)
     If VBA.Len(namespaceUri) = 0 Then
 #If LOGGING_DEBUG_ENABLED Then
-        ex_Core.m_Diagnostic_LogError "CustomXmlPartStore: namespace is empty."
+        ex_Core.fn_Diagnostic_LogError "CustomXmlPartStore: namespace is empty."
 #End If
         Exit Function
     End If
@@ -562,17 +562,17 @@ Public Function m_CustomXmlPartStore_TryFindPartByNamespace( _
         End If
     End If
 
-    m_CustomXmlPartStore_TryFindPartByNamespace = True
+    fn_CustomXmlPartStore_TryFindPartByNamespace = True
     Exit Function
 
 EH_FIND:
 #If LOGGING_DEBUG_ENABLED Then
-    ex_Core.m_Diagnostic_LogError "CustomXmlPartStore: failed to find XML part by namespace '" & namespaceUri & "': " & Err.Description
+    ex_Core.fn_Diagnostic_LogError "CustomXmlPartStore: failed to find XML part by namespace '" & namespaceUri & "': " & Err.Description
 #End If
 End Function
 
 
-Public Function m_CustomXmlPartStore_TryLoadDomFromXml( _
+Public Function fn_CustomXmlPartStore_TryLoadDomFromXml( _
     ByVal xmlText As String, _
     ByRef outDom As Object _
 ) As Boolean
@@ -585,17 +585,17 @@ Public Function m_CustomXmlPartStore_TryLoadDomFromXml( _
 
     If Not dom.LoadXML(VBA.CStr(xmlText)) Then
 #If LOGGING_DEBUG_ENABLED Then
-        ex_Core.m_Diagnostic_LogError "CustomXmlPartStore: failed to parse XML."
+        ex_Core.fn_Diagnostic_LogError "CustomXmlPartStore: failed to parse XML."
 #End If
         Exit Function
     End If
 
     Set outDom = dom
-    m_CustomXmlPartStore_TryLoadDomFromXml = True
+    fn_CustomXmlPartStore_TryLoadDomFromXml = True
 End Function
 
 
-Public Function m_CustomXmlPartStore_TryCreateEmptyDom( _
+Public Function fn_CustomXmlPartStore_TryCreateEmptyDom( _
     ByVal rootNodeName As String, _
     ByVal namespaceUri As String, _
     ByRef outDom As Object _
@@ -607,13 +607,13 @@ Public Function m_CustomXmlPartStore_TryCreateEmptyDom( _
 
     If VBA.Len(rootNodeName) = 0 Then
 #If LOGGING_DEBUG_ENABLED Then
-        ex_Core.m_Diagnostic_LogError "CustomXmlPartStore: root node name is empty."
+        ex_Core.fn_Diagnostic_LogError "CustomXmlPartStore: root node name is empty."
 #End If
         Exit Function
     End If
     If VBA.Len(namespaceUri) = 0 Then
 #If LOGGING_DEBUG_ENABLED Then
-        ex_Core.m_Diagnostic_LogError "CustomXmlPartStore: namespace is empty."
+        ex_Core.fn_Diagnostic_LogError "CustomXmlPartStore: namespace is empty."
 #End If
         Exit Function
     End If
@@ -621,28 +621,28 @@ Public Function m_CustomXmlPartStore_TryCreateEmptyDom( _
     xmlText = "<?xml version=""1.0"" encoding=""UTF-8""?>" & _
               "<" & rootNodeName & " xmlns=""" & namespaceUri & """></" & rootNodeName & ">"
 
-    If Not m_CustomXmlPartStore_TryLoadDomFromXml(xmlText, outDom) Then Exit Function
-    m_CustomXmlPartStore_TryCreateEmptyDom = True
+    If Not fn_CustomXmlPartStore_TryLoadDomFromXml(xmlText, outDom) Then Exit Function
+    fn_CustomXmlPartStore_TryCreateEmptyDom = True
 End Function
 
 
-Public Function m_CustomXmlPartStore_TryLoadPartDom( _
+Public Function fn_CustomXmlPartStore_TryLoadPartDom( _
     ByVal partObj As Object, _
     ByRef outDom As Object _
 ) As Boolean
     If partObj Is Nothing Then
 #If LOGGING_DEBUG_ENABLED Then
-        ex_Core.m_Diagnostic_LogError "CustomXmlPartStore: part is not specified."
+        ex_Core.fn_Diagnostic_LogError "CustomXmlPartStore: part is not specified."
 #End If
         Exit Function
     End If
 
-    If Not m_CustomXmlPartStore_TryLoadDomFromXml(VBA.CStr(partObj.XML), outDom) Then Exit Function
-    m_CustomXmlPartStore_TryLoadPartDom = True
+    If Not fn_CustomXmlPartStore_TryLoadDomFromXml(VBA.CStr(partObj.XML), outDom) Then Exit Function
+    fn_CustomXmlPartStore_TryLoadPartDom = True
 End Function
 
 
-Public Function m_CustomXmlPartStore_TrySaveDom( _
+Public Function fn_CustomXmlPartStore_TrySaveDom( _
     ByVal dom As Object, _
     ByVal existingPart As Object _
 ) As Boolean
@@ -650,7 +650,7 @@ Public Function m_CustomXmlPartStore_TrySaveDom( _
 
     If dom Is Nothing Then
 #If LOGGING_DEBUG_ENABLED Then
-        ex_Core.m_Diagnostic_LogError "CustomXmlPartStore: DOM is not specified."
+        ex_Core.fn_Diagnostic_LogError "CustomXmlPartStore: DOM is not specified."
 #End If
         Exit Function
     End If
@@ -658,7 +658,7 @@ Public Function m_CustomXmlPartStore_TrySaveDom( _
     xmlText = VBA.CStr(dom.XML)
     If VBA.Len(VBA.Trim$(xmlText)) = 0 Then
 #If LOGGING_DEBUG_ENABLED Then
-        ex_Core.m_Diagnostic_LogError "CustomXmlPartStore: state XML is empty."
+        ex_Core.fn_Diagnostic_LogError "CustomXmlPartStore: state XML is empty."
 #End If
         Exit Function
     End If
@@ -666,12 +666,12 @@ Public Function m_CustomXmlPartStore_TrySaveDom( _
     On Error GoTo EH_SAVE
     If Not existingPart Is Nothing Then existingPart.Delete
     ThisWorkbook.CustomXMLParts.Add xmlText
-    m_CustomXmlPartStore_TrySaveDom = True
+    fn_CustomXmlPartStore_TrySaveDom = True
     Exit Function
 
 EH_SAVE:
 #If LOGGING_DEBUG_ENABLED Then
-    ex_Core.m_Diagnostic_LogError "CustomXmlPartStore: failed to persist state XML: " & Err.Description
+    ex_Core.fn_Diagnostic_LogError "CustomXmlPartStore: failed to persist state XML: " & Err.Description
 #End If
 End Function
 ' --------------------------------------
@@ -681,43 +681,43 @@ End Function
 ' --------------------------------------
 '  namespace Helpers {
 ' --------------------------------------
-Public Function m_Helpers_NormilizeString(ByVal value As String) As String
-    m_Helpers_NormilizeString = VBA.Trim$(VBA.CStr(value))
+Public Function fn_Helpers_NormilizeString(ByVal value As String) As String
+    fn_Helpers_NormilizeString = VBA.Trim$(VBA.CStr(value))
 End Function
 
 
-Public Function m_Helpers_TryParseBooleanText(ByVal textValue As String, ByRef outValue As Boolean) As Boolean
-    textValue = VBA.LCase$(m_Helpers_NormilizeString(textValue))
+Public Function fn_Helpers_TryParseBooleanText(ByVal textValue As String, ByRef outValue As Boolean) As Boolean
+    textValue = VBA.LCase$(fn_Helpers_NormilizeString(textValue))
 
     Select Case textValue
         Case "true", "1", "yes", "on"
             outValue = True
-            m_Helpers_TryParseBooleanText = True
+            fn_Helpers_TryParseBooleanText = True
         Case "false", "0", "no", "off"
             outValue = False
-            m_Helpers_TryParseBooleanText = True
+            fn_Helpers_TryParseBooleanText = True
     End Select
 End Function
 
 
-Public Function m_Helpers_BoolToText(ByVal value As Boolean) As String
+Public Function fn_Helpers_BoolToText(ByVal value As Boolean) As String
     If value Then
-        m_Helpers_BoolToText = "true"
+        fn_Helpers_BoolToText = "true"
     Else
-        m_Helpers_BoolToText = "false"
+        fn_Helpers_BoolToText = "false"
     End If
 End Function
 
 
-Public Function m_Helpers_EndsWith(ByVal value As String, ByVal suffix As String) As Boolean
-    m_Helpers_EndsWith = (VBA.LCase$(VBA.Right$(value, VBA.Len(suffix))) = VBA.LCase$(suffix))
+Public Function fn_Helpers_EndsWith(ByVal value As String, ByVal suffix As String) As Boolean
+    fn_Helpers_EndsWith = (VBA.LCase$(VBA.Right$(value, VBA.Len(suffix))) = VBA.LCase$(suffix))
 End Function
 
 
-Public Function m_Helpers_IsRegexMatch(ByVal valueText As String, ByVal regexPattern As String) As Boolean
+Public Function fn_Helpers_IsRegexMatch(ByVal valueText As String, ByVal regexPattern As String) As Boolean
     Dim re As Object
 
-    regexPattern = m_Helpers_NormilizeString(regexPattern)
+    regexPattern = fn_Helpers_NormilizeString(regexPattern)
     If VBA.Len(regexPattern) = 0 Then Exit Function
 
     On Error GoTo EH
@@ -727,15 +727,15 @@ Public Function m_Helpers_IsRegexMatch(ByVal valueText As String, ByVal regexPat
     re.IgnoreCase = True
     re.Pattern = regexPattern
 
-    m_Helpers_IsRegexMatch = re.Test(VBA.CStr(valueText))
+    fn_Helpers_IsRegexMatch = re.Test(VBA.CStr(valueText))
     Exit Function
 
 EH:
-    Err.Raise VBA.vbObjectError + 1013, "m_Helpers_IsRegexMatch", "Некорректный regex '" & regexPattern & "': " & Err.Description
+    Err.Raise VBA.vbObjectError + 1013, "fn_Helpers_IsRegexMatch", "Некорректный regex '" & regexPattern & "': " & Err.Description
 End Function
 
 
-Public Function m_Helpers_TryGetFileText( _
+Public Function fn_Helpers_TryGetFileText( _
     ByVal filePath As String, _
     ByRef outText As String, _
     Optional ByVal allowMissing As Boolean = True, _
@@ -746,9 +746,9 @@ Public Function m_Helpers_TryGetFileText( _
     Dim entry As Object
 
     outText = VBA.vbNullString
-    filePath = m_Helpers_NormilizeString(filePath)
+    filePath = fn_Helpers_NormilizeString(filePath)
     If VBA.Len(filePath) = 0 Then
-        m_Helpers_TryGetFileText = allowMissing
+        fn_Helpers_TryGetFileText = allowMissing
         Exit Function
     End If
 
@@ -760,7 +760,7 @@ Public Function m_Helpers_TryGetFileText( _
     If Not private_FileCache_TryGetFileStamp(filePath, fileStamp, showErrorUi) Then
         Call private_FileCache_Remove(cacheKey)
         If allowMissing And VBA.Len(Dir(filePath)) = 0 Then
-            m_Helpers_TryGetFileText = True
+            fn_Helpers_TryGetFileText = True
             Exit Function
         End If
         Exit Function
@@ -771,7 +771,7 @@ Public Function m_Helpers_TryGetFileText( _
             If entry.Exists("Stamp") Then
                 If VBA.StrComp(VBA.CStr(entry("Stamp")), fileStamp, VBA.vbBinaryCompare) = 0 Then
                     If entry.Exists("Text") Then outText = VBA.CStr(entry("Text"))
-                    m_Helpers_TryGetFileText = True
+                    fn_Helpers_TryGetFileText = True
                     Exit Function
                 End If
             End If
@@ -780,7 +780,7 @@ Public Function m_Helpers_TryGetFileText( _
 
     If Not private_FileCache_TryReadTextFile(filePath, outText, showErrorUi) Then Exit Function
     If Not private_FileCache_SetFileTextEntry(filePath, outText, fileStamp) Then Exit Function
-    m_Helpers_TryGetFileText = True
+    fn_Helpers_TryGetFileText = True
 End Function
 ' --------------------------------------
 '  } // namespace Helpers
@@ -812,14 +812,14 @@ Private Function private_Settings_TryGetSettingsDom( _
         If VBA.Len(Dir(settingsPath)) = 0 Then
             If showErrorUi Then
 #If LOGGING_DEBUG_ENABLED Then
-                ex_Core.m_Diagnostic_LogError "Settings: file '" & settingsPath & "' was not found."
+                ex_Core.fn_Diagnostic_LogError "Settings: file '" & settingsPath & "' was not found."
 #End If
             End If
             Exit Function
         End If
     End If
 
-    If Not m_Helpers_TryGetFileText(settingsPath, settingsXmlText, createIfMissing, showErrorUi) Then Exit Function
+    If Not fn_Helpers_TryGetFileText(settingsPath, settingsXmlText, createIfMissing, showErrorUi) Then Exit Function
     If VBA.Len(VBA.Trim$(settingsXmlText)) = 0 Then
         If Not createIfMissing Then Exit Function
         settingsXmlText = private_Settings_BuildTemplateXml
@@ -827,7 +827,7 @@ Private Function private_Settings_TryGetSettingsDom( _
 
     ' Settings всегда читаются из файла (через FileCache), поэтому объект не stale:
     ' при изменении DateLastModified helper автоматически перечитает XML с диска.
-    If Not m_CustomXmlPartStore_TryLoadDomFromXml(settingsXmlText, outDom) Then Exit Function
+    If Not fn_CustomXmlPartStore_TryLoadDomFromXml(settingsXmlText, outDom) Then Exit Function
     If Not private_Settings_TryEnsureSettingsStructure(outDom, hasStructureChanges, showErrorUi) Then Exit Function
     If hasStructureChanges Then
         If Not private_Settings_TryWriteSettingsDomToFile(settingsPath, outDom, showErrorUi) Then Exit Function
@@ -857,7 +857,7 @@ Private Function private_Settings_TryEnsureSettingsStructure( _
         Else
             If showErrorUi Then
 #If LOGGING_DEBUG_ENABLED Then
-                ex_Core.m_Diagnostic_LogError "Settings: unexpected root node '" & VBA.CStr(settingsDom.DocumentElement.baseName) & "'. Expected '" & SETTINGS_ROOT_NODE & "'."
+                ex_Core.fn_Diagnostic_LogError "Settings: unexpected root node '" & VBA.CStr(settingsDom.DocumentElement.baseName) & "'. Expected '" & SETTINGS_ROOT_NODE & "'."
 #End If
             End If
             Exit Function
@@ -875,7 +875,7 @@ Private Function private_Settings_TryEnsureSettingsStructure( _
         settingsDom, _
         flagsNode, _
         SETTINGS_FLAG_IS_LOGGING_ENABLED, _
-        m_Helpers_BoolToText(SETTINGS_FLAG_IS_LOGGING_ENABLED_DEFAULT), _
+        fn_Helpers_BoolToText(SETTINGS_FLAG_IS_LOGGING_ENABLED_DEFAULT), _
         outIsChanged, _
         showErrorUi) Then Exit Function
 
@@ -895,8 +895,8 @@ Private Function private_Settings_TryEnsureDefaultFlagNode( _
     Dim normalizedDefaultValue As String
     Dim flagNode As Object
 
-    normalizedFlagName = m_Helpers_NormilizeString(flagName)
-    normalizedDefaultValue = m_Helpers_NormilizeString(defaultValue)
+    normalizedFlagName = fn_Helpers_NormilizeString(flagName)
+    normalizedDefaultValue = fn_Helpers_NormilizeString(defaultValue)
     If VBA.Len(normalizedFlagName) = 0 Then Exit Function
     If VBA.Len(normalizedDefaultValue) = 0 Then Exit Function
     If settingsDom Is Nothing Then Exit Function
@@ -921,7 +921,7 @@ Private Function private_Settings_TryEnsureDefaultFlagNode( _
 EH_CREATE_FLAG:
     If showErrorUi Then
 #If LOGGING_DEBUG_ENABLED Then
-        ex_Core.m_Diagnostic_LogError "Settings: invalid default flag name '" & normalizedFlagName & "' for XML node."
+        ex_Core.fn_Diagnostic_LogError "Settings: invalid default flag name '" & normalizedFlagName & "' for XML node."
 #End If
     End If
     On Error GoTo 0
@@ -968,10 +968,10 @@ Private Function private_Settings_TryBuildFlagsMapFromDom( _
     For Each childNode In flagsNode.ChildNodes
         If Not childNode Is Nothing Then
             If VBA.CLng(childNode.nodeType) = 1 Then
-                flagKey = m_Helpers_NormilizeString(VBA.CStr(childNode.baseName))
+                flagKey = fn_Helpers_NormilizeString(VBA.CStr(childNode.baseName))
                 If VBA.Len(flagKey) > 0 Then
                     rawText = VBA.Trim$(VBA.CStr(childNode.Text))
-                    If m_Helpers_TryParseBooleanText(rawText, parsedValue) Then
+                    If fn_Helpers_TryParseBooleanText(rawText, parsedValue) Then
                         outFlagsMap(flagKey) = parsedValue
                     Else
                         outFlagsMap(flagKey) = rawText
@@ -990,7 +990,7 @@ Private Function private_Settings_TryWriteFlagBoolean( _
     ByVal newValue As Boolean, _
     ByVal showErrorUi As Boolean _
 ) As Boolean
-    private_Settings_TryWriteFlagBoolean = private_Settings_TryWriteFlagText(normalizedFlagName, m_Helpers_BoolToText(VBA.CBool(newValue)), showErrorUi)
+    private_Settings_TryWriteFlagBoolean = private_Settings_TryWriteFlagText(normalizedFlagName, fn_Helpers_BoolToText(VBA.CBool(newValue)), showErrorUi)
 End Function
 
 
@@ -1005,8 +1005,8 @@ Private Function private_Settings_TryWriteFlagText( _
     Dim settingsPath As String
     Dim normalizedValue As String
 
-    normalizedFlagName = m_Helpers_NormilizeString(normalizedFlagName)
-    normalizedValue = m_Helpers_NormilizeString(newValue)
+    normalizedFlagName = fn_Helpers_NormilizeString(normalizedFlagName)
+    normalizedValue = fn_Helpers_NormilizeString(newValue)
     If VBA.Len(normalizedFlagName) = 0 Then Exit Function
     If VBA.Len(normalizedValue) = 0 Then Exit Function
 
@@ -1035,7 +1035,7 @@ Private Function private_Settings_TryGetOrCreateFlagNode( _
     Set outFlagNode = Nothing
     If settingsDom Is Nothing Then Exit Function
 
-    normalizedFlagName = m_Helpers_NormilizeString(normalizedFlagName)
+    normalizedFlagName = fn_Helpers_NormilizeString(normalizedFlagName)
     If VBA.Len(normalizedFlagName) = 0 Then Exit Function
 
     If Not private_Settings_TryEnsureSettingsStructure(settingsDom, hasStructureChanges, showErrorUi) Then Exit Function
@@ -1045,7 +1045,7 @@ Private Function private_Settings_TryGetOrCreateFlagNode( _
     For Each childNode In flagsNode.ChildNodes
         If Not childNode Is Nothing Then
             If VBA.CLng(childNode.nodeType) = 1 Then
-                If VBA.StrComp(m_Helpers_NormilizeString(VBA.CStr(childNode.baseName)), normalizedFlagName, VBA.vbTextCompare) = 0 Then
+                If VBA.StrComp(fn_Helpers_NormilizeString(VBA.CStr(childNode.baseName)), normalizedFlagName, VBA.vbTextCompare) = 0 Then
                     Set outFlagNode = childNode
                     private_Settings_TryGetOrCreateFlagNode = True
                     Exit Function
@@ -1064,7 +1064,7 @@ Private Function private_Settings_TryGetOrCreateFlagNode( _
 EH_CREATE_FLAG:
     If showErrorUi Then
 #If LOGGING_DEBUG_ENABLED Then
-        ex_Core.m_Diagnostic_LogError "Settings: invalid flag name '" & normalizedFlagName & "' for XML node."
+        ex_Core.fn_Diagnostic_LogError "Settings: invalid flag name '" & normalizedFlagName & "' for XML node."
 #End If
     End If
     On Error GoTo 0
@@ -1098,7 +1098,7 @@ Private Function private_Settings_TryResolveFilePath(ByRef outSettingsPath As St
 
     workbookPath = VBA.Trim$(VBA.CStr(ThisWorkbook.Path))
     If VBA.Len(workbookPath) = 0 Then
-        If showErrorUi Then ex_Core.m_Diagnostic_LogError "Settings: workbook is not saved. Save .xlsm first."
+        If showErrorUi Then ex_Core.fn_Diagnostic_LogError "Settings: workbook is not saved. Save .xlsm first."
         Exit Function
     End If
 
@@ -1112,7 +1112,7 @@ Private Function private_Settings_BuildTemplateXml() As String
         "<?xml version=""1.0"" encoding=""UTF-8""?>" & VBA.vbCrLf & _
         "<Settings>" & VBA.vbCrLf & _
         "  <Flags>" & VBA.vbCrLf & _
-    "    <" & SETTINGS_FLAG_IS_LOGGING_ENABLED & ">" & m_Helpers_BoolToText(SETTINGS_FLAG_IS_LOGGING_ENABLED_DEFAULT) & "</" & SETTINGS_FLAG_IS_LOGGING_ENABLED & ">" & VBA.vbCrLf & _
+    "    <" & SETTINGS_FLAG_IS_LOGGING_ENABLED & ">" & fn_Helpers_BoolToText(SETTINGS_FLAG_IS_LOGGING_ENABLED_DEFAULT) & "</" & SETTINGS_FLAG_IS_LOGGING_ENABLED & ">" & VBA.vbCrLf & _
         "  </Flags>" & VBA.vbCrLf & _
         "</Settings>"
 End Function
@@ -1193,7 +1193,7 @@ Private Function private_FileCache_TryGetFileStamp( _
     Exit Function
 
 EH_STAMP:
-    If showErrorUi Then ex_Core.m_Diagnostic_LogError "FileCache: failed to read file modified date '" & filePath & "': " & Err.Description
+    If showErrorUi Then ex_Core.fn_Diagnostic_LogError "FileCache: failed to read file modified date '" & filePath & "': " & Err.Description
 End Function
 
 
@@ -1221,7 +1221,7 @@ EH_READ:
     On Error Resume Next
     If f > 0 Then Close #f
     On Error GoTo 0
-    If showErrorUi Then ex_Core.m_Diagnostic_LogError "FileCache: failed to read file '" & filePath & "': " & Err.Description
+    If showErrorUi Then ex_Core.fn_Diagnostic_LogError "FileCache: failed to read file '" & filePath & "': " & Err.Description
 End Function
 
 
@@ -1247,7 +1247,7 @@ EH_WRITE:
     On Error Resume Next
     If f > 0 Then Close #f
     On Error GoTo 0
-    If showErrorUi Then ex_Core.m_Diagnostic_LogError "FileCache: failed to write file '" & filePath & "': " & Err.Description
+    If showErrorUi Then ex_Core.fn_Diagnostic_LogError "FileCache: failed to write file '" & filePath & "': " & Err.Description
 End Function
 
 
@@ -1410,7 +1410,7 @@ Private Function private_Dev_TryQueueRuntimeUpdateWhenBridgeDispatch(ByVal updat
     Set bridgeComponent = private_Dev_TryGetComponentByName("rt_Bridge")
     If bridgeComponent Is Nothing Then Exit Function
 
-    If Not private_Dev_TryRunRuntimeNoArgMember("rt_Bridge", "m_IsDispatchingClick", callResult, True) Then
+    If Not private_Dev_TryRunRuntimeNoArgMember("rt_Bridge", "fn_IsDispatchingClick", callResult, True) Then
 #If LOGGING_DEBUG_ENABLED Then
         private_Diagnostic_LogCoreSelfEvent "queued-runtime-update-failed: kind='" & VBA.Replace$(updateKind, "'", "''") & "' err='bridge-dispatch-state-read-failed'"
 #End If
@@ -1434,11 +1434,11 @@ Private Function private_Dev_TryQueueRuntimeUpdateWhenBridgeDispatch(ByVal updat
 
     Select Case updateKind
         Case "full"
-            coreMethod = "m_Dev_UpdateAllModules"
+            coreMethod = "fn_Dev_UpdateAllModules"
         Case "date"
-            coreMethod = "m_Dev_UpdateCodeByDate"
+            coreMethod = "fn_Dev_UpdateCodeByDate"
         Case "size"
-            coreMethod = "m_Dev_UpdateCodeBySize"
+            coreMethod = "fn_Dev_UpdateCodeBySize"
         Case Else
             Exit Function
     End Select
@@ -1475,9 +1475,9 @@ Private Function private_Dev_TryQueueRuntimeUpdateWhenBridgeDispatch(ByVal updat
 End Function
 
 
-' Callstack[1]: ex_Core.m_Dev_UpdateAllModules -> private_Dev_TryRunSafeUpdateByMode
-' Callstack[2]: ex_Core.m_Dev_UpdateCodeByDate -> private_Dev_TryRunSafeUpdateByMode
-' Callstack[3]: ex_Core.m_Dev_UpdateCodeBySize -> private_Dev_TryRunSafeUpdateByMode
+' Callstack[1]: ex_Core.fn_Dev_UpdateAllModules -> private_Dev_TryRunSafeUpdateByMode
+' Callstack[2]: ex_Core.fn_Dev_UpdateCodeByDate -> private_Dev_TryRunSafeUpdateByMode
+' Callstack[3]: ex_Core.fn_Dev_UpdateCodeBySize -> private_Dev_TryRunSafeUpdateByMode
 Private Function private_Dev_TryRunSafeUpdateByMode( _
     ByVal updateMode As Long, _
     ByVal includeComponentPattern As String, _
@@ -1529,7 +1529,7 @@ Private Function private_Dev_TryRunSafeUpdateByMode( _
     End If
 
     ' Этап 2. Runtime валиден -> сохраняем runtime state перед целевым update.
-    If Not private_Dev_TryRunRuntimeBooleanFunction("rt_RestoreManager", "m_SaveRuntimeState", saveRuntimeOk) Then
+    If Not private_Dev_TryRunRuntimeBooleanFunction("rt_RestoreManager", "fn_SaveRuntimeState", saveRuntimeOk) Then
 #If LOGGING_DEBUG_ENABLED Then
         private_Diagnostic_LogCoreSelfEvent "safe-update:fail op='" & operationName & "' reason='save-runtime-state-call-failed'"
 #End If
@@ -1673,11 +1673,11 @@ Private Function private_Dev_TryResolveSafeUpdateRetryMacro(ByVal operationName 
 
     Select Case operationName
         Case "full"
-            coreMethod = "m_Dev_UpdateAllModules"
+            coreMethod = "fn_Dev_UpdateAllModules"
         Case "date"
-            coreMethod = "m_Dev_UpdateCodeByDate"
+            coreMethod = "fn_Dev_UpdateCodeByDate"
         Case "size"
-            coreMethod = "m_Dev_UpdateCodeBySize"
+            coreMethod = "fn_Dev_UpdateCodeBySize"
         Case Else
             Exit Function
     End Select
@@ -1707,9 +1707,9 @@ Private Sub private_Dev_TryCancelQueuedSafeUpdateRetry()
 End Sub
 
 
-' Callstack[1]: ex_Core.m_Dev_UpdateAllModules -> private_Dev_TryBootstrapRuntimePipeline
-' Callstack[2]: ex_Core.m_Dev_UpdateCodeByDate -> private_Dev_TryBootstrapRuntimePipeline
-' Callstack[3]: ex_Core.m_Dev_UpdateCodeBySize -> private_Dev_TryBootstrapRuntimePipeline
+' Callstack[1]: ex_Core.fn_Dev_UpdateAllModules -> private_Dev_TryBootstrapRuntimePipeline
+' Callstack[2]: ex_Core.fn_Dev_UpdateCodeByDate -> private_Dev_TryBootstrapRuntimePipeline
+' Callstack[3]: ex_Core.fn_Dev_UpdateCodeBySize -> private_Dev_TryBootstrapRuntimePipeline
 Private Function private_Dev_TryBootstrapRuntimePipeline(ByRef outBootstrapMode As String) As Boolean
     outBootstrapMode = VBA.vbNullString
 
@@ -1769,7 +1769,7 @@ Private Sub private_Dev_QueueRuntimeStateRestoreAfterUpdate(ByVal reasonText As 
     reasonText = VBA.Trim$(reasonText)
     If VBA.Len(reasonText) = 0 Then reasonText = "unknown"
 
-    macroRef = "'" & VBA.Replace$(ThisWorkbook.Name, "'", "''") & "'!rt_RestoreManager.m_RunDeferredRuntimeStateRestore"
+    macroRef = "'" & VBA.Replace$(ThisWorkbook.Name, "'", "''") & "'!rt_RestoreManager.fn_RunDeferredRuntimeStateRestore"
     scheduleAt = private_Dev_GetNextOnTimeTick()
 
     On Error Resume Next
@@ -1808,7 +1808,7 @@ Private Function private_Dev_TryPrepareRuntimeForHotUpdate(ByVal operationName A
     Call private_Dev_TryCancelQueuedRuntimeStateRestore("safe-update:prepare:" & operationName)
 
     ' Освобождаем runtime-ссылки через единый lifecycle-контракт модулей.
-    ' rt_PageManager инкапсулирует dispose страниц внутри m_Module_Dispose.
+    ' rt_PageManager инкапсулирует dispose страниц внутри fn_Module_Dispose.
     Call private_Dev_TryRunModuleDisposers("safe-update:prepare:" & operationName & ":dispose-modules")
 
     ' Даем завершиться Class_Terminate/освобождению COM-ссылок перед массовым remove/import.
@@ -1850,8 +1850,8 @@ Private Sub private_Dev_TryRunModuleDisposers(ByVal reasonText As String)
         moduleName = VBA.Trim$(VBA.CStr(comp.Name))
         If VBA.Len(moduleName) = 0 Then GoTo ContinueComponent
 
-        macroRef = "'" & VBA.Replace$(ThisWorkbook.Name, "'", "''") & "'!" & moduleName & ".m_Module_Dispose"
-        unqualifiedMacroRef = moduleName & ".m_Module_Dispose"
+        macroRef = "'" & VBA.Replace$(ThisWorkbook.Name, "'", "''") & "'!" & moduleName & ".fn_Module_Dispose"
+        unqualifiedMacroRef = moduleName & ".fn_Module_Dispose"
 
         On Error Resume Next
         Application.Run macroRef
@@ -2014,7 +2014,7 @@ EH:
     ' Статус-бар часто обрезает длинный текст ошибки импорта.
     ' Пишем полную диагностику (включая список файлов) в лог.
 #If LOGGING_DEBUG_ENABLED Then
-    ex_Core.m_Diagnostic_LogError fullErrorText
+    ex_Core.fn_Diagnostic_LogError fullErrorText
 #End If
 
     ' Логируем ошибку напрямую в core.log, даже если CORE_ENABLE_SELF_LOGGING = False.
@@ -2397,9 +2397,9 @@ Private Function private_Dev_ShouldImportFileInPass(ByVal fileName As String, By
     Dim isInterfaceClass As Boolean
 
     normalizedName = VBA.LCase$(VBA.Trim$(fileName))
-    If m_Helpers_EndsWith(normalizedName, ".utf8.vba") Then
+    If fn_Helpers_EndsWith(normalizedName, ".utf8.vba") Then
         baseName = VBA.Left$(fileName, VBA.Len(fileName) - VBA.Len(".utf8.vba"))
-    ElseIf m_Helpers_EndsWith(normalizedName, ".vba") Then
+    ElseIf fn_Helpers_EndsWith(normalizedName, ".vba") Then
         baseName = VBA.Left$(fileName, VBA.Len(fileName) - VBA.Len(".vba"))
     Else
         private_Dev_ShouldImportFileInPass = False
@@ -2408,7 +2408,7 @@ Private Function private_Dev_ShouldImportFileInPass(ByVal fileName As String, By
 
     normalizedName = VBA.LCase$(VBA.Trim$(baseName))
     isInterfaceClass = False
-    If m_Helpers_EndsWith(normalizedName, ".cls") Then
+    If fn_Helpers_EndsWith(normalizedName, ".cls") Then
         componentStem = VBA.Left$(baseName, VBA.Len(baseName) - VBA.Len(".cls"))
         If VBA.Left$(componentStem, 5) = "obj_I" Then
             markerChar = VBA.Mid$(componentStem, 6, 1)
@@ -2645,11 +2645,11 @@ Private Function private_Dev_MatchesIncludeExclude( _
     End If
 
     If VBA.Len(includePattern) > 0 Then
-        If Not m_Helpers_IsRegexMatch(valueText, includePattern) Then Exit Function
+        If Not fn_Helpers_IsRegexMatch(valueText, includePattern) Then Exit Function
     End If
 
     If VBA.Len(excludePattern) > 0 Then
-        If m_Helpers_IsRegexMatch(valueText, excludePattern) Then Exit Function
+        If fn_Helpers_IsRegexMatch(valueText, excludePattern) Then Exit Function
     End If
 
     private_Dev_MatchesIncludeExclude = True
@@ -2668,10 +2668,10 @@ Private Function private_Dev_TryResolveFileComponentType( _
     outCompType = VBA.vbNullString
     outFallbackName = VBA.vbNullString
 
-    If m_Helpers_EndsWith(normalizedName, ".utf8.vba") Then
+    If fn_Helpers_EndsWith(normalizedName, ".utf8.vba") Then
         baseName = VBA.Left$(fileName, VBA.Len(fileName) - VBA.Len(".utf8.vba"))
         normalizedName = VBA.LCase$(VBA.Trim$(baseName))
-    ElseIf m_Helpers_EndsWith(normalizedName, ".vba") Then
+    ElseIf fn_Helpers_EndsWith(normalizedName, ".vba") Then
         baseName = VBA.Left$(fileName, VBA.Len(fileName) - VBA.Len(".vba"))
         normalizedName = VBA.LCase$(VBA.Trim$(baseName))
     Else
@@ -2687,7 +2687,7 @@ Private Function private_Dev_TryResolveFileComponentType( _
     ElseIf VBA.Left$(normalizedName, 3) = "ex_" Or VBA.Left$(normalizedName, 3) = "rt_" Then
         outCompType = COMP_TYPE_MODULE
         outFallbackName = baseName
-    ElseIf m_Helpers_EndsWith(normalizedName, ".cls") Then
+    ElseIf fn_Helpers_EndsWith(normalizedName, ".cls") Then
         outCompType = COMP_TYPE_CLASS
         outFallbackName = VBA.Left$(baseName, VBA.Len(baseName) - VBA.Len(".cls"))
     End If
@@ -2854,7 +2854,7 @@ Private Function private_Dev_LoadImportCache(ByVal cachePath As String) As Objec
     Dim fileSizeStamp As String
 
     Set cache = private_Dev_CreateDictionary()
-    If Not m_Helpers_TryGetFileText(cachePath, cacheText, True, True) Then
+    If Not fn_Helpers_TryGetFileText(cachePath, cacheText, True, True) Then
         Err.Raise vbObjectError + 3100, "private_Dev_LoadImportCache", "Failed to load import cache from '" & cachePath & "'."
     End If
 
@@ -3181,7 +3181,7 @@ Private Sub private_ShowStatusNotice(ByVal messageText As String, ByVal useNativ
     If private_UseNativeStatus(useNativeStatus) Then
         private_ShowNativeStatus messageText
     Else
-        If Not private_TryShowRtStatus("m_ShowStatusBarNotice", messageText, timeoutSeconds) Then
+        If Not private_TryShowRtStatus("fn_ShowStatusBarNotice", messageText, timeoutSeconds) Then
             private_ShowNativeStatus messageText
         End If
     End If
@@ -3192,7 +3192,7 @@ Private Sub private_ShowStatusSuccess(ByVal messageText As String, ByVal useNati
     If private_UseNativeStatus(useNativeStatus) Then
         private_ShowNativeStatus messageText
     Else
-        If Not private_TryShowRtStatus("m_ShowStatusBarSuccess", messageText, timeoutSeconds) Then
+        If Not private_TryShowRtStatus("fn_ShowStatusBarSuccess", messageText, timeoutSeconds) Then
             private_ShowNativeStatus messageText
         End If
     End If
@@ -3203,7 +3203,7 @@ Private Sub private_ShowStatusWarning(ByVal messageText As String, ByVal useNati
     If private_UseNativeStatus(useNativeStatus) Then
         private_ShowNativeStatus "Warning: " & messageText
     Else
-        If Not private_TryShowRtStatus("m_ShowStatusBarWarning", messageText, timeoutSeconds) Then
+        If Not private_TryShowRtStatus("fn_ShowStatusBarWarning", messageText, timeoutSeconds) Then
             private_ShowNativeStatus "Warning: " & messageText
         End If
     End If
@@ -3214,7 +3214,7 @@ Private Sub private_ShowStatusError(ByVal messageText As String, ByVal useNative
     If private_UseNativeStatus(useNativeStatus) Then
         private_ShowNativeStatus "Error: " & messageText
     Else
-        If Not private_TryShowRtStatus("m_ShowStatusBarError", messageText, timeoutSeconds) Then
+        If Not private_TryShowRtStatus("fn_ShowStatusBarError", messageText, timeoutSeconds) Then
             private_ShowNativeStatus "Error: " & messageText
         End If
     End If
@@ -3329,7 +3329,7 @@ Private Sub private_Diagnostic_LogCoreEvent(ByVal messageText As String)
     Dim stream As Object
     Dim lineText As String
 
-    If Not m_Settings_TryGetFlagBoolean(SETTINGS_FLAG_IS_LOGGING_ENABLED, SETTINGS_FLAG_IS_LOGGING_ENABLED_DEFAULT, enableLogging, False) Then Exit Sub
+    If Not fn_Settings_TryGetFlagBoolean(SETTINGS_FLAG_IS_LOGGING_ENABLED, SETTINGS_FLAG_IS_LOGGING_ENABLED_DEFAULT, enableLogging, False) Then Exit Sub
     If Not enableLogging Then Exit Sub
 
     messageText = VBA.Trim$(VBA.CStr(messageText))

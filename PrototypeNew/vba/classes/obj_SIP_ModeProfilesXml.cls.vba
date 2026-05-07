@@ -19,13 +19,13 @@ Private m_CurrentProfilesFilePath As String
 
 Private Sub Class_Initialize()
 #If LOGGING_VERBOSE_ENABLED Then
-    ex_Core.m_Diagnostic_LogInfo "lifecycle:" & VBA.TypeName(Me) & ".Class_Initialize"
+    ex_Core.fn_Diagnostic_LogInfo "lifecycle:" & VBA.TypeName(Me) & ".Class_Initialize"
 #End If
 End Sub
 
 Private Sub Class_Terminate()
 #If LOGGING_VERBOSE_ENABLED Then
-    ex_Core.m_Diagnostic_LogInfo "lifecycle:" & VBA.TypeName(Me) & ".Class_Terminate"
+    ex_Core.fn_Diagnostic_LogInfo "lifecycle:" & VBA.TypeName(Me) & ".Class_Terminate"
 #End If
     If m_IsDisposed Then Exit Sub
     On Error Resume Next
@@ -103,7 +103,7 @@ Private Function obj_ISelectItemsSourceProvider_TryBuildItems(ByRef outItems As 
     End If
 
     ' Загружаем XML выбранного режима и превращаем профили в коллекцию SelectOption.
-    Set dom = ex_XmlCore.m_LoadDomByFilePath( _
+    Set dom = ex_XmlCore.fn_LoadDomByFilePath( _
         filePath, _
         "PrototypeNew: profiles file was not found: ", _
         "PrototypeNew: failed to parse profiles file: ", _
@@ -134,7 +134,7 @@ Public Function Initialize( _
     ByVal onSelectMacro As String _
 ) As Boolean
 #If LOGGING_VERBOSE_ENABLED Then
-    ex_Core.m_Diagnostic_LogInfo "lifecycle:" & VBA.TypeName(Me) & ".Initialize"
+    ex_Core.fn_Diagnostic_LogInfo "lifecycle:" & VBA.TypeName(Me) & ".Initialize"
 #End If
     providerKey = VBA.LCase$(VBA.Trim$(providerKey))
     modesRootRelativePath = VBA.Trim$(modesRootRelativePath)
@@ -185,7 +185,7 @@ End Property
 
 Public Sub Dispose()
 #If LOGGING_VERBOSE_ENABLED Then
-    ex_Core.m_Diagnostic_LogInfo "lifecycle:" & VBA.TypeName(Me) & ".Dispose"
+    ex_Core.fn_Diagnostic_LogInfo "lifecycle:" & VBA.TypeName(Me) & ".Dispose"
 #End If
     If m_IsDisposed Then Exit Sub
     m_IsDisposed = True
@@ -224,7 +224,7 @@ Private Function private_TryResolveProfilesFilePathByModeId(ByVal modeId As Stri
         Exit Function
     End If
 
-    modesRootPath = VBA.Trim$(ex_XmlCore.m_CombineBasePath(ThisWorkbook, m_ModesRootRelativePath))
+    modesRootPath = VBA.Trim$(ex_XmlCore.fn_CombineBasePath(ThisWorkbook, m_ModesRootRelativePath))
     If VBA.Len(modesRootPath) = 0 Then
         private_ReportError "PrototypeNew: failed to resolve modes root path from '" & m_ModesRootRelativePath & "'."
         Exit Function
@@ -321,9 +321,9 @@ Private Function private_TryCreateProfileSelectOptionFromNode( _
         Exit Function
     End If
 
-    profileId = VBA.Trim$(VBA.CStr(ex_XmlCore.m_NodeAttrText(profileNode, "id")))
-    If VBA.Len(profileId) = 0 Then profileId = VBA.Trim$(VBA.CStr(ex_XmlCore.m_NodeAttrText(profileNode, "name")))
-    If VBA.Len(profileId) = 0 Then profileId = VBA.Trim$(VBA.CStr(ex_XmlCore.m_NodeAttrText(profileNode, "key")))
+    profileId = VBA.Trim$(VBA.CStr(ex_XmlCore.fn_NodeAttrText(profileNode, "id")))
+    If VBA.Len(profileId) = 0 Then profileId = VBA.Trim$(VBA.CStr(ex_XmlCore.fn_NodeAttrText(profileNode, "name")))
+    If VBA.Len(profileId) = 0 Then profileId = VBA.Trim$(VBA.CStr(ex_XmlCore.fn_NodeAttrText(profileNode, "key")))
     If VBA.Len(profileId) = 0 Then
         If Not private_TryReadChildNodeText(profileNode, "id", profileId) Then Exit Function
     End If
@@ -338,10 +338,10 @@ Private Function private_TryCreateProfileSelectOptionFromNode( _
         Exit Function
     End If
 
-    captionText = VBA.Trim$(VBA.CStr(ex_XmlCore.m_NodeAttrText(profileNode, "caption")))
-    If VBA.Len(captionText) = 0 Then captionText = VBA.Trim$(VBA.CStr(ex_XmlCore.m_NodeAttrText(profileNode, "title")))
-    If VBA.Len(captionText) = 0 Then captionText = VBA.Trim$(VBA.CStr(ex_XmlCore.m_NodeAttrText(profileNode, "display")))
-    If VBA.Len(captionText) = 0 Then captionText = VBA.Trim$(VBA.CStr(ex_XmlCore.m_NodeAttrText(profileNode, "name")))
+    captionText = VBA.Trim$(VBA.CStr(ex_XmlCore.fn_NodeAttrText(profileNode, "caption")))
+    If VBA.Len(captionText) = 0 Then captionText = VBA.Trim$(VBA.CStr(ex_XmlCore.fn_NodeAttrText(profileNode, "title")))
+    If VBA.Len(captionText) = 0 Then captionText = VBA.Trim$(VBA.CStr(ex_XmlCore.fn_NodeAttrText(profileNode, "display")))
+    If VBA.Len(captionText) = 0 Then captionText = VBA.Trim$(VBA.CStr(ex_XmlCore.fn_NodeAttrText(profileNode, "name")))
     If VBA.Len(captionText) = 0 Then
         If Not private_TryReadChildNodeText(profileNode, "caption", captionText) Then Exit Function
     End If
@@ -403,7 +403,7 @@ Private Sub private_ReportError(ByVal messageText As String)
     messageText = VBA.Trim$(messageText)
     If VBA.Len(messageText) = 0 Then Exit Sub
 #If LOGGING_DEBUG_ENABLED Then
-    ex_Core.m_Diagnostic_LogError messageText
+    ex_Core.fn_Diagnostic_LogError messageText
 #End If
     MsgBox messageText, vbExclamation, "PrototypeNew / Select provider"
 End Sub

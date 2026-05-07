@@ -7,15 +7,15 @@ Private Const DEMO_CONFIG_VARIANT_A As String = "hospitalizationdate"
 Private Const DEMO_CONFIG_VARIANT_B As String = "transfersheet"
 Private g_DemoConfigVariant As String
 
-Public Sub m_Module_Dispose()
+Public Sub fn_Module_Dispose()
 #If LOGGING_VERBOSE_ENABLED Then
-    ex_Core.m_Diagnostic_LogInfo "lifecycle:ex_Test.m_Module_Dispose"
+    ex_Core.fn_Diagnostic_LogInfo "lifecycle:ex_Test.fn_Module_Dispose"
 #End If
 End Sub
 ' //
 ' // API
 ' //
-Public Sub m_TEST_RenderDevUI()
+Public Sub fn_TEST_RenderDevUI()
     Dim ws As Worksheet
 
     Set ws = private_GetActiveWorksheet()
@@ -25,14 +25,14 @@ Public Sub m_TEST_RenderDevUI()
 End Sub
 
 
-Public Sub m_TEST_UpdateCurrentPage()
-    If Not ex_HelpersSheet.m_TryRerenderActivePage("manual:update-sheet") Then
-        rt_Messaging.m_ShowStatusBarWarning "No rendered page context is available for update.", 5
+Public Sub fn_TEST_UpdateCurrentPage()
+    If Not ex_HelpersSheet.fn_TryRerenderActivePage("manual:update-sheet") Then
+        rt_Messaging.fn_ShowStatusBarWarning "No rendered page context is available for update.", 5
     End If
 End Sub
 
 
-Public Sub m_TEST_RenderDevTableListUI()
+Public Sub fn_TEST_RenderDevTableListUI()
     Dim ws As Worksheet
 
     Set ws = private_GetActiveWorksheet()
@@ -42,7 +42,7 @@ Public Sub m_TEST_RenderDevTableListUI()
 End Sub
 
 
-Public Sub m_TEST_RenderDevPrimitiveTableUI()
+Public Sub fn_TEST_RenderDevPrimitiveTableUI()
     Dim ws As Worksheet
 
     Set ws = private_GetActiveWorksheet()
@@ -52,7 +52,7 @@ Public Sub m_TEST_RenderDevPrimitiveTableUI()
 End Sub
 
 
-Public Sub m_TEST_RenderDevListTableSingleUI()
+Public Sub fn_TEST_RenderDevListTableSingleUI()
     Dim ws As Worksheet
 
     Set ws = private_GetActiveWorksheet()
@@ -62,7 +62,7 @@ Public Sub m_TEST_RenderDevListTableSingleUI()
 End Sub
 
 
-Public Sub m_TEST_RenderDevTablePartStylesUI()
+Public Sub fn_TEST_RenderDevTablePartStylesUI()
     Dim ws As Worksheet
 
     Set ws = private_GetActiveWorksheet()
@@ -72,50 +72,50 @@ Public Sub m_TEST_RenderDevTablePartStylesUI()
 End Sub
 
 
-Public Sub m_TEST_SetDemoTableItemsMany()
+Public Sub fn_TEST_SetDemoTableItemsMany()
     Dim tableViews As Collection
 
-    Set tableViews = m_TEST_BuildDemoTableViewItems(True, True)
+    Set tableViews = fn_TEST_BuildDemoTableViewItems(True, True)
     If tableViews Is Nothing Then Exit Sub
 
     If Not private_TrySetItemsSource("RuntimeItems.Test.Tables", tableViews, True) Then Exit Sub
 End Sub
 
 
-Public Sub m_TEST_SetDemoTableItemsSingle()
+Public Sub fn_TEST_SetDemoTableItemsSingle()
     Dim tableViews As Collection
 
-    Set tableViews = m_TEST_BuildDemoSingleTableViewItems(True, True)
+    Set tableViews = fn_TEST_BuildDemoSingleTableViewItems(True, True)
     If tableViews Is Nothing Then Exit Sub
 
     If Not private_TrySetItemsSource("RuntimeItems.Test.Tables", tableViews, True) Then Exit Sub
 End Sub
 
 
-Public Sub m_TEST_InsertDemoBanner()
-    If Not m_TEST_RegisterDemoBannerItems(True, True) Then Exit Sub
+Public Sub fn_TEST_InsertDemoBanner()
+    If Not fn_TEST_RegisterDemoBannerItems(True, True) Then Exit Sub
 End Sub
 
 
-Public Sub m_TEST_SetDemoConfigVariantA()
+Public Sub fn_TEST_SetDemoConfigVariantA()
     g_DemoConfigVariant = DEMO_CONFIG_VARIANT_A
-    If Not m_TEST_RegisterDemoConfigProfileItems(False) Then Exit Sub
-    If Not m_TEST_RegisterDemoConfigItemsVariantA(False) Then Exit Sub
+    If Not fn_TEST_RegisterDemoConfigProfileItems(False) Then Exit Sub
+    If Not fn_TEST_RegisterDemoConfigItemsVariantA(False) Then Exit Sub
     If Not private_TrySaveDemoConfigVariantToStoreForActiveSheet(g_DemoConfigVariant) Then Exit Sub
-    Call ex_HelpersSheet.m_TryRerenderActivePage("configVariant:" & g_DemoConfigVariant)
+    Call ex_HelpersSheet.fn_TryRerenderActivePage("configVariant:" & g_DemoConfigVariant)
 End Sub
 
 
-Public Sub m_TEST_SetDemoConfigVariantB()
+Public Sub fn_TEST_SetDemoConfigVariantB()
     g_DemoConfigVariant = DEMO_CONFIG_VARIANT_B
-    If Not m_TEST_RegisterDemoConfigProfileItems(False) Then Exit Sub
-    If Not m_TEST_RegisterDemoConfigItemsVariantB(False) Then Exit Sub
+    If Not fn_TEST_RegisterDemoConfigProfileItems(False) Then Exit Sub
+    If Not fn_TEST_RegisterDemoConfigItemsVariantB(False) Then Exit Sub
     If Not private_TrySaveDemoConfigVariantToStoreForActiveSheet(g_DemoConfigVariant) Then Exit Sub
-    Call ex_HelpersSheet.m_TryRerenderActivePage("configVariant:" & g_DemoConfigVariant)
+    Call ex_HelpersSheet.fn_TryRerenderActivePage("configVariant:" & g_DemoConfigVariant)
 End Sub
 
 
-Public Sub m_TEST_ProfileDevTableListUI()
+Public Sub fn_TEST_ProfileDevTableListUI()
     Dim ws As Worksheet
     Dim tables As Collection
     Dim t0 As Double
@@ -127,7 +127,7 @@ Public Sub m_TEST_ProfileDevTableListUI()
     If ws Is Nothing Then Exit Sub
 
     t0 = VBA.Timer
-    Set tables = m_TEST_BuildDemoTableItems()
+    Set tables = fn_TEST_BuildDemoTableItems()
     t1 = VBA.Timer
 
     If tables Is Nothing Then Exit Sub
@@ -140,7 +140,7 @@ Public Sub m_TEST_ProfileDevTableListUI()
     t3 = VBA.Timer
 
 #If LOGGING_DEBUG_ENABLED Then
-    ex_Core.m_Diagnostic_LogInfo "Profile (ms):" & VBA.vbCrLf & _
+    ex_Core.fn_Diagnostic_LogInfo "Profile (ms):" & VBA.vbCrLf & _
            "Build data: " & VBA.Format$((t1 - t0) * 1000#, "0") & VBA.vbCrLf & _
            "Register source: " & VBA.Format$((t2 - t1) * 1000#, "0") & VBA.vbCrLf & _
            "Render UI: " & VBA.Format$((t3 - t2) * 1000#, "0") & VBA.vbCrLf & _
@@ -149,7 +149,7 @@ Public Sub m_TEST_ProfileDevTableListUI()
 End Sub
 
 
-Public Sub m_TEST_FillNumbersRangeSimple()
+Public Sub fn_TEST_FillNumbersRangeSimple()
     Dim ws As Worksheet
     Dim targetRange As Range
     Dim values() As Variant
@@ -175,7 +175,7 @@ Public Sub m_TEST_FillNumbersRangeSimple()
 End Sub
 
 
-Public Sub m_TEST_RenderDevSingleTableUI()
+Public Sub fn_TEST_RenderDevSingleTableUI()
     Dim ws As Worksheet
 
     Set ws = private_GetActiveWorksheet()
@@ -185,58 +185,58 @@ Public Sub m_TEST_RenderDevSingleTableUI()
 End Sub
 
 
-Public Function m_TEST_RegisterDemoListItems( _
+Public Function fn_TEST_RegisterDemoListItems( _
     Optional ByVal notifyChange As Boolean = False, _
     Optional ByVal preferredPageBase As Variant _
 ) As Boolean
     Dim items As Collection
 
-    Set items = m_TEST_BuildDemoListItems()
+    Set items = fn_TEST_BuildDemoListItems()
     If items Is Nothing Then Exit Function
 
     If Not private_ResetItemsSources(preferredPageBase) Then Exit Function
     If Not private_ResetObjectSources(preferredPageBase) Then Exit Function
     If Not private_TrySetItemsSource("RuntimeItems.Test.People", items, notifyChange, preferredPageBase) Then Exit Function
 
-    m_TEST_RegisterDemoListItems = True
+    fn_TEST_RegisterDemoListItems = True
 End Function
 
 
-Public Function m_TEST_RegisterDemoTableItems( _
+Public Function fn_TEST_RegisterDemoTableItems( _
     Optional ByVal notifyChange As Boolean = False, _
     Optional ByVal preferredPageBase As Variant _
 ) As Boolean
     Dim tables As Collection
 
-    Set tables = m_TEST_BuildDemoTableItems()
+    Set tables = fn_TEST_BuildDemoTableItems()
     If tables Is Nothing Then Exit Function
 
     If Not private_ResetItemsSources(preferredPageBase) Then Exit Function
     If Not private_ResetObjectSources(preferredPageBase) Then Exit Function
     If Not private_TrySetItemsSource("RuntimeItems.Test.Tables", tables, notifyChange, preferredPageBase) Then Exit Function
 
-    m_TEST_RegisterDemoTableItems = True
+    fn_TEST_RegisterDemoTableItems = True
 End Function
 
 
-Public Function m_TEST_RegisterDemoSingleTableItems( _
+Public Function fn_TEST_RegisterDemoSingleTableItems( _
     Optional ByVal notifyChange As Boolean = False, _
     Optional ByVal preferredPageBase As Variant _
 ) As Boolean
     Dim tables As Collection
 
-    Set tables = m_TEST_BuildDemoSingleTableItems()
+    Set tables = fn_TEST_BuildDemoSingleTableItems()
     If tables Is Nothing Then Exit Function
 
     If Not private_ResetItemsSources(preferredPageBase) Then Exit Function
     If Not private_ResetObjectSources(preferredPageBase) Then Exit Function
     If Not private_TrySetItemsSource("RuntimeItems.Test.Tables", tables, notifyChange, preferredPageBase) Then Exit Function
 
-    m_TEST_RegisterDemoSingleTableItems = True
+    fn_TEST_RegisterDemoSingleTableItems = True
 End Function
 
 
-Public Function m_TEST_RegisterDemoBannerItems( _
+Public Function fn_TEST_RegisterDemoBannerItems( _
     Optional ByVal isVisible As Boolean = False, _
     Optional ByVal notifyChange As Boolean = False, _
     Optional ByVal preferredPageBase As Variant _
@@ -255,67 +255,67 @@ Public Function m_TEST_RegisterDemoBannerItems( _
         If Not private_TryRemoveObjectSource("RuntimeObjects.Test.Banner", notifyChange, preferredPageBase) Then Exit Function
     End If
 
-    m_TEST_RegisterDemoBannerItems = True
+    fn_TEST_RegisterDemoBannerItems = True
 End Function
 
 
-Public Function m_TEST_RegisterDemoConfigItemsVariantA( _
+Public Function fn_TEST_RegisterDemoConfigItemsVariantA( _
     Optional ByVal notifyChange As Boolean = False, _
     Optional ByVal preferredPageBase As Variant _
 ) As Boolean
     Dim items As Collection
 
-    Set items = m_TEST_BuildDemoConfigItemsVariantA()
+    Set items = fn_TEST_BuildDemoConfigItemsVariantA()
     If items Is Nothing Then Exit Function
 
     If Not private_TrySetItemsSource("RuntimeItems.PageMain.Config", items, notifyChange, preferredPageBase) Then Exit Function
-    m_TEST_RegisterDemoConfigItemsVariantA = True
+    fn_TEST_RegisterDemoConfigItemsVariantA = True
 End Function
 
 
-Public Function m_TEST_RegisterDemoConfigItemsVariantB( _
+Public Function fn_TEST_RegisterDemoConfigItemsVariantB( _
     Optional ByVal notifyChange As Boolean = False, _
     Optional ByVal preferredPageBase As Variant _
 ) As Boolean
     Dim items As Collection
 
-    Set items = m_TEST_BuildDemoConfigItemsVariantB()
+    Set items = fn_TEST_BuildDemoConfigItemsVariantB()
     If items Is Nothing Then Exit Function
 
     If Not private_TrySetItemsSource("RuntimeItems.PageMain.Config", items, notifyChange, preferredPageBase) Then Exit Function
-    m_TEST_RegisterDemoConfigItemsVariantB = True
+    fn_TEST_RegisterDemoConfigItemsVariantB = True
 End Function
 
 
-Public Function m_TEST_RegisterDemoConfigItemsByCurrentVariant( _
+Public Function fn_TEST_RegisterDemoConfigItemsByCurrentVariant( _
     Optional ByVal notifyChange As Boolean = False, _
     Optional ByVal preferredPageBase As Variant _
 ) As Boolean
     Select Case private_GetDemoConfigVariantKey()
         Case DEMO_CONFIG_VARIANT_B
-            m_TEST_RegisterDemoConfigItemsByCurrentVariant = m_TEST_RegisterDemoConfigItemsVariantB(notifyChange, preferredPageBase)
+            fn_TEST_RegisterDemoConfigItemsByCurrentVariant = fn_TEST_RegisterDemoConfigItemsVariantB(notifyChange, preferredPageBase)
 
         Case Else
-            m_TEST_RegisterDemoConfigItemsByCurrentVariant = m_TEST_RegisterDemoConfigItemsVariantA(notifyChange, preferredPageBase)
+            fn_TEST_RegisterDemoConfigItemsByCurrentVariant = fn_TEST_RegisterDemoConfigItemsVariantA(notifyChange, preferredPageBase)
     End Select
 End Function
 
 
-Public Function m_TEST_RegisterDemoConfigProfileItems( _
+Public Function fn_TEST_RegisterDemoConfigProfileItems( _
     Optional ByVal notifyChange As Boolean = False, _
     Optional ByVal preferredPageBase As Variant _
 ) As Boolean
     Dim options As Collection
 
-    Set options = m_TEST_BuildDemoConfigProfileItems()
+    Set options = fn_TEST_BuildDemoConfigProfileItems()
     If options Is Nothing Then Exit Function
 
     If Not private_TrySetItemsSource("RuntimeItems.PageMain.ConfigProfiles", options, notifyChange, preferredPageBase) Then Exit Function
-    m_TEST_RegisterDemoConfigProfileItems = True
+    fn_TEST_RegisterDemoConfigProfileItems = True
 End Function
 
 
-Public Function m_TEST_BuildDemoListItems() As Collection
+Public Function fn_TEST_BuildDemoListItems() As Collection
     Dim result As Collection
 
     Set result = New Collection
@@ -323,11 +323,11 @@ Public Function m_TEST_BuildDemoListItems() As Collection
     result.Add private_CreateDemoPerson("Anna Sidorova", "Analyst")
     result.Add private_CreateDemoPerson("Maksym Kovalenko", "Developer")
 
-    Set m_TEST_BuildDemoListItems = result
+    Set fn_TEST_BuildDemoListItems = result
 End Function
 
 
-Public Function m_TEST_BuildDemoConfigItemsVariantA() As Collection
+Public Function fn_TEST_BuildDemoConfigItemsVariantA() As Collection
     Dim result As list__obj_ConfigEntry
 
     Set result = New list__obj_ConfigEntry
@@ -338,43 +338,43 @@ Public Function m_TEST_BuildDemoConfigItemsVariantA() As Collection
     result.Add private_CreateConfigEntry("#", "Sheet.StateMain.Map.2", "В/ч")
     result.Add private_CreateConfigEntry("rx", "Sheet.StateMain.Map.3", "П.І.Б.")
 
-    Set m_TEST_BuildDemoConfigItemsVariantA = result.AsCollection
+    Set fn_TEST_BuildDemoConfigItemsVariantA = result.AsCollection
 End Function
 
 
-Public Function m_TEST_BuildDemoConfigItemsVariantB() As Collection
+Public Function fn_TEST_BuildDemoConfigItemsVariantB() As Collection
     Dim result As list__obj_ConfigEntry
 
     Set result = New list__obj_ConfigEntry
     result.Add private_CreateConfigEntry("#", "Profile.Name", "TransferSheet")
-    result.Add private_CreateConfigEntry("rx", "Source.Main.FileResolver", "ex_SourceResolvers.m_ResolveAllByPattern")
+    result.Add private_CreateConfigEntry("rx", "Source.Main.FileResolver", "ex_SourceResolvers.fn_ResolveAllByPattern")
     result.Add private_CreateConfigEntry(VBA.vbNullString, "Source.Main.SortOrder", "order=asc")
     result.Add private_CreateConfigEntry(VBA.vbNullString, "Sheet.Aliases.StateMain", "StateMain")
     result.Add private_CreateConfigEntry("rx", "Sheet.StateMain.Key.TransferDate", "{Main-{dd}.{mm}.{yyyy}}.DateTransfer")
     result.Add private_CreateConfigEntry("#", "Sheet.StateMain.Key.DocName", "{Main-{dd}.{mm}.{yyyy}}.DocName")
 
-    Set m_TEST_BuildDemoConfigItemsVariantB = result.AsCollection
+    Set fn_TEST_BuildDemoConfigItemsVariantB = result.AsCollection
 End Function
 
 
-Public Function m_TEST_BuildDemoConfigProfileItems() As Collection
+Public Function fn_TEST_BuildDemoConfigProfileItems() As Collection
     Dim result As Collection
 
     Set result = New Collection
     result.Add private_CreateSelectOption( _
         "HospitalizationDate", _
         DEMO_CONFIG_VARIANT_A, _
-        "ex_Test.m_TEST_SetDemoConfigVariantA")
+        "ex_Test.fn_TEST_SetDemoConfigVariantA")
     result.Add private_CreateSelectOption( _
         "TransferSheet", _
         DEMO_CONFIG_VARIANT_B, _
-        "ex_Test.m_TEST_SetDemoConfigVariantB")
+        "ex_Test.fn_TEST_SetDemoConfigVariantB")
 
-    Set m_TEST_BuildDemoConfigProfileItems = result
+    Set fn_TEST_BuildDemoConfigProfileItems = result
 End Function
 
 
-Public Function m_TEST_BuildDemoTableItems() As Collection
+Public Function fn_TEST_BuildDemoTableItems() As Collection
     Dim result As Collection
     Dim tableIndex As Long
     Dim rowsCount As Long
@@ -394,11 +394,11 @@ Public Function m_TEST_BuildDemoTableItems() As Collection
             private_CreateGeneratedRowsForTeam(tableIndex, rowsCount, teamName))
     Next tableIndex
 
-    Set m_TEST_BuildDemoTableItems = result
+    Set fn_TEST_BuildDemoTableItems = result
 End Function
 
 
-Public Function m_TEST_BuildDemoTableViewItems( _
+Public Function fn_TEST_BuildDemoTableViewItems( _
     Optional ByVal includeTableBanners As Boolean = False, _
     Optional ByVal includeRowBanners As Boolean = False _
 ) As Collection
@@ -415,7 +415,7 @@ Public Function m_TEST_BuildDemoTableViewItems( _
     Dim rowBannerTargetIndex As Long
     Dim rowBannerPositionName As String
 
-    Set sourceTables = m_TEST_BuildDemoTableItems()
+    Set sourceTables = fn_TEST_BuildDemoTableItems()
     If sourceTables Is Nothing Then Exit Function
 
     Set result = New list__obj_TableViewItem
@@ -473,11 +473,11 @@ ContinueRowViewItem:
         result.Add tableViewItem
     Next sourceTableObj
 
-    Set m_TEST_BuildDemoTableViewItems = result.AsCollection
+    Set fn_TEST_BuildDemoTableViewItems = result.AsCollection
 End Function
 
 
-Public Function m_TEST_BuildDemoSingleTableViewItems( _
+Public Function fn_TEST_BuildDemoSingleTableViewItems( _
     Optional ByVal includeTableBanners As Boolean = False, _
     Optional ByVal includeRowBanners As Boolean = False _
 ) As Collection
@@ -491,7 +491,7 @@ Public Function m_TEST_BuildDemoSingleTableViewItems( _
     Dim rowIndex As Long
     Dim rowViewIndex As Long
 
-    Set sourceTables = m_TEST_BuildDemoSingleTableItems()
+    Set sourceTables = fn_TEST_BuildDemoSingleTableItems()
     If sourceTables Is Nothing Then Exit Function
 
     Set result = New list__obj_TableViewItem
@@ -531,11 +531,11 @@ ContinueSingleRowViewItem:
         result.Add tableViewItem
     Next sourceTableObj
 
-    Set m_TEST_BuildDemoSingleTableViewItems = result.AsCollection
+    Set fn_TEST_BuildDemoSingleTableViewItems = result.AsCollection
 End Function
 
 
-Public Function m_TEST_BuildDemoSingleTableItems() As Collection
+Public Function fn_TEST_BuildDemoSingleTableItems() As Collection
     Dim sourceTables As Collection
     Dim result As Collection
     Dim mergedTable As obj_TableDynamic
@@ -548,7 +548,7 @@ Public Function m_TEST_BuildDemoSingleTableItems() As Collection
     Dim sourceColumnIndex As Long
     Dim sourceRowIndex As Long
 
-    Set sourceTables = m_TEST_BuildDemoTableItems()
+    Set sourceTables = fn_TEST_BuildDemoTableItems()
     If sourceTables Is Nothing Then Exit Function
 
     Set mergedTable = New obj_TableDynamic
@@ -571,7 +571,7 @@ ContinueMergedSourceColumn:
             If sourceRow Is Nothing Then GoTo ContinueMergedSourceRow
             If VBA.TypeName(sourceRow) <> "obj_Row" Then
 #If LOGGING_DEBUG_ENABLED Then
-                ex_Core.m_Diagnostic_LogError "PrototypeNew: expected obj_Row in demo table rows."
+                ex_Core.fn_Diagnostic_LogError "PrototypeNew: expected obj_Row in demo table rows."
 #End If
                 Exit Function
             End If
@@ -589,11 +589,11 @@ ContinueMergedSourceRow:
     Set result = New Collection
     result.Add mergedTable
 
-    Set m_TEST_BuildDemoSingleTableItems = result
+    Set fn_TEST_BuildDemoSingleTableItems = result
 End Function
 
 
-Public Sub m_TEST_NoOp()
+Public Sub fn_TEST_NoOp()
 End Sub
 
 ' //
@@ -768,7 +768,7 @@ Private Function private_CreateTableViewItemFromTable(ByVal tableDynamic As obj_
 
     If tableDynamic Is Nothing Then
 #If LOGGING_DEBUG_ENABLED Then
-        ex_Core.m_Diagnostic_LogError "PrototypeNew: table model is not specified for table view."
+        ex_Core.fn_Diagnostic_LogError "PrototypeNew: table model is not specified for table view."
 #End If
         Exit Function
     End If
@@ -786,7 +786,7 @@ Private Function private_CreateRowViewItemFromRow(ByVal row As obj_Row) As obj_R
 
     If row Is Nothing Then
 #If LOGGING_DEBUG_ENABLED Then
-        ex_Core.m_Diagnostic_LogError "PrototypeNew: row model is not specified for row view."
+        ex_Core.fn_Diagnostic_LogError "PrototypeNew: row model is not specified for row view."
 #End If
         Exit Function
     End If
@@ -843,7 +843,7 @@ Private Function private_TryResolveDemoTableDynamic(ByVal tableObj As Variant, B
 
     If Not VBA.IsObject(tableObj) Then
 #If LOGGING_DEBUG_ENABLED Then
-        ex_Core.m_Diagnostic_LogError "PrototypeNew: demo table item is not object."
+        ex_Core.fn_Diagnostic_LogError "PrototypeNew: demo table item is not object."
 #End If
         Exit Function
     End If
@@ -884,7 +884,7 @@ ContinueResolveRow:
 
         Case Else
 #If LOGGING_DEBUG_ENABLED Then
-            ex_Core.m_Diagnostic_LogError "PrototypeNew: unsupported demo table type '" & VBA.TypeName(tableObj) & "'."
+            ex_Core.fn_Diagnostic_LogError "PrototypeNew: unsupported demo table type '" & VBA.TypeName(tableObj) & "'."
 #End If
     End Select
 End Function
@@ -921,13 +921,13 @@ Private Function private_CreateDemoTable( _
     For Each rowObj In rows
         If rowObj Is Nothing Then
 #If LOGGING_DEBUG_ENABLED Then
-            ex_Core.m_Diagnostic_LogError "PrototypeNew: table row is not specified."
+            ex_Core.fn_Diagnostic_LogError "PrototypeNew: table row is not specified."
 #End If
             Exit Function
         End If
         If rowObj.CellCount < tableObj.ColumnCount Then
 #If LOGGING_DEBUG_ENABLED Then
-            ex_Core.m_Diagnostic_LogError "PrototypeNew: table row has fewer cells than table columns."
+            ex_Core.fn_Diagnostic_LogError "PrototypeNew: table row has fewer cells than table columns."
 #End If
             Exit Function
         End If
@@ -946,7 +946,7 @@ Private Function private_CreateDemoTableRows(ParamArray values() As Variant) As 
     Set result = New Collection
     If (UBound(values) - LBound(values) + 1) Mod 7 <> 0 Then
 #If LOGGING_DEBUG_ENABLED Then
-        ex_Core.m_Diagnostic_LogError "PrototypeNew: private_CreateDemoTableRows expects values in septets (c1..c7)."
+        ex_Core.fn_Diagnostic_LogError "PrototypeNew: private_CreateDemoTableRows expects values in septets (c1..c7)."
 #End If
         Set private_CreateDemoTableRows = result
         Exit Function
@@ -999,15 +999,15 @@ Private Function private_TryResolveMainPage(ByRef outPage As obj_IPage) As Boole
 
     Set outPage = Nothing
 
-    Set mainWs = ex_HelpersSheet.m_GetRuntimeWorksheetByName("Main")
+    Set mainWs = ex_HelpersSheet.fn_GetRuntimeWorksheetByName("Main")
     If Not mainWs Is Nothing Then
-        If rt_PageManager.m_TryGetPageByWorksheet(mainWs, outPage) Then
+        If rt_PageManager.fn_TryGetPageByWorksheet(mainWs, outPage) Then
             private_TryResolveMainPage = True
             Exit Function
         End If
     End If
 
-    If rt_PageManager.m_TryGetAllPages(allPages) Then
+    If rt_PageManager.fn_TryGetAllPages(allPages) Then
         If Not allPages Is Nothing Then
             For Each pageCandidate In allPages
                 If VBA.IsObject(pageCandidate) Then
@@ -1033,7 +1033,7 @@ ContinuePageCandidate:
     End If
 
 #If LOGGING_DEBUG_ENABLED Then
-    ex_Core.m_Diagnostic_LogError "PrototypeNew: main page is not resolved for UI switch."
+    ex_Core.fn_Diagnostic_LogError "PrototypeNew: main page is not resolved for UI switch."
 #End If
 End Function
 
@@ -1045,7 +1045,7 @@ Private Function private_GetActiveWorksheet() As Worksheet
     Set wb = ThisWorkbook
     If wb Is Nothing Then
 #If LOGGING_DEBUG_ENABLED Then
-        ex_Core.m_Diagnostic_LogError "PrototypeNew: workbook is not specified."
+        ex_Core.fn_Diagnostic_LogError "PrototypeNew: workbook is not specified."
 #End If
         Exit Function
     End If
@@ -1053,14 +1053,14 @@ Private Function private_GetActiveWorksheet() As Worksheet
     Set activeSheetObj = wb.ActiveSheet
     If activeSheetObj Is Nothing Then
 #If LOGGING_DEBUG_ENABLED Then
-        ex_Core.m_Diagnostic_LogError "PrototypeNew: active sheet is not specified."
+        ex_Core.fn_Diagnostic_LogError "PrototypeNew: active sheet is not specified."
 #End If
         Exit Function
     End If
 
     If Not TypeOf activeSheetObj Is Worksheet Then
 #If LOGGING_DEBUG_ENABLED Then
-        ex_Core.m_Diagnostic_LogError "PrototypeNew: active sheet is not a worksheet."
+        ex_Core.fn_Diagnostic_LogError "PrototypeNew: active sheet is not a worksheet."
 #End If
         Exit Function
     End If
@@ -1098,22 +1098,22 @@ Private Function private_TryResolvePageBase( _
                     Exit Function
                 End If
 
-                If ex_HelpersSheet.m_TryCastPageBase(preferredPageBase, outPageBase) Then
+                If ex_HelpersSheet.fn_TryCastPageBase(preferredPageBase, outPageBase) Then
                     private_TryResolvePageBase = True
                     Exit Function
                 End If
 
 #If LOGGING_DEBUG_ENABLED Then
-                ex_Core.m_Diagnostic_LogError "PrototypeNew: preferred page runtime context has unsupported type '" & VBA.TypeName(preferredPageBase) & "'."
+                ex_Core.fn_Diagnostic_LogError "PrototypeNew: preferred page runtime context has unsupported type '" & VBA.TypeName(preferredPageBase) & "'."
 #End If
                 Exit Function
             End If
         End If
     End If
 
-    If Not ex_HelpersSheet.m_TryGetActivePageBase(outPageBase) Then
+    If Not ex_HelpersSheet.fn_TryGetActivePageBase(outPageBase) Then
 #If LOGGING_DEBUG_ENABLED Then
-        ex_Core.m_Diagnostic_LogError "PrototypeNew: page runtime context is not resolved for active worksheet."
+        ex_Core.fn_Diagnostic_LogError "PrototypeNew: page runtime context is not resolved for active worksheet."
 #End If
         Exit Function
     End If
@@ -1211,8 +1211,8 @@ Private Function private_TryRerenderPage(ByVal pageBase As obj_PageBase, ByVal r
     Set ws = pageBase.Worksheet
     If ws Is Nothing Then Exit Function
 
-    If Not rt_PageManager.m_TryGetPageByWorksheet(ws, pageRef) Then Exit Function
-    private_TryRerenderPage = rt_PageManager.m_RenderPage(pageRef, reason)
+    If Not rt_PageManager.fn_TryGetPageByWorksheet(ws, pageRef) Then Exit Function
+    private_TryRerenderPage = rt_PageManager.fn_RenderPage(pageRef, reason)
 End Function
 
 
@@ -1223,7 +1223,7 @@ Private Function private_TryLoadDemoConfigVariantFromStore(ByVal ws As Worksheet
 
     If ws Is Nothing Then
 #If LOGGING_DEBUG_ENABLED Then
-        ex_Core.m_Diagnostic_LogError "PrototypeNew: worksheet is not specified for config profile state restore."
+        ex_Core.fn_Diagnostic_LogError "PrototypeNew: worksheet is not specified for config profile state restore."
 #End If
         Exit Function
     End If

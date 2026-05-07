@@ -14,14 +14,14 @@ Private m_Rows As list__obj_Row
 
 Private Sub Class_Initialize()
 #If LOGGING_VERBOSE_ENABLED Then
-    ex_Core.m_Diagnostic_LogInfo "lifecycle:" & VBA.TypeName(Me) & ".Class_Initialize"
+    ex_Core.fn_Diagnostic_LogInfo "lifecycle:" & VBA.TypeName(Me) & ".Class_Initialize"
 #End If
     Set m_Columns = New list__obj_Column
     Set m_Rows = New list__obj_Row
 End Sub
 Private Sub Class_Terminate()
 #If LOGGING_VERBOSE_ENABLED Then
-    ex_Core.m_Diagnostic_LogInfo "lifecycle:" & VBA.TypeName(Me) & ".Class_Terminate"
+    ex_Core.fn_Diagnostic_LogInfo "lifecycle:" & VBA.TypeName(Me) & ".Class_Terminate"
 #End If
     If m_IsDisposed Then Exit Sub
     On Error Resume Next
@@ -34,13 +34,13 @@ End Sub
 ' //
 Public Function Initialize() As Boolean
 #If LOGGING_VERBOSE_ENABLED Then
-    ex_Core.m_Diagnostic_LogInfo "lifecycle:" & VBA.TypeName(Me) & ".Initialize"
+    ex_Core.fn_Diagnostic_LogInfo "lifecycle:" & VBA.TypeName(Me) & ".Initialize"
 #End If
     Initialize = True
 End Function
 Public Sub Dispose()
 #If LOGGING_VERBOSE_ENABLED Then
-    ex_Core.m_Diagnostic_LogInfo "lifecycle:" & VBA.TypeName(Me) & ".Dispose"
+    ex_Core.fn_Diagnostic_LogInfo "lifecycle:" & VBA.TypeName(Me) & ".Dispose"
 #End If
     If m_IsDisposed Then Exit Sub
     m_IsDisposed = True
@@ -95,7 +95,7 @@ Public Function AddColumn(ByVal tableColumn As obj_Column) As Boolean
 
     If tableColumn Is Nothing Then
 #If LOGGING_DEBUG_ENABLED Then
-        ex_Core.m_Diagnostic_LogError "obj_TableDynamic: column is not specified."
+        ex_Core.fn_Diagnostic_LogError "obj_TableDynamic: column is not specified."
 #End If
         Exit Function
     End If
@@ -116,7 +116,7 @@ Public Function AddRow(ByVal tableRow As obj_Row) As Boolean
 
     If tableRow Is Nothing Then
 #If LOGGING_DEBUG_ENABLED Then
-        ex_Core.m_Diagnostic_LogError "obj_TableDynamic: row is not specified."
+        ex_Core.fn_Diagnostic_LogError "obj_TableDynamic: row is not specified."
 #End If
         Exit Function
     End If

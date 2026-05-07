@@ -82,7 +82,7 @@ End Property
 
 Private Sub Class_Initialize()
 #If LOGGING_VERBOSE_ENABLED Then
-    ex_Core.m_Diagnostic_LogInfo "lifecycle:" & VBA.TypeName(Me) & ".Class_Initialize"
+    ex_Core.fn_Diagnostic_LogInfo "lifecycle:" & VBA.TypeName(Me) & ".Class_Initialize"
 #End If
     Set m_ViewPresentation = New obj_ViewPresentation
     Set m_BannerViewItem = Nothing
@@ -91,7 +91,7 @@ Private Sub Class_Initialize()
 End Sub
 Private Sub Class_Terminate()
 #If LOGGING_VERBOSE_ENABLED Then
-    ex_Core.m_Diagnostic_LogInfo "lifecycle:" & VBA.TypeName(Me) & ".Class_Terminate"
+    ex_Core.fn_Diagnostic_LogInfo "lifecycle:" & VBA.TypeName(Me) & ".Class_Terminate"
 #End If
     If m_IsDisposed Then Exit Sub
     On Error Resume Next
@@ -111,7 +111,7 @@ Private Function obj_IViewItem_Render( _
     Optional ByVal viewName As String = "" _
 ) As Boolean
 #If LOGGING_DEBUG_ENABLED Then
-    ex_Core.m_Diagnostic_LogError "TableViewItem: direct render is not supported."
+    ex_Core.fn_Diagnostic_LogError "TableViewItem: direct render is not supported."
 #End If
 End Function
 
@@ -124,7 +124,7 @@ End Function
 ' //
 Public Function Initialize(ByVal value As obj_TableDynamic) As Boolean
 #If LOGGING_VERBOSE_ENABLED Then
-    ex_Core.m_Diagnostic_LogInfo "lifecycle:" & VBA.TypeName(Me) & ".Initialize"
+    ex_Core.fn_Diagnostic_LogInfo "lifecycle:" & VBA.TypeName(Me) & ".Initialize"
 #End If
     If value Is Nothing Then
         Set m_TableDynamic = New obj_TableDynamic
@@ -134,7 +134,7 @@ Public Function Initialize(ByVal value As obj_TableDynamic) As Boolean
 
     If Not private_TrySyncRowItemsFromModel() Then
 #If LOGGING_DEBUG_ENABLED Then
-        ex_Core.m_Diagnostic_LogInfo "warning: TableViewItem.Initialize: sync row view items from model failed. Fallback to empty list."
+        ex_Core.fn_Diagnostic_LogInfo "warning: TableViewItem.Initialize: sync row view items from model failed. Fallback to empty list."
 #End If
         Set m_RowViewItems = New list__obj_RowViewItem
     End If
@@ -143,7 +143,7 @@ Public Function Initialize(ByVal value As obj_TableDynamic) As Boolean
 End Function
 Public Sub Dispose()
 #If LOGGING_VERBOSE_ENABLED Then
-    ex_Core.m_Diagnostic_LogInfo "lifecycle:" & VBA.TypeName(Me) & ".Dispose"
+    ex_Core.fn_Diagnostic_LogInfo "lifecycle:" & VBA.TypeName(Me) & ".Dispose"
 #End If
     If m_IsDisposed Then Exit Sub
     m_IsDisposed = True
@@ -205,7 +205,7 @@ Private Function private_TrySyncRowItemsFromModel() As Boolean
         Set rowViewItem = New obj_RowViewItem
         If Not rowViewItem.Initialize(sourceRow) Then
 #If LOGGING_DEBUG_ENABLED Then
-            ex_Core.m_Diagnostic_LogError "TableViewItem.private_TrySyncRowItemsFromModel: failed to initialize obj_RowViewItem from source row."
+            ex_Core.fn_Diagnostic_LogError "TableViewItem.private_TrySyncRowItemsFromModel: failed to initialize obj_RowViewItem from source row."
 #End If
             Exit Function
         End If
@@ -220,7 +220,7 @@ ContinueSourceRow:
 
 EH_SYNC:
 #If LOGGING_DEBUG_ENABLED Then
-    ex_Core.m_Diagnostic_LogError "TableViewItem.private_TrySyncRowItemsFromModel: unexpected error while syncing row view items: " & Err.Description
+    ex_Core.fn_Diagnostic_LogError "TableViewItem.private_TrySyncRowItemsFromModel: unexpected error while syncing row view items: " & Err.Description
 #End If
 End Function
 

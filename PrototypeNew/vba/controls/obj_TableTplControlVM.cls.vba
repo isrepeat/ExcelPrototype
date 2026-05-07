@@ -16,12 +16,12 @@ Private m_IsConfigured As Boolean
 
 Private Sub Class_Initialize()
 #If LOGGING_VERBOSE_ENABLED Then
-    ex_Core.m_Diagnostic_LogInfo "lifecycle:" & VBA.TypeName(Me) & ".Class_Initialize"
+    ex_Core.fn_Diagnostic_LogInfo "lifecycle:" & VBA.TypeName(Me) & ".Class_Initialize"
 #End If
 End Sub
 Private Sub Class_Terminate()
 #If LOGGING_VERBOSE_ENABLED Then
-    ex_Core.m_Diagnostic_LogInfo "lifecycle:" & VBA.TypeName(Me) & ".Class_Terminate"
+    ex_Core.fn_Diagnostic_LogInfo "lifecycle:" & VBA.TypeName(Me) & ".Class_Terminate"
 #End If
     If m_IsDisposed Then Exit Sub
     On Error Resume Next
@@ -41,10 +41,10 @@ Private Sub obj_IControl_Configure(ByVal page As obj_PageBase, ByVal controlNode
     Set m_ControlBase = New obj_ControlBase
     If Not m_ControlBase.Configure(page, controlNode, "TableTpl", "tableTpl", m_ControlName) Then Exit Sub
 
-    m_ItemsSourceRaw = VBA.Trim$(ex_XmlCore.m_NodeAttrText(controlNode, "itemsSource"))
+    m_ItemsSourceRaw = VBA.Trim$(ex_XmlCore.fn_NodeAttrText(controlNode, "itemsSource"))
     If VBA.Len(m_ItemsSourceRaw) = 0 Then
 #If LOGGING_DEBUG_ENABLED Then
-        ex_Core.m_Diagnostic_LogError "TableTpl: itemsSource is not specified for control '" & m_ControlName & "'."
+        ex_Core.fn_Diagnostic_LogError "TableTpl: itemsSource is not specified for control '" & m_ControlName & "'."
 #End If
         Exit Sub
     End If
@@ -52,7 +52,7 @@ Private Sub obj_IControl_Configure(ByVal page As obj_PageBase, ByVal controlNode
     Set listNode = private_FindFirstChildListNode(controlNode)
     If listNode Is Nothing Then
 #If LOGGING_DEBUG_ENABLED Then
-        ex_Core.m_Diagnostic_LogError "TableTpl: primitive table layout must contain root <list>."
+        ex_Core.fn_Diagnostic_LogError "TableTpl: primitive table layout must contain root <list>."
 #End If
         Exit Sub
     End If
@@ -64,12 +64,12 @@ End Sub
 Private Sub obj_IControl_Render()
     If Not m_IsConfigured Then
 #If LOGGING_DEBUG_ENABLED Then
-        ex_Core.m_Diagnostic_LogError "TableTpl: control '" & m_ControlName & "' is not configured."
+        ex_Core.fn_Diagnostic_LogError "TableTpl: control '" & m_ControlName & "' is not configured."
 #End If
         Exit Sub
     End If
 
-    ' No-op by design: primitive nodes are rendered by ex_XmlLayoutEngine.m_RenderTemplateChildren.
+    ' No-op by design: primitive nodes are rendered by ex_XmlLayoutEngine.fn_RenderTemplateChildren.
 End Sub
 
 Private Function obj_IControl_SupportsAttribute(ByVal attrName As String) As Boolean
@@ -84,13 +84,13 @@ End Function
 ' //
 Public Function Initialize() As Boolean
 #If LOGGING_VERBOSE_ENABLED Then
-    ex_Core.m_Diagnostic_LogInfo "lifecycle:" & VBA.TypeName(Me) & ".Initialize"
+    ex_Core.fn_Diagnostic_LogInfo "lifecycle:" & VBA.TypeName(Me) & ".Initialize"
 #End If
     Initialize = True
 End Function
 Public Sub Dispose()
 #If LOGGING_VERBOSE_ENABLED Then
-    ex_Core.m_Diagnostic_LogInfo "lifecycle:" & VBA.TypeName(Me) & ".Dispose"
+    ex_Core.fn_Diagnostic_LogInfo "lifecycle:" & VBA.TypeName(Me) & ".Dispose"
 #End If
     If m_IsDisposed Then Exit Sub
     m_IsDisposed = True

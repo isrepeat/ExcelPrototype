@@ -23,14 +23,14 @@ Private m_ParentPage As obj_IPage
 
 Private Sub Class_Initialize()
 #If LOGGING_VERBOSE_ENABLED Then
-    ex_Core.m_Diagnostic_LogInfo "lifecycle:" & VBA.TypeName(Me) & ".Class_Initialize"
+    ex_Core.fn_Diagnostic_LogInfo "lifecycle:" & VBA.TypeName(Me) & ".Class_Initialize"
 #End If
     Set m_PageBase = New obj_PageBase
 End Sub
 
 Private Sub Class_Terminate()
 #If LOGGING_VERBOSE_ENABLED Then
-    ex_Core.m_Diagnostic_LogInfo "lifecycle:" & VBA.TypeName(Me) & ".Class_Terminate"
+    ex_Core.fn_Diagnostic_LogInfo "lifecycle:" & VBA.TypeName(Me) & ".Class_Terminate"
 #End If
     If m_IsDisposed Then Exit Sub
     On Error Resume Next
@@ -86,7 +86,7 @@ Private Function obj_ISerializable_TryRestoreState() As Boolean
 
     If Not TryGetParentPage(parentPage) Then
 #If LOGGING_DEBUG_ENABLED Then
-        ex_Core.m_Diagnostic_LogError "PagePersonalCard: parent page is not found during RestoreState. parentPageId='" & VBA.Replace$(m_ParentPageId, "'", "''") & "'."
+        ex_Core.fn_Diagnostic_LogError "PagePersonalCard: parent page is not found during RestoreState. parentPageId='" & VBA.Replace$(m_ParentPageId, "'", "''") & "'."
 #End If
         Exit Function
     End If
@@ -122,7 +122,7 @@ Private Function obj_IPage_UpdateUiPath( _
     If VBA.Len(normalizedReason) = 0 Then normalizedReason = "obj_PagePersonalCard.UpdateUiPath"
 
     Set iPage = Me
-    obj_IPage_UpdateUiPath = rt_PageManager.m_RenderPage(iPage, normalizedReason)
+    obj_IPage_UpdateUiPath = rt_PageManager.fn_RenderPage(iPage, normalizedReason)
 End Function
 
 Private Function obj_IPage_GetPageBase() As obj_PageBase
@@ -207,7 +207,7 @@ Public Function TryGetParentPage(ByRef outParentPage As obj_IPage) As Boolean
         Exit Function
     End If
     If VBA.Len(VBA.Trim$(m_ParentPageId)) = 0 Then Exit Function
-    If Not rt_PageManager.m_TryGetPageById(m_ParentPageId, outParentPage) Then Exit Function
+    If Not rt_PageManager.fn_TryGetPageById(m_ParentPageId, outParentPage) Then Exit Function
     Set m_ParentPage = outParentPage
     TryGetParentPage = True
 End Function

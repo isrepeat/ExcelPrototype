@@ -34,7 +34,7 @@ End Property
 
 Private Sub Class_Initialize()
 #If LOGGING_VERBOSE_ENABLED Then
-    ex_Core.m_Diagnostic_LogInfo "lifecycle:" & VBA.TypeName(Me) & ".Class_Initialize"
+    ex_Core.fn_Diagnostic_LogInfo "lifecycle:" & VBA.TypeName(Me) & ".Class_Initialize"
 #End If
     Set m_ViewPresentation = New obj_ViewPresentation
     Set m_HeaderInlineTextPart = New obj_InlineTextPart
@@ -43,7 +43,7 @@ Private Sub Class_Initialize()
 End Sub
 Private Sub Class_Terminate()
 #If LOGGING_VERBOSE_ENABLED Then
-    ex_Core.m_Diagnostic_LogInfo "lifecycle:" & VBA.TypeName(Me) & ".Class_Terminate"
+    ex_Core.fn_Diagnostic_LogInfo "lifecycle:" & VBA.TypeName(Me) & ".Class_Terminate"
 #End If
     If m_IsDisposed Then Exit Sub
     On Error Resume Next
@@ -74,7 +74,7 @@ End Function
 ' //
 Public Function Initialize(ByVal value As obj_Banner) As Boolean
 #If LOGGING_VERBOSE_ENABLED Then
-    ex_Core.m_Diagnostic_LogInfo "lifecycle:" & VBA.TypeName(Me) & ".Initialize"
+    ex_Core.fn_Diagnostic_LogInfo "lifecycle:" & VBA.TypeName(Me) & ".Initialize"
 #End If
     If value Is Nothing Then
         Set m_Banner = New obj_Banner
@@ -86,7 +86,7 @@ Public Function Initialize(ByVal value As obj_Banner) As Boolean
 End Function
 Public Sub Dispose()
 #If LOGGING_VERBOSE_ENABLED Then
-    ex_Core.m_Diagnostic_LogInfo "lifecycle:" & VBA.TypeName(Me) & ".Dispose"
+    ex_Core.fn_Diagnostic_LogInfo "lifecycle:" & VBA.TypeName(Me) & ".Dispose"
 #End If
     If m_IsDisposed Then Exit Sub
     m_IsDisposed = True
@@ -122,7 +122,7 @@ Public Function Render( _
 
     If page Is Nothing Then
 #If LOGGING_DEBUG_ENABLED Then
-        ex_Core.m_Diagnostic_LogError "BannerViewItem: page is not specified."
+        ex_Core.fn_Diagnostic_LogError "BannerViewItem: page is not specified."
 #End If
         Exit Function
     End If
@@ -130,19 +130,19 @@ Public Function Render( _
     Set ws = page.Worksheet
     If ws Is Nothing Then
 #If LOGGING_DEBUG_ENABLED Then
-        ex_Core.m_Diagnostic_LogError "BannerViewItem: page worksheet is not specified."
+        ex_Core.fn_Diagnostic_LogError "BannerViewItem: page worksheet is not specified."
 #End If
         Exit Function
     End If
     If rowStart <= 0 Or colStart <= 0 Then
 #If LOGGING_DEBUG_ENABLED Then
-        ex_Core.m_Diagnostic_LogError "BannerViewItem: invalid render start row/column."
+        ex_Core.fn_Diagnostic_LogError "BannerViewItem: invalid render start row/column."
 #End If
         Exit Function
     End If
     If rowEnd < rowStart Or colEnd < colStart Then
 #If LOGGING_DEBUG_ENABLED Then
-        ex_Core.m_Diagnostic_LogError "BannerViewItem: invalid render bounds."
+        ex_Core.fn_Diagnostic_LogError "BannerViewItem: invalid render bounds."
 #End If
         Exit Function
     End If
@@ -213,7 +213,7 @@ Public Function Render( _
 
 EH_RANGE:
 #If LOGGING_DEBUG_ENABLED Then
-    ex_Core.m_Diagnostic_LogError "BannerViewItem: failed to resolve target range for view '" & viewName & "'."
+    ex_Core.fn_Diagnostic_LogError "BannerViewItem: failed to resolve target range for view '" & viewName & "'."
 #End If
 End Function
 

@@ -17,12 +17,12 @@ Private m_IsConfigured As Boolean
 
 Private Sub Class_Initialize()
 #If LOGGING_VERBOSE_ENABLED Then
-    ex_Core.m_Diagnostic_LogInfo "lifecycle:" & VBA.TypeName(Me) & ".Class_Initialize"
+    ex_Core.fn_Diagnostic_LogInfo "lifecycle:" & VBA.TypeName(Me) & ".Class_Initialize"
 #End If
 End Sub
 Private Sub Class_Terminate()
 #If LOGGING_VERBOSE_ENABLED Then
-    ex_Core.m_Diagnostic_LogInfo "lifecycle:" & VBA.TypeName(Me) & ".Class_Terminate"
+    ex_Core.fn_Diagnostic_LogInfo "lifecycle:" & VBA.TypeName(Me) & ".Class_Terminate"
 #End If
     If m_IsDisposed Then Exit Sub
     On Error Resume Next
@@ -47,9 +47,9 @@ Private Sub obj_IControl_Configure(ByVal page As obj_PageBase, ByVal controlNode
     Set m_ControlBase = New obj_ControlBase
     If Not m_ControlBase.Configure(page, controlNode, "Banner", "banner", m_ControlName) Then Exit Sub
 
-    headerText = VBA.CStr(ex_XmlCore.m_NodeAttrText(controlNode, "header"))
-    messageText = VBA.CStr(ex_XmlCore.m_NodeAttrText(controlNode, "message"))
-    visibleRaw = VBA.Trim$(VBA.CStr(ex_XmlCore.m_NodeAttrText(controlNode, "visible")))
+    headerText = VBA.CStr(ex_XmlCore.fn_NodeAttrText(controlNode, "header"))
+    messageText = VBA.CStr(ex_XmlCore.fn_NodeAttrText(controlNode, "message"))
+    visibleRaw = VBA.Trim$(VBA.CStr(ex_XmlCore.fn_NodeAttrText(controlNode, "visible")))
 
     If VBA.Len(visibleRaw) = 0 Then
         isVisible = (VBA.Len(VBA.Trim$(headerText)) > 0 Or VBA.Len(VBA.Trim$(messageText)) > 0)
@@ -76,7 +76,7 @@ Private Sub obj_IControl_Render()
 
     If Not m_IsConfigured Then
 #If LOGGING_DEBUG_ENABLED Then
-        ex_Core.m_Diagnostic_LogError "Banner: control '" & m_ControlName & "' is not configured."
+        ex_Core.fn_Diagnostic_LogError "Banner: control '" & m_ControlName & "' is not configured."
 #End If
         Exit Sub
     End If
@@ -85,7 +85,7 @@ Private Sub obj_IControl_Render()
     If Not m_ControlBase Is Nothing Then Set pageBase = m_ControlBase.PageBase
     If pageBase Is Nothing Then
 #If LOGGING_DEBUG_ENABLED Then
-        ex_Core.m_Diagnostic_LogError "Banner: page is not specified for control '" & m_ControlName & "'."
+        ex_Core.fn_Diagnostic_LogError "Banner: page is not specified for control '" & m_ControlName & "'."
 #End If
         Exit Sub
     End If
@@ -93,14 +93,14 @@ Private Sub obj_IControl_Render()
     Set ws = private_GetWorksheetByName(pageBase, m_ControlLayout.LayoutSheetName)
     If ws Is Nothing Then
 #If LOGGING_DEBUG_ENABLED Then
-        ex_Core.m_Diagnostic_LogError "Banner: sheet '" & m_ControlLayout.LayoutSheetName & "' was not found for control '" & m_ControlName & "'."
+        ex_Core.fn_Diagnostic_LogError "Banner: sheet '" & m_ControlLayout.LayoutSheetName & "' was not found for control '" & m_ControlName & "'."
 #End If
         Exit Sub
     End If
 
     If m_BannerViewItem Is Nothing Then
 #If LOGGING_DEBUG_ENABLED Then
-        ex_Core.m_Diagnostic_LogError "Banner: view item is not configured for control '" & m_ControlName & "'."
+        ex_Core.fn_Diagnostic_LogError "Banner: view item is not configured for control '" & m_ControlName & "'."
 #End If
         Exit Sub
     End If
@@ -120,13 +120,13 @@ End Function
 ' //
 Public Function Initialize() As Boolean
 #If LOGGING_VERBOSE_ENABLED Then
-    ex_Core.m_Diagnostic_LogInfo "lifecycle:" & VBA.TypeName(Me) & ".Initialize"
+    ex_Core.fn_Diagnostic_LogInfo "lifecycle:" & VBA.TypeName(Me) & ".Initialize"
 #End If
     Initialize = True
 End Function
 Public Sub Dispose()
 #If LOGGING_VERBOSE_ENABLED Then
-    ex_Core.m_Diagnostic_LogInfo "lifecycle:" & VBA.TypeName(Me) & ".Dispose"
+    ex_Core.fn_Diagnostic_LogInfo "lifecycle:" & VBA.TypeName(Me) & ".Dispose"
 #End If
     If m_IsDisposed Then Exit Sub
     m_IsDisposed = True

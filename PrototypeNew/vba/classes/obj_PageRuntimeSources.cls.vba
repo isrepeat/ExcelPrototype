@@ -13,12 +13,12 @@ Private m_ObjectSourceMap As Object
 
 Private Sub Class_Initialize()
 #If LOGGING_VERBOSE_ENABLED Then
-    ex_Core.m_Diagnostic_LogInfo "lifecycle:" & VBA.TypeName(Me) & ".Class_Initialize"
+    ex_Core.fn_Diagnostic_LogInfo "lifecycle:" & VBA.TypeName(Me) & ".Class_Initialize"
 #End If
 End Sub
 Private Sub Class_Terminate()
 #If LOGGING_VERBOSE_ENABLED Then
-    ex_Core.m_Diagnostic_LogInfo "lifecycle:" & VBA.TypeName(Me) & ".Class_Terminate"
+    ex_Core.fn_Diagnostic_LogInfo "lifecycle:" & VBA.TypeName(Me) & ".Class_Terminate"
 #End If
     If m_IsDisposed Then Exit Sub
     On Error Resume Next
@@ -31,13 +31,13 @@ End Sub
 ' //
 Public Function Initialize() As Boolean
 #If LOGGING_VERBOSE_ENABLED Then
-    ex_Core.m_Diagnostic_LogInfo "lifecycle:" & VBA.TypeName(Me) & ".Initialize"
+    ex_Core.fn_Diagnostic_LogInfo "lifecycle:" & VBA.TypeName(Me) & ".Initialize"
 #End If
     Initialize = True
 End Function
 Public Sub Dispose()
 #If LOGGING_VERBOSE_ENABLED Then
-    ex_Core.m_Diagnostic_LogInfo "lifecycle:" & VBA.TypeName(Me) & ".Dispose"
+    ex_Core.fn_Diagnostic_LogInfo "lifecycle:" & VBA.TypeName(Me) & ".Dispose"
 #End If
     If m_IsDisposed Then Exit Sub
     m_IsDisposed = True
@@ -77,13 +77,13 @@ Public Function SetItemsSource(ByVal itemsSourceKey As String, ByVal items As Co
     normalizedKey = VBA.LCase$(VBA.Trim$(itemsSourceKey))
     If VBA.Len(normalizedKey) = 0 Then
 #If LOGGING_DEBUG_ENABLED Then
-        ex_Core.m_Diagnostic_LogError "PrototypeNew: itemsSource key is empty."
+        ex_Core.fn_Diagnostic_LogError "PrototypeNew: itemsSource key is empty."
 #End If
         Exit Function
     End If
     If items Is Nothing Then
 #If LOGGING_DEBUG_ENABLED Then
-        ex_Core.m_Diagnostic_LogError "PrototypeNew: itemsSource collection is not specified for key '" & normalizedKey & "'."
+        ex_Core.fn_Diagnostic_LogError "PrototypeNew: itemsSource collection is not specified for key '" & normalizedKey & "'."
 #End If
         Exit Function
     End If
@@ -103,13 +103,13 @@ Public Function SetObjectSource(ByVal objectSourceKey As String, ByVal sourceObj
     normalizedKey = VBA.LCase$(VBA.Trim$(objectSourceKey))
     If VBA.Len(normalizedKey) = 0 Then
 #If LOGGING_DEBUG_ENABLED Then
-        ex_Core.m_Diagnostic_LogError "PrototypeNew: objectSource key is empty."
+        ex_Core.fn_Diagnostic_LogError "PrototypeNew: objectSource key is empty."
 #End If
         Exit Function
     End If
     If sourceObject Is Nothing Then
 #If LOGGING_DEBUG_ENABLED Then
-        ex_Core.m_Diagnostic_LogError "PrototypeNew: objectSource object is not specified for key '" & normalizedKey & "'."
+        ex_Core.fn_Diagnostic_LogError "PrototypeNew: objectSource object is not specified for key '" & normalizedKey & "'."
 #End If
         Exit Function
     End If
@@ -127,7 +127,7 @@ Public Function RemoveObjectSource(ByVal objectSourceKey As String) As Boolean
     normalizedKey = VBA.LCase$(VBA.Trim$(objectSourceKey))
     If VBA.Len(normalizedKey) = 0 Then
 #If LOGGING_DEBUG_ENABLED Then
-        ex_Core.m_Diagnostic_LogError "PrototypeNew: objectSource key is empty."
+        ex_Core.fn_Diagnostic_LogError "PrototypeNew: objectSource key is empty."
 #End If
         Exit Function
     End If
@@ -156,7 +156,7 @@ Public Function TryGetItemsSourceByKey( _
             Exit Function
         End If
 #If LOGGING_DEBUG_ENABLED Then
-        ex_Core.m_Diagnostic_LogError "PrototypeNew: itemsSource key is empty."
+        ex_Core.fn_Diagnostic_LogError "PrototypeNew: itemsSource key is empty."
 #End If
         Exit Function
     End If
@@ -174,7 +174,7 @@ Public Function TryGetItemsSourceByKey( _
     End If
 
 #If LOGGING_DEBUG_ENABLED Then
-    ex_Core.m_Diagnostic_LogError "PrototypeNew: itemsSource '" & normalizedKey & "' is not registered in page runtime map."
+    ex_Core.fn_Diagnostic_LogError "PrototypeNew: itemsSource '" & normalizedKey & "' is not registered in page runtime map."
 #End If
 End Function
 
@@ -194,7 +194,7 @@ Public Function TryGetObjectSourceByKey( _
             Exit Function
         End If
 #If LOGGING_DEBUG_ENABLED Then
-        ex_Core.m_Diagnostic_LogError "PrototypeNew: objectSource key is empty."
+        ex_Core.fn_Diagnostic_LogError "PrototypeNew: objectSource key is empty."
 #End If
         Exit Function
     End If
@@ -212,7 +212,7 @@ Public Function TryGetObjectSourceByKey( _
     End If
 
 #If LOGGING_DEBUG_ENABLED Then
-    ex_Core.m_Diagnostic_LogError "PrototypeNew: objectSource '" & normalizedKey & "' is not registered in page runtime map."
+    ex_Core.fn_Diagnostic_LogError "PrototypeNew: objectSource '" & normalizedKey & "' is not registered in page runtime map."
 #End If
 End Function
 

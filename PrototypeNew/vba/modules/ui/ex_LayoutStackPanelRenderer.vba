@@ -3,9 +3,9 @@ Option Explicit
 #Const LOGGING_DEBUG_ENABLED = True
 #Const LOGGING_VERBOSE_ENABLED = False
 
-Public Sub m_Module_Dispose()
+Public Sub fn_Module_Dispose()
 #If LOGGING_VERBOSE_ENABLED Then
-    ex_Core.m_Diagnostic_LogInfo "lifecycle:ex_LayoutStackPanelRenderer.m_Module_Dispose"
+    ex_Core.fn_Diagnostic_LogInfo "lifecycle:ex_LayoutStackPanelRenderer.fn_Module_Dispose"
 #End If
 End Sub
 
@@ -14,7 +14,7 @@ End Sub
 ' //
 ' // API
 ' //
-Public Function m_Render( _
+Public Function fn_Render( _
     ByVal renderCtx As obj_LayoutRenderContext, _
     ByVal layoutNode As Object, _
     ByVal rowStart As Long, _
@@ -24,18 +24,18 @@ Public Function m_Render( _
 ) As Boolean
     If layoutNode Is Nothing Then
 #If LOGGING_DEBUG_ENABLED Then
-        ex_Core.m_Diagnostic_LogError "PrototypeNew: stackPanel node is not specified."
+        ex_Core.fn_Diagnostic_LogError "PrototypeNew: stackPanel node is not specified."
 #End If
         Exit Function
     End If
     If VBA.StrComp(VBA.LCase$(VBA.CStr(layoutNode.baseName)), "stackpanel", VBA.vbBinaryCompare) <> 0 Then
 #If LOGGING_DEBUG_ENABLED Then
-        ex_Core.m_Diagnostic_LogError "PrototypeNew: ex_LayoutStackPanelRenderer supports only <stackPanel> nodes."
+        ex_Core.fn_Diagnostic_LogError "PrototypeNew: ex_LayoutStackPanelRenderer supports only <stackPanel> nodes."
 #End If
         Exit Function
     End If
 
-    m_Render = ex_XmlLayoutEngine.m_RenderContainerNodeInBounds( _
+    fn_Render = ex_XmlLayoutEngine.fn_RenderContainerNodeInBounds( _
         renderCtx:=renderCtx, _
         containerNode:=layoutNode, _
         layoutRowStart:=rowStart, _

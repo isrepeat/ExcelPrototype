@@ -36,13 +36,13 @@ Private Const INLINE_TARGET_SHAPE As String = "shape"
 
 Private Sub Class_Initialize()
 #If LOGGING_VERBOSE_ENABLED Then
-    ex_Core.m_Diagnostic_LogInfo "lifecycle:" & VBA.TypeName(Me) & ".Class_Initialize"
+    ex_Core.fn_Diagnostic_LogInfo "lifecycle:" & VBA.TypeName(Me) & ".Class_Initialize"
 #End If
 End Sub
 
 Private Sub Class_Terminate()
 #If LOGGING_VERBOSE_ENABLED Then
-    ex_Core.m_Diagnostic_LogInfo "lifecycle:" & VBA.TypeName(Me) & ".Class_Terminate"
+    ex_Core.fn_Diagnostic_LogInfo "lifecycle:" & VBA.TypeName(Me) & ".Class_Terminate"
 #End If
     If m_IsDisposed Then Exit Sub
     On Error Resume Next
@@ -89,14 +89,14 @@ Public Function Initialize( _
     Dim normalizedPageId As String
 
 #If LOGGING_VERBOSE_ENABLED Then
-    ex_Core.m_Diagnostic_LogInfo "lifecycle:" & VBA.TypeName(Me) & ".Initialize"
+    ex_Core.fn_Diagnostic_LogInfo "lifecycle:" & VBA.TypeName(Me) & ".Initialize"
 #End If
     If Not private_EnsureNotDisposed("Initialize") Then Exit Function
 
     normalizedPageId = VBA.LCase$(VBA.Trim$(pageId))
     If VBA.Len(normalizedPageId) = 0 Then
 #If LOGGING_DEBUG_ENABLED Then
-        ex_Core.m_Diagnostic_LogError "PageBase: page id is empty during Initialize."
+        ex_Core.fn_Diagnostic_LogError "PageBase: page id is empty during Initialize."
 #End If
         Exit Function
     End If
@@ -119,7 +119,7 @@ Public Sub Dispose(Optional ByVal deleteWorksheet As Boolean = True)
     Dim ws As Worksheet
 
 #If LOGGING_VERBOSE_ENABLED Then
-    ex_Core.m_Diagnostic_LogInfo "lifecycle:" & VBA.TypeName(Me) & ".Dispose"
+    ex_Core.fn_Diagnostic_LogInfo "lifecycle:" & VBA.TypeName(Me) & ".Dispose"
 #End If
     If m_IsDisposed Then Exit Sub
 
@@ -149,14 +149,14 @@ Public Sub Dispose(Optional ByVal deleteWorksheet As Boolean = True)
 EH_DELETE:
     Application.DisplayAlerts = True
 #If LOGGING_DEBUG_ENABLED Then
-    ex_Core.m_Diagnostic_LogError "PageBase: failed to delete worksheet during dispose: " & Err.Description
+    ex_Core.fn_Diagnostic_LogError "PageBase: failed to delete worksheet during dispose: " & Err.Description
 #End If
 End Sub
 
 Public Function IsReady() As Boolean
     If m_IsDisposed Then
 #If LOGGING_DEBUG_ENABLED Then
-        ex_Core.m_Diagnostic_LogError "Page was disposed"
+        ex_Core.fn_Diagnostic_LogError "Page was disposed"
 #End If
         Exit Function
     End If
@@ -176,17 +176,17 @@ Public Sub SetUiPath(ByVal uiPath As String)
     Set m_UiDom = Nothing
 End Sub
 
-' Callstack[1]: ThisWorkbook.Workbook_Open -> ThisWorkbook.m_ResetWorkbookAndCreateMainPage -> private_ResetWorkbookAndCreateMainPage -> rt_PageManager.m_RenderPageById -> rt_PageManager.m_RenderPage -> obj_PageMain.obj_IPage_Render -> obj_PageBase.Render
-' Callstack[2]: ex_Core.private_TryRecoverUiAfterUpdate -> ThisWorkbook.m_ResetWorkbookAndCreateMainPage -> private_ResetWorkbookAndCreateMainPage -> rt_PageManager.m_RenderPageById -> rt_PageManager.m_RenderPage -> obj_PageMain.obj_IPage_Render -> obj_PageBase.Render
-' Callstack[3]: ex_Test.private_RenderWorksheetPage -> rt_PageManager.m_RenderPageById -> rt_PageManager.m_RenderPage -> obj_PageMain.obj_IPage_Render -> obj_PageBase.Render
-' Callstack[4]: ex_Test.m_TEST_UpdateCurrentPage -> ex_HelpersSheet.m_TryRerenderActivePage -> rt_PageManager.m_RenderPage -> obj_PageMain.obj_IPage_Render -> obj_PageBase.Render
-' Callstack[5]: ex_Test.m_TEST_SetDemoConfigVariantA -> ex_HelpersSheet.m_TryRerenderActivePage -> rt_PageManager.m_RenderPage -> obj_PageMain.obj_IPage_Render -> obj_PageBase.Render
-' Callstack[6]: ex_Test.m_TEST_SetDemoConfigVariantB -> ex_HelpersSheet.m_TryRerenderActivePage -> rt_PageManager.m_RenderPage -> obj_PageMain.obj_IPage_Render -> obj_PageBase.Render
-' Callstack[7]: ex_Test.private_TrySetItemsSource -> ex_Test.private_TryRerenderPage -> rt_PageManager.m_RenderPage -> obj_PageMain.obj_IPage_Render -> obj_PageBase.Render
-' Callstack[8]: ex_Test.private_TrySetObjectSource -> ex_Test.private_TryRerenderPage -> rt_PageManager.m_RenderPage -> obj_PageMain.obj_IPage_Render -> obj_PageBase.Render
-' Callstack[9]: ex_Test.private_TryRemoveObjectSource -> ex_Test.private_TryRerenderPage -> rt_PageManager.m_RenderPage -> obj_PageMain.obj_IPage_Render -> obj_PageBase.Render
-' Callstack[10]: rt_RestoreManager.m_RestorePageSnapshots(renderRestored:=True) -> rt_PageManager.m_RenderPage -> obj_PageMain.obj_IPage_Render -> obj_PageBase.Render
-' Callstack[11]: obj_PageMain.private_TryRerenderByDataChange -> rt_PageManager.m_RenderPage -> obj_PageMain.obj_IPage_Render -> obj_PageBase.Render
+' Callstack[1]: ThisWorkbook.Workbook_Open -> ThisWorkbook.m_ResetWorkbookAndCreateMainPage -> private_ResetWorkbookAndCreateMainPage -> rt_PageManager.fn_RenderPageById -> rt_PageManager.fn_RenderPage -> obj_PageMain.obj_IPage_Render -> obj_PageBase.Render
+' Callstack[2]: ex_Core.private_TryRecoverUiAfterUpdate -> ThisWorkbook.m_ResetWorkbookAndCreateMainPage -> private_ResetWorkbookAndCreateMainPage -> rt_PageManager.fn_RenderPageById -> rt_PageManager.fn_RenderPage -> obj_PageMain.obj_IPage_Render -> obj_PageBase.Render
+' Callstack[3]: ex_Test.private_RenderWorksheetPage -> rt_PageManager.fn_RenderPageById -> rt_PageManager.fn_RenderPage -> obj_PageMain.obj_IPage_Render -> obj_PageBase.Render
+' Callstack[4]: ex_Test.fn_TEST_UpdateCurrentPage -> ex_HelpersSheet.fn_TryRerenderActivePage -> rt_PageManager.fn_RenderPage -> obj_PageMain.obj_IPage_Render -> obj_PageBase.Render
+' Callstack[5]: ex_Test.fn_TEST_SetDemoConfigVariantA -> ex_HelpersSheet.fn_TryRerenderActivePage -> rt_PageManager.fn_RenderPage -> obj_PageMain.obj_IPage_Render -> obj_PageBase.Render
+' Callstack[6]: ex_Test.fn_TEST_SetDemoConfigVariantB -> ex_HelpersSheet.fn_TryRerenderActivePage -> rt_PageManager.fn_RenderPage -> obj_PageMain.obj_IPage_Render -> obj_PageBase.Render
+' Callstack[7]: ex_Test.private_TrySetItemsSource -> ex_Test.private_TryRerenderPage -> rt_PageManager.fn_RenderPage -> obj_PageMain.obj_IPage_Render -> obj_PageBase.Render
+' Callstack[8]: ex_Test.private_TrySetObjectSource -> ex_Test.private_TryRerenderPage -> rt_PageManager.fn_RenderPage -> obj_PageMain.obj_IPage_Render -> obj_PageBase.Render
+' Callstack[9]: ex_Test.private_TryRemoveObjectSource -> ex_Test.private_TryRerenderPage -> rt_PageManager.fn_RenderPage -> obj_PageMain.obj_IPage_Render -> obj_PageBase.Render
+' Callstack[10]: rt_RestoreManager.m_RestorePageSnapshots(renderRestored:=True) -> rt_PageManager.fn_RenderPage -> obj_PageMain.obj_IPage_Render -> obj_PageBase.Render
+' Callstack[11]: obj_PageMain.private_TryRerenderByDataChange -> rt_PageManager.fn_RenderPage -> obj_PageMain.obj_IPage_Render -> obj_PageBase.Render
 Public Function Render() As Boolean
     Dim wb As Workbook
     Dim ws As Worksheet
@@ -214,7 +214,7 @@ Public Function Render() As Boolean
     Set wb = ws.Parent
     If wb Is Nothing Then
 #If LOGGING_DEBUG_ENABLED Then
-        ex_Core.m_Diagnostic_LogError "PrototypeNew: workbook is not specified."
+        ex_Core.fn_Diagnostic_LogError "PrototypeNew: workbook is not specified."
 #End If
         Exit Function
     End If
@@ -226,13 +226,13 @@ Public Function Render() As Boolean
     resolvedUiPath = private_ResolvePageUiPath(m_UiPath)
     If VBA.Len(resolvedUiPath) = 0 Then
 #If LOGGING_DEBUG_ENABLED Then
-        ex_Core.m_Diagnostic_LogError "PrototypeNew: failed to resolve page UI path."
+        ex_Core.fn_Diagnostic_LogError "PrototypeNew: failed to resolve page UI path."
 #End If
         Exit Function
     End If
 
     ' Загружаем и сохраняем DOM, чтобы стили и снапшоты работали с одним деревом.
-    Set m_UiDom = ex_XmlCore.m_LoadDomByRelativePath( _
+    Set m_UiDom = ex_XmlCore.fn_LoadDomByRelativePath( _
         wb, _
         resolvedUiPath, _
         "PrototypeNew: page UI file was not found: ", _
@@ -243,7 +243,7 @@ Public Function Render() As Boolean
     Set pageNode = m_UiDom.selectSingleNode("/p:page")
     If pageNode Is Nothing Then
 #If LOGGING_DEBUG_ENABLED Then
-        ex_Core.m_Diagnostic_LogError "PrototypeNew: page UI root node <page> is missing."
+        ex_Core.fn_Diagnostic_LogError "PrototypeNew: page UI root node <page> is missing."
 #End If
         Exit Function
     End If
@@ -256,17 +256,17 @@ Public Function Render() As Boolean
     On Error GoTo EH_RENDER
 
     ' Сбрасываем runtime-реестры, чтобы не тянуть старые контролы/маршруты.
-    ex_ControlPartsRuntime.m_ResetControlParts
+    ex_ControlPartsRuntime.fn_ResetControlParts
     Me.ResetInlineRuns
-    ex_ControlRefreshRuntime.m_ResetRegisteredControls
+    ex_ControlRefreshRuntime.fn_ResetRegisteredControls
 
     If Not Me.ResetControlActions() Then GoTo Cleanup
     If Not private_TryClearPageRuntime(Not retainGeneratedShapes) Then GoTo Cleanup
     ' Один контекст на один проход: worksheet/workbook и seed-ы runtime ключей.
     Set layoutRenderContext = New obj_LayoutRenderContext
     If Not layoutRenderContext.Initialize(Me) Then GoTo Cleanup
-    If Not ex_XmlLayoutEngine.m_RenderNode(layoutRenderContext, pageNode) Then GoTo Cleanup
-    If Not ex_StylePipelineEngine.m_ApplyPageStyles(ws, m_UiDom) Then GoTo Cleanup
+    If Not ex_XmlLayoutEngine.fn_RenderNode(layoutRenderContext, pageNode) Then GoTo Cleanup
+    If Not ex_StylePipelineEngine.fn_ApplyPageStyles(ws, m_UiDom) Then GoTo Cleanup
     If Not Me.ApplyInlineRuns() Then GoTo Cleanup
 
     ' В retained-режиме глобально shape не удаляем до рендера.
@@ -293,7 +293,7 @@ EH_RENDER:
     private_LeaveFastRenderMode app, prevScreenUpdating, prevEnableEvents, prevDisplayAlerts, prevCalculation, prevStatusBar
     m_IsRendering = False
 #If LOGGING_DEBUG_ENABLED Then
-    ex_Core.m_Diagnostic_LogError "PrototypeNew: render failed: [" & errSource & " #" & VBA.CStr(errNumber) & "] " & errDescription
+    ex_Core.fn_Diagnostic_LogError "PrototypeNew: render failed: [" & errSource & " #" & VBA.CStr(errNumber) & "] " & errDescription
 #End If
 End Function
 
@@ -355,7 +355,7 @@ Public Function TryResolveInlineTextByPart( _
     partName = VBA.Trim$(partName)
     If VBA.Len(partName) = 0 Then
 #If LOGGING_DEBUG_ENABLED Then
-        ex_Core.m_Diagnostic_LogError "PageBase: part name is empty for inline text resolve."
+        ex_Core.fn_Diagnostic_LogError "PageBase: part name is empty for inline text resolve."
 #End If
         Exit Function
     End If
@@ -375,7 +375,7 @@ Public Function TryGetInlineTextProfile( _
     partName = VBA.Trim$(partName)
     If VBA.Len(partName) = 0 Then
 #If LOGGING_DEBUG_ENABLED Then
-        ex_Core.m_Diagnostic_LogError "PageBase: part name is empty for inline text profile."
+        ex_Core.fn_Diagnostic_LogError "PageBase: part name is empty for inline text profile."
 #End If
         Exit Function
     End If
@@ -398,7 +398,7 @@ Public Function RegisterInlineRunsByPart( _
     partName = VBA.Trim$(partName)
     If VBA.Len(partName) = 0 Then
 #If LOGGING_DEBUG_ENABLED Then
-        ex_Core.m_Diagnostic_LogError "PageBase: part name is empty for range inline runs registration."
+        ex_Core.fn_Diagnostic_LogError "PageBase: part name is empty for range inline runs registration."
 #End If
         Exit Function
     End If
@@ -419,7 +419,7 @@ Public Function RegisterInlineRunsForShapeByPart( _
     partName = VBA.Trim$(partName)
     If VBA.Len(partName) = 0 Then
 #If LOGGING_DEBUG_ENABLED Then
-        ex_Core.m_Diagnostic_LogError "PageBase: part name is empty for shape inline runs registration."
+        ex_Core.fn_Diagnostic_LogError "PageBase: part name is empty for shape inline runs registration."
 #End If
         Exit Function
     End If
@@ -473,7 +473,7 @@ Public Function RegisterInlineRunsForShape( _
 End Function
 
 ' Callstack[1]: obj_PageBase.Render -> obj_PageBase.ApplyInlineRuns
-' Callstack[2]: ex_ControlRefreshRuntime.m_TryRefreshStaticControl -> pageBase.ApplyInlineRuns -> obj_PageBase.ApplyInlineRuns
+' Callstack[2]: ex_ControlRefreshRuntime.fn_TryRefreshStaticControl -> pageBase.ApplyInlineRuns -> obj_PageBase.ApplyInlineRuns
 Public Function ApplyInlineRuns() As Boolean
     Dim entry As Object
     Dim targetCell As Range
@@ -485,7 +485,7 @@ Public Function ApplyInlineRuns() As Boolean
     If Not private_EnsureNotDisposed("ApplyInlineRuns") Then Exit Function
     If m_Worksheet Is Nothing Then
 #If LOGGING_DEBUG_ENABLED Then
-        ex_Core.m_Diagnostic_LogError "PageBase: worksheet is not specified for inline runs."
+        ex_Core.fn_Diagnostic_LogError "PageBase: worksheet is not specified for inline runs."
 #End If
         Exit Function
     End If
@@ -611,20 +611,20 @@ Public Sub Clear()
     Call private_TryClearPageRuntime
 End Sub
 
-' Callstack[1]: rt_PageManager.m_RenderPage -> page.Render -> obj_PageBase.Render -> ex_XmlLayoutEngine.m_RenderNode -> ex_LayoutControlRenderer.m_Render -> obj_ButtonControlVM.obj_IControl_Render -> m_Page.RegisterControl -> obj_PageBase.RegisterControl
-' Callstack[2]: rt_PageManager.m_RenderPage -> page.Render -> obj_PageBase.Render -> ex_XmlLayoutEngine.m_RenderNode -> ex_LayoutControlRenderer.m_Render -> obj_SelectControlVM.private_TryBindRuntimeRoutes -> m_Page.RegisterControl -> obj_PageBase.RegisterControl
+' Callstack[1]: rt_PageManager.fn_RenderPage -> page.Render -> obj_PageBase.Render -> ex_XmlLayoutEngine.fn_RenderNode -> ex_LayoutControlRenderer.fn_Render -> obj_ButtonControlVM.obj_IControl_Render -> m_Page.RegisterControl -> obj_PageBase.RegisterControl
+' Callstack[2]: rt_PageManager.fn_RenderPage -> page.Render -> obj_PageBase.Render -> ex_XmlLayoutEngine.fn_RenderNode -> ex_LayoutControlRenderer.fn_Render -> obj_SelectControlVM.private_TryBindRuntimeRoutes -> m_Page.RegisterControl -> obj_PageBase.RegisterControl
 Public Function RegisterControl(ByVal controlKey As String, ByVal iControl As Object) As Boolean
     If Not private_EnsureNotDisposed("RegisterControl") Then Exit Function
     controlKey = VBA.LCase$(VBA.Trim$(controlKey))
     If VBA.Len(controlKey) = 0 Then
 #If LOGGING_DEBUG_ENABLED Then
-        ex_Core.m_Diagnostic_LogError "PageBase: control key is empty."
+        ex_Core.fn_Diagnostic_LogError "PageBase: control key is empty."
 #End If
         Exit Function
     End If
     If iControl Is Nothing Then
 #If LOGGING_DEBUG_ENABLED Then
-        ex_Core.m_Diagnostic_LogError "PageBase: control VM is not specified for key '" & controlKey & "'."
+        ex_Core.fn_Diagnostic_LogError "PageBase: control VM is not specified for key '" & controlKey & "'."
 #End If
         Exit Function
     End If
@@ -635,8 +635,8 @@ Public Function RegisterControl(ByVal controlKey As String, ByVal iControl As Ob
     RegisterControl = True
 End Function
 
-' Callstack[1]: rt_PageManager.m_RenderPage -> page.Render -> obj_PageBase.Render -> ex_XmlLayoutEngine.m_RenderNode -> ex_LayoutControlRenderer.m_Render -> obj_ButtonControlVM.private_TryBindRuntimeRoute -> m_Page.RegisterShapeRoute -> obj_PageBase.RegisterShapeRoute
-' Callstack[2]: rt_PageManager.m_RenderPage -> page.Render -> obj_PageBase.Render -> ex_XmlLayoutEngine.m_RenderNode -> ex_LayoutControlRenderer.m_Render -> obj_SelectControlVM.private_TryBindRuntimeRoutes -> m_Page.RegisterShapeRoute -> obj_PageBase.RegisterShapeRoute
+' Callstack[1]: rt_PageManager.fn_RenderPage -> page.Render -> obj_PageBase.Render -> ex_XmlLayoutEngine.fn_RenderNode -> ex_LayoutControlRenderer.fn_Render -> obj_ButtonControlVM.private_TryBindRuntimeRoute -> m_Page.RegisterShapeRoute -> obj_PageBase.RegisterShapeRoute
+' Callstack[2]: rt_PageManager.fn_RenderPage -> page.Render -> obj_PageBase.Render -> ex_XmlLayoutEngine.fn_RenderNode -> ex_LayoutControlRenderer.fn_Render -> obj_SelectControlVM.private_TryBindRuntimeRoutes -> m_Page.RegisterShapeRoute -> obj_PageBase.RegisterShapeRoute
 Public Function RegisterShapeRoute( _
     ByVal shapeName As String, _
     ByVal controlKey As String, _
@@ -654,19 +654,19 @@ Public Function RegisterShapeRoute( _
 
     If VBA.Len(shapeKey) = 0 Then
 #If LOGGING_DEBUG_ENABLED Then
-        ex_Core.m_Diagnostic_LogError "PageBase: shape name is empty."
+        ex_Core.fn_Diagnostic_LogError "PageBase: shape name is empty."
 #End If
         Exit Function
     End If
     If VBA.Len(controlKey) = 0 Then
 #If LOGGING_DEBUG_ENABLED Then
-        ex_Core.m_Diagnostic_LogError "PageBase: control key is empty for shape '" & shapeName & "'."
+        ex_Core.fn_Diagnostic_LogError "PageBase: control key is empty for shape '" & shapeName & "'."
 #End If
         Exit Function
     End If
     If VBA.Len(methodName) = 0 Then
 #If LOGGING_DEBUG_ENABLED Then
-        ex_Core.m_Diagnostic_LogError "PageBase: method name is empty for shape '" & shapeName & "'."
+        ex_Core.fn_Diagnostic_LogError "PageBase: method name is empty for shape '" & shapeName & "'."
 #End If
         Exit Function
     End If
@@ -674,7 +674,7 @@ Public Function RegisterShapeRoute( _
     private_EnsureStorage
     If Not m_ControlByKey.Exists(controlKey) Then
 #If LOGGING_DEBUG_ENABLED Then
-        ex_Core.m_Diagnostic_LogError "PageBase: control '" & controlKey & "' is not registered for shape '" & shapeName & "'."
+        ex_Core.fn_Diagnostic_LogError "PageBase: control '" & controlKey & "' is not registered for shape '" & shapeName & "'."
 #End If
         Exit Function
     End If
@@ -710,7 +710,7 @@ Public Function UnregisterControl(ByVal controlKey As String) As Boolean
     controlKeyNorm = VBA.LCase$(VBA.Trim$(controlKey))
     If VBA.Len(controlKeyNorm) = 0 Then
 #If LOGGING_DEBUG_ENABLED Then
-        ex_Core.m_Diagnostic_LogError "PageBase: control key is empty."
+        ex_Core.fn_Diagnostic_LogError "PageBase: control key is empty."
 #End If
         Exit Function
     End If
@@ -758,7 +758,7 @@ Public Function ResetControlActions() As Boolean
     ResetControlActions = True
 End Function
 
-' Callstack[1]: Shape.OnAction -> rt_Bridge.m_OnShapeClick -> rt_PageManager.m_TryGetPageByWorksheet -> page.DispatchShapeClick -> obj_PageMain.obj_IPage_DispatchShapeClick -> obj_PageBase.DispatchShapeClick
+' Callstack[1]: Shape.OnAction -> rt_Bridge.fn_OnShapeClick -> rt_PageManager.fn_TryGetPageByWorksheet -> page.DispatchShapeClick -> obj_PageMain.obj_IPage_DispatchShapeClick -> obj_PageBase.DispatchShapeClick
 Public Function DispatchShapeClick(ByVal shapeName As String) As Boolean
     Dim routeEntry As Object
     Dim controlKey As String
@@ -828,9 +828,9 @@ Public Function DispatchShapeClick(ByVal shapeName As String) As Boolean
     DispatchShapeClick = True
 End Function
 
-' Callstack[1]: rt_CoreActions.m_UpdateCodeFullAndRerender -> private_ScheduleUpdateAndRerender -> rt_RestoreManager.m_SavePageSnapshots -> serializablePage.TrySerializeSnapshot(obj_PageMain) -> obj_PageMain.TrySerializeSnapshot -> m_Base.TryCollectSerializableControlSnapshots -> obj_PageBase.TryCollectSerializableControlSnapshots
-' Callstack[2]: rt_CoreActions.m_UpdateCodeDateAndRerender -> private_ScheduleUpdateAndRerender -> rt_RestoreManager.m_SavePageSnapshots -> serializablePage.TrySerializeSnapshot(obj_PageMain) -> obj_PageMain.TrySerializeSnapshot -> m_Base.TryCollectSerializableControlSnapshots -> obj_PageBase.TryCollectSerializableControlSnapshots
-' Callstack[3]: rt_CoreActions.m_UpdateCodeSizeAndRerender -> private_ScheduleUpdateAndRerender -> rt_RestoreManager.m_SavePageSnapshots -> serializablePage.TrySerializeSnapshot(obj_PageMain) -> obj_PageMain.TrySerializeSnapshot -> m_Base.TryCollectSerializableControlSnapshots -> obj_PageBase.TryCollectSerializableControlSnapshots
+' Callstack[1]: rt_CoreActions.fn_UpdateCodeFullAndRerender -> private_ScheduleUpdateAndRerender -> rt_RestoreManager.m_SavePageSnapshots -> serializablePage.TrySerializeSnapshot(obj_PageMain) -> obj_PageMain.TrySerializeSnapshot -> m_Base.TryCollectSerializableControlSnapshots -> obj_PageBase.TryCollectSerializableControlSnapshots
+' Callstack[2]: rt_CoreActions.fn_UpdateCodeDateAndRerender -> private_ScheduleUpdateAndRerender -> rt_RestoreManager.m_SavePageSnapshots -> serializablePage.TrySerializeSnapshot(obj_PageMain) -> obj_PageMain.TrySerializeSnapshot -> m_Base.TryCollectSerializableControlSnapshots -> obj_PageBase.TryCollectSerializableControlSnapshots
+' Callstack[3]: rt_CoreActions.fn_UpdateCodeSizeAndRerender -> private_ScheduleUpdateAndRerender -> rt_RestoreManager.m_SavePageSnapshots -> serializablePage.TrySerializeSnapshot(obj_PageMain) -> obj_PageMain.TrySerializeSnapshot -> m_Base.TryCollectSerializableControlSnapshots -> obj_PageBase.TryCollectSerializableControlSnapshots
 Public Function TryCollectSerializableControlSnapshots(ByRef outSnapshots As Collection) As Boolean
     Dim key As Variant
     Dim iControl As Object
@@ -878,7 +878,7 @@ ContinueControl:
 End Function
 
 ' Callstack[1]: ThisWorkbook.Workbook_Open -> rt_RestoreManager.m_RestorePageSnapshots -> serializablePage.TryDeserializeSnapshot(obj_PageMain) -> obj_PageMain.TryDeserializeSnapshot -> obj_PageMain.obj_IPage_Render -> obj_PageMain.private_TryRestorePendingControlSnapshots -> m_Base.TryRestoreSerializableControlSnapshots -> obj_PageBase.TryRestoreSerializableControlSnapshots
-' Callstack[2]: rt_CoreActions.m_RerenderLastPageAfterUpdate -> rt_RestoreManager.m_RestorePageSnapshots -> serializablePage.TryDeserializeSnapshot(obj_PageMain) -> obj_PageMain.TryDeserializeSnapshot -> obj_PageMain.obj_IPage_Render -> obj_PageMain.private_TryRestorePendingControlSnapshots -> m_Base.TryRestoreSerializableControlSnapshots -> obj_PageBase.TryRestoreSerializableControlSnapshots
+' Callstack[2]: rt_CoreActions.fn_RerenderLastPageAfterUpdate -> rt_RestoreManager.m_RestorePageSnapshots -> serializablePage.TryDeserializeSnapshot(obj_PageMain) -> obj_PageMain.TryDeserializeSnapshot -> obj_PageMain.obj_IPage_Render -> obj_PageMain.private_TryRestorePendingControlSnapshots -> m_Base.TryRestoreSerializableControlSnapshots -> obj_PageBase.TryRestoreSerializableControlSnapshots
 ' Callstack[3]: obj_PageMain.private_TryRestorePendingControlSnapshots -> m_Base.TryRestoreSerializableControlSnapshots -> obj_PageBase.TryRestoreSerializableControlSnapshots
 Public Function TryRestoreSerializableControlSnapshots(ByVal snapshots As Collection) As Boolean
     Dim item As Variant
@@ -914,7 +914,7 @@ Public Function TryRestoreSerializableControlSnapshots(ByVal snapshots As Collec
         If VBA.Len(typeRoot) = 0 Then GoTo ContinueSnapshot
         If VBA.Len(payloadXml) = 0 Then GoTo ContinueSnapshot
 
-        Set iControl = ex_ControlFactory.m_CreateControlByTypeRoot(typeRoot)
+        Set iControl = ex_ControlFactory.fn_CreateControlByTypeRoot(typeRoot)
         If iControl Is Nothing Then GoTo ContinueSnapshot
         If Not private_TryCastSerializableControl(iControl, iSerializable) Then GoTo ContinueSnapshot
         If VBA.StrComp(VBA.LCase$(VBA.Trim$(iSerializable.GetSerializableTypeRoot())), typeRoot, VBA.vbTextCompare) <> 0 Then GoTo ContinueSnapshot
@@ -999,7 +999,7 @@ ContinueControlByName:
 End Function
 
 ' Callstack[1]: ThisWorkbook.Workbook_Open -> rt_RestoreManager.m_RestorePageSnapshots -> serializablePage.TryDeserializeSnapshot(obj_PageMain) -> obj_PageMain.obj_IPage_Render -> obj_PageMain.private_TryRestorePendingControlSnapshots -> obj_PageBase.TryRestoreSerializableControlSnapshots -> obj_PageBase.TryDeserializeControlSnapshotEnvelope
-' Callstack[2]: rt_CoreActions.m_RerenderLastPageAfterUpdate -> rt_RestoreManager.m_RestorePageSnapshots -> serializablePage.TryDeserializeSnapshot(obj_PageMain) -> obj_PageMain.obj_IPage_Render -> obj_PageMain.private_TryRestorePendingControlSnapshots -> obj_PageBase.TryRestoreSerializableControlSnapshots -> obj_PageBase.TryDeserializeControlSnapshotEnvelope
+' Callstack[2]: rt_CoreActions.fn_RerenderLastPageAfterUpdate -> rt_RestoreManager.m_RestorePageSnapshots -> serializablePage.TryDeserializeSnapshot(obj_PageMain) -> obj_PageMain.obj_IPage_Render -> obj_PageMain.private_TryRestorePendingControlSnapshots -> obj_PageBase.TryRestoreSerializableControlSnapshots -> obj_PageBase.TryDeserializeControlSnapshotEnvelope
 ' Callstack[3]: obj_PageMain.private_TryRestorePendingControlSnapshots -> obj_PageBase.TryRestoreSerializableControlSnapshots -> obj_PageBase.TryDeserializeControlSnapshotEnvelope
 Public Function TryDeserializeControlSnapshotEnvelope( _
     ByVal snapshotXml As String, _
@@ -1020,18 +1020,18 @@ Public Function TryDeserializeControlSnapshotEnvelope( _
     snapshotXml = VBA.Trim$(snapshotXml)
     If VBA.Len(snapshotXml) = 0 Then Exit Function
 
-    If Not ex_Core.m_CustomXmlPartStore_TryLoadDomFromXml(snapshotXml, dom) Then Exit Function
+    If Not ex_Core.fn_CustomXmlPartStore_TryLoadDomFromXml(snapshotXml, dom) Then Exit Function
 
     Set rootNode = dom.DocumentElement
     If rootNode Is Nothing Then
 #If LOGGING_DEBUG_ENABLED Then
-        ex_Core.m_Diagnostic_LogError "PageBase: control snapshot root node is missing."
+        ex_Core.fn_Diagnostic_LogError "PageBase: control snapshot root node is missing."
 #End If
         Exit Function
     End If
     If VBA.StrComp(VBA.LCase$(VBA.CStr(rootNode.baseName)), CONTROL_SNAPSHOT_ENTRY_ROOT, VBA.vbTextCompare) <> 0 Then
 #If LOGGING_DEBUG_ENABLED Then
-        ex_Core.m_Diagnostic_LogError "PageBase: unexpected control snapshot root '" & VBA.CStr(rootNode.baseName) & "'."
+        ex_Core.fn_Diagnostic_LogError "PageBase: unexpected control snapshot root '" & VBA.CStr(rootNode.baseName) & "'."
 #End If
         Exit Function
     End If
@@ -1052,9 +1052,9 @@ Public Function TryDeserializeControlSnapshotEnvelope( _
 End Function
 
 ' Callstack[1]: ThisWorkbook.Workbook_BeforeClose -> rt_RestoreManager.m_SavePageSnapshots -> serializablePage.TrySerializeSnapshot(obj_PageMain) -> m_Base.TryCreateSnapshotRoot -> obj_PageBase.TryCreateSnapshotRoot
-' Callstack[2]: rt_CoreActions.m_UpdateCodeFullAndRerender -> private_ScheduleUpdateAndRerender -> rt_RestoreManager.m_SavePageSnapshots -> serializablePage.TrySerializeSnapshot(obj_PageMain) -> m_Base.TryCreateSnapshotRoot -> obj_PageBase.TryCreateSnapshotRoot
-' Callstack[3]: rt_CoreActions.m_UpdateCodeDateAndRerender -> private_ScheduleUpdateAndRerender -> rt_RestoreManager.m_SavePageSnapshots -> serializablePage.TrySerializeSnapshot(obj_PageMain) -> m_Base.TryCreateSnapshotRoot -> obj_PageBase.TryCreateSnapshotRoot
-' Callstack[4]: rt_CoreActions.m_UpdateCodeSizeAndRerender -> private_ScheduleUpdateAndRerender -> rt_RestoreManager.m_SavePageSnapshots -> serializablePage.TrySerializeSnapshot(obj_PageMain) -> m_Base.TryCreateSnapshotRoot -> obj_PageBase.TryCreateSnapshotRoot
+' Callstack[2]: rt_CoreActions.fn_UpdateCodeFullAndRerender -> private_ScheduleUpdateAndRerender -> rt_RestoreManager.m_SavePageSnapshots -> serializablePage.TrySerializeSnapshot(obj_PageMain) -> m_Base.TryCreateSnapshotRoot -> obj_PageBase.TryCreateSnapshotRoot
+' Callstack[3]: rt_CoreActions.fn_UpdateCodeDateAndRerender -> private_ScheduleUpdateAndRerender -> rt_RestoreManager.m_SavePageSnapshots -> serializablePage.TrySerializeSnapshot(obj_PageMain) -> m_Base.TryCreateSnapshotRoot -> obj_PageBase.TryCreateSnapshotRoot
+' Callstack[4]: rt_CoreActions.fn_UpdateCodeSizeAndRerender -> private_ScheduleUpdateAndRerender -> rt_RestoreManager.m_SavePageSnapshots -> serializablePage.TrySerializeSnapshot(obj_PageMain) -> m_Base.TryCreateSnapshotRoot -> obj_PageBase.TryCreateSnapshotRoot
 Public Function TryCreateSnapshotRoot( _
     ByVal rootName As String, _
     ByRef outDom As Object, _
@@ -1066,16 +1066,16 @@ Public Function TryCreateSnapshotRoot( _
     rootName = VBA.Trim$(rootName)
     If VBA.Len(rootName) = 0 Then
 #If LOGGING_DEBUG_ENABLED Then
-        ex_Core.m_Diagnostic_LogError "PageBase: snapshot root is empty."
+        ex_Core.fn_Diagnostic_LogError "PageBase: snapshot root is empty."
 #End If
         Exit Function
     End If
 
-    If Not ex_Core.m_CustomXmlPartStore_TryCreateEmptyDom(rootName, "urn:excelprototype:serializable:page:v1", outDom) Then Exit Function
+    If Not ex_Core.fn_CustomXmlPartStore_TryCreateEmptyDom(rootName, "urn:excelprototype:serializable:page:v1", outDom) Then Exit Function
     Set outRoot = outDom.DocumentElement
     If outRoot Is Nothing Then
 #If LOGGING_DEBUG_ENABLED Then
-        ex_Core.m_Diagnostic_LogError "PageBase: snapshot root node is missing."
+        ex_Core.fn_Diagnostic_LogError "PageBase: snapshot root node is missing."
 #End If
         Exit Function
     End If
@@ -1084,7 +1084,7 @@ Public Function TryCreateSnapshotRoot( _
 End Function
 
 ' Callstack[1]: ThisWorkbook.Workbook_Open -> rt_RestoreManager.m_RestorePageSnapshots -> serializablePage.TryDeserializeSnapshot(obj_PageMain) -> m_Base.TryLoadSnapshotRoot -> obj_PageBase.TryLoadSnapshotRoot
-' Callstack[2]: rt_CoreActions.m_RerenderLastPageAfterUpdate -> rt_RestoreManager.m_RestorePageSnapshots -> serializablePage.TryDeserializeSnapshot(obj_PageMain) -> m_Base.TryLoadSnapshotRoot -> obj_PageBase.TryLoadSnapshotRoot
+' Callstack[2]: rt_CoreActions.fn_RerenderLastPageAfterUpdate -> rt_RestoreManager.m_RestorePageSnapshots -> serializablePage.TryDeserializeSnapshot(obj_PageMain) -> m_Base.TryLoadSnapshotRoot -> obj_PageBase.TryLoadSnapshotRoot
 Public Function TryLoadSnapshotRoot( _
     ByVal snapshotXml As String, _
     ByVal expectedRootName As String, _
@@ -1099,28 +1099,28 @@ Public Function TryLoadSnapshotRoot( _
 
     If VBA.Len(snapshotXml) = 0 Then
 #If LOGGING_DEBUG_ENABLED Then
-        ex_Core.m_Diagnostic_LogError "PageBase: snapshot XML is empty."
+        ex_Core.fn_Diagnostic_LogError "PageBase: snapshot XML is empty."
 #End If
         Exit Function
     End If
     If VBA.Len(expectedRootName) = 0 Then
 #If LOGGING_DEBUG_ENABLED Then
-        ex_Core.m_Diagnostic_LogError "PageBase: expected root name is empty."
+        ex_Core.fn_Diagnostic_LogError "PageBase: expected root name is empty."
 #End If
         Exit Function
     End If
 
-    If Not ex_Core.m_CustomXmlPartStore_TryLoadDomFromXml(snapshotXml, outDom) Then Exit Function
+    If Not ex_Core.fn_CustomXmlPartStore_TryLoadDomFromXml(snapshotXml, outDom) Then Exit Function
     Set outRoot = outDom.DocumentElement
     If outRoot Is Nothing Then
 #If LOGGING_DEBUG_ENABLED Then
-        ex_Core.m_Diagnostic_LogError "PageBase: snapshot root node is missing."
+        ex_Core.fn_Diagnostic_LogError "PageBase: snapshot root node is missing."
 #End If
         Exit Function
     End If
     If VBA.StrComp(VBA.LCase$(VBA.CStr(outRoot.baseName)), expectedRootName, VBA.vbTextCompare) <> 0 Then
 #If LOGGING_DEBUG_ENABLED Then
-        ex_Core.m_Diagnostic_LogError "PageBase: unexpected snapshot root '" & VBA.CStr(outRoot.baseName) & "'."
+        ex_Core.fn_Diagnostic_LogError "PageBase: unexpected snapshot root '" & VBA.CStr(outRoot.baseName) & "'."
 #End If
         Exit Function
     End If
@@ -1129,16 +1129,16 @@ Public Function TryLoadSnapshotRoot( _
 End Function
 
 ' Callstack[1]: ThisWorkbook.Workbook_BeforeClose -> rt_RestoreManager.m_SavePageSnapshots -> serializablePage.TrySerializeSnapshot(obj_PageMain) -> m_Base.WriteBaseSnapshotAttributes -> obj_PageBase.WriteBaseSnapshotAttributes
-' Callstack[2]: rt_CoreActions.m_UpdateCodeFullAndRerender -> private_ScheduleUpdateAndRerender -> rt_RestoreManager.m_SavePageSnapshots -> serializablePage.TrySerializeSnapshot(obj_PageMain) -> m_Base.WriteBaseSnapshotAttributes -> obj_PageBase.WriteBaseSnapshotAttributes
-' Callstack[3]: rt_CoreActions.m_UpdateCodeDateAndRerender -> private_ScheduleUpdateAndRerender -> rt_RestoreManager.m_SavePageSnapshots -> serializablePage.TrySerializeSnapshot(obj_PageMain) -> m_Base.WriteBaseSnapshotAttributes -> obj_PageBase.WriteBaseSnapshotAttributes
-' Callstack[4]: rt_CoreActions.m_UpdateCodeSizeAndRerender -> private_ScheduleUpdateAndRerender -> rt_RestoreManager.m_SavePageSnapshots -> serializablePage.TrySerializeSnapshot(obj_PageMain) -> m_Base.WriteBaseSnapshotAttributes -> obj_PageBase.WriteBaseSnapshotAttributes
+' Callstack[2]: rt_CoreActions.fn_UpdateCodeFullAndRerender -> private_ScheduleUpdateAndRerender -> rt_RestoreManager.m_SavePageSnapshots -> serializablePage.TrySerializeSnapshot(obj_PageMain) -> m_Base.WriteBaseSnapshotAttributes -> obj_PageBase.WriteBaseSnapshotAttributes
+' Callstack[3]: rt_CoreActions.fn_UpdateCodeDateAndRerender -> private_ScheduleUpdateAndRerender -> rt_RestoreManager.m_SavePageSnapshots -> serializablePage.TrySerializeSnapshot(obj_PageMain) -> m_Base.WriteBaseSnapshotAttributes -> obj_PageBase.WriteBaseSnapshotAttributes
+' Callstack[4]: rt_CoreActions.fn_UpdateCodeSizeAndRerender -> private_ScheduleUpdateAndRerender -> rt_RestoreManager.m_SavePageSnapshots -> serializablePage.TrySerializeSnapshot(obj_PageMain) -> m_Base.WriteBaseSnapshotAttributes -> obj_PageBase.WriteBaseSnapshotAttributes
 Public Sub WriteBaseSnapshotAttributes(ByVal targetNode As Object)
     If targetNode Is Nothing Then Exit Sub
     targetNode.setAttribute "uiPath", m_UiPath
 End Sub
 
 ' Callstack[1]: ThisWorkbook.Workbook_Open -> rt_RestoreManager.m_RestorePageSnapshots -> serializablePage.TryDeserializeSnapshot(obj_PageMain) -> m_Base.ReadBaseSnapshotAttributes -> obj_PageBase.ReadBaseSnapshotAttributes
-' Callstack[2]: rt_CoreActions.m_RerenderLastPageAfterUpdate -> rt_RestoreManager.m_RestorePageSnapshots -> serializablePage.TryDeserializeSnapshot(obj_PageMain) -> m_Base.ReadBaseSnapshotAttributes -> obj_PageBase.ReadBaseSnapshotAttributes
+' Callstack[2]: rt_CoreActions.fn_RerenderLastPageAfterUpdate -> rt_RestoreManager.m_RestorePageSnapshots -> serializablePage.TryDeserializeSnapshot(obj_PageMain) -> m_Base.ReadBaseSnapshotAttributes -> obj_PageBase.ReadBaseSnapshotAttributes
 ' Callstack[3]: obj_PageBase.ReadBaseSnapshotAttributes -> obj_PageBase.SetUiPath
 Public Sub ReadBaseSnapshotAttributes(ByVal sourceNode As Object)
     Dim restoredUiPath As String
@@ -1164,7 +1164,7 @@ Private Function private_TryClearPageRuntime(Optional ByVal deleteGeneratedShape
     Set ws = m_Worksheet
     If ws Is Nothing Then
 #If LOGGING_DEBUG_ENABLED Then
-        ex_Core.m_Diagnostic_LogError "PrototypeNew: worksheet is not specified."
+        ex_Core.fn_Diagnostic_LogError "PrototypeNew: worksheet is not specified."
 #End If
         Exit Function
     End If
@@ -1225,7 +1225,7 @@ ContinueKey:
         Set shp = ws.Shapes(i)
         If shp Is Nothing Then GoTo ContinueShape
 
-        controlMeta = VBA.LCase$(VBA.Trim$(ex_ShapeMetaRuntime.m_GetShapeMetaValue(shp, "pn.control", VBA.vbNullString)))
+        controlMeta = VBA.LCase$(VBA.Trim$(ex_ShapeMetaRuntime.fn_GetShapeMetaValue(shp, "pn.control", VBA.vbNullString)))
         If VBA.Len(controlMeta) = 0 Then GoTo ContinueShape
         If Not activeControlNames.Exists(controlMeta) Then
             shp.Delete
@@ -1240,7 +1240,7 @@ Private Function private_IsGeneratedRuntimeShape(ByVal shp As Shape) As Boolean
 
     If shp Is Nothing Then Exit Function
 
-    controlMeta = VBA.Trim$(ex_ShapeMetaRuntime.m_GetShapeMetaValue(shp, "pn.control", VBA.vbNullString))
+    controlMeta = VBA.Trim$(ex_ShapeMetaRuntime.fn_GetShapeMetaValue(shp, "pn.control", VBA.vbNullString))
     private_IsGeneratedRuntimeShape = (VBA.Len(controlMeta) > 0)
 End Function
 
@@ -1369,12 +1369,12 @@ Private Function private_TrySerializeControlSnapshotEnvelope( _
     If VBA.Len(typeRoot) = 0 Then Exit Function
     If VBA.Len(payloadXml) = 0 Then Exit Function
 
-    If Not ex_Core.m_CustomXmlPartStore_TryCreateEmptyDom(CONTROL_SNAPSHOT_ENTRY_ROOT, CONTROL_SNAPSHOT_ENTRY_NS, dom) Then Exit Function
+    If Not ex_Core.fn_CustomXmlPartStore_TryCreateEmptyDom(CONTROL_SNAPSHOT_ENTRY_ROOT, CONTROL_SNAPSHOT_ENTRY_NS, dom) Then Exit Function
 
     Set rootNode = dom.DocumentElement
     If rootNode Is Nothing Then
 #If LOGGING_DEBUG_ENABLED Then
-        ex_Core.m_Diagnostic_LogError "PageBase: control snapshot root node is missing."
+        ex_Core.fn_Diagnostic_LogError "PageBase: control snapshot root node is missing."
 #End If
         Exit Function
     End If
@@ -1507,7 +1507,7 @@ Private Function private_TryNotifyGlobalClick( _
             If errNo <> 438 Then
                 outReason = "global-hook-exception:" & VBA.TypeName(iControl)
 #If LOGGING_DEBUG_ENABLED Then
-                ex_Core.m_Diagnostic_LogError "PageBase: global click hook failed on '" & VBA.TypeName(iControl) & "'."
+                ex_Core.fn_Diagnostic_LogError "PageBase: global click hook failed on '" & VBA.TypeName(iControl) & "'."
 #End If
                 Exit Function
             End If
@@ -1542,7 +1542,7 @@ Private Function private_TryInvokeControlAction( _
     If VBA.Len(methodName) = 0 Then
         outErrorText = "method-name-empty"
 #If LOGGING_DEBUG_ENABLED Then
-        ex_Core.m_Diagnostic_LogError "PageBase: method name is empty."
+        ex_Core.fn_Diagnostic_LogError "PageBase: method name is empty."
 #End If
         Exit Function
     End If
@@ -1568,7 +1568,7 @@ Private Function private_TryInvokeControlAction( _
 EH_INVOKE:
     outErrorText = Err.Description
 #If LOGGING_DEBUG_ENABLED Then
-    ex_Core.m_Diagnostic_LogError "PageBase: failed to invoke method '" & methodName & "' on '" & VBA.TypeName(iControl) & "': " & Err.Description
+    ex_Core.fn_Diagnostic_LogError "PageBase: failed to invoke method '" & methodName & "' on '" & VBA.TypeName(iControl) & "': " & Err.Description
 #End If
 End Function
 
@@ -1695,7 +1695,7 @@ End Function
 Private Sub private_LogRuntimeInfo(ByVal messageText As String)
     On Error Resume Next
 #If LOGGING_DEBUG_ENABLED Then
-    ex_Core.m_Diagnostic_LogInfo "page-base:" & VBA.Trim$(messageText) & " " & private_BuildLogContext()
+    ex_Core.fn_Diagnostic_LogInfo "page-base:" & VBA.Trim$(messageText) & " " & private_BuildLogContext()
 #End If
     Err.Clear
     On Error GoTo 0
@@ -1704,7 +1704,7 @@ End Sub
 Private Sub private_LogRuntimeError(ByVal messageText As String)
     On Error Resume Next
 #If LOGGING_DEBUG_ENABLED Then
-    ex_Core.m_Diagnostic_LogError "page-base:" & VBA.Trim$(messageText) & " " & private_BuildLogContext()
+    ex_Core.fn_Diagnostic_LogError "page-base:" & VBA.Trim$(messageText) & " " & private_BuildLogContext()
 #End If
     Err.Clear
     On Error GoTo 0
@@ -1713,7 +1713,7 @@ End Sub
 Private Function private_EnsureNotDisposed(ByVal methodName As String) As Boolean
     If m_IsDisposed Then
 #If LOGGING_DEBUG_ENABLED Then
-        ex_Core.m_Diagnostic_LogError "PageBase: method '" & methodName & "' cannot be used after Dispose."
+        ex_Core.fn_Diagnostic_LogError "PageBase: method '" & methodName & "' cannot be used after Dispose."
 #End If
         Exit Function
     End If
