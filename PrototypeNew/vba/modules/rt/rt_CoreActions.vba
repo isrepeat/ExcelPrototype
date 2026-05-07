@@ -41,20 +41,11 @@ Public Sub m_RerenderLastPageAfterUpdate()
 #End If
 
     On Error GoTo EH_RERENDER
-    If Not rt_Snapshots.m_RestorePageSnapshots(True, "after-update", restoredPagesCount) Then
+    If Not rt_RestoreManager.m_RestoreRuntimeState("after-update", restoredPagesCount) Then
 #If LOGGING_DEBUG_ENABLED Then
-        ex_Core.m_Diagnostic_LogError "core-actions:rerender-after-update restore-pages-failed"
+        ex_Core.m_Diagnostic_LogError "core-actions:rerender-after-update restore-runtime-failed"
 #End If
-        rt_Messaging.m_ShowStatusBarError "Failed to restore pages after update.", 6
-        ex_HelpersSheet.m_SetBusyCursor False
-        Exit Sub
-    End If
-
-    If Not rt_Snapshots.m_RestoreRuntimeGlobalsSnapshot() Then
-#If LOGGING_DEBUG_ENABLED Then
-        ex_Core.m_Diagnostic_LogError "core-actions:rerender-after-update restore-runtime-globals-failed"
-#End If
-        rt_Messaging.m_ShowStatusBarError "Failed to restore runtime globals after update.", 6
+        rt_Messaging.m_ShowStatusBarError "Failed to restore runtime state after update.", 6
         ex_HelpersSheet.m_SetBusyCursor False
         Exit Sub
     End If
@@ -63,7 +54,7 @@ Public Sub m_RerenderLastPageAfterUpdate()
 #If LOGGING_DEBUG_ENABLED Then
     ex_Core.m_Diagnostic_LogInfo "core-actions:rerender-after-update done restoredPages=" & VBA.CStr(restoredPagesCount)
 #End If
-    rt_Messaging.m_ShowStatusBarSuccess "Update completed. Restored pages: " & VBA.CStr(restoredPagesCount) & "; runtime state refreshed.", 1
+    rt_Messaging.m_ShowStatusBarSuccess "Update completed. Restored pages: " & VBA.CStr(restoredPagesCount) & ".", 1
     Exit Sub
 
 EH_RERENDER:
@@ -141,17 +132,9 @@ Private Sub private_ScheduleUpdateAndRerender(ByVal devToolsMethod As String)
 
     ex_HelpersSheet.m_SetBusyCursor True
 
-    If Not rt_Snapshots.m_SavePageSnapshots() Then
+    If Not rt_RestoreManager.m_SaveRuntimeState() Then
 #If LOGGING_DEBUG_ENABLED Then
-        ex_Core.m_Diagnostic_LogError "core-actions:schedule-update save-page-snapshots-failed"
-#End If
-        ex_HelpersSheet.m_SetBusyCursor False
-        Exit Sub
-    End If
-
-    If Not rt_Snapshots.m_SaveRuntimeGlobalsSnapshot() Then
-#If LOGGING_DEBUG_ENABLED Then
-        ex_Core.m_Diagnostic_LogError "core-actions:schedule-update save-runtime-globals-failed"
+        ex_Core.m_Diagnostic_LogError "core-actions:schedule-update save-runtime-state-failed"
 #End If
         ex_HelpersSheet.m_SetBusyCursor False
         Exit Sub

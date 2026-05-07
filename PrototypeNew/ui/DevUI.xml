@@ -63,6 +63,16 @@
       <stackPanel at="r2c17" orientation="vertical">
         <control
           type="Button"
+          name="OpenPersonalCard"
+          caption="Open PersonalCard"
+          style="actionWarning"
+          dataContext="{PageRuntimeSource='RuntimeObjects.PageMain.Controller'}"
+          onClick="{Binding Method=OpenPersonalCardPage}"
+          spanColls="3"
+          spanRows="2"
+          />
+        <control
+          type="Button"
           name="UpdateSheet"
           caption="Update Sheet"
           style="actionWarning"

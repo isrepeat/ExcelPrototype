@@ -993,8 +993,9 @@ End Function
 
 Private Function private_TryResolveMainPage(ByRef outPage As obj_IPage) As Boolean
     Dim mainWs As Worksheet
-    Dim pagesByType As Collection
+    Dim allPages As Collection
     Dim pageCandidate As Variant
+    Dim fallbackPage As obj_IPage
 
     Set outPage = Nothing
 
@@ -1006,18 +1007,29 @@ Private Function private_TryResolveMainPage(ByRef outPage As obj_IPage) As Boole
         End If
     End If
 
-    If rt_PageManager.m_TryGetPagesByType(PageTypeMain, pagesByType) Then
-        If Not pagesByType Is Nothing Then
-            For Each pageCandidate In pagesByType
+    If rt_PageManager.m_TryGetAllPages(allPages) Then
+        If Not allPages Is Nothing Then
+            For Each pageCandidate In allPages
                 If VBA.IsObject(pageCandidate) Then
                     Set outPage = pageCandidate
-                    If Not outPage Is Nothing Then
+                    If outPage Is Nothing Then GoTo ContinuePageCandidate
+
+                    If TypeOf outPage Is obj_PageMain Then
                         private_TryResolveMainPage = True
                         Exit Function
                     End If
+
+                    If fallbackPage Is Nothing Then Set fallbackPage = outPage
                 End If
+ContinuePageCandidate:
             Next pageCandidate
         End If
+    End If
+
+    If Not fallbackPage Is Nothing Then
+        Set outPage = fallbackPage
+        private_TryResolveMainPage = True
+        Exit Function
     End If
 
 #If LOGGING_DEBUG_ENABLED Then

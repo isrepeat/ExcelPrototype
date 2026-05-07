@@ -7,9 +7,8 @@ Private Sub Workbook_Open()
 
     On Error GoTo EH
 
-    restoredOk = rt_Snapshots.m_RestorePageSnapshots(True, "Workbook_Open", restoredPagesCount)
+    restoredOk = rt_RestoreManager.m_RestoreRuntimeState("Workbook_Open", restoredPagesCount)
     If restoredOk And restoredPagesCount > 0 Then
-        Call rt_Snapshots.m_RestoreRuntimeGlobalsSnapshot
         Exit Sub
     End If
 
@@ -23,8 +22,7 @@ EH:
 End Sub
 
 Private Sub Workbook_BeforeClose(Cancel As Boolean)
-    Call rt_Snapshots.m_SavePageSnapshots
-    Call rt_Snapshots.m_SaveRuntimeGlobalsSnapshot
+    Call rt_RestoreManager.m_SaveRuntimeState
 End Sub
 
 Private Sub Workbook_SheetBeforeDelete(ByVal Sh As Object)
@@ -66,9 +64,8 @@ Private Function private_ResetWorkbookAndCreateMainPage( _
     Dim wb As Workbook
     Dim tmpWs As Worksheet
     Dim tmpSheetName As String
-    Dim createdPageId As String
     Dim createdPage As obj_IPage
-    Dim createdPageBase As obj_PageBase
+    Dim isPageCreated As Boolean
 
     Set wb = ThisWorkbook
     If wb Is Nothing Then Exit Function
@@ -100,25 +97,18 @@ Private Function private_ResetWorkbookAndCreateMainPage( _
     Application.DisplayAlerts = True
     On Error GoTo EH_CREATE
 
-    If Not rt_PageManager.m_CreatePage( _
-        xmlUiPath:="ui\DevUI.xml", _
-        pageType:=PageTypeMain, _
-        sheetName:="Main", _
-        outPageId:=createdPageId) Then Exit Function
+    Set createdPage = New obj_PageMain
+    If createdPage Is Nothing Then Exit Function
 
-    If Not rt_PageManager.m_RenderPageById(createdPageId, renderReason) Then Exit Function
+    If Not rt_PageManager.m_CreatePage(createdPage, "ui\DevUI.xml", "Main") Then GoTo EH_CREATE
+    isPageCreated = True
 
-    If Not rt_PageManager.m_TryGetPageById(createdPageId, createdPage) Then Exit Function
-    Set createdPageBase = createdPage.GetPageBase()
-    If createdPageBase Is Nothing Then Exit Function
+    Application.DisplayAlerts = False
+    tmpWs.Delete
+    Application.DisplayAlerts = True
+    Set tmpWs = Nothing
 
-    If Not tmpWs Is Nothing Then
-        If Not createdPageBase.Worksheet Is tmpWs Then
-            Application.DisplayAlerts = False
-            tmpWs.Delete
-            Application.DisplayAlerts = True
-        End If
-    End If
+    If Not rt_PageManager.m_RenderPage(createdPage, renderReason) Then GoTo EH_CREATE
 
     private_ResetWorkbookAndCreateMainPage = True
     Exit Function
@@ -134,6 +124,16 @@ EH_RESET:
 
 EH_CREATE:
     Application.DisplayAlerts = True
+    On Error Resume Next
+    If Not createdPage Is Nothing And isPageCreated Then
+        Call rt_PageManager.m_RemovePage(createdPage, True)
+    End If
+    If Not tmpWs Is Nothing Then
+        Application.DisplayAlerts = False
+        tmpWs.Delete
+        Application.DisplayAlerts = True
+    End If
+    On Error GoTo 0
     If showErrorUi Then
 #If LOGGING_DEBUG_ENABLED Then
         ex_Core.m_Diagnostic_LogError "PrototypeNew: failed to create default main page: " & Err.Description

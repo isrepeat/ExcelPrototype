@@ -62,7 +62,7 @@
             "approve": true,
             "matchCommandLine": true
         },
-        "/^cd /workspaces/ExcelPrototype && awk 'NR>=1&&NR<=260\\{print NR\":\"\\$0\\}' PrototypeNew/vba/modules/rt/rt_Snapshots\\.vba \\| sed -n '1,240p'$/": {
+        "/^cd /workspaces/ExcelPrototype && awk 'NR>=1&&NR<=260\\{print NR\":\"\\$0\\}' PrototypeNew/vba/modules/rt/rt_RestoreManager\\.vba \\| sed -n '1,240p'$/": {
             "approve": true,
             "matchCommandLine": true
         },

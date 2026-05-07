@@ -13,3 +13,6 @@ End Function
 
 Public Function TryDeserializeSnapshot(ByVal snapshotXml As String) As Boolean
 End Function
+
+Public Function TryRestoreState() As Boolean
+End Function

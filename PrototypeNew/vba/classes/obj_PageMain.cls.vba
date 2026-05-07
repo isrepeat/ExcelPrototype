@@ -45,22 +45,33 @@ End Sub
 ' //
 ' Callstack[1]: ThisWorkbook.Workbook_Open -> ThisWorkbook.m_ResetWorkbookAndCreateMainPage -> private_ResetWorkbookAndCreateMainPage -> rt_PageManager.m_CreatePage -> obj_PageMain.obj_IPage_Initialize
 ' Callstack[2]: ex_Core.private_TryRecoverUiAfterUpdate -> ThisWorkbook.m_ResetWorkbookAndCreateMainPage -> private_ResetWorkbookAndCreateMainPage -> rt_PageManager.m_CreatePage -> obj_PageMain.obj_IPage_Initialize
-' Callstack[3]: rt_Snapshots.m_RestorePageSnapshots -> rt_PageManager.m_CreatePage -> obj_PageMain.obj_IPage_Initialize
+' Callstack[3]: rt_RestoreManager.m_RestorePageSnapshots -> rt_PageManager.m_CreatePage -> obj_PageMain.obj_IPage_Initialize
 Private Function obj_IPage_Initialize( _
     ByVal ws As Worksheet, _
     Optional ByVal uiPath As String = VBA.vbNullString, _
-    Optional ByVal pageType As Long = 1, _
-    Optional ByVal pageId As String = VBA.vbNullString _
+    Optional ByVal pageId As String = VBA.vbNullString, _
+    Optional ByVal Context As Object = Nothing _
 ) As Boolean
-    If Not m_PageBase.Initialize(ws, uiPath, pageType, pageId) Then Exit Function
-    If Not private_TryValidateUiPath(m_PageBase.UiPath) Then Exit Function
+    If Not m_PageBase.Initialize(ws, uiPath, pageId) Then Exit Function
     If Not private_TryPrepareRuntimeByUiPath(m_PageBase.UiPath, False) Then Exit Function
 
     obj_IPage_Initialize = True
 End Function
 
+' Callstack[1]: ThisWorkbook.Workbook_Open -> ThisWorkbook.m_ResetWorkbookAndCreateMainPage -> private_ResetWorkbookAndCreateMainPage -> rt_PageManager.m_DisposeAllPages -> page.Dispose(False) -> obj_PageMain.obj_IPage_Dispose
+' Callstack[2]: ThisWorkbook.Workbook_SheetBeforeDelete -> ex_HelpersSheet.m_RemovePageByWorksheet -> rt_PageManager.m_RemovePage -> page.Dispose(False) -> obj_PageMain.obj_IPage_Dispose
+' Callstack[3]: rt_PageManager.m_RemovePageById -> rt_PageManager.m_RemovePage -> page.Dispose(deleteWorksheet) -> obj_PageMain.obj_IPage_Dispose
+Private Sub obj_IPage_Dispose(Optional ByVal deleteWorksheet As Boolean = True)
+    private_DisposeCore deleteWorksheet
+End Sub
+
+Private Function obj_IPage_RunPagePipeline() As Boolean
+    If Not m_PageBase.IsReady() Then Exit Function
+    obj_IPage_RunPagePipeline = True
+End Function
+
 ' Callstack[1]: rt_PageManager.m_RenderPageById -> rt_PageManager.m_RenderPage -> obj_PageMain.obj_IPage_Render
-' Callstack[2]: rt_Snapshots.m_RestorePageSnapshots(renderRestored:=True) -> rt_PageManager.m_RenderPage -> obj_PageMain.obj_IPage_Render
+' Callstack[2]: rt_RestoreManager.m_RestorePageSnapshots(renderRestored:=True) -> rt_PageManager.m_RenderPage -> obj_PageMain.obj_IPage_Render
 Private Function obj_IPage_Render() As Boolean
     If Not m_PageBase.IsReady() Then Exit Function
     If Not m_PageBase.Render() Then Exit Function
@@ -80,7 +91,6 @@ Private Function obj_IPage_UpdateUiPath( _
 
     normalizedUiPath = VBA.Trim$(uiPath)
     If VBA.Len(normalizedUiPath) = 0 Then Exit Function
-    If Not private_TryValidateUiPath(normalizedUiPath) Then Exit Function
 
     m_PageBase.SetUiPath normalizedUiPath
     If Not private_TryPrepareRuntimeByUiPath(normalizedUiPath, False) Then Exit Function
@@ -92,15 +102,12 @@ Private Function obj_IPage_UpdateUiPath( _
     obj_IPage_UpdateUiPath = rt_PageManager.m_RenderPage(iPage, normalizedReason)
 End Function
 
-' Callstack[1]: ThisWorkbook.Workbook_Open -> ThisWorkbook.m_ResetWorkbookAndCreateMainPage -> private_ResetWorkbookAndCreateMainPage -> rt_PageManager.m_DisposeAllPages -> page.Dispose(False) -> obj_PageMain.obj_IPage_Dispose
-' Callstack[2]: ThisWorkbook.Workbook_SheetBeforeDelete -> ex_HelpersSheet.m_RemovePageByWorksheet -> rt_PageManager.m_RemovePage -> page.Dispose(False) -> obj_PageMain.obj_IPage_Dispose
-' Callstack[3]: rt_PageManager.m_RemovePageById -> rt_PageManager.m_RemovePage -> page.Dispose(deleteWorksheet) -> obj_PageMain.obj_IPage_Dispose
-Private Sub obj_IPage_Dispose(Optional ByVal deleteWorksheet As Boolean = True)
-    private_DisposeCore deleteWorksheet
-End Sub
-
 Private Function obj_IPage_GetPageBase() As obj_PageBase
     Set obj_IPage_GetPageBase = m_PageBase.GetPageBase()
+End Function
+
+Private Function obj_IPage_GetPageId() As String
+    obj_IPage_GetPageId = m_PageBase.PageId
 End Function
 
 Private Function obj_IPage_TryGetController(ByRef outController As Object) As Boolean
@@ -167,6 +174,11 @@ End Function
 
 Private Function obj_ISerializable_TryDeserializeSnapshot(ByVal snapshotXml As String) As Boolean
     obj_ISerializable_TryDeserializeSnapshot = private_TryDeserializeSnapshot(snapshotXml)
+End Function
+
+Private Function obj_ISerializable_TryRestoreState() As Boolean
+    If Not m_PageBase.IsReady() Then Exit Function
+    obj_ISerializable_TryRestoreState = True
 End Function
 
 ' //
@@ -274,25 +286,6 @@ Private Function private_TryRestorePendingControlSnapshots() As Boolean
     private_TryRestorePendingControlSnapshots = True
 End Function
 
-Private Function private_TryValidateUiPath(ByVal uiPath As String) As Boolean
-    Dim normalizedUiPath As String
-
-    normalizedUiPath = VBA.LCase$(VBA.Trim$(uiPath))
-    If VBA.Len(normalizedUiPath) = 0 Then
-        private_TryValidateUiPath = True
-        Exit Function
-    End If
-
-    If VBA.StrComp(normalizedUiPath, SUPPORTED_UI_PATH, VBA.vbTextCompare) = 0 Then
-        private_TryValidateUiPath = True
-        Exit Function
-    End If
-
-#If LOGGING_DEBUG_ENABLED Then
-    ex_Core.m_Diagnostic_LogError "PageMain: unsupported uiPath '" & VBA.Replace$(normalizedUiPath, "'", "''") & "'. Supported: '" & SUPPORTED_UI_PATH & "'."
-#End If
-End Function
-
 Private Function private_TryPrepareRuntimeByUiPath( _
     ByVal uiPath As String, _
     Optional ByVal notifyChange As Boolean = False _
@@ -317,6 +310,8 @@ Private Function private_TryPrepareRuntimeByUiPath( _
 End Function
 
 Private Function private_TryEnsureControllerInitialized() As Boolean
+    Dim currentPage As obj_IPage
+
     If m_IsControllerInitialized Then
         private_TryEnsureControllerInitialized = True
         Exit Function
@@ -326,7 +321,8 @@ Private Function private_TryEnsureControllerInitialized() As Boolean
     If m_PageMainController Is Nothing Then Set m_PageMainController = New obj_PageMainController
     If m_PageMainController Is Nothing Then Exit Function
 
-    If Not m_PageMainController.Initialize(m_PageBase) Then Exit Function
+    Set currentPage = Me
+    If Not m_PageMainController.Initialize(currentPage) Then Exit Function
     m_IsControllerInitialized = True
     private_TryEnsureControllerInitialized = True
 End Function

@@ -1486,7 +1486,6 @@ Private Function private_Dev_TryRunSafeUpdateByMode( _
     ByVal operationName As String _
 ) As Boolean
     Dim bootstrapMode As String
-    Dim savePagesOk As Boolean
     Dim saveRuntimeOk As Boolean
     Dim updateOk As Boolean
 
@@ -1502,7 +1501,7 @@ Private Function private_Dev_TryRunSafeUpdateByMode( _
 #End If
 
     ' Этап 1. Гарантируем, что runtime-пайплайн вообще доступен.
-    ' Важно: rt_Snapshots/rt_PageManager могут отсутствовать (например, после частичного импорта/сброса проекта),
+    ' Важно: rt_RestoreManager/rt_PageManager могут отсутствовать (например, после частичного импорта/сброса проекта),
     ' поэтому сохранить snapshot "до любых действий" не всегда возможно.
     ' bootstrap сначала поднимает минимально нужные runtime-компоненты.
     If Not private_Dev_TryBootstrapRuntimePipeline(bootstrapMode) Then
@@ -1529,36 +1528,21 @@ Private Function private_Dev_TryRunSafeUpdateByMode( _
         Exit Function
     End If
 
-    ' Этап 2. Runtime валиден -> сохраняем page snapshots перед целевым update.
-    ' Если save не удался, безопасный update прекращаем (без перехода в unsafe fallback).
-    If Not private_Dev_TryRunRuntimeBooleanFunction("rt_Snapshots", "m_SavePageSnapshots", savePagesOk) Then
+    ' Этап 2. Runtime валиден -> сохраняем runtime state перед целевым update.
+    If Not private_Dev_TryRunRuntimeBooleanFunction("rt_RestoreManager", "m_SaveRuntimeState", saveRuntimeOk) Then
 #If LOGGING_DEBUG_ENABLED Then
-        private_Diagnostic_LogCoreSelfEvent "safe-update:fail op='" & operationName & "' reason='save-pages-call-failed'"
-#End If
-        Exit Function
-    End If
-    If Not savePagesOk Then
-#If LOGGING_DEBUG_ENABLED Then
-        private_Diagnostic_LogCoreSelfEvent "safe-update:fail op='" & operationName & "' reason='save-pages-returned-false'"
-#End If
-        Exit Function
-    End If
-
-    ' Этап 3. Сохраняем runtime-глобалы (не только страницы, но и состояние runtime-модулей).
-    If Not private_Dev_TryRunRuntimeBooleanFunction("rt_Snapshots", "m_SaveRuntimeGlobalsSnapshot", saveRuntimeOk) Then
-#If LOGGING_DEBUG_ENABLED Then
-        private_Diagnostic_LogCoreSelfEvent "safe-update:fail op='" & operationName & "' reason='save-runtime-call-failed'"
+        private_Diagnostic_LogCoreSelfEvent "safe-update:fail op='" & operationName & "' reason='save-runtime-state-call-failed'"
 #End If
         Exit Function
     End If
     If Not saveRuntimeOk Then
 #If LOGGING_DEBUG_ENABLED Then
-        private_Diagnostic_LogCoreSelfEvent "safe-update:fail op='" & operationName & "' reason='save-runtime-returned-false'"
+        private_Diagnostic_LogCoreSelfEvent "safe-update:fail op='" & operationName & "' reason='save-runtime-state-returned-false'"
 #End If
         Exit Function
     End If
 
-    ' Этап 4. Перед hot-import отменяем висящие deferred restore и освобождаем runtime-ссылки.
+    ' Этап 3. Перед hot-import отменяем висящие deferred restore и освобождаем runtime-ссылки.
     If Not private_Dev_TryPrepareRuntimeForHotUpdate(operationName) Then
 #If LOGGING_DEBUG_ENABLED Then
         private_Diagnostic_LogCoreSelfEvent "safe-update:fail op='" & operationName & "' reason='runtime-prepare-failed'"
@@ -1737,7 +1721,7 @@ Private Function private_Dev_TryBootstrapRuntimePipeline(ByRef outBootstrapMode 
     End If
 
     ' Аварийный путь: runtime невалиден.
-    ' Для rt_Snapshots нужны зависимости из ex_*/obj_*, поэтому поднимаем полный набор.
+    ' Для rt_RestoreManager нужны зависимости из ex_*/obj_*, поэтому поднимаем полный набор.
     outBootstrapMode = "full"
 #If LOGGING_DEBUG_ENABLED Then
     private_Diagnostic_LogCoreSelfEvent "runtime-update-pipeline-bootstrap: start scope='all-components'"
@@ -1766,7 +1750,7 @@ End Function
 Private Function private_Dev_AreSafeUpdateRuntimeComponentsPresent() As Boolean
     ' Минимальный контракт для safe-update: если чего-то из этого нет,
     ' snapshot-сценарий нельзя считать надежным.
-    If private_Dev_TryGetComponentByName("rt_Snapshots") Is Nothing Then Exit Function
+    If private_Dev_TryGetComponentByName("rt_RestoreManager") Is Nothing Then Exit Function
     If private_Dev_TryGetComponentByName("rt_PageManager") Is Nothing Then Exit Function
     If private_Dev_TryGetComponentByName("ex_HelpersSheet") Is Nothing Then Exit Function
     If private_Dev_TryGetComponentByName("obj_PageBase") Is Nothing Then Exit Function
@@ -1785,7 +1769,7 @@ Private Sub private_Dev_QueueRuntimeStateRestoreAfterUpdate(ByVal reasonText As 
     reasonText = VBA.Trim$(reasonText)
     If VBA.Len(reasonText) = 0 Then reasonText = "unknown"
 
-    macroRef = "'" & VBA.Replace$(ThisWorkbook.Name, "'", "''") & "'!rt_Snapshots.m_RunDeferredRuntimeStateRestore"
+    macroRef = "'" & VBA.Replace$(ThisWorkbook.Name, "'", "''") & "'!rt_RestoreManager.m_RunDeferredRuntimeStateRestore"
     scheduleAt = private_Dev_GetNextOnTimeTick()
 
     On Error Resume Next
