@@ -6,8 +6,11 @@ Option Explicit
 Private g_PageById As Object
 Private g_LastRenderedPageId As String
 Private g_PageIdSeed As Long
+
 Private Const MODULE_SNAPSHOT_ROOT As String = "pageManagerState"
 Private Const MODULE_SNAPSHOT_NS As String = "urn:excelprototype:runtime-module:page-manager:v1"
+Private Const MODULE_SNAPSHOT_PAGE_NODE As String = "page"
+Private Const MODULE_SNAPSHOT_PAYLOAD_NODE As String = "payload"
 
 Public Sub m_Module_Dispose()
 #If LOGGING_VERBOSE_ENABLED Then
@@ -20,13 +23,23 @@ Public Sub m_Module_Dispose()
     g_LastRenderedPageId = VBA.vbNullString
     On Error GoTo 0
 End Sub
+
 ' //
 ' // API
 ' //
-' Callstack[1]: rt_Snapshots.m_SaveRuntimeGlobalsSnapshot -> private_TryAppendModuleSnapshot -> private_TrySerializeRuntimeModuleSnapshot -> rt_PageManager.m_TrySerializeModuleSnapshot
+' Callstack[1]: rt_RestoreManager.m_SaveRuntimeGlobalsSnapshot -> private_TryAppendModuleSnapshot -> private_TrySerializeRuntimeModuleSnapshot -> rt_PageManager.m_TrySerializeModuleSnapshot
 Public Function m_TrySerializeModuleSnapshot(ByRef outSnapshotXml As String) As Boolean
     Dim dom As Object
     Dim rootNode As Object
+    Dim pageNode As Object
+    Dim payloadNode As Object
+    Dim pageKey As Variant
+    Dim page As obj_IPage
+    Dim pageBase As obj_PageBase
+    Dim serializablePage As obj_ISerializable
+    Dim typeRoot As String
+    Dim payloadXml As String
+    Dim pageId As String
     Dim worksheetName As String
 
     outSnapshotXml = VBA.vbNullString
@@ -40,19 +53,92 @@ Public Function m_TrySerializeModuleSnapshot(ByRef outSnapshotXml As String) As 
         Exit Function
     End If
 
+    ' module-level metadata:
+    ' 1) lastRenderedSheetName — чтобы вернуть фокус на "последнюю" страницу;
+    ' 2) pageIdSeed — чтобы после restore новые id продолжали последовательность.
     worksheetName = VBA.vbNullString
     If Not m_TryGetLastRenderedWorksheetName(worksheetName) Then Exit Function
     rootNode.setAttribute "lastRenderedSheetName", worksheetName
+    rootNode.setAttribute "pageIdSeed", VBA.CStr(g_PageIdSeed)
+
+    ' Snapshot каждой страницы = transport envelope (id/type/sheet/uiPath)
+    ' + page payload из obj_ISerializable.TrySerializeSnapshot.
+    private_EnsureStorage
+    For Each pageKey In g_PageById.Keys
+        Set page = Nothing
+        Set pageBase = Nothing
+        Set serializablePage = Nothing
+        Set page = g_PageById(VBA.CStr(pageKey))
+        If page Is Nothing Then GoTo ContinuePage
+
+        Set pageBase = page.GetPageBase()
+        If pageBase Is Nothing Then GoTo ContinuePage
+        If pageBase.Worksheet Is Nothing Then GoTo ContinuePage
+
+        If Not private_TryCastSerializablePage(page, serializablePage) Then
+#If LOGGING_DEBUG_ENABLED Then
+            ex_Core.m_Diagnostic_LogError "PageManager: page class '" & VBA.TypeName(page) & "' must implement obj_ISerializable."
+#End If
+            Exit Function
+        End If
+
+        typeRoot = VBA.LCase$(VBA.Trim$(serializablePage.GetSerializableTypeRoot()))
+        If VBA.Len(typeRoot) = 0 Then
+#If LOGGING_DEBUG_ENABLED Then
+            ex_Core.m_Diagnostic_LogError "PageManager: serializable type root is empty for page class '" & VBA.TypeName(page) & "'."
+#End If
+            Exit Function
+        End If
+
+        payloadXml = VBA.vbNullString
+        If Not serializablePage.TrySerializeSnapshot(payloadXml) Then Exit Function
+
+        pageId = VBA.LCase$(VBA.Trim$(pageBase.PageId))
+        If VBA.Len(pageId) = 0 Then pageId = VBA.LCase$(VBA.Trim$(VBA.CStr(pageKey)))
+
+        Set pageNode = dom.createElement(MODULE_SNAPSHOT_PAGE_NODE)
+        pageNode.setAttribute "pageId", pageId
+        pageNode.setAttribute "sheetName", VBA.Trim$(VBA.CStr(pageBase.Worksheet.Name))
+        pageNode.setAttribute "codeName", VBA.Trim$(VBA.CStr(pageBase.Worksheet.CodeName))
+        pageNode.setAttribute "type", typeRoot
+        pageNode.setAttribute "uiPath", pageBase.UiPath
+
+        Set payloadNode = dom.createElement(MODULE_SNAPSHOT_PAYLOAD_NODE)
+        payloadNode.Text = VBA.CStr(payloadXml)
+        pageNode.appendChild payloadNode
+        rootNode.appendChild pageNode
+
+ContinuePage:
+    Next pageKey
 
     outSnapshotXml = VBA.CStr(dom.XML)
     m_TrySerializeModuleSnapshot = (VBA.Len(VBA.Trim$(outSnapshotXml)) > 0)
 End Function
 
-' Callstack[1]: rt_Snapshots.m_RestoreRuntimeGlobalsSnapshot -> private_TryDeserializeRuntimeModuleSnapshot -> rt_PageManager.m_TryDeserializeModuleSnapshot
+' Callstack[1]: rt_RestoreManager.m_RestoreRuntimeGlobalsSnapshot -> private_TryDeserializeRuntimeModuleSnapshot -> rt_PageManager.m_TryDeserializeModuleSnapshot
 Public Function m_TryDeserializeModuleSnapshot(ByVal snapshotXml As String) As Boolean
     Dim dom As Object
     Dim rootNode As Object
+    Dim pageNodes As Object
+    Dim pageNode As Object
+    Dim payloadNode As Object
+    Dim page As obj_IPage
+    Dim serializablePage As obj_ISerializable
+    Dim restoredPages As Collection
+    Dim tmpWs As Worksheet
+    Dim pageId As String
+    Dim sheetName As String
+    Dim codeName As String
+    Dim typeRoot As String
+    Dim uiPath As String
+    Dim payloadXml As String
+    Dim isPageCreated As Boolean
+    Dim isSnapshotSucceeded As Boolean
+    Dim pageIdSeedText As String
+    Dim pageIdSeedValue As Double
     Dim worksheetName As String
+    Dim isRestorePrepared As Boolean
+    Dim finalizeOk As Boolean
 
     snapshotXml = VBA.Trim$(snapshotXml)
     If VBA.Len(snapshotXml) = 0 Then
@@ -69,84 +155,150 @@ Public Function m_TryDeserializeModuleSnapshot(ByVal snapshotXml As String) As B
         Exit Function
     End If
 
-    worksheetName = VBA.Trim$(VBA.CStr(rootNode.getAttribute("lastRenderedSheetName")))
-    If Not m_TryRestoreLastRenderedWorksheetName(worksheetName) Then Exit Function
-
-    m_TryDeserializeModuleSnapshot = True
-End Function
-
-' Callstack[1]: ThisWorkbook.Workbook_Open -> ThisWorkbook.m_ResetWorkbookAndCreateMainPage -> private_ResetWorkbookAndCreateMainPage -> rt_PageManager.m_CreatePage
-' Callstack[2]: ex_Core.private_TryRecoverUiAfterUpdate -> ThisWorkbook.m_ResetWorkbookAndCreateMainPage -> private_ResetWorkbookAndCreateMainPage -> rt_PageManager.m_CreatePage
-' Callstack[3]: rt_Snapshots.m_RestorePageSnapshots -> rt_PageManager.m_CreatePage
-Public Function m_CreatePage( _
-    ByVal xmlUiPath As String, _
-    ByVal pageType As PageTypeEnum, _
-    ByRef outPageId As String, _
-    Optional ByVal sheetName As String = VBA.vbNullString _
-) As Boolean
-    Dim wb As Workbook
-    Dim ws As Worksheet
-    Dim page As obj_IPage
-    Dim pageId As String
-    Dim createStep As String
-
-    outPageId = VBA.vbNullString
-
-    createStep = "resolve-workbook"
-    Set wb = ThisWorkbook
-    If wb Is Nothing Then
+    If VBA.StrComp(VBA.LCase$(VBA.CStr(rootNode.baseName)), MODULE_SNAPSHOT_ROOT, VBA.vbTextCompare) <> 0 Then
 #If LOGGING_DEBUG_ENABLED Then
-        ex_Core.m_Diagnostic_LogError "PageManager: workbook is not specified."
+        ex_Core.m_Diagnostic_LogError "PageManager: unexpected module snapshot root '" & VBA.CStr(rootNode.baseName) & "'."
 #End If
         Exit Function
     End If
 
-    createStep = "normalize-page-type"
-    pageType = private_NormalizePageType(pageType)
+    ' Подготовка workbook к восстановлению:
+    ' очищаем старые runtime-страницы и оставляем временный лист-заглушку.
+    If Not rt_RestoreManager.m_TryPrepareWorkbookForRestore(tmpWs) Then Exit Function
+    isRestorePrepared = True
+    Set restoredPages = New Collection
 
-    On Error GoTo EH_CREATE
-    createStep = "add-worksheet"
-    Set ws = wb.Worksheets.Add(After:=wb.Worksheets(wb.Worksheets.Count))
+    ' Фаза 1: recreate всех страниц и загрузка payload.
+    ' На этом шаге восстанавливаем объекты/данные, но не межобъектные связи.
+    Set pageNodes = rootNode.selectNodes("*[local-name()='" & MODULE_SNAPSHOT_PAGE_NODE & "']")
+    If Not pageNodes Is Nothing Then
+        For Each pageNode In pageNodes
+            Set page = Nothing
+            Set serializablePage = Nothing
+            isPageCreated = False
+            isSnapshotSucceeded = False
 
-    createStep = "apply-sheet-name"
-    sheetName = VBA.Trim$(sheetName)
-    If VBA.Len(sheetName) > 0 Then ws.Name = sheetName
+            pageId = VBA.LCase$(VBA.Trim$(VBA.CStr(pageNode.getAttribute("pageId"))))
+            sheetName = VBA.Trim$(VBA.CStr(pageNode.getAttribute("sheetName")))
+            codeName = VBA.Trim$(VBA.CStr(pageNode.getAttribute("codeName")))
+            typeRoot = VBA.LCase$(VBA.Trim$(VBA.CStr(pageNode.getAttribute("type"))))
+            uiPath = VBA.Trim$(VBA.CStr(pageNode.getAttribute("uiPath")))
+            If VBA.Len(sheetName) = 0 Then sheetName = codeName
 
-    createStep = "generate-page-id"
-    pageId = private_GeneratePageId(pageType)
-    If VBA.Len(pageId) = 0 Then GoTo EH_ADD
+            Set payloadNode = pageNode.selectSingleNode("*[local-name()='" & MODULE_SNAPSHOT_PAYLOAD_NODE & "']")
+            payloadXml = VBA.vbNullString
+            If Not payloadNode Is Nothing Then payloadXml = VBA.CStr(payloadNode.Text)
 
-    createStep = "create-page-instance"
-    If Not private_TryCreatePageByPageType(pageType, page) Then GoTo EH_ADD
-    If page Is Nothing Then GoTo EH_ADD
-    createStep = "initialize-page-instance"
-    If Not page.Initialize(ws, VBA.Trim$(xmlUiPath), VBA.CLng(pageType), pageId) Then GoTo EH_ADD
-    createStep = "register-page"
-    If Not private_RegisterPage(pageId, page) Then GoTo EH_ADD
+            If VBA.Len(typeRoot) = 0 Then GoTo ContinuePage
+            If VBA.Len(pageId) = 0 Then GoTo ContinuePage
 
-    outPageId = pageId
-    m_CreatePage = True
+            If Not ex_SerializableFactory.m_TryCreatePageByTypeRoot(typeRoot, page) Then GoTo ContinuePage
+            If page Is Nothing Then GoTo ContinuePage
+
+            If Not m_RestorePage(page, uiPath, sheetName, pageId) Then GoTo ContinuePage
+            isPageCreated = True
+
+            If VBA.Len(payloadXml) > 0 Then
+                If Not private_TryCastSerializablePage(page, serializablePage) Then GoTo ContinuePage
+                If Not serializablePage.TryDeserializeSnapshot(payloadXml) Then GoTo ContinuePage
+            End If
+
+            restoredPages.Add page
+            isSnapshotSucceeded = True
+
+ContinuePage:
+            If Not isSnapshotSucceeded Then
+                ' Если страница частично восстановилась и потом упала,
+                ' убираем ее сразу, чтобы не оставлять "битый" runtime state.
+                On Error Resume Next
+                If Not page Is Nothing And isPageCreated Then
+                    Call m_RemovePage(page, True)
+                End If
+                On Error GoTo 0
+            End If
+        Next pageNode
+    End If
+
+    ' Фаза 2: достройка связей/внутреннего состояния через TryRestoreState.
+    If Not rt_RestoreManager.m_TryRestoreSerializableCollectionState(restoredPages, "rt_PageManager.pages") Then GoTo EH_FAIL
+    ' Фаза 3: рендер после того, как все страницы уже существуют в коллекции.
+    If Not private_TryRenderPagesCollection(restoredPages, "page-manager:restore") Then GoTo EH_FAIL
+
+    ' Возвращаем логическую "последнюю страницу" и id-seed генератора.
+    worksheetName = VBA.Trim$(VBA.CStr(rootNode.getAttribute("lastRenderedSheetName")))
+    If Not m_TryRestoreLastRenderedWorksheetName(worksheetName) Then GoTo EH_FAIL
+
+    pageIdSeedText = VBA.Trim$(VBA.CStr(rootNode.getAttribute("pageIdSeed")))
+    If VBA.Len(pageIdSeedText) > 0 Then
+        On Error Resume Next
+        pageIdSeedValue = VBA.CDbl(pageIdSeedText)
+        If Err.Number <> 0 Then
+            Err.Clear
+            pageIdSeedValue = 0
+        End If
+        On Error GoTo 0
+        If pageIdSeedValue > 0 Then g_PageIdSeed = VBA.CLng(pageIdSeedValue)
+    End If
+
+    ' Финализация: удаляем временный лист-заглушку, если restore дошел до конца.
+    finalizeOk = rt_RestoreManager.m_TryFinalizeWorkbookAfterRestore(tmpWs)
+    If Not finalizeOk Then GoTo EH_FAIL
+
+    m_TryDeserializeModuleSnapshot = True
     Exit Function
 
-EH_ADD:
+EH_FAIL:
     On Error Resume Next
-    Application.DisplayAlerts = False
-    ws.Delete
-    Application.DisplayAlerts = True
+    If isRestorePrepared Then
+        Call rt_RestoreManager.m_TryFinalizeWorkbookAfterRestore(tmpWs)
+    End If
     On Error GoTo 0
-    Exit Function
+End Function
 
-EH_CREATE:
-    Application.DisplayAlerts = True
+' Callstack[1]: ThisWorkbook.Workbook_Open -> ThisWorkbook.m_ResetWorkbookAndCreateMainPage -> private_ResetWorkbookAndCreateMainPage -> rt_PageManager.m_CreatePage
+' Callstack[2]: ex_Core.private_TryRecoverUiAfterUpdate -> ThisWorkbook.m_ResetWorkbookAndCreateMainPage -> private_ResetWorkbookAndCreateMainPage -> rt_PageManager.m_CreatePage
+' Callstack[3]: rt_RestoreManager.m_RestorePageSnapshots -> rt_PageManager.m_RestorePage
+Public Function m_CreatePage( _
+    ByVal page As obj_IPage, _
+    ByVal uiPath As String, _
+    ByVal sheetName As String, _
+    Optional ByVal createContext As Object = Nothing _
+) As Boolean
+    Dim pageId As String
+
+    pageId = private_BuildPageId(private_ResolvePageIdPrefix(page))
+    If VBA.Len(VBA.Trim$(pageId)) = 0 Then
 #If LOGGING_DEBUG_ENABLED Then
-    ex_Core.m_Diagnostic_LogError "PageManager: failed to create page at step '" & createStep & "': [" & VBA.CStr(Err.Number) & "] " & Err.Description
+        ex_Core.m_Diagnostic_LogError "PageManager: failed to generate page id."
 #End If
+        Exit Function
+    End If
+
+    m_CreatePage = private_CreatePageInternal(page, uiPath, sheetName, pageId, createContext)
+End Function
+
+Public Function m_RestorePage( _
+    ByVal page As obj_IPage, _
+    ByVal uiPath As String, _
+    ByVal sheetName As String, _
+    ByVal pageId As String, _
+    Optional ByVal restoreContext As Object = Nothing _
+) As Boolean
+    pageId = VBA.LCase$(VBA.Trim$(pageId))
+    If VBA.Len(pageId) = 0 Then
+#If LOGGING_DEBUG_ENABLED Then
+        ex_Core.m_Diagnostic_LogError "PageManager: restore page id is empty."
+#End If
+        Exit Function
+    End If
+
+    m_RestorePage = private_CreatePageInternal(page, uiPath, sheetName, pageId, restoreContext)
 End Function
 
 ' Callstack[1]: rt_PageManager.m_RenderPageById -> rt_PageManager.m_TryGetPageById
 ' Callstack[2]: rt_PageManager.m_RemovePageById -> rt_PageManager.m_TryGetPageById
 ' Callstack[3]: ThisWorkbook.m_ResetWorkbookAndCreateMainPage -> private_ResetWorkbookAndCreateMainPage -> rt_PageManager.m_TryGetPageById
-' Callstack[4]: rt_Snapshots.m_RestorePageSnapshots -> rt_PageManager.m_TryGetPageById
+' Callstack[4]: rt_RestoreManager.m_RestorePageSnapshots -> rt_PageManager.m_TryGetPageById
 Public Function m_TryGetPageById(ByVal pageId As String, ByRef outPage As obj_IPage) As Boolean
     Set outPage = Nothing
     pageId = VBA.LCase$(VBA.Trim$(pageId))
@@ -220,33 +372,37 @@ Public Function m_TryGetPageByWorksheetName(ByVal worksheetName As String, ByRef
     m_TryGetPageByWorksheetName = m_TryGetPageByWorksheet(ws, outPage)
 End Function
 
-' Callstack[1]: rt_Snapshots.private_TryCollectAllPages -> rt_PageManager.m_TryGetPagesByType
-Public Function m_TryGetPagesByType(ByVal pageType As PageTypeEnum, ByRef outPages As Collection) As Boolean
+' Callstack[1]: rt_RestoreManager.private_TryCollectAllPages -> rt_PageManager.m_TryGetAllPages
+Public Function m_TryGetAllPages(ByRef outPages As Collection) As Boolean
     Dim pageId As Variant
     Dim page As obj_IPage
-    Dim pageBase As obj_PageBase
-    Dim normalizedType As PageTypeEnum
 
     Set outPages = New Collection
-    normalizedType = private_NormalizePageType(pageType)
-
     private_EnsureStorage
 
     For Each pageId In g_PageById.Keys
         Set page = g_PageById(pageId)
         If page Is Nothing Then GoTo ContinueLoop
 
-        Set pageBase = page.GetPageBase()
-        If pageBase Is Nothing Then GoTo ContinueLoop
-
-        If VBA.CLng(pageBase.PageType) = VBA.CLng(normalizedType) Then
-            outPages.Add page
-        End If
+        outPages.Add page
 
 ContinueLoop:
     Next pageId
 
-    m_TryGetPagesByType = True
+    m_TryGetAllPages = True
+End Function
+
+Public Function m_TryGetPagesCount(ByRef outCount As Long) As Boolean
+    Dim pageId As Variant
+
+    outCount = 0
+    private_EnsureStorage
+
+    For Each pageId In g_PageById.Keys
+        If Not (g_PageById(pageId) Is Nothing) Then outCount = outCount + 1
+    Next pageId
+
+    m_TryGetPagesCount = True
 End Function
 
 ' Callstack[1]: ThisWorkbook.m_ResetWorkbookAndCreateMainPage -> private_ResetWorkbookAndCreateMainPage -> rt_PageManager.m_RenderPageById
@@ -272,7 +428,7 @@ End Function
 ' Callstack[6]: ex_Test.private_TrySetObjectSource -> ex_Test.private_TryRerenderPage -> rt_PageManager.m_RenderPage
 ' Callstack[7]: ex_Test.private_TryRemoveObjectSource -> ex_Test.private_TryRerenderPage -> rt_PageManager.m_RenderPage
 ' Callstack[8]: obj_PageMain.private_TryRerenderByDataChange -> rt_PageManager.m_RenderPage
-' Callstack[9]: rt_Snapshots.m_RestorePageSnapshots(renderRestored:=True) -> rt_PageManager.m_RenderPage
+' Callstack[9]: rt_RestoreManager.m_RestorePageSnapshots(renderRestored:=True) -> rt_PageManager.m_RenderPage
 Public Function m_RenderPage(ByVal page As obj_IPage, Optional ByVal reason As String = VBA.vbNullString) As Boolean
     Dim pageBase As obj_PageBase
     Dim sheetName As String
@@ -379,7 +535,7 @@ Public Function m_RemovePage(ByVal page As obj_IPage, Optional ByVal deleteWorks
 End Function
 
 ' Callstack[1]: ThisWorkbook.Workbook_Open -> ThisWorkbook.m_ResetWorkbookAndCreateMainPage -> private_ResetWorkbookAndCreateMainPage -> rt_PageManager.m_DisposeAllPages
-' Callstack[2]: rt_Snapshots.private_TryResetWorkbookBeforeRestore -> rt_PageManager.m_DisposeAllPages
+' Callstack[2]: rt_RestoreManager.private_TryResetWorkbookBeforeRestore -> rt_PageManager.m_DisposeAllPages
 Public Sub m_DisposeAllPages()
     Dim pageId As Variant
     Dim page As obj_IPage
@@ -460,6 +616,46 @@ End Function
 ' //
 ' // Internal
 ' //
+Private Function private_TryCastSerializablePage(ByVal page As obj_IPage, ByRef outSerializable As obj_ISerializable) As Boolean
+    Set outSerializable = Nothing
+    If page Is Nothing Then Exit Function
+
+    On Error Resume Next
+    Set outSerializable = page
+    If Err.Number <> 0 Then
+        Err.Clear
+        Set outSerializable = Nothing
+    End If
+    On Error GoTo 0
+
+    private_TryCastSerializablePage = Not outSerializable Is Nothing
+End Function
+
+
+Private Function private_TryRenderPagesCollection(ByVal pages As Collection, ByVal reasonPrefix As String) As Boolean
+    Dim pageItem As Variant
+    Dim page As obj_IPage
+    Dim renderReason As String
+
+    private_TryRenderPagesCollection = True
+    If pages Is Nothing Then Exit Function
+
+    renderReason = VBA.Trim$(reasonPrefix)
+    If VBA.Len(renderReason) = 0 Then renderReason = "restore"
+
+    For Each pageItem In pages
+        Set page = Nothing
+        Set page = pageItem
+        If page Is Nothing Then GoTo ContinuePage
+        If m_RenderPage(page, renderReason) Then GoTo ContinuePage
+
+        private_TryRenderPagesCollection = False
+        Exit Function
+ContinuePage:
+    Next pageItem
+End Function
+
+
 Private Function private_RegisterPage(ByVal pageId As String, ByVal page As obj_IPage) As Boolean
     Dim pageBase As obj_PageBase
     Dim sheetName As String
@@ -590,42 +786,112 @@ Private Function private_TryResolvePageIdByObject(ByVal page As obj_IPage) As St
 End Function
 
 
-Private Function private_TryCreatePageByPageType(ByVal pageType As PageTypeEnum, ByRef outPage As obj_IPage) As Boolean
-    Set outPage = Nothing
-    pageType = private_NormalizePageType(pageType)
+Private Function private_ResolvePageIdPrefix(ByVal page As obj_IPage) As String
+    private_ResolvePageIdPrefix = "page"
+    If page Is Nothing Then Exit Function
 
-    Select Case pageType
-        Case PageTypeMain, PageTypeGenerated
-            Set outPage = New obj_PageMain
-            private_TryCreatePageByPageType = True
-    End Select
+    If TypeOf page Is obj_PageMain Then
+        private_ResolvePageIdPrefix = "main"
+        Exit Function
+    End If
+
+    If TypeOf page Is obj_PagePersonalCard Then
+        private_ResolvePageIdPrefix = "generated"
+        Exit Function
+    End If
 End Function
 
+Private Function private_CreatePageInternal( _
+    ByVal page As obj_IPage, _
+    ByVal uiPath As String, _
+    ByVal sheetName As String, _
+    ByVal pageId As String, _
+    Optional ByVal pageContext As Object = Nothing _
+) As Boolean
+    Dim wb As Workbook
+    Dim ws As Worksheet
+    Dim pageBase As obj_PageBase
+    Dim isPageInitialized As Boolean
+    Dim errDescription As String
 
-Private Function private_NormalizePageType(ByVal pageType As Long) As PageTypeEnum
-    Select Case VBA.CLng(pageType)
-        Case PageTypeGenerated
-            private_NormalizePageType = PageTypeGenerated
+    If page Is Nothing Then
+#If LOGGING_DEBUG_ENABLED Then
+        ex_Core.m_Diagnostic_LogError "PageManager: page instance is not specified."
+#End If
+        Exit Function
+    End If
 
-        Case Else
-            private_NormalizePageType = PageTypeMain
-    End Select
+    Set wb = ThisWorkbook
+    If wb Is Nothing Then
+#If LOGGING_DEBUG_ENABLED Then
+        ex_Core.m_Diagnostic_LogError "PageManager: workbook is not specified."
+#End If
+        Exit Function
+    End If
+
+    uiPath = VBA.Trim$(uiPath)
+    sheetName = VBA.Trim$(sheetName)
+    pageId = VBA.LCase$(VBA.Trim$(pageId))
+    If VBA.Len(pageId) = 0 Then
+#If LOGGING_DEBUG_ENABLED Then
+        ex_Core.m_Diagnostic_LogError "PageManager: page id is empty during create."
+#End If
+        Exit Function
+    End If
+
+    On Error GoTo EH_CREATE
+    Set ws = wb.Worksheets.Add(After:=wb.Worksheets(wb.Worksheets.Count))
+    If VBA.Len(sheetName) > 0 Then ws.Name = sheetName
+
+    If Not page.Initialize(ws, uiPath, pageId, pageContext) Then
+#If LOGGING_DEBUG_ENABLED Then
+        ex_Core.m_Diagnostic_LogError "PageManager: page initialize failed for page id '" & VBA.Replace$(pageId, "'", "''") & "'."
+#End If
+        GoTo EH_FAIL
+    End If
+    isPageInitialized = True
+
+    Set pageBase = page.GetPageBase()
+    If pageBase Is Nothing Then GoTo EH_FAIL
+    If pageBase.Worksheet Is Nothing Then GoTo EH_FAIL
+    If VBA.StrComp(VBA.LCase$(VBA.Trim$(pageBase.PageId)), pageId, VBA.vbTextCompare) <> 0 Then
+#If LOGGING_DEBUG_ENABLED Then
+        ex_Core.m_Diagnostic_LogError "PageManager: page initialize did not assign expected page id '" & VBA.Replace$(pageId, "'", "''") & "'."
+#End If
+        GoTo EH_FAIL
+    End If
+
+    private_CreatePageInternal = private_RegisterPage(pageId, page)
+    Exit Function
+
+EH_FAIL:
+    On Error Resume Next
+    If isPageInitialized Then
+        page.Dispose False
+    End If
+    If Not ws Is Nothing Then
+        Application.DisplayAlerts = False
+        ws.Delete
+        Application.DisplayAlerts = True
+    End If
+    On Error GoTo 0
+    Exit Function
+
+EH_CREATE:
+    Application.DisplayAlerts = True
+    errDescription = Err.Description
+#If LOGGING_DEBUG_ENABLED Then
+    ex_Core.m_Diagnostic_LogError "PageManager: exception during page create for page id '" & VBA.Replace$(pageId, "'", "''") & "': " & VBA.Replace$(errDescription, "'", "''")
+#End If
+    Resume EH_FAIL
 End Function
 
-
-Private Function private_GeneratePageId(ByVal pageType As PageTypeEnum) As String
-    Dim prefix As String
-
-    pageType = private_NormalizePageType(pageType)
-    Select Case pageType
-        Case PageTypeGenerated
-            prefix = "generated"
-        Case Else
-            prefix = "main"
-    End Select
+Private Function private_BuildPageId(Optional ByVal pageIdPrefix As String = "page") As String
+    pageIdPrefix = VBA.LCase$(VBA.Trim$(pageIdPrefix))
+    If VBA.Len(pageIdPrefix) = 0 Then pageIdPrefix = "page"
 
     g_PageIdSeed = g_PageIdSeed + 1
-    private_GeneratePageId = VBA.LCase$(prefix & "-" & VBA.Format$(VBA.Now, "yyyymmdd-hhnnss") & "-" & VBA.CStr(g_PageIdSeed))
+    private_BuildPageId = pageIdPrefix & "-" & VBA.Format$(VBA.Now, "yyyymmdd-hhnnss") & "-" & VBA.CStr(g_PageIdSeed)
 End Function
 
 

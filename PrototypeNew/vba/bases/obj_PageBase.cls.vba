@@ -11,7 +11,6 @@ Private m_Worksheet As Worksheet
 Private m_UiPath As String
 Private m_LastRenderedUiPath As String
 Private m_PageId As String
-Private m_PageType As Long
 Private m_UiDom As Object
 Private m_IsDisposed As Boolean
 Private m_IsRendering As Boolean
@@ -30,8 +29,6 @@ Private Const ROUTE_TYPE_CONTROL As String = "control"
 Private Const UI_NS As String = "urn:excelprototype:profiles"
 Private Const SHEET_UI_BASE_REL_PATH As String = "ui\"
 Private Const SHEET_UI_FILE_SUFFIX As String = "UI.xml"
-Private Const PAGE_SNAPSHOT_ENTRY_ROOT As String = "pageSnapshot"
-Private Const PAGE_SNAPSHOT_ENTRY_NS As String = "urn:excelprototype:runtime-page-snapshot-entry:v1"
 Private Const CONTROL_SNAPSHOT_ENTRY_ROOT As String = "controlSnapshot"
 Private Const CONTROL_SNAPSHOT_ENTRY_NS As String = "urn:excelprototype:runtime-control-snapshot-entry:v1"
 Private Const INLINE_TARGET_RANGE As String = "range"
@@ -42,6 +39,7 @@ Private Sub Class_Initialize()
     ex_Core.m_Diagnostic_LogInfo "lifecycle:" & VBA.TypeName(Me) & ".Class_Initialize"
 #End If
 End Sub
+
 Private Sub Class_Terminate()
 #If LOGGING_VERBOSE_ENABLED Then
     ex_Core.m_Diagnostic_LogInfo "lifecycle:" & VBA.TypeName(Me) & ".Class_Terminate"
@@ -53,30 +51,60 @@ Private Sub Class_Terminate()
 End Sub
 
 ' //
+' // Properties
+' //
+Public Property Get Worksheet() As Worksheet
+    Set Worksheet = m_Worksheet
+End Property
+
+Public Property Get UiPath() As String
+    UiPath = m_UiPath
+End Property
+
+Public Property Get PageId() As String
+    PageId = m_PageId
+End Property
+
+Public Property Get XmlDom() As Object
+    Set XmlDom = m_UiDom
+End Property
+
+Public Property Get RuntimeSources() As obj_PageRuntimeSources
+    If Not private_EnsureNotDisposed("RuntimeSources") Then Exit Property
+    Set RuntimeSources = m_PageRuntimeSources
+End Property
+
+Public Property Get IsDisposed() As Boolean
+    IsDisposed = m_IsDisposed
+End Property
+
+' //
 ' // API
 ' //
 Public Function Initialize( _
     ByVal ws As Worksheet, _
     Optional ByVal uiPath As String = VBA.vbNullString, _
-    Optional ByVal pageType As Long = 1, _
     Optional ByVal pageId As String = VBA.vbNullString _
 ) As Boolean
+    Dim normalizedPageId As String
+
 #If LOGGING_VERBOSE_ENABLED Then
     ex_Core.m_Diagnostic_LogInfo "lifecycle:" & VBA.TypeName(Me) & ".Initialize"
 #End If
     If Not private_EnsureNotDisposed("Initialize") Then Exit Function
 
-    Set m_Worksheet = ws
-    m_UiPath = VBA.Trim$(uiPath)
-    m_LastRenderedUiPath = VBA.vbNullString
-    m_PageType = VBA.CLng(pageType)
-    m_PageId = VBA.Trim$(pageId)
-    If VBA.Len(m_PageId) = 0 Then
+    normalizedPageId = VBA.LCase$(VBA.Trim$(pageId))
+    If VBA.Len(normalizedPageId) = 0 Then
 #If LOGGING_DEBUG_ENABLED Then
-        ex_Core.m_Diagnostic_LogError "PageBase: page id is empty during initialization."
+        ex_Core.m_Diagnostic_LogError "PageBase: page id is empty during Initialize."
 #End If
         Exit Function
     End If
+
+    Set m_Worksheet = ws
+    m_UiPath = VBA.Trim$(uiPath)
+    m_LastRenderedUiPath = VBA.vbNullString
+    m_PageId = normalizedPageId
     Set m_UiDom = Nothing
     m_IsRendering = False
     Set m_PageRuntimeSources = New obj_PageRuntimeSources
@@ -86,6 +114,7 @@ Public Function Initialize( _
     Call Me.ResetControlActions
     Initialize = Me.IsReady()
 End Function
+
 Public Sub Dispose(Optional ByVal deleteWorksheet As Boolean = True)
     Dim ws As Worksheet
 
@@ -99,7 +128,6 @@ Public Sub Dispose(Optional ByVal deleteWorksheet As Boolean = True)
     m_UiPath = VBA.vbNullString
     m_LastRenderedUiPath = VBA.vbNullString
     m_PageId = VBA.vbNullString
-    m_PageType = 0
     Set m_UiDom = Nothing
     Set m_PageRuntimeSources = Nothing
     Set m_InlineRunEntries = Nothing
@@ -125,43 +153,6 @@ EH_DELETE:
 #End If
 End Sub
 
-' Callstack[1]: ThisWorkbook.Workbook_Open -> ThisWorkbook.m_ResetWorkbookAndCreateMainPage -> private_ResetWorkbookAndCreateMainPage -> rt_PageManager.m_CreatePage -> obj_PageMain.obj_IPage_Initialize -> obj_PageBase.Initialize
-' Callstack[2]: ex_Core.private_TryRecoverUiAfterUpdate -> ThisWorkbook.m_ResetWorkbookAndCreateMainPage -> private_ResetWorkbookAndCreateMainPage -> rt_PageManager.m_CreatePage -> obj_PageMain.obj_IPage_Initialize -> obj_PageBase.Initialize
-' Callstack[3]: rt_Snapshots.m_RestorePageSnapshots -> rt_PageManager.m_CreatePage -> obj_PageMain.obj_IPage_Initialize -> obj_PageBase.Initialize
-
-' Callstack[1]: ThisWorkbook.Workbook_Open -> ThisWorkbook.m_ResetWorkbookAndCreateMainPage -> private_ResetWorkbookAndCreateMainPage -> rt_PageManager.m_DisposeAllPages -> page.Dispose(False) -> obj_PageMain.obj_IPage_Dispose -> obj_PageBase.Dispose
-' Callstack[2]: ThisWorkbook.Workbook_SheetBeforeDelete -> ex_HelpersSheet.m_RemovePageByWorksheet -> rt_PageManager.m_RemovePage -> page.Dispose(False) -> obj_PageMain.obj_IPage_Dispose -> obj_PageBase.Dispose
-' Callstack[3]: rt_PageManager.m_RemovePageById -> rt_PageManager.m_RemovePage -> page.Dispose(deleteWorksheet) -> obj_PageMain.obj_IPage_Dispose -> obj_PageBase.Dispose
-
-Public Property Get Worksheet() As Worksheet
-    Set Worksheet = m_Worksheet
-End Property
-
-Public Property Get UiPath() As String
-    UiPath = m_UiPath
-End Property
-
-Public Property Get PageId() As String
-    PageId = m_PageId
-End Property
-
-Public Property Get PageType() As Long
-    PageType = m_PageType
-End Property
-
-Public Property Get XmlDom() As Object
-    Set XmlDom = m_UiDom
-End Property
-
-Public Property Get RuntimeSources() As obj_PageRuntimeSources
-    If Not private_EnsureNotDisposed("RuntimeSources") Then Exit Property
-    Set RuntimeSources = m_PageRuntimeSources
-End Property
-
-Public Property Get IsDisposed() As Boolean
-    IsDisposed = m_IsDisposed
-End Property
-
 Public Function IsReady() As Boolean
     If m_IsDisposed Then
 #If LOGGING_DEBUG_ENABLED Then
@@ -177,7 +168,7 @@ Public Function GetPageBase() As obj_PageBase
     Set GetPageBase = Me
 End Function
 
-' Callstack[1]: rt_Snapshots.m_RestorePageSnapshots -> serializablePage.TryDeserializeSnapshot(obj_PageMain) -> m_Base.ReadBaseSnapshotAttributes -> obj_PageBase.SetUiPath
+' Callstack[1]: rt_RestoreManager.m_RestorePageSnapshots -> serializablePage.TryDeserializeSnapshot(obj_PageMain) -> m_Base.ReadBaseSnapshotAttributes -> obj_PageBase.SetUiPath
 ' Callstack[2]: obj_PageBase.ReadBaseSnapshotAttributes -> obj_PageBase.SetUiPath
 Public Sub SetUiPath(ByVal uiPath As String)
     If Not private_EnsureNotDisposed("SetUiPath") Then Exit Sub
@@ -194,7 +185,7 @@ End Sub
 ' Callstack[7]: ex_Test.private_TrySetItemsSource -> ex_Test.private_TryRerenderPage -> rt_PageManager.m_RenderPage -> obj_PageMain.obj_IPage_Render -> obj_PageBase.Render
 ' Callstack[8]: ex_Test.private_TrySetObjectSource -> ex_Test.private_TryRerenderPage -> rt_PageManager.m_RenderPage -> obj_PageMain.obj_IPage_Render -> obj_PageBase.Render
 ' Callstack[9]: ex_Test.private_TryRemoveObjectSource -> ex_Test.private_TryRerenderPage -> rt_PageManager.m_RenderPage -> obj_PageMain.obj_IPage_Render -> obj_PageBase.Render
-' Callstack[10]: rt_Snapshots.m_RestorePageSnapshots(renderRestored:=True) -> rt_PageManager.m_RenderPage -> obj_PageMain.obj_IPage_Render -> obj_PageBase.Render
+' Callstack[10]: rt_RestoreManager.m_RestorePageSnapshots(renderRestored:=True) -> rt_PageManager.m_RenderPage -> obj_PageMain.obj_IPage_Render -> obj_PageBase.Render
 ' Callstack[11]: obj_PageMain.private_TryRerenderByDataChange -> rt_PageManager.m_RenderPage -> obj_PageMain.obj_IPage_Render -> obj_PageBase.Render
 Public Function Render() As Boolean
     Dim wb As Workbook
@@ -837,9 +828,9 @@ Public Function DispatchShapeClick(ByVal shapeName As String) As Boolean
     DispatchShapeClick = True
 End Function
 
-' Callstack[1]: rt_CoreActions.m_UpdateCodeFullAndRerender -> private_ScheduleUpdateAndRerender -> rt_Snapshots.m_SavePageSnapshots -> serializablePage.TrySerializeSnapshot(obj_PageMain) -> obj_PageMain.TrySerializeSnapshot -> m_Base.TryCollectSerializableControlSnapshots -> obj_PageBase.TryCollectSerializableControlSnapshots
-' Callstack[2]: rt_CoreActions.m_UpdateCodeDateAndRerender -> private_ScheduleUpdateAndRerender -> rt_Snapshots.m_SavePageSnapshots -> serializablePage.TrySerializeSnapshot(obj_PageMain) -> obj_PageMain.TrySerializeSnapshot -> m_Base.TryCollectSerializableControlSnapshots -> obj_PageBase.TryCollectSerializableControlSnapshots
-' Callstack[3]: rt_CoreActions.m_UpdateCodeSizeAndRerender -> private_ScheduleUpdateAndRerender -> rt_Snapshots.m_SavePageSnapshots -> serializablePage.TrySerializeSnapshot(obj_PageMain) -> obj_PageMain.TrySerializeSnapshot -> m_Base.TryCollectSerializableControlSnapshots -> obj_PageBase.TryCollectSerializableControlSnapshots
+' Callstack[1]: rt_CoreActions.m_UpdateCodeFullAndRerender -> private_ScheduleUpdateAndRerender -> rt_RestoreManager.m_SavePageSnapshots -> serializablePage.TrySerializeSnapshot(obj_PageMain) -> obj_PageMain.TrySerializeSnapshot -> m_Base.TryCollectSerializableControlSnapshots -> obj_PageBase.TryCollectSerializableControlSnapshots
+' Callstack[2]: rt_CoreActions.m_UpdateCodeDateAndRerender -> private_ScheduleUpdateAndRerender -> rt_RestoreManager.m_SavePageSnapshots -> serializablePage.TrySerializeSnapshot(obj_PageMain) -> obj_PageMain.TrySerializeSnapshot -> m_Base.TryCollectSerializableControlSnapshots -> obj_PageBase.TryCollectSerializableControlSnapshots
+' Callstack[3]: rt_CoreActions.m_UpdateCodeSizeAndRerender -> private_ScheduleUpdateAndRerender -> rt_RestoreManager.m_SavePageSnapshots -> serializablePage.TrySerializeSnapshot(obj_PageMain) -> obj_PageMain.TrySerializeSnapshot -> m_Base.TryCollectSerializableControlSnapshots -> obj_PageBase.TryCollectSerializableControlSnapshots
 Public Function TryCollectSerializableControlSnapshots(ByRef outSnapshots As Collection) As Boolean
     Dim key As Variant
     Dim iControl As Object
@@ -886,8 +877,8 @@ ContinueControl:
     TryCollectSerializableControlSnapshots = True
 End Function
 
-' Callstack[1]: ThisWorkbook.Workbook_Open -> rt_Snapshots.m_RestorePageSnapshots -> serializablePage.TryDeserializeSnapshot(obj_PageMain) -> obj_PageMain.TryDeserializeSnapshot -> obj_PageMain.obj_IPage_Render -> obj_PageMain.private_TryRestorePendingControlSnapshots -> m_Base.TryRestoreSerializableControlSnapshots -> obj_PageBase.TryRestoreSerializableControlSnapshots
-' Callstack[2]: rt_CoreActions.m_RerenderLastPageAfterUpdate -> rt_Snapshots.m_RestorePageSnapshots -> serializablePage.TryDeserializeSnapshot(obj_PageMain) -> obj_PageMain.TryDeserializeSnapshot -> obj_PageMain.obj_IPage_Render -> obj_PageMain.private_TryRestorePendingControlSnapshots -> m_Base.TryRestoreSerializableControlSnapshots -> obj_PageBase.TryRestoreSerializableControlSnapshots
+' Callstack[1]: ThisWorkbook.Workbook_Open -> rt_RestoreManager.m_RestorePageSnapshots -> serializablePage.TryDeserializeSnapshot(obj_PageMain) -> obj_PageMain.TryDeserializeSnapshot -> obj_PageMain.obj_IPage_Render -> obj_PageMain.private_TryRestorePendingControlSnapshots -> m_Base.TryRestoreSerializableControlSnapshots -> obj_PageBase.TryRestoreSerializableControlSnapshots
+' Callstack[2]: rt_CoreActions.m_RerenderLastPageAfterUpdate -> rt_RestoreManager.m_RestorePageSnapshots -> serializablePage.TryDeserializeSnapshot(obj_PageMain) -> obj_PageMain.TryDeserializeSnapshot -> obj_PageMain.obj_IPage_Render -> obj_PageMain.private_TryRestorePendingControlSnapshots -> m_Base.TryRestoreSerializableControlSnapshots -> obj_PageBase.TryRestoreSerializableControlSnapshots
 ' Callstack[3]: obj_PageMain.private_TryRestorePendingControlSnapshots -> m_Base.TryRestoreSerializableControlSnapshots -> obj_PageBase.TryRestoreSerializableControlSnapshots
 Public Function TryRestoreSerializableControlSnapshots(ByVal snapshots As Collection) As Boolean
     Dim item As Variant
@@ -1007,145 +998,8 @@ ContinueControlByName:
     TryGetRegisteredControlByName = (matchCount = 1 And Not outControl Is Nothing)
 End Function
 
-' Callstack[1]: ThisWorkbook.Workbook_BeforeClose -> rt_Snapshots.m_SavePageSnapshots -> page.GetPageBase -> obj_PageBase.TrySerializePageSnapshotEnvelope
-' Callstack[2]: rt_CoreActions.m_UpdateCodeFullAndRerender -> private_ScheduleUpdateAndRerender -> rt_Snapshots.m_SavePageSnapshots -> page.GetPageBase -> obj_PageBase.TrySerializePageSnapshotEnvelope
-' Callstack[3]: rt_CoreActions.m_UpdateCodeDateAndRerender -> private_ScheduleUpdateAndRerender -> rt_Snapshots.m_SavePageSnapshots -> page.GetPageBase -> obj_PageBase.TrySerializePageSnapshotEnvelope
-' Callstack[4]: rt_CoreActions.m_UpdateCodeSizeAndRerender -> private_ScheduleUpdateAndRerender -> rt_Snapshots.m_SavePageSnapshots -> page.GetPageBase -> obj_PageBase.TrySerializePageSnapshotEnvelope
-Public Function TrySerializePageSnapshotEnvelope( _
-    ByVal typeRoot As String, _
-    ByVal pagePayloadXml As String, _
-    ByRef outSnapshotXml As String _
-) As Boolean
-    Dim dom As Object
-    Dim rootNode As Object
-    Dim payloadNode As Object
-    Dim codeNameValue As String
-    Dim sheetNameValue As String
-    Dim workbookName As String
-
-    outSnapshotXml = VBA.vbNullString
-    typeRoot = VBA.LCase$(VBA.Trim$(typeRoot))
-    If VBA.Len(typeRoot) = 0 Then
-#If LOGGING_DEBUG_ENABLED Then
-        ex_Core.m_Diagnostic_LogError "PageBase: page snapshot type root is empty."
-#End If
-        Exit Function
-    End If
-
-    If m_Worksheet Is Nothing Then
-#If LOGGING_DEBUG_ENABLED Then
-        ex_Core.m_Diagnostic_LogError "PageBase: worksheet is not specified for page snapshot serialization."
-#End If
-        Exit Function
-    End If
-
-    codeNameValue = VBA.Trim$(m_Worksheet.CodeName)
-    sheetNameValue = VBA.Trim$(m_Worksheet.Name)
-    workbookName = VBA.Trim$(m_Worksheet.Parent.Name)
-
-    If VBA.Len(codeNameValue) = 0 Then codeNameValue = sheetNameValue
-    If VBA.Len(codeNameValue) = 0 Then
-#If LOGGING_DEBUG_ENABLED Then
-        ex_Core.m_Diagnostic_LogError "PageBase: worksheet codeName is empty for page snapshot serialization."
-#End If
-        Exit Function
-    End If
-
-    If Not ex_Core.m_CustomXmlPartStore_TryCreateEmptyDom(PAGE_SNAPSHOT_ENTRY_ROOT, PAGE_SNAPSHOT_ENTRY_NS, dom) Then Exit Function
-
-    Set rootNode = dom.DocumentElement
-    If rootNode Is Nothing Then
-#If LOGGING_DEBUG_ENABLED Then
-        ex_Core.m_Diagnostic_LogError "PageBase: page snapshot root node is missing."
-#End If
-        Exit Function
-    End If
-
-    ' Сохраняем достаточно идентификаторов, чтобы сопоставить снапшот той же странице.
-    rootNode.setAttribute "workbook", workbookName
-    rootNode.setAttribute "codeName", codeNameValue
-    rootNode.setAttribute "sheetName", sheetNameValue
-    rootNode.setAttribute "type", typeRoot
-    rootNode.setAttribute "uiPath", m_UiPath
-    rootNode.setAttribute "pageId", m_PageId
-    rootNode.setAttribute "pageType", VBA.CStr(m_PageType)
-
-    Set payloadNode = dom.createElement("payload")
-    payloadNode.Text = VBA.CStr(pagePayloadXml)
-    rootNode.appendChild payloadNode
-
-    outSnapshotXml = VBA.CStr(dom.XML)
-    TrySerializePageSnapshotEnvelope = (VBA.Len(VBA.Trim$(outSnapshotXml)) > 0)
-End Function
-
-' Callstack[1]: ThisWorkbook.Workbook_Open -> rt_Snapshots.m_RestorePageSnapshots -> snapshotParser(obj_PageBase).TryDeserializePageSnapshotEnvelope
-' Callstack[2]: rt_CoreActions.m_RerenderLastPageAfterUpdate -> rt_Snapshots.m_RestorePageSnapshots -> snapshotParser(obj_PageBase).TryDeserializePageSnapshotEnvelope
-Public Function TryDeserializePageSnapshotEnvelope( _
-    ByVal snapshotXml As String, _
-    ByRef outCodeName As String, _
-    ByRef outSheetName As String, _
-    ByRef outTypeRoot As String, _
-    ByRef outUiPath As String, _
-    ByRef outPagePayloadXml As String, _
-    ByRef outPageId As String, _
-    ByRef outPageType As Long _
-) As Boolean
-    Dim dom As Object
-    Dim rootNode As Object
-    Dim payloadNode As Object
-
-    outCodeName = VBA.vbNullString
-    outSheetName = VBA.vbNullString
-    outTypeRoot = VBA.vbNullString
-    outUiPath = VBA.vbNullString
-    outPagePayloadXml = VBA.vbNullString
-    outPageId = VBA.vbNullString
-    outPageType = 0
-
-    snapshotXml = VBA.Trim$(snapshotXml)
-    If VBA.Len(snapshotXml) = 0 Then Exit Function
-
-    If Not ex_Core.m_CustomXmlPartStore_TryLoadDomFromXml(snapshotXml, dom) Then Exit Function
-
-    Set rootNode = dom.DocumentElement
-    If rootNode Is Nothing Then
-#If LOGGING_DEBUG_ENABLED Then
-        ex_Core.m_Diagnostic_LogError "PageBase: page snapshot root node is missing."
-#End If
-        Exit Function
-    End If
-    If VBA.StrComp(VBA.LCase$(VBA.CStr(rootNode.baseName)), PAGE_SNAPSHOT_ENTRY_ROOT, VBA.vbTextCompare) <> 0 Then
-#If LOGGING_DEBUG_ENABLED Then
-        ex_Core.m_Diagnostic_LogError "PageBase: unexpected page snapshot root '" & VBA.CStr(rootNode.baseName) & "'."
-#End If
-        Exit Function
-    End If
-
-    outCodeName = VBA.Trim$(VBA.CStr(rootNode.getAttribute("codeName")))
-    outSheetName = VBA.Trim$(VBA.CStr(rootNode.getAttribute("sheetName")))
-    outTypeRoot = VBA.LCase$(VBA.Trim$(VBA.CStr(rootNode.getAttribute("type"))))
-    outUiPath = VBA.Trim$(VBA.CStr(rootNode.getAttribute("uiPath")))
-    outPageId = VBA.LCase$(VBA.Trim$(VBA.CStr(rootNode.getAttribute("pageId"))))
-    outPageType = VBA.CLng(VBA.Val(VBA.Trim$(VBA.CStr(rootNode.getAttribute("pageType")))))
-
-    ' В XML payload может отсутствовать, но для полноценного восстановления он нужен.
-    Set payloadNode = rootNode.selectSingleNode("*[local-name()='payload']")
-    If Not payloadNode Is Nothing Then
-        outPagePayloadXml = VBA.CStr(payloadNode.Text)
-    End If
-
-    If VBA.Len(outCodeName) = 0 And VBA.Len(outSheetName) = 0 Then
-#If LOGGING_DEBUG_ENABLED Then
-        ex_Core.m_Diagnostic_LogError "PageBase: page snapshot has empty worksheet identity."
-#End If
-        Exit Function
-    End If
-
-    TryDeserializePageSnapshotEnvelope = True
-End Function
-
-' Callstack[1]: ThisWorkbook.Workbook_Open -> rt_Snapshots.m_RestorePageSnapshots -> serializablePage.TryDeserializeSnapshot(obj_PageMain) -> obj_PageMain.obj_IPage_Render -> obj_PageMain.private_TryRestorePendingControlSnapshots -> obj_PageBase.TryRestoreSerializableControlSnapshots -> obj_PageBase.TryDeserializeControlSnapshotEnvelope
-' Callstack[2]: rt_CoreActions.m_RerenderLastPageAfterUpdate -> rt_Snapshots.m_RestorePageSnapshots -> serializablePage.TryDeserializeSnapshot(obj_PageMain) -> obj_PageMain.obj_IPage_Render -> obj_PageMain.private_TryRestorePendingControlSnapshots -> obj_PageBase.TryRestoreSerializableControlSnapshots -> obj_PageBase.TryDeserializeControlSnapshotEnvelope
+' Callstack[1]: ThisWorkbook.Workbook_Open -> rt_RestoreManager.m_RestorePageSnapshots -> serializablePage.TryDeserializeSnapshot(obj_PageMain) -> obj_PageMain.obj_IPage_Render -> obj_PageMain.private_TryRestorePendingControlSnapshots -> obj_PageBase.TryRestoreSerializableControlSnapshots -> obj_PageBase.TryDeserializeControlSnapshotEnvelope
+' Callstack[2]: rt_CoreActions.m_RerenderLastPageAfterUpdate -> rt_RestoreManager.m_RestorePageSnapshots -> serializablePage.TryDeserializeSnapshot(obj_PageMain) -> obj_PageMain.obj_IPage_Render -> obj_PageMain.private_TryRestorePendingControlSnapshots -> obj_PageBase.TryRestoreSerializableControlSnapshots -> obj_PageBase.TryDeserializeControlSnapshotEnvelope
 ' Callstack[3]: obj_PageMain.private_TryRestorePendingControlSnapshots -> obj_PageBase.TryRestoreSerializableControlSnapshots -> obj_PageBase.TryDeserializeControlSnapshotEnvelope
 Public Function TryDeserializeControlSnapshotEnvelope( _
     ByVal snapshotXml As String, _
@@ -1197,10 +1051,10 @@ Public Function TryDeserializeControlSnapshotEnvelope( _
     TryDeserializeControlSnapshotEnvelope = True
 End Function
 
-' Callstack[1]: ThisWorkbook.Workbook_BeforeClose -> rt_Snapshots.m_SavePageSnapshots -> serializablePage.TrySerializeSnapshot(obj_PageMain) -> m_Base.TryCreateSnapshotRoot -> obj_PageBase.TryCreateSnapshotRoot
-' Callstack[2]: rt_CoreActions.m_UpdateCodeFullAndRerender -> private_ScheduleUpdateAndRerender -> rt_Snapshots.m_SavePageSnapshots -> serializablePage.TrySerializeSnapshot(obj_PageMain) -> m_Base.TryCreateSnapshotRoot -> obj_PageBase.TryCreateSnapshotRoot
-' Callstack[3]: rt_CoreActions.m_UpdateCodeDateAndRerender -> private_ScheduleUpdateAndRerender -> rt_Snapshots.m_SavePageSnapshots -> serializablePage.TrySerializeSnapshot(obj_PageMain) -> m_Base.TryCreateSnapshotRoot -> obj_PageBase.TryCreateSnapshotRoot
-' Callstack[4]: rt_CoreActions.m_UpdateCodeSizeAndRerender -> private_ScheduleUpdateAndRerender -> rt_Snapshots.m_SavePageSnapshots -> serializablePage.TrySerializeSnapshot(obj_PageMain) -> m_Base.TryCreateSnapshotRoot -> obj_PageBase.TryCreateSnapshotRoot
+' Callstack[1]: ThisWorkbook.Workbook_BeforeClose -> rt_RestoreManager.m_SavePageSnapshots -> serializablePage.TrySerializeSnapshot(obj_PageMain) -> m_Base.TryCreateSnapshotRoot -> obj_PageBase.TryCreateSnapshotRoot
+' Callstack[2]: rt_CoreActions.m_UpdateCodeFullAndRerender -> private_ScheduleUpdateAndRerender -> rt_RestoreManager.m_SavePageSnapshots -> serializablePage.TrySerializeSnapshot(obj_PageMain) -> m_Base.TryCreateSnapshotRoot -> obj_PageBase.TryCreateSnapshotRoot
+' Callstack[3]: rt_CoreActions.m_UpdateCodeDateAndRerender -> private_ScheduleUpdateAndRerender -> rt_RestoreManager.m_SavePageSnapshots -> serializablePage.TrySerializeSnapshot(obj_PageMain) -> m_Base.TryCreateSnapshotRoot -> obj_PageBase.TryCreateSnapshotRoot
+' Callstack[4]: rt_CoreActions.m_UpdateCodeSizeAndRerender -> private_ScheduleUpdateAndRerender -> rt_RestoreManager.m_SavePageSnapshots -> serializablePage.TrySerializeSnapshot(obj_PageMain) -> m_Base.TryCreateSnapshotRoot -> obj_PageBase.TryCreateSnapshotRoot
 Public Function TryCreateSnapshotRoot( _
     ByVal rootName As String, _
     ByRef outDom As Object, _
@@ -1229,8 +1083,8 @@ Public Function TryCreateSnapshotRoot( _
     TryCreateSnapshotRoot = True
 End Function
 
-' Callstack[1]: ThisWorkbook.Workbook_Open -> rt_Snapshots.m_RestorePageSnapshots -> serializablePage.TryDeserializeSnapshot(obj_PageMain) -> m_Base.TryLoadSnapshotRoot -> obj_PageBase.TryLoadSnapshotRoot
-' Callstack[2]: rt_CoreActions.m_RerenderLastPageAfterUpdate -> rt_Snapshots.m_RestorePageSnapshots -> serializablePage.TryDeserializeSnapshot(obj_PageMain) -> m_Base.TryLoadSnapshotRoot -> obj_PageBase.TryLoadSnapshotRoot
+' Callstack[1]: ThisWorkbook.Workbook_Open -> rt_RestoreManager.m_RestorePageSnapshots -> serializablePage.TryDeserializeSnapshot(obj_PageMain) -> m_Base.TryLoadSnapshotRoot -> obj_PageBase.TryLoadSnapshotRoot
+' Callstack[2]: rt_CoreActions.m_RerenderLastPageAfterUpdate -> rt_RestoreManager.m_RestorePageSnapshots -> serializablePage.TryDeserializeSnapshot(obj_PageMain) -> m_Base.TryLoadSnapshotRoot -> obj_PageBase.TryLoadSnapshotRoot
 Public Function TryLoadSnapshotRoot( _
     ByVal snapshotXml As String, _
     ByVal expectedRootName As String, _
@@ -1274,17 +1128,17 @@ Public Function TryLoadSnapshotRoot( _
     TryLoadSnapshotRoot = True
 End Function
 
-' Callstack[1]: ThisWorkbook.Workbook_BeforeClose -> rt_Snapshots.m_SavePageSnapshots -> serializablePage.TrySerializeSnapshot(obj_PageMain) -> m_Base.WriteBaseSnapshotAttributes -> obj_PageBase.WriteBaseSnapshotAttributes
-' Callstack[2]: rt_CoreActions.m_UpdateCodeFullAndRerender -> private_ScheduleUpdateAndRerender -> rt_Snapshots.m_SavePageSnapshots -> serializablePage.TrySerializeSnapshot(obj_PageMain) -> m_Base.WriteBaseSnapshotAttributes -> obj_PageBase.WriteBaseSnapshotAttributes
-' Callstack[3]: rt_CoreActions.m_UpdateCodeDateAndRerender -> private_ScheduleUpdateAndRerender -> rt_Snapshots.m_SavePageSnapshots -> serializablePage.TrySerializeSnapshot(obj_PageMain) -> m_Base.WriteBaseSnapshotAttributes -> obj_PageBase.WriteBaseSnapshotAttributes
-' Callstack[4]: rt_CoreActions.m_UpdateCodeSizeAndRerender -> private_ScheduleUpdateAndRerender -> rt_Snapshots.m_SavePageSnapshots -> serializablePage.TrySerializeSnapshot(obj_PageMain) -> m_Base.WriteBaseSnapshotAttributes -> obj_PageBase.WriteBaseSnapshotAttributes
+' Callstack[1]: ThisWorkbook.Workbook_BeforeClose -> rt_RestoreManager.m_SavePageSnapshots -> serializablePage.TrySerializeSnapshot(obj_PageMain) -> m_Base.WriteBaseSnapshotAttributes -> obj_PageBase.WriteBaseSnapshotAttributes
+' Callstack[2]: rt_CoreActions.m_UpdateCodeFullAndRerender -> private_ScheduleUpdateAndRerender -> rt_RestoreManager.m_SavePageSnapshots -> serializablePage.TrySerializeSnapshot(obj_PageMain) -> m_Base.WriteBaseSnapshotAttributes -> obj_PageBase.WriteBaseSnapshotAttributes
+' Callstack[3]: rt_CoreActions.m_UpdateCodeDateAndRerender -> private_ScheduleUpdateAndRerender -> rt_RestoreManager.m_SavePageSnapshots -> serializablePage.TrySerializeSnapshot(obj_PageMain) -> m_Base.WriteBaseSnapshotAttributes -> obj_PageBase.WriteBaseSnapshotAttributes
+' Callstack[4]: rt_CoreActions.m_UpdateCodeSizeAndRerender -> private_ScheduleUpdateAndRerender -> rt_RestoreManager.m_SavePageSnapshots -> serializablePage.TrySerializeSnapshot(obj_PageMain) -> m_Base.WriteBaseSnapshotAttributes -> obj_PageBase.WriteBaseSnapshotAttributes
 Public Sub WriteBaseSnapshotAttributes(ByVal targetNode As Object)
     If targetNode Is Nothing Then Exit Sub
     targetNode.setAttribute "uiPath", m_UiPath
 End Sub
 
-' Callstack[1]: ThisWorkbook.Workbook_Open -> rt_Snapshots.m_RestorePageSnapshots -> serializablePage.TryDeserializeSnapshot(obj_PageMain) -> m_Base.ReadBaseSnapshotAttributes -> obj_PageBase.ReadBaseSnapshotAttributes
-' Callstack[2]: rt_CoreActions.m_RerenderLastPageAfterUpdate -> rt_Snapshots.m_RestorePageSnapshots -> serializablePage.TryDeserializeSnapshot(obj_PageMain) -> m_Base.ReadBaseSnapshotAttributes -> obj_PageBase.ReadBaseSnapshotAttributes
+' Callstack[1]: ThisWorkbook.Workbook_Open -> rt_RestoreManager.m_RestorePageSnapshots -> serializablePage.TryDeserializeSnapshot(obj_PageMain) -> m_Base.ReadBaseSnapshotAttributes -> obj_PageBase.ReadBaseSnapshotAttributes
+' Callstack[2]: rt_CoreActions.m_RerenderLastPageAfterUpdate -> rt_RestoreManager.m_RestorePageSnapshots -> serializablePage.TryDeserializeSnapshot(obj_PageMain) -> m_Base.ReadBaseSnapshotAttributes -> obj_PageBase.ReadBaseSnapshotAttributes
 ' Callstack[3]: obj_PageBase.ReadBaseSnapshotAttributes -> obj_PageBase.SetUiPath
 Public Sub ReadBaseSnapshotAttributes(ByVal sourceNode As Object)
     Dim restoredUiPath As String

@@ -145,7 +145,7 @@ private_TryRecoverUiAfterUpdate(...)
         +-- queue deferred restore (OnTime +1s)
         |
         v
-[через OnTime] rt_Snapshots.m_RunDeferredRuntimeStateRestore
+[через OnTime] rt_RestoreManager.m_RunDeferredRuntimeStateRestore
         |
         +-- если runtime page уже есть -> restore globals
         +-- иначе restore pages + restore globals

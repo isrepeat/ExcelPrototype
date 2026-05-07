@@ -88,8 +88,8 @@ Public Function TryReadFromNode( _
     TryReadFromNode = True
 End Function
 
-' Callstack[1]: rt_Snapshots.m_RestorePageSnapshots -> serializablePage.TryDeserializeSnapshot(obj_PageMain) -> obj_PageMain.obj_IPage_Render -> obj_PageMain.private_TryRestorePendingControlSnapshots -> obj_PageBase.TryRestoreSerializableControlSnapshots -> serializableControl.TryDeserializeSnapshot(obj_ButtonControlVM) -> m_Layout.TryReadFromRuntimeValues -> obj_ControlLayout.TryReadFromRuntimeValues
-' Callstack[2]: rt_Snapshots.m_RestorePageSnapshots -> serializablePage.TryDeserializeSnapshot(obj_PageMain) -> obj_PageMain.obj_IPage_Render -> obj_PageMain.private_TryRestorePendingControlSnapshots -> obj_PageBase.TryRestoreSerializableControlSnapshots -> serializableControl.TryDeserializeSnapshot(obj_SelectControlVM) -> m_Layout.TryReadFromRuntimeValues -> obj_ControlLayout.TryReadFromRuntimeValues
+' Callstack[1]: rt_RestoreManager.m_RestorePageSnapshots -> serializablePage.TryDeserializeSnapshot(obj_PageMain) -> obj_PageMain.obj_IPage_Render -> obj_PageMain.private_TryRestorePendingControlSnapshots -> obj_PageBase.TryRestoreSerializableControlSnapshots -> serializableControl.TryDeserializeSnapshot(obj_ButtonControlVM) -> m_Layout.TryReadFromRuntimeValues -> obj_ControlLayout.TryReadFromRuntimeValues
+' Callstack[2]: rt_RestoreManager.m_RestorePageSnapshots -> serializablePage.TryDeserializeSnapshot(obj_PageMain) -> obj_PageMain.obj_IPage_Render -> obj_PageMain.private_TryRestorePendingControlSnapshots -> obj_PageBase.TryRestoreSerializableControlSnapshots -> serializableControl.TryDeserializeSnapshot(obj_SelectControlVM) -> m_Layout.TryReadFromRuntimeValues -> obj_ControlLayout.TryReadFromRuntimeValues
 Public Function TryReadFromRuntimeValues( _
     ByVal controlTypeLabel As String, _
     ByVal controlName As String, _

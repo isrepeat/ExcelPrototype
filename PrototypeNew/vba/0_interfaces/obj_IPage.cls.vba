@@ -8,13 +8,16 @@ Option Explicit
 Public Function Initialize( _
     ByVal ws As Worksheet, _
     Optional ByVal uiPath As String = VBA.vbNullString, _
-    Optional ByVal pageType As Long = 1, _
-    Optional ByVal pageId As String = VBA.vbNullString _
+    Optional ByVal pageId As String = VBA.vbNullString, _
+    Optional ByVal Context As Object = Nothing _
 ) As Boolean
 End Function
 
 Public Sub Dispose(Optional ByVal deleteWorksheet As Boolean = True)
 End Sub
+
+Public Function RunPagePipeline() As Boolean
+End Function
 
 Public Function Render() As Boolean
 End Function
@@ -26,6 +29,9 @@ Optional ByVal reason As String = VBA.vbNullString _
 End Function
 
 Public Function GetPageBase() As obj_PageBase
+End Function
+
+Public Function GetPageId() As String
 End Function
 
 Public Function TryGetController(ByRef outController As Object) As Boolean

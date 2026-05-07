@@ -2,7 +2,7 @@ VERSION 1.0 CLASS
 BEGIN
   MultiUse = -1  'True
 END
-Attribute VB_Name = "obj_PageMain"
+Attribute VB_Name = "obj_PagePersonalCard"
 Option Explicit
 #Const LOGGING_DEBUG_ENABLED = True
 #Const LOGGING_VERBOSE_ENABLED = False
@@ -11,23 +11,21 @@ Private m_IsDisposed As Boolean
 Implements obj_IPage
 Implements obj_ISerializable
 
-Private Const SERIALIZABLE_TYPE_ROOT As String = "page.main"
+Private Const SERIALIZABLE_TYPE_ROOT As String = "page.personalcard"
 Private Const SNAPSHOT_ROOT_NODE As String = "pageState"
 Private Const CONTROL_SNAPSHOT_NODE As String = "controlSnapshot"
-Private Const SUPPORTED_UI_PATH As String = "ui\devui.xml"
+Private Const PARENT_PAGE_ID_ATTR As String = "parentPageId"
 
 Private m_PageBase As obj_PageBase
-Private m_PageMainController As obj_PageMainController
-Private m_IsControllerInitialized As Boolean
 Private m_PendingControlSnapshots As Collection
+Private m_ParentPageId As String
+Private m_ParentPage As obj_IPage
 
 Private Sub Class_Initialize()
 #If LOGGING_VERBOSE_ENABLED Then
     ex_Core.m_Diagnostic_LogInfo "lifecycle:" & VBA.TypeName(Me) & ".Class_Initialize"
 #End If
     Set m_PageBase = New obj_PageBase
-    Set m_PageMainController = Nothing
-    m_IsControllerInitialized = False
 End Sub
 
 Private Sub Class_Terminate()
@@ -43,24 +41,30 @@ End Sub
 ' //
 ' // Interface
 ' //
-' Callstack[1]: ThisWorkbook.Workbook_Open -> ThisWorkbook.m_ResetWorkbookAndCreateMainPage -> private_ResetWorkbookAndCreateMainPage -> rt_PageManager.m_CreatePage -> obj_PageMain.obj_IPage_Initialize
-' Callstack[2]: ex_Core.private_TryRecoverUiAfterUpdate -> ThisWorkbook.m_ResetWorkbookAndCreateMainPage -> private_ResetWorkbookAndCreateMainPage -> rt_PageManager.m_CreatePage -> obj_PageMain.obj_IPage_Initialize
-' Callstack[3]: rt_RestoreManager.m_RestorePageSnapshots -> rt_PageManager.m_CreatePage -> obj_PageMain.obj_IPage_Initialize
 Private Function obj_IPage_Initialize( _
     ByVal ws As Worksheet, _
     Optional ByVal uiPath As String = VBA.vbNullString, _
     Optional ByVal pageId As String = VBA.vbNullString, _
     Optional ByVal Context As Object = Nothing _
 ) As Boolean
+    Dim parentPage As obj_IPage
+
+    m_ParentPageId = VBA.vbNullString
+    Set m_ParentPage = Nothing
+
+    If Not Context Is Nothing Then
+        If TypeOf Context Is obj_IPage Then
+            Set parentPage = Context
+            m_ParentPageId = VBA.LCase$(VBA.Trim$(parentPage.GetPageId()))
+            Set m_ParentPage = parentPage
+        End If
+    End If
+
     If Not m_PageBase.Initialize(ws, uiPath, pageId) Then Exit Function
-    If Not private_TryPrepareRuntimeByUiPath(m_PageBase.UiPath, False) Then Exit Function
 
     obj_IPage_Initialize = True
 End Function
 
-' Callstack[1]: ThisWorkbook.Workbook_Open -> ThisWorkbook.m_ResetWorkbookAndCreateMainPage -> private_ResetWorkbookAndCreateMainPage -> rt_PageManager.m_DisposeAllPages -> page.Dispose(False) -> obj_PageMain.obj_IPage_Dispose
-' Callstack[2]: ThisWorkbook.Workbook_SheetBeforeDelete -> ex_HelpersSheet.m_RemovePageByWorksheet -> rt_PageManager.m_RemovePage -> page.Dispose(False) -> obj_PageMain.obj_IPage_Dispose
-' Callstack[3]: rt_PageManager.m_RemovePageById -> rt_PageManager.m_RemovePage -> page.Dispose(deleteWorksheet) -> obj_PageMain.obj_IPage_Dispose
 Private Sub obj_IPage_Dispose(Optional ByVal deleteWorksheet As Boolean = True)
     private_DisposeCore deleteWorksheet
 End Sub
@@ -70,8 +74,28 @@ Private Function obj_IPage_RunPagePipeline() As Boolean
     obj_IPage_RunPagePipeline = True
 End Function
 
-' Callstack[1]: rt_PageManager.m_RenderPageById -> rt_PageManager.m_RenderPage -> obj_PageMain.obj_IPage_Render
-' Callstack[2]: rt_RestoreManager.m_RestorePageSnapshots(renderRestored:=True) -> rt_PageManager.m_RenderPage -> obj_PageMain.obj_IPage_Render
+Private Function obj_ISerializable_TryRestoreState() As Boolean
+    Dim parentPage As obj_IPage
+
+    If Not m_PageBase.IsReady() Then Exit Function
+    Set m_ParentPage = Nothing
+    If VBA.Len(m_ParentPageId) = 0 Then
+        obj_ISerializable_TryRestoreState = True
+        Exit Function
+    End If
+
+    If Not TryGetParentPage(parentPage) Then
+#If LOGGING_DEBUG_ENABLED Then
+        ex_Core.m_Diagnostic_LogError "PagePersonalCard: parent page is not found during RestoreState. parentPageId='" & VBA.Replace$(m_ParentPageId, "'", "''") & "'."
+#End If
+        Exit Function
+    End If
+
+    Set m_ParentPage = parentPage
+    obj_ISerializable_TryRestoreState = True
+End Function
+
+
 Private Function obj_IPage_Render() As Boolean
     If Not m_PageBase.IsReady() Then Exit Function
     If Not m_PageBase.Render() Then Exit Function
@@ -93,10 +117,9 @@ Private Function obj_IPage_UpdateUiPath( _
     If VBA.Len(normalizedUiPath) = 0 Then Exit Function
 
     m_PageBase.SetUiPath normalizedUiPath
-    If Not private_TryPrepareRuntimeByUiPath(normalizedUiPath, False) Then Exit Function
 
     normalizedReason = VBA.Trim$(reason)
-    If VBA.Len(normalizedReason) = 0 Then normalizedReason = "obj_PageMain.UpdateUiPath"
+    If VBA.Len(normalizedReason) = 0 Then normalizedReason = "obj_PagePersonalCard.UpdateUiPath"
 
     Set iPage = Me
     obj_IPage_UpdateUiPath = rt_PageManager.m_RenderPage(iPage, normalizedReason)
@@ -112,8 +135,6 @@ End Function
 
 Private Function obj_IPage_TryGetController(ByRef outController As Object) As Boolean
     Set outController = Nothing
-    If Not private_TryEnsureControllerInitialized() Then Exit Function
-    Set outController = m_PageMainController
     obj_IPage_TryGetController = True
 End Function
 
@@ -139,7 +160,6 @@ Private Function obj_IPage_ResetControlActions() As Boolean
     obj_IPage_ResetControlActions = m_PageBase.ResetControlActions()
 End Function
 
-' Callstack[1]: Shape.OnAction -> rt_Bridge.m_OnShapeClick -> rt_PageManager.m_TryGetPageByWorksheet -> page.DispatchShapeClick -> obj_PageMain.obj_IPage_DispatchShapeClick
 Private Function obj_IPage_DispatchShapeClick(ByVal shapeName As String) As Boolean
     obj_IPage_DispatchShapeClick = m_PageBase.DispatchShapeClick(shapeName)
 End Function
@@ -176,9 +196,20 @@ Private Function obj_ISerializable_TryDeserializeSnapshot(ByVal snapshotXml As S
     obj_ISerializable_TryDeserializeSnapshot = private_TryDeserializeSnapshot(snapshotXml)
 End Function
 
-Private Function obj_ISerializable_TryRestoreState() As Boolean
-    If Not m_PageBase.IsReady() Then Exit Function
-    obj_ISerializable_TryRestoreState = True
+' //
+' // API
+' //
+Public Function TryGetParentPage(ByRef outParentPage As obj_IPage) As Boolean
+    Set outParentPage = Nothing
+    If Not m_ParentPage Is Nothing Then
+        Set outParentPage = m_ParentPage
+        TryGetParentPage = True
+        Exit Function
+    End If
+    If VBA.Len(VBA.Trim$(m_ParentPageId)) = 0 Then Exit Function
+    If Not rt_PageManager.m_TryGetPageById(m_ParentPageId, outParentPage) Then Exit Function
+    Set m_ParentPage = outParentPage
+    TryGetParentPage = True
 End Function
 
 ' //
@@ -189,12 +220,9 @@ Private Sub private_DisposeCore(Optional ByVal deleteWorksheet As Boolean = True
     m_IsDisposed = True
 
     On Error Resume Next
-    If Not m_PageMainController Is Nothing Then
-        m_PageMainController.Dispose
-    End If
-    Set m_PageMainController = Nothing
-    m_IsControllerInitialized = False
     Set m_PendingControlSnapshots = Nothing
+    m_ParentPageId = VBA.vbNullString
+    Set m_ParentPage = Nothing
     If Not m_PageBase Is Nothing Then
         m_PageBase.Dispose deleteWorksheet
     End If
@@ -214,6 +242,7 @@ Private Function private_TrySerializeSnapshot(ByRef outSnapshotXml As String) As
     If Not m_PageBase.TryCreateSnapshotRoot(SNAPSHOT_ROOT_NODE, dom, rootNode) Then Exit Function
 
     m_PageBase.WriteBaseSnapshotAttributes rootNode
+    rootNode.setAttribute PARENT_PAGE_ID_ATTR, VBA.LCase$(VBA.Trim$(m_ParentPageId))
 
     Set controlSnapshots = Nothing
     If Not m_PageBase.TryCollectSerializableControlSnapshots(controlSnapshots) Then Exit Function
@@ -240,8 +269,11 @@ Private Function private_TryDeserializeSnapshot(ByVal snapshotXml As String) As 
     Dim controlNode As Object
     Dim controlSnapshots As Collection
     Dim controlSnapshotXml As String
+    Dim parentPageId As String
 
     Set m_PendingControlSnapshots = Nothing
+    m_ParentPageId = VBA.vbNullString
+    Set m_ParentPage = Nothing
     snapshotXml = VBA.Trim$(snapshotXml)
     If VBA.Len(snapshotXml) = 0 Then
         private_TryDeserializeSnapshot = True
@@ -251,6 +283,8 @@ Private Function private_TryDeserializeSnapshot(ByVal snapshotXml As String) As 
     If Not m_PageBase.TryLoadSnapshotRoot(snapshotXml, SNAPSHOT_ROOT_NODE, dom, rootNode) Then Exit Function
 
     m_PageBase.ReadBaseSnapshotAttributes rootNode
+    parentPageId = VBA.LCase$(VBA.Trim$(VBA.CStr(rootNode.getAttribute(PARENT_PAGE_ID_ATTR))))
+    m_ParentPageId = parentPageId
 
     Set controlSnapshots = New Collection
     Set controlNodes = rootNode.selectNodes("*[local-name()='" & CONTROL_SNAPSHOT_NODE & "']")
@@ -284,45 +318,4 @@ Private Function private_TryRestorePendingControlSnapshots() As Boolean
     If Not m_PageBase.TryRestoreSerializableControlSnapshots(m_PendingControlSnapshots) Then Exit Function
     Set m_PendingControlSnapshots = Nothing
     private_TryRestorePendingControlSnapshots = True
-End Function
-
-Private Function private_TryPrepareRuntimeByUiPath( _
-    ByVal uiPath As String, _
-    Optional ByVal notifyChange As Boolean = False _
-) As Boolean
-    Dim normalizedUiPath As String
-
-    normalizedUiPath = VBA.LCase$(VBA.Trim$(uiPath))
-    If VBA.Len(normalizedUiPath) = 0 Then
-        private_TryPrepareRuntimeByUiPath = True
-        Exit Function
-    End If
-
-    If VBA.StrComp(normalizedUiPath, SUPPORTED_UI_PATH, VBA.vbTextCompare) <> 0 Then
-        private_TryPrepareRuntimeByUiPath = True
-        Exit Function
-    End If
-
-    If Not private_TryEnsureControllerInitialized() Then Exit Function
-    If Not m_PageMainController.OnConfigModeChanged(notifyChange, m_PageBase) Then Exit Function
-
-    private_TryPrepareRuntimeByUiPath = True
-End Function
-
-Private Function private_TryEnsureControllerInitialized() As Boolean
-    Dim currentPage As obj_IPage
-
-    If m_IsControllerInitialized Then
-        private_TryEnsureControllerInitialized = True
-        Exit Function
-    End If
-
-    If m_PageBase Is Nothing Then Exit Function
-    If m_PageMainController Is Nothing Then Set m_PageMainController = New obj_PageMainController
-    If m_PageMainController Is Nothing Then Exit Function
-
-    Set currentPage = Me
-    If Not m_PageMainController.Initialize(currentPage) Then Exit Function
-    m_IsControllerInitialized = True
-    private_TryEnsureControllerInitialized = True
 End Function

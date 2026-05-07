@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<page xmlns="urn:excelprototype:profiles" version="1">
+  <grid anchorCell="A1">
+    <stackPanel at="r1c1" orientation="vertical"/>
+  </grid>
+
+  <styles>
+    <stylePipelineStage name="default">
+      <layer name="personalcard-dark-base">
+        <rule target="sheet"
+              styles="{
+                backColor:#1F2329;
+                fontColor:#E5E7EB;
+                borderColor:#111318;
+                borderWeight:thin;
+                width:11;
+                rowHeight:18;
+              }"/>
+      </layer>
+    </stylePipelineStage>
+  </styles>
+</page>
