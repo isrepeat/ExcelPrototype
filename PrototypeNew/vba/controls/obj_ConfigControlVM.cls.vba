@@ -24,12 +24,12 @@ Private m_IsConfigured As Boolean
 
 Private Sub Class_Initialize()
 #If LOGGING_VERBOSE_ENABLED Then
-    ex_Core.m_Diagnostic_LogInfo "lifecycle:" & VBA.TypeName(Me) & ".Class_Initialize"
+    ex_Core.fn_Diagnostic_LogInfo "lifecycle:" & VBA.TypeName(Me) & ".Class_Initialize"
 #End If
 End Sub
 Private Sub Class_Terminate()
 #If LOGGING_VERBOSE_ENABLED Then
-    ex_Core.m_Diagnostic_LogInfo "lifecycle:" & VBA.TypeName(Me) & ".Class_Terminate"
+    ex_Core.fn_Diagnostic_LogInfo "lifecycle:" & VBA.TypeName(Me) & ".Class_Terminate"
 #End If
     If m_IsDisposed Then Exit Sub
     On Error Resume Next
@@ -56,22 +56,22 @@ Private Sub obj_IControl_Configure(ByVal page As obj_PageBase, ByVal controlNode
     Set m_ControlBase = New obj_ControlBase
     If Not m_ControlBase.Configure(page, controlNode, "Config", "config", m_ControlName) Then Exit Sub
 
-    m_ItemsSourceRaw = VBA.Trim$(VBA.CStr(ex_XmlCore.m_NodeAttrText(controlNode, "itemsSource")))
+    m_ItemsSourceRaw = VBA.Trim$(VBA.CStr(ex_XmlCore.fn_NodeAttrText(controlNode, "itemsSource")))
     If VBA.Len(m_ItemsSourceRaw) = 0 Then
 #If LOGGING_DEBUG_ENABLED Then
-        ex_Core.m_Diagnostic_LogError "Config: itemsSource is not specified for control '" & m_ControlName & "'."
+        ex_Core.fn_Diagnostic_LogError "Config: itemsSource is not specified for control '" & m_ControlName & "'."
 #End If
         Exit Sub
     End If
 
-    m_TableNameRaw = VBA.Trim$(VBA.CStr(ex_XmlCore.m_NodeAttrText(controlNode, "tableName")))
+    m_TableNameRaw = VBA.Trim$(VBA.CStr(ex_XmlCore.fn_NodeAttrText(controlNode, "tableName")))
 
     Set m_ControlLayout = New obj_ControlLayout
     If Not m_ControlLayout.TryReadFromNode(controlNode, "Config", m_ControlName, "style") Then Exit Sub
 
     If (m_ControlLayout.ColEnd - m_ControlLayout.ColStart + 1) < CONFIG_COL_COUNT Then
 #If LOGGING_DEBUG_ENABLED Then
-        ex_Core.m_Diagnostic_LogError "Config: control '" & m_ControlName & "' requires at least 3 columns (Attr, Key, Value)."
+        ex_Core.fn_Diagnostic_LogError "Config: control '" & m_ControlName & "' requires at least 3 columns (Attr, Key, Value)."
 #End If
         Exit Sub
     End If
@@ -80,7 +80,7 @@ Private Sub obj_IControl_Configure(ByVal page As obj_PageBase, ByVal controlNode
     If pageBase Is Nothing Then Exit Sub
     Set m_PageBase = pageBase
     m_RuntimeControlKey = private_BuildRuntimeControlKey()
-    If Not ex_RuntimeSourceResolver.m_TryResolveItemsSource(pageBase.RuntimeSources, m_ItemsSourceRaw, resolvedItems) Then Exit Sub
+    If Not ex_RuntimeSourceResolver.fn_TryResolveItemsSource(pageBase.RuntimeSources, m_ItemsSourceRaw, resolvedItems) Then Exit Sub
     If Not private_TryBuildConfigTable(resolvedItems, configTable) Then Exit Sub
 
     Set m_ConfigTableViewItem = New obj_ConfigTableViewItem
@@ -113,7 +113,7 @@ Private Sub obj_IControl_Render()
     ' Базовые проверки: контрол должен быть настроен и привязан к странице/листу.
     If Not m_IsConfigured Then
 #If LOGGING_DEBUG_ENABLED Then
-        ex_Core.m_Diagnostic_LogError "Config: control '" & m_ControlName & "' is not configured."
+        ex_Core.fn_Diagnostic_LogError "Config: control '" & m_ControlName & "' is not configured."
 #End If
         Exit Sub
     End If
@@ -123,7 +123,7 @@ Private Sub obj_IControl_Render()
     If page Is Nothing Then Set page = m_PageBase
     If page Is Nothing Then
 #If LOGGING_DEBUG_ENABLED Then
-        ex_Core.m_Diagnostic_LogError "Config: page is not specified for control '" & m_ControlName & "'."
+        ex_Core.fn_Diagnostic_LogError "Config: page is not specified for control '" & m_ControlName & "'."
 #End If
         Exit Sub
     End If
@@ -132,14 +132,14 @@ Private Sub obj_IControl_Render()
     Set ws = private_GetWorksheetByName(page, m_ControlLayout.LayoutSheetName)
     If ws Is Nothing Then
 #If LOGGING_DEBUG_ENABLED Then
-        ex_Core.m_Diagnostic_LogError "Config: sheet '" & m_ControlLayout.LayoutSheetName & "' was not found for control '" & m_ControlName & "'."
+        ex_Core.fn_Diagnostic_LogError "Config: sheet '" & m_ControlLayout.LayoutSheetName & "' was not found for control '" & m_ControlName & "'."
 #End If
         Exit Sub
     End If
 
     If m_ConfigTableViewItem Is Nothing Then
 #If LOGGING_DEBUG_ENABLED Then
-        ex_Core.m_Diagnostic_LogError "Config: view item is not configured for control '" & m_ControlName & "'."
+        ex_Core.fn_Diagnostic_LogError "Config: view item is not configured for control '" & m_ControlName & "'."
 #End If
         Exit Sub
     End If
@@ -171,7 +171,7 @@ Private Sub obj_IControl_Render()
 
         If configEntryViewItem Is Nothing Then
 #If LOGGING_DEBUG_ENABLED Then
-            ex_Core.m_Diagnostic_LogError "Config: entry view item is Nothing in control '" & m_ControlName & "'."
+            ex_Core.fn_Diagnostic_LogError "Config: entry view item is Nothing in control '" & m_ControlName & "'."
 #End If
             GoTo ContinueItem
         End If
@@ -179,7 +179,7 @@ Private Sub obj_IControl_Render()
         Set configEntry = configEntryViewItem.Model
         If configEntry Is Nothing Then
 #If LOGGING_DEBUG_ENABLED Then
-            ex_Core.m_Diagnostic_LogError "Config: entry view item has no model in control '" & m_ControlName & "'."
+            ex_Core.fn_Diagnostic_LogError "Config: entry view item has no model in control '" & m_ControlName & "'."
 #End If
             GoTo ContinueItem
         End If
@@ -249,7 +249,7 @@ ContinueItem:
 
 EH_TABLE:
 #If LOGGING_DEBUG_ENABLED Then
-    ex_Core.m_Diagnostic_LogError "Config: failed to create table for control '" & m_ControlName & "': " & Err.Description
+    ex_Core.fn_Diagnostic_LogError "Config: failed to create table for control '" & m_ControlName & "': " & Err.Description
 #End If
 End Sub
 
@@ -261,7 +261,7 @@ Private Function private_RegisterColumnPart( _
     If ws Is Nothing Then Exit Function
     If columnRange Is Nothing Then Exit Function
 
-    If Not ex_ControlPartsRuntime.m_RegisterControlPart( _
+    If Not ex_ControlPartsRuntime.fn_RegisterControlPart( _
         ws, _
         "config", _
         m_ControlName, _
@@ -283,7 +283,7 @@ End Function
 ' //
 Public Function Initialize() As Boolean
 #If LOGGING_VERBOSE_ENABLED Then
-    ex_Core.m_Diagnostic_LogInfo "lifecycle:" & VBA.TypeName(Me) & ".Initialize"
+    ex_Core.fn_Diagnostic_LogInfo "lifecycle:" & VBA.TypeName(Me) & ".Initialize"
 #End If
     Initialize = True
 End Function
@@ -315,7 +315,7 @@ Public Function TryGetRenderedConfigEntries(ByRef outEntries As Collection) As B
     Set headerRange = tableObj.HeaderRowRange
     If headerRange Is Nothing Then
 #If LOGGING_DEBUG_ENABLED Then
-        ex_Core.m_Diagnostic_LogError "Config: table '" & tableObj.Name & "' has no header row for control '" & m_ControlName & "'."
+        ex_Core.fn_Diagnostic_LogError "Config: table '" & tableObj.Name & "' has no header row for control '" & m_ControlName & "'."
 #End If
         Exit Function
     End If
@@ -323,7 +323,7 @@ Public Function TryGetRenderedConfigEntries(ByRef outEntries As Collection) As B
     colCount = headerRange.Columns.Count
     If colCount <= 0 Then
 #If LOGGING_DEBUG_ENABLED Then
-        ex_Core.m_Diagnostic_LogError "Config: table '" & tableObj.Name & "' has no columns for control '" & m_ControlName & "'."
+        ex_Core.fn_Diagnostic_LogError "Config: table '" & tableObj.Name & "' has no columns for control '" & m_ControlName & "'."
 #End If
         Exit Function
     End If
@@ -336,7 +336,7 @@ Public Function TryGetRenderedConfigEntries(ByRef outEntries As Collection) As B
             Case "attr"
                 If attrColumnIndex > 0 Then
 #If LOGGING_DEBUG_ENABLED Then
-                    ex_Core.m_Diagnostic_LogError "Config: duplicate 'Attr' header in table '" & tableObj.Name & "' for control '" & m_ControlName & "'."
+                    ex_Core.fn_Diagnostic_LogError "Config: duplicate 'Attr' header in table '" & tableObj.Name & "' for control '" & m_ControlName & "'."
 #End If
                     Exit Function
                 End If
@@ -345,7 +345,7 @@ Public Function TryGetRenderedConfigEntries(ByRef outEntries As Collection) As B
             Case "key"
                 If keyColumnIndex > 0 Then
 #If LOGGING_DEBUG_ENABLED Then
-                    ex_Core.m_Diagnostic_LogError "Config: duplicate 'Key' header in table '" & tableObj.Name & "' for control '" & m_ControlName & "'."
+                    ex_Core.fn_Diagnostic_LogError "Config: duplicate 'Key' header in table '" & tableObj.Name & "' for control '" & m_ControlName & "'."
 #End If
                     Exit Function
                 End If
@@ -354,7 +354,7 @@ Public Function TryGetRenderedConfigEntries(ByRef outEntries As Collection) As B
             Case "value"
                 If valueColumnIndex > 0 Then
 #If LOGGING_DEBUG_ENABLED Then
-                    ex_Core.m_Diagnostic_LogError "Config: duplicate 'Value' header in table '" & tableObj.Name & "' for control '" & m_ControlName & "'."
+                    ex_Core.fn_Diagnostic_LogError "Config: duplicate 'Value' header in table '" & tableObj.Name & "' for control '" & m_ControlName & "'."
 #End If
                     Exit Function
                 End If
@@ -364,7 +364,7 @@ Public Function TryGetRenderedConfigEntries(ByRef outEntries As Collection) As B
 
     If keyColumnIndex <= 0 Then
 #If LOGGING_DEBUG_ENABLED Then
-        ex_Core.m_Diagnostic_LogError "Config: table '" & tableObj.Name & "' must contain 'Key' column for control '" & m_ControlName & "'."
+        ex_Core.fn_Diagnostic_LogError "Config: table '" & tableObj.Name & "' must contain 'Key' column for control '" & m_ControlName & "'."
 #End If
         Exit Function
     End If
@@ -372,7 +372,7 @@ Public Function TryGetRenderedConfigEntries(ByRef outEntries As Collection) As B
     Set dataRange = tableObj.DataBodyRange
     If dataRange Is Nothing Then
 #If LOGGING_DEBUG_ENABLED Then
-        ex_Core.m_Diagnostic_LogError "Config: table '" & tableObj.Name & "' has no data rows for control '" & m_ControlName & "'."
+        ex_Core.fn_Diagnostic_LogError "Config: table '" & tableObj.Name & "' has no data rows for control '" & m_ControlName & "'."
 #End If
         Exit Function
     End If
@@ -403,7 +403,7 @@ Public Function TryGetRenderedConfigEntries(ByRef outEntries As Collection) As B
 
         If VBA.Len(keyText) = 0 Then
 #If LOGGING_DEBUG_ENABLED Then
-            ex_Core.m_Diagnostic_LogError "Config: key is empty in row " & VBA.CStr(rowIndex + 1) & " of table '" & tableObj.Name & "'."
+            ex_Core.fn_Diagnostic_LogError "Config: key is empty in row " & VBA.CStr(rowIndex + 1) & " of table '" & tableObj.Name & "'."
 #End If
             Exit Function
         End If
@@ -418,7 +418,7 @@ ContinueRow:
 
     If outEntries.Count = 0 Then
 #If LOGGING_DEBUG_ENABLED Then
-        ex_Core.m_Diagnostic_LogError "Config: table '" & tableObj.Name & "' has no non-empty key rows."
+        ex_Core.fn_Diagnostic_LogError "Config: table '" & tableObj.Name & "' has no non-empty key rows."
 #End If
         Exit Function
     End If
@@ -448,7 +448,7 @@ Public Function TryBuildRenderedConfigNode(ByVal dom As Object, ByRef outConfigN
     Set outConfigNode = Nothing
     If dom Is Nothing Then
 #If LOGGING_DEBUG_ENABLED Then
-        ex_Core.m_Diagnostic_LogError "Config: DOM is not specified for config node build in control '" & m_ControlName & "'."
+        ex_Core.fn_Diagnostic_LogError "Config: DOM is not specified for config node build in control '" & m_ControlName & "'."
 #End If
         Exit Function
     End If
@@ -458,7 +458,7 @@ Public Function TryBuildRenderedConfigNode(ByVal dom As Object, ByRef outConfigN
     Set headerRange = tableObj.HeaderRowRange
     If headerRange Is Nothing Then
 #If LOGGING_DEBUG_ENABLED Then
-        ex_Core.m_Diagnostic_LogError "Config: table '" & tableObj.Name & "' has no header row in control '" & m_ControlName & "'."
+        ex_Core.fn_Diagnostic_LogError "Config: table '" & tableObj.Name & "' has no header row in control '" & m_ControlName & "'."
 #End If
         Exit Function
     End If
@@ -466,7 +466,7 @@ Public Function TryBuildRenderedConfigNode(ByVal dom As Object, ByRef outConfigN
     colCount = headerRange.Columns.Count
     If colCount <= 0 Then
 #If LOGGING_DEBUG_ENABLED Then
-        ex_Core.m_Diagnostic_LogError "Config: table '" & tableObj.Name & "' has no columns in control '" & m_ControlName & "'."
+        ex_Core.fn_Diagnostic_LogError "Config: table '" & tableObj.Name & "' has no columns in control '" & m_ControlName & "'."
 #End If
         Exit Function
     End If
@@ -483,7 +483,7 @@ Public Function TryBuildRenderedConfigNode(ByVal dom As Object, ByRef outConfigN
 
     If keyColumnIndex <= 0 Then
 #If LOGGING_DEBUG_ENABLED Then
-        ex_Core.m_Diagnostic_LogError "Config: table '" & tableObj.Name & "' must contain 'Key' column for profile save in control '" & m_ControlName & "'."
+        ex_Core.fn_Diagnostic_LogError "Config: table '" & tableObj.Name & "' must contain 'Key' column for profile save in control '" & m_ControlName & "'."
 #End If
         Exit Function
     End If
@@ -491,7 +491,7 @@ Public Function TryBuildRenderedConfigNode(ByVal dom As Object, ByRef outConfigN
     Set dataRange = tableObj.DataBodyRange
     If dataRange Is Nothing Then
 #If LOGGING_DEBUG_ENABLED Then
-        ex_Core.m_Diagnostic_LogError "Config: table '" & tableObj.Name & "' has no data rows for profile save in control '" & m_ControlName & "'."
+        ex_Core.fn_Diagnostic_LogError "Config: table '" & tableObj.Name & "' has no data rows for profile save in control '" & m_ControlName & "'."
 #End If
         Exit Function
     End If
@@ -516,7 +516,7 @@ Public Function TryBuildRenderedConfigNode(ByVal dom As Object, ByRef outConfigN
         cellText = VBA.Trim$(VBA.CStr(dataRange.Cells(rowIndex, keyColumnIndex).Value2))
         If VBA.Len(cellText) = 0 Then
 #If LOGGING_DEBUG_ENABLED Then
-            ex_Core.m_Diagnostic_LogError "Config: key is empty in row " & VBA.CStr(rowIndex + 1) & " of table '" & tableObj.Name & "'."
+            ex_Core.fn_Diagnostic_LogError "Config: key is empty in row " & VBA.CStr(rowIndex + 1) & " of table '" & tableObj.Name & "'."
 #End If
             Exit Function
         End If
@@ -545,7 +545,7 @@ ContinueRow:
 
     If rowWrittenCount = 0 Then
 #If LOGGING_DEBUG_ENABLED Then
-        ex_Core.m_Diagnostic_LogError "Config: table '" & tableObj.Name & "' does not contain non-empty rows for profile save in control '" & m_ControlName & "'."
+        ex_Core.fn_Diagnostic_LogError "Config: table '" & tableObj.Name & "' does not contain non-empty rows for profile save in control '" & m_ControlName & "'."
 #End If
         Exit Function
     End If
@@ -555,13 +555,13 @@ ContinueRow:
 
 EH_XML:
 #If LOGGING_DEBUG_ENABLED Then
-    ex_Core.m_Diagnostic_LogError "Config: failed to build XML node from rendered table in control '" & m_ControlName & "': " & Err.Description
+    ex_Core.fn_Diagnostic_LogError "Config: failed to build XML node from rendered table in control '" & m_ControlName & "': " & Err.Description
 #End If
 End Function
 
 Public Sub Dispose()
 #If LOGGING_VERBOSE_ENABLED Then
-    ex_Core.m_Diagnostic_LogInfo "lifecycle:" & VBA.TypeName(Me) & ".Dispose"
+    ex_Core.fn_Diagnostic_LogInfo "lifecycle:" & VBA.TypeName(Me) & ".Dispose"
 #End If
     If m_IsDisposed Then Exit Sub
     m_IsDisposed = True
@@ -587,7 +587,7 @@ Private Function private_TryBuildConfigTable(ByVal sourceItems As Collection, By
     Set outTable = Nothing
     If sourceItems Is Nothing Then
 #If LOGGING_DEBUG_ENABLED Then
-        ex_Core.m_Diagnostic_LogError "Config: itemsSource is not resolved for control '" & m_ControlName & "'."
+        ex_Core.fn_Diagnostic_LogError "Config: itemsSource is not resolved for control '" & m_ControlName & "'."
 #End If
         Exit Function
     End If
@@ -597,13 +597,13 @@ Private Function private_TryBuildConfigTable(ByVal sourceItems As Collection, By
     For Each sourceConfigEntry In sourceItems
         If sourceConfigEntry Is Nothing Then
 #If LOGGING_DEBUG_ENABLED Then
-            ex_Core.m_Diagnostic_LogError "Config: itemsSource contains empty obj_ConfigEntry in control '" & m_ControlName & "'."
+            ex_Core.fn_Diagnostic_LogError "Config: itemsSource contains empty obj_ConfigEntry in control '" & m_ControlName & "'."
 #End If
             GoTo ContinueSourceItem
         End If
         If Not outTable.AddItem(sourceConfigEntry) Then
 #If LOGGING_DEBUG_ENABLED Then
-            ex_Core.m_Diagnostic_LogError "Config: failed to append resolved obj_ConfigEntry to table for control '" & m_ControlName & "'."
+            ex_Core.fn_Diagnostic_LogError "Config: failed to append resolved obj_ConfigEntry to table for control '" & m_ControlName & "'."
 #End If
             Exit Function
         End If
@@ -621,7 +621,7 @@ Private Function private_TryResolveRenderedTableObject(ByRef outTableObj As List
     Set outTableObj = Nothing
     If Not m_IsConfigured Then
 #If LOGGING_DEBUG_ENABLED Then
-        ex_Core.m_Diagnostic_LogError "Config: control '" & m_ControlName & "' is not configured for save."
+        ex_Core.fn_Diagnostic_LogError "Config: control '" & m_ControlName & "' is not configured for save."
 #End If
         Exit Function
     End If
@@ -631,14 +631,14 @@ Private Function private_TryResolveRenderedTableObject(ByRef outTableObj As List
     If pageBase Is Nothing Then Set pageBase = m_PageBase
     If pageBase Is Nothing Then
 #If LOGGING_DEBUG_ENABLED Then
-        ex_Core.m_Diagnostic_LogError "Config: page is not specified for save in control '" & m_ControlName & "'."
+        ex_Core.fn_Diagnostic_LogError "Config: page is not specified for save in control '" & m_ControlName & "'."
 #End If
         Exit Function
     End If
 
     If m_ControlLayout Is Nothing Then
 #If LOGGING_DEBUG_ENABLED Then
-        ex_Core.m_Diagnostic_LogError "Config: control layout is not configured for control '" & m_ControlName & "'."
+        ex_Core.fn_Diagnostic_LogError "Config: control layout is not configured for control '" & m_ControlName & "'."
 #End If
         Exit Function
     End If
@@ -646,14 +646,14 @@ Private Function private_TryResolveRenderedTableObject(ByRef outTableObj As List
     Set ws = private_GetWorksheetByName(pageBase, m_ControlLayout.LayoutSheetName)
     If ws Is Nothing Then
 #If LOGGING_DEBUG_ENABLED Then
-        ex_Core.m_Diagnostic_LogError "Config: sheet '" & m_ControlLayout.LayoutSheetName & "' was not found for save in control '" & m_ControlName & "'."
+        ex_Core.fn_Diagnostic_LogError "Config: sheet '" & m_ControlLayout.LayoutSheetName & "' was not found for save in control '" & m_ControlName & "'."
 #End If
         Exit Function
     End If
 
     If VBA.Len(VBA.Trim$(m_RuntimeTableName)) = 0 Then
 #If LOGGING_DEBUG_ENABLED Then
-        ex_Core.m_Diagnostic_LogError "Config: runtime table name is not initialized for control '" & m_ControlName & "'."
+        ex_Core.fn_Diagnostic_LogError "Config: runtime table name is not initialized for control '" & m_ControlName & "'."
 #End If
         Exit Function
     End If
@@ -663,7 +663,7 @@ Private Function private_TryResolveRenderedTableObject(ByRef outTableObj As List
     On Error GoTo 0
     If outTableObj Is Nothing Then
 #If LOGGING_DEBUG_ENABLED Then
-        ex_Core.m_Diagnostic_LogError "Config: table '" & m_RuntimeTableName & "' was not found for control '" & m_ControlName & "'."
+        ex_Core.fn_Diagnostic_LogError "Config: table '" & m_RuntimeTableName & "' was not found for control '" & m_ControlName & "'."
 #End If
         Exit Function
     End If
@@ -695,7 +695,7 @@ Private Function private_TryNormalizeProfileAttrName(ByVal rawHeader As String, 
             outAttrName = private_SanitizeXmlAttrNameToken(normalizedHeader)
             If VBA.Len(outAttrName) = 0 Then
 #If LOGGING_DEBUG_ENABLED Then
-                ex_Core.m_Diagnostic_LogError "Config: header '" & rawHeader & "' cannot be converted into valid XML attribute name for control '" & m_ControlName & "'."
+                ex_Core.fn_Diagnostic_LogError "Config: header '" & rawHeader & "' cannot be converted into valid XML attribute name for control '" & m_ControlName & "'."
 #End If
                 Exit Function
             End If
@@ -738,21 +738,21 @@ End Function
 Private Function private_TryRegisterRuntimeControl() As Boolean
     If m_PageBase Is Nothing Then
 #If LOGGING_DEBUG_ENABLED Then
-        ex_Core.m_Diagnostic_LogError "Config: page is not specified for runtime registration in control '" & m_ControlName & "'."
+        ex_Core.fn_Diagnostic_LogError "Config: page is not specified for runtime registration in control '" & m_ControlName & "'."
 #End If
         Exit Function
     End If
 
     If VBA.Len(VBA.Trim$(m_RuntimeControlKey)) = 0 Then
 #If LOGGING_DEBUG_ENABLED Then
-        ex_Core.m_Diagnostic_LogError "Config: runtime control key is empty in control '" & m_ControlName & "'."
+        ex_Core.fn_Diagnostic_LogError "Config: runtime control key is empty in control '" & m_ControlName & "'."
 #End If
         Exit Function
     End If
 
     If Not m_PageBase.RegisterControl(m_RuntimeControlKey, Me) Then
 #If LOGGING_DEBUG_ENABLED Then
-        ex_Core.m_Diagnostic_LogError "Config: failed to register runtime control key '" & m_RuntimeControlKey & "' for control '" & m_ControlName & "'."
+        ex_Core.fn_Diagnostic_LogError "Config: failed to register runtime control key '" & m_RuntimeControlKey & "' for control '" & m_ControlName & "'."
 #End If
         Exit Function
     End If
@@ -804,7 +804,7 @@ Private Function private_RegisterAttrRows(ByVal ws As Worksheet, ByVal partName 
         Exit Function
     End If
 
-    If Not ex_ControlPartsRuntime.m_RegisterControlPart( _
+    If Not ex_ControlPartsRuntime.fn_RegisterControlPart( _
         ws, _
         "config", _
         m_ControlName, _

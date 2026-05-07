@@ -8,48 +8,48 @@ Private g_ScheduledHideAt As Date
 Private g_ScheduledHideMacro As String
 Private g_StatusBarMessage As String
 
-Public Sub m_Module_Dispose()
+Public Sub fn_Module_Dispose()
 #If LOGGING_VERBOSE_ENABLED Then
-    ex_Core.m_Diagnostic_LogInfo "lifecycle:rt_Messaging.m_Module_Dispose"
+    ex_Core.fn_Diagnostic_LogInfo "lifecycle:rt_Messaging.fn_Module_Dispose"
 #End If
 End Sub
 
 ' //
 ' // API
 ' //
-Public Sub m_ShowStatusBarFor3s(ByVal messageText As String)
-    m_ShowStatusBar messageText, 3
+Public Sub fn_ShowStatusBarFor3s(ByVal messageText As String)
+    fn_ShowStatusBar messageText, 3
 End Sub
 
 
-Public Sub m_ShowStatusBarNotice(ByVal messageText As String, Optional ByVal timeoutSeconds As Long = 3)
-    m_ShowStatusBar VBA.CStr(messageText), timeoutSeconds
+Public Sub fn_ShowStatusBarNotice(ByVal messageText As String, Optional ByVal timeoutSeconds As Long = 3)
+    fn_ShowStatusBar VBA.CStr(messageText), timeoutSeconds
 End Sub
 
 
-Public Sub m_ShowStatusBarSuccess(ByVal messageText As String, Optional ByVal timeoutSeconds As Long = 3)
-    m_ShowStatusBar "OK: " & VBA.CStr(messageText), timeoutSeconds
+Public Sub fn_ShowStatusBarSuccess(ByVal messageText As String, Optional ByVal timeoutSeconds As Long = 3)
+    fn_ShowStatusBar "OK: " & VBA.CStr(messageText), timeoutSeconds
 End Sub
 
 
-Public Sub m_ShowStatusBarWarning(ByVal messageText As String, Optional ByVal timeoutSeconds As Long = 3)
-    m_ShowStatusBar "Warning: " & VBA.CStr(messageText), timeoutSeconds
+Public Sub fn_ShowStatusBarWarning(ByVal messageText As String, Optional ByVal timeoutSeconds As Long = 3)
+    fn_ShowStatusBar "Warning: " & VBA.CStr(messageText), timeoutSeconds
 End Sub
 
 
-Public Sub m_ShowStatusBarError(ByVal messageText As String, Optional ByVal timeoutSeconds As Long = 3)
-    m_ShowStatusBar "Error: " & VBA.CStr(messageText), timeoutSeconds
+Public Sub fn_ShowStatusBarError(ByVal messageText As String, Optional ByVal timeoutSeconds As Long = 3)
+    fn_ShowStatusBar "Error: " & VBA.CStr(messageText), timeoutSeconds
 End Sub
 
 
-Public Sub m_ShowStatusBar(ByVal messageText As String, Optional ByVal timeoutSeconds As Long = 3)
+Public Sub fn_ShowStatusBar(ByVal messageText As String, Optional ByVal timeoutSeconds As Long = 3)
     Dim hideMacroRef As String
     Dim hideAt As Date
     Dim wbMacroPrefix As String
 
     messageText = VBA.Trim$(messageText)
     If VBA.Len(messageText) = 0 Then
-        m_HideStatusBarNow
+        fn_HideStatusBarNow
         Exit Sub
     End If
 
@@ -62,7 +62,7 @@ Public Sub m_ShowStatusBar(ByVal messageText As String, Optional ByVal timeoutSe
     private_TryCancelScheduledHide
 
     wbMacroPrefix = "'" & VBA.Replace$(ThisWorkbook.Name, "'", "''") & "'!"
-    hideMacroRef = wbMacroPrefix & "rt_Messaging.m_HideStatusBarScheduled"
+    hideMacroRef = wbMacroPrefix & "rt_Messaging.fn_HideStatusBarScheduled"
     hideAt = VBA.DateAdd("s", timeoutSeconds, private_GetNextOnTimeTick())
 
     On Error GoTo EH_SCHEDULE
@@ -80,7 +80,7 @@ EH_SCHEDULE:
 End Sub
 
 
-Public Sub m_HideStatusBarNow()
+Public Sub fn_HideStatusBarNow()
     private_TryCancelScheduledHide
     g_StatusBarMessage = VBA.vbNullString
     private_ApplyNativeStatusBar
@@ -88,7 +88,7 @@ Public Sub m_HideStatusBarNow()
 End Sub
 
 
-Public Sub m_HideStatusBarScheduled()
+Public Sub fn_HideStatusBarScheduled()
     g_ScheduledHideAt = 0#
     g_ScheduledHideMacro = VBA.vbNullString
     g_StatusBarMessage = VBA.vbNullString
@@ -96,10 +96,10 @@ Public Sub m_HideStatusBarScheduled()
     private_LogStatusBarMessage "hide-scheduled", VBA.vbNullString
 End Sub
 
-' Callstack[1]: VBA.ImmediateWindow -> rt_Messaging.m_TryGetStatusBarMessage
-Public Function m_TryGetStatusBarMessage(ByRef outMessage As String) As Boolean
+' Callstack[1]: VBA.ImmediateWindow -> rt_Messaging.fn_TryGetStatusBarMessage
+Public Function fn_TryGetStatusBarMessage(ByRef outMessage As String) As Boolean
     outMessage = g_StatusBarMessage
-    m_TryGetStatusBarMessage = True
+    fn_TryGetStatusBarMessage = True
 End Function
 
 ' //
@@ -137,7 +137,7 @@ Private Sub private_LogStatusBarMessage( _
     Optional ByVal timeoutSeconds As Long = 0 _
 )
     On Error Resume Next
-    ex_Core.m_Diagnostic_LogStatusBarMessage actionName, messageText, timeoutSeconds
+    ex_Core.fn_Diagnostic_LogStatusBarMessage actionName, messageText, timeoutSeconds
     Err.Clear
     On Error GoTo 0
 End Sub

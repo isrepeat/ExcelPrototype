@@ -8,70 +8,70 @@ Private g_ScheduledUpdateMacro As String
 Private g_PendingUpdateMacroRef As String
 Private g_IsRunningScheduledUpdate As Boolean
 
-Public Sub m_Module_Dispose()
+Public Sub fn_Module_Dispose()
 #If LOGGING_VERBOSE_ENABLED Then
-    ex_Core.m_Diagnostic_LogInfo "lifecycle:rt_CoreActions.m_Module_Dispose"
+    ex_Core.fn_Diagnostic_LogInfo "lifecycle:rt_CoreActions.fn_Module_Dispose"
 #End If
 End Sub
 
 ' //
 ' // API
 ' //
-Public Sub m_UpdateCodeFullAndRerender()
-    private_QueueSafeCoreUpdate "ex_Core.m_Dev_UpdateAllModules", "full"
+Public Sub fn_UpdateCodeFullAndRerender()
+    private_QueueSafeCoreUpdate "ex_Core.fn_Dev_UpdateAllModules", "full"
 End Sub
 
 
-Public Sub m_UpdateCodeDateAndRerender()
-    private_QueueSafeCoreUpdate "ex_Core.m_Dev_UpdateCodeByDate", "date"
+Public Sub fn_UpdateCodeDateAndRerender()
+    private_QueueSafeCoreUpdate "ex_Core.fn_Dev_UpdateCodeByDate", "date"
 End Sub
 
 
-Public Sub m_UpdateCodeSizeAndRerender()
-    private_QueueSafeCoreUpdate "ex_Core.m_Dev_UpdateCodeBySize", "size"
+Public Sub fn_UpdateCodeSizeAndRerender()
+    private_QueueSafeCoreUpdate "ex_Core.fn_Dev_UpdateCodeBySize", "size"
 End Sub
 
 
-Public Sub m_RerenderLastPageAfterUpdate()
+Public Sub fn_RerenderLastPageAfterUpdate()
     Dim restoredPagesCount As Long
 
-    ex_HelpersSheet.m_SetBusyCursor True
+    ex_HelpersSheet.fn_SetBusyCursor True
 #If LOGGING_DEBUG_ENABLED Then
-    ex_Core.m_Diagnostic_LogInfo "core-actions:rerender-after-update start"
+    ex_Core.fn_Diagnostic_LogInfo "core-actions:rerender-after-update start"
 #End If
 
     On Error GoTo EH_RERENDER
-    If Not rt_RestoreManager.m_RestoreRuntimeState("after-update", restoredPagesCount) Then
+    If Not rt_RestoreManager.fn_RestoreRuntimeState("after-update", restoredPagesCount) Then
 #If LOGGING_DEBUG_ENABLED Then
-        ex_Core.m_Diagnostic_LogError "core-actions:rerender-after-update restore-runtime-failed"
+        ex_Core.fn_Diagnostic_LogError "core-actions:rerender-after-update restore-runtime-failed"
 #End If
-        rt_Messaging.m_ShowStatusBarError "Failed to restore runtime state after update.", 6
-        ex_HelpersSheet.m_SetBusyCursor False
+        rt_Messaging.fn_ShowStatusBarError "Failed to restore runtime state after update.", 6
+        ex_HelpersSheet.fn_SetBusyCursor False
         Exit Sub
     End If
 
-    ex_HelpersSheet.m_SetBusyCursor False
+    ex_HelpersSheet.fn_SetBusyCursor False
 #If LOGGING_DEBUG_ENABLED Then
-    ex_Core.m_Diagnostic_LogInfo "core-actions:rerender-after-update done restoredPages=" & VBA.CStr(restoredPagesCount)
+    ex_Core.fn_Diagnostic_LogInfo "core-actions:rerender-after-update done restoredPages=" & VBA.CStr(restoredPagesCount)
 #End If
-    rt_Messaging.m_ShowStatusBarSuccess "Update completed. Restored pages: " & VBA.CStr(restoredPagesCount) & ".", 1
+    rt_Messaging.fn_ShowStatusBarSuccess "Update completed. Restored pages: " & VBA.CStr(restoredPagesCount) & ".", 1
     Exit Sub
 
 EH_RERENDER:
-    ex_HelpersSheet.m_SetBusyCursor False
+    ex_HelpersSheet.fn_SetBusyCursor False
 #If LOGGING_DEBUG_ENABLED Then
-    ex_Core.m_Diagnostic_LogError "core-actions:rerender-after-update exception err='" & VBA.Replace$(Err.Description, "'", "''") & "'"
+    ex_Core.fn_Diagnostic_LogError "core-actions:rerender-after-update exception err='" & VBA.Replace$(Err.Description, "'", "''") & "'"
 #End If
-    rt_Messaging.m_ShowStatusBarError "Failed to restore runtime state after update: " & Err.Description, 6
+    rt_Messaging.fn_ShowStatusBarError "Failed to restore runtime state after update: " & Err.Description, 6
 End Sub
 
 
-Public Sub m_RunScheduledUpdateAndRerender()
+Public Sub fn_RunScheduledUpdateAndRerender()
     Dim updateMacroRef As String
 
     If g_IsRunningScheduledUpdate Then
 #If LOGGING_DEBUG_ENABLED Then
-        ex_Core.m_Diagnostic_LogError "core-actions:run-scheduled reentry-blocked"
+        ex_Core.fn_Diagnostic_LogError "core-actions:run-scheduled reentry-blocked"
 #End If
         Exit Sub
     End If
@@ -83,22 +83,22 @@ Public Sub m_RunScheduledUpdateAndRerender()
     g_PendingUpdateMacroRef = VBA.vbNullString
 
     If VBA.Len(updateMacroRef) = 0 Then
-        ex_HelpersSheet.m_SetBusyCursor False
-        rt_Messaging.m_ShowStatusBarWarning "Scheduled update method was not found.", 5
+        ex_HelpersSheet.fn_SetBusyCursor False
+        rt_Messaging.fn_ShowStatusBarWarning "Scheduled update method was not found.", 5
         Exit Sub
     End If
 
     g_IsRunningScheduledUpdate = True
     On Error GoTo EH_RUN
     Application.Run updateMacroRef
-    m_RerenderLastPageAfterUpdate
+    fn_RerenderLastPageAfterUpdate
     g_IsRunningScheduledUpdate = False
     Exit Sub
 
 EH_RUN:
     g_IsRunningScheduledUpdate = False
-    ex_HelpersSheet.m_SetBusyCursor False
-    rt_Messaging.m_ShowStatusBarError "Failed to run update: " & Err.Description, 6
+    ex_HelpersSheet.fn_SetBusyCursor False
+    rt_Messaging.fn_ShowStatusBarError "Failed to run update: " & Err.Description, 6
 End Sub
 
 ' //
@@ -117,26 +117,26 @@ Private Sub private_ScheduleUpdateAndRerender(ByVal devToolsMethod As String)
 
     updateMethod = VBA.Trim$(devToolsMethod)
     If VBA.Len(updateMethod) = 0 Then
-        rt_Messaging.m_ShowStatusBarWarning "Update method is not specified.", 5
+        rt_Messaging.fn_ShowStatusBarWarning "Update method is not specified.", 5
         Exit Sub
     End If
     If g_IsRunningScheduledUpdate Then
 #If LOGGING_DEBUG_ENABLED Then
-        ex_Core.m_Diagnostic_LogError "core-actions:schedule-update skipped reason='update-is-running' method='" & VBA.Replace$(updateMethod, "'", "''") & "'"
+        ex_Core.fn_Diagnostic_LogError "core-actions:schedule-update skipped reason='update-is-running' method='" & VBA.Replace$(updateMethod, "'", "''") & "'"
 #End If
         Exit Sub
     End If
 #If LOGGING_DEBUG_ENABLED Then
-    ex_Core.m_Diagnostic_LogInfo "core-actions:schedule-update start method='" & VBA.Replace$(updateMethod, "'", "''") & "'"
+    ex_Core.fn_Diagnostic_LogInfo "core-actions:schedule-update start method='" & VBA.Replace$(updateMethod, "'", "''") & "'"
 #End If
 
-    ex_HelpersSheet.m_SetBusyCursor True
+    ex_HelpersSheet.fn_SetBusyCursor True
 
-    If Not rt_RestoreManager.m_SaveRuntimeState() Then
+    If Not rt_RestoreManager.fn_SaveRuntimeState() Then
 #If LOGGING_DEBUG_ENABLED Then
-        ex_Core.m_Diagnostic_LogError "core-actions:schedule-update save-runtime-state-failed"
+        ex_Core.fn_Diagnostic_LogError "core-actions:schedule-update save-runtime-state-failed"
 #End If
-        ex_HelpersSheet.m_SetBusyCursor False
+        ex_HelpersSheet.fn_SetBusyCursor False
         Exit Sub
     End If
 
@@ -146,7 +146,7 @@ Private Sub private_ScheduleUpdateAndRerender(ByVal devToolsMethod As String)
     Else
         g_PendingUpdateMacroRef = wbMacroPrefix & updateMethod
     End If
-    updateMacroRef = wbMacroPrefix & "rt_CoreActions.m_RunScheduledUpdateAndRerender"
+    updateMacroRef = wbMacroPrefix & "rt_CoreActions.fn_RunScheduledUpdateAndRerender"
 
     ' Если пользователь часто кликает подряд, отменяем отложенные старые задачи.
     private_TryCancelScheduledTask g_ScheduledUpdateAt, g_ScheduledUpdateMacro
@@ -158,18 +158,18 @@ Private Sub private_ScheduleUpdateAndRerender(ByVal devToolsMethod As String)
     g_ScheduledUpdateAt = updateAt
     g_ScheduledUpdateMacro = updateMacroRef
 #If LOGGING_DEBUG_ENABLED Then
-    ex_Core.m_Diagnostic_LogInfo "core-actions:schedule-update queued macro='" & VBA.Replace$(updateMacroRef, "'", "''") & "'"
+    ex_Core.fn_Diagnostic_LogInfo "core-actions:schedule-update queued macro='" & VBA.Replace$(updateMacroRef, "'", "''") & "'"
 #End If
-    rt_Messaging.m_ShowStatusBarNotice "Update start: task has been queued.", 1
+    rt_Messaging.fn_ShowStatusBarNotice "Update start: task has been queued.", 1
     Exit Sub
 
 EH_SCHEDULE:
-    ex_HelpersSheet.m_SetBusyCursor False
+    ex_HelpersSheet.fn_SetBusyCursor False
     g_PendingUpdateMacroRef = VBA.vbNullString
 #If LOGGING_DEBUG_ENABLED Then
-    ex_Core.m_Diagnostic_LogError "core-actions:schedule-update ontime-failed err='" & VBA.Replace$(Err.Description, "'", "''") & "'"
+    ex_Core.fn_Diagnostic_LogError "core-actions:schedule-update ontime-failed err='" & VBA.Replace$(Err.Description, "'", "''") & "'"
 #End If
-    rt_Messaging.m_ShowStatusBarError "Failed to schedule update: " & Err.Description, 6
+    rt_Messaging.fn_ShowStatusBarError "Failed to schedule update: " & Err.Description, 6
 End Sub
 
 
@@ -202,7 +202,7 @@ Private Sub private_QueueSafeCoreUpdate(ByVal coreMethod As String, ByVal update
 
     updateMethod = VBA.Trim$(coreMethod)
     If VBA.Len(updateMethod) = 0 Then
-        rt_Messaging.m_ShowStatusBarWarning "Safe update method is not specified.", 5
+        rt_Messaging.fn_ShowStatusBarWarning "Safe update method is not specified.", 5
         Exit Sub
     End If
 
@@ -222,14 +222,14 @@ Private Sub private_QueueSafeCoreUpdate(ByVal coreMethod As String, ByVal update
     g_ScheduledUpdateAt = scheduleAt
     g_ScheduledUpdateMacro = macroRef
 #If LOGGING_DEBUG_ENABLED Then
-    ex_Core.m_Diagnostic_LogInfo "core-actions:redirect-safe-update queued kind='" & VBA.Replace$(updateKind, "'", "''") & "' macro='" & VBA.Replace$(macroRef, "'", "''") & "'"
+    ex_Core.fn_Diagnostic_LogInfo "core-actions:redirect-safe-update queued kind='" & VBA.Replace$(updateKind, "'", "''") & "' macro='" & VBA.Replace$(macroRef, "'", "''") & "'"
 #End If
-    rt_Messaging.m_ShowStatusBarNotice "Update start: safe task has been queued.", 1
+    rt_Messaging.fn_ShowStatusBarNotice "Update start: safe task has been queued.", 1
     Exit Sub
 
 EH_QUEUE:
 #If LOGGING_DEBUG_ENABLED Then
-    ex_Core.m_Diagnostic_LogError "core-actions:redirect-safe-update ontime-failed kind='" & VBA.Replace$(updateKind, "'", "''") & "' err='" & VBA.Replace$(Err.Description, "'", "''") & "'"
+    ex_Core.fn_Diagnostic_LogError "core-actions:redirect-safe-update ontime-failed kind='" & VBA.Replace$(updateKind, "'", "''") & "' err='" & VBA.Replace$(Err.Description, "'", "''") & "'"
 #End If
-    rt_Messaging.m_ShowStatusBarError "Failed to schedule safe update: " & Err.Description, 6
+    rt_Messaging.fn_ShowStatusBarError "Failed to schedule safe update: " & Err.Description, 6
 End Sub

@@ -23,7 +23,7 @@ Private m_PendingControlSnapshots As Collection
 
 Private Sub Class_Initialize()
 #If LOGGING_VERBOSE_ENABLED Then
-    ex_Core.m_Diagnostic_LogInfo "lifecycle:" & VBA.TypeName(Me) & ".Class_Initialize"
+    ex_Core.fn_Diagnostic_LogInfo "lifecycle:" & VBA.TypeName(Me) & ".Class_Initialize"
 #End If
     Set m_PageBase = New obj_PageBase
     Set m_PageMainController = Nothing
@@ -32,7 +32,7 @@ End Sub
 
 Private Sub Class_Terminate()
 #If LOGGING_VERBOSE_ENABLED Then
-    ex_Core.m_Diagnostic_LogInfo "lifecycle:" & VBA.TypeName(Me) & ".Class_Terminate"
+    ex_Core.fn_Diagnostic_LogInfo "lifecycle:" & VBA.TypeName(Me) & ".Class_Terminate"
 #End If
     If m_IsDisposed Then Exit Sub
     On Error Resume Next
@@ -43,9 +43,9 @@ End Sub
 ' //
 ' // Interface
 ' //
-' Callstack[1]: ThisWorkbook.Workbook_Open -> ThisWorkbook.m_ResetWorkbookAndCreateMainPage -> private_ResetWorkbookAndCreateMainPage -> rt_PageManager.m_CreatePage -> obj_PageMain.obj_IPage_Initialize
-' Callstack[2]: ex_Core.private_TryRecoverUiAfterUpdate -> ThisWorkbook.m_ResetWorkbookAndCreateMainPage -> private_ResetWorkbookAndCreateMainPage -> rt_PageManager.m_CreatePage -> obj_PageMain.obj_IPage_Initialize
-' Callstack[3]: rt_RestoreManager.m_RestorePageSnapshots -> rt_PageManager.m_CreatePage -> obj_PageMain.obj_IPage_Initialize
+' Callstack[1]: ThisWorkbook.Workbook_Open -> ThisWorkbook.m_ResetWorkbookAndCreateMainPage -> private_ResetWorkbookAndCreateMainPage -> rt_PageManager.fn_CreatePage -> obj_PageMain.obj_IPage_Initialize
+' Callstack[2]: ex_Core.private_TryRecoverUiAfterUpdate -> ThisWorkbook.m_ResetWorkbookAndCreateMainPage -> private_ResetWorkbookAndCreateMainPage -> rt_PageManager.fn_CreatePage -> obj_PageMain.obj_IPage_Initialize
+' Callstack[3]: rt_RestoreManager.m_RestorePageSnapshots -> rt_PageManager.fn_CreatePage -> obj_PageMain.obj_IPage_Initialize
 Private Function obj_IPage_Initialize( _
     ByVal ws As Worksheet, _
     Optional ByVal uiPath As String = VBA.vbNullString, _
@@ -58,9 +58,9 @@ Private Function obj_IPage_Initialize( _
     obj_IPage_Initialize = True
 End Function
 
-' Callstack[1]: ThisWorkbook.Workbook_Open -> ThisWorkbook.m_ResetWorkbookAndCreateMainPage -> private_ResetWorkbookAndCreateMainPage -> rt_PageManager.m_DisposeAllPages -> page.Dispose(False) -> obj_PageMain.obj_IPage_Dispose
-' Callstack[2]: ThisWorkbook.Workbook_SheetBeforeDelete -> ex_HelpersSheet.m_RemovePageByWorksheet -> rt_PageManager.m_RemovePage -> page.Dispose(False) -> obj_PageMain.obj_IPage_Dispose
-' Callstack[3]: rt_PageManager.m_RemovePageById -> rt_PageManager.m_RemovePage -> page.Dispose(deleteWorksheet) -> obj_PageMain.obj_IPage_Dispose
+' Callstack[1]: ThisWorkbook.Workbook_Open -> ThisWorkbook.m_ResetWorkbookAndCreateMainPage -> private_ResetWorkbookAndCreateMainPage -> rt_PageManager.fn_DisposeAllPages -> page.Dispose(False) -> obj_PageMain.obj_IPage_Dispose
+' Callstack[2]: ThisWorkbook.Workbook_SheetBeforeDelete -> ex_HelpersSheet.fn_RemovePageByWorksheet -> rt_PageManager.fn_RemovePage -> page.Dispose(False) -> obj_PageMain.obj_IPage_Dispose
+' Callstack[3]: rt_PageManager.fn_RemovePageById -> rt_PageManager.fn_RemovePage -> page.Dispose(deleteWorksheet) -> obj_PageMain.obj_IPage_Dispose
 Private Sub obj_IPage_Dispose(Optional ByVal deleteWorksheet As Boolean = True)
     private_DisposeCore deleteWorksheet
 End Sub
@@ -70,8 +70,8 @@ Private Function obj_IPage_RunPagePipeline() As Boolean
     obj_IPage_RunPagePipeline = True
 End Function
 
-' Callstack[1]: rt_PageManager.m_RenderPageById -> rt_PageManager.m_RenderPage -> obj_PageMain.obj_IPage_Render
-' Callstack[2]: rt_RestoreManager.m_RestorePageSnapshots(renderRestored:=True) -> rt_PageManager.m_RenderPage -> obj_PageMain.obj_IPage_Render
+' Callstack[1]: rt_PageManager.fn_RenderPageById -> rt_PageManager.fn_RenderPage -> obj_PageMain.obj_IPage_Render
+' Callstack[2]: rt_RestoreManager.m_RestorePageSnapshots(renderRestored:=True) -> rt_PageManager.fn_RenderPage -> obj_PageMain.obj_IPage_Render
 Private Function obj_IPage_Render() As Boolean
     If Not m_PageBase.IsReady() Then Exit Function
     If Not m_PageBase.Render() Then Exit Function
@@ -99,7 +99,7 @@ Private Function obj_IPage_UpdateUiPath( _
     If VBA.Len(normalizedReason) = 0 Then normalizedReason = "obj_PageMain.UpdateUiPath"
 
     Set iPage = Me
-    obj_IPage_UpdateUiPath = rt_PageManager.m_RenderPage(iPage, normalizedReason)
+    obj_IPage_UpdateUiPath = rt_PageManager.fn_RenderPage(iPage, normalizedReason)
 End Function
 
 Private Function obj_IPage_GetPageBase() As obj_PageBase
@@ -139,7 +139,7 @@ Private Function obj_IPage_ResetControlActions() As Boolean
     obj_IPage_ResetControlActions = m_PageBase.ResetControlActions()
 End Function
 
-' Callstack[1]: Shape.OnAction -> rt_Bridge.m_OnShapeClick -> rt_PageManager.m_TryGetPageByWorksheet -> page.DispatchShapeClick -> obj_PageMain.obj_IPage_DispatchShapeClick
+' Callstack[1]: Shape.OnAction -> rt_Bridge.fn_OnShapeClick -> rt_PageManager.fn_TryGetPageByWorksheet -> page.DispatchShapeClick -> obj_PageMain.obj_IPage_DispatchShapeClick
 Private Function obj_IPage_DispatchShapeClick(ByVal shapeName As String) As Boolean
     obj_IPage_DispatchShapeClick = m_PageBase.DispatchShapeClick(shapeName)
 End Function

@@ -5,9 +5,9 @@ Option Explicit
 
 Private g_ControlParts As Collection
 
-Public Sub m_Module_Dispose()
+Public Sub fn_Module_Dispose()
 #If LOGGING_VERBOSE_ENABLED Then
-    ex_Core.m_Diagnostic_LogInfo "lifecycle:ex_ControlPartsRuntime.m_Module_Dispose"
+    ex_Core.fn_Diagnostic_LogInfo "lifecycle:ex_ControlPartsRuntime.fn_Module_Dispose"
 #End If
     On Error Resume Next
     Set g_ControlParts = Nothing
@@ -17,12 +17,12 @@ End Sub
 ' //
 ' // API
 ' //
-Public Sub m_ResetControlParts()
+Public Sub fn_ResetControlParts()
     Set g_ControlParts = Nothing
 End Sub
 
 
-Public Function m_RegisterControlPart( _
+Public Function fn_RegisterControlPart( _
     ByVal ws As Worksheet, _
     ByVal controlType As String, _
     ByVal controlName As String, _
@@ -33,13 +33,13 @@ Public Function m_RegisterControlPart( _
 
     If ws Is Nothing Then
 #If LOGGING_DEBUG_ENABLED Then
-        ex_Core.m_Diagnostic_LogError "PrototypeNew: worksheet is not specified for control part registration."
+        ex_Core.fn_Diagnostic_LogError "PrototypeNew: worksheet is not specified for control part registration."
 #End If
         Exit Function
     End If
     If partRange Is Nothing Then
 #If LOGGING_DEBUG_ENABLED Then
-        ex_Core.m_Diagnostic_LogError "PrototypeNew: range is not specified for control part registration."
+        ex_Core.fn_Diagnostic_LogError "PrototypeNew: range is not specified for control part registration."
 #End If
         Exit Function
     End If
@@ -50,13 +50,13 @@ Public Function m_RegisterControlPart( _
 
     If VBA.Len(controlType) = 0 Then
 #If LOGGING_DEBUG_ENABLED Then
-        ex_Core.m_Diagnostic_LogError "PrototypeNew: control part registration requires non-empty control type."
+        ex_Core.fn_Diagnostic_LogError "PrototypeNew: control part registration requires non-empty control type."
 #End If
         Exit Function
     End If
     If VBA.Len(partName) = 0 Then
 #If LOGGING_DEBUG_ENABLED Then
-        ex_Core.m_Diagnostic_LogError "PrototypeNew: control part registration requires non-empty part name."
+        ex_Core.fn_Diagnostic_LogError "PrototypeNew: control part registration requires non-empty part name."
 #End If
         Exit Function
     End If
@@ -72,11 +72,11 @@ Public Function m_RegisterControlPart( _
     Set entry("Range") = partRange
 
     g_ControlParts.Add entry
-    m_RegisterControlPart = True
+    fn_RegisterControlPart = True
 End Function
 
 
-Public Function m_TryResolveControlPartScope( _
+Public Function fn_TryResolveControlPartScope( _
     ByVal ws As Worksheet, _
     ByVal controlType As String, _
     ByVal controlName As String, _
@@ -90,7 +90,7 @@ Public Function m_TryResolveControlPartScope( _
 
     If ws Is Nothing Then
 #If LOGGING_DEBUG_ENABLED Then
-        ex_Core.m_Diagnostic_LogError "PrototypeNew: worksheet is not specified for control part selector."
+        ex_Core.fn_Diagnostic_LogError "PrototypeNew: worksheet is not specified for control part selector."
 #End If
         Exit Function
     End If
@@ -102,19 +102,19 @@ Public Function m_TryResolveControlPartScope( _
 
     If VBA.Len(controlType) = 0 Then
 #If LOGGING_DEBUG_ENABLED Then
-        ex_Core.m_Diagnostic_LogError "PrototypeNew: control part selector requires non-empty type."
+        ex_Core.fn_Diagnostic_LogError "PrototypeNew: control part selector requires non-empty type."
 #End If
         Exit Function
     End If
     If VBA.Len(partName) = 0 Then
 #If LOGGING_DEBUG_ENABLED Then
-        ex_Core.m_Diagnostic_LogError "PrototypeNew: control part selector requires non-empty part."
+        ex_Core.fn_Diagnostic_LogError "PrototypeNew: control part selector requires non-empty part."
 #End If
         Exit Function
     End If
 
     If g_ControlParts Is Nothing Then
-        m_TryResolveControlPartScope = True
+        fn_TryResolveControlPartScope = True
         Exit Function
     End If
 
@@ -145,7 +145,7 @@ ContinueEntry:
         Set outColumnScope = outScope.EntireColumn
     End If
 
-    m_TryResolveControlPartScope = True
+    fn_TryResolveControlPartScope = True
 End Function
 
 ' //

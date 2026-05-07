@@ -18,12 +18,12 @@ Private m_IsConfigured As Boolean
 
 Private Sub Class_Initialize()
 #If LOGGING_VERBOSE_ENABLED Then
-    ex_Core.m_Diagnostic_LogInfo "lifecycle:" & VBA.TypeName(Me) & ".Class_Initialize"
+    ex_Core.fn_Diagnostic_LogInfo "lifecycle:" & VBA.TypeName(Me) & ".Class_Initialize"
 #End If
 End Sub
 Private Sub Class_Terminate()
 #If LOGGING_VERBOSE_ENABLED Then
-    ex_Core.m_Diagnostic_LogInfo "lifecycle:" & VBA.TypeName(Me) & ".Class_Terminate"
+    ex_Core.fn_Diagnostic_LogInfo "lifecycle:" & VBA.TypeName(Me) & ".Class_Terminate"
 #End If
     If m_IsDisposed Then Exit Sub
     On Error Resume Next
@@ -44,14 +44,14 @@ Private Sub obj_IControl_Configure(ByVal page As obj_PageBase, ByVal controlNode
     Set m_ControlBase = New obj_ControlBase
     If Not m_ControlBase.Configure(page, controlNode, "Label", "label", m_ControlName) Then Exit Sub
 
-    m_TextRaw = VBA.CStr(ex_XmlCore.m_NodeAttrText(controlNode, "text"))
+    m_TextRaw = VBA.CStr(ex_XmlCore.fn_NodeAttrText(controlNode, "text"))
     If VBA.Len(VBA.Trim$(m_TextRaw)) = 0 Then
-        m_TextRaw = VBA.CStr(ex_XmlCore.m_NodeAttrText(controlNode, "caption"))
+        m_TextRaw = VBA.CStr(ex_XmlCore.fn_NodeAttrText(controlNode, "caption"))
     End If
 
     Set dataContext = m_ControlBase.DataContext
     If dataContext Is Nothing Then Set dataContext = Me
-    If Not ex_BindingRuntime.m_TryResolveTextBinding(m_TextRaw, dataContext, m_TextResolved) Then Exit Sub
+    If Not ex_BindingRuntime.fn_TryResolveTextBinding(m_TextRaw, dataContext, m_TextResolved) Then Exit Sub
 
     Set m_ControlLayout = New obj_ControlLayout
     If Not m_ControlLayout.TryReadFromNode(controlNode, "Label", m_ControlName, "style") Then Exit Sub
@@ -66,7 +66,7 @@ Private Sub obj_IControl_Render()
 
     If Not m_IsConfigured Then
 #If LOGGING_DEBUG_ENABLED Then
-        ex_Core.m_Diagnostic_LogError "Label: control '" & m_ControlName & "' is not configured."
+        ex_Core.fn_Diagnostic_LogError "Label: control '" & m_ControlName & "' is not configured."
 #End If
         Exit Sub
     End If
@@ -75,7 +75,7 @@ Private Sub obj_IControl_Render()
     If Not m_ControlBase Is Nothing Then Set pageBase = m_ControlBase.PageBase
     If pageBase Is Nothing Then
 #If LOGGING_DEBUG_ENABLED Then
-        ex_Core.m_Diagnostic_LogError "Label: page is not specified for control '" & m_ControlName & "'."
+        ex_Core.fn_Diagnostic_LogError "Label: page is not specified for control '" & m_ControlName & "'."
 #End If
         Exit Sub
     End If
@@ -83,7 +83,7 @@ Private Sub obj_IControl_Render()
     Set ws = private_GetWorksheetByName(pageBase, m_ControlLayout.LayoutSheetName)
     If ws Is Nothing Then
 #If LOGGING_DEBUG_ENABLED Then
-        ex_Core.m_Diagnostic_LogError "Label: sheet '" & m_ControlLayout.LayoutSheetName & "' was not found for control '" & m_ControlName & "'."
+        ex_Core.fn_Diagnostic_LogError "Label: sheet '" & m_ControlLayout.LayoutSheetName & "' was not found for control '" & m_ControlName & "'."
 #End If
         Exit Sub
     End If
@@ -101,7 +101,7 @@ Private Sub obj_IControl_Render()
 
 EH_RANGE:
 #If LOGGING_DEBUG_ENABLED Then
-    ex_Core.m_Diagnostic_LogError "Label: failed to resolve target range for control '" & m_ControlName & "'."
+    ex_Core.fn_Diagnostic_LogError "Label: failed to resolve target range for control '" & m_ControlName & "'."
 #End If
 End Sub
 
@@ -117,13 +117,13 @@ End Function
 ' //
 Public Function Initialize() As Boolean
 #If LOGGING_VERBOSE_ENABLED Then
-    ex_Core.m_Diagnostic_LogInfo "lifecycle:" & VBA.TypeName(Me) & ".Initialize"
+    ex_Core.fn_Diagnostic_LogInfo "lifecycle:" & VBA.TypeName(Me) & ".Initialize"
 #End If
     Initialize = True
 End Function
 Public Sub Dispose()
 #If LOGGING_VERBOSE_ENABLED Then
-    ex_Core.m_Diagnostic_LogInfo "lifecycle:" & VBA.TypeName(Me) & ".Dispose"
+    ex_Core.fn_Diagnostic_LogInfo "lifecycle:" & VBA.TypeName(Me) & ".Dispose"
 #End If
     If m_IsDisposed Then Exit Sub
     m_IsDisposed = True
@@ -181,7 +181,7 @@ Private Function private_ApplyPresetStyle(ByVal targetRange As Range, ByVal styl
 
         Case Else
 #If LOGGING_DEBUG_ENABLED Then
-            ex_Core.m_Diagnostic_LogError "Label: unsupported style '" & styleName & "' for control '" & m_ControlName & "'."
+            ex_Core.fn_Diagnostic_LogError "Label: unsupported style '" & styleName & "' for control '" & m_ControlName & "'."
 #End If
             Exit Function
     End Select

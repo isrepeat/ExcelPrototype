@@ -26,12 +26,12 @@ Private m_IsConfigured As Boolean
 
 Private Sub Class_Initialize()
 #If LOGGING_VERBOSE_ENABLED Then
-    ex_Core.m_Diagnostic_LogInfo "lifecycle:" & VBA.TypeName(Me) & ".Class_Initialize"
+    ex_Core.fn_Diagnostic_LogInfo "lifecycle:" & VBA.TypeName(Me) & ".Class_Initialize"
 #End If
 End Sub
 Private Sub Class_Terminate()
 #If LOGGING_VERBOSE_ENABLED Then
-    ex_Core.m_Diagnostic_LogInfo "lifecycle:" & VBA.TypeName(Me) & ".Class_Terminate"
+    ex_Core.fn_Diagnostic_LogInfo "lifecycle:" & VBA.TypeName(Me) & ".Class_Terminate"
 #End If
     If m_IsDisposed Then Exit Sub
     On Error Resume Next
@@ -52,20 +52,20 @@ Private Sub obj_IControl_Configure(ByVal page As obj_PageBase, ByVal controlNode
     Set m_ControlBase = New obj_ControlBase
     If Not m_ControlBase.Configure(page, controlNode, "TableList", "tablelist", m_ControlName) Then Exit Sub
 
-    m_ItemsSourceRaw = VBA.Trim$(VBA.CStr(ex_XmlCore.m_NodeAttrText(controlNode, "itemsSource")))
+    m_ItemsSourceRaw = VBA.Trim$(VBA.CStr(ex_XmlCore.fn_NodeAttrText(controlNode, "itemsSource")))
     If VBA.Len(m_ItemsSourceRaw) = 0 Then
 #If LOGGING_DEBUG_ENABLED Then
-        ex_Core.m_Diagnostic_LogError "TableList: itemsSource is not specified for control '" & m_ControlName & "'."
+        ex_Core.fn_Diagnostic_LogError "TableList: itemsSource is not specified for control '" & m_ControlName & "'."
 #End If
         Exit Sub
     End If
 
-    m_ItemVisibilityRaw = VBA.Trim$(VBA.CStr(ex_XmlCore.m_NodeAttrText(controlNode, "itemVisibility")))
+    m_ItemVisibilityRaw = VBA.Trim$(VBA.CStr(ex_XmlCore.fn_NodeAttrText(controlNode, "itemVisibility")))
 
-    m_LayoutSheetName = VBA.Trim$(ex_XmlCore.m_NodeAttrText(controlNode, "__layoutSheetName"))
+    m_LayoutSheetName = VBA.Trim$(ex_XmlCore.fn_NodeAttrText(controlNode, "__layoutSheetName"))
     If VBA.Len(m_LayoutSheetName) = 0 Then
 #If LOGGING_DEBUG_ENABLED Then
-        ex_Core.m_Diagnostic_LogError "TableList: runtime layout sheet is missing for control '" & m_ControlName & "'."
+        ex_Core.fn_Diagnostic_LogError "TableList: runtime layout sheet is missing for control '" & m_ControlName & "'."
 #End If
         Exit Sub
     End If
@@ -77,28 +77,28 @@ Private Sub obj_IControl_Configure(ByVal page As obj_PageBase, ByVal controlNode
 
     If m_RowStart <= 0 Or m_ColStart <= 0 Then
 #If LOGGING_DEBUG_ENABLED Then
-        ex_Core.m_Diagnostic_LogError "TableList: invalid row/column start for control '" & m_ControlName & "'."
+        ex_Core.fn_Diagnostic_LogError "TableList: invalid row/column start for control '" & m_ControlName & "'."
 #End If
         Exit Sub
     End If
 
     If m_RowEnd < m_RowStart Then
 #If LOGGING_DEBUG_ENABLED Then
-        ex_Core.m_Diagnostic_LogError "TableList: control '" & m_ControlName & "' has invalid spanRows range."
+        ex_Core.fn_Diagnostic_LogError "TableList: control '" & m_ControlName & "' has invalid spanRows range."
 #End If
         Exit Sub
     End If
 
     If m_ColEnd < m_ColStart Then
 #If LOGGING_DEBUG_ENABLED Then
-        ex_Core.m_Diagnostic_LogError "TableList: control '" & m_ControlName & "' has invalid spanColls range."
+        ex_Core.fn_Diagnostic_LogError "TableList: control '" & m_ControlName & "' has invalid spanColls range."
 #End If
         Exit Sub
     End If
 
     Set pageBase = m_ControlBase.PageBase
     If pageBase Is Nothing Then Exit Sub
-    If Not ex_RuntimeSourceResolver.m_TryResolveItemsSource(pageBase.RuntimeSources, m_ItemsSourceRaw, m_TableItems) Then Exit Sub
+    If Not ex_RuntimeSourceResolver.fn_TryResolveItemsSource(pageBase.RuntimeSources, m_ItemsSourceRaw, m_TableItems) Then Exit Sub
     If Not private_TryApplyItemVisibilityFilter(m_TableItems) Then Exit Sub
 
     m_IsConfigured = True
@@ -113,7 +113,7 @@ Private Sub obj_IControl_Render()
 
     If Not m_IsConfigured Then
 #If LOGGING_DEBUG_ENABLED Then
-        ex_Core.m_Diagnostic_LogError "TableList: control '" & m_ControlName & "' is not configured."
+        ex_Core.fn_Diagnostic_LogError "TableList: control '" & m_ControlName & "' is not configured."
 #End If
         Exit Sub
     End If
@@ -122,7 +122,7 @@ Private Sub obj_IControl_Render()
     If Not m_ControlBase Is Nothing Then Set page = m_ControlBase.PageBase
     If page Is Nothing Then
 #If LOGGING_DEBUG_ENABLED Then
-        ex_Core.m_Diagnostic_LogError "TableList: page is not specified for control '" & m_ControlName & "'."
+        ex_Core.fn_Diagnostic_LogError "TableList: page is not specified for control '" & m_ControlName & "'."
 #End If
         Exit Sub
     End If
@@ -130,14 +130,14 @@ Private Sub obj_IControl_Render()
     Set ws = private_GetWorksheetByName(page, m_LayoutSheetName)
     If ws Is Nothing Then
 #If LOGGING_DEBUG_ENABLED Then
-        ex_Core.m_Diagnostic_LogError "TableList: sheet '" & m_LayoutSheetName & "' was not found for control '" & m_ControlName & "'."
+        ex_Core.fn_Diagnostic_LogError "TableList: sheet '" & m_LayoutSheetName & "' was not found for control '" & m_ControlName & "'."
 #End If
         Exit Sub
     End If
 
     If m_TableItems Is Nothing Then
 #If LOGGING_DEBUG_ENABLED Then
-        ex_Core.m_Diagnostic_LogError "TableList: itemsSource is not resolved for control '" & m_ControlName & "'."
+        ex_Core.fn_Diagnostic_LogError "TableList: itemsSource is not resolved for control '" & m_ControlName & "'."
 #End If
         Exit Sub
     End If
@@ -171,13 +171,13 @@ End Function
 ' //
 Public Function Initialize() As Boolean
 #If LOGGING_VERBOSE_ENABLED Then
-    ex_Core.m_Diagnostic_LogInfo "lifecycle:" & VBA.TypeName(Me) & ".Initialize"
+    ex_Core.fn_Diagnostic_LogInfo "lifecycle:" & VBA.TypeName(Me) & ".Initialize"
 #End If
     Initialize = True
 End Function
 Public Sub Dispose()
 #If LOGGING_VERBOSE_ENABLED Then
-    ex_Core.m_Diagnostic_LogInfo "lifecycle:" & VBA.TypeName(Me) & ".Dispose"
+    ex_Core.fn_Diagnostic_LogInfo "lifecycle:" & VBA.TypeName(Me) & ".Dispose"
 #End If
     If m_IsDisposed Then Exit Sub
     m_IsDisposed = True
@@ -205,7 +205,7 @@ Private Function private_TryApplyItemVisibilityFilter(ByRef tableItems As Collec
 
     If tableItems Is Nothing Then
 #If LOGGING_DEBUG_ENABLED Then
-        ex_Core.m_Diagnostic_LogError "TableList: itemsSource is not resolved for control '" & m_ControlName & "'."
+        ex_Core.fn_Diagnostic_LogError "TableList: itemsSource is not resolved for control '" & m_ControlName & "'."
 #End If
         Exit Function
     End If
@@ -215,12 +215,12 @@ Private Function private_TryApplyItemVisibilityFilter(ByRef tableItems As Collec
     For Each tableItem In tableItems
         If Not VBA.IsObject(tableItem) Then
 #If LOGGING_DEBUG_ENABLED Then
-            ex_Core.m_Diagnostic_LogError "TableList: itemsSource entry must be an object for itemVisibility evaluation in control '" & m_ControlName & "'."
+            ex_Core.fn_Diagnostic_LogError "TableList: itemsSource entry must be an object for itemVisibility evaluation in control '" & m_ControlName & "'."
 #End If
             Exit Function
         End If
 
-        If Not ex_BindingRuntime.m_TryResolveVisibilityBinding(m_ItemVisibilityRaw, tableItem, isVisible) Then Exit Function
+        If Not ex_BindingRuntime.fn_TryResolveVisibilityBinding(m_ItemVisibilityRaw, tableItem, isVisible) Then Exit Function
         If isVisible Then filteredItems.Add tableItem
     Next tableItem
 
@@ -236,11 +236,11 @@ Private Function private_TryReadLayoutLongAttr( _
 ) As Boolean
     Dim rawText As String
 
-    rawText = VBA.Trim$(ex_XmlCore.m_NodeAttrText(controlNode, attrName))
+    rawText = VBA.Trim$(ex_XmlCore.fn_NodeAttrText(controlNode, attrName))
     If VBA.Len(rawText) = 0 Then
         If isRequired Then
 #If LOGGING_DEBUG_ENABLED Then
-            ex_Core.m_Diagnostic_LogError "TableList: runtime layout attribute '" & attrName & "' is missing for control '" & m_ControlName & "'."
+            ex_Core.fn_Diagnostic_LogError "TableList: runtime layout attribute '" & attrName & "' is missing for control '" & m_ControlName & "'."
 #End If
             Exit Function
         End If
@@ -252,7 +252,7 @@ Private Function private_TryReadLayoutLongAttr( _
 
     If Not VBA.IsNumeric(rawText) Then
 #If LOGGING_DEBUG_ENABLED Then
-        ex_Core.m_Diagnostic_LogError "TableList: runtime layout attribute '" & attrName & "' must be numeric for control '" & m_ControlName & "'."
+        ex_Core.fn_Diagnostic_LogError "TableList: runtime layout attribute '" & attrName & "' must be numeric for control '" & m_ControlName & "'."
 #End If
         Exit Function
     End If
@@ -275,7 +275,7 @@ Private Function private_TryBuildRenderBuffer(ByRef outValueBlock As Variant, By
 
     If availableCols <= 0 Or maxRows <= 0 Then
 #If LOGGING_DEBUG_ENABLED Then
-        ex_Core.m_Diagnostic_LogError "TableList: invalid render bounds for control '" & m_ControlName & "'."
+        ex_Core.fn_Diagnostic_LogError "TableList: invalid render bounds for control '" & m_ControlName & "'."
 #End If
         Exit Function
     End If
@@ -357,21 +357,21 @@ Private Function private_TryEstimateTableOutputRows( _
     Set tableDynamic = tableViewItem.Model
     If tableDynamic Is Nothing Then
 #If LOGGING_DEBUG_ENABLED Then
-        ex_Core.m_Diagnostic_LogError "TableList: table view has no model."
+        ex_Core.fn_Diagnostic_LogError "TableList: table view has no model."
 #End If
         Exit Function
     End If
 
     If tableDynamic.ColumnCount <= 0 Then
 #If LOGGING_DEBUG_ENABLED Then
-        ex_Core.m_Diagnostic_LogError "TableList: table item has no columns."
+        ex_Core.fn_Diagnostic_LogError "TableList: table item has no columns."
 #End If
         Exit Function
     End If
 
     If tableDynamic.ColumnCount > availableCols Then
 #If LOGGING_DEBUG_ENABLED Then
-        ex_Core.m_Diagnostic_LogError "TableList: control '" & m_ControlName & "' requires " & VBA.CStr(tableDynamic.ColumnCount) & _
+        ex_Core.fn_Diagnostic_LogError "TableList: control '" & m_ControlName & "' requires " & VBA.CStr(tableDynamic.ColumnCount) & _
                " columns, but span provides only " & VBA.CStr(availableCols) & "."
 #End If
         Exit Function
@@ -442,21 +442,21 @@ Private Function private_TryWriteTableItemToBuffer( _
     Set tableDynamic = tableViewItem.Model
     If tableDynamic Is Nothing Then
 #If LOGGING_DEBUG_ENABLED Then
-        ex_Core.m_Diagnostic_LogError "TableList: table view has no model."
+        ex_Core.fn_Diagnostic_LogError "TableList: table view has no model."
 #End If
         Exit Function
     End If
 
     If tableDynamic.ColumnCount <= 0 Then
 #If LOGGING_DEBUG_ENABLED Then
-        ex_Core.m_Diagnostic_LogError "TableList: table item has no columns."
+        ex_Core.fn_Diagnostic_LogError "TableList: table item has no columns."
 #End If
         Exit Function
     End If
 
     If tableDynamic.ColumnCount > availableCols Then
 #If LOGGING_DEBUG_ENABLED Then
-        ex_Core.m_Diagnostic_LogError "TableList: control '" & m_ControlName & "' requires " & VBA.CStr(tableDynamic.ColumnCount) & _
+        ex_Core.fn_Diagnostic_LogError "TableList: control '" & m_ControlName & "' requires " & VBA.CStr(tableDynamic.ColumnCount) & _
                " columns, but span provides only " & VBA.CStr(availableCols) & "."
 #End If
         Exit Function
@@ -581,7 +581,7 @@ Private Function private_TryAppendRowViewData( _
     Set row = rowViewItem.Model
     If row Is Nothing Then
 #If LOGGING_DEBUG_ENABLED Then
-        ex_Core.m_Diagnostic_LogError "TableList: row view item has no row model."
+        ex_Core.fn_Diagnostic_LogError "TableList: row view item has no row model."
 #End If
         Exit Function
     End If
@@ -787,7 +787,7 @@ Private Function private_TryRegisterControlPartSegments(ByVal ws As Worksheet, B
             VBA.CLng(segment("ColumnCount")))
         If segmentRange Is Nothing Then GoTo ContinueSegment
 
-        If Not ex_ControlPartsRuntime.m_RegisterControlPart( _
+        If Not ex_ControlPartsRuntime.fn_RegisterControlPart( _
             ws, _
             "tablelist", _
             m_ControlName, _
@@ -891,7 +891,7 @@ Private Function private_TryResolveStylePreset( _
 
         Case Else
 #If LOGGING_DEBUG_ENABLED Then
-            ex_Core.m_Diagnostic_LogError "TableList: unsupported style segment kind '" & styleKind & "'."
+            ex_Core.fn_Diagnostic_LogError "TableList: unsupported style segment kind '" & styleKind & "'."
 #End If
             Exit Function
     End Select
@@ -909,7 +909,7 @@ Private Function private_TryResolveTableViewItem(ByVal rawItem As Variant, ByRef
 
     If Not VBA.IsObject(rawItem) Then
 #If LOGGING_DEBUG_ENABLED Then
-        ex_Core.m_Diagnostic_LogError "TableList: itemsSource entry must be an object."
+        ex_Core.fn_Diagnostic_LogError "TableList: itemsSource entry must be an object."
 #End If
         Exit Function
     End If
@@ -927,7 +927,7 @@ Private Function private_TryResolveTableViewItem(ByVal rawItem As Variant, ByRef
 
         Case Else
 #If LOGGING_DEBUG_ENABLED Then
-            ex_Core.m_Diagnostic_LogError "TableList: unsupported item type '" & VBA.TypeName(rawItem) & _
+            ex_Core.fn_Diagnostic_LogError "TableList: unsupported item type '" & VBA.TypeName(rawItem) & _
                    "'. Expected obj_TableViewItem, obj_TableDynamic or obj_Table."
     #End If
     End Select
@@ -938,7 +938,7 @@ Private Function private_TryResolveTableModelFromAny(ByVal tableItem As Variant,
 
     If Not VBA.IsObject(tableItem) Then
 #If LOGGING_DEBUG_ENABLED Then
-        ex_Core.m_Diagnostic_LogError "TableList: itemsSource entry must be an object of type obj_TableDynamic or obj_Table."
+        ex_Core.fn_Diagnostic_LogError "TableList: itemsSource entry must be an object of type obj_TableDynamic or obj_Table."
 #End If
         Exit Function
     End If
@@ -956,7 +956,7 @@ Private Function private_TryResolveTableModelFromAny(ByVal tableItem As Variant,
 
         Case Else
 #If LOGGING_DEBUG_ENABLED Then
-            ex_Core.m_Diagnostic_LogError "TableList: unsupported table model type '" & VBA.TypeName(tableItem) & _
+            ex_Core.fn_Diagnostic_LogError "TableList: unsupported table model type '" & VBA.TypeName(tableItem) & _
                    "'. Expected obj_TableDynamic or obj_Table."
     #End If
     End Select
@@ -967,7 +967,7 @@ Private Function private_CreateTableViewFromModel(ByVal tableDynamic As obj_Tabl
 
     If tableDynamic Is Nothing Then
 #If LOGGING_DEBUG_ENABLED Then
-        ex_Core.m_Diagnostic_LogError "TableList: table model is not specified."
+        ex_Core.fn_Diagnostic_LogError "TableList: table model is not specified."
 #End If
         Exit Function
     End If
@@ -984,7 +984,7 @@ Private Function private_TryResolveRowViewItem(ByVal rawItem As Variant, ByRef o
 
     If Not VBA.IsObject(rawItem) Then
 #If LOGGING_DEBUG_ENABLED Then
-        ex_Core.m_Diagnostic_LogError "TableList: row item must be an object."
+        ex_Core.fn_Diagnostic_LogError "TableList: row item must be an object."
 #End If
         Exit Function
     End If
@@ -1002,7 +1002,7 @@ Private Function private_TryResolveRowViewItem(ByVal rawItem As Variant, ByRef o
 
         Case Else
 #If LOGGING_DEBUG_ENABLED Then
-            ex_Core.m_Diagnostic_LogError "TableList: unsupported row item type '" & VBA.TypeName(rawItem) & _
+            ex_Core.fn_Diagnostic_LogError "TableList: unsupported row item type '" & VBA.TypeName(rawItem) & _
                    "'. Expected obj_RowViewItem or obj_Row."
     #End If
     End Select
@@ -1013,7 +1013,7 @@ Private Function private_CreateRowViewFromModel(ByVal row As obj_Row) As obj_Row
 
     If row Is Nothing Then
 #If LOGGING_DEBUG_ENABLED Then
-        ex_Core.m_Diagnostic_LogError "TableList: row model is not specified."
+        ex_Core.fn_Diagnostic_LogError "TableList: row model is not specified."
 #End If
         Exit Function
     End If
@@ -1039,7 +1039,7 @@ Private Function private_ConvertFixedTableToDynamic(ByVal fixedTable As obj_Tabl
 
     If fixedTable Is Nothing Then
 #If LOGGING_DEBUG_ENABLED Then
-        ex_Core.m_Diagnostic_LogError "TableList: fixed table model is not specified."
+        ex_Core.fn_Diagnostic_LogError "TableList: fixed table model is not specified."
 #End If
         Exit Function
     End If

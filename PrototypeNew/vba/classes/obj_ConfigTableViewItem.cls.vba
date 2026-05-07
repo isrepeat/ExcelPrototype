@@ -48,7 +48,7 @@ End Property
 
 Private Sub Class_Initialize()
 #If LOGGING_VERBOSE_ENABLED Then
-    ex_Core.m_Diagnostic_LogInfo "lifecycle:" & VBA.TypeName(Me) & ".Class_Initialize"
+    ex_Core.fn_Diagnostic_LogInfo "lifecycle:" & VBA.TypeName(Me) & ".Class_Initialize"
 #End If
     Set m_ViewPresentation = New obj_ViewPresentation
     Set m_ConfigEntryViewItems = New list__obj_ConfigEntryViewItem
@@ -56,7 +56,7 @@ Private Sub Class_Initialize()
 End Sub
 Private Sub Class_Terminate()
 #If LOGGING_VERBOSE_ENABLED Then
-    ex_Core.m_Diagnostic_LogInfo "lifecycle:" & VBA.TypeName(Me) & ".Class_Terminate"
+    ex_Core.fn_Diagnostic_LogInfo "lifecycle:" & VBA.TypeName(Me) & ".Class_Terminate"
 #End If
     If m_IsDisposed Then Exit Sub
     On Error Resume Next
@@ -76,7 +76,7 @@ Private Function obj_IViewItem_Render( _
     Optional ByVal viewName As String = "" _
 ) As Boolean
 #If LOGGING_DEBUG_ENABLED Then
-    ex_Core.m_Diagnostic_LogError "ConfigTableViewItem: direct render is not supported."
+    ex_Core.fn_Diagnostic_LogError "ConfigTableViewItem: direct render is not supported."
 #End If
 End Function
 
@@ -89,7 +89,7 @@ End Function
 ' //
 Public Function Initialize(ByVal value As obj_ConfigTable) As Boolean
 #If LOGGING_VERBOSE_ENABLED Then
-    ex_Core.m_Diagnostic_LogInfo "lifecycle:" & VBA.TypeName(Me) & ".Initialize"
+    ex_Core.fn_Diagnostic_LogInfo "lifecycle:" & VBA.TypeName(Me) & ".Initialize"
 #End If
     If value Is Nothing Then
         Set m_ConfigTable = New obj_ConfigTable
@@ -99,7 +99,7 @@ Public Function Initialize(ByVal value As obj_ConfigTable) As Boolean
 
     If Not private_TrySyncEntryItemsFromModel() Then
 #If LOGGING_DEBUG_ENABLED Then
-        ex_Core.m_Diagnostic_LogInfo "warning: ConfigTableViewItem.Initialize: sync entry view items from model failed. Fallback to empty list."
+        ex_Core.fn_Diagnostic_LogInfo "warning: ConfigTableViewItem.Initialize: sync entry view items from model failed. Fallback to empty list."
 #End If
         Set m_ConfigEntryViewItems = New list__obj_ConfigEntryViewItem
     End If
@@ -108,7 +108,7 @@ Public Function Initialize(ByVal value As obj_ConfigTable) As Boolean
 End Function
 Public Sub Dispose()
 #If LOGGING_VERBOSE_ENABLED Then
-    ex_Core.m_Diagnostic_LogInfo "lifecycle:" & VBA.TypeName(Me) & ".Dispose"
+    ex_Core.fn_Diagnostic_LogInfo "lifecycle:" & VBA.TypeName(Me) & ".Dispose"
 #End If
     If m_IsDisposed Then Exit Sub
     m_IsDisposed = True
@@ -163,7 +163,7 @@ Private Function private_TrySyncEntryItemsFromModel() As Boolean
         Set configEntryViewItem = New obj_ConfigEntryViewItem
         If Not configEntryViewItem.Initialize(sourceConfigEntry) Then
 #If LOGGING_DEBUG_ENABLED Then
-            ex_Core.m_Diagnostic_LogError "ConfigTableViewItem.private_TrySyncEntryItemsFromModel: failed to initialize obj_ConfigEntryViewItem from source entry."
+            ex_Core.fn_Diagnostic_LogError "ConfigTableViewItem.private_TrySyncEntryItemsFromModel: failed to initialize obj_ConfigEntryViewItem from source entry."
 #End If
             Exit Function
         End If
@@ -177,7 +177,7 @@ ContinueSourceEntry:
 
 EH_SYNC:
 #If LOGGING_DEBUG_ENABLED Then
-    ex_Core.m_Diagnostic_LogError "ConfigTableViewItem.private_TrySyncEntryItemsFromModel: unexpected error while syncing entry view items: " & Err.Description
+    ex_Core.fn_Diagnostic_LogError "ConfigTableViewItem.private_TrySyncEntryItemsFromModel: unexpected error while syncing entry view items: " & Err.Description
 #End If
 End Function
 

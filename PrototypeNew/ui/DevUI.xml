@@ -76,7 +76,7 @@
           name="UpdateSheet"
           caption="Update Sheet"
           style="actionWarning"
-          onClick="{Binding Module=ex_Test;Method=m_TEST_UpdateCurrentPage}"
+          onClick="{Binding Module=ex_Test;Method=fn_TEST_UpdateCurrentPage}"
           spanColls="3"
           spanRows="2"
           />
@@ -86,7 +86,7 @@
           dataContext="{GlobalRuntimeSource='Settings'}"
           caption="{Binding Path=IsLoggingEnabled;TrueAs=Logging [[[ok]]On[[/ok]]];FalseAs=Logging [[[color=#FF0000]]Off[[/color]]]}"
           style="actionWarning"
-          onClick="{Binding Module=ex_Core;Method=m_Dev_ToggleLogging}"
+          onClick="{Binding Module=ex_Core;Method=fn_Dev_ToggleLogging}"
           spanColls="3"
           spanRows="2"
           />
@@ -95,7 +95,7 @@
           name="UpdateCodeSize"
           caption="Update Code Size"
           style="actionWarning"
-          onClick="{Binding Module=ex_Core;Method=m_Dev_UpdateCodeBySize}"
+          onClick="{Binding Module=ex_Core;Method=fn_Dev_UpdateCodeBySize}"
           spanColls="3"
           spanRows="2"
           />
@@ -104,7 +104,7 @@
           name="UpdateCodeDate"
           caption="Update Code Date"
           style="actionWarning"
-          onClick="{Binding Module=ex_Core;Method=m_Dev_UpdateCodeByDate}"
+          onClick="{Binding Module=ex_Core;Method=fn_Dev_UpdateCodeByDate}"
           spanColls="3"
           spanRows="2"
           />
@@ -113,7 +113,7 @@
           name="UpdateCodeFull"
           caption="Update Code Full"
           style="actionWarning"
-          onClick="{Binding Module=ex_Core;Method=m_Dev_UpdateAllModules}"
+          onClick="{Binding Module=ex_Core;Method=fn_Dev_UpdateAllModules}"
           spanColls="3"
           spanRows="2"
           />
@@ -122,7 +122,7 @@
           name="OpenCoreModule"
           caption="Open ex_Core"
           style="actionWarning"
-          onClick="{Binding Module=ex_Core;Method=m_Dev_OpenCoreModule}"
+          onClick="{Binding Module=ex_Core;Method=fn_Dev_OpenCoreModule}"
           spanColls="3"
           spanRows="2"
           />

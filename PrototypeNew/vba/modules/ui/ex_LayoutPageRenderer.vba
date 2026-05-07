@@ -3,9 +3,9 @@ Option Explicit
 #Const LOGGING_DEBUG_ENABLED = True
 #Const LOGGING_VERBOSE_ENABLED = False
 
-Public Sub m_Module_Dispose()
+Public Sub fn_Module_Dispose()
 #If LOGGING_VERBOSE_ENABLED Then
-    ex_Core.m_Diagnostic_LogInfo "lifecycle:ex_LayoutPageRenderer.m_Module_Dispose"
+    ex_Core.fn_Diagnostic_LogInfo "lifecycle:ex_LayoutPageRenderer.fn_Module_Dispose"
 #End If
 End Sub
 
@@ -14,7 +14,7 @@ End Sub
 ' //
 ' // API
 ' //
-Public Function m_Render( _
+Public Function fn_Render( _
     ByVal renderCtx As obj_LayoutRenderContext, _
     ByVal pageNode As Object _
 ) As Boolean
@@ -30,24 +30,24 @@ Public Function m_Render( _
     If Not private_TryGetPageWorksheet(renderCtx, ws) Then Exit Function
     If pageNode Is Nothing Then
 #If LOGGING_DEBUG_ENABLED Then
-        ex_Core.m_Diagnostic_LogError "PrototypeNew: page root node is not specified."
+        ex_Core.fn_Diagnostic_LogError "PrototypeNew: page root node is not specified."
 #End If
         Exit Function
     End If
     If pageNode.NodeType <> 1 Then
 #If LOGGING_DEBUG_ENABLED Then
-        ex_Core.m_Diagnostic_LogError "PrototypeNew: page root node must be an element."
+        ex_Core.fn_Diagnostic_LogError "PrototypeNew: page root node must be an element."
 #End If
         Exit Function
     End If
     If VBA.StrComp(VBA.LCase$(VBA.CStr(pageNode.baseName)), "page", VBA.vbBinaryCompare) <> 0 Then
 #If LOGGING_DEBUG_ENABLED Then
-        ex_Core.m_Diagnostic_LogError "PrototypeNew: expected <page> root node, got '" & VBA.CStr(pageNode.baseName) & "'."
+        ex_Core.fn_Diagnostic_LogError "PrototypeNew: expected <page> root node, got '" & VBA.CStr(pageNode.baseName) & "'."
 #End If
         Exit Function
     End If
 
-    pageAnchorCell = VBA.Trim$(ex_XmlCore.m_NodeAttrText(pageNode, "anchorCell"))
+    pageAnchorCell = VBA.Trim$(ex_XmlCore.fn_NodeAttrText(pageNode, "anchorCell"))
     If VBA.Len(pageAnchorCell) = 0 Then pageAnchorCell = "A1"
 
     For Each childNode In pageNode.ChildNodes
@@ -58,17 +58,17 @@ Public Function m_Render( _
                 GoTo ContinueNode
         End Select
 
-        If Not ex_XmlLayoutEngine.m_IsVisualLayoutNode(childNode) Then
+        If Not ex_XmlLayoutEngine.fn_IsVisualLayoutNode(childNode) Then
 #If LOGGING_DEBUG_ENABLED Then
-            ex_Core.m_Diagnostic_LogError "PrototypeNew: unsupported node '" & VBA.CStr(childNode.baseName) & "' inside <page>."
+            ex_Core.fn_Diagnostic_LogError "PrototypeNew: unsupported node '" & VBA.CStr(childNode.baseName) & "' inside <page>."
 #End If
             Exit Function
         End If
 
-        nodeAnchorCell = VBA.Trim$(ex_XmlCore.m_NodeAttrText(childNode, "anchorCell"))
+        nodeAnchorCell = VBA.Trim$(ex_XmlCore.fn_NodeAttrText(childNode, "anchorCell"))
         If VBA.Len(nodeAnchorCell) = 0 Then nodeAnchorCell = pageAnchorCell
 
-        If Not ex_XmlLayoutEngine.m_TryResolveNodeBoundsFromAnchor( _
+        If Not ex_XmlLayoutEngine.fn_TryResolveNodeBoundsFromAnchor( _
             renderCtx:=renderCtx, _
             node:=childNode, _
             anchorCellAddr:=nodeAnchorCell, _
@@ -79,7 +79,7 @@ Public Function m_Render( _
 
         If spanRows <= 0 Or spanColls <= 0 Then GoTo ContinueNode
 
-        If Not ex_XmlLayoutEngine.m_RenderNodeBySpan( _
+        If Not ex_XmlLayoutEngine.fn_RenderNodeBySpan( _
             renderCtx:=renderCtx, _
             layoutNode:=childNode, _
             rowIndex:=rowIndex, _
@@ -90,7 +90,7 @@ Public Function m_Render( _
 ContinueNode:
     Next childNode
 
-    m_Render = True
+    fn_Render = True
 End Function
 
 ' //
@@ -100,7 +100,7 @@ Private Function private_TryGetPageWorksheet(ByVal renderCtx As obj_LayoutRender
     Set outWorksheet = Nothing
     If renderCtx Is Nothing Then
 #If LOGGING_DEBUG_ENABLED Then
-        ex_Core.m_Diagnostic_LogError "PrototypeNew: render context is not specified."
+        ex_Core.fn_Diagnostic_LogError "PrototypeNew: render context is not specified."
 #End If
         Exit Function
     End If
@@ -108,7 +108,7 @@ Private Function private_TryGetPageWorksheet(ByVal renderCtx As obj_LayoutRender
     Set outWorksheet = renderCtx.Worksheet
     If outWorksheet Is Nothing Then
 #If LOGGING_DEBUG_ENABLED Then
-        ex_Core.m_Diagnostic_LogError "PrototypeNew: worksheet is not specified."
+        ex_Core.fn_Diagnostic_LogError "PrototypeNew: worksheet is not specified."
 #End If
         Exit Function
     End If

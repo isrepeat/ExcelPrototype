@@ -16,15 +16,15 @@ Private Const CONTROL_UI_BASE_REL_PATH As String = "vba\controls\"
 Private Const CONTROL_UI_FILE_PREFIX As String = "obj_"
 Private Const CONTROL_UI_FILE_SUFFIX As String = "ControlUI.xml"
 
-Public Sub m_Module_Dispose()
+Public Sub fn_Module_Dispose()
 #If LOGGING_VERBOSE_ENABLED Then
-    ex_Core.m_Diagnostic_LogInfo "lifecycle:ex_LayoutControlRenderer.m_Module_Dispose"
+    ex_Core.fn_Diagnostic_LogInfo "lifecycle:ex_LayoutControlRenderer.fn_Module_Dispose"
 #End If
 End Sub
 ' //
 ' // API
 ' //
-Public Function m_Render( _
+Public Function fn_Render( _
     ByVal renderCtx As obj_LayoutRenderContext, _
     ByVal layoutNode As Object, _
     Optional ByVal rowStart As Long = 0, _
@@ -45,19 +45,19 @@ Public Function m_Render( _
 
     If renderCtx Is Nothing Then
 #If LOGGING_DEBUG_ENABLED Then
-        ex_Core.m_Diagnostic_LogError "PrototypeNew: render context is not specified for control render."
+        ex_Core.fn_Diagnostic_LogError "PrototypeNew: render context is not specified for control render."
 #End If
         Exit Function
     End If
     If layoutNode Is Nothing Then
 #If LOGGING_DEBUG_ENABLED Then
-        ex_Core.m_Diagnostic_LogError "PrototypeNew: control node is not specified."
+        ex_Core.fn_Diagnostic_LogError "PrototypeNew: control node is not specified."
 #End If
         Exit Function
     End If
     If VBA.StrComp(VBA.LCase$(VBA.CStr(layoutNode.baseName)), "control", VBA.vbBinaryCompare) <> 0 Then
 #If LOGGING_DEBUG_ENABLED Then
-        ex_Core.m_Diagnostic_LogError "PrototypeNew: ex_LayoutControlRenderer supports only <control> nodes."
+        ex_Core.fn_Diagnostic_LogError "PrototypeNew: ex_LayoutControlRenderer supports only <control> nodes."
 #End If
         Exit Function
     End If
@@ -65,37 +65,37 @@ Public Function m_Render( _
     Set pageBase = renderCtx.PageBase
     If pageBase Is Nothing Then
 #If LOGGING_DEBUG_ENABLED Then
-        ex_Core.m_Diagnostic_LogError "PrototypeNew: page base is not specified in render context."
+        ex_Core.fn_Diagnostic_LogError "PrototypeNew: page base is not specified in render context."
 #End If
         Exit Function
     End If
 
     ' name/type берем из layout-узла страницы.
-    layoutControlName = VBA.Trim$(ex_XmlCore.m_NodeAttrText(layoutNode, "name"))
-    controlType = VBA.Trim$(ex_XmlCore.m_NodeAttrText(layoutNode, "type"))
+    layoutControlName = VBA.Trim$(ex_XmlCore.fn_NodeAttrText(layoutNode, "name"))
+    controlType = VBA.Trim$(ex_XmlCore.fn_NodeAttrText(layoutNode, "type"))
     typeRoot = private_NormalizeTypeRoot(controlType)
 
     If VBA.Len(layoutControlName) = 0 Then
 #If LOGGING_DEBUG_ENABLED Then
-        ex_Core.m_Diagnostic_LogError "PrototypeNew: page control is missing required attribute 'name'."
+        ex_Core.fn_Diagnostic_LogError "PrototypeNew: page control is missing required attribute 'name'."
 #End If
         Exit Function
     End If
     If VBA.Len(controlType) = 0 Then
 #If LOGGING_DEBUG_ENABLED Then
-        ex_Core.m_Diagnostic_LogError "PrototypeNew: page control '" & layoutControlName & "' is missing required attribute 'type'."
+        ex_Core.fn_Diagnostic_LogError "PrototypeNew: page control '" & layoutControlName & "' is missing required attribute 'type'."
 #End If
         Exit Function
     End If
     If VBA.Len(typeRoot) = 0 Then
 #If LOGGING_DEBUG_ENABLED Then
-        ex_Core.m_Diagnostic_LogError "PrototypeNew: page control '" & layoutControlName & "' has invalid type '" & controlType & "'."
+        ex_Core.fn_Diagnostic_LogError "PrototypeNew: page control '" & layoutControlName & "' has invalid type '" & controlType & "'."
 #End If
         Exit Function
     End If
 
     ' Создаем VM контрола по типу (Button, Select, Table...).
-    Set control = ex_ControlFactory.m_CreateControlByTypeRoot(typeRoot)
+    Set control = ex_ControlFactory.fn_CreateControlByTypeRoot(typeRoot)
     If control Is Nothing Then Exit Function
 
     ' Грузим XML-шаблон контрола и применяем overrides из page layout.
@@ -112,7 +112,7 @@ Public Function m_Render( _
 
     ' Регистрируем текущие bounds в runtime-реестре, чтобы refresh-пайплайн
     ' умел переиспользовать координаты и переотрисовывать контрол адресно.
-    ex_ControlRefreshRuntime.m_RegisterControlRenderBounds _
+    ex_ControlRefreshRuntime.fn_RegisterControlRenderBounds _
         layoutControlName, _
         typeRoot, _
         ws.Name, _
@@ -129,11 +129,11 @@ Public Function m_Render( _
 
     ' Если в шаблоне контрола есть дочерний layout (template children),
     ' рендерим его в тех же границах.
-    If Not ex_XmlLayoutEngine.m_RenderTemplateChildren( _
+    If Not ex_XmlLayoutEngine.fn_RenderTemplateChildren( _
         renderCtx, runtimeControlNode, _
         rowStart, colStart, rowEnd, colEnd) Then Exit Function
 
-    m_Render = True
+    fn_Render = True
 End Function
 
 ' //
@@ -151,7 +151,7 @@ Private Function private_LoadControlNodeFromControlUi( _
     Dim escapedName As String
     Dim xPath As String
 
-    Set uiDoc = ex_XmlCore.m_LoadDomByRelativePath( _
+    Set uiDoc = ex_XmlCore.fn_LoadDomByRelativePath( _
         wb, _
         controlUiRelPath, _
         "PrototypeNew: control UI file was not found: ", _
@@ -159,7 +159,7 @@ Private Function private_LoadControlNodeFromControlUi( _
         UI_NS)
     If uiDoc Is Nothing Then Exit Function
 
-    escapedName = ex_XmlCore.m_XPathLiteral(controlName)
+    escapedName = ex_XmlCore.fn_XPathLiteral(controlName)
     xPath = "/p:uiDefinition/p:layout//p:control[@name=" & escapedName & "]"
     Set private_LoadControlNodeFromControlUi = uiDoc.selectSingleNode(xPath)
 
@@ -171,7 +171,7 @@ Private Function private_LoadControlNodeFromControlUi( _
 
     If private_LoadControlNodeFromControlUi Is Nothing Then
 #If LOGGING_DEBUG_ENABLED Then
-        ex_Core.m_Diagnostic_LogError "PrototypeNew: control template has no <control> node in UI file '" & controlUiRelPath & "'."
+        ex_Core.fn_Diagnostic_LogError "PrototypeNew: control template has no <control> node in UI file '" & controlUiRelPath & "'."
 #End If
         Exit Function
     End If
@@ -220,9 +220,9 @@ Private Function private_ApplyLayoutControlOverridesByContract( _
         If private_IsLayoutAttribute(attrName) Then GoTo ContinueLoop
 
         ' Строгая валидация: атрибут должен входить в контракт конкретного VM.
-        If Not ex_ControlAttributeContracts.m_IsSupportedControlAttribute(control, attrName) Then
+        If Not ex_ControlAttributeContracts.fn_IsSupportedControlAttribute(control, attrName) Then
 #If LOGGING_DEBUG_ENABLED Then
-            ex_Core.m_Diagnostic_LogError "PrototypeNew: attribute '" & attrName & "' is not supported by control '" & controlName & "' of type '" & typeRoot & "'."
+            ex_Core.fn_Diagnostic_LogError "PrototypeNew: attribute '" & attrName & "' is not supported by control '" & controlName & "' of type '" & typeRoot & "'."
 #End If
             Exit Function
         End If
@@ -231,7 +231,7 @@ Private Function private_ApplyLayoutControlOverridesByContract( _
         runtimeControlNode.setAttribute attrName, VBA.CStr(attrNode.Text)
         If Err.Number <> 0 Then
 #If LOGGING_DEBUG_ENABLED Then
-            ex_Core.m_Diagnostic_LogError "PrototypeNew: failed to apply attribute '" & attrName & "' to control '" & controlName & "': " & Err.Description
+            ex_Core.fn_Diagnostic_LogError "PrototypeNew: failed to apply attribute '" & attrName & "' to control '" & controlName & "': " & Err.Description
 #End If
             Err.Clear
             On Error GoTo 0
@@ -299,7 +299,7 @@ Private Function private_TryGetPageRenderContext( _
 
     If renderCtx Is Nothing Then
 #If LOGGING_DEBUG_ENABLED Then
-        ex_Core.m_Diagnostic_LogError "PrototypeNew: render context is not specified."
+        ex_Core.fn_Diagnostic_LogError "PrototypeNew: render context is not specified."
 #End If
         Exit Function
     End If
@@ -307,7 +307,7 @@ Private Function private_TryGetPageRenderContext( _
     Set outWs = renderCtx.Worksheet
     If outWs Is Nothing Then
 #If LOGGING_DEBUG_ENABLED Then
-        ex_Core.m_Diagnostic_LogError "PrototypeNew: worksheet is not specified."
+        ex_Core.fn_Diagnostic_LogError "PrototypeNew: worksheet is not specified."
 #End If
         Exit Function
     End If
@@ -315,7 +315,7 @@ Private Function private_TryGetPageRenderContext( _
     Set outWb = renderCtx.Workbook
     If outWb Is Nothing Then
 #If LOGGING_DEBUG_ENABLED Then
-        ex_Core.m_Diagnostic_LogError "PrototypeNew: workbook is not specified."
+        ex_Core.fn_Diagnostic_LogError "PrototypeNew: workbook is not specified."
 #End If
         Exit Function
     End If

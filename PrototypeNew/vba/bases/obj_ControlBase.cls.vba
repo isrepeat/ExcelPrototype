@@ -13,12 +13,12 @@ Private m_DataContext As Object
 
 Private Sub Class_Initialize()
 #If LOGGING_VERBOSE_ENABLED Then
-    ex_Core.m_Diagnostic_LogInfo "lifecycle:" & VBA.TypeName(Me) & ".Class_Initialize"
+    ex_Core.fn_Diagnostic_LogInfo "lifecycle:" & VBA.TypeName(Me) & ".Class_Initialize"
 #End If
 End Sub
 Private Sub Class_Terminate()
 #If LOGGING_VERBOSE_ENABLED Then
-    ex_Core.m_Diagnostic_LogInfo "lifecycle:" & VBA.TypeName(Me) & ".Class_Terminate"
+    ex_Core.fn_Diagnostic_LogInfo "lifecycle:" & VBA.TypeName(Me) & ".Class_Terminate"
 #End If
     If m_IsDisposed Then Exit Sub
     On Error Resume Next
@@ -31,13 +31,13 @@ End Sub
 ' //
 Public Function Initialize() As Boolean
 #If LOGGING_VERBOSE_ENABLED Then
-    ex_Core.m_Diagnostic_LogInfo "lifecycle:" & VBA.TypeName(Me) & ".Initialize"
+    ex_Core.fn_Diagnostic_LogInfo "lifecycle:" & VBA.TypeName(Me) & ".Initialize"
 #End If
     Initialize = True
 End Function
 Public Sub Dispose()
 #If LOGGING_VERBOSE_ENABLED Then
-    ex_Core.m_Diagnostic_LogInfo "lifecycle:" & VBA.TypeName(Me) & ".Dispose"
+    ex_Core.fn_Diagnostic_LogInfo "lifecycle:" & VBA.TypeName(Me) & ".Dispose"
 #End If
     If m_IsDisposed Then Exit Sub
     m_IsDisposed = True
@@ -53,15 +53,15 @@ Public Sub Reset()
     Set m_DataContext = Nothing
 End Sub
 
-' Callstack[1]: rt_PageManager.m_RenderPage -> page.Render -> obj_PageBase.Render -> ex_XmlLayoutEngine.m_RenderNode -> ex_LayoutControlRenderer.m_Render -> control.Configure(obj_IControl) -> obj_ButtonControlVM.obj_IControl_Configure -> m_Base.Configure -> obj_ControlBase.Configure
-' Callstack[2]: rt_PageManager.m_RenderPage -> page.Render -> obj_PageBase.Render -> ex_XmlLayoutEngine.m_RenderNode -> ex_LayoutControlRenderer.m_Render -> control.Configure(obj_IControl) -> obj_BannerControlVM.obj_IControl_Configure -> m_Base.Configure -> obj_ControlBase.Configure
-' Callstack[3]: rt_PageManager.m_RenderPage -> page.Render -> obj_PageBase.Render -> ex_XmlLayoutEngine.m_RenderNode -> ex_LayoutControlRenderer.m_Render -> control.Configure(obj_IControl) -> obj_LabelControlVM.obj_IControl_Configure -> m_Base.Configure -> obj_ControlBase.Configure
-' Callstack[4]: rt_PageManager.m_RenderPage -> page.Render -> obj_PageBase.Render -> ex_XmlLayoutEngine.m_RenderNode -> ex_LayoutControlRenderer.m_Render -> control.Configure(obj_IControl) -> m_Base.Configure -> obj_ControlBase.Configure
-' Callstack[5]: rt_PageManager.m_RenderPage -> page.Render -> obj_PageBase.Render -> ex_XmlLayoutEngine.m_RenderNode -> ex_LayoutControlRenderer.m_Render -> control.Configure(obj_IControl) -> obj_ConfigControlVM.obj_IControl_Configure -> m_Base.Configure -> obj_ControlBase.Configure
-' Callstack[6]: rt_PageManager.m_RenderPage -> page.Render -> obj_PageBase.Render -> ex_XmlLayoutEngine.m_RenderNode -> ex_LayoutControlRenderer.m_Render -> control.Configure(obj_IControl) -> obj_SelectControlVM.obj_IControl_Configure -> m_Base.Configure -> obj_ControlBase.Configure
-' Callstack[7]: rt_PageManager.m_RenderPage -> page.Render -> obj_PageBase.Render -> ex_XmlLayoutEngine.m_RenderNode -> ex_LayoutControlRenderer.m_Render -> control.Configure(obj_IControl) -> obj_TableListControlVM.obj_IControl_Configure -> m_Base.Configure -> obj_ControlBase.Configure
-' Callstack[8]: rt_PageManager.m_RenderPage -> page.Render -> obj_PageBase.Render -> ex_XmlLayoutEngine.m_RenderNode -> ex_LayoutControlRenderer.m_Render -> control.Configure(obj_IControl) -> obj_TableSingleControlVM.obj_IControl_Configure -> m_Base.Configure -> obj_ControlBase.Configure
-' Callstack[9]: rt_PageManager.m_RenderPage -> page.Render -> obj_PageBase.Render -> ex_XmlLayoutEngine.m_RenderNode -> ex_LayoutControlRenderer.m_Render -> control.Configure(obj_IControl) -> obj_TableTplControlVM.obj_IControl_Configure -> m_Base.Configure -> obj_ControlBase.Configure
+' Callstack[1]: rt_PageManager.fn_RenderPage -> page.Render -> obj_PageBase.Render -> ex_XmlLayoutEngine.fn_RenderNode -> ex_LayoutControlRenderer.fn_Render -> control.Configure(obj_IControl) -> obj_ButtonControlVM.obj_IControl_Configure -> m_Base.Configure -> obj_ControlBase.Configure
+' Callstack[2]: rt_PageManager.fn_RenderPage -> page.Render -> obj_PageBase.Render -> ex_XmlLayoutEngine.fn_RenderNode -> ex_LayoutControlRenderer.fn_Render -> control.Configure(obj_IControl) -> obj_BannerControlVM.obj_IControl_Configure -> m_Base.Configure -> obj_ControlBase.Configure
+' Callstack[3]: rt_PageManager.fn_RenderPage -> page.Render -> obj_PageBase.Render -> ex_XmlLayoutEngine.fn_RenderNode -> ex_LayoutControlRenderer.fn_Render -> control.Configure(obj_IControl) -> obj_LabelControlVM.obj_IControl_Configure -> m_Base.Configure -> obj_ControlBase.Configure
+' Callstack[4]: rt_PageManager.fn_RenderPage -> page.Render -> obj_PageBase.Render -> ex_XmlLayoutEngine.fn_RenderNode -> ex_LayoutControlRenderer.fn_Render -> control.Configure(obj_IControl) -> m_Base.Configure -> obj_ControlBase.Configure
+' Callstack[5]: rt_PageManager.fn_RenderPage -> page.Render -> obj_PageBase.Render -> ex_XmlLayoutEngine.fn_RenderNode -> ex_LayoutControlRenderer.fn_Render -> control.Configure(obj_IControl) -> obj_ConfigControlVM.obj_IControl_Configure -> m_Base.Configure -> obj_ControlBase.Configure
+' Callstack[6]: rt_PageManager.fn_RenderPage -> page.Render -> obj_PageBase.Render -> ex_XmlLayoutEngine.fn_RenderNode -> ex_LayoutControlRenderer.fn_Render -> control.Configure(obj_IControl) -> obj_SelectControlVM.obj_IControl_Configure -> m_Base.Configure -> obj_ControlBase.Configure
+' Callstack[7]: rt_PageManager.fn_RenderPage -> page.Render -> obj_PageBase.Render -> ex_XmlLayoutEngine.fn_RenderNode -> ex_LayoutControlRenderer.fn_Render -> control.Configure(obj_IControl) -> obj_TableListControlVM.obj_IControl_Configure -> m_Base.Configure -> obj_ControlBase.Configure
+' Callstack[8]: rt_PageManager.fn_RenderPage -> page.Render -> obj_PageBase.Render -> ex_XmlLayoutEngine.fn_RenderNode -> ex_LayoutControlRenderer.fn_Render -> control.Configure(obj_IControl) -> obj_TableSingleControlVM.obj_IControl_Configure -> m_Base.Configure -> obj_ControlBase.Configure
+' Callstack[9]: rt_PageManager.fn_RenderPage -> page.Render -> obj_PageBase.Render -> ex_XmlLayoutEngine.fn_RenderNode -> ex_LayoutControlRenderer.fn_Render -> control.Configure(obj_IControl) -> obj_TableTplControlVM.obj_IControl_Configure -> m_Base.Configure -> obj_ControlBase.Configure
 Public Function Configure( _
     ByVal page As obj_PageBase, _
     ByVal controlNode As Object, _
@@ -78,7 +78,7 @@ Public Function Configure( _
 
     If page Is Nothing Then
 #If LOGGING_DEBUG_ENABLED Then
-        ex_Core.m_Diagnostic_LogError controlTypeName & ": page is not specified for control configure."
+        ex_Core.fn_Diagnostic_LogError controlTypeName & ": page is not specified for control configure."
 #End If
         Exit Function
     End If
@@ -86,29 +86,29 @@ Public Function Configure( _
 
     If controlNode Is Nothing Then
 #If LOGGING_DEBUG_ENABLED Then
-        ex_Core.m_Diagnostic_LogError controlTypeName & ": control node is not specified."
+        ex_Core.fn_Diagnostic_LogError controlTypeName & ": control node is not specified."
 #End If
         Exit Function
     End If
 
-    resolvedName = VBA.Trim$(VBA.CStr(ex_XmlCore.m_NodeAttrText(controlNode, "name")))
+    resolvedName = VBA.Trim$(VBA.CStr(ex_XmlCore.fn_NodeAttrText(controlNode, "name")))
     If VBA.Len(resolvedName) = 0 Then
         resolvedName = VBA.Trim$(defaultControlName)
     End If
     outControlName = resolvedName
 
-    dataContextRaw = VBA.Trim$(VBA.CStr(ex_XmlCore.m_NodeAttrText(controlNode, "dataContext")))
+    dataContextRaw = VBA.Trim$(VBA.CStr(ex_XmlCore.fn_NodeAttrText(controlNode, "dataContext")))
     If VBA.Len(dataContextRaw) > 0 Then
         If page.RuntimeSources Is Nothing Then
 #If LOGGING_DEBUG_ENABLED Then
-            ex_Core.m_Diagnostic_LogError controlTypeName & ": runtime sources are not specified for control '" & outControlName & "'."
+            ex_Core.fn_Diagnostic_LogError controlTypeName & ": runtime sources are not specified for control '" & outControlName & "'."
 #End If
             Exit Function
         End If
-        If Not ex_RuntimeSourceResolver.m_TryResolveObjectSource(page.RuntimeSources, dataContextRaw, dataContext, False) Then Exit Function
+        If Not ex_RuntimeSourceResolver.fn_TryResolveObjectSource(page.RuntimeSources, dataContextRaw, dataContext, False) Then Exit Function
         If dataContext Is Nothing Then
 #If LOGGING_DEBUG_ENABLED Then
-            ex_Core.m_Diagnostic_LogError controlTypeName & ": dataContext resolved to empty object for control '" & outControlName & "'."
+            ex_Core.fn_Diagnostic_LogError controlTypeName & ": dataContext resolved to empty object for control '" & outControlName & "'."
 #End If
             Exit Function
         End If

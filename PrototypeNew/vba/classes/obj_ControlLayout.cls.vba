@@ -17,12 +17,12 @@ Private m_ColEnd As Long
 
 Private Sub Class_Initialize()
 #If LOGGING_VERBOSE_ENABLED Then
-    ex_Core.m_Diagnostic_LogInfo "lifecycle:" & VBA.TypeName(Me) & ".Class_Initialize"
+    ex_Core.fn_Diagnostic_LogInfo "lifecycle:" & VBA.TypeName(Me) & ".Class_Initialize"
 #End If
 End Sub
 Private Sub Class_Terminate()
 #If LOGGING_VERBOSE_ENABLED Then
-    ex_Core.m_Diagnostic_LogInfo "lifecycle:" & VBA.TypeName(Me) & ".Class_Terminate"
+    ex_Core.fn_Diagnostic_LogInfo "lifecycle:" & VBA.TypeName(Me) & ".Class_Terminate"
 #End If
     If m_IsDisposed Then Exit Sub
     On Error Resume Next
@@ -35,13 +35,13 @@ End Sub
 ' //
 Public Function Initialize() As Boolean
 #If LOGGING_VERBOSE_ENABLED Then
-    ex_Core.m_Diagnostic_LogInfo "lifecycle:" & VBA.TypeName(Me) & ".Initialize"
+    ex_Core.fn_Diagnostic_LogInfo "lifecycle:" & VBA.TypeName(Me) & ".Initialize"
 #End If
     Initialize = True
 End Function
 Public Sub Dispose()
 #If LOGGING_VERBOSE_ENABLED Then
-    ex_Core.m_Diagnostic_LogInfo "lifecycle:" & VBA.TypeName(Me) & ".Dispose"
+    ex_Core.fn_Diagnostic_LogInfo "lifecycle:" & VBA.TypeName(Me) & ".Dispose"
 #End If
     If m_IsDisposed Then Exit Sub
     m_IsDisposed = True
@@ -49,12 +49,12 @@ Public Sub Dispose()
     On Error GoTo 0
 End Sub
 
-' Callstack[1]: rt_PageManager.m_RenderPage -> page.Render -> obj_PageBase.Render -> ex_XmlLayoutEngine.m_RenderNode -> ex_LayoutControlRenderer.m_Render -> obj_ButtonControlVM.obj_IControl_Configure -> m_Layout.TryReadFromNode -> obj_ControlLayout.TryReadFromNode
-' Callstack[2]: rt_PageManager.m_RenderPage -> page.Render -> obj_PageBase.Render -> ex_XmlLayoutEngine.m_RenderNode -> ex_LayoutControlRenderer.m_Render -> obj_BannerControlVM.obj_IControl_Configure -> m_Layout.TryReadFromNode -> obj_ControlLayout.TryReadFromNode
-' Callstack[3]: rt_PageManager.m_RenderPage -> page.Render -> obj_PageBase.Render -> ex_XmlLayoutEngine.m_RenderNode -> ex_LayoutControlRenderer.m_Render -> obj_LabelControlVM.obj_IControl_Configure -> m_Layout.TryReadFromNode -> obj_ControlLayout.TryReadFromNode
-' Callstack[4]: rt_PageManager.m_RenderPage -> page.Render -> obj_PageBase.Render -> ex_XmlLayoutEngine.m_RenderNode -> ex_LayoutControlRenderer.m_Render -> control.Configure(obj_IControl) -> m_Layout.TryReadFromNode -> obj_ControlLayout.TryReadFromNode
-' Callstack[5]: rt_PageManager.m_RenderPage -> page.Render -> obj_PageBase.Render -> ex_XmlLayoutEngine.m_RenderNode -> ex_LayoutControlRenderer.m_Render -> obj_ConfigControlVM.obj_IControl_Configure -> m_Layout.TryReadFromNode -> obj_ControlLayout.TryReadFromNode
-' Callstack[6]: rt_PageManager.m_RenderPage -> page.Render -> obj_PageBase.Render -> ex_XmlLayoutEngine.m_RenderNode -> ex_LayoutControlRenderer.m_Render -> obj_SelectControlVM.obj_IControl_Configure -> m_Layout.TryReadFromNode -> obj_ControlLayout.TryReadFromNode
+' Callstack[1]: rt_PageManager.fn_RenderPage -> page.Render -> obj_PageBase.Render -> ex_XmlLayoutEngine.fn_RenderNode -> ex_LayoutControlRenderer.fn_Render -> obj_ButtonControlVM.obj_IControl_Configure -> m_Layout.TryReadFromNode -> obj_ControlLayout.TryReadFromNode
+' Callstack[2]: rt_PageManager.fn_RenderPage -> page.Render -> obj_PageBase.Render -> ex_XmlLayoutEngine.fn_RenderNode -> ex_LayoutControlRenderer.fn_Render -> obj_BannerControlVM.obj_IControl_Configure -> m_Layout.TryReadFromNode -> obj_ControlLayout.TryReadFromNode
+' Callstack[3]: rt_PageManager.fn_RenderPage -> page.Render -> obj_PageBase.Render -> ex_XmlLayoutEngine.fn_RenderNode -> ex_LayoutControlRenderer.fn_Render -> obj_LabelControlVM.obj_IControl_Configure -> m_Layout.TryReadFromNode -> obj_ControlLayout.TryReadFromNode
+' Callstack[4]: rt_PageManager.fn_RenderPage -> page.Render -> obj_PageBase.Render -> ex_XmlLayoutEngine.fn_RenderNode -> ex_LayoutControlRenderer.fn_Render -> control.Configure(obj_IControl) -> m_Layout.TryReadFromNode -> obj_ControlLayout.TryReadFromNode
+' Callstack[5]: rt_PageManager.fn_RenderPage -> page.Render -> obj_PageBase.Render -> ex_XmlLayoutEngine.fn_RenderNode -> ex_LayoutControlRenderer.fn_Render -> obj_ConfigControlVM.obj_IControl_Configure -> m_Layout.TryReadFromNode -> obj_ControlLayout.TryReadFromNode
+' Callstack[6]: rt_PageManager.fn_RenderPage -> page.Render -> obj_PageBase.Render -> ex_XmlLayoutEngine.fn_RenderNode -> ex_LayoutControlRenderer.fn_Render -> obj_SelectControlVM.obj_IControl_Configure -> m_Layout.TryReadFromNode -> obj_ControlLayout.TryReadFromNode
 Public Function TryReadFromNode( _
     ByVal controlNode As Object, _
     ByVal controlTypeLabel As String, _
@@ -63,17 +63,17 @@ Public Function TryReadFromNode( _
 ) As Boolean
     If controlNode Is Nothing Then
 #If LOGGING_DEBUG_ENABLED Then
-        ex_Core.m_Diagnostic_LogError controlTypeLabel & ": control node is not specified."
+        ex_Core.fn_Diagnostic_LogError controlTypeLabel & ": control node is not specified."
 #End If
         Exit Function
     End If
 
-    m_StyleName = VBA.Trim$(VBA.CStr(ex_XmlCore.m_NodeAttrText(controlNode, styleAttrName)))
+    m_StyleName = VBA.Trim$(VBA.CStr(ex_XmlCore.fn_NodeAttrText(controlNode, styleAttrName)))
 
-    m_LayoutSheetName = VBA.Trim$(VBA.CStr(ex_XmlCore.m_NodeAttrText(controlNode, "__layoutSheetName")))
+    m_LayoutSheetName = VBA.Trim$(VBA.CStr(ex_XmlCore.fn_NodeAttrText(controlNode, "__layoutSheetName")))
     If VBA.Len(m_LayoutSheetName) = 0 Then
 #If LOGGING_DEBUG_ENABLED Then
-        ex_Core.m_Diagnostic_LogError controlTypeLabel & ": runtime layout sheet is missing for control '" & controlName & "'."
+        ex_Core.fn_Diagnostic_LogError controlTypeLabel & ": runtime layout sheet is missing for control '" & controlName & "'."
 #End If
         Exit Function
     End If
@@ -109,7 +109,7 @@ Public Function TryReadFromRuntimeValues( _
 
     If VBA.Len(m_LayoutSheetName) = 0 Then
 #If LOGGING_DEBUG_ENABLED Then
-        ex_Core.m_Diagnostic_LogError controlTypeLabel & ": runtime layout sheet is missing for control '" & controlName & "'."
+        ex_Core.fn_Diagnostic_LogError controlTypeLabel & ": runtime layout sheet is missing for control '" & controlName & "'."
 #End If
         Exit Function
     End If
@@ -148,19 +148,19 @@ End Property
 Private Function private_TryValidateLayoutBounds(ByVal controlTypeLabel As String, ByVal controlName As String) As Boolean
     If m_RowStart <= 0 Or m_ColStart <= 0 Then
 #If LOGGING_DEBUG_ENABLED Then
-        ex_Core.m_Diagnostic_LogError controlTypeLabel & ": invalid row/column start for control '" & controlName & "'."
+        ex_Core.fn_Diagnostic_LogError controlTypeLabel & ": invalid row/column start for control '" & controlName & "'."
 #End If
         Exit Function
     End If
     If m_RowEnd < m_RowStart Then
 #If LOGGING_DEBUG_ENABLED Then
-        ex_Core.m_Diagnostic_LogError controlTypeLabel & ": invalid spanRows range for control '" & controlName & "'."
+        ex_Core.fn_Diagnostic_LogError controlTypeLabel & ": invalid spanRows range for control '" & controlName & "'."
 #End If
         Exit Function
     End If
     If m_ColEnd < m_ColStart Then
 #If LOGGING_DEBUG_ENABLED Then
-        ex_Core.m_Diagnostic_LogError controlTypeLabel & ": invalid spanColls range for control '" & controlName & "'."
+        ex_Core.fn_Diagnostic_LogError controlTypeLabel & ": invalid spanColls range for control '" & controlName & "'."
 #End If
         Exit Function
     End If
@@ -177,16 +177,16 @@ Private Function private_TryReadLayoutLongAttr( _
 ) As Boolean
     Dim rawText As String
 
-    rawText = VBA.Trim$(VBA.CStr(ex_XmlCore.m_NodeAttrText(controlNode, attrName)))
+    rawText = VBA.Trim$(VBA.CStr(ex_XmlCore.fn_NodeAttrText(controlNode, attrName)))
     If VBA.Len(rawText) = 0 Then
 #If LOGGING_DEBUG_ENABLED Then
-        ex_Core.m_Diagnostic_LogError controlTypeLabel & ": runtime layout attribute '" & attrName & "' is missing for control '" & controlName & "'."
+        ex_Core.fn_Diagnostic_LogError controlTypeLabel & ": runtime layout attribute '" & attrName & "' is missing for control '" & controlName & "'."
 #End If
         Exit Function
     End If
     If Not VBA.IsNumeric(rawText) Then
 #If LOGGING_DEBUG_ENABLED Then
-        ex_Core.m_Diagnostic_LogError controlTypeLabel & ": runtime layout attribute '" & attrName & "' must be numeric for control '" & controlName & "'."
+        ex_Core.fn_Diagnostic_LogError controlTypeLabel & ": runtime layout attribute '" & attrName & "' must be numeric for control '" & controlName & "'."
 #End If
         Exit Function
     End If

@@ -12,13 +12,13 @@ Private m_ConfigEntries As list__obj_ConfigEntry
 
 Private Sub Class_Initialize()
 #If LOGGING_VERBOSE_ENABLED Then
-    ex_Core.m_Diagnostic_LogInfo "lifecycle:" & VBA.TypeName(Me) & ".Class_Initialize"
+    ex_Core.fn_Diagnostic_LogInfo "lifecycle:" & VBA.TypeName(Me) & ".Class_Initialize"
 #End If
     Set m_ConfigEntries = New list__obj_ConfigEntry
 End Sub
 Private Sub Class_Terminate()
 #If LOGGING_VERBOSE_ENABLED Then
-    ex_Core.m_Diagnostic_LogInfo "lifecycle:" & VBA.TypeName(Me) & ".Class_Terminate"
+    ex_Core.fn_Diagnostic_LogInfo "lifecycle:" & VBA.TypeName(Me) & ".Class_Terminate"
 #End If
     If m_IsDisposed Then Exit Sub
     On Error Resume Next
@@ -31,13 +31,13 @@ End Sub
 ' //
 Public Function Initialize() As Boolean
 #If LOGGING_VERBOSE_ENABLED Then
-    ex_Core.m_Diagnostic_LogInfo "lifecycle:" & VBA.TypeName(Me) & ".Initialize"
+    ex_Core.fn_Diagnostic_LogInfo "lifecycle:" & VBA.TypeName(Me) & ".Initialize"
 #End If
     Initialize = True
 End Function
 Public Sub Dispose()
 #If LOGGING_VERBOSE_ENABLED Then
-    ex_Core.m_Diagnostic_LogInfo "lifecycle:" & VBA.TypeName(Me) & ".Dispose"
+    ex_Core.fn_Diagnostic_LogInfo "lifecycle:" & VBA.TypeName(Me) & ".Dispose"
 #End If
     If m_IsDisposed Then Exit Sub
     m_IsDisposed = True
@@ -62,7 +62,7 @@ End Sub
 Public Function AddItem(ByVal configEntry As obj_ConfigEntry) As Boolean
     If configEntry Is Nothing Then
 #If LOGGING_DEBUG_ENABLED Then
-        ex_Core.m_Diagnostic_LogError "ConfigTable: item is not specified."
+        ex_Core.fn_Diagnostic_LogError "ConfigTable: item is not specified."
 #End If
         Exit Function
     End If
@@ -109,7 +109,7 @@ Private Function private_TryLoadFromXmlNodeInternal( _
 
     If profileNode Is Nothing Then
 #If LOGGING_DEBUG_ENABLED Then
-        ex_Core.m_Diagnostic_LogError "ConfigTable: profile XML node is not specified."
+        ex_Core.fn_Diagnostic_LogError "ConfigTable: profile XML node is not specified."
 #End If
         Exit Function
     End If
@@ -127,7 +127,7 @@ Private Function private_TryLoadFromXmlNodeInternal( _
         End If
 
 #If LOGGING_DEBUG_ENABLED Then
-        ex_Core.m_Diagnostic_LogError "ConfigTable: profile node does not contain config rows."
+        ex_Core.fn_Diagnostic_LogError "ConfigTable: profile node does not contain config rows."
 #End If
         Exit Function
     End If
@@ -141,7 +141,7 @@ Private Function private_TryLoadFromXmlNodeInternal( _
         End If
 
 #If LOGGING_DEBUG_ENABLED Then
-        ex_Core.m_Diagnostic_LogError "ConfigTable: profile node does not contain config rows."
+        ex_Core.fn_Diagnostic_LogError "ConfigTable: profile node does not contain config rows."
 #End If
         Exit Function
     End If
@@ -174,7 +174,7 @@ Private Function private_TryCollectRowNodes(ByVal profileNode As Object, ByRef o
 
 EH_XML:
 #If LOGGING_DEBUG_ENABLED Then
-    ex_Core.m_Diagnostic_LogError "ConfigTable: failed to collect row nodes from profile XML: " & Err.Description
+    ex_Core.fn_Diagnostic_LogError "ConfigTable: failed to collect row nodes from profile XML: " & Err.Description
 #End If
 End Function
 
@@ -184,7 +184,7 @@ Private Function private_TryResolveSingleNodeAsRow(ByVal profileNode As Object, 
 
     Set outItem = Nothing
 
-    keyAttr = VBA.Trim$(VBA.CStr(ex_XmlCore.m_NodeAttrText(profileNode, "key")))
+    keyAttr = VBA.Trim$(VBA.CStr(ex_XmlCore.fn_NodeAttrText(profileNode, "key")))
     If VBA.Len(keyAttr) > 0 Then
         private_TryResolveSingleNodeAsRow = private_TryCreateItemFromNode(profileNode, outItem)
         Exit Function
@@ -211,11 +211,11 @@ Private Function private_TryCreateItemFromNode(ByVal rowNode As Object, ByRef ou
     Set outItem = Nothing
     If rowNode Is Nothing Then Exit Function
 
-    attrText = VBA.Trim$(VBA.CStr(ex_XmlCore.m_NodeAttrText(rowNode, "attr")))
-    If VBA.Len(attrText) = 0 Then attrText = VBA.Trim$(VBA.CStr(ex_XmlCore.m_NodeAttrText(rowNode, "marker")))
+    attrText = VBA.Trim$(VBA.CStr(ex_XmlCore.fn_NodeAttrText(rowNode, "attr")))
+    If VBA.Len(attrText) = 0 Then attrText = VBA.Trim$(VBA.CStr(ex_XmlCore.fn_NodeAttrText(rowNode, "marker")))
 
-    keyText = VBA.Trim$(VBA.CStr(ex_XmlCore.m_NodeAttrText(rowNode, "key")))
-    If VBA.Len(keyText) = 0 Then keyText = VBA.Trim$(VBA.CStr(ex_XmlCore.m_NodeAttrText(rowNode, "name")))
+    keyText = VBA.Trim$(VBA.CStr(ex_XmlCore.fn_NodeAttrText(rowNode, "key")))
+    If VBA.Len(keyText) = 0 Then keyText = VBA.Trim$(VBA.CStr(ex_XmlCore.fn_NodeAttrText(rowNode, "name")))
     If VBA.Len(keyText) = 0 Then
         If Not private_TryReadChildNodeText(rowNode, "key", keyText) Then Exit Function
     End If
@@ -223,7 +223,7 @@ Private Function private_TryCreateItemFromNode(ByVal rowNode As Object, ByRef ou
         If Not private_TryReadChildNodeText(rowNode, "name", keyText) Then Exit Function
     End If
 
-    valueText = VBA.Trim$(VBA.CStr(ex_XmlCore.m_NodeAttrText(rowNode, "value")))
+    valueText = VBA.Trim$(VBA.CStr(ex_XmlCore.fn_NodeAttrText(rowNode, "value")))
     If VBA.Len(valueText) = 0 Then
         If Not private_TryReadChildNodeText(rowNode, "value", valueText) Then Exit Function
     End If
@@ -231,7 +231,7 @@ Private Function private_TryCreateItemFromNode(ByVal rowNode As Object, ByRef ou
     If VBA.Len(VBA.Trim$(keyText)) = 0 Then
         localName = private_ReadNodeLocalName(rowNode)
 #If LOGGING_DEBUG_ENABLED Then
-        ex_Core.m_Diagnostic_LogError "ConfigTable: row node '" & localName & "' must contain non-empty key."
+        ex_Core.fn_Diagnostic_LogError "ConfigTable: row node '" & localName & "' must contain non-empty key."
 #End If
         Exit Function
     End If
@@ -283,7 +283,7 @@ Private Function private_TryReadChildNodeText( _
 
 EH_XML:
 #If LOGGING_DEBUG_ENABLED Then
-    ex_Core.m_Diagnostic_LogError "ConfigTable: failed to read child node '" & childLocalName & "': " & Err.Description
+    ex_Core.fn_Diagnostic_LogError "ConfigTable: failed to read child node '" & childLocalName & "': " & Err.Description
 #End If
 End Function
 

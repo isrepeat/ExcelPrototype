@@ -8,16 +8,16 @@ Option Explicit
 
 Private g_IsDispatchingClick As Boolean
 
-Public Sub m_Module_Dispose()
+Public Sub fn_Module_Dispose()
 #If LOGGING_VERBOSE_ENABLED Then
-    ex_Core.m_Diagnostic_LogInfo "lifecycle:rt_Bridge.m_Module_Dispose"
+    ex_Core.fn_Diagnostic_LogInfo "lifecycle:rt_Bridge.fn_Module_Dispose"
 #End If
 End Sub
 
 ' //
 ' // API
 ' //
-Public Sub m_OnShapeClick()
+Public Sub fn_OnShapeClick()
     Dim callerShapeName As String
     Dim activeSheetObj As Object
     Dim ws As Worksheet
@@ -57,7 +57,7 @@ Public Sub m_OnShapeClick()
     wsCodeName = VBA.Trim$(VBA.CStr(ws.CodeName))
     private_LogBridgeInfo "click-start shape='" & private_EscapeForLog(callerShapeName) & "' sheet='" & private_EscapeForLog(wsName) & "' codeName='" & private_EscapeForLog(wsCodeName) & "'"
 
-    If Not rt_PageManager.m_TryGetPageByWorksheet(ws, page) Then
+    If Not rt_PageManager.fn_TryGetPageByWorksheet(ws, page) Then
         private_LogBridgeError "click-skip reason='page-not-found' shape='" & private_EscapeForLog(callerShapeName) & "' sheet='" & private_EscapeForLog(wsName) & "' codeName='" & private_EscapeForLog(wsCodeName) & "'"
         GoTo CleanExit
     End If
@@ -81,17 +81,17 @@ EH_CLICK:
     g_IsDispatchingClick = False
     private_LogBridgeError "click-exception err='" & private_EscapeForLog(Err.Description) & "'"
 #If LOGGING_DEBUG_ENABLED Then
-    ex_Core.m_Diagnostic_LogError "rt_Bridge: shape click dispatch failed: " & Err.Description
+    ex_Core.fn_Diagnostic_LogError "rt_Bridge: shape click dispatch failed: " & Err.Description
 #End If
 End Sub
 
 
-Public Function m_IsDispatchingClick() As Boolean
-    m_IsDispatchingClick = g_IsDispatchingClick
+Public Function fn_IsDispatchingClick() As Boolean
+    fn_IsDispatchingClick = g_IsDispatchingClick
 End Function
 
 
-Public Function m_RunCallback( _
+Public Function fn_RunCallback( _
     ByVal callbackRef As String, _
     Optional ByVal callbackContext As Object _
 ) As Boolean
@@ -101,7 +101,7 @@ Public Function m_RunCallback( _
 
     callbackRef = VBA.Trim$(callbackRef)
     If VBA.Len(callbackRef) = 0 Then
-        m_RunCallback = True
+        fn_RunCallback = True
         Exit Function
     End If
 
@@ -114,9 +114,9 @@ Public Function m_RunCallback( _
            VBA.InStr(1, callbackRef, "!", VBA.vbBinaryCompare) = 0 Then
             callbackResult = VBA.CallByName(callbackContext, callbackRef, VbMethod)
             If VBA.VarType(callbackResult) = vbBoolean Then
-                m_RunCallback = VBA.CBool(callbackResult)
+                fn_RunCallback = VBA.CBool(callbackResult)
             Else
-                m_RunCallback = True
+                fn_RunCallback = True
             End If
             Exit Function
         End If
@@ -129,12 +129,12 @@ Public Function m_RunCallback( _
     End If
 
     Application.Run qualifiedMacroRef
-    m_RunCallback = True
+    fn_RunCallback = True
     Exit Function
 
 EH_RUN:
 #If LOGGING_DEBUG_ENABLED Then
-    ex_Core.m_Diagnostic_LogError "rt_Bridge: failed to execute callback '" & callbackRef & "' (context='" & VBA.TypeName(callbackContext) & "'): " & Err.Description
+    ex_Core.fn_Diagnostic_LogError "rt_Bridge: failed to execute callback '" & callbackRef & "' (context='" & VBA.TypeName(callbackContext) & "'): " & Err.Description
 #End If
 End Function
 
@@ -147,7 +147,7 @@ End Function
 Private Sub private_LogBridgeInfo(ByVal messageText As String)
     On Error Resume Next
 #If LOGGING_DEBUG_ENABLED Then
-    ex_Core.m_Diagnostic_LogInfo "bridge:" & VBA.Trim$(messageText)
+    ex_Core.fn_Diagnostic_LogInfo "bridge:" & VBA.Trim$(messageText)
 #End If
     Err.Clear
     On Error GoTo 0
@@ -157,7 +157,7 @@ End Sub
 Private Sub private_LogBridgeError(ByVal messageText As String)
     On Error Resume Next
 #If LOGGING_DEBUG_ENABLED Then
-    ex_Core.m_Diagnostic_LogError "bridge:" & VBA.Trim$(messageText)
+    ex_Core.fn_Diagnostic_LogError "bridge:" & VBA.Trim$(messageText)
 #End If
     Err.Clear
     On Error GoTo 0

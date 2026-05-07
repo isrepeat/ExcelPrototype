@@ -5,9 +5,9 @@ Option Explicit
 
 Private m_Manager As obj_SIPCacheManager
 
-Public Sub m_Module_Dispose()
+Public Sub fn_Module_Dispose()
 #If LOGGING_VERBOSE_ENABLED Then
-    ex_Core.m_Diagnostic_LogInfo "lifecycle:ex_SelectItemsSourceProviders.m_Module_Dispose"
+    ex_Core.fn_Diagnostic_LogInfo "lifecycle:ex_SelectItemsSourceProviders.fn_Module_Dispose"
 #End If
     On Error Resume Next
     If Not m_Manager Is Nothing Then m_Manager.Dispose
@@ -18,44 +18,44 @@ End Sub
 ' //
 ' // API
 ' //
-Public Function m_RegisterProvider( _
+Public Function fn_RegisterProvider( _
     ByVal provider As obj_ISelectItemsSourceProvider, _
     Optional ByVal replaceExisting As Boolean = True _
 ) As Boolean
     ' Тонкий facade над cache manager:
     ' actions/controls работают с одним модулем, без прямой зависимости от класса manager.
     If Not private_TryEnsureManager() Then Exit Function
-    m_RegisterProvider = m_Manager.RegisterProvider(provider, replaceExisting)
+    fn_RegisterProvider = m_Manager.RegisterProvider(provider, replaceExisting)
 End Function
 
-Public Function m_HasProvider(ByVal providerKey As String) As Boolean
+Public Function fn_HasProvider(ByVal providerKey As String) As Boolean
     If Not private_TryEnsureManager() Then Exit Function
-    m_HasProvider = m_Manager.HasProvider(providerKey)
+    fn_HasProvider = m_Manager.HasProvider(providerKey)
 End Function
 
-Public Function m_UnregisterProvider(ByVal providerKey As String) As Boolean
+Public Function fn_UnregisterProvider(ByVal providerKey As String) As Boolean
     If Not private_TryEnsureManager() Then Exit Function
-    m_UnregisterProvider = m_Manager.UnregisterProvider(providerKey)
+    fn_UnregisterProvider = m_Manager.UnregisterProvider(providerKey)
 End Function
 
-Public Function m_ResetProviderCache(ByVal providerKey As String) As Boolean
+Public Function fn_ResetProviderCache(ByVal providerKey As String) As Boolean
     If Not private_TryEnsureManager() Then Exit Function
-    m_ResetProviderCache = m_Manager.ResetCacheByProviderKey(providerKey)
+    fn_ResetProviderCache = m_Manager.ResetCacheByProviderKey(providerKey)
 End Function
 
-Public Sub m_ResetAllProviderCaches()
+Public Sub fn_ResetAllProviderCaches()
     If Not private_TryEnsureManager() Then Exit Sub
     m_Manager.ResetAllCaches
 End Sub
 
-Public Function m_TryResolveItemsByProviderKey( _
+Public Function fn_TryResolveItemsByProviderKey( _
     ByVal providerKey As String, _
     ByRef outItems As Collection, _
     Optional ByRef outUsedCache As Boolean = False, _
     Optional ByVal allowMissing As Boolean = False _
 ) As Boolean
     If Not private_TryEnsureManager() Then Exit Function
-    m_TryResolveItemsByProviderKey = m_Manager.TryResolveItemsByProviderKey(providerKey, outItems, outUsedCache, allowMissing)
+    fn_TryResolveItemsByProviderKey = m_Manager.TryResolveItemsByProviderKey(providerKey, outItems, outUsedCache, allowMissing)
 End Function
 
 ' //
@@ -72,14 +72,14 @@ Private Function private_TryEnsureManager() As Boolean
     Set m_Manager = New obj_SIPCacheManager
     If m_Manager Is Nothing Then
 #If LOGGING_DEBUG_ENABLED Then
-        ex_Core.m_Diagnostic_LogError "SelectItemsSourceProviders: failed to create cache manager."
+        ex_Core.fn_Diagnostic_LogError "SelectItemsSourceProviders: failed to create cache manager."
 #End If
         Exit Function
     End If
     If Not m_Manager.Initialize Then
         Set m_Manager = Nothing
 #If LOGGING_DEBUG_ENABLED Then
-        ex_Core.m_Diagnostic_LogError "SelectItemsSourceProviders: failed to initialize cache manager."
+        ex_Core.fn_Diagnostic_LogError "SelectItemsSourceProviders: failed to initialize cache manager."
 #End If
         Exit Function
     End If
