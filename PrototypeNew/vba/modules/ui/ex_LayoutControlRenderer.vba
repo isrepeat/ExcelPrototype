@@ -12,7 +12,9 @@ Option Explicit
 ' 5) Передаем узел в VM контрола (Configure/Render), затем рендерим template children.
 
 Private Const UI_NS As String = "urn:excelprototype:profiles"
-Private Const CONTROL_UI_BASE_REL_PATH As String = "vba\controls\"
+' UI-шаблоны контролов теперь лежат в пронумерованной папке.
+' Если структура `PrototypeNew/vba` снова изменится, обновить только этот базовый путь.
+Private Const CONTROL_UI_BASE_REL_PATH As String = "vba\[4] controls\"
 Private Const CONTROL_UI_FILE_PREFIX As String = "obj_"
 Private Const CONTROL_UI_FILE_SUFFIX As String = "ControlUI.xml"
 

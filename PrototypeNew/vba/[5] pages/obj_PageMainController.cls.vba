@@ -20,12 +20,12 @@ Private Const PROFILES_RUNTIME_KEY As String = "RuntimeItems.PageMain.ConfigProf
 Private Const CONFIG_RUNTIME_KEY As String = "RuntimeItems.PageMain.Config"
 Private Const CONTROLLER_RUNTIME_OBJECT_KEY As String = "RuntimeObjects.PageMain.Controller"
 
-Private m_IsDisposed As Boolean
 Private m_Page As obj_IPage
 Private m_PageBase As obj_PageBase
 Private m_ModeItemsProvider As obj_SIP_ModeFolders
 Private m_ProfileItemsProvider As obj_SIP_ModeProfilesXml
 Private m_SelectItemsProvidersReady As Boolean
+Private m_IsDisposed As Boolean
 
 Private Sub Class_Initialize()
 #If LOGGING_VERBOSE_ENABLED Then
