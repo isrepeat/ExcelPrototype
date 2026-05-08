@@ -68,7 +68,7 @@ Public Function fn_LoadDomByFilePath( _
     filePath = VBA.Trim$(filePath)
     If VBA.Len(filePath) = 0 Then Exit Function
 
-    If VBA.Len(Dir(filePath)) = 0 Then
+    If Not private_FileExists(filePath) Then
 #If LOGGING_DEBUG_ENABLED Then
         ex_Core.fn_Diagnostic_LogError missingPrefix & filePath
 #End If
@@ -84,6 +84,21 @@ Public Function fn_LoadDomByFilePath( _
     End If
 
     Set fn_LoadDomByFilePath = doc
+End Function
+
+
+Private Function private_FileExists(ByVal filePath As String) As Boolean
+    Dim fso As Object
+
+    On Error GoTo EH
+    Set fso = CreateObject("Scripting.FileSystemObject")
+    ' Для путей вида `[4] controls` избегаем Dir(...), чтобы `[`/`]`
+    ' трактовались как обычные символы имени папки.
+    private_FileExists = fso.FileExists(filePath)
+    Exit Function
+
+EH:
+    private_FileExists = False
 End Function
 
 

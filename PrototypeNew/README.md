@@ -8,7 +8,7 @@ No hardcoded control names in VBA. UI page is described in XML, and runtime buil
 ## Current scope
 - Read Dev layout from `PrototypeNew/ui/DevUI.xml`.
 - For each declared control, use `type` as root and auto-resolve:
-	- control UI: `PrototypeNew/vba/controls/obj_<Type>ControlUI.xml`
+	- control UI: `PrototypeNew/vba/[4] controls/obj_<Type>ControlUI.xml`
 	- VM class: `obj_<Type>ControlVM`
 - Build controls through `obj_IControl` + `ex_ControlFactory`.
 - Render controls through object VM classes (currently `obj_ButtonControlVM`, `obj_LabelControlVM`, `obj_TableListControlVM`, `obj_TableSingleControlVM`, `obj_BannerControlVM`).
