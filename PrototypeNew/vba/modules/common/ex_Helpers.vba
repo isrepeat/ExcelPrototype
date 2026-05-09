@@ -145,6 +145,12 @@ Public Function fn_GetSnapshotRawValueText(ByVal rawItems As Collection, ByVal i
     On Error GoTo 0
 End Function
 
+Public Function fn_TextStartsWith(ByVal sourceText As String, ByVal prefixText As String) As Boolean
+    If VBA.Len(prefixText) = 0 Then Exit Function
+    If VBA.Len(sourceText) < VBA.Len(prefixText) Then Exit Function
+    fn_TextStartsWith = (VBA.StrComp(VBA.Left$(sourceText, VBA.Len(prefixText)), prefixText, VBA.vbBinaryCompare) = 0)
+End Function
+
 ' //
 ' // Internal
 ' //

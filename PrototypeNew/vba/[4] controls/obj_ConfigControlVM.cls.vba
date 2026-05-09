@@ -13,7 +13,7 @@ Private Const CONFIG_COL_COUNT As Long = 3
 
 Private m_ControlBase As obj_ControlBase
 Private m_ControlName As String
-Private m_PageBase As obj_PageBase
+Private m_Page As obj_IPage
 Private m_RuntimeControlKey As String
 Private m_RuntimeTableName As String
 Private m_ItemsSourceRaw As String
@@ -27,6 +27,7 @@ Private Sub Class_Initialize()
     ex_Core.fn_Diagnostic_LogInfo "lifecycle:" & VBA.TypeName(Me) & ".Class_Initialize"
 #End If
 End Sub
+
 Private Sub Class_Terminate()
 #If LOGGING_VERBOSE_ENABLED Then
     ex_Core.fn_Diagnostic_LogInfo "lifecycle:" & VBA.TypeName(Me) & ".Class_Terminate"
@@ -40,7 +41,7 @@ End Sub
 ' //
 ' // Interface
 ' //
-Private Sub obj_IControl_Configure(ByVal page As obj_PageBase, ByVal controlNode As Object)
+Private Sub obj_IControl_Configure(ByVal controlNode As Object)
     Dim pageBase As obj_PageBase
     Dim resolvedItems As Collection
     Dim configTable As obj_ConfigTable
@@ -49,12 +50,13 @@ Private Sub obj_IControl_Configure(ByVal page As obj_PageBase, ByVal controlNode
     Set m_ControlLayout = Nothing
     Set m_ConfigTableViewItem = Nothing
     Set m_ControlBase = Nothing
-    Set m_PageBase = Nothing
     m_RuntimeControlKey = VBA.vbNullString
     m_RuntimeTableName = VBA.vbNullString
 
+    Set pageBase = m_Page.GetPageBase()
     Set m_ControlBase = New obj_ControlBase
-    If Not m_ControlBase.Configure(page, controlNode, "Config", "config", m_ControlName) Then Exit Sub
+    If Not m_ControlBase.Initialize(m_Page) Then Exit Sub
+    If Not m_ControlBase.Configure(pageBase, controlNode, "Config", "config", m_ControlName) Then Exit Sub
 
     m_ItemsSourceRaw = VBA.Trim$(VBA.CStr(ex_XmlCore.fn_NodeAttrText(controlNode, "itemsSource")))
     If VBA.Len(m_ItemsSourceRaw) = 0 Then
@@ -78,7 +80,6 @@ Private Sub obj_IControl_Configure(ByVal page As obj_PageBase, ByVal controlNode
 
     Set pageBase = m_ControlBase.PageBase
     If pageBase Is Nothing Then Exit Sub
-    Set m_PageBase = pageBase
     m_RuntimeControlKey = private_BuildRuntimeControlKey()
     If Not ex_RuntimeSourceResolver.fn_TryResolveItemsSource(pageBase.RuntimeSources, m_ItemsSourceRaw, resolvedItems) Then Exit Sub
     If Not private_TryBuildConfigTable(resolvedItems, configTable) Then Exit Sub
@@ -120,14 +121,15 @@ Private Sub obj_IControl_Render()
 
     Set page = Nothing
     If Not m_ControlBase Is Nothing Then Set page = m_ControlBase.PageBase
-    If page Is Nothing Then Set page = m_PageBase
+    If page Is Nothing Then
+        Set page = m_Page.GetPageBase()
+    End If
     If page Is Nothing Then
 #If LOGGING_DEBUG_ENABLED Then
         ex_Core.fn_Diagnostic_LogError "Config: page is not specified for control '" & m_ControlName & "'."
 #End If
         Exit Sub
     End If
-    Set m_PageBase = page
 
     Set ws = private_GetWorksheetByName(page, m_ControlLayout.LayoutSheetName)
     If ws Is Nothing Then
@@ -281,10 +283,13 @@ End Function
 ' //
 ' // API
 ' //
-Public Function Initialize() As Boolean
+Public Function Initialize(ByVal page As obj_IPage) As Boolean
 #If LOGGING_VERBOSE_ENABLED Then
     ex_Core.fn_Diagnostic_LogInfo "lifecycle:" & VBA.TypeName(Me) & ".Initialize"
 #End If
+    m_IsDisposed = False
+    m_IsConfigured = False
+    Set m_Page = page
     Initialize = True
 End Function
 
@@ -567,14 +572,16 @@ Public Sub Dispose()
     m_IsDisposed = True
     On Error Resume Next
     Err.Clear
-    Err.Clear
-    Err.Clear
     Set m_ControlBase = Nothing
     Set m_ControlLayout = Nothing
     Set m_ConfigTableViewItem = Nothing
-    Set m_PageBase = Nothing
+    Set m_Page = Nothing
+    m_ControlName = VBA.vbNullString
+    m_ItemsSourceRaw = VBA.vbNullString
+    m_TableNameRaw = VBA.vbNullString
     m_RuntimeControlKey = VBA.vbNullString
     m_RuntimeTableName = VBA.vbNullString
+    m_IsConfigured = False
     On Error GoTo 0
 End Sub
 
@@ -628,7 +635,9 @@ Private Function private_TryResolveRenderedTableObject(ByRef outTableObj As List
 
     Set pageBase = Nothing
     If Not m_ControlBase Is Nothing Then Set pageBase = m_ControlBase.PageBase
-    If pageBase Is Nothing Then Set pageBase = m_PageBase
+    If pageBase Is Nothing Then
+        Set pageBase = m_Page.GetPageBase()
+    End If
     If pageBase Is Nothing Then
 #If LOGGING_DEBUG_ENABLED Then
         ex_Core.fn_Diagnostic_LogError "Config: page is not specified for save in control '" & m_ControlName & "'."
@@ -736,12 +745,9 @@ Private Function private_BuildRuntimeControlKey() As String
 End Function
 
 Private Function private_TryRegisterRuntimeControl() As Boolean
-    If m_PageBase Is Nothing Then
-#If LOGGING_DEBUG_ENABLED Then
-        ex_Core.fn_Diagnostic_LogError "Config: page is not specified for runtime registration in control '" & m_ControlName & "'."
-#End If
-        Exit Function
-    End If
+    Dim pageBase As obj_PageBase
+
+    Set pageBase = m_Page.GetPageBase()
 
     If VBA.Len(VBA.Trim$(m_RuntimeControlKey)) = 0 Then
 #If LOGGING_DEBUG_ENABLED Then
@@ -750,7 +756,7 @@ Private Function private_TryRegisterRuntimeControl() As Boolean
         Exit Function
     End If
 
-    If Not m_PageBase.RegisterControl(m_RuntimeControlKey, Me) Then
+    If Not pageBase.RegisterControl(m_RuntimeControlKey, Me) Then
 #If LOGGING_DEBUG_ENABLED Then
         ex_Core.fn_Diagnostic_LogError "Config: failed to register runtime control key '" & m_RuntimeControlKey & "' for control '" & m_ControlName & "'."
 #End If

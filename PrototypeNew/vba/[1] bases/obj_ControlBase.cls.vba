@@ -8,7 +8,7 @@ Option Explicit
 #Const LOGGING_VERBOSE_ENABLED = False
 Private m_IsDisposed As Boolean
 
-Private m_PageBase As obj_PageBase
+Private m_Page As obj_IPage
 Private m_DataContext As Object
 
 Private Sub Class_Initialize()
@@ -29,12 +29,17 @@ End Sub
 ' //
 ' // API
 ' //
-Public Function Initialize() As Boolean
+Public Function Initialize(ByVal page As obj_IPage) As Boolean
 #If LOGGING_VERBOSE_ENABLED Then
     ex_Core.fn_Diagnostic_LogInfo "lifecycle:" & VBA.TypeName(Me) & ".Initialize"
 #End If
+
+    m_IsDisposed = False
+    Set m_Page = page
+    Set m_DataContext = Nothing
     Initialize = True
 End Function
+
 Public Sub Dispose()
 #If LOGGING_VERBOSE_ENABLED Then
     ex_Core.fn_Diagnostic_LogInfo "lifecycle:" & VBA.TypeName(Me) & ".Dispose"
@@ -42,14 +47,14 @@ Public Sub Dispose()
     If m_IsDisposed Then Exit Sub
     m_IsDisposed = True
     On Error Resume Next
-    Set m_PageBase = Nothing
+    Set m_Page = Nothing
     Set m_DataContext = Nothing
     On Error GoTo 0
 End Sub
 
 ' Callstack[1]: VBA.ImmediateWindow -> obj_ControlBase.Reset
 Public Sub Reset()
-    Set m_PageBase = Nothing
+    Set m_Page = Nothing
     Set m_DataContext = Nothing
 End Sub
 
@@ -82,8 +87,6 @@ Public Function Configure( _
 #End If
         Exit Function
     End If
-    Set m_PageBase = page
-
     If controlNode Is Nothing Then
 #If LOGGING_DEBUG_ENABLED Then
         ex_Core.fn_Diagnostic_LogError controlTypeName & ": control node is not specified."
@@ -119,10 +122,9 @@ Public Function Configure( _
 End Function
 
 Public Property Get PageBase() As obj_PageBase
-    Set PageBase = m_PageBase
+    Set PageBase = m_Page.GetPageBase()
 End Property
 
 Public Property Get DataContext() As Object
     Set DataContext = m_DataContext
 End Property
-

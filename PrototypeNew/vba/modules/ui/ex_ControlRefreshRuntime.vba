@@ -113,7 +113,7 @@ Public Function fn_TryRefreshStaticControl(ByVal controlName As String) As Boole
     Set pageBase = pageRef.GetPageBase()
     If pageBase Is Nothing Then Exit Function
     Set renderCtx = New obj_LayoutRenderContext
-    If Not renderCtx.Initialize(pageBase) Then Exit Function
+    If Not renderCtx.Initialize(pageRef) Then Exit Function
 
     If Not ex_XmlLayoutEngine.fn_RenderNodeInBounds( _
         renderCtx:=renderCtx, _

@@ -8,6 +8,7 @@ Option Explicit
 #Const LOGGING_VERBOSE_ENABLED = False
 
 Private m_Worksheet As Worksheet
+Private m_Page As obj_IPage
 Private m_UiPath As String
 Private m_LastRenderedUiPath As String
 Private m_PageId As String
@@ -57,6 +58,10 @@ Public Property Get Worksheet() As Worksheet
     Set Worksheet = m_Worksheet
 End Property
 
+Public Property Get Page() As obj_IPage
+    Set Page = m_Page
+End Property
+
 Public Property Get UiPath() As String
     UiPath = m_UiPath
 End Property
@@ -83,6 +88,7 @@ End Property
 ' //
 Public Function Initialize( _
     ByVal ws As Worksheet, _
+    ByVal page As obj_IPage, _
     Optional ByVal uiPath As String = VBA.vbNullString, _
     Optional ByVal pageId As String = VBA.vbNullString _
 ) As Boolean
@@ -102,12 +108,14 @@ Public Function Initialize( _
     End If
 
     Set m_Worksheet = ws
+    Set m_Page = page
     m_UiPath = VBA.Trim$(uiPath)
     m_LastRenderedUiPath = VBA.vbNullString
     m_PageId = normalizedPageId
     Set m_UiDom = Nothing
     m_IsRendering = False
     Set m_PageRuntimeSources = New obj_PageRuntimeSources
+    If Not m_PageRuntimeSources.Initialize(m_Page) Then Exit Function
     Set m_InlineRunEntries = Nothing
     ' Реестр профилей стартует пустым и заполняется лениво по мере рендера.
     Set m_InlineProfileByPart = Nothing
@@ -125,6 +133,7 @@ Public Sub Dispose(Optional ByVal deleteWorksheet As Boolean = True)
 
     Set ws = m_Worksheet
     Set m_Worksheet = Nothing
+    Set m_Page = Nothing
     m_UiPath = VBA.vbNullString
     m_LastRenderedUiPath = VBA.vbNullString
     m_PageId = VBA.vbNullString
@@ -264,7 +273,7 @@ Public Function Render() As Boolean
     If Not private_TryClearPageRuntime(Not retainGeneratedShapes) Then GoTo Cleanup
     ' Один контекст на один проход: worksheet/workbook и seed-ы runtime ключей.
     Set layoutRenderContext = New obj_LayoutRenderContext
-    If Not layoutRenderContext.Initialize(Me) Then GoTo Cleanup
+    If Not layoutRenderContext.Initialize(m_Page) Then GoTo Cleanup
     If Not ex_XmlLayoutEngine.fn_RenderNode(layoutRenderContext, pageNode) Then GoTo Cleanup
     If Not ex_StylePipelineEngine.fn_ApplyPageStyles(ws, m_UiDom) Then GoTo Cleanup
     If Not Me.ApplyInlineRuns() Then GoTo Cleanup
@@ -914,7 +923,7 @@ Public Function TryRestoreSerializableControlSnapshots(ByVal snapshots As Collec
         If VBA.Len(typeRoot) = 0 Then GoTo ContinueSnapshot
         If VBA.Len(payloadXml) = 0 Then GoTo ContinueSnapshot
 
-        Set iControl = ex_ControlFactory.fn_CreateControlByTypeRoot(typeRoot)
+        Set iControl = ex_ControlFactory.fn_CreateControlByTypeRoot(typeRoot, m_Page)
         If iControl Is Nothing Then GoTo ContinueSnapshot
         If Not private_TryCastSerializableControl(iControl, iSerializable) Then GoTo ContinueSnapshot
         If VBA.StrComp(VBA.LCase$(VBA.Trim$(iSerializable.GetSerializableTypeRoot())), typeRoot, VBA.vbTextCompare) <> 0 Then GoTo ContinueSnapshot

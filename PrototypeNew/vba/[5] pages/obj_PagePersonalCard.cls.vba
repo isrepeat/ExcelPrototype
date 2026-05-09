@@ -16,6 +16,7 @@ Private Const CONTROL_SNAPSHOT_NODE As String = "controlSnapshot"
 Private Const PARENT_PAGE_ID_ATTR As String = "parentPageId"
 
 Private m_PageBase As obj_PageBase
+Private m_PagePersonalCardController As obj_PagePersonalCardCtrl
 Private m_PendingControlSnapshots As Collection
 Private m_ParentPageId As String
 Private m_ParentPage As obj_IPage
@@ -26,6 +27,7 @@ Private Sub Class_Initialize()
 ex_Core.fn_Diagnostic_LogInfo "lifecycle:" & VBA.TypeName(Me) & ".Class_Initialize"
 #End If
     Set m_PageBase = New obj_PageBase
+    Set m_PagePersonalCardController = Nothing
 End Sub
 
 Private Sub Class_Terminate()
@@ -60,7 +62,9 @@ Private Function obj_IPage_Initialize( _
         End If
     End If
 
-    If Not m_PageBase.Initialize(ws, uiPath, pageId) Then Exit Function
+    If Not m_PageBase.Initialize(ws, Me, uiPath, pageId) Then Exit Function
+    Set m_PagePersonalCardController = New obj_PagePersonalCardCtrl
+    If Not m_PagePersonalCardController.Initialize(Me) Then Exit Function
 
     obj_IPage_Initialize = True
 End Function
@@ -70,7 +74,11 @@ Private Sub obj_IPage_Dispose(Optional ByVal deleteWorksheet As Boolean = True)
 End Sub
 
 Private Function obj_IPage_RunPagePipeline() As Boolean
+#If LOGGING_DEBUG_ENABLED Then
+    ex_Core.fn_Diagnostic_LogInfo "enter:obj_PagePersonalCard.RunPagePipeline"
+#End If
     If Not m_PageBase.IsReady() Then Exit Function
+    If Not m_PagePersonalCardController.PrepareDemoTablesRuntime(False) Then Exit Function
     obj_IPage_RunPagePipeline = True
 End Function
 
@@ -84,7 +92,7 @@ Private Function obj_ISerializable_TryRestoreState() As Boolean
         Exit Function
     End If
 
-    If Not TryGetParentPage(parentPage) Then
+    If Not private_TryGetParentPage(parentPage) Then
 #If LOGGING_DEBUG_ENABLED Then
         ex_Core.fn_Diagnostic_LogError "PagePersonalCard: parent page is not found during RestoreState. parentPageId='" & VBA.Replace$(m_ParentPageId, "'", "''") & "'."
 #End If
@@ -135,6 +143,8 @@ End Function
 
 Private Function obj_IPage_TryGetController(ByRef outController As Object) As Boolean
     Set outController = Nothing
+    If m_PagePersonalCardController Is Nothing Then Exit Function
+    Set outController = m_PagePersonalCardController
     obj_IPage_TryGetController = True
 End Function
 
@@ -199,18 +209,6 @@ End Function
 ' //
 ' // API
 ' //
-Public Function TryGetParentPage(ByRef outParentPage As obj_IPage) As Boolean
-    Set outParentPage = Nothing
-    If Not m_ParentPage Is Nothing Then
-        Set outParentPage = m_ParentPage
-        TryGetParentPage = True
-        Exit Function
-    End If
-    If VBA.Len(VBA.Trim$(m_ParentPageId)) = 0 Then Exit Function
-    If Not rt_PageManager.fn_TryGetPageById(m_ParentPageId, outParentPage) Then Exit Function
-    Set m_ParentPage = outParentPage
-    TryGetParentPage = True
-End Function
 
 ' //
 ' // Internal
@@ -220,12 +218,17 @@ Private Sub private_Dispose(Optional ByVal deleteWorksheet As Boolean = True)
     m_IsDisposed = True
 
     On Error Resume Next
+    If Not m_PagePersonalCardController Is Nothing Then
+        m_PagePersonalCardController.Dispose
+    End If
+    Set m_PagePersonalCardController = Nothing
     Set m_PendingControlSnapshots = Nothing
     m_ParentPageId = VBA.vbNullString
     Set m_ParentPage = Nothing
     If Not m_PageBase Is Nothing Then
         m_PageBase.Dispose deleteWorksheet
     End If
+    Set m_PageBase = Nothing
     On Error GoTo 0
 End Sub
 
@@ -301,6 +304,19 @@ ContinueControlSnapshot:
     End If
 
     private_TryDeserializeSnapshot = True
+End Function
+
+Public Function private_TryGetParentPage(ByRef outParentPage As obj_IPage) As Boolean
+    Set outParentPage = Nothing
+    If Not m_ParentPage Is Nothing Then
+        Set outParentPage = m_ParentPage
+        private_TryGetParentPage = True
+        Exit Function
+    End If
+    If VBA.Len(VBA.Trim$(m_ParentPageId)) = 0 Then Exit Function
+    If Not rt_PageManager.fn_TryGetPageById(m_ParentPageId, outParentPage) Then Exit Function
+    Set m_ParentPage = outParentPage
+    private_TryGetParentPage = True
 End Function
 
 Private Function private_TryRestorePendingControlSnapshots() As Boolean
