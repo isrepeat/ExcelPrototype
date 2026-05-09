@@ -43,6 +43,7 @@ Public Function fn_Render( _
     Dim runtimeControlNode As Object
     Dim control As obj_IControl
     Dim pageUiPath As String
+    Dim page As obj_IPage
     Dim pageBase As obj_PageBase
 
     If renderCtx Is Nothing Then
@@ -64,7 +65,8 @@ Public Function fn_Render( _
         Exit Function
     End If
     If Not private_TryGetPageRenderContext(renderCtx, wb, ws) Then Exit Function
-    Set pageBase = renderCtx.PageBase
+    Set page = renderCtx.Page
+    Set pageBase = page.GetPageBase()
     If pageBase Is Nothing Then
 #If LOGGING_DEBUG_ENABLED Then
         ex_Core.fn_Diagnostic_LogError "PrototypeNew: page base is not specified in render context."
@@ -96,8 +98,9 @@ Public Function fn_Render( _
         Exit Function
     End If
 
-    ' Создаем VM контрола по типу (Button, Select, Table...).
-    Set control = ex_ControlFactory.fn_CreateControlByTypeRoot(typeRoot)
+    ' Создаем VM контрола по типу (Button, Select, Table...),
+    ' сразу прокидывая page-контекст для классов, которые хранят m_Page.
+    Set control = ex_ControlFactory.fn_CreateControlByTypeRoot(typeRoot, page)
     If control Is Nothing Then Exit Function
 
     ' Грузим XML-шаблон контрола и применяем overrides из page layout.
@@ -126,7 +129,7 @@ Public Function fn_Render( _
 
     ' Передаем итоговый runtime-узел в VM и запускаем render контрола.
     ' На этом шаге VM читает dataContext/objectSource/itemsSource и запускает resolve через RuntimeSourceResolver.
-    control.Configure pageBase, runtimeControlNode
+    control.Configure runtimeControlNode
     control.Render
 
     ' Если в шаблоне контрола есть дочерний layout (template children),

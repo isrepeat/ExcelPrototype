@@ -16,8 +16,7 @@ Private Const CONTROL_SNAPSHOT_NODE As String = "controlSnapshot"
 Private Const SUPPORTED_UI_PATH As String = "ui\devui.xml"
 
 Private m_PageBase As obj_PageBase
-Private m_PageMainController As obj_PageMainController
-Private m_IsControllerInitialized As Boolean
+Private m_PageMainController As obj_PageMainCtrl
 Private m_PendingControlSnapshots As Collection
 Private m_IsDisposed As Boolean
 
@@ -27,7 +26,6 @@ Private Sub Class_Initialize()
 #End If
     Set m_PageBase = New obj_PageBase
     Set m_PageMainController = Nothing
-    m_IsControllerInitialized = False
 End Sub
 
 Private Sub Class_Terminate()
@@ -52,7 +50,11 @@ Private Function obj_IPage_Initialize( _
     Optional ByVal pageId As String = VBA.vbNullString, _
     Optional ByVal Context As Object = Nothing _
 ) As Boolean
-    If Not m_PageBase.Initialize(ws, uiPath, pageId) Then Exit Function
+    If Not m_PageBase.Initialize(ws, Me, uiPath, pageId) Then Exit Function
+
+    Set m_PageMainController = New obj_PageMainCtrl
+    If Not m_PageMainController.Initialize(Me) Then Exit Function
+
     If Not private_TryPrepareRuntimeByUiPath(m_PageBase.UiPath, False) Then Exit Function
 
     obj_IPage_Initialize = True
@@ -112,7 +114,6 @@ End Function
 
 Private Function obj_IPage_TryGetController(ByRef outController As Object) As Boolean
     Set outController = Nothing
-    If Not private_TryEnsureControllerInitialized() Then Exit Function
     Set outController = m_PageMainController
     obj_IPage_TryGetController = True
 End Function
@@ -193,11 +194,11 @@ Private Sub private_Dispose(Optional ByVal deleteWorksheet As Boolean = True)
         m_PageMainController.Dispose
     End If
     Set m_PageMainController = Nothing
-    m_IsControllerInitialized = False
     Set m_PendingControlSnapshots = Nothing
     If Not m_PageBase Is Nothing Then
         m_PageBase.Dispose deleteWorksheet
     End If
+    Set m_PageBase = Nothing
     On Error GoTo 0
 End Sub
 
@@ -303,26 +304,7 @@ Private Function private_TryPrepareRuntimeByUiPath( _
         Exit Function
     End If
 
-    If Not private_TryEnsureControllerInitialized() Then Exit Function
-    If Not m_PageMainController.OnConfigModeChanged(notifyChange, m_PageBase) Then Exit Function
+    If Not m_PageMainController.OnConfigModeChanged(notifyChange) Then Exit Function
 
     private_TryPrepareRuntimeByUiPath = True
-End Function
-
-Private Function private_TryEnsureControllerInitialized() As Boolean
-    Dim currentPage As obj_IPage
-
-    If m_IsControllerInitialized Then
-        private_TryEnsureControllerInitialized = True
-        Exit Function
-    End If
-
-    If m_PageBase Is Nothing Then Exit Function
-    If m_PageMainController Is Nothing Then Set m_PageMainController = New obj_PageMainController
-    If m_PageMainController Is Nothing Then Exit Function
-
-    Set currentPage = Me
-    If Not m_PageMainController.Initialize(currentPage) Then Exit Function
-    m_IsControllerInitialized = True
-    private_TryEnsureControllerInitialized = True
 End Function

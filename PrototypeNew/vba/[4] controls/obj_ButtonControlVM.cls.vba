@@ -25,13 +25,14 @@ Private m_OnClickMacroRef As String
 Private m_OnClickCallbackContext As Object
 Private m_RuntimeControlKey As String
 Private m_IsConfigured As Boolean
-Private m_PageBase As obj_PageBase
+Private m_Page As obj_IPage
 
 Private Sub Class_Initialize()
 #If LOGGING_VERBOSE_ENABLED Then
     ex_Core.fn_Diagnostic_LogInfo "lifecycle:" & VBA.TypeName(Me) & ".Class_Initialize"
 #End If
 End Sub
+
 Private Sub Class_Terminate()
 #If LOGGING_VERBOSE_ENABLED Then
     ex_Core.fn_Diagnostic_LogInfo "lifecycle:" & VBA.TypeName(Me) & ".Class_Terminate"
@@ -47,24 +48,25 @@ End Sub
 ' //
 ' Configure поднимает контракт контрола из XML:
 ' читаем attrs -> резолвим биндинги -> нормализуем layout -> готовим runtime key.
-Private Sub obj_IControl_Configure(ByVal page As obj_PageBase, ByVal controlNode As Object)
+Private Sub obj_IControl_Configure(ByVal controlNode As Object)
     Dim dataContext As Object
     Dim callbackContext As Object
     Dim captionTextResolved As String
     Dim onClickResolved As Variant
+    Dim pageBase As obj_PageBase
 
     m_IsConfigured = False
     Set m_ControlLayout = Nothing
     Set m_ControlBase = Nothing
-    Set m_PageBase = Nothing
     Set m_CaptionInlineTextPart = New obj_InlineTextPart
     m_CaptionInlineSource = VBA.vbNullString
     m_CaptionText = VBA.vbNullString
     m_RuntimeControlKey = VBA.vbNullString
 
+    Set pageBase = m_Page.GetPageBase()
     Set m_ControlBase = New obj_ControlBase
-    If Not m_ControlBase.Configure(page, controlNode, "Button", "button", m_ControlName) Then Exit Sub
-    Set m_PageBase = m_ControlBase.PageBase
+    If Not m_ControlBase.Initialize(m_Page) Then Exit Sub
+    If Not m_ControlBase.Configure(pageBase, controlNode, "Button", "button", m_ControlName) Then Exit Sub
     Set m_OnClickCallbackContext = Nothing
 
     m_CaptionRaw = VBA.CStr(ex_XmlCore.fn_NodeAttrText(controlNode, "caption"))
@@ -83,7 +85,7 @@ Private Sub obj_IControl_Configure(ByVal page As obj_PageBase, ByVal controlNode
 
     If Not ex_BindingRuntime.fn_TryResolveTextBinding(m_CaptionRaw, dataContext, captionTextResolved) Then Exit Sub
     m_CaptionInlineSource = captionTextResolved
-    If Not private_TryResolveCaptionInlineText(page, m_CaptionInlineSource) Then Exit Sub
+    If Not private_TryResolveCaptionInlineText(pageBase, m_CaptionInlineSource) Then Exit Sub
 
     Set callbackContext = m_ControlBase.DataContext
     If Not ex_BindingRuntime.fn_TryResolveValueBinding(m_OnClickRaw, callbackContext, onClickResolved) Then Exit Sub
@@ -129,14 +131,15 @@ Private Sub obj_IControl_Render()
 
     Set pageBase = Nothing
     If Not m_ControlBase Is Nothing Then Set pageBase = m_ControlBase.PageBase
-    If pageBase Is Nothing Then Set pageBase = m_PageBase
+    If pageBase Is Nothing Then
+        Set pageBase = m_Page.GetPageBase()
+    End If
     If pageBase Is Nothing Then
 #If LOGGING_DEBUG_ENABLED Then
         ex_Core.fn_Diagnostic_LogError "Button: page is not specified for control '" & m_ControlName & "'."
 #End If
         Exit Sub
     End If
-    Set m_PageBase = pageBase
 
     Set ws = pageBase.Worksheet
     If ws Is Nothing Then
@@ -238,12 +241,15 @@ End Function
 ' //
 ' // API
 ' //
-Public Function Initialize() As Boolean
+Public Function Initialize(ByVal page As obj_IPage) As Boolean
 #If LOGGING_VERBOSE_ENABLED Then
     ex_Core.fn_Diagnostic_LogInfo "lifecycle:" & VBA.TypeName(Me) & ".Initialize"
 #End If
+    m_IsDisposed = False
+    Set m_Page = page
     Initialize = True
 End Function
+
 Public Sub Dispose()
 #If LOGGING_VERBOSE_ENABLED Then
     ex_Core.fn_Diagnostic_LogInfo "lifecycle:" & VBA.TypeName(Me) & ".Dispose"
@@ -258,7 +264,7 @@ Public Sub Dispose()
     Set m_ControlLayout = Nothing
     Set m_CaptionInlineTextPart = Nothing
     Set m_OnClickCallbackContext = Nothing
-    Set m_PageBase = Nothing
+    Set m_Page = Nothing
     On Error GoTo 0
 End Sub
 
@@ -388,9 +394,6 @@ Public Function TryDeserializeSnapshot(ByVal snapshotXml As String) As Boolean
     Set ws = ex_HelpersSheet.fn_GetRuntimeWorksheetByName(layoutSheetName)
     If ws Is Nothing Then Exit Function
 
-    ' 3) Восстанавливаем page-контекст (PageBase) для этого листа,
-    '    чтобы затем зарегистрировать control/route обратно в runtime-реестры страницы.
-    If Not ex_HelpersSheet.fn_TryGetPageBaseByWorksheetName(layoutSheetName, m_PageBase) Then Exit Function
     If Not private_TryRestoreCallbackContextFromPage() Then Exit Function
 
     On Error Resume Next
@@ -414,28 +417,9 @@ End Function
 
 Private Function private_TryRestoreCallbackContextFromPage() As Boolean
     Dim callbackContext As Object
-    Dim ws As Worksheet
-    Dim iPage As obj_IPage
 
     Set m_OnClickCallbackContext = Nothing
-    If m_PageBase Is Nothing Then
-        private_TryRestoreCallbackContextFromPage = True
-        Exit Function
-    End If
-    Set ws = m_PageBase.Worksheet
-    If ws Is Nothing Then
-        private_TryRestoreCallbackContextFromPage = True
-        Exit Function
-    End If
-    If Not rt_PageManager.fn_TryGetPageByWorksheet(ws, iPage) Then
-        private_TryRestoreCallbackContextFromPage = True
-        Exit Function
-    End If
-    If iPage Is Nothing Then
-        private_TryRestoreCallbackContextFromPage = True
-        Exit Function
-    End If
-    If Not iPage.TryGetController(callbackContext) Then Exit Function
+    If Not m_Page.TryGetController(callbackContext) Then Exit Function
     If callbackContext Is Nothing Then
         private_TryRestoreCallbackContextFromPage = True
         Exit Function
@@ -452,6 +436,7 @@ End Function
 ' и регистрируем routing в PageBase (shape -> control key -> method).
 Private Function private_TryBindRuntimeRoute(ByVal shp As Shape) As Boolean
     Dim callbackMacroRef As String
+    Dim pageBase As obj_PageBase
 
     If shp Is Nothing Then
 #If LOGGING_DEBUG_ENABLED Then
@@ -481,19 +466,16 @@ Private Function private_TryBindRuntimeRoute(ByVal shp As Shape) As Boolean
         Exit Function
     End If
 
-    If m_PageBase Is Nothing Then
-#If LOGGING_DEBUG_ENABLED Then
-        ex_Core.fn_Diagnostic_LogError "button:bind-route page-base-missing control='" & VBA.Replace$(VBA.Trim$(m_ControlName), "'", "''") & "'"
-#End If
-        Exit Function
-    End If
-    If Not m_PageBase.RegisterControl(m_RuntimeControlKey, Me) Then
+    Set pageBase = m_Page.GetPageBase()
+    If pageBase Is Nothing Then Exit Function
+
+    If Not pageBase.RegisterControl(m_RuntimeControlKey, Me) Then
 #If LOGGING_DEBUG_ENABLED Then
         ex_Core.fn_Diagnostic_LogError "button:bind-route register-control-failed control='" & VBA.Replace$(VBA.Trim$(m_ControlName), "'", "''") & "' key='" & VBA.Replace$(VBA.Trim$(m_RuntimeControlKey), "'", "''") & "'"
 #End If
         Exit Function
     End If
-    If Not m_PageBase.RegisterShapeRoute(shp.Name, m_RuntimeControlKey, "RuntimeHandleClick", False) Then
+    If Not pageBase.RegisterShapeRoute(shp.Name, m_RuntimeControlKey, "RuntimeHandleClick", False) Then
 #If LOGGING_DEBUG_ENABLED Then
         ex_Core.fn_Diagnostic_LogError "button:bind-route register-route-failed control='" & VBA.Replace$(VBA.Trim$(m_ControlName), "'", "''") & "' shape='" & VBA.Replace$(VBA.Trim$(shp.Name), "'", "''") & "'"
 #End If

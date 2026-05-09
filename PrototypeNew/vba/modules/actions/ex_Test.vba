@@ -2,9 +2,13 @@ Attribute VB_Name = "ex_Test"
 Option Explicit
 #Const LOGGING_DEBUG_ENABLED = True
 #Const LOGGING_VERBOSE_ENABLED = False
+#Const DEBUG_VALIDATION = True
 
 Private Const DEMO_CONFIG_VARIANT_A As String = "hospitalizationdate"
 Private Const DEMO_CONFIG_VARIANT_B As String = "transfersheet"
+Private Const TEST_ITEMS_PEOPLE_KEY As String = "RuntimeItems.Test.People"
+Private Const TEST_ITEMS_TABLES_KEY As String = "RuntimeItems.Test.Tables"
+Private Const TEST_OBJECT_BANNER_KEY As String = "RuntimeObjects.Test.Banner"
 Private g_DemoConfigVariant As String
 
 Public Sub fn_Module_Dispose()
@@ -132,7 +136,7 @@ Public Sub fn_TEST_ProfileDevTableListUI()
 
     If tables Is Nothing Then Exit Sub
 
-    If Not private_ResetItemsSources() Then Exit Sub
+    If Not private_TryClearTestRuntimeSources() Then Exit Sub
     If Not private_TrySetItemsSource("RuntimeItems.Test.Tables", tables, False) Then Exit Sub
     t2 = VBA.Timer
 
@@ -186,51 +190,45 @@ End Sub
 
 
 Public Function fn_TEST_RegisterDemoListItems( _
-    Optional ByVal notifyChange As Boolean = False, _
-    Optional ByVal preferredPageBase As Variant _
+    Optional ByVal notifyChange As Boolean = False
 ) As Boolean
     Dim items As Collection
 
     Set items = fn_TEST_BuildDemoListItems()
     If items Is Nothing Then Exit Function
 
-    If Not private_ResetItemsSources(preferredPageBase) Then Exit Function
-    If Not private_ResetObjectSources(preferredPageBase) Then Exit Function
-    If Not private_TrySetItemsSource("RuntimeItems.Test.People", items, notifyChange, preferredPageBase) Then Exit Function
+    If Not private_TryClearTestRuntimeSources() Then Exit Function
+    If Not private_TrySetItemsSource("RuntimeItems.Test.People", items, notifyChange) Then Exit Function
 
     fn_TEST_RegisterDemoListItems = True
 End Function
 
 
 Public Function fn_TEST_RegisterDemoTableItems( _
-    Optional ByVal notifyChange As Boolean = False, _
-    Optional ByVal preferredPageBase As Variant _
+    Optional ByVal notifyChange As Boolean = False
 ) As Boolean
     Dim tables As Collection
 
     Set tables = fn_TEST_BuildDemoTableItems()
     If tables Is Nothing Then Exit Function
 
-    If Not private_ResetItemsSources(preferredPageBase) Then Exit Function
-    If Not private_ResetObjectSources(preferredPageBase) Then Exit Function
-    If Not private_TrySetItemsSource("RuntimeItems.Test.Tables", tables, notifyChange, preferredPageBase) Then Exit Function
+    If Not private_TryClearTestRuntimeSources() Then Exit Function
+    If Not private_TrySetItemsSource("RuntimeItems.Test.Tables", tables, notifyChange) Then Exit Function
 
     fn_TEST_RegisterDemoTableItems = True
 End Function
 
 
 Public Function fn_TEST_RegisterDemoSingleTableItems( _
-    Optional ByVal notifyChange As Boolean = False, _
-    Optional ByVal preferredPageBase As Variant _
+    Optional ByVal notifyChange As Boolean = False
 ) As Boolean
     Dim tables As Collection
 
     Set tables = fn_TEST_BuildDemoSingleTableItems()
     If tables Is Nothing Then Exit Function
 
-    If Not private_ResetItemsSources(preferredPageBase) Then Exit Function
-    If Not private_ResetObjectSources(preferredPageBase) Then Exit Function
-    If Not private_TrySetItemsSource("RuntimeItems.Test.Tables", tables, notifyChange, preferredPageBase) Then Exit Function
+    If Not private_TryClearTestRuntimeSources() Then Exit Function
+    If Not private_TrySetItemsSource("RuntimeItems.Test.Tables", tables, notifyChange) Then Exit Function
 
     fn_TEST_RegisterDemoSingleTableItems = True
 End Function
@@ -238,8 +236,7 @@ End Function
 
 Public Function fn_TEST_RegisterDemoBannerItems( _
     Optional ByVal isVisible As Boolean = False, _
-    Optional ByVal notifyChange As Boolean = False, _
-    Optional ByVal preferredPageBase As Variant _
+    Optional ByVal notifyChange As Boolean = False
 ) As Boolean
     Dim banner As obj_Banner
     Dim headerText As String
@@ -250,9 +247,9 @@ Public Function fn_TEST_RegisterDemoBannerItems( _
         messageText = "Rows: [[ok]]20 tables[[/ok]]. State: [[warn]]runtime refresh[[/warn]]."
         Set banner = private_CreateDemoBannerModel(headerText, messageText, isVisible)
         If banner Is Nothing Then Exit Function
-        If Not private_TrySetObjectSource("RuntimeObjects.Test.Banner", banner, notifyChange, preferredPageBase) Then Exit Function
+        If Not private_TrySetObjectSource("RuntimeObjects.Test.Banner", banner, notifyChange) Then Exit Function
     Else
-        If Not private_TryRemoveObjectSource("RuntimeObjects.Test.Banner", notifyChange, preferredPageBase) Then Exit Function
+        If Not private_TryRemoveObjectSource("RuntimeObjects.Test.Banner", notifyChange) Then Exit Function
     End If
 
     fn_TEST_RegisterDemoBannerItems = True
@@ -260,57 +257,53 @@ End Function
 
 
 Public Function fn_TEST_RegisterDemoConfigItemsVariantA( _
-    Optional ByVal notifyChange As Boolean = False, _
-    Optional ByVal preferredPageBase As Variant _
+    Optional ByVal notifyChange As Boolean = False
 ) As Boolean
     Dim items As Collection
 
     Set items = fn_TEST_BuildDemoConfigItemsVariantA()
     If items Is Nothing Then Exit Function
 
-    If Not private_TrySetItemsSource("RuntimeItems.PageMain.Config", items, notifyChange, preferredPageBase) Then Exit Function
+    If Not private_TrySetItemsSource("RuntimeItems.PageMain.Config", items, notifyChange) Then Exit Function
     fn_TEST_RegisterDemoConfigItemsVariantA = True
 End Function
 
 
 Public Function fn_TEST_RegisterDemoConfigItemsVariantB( _
-    Optional ByVal notifyChange As Boolean = False, _
-    Optional ByVal preferredPageBase As Variant _
+    Optional ByVal notifyChange As Boolean = False
 ) As Boolean
     Dim items As Collection
 
     Set items = fn_TEST_BuildDemoConfigItemsVariantB()
     If items Is Nothing Then Exit Function
 
-    If Not private_TrySetItemsSource("RuntimeItems.PageMain.Config", items, notifyChange, preferredPageBase) Then Exit Function
+    If Not private_TrySetItemsSource("RuntimeItems.PageMain.Config", items, notifyChange) Then Exit Function
     fn_TEST_RegisterDemoConfigItemsVariantB = True
 End Function
 
 
 Public Function fn_TEST_RegisterDemoConfigItemsByCurrentVariant( _
-    Optional ByVal notifyChange As Boolean = False, _
-    Optional ByVal preferredPageBase As Variant _
+    Optional ByVal notifyChange As Boolean = False
 ) As Boolean
     Select Case private_GetDemoConfigVariantKey()
         Case DEMO_CONFIG_VARIANT_B
-            fn_TEST_RegisterDemoConfigItemsByCurrentVariant = fn_TEST_RegisterDemoConfigItemsVariantB(notifyChange, preferredPageBase)
+            fn_TEST_RegisterDemoConfigItemsByCurrentVariant = fn_TEST_RegisterDemoConfigItemsVariantB(notifyChange)
 
         Case Else
-            fn_TEST_RegisterDemoConfigItemsByCurrentVariant = fn_TEST_RegisterDemoConfigItemsVariantA(notifyChange, preferredPageBase)
+            fn_TEST_RegisterDemoConfigItemsByCurrentVariant = fn_TEST_RegisterDemoConfigItemsVariantA(notifyChange)
     End Select
 End Function
 
 
 Public Function fn_TEST_RegisterDemoConfigProfileItems( _
-    Optional ByVal notifyChange As Boolean = False, _
-    Optional ByVal preferredPageBase As Variant _
+    Optional ByVal notifyChange As Boolean = False
 ) As Boolean
     Dim options As Collection
 
     Set options = fn_TEST_BuildDemoConfigProfileItems()
     If options Is Nothing Then Exit Function
 
-    If Not private_TrySetItemsSource("RuntimeItems.PageMain.ConfigProfiles", options, notifyChange, preferredPageBase) Then Exit Function
+    If Not private_TrySetItemsSource("RuntimeItems.PageMain.ConfigProfiles", options, notifyChange) Then Exit Function
     fn_TEST_RegisterDemoConfigProfileItems = True
 End Function
 
@@ -1085,31 +1078,9 @@ End Function
 
 
 Private Function private_TryResolvePageBase( _
-    ByRef outPageBase As obj_PageBase, _
-    Optional ByVal preferredPageBase As Variant _
+    ByRef outPageBase As obj_PageBase
 ) As Boolean
     Set outPageBase = Nothing
-    If Not IsMissing(preferredPageBase) Then
-        If VBA.IsObject(preferredPageBase) Then
-            If Not preferredPageBase Is Nothing Then
-                If TypeOf preferredPageBase Is obj_PageBase Then
-                    Set outPageBase = preferredPageBase
-                    private_TryResolvePageBase = True
-                    Exit Function
-                End If
-
-                If ex_HelpersSheet.fn_TryCastPageBase(preferredPageBase, outPageBase) Then
-                    private_TryResolvePageBase = True
-                    Exit Function
-                End If
-
-#If LOGGING_DEBUG_ENABLED Then
-                ex_Core.fn_Diagnostic_LogError "PrototypeNew: preferred page runtime context has unsupported type '" & VBA.TypeName(preferredPageBase) & "'."
-#End If
-                Exit Function
-            End If
-        End If
-    End If
 
     If Not ex_HelpersSheet.fn_TryGetActivePageBase(outPageBase) Then
 #If LOGGING_DEBUG_ENABLED Then
@@ -1122,38 +1093,39 @@ Private Function private_TryResolvePageBase( _
     private_TryResolvePageBase = True
 End Function
 
-
-Private Function private_ResetItemsSources(Optional ByVal preferredPageBase As Variant) As Boolean
+Private Function private_TryClearTestRuntimeSources() As Boolean
     Dim pageBase As obj_PageBase
+    Dim runtimeSources As obj_PageRuntimeSources
 
-    If Not private_TryResolvePageBase(pageBase, preferredPageBase) Then Exit Function
-    pageBase.RuntimeSources.ResetItemsSources
-    private_ResetItemsSources = True
-End Function
+    If Not private_TryResolvePageBase(pageBase) Then Exit Function
+    Set runtimeSources = pageBase.RuntimeSources
+    If runtimeSources Is Nothing Then Exit Function
 
+    If Not runtimeSources.RemoveItemsSource(TEST_ITEMS_PEOPLE_KEY) Then Exit Function
+    If Not runtimeSources.RemoveItemsSource(TEST_ITEMS_TABLES_KEY) Then Exit Function
+    If Not runtimeSources.RemoveObjectSource(TEST_OBJECT_BANNER_KEY) Then Exit Function
+    If Not runtimeSources.RemoveTemporaryItemsSources() Then Exit Function
+    If Not runtimeSources.RemoveTemporaryObjectsSources() Then Exit Function
 
-Private Function private_ResetObjectSources(Optional ByVal preferredPageBase As Variant) As Boolean
-    Dim pageBase As obj_PageBase
-
-    If Not private_TryResolvePageBase(pageBase, preferredPageBase) Then Exit Function
-    pageBase.RuntimeSources.ResetObjectSources
-    private_ResetObjectSources = True
+    private_TryClearTestRuntimeSources = True
 End Function
 
 
 Private Function private_TrySetItemsSource( _
     ByVal sourceKey As String, _
     ByVal items As Collection, _
-    ByVal notifyChange As Boolean, _
-    Optional ByVal preferredPageBase As Variant _
+    ByVal notifyChange As Boolean
 ) As Boolean
     Dim pageBase As obj_PageBase
+    Dim runtimeSources As obj_PageRuntimeSources
     Dim normalizedKey As String
 
-    If Not private_TryResolvePageBase(pageBase, preferredPageBase) Then Exit Function
+    If Not private_TryResolvePageBase(pageBase) Then Exit Function
+    Set runtimeSources = pageBase.RuntimeSources
+    If runtimeSources Is Nothing Then Exit Function
     normalizedKey = VBA.LCase$(VBA.Trim$(sourceKey))
 
-    If Not pageBase.RuntimeSources.SetItemsSource(normalizedKey, items) Then Exit Function
+    If Not runtimeSources.SetItemsSource(normalizedKey, items) Then Exit Function
     If notifyChange Then
         If Not private_TryRerenderPage(pageBase, "itemsSource:" & normalizedKey) Then Exit Function
     End If
@@ -1165,16 +1137,18 @@ End Function
 Private Function private_TrySetObjectSource( _
     ByVal sourceKey As String, _
     ByVal sourceObject As Object, _
-    ByVal notifyChange As Boolean, _
-    Optional ByVal preferredPageBase As Variant _
+    ByVal notifyChange As Boolean
 ) As Boolean
     Dim pageBase As obj_PageBase
+    Dim runtimeSources As obj_PageRuntimeSources
     Dim normalizedKey As String
 
-    If Not private_TryResolvePageBase(pageBase, preferredPageBase) Then Exit Function
+    If Not private_TryResolvePageBase(pageBase) Then Exit Function
+    Set runtimeSources = pageBase.RuntimeSources
+    If runtimeSources Is Nothing Then Exit Function
     normalizedKey = VBA.LCase$(VBA.Trim$(sourceKey))
 
-    If Not pageBase.RuntimeSources.SetObjectSource(normalizedKey, sourceObject) Then Exit Function
+    If Not runtimeSources.SetObjectSource(normalizedKey, sourceObject) Then Exit Function
     If notifyChange Then
         If Not private_TryRerenderPage(pageBase, "objectSource:" & normalizedKey) Then Exit Function
     End If
@@ -1185,16 +1159,18 @@ End Function
 
 Private Function private_TryRemoveObjectSource( _
     ByVal sourceKey As String, _
-    ByVal notifyChange As Boolean, _
-    Optional ByVal preferredPageBase As Variant _
+    ByVal notifyChange As Boolean
 ) As Boolean
     Dim pageBase As obj_PageBase
+    Dim runtimeSources As obj_PageRuntimeSources
     Dim normalizedKey As String
 
-    If Not private_TryResolvePageBase(pageBase, preferredPageBase) Then Exit Function
+    If Not private_TryResolvePageBase(pageBase) Then Exit Function
+    Set runtimeSources = pageBase.RuntimeSources
+    If runtimeSources Is Nothing Then Exit Function
     normalizedKey = VBA.LCase$(VBA.Trim$(sourceKey))
 
-    If Not pageBase.RuntimeSources.RemoveObjectSource(normalizedKey) Then Exit Function
+    If Not runtimeSources.RemoveObjectSource(normalizedKey) Then Exit Function
     If notifyChange Then
         If Not private_TryRerenderPage(pageBase, "objectSource:" & normalizedKey) Then Exit Function
     End If

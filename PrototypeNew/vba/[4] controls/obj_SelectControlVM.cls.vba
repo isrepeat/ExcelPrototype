@@ -52,7 +52,7 @@ Private m_UiOptionActionMacros As Collection
 Private m_UiOptionRawItems As Collection
 Private m_IsDropdownExpanded As Boolean
 Private m_IsConfigured As Boolean
-Private m_PageBase As obj_PageBase
+Private m_Page As obj_IPage
 Private m_CallbackContext As Object
 
 Private Sub Class_Initialize()
@@ -60,6 +60,7 @@ Private Sub Class_Initialize()
     ex_Core.fn_Diagnostic_LogInfo "lifecycle:" & VBA.TypeName(Me) & ".Class_Initialize"
 #End If
 End Sub
+
 Private Sub Class_Terminate()
 #If LOGGING_VERBOSE_ENABLED Then
     ex_Core.fn_Diagnostic_LogInfo "lifecycle:" & VBA.TypeName(Me) & ".Class_Terminate"
@@ -73,7 +74,7 @@ End Sub
 ' //
 ' // Interface
 ' //
-Private Sub obj_IControl_Configure(ByVal page As obj_PageBase, ByVal controlNode As Object)
+Private Sub obj_IControl_Configure(ByVal controlNode As Object)
     Dim pageBase As obj_PageBase
     Dim selectedIdText As String
 
@@ -93,14 +94,16 @@ Private Sub obj_IControl_Configure(ByVal page As obj_PageBase, ByVal controlNode
     Set m_UiOptionActionMacros = Nothing
     Set m_UiOptionRawItems = Nothing
     Set m_ControlBase = Nothing
-    Set m_PageBase = Nothing
     Set m_CallbackContext = Nothing
     m_IsDropdownExpanded = False
     m_SelectedIndex = 0
 
+    If m_Page Is Nothing Then Exit Sub
+    Set pageBase = m_Page.GetPageBase()
+    If pageBase Is Nothing Then Exit Sub
     Set m_ControlBase = New obj_ControlBase
-    If Not m_ControlBase.Configure(page, controlNode, "Select", "select", m_ControlName) Then Exit Sub
-    Set m_PageBase = m_ControlBase.PageBase
+    If Not m_ControlBase.Initialize(m_Page) Then Exit Sub
+    If Not m_ControlBase.Configure(pageBase, controlNode, "Select", "select", m_ControlName) Then Exit Sub
 
     m_ItemsSourceRaw = VBA.Trim$(VBA.CStr(ex_XmlCore.fn_NodeAttrText(controlNode, "itemsSource")))
     If VBA.Len(m_ItemsSourceRaw) = 0 Then
@@ -190,14 +193,15 @@ Private Sub obj_IControl_Render()
 
     Set pageBase = Nothing
     If Not m_ControlBase Is Nothing Then Set pageBase = m_ControlBase.PageBase
-    If pageBase Is Nothing Then Set pageBase = m_PageBase
+    If pageBase Is Nothing Then
+        Set pageBase = m_Page.GetPageBase()
+    End If
     If pageBase Is Nothing Then
 #If LOGGING_DEBUG_ENABLED Then
         ex_Core.fn_Diagnostic_LogError "Select: page is not specified for control '" & m_ControlName & "'."
 #End If
         Exit Sub
     End If
-    Set m_PageBase = pageBase
 
     Set ws = pageBase.Worksheet
     If ws Is Nothing Then
@@ -305,12 +309,15 @@ End Function
 ' //
 ' // API
 ' //
-Public Function Initialize() As Boolean
+Public Function Initialize(ByVal page As obj_IPage) As Boolean
 #If LOGGING_VERBOSE_ENABLED Then
     ex_Core.fn_Diagnostic_LogInfo "lifecycle:" & VBA.TypeName(Me) & ".Initialize"
 #End If
+    m_IsDisposed = False
+    Set m_Page = page
     Initialize = True
 End Function
+
 Public Sub Dispose()
 #If LOGGING_VERBOSE_ENABLED Then
     ex_Core.fn_Diagnostic_LogInfo "lifecycle:" & VBA.TypeName(Me) & ".Dispose"
@@ -338,7 +345,7 @@ Public Sub Dispose()
     Set m_UiOptionActionMacros = Nothing
     Set m_UiOptionRawItems = Nothing
     Set m_CallbackContext = Nothing
-    Set m_PageBase = Nothing
+    Set m_Page = Nothing
     On Error GoTo 0
 End Sub
 
@@ -561,6 +568,7 @@ Public Function TryDeserializeSnapshot(ByVal snapshotXml As String) As Boolean
     Dim isConfiguredAttr As String
     Dim i As Long
     Dim rawObj As Object
+    Dim pageBase As obj_PageBase
 
     snapshotXml = VBA.Trim$(snapshotXml)
     If VBA.Len(snapshotXml) = 0 Then Exit Function
@@ -613,7 +621,6 @@ Public Function TryDeserializeSnapshot(ByVal snapshotXml As String) As Boolean
 
     Set ws = ex_HelpersSheet.fn_GetRuntimeWorksheetByName(m_ControlLayout.LayoutSheetName)
     If ws Is Nothing Then Exit Function
-    If Not ex_HelpersSheet.fn_TryGetPageBaseByWorksheetName(m_ControlLayout.LayoutSheetName, m_PageBase) Then Exit Function
     If Not private_TryRestoreCallbackContextFromPage() Then Exit Function
 
     Set headerNode = root.selectSingleNode("*[local-name()='header']")
@@ -653,9 +660,11 @@ Public Function TryDeserializeSnapshot(ByVal snapshotXml As String) As Boolean
     ' Lazy-render snapshot может не содержать item-узлы (shape еще не были материализованы).
     ' В этом случае восстанавливаем item-данные из текущего runtime itemsSource.
     If itemCaptions.Count = 0 Then
-        If Not m_PageBase Is Nothing Then
+        Set pageBase = Nothing
+        Set pageBase = m_Page.GetPageBase()
+        If Not pageBase Is Nothing Then
             If VBA.Len(VBA.Trim$(m_ItemsSourceRaw)) > 0 Then
-                If ex_RuntimeSourceResolver.fn_TryResolveItemsSource(m_PageBase.RuntimeSources, m_ItemsSourceRaw, m_Items) Then
+                If ex_RuntimeSourceResolver.fn_TryResolveItemsSource(pageBase.RuntimeSources, m_ItemsSourceRaw, m_Items) Then
                     If private_TryBuildItemBuffers() Then
                         Set itemCaptions = m_ItemCaptions
                         Set itemIds = m_ItemIds
@@ -709,6 +718,7 @@ Private Function private_TryBindUiRoutes( _
 ) As Boolean
     Dim callbackMacroRef As String
     Dim selectId As String
+    Dim pageBase As obj_PageBase
     Dim headerShape As Shape
     Dim itemShape As Shape
     Dim boundItemShapeNames As Collection
@@ -781,19 +791,14 @@ ContinueBindItem:
         Exit Function
     End If
 
-    If m_PageBase Is Nothing Then
-#If LOGGING_DEBUG_ENABLED Then
-        ex_Core.fn_Diagnostic_LogError "select:bind-routes page-base-missing control='" & VBA.Replace$(VBA.Trim$(m_ControlName), "'", "''") & "'"
-#End If
-        Exit Function
-    End If
-    If Not m_PageBase.RegisterControl(selectId, Me) Then
+    Set pageBase = m_Page.GetPageBase()
+    If Not pageBase.RegisterControl(selectId, Me) Then
 #If LOGGING_DEBUG_ENABLED Then
         ex_Core.fn_Diagnostic_LogError "select:bind-routes register-control-failed control='" & VBA.Replace$(VBA.Trim$(m_ControlName), "'", "''") & "' key='" & VBA.Replace$(selectId, "'", "''") & "'"
 #End If
         Exit Function
     End If
-    If Not m_PageBase.RegisterShapeRoute(headerShape.Name, selectId, "HandleHeaderClick", False) Then
+    If Not pageBase.RegisterShapeRoute(headerShape.Name, selectId, "HandleHeaderClick", False) Then
 #If LOGGING_DEBUG_ENABLED Then
         ex_Core.fn_Diagnostic_LogError "select:bind-routes register-header-route-failed control='" & VBA.Replace$(VBA.Trim$(m_ControlName), "'", "''") & "' shape='" & VBA.Replace$(VBA.Trim$(headerShape.Name), "'", "''") & "'"
 #End If
@@ -801,7 +806,7 @@ ContinueBindItem:
     End If
 
     For i = 1 To boundItemShapeNames.Count
-        If Not m_PageBase.RegisterShapeRoute(VBA.CStr(boundItemShapeNames(i)), selectId, "HandleOptionClick", True, VBA.CLng(boundItemIndexes(i))) Then
+        If Not pageBase.RegisterShapeRoute(VBA.CStr(boundItemShapeNames(i)), selectId, "HandleOptionClick", True, VBA.CLng(boundItemIndexes(i))) Then
 #If LOGGING_DEBUG_ENABLED Then
             ex_Core.fn_Diagnostic_LogError "select:bind-routes register-item-route-failed control='" & VBA.Replace$(VBA.Trim$(m_ControlName), "'", "''") & "' index=" & VBA.CStr(i)
 #End If
@@ -1086,9 +1091,10 @@ Private Function private_TryRefreshItemsAndRerenderAfterDropDownOpenedCallback()
     ' Этот метод намеренно перерисовывает только текущий Select-контрол.
     ' Полный page rerender здесь не нужен: нам важно обновить список "на месте"
     ' в том же клике по header, до фактического открытия dropdown.
-    Set pageBase = m_PageBase
+    Set pageBase = Nothing
+    If Not m_ControlBase Is Nothing Then Set pageBase = m_ControlBase.PageBase
     If pageBase Is Nothing Then
-        If Not m_ControlBase Is Nothing Then Set pageBase = m_ControlBase.PageBase
+        Set pageBase = m_Page.GetPageBase()
     End If
     If pageBase Is Nothing Then
 #If LOGGING_DEBUG_ENABLED Then
@@ -1862,28 +1868,9 @@ End Function
 
 Private Function private_TryRestoreCallbackContextFromPage() As Boolean
     Dim callbackContext As Object
-    Dim ws As Worksheet
-    Dim iPage As obj_IPage
 
     Set m_CallbackContext = Nothing
-    If m_PageBase Is Nothing Then
-        private_TryRestoreCallbackContextFromPage = True
-        Exit Function
-    End If
-    Set ws = m_PageBase.Worksheet
-    If ws Is Nothing Then
-        private_TryRestoreCallbackContextFromPage = True
-        Exit Function
-    End If
-    If Not rt_PageManager.fn_TryGetPageByWorksheet(ws, iPage) Then
-        private_TryRestoreCallbackContextFromPage = True
-        Exit Function
-    End If
-    If iPage Is Nothing Then
-        private_TryRestoreCallbackContextFromPage = True
-        Exit Function
-    End If
-    If Not iPage.TryGetController(callbackContext) Then Exit Function
+    If Not m_Page.TryGetController(callbackContext) Then Exit Function
     If callbackContext Is Nothing Then
         private_TryRestoreCallbackContextFromPage = True
         Exit Function

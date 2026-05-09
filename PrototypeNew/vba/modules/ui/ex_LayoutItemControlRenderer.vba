@@ -46,7 +46,7 @@ Public Function fn_Render( _
         Exit Function
     End If
     If Not private_TryGetPageRenderContext(renderCtx, wb, ws) Then Exit Function
-    Set pageBase = renderCtx.PageBase
+    Set pageBase = renderCtx.Page.GetPageBase()
     If pageBase Is Nothing Then
 #If LOGGING_DEBUG_ENABLED Then
         ex_Core.fn_Diagnostic_LogError "PrototypeNew: page base is not specified for itemControl renderer."
@@ -387,7 +387,7 @@ Private Function private_RegisterRuntimeListItemsSourceKey( _
 
     sourceKey = renderCtx.NextListRuntimeSourceKey()
 
-    If Not renderCtx.PageBase.RuntimeSources.SetItemsSource(sourceKey, items) Then Exit Function
+    If Not renderCtx.Page.GetPageBase().RuntimeSources.SetItemsSource(sourceKey, items) Then Exit Function
     private_RegisterRuntimeListItemsSourceKey = sourceKey
 End Function
 
@@ -408,7 +408,7 @@ Private Function private_RegisterRuntimeObjectSourceKey( _
 
     sourceKey = renderCtx.NextObjectRuntimeSourceKey()
 
-    If Not renderCtx.PageBase.RuntimeSources.SetObjectSource(sourceKey, sourceObject) Then Exit Function
+    If Not renderCtx.Page.GetPageBase().RuntimeSources.SetObjectSource(sourceKey, sourceObject) Then Exit Function
     private_RegisterRuntimeObjectSourceKey = sourceKey
 End Function
 
@@ -461,7 +461,7 @@ Private Function private_TryResolveObjectSourceForMeasure( _
         Exit Function
     End If
 
-    Set pageBase = renderCtx.PageBase
+    Set pageBase = renderCtx.Page.GetPageBase()
     If pageBase Is Nothing Then
 #If LOGGING_DEBUG_ENABLED Then
         ex_Core.fn_Diagnostic_LogError "PrototypeNew: itemControl measure page context is not specified in render context."

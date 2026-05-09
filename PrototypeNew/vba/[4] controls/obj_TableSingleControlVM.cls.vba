@@ -22,12 +22,14 @@ Private m_RowEnd As Long
 Private m_ColEnd As Long
 Private m_TableItems As Collection
 Private m_IsConfigured As Boolean
+Private m_Page As obj_IPage
 
 Private Sub Class_Initialize()
 #If LOGGING_VERBOSE_ENABLED Then
     ex_Core.fn_Diagnostic_LogInfo "lifecycle:" & VBA.TypeName(Me) & ".Class_Initialize"
 #End If
 End Sub
+
 Private Sub Class_Terminate()
 #If LOGGING_VERBOSE_ENABLED Then
     ex_Core.fn_Diagnostic_LogInfo "lifecycle:" & VBA.TypeName(Me) & ".Class_Terminate"
@@ -41,15 +43,17 @@ End Sub
 ' //
 ' // Interface
 ' //
-Private Sub obj_IControl_Configure(ByVal page As obj_PageBase, ByVal controlNode As Object)
+Private Sub obj_IControl_Configure(ByVal controlNode As Object)
     Dim pageBase As obj_PageBase
 
     m_IsConfigured = False
     Set m_TableItems = Nothing
     Set m_ControlBase = Nothing
 
+    Set pageBase = m_Page.GetPageBase()
     Set m_ControlBase = New obj_ControlBase
-    If Not m_ControlBase.Configure(page, controlNode, "TableSingle", "tableSingle", m_ControlName) Then Exit Sub
+    If Not m_ControlBase.Initialize(m_Page) Then Exit Sub
+    If Not m_ControlBase.Configure(pageBase, controlNode, "TableSingle", "tableSingle", m_ControlName) Then Exit Sub
 
     m_ItemsSourceRaw = VBA.Trim$(VBA.CStr(ex_XmlCore.fn_NodeAttrText(controlNode, "itemsSource")))
     If VBA.Len(m_ItemsSourceRaw) = 0 Then
@@ -162,12 +166,16 @@ End Function
 ' //
 ' // API
 ' //
-Public Function Initialize() As Boolean
+Public Function Initialize(ByVal page As obj_IPage) As Boolean
 #If LOGGING_VERBOSE_ENABLED Then
     ex_Core.fn_Diagnostic_LogInfo "lifecycle:" & VBA.TypeName(Me) & ".Initialize"
 #End If
+    m_IsDisposed = False
+    m_IsConfigured = False
+    Set m_Page = page
     Initialize = True
 End Function
+
 Public Sub Dispose()
 #If LOGGING_VERBOSE_ENABLED Then
     ex_Core.fn_Diagnostic_LogInfo "lifecycle:" & VBA.TypeName(Me) & ".Dispose"
@@ -178,6 +186,7 @@ Public Sub Dispose()
     Err.Clear
     Set m_ControlBase = Nothing
     Set m_TableItems = Nothing
+    Set m_Page = Nothing
     On Error GoTo 0
 End Sub
 
@@ -698,4 +707,3 @@ Private Function private_GetWorksheetByName(ByVal page As obj_PageBase, ByVal sh
 
     Set private_GetWorksheetByName = ws
 End Function
-

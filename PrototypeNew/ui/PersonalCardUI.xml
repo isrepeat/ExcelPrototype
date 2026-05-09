@@ -1,7 +1,15 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <page xmlns="urn:excelprototype:profiles" version="1">
   <grid anchorCell="A1">
-    <stackPanel at="r1c1" orientation="vertical"/>
+    <stackPanel at="r2c2" orientation="vertical">
+      <control
+        type="TableList"
+        name="TablesListStyled"
+        itemsSource="{PageRuntimeSource='RuntimeItems.Test.Tables'}"
+        itemVisibility="{Binding Path=RowCount; Op=gt; Value=3; TrueAs=Visible; FalseAs=Collapsed}"
+        spanColls="12"
+        spanRows="220"/>
+    </stackPanel>
   </grid>
 
   <styles>
@@ -15,6 +23,69 @@
                 borderWeight:thin;
                 width:11;
                 rowHeight:18;
+              }"/>
+      </layer>
+
+      <layer name="table-part-styles">
+        <rule target="controlPart"
+              selector="type=tablelist;part=section"
+              styles="{
+                backColor:#1F4E79;
+                fontColor:#F2F8FF;
+                borderColor:#143550;
+                borderWeight:thin;
+                fontBold:true;
+                fontSize:11;
+              }"/>
+
+        <rule target="controlPart"
+              selector="type=tablelist;part=header"
+              styles="{
+                backColor:#355D8C;
+                fontColor:#E7F1FF;
+                borderColor:#274467;
+                borderWeight:thin;
+                fontBold:true;
+                horizontal:center;
+              }"/>
+
+        <rule target="controlPart"
+              selector="type=tablelist;part=rows"
+              styles="{
+                backColor:#2F2F2F;
+                fontColor:#F5F5F5;
+                borderColor:#222222;
+                borderWeight:thin;
+                fontBold:false;
+              }"/>
+
+        <rule target="controlPart"
+              selector="type=tablelist;name=TablesListStyled;part=rows"
+              styles="{
+                horizontal:left;
+                vertical:center;
+              }"/>
+
+        <rule target="controlPart"
+              selector="type=tablelist;part=itembanner"
+              styles="{
+                backColor:#2D4A68;
+                fontColor:#F5FBFF;
+                borderColor:#1A2B3D;
+                borderWeight:thin;
+                fontBold:true;
+                vertical:center;
+              }"/>
+
+        <rule target="controlPart"
+              selector="type=tablelist;part=rowbanner"
+              styles="{
+                backColor:#345676;
+                fontColor:#F0F8FF;
+                borderColor:#213952;
+                borderWeight:thin;
+                fontBold:false;
+                vertical:center;
               }"/>
       </layer>
     </stylePipelineStage>

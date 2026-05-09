@@ -5,7 +5,7 @@ END
 Attribute VB_Name = "obj_IControl"
 Option Explicit
 
-Public Sub Configure(ByVal page As obj_PageBase, ByVal controlNode As Object)
+Public Sub Configure(ByVal controlNode As Object)
 End Sub
 
 Public Sub Render()
