@@ -5,6 +5,8 @@ Private mStatusClearPending As Boolean
 
 Private Const SHEET_BACKUP_SUFFIX As String = " (orig)"
 Private Const PROFILE_DEFAULT As String = "default"
+Private Const DARK_MODE_COLOR_HEX As String = "#262626"
+Private Const DARK_MODE_COLOR_TMP_HEX As String = "#404040"
 
 Private Const SHEET_NAME_SPS As String = "ШПС"
 Private Const PROFILE_SPS As String = "sps"
@@ -15,6 +17,64 @@ Private Const PROFILE_TEMP_ARRIVED As String = "temp_arrived"
 
 Private Const SHEET_NAME_TEMP_ABSENT As String = "5. Тимчасово відсутні"
 Private Const PROFILE_TEMP_ABSENT As String = "temp_absent"
+
+Sub DarkModeSheet()
+    Dim ws As Worksheet
+    Dim c As Range
+    Dim usedRange As Range
+    Dim targetRange As Range
+    Dim endRow As Long
+    Dim endCol As Long
+    Dim darkModeColor As Long
+
+    Set ws = ActiveSheet
+    darkModeColor = HexToColorLong(DARK_MODE_COLOR_TMP_HEX)
+    Set usedRange = ws.UsedRange
+    endRow = usedRange.Row + usedRange.Rows.Count - 1 + 10
+    endCol = usedRange.Column + usedRange.Columns.Count - 1 + 10
+    If endRow > ws.Rows.Count Then endRow = ws.Rows.Count
+    If endCol > ws.Columns.Count Then endCol = ws.Columns.Count
+    Set targetRange = ws.Range(ws.Cells(usedRange.Row, usedRange.Column), ws.Cells(endRow, endCol))
+
+    Application.ScreenUpdating = False
+    For Each c In targetRange
+        ' Белый фон
+        If c.Interior.Color = RGB(255, 255, 255) Then
+            c.Interior.Color = darkModeColor
+        ' Без заливки
+        ElseIf c.Interior.Pattern = xlNone Then
+            c.Interior.Color = darkModeColor
+        End If
+    Next c
+    Application.ScreenUpdating = True
+End Sub
+
+Sub LightModeSheet()
+    Dim ws As Worksheet
+    Dim c As Range
+    Dim usedRange As Range
+    Dim targetRange As Range
+    Dim endRow As Long
+    Dim endCol As Long
+    Dim darkModeColor As Long
+
+    Set ws = ActiveSheet
+    darkModeColor = HexToColorLong(DARK_MODE_COLOR_TMP_HEX)
+    Set usedRange = ws.UsedRange
+    endRow = usedRange.Row + usedRange.Rows.Count - 1 + 10
+    endCol = usedRange.Column + usedRange.Columns.Count - 1 + 10
+    If endRow > ws.Rows.Count Then endRow = ws.Rows.Count
+    If endCol > ws.Columns.Count Then endCol = ws.Columns.Count
+    Set targetRange = ws.Range(ws.Cells(usedRange.Row, usedRange.Column), ws.Cells(endRow, endCol))
+
+    Application.ScreenUpdating = False
+    For Each c In targetRange
+        If c.Interior.Color = darkModeColor Then
+            c.Interior.Pattern = xlNone
+        End If
+    Next c
+    Application.ScreenUpdating = True
+End Sub
 
 Public Sub dev_FormatKnownSupportedSheets()
     Dim ws As Worksheet: Set ws = ActiveSheet
@@ -567,10 +627,13 @@ Private Sub ApplyHashColumnFormatting(ws As Worksheet, headers As Variant, heade
 End Sub
 
 Private Sub ApplySheetTheme(ws As Worksheet)
+    Dim darkModeColor As Long
+    darkModeColor = HexToColorLong(DARK_MODE_COLOR_HEX)
+
     On Error GoTo Fallback
 
     With ws.Columns
-        .Interior.Color = RGB(38, 38, 38)    ' #262626
+        .Interior.Color = darkModeColor
         .Font.Color = RGB(118, 147, 60)      ' #76933C
     End With
     Exit Sub
@@ -578,7 +641,7 @@ Private Sub ApplySheetTheme(ws As Worksheet)
 Fallback:
     Err.Clear
     With ws.UsedRange
-        .Interior.Color = RGB(38, 38, 38)
+        .Interior.Color = darkModeColor
         .Font.Color = RGB(118, 147, 60)
     End With
 End Sub
@@ -610,4 +673,30 @@ Private Function NormalizeHeader(ByVal s As String) As String
     Loop
 
     NormalizeHeader = t
+End Function
+
+Private Function HexToColorLong(ByVal hexColor As String) As Long
+    Dim normalized As String
+    Dim redHex As String
+    Dim greenHex As String
+    Dim blueHex As String
+    Dim redValue As Long
+    Dim greenValue As Long
+    Dim blueValue As Long
+
+    normalized = VBA.Trim$(hexColor)
+    If VBA.Left$(normalized, 1) = "#" Then normalized = VBA.Mid$(normalized, 2)
+    If VBA.Len(normalized) <> 6 Then
+        Err.Raise vbObjectError + 2201, "HexToColorLong", "Expected hex color in format #RRGGBB."
+    End If
+
+    redHex = VBA.Mid$(normalized, 1, 2)
+    greenHex = VBA.Mid$(normalized, 3, 2)
+    blueHex = VBA.Mid$(normalized, 5, 2)
+
+    redValue = CLng("&H" & redHex)
+    greenValue = CLng("&H" & greenHex)
+    blueValue = CLng("&H" & blueHex)
+
+    HexToColorLong = RGB(redValue, greenValue, blueValue)
 End Function
