@@ -39,6 +39,9 @@ Private Sub obj_IControl_Configure(ByVal controlNode As Object)
     Dim headerText As String
     Dim messageText As String
     Dim visibleRaw As String
+    Dim headerRaw As String
+    Dim messageRaw As String
+    Dim dataContext As Object
     Dim isVisible As Boolean
     Dim pageBase As obj_PageBase
 
@@ -52,14 +55,18 @@ Private Sub obj_IControl_Configure(ByVal controlNode As Object)
     If Not m_ControlBase.Initialize(m_Page) Then Exit Sub
     If Not m_ControlBase.Configure(pageBase, controlNode, "Banner", "banner", m_ControlName) Then Exit Sub
 
-    headerText = VBA.CStr(ex_XmlCore.fn_NodeAttrText(controlNode, "header"))
-    messageText = VBA.CStr(ex_XmlCore.fn_NodeAttrText(controlNode, "message"))
+    headerRaw = VBA.CStr(ex_XmlCore.fn_NodeAttrText(controlNode, "header"))
+    messageRaw = VBA.CStr(ex_XmlCore.fn_NodeAttrText(controlNode, "message"))
     visibleRaw = VBA.Trim$(VBA.CStr(ex_XmlCore.fn_NodeAttrText(controlNode, "visible")))
+
+    Set dataContext = m_ControlBase.DataContext
+    If Not ex_BindingRuntime.fn_TryResolveTextBinding(headerRaw, dataContext, headerText) Then Exit Sub
+    If Not ex_BindingRuntime.fn_TryResolveTextBinding(messageRaw, dataContext, messageText) Then Exit Sub
 
     If VBA.Len(visibleRaw) = 0 Then
         isVisible = (VBA.Len(VBA.Trim$(headerText)) > 0 Or VBA.Len(VBA.Trim$(messageText)) > 0)
     Else
-        isVisible = private_ParseBooleanText(visibleRaw)
+        If Not ex_BindingRuntime.fn_TryResolveVisibilityBinding(visibleRaw, dataContext, isVisible) Then Exit Sub
     End If
 
     Set m_BannerViewItem = New obj_BannerViewItem
@@ -118,6 +125,10 @@ Private Function obj_IControl_SupportsAttribute(ByVal attrName As String) As Boo
         Case "header", "message", "visible"
             obj_IControl_SupportsAttribute = True
     End Select
+End Function
+
+Private Function obj_IControl_IsConfigured() As Boolean
+    obj_IControl_IsConfigured = m_IsConfigured
 End Function
 
 ' //

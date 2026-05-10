@@ -222,6 +222,10 @@ Private Function obj_IControl_SupportsAttribute(ByVal attrName As String) As Boo
     End Select
 End Function
 
+Private Function obj_IControl_IsConfigured() As Boolean
+    obj_IControl_IsConfigured = m_IsConfigured
+End Function
+
 Private Function obj_ISerializable_GetSerializableTypeRoot() As String
     obj_ISerializable_GetSerializableTypeRoot = "button"
 End Function

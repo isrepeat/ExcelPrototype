@@ -12,6 +12,7 @@ Private Const TABLES_RUNTIME_KEY As String = "RuntimeItems.Test.Tables"
 Private Const TABLE_HEADER_TEXT As String = "Name | Role | Country | Team | Level | Status | Since"
 
 Private m_Page As obj_IPage
+Private m_IsDataReady As Boolean
 Private m_IsDisposed As Boolean
 
 Private Sub Class_Initialize()
@@ -29,6 +30,21 @@ Private Sub Class_Terminate()
     Dispose
     On Error GoTo 0
 End Sub
+
+' //
+' // Properties
+' //
+Public Property Get RuntimeObjectSourceKey() As String
+    RuntimeObjectSourceKey = CONTROLLER_RUNTIME_OBJECT_KEY
+End Property
+
+Public Property Get IsDataReady() As Boolean
+    IsDataReady = m_IsDataReady
+End Property
+
+Public Property Get ShowDataPlaceholder() As Boolean
+    ShowDataPlaceholder = Not m_IsDataReady
+End Property
 
 ' //
 ' // API
@@ -49,9 +65,13 @@ Public Function Initialize(ByVal page As obj_IPage) As Boolean
 
     m_IsDisposed = False
     Set m_Page = page
+    m_IsDataReady = False
     Set pageBase = m_Page.GetPageBase()
 
     If Not pageBase.RuntimeSources.SetObjectSource(CONTROLLER_RUNTIME_OBJECT_KEY, Me) Then Exit Function
+    ' Временный эксперимент: не предзаполняем пустой itemsSource для таблиц.
+    ' Без этого TableList должен показать поведение при отсутствии runtime-ключа.
+    'If Not private_EnsureEmptyTablesRuntimeSource(False) Then Exit Function
     Initialize = True
 End Function
 
@@ -63,13 +83,42 @@ Public Sub Dispose()
     m_IsDisposed = True
 
     On Error Resume Next
+    m_IsDataReady = False
     Set m_Page = Nothing
     On Error GoTo 0
 End Sub
 
-Public Property Get RuntimeObjectSourceKey() As String
-    RuntimeObjectSourceKey = CONTROLLER_RUNTIME_OBJECT_KEY
-End Property
+Public Function RunPipeline( _
+    Optional ByVal notifyChange As Boolean = True _
+) As Boolean
+#If LOGGING_DEBUG_ENABLED Then
+    ex_Core.fn_Diagnostic_LogInfo "enter:obj_PagePersonalCardCtrl.RunPipeline"
+#End If
+    If m_Page Is Nothing Then Exit Function
+
+    If Not PrepareDemoTablesRuntime(False) Then Exit Function
+    If notifyChange Then
+        If Not rt_PageManager.fn_RenderPage(m_Page, "personalcard:run-pipeline") Then Exit Function
+    End If
+
+    rt_Messaging.fn_ShowStatusBarSuccess "PersonalCard pipeline has been executed.", 3
+    RunPipeline = True
+End Function
+
+Public Function RerenderPage( _
+    Optional ByVal notifyStatus As Boolean = True _
+) As Boolean
+#If LOGGING_DEBUG_ENABLED Then
+    ex_Core.fn_Diagnostic_LogInfo "enter:obj_PagePersonalCardCtrl.RerenderPage"
+#End If
+    If m_Page Is Nothing Then Exit Function
+    If Not rt_PageManager.fn_RenderPage(m_Page, "personalcard:manual-rerender") Then Exit Function
+
+    If notifyStatus Then
+        rt_Messaging.fn_ShowStatusBarNotice "PersonalCard page has been rerendered.", 2
+    End If
+    RerenderPage = True
+End Function
 
 Public Function PrepareDemoTablesRuntime( _
     Optional ByVal notifyChange As Boolean = False _
@@ -78,6 +127,7 @@ Public Function PrepareDemoTablesRuntime( _
     ex_Core.fn_Diagnostic_LogInfo "enter:obj_PagePersonalCardCtrl.PrepareDemoTablesRuntime"
 #End If
     If Not private_RegisterDemoTableItems(notifyChange) Then
+        m_IsDataReady = False
 #If LOGGING_DEBUG_ENABLED Then
         ex_Core.fn_Diagnostic_LogError "PrototypeNew: failed to register demo table items for PersonalCard page."
 #End If
@@ -105,6 +155,8 @@ Private Function private_RegisterDemoTableItems( _
     Set pageBase = m_Page.GetPageBase()
     Set runtimeSources = pageBase.RuntimeSources
     normalizedKey = VBA.LCase$(VBA.Trim$(TABLES_RUNTIME_KEY))
+
+    m_IsDataReady = False
     
     ' Точечная очистка:
     ' - удаляем только test-таблицы;
@@ -114,8 +166,34 @@ Private Function private_RegisterDemoTableItems( _
     If Not runtimeSources.RemoveTemporaryObjectsSources() Then Exit Function
 
     If Not runtimeSources.SetItemsSource(normalizedKey, tables, notifyChange) Then Exit Function
+    m_IsDataReady = (tables.Count > 0)
 
     private_RegisterDemoTableItems = True
+End Function
+
+Private Function private_EnsureEmptyTablesRuntimeSource( _
+    ByVal notifyChange As Boolean _
+) As Boolean
+    Dim pageBase As obj_PageBase
+    Dim runtimeSources As obj_PageRuntimeSources
+    Dim emptyItems As Collection
+    Dim normalizedKey As String
+
+    If m_Page Is Nothing Then Exit Function
+
+    Set pageBase = m_Page.GetPageBase()
+    If pageBase Is Nothing Then Exit Function
+    Set runtimeSources = pageBase.RuntimeSources
+    If runtimeSources Is Nothing Then Exit Function
+
+    m_IsDataReady = False
+    normalizedKey = VBA.LCase$(VBA.Trim$(TABLES_RUNTIME_KEY))
+    If Not runtimeSources.RemoveItemsSource(normalizedKey) Then Exit Function
+
+    Set emptyItems = New Collection
+    If Not runtimeSources.SetItemsSource(normalizedKey, emptyItems, notifyChange) Then Exit Function
+
+    private_EnsureEmptyTablesRuntimeSource = True
 End Function
 
 Private Function private_BuildDemoTableItems() As Collection

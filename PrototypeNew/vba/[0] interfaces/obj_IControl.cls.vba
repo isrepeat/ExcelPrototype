@@ -11,5 +11,8 @@ End Sub
 Public Sub Render()
 End Sub
 
+Public Function IsConfigured() As Boolean
+End Function
+
 Public Function SupportsAttribute(ByVal attrName As String) As Boolean
 End Function

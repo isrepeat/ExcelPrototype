@@ -3,6 +3,34 @@
   <grid anchorCell="A1">
     <stackPanel at="r2c2" orientation="vertical">
       <control
+        type="Button"
+        name="RunPersonalCardPipeline"
+        dataContext="{PageRuntimeSource='RuntimeObjects.PagePersonalCard.Controller'}"
+        caption="Refresh PersonalCard Data"
+        onClick="{Binding Method=RunPipeline}"
+        spanColls="4"
+        spanRows="2"/>
+
+      <control
+        type="Button"
+        name="RerenderPersonalCardPage"
+        dataContext="{PageRuntimeSource='RuntimeObjects.PagePersonalCard.Controller'}"
+        caption="Rerender PersonalCard Page"
+        onClick="{Binding Method=RerenderPage}"
+        spanColls="4"
+        spanRows="2"/>
+
+      <control
+        type="Banner"
+        name="PersonalCardDataPlaceholder"
+        dataContext="{PageRuntimeSource='RuntimeObjects.PagePersonalCard.Controller'}"
+        header="Data is not generated yet"
+        message="Run pipeline to build current PersonalCard tables."
+        visible="{Binding Path=ShowDataPlaceholder}"
+        spanColls="12"
+        spanRows="3"/>
+
+      <control
         type="TableList"
         name="TablesListStyled"
         itemsSource="{PageRuntimeSource='RuntimeItems.Test.Tables'}"

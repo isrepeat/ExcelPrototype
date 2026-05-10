@@ -128,6 +128,43 @@ Public Function fn_TryRefreshStaticControl(ByVal controlName As String) As Boole
     fn_TryRefreshStaticControl = True
 End Function
 
+
+Public Function fn_TryGetSheetMaxControlBounds( _
+    ByVal sheetName As String, _
+    ByRef outRowEnd As Long, _
+    ByRef outColEnd As Long _
+) As Boolean
+    Dim key As Variant
+    Dim entry As Object
+    Dim entrySheetName As String
+    Dim rowEnd As Long
+    Dim colEnd As Long
+
+    outRowEnd = 0
+    outColEnd = 0
+    sheetName = VBA.Trim$(sheetName)
+    If VBA.Len(sheetName) = 0 Then Exit Function
+
+    private_EnsureRegistry
+
+    For Each key In g_ControlRegistry.Keys
+        Set entry = g_ControlRegistry(key)
+        If entry Is Nothing Then GoTo ContinueEntry
+
+        entrySheetName = VBA.Trim$(VBA.CStr(entry("Sheet")))
+        If VBA.StrComp(entrySheetName, sheetName, VBA.vbTextCompare) <> 0 Then GoTo ContinueEntry
+
+        rowEnd = CLng(entry("RowEnd"))
+        colEnd = CLng(entry("ColEnd"))
+        If rowEnd > outRowEnd Then outRowEnd = rowEnd
+        If colEnd > outColEnd Then outColEnd = colEnd
+
+ContinueEntry:
+    Next key
+
+    fn_TryGetSheetMaxControlBounds = (outRowEnd > 0 And outColEnd > 0)
+End Function
+
 ' //
 ' // Internal
 ' //

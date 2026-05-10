@@ -82,6 +82,16 @@
           />
         <control
           type="Button"
+          name="ClearPagesExceptMain"
+          caption="Clear Pages (except Main)"
+          style="actionWarning"
+          dataContext="{PageRuntimeSource='RuntimeObjects.PageMain.Controller'}"
+          onClick="{Binding Method=ClearWorkbookPagesExceptMain}"
+          spanColls="3"
+          spanRows="2"
+          />
+        <control
+          type="Button"
           name="ToggleLogging"
           dataContext="{GlobalRuntimeSource='Settings'}"
           caption="{Binding Path=IsLoggingEnabled;TrueAs=Logging [[[ok]]On[[/ok]]];FalseAs=Logging [[[color=#FF0000]]Off[[/color]]]}"

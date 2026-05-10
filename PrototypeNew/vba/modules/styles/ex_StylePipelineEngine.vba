@@ -1344,6 +1344,9 @@ Private Function private_GetExpandedSheetScopeRange(ByVal ws As Worksheet) As Ra
     Dim usedScope As Range
     Dim usedLastRow As Long
     Dim usedLastCol As Long
+    Dim controlsLastRow As Long
+    Dim controlsLastCol As Long
+    Dim hasControlsBounds As Boolean
     Dim endRow As Long
     Dim endCol As Long
 
@@ -1355,14 +1358,22 @@ Private Function private_GetExpandedSheetScopeRange(ByVal ws As Worksheet) As Ra
     usedLastRow = usedScope.Row + usedScope.Rows.Count - 1
     usedLastCol = usedScope.Column + usedScope.Columns.Count - 1
 
-    endCol = SHEET_SCOPE_MIN_COL
-    If usedLastCol > SHEET_SCOPE_MIN_COL Then
-        endCol = usedLastCol + SHEET_SCOPE_EXPAND_STEP
-    End If
+    ' Основной режим: размер sheet-scope привязан к layout/grid (по фактическим bounds контролов) + запас.
+    hasControlsBounds = ex_ControlRefreshRuntime.fn_TryGetSheetMaxControlBounds(ws.Name, controlsLastRow, controlsLastCol)
+    If hasControlsBounds Then
+        endRow = controlsLastRow + SHEET_SCOPE_EXPAND_STEP
+        endCol = controlsLastCol + SHEET_SCOPE_EXPAND_STEP
+    Else
+        ' Fallback для страниц без зарегистрированных контролов.
+        endCol = SHEET_SCOPE_MIN_COL
+        If usedLastCol > SHEET_SCOPE_MIN_COL Then
+            endCol = usedLastCol + SHEET_SCOPE_EXPAND_STEP
+        End If
 
-    endRow = SHEET_SCOPE_MIN_ROW
-    If usedLastRow > SHEET_SCOPE_MIN_ROW Then
-        endRow = usedLastRow + SHEET_SCOPE_EXPAND_STEP
+        endRow = SHEET_SCOPE_MIN_ROW
+        If usedLastRow > SHEET_SCOPE_MIN_ROW Then
+            endRow = usedLastRow + SHEET_SCOPE_EXPAND_STEP
+        End If
     End If
 
     If endCol < 1 Then endCol = 1

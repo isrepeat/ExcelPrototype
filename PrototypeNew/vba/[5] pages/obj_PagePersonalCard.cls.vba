@@ -86,6 +86,7 @@ Private Function obj_ISerializable_TryRestoreState() As Boolean
     Dim parentPage As obj_IPage
 
     If Not m_PageBase.IsReady() Then Exit Function
+
     Set m_ParentPage = Nothing
     If VBA.Len(m_ParentPageId) = 0 Then
         obj_ISerializable_TryRestoreState = True

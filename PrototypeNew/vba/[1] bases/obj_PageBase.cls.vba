@@ -268,6 +268,8 @@ Public Function Render() As Boolean
     ex_ControlPartsRuntime.fn_ResetControlParts
     Me.ResetInlineRuns
     ex_ControlRefreshRuntime.fn_ResetRegisteredControls
+    ex_LayoutDebugBoundsRndr.fn_ResetDebugBounds
+    ex_LayoutControlFallbackRndr.fn_ResetControlFallbacks
 
     If Not Me.ResetControlActions() Then GoTo Cleanup
     If Not private_TryClearPageRuntime(Not retainGeneratedShapes) Then GoTo Cleanup
@@ -276,6 +278,8 @@ Public Function Render() As Boolean
     If Not layoutRenderContext.Initialize(m_Page) Then GoTo Cleanup
     If Not ex_XmlLayoutEngine.fn_RenderNode(layoutRenderContext, pageNode) Then GoTo Cleanup
     If Not ex_StylePipelineEngine.fn_ApplyPageStyles(ws, m_UiDom) Then GoTo Cleanup
+    ex_LayoutDebugBoundsRndr.fn_ApplyPendingDebugBounds ws
+    ex_LayoutControlFallbackRndr.fn_ApplyPendingControlFallbacks ws
     If Not Me.ApplyInlineRuns() Then GoTo Cleanup
 
     ' В retained-режиме глобально shape не удаляем до рендера.
