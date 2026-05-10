@@ -35,6 +35,10 @@ Public Function fn_Render( _
         Exit Function
     End If
 
+    If Not renderCtx Is Nothing Then
+        ex_LayoutDebugBoundsRndr.fn_RegisterDebugBounds renderCtx.Worksheet, rowStart, colStart, rowEnd, colEnd, "grid"
+    End If
+
     fn_Render = ex_XmlLayoutEngine.fn_RenderContainerNodeInBounds( _
         renderCtx:=renderCtx, _
         containerNode:=layoutNode, _

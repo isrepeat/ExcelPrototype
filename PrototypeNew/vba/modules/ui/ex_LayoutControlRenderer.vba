@@ -23,6 +23,7 @@ Public Sub fn_Module_Dispose()
     ex_Core.fn_Diagnostic_LogInfo "lifecycle:ex_LayoutControlRenderer.fn_Module_Dispose"
 #End If
 End Sub
+
 ' //
 ' // API
 ' //
@@ -127,10 +128,23 @@ Public Function fn_Render( _
         rowEnd, _
         colEnd
 
+    ex_LayoutDebugBoundsRndr.fn_RegisterDebugBounds ws, rowStart, colStart, rowEnd, colEnd, "control", layoutControlName
+
     ' Передаем итоговый runtime-узел в VM и запускаем render контрола.
     ' На этом шаге VM читает dataContext/objectSource/itemsSource и запускает resolve через RuntimeSourceResolver.
+    On Error GoTo EH_CONTROL_PIPELINE
     control.Configure runtimeControlNode
+    If Not control.IsConfigured() Then
+        ex_LayoutControlFallbackRndr.fn_RegisterControlFallback ws, rowStart, colStart, rowEnd, colEnd, layoutControlName
+    #If LOGGING_DEBUG_ENABLED Then
+        ex_Core.fn_Diagnostic_LogWarning "PrototypeNew: control '" & layoutControlName & "' (type='" & typeRoot & "') is not configured. Fallback was applied."
+    #End If
+        fn_Render = True
+        Exit Function
+    End If
+
     control.Render
+    On Error GoTo 0
 
     ' Если в шаблоне контрола есть дочерний layout (template children),
     ' рендерим его в тех же границах.
@@ -138,6 +152,14 @@ Public Function fn_Render( _
         renderCtx, runtimeControlNode, _
         rowStart, colStart, rowEnd, colEnd) Then Exit Function
 
+    fn_Render = True
+    Exit Function
+
+EH_CONTROL_PIPELINE:
+    ex_LayoutControlFallbackRndr.fn_RegisterControlFallback ws, rowStart, colStart, rowEnd, colEnd, layoutControlName
+#If LOGGING_DEBUG_ENABLED Then
+    ex_Core.fn_Diagnostic_LogError "PrototypeNew: control '" & layoutControlName & "' (type='" & typeRoot & "') render pipeline failed. Fallback was applied: " & Err.Description
+#End If
     fn_Render = True
 End Function
 

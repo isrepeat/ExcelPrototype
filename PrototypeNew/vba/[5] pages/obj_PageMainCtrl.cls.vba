@@ -192,16 +192,142 @@ Public Sub SaveCurrentConfigProfile()
     If Not private_TrySaveCurrentConfigProfile() Then Exit Sub
 End Sub
 
+Public Function ClearWorkbookPagesExceptMain( _
+    Optional ByVal notifyStatus As Boolean = True _
+) As Boolean
+    #If LOGGING_DEBUG_ENABLED Then
+        ex_Core.fn_Diagnostic_LogInfo "enter:obj_PageMainCtrl.ClearWorkbookPagesExceptMain"
+    #End If
+    Dim pageBase As obj_PageBase
+    Dim pages As Collection
+    Dim pageItem As Variant
+    Dim page As obj_IPage
+    Dim pageWsName As String
+    Dim mainSheetName As String
+    Dim wb As Workbook
+    Dim ws As Worksheet
+    Dim wsIndex As Long
+    Dim removedCount As Long
+    Dim deletedSheetsCount As Long
+    Dim prevDisplayAlerts As Boolean
+
+    If m_Page Is Nothing Then Exit Function
+
+    Set pageBase = m_Page.GetPageBase()
+    If pageBase Is Nothing Then Exit Function
+    If pageBase.Worksheet Is Nothing Then Exit Function
+    mainSheetName = VBA.Trim$(pageBase.Worksheet.Name)
+    If VBA.Len(mainSheetName) = 0 Then Exit Function
+
+    If Not rt_PageManager.fn_TryGetAllPages(pages) Then Exit Function
+    If pages Is Nothing Then Exit Function
+
+    For Each pageItem In pages
+        Set page = Nothing
+        On Error Resume Next
+        Set page = pageItem
+        On Error GoTo EH_CLEAR
+        If page Is Nothing Then GoTo ContinuePages
+
+        Set pageBase = page.GetPageBase()
+        If pageBase Is Nothing Then GoTo ContinuePages
+        If pageBase.Worksheet Is Nothing Then GoTo ContinuePages
+        pageWsName = VBA.Trim$(pageBase.Worksheet.Name)
+
+        If VBA.StrComp(pageWsName, mainSheetName, VBA.vbTextCompare) = 0 Then GoTo ContinuePages
+        If TypeOf page Is obj_PageMain Then GoTo ContinuePages
+
+        If Not rt_PageManager.fn_RemovePage(page, True) Then
+            #If LOGGING_DEBUG_ENABLED Then
+                ex_Core.fn_Diagnostic_LogError "PrototypeNew: failed to remove page '" & VBA.Replace$(pageWsName, "'", "''") & "'."
+            #End If
+            MsgBox "PrototypeNew: failed to remove page '" & pageWsName & "'.", vbExclamation, "PrototypeNew / Config runtime"
+            Exit Function
+        End If
+        removedCount = removedCount + 1
+
+ContinuePages:
+    Next pageItem
+
+    Set wb = ThisWorkbook
+    prevDisplayAlerts = Application.DisplayAlerts
+    Application.DisplayAlerts = False
+    On Error GoTo EH_DELETE_WS
+
+    For wsIndex = wb.Worksheets.Count To 1 Step -1
+        Set ws = wb.Worksheets(wsIndex)
+        If VBA.StrComp(VBA.Trim$(ws.Name), mainSheetName, VBA.vbTextCompare) <> 0 Then
+            ws.Delete
+            deletedSheetsCount = deletedSheetsCount + 1
+        End If
+    Next wsIndex
+
+    Application.DisplayAlerts = prevDisplayAlerts
+
+    If notifyStatus Then
+        rt_Messaging.fn_ShowStatusBarSuccess "Pages cleared. Kept only '" & mainSheetName & "' (removed pages=" & VBA.CStr(removedCount) & ", deleted sheets=" & VBA.CStr(deletedSheetsCount) & ").", 3
+    End If
+
+    ClearWorkbookPagesExceptMain = True
+    Exit Function
+
+EH_DELETE_WS:
+    Application.DisplayAlerts = prevDisplayAlerts
+    #If LOGGING_DEBUG_ENABLED Then
+        ex_Core.fn_Diagnostic_LogError "PrototypeNew: failed to delete worksheet while clearing pages: [" & VBA.CStr(Err.Number) & "] " & Err.Description
+    #End If
+    MsgBox "PrototypeNew: failed to delete worksheet while clearing pages: [" & VBA.CStr(Err.Number) & "] " & Err.Description, vbExclamation, "PrototypeNew / Config runtime"
+    Exit Function
+
+EH_CLEAR:
+    #If LOGGING_DEBUG_ENABLED Then
+        ex_Core.fn_Diagnostic_LogError "PrototypeNew: exception in ClearWorkbookPagesExceptMain: [" & VBA.CStr(Err.Number) & "] " & Err.Description
+    #End If
+    MsgBox "PrototypeNew: exception in ClearWorkbookPagesExceptMain: [" & VBA.CStr(Err.Number) & "] " & Err.Description, vbExclamation, "PrototypeNew / Config runtime"
+End Function
+
 Public Function OpenPersonalCardPage() As Boolean
     #If LOGGING_DEBUG_ENABLED Then
         ex_Core.fn_Diagnostic_LogInfo "enter:obj_PageMainCtrl.OpenPersonalCardPage"
     #End If
     Dim sheetName As String
+    Dim existingPage As obj_IPage
     Dim personalCardPage As obj_IPage
     Dim parentPage As obj_IPage
     Dim isPageCreated As Boolean
 
     On Error GoTo EH_OPEN
+
+    If rt_PageManager.fn_TryGetPageByWorksheetName(PERSONAL_CARD_SHEET_BASE_NAME, existingPage) Then
+        If existingPage Is Nothing Then GoTo EH_CREATE
+        If Not TypeOf existingPage Is obj_PagePersonalCard Then
+            #If LOGGING_DEBUG_ENABLED Then
+                ex_Core.fn_Diagnostic_LogError "PrototypeNew: worksheet '" & PERSONAL_CARD_SHEET_BASE_NAME & "' is bound to unexpected page type '" & VBA.TypeName(existingPage) & "'."
+            #End If
+            MsgBox "PrototypeNew: worksheet '" & PERSONAL_CARD_SHEET_BASE_NAME & "' is bound to unexpected page type '" & VBA.TypeName(existingPage) & "'.", vbExclamation, "PrototypeNew / Config runtime"
+            Exit Function
+        End If
+
+        If Not existingPage.RunPagePipeline() Then
+            #If LOGGING_DEBUG_ENABLED Then
+                ex_Core.fn_Diagnostic_LogError "PrototypeNew: failed to run PersonalCard page pipeline for existing page."
+            #End If
+            MsgBox "PrototypeNew: failed to run PersonalCard page pipeline for existing page.", vbExclamation, "PrototypeNew / Config runtime"
+            Exit Function
+        End If
+
+        If Not rt_PageManager.fn_RenderPage(existingPage, "pagemain:open-personalcard:reuse") Then
+            #If LOGGING_DEBUG_ENABLED Then
+                ex_Core.fn_Diagnostic_LogError "PrototypeNew: failed to render existing PersonalCard page."
+            #End If
+            MsgBox "PrototypeNew: failed to render existing PersonalCard page.", vbExclamation, "PrototypeNew / Config runtime"
+            Exit Function
+        End If
+
+        rt_Messaging.fn_ShowStatusBarSuccess "PersonalCard page has been refreshed.", 3
+        OpenPersonalCardPage = True
+        Exit Function
+    End If
 
     sheetName = private_BuildUniqueWorksheetName(ThisWorkbook, PERSONAL_CARD_SHEET_BASE_NAME)
     If VBA.Len(sheetName) = 0 Then
