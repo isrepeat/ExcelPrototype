@@ -26,13 +26,21 @@ Public Sub m_RegexHighlightByPattern()
     Dim preparedPattern As String
     Dim highlightGroupIndex As Long
     Dim fillColor As Long
+    Dim groupColorByName As Object
+    Dim namedGroupIndexes As Object
+    Dim groupColorByIndex As Object
 
-    If Not mp_TryReadRegexConfigFromFile(regexFilePath, pattern, fillColor, errorText) Then
+    If Not mp_TryReadRegexConfigFromFile(regexFilePath, pattern, fillColor, groupColorByName, errorText) Then
         MsgBox errorText, vbExclamation, "Regex Highlight"
         Exit Sub
     End If
 
-    If Not mp_TryPrepareRegexPattern(pattern, preparedPattern, highlightGroupIndex, errorText) Then
+    If Not mp_TryPrepareRegexPattern(pattern, preparedPattern, highlightGroupIndex, namedGroupIndexes, errorText) Then
+        MsgBox errorText, vbExclamation, "Regex Highlight"
+        Exit Sub
+    End If
+
+    If Not mp_TryBuildGroupColorIndexMap(groupColorByName, namedGroupIndexes, groupColorByIndex, errorText) Then
         MsgBox errorText, vbExclamation, "Regex Highlight"
         Exit Sub
     End If
@@ -56,7 +64,7 @@ Public Sub m_RegexHighlightByPattern()
 
     Set targetRange = doc.Content
     mp_ClearRegexHighlightsByBookmarks doc, staleClearedCount, staleBookmarkCount
-    highlightedCount = mp_HighlightMatchesInRange(targetRange, regex, fillColor, highlightGroupIndex, bookmarkCount)
+    highlightedCount = mp_HighlightMatchesInRange(targetRange, regex, fillColor, highlightGroupIndex, groupColorByIndex, bookmarkCount)
 
     mp_EndUndoGroup undoStarted
     mp_SetStatusBarMessage "Regex Highlight: подсвечено " & highlightedCount & "; закладок " & bookmarkCount
@@ -105,20 +113,28 @@ Private Function mp_CreateRegex(ByVal pattern As String) As Object
     Set mp_CreateRegex = regex
 End Function
 
-Private Function mp_TryPrepareRegexPattern(ByVal rawPattern As String, ByRef preparedPattern As String, ByRef highlightGroupIndex As Long, ByRef errorText As String) As Boolean
+Private Function mp_CreateTextCompareDictionary() As Object
+    Dim dict As Object
+    Set dict = CreateObject("Scripting.Dictionary")
+    dict.CompareMode = vbTextCompare
+    Set mp_CreateTextCompareDictionary = dict
+End Function
+
+Private Function mp_TryPrepareRegexPattern(ByVal rawPattern As String, ByRef preparedPattern As String, ByRef highlightGroupIndex As Long, ByRef namedGroupIndexes As Object, ByRef errorText As String) As Boolean
     preparedPattern = rawPattern
     highlightGroupIndex = 0
+    Set namedGroupIndexes = mp_CreateTextCompareDictionary()
 
     If InStr(1, rawPattern, "(?<", vbTextCompare) = 0 Then
         mp_TryPrepareRegexPattern = True
         Exit Function
     End If
 
-    If Not mp_TryRewriteNamedHighlightGroup(rawPattern, preparedPattern, highlightGroupIndex, errorText) Then Exit Function
+    If Not mp_TryRewriteNamedHighlightGroup(rawPattern, preparedPattern, highlightGroupIndex, namedGroupIndexes, errorText) Then Exit Function
     mp_TryPrepareRegexPattern = True
 End Function
 
-Private Function mp_TryRewriteNamedHighlightGroup(ByVal sourcePattern As String, ByRef rewrittenPattern As String, ByRef highlightGroupIndex As Long, ByRef errorText As String) As Boolean
+Private Function mp_TryRewriteNamedHighlightGroup(ByVal sourcePattern As String, ByRef rewrittenPattern As String, ByRef highlightGroupIndex As Long, ByRef namedGroupIndexes As Object, ByRef errorText As String) As Boolean
     Dim i As Long
     Dim patternLength As Long
     Dim inCharClass As Boolean
@@ -186,6 +202,17 @@ Private Function mp_TryRewriteNamedHighlightGroup(ByVal sourcePattern As String,
 
                 Dim groupName As String
                 groupName = LCase$(Mid$(sourcePattern, i + 3, closingPos - (i + 3)))
+                If Len(groupName) = 0 Then
+                    errorText = "Имя именованной группы в regex не может быть пустым."
+                    Exit Function
+                End If
+
+                If namedGroupIndexes.Exists(groupName) Then
+                    errorText = "В regex найдено повторное имя группы (?<" & groupName & ">...)."
+                    Exit Function
+                End If
+                namedGroupIndexes.Add groupName, captureIndex
+
                 If groupName = "rxhighlight" Then
                     If highlightGroupIndex <> 0 Then
                         errorText = "В regex найдено больше одной группы (?<rxHighlight>...)."
@@ -252,7 +279,7 @@ Private Function mp_TryResolveHighlightSegment(ByVal matchText As Object, ByVal 
     mp_TryResolveHighlightSegment = True
 End Function
 
-Private Function mp_HighlightMatchesInRange(ByVal sourceRange As Range, ByVal regex As Object, ByVal fillColor As Long, ByVal highlightGroupIndex As Long, ByRef bookmarkCount As Long) As Long
+Private Function mp_HighlightMatchesInRange(ByVal sourceRange As Range, ByVal regex As Object, ByVal fillColor As Long, ByVal highlightGroupIndex As Long, ByVal groupColorByIndex As Object, ByRef bookmarkCount As Long) As Long
     On Error GoTo HighlightRangeFailed
 
     Dim matches As Object
@@ -264,10 +291,46 @@ Private Function mp_HighlightMatchesInRange(ByVal sourceRange As Range, ByVal re
     Dim hitStart As Long
     Dim segmentOffset As Long
     Dim segmentLength As Long
+    Dim configuredGroupIndex As Variant
+    Dim configuredColor As Long
+    Dim hasConfiguredGroupColors As Boolean
+    Dim highlightedByConfiguredGroups As Boolean
+
+    hasConfiguredGroupColors = Not groupColorByIndex Is Nothing
+    If hasConfiguredGroupColors Then hasConfiguredGroupColors = (groupColorByIndex.Count > 0)
 
     For i = 0 To matches.Count - 1
         On Error GoTo MatchFailed
         Set matchText = matches(i)
+
+        highlightedByConfiguredGroups = False
+        If hasConfiguredGroupColors Then
+            For Each configuredGroupIndex In groupColorByIndex.Keys
+                configuredColor = CLng(groupColorByIndex(configuredGroupIndex))
+
+                If Not mp_TryResolveHighlightSegment(matchText, CLng(configuredGroupIndex), segmentOffset, segmentLength) Then GoTo ContinueConfiguredGroupLoop
+
+                If segmentLength > 0 Then
+                    hitStart = sourceRange.Start + CLng(matchText.FirstIndex) + segmentOffset
+                    Set hitRange = mp_GetVerifiedMatchRange(sourceRange.Document, hitStart, segmentLength, Mid$(CStr(matchText.Value), segmentOffset + 1, segmentLength))
+                    If hitRange Is Nothing Then GoTo ContinueConfiguredGroupLoop
+
+                    hitRange.HighlightColorIndex = wdNoHighlight
+                    With hitRange.Shading
+                        .Texture = wdTextureNone
+                        .ForegroundPatternColor = wdColorAutomatic
+                        .BackgroundPatternColor = configuredColor
+                    End With
+                    mp_AddRegexBookmark sourceRange.Document, hitRange, bookmarkCount
+                    mp_HighlightMatchesInRange = mp_HighlightMatchesInRange + 1
+                    highlightedByConfiguredGroups = True
+                End If
+
+ContinueConfiguredGroupLoop:
+            Next configuredGroupIndex
+
+            If highlightedByConfiguredGroups Then GoTo ContinueMatchLoop
+        End If
 
         If Not mp_TryResolveHighlightSegment(matchText, highlightGroupIndex, segmentOffset, segmentLength) Then GoTo ContinueMatchLoop
 
@@ -401,17 +464,52 @@ Private Function mp_TryResolveRegexFilePath(ByVal doc As Document, ByRef regexFi
     mp_TryResolveRegexFilePath = True
 End Function
 
-Private Function mp_TryReadRegexConfigFromFile(ByVal regexFilePath As String, ByRef pattern As String, ByRef fillColor As Long, ByRef errorText As String) As Boolean
+Private Function mp_TryBuildGroupColorIndexMap(ByVal groupColorByName As Object, ByVal namedGroupIndexes As Object, ByRef groupColorByIndex As Object, ByRef errorText As String) As Boolean
+    Set groupColorByIndex = mp_CreateTextCompareDictionary()
+
+    If groupColorByName Is Nothing Then
+        mp_TryBuildGroupColorIndexMap = True
+        Exit Function
+    End If
+
+    If groupColorByName.Count = 0 Then
+        mp_TryBuildGroupColorIndexMap = True
+        Exit Function
+    End If
+
+    If namedGroupIndexes Is Nothing Or namedGroupIndexes.Count = 0 Then
+        errorText = "В конфиге есть group_color.<имя>, но в regex нет именованных групп."
+        Exit Function
+    End If
+
+    Dim groupName As Variant
+    Dim captureIndex As Long
+
+    For Each groupName In groupColorByName.Keys
+        If Not namedGroupIndexes.Exists(CStr(groupName)) Then
+            errorText = "Для group_color." & CStr(groupName) & " не найдена именованная группа в regex."
+            Exit Function
+        End If
+
+        captureIndex = CLng(namedGroupIndexes(CStr(groupName)))
+        groupColorByIndex(CStr(captureIndex)) = CLng(groupColorByName(groupName))
+    Next groupName
+
+    mp_TryBuildGroupColorIndexMap = True
+End Function
+
+Private Function mp_TryReadRegexConfigFromFile(ByVal regexFilePath As String, ByRef pattern As String, ByRef fillColor As Long, ByRef groupColorByName As Object, ByRef errorText As String) As Boolean
     Dim fullText As String
     fillColor = MP_REGEX_DEFAULT_FILL_COLOR
+    Set groupColorByName = mp_CreateTextCompareDictionary()
 
     If mp_TryReadFileTextUtf8(regexFilePath, fullText) Then
-        mp_TryReadRegexConfigFromFile = mp_TryParseRegexConfigText(fullText, pattern, fillColor, errorText)
+        mp_TryReadRegexConfigFromFile = mp_TryParseRegexConfigText(fullText, pattern, fillColor, groupColorByName, errorText)
         Exit Function
     End If
 
     If mp_TryReadFileTextAnsi(regexFilePath, fullText, errorText) Then
-        mp_TryReadRegexConfigFromFile = mp_TryParseRegexConfigText(fullText, pattern, fillColor, errorText)
+        mp_TryReadRegexConfigFromFile = mp_TryParseRegexConfigText(fullText, pattern, fillColor, groupColorByName, errorText)
     End If
 End Function
 
@@ -462,8 +560,9 @@ AnsiReadFailed:
     errorText = "Не удалось прочитать файл regex """ & filePath & """: " & Err.Description
 End Function
 
-Private Function mp_TryParseRegexConfigText(ByVal textValue As String, ByRef pattern As String, ByRef fillColor As Long, ByRef errorText As String) As Boolean
+Private Function mp_TryParseRegexConfigText(ByVal textValue As String, ByRef pattern As String, ByRef fillColor As Long, ByRef groupColorByName As Object, ByRef errorText As String) As Boolean
     pattern = vbNullString
+    Set groupColorByName = mp_CreateTextCompareDictionary()
 
     Dim normalizedText As String
     normalizedText = Replace(textValue, vbCrLf, vbLf)
@@ -477,6 +576,8 @@ Private Function mp_TryParseRegexConfigText(ByVal textValue As String, ByRef pat
     Dim separatorPos As Long
     Dim keyText As String
     Dim valueText As String
+    Dim groupName As String
+    Dim groupColor As Long
 
     For i = LBound(lines) To UBound(lines)
         lineText = Trim$(lines(i))
@@ -504,6 +605,21 @@ Private Function mp_TryParseRegexConfigText(ByVal textValue As String, ByRef pat
                 End If
 
             Case Else
+                If Left$(keyText, 12) = "group_color." Then
+                    groupName = Trim$(Mid$(keyText, 13))
+                    If Len(groupName) = 0 Then
+                        errorText = "Ошибка в строке " & (i + 1) & ": пустое имя группы в group_color.<имя>."
+                        Exit Function
+                    End If
+
+                    If Not mp_TryParseColorHex(valueText, groupColor, errorText) Then
+                        errorText = "Ошибка в строке " & (i + 1) & ": " & errorText
+                        Exit Function
+                    End If
+
+                    groupColorByName(groupName) = groupColor
+                End If
+
                 ' Неизвестные ключи игнорируются для удобного расширения конфига.
         End Select
 
