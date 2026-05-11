@@ -266,6 +266,7 @@ Private Function mp_HighlightMatchesInRange(ByVal sourceRange As Range, ByVal re
     Dim segmentLength As Long
 
     For i = 0 To matches.Count - 1
+        On Error GoTo MatchFailed
         Set matchText = matches(i)
 
         If Not mp_TryResolveHighlightSegment(matchText, highlightGroupIndex, segmentOffset, segmentLength) Then GoTo ContinueMatchLoop
@@ -286,9 +287,14 @@ Private Function mp_HighlightMatchesInRange(ByVal sourceRange As Range, ByVal re
         End If
 
 ContinueMatchLoop:
+        On Error GoTo HighlightRangeFailed
     Next i
 
     Exit Function
+
+MatchFailed:
+    Err.Clear
+    Resume ContinueMatchLoop
 
 HighlightRangeFailed:
     Err.Clear
