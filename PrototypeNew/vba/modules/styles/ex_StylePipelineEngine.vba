@@ -816,7 +816,7 @@ Private Function private_ApplyRangeDeclarations( _
     End If
 
     If declarations.Exists("backcolor") Then
-        If Not private_TryParseColor(VBA.CStr(declarations("backcolor")), colorValue) Then
+        If Not ex_HelpersCSS.fn_TryParseColor(VBA.CStr(declarations("backcolor")), colorValue) Then
 #If LOGGING_DEBUG_ENABLED Then
             ex_Core.fn_Diagnostic_LogError "PrototypeNew: invalid backColor in " & contextName & "."
 #End If
@@ -826,7 +826,7 @@ Private Function private_ApplyRangeDeclarations( _
     End If
 
     If declarations.Exists("fontcolor") Then
-        If Not private_TryParseColor(VBA.CStr(declarations("fontcolor")), colorValue) Then
+        If Not ex_HelpersCSS.fn_TryParseColor(VBA.CStr(declarations("fontcolor")), colorValue) Then
 #If LOGGING_DEBUG_ENABLED Then
             ex_Core.fn_Diagnostic_LogError "PrototypeNew: invalid fontColor in " & contextName & "."
 #End If
@@ -836,7 +836,7 @@ Private Function private_ApplyRangeDeclarations( _
     End If
 
     If declarations.Exists("bordercolor") Then
-        If Not private_TryParseColor(VBA.CStr(declarations("bordercolor")), colorValue) Then
+        If Not ex_HelpersCSS.fn_TryParseColor(VBA.CStr(declarations("bordercolor")), colorValue) Then
 #If LOGGING_DEBUG_ENABLED Then
             ex_Core.fn_Diagnostic_LogError "PrototypeNew: invalid borderColor in " & contextName & "."
 #End If
@@ -847,7 +847,7 @@ Private Function private_ApplyRangeDeclarations( _
     End If
 
     If declarations.Exists("borderweight") Then
-        If Not private_TryParseCellBorderWeight(VBA.CStr(declarations("borderweight")), borderWeightValue) Then
+        If Not ex_HelpersCSS.fn_TryParseCellBorderWeight(VBA.CStr(declarations("borderweight")), borderWeightValue) Then
 #If LOGGING_DEBUG_ENABLED Then
             ex_Core.fn_Diagnostic_LogError "PrototypeNew: invalid borderWeight in " & contextName & "."
 #End If
@@ -862,7 +862,7 @@ Private Function private_ApplyRangeDeclarations( _
     End If
 
     If declarations.Exists("fontsize") Then
-        If Not private_TryParsePositiveDouble(VBA.CStr(declarations("fontsize")), sizeValue) Then
+        If Not ex_HelpersCSS.fn_TryParsePositiveDouble(VBA.CStr(declarations("fontsize")), sizeValue) Then
 #If LOGGING_DEBUG_ENABLED Then
             ex_Core.fn_Diagnostic_LogError "PrototypeNew: invalid fontSize in " & contextName & "."
 #End If
@@ -921,7 +921,7 @@ Private Function private_ApplyRangeDeclarations( _
     End If
 
     If declarations.Exists("width") Then
-        If Not private_TryParsePositiveDouble(VBA.CStr(declarations("width")), sizeValue) Then
+        If Not ex_HelpersCSS.fn_TryParsePositiveDouble(VBA.CStr(declarations("width")), sizeValue) Then
 #If LOGGING_DEBUG_ENABLED Then
             ex_Core.fn_Diagnostic_LogError "PrototypeNew: invalid width in " & contextName & "."
 #End If
@@ -937,7 +937,7 @@ Private Function private_ApplyRangeDeclarations( _
     End If
 
     If declarations.Exists("rowheight") Then
-        If Not private_TryParsePositiveDouble(VBA.CStr(declarations("rowheight")), sizeValue) Then
+        If Not ex_HelpersCSS.fn_TryParsePositiveDouble(VBA.CStr(declarations("rowheight")), sizeValue) Then
 #If LOGGING_DEBUG_ENABLED Then
             ex_Core.fn_Diagnostic_LogError "PrototypeNew: invalid rowHeight in " & contextName & "."
 #End If
@@ -962,7 +962,7 @@ Private Function private_ApplyShapeStyle(ByVal shp As Shape, ByVal declarations 
     End If
 
     If declarations.Exists("backcolor") Then
-        If Not private_TryParseColor(VBA.CStr(declarations("backcolor")), colorValue) Then
+        If Not ex_HelpersCSS.fn_TryParseColor(VBA.CStr(declarations("backcolor")), colorValue) Then
 #If LOGGING_DEBUG_ENABLED Then
             ex_Core.fn_Diagnostic_LogError "PrototypeNew: invalid backColor in style '" & styleName & "'."
 #End If
@@ -973,7 +973,7 @@ Private Function private_ApplyShapeStyle(ByVal shp As Shape, ByVal declarations 
     End If
 
     If declarations.Exists("fontcolor") Then
-        If Not private_TryParseColor(VBA.CStr(declarations("fontcolor")), colorValue) Then
+        If Not ex_HelpersCSS.fn_TryParseColor(VBA.CStr(declarations("fontcolor")), colorValue) Then
 #If LOGGING_DEBUG_ENABLED Then
             ex_Core.fn_Diagnostic_LogError "PrototypeNew: invalid fontColor in style '" & styleName & "'."
 #End If
@@ -986,7 +986,7 @@ Private Function private_ApplyShapeStyle(ByVal shp As Shape, ByVal declarations 
     End If
 
     If declarations.Exists("bordercolor") Then
-        If Not private_TryParseColor(VBA.CStr(declarations("bordercolor")), colorValue) Then
+        If Not ex_HelpersCSS.fn_TryParseColor(VBA.CStr(declarations("bordercolor")), colorValue) Then
 #If LOGGING_DEBUG_ENABLED Then
             ex_Core.fn_Diagnostic_LogError "PrototypeNew: invalid borderColor in style '" & styleName & "'."
 #End If
@@ -997,7 +997,7 @@ Private Function private_ApplyShapeStyle(ByVal shp As Shape, ByVal declarations 
     End If
 
     If declarations.Exists("borderweight") Then
-        If Not private_TryParseShapeBorderWeight(VBA.CStr(declarations("borderweight")), sizeValue) Then
+        If Not ex_HelpersCSS.fn_TryParseShapeBorderWeight(VBA.CStr(declarations("borderweight")), sizeValue) Then
 #If LOGGING_DEBUG_ENABLED Then
             ex_Core.fn_Diagnostic_LogError "PrototypeNew: invalid borderWeight in style '" & styleName & "'."
 #End If
@@ -1014,7 +1014,7 @@ Private Function private_ApplyShapeStyle(ByVal shp As Shape, ByVal declarations 
     End If
 
     If declarations.Exists("fontsize") Then
-        If Not private_TryParsePositiveDouble(VBA.CStr(declarations("fontsize")), sizeValue) Then
+        If Not ex_HelpersCSS.fn_TryParsePositiveDouble(VBA.CStr(declarations("fontsize")), sizeValue) Then
 #If LOGGING_DEBUG_ENABLED Then
             ex_Core.fn_Diagnostic_LogError "PrototypeNew: invalid fontSize in style '" & styleName & "'."
 #End If
@@ -1094,34 +1094,6 @@ Private Function private_TryReadNodeEnabled( _
 End Function
 
 
-Private Function private_TryParsePositiveDouble(ByVal valueText As String, ByRef outValue As Double) As Boolean
-    Dim normalized As String
-    Dim decimalSep As String
-
-    valueText = VBA.Trim$(valueText)
-    If VBA.Len(valueText) = 0 Then Exit Function
-
-    If VBA.IsNumeric(valueText) Then
-        outValue = VBA.CDbl(valueText)
-        If outValue <= 0# Then Exit Function
-        private_TryParsePositiveDouble = True
-        Exit Function
-    End If
-
-    ' Locale-safe parse for values like "0.75" on systems with decimal separator ",".
-    decimalSep = Application.DecimalSeparator
-    If VBA.Len(decimalSep) = 0 Then decimalSep = "."
-
-    normalized = VBA.Replace$(valueText, ".", decimalSep)
-    normalized = VBA.Replace$(normalized, ",", decimalSep)
-
-    If Not VBA.IsNumeric(normalized) Then Exit Function
-    outValue = VBA.CDbl(normalized)
-    If outValue <= 0# Then Exit Function
-    private_TryParsePositiveDouble = True
-End Function
-
-
 Private Function private_TryParseBoolean(ByVal valueText As String, ByRef outValue As Boolean) As Boolean
     valueText = VBA.LCase$(VBA.Trim$(valueText))
 
@@ -1133,105 +1105,6 @@ Private Function private_TryParseBoolean(ByVal valueText As String, ByRef outVal
             outValue = False
             private_TryParseBoolean = True
     End Select
-End Function
-
-
-Private Function private_TryParseColor(ByVal valueText As String, ByRef outColor As Long) As Boolean
-    Dim r As Long
-    Dim g As Long
-    Dim b As Long
-
-    valueText = VBA.Trim$(valueText)
-    If VBA.Len(valueText) = 0 Then Exit Function
-
-    If VBA.Left$(valueText, 1) = "#" Then
-        If VBA.Len(valueText) <> 7 Then Exit Function
-        If Not private_IsHexPair(VBA.Mid$(valueText, 2, 2)) Then Exit Function
-        If Not private_IsHexPair(VBA.Mid$(valueText, 4, 2)) Then Exit Function
-        If Not private_IsHexPair(VBA.Mid$(valueText, 6, 2)) Then Exit Function
-
-        r = VBA.CLng("&H" & VBA.Mid$(valueText, 2, 2))
-        g = VBA.CLng("&H" & VBA.Mid$(valueText, 4, 2))
-        b = VBA.CLng("&H" & VBA.Mid$(valueText, 6, 2))
-        outColor = VBA.RGB(r, g, b)
-        private_TryParseColor = True
-        Exit Function
-    End If
-
-    If VBA.IsNumeric(valueText) Then
-        outColor = VBA.CLng(valueText)
-        private_TryParseColor = True
-    End If
-End Function
-
-
-Private Function private_IsHexPair(ByVal pairText As String) As Boolean
-    Dim value As Long
-
-    On Error GoTo EH
-    If VBA.Len(pairText) <> 2 Then Exit Function
-    value = VBA.CLng("&H" & pairText)
-    If value < 0 Or value > 255 Then Exit Function
-    private_IsHexPair = True
-    Exit Function
-EH:
-    private_IsHexPair = False
-End Function
-
-
-Private Function private_TryParseShapeBorderWeight(ByVal valueText As String, ByRef outValue As Double) As Boolean
-    valueText = VBA.LCase$(VBA.Trim$(valueText))
-
-    Select Case valueText
-        Case "hairline"
-            outValue = 0.25
-            private_TryParseShapeBorderWeight = True
-            Exit Function
-        Case "thin"
-            outValue = 0.75
-            private_TryParseShapeBorderWeight = True
-            Exit Function
-        Case "medium"
-            outValue = 1.5
-            private_TryParseShapeBorderWeight = True
-            Exit Function
-        Case "thick"
-            outValue = 2.25
-            private_TryParseShapeBorderWeight = True
-            Exit Function
-    End Select
-
-    private_TryParseShapeBorderWeight = private_TryParsePositiveDouble(valueText, outValue)
-End Function
-
-
-Private Function private_TryParseCellBorderWeight(ByVal valueText As String, ByRef outValue As Variant) As Boolean
-    Dim numericValue As Double
-
-    valueText = VBA.LCase$(VBA.Trim$(valueText))
-
-    Select Case valueText
-        Case "hairline"
-            outValue = xlHairline
-            private_TryParseCellBorderWeight = True
-            Exit Function
-        Case "thin"
-            outValue = xlThin
-            private_TryParseCellBorderWeight = True
-            Exit Function
-        Case "medium"
-            outValue = xlMedium
-            private_TryParseCellBorderWeight = True
-            Exit Function
-        Case "thick"
-            outValue = xlThick
-            private_TryParseCellBorderWeight = True
-            Exit Function
-    End Select
-
-    If Not private_TryParsePositiveDouble(valueText, numericValue) Then Exit Function
-    outValue = numericValue
-    private_TryParseCellBorderWeight = True
 End Function
 
 
