@@ -38,6 +38,7 @@ Public Function fn_Render( _
     Dim wb As Workbook
     Dim ws As Worksheet
     Dim layoutControlName As String
+    Dim debugStyle As String
     Dim controlType As String
     Dim typeRoot As String
     Dim controlUiRelPath As String
@@ -128,7 +129,10 @@ Public Function fn_Render( _
         rowEnd, _
         colEnd
 
-    ex_LayoutDebugBoundsRndr.fn_RegisterDebugBounds ws, rowStart, colStart, rowEnd, colEnd, "control", layoutControlName
+    debugStyle = VBA.Trim$(ex_XmlCore.fn_NodeAttrText(layoutNode, "debugStyle"))
+    If VBA.Len(debugStyle) > 0 Then
+        ex_LayoutDebugBoundsRndr.fn_RegisterDebugBounds ws, rowStart, colStart, rowEnd, colEnd, "control", layoutControlName, debugStyle
+    End If
 
     ' Передаем итоговый runtime-узел в VM и запускаем render контрола.
     ' На этом шаге VM читает dataContext/objectSource/itemsSource и запускает resolve через RuntimeSourceResolver.
