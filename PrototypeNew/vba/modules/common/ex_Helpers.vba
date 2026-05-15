@@ -151,6 +151,39 @@ Public Function fn_TextStartsWith(ByVal sourceText As String, ByVal prefixText A
     fn_TextStartsWith = (VBA.StrComp(VBA.Left$(sourceText, VBA.Len(prefixText)), prefixText, VBA.vbBinaryCompare) = 0)
 End Function
 
+
+Public Sub fn_QuickSortLongArray(ByRef values() As Long, ByVal leftIndex As Long, ByVal rightIndex As Long)
+    Dim i As Long
+    Dim j As Long
+    Dim pivotValue As Long
+    Dim tempValue As Long
+
+    i = leftIndex
+    j = rightIndex
+    pivotValue = values((leftIndex + rightIndex) \ 2)
+
+    Do While i <= j
+        Do While values(i) < pivotValue
+            i = i + 1
+        Loop
+
+        Do While values(j) > pivotValue
+            j = j - 1
+        Loop
+
+        If i <= j Then
+            tempValue = values(i)
+            values(i) = values(j)
+            values(j) = tempValue
+            i = i + 1
+            j = j - 1
+        End If
+    Loop
+
+    If leftIndex < j Then fn_QuickSortLongArray values, leftIndex, j
+    If i < rightIndex Then fn_QuickSortLongArray values, i, rightIndex
+End Sub
+
 ' //
 ' // Internal
 ' //

@@ -9,19 +9,28 @@ Private Const SHEET_SCOPE_MIN_ROW As Long = 100
 Private Const SHEET_SCOPE_EXPAND_STEP As Long = 30
 ' Формат записи: Array(sheetName, rowStart, colStart, rowEnd, colEnd, tag, name, tagDepth)
 Private m_LayoutBounds As Collection
+' Состояние отложенного AutoFit по строкам на время применения одного style stage.
+Private m_DeferredRowAutoFitState As Object
+Private m_IsCollectingDeferredRowAutoFit As Boolean
 
 Public Sub fn_Module_Dispose()
 #If LOGGING_VERBOSE_ENABLED Then
     ex_Core.fn_Diagnostic_LogInfo "lifecycle:ex_StylePipelineEngine.fn_Module_Dispose"
 #End If
     Set m_LayoutBounds = Nothing
+    Set m_DeferredRowAutoFitState = Nothing
+    m_IsCollectingDeferredRowAutoFit = False
 End Sub
+
 ' //
 ' // API
 ' //
 Public Function fn_ApplyPageStyles(ByVal ws As Worksheet, ByVal wsUiDoc As Object) As Boolean
     Dim stylesByName As Object
 
+    ' Базовый полный проход:
+    ' 1) применяем controlStyle к shape-контролам
+    ' 2) применяем pipeline stage "default" к диапазонам
     If ws Is Nothing Then
 #If LOGGING_DEBUG_ENABLED Then
         ex_Core.fn_Diagnostic_LogError "PrototypeNew: worksheet is not specified for style pass."
@@ -50,6 +59,7 @@ Public Function fn_ApplyPageStyleStage( _
     ByVal wsUiDoc As Object, _
     ByVal stageName As String _
 ) As Boolean
+    ' Точечный запуск конкретного stage (например для переиспользуемых этапов).
     If ws Is Nothing Then
 #If LOGGING_DEBUG_ENABLED Then
         ex_Core.fn_Diagnostic_LogError "PrototypeNew: worksheet is not specified for stage style pass."
@@ -91,6 +101,7 @@ Public Sub fn_RegisterLayoutBound( _
     Optional ByVal nodeName As String = "", _
     Optional ByVal tagDepth As Long = -1 _
 )
+    ' Регистрируем layout bounds узлов для последующего таргетинга в layoutBound-правилах.
     If ws Is Nothing Then Exit Sub
     If rowStart <= 0 Or colStart <= 0 Then Exit Sub
     If rowEnd < rowStart Or colEnd < colStart Then Exit Sub
@@ -121,6 +132,7 @@ Private Function private_ApplyControlStyles(ByVal ws As Worksheet, ByVal stylesB
     If ws Is Nothing Then Exit Function
     If stylesByName Is Nothing Then Exit Function
 
+    ' Shape-ветка: применяем только стили к shape-контролам, отмеченным meta pn.control/pn.style.
     For Each shp In ws.Shapes
         If Not private_IsControlShape(shp) Then GoTo ContinueShape
 
@@ -177,6 +189,8 @@ Private Function private_ApplyPipelineStageByName( _
         Exit Function
     End If
 
+    ' Один stage может содержать много слоев/правил.
+    ' Внутри stage собираем row AutoFit и применяем его одним финальным проходом.
     For Each stageNode In stageNodes
         If stageNode.NodeType <> 1 Then GoTo ContinueStage
 
@@ -200,7 +214,16 @@ Private Function private_ApplyPipelineStageByName( _
         If Not private_TryReadNodeEnabled(stageNode, True, stageEnabled) Then Exit Function
         If Not stageEnabled Then GoTo ContinueStage
 
-        If Not private_ApplyStageLayers(ws, stageNode) Then Exit Function
+        private_BeginDeferredRowAutoFit
+        If Not private_ApplyStageLayers(ws, stageNode) Then
+            private_EndDeferredRowAutoFit
+            Exit Function
+        End If
+        If Not private_ApplyDeferredRowAutoFit(ws) Then
+            private_EndDeferredRowAutoFit
+            Exit Function
+        End If
+        private_EndDeferredRowAutoFit
 
 ContinueStage:
     Next stageNode
@@ -276,6 +299,8 @@ Private Function private_ApplySingleRule(ByVal ws As Worksheet, ByVal ruleNode A
     If ws Is Nothing Then Exit Function
     If ruleNode Is Nothing Then Exit Function
 
+    ' Rule-пайплайн:
+    ' target -> selector -> scope -> declarations -> apply
     ruleTarget = VBA.LCase$(VBA.Trim$(ex_XmlCore.fn_NodeAttrText(ruleNode, "target")))
     If VBA.Len(ruleTarget) = 0 Then
 #If LOGGING_DEBUG_ENABLED Then
@@ -674,6 +699,7 @@ Private Function private_ReadStyleDeclarations(ByVal styleNode As Object) As Obj
     Set declarations = CreateObject("Scripting.Dictionary")
     declarations.CompareMode = 1
 
+    ' Собираем декларации как из явных XML-атрибутов, так и из inline styles="{...}".
     private_TrySetDeclaration declarations, "backColor", ex_XmlCore.fn_NodeAttrText(styleNode, "backColor")
     private_TrySetDeclaration declarations, "textColor", ex_XmlCore.fn_NodeAttrText(styleNode, "textColor")
     private_TrySetDeclaration declarations, "fontColor", ex_XmlCore.fn_NodeAttrText(styleNode, "fontColor")
@@ -688,6 +714,9 @@ Private Function private_ReadStyleDeclarations(ByVal styleNode As Object) As Obj
     private_TrySetDeclaration declarations, "vertical", ex_XmlCore.fn_NodeAttrText(styleNode, "vertical")
     private_TrySetDeclaration declarations, "overflow", ex_XmlCore.fn_NodeAttrText(styleNode, "overflow")
     private_TrySetDeclaration declarations, "width", ex_XmlCore.fn_NodeAttrText(styleNode, "width")
+    private_TrySetDeclaration declarations, "minWidth", ex_XmlCore.fn_NodeAttrText(styleNode, "minWidth")
+    private_TrySetDeclaration declarations, "maxWidth", ex_XmlCore.fn_NodeAttrText(styleNode, "maxWidth")
+    private_TrySetDeclaration declarations, "autoFitColumns", ex_XmlCore.fn_NodeAttrText(styleNode, "autoFitColumns")
     private_TrySetDeclaration declarations, "rowHeight", ex_XmlCore.fn_NodeAttrText(styleNode, "rowHeight")
 
     inlineStyles = ex_XmlCore.fn_NodeAttrText(styleNode, "styles")
@@ -778,7 +807,7 @@ End Function
 
 Private Function private_IsSupportedStyleKey(ByVal keyName As String) As Boolean
     Select Case VBA.LCase$(VBA.Trim$(keyName))
-        Case "backcolor", "fontcolor", "bordercolor", "borderweight", "borderlinestyle", "fontname", "fontsize", "fontbold", "fontitalic", "horizontal", "vertical", "overflow", "width", "rowheight"
+        Case "backcolor", "fontcolor", "bordercolor", "borderweight", "borderlinestyle", "fontname", "fontsize", "fontbold", "fontitalic", "horizontal", "vertical", "overflow", "width", "minwidth", "maxwidth", "autofitcolumns", "rowheight"
             private_IsSupportedStyleKey = True
     End Select
 End Function
@@ -796,6 +825,8 @@ Private Function private_TryReadRuleSelector(ByVal ruleNode As Object, ByRef out
     Set outSelector = CreateObject("Scripting.Dictionary")
     outSelector.CompareMode = 1
 
+    ' Selector парсится как key=value;key=value...
+    ' На этом этапе только валидация и нормализация ключей.
     selectorText = VBA.Trim$(ex_XmlCore.fn_NodeAttrText(ruleNode, "selector"))
     If VBA.Len(selectorText) = 0 Then
         private_TryReadRuleSelector = True
@@ -906,6 +937,7 @@ Private Function private_TryResolveControlPartTargetScope( _
         Exit Function
     End If
 
+    ' ControlPart scope приходит из runtime-реестра частей контролов.
     If Not ex_ControlPartsRuntime.fn_TryResolveControlPartScope( _
         ws, controlType, controlName, partName, outScope, outColumnScope) Then Exit Function
 
@@ -1133,6 +1165,12 @@ Private Function private_ApplyRangeDeclarations( _
     Dim vAlign As Long
     Dim borderWeightValue As Variant
     Dim scopeColumns As Range
+    Dim rowHeightValue As String
+    Dim minWidthValue As Double
+    Dim maxWidthValue As Double
+    Dim hasMinWidth As Boolean
+    Dim hasMaxWidth As Boolean
+    Dim autoFitColumnsEnabled As Boolean
 
     If targetRange Is Nothing Then Exit Function
     If declarations Is Nothing Then
@@ -1236,6 +1274,8 @@ Private Function private_ApplyRangeDeclarations( _
         targetRange.VerticalAlignment = vAlign
     End If
 
+    ' Важно: порядок деклараций здесь значим.
+    ' Например, width/overflow должны быть применены до rowHeight:auto, чтобы высота считалась по финальной ширине/переносу.
     If declarations.Exists("overflow") Then
         If Not private_ApplyOverflow(VBA.CStr(declarations("overflow")), targetRange) Then
 #If LOGGING_DEBUG_ENABLED Then
@@ -1261,14 +1301,88 @@ Private Function private_ApplyRangeDeclarations( _
         scopeColumns.ColumnWidth = sizeValue
     End If
 
-    If declarations.Exists("rowheight") Then
-        If Not ex_HelpersCSS.fn_TryParsePositiveDouble(VBA.CStr(declarations("rowheight")), sizeValue) Then
+    If declarations.Exists("minwidth") Then
+        If Not ex_HelpersCSS.fn_TryParsePositiveDouble(VBA.CStr(declarations("minwidth")), minWidthValue) Then
 #If LOGGING_DEBUG_ENABLED Then
-            ex_Core.fn_Diagnostic_LogError "PrototypeNew: invalid rowHeight in " & contextName & "."
+            ex_Core.fn_Diagnostic_LogError "PrototypeNew: invalid minWidth in " & contextName & "."
 #End If
             Exit Function
         End If
-        targetRange.EntireRow.RowHeight = sizeValue
+        hasMinWidth = True
+    End If
+
+    If declarations.Exists("maxwidth") Then
+        If Not ex_HelpersCSS.fn_TryParsePositiveDouble(VBA.CStr(declarations("maxwidth")), maxWidthValue) Then
+#If LOGGING_DEBUG_ENABLED Then
+            ex_Core.fn_Diagnostic_LogError "PrototypeNew: invalid maxWidth in " & contextName & "."
+#End If
+            Exit Function
+        End If
+        hasMaxWidth = True
+    End If
+
+    If hasMinWidth And hasMaxWidth Then
+        If maxWidthValue < minWidthValue Then
+#If LOGGING_DEBUG_ENABLED Then
+            ex_Core.fn_Diagnostic_LogError "PrototypeNew: invalid width clamp in " & contextName & " (maxWidth < minWidth)."
+#End If
+            Exit Function
+        End If
+    End If
+
+    If hasMinWidth Or hasMaxWidth Then
+        If columnScope Is Nothing Then
+            Set scopeColumns = targetRange.EntireColumn
+        Else
+            Set scopeColumns = columnScope
+        End If
+        private_ClampColumnWidths scopeColumns, hasMinWidth, minWidthValue, hasMaxWidth, maxWidthValue
+    End If
+
+    ' Авто-подбор ширины колонок выполняем сразу в пределах выбранного column scope.
+    If declarations.Exists("autofitcolumns") Then
+        If Not private_TryParseBoolean(VBA.CStr(declarations("autofitcolumns")), autoFitColumnsEnabled) Then
+#If LOGGING_DEBUG_ENABLED Then
+            ex_Core.fn_Diagnostic_LogError "PrototypeNew: invalid autoFitColumns in " & contextName & "."
+#End If
+            Exit Function
+        End If
+
+        If autoFitColumnsEnabled Then
+            If columnScope Is Nothing Then
+                Set scopeColumns = targetRange.EntireColumn
+            Else
+                Set scopeColumns = columnScope
+            End If
+            scopeColumns.EntireColumn.AutoFit
+        End If
+    End If
+
+    ' rowHeight:
+    ' - число: фиксированная высота
+    ' - auto/autofit: откладываем в state и применяем в конце stage единым проходом
+    If declarations.Exists("rowheight") Then
+        rowHeightValue = VBA.LCase$(VBA.Trim$(VBA.CStr(declarations("rowheight"))))
+
+        If VBA.StrComp(rowHeightValue, "auto", VBA.vbBinaryCompare) = 0 Or _
+           VBA.StrComp(rowHeightValue, "autofit", VBA.vbBinaryCompare) = 0 Then
+            If m_IsCollectingDeferredRowAutoFit Then
+                private_RecordDeferredRowAutoFit targetRange, True
+            Else
+                targetRange.EntireRow.AutoFit
+            End If
+        Else
+            If Not ex_HelpersCSS.fn_TryParsePositiveDouble(rowHeightValue, sizeValue) Then
+#If LOGGING_DEBUG_ENABLED Then
+                ex_Core.fn_Diagnostic_LogError "PrototypeNew: invalid rowHeight in " & contextName & "."
+#End If
+                Exit Function
+            End If
+            targetRange.EntireRow.RowHeight = sizeValue
+            If m_IsCollectingDeferredRowAutoFit Then
+                private_RecordDeferredRowAutoFit targetRange, False
+            End If
+        End If
     End If
 
     private_ApplyRangeDeclarations = True
@@ -1487,6 +1601,156 @@ Private Function private_ApplyOverflow(ByVal valueText As String, ByVal targetRa
 End Function
 
 
+Private Sub private_ClampColumnWidths( _
+    ByVal columnRange As Range, _
+    ByVal hasMinWidth As Boolean, _
+    ByVal minWidthValue As Double, _
+    ByVal hasMaxWidth As Boolean, _
+    ByVal maxWidthValue As Double _
+)
+    ' Ограничиваем каждую колонку min/max границами после базовых width/autoFit операций.
+    Dim areaRange As Range
+    Dim singleColumn As Range
+    Dim currentWidth As Double
+
+    If columnRange Is Nothing Then Exit Sub
+    If Not hasMinWidth And Not hasMaxWidth Then Exit Sub
+
+    For Each areaRange In columnRange.EntireColumn.Areas
+        For Each singleColumn In areaRange.Columns
+            currentWidth = singleColumn.ColumnWidth
+
+            If hasMinWidth Then
+                If currentWidth < minWidthValue Then
+                    singleColumn.ColumnWidth = minWidthValue
+                    currentWidth = minWidthValue
+                End If
+            End If
+
+            If hasMaxWidth Then
+                If currentWidth > maxWidthValue Then
+                    singleColumn.ColumnWidth = maxWidthValue
+                End If
+            End If
+        Next singleColumn
+    Next areaRange
+End Sub
+
+
+Private Sub private_BeginDeferredRowAutoFit()
+    ' Начало stage-коллекции строк для отложенного AutoFit.
+    Set m_DeferredRowAutoFitState = CreateObject("Scripting.Dictionary")
+    m_DeferredRowAutoFitState.CompareMode = 1
+    m_IsCollectingDeferredRowAutoFit = True
+End Sub
+
+
+Private Sub private_EndDeferredRowAutoFit()
+    ' Завершаем stage и сбрасываем временное состояние.
+    m_IsCollectingDeferredRowAutoFit = False
+    Set m_DeferredRowAutoFitState = Nothing
+End Sub
+
+
+Private Sub private_RecordDeferredRowAutoFit(ByVal targetRange As Range, ByVal enabled As Boolean)
+    Dim rowArea As Range
+    Dim rowStart As Long
+    Dim rowEnd As Long
+    Dim rowIndex As Long
+    Dim rowKey As String
+
+    If targetRange Is Nothing Then Exit Sub
+    If Not m_IsCollectingDeferredRowAutoFit Then Exit Sub
+
+    If m_DeferredRowAutoFitState Is Nothing Then
+        private_BeginDeferredRowAutoFit
+    End If
+
+    ' Флаг записывается на уровень строки.
+    ' Последнее правило для строки побеждает (enabled True/False).
+    For Each rowArea In targetRange.EntireRow.Areas
+        rowStart = rowArea.Row
+        rowEnd = rowStart + rowArea.Rows.Count - 1
+        For rowIndex = rowStart To rowEnd
+            rowKey = CStr(rowIndex)
+            m_DeferredRowAutoFitState(rowKey) = enabled
+        Next rowIndex
+    Next rowArea
+End Sub
+
+
+Private Function private_ApplyDeferredRowAutoFit(ByVal ws As Worksheet) As Boolean
+    Dim rowKey As Variant
+    Dim enabledRows() As Long
+    Dim enabledCount As Long
+    Dim rowIndex As Long
+    Dim runStart As Long
+    Dim runEnd As Long
+    Dim i As Long
+
+    If ws Is Nothing Then Exit Function
+    If m_DeferredRowAutoFitState Is Nothing Then
+        private_ApplyDeferredRowAutoFit = True
+        Exit Function
+    End If
+    If m_DeferredRowAutoFitState.Count = 0 Then
+        private_ApplyDeferredRowAutoFit = True
+        Exit Function
+    End If
+
+    ' Собираем только включенные строки, сортируем и применяем AutoFit по contiguous-спанам.
+    ReDim enabledRows(1 To m_DeferredRowAutoFitState.Count)
+    For Each rowKey In m_DeferredRowAutoFitState.Keys
+        If CBool(m_DeferredRowAutoFitState(CStr(rowKey))) Then
+            rowIndex = CLng(rowKey)
+            If rowIndex > 0 And rowIndex <= ws.Rows.Count Then
+                enabledCount = enabledCount + 1
+                enabledRows(enabledCount) = rowIndex
+            End If
+        End If
+    Next rowKey
+
+    If enabledCount <= 0 Then
+        private_ApplyDeferredRowAutoFit = True
+        Exit Function
+    End If
+
+    ReDim Preserve enabledRows(1 To enabledCount)
+    ex_Helpers.fn_QuickSortLongArray enabledRows, 1, enabledCount
+
+    runStart = enabledRows(1)
+    runEnd = runStart
+
+    For i = 2 To enabledCount
+        rowIndex = enabledRows(i)
+        If rowIndex = runEnd + 1 Then
+            runEnd = rowIndex
+        Else
+            private_ApplyAutoFitRowSpan ws, runStart, runEnd
+            runStart = rowIndex
+            runEnd = rowIndex
+        End If
+    Next i
+
+    private_ApplyAutoFitRowSpan ws, runStart, runEnd
+    private_ApplyDeferredRowAutoFit = True
+End Function
+
+
+Private Sub private_ApplyAutoFitRowSpan(ByVal ws As Worksheet, ByVal rowStart As Long, ByVal rowEnd As Long)
+    ' Применяем AutoFit пакетно по диапазону строк (быстрее, чем по одной строке).
+    If ws Is Nothing Then Exit Sub
+    If rowStart <= 0 Then Exit Sub
+    If rowEnd < rowStart Then Exit Sub
+    If rowStart > ws.Rows.Count Then Exit Sub
+    If rowEnd > ws.Rows.Count Then rowEnd = ws.Rows.Count
+
+    On Error Resume Next
+    ws.Rows(CStr(rowStart) & ":" & CStr(rowEnd)).AutoFit
+    On Error GoTo 0
+End Sub
+
+
 Private Function private_GetLastUsedRow(ByVal ws As Worksheet) As Long
     Dim lastCell As Range
 
@@ -1556,7 +1820,7 @@ Private Function private_GetExpandedSheetScopeRange(ByVal ws As Worksheet) As Ra
     usedLastRow = usedScope.Row + usedScope.Rows.Count - 1
     usedLastCol = usedScope.Column + usedScope.Columns.Count - 1
 
-    ' Основной режим: размер sheet-scope привязан к layout/grid (по фактическим bounds контролов) + запас.
+    ' Основной режим: scope отталкивается от фактических bounds контролов + небольшой запас.
     hasControlsBounds = ex_ControlRefreshRuntime.fn_TryGetSheetMaxControlBounds(ws.Name, controlsLastRow, controlsLastCol)
     If hasControlsBounds Then
         endRow = controlsLastRow + SHEET_SCOPE_EXPAND_STEP
