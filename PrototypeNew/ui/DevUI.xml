@@ -190,6 +190,7 @@
                 borderWeight:thin;
                 width:8.625;
                 rowHeight:15.95;
+                cellType:text;
               }"/>
       </layer>
 

@@ -93,6 +93,7 @@ Public Function Initialize( _
     Optional ByVal pageId As String = VBA.vbNullString _
 ) As Boolean
     Dim normalizedPageId As String
+    Dim clearRange As Range
 
 #If LOGGING_VERBOSE_ENABLED Then
     ex_Core.fn_Diagnostic_LogInfo "lifecycle:" & VBA.TypeName(Me) & ".Initialize"
@@ -116,6 +117,15 @@ Public Function Initialize( _
     m_IsRendering = False
     Set m_PageRuntimeSources = New obj_PageRuntimeSources
     If Not m_PageRuntimeSources.Initialize(m_Page) Then Exit Function
+
+    ' Ранний дефолт: при инициализации страницы фиксируем текстовый формат текущего used-range.
+    ' Это защитный baseline; основной повтор формата выполняется в runtime-clear перед каждым Render.
+    On Error Resume Next
+    Set clearRange = m_Worksheet.UsedRange
+    If Not clearRange Is Nothing Then clearRange.NumberFormat = "@"
+    Set clearRange = Nothing
+    On Error GoTo 0
+
     Set m_InlineRunEntries = Nothing
     ' Реестр профилей стартует пустым и заполняется лениво по мере рендера.
     Set m_InlineProfileByPart = Nothing
@@ -1184,7 +1194,12 @@ Private Function private_TryClearPageRuntime(Optional ByVal deleteGeneratedShape
     ' Очищаем только runtime-артефакты (ячейки листа + shape с meta pn.control).
     On Error Resume Next
     Set clearRange = ws.UsedRange
-    If Not clearRange Is Nothing Then clearRange.Clear
+    If Not clearRange Is Nothing Then
+        clearRange.Clear
+        ' Формат по умолчанию назначаем рано, до рендера контролов,
+        ' чтобы Excel не автоконвертировал строки вида "01.05" в число.
+        clearRange.NumberFormat = "@"
+    End If
     On Error GoTo 0
 
     If deleteGeneratedShapes Then

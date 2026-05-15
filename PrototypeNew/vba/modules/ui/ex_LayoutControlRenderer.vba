@@ -37,6 +37,7 @@ Public Function fn_Render( _
 ) As Boolean
     Dim wb As Workbook
     Dim ws As Worksheet
+    Dim controlBoundsRange As Range
     Dim layoutControlName As String
     Dim controlType As String
     Dim typeRoot As String
@@ -129,6 +130,23 @@ Public Function fn_Render( _
         colEnd
 
     ex_StylePipelineEngine.fn_RegisterLayoutBound ws, rowStart, colStart, rowEnd, colEnd, "control", layoutControlName
+
+    ' Почему дублируем установку формата, хотя похожий baseline есть в PageBase:
+    ' 1) В PageBase формат ставится по UsedRange, а он не всегда покрывает текущие bounds
+    '    контрола (например, при первом рендере в новой области или после расширения span).
+    ' 2) Есть адресный refresh контрола (без полного page-render цикла), где нам нужна
+    '    локальная гарантия текстового формата именно на фактическом диапазоне контрола.
+    ' 3) Операция идемпотентна: повторная установка "@" на bounds безопасна и стабилизирует
+    '    поведение против авто-конвертации Excel (строки вида "01.05", коды, идентификаторы).
+    If rowStart > 0 And colStart > 0 And rowEnd >= rowStart And colEnd >= colStart Then
+        On Error Resume Next
+        Set controlBoundsRange = ws.Range(ws.Cells(rowStart, colStart), ws.Cells(rowEnd, colEnd))
+        If Not controlBoundsRange Is Nothing Then
+            controlBoundsRange.NumberFormat = "@"
+        End If
+        Set controlBoundsRange = Nothing
+        On Error GoTo 0
+    End If
 
     ' Передаем итоговый runtime-узел в VM и запускаем render контрола.
     ' На этом шаге VM читает dataContext/objectSource/itemsSource и запускает resolve через RuntimeSourceResolver.
