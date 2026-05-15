@@ -22,7 +22,7 @@ Public Function fn_Render( _
     ByVal rowEnd As Long, _
     ByVal colEnd As Long _
 ) As Boolean
-    Dim debugStyle As String
+    Dim stackDepth As Long
 
     If layoutNode Is Nothing Then
 #If LOGGING_DEBUG_ENABLED Then
@@ -38,10 +38,8 @@ Public Function fn_Render( _
     End If
 
     If Not renderCtx Is Nothing Then
-        debugStyle = VBA.Trim$(ex_XmlCore.fn_NodeAttrText(layoutNode, "debugStyle"))
-        If VBA.Len(debugStyle) > 0 Then
-            ex_LayoutDebugBoundsRndr.fn_RegisterDebugBounds renderCtx.Worksheet, rowStart, colStart, rowEnd, colEnd, "stackpanel", vbNullString, debugStyle
-        End If
+        stackDepth = private_GetStackPanelDepth(layoutNode)
+        ex_StylePipelineEngine.fn_RegisterLayoutBound renderCtx.Worksheet, rowStart, colStart, rowEnd, colEnd, "stackpanel", vbNullString, stackDepth
     End If
 
     fn_Render = ex_XmlLayoutEngine.fn_RenderContainerNodeInBounds( _
@@ -51,4 +49,29 @@ Public Function fn_Render( _
         layoutColStart:=colStart, _
         layoutRowEnd:=rowEnd, _
         layoutColEnd:=colEnd)
+End Function
+
+Private Function private_GetStackPanelDepth(ByVal stackPanelNode As Object) As Long
+    Dim currentNode As Object
+    Dim baseName As String
+
+    If stackPanelNode Is Nothing Then Exit Function
+
+    On Error Resume Next
+    Set currentNode = stackPanelNode.parentNode
+    On Error GoTo 0
+
+    Do While Not currentNode Is Nothing
+        On Error Resume Next
+        baseName = VBA.LCase$(VBA.Trim$(VBA.CStr(currentNode.baseName)))
+        On Error GoTo 0
+
+        If VBA.StrComp(baseName, "stackpanel", VBA.vbBinaryCompare) = 0 Then
+            private_GetStackPanelDepth = private_GetStackPanelDepth + 1
+        End If
+
+        On Error Resume Next
+        Set currentNode = currentNode.parentNode
+        On Error GoTo 0
+    Loop
 End Function

@@ -22,8 +22,6 @@ Public Function fn_Render( _
     ByVal rowEnd As Long, _
     ByVal colEnd As Long _
 ) As Boolean
-    Dim debugStyle As String
-
     If layoutNode Is Nothing Then
 #If LOGGING_DEBUG_ENABLED Then
         ex_Core.fn_Diagnostic_LogError "PrototypeNew: grid node is not specified."
@@ -38,10 +36,7 @@ Public Function fn_Render( _
     End If
 
     If Not renderCtx Is Nothing Then
-        debugStyle = VBA.Trim$(ex_XmlCore.fn_NodeAttrText(layoutNode, "debugStyle"))
-        If VBA.Len(debugStyle) > 0 Then
-            ex_LayoutDebugBoundsRndr.fn_RegisterDebugBounds renderCtx.Worksheet, rowStart, colStart, rowEnd, colEnd, "grid", vbNullString, debugStyle
-        End If
+        ex_StylePipelineEngine.fn_RegisterLayoutBound renderCtx.Worksheet, rowStart, colStart, rowEnd, colEnd, "grid"
     End If
 
     fn_Render = ex_XmlLayoutEngine.fn_RenderContainerNodeInBounds( _

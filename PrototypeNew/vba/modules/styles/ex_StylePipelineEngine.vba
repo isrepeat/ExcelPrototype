@@ -7,11 +7,14 @@ Private Const UI_NS As String = "urn:excelprototype:profiles"
 Private Const SHEET_SCOPE_MIN_COL As Long = 40
 Private Const SHEET_SCOPE_MIN_ROW As Long = 100
 Private Const SHEET_SCOPE_EXPAND_STEP As Long = 30
+' Формат записи: Array(sheetName, rowStart, colStart, rowEnd, colEnd, tag, name, tagDepth)
+Private m_LayoutBounds As Collection
 
 Public Sub fn_Module_Dispose()
 #If LOGGING_VERBOSE_ENABLED Then
     ex_Core.fn_Diagnostic_LogInfo "lifecycle:ex_StylePipelineEngine.fn_Module_Dispose"
 #End If
+    Set m_LayoutBounds = Nothing
 End Sub
 ' //
 ' // API
@@ -71,6 +74,41 @@ Public Function fn_ApplyPageStyleStage( _
     If Not private_ApplyPipelineStageByName(ws, wsUiDoc, stageName, True) Then Exit Function
     fn_ApplyPageStyleStage = True
 End Function
+
+
+Public Sub fn_ResetLayoutBounds()
+    Set m_LayoutBounds = Nothing
+End Sub
+
+
+Public Sub fn_RegisterLayoutBound( _
+    ByVal ws As Worksheet, _
+    ByVal rowStart As Long, _
+    ByVal colStart As Long, _
+    ByVal rowEnd As Long, _
+    ByVal colEnd As Long, _
+    Optional ByVal tagName As String = "", _
+    Optional ByVal nodeName As String = "", _
+    Optional ByVal tagDepth As Long = -1 _
+)
+    If ws Is Nothing Then Exit Sub
+    If rowStart <= 0 Or colStart <= 0 Then Exit Sub
+    If rowEnd < rowStart Or colEnd < colStart Then Exit Sub
+
+    If m_LayoutBounds Is Nothing Then
+        Set m_LayoutBounds = New Collection
+    End If
+
+    m_LayoutBounds.Add Array( _
+        ws.Name, _
+        CLng(rowStart), _
+        CLng(colStart), _
+        CLng(rowEnd), _
+        CLng(colEnd), _
+        VBA.LCase$(VBA.Trim$(tagName)), _
+        VBA.LCase$(VBA.Trim$(nodeName)), _
+        CLng(tagDepth))
+End Sub
 
 ' //
 ' // Internal
@@ -259,6 +297,11 @@ Private Function private_ApplySingleRule(ByVal ws As Worksheet, ByVal ruleNode A
     If declarations Is Nothing Then Exit Function
 
     Select Case ruleTarget
+        Case "layoutbound"
+            If Not private_ApplyLayoutBoundRule(ws, selector, declarations, "layoutBound rule") Then Exit Function
+            private_ApplySingleRule = True
+            Exit Function
+
         Case "row"
             If Not private_TryResolveRowTargetScope(ws, selector, scopeRange, columnScope) Then Exit Function
 
@@ -300,6 +343,287 @@ Private Function private_ApplySingleRule(ByVal ws As Worksheet, ByVal ruleNode A
     If Not private_ApplyRangeDeclarations(scopeRange, columnScope, declarations, ruleTarget) Then Exit Function
 
     private_ApplySingleRule = True
+End Function
+
+
+Private Function private_ApplyLayoutBoundRule( _
+    ByVal ws As Worksheet, _
+    ByVal selector As Object, _
+    ByVal declarations As Object, _
+    ByVal contextName As String _
+) As Boolean
+    Dim entry As Variant
+    Dim hasBorderColor As Boolean
+    Dim borderColor As Long
+    Dim hasBorderWeight As Boolean
+    Dim borderWeight As Variant
+    Dim hasBorderLineStyle As Boolean
+    Dim borderLineStyle As Variant
+    Dim hasAnyBorderStyle As Boolean
+
+    If ws Is Nothing Then
+#If LOGGING_DEBUG_ENABLED Then
+        ex_Core.fn_Diagnostic_LogError "PrototypeNew: worksheet is not specified for layoutBound style rule."
+#End If
+        Exit Function
+    End If
+
+    If declarations Is Nothing Then
+        private_ApplyLayoutBoundRule = True
+        Exit Function
+    End If
+
+    If Not private_TryReadLayoutBoundBorderDeclarations( _
+        declarations, contextName, _
+        hasAnyBorderStyle, _
+        hasBorderColor, borderColor, _
+        hasBorderWeight, borderWeight, _
+        hasBorderLineStyle, borderLineStyle) Then Exit Function
+
+    If Not hasAnyBorderStyle Then
+        private_ApplyLayoutBoundRule = True
+        Exit Function
+    End If
+
+    If m_LayoutBounds Is Nothing Then
+        private_ApplyLayoutBoundRule = True
+        Exit Function
+    End If
+
+    For Each entry In m_LayoutBounds
+        If VBA.StrComp(VBA.CStr(entry(0)), ws.Name, VBA.vbTextCompare) <> 0 Then GoTo ContinueEntry
+        If Not private_LayoutBoundEntryMatchesSelector(entry, selector) Then GoTo ContinueEntry
+
+        If Not private_PaintLayoutBoundFrame( _
+            ws:=ws, _
+            rowStart:=CLng(entry(1)), _
+            colStart:=CLng(entry(2)), _
+            rowEnd:=CLng(entry(3)), _
+            colEnd:=CLng(entry(4)), _
+            tagName:=VBA.CStr(entry(5)), _
+            hasBorderColor:=hasBorderColor, _
+            borderColor:=borderColor, _
+            hasBorderWeight:=hasBorderWeight, _
+            borderWeight:=borderWeight, _
+            hasBorderLineStyle:=hasBorderLineStyle, _
+            borderLineStyle:=borderLineStyle) Then Exit Function
+
+ContinueEntry:
+    Next entry
+
+    private_ApplyLayoutBoundRule = True
+End Function
+
+
+Private Function private_LayoutBoundEntryMatchesSelector(ByRef entry As Variant, ByVal selector As Object) As Boolean
+    Dim selectorTag As String
+    Dim selectorName As String
+    Dim selectorTagDepth As String
+    Dim depthMin As Long
+    Dim depthMax As Long
+    Dim nodeDepth As Long
+
+    If selector Is Nothing Then
+        private_LayoutBoundEntryMatchesSelector = True
+        Exit Function
+    End If
+
+    If selector.Exists("tag") Then
+        selectorTag = VBA.LCase$(VBA.Trim$(VBA.CStr(selector("tag"))))
+        If VBA.Len(selectorTag) = 0 Then Exit Function
+        If VBA.StrComp(selectorTag, VBA.CStr(entry(5)), VBA.vbBinaryCompare) <> 0 Then Exit Function
+    End If
+
+    If selector.Exists("name") Then
+        selectorName = VBA.LCase$(VBA.Trim$(VBA.CStr(selector("name"))))
+        If VBA.Len(selectorName) = 0 Then Exit Function
+        If VBA.StrComp(selectorName, VBA.CStr(entry(6)), VBA.vbBinaryCompare) <> 0 Then Exit Function
+    End If
+
+    If selector.Exists("tagdepth") Then
+        selectorTagDepth = VBA.Trim$(VBA.CStr(selector("tagdepth")))
+        If Not private_TryParseLayoutBoundDepthSpan(selectorTagDepth, depthMin, depthMax) Then Exit Function
+
+        nodeDepth = CLng(entry(7))
+        If nodeDepth < depthMin Or nodeDepth > depthMax Then Exit Function
+    End If
+
+    private_LayoutBoundEntryMatchesSelector = True
+End Function
+
+
+Private Function private_TryParseLayoutBoundDepthSpan( _
+    ByVal spanText As String, _
+    ByRef outStart As Long, _
+    ByRef outEnd As Long _
+) As Boolean
+    Dim normalized As String
+    Dim parts As Variant
+
+    normalized = VBA.Trim$(spanText)
+    If VBA.Len(normalized) = 0 Then Exit Function
+
+    If VBA.InStr(1, normalized, ":", VBA.vbBinaryCompare) > 0 Then
+        parts = VBA.Split(normalized, ":")
+        If UBound(parts) <> 1 Then Exit Function
+        If Not VBA.IsNumeric(VBA.Trim$(VBA.CStr(parts(0)))) Then Exit Function
+        If Not VBA.IsNumeric(VBA.Trim$(VBA.CStr(parts(1)))) Then Exit Function
+
+        outStart = VBA.CLng(VBA.Trim$(VBA.CStr(parts(0))))
+        outEnd = VBA.CLng(VBA.Trim$(VBA.CStr(parts(1))))
+    Else
+        If Not VBA.IsNumeric(normalized) Then Exit Function
+        outStart = VBA.CLng(normalized)
+        outEnd = outStart
+    End If
+
+    If outStart < 0 Or outEnd < 0 Then Exit Function
+    If outEnd < outStart Then Exit Function
+
+    private_TryParseLayoutBoundDepthSpan = True
+End Function
+
+
+Private Function private_PaintLayoutBoundFrame( _
+    ByVal ws As Worksheet, _
+    ByVal rowStart As Long, _
+    ByVal colStart As Long, _
+    ByVal rowEnd As Long, _
+    ByVal colEnd As Long, _
+    ByVal tagName As String, _
+    ByVal hasBorderColor As Boolean, _
+    ByVal borderColor As Long, _
+    ByVal hasBorderWeight As Boolean, _
+    ByVal borderWeight As Variant, _
+    ByVal hasBorderLineStyle As Boolean, _
+    ByVal borderLineStyle As Variant _
+) As Boolean
+    Dim targetRange As Range
+    Dim resolvedLineStyle As Variant
+
+    If ws Is Nothing Then Exit Function
+    If rowStart <= 0 Or colStart <= 0 Then Exit Function
+    If rowEnd < rowStart Or colEnd < colStart Then Exit Function
+
+    On Error GoTo EH_FRAME
+    Set targetRange = ws.Range(ws.Cells(rowStart, colStart), ws.Cells(rowEnd, colEnd))
+    If targetRange Is Nothing Then Exit Function
+
+    resolvedLineStyle = xlContinuous
+    If VBA.StrComp(tagName, "stackpanel", VBA.vbBinaryCompare) = 0 Then
+        resolvedLineStyle = xlDash
+    End If
+    If hasBorderLineStyle Then
+        resolvedLineStyle = borderLineStyle
+    End If
+
+    With targetRange.Borders(xlEdgeLeft)
+        .LineStyle = resolvedLineStyle
+        If hasBorderWeight Then .Weight = borderWeight
+        If hasBorderColor Then .Color = borderColor
+    End With
+    With targetRange.Borders(xlEdgeTop)
+        .LineStyle = resolvedLineStyle
+        If hasBorderWeight Then .Weight = borderWeight
+        If hasBorderColor Then .Color = borderColor
+    End With
+    With targetRange.Borders(xlEdgeRight)
+        .LineStyle = resolvedLineStyle
+        If hasBorderWeight Then .Weight = borderWeight
+        If hasBorderColor Then .Color = borderColor
+    End With
+    With targetRange.Borders(xlEdgeBottom)
+        .LineStyle = resolvedLineStyle
+        If hasBorderWeight Then .Weight = borderWeight
+        If hasBorderColor Then .Color = borderColor
+    End With
+
+    private_PaintLayoutBoundFrame = True
+    Exit Function
+
+EH_FRAME:
+    On Error GoTo 0
+End Function
+
+
+Private Function private_TryReadLayoutBoundBorderDeclarations( _
+    ByVal declarations As Object, _
+    ByVal contextName As String, _
+    ByRef outHasAnyBorderStyle As Boolean, _
+    ByRef outHasBorderColor As Boolean, _
+    ByRef outBorderColor As Long, _
+    ByRef outHasBorderWeight As Boolean, _
+    ByRef outBorderWeight As Variant, _
+    ByRef outHasBorderLineStyle As Boolean, _
+    ByRef outBorderLineStyle As Variant _
+) As Boolean
+    Dim valueText As String
+
+    outHasAnyBorderStyle = False
+
+    If declarations.Exists("bordercolor") Then
+        valueText = VBA.CStr(declarations("bordercolor"))
+        If Not ex_HelpersCSS.fn_TryParseColor(valueText, outBorderColor) Then
+#If LOGGING_DEBUG_ENABLED Then
+            ex_Core.fn_Diagnostic_LogError "PrototypeNew: invalid borderColor in " & contextName & "."
+#End If
+            Exit Function
+        End If
+        outHasBorderColor = True
+        outHasAnyBorderStyle = True
+    End If
+
+    If declarations.Exists("borderweight") Then
+        valueText = VBA.CStr(declarations("borderweight"))
+        If Not ex_HelpersCSS.fn_TryParseCellBorderWeight(valueText, outBorderWeight) Then
+#If LOGGING_DEBUG_ENABLED Then
+            ex_Core.fn_Diagnostic_LogError "PrototypeNew: invalid borderWeight in " & contextName & "."
+#End If
+            Exit Function
+        End If
+        outHasBorderWeight = True
+        outHasAnyBorderStyle = True
+    End If
+
+    If declarations.Exists("borderlinestyle") Then
+        valueText = VBA.CStr(declarations("borderlinestyle"))
+        If Not private_TryParseLayoutBoundBorderLineStyle(valueText, outBorderLineStyle) Then
+#If LOGGING_DEBUG_ENABLED Then
+            ex_Core.fn_Diagnostic_LogError "PrototypeNew: invalid borderLineStyle in " & contextName & "."
+#End If
+            Exit Function
+        End If
+        outHasBorderLineStyle = True
+        outHasAnyBorderStyle = True
+    End If
+
+    private_TryReadLayoutBoundBorderDeclarations = True
+End Function
+
+
+Private Function private_TryParseLayoutBoundBorderLineStyle(ByVal valueText As String, ByRef outLineStyle As Variant) As Boolean
+    valueText = VBA.LCase$(VBA.Trim$(valueText))
+
+    Select Case valueText
+        Case "solid", "continuous"
+            outLineStyle = xlContinuous
+        Case "dash", "dashed"
+            outLineStyle = xlDash
+        Case "dot", "dotted"
+            outLineStyle = xlDot
+        Case "dashdot"
+            outLineStyle = xlDashDot
+        Case "dashdotdot"
+            outLineStyle = xlDashDotDot
+        Case "double"
+            outLineStyle = xlDouble
+        Case "none"
+            outLineStyle = xlLineStyleNone
+        Case Else
+            Exit Function
+    End Select
+
+    private_TryParseLayoutBoundBorderLineStyle = True
 End Function
 
 
@@ -355,6 +679,7 @@ Private Function private_ReadStyleDeclarations(ByVal styleNode As Object) As Obj
     private_TrySetDeclaration declarations, "fontColor", ex_XmlCore.fn_NodeAttrText(styleNode, "fontColor")
     private_TrySetDeclaration declarations, "borderColor", ex_XmlCore.fn_NodeAttrText(styleNode, "borderColor")
     private_TrySetDeclaration declarations, "borderWeight", ex_XmlCore.fn_NodeAttrText(styleNode, "borderWeight")
+    private_TrySetDeclaration declarations, "borderLineStyle", ex_XmlCore.fn_NodeAttrText(styleNode, "borderLineStyle")
     private_TrySetDeclaration declarations, "fontName", ex_XmlCore.fn_NodeAttrText(styleNode, "fontName")
     private_TrySetDeclaration declarations, "fontSize", ex_XmlCore.fn_NodeAttrText(styleNode, "fontSize")
     private_TrySetDeclaration declarations, "fontBold", ex_XmlCore.fn_NodeAttrText(styleNode, "fontBold")
@@ -453,7 +778,7 @@ End Function
 
 Private Function private_IsSupportedStyleKey(ByVal keyName As String) As Boolean
     Select Case VBA.LCase$(VBA.Trim$(keyName))
-        Case "backcolor", "fontcolor", "bordercolor", "borderweight", "fontname", "fontsize", "fontbold", "fontitalic", "horizontal", "vertical", "overflow", "width", "rowheight"
+        Case "backcolor", "fontcolor", "bordercolor", "borderweight", "borderlinestyle", "fontname", "fontsize", "fontbold", "fontitalic", "horizontal", "vertical", "overflow", "width", "rowheight"
             private_IsSupportedStyleKey = True
     End Select
 End Function
@@ -500,7 +825,7 @@ Private Function private_TryReadRuleSelector(ByVal ruleNode As Object, ByRef out
         End If
 
         Select Case keyName
-            Case "col", "row", "address", "type", "name", "part"
+            Case "col", "row", "address", "type", "name", "part", "tag", "tagdepth"
                 If outSelector.Exists(keyName) Then
 #If LOGGING_DEBUG_ENABLED Then
                     ex_Core.fn_Diagnostic_LogError "PrototypeNew: duplicate selector key '" & keyName & "'."
@@ -525,7 +850,7 @@ End Function
 
 Private Function private_RuleTargetIsSupported(ByVal targetName As String) As Boolean
     Select Case VBA.LCase$(VBA.Trim$(targetName))
-        Case "row", "column", "cell", "range", "usedrange", "sheet", "controlpart"
+        Case "row", "column", "cell", "range", "usedrange", "sheet", "controlpart", "layoutbound"
             private_RuleTargetIsSupported = True
     End Select
 End Function

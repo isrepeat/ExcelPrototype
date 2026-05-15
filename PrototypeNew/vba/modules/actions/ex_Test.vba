@@ -28,14 +28,6 @@ Public Sub fn_TEST_RenderDevUI()
     private_RenderWorksheetPage ws, "ui\DevUI.xml"
 End Sub
 
-
-Public Sub fn_TEST_UpdateCurrentPage()
-    If Not ex_HelpersSheet.fn_TryRerenderActivePage("manual:update-sheet") Then
-        rt_Messaging.fn_ShowStatusBarWarning "No rendered page context is available for update.", 5
-    End If
-End Sub
-
-
 Public Sub fn_TEST_RenderDevTableListUI()
     Dim ws As Worksheet
 
