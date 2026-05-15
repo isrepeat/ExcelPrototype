@@ -718,6 +718,7 @@ Private Function private_ReadStyleDeclarations(ByVal styleNode As Object) As Obj
     private_TrySetDeclaration declarations, "maxWidth", ex_XmlCore.fn_NodeAttrText(styleNode, "maxWidth")
     private_TrySetDeclaration declarations, "autoFitColumns", ex_XmlCore.fn_NodeAttrText(styleNode, "autoFitColumns")
     private_TrySetDeclaration declarations, "rowHeight", ex_XmlCore.fn_NodeAttrText(styleNode, "rowHeight")
+    private_TrySetDeclaration declarations, "cellType", ex_XmlCore.fn_NodeAttrText(styleNode, "cellType")
 
     inlineStyles = ex_XmlCore.fn_NodeAttrText(styleNode, "styles")
     If VBA.Len(VBA.Trim$(inlineStyles)) > 0 Then
@@ -807,7 +808,7 @@ End Function
 
 Private Function private_IsSupportedStyleKey(ByVal keyName As String) As Boolean
     Select Case VBA.LCase$(VBA.Trim$(keyName))
-        Case "backcolor", "fontcolor", "bordercolor", "borderweight", "borderlinestyle", "fontname", "fontsize", "fontbold", "fontitalic", "horizontal", "vertical", "overflow", "width", "minwidth", "maxwidth", "autofitcolumns", "rowheight"
+        Case "backcolor", "fontcolor", "bordercolor", "borderweight", "borderlinestyle", "fontname", "fontsize", "fontbold", "fontitalic", "horizontal", "vertical", "overflow", "width", "minwidth", "maxwidth", "autofitcolumns", "rowheight", "celltype"
             private_IsSupportedStyleKey = True
     End Select
 End Function
@@ -1171,6 +1172,7 @@ Private Function private_ApplyRangeDeclarations( _
     Dim hasMinWidth As Boolean
     Dim hasMaxWidth As Boolean
     Dim autoFitColumnsEnabled As Boolean
+    Dim numberFormatValue As String
 
     If targetRange Is Nothing Then Exit Function
     If declarations Is Nothing Then
@@ -1272,6 +1274,16 @@ Private Function private_ApplyRangeDeclarations( _
             Exit Function
         End If
         targetRange.VerticalAlignment = vAlign
+    End If
+
+    If declarations.Exists("celltype") Then
+        If Not private_TryResolveCellTypeNumberFormat(VBA.CStr(declarations("celltype")), numberFormatValue) Then
+#If LOGGING_DEBUG_ENABLED Then
+            ex_Core.fn_Diagnostic_LogError "PrototypeNew: invalid cellType in " & contextName & "."
+#End If
+            Exit Function
+        End If
+        targetRange.NumberFormat = numberFormatValue
     End If
 
     ' Важно: порядок деклараций здесь значим.
@@ -1582,6 +1594,24 @@ Private Function private_TryParseVerticalAlignment(ByVal valueText As String, By
     End Select
 
     private_TryParseVerticalAlignment = True
+End Function
+
+
+Private Function private_TryResolveCellTypeNumberFormat(ByVal valueText As String, ByRef outNumberFormat As String) As Boolean
+    valueText = VBA.LCase$(VBA.Trim$(valueText))
+
+    Select Case valueText
+        Case "text"
+            outNumberFormat = "@"
+        Case "date"
+            outNumberFormat = "dd.mm.yyyy"
+        Case "general"
+            outNumberFormat = "General"
+        Case Else
+            Exit Function
+    End Select
+
+    private_TryResolveCellTypeNumberFormat = True
 End Function
 
 

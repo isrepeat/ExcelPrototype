@@ -51,6 +51,7 @@
                 borderWeight:thin;
                 width:11;
                 rowHeight:18;
+                cellType:text;
               }"/>
       </layer>
 
