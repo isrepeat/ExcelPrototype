@@ -210,6 +210,8 @@
               selector="type=config;part=value"
               styles="{
                 width:40;
+                overflow:wrap;
+                rowHeight:auto;
               }"/>
 
         <rule target="controlPart"
