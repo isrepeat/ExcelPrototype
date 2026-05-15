@@ -69,9 +69,6 @@ Public Function Initialize(ByVal page As obj_IPage) As Boolean
     Set pageBase = m_Page.GetPageBase()
 
     If Not pageBase.RuntimeSources.SetObjectSource(CONTROLLER_RUNTIME_OBJECT_KEY, Me) Then Exit Function
-    ' Временный эксперимент: не предзаполняем пустой itemsSource для таблиц.
-    ' Без этого TableList должен показать поведение при отсутствии runtime-ключа.
-    'If Not private_EnsureEmptyTablesRuntimeSource(False) Then Exit Function
     Initialize = True
 End Function
 
@@ -169,31 +166,6 @@ Private Function private_RegisterDemoTableItems( _
     m_IsDataReady = (tables.Count > 0)
 
     private_RegisterDemoTableItems = True
-End Function
-
-Private Function private_EnsureEmptyTablesRuntimeSource( _
-    ByVal notifyChange As Boolean _
-) As Boolean
-    Dim pageBase As obj_PageBase
-    Dim runtimeSources As obj_PageRuntimeSources
-    Dim emptyItems As Collection
-    Dim normalizedKey As String
-
-    If m_Page Is Nothing Then Exit Function
-
-    Set pageBase = m_Page.GetPageBase()
-    If pageBase Is Nothing Then Exit Function
-    Set runtimeSources = pageBase.RuntimeSources
-    If runtimeSources Is Nothing Then Exit Function
-
-    m_IsDataReady = False
-    normalizedKey = VBA.LCase$(VBA.Trim$(TABLES_RUNTIME_KEY))
-    If Not runtimeSources.RemoveItemsSource(normalizedKey) Then Exit Function
-
-    Set emptyItems = New Collection
-    If Not runtimeSources.SetItemsSource(normalizedKey, emptyItems, notifyChange) Then Exit Function
-
-    private_EnsureEmptyTablesRuntimeSource = True
 End Function
 
 Private Function private_BuildDemoTableItems() As Collection

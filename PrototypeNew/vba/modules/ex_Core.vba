@@ -1937,6 +1937,8 @@ Private Function private_Dev_UpdateCodeCore( _
     Dim nextCache As Object
     Dim incrementalMode As Boolean
     Dim stageName As String
+    Dim updatedComponents As Object
+    Dim updatedComponentsCount As Long
     Dim errNumber As Long
     Dim errSource As String
     Dim errDescription As String
@@ -1971,6 +1973,7 @@ Private Function private_Dev_UpdateCodeCore( _
     cachePath = basePath & IMPORT_CACHE_FILE
     Set prevCache = private_Dev_LoadImportCache(cachePath)
     Set nextCache = private_Dev_CreateDictionary()
+    Set updatedComponents = private_Dev_CreateDictionary()
 
     If Not incrementalMode Then
         stageName = "remove-imported-by-scope"
@@ -1978,7 +1981,7 @@ Private Function private_Dev_UpdateCodeCore( _
     End If
 
     stageName = "import-folder"
-    private_Dev_ImportFolder basePath, updateMode, prevCache, nextCache, includeComponentPattern, excludeComponentPattern
+    private_Dev_ImportFolder basePath, updateMode, prevCache, nextCache, includeComponentPattern, excludeComponentPattern, updatedComponents
     If ENABLE_CLASS_IMPORT_VALIDATION Then
         stageName = "validate-class-imports"
         private_Dev_ValidateClassImports basePath
@@ -1994,7 +1997,9 @@ Private Function private_Dev_UpdateCodeCore( _
     private_Dev_SaveImportCache cachePath, nextCache
 
     Application.ScreenUpdating = True
-    private_Dev_ShowCodeUpdatedNotice useNativeStatus
+    updatedComponentsCount = private_Dev_GetDictionaryCount(updatedComponents)
+    private_Dev_LogUpdatedComponents updatedComponents, updateMode
+    private_Dev_ShowCodeUpdatedNotice useNativeStatus, updatedComponentsCount
 #If LOGGING_DEBUG_ENABLED Then
     private_Diagnostic_LogCoreSelfEvent "update-done"
 #End If
@@ -2129,9 +2134,58 @@ ContinueFile:
 End Sub
 
 
-Private Sub private_Dev_ShowCodeUpdatedNotice(ByVal useNativeStatus As Boolean)
-    private_ShowStatusSuccess "Code updated.", useNativeStatus, 1
+Private Sub private_Dev_ShowCodeUpdatedNotice(ByVal useNativeStatus As Boolean, ByVal updatedComponentsCount As Long)
+    If updatedComponentsCount < 0 Then updatedComponentsCount = 0
+    private_ShowStatusSuccess "Code updated. Updated modules: " & VBA.CStr(updatedComponentsCount) & ".", useNativeStatus, 1
 End Sub
+
+Private Function private_Dev_GetDictionaryCount(ByVal dict As Object) As Long
+    If dict Is Nothing Then Exit Function
+    On Error Resume Next
+    private_Dev_GetDictionaryCount = VBA.CLng(dict.Count)
+    Err.Clear
+    On Error GoTo 0
+End Function
+
+Private Sub private_Dev_RegisterUpdatedComponent(ByVal updatedComponents As Object, ByVal componentName As String)
+    If updatedComponents Is Nothing Then Exit Sub
+
+    componentName = VBA.Trim$(componentName)
+    If VBA.Len(componentName) = 0 Then Exit Sub
+    If updatedComponents.Exists(componentName) Then Exit Sub
+
+    updatedComponents.Add componentName, True
+End Sub
+
+Private Sub private_Dev_LogUpdatedComponents(ByVal updatedComponents As Object, ByVal updateMode As Long)
+    Dim componentName As Variant
+    Dim updatedCount As Long
+    Dim modeName As String
+
+    updatedCount = private_Dev_GetDictionaryCount(updatedComponents)
+    modeName = private_Dev_GetUpdateModeName(updateMode)
+
+#If LOGGING_DEBUG_ENABLED Then
+    private_Diagnostic_LogCoreSelfEvent "update-modules: mode='" & modeName & "' count=" & VBA.CStr(updatedCount)
+    If updatedComponents Is Nothing Then Exit Sub
+    For Each componentName In updatedComponents.Keys
+        private_Diagnostic_LogCoreSelfEvent "update-module: mode='" & modeName & "' name='" & VBA.Replace$(VBA.CStr(componentName), "'", "''") & "'"
+    Next componentName
+#End If
+End Sub
+
+Private Function private_Dev_GetUpdateModeName(ByVal updateMode As Long) As String
+    Select Case updateMode
+        Case UPDATE_MODE_FULL
+            private_Dev_GetUpdateModeName = "full"
+        Case UPDATE_MODE_DATE
+            private_Dev_GetUpdateModeName = "date"
+        Case UPDATE_MODE_SIZE
+            private_Dev_GetUpdateModeName = "size"
+        Case Else
+            private_Dev_GetUpdateModeName = "unknown"
+    End Select
+End Function
 
 
 Private Sub private_Dev_RemoveAllModulesAndClasses( _
@@ -2232,7 +2286,8 @@ Private Sub private_Dev_ImportFolder( _
     ByVal prevCache As Object, _
     ByVal nextCache As Object, _
     Optional ByVal includeComponentPattern As String = VBA.vbNullString, _
-    Optional ByVal excludeComponentPattern As String = VBA.vbNullString _
+    Optional ByVal excludeComponentPattern As String = VBA.vbNullString, _
+    Optional ByVal updatedComponents As Object = Nothing _
 )
     Dim fso As Object
     Dim rootFolder As Object
@@ -2253,7 +2308,7 @@ Private Sub private_Dev_ImportFolder( _
     ' Так интерфейсы всегда импортируются после потенциально зависимых классов
     ' даже если они лежат в разных подпапках.
     For importPass = 1 To 2
-        private_Dev_ImportFolderRecursive rootFolder, 0, failed, updateMode, prevCache, nextCache, includeComponentPattern, excludeComponentPattern, importPass
+        private_Dev_ImportFolderRecursive rootFolder, 0, failed, updateMode, prevCache, nextCache, includeComponentPattern, excludeComponentPattern, importPass, updatedComponents
     Next importPass
 
     If VBA.Len(failed) > 0 Then
@@ -2271,7 +2326,8 @@ Private Sub private_Dev_ImportFolderRecursive( _
     ByVal nextCache As Object, _
     Optional ByVal includeComponentPattern As String = VBA.vbNullString, _
     Optional ByVal excludeComponentPattern As String = VBA.vbNullString, _
-    Optional ByVal importPass As Long = 1 _
+    Optional ByVal importPass As Long = 1, _
+    Optional ByVal updatedComponents As Object = Nothing _
 )
     Dim fileObj As Object
     Dim subFolder As Object
@@ -2331,6 +2387,7 @@ Private Sub private_Dev_ImportFolderRecursive( _
                         private_Dev_ImportClassModuleFromSource componentName, importPath, sourceText
                     End If
                     private_Dev_SetCacheRecord nextCache, cacheKey, compType, componentName, fileDateStamp, fileSizeStamp
+                    private_Dev_RegisterUpdatedComponent updatedComponents, componentName
 
                 Case COMP_TYPE_SHEET
                     componentNameForCache = private_Dev_ResolveSheetCodeName(fallbackName)
@@ -2348,6 +2405,7 @@ Private Sub private_Dev_ImportFolderRecursive( _
                     sourceText = private_Dev_ReadAllText(importPath)
                     If private_Dev_UpdateSheetModule(componentNameForCache, importPath, sourceText) Then
                         private_Dev_SetCacheRecord nextCache, cacheKey, COMP_TYPE_SHEET, componentNameForCache, fileDateStamp, fileSizeStamp
+                        private_Dev_RegisterUpdatedComponent updatedComponents, componentNameForCache
                     End If
 
                 Case COMP_TYPE_WORKBOOK
@@ -2366,6 +2424,7 @@ Private Sub private_Dev_ImportFolderRecursive( _
                     sourceText = private_Dev_ReadAllText(importPath)
                     If private_Dev_UpdateWorkbookModuleFromText(componentNameForCache, sourceText) Then
                         private_Dev_SetCacheRecord nextCache, cacheKey, COMP_TYPE_WORKBOOK, componentNameForCache, fileDateStamp, fileSizeStamp
+                        private_Dev_RegisterUpdatedComponent updatedComponents, componentNameForCache
                     End If
             End Select
             On Error GoTo 0
@@ -2375,7 +2434,7 @@ ContinueNextFile:
     Next fileObj
 
     For Each subFolder In folderObj.SubFolders
-        private_Dev_ImportFolderRecursive subFolder, depth + 1, failed, updateMode, prevCache, nextCache, includeComponentPattern, excludeComponentPattern, importPass
+        private_Dev_ImportFolderRecursive subFolder, depth + 1, failed, updateMode, prevCache, nextCache, includeComponentPattern, excludeComponentPattern, importPass, updatedComponents
     Next subFolder
 
     Exit Sub
