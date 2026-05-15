@@ -28,7 +28,7 @@
                 />
 
               <stackPanel spanColls="1" spanRows="1"/>
-              
+
               <control
                 type="Select"
                 name="ConfigModePicker"
@@ -76,7 +76,7 @@
           name="UpdateSheet"
           caption="Update Sheet"
           style="actionWarning"
-          onClick="{Binding Module=ex_Test;Method=fn_TEST_UpdateCurrentPage}"
+          onClick="{Binding Module=rt_PageManager;Method=fn_RenderActivePage}"
           spanColls="3"
           spanRows="2"
           />
@@ -231,6 +231,56 @@
                 borderWeight:thin;
                 fontBold:false;
                 fontItalic:true;
+              }"/>
+      </layer>
+
+      <layer name="layout-debug-bounds">
+        <rule target="layoutBound"
+              selector="tag=grid"
+              styles="{
+                borderColor:#8B5CF6;
+                borderWeight:medium;
+                borderLineStyle:solid;
+              }"/>
+
+        <rule target="layoutBound"
+              selector="tag=control"
+              styles="{
+                borderColor:#FF0000;
+                borderWeight:thin;
+                borderLineStyle:solid;
+              }"/>
+
+        <rule target="layoutBound"
+              selector="tag=stackpanel;tagDepth=0"
+              styles="{
+                borderColor:#444444;
+                borderWeight:medium;
+                borderLineStyle:dash;
+              }"/>
+
+        <rule target="layoutBound"
+              selector="tag=stackpanel;tagDepth=1"
+              styles="{
+                borderColor:#5E5E5E;
+                borderWeight:medium;
+                borderLineStyle:dash;
+              }"/>
+
+        <rule target="layoutBound"
+              selector="tag=stackpanel;tagDepth=2"
+              styles="{
+                borderColor:#777777;
+                borderWeight:medium;
+                borderLineStyle:dash;
+              }"/>
+
+       <rule target="layoutBound"
+              selector="tag=stackpanel;tagDepth=3:10"
+              styles="{
+                borderColor:#999999;
+                borderWeight:medium;
+                borderLineStyle:dash;
               }"/>
       </layer>
     </stylePipelineStage>

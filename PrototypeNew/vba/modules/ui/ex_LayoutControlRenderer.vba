@@ -38,7 +38,6 @@ Public Function fn_Render( _
     Dim wb As Workbook
     Dim ws As Worksheet
     Dim layoutControlName As String
-    Dim debugStyle As String
     Dim controlType As String
     Dim typeRoot As String
     Dim controlUiRelPath As String
@@ -129,10 +128,7 @@ Public Function fn_Render( _
         rowEnd, _
         colEnd
 
-    debugStyle = VBA.Trim$(ex_XmlCore.fn_NodeAttrText(layoutNode, "debugStyle"))
-    If VBA.Len(debugStyle) > 0 Then
-        ex_LayoutDebugBoundsRndr.fn_RegisterDebugBounds ws, rowStart, colStart, rowEnd, colEnd, "control", layoutControlName, debugStyle
-    End If
+    ex_StylePipelineEngine.fn_RegisterLayoutBound ws, rowStart, colStart, rowEnd, colEnd, "control", layoutControlName
 
     ' Передаем итоговый runtime-узел в VM и запускаем render контрола.
     ' На этом шаге VM читает dataContext/objectSource/itemsSource и запускает resolve через RuntimeSourceResolver.
@@ -281,7 +277,7 @@ Private Function private_IsLayoutAttribute(ByVal attrName As String) As Boolean
     ' Атрибуты раскладки страницы. Они управляют размещением в grid/stack/list,
     ' но не являются "настройками VM контрола".
     Select Case VBA.LCase$(VBA.Trim$(attrName))
-        Case "at", "spancolls", "spanrows", "visibility"
+        Case "at", "spancolls", "spanrows", "visibility", "debugstyle"
             private_IsLayoutAttribute = True
     End Select
 End Function

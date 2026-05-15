@@ -329,7 +329,7 @@ End Function
 
 ' Callstack[1]: Shape.OnAction -> rt_Bridge.fn_OnShapeClick -> rt_PageManager.fn_TryGetPageByWorksheet
 ' Callstack[2]: ex_Test.private_TryResolvePageBase -> ex_HelpersSheet.fn_TryGetActivePageBase -> ex_HelpersSheet.fn_TryGetPageBaseByWorksheet -> rt_PageManager.fn_TryGetPageByWorksheet
-' Callstack[3]: ex_Test.fn_TEST_UpdateCurrentPage -> ex_HelpersSheet.fn_TryRerenderActivePage -> rt_PageManager.fn_TryGetPageByWorksheet
+' Callstack[3]: rt_PageManager.fn_RenderActivePage -> rt_PageManager.fn_TryGetPageByWorksheet
 ' Callstack[4]: ex_Test.fn_TEST_SetDemoConfigVariantA -> ex_HelpersSheet.fn_TryRerenderActivePage -> rt_PageManager.fn_TryGetPageByWorksheet
 ' Callstack[5]: ex_Test.fn_TEST_SetDemoConfigVariantB -> ex_HelpersSheet.fn_TryRerenderActivePage -> rt_PageManager.fn_TryGetPageByWorksheet
 ' Callstack[6]: ThisWorkbook.Workbook_SheetBeforeDelete -> ex_HelpersSheet.fn_RemovePageByWorksheet -> rt_PageManager.fn_TryGetPageByWorksheet
@@ -438,7 +438,7 @@ Public Function fn_RenderPageById(ByVal pageId As String, Optional ByVal reason 
 End Function
 
 ' Callstack[1]: rt_PageManager.fn_RenderPageById -> rt_PageManager.fn_RenderPage
-' Callstack[2]: ex_Test.fn_TEST_UpdateCurrentPage -> ex_HelpersSheet.fn_TryRerenderActivePage -> rt_PageManager.fn_RenderPage
+' Callstack[2]: rt_PageManager.fn_RenderActivePage -> rt_PageManager.fn_RenderPage
 ' Callstack[3]: ex_Test.fn_TEST_SetDemoConfigVariantA -> ex_HelpersSheet.fn_TryRerenderActivePage -> rt_PageManager.fn_RenderPage
 ' Callstack[4]: ex_Test.fn_TEST_SetDemoConfigVariantB -> ex_HelpersSheet.fn_TryRerenderActivePage -> rt_PageManager.fn_RenderPage
 ' Callstack[5]: ex_Test.private_TrySetItemsSource -> ex_Test.private_TryRerenderPage -> rt_PageManager.fn_RenderPage
@@ -516,6 +516,30 @@ EH_RENDER:
     ex_Core.fn_Diagnostic_LogError "page-manager:render-exception sheet='" & sheetName & "' err='" & VBA.Replace$(errDescription, "'", "''") & "'"
 #End If
 End Function
+
+
+Public Sub fn_RenderActivePage()
+    Dim activeSheetObj As Object
+    Dim ws As Worksheet
+    Dim page As obj_IPage
+
+    On Error Resume Next
+    Set activeSheetObj = Application.ActiveSheet
+    On Error GoTo 0
+
+    If Not TypeOf activeSheetObj Is Worksheet Then
+        rt_Messaging.fn_ShowStatusBarWarning "No rendered page context is available for update.", 5
+        Exit Sub
+    End If
+
+    Set ws = activeSheetObj
+    If Not fn_TryGetPageByWorksheet(ws, page) Then
+        rt_Messaging.fn_ShowStatusBarWarning "No rendered page context is available for update.", 5
+        Exit Sub
+    End If
+
+    Call fn_RenderPage(page, "manual:update-sheet")
+End Sub
 
 ' Callstack[1]: VBA.ImmediateWindow -> rt_PageManager.fn_RemovePageById
 Public Function fn_RemovePageById(ByVal pageId As String, Optional ByVal deleteWorksheet As Boolean = False) As Boolean

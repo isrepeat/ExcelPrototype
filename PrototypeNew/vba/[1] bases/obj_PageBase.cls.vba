@@ -188,7 +188,7 @@ End Sub
 ' Callstack[1]: ThisWorkbook.Workbook_Open -> ThisWorkbook.m_ResetWorkbookAndCreateMainPage -> private_ResetWorkbookAndCreateMainPage -> rt_PageManager.fn_RenderPageById -> rt_PageManager.fn_RenderPage -> obj_PageMain.obj_IPage_Render -> obj_PageBase.Render
 ' Callstack[2]: ex_Core.private_TryRecoverUiAfterUpdate -> ThisWorkbook.m_ResetWorkbookAndCreateMainPage -> private_ResetWorkbookAndCreateMainPage -> rt_PageManager.fn_RenderPageById -> rt_PageManager.fn_RenderPage -> obj_PageMain.obj_IPage_Render -> obj_PageBase.Render
 ' Callstack[3]: ex_Test.private_RenderWorksheetPage -> rt_PageManager.fn_RenderPageById -> rt_PageManager.fn_RenderPage -> obj_PageMain.obj_IPage_Render -> obj_PageBase.Render
-' Callstack[4]: ex_Test.fn_TEST_UpdateCurrentPage -> ex_HelpersSheet.fn_TryRerenderActivePage -> rt_PageManager.fn_RenderPage -> obj_PageMain.obj_IPage_Render -> obj_PageBase.Render
+' Callstack[4]: rt_PageManager.fn_RenderActivePage -> rt_PageManager.fn_RenderPage -> obj_PageMain.obj_IPage_Render -> obj_PageBase.Render
 ' Callstack[5]: ex_Test.fn_TEST_SetDemoConfigVariantA -> ex_HelpersSheet.fn_TryRerenderActivePage -> rt_PageManager.fn_RenderPage -> obj_PageMain.obj_IPage_Render -> obj_PageBase.Render
 ' Callstack[6]: ex_Test.fn_TEST_SetDemoConfigVariantB -> ex_HelpersSheet.fn_TryRerenderActivePage -> rt_PageManager.fn_RenderPage -> obj_PageMain.obj_IPage_Render -> obj_PageBase.Render
 ' Callstack[7]: ex_Test.private_TrySetItemsSource -> ex_Test.private_TryRerenderPage -> rt_PageManager.fn_RenderPage -> obj_PageMain.obj_IPage_Render -> obj_PageBase.Render
@@ -268,7 +268,7 @@ Public Function Render() As Boolean
     ex_ControlPartsRuntime.fn_ResetControlParts
     Me.ResetInlineRuns
     ex_ControlRefreshRuntime.fn_ResetRegisteredControls
-    ex_LayoutDebugBoundsRndr.fn_ResetDebugBounds
+    ex_StylePipelineEngine.fn_ResetLayoutBounds
     ex_LayoutControlFallbackRndr.fn_ResetControlFallbacks
 
     If Not Me.ResetControlActions() Then GoTo Cleanup
@@ -278,7 +278,6 @@ Public Function Render() As Boolean
     If Not layoutRenderContext.Initialize(m_Page) Then GoTo Cleanup
     If Not ex_XmlLayoutEngine.fn_RenderNode(layoutRenderContext, pageNode) Then GoTo Cleanup
     If Not ex_StylePipelineEngine.fn_ApplyPageStyles(ws, m_UiDom) Then GoTo Cleanup
-    ex_LayoutDebugBoundsRndr.fn_ApplyPendingDebugBounds ws
     ex_LayoutControlFallbackRndr.fn_ApplyPendingControlFallbacks ws
     If Not Me.ApplyInlineRuns() Then GoTo Cleanup
 
