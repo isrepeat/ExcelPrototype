@@ -1,4 +1,5 @@
 Option Explicit
+#Const ENABLE_LOGGING = False
 
 Private Const MP_REGEX_FILE_NAME As String = "Word_RegexHighlight.txt"
 Private Const MP_REGEX_DEFAULT_FILL_COLOR As Long = 8388736 ' RGB(128, 0, 128)
@@ -7,20 +8,35 @@ Private Const MP_REGEX_MULTILINE As Boolean = True
 Private Const MP_REGEX_GLOBAL As Boolean = True
 Private Const MP_STATUSBAR_CLEAR_DELAY As String = "00:00:02"
 Private Const MP_REGEX_BOOKMARK_PREFIX As String = "rxh_"
+Private Const MP_DIAG_PROGRESS_INTERVAL As Long = 250
 
 Public Sub m_RegexHighlightByPattern()
     If Documents.Count = 0 Then
+#If ENABLE_LOGGING Then
+        ex_Diagnostincs.fn_Diagnostic_LogWarning "RegexHighlight: no open document."
+#End If
         MsgBox "Нет открытого Word-документа.", vbExclamation, "Regex Highlight"
         Exit Sub
     End If
+
+#If ENABLE_LOGGING Then
+    ex_Diagnostincs.fn_Diagnostic_LogInfo "RegexHighlight: start doc='" & ActiveDocument.Name & "'"
+#End If
 
     Dim regexFilePath As String
     Dim errorText As String
 
     If Not mp_TryResolveRegexFilePath(ActiveDocument, regexFilePath, errorText) Then
+#If ENABLE_LOGGING Then
+        ex_Diagnostincs.fn_Diagnostic_LogError "RegexHighlight: resolve regex file failed: " & errorText
+#End If
         MsgBox errorText, vbExclamation, "Regex Highlight"
         Exit Sub
     End If
+
+#If ENABLE_LOGGING Then
+    ex_Diagnostincs.fn_Diagnostic_LogInfo "RegexHighlight: regex file='" & regexFilePath & "'"
+#End If
 
     Dim pattern As String
     Dim preparedPattern As String
@@ -31,19 +47,36 @@ Public Sub m_RegexHighlightByPattern()
     Dim groupColorByIndex As Object
 
     If Not mp_TryReadRegexConfigFromFile(regexFilePath, pattern, fillColor, groupColorByName, errorText) Then
+#If ENABLE_LOGGING Then
+        ex_Diagnostincs.fn_Diagnostic_LogError "RegexHighlight: read config failed: " & errorText
+#End If
         MsgBox errorText, vbExclamation, "Regex Highlight"
         Exit Sub
     End If
 
     If Not mp_TryPrepareRegexPattern(pattern, preparedPattern, highlightGroupIndex, namedGroupIndexes, errorText) Then
+#If ENABLE_LOGGING Then
+        ex_Diagnostincs.fn_Diagnostic_LogError "RegexHighlight: prepare regex pattern failed: " & errorText
+#End If
         MsgBox errorText, vbExclamation, "Regex Highlight"
         Exit Sub
     End If
 
     If Not mp_TryBuildGroupColorIndexMap(groupColorByName, namedGroupIndexes, groupColorByIndex, errorText) Then
+#If ENABLE_LOGGING Then
+        ex_Diagnostincs.fn_Diagnostic_LogError "RegexHighlight: resolve group colors failed: " & errorText
+#End If
         MsgBox errorText, vbExclamation, "Regex Highlight"
         Exit Sub
     End If
+
+#If ENABLE_LOGGING Then
+    ex_Diagnostincs.fn_Diagnostic_LogInfo _
+        "RegexHighlight: config loaded patternLength=" & Len(preparedPattern) & _
+        " highlightGroupIndex=" & highlightGroupIndex & _
+        " namedGroups=" & namedGroupIndexes.Count & _
+        " groupColorRules=" & groupColorByIndex.Count
+#End If
 
     Dim doc As Document
     Set doc = ActiveDocument
@@ -58,32 +91,66 @@ Public Sub m_RegexHighlightByPattern()
     Dim bookmarkCount As Long
     Dim staleClearedCount As Long
     Dim staleBookmarkCount As Long
+    Dim totalMatches As Long
+    Dim skippedMatches As Long
     Dim undoStarted As Boolean
 
     mp_BeginUndoGroup "Regex Highlight", undoStarted
 
     Set targetRange = doc.Content
     mp_ClearRegexHighlightsByBookmarks doc, staleClearedCount, staleBookmarkCount
-    highlightedCount = mp_HighlightMatchesInRange(targetRange, regex, fillColor, highlightGroupIndex, groupColorByIndex, bookmarkCount)
+#If ENABLE_LOGGING Then
+    ex_Diagnostincs.fn_Diagnostic_LogInfo _
+        "RegexHighlight: previous highlights cleared count=" & staleClearedCount & _
+        " removedBookmarks=" & staleBookmarkCount
+#End If
+
+    highlightedCount = mp_HighlightMatchesInRange( _
+        targetRange, regex, fillColor, highlightGroupIndex, groupColorByIndex, _
+        bookmarkCount, totalMatches, skippedMatches)
 
     mp_EndUndoGroup undoStarted
-    mp_SetStatusBarMessage "Regex Highlight: подсвечено " & highlightedCount & "; закладок " & bookmarkCount
+#If ENABLE_LOGGING Then
+    ex_Diagnostincs.fn_Diagnostic_LogInfo _
+        "RegexHighlight: done highlighted=" & highlightedCount & _
+        " matches=" & totalMatches & _
+        " skipped=" & skippedMatches & _
+        " bookmarks=" & bookmarkCount
+#End If
+
+    mp_SetStatusBarMessage _
+        "Regex Highlight: подсвечено " & highlightedCount & "/" & totalMatches & _
+        "; пропущено " & skippedMatches & _
+        "; закладок " & bookmarkCount
     Exit Sub
 
 RegexCreateFailed:
+#If ENABLE_LOGGING Then
+    ex_Diagnostincs.fn_Diagnostic_LogException "RegexHighlight: regex-create-failed", Err.Number, Err.Description
+#End If
     MsgBox "Некорректный regex паттерн: " & Err.Description, vbExclamation, "Regex Highlight"
     Exit Sub
 
 FailHighlight:
     mp_EndUndoGroup undoStarted
+#If ENABLE_LOGGING Then
+    ex_Diagnostincs.fn_Diagnostic_LogException "RegexHighlight: highlight-failed", Err.Number, Err.Description
+#End If
     MsgBox "Ошибка подсветки: " & Err.Description, vbExclamation, "Regex Highlight"
 End Sub
 
 Public Sub m_RegexClearHighlightInDocument()
     If Documents.Count = 0 Then
+#If ENABLE_LOGGING Then
+        ex_Diagnostincs.fn_Diagnostic_LogWarning "RegexHighlightClear: no open document."
+#End If
         MsgBox "Нет открытого Word-документа.", vbExclamation, "Regex Highlight"
         Exit Sub
     End If
+
+#If ENABLE_LOGGING Then
+    ex_Diagnostincs.fn_Diagnostic_LogInfo "RegexHighlightClear: start doc='" & ActiveDocument.Name & "'"
+#End If
 
     On Error GoTo FailClear
 
@@ -94,10 +161,18 @@ Public Sub m_RegexClearHighlightInDocument()
     Dim removedBookmarkCount As Long
 
     mp_ClearRegexHighlightsByBookmarks doc, clearedCount, removedBookmarkCount
+#If ENABLE_LOGGING Then
+    ex_Diagnostincs.fn_Diagnostic_LogInfo _
+        "RegexHighlightClear: done cleared=" & clearedCount & _
+        " removedBookmarks=" & removedBookmarkCount
+#End If
     mp_SetStatusBarMessage "Regex Highlight: снято " & clearedCount & "; удалено закладок " & removedBookmarkCount
     Exit Sub
 
 FailClear:
+#If ENABLE_LOGGING Then
+    ex_Diagnostincs.fn_Diagnostic_LogException "RegexHighlightClear: failed", Err.Number, Err.Description
+#End If
     MsgBox "Ошибка при снятии подсветки: " & Err.Description, vbExclamation, "Regex Highlight"
 End Sub
 
@@ -279,11 +354,29 @@ Private Function mp_TryResolveHighlightSegment(ByVal matchText As Object, ByVal 
     mp_TryResolveHighlightSegment = True
 End Function
 
-Private Function mp_HighlightMatchesInRange(ByVal sourceRange As Range, ByVal regex As Object, ByVal fillColor As Long, ByVal highlightGroupIndex As Long, ByVal groupColorByIndex As Object, ByRef bookmarkCount As Long) As Long
+Private Function mp_HighlightMatchesInRange( _
+    ByVal sourceRange As Range, _
+    ByVal regex As Object, _
+    ByVal fillColor As Long, _
+    ByVal highlightGroupIndex As Long, _
+    ByVal groupColorByIndex As Object, _
+    ByRef bookmarkCount As Long, _
+    Optional ByRef totalMatches As Long = 0, _
+    Optional ByRef skippedMatches As Long = 0 _
+) As Long
     On Error GoTo HighlightRangeFailed
 
     Dim matches As Object
     Set matches = regex.Execute(sourceRange.Text)
+    totalMatches = matches.Count
+
+#If ENABLE_LOGGING Then
+    ex_Diagnostincs.fn_Diagnostic_LogInfo _
+        "RegexHighlight: regex.execute matches=" & totalMatches & _
+        " rangeStart=" & sourceRange.Start & _
+        " rangeEnd=" & sourceRange.End & _
+        " textLength=" & Len(sourceRange.Text)
+#End If
 
     Dim i As Long
     Dim matchText As Object
@@ -350,16 +443,32 @@ ContinueConfiguredGroupLoop:
         End If
 
 ContinueMatchLoop:
+        If MP_DIAG_PROGRESS_INTERVAL > 0 Then
+            If (i + 1) Mod MP_DIAG_PROGRESS_INTERVAL = 0 Then
+#If ENABLE_LOGGING Then
+                ex_Diagnostincs.fn_Diagnostic_LogVerbose _
+                    "RegexHighlight: processed matches " & (i + 1) & "/" & totalMatches
+#End If
+            End If
+        End If
         On Error GoTo HighlightRangeFailed
     Next i
 
     Exit Function
 
 MatchFailed:
+    skippedMatches = skippedMatches + 1
+#If ENABLE_LOGGING Then
+    ex_Diagnostincs.fn_Diagnostic_LogWarning _
+        "RegexHighlight: match skipped at index=" & i & " err='" & Err.Description & "'"
+#End If
     Err.Clear
     Resume ContinueMatchLoop
 
 HighlightRangeFailed:
+#If ENABLE_LOGGING Then
+    ex_Diagnostincs.fn_Diagnostic_LogException "RegexHighlight: range failed", Err.Number, Err.Description
+#End If
     Err.Clear
 End Function
 
@@ -391,6 +500,9 @@ Private Sub mp_ClearRegexHighlightsByBookmarks(ByVal doc As Document, ByRef clea
     Exit Sub
 
 ClearBookmarksFailed:
+#If ENABLE_LOGGING Then
+    ex_Diagnostincs.fn_Diagnostic_LogException "RegexHighlight: clear bookmarks failed", Err.Number, Err.Description
+#End If
     Err.Clear
 End Sub
 
@@ -720,9 +832,15 @@ Private Sub mp_SetStatusBarMessage(ByVal messageText As String)
     On Error Resume Next
     Application.StatusBar = messageText
     Application.OnTime When:=Now + TimeValue(MP_STATUSBAR_CLEAR_DELAY), Name:="m_RegexHighlight_ClearStatusBar"
+#If ENABLE_LOGGING Then
+    ex_Diagnostincs.fn_Diagnostic_LogStatusBarMessage "show", messageText, 2
+#End If
 End Sub
 
 Public Sub m_RegexHighlight_ClearStatusBar()
     On Error Resume Next
     Application.StatusBar = vbNullString
+#If ENABLE_LOGGING Then
+    ex_Diagnostincs.fn_Diagnostic_LogStatusBarMessage "clear", vbNullString, 0
+#End If
 End Sub
