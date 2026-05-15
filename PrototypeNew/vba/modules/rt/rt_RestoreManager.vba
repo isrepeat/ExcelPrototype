@@ -8,6 +8,7 @@ Private Const RUNTIME_GLOBALS_ROOT As String = "runtimeGlobals"
 Private Const RUNTIME_GLOBALS_MODULE_NODE As String = "module"
 Private Const RUNTIME_GLOBALS_MODULE_NAME_ATTR As String = "name"
 Private Const RUNTIME_GLOBALS_MODULE_SNAPSHOT_NODE As String = "snapshot"
+Private Const RUNTIME_GLOBALS_ACTIVE_SHEET_ATTR As String = "activeSheetName"
 Private Const MODULE_NAME_PAGE_MANAGER As String = "rt_PageManager"
 
 ' Callstack[1]: ex_Core.private_Dev_TryPrepareRuntimeForHotUpdate -> private_Dev_TryRunModuleDisposers -> Application.Run(rt_RestoreManager.fn_Module_Dispose)
@@ -39,6 +40,7 @@ Public Function fn_RestoreRuntimeState( _
     Optional ByRef outRestoredPagesCount As Long = 0 _
 ) As Boolean
     Static isRuntimeStateRestoreRunning As Boolean
+    Dim restoredActiveWorksheetName As String
 
     reasonText = VBA.Trim$(reasonText)
     If VBA.Len(reasonText) = 0 Then reasonText = "unknown"
@@ -56,8 +58,9 @@ Public Function fn_RestoreRuntimeState( _
     ' Быстрый путь: если активный лист уже привязан к runtime-странице,
     ' не делаем жесткий fallback/reset, а просто пытаемся подтянуть runtime state.
     If private_HasRuntimePageForActiveWorksheet() Then
-        If Not private_TryRestoreRuntimeGlobalsSnapshot() Then GoTo RestoreFailed
+        If Not private_TryRestoreRuntimeGlobalsSnapshot(restoredActiveWorksheetName) Then GoTo RestoreFailed
         If Not private_TryGetPagesCount(outRestoredPagesCount) Then GoTo RestoreFailed
+        Call private_TryActivateSavedWorksheetAfterRestore(reasonText, restoredActiveWorksheetName)
 #If LOGGING_DEBUG_ENABLED Then
         ex_Core.fn_Diagnostic_LogInfo "restore-manager:restore-runtime-state done reason='" & VBA.Replace$(reasonText, "'", "''") & "' restoredPages=" & VBA.CStr(outRestoredPagesCount)
 #End If
@@ -65,9 +68,10 @@ Public Function fn_RestoreRuntimeState( _
         GoTo Cleanup
     End If
 
-    If Not private_TryRestoreRuntimeGlobalsSnapshot() Then GoTo RestoreFailed
+    If Not private_TryRestoreRuntimeGlobalsSnapshot(restoredActiveWorksheetName) Then GoTo RestoreFailed
     If Not private_TryGetPagesCount(outRestoredPagesCount) Then GoTo RestoreFailed
     If outRestoredPagesCount <= 0 Then GoTo RestoreFailed
+    Call private_TryActivateSavedWorksheetAfterRestore(reasonText, restoredActiveWorksheetName)
 
 #If LOGGING_DEBUG_ENABLED Then
     ex_Core.fn_Diagnostic_LogInfo "restore-manager:restore-runtime-state done reason='" & VBA.Replace$(reasonText, "'", "''") & "' restoredPages=" & VBA.CStr(outRestoredPagesCount)
@@ -224,6 +228,7 @@ Private Function private_TrySaveRuntimeGlobalsSnapshot() As Boolean
     Dim dom As Object
     Dim rootNode As Object
     Dim partObj As Object
+    Dim activeWorksheetName As String
 
     ' Корневой snapshot runtime содержит набор "module" узлов.
     ' Каждый модуль сам сериализует свой внутренний state в XML-строку.
@@ -236,6 +241,14 @@ Private Function private_TrySaveRuntimeGlobalsSnapshot() As Boolean
         Exit Function
     End If
 
+    activeWorksheetName = VBA.vbNullString
+    If private_TryGetActiveWorksheetName(activeWorksheetName) Then
+        rootNode.setAttribute RUNTIME_GLOBALS_ACTIVE_SHEET_ATTR, activeWorksheetName
+#If LOGGING_DEBUG_ENABLED Then
+        ex_Core.fn_Diagnostic_LogInfo "restore-manager:save-active-sheet sheet='" & VBA.Replace$(activeWorksheetName, "'", "''") & "'"
+#End If
+    End If
+
     If Not private_TryAppendModuleSnapshot(rootNode, MODULE_NAME_PAGE_MANAGER) Then Exit Function
 
     If Not ex_Core.fn_CustomXmlPartStore_TryFindPartByNamespace(RUNTIME_GLOBALS_NS, partObj) Then Exit Function
@@ -244,7 +257,7 @@ Private Function private_TrySaveRuntimeGlobalsSnapshot() As Boolean
     private_TrySaveRuntimeGlobalsSnapshot = True
 End Function
 
-Private Function private_TryRestoreRuntimeGlobalsSnapshot() As Boolean
+Private Function private_TryRestoreRuntimeGlobalsSnapshot(ByRef outActiveWorksheetName As String) As Boolean
     Dim partObj As Object
     Dim dom As Object
     Dim rootNode As Object
@@ -253,6 +266,9 @@ Private Function private_TryRestoreRuntimeGlobalsSnapshot() As Boolean
     Dim snapshotNode As Object
     Dim moduleName As String
     Dim snapshotXml As String
+    Dim attrValue As Variant
+
+    outActiveWorksheetName = VBA.vbNullString
 
     If Not ex_Core.fn_CustomXmlPartStore_TryFindPartByNamespace(RUNTIME_GLOBALS_NS, partObj) Then Exit Function
     If partObj Is Nothing Then
@@ -267,6 +283,17 @@ Private Function private_TryRestoreRuntimeGlobalsSnapshot() As Boolean
         private_TryRestoreRuntimeGlobalsSnapshot = True
         Exit Function
     End If
+    On Error Resume Next
+    attrValue = rootNode.getAttribute(RUNTIME_GLOBALS_ACTIVE_SHEET_ATTR)
+    If Err.Number <> 0 Then
+        Err.Clear
+        On Error GoTo 0
+        attrValue = VBA.vbNullString
+    End If
+    On Error GoTo 0
+    If Not IsNull(attrValue) Then
+        outActiveWorksheetName = VBA.Trim$(VBA.CStr(attrValue))
+    End If
 
     Set moduleNodes = rootNode.selectNodes("*[local-name()='" & RUNTIME_GLOBALS_MODULE_NODE & "']")
     If moduleNodes Is Nothing Then
@@ -275,7 +302,20 @@ Private Function private_TryRestoreRuntimeGlobalsSnapshot() As Boolean
     End If
 
     For Each moduleNode In moduleNodes
-        moduleName = VBA.Trim$(VBA.CStr(moduleNode.getAttribute(RUNTIME_GLOBALS_MODULE_NAME_ATTR)))
+        attrValue = VBA.vbNullString
+        On Error Resume Next
+        attrValue = moduleNode.getAttribute(RUNTIME_GLOBALS_MODULE_NAME_ATTR)
+        If Err.Number <> 0 Then
+            Err.Clear
+            On Error GoTo 0
+            attrValue = VBA.vbNullString
+        End If
+        On Error GoTo 0
+        If IsNull(attrValue) Then
+            moduleName = VBA.vbNullString
+        Else
+            moduleName = VBA.Trim$(VBA.CStr(attrValue))
+        End If
         If VBA.Len(moduleName) = 0 Then GoTo ContinueModule
 
         snapshotXml = VBA.vbNullString
@@ -384,6 +424,85 @@ Private Function private_TryGetPagesCount(ByRef outPagesCount As Long) As Boolea
     outPagesCount = 0
     private_TryGetPagesCount = rt_PageManager.fn_TryGetPagesCount(outPagesCount)
 End Function
+
+Private Function private_TryGetActiveWorksheetName(ByRef outWorksheetName As String) As Boolean
+    Dim ws As Worksheet
+
+    outWorksheetName = VBA.vbNullString
+
+    On Error Resume Next
+    If TypeOf Application.ActiveSheet Is Worksheet Then
+        Set ws = Application.ActiveSheet
+    End If
+    If Err.Number <> 0 Then
+        Err.Clear
+        On Error GoTo 0
+        Exit Function
+    End If
+    On Error GoTo 0
+
+    If ws Is Nothing Then Exit Function
+    outWorksheetName = VBA.Trim$(VBA.CStr(ws.Name))
+    private_TryGetActiveWorksheetName = (VBA.Len(outWorksheetName) > 0)
+End Function
+
+Private Function private_ShouldApplySavedWorksheetFocusAfterRestore(ByVal reasonText As String) As Boolean
+    reasonText = VBA.LCase$(VBA.Trim$(reasonText))
+    Select Case reasonText
+        Case "after-update", "deferred:on-time"
+            private_ShouldApplySavedWorksheetFocusAfterRestore = True
+    End Select
+End Function
+
+Private Sub private_TryActivateSavedWorksheetAfterRestore( _
+    ByVal reasonText As String, _
+    ByVal worksheetName As String _
+)
+    Dim ws As Worksheet
+    Dim activeSheetName As String
+    Dim errDescription As String
+
+    If Not private_ShouldApplySavedWorksheetFocusAfterRestore(reasonText) Then Exit Sub
+
+    worksheetName = VBA.Trim$(worksheetName)
+    If VBA.Len(worksheetName) = 0 Then Exit Sub
+
+    On Error Resume Next
+    Set ws = ThisWorkbook.Worksheets(worksheetName)
+    If Err.Number <> 0 Then
+        errDescription = Err.Description
+        Err.Clear
+        On Error GoTo 0
+#If LOGGING_DEBUG_ENABLED Then
+        ex_Core.fn_Diagnostic_LogError "restore-manager:restore-active-sheet lookup-failed sheet='" & VBA.Replace$(worksheetName, "'", "''") & "' err='" & VBA.Replace$(errDescription, "'", "''") & "'"
+#End If
+        Exit Sub
+    End If
+    On Error GoTo 0
+
+    If ws Is Nothing Then Exit Sub
+
+    On Error Resume Next
+    ws.Activate
+    If Err.Number <> 0 Then
+        errDescription = Err.Description
+        Err.Clear
+        On Error GoTo 0
+#If LOGGING_DEBUG_ENABLED Then
+        ex_Core.fn_Diagnostic_LogError "restore-manager:restore-active-sheet activate-failed sheet='" & VBA.Replace$(worksheetName, "'", "''") & "' err='" & VBA.Replace$(errDescription, "'", "''") & "'"
+#End If
+        Exit Sub
+    End If
+    On Error GoTo 0
+
+    If Not private_TryGetActiveWorksheetName(activeSheetName) Then Exit Sub
+    If VBA.StrComp(activeSheetName, worksheetName, VBA.vbTextCompare) <> 0 Then Exit Sub
+
+    Call rt_PageManager.fn_TryRestoreLastRenderedWorksheetName(worksheetName)
+#If LOGGING_DEBUG_ENABLED Then
+    ex_Core.fn_Diagnostic_LogInfo "restore-manager:restore-active-sheet done sheet='" & VBA.Replace$(worksheetName, "'", "''") & "' reason='" & VBA.Replace$(reasonText, "'", "''") & "'"
+#End If
+End Sub
 
 Private Function private_TryFallbackRestoreByResettingMainPage( _
     ByVal reasonText As String, _
