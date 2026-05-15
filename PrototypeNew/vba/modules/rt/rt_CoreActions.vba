@@ -12,6 +12,11 @@ Public Sub fn_Module_Dispose()
 #If LOGGING_VERBOSE_ENABLED Then
     ex_Core.fn_Diagnostic_LogInfo "lifecycle:rt_CoreActions.fn_Module_Dispose"
 #End If
+    private_TryCancelScheduledTask g_ScheduledUpdateAt, g_ScheduledUpdateMacro
+    g_ScheduledUpdateAt = 0#
+    g_ScheduledUpdateMacro = VBA.vbNullString
+    g_PendingUpdateMacroRef = VBA.vbNullString
+    g_IsRunningScheduledUpdate = False
 End Sub
 
 ' //
