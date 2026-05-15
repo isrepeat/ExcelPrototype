@@ -42,10 +42,6 @@ Public Property Get IsDataReady() As Boolean
     IsDataReady = m_IsDataReady
 End Property
 
-Public Property Get ShowDataPlaceholder() As Boolean
-    ShowDataPlaceholder = Not m_IsDataReady
-End Property
-
 ' //
 ' // API
 ' //

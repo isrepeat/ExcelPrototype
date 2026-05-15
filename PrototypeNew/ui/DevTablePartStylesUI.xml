@@ -7,7 +7,7 @@
         name="TablesBanner"
         header="{Binding Path=Header}"
         message="{Binding Path=Message}"
-        visible="{Binding Path=Visible}"
+        visibility="{Binding Path=Visible; TrueAs=Visible; FalseAs=Collapsed}"
         spanColls="12"
         spanRows="3"/>
     </template>

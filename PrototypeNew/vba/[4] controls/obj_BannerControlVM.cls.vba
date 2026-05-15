@@ -38,7 +38,6 @@ End Sub
 Private Sub obj_IControl_Configure(ByVal controlNode As Object)
     Dim headerText As String
     Dim messageText As String
-    Dim visibleRaw As String
     Dim headerRaw As String
     Dim messageRaw As String
     Dim dataContext As Object
@@ -57,17 +56,14 @@ Private Sub obj_IControl_Configure(ByVal controlNode As Object)
 
     headerRaw = VBA.CStr(ex_XmlCore.fn_NodeAttrText(controlNode, "header"))
     messageRaw = VBA.CStr(ex_XmlCore.fn_NodeAttrText(controlNode, "message"))
-    visibleRaw = VBA.Trim$(VBA.CStr(ex_XmlCore.fn_NodeAttrText(controlNode, "visible")))
 
     Set dataContext = m_ControlBase.DataContext
     If Not ex_BindingRuntime.fn_TryResolveTextBinding(headerRaw, dataContext, headerText) Then Exit Sub
     If Not ex_BindingRuntime.fn_TryResolveTextBinding(messageRaw, dataContext, messageText) Then Exit Sub
 
-    If VBA.Len(visibleRaw) = 0 Then
-        isVisible = (VBA.Len(VBA.Trim$(headerText)) > 0 Or VBA.Len(VBA.Trim$(messageText)) > 0)
-    Else
-        If Not ex_BindingRuntime.fn_TryResolveVisibilityBinding(visibleRaw, dataContext, isVisible) Then Exit Sub
-    End If
+    ' Поддержка атрибута "visible" удалена: видимость блока теперь задается только layout-атрибутом "visibility".
+    ' Здесь оставляем только безопасный локальный fallback, чтобы пустой banner не рисовал пустую плашку.
+    isVisible = (VBA.Len(VBA.Trim$(headerText)) > 0 Or VBA.Len(VBA.Trim$(messageText)) > 0)
 
     Set m_BannerViewItem = New obj_BannerViewItem
     m_BannerViewItem.Model.Header = headerText
@@ -122,7 +118,7 @@ End Sub
 
 Private Function obj_IControl_SupportsAttribute(ByVal attrName As String) As Boolean
     Select Case VBA.LCase$(VBA.Trim$(attrName))
-        Case "header", "message", "visible"
+        Case "header", "message"
             obj_IControl_SupportsAttribute = True
     End Select
 End Function
@@ -166,11 +162,6 @@ End Sub
 ' //
 ' // Internal
 ' //
-Private Function private_ParseBooleanText(ByVal rawText As String) As Boolean
-    rawText = VBA.LCase$(VBA.Trim$(rawText))
-    private_ParseBooleanText = (rawText = "1" Or rawText = "true" Or rawText = "yes")
-End Function
-
 Private Function private_GetWorksheetByName(ByVal page As obj_PageBase, ByVal sheetName As String) As Worksheet
     Dim ws As Worksheet
 

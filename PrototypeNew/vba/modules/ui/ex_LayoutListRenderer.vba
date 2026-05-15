@@ -377,7 +377,7 @@ Private Function private_ApplyNodeBindingsRecursive( _
     Dim attrName As String
     Dim rawText As String
     Dim resolvedValue As Variant
-    Dim resolvedVisible As Boolean
+    Dim resolvedVisibilityState As String
     Dim childNode As Object
     Dim runtimeListSourceKey As String
     Dim runtimeObjectSourceKey As String
@@ -404,12 +404,8 @@ Private Function private_ApplyNodeBindingsRecursive( _
             If VBA.InStr(1, rawText, "{Binding ", VBA.vbTextCompare) = 0 Then GoTo ContinueAttr
 
             If VBA.StrComp(VBA.LCase$(attrName), "visibility", VBA.vbBinaryCompare) = 0 Then
-                If Not ex_BindingRuntime.fn_TryResolveVisibilityBinding(rawText, dataContext, resolvedVisible) Then Exit Function
-                If resolvedVisible Then
-                    rootNode.setAttribute attrName, "true"
-                Else
-                    rootNode.setAttribute attrName, "false"
-                End If
+                If Not ex_BindingRuntime.fn_TryResolveVisibilityStateBinding(rawText, dataContext, resolvedVisibilityState) Then Exit Function
+                rootNode.setAttribute attrName, resolvedVisibilityState
                 GoTo ContinueAttr
             End If
 
