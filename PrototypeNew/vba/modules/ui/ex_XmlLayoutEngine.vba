@@ -3,6 +3,10 @@ Option Explicit
 #Const LOGGING_DEBUG_ENABLED = True
 #Const LOGGING_VERBOSE_ENABLED = False
 
+Private Const VISIBILITY_STATE_VISIBLE As String = "visible"
+Private Const VISIBILITY_STATE_HIDDEN As String = "hidden"
+Private Const VISIBILITY_STATE_COLLAPSED As String = "collapsed"
+
 Public Sub fn_Module_Dispose()
 #If LOGGING_VERBOSE_ENABLED Then
     ex_Core.fn_Diagnostic_LogInfo "lifecycle:ex_XmlLayoutEngine.fn_Module_Dispose"
@@ -26,6 +30,7 @@ Public Function fn_RenderNode( _
     Dim wb As Workbook
     Dim ws As Worksheet
     Dim nodeKind As String
+    Dim nodeVisibilityState As String
 
     If Not private_TryGetPageRenderContext(renderCtx, wb, ws) Then Exit Function
 
@@ -58,6 +63,23 @@ Public Function fn_RenderNode( _
 #If LOGGING_DEBUG_ENABLED Then
                 ex_Core.fn_Diagnostic_LogError "PrototypeNew: invalid layout node bounds."
 #End If
+                Exit Function
+            End If
+
+            ' visibility вычисляем до входа в конкретный renderer:
+            ' это позволяет "срезать" ветку целиком еще на роутинге узла.
+            If Not private_TryResolveNodeVisibilityState(renderCtx, layoutNode, Nothing, nodeVisibilityState) Then Exit Function
+            If VBA.StrComp(nodeVisibilityState, VISIBILITY_STATE_COLLAPSED, VBA.vbBinaryCompare) = 0 Then
+                ' Collapsed: не рисуем и не резервируем визуальную область.
+                fn_RenderNode = True
+                Exit Function
+            End If
+            If VBA.StrComp(nodeVisibilityState, VISIBILITY_STATE_HIDDEN, VBA.vbBinaryCompare) = 0 Then
+                ' Hidden: сохраняем геометрию layout/debug bounds,
+                ' но очищаем содержимое диапазона.
+                private_RegisterLayoutBoundForHiddenNode renderCtx, layoutNode, rowStart, colStart, rowEnd, colEnd
+                If Not private_TryClearWorksheetRange(ws, rowStart, colStart, rowEnd, colEnd) Then Exit Function
+                fn_RenderNode = True
                 Exit Function
             End If
 
@@ -246,11 +268,12 @@ End Function
 ' // Internal
 ' //
 Private Function private_TryIsNodeVisible( _
+    ByVal renderCtx As obj_LayoutRenderContext, _
     ByVal node As Object, _
     ByVal dataContext As Object, _
     ByRef outVisible As Boolean _
 ) As Boolean
-    Dim visibilityRaw As String
+    Dim nodeVisibilityState As String
 
     If node Is Nothing Then
         outVisible = True
@@ -258,17 +281,42 @@ Private Function private_TryIsNodeVisible( _
         Exit Function
     End If
 
+    ' Для расчета span нас интересует только факт "занимает место / не занимает".
+    If Not private_TryResolveNodeVisibilityState(renderCtx, node, dataContext, nodeVisibilityState) Then Exit Function
+    outVisible = (VBA.StrComp(nodeVisibilityState, VISIBILITY_STATE_COLLAPSED, VBA.vbBinaryCompare) <> 0)
+    private_TryIsNodeVisible = True
+End Function
+
+
+Private Function private_TryResolveNodeVisibilityState( _
+    ByVal renderCtx As obj_LayoutRenderContext, _
+    ByVal node As Object, _
+    ByVal dataContext As Object, _
+    ByRef outVisibilityState As String _
+) As Boolean
+    Dim visibilityRaw As String
+    Dim visibilityContext As Object
+
+    If node Is Nothing Then
+        outVisibilityState = VISIBILITY_STATE_VISIBLE
+        private_TryResolveNodeVisibilityState = True
+        Exit Function
+    End If
+
+    ' Пустой visibility трактуем как Visible (совместимость с существующим XML).
     visibilityRaw = VBA.Trim$(VBA.CStr(ex_XmlCore.fn_NodeAttrText(node, "visibility")))
     If VBA.Len(visibilityRaw) = 0 Then
-        outVisible = True
-        private_TryIsNodeVisible = True
+        outVisibilityState = VISIBILITY_STATE_VISIBLE
+        private_TryResolveNodeVisibilityState = True
         Exit Function
     End If
 
     ' visibility всегда вычисляется относительно текущего dataContext узла.
     ' Для вложенных list/itemControl этот контекст приходит от родительского итема.
-    If Not ex_BindingRuntime.fn_TryResolveVisibilityBinding(visibilityRaw, dataContext, outVisible) Then Exit Function
-    private_TryIsNodeVisible = True
+    ' Если dataContext не передан сверху, пробуем поднять локальный context узла.
+    If Not private_TryResolveNodeVisibilityContext(renderCtx, node, dataContext, visibilityContext) Then Exit Function
+    If Not ex_BindingRuntime.fn_TryResolveVisibilityStateBinding(visibilityRaw, visibilityContext, outVisibilityState) Then Exit Function
+    private_TryResolveNodeVisibilityState = True
 End Function
 
 
@@ -298,6 +346,7 @@ Private Function private_RenderContainerChildrenInBounds( _
     Dim childColStart As Long
     Dim childRowEnd As Long
     Dim childColEnd As Long
+    Dim nodeVisibilityState As String
 
     If Not private_TryGetPageRenderContext(renderCtx, wb, ws) Then Exit Function
     If containerNode Is Nothing Then
@@ -320,6 +369,10 @@ Private Function private_RenderContainerChildrenInBounds( _
         Exit Function
     End If
 
+    ' Pass 1: считаем итоговый "виртуальный" размер контейнера по детям.
+    ' Здесь ничего не рисуем, только вычисляем максимальные row/col.
+    ' Контейнер измеряется в тех же правилах позиционирования, что и реальный рендер,
+    ' но без записи в worksheet.
     seqRow = 1
     seqCol = 1
 
@@ -340,6 +393,7 @@ ContinueFirstPass:
     If maxRows <= 0 Then maxRows = 1
     If maxCols <= 0 Then maxCols = 1
 
+    ' Pass 2: рендерим детей уже в рассчитанных координатах.
     seqRow = 1
     seqCol = 1
 
@@ -356,6 +410,15 @@ ContinueFirstPass:
         childRowEnd = childRowStart + spanRows - 1
         childColEnd = childColStart + spanColls - 1
 
+        ' Для Hidden-детей оставляем layout-bound (для debug слоя),
+        ' очищаем область и переходим к следующему ребенку без вызова renderer.
+        If Not private_TryResolveNodeVisibilityState(renderCtx, childNode, Nothing, nodeVisibilityState) Then Exit Function
+        If VBA.StrComp(nodeVisibilityState, VISIBILITY_STATE_HIDDEN, VBA.vbBinaryCompare) = 0 Then
+            private_RegisterLayoutBoundForHiddenNode renderCtx, childNode, childRowStart, childColStart, childRowEnd, childColEnd
+            If Not private_TryClearWorksheetRange(ws, childRowStart, childColStart, childRowEnd, childColEnd) Then Exit Function
+            GoTo ContinueSecondPass
+        End If
+
         If Not fn_RenderNodeInBounds( _
             renderCtx:=renderCtx, _
             layoutNode:=childNode, _
@@ -368,6 +431,103 @@ ContinueSecondPass:
     Next childNode
 
     private_RenderContainerChildrenInBounds = True
+End Function
+
+
+Private Function private_TryClearWorksheetRange( _
+    ByVal ws As Worksheet, _
+    ByVal rowStart As Long, _
+    ByVal colStart As Long, _
+    ByVal rowEnd As Long, _
+    ByVal colEnd As Long _
+) As Boolean
+    Dim targetRange As Range
+
+    If ws Is Nothing Then Exit Function
+    If rowStart <= 0 Or colStart <= 0 Then Exit Function
+    If rowEnd < rowStart Or colEnd < colStart Then Exit Function
+
+    On Error GoTo EH_CLEAR
+    ' hidden-диапазон должен быть "визуально пустым":
+    ' удаляем контент и рамки, чтобы не оставалось артефактов от прошлых рендеров.
+    Set targetRange = ws.Range(ws.Cells(rowStart, colStart), ws.Cells(rowEnd, colEnd))
+    targetRange.UnMerge
+    targetRange.ClearContents
+    targetRange.Interior.Pattern = xlNone
+    targetRange.Borders.LineStyle = xlNone
+    On Error GoTo 0
+
+    private_TryClearWorksheetRange = True
+    Exit Function
+
+EH_CLEAR:
+#If LOGGING_DEBUG_ENABLED Then
+    ex_Core.fn_Diagnostic_LogError "PrototypeNew: failed to clear hidden layout node range."
+#End If
+End Function
+
+
+Private Sub private_RegisterLayoutBoundForHiddenNode( _
+    ByVal renderCtx As obj_LayoutRenderContext, _
+    ByVal node As Object, _
+    ByVal rowStart As Long, _
+    ByVal colStart As Long, _
+    ByVal rowEnd As Long, _
+    ByVal colEnd As Long _
+)
+    Dim ws As Worksheet
+    Dim nodeKind As String
+    Dim nodeName As String
+    Dim stackDepth As Long
+
+    If renderCtx Is Nothing Then Exit Sub
+    Set ws = renderCtx.Worksheet
+    If ws Is Nothing Then Exit Sub
+    If node Is Nothing Then Exit Sub
+    If rowStart <= 0 Or colStart <= 0 Then Exit Sub
+    If rowEnd < rowStart Or colEnd < colStart Then Exit Sub
+
+    ' Регистрируем только те теги, для которых в style pipeline есть layoutBound selector.
+    nodeKind = VBA.LCase$(VBA.CStr(node.baseName))
+    Select Case nodeKind
+        Case "control"
+            nodeName = VBA.Trim$(VBA.CStr(ex_XmlCore.fn_NodeAttrText(node, "name")))
+            ex_StylePipelineEngine.fn_RegisterLayoutBound ws, rowStart, colStart, rowEnd, colEnd, "control", nodeName
+
+        Case "grid"
+            ex_StylePipelineEngine.fn_RegisterLayoutBound ws, rowStart, colStart, rowEnd, colEnd, "grid"
+
+        Case "stackpanel"
+            ' tagDepth нужен для правил вида tag=stackpanel;tagDepth=...
+            stackDepth = private_GetStackPanelDepth(node)
+            ex_StylePipelineEngine.fn_RegisterLayoutBound ws, rowStart, colStart, rowEnd, colEnd, "stackpanel", VBA.vbNullString, stackDepth
+    End Select
+End Sub
+
+
+Private Function private_GetStackPanelDepth(ByVal stackPanelNode As Object) As Long
+    Dim currentNode As Object
+    Dim baseName As String
+
+    If stackPanelNode Is Nothing Then Exit Function
+
+    On Error Resume Next
+    Set currentNode = stackPanelNode.parentNode
+    On Error GoTo 0
+
+    Do While Not currentNode Is Nothing
+        On Error Resume Next
+        baseName = VBA.LCase$(VBA.Trim$(VBA.CStr(currentNode.baseName)))
+        On Error GoTo 0
+
+        If VBA.StrComp(baseName, "stackpanel", VBA.vbBinaryCompare) = 0 Then
+            private_GetStackPanelDepth = private_GetStackPanelDepth + 1
+        End If
+
+        On Error Resume Next
+        Set currentNode = currentNode.parentNode
+        On Error GoTo 0
+    Loop
 End Function
 
 
@@ -386,7 +546,8 @@ Private Function private_TryGetEffectiveNodeSpan( _
     Dim measuredCols As Long
 
     If node Is Nothing Then Exit Function
-    If Not private_TryIsNodeVisible(node, dataContext, isVisible) Then Exit Function
+    ' Span всегда зависит от visibility: Collapsed => 0x0.
+    If Not private_TryIsNodeVisible(renderCtx, node, dataContext, isVisible) Then Exit Function
     If Not isVisible Then
         outSpanRows = 0
         outSpanColls = 0
@@ -394,6 +555,7 @@ Private Function private_TryGetEffectiveNodeSpan( _
         Exit Function
     End If
 
+    ' Явный span из XML имеет приоритет над измерением контента.
     explicitRows = private_ReadPositiveLongAttr(node, "spanRows", 0)
     explicitCols = private_ReadPositiveLongAttr(node, "spanColls", 0)
     If explicitRows > 0 And explicitCols > 0 Then
@@ -406,6 +568,7 @@ Private Function private_TryGetEffectiveNodeSpan( _
     nodeKind = VBA.LCase$(VBA.CStr(node.baseName))
     Select Case nodeKind
         Case "control"
+            ' Базовый control по умолчанию занимает 1x1.
             If explicitRows > 0 Then
                 outSpanRows = explicitRows
             Else
@@ -474,6 +637,8 @@ Private Function private_TryGetEffectiveNodeSpan( _
             Exit Function
     End Select
 
+    ' itemControl допускает "пустой" span (например, objectSource=None),
+    ' для остальных узлов минимальный размер фиксируем как 1x1.
     If VBA.StrComp(nodeKind, "itemcontrol", VBA.vbBinaryCompare) = 0 Then
         If outSpanRows < 0 Then outSpanRows = 0
         If outSpanColls < 0 Then outSpanColls = 0
@@ -482,6 +647,90 @@ Private Function private_TryGetEffectiveNodeSpan( _
         If outSpanColls <= 0 Then outSpanColls = 1
     End If
     private_TryGetEffectiveNodeSpan = True
+End Function
+
+
+Private Function private_TryResolveNodeVisibilityContext( _
+    ByVal renderCtx As obj_LayoutRenderContext, _
+    ByVal node As Object, _
+    ByVal inheritedDataContext As Object, _
+    ByRef outDataContext As Object _
+) As Boolean
+    Dim nodeName As String
+    Dim pageBase As obj_PageBase
+    Dim runtimeSources As obj_PageRuntimeSources
+    Dim dataContextRaw As String
+    Dim resolvedContext As Object
+
+    Set outDataContext = Nothing
+    ' Приоритет контекста: inherited dataContext (от list/itemControl) -> локальный dataContext узла.
+    If Not inheritedDataContext Is Nothing Then
+        Set outDataContext = inheritedDataContext
+        private_TryResolveNodeVisibilityContext = True
+        Exit Function
+    End If
+
+    If node Is Nothing Then
+        private_TryResolveNodeVisibilityContext = True
+        Exit Function
+    End If
+
+    ' Локальный dataContext поддерживаем только для <control>.
+    ' Для container/list/itemControl контекст приходит из верхнего уровня рендера.
+    nodeName = VBA.LCase$(VBA.CStr(node.baseName))
+    If VBA.StrComp(nodeName, "control", VBA.vbBinaryCompare) <> 0 Then
+        private_TryResolveNodeVisibilityContext = True
+        Exit Function
+    End If
+
+    dataContextRaw = VBA.Trim$(VBA.CStr(ex_XmlCore.fn_NodeAttrText(node, "dataContext")))
+    If VBA.Len(dataContextRaw) = 0 Then
+        private_TryResolveNodeVisibilityContext = True
+        Exit Function
+    End If
+
+    If renderCtx Is Nothing Then
+#If LOGGING_DEBUG_ENABLED Then
+        ex_Core.fn_Diagnostic_LogError "PrototypeNew: render context is not specified for visibility dataContext resolve."
+#End If
+        Exit Function
+    End If
+
+    If renderCtx.Page Is Nothing Then
+#If LOGGING_DEBUG_ENABLED Then
+        ex_Core.fn_Diagnostic_LogError "PrototypeNew: page is not specified for visibility dataContext resolve."
+#End If
+        Exit Function
+    End If
+
+    Set pageBase = renderCtx.Page.GetPageBase()
+    If pageBase Is Nothing Then
+#If LOGGING_DEBUG_ENABLED Then
+        ex_Core.fn_Diagnostic_LogError "PrototypeNew: page base is not specified for visibility dataContext resolve."
+#End If
+        Exit Function
+    End If
+
+    Set runtimeSources = pageBase.RuntimeSources
+    If runtimeSources Is Nothing Then
+#If LOGGING_DEBUG_ENABLED Then
+        ex_Core.fn_Diagnostic_LogError "PrototypeNew: runtime sources are not specified for visibility dataContext resolve."
+#End If
+        Exit Function
+    End If
+
+    ' Используем тот же resolver, что и VM-контролы, чтобы поведение visibility/dataContext
+    ' было консистентным между layout- и control-уровнем.
+    If Not ex_RuntimeSourceResolver.fn_TryResolveObjectSource(runtimeSources, dataContextRaw, resolvedContext, False) Then Exit Function
+    If resolvedContext Is Nothing Then
+#If LOGGING_DEBUG_ENABLED Then
+        ex_Core.fn_Diagnostic_LogError "PrototypeNew: visibility dataContext resolved to empty object."
+#End If
+        Exit Function
+    End If
+
+    Set outDataContext = resolvedContext
+    private_TryResolveNodeVisibilityContext = True
 End Function
 
 
@@ -548,6 +797,7 @@ Private Function private_ResolveChildGridPosition( _
 ) As Boolean
     Dim atText As String
 
+    ' Явный "at" всегда переопределяет последовательное размещение по orientation.
     atText = VBA.Trim$(ex_XmlCore.fn_NodeAttrText(childNode, "at"))
     If VBA.Len(atText) > 0 Then
         If Not private_TryParseAtAddress(atText, outRow, outCol) Then
@@ -559,10 +809,12 @@ Private Function private_ResolveChildGridPosition( _
     Else
         Select Case parentOrientation
             Case "horizontal"
+                ' Горизонтальный поток: двигаем колонку на ширину предыдущего элемента.
                 outRow = 1
                 outCol = seqCol
                 seqCol = seqCol + spanColls
             Case "vertical"
+                ' Вертикальный поток: двигаем строку на высоту предыдущего элемента.
                 outRow = seqRow
                 outCol = 1
                 seqRow = seqRow + spanRows

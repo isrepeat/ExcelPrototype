@@ -2441,6 +2441,9 @@ ContinueNextFile:
 
 EH_IMPORT_FILE:
     errText = VBA.CStr(Err.Number) & ": " & Err.Description
+#If LOGGING_DEBUG_ENABLED Then
+    private_Diagnostic_LogCoreSelfEvent "update-import-file-failed: path='" & VBA.Replace$(importPath, "'", "''") & "' err='" & VBA.Replace$(errText, "'", "''") & "'"
+#End If
     failed = failed & VBA.vbCrLf & "- " & importPath & " (" & errText & ")"
     Err.Clear
     On Error GoTo 0
