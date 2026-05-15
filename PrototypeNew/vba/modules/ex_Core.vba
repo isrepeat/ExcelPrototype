@@ -21,9 +21,11 @@ Private Const UPDATE_MODE_FULL As Long = 1
 Private Const UPDATE_MODE_DATE As Long = 2
 Private Const UPDATE_MODE_SIZE As Long = 3
 Private Const ERR_COMPONENT_STILL_PRESENT As Long = VBA.vbObjectError + 1015
-' Retry нужен для transient-сценария: VBIDE иногда держит компонент "живым" еще 1 тик
-' после Remove, и следующий OnTime-запуск проходит уже без правок исходников.
-Private Const MAX_SAFE_UPDATE_RETRY_ATTEMPTS As Long = 1
+' В hot-update часть сбоев вызвана не кодом, а состоянием VBIDE:
+' после Remove редактор может еще недолго держать ссылку на старый компонент.
+' Поэтому retry запускается отложенно (OnTime) и дает VBIDE/COM время корректно
+' освободить ссылки перед повторным импортом.
+Private Const MAX_SAFE_UPDATE_RETRY_ATTEMPTS As Long = 3
 Private Const CORE_COMPONENT_NAME As String = "ex_Core"
 Private Const PATTERN_ALL_COMPONENTS As String = ".+"
 Private Const PATTERN_MAIN_COMPONENTS As String = "^(?!rt_).+"
@@ -51,6 +53,9 @@ Private g_SafeUpdateRetryAttempts As Long
 Private g_LastUpdateErrorNumber As Long
 Private g_LastUpdateErrorSource As String
 Private g_LastUpdateErrorDescription As String
+' Латч на текущий update-run: хотя бы один файл в pass поймал
+' "still present after remove operation" при remove/import компонента.
+Private g_LastImportHadComponentStillPresent As Boolean
 
 Public Sub fn_Module_Dispose()
 #If LOGGING_VERBOSE_ENABLED Then
@@ -1478,6 +1483,13 @@ End Function
 ' Callstack[1]: ex_Core.fn_Dev_UpdateAllModules -> private_Dev_TryRunSafeUpdateByMode
 ' Callstack[2]: ex_Core.fn_Dev_UpdateCodeByDate -> private_Dev_TryRunSafeUpdateByMode
 ' Callstack[3]: ex_Core.fn_Dev_UpdateCodeBySize -> private_Dev_TryRunSafeUpdateByMode
+' Главный сценарий безопасного обновления модулей:
+' 1) убеждаемся, что runtime-компоненты доступны;
+' 2) сохраняем runtime-состояние (snapshot);
+' 3) освобождаем runtime-объекты и отменяем конфликтующие deferred-задачи;
+' 4) выполняем remove/import модулей;
+' 5) при временной занятости компонента в VBIDE ставим retry на следующий тик;
+' 6) после успешного обновления запускаем отложенное восстановление состояния.
 Private Function private_Dev_TryRunSafeUpdateByMode( _
     ByVal updateMode As Long, _
     ByVal includeComponentPattern As String, _
@@ -1492,6 +1504,9 @@ Private Function private_Dev_TryRunSafeUpdateByMode( _
     ' Этап 0. Нормализуем имя операции для логов.
     operationName = VBA.LCase$(VBA.Trim$(operationName))
     If VBA.Len(operationName) = 0 Then operationName = "unknown"
+    ' Retry учитывается отдельно для каждого типа апдейта (full/date/size).
+    ' При смене сценария очищаем старую очередь, чтобы не переносить попытки
+    ' между разными операциями обновления.
     If VBA.StrComp(g_SafeUpdateRetryOperation, operationName, VBA.vbTextCompare) <> 0 Then
         Call private_Dev_ResetSafeUpdateRetryState
     End If
@@ -1553,12 +1568,17 @@ Private Function private_Dev_TryRunSafeUpdateByMode( _
     ' Этап 4. Выполняем фактический импорт/обновление модулей.
     updateOk = private_Dev_UpdateCodeByRegex(includeComponentPattern, excludeComponentPattern, updateMode, useNativeStatus)
     If Not updateOk Then
+        ' Ключевая идея обхода VBIDE-проблемы:
+        ' если сбой похож на временную занятость компонента после Remove,
+        ' не считаем это финальным провалом и переносим повтор на следующий тик.
         If private_Dev_IsRetryableSafeUpdateFailure() Then
             If private_Dev_TryQueueSafeUpdateRetry(operationName, "component-still-present") Then
 #If LOGGING_DEBUG_ENABLED Then
                 private_Diagnostic_LogCoreSelfEvent "safe-update:deferred-retry op='" & operationName & "' reason='component-still-present'"
 #End If
                 private_ShowStatusWarning "Code update was retried automatically due to temporary VBA component lock.", useNativeStatus, 6
+                ' Для текущего тика это успешная передача управления в retry-пайплайн.
+                ' Финальный результат будет определен уже отложенной попыткой.
                 private_Dev_TryRunSafeUpdateByMode = True
                 Exit Function
             End If
@@ -1587,6 +1607,15 @@ End Function
 
 Private Function private_Dev_IsRetryableSafeUpdateFailure() As Boolean
     Dim errDescription As String
+
+    ' Retry включаем только для технического сценария "VBIDE еще держит компонент".
+    ' Для этого смотрим не только верхнюю ошибку, но и диагностику file-level импорта,
+    ' потому что в рекурсивном обходе исходная причина может быть обернута/перезаписана.
+    ' Все остальные ошибки считаем содержательными (код/данные) и не ретраим.
+    If g_LastImportHadComponentStillPresent Then
+        private_Dev_IsRetryableSafeUpdateFailure = True
+        Exit Function
+    End If
 
     ' Повторяем только узкий класс ошибок "still present after remove operation".
     ' Это симптом временного lock в VBIDE/COM, а не признак логической ошибки в коде.
@@ -1621,8 +1650,9 @@ Private Function private_Dev_TryQueueSafeUpdateRetry(ByVal operationName As Stri
     If VBA.Len(operationName) = 0 Then Exit Function
     If VBA.Len(reasonText) = 0 Then reasonText = "unknown"
 
-    ' Важно: retry не меняет исходники и не делает дополнительной очистки данных.
-    ' Мы просто переносим повтор на следующий тик OnTime, чтобы lock успел отпуститься.
+    ' Retry делаем только отложенно через OnTime.
+    ' Это дает VBA/COM шанс завершить освобождение ссылок после Remove/Import
+    ' и снижает вероятность повторить тот же transient-сбой в том же call stack.
     nextAttempt = g_SafeUpdateRetryAttempts + 1
     If nextAttempt > MAX_SAFE_UPDATE_RETRY_ATTEMPTS Then Exit Function
     If Not private_Dev_TryResolveSafeUpdateRetryMacro(operationName, macroRef) Then
@@ -1635,6 +1665,7 @@ Private Function private_Dev_TryQueueSafeUpdateRetry(ByVal operationName As Stri
     scheduleAt = private_Dev_GetNextOnTimeTick()
 
     On Error Resume Next
+    ' Держим только один pending retry, чтобы не запускать несколько апдейтов параллельно.
     If g_QueuedSafeUpdateRetryAt > 0# And VBA.Len(VBA.Trim$(g_QueuedSafeUpdateRetryMacro)) > 0 Then
         Application.OnTime EarliestTime:=g_QueuedSafeUpdateRetryAt, Procedure:=g_QueuedSafeUpdateRetryMacro, Schedule:=False
         Err.Clear
@@ -1688,6 +1719,9 @@ End Function
 
 
 Private Sub private_Dev_ResetSafeUpdateRetryState()
+    ' Единая точка сброса retry state:
+    ' снимаем pending OnTime и обнуляем "операцию/счетчик попыток".
+    ' Вызывается после успеха, неретраибельного фейла и при смене operationName.
     Call private_Dev_TryCancelQueuedSafeUpdateRetry
     g_SafeUpdateRetryOperation = VBA.vbNullString
     g_SafeUpdateRetryAttempts = 0
@@ -1944,6 +1978,9 @@ Private Function private_Dev_UpdateCodeCore( _
     Dim errDescription As String
     Dim fullErrorText As String
 
+    ' Низкоуровневый движок импорта: выполняет remove/import, кеш и валидацию.
+    ' Решение "retry или финальный fail" принимает слой safe-update выше.
+    ' stageName нужен для точной диагностики места падения.
     stageName = "init"
     incrementalMode = (updateMode <> UPDATE_MODE_FULL)
     Call private_Dev_ResetLastUpdateErrorState
@@ -2010,6 +2047,8 @@ EH:
     errNumber = Err.Number
     errSource = Err.Source
     errDescription = Err.Description
+    ' Сохраняем причину в module-state, чтобы внешний safe-update слой
+    ' мог классифицировать сбой: retryable technical issue или финальный fail.
     Call private_Dev_SetLastUpdateErrorState(errNumber, errSource, errDescription)
     fullErrorText = "Code update failed at stage '" & stageName & "': [" & errSource & " #" & VBA.CStr(errNumber) & "] " & errDescription
 
@@ -2034,6 +2073,7 @@ Private Sub private_Dev_ResetLastUpdateErrorState()
     g_LastUpdateErrorNumber = 0
     g_LastUpdateErrorSource = VBA.vbNullString
     g_LastUpdateErrorDescription = VBA.vbNullString
+    g_LastImportHadComponentStillPresent = False
 End Sub
 
 
@@ -2347,6 +2387,9 @@ Private Sub private_Dev_ImportFolderRecursive( _
     If folderObj Is Nothing Then Exit Sub
     If depth > MAX_IMPORT_RECURSION_DEPTH Then Exit Sub
 
+    ' Проходим файлы "мягко": ошибка отдельного файла не роняет обход мгновенно,
+    ' а копится в списке failed. Это позволяет получить полную картину проблем за pass
+    ' и корректнее отработать retry/диагностику после завершения прохода.
     incrementalMode = (updateMode <> UPDATE_MODE_FULL)
 
     For Each fileObj In folderObj.Files
@@ -2431,8 +2474,12 @@ Private Sub private_Dev_ImportFolderRecursive( _
         End If
 
 ContinueNextFile:
+    ' Важно сбрасывать per-file handler на каждой итерации,
+    ' иначе ошибка из одного файла может "залипнуть" и исказить картину следующего.
+        On Error GoTo 0
     Next fileObj
 
+    On Error GoTo 0
     For Each subFolder In folderObj.SubFolders
         private_Dev_ImportFolderRecursive subFolder, depth + 1, failed, updateMode, prevCache, nextCache, includeComponentPattern, excludeComponentPattern, importPass, updatedComponents
     Next subFolder
@@ -2441,10 +2488,17 @@ ContinueNextFile:
 
 EH_IMPORT_FILE:
     errText = VBA.CStr(Err.Number) & ": " & Err.Description
+    ' Отмечаем первопричину в точке file-level сбоя, чтобы не потерять признак
+    ' "временная занятость компонента" при последующей агрегации ошибок по папке.
+    If VBA.InStr(1, errText, "is still present after remove operation", VBA.vbTextCompare) > 0 Then
+        g_LastImportHadComponentStillPresent = True
+    End If
 #If LOGGING_DEBUG_ENABLED Then
     private_Diagnostic_LogCoreSelfEvent "update-import-file-failed: path='" & VBA.Replace$(importPath, "'", "''") & "' err='" & VBA.Replace$(errText, "'", "''") & "'"
 #End If
     failed = failed & VBA.vbCrLf & "- " & importPath & " (" & errText & ")"
+    ' Продолжаем обход, чтобы собрать все проблемные файлы в одном отчете.
+    ' Финальная агрегированная ошибка поднимается после завершения прохода.
     Err.Clear
     On Error GoTo 0
     GoTo ContinueNextFile

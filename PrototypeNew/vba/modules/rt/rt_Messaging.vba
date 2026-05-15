@@ -12,6 +12,14 @@ Public Sub fn_Module_Dispose()
 #If LOGGING_VERBOSE_ENABLED Then
     ex_Core.fn_Diagnostic_LogInfo "lifecycle:rt_Messaging.fn_Module_Dispose"
 #End If
+    ' При hot-update обязательно снимаем отложенный hide,
+    ' чтобы OnTime не стрелял в момент remove/import модулей.
+    private_TryCancelScheduledHide
+    g_StatusBarMessage = VBA.vbNullString
+    On Error Resume Next
+    Application.StatusBar = False
+    Err.Clear
+    On Error GoTo 0
 End Sub
 
 ' //
