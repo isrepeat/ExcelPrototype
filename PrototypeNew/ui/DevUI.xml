@@ -23,7 +23,7 @@
                 itemStyle="configSelectItem"
                 itemHeight="18"
                 itemMargin="2"
-                spanColls="2"
+                spanColls="4"
                 spanRows="2"
                 />
 
@@ -41,7 +41,7 @@
                 itemStyle="configSelectItem"
                 itemHeight="18"
                 itemMargin="2"
-                spanColls="2"
+                spanColls="4"
                 spanRows="2"
                 />
 
@@ -54,13 +54,13 @@
                 style="actionWarning"
                 dataContext="{PageRuntimeSource='RuntimeObjects.PageMain.Controller'}"
                 onClick="{Binding Method=SaveCurrentConfigProfile}"
-                spanColls="2"
+                spanColls="4"
                 spanRows="2"
                 />
           </stackPanel>
       </stackPanel>
 
-      <stackPanel at="r2c17" orientation="vertical">
+      <stackPanel at="r2c24" orientation="vertical">
         <control
           type="Button"
           name="OpenPersonalCard"
@@ -68,7 +68,7 @@
           style="actionWarning"
           dataContext="{PageRuntimeSource='RuntimeObjects.PageMain.Controller'}"
           onClick="{Binding Method=OpenPersonalCardPage}"
-          spanColls="3"
+          spanColls="5"
           spanRows="2"
           />
         <control
@@ -77,7 +77,7 @@
           caption="Update Sheet"
           style="actionWarning"
           onClick="{Binding Module=rt_PageManager;Method=fn_RenderActivePage}"
-          spanColls="3"
+          spanColls="5"
           spanRows="2"
           />
         <control
@@ -87,7 +87,7 @@
           style="actionWarning"
           dataContext="{PageRuntimeSource='RuntimeObjects.PageMain.Controller'}"
           onClick="{Binding Method=ClearWorkbookPagesExceptMain}"
-          spanColls="3"
+          spanColls="5"
           spanRows="2"
           />
         <control
@@ -97,7 +97,7 @@
           caption="{Binding Path=IsLoggingEnabled;TrueAs=Logging [[[ok]]On[[/ok]]];FalseAs=Logging [[[color=#FF0000]]Off[[/color]]]}"
           style="actionWarning"
           onClick="{Binding Module=ex_Core;Method=fn_Dev_ToggleLogging}"
-          spanColls="3"
+          spanColls="5"
           spanRows="2"
           />
         <control
@@ -106,7 +106,7 @@
           caption="Update Code Size"
           style="actionWarning"
           onClick="{Binding Module=ex_Core;Method=fn_Dev_UpdateCodeBySize}"
-          spanColls="3"
+          spanColls="5"
           spanRows="2"
           />
         <control
@@ -115,7 +115,7 @@
           caption="Update Code Date"
           style="actionWarning"
           onClick="{Binding Module=ex_Core;Method=fn_Dev_UpdateCodeByDate}"
-          spanColls="3"
+          spanColls="5"
           spanRows="2"
           />
         <control
@@ -124,7 +124,7 @@
           caption="Update Code Full"
           style="actionWarning"
           onClick="{Binding Module=ex_Core;Method=fn_Dev_UpdateAllModules}"
-          spanColls="3"
+          spanColls="5"
           spanRows="2"
           />
         <control
@@ -133,7 +133,7 @@
           caption="Open ex_Core"
           style="actionWarning"
           onClick="{Binding Module=ex_Core;Method=fn_Dev_OpenCoreModule}"
-          spanColls="3"
+          spanColls="5"
           spanRows="2"
           />
       </stackPanel>
@@ -188,8 +188,8 @@
                 fontColor:#EBEBEB;
                 borderColor:#000000;
                 borderWeight:thin;
-                width:8.625;
-                rowHeight:15.95;
+                width:4;
+                rowHeight:16;
                 cellType:text;
               }"/>
       </layer>
@@ -198,19 +198,19 @@
         <rule target="controlPart"
               selector="type=config;part=attr"
               styles="{
-                width:5;
+                width:4;
               }"/>
 
         <rule target="controlPart"
               selector="type=config;part=key"
               styles="{
-                width:30;
+                width:38;
               }"/>
 
         <rule target="controlPart"
               selector="type=config;part=value"
               styles="{
-                width:40;
+                width:70;
                 overflow:wrap;
                 rowHeight:auto;
               }"/>

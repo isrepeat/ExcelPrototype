@@ -33,9 +33,9 @@
       <control
         type="TableList"
         name="TablesListStyled"
-        itemsSource="{PageRuntimeSource='RuntimeItems.Test.Tables'}"
-        itemVisibility="{Binding Path=RowCount; Op=gt; Value=3; TrueAs=Visible; FalseAs=Collapsed}"
-        spanColls="12"
+        itemsSource="{PageRuntimeSource='RuntimeItems.PersonalCard.Tables'}"
+        itemVisibility="{Binding Path=RowCount; Op=gt; Value=0; TrueAs=Visible; FalseAs=Collapsed}"
+        spanColls="20"
         spanRows="220"/>
     </stackPanel>
   </grid>

@@ -16,6 +16,7 @@ Private Sub Class_Initialize()
 #End If
     Set m_ConfigEntries = New list__obj_ConfigEntry
 End Sub
+
 Private Sub Class_Terminate()
 #If LOGGING_VERBOSE_ENABLED Then
     ex_Core.fn_Diagnostic_LogInfo "lifecycle:" & VBA.TypeName(Me) & ".Class_Terminate"
@@ -35,6 +36,7 @@ Public Function Initialize() As Boolean
 #End If
     Initialize = True
 End Function
+
 Public Sub Dispose()
 #If LOGGING_VERBOSE_ENABLED Then
     ex_Core.fn_Diagnostic_LogInfo "lifecycle:" & VBA.TypeName(Me) & ".Dispose"
