@@ -14,6 +14,7 @@ Private Const SERIALIZABLE_TYPE_ROOT As String = "page.personalcard"
 Private Const SNAPSHOT_ROOT_NODE As String = "pageState"
 Private Const CONTROL_SNAPSHOT_NODE As String = "controlSnapshot"
 Private Const PARENT_PAGE_ID_ATTR As String = "parentPageId"
+Private Const PARENT_CONFIG_CONTROL_NAME As String = "DevConfig"
 
 Private m_PageBase As obj_PageBase
 Private m_PagePersonalCardController As obj_PagePersonalCardCtrl
@@ -50,6 +51,9 @@ Private Function obj_IPage_Initialize( _
     Optional ByVal Context As Object = Nothing _
 ) As Boolean
     Dim parentPage As obj_IPage
+    Dim rawControl As Object
+    Dim configControl As obj_ConfigControlVM
+    Dim configTable As obj_ConfigTable
 
     m_ParentPageId = VBA.vbNullString
     Set m_ParentPage = Nothing
@@ -62,9 +66,39 @@ Private Function obj_IPage_Initialize( _
         End If
     End If
 
+    If m_ParentPage Is Nothing Then
+#If LOGGING_DEBUG_ENABLED Then
+        ex_Core.fn_Diagnostic_LogError "PagePersonalCard.Initialize: parent page is not specified in context."
+#End If
+        Exit Function
+    End If
+
+    Set rawControl = Nothing
+    If Not m_ParentPage.TryGetRegisteredControlByName(PARENT_CONFIG_CONTROL_NAME, rawControl) Then
+#If LOGGING_DEBUG_ENABLED Then
+        ex_Core.fn_Diagnostic_LogError "PagePersonalCard.Initialize: config control '" & PARENT_CONFIG_CONTROL_NAME & "' was not found in parent page runtime registry."
+#End If
+        Exit Function
+    End If
+    If rawControl Is Nothing Then Exit Function
+    If Not TypeOf rawControl Is obj_ConfigControlVM Then
+#If LOGGING_DEBUG_ENABLED Then
+        ex_Core.fn_Diagnostic_LogError "PagePersonalCard.Initialize: config control '" & PARENT_CONFIG_CONTROL_NAME & "' has unexpected type '" & VBA.TypeName(rawControl) & "'."
+#End If
+        Exit Function
+    End If
+
+    Set configControl = rawControl
+    If Not configControl.TryGetConfigTable(configTable) Then
+#If LOGGING_DEBUG_ENABLED Then
+        ex_Core.fn_Diagnostic_LogError "PagePersonalCard.Initialize: failed to resolve config table from control '" & PARENT_CONFIG_CONTROL_NAME & "'."
+#End If
+        Exit Function
+    End If
+
     If Not m_PageBase.Initialize(ws, Me, uiPath, pageId) Then Exit Function
     Set m_PagePersonalCardController = New obj_PagePersonalCardCtrl
-    If Not m_PagePersonalCardController.Initialize(Me) Then Exit Function
+    If Not m_PagePersonalCardController.Initialize(Me, configTable) Then Exit Function
 
     obj_IPage_Initialize = True
 End Function
@@ -78,7 +112,7 @@ Private Function obj_IPage_RunPagePipeline() As Boolean
     ex_Core.fn_Diagnostic_LogInfo "enter:obj_PagePersonalCard.RunPagePipeline"
 #End If
     If Not m_PageBase.IsReady() Then Exit Function
-    If Not m_PagePersonalCardController.PrepareDemoTablesRuntime(False) Then Exit Function
+    If Not m_PagePersonalCardController.PrepareSqlTablesRuntime(False) Then Exit Function
     obj_IPage_RunPagePipeline = True
 End Function
 
@@ -307,7 +341,7 @@ ContinueControlSnapshot:
     private_TryDeserializeSnapshot = True
 End Function
 
-Public Function private_TryGetParentPage(ByRef outParentPage As obj_IPage) As Boolean
+Private Function private_TryGetParentPage(ByRef outParentPage As obj_IPage) As Boolean
     Set outParentPage = Nothing
     If Not m_ParentPage Is Nothing Then
         Set outParentPage = m_ParentPage

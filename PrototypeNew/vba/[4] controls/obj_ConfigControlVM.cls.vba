@@ -435,6 +435,34 @@ ContinueRow:
     TryGetRenderedConfigEntries = True
 End Function
 
+Public Function TryGetConfigTable(ByRef outConfigTable As obj_ConfigTable) As Boolean
+    Set outConfigTable = Nothing
+
+    If Not m_IsConfigured Then
+#If LOGGING_DEBUG_ENABLED Then
+        ex_Core.fn_Diagnostic_LogError "Config: control '" & m_ControlName & "' is not configured."
+#End If
+        Exit Function
+    End If
+
+    If m_ConfigTableViewItem Is Nothing Then
+#If LOGGING_DEBUG_ENABLED Then
+        ex_Core.fn_Diagnostic_LogError "Config: table view item is not initialized for control '" & m_ControlName & "'."
+#End If
+        Exit Function
+    End If
+
+    Set outConfigTable = m_ConfigTableViewItem.Model
+    If outConfigTable Is Nothing Then
+#If LOGGING_DEBUG_ENABLED Then
+        ex_Core.fn_Diagnostic_LogError "Config: model table is not initialized for control '" & m_ControlName & "'."
+#End If
+        Exit Function
+    End If
+
+    TryGetConfigTable = True
+End Function
+
 Public Function TryBuildRenderedConfigNode(ByVal dom As Object, ByRef outConfigNode As Object) As Boolean
     Dim tableObj As ListObject
     Dim headerRange As Range

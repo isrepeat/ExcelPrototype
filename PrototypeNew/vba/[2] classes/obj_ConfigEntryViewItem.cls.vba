@@ -17,6 +17,7 @@ Private Sub Class_Initialize()
     Set m_ViewPresentation = New obj_ViewPresentation
     Call Me.Initialize(Nothing)
 End Sub
+
 Private Sub Class_Terminate()
 #If LOGGING_VERBOSE_ENABLED Then
     ex_Core.fn_Diagnostic_LogInfo "lifecycle:" & VBA.TypeName(Me) & ".Class_Terminate"
@@ -42,6 +43,7 @@ Public Function Initialize(ByVal value As obj_ConfigEntry) As Boolean
 
     Initialize = True
 End Function
+
 Public Sub Dispose()
 #If LOGGING_VERBOSE_ENABLED Then
     ex_Core.fn_Diagnostic_LogInfo "lifecycle:" & VBA.TypeName(Me) & ".Dispose"

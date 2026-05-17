@@ -8,10 +8,15 @@ Option Explicit
 #Const LOGGING_VERBOSE_ENABLED = False
 
 Private Const CONTROLLER_RUNTIME_OBJECT_KEY As String = "RuntimeObjects.PagePersonalCard.Controller"
-Private Const TABLES_RUNTIME_KEY As String = "RuntimeItems.Test.Tables"
+Private Const SQL_TABLES_RUNTIME_KEY As String = "RuntimeItems.PersonalCard.Tables"
+Private Const DEMO_TABLES_RUNTIME_KEY As String = "RuntimeItems.Test.Tables"
 Private Const TABLE_HEADER_TEXT As String = "Name | Role | Country | Team | Level | Status | Since"
 
 Private m_Page As obj_IPage
+Private m_ConfigTable As obj_ConfigTable
+' Парсер конфига вынесен в отдельную зависимость:
+' контроллер оркестрирует сценарий, парсер извлекает SQL-параметры из конфига.
+Private m_CfgPersonalCardParser As obj_CfgPersonalCardParser
 Private m_IsDataReady As Boolean
 Private m_IsDisposed As Boolean
 
@@ -42,25 +47,37 @@ Public Property Get IsDataReady() As Boolean
     IsDataReady = m_IsDataReady
 End Property
 
+Public Property Get HasConfigTable() As Boolean
+    HasConfigTable = Not m_ConfigTable Is Nothing
+End Property
+
 ' //
 ' // API
 ' //
-Public Function Initialize(ByVal page As obj_IPage) As Boolean
+Public Function Initialize( _
+    ByVal page As obj_IPage, _
+    Optional ByVal configTable As obj_ConfigTable = Nothing _
+) As Boolean
 #If LOGGING_DEBUG_ENABLED Then
     ex_Core.fn_Diagnostic_LogInfo "enter:obj_PagePersonalCardCtrl.Initialize"
 #End If
+    Dim cfgParser As obj_CfgPersonalCardParser
     Dim pageBase As obj_PageBase
 
     If page Is Nothing Then
 #If LOGGING_DEBUG_ENABLED Then
         ex_Core.fn_Diagnostic_LogError "PrototypeNew: PagePersonalCardCtrl initialization failed because page is not specified."
 #End If
-        MsgBox "PrototypeNew: PagePersonalCardCtrl initialization failed because page is not specified.", vbExclamation, "PrototypeNew / PersonalCard runtime"
         Exit Function
     End If
 
     m_IsDisposed = False
     Set m_Page = page
+    Set m_ConfigTable = configTable
+    ' Подключаем персональный парсер к текущей модели конфига в памяти.
+    Set cfgParser = New obj_CfgPersonalCardParser
+    If Not cfgParser.Initialize(m_ConfigTable) Then Exit Function
+    Set m_CfgPersonalCardParser = cfgParser
     m_IsDataReady = False
     Set pageBase = m_Page.GetPageBase()
 
@@ -77,6 +94,10 @@ Public Sub Dispose()
 
     On Error Resume Next
     m_IsDataReady = False
+    ' Явно закрываем жизненный цикл парсера.
+    If Not m_CfgPersonalCardParser Is Nothing Then m_CfgPersonalCardParser.Dispose
+    Set m_CfgPersonalCardParser = Nothing
+    Set m_ConfigTable = Nothing
     Set m_Page = Nothing
     On Error GoTo 0
 End Sub
@@ -89,12 +110,20 @@ Public Function RunPipeline( _
 #End If
     If m_Page Is Nothing Then Exit Function
 
-    If Not PrepareDemoTablesRuntime(False) Then Exit Function
+    If Not PrepareSqlTablesRuntime(False) Then Exit Function
     If notifyChange Then
         If Not rt_PageManager.fn_RenderPage(m_Page, "personalcard:run-pipeline") Then Exit Function
     End If
 
-    rt_Messaging.fn_ShowStatusBarSuccess "PersonalCard pipeline has been executed.", 3
+    If m_IsDataReady Then
+        rt_Messaging.fn_ShowStatusBarSuccess _
+            "PersonalCard pipeline has been executed.", _
+            4
+    Else
+        rt_Messaging.fn_ShowStatusBarWarning _
+            "PersonalCard pipeline executed, but no rows were found for the current key.", _
+            4
+    End If
     RunPipeline = True
 End Function
 
@@ -131,6 +160,23 @@ Public Function PrepareDemoTablesRuntime( _
     PrepareDemoTablesRuntime = True
 End Function
 
+Public Function PrepareSqlTablesRuntime( _
+    Optional ByVal notifyChange As Boolean = False _
+) As Boolean
+#If LOGGING_DEBUG_ENABLED Then
+    ex_Core.fn_Diagnostic_LogInfo "enter:obj_PagePersonalCardCtrl.PrepareSqlTablesRuntime"
+#End If
+    If Not private_RegisterSqlTableItems(notifyChange) Then
+        m_IsDataReady = False
+#If LOGGING_DEBUG_ENABLED Then
+        ex_Core.fn_Diagnostic_LogError "PrototypeNew: failed to register SQL table items for PersonalCard page."
+#End If
+        Exit Function
+    End If
+
+    PrepareSqlTablesRuntime = True
+End Function
+
 ' //
 ' // Internal
 ' //
@@ -141,18 +187,20 @@ Private Function private_RegisterDemoTableItems( _
     Dim runtimeSources As obj_PageRuntimeSources
     Dim tables As Collection
     Dim normalizedKey As String
-    
+
     Set tables = private_BuildDemoTableItems()
     If tables Is Nothing Then Exit Function
-    
+
     Set pageBase = m_Page.GetPageBase()
+    If pageBase Is Nothing Then Exit Function
     Set runtimeSources = pageBase.RuntimeSources
-    normalizedKey = VBA.LCase$(VBA.Trim$(TABLES_RUNTIME_KEY))
+    If runtimeSources Is Nothing Then Exit Function
+    normalizedKey = VBA.LCase$(VBA.Trim$(DEMO_TABLES_RUNTIME_KEY))
 
     m_IsDataReady = False
-    
+
     ' Точечная очистка:
-    ' - удаляем только test-таблицы;
+    ' - удаляем только тестовые таблицы;
     ' - чистим только временные runtime-ключи, которые создают layout-рендереры.
     If Not runtimeSources.RemoveItemsSource(normalizedKey) Then Exit Function
     If Not runtimeSources.RemoveTemporaryItemsSources() Then Exit Function
@@ -320,4 +368,83 @@ Private Function private_CreateDemoRowModel( _
     rowObj.AddCell c7
 
     Set private_CreateDemoRowModel = rowObj
+End Function
+
+Private Function private_RegisterSqlTableItems( _
+    ByVal notifyChange As Boolean _
+) As Boolean
+    Dim pageBase As obj_PageBase
+    Dim runtimeSources As obj_PageRuntimeSources
+    Dim tables As Collection
+    Dim normalizedKey As String
+
+    Set tables = private_BuildTablesFromConfigTable()
+    If tables Is Nothing Then Exit Function
+
+    Set pageBase = m_Page.GetPageBase()
+    If pageBase Is Nothing Then Exit Function
+    Set runtimeSources = pageBase.RuntimeSources
+    If runtimeSources Is Nothing Then Exit Function
+    normalizedKey = VBA.LCase$(VBA.Trim$(SQL_TABLES_RUNTIME_KEY))
+
+    m_IsDataReady = False
+
+    If Not runtimeSources.RemoveItemsSource(normalizedKey) Then Exit Function
+    If Not runtimeSources.RemoveItemsSource(VBA.LCase$(DEMO_TABLES_RUNTIME_KEY)) Then Exit Function
+    If Not runtimeSources.RemoveTemporaryItemsSources() Then Exit Function
+    If Not runtimeSources.RemoveTemporaryObjectsSources() Then Exit Function
+
+    If Not runtimeSources.SetItemsSource(normalizedKey, tables, notifyChange) Then Exit Function
+    m_IsDataReady = (tables.Count > 0)
+
+    private_RegisterSqlTableItems = True
+End Function
+
+Private Function private_BuildTablesFromConfigTable() As Collection
+    Dim parser As obj_CfgPersonalCardParser
+    Dim sqlParams As obj_SqlParams
+    Dim sectionTitle As String
+    Dim sqlTable As obj_TableDynamic
+    Dim result As Collection
+    Dim rowsCount As Long
+
+    ' 1) Парсим конфиг в SQL-параметры запроса.
+    Set parser = m_CfgPersonalCardParser
+    If parser Is Nothing Then Exit Function
+    If Not parser.TryBuildSqlParams("Daily", "DailyEvents", sqlParams) Then Exit Function
+    If sqlParams Is Nothing Then Exit Function
+    sectionTitle = private_BuildSectionTitleFromSqlParams(sqlParams)
+
+    ' 2) Выполняем запрос через общий SQL-движок для внешних Excel.
+    If Not ex_ExternalExcelSqlEngine.fn_TrySqlRequest(sqlParams, sqlTable, rowsCount) Then Exit Function
+
+    Set result = New Collection
+    If Not sqlTable Is Nothing Then
+        ' 3) Применяем метаданные отображения (title) и публикуем непустой результат.
+        If VBA.Len(sectionTitle) > 0 Then sqlTable.SectionTitle = sectionTitle
+        If rowsCount > 0 Then result.Add sqlTable
+    End If
+
+    Set private_BuildTablesFromConfigTable = result
+End Function
+
+Private Function private_BuildSectionTitleFromSqlParams(ByVal sqlParams As obj_SqlParams) As String
+    Dim rawSheetName As String
+    Dim dollarPos As Long
+
+    If sqlParams Is Nothing Then Exit Function
+
+    rawSheetName = VBA.Trim$(sqlParams.SheetName)
+    If VBA.Len(rawSheetName) = 0 Then Exit Function
+
+    If VBA.Left$(rawSheetName, 1) = "[" And VBA.Right$(rawSheetName, 1) = "]" Then
+        rawSheetName = VBA.Trim$(VBA.Mid$(rawSheetName, 2, VBA.Len(rawSheetName) - 2))
+    End If
+
+    dollarPos = VBA.InStr(1, rawSheetName, "$", VBA.vbBinaryCompare)
+    If dollarPos > 1 Then
+        private_BuildSectionTitleFromSqlParams = VBA.Trim$(VBA.Left$(rawSheetName, dollarPos - 1))
+    Else
+        private_BuildSectionTitleFromSqlParams = rawSheetName
+    End If
 End Function

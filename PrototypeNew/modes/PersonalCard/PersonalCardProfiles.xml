@@ -4,18 +4,17 @@
     <item attr="#" key="Profile.Name" value="Default"/>
 
     <item key="Source.Daily.FilePath" value="..\..\..\WORK Alexandr Bondarenko\НАКАЗИ\DailyScope.xlsx"/>
-    <item key="Source.Daily.SheetAliases" value="DailyEvents"/>
+    <item key="Source.Daily.SheetsAliases" value="DailyEvents"/>
 
-    <item key="BaseDate" value="01.05"/>
-    <item key="CommonKey" value="КОЛЕСНІК Віталій Вікторович"/>
+    <item key="BaseDate" value="15.05"/>
+    <item key="CommonKey" value="ТУМАНОВ Олександр Володимирович"/>
 
     <item attr="#" key="DailyEvents" value=""/>
-    <item key="Daily.Sheet[DailyEvents].Type" value="Events"/>
-    <item key="Daily.Sheet[DailyEvents].SheetName" value="01_05"/>
-    <!-- <item key="Daily.Sheet[DailyEvents].SheetNameResolver" value="ex_SourceResolvers.m_ResolveWithDateFormatter"/> -->
-    <item key="Daily.Sheet[DailyEvents].RangeStartMarker" value="StartTable_DailyEvents"/>
+    <item key="Daily.Sheet[DailyEvents].SheetName" value="15_05_test"/>
+    <item key="Daily.Sheet[DailyEvents].RangeStartMarker" value="$B2"/>
     <item key="Daily.Sheet[DailyEvents].RangeEndMarker" value="EndTable_DailyEvents"/>
-    <item key="Daily.Sheet[DailyEvents].FieldsAliases" value="Hospital; Vacation; Rank; FIO; Position; RaportTVO; RaportFrom; InNum; InDate; DocNote; DocNum; DocDate; DaysCount; DateFrom; DateTo; VkNum; VkDate; VlkNum; VlkDate; Type"/>
+    <!-- <item key="Daily.Sheet[DailyEvents].SheetNameResolver" value="ex_SourceResolvers.m_ResolveWithDateFormatter"/> -->
+    <item key="Daily.Sheet[DailyEvents].ColumnHeadersAliases" value="Hospital; Vacation; Rank; FIO; Position; RaportTVO; RaportFrom; InNum; InDate; DocNote; DocNum; DocDate; DaysCount; DateFrom; DateTo; VkNum; VkDate; VlkNum; VlkDate; Type"/>
     <item key="Daily.Sheet[DailyEvents].Key" value="FIO"/>
     <item key="Daily.Sheet[DailyEvents].Sort" value="InDate"/>
     <item key="Daily.Sheet[DailyEvents].Map[Hospital]" value="Лікарня"/>

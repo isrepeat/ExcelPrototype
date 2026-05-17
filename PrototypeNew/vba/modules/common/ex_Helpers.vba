@@ -151,6 +151,15 @@ Public Function fn_TextStartsWith(ByVal sourceText As String, ByVal prefixText A
     fn_TextStartsWith = (VBA.StrComp(VBA.Left$(sourceText, VBA.Len(prefixText)), prefixText, VBA.vbBinaryCompare) = 0)
 End Function
 
+Public Function fn_CreateDictionaryTextCompare() As Object
+    Dim dict As Object
+
+    ' Универсальный регистронезависимый словарь.
+    Set dict = VBA.CreateObject("Scripting.Dictionary")
+    dict.CompareMode = 1
+    Set fn_CreateDictionaryTextCompare = dict
+End Function
+
 
 Public Sub fn_QuickSortLongArray(ByRef values() As Long, ByVal leftIndex As Long, ByVal rightIndex As Long)
     Dim i As Long
