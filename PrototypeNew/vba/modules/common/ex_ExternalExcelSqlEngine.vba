@@ -13,7 +13,7 @@ Public Sub fn_Module_Dispose()
     ex_Core.fn_Diagnostic_LogInfo "lifecycle:ex_ExternalExcelSqlEngine.fn_Module_Dispose"
 #End If
     On Error Resume Next
-    Call ex_CacheRuntime.fn_Cache_ClearNamespace(RANGE_REF_CACHE_NAMESPACE)
+    Call ex_CacheRuntime.fn_ClearNamespace(RANGE_REF_CACHE_NAMESPACE)
     On Error GoTo 0
 End Sub
 
@@ -285,7 +285,7 @@ Private Function private_TryBuildTableRefFromMarkers( _
     End If
 
     cacheKey = private_BuildMarkerRangeCacheKey(sourcePath, configuredSheetName, rangeStartMarker, rangeEndMarker)
-    If ex_CacheRuntime.fn_Cache_TryGetValue(RANGE_REF_CACHE_NAMESPACE, cacheKey, cachedTableRef) Then
+    If ex_CacheRuntime.fn_TryGetValue(RANGE_REF_CACHE_NAMESPACE, cacheKey, cachedTableRef) Then
         outTableRef = VBA.Trim$(VBA.CStr(cachedTableRef))
         If VBA.Len(outTableRef) > 0 Then
             private_TryBuildTableRefFromMarkers = True
@@ -389,7 +389,7 @@ Private Function private_TryBuildTableRefFromMarkers( _
     outTableRef = private_QuoteSqlIdentifier( _
         sheetToken & private_ToColumnLetter(leftCol) & VBA.CStr(topRow) & ":" & private_ToColumnLetter(rightCol) & VBA.CStr(bottomRow))
 
-    Call ex_CacheRuntime.fn_Cache_SetValue(RANGE_REF_CACHE_NAMESPACE, cacheKey, outTableRef)
+    Call ex_CacheRuntime.fn_SetValue(RANGE_REF_CACHE_NAMESPACE, cacheKey, outTableRef)
     private_TryBuildTableRefFromMarkers = True
 
 CleanupDone:
