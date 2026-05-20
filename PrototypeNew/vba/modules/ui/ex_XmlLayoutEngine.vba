@@ -539,6 +539,7 @@ Private Function private_TryGetEffectiveNodeSpan( _
     Optional ByVal dataContext As Object _
 ) As Boolean
     Dim nodeKind As String
+    Dim controlType As String
     Dim isVisible As Boolean
     Dim explicitRows As Long
     Dim explicitCols As Long
@@ -555,6 +556,20 @@ Private Function private_TryGetEffectiveNodeSpan( _
         Exit Function
     End If
 
+    nodeKind = VBA.LCase$(VBA.CStr(node.baseName))
+    If VBA.StrComp(nodeKind, "control", VBA.vbBinaryCompare) = 0 Then
+        controlType = VBA.LCase$(VBA.Trim$(VBA.CStr(ex_XmlCore.fn_NodeAttrText(node, "type"))))
+        ' Input-контрол всегда работает как одиночная cell-binding точка:
+        ' намеренно игнорируем spanRows/spanColls из XML, чтобы не было неоднозначности
+        ' между визуальным диапазоном и cell-route обработкой SheetChange.
+        If VBA.StrComp(controlType, "input", VBA.vbBinaryCompare) = 0 Then
+            outSpanRows = 1
+            outSpanColls = 1
+            private_TryGetEffectiveNodeSpan = True
+            Exit Function
+        End If
+    End If
+
     ' Явный span из XML имеет приоритет над измерением контента.
     explicitRows = private_ReadPositiveLongAttr(node, "spanRows", 0)
     explicitCols = private_ReadPositiveLongAttr(node, "spanColls", 0)
@@ -565,7 +580,6 @@ Private Function private_TryGetEffectiveNodeSpan( _
         Exit Function
     End If
 
-    nodeKind = VBA.LCase$(VBA.CStr(node.baseName))
     Select Case nodeKind
         Case "control"
             ' Базовый control по умолчанию занимает 1x1.
