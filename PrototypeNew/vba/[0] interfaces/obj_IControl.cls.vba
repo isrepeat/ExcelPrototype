@@ -5,6 +5,12 @@ END
 Attribute VB_Name = "obj_IControl"
 Option Explicit
 
+Public Function Initialize(ByVal page As obj_IPage) As Boolean
+End Function
+
+Public Sub Dispose()
+End Sub
+
 Public Sub Configure(ByVal controlNode As Object)
 End Sub
 

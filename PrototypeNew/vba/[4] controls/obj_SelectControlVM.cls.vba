@@ -67,15 +67,56 @@ Private Sub Class_Terminate()
 #End If
     If m_IsDisposed Then Exit Sub
     On Error Resume Next
-    Dispose
+    obj_IControl_Dispose
     On Error GoTo 0
 End Sub
 
 ' //
 ' // Interface
 ' //
+Private Function obj_IControl_Initialize(ByVal page As obj_IPage) As Boolean
+#If LOGGING_VERBOSE_ENABLED Then
+    ex_Core.fn_Diagnostic_LogInfo "lifecycle:" & VBA.TypeName(Me) & ".Initialize"
+#End If
+    m_IsDisposed = False
+    Set m_Page = page
+    obj_IControl_Initialize = True
+End Function
+
+Private Sub obj_IControl_Dispose()
+#If LOGGING_VERBOSE_ENABLED Then
+    ex_Core.fn_Diagnostic_LogInfo "lifecycle:" & VBA.TypeName(Me) & ".Dispose"
+#End If
+    If m_IsDisposed Then Exit Sub
+    m_IsDisposed = True
+    On Error Resume Next
+    Err.Clear
+    Err.Clear
+    Err.Clear
+    Err.Clear
+    Err.Clear
+    Err.Clear
+    Err.Clear
+    Set m_ControlBase = Nothing
+    Set m_ControlLayout = Nothing
+    Set m_Items = Nothing
+    Set m_ItemCaptions = Nothing
+    Set m_ItemIds = Nothing
+    Set m_ItemActionMacros = Nothing
+    Set m_ItemRawItems = Nothing
+    Set m_UiOptionShapeNames = Nothing
+    Set m_UiOptionCaptions = Nothing
+    Set m_UiOptionIds = Nothing
+    Set m_UiOptionActionMacros = Nothing
+    Set m_UiOptionRawItems = Nothing
+    Set m_CallbackContext = Nothing
+    Set m_Page = Nothing
+    On Error GoTo 0
+End Sub
+
 Private Sub obj_IControl_Configure(ByVal controlNode As Object)
     Dim pageBase As obj_PageBase
+    Dim dataContext As Object
     Dim selectedIdText As String
 
     ' Полный reset состояния: важно при повторной конфигурации того же VM.
@@ -124,7 +165,9 @@ Private Sub obj_IControl_Configure(ByVal controlNode As Object)
     If Not private_TryReadPositiveDoubleAttr(controlNode, "itemHeight", DEFAULT_ITEM_HEIGHT, m_ItemHeight) Then Exit Sub
     If Not private_TryReadNonNegativeDoubleAttr(controlNode, "itemMargin", DEFAULT_ITEM_MARGIN, m_ItemMargin) Then Exit Sub
 
-    Set m_CallbackContext = m_ControlBase.DataContext
+    Set dataContext = m_ControlBase.DataContext
+    If dataContext Is Nothing Then Set dataContext = m_Page
+    Set m_CallbackContext = dataContext
 
     m_OnChangeRaw = VBA.CStr(ex_XmlCore.fn_NodeAttrText(controlNode, "onChange"))
     m_OnChangeMacroRef = VBA.vbNullString
@@ -313,46 +356,6 @@ End Function
 ' //
 ' // API
 ' //
-Public Function Initialize(ByVal page As obj_IPage) As Boolean
-#If LOGGING_VERBOSE_ENABLED Then
-    ex_Core.fn_Diagnostic_LogInfo "lifecycle:" & VBA.TypeName(Me) & ".Initialize"
-#End If
-    m_IsDisposed = False
-    Set m_Page = page
-    Initialize = True
-End Function
-
-Public Sub Dispose()
-#If LOGGING_VERBOSE_ENABLED Then
-    ex_Core.fn_Diagnostic_LogInfo "lifecycle:" & VBA.TypeName(Me) & ".Dispose"
-#End If
-    If m_IsDisposed Then Exit Sub
-    m_IsDisposed = True
-    On Error Resume Next
-    Err.Clear
-    Err.Clear
-    Err.Clear
-    Err.Clear
-    Err.Clear
-    Err.Clear
-    Err.Clear
-    Set m_ControlBase = Nothing
-    Set m_ControlLayout = Nothing
-    Set m_Items = Nothing
-    Set m_ItemCaptions = Nothing
-    Set m_ItemIds = Nothing
-    Set m_ItemActionMacros = Nothing
-    Set m_ItemRawItems = Nothing
-    Set m_UiOptionShapeNames = Nothing
-    Set m_UiOptionCaptions = Nothing
-    Set m_UiOptionIds = Nothing
-    Set m_UiOptionActionMacros = Nothing
-    Set m_UiOptionRawItems = Nothing
-    Set m_CallbackContext = Nothing
-    Set m_Page = Nothing
-    On Error GoTo 0
-End Sub
-
 Public Function GetSelectedId() As String
     If Not m_UiOptionIds Is Nothing Then
         If m_SelectedIndex <= 0 Or m_SelectedIndex > m_UiOptionIds.Count Then Exit Function

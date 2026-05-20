@@ -29,13 +29,38 @@ Private Sub Class_Terminate()
 #End If
     If m_IsDisposed Then Exit Sub
     On Error Resume Next
-    Dispose
+    obj_IControl_Dispose
     On Error GoTo 0
 End Sub
 
 ' //
 ' // Interface
 ' //
+Private Function obj_IControl_Initialize(ByVal page As obj_IPage) As Boolean
+#If LOGGING_VERBOSE_ENABLED Then
+    ex_Core.fn_Diagnostic_LogInfo "lifecycle:" & VBA.TypeName(Me) & ".Initialize"
+#End If
+    m_IsDisposed = False
+    m_IsConfigured = False
+    Set m_Page = page
+    obj_IControl_Initialize = True
+End Function
+
+Private Sub obj_IControl_Dispose()
+#If LOGGING_VERBOSE_ENABLED Then
+    ex_Core.fn_Diagnostic_LogInfo "lifecycle:" & VBA.TypeName(Me) & ".Dispose"
+#End If
+    If m_IsDisposed Then Exit Sub
+    m_IsDisposed = True
+    On Error Resume Next
+    Err.Clear
+    Err.Clear
+    Set m_ControlBase = Nothing
+    Set m_ControlLayout = Nothing
+    Set m_Page = Nothing
+    On Error GoTo 0
+End Sub
+
 Private Sub obj_IControl_Configure(ByVal controlNode As Object)
     Dim dataContext As Object
     Dim pageBase As obj_PageBase
@@ -55,7 +80,7 @@ Private Sub obj_IControl_Configure(ByVal controlNode As Object)
     End If
 
     Set dataContext = m_ControlBase.DataContext
-    If dataContext Is Nothing Then Set dataContext = Me
+    If dataContext Is Nothing Then Set dataContext = m_Page
     If Not ex_BindingRuntime.fn_TryResolveTextBinding(m_TextRaw, dataContext, m_TextResolved) Then Exit Sub
 
     Set m_ControlLayout = New obj_ControlLayout
@@ -124,31 +149,6 @@ End Function
 ' //
 ' // API
 ' //
-Public Function Initialize(ByVal page As obj_IPage) As Boolean
-#If LOGGING_VERBOSE_ENABLED Then
-    ex_Core.fn_Diagnostic_LogInfo "lifecycle:" & VBA.TypeName(Me) & ".Initialize"
-#End If
-    m_IsDisposed = False
-    m_IsConfigured = False
-    Set m_Page = page
-    Initialize = True
-End Function
-
-Public Sub Dispose()
-#If LOGGING_VERBOSE_ENABLED Then
-    ex_Core.fn_Diagnostic_LogInfo "lifecycle:" & VBA.TypeName(Me) & ".Dispose"
-#End If
-    If m_IsDisposed Then Exit Sub
-    m_IsDisposed = True
-    On Error Resume Next
-    Err.Clear
-    Err.Clear
-    Set m_ControlBase = Nothing
-    Set m_ControlLayout = Nothing
-    Set m_Page = Nothing
-    On Error GoTo 0
-End Sub
-
 ' (No public API yet.)
 '
 ' //

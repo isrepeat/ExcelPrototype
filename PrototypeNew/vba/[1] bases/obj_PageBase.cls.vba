@@ -17,6 +17,7 @@ Private m_IsDisposed As Boolean
 Private m_IsRendering As Boolean
 Private m_ControlByKey As Object
 Private m_RouteByShape As Object
+Private m_RouteByCell As Object
 Private m_PageRuntimeSources As obj_PageRuntimeSources
 Private m_InlineRunEntries As Collection
 ' Кэш inline-профилей на уровне страницы: ключ = partName (banner/button/...).
@@ -297,7 +298,7 @@ Public Function Render() As Boolean
         Call private_DeleteOrphanRuntimeShapesByControlRegistry(ws)
     End If
 
-    private_LogRuntimeInfo "render-bindings controls=" & VBA.CStr(private_GetDictionaryCount(m_ControlByKey)) & " routes=" & VBA.CStr(private_GetDictionaryCount(m_RouteByShape))
+    private_LogRuntimeInfo "render-bindings controls=" & VBA.CStr(private_GetDictionaryCount(m_ControlByKey)) & " shapeRoutes=" & VBA.CStr(private_GetDictionaryCount(m_RouteByShape)) & " cellRoutes=" & VBA.CStr(private_GetDictionaryCount(m_RouteByCell))
 
     Render = True
     m_LastRenderedUiPath = resolvedUiPath
@@ -719,6 +720,65 @@ Public Function RegisterShapeRoute( _
     RegisterShapeRoute = True
 End Function
 
+Public Function RegisterCellRoute( _
+    ByVal cellAddress As String, _
+    ByVal controlKey As String, _
+    ByVal methodName As String, _
+    Optional ByVal hasArg As Boolean = False, _
+    Optional ByVal argValue As Variant _
+) As Boolean
+    Dim cellKey As String
+    Dim entry As Object
+
+    If Not private_EnsureNotDisposed("RegisterCellRoute") Then Exit Function
+    cellKey = VBA.UCase$(VBA.Trim$(cellAddress))
+    controlKey = VBA.LCase$(VBA.Trim$(controlKey))
+    methodName = VBA.Trim$(methodName)
+
+    If VBA.Len(cellKey) = 0 Then
+#If LOGGING_DEBUG_ENABLED Then
+        ex_Core.fn_Diagnostic_LogError "PageBase: cell address is empty."
+#End If
+        Exit Function
+    End If
+    If VBA.Len(controlKey) = 0 Then
+#If LOGGING_DEBUG_ENABLED Then
+        ex_Core.fn_Diagnostic_LogError "PageBase: control key is empty for cell '" & cellAddress & "'."
+#End If
+        Exit Function
+    End If
+    If VBA.Len(methodName) = 0 Then
+#If LOGGING_DEBUG_ENABLED Then
+        ex_Core.fn_Diagnostic_LogError "PageBase: method name is empty for cell '" & cellAddress & "'."
+#End If
+        Exit Function
+    End If
+
+    private_EnsureStorage
+    If Not m_ControlByKey.Exists(controlKey) Then
+#If LOGGING_DEBUG_ENABLED Then
+        ex_Core.fn_Diagnostic_LogError "PageBase: control '" & controlKey & "' is not registered for cell '" & cellAddress & "'."
+#End If
+        Exit Function
+    End If
+
+    Set entry = VBA.CreateObject("Scripting.Dictionary")
+    entry.CompareMode = 1
+    entry("RouteType") = ROUTE_TYPE_CONTROL
+    entry("ControlKey") = controlKey
+    entry("MethodName") = methodName
+    entry("HasArg") = VBA.CBool(hasArg)
+    If hasArg Then
+        entry("ArgValue") = argValue
+    Else
+        entry("ArgValue") = Empty
+    End If
+
+    Set m_RouteByCell(cellKey) = entry
+    private_LogRuntimeInfo "register-route cell='" & private_EscapeForLog(cellAddress) & "' control='" & private_EscapeForLog(controlKey) & "' method='" & private_EscapeForLog(methodName) & "' routes=" & VBA.CStr(private_GetDictionaryCount(m_RouteByCell))
+    RegisterCellRoute = True
+End Function
+
 ' Callstack[1]: obj_PageMain.UnregisterControl -> obj_PageMain.obj_IPage_UnregisterControl -> obj_PageBase.UnregisterControl
 ' Callstack[2]: page.UnregisterControl(obj_IPage) -> obj_PageMain.obj_IPage_UnregisterControl -> obj_PageBase.UnregisterControl
 Public Function UnregisterControl(ByVal controlKey As String) As Boolean
@@ -726,6 +786,7 @@ Public Function UnregisterControl(ByVal controlKey As String) As Boolean
     Dim routeEntry As Object
     Dim controlKeyNorm As String
     Dim routeKeysToRemove As Collection
+    Dim cellRouteKeysToRemove As Collection
     Dim removeKey As Variant
 
     If Not private_EnsureNotDisposed("UnregisterControl") Then Exit Function
@@ -744,6 +805,7 @@ Public Function UnregisterControl(ByVal controlKey As String) As Boolean
     End If
 
     Set routeKeysToRemove = New Collection
+    Set cellRouteKeysToRemove = New Collection
     For Each routeKey In m_RouteByShape.Keys
         Set routeEntry = m_RouteByShape(routeKey)
         If VBA.LCase$(VBA.Trim$(VBA.CStr(routeEntry("ControlKey")))) = controlKeyNorm Then
@@ -753,6 +815,17 @@ Public Function UnregisterControl(ByVal controlKey As String) As Boolean
 
     For Each removeKey In routeKeysToRemove
         m_RouteByShape.Remove VBA.CStr(removeKey)
+    Next removeKey
+
+    For Each routeKey In m_RouteByCell.Keys
+        Set routeEntry = m_RouteByCell(routeKey)
+        If VBA.LCase$(VBA.Trim$(VBA.CStr(routeEntry("ControlKey")))) = controlKeyNorm Then
+            cellRouteKeysToRemove.Add VBA.CStr(routeKey)
+        End If
+    Next routeKey
+
+    For Each removeKey In cellRouteKeysToRemove
+        m_RouteByCell.Remove VBA.CStr(removeKey)
     Next removeKey
 
     UnregisterControl = True
@@ -776,6 +849,7 @@ Public Function ResetControlActions() As Boolean
 
     Set m_ControlByKey = Nothing
     Set m_RouteByShape = Nothing
+    Set m_RouteByCell = Nothing
     private_LogRuntimeInfo "reset-control-actions"
     ResetControlActions = True
 End Function
@@ -848,6 +922,78 @@ Public Function DispatchShapeClick(ByVal shapeName As String) As Boolean
 
     private_LogRuntimeInfo "dispatch-click done shape='" & private_EscapeForLog(shapeName) & "' control='" & private_EscapeForLog(controlKey) & "' method='" & private_EscapeForLog(methodName) & "'"
     DispatchShapeClick = True
+End Function
+
+Public Function DispatchSheetChange(ByVal target As Range) As Boolean
+    Dim cell As Range
+    Dim routeEntry As Object
+    Dim cellKey As String
+    Dim controlKey As String
+    Dim methodName As String
+    Dim hasArg As Boolean
+    Dim argValue As Variant
+    Dim iControl As Object
+    Dim actionOk As Boolean
+    Dim failureReason As String
+    Dim invokeErrorText As String
+
+    If Not private_EnsureNotDisposed("DispatchSheetChange") Then Exit Function
+    If target Is Nothing Then
+        DispatchSheetChange = True
+        Exit Function
+    End If
+    If m_RouteByCell Is Nothing Then
+        DispatchSheetChange = True
+        Exit Function
+    End If
+    If m_RouteByCell.Count = 0 Then
+        DispatchSheetChange = True
+        Exit Function
+    End If
+
+    private_LogRuntimeInfo "dispatch-change start cells=" & VBA.CStr(target.Cells.CountLarge) & " cellRoutes=" & VBA.CStr(private_GetDictionaryCount(m_RouteByCell))
+
+    ' Обрабатываем каждую ячейку отдельно, чтобы корректно поддержать multi-cell change
+    ' и частичный матч только по тем адресам, где реально зарегистрирован input-route.
+    For Each cell In target.Cells
+        If cell Is Nothing Then GoTo ContinueCell
+
+        cellKey = VBA.UCase$(VBA.Trim$(cell.Address(False, False)))
+        If VBA.Len(cellKey) = 0 Then GoTo ContinueCell
+
+        If Not private_TryGetCellRoute(cellKey, routeEntry, failureReason) Then GoTo ContinueCell
+
+        controlKey = VBA.LCase$(VBA.Trim$(VBA.CStr(routeEntry("ControlKey"))))
+        methodName = VBA.Trim$(VBA.CStr(routeEntry("MethodName")))
+        hasArg = VBA.CBool(routeEntry("HasArg"))
+        If hasArg Then
+            argValue = routeEntry("ArgValue")
+        Else
+            argValue = Empty
+        End If
+
+        If Not private_TryGetControl(controlKey, iControl, failureReason) Then
+            private_LogRuntimeError "dispatch-change control-miss cell='" & private_EscapeForLog(cellKey) & "' control='" & private_EscapeForLog(controlKey) & "' reason='" & private_EscapeForLog(failureReason) & "'"
+            ' Если контрол уже удален/пересоздан, route считаем устаревшим и чистим его адресно.
+            private_RemoveCellRoute cellKey
+            GoTo ContinueCell
+        End If
+
+        If Not private_TryInvokeControlAction(iControl, methodName, hasArg, argValue, actionOk, invokeErrorText) Then
+            private_LogRuntimeError "dispatch-change invoke-failed cell='" & private_EscapeForLog(cellKey) & "' control='" & private_EscapeForLog(controlKey) & "' method='" & private_EscapeForLog(methodName) & "' err='" & private_EscapeForLog(invokeErrorText) & "'"
+            GoTo ContinueCell
+        End If
+
+        If Not actionOk Then
+            private_LogRuntimeError "dispatch-change action-returned-false cell='" & private_EscapeForLog(cellKey) & "' control='" & private_EscapeForLog(controlKey) & "' method='" & private_EscapeForLog(methodName) & "'"
+            GoTo ContinueCell
+        End If
+
+ContinueCell:
+    Next cell
+
+    private_LogRuntimeInfo "dispatch-change done"
+    DispatchSheetChange = True
 End Function
 
 ' Callstack[1]: rt_CoreActions.fn_UpdateCodeFullAndRerender -> private_ScheduleUpdateAndRerender -> rt_RestoreManager.m_SavePageSnapshots -> serializablePage.TrySerializeSnapshot(obj_PageMain) -> obj_PageMain.TrySerializeSnapshot -> m_Base.TryCollectSerializableControlSnapshots -> obj_PageBase.TryCollectSerializableControlSnapshots
@@ -1281,6 +1427,11 @@ Private Sub private_EnsureStorage()
         Set m_RouteByShape = VBA.CreateObject("Scripting.Dictionary")
         m_RouteByShape.CompareMode = 1
     End If
+
+    If m_RouteByCell Is Nothing Then
+        Set m_RouteByCell = VBA.CreateObject("Scripting.Dictionary")
+        m_RouteByCell.CompareMode = 1
+    End If
 End Sub
 
 Private Function private_ResolvePageUiPath(ByVal wsUiPath As String) As String
@@ -1460,6 +1611,49 @@ Private Sub private_RemoveShapeRoute(ByVal shapeName As String)
     If VBA.Len(shapeKey) = 0 Then Exit Sub
     If m_RouteByShape.Exists(shapeKey) Then
         m_RouteByShape.Remove shapeKey
+    End If
+End Sub
+
+Private Function private_TryGetCellRoute( _
+    ByVal cellAddress As String, _
+    ByRef outEntry As Object, _
+    Optional ByRef outReason As String = VBA.vbNullString _
+) As Boolean
+    Dim cellKey As String
+
+    outReason = VBA.vbNullString
+    If m_RouteByCell Is Nothing Then
+        outReason = "route-storage-empty"
+        Exit Function
+    End If
+
+    cellKey = VBA.UCase$(VBA.Trim$(cellAddress))
+    If VBA.Len(cellKey) = 0 Then
+        outReason = "cell-address-empty"
+        Exit Function
+    End If
+    If Not m_RouteByCell.Exists(cellKey) Then
+        outReason = "route-not-found"
+        Exit Function
+    End If
+
+    Set outEntry = m_RouteByCell(cellKey)
+    If outEntry Is Nothing Then
+        outReason = "route-entry-empty"
+        Exit Function
+    End If
+
+    private_TryGetCellRoute = True
+End Function
+
+Private Sub private_RemoveCellRoute(ByVal cellAddress As String)
+    Dim cellKey As String
+
+    If m_RouteByCell Is Nothing Then Exit Sub
+    cellKey = VBA.UCase$(VBA.Trim$(cellAddress))
+    If VBA.Len(cellKey) = 0 Then Exit Sub
+    If m_RouteByCell.Exists(cellKey) Then
+        m_RouteByCell.Remove cellKey
     End If
 End Sub
 

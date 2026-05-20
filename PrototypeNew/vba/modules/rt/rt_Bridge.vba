@@ -7,11 +7,14 @@ Option Explicit
 ' Runtime-состояние контролов теперь принадлежит конкретной странице.
 
 Private g_IsDispatchingClick As Boolean
+Private g_IsDispatchingSheetChange As Boolean
 
 Public Sub fn_Module_Dispose()
 #If LOGGING_VERBOSE_ENABLED Then
     ex_Core.fn_Diagnostic_LogInfo "lifecycle:rt_Bridge.fn_Module_Dispose"
 #End If
+    g_IsDispatchingClick = False
+    g_IsDispatchingSheetChange = False
 End Sub
 
 ' //
@@ -90,20 +93,77 @@ Public Function fn_IsDispatchingClick() As Boolean
     fn_IsDispatchingClick = g_IsDispatchingClick
 End Function
 
+Public Function fn_IsDispatchingSheetChange() As Boolean
+    fn_IsDispatchingSheetChange = g_IsDispatchingSheetChange
+End Function
+
+Public Sub fn_OnSheetChange(ByVal Sh As Object, ByVal Target As Range)
+    Dim ws As Worksheet
+    Dim page As obj_IPage
+    Dim pageBase As obj_PageBase
+    Dim dispatchOk As Boolean
+    Dim prevEnableEvents As Boolean
+    Dim wsName As String
+
+    On Error GoTo EH_CHANGE
+    prevEnableEvents = Application.EnableEvents
+    If g_IsDispatchingSheetChange Then Exit Sub
+    If Sh Is Nothing Then Exit Sub
+    If Target Is Nothing Then Exit Sub
+    If Not TypeOf Sh Is Worksheet Then Exit Sub
+
+    Set ws = Sh
+    wsName = VBA.Trim$(VBA.CStr(ws.Name))
+
+    If Not rt_PageManager.fn_TryGetPageByWorksheet(ws, page) Then Exit Sub
+    Set pageBase = page.GetPageBase()
+    If pageBase Is Nothing Then Exit Sub
+
+    g_IsDispatchingSheetChange = True
+    ' Временное отключение событий обязательно:
+    ' onChange callback может менять ячейки/перерисовывать страницу, иначе получим рекурсивный SheetChange.
+    Application.EnableEvents = False
+
+    ' Target может содержать диапазон (например, paste в несколько ячеек),
+    ' поэтому page-level dispatch сам итерирует по всем changed cells.
+    dispatchOk = pageBase.DispatchSheetChange(Target)
+    If Not dispatchOk Then
+#If LOGGING_DEBUG_ENABLED Then
+        ex_Core.fn_Diagnostic_LogError "bridge:sheet-change-dispatch-failed sheet='" & private_EscapeForLog(wsName) & "'"
+#End If
+    End If
+
+    Application.EnableEvents = prevEnableEvents
+    g_IsDispatchingSheetChange = False
+    Exit Sub
+
+EH_CHANGE:
+    On Error Resume Next
+    Application.EnableEvents = prevEnableEvents
+    g_IsDispatchingSheetChange = False
+#If LOGGING_DEBUG_ENABLED Then
+    ex_Core.fn_Diagnostic_LogError "rt_Bridge: sheet change dispatch failed: " & Err.Description
+#End If
+    On Error GoTo 0
+End Sub
+
 
 Public Function fn_RunCallback( _
     ByVal callbackRef As String, _
-    Optional ByVal callbackContext As Object _
+    Optional ByVal callbackContext As Object, _
+    Optional ByVal callbackArg As Variant _
 ) As Boolean
     Dim callbackResult As Variant
     Dim qualifiedMacroRef As String
     Dim wbName As String
+    Dim hasCallbackArg As Boolean
 
     callbackRef = VBA.Trim$(callbackRef)
     If VBA.Len(callbackRef) = 0 Then
         fn_RunCallback = True
         Exit Function
     End If
+    hasCallbackArg = (Not VBA.IsMissing(callbackArg))
 
     On Error GoTo EH_RUN
 
@@ -112,7 +172,11 @@ Public Function fn_RunCallback( _
     If Not callbackContext Is Nothing Then
         If VBA.InStr(1, callbackRef, ".", VBA.vbBinaryCompare) = 0 And _
            VBA.InStr(1, callbackRef, "!", VBA.vbBinaryCompare) = 0 Then
-            callbackResult = VBA.CallByName(callbackContext, callbackRef, VbMethod)
+            If hasCallbackArg Then
+                callbackResult = VBA.CallByName(callbackContext, callbackRef, VbMethod, callbackArg)
+            Else
+                callbackResult = VBA.CallByName(callbackContext, callbackRef, VbMethod)
+            End If
             If VBA.VarType(callbackResult) = vbBoolean Then
                 fn_RunCallback = VBA.CBool(callbackResult)
             Else
@@ -128,13 +192,17 @@ Public Function fn_RunCallback( _
         qualifiedMacroRef = "'" & wbName & "'!" & qualifiedMacroRef
     End If
 
-    Application.Run qualifiedMacroRef
+    If hasCallbackArg Then
+        Application.Run qualifiedMacroRef, callbackArg
+    Else
+        Application.Run qualifiedMacroRef
+    End If
     fn_RunCallback = True
     Exit Function
 
 EH_RUN:
 #If LOGGING_DEBUG_ENABLED Then
-    ex_Core.fn_Diagnostic_LogError "rt_Bridge: failed to execute callback '" & callbackRef & "' (context='" & VBA.TypeName(callbackContext) & "'): " & Err.Description
+    ex_Core.fn_Diagnostic_LogError "rt_Bridge: failed to execute callback '" & callbackRef & "' (context='" & VBA.TypeName(callbackContext) & "' hasArg=" & VBA.CStr(hasCallbackArg) & "): " & Err.Description
 #End If
 End Function
 

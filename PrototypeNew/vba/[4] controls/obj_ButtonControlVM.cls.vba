@@ -39,13 +39,40 @@ Private Sub Class_Terminate()
 #End If
     If m_IsDisposed Then Exit Sub
     On Error Resume Next
-    Dispose
+    obj_IControl_Dispose
     On Error GoTo 0
 End Sub
 
 ' //
 ' // Interface
 ' //
+Private Function obj_IControl_Initialize(ByVal page As obj_IPage) As Boolean
+#If LOGGING_VERBOSE_ENABLED Then
+    ex_Core.fn_Diagnostic_LogInfo "lifecycle:" & VBA.TypeName(Me) & ".Initialize"
+#End If
+    m_IsDisposed = False
+    Set m_Page = page
+    obj_IControl_Initialize = True
+End Function
+
+Private Sub obj_IControl_Dispose()
+#If LOGGING_VERBOSE_ENABLED Then
+    ex_Core.fn_Diagnostic_LogInfo "lifecycle:" & VBA.TypeName(Me) & ".Dispose"
+#End If
+    If m_IsDisposed Then Exit Sub
+    m_IsDisposed = True
+    On Error Resume Next
+    Err.Clear
+    Err.Clear
+    Err.Clear
+    Set m_ControlBase = Nothing
+    Set m_ControlLayout = Nothing
+    Set m_CaptionInlineTextPart = Nothing
+    Set m_OnClickCallbackContext = Nothing
+    Set m_Page = Nothing
+    On Error GoTo 0
+End Sub
+
 ' Configure поднимает контракт контрола из XML:
 ' читаем attrs -> резолвим биндинги -> нормализуем layout -> готовим runtime key.
 Private Sub obj_IControl_Configure(ByVal controlNode As Object)
@@ -81,13 +108,13 @@ Private Sub obj_IControl_Configure(ByVal controlNode As Object)
     End If
 
     Set dataContext = m_ControlBase.DataContext
-    If dataContext Is Nothing Then Set dataContext = Me
+    If dataContext Is Nothing Then Set dataContext = m_Page
 
     If Not ex_BindingRuntime.fn_TryResolveTextBinding(m_CaptionRaw, dataContext, captionTextResolved) Then Exit Sub
     m_CaptionInlineSource = captionTextResolved
     If Not private_TryResolveCaptionInlineText(pageBase, m_CaptionInlineSource) Then Exit Sub
 
-    Set callbackContext = m_ControlBase.DataContext
+    Set callbackContext = dataContext
     If Not ex_BindingRuntime.fn_TryResolveValueBinding(m_OnClickRaw, callbackContext, onClickResolved) Then Exit Sub
     If VBA.IsObject(onClickResolved) Then
 #If LOGGING_DEBUG_ENABLED Then
@@ -245,33 +272,6 @@ End Function
 ' //
 ' // API
 ' //
-Public Function Initialize(ByVal page As obj_IPage) As Boolean
-#If LOGGING_VERBOSE_ENABLED Then
-    ex_Core.fn_Diagnostic_LogInfo "lifecycle:" & VBA.TypeName(Me) & ".Initialize"
-#End If
-    m_IsDisposed = False
-    Set m_Page = page
-    Initialize = True
-End Function
-
-Public Sub Dispose()
-#If LOGGING_VERBOSE_ENABLED Then
-    ex_Core.fn_Diagnostic_LogInfo "lifecycle:" & VBA.TypeName(Me) & ".Dispose"
-#End If
-    If m_IsDisposed Then Exit Sub
-    m_IsDisposed = True
-    On Error Resume Next
-    Err.Clear
-    Err.Clear
-    Err.Clear
-    Set m_ControlBase = Nothing
-    Set m_ControlLayout = Nothing
-    Set m_CaptionInlineTextPart = Nothing
-    Set m_OnClickCallbackContext = Nothing
-    Set m_Page = Nothing
-    On Error GoTo 0
-End Sub
-
 ' Callstack[1]: Shape.OnAction -> rt_Bridge.fn_OnShapeClick -> rt_PageManager.fn_TryGetPageByWorksheet -> page.DispatchShapeClick -> obj_PageMain.obj_IPage_DispatchShapeClick -> obj_PageBase.DispatchShapeClick -> obj_PageBase.private_TryInvokeControlAction -> obj_ButtonControlVM.RuntimeHandleClick
 Public Function RuntimeHandleClick() As Boolean
     If Not rt_Bridge.fn_RunCallback(m_OnClickMacroRef, m_OnClickCallbackContext) Then Exit Function
