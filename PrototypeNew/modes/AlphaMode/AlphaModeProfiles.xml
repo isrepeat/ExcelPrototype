@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<profiles>
+  <profile id="alpha_main" caption="Alpha / Main">
+    <item attr="#" key="Profile.Name" value="AlphaMain"/>
+    <item attr="rx" key="Source.Main.FilePattern" value="{Alpha-{dd}.{mm}.{yyyy}}"/>
+    <item key="Sheet.StateMain.Key.Patient" value="No; Unit; Rank; FIO; Date"/>
+  </profile>
+
+  <profile id="alpha_alt" caption="Alpha / Alternate">
+    <item attr="#" key="Profile.Name" value="AlphaAlt"/>
+    <item key="Source.Main.SortOrder" value="order=desc"/>
+    <item key="Sheet.Aliases.StateMain" value="StateMain"/>
+  </profile>
+</profiles>

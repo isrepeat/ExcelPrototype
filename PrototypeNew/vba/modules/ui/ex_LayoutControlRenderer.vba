@@ -1,5 +1,7 @@
 Attribute VB_Name = "ex_LayoutControlRenderer"
 Option Explicit
+#Const LOGGING_DEBUG_ENABLED = True
+#Const LOGGING_VERBOSE_ENABLED = False
 
 ' Рендерер узлов <control>.
 ' Поток:
@@ -10,14 +12,22 @@ Option Explicit
 ' 5) Передаем узел в VM контрола (Configure/Render), затем рендерим template children.
 
 Private Const UI_NS As String = "urn:excelprototype:profiles"
-Private Const CONTROL_UI_BASE_REL_PATH As String = "vba\controls\"
+' UI-шаблоны контролов теперь лежат в пронумерованной папке.
+' Если структура `PrototypeNew/vba` снова изменится, обновить только этот базовый путь.
+Private Const CONTROL_UI_BASE_REL_PATH As String = "vba\[4] controls\"
 Private Const CONTROL_UI_FILE_PREFIX As String = "obj_"
 Private Const CONTROL_UI_FILE_SUFFIX As String = "ControlUI.xml"
+
+Public Sub fn_Module_Dispose()
+#If LOGGING_VERBOSE_ENABLED Then
+    ex_Core.fn_Diagnostic_LogInfo "lifecycle:ex_LayoutControlRenderer.fn_Module_Dispose"
+#End If
+End Sub
 
 ' //
 ' // API
 ' //
-Public Function m_Render( _
+Public Function fn_Render( _
     ByVal renderCtx As obj_LayoutRenderContext, _
     ByVal layoutNode As Object, _
     Optional ByVal rowStart As Long = 0, _
@@ -27,6 +37,7 @@ Public Function m_Render( _
 ) As Boolean
     Dim wb As Workbook
     Dim ws As Worksheet
+    Dim controlBoundsRange As Range
     Dim layoutControlName As String
     Dim controlType As String
     Dim typeRoot As String
@@ -34,47 +45,64 @@ Public Function m_Render( _
     Dim runtimeControlNode As Object
     Dim control As obj_IControl
     Dim pageUiPath As String
+    Dim page As obj_IPage
     Dim pageBase As obj_PageBase
 
     If renderCtx Is Nothing Then
-        VBA.MsgBox "PrototypeNew: render context is not specified for control render.", VBA.vbExclamation
+#If LOGGING_DEBUG_ENABLED Then
+        ex_Core.fn_Diagnostic_LogError "PrototypeNew: render context is not specified for control render."
+#End If
         Exit Function
     End If
     If layoutNode Is Nothing Then
-        VBA.MsgBox "PrototypeNew: control node is not specified.", VBA.vbExclamation
+#If LOGGING_DEBUG_ENABLED Then
+        ex_Core.fn_Diagnostic_LogError "PrototypeNew: control node is not specified."
+#End If
         Exit Function
     End If
     If VBA.StrComp(VBA.LCase$(VBA.CStr(layoutNode.baseName)), "control", VBA.vbBinaryCompare) <> 0 Then
-        VBA.MsgBox "PrototypeNew: ex_LayoutControlRenderer supports only <control> nodes.", VBA.vbExclamation
+#If LOGGING_DEBUG_ENABLED Then
+        ex_Core.fn_Diagnostic_LogError "PrototypeNew: ex_LayoutControlRenderer supports only <control> nodes."
+#End If
         Exit Function
     End If
     If Not private_TryGetPageRenderContext(renderCtx, wb, ws) Then Exit Function
-    Set pageBase = renderCtx.PageBase
+    Set page = renderCtx.Page
+    Set pageBase = page.GetPageBase()
     If pageBase Is Nothing Then
-        VBA.MsgBox "PrototypeNew: page base is not specified in render context.", VBA.vbExclamation
+#If LOGGING_DEBUG_ENABLED Then
+        ex_Core.fn_Diagnostic_LogError "PrototypeNew: page base is not specified in render context."
+#End If
         Exit Function
     End If
 
     ' name/type берем из layout-узла страницы.
-    layoutControlName = VBA.Trim$(ex_XmlCore.m_NodeAttrText(layoutNode, "name"))
-    controlType = VBA.Trim$(ex_XmlCore.m_NodeAttrText(layoutNode, "type"))
+    layoutControlName = VBA.Trim$(ex_XmlCore.fn_NodeAttrText(layoutNode, "name"))
+    controlType = VBA.Trim$(ex_XmlCore.fn_NodeAttrText(layoutNode, "type"))
     typeRoot = private_NormalizeTypeRoot(controlType)
 
     If VBA.Len(layoutControlName) = 0 Then
-        VBA.MsgBox "PrototypeNew: page control is missing required attribute 'name'.", VBA.vbExclamation
+#If LOGGING_DEBUG_ENABLED Then
+        ex_Core.fn_Diagnostic_LogError "PrototypeNew: page control is missing required attribute 'name'."
+#End If
         Exit Function
     End If
     If VBA.Len(controlType) = 0 Then
-        VBA.MsgBox "PrototypeNew: page control '" & layoutControlName & "' is missing required attribute 'type'.", VBA.vbExclamation
+#If LOGGING_DEBUG_ENABLED Then
+        ex_Core.fn_Diagnostic_LogError "PrototypeNew: page control '" & layoutControlName & "' is missing required attribute 'type'."
+#End If
         Exit Function
     End If
     If VBA.Len(typeRoot) = 0 Then
-        VBA.MsgBox "PrototypeNew: page control '" & layoutControlName & "' has invalid type '" & controlType & "'.", VBA.vbExclamation
+#If LOGGING_DEBUG_ENABLED Then
+        ex_Core.fn_Diagnostic_LogError "PrototypeNew: page control '" & layoutControlName & "' has invalid type '" & controlType & "'."
+#End If
         Exit Function
     End If
 
-    ' Создаем VM контрола по типу (Button, Select, Table...).
-    Set control = ex_ControlFactory.m_CreateControlByTypeRoot(typeRoot)
+    ' Создаем VM контрола по типу (Button, Select, Table...),
+    ' сразу прокидывая page-контекст для классов, которые хранят m_Page.
+    Set control = ex_ControlFactory.fn_CreateControlByTypeRoot(typeRoot, page)
     If control Is Nothing Then Exit Function
 
     ' Грузим XML-шаблон контрола и применяем overrides из page layout.
@@ -91,7 +119,7 @@ Public Function m_Render( _
 
     ' Регистрируем текущие bounds в runtime-реестре, чтобы refresh-пайплайн
     ' умел переиспользовать координаты и переотрисовывать контрол адресно.
-    ex_ControlRefreshRuntime.m_RegisterControlRenderBounds _
+    ex_ControlRefreshRuntime.fn_RegisterControlRenderBounds _
         layoutControlName, _
         typeRoot, _
         ws.Name, _
@@ -101,18 +129,56 @@ Public Function m_Render( _
         rowEnd, _
         colEnd
 
+    ex_StylePipelineEngine.fn_RegisterLayoutBound ws, rowStart, colStart, rowEnd, colEnd, "control", layoutControlName
+
+    ' Почему дублируем установку формата, хотя похожий baseline есть в PageBase:
+    ' 1) В PageBase формат ставится по UsedRange, а он не всегда покрывает текущие bounds
+    '    контрола (например, при первом рендере в новой области или после расширения span).
+    ' 2) Есть адресный refresh контрола (без полного page-render цикла), где нам нужна
+    '    локальная гарантия текстового формата именно на фактическом диапазоне контрола.
+    ' 3) Операция идемпотентна: повторная установка "@" на bounds безопасна и стабилизирует
+    '    поведение против авто-конвертации Excel (строки вида "01.05", коды, идентификаторы).
+    If rowStart > 0 And colStart > 0 And rowEnd >= rowStart And colEnd >= colStart Then
+        On Error Resume Next
+        Set controlBoundsRange = ws.Range(ws.Cells(rowStart, colStart), ws.Cells(rowEnd, colEnd))
+        If Not controlBoundsRange Is Nothing Then
+            controlBoundsRange.NumberFormat = "@"
+        End If
+        Set controlBoundsRange = Nothing
+        On Error GoTo 0
+    End If
+
     ' Передаем итоговый runtime-узел в VM и запускаем render контрола.
     ' На этом шаге VM читает dataContext/objectSource/itemsSource и запускает resolve через RuntimeSourceResolver.
-    control.Configure pageBase, runtimeControlNode
+    On Error GoTo EH_CONTROL_PIPELINE
+    control.Configure runtimeControlNode
+    If Not control.IsConfigured() Then
+        ex_LayoutControlFallbackRndr.fn_RegisterControlFallback ws, rowStart, colStart, rowEnd, colEnd, layoutControlName
+    #If LOGGING_DEBUG_ENABLED Then
+        ex_Core.fn_Diagnostic_LogWarning "PrototypeNew: control '" & layoutControlName & "' (type='" & typeRoot & "') is not configured. Fallback was applied."
+    #End If
+        fn_Render = True
+        Exit Function
+    End If
+
     control.Render
+    On Error GoTo 0
 
     ' Если в шаблоне контрола есть дочерний layout (template children),
     ' рендерим его в тех же границах.
-    If Not ex_XmlLayoutEngine.m_RenderTemplateChildren( _
+    If Not ex_XmlLayoutEngine.fn_RenderTemplateChildren( _
         renderCtx, runtimeControlNode, _
         rowStart, colStart, rowEnd, colEnd) Then Exit Function
 
-    m_Render = True
+    fn_Render = True
+    Exit Function
+
+EH_CONTROL_PIPELINE:
+    ex_LayoutControlFallbackRndr.fn_RegisterControlFallback ws, rowStart, colStart, rowEnd, colEnd, layoutControlName
+#If LOGGING_DEBUG_ENABLED Then
+    ex_Core.fn_Diagnostic_LogError "PrototypeNew: control '" & layoutControlName & "' (type='" & typeRoot & "') render pipeline failed. Fallback was applied: " & Err.Description
+#End If
+    fn_Render = True
 End Function
 
 ' //
@@ -130,7 +196,7 @@ Private Function private_LoadControlNodeFromControlUi( _
     Dim escapedName As String
     Dim xPath As String
 
-    Set uiDoc = ex_XmlCore.m_LoadDomByRelativePath( _
+    Set uiDoc = ex_XmlCore.fn_LoadDomByRelativePath( _
         wb, _
         controlUiRelPath, _
         "PrototypeNew: control UI file was not found: ", _
@@ -138,7 +204,7 @@ Private Function private_LoadControlNodeFromControlUi( _
         UI_NS)
     If uiDoc Is Nothing Then Exit Function
 
-    escapedName = ex_XmlCore.m_XPathLiteral(controlName)
+    escapedName = ex_XmlCore.fn_XPathLiteral(controlName)
     xPath = "/p:uiDefinition/p:layout//p:control[@name=" & escapedName & "]"
     Set private_LoadControlNodeFromControlUi = uiDoc.selectSingleNode(xPath)
 
@@ -149,7 +215,9 @@ Private Function private_LoadControlNodeFromControlUi( _
     End If
 
     If private_LoadControlNodeFromControlUi Is Nothing Then
-        VBA.MsgBox "PrototypeNew: control template has no <control> node in UI file '" & controlUiRelPath & "'.", VBA.vbExclamation
+#If LOGGING_DEBUG_ENABLED Then
+        ex_Core.fn_Diagnostic_LogError "PrototypeNew: control template has no <control> node in UI file '" & controlUiRelPath & "'."
+#End If
         Exit Function
     End If
 
@@ -197,15 +265,19 @@ Private Function private_ApplyLayoutControlOverridesByContract( _
         If private_IsLayoutAttribute(attrName) Then GoTo ContinueLoop
 
         ' Строгая валидация: атрибут должен входить в контракт конкретного VM.
-        If Not ex_ControlAttributeContracts.m_IsSupportedControlAttribute(control, attrName) Then
-            VBA.MsgBox "PrototypeNew: attribute '" & attrName & "' is not supported by control '" & controlName & "' of type '" & typeRoot & "'.", VBA.vbExclamation
+        If Not ex_ControlAttributeContracts.fn_IsSupportedControlAttribute(control, attrName) Then
+#If LOGGING_DEBUG_ENABLED Then
+            ex_Core.fn_Diagnostic_LogError "PrototypeNew: attribute '" & attrName & "' is not supported by control '" & controlName & "' of type '" & typeRoot & "'."
+#End If
             Exit Function
         End If
 
         On Error Resume Next
         runtimeControlNode.setAttribute attrName, VBA.CStr(attrNode.Text)
         If Err.Number <> 0 Then
-            VBA.MsgBox "PrototypeNew: failed to apply attribute '" & attrName & "' to control '" & controlName & "': " & Err.Description, VBA.vbExclamation
+#If LOGGING_DEBUG_ENABLED Then
+            ex_Core.fn_Diagnostic_LogError "PrototypeNew: failed to apply attribute '" & attrName & "' to control '" & controlName & "': " & Err.Description
+#End If
             Err.Clear
             On Error GoTo 0
             Exit Function
@@ -223,7 +295,7 @@ Private Function private_IsLayoutAttribute(ByVal attrName As String) As Boolean
     ' Атрибуты раскладки страницы. Они управляют размещением в grid/stack/list,
     ' но не являются "настройками VM контрола".
     Select Case VBA.LCase$(VBA.Trim$(attrName))
-        Case "at", "spancells", "spanrows", "visibility"
+        Case "at", "spancolls", "spanrows", "visibility", "debugstyle"
             private_IsLayoutAttribute = True
     End Select
 End Function
@@ -271,19 +343,25 @@ Private Function private_TryGetPageRenderContext( _
     Set outWs = Nothing
 
     If renderCtx Is Nothing Then
-        VBA.MsgBox "PrototypeNew: render context is not specified.", VBA.vbExclamation
+#If LOGGING_DEBUG_ENABLED Then
+        ex_Core.fn_Diagnostic_LogError "PrototypeNew: render context is not specified."
+#End If
         Exit Function
     End If
 
     Set outWs = renderCtx.Worksheet
     If outWs Is Nothing Then
-        VBA.MsgBox "PrototypeNew: worksheet is not specified.", VBA.vbExclamation
+#If LOGGING_DEBUG_ENABLED Then
+        ex_Core.fn_Diagnostic_LogError "PrototypeNew: worksheet is not specified."
+#End If
         Exit Function
     End If
 
     Set outWb = renderCtx.Workbook
     If outWb Is Nothing Then
-        VBA.MsgBox "PrototypeNew: workbook is not specified.", VBA.vbExclamation
+#If LOGGING_DEBUG_ENABLED Then
+        ex_Core.fn_Diagnostic_LogError "PrototypeNew: workbook is not specified."
+#End If
         Exit Function
     End If
 

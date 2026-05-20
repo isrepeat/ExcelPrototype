@@ -1,12 +1,20 @@
 Attribute VB_Name = "ex_LayoutGridRenderer"
 Option Explicit
+#Const LOGGING_DEBUG_ENABLED = True
+#Const LOGGING_VERBOSE_ENABLED = False
+
+Public Sub fn_Module_Dispose()
+#If LOGGING_VERBOSE_ENABLED Then
+    ex_Core.fn_Diagnostic_LogInfo "lifecycle:ex_LayoutGridRenderer.fn_Module_Dispose"
+#End If
+End Sub
 
 ' Renderer for <grid> nodes.
 
 ' //
 ' // API
 ' //
-Public Function m_Render( _
+Public Function fn_Render( _
     ByVal renderCtx As obj_LayoutRenderContext, _
     ByVal layoutNode As Object, _
     ByVal rowStart As Long, _
@@ -15,15 +23,23 @@ Public Function m_Render( _
     ByVal colEnd As Long _
 ) As Boolean
     If layoutNode Is Nothing Then
-        VBA.MsgBox "PrototypeNew: grid node is not specified.", VBA.vbExclamation
+#If LOGGING_DEBUG_ENABLED Then
+        ex_Core.fn_Diagnostic_LogError "PrototypeNew: grid node is not specified."
+#End If
         Exit Function
     End If
     If VBA.StrComp(VBA.LCase$(VBA.CStr(layoutNode.baseName)), "grid", VBA.vbBinaryCompare) <> 0 Then
-        VBA.MsgBox "PrototypeNew: ex_LayoutGridRenderer supports only <grid> nodes.", VBA.vbExclamation
+#If LOGGING_DEBUG_ENABLED Then
+        ex_Core.fn_Diagnostic_LogError "PrototypeNew: ex_LayoutGridRenderer supports only <grid> nodes."
+#End If
         Exit Function
     End If
 
-    m_Render = ex_XmlLayoutEngine.m_RenderContainerNodeInBounds( _
+    If Not renderCtx Is Nothing Then
+        ex_StylePipelineEngine.fn_RegisterLayoutBound renderCtx.Worksheet, rowStart, colStart, rowEnd, colEnd, "grid"
+    End If
+
+    fn_Render = ex_XmlLayoutEngine.fn_RenderContainerNodeInBounds( _
         renderCtx:=renderCtx, _
         containerNode:=layoutNode, _
         layoutRowStart:=rowStart, _

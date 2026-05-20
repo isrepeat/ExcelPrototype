@@ -1,4 +1,5 @@
 Option Explicit
+#Const LOGGING_DEBUG_ENABLED = True
 
 Private Sub Workbook_Open()
     Dim restoredPagesCount As Long
@@ -6,9 +7,8 @@ Private Sub Workbook_Open()
 
     On Error GoTo EH
 
-    restoredOk = rt_Snapshots.m_RestorePageSnapshots(True, "Workbook_Open", restoredPagesCount)
+    restoredOk = rt_RestoreManager.fn_RestoreRuntimeState("Workbook_Open", restoredPagesCount)
     If restoredOk And restoredPagesCount > 0 Then
-        Call rt_Snapshots.m_RestoreRuntimeGlobalsSnapshot
         Exit Sub
     End If
 
@@ -16,12 +16,24 @@ Private Sub Workbook_Open()
 
     Exit Sub
 EH:
-    VBA.MsgBox "PrototypeNew: Workbook_Open failed: " & Err.Description, VBA.vbExclamation
+#If LOGGING_DEBUG_ENABLED Then
+    ex_Core.fn_Diagnostic_LogError "PrototypeNew: Workbook_Open failed: " & Err.Description
+#End If
 End Sub
 
 Private Sub Workbook_BeforeClose(Cancel As Boolean)
-    Call rt_Snapshots.m_SavePageSnapshots
-    Call rt_Snapshots.m_SaveRuntimeGlobalsSnapshot
+    Call rt_RestoreManager.fn_SaveRuntimeState
+End Sub
+
+Private Sub Workbook_SheetChange(ByVal Sh As Object, ByVal Target As Range)
+    On Error GoTo EH_SHEET_CHANGE
+    rt_Bridge.fn_OnSheetChange Sh, Target
+    Exit Sub
+
+EH_SHEET_CHANGE:
+#If LOGGING_DEBUG_ENABLED Then
+    ex_Core.fn_Diagnostic_LogError "PrototypeNew: Workbook_SheetChange failed: " & Err.Description
+#End If
 End Sub
 
 Private Sub Workbook_SheetBeforeDelete(ByVal Sh As Object)
@@ -41,7 +53,7 @@ Private Sub Workbook_SheetBeforeDelete(ByVal Sh As Object)
     If VBA.StrComp(sheetName, "__startup_tmp__", VBA.vbTextCompare) = 0 Then Exit Sub
     If VBA.StrComp(sheetName, "__restore_tmp__", VBA.vbTextCompare) = 0 Then Exit Sub
 
-    Call ex_HelpersSheet.m_RemovePageByWorksheet(ws)
+    Call ex_HelpersSheet.fn_RemovePageByWorksheet(ws)
 End Sub
 
 ' //
@@ -63,14 +75,13 @@ Private Function private_ResetWorkbookAndCreateMainPage( _
     Dim wb As Workbook
     Dim tmpWs As Worksheet
     Dim tmpSheetName As String
-    Dim createdPageId As String
     Dim createdPage As obj_IPage
-    Dim createdPageBase As obj_PageBase
+    Dim isPageCreated As Boolean
 
     Set wb = ThisWorkbook
     If wb Is Nothing Then Exit Function
 
-    rt_PageManager.m_DisposeAllPages
+    rt_PageManager.fn_DisposeAllPages
 
     On Error GoTo EH_RESET
     Application.DisplayAlerts = False
@@ -79,7 +90,9 @@ Private Function private_ResetWorkbookAndCreateMainPage( _
     tmpSheetName = private_BuildUniqueWorksheetName(wb, "__startup_tmp__")
     If VBA.Len(tmpSheetName) = 0 Then
         Application.DisplayAlerts = True
-        VBA.MsgBox "PrototypeNew: failed to prepare temporary worksheet name.", VBA.vbExclamation
+#If LOGGING_DEBUG_ENABLED Then
+        ex_Core.fn_Diagnostic_LogError "PrototypeNew: failed to prepare temporary worksheet name."
+#End If
         Exit Function
     End If
     tmpWs.Name = tmpSheetName
@@ -95,25 +108,18 @@ Private Function private_ResetWorkbookAndCreateMainPage( _
     Application.DisplayAlerts = True
     On Error GoTo EH_CREATE
 
-    If Not rt_PageManager.m_CreatePage( _
-        xmlUiPath:="ui\DevUI.xml", _
-        pageType:=PageTypeMain, _
-        sheetName:="Main", _
-        outPageId:=createdPageId) Then Exit Function
+    Set createdPage = New obj_PageMain
+    If createdPage Is Nothing Then Exit Function
 
-    If Not rt_PageManager.m_RenderPageById(createdPageId, renderReason) Then Exit Function
+    If Not rt_PageManager.fn_CreatePage(createdPage, "ui\DevUI.xml", "Main") Then GoTo EH_CREATE
+    isPageCreated = True
 
-    If Not rt_PageManager.m_TryGetPageById(createdPageId, createdPage) Then Exit Function
-    Set createdPageBase = createdPage.GetPageBase()
-    If createdPageBase Is Nothing Then Exit Function
+    Application.DisplayAlerts = False
+    tmpWs.Delete
+    Application.DisplayAlerts = True
+    Set tmpWs = Nothing
 
-    If Not tmpWs Is Nothing Then
-        If Not createdPageBase.Worksheet Is tmpWs Then
-            Application.DisplayAlerts = False
-            tmpWs.Delete
-            Application.DisplayAlerts = True
-        End If
-    End If
+    If Not rt_PageManager.fn_RenderPage(createdPage, renderReason) Then GoTo EH_CREATE
 
     private_ResetWorkbookAndCreateMainPage = True
     Exit Function
@@ -121,14 +127,28 @@ Private Function private_ResetWorkbookAndCreateMainPage( _
 EH_RESET:
     Application.DisplayAlerts = True
     If showErrorUi Then
-        VBA.MsgBox "PrototypeNew: failed to reset workbook sheets: " & Err.Description, VBA.vbExclamation
+#If LOGGING_DEBUG_ENABLED Then
+        ex_Core.fn_Diagnostic_LogError "PrototypeNew: failed to reset workbook sheets: " & Err.Description
+#End If
     End If
     Exit Function
 
 EH_CREATE:
     Application.DisplayAlerts = True
+    On Error Resume Next
+    If Not createdPage Is Nothing And isPageCreated Then
+        Call rt_PageManager.fn_RemovePage(createdPage, True)
+    End If
+    If Not tmpWs Is Nothing Then
+        Application.DisplayAlerts = False
+        tmpWs.Delete
+        Application.DisplayAlerts = True
+    End If
+    On Error GoTo 0
     If showErrorUi Then
-        VBA.MsgBox "PrototypeNew: failed to create default main page: " & Err.Description, VBA.vbExclamation
+#If LOGGING_DEBUG_ENABLED Then
+        ex_Core.fn_Diagnostic_LogError "PrototypeNew: failed to create default main page: " & Err.Description
+#End If
     End If
 End Function
 

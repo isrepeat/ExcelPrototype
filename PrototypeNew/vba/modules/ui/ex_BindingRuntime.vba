@@ -1,15 +1,22 @@
 Attribute VB_Name = "ex_BindingRuntime"
 Option Explicit
+#Const LOGGING_DEBUG_ENABLED = True
+#Const LOGGING_VERBOSE_ENABLED = False
 
 Private Const BINDING_PREFIX As String = "{Binding "
 Private Const BINDING_SUFFIX As String = "}"
 
+Public Sub fn_Module_Dispose()
+#If LOGGING_VERBOSE_ENABLED Then
+    ex_Core.fn_Diagnostic_LogInfo "lifecycle:ex_BindingRuntime.fn_Module_Dispose"
+#End If
+End Sub
 ' //
 ' // API
 ' //
-' Callstack[1]: rt_PageManager.m_RenderPage -> page.Render -> obj_PageBase.Render -> ex_XmlLayoutEngine.m_RenderNode -> ex_LayoutControlRenderer.m_Render -> obj_ButtonControlVM.obj_IControl_Configure -> ex_BindingRuntime.m_TryResolveTextBinding
-' Callstack[2]: rt_PageManager.m_RenderPage -> page.Render -> obj_PageBase.Render -> ex_XmlLayoutEngine.m_RenderNode -> ex_LayoutControlRenderer.m_Render -> obj_LabelControlVM.obj_IControl_Configure -> ex_BindingRuntime.m_TryResolveTextBinding
-Public Function m_TryResolveTextBinding( _
+' Callstack[1]: rt_PageManager.fn_RenderPage -> page.Render -> obj_PageBase.Render -> ex_XmlLayoutEngine.fn_RenderNode -> ex_LayoutControlRenderer.fn_Render -> obj_ButtonControlVM.obj_IControl_Configure -> ex_BindingRuntime.fn_TryResolveTextBinding
+' Callstack[2]: rt_PageManager.fn_RenderPage -> page.Render -> obj_PageBase.Render -> ex_XmlLayoutEngine.fn_RenderNode -> ex_LayoutControlRenderer.fn_Render -> obj_LabelControlVM.obj_IControl_Configure -> ex_BindingRuntime.fn_TryResolveTextBinding
+Public Function fn_TryResolveTextBinding( _
     ByVal rawText As String, _
     ByVal sourceObject As Object, _
     ByRef outText As String _
@@ -19,18 +26,19 @@ Public Function m_TryResolveTextBinding( _
     If Not private_TryResolveBindingValue(rawText, sourceObject, resolvedValue) Then Exit Function
 
     If VBA.IsObject(resolvedValue) Then
-        VBA.MsgBox "PrototypeNew: text binding must resolve to scalar value.", VBA.vbExclamation
+#If LOGGING_DEBUG_ENABLED Then
+        ex_Core.fn_Diagnostic_LogError "PrototypeNew: text binding must resolve to scalar value."
+#End If
         Exit Function
     End If
 
     outText = VBA.CStr(resolvedValue)
-    m_TryResolveTextBinding = True
+    fn_TryResolveTextBinding = True
 End Function
 
-
-' Callstack[1]: rt_PageManager.m_RenderPage -> page.Render -> obj_PageBase.Render -> ex_XmlLayoutEngine.m_RenderNode -> ex_LayoutControlRenderer.m_Render -> obj_ButtonControlVM.obj_IControl_Configure -> ex_BindingRuntime.m_TryResolveMacroBinding
-' Callstack[2]: rt_PageManager.m_RenderPage -> page.Render -> obj_PageBase.Render -> ex_XmlLayoutEngine.m_RenderNode -> ex_LayoutControlRenderer.m_Render -> obj_SelectControlVM.obj_IControl_Configure -> ex_BindingRuntime.m_TryResolveMacroBinding
-Public Function m_TryResolveMacroBinding( _
+' Callstack[1]: rt_PageManager.fn_RenderPage -> page.Render -> obj_PageBase.Render -> ex_XmlLayoutEngine.fn_RenderNode -> ex_LayoutControlRenderer.fn_Render -> obj_ButtonControlVM.obj_IControl_Configure -> ex_BindingRuntime.fn_TryResolveMacroBinding
+' Callstack[2]: rt_PageManager.fn_RenderPage -> page.Render -> obj_PageBase.Render -> ex_XmlLayoutEngine.fn_RenderNode -> ex_LayoutControlRenderer.fn_Render -> obj_SelectControlVM.obj_IControl_Configure -> ex_BindingRuntime.fn_TryResolveMacroBinding
+Public Function fn_TryResolveMacroBinding( _
     ByVal rawText As String, _
     ByVal sourceObject As Object, _
     ByRef outMacroRef As String _
@@ -41,27 +49,29 @@ Public Function m_TryResolveMacroBinding( _
     If Not private_TryResolveBindingValue(rawText, sourceObject, resolvedValue) Then Exit Function
 
     If VBA.IsObject(resolvedValue) Then
-        VBA.MsgBox "PrototypeNew: macro binding must resolve to text value.", VBA.vbExclamation
+#If LOGGING_DEBUG_ENABLED Then
+        ex_Core.fn_Diagnostic_LogError "PrototypeNew: macro binding must resolve to text value."
+#End If
         Exit Function
     End If
 
     macroName = VBA.Trim$(VBA.CStr(resolvedValue))
     If VBA.Len(macroName) = 0 Then
-        VBA.MsgBox "PrototypeNew: macro binding resolved to an empty value.", VBA.vbExclamation
+#If LOGGING_DEBUG_ENABLED Then
+        ex_Core.fn_Diagnostic_LogError "PrototypeNew: macro binding resolved to an empty value."
+#End If
         Exit Function
     End If
 
     outMacroRef = private_QualifyMacroName(macroName)
-    m_TryResolveMacroBinding = True
+    fn_TryResolveMacroBinding = True
 End Function
 
-
 ' // Helper for Visibility attribute.
-' Callstack[1]: ex_XmlLayoutEngine.private_TryIsNodeVisible -> ex_BindingRuntime.m_TryResolveVisibilityBinding
-' Callstack[2]: ex_LayoutListRenderer.private_ApplyNodeBindingsRecursive -> ex_BindingRuntime.m_TryResolveVisibilityBinding
-' Callstack[3]: ex_LayoutItemControlRenderer.private_ApplyNodeBindingsRecursive -> ex_BindingRuntime.m_TryResolveVisibilityBinding
-' Callstack[4]: obj_TableListControlVM.private_TryApplyItemVisibilityFilter -> ex_BindingRuntime.m_TryResolveVisibilityBinding
-Public Function m_TryResolveVisibilityBinding( _
+' Callstack[1]: ex_XmlLayoutEngine.private_TryIsNodeVisible -> ex_BindingRuntime.fn_TryResolveVisibilityBinding
+' Callstack[1a]: ex_XmlLayoutEngine.private_TryResolveNodeVisibilityState -> ex_BindingRuntime.fn_TryResolveVisibilityStateBinding
+' Callstack[2]: obj_TableListControlVM.private_TryApplyItemVisibilityFilter -> ex_BindingRuntime.fn_TryResolveVisibilityBinding
+Public Function fn_TryResolveVisibilityBinding( _
     ByVal rawText As String, _
     ByVal sourceObject As Object, _
     ByRef outVisible As Boolean _
@@ -71,38 +81,72 @@ Public Function m_TryResolveVisibilityBinding( _
     rawText = VBA.Trim$(rawText)
     If VBA.Len(rawText) = 0 Then
         outVisible = True
-        m_TryResolveVisibilityBinding = True
+        fn_TryResolveVisibilityBinding = True
         Exit Function
     End If
 
-    If Not m_TryResolveValueBinding(rawText, sourceObject, resolvedValue) Then Exit Function
+    If Not fn_TryResolveValueBinding(rawText, sourceObject, resolvedValue) Then Exit Function
     If Not private_TryParseBooleanVariant(resolvedValue, outVisible) Then
         If VBA.IsObject(resolvedValue) Then
-            VBA.MsgBox "PrototypeNew: visibility value resolved to object '" & VBA.TypeName(resolvedValue) & "'. Expected boolean-compatible value.", VBA.vbExclamation
+#If LOGGING_DEBUG_ENABLED Then
+            ex_Core.fn_Diagnostic_LogError "PrototypeNew: visibility value resolved to object '" & VBA.TypeName(resolvedValue) & "'. Expected boolean-compatible value."
+#End If
         Else
-            VBA.MsgBox "PrototypeNew: visibility value '" & VBA.CStr(resolvedValue) & "' is invalid. Supported values: true/false/visible/collapsed.", VBA.vbExclamation
+#If LOGGING_DEBUG_ENABLED Then
+            ex_Core.fn_Diagnostic_LogError "PrototypeNew: visibility value '" & VBA.CStr(resolvedValue) & "' is invalid. Supported values: true/false/visible/hidden/collapsed."
+#End If
         End If
         Exit Function
     End If
 
-    m_TryResolveVisibilityBinding = True
+    fn_TryResolveVisibilityBinding = True
 End Function
 
+Public Function fn_TryResolveVisibilityStateBinding( _
+    ByVal rawText As String, _
+    ByVal sourceObject As Object, _
+    ByRef outVisibilityState As String _
+) As Boolean
+    Dim resolvedValue As Variant
 
-' Callstack[1]: ex_BindingRuntime.m_TryResolveVisibilityBinding -> ex_BindingRuntime.m_TryResolveValueBinding
-' Callstack[2]: ex_RuntimeSourceResolver.m_TryResolveItemsSource -> ex_BindingRuntime.m_TryResolveValueBinding
-' Callstack[3]: ex_RuntimeSourceResolver.m_TryResolveObjectSource -> ex_BindingRuntime.m_TryResolveValueBinding
-' Callstack[4]: ex_LayoutListRenderer.private_ApplyNodeBindingsRecursive -> ex_BindingRuntime.m_TryResolveValueBinding
-' Callstack[5]: ex_LayoutListRenderer.private_TryResolveItemsSourceForMeasure -> ex_BindingRuntime.m_TryResolveValueBinding
-' Callstack[6]: ex_LayoutItemControlRenderer.private_ApplyNodeBindingsRecursive -> ex_BindingRuntime.m_TryResolveValueBinding
-' Callstack[7]: ex_LayoutItemControlRenderer.private_TryResolveObjectSourceForMeasure -> ex_BindingRuntime.m_TryResolveValueBinding
-Public Function m_TryResolveValueBinding( _
+    rawText = VBA.Trim$(rawText)
+    If VBA.Len(rawText) = 0 Then
+        outVisibilityState = "visible"
+        fn_TryResolveVisibilityStateBinding = True
+        Exit Function
+    End If
+
+    If Not fn_TryResolveValueBinding(rawText, sourceObject, resolvedValue) Then Exit Function
+    If Not private_TryParseVisibilityStateVariant(resolvedValue, outVisibilityState) Then
+        If VBA.IsObject(resolvedValue) Then
+#If LOGGING_DEBUG_ENABLED Then
+            ex_Core.fn_Diagnostic_LogError "PrototypeNew: visibility state resolved to object '" & VBA.TypeName(resolvedValue) & "'. Expected scalar visibility value."
+#End If
+        Else
+#If LOGGING_DEBUG_ENABLED Then
+            ex_Core.fn_Diagnostic_LogError "PrototypeNew: visibility value '" & VBA.CStr(resolvedValue) & "' is invalid. Supported values: visible/hidden/collapsed (or boolean true/false)."
+#End If
+        End If
+        Exit Function
+    End If
+
+    fn_TryResolveVisibilityStateBinding = True
+End Function
+
+' Callstack[1]: ex_BindingRuntime.fn_TryResolveVisibilityBinding -> ex_BindingRuntime.fn_TryResolveValueBinding
+' Callstack[2]: ex_RuntimeSourceResolver.fn_TryResolveItemsSource -> ex_BindingRuntime.fn_TryResolveValueBinding
+' Callstack[3]: ex_RuntimeSourceResolver.fn_TryResolveObjectSource -> ex_BindingRuntime.fn_TryResolveValueBinding
+' Callstack[4]: ex_LayoutListRenderer.private_ApplyNodeBindingsRecursive -> ex_BindingRuntime.fn_TryResolveValueBinding
+' Callstack[5]: ex_LayoutListRenderer.private_TryResolveItemsSourceForMeasure -> ex_BindingRuntime.fn_TryResolveValueBinding
+' Callstack[6]: ex_LayoutItemControlRenderer.private_ApplyNodeBindingsRecursive -> ex_BindingRuntime.fn_TryResolveValueBinding
+' Callstack[7]: ex_LayoutItemControlRenderer.private_TryResolveObjectSourceForMeasure -> ex_BindingRuntime.fn_TryResolveValueBinding
+Public Function fn_TryResolveValueBinding( _
     ByVal rawText As String, _
     ByVal sourceObject As Object, _
     ByRef outValue As Variant _
 ) As Boolean
     If Not private_TryResolveBindingValue(rawText, sourceObject, outValue) Then Exit Function
-    m_TryResolveValueBinding = True
+    fn_TryResolveValueBinding = True
 End Function
 
 ' //
@@ -114,11 +158,14 @@ Private Function private_TryResolveBindingValue( _
     ByRef outValue As Variant _
 ) As Boolean
     Dim bindingBody As String
+    Dim normalizedBindingBody As String
     Dim methodName As String
     Dim moduleName As String
     Dim mappedText As String
     Dim usedConditionalBranch As Boolean
     Dim bindingPath As String
+    Dim invertPathResult As Boolean
+    Dim boolValue As Boolean
 
     If Not private_TryExtractBindingBody(rawText, bindingBody) Then
         outValue = rawText
@@ -126,8 +173,10 @@ Private Function private_TryResolveBindingValue( _
         Exit Function
     End If
 
-    If private_TryExtractNamedArg(bindingBody, "Method", methodName) Then
-        If private_TryExtractNamedArg(bindingBody, "Module", moduleName) Then
+    If Not private_TryNormalizePathInversionBindingBody(bindingBody, normalizedBindingBody, invertPathResult) Then Exit Function
+
+    If private_TryExtractNamedArg(normalizedBindingBody, "Method", methodName) Then
+        If private_TryExtractNamedArg(normalizedBindingBody, "Module", moduleName) Then
             If VBA.InStr(1, methodName, ".", VBA.vbBinaryCompare) = 0 Then
                 methodName = moduleName & "." & methodName
             End If
@@ -135,7 +184,9 @@ Private Function private_TryResolveBindingValue( _
 
         methodName = VBA.Trim$(methodName)
         If VBA.Len(methodName) = 0 Then
-            VBA.MsgBox "PrototypeNew: binding expression contains empty Method value.", VBA.vbExclamation
+#If LOGGING_DEBUG_ENABLED Then
+            ex_Core.fn_Diagnostic_LogError "PrototypeNew: binding expression contains empty Method value."
+#End If
             Exit Function
         End If
 
@@ -144,20 +195,34 @@ Private Function private_TryResolveBindingValue( _
         Exit Function
     End If
 
-    If Not private_TryResolveConditionalBindingAsText(bindingBody, sourceObject, mappedText, usedConditionalBranch) Then Exit Function
+    If Not private_TryResolveConditionalBindingAsText( _
+        normalizedBindingBody, _
+        sourceObject, _
+        mappedText, _
+        usedConditionalBranch, _
+        invertPathResult) Then Exit Function
     If usedConditionalBranch Then
         outValue = mappedText
         private_TryResolveBindingValue = True
         Exit Function
     End If
 
-    If private_TryExtractNamedArg(bindingBody, "Path", bindingPath) Then
+    If private_TryExtractNamedArg(normalizedBindingBody, "Path", bindingPath) Then
     Else
-        bindingPath = VBA.Trim$(bindingBody)
+        bindingPath = VBA.Trim$(normalizedBindingBody)
     End If
 
     If VBA.Len(bindingPath) = 0 Then bindingPath = "."
     If Not private_TryReadBindingPathValue(sourceObject, bindingPath, outValue) Then Exit Function
+    If invertPathResult Then
+        If Not private_TryParseBooleanVariant(outValue, boolValue) Then
+#If LOGGING_DEBUG_ENABLED Then
+            ex_Core.fn_Diagnostic_LogError "PrototypeNew: [Not] requires boolean-compatible Path value."
+#End If
+            Exit Function
+        End If
+        outValue = Not boolValue
+    End If
 
     private_TryResolveBindingValue = True
 End Function
@@ -167,7 +232,8 @@ Private Function private_TryResolveConditionalBindingAsText( _
     ByVal bindingBody As String, _
     ByVal sourceObject As Object, _
     ByRef outText As String, _
-    ByRef outUsedConditionalBranch As Boolean _
+    ByRef outUsedConditionalBranch As Boolean, _
+    Optional ByVal invertPathResult As Boolean = False _
 ) As Boolean
     Dim bindingPath As String
     Dim opText As String
@@ -188,7 +254,7 @@ Private Function private_TryResolveConditionalBindingAsText( _
     hasTrueAs = private_TryExtractNamedArg(bindingBody, "TrueAs", trueAsText)
     hasFalseAs = private_TryExtractNamedArg(bindingBody, "FalseAs", falseAsText)
 
-    If Not hasOp And Not hasValue And Not hasTrueAs And Not hasFalseAs Then
+    If Not hasOp And Not hasValue And Not hasTrueAs And Not hasFalseAs And Not invertPathResult Then
         private_TryResolveConditionalBindingAsText = True
         Exit Function
     End If
@@ -196,7 +262,9 @@ Private Function private_TryResolveConditionalBindingAsText( _
     outUsedConditionalBranch = True
 
     If sourceObject Is Nothing Then
-        VBA.MsgBox "PrototypeNew: conditional binding requires source object.", VBA.vbExclamation
+#If LOGGING_DEBUG_ENABLED Then
+        ex_Core.fn_Diagnostic_LogError "PrototypeNew: conditional binding requires source object."
+#End If
         Exit Function
     End If
 
@@ -209,7 +277,9 @@ Private Function private_TryResolveConditionalBindingAsText( _
     If Not private_TryReadBindingPathValue(sourceObject, bindingPath, resolvedValue) Then Exit Function
 
     If hasValue And Not hasOp Then
-        VBA.MsgBox "PrototypeNew: conditional binding argument 'Value' requires 'Op'.", VBA.vbExclamation
+#If LOGGING_DEBUG_ENABLED Then
+        ex_Core.fn_Diagnostic_LogError "PrototypeNew: conditional binding argument 'Value' requires 'Op'."
+#End If
         Exit Function
     End If
 
@@ -218,10 +288,13 @@ Private Function private_TryResolveConditionalBindingAsText( _
         If Not private_TryEvaluateConditionalOperation(resolvedValue, opText, valueText, conditionResult) Then Exit Function
     Else
         If Not private_TryParseBooleanVariant(resolvedValue, conditionResult) Then
-            VBA.MsgBox "PrototypeNew: conditional binding path '" & bindingPath & "' must resolve to boolean-compatible value when Op is omitted.", VBA.vbExclamation
+#If LOGGING_DEBUG_ENABLED Then
+            ex_Core.fn_Diagnostic_LogError "PrototypeNew: conditional binding path '" & bindingPath & "' must resolve to boolean-compatible value when Op is omitted."
+#End If
             Exit Function
         End If
     End If
+    If invertPathResult Then conditionResult = Not conditionResult
 
     If Not private_TryMapConditionalResultToText( _
         conditionResult, _
@@ -230,6 +303,52 @@ Private Function private_TryResolveConditionalBindingAsText( _
         outText) Then Exit Function
 
     private_TryResolveConditionalBindingAsText = True
+End Function
+
+
+Private Function private_TryNormalizePathInversionBindingBody( _
+    ByVal bindingBody As String, _
+    ByRef outNormalizedBody As String, _
+    ByRef outInvertPathResult As Boolean _
+) As Boolean
+    Const NOT_MARKER As String = "[Not]"
+    Dim normalized As String
+    Dim notPos As Long
+
+    normalized = VBA.Trim$(bindingBody)
+    outNormalizedBody = normalized
+    outInvertPathResult = False
+
+    notPos = VBA.InStr(1, normalized, NOT_MARKER, VBA.vbTextCompare)
+    If notPos = 0 Then
+        private_TryNormalizePathInversionBindingBody = True
+        Exit Function
+    End If
+
+    If notPos <> 1 Then
+#If LOGGING_DEBUG_ENABLED Then
+        ex_Core.fn_Diagnostic_LogError "PrototypeNew: [Not] must be placed only at the start and only before Path=..."
+#End If
+        Exit Function
+    End If
+
+    outInvertPathResult = True
+    outNormalizedBody = VBA.Trim$(VBA.Mid$(normalized, VBA.Len(NOT_MARKER) + 1))
+    If VBA.InStr(1, outNormalizedBody, NOT_MARKER, VBA.vbTextCompare) > 0 Then
+#If LOGGING_DEBUG_ENABLED Then
+        ex_Core.fn_Diagnostic_LogError "PrototypeNew: duplicate [Not] marker is not allowed."
+#End If
+        Exit Function
+    End If
+
+    If VBA.StrComp(VBA.LCase$(VBA.Left$(outNormalizedBody, 5)), "path=", VBA.vbBinaryCompare) <> 0 Then
+#If LOGGING_DEBUG_ENABLED Then
+        ex_Core.fn_Diagnostic_LogError "PrototypeNew: [Not] is allowed only in form '[Not] Path=...'."
+#End If
+        Exit Function
+    End If
+
+    private_TryNormalizePathInversionBindingBody = True
 End Function
 
 
@@ -335,7 +454,9 @@ Private Function private_TryReadBindingPathValue( _
     Dim memberScalar As Variant
 
     If sourceObject Is Nothing Then
-        VBA.MsgBox "PrototypeNew: binding source object is not specified.", VBA.vbExclamation
+#If LOGGING_DEBUG_ENABLED Then
+        ex_Core.fn_Diagnostic_LogError "PrototypeNew: binding source object is not specified."
+#End If
         Exit Function
     End If
 
@@ -354,18 +475,24 @@ Private Function private_TryReadBindingPathValue( _
         If VBA.Len(segmentName) = 0 Then GoTo ContinueLoop
 
         If currentObject Is Nothing Then
-            VBA.MsgBox "PrototypeNew: binding path '" & bindingPath & "' reached Nothing before segment '" & segmentName & "'.", VBA.vbExclamation
+#If LOGGING_DEBUG_ENABLED Then
+            ex_Core.fn_Diagnostic_LogError "PrototypeNew: binding path '" & bindingPath & "' reached Nothing before segment '" & segmentName & "'."
+#End If
             Exit Function
         End If
 
         If Not private_TryReadMemberValue(currentObject, segmentName, memberIsObject, memberObject, memberScalar) Then
-            VBA.MsgBox "PrototypeNew: member '" & segmentName & "' was not found on object '" & VBA.TypeName(currentObject) & "'.", VBA.vbExclamation
+#If LOGGING_DEBUG_ENABLED Then
+            ex_Core.fn_Diagnostic_LogError "PrototypeNew: member '" & segmentName & "' was not found on object '" & VBA.TypeName(currentObject) & "'."
+#End If
             Exit Function
         End If
 
         If segmentIndex < UBound(segments) Then
             If Not memberIsObject Then
-                VBA.MsgBox "PrototypeNew: member '" & segmentName & "' in binding path '" & bindingPath & "' is not an object.", VBA.vbExclamation
+#If LOGGING_DEBUG_ENABLED Then
+                ex_Core.fn_Diagnostic_LogError "PrototypeNew: member '" & segmentName & "' in binding path '" & bindingPath & "' is not an object."
+#End If
                 Exit Function
             End If
             Set currentObject = memberObject
@@ -532,11 +659,15 @@ Private Function private_TryEvaluateConditionalOperation( _
 
         Case "gt", "ge", "lt", "le"
             If Not private_TryParseNumberVariant(actualValue, actualNumber) Then
-                VBA.MsgBox "PrototypeNew: conditional operator '" & opText & "' requires numeric binding value.", VBA.vbExclamation
+#If LOGGING_DEBUG_ENABLED Then
+                ex_Core.fn_Diagnostic_LogError "PrototypeNew: conditional operator '" & opText & "' requires numeric binding value."
+#End If
                 Exit Function
             End If
             If Not private_TryParseNumberText(expectedText, expectedNumber) Then
-                VBA.MsgBox "PrototypeNew: conditional operator '" & opText & "' requires numeric Value.", VBA.vbExclamation
+#If LOGGING_DEBUG_ENABLED Then
+                ex_Core.fn_Diagnostic_LogError "PrototypeNew: conditional operator '" & opText & "' requires numeric Value."
+#End If
                 Exit Function
             End If
 
@@ -549,19 +680,25 @@ Private Function private_TryEvaluateConditionalOperation( _
 
         Case "istrue"
             If Not private_TryParseBooleanVariant(actualValue, outResult) Then
-                VBA.MsgBox "PrototypeNew: conditional operator 'isTrue' requires boolean-compatible value.", VBA.vbExclamation
+#If LOGGING_DEBUG_ENABLED Then
+                ex_Core.fn_Diagnostic_LogError "PrototypeNew: conditional operator 'isTrue' requires boolean-compatible value."
+#End If
                 Exit Function
             End If
 
         Case "isfalse"
             If Not private_TryParseBooleanVariant(actualValue, outResult) Then
-                VBA.MsgBox "PrototypeNew: conditional operator 'isFalse' requires boolean-compatible value.", VBA.vbExclamation
+#If LOGGING_DEBUG_ENABLED Then
+                ex_Core.fn_Diagnostic_LogError "PrototypeNew: conditional operator 'isFalse' requires boolean-compatible value."
+#End If
                 Exit Function
             End If
             outResult = Not outResult
 
         Case Else
-            VBA.MsgBox "PrototypeNew: unsupported conditional Op '" & opText & "'.", VBA.vbExclamation
+#If LOGGING_DEBUG_ENABLED Then
+            ex_Core.fn_Diagnostic_LogError "PrototypeNew: unsupported conditional Op '" & opText & "'."
+#End If
             Exit Function
     End Select
 
@@ -621,5 +758,53 @@ Private Function private_TryParseBooleanValue(ByVal rawText As String, ByRef out
         Case "0", "false", "no", "n", "off", VBA.vbNullString, "collapsed", "collapse", "hidden", "hide", "none"
             outBoolean = False
             private_TryParseBooleanValue = True
+    End Select
+End Function
+
+
+Private Function private_TryParseVisibilityStateVariant(ByVal rawValue As Variant, ByRef outState As String) As Boolean
+    Dim typeCode As VbVarType
+    Dim visibilityText As String
+
+    If VBA.IsObject(rawValue) Then Exit Function
+
+    typeCode = VBA.VarType(rawValue)
+    If typeCode = vbBoolean Then
+        If VBA.CBool(rawValue) Then
+            outState = "visible"
+        Else
+            outState = "hidden"
+        End If
+        private_TryParseVisibilityStateVariant = True
+        Exit Function
+    End If
+
+    If VBA.IsNumeric(rawValue) Then
+        If VBA.CDbl(rawValue) <> 0# Then
+            outState = "visible"
+        Else
+            outState = "hidden"
+        End If
+        private_TryParseVisibilityStateVariant = True
+        Exit Function
+    End If
+
+    visibilityText = VBA.LCase$(VBA.Trim$(VBA.CStr(rawValue)))
+    Select Case visibilityText
+        Case "1", "true", "yes", "y", "on", "visible", "show", "shown"
+            outState = "visible"
+            private_TryParseVisibilityStateVariant = True
+
+        Case "hidden", "hide"
+            outState = "hidden"
+            private_TryParseVisibilityStateVariant = True
+
+        Case "0", "false", "no", "n", "off", VBA.vbNullString, "none"
+            outState = "hidden"
+            private_TryParseVisibilityStateVariant = True
+
+        Case "collapsed", "collapse"
+            outState = "collapsed"
+            private_TryParseVisibilityStateVariant = True
     End Select
 End Function

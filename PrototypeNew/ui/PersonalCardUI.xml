@@ -1,0 +1,179 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<page xmlns="urn:excelprototype:profiles" version="1">
+  <grid anchorCell="A1">
+    <stackPanel at="r2c2" orientation="vertical">
+      <control
+        type="Button"
+        name="RunPersonalCardPipeline"
+        caption="Run pipeline"
+        dataContext="{PageRuntimeSource='RuntimeObjects.PagePersonalCard'}"
+        onClick="{Binding Method=OnRunPipelineAndRenderCommand}"
+        spanColls="4"
+        spanRows="2"/>
+
+      <control
+        type="Button"
+        name="RerenderPersonalCardPage"
+        caption="Rerender PersonalCard Page"
+        dataContext="{PageRuntimeSource='RuntimeObjects.PagePersonalCard'}"
+        onClick="{Binding Method=OnRenderCommand}"
+        spanColls="4"
+        spanRows="2"/>
+
+      <control
+        type="Input"
+        name="PersonalCardPipelineInput"
+        value="{Binding Path=CommonKeyInputValue}"
+        dataContext="{PageRuntimeSource='RuntimeObjects.PagePersonalCard'}"
+        onChange="{Binding Method=OnCommonKeyInputCellChangedCommand}"/>
+
+      <control
+        type="Banner"
+        name="PersonalCardDataPlaceholder"
+        dataContext="{PageRuntimeSource='RuntimeObjects.PagePersonalCard.Controller'}"
+        header="Data is not generated yet"
+        message="Run pipeline to build current PersonalCard tables."
+        visibility="{Binding [Not] Path=IsDataReady; TrueAs=Visible; FalseAs=Collapsed}"
+        spanColls="8"
+        spanRows="3"/>
+
+      <control
+        type="TableList"
+        name="TablesListStyled"
+        itemsSource="{PageRuntimeSource='RuntimeItems.PersonalCard.Tables'}"
+        itemVisibility="{Binding Path=RowCount; Op=gt; Value=0; TrueAs=Visible; FalseAs=Collapsed}"
+        spanColls="20"
+        spanRows="220"/>
+    </stackPanel>
+  </grid>
+
+  <styles>
+    <stylePipelineStage name="default">
+      <layer name="personalcard-dark-base">
+        <rule target="sheet"
+              styles="{
+                backColor:#1F2329;
+                fontColor:#E5E7EB;
+                borderColor:#111318;
+                borderWeight:thin;
+                width:11;
+                rowHeight:18;
+                cellType:text;
+              }"/>
+      </layer>
+
+      <layer name="table-part-styles">
+        <rule target="controlPart"
+              selector="type=tablelist;part=section"
+              styles="{
+                backColor:#1F4E79;
+                fontColor:#F2F8FF;
+                borderColor:#143550;
+                borderWeight:thin;
+                fontBold:true;
+                fontSize:11;
+              }"/>
+
+        <rule target="controlPart"
+              selector="type=tablelist;part=header"
+              styles="{
+                backColor:#355D8C;
+                fontColor:#E7F1FF;
+                borderColor:#274467;
+                borderWeight:thin;
+                fontBold:true;
+                horizontal:center;
+              }"/>
+
+        <rule target="controlPart"
+              selector="type=tablelist;part=rows"
+              styles="{
+                backColor:#2F2F2F;
+                fontColor:#F5F5F5;
+                borderColor:#222222;
+                borderWeight:thin;
+                fontBold:false;
+              }"/>
+
+        <rule target="controlPart"
+              selector="type=tablelist;name=TablesListStyled;part=rows"
+              styles="{
+                horizontal:left;
+                vertical:center;
+              }"/>
+
+        <rule target="controlPart"
+              selector="type=tablelist;part=itembanner"
+              styles="{
+                backColor:#2D4A68;
+                fontColor:#F5FBFF;
+                borderColor:#1A2B3D;
+                borderWeight:thin;
+                fontBold:true;
+                vertical:center;
+              }"/>
+
+        <rule target="controlPart"
+              selector="type=tablelist;part=rowbanner"
+              styles="{
+                backColor:#345676;
+                fontColor:#F0F8FF;
+                borderColor:#213952;
+                borderWeight:thin;
+                fontBold:false;
+                vertical:center;
+              }"/>
+      </layer>
+
+      <layer name="layout-debug-bounds">
+        <rule target="layoutBound"
+              selector="tag=grid"
+              styles="{
+                borderColor:#8B5CF6;
+                borderWeight:medium;
+                borderLineStyle:solid;
+              }"/>
+
+        <rule target="layoutBound"
+              selector="tag=control"
+              styles="{
+                borderColor:#FF0000;
+                borderWeight:thin;
+                borderLineStyle:solid;
+              }"/>
+
+        <rule target="layoutBound"
+              selector="tag=stackpanel;tagDepth=0"
+              styles="{
+                borderColor:#444444;
+                borderWeight:medium;
+                borderLineStyle:dash;
+              }"/>
+
+        <rule target="layoutBound"
+              selector="tag=stackpanel;tagDepth=1"
+              styles="{
+                borderColor:#5E5E5E;
+                borderWeight:medium;
+                borderLineStyle:dash;
+              }"/>
+
+        <rule target="layoutBound"
+              selector="tag=stackpanel;tagDepth=2"
+              styles="{
+                borderColor:#777777;
+                borderWeight:medium;
+                borderLineStyle:dash;
+              }"/>
+
+       <rule target="layoutBound"
+              selector="tag=stackpanel;tagDepth=3:10"
+              styles="{
+                borderColor:#999999;
+                borderWeight:medium;
+                borderLineStyle:dash;
+              }"/>
+      </layer>
+    </stylePipelineStage>
+  </styles>
+</page>

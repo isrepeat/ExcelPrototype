@@ -1,14 +1,21 @@
 Attribute VB_Name = "ex_LayoutItemControlRenderer"
 Option Explicit
+#Const LOGGING_DEBUG_ENABLED = True
+#Const LOGGING_VERBOSE_ENABLED = False
 
 ' Renderer for <itemControl> nodes.
 
 Private Const UI_NS As String = "urn:excelprototype:profiles"
 
+Public Sub fn_Module_Dispose()
+#If LOGGING_VERBOSE_ENABLED Then
+    ex_Core.fn_Diagnostic_LogInfo "lifecycle:ex_LayoutItemControlRenderer.fn_Module_Dispose"
+#End If
+End Sub
 ' //
 ' // API
 ' //
-Public Function m_Render( _
+Public Function fn_Render( _
     ByVal renderCtx As obj_LayoutRenderContext, _
     ByVal layoutNode As Object, _
     ByVal rowStart As Long, _
@@ -27,36 +34,42 @@ Public Function m_Render( _
     Dim suffixValue As Long
 
     If layoutNode Is Nothing Then
-        VBA.MsgBox "PrototypeNew: itemControl node is not specified.", VBA.vbExclamation
+#If LOGGING_DEBUG_ENABLED Then
+        ex_Core.fn_Diagnostic_LogError "PrototypeNew: itemControl node is not specified."
+#End If
         Exit Function
     End If
     If VBA.StrComp(VBA.LCase$(VBA.CStr(layoutNode.baseName)), "itemcontrol", VBA.vbBinaryCompare) <> 0 Then
-        VBA.MsgBox "PrototypeNew: ex_LayoutItemControlRenderer supports only <itemControl> nodes.", VBA.vbExclamation
+#If LOGGING_DEBUG_ENABLED Then
+        ex_Core.fn_Diagnostic_LogError "PrototypeNew: ex_LayoutItemControlRenderer supports only <itemControl> nodes."
+#End If
         Exit Function
     End If
     If Not private_TryGetPageRenderContext(renderCtx, wb, ws) Then Exit Function
-    Set pageBase = renderCtx.PageBase
+    Set pageBase = renderCtx.Page.GetPageBase()
     If pageBase Is Nothing Then
-        VBA.MsgBox "PrototypeNew: page base is not specified for itemControl renderer.", VBA.vbExclamation
+#If LOGGING_DEBUG_ENABLED Then
+        ex_Core.fn_Diagnostic_LogError "PrototypeNew: page base is not specified for itemControl renderer."
+#End If
         Exit Function
     End If
 
     ' objectSource для itemControl резолвится через общий resolver:
     ' - runtime source expression ({PageRuntimeSource/...}, {GlobalRuntimeSource/...})
     ' - либо Binding, который должен вернуть Object.
-    If Not ex_RuntimeSourceResolver.m_TryResolveObjectSource( _
+    If Not ex_RuntimeSourceResolver.fn_TryResolveObjectSource( _
         pageBase.RuntimeSources, _
-        ex_XmlCore.m_NodeAttrText(layoutNode, "objectSource"), _
+        ex_XmlCore.fn_NodeAttrText(layoutNode, "objectSource"), _
         sourceObject, _
         True) Then Exit Function
     If sourceObject Is Nothing Then
-        m_Render = True
+        fn_Render = True
         Exit Function
     End If
 
     If Not private_TryResolveItemControlTemplateRoot(layoutNode, templateRoot) Then Exit Function
 
-    Set tempDoc = ex_XmlCore.m_CreateDom(UI_NS)
+    Set tempDoc = ex_XmlCore.fn_CreateDom(UI_NS)
     private_CopyTemplatesToTempListDoc tempDoc, layoutNode.OwnerDocument
 
     Set syntheticRoot = tempDoc.createNode(1, "stackPanel", UI_NS)
@@ -64,7 +77,9 @@ Public Function m_Render( _
 
     Set clonedNode = tempDoc.importNode(templateRoot, True)
     If clonedNode Is Nothing Then
-        VBA.MsgBox "PrototypeNew: failed to clone itemControl template node.", VBA.vbExclamation
+#If LOGGING_DEBUG_ENABLED Then
+        ex_Core.fn_Diagnostic_LogError "PrototypeNew: failed to clone itemControl template node."
+#End If
         Exit Function
     End If
 
@@ -73,7 +88,7 @@ Public Function m_Render( _
     private_AppendSuffixToControlNames clonedNode, "_obj" & VBA.CStr(suffixValue)
     syntheticRoot.appendChild clonedNode
 
-    m_Render = ex_XmlLayoutEngine.m_RenderContainerNodeInBounds( _
+    fn_Render = ex_XmlLayoutEngine.fn_RenderContainerNodeInBounds( _
         renderCtx:=renderCtx, _
         containerNode:=syntheticRoot, _
         layoutRowStart:=rowStart, _
@@ -83,11 +98,11 @@ Public Function m_Render( _
 End Function
 
 
-Public Function m_TryMeasureContentSpan( _
+Public Function fn_TryMeasureContentSpan( _
     ByVal renderCtx As obj_LayoutRenderContext, _
     ByVal itemControlNode As Object, _
     ByRef outSpanRows As Long, _
-    ByRef outSpanCols As Long, _
+    ByRef outSpanColls As Long, _
     Optional ByVal dataContext As Object _
 ) As Boolean
     Dim sourceObject As Object
@@ -95,26 +110,28 @@ Public Function m_TryMeasureContentSpan( _
 
     If itemControlNode Is Nothing Then Exit Function
     If VBA.StrComp(VBA.LCase$(VBA.CStr(itemControlNode.baseName)), "itemcontrol", VBA.vbBinaryCompare) <> 0 Then
-        VBA.MsgBox "PrototypeNew: ex_LayoutItemControlRenderer supports only <itemControl> nodes.", VBA.vbExclamation
+#If LOGGING_DEBUG_ENABLED Then
+        ex_Core.fn_Diagnostic_LogError "PrototypeNew: ex_LayoutItemControlRenderer supports only <itemControl> nodes."
+#End If
         Exit Function
     End If
 
     If Not private_TryResolveObjectSourceForMeasure( _
         renderCtx, _
-        ex_XmlCore.m_NodeAttrText(itemControlNode, "objectSource"), _
+        ex_XmlCore.fn_NodeAttrText(itemControlNode, "objectSource"), _
         dataContext, _
         sourceObject) Then Exit Function
 
     If sourceObject Is Nothing Then
         outSpanRows = 0
-        outSpanCols = 0
-        m_TryMeasureContentSpan = True
+        outSpanColls = 0
+        fn_TryMeasureContentSpan = True
         Exit Function
     End If
 
     If Not private_TryResolveItemControlTemplateRoot(itemControlNode, templateRoot) Then Exit Function
-    If Not ex_XmlLayoutEngine.m_TryGetEffectiveNodeSpan(renderCtx, templateRoot, outSpanRows, outSpanCols, sourceObject) Then Exit Function
-    m_TryMeasureContentSpan = True
+    If Not ex_XmlLayoutEngine.fn_TryGetEffectiveNodeSpan(renderCtx, templateRoot, outSpanRows, outSpanColls, sourceObject) Then Exit Function
+    fn_TryMeasureContentSpan = True
 End Function
 
 ' //
@@ -147,10 +164,10 @@ Private Sub private_CopyTemplatesToTempListDoc(ByVal targetDoc As Object, ByVal 
     If srcTemplateNodes Is Nothing Then Exit Sub
 
     For Each srcTemplateNode In srcTemplateNodes
-        templateName = VBA.Trim$(ex_XmlCore.m_NodeAttrText(srcTemplateNode, "name"))
+        templateName = VBA.Trim$(ex_XmlCore.fn_NodeAttrText(srcTemplateNode, "name"))
         If VBA.Len(templateName) = 0 Then GoTo ContinueTemplate
 
-        If Not targetTemplatesNode.selectSingleNode("p:template[@name=" & ex_XmlCore.m_XPathLiteral(templateName) & "]") Is Nothing Then
+        If Not targetTemplatesNode.selectSingleNode("p:template[@name=" & ex_XmlCore.fn_XPathLiteral(templateName) & "]") Is Nothing Then
             GoTo ContinueTemplate
         End If
 
@@ -167,32 +184,42 @@ Private Function private_TryResolveItemControlTemplateRoot(ByVal itemControlNode
     Dim templateNode As Object
     Dim rootNodes As Object
 
-    templateName = VBA.Trim$(ex_XmlCore.m_NodeAttrText(itemControlNode, "objectSourceTemplate"))
+    templateName = VBA.Trim$(ex_XmlCore.fn_NodeAttrText(itemControlNode, "objectSourceTemplate"))
     If VBA.Len(templateName) = 0 Then
-        VBA.MsgBox "PrototypeNew: itemControl requires non-empty attribute 'objectSourceTemplate'.", VBA.vbExclamation
+#If LOGGING_DEBUG_ENABLED Then
+        ex_Core.fn_Diagnostic_LogError "PrototypeNew: itemControl requires non-empty attribute 'objectSourceTemplate'."
+#End If
         Exit Function
     End If
 
     Set ownerDoc = itemControlNode.OwnerDocument
     If ownerDoc Is Nothing Then
-        VBA.MsgBox "PrototypeNew: failed to resolve owner document for itemControl template.", VBA.vbExclamation
+#If LOGGING_DEBUG_ENABLED Then
+        ex_Core.fn_Diagnostic_LogError "PrototypeNew: failed to resolve owner document for itemControl template."
+#End If
         Exit Function
     End If
 
     Set templateNode = ownerDoc.selectSingleNode( _
-        "/p:page/p:templates/p:template[@name=" & ex_XmlCore.m_XPathLiteral(templateName) & "] | /p:uiDefinition/p:templates/p:template[@name=" & ex_XmlCore.m_XPathLiteral(templateName) & "]")
+        "/p:page/p:templates/p:template[@name=" & ex_XmlCore.fn_XPathLiteral(templateName) & "] | /p:uiDefinition/p:templates/p:template[@name=" & ex_XmlCore.fn_XPathLiteral(templateName) & "]")
     If templateNode Is Nothing Then
-        VBA.MsgBox "PrototypeNew: itemControl references missing template '" & templateName & "'.", VBA.vbExclamation
+#If LOGGING_DEBUG_ENABLED Then
+        ex_Core.fn_Diagnostic_LogError "PrototypeNew: itemControl references missing template '" & templateName & "'."
+#End If
         Exit Function
     End If
 
     Set rootNodes = templateNode.selectNodes("p:control | p:stackPanel | p:grid | p:list | p:itemControl")
     If rootNodes Is Nothing Or rootNodes.Length = 0 Then
-        VBA.MsgBox "PrototypeNew: template '" & templateName & "' has no visual root node.", VBA.vbExclamation
+#If LOGGING_DEBUG_ENABLED Then
+        ex_Core.fn_Diagnostic_LogError "PrototypeNew: template '" & templateName & "' has no visual root node."
+#End If
         Exit Function
     End If
     If rootNodes.Length <> 1 Then
-        VBA.MsgBox "PrototypeNew: template '" & templateName & "' must contain exactly one visual root node.", VBA.vbExclamation
+#If LOGGING_DEBUG_ENABLED Then
+        ex_Core.fn_Diagnostic_LogError "PrototypeNew: template '" & templateName & "' must contain exactly one visual root node."
+#End If
         Exit Function
     End If
 
@@ -211,7 +238,7 @@ Private Sub private_AppendSuffixToControlNames(ByVal rootNode As Object, ByVal s
 
     baseName = VBA.LCase$(VBA.CStr(rootNode.baseName))
     If VBA.StrComp(baseName, "control", VBA.vbBinaryCompare) = 0 Then
-        nodeName = VBA.Trim$(ex_XmlCore.m_NodeAttrText(rootNode, "name"))
+        nodeName = VBA.Trim$(ex_XmlCore.fn_NodeAttrText(rootNode, "name"))
         If VBA.Len(nodeName) = 0 Then nodeName = "item"
         rootNode.setAttribute "name", nodeName & suffix
     End If
@@ -232,7 +259,7 @@ Private Function private_ApplyNodeBindingsRecursive( _
     Dim attrName As String
     Dim rawText As String
     Dim resolvedValue As Variant
-    Dim resolvedVisible As Boolean
+    Dim resolvedVisibilityState As String
     Dim childNode As Object
     Dim runtimeListSourceKey As String
     Dim runtimeObjectSourceKey As String
@@ -259,19 +286,15 @@ Private Function private_ApplyNodeBindingsRecursive( _
             If VBA.InStr(1, rawText, "{Binding ", VBA.vbTextCompare) = 0 Then GoTo ContinueAttr
 
             If VBA.StrComp(VBA.LCase$(attrName), "visibility", VBA.vbBinaryCompare) = 0 Then
-                If Not ex_BindingRuntime.m_TryResolveVisibilityBinding(rawText, dataContext, resolvedVisible) Then Exit Function
-                If resolvedVisible Then
-                    rootNode.setAttribute attrName, "true"
-                Else
-                    rootNode.setAttribute attrName, "false"
-                End If
+                If Not ex_BindingRuntime.fn_TryResolveVisibilityStateBinding(rawText, dataContext, resolvedVisibilityState) Then Exit Function
+                rootNode.setAttribute attrName, resolvedVisibilityState
                 GoTo ContinueAttr
             End If
 
             ' Здесь binding применяется к текущему dataContext итема.
             ' Для object-результата мы не оставляем сырой объект в XML-атрибуте,
             ' а регистрируем его в RuntimeSources и подставляем ключ.
-            If Not ex_BindingRuntime.m_TryResolveValueBinding(rawText, dataContext, resolvedValue) Then Exit Function
+            If Not ex_BindingRuntime.fn_TryResolveValueBinding(rawText, dataContext, resolvedValue) Then Exit Function
 
             If VBA.IsObject(resolvedValue) Then
                 rootNodeName = VBA.LCase$(VBA.CStr(rootNode.baseName))
@@ -286,12 +309,16 @@ Private Function private_ApplyNodeBindingsRecursive( _
                         Set runtimeItems = New Collection
                         Set resolvedObject = resolvedValue
                         If resolvedObject Is Nothing Then
-                            VBA.MsgBox "PrototypeNew: itemsSource binding resolved to Nothing object.", VBA.vbExclamation
+#If LOGGING_DEBUG_ENABLED Then
+                            ex_Core.fn_Diagnostic_LogError "PrototypeNew: itemsSource binding resolved to Nothing object."
+#End If
                             Exit Function
                         End If
                         runtimeItems.Add resolvedObject
                     Else
-                        VBA.MsgBox "PrototypeNew: list itemsSource binding must resolve to Collection.", VBA.vbExclamation
+#If LOGGING_DEBUG_ENABLED Then
+                        ex_Core.fn_Diagnostic_LogError "PrototypeNew: list itemsSource binding must resolve to Collection."
+#End If
                         Exit Function
                     End If
 
@@ -312,7 +339,9 @@ Private Function private_ApplyNodeBindingsRecursive( _
                         rootNode.setAttribute attrName, runtimeObjectSourceKey
                     End If
                 Else
-                    VBA.MsgBox "PrototypeNew: template binding for attribute '" & attrName & "' must resolve to scalar value.", VBA.vbExclamation
+#If LOGGING_DEBUG_ENABLED Then
+                    ex_Core.fn_Diagnostic_LogError "PrototypeNew: template binding for attribute '" & attrName & "' must resolve to scalar value."
+#End If
                     Exit Function
                 End If
             Else
@@ -340,17 +369,21 @@ Private Function private_RegisterRuntimeListItemsSourceKey( _
     Dim sourceKey As String
 
     If items Is Nothing Then
-        VBA.MsgBox "PrototypeNew: runtime list items source is Nothing.", VBA.vbExclamation
+#If LOGGING_DEBUG_ENABLED Then
+        ex_Core.fn_Diagnostic_LogError "PrototypeNew: runtime list items source is Nothing."
+#End If
         Exit Function
     End If
     If renderCtx Is Nothing Then
-        VBA.MsgBox "PrototypeNew: render context is not specified.", VBA.vbExclamation
+#If LOGGING_DEBUG_ENABLED Then
+        ex_Core.fn_Diagnostic_LogError "PrototypeNew: render context is not specified."
+#End If
         Exit Function
     End If
 
     sourceKey = renderCtx.NextListRuntimeSourceKey()
 
-    If Not renderCtx.PageBase.RuntimeSources.SetItemsSource(sourceKey, items) Then Exit Function
+    If Not renderCtx.Page.GetPageBase().RuntimeSources.SetItemsSource(sourceKey, items) Then Exit Function
     private_RegisterRuntimeListItemsSourceKey = sourceKey
 End Function
 
@@ -363,13 +396,15 @@ Private Function private_RegisterRuntimeObjectSourceKey( _
 
     If sourceObject Is Nothing Then Exit Function
     If renderCtx Is Nothing Then
-        VBA.MsgBox "PrototypeNew: render context is not specified.", VBA.vbExclamation
+#If LOGGING_DEBUG_ENABLED Then
+        ex_Core.fn_Diagnostic_LogError "PrototypeNew: render context is not specified."
+#End If
         Exit Function
     End If
 
     sourceKey = renderCtx.NextObjectRuntimeSourceKey()
 
-    If Not renderCtx.PageBase.RuntimeSources.SetObjectSource(sourceKey, sourceObject) Then Exit Function
+    If Not renderCtx.Page.GetPageBase().RuntimeSources.SetObjectSource(sourceKey, sourceObject) Then Exit Function
     private_RegisterRuntimeObjectSourceKey = sourceKey
 End Function
 
@@ -392,12 +427,14 @@ Private Function private_TryResolveObjectSourceForMeasure( _
 
     If private_IsBindingExpression(sourceText) Then
         If dataContext Is Nothing Then
-            VBA.MsgBox "PrototypeNew: itemControl objectSource binding requires item context during layout measurement.", VBA.vbExclamation
+#If LOGGING_DEBUG_ENABLED Then
+            ex_Core.fn_Diagnostic_LogError "PrototypeNew: itemControl objectSource binding requires item context during layout measurement."
+#End If
             Exit Function
         End If
 
         ' На этапе measure binding тоже должен быть вычислен, иначе span будет неточным.
-        If Not ex_BindingRuntime.m_TryResolveValueBinding(sourceText, dataContext, resolvedValue) Then Exit Function
+        If Not ex_BindingRuntime.fn_TryResolveValueBinding(sourceText, dataContext, resolvedValue) Then Exit Function
 
         If VBA.IsObject(resolvedValue) Then
             Set outObject = resolvedValue
@@ -414,18 +451,22 @@ Private Function private_TryResolveObjectSourceForMeasure( _
     End If
 
     If renderCtx Is Nothing Then
-        VBA.MsgBox "PrototypeNew: itemControl measure render context is not specified.", VBA.vbExclamation
+#If LOGGING_DEBUG_ENABLED Then
+        ex_Core.fn_Diagnostic_LogError "PrototypeNew: itemControl measure render context is not specified."
+#End If
         Exit Function
     End If
 
-    Set pageBase = renderCtx.PageBase
+    Set pageBase = renderCtx.Page.GetPageBase()
     If pageBase Is Nothing Then
-        VBA.MsgBox "PrototypeNew: itemControl measure page context is not specified in render context.", VBA.vbExclamation
+#If LOGGING_DEBUG_ENABLED Then
+        ex_Core.fn_Diagnostic_LogError "PrototypeNew: itemControl measure page context is not specified in render context."
+#End If
         Exit Function
     End If
 
     ' Если это не binding-объект, резолвим source текст тем же путем, что и в render.
-    If Not ex_RuntimeSourceResolver.m_TryResolveObjectSource(pageBase.RuntimeSources, sourceText, outObject, True) Then Exit Function
+    If Not ex_RuntimeSourceResolver.fn_TryResolveObjectSource(pageBase.RuntimeSources, sourceText, outObject, True) Then Exit Function
     private_TryResolveObjectSourceForMeasure = True
 End Function
 
@@ -451,19 +492,25 @@ Private Function private_TryGetPageRenderContext( _
     Set outWs = Nothing
 
     If renderCtx Is Nothing Then
-        VBA.MsgBox "PrototypeNew: render context is not specified.", VBA.vbExclamation
+#If LOGGING_DEBUG_ENABLED Then
+        ex_Core.fn_Diagnostic_LogError "PrototypeNew: render context is not specified."
+#End If
         Exit Function
     End If
 
     Set outWs = renderCtx.Worksheet
     If outWs Is Nothing Then
-        VBA.MsgBox "PrototypeNew: worksheet is not specified.", VBA.vbExclamation
+#If LOGGING_DEBUG_ENABLED Then
+        ex_Core.fn_Diagnostic_LogError "PrototypeNew: worksheet is not specified."
+#End If
         Exit Function
     End If
 
     Set outWb = renderCtx.Workbook
     If outWb Is Nothing Then
-        VBA.MsgBox "PrototypeNew: workbook is not specified.", VBA.vbExclamation
+#If LOGGING_DEBUG_ENABLED Then
+        ex_Core.fn_Diagnostic_LogError "PrototypeNew: workbook is not specified."
+#End If
         Exit Function
     End If
 

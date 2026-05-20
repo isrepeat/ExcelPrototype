@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<profiles>
+  <profile id="invalid_config" caption="Invalid config row">
+    <item attr="#" value="Missing key attribute"/>
+  </profile>
+
+  <profile id="valid_fallback" caption="Valid fallback profile">
+    <item key="Profile.Name" value="ValidFallback"/>
+    <item key="Sheet.StateMain.Key.DocName" value="DocName"/>
+  </profile>
+</profiles>

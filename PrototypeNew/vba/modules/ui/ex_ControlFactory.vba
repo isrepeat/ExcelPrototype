@@ -1,54 +1,61 @@
 Attribute VB_Name = "ex_ControlFactory"
 Option Explicit
+#Const LOGGING_DEBUG_ENABLED = True
+#Const LOGGING_VERBOSE_ENABLED = False
+
+Public Sub fn_Module_Dispose()
+#If LOGGING_VERBOSE_ENABLED Then
+    ex_Core.fn_Diagnostic_LogInfo "lifecycle:ex_ControlFactory.fn_Module_Dispose"
+#End If
+End Sub
 
 ' //
 ' // API
 ' //
-Public Function m_CreateControlByTypeRoot(ByVal controlTypeRoot As String) As obj_IControl
+Public Function fn_CreateControlByTypeRoot( _
+    ByVal controlTypeRoot As String, _
+    ByVal page As obj_IPage _
+) As obj_IControl
+    Dim control As obj_IControl
+
     controlTypeRoot = VBA.LCase$(VBA.Trim$(controlTypeRoot))
 
     Select Case controlTypeRoot
         Case "button"
-            Dim buttonVm As obj_ButtonControlVM
-            Set buttonVm = New obj_ButtonControlVM
-            Set m_CreateControlByTypeRoot = buttonVm
+            Set control = New obj_ButtonControlVM
 
         Case "label"
-            Dim labelVm As obj_LabelControlVM
-            Set labelVm = New obj_LabelControlVM
-            Set m_CreateControlByTypeRoot = labelVm
+            Set control = New obj_LabelControlVM
+
+        Case "input"
+            Set control = New obj_InputControlVM
 
         Case "banner"
-            Dim bannerVm As obj_BannerControlVM
-            Set bannerVm = New obj_BannerControlVM
-            Set m_CreateControlByTypeRoot = bannerVm
+            Set control = New obj_BannerControlVM
 
         Case "config"
-            Dim configVm As obj_ConfigControlVM
-            Set configVm = New obj_ConfigControlVM
-            Set m_CreateControlByTypeRoot = configVm
+            Set control = New obj_ConfigControlVM
 
         Case "select"
-            Dim selectVm As obj_SelectControlVM
-            Set selectVm = New obj_SelectControlVM
-            Set m_CreateControlByTypeRoot = selectVm
+            Set control = New obj_SelectControlVM
 
         Case "tablelist"
-            Dim tableListVm As obj_TableListControlVM
-            Set tableListVm = New obj_TableListControlVM
-            Set m_CreateControlByTypeRoot = tableListVm
+            Set control = New obj_TableListControlVM
 
         Case "tablesingle"
-            Dim tableSingleVm As obj_TableSingleControlVM
-            Set tableSingleVm = New obj_TableSingleControlVM
-            Set m_CreateControlByTypeRoot = tableSingleVm
+            Set control = New obj_TableSingleControlVM
 
         Case "tabletpl"
-            Dim tableTemplateVm As obj_TableTplControlVM
-            Set tableTemplateVm = New obj_TableTplControlVM
-            Set m_CreateControlByTypeRoot = tableTemplateVm
+            Set control = New obj_TableTplControlVM
 
         Case Else
-            VBA.MsgBox "Control type '" & controlTypeRoot & "' is not supported in PrototypeNew runtime.", VBA.vbExclamation
+#If LOGGING_DEBUG_ENABLED Then
+            ex_Core.fn_Diagnostic_LogError "Control type '" & controlTypeRoot & "' is not supported in PrototypeNew runtime."
+#End If
+            Exit Function
     End Select
+
+    If control Is Nothing Then Exit Function
+    If Not control.Initialize(page) Then Exit Function
+    Set fn_CreateControlByTypeRoot = control
 End Function

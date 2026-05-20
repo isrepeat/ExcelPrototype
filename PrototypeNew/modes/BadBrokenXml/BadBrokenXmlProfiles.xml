@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<profiles>
+  <profile id="broken_1" caption="Broken XML">
+    <item key="Profile.Name" value="Broken"/>
+  <!-- Intentionally unclosed tags below to provoke XML parse error -->
+  <profile id="broken_2">
+</profiles>

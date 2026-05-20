@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<profiles>
+  <profile id="empty_profile" caption="Profile without rows">
+    <description>Profile exists but contains no item/row/entry/config nodes.</description>
+  </profile>
+</profiles>

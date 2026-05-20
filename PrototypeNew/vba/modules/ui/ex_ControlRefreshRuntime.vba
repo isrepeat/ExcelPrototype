@@ -1,17 +1,27 @@
 Attribute VB_Name = "ex_ControlRefreshRuntime"
 Option Explicit
+#Const LOGGING_VERBOSE_ENABLED = False
 
 Private Const UI_NS As String = "urn:excelprototype:profiles"
 Private g_ControlRegistry As Object
 
+Public Sub fn_Module_Dispose()
+#If LOGGING_VERBOSE_ENABLED Then
+    ex_Core.fn_Diagnostic_LogInfo "lifecycle:ex_ControlRefreshRuntime.fn_Module_Dispose"
+#End If
+    On Error Resume Next
+    Set g_ControlRegistry = Nothing
+    On Error GoTo 0
+End Sub
 ' //
 ' // API
 ' //
-Public Sub m_ResetRegisteredControls()
+Public Sub fn_ResetRegisteredControls()
     Set g_ControlRegistry = private_CreateDictionary()
 End Sub
 
-Public Sub m_RegisterControlRenderBounds( _
+
+Public Sub fn_RegisterControlRenderBounds( _
     ByVal controlName As String, _
     ByVal controlType As String, _
     ByVal sheetName As String, _
@@ -54,7 +64,7 @@ Public Sub m_RegisterControlRenderBounds( _
 End Sub
 
 
-Public Function m_TryRefreshStaticControl(ByVal controlName As String) As Boolean
+Public Function fn_TryRefreshStaticControl(ByVal controlName As String) As Boolean
     Dim key As String
     Dim entry As Object
     Dim ws As Worksheet
@@ -86,7 +96,7 @@ Public Function m_TryRefreshStaticControl(ByVal controlName As String) As Boolea
     Set wb = ws.Parent
     If wb Is Nothing Then Exit Function
 
-    Set uiDoc = ex_XmlCore.m_LoadDomByRelativePath( _
+    Set uiDoc = ex_XmlCore.fn_LoadDomByRelativePath( _
         wb, _
         VBA.CStr(entry("UiPath")), _
         "PrototypeNew: page UI file was not found: ", _
@@ -94,18 +104,18 @@ Public Function m_TryRefreshStaticControl(ByVal controlName As String) As Boolea
         UI_NS)
     If uiDoc Is Nothing Then Exit Function
 
-    escapedName = ex_XmlCore.m_XPathLiteral(VBA.CStr(entry("Name")))
+    escapedName = ex_XmlCore.fn_XPathLiteral(VBA.CStr(entry("Name")))
     xPath = "/p:page//p:control[@name=" & escapedName & "] | /p:uiDefinition/p:layout//p:control[@name=" & escapedName & "]"
     Set controlNode = uiDoc.selectSingleNode(xPath)
     If controlNode Is Nothing Then Exit Function
 
-    If Not rt_PageManager.m_TryGetPageByWorksheet(ws, pageRef) Then Exit Function
+    If Not rt_PageManager.fn_TryGetPageByWorksheet(ws, pageRef) Then Exit Function
     Set pageBase = pageRef.GetPageBase()
     If pageBase Is Nothing Then Exit Function
     Set renderCtx = New obj_LayoutRenderContext
-    If Not renderCtx.Initialize(pageBase) Then Exit Function
+    If Not renderCtx.Initialize(pageRef) Then Exit Function
 
-    If Not ex_XmlLayoutEngine.m_RenderNodeInBounds( _
+    If Not ex_XmlLayoutEngine.fn_RenderNodeInBounds( _
         renderCtx:=renderCtx, _
         layoutNode:=controlNode, _
         rowStart:=VBA.CLng(entry("RowStart")), _
@@ -113,9 +123,46 @@ Public Function m_TryRefreshStaticControl(ByVal controlName As String) As Boolea
         rowEnd:=VBA.CLng(entry("RowEnd")), _
         colEnd:=VBA.CLng(entry("ColEnd"))) Then Exit Function
 
-    If Not ex_InlineTextRuntime.m_ApplyInlineRuns(ws) Then Exit Function
+    If Not pageBase.ApplyInlineRuns() Then Exit Function
 
-    m_TryRefreshStaticControl = True
+    fn_TryRefreshStaticControl = True
+End Function
+
+
+Public Function fn_TryGetSheetMaxControlBounds( _
+    ByVal sheetName As String, _
+    ByRef outRowEnd As Long, _
+    ByRef outColEnd As Long _
+) As Boolean
+    Dim key As Variant
+    Dim entry As Object
+    Dim entrySheetName As String
+    Dim rowEnd As Long
+    Dim colEnd As Long
+
+    outRowEnd = 0
+    outColEnd = 0
+    sheetName = VBA.Trim$(sheetName)
+    If VBA.Len(sheetName) = 0 Then Exit Function
+
+    private_EnsureRegistry
+
+    For Each key In g_ControlRegistry.Keys
+        Set entry = g_ControlRegistry(key)
+        If entry Is Nothing Then GoTo ContinueEntry
+
+        entrySheetName = VBA.Trim$(VBA.CStr(entry("Sheet")))
+        If VBA.StrComp(entrySheetName, sheetName, VBA.vbTextCompare) <> 0 Then GoTo ContinueEntry
+
+        rowEnd = CLng(entry("RowEnd"))
+        colEnd = CLng(entry("ColEnd"))
+        If rowEnd > outRowEnd Then outRowEnd = rowEnd
+        If colEnd > outColEnd Then outColEnd = colEnd
+
+ContinueEntry:
+    Next key
+
+    fn_TryGetSheetMaxControlBounds = (outRowEnd > 0 And outColEnd > 0)
 End Function
 
 ' //
@@ -137,7 +184,7 @@ End Function
 
 Private Function private_IsStaticControlType(ByVal controlType As String) As Boolean
     Select Case VBA.LCase$(VBA.Trim$(controlType))
-        Case "label", "banner", "button", "config", "select"
+        Case "label", "banner", "button", "config", "select", "input"
             private_IsStaticControlType = True
     End Select
 End Function

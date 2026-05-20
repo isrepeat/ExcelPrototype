@@ -1,5 +1,144 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <page xmlns="urn:excelprototype:profiles" version="1">
+  <grid anchorCell="A1">
+      <stackPanel at="r2c2" orientation="horizontal">
+          <control
+            type="Config"
+            name="DevConfig"
+            itemsSource="{PageRuntimeSource='RuntimeItems.PageMain.Config'}"
+            tableName="cfgDevUi"
+            spanColls="3"
+            spanRows="50"
+            />
+          <stackPanel orientation="horizontal">
+              <control
+                type="Select"
+                name="ConfigProfilePicker"
+                dataContext="{PageRuntimeSource='RuntimeObjects.PageMain.Controller'}"
+                itemsSource="{PageRuntimeSource='RuntimeItems.PageMain.ConfigProfiles'}"
+                dropDownOpened="{Binding Method=OnConfigProfileDropDownOpenedCommand}"
+                placeholder="Choose profile"
+                style="configSelectHeader"
+                panelStyle="configSelectPanel"
+                itemStyle="configSelectItem"
+                itemHeight="18"
+                itemMargin="2"
+                spanColls="4"
+                spanRows="2"
+                />
+
+              <stackPanel spanColls="1" spanRows="1"/>
+
+              <control
+                type="Select"
+                name="ConfigModePicker"
+                dataContext="{PageRuntimeSource='RuntimeObjects.PageMain.Controller'}"
+                itemsSource="{PageRuntimeSource='RuntimeItems.PageMain.ConfigModes'}"
+                dropDownOpened="{Binding Method=OnConfigModeDropDownOpenedCommand}"
+                placeholder="Choose mode"
+                style="configSelectHeader"
+                panelStyle="configSelectPanel"
+                itemStyle="configSelectItem"
+                itemHeight="18"
+                itemMargin="2"
+                spanColls="4"
+                spanRows="2"
+                />
+
+              <stackPanel spanColls="1" spanRows="1"/>
+
+              <control
+                type="Button"
+                name="SaveConfigProfile"
+                caption="Save Config Profile"
+                style="actionWarning"
+                dataContext="{PageRuntimeSource='RuntimeObjects.PageMain.Controller'}"
+                onClick="{Binding Method=OnSaveCurrentConfigProfileCommand}"
+                spanColls="4"
+                spanRows="2"
+                />
+          </stackPanel>
+      </stackPanel>
+
+      <stackPanel at="r2c24" orientation="vertical">
+        <control
+          type="Button"
+          name="OpenPersonalCard"
+          caption="Open PersonalCard"
+          style="actionWarning"
+          dataContext="{PageRuntimeSource='RuntimeObjects.PageMain.Controller'}"
+          onClick="{Binding Method=OnOpenPersonalCardPageCommand}"
+          spanColls="5"
+          spanRows="2"
+          />
+        <control
+          type="Button"
+          name="UpdateSheet"
+          caption="Update Sheet"
+          style="actionWarning"
+          onClick="{Binding Module=rt_PageManager;Method=fn_RenderActivePage}"
+          spanColls="5"
+          spanRows="2"
+          />
+        <control
+          type="Button"
+          name="ClearPagesExceptMain"
+          caption="Clear Pages (except Main)"
+          style="actionWarning"
+          dataContext="{PageRuntimeSource='RuntimeObjects.PageMain.Controller'}"
+          onClick="{Binding Method=OnClearWorkbookPagesExceptMainCommand}"
+          spanColls="5"
+          spanRows="2"
+          />
+        <control
+          type="Button"
+          name="ToggleLogging"
+          dataContext="{GlobalRuntimeSource='Settings'}"
+          caption="{Binding Path=IsLoggingEnabled;TrueAs=Logging [[[ok]]On[[/ok]]];FalseAs=Logging [[[color=#FF0000]]Off[[/color]]]}"
+          style="actionWarning"
+          onClick="{Binding Module=ex_Core;Method=fn_Dev_ToggleLogging}"
+          spanColls="5"
+          spanRows="2"
+          />
+        <control
+          type="Button"
+          name="UpdateCodeSize"
+          caption="Update Code Size"
+          style="actionWarning"
+          onClick="{Binding Module=ex_Core;Method=fn_Dev_UpdateCodeBySize}"
+          spanColls="5"
+          spanRows="2"
+          />
+        <control
+          type="Button"
+          name="UpdateCodeDate"
+          caption="Update Code Date"
+          style="actionWarning"
+          onClick="{Binding Module=ex_Core;Method=fn_Dev_UpdateCodeByDate}"
+          spanColls="5"
+          spanRows="2"
+          />
+        <control
+          type="Button"
+          name="UpdateCodeFull"
+          caption="Update Code Full"
+          style="actionWarning"
+          onClick="{Binding Module=ex_Core;Method=fn_Dev_UpdateAllModules}"
+          spanColls="5"
+          spanRows="2"
+          />
+        <control
+          type="Button"
+          name="OpenCoreModule"
+          caption="Open ex_Core"
+          style="actionWarning"
+          onClick="{Binding Module=ex_Core;Method=fn_Dev_OpenCoreModule}"
+          spanColls="5"
+          spanRows="2"
+          />
+      </stackPanel>
+  </grid>
+
   <styles>
     <controlStyle
       name="actionWarning"
@@ -41,29 +180,41 @@
       fontSize="10"
       fontBold="false"/>
 
-    <stylePipelineStage name="default" enabled="true">
-      <layer name="dark-base" enabled="true">
+    <stylePipelineStage name="default">
+      <layer name="dark-base">
         <rule target="sheet"
               styles="{ 
                 backColor:#262626;
                 fontColor:#EBEBEB;
                 borderColor:#000000;
                 borderWeight:thin;
+                width:4;
+                rowHeight:16;
+                cellType:text;
               }"/>
       </layer>
 
-      <layer name="dark-primary-action" enabled="true">
-        <rule target="range"
-              selector="address=B2:D3"
-              styles="{ 
-                backColor:#0F766E;
-                fontColor:#E6FFFA;
-                borderColor:#134E4A;
-                fontBold:true;
+      <layer name="config-parts">
+        <rule target="controlPart"
+              selector="type=config;part=attr"
+              styles="{
+                width:4;
               }"/>
-      </layer>
 
-      <layer name="config-parts" enabled="true">
+        <rule target="controlPart"
+              selector="type=config;part=key"
+              styles="{
+                width:38;
+              }"/>
+
+        <rule target="controlPart"
+              selector="type=config;part=value"
+              styles="{
+                width:70;
+                overflow:wrap;
+                rowHeight:auto;
+              }"/>
+
         <rule target="controlPart"
               selector="type=config;part=attrhash"
               styles="{
@@ -85,169 +236,56 @@
                 fontItalic:true;
               }"/>
       </layer>
+
+      <layer name="layout-debug-bounds">
+        <rule target="layoutBound"
+              selector="tag=grid"
+              styles="{
+                borderColor:#8B5CF6;
+                borderWeight:medium;
+                borderLineStyle:solid;
+              }"/>
+
+        <rule target="layoutBound"
+              selector="tag=control"
+              styles="{
+                borderColor:#FF0000;
+                borderWeight:thin;
+                borderLineStyle:solid;
+              }"/>
+
+        <rule target="layoutBound"
+              selector="tag=stackpanel;tagDepth=0"
+              styles="{
+                borderColor:#444444;
+                borderWeight:medium;
+                borderLineStyle:dash;
+              }"/>
+
+        <rule target="layoutBound"
+              selector="tag=stackpanel;tagDepth=1"
+              styles="{
+                borderColor:#5E5E5E;
+                borderWeight:medium;
+                borderLineStyle:dash;
+              }"/>
+
+        <rule target="layoutBound"
+              selector="tag=stackpanel;tagDepth=2"
+              styles="{
+                borderColor:#777777;
+                borderWeight:medium;
+                borderLineStyle:dash;
+              }"/>
+
+       <rule target="layoutBound"
+              selector="tag=stackpanel;tagDepth=3:10"
+              styles="{
+                borderColor:#999999;
+                borderWeight:medium;
+                borderLineStyle:dash;
+              }"/>
+      </layer>
     </stylePipelineStage>
   </styles>
-    <grid anchorCell="A1">
-      <stackPanel at="r2c2" orientation="horizontal">
-          <stackPanel orientation="vertical">
-              <control
-                type="Button"
-                name="Open Table Part Styles UI"
-                caption="Open Table Part Styles Demo"
-                style="actionWarning"
-                onClick="{Binding Module=ex_Test;Method=m_TEST_RenderDevTablePartStylesUI}"
-                spanCells="3"
-                spanRows="2"
-                />
-              <control
-                type="Button"
-                name="Update UI"
-                caption="Open Table List Demo"
-                style="actionWarning"
-                onClick="{Binding Module=ex_Test;Method=m_TEST_RenderDevTableListUI}"
-                spanCells="3"
-                spanRows="2"
-                />
-              <!-- <control
-                type="Button"
-                name="Open Primitive Table UI"
-                caption="Open Primitive Table Demo"
-                style="actionWarning"
-                onClick="{Binding Module=ex_Test;Method=m_TEST_RenderDevPrimitiveTableUI}"
-                spanCells="3"
-                spanRows="2"
-                /> -->
-              <control
-                type="Button"
-                name="Open List TableSingle UI"
-                caption="Open List + TableSingle Demo"
-                style="actionWarning"
-                onClick="{Binding Module=ex_Test;Method=m_TEST_RenderDevListTableSingleUI}"
-                spanCells="3"
-                spanRows="2"
-                />
-              
-              <control
-                type="Button"
-                name="Update UI Single"
-                caption="Open Single Table Demo"
-                style="actionWarning"
-                onClick="{Binding Module=ex_Test;Method=m_TEST_RenderDevSingleTableUI}"
-                spanCells="3"
-                spanRows="2"
-                />
-              <!-- <control
-                type="Button"
-                name="Profile Table Render"
-                caption="Profile Table Render"
-                style="actionWarning"
-                onClick="{Binding Module=ex_Test;Method=m_TEST_ProfileDevTableListUI}"
-                spanCells="3"
-                spanRows="2"
-                />
-              <control
-                type="Button"
-                name="Fill Numbers Range"
-                caption="Fill L5:V28 Numbers"
-                style="actionWarning"
-                onClick="{Binding Module=ex_Test;Method=m_TEST_FillNumbersRangeSimple}"
-                spanCells="3"
-                spanRows="2"
-                /> -->
-            </stackPanel>
-      </stackPanel>
-
-      <stackPanel at="r2c8" orientation="vertical">
-        <control
-          type="Select"
-          name="ConfigProfilePicker"
-          itemsSource="{PageRuntimeSource='RuntimeItems.Test.ConfigProfiles'}"
-          selectedItem="RuntimeObjects.Test.SelectedConfigProfile"
-          placeholder="Choose profile"
-          style="configSelectHeader"
-          panelStyle="configSelectPanel"
-          itemStyle="configSelectItem"
-          itemHeight="18"
-          itemMargin="2"
-          spanCells="6"
-          spanRows="4"
-          />
-
-        <control
-          type="Config"
-          name="DevConfig"
-          itemsSource="{PageRuntimeSource='RuntimeItems.Test.Config'}"
-          tableName="cfgDevUi"
-          spanCells="10"
-          spanRows="24"
-          />
-      </stackPanel>
-
-      <stackPanel at="r2c24" orientation="vertical">
-        <control
-          type="Button"
-          name="OpenCoreModule"
-          caption="Open ex_Core"
-          style="actionWarning"
-          onClick="{Binding Module=ex_Core;Method=m_Dev_OpenCoreModule}"
-          spanCells="3"
-          spanRows="2"
-          />
-        <control
-          type="Button"
-          name="ToggleLogging"
-          dataContext="{GlobalRuntimeSource='Settings'}"
-          caption="{Binding Path=IsLoggingEnabled;TrueAs=Logging [On];FalseAs=Logging [Off]}"
-          style="actionWarning"
-          onClick="{Binding Module=ex_Core;Method=m_Dev_ToggleLogging}"
-          spanCells="3"
-          spanRows="2"
-          />
-        <control
-          type="Button"
-          name="RemoveAllModules"
-          caption="Remove All Modules"
-          style="actionWarning"
-          onClick="{Binding Module=ex_Core;Method=m_Dev_RemoveAllModulesAndClasses}"
-          spanCells="3"
-          spanRows="2"
-          />
-        <control
-          type="Button"
-          name="UpdateSheet"
-          caption="Update Sheet"
-          style="actionWarning"
-          onClick="{Binding Module=ex_Test;Method=m_TEST_UpdateCurrentPage}"
-          spanCells="3"
-          spanRows="2"
-          />
-        <control
-          type="Button"
-          name="UpdateCodeSize"
-          caption="Update Code Size"
-          style="actionWarning"
-          onClick="{Binding Module=ex_Core;Method=m_Dev_UpdateCodeBySize}"
-          spanCells="3"
-          spanRows="2"
-          />
-        <control
-          type="Button"
-          name="UpdateCodeDate"
-          caption="Update Code Date"
-          style="actionWarning"
-          onClick="{Binding Module=ex_Core;Method=m_Dev_UpdateCodeByDate}"
-          spanCells="3"
-          spanRows="2"
-          />
-        <control
-          type="Button"
-          name="UpdateCodeFull"
-          caption="Update Code Full"
-          style="actionWarning"
-          onClick="{Binding Module=ex_Core;Method=m_Dev_UpdateAllModules}"
-          spanCells="3"
-          spanRows="2"
-          />
-      </stackPanel>
-    </grid>
 </page>
