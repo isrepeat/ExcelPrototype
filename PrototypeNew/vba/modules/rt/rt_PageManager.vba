@@ -518,6 +518,59 @@ EH_RENDER:
 End Function
 
 
+Public Function fn_RenderPageAndActivate(ByVal page As obj_IPage, Optional ByVal reason As String = VBA.vbNullString) As Boolean
+    Dim pageBase As obj_PageBase
+    Dim sheetName As String
+    Dim sheetCodeName As String
+    Dim errDescription As String
+
+    If Not fn_RenderPage(page, reason) Then Exit Function
+
+    If page Is Nothing Then
+#If LOGGING_DEBUG_ENABLED Then
+        ex_Core.fn_Diagnostic_LogError "page-manager:activate-after-render input-invalid page is not specified"
+#End If
+        Exit Function
+    End If
+
+    Set pageBase = page.GetPageBase()
+    If pageBase Is Nothing Then
+#If LOGGING_DEBUG_ENABLED Then
+        ex_Core.fn_Diagnostic_LogError "page-manager:activate-after-render input-invalid page base is not specified"
+#End If
+        Exit Function
+    End If
+
+    If pageBase.Worksheet Is Nothing Then
+#If LOGGING_DEBUG_ENABLED Then
+        ex_Core.fn_Diagnostic_LogError "page-manager:activate-after-render input-invalid worksheet is not specified"
+#End If
+        Exit Function
+    End If
+
+    sheetName = VBA.vbNullString
+    sheetCodeName = VBA.vbNullString
+    If Not private_TryGetWorksheetIdentity(pageBase.Worksheet, sheetName, sheetCodeName) Then
+#If LOGGING_DEBUG_ENABLED Then
+        ex_Core.fn_Diagnostic_LogError "page-manager:activate-after-render input-invalid worksheet identity is unavailable"
+#End If
+        Exit Function
+    End If
+
+    On Error GoTo EH_ACTIVATE
+    pageBase.Worksheet.Activate
+    fn_RenderPageAndActivate = True
+    Exit Function
+
+EH_ACTIVATE:
+    errDescription = Err.Description
+    sheetName = VBA.Replace$(sheetName, "'", "''")
+#If LOGGING_DEBUG_ENABLED Then
+    ex_Core.fn_Diagnostic_LogError "page-manager:activate-after-render-exception sheet='" & sheetName & "' err='" & VBA.Replace$(errDescription, "'", "''") & "'"
+#End If
+End Function
+
+
 Public Sub fn_RenderActivePage()
     Dim activeSheetObj As Object
     Dim ws As Worksheet
