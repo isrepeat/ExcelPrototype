@@ -184,7 +184,7 @@ End Function
 
 Private Function private_IsStaticControlType(ByVal controlType As String) As Boolean
     Select Case VBA.LCase$(VBA.Trim$(controlType))
-        Case "label", "banner", "button", "config", "select"
+        Case "label", "banner", "button", "config", "select", "input"
             private_IsStaticControlType = True
     End Select
 End Function
