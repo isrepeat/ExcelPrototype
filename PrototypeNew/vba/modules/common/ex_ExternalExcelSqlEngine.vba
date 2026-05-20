@@ -19,8 +19,7 @@ End Sub
 
 Public Function fn_TrySqlRequest( _
     ByVal sqlParams As obj_SqlParams, _
-    ByRef outTable As obj_TableDynamic, _
-    Optional ByRef outRowsCount As Long = 0 _
+    ByRef outTable As obj_TableDynamic _
 ) As Boolean
     Dim conn As Object
     Dim rsSchema As Object
@@ -38,20 +37,24 @@ Public Function fn_TrySqlRequest( _
     Dim colObj As obj_Column
     Dim markerErrorText As String
     Dim i As Long
-    Dim rowIndex As Long
     Dim resolvedSourceColumnHeader As String
     Dim availableFields As String
     Dim hasGenericFields As Boolean
 
     On Error GoTo EH_QUERY
 
+    ' Сбрасываем выход: если что-то пойдет не так, наружу уйдет пустой результат.
     Set outTable = Nothing
-    outRowsCount = 0
 
+    ' 1) Базовая валидация входных параметров SQL.
     If sqlParams Is Nothing Then
         MsgBox "PrototypeNew: SQL params object is not specified.", vbExclamation, RUNTIME_ERROR_TITLE
         Exit Function
     End If
+
+#If LOGGING_DEBUG_ENABLED Then
+    ex_Core.fn_Diagnostic_LogInfo "sql-engine:try-request " & sqlParams.fn_ToString()
+#End If
 
     If Not sqlParams.TryValidate(validationError) Then
         MsgBox "PrototypeNew: invalid SQL params. " & validationError, vbExclamation, RUNTIME_ERROR_TITLE
@@ -68,6 +71,9 @@ Public Function fn_TrySqlRequest( _
         Exit Function
     End If
 
+    ' 2) Определяем tableRef для ADO:
+    ' - если есть пара маркеров, строим точный диапазон по маркерам;
+    ' - иначе берем весь лист (или диапазон, если уже зашит в SheetName).
     If private_HasRangeMarkers(sqlParams) Then
         If Not private_TryBuildTableRefFromMarkers(sourcePath, sqlParams.SheetName, sqlParams.RangeStartMarker, sqlParams.RangeEndMarker, tableRef, markerErrorText) Then
             MsgBox "PrototypeNew: failed to resolve range by markers. " & markerErrorText, vbExclamation, RUNTIME_ERROR_TITLE
@@ -84,9 +90,13 @@ Public Function fn_TrySqlRequest( _
     Set sourceColumnHeaders = sqlParams.SourceColumnHeaders
     Set mappedColumnHeaders = sqlParams.MappedColumnHeaders
 
+    ' 3) Открываем ADO-подключение к Excel-файлу.
     Set conn = CreateObject("ADODB.Connection")
     conn.Open private_BuildAdoConnectionString(sourcePath)
 
+    ' 4) Schema-pass:
+    ' SELECT ... WHERE 1=0 не читает строки, но возвращает структуру полей.
+    ' Это нужно, чтобы проверить, что все SourceColumnHeaders реально доступны у провайдера.
     Set rsSchema = CreateObject("ADODB.Recordset")
     rsSchema.Open "SELECT * FROM " & tableRef & " WHERE 1=0", conn, 0, 1
     availableFields = private_ListRecordsetFields(rsSchema, 40)
@@ -105,10 +115,17 @@ Public Function fn_TrySqlRequest( _
     rsSchema.Close
     Set rsSchema = Nothing
 
+    ' 5) Data-pass:
+    ' Строим и выполняем реальный SELECT только по валидационно-резолвленным колонкам.
+    ' Если в SqlParams задано WHERE-условие, добавляем его в запрос.
     sql = "SELECT " & private_BuildSelectColumnsClause(resolvedSourceColumnHeaders) & " FROM " & tableRef
+    If VBA.Len(VBA.Trim$(sqlParams.WhereConditions)) > 0 Then
+        sql = sql & " WHERE " & sqlParams.WhereConditions
+    End If
     Set rsData = CreateObject("ADODB.Recordset")
     rsData.Open sql, conn, 0, 1
 
+    ' Пустой набор данных не считаем ошибкой: просто нет строк под текущий запрос.
     If rsData.EOF Then
         rsData.Close
         Set rsData = Nothing
@@ -116,6 +133,8 @@ Public Function fn_TrySqlRequest( _
         GoTo CleanupDone
     End If
 
+    ' 6) Формируем runtime-модель таблицы для UI.
+    ' Заголовки берем из MappedColumnHeaders (то, что хотим показывать пользователю).
     Set tableObj = New obj_TableDynamic
     tableObj.SectionTitle = "Query Result"
 
@@ -127,6 +146,7 @@ Public Function fn_TrySqlRequest( _
         If Not tableObj.AddColumn(colObj) Then GoTo CleanupFail
     Next i
 
+    ' Кешируем ordinals полей, чтобы быстро читать значения в цикле по строкам.
     ReDim sourceColumnOrdinals(1 To resolvedSourceColumnHeaders.Count)
     For i = 1 To resolvedSourceColumnHeaders.Count
         sourceColumnOrdinals(i) = private_RecordsetGetFieldOrdinal(rsData, VBA.CStr(resolvedSourceColumnHeaders.Item(i)))
@@ -136,9 +156,8 @@ Public Function fn_TrySqlRequest( _
         End If
     Next i
 
-    rowIndex = 0
+    ' 7) Переносим данные из Recordset в obj_TableDynamic (row-by-row).
     Do While Not rsData.EOF
-        rowIndex = rowIndex + 1
         Set rowObj = New obj_Row
         For i = 1 To UBound(sourceColumnOrdinals)
             rowObj.AddCell private_ToSafeText(rsData.Fields(sourceColumnOrdinals(i)).Value)
@@ -151,11 +170,12 @@ Public Function fn_TrySqlRequest( _
     rsData.Close
     Set rsData = Nothing
 
-    outRowsCount = rowIndex
+    ' Финализируем успешный результат.
     Set outTable = tableObj
     fn_TrySqlRequest = True
 
 CleanupDone:
+    ' Единая точка освобождения COM-ресурсов (recordset/connection).
     On Error Resume Next
     If Not rsSchema Is Nothing Then If rsSchema.State <> 0 Then rsSchema.Close
     If Not rsData Is Nothing Then If rsData.State <> 0 Then rsData.Close
@@ -164,11 +184,12 @@ CleanupDone:
     Exit Function
 
 CleanupFail:
+    ' Любая ошибка на промежуточных шагах -> пустой выход + общий cleanup.
     Set outTable = Nothing
-    outRowsCount = 0
     GoTo CleanupDone
 
 EH_QUERY:
+    ' Центральный обработчик runtime-ошибок SQL flow.
 #If LOGGING_DEBUG_ENABLED Then
     ex_Core.fn_Diagnostic_LogError "PrototypeNew: SQL query error [" & VBA.CStr(Err.Number) & "] " & Err.Description
 #End If

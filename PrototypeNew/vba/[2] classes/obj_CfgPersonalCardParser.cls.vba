@@ -69,6 +69,10 @@ Public Function TryBuildSqlParams( _
     Dim columnAliasObj As Variant
     Dim sourceColumnHeader As String
     Dim mappedColumnHeader As String
+    Dim keyColumnAlias As String
+    Dim keySourceColumnHeader As String
+    Dim keyMappedColumnHeader As String
+    Dim commonKeyValue As String
     Dim sqlParams As obj_SqlParams
 
     ' Сбрасываем выходные значения.
@@ -101,6 +105,15 @@ Public Function TryBuildSqlParams( _
     sqlParams.SheetName = sheetName
     sqlParams.RangeStartMarker = rangeStartMarker
     sqlParams.RangeEndMarker = rangeEndMarker
+
+    ' 4) Формируем WHERE из конфига:
+    ' <TablePathPrefix>Key -> алиас поля (например FIO)
+    ' CommonKey            -> значение для фильтра
+    If Not m_CfgParserBase.TryGetRequiredConfigValue(cfgMap, tablePathPrefix & "Key", keyColumnAlias) Then Exit Function
+    If Not m_CfgParserBase.TryGetRequiredConfigValue(cfgMap, "CommonKey", commonKeyValue) Then Exit Function
+    If Not m_CfgTableParser.TryResolveMapByColumnAlias(cfgMap, tablePathPrefix, keyColumnAlias, keySourceColumnHeader, keyMappedColumnHeader) Then Exit Function
+    sqlParams.WhereConditions = ex_HelpersSql.fn_BuildWhereEqualsSql(keySourceColumnHeader, commonKeyValue)
+    If VBA.Len(sqlParams.WhereConditions) = 0 Then Exit Function
 
     For Each columnAliasObj In columnHeadersAliases
         If Not m_CfgTableParser.TryResolveMapByColumnAlias( _

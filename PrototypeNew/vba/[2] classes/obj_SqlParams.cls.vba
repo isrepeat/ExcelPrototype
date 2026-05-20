@@ -11,6 +11,7 @@ Private m_SourcePath As String
 Private m_SheetName As String
 Private m_RangeStartMarker As String
 Private m_RangeEndMarker As String
+Private m_WhereConditions As String
 Private m_SourceColumnHeaders As Collection
 Private m_MappedColumnHeaders As Collection
 Private m_IsDisposed As Boolean
@@ -68,6 +69,14 @@ Public Property Let RangeEndMarker(ByVal value As String)
     m_RangeEndMarker = VBA.Trim$(VBA.CStr(value))
 End Property
 
+Public Property Get WhereConditions() As String
+    WhereConditions = m_WhereConditions
+End Property
+
+Public Property Let WhereConditions(ByVal value As String)
+    m_WhereConditions = VBA.Trim$(VBA.CStr(value))
+End Property
+
 Public Property Get SourceColumnHeaders() As Collection
     If m_SourceColumnHeaders Is Nothing Then Set m_SourceColumnHeaders = New Collection
     Set SourceColumnHeaders = m_SourceColumnHeaders
@@ -92,6 +101,7 @@ Public Function Initialize() As Boolean
 #End If
     m_RangeStartMarker = VBA.vbNullString
     m_RangeEndMarker = VBA.vbNullString
+    m_WhereConditions = VBA.vbNullString
     Set m_SourceColumnHeaders = New Collection
     Set m_MappedColumnHeaders = New Collection
     Initialize = True
@@ -174,4 +184,41 @@ Public Function TryValidate(ByRef outErrorText As String) As Boolean
     End If
 
     TryValidate = True
+End Function
+
+Public Function fn_ToString() As String
+    fn_ToString = _
+        "SqlParams{" & _
+        "SourcePath=" & private_QuoteValue(m_SourcePath) & "; " & _
+        "SheetName=" & private_QuoteValue(m_SheetName) & "; " & _
+        "RangeStartMarker=" & private_QuoteValue(m_RangeStartMarker) & "; " & _
+        "RangeEndMarker=" & private_QuoteValue(m_RangeEndMarker) & "; " & _
+        "WhereConditions=" & private_QuoteValue(m_WhereConditions) & "; " & _
+        "SourceColumnHeaders=[" & private_CollectionToDelimitedText(m_SourceColumnHeaders, ", ") & "]; " & _
+        "MappedColumnHeaders=[" & private_CollectionToDelimitedText(m_MappedColumnHeaders, ", ") & "]" & _
+        "}"
+End Function
+
+' //
+' // Internal
+' //
+Private Function private_CollectionToDelimitedText( _
+    ByVal sourceItems As Collection, _
+    ByVal delimiterText As String _
+) As String
+    Dim i As Long
+    Dim itemText As String
+
+    If sourceItems Is Nothing Then Exit Function
+    If VBA.Len(delimiterText) = 0 Then delimiterText = ", "
+
+    For i = 1 To sourceItems.Count
+        itemText = VBA.Trim$(VBA.CStr(sourceItems.Item(i)))
+        If i > 1 Then private_CollectionToDelimitedText = private_CollectionToDelimitedText & delimiterText
+        private_CollectionToDelimitedText = private_CollectionToDelimitedText & private_QuoteValue(itemText)
+    Next i
+End Function
+
+Private Function private_QuoteValue(ByVal valueText As String) As String
+    private_QuoteValue = """" & VBA.Replace$(VBA.CStr(valueText), """", "'") & """"
 End Function
