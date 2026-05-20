@@ -34,13 +34,44 @@ Private Sub Class_Terminate()
 #End If
     If m_IsDisposed Then Exit Sub
     On Error Resume Next
-    Dispose
+    obj_IControl_Dispose
     On Error GoTo 0
 End Sub
 
 ' //
 ' // Interface
 ' //
+Private Function obj_IControl_Initialize(ByVal page As obj_IPage) As Boolean
+#If LOGGING_VERBOSE_ENABLED Then
+    ex_Core.fn_Diagnostic_LogInfo "lifecycle:" & VBA.TypeName(Me) & ".Initialize"
+#End If
+    m_IsDisposed = False
+    m_IsConfigured = False
+    Set m_Page = page
+    obj_IControl_Initialize = True
+End Function
+
+Private Sub obj_IControl_Dispose()
+#If LOGGING_VERBOSE_ENABLED Then
+    ex_Core.fn_Diagnostic_LogInfo "lifecycle:" & VBA.TypeName(Me) & ".Dispose"
+#End If
+    If m_IsDisposed Then Exit Sub
+    m_IsDisposed = True
+    On Error Resume Next
+    Err.Clear
+    Set m_ControlBase = Nothing
+    Set m_ControlLayout = Nothing
+    Set m_ConfigTableViewItem = Nothing
+    Set m_Page = Nothing
+    m_ControlName = VBA.vbNullString
+    m_ItemsSourceRaw = VBA.vbNullString
+    m_TableNameRaw = VBA.vbNullString
+    m_RuntimeControlKey = VBA.vbNullString
+    m_RuntimeTableName = VBA.vbNullString
+    m_IsConfigured = False
+    On Error GoTo 0
+End Sub
+
 Private Sub obj_IControl_Configure(ByVal controlNode As Object)
     Dim pageBase As obj_PageBase
     Dim resolvedItems As Collection
@@ -287,14 +318,58 @@ End Function
 ' //
 ' // API
 ' //
-Public Function Initialize(ByVal page As obj_IPage) As Boolean
-#If LOGGING_VERBOSE_ENABLED Then
-    ex_Core.fn_Diagnostic_LogInfo "lifecycle:" & VBA.TypeName(Me) & ".Initialize"
-#End If
-    m_IsDisposed = False
-    m_IsConfigured = False
-    Set m_Page = page
-    Initialize = True
+Public Function TrySetRenderedValueByKey( _
+    ByVal configKey As String, _
+    ByVal newValue As String _
+) As Boolean
+    Dim tableObj As ListObject
+    Dim headerRange As Range
+    Dim dataRange As Range
+    Dim colCount As Long
+    Dim colIndex As Long
+    Dim rowIndex As Long
+    Dim keyColumnIndex As Long
+    Dim valueColumnIndex As Long
+    Dim rawHeader As String
+    Dim normalizedHeader As String
+    Dim keyCellText As String
+
+    configKey = VBA.Trim$(configKey)
+    If VBA.Len(configKey) = 0 Then Exit Function
+
+    If Not private_TryResolveRenderedTableObject(tableObj) Then Exit Function
+    Set headerRange = tableObj.HeaderRowRange
+    If headerRange Is Nothing Then Exit Function
+
+    colCount = headerRange.Columns.Count
+    If colCount <= 0 Then Exit Function
+
+    For colIndex = 1 To colCount
+        rawHeader = VBA.Trim$(VBA.CStr(headerRange.Cells(1, colIndex).Value2))
+        If Not private_TryNormalizeProfileAttrName(rawHeader, normalizedHeader) Then Exit Function
+
+        Select Case VBA.LCase$(normalizedHeader)
+            Case "key"
+                keyColumnIndex = colIndex
+            Case "value"
+                valueColumnIndex = colIndex
+        End Select
+    Next colIndex
+
+    If keyColumnIndex <= 0 Then Exit Function
+    If valueColumnIndex <= 0 Then Exit Function
+
+    Set dataRange = tableObj.DataBodyRange
+    If dataRange Is Nothing Then Exit Function
+
+    For rowIndex = 1 To dataRange.Rows.Count
+        keyCellText = VBA.Trim$(VBA.CStr(dataRange.Cells(rowIndex, keyColumnIndex).Value2))
+        If VBA.StrComp(keyCellText, configKey, VBA.vbTextCompare) <> 0 Then GoTo ContinueRow
+        dataRange.Cells(rowIndex, valueColumnIndex).Value2 = newValue
+        TrySetRenderedValueByKey = True
+        Exit Function
+ContinueRow:
+    Next rowIndex
 End Function
 
 Public Function TryGetRenderedConfigEntries(ByRef outEntries As Collection) As Boolean
@@ -433,6 +508,33 @@ ContinueRow:
     End If
 
     TryGetRenderedConfigEntries = True
+End Function
+
+Public Function TryBuildConfigTableFromRendered(ByRef outConfigTable As obj_ConfigTable) As Boolean
+    Dim configEntries As Collection
+    Dim configEntryItem As Variant
+    Dim configEntry As obj_ConfigEntry
+    Dim result As obj_ConfigTable
+
+    Set outConfigTable = Nothing
+    Set configEntries = Nothing
+    If Not TryGetRenderedConfigEntries(configEntries) Then Exit Function
+
+    Set result = New obj_ConfigTable
+    If Not result.Initialize() Then Exit Function
+
+    If Not configEntries Is Nothing Then
+        For Each configEntryItem In configEntries
+            Set configEntry = Nothing
+            Set configEntry = configEntryItem
+            If configEntry Is Nothing Then GoTo ContinueConfigEntry
+            If Not result.AddRow(configEntry.Attr, configEntry.Key, configEntry.Value) Then Exit Function
+ContinueConfigEntry:
+        Next configEntryItem
+    End If
+
+    Set outConfigTable = result
+    TryBuildConfigTableFromRendered = True
 End Function
 
 Public Function TryGetConfigTable(ByRef outConfigTable As obj_ConfigTable) As Boolean
@@ -595,27 +697,6 @@ EH_XML:
     ex_Core.fn_Diagnostic_LogError "Config: failed to build XML node from rendered table in control '" & m_ControlName & "': " & Err.Description
 #End If
 End Function
-
-Public Sub Dispose()
-#If LOGGING_VERBOSE_ENABLED Then
-    ex_Core.fn_Diagnostic_LogInfo "lifecycle:" & VBA.TypeName(Me) & ".Dispose"
-#End If
-    If m_IsDisposed Then Exit Sub
-    m_IsDisposed = True
-    On Error Resume Next
-    Err.Clear
-    Set m_ControlBase = Nothing
-    Set m_ControlLayout = Nothing
-    Set m_ConfigTableViewItem = Nothing
-    Set m_Page = Nothing
-    m_ControlName = VBA.vbNullString
-    m_ItemsSourceRaw = VBA.vbNullString
-    m_TableNameRaw = VBA.vbNullString
-    m_RuntimeControlKey = VBA.vbNullString
-    m_RuntimeTableName = VBA.vbNullString
-    m_IsConfigured = False
-    On Error GoTo 0
-End Sub
 
 ' //
 ' // Internal

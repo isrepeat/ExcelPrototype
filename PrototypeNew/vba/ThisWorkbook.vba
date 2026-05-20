@@ -25,6 +25,17 @@ Private Sub Workbook_BeforeClose(Cancel As Boolean)
     Call rt_RestoreManager.fn_SaveRuntimeState
 End Sub
 
+Private Sub Workbook_SheetChange(ByVal Sh As Object, ByVal Target As Range)
+    On Error GoTo EH_SHEET_CHANGE
+    rt_Bridge.fn_OnSheetChange Sh, Target
+    Exit Sub
+
+EH_SHEET_CHANGE:
+#If LOGGING_DEBUG_ENABLED Then
+    ex_Core.fn_Diagnostic_LogError "PrototypeNew: Workbook_SheetChange failed: " & Err.Description
+#End If
+End Sub
+
 Private Sub Workbook_SheetBeforeDelete(ByVal Sh As Object)
     Dim ws As Worksheet
     Dim sheetName As String
