@@ -15,12 +15,15 @@ Private Const SNAPSHOT_ROOT_NODE As String = "pageState"
 Private Const CONTROL_SNAPSHOT_NODE As String = "controlSnapshot"
 Private Const PARENT_PAGE_ID_ATTR As String = "parentPageId"
 Private Const PARENT_CONFIG_CONTROL_NAME As String = "DevConfig"
+Private Const PARENT_CONFIG_COMMON_KEY As String = "CommonKey"
+Private Const PAGE_RUNTIME_OBJECT_KEY As String = "RuntimeObjects.PagePersonalCard"
 
 Private m_PageBase As obj_PageBase
 Private m_PagePersonalCardController As obj_PagePersonalCardCtrl
 Private m_PendingControlSnapshots As Collection
 Private m_ParentPageId As String
 Private m_ParentPage As obj_IPage
+Private m_CommonKeyInputValue As String
 Private m_IsDisposed As Boolean
 
 Private Sub Class_Initialize()
@@ -51,10 +54,13 @@ Private Function obj_IPage_Initialize( _
     Optional ByVal Context As Object = Nothing _
 ) As Boolean
     Dim parentPage As obj_IPage
-    Dim rawControl As Object
     Dim configControl As obj_ConfigControlVM
-    Dim configTable As obj_ConfigTable
+    Dim configEntries As Collection
+    Dim entryItem As Variant
+    Dim configEntry As obj_ConfigEntry
 
+    ' PersonalCard работает как дочерняя страница MainPage:
+    ' сохраняем ссылку/ID родителя из Context, чтобы дальше читать и обновлять DevConfig.
     m_ParentPageId = VBA.vbNullString
     Set m_ParentPage = Nothing
 
@@ -70,35 +76,39 @@ Private Function obj_IPage_Initialize( _
 #If LOGGING_DEBUG_ENABLED Then
         ex_Core.fn_Diagnostic_LogError "PagePersonalCard.Initialize: parent page is not specified in context."
 #End If
+        ' Без родителя страница не сможет синхронизировать CommonKey,
+        ' поэтому прерываем инициализацию сразу.
         Exit Function
     End If
 
-    Set rawControl = Nothing
-    If Not m_ParentPage.TryGetRegisteredControlByName(PARENT_CONFIG_CONTROL_NAME, rawControl) Then
-#If LOGGING_DEBUG_ENABLED Then
-        ex_Core.fn_Diagnostic_LogError "PagePersonalCard.Initialize: config control '" & PARENT_CONFIG_CONTROL_NAME & "' was not found in parent page runtime registry."
-#End If
-        Exit Function
-    End If
-    If rawControl Is Nothing Then Exit Function
-    If Not TypeOf rawControl Is obj_ConfigControlVM Then
-#If LOGGING_DEBUG_ENABLED Then
-        ex_Core.fn_Diagnostic_LogError "PagePersonalCard.Initialize: config control '" & PARENT_CONFIG_CONTROL_NAME & "' has unexpected type '" & VBA.TypeName(rawControl) & "'."
-#End If
-        Exit Function
-    End If
-
-    Set configControl = rawControl
-    If Not configControl.TryGetConfigTable(configTable) Then
-#If LOGGING_DEBUG_ENABLED Then
-        ex_Core.fn_Diagnostic_LogError "PagePersonalCard.Initialize: failed to resolve config table from control '" & PARENT_CONFIG_CONTROL_NAME & "'."
-#End If
-        Exit Function
-    End If
-
+    ' Базовая инициализация страницы + регистрация runtime-source для биндингов вида
+    ' {PageRuntimeSource='RuntimeObjects.PagePersonalCard'} из XML.
     If Not m_PageBase.Initialize(ws, Me, uiPath, pageId) Then Exit Function
+    If Not m_PageBase.RuntimeSources.SetObjectSource(PAGE_RUNTIME_OBJECT_KEY, Me) Then Exit Function
     Set m_PagePersonalCardController = New obj_PagePersonalCardCtrl
-    If Not m_PagePersonalCardController.Initialize(Me, configTable) Then Exit Function
+    If Not m_PagePersonalCardController.Initialize(Me) Then Exit Function
+    
+    ' Стартовое значение input: пробуем взять текущее CommonKey из родительского Config-контрола.
+    ' Это best-effort шаг: если Config пока недоступен, страница все равно инициализируется.
+    m_CommonKeyInputValue = VBA.vbNullString
+    If private_TryResolveParentConfigControl(configControl) Then
+        If Not configControl Is Nothing Then
+            If configControl.TryGetRenderedConfigEntries(configEntries) Then
+                If Not configEntries Is Nothing Then
+                    For Each entryItem In configEntries
+                        Set configEntry = Nothing
+                        Set configEntry = entryItem
+                        If configEntry Is Nothing Then GoTo ContinueSeedCommonKeyEntry
+                        If VBA.StrComp(VBA.Trim$(configEntry.Key), PARENT_CONFIG_COMMON_KEY, VBA.vbTextCompare) = 0 Then
+                            m_CommonKeyInputValue = VBA.Trim$(configEntry.Value)
+                            Exit For
+                        End If
+ContinueSeedCommonKeyEntry:
+                    Next entryItem
+                End If
+            End If
+        End If
+    End If
 
     obj_IPage_Initialize = True
 End Function
@@ -108,10 +118,16 @@ Private Sub obj_IPage_Dispose(Optional ByVal deleteWorksheet As Boolean = True)
 End Sub
 
 Private Function obj_IPage_RunPagePipeline() As Boolean
+    Dim configControl As obj_ConfigControlVM
+
 #If LOGGING_DEBUG_ENABLED Then
     ex_Core.fn_Diagnostic_LogInfo "enter:obj_PagePersonalCard.RunPagePipeline"
 #End If
     If Not m_PageBase.IsReady() Then Exit Function
+    If Not private_TryResolveParentConfigControl(configControl) Then Exit Function
+    If Not m_PagePersonalCardController Is Nothing Then
+        If Not m_PagePersonalCardController.UpdateData(configControl) Then Exit Function
+    End If
     If Not m_PagePersonalCardController.PrepareSqlTablesRuntime(False) Then Exit Function
     obj_IPage_RunPagePipeline = True
 End Function
@@ -137,7 +153,6 @@ Private Function obj_ISerializable_TryRestoreState() As Boolean
     Set m_ParentPage = parentPage
     obj_ISerializable_TryRestoreState = True
 End Function
-
 
 Private Function obj_IPage_Render() As Boolean
     If Not m_PageBase.IsReady() Then Exit Function
@@ -244,6 +259,69 @@ End Function
 ' //
 ' // API
 ' //
+Public Function OnRenderCommand(Optional ByVal arg As Variant) As Boolean
+    Dim pageRef As obj_IPage
+
+    Set pageRef = Me
+    OnRenderCommand = rt_PageManager.fn_RenderPage(pageRef, "personalcard:public-render-page")
+End Function
+
+Public Function OnRunPipelineAndRenderCommand(Optional ByVal arg As Variant) As Boolean
+    Dim pageRef As obj_IPage
+
+    Set pageRef = Me
+    If Not pageRef.RunPagePipeline() Then Exit Function
+    OnRunPipelineAndRenderCommand = pageRef.Render()
+End Function
+
+Public Function OnCommonKeyInputCellChangedCommand(Optional ByVal arg As Variant) As Boolean
+    Dim pageRef As obj_IPage
+    Dim pageBase As obj_PageBase
+    Dim ws As Worksheet
+    Dim changedCellAddress As String
+    Dim changedCell As Range
+    Dim changedCellValue As String
+    Dim configControl As obj_ConfigControlVM
+
+    ' arg приходит из rt_Bridge/route как адрес измененной ячейки (например "B7").
+    ' Без валидного адреса обработчик не выполняем.
+    If VBA.IsMissing(arg) Then Exit Function
+    changedCellAddress = VBA.Trim$(VBA.CStr(arg))
+    If VBA.Len(changedCellAddress) = 0 Then Exit Function
+
+    ' Разрешаем адрес только в рамках worksheet текущей страницы,
+    ' чтобы гарантированно читать значение из актуального UI-листа.
+    Set pageBase = m_PageBase.GetPageBase()
+    If pageBase Is Nothing Then Exit Function
+    Set ws = pageBase.Worksheet
+    If ws Is Nothing Then Exit Function
+
+    On Error Resume Next
+    Set changedCell = ws.Range(changedCellAddress)
+    On Error GoTo 0
+    If changedCell Is Nothing Then Exit Function
+
+    ' 1) Обновляем bound-свойство страницы, чтобы Input не терял текст после rerender.
+    changedCellValue = VBA.Trim$(VBA.CStr(changedCell.Value2))
+    m_CommonKeyInputValue = changedCellValue
+
+    ' 2) Синхронизируем то же значение в родительский Config-контрол (ключ CommonKey),
+    ' чтобы pipeline работал уже с новым значением.
+    changedCellValue = VBA.Trim$(changedCellValue)
+    If Not private_TryResolveParentConfigControl(configControl) Then Exit Function
+    If configControl Is Nothing Then Exit Function
+
+    If Not configControl.TrySetRenderedValueByKey(PARENT_CONFIG_COMMON_KEY, changedCellValue) Then Exit Function
+    
+    ' 3) После синхронизации запускаем pipeline и перерисовываем страницу в одном потоке.
+    Set pageRef = Me
+    If Not pageRef.RunPagePipeline() Then Exit Function
+    OnCommonKeyInputCellChangedCommand = pageRef.Render()
+End Function
+
+Public Property Get CommonKeyInputValue() As String
+    CommonKeyInputValue = m_CommonKeyInputValue
+End Property
 
 ' //
 ' // Internal
@@ -259,6 +337,7 @@ Private Sub private_Dispose(Optional ByVal deleteWorksheet As Boolean = True)
     Set m_PagePersonalCardController = Nothing
     Set m_PendingControlSnapshots = Nothing
     m_ParentPageId = VBA.vbNullString
+    m_CommonKeyInputValue = VBA.vbNullString
     Set m_ParentPage = Nothing
     If Not m_PageBase Is Nothing Then
         m_PageBase.Dispose deleteWorksheet
@@ -352,6 +431,24 @@ Private Function private_TryGetParentPage(ByRef outParentPage As obj_IPage) As B
     If Not rt_PageManager.fn_TryGetPageById(m_ParentPageId, outParentPage) Then Exit Function
     Set m_ParentPage = outParentPage
     private_TryGetParentPage = True
+End Function
+
+Private Function private_TryResolveParentConfigControl(ByRef outConfigControl As obj_ConfigControlVM) As Boolean
+    Dim parentPage As obj_IPage
+    Dim rawControl As Object
+
+    Set outConfigControl = Nothing
+    If m_PagePersonalCardController Is Nothing Then Exit Function
+    If Not private_TryGetParentPage(parentPage) Then Exit Function
+    If parentPage Is Nothing Then Exit Function
+
+    Set rawControl = Nothing
+    If Not parentPage.TryGetRegisteredControlByName(PARENT_CONFIG_CONTROL_NAME, rawControl) Then Exit Function
+    If rawControl Is Nothing Then Exit Function
+    If Not TypeOf rawControl Is obj_ConfigControlVM Then Exit Function
+
+    Set outConfigControl = rawControl
+    private_TryResolveParentConfigControl = True
 End Function
 
 Private Function private_TryRestorePendingControlSnapshots() As Boolean

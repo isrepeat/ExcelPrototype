@@ -100,9 +100,9 @@ Public Property Get RuntimeObjectSourceKey() As String
     RuntimeObjectSourceKey = CONTROLLER_RUNTIME_OBJECT_KEY
 End Property
 
-Public Function OnConfigModeDropDownOpened() As Boolean
+Public Function OnConfigModeDropDownOpenedCommand(Optional ByVal arg As Variant) As Boolean
     #If LOGGING_DEBUG_ENABLED Then
-        ex_Core.fn_Diagnostic_LogInfo "enter:obj_PageMainCtrl.OnConfigModeDropDownOpened"
+        ex_Core.fn_Diagnostic_LogInfo "enter:obj_PageMainCtrl.OnConfigModeDropDownOpenedCommand"
     #End If
     Dim modeOptions As Collection
     Dim usedCache As Boolean
@@ -123,7 +123,7 @@ Public Function OnConfigModeDropDownOpened() As Boolean
 #If LOGGING_DEBUG_ENABLED Then
                 ex_Core.fn_Diagnostic_LogInfo "config-modes: skip-setitemsource reason='cache-hit-runtime-present'"
 #End If
-                OnConfigModeDropDownOpened = True
+                OnConfigModeDropDownOpenedCommand = True
                 Exit Function
             End If
         End If
@@ -131,13 +131,13 @@ Public Function OnConfigModeDropDownOpened() As Boolean
 
     If Not private_TrySetItemsSource(MODES_RUNTIME_KEY, modeOptions, False) Then Exit Function
 
-    OnConfigModeDropDownOpened = True
+    OnConfigModeDropDownOpenedCommand = True
 End Function
 
 
-Public Function OnConfigProfileDropDownOpened() As Boolean
+Public Function OnConfigProfileDropDownOpenedCommand(Optional ByVal arg As Variant) As Boolean
     #If LOGGING_DEBUG_ENABLED Then
-        ex_Core.fn_Diagnostic_LogInfo "enter:obj_PageMainCtrl.OnConfigProfileDropDownOpened"
+        ex_Core.fn_Diagnostic_LogInfo "enter:obj_PageMainCtrl.OnConfigProfileDropDownOpenedCommand"
     #End If
     Dim ws As Worksheet
     Dim modeOptions As Collection
@@ -159,7 +159,7 @@ Public Function OnConfigProfileDropDownOpened() As Boolean
     If Not private_TryBuildProfileSelectOptionsByMode(selectedModeId, profileOptions, profileFilePath) Then Exit Function
     If Not private_TrySetItemsSource(PROFILES_RUNTIME_KEY, profileOptions, False) Then Exit Function
 
-    OnConfigProfileDropDownOpened = True
+    OnConfigProfileDropDownOpenedCommand = True
 End Function
 
 Public Function OnConfigModeChanged( _
@@ -185,18 +185,16 @@ Public Function OnConfigProfileChanged( _
 End Function
 
 
-Public Sub SaveCurrentConfigProfile()
+Public Function OnSaveCurrentConfigProfileCommand(Optional ByVal arg As Variant) As Boolean
     #If LOGGING_DEBUG_ENABLED Then
-        ex_Core.fn_Diagnostic_LogInfo "enter:obj_PageMainCtrl.SaveCurrentConfigProfile"
+        ex_Core.fn_Diagnostic_LogInfo "enter:obj_PageMainCtrl.OnSaveCurrentConfigProfileCommand"
     #End If
-    If Not private_TrySaveCurrentConfigProfile() Then Exit Sub
-End Sub
+    OnSaveCurrentConfigProfileCommand = private_TrySaveCurrentConfigProfile()
+End Function
 
-Public Function ClearWorkbookPagesExceptMain( _
-    Optional ByVal notifyStatus As Boolean = True _
-) As Boolean
+Public Function OnClearWorkbookPagesExceptMainCommand(Optional ByVal arg As Variant) As Boolean
     #If LOGGING_DEBUG_ENABLED Then
-        ex_Core.fn_Diagnostic_LogInfo "enter:obj_PageMainCtrl.ClearWorkbookPagesExceptMain"
+        ex_Core.fn_Diagnostic_LogInfo "enter:obj_PageMainCtrl.OnClearWorkbookPagesExceptMainCommand"
     #End If
     Dim pageBase As obj_PageBase
     Dim pages As Collection
@@ -210,8 +208,13 @@ Public Function ClearWorkbookPagesExceptMain( _
     Dim removedCount As Long
     Dim deletedSheetsCount As Long
     Dim prevDisplayAlerts As Boolean
+    Dim notifyStatus As Boolean
 
     If m_Page Is Nothing Then Exit Function
+    notifyStatus = True
+    If Not VBA.IsMissing(arg) Then
+        If VBA.VarType(arg) = vbBoolean Then notifyStatus = VBA.CBool(arg)
+    End If
 
     Set pageBase = m_Page.GetPageBase()
     If pageBase Is Nothing Then Exit Function
@@ -268,7 +271,7 @@ ContinuePages:
         rt_Messaging.fn_ShowStatusBarSuccess "Pages cleared. Kept only '" & mainSheetName & "' (removed pages=" & VBA.CStr(removedCount) & ", deleted sheets=" & VBA.CStr(deletedSheetsCount) & ").", 3
     End If
 
-    ClearWorkbookPagesExceptMain = True
+    OnClearWorkbookPagesExceptMainCommand = True
     Exit Function
 
 EH_DELETE_WS:
@@ -281,14 +284,14 @@ EH_DELETE_WS:
 
 EH_CLEAR:
     #If LOGGING_DEBUG_ENABLED Then
-        ex_Core.fn_Diagnostic_LogError "PrototypeNew: exception in ClearWorkbookPagesExceptMain: [" & VBA.CStr(Err.Number) & "] " & Err.Description
+        ex_Core.fn_Diagnostic_LogError "PrototypeNew: exception in OnClearWorkbookPagesExceptMainCommand: [" & VBA.CStr(Err.Number) & "] " & Err.Description
     #End If
-    MsgBox "PrototypeNew: exception in ClearWorkbookPagesExceptMain: [" & VBA.CStr(Err.Number) & "] " & Err.Description, vbExclamation, "PrototypeNew / Config runtime"
+    MsgBox "PrototypeNew: exception in OnClearWorkbookPagesExceptMainCommand: [" & VBA.CStr(Err.Number) & "] " & Err.Description, vbExclamation, "PrototypeNew / Config runtime"
 End Function
 
-Public Function OpenPersonalCardPage() As Boolean
+Public Function OnOpenPersonalCardPageCommand(Optional ByVal arg As Variant) As Boolean
     #If LOGGING_DEBUG_ENABLED Then
-        ex_Core.fn_Diagnostic_LogInfo "enter:obj_PageMainCtrl.OpenPersonalCardPage"
+        ex_Core.fn_Diagnostic_LogInfo "enter:obj_PageMainCtrl.OnOpenPersonalCardPageCommand"
     #End If
     Dim sheetName As String
     Dim existingPage As obj_IPage
@@ -316,7 +319,7 @@ Public Function OpenPersonalCardPage() As Boolean
             Exit Function
         End If
 
-        If Not rt_PageManager.fn_RenderPage(existingPage, "pagemain:open-personalcard:reuse") Then
+        If Not rt_PageManager.fn_RenderPageAndActivate(existingPage, "pagemain:open-personalcard:reuse") Then
             #If LOGGING_DEBUG_ENABLED Then
                 ex_Core.fn_Diagnostic_LogError "PrototypeNew: failed to render existing PersonalCard page."
             #End If
@@ -325,7 +328,7 @@ Public Function OpenPersonalCardPage() As Boolean
         End If
 
         rt_Messaging.fn_ShowStatusBarSuccess "PersonalCard page has been refreshed.", 3
-        OpenPersonalCardPage = True
+        OnOpenPersonalCardPageCommand = True
         Exit Function
     End If
 
@@ -360,7 +363,7 @@ Public Function OpenPersonalCardPage() As Boolean
         GoTo EH_CREATE
     End If
 
-    If Not rt_PageManager.fn_RenderPage(personalCardPage, "pagemain:open-personalcard") Then
+    If Not rt_PageManager.fn_RenderPageAndActivate(personalCardPage, "pagemain:open-personalcard") Then
         #If LOGGING_DEBUG_ENABLED Then
             ex_Core.fn_Diagnostic_LogError "PrototypeNew: failed to render PersonalCard page."
         #End If
@@ -369,7 +372,7 @@ Public Function OpenPersonalCardPage() As Boolean
     End If
 
     rt_Messaging.fn_ShowStatusBarSuccess "PersonalCard page has been created.", 3
-    OpenPersonalCardPage = True
+    OnOpenPersonalCardPageCommand = True
     Exit Function
 
 EH_CREATE:
@@ -379,7 +382,7 @@ EH_CREATE:
     End If
     On Error GoTo 0
 
-    If Not OpenPersonalCardPage Then
+    If Not OnOpenPersonalCardPageCommand Then
         #If LOGGING_DEBUG_ENABLED Then
             ex_Core.fn_Diagnostic_LogError "PrototypeNew: failed to create PersonalCard page."
         #End If
@@ -389,12 +392,11 @@ EH_CREATE:
 
 EH_OPEN:
     #If LOGGING_DEBUG_ENABLED Then
-        ex_Core.fn_Diagnostic_LogError "PrototypeNew: exception in OpenPersonalCardPage: [" & VBA.CStr(Err.Number) & "] " & Err.Description
+        ex_Core.fn_Diagnostic_LogError "PrototypeNew: exception in OnOpenPersonalCardPageCommand: [" & VBA.CStr(Err.Number) & "] " & Err.Description
     #End If
-    MsgBox "PrototypeNew: exception in OpenPersonalCardPage: [" & VBA.CStr(Err.Number) & "] " & Err.Description, vbExclamation, "PrototypeNew / Config runtime"
+    MsgBox "PrototypeNew: exception in OnOpenPersonalCardPageCommand: [" & VBA.CStr(Err.Number) & "] " & Err.Description, vbExclamation, "PrototypeNew / Config runtime"
     Resume EH_CREATE
 End Function
-
 
 ' //
 ' // Internal
@@ -446,7 +448,6 @@ EH_PREPARE_RUNTIME:
     #End If
     MsgBox "PrototypeNew: exception in config runtime prepare: [" & VBA.CStr(Err.Number) & "] " & Err.Description, vbExclamation, "PrototypeNew / Config runtime"
 End Function
-
 
 Private Function private_TrySaveCurrentConfigProfile() As Boolean
     #If LOGGING_DEBUG_ENABLED Then
@@ -526,10 +527,6 @@ EH_SAVE_PROFILE:
     MsgBox "PrototypeNew: exception in config profile save: [" & VBA.CStr(Err.Number) & "] " & Err.Description, vbExclamation, "PrototypeNew / Config runtime"
 End Function
 
-
-
-
-
 Private Function private_TryRegisterConfigFromXmlProfile( _
     ByVal filePath As String, _
     ByVal profileKey As String, _
@@ -547,7 +544,6 @@ Private Function private_TryRegisterConfigFromXmlProfile( _
     If Not private_TryRegisterConfigFromProfileNode(profileNode, notifyChange) Then Exit Function
     private_TryRegisterConfigFromXmlProfile = True
 End Function
-
 
 Private Function private_TryRegisterConfigFromProfileNode( _
     ByVal profileNode As Object, _
@@ -606,7 +602,6 @@ ContinueSourceConfigEntry:
     If Not private_TrySetItemsSource(CONFIG_RUNTIME_KEY, sourceItems, notifyChange) Then Exit Function
     private_TryRegisterConfigFromProfileNode = True
 End Function
-
 
 Private Function private_TryLoadProfileDomAndNode( _
     ByVal filePath As String, _
@@ -686,7 +681,6 @@ Private Function private_TryLoadProfileDomAndNode( _
     private_TryLoadProfileDomAndNode = True
 End Function
 
-
 Private Function private_TryBuildModeSelectOptions( _
     ByRef outOptions As Collection, _
     Optional ByRef outUsedCache As Boolean = False _
@@ -729,7 +723,6 @@ Private Function private_TryBuildModeSelectOptions( _
     private_TryBuildModeSelectOptions = True
 End Function
 
-
 Private Function private_TryEnsureSelectItemsProvidersRegistered() As Boolean
     #If LOGGING_DEBUG_ENABLED Then
         ex_Core.fn_Diagnostic_LogInfo "enter:obj_PageMainCtrl.private_TryEnsureSelectItemsProvidersRegistered"
@@ -767,7 +760,6 @@ Private Function private_TryEnsureSelectItemsProvidersRegistered() As Boolean
     m_SelectItemsProvidersReady = True
     private_TryEnsureSelectItemsProvidersRegistered = True
 End Function
-
 
 Private Function private_TryBuildProfileSelectOptionsByMode( _
     ByVal modeId As String, _
@@ -825,7 +817,6 @@ Private Function private_TryBuildProfileSelectOptionsByMode( _
 
     private_TryBuildProfileSelectOptionsByMode = True
 End Function
-
 
 Private Function private_TryResolveSelectedIdForControl( _
     ByVal ws As Worksheet, _
@@ -885,7 +876,6 @@ Private Function private_TryResolveSelectedIdForControl( _
     private_TryResolveSelectedIdForControl = True
 End Function
 
-
 Private Function private_SelectOptionsContainsId(ByVal options As Collection, ByVal optionId As String) As Boolean
     #If LOGGING_DEBUG_ENABLED Then
         ex_Core.fn_Diagnostic_LogInfo "enter:obj_PageMainCtrl.private_SelectOptionsContainsId"
@@ -910,7 +900,6 @@ ContinueOptionContains:
     Next itemObj
 End Function
 
-
 Private Function private_TryGetFirstOptionId(ByVal options As Collection, ByRef outId As String) As Boolean
     #If LOGGING_DEBUG_ENABLED Then
         ex_Core.fn_Diagnostic_LogInfo "enter:obj_PageMainCtrl.private_TryGetFirstOptionId"
@@ -930,7 +919,6 @@ Private Function private_TryGetFirstOptionId(ByVal options As Collection, ByRef 
 ContinueFirstOption:
     Next itemObj
 End Function
-
 
 Private Function private_TryGetStoredSelectedIdForControl( _
     ByVal ws As Worksheet, _
@@ -960,7 +948,6 @@ Private Function private_TryGetStoredSelectedIdForControl( _
     private_TryGetStoredSelectedIdForControl = selectStatic.TryGetSelectedId(selectKey, outSelectedId)
 End Function
 
-
 Private Function private_TrySetStoredSelectedIdForControl( _
     ByVal ws As Worksheet, _
     ByVal controlName As String, _
@@ -987,6 +974,7 @@ Private Function private_TrySetStoredSelectedIdForControl( _
     Set selectStatic = New obj_SelectControlVMStatic
     private_TrySetStoredSelectedIdForControl = selectStatic.SetSelectedId(selectKey, VBA.Trim$(selectedId))
 End Function
+
 Private Function private_TryResolveConfigControl( _
     ByRef outConfigControl As obj_ConfigControlVM _
 ) As Boolean
@@ -1023,7 +1011,6 @@ Private Function private_TryResolveConfigControl( _
     Set outConfigControl = rawControl
     private_TryResolveConfigControl = True
 End Function
-
 
 Private Function private_TryReplaceProfileRowsFromSourceNode( _
     ByVal targetProfileNode As Object, _

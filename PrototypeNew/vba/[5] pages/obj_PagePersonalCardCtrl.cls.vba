@@ -55,13 +55,11 @@ End Property
 ' // API
 ' //
 Public Function Initialize( _
-    ByVal page As obj_IPage, _
-    Optional ByVal configTable As obj_ConfigTable = Nothing _
+    ByVal page As obj_IPage _
 ) As Boolean
 #If LOGGING_DEBUG_ENABLED Then
     ex_Core.fn_Diagnostic_LogInfo "enter:obj_PagePersonalCardCtrl.Initialize"
 #End If
-    Dim cfgParser As obj_CfgPersonalCardParser
     Dim pageBase As obj_PageBase
 
     If page Is Nothing Then
@@ -73,11 +71,8 @@ Public Function Initialize( _
 
     m_IsDisposed = False
     Set m_Page = page
-    Set m_ConfigTable = configTable
-    ' Подключаем персональный парсер к текущей модели конфига в памяти.
-    Set cfgParser = New obj_CfgPersonalCardParser
-    If Not cfgParser.Initialize(m_ConfigTable) Then Exit Function
-    Set m_CfgPersonalCardParser = cfgParser
+    Set m_ConfigTable = Nothing
+    Set m_CfgPersonalCardParser = Nothing
     m_IsDataReady = False
     Set pageBase = m_Page.GetPageBase()
 
@@ -101,6 +96,32 @@ Public Sub Dispose()
     Set m_Page = Nothing
     On Error GoTo 0
 End Sub
+
+Public Function UpdateData(ByVal configControl As obj_ConfigControlVM) As Boolean
+    Dim configTable As obj_ConfigTable
+    Dim cfgParser As obj_CfgPersonalCardParser
+
+    If configControl Is Nothing Then
+#If LOGGING_DEBUG_ENABLED Then
+        ex_Core.fn_Diagnostic_LogError "PrototypeNew: PagePersonalCardCtrl.UpdateData failed because config control is not specified."
+#End If
+        Exit Function
+    End If
+
+    If Not configControl.TryBuildConfigTableFromRendered(configTable) Then Exit Function
+    If configTable Is Nothing Then Exit Function
+
+    Set cfgParser = New obj_CfgPersonalCardParser
+    If Not cfgParser.Initialize(configTable) Then Exit Function
+
+    On Error Resume Next
+    If Not m_CfgPersonalCardParser Is Nothing Then m_CfgPersonalCardParser.Dispose
+    On Error GoTo 0
+
+    Set m_ConfigTable = configTable
+    Set m_CfgPersonalCardParser = cfgParser
+    UpdateData = True
+End Function
 
 Public Function RunPipeline( _
     Optional ByVal notifyChange As Boolean = True _
@@ -177,9 +198,6 @@ Public Function PrepareSqlTablesRuntime( _
     PrepareSqlTablesRuntime = True
 End Function
 
-' //
-' // Internal
-' //
 Private Function private_RegisterDemoTableItems( _
     ByVal notifyChange As Boolean _
 ) As Boolean
@@ -401,28 +419,25 @@ Private Function private_RegisterSqlTableItems( _
 End Function
 
 Private Function private_BuildTablesFromConfigTable() As Collection
-    Dim parser As obj_CfgPersonalCardParser
     Dim sqlParams As obj_SqlParams
     Dim sectionTitle As String
     Dim sqlTable As obj_TableDynamic
     Dim result As Collection
-    Dim rowsCount As Long
 
     ' 1) Парсим конфиг в SQL-параметры запроса.
-    Set parser = m_CfgPersonalCardParser
-    If parser Is Nothing Then Exit Function
-    If Not parser.TryBuildSqlParams("Daily", "DailyEvents", sqlParams) Then Exit Function
-    If sqlParams Is Nothing Then Exit Function
-    sectionTitle = private_BuildSectionTitleFromSqlParams(sqlParams)
-
+    If m_CfgPersonalCardParser Is Nothing Then Exit Function
+    If Not m_CfgPersonalCardParser.TryBuildSqlParams("Daily", "DailyEvents", sqlParams) Then Exit Function
+    If sqlParams Is Nothing Then Exit Function   
+    
     ' 2) Выполняем запрос через общий SQL-движок для внешних Excel.
-    If Not ex_ExternalExcelSqlEngine.fn_TrySqlRequest(sqlParams, sqlTable, rowsCount) Then Exit Function
-
+    If Not ex_ExternalExcelSqlEngine.fn_TrySqlRequest(sqlParams, sqlTable) Then Exit Function
+    
     Set result = New Collection
-    If Not sqlTable Is Nothing Then
+        If Not sqlTable Is Nothing Then
         ' 3) Применяем метаданные отображения (title) и публикуем непустой результат.
+        sectionTitle = private_BuildSectionTitleFromSqlParams(sqlParams)
         If VBA.Len(sectionTitle) > 0 Then sqlTable.SectionTitle = sectionTitle
-        If rowsCount > 0 Then result.Add sqlTable
+        If sqlTable.RowCount > 0 Then result.Add sqlTable
     End If
 
     Set private_BuildTablesFromConfigTable = result

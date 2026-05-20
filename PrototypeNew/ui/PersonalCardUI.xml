@@ -5,20 +5,27 @@
       <control
         type="Button"
         name="RunPersonalCardPipeline"
-        dataContext="{PageRuntimeSource='RuntimeObjects.PagePersonalCard.Controller'}"
-        caption="Refresh PersonalCard Data"
-        onClick="{Binding Method=RunPipeline}"
+        caption="Run pipeline"
+        dataContext="{PageRuntimeSource='RuntimeObjects.PagePersonalCard'}"
+        onClick="{Binding Method=OnRunPipelineAndRenderCommand}"
         spanColls="4"
         spanRows="2"/>
 
       <control
         type="Button"
         name="RerenderPersonalCardPage"
-        dataContext="{PageRuntimeSource='RuntimeObjects.PagePersonalCard.Controller'}"
         caption="Rerender PersonalCard Page"
-        onClick="{Binding Method=RerenderPage}"
+        dataContext="{PageRuntimeSource='RuntimeObjects.PagePersonalCard'}"
+        onClick="{Binding Method=OnRenderCommand}"
         spanColls="4"
         spanRows="2"/>
+
+      <control
+        type="Input"
+        name="PersonalCardPipelineInput"
+        value="{Binding Path=CommonKeyInputValue}"
+        dataContext="{PageRuntimeSource='RuntimeObjects.PagePersonalCard'}"
+        onChange="{Binding Method=OnCommonKeyInputCellChangedCommand}"/>
 
       <control
         type="Banner"
