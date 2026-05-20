@@ -1,13 +1,20 @@
 Attribute VB_Name = "ex_ShapeMetaRuntime"
 Option Explicit
+#Const LOGGING_DEBUG_ENABLED = True
+#Const LOGGING_VERBOSE_ENABLED = False
 
 Private Const META_BLOCK_BEGIN As String = "[[EX_PN_META]]"
 Private Const META_BLOCK_END As String = "[[/EX_PN_META]]"
 
+Public Sub fn_Module_Dispose()
+#If LOGGING_VERBOSE_ENABLED Then
+    ex_Core.fn_Diagnostic_LogInfo "lifecycle:ex_ShapeMetaRuntime.fn_Module_Dispose"
+#End If
+End Sub
 ' //
 ' // API
 ' //
-Public Function m_ReadShapeMetaMap(ByVal shp As Shape) As Object
+Public Function fn_ReadShapeMetaMap(ByVal shp As Shape) As Object
     Dim meta As Object
     Dim altText As String
     Dim blockText As String
@@ -21,7 +28,7 @@ Public Function m_ReadShapeMetaMap(ByVal shp As Shape) As Object
     meta.CompareMode = 1
 
     If shp Is Nothing Then
-        Set m_ReadShapeMetaMap = meta
+        Set fn_ReadShapeMetaMap = meta
         Exit Function
     End If
 
@@ -31,7 +38,7 @@ Public Function m_ReadShapeMetaMap(ByVal shp As Shape) As Object
 
     blockText = private_GetMetaBlockContent(altText)
     If VBA.Len(blockText) = 0 Then
-        Set m_ReadShapeMetaMap = meta
+        Set fn_ReadShapeMetaMap = meta
         Exit Function
     End If
 
@@ -55,11 +62,11 @@ Public Function m_ReadShapeMetaMap(ByVal shp As Shape) As Object
 ContinueLine:
     Next lineText
 
-    Set m_ReadShapeMetaMap = meta
+    Set fn_ReadShapeMetaMap = meta
 End Function
 
 
-Public Function m_GetShapeMetaValue( _
+Public Function fn_GetShapeMetaValue( _
     ByVal shp As Shape, _
     ByVal keyName As String, _
     Optional ByVal defaultValue As String = VBA.vbNullString _
@@ -68,25 +75,25 @@ Public Function m_GetShapeMetaValue( _
 
     keyName = VBA.Trim$(keyName)
     If VBA.Len(keyName) = 0 Then
-        m_GetShapeMetaValue = defaultValue
+        fn_GetShapeMetaValue = defaultValue
         Exit Function
     End If
 
-    Set meta = m_ReadShapeMetaMap(shp)
+    Set meta = fn_ReadShapeMetaMap(shp)
     If meta Is Nothing Then
-        m_GetShapeMetaValue = defaultValue
+        fn_GetShapeMetaValue = defaultValue
         Exit Function
     End If
 
     If meta.Exists(keyName) Then
-        m_GetShapeMetaValue = VBA.CStr(meta(keyName))
+        fn_GetShapeMetaValue = VBA.CStr(meta(keyName))
     Else
-        m_GetShapeMetaValue = defaultValue
+        fn_GetShapeMetaValue = defaultValue
     End If
 End Function
 
 
-Public Function m_TrySetShapeMetaValue( _
+Public Function fn_TrySetShapeMetaValue( _
     ByVal shp As Shape, _
     ByVal keyName As String, _
     ByVal valueText As String _
@@ -94,25 +101,29 @@ Public Function m_TrySetShapeMetaValue( _
     Dim meta As Object
 
     If shp Is Nothing Then
-        VBA.MsgBox "PrototypeNew: shape is not specified for metadata write.", VBA.vbExclamation
+#If LOGGING_DEBUG_ENABLED Then
+        ex_Core.fn_Diagnostic_LogError "PrototypeNew: shape is not specified for metadata write."
+#End If
         Exit Function
     End If
 
     keyName = VBA.Trim$(keyName)
     If VBA.Len(keyName) = 0 Then
-        VBA.MsgBox "PrototypeNew: metadata key is empty.", VBA.vbExclamation
+#If LOGGING_DEBUG_ENABLED Then
+        ex_Core.fn_Diagnostic_LogError "PrototypeNew: metadata key is empty."
+#End If
         Exit Function
     End If
 
-    Set meta = m_ReadShapeMetaMap(shp)
+    Set meta = fn_ReadShapeMetaMap(shp)
     private_SetMetaValue meta, keyName, valueText
     If Not private_TryWriteShapeMetaMap(shp, meta) Then Exit Function
 
-    m_TrySetShapeMetaValue = True
+    fn_TrySetShapeMetaValue = True
 End Function
 
 
-Public Function m_TrySetShapeMetaValues( _
+Public Function fn_TrySetShapeMetaValues( _
     ByVal shp As Shape, _
     ByVal values As Object _
 ) As Boolean
@@ -120,22 +131,26 @@ Public Function m_TrySetShapeMetaValues( _
     Dim keyName As Variant
 
     If shp Is Nothing Then
-        VBA.MsgBox "PrototypeNew: shape is not specified for metadata write.", VBA.vbExclamation
+#If LOGGING_DEBUG_ENABLED Then
+        ex_Core.fn_Diagnostic_LogError "PrototypeNew: shape is not specified for metadata write."
+#End If
         Exit Function
     End If
     If values Is Nothing Then
-        VBA.MsgBox "PrototypeNew: metadata values map is not specified.", VBA.vbExclamation
+#If LOGGING_DEBUG_ENABLED Then
+        ex_Core.fn_Diagnostic_LogError "PrototypeNew: metadata values map is not specified."
+#End If
         Exit Function
     End If
 
-    Set meta = m_ReadShapeMetaMap(shp)
+    Set meta = fn_ReadShapeMetaMap(shp)
 
     For Each keyName In values.Keys
         private_SetMetaValue meta, VBA.CStr(keyName), VBA.CStr(values(keyName))
     Next keyName
 
     If Not private_TryWriteShapeMetaMap(shp, meta) Then Exit Function
-    m_TrySetShapeMetaValues = True
+    fn_TrySetShapeMetaValues = True
 End Function
 
 ' //
@@ -161,7 +176,9 @@ Private Function private_TryWriteShapeMetaMap(ByVal shp As Shape, ByVal meta As 
     Dim blockText As String
 
     If shp Is Nothing Then
-        VBA.MsgBox "PrototypeNew: shape is not specified for metadata write.", VBA.vbExclamation
+#If LOGGING_DEBUG_ENABLED Then
+        ex_Core.fn_Diagnostic_LogError "PrototypeNew: shape is not specified for metadata write."
+#End If
         Exit Function
     End If
 
@@ -185,7 +202,9 @@ Private Function private_TryWriteShapeMetaMap(ByVal shp As Shape, ByVal meta As 
     Exit Function
 
 EH_WRITE:
-    VBA.MsgBox "PrototypeNew: failed to write metadata to shape '" & shp.Name & "': " & Err.Description, VBA.vbExclamation
+#If LOGGING_DEBUG_ENABLED Then
+    ex_Core.fn_Diagnostic_LogError "PrototypeNew: failed to write metadata to shape '" & shp.Name & "': " & Err.Description
+#End If
 End Function
 
 

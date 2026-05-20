@@ -1,5 +1,13 @@
 Attribute VB_Name = "ex_XmlKeyValueStateStore"
 Option Explicit
+#Const LOGGING_DEBUG_ENABLED = True
+#Const LOGGING_VERBOSE_ENABLED = False
+
+Public Sub fn_Module_Dispose()
+#If LOGGING_VERBOSE_ENABLED Then
+    ex_Core.fn_Diagnostic_LogInfo "lifecycle:ex_XmlKeyValueStateStore.fn_Module_Dispose"
+#End If
+End Sub
 
 ' Универсальное key/value хранилище поверх CustomXMLPart.
 ' Позволяет читать/писать valueAttr у entry-узла, найденного по keyAttr=keyValue.
@@ -7,7 +15,7 @@ Option Explicit
 ' //
 ' // API
 ' //
-Public Function m_TryGetValue( _
+Public Function fn_TryGetValue( _
     ByVal namespaceUri As String, _
     ByVal rootNodeName As String, _
     ByVal entryNodeName As String, _
@@ -29,62 +37,76 @@ Public Function m_TryGetValue( _
     keyValue = VBA.Trim$(keyValue)
 
     If VBA.Len(namespaceUri) = 0 Then
-        VBA.MsgBox "XmlKeyValueStateStore: namespace is empty.", VBA.vbExclamation
+#If LOGGING_DEBUG_ENABLED Then
+        ex_Core.fn_Diagnostic_LogError "XmlKeyValueStateStore: namespace is empty."
+#End If
         Exit Function
     End If
     If VBA.Len(rootNodeName) = 0 Then
-        VBA.MsgBox "XmlKeyValueStateStore: root node name is empty.", VBA.vbExclamation
+#If LOGGING_DEBUG_ENABLED Then
+        ex_Core.fn_Diagnostic_LogError "XmlKeyValueStateStore: root node name is empty."
+#End If
         Exit Function
     End If
     If VBA.Len(entryNodeName) = 0 Then
-        VBA.MsgBox "XmlKeyValueStateStore: entry node name is empty.", VBA.vbExclamation
+#If LOGGING_DEBUG_ENABLED Then
+        ex_Core.fn_Diagnostic_LogError "XmlKeyValueStateStore: entry node name is empty."
+#End If
         Exit Function
     End If
     If VBA.Len(keyAttrName) = 0 Then
-        VBA.MsgBox "XmlKeyValueStateStore: key attr name is empty.", VBA.vbExclamation
+#If LOGGING_DEBUG_ENABLED Then
+        ex_Core.fn_Diagnostic_LogError "XmlKeyValueStateStore: key attr name is empty."
+#End If
         Exit Function
     End If
     If VBA.Len(valueAttrName) = 0 Then
-        VBA.MsgBox "XmlKeyValueStateStore: value attr name is empty.", VBA.vbExclamation
+#If LOGGING_DEBUG_ENABLED Then
+        ex_Core.fn_Diagnostic_LogError "XmlKeyValueStateStore: value attr name is empty."
+#End If
         Exit Function
     End If
     If VBA.Len(keyValue) = 0 Then
-        VBA.MsgBox "XmlKeyValueStateStore: key value is empty.", VBA.vbExclamation
+#If LOGGING_DEBUG_ENABLED Then
+        ex_Core.fn_Diagnostic_LogError "XmlKeyValueStateStore: key value is empty."
+#End If
         Exit Function
     End If
 
-    If Not ex_Core.m_CustomXmlPartStore_TryFindPartByNamespace(namespaceUri, partObj) Then Exit Function
+    If Not ex_Core.fn_CustomXmlPartStore_TryFindPartByNamespace(namespaceUri, partObj) Then Exit Function
     If partObj Is Nothing Then
         outValue = VBA.vbNullString
-        m_TryGetValue = True
+        fn_TryGetValue = True
         Exit Function
     End If
 
-    If Not ex_Core.m_CustomXmlPartStore_TryLoadPartDom(partObj, dom) Then Exit Function
+    If Not ex_Core.fn_CustomXmlPartStore_TryLoadPartDom(partObj, dom) Then Exit Function
     Set rootNode = dom.DocumentElement
     If rootNode Is Nothing Then
         outValue = VBA.vbNullString
-        m_TryGetValue = True
+        fn_TryGetValue = True
         Exit Function
     End If
     If VBA.LCase$(VBA.CStr(rootNode.baseName)) <> rootNodeName Then
-        VBA.MsgBox "XmlKeyValueStateStore: unexpected root node '" & VBA.CStr(rootNode.baseName) & "'. Expected '" & rootNodeName & "'.", VBA.vbExclamation
+#If LOGGING_DEBUG_ENABLED Then
+        ex_Core.fn_Diagnostic_LogError "XmlKeyValueStateStore: unexpected root node '" & VBA.CStr(rootNode.baseName) & "'. Expected '" & rootNodeName & "'."
+#End If
         Exit Function
     End If
 
     Set entryNode = private_FindEntryByKey(rootNode, entryNodeName, keyAttrName, keyValue)
     If entryNode Is Nothing Then
         outValue = VBA.vbNullString
-        m_TryGetValue = True
+        fn_TryGetValue = True
         Exit Function
     End If
 
     outValue = VBA.Trim$(VBA.CStr(entryNode.getAttribute(valueAttrName)))
-    m_TryGetValue = True
+    fn_TryGetValue = True
 End Function
 
 
-Public Function m_SetValue( _
+Public Function fn_SetValue( _
     ByVal namespaceUri As String, _
     ByVal rootNodeName As String, _
     ByVal entryNodeName As String, _
@@ -107,44 +129,60 @@ Public Function m_SetValue( _
     valueText = VBA.Trim$(valueText)
 
     If VBA.Len(namespaceUri) = 0 Then
-        VBA.MsgBox "XmlKeyValueStateStore: namespace is empty.", VBA.vbExclamation
+#If LOGGING_DEBUG_ENABLED Then
+        ex_Core.fn_Diagnostic_LogError "XmlKeyValueStateStore: namespace is empty."
+#End If
         Exit Function
     End If
     If VBA.Len(rootNodeName) = 0 Then
-        VBA.MsgBox "XmlKeyValueStateStore: root node name is empty.", VBA.vbExclamation
+#If LOGGING_DEBUG_ENABLED Then
+        ex_Core.fn_Diagnostic_LogError "XmlKeyValueStateStore: root node name is empty."
+#End If
         Exit Function
     End If
     If VBA.Len(entryNodeName) = 0 Then
-        VBA.MsgBox "XmlKeyValueStateStore: entry node name is empty.", VBA.vbExclamation
+#If LOGGING_DEBUG_ENABLED Then
+        ex_Core.fn_Diagnostic_LogError "XmlKeyValueStateStore: entry node name is empty."
+#End If
         Exit Function
     End If
     If VBA.Len(keyAttrName) = 0 Then
-        VBA.MsgBox "XmlKeyValueStateStore: key attr name is empty.", VBA.vbExclamation
+#If LOGGING_DEBUG_ENABLED Then
+        ex_Core.fn_Diagnostic_LogError "XmlKeyValueStateStore: key attr name is empty."
+#End If
         Exit Function
     End If
     If VBA.Len(valueAttrName) = 0 Then
-        VBA.MsgBox "XmlKeyValueStateStore: value attr name is empty.", VBA.vbExclamation
+#If LOGGING_DEBUG_ENABLED Then
+        ex_Core.fn_Diagnostic_LogError "XmlKeyValueStateStore: value attr name is empty."
+#End If
         Exit Function
     End If
     If VBA.Len(keyValue) = 0 Then
-        VBA.MsgBox "XmlKeyValueStateStore: key value is empty.", VBA.vbExclamation
+#If LOGGING_DEBUG_ENABLED Then
+        ex_Core.fn_Diagnostic_LogError "XmlKeyValueStateStore: key value is empty."
+#End If
         Exit Function
     End If
 
-    If Not ex_Core.m_CustomXmlPartStore_TryFindPartByNamespace(namespaceUri, partObj) Then Exit Function
+    If Not ex_Core.fn_CustomXmlPartStore_TryFindPartByNamespace(namespaceUri, partObj) Then Exit Function
     If partObj Is Nothing Then
-        If Not ex_Core.m_CustomXmlPartStore_TryCreateEmptyDom(rootNodeName, namespaceUri, dom) Then Exit Function
+        If Not ex_Core.fn_CustomXmlPartStore_TryCreateEmptyDom(rootNodeName, namespaceUri, dom) Then Exit Function
     Else
-        If Not ex_Core.m_CustomXmlPartStore_TryLoadPartDom(partObj, dom) Then Exit Function
+        If Not ex_Core.fn_CustomXmlPartStore_TryLoadPartDom(partObj, dom) Then Exit Function
     End If
 
     Set rootNode = dom.DocumentElement
     If rootNode Is Nothing Then
-        VBA.MsgBox "XmlKeyValueStateStore: root node is missing.", VBA.vbExclamation
+#If LOGGING_DEBUG_ENABLED Then
+        ex_Core.fn_Diagnostic_LogError "XmlKeyValueStateStore: root node is missing."
+#End If
         Exit Function
     End If
     If VBA.LCase$(VBA.CStr(rootNode.baseName)) <> rootNodeName Then
-        VBA.MsgBox "XmlKeyValueStateStore: unexpected root node '" & VBA.CStr(rootNode.baseName) & "'. Expected '" & rootNodeName & "'.", VBA.vbExclamation
+#If LOGGING_DEBUG_ENABLED Then
+        ex_Core.fn_Diagnostic_LogError "XmlKeyValueStateStore: unexpected root node '" & VBA.CStr(rootNode.baseName) & "'. Expected '" & rootNodeName & "'."
+#End If
         Exit Function
     End If
 
@@ -161,8 +199,8 @@ Public Function m_SetValue( _
         entryNode.setAttribute valueAttrName, valueText
     End If
 
-    If Not ex_Core.m_CustomXmlPartStore_TrySaveDom(dom, partObj) Then Exit Function
-    m_SetValue = True
+    If Not ex_Core.fn_CustomXmlPartStore_TrySaveDom(dom, partObj) Then Exit Function
+    fn_SetValue = True
 End Function
 
 ' //

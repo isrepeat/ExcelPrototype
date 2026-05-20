@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<profiles>
+  <profile id="beta_hospital" caption="Beta / Hospital">
+    <item attr="#" key="Profile.Name" value="BetaHospital"/>
+    <item attr="rx" key="Source.Main.FileResolver" value="ex_SourceResolvers.m_ResolveAllByPattern"/>
+    <item key="Sheet.StateMain.Map.1" value="No з/п"/>
+  </profile>
+
+  <profile id="beta_transfer" caption="Beta / Transfer">
+    <item attr="#" key="Profile.Name" value="BetaTransfer"/>
+    <item key="Source.Main.SortOrder" value="order=asc"/>
+    <item key="Sheet.StateMain.Key.TransferDate" value="{Main-{dd}.{mm}.{yyyy}}.DateTransfer"/>
+  </profile>
+</profiles>
