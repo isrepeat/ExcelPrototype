@@ -2,12 +2,34 @@
 <profiles>
   <profile id="default" caption="Default">
     <item attr="#" key="Profile.Name" value="Default"/>
+    <item key="BaseDate" value="15.05"/>
+    <item key="CommonKey" value="ТУМАНОВ Олександр Володимирович"/>
 
     <item key="Source.Daily.FilePath" value="..\..\..\WORK Alexandr Bondarenko\НАКАЗИ\DailyScope.xlsx"/>
     <item key="Source.Daily.SheetsAliases" value="DailyEvents"/>
+    <item key="Source.Events.FilePath" value="C:\Users\SVI\Desktop\ТП+ТВ {dd}.{mm}.{yyyy}.xlsx"/>
+    <item key="Source.Events.FilePathResolver" value="{Binding Method=ResolveLatestByDmyPattern}"/>
+    <item key="Source.Events.SheetAliases" value="EventsOut"/>
 
-    <item key="BaseDate" value="15.05"/>
-    <item key="CommonKey" value="ТУМАНОВ Олександр Володимирович"/>
+    <item attr="#" key="EventsOut" value=""/>
+    <item key="Events.Sheet[EventsOut].Type" value="Events"/>
+    <item key="Events.Sheet[EventsOut].SheetName" value="5. Тимчасово відсутні$A5:R10000"/>
+    <item key="Events.Sheet[EventsOut].FieldsAliases" value="ZV; FIO; EventReason; City; OutDate; OutCommandDate; OutCommandNumber; DaysCount; PlannedReturnDate; FactArrivalDate; ArrivalCommandDate; Note; Ticket"/>
+    <item key="Events.Sheet[EventsOut].Key" value="FIO"/>
+    <item key="Events.Sheet[EventsOut].Sort" value="OutCommandDate"/>
+    <item key="Events.Sheet[EventsOut].Map[ZV]" value="65|Звання"/>
+    <item key="Events.Sheet[EventsOut].Map[FIO]" value="66|ПІБ"/>
+    <item key="Events.Sheet[EventsOut].Map[EventReason]" value="68|Причинна вибуття"/>
+    <item key="Events.Sheet[EventsOut].Map[City]" value="69|Місце вибуття"/>
+    <item key="Events.Sheet[EventsOut].Map[OutDate]" value="70|Дата вибуття"/>
+    <item key="Events.Sheet[EventsOut].Map[OutCommandDate]" value="71 (А)|Дата наказу про вибуття"/>
+    <item key="Events.Sheet[EventsOut].Map[OutCommandNumber]" value="71 (Б)|Номер наказу про вибуття"/>
+    <item key="Events.Sheet[EventsOut].Map[DaysCount]" value="72|Строк вибуття"/>
+    <item key="Events.Sheet[EventsOut].Map[PlannedReturnDate]" value="73|Дата повернення"/>
+    <item key="Events.Sheet[EventsOut].Map[FactArrivalDate]" value="74|Фактична дата прибуття"/>
+    <item key="Events.Sheet[EventsOut].Map[ArrivalCommandDate]" value="75 (А)|Дата наказу на прибуття"/>
+    <item key="Events.Sheet[EventsOut].Map[Note]" value="76|Замітки"/>
+    <item key="Events.Sheet[EventsOut].Map[Ticket]" value="Стовпець1|Номер квитка"/>
 
     <item attr="#" key="DailyEvents" value=""/>
     <item key="Daily.Sheet[DailyEvents].SheetName" value="15_05_test"/>
