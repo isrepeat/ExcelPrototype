@@ -131,3 +131,89 @@ Public Function TryBuildSqlParams( _
     Set outSqlParams = sqlParams
     TryBuildSqlParams = True
 End Function
+
+Public Function TryBuildAllSqlParams(ByRef outSqlParamsList As Collection) As Boolean
+    Dim configEntries As Collection
+    Dim cfgMap As Object
+    Dim cfgKeyObj As Variant
+    Dim cfgKey As String
+    Dim sourceAlias As String
+    Dim sheetAliases As Collection
+    Dim tableAliasObj As Variant
+    Dim tableAlias As String
+    Dim tableRefKey As String
+    Dim seenRefs As Object
+    Dim sqlParams As obj_SqlParams
+
+    Set outSqlParamsList = Nothing
+
+    If m_CfgTableParser Is Nothing Then Exit Function
+    If m_CfgTableParser.CfgParserBase Is Nothing Then Exit Function
+
+    ' Читаем конфиг один раз и автоматически собираем все таблицы,
+    ' объявленные через Source.*.SheetAliases.
+    If Not m_CfgTableParser.CfgParserBase.TryGetConfigEntries(configEntries) Then Exit Function
+    If Not m_CfgTableParser.CfgParserBase.BuildConfigDictionary(configEntries, cfgMap) Then Exit Function
+    If cfgMap Is Nothing Then Exit Function
+
+    Set seenRefs = CreateObject("Scripting.Dictionary")
+    seenRefs.CompareMode = 1
+
+    Set outSqlParamsList = New Collection
+
+    For Each cfgKeyObj In cfgMap.Keys
+        cfgKey = VBA.LCase$(VBA.Trim$(VBA.CStr(cfgKeyObj)))
+        sourceAlias = VBA.vbNullString
+        If Not private_TryParseSourceSheetAliasesKey(cfgKey, sourceAlias) Then GoTo ContinueCfgKey
+
+        Set sheetAliases = m_CfgTableParser.CfgParserBase.SplitListToCollection(VBA.CStr(cfgMap(cfgKeyObj)))
+        If sheetAliases Is Nothing Then GoTo ContinueCfgKey
+
+        For Each tableAliasObj In sheetAliases
+            tableAlias = VBA.Trim$(VBA.CStr(tableAliasObj))
+            If VBA.Len(tableAlias) = 0 Then GoTo ContinueTableAlias
+
+            tableRefKey = sourceAlias & ".sheet[" & VBA.LCase$(tableAlias) & "]"
+            If seenRefs.Exists(tableRefKey) Then GoTo ContinueTableAlias
+            seenRefs(tableRefKey) = True
+
+            Set sqlParams = Nothing
+            If Not TryBuildSqlParams(sourceAlias, tableAlias, sqlParams) Then Exit Function
+            If Not sqlParams Is Nothing Then outSqlParamsList.Add sqlParams
+ContinueTableAlias:
+        Next tableAliasObj
+ContinueCfgKey:
+    Next cfgKeyObj
+
+    If outSqlParamsList.Count <= 0 Then Exit Function
+    TryBuildAllSqlParams = True
+End Function
+
+' //
+' // Internal
+' //
+Private Function private_TryParseSourceSheetAliasesKey( _
+    ByVal normalizedCfgKey As String, _
+    ByRef outSourceAlias As String _
+) As Boolean
+    Const PREFIX As String = "source."
+    Const SUFFIX As String = ".sheetaliases"
+    Dim keyLen As Long
+    Dim sourceLen As Long
+
+    outSourceAlias = VBA.vbNullString
+
+    normalizedCfgKey = VBA.LCase$(VBA.Trim$(normalizedCfgKey))
+    keyLen = VBA.Len(normalizedCfgKey)
+    If keyLen <= VBA.Len(PREFIX) + VBA.Len(SUFFIX) Then Exit Function
+
+    If VBA.Left$(normalizedCfgKey, VBA.Len(PREFIX)) <> PREFIX Then Exit Function
+    If VBA.Right$(normalizedCfgKey, VBA.Len(SUFFIX)) <> SUFFIX Then Exit Function
+
+    sourceLen = keyLen - VBA.Len(PREFIX) - VBA.Len(SUFFIX)
+    outSourceAlias = VBA.Mid$(normalizedCfgKey, VBA.Len(PREFIX) + 1, sourceLen)
+    outSourceAlias = VBA.Trim$(outSourceAlias)
+    If VBA.Len(outSourceAlias) = 0 Then Exit Function
+
+    private_TryParseSourceSheetAliasesKey = True
+End Function
