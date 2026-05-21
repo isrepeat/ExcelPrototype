@@ -9,6 +9,7 @@ Option Explicit
 
 Private m_IsDisposed As Boolean
 Private m_ConfigTable As obj_ConfigTable
+Private m_ResolverDataContext As Object
 
 Private Sub Class_Initialize()
 #If LOGGING_VERBOSE_ENABLED Then
@@ -29,11 +30,15 @@ End Sub
 ' //
 ' // API
 ' //
-Public Function Initialize(ByVal configTable As obj_ConfigTable) As Boolean
+Public Function Initialize( _
+    ByVal configTable As obj_ConfigTable, _
+    Optional ByVal resolverDataContext As Object = Nothing _
+) As Boolean
     ' База только сохраняет ссылку на модель.
     ' Конкретный парсер уже решает, какие ключи обязательные/опциональные.
     m_IsDisposed = False
     Set m_ConfigTable = configTable
+    Set m_ResolverDataContext = resolverDataContext
     Initialize = True
 End Function
 
@@ -42,6 +47,7 @@ Public Sub Dispose()
     m_IsDisposed = True
     On Error Resume Next
     Set m_ConfigTable = Nothing
+    Set m_ResolverDataContext = Nothing
     On Error GoTo 0
 End Sub
 
@@ -123,16 +129,19 @@ Public Function TryGetRequiredConfigValue( _
     ByRef outValue As String _
 ) As Boolean
     Dim normalizedKey As String
+    Dim rawValue As String
+    Dim resolvedValue As String
 
     ' Обязательный ключ: должен существовать и быть непустым.
     outValue = VBA.vbNullString
     If cfgMap Is Nothing Then Exit Function
 
-    normalizedKey = VBA.LCase$(VBA.Trim$(keyName))
-    If VBA.Len(normalizedKey) = 0 Then Exit Function
-    If Not cfgMap.Exists(normalizedKey) Then Exit Function
+    If Not private_TryNormalizeConfigKey(keyName, normalizedKey) Then Exit Function
+    If Not private_TryGetRawValueByNormalizedKey(cfgMap, normalizedKey, rawValue) Then Exit Function
+    If VBA.Len(rawValue) = 0 Then Exit Function
 
-    outValue = VBA.Trim$(VBA.CStr(cfgMap(normalizedKey)))
+    If Not private_TryResolveConfigValue(cfgMap, normalizedKey, rawValue, resolvedValue) Then Exit Function
+    outValue = VBA.Trim$(resolvedValue)
     If VBA.Len(outValue) = 0 Then Exit Function
 
     TryGetRequiredConfigValue = True
@@ -144,16 +153,147 @@ Public Function GetOptionalConfigValue( _
     Optional ByVal defaultValue As String = VBA.vbNullString _
 ) As String
     Dim normalizedKey As String
+    Dim rawValue As String
+    Dim resolvedValue As String
 
     ' Опциональный ключ: если есть - вернуть значение, иначе вернуть значение по умолчанию.
     GetOptionalConfigValue = defaultValue
     If cfgMap Is Nothing Then Exit Function
 
-    normalizedKey = VBA.LCase$(VBA.Trim$(keyName))
+    If Not private_TryNormalizeConfigKey(keyName, normalizedKey) Then Exit Function
+    If Not private_TryGetRawValueByNormalizedKey(cfgMap, normalizedKey, rawValue) Then Exit Function
+
+    resolvedValue = rawValue
+    If Not private_TryResolveConfigValue(cfgMap, normalizedKey, rawValue, resolvedValue) Then
+        GetOptionalConfigValue = rawValue
+        Exit Function
+    End If
+
+    GetOptionalConfigValue = VBA.Trim$(resolvedValue)
+End Function
+
+Private Function private_TryNormalizeConfigKey( _
+    ByVal keyName As String, _
+    ByRef outNormalizedKey As String _
+) As Boolean
+    outNormalizedKey = VBA.LCase$(VBA.Trim$(keyName))
+    If VBA.Len(outNormalizedKey) = 0 Then Exit Function
+
+    private_TryNormalizeConfigKey = True
+End Function
+
+Private Function private_TryGetRawValueByNormalizedKey( _
+    ByVal cfgMap As Object, _
+    ByVal normalizedKey As String, _
+    ByRef outRawValue As String _
+) As Boolean
+    outRawValue = VBA.vbNullString
+    If cfgMap Is Nothing Then Exit Function
     If VBA.Len(normalizedKey) = 0 Then Exit Function
     If Not cfgMap.Exists(normalizedKey) Then Exit Function
 
-    GetOptionalConfigValue = VBA.Trim$(VBA.CStr(cfgMap(normalizedKey)))
+    outRawValue = VBA.Trim$(VBA.CStr(cfgMap(normalizedKey)))
+    private_TryGetRawValueByNormalizedKey = True
+End Function
+
+Private Function private_TryResolveConfigValue( _
+    ByVal cfgMap As Object, _
+    ByVal normalizedKey As String, _
+    ByVal rawValue As String, _
+    ByRef outResolvedValue As String _
+) As Boolean
+    Dim resolverRef As String
+    Dim resolverKey As String
+    Dim resolverMethodName As String
+    Dim resolvedVariant As Variant
+
+    outResolvedValue = rawValue
+    If cfgMap Is Nothing Then
+        private_TryResolveConfigValue = True
+        Exit Function
+    End If
+
+    resolverKey = normalizedKey & "resolver"
+    If Not private_TryGetRawValueByNormalizedKey(cfgMap, resolverKey, resolverRef) Then
+        private_TryResolveConfigValue = True
+        Exit Function
+    End If
+    resolverRef = VBA.Trim$(resolverRef)
+    If VBA.Len(resolverRef) = 0 Then
+        private_TryResolveConfigValue = True
+        Exit Function
+    End If
+
+    If m_ResolverDataContext Is Nothing Then
+#If LOGGING_DEBUG_ENABLED Then
+        ex_Core.fn_Diagnostic_LogError "CfgParserBase: resolverDataContext is not assigned for key '" & normalizedKey & "'."
+#End If
+        Exit Function
+    End If
+
+    If Not private_TryResolveResolverMethodName(resolverRef, resolverMethodName) Then Exit Function
+
+    On Error GoTo EH_RESOLVER
+    resolvedVariant = VBA.CallByName(m_ResolverDataContext, resolverMethodName, VbMethod, rawValue)
+    On Error GoTo 0
+
+    outResolvedValue = VBA.Trim$(VBA.CStr(resolvedVariant))
+    private_TryResolveConfigValue = True
+    Exit Function
+
+EH_RESOLVER:
+#If LOGGING_DEBUG_ENABLED Then
+    ex_Core.fn_Diagnostic_LogError "CfgParserBase: resolver method failed for key '" & normalizedKey & "'. Method='" & resolverMethodName & "', error=" & Err.Description
+#End If
+    Err.Clear
+    On Error GoTo 0
+End Function
+
+Private Function private_TryResolveResolverMethodName( _
+    ByVal resolverRef As String, _
+    ByRef outMethodName As String _
+) As Boolean
+    Dim resolvedValue As Variant
+
+    outMethodName = VBA.Trim$(resolverRef)
+    If VBA.Len(outMethodName) = 0 Then Exit Function
+
+    If Not private_IsBindingExpression(outMethodName) Then
+        private_TryResolveResolverMethodName = True
+        Exit Function
+    End If
+
+    If m_ResolverDataContext Is Nothing Then
+#If LOGGING_DEBUG_ENABLED Then
+        ex_Core.fn_Diagnostic_LogError "CfgParserBase: binding resolver requires resolverDataContext, but it is not assigned."
+#End If
+        Exit Function
+    End If
+
+    If Not ex_BindingRuntime.fn_TryResolveValueBinding(outMethodName, m_ResolverDataContext, resolvedValue) Then Exit Function
+    If VBA.IsObject(resolvedValue) Then
+#If LOGGING_DEBUG_ENABLED Then
+        ex_Core.fn_Diagnostic_LogError "CfgParserBase: binding resolver must resolve to text method name."
+#End If
+        Exit Function
+    End If
+
+    outMethodName = VBA.Trim$(VBA.CStr(resolvedValue))
+    If VBA.Len(outMethodName) = 0 Then Exit Function
+
+    private_TryResolveResolverMethodName = True
+End Function
+
+Private Function private_IsBindingExpression(ByVal textValue As String) As Boolean
+    Dim normalized As String
+
+    normalized = VBA.Trim$(textValue)
+    If VBA.Len(normalized) < 10 Then Exit Function
+    If VBA.Left$(normalized, 1) <> "{" Then Exit Function
+    If VBA.Right$(normalized, 1) <> "}" Then Exit Function
+    If VBA.StrComp(VBA.Left$(normalized, 9), "{Binding ", VBA.vbTextCompare) <> 0 Then Exit Function
+
+    private_IsBindingExpression = True
 End Function
 
 Public Function TryGetRequiredConfigList( _

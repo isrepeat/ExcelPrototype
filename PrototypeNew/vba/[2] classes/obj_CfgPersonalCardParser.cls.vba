@@ -7,7 +7,6 @@ Option Explicit
 #Const LOGGING_DEBUG_ENABLED = True
 #Const LOGGING_VERBOSE_ENABLED = False
 
-Private m_CfgParserBase As obj_CfgParserBase
 Private m_CfgTableParser As obj_CfgTableParser
 Private m_IsDisposed As Boolean
 
@@ -15,7 +14,6 @@ Private Sub Class_Initialize()
 #If LOGGING_VERBOSE_ENABLED Then
     ex_Core.fn_Diagnostic_LogInfo "lifecycle:" & VBA.TypeName(Me) & ".Class_Initialize"
 #End If
-    Set m_CfgParserBase = New obj_CfgParserBase
     Set m_CfgTableParser = New obj_CfgTableParser
 End Sub
 
@@ -34,10 +32,10 @@ End Sub
 ' //
 Public Function Initialize(ByVal configTable As obj_ConfigTable) As Boolean
     m_IsDisposed = False
-    If m_CfgParserBase Is Nothing Then Set m_CfgParserBase = New obj_CfgParserBase
     If m_CfgTableParser Is Nothing Then Set m_CfgTableParser = New obj_CfgTableParser
-    If Not m_CfgParserBase.Initialize(configTable) Then Exit Function
-    If Not m_CfgTableParser.Initialize(m_CfgParserBase) Then Exit Function
+
+    If Not m_CfgTableParser.Initialize(configTable, Me) Then Exit Function
+
     Initialize = True
 End Function
 
@@ -45,19 +43,24 @@ Public Sub Dispose()
     If m_IsDisposed Then Exit Sub
     m_IsDisposed = True
     On Error Resume Next
-    If Not m_CfgTableParser Is Nothing Then m_CfgTableParser.Dispose
+
+    If Not m_CfgTableParser Is Nothing Then
+        m_CfgTableParser.Dispose
+    End If
+
     Set m_CfgTableParser = Nothing
-    If Not m_CfgParserBase Is Nothing Then m_CfgParserBase.Dispose
-    Set m_CfgParserBase = Nothing
     On Error GoTo 0
 End Sub
+
+Public Function ResolveLatestByDmyPattern(ByVal rawValue As String) As String
+    ResolveLatestByDmyPattern = ex_SourceResolver.fn_ResolveLatestByDmyPattern(rawValue)
+End Function
 
 Public Function TryBuildSqlParams( _
     ByVal sourceAlias As String, _
     ByVal tableAlias As String, _
     ByRef outSqlParams As obj_SqlParams _
 ) As Boolean
-
     Dim configEntries As Collection
     Dim cfgMap As Object
     Dim tablePathPrefix As String
@@ -84,9 +87,8 @@ Public Function TryBuildSqlParams( _
     If VBA.Len(tableAlias) = 0 Then Exit Function
 
     ' 1) Читаем конфиг-таблицу и нормализуем ее в словарь ключ/значение.
-    If m_CfgParserBase Is Nothing Then Exit Function
-    If Not m_CfgParserBase.TryGetConfigEntries(configEntries) Then Exit Function
-    If Not m_CfgParserBase.BuildConfigDictionary(configEntries, cfgMap) Then Exit Function
+    If Not m_CfgTableParser.CfgParserBase.TryGetConfigEntries(configEntries) Then Exit Function
+    If Not m_CfgTableParser.CfgParserBase.BuildConfigDictionary(configEntries, cfgMap) Then Exit Function
     If cfgMap Is Nothing Then Exit Function
 
     ' 2) Table-specific значения берем через obj_CfgTableParser.
@@ -109,8 +111,8 @@ Public Function TryBuildSqlParams( _
     ' 4) Формируем WHERE из конфига:
     ' <TablePathPrefix>Key -> алиас поля (например FIO)
     ' CommonKey            -> значение для фильтра
-    If Not m_CfgParserBase.TryGetRequiredConfigValue(cfgMap, tablePathPrefix & "Key", keyColumnAlias) Then Exit Function
-    If Not m_CfgParserBase.TryGetRequiredConfigValue(cfgMap, "CommonKey", commonKeyValue) Then Exit Function
+    If Not m_CfgTableParser.CfgParserBase.TryGetRequiredConfigValue(cfgMap, tablePathPrefix & "Key", keyColumnAlias) Then Exit Function
+    If Not m_CfgTableParser.CfgParserBase.TryGetRequiredConfigValue(cfgMap, "CommonKey", commonKeyValue) Then Exit Function
     If Not m_CfgTableParser.TryResolveMapByColumnAlias(cfgMap, tablePathPrefix, keyColumnAlias, keySourceColumnHeader, keyMappedColumnHeader) Then Exit Function
     sqlParams.WhereConditions = ex_HelpersSql.fn_BuildWhereEqualsSql(keySourceColumnHeader, commonKeyValue)
     If VBA.Len(sqlParams.WhereConditions) = 0 Then Exit Function
