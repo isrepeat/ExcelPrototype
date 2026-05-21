@@ -234,6 +234,8 @@ Private Function private_BuildAdoConnectionString(ByVal sourcePath As String) As
 End Function
 
 Private Function private_BuildTableRefFromSheetName(ByVal sheetName As String) As String
+    Dim normalizedSheetRef As String
+
     sheetName = VBA.Trim$(sheetName)
     If VBA.Len(sheetName) = 0 Then Exit Function
 
@@ -248,7 +250,13 @@ Private Function private_BuildTableRefFromSheetName(ByVal sheetName As String) A
         sheetName = sheetName & "$"
     End If
 
-    private_BuildTableRefFromSheetName = private_QuoteSqlIdentifier(sheetName)
+    normalizedSheetRef = private_NormalizeRawRangeSheetTokenForAdo(sheetName)
+    If private_IsExplicitAdoRangeReference(normalizedSheetRef) Then
+        private_BuildTableRefFromSheetName = private_QuoteExplicitRangeTableRef(normalizedSheetRef)
+        Exit Function
+    End If
+
+    private_BuildTableRefFromSheetName = private_QuoteSqlIdentifier(private_NormalizeSheetTokenForAdo(sheetName))
 End Function
 
 Private Function private_HasRangeMarkers(ByVal sqlParams As obj_SqlParams) As Boolean
@@ -268,16 +276,11 @@ Private Function private_TryBuildTableRefFromMarkers( _
     Dim ws As Worksheet
     Dim startCell As Range
     Dim endCell As Range
-    Dim firstHeaderCell As Range
-    Dim markerColumn As Long
-    Dim headerRow As Long
-    Dim dataLastRow As Long
     Dim leftCol As Long
     Dim topRow As Long
     Dim rightCol As Long
     Dim bottomRow As Long
     Dim sheetToken As String
-    Dim isStartCellAddress As Boolean
     Dim isEndCellAddress As Boolean
     Dim openedHere As Boolean
     Dim hiddenExcelApp As Object
@@ -336,61 +339,34 @@ Private Function private_TryBuildTableRefFromMarkers( _
         GoTo CleanupFail
     End If
 
-    isStartCellAddress = private_IsCellReferenceMarker(rangeStartMarker)
+    ' Асимметрия намеренная:
+    ' start-маркер всегда резолвим универсально (адрес или текст) как anchor-точку,
+    ' а end-маркер интерпретируем относительно уже найденного start.
     isEndCellAddress = private_IsCellReferenceMarker(rangeEndMarker)
 
     If Not private_TryResolveMarkerCell(ws, rangeStartMarker, startCell, outErrorText) Then GoTo CleanupFail
 
     If isEndCellAddress Then
+        ' Для адресного end берем точную ячейку напрямую.
         If Not private_TryResolveMarkerCell(ws, rangeEndMarker, endCell, outErrorText) Then GoTo CleanupFail
     Else
-        markerColumn = startCell.Column
-        Set endCell = private_FindMarkerTextCellInColumnAfterRow(ws, markerColumn, rangeEndMarker, startCell.Row)
-        If endCell Is Nothing Then Set endCell = private_FindMarkerTextCellAfterAnchor(ws, rangeEndMarker, startCell)
+        ' Для текстового end ищем первое вхождение построчно после start (anchor).
+        Set endCell = private_FindMarkerTextCellAfterAnchor(ws, rangeEndMarker, startCell)
         If endCell Is Nothing Then
             outErrorText = "End marker '" & rangeEndMarker & "' was not found on sheet '" & ws.Name & "'."
             GoTo CleanupFail
         End If
     End If
 
-    ' Legacy-режим:
-    ' стартовый маркер текстовый, а start/end находятся в одной колонке.
-    ' Тогда маркерная колонка считается правой границей таблицы, header берется строкой выше start.
-    If (Not isStartCellAddress) And endCell.Column = startCell.Column And endCell.Row > startCell.Row Then
-        markerColumn = startCell.Column
-        headerRow = startCell.Row - 1
-        dataLastRow = endCell.Row - 1
+    topRow = startCell.Row
+    If endCell.Row < topRow Then topRow = endCell.Row
+    bottomRow = startCell.Row
+    If endCell.Row > bottomRow Then bottomRow = endCell.Row
 
-        If headerRow < 1 Then
-            outErrorText = "Invalid marker layout: start marker row must be greater than 1."
-            GoTo CleanupFail
-        End If
-        If dataLastRow < startCell.Row Then
-            outErrorText = "Invalid marker layout: end marker is above data rows."
-            GoTo CleanupFail
-        End If
-
-        Set firstHeaderCell = private_FindFirstNonEmptyHeaderCell(ws, headerRow, markerColumn)
-        If firstHeaderCell Is Nothing Then
-            outErrorText = "Header row " & VBA.CStr(headerRow) & " has no cells before marker column."
-            GoTo CleanupFail
-        End If
-
-        leftCol = firstHeaderCell.Column
-        topRow = headerRow
-        rightCol = markerColumn
-        bottomRow = dataLastRow
-    Else
-        topRow = startCell.Row
-        If endCell.Row < topRow Then topRow = endCell.Row
-        bottomRow = startCell.Row
-        If endCell.Row > bottomRow Then bottomRow = endCell.Row
-
-        leftCol = startCell.Column
-        If endCell.Column < leftCol Then leftCol = endCell.Column
-        rightCol = startCell.Column
-        If endCell.Column > rightCol Then rightCol = endCell.Column
-    End If
+    leftCol = startCell.Column
+    If endCell.Column < leftCol Then leftCol = endCell.Column
+    rightCol = startCell.Column
+    If endCell.Column > rightCol Then rightCol = endCell.Column
 
     If leftCol <= 0 Or rightCol <= 0 Or topRow <= 0 Or bottomRow <= 0 Then
         outErrorText = "Failed to calculate marker-based range bounds."
@@ -407,7 +383,7 @@ Private Function private_TryBuildTableRefFromMarkers( _
         GoTo CleanupFail
     End If
 
-    outTableRef = private_QuoteSqlIdentifier( _
+    outTableRef = private_QuoteExplicitRangeTableRef( _
         sheetToken & private_ToColumnLetter(leftCol) & VBA.CStr(topRow) & ":" & private_ToColumnLetter(rightCol) & VBA.CStr(bottomRow))
 
     Call ex_CacheRuntime.fn_SetValue(RANGE_REF_CACHE_NAMESPACE, cacheKey, outTableRef)
@@ -455,24 +431,14 @@ Private Function private_FindWorksheetByConfiguredSheetName( _
 ) As Worksheet
     Dim ws As Worksheet
     Dim needle As String
-    Dim needleAlt As String
 
     If wb Is Nothing Then Exit Function
 
     needle = private_ExtractSheetNameToken(configuredSheetName)
     If VBA.Len(needle) = 0 Then Exit Function
-    needleAlt = VBA.Replace$(needle, "#", ".")
 
     For Each ws In wb.Worksheets
         If VBA.StrComp(VBA.Trim$(ws.Name), needle, VBA.vbTextCompare) = 0 Then
-            Set private_FindWorksheetByConfiguredSheetName = ws
-            Exit Function
-        End If
-        If VBA.StrComp(VBA.Replace$(VBA.Trim$(ws.Name), ".", "#"), needle, VBA.vbTextCompare) = 0 Then
-            Set private_FindWorksheetByConfiguredSheetName = ws
-            Exit Function
-        End If
-        If VBA.StrComp(VBA.Trim$(ws.Name), needleAlt, VBA.vbTextCompare) = 0 Then
             Set private_FindWorksheetByConfiguredSheetName = ws
             Exit Function
         End If
@@ -500,6 +466,7 @@ End Function
 Private Function private_BuildAdoSheetTokenForRange(ByVal configuredSheetName As String) As String
     Dim token As String
     Dim dollarPos As Long
+    Dim sheetToken As String
 
     token = VBA.Trim$(configuredSheetName)
     If VBA.Len(token) = 0 Then Exit Function
@@ -513,9 +480,10 @@ Private Function private_BuildAdoSheetTokenForRange(ByVal configuredSheetName As
 
     dollarPos = VBA.InStr(1, token, "$", VBA.vbBinaryCompare)
     If dollarPos > 0 Then
-        private_BuildAdoSheetTokenForRange = VBA.Left$(token, dollarPos)
+        sheetToken = VBA.Left$(token, dollarPos - 1)
+        private_BuildAdoSheetTokenForRange = private_NormalizeSheetTokenForAdo(sheetToken) & "$"
     Else
-        private_BuildAdoSheetTokenForRange = token & "$"
+        private_BuildAdoSheetTokenForRange = private_NormalizeSheetTokenForAdo(token) & "$"
     End If
 End Function
 
@@ -539,6 +507,7 @@ Private Function private_TryResolveMarkerCell( _
     End If
 
     If private_IsCellReferenceMarker(markerText) Then
+        ' Адресный маркер (например "$A5"): резолвим напрямую через Range.
         If Not private_TryGetCellByMarkerAddress(ws, markerText, outCell) Then
             outErrorText = "Cell marker '" & markerText & "' is invalid for worksheet '" & ws.Name & "'."
             Exit Function
@@ -547,6 +516,7 @@ Private Function private_TryResolveMarkerCell( _
         Exit Function
     End If
 
+    ' Текстовый маркер: берем первое полное совпадение на листе.
     Set outCell = private_FindFirstMarkerTextCell(ws, markerText)
     If outCell Is Nothing Then
         outErrorText = "Text marker '" & markerText & "' was not found on worksheet '" & ws.Name & "'."
@@ -590,54 +560,6 @@ Private Function private_FindFirstMarkerTextCell(ByVal ws As Worksheet, ByVal ma
         MatchCase:=False)
 End Function
 
-Private Function private_FindMarkerTextCellInColumnAfterRow( _
-    ByVal ws As Worksheet, _
-    ByVal markerColumn As Long, _
-    ByVal markerText As String, _
-    ByVal minExclusiveRow As Long _
-) As Range
-    Dim searchRange As Range
-    Dim firstFound As Range
-    Dim currentFound As Range
-    Dim firstAddress As String
-    Dim bestRow As Long
-
-    If ws Is Nothing Then Exit Function
-    If markerColumn <= 0 Then Exit Function
-    markerText = VBA.Trim$(markerText)
-    If VBA.Len(markerText) = 0 Then Exit Function
-
-    On Error Resume Next
-    Set searchRange = Intersect(ws.Columns(markerColumn), ws.UsedRange)
-    On Error GoTo 0
-    If searchRange Is Nothing Then Set searchRange = ws.Columns(markerColumn)
-
-    Set firstFound = searchRange.Find( _
-        What:=markerText, _
-        After:=searchRange.Cells(searchRange.Cells.Count), _
-        LookIn:=xlValues, _
-        LookAt:=xlWhole, _
-        SearchOrder:=xlByRows, _
-        SearchDirection:=xlNext, _
-        MatchCase:=False)
-    If firstFound Is Nothing Then Exit Function
-
-    bestRow = 0
-    firstAddress = firstFound.Address
-    Set currentFound = firstFound
-
-    Do
-        If currentFound.Row > minExclusiveRow Then
-            If bestRow = 0 Or currentFound.Row < bestRow Then
-                bestRow = currentFound.Row
-                Set private_FindMarkerTextCellInColumnAfterRow = currentFound
-            End If
-        End If
-        Set currentFound = searchRange.FindNext(currentFound)
-        If currentFound Is Nothing Then Exit Do
-    Loop While currentFound.Address <> firstAddress
-End Function
-
 Private Function private_FindMarkerTextCellAfterAnchor( _
     ByVal ws As Worksheet, _
     ByVal markerText As String, _
@@ -673,14 +595,15 @@ Private Function private_FindMarkerTextCellAfterAnchor( _
     Set currentFound = firstFound
 
     Do
-        If currentFound.Row > anchorCell.Row Or (currentFound.Row = anchorCell.Row And currentFound.Column >= anchorCell.Column) Then
+        ' Ищем текстовый end-маркер строго после anchor:
+        ' сначала следующая строка, а в пределах той же строки — следующая колонка.
+        If currentFound.Row > anchorCell.Row Or (currentFound.Row = anchorCell.Row And currentFound.Column > anchorCell.Column) Then
             currentWeight = CDbl(currentFound.Row) * 100000# + CDbl(currentFound.Column)
             If bestWeight < 0 Or currentWeight < bestWeight Then
                 bestWeight = currentWeight
                 Set private_FindMarkerTextCellAfterAnchor = currentFound
             End If
         End If
-
         Set currentFound = searchRange.FindNext(currentFound)
         If currentFound Is Nothing Then Exit Do
     Loop While currentFound.Address <> firstAddress
@@ -763,7 +686,36 @@ Private Function private_CleanAdoSchemaObjectName(ByVal value As String) As Stri
 
     cleaned = VBA.Replace$(cleaned, "]]", "]")
     cleaned = VBA.Replace$(cleaned, "'", VBA.vbNullString)
+    cleaned = VBA.Replace$(cleaned, "`", VBA.vbNullString)
     private_CleanAdoSchemaObjectName = VBA.Trim$(cleaned)
+End Function
+
+Private Function private_NormalizeSheetTokenForAdo(ByVal sheetToken As String) As String
+    sheetToken = private_CleanAdoSchemaObjectName(sheetToken)
+    sheetToken = VBA.Trim$(sheetToken)
+    If VBA.Len(sheetToken) = 0 Then Exit Function
+
+    ' Для ADO провайдера точка в имени листа обычно представляется как '#'.
+    private_NormalizeSheetTokenForAdo = VBA.Replace$(sheetToken, ".", "#")
+End Function
+
+Private Function private_NormalizeRawRangeSheetTokenForAdo(ByVal rawRangeRef As String) As String
+    Dim dollarPos As Long
+    Dim sheetToken As String
+    Dim rangeTail As String
+
+    rawRangeRef = VBA.Trim$(rawRangeRef)
+    If VBA.Len(rawRangeRef) = 0 Then Exit Function
+
+    dollarPos = VBA.InStr(1, rawRangeRef, "$", VBA.vbBinaryCompare)
+    If dollarPos <= 0 Then
+        private_NormalizeRawRangeSheetTokenForAdo = private_NormalizeSheetTokenForAdo(rawRangeRef)
+        Exit Function
+    End If
+
+    sheetToken = VBA.Left$(rawRangeRef, dollarPos - 1)
+    rangeTail = VBA.Mid$(rawRangeRef, dollarPos)
+    private_NormalizeRawRangeSheetTokenForAdo = private_NormalizeSheetTokenForAdo(sheetToken) & rangeTail
 End Function
 
 Private Function private_QuoteSqlIdentifier(ByVal valueText As String) As String
@@ -775,6 +727,29 @@ Private Function private_QuoteSqlIdentifier(ByVal valueText As String) As String
     End If
 
     private_QuoteSqlIdentifier = "[" & VBA.Replace$(valueText, "]", "]]" ) & "]"
+End Function
+
+Private Function private_IsExplicitAdoRangeReference(ByVal valueText As String) As Boolean
+    valueText = VBA.Trim$(valueText)
+    If VBA.InStr(1, valueText, "$", VBA.vbBinaryCompare) <= 0 Then Exit Function
+    If VBA.InStr(1, valueText, ":", VBA.vbBinaryCompare) <= 0 Then Exit Function
+    private_IsExplicitAdoRangeReference = True
+End Function
+
+Private Function private_QuoteExplicitRangeTableRef(ByVal rawRangeRef As String) As String
+    rawRangeRef = VBA.Trim$(rawRangeRef)
+    If VBA.Len(rawRangeRef) = 0 Then Exit Function
+
+    If VBA.Left$(rawRangeRef, 1) = "[" And VBA.Right$(rawRangeRef, 1) = "]" Then
+        rawRangeRef = VBA.Mid$(rawRangeRef, 2, VBA.Len(rawRangeRef) - 2)
+    End If
+    If VBA.Left$(rawRangeRef, 1) = "'" And VBA.Right$(rawRangeRef, 1) = "'" Then
+        rawRangeRef = VBA.Mid$(rawRangeRef, 2, VBA.Len(rawRangeRef) - 2)
+    End If
+
+    rawRangeRef = private_NormalizeRawRangeSheetTokenForAdo(rawRangeRef)
+
+    private_QuoteExplicitRangeTableRef = private_QuoteSqlIdentifier(rawRangeRef)
 End Function
 
 Private Function private_TryResolveHeaderInRecordset( _

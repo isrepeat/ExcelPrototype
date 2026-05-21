@@ -13,8 +13,10 @@
 
     <item attr="#" key="EventsOut" value=""/>
     <item key="Events.Sheet[EventsOut].Type" value="Events"/>
-    <item key="Events.Sheet[EventsOut].SheetName" value="5. Тимчасово відсутні$A5:R10000"/>
-    <item key="Events.Sheet[EventsOut].FieldsAliases" value="ZV; FIO; EventReason; City; OutDate; OutCommandDate; OutCommandNumber; DaysCount; PlannedReturnDate; FactArrivalDate; ArrivalCommandDate; Note; Ticket"/>
+    <item key="Events.Sheet[EventsOut].SheetName" value="5. Тимчасово відсутні"/>
+    <item key="Events.Sheet[EventsOut].RangeStartMarker" value="$A5"/>
+    <item key="Events.Sheet[EventsOut].RangeEndMarker" value="$R10000"/>
+    <item key="Events.Sheet[EventsOut].ColumnHeadersAliases" value="ZV; FIO; EventReason; City; OutDate; OutCommandDate; OutCommandNumber; DaysCount; PlannedReturnDate; FactArrivalDate; ArrivalCommandDate; Note; Ticket"/>
     <item key="Events.Sheet[EventsOut].Key" value="FIO"/>
     <item key="Events.Sheet[EventsOut].Sort" value="OutCommandDate"/>
     <item key="Events.Sheet[EventsOut].Map[ZV]" value="65|Звання"/>

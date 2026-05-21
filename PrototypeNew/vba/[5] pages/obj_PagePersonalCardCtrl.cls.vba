@@ -419,26 +419,38 @@ Private Function private_RegisterSqlTableItems( _
 End Function
 
 Private Function private_BuildTablesFromConfigTable() As Collection
+    Dim sqlParamsItems As Collection
+    Dim sqlParamsObj As Variant
     Dim sqlParams As obj_SqlParams
     Dim sectionTitle As String
     Dim sqlTable As obj_TableDynamic
     Dim result As Collection
 
-    ' 1) Парсим конфиг в SQL-параметры запроса.
-    If m_CfgPersonalCardParser Is Nothing Then Exit Function
-    If Not m_CfgPersonalCardParser.TryBuildSqlParams("Daily", "DailyEvents", sqlParams) Then Exit Function
-    If sqlParams Is Nothing Then Exit Function   
-    
-    ' 2) Выполняем запрос через общий SQL-движок для внешних Excel.
-    If Not ex_ExternalExcelSqlEngine.fn_TrySqlRequest(sqlParams, sqlTable) Then Exit Function
-    
     Set result = New Collection
+
+    ' 1) Парсим конфиг и собираем SQL-параметры для всех таблиц,
+    ' объявленных в Source.*.SheetAliases.
+    If m_CfgPersonalCardParser Is Nothing Then Exit Function
+    If Not m_CfgPersonalCardParser.TryBuildAllSqlParams(sqlParamsItems) Then Exit Function
+    If sqlParamsItems Is Nothing Then Exit Function
+
+    ' 2) Для каждой таблицы выполняем запрос через общий SQL-движок.
+    For Each sqlParamsObj In sqlParamsItems
+        If Not VBA.IsObject(sqlParamsObj) Then GoTo ContinueSqlParams
+        Set sqlParams = sqlParamsObj
+        If sqlParams Is Nothing Then GoTo ContinueSqlParams
+
+        Set sqlTable = Nothing
+        If Not ex_ExternalExcelSqlEngine.fn_TrySqlRequest(sqlParams, sqlTable) Then Exit Function
+
         If Not sqlTable Is Nothing Then
-        ' 3) Применяем метаданные отображения (title) и публикуем непустой результат.
-        sectionTitle = private_BuildSectionTitleFromSqlParams(sqlParams)
-        If VBA.Len(sectionTitle) > 0 Then sqlTable.SectionTitle = sectionTitle
-        If sqlTable.RowCount > 0 Then result.Add sqlTable
-    End If
+            ' 3) Применяем метаданные отображения (title) и публикуем непустой результат.
+            sectionTitle = private_BuildSectionTitleFromSqlParams(sqlParams)
+            If VBA.Len(sectionTitle) > 0 Then sqlTable.SectionTitle = sectionTitle
+            If sqlTable.RowCount > 0 Then result.Add sqlTable
+        End If
+ContinueSqlParams:
+    Next sqlParamsObj
 
     Set private_BuildTablesFromConfigTable = result
 End Function
