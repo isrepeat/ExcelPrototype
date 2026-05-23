@@ -276,13 +276,20 @@ Private Function private_TryBuildRenderBufferSingle(ByRef outValueBlock As Varia
         ex_Core.fn_Diagnostic_LogError "TableSingle: control '" & m_ControlName & "' requires " & VBA.CStr(tableColumnCount) & _
                " columns, but span provides only " & VBA.CStr(availableCols) & "."
 #End If
+        VBA.MsgBox "PrototypeNew: table control '" & m_ControlName & "' does not fit into allocated bounds. Required columns: " & VBA.CStr(tableColumnCount) & ", available columns: " & VBA.CStr(availableCols) & ". Increase spanColls or container size.", VBA.vbExclamation, "PrototypeNew / Table layout"
         Exit Function
     End If
 
     Set tableRows = tableDynamic.Rows
     plannedRows = 3
     If Not tableRows Is Nothing Then plannedRows = 2 + tableRows.Count + 1
-    If plannedRows > maxRows Then plannedRows = maxRows
+    If plannedRows > maxRows Then
+#If LOGGING_DEBUG_ENABLED Then
+        ex_Core.fn_Diagnostic_LogError "TableSingle: insufficient layout bounds for control '" & m_ControlName & "'. RequiredRows=" & VBA.CStr(plannedRows) & ", AvailableRows=" & VBA.CStr(maxRows) & "."
+#End If
+        VBA.MsgBox "PrototypeNew: table control '" & m_ControlName & "' does not fit into allocated bounds. Required rows: " & VBA.CStr(plannedRows) & ", available rows: " & VBA.CStr(maxRows) & ". Increase spanRows or container size.", VBA.vbExclamation, "PrototypeNew / Table layout"
+        Exit Function
+    End If
 
     If plannedRows <= 0 Then
         outValueBlock = Empty

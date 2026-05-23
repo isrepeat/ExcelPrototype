@@ -106,6 +106,7 @@ Private Sub obj_IControl_Configure(ByVal controlNode As Object)
 #If LOGGING_DEBUG_ENABLED Then
         ex_Core.fn_Diagnostic_LogError "Config: control '" & m_ControlName & "' requires at least 3 columns (Attr, Key, Value)."
 #End If
+        VBA.MsgBox "PrototypeNew: config control '" & m_ControlName & "' does not fit into allocated bounds. Required columns: " & VBA.CStr(CONFIG_COL_COUNT) & ", available columns: " & VBA.CStr(m_ControlLayout.ColEnd - m_ControlLayout.ColStart + 1) & ". Increase spanColls or container size.", VBA.vbExclamation, "PrototypeNew / Config layout"
         Exit Sub
     End If
 
@@ -184,12 +185,20 @@ Private Sub obj_IControl_Render()
     Set hashRows = New Collection
     Set rxRows = New Collection
 
-    ' Ограничиваем объем вывода доступной высотой контрола.
+    ' Проверяем, помещается ли весь контент в выделенный layout-диапазон.
+    ' Если нет — не рендерим частично, чтобы не получить обрезанную таблицу.
     maxRows = m_ControlLayout.RowEnd - m_ControlLayout.RowStart + 1
     dataRows = entryItems.Count
     rowsToWrite = 1 + dataRows
     If rowsToWrite < 2 Then rowsToWrite = 2
-    If rowsToWrite > maxRows Then rowsToWrite = maxRows
+    If rowsToWrite > maxRows Then
+#If LOGGING_DEBUG_ENABLED Then
+        ex_Core.fn_Diagnostic_LogError "Config: insufficient layout bounds for control '" & m_ControlName & "'. RequiredRows=" & VBA.CStr(rowsToWrite) & ", AvailableRows=" & VBA.CStr(maxRows) & "."
+#End If
+        m_RuntimeTableName = VBA.vbNullString
+        VBA.MsgBox "PrototypeNew: config control '" & m_ControlName & "' does not fit into allocated bounds. Required rows: " & VBA.CStr(rowsToWrite) & ", available rows: " & VBA.CStr(maxRows) & ". Increase spanRows or container size.", VBA.vbExclamation, "PrototypeNew / Config layout"
+        Exit Sub
+    End If
 
     ' Готовим буфер данных целиком и одной операцией выгружаем его в диапазон.
     ReDim valueBlock(1 To rowsToWrite, 1 To CONFIG_COL_COUNT)

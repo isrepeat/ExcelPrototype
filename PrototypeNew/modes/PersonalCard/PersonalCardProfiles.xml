@@ -9,7 +9,7 @@
     <item key="Source.Daily.SheetsAliases" value="DailyEvents"/>
     <item key="Source.Events.FilePath" value="C:\Users\SVI\Desktop\ТП+ТВ {dd}.{mm}.{yyyy}.xlsx"/>
     <item key="Source.Events.FilePathResolver" value="{Binding Method=ResolveLatestByDmyPattern}"/>
-    <item key="Source.Events.SheetAliases" value="EventsOut"/>
+    <item key="Source.Events.SheetsAliases" value="EventsOut"/>
 
     <item attr="#" key="EventsOut" value=""/>
     <item key="Events.Sheet[EventsOut].Type" value="Events"/>
