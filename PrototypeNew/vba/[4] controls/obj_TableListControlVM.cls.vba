@@ -299,8 +299,6 @@ Private Function private_TryBuildRenderBuffer(ByRef outValueBlock As Variant, By
 
     ' Pass 1: estimate output size up-front to allocate matrix once.
     For Each tableItem In m_TableItems
-        If plannedRows >= maxRows Then Exit For
-
         Set tableViewItem = Nothing
         If Not private_TryResolveTableViewItem(tableItem, tableViewItem) Then Exit Function
         If tableViewItem Is Nothing Then GoTo ContinueEstimate
@@ -308,8 +306,11 @@ Private Function private_TryBuildRenderBuffer(ByRef outValueBlock As Variant, By
         If Not private_TryEstimateTableOutputRows(tableViewItem, availableCols, rowsForItem) Then Exit Function
         plannedRows = plannedRows + rowsForItem
         If plannedRows > maxRows Then
-            plannedRows = maxRows
-            Exit For
+#If LOGGING_DEBUG_ENABLED Then
+            ex_Core.fn_Diagnostic_LogError "TableList: insufficient layout bounds for control '" & m_ControlName & "'. RequiredRows=" & VBA.CStr(plannedRows) & ", AvailableRows=" & VBA.CStr(maxRows) & "."
+#End If
+            VBA.MsgBox "PrototypeNew: table list control '" & m_ControlName & "' does not fit into allocated bounds. Required rows: " & VBA.CStr(plannedRows) & ", available rows: " & VBA.CStr(maxRows) & ". Increase spanRows or container size.", VBA.vbExclamation, "PrototypeNew / Table layout"
+            Exit Function
         End If
 
 ContinueEstimate:
@@ -389,6 +390,7 @@ Private Function private_TryEstimateTableOutputRows( _
         ex_Core.fn_Diagnostic_LogError "TableList: control '" & m_ControlName & "' requires " & VBA.CStr(tableDynamic.ColumnCount) & _
                " columns, but span provides only " & VBA.CStr(availableCols) & "."
 #End If
+        VBA.MsgBox "PrototypeNew: table list control '" & m_ControlName & "' does not fit into allocated bounds. Required columns: " & VBA.CStr(tableDynamic.ColumnCount) & ", available columns: " & VBA.CStr(availableCols) & ". Increase spanColls or container size.", VBA.vbExclamation, "PrototypeNew / Table layout"
         Exit Function
     End If
 
