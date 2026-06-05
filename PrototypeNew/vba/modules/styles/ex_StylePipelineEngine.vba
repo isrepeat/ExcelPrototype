@@ -1546,16 +1546,7 @@ End Function
 
 
 Private Function private_TryParseBoolean(ByVal valueText As String, ByRef outValue As Boolean) As Boolean
-    valueText = VBA.LCase$(VBA.Trim$(valueText))
-
-    Select Case valueText
-        Case "true", "1", "yes", "on"
-            outValue = True
-            private_TryParseBoolean = True
-        Case "false", "0", "no", "off"
-            outValue = False
-            private_TryParseBoolean = True
-    End Select
+    private_TryParseBoolean = ex_Helpers.fn_TryGetBooleanFromVariant(valueText, outValue)
 End Function
 
 

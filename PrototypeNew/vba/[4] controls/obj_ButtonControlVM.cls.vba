@@ -333,12 +333,23 @@ Public Function TryDeserializeSnapshot(ByVal snapshotXml As String) As Boolean
     Dim layoutRowEnd As Long
     Dim layoutColEnd As Long
     Dim layoutStyle As String
-    Dim onClickMacroRef As String
+    Dim configuredOnClickRaw As String
+    Dim configuredOnClickMacroRef As String
+    Dim snapshotOnClickMacroRef As String
+    Dim keepConfiguredCallback As Boolean
+    Dim wasConfiguredFromContract As Boolean
     Dim isConfiguredAttr As String
     Dim versionText As String
 
     snapshotXml = VBA.Trim$(snapshotXml)
     If VBA.Len(snapshotXml) = 0 Then Exit Function
+
+    ' Если control уже был сконфигурирован из актуального XML, его callback
+    ' свежее snapshot-а. Snapshot может быть сохранен старой версией UI-контракта.
+    wasConfiguredFromContract = m_IsConfigured
+    configuredOnClickRaw = VBA.Trim$(m_OnClickRaw)
+    configuredOnClickMacroRef = VBA.Trim$(m_OnClickMacroRef)
+    keepConfiguredCallback = (VBA.Len(configuredOnClickMacroRef) > 0)
 
     If Not ex_Core.fn_CustomXmlPartStore_TryLoadDomFromXml(snapshotXml, dom) Then Exit Function
     Set root = dom.DocumentElement
@@ -349,11 +360,30 @@ Public Function TryDeserializeSnapshot(ByVal snapshotXml As String) As Boolean
     m_ControlName = VBA.Trim$(VBA.CStr(root.getAttribute("controlName")))
     m_CaptionRaw = VBA.CStr(root.getAttribute("captionRaw"))
     m_CaptionInlineSource = VBA.CStr(root.getAttribute("captionInlineSource"))
-    m_OnClickRaw = VBA.CStr(root.getAttribute("onClickRaw"))
     m_CaptionText = VBA.CStr(root.getAttribute("captionText"))
-    onClickMacroRef = VBA.Trim$(VBA.CStr(root.getAttribute("onClickMacroRef")))
-    If VBA.Len(onClickMacroRef) = 0 Then onClickMacroRef = VBA.Trim$(VBA.CStr(root.getAttribute("onClick")))
-    m_OnClickMacroRef = VBA.Trim$(onClickMacroRef)
+    snapshotOnClickMacroRef = VBA.Trim$(VBA.CStr(root.getAttribute("onClickMacroRef")))
+    If VBA.Len(snapshotOnClickMacroRef) = 0 Then snapshotOnClickMacroRef = VBA.Trim$(VBA.CStr(root.getAttribute("onClick")))
+    If Not keepConfiguredCallback Then
+#If LOGGING_DEBUG_ENABLED Then
+        ex_Core.fn_Diagnostic_LogWarning _
+            "button:restore-snapshot callback-missing-in-current-contract control='" & _
+            VBA.Replace$(m_ControlName, "'", "''") & "' snapshotCallback='" & _
+            VBA.Replace$(snapshotOnClickMacroRef, "'", "''") & "'"
+#End If
+        Exit Function
+    End If
+
+    m_OnClickRaw = configuredOnClickRaw
+    m_OnClickMacroRef = configuredOnClickMacroRef
+#If LOGGING_DEBUG_ENABLED Then
+    If VBA.StrComp(configuredOnClickMacroRef, snapshotOnClickMacroRef, VBA.vbTextCompare) <> 0 Then
+        ex_Core.fn_Diagnostic_LogInfo _
+            "button:restore-snapshot callback-from-config control='" & _
+            VBA.Replace$(m_ControlName, "'", "''") & "' configured='" & _
+            VBA.Replace$(configuredOnClickMacroRef, "'", "''") & "' snapshot='" & _
+            VBA.Replace$(snapshotOnClickMacroRef, "'", "''") & "'"
+    End If
+#End If
     m_RuntimeControlKey = VBA.LCase$(VBA.Trim$(VBA.CStr(root.getAttribute("runtimeKey"))))
     shapeName = VBA.Trim$(VBA.CStr(root.getAttribute("shape")))
     layoutSheetName = VBA.Trim$(VBA.CStr(root.getAttribute("sheet")))
@@ -411,7 +441,9 @@ Public Function TryDeserializeSnapshot(ByVal snapshotXml As String) As Boolean
     ' Не накладываем inline-runs повторно из snapshot, иначе при рассинхроне
     ' snapshot/state (например закрытие книги без сохранения) получаем смешанную подсветку.
 
-    If isConfiguredAttr = "false" Or isConfiguredAttr = "0" Then
+    If wasConfiguredFromContract Then
+        m_IsConfigured = True
+    ElseIf isConfiguredAttr = "false" Or isConfiguredAttr = "0" Then
         m_IsConfigured = False
     Else
         m_IsConfigured = True

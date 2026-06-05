@@ -8,7 +8,7 @@
             itemsSource="{PageRuntimeSource='RuntimeItems.PageMain.Config'}"
             tableName="cfgDevUi"
             spanColls="3"
-            spanRows="50"
+            spanRows="90"
             />
           <stackPanel orientation="horizontal">
               <control

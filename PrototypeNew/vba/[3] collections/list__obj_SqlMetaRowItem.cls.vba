@@ -2,7 +2,7 @@ VERSION 1.0 CLASS
 BEGIN
   MultiUse = -1  'True
 END
-Attribute VB_Name = "list__obj_Row"
+Attribute VB_Name = "list__obj_SqlMetaRowItem"
 Option Explicit
 #Const LOGGING_VERBOSE_ENABLED = False
 Private m_IsDisposed As Boolean
@@ -15,6 +15,7 @@ Private Sub Class_Initialize()
 #End If
     Set m_ObjectCollectionBase = New obj_ObjectCollectionBase
 End Sub
+
 Private Sub Class_Terminate()
 #If LOGGING_VERBOSE_ENABLED Then
     ex_Core.fn_Diagnostic_LogInfo "lifecycle:" & VBA.TypeName(Me) & ".Class_Terminate"
@@ -34,6 +35,7 @@ Public Function Initialize() As Boolean
 #End If
     Initialize = True
 End Function
+
 Public Sub Dispose()
 #If LOGGING_VERBOSE_ENABLED Then
     ex_Core.fn_Diagnostic_LogInfo "lifecycle:" & VBA.TypeName(Me) & ".Dispose"
@@ -54,13 +56,12 @@ Public Property Get IsEmpty() As Boolean
     IsEmpty = m_ObjectCollectionBase.IsEmpty
 End Property
 
-Public Function Add(ByVal row As obj_Row) As Boolean
-
-    m_ObjectCollectionBase.AddObject row
+Public Function Add(ByVal item As obj_SqlMetaRowItem) As Boolean
+    m_ObjectCollectionBase.AddObject item
     Add = True
 End Function
 
-Public Property Get Item(ByVal oneBasedIndex As Long) As obj_Row
+Public Property Get Item(ByVal oneBasedIndex As Long) As obj_SqlMetaRowItem
     Set Item = m_ObjectCollectionBase.ItemObject(oneBasedIndex)
 End Property
 

@@ -1105,6 +1105,8 @@ Private Function private_TrySaveDomToFile(ByVal dom As Object, ByVal filePath As
     #If LOGGING_DEBUG_ENABLED Then
         ex_Core.fn_Diagnostic_LogInfo "enter:obj_PageMainCtrl.private_TrySaveDomToFile"
     #End If
+    Dim saveError As String
+
     filePath = VBA.Trim$(filePath)
     If dom Is Nothing Then
         #If LOGGING_DEBUG_ENABLED Then
@@ -1121,16 +1123,16 @@ Private Function private_TrySaveDomToFile(ByVal dom As Object, ByVal filePath As
         Exit Function
     End If
 
-    On Error GoTo EH_SAVE_DOM
-    dom.Save filePath
+    If Not ex_XmlCore.fn_TrySaveDomPretty(dom, filePath, saveError) Then
+        #If LOGGING_DEBUG_ENABLED Then
+            ex_Core.fn_Diagnostic_LogError "PrototypeNew: failed to write profile file '" & filePath & "': " & saveError
+        #End If
+        MsgBox "PrototypeNew: failed to write profile file '" & filePath & "': " & saveError, vbExclamation, "PrototypeNew / Config runtime"
+        Exit Function
+    End If
+
     private_TrySaveDomToFile = True
     Exit Function
-
-EH_SAVE_DOM:
-    #If LOGGING_DEBUG_ENABLED Then
-        ex_Core.fn_Diagnostic_LogError "PrototypeNew: failed to write profile file '" & filePath & "': " & Err.Description
-    #End If
-    MsgBox "PrototypeNew: failed to write profile file '" & filePath & "': " & Err.Description, vbExclamation, "PrototypeNew / Config runtime"
 End Function
 
 

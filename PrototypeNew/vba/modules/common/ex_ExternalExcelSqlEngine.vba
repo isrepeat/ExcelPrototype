@@ -30,16 +30,22 @@ Public Function fn_TrySqlRequest( _
     Dim sourcePath As String
     Dim sourceColumnHeaders As Collection
     Dim mappedColumnHeaders As Collection
+    Dim columnAliases As Collection
     Dim resolvedSourceColumnHeaders As Collection
     Dim sourceColumnOrdinals() As Long
     Dim tableObj As obj_TableDynamic
     Dim rowObj As obj_Row
     Dim colObj As obj_Column
+    Dim rowProcessor As obj_ISqlRowProcessor
+    Dim hasCustomRowProcessor As Boolean
+    Dim rowNumber As Long
     Dim markerErrorText As String
     Dim i As Long
     Dim resolvedSourceColumnHeader As String
     Dim availableFields As String
     Dim hasGenericFields As Boolean
+    Dim cellText As String
+    Dim fieldErrorText As String
 
     On Error GoTo EH_QUERY
 
@@ -57,16 +63,25 @@ Public Function fn_TrySqlRequest( _
 #End If
 
     If Not sqlParams.TryValidate(validationError) Then
+#If LOGGING_DEBUG_ENABLED Then
+        ex_Core.fn_Diagnostic_LogError "sql-engine:invalid-params " & validationError & "; " & sqlParams.fn_ToString()
+#End If
         MsgBox "PrototypeNew: invalid SQL params. " & validationError, vbExclamation, RUNTIME_ERROR_TITLE
         Exit Function
     End If
 
     sourcePath = private_ResolvePathLocal(sqlParams.SourcePath)
     If VBA.Len(sourcePath) = 0 Then
+#If LOGGING_DEBUG_ENABLED Then
+        ex_Core.fn_Diagnostic_LogError "sql-engine:source-path-empty raw='" & sqlParams.SourcePath & "'"
+#End If
         MsgBox "PrototypeNew: resolved source path is empty.", vbExclamation, RUNTIME_ERROR_TITLE
         Exit Function
     End If
     If VBA.Dir$(sourcePath) = VBA.vbNullString Then
+#If LOGGING_DEBUG_ENABLED Then
+        ex_Core.fn_Diagnostic_LogError "sql-engine:source-file-not-found path='" & sourcePath & "' raw='" & sqlParams.SourcePath & "'"
+#End If
         MsgBox "PrototypeNew: source file not found: " & sourcePath, vbExclamation, RUNTIME_ERROR_TITLE
         Exit Function
     End If
@@ -76,19 +91,30 @@ Public Function fn_TrySqlRequest( _
     ' - иначе берем весь лист (или диапазон, если уже зашит в SheetName).
     If private_HasRangeMarkers(sqlParams) Then
         If Not private_TryBuildTableRefFromMarkers(sourcePath, sqlParams.SheetName, sqlParams.RangeStartMarker, sqlParams.RangeEndMarker, tableRef, markerErrorText) Then
+#If LOGGING_DEBUG_ENABLED Then
+            ex_Core.fn_Diagnostic_LogError "sql-engine:range-marker-resolve-failed source='" & sourcePath & "' sheet='" & sqlParams.SheetName & "' start='" & sqlParams.RangeStartMarker & "' end='" & sqlParams.RangeEndMarker & "' error='" & markerErrorText & "'"
+#End If
             MsgBox "PrototypeNew: failed to resolve range by markers. " & markerErrorText, vbExclamation, RUNTIME_ERROR_TITLE
             Exit Function
         End If
     Else
         tableRef = private_BuildTableRefFromSheetName(sqlParams.SheetName)
         If VBA.Len(tableRef) = 0 Then
+#If LOGGING_DEBUG_ENABLED Then
+            ex_Core.fn_Diagnostic_LogError "sql-engine:table-ref-empty sheet='" & sqlParams.SheetName & "'"
+#End If
             MsgBox "PrototypeNew: failed to build SQL table reference from SheetName '" & sqlParams.SheetName & "'.", vbExclamation, RUNTIME_ERROR_TITLE
             Exit Function
         End If
     End If
 
+#If LOGGING_DEBUG_ENABLED Then
+    ex_Core.fn_Diagnostic_LogInfo "sql-engine:resolved-source path='" & sourcePath & "' tableRef='" & tableRef & "'"
+#End If
+
     Set sourceColumnHeaders = sqlParams.SourceColumnHeaders
     Set mappedColumnHeaders = sqlParams.MappedColumnHeaders
+    Set columnAliases = sqlParams.ColumnAliases
 
     ' 3) Открываем ADO-подключение к Excel-файлу.
     Set conn = CreateObject("ADODB.Connection")
@@ -106,6 +132,9 @@ Public Function fn_TrySqlRequest( _
     For i = 1 To sourceColumnHeaders.Count
         resolvedSourceColumnHeader = VBA.vbNullString
         If Not private_TryResolveHeaderInRecordset(rsSchema, VBA.CStr(sourceColumnHeaders.Item(i)), resolvedSourceColumnHeader) Then
+#If LOGGING_DEBUG_ENABLED Then
+            ex_Core.fn_Diagnostic_LogError "sql-engine:source-header-not-found requested='" & VBA.CStr(sourceColumnHeaders.Item(i)) & "' available='" & availableFields & "' genericFields=" & VBA.CStr(hasGenericFields)
+#End If
             MsgBox "PrototypeNew: mapped source header '" & VBA.CStr(sourceColumnHeaders.Item(i)) & "' is not found. Available fields: " & availableFields & private_GenericFieldsHint(hasGenericFields), vbExclamation, RUNTIME_ERROR_TITLE
             GoTo CleanupFail
         End If
@@ -115,18 +144,32 @@ Public Function fn_TrySqlRequest( _
     rsSchema.Close
     Set rsSchema = Nothing
 
+    Set rowProcessor = sqlParams.RowProcessor
+    hasCustomRowProcessor = Not rowProcessor Is Nothing
+#If LOGGING_DEBUG_ENABLED Then
+    If hasCustomRowProcessor Then
+        ex_Core.fn_Diagnostic_LogInfo "sql-engine:custom-row-processor type='" & VBA.TypeName(rowProcessor) & "'"
+    Else
+        ex_Core.fn_Diagnostic_LogInfo "sql-engine:custom-row-processor type='<none>'"
+    End If
+#End If
+
     ' 5) Data-pass:
     ' Строим и выполняем реальный SELECT только по валидационно-резолвленным колонкам.
     ' Если в SqlParams задано WHERE-условие, добавляем его в запрос.
     sql = "SELECT " & private_BuildSelectColumnsClause(resolvedSourceColumnHeaders) & " FROM " & tableRef
-    If VBA.Len(VBA.Trim$(sqlParams.WhereConditions)) > 0 Then
+    If Not hasCustomRowProcessor And VBA.Len(VBA.Trim$(sqlParams.WhereConditions)) > 0 Then
         sql = sql & " WHERE " & sqlParams.WhereConditions
     End If
+#If LOGGING_DEBUG_ENABLED Then
+    ex_Core.fn_Diagnostic_LogInfo "sql-engine:data-sql " & sql
+#End If
     Set rsData = CreateObject("ADODB.Recordset")
     rsData.Open sql, conn, 0, 1
 
-    ' Пустой набор данных не считаем ошибкой: просто нет строк под текущий запрос.
-    If rsData.EOF Then
+    ' Без кастомного row processor пустой набор данных не считаем ошибкой:
+    ' просто нет строк под текущий запрос.
+    If rsData.EOF And Not hasCustomRowProcessor Then
         rsData.Close
         Set rsData = Nothing
         fn_TrySqlRequest = True
@@ -143,38 +186,190 @@ Public Function fn_TrySqlRequest( _
         colObj.Position = i
         colObj.Name = VBA.Trim$(VBA.CStr(mappedColumnHeaders.Item(i)))
         If VBA.Len(colObj.Name) = 0 Then colObj.Name = "Col" & VBA.CStr(i)
-        If Not tableObj.AddColumn(colObj) Then GoTo CleanupFail
+        If Not columnAliases Is Nothing Then
+            If columnAliases.Count >= i Then
+                Call colObj.AddAlias(VBA.CStr(columnAliases.Item(i)))
+            End If
+        End If
+        If Not tableObj.PushColumn(colObj) Then
+#If LOGGING_DEBUG_ENABLED Then
+            ex_Core.fn_Diagnostic_LogError "sql-engine:push-column-failed index=" & VBA.CStr(i) & " name='" & colObj.Name & "'"
+#End If
+            GoTo CleanupFail
+        End If
     Next i
+
+    If hasCustomRowProcessor Then
+        If Not rowProcessor.Initialize(tableObj, sqlParams) Then
+#If LOGGING_DEBUG_ENABLED Then
+            ex_Core.fn_Diagnostic_LogError "sql-engine:row-processor-initialize-failed type='" & VBA.TypeName(rowProcessor) & "' columns=" & VBA.CStr(tableObj.ColumnCount)
+#End If
+            GoTo CleanupFail
+        End If
+    End If
 
     ' Кешируем ordinals полей, чтобы быстро читать значения в цикле по строкам.
     ReDim sourceColumnOrdinals(1 To resolvedSourceColumnHeaders.Count)
     For i = 1 To resolvedSourceColumnHeaders.Count
         sourceColumnOrdinals(i) = private_RecordsetGetFieldOrdinal(rsData, VBA.CStr(resolvedSourceColumnHeaders.Item(i)))
         If sourceColumnOrdinals(i) < 0 Then
+#If LOGGING_DEBUG_ENABLED Then
+            ex_Core.fn_Diagnostic_LogError "sql-engine:data-field-ordinal-missing header='" & VBA.CStr(resolvedSourceColumnHeaders.Item(i)) & "'"
+#End If
             MsgBox "PrototypeNew: resolved header '" & VBA.CStr(resolvedSourceColumnHeaders.Item(i)) & "' is not available in data recordset.", vbExclamation, RUNTIME_ERROR_TITLE
             GoTo CleanupFail
         End If
     Next i
 
     ' 7) Переносим данные из Recordset в obj_TableDynamic (row-by-row).
+    rowNumber = 0
+#If LOGGING_DEBUG_ENABLED Then
+    ex_Core.fn_Diagnostic_LogInfo "sql-engine:row-loop-start hasCustomRowProcessor=" & VBA.CStr(hasCustomRowProcessor)
+#End If
     Do While Not rsData.EOF
+        rowNumber = rowNumber + 1
+#If LOGGING_DEBUG_ENABLED Then
+        If rowNumber <= 5 Or (rowNumber Mod 25) = 0 Then
+            ex_Core.fn_Diagnostic_LogInfo "sql-engine:row-start rowNumber=" & VBA.CStr(rowNumber) & " eof=" & VBA.CStr(rsData.EOF)
+        End If
+#End If
+#If LOGGING_DEBUG_ENABLED Then
+        If rowNumber <= 5 Or (rowNumber Mod 25) = 0 Then
+            ex_Core.fn_Diagnostic_LogInfo "sql-engine:row-object-release-previous-start rowNumber=" & VBA.CStr(rowNumber)
+        End If
+#End If
+        Set rowObj = Nothing
+#If LOGGING_DEBUG_ENABLED Then
+        If rowNumber <= 5 Or (rowNumber Mod 25) = 0 Then
+            ex_Core.fn_Diagnostic_LogInfo "sql-engine:row-object-release-previous-done rowNumber=" & VBA.CStr(rowNumber)
+        End If
+#End If
+#If LOGGING_DEBUG_ENABLED Then
+        If rowNumber <= 5 Or (rowNumber Mod 25) = 0 Then
+            ex_Core.fn_Diagnostic_LogInfo "sql-engine:row-object-create-start rowNumber=" & VBA.CStr(rowNumber)
+        End If
+#End If
         Set rowObj = New obj_Row
+#If LOGGING_DEBUG_ENABLED Then
+        If rowNumber <= 5 Or (rowNumber Mod 25) = 0 Then
+            ex_Core.fn_Diagnostic_LogInfo "sql-engine:row-object-create-done rowNumber=" & VBA.CStr(rowNumber) & " type='" & VBA.TypeName(rowObj) & "'"
+        End If
+#End If
+        rowObj.Index = rowNumber
+#If LOGGING_DEBUG_ENABLED Then
+        If rowNumber <= 5 Or (rowNumber Mod 25) = 0 Then
+            ex_Core.fn_Diagnostic_LogInfo "sql-engine:row-index-set rowNumber=" & VBA.CStr(rowNumber)
+        End If
+#End If
         For i = 1 To UBound(sourceColumnOrdinals)
-            rowObj.AddCell private_ToSafeText(rsData.Fields(sourceColumnOrdinals(i)).Value)
+#If LOGGING_DEBUG_ENABLED Then
+            If rowNumber <= 5 Then
+                ex_Core.fn_Diagnostic_LogInfo "sql-engine:field-read-start rowNumber=" & VBA.CStr(rowNumber) & " colIndex=" & VBA.CStr(i) & " ordinal=" & VBA.CStr(sourceColumnOrdinals(i)) & " header='" & VBA.CStr(resolvedSourceColumnHeaders.Item(i)) & "'"
+            End If
+#End If
+            cellText = VBA.vbNullString
+            fieldErrorText = VBA.vbNullString
+            If Not private_TryReadRecordsetFieldText(rsData, sourceColumnOrdinals(i), cellText, fieldErrorText) Then
+#If LOGGING_DEBUG_ENABLED Then
+                ex_Core.fn_Diagnostic_LogError "sql-engine:field-read-failed rowNumber=" & VBA.CStr(rowNumber) & " colIndex=" & VBA.CStr(i) & " ordinal=" & VBA.CStr(sourceColumnOrdinals(i)) & " header='" & VBA.CStr(resolvedSourceColumnHeaders.Item(i)) & "' error='" & fieldErrorText & "'"
+#End If
+                MsgBox "PrototypeNew: failed to read SQL field '" & VBA.CStr(resolvedSourceColumnHeaders.Item(i)) & "' at row " & VBA.CStr(rowNumber) & ". " & fieldErrorText, vbExclamation, RUNTIME_ERROR_TITLE
+                GoTo CleanupFail
+            End If
+            rowObj.PushCellRaw cellText
+#If LOGGING_DEBUG_ENABLED Then
+            If rowNumber <= 5 Then
+                ex_Core.fn_Diagnostic_LogInfo "sql-engine:field-read-done rowNumber=" & VBA.CStr(rowNumber) & " colIndex=" & VBA.CStr(i) & " textLen=" & VBA.CStr(VBA.Len(cellText))
+            End If
+#End If
         Next i
+#If LOGGING_DEBUG_ENABLED Then
+        If rowNumber <= 5 Or (rowNumber Mod 25) = 0 Then
+            ex_Core.fn_Diagnostic_LogInfo "sql-engine:row-created rowNumber=" & VBA.CStr(rowNumber) & " cells=" & VBA.CStr(rowObj.CellCount)
+        End If
+#End If
 
-        If Not tableObj.AddRow(rowObj) Then GoTo CleanupFail
+        If hasCustomRowProcessor Then
+#If LOGGING_DEBUG_ENABLED Then
+            If rowNumber <= 5 Or (rowNumber Mod 25) = 0 Then
+                ex_Core.fn_Diagnostic_LogInfo "sql-engine:row-processor-handle-row-start rowNumber=" & VBA.CStr(rowNumber)
+            End If
+#End If
+            If Not rowProcessor.HandleRow(rowObj) Then
+#If LOGGING_DEBUG_ENABLED Then
+                ex_Core.fn_Diagnostic_LogError "sql-engine:row-processor-handle-row-failed type='" & VBA.TypeName(rowProcessor) & "' rowNumber=" & VBA.CStr(rowNumber)
+#End If
+                GoTo CleanupFail
+            End If
+#If LOGGING_DEBUG_ENABLED Then
+            If rowNumber <= 5 Or (rowNumber Mod 25) = 0 Then
+                ex_Core.fn_Diagnostic_LogInfo "sql-engine:row-processor-handle-row-done rowNumber=" & VBA.CStr(rowNumber)
+            End If
+#End If
+        Else
+            If Not tableObj.PushRow(rowObj) Then
+#If LOGGING_DEBUG_ENABLED Then
+                ex_Core.fn_Diagnostic_LogError "sql-engine:push-row-failed rowNumber=" & VBA.CStr(rowNumber)
+#End If
+                GoTo CleanupFail
+            End If
+        End If
+#If LOGGING_DEBUG_ENABLED Then
+        If rowNumber <= 5 Or (rowNumber Mod 25) = 0 Then
+            ex_Core.fn_Diagnostic_LogInfo "sql-engine:recordset-move-next-start rowNumber=" & VBA.CStr(rowNumber)
+        End If
+#End If
         rsData.MoveNext
+#If LOGGING_DEBUG_ENABLED Then
+        If rowNumber <= 5 Or (rowNumber Mod 25) = 0 Then
+            ex_Core.fn_Diagnostic_LogInfo "sql-engine:recordset-move-next-done rowNumber=" & VBA.CStr(rowNumber) & " eof=" & VBA.CStr(rsData.EOF)
+        End If
+#End If
     Loop
+
+#If LOGGING_DEBUG_ENABLED Then
+    ex_Core.fn_Diagnostic_LogInfo "sql-engine:row-loop-end rowsRead=" & VBA.CStr(rowNumber)
+#End If
 
     rsData.Close
     Set rsData = Nothing
+
+    If hasCustomRowProcessor Then
+#If LOGGING_DEBUG_ENABLED Then
+        ex_Core.fn_Diagnostic_LogInfo "sql-engine:row-processor-build-result-start type='" & VBA.TypeName(rowProcessor) & "' rowsRead=" & VBA.CStr(rowNumber)
+#End If
+        Set tableObj = rowProcessor.BuildResult()
+#If LOGGING_DEBUG_ENABLED Then
+        If tableObj Is Nothing Then
+            ex_Core.fn_Diagnostic_LogError "sql-engine:row-processor-build-result-returned-nothing type='" & VBA.TypeName(rowProcessor) & "' rowsRead=" & VBA.CStr(rowNumber)
+        Else
+            ex_Core.fn_Diagnostic_LogInfo "sql-engine:row-processor-build-result-done type='" & VBA.TypeName(rowProcessor) & "' resultRows=" & VBA.CStr(tableObj.RowCount) & " resultColumns=" & VBA.CStr(tableObj.ColumnCount)
+        End If
+#End If
+        If tableObj Is Nothing Then
+#If LOGGING_DEBUG_ENABLED Then
+            ex_Core.fn_Diagnostic_LogError "sql-engine:row-processor-build-result-failed type='" & VBA.TypeName(rowProcessor) & "' rowsRead=" & VBA.CStr(rowNumber)
+#End If
+            MsgBox "PrototypeNew: row processor failed to build result table.", vbExclamation, RUNTIME_ERROR_TITLE
+            GoTo CleanupFail
+        End If
+    End If
+
+#If LOGGING_DEBUG_ENABLED Then
+    ex_Core.fn_Diagnostic_LogInfo "sql-engine:request-done rowsRead=" & VBA.CStr(rowNumber) & "; resultRows=" & VBA.CStr(tableObj.RowCount) & "; resultColumns=" & VBA.CStr(tableObj.ColumnCount)
+#End If
 
     ' Финализируем успешный результат.
     Set outTable = tableObj
     fn_TrySqlRequest = True
 
 CleanupDone:
+    On Error Resume Next
+    If Not rowProcessor Is Nothing Then
+        Call rowProcessor.Dispose
+    End If
+    On Error GoTo 0
+
     ' Единая точка освобождения COM-ресурсов (recordset/connection).
     On Error Resume Next
     If Not rsSchema Is Nothing Then If rsSchema.State <> 0 Then rsSchema.Close
@@ -185,6 +380,9 @@ CleanupDone:
 
 CleanupFail:
     ' Любая ошибка на промежуточных шагах -> пустой выход + общий cleanup.
+#If LOGGING_DEBUG_ENABLED Then
+    ex_Core.fn_Diagnostic_LogError "sql-engine:cleanup-fail " & sqlParams.fn_ToString()
+#End If
     Set outTable = Nothing
     GoTo CleanupDone
 
@@ -234,6 +432,8 @@ Private Function private_BuildAdoConnectionString(ByVal sourcePath As String) As
 End Function
 
 Private Function private_BuildTableRefFromSheetName(ByVal sheetName As String) As String
+    Dim normalizedSheetRef As String
+
     sheetName = VBA.Trim$(sheetName)
     If VBA.Len(sheetName) = 0 Then Exit Function
 
@@ -248,7 +448,13 @@ Private Function private_BuildTableRefFromSheetName(ByVal sheetName As String) A
         sheetName = sheetName & "$"
     End If
 
-    private_BuildTableRefFromSheetName = private_QuoteSqlIdentifier(sheetName)
+    normalizedSheetRef = private_NormalizeRawRangeSheetTokenForAdo(sheetName)
+    If private_IsExplicitAdoRangeReference(normalizedSheetRef) Then
+        private_BuildTableRefFromSheetName = private_QuoteExplicitRangeTableRef(normalizedSheetRef)
+        Exit Function
+    End If
+
+    private_BuildTableRefFromSheetName = private_QuoteSqlIdentifier(private_NormalizeSheetTokenForAdo(sheetName))
 End Function
 
 Private Function private_HasRangeMarkers(ByVal sqlParams As obj_SqlParams) As Boolean
@@ -268,16 +474,11 @@ Private Function private_TryBuildTableRefFromMarkers( _
     Dim ws As Worksheet
     Dim startCell As Range
     Dim endCell As Range
-    Dim firstHeaderCell As Range
-    Dim markerColumn As Long
-    Dim headerRow As Long
-    Dim dataLastRow As Long
     Dim leftCol As Long
     Dim topRow As Long
     Dim rightCol As Long
     Dim bottomRow As Long
     Dim sheetToken As String
-    Dim isStartCellAddress As Boolean
     Dim isEndCellAddress As Boolean
     Dim openedHere As Boolean
     Dim hiddenExcelApp As Object
@@ -336,61 +537,34 @@ Private Function private_TryBuildTableRefFromMarkers( _
         GoTo CleanupFail
     End If
 
-    isStartCellAddress = private_IsCellReferenceMarker(rangeStartMarker)
+    ' Асимметрия намеренная:
+    ' start-маркер всегда резолвим универсально (адрес или текст) как anchor-точку,
+    ' а end-маркер интерпретируем относительно уже найденного start.
     isEndCellAddress = private_IsCellReferenceMarker(rangeEndMarker)
 
     If Not private_TryResolveMarkerCell(ws, rangeStartMarker, startCell, outErrorText) Then GoTo CleanupFail
 
     If isEndCellAddress Then
+        ' Для адресного end берем точную ячейку напрямую.
         If Not private_TryResolveMarkerCell(ws, rangeEndMarker, endCell, outErrorText) Then GoTo CleanupFail
     Else
-        markerColumn = startCell.Column
-        Set endCell = private_FindMarkerTextCellInColumnAfterRow(ws, markerColumn, rangeEndMarker, startCell.Row)
-        If endCell Is Nothing Then Set endCell = private_FindMarkerTextCellAfterAnchor(ws, rangeEndMarker, startCell)
+        ' Для текстового end ищем первое вхождение построчно после start (anchor).
+        Set endCell = private_FindMarkerTextCellAfterAnchor(ws, rangeEndMarker, startCell)
         If endCell Is Nothing Then
             outErrorText = "End marker '" & rangeEndMarker & "' was not found on sheet '" & ws.Name & "'."
             GoTo CleanupFail
         End If
     End If
 
-    ' Legacy-режим:
-    ' стартовый маркер текстовый, а start/end находятся в одной колонке.
-    ' Тогда маркерная колонка считается правой границей таблицы, header берется строкой выше start.
-    If (Not isStartCellAddress) And endCell.Column = startCell.Column And endCell.Row > startCell.Row Then
-        markerColumn = startCell.Column
-        headerRow = startCell.Row - 1
-        dataLastRow = endCell.Row - 1
+    topRow = startCell.Row
+    If endCell.Row < topRow Then topRow = endCell.Row
+    bottomRow = startCell.Row
+    If endCell.Row > bottomRow Then bottomRow = endCell.Row
 
-        If headerRow < 1 Then
-            outErrorText = "Invalid marker layout: start marker row must be greater than 1."
-            GoTo CleanupFail
-        End If
-        If dataLastRow < startCell.Row Then
-            outErrorText = "Invalid marker layout: end marker is above data rows."
-            GoTo CleanupFail
-        End If
-
-        Set firstHeaderCell = private_FindFirstNonEmptyHeaderCell(ws, headerRow, markerColumn)
-        If firstHeaderCell Is Nothing Then
-            outErrorText = "Header row " & VBA.CStr(headerRow) & " has no cells before marker column."
-            GoTo CleanupFail
-        End If
-
-        leftCol = firstHeaderCell.Column
-        topRow = headerRow
-        rightCol = markerColumn
-        bottomRow = dataLastRow
-    Else
-        topRow = startCell.Row
-        If endCell.Row < topRow Then topRow = endCell.Row
-        bottomRow = startCell.Row
-        If endCell.Row > bottomRow Then bottomRow = endCell.Row
-
-        leftCol = startCell.Column
-        If endCell.Column < leftCol Then leftCol = endCell.Column
-        rightCol = startCell.Column
-        If endCell.Column > rightCol Then rightCol = endCell.Column
-    End If
+    leftCol = startCell.Column
+    If endCell.Column < leftCol Then leftCol = endCell.Column
+    rightCol = startCell.Column
+    If endCell.Column > rightCol Then rightCol = endCell.Column
 
     If leftCol <= 0 Or rightCol <= 0 Or topRow <= 0 Or bottomRow <= 0 Then
         outErrorText = "Failed to calculate marker-based range bounds."
@@ -407,7 +581,7 @@ Private Function private_TryBuildTableRefFromMarkers( _
         GoTo CleanupFail
     End If
 
-    outTableRef = private_QuoteSqlIdentifier( _
+    outTableRef = private_QuoteExplicitRangeTableRef( _
         sheetToken & private_ToColumnLetter(leftCol) & VBA.CStr(topRow) & ":" & private_ToColumnLetter(rightCol) & VBA.CStr(bottomRow))
 
     Call ex_CacheRuntime.fn_SetValue(RANGE_REF_CACHE_NAMESPACE, cacheKey, outTableRef)
@@ -455,24 +629,14 @@ Private Function private_FindWorksheetByConfiguredSheetName( _
 ) As Worksheet
     Dim ws As Worksheet
     Dim needle As String
-    Dim needleAlt As String
 
     If wb Is Nothing Then Exit Function
 
     needle = private_ExtractSheetNameToken(configuredSheetName)
     If VBA.Len(needle) = 0 Then Exit Function
-    needleAlt = VBA.Replace$(needle, "#", ".")
 
     For Each ws In wb.Worksheets
         If VBA.StrComp(VBA.Trim$(ws.Name), needle, VBA.vbTextCompare) = 0 Then
-            Set private_FindWorksheetByConfiguredSheetName = ws
-            Exit Function
-        End If
-        If VBA.StrComp(VBA.Replace$(VBA.Trim$(ws.Name), ".", "#"), needle, VBA.vbTextCompare) = 0 Then
-            Set private_FindWorksheetByConfiguredSheetName = ws
-            Exit Function
-        End If
-        If VBA.StrComp(VBA.Trim$(ws.Name), needleAlt, VBA.vbTextCompare) = 0 Then
             Set private_FindWorksheetByConfiguredSheetName = ws
             Exit Function
         End If
@@ -500,6 +664,7 @@ End Function
 Private Function private_BuildAdoSheetTokenForRange(ByVal configuredSheetName As String) As String
     Dim token As String
     Dim dollarPos As Long
+    Dim sheetToken As String
 
     token = VBA.Trim$(configuredSheetName)
     If VBA.Len(token) = 0 Then Exit Function
@@ -513,9 +678,10 @@ Private Function private_BuildAdoSheetTokenForRange(ByVal configuredSheetName As
 
     dollarPos = VBA.InStr(1, token, "$", VBA.vbBinaryCompare)
     If dollarPos > 0 Then
-        private_BuildAdoSheetTokenForRange = VBA.Left$(token, dollarPos)
+        sheetToken = VBA.Left$(token, dollarPos - 1)
+        private_BuildAdoSheetTokenForRange = private_NormalizeSheetTokenForAdo(sheetToken) & "$"
     Else
-        private_BuildAdoSheetTokenForRange = token & "$"
+        private_BuildAdoSheetTokenForRange = private_NormalizeSheetTokenForAdo(token) & "$"
     End If
 End Function
 
@@ -539,6 +705,7 @@ Private Function private_TryResolveMarkerCell( _
     End If
 
     If private_IsCellReferenceMarker(markerText) Then
+        ' Адресный маркер (например "$A5"): резолвим напрямую через Range.
         If Not private_TryGetCellByMarkerAddress(ws, markerText, outCell) Then
             outErrorText = "Cell marker '" & markerText & "' is invalid for worksheet '" & ws.Name & "'."
             Exit Function
@@ -547,6 +714,7 @@ Private Function private_TryResolveMarkerCell( _
         Exit Function
     End If
 
+    ' Текстовый маркер: берем первое полное совпадение на листе.
     Set outCell = private_FindFirstMarkerTextCell(ws, markerText)
     If outCell Is Nothing Then
         outErrorText = "Text marker '" & markerText & "' was not found on worksheet '" & ws.Name & "'."
@@ -590,54 +758,6 @@ Private Function private_FindFirstMarkerTextCell(ByVal ws As Worksheet, ByVal ma
         MatchCase:=False)
 End Function
 
-Private Function private_FindMarkerTextCellInColumnAfterRow( _
-    ByVal ws As Worksheet, _
-    ByVal markerColumn As Long, _
-    ByVal markerText As String, _
-    ByVal minExclusiveRow As Long _
-) As Range
-    Dim searchRange As Range
-    Dim firstFound As Range
-    Dim currentFound As Range
-    Dim firstAddress As String
-    Dim bestRow As Long
-
-    If ws Is Nothing Then Exit Function
-    If markerColumn <= 0 Then Exit Function
-    markerText = VBA.Trim$(markerText)
-    If VBA.Len(markerText) = 0 Then Exit Function
-
-    On Error Resume Next
-    Set searchRange = Intersect(ws.Columns(markerColumn), ws.UsedRange)
-    On Error GoTo 0
-    If searchRange Is Nothing Then Set searchRange = ws.Columns(markerColumn)
-
-    Set firstFound = searchRange.Find( _
-        What:=markerText, _
-        After:=searchRange.Cells(searchRange.Cells.Count), _
-        LookIn:=xlValues, _
-        LookAt:=xlWhole, _
-        SearchOrder:=xlByRows, _
-        SearchDirection:=xlNext, _
-        MatchCase:=False)
-    If firstFound Is Nothing Then Exit Function
-
-    bestRow = 0
-    firstAddress = firstFound.Address
-    Set currentFound = firstFound
-
-    Do
-        If currentFound.Row > minExclusiveRow Then
-            If bestRow = 0 Or currentFound.Row < bestRow Then
-                bestRow = currentFound.Row
-                Set private_FindMarkerTextCellInColumnAfterRow = currentFound
-            End If
-        End If
-        Set currentFound = searchRange.FindNext(currentFound)
-        If currentFound Is Nothing Then Exit Do
-    Loop While currentFound.Address <> firstAddress
-End Function
-
 Private Function private_FindMarkerTextCellAfterAnchor( _
     ByVal ws As Worksheet, _
     ByVal markerText As String, _
@@ -673,14 +793,15 @@ Private Function private_FindMarkerTextCellAfterAnchor( _
     Set currentFound = firstFound
 
     Do
-        If currentFound.Row > anchorCell.Row Or (currentFound.Row = anchorCell.Row And currentFound.Column >= anchorCell.Column) Then
+        ' Ищем текстовый end-маркер строго после anchor:
+        ' сначала следующая строка, а в пределах той же строки — следующая колонка.
+        If currentFound.Row > anchorCell.Row Or (currentFound.Row = anchorCell.Row And currentFound.Column > anchorCell.Column) Then
             currentWeight = CDbl(currentFound.Row) * 100000# + CDbl(currentFound.Column)
             If bestWeight < 0 Or currentWeight < bestWeight Then
                 bestWeight = currentWeight
                 Set private_FindMarkerTextCellAfterAnchor = currentFound
             End If
         End If
-
         Set currentFound = searchRange.FindNext(currentFound)
         If currentFound Is Nothing Then Exit Do
     Loop While currentFound.Address <> firstAddress
@@ -763,7 +884,36 @@ Private Function private_CleanAdoSchemaObjectName(ByVal value As String) As Stri
 
     cleaned = VBA.Replace$(cleaned, "]]", "]")
     cleaned = VBA.Replace$(cleaned, "'", VBA.vbNullString)
+    cleaned = VBA.Replace$(cleaned, "`", VBA.vbNullString)
     private_CleanAdoSchemaObjectName = VBA.Trim$(cleaned)
+End Function
+
+Private Function private_NormalizeSheetTokenForAdo(ByVal sheetToken As String) As String
+    sheetToken = private_CleanAdoSchemaObjectName(sheetToken)
+    sheetToken = VBA.Trim$(sheetToken)
+    If VBA.Len(sheetToken) = 0 Then Exit Function
+
+    ' Для ADO провайдера точка в имени листа обычно представляется как '#'.
+    private_NormalizeSheetTokenForAdo = VBA.Replace$(sheetToken, ".", "#")
+End Function
+
+Private Function private_NormalizeRawRangeSheetTokenForAdo(ByVal rawRangeRef As String) As String
+    Dim dollarPos As Long
+    Dim sheetToken As String
+    Dim rangeTail As String
+
+    rawRangeRef = VBA.Trim$(rawRangeRef)
+    If VBA.Len(rawRangeRef) = 0 Then Exit Function
+
+    dollarPos = VBA.InStr(1, rawRangeRef, "$", VBA.vbBinaryCompare)
+    If dollarPos <= 0 Then
+        private_NormalizeRawRangeSheetTokenForAdo = private_NormalizeSheetTokenForAdo(rawRangeRef)
+        Exit Function
+    End If
+
+    sheetToken = VBA.Left$(rawRangeRef, dollarPos - 1)
+    rangeTail = VBA.Mid$(rawRangeRef, dollarPos)
+    private_NormalizeRawRangeSheetTokenForAdo = private_NormalizeSheetTokenForAdo(sheetToken) & rangeTail
 End Function
 
 Private Function private_QuoteSqlIdentifier(ByVal valueText As String) As String
@@ -775,6 +925,29 @@ Private Function private_QuoteSqlIdentifier(ByVal valueText As String) As String
     End If
 
     private_QuoteSqlIdentifier = "[" & VBA.Replace$(valueText, "]", "]]" ) & "]"
+End Function
+
+Private Function private_IsExplicitAdoRangeReference(ByVal valueText As String) As Boolean
+    valueText = VBA.Trim$(valueText)
+    If VBA.InStr(1, valueText, "$", VBA.vbBinaryCompare) <= 0 Then Exit Function
+    If VBA.InStr(1, valueText, ":", VBA.vbBinaryCompare) <= 0 Then Exit Function
+    private_IsExplicitAdoRangeReference = True
+End Function
+
+Private Function private_QuoteExplicitRangeTableRef(ByVal rawRangeRef As String) As String
+    rawRangeRef = VBA.Trim$(rawRangeRef)
+    If VBA.Len(rawRangeRef) = 0 Then Exit Function
+
+    If VBA.Left$(rawRangeRef, 1) = "[" And VBA.Right$(rawRangeRef, 1) = "]" Then
+        rawRangeRef = VBA.Mid$(rawRangeRef, 2, VBA.Len(rawRangeRef) - 2)
+    End If
+    If VBA.Left$(rawRangeRef, 1) = "'" And VBA.Right$(rawRangeRef, 1) = "'" Then
+        rawRangeRef = VBA.Mid$(rawRangeRef, 2, VBA.Len(rawRangeRef) - 2)
+    End If
+
+    rawRangeRef = private_NormalizeRawRangeSheetTokenForAdo(rawRangeRef)
+
+    private_QuoteExplicitRangeTableRef = private_QuoteSqlIdentifier(rawRangeRef)
 End Function
 
 Private Function private_TryResolveHeaderInRecordset( _
@@ -923,4 +1096,32 @@ Private Function private_ToSafeText(ByVal valueIn As Variant) As String
 
 EH_SAFE_TEXT:
     private_ToSafeText = VBA.vbNullString
+End Function
+
+Private Function private_TryReadRecordsetFieldText( _
+    ByVal rsData As Object, _
+    ByVal fieldOrdinal As Long, _
+    ByRef outText As String, _
+    ByRef outErrorText As String _
+) As Boolean
+    On Error GoTo EH_READ_FIELD
+
+    outText = VBA.vbNullString
+    outErrorText = VBA.vbNullString
+
+    If rsData Is Nothing Then
+        outErrorText = "Recordset is Nothing."
+        Exit Function
+    End If
+    If fieldOrdinal < 0 Then
+        outErrorText = "Field ordinal is invalid: " & VBA.CStr(fieldOrdinal)
+        Exit Function
+    End If
+
+    outText = private_ToSafeText(rsData.Fields(fieldOrdinal).Value)
+    private_TryReadRecordsetFieldText = True
+    Exit Function
+
+EH_READ_FIELD:
+    outErrorText = "[" & VBA.CStr(Err.Number) & "] " & Err.Description
 End Function

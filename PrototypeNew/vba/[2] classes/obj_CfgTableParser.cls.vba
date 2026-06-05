@@ -29,11 +29,20 @@ End Sub
 ' //
 ' // API
 ' //
-Public Function Initialize(ByVal cfgParserBase As obj_CfgParserBase) As Boolean
+Public Function Initialize( _
+    ByVal configTable As obj_ConfigTable, _
+    Optional ByVal resolverDataContext As Object = Nothing _
+) As Boolean
     m_IsDisposed = False
-    Set m_CfgParserBase = cfgParserBase
-    Initialize = Not m_CfgParserBase Is Nothing
+    If m_CfgParserBase Is Nothing Then Set m_CfgParserBase = New obj_CfgParserBase
+    If m_CfgParserBase Is Nothing Then Exit Function
+    If Not m_CfgParserBase.Initialize(configTable, resolverDataContext) Then Exit Function
+    Initialize = True
 End Function
+
+Public Property Get CfgParserBase() As obj_CfgParserBase
+    Set CfgParserBase = m_CfgParserBase
+End Property
 
 Public Sub Dispose()
     If m_IsDisposed Then Exit Sub
@@ -205,27 +214,12 @@ Private Function private_TryResolveSourcePath( _
     ByRef outSourcePath As String _
 ) As Boolean
     Dim pathKey As String
-    Dim resolverKey As String
-    Dim resolverArgsKey As String
-    Dim sourcePathRaw As String
     Dim sourcePathResolved As String
-    Dim resolverName As String
-    Dim resolverArgs As String
 
     outSourcePath = VBA.vbNullString
     pathKey = "Source." & sourceAlias & ".FilePath"
 
-    If Not m_CfgParserBase.TryGetRequiredConfigValue(cfgMap, pathKey, sourcePathRaw) Then Exit Function
-
-    resolverKey = "Source." & sourceAlias & ".FileResolver"
-    resolverArgsKey = "Source." & sourceAlias & ".FileResolverArgs"
-    resolverName = m_CfgParserBase.GetOptionalConfigValue(cfgMap, resolverKey)
-    resolverArgs = m_CfgParserBase.GetOptionalConfigValue(cfgMap, resolverArgsKey)
-
-    sourcePathResolved = sourcePathRaw
-    If VBA.Len(resolverName) > 0 Then
-        If Not m_CfgParserBase.TryResolveWithOptionalResolver(sourcePathRaw, resolverName, resolverArgs, sourcePathResolved) Then Exit Function
-    End If
+    If Not m_CfgParserBase.TryGetRequiredConfigValue(cfgMap, pathKey, sourcePathResolved) Then Exit Function
 
     outSourcePath = m_CfgParserBase.ResolvePathLocal(sourcePathResolved)
     private_TryResolveSourcePath = (VBA.Len(outSourcePath) > 0)
@@ -236,22 +230,11 @@ Private Function private_TryResolveSheetName( _
     ByVal tablePathPrefix As String, _
     ByRef outSheetName As String _
 ) As Boolean
-    Dim sheetNameRaw As String
     Dim sheetNameResolved As String
-    Dim resolverName As String
-    Dim resolverArgs As String
 
     outSheetName = VBA.vbNullString
 
-    If Not m_CfgParserBase.TryGetRequiredConfigValue(cfgMap, tablePathPrefix & "SheetName", sheetNameRaw) Then Exit Function
-
-    resolverName = m_CfgParserBase.GetOptionalConfigValue(cfgMap, tablePathPrefix & "SheetNameResolver")
-    resolverArgs = m_CfgParserBase.GetOptionalConfigValue(cfgMap, tablePathPrefix & "SheetNameResolverArgs")
-
-    sheetNameResolved = sheetNameRaw
-    If VBA.Len(resolverName) > 0 Then
-        If Not m_CfgParserBase.TryResolveWithOptionalResolver(sheetNameRaw, resolverName, resolverArgs, sheetNameResolved) Then Exit Function
-    End If
+    If Not m_CfgParserBase.TryGetRequiredConfigValue(cfgMap, tablePathPrefix & "SheetName", sheetNameResolved) Then Exit Function
 
     outSheetName = sheetNameResolved
     private_TryResolveSheetName = (VBA.Len(outSheetName) > 0)
