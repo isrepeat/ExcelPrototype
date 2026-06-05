@@ -14,6 +14,8 @@ Private m_RangeEndMarker As String
 Private m_WhereConditions As String
 Private m_SourceColumnHeaders As Collection
 Private m_MappedColumnHeaders As Collection
+Private m_ColumnAliases As Collection
+Private m_RowProcessor As obj_ISqlRowProcessor
 Private m_IsDisposed As Boolean
 
 Private Sub Class_Initialize()
@@ -22,6 +24,7 @@ Private Sub Class_Initialize()
 #End If
     Set m_SourceColumnHeaders = New Collection
     Set m_MappedColumnHeaders = New Collection
+    Set m_ColumnAliases = New Collection
 End Sub
 
 Private Sub Class_Terminate()
@@ -87,9 +90,22 @@ Public Property Get MappedColumnHeaders() As Collection
     Set MappedColumnHeaders = m_MappedColumnHeaders
 End Property
 
+Public Property Get ColumnAliases() As Collection
+    If m_ColumnAliases Is Nothing Then Set m_ColumnAliases = New Collection
+    Set ColumnAliases = m_ColumnAliases
+End Property
+
 Public Property Get ColumnCount() As Long
     If m_SourceColumnHeaders Is Nothing Then Exit Property
     ColumnCount = m_SourceColumnHeaders.Count
+End Property
+
+Public Property Get RowProcessor() As obj_ISqlRowProcessor
+    Set RowProcessor = m_RowProcessor
+End Property
+
+Public Property Set RowProcessor(ByVal value As obj_ISqlRowProcessor)
+    Set m_RowProcessor = value
 End Property
 
 ' //
@@ -104,6 +120,8 @@ Public Function Initialize() As Boolean
     m_WhereConditions = VBA.vbNullString
     Set m_SourceColumnHeaders = New Collection
     Set m_MappedColumnHeaders = New Collection
+    Set m_ColumnAliases = New Collection
+    Set m_RowProcessor = Nothing
     Initialize = True
 End Function
 
@@ -117,15 +135,19 @@ Public Sub Dispose()
     On Error Resume Next
     Set m_SourceColumnHeaders = Nothing
     Set m_MappedColumnHeaders = Nothing
+    Set m_ColumnAliases = Nothing
+    Set m_RowProcessor = Nothing
     On Error GoTo 0
 End Sub
 
 Public Function AddColumnMapping( _
     ByVal sourceColumnHeader As String, _
-    Optional ByVal mappedColumnHeader As String = VBA.vbNullString _
+    Optional ByVal mappedColumnHeader As String = VBA.vbNullString, _
+    Optional ByVal columnAlias As String = VBA.vbNullString _
 ) As Boolean
     sourceColumnHeader = VBA.Trim$(sourceColumnHeader)
     mappedColumnHeader = VBA.Trim$(mappedColumnHeader)
+    columnAlias = VBA.Trim$(columnAlias)
 
     If VBA.Len(sourceColumnHeader) = 0 Then
 #If LOGGING_DEBUG_ENABLED Then
@@ -138,15 +160,18 @@ Public Function AddColumnMapping( _
 
     If m_SourceColumnHeaders Is Nothing Then Set m_SourceColumnHeaders = New Collection
     If m_MappedColumnHeaders Is Nothing Then Set m_MappedColumnHeaders = New Collection
+    If m_ColumnAliases Is Nothing Then Set m_ColumnAliases = New Collection
 
     m_SourceColumnHeaders.Add sourceColumnHeader
     m_MappedColumnHeaders.Add mappedColumnHeader
+    m_ColumnAliases.Add columnAlias
     AddColumnMapping = True
 End Function
 
 Public Function ClearColumnMappings() As Boolean
     Set m_SourceColumnHeaders = New Collection
     Set m_MappedColumnHeaders = New Collection
+    Set m_ColumnAliases = New Collection
     ClearColumnMappings = True
 End Function
 
@@ -168,7 +193,7 @@ Public Function TryValidate(ByRef outErrorText As String) As Boolean
         Exit Function
     End If
 
-    If m_SourceColumnHeaders Is Nothing Or m_MappedColumnHeaders Is Nothing Then
+    If m_SourceColumnHeaders Is Nothing Or m_MappedColumnHeaders Is Nothing Or m_ColumnAliases Is Nothing Then
         outErrorText = "Column mappings are not initialized."
         Exit Function
     End If
@@ -180,6 +205,10 @@ Public Function TryValidate(ByRef outErrorText As String) As Boolean
 
     If m_SourceColumnHeaders.Count <> m_MappedColumnHeaders.Count Then
         outErrorText = "SourceColumnHeaders and MappedColumnHeaders counts must match."
+        Exit Function
+    End If
+    If m_SourceColumnHeaders.Count <> m_ColumnAliases.Count Then
+        outErrorText = "SourceColumnHeaders and ColumnAliases counts must match."
         Exit Function
     End If
 
@@ -195,7 +224,9 @@ Public Function fn_ToString() As String
         "RangeEndMarker=" & private_QuoteValue(m_RangeEndMarker) & "; " & _
         "WhereConditions=" & private_QuoteValue(m_WhereConditions) & "; " & _
         "SourceColumnHeaders=[" & private_CollectionToDelimitedText(m_SourceColumnHeaders, ", ") & "]; " & _
-        "MappedColumnHeaders=[" & private_CollectionToDelimitedText(m_MappedColumnHeaders, ", ") & "]" & _
+        "MappedColumnHeaders=[" & private_CollectionToDelimitedText(m_MappedColumnHeaders, ", ") & "]; " & _
+        "ColumnAliases=[" & private_CollectionToDelimitedText(m_ColumnAliases, ", ") & "]; " & _
+        "RowProcessor=" & private_RowProcessorToString() & _
         "}"
 End Function
 
@@ -221,4 +252,13 @@ End Function
 
 Private Function private_QuoteValue(ByVal valueText As String) As String
     private_QuoteValue = """" & VBA.Replace$(VBA.CStr(valueText), """", "'") & """"
+End Function
+
+Private Function private_RowProcessorToString() As String
+    If m_RowProcessor Is Nothing Then
+        private_RowProcessorToString = "<none>"
+        Exit Function
+    End If
+
+    private_RowProcessorToString = private_QuoteValue(VBA.TypeName(m_RowProcessor))
 End Function

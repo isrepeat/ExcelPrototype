@@ -16,7 +16,7 @@ Private m_Page As obj_IPage
 Private m_ConfigTable As obj_ConfigTable
 ' Парсер конфига вынесен в отдельную зависимость:
 ' контроллер оркестрирует сценарий, парсер извлекает SQL-параметры из конфига.
-Private m_CfgPersonalCardParser As obj_CfgPersonalCardParser
+Private m_PersonalCardCfgParser As obj_PersonalCardCfgParser
 Private m_IsDataReady As Boolean
 Private m_IsDisposed As Boolean
 
@@ -32,7 +32,7 @@ Private Sub Class_Terminate()
 #End If
     If m_IsDisposed Then Exit Sub
     On Error Resume Next
-    Dispose
+    Me.Dispose
     On Error GoTo 0
 End Sub
 
@@ -72,7 +72,7 @@ Public Function Initialize( _
     m_IsDisposed = False
     Set m_Page = page
     Set m_ConfigTable = Nothing
-    Set m_CfgPersonalCardParser = Nothing
+    Set m_PersonalCardCfgParser = Nothing
     m_IsDataReady = False
     Set pageBase = m_Page.GetPageBase()
 
@@ -90,8 +90,8 @@ Public Sub Dispose()
     On Error Resume Next
     m_IsDataReady = False
     ' Явно закрываем жизненный цикл парсера.
-    If Not m_CfgPersonalCardParser Is Nothing Then m_CfgPersonalCardParser.Dispose
-    Set m_CfgPersonalCardParser = Nothing
+    If Not m_PersonalCardCfgParser Is Nothing Then m_PersonalCardCfgParser.Dispose
+    Set m_PersonalCardCfgParser = Nothing
     Set m_ConfigTable = Nothing
     Set m_Page = Nothing
     On Error GoTo 0
@@ -99,7 +99,7 @@ End Sub
 
 Public Function UpdateData(ByVal configControl As obj_ConfigControlVM) As Boolean
     Dim configTable As obj_ConfigTable
-    Dim cfgParser As obj_CfgPersonalCardParser
+    Dim cfgParser As obj_PersonalCardCfgParser
 
     If configControl Is Nothing Then
 #If LOGGING_DEBUG_ENABLED Then
@@ -111,15 +111,15 @@ Public Function UpdateData(ByVal configControl As obj_ConfigControlVM) As Boolea
     If Not configControl.TryBuildConfigTableFromRendered(configTable) Then Exit Function
     If configTable Is Nothing Then Exit Function
 
-    Set cfgParser = New obj_CfgPersonalCardParser
+    Set cfgParser = New obj_PersonalCardCfgParser
     If Not cfgParser.Initialize(configTable) Then Exit Function
 
     On Error Resume Next
-    If Not m_CfgPersonalCardParser Is Nothing Then m_CfgPersonalCardParser.Dispose
+    If Not m_PersonalCardCfgParser Is Nothing Then m_PersonalCardCfgParser.Dispose
     On Error GoTo 0
 
     Set m_ConfigTable = configTable
-    Set m_CfgPersonalCardParser = cfgParser
+    Set m_PersonalCardCfgParser = cfgParser
     UpdateData = True
 End Function
 
@@ -131,7 +131,7 @@ Public Function RunPipeline( _
 #End If
     If m_Page Is Nothing Then Exit Function
 
-    If Not PrepareSqlTablesRuntime(False) Then Exit Function
+    If Not Me.PrepareSqlTablesRuntime(False) Then Exit Function
     If notifyChange Then
         If Not rt_PageManager.fn_RenderPage(m_Page, "personalcard:run-pipeline") Then Exit Function
     End If
@@ -198,6 +198,9 @@ Public Function PrepareSqlTablesRuntime( _
     PrepareSqlTablesRuntime = True
 End Function
 
+' //
+' // Internal
+' //
 Private Function private_RegisterDemoTableItems( _
     ByVal notifyChange As Boolean _
 ) As Boolean
@@ -337,7 +340,7 @@ Private Function private_CreateDemoTable( _
         colObj.Position = colIndex + 1
         colObj.Name = VBA.Trim$(VBA.CStr(headerTokens(colIndex)))
         If VBA.Len(colObj.Name) = 0 Then colObj.Name = "Col" & VBA.CStr(colObj.Position)
-        If Not tableObj.AddColumn(colObj) Then Exit Function
+        If Not tableObj.PushColumn(colObj) Then Exit Function
     Next colIndex
 
     If rows Is Nothing Then
@@ -359,7 +362,7 @@ Private Function private_CreateDemoTable( _
             Exit Function
         End If
 
-        If Not tableObj.AddRow(rowObj) Then Exit Function
+        If Not tableObj.PushRow(rowObj) Then Exit Function
     Next rowObj
 
     Set private_CreateDemoTable = tableObj
@@ -377,13 +380,13 @@ Private Function private_CreateDemoRowModel( _
     Dim rowObj As obj_Row
 
     Set rowObj = New obj_Row
-    rowObj.AddCell c1
-    rowObj.AddCell c2
-    rowObj.AddCell c3
-    rowObj.AddCell c4
-    rowObj.AddCell c5
-    rowObj.AddCell c6
-    rowObj.AddCell c7
+    rowObj.PushCellRaw c1
+    rowObj.PushCellRaw c2
+    rowObj.PushCellRaw c3
+    rowObj.PushCellRaw c4
+    rowObj.PushCellRaw c5
+    rowObj.PushCellRaw c6
+    rowObj.PushCellRaw c7
 
     Set private_CreateDemoRowModel = rowObj
 End Function
@@ -429,10 +432,29 @@ Private Function private_BuildTablesFromConfigTable() As Collection
     Set result = New Collection
 
     ' 1) Парсим конфиг и собираем SQL-параметры для всех таблиц,
-    ' объявленных в Source.*.SheetAliases.
-    If m_CfgPersonalCardParser Is Nothing Then Exit Function
-    If Not m_CfgPersonalCardParser.TryBuildAllSqlParams(sqlParamsItems) Then Exit Function
-    If sqlParamsItems Is Nothing Then Exit Function
+    ' объявленных в Source.*.SheetsAliases.
+    If m_PersonalCardCfgParser Is Nothing Then
+#If LOGGING_DEBUG_ENABLED Then
+        ex_Core.fn_Diagnostic_LogError "PersonalCard: SQL table build failed because config parser is not initialized."
+#End If
+        Exit Function
+    End If
+    If Not m_PersonalCardCfgParser.TryBuildAllSqlParams(sqlParamsItems) Then
+#If LOGGING_DEBUG_ENABLED Then
+        ex_Core.fn_Diagnostic_LogError "PersonalCard: failed to build SQL params from config table."
+#End If
+        Exit Function
+    End If
+    If sqlParamsItems Is Nothing Then
+#If LOGGING_DEBUG_ENABLED Then
+        ex_Core.fn_Diagnostic_LogError "PersonalCard: SQL params collection is Nothing."
+#End If
+        Exit Function
+    End If
+
+#If LOGGING_DEBUG_ENABLED Then
+    ex_Core.fn_Diagnostic_LogInfo "PersonalCard: SQL params count=" & VBA.CStr(sqlParamsItems.Count)
+#End If
 
     ' 2) Для каждой таблицы выполняем запрос через общий SQL-движок.
     For Each sqlParamsObj In sqlParamsItems
@@ -440,14 +462,29 @@ Private Function private_BuildTablesFromConfigTable() As Collection
         Set sqlParams = sqlParamsObj
         If sqlParams Is Nothing Then GoTo ContinueSqlParams
 
+#If LOGGING_DEBUG_ENABLED Then
+        ex_Core.fn_Diagnostic_LogInfo "PersonalCard: SQL request start " & sqlParams.fn_ToString()
+#End If
         Set sqlTable = Nothing
-        If Not ex_ExternalExcelSqlEngine.fn_TrySqlRequest(sqlParams, sqlTable) Then Exit Function
+        If Not ex_ExternalExcelSqlEngine.fn_TrySqlRequest(sqlParams, sqlTable) Then
+#If LOGGING_DEBUG_ENABLED Then
+            ex_Core.fn_Diagnostic_LogError "PersonalCard: SQL request failed " & sqlParams.fn_ToString()
+#End If
+            Exit Function
+        End If
 
         If Not sqlTable Is Nothing Then
             ' 3) Применяем метаданные отображения (title) и публикуем непустой результат.
             sectionTitle = private_BuildSectionTitleFromSqlParams(sqlParams)
             If VBA.Len(sectionTitle) > 0 Then sqlTable.SectionTitle = sectionTitle
             If sqlTable.RowCount > 0 Then result.Add sqlTable
+#If LOGGING_DEBUG_ENABLED Then
+            ex_Core.fn_Diagnostic_LogInfo "PersonalCard: SQL request done rows=" & VBA.CStr(sqlTable.RowCount) & "; columns=" & VBA.CStr(sqlTable.ColumnCount)
+#End If
+        Else
+#If LOGGING_DEBUG_ENABLED Then
+            ex_Core.fn_Diagnostic_LogInfo "PersonalCard: SQL request returned no table " & sqlParams.fn_ToString()
+#End If
         End If
 ContinueSqlParams:
     Next sqlParamsObj
