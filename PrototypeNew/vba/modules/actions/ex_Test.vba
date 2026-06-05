@@ -392,7 +392,7 @@ Public Function fn_TEST_BuildDemoTableViewItems( _
     Dim sourceTableObj As Variant
     Dim tableDynamic As obj_TableDynamic
     Dim tableViewItem As obj_TableViewItem
-    Dim rowViews As list__obj_RowViewItem
+    Dim rowViewItems As list__obj_RowViewItem
     Dim rowViewItem As obj_RowViewItem
     Dim rowViewIndex As Long
     Dim tableIndex As Long
@@ -433,9 +433,9 @@ Public Function fn_TEST_BuildDemoTableViewItems( _
         End If
 
         rowIndex = 0
-        Set rowViews = tableViewItem.RowItems
-        For rowViewIndex = 1 To rowViews.Count
-            Set rowViewItem = rowViews.Item(rowViewIndex)
+        Set rowViewItems = tableViewItem.RowViewItems
+        For rowViewIndex = 1 To rowViewItems.Count
+            Set rowViewItem = rowViewItems.Item(rowViewIndex)
             If rowViewItem Is Nothing Then GoTo ContinueRowViewItem
             rowIndex = rowIndex + 1
 
@@ -471,7 +471,7 @@ Public Function fn_TEST_BuildDemoSingleTableViewItems( _
     Dim sourceTableObj As Variant
     Dim tableDynamic As obj_TableDynamic
     Dim tableViewItem As obj_TableViewItem
-    Dim rowViews As list__obj_RowViewItem
+    Dim rowViewItems As list__obj_RowViewItem
     Dim rowViewItem As obj_RowViewItem
     Dim rowIndex As Long
     Dim rowViewIndex As Long
@@ -495,9 +495,9 @@ Public Function fn_TEST_BuildDemoSingleTableViewItems( _
         End If
 
         rowIndex = 0
-        Set rowViews = tableViewItem.RowItems
-        For rowViewIndex = 1 To rowViews.Count
-            Set rowViewItem = rowViews.Item(rowViewIndex)
+        Set rowViewItems = tableViewItem.RowViewItems
+        For rowViewIndex = 1 To rowViewItems.Count
+            Set rowViewItem = rowViewItems.Item(rowViewIndex)
             If rowViewItem Is Nothing Then GoTo ContinueSingleRowViewItem
             rowIndex = rowIndex + 1
 
@@ -546,7 +546,7 @@ Public Function fn_TEST_BuildDemoSingleTableItems() As Collection
             For sourceColumnIndex = 1 To sourceTable.Columns.Count
                 Set sourceColumn = sourceTable.Columns.Item(sourceColumnIndex)
                 If sourceColumn Is Nothing Then GoTo ContinueMergedSourceColumn
-                If Not mergedTable.AddColumn(sourceColumn) Then Exit Function
+                If Not mergedTable.PushColumn(sourceColumn) Then Exit Function
 ContinueMergedSourceColumn:
             Next sourceColumnIndex
         End If
@@ -563,10 +563,10 @@ ContinueMergedSourceColumn:
 
             Set targetRow = New obj_Row
             For i = 1 To mergedTable.ColumnCount
-                targetRow.AddCell sourceRow.GetCell(i)
+                targetRow.PushCellRaw sourceRow.GetCellValue(i)
             Next i
 
-            If Not mergedTable.AddRow(targetRow) Then Exit Function
+            If Not mergedTable.PushRow(targetRow) Then Exit Function
 ContinueMergedSourceRow:
         Next sourceRowIndex
     Next sourceTableObj
@@ -822,6 +822,8 @@ Private Function private_TryResolveDemoTableDynamic(ByVal tableObj As Variant, B
     Dim tableDynamic As obj_TableDynamic
     Dim targetColumn As obj_Column
     Dim targetRow As obj_Row
+    Dim sourceAliases As Collection
+    Dim aliasItem As Variant
     Dim i As Long
     Dim sourceColumnIndex As Long
     Dim sourceRowIndex As Long
@@ -849,7 +851,13 @@ Private Function private_TryResolveDemoTableDynamic(ByVal tableObj As Variant, B
                 Set targetColumn = New obj_Column
                 targetColumn.Name = sourceColumn.Name
                 targetColumn.Position = sourceColumn.Position
-                If Not tableDynamic.AddColumn(targetColumn) Then Exit Function
+                Set sourceAliases = sourceColumn.Aliases
+                If Not sourceAliases Is Nothing Then
+                    For Each aliasItem In sourceAliases
+                        If Not targetColumn.AddAlias(VBA.CStr(aliasItem)) Then Exit Function
+                    Next aliasItem
+                End If
+                If Not tableDynamic.PushColumn(targetColumn) Then Exit Function
 ContinueResolveColumn:
             Next sourceColumnIndex
 
@@ -858,9 +866,9 @@ ContinueResolveColumn:
                 If sourceRow Is Nothing Then GoTo ContinueResolveRow
                 Set targetRow = New obj_Row
                 For i = 1 To tableDynamic.ColumnCount
-                    targetRow.AddCell sourceRow.GetCell(i)
+                    targetRow.PushCellRaw sourceRow.GetCellValue(i)
                 Next i
-                If Not tableDynamic.AddRow(targetRow) Then Exit Function
+                If Not tableDynamic.PushRow(targetRow) Then Exit Function
 ContinueResolveRow:
             Next sourceRowIndex
 
@@ -895,7 +903,7 @@ Private Function private_CreateDemoTable( _
         colObj.Position = colIndex + 1
         colObj.Name = VBA.Trim$(VBA.CStr(headerTokens(colIndex)))
         If VBA.Len(colObj.Name) = 0 Then colObj.Name = "Col" & VBA.CStr(colObj.Position)
-        If Not tableObj.AddColumn(colObj) Then Exit Function
+        If Not tableObj.PushColumn(colObj) Then Exit Function
     Next colIndex
 
     If rows Is Nothing Then
@@ -917,7 +925,7 @@ Private Function private_CreateDemoTable( _
             Exit Function
         End If
 
-        If Not tableObj.AddRow(rowObj) Then Exit Function
+        If Not tableObj.PushRow(rowObj) Then Exit Function
     Next rowObj
 
     Set private_CreateDemoTable = tableObj
@@ -964,13 +972,13 @@ Private Function private_CreateDemoRowModel( _
     Dim rowObj As obj_Row
 
     Set rowObj = New obj_Row
-    rowObj.AddCell c1
-    rowObj.AddCell c2
-    rowObj.AddCell c3
-    rowObj.AddCell c4
-    rowObj.AddCell c5
-    rowObj.AddCell c6
-    rowObj.AddCell c7
+    rowObj.PushCellRaw c1
+    rowObj.PushCellRaw c2
+    rowObj.PushCellRaw c3
+    rowObj.PushCellRaw c4
+    rowObj.PushCellRaw c5
+    rowObj.PushCellRaw c6
+    rowObj.PushCellRaw c7
 
     Set private_CreateDemoRowModel = rowObj
 End Function
