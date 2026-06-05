@@ -6,12 +6,12 @@ Attribute VB_Name = "obj_Table"
 Option Explicit
 #Const LOGGING_DEBUG_ENABLED = True
 #Const LOGGING_VERBOSE_ENABLED = False
-Private m_IsDisposed As Boolean
 
 Private m_SectionTitle As String
 Private m_Columns As list__obj_Column
 Private m_Rows As list__obj_Row
 Private m_IsInitialized As Boolean
+Private m_IsDisposed As Boolean
 
 Private Sub Class_Initialize()
 #If LOGGING_VERBOSE_ENABLED Then
@@ -20,15 +20,61 @@ Private Sub Class_Initialize()
     Set m_Columns = New list__obj_Column
     Set m_Rows = New list__obj_Row
 End Sub
+
 Private Sub Class_Terminate()
 #If LOGGING_VERBOSE_ENABLED Then
     ex_Core.fn_Diagnostic_LogInfo "lifecycle:" & VBA.TypeName(Me) & ".Class_Terminate"
 #End If
     If m_IsDisposed Then Exit Sub
     On Error Resume Next
-    Dispose
+    Me.Dispose
     On Error GoTo 0
 End Sub
+
+' //
+' // Properties
+' //
+Public Property Get IsInitialized() As Boolean
+    IsInitialized = m_IsInitialized
+End Property
+
+Public Property Get SectionTitle() As String
+    SectionTitle = m_SectionTitle
+End Property
+
+Public Property Let SectionTitle(ByVal value As String)
+    m_SectionTitle = VBA.CStr(value)
+End Property
+
+Public Property Get ColumnCount() As Long
+    ColumnCount = m_Columns.Count
+End Property
+
+Public Property Get RowCount() As Long
+    RowCount = m_Rows.Count
+End Property
+
+Public Property Get Columns() As list__obj_Column
+    Set Columns = m_Columns
+End Property
+
+Public Property Get Rows() As list__obj_Row
+    Set Rows = m_Rows
+End Property
+
+Public Property Get HeaderText() As String
+    Dim i As Long
+    Dim colObj As obj_Column
+    Dim joined As String
+
+    For i = 1 To m_Columns.Count
+        Set colObj = m_Columns.Item(i)
+        If i > 1 Then joined = joined & " | "
+        joined = joined & colObj.Name
+    Next i
+
+    HeaderText = joined
+End Property
 
 ' //
 ' // API
@@ -39,6 +85,7 @@ Public Function Initialize() As Boolean
 #End If
     Initialize = True
 End Function
+
 Public Sub Dispose()
 #If LOGGING_VERBOSE_ENABLED Then
     ex_Core.fn_Diagnostic_LogInfo "lifecycle:" & VBA.TypeName(Me) & ".Dispose"
@@ -91,50 +138,11 @@ Public Function Init(ByVal rowCount As Long, ByVal columnCount As Long) As Boole
     Init = True
 End Function
 
-Public Property Get IsInitialized() As Boolean
-    IsInitialized = m_IsInitialized
-End Property
-
-Public Property Get SectionTitle() As String
-    SectionTitle = m_SectionTitle
-End Property
-
-Public Property Let SectionTitle(ByVal value As String)
-    m_SectionTitle = VBA.CStr(value)
-End Property
-
-Public Property Get ColumnCount() As Long
-    ColumnCount = m_Columns.Count
-End Property
-
-Public Property Get RowCount() As Long
-    RowCount = m_Rows.Count
-End Property
-
-Public Property Get Columns() As list__obj_Column
-    Set Columns = m_Columns
-End Property
-
-Public Property Get Rows() As list__obj_Row
-    Set Rows = m_Rows
-End Property
-
-Public Property Get HeaderText() As String
-    Dim i As Long
-    Dim colObj As obj_Column
-    Dim joined As String
-
-    For i = 1 To m_Columns.Count
-        Set colObj = m_Columns.Item(i)
-        If i > 1 Then joined = joined & " | "
-        joined = joined & colObj.Name
-    Next i
-
-    HeaderText = joined
-End Property
 
 Public Function SetColumn(ByVal columnIndex As Long, ByVal tableColumn As obj_Column) As Boolean
     Dim targetColumn As obj_Column
+    Dim aliasItem As Variant
+    Dim aliases As Collection
 
     If Not m_IsInitialized Then
 #If LOGGING_DEBUG_ENABLED Then
@@ -159,6 +167,13 @@ Public Function SetColumn(ByVal columnIndex As Long, ByVal tableColumn As obj_Co
     targetColumn.Name = tableColumn.Name
     If VBA.Len(targetColumn.Name) = 0 Then targetColumn.Name = "Col" & VBA.CStr(columnIndex)
     targetColumn.Position = columnIndex
+    targetColumn.ClearAliases
+    Set aliases = tableColumn.Aliases
+    If Not aliases Is Nothing Then
+        For Each aliasItem In aliases
+            If Not targetColumn.AddAlias(VBA.CStr(aliasItem)) Then Exit Function
+        Next aliasItem
+    End If
 
     SetColumn = True
 End Function
@@ -189,7 +204,7 @@ Public Function SetRow(ByVal rowIndex As Long, ByVal tableRow As obj_Row) As Boo
     Set targetRow = m_Rows.Item(rowIndex)
 
     For i = 1 To m_Columns.Count
-        targetRow.SetCell i, tableRow.GetCell(i)
+        targetRow.SetCellRaw i, tableRow.GetCellValue(i)
     Next i
 
     SetRow = True
@@ -218,7 +233,7 @@ Public Function SetCell(ByVal rowIndex As Long, ByVal columnIndex As Long, ByVal
     End If
 
     Set targetRow = m_Rows.Item(rowIndex)
-    SetCell = targetRow.SetCell(columnIndex, value)
+    SetCell = targetRow.SetCellRaw(columnIndex, value)
 End Function
 
 ' //
@@ -228,7 +243,6 @@ Private Sub private_FillRowWithBlanks(ByVal tableRow As obj_Row, ByVal columnCou
     Dim i As Long
 
     For i = 1 To columnCount
-        tableRow.AddCell VBA.vbNullString
+        tableRow.PushCellRaw VBA.vbNullString
     Next i
 End Sub
-

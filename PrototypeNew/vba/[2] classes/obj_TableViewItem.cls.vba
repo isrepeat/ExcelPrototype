@@ -38,8 +38,8 @@ Public Property Set Banner(ByVal value As obj_BannerViewItem)
     Set m_BannerViewItem = value
 End Property
 
-Public Property Get RowItems() As list__obj_RowViewItem
-    Set RowItems = m_RowViewItems
+Public Property Get RowViewItems() As list__obj_RowViewItem
+    Set RowViewItems = m_RowViewItems
 End Property
 
 Public Property Get ItemVisible() As Boolean
@@ -232,4 +232,3 @@ Private Function private_IsVisibleResolved() As Boolean
 
     private_IsVisibleResolved = m_ViewPresentation.EffectiveVisible
 End Function
-

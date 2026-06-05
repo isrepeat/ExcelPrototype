@@ -639,6 +639,8 @@ Private Function private_ConvertFixedTableToDynamic(ByVal fixedTable As obj_Tabl
     Dim sourceRow As obj_Row
     Dim targetColumn As obj_Column
     Dim targetRow As obj_Row
+    Dim sourceAliases As Collection
+    Dim aliasItem As Variant
     Dim colIndex As Long
     Dim sourceColumnIndex As Long
     Dim sourceRowIndex As Long
@@ -660,7 +662,13 @@ Private Function private_ConvertFixedTableToDynamic(ByVal fixedTable As obj_Tabl
         Set targetColumn = New obj_Column
         targetColumn.Position = sourceColumn.Position
         targetColumn.Name = sourceColumn.Name
-        If Not tableDynamic.AddColumn(targetColumn) Then Exit Function
+        Set sourceAliases = sourceColumn.Aliases
+        If Not sourceAliases Is Nothing Then
+            For Each aliasItem In sourceAliases
+                If Not targetColumn.AddAlias(VBA.CStr(aliasItem)) Then Exit Function
+            Next aliasItem
+        End If
+        If Not tableDynamic.PushColumn(targetColumn) Then Exit Function
 ContinueSourceColumn:
     Next sourceColumnIndex
 
@@ -670,9 +678,9 @@ ContinueSourceColumn:
         If sourceRow Is Nothing Then GoTo ContinueSourceRowInFixedTable
         Set targetRow = New obj_Row
         For colIndex = 1 To tableDynamic.ColumnCount
-            targetRow.AddCell sourceRow.GetCell(colIndex)
+            targetRow.PushCellRaw sourceRow.GetCellValue(colIndex)
         Next colIndex
-        If Not tableDynamic.AddRow(targetRow) Then Exit Function
+        If Not tableDynamic.PushRow(targetRow) Then Exit Function
 ContinueSourceRowInFixedTable:
     Next sourceRowIndex
 
