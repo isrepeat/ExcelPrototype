@@ -163,10 +163,10 @@ Private Function ApplyStyleProfileSps(ws As Worksheet, headerScanLimit As Long) 
     Dim keepHeaders As Variant
     keepHeaders = Array( _
         "#", _
-        "Код посади", _
         "Військове звання", _
         "Прізвище, ім’я, по батькові", _
         "Повна назва посади", _
+        "Код посади", _
         "ІПН", _
         "Вид військової служби", _
         "Дата підписання контракту", _
@@ -191,14 +191,24 @@ Private Function ApplyStyleProfileSps(ws As Worksheet, headerScanLimit As Long) 
 
     Dim lastCol As Long
     Dim lastRow As Long
-    Dim moveInfo As String
+    Dim moveInfoIpn As String
+    Dim moveInfoCode As String
+    Dim moveInfoFullTitle As String
 
     lastCol = ws.Cells(headerRow, ws.Columns.Count).End(xlToLeft).Column
     lastRow = LastUsedRow(ws)
     If lastRow < 1 Then lastRow = 1
 
-    If Not MoveColumnAfterHeader(ws, headerRow, lastRow, "Повна назва посади", anchorHeaders, moveInfo) Then
-        Err.Raise vbObjectError + 1302, "ApplyStyleProfileSps", moveInfo
+    If Not MoveColumnAfterHeader(ws, headerRow, lastRow, "ІПН", anchorHeaders, moveInfoIpn) Then
+        Err.Raise vbObjectError + 1302, "ApplyStyleProfileSps", moveInfoIpn
+    End If
+
+    If Not MoveColumnAfterHeader(ws, headerRow, lastRow, "Код посади", Array("ІПН"), moveInfoCode) Then
+        Err.Raise vbObjectError + 1303, "ApplyStyleProfileSps", moveInfoCode
+    End If
+
+    If Not MoveColumnAfterHeader(ws, headerRow, lastRow, "Повна назва посади", Array("Код посади"), moveInfoFullTitle) Then
+        Err.Raise vbObjectError + 1304, "ApplyStyleProfileSps", moveInfoFullTitle
     End If
 
     lastCol = ws.Cells(headerRow, ws.Columns.Count).End(xlToLeft).Column
