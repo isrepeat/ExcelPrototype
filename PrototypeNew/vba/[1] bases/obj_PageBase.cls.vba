@@ -1055,7 +1055,7 @@ Public Function TryRestoreSerializableControlSnapshots(ByVal snapshots As Collec
     Dim controlKey As String
     Dim typeRoot As String
     Dim payloadXml As String
-    Dim iControl As obj_IControl
+    Dim registeredControl As Object
     Dim iSerializable As obj_ISerializable
 
     If Not private_EnsureNotDisposed("TryRestoreSerializableControlSnapshots") Then Exit Function
@@ -1064,11 +1064,9 @@ Public Function TryRestoreSerializableControlSnapshots(ByVal snapshots As Collec
         Exit Function
     End If
 
-    ' В restore-фазе страница уже отрисована.
-    ' Важно: нельзя удалять все serializable-контролы, иначе новые контролы,
-    ' которых еще нет в старом snapshot, выпадут из runtime-реестра/route-map.
-    ' Поэтому удаляем только те controlKey, которые реально присутствуют в snapshots.
-    If Not private_TryResetSnapshotControlsActions(snapshots) Then Exit Function
+    ' В restore-фазе страница уже отрисована из актуального UI-контракта.
+    ' Поэтому snapshot не должен пересоздавать controls или удалять свежие routes:
+    ' он только достраивает runtime-state уже зарегистрированных controls.
 
     For Each item In snapshots
         snapshotXml = VBA.Trim$(VBA.CStr(item))
@@ -1082,9 +1080,17 @@ Public Function TryRestoreSerializableControlSnapshots(ByVal snapshots As Collec
         If VBA.Len(typeRoot) = 0 Then GoTo ContinueSnapshot
         If VBA.Len(payloadXml) = 0 Then GoTo ContinueSnapshot
 
-        Set iControl = ex_ControlFactory.fn_CreateControlByTypeRoot(typeRoot, m_Page)
-        If iControl Is Nothing Then GoTo ContinueSnapshot
-        If Not private_TryCastSerializableControl(iControl, iSerializable) Then GoTo ContinueSnapshot
+        Set registeredControl = Nothing
+        If Not Me.TryGetRegisteredControlByKey(controlKey, registeredControl) Then
+#If LOGGING_DEBUG_ENABLED Then
+            ex_Core.fn_Diagnostic_LogWarning _
+                "page-base:restore-control-snapshot skipped control-not-rendered key='" & _
+                private_EscapeForLog(controlKey) & "' type='" & private_EscapeForLog(typeRoot) & "'"
+#End If
+            GoTo ContinueSnapshot
+        End If
+        If registeredControl Is Nothing Then GoTo ContinueSnapshot
+        If Not private_TryCastSerializableControl(registeredControl, iSerializable) Then GoTo ContinueSnapshot
         If VBA.StrComp(VBA.LCase$(VBA.Trim$(iSerializable.GetSerializableTypeRoot())), typeRoot, VBA.vbTextCompare) <> 0 Then GoTo ContinueSnapshot
 
         If Not iSerializable.TryDeserializeSnapshot(payloadXml) Then GoTo ContinueSnapshot
@@ -1825,47 +1831,6 @@ ContinueControl:
     Next removeKey
 
     private_TryResetSerializableControlActions = True
-End Function
-
-Private Function private_TryResetSnapshotControlsActions(ByVal snapshots As Collection) As Boolean
-    Dim item As Variant
-    Dim snapshotXml As String
-    Dim pageKey As String
-    Dim controlKey As String
-    Dim typeRoot As String
-    Dim payloadXml As String
-    Dim keysToRemove As Object
-    Dim removeKey As Variant
-
-    If snapshots Is Nothing Then
-        private_TryResetSnapshotControlsActions = True
-        Exit Function
-    End If
-
-    Set keysToRemove = VBA.CreateObject("Scripting.Dictionary")
-    keysToRemove.CompareMode = 1
-
-    For Each item In snapshots
-        snapshotXml = VBA.Trim$(VBA.CStr(item))
-        If VBA.Len(snapshotXml) = 0 Then GoTo ContinueSnapshot
-
-        pageKey = VBA.vbNullString
-        controlKey = VBA.vbNullString
-        typeRoot = VBA.vbNullString
-        payloadXml = VBA.vbNullString
-        If Not Me.TryDeserializeControlSnapshotEnvelope(snapshotXml, pageKey, controlKey, typeRoot, payloadXml) Then GoTo ContinueSnapshot
-
-        controlKey = VBA.LCase$(VBA.Trim$(controlKey))
-        If VBA.Len(controlKey) = 0 Then GoTo ContinueSnapshot
-        If Not keysToRemove.Exists(controlKey) Then keysToRemove.Add controlKey, True
-ContinueSnapshot:
-    Next item
-
-    For Each removeKey In keysToRemove.Keys
-        If Not Me.UnregisterControl(VBA.CStr(removeKey)) Then Exit Function
-    Next removeKey
-
-    private_TryResetSnapshotControlsActions = True
 End Function
 
 Private Function private_TryCastSerializableControl(ByVal iControl As Object, ByRef outSerializableControl As obj_ISerializable) As Boolean
