@@ -32,3 +32,31 @@ End Function
 Public Function fn_QuoteSqlLiteral(ByVal valueText As String) As String
     fn_QuoteSqlLiteral = "'" & VBA.Replace$(VBA.CStr(valueText), "'", "''") & "'"
 End Function
+
+Public Function fn_TryExtractWhereEqualsValue( _
+    ByVal whereText As String, _
+    ByRef outValue As String _
+) As Boolean
+    Dim eqPos As Long
+    Dim rightPart As String
+
+    outValue = VBA.vbNullString
+    whereText = VBA.Trim$(whereText)
+    If VBA.Len(whereText) = 0 Then Exit Function
+
+    eqPos = VBA.InStr(1, whereText, "=", VBA.vbBinaryCompare)
+    If eqPos <= 0 Then Exit Function
+
+    rightPart = VBA.Trim$(VBA.Mid$(whereText, eqPos + 1))
+    If VBA.Len(rightPart) = 0 Then Exit Function
+
+    If VBA.Len(rightPart) >= 2 Then
+        If VBA.Left$(rightPart, 1) = "'" And VBA.Right$(rightPart, 1) = "'" Then
+            rightPart = VBA.Mid$(rightPart, 2, VBA.Len(rightPart) - 2)
+            rightPart = VBA.Replace$(rightPart, "''", "'")
+        End If
+    End If
+
+    outValue = rightPart
+    fn_TryExtractWhereEqualsValue = True
+End Function
