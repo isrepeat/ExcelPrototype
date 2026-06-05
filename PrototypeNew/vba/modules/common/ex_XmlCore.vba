@@ -10,6 +10,7 @@ Public Sub fn_Module_Dispose()
     ex_Core.fn_Diagnostic_LogInfo "lifecycle:ex_XmlCore.fn_Module_Dispose"
 #End If
 End Sub
+
 ' //
 ' // API
 ' //
@@ -149,4 +150,68 @@ Public Function fn_XPathLiteral(ByVal value As String) As String
         fn_XPathLiteral = fn_XPathLiteral & "'" & parts(i) & "'"
     Next i
     fn_XPathLiteral = fn_XPathLiteral & ")"
+End Function
+
+Public Function fn_TrySaveDomPretty( _
+    ByVal dom As Object, _
+    ByVal filePath As String, _
+    ByRef outErrorText As String _
+) As Boolean
+    Dim reader As Object
+    Dim writer As Object
+    Dim stream As Object
+    Dim xmlText As String
+
+    outErrorText = VBA.vbNullString
+
+    If dom Is Nothing Then
+        outErrorText = "DOM is not specified."
+        Exit Function
+    End If
+
+    filePath = VBA.Trim$(filePath)
+    If VBA.Len(filePath) = 0 Then
+        outErrorText = "File path is empty."
+        Exit Function
+    End If
+
+    On Error GoTo EH_PRETTY_SAVE
+
+    Set writer = CreateObject("MSXML2.MXXMLWriter.6.0")
+    writer.omitXMLDeclaration = False
+    writer.indent = True
+    writer.standalone = True
+    writer.encoding = "UTF-8"
+
+    Set reader = CreateObject("MSXML2.SAXXMLReader.6.0")
+    Set reader.contentHandler = writer
+    Set reader.dtdHandler = writer
+    Set reader.errorHandler = writer
+
+    On Error Resume Next
+    reader.putProperty "http://xml.org/sax/properties/lexical-handler", writer
+    On Error GoTo EH_PRETTY_SAVE
+
+    reader.parse VBA.CStr(dom.XML)
+    xmlText = VBA.CStr(writer.output)
+
+    Set stream = CreateObject("ADODB.Stream")
+    stream.Type = 2
+    stream.Charset = "utf-8"
+    stream.Open
+    stream.WriteText xmlText
+    stream.Position = 0
+    stream.SaveToFile filePath, 2
+    stream.Close
+
+    fn_TrySaveDomPretty = True
+    Exit Function
+
+EH_PRETTY_SAVE:
+    outErrorText = "[" & Err.Source & " #" & VBA.CStr(Err.Number) & "] " & Err.Description
+    On Error Resume Next
+    If Not stream Is Nothing Then
+        If stream.State <> 0 Then stream.Close
+    End If
+    On Error GoTo 0
 End Function

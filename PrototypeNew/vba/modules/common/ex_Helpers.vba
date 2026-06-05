@@ -70,19 +70,52 @@ Public Function fn_ReadSnapshotBooleanAttr(ByVal sourceNode As Object, ByVal att
         Exit Function
     End If
 
-    rawText = VBA.LCase$(VBA.Trim$(VBA.CStr(sourceNode.getAttribute(attrName))))
+    rawText = VBA.Trim$(VBA.CStr(sourceNode.getAttribute(attrName)))
     If VBA.Len(rawText) = 0 Then
         fn_ReadSnapshotBooleanAttr = defaultValue
         Exit Function
     End If
 
-    Select Case rawText
-        Case "true", "1", "yes"
-            fn_ReadSnapshotBooleanAttr = True
-        Case "false", "0", "no"
-            fn_ReadSnapshotBooleanAttr = False
-        Case Else
-            fn_ReadSnapshotBooleanAttr = defaultValue
+    If Not fn_TryGetBooleanFromVariant(rawText, fn_ReadSnapshotBooleanAttr) Then
+        fn_ReadSnapshotBooleanAttr = defaultValue
+    End If
+End Function
+
+
+Public Function fn_TryGetBooleanFromVariant(ByVal valueCandidate As Variant, ByRef outValue As Boolean) As Boolean
+    Dim textValue As String
+
+    outValue = False
+
+    If VBA.IsObject(valueCandidate) Then
+        outValue = Not valueCandidate Is Nothing
+        fn_TryGetBooleanFromVariant = True
+        Exit Function
+    End If
+
+    If VBA.IsError(valueCandidate) Then Exit Function
+    If VBA.IsNull(valueCandidate) Then Exit Function
+    If VBA.IsEmpty(valueCandidate) Then Exit Function
+
+    Select Case VBA.VarType(valueCandidate)
+        Case VBA.vbBoolean
+            outValue = VBA.CBool(valueCandidate)
+            fn_TryGetBooleanFromVariant = True
+            Exit Function
+        Case VBA.vbByte, VBA.vbInteger, VBA.vbLong, VBA.vbSingle, VBA.vbDouble, VBA.vbCurrency, VBA.vbDecimal
+            outValue = (VBA.CDbl(valueCandidate) <> 0)
+            fn_TryGetBooleanFromVariant = True
+            Exit Function
+    End Select
+
+    textValue = VBA.LCase$(VBA.Trim$(VBA.CStr(valueCandidate)))
+    Select Case textValue
+        Case "1", "true", "yes", "y", "on"
+            outValue = True
+            fn_TryGetBooleanFromVariant = True
+        Case "0", "false", "no", "n", "off"
+            outValue = False
+            fn_TryGetBooleanFromVariant = True
     End Select
 End Function
 
@@ -149,6 +182,14 @@ Public Function fn_TextStartsWith(ByVal sourceText As String, ByVal prefixText A
     If VBA.Len(prefixText) = 0 Then Exit Function
     If VBA.Len(sourceText) < VBA.Len(prefixText) Then Exit Function
     fn_TextStartsWith = (VBA.StrComp(VBA.Left$(sourceText, VBA.Len(prefixText)), prefixText, VBA.vbBinaryCompare) = 0)
+End Function
+
+Public Function fn_IsStringEquals( _
+    ByVal leftText As String, _
+    ByVal rightText As String, _
+    Optional ByVal compareMethod As VbCompareMethod = VBA.vbTextCompare _
+) As Boolean
+    fn_IsStringEquals = (VBA.StrComp(VBA.CStr(leftText), VBA.CStr(rightText), compareMethod) = 0)
 End Function
 
 Public Function fn_CreateDictionaryTextCompare() As Object

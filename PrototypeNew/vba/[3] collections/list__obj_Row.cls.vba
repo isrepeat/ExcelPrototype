@@ -54,9 +54,9 @@ Public Property Get IsEmpty() As Boolean
     IsEmpty = m_ObjectCollectionBase.IsEmpty
 End Property
 
-Public Function Add(ByVal rowItem As obj_Row) As Boolean
+Public Function Add(ByVal row As obj_Row) As Boolean
 
-    m_ObjectCollectionBase.AddObject rowItem
+    m_ObjectCollectionBase.AddObject row
     Add = True
 End Function
 
@@ -76,4 +76,3 @@ End Sub
 Public Property Get AsCollection() As Collection
     Set AsCollection = m_ObjectCollectionBase.AsCollection
 End Property
-

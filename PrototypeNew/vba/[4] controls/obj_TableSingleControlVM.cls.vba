@@ -276,13 +276,20 @@ Private Function private_TryBuildRenderBufferSingle(ByRef outValueBlock As Varia
         ex_Core.fn_Diagnostic_LogError "TableSingle: control '" & m_ControlName & "' requires " & VBA.CStr(tableColumnCount) & _
                " columns, but span provides only " & VBA.CStr(availableCols) & "."
 #End If
+        VBA.MsgBox "PrototypeNew: table control '" & m_ControlName & "' does not fit into allocated bounds. Required columns: " & VBA.CStr(tableColumnCount) & ", available columns: " & VBA.CStr(availableCols) & ". Increase spanColls or container size.", VBA.vbExclamation, "PrototypeNew / Table layout"
         Exit Function
     End If
 
     Set tableRows = tableDynamic.Rows
     plannedRows = 3
     If Not tableRows Is Nothing Then plannedRows = 2 + tableRows.Count + 1
-    If plannedRows > maxRows Then plannedRows = maxRows
+    If plannedRows > maxRows Then
+#If LOGGING_DEBUG_ENABLED Then
+        ex_Core.fn_Diagnostic_LogError "TableSingle: insufficient layout bounds for control '" & m_ControlName & "'. RequiredRows=" & VBA.CStr(plannedRows) & ", AvailableRows=" & VBA.CStr(maxRows) & "."
+#End If
+        VBA.MsgBox "PrototypeNew: table control '" & m_ControlName & "' does not fit into allocated bounds. Required rows: " & VBA.CStr(plannedRows) & ", available rows: " & VBA.CStr(maxRows) & ". Increase spanRows or container size.", VBA.vbExclamation, "PrototypeNew / Table layout"
+        Exit Function
+    End If
 
     If plannedRows <= 0 Then
         outValueBlock = Empty
@@ -632,6 +639,8 @@ Private Function private_ConvertFixedTableToDynamic(ByVal fixedTable As obj_Tabl
     Dim sourceRow As obj_Row
     Dim targetColumn As obj_Column
     Dim targetRow As obj_Row
+    Dim sourceAliases As Collection
+    Dim aliasItem As Variant
     Dim colIndex As Long
     Dim sourceColumnIndex As Long
     Dim sourceRowIndex As Long
@@ -653,7 +662,13 @@ Private Function private_ConvertFixedTableToDynamic(ByVal fixedTable As obj_Tabl
         Set targetColumn = New obj_Column
         targetColumn.Position = sourceColumn.Position
         targetColumn.Name = sourceColumn.Name
-        If Not tableDynamic.AddColumn(targetColumn) Then Exit Function
+        Set sourceAliases = sourceColumn.Aliases
+        If Not sourceAliases Is Nothing Then
+            For Each aliasItem In sourceAliases
+                If Not targetColumn.AddAlias(VBA.CStr(aliasItem)) Then Exit Function
+            Next aliasItem
+        End If
+        If Not tableDynamic.PushColumn(targetColumn) Then Exit Function
 ContinueSourceColumn:
     Next sourceColumnIndex
 
@@ -663,9 +678,9 @@ ContinueSourceColumn:
         If sourceRow Is Nothing Then GoTo ContinueSourceRowInFixedTable
         Set targetRow = New obj_Row
         For colIndex = 1 To tableDynamic.ColumnCount
-            targetRow.AddCell sourceRow.GetCell(colIndex)
+            targetRow.PushCellRaw sourceRow.GetCellValue(colIndex)
         Next colIndex
-        If Not tableDynamic.AddRow(targetRow) Then Exit Function
+        If Not tableDynamic.PushRow(targetRow) Then Exit Function
 ContinueSourceRowInFixedTable:
     Next sourceRowIndex
 
