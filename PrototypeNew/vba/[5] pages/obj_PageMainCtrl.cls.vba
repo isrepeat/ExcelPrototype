@@ -11,6 +11,7 @@ Private Const CONTROLLER_RUNTIME_OBJECT_KEY As String = "RuntimeObjects.PageMain
 Private Const MODES_ROOT_REL_PATH As String = "modes"
 Private Const MODE_PROFILES_FILE_SUFFIX As String = "Profiles.xml"
 Private Const PERSONAL_CARD_SHEET_BASE_NAME As String = "PersonalCard"
+Private Const ENTITY_LOOKUP_SHEET_BASE_NAME As String = "EntityLookup"
 Private Const MODE_ON_SELECT_MACRO As String = "OnConfigModeChanged"
 Private Const PROFILE_ON_SELECT_MACRO As String = "OnConfigProfileChanged"
 Private Const MODE_PICKER_CONTROL_NAME As String = "ConfigModePicker"
@@ -395,6 +396,115 @@ EH_OPEN:
         ex_Core.fn_Diagnostic_LogError "PrototypeNew: exception in OnOpenPersonalCardPageCommand: [" & VBA.CStr(Err.Number) & "] " & Err.Description
     #End If
     MsgBox "PrototypeNew: exception in OnOpenPersonalCardPageCommand: [" & VBA.CStr(Err.Number) & "] " & Err.Description, vbExclamation, "PrototypeNew / Config runtime"
+    Resume EH_CREATE
+End Function
+
+Public Function OnOpenEntityLookupPageCommand(Optional ByVal arg As Variant) As Boolean
+    #If LOGGING_DEBUG_ENABLED Then
+        ex_Core.fn_Diagnostic_LogInfo "enter:obj_PageMainCtrl.OnOpenEntityLookupPageCommand"
+    #End If
+    Dim sheetName As String
+    Dim existingPage As obj_IPage
+    Dim entityLookupPage As obj_IPage
+    Dim parentPage As obj_IPage
+    Dim isPageCreated As Boolean
+
+    On Error GoTo EH_OPEN
+
+    If rt_PageManager.fn_TryGetPageByWorksheetName(ENTITY_LOOKUP_SHEET_BASE_NAME, existingPage) Then
+        If existingPage Is Nothing Then GoTo EH_CREATE
+        If Not TypeOf existingPage Is obj_PageEntityLookup Then
+            #If LOGGING_DEBUG_ENABLED Then
+                ex_Core.fn_Diagnostic_LogError "PrototypeNew: worksheet '" & ENTITY_LOOKUP_SHEET_BASE_NAME & "' is bound to unexpected page type '" & VBA.TypeName(existingPage) & "'."
+            #End If
+            MsgBox "PrototypeNew: worksheet '" & ENTITY_LOOKUP_SHEET_BASE_NAME & "' is bound to unexpected page type '" & VBA.TypeName(existingPage) & "'.", vbExclamation, "PrototypeNew / Config runtime"
+            Exit Function
+        End If
+
+        If Not existingPage.RunPagePipeline() Then
+            #If LOGGING_DEBUG_ENABLED Then
+                ex_Core.fn_Diagnostic_LogError "PrototypeNew: failed to run EntityLookup page pipeline for existing page."
+            #End If
+            MsgBox "PrototypeNew: failed to run EntityLookup page pipeline for existing page.", vbExclamation, "PrototypeNew / Config runtime"
+            Exit Function
+        End If
+
+        If Not rt_PageManager.fn_RenderPageAndActivate(existingPage, "pagemain:open-entitylookup:reuse") Then
+            #If LOGGING_DEBUG_ENABLED Then
+                ex_Core.fn_Diagnostic_LogError "PrototypeNew: failed to render existing EntityLookup page."
+            #End If
+            MsgBox "PrototypeNew: failed to render existing EntityLookup page.", vbExclamation, "PrototypeNew / Config runtime"
+            Exit Function
+        End If
+
+        rt_Messaging.fn_ShowStatusBarSuccess "EntityLookup page has been refreshed.", 3
+        OnOpenEntityLookupPageCommand = True
+        Exit Function
+    End If
+
+    sheetName = private_BuildUniqueWorksheetName(ThisWorkbook, ENTITY_LOOKUP_SHEET_BASE_NAME)
+    If VBA.Len(sheetName) = 0 Then
+        #If LOGGING_DEBUG_ENABLED Then
+            ex_Core.fn_Diagnostic_LogError "PrototypeNew: failed to allocate worksheet name for EntityLookup page."
+        #End If
+        MsgBox "PrototypeNew: failed to allocate worksheet name for EntityLookup page.", vbExclamation, "PrototypeNew / Config runtime"
+        Exit Function
+    End If
+
+    Set entityLookupPage = New obj_PageEntityLookup
+    If entityLookupPage Is Nothing Then
+        #If LOGGING_DEBUG_ENABLED Then
+            ex_Core.fn_Diagnostic_LogError "PrototypeNew: failed to allocate EntityLookup page instance."
+        #End If
+        MsgBox "PrototypeNew: failed to allocate EntityLookup page instance.", vbExclamation, "PrototypeNew / Config runtime"
+        Exit Function
+    End If
+
+    Set parentPage = m_Page
+
+    If Not rt_PageManager.fn_CreatePage(entityLookupPage, "ui\EntityLookupUI.xml", sheetName, parentPage) Then GoTo EH_CREATE
+    isPageCreated = True
+
+    If Not entityLookupPage.RunPagePipeline() Then
+        #If LOGGING_DEBUG_ENABLED Then
+            ex_Core.fn_Diagnostic_LogError "PrototypeNew: failed to run EntityLookup page pipeline."
+        #End If
+        MsgBox "PrototypeNew: failed to run EntityLookup page pipeline.", vbExclamation, "PrototypeNew / Config runtime"
+        GoTo EH_CREATE
+    End If
+
+    If Not rt_PageManager.fn_RenderPageAndActivate(entityLookupPage, "pagemain:open-entitylookup") Then
+        #If LOGGING_DEBUG_ENABLED Then
+            ex_Core.fn_Diagnostic_LogError "PrototypeNew: failed to render EntityLookup page."
+        #End If
+        MsgBox "PrototypeNew: failed to render EntityLookup page.", vbExclamation, "PrototypeNew / Config runtime"
+        GoTo EH_CREATE
+    End If
+
+    rt_Messaging.fn_ShowStatusBarSuccess "EntityLookup page has been created.", 3
+    OnOpenEntityLookupPageCommand = True
+    Exit Function
+
+EH_CREATE:
+    On Error Resume Next
+    If Not entityLookupPage Is Nothing And isPageCreated Then
+        Call rt_PageManager.fn_RemovePage(entityLookupPage, True)
+    End If
+    On Error GoTo 0
+
+    If Not OnOpenEntityLookupPageCommand Then
+        #If LOGGING_DEBUG_ENABLED Then
+            ex_Core.fn_Diagnostic_LogError "PrototypeNew: failed to create EntityLookup page."
+        #End If
+        MsgBox "PrototypeNew: failed to create EntityLookup page.", vbExclamation, "PrototypeNew / Config runtime"
+    End If
+    Exit Function
+
+EH_OPEN:
+    #If LOGGING_DEBUG_ENABLED Then
+        ex_Core.fn_Diagnostic_LogError "PrototypeNew: exception in OnOpenEntityLookupPageCommand: [" & VBA.CStr(Err.Number) & "] " & Err.Description
+    #End If
+    MsgBox "PrototypeNew: exception in OnOpenEntityLookupPageCommand: [" & VBA.CStr(Err.Number) & "] " & Err.Description, vbExclamation, "PrototypeNew / Config runtime"
     Resume EH_CREATE
 End Function
 

@@ -347,6 +347,7 @@ Private Function private_RenderContainerChildrenInBounds( _
     Dim childRowEnd As Long
     Dim childColEnd As Long
     Dim nodeVisibilityState As String
+    Dim childDataContext As Object
 
     If Not private_TryGetPageRenderContext(renderCtx, wb, ws) Then Exit Function
     If containerNode Is Nothing Then
@@ -379,9 +380,11 @@ Private Function private_RenderContainerChildrenInBounds( _
     For Each childNode In containerNode.ChildNodes
         If Not private_IsVisualLayoutNode(childNode) Then GoTo ContinueFirstPass
 
-        If Not private_TryGetEffectiveNodeSpan(renderCtx, childNode, spanRows, spanColls) Then Exit Function
+        Set childDataContext = Nothing
+        If Not private_TryResolveNodeVisibilityContext(renderCtx, childNode, Nothing, childDataContext) Then Exit Function
+        If Not private_TryGetEffectiveNodeSpan(renderCtx, childNode, spanRows, spanColls, childDataContext) Then Exit Function
 
-        If Not private_ResolveChildGridPosition(childNode, orientation, seqRow, seqCol, rowIdx, colIdx, spanRows, spanColls) Then Exit Function
+        If Not private_ResolveChildGridPosition(childNode, orientation, seqRow, seqCol, rowIdx, colIdx, spanRows, spanColls, childDataContext) Then Exit Function
         If spanRows <= 0 Or spanColls <= 0 Then GoTo ContinueFirstPass
 
         If rowIdx + spanRows - 1 > maxRows Then maxRows = rowIdx + spanRows - 1
@@ -400,9 +403,11 @@ ContinueFirstPass:
     For Each childNode In containerNode.ChildNodes
         If Not private_IsVisualLayoutNode(childNode) Then GoTo ContinueSecondPass
 
-        If Not private_TryGetEffectiveNodeSpan(renderCtx, childNode, spanRows, spanColls) Then Exit Function
+        Set childDataContext = Nothing
+        If Not private_TryResolveNodeVisibilityContext(renderCtx, childNode, Nothing, childDataContext) Then Exit Function
+        If Not private_TryGetEffectiveNodeSpan(renderCtx, childNode, spanRows, spanColls, childDataContext) Then Exit Function
 
-        If Not private_ResolveChildGridPosition(childNode, orientation, seqRow, seqCol, rowIdx, colIdx, spanRows, spanColls) Then Exit Function
+        If Not private_ResolveChildGridPosition(childNode, orientation, seqRow, seqCol, rowIdx, colIdx, spanRows, spanColls, childDataContext) Then Exit Function
         If spanRows <= 0 Or spanColls <= 0 Then GoTo ContinueSecondPass
 
         childRowStart = containerRowStart + rowIdx - 1
@@ -765,6 +770,7 @@ Private Function private_TryMeasureContainerContentSpan( _
     Dim childCols As Long
     Dim maxRows As Long
     Dim maxCols As Long
+    Dim childDataContext As Object
 
     If containerNode Is Nothing Then Exit Function
 
@@ -780,8 +786,10 @@ Private Function private_TryMeasureContainerContentSpan( _
         If Not private_IsVisualLayoutNode(childNode) Then GoTo ContinueChild
 
         ' Передаем родительский dataContext вниз по дереву измерения.
-        If Not private_TryGetEffectiveNodeSpan(renderCtx, childNode, childRows, childCols, dataContext) Then Exit Function
-        If Not private_ResolveChildGridPosition(childNode, orientation, seqRow, seqCol, rowIdx, colIdx, childRows, childCols) Then Exit Function
+        Set childDataContext = Nothing
+        If Not private_TryResolveNodeVisibilityContext(renderCtx, childNode, dataContext, childDataContext) Then Exit Function
+        If Not private_TryGetEffectiveNodeSpan(renderCtx, childNode, childRows, childCols, childDataContext) Then Exit Function
+        If Not private_ResolveChildGridPosition(childNode, orientation, seqRow, seqCol, rowIdx, colIdx, childRows, childCols, childDataContext) Then Exit Function
         If childRows <= 0 Or childCols <= 0 Then GoTo ContinueChild
 
         If rowIdx + childRows - 1 > maxRows Then maxRows = rowIdx + childRows - 1
@@ -807,13 +815,17 @@ Private Function private_ResolveChildGridPosition( _
     ByRef outRow As Long, _
     ByRef outCol As Long, _
     ByVal spanRows As Long, _
-    ByVal spanColls As Long _
+    ByVal spanColls As Long, _
+    Optional ByVal dataContext As Object _
 ) As Boolean
     Dim atText As String
+    Dim resolvedAtText As String
 
     ' Явный "at" всегда переопределяет последовательное размещение по orientation.
     atText = VBA.Trim$(ex_XmlCore.fn_NodeAttrText(childNode, "at"))
     If VBA.Len(atText) > 0 Then
+        If Not ex_BindingRuntime.fn_TryResolveTextBinding(atText, dataContext, resolvedAtText) Then Exit Function
+        atText = VBA.Trim$(resolvedAtText)
         If Not private_TryParseAtAddress(atText, outRow, outCol) Then
 #If LOGGING_DEBUG_ENABLED Then
             ex_Core.fn_Diagnostic_LogError "PrototypeNew: invalid 'at' format '" & atText & "'. Expected format is rNcM."

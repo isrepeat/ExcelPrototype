@@ -25,6 +25,11 @@ Public Function fn_TryCreatePageByTypeRoot( _
             fn_TryCreatePageByTypeRoot = True
             Exit Function
 
+        Case "page.entitylookup"
+            Set outPage = New obj_PageEntityLookup
+            fn_TryCreatePageByTypeRoot = True
+            Exit Function
+
         Case "page.main"
             Set outPage = New obj_PageMain
             fn_TryCreatePageByTypeRoot = True

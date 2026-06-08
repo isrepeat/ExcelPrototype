@@ -5,6 +5,7 @@ Option Explicit
 
 Private Const BINDING_PREFIX As String = "{Binding "
 Private Const BINDING_SUFFIX As String = "}"
+Private Const DICTIONARY_MISSING_MEMBER_AS_EMPTY_KEY As String = "__MissingMemberAsEmpty"
 
 Public Sub fn_Module_Dispose()
 #If LOGGING_VERBOSE_ENABLED Then
@@ -527,7 +528,13 @@ Private Function private_TryReadMemberValue( _
 
     Set dictObj = private_AsDictionary(sourceObject)
     If Not dictObj Is Nothing Then
-        If Not dictObj.Exists(memberName) Then Exit Function
+        If Not dictObj.Exists(memberName) Then
+            If dictObj.Exists(DICTIONARY_MISSING_MEMBER_AS_EMPTY_KEY) Then
+                outScalar = VBA.vbNullString
+                private_TryReadMemberValue = True
+            End If
+            Exit Function
+        End If
 
         On Error Resume Next
         Set outObject = dictObj.Item(memberName)

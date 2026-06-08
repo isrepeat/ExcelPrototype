@@ -169,6 +169,56 @@ Public Function TryParseTableRefToken( _
     TryParseTableRefToken = True
 End Function
 
+Public Function TryParseColumnRefToken( _
+    ByVal tokenText As String, _
+    ByRef outSourceAlias As String, _
+    ByRef outTableAlias As String, _
+    ByRef outColumnAlias As String _
+) As Boolean
+    Dim normalized As String
+    Dim sheetPos As Long
+    Dim sourceAlias As String
+    Dim suffix As String
+    Dim closeSheetPos As Long
+    Dim afterSheet As String
+    Dim columnPrefix As String
+    Dim closeColumnPos As Long
+
+    outSourceAlias = VBA.vbNullString
+    outTableAlias = VBA.vbNullString
+    outColumnAlias = VBA.vbNullString
+
+    ' Формат токена: <SourceAlias>.Sheet[<TableAlias>].Column[<ColumnAlias>]
+    tokenText = VBA.Trim$(tokenText)
+    normalized = VBA.LCase$(tokenText)
+    If VBA.Len(tokenText) = 0 Then Exit Function
+
+    sheetPos = VBA.InStr(1, normalized, ".sheet[", VBA.vbTextCompare)
+    If sheetPos <= 1 Then Exit Function
+
+    sourceAlias = VBA.Trim$(VBA.Left$(tokenText, sheetPos - 1))
+    suffix = VBA.Mid$(tokenText, sheetPos + 7)
+    closeSheetPos = VBA.InStr(1, suffix, "]", VBA.vbBinaryCompare)
+    If closeSheetPos <= 1 Then Exit Function
+
+    outSourceAlias = sourceAlias
+    outTableAlias = VBA.Trim$(VBA.Left$(suffix, closeSheetPos - 1))
+    afterSheet = VBA.Trim$(VBA.Mid$(suffix, closeSheetPos + 1))
+
+    columnPrefix = ".Column["
+    If VBA.LCase$(VBA.Left$(afterSheet, VBA.Len(columnPrefix))) <> VBA.LCase$(columnPrefix) Then Exit Function
+
+    afterSheet = VBA.Mid$(afterSheet, VBA.Len(columnPrefix) + 1)
+    closeColumnPos = VBA.InStr(1, afterSheet, "]", VBA.vbBinaryCompare)
+    If closeColumnPos <= 1 Then Exit Function
+
+    outColumnAlias = VBA.Trim$(VBA.Left$(afterSheet, closeColumnPos - 1))
+    If VBA.Len(outSourceAlias) = 0 Or VBA.Len(outTableAlias) = 0 Or VBA.Len(outColumnAlias) = 0 Then Exit Function
+    If VBA.Len(VBA.Trim$(VBA.Mid$(afterSheet, closeColumnPos + 1))) > 0 Then Exit Function
+
+    TryParseColumnRefToken = True
+End Function
+
 Public Function TryParseMapValue( _
     ByVal rawMapValue As String, _
     ByRef outSourceHeader As String, _
