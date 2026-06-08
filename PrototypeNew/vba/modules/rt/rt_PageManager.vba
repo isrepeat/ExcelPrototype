@@ -1057,6 +1057,11 @@ Private Function private_ResolvePageIdPrefix(ByVal page As obj_IPage) As String
         private_ResolvePageIdPrefix = "generated"
         Exit Function
     End If
+
+    If TypeOf page Is obj_PageEntityLookup Then
+        private_ResolvePageIdPrefix = "generated"
+        Exit Function
+    End If
 End Function
 
 Private Function private_CreatePageInternal( _
@@ -1151,7 +1156,6 @@ Private Function private_BuildPageId(Optional ByVal pageIdPrefix As String = "pa
     g_PageIdSeed = g_PageIdSeed + 1
     private_BuildPageId = pageIdPrefix & "-" & VBA.Format$(VBA.Now, "yyyymmdd-hhnnss") & "-" & VBA.CStr(g_PageIdSeed)
 End Function
-
 
 Private Sub private_EnsureStorage()
     If g_PageById Is Nothing Then

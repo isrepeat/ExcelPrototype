@@ -45,7 +45,8 @@ Public Function fn_TrySqlRequest( _
     Dim availableFields As String
     Dim hasGenericFields As Boolean
     Dim cellText As String
-    Dim fieldErrorText As String
+    Dim recordsetData As Variant
+    Dim recordIndex As Long
 
     On Error GoTo EH_QUERY
 
@@ -221,118 +222,41 @@ Public Function fn_TrySqlRequest( _
         End If
     Next i
 
-    ' 7) Переносим данные из Recordset в obj_TableDynamic (row-by-row).
+    ' 7) Забираем весь Recordset одним COM-вызовом.
+    ' SQL-фильтрация уже выполнена ADO; здесь только переносим результат в runtime-модель.
     rowNumber = 0
-#If LOGGING_DEBUG_ENABLED Then
-    ex_Core.fn_Diagnostic_LogInfo "sql-engine:row-loop-start hasCustomRowProcessor=" & VBA.CStr(hasCustomRowProcessor)
-#End If
-    Do While Not rsData.EOF
-        rowNumber = rowNumber + 1
-#If LOGGING_DEBUG_ENABLED Then
-        If rowNumber <= 5 Or (rowNumber Mod 25) = 0 Then
-            ex_Core.fn_Diagnostic_LogInfo "sql-engine:row-start rowNumber=" & VBA.CStr(rowNumber) & " eof=" & VBA.CStr(rsData.EOF)
-        End If
-#End If
-#If LOGGING_DEBUG_ENABLED Then
-        If rowNumber <= 5 Or (rowNumber Mod 25) = 0 Then
-            ex_Core.fn_Diagnostic_LogInfo "sql-engine:row-object-release-previous-start rowNumber=" & VBA.CStr(rowNumber)
-        End If
-#End If
-        Set rowObj = Nothing
-#If LOGGING_DEBUG_ENABLED Then
-        If rowNumber <= 5 Or (rowNumber Mod 25) = 0 Then
-            ex_Core.fn_Diagnostic_LogInfo "sql-engine:row-object-release-previous-done rowNumber=" & VBA.CStr(rowNumber)
-        End If
-#End If
-#If LOGGING_DEBUG_ENABLED Then
-        If rowNumber <= 5 Or (rowNumber Mod 25) = 0 Then
-            ex_Core.fn_Diagnostic_LogInfo "sql-engine:row-object-create-start rowNumber=" & VBA.CStr(rowNumber)
-        End If
-#End If
-        Set rowObj = New obj_Row
-#If LOGGING_DEBUG_ENABLED Then
-        If rowNumber <= 5 Or (rowNumber Mod 25) = 0 Then
-            ex_Core.fn_Diagnostic_LogInfo "sql-engine:row-object-create-done rowNumber=" & VBA.CStr(rowNumber) & " type='" & VBA.TypeName(rowObj) & "'"
-        End If
-#End If
-        rowObj.Index = rowNumber
-#If LOGGING_DEBUG_ENABLED Then
-        If rowNumber <= 5 Or (rowNumber Mod 25) = 0 Then
-            ex_Core.fn_Diagnostic_LogInfo "sql-engine:row-index-set rowNumber=" & VBA.CStr(rowNumber)
-        End If
-#End If
-        For i = 1 To UBound(sourceColumnOrdinals)
-#If LOGGING_DEBUG_ENABLED Then
-            If rowNumber <= 5 Then
-                ex_Core.fn_Diagnostic_LogInfo "sql-engine:field-read-start rowNumber=" & VBA.CStr(rowNumber) & " colIndex=" & VBA.CStr(i) & " ordinal=" & VBA.CStr(sourceColumnOrdinals(i)) & " header='" & VBA.CStr(resolvedSourceColumnHeaders.Item(i)) & "'"
-            End If
-#End If
-            cellText = VBA.vbNullString
-            fieldErrorText = VBA.vbNullString
-            If Not private_TryReadRecordsetFieldText(rsData, sourceColumnOrdinals(i), cellText, fieldErrorText) Then
-#If LOGGING_DEBUG_ENABLED Then
-                ex_Core.fn_Diagnostic_LogError "sql-engine:field-read-failed rowNumber=" & VBA.CStr(rowNumber) & " colIndex=" & VBA.CStr(i) & " ordinal=" & VBA.CStr(sourceColumnOrdinals(i)) & " header='" & VBA.CStr(resolvedSourceColumnHeaders.Item(i)) & "' error='" & fieldErrorText & "'"
-#End If
-                MsgBox "PrototypeNew: failed to read SQL field '" & VBA.CStr(resolvedSourceColumnHeaders.Item(i)) & "' at row " & VBA.CStr(rowNumber) & ". " & fieldErrorText, vbExclamation, RUNTIME_ERROR_TITLE
-                GoTo CleanupFail
-            End If
-            rowObj.PushCellRaw cellText
-#If LOGGING_DEBUG_ENABLED Then
-            If rowNumber <= 5 Then
-                ex_Core.fn_Diagnostic_LogInfo "sql-engine:field-read-done rowNumber=" & VBA.CStr(rowNumber) & " colIndex=" & VBA.CStr(i) & " textLen=" & VBA.CStr(VBA.Len(cellText))
-            End If
-#End If
-        Next i
-#If LOGGING_DEBUG_ENABLED Then
-        If rowNumber <= 5 Or (rowNumber Mod 25) = 0 Then
-            ex_Core.fn_Diagnostic_LogInfo "sql-engine:row-created rowNumber=" & VBA.CStr(rowNumber) & " cells=" & VBA.CStr(rowObj.CellCount)
-        End If
-#End If
-
-        If hasCustomRowProcessor Then
-#If LOGGING_DEBUG_ENABLED Then
-            If rowNumber <= 5 Or (rowNumber Mod 25) = 0 Then
-                ex_Core.fn_Diagnostic_LogInfo "sql-engine:row-processor-handle-row-start rowNumber=" & VBA.CStr(rowNumber)
-            End If
-#End If
-            If Not rowProcessor.HandleRow(rowObj) Then
-#If LOGGING_DEBUG_ENABLED Then
-                ex_Core.fn_Diagnostic_LogError "sql-engine:row-processor-handle-row-failed type='" & VBA.TypeName(rowProcessor) & "' rowNumber=" & VBA.CStr(rowNumber)
-#End If
-                GoTo CleanupFail
-            End If
-#If LOGGING_DEBUG_ENABLED Then
-            If rowNumber <= 5 Or (rowNumber Mod 25) = 0 Then
-                ex_Core.fn_Diagnostic_LogInfo "sql-engine:row-processor-handle-row-done rowNumber=" & VBA.CStr(rowNumber)
-            End If
-#End If
-        Else
-            If Not tableObj.PushRow(rowObj) Then
-#If LOGGING_DEBUG_ENABLED Then
-                ex_Core.fn_Diagnostic_LogError "sql-engine:push-row-failed rowNumber=" & VBA.CStr(rowNumber)
-#End If
-                GoTo CleanupFail
-            End If
-        End If
-#If LOGGING_DEBUG_ENABLED Then
-        If rowNumber <= 5 Or (rowNumber Mod 25) = 0 Then
-            ex_Core.fn_Diagnostic_LogInfo "sql-engine:recordset-move-next-start rowNumber=" & VBA.CStr(rowNumber)
-        End If
-#End If
-        rsData.MoveNext
-#If LOGGING_DEBUG_ENABLED Then
-        If rowNumber <= 5 Or (rowNumber Mod 25) = 0 Then
-            ex_Core.fn_Diagnostic_LogInfo "sql-engine:recordset-move-next-done rowNumber=" & VBA.CStr(rowNumber) & " eof=" & VBA.CStr(rsData.EOF)
-        End If
-#End If
-    Loop
-
-#If LOGGING_DEBUG_ENABLED Then
-    ex_Core.fn_Diagnostic_LogInfo "sql-engine:row-loop-end rowsRead=" & VBA.CStr(rowNumber)
-#End If
-
+    If Not rsData.EOF Then recordsetData = rsData.GetRows
     rsData.Close
     Set rsData = Nothing
+
+    If Not VBA.IsEmpty(recordsetData) Then
+        For recordIndex = LBound(recordsetData, 2) To UBound(recordsetData, 2)
+            rowNumber = rowNumber + 1
+            Set rowObj = Nothing
+            Set rowObj = New obj_Row
+            rowObj.Index = rowNumber
+            For i = 1 To UBound(sourceColumnOrdinals)
+                cellText = private_ToSafeText(recordsetData(sourceColumnOrdinals(i), recordIndex))
+                rowObj.PushCellRaw cellText
+            Next i
+
+            If hasCustomRowProcessor Then
+                If Not rowProcessor.HandleRow(rowObj) Then
+#If LOGGING_DEBUG_ENABLED Then
+                    ex_Core.fn_Diagnostic_LogError "sql-engine:row-processor-handle-row-failed type='" & VBA.TypeName(rowProcessor) & "' rowNumber=" & VBA.CStr(rowNumber)
+#End If
+                    GoTo CleanupFail
+                End If
+            Else
+                If Not tableObj.PushRow(rowObj) Then
+#If LOGGING_DEBUG_ENABLED Then
+                    ex_Core.fn_Diagnostic_LogError "sql-engine:push-row-failed rowNumber=" & VBA.CStr(rowNumber)
+#End If
+                    GoTo CleanupFail
+                End If
+            End If
+        Next recordIndex
+    End If
 
     If hasCustomRowProcessor Then
 #If LOGGING_DEBUG_ENABLED Then
@@ -1096,32 +1020,4 @@ Private Function private_ToSafeText(ByVal valueIn As Variant) As String
 
 EH_SAFE_TEXT:
     private_ToSafeText = VBA.vbNullString
-End Function
-
-Private Function private_TryReadRecordsetFieldText( _
-    ByVal rsData As Object, _
-    ByVal fieldOrdinal As Long, _
-    ByRef outText As String, _
-    ByRef outErrorText As String _
-) As Boolean
-    On Error GoTo EH_READ_FIELD
-
-    outText = VBA.vbNullString
-    outErrorText = VBA.vbNullString
-
-    If rsData Is Nothing Then
-        outErrorText = "Recordset is Nothing."
-        Exit Function
-    End If
-    If fieldOrdinal < 0 Then
-        outErrorText = "Field ordinal is invalid: " & VBA.CStr(fieldOrdinal)
-        Exit Function
-    End If
-
-    outText = private_ToSafeText(rsData.Fields(fieldOrdinal).Value)
-    private_TryReadRecordsetFieldText = True
-    Exit Function
-
-EH_READ_FIELD:
-    outErrorText = "[" & VBA.CStr(Err.Number) & "] " & Err.Description
 End Function

@@ -73,6 +73,16 @@
           />
         <control
           type="Button"
+          name="OpenEntityLookup"
+          caption="Open EntityLookup"
+          style="actionWarning"
+          dataContext="{PageRuntimeSource='RuntimeObjects.PageMain.Controller'}"
+          onClick="{Binding Method=OnOpenEntityLookupPageCommand}"
+          spanColls="5"
+          spanRows="2"
+          />
+        <control
+          type="Button"
           name="UpdateSheet"
           caption="Update Sheet"
           style="actionWarning"

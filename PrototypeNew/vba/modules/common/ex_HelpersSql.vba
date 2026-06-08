@@ -18,6 +18,15 @@ Public Function fn_BuildWhereEqualsSql(ByVal sourceColumnHeader As String, ByVal
     fn_BuildWhereEqualsSql = fn_QuoteSqlIdentifier(sourceColumnHeader) & " = " & fn_QuoteSqlLiteral(valueText)
 End Function
 
+Public Function fn_BuildWhereContainsSql(ByVal sourceColumnHeader As String, ByVal valueText As String) As String
+    sourceColumnHeader = VBA.Trim$(sourceColumnHeader)
+    valueText = VBA.Trim$(valueText)
+    If VBA.Len(sourceColumnHeader) = 0 Then Exit Function
+    If VBA.Len(valueText) = 0 Then Exit Function
+
+    fn_BuildWhereContainsSql = fn_QuoteSqlIdentifier(sourceColumnHeader) & " LIKE " & fn_QuoteSqlLiteral("%" & valueText & "%")
+End Function
+
 Public Function fn_QuoteSqlIdentifier(ByVal valueText As String) As String
     valueText = VBA.Trim$(valueText)
     If VBA.Len(valueText) >= 2 Then
