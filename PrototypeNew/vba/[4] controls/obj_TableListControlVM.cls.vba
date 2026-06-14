@@ -16,6 +16,11 @@ Private m_ControlBase As obj_ControlBase
 Private m_ControlName As String
 Private m_ItemsSourceRaw As String
 Private m_ItemVisibilityRaw As String
+Private m_CellButtonClickRaw As String
+Private m_CellButtonClickMacroRef As String
+Private m_CellButtonClickCallbackContext As Object
+Private m_CellButtonPayloadById As Object
+Private m_RuntimeControlKey As String
 Private m_LayoutSheetName As String
 Private m_RowStart As Long
 Private m_ColStart As Long
@@ -64,16 +69,24 @@ Private Sub obj_IControl_Dispose()
     Err.Clear
     Set m_ControlBase = Nothing
     Set m_TableItems = Nothing
+    Set m_CellButtonClickCallbackContext = Nothing
+    Set m_CellButtonPayloadById = Nothing
     Set m_Page = Nothing
     On Error GoTo 0
 End Sub
 
 Private Sub obj_IControl_Configure(ByVal controlNode As Object)
     Dim pageBase As obj_PageBase
+    Dim dataContext As Object
 
     m_IsConfigured = False
     Set m_TableItems = Nothing
     Set m_ControlBase = Nothing
+    Set m_CellButtonClickCallbackContext = Nothing
+    Set m_CellButtonPayloadById = Nothing
+    m_CellButtonClickRaw = VBA.vbNullString
+    m_CellButtonClickMacroRef = VBA.vbNullString
+    m_RuntimeControlKey = VBA.vbNullString
 
     If m_Page Is Nothing Then Exit Sub
     Set pageBase = m_Page.GetPageBase()
@@ -91,6 +104,14 @@ Private Sub obj_IControl_Configure(ByVal controlNode As Object)
     End If
 
     m_ItemVisibilityRaw = VBA.Trim$(VBA.CStr(ex_XmlCore.fn_NodeAttrText(controlNode, "itemVisibility")))
+    m_CellButtonClickRaw = VBA.Trim$(VBA.CStr(ex_XmlCore.fn_NodeAttrText(controlNode, "cellButtonClick")))
+
+    Set dataContext = m_ControlBase.DataContext
+    If dataContext Is Nothing Then Set dataContext = m_Page
+    Set m_CellButtonClickCallbackContext = dataContext
+    If VBA.Len(m_CellButtonClickRaw) > 0 Then
+        If Not private_TryResolveCallbackRef(m_CellButtonClickRaw, dataContext, m_CellButtonClickMacroRef) Then Exit Sub
+    End If
 
     m_LayoutSheetName = VBA.Trim$(ex_XmlCore.fn_NodeAttrText(controlNode, "__layoutSheetName"))
     If VBA.Len(m_LayoutSheetName) = 0 Then
@@ -131,6 +152,7 @@ Private Sub obj_IControl_Configure(ByVal controlNode As Object)
     If Not ex_RuntimeSourceResolver.fn_TryResolveItemsSource(pageBase.RuntimeSources, m_ItemsSourceRaw, m_TableItems) Then Exit Sub
     If Not private_TryApplyItemVisibilityFilter(m_TableItems) Then Exit Sub
 
+    m_RuntimeControlKey = "tablelist|" & VBA.LCase$(VBA.Trim$(m_LayoutSheetName & "|" & m_ControlName))
     m_IsConfigured = True
 End Sub
 
@@ -139,6 +161,7 @@ Private Sub obj_IControl_Render()
     Dim valueBlock As Variant
     Dim targetRange As Range
     Dim styleSegments As Collection
+    Dim cellButtonActions As Collection
     Dim page As obj_PageBase
 
     If Not m_IsConfigured Then
@@ -165,6 +188,9 @@ Private Sub obj_IControl_Render()
         Exit Sub
     End If
 
+    private_DeleteExistingCellButtonShapes ws
+    Set m_CellButtonPayloadById = Nothing
+
     If m_TableItems Is Nothing Then
 #If LOGGING_DEBUG_ENABLED Then
         ex_Core.fn_Diagnostic_LogError "TableList: itemsSource is not resolved for control '" & m_ControlName & "'."
@@ -173,7 +199,7 @@ Private Sub obj_IControl_Render()
     End If
 
     ' Build in-memory first, then write once to minimize COM overhead.
-    If Not private_TryBuildRenderBuffer(valueBlock, styleSegments) Then Exit Sub
+    If Not private_TryBuildRenderBuffer(valueBlock, styleSegments, cellButtonActions) Then Exit Sub
     If VBA.IsEmpty(valueBlock) Then Exit Sub
 
     Set targetRange = ws.Range( _
@@ -187,11 +213,12 @@ Private Sub obj_IControl_Render()
 #If ENALBE_STYLES Then
     private_ApplyStyleSegments ws, styleSegments
 #End If
+    If Not private_TryRenderCellButtonShapes(ws, cellButtonActions) Then Exit Sub
 End Sub
 
 Private Function obj_IControl_SupportsAttribute(ByVal attrName As String) As Boolean
     Select Case VBA.LCase$(VBA.Trim$(attrName))
-        Case "itemssource", "itemvisibility"
+        Case "itemssource", "itemvisibility", "cellbuttonclick"
             obj_IControl_SupportsAttribute = True
     End Select
 End Function
@@ -203,8 +230,30 @@ End Function
 ' //
 ' // API
 ' //
-' (No public API yet.)
-'
+Public Function RuntimeHandleCellButtonClick(Optional ByVal actionId As Variant) As Boolean
+    Dim payload As Variant
+    Dim payloadObject As Object
+    Dim actionKey As String
+
+    If VBA.Len(VBA.Trim$(m_CellButtonClickMacroRef)) = 0 Then
+        RuntimeHandleCellButtonClick = True
+        Exit Function
+    End If
+
+    actionKey = VBA.Trim$(VBA.CStr(actionId))
+    If VBA.Len(actionKey) = 0 Then Exit Function
+    If m_CellButtonPayloadById Is Nothing Then Exit Function
+    If Not m_CellButtonPayloadById.Exists(actionKey) Then Exit Function
+
+    If VBA.IsObject(m_CellButtonPayloadById(actionKey)) Then
+        Set payloadObject = m_CellButtonPayloadById(actionKey)
+        RuntimeHandleCellButtonClick = rt_Bridge.fn_RunCallback(m_CellButtonClickMacroRef, m_CellButtonClickCallbackContext, payloadObject)
+    Else
+        payload = m_CellButtonPayloadById(actionKey)
+        RuntimeHandleCellButtonClick = rt_Bridge.fn_RunCallback(m_CellButtonClickMacroRef, m_CellButtonClickCallbackContext, payload)
+    End If
+End Function
+
 ' //
 ' // Internal
 ' //
@@ -276,7 +325,11 @@ Private Function private_TryReadLayoutLongAttr( _
     private_TryReadLayoutLongAttr = True
 End Function
 
-Private Function private_TryBuildRenderBuffer(ByRef outValueBlock As Variant, ByRef outStyleSegments As Collection) As Boolean
+Private Function private_TryBuildRenderBuffer( _
+    ByRef outValueBlock As Variant, _
+    ByRef outStyleSegments As Collection, _
+    ByRef outCellButtonActions As Collection _
+) As Boolean
     Dim tableItem As Variant
     Dim tableViewItem As obj_TableViewItem
     Dim availableCols As Long
@@ -327,6 +380,7 @@ ContinueEstimate:
 #If ENALBE_STYLES Then
     Set outStyleSegments = New Collection
 #End If
+    Set outCellButtonActions = New Collection
 
     currentOutputRow = 0
 
@@ -339,7 +393,7 @@ ContinueEstimate:
         If tableViewItem Is Nothing Then GoTo ContinueWrite
 
         If Not private_TryWriteTableItemToBuffer( _
-            tableViewItem, outValueBlock, outStyleSegments, availableCols, plannedRows, currentOutputRow) Then Exit Function
+            tableViewItem, outValueBlock, outStyleSegments, outCellButtonActions, availableCols, plannedRows, currentOutputRow) Then Exit Function
 
 ContinueWrite:
     Next tableItem
@@ -428,6 +482,7 @@ Private Function private_TryWriteTableItemToBuffer( _
     ByVal tableViewItem As obj_TableViewItem, _
     ByRef valueBlock As Variant, _
     ByVal styleSegments As Collection, _
+    ByVal cellButtonActions As Collection, _
     ByVal availableCols As Long, _
     ByVal plannedRows As Long, _
     ByRef ioCurrentOutputRow As Long _
@@ -525,7 +580,7 @@ Private Function private_TryWriteTableItemToBuffer( _
             If rowViewItem Is Nothing Then GoTo ContinueRowView
 
             If Not private_TryAppendRowViewData( _
-                rowViewItem, tableDynamic.ColumnCount, valueBlock, styleSegments, plannedRows, ioCurrentOutputRow) Then Exit Function
+                rowViewItem, tableDynamic.ColumnCount, valueBlock, styleSegments, cellButtonActions, plannedRows, ioCurrentOutputRow) Then Exit Function
 
 ContinueRowView:
         Next rowViewItemIndex
@@ -541,6 +596,7 @@ ContinueRowView:
                 ioCurrentOutputRow = ioCurrentOutputRow + 1
                 Set row = sourceRow
                 row.CopyToMatrixRow valueBlock, ioCurrentOutputRow, tableDynamic.ColumnCount
+                private_CollectCellButtonActions row, ioCurrentOutputRow, tableDynamic.ColumnCount, cellButtonActions
 ContinueTableRow:
             Next tableRowIndex
             writeEnd = ioCurrentOutputRow
@@ -571,6 +627,7 @@ Private Function private_TryAppendRowViewData( _
     ByVal columnCount As Long, _
     ByRef valueBlock As Variant, _
     ByVal styleSegments As Collection, _
+    ByVal cellButtonActions As Collection, _
     ByVal plannedRows As Long, _
     ByRef ioCurrentOutputRow As Long _
 ) As Boolean
@@ -605,6 +662,7 @@ Private Function private_TryAppendRowViewData( _
 
     ioCurrentOutputRow = ioCurrentOutputRow + 1
     row.CopyToMatrixRow valueBlock, ioCurrentOutputRow, columnCount
+    private_CollectCellButtonActions row, ioCurrentOutputRow, columnCount, cellButtonActions
 #If ENALBE_STYLES Then
     private_AddStyleSegment styleSegments, "data", columnCount, ioCurrentOutputRow, ioCurrentOutputRow
 #End If
@@ -620,6 +678,37 @@ Private Function private_TryAppendRowViewData( _
 
     private_TryAppendRowViewData = True
 End Function
+
+Private Sub private_CollectCellButtonActions( _
+    ByVal rowObj As obj_Row, _
+    ByVal relativeRow As Long, _
+    ByVal columnCount As Long, _
+    ByVal cellButtonActions As Collection _
+)
+    Dim colIndex As Long
+    Dim cellObj As obj_Cell
+    Dim actionInfo As Object
+
+    If rowObj Is Nothing Then Exit Sub
+    If cellButtonActions Is Nothing Then Exit Sub
+    If relativeRow <= 0 Or columnCount <= 0 Then Exit Sub
+
+    For colIndex = 1 To columnCount
+        Set cellObj = Nothing
+        If Not rowObj.TryGetCellAt(colIndex, cellObj) Then GoTo ContinueCell
+        If cellObj Is Nothing Then GoTo ContinueCell
+        If Not cellObj.IsButtonView Then GoTo ContinueCell
+
+        Set actionInfo = VBA.CreateObject("Scripting.Dictionary")
+        actionInfo.CompareMode = 1
+        actionInfo("RelativeRow") = relativeRow
+        actionInfo("RelativeCol") = colIndex
+        Set actionInfo("Cell") = cellObj
+        cellButtonActions.Add actionInfo
+
+ContinueCell:
+    Next colIndex
+End Sub
 
 Private Function private_TryAppendBannerBlock( _
     ByVal bannerView As obj_BannerViewItem, _
@@ -779,8 +868,156 @@ ContinueSegment:
         private_ApplyRowStyle groupedRange, backColor, fontColor, borderColor, fontSize, fontBold
 
 ContinueGroup:
-    Next key
+	    Next key
 End Sub
+
+Private Function private_TryRenderCellButtonShapes(ByVal ws As Worksheet, ByVal cellButtonActions As Collection) As Boolean
+    Dim pageBase As obj_PageBase
+    Dim actionInfo As Object
+    Dim actionId As Long
+
+    If ws Is Nothing Then Exit Function
+    If cellButtonActions Is Nothing Then
+        private_TryRenderCellButtonShapes = True
+        Exit Function
+    End If
+    If cellButtonActions.Count <= 0 Then
+        private_TryRenderCellButtonShapes = True
+        Exit Function
+    End If
+
+    If VBA.Len(VBA.Trim$(m_CellButtonClickMacroRef)) = 0 Then
+#If LOGGING_DEBUG_ENABLED Then
+        ex_Core.fn_Diagnostic_LogError "TableList: ButtonView cells found, but cellButtonClick is not configured for control '" & m_ControlName & "'."
+#End If
+        private_TryRenderCellButtonShapes = True
+        Exit Function
+    End If
+
+    If m_Page Is Nothing Then Exit Function
+    Set pageBase = m_Page.GetPageBase()
+    If pageBase Is Nothing Then Exit Function
+    If VBA.Len(VBA.Trim$(m_RuntimeControlKey)) = 0 Then Exit Function
+    If Not pageBase.RegisterControl(m_RuntimeControlKey, Me) Then Exit Function
+
+    Set m_CellButtonPayloadById = VBA.CreateObject("Scripting.Dictionary")
+    m_CellButtonPayloadById.CompareMode = 1
+
+    actionId = 0
+    For Each actionInfo In cellButtonActions
+        If actionInfo Is Nothing Then GoTo ContinueAction
+        actionId = actionId + 1
+        If Not private_TryRenderOneCellButtonShape(ws, pageBase, actionInfo, actionId) Then Exit Function
+ContinueAction:
+    Next actionInfo
+
+    private_TryRenderCellButtonShapes = True
+End Function
+
+Private Function private_TryRenderOneCellButtonShape( _
+    ByVal ws As Worksheet, _
+    ByVal pageBase As obj_PageBase, _
+    ByVal actionInfo As Object, _
+    ByVal actionId As Long _
+) As Boolean
+    Dim cellObj As obj_Cell
+    Dim targetCell As Range
+    Dim shp As Shape
+    Dim shapeName As String
+    Dim actionKey As String
+    Dim captionText As String
+    Dim callbackMacroRef As String
+    Dim metaMap As Object
+    Dim relativeRow As Long
+    Dim relativeCol As Long
+
+    If ws Is Nothing Then Exit Function
+    If pageBase Is Nothing Then Exit Function
+    If actionInfo Is Nothing Then Exit Function
+    If actionId <= 0 Then Exit Function
+
+    relativeRow = VBA.CLng(actionInfo("RelativeRow"))
+    relativeCol = VBA.CLng(actionInfo("RelativeCol"))
+    If relativeRow <= 0 Or relativeCol <= 0 Then Exit Function
+
+    Set cellObj = Nothing
+    On Error Resume Next
+    Set cellObj = actionInfo("Cell")
+    On Error GoTo 0
+    If cellObj Is Nothing Then Exit Function
+
+    Set targetCell = ws.Cells(m_RowStart + relativeRow - 1, m_ColStart + relativeCol - 1)
+    If targetCell Is Nothing Then Exit Function
+    If targetCell.Width <= 0# Or targetCell.Height <= 0# Then Exit Function
+
+    actionKey = VBA.CStr(actionId)
+    If Not private_TryStoreCellButtonPayload(actionKey, cellObj) Then Exit Function
+
+    shapeName = private_BuildCellButtonShapeName(actionId)
+    If VBA.Len(shapeName) = 0 Then Exit Function
+
+    Set shp = private_GetUiShapeByName(ws, shapeName)
+    If shp Is Nothing Then
+        Set shp = ws.Shapes.AddShape(msoShapeRoundedRectangle, targetCell.Left, targetCell.Top, targetCell.Width, targetCell.Height)
+        shp.Name = shapeName
+    Else
+        shp.Left = targetCell.Left
+        shp.Top = targetCell.Top
+        shp.Width = targetCell.Width
+        shp.Height = targetCell.Height
+    End If
+    shp.Placement = xlMoveAndSize
+
+    callbackMacroRef = private_GetRuntimeCallbackMacroRef()
+    If VBA.Len(callbackMacroRef) = 0 Then Exit Function
+    If Not private_TryAssignShapeOnActionIfChanged(shp, callbackMacroRef) Then Exit Function
+    If Not pageBase.RegisterShapeRoute(shp.Name, m_RuntimeControlKey, "RuntimeHandleCellButtonClick", True, actionId) Then Exit Function
+
+    captionText = cellObj.Value
+    On Error Resume Next
+    shp.TextFrame2.TextRange.Text = captionText
+    shp.TextFrame2.VerticalAnchor = msoAnchorMiddle
+    shp.TextFrame2.TextRange.ParagraphFormat.Alignment = msoAlignLeft
+    shp.TextFrame2.TextRange.Font.Fill.ForeColor.RGB = VBA.RGB(248, 250, 252)
+    shp.TextFrame2.TextRange.Font.Size = 10
+    shp.TextFrame.Characters.Text = captionText
+    shp.TextFrame.HorizontalAlignment = xlHAlignLeft
+    shp.TextFrame.VerticalAlignment = xlVAlignCenter
+    shp.Fill.ForeColor.RGB = VBA.RGB(5, 79, 35)
+    shp.Fill.Transparency = 0.05
+    shp.Line.ForeColor.RGB = VBA.RGB(16, 185, 129)
+    shp.Line.Weight = 1
+    On Error GoTo 0
+
+    Set metaMap = VBA.CreateObject("Scripting.Dictionary")
+    metaMap.CompareMode = 1
+    metaMap("pn.control") = m_ControlName
+    metaMap("pn.part") = "cellButton"
+    metaMap("pn.actionId") = actionKey
+    If Not ex_ShapeMetaRuntime.fn_TrySetShapeMetaValues(shp, metaMap) Then Exit Function
+
+    private_TryRenderOneCellButtonShape = True
+End Function
+
+Private Function private_TryStoreCellButtonPayload(ByVal actionKey As String, ByVal cellObj As obj_Cell) As Boolean
+    Dim payload As Variant
+    Dim payloadObject As Object
+
+    If m_CellButtonPayloadById Is Nothing Then Exit Function
+    If cellObj Is Nothing Then Exit Function
+    actionKey = VBA.Trim$(actionKey)
+    If VBA.Len(actionKey) = 0 Then Exit Function
+
+    If cellObj.ButtonActionArgIsObject Then
+        Set payloadObject = cellObj.ButtonActionArg
+        Set m_CellButtonPayloadById(actionKey) = payloadObject
+    Else
+        payload = cellObj.ButtonActionArg
+        m_CellButtonPayloadById(actionKey) = payload
+    End If
+
+    private_TryStoreCellButtonPayload = True
+End Function
 
 Private Function private_TryRegisterControlPartSegments(ByVal ws As Worksheet, ByVal styleSegments As Collection) As Boolean
     Dim segment As Object
@@ -1122,6 +1359,155 @@ Private Sub private_ApplyRowStyle( _
 #End If
     End With
 End Sub
+
+Private Sub private_DeleteExistingCellButtonShapes(ByVal ws As Worksheet)
+    Dim shapePrefix As String
+    Dim i As Long
+    Dim shp As Shape
+
+    If ws Is Nothing Then Exit Sub
+    shapePrefix = VBA.LCase$(private_GetCellButtonShapePrefix())
+    If VBA.Len(shapePrefix) = 0 Then Exit Sub
+
+    On Error Resume Next
+    For i = ws.Shapes.Count To 1 Step -1
+        Set shp = ws.Shapes.Item(i)
+        If Not shp Is Nothing Then
+            If VBA.Left$(VBA.LCase$(VBA.Trim$(shp.Name)), VBA.Len(shapePrefix)) = shapePrefix Then
+                shp.Delete
+            End If
+        End If
+    Next i
+    On Error GoTo 0
+End Sub
+
+Private Function private_BuildCellButtonShapeName(ByVal actionId As Long) As String
+    If actionId <= 0 Then Exit Function
+    private_BuildCellButtonShapeName = private_GetCellButtonShapePrefix() & VBA.CStr(actionId)
+End Function
+
+Private Function private_GetCellButtonShapePrefix() As String
+    Dim normalizedName As String
+
+    normalizedName = private_NormalizeNamePart(m_ControlName)
+    If VBA.Len(normalizedName) = 0 Then normalizedName = "tablelist"
+    private_GetCellButtonShapePrefix = "tblbtn_" & normalizedName & "_"
+End Function
+
+Private Function private_GetUiShapeByName(ByVal ws As Worksheet, ByVal shapeName As String) As Shape
+    If ws Is Nothing Then Exit Function
+    shapeName = VBA.Trim$(shapeName)
+    If VBA.Len(shapeName) = 0 Then Exit Function
+
+    On Error Resume Next
+    Set private_GetUiShapeByName = ws.Shapes(shapeName)
+    On Error GoTo 0
+End Function
+
+Private Function private_TryAssignShapeOnActionIfChanged(ByVal shp As Shape, ByVal macroRef As String) As Boolean
+    Dim currentMacroRef As String
+
+    If shp Is Nothing Then Exit Function
+    macroRef = VBA.Trim$(macroRef)
+    If VBA.Len(macroRef) = 0 Then
+        private_TryAssignShapeOnActionIfChanged = True
+        Exit Function
+    End If
+
+    On Error Resume Next
+    currentMacroRef = VBA.Trim$(VBA.CStr(shp.OnAction))
+    If Err.Number <> 0 Then
+        Err.Clear
+        currentMacroRef = VBA.vbNullString
+    End If
+    On Error GoTo 0
+
+    If VBA.StrComp(currentMacroRef, macroRef, VBA.vbBinaryCompare) <> 0 Then
+        On Error GoTo EH_SET
+        shp.OnAction = macroRef
+        On Error GoTo 0
+    End If
+
+    private_TryAssignShapeOnActionIfChanged = True
+    Exit Function
+
+EH_SET:
+    On Error GoTo 0
+End Function
+
+Private Function private_TryResolveCallbackRef( _
+    ByVal rawText As String, _
+    ByVal dataContext As Object, _
+    ByRef outCallbackRef As String _
+) As Boolean
+    Dim resolvedValue As Variant
+
+    outCallbackRef = VBA.vbNullString
+    rawText = VBA.Trim$(rawText)
+    If VBA.Len(rawText) = 0 Then
+        private_TryResolveCallbackRef = True
+        Exit Function
+    End If
+
+    If Not ex_BindingRuntime.fn_TryResolveValueBinding(rawText, dataContext, resolvedValue) Then Exit Function
+    If VBA.IsObject(resolvedValue) Then
+#If LOGGING_DEBUG_ENABLED Then
+        ex_Core.fn_Diagnostic_LogError "TableList: callback binding must resolve to scalar value for control '" & m_ControlName & "'."
+#End If
+        Exit Function
+    End If
+
+    outCallbackRef = VBA.Trim$(VBA.CStr(resolvedValue))
+    If VBA.Len(outCallbackRef) = 0 Then
+#If LOGGING_DEBUG_ENABLED Then
+        ex_Core.fn_Diagnostic_LogError "TableList: callback binding resolved to empty value for control '" & m_ControlName & "'."
+#End If
+        Exit Function
+    End If
+
+    private_TryResolveCallbackRef = True
+End Function
+
+Private Function private_GetRuntimeCallbackMacroRef() As String
+    private_GetRuntimeCallbackMacroRef = private_QualifyMacroName("rt_Bridge.fn_OnShapeClick")
+End Function
+
+Private Function private_QualifyMacroName(ByVal macroName As String) As String
+    Dim wbName As String
+
+    macroName = VBA.Trim$(macroName)
+    If VBA.Len(macroName) = 0 Then Exit Function
+    If VBA.InStr(1, macroName, "!", VBA.vbBinaryCompare) > 0 Then
+        private_QualifyMacroName = macroName
+        Exit Function
+    End If
+
+    wbName = ThisWorkbook.Name
+    wbName = VBA.Replace$(wbName, "'", "''")
+    private_QualifyMacroName = "'" & wbName & "'!" & macroName
+End Function
+
+Private Function private_NormalizeNamePart(ByVal rawText As String) As String
+    Dim i As Long
+    Dim ch As String
+    Dim outText As String
+
+    rawText = VBA.Trim$(rawText)
+    For i = 1 To VBA.Len(rawText)
+        ch = VBA.Mid$(rawText, i, 1)
+        If (ch >= "A" And ch <= "Z") Or _
+           (ch >= "a" And ch <= "z") Or _
+           (ch >= "0" And ch <= "9") Or _
+           ch = "_" Then
+            outText = outText & ch
+        Else
+            outText = outText & "_"
+        End If
+    Next i
+
+    If VBA.Len(outText) = 0 Then outText = "x"
+    private_NormalizeNamePart = VBA.Left$(outText, 80)
+End Function
 
 Private Function private_GetWorksheetByName(ByVal page As obj_PageBase, ByVal sheetName As String) As Worksheet
     Dim ws As Worksheet

@@ -1045,21 +1045,11 @@ End Function
 
 
 Private Function private_ResolvePageIdPrefix(ByVal page As obj_IPage) As String
-    private_ResolvePageIdPrefix = "page"
+    private_ResolvePageIdPrefix = "generated"
     If page Is Nothing Then Exit Function
 
     If TypeOf page Is obj_PageMain Then
         private_ResolvePageIdPrefix = "main"
-        Exit Function
-    End If
-
-    If TypeOf page Is obj_PagePersonalCard Then
-        private_ResolvePageIdPrefix = "generated"
-        Exit Function
-    End If
-
-    If TypeOf page Is obj_PageEntityLookup Then
-        private_ResolvePageIdPrefix = "generated"
         Exit Function
     End If
 End Function

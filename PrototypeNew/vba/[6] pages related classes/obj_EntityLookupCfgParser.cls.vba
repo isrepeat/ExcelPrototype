@@ -159,7 +159,6 @@ Public Function TryGetLookupInputGridColumn( _
     Dim cfgMap As Object
     Dim targetColumnKey As String
     Dim tableColumnKeys As Collection
-    Dim lookupTargetColumns As Object
     Dim columnKeyObj As Variant
     Dim columnKey As String
     Dim currentGridCol As Long
@@ -172,7 +171,6 @@ Public Function TryGetLookupInputGridColumn( _
 
     If Not private_TryGetLookupTargetColumn(cfgMap, lookupKey, targetColumnKey) Then Exit Function
     If Not private_TryGetTableColumnKeysFromMap(cfgMap, tableColumnKeys) Then Exit Function
-    If Not private_TryBuildLookupTargetColumnSet(cfgMap, lookupTargetColumns) Then Exit Function
 
     currentGridCol = 1
     For Each columnKeyObj In tableColumnKeys
@@ -185,15 +183,22 @@ Public Function TryGetLookupInputGridColumn( _
             Exit Function
         End If
 
-        If lookupTargetColumns.Exists(VBA.LCase$(columnKey)) Then
-            currentGridCol = currentGridCol + 2
-        Else
-            currentGridCol = currentGridCol + 1
-        End If
+        currentGridCol = currentGridCol + 1
 ContinueColumn:
     Next columnKeyObj
 
     private_ShowConfigError "Lookup target column '" & targetColumnKey & "' for lookup '" & lookupKey & "' is not listed in EntityLookup.Table.Columns."
+End Function
+
+Public Function TryGetLookupTargetColumn( _
+    ByVal lookupKey As String, _
+    ByRef outTargetColumnKey As String _
+) As Boolean
+    Dim cfgMap As Object
+
+    outTargetColumnKey = VBA.vbNullString
+    If Not private_TryBuildConfigMap(cfgMap) Then Exit Function
+    TryGetLookupTargetColumn = private_TryGetLookupTargetColumn(cfgMap, lookupKey, outTargetColumnKey)
 End Function
 
 Public Function TryBuildLookupSqlParams( _

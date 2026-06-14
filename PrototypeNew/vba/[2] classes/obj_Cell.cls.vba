@@ -10,6 +10,9 @@ Private Const VIRTUAL_MARKER As String = "__virtual"
 
 Private m_Value As String
 Private m_Desc As String
+Private m_IsButtonView As Boolean
+Private m_ButtonActionArg As Variant
+Private m_ButtonActionArgIsObject As Boolean
 Private m_IsDisposed As Boolean
 
 Private Sub Class_Initialize()
@@ -47,6 +50,36 @@ Public Property Let Desc(ByVal valueText As String)
     m_Desc = VBA.CStr(valueText)
 End Property
 
+Public Property Get IsButtonView() As Boolean
+    IsButtonView = m_IsButtonView
+End Property
+
+Public Property Let IsButtonView(ByVal value As Boolean)
+    m_IsButtonView = VBA.CBool(value)
+End Property
+
+Public Property Get ButtonActionArg() As Variant
+    If m_ButtonActionArgIsObject Then
+        Set ButtonActionArg = m_ButtonActionArg
+    Else
+        ButtonActionArg = m_ButtonActionArg
+    End If
+End Property
+
+Public Property Let ButtonActionArg(ByVal value As Variant)
+    m_ButtonActionArgIsObject = False
+    m_ButtonActionArg = value
+End Property
+
+Public Property Set ButtonActionArg(ByVal value As Object)
+    m_ButtonActionArgIsObject = True
+    Set m_ButtonActionArg = value
+End Property
+
+Public Property Get ButtonActionArgIsObject() As Boolean
+    ButtonActionArgIsObject = m_ButtonActionArgIsObject
+End Property
+
 Public Property Get IsVirtual() As Boolean
     IsVirtual = (VBA.InStr(1, m_Desc, VIRTUAL_MARKER, VBA.vbTextCompare) > 0)
 End Property
@@ -78,12 +111,30 @@ Public Function MarkAsVirtual(Optional ByVal extraDesc As String = VBA.vbNullStr
     MarkAsVirtual = True
 End Function
 
+Public Function MarkAsButtonView(Optional ByVal actionArg As Variant) As Boolean
+    m_IsButtonView = True
+    If Not VBA.IsMissing(actionArg) Then
+        If VBA.IsObject(actionArg) Then
+            Set Me.ButtonActionArg = actionArg
+        Else
+            Me.ButtonActionArg = actionArg
+        End If
+    End If
+    MarkAsButtonView = True
+End Function
+
 Public Function Clone() As obj_Cell
     Dim result As obj_Cell
 
     Set result = New obj_Cell
     result.Value = m_Value
     result.Desc = m_Desc
+    result.IsButtonView = m_IsButtonView
+    If m_ButtonActionArgIsObject Then
+        Set result.ButtonActionArg = m_ButtonActionArg
+    Else
+        result.ButtonActionArg = m_ButtonActionArg
+    End If
 
     Set Clone = result
 End Function

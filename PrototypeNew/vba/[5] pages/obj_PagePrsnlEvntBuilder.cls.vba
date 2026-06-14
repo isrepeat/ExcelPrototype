@@ -2,7 +2,7 @@ VERSION 1.0 CLASS
 BEGIN
   MultiUse = -1  'True
 END
-Attribute VB_Name = "obj_PageEntityLookup"
+Attribute VB_Name = "obj_PagePrsnlEvntBuilder"
 Option Explicit
 #Const LOGGING_DEBUG_ENABLED = True
 #Const LOGGING_VERBOSE_ENABLED = False
@@ -10,16 +10,16 @@ Option Explicit
 Implements obj_IPage
 Implements obj_ISerializable
 
-Private Const SERIALIZABLE_TYPE_ROOT As String = "page.entitylookup"
+Private Const SERIALIZABLE_TYPE_ROOT As String = "page.prsnlevntbuilder"
 Private Const SNAPSHOT_ROOT_NODE As String = "pageState"
 Private Const CONTROL_SNAPSHOT_NODE As String = "controlSnapshot"
 Private Const PARENT_PAGE_ID_ATTR As String = "parentPageId"
 Private Const PARENT_CONFIG_CONTROL_NAME As String = "DevConfig"
-Private Const PAGE_RUNTIME_OBJECT_KEY As String = "RuntimeObjects.PageEntityLookup"
+Private Const PAGE_RUNTIME_OBJECT_KEY As String = "RuntimeObjects.PrsnlEvntBuilder"
 Private Const DICTIONARY_MISSING_MEMBER_AS_EMPTY_KEY As String = "__MissingMemberAsEmpty"
 
 Private m_PageBase As obj_PageBase
-Private m_Controller As obj_PageEntityLookupCtrl
+Private m_Controller As obj_PagePrsnlEvntBuilderCtrl
 Private m_PendingControlSnapshots As Collection
 Private m_ParentPageId As String
 Private m_ParentPage As obj_IPage
@@ -70,7 +70,7 @@ Private Function obj_IPage_Initialize( _
     If Not m_PageBase.Initialize(ws, Me, uiPath, pageId) Then Exit Function
     If Not m_PageBase.RuntimeSources.SetObjectSource(PAGE_RUNTIME_OBJECT_KEY, Me) Then Exit Function
 
-    Set m_Controller = New obj_PageEntityLookupCtrl
+    Set m_Controller = New obj_PagePrsnlEvntBuilderCtrl
     If Not m_Controller.Initialize(Me) Then Exit Function
 
     obj_IPage_Initialize = True
@@ -84,14 +84,14 @@ Private Function obj_IPage_RunPagePipeline() As Boolean
     Dim configControl As obj_ConfigControlVM
 
 #If LOGGING_DEBUG_ENABLED Then
-    ex_Core.fn_Diagnostic_LogInfo "enter:obj_PageEntityLookup.RunPagePipeline"
+    ex_Core.fn_Diagnostic_LogInfo "enter:obj_PagePrsnlEvntBuilder.RunPagePipeline"
 #End If
     If Not m_PageBase.IsReady() Then Exit Function
     If Not private_TryResolveParentConfigControl(configControl) Then Exit Function
     If Not m_Controller Is Nothing Then
         If Not m_Controller.UpdateData(configControl) Then Exit Function
         If Not private_SyncLookupQueryKeysFromController() Then Exit Function
-        If Not m_Controller.PrepareLookupRuntime(False) Then Exit Function
+        If Not m_Controller.PrepareRuntime(False) Then Exit Function
     End If
 
     obj_IPage_RunPagePipeline = True
@@ -106,7 +106,7 @@ Private Function obj_ISerializable_TryRestoreState() As Boolean
     If VBA.Len(m_ParentPageId) > 0 Then
         If Not private_TryGetParentPage(parentPage) Then
 #If LOGGING_DEBUG_ENABLED Then
-            ex_Core.fn_Diagnostic_LogError "PageEntityLookup: parent page is not found during RestoreState. parentPageId='" & VBA.Replace$(m_ParentPageId, "'", "''") & "'."
+            ex_Core.fn_Diagnostic_LogError "PagePrsnlEvntBuilder: parent page is not found during RestoreState. parentPageId='" & VBA.Replace$(m_ParentPageId, "'", "''") & "'."
 #End If
             Exit Function
         End If
@@ -118,7 +118,7 @@ Private Function obj_ISerializable_TryRestoreState() As Boolean
             If Not m_Controller.UpdateData(configControl) Then Exit Function
             If Not private_SyncLookupQueryKeysFromController() Then Exit Function
         End If
-        If Not m_Controller.PrepareLookupRuntime(False) Then Exit Function
+        If Not m_Controller.PrepareRuntime(False) Then Exit Function
     End If
 
     obj_ISerializable_TryRestoreState = True
@@ -147,7 +147,7 @@ Private Function obj_IPage_UpdateUiPath( _
     m_PageBase.SetUiPath normalizedUiPath
 
     normalizedReason = VBA.Trim$(reason)
-    If VBA.Len(normalizedReason) = 0 Then normalizedReason = "obj_PageEntityLookup.UpdateUiPath"
+    If VBA.Len(normalizedReason) = 0 Then normalizedReason = "obj_PagePrsnlEvntBuilder.UpdateUiPath"
 
     Set iPage = Me
     obj_IPage_UpdateUiPath = rt_PageManager.fn_RenderPage(iPage, normalizedReason)
@@ -233,7 +233,7 @@ Public Function OnRenderCommand(Optional ByVal arg As Variant) As Boolean
     Dim pageRef As obj_IPage
 
     Set pageRef = Me
-    OnRenderCommand = rt_PageManager.fn_RenderPage(pageRef, "entitylookup:public-render-page")
+    OnRenderCommand = rt_PageManager.fn_RenderPage(pageRef, "prsnlevntbuilder:public-render-page")
 End Function
 
 Public Property Get LookupQueryValues() As Object
@@ -251,7 +251,7 @@ Public Function OnLookupInputCellChangedCommand(Optional ByVal arg As Variant) A
     If Not private_TryReadCellText(changedCellAddress, queryText) Then Exit Function
 
     private_SetLookupQueryValue lookupKey, queryText
-    OnLookupInputCellChangedCommand = private_TryRunLookupSearch(lookupKey, queryText, "entitylookup:auto-search-" & private_NormalizeReasonToken(lookupKey))
+    OnLookupInputCellChangedCommand = private_TryRunLookupSearch(lookupKey, queryText, "prsnlevntbuilder:auto-search-" & private_NormalizeReasonToken(lookupKey))
 End Function
 
 ' //
@@ -377,7 +377,7 @@ Private Function private_TryEnsureControllerData() As Boolean
     If m_Controller Is Nothing Then Exit Function
     If Not private_TryResolveParentConfigControl(configControl) Then
 #If LOGGING_DEBUG_ENABLED Then
-        ex_Core.fn_Diagnostic_LogError "PageEntityLookup: failed to resolve parent DevConfig before lookup search."
+        ex_Core.fn_Diagnostic_LogError "PagePrsnlEvntBuilder: failed to resolve parent DevConfig before lookup search."
 #End If
         MsgBox "PrototypeNew: failed to resolve parent DevConfig before lookup search.", vbExclamation, "PrototypeNew / EntityLookup runtime"
         Exit Function
