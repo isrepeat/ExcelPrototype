@@ -24,7 +24,6 @@ Private m_PendingControlSnapshots As Collection
 Private m_ParentPageId As String
 Private m_ParentPage As obj_IPage
 Private m_QueryValuesByLookupKey As Object
-Private m_PendingSelectedValuesByColumnKey As Object
 Private m_IsDisposed As Boolean
 
 Private Sub Class_Initialize()
@@ -73,7 +72,6 @@ Private Function obj_IPage_Initialize( _
 
     Set m_Controller = New obj_PageEntityLookupCtrl
     If Not m_Controller.Initialize(Me) Then Exit Function
-    If Not private_ApplyPendingSelectedValues(False) Then Exit Function
 
     obj_IPage_Initialize = True
 End Function
@@ -121,7 +119,6 @@ Private Function obj_ISerializable_TryRestoreState() As Boolean
             If Not private_SyncLookupQueryKeysFromController() Then Exit Function
         End If
         If Not m_Controller.PrepareLookupRuntime(False) Then Exit Function
-        If Not private_ApplyPendingSelectedValues(False) Then Exit Function
     End If
 
     obj_ISerializable_TryRestoreState = True
@@ -256,7 +253,6 @@ Public Function OnLookupInputCellChangedCommand(Optional ByVal arg As Variant) A
     private_SetLookupQueryValue lookupKey, queryText
     OnLookupInputCellChangedCommand = private_TryRunLookupSearch(lookupKey, queryText, "entitylookup:auto-search-" & private_NormalizeReasonToken(lookupKey))
 End Function
-
 
 ' //
 ' // Internal
@@ -416,26 +412,6 @@ ContinueLookup:
     private_SyncLookupQueryKeysFromController = True
 End Function
 
-Private Function private_ApplyPendingSelectedValues(ByVal notifyChange As Boolean) As Boolean
-    Dim columnKeyObj As Variant
-    Dim columnKey As String
-
-    If m_Controller Is Nothing Then Exit Function
-    If m_PendingSelectedValuesByColumnKey Is Nothing Then
-        private_ApplyPendingSelectedValues = True
-        Exit Function
-    End If
-
-    For Each columnKeyObj In m_PendingSelectedValuesByColumnKey.Keys
-        columnKey = VBA.Trim$(VBA.CStr(columnKeyObj))
-        If VBA.Len(columnKey) = 0 Then GoTo ContinueColumn
-        If Not m_Controller.SetSelectedValue(columnKey, VBA.CStr(m_PendingSelectedValuesByColumnKey(columnKey)), notifyChange) Then Exit Function
-ContinueColumn:
-    Next columnKeyObj
-
-    private_ApplyPendingSelectedValues = True
-End Function
-
 Private Function private_TryRestorePendingControlSnapshots() As Boolean
     If m_PendingControlSnapshots Is Nothing Then
         private_TryRestorePendingControlSnapshots = True
@@ -548,7 +524,6 @@ End Function
 
 Private Sub private_ResetLookupState()
     Set m_QueryValuesByLookupKey = ex_Helpers.fn_CreateDictionaryTextCompare()
-    Set m_PendingSelectedValuesByColumnKey = ex_Helpers.fn_CreateDictionaryTextCompare()
 End Sub
 
 Private Sub private_EnsureLookupQueryStorage()

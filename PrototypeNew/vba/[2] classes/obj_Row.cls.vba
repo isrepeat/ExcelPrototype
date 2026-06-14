@@ -240,6 +240,12 @@ Public Function TryGetCellByDesc(ByVal descToken As String, ByRef outCell As obj
     TryGetCellByDesc = Not outCell Is Nothing
 End Function
 
+Public Function TryGetCellAt(ByVal oneBasedIndex As Long, ByRef outCell As obj_Cell) As Boolean
+    Set outCell = Nothing
+    Set outCell = private_GetCellObject(oneBasedIndex)
+    TryGetCellAt = Not outCell Is Nothing
+End Function
+
 Public Function IsCellVirtual(ByVal oneBasedIndex As Long) As Boolean
     Dim cellObj As obj_Cell
 

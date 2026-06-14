@@ -12,6 +12,7 @@ Private Const MODES_ROOT_REL_PATH As String = "modes"
 Private Const MODE_PROFILES_FILE_SUFFIX As String = "Profiles.xml"
 Private Const PERSONAL_CARD_SHEET_BASE_NAME As String = "PersonalCard"
 Private Const ENTITY_LOOKUP_SHEET_BASE_NAME As String = "EntityLookup"
+Private Const PRSNL_EVNT_BUILDER_SHEET_BASE_NAME As String = "PrsnlEvntBuilder"
 Private Const MODE_ON_SELECT_MACRO As String = "OnConfigModeChanged"
 Private Const PROFILE_ON_SELECT_MACRO As String = "OnConfigProfileChanged"
 Private Const MODE_PICKER_CONTROL_NAME As String = "ConfigModePicker"
@@ -505,6 +506,115 @@ EH_OPEN:
         ex_Core.fn_Diagnostic_LogError "PrototypeNew: exception in OnOpenEntityLookupPageCommand: [" & VBA.CStr(Err.Number) & "] " & Err.Description
     #End If
     MsgBox "PrototypeNew: exception in OnOpenEntityLookupPageCommand: [" & VBA.CStr(Err.Number) & "] " & Err.Description, vbExclamation, "PrototypeNew / Config runtime"
+    Resume EH_CREATE
+End Function
+
+Public Function OnOpenPrsnlEvntBuilderPageCommand(Optional ByVal arg As Variant) As Boolean
+    #If LOGGING_DEBUG_ENABLED Then
+        ex_Core.fn_Diagnostic_LogInfo "enter:obj_PageMainCtrl.OnOpenPrsnlEvntBuilderPageCommand"
+    #End If
+    Dim sheetName As String
+    Dim existingPage As obj_IPage
+    Dim builderPage As obj_IPage
+    Dim parentPage As obj_IPage
+    Dim isPageCreated As Boolean
+
+    On Error GoTo EH_OPEN
+
+    If rt_PageManager.fn_TryGetPageByWorksheetName(PRSNL_EVNT_BUILDER_SHEET_BASE_NAME, existingPage) Then
+        If existingPage Is Nothing Then GoTo EH_CREATE
+        If Not TypeOf existingPage Is obj_PagePrsnlEvntBuilder Then
+            #If LOGGING_DEBUG_ENABLED Then
+                ex_Core.fn_Diagnostic_LogError "PrototypeNew: worksheet '" & PRSNL_EVNT_BUILDER_SHEET_BASE_NAME & "' is bound to unexpected page type '" & VBA.TypeName(existingPage) & "'."
+            #End If
+            MsgBox "PrototypeNew: worksheet '" & PRSNL_EVNT_BUILDER_SHEET_BASE_NAME & "' is bound to unexpected page type '" & VBA.TypeName(existingPage) & "'.", vbExclamation, "PrototypeNew / Config runtime"
+            Exit Function
+        End If
+
+        If Not existingPage.RunPagePipeline() Then
+            #If LOGGING_DEBUG_ENABLED Then
+                ex_Core.fn_Diagnostic_LogError "PrototypeNew: failed to run PrsnlEvntBuilder page pipeline for existing page."
+            #End If
+            MsgBox "PrototypeNew: failed to run PrsnlEvntBuilder page pipeline for existing page.", vbExclamation, "PrototypeNew / Config runtime"
+            Exit Function
+        End If
+
+        If Not rt_PageManager.fn_RenderPageAndActivate(existingPage, "pagemain:open-prsnlevntbuilder:reuse") Then
+            #If LOGGING_DEBUG_ENABLED Then
+                ex_Core.fn_Diagnostic_LogError "PrototypeNew: failed to render existing PrsnlEvntBuilder page."
+            #End If
+            MsgBox "PrototypeNew: failed to render existing PrsnlEvntBuilder page.", vbExclamation, "PrototypeNew / Config runtime"
+            Exit Function
+        End If
+
+        rt_Messaging.fn_ShowStatusBarSuccess "PrsnlEvntBuilder page has been refreshed.", 3
+        OnOpenPrsnlEvntBuilderPageCommand = True
+        Exit Function
+    End If
+
+    sheetName = private_BuildUniqueWorksheetName(ThisWorkbook, PRSNL_EVNT_BUILDER_SHEET_BASE_NAME)
+    If VBA.Len(sheetName) = 0 Then
+        #If LOGGING_DEBUG_ENABLED Then
+            ex_Core.fn_Diagnostic_LogError "PrototypeNew: failed to allocate worksheet name for PrsnlEvntBuilder page."
+        #End If
+        MsgBox "PrototypeNew: failed to allocate worksheet name for PrsnlEvntBuilder page.", vbExclamation, "PrototypeNew / Config runtime"
+        Exit Function
+    End If
+
+    Set builderPage = New obj_PagePrsnlEvntBuilder
+    If builderPage Is Nothing Then
+        #If LOGGING_DEBUG_ENABLED Then
+            ex_Core.fn_Diagnostic_LogError "PrototypeNew: failed to allocate PrsnlEvntBuilder page instance."
+        #End If
+        MsgBox "PrototypeNew: failed to allocate PrsnlEvntBuilder page instance.", vbExclamation, "PrototypeNew / Config runtime"
+        Exit Function
+    End If
+
+    Set parentPage = m_Page
+
+    If Not rt_PageManager.fn_CreatePage(builderPage, "ui\PrsnlEvntBuilderUI.xml", sheetName, parentPage) Then GoTo EH_CREATE
+    isPageCreated = True
+
+    If Not builderPage.RunPagePipeline() Then
+        #If LOGGING_DEBUG_ENABLED Then
+            ex_Core.fn_Diagnostic_LogError "PrototypeNew: failed to run PrsnlEvntBuilder page pipeline."
+        #End If
+        MsgBox "PrototypeNew: failed to run PrsnlEvntBuilder page pipeline.", vbExclamation, "PrototypeNew / Config runtime"
+        GoTo EH_CREATE
+    End If
+
+    If Not rt_PageManager.fn_RenderPageAndActivate(builderPage, "pagemain:open-prsnlevntbuilder") Then
+        #If LOGGING_DEBUG_ENABLED Then
+            ex_Core.fn_Diagnostic_LogError "PrototypeNew: failed to render PrsnlEvntBuilder page."
+        #End If
+        MsgBox "PrototypeNew: failed to render PrsnlEvntBuilder page.", vbExclamation, "PrototypeNew / Config runtime"
+        GoTo EH_CREATE
+    End If
+
+    rt_Messaging.fn_ShowStatusBarSuccess "PrsnlEvntBuilder page has been created.", 3
+    OnOpenPrsnlEvntBuilderPageCommand = True
+    Exit Function
+
+EH_CREATE:
+    On Error Resume Next
+    If Not builderPage Is Nothing And isPageCreated Then
+        Call rt_PageManager.fn_RemovePage(builderPage, True)
+    End If
+    On Error GoTo 0
+
+    If Not OnOpenPrsnlEvntBuilderPageCommand Then
+        #If LOGGING_DEBUG_ENABLED Then
+            ex_Core.fn_Diagnostic_LogError "PrototypeNew: failed to create PrsnlEvntBuilder page."
+        #End If
+        MsgBox "PrototypeNew: failed to create PrsnlEvntBuilder page.", vbExclamation, "PrototypeNew / Config runtime"
+    End If
+    Exit Function
+
+EH_OPEN:
+    #If LOGGING_DEBUG_ENABLED Then
+        ex_Core.fn_Diagnostic_LogError "PrototypeNew: exception in OnOpenPrsnlEvntBuilderPageCommand: [" & VBA.CStr(Err.Number) & "] " & Err.Description
+    #End If
+    MsgBox "PrototypeNew: exception in OnOpenPrsnlEvntBuilderPageCommand: [" & VBA.CStr(Err.Number) & "] " & Err.Description, vbExclamation, "PrototypeNew / Config runtime"
     Resume EH_CREATE
 End Function
 

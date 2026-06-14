@@ -3,7 +3,7 @@
   <grid anchorCell="A1">
     <stackPanel at="r2c2" orientation="vertical">
       <stackPanel orientation="horizontal">
-        <stackPanel orientation="vertical" spanColls="2" spanRows="2">
+        <stackPanel orientation="vertical" spanColls="1" spanRows="2">
           <control
             type="Label"
             name="HospitalHeader"
@@ -18,11 +18,11 @@
             value="{Binding Path=LookupQueryValues.Hospital}"
             onChange="{Binding Method=OnLookupInputCellChangedCommand}"
             onChangeArg="Hospital"
-            spanColls="2"
+            spanColls="1"
             spanRows="1"/>
         </stackPanel>
 
-        <stackPanel orientation="vertical" spanColls="2" spanRows="2">
+        <stackPanel orientation="vertical" spanColls="1" spanRows="2">
           <control
             type="Label"
             name="FioHeader"
@@ -37,7 +37,7 @@
             value="{Binding Path=LookupQueryValues.FIO}"
             onChange="{Binding Method=OnLookupInputCellChangedCommand}"
             onChangeArg="FIO"
-            spanColls="2"
+            spanColls="1"
             spanRows="1"/>
         </stackPanel>
 
@@ -58,7 +58,7 @@
             spanRows="1"/>
         </stackPanel>
 
-        <stackPanel orientation="vertical" spanColls="2" spanRows="2">
+        <stackPanel orientation="vertical" spanColls="1" spanRows="2">
           <control
             type="Label"
             name="CommanderHeader"
@@ -73,7 +73,7 @@
             value="{Binding Path=LookupQueryValues.Commander}"
             onChange="{Binding Method=OnLookupInputCellChangedCommand}"
             onChangeArg="Commander"
-            spanColls="2"
+            spanColls="1"
             spanRows="1"/>
         </stackPanel>
 
@@ -94,7 +94,7 @@
             spanRows="1"/>
         </stackPanel>
 
-        <stackPanel orientation="vertical" spanColls="2" spanRows="2">
+        <stackPanel orientation="vertical" spanColls="1" spanRows="2">
           <control
             type="Label"
             name="ColumnRes2Header"
@@ -107,11 +107,11 @@
             name="ColumnRes2DraftCell"
             text=""
             style="tableDataCell"
-            spanColls="2"
+            spanColls="1"
             spanRows="1"/>
         </stackPanel>
 
-        <stackPanel orientation="vertical" spanColls="2" spanRows="2">
+        <stackPanel orientation="vertical" spanColls="1" spanRows="2">
           <control
             type="Label"
             name="ColumnRes3Header"
@@ -124,21 +124,21 @@
             name="ColumnRes3DraftCell"
             text=""
             style="tableDataCell"
-            spanColls="2"
+            spanColls="1"
             spanRows="1"/>
         </stackPanel>
       </stackPanel>
 
-      <stackPanel spanColls="13" spanRows="1"/>
+      <stackPanel spanColls="7" spanRows="1"/>
 
       <grid spanColls="50" spanRows="120">
         <control
-          type="TableList"
+          type="EntityLookupCandidates"
           name="LookupCandidatesTable"
           dataContext="{PageRuntimeSource='RuntimeObjects.PageEntityLookup.Controller'}"
+          lookupFeature="{Binding Path=LookupFeature}"
           itemsSource="{PageRuntimeSource='RuntimeItems.EntityLookup.CandidateTables'}"
           itemVisibility="{Binding Path=RowCount; Op=gt; Value=0; TrueAs=Visible; FalseAs=Collapsed}"
-          at="{Binding Path=ActiveCandidatesAt}"
           spanColls="50"
           spanRows="120"/>
       </grid>

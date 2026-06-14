@@ -83,6 +83,16 @@
           />
         <control
           type="Button"
+          name="OpenPrsnlEvntBuilder"
+          caption="Open PrsnlEvntBuilder"
+          style="actionWarning"
+          dataContext="{PageRuntimeSource='RuntimeObjects.PageMain.Controller'}"
+          onClick="{Binding Method=OnOpenPrsnlEvntBuilderPageCommand}"
+          spanColls="5"
+          spanRows="2"
+          />
+        <control
+          type="Button"
           name="UpdateSheet"
           caption="Update Sheet"
           style="actionWarning"
