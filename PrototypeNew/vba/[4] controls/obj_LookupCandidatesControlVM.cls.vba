@@ -2,7 +2,7 @@ VERSION 1.0 CLASS
 BEGIN
   MultiUse = -1  'True
 END
-Attribute VB_Name = "obj_EntityLookupCandidatesControlVM"
+Attribute VB_Name = "obj_LookupCandidatesControlVM"
 Option Explicit
 #Const LOGGING_DEBUG_ENABLED = True
 #Const LOGGING_VERBOSE_ENABLED = False
@@ -298,10 +298,10 @@ Private Function private_TryBuildCandidateAt( _
     ByVal candidateSpanCols As Long, _
     ByRef outCandidateAt As String _
 ) As Boolean
-    Dim presentationState As obj_EntityLookupPresentationState
+    Dim presentationState As obj_EntityLookupLayoutState
 
     outCandidateAt = DEFAULT_CANDIDATES_AT
-    Set presentationState = New obj_EntityLookupPresentationState
+    Set presentationState = New obj_EntityLookupLayoutState
     If Not presentationState.Initialize(candidateSpanCols) Then Exit Function
     ' Формула внутри PresentationState:
     ' startGridCol = inputGridCol - searchColumnIndex + 1.
