@@ -313,6 +313,15 @@ Private Function private_RegisterColumnPart( _
     private_RegisterColumnPart = True
 End Function
 
+Private Function obj_IControl_Measure( _
+    ByVal controlNode As Object, _
+    ByRef outSpanRows As Long, _
+    ByRef outSpanColls As Long, _
+    Optional ByVal dataContext As Object _
+) As Boolean
+    obj_IControl_Measure = private_TryMeasureNode(controlNode, outSpanRows, outSpanColls)
+End Function
+
 Private Function obj_IControl_SupportsAttribute(ByVal attrName As String) As Boolean
     Select Case VBA.LCase$(VBA.Trim$(attrName))
         Case "itemssource", "tablename"
@@ -741,6 +750,51 @@ ContinueSourceItem:
     Next sourceConfigEntry
 
     private_TryBuildConfigTable = True
+End Function
+
+Private Function private_TryMeasureNode( _
+    ByVal controlNode As Object, _
+    ByRef outSpanRows As Long, _
+    ByRef outSpanColls As Long _
+) As Boolean
+    Dim pageBase As obj_PageBase
+    Dim controlName As String
+    Dim itemsSourceRaw As String
+    Dim resolvedItems As Collection
+    Dim configTable As obj_ConfigTable
+
+    outSpanRows = 2
+    outSpanColls = CONFIG_COL_COUNT
+
+    If controlNode Is Nothing Then Exit Function
+    If m_Page Is Nothing Then Exit Function
+
+    Set pageBase = m_Page.GetPageBase()
+    If pageBase Is Nothing Then Exit Function
+    If pageBase.RuntimeSources Is Nothing Then Exit Function
+
+    controlName = VBA.Trim$(VBA.CStr(ex_XmlCore.fn_NodeAttrText(controlNode, "name")))
+    If VBA.Len(controlName) = 0 Then controlName = "config"
+
+    itemsSourceRaw = VBA.Trim$(VBA.CStr(ex_XmlCore.fn_NodeAttrText(controlNode, "itemsSource")))
+    If VBA.Len(itemsSourceRaw) = 0 Then
+#If LOGGING_DEBUG_ENABLED Then
+        ex_Core.fn_Diagnostic_LogError "Config: itemsSource is not specified for control '" & controlName & "'."
+#End If
+        Exit Function
+    End If
+
+    If Not ex_RuntimeSourceResolver.fn_TryResolveItemsSource(pageBase.RuntimeSources, itemsSourceRaw, resolvedItems) Then Exit Function
+    If Not private_TryBuildConfigTable(resolvedItems, configTable) Then Exit Function
+
+    If configTable Is Nothing Then
+        private_TryMeasureNode = True
+        Exit Function
+    End If
+
+    outSpanRows = 1 + configTable.Count
+    If outSpanRows < 2 Then outSpanRows = 2
+    private_TryMeasureNode = True
 End Function
 
 Private Function private_TryResolveRenderedTableObject(ByRef outTableObj As ListObject) As Boolean

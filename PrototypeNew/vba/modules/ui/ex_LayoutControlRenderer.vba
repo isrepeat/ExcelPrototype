@@ -27,6 +27,39 @@ End Sub
 ' //
 ' // API
 ' //
+Public Function fn_TryMeasureContentSpan( _
+    ByVal renderCtx As obj_LayoutRenderContext, _
+    ByVal layoutNode As Object, _
+    ByRef outSpanRows As Long, _
+    ByRef outSpanColls As Long, _
+    Optional ByVal dataContext As Object _
+) As Boolean
+    Dim controlType As String
+    Dim typeRoot As String
+    Dim control As obj_IControl
+    Dim page As obj_IPage
+
+    outSpanRows = 1
+    outSpanColls = 1
+
+    If renderCtx Is Nothing Then Exit Function
+    If layoutNode Is Nothing Then Exit Function
+    If VBA.StrComp(VBA.LCase$(VBA.CStr(layoutNode.baseName)), "control", VBA.vbBinaryCompare) <> 0 Then Exit Function
+
+    controlType = VBA.Trim$(VBA.CStr(ex_XmlCore.fn_NodeAttrText(layoutNode, "type")))
+    typeRoot = private_NormalizeTypeRoot(controlType)
+    If VBA.Len(typeRoot) = 0 Then Exit Function
+
+    Set page = renderCtx.Page
+    If page Is Nothing Then Exit Function
+
+    Set control = ex_ControlFactory.fn_CreateControlByTypeRoot(typeRoot, page)
+    If control Is Nothing Then Exit Function
+    If Not control.Measure(layoutNode, outSpanRows, outSpanColls, dataContext) Then Exit Function
+
+    fn_TryMeasureContentSpan = True
+End Function
+
 Public Function fn_Render( _
     ByVal renderCtx As obj_LayoutRenderContext, _
     ByVal layoutNode As Object, _

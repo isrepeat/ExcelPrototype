@@ -118,6 +118,32 @@ Private Sub obj_IControl_Render()
     m_TableList.Render
 End Sub
 
+Private Function obj_IControl_Measure( _
+    ByVal controlNode As Object, _
+    ByRef outSpanRows As Long, _
+    ByRef outSpanColls As Long, _
+    Optional ByVal dataContext As Object _
+) As Boolean
+    Dim tableNode As Object
+    Dim tableList As obj_IControl
+
+    outSpanRows = 1
+    outSpanColls = 1
+
+    If controlNode Is Nothing Then Exit Function
+    If m_Page Is Nothing Then Exit Function
+
+    Set tableNode = controlNode.cloneNode(True)
+    If tableNode Is Nothing Then Exit Function
+    tableNode.setAttribute "type", "TableList"
+
+    Set tableList = New obj_TableListControlVM
+    If Not tableList.Initialize(m_Page) Then Exit Function
+    If Not tableList.Measure(tableNode, outSpanRows, outSpanColls, dataContext) Then Exit Function
+
+    obj_IControl_Measure = True
+End Function
+
 Private Function obj_IControl_SupportsAttribute(ByVal attrName As String) As Boolean
     Select Case VBA.LCase$(VBA.Trim$(attrName))
         Case "itemssource", "itemvisibility", "lookupfeature"
