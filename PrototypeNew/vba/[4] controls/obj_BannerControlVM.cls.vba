@@ -144,6 +144,17 @@ Private Sub obj_IControl_Render()
     If Not m_BannerViewItem.Render(pageBase, m_ControlLayout.RowStart, m_ControlLayout.ColStart, m_ControlLayout.RowEnd, m_ControlLayout.ColEnd, m_ControlName) Then Exit Sub
 End Sub
 
+Private Function obj_IControl_Measure( _
+    ByVal controlNode As Object, _
+    ByRef outSpanRows As Long, _
+    ByRef outSpanColls As Long, _
+    Optional ByVal dataContext As Object _
+) As Boolean
+    outSpanRows = 1
+    outSpanColls = 1
+    obj_IControl_Measure = True
+End Function
+
 Private Function obj_IControl_SupportsAttribute(ByVal attrName As String) As Boolean
     Select Case VBA.LCase$(VBA.Trim$(attrName))
         Case "header", "message"

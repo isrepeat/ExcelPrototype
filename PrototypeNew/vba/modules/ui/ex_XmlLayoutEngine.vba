@@ -587,17 +587,18 @@ Private Function private_TryGetEffectiveNodeSpan( _
 
     Select Case nodeKind
         Case "control"
-            ' Базовый control по умолчанию занимает 1x1.
+            If Not ex_LayoutControlRenderer.fn_TryMeasureContentSpan(renderCtx, node, measuredRows, measuredCols, dataContext) Then Exit Function
+
             If explicitRows > 0 Then
                 outSpanRows = explicitRows
             Else
-                outSpanRows = 1
+                outSpanRows = measuredRows
             End If
 
             If explicitCols > 0 Then
                 outSpanColls = explicitCols
             Else
-                outSpanColls = 1
+                outSpanColls = measuredCols
             End If
 
         Case "stackpanel", "grid"

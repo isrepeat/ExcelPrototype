@@ -131,7 +131,7 @@
 
       <stackPanel spanColls="7" spanRows="1"/>
 
-      <grid spanColls="50" spanRows="120">
+      <stackPanel orientation="vertical" spanColls="50">
         <control
           type="EntityLookupCandidates"
           name="LookupCandidatesTable"
@@ -139,19 +139,14 @@
           lookupFeature="{Binding Path=LookupFeature}"
           itemsSource="{PageRuntimeSource='RuntimeItems.PrsnlEvntBuilder.EntityLookup.CandidateTables'}"
           itemVisibility="{Binding Path=RowCount; Op=gt; Value=0; TrueAs=Visible; FalseAs=Collapsed}"
-          spanColls="50"
-          spanRows="120"/>
-      </grid>
-
-      <grid spanColls="6" spanRows="12">
+          spanColls="50"/>
         <control
           type="TableList"
           name="PrsnlEvntBuilderDummyTable"
           dataContext="{PageRuntimeSource='RuntimeObjects.PrsnlEvntBuilder.Controller'}"
           itemsSource="{PageRuntimeSource='RuntimeItems.PrsnlEvntBuilder.DummyTables'}"
-          spanColls="6"
-          spanRows="12"/>
-      </grid>
+          spanColls="6"/>
+      </stackPanel>
 
     </stackPanel>
   </grid>

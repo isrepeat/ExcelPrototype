@@ -235,6 +235,15 @@ Private Sub obj_IControl_Render()
 #End If
 End Sub
 
+Private Function obj_IControl_Measure( _
+    ByVal controlNode As Object, _
+    ByRef outSpanRows As Long, _
+    ByRef outSpanColls As Long, _
+    Optional ByVal dataContext As Object _
+) As Boolean
+    obj_IControl_Measure = private_TryMeasureNode(controlNode, outSpanRows, outSpanColls)
+End Function
+
 Private Function obj_IControl_SupportsAttribute(ByVal attrName As String) As Boolean
     Select Case VBA.LCase$(VBA.Trim$(attrName))
         Case "itemssource", "itemvisibility"
@@ -282,19 +291,88 @@ End Function
 ' //
 ' // Internal
 ' //
+Private Function private_TryMeasureNode( _
+    ByVal controlNode As Object, _
+    ByRef outSpanRows As Long, _
+    ByRef outSpanColls As Long _
+) As Boolean
+    Dim pageBase As obj_PageBase
+    Dim controlName As String
+    Dim itemsSourceRaw As String
+    Dim itemVisibilityRaw As String
+    Dim tableItems As Collection
+    Dim tableItem As Variant
+    Dim tableViewItem As obj_TableViewItem
+    Dim rowsForItem As Long
+
+    outSpanRows = 1
+    outSpanColls = 1
+
+    If controlNode Is Nothing Then Exit Function
+    If m_Page Is Nothing Then Exit Function
+
+    Set pageBase = m_Page.GetPageBase()
+    If pageBase Is Nothing Then Exit Function
+    If pageBase.RuntimeSources Is Nothing Then Exit Function
+
+    controlName = VBA.Trim$(VBA.CStr(ex_XmlCore.fn_NodeAttrText(controlNode, "name")))
+    If VBA.Len(controlName) = 0 Then controlName = "tablelist"
+
+    itemsSourceRaw = VBA.Trim$(VBA.CStr(ex_XmlCore.fn_NodeAttrText(controlNode, "itemsSource")))
+    If VBA.Len(itemsSourceRaw) = 0 Then
+#If LOGGING_DEBUG_ENABLED Then
+        ex_Core.fn_Diagnostic_LogError "TableList: itemsSource is not specified for control '" & controlName & "'."
+#End If
+        Exit Function
+    End If
+
+    itemVisibilityRaw = VBA.Trim$(VBA.CStr(ex_XmlCore.fn_NodeAttrText(controlNode, "itemVisibility")))
+
+    If Not ex_RuntimeSourceResolver.fn_TryResolveItemsSource(pageBase.RuntimeSources, itemsSourceRaw, tableItems) Then Exit Function
+    If Not private_TryApplyItemVisibilityFilterRaw(tableItems, itemVisibilityRaw, controlName) Then Exit Function
+
+    outSpanRows = 0
+    outSpanColls = 0
+
+    If tableItems Is Nothing Then
+        private_TryMeasureNode = True
+        Exit Function
+    End If
+
+    For Each tableItem In tableItems
+        Set tableViewItem = Nothing
+        If Not private_TryResolveTableViewItem(tableItem, tableViewItem) Then Exit Function
+        If tableViewItem Is Nothing Then GoTo ContinueMeasure
+        If Not private_TryEstimateTableOutputRows(tableViewItem, 1000000, rowsForItem) Then Exit Function
+        outSpanRows = outSpanRows + rowsForItem
+        If tableViewItem.ColumnCount > outSpanColls Then outSpanColls = tableViewItem.ColumnCount
+ContinueMeasure:
+    Next tableItem
+
+    private_TryMeasureNode = True
+End Function
+
 Private Function private_TryApplyItemVisibilityFilter(ByRef tableItems As Collection) As Boolean
+    private_TryApplyItemVisibilityFilter = private_TryApplyItemVisibilityFilterRaw(tableItems, m_ItemVisibilityRaw, m_ControlName)
+End Function
+
+Private Function private_TryApplyItemVisibilityFilterRaw( _
+    ByRef tableItems As Collection, _
+    ByVal itemVisibilityRaw As String, _
+    ByVal controlName As String _
+) As Boolean
     Dim filteredItems As Collection
     Dim tableItem As Variant
     Dim isVisible As Boolean
 
-    If VBA.Len(m_ItemVisibilityRaw) = 0 Then
-        private_TryApplyItemVisibilityFilter = True
+    If VBA.Len(itemVisibilityRaw) = 0 Then
+        private_TryApplyItemVisibilityFilterRaw = True
         Exit Function
     End If
 
     If tableItems Is Nothing Then
 #If LOGGING_DEBUG_ENABLED Then
-        ex_Core.fn_Diagnostic_LogError "TableList: itemsSource is not resolved for control '" & m_ControlName & "'."
+        ex_Core.fn_Diagnostic_LogError "TableList: itemsSource is not resolved for control '" & controlName & "'."
 #End If
         Exit Function
     End If
@@ -304,17 +382,17 @@ Private Function private_TryApplyItemVisibilityFilter(ByRef tableItems As Collec
     For Each tableItem In tableItems
         If Not VBA.IsObject(tableItem) Then
 #If LOGGING_DEBUG_ENABLED Then
-            ex_Core.fn_Diagnostic_LogError "TableList: itemsSource entry must be an object for itemVisibility evaluation in control '" & m_ControlName & "'."
+            ex_Core.fn_Diagnostic_LogError "TableList: itemsSource entry must be an object for itemVisibility evaluation in control '" & controlName & "'."
 #End If
             Exit Function
         End If
 
-        If Not ex_BindingRuntime.fn_TryResolveVisibilityBinding(m_ItemVisibilityRaw, tableItem, isVisible) Then Exit Function
+        If Not ex_BindingRuntime.fn_TryResolveVisibilityBinding(itemVisibilityRaw, tableItem, isVisible) Then Exit Function
         If isVisible Then filteredItems.Add tableItem
     Next tableItem
 
     Set tableItems = filteredItems
-    private_TryApplyItemVisibilityFilter = True
+    private_TryApplyItemVisibilityFilterRaw = True
 End Function
 
 Private Function private_TryReadLayoutLongAttr( _
@@ -353,10 +431,6 @@ End Function
 Private Function private_TryBuildRenderBuffer( _
     ByRef outValueBlock As Variant, _
     ByRef outStyleSegments As Collection _
-#If CELL_BUTTON_VIEW_ENABLED Then
-'     , _
-'     ByRef outCellButtonActions As Collection _
-#End If
 ) As Boolean
     Dim tableItem As Variant
     Dim tableViewItem As obj_TableViewItem
@@ -512,9 +586,6 @@ Private Function private_TryWriteTableItemToBuffer( _
     ByVal tableViewItem As obj_TableViewItem, _
     ByRef valueBlock As Variant, _
     ByVal styleSegments As Collection, _
-#If CELL_BUTTON_VIEW_ENABLED Then
-'     ByVal cellButtonActions As Collection, _
-#End If
     ByVal availableCols As Long, _
     ByVal plannedRows As Long, _
     ByRef ioCurrentOutputRow As Long _
@@ -661,9 +732,6 @@ Private Function private_TryAppendRowViewData( _
     ByVal columnCount As Long, _
     ByRef valueBlock As Variant, _
     ByVal styleSegments As Collection, _
-#If CELL_BUTTON_VIEW_ENABLED Then
-'     ByVal cellButtonActions As Collection, _
-#End If
     ByVal plannedRows As Long, _
     ByRef ioCurrentOutputRow As Long _
 ) As Boolean
