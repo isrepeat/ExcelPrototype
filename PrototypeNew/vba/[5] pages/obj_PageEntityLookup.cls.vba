@@ -97,33 +97,6 @@ Private Function obj_IPage_RunPagePipeline() As Boolean
     obj_IPage_RunPagePipeline = True
 End Function
 
-Private Function obj_ISerializable_TryRestoreState() As Boolean
-    Dim parentPage As obj_IPage
-    Dim configControl As obj_ConfigControlVM
-
-    If Not m_PageBase.IsReady() Then Exit Function
-
-    If VBA.Len(m_ParentPageId) > 0 Then
-        If Not private_TryGetParentPage(parentPage) Then
-#If LOGGING_DEBUG_ENABLED Then
-            ex_Core.fn_Diagnostic_LogError "PageEntityLookup: parent page is not found during RestoreState. parentPageId='" & VBA.Replace$(m_ParentPageId, "'", "''") & "'."
-#End If
-            Exit Function
-        End If
-        Set m_ParentPage = parentPage
-    End If
-
-    If Not m_Controller Is Nothing Then
-        If private_TryResolveParentConfigControl(configControl) Then
-            If Not m_Controller.UpdateData(configControl) Then Exit Function
-            If Not private_SyncLookupQueryKeysFromController() Then Exit Function
-        End If
-        If Not m_Controller.PrepareLookupRuntime(False) Then Exit Function
-    End If
-
-    obj_ISerializable_TryRestoreState = True
-End Function
-
 Private Function obj_IPage_Render() As Boolean
     If Not m_PageBase.IsReady() Then Exit Function
     If Not m_PageBase.Render() Then Exit Function
@@ -224,6 +197,33 @@ End Function
 
 Private Function obj_ISerializable_TryDeserializeSnapshot(ByVal snapshotXml As String) As Boolean
     obj_ISerializable_TryDeserializeSnapshot = private_TryDeserializeSnapshot(snapshotXml)
+End Function
+
+Private Function obj_ISerializable_TryRestoreState() As Boolean
+    Dim parentPage As obj_IPage
+    Dim configControl As obj_ConfigControlVM
+
+    If Not m_PageBase.IsReady() Then Exit Function
+
+    If VBA.Len(m_ParentPageId) > 0 Then
+        If Not private_TryGetParentPage(parentPage) Then
+#If LOGGING_DEBUG_ENABLED Then
+            ex_Core.fn_Diagnostic_LogError "PageEntityLookup: parent page is not found during RestoreState. parentPageId='" & VBA.Replace$(m_ParentPageId, "'", "''") & "'."
+#End If
+            Exit Function
+        End If
+        Set m_ParentPage = parentPage
+    End If
+
+    If Not m_Controller Is Nothing Then
+        If private_TryResolveParentConfigControl(configControl) Then
+            If Not m_Controller.UpdateData(configControl) Then Exit Function
+            If Not private_SyncLookupQueryKeysFromController() Then Exit Function
+        End If
+        If Not m_Controller.PrepareLookupRuntime(False) Then Exit Function
+    End If
+
+    obj_ISerializable_TryRestoreState = True
 End Function
 
 ' //

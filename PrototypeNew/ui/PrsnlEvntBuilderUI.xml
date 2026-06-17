@@ -3,6 +3,19 @@
   <grid anchorCell="A1">
     <stackPanel at="r2c2" orientation="vertical">
       <stackPanel orientation="horizontal">
+        <control
+          type="Hotkeys"
+          name="SheetHotkeys"
+          dataContext="{PageRuntimeSource='RuntimeObjects.PrsnlEvntBuilder.Controller'}"
+          itemsSource="{PageRuntimeSource='RuntimeItems.PrsnlEvntBuilder.Hotkeys'}"
+          actionMethod="RuntimeHandleHotkeyAction"
+          tableName="tblPrsnlEvntBuilderHotkeys"
+          spanColls="2"/>
+      </stackPanel>
+
+      <stackPanel spanColls="7" spanRows="1"/>
+
+      <stackPanel orientation="horizontal">
         <stackPanel orientation="vertical" spanColls="1" spanRows="2">
           <control
             type="Label"
@@ -129,8 +142,6 @@
         </stackPanel>
       </stackPanel>
 
-      <stackPanel spanColls="7" spanRows="1"/>
-
       <stackPanel orientation="vertical" spanColls="50">
         <control
           type="EntityLookupCandidates"
@@ -214,6 +225,82 @@
                 vertical:center;
                 overflow:wrap;
                 rowHeight:34;
+              }"/>
+      </layer>
+
+      <layer name="hotkey-panel">
+        <rule target="controlPart"
+              selector="type=hotkeys;part=action"
+              styles="{
+                backColor:#7E2479;
+                fontColor:#FFFFFF;
+                borderColor:#31112F;
+                borderWeight:thin;
+                horizontal:center;
+                vertical:center;
+                cellType:text;
+              }"/>
+
+        <rule target="controlPart"
+              selector="type=hotkeys;part=hotkey"
+              styles="{
+                backColor:#7E2479;
+                fontColor:#C58AC9;
+                borderColor:#31112F;
+                borderWeight:thin;
+                horizontal:center;
+                vertical:center;
+                cellType:text;
+              }"/>
+      </layer>
+
+      <layer name="layout-debug-bounds">
+        <rule target="layoutBound"
+              selector="tag=grid"
+              styles="{
+                borderColor:#8B5CF6;
+                borderWeight:medium;
+                borderLineStyle:solid;
+              }"/>
+
+        <rule target="layoutBound"
+              selector="tag=control"
+              styles="{
+                borderColor:#FF0000;
+                borderWeight:thin;
+                borderLineStyle:solid;
+              }"/>
+
+        <rule target="layoutBound"
+              selector="tag=stackpanel;tagDepth=0"
+              styles="{
+                borderColor:#444444;
+                borderWeight:medium;
+                borderLineStyle:dash;
+              }"/>
+
+        <rule target="layoutBound"
+              selector="tag=stackpanel;tagDepth=1"
+              styles="{
+                borderColor:#5E5E5E;
+                borderWeight:medium;
+                borderLineStyle:dash;
+              }"/>
+
+        <rule target="layoutBound"
+              selector="tag=stackpanel;tagDepth=2"
+              styles="{
+                borderColor:#777777;
+                borderWeight:medium;
+                borderLineStyle:dash;
+              }"/>
+
+       <rule target="layoutBound"
+              selector="tag=stackpanel;tagDepth=3:10"
+              styles="{
+                borderColor:#999999;
+                borderWeight:medium;
+                borderLineStyle:dash;
               }"/>
       </layer>
     </stylePipelineStage>

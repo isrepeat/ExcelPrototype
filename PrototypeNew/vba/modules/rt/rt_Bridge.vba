@@ -8,6 +8,7 @@ Option Explicit
 
 Private g_IsDispatchingClick As Boolean
 Private g_IsDispatchingSheetChange As Boolean
+Private g_IsDispatchingHotkey As Boolean
 
 Public Sub fn_Module_Dispose()
 #If LOGGING_VERBOSE_ENABLED Then
@@ -15,6 +16,7 @@ Public Sub fn_Module_Dispose()
 #End If
     g_IsDispatchingClick = False
     g_IsDispatchingSheetChange = False
+    g_IsDispatchingHotkey = False
 End Sub
 
 ' //
@@ -96,6 +98,47 @@ End Function
 Public Function fn_IsDispatchingSheetChange() As Boolean
     fn_IsDispatchingSheetChange = g_IsDispatchingSheetChange
 End Function
+
+Public Function fn_IsDispatchingHotkey() As Boolean
+    fn_IsDispatchingHotkey = g_IsDispatchingHotkey
+End Function
+
+Public Sub fn_OnHotkey(ByVal hotkeyKey As String)
+    Dim activeSheetObj As Object
+    Dim ws As Worksheet
+    Dim page As obj_IPage
+    Dim pageBase As obj_PageBase
+    Dim wsName As String
+
+    On Error GoTo EH_HOTKEY
+    If g_IsDispatchingHotkey Then Exit Sub
+    hotkeyKey = VBA.Trim$(hotkeyKey)
+    If VBA.Len(hotkeyKey) = 0 Then Exit Sub
+
+    Set activeSheetObj = Application.ActiveSheet
+    If Not TypeOf activeSheetObj Is Worksheet Then Exit Sub
+    Set ws = activeSheetObj
+    wsName = VBA.Trim$(VBA.CStr(ws.Name))
+
+    If Not rt_PageManager.fn_TryGetPageByWorksheet(ws, page) Then Exit Sub
+    Set pageBase = page.GetPageBase()
+    If pageBase Is Nothing Then Exit Sub
+
+    g_IsDispatchingHotkey = True
+    If Not pageBase.DispatchHotkey(hotkeyKey) Then
+#If LOGGING_DEBUG_ENABLED Then
+        ex_Core.fn_Diagnostic_LogError "bridge:hotkey-dispatch-failed hotkey='" & private_EscapeForLog(hotkeyKey) & "' sheet='" & private_EscapeForLog(wsName) & "'"
+#End If
+    End If
+    g_IsDispatchingHotkey = False
+    Exit Sub
+
+EH_HOTKEY:
+    g_IsDispatchingHotkey = False
+#If LOGGING_DEBUG_ENABLED Then
+    ex_Core.fn_Diagnostic_LogError "rt_Bridge: hotkey dispatch failed: " & Err.Description
+#End If
+End Sub
 
 Public Sub fn_OnSheetChange(ByVal Sh As Object, ByVal Target As Range)
     Dim ws As Worksheet

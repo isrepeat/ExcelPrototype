@@ -7,7 +7,7 @@ Option Explicit
 #Const LOGGING_DEBUG_ENABLED = True
 #Const LOGGING_VERBOSE_ENABLED = False
 #Const CELL_BUTTON_VIEW_ENABLED = False
-Private m_IsDisposed As Boolean
+
 Implements obj_IControl
 
 #Const ENALBE_STYLES = True
@@ -32,6 +32,7 @@ Private m_ColEnd As Long
 Private m_TableItems As Collection
 Private m_IsConfigured As Boolean
 Private m_Page As obj_IPage
+Private m_IsDisposed As Boolean
 
 Private Sub Class_Initialize()
 #If LOGGING_VERBOSE_ENABLED Then

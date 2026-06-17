@@ -10,6 +10,9 @@ Option Explicit
 Private Const CONTROLLER_RUNTIME_OBJECT_KEY As String = "RuntimeObjects.PrsnlEvntBuilder.Controller"
 Private Const CANDIDATE_TABLES_RUNTIME_KEY As String = "RuntimeItems.PrsnlEvntBuilder.EntityLookup.CandidateTables"
 Private Const DUMMY_TABLES_RUNTIME_KEY As String = "RuntimeItems.PrsnlEvntBuilder.DummyTables"
+Private Const HOTKEYS_RUNTIME_KEY As String = "RuntimeItems.PrsnlEvntBuilder.Hotkeys"
+Private Const HOTKEY_ACTION_1 As String = "Action 1"
+Private Const HOTKEY_ACTION_2 As String = "Action 2"
 
 Private m_Page As obj_IPage
 Private m_LookupFeature As obj_EntityLookupFeature
@@ -82,6 +85,7 @@ Public Function Initialize(ByVal page As Object) As Boolean
         "prsnlevntbuilder:entitylookup") Then Exit Function
 
     If Not private_RegisterDummyTables(False) Then Exit Function
+    If Not private_EnsureHotkeyRows(False) Then Exit Function
     Initialize = True
 End Function
 
@@ -108,12 +112,59 @@ Public Function PrepareRuntime(Optional ByVal notifyChange As Boolean = False) A
     If m_LookupFeature Is Nothing Then Exit Function
     If Not m_LookupFeature.PrepareLookupRuntime(notifyChange) Then Exit Function
     If Not private_RegisterDummyTables(notifyChange) Then Exit Function
+    If Not private_EnsureHotkeyRows(notifyChange) Then Exit Function
     PrepareRuntime = True
 End Function
 
 Public Function ClearLookupCandidates(Optional ByVal renderNow As Boolean = True) As Boolean
     If m_LookupFeature Is Nothing Then Exit Function
     ClearLookupCandidates = m_LookupFeature.ClearLookupCandidates(renderNow)
+End Function
+
+Public Function RuntimeHandleHotkeyAction(ByVal actionId As Variant) As Boolean
+    Dim pageBase As obj_PageBase
+    Dim selectionObj As Object
+    Dim ws As Worksheet
+    Dim targetCell As Range
+    Dim actionText As String
+    Dim cellValue As String
+
+    ' Это page-specific action target для HotkeysControl.
+    ' HotkeysControl передает только настроенный Action text; контроллер решает,
+    ' что этот action значит на PrsnlEvntBuilder. Другие страницы могут переиспользовать
+    ' HotkeysControl со своим actionMethod/dataContext.
+    If m_Page Is Nothing Then Exit Function
+    Set pageBase = m_Page.GetPageBase()
+    If pageBase Is Nothing Then Exit Function
+    Set ws = pageBase.Worksheet
+    If ws Is Nothing Then Exit Function
+    Set selectionObj = Application.Selection
+    If Not TypeOf selectionObj Is Range Then Exit Function
+
+    Set targetCell = selectionObj.Cells(1, 1)
+    If targetCell Is Nothing Then Exit Function
+    If Not (targetCell.Worksheet Is ws) Then Exit Function
+
+    actionText = VBA.Trim$(VBA.CStr(actionId))
+    cellValue = VBA.CStr(targetCell.Value2)
+
+    ' Демо-реализация: красим выделенную ячейку. Реальные actions могут ветвиться
+    ' по стабильным action ids, читать состояние листа, вызывать сервисы, rerender и т.д.
+    Select Case VBA.LCase$(actionText)
+        Case VBA.LCase$(HOTKEY_ACTION_1)
+            targetCell.Interior.Color = VBA.RGB(255, 235, 59)
+            targetCell.Font.Color = VBA.RGB(31, 35, 41)
+
+        Case VBA.LCase$(HOTKEY_ACTION_2)
+            targetCell.Interior.Color = VBA.RGB(126, 36, 121)
+            targetCell.Font.Color = VBA.RGB(255, 255, 255)
+
+        Case Else
+            Exit Function
+    End Select
+
+    rt_Messaging.fn_ShowStatusBarSuccess actionText & ": " & targetCell.Address(False, False) & " = '" & cellValue & "'", 3
+    RuntimeHandleHotkeyAction = True
 End Function
 
 Public Function SearchCandidates( _
@@ -153,6 +204,61 @@ Private Function private_RegisterDummyTables(ByVal notifyChange As Boolean) As B
     If Not runtimeSources.SetItemsSource(VBA.LCase$(DUMMY_TABLES_RUNTIME_KEY), dummyTables, notifyChange) Then Exit Function
 
     private_RegisterDummyTables = True
+End Function
+
+Private Function private_EnsureHotkeyRows(ByVal notifyChange As Boolean) As Boolean
+    Dim pageBase As obj_PageBase
+    Dim runtimeSources As obj_PageRuntimeSources
+    Dim hotkeyRows As Collection
+    Dim existingRows As Collection
+
+    ' Сеем default-строки хоткеев только когда page runtime source отсутствует/пустой.
+    ' После Apply HotkeysControl пишет отредактированные строки обратно в тот же
+    ' RuntimeItems key, поэтому rerender/PrepareRuntime не должны их перетирать.
+    If m_Page Is Nothing Then Exit Function
+    Set pageBase = m_Page.GetPageBase()
+    If pageBase Is Nothing Then Exit Function
+    Set runtimeSources = pageBase.RuntimeSources
+    If runtimeSources Is Nothing Then Exit Function
+
+    If runtimeSources.TryGetItemsSourceByKey(VBA.LCase$(HOTKEYS_RUNTIME_KEY), existingRows, True) Then
+        If Not existingRows Is Nothing Then
+            If existingRows.Count > 0 Then
+                private_EnsureHotkeyRows = True
+                Exit Function
+            End If
+        End If
+    Else
+        Exit Function
+    End If
+
+    Set hotkeyRows = New Collection
+    ' Defaults — это только стартовые данные страницы. Активными они становятся
+    ' после render HotkeysControl и RuntimeRegisterBoundRows, где регистрируются
+    ' routes для этой страницы.
+    If Not private_AddHotkeyRow(hotkeyRows, HOTKEY_ACTION_1, "CTRL+ENTER") Then Exit Function
+    If Not private_AddHotkeyRow(hotkeyRows, HOTKEY_ACTION_2, "CTRL+SHIFT+R") Then Exit Function
+
+    If Not runtimeSources.RemoveItemsSource(VBA.LCase$(HOTKEYS_RUNTIME_KEY)) Then Exit Function
+    If Not runtimeSources.SetItemsSource(VBA.LCase$(HOTKEYS_RUNTIME_KEY), hotkeyRows, notifyChange) Then Exit Function
+
+    private_EnsureHotkeyRows = True
+End Function
+
+Private Function private_AddHotkeyRow( _
+    ByVal hotkeyRows As Collection, _
+    ByVal actionId As String, _
+    ByVal defaultHotkey As String _
+) As Boolean
+    Dim configEntry As obj_ConfigEntry
+
+    If hotkeyRows Is Nothing Then Exit Function
+    Set configEntry = New obj_ConfigEntry
+    configEntry.Attr = VBA.vbNullString
+    configEntry.Key = VBA.Trim$(actionId)
+    configEntry.Value = VBA.Trim$(defaultHotkey)
+    hotkeyRows.Add configEntry
+    private_AddHotkeyRow = True
 End Function
 
 Private Function private_BuildDummyTable() As obj_TableDynamic

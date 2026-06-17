@@ -18,6 +18,7 @@ Private m_IsRendering As Boolean
 Private m_ControlByKey As Object
 Private m_RouteByShape As Object
 Private m_RouteByCell As Object
+Private m_RouteByHotkey As Object
 Private m_PageRuntimeSources As obj_PageRuntimeSources
 Private m_InlineRunEntries As Collection
 ' Кэш inline-профилей на уровне страницы: ключ = partName (banner/button/...).
@@ -142,6 +143,7 @@ Public Sub Dispose(Optional ByVal deleteWorksheet As Boolean = True)
 #End If
     If m_IsDisposed Then Exit Sub
 
+    Call Me.ResetControlActions
     Set ws = m_Worksheet
     Set m_Worksheet = Nothing
     Set m_Page = Nothing
@@ -154,7 +156,6 @@ Public Sub Dispose(Optional ByVal deleteWorksheet As Boolean = True)
     ' Сбрасываем профильный кэш вместе со страницей (единый lifecycle PageBase).
     Set m_InlineProfileByPart = Nothing
     m_IsRendering = False
-    Call Me.ResetControlActions
     m_IsDisposed = True
 
     If Not deleteWorksheet Then Exit Sub
@@ -779,6 +780,144 @@ Public Function RegisterCellRoute( _
     RegisterCellRoute = True
 End Function
 
+Public Function RegisterHotkeyRoute( _
+    ByVal hotkeyText As String, _
+    ByVal controlKey As String, _
+    ByVal methodName As String, _
+    Optional ByVal hasArg As Boolean = False, _
+    Optional ByVal argValue As Variant _
+) As Boolean
+    Dim hotkeyKey As String
+    Dim entry As Object
+
+    ' Совместимый путь для вызывающего кода, который передает человекочитаемый текст
+    ' вроде CTRL+ENTER. Новые контролы могут сами парсить/валидировать ввод
+    ' и вызывать RegisterHotkeyRouteByKey.
+    If Not private_EnsureNotDisposed("RegisterHotkeyRoute") Then Exit Function
+    hotkeyText = VBA.Trim$(hotkeyText)
+    controlKey = VBA.LCase$(VBA.Trim$(controlKey))
+    methodName = VBA.Trim$(methodName)
+
+    If Not rt_HotkeyRuntime.fn_TryNormalizeHotkey(hotkeyText, hotkeyKey) Then
+#If LOGGING_DEBUG_ENABLED Then
+        ex_Core.fn_Diagnostic_LogError "PageBase: unsupported hotkey '" & private_EscapeForLog(hotkeyText) & "'."
+#End If
+        VBA.MsgBox "PrototypeNew: unsupported hotkey '" & hotkeyText & "'. Use combinations like CTRL+ENTER, CTRL+SHIFT+Q, ALT+R.", VBA.vbExclamation, "PrototypeNew / Hotkeys"
+        Exit Function
+    End If
+    If VBA.Len(controlKey) = 0 Then
+#If LOGGING_DEBUG_ENABLED Then
+        ex_Core.fn_Diagnostic_LogError "PageBase: control key is empty for hotkey '" & private_EscapeForLog(hotkeyText) & "'."
+#End If
+        Exit Function
+    End If
+    If VBA.Len(methodName) = 0 Then
+#If LOGGING_DEBUG_ENABLED Then
+        ex_Core.fn_Diagnostic_LogError "PageBase: method name is empty for hotkey '" & private_EscapeForLog(hotkeyText) & "'."
+#End If
+        Exit Function
+    End If
+
+    private_EnsureStorage
+    If Not m_ControlByKey.Exists(controlKey) Then
+#If LOGGING_DEBUG_ENABLED Then
+        ex_Core.fn_Diagnostic_LogError "PageBase: control '" & controlKey & "' is not registered for hotkey '" & private_EscapeForLog(hotkeyText) & "'."
+#End If
+        Exit Function
+    End If
+
+    Set entry = VBA.CreateObject("Scripting.Dictionary")
+    entry.CompareMode = 1
+    entry("RouteType") = ROUTE_TYPE_CONTROL
+    entry("ControlKey") = controlKey
+    entry("MethodName") = methodName
+    entry("HasArg") = VBA.CBool(hasArg)
+    If hasArg Then
+        entry("ArgValue") = argValue
+    Else
+        entry("ArgValue") = Empty
+    End If
+
+    If Not rt_HotkeyRuntime.fn_RegisterPageHotkey(m_PageId, hotkeyKey) Then Exit Function
+    Set m_RouteByHotkey(hotkeyKey) = entry
+    private_LogRuntimeInfo "register-route hotkey='" & private_EscapeForLog(hotkeyKey) & "' control='" & private_EscapeForLog(controlKey) & "' method='" & private_EscapeForLog(methodName) & "' routes=" & VBA.CStr(private_GetDictionaryCount(m_RouteByHotkey))
+    RegisterHotkeyRoute = True
+End Function
+
+Public Function RegisterHotkeyRouteByKey( _
+    ByVal hotkeyKey As String, _
+    ByVal controlKey As String, _
+    ByVal methodName As String, _
+    Optional ByVal hasArg As Boolean = False, _
+    Optional ByVal argValue As Variant _
+) As Boolean
+    Dim entry As Object
+
+    ' PageBase хранит локальный route страницы:
+    '   OnKey token -> registered control key -> methodName(optional arg)
+    ' rt_HotkeyRuntime хранит только глобальную Excel-привязку для того же OnKey token.
+    ' При dispatch rt_Bridge сначала выбирает активную страницу, а эта map уже решает,
+    ' что хоткей значит именно на этой странице.
+    If Not private_EnsureNotDisposed("RegisterHotkeyRouteByKey") Then Exit Function
+    hotkeyKey = VBA.Trim$(hotkeyKey)
+    controlKey = VBA.LCase$(VBA.Trim$(controlKey))
+    methodName = VBA.Trim$(methodName)
+
+    If VBA.Len(hotkeyKey) = 0 Then
+#If LOGGING_DEBUG_ENABLED Then
+        ex_Core.fn_Diagnostic_LogError "PageBase: hotkey key is empty."
+#End If
+        Exit Function
+    End If
+    If VBA.Len(controlKey) = 0 Then
+#If LOGGING_DEBUG_ENABLED Then
+        ex_Core.fn_Diagnostic_LogError "PageBase: control key is empty for hotkey key '" & private_EscapeForLog(hotkeyKey) & "'."
+#End If
+        Exit Function
+    End If
+    If VBA.Len(methodName) = 0 Then
+#If LOGGING_DEBUG_ENABLED Then
+        ex_Core.fn_Diagnostic_LogError "PageBase: method name is empty for hotkey key '" & private_EscapeForLog(hotkeyKey) & "'."
+#End If
+        Exit Function
+    End If
+
+    private_EnsureStorage
+    If Not m_ControlByKey.Exists(controlKey) Then
+#If LOGGING_DEBUG_ENABLED Then
+        ex_Core.fn_Diagnostic_LogError "PageBase: control '" & controlKey & "' is not registered for hotkey key '" & private_EscapeForLog(hotkeyKey) & "'."
+#End If
+        Exit Function
+    End If
+
+    Set entry = VBA.CreateObject("Scripting.Dictionary")
+    entry.CompareMode = 1
+    entry("RouteType") = ROUTE_TYPE_CONTROL
+    entry("ControlKey") = controlKey
+    entry("MethodName") = methodName
+    entry("HasArg") = VBA.CBool(hasArg)
+    If hasArg Then
+        entry("ArgValue") = argValue
+    Else
+        entry("ArgValue") = Empty
+    End If
+
+    If Not rt_HotkeyRuntime.fn_RegisterPageHotkey(m_PageId, hotkeyKey) Then Exit Function
+    Set m_RouteByHotkey(hotkeyKey) = entry
+    private_LogRuntimeInfo "register-route hotkey='" & private_EscapeForLog(hotkeyKey) & "' control='" & private_EscapeForLog(controlKey) & "' method='" & private_EscapeForLog(methodName) & "' routes=" & VBA.CStr(private_GetDictionaryCount(m_RouteByHotkey))
+    RegisterHotkeyRouteByKey = True
+End Function
+
+Public Function ResetHotkeyRoutes() As Boolean
+    If Not private_EnsureNotDisposed("ResetHotkeyRoutes") Then Exit Function
+    ' Повторное применение таблицы хоткеев заменяет только hotkey routes этой страницы.
+    ' Shape/cell routes не трогаются; rt_HotkeyRuntime удаляет только ссылки этой
+    ' страницы из глобальных OnKey slots.
+    Set m_RouteByHotkey = Nothing
+    rt_HotkeyRuntime.fn_UnregisterPageHotkeys m_PageId
+    ResetHotkeyRoutes = True
+End Function
+
 ' Callstack[1]: obj_PageMain.UnregisterControl -> obj_PageMain.obj_IPage_UnregisterControl -> obj_PageBase.UnregisterControl
 ' Callstack[2]: page.UnregisterControl(obj_IPage) -> obj_PageMain.obj_IPage_UnregisterControl -> obj_PageBase.UnregisterControl
 Public Function UnregisterControl(ByVal controlKey As String) As Boolean
@@ -787,6 +926,7 @@ Public Function UnregisterControl(ByVal controlKey As String) As Boolean
     Dim controlKeyNorm As String
     Dim routeKeysToRemove As Collection
     Dim cellRouteKeysToRemove As Collection
+    Dim hotkeyRouteKeysToRemove As Collection
     Dim removeKey As Variant
 
     If Not private_EnsureNotDisposed("UnregisterControl") Then Exit Function
@@ -806,6 +946,7 @@ Public Function UnregisterControl(ByVal controlKey As String) As Boolean
 
     Set routeKeysToRemove = New Collection
     Set cellRouteKeysToRemove = New Collection
+    Set hotkeyRouteKeysToRemove = New Collection
     For Each routeKey In m_RouteByShape.Keys
         Set routeEntry = m_RouteByShape(routeKey)
         If VBA.LCase$(VBA.Trim$(VBA.CStr(routeEntry("ControlKey")))) = controlKeyNorm Then
@@ -826,6 +967,17 @@ Public Function UnregisterControl(ByVal controlKey As String) As Boolean
 
     For Each removeKey In cellRouteKeysToRemove
         m_RouteByCell.Remove VBA.CStr(removeKey)
+    Next removeKey
+
+    For Each routeKey In m_RouteByHotkey.Keys
+        Set routeEntry = m_RouteByHotkey(routeKey)
+        If VBA.LCase$(VBA.Trim$(VBA.CStr(routeEntry("ControlKey")))) = controlKeyNorm Then
+            hotkeyRouteKeysToRemove.Add VBA.CStr(routeKey)
+        End If
+    Next routeKey
+
+    For Each removeKey In hotkeyRouteKeysToRemove
+        m_RouteByHotkey.Remove VBA.CStr(removeKey)
     Next removeKey
 
     UnregisterControl = True
@@ -850,6 +1002,8 @@ Public Function ResetControlActions() As Boolean
     Set m_ControlByKey = Nothing
     Set m_RouteByShape = Nothing
     Set m_RouteByCell = Nothing
+    Set m_RouteByHotkey = Nothing
+    rt_HotkeyRuntime.fn_UnregisterPageHotkeys m_PageId
     private_LogRuntimeInfo "reset-control-actions"
     ResetControlActions = True
 End Function
@@ -994,6 +1148,60 @@ ContinueCell:
 
     private_LogRuntimeInfo "dispatch-change done"
     DispatchSheetChange = True
+End Function
+
+Public Function DispatchHotkey(ByVal hotkeyKey As String) As Boolean
+    Dim routeEntry As Object
+    Dim controlKey As String
+    Dim methodName As String
+    Dim hasArg As Boolean
+    Dim argValue As Variant
+    Dim iControl As Object
+    Dim actionOk As Boolean
+    Dim failureReason As String
+    Dim invokeErrorText As String
+
+    If Not private_EnsureNotDisposed("DispatchHotkey") Then Exit Function
+    hotkeyKey = VBA.Trim$(hotkeyKey)
+    If VBA.Len(hotkeyKey) = 0 Then Exit Function
+
+    ' Этот метод вызывается только после того, как rt_Bridge сопоставил
+    ' Application.ActiveSheet с этим PageBase. Если такой же физический hotkey есть
+    ' на другом листе, там будет вызван DispatchHotkey уже другой страницы.
+    private_LogRuntimeInfo "dispatch-hotkey start hotkey='" & private_EscapeForLog(hotkeyKey) & "' routes=" & VBA.CStr(private_GetDictionaryCount(m_RouteByHotkey)) & " controls=" & VBA.CStr(private_GetDictionaryCount(m_ControlByKey))
+
+    If Not private_TryGetHotkeyRoute(hotkeyKey, routeEntry, failureReason) Then
+        private_LogRuntimeError "dispatch-hotkey route-miss hotkey='" & private_EscapeForLog(hotkeyKey) & "' reason='" & private_EscapeForLog(failureReason) & "'"
+        Exit Function
+    End If
+
+    controlKey = VBA.LCase$(VBA.Trim$(VBA.CStr(routeEntry("ControlKey"))))
+    methodName = VBA.Trim$(VBA.CStr(routeEntry("MethodName")))
+    hasArg = VBA.CBool(routeEntry("HasArg"))
+    If hasArg Then
+        argValue = routeEntry("ArgValue")
+    Else
+        argValue = Empty
+    End If
+
+    If Not private_TryGetControl(controlKey, iControl, failureReason) Then
+        private_LogRuntimeError "dispatch-hotkey control-miss hotkey='" & private_EscapeForLog(hotkeyKey) & "' control='" & private_EscapeForLog(controlKey) & "' reason='" & private_EscapeForLog(failureReason) & "'"
+        private_RemoveHotkeyRoute hotkeyKey
+        Exit Function
+    End If
+
+    If Not private_TryInvokeControlAction(iControl, methodName, hasArg, argValue, actionOk, invokeErrorText) Then
+        private_LogRuntimeError "dispatch-hotkey invoke-failed hotkey='" & private_EscapeForLog(hotkeyKey) & "' control='" & private_EscapeForLog(controlKey) & "' method='" & private_EscapeForLog(methodName) & "' err='" & private_EscapeForLog(invokeErrorText) & "'"
+        Exit Function
+    End If
+
+    If Not actionOk Then
+        private_LogRuntimeError "dispatch-hotkey action-returned-false hotkey='" & private_EscapeForLog(hotkeyKey) & "' control='" & private_EscapeForLog(controlKey) & "' method='" & private_EscapeForLog(methodName) & "'"
+        Exit Function
+    End If
+
+    private_LogRuntimeInfo "dispatch-hotkey done hotkey='" & private_EscapeForLog(hotkeyKey) & "' control='" & private_EscapeForLog(controlKey) & "' method='" & private_EscapeForLog(methodName) & "'"
+    DispatchHotkey = True
 End Function
 
 ' Callstack[1]: rt_CoreActions.fn_UpdateCodeFullAndRerender -> private_ScheduleUpdateAndRerender -> rt_RestoreManager.m_SavePageSnapshots -> serializablePage.TrySerializeSnapshot(obj_PageMain) -> obj_PageMain.TrySerializeSnapshot -> m_Base.TryCollectSerializableControlSnapshots -> obj_PageBase.TryCollectSerializableControlSnapshots
@@ -1438,6 +1646,11 @@ Private Sub private_EnsureStorage()
         Set m_RouteByCell = VBA.CreateObject("Scripting.Dictionary")
         m_RouteByCell.CompareMode = 1
     End If
+
+    If m_RouteByHotkey Is Nothing Then
+        Set m_RouteByHotkey = VBA.CreateObject("Scripting.Dictionary")
+        m_RouteByHotkey.CompareMode = 1
+    End If
 End Sub
 
 Private Function private_ResolvePageUiPath(ByVal wsUiPath As String) As String
@@ -1660,6 +1873,45 @@ Private Sub private_RemoveCellRoute(ByVal cellAddress As String)
     If VBA.Len(cellKey) = 0 Then Exit Sub
     If m_RouteByCell.Exists(cellKey) Then
         m_RouteByCell.Remove cellKey
+    End If
+End Sub
+
+Private Function private_TryGetHotkeyRoute( _
+    ByVal hotkeyKey As String, _
+    ByRef outEntry As Object, _
+    Optional ByRef outReason As String = VBA.vbNullString _
+) As Boolean
+    outReason = VBA.vbNullString
+    If m_RouteByHotkey Is Nothing Then
+        outReason = "route-storage-empty"
+        Exit Function
+    End If
+
+    hotkeyKey = VBA.Trim$(hotkeyKey)
+    If VBA.Len(hotkeyKey) = 0 Then
+        outReason = "hotkey-empty"
+        Exit Function
+    End If
+    If Not m_RouteByHotkey.Exists(hotkeyKey) Then
+        outReason = "route-not-found"
+        Exit Function
+    End If
+
+    Set outEntry = m_RouteByHotkey(hotkeyKey)
+    If outEntry Is Nothing Then
+        outReason = "route-entry-empty"
+        Exit Function
+    End If
+
+    private_TryGetHotkeyRoute = True
+End Function
+
+Private Sub private_RemoveHotkeyRoute(ByVal hotkeyKey As String)
+    If m_RouteByHotkey Is Nothing Then Exit Sub
+    hotkeyKey = VBA.Trim$(hotkeyKey)
+    If VBA.Len(hotkeyKey) = 0 Then Exit Sub
+    If m_RouteByHotkey.Exists(hotkeyKey) Then
+        m_RouteByHotkey.Remove hotkeyKey
     End If
 End Sub
 
