@@ -36,6 +36,9 @@ Public Function fn_CreateControlByTypeRoot( _
         Case "config"
             Set control = New obj_ConfigControlVM
 
+        Case "hotkeys"
+            Set control = New obj_HotkeysControlVM
+
         Case "select"
             Set control = New obj_SelectControlVM
 

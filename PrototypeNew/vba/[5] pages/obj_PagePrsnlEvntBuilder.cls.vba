@@ -13,9 +13,13 @@ Implements obj_ISerializable
 Private Const SERIALIZABLE_TYPE_ROOT As String = "page.prsnlevntbuilder"
 Private Const SNAPSHOT_ROOT_NODE As String = "pageState"
 Private Const CONTROL_SNAPSHOT_NODE As String = "controlSnapshot"
+Private Const HOTKEYS_SNAPSHOT_NODE As String = "hotkeys"
+Private Const HOTKEY_ROW_SNAPSHOT_NODE As String = "row"
 Private Const PARENT_PAGE_ID_ATTR As String = "parentPageId"
 Private Const PARENT_CONFIG_CONTROL_NAME As String = "DevConfig"
 Private Const PAGE_RUNTIME_OBJECT_KEY As String = "RuntimeObjects.PrsnlEvntBuilder"
+Private Const HOTKEYS_RUNTIME_KEY As String = "RuntimeItems.PrsnlEvntBuilder.Hotkeys"
+Private Const HOTKEYS_CONTROL_NAME As String = "SheetHotkeys"
 Private Const DICTIONARY_MISSING_MEMBER_AS_EMPTY_KEY As String = "__MissingMemberAsEmpty"
 
 Private m_PageBase As obj_PageBase
@@ -97,37 +101,13 @@ Private Function obj_IPage_RunPagePipeline() As Boolean
     obj_IPage_RunPagePipeline = True
 End Function
 
-Private Function obj_ISerializable_TryRestoreState() As Boolean
-    Dim parentPage As obj_IPage
-    Dim configControl As obj_ConfigControlVM
-
-    If Not m_PageBase.IsReady() Then Exit Function
-
-    If VBA.Len(m_ParentPageId) > 0 Then
-        If Not private_TryGetParentPage(parentPage) Then
-#If LOGGING_DEBUG_ENABLED Then
-            ex_Core.fn_Diagnostic_LogError "PagePrsnlEvntBuilder: parent page is not found during RestoreState. parentPageId='" & VBA.Replace$(m_ParentPageId, "'", "''") & "'."
-#End If
-            Exit Function
-        End If
-        Set m_ParentPage = parentPage
-    End If
-
-    If Not m_Controller Is Nothing Then
-        If private_TryResolveParentConfigControl(configControl) Then
-            If Not m_Controller.UpdateData(configControl) Then Exit Function
-            If Not private_SyncLookupQueryKeysFromController() Then Exit Function
-        End If
-        If Not m_Controller.PrepareRuntime(False) Then Exit Function
-    End If
-
-    obj_ISerializable_TryRestoreState = True
-End Function
-
 Private Function obj_IPage_Render() As Boolean
     If Not m_PageBase.IsReady() Then Exit Function
     If Not m_PageBase.Render() Then Exit Function
     If Not private_TryRestorePendingControlSnapshots() Then Exit Function
+    ' HotkeysControl рендерится из RuntimeItems. После render повторно применяем
+    ' его текущую таблицу, чтобы restored/default строки стали активными OnKey-привязками.
+    If Not private_TryRegisterRenderedHotkeys() Then Exit Function
     obj_IPage_Render = True
 End Function
 
@@ -226,6 +206,33 @@ Private Function obj_ISerializable_TryDeserializeSnapshot(ByVal snapshotXml As S
     obj_ISerializable_TryDeserializeSnapshot = private_TryDeserializeSnapshot(snapshotXml)
 End Function
 
+Private Function obj_ISerializable_TryRestoreState() As Boolean
+    Dim parentPage As obj_IPage
+    Dim configControl As obj_ConfigControlVM
+
+    If Not m_PageBase.IsReady() Then Exit Function
+
+    If VBA.Len(m_ParentPageId) > 0 Then
+        If Not private_TryGetParentPage(parentPage) Then
+#If LOGGING_DEBUG_ENABLED Then
+            ex_Core.fn_Diagnostic_LogError "PagePrsnlEvntBuilder: parent page is not found during RestoreState. parentPageId='" & VBA.Replace$(m_ParentPageId, "'", "''") & "'."
+#End If
+            Exit Function
+        End If
+        Set m_ParentPage = parentPage
+    End If
+
+    If Not m_Controller Is Nothing Then
+        If private_TryResolveParentConfigControl(configControl) Then
+            If Not m_Controller.UpdateData(configControl) Then Exit Function
+            If Not private_SyncLookupQueryKeysFromController() Then Exit Function
+        End If
+        If Not m_Controller.PrepareRuntime(False) Then Exit Function
+    End If
+
+    obj_ISerializable_TryRestoreState = True
+End Function
+
 ' //
 ' // API
 ' //
@@ -286,6 +293,10 @@ Private Function private_TrySerializeSnapshot(ByRef outSnapshotXml As String) As
 
     m_PageBase.WriteBaseSnapshotAttributes rootNode
     rootNode.setAttribute PARENT_PAGE_ID_ATTR, VBA.LCase$(VBA.Trim$(m_ParentPageId))
+    ' Строки хоткеев — это данные страницы, а не внутреннее состояние HotkeysControl.
+    ' Сохраняем bound RuntimeItems collection здесь, чтобы будущий render контрола
+    ' прочитал уже пользовательские значения.
+    If Not private_TryAppendHotkeyRowsSnapshot(dom, rootNode) Then Exit Function
 
     Set controlSnapshots = Nothing
     If Not m_PageBase.TryCollectSerializableControlSnapshots(controlSnapshots) Then Exit Function
@@ -325,6 +336,9 @@ Private Function private_TryDeserializeSnapshot(ByVal snapshotXml As String) As 
     private_ResetLookupState
     m_PageBase.ReadBaseSnapshotAttributes rootNode
     m_ParentPageId = VBA.LCase$(VBA.Trim$(VBA.CStr(rootNode.getAttribute(PARENT_PAGE_ID_ATTR))))
+    ' Восстанавливаем строки в RuntimeSources до control snapshots и render-time
+    ' регистрации. Сам HotkeysControl остается обычным XML-rendered контролом.
+    If Not private_TryRestoreHotkeyRowsSnapshot(rootNode) Then Exit Function
 
     Set controlSnapshots = New Collection
     Set controlNodes = rootNode.selectNodes("*[local-name()='" & CONTROL_SNAPSHOT_NODE & "']")
@@ -339,6 +353,118 @@ ContinueControlSnapshot:
     If controlSnapshots.Count > 0 Then Set m_PendingControlSnapshots = controlSnapshots
 
     private_TryDeserializeSnapshot = True
+End Function
+
+Private Function private_TryAppendHotkeyRowsSnapshot( _
+    ByVal dom As Object, _
+    ByVal rootNode As Object _
+) As Boolean
+    Dim runtimeSources As obj_PageRuntimeSources
+    Dim hotkeyRows As Collection
+    Dim hotkeysNode As Object
+    Dim rowNode As Object
+    Dim rowItem As Variant
+    Dim configEntry As obj_ConfigEntry
+
+    ' Сериализуем текущую RuntimeItems.PrsnlEvntBuilder.Hotkeys collection в компактный
+    ' page-level node. Так пользовательские примененные bindings переживают reload.
+    If dom Is Nothing Then Exit Function
+    If rootNode Is Nothing Then Exit Function
+    If m_PageBase Is Nothing Then Exit Function
+    Set runtimeSources = m_PageBase.RuntimeSources
+    If runtimeSources Is Nothing Then Exit Function
+
+    If Not runtimeSources.TryGetItemsSourceByKey(VBA.LCase$(HOTKEYS_RUNTIME_KEY), hotkeyRows, True) Then Exit Function
+    If hotkeyRows Is Nothing Then
+        private_TryAppendHotkeyRowsSnapshot = True
+        Exit Function
+    End If
+    If hotkeyRows.Count = 0 Then
+        private_TryAppendHotkeyRowsSnapshot = True
+        Exit Function
+    End If
+
+    Set hotkeysNode = dom.createElement(HOTKEYS_SNAPSHOT_NODE)
+    hotkeysNode.setAttribute "version", "1"
+    hotkeysNode.setAttribute "sourceKey", VBA.LCase$(VBA.Trim$(HOTKEYS_RUNTIME_KEY))
+
+    For Each rowItem In hotkeyRows
+        Set configEntry = Nothing
+        If Not VBA.IsObject(rowItem) Then GoTo ContinueHotkeyRow
+        Set configEntry = rowItem
+        If configEntry Is Nothing Then GoTo ContinueHotkeyRow
+        If VBA.Len(VBA.Trim$(configEntry.Key)) = 0 Then GoTo ContinueHotkeyRow
+
+        Set rowNode = dom.createElement(HOTKEY_ROW_SNAPSHOT_NODE)
+        rowNode.setAttribute "action", VBA.Trim$(configEntry.Key)
+        rowNode.setAttribute "hotkey", VBA.Trim$(configEntry.Value)
+        hotkeysNode.appendChild rowNode
+
+ContinueHotkeyRow:
+    Next rowItem
+
+    rootNode.appendChild hotkeysNode
+    private_TryAppendHotkeyRowsSnapshot = True
+End Function
+
+Private Function private_TryRestoreHotkeyRowsSnapshot(ByVal rootNode As Object) As Boolean
+    Dim runtimeSources As obj_PageRuntimeSources
+    Dim hotkeysNode As Object
+    Dim rowNodes As Object
+    Dim rowNode As Object
+    Dim hotkeyRows As Collection
+    Dim actionText As String
+    Dim hotkeyText As String
+
+    ' Если старый snapshot не содержит hotkeys node, ничего не делаем: контроллер
+    ' посеет defaults через PrepareRuntime/private_EnsureHotkeyRows.
+    If rootNode Is Nothing Then Exit Function
+    If m_PageBase Is Nothing Then Exit Function
+    Set runtimeSources = m_PageBase.RuntimeSources
+    If runtimeSources Is Nothing Then Exit Function
+
+    Set hotkeysNode = rootNode.selectSingleNode("*[local-name()='" & HOTKEYS_SNAPSHOT_NODE & "']")
+    If hotkeysNode Is Nothing Then
+        private_TryRestoreHotkeyRowsSnapshot = True
+        Exit Function
+    End If
+
+    Set hotkeyRows = New Collection
+    Set rowNodes = hotkeysNode.selectNodes("*[local-name()='" & HOTKEY_ROW_SNAPSHOT_NODE & "']")
+    If Not rowNodes Is Nothing Then
+        For Each rowNode In rowNodes
+            actionText = VBA.Trim$(VBA.CStr(rowNode.getAttribute("action")))
+            hotkeyText = VBA.Trim$(VBA.CStr(rowNode.getAttribute("hotkey")))
+            If VBA.Len(actionText) = 0 Then GoTo ContinueHotkeyRow
+            If Not private_AddHotkeyRow(hotkeyRows, actionText, hotkeyText) Then Exit Function
+ContinueHotkeyRow:
+        Next rowNode
+    End If
+
+    If Not runtimeSources.RemoveItemsSource(VBA.LCase$(HOTKEYS_RUNTIME_KEY)) Then Exit Function
+    If Not runtimeSources.SetItemsSource(VBA.LCase$(HOTKEYS_RUNTIME_KEY), hotkeyRows, False) Then Exit Function
+
+    private_TryRestoreHotkeyRowsSnapshot = True
+End Function
+
+Private Function private_AddHotkeyRow( _
+    ByVal hotkeyRows As Collection, _
+    ByVal actionText As String, _
+    ByVal hotkeyText As String _
+) As Boolean
+    Dim configEntry As obj_ConfigEntry
+
+    If hotkeyRows Is Nothing Then Exit Function
+    actionText = VBA.Trim$(actionText)
+    If VBA.Len(actionText) = 0 Then Exit Function
+
+    Set configEntry = New obj_ConfigEntry
+    configEntry.Attr = VBA.vbNullString
+    configEntry.Key = actionText
+    configEntry.Value = VBA.Trim$(hotkeyText)
+    hotkeyRows.Add configEntry
+
+    private_AddHotkeyRow = True
 End Function
 
 Private Function private_TryGetParentPage(ByRef outParentPage As obj_IPage) As Boolean
@@ -427,6 +553,30 @@ Private Function private_TryRestorePendingControlSnapshots() As Boolean
     If Not m_PageBase.TryRestoreSerializableControlSnapshots(m_PendingControlSnapshots) Then Exit Function
     Set m_PendingControlSnapshots = Nothing
     private_TryRestorePendingControlSnapshots = True
+End Function
+
+Private Function private_TryRegisterRenderedHotkeys() As Boolean
+    Dim rawControl As Object
+    Dim hotkeysControl As obj_HotkeysControlVM
+
+    ' С точки зрения страницы контрол опционален: если XML-layout больше не содержит
+    ' SheetHotkeys, render страницы всё равно должен пройти. Если контрол есть,
+    ' применение текущих строк активирует хоткеи сразу после render/restore.
+    Set rawControl = Nothing
+    If Not m_PageBase.TryGetRegisteredControlByName(HOTKEYS_CONTROL_NAME, rawControl) Then
+        private_TryRegisterRenderedHotkeys = True
+        Exit Function
+    End If
+    If rawControl Is Nothing Then
+        private_TryRegisterRenderedHotkeys = True
+        Exit Function
+    End If
+    If Not TypeOf rawControl Is obj_HotkeysControlVM Then Exit Function
+
+    Set hotkeysControl = rawControl
+    ' Auto-register после render восстанавливает page-local routes из bound itemsSource.
+    ' Лист здесь не читаем: persist пользовательских правок делается только по Apply.
+    private_TryRegisterRenderedHotkeys = hotkeysControl.RuntimeRegisterBoundRows(False)
 End Function
 
 Private Function private_TryReadLookupChangePayload( _
