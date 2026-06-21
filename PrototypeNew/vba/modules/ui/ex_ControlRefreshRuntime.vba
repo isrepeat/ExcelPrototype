@@ -154,8 +154,8 @@ Public Function fn_TryGetSheetMaxControlBounds( _
         entrySheetName = VBA.Trim$(VBA.CStr(entry("Sheet")))
         If VBA.StrComp(entrySheetName, sheetName, VBA.vbTextCompare) <> 0 Then GoTo ContinueEntry
 
-        rowEnd = CLng(entry("RowEnd"))
-        colEnd = CLng(entry("ColEnd"))
+        rowEnd = VBA.CLng(entry("RowEnd"))
+        colEnd = VBA.CLng(entry("ColEnd"))
         If rowEnd > outRowEnd Then outRowEnd = rowEnd
         If colEnd > outColEnd Then outColEnd = colEnd
 

@@ -179,7 +179,7 @@ Public Function fn_TryRestoreSerializableCollectionState( _
 ) As Boolean
     Dim item As Variant
     Dim serializableItem As obj_ISerializable
-    Dim typeName As String
+    Dim itemTypeName As String
 
     fn_TryRestoreSerializableCollectionState = True
     ownerName = VBA.Trim$(ownerName)
@@ -192,16 +192,16 @@ Public Function fn_TryRestoreSerializableCollectionState( _
     ' 2) здесь каждый объект достраивает внутренние ссылки/состояние в TryRestoreState.
     For Each item In serializableItems
         Set serializableItem = Nothing
-        typeName = "unknown"
+        itemTypeName = "unknown"
 
         On Error Resume Next
-        typeName = VBA.TypeName(item)
+        itemTypeName = TypeName(item)
         Set serializableItem = item
         If Err.Number <> 0 Then
             Err.Clear
             On Error GoTo 0
 #If LOGGING_DEBUG_ENABLED Then
-            ex_Core.fn_Diagnostic_LogError "RestoreManager: collection item does not implement obj_ISerializable. owner='" & VBA.Replace$(ownerName, "'", "''") & "' type='" & VBA.Replace$(typeName, "'", "''") & "'."
+            ex_Core.fn_Diagnostic_LogError "RestoreManager: collection item does not implement obj_ISerializable. owner='" & VBA.Replace$(ownerName, "'", "''") & "' type='" & VBA.Replace$(itemTypeName, "'", "''") & "'."
 #End If
             fn_TryRestoreSerializableCollectionState = False
             Exit Function
@@ -212,7 +212,7 @@ Public Function fn_TryRestoreSerializableCollectionState( _
         If serializableItem.TryRestoreState() Then GoTo ContinueItem
 
 #If LOGGING_DEBUG_ENABLED Then
-        ex_Core.fn_Diagnostic_LogError "RestoreManager: TryRestoreState failed. owner='" & VBA.Replace$(ownerName, "'", "''") & "' type='" & VBA.Replace$(typeName, "'", "''") & "'."
+        ex_Core.fn_Diagnostic_LogError "RestoreManager: TryRestoreState failed. owner='" & VBA.Replace$(ownerName, "'", "''") & "' type='" & VBA.Replace$(itemTypeName, "'", "''") & "'."
 #End If
         fn_TryRestoreSerializableCollectionState = False
         Exit Function
@@ -291,7 +291,7 @@ Private Function private_TryRestoreRuntimeGlobalsSnapshot(ByRef outActiveWorkshe
         attrValue = VBA.vbNullString
     End If
     On Error GoTo 0
-    If Not IsNull(attrValue) Then
+    If Not VBA.IsNull(attrValue) Then
         outActiveWorksheetName = VBA.Trim$(VBA.CStr(attrValue))
     End If
 
@@ -311,7 +311,7 @@ Private Function private_TryRestoreRuntimeGlobalsSnapshot(ByRef outActiveWorkshe
             attrValue = VBA.vbNullString
         End If
         On Error GoTo 0
-        If IsNull(attrValue) Then
+        If VBA.IsNull(attrValue) Then
             moduleName = VBA.vbNullString
         Else
             moduleName = VBA.Trim$(VBA.CStr(attrValue))

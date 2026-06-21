@@ -26,7 +26,7 @@ Public Function fn_TryResolveTextBinding( _
 
     If Not private_TryResolveBindingValue(rawText, sourceObject, resolvedValue) Then Exit Function
 
-    If VBA.IsObject(resolvedValue) Then
+    If IsObject(resolvedValue) Then
 #If LOGGING_DEBUG_ENABLED Then
         ex_Core.fn_Diagnostic_LogError "PrototypeNew: text binding must resolve to scalar value."
 #End If
@@ -49,7 +49,7 @@ Public Function fn_TryResolveMacroBinding( _
 
     If Not private_TryResolveBindingValue(rawText, sourceObject, resolvedValue) Then Exit Function
 
-    If VBA.IsObject(resolvedValue) Then
+    If IsObject(resolvedValue) Then
 #If LOGGING_DEBUG_ENABLED Then
         ex_Core.fn_Diagnostic_LogError "PrototypeNew: macro binding must resolve to text value."
 #End If
@@ -88,9 +88,9 @@ Public Function fn_TryResolveVisibilityBinding( _
 
     If Not fn_TryResolveValueBinding(rawText, sourceObject, resolvedValue) Then Exit Function
     If Not private_TryParseBooleanVariant(resolvedValue, outVisible) Then
-        If VBA.IsObject(resolvedValue) Then
+        If IsObject(resolvedValue) Then
 #If LOGGING_DEBUG_ENABLED Then
-            ex_Core.fn_Diagnostic_LogError "PrototypeNew: visibility value resolved to object '" & VBA.TypeName(resolvedValue) & "'. Expected boolean-compatible value."
+            ex_Core.fn_Diagnostic_LogError "PrototypeNew: visibility value resolved to object '" & TypeName(resolvedValue) & "'. Expected boolean-compatible value."
 #End If
         Else
 #If LOGGING_DEBUG_ENABLED Then
@@ -119,9 +119,9 @@ Public Function fn_TryResolveVisibilityStateBinding( _
 
     If Not fn_TryResolveValueBinding(rawText, sourceObject, resolvedValue) Then Exit Function
     If Not private_TryParseVisibilityStateVariant(resolvedValue, outVisibilityState) Then
-        If VBA.IsObject(resolvedValue) Then
+        If IsObject(resolvedValue) Then
 #If LOGGING_DEBUG_ENABLED Then
-            ex_Core.fn_Diagnostic_LogError "PrototypeNew: visibility state resolved to object '" & VBA.TypeName(resolvedValue) & "'. Expected scalar visibility value."
+            ex_Core.fn_Diagnostic_LogError "PrototypeNew: visibility state resolved to object '" & TypeName(resolvedValue) & "'. Expected scalar visibility value."
 #End If
         Else
 #If LOGGING_DEBUG_ENABLED Then
@@ -484,7 +484,7 @@ Private Function private_TryReadBindingPathValue( _
 
         If Not private_TryReadMemberValue(currentObject, segmentName, memberIsObject, memberObject, memberScalar) Then
 #If LOGGING_DEBUG_ENABLED Then
-            ex_Core.fn_Diagnostic_LogError "PrototypeNew: member '" & segmentName & "' was not found on object '" & VBA.TypeName(currentObject) & "'."
+            ex_Core.fn_Diagnostic_LogError "PrototypeNew: member '" & segmentName & "' was not found on object '" & TypeName(currentObject) & "'."
 #End If
             Exit Function
         End If
@@ -611,7 +611,7 @@ Private Function private_AsDictionary(ByVal sourceObject As Object) As Object
 
     If sourceObject Is Nothing Then Exit Function
 
-    typeNameText = VBA.TypeName(sourceObject)
+    typeNameText = TypeName(sourceObject)
     If VBA.StrComp(typeNameText, "Dictionary", VBA.vbTextCompare) = 0 Or _
        VBA.StrComp(typeNameText, "Scripting.Dictionary", VBA.vbTextCompare) = 0 Then
         Set private_AsDictionary = sourceObject
@@ -621,7 +621,7 @@ End Function
 
 Private Function private_AsCollection(ByVal sourceObject As Object) As Collection
     If sourceObject Is Nothing Then Exit Function
-    If VBA.StrComp(VBA.TypeName(sourceObject), "Collection", VBA.vbTextCompare) <> 0 Then Exit Function
+    If VBA.StrComp(TypeName(sourceObject), "Collection", VBA.vbTextCompare) <> 0 Then Exit Function
 
     Set private_AsCollection = sourceObject
 End Function
@@ -714,7 +714,7 @@ End Function
 
 
 Private Function private_TryParseNumberVariant(ByVal rawValue As Variant, ByRef outNumber As Double) As Boolean
-    If VBA.IsObject(rawValue) Then Exit Function
+    If IsObject(rawValue) Then Exit Function
     If Not VBA.IsNumeric(rawValue) Then Exit Function
 
     outNumber = VBA.CDbl(rawValue)
@@ -735,7 +735,7 @@ End Function
 Private Function private_TryParseBooleanVariant(ByVal rawValue As Variant, ByRef outBoolean As Boolean) As Boolean
     Dim typeCode As VbVarType
 
-    If VBA.IsObject(rawValue) Then Exit Function
+    If IsObject(rawValue) Then Exit Function
 
     typeCode = VBA.VarType(rawValue)
     If typeCode = vbBoolean Then
@@ -773,7 +773,7 @@ Private Function private_TryParseVisibilityStateVariant(ByVal rawValue As Varian
     Dim typeCode As VbVarType
     Dim visibilityText As String
 
-    If VBA.IsObject(rawValue) Then Exit Function
+    If IsObject(rawValue) Then Exit Function
 
     typeCode = VBA.VarType(rawValue)
     If typeCode = vbBoolean Then

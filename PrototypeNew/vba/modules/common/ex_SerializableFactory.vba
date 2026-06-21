@@ -35,6 +35,11 @@ Public Function fn_TryCreatePageByTypeRoot( _
             fn_TryCreatePageByTypeRoot = True
             Exit Function
 
+        Case "page.comparing"
+            Set outPage = New obj_PageComparing
+            fn_TryCreatePageByTypeRoot = True
+            Exit Function
+
         Case "page.main"
             Set outPage = New obj_PageMain
             fn_TryCreatePageByTypeRoot = True

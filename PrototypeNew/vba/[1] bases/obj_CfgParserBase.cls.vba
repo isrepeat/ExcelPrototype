@@ -13,13 +13,13 @@ Private m_ResolverDataContext As Object
 
 Private Sub Class_Initialize()
 #If LOGGING_VERBOSE_ENABLED Then
-    ex_Core.fn_Diagnostic_LogInfo "lifecycle:" & VBA.TypeName(Me) & ".Class_Initialize"
+    ex_Core.fn_Diagnostic_LogInfo "lifecycle:" & TypeName(Me) & ".Class_Initialize"
 #End If
 End Sub
 
 Private Sub Class_Terminate()
 #If LOGGING_VERBOSE_ENABLED Then
-    ex_Core.fn_Diagnostic_LogInfo "lifecycle:" & VBA.TypeName(Me) & ".Class_Terminate"
+    ex_Core.fn_Diagnostic_LogInfo "lifecycle:" & TypeName(Me) & ".Class_Terminate"
 #End If
     If m_IsDisposed Then Exit Sub
     On Error Resume Next
@@ -109,8 +109,8 @@ Public Function BuildConfigDictionary( _
     End If
 
     For Each entryObj In configEntries
-        If Not VBA.IsObject(entryObj) Then GoTo ContinueEntry
-        If VBA.StrComp(VBA.TypeName(entryObj), "obj_ConfigEntry", VBA.vbTextCompare) <> 0 Then GoTo ContinueEntry
+        If Not IsObject(entryObj) Then GoTo ContinueEntry
+        If VBA.StrComp(TypeName(entryObj), "obj_ConfigEntry", VBA.vbTextCompare) <> 0 Then GoTo ContinueEntry
         Set entry = entryObj
 
         keyText = VBA.Trim$(entry.Key)
@@ -271,7 +271,7 @@ Private Function private_TryResolveResolverMethodName( _
     End If
 
     If Not ex_BindingRuntime.fn_TryResolveValueBinding(outMethodName, m_ResolverDataContext, resolvedValue) Then Exit Function
-    If VBA.IsObject(resolvedValue) Then
+    If IsObject(resolvedValue) Then
 #If LOGGING_DEBUG_ENABLED Then
         ex_Core.fn_Diagnostic_LogError "CfgParserBase: binding resolver must resolve to text method name."
 #End If
@@ -396,7 +396,7 @@ Public Function ResolvePathLocal(ByVal inputPath As String) As String
     End If
 
     basePath = ThisWorkbook.Path
-    If VBA.Len(basePath) = 0 Then basePath = CurDir$
+    If VBA.Len(basePath) = 0 Then basePath = VBA.CurDir$
     If VBA.Right$(basePath, 1) <> "\" Then basePath = basePath & "\"
 
     ResolvePathLocal = basePath & inputPath

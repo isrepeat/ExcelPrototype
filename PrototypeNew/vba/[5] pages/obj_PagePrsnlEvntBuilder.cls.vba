@@ -32,7 +32,7 @@ Private m_IsDisposed As Boolean
 
 Private Sub Class_Initialize()
 #If LOGGING_VERBOSE_ENABLED Then
-    ex_Core.fn_Diagnostic_LogInfo "lifecycle:" & VBA.TypeName(Me) & ".Class_Initialize"
+    ex_Core.fn_Diagnostic_LogInfo "lifecycle:" & TypeName(Me) & ".Class_Initialize"
 #End If
     Set m_PageBase = New obj_PageBase
     Set m_Controller = Nothing
@@ -41,7 +41,7 @@ End Sub
 
 Private Sub Class_Terminate()
 #If LOGGING_VERBOSE_ENABLED Then
-    ex_Core.fn_Diagnostic_LogInfo "lifecycle:" & VBA.TypeName(Me) & ".Class_Terminate"
+    ex_Core.fn_Diagnostic_LogInfo "lifecycle:" & TypeName(Me) & ".Class_Terminate"
 #End If
     If m_IsDisposed Then Exit Sub
     On Error Resume Next
@@ -390,7 +390,7 @@ Private Function private_TryAppendHotkeyRowsSnapshot( _
 
     For Each rowItem In hotkeyRows
         Set configEntry = Nothing
-        If Not VBA.IsObject(rowItem) Then GoTo ContinueHotkeyRow
+        If Not IsObject(rowItem) Then GoTo ContinueHotkeyRow
         Set configEntry = rowItem
         If configEntry Is Nothing Then GoTo ContinueHotkeyRow
         If VBA.Len(VBA.Trim$(configEntry.Key)) = 0 Then GoTo ContinueHotkeyRow
@@ -505,7 +505,7 @@ Private Function private_TryEnsureControllerData() As Boolean
 #If LOGGING_DEBUG_ENABLED Then
         ex_Core.fn_Diagnostic_LogError "PagePrsnlEvntBuilder: failed to resolve parent DevConfig before lookup search."
 #End If
-        MsgBox "PrototypeNew: failed to resolve parent DevConfig before lookup search.", vbExclamation, "PrototypeNew / EntityLookup runtime"
+        VBA.MsgBox "PrototypeNew: failed to resolve parent DevConfig before lookup search.", vbExclamation, "PrototypeNew / EntityLookup runtime"
         Exit Function
     End If
 
@@ -589,8 +589,8 @@ Private Function private_TryReadLookupChangePayload( _
     outLookupKey = VBA.vbNullString
     outChangedCellAddress = VBA.vbNullString
 
-    If Not VBA.IsObject(arg) Then
-        MsgBox "PrototypeNew: EntityLookup input callback requires payload with lookup key.", vbExclamation, "PrototypeNew / EntityLookup runtime"
+    If Not IsObject(arg) Then
+        VBA.MsgBox "PrototypeNew: EntityLookup input callback requires payload with lookup key.", vbExclamation, "PrototypeNew / EntityLookup runtime"
         Exit Function
     End If
 
@@ -598,22 +598,22 @@ Private Function private_TryReadLookupChangePayload( _
     Set payload = arg
     On Error GoTo 0
     If payload Is Nothing Then
-        MsgBox "PrototypeNew: EntityLookup input callback payload is empty.", vbExclamation, "PrototypeNew / EntityLookup runtime"
+        VBA.MsgBox "PrototypeNew: EntityLookup input callback payload is empty.", vbExclamation, "PrototypeNew / EntityLookup runtime"
         Exit Function
     End If
     If Not payload.Exists("ChangedCellAddress") Then
-        MsgBox "PrototypeNew: EntityLookup input callback payload has no ChangedCellAddress.", vbExclamation, "PrototypeNew / EntityLookup runtime"
+        VBA.MsgBox "PrototypeNew: EntityLookup input callback payload has no ChangedCellAddress.", vbExclamation, "PrototypeNew / EntityLookup runtime"
         Exit Function
     End If
     If Not payload.Exists("Arg") Then
-        MsgBox "PrototypeNew: EntityLookup input callback payload has no lookup key Arg.", vbExclamation, "PrototypeNew / EntityLookup runtime"
+        VBA.MsgBox "PrototypeNew: EntityLookup input callback payload has no lookup key Arg.", vbExclamation, "PrototypeNew / EntityLookup runtime"
         Exit Function
     End If
 
     outChangedCellAddress = VBA.Trim$(VBA.CStr(payload("ChangedCellAddress")))
     outLookupKey = VBA.Trim$(VBA.CStr(payload("Arg")))
     If VBA.Len(outChangedCellAddress) = 0 Or VBA.Len(outLookupKey) = 0 Then
-        MsgBox "PrototypeNew: EntityLookup input callback payload has empty lookup key or cell address.", vbExclamation, "PrototypeNew / EntityLookup runtime"
+        VBA.MsgBox "PrototypeNew: EntityLookup input callback payload has empty lookup key or cell address.", vbExclamation, "PrototypeNew / EntityLookup runtime"
         Exit Function
     End If
 

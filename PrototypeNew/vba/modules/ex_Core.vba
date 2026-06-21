@@ -484,7 +484,7 @@ Public Function fn_Settings_TryGetObjectSource( _
 
     Set outObjectSource = Nothing
 
-    Set settingsMap = CreateObject("Scripting.Dictionary")
+    Set settingsMap = VBA.CreateObject("Scripting.Dictionary")
     settingsMap.CompareMode = 1
     ' Объект строится из общего file-cache; XML читаем только при изменении DateLastModified у Settings.xml.
     If Not private_Settings_TryFillObjectSourceMap(settingsMap, showErrorUi) Then Exit Function
@@ -583,7 +583,7 @@ Public Function fn_CustomXmlPartStore_TryLoadDomFromXml( _
 ) As Boolean
     Dim dom As Object
 
-    Set dom = CreateObject("MSXML2.DOMDocument.6.0")
+    Set dom = VBA.CreateObject("MSXML2.DOMDocument.6.0")
     dom.async = False
     dom.validateOnParse = False
     dom.setProperty "SelectionLanguage", "XPath"
@@ -727,7 +727,7 @@ Public Function fn_Helpers_IsRegexMatch(ByVal valueText As String, ByVal regexPa
 
     On Error GoTo EH
 
-    Set re = CreateObject("VBScript.RegExp")
+    Set re = VBA.CreateObject("VBScript.RegExp")
     re.Global = False
     re.IgnoreCase = True
     re.Pattern = regexPattern
@@ -764,7 +764,7 @@ Public Function fn_Helpers_TryGetFileText( _
     cacheKey = private_FileCache_BuildFileTextKey(filePath)
     If Not private_FileCache_TryGetFileStamp(filePath, fileStamp, showErrorUi) Then
         Call private_FileCache_Remove(cacheKey)
-        If allowMissing And VBA.Len(Dir(filePath)) = 0 Then
+        If allowMissing And VBA.Len(VBA.Dir(filePath)) = 0 Then
             fn_Helpers_TryGetFileText = True
             Exit Function
         End If
@@ -814,7 +814,7 @@ Private Function private_Settings_TryGetSettingsDom( _
     If createIfMissing Then
         If Not private_Settings_TryEnsureTemplateExists(settingsPath, showErrorUi) Then Exit Function
     Else
-        If VBA.Len(Dir(settingsPath)) = 0 Then
+        If VBA.Len(VBA.Dir(settingsPath)) = 0 Then
             If showErrorUi Then
 #If LOGGING_DEBUG_ENABLED Then
                 ex_Core.fn_Diagnostic_LogError "Settings: file '" & settingsPath & "' was not found."
@@ -967,7 +967,7 @@ Private Function private_Settings_TryBuildFlagsMapFromDom( _
     Set flagsNode = settingsDom.selectSingleNode("/*[local-name()='" & SETTINGS_ROOT_NODE & "']/*[local-name()='" & SETTINGS_FLAGS_NODE & "']")
     If flagsNode Is Nothing Then Exit Function
 
-    Set outFlagsMap = CreateObject("Scripting.Dictionary")
+    Set outFlagsMap = VBA.CreateObject("Scripting.Dictionary")
     outFlagsMap.CompareMode = 1
 
     For Each childNode In flagsNode.ChildNodes
@@ -1127,7 +1127,7 @@ Private Function private_Settings_TryEnsureTemplateExists(ByVal settingsPath As 
     settingsPath = VBA.Trim$(settingsPath)
     If VBA.Len(settingsPath) = 0 Then Exit Function
 
-    If VBA.Len(Dir(settingsPath)) > 0 Then
+    If VBA.Len(VBA.Dir(settingsPath)) > 0 Then
         private_Settings_TryEnsureTemplateExists = True
         Exit Function
     End If
@@ -1161,7 +1161,7 @@ End Function
 ' --------------------------------------
 Private Sub private_FileCache_EnsureStorage()
     If g_FileCacheMap Is Nothing Then
-        Set g_FileCacheMap = CreateObject("Scripting.Dictionary")
+        Set g_FileCacheMap = VBA.CreateObject("Scripting.Dictionary")
         g_FileCacheMap.CompareMode = 1
     End If
 End Sub
@@ -1188,10 +1188,10 @@ Private Function private_FileCache_TryGetFileStamp( _
     filePath = VBA.Trim$(filePath)
     outStamp = VBA.vbNullString
     If VBA.Len(filePath) = 0 Then Exit Function
-    If VBA.Len(Dir(filePath)) = 0 Then Exit Function
+    If VBA.Len(VBA.Dir(filePath)) = 0 Then Exit Function
 
     On Error GoTo EH_STAMP
-    Set fso = CreateObject("Scripting.FileSystemObject")
+    Set fso = VBA.CreateObject("Scripting.FileSystemObject")
     Set fileObj = fso.GetFile(filePath)
     outStamp = VBA.CStr(VBA.CDbl(fileObj.DateLastModified))
     private_FileCache_TryGetFileStamp = True
@@ -1212,12 +1212,12 @@ Private Function private_FileCache_TryReadTextFile( _
     outText = VBA.vbNullString
     filePath = VBA.Trim$(filePath)
     If VBA.Len(filePath) = 0 Then Exit Function
-    If VBA.Len(Dir(filePath)) = 0 Then Exit Function
+    If VBA.Len(VBA.Dir(filePath)) = 0 Then Exit Function
 
     On Error GoTo EH_READ
-    f = FreeFile
+    f = VBA.FreeFile
     Open filePath For Input As #f
-    outText = Input$(LOF(f), f)
+    outText = VBA.Input$(VBA.LOF(f), f)
     Close #f
     private_FileCache_TryReadTextFile = True
     Exit Function
@@ -1241,7 +1241,7 @@ Private Function private_FileCache_TryWriteTextFile( _
     If VBA.Len(filePath) = 0 Then Exit Function
 
     On Error GoTo EH_WRITE
-    f = FreeFile
+    f = VBA.FreeFile
     Open filePath For Output As #f
     Print #f, textValue
     Close #f
@@ -1267,7 +1267,7 @@ Private Function private_FileCache_SetFileTextEntry( _
     cacheKey = private_FileCache_BuildFileTextKey(filePath)
     If VBA.Len(cacheKey) = 0 Then Exit Function
 
-    Set entry = CreateObject("Scripting.Dictionary")
+    Set entry = VBA.CreateObject("Scripting.Dictionary")
     entry.CompareMode = 1
     entry("Text") = VBA.CStr(textValue)
     entry("Stamp") = VBA.CStr(fileStamp)
@@ -1351,12 +1351,12 @@ End Sub
 ' --------------------------------------
 Private Sub private_RuntimeSource_EnsureStorage()
     If g_GlobalItemsSourceMap Is Nothing Then
-        Set g_GlobalItemsSourceMap = CreateObject("Scripting.Dictionary")
+        Set g_GlobalItemsSourceMap = VBA.CreateObject("Scripting.Dictionary")
         g_GlobalItemsSourceMap.CompareMode = 1
     End If
 
     If g_GlobalObjectSourceMap Is Nothing Then
-        Set g_GlobalObjectSourceMap = CreateObject("Scripting.Dictionary")
+        Set g_GlobalObjectSourceMap = VBA.CreateObject("Scripting.Dictionary")
         g_GlobalObjectSourceMap.CompareMode = 1
     End If
 End Sub
@@ -1846,7 +1846,7 @@ Private Function private_Dev_TryPrepareRuntimeForHotUpdate(ByVal operationName A
     Call private_Dev_TryRunModuleDisposers("safe-update:prepare:" & operationName & ":dispose-modules")
 
     ' Даем завершиться Class_Terminate/освобождению COM-ссылок перед массовым remove/import.
-    DoEvents
+    VBA.DoEvents
 
     ' Повторный проход module dispose после page dispose:
     ' часть модулей может освобождать ссылки только после того, как страницы уже закрыты.
@@ -1991,7 +1991,7 @@ Private Function private_Dev_UpdateCodeCore( _
 #End If
 
     basePath = ThisWorkbook.Path & "\\" & BASE_DIR
-    If VBA.Len(Dir(basePath, vbDirectory)) = 0 Then
+    If VBA.Len(VBA.Dir(basePath, vbDirectory)) = 0 Then
         private_ShowStatusWarning "Workbook path is empty or 'vba' folder was not found. Save the workbook first.", useNativeStatus, 6
 #If LOGGING_DEBUG_ENABLED Then
         private_Diagnostic_LogCoreSelfEvent "update-stop: vba-folder-not-found"
@@ -2121,11 +2121,11 @@ Private Sub private_Dev_ValidateClassImports(ByVal rootPath As String)
     Dim fso As Object
     Dim failed As String
 
-    If Dir(rootPath, vbDirectory) = "" Then
+    If VBA.Dir(rootPath, vbDirectory) = "" Then
         Err.Raise VBA.vbObjectError + 1006, "private_Dev_ValidateClassImports", "VBA root folder not found: " & rootPath
     End If
 
-    Set fso = CreateObject("Scripting.FileSystemObject")
+    Set fso = VBA.CreateObject("Scripting.FileSystemObject")
     private_Dev_ValidateClassImportsRecursive fso.GetFolder(rootPath), 0, failed
 
     If VBA.Len(failed) > 0 Then
@@ -2334,9 +2334,9 @@ Private Sub private_Dev_ImportFolder( _
     Dim failed As String
     Dim importPass As Long
 
-    If Dir(folderPath, vbDirectory) = "" Then Exit Sub
+    If VBA.Dir(folderPath, vbDirectory) = "" Then Exit Sub
 
-    Set fso = CreateObject("Scripting.FileSystemObject")
+    Set fso = VBA.CreateObject("Scripting.FileSystemObject")
     Set rootFolder = fso.GetFolder(folderPath)
 
     ' Глобальные два прохода по всему дереву:
@@ -2622,8 +2622,8 @@ Private Function private_Dev_ExtractCodeBody(ByVal sourceText As String) As Stri
     For i = LBound(lines) To UBound(lines)
         lineText = VBA.CStr(lines(i))
         ' Удаляем служебный BOM/непечатаемый префикс, если он присутствует.
-        lineText = VBA.Replace(lineText, ChrW$(65279), VBA.vbNullString)
-        lineText = VBA.Replace(lineText, ChrW$(160), " ")
+        lineText = VBA.Replace(lineText, VBA.ChrW$(65279), VBA.vbNullString)
+        lineText = VBA.Replace(lineText, VBA.ChrW$(160), " ")
         trimmed = VBA.Trim$(lineText)
 
         If VBA.StrComp(VBA.Left$(trimmed, 8), "VERSION ", VBA.vbTextCompare) = 0 Then GoTo ContinueLine
@@ -2663,7 +2663,7 @@ Private Sub private_Dev_RemoveComponentIfExists(ByVal componentName As String)
     For attempt = 1 To 8
         Set vbComp = private_Dev_TryGetComponentByName(componentName)
         If vbComp Is Nothing Then Exit Sub
-        DoEvents
+        VBA.DoEvents
     Next attempt
 
     Err.Raise VBA.vbObjectError + 1015, "private_Dev_RemoveComponentIfExists", _
@@ -2813,7 +2813,7 @@ End Function
 
 
 Private Function private_Dev_CreateDictionary() As Object
-    Set private_Dev_CreateDictionary = CreateObject("Scripting.Dictionary")
+    Set private_Dev_CreateDictionary = VBA.CreateObject("Scripting.Dictionary")
     private_Dev_CreateDictionary.CompareMode = 1
 End Function
 
@@ -2827,7 +2827,7 @@ Private Function private_Dev_BuildFileStamp(ByVal filePath As String) As String
     Dim fso As Object
     Dim fileObj As Object
 
-    Set fso = CreateObject("Scripting.FileSystemObject")
+    Set fso = VBA.CreateObject("Scripting.FileSystemObject")
     If Not fso.FileExists(filePath) Then Exit Function
     Set fileObj = fso.GetFile(filePath)
     private_Dev_BuildFileStamp = private_Dev_BuildFileDateStampFromFileObject(fileObj) & ":" & private_Dev_BuildFileSizeStampFromFileObject(fileObj)
@@ -3259,7 +3259,7 @@ End Function
 
 Private Function private_Dev_ReadAllText(ByVal filePath As String) As String
     private_Dev_ReadAllText = private_Dev_ReadAllTextByCharset(filePath, "utf-8")
-    If VBA.Left$(private_Dev_ReadAllText, 1) = ChrW$(65279) Then
+    If VBA.Left$(private_Dev_ReadAllText, 1) = VBA.ChrW$(65279) Then
         private_Dev_ReadAllText = VBA.Mid$(private_Dev_ReadAllText, 2)
     End If
 End Function
@@ -3268,7 +3268,7 @@ End Function
 Private Function private_Dev_ReadAllTextByCharset(ByVal filePath As String, ByVal charsetName As String) As String
     Dim stream As Object
 
-    Set stream = CreateObject("ADODB.Stream")
+    Set stream = VBA.CreateObject("ADODB.Stream")
     stream.Type = 2 ' текстовый поток
     stream.Mode = 3 ' режим чтение/запись
     stream.Charset = charsetName
@@ -3457,7 +3457,7 @@ Private Sub private_Diagnostic_LogCoreEvent(ByVal messageText As String)
     folderPath = VBA.Left$(logPath, VBA.InStrRev(logPath, "\\") - 1)
 
     On Error Resume Next
-    Set fso = CreateObject("Scripting.FileSystemObject")
+    Set fso = VBA.CreateObject("Scripting.FileSystemObject")
     If Not fso Is Nothing Then
         If VBA.Len(folderPath) > 0 Then
             If Not fso.FolderExists(folderPath) Then fso.CreateFolder folderPath
@@ -3487,7 +3487,7 @@ Private Sub private_Diagnostic_ClearCoreLogFile()
     folderPath = VBA.Left$(logPath, VBA.InStrRev(logPath, "\\") - 1)
 
     On Error Resume Next
-    Set fso = CreateObject("Scripting.FileSystemObject")
+    Set fso = VBA.CreateObject("Scripting.FileSystemObject")
     If Not fso Is Nothing Then
         If VBA.Len(folderPath) > 0 Then
             If Not fso.FolderExists(folderPath) Then fso.CreateFolder folderPath

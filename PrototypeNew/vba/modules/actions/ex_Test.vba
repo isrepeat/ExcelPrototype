@@ -404,7 +404,7 @@ Public Function fn_TEST_BuildDemoTableViewItems( _
     If sourceTables Is Nothing Then Exit Function
 
     Set result = New list__obj_TableViewItem
-    Randomize
+    VBA.Randomize
 
     tableIndex = 0
     For Each sourceTableObj In sourceTables
@@ -554,7 +554,7 @@ ContinueMergedSourceColumn:
         For sourceRowIndex = 1 To sourceTable.Rows.Count
             Set sourceRow = sourceTable.Rows.Item(sourceRowIndex)
             If sourceRow Is Nothing Then GoTo ContinueMergedSourceRow
-            If VBA.TypeName(sourceRow) <> "obj_Row" Then
+            If TypeName(sourceRow) <> "obj_Row" Then
 #If LOGGING_DEBUG_ENABLED Then
                 ex_Core.fn_Diagnostic_LogError "PrototypeNew: expected obj_Row in demo table rows."
 #End If
@@ -797,7 +797,7 @@ Private Function private_GetRandomRowBannerTargetIndex( _
         Exit Function
     End If
 
-    slotRoll = VBA.Int(Rnd * 3) + 1
+    slotRoll = VBA.Int(VBA.Rnd * 3) + 1
 
     Select Case slotRoll
         Case 1
@@ -828,14 +828,14 @@ Private Function private_TryResolveDemoTableDynamic(ByVal tableObj As Variant, B
     Dim sourceColumnIndex As Long
     Dim sourceRowIndex As Long
 
-    If Not VBA.IsObject(tableObj) Then
+    If Not IsObject(tableObj) Then
 #If LOGGING_DEBUG_ENABLED Then
         ex_Core.fn_Diagnostic_LogError "PrototypeNew: demo table item is not object."
 #End If
         Exit Function
     End If
 
-    Select Case VBA.LCase$(VBA.TypeName(tableObj))
+    Select Case VBA.LCase$(TypeName(tableObj))
         Case "obj_tabledynamic"
             Set outTable = tableObj
             private_TryResolveDemoTableDynamic = True
@@ -877,7 +877,7 @@ ContinueResolveRow:
 
         Case Else
 #If LOGGING_DEBUG_ENABLED Then
-            ex_Core.fn_Diagnostic_LogError "PrototypeNew: unsupported demo table type '" & VBA.TypeName(tableObj) & "'."
+            ex_Core.fn_Diagnostic_LogError "PrototypeNew: unsupported demo table type '" & TypeName(tableObj) & "'."
 #End If
     End Select
 End Function
@@ -1003,7 +1003,7 @@ Private Function private_TryResolveMainPage(ByRef outPage As obj_IPage) As Boole
     If rt_PageManager.fn_TryGetAllPages(allPages) Then
         If Not allPages Is Nothing Then
             For Each pageCandidate In allPages
-                If VBA.IsObject(pageCandidate) Then
+                If IsObject(pageCandidate) Then
                     Set outPage = pageCandidate
                     If outPage Is Nothing Then GoTo ContinuePageCandidate
 

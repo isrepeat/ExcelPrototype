@@ -22,13 +22,13 @@ Private m_IsDisposed As Boolean
 
 Private Sub Class_Initialize()
 #If LOGGING_VERBOSE_ENABLED Then
-    ex_Core.fn_Diagnostic_LogInfo "lifecycle:" & VBA.TypeName(Me) & ".Class_Initialize"
+    ex_Core.fn_Diagnostic_LogInfo "lifecycle:" & TypeName(Me) & ".Class_Initialize"
 #End If
 End Sub
 
 Private Sub Class_Terminate()
 #If LOGGING_VERBOSE_ENABLED Then
-    ex_Core.fn_Diagnostic_LogInfo "lifecycle:" & VBA.TypeName(Me) & ".Class_Terminate"
+    ex_Core.fn_Diagnostic_LogInfo "lifecycle:" & TypeName(Me) & ".Class_Terminate"
 #End If
     If m_IsDisposed Then Exit Sub
     On Error Resume Next
@@ -174,7 +174,7 @@ Public Function PrepareDemoTablesRuntime( _
 #If LOGGING_DEBUG_ENABLED Then
         ex_Core.fn_Diagnostic_LogError "PrototypeNew: failed to register demo table items for PersonalCard page."
 #End If
-        MsgBox "PrototypeNew: failed to register demo table items for PersonalCard page.", vbExclamation, "PrototypeNew / PersonalCard runtime"
+        VBA.MsgBox "PrototypeNew: failed to register demo table items for PersonalCard page.", vbExclamation, "PrototypeNew / PersonalCard runtime"
         Exit Function
     End If
 
@@ -458,7 +458,7 @@ Private Function private_BuildTablesFromConfigTable() As Collection
 
     ' 2) Для каждой таблицы выполняем запрос через общий SQL-движок.
     For Each sqlParamsObj In sqlParamsItems
-        If Not VBA.IsObject(sqlParamsObj) Then GoTo ContinueSqlParams
+        If Not IsObject(sqlParamsObj) Then GoTo ContinueSqlParams
         Set sqlParams = sqlParamsObj
         If sqlParams Is Nothing Then GoTo ContinueSqlParams
 

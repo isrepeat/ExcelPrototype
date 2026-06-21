@@ -15,14 +15,14 @@ Private Const ADDITIONAL_SQL_PARAM_ROW_PROCESSOR As String = "rowprocessor"
 
 Private Sub Class_Initialize()
 #If LOGGING_VERBOSE_ENABLED Then
-    ex_Core.fn_Diagnostic_LogInfo "lifecycle:" & VBA.TypeName(Me) & ".Class_Initialize"
+    ex_Core.fn_Diagnostic_LogInfo "lifecycle:" & TypeName(Me) & ".Class_Initialize"
 #End If
     Set m_CfgTableParser = New obj_CfgTableParser
 End Sub
 
 Private Sub Class_Terminate()
 #If LOGGING_VERBOSE_ENABLED Then
-    ex_Core.fn_Diagnostic_LogInfo "lifecycle:" & VBA.TypeName(Me) & ".Class_Terminate"
+    ex_Core.fn_Diagnostic_LogInfo "lifecycle:" & TypeName(Me) & ".Class_Terminate"
 #End If
     If m_IsDisposed Then Exit Sub
     On Error Resume Next
@@ -283,7 +283,7 @@ Public Function TryBuildAllSqlParams(ByRef outSqlParamsList As Collection) As Bo
         Exit Function
     End If
 
-    Set seenRefs = CreateObject("Scripting.Dictionary")
+    Set seenRefs = VBA.CreateObject("Scripting.Dictionary")
     seenRefs.CompareMode = 1
 
     Set outSqlParamsList = New Collection
@@ -420,7 +420,7 @@ Private Function private_TryAttachAdditionalSqlParams( _
             Exit Function
         End If
 #If LOGGING_DEBUG_ENABLED Then
-        ex_Core.fn_Diagnostic_LogInfo "PersonalCardCfgParser: RowProcessor attached class='" & rowProcessorClassName & "' type='" & VBA.TypeName(rowProcessor) & "'"
+        ex_Core.fn_Diagnostic_LogInfo "PersonalCardCfgParser: RowProcessor attached class='" & rowProcessorClassName & "' type='" & TypeName(rowProcessor) & "'"
 #End If
         Set sqlParams.RowProcessor = rowProcessor
     Else
