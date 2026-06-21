@@ -23,15 +23,20 @@ Private Sub private_MoveSelectedTableRows(ByVal Direction As Long)
     Dim sel As Range
     Dim tablePart As Range
     Dim firstRow As Long, lastRow As Long
+    Dim rowsCount As Long
     Dim firstColOffset As Long
-    Dim blockData As Variant
-    Dim swapData As Variant
+    Dim blockRange As Range
+    Dim swapRange As Range
+    Dim tmpRange As Range
+    Dim tmpCol As Long
 
     If TypeName(Selection) <> "Range" Then Exit Sub
     Set sel = Selection
 
+    If sel.Areas.count > 1 Then Exit Sub
+
     On Error Resume Next
-    Set tbl = sel.Cells(1, 1).ListObject
+    Set tbl = ActiveCell.ListObject
     On Error GoTo 0
 
     If tbl Is Nothing Then Exit Sub
@@ -40,34 +45,56 @@ Private Sub private_MoveSelectedTableRows(ByVal Direction As Long)
     Set tablePart = Intersect(sel, tbl.DataBodyRange)
     If tablePart Is Nothing Then Exit Sub
 
-    ' Проверяем, что выделение непрерывное
-    If sel.Areas.count > 1 Then Exit Sub
-
     firstRow = tablePart.Row - tbl.DataBodyRange.Row + 1
     lastRow = tablePart.Row + tablePart.Rows.count - tbl.DataBodyRange.Row
+    rowsCount = lastRow - firstRow + 1
 
-    firstColOffset = ActiveCell.Column - tbl.Range.Column + 1
+    firstColOffset = ActiveCell.Column - tbl.DataBodyRange.Column + 1
+    If firstColOffset < 1 Or firstColOffset > tbl.ListColumns.count Then firstColOffset = 1
+
+    Application.ScreenUpdating = False
+    Application.EnableEvents = False
+
+    tmpCol = tbl.Range.Column + tbl.Range.Columns.count + 2
+    Set tmpRange = tbl.Parent.Cells(tbl.Range.Row, tmpCol).Resize(1, tbl.ListColumns.count)
 
     If Direction = -1 Then
-        If firstRow <= 1 Then Exit Sub
 
-        blockData = tbl.DataBodyRange.Rows(firstRow & ":" & lastRow).value
-        swapData = tbl.DataBodyRange.Rows(firstRow - 1).value
+        If firstRow <= 1 Then GoTo SafeExit
 
-        tbl.DataBodyRange.Rows(firstRow - 1).Resize(UBound(blockData, 1)).value = blockData
-        tbl.DataBodyRange.Rows(lastRow).value = swapData
-        tbl.DataBodyRange.Rows(firstRow - 1 & ":" & lastRow - 1).Select
+        Set blockRange = tbl.DataBodyRange.Rows(firstRow).Resize(rowsCount)
+        Set swapRange = tbl.DataBodyRange.Rows(firstRow - 1)
+
+        swapRange.Copy Destination:=tmpRange
+        blockRange.Copy Destination:=tbl.DataBodyRange.Rows(firstRow - 1)
+        tmpRange.Copy Destination:=tbl.DataBodyRange.Rows(lastRow)
+
+        tmpRange.Clear
+
+        tbl.DataBodyRange.Rows(firstRow - 1).Resize(rowsCount).Select
+        tbl.DataBodyRange.Cells(firstRow - 1, firstColOffset).Activate
 
     ElseIf Direction = 1 Then
-        If lastRow >= tbl.ListRows.count Then Exit Sub
 
-        blockData = tbl.DataBodyRange.Rows(firstRow & ":" & lastRow).value
-        swapData = tbl.DataBodyRange.Rows(lastRow + 1).value
+        If lastRow >= tbl.ListRows.count Then GoTo SafeExit
 
-        tbl.DataBodyRange.Rows(firstRow + 1).Resize(UBound(blockData, 1)).value = blockData
-        tbl.DataBodyRange.Rows(firstRow).value = swapData
-        tbl.DataBodyRange.Rows(firstRow + 1 & ":" & lastRow + 1).Select
+        Set blockRange = tbl.DataBodyRange.Rows(firstRow).Resize(rowsCount)
+        Set swapRange = tbl.DataBodyRange.Rows(lastRow + 1)
+
+        swapRange.Copy Destination:=tmpRange
+        blockRange.Copy Destination:=tbl.DataBodyRange.Rows(firstRow + 1)
+        tmpRange.Copy Destination:=tbl.DataBodyRange.Rows(firstRow)
+
+        tmpRange.Clear
+
+        tbl.DataBodyRange.Rows(firstRow + 1).Resize(rowsCount).Select
+        tbl.DataBodyRange.Cells(firstRow + 1, firstColOffset).Activate
+
     End If
 
-    tbl.DataBodyRange.Cells(IIf(Direction = -1, firstRow - 1, firstRow + 1), firstColOffset).Activate
+SafeExit:
+    Application.CutCopyMode = False
+    Application.EnableEvents = True
+    Application.ScreenUpdating = True
+
 End Sub
