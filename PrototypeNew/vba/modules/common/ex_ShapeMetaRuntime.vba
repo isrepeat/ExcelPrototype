@@ -24,7 +24,7 @@ Public Function fn_ReadShapeMetaMap(ByVal shp As Shape) As Object
     Dim keyName As String
     Dim valueText As String
 
-    Set meta = CreateObject("Scripting.Dictionary")
+    Set meta = VBA.CreateObject("Scripting.Dictionary")
     meta.CompareMode = 1
 
     If shp Is Nothing Then

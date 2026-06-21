@@ -287,7 +287,7 @@ Private Function private_ToAbsolutePath(ByVal pathValue As String) As String
     End If
 
     On Error Resume Next
-    Set fso = CreateObject("Scripting.FileSystemObject")
+    Set fso = VBA.CreateObject("Scripting.FileSystemObject")
     If Not fso Is Nothing Then
         private_ToAbsolutePath = fso.GetAbsolutePathName(private_ToAbsolutePath)
     End If

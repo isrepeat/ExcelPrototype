@@ -13,6 +13,7 @@ Private Const MODE_PROFILES_FILE_SUFFIX As String = "Profiles.xml"
 Private Const PERSONAL_CARD_SHEET_BASE_NAME As String = "PersonalCard"
 Private Const ENTITY_LOOKUP_SHEET_BASE_NAME As String = "EntityLookup"
 Private Const PRSNL_EVNT_BUILDER_SHEET_BASE_NAME As String = "PrsnlEvntBuilder"
+Private Const COMPARING_SHEET_BASE_NAME As String = "Comparing"
 Private Const MODE_ON_SELECT_MACRO As String = "OnConfigModeChanged"
 Private Const PROFILE_ON_SELECT_MACRO As String = "OnConfigProfileChanged"
 Private Const MODE_PICKER_CONTROL_NAME As String = "ConfigModePicker"
@@ -30,13 +31,13 @@ Private m_IsDisposed As Boolean
 
 Private Sub Class_Initialize()
 #If LOGGING_VERBOSE_ENABLED Then
-    ex_Core.fn_Diagnostic_LogInfo "lifecycle:" & VBA.TypeName(Me) & ".Class_Initialize"
+    ex_Core.fn_Diagnostic_LogInfo "lifecycle:" & TypeName(Me) & ".Class_Initialize"
 #End If
 End Sub
 
 Private Sub Class_Terminate()
 #If LOGGING_VERBOSE_ENABLED Then
-    ex_Core.fn_Diagnostic_LogInfo "lifecycle:" & VBA.TypeName(Me) & ".Class_Terminate"
+    ex_Core.fn_Diagnostic_LogInfo "lifecycle:" & TypeName(Me) & ".Class_Terminate"
 #End If
     If m_IsDisposed Then Exit Sub
     On Error Resume Next
@@ -58,7 +59,7 @@ Public Function Initialize(ByVal page As obj_IPage) As Boolean
         #If LOGGING_DEBUG_ENABLED Then
             ex_Core.fn_Diagnostic_LogError "PrototypeNew: PageMainController initialization failed because page is not specified."
         #End If
-        MsgBox "PrototypeNew: PageMainController initialization failed because page is not specified.", vbExclamation, "PrototypeNew / Config runtime"
+        VBA.MsgBox "PrototypeNew: PageMainController initialization failed because page is not specified.", vbExclamation, "PrototypeNew / Config runtime"
         Exit Function
     End If
 
@@ -246,7 +247,7 @@ Public Function OnClearWorkbookPagesExceptMainCommand(Optional ByVal arg As Vari
             #If LOGGING_DEBUG_ENABLED Then
                 ex_Core.fn_Diagnostic_LogError "PrototypeNew: failed to remove page '" & VBA.Replace$(pageWsName, "'", "''") & "'."
             #End If
-            MsgBox "PrototypeNew: failed to remove page '" & pageWsName & "'.", vbExclamation, "PrototypeNew / Config runtime"
+            VBA.MsgBox "PrototypeNew: failed to remove page '" & pageWsName & "'.", vbExclamation, "PrototypeNew / Config runtime"
             Exit Function
         End If
         removedCount = removedCount + 1
@@ -281,14 +282,14 @@ EH_DELETE_WS:
     #If LOGGING_DEBUG_ENABLED Then
         ex_Core.fn_Diagnostic_LogError "PrototypeNew: failed to delete worksheet while clearing pages: [" & VBA.CStr(Err.Number) & "] " & Err.Description
     #End If
-    MsgBox "PrototypeNew: failed to delete worksheet while clearing pages: [" & VBA.CStr(Err.Number) & "] " & Err.Description, vbExclamation, "PrototypeNew / Config runtime"
+    VBA.MsgBox "PrototypeNew: failed to delete worksheet while clearing pages: [" & VBA.CStr(Err.Number) & "] " & Err.Description, vbExclamation, "PrototypeNew / Config runtime"
     Exit Function
 
 EH_CLEAR:
     #If LOGGING_DEBUG_ENABLED Then
         ex_Core.fn_Diagnostic_LogError "PrototypeNew: exception in OnClearWorkbookPagesExceptMainCommand: [" & VBA.CStr(Err.Number) & "] " & Err.Description
     #End If
-    MsgBox "PrototypeNew: exception in OnClearWorkbookPagesExceptMainCommand: [" & VBA.CStr(Err.Number) & "] " & Err.Description, vbExclamation, "PrototypeNew / Config runtime"
+    VBA.MsgBox "PrototypeNew: exception in OnClearWorkbookPagesExceptMainCommand: [" & VBA.CStr(Err.Number) & "] " & Err.Description, vbExclamation, "PrototypeNew / Config runtime"
 End Function
 
 Public Function OnOpenPersonalCardPageCommand(Optional ByVal arg As Variant) As Boolean
@@ -307,9 +308,9 @@ Public Function OnOpenPersonalCardPageCommand(Optional ByVal arg As Variant) As 
         If existingPage Is Nothing Then GoTo EH_CREATE
         If Not TypeOf existingPage Is obj_PagePersonalCard Then
             #If LOGGING_DEBUG_ENABLED Then
-                ex_Core.fn_Diagnostic_LogError "PrototypeNew: worksheet '" & PERSONAL_CARD_SHEET_BASE_NAME & "' is bound to unexpected page type '" & VBA.TypeName(existingPage) & "'."
+                ex_Core.fn_Diagnostic_LogError "PrototypeNew: worksheet '" & PERSONAL_CARD_SHEET_BASE_NAME & "' is bound to unexpected page type '" & TypeName(existingPage) & "'."
             #End If
-            MsgBox "PrototypeNew: worksheet '" & PERSONAL_CARD_SHEET_BASE_NAME & "' is bound to unexpected page type '" & VBA.TypeName(existingPage) & "'.", vbExclamation, "PrototypeNew / Config runtime"
+            VBA.MsgBox "PrototypeNew: worksheet '" & PERSONAL_CARD_SHEET_BASE_NAME & "' is bound to unexpected page type '" & TypeName(existingPage) & "'.", vbExclamation, "PrototypeNew / Config runtime"
             Exit Function
         End If
 
@@ -317,7 +318,7 @@ Public Function OnOpenPersonalCardPageCommand(Optional ByVal arg As Variant) As 
             #If LOGGING_DEBUG_ENABLED Then
                 ex_Core.fn_Diagnostic_LogError "PrototypeNew: failed to run PersonalCard page pipeline for existing page."
             #End If
-            MsgBox "PrototypeNew: failed to run PersonalCard page pipeline for existing page.", vbExclamation, "PrototypeNew / Config runtime"
+            VBA.MsgBox "PrototypeNew: failed to run PersonalCard page pipeline for existing page.", vbExclamation, "PrototypeNew / Config runtime"
             Exit Function
         End If
 
@@ -325,7 +326,7 @@ Public Function OnOpenPersonalCardPageCommand(Optional ByVal arg As Variant) As 
             #If LOGGING_DEBUG_ENABLED Then
                 ex_Core.fn_Diagnostic_LogError "PrototypeNew: failed to render existing PersonalCard page."
             #End If
-            MsgBox "PrototypeNew: failed to render existing PersonalCard page.", vbExclamation, "PrototypeNew / Config runtime"
+            VBA.MsgBox "PrototypeNew: failed to render existing PersonalCard page.", vbExclamation, "PrototypeNew / Config runtime"
             Exit Function
         End If
 
@@ -339,7 +340,7 @@ Public Function OnOpenPersonalCardPageCommand(Optional ByVal arg As Variant) As 
         #If LOGGING_DEBUG_ENABLED Then
             ex_Core.fn_Diagnostic_LogError "PrototypeNew: failed to allocate worksheet name for PersonalCard page."
         #End If
-        MsgBox "PrototypeNew: failed to allocate worksheet name for PersonalCard page.", vbExclamation, "PrototypeNew / Config runtime"
+        VBA.MsgBox "PrototypeNew: failed to allocate worksheet name for PersonalCard page.", vbExclamation, "PrototypeNew / Config runtime"
         Exit Function
     End If
 
@@ -348,7 +349,7 @@ Public Function OnOpenPersonalCardPageCommand(Optional ByVal arg As Variant) As 
         #If LOGGING_DEBUG_ENABLED Then
             ex_Core.fn_Diagnostic_LogError "PrototypeNew: failed to allocate PersonalCard page instance."
         #End If
-        MsgBox "PrototypeNew: failed to allocate PersonalCard page instance.", vbExclamation, "PrototypeNew / Config runtime"
+        VBA.MsgBox "PrototypeNew: failed to allocate PersonalCard page instance.", vbExclamation, "PrototypeNew / Config runtime"
         Exit Function
     End If
 
@@ -361,7 +362,7 @@ Public Function OnOpenPersonalCardPageCommand(Optional ByVal arg As Variant) As 
         #If LOGGING_DEBUG_ENABLED Then
             ex_Core.fn_Diagnostic_LogError "PrototypeNew: failed to run PersonalCard page pipeline."
         #End If
-        MsgBox "PrototypeNew: failed to run PersonalCard page pipeline.", vbExclamation, "PrototypeNew / Config runtime"
+        VBA.MsgBox "PrototypeNew: failed to run PersonalCard page pipeline.", vbExclamation, "PrototypeNew / Config runtime"
         GoTo EH_CREATE
     End If
 
@@ -369,7 +370,7 @@ Public Function OnOpenPersonalCardPageCommand(Optional ByVal arg As Variant) As 
         #If LOGGING_DEBUG_ENABLED Then
             ex_Core.fn_Diagnostic_LogError "PrototypeNew: failed to render PersonalCard page."
         #End If
-        MsgBox "PrototypeNew: failed to render PersonalCard page.", vbExclamation, "PrototypeNew / Config runtime"
+        VBA.MsgBox "PrototypeNew: failed to render PersonalCard page.", vbExclamation, "PrototypeNew / Config runtime"
         GoTo EH_CREATE
     End If
 
@@ -388,7 +389,7 @@ EH_CREATE:
         #If LOGGING_DEBUG_ENABLED Then
             ex_Core.fn_Diagnostic_LogError "PrototypeNew: failed to create PersonalCard page."
         #End If
-        MsgBox "PrototypeNew: failed to create PersonalCard page.", vbExclamation, "PrototypeNew / Config runtime"
+        VBA.MsgBox "PrototypeNew: failed to create PersonalCard page.", vbExclamation, "PrototypeNew / Config runtime"
     End If
     Exit Function
 
@@ -396,7 +397,7 @@ EH_OPEN:
     #If LOGGING_DEBUG_ENABLED Then
         ex_Core.fn_Diagnostic_LogError "PrototypeNew: exception in OnOpenPersonalCardPageCommand: [" & VBA.CStr(Err.Number) & "] " & Err.Description
     #End If
-    MsgBox "PrototypeNew: exception in OnOpenPersonalCardPageCommand: [" & VBA.CStr(Err.Number) & "] " & Err.Description, vbExclamation, "PrototypeNew / Config runtime"
+    VBA.MsgBox "PrototypeNew: exception in OnOpenPersonalCardPageCommand: [" & VBA.CStr(Err.Number) & "] " & Err.Description, vbExclamation, "PrototypeNew / Config runtime"
     Resume EH_CREATE
 End Function
 
@@ -416,9 +417,9 @@ Public Function OnOpenEntityLookupPageCommand(Optional ByVal arg As Variant) As 
         If existingPage Is Nothing Then GoTo EH_CREATE
         If Not TypeOf existingPage Is obj_PageEntityLookup Then
             #If LOGGING_DEBUG_ENABLED Then
-                ex_Core.fn_Diagnostic_LogError "PrototypeNew: worksheet '" & ENTITY_LOOKUP_SHEET_BASE_NAME & "' is bound to unexpected page type '" & VBA.TypeName(existingPage) & "'."
+                ex_Core.fn_Diagnostic_LogError "PrototypeNew: worksheet '" & ENTITY_LOOKUP_SHEET_BASE_NAME & "' is bound to unexpected page type '" & TypeName(existingPage) & "'."
             #End If
-            MsgBox "PrototypeNew: worksheet '" & ENTITY_LOOKUP_SHEET_BASE_NAME & "' is bound to unexpected page type '" & VBA.TypeName(existingPage) & "'.", vbExclamation, "PrototypeNew / Config runtime"
+            VBA.MsgBox "PrototypeNew: worksheet '" & ENTITY_LOOKUP_SHEET_BASE_NAME & "' is bound to unexpected page type '" & TypeName(existingPage) & "'.", vbExclamation, "PrototypeNew / Config runtime"
             Exit Function
         End If
 
@@ -426,7 +427,7 @@ Public Function OnOpenEntityLookupPageCommand(Optional ByVal arg As Variant) As 
             #If LOGGING_DEBUG_ENABLED Then
                 ex_Core.fn_Diagnostic_LogError "PrototypeNew: failed to run EntityLookup page pipeline for existing page."
             #End If
-            MsgBox "PrototypeNew: failed to run EntityLookup page pipeline for existing page.", vbExclamation, "PrototypeNew / Config runtime"
+            VBA.MsgBox "PrototypeNew: failed to run EntityLookup page pipeline for existing page.", vbExclamation, "PrototypeNew / Config runtime"
             Exit Function
         End If
 
@@ -434,7 +435,7 @@ Public Function OnOpenEntityLookupPageCommand(Optional ByVal arg As Variant) As 
             #If LOGGING_DEBUG_ENABLED Then
                 ex_Core.fn_Diagnostic_LogError "PrototypeNew: failed to render existing EntityLookup page."
             #End If
-            MsgBox "PrototypeNew: failed to render existing EntityLookup page.", vbExclamation, "PrototypeNew / Config runtime"
+            VBA.MsgBox "PrototypeNew: failed to render existing EntityLookup page.", vbExclamation, "PrototypeNew / Config runtime"
             Exit Function
         End If
 
@@ -448,7 +449,7 @@ Public Function OnOpenEntityLookupPageCommand(Optional ByVal arg As Variant) As 
         #If LOGGING_DEBUG_ENABLED Then
             ex_Core.fn_Diagnostic_LogError "PrototypeNew: failed to allocate worksheet name for EntityLookup page."
         #End If
-        MsgBox "PrototypeNew: failed to allocate worksheet name for EntityLookup page.", vbExclamation, "PrototypeNew / Config runtime"
+        VBA.MsgBox "PrototypeNew: failed to allocate worksheet name for EntityLookup page.", vbExclamation, "PrototypeNew / Config runtime"
         Exit Function
     End If
 
@@ -457,7 +458,7 @@ Public Function OnOpenEntityLookupPageCommand(Optional ByVal arg As Variant) As 
         #If LOGGING_DEBUG_ENABLED Then
             ex_Core.fn_Diagnostic_LogError "PrototypeNew: failed to allocate EntityLookup page instance."
         #End If
-        MsgBox "PrototypeNew: failed to allocate EntityLookup page instance.", vbExclamation, "PrototypeNew / Config runtime"
+        VBA.MsgBox "PrototypeNew: failed to allocate EntityLookup page instance.", vbExclamation, "PrototypeNew / Config runtime"
         Exit Function
     End If
 
@@ -470,7 +471,7 @@ Public Function OnOpenEntityLookupPageCommand(Optional ByVal arg As Variant) As 
         #If LOGGING_DEBUG_ENABLED Then
             ex_Core.fn_Diagnostic_LogError "PrototypeNew: failed to run EntityLookup page pipeline."
         #End If
-        MsgBox "PrototypeNew: failed to run EntityLookup page pipeline.", vbExclamation, "PrototypeNew / Config runtime"
+        VBA.MsgBox "PrototypeNew: failed to run EntityLookup page pipeline.", vbExclamation, "PrototypeNew / Config runtime"
         GoTo EH_CREATE
     End If
 
@@ -478,7 +479,7 @@ Public Function OnOpenEntityLookupPageCommand(Optional ByVal arg As Variant) As 
         #If LOGGING_DEBUG_ENABLED Then
             ex_Core.fn_Diagnostic_LogError "PrototypeNew: failed to render EntityLookup page."
         #End If
-        MsgBox "PrototypeNew: failed to render EntityLookup page.", vbExclamation, "PrototypeNew / Config runtime"
+        VBA.MsgBox "PrototypeNew: failed to render EntityLookup page.", vbExclamation, "PrototypeNew / Config runtime"
         GoTo EH_CREATE
     End If
 
@@ -497,7 +498,7 @@ EH_CREATE:
         #If LOGGING_DEBUG_ENABLED Then
             ex_Core.fn_Diagnostic_LogError "PrototypeNew: failed to create EntityLookup page."
         #End If
-        MsgBox "PrototypeNew: failed to create EntityLookup page.", vbExclamation, "PrototypeNew / Config runtime"
+        VBA.MsgBox "PrototypeNew: failed to create EntityLookup page.", vbExclamation, "PrototypeNew / Config runtime"
     End If
     Exit Function
 
@@ -505,7 +506,7 @@ EH_OPEN:
     #If LOGGING_DEBUG_ENABLED Then
         ex_Core.fn_Diagnostic_LogError "PrototypeNew: exception in OnOpenEntityLookupPageCommand: [" & VBA.CStr(Err.Number) & "] " & Err.Description
     #End If
-    MsgBox "PrototypeNew: exception in OnOpenEntityLookupPageCommand: [" & VBA.CStr(Err.Number) & "] " & Err.Description, vbExclamation, "PrototypeNew / Config runtime"
+    VBA.MsgBox "PrototypeNew: exception in OnOpenEntityLookupPageCommand: [" & VBA.CStr(Err.Number) & "] " & Err.Description, vbExclamation, "PrototypeNew / Config runtime"
     Resume EH_CREATE
 End Function
 
@@ -525,9 +526,9 @@ Public Function OnOpenPrsnlEvntBuilderPageCommand(Optional ByVal arg As Variant)
         If existingPage Is Nothing Then GoTo EH_CREATE
         If Not TypeOf existingPage Is obj_PagePrsnlEvntBuilder Then
             #If LOGGING_DEBUG_ENABLED Then
-                ex_Core.fn_Diagnostic_LogError "PrototypeNew: worksheet '" & PRSNL_EVNT_BUILDER_SHEET_BASE_NAME & "' is bound to unexpected page type '" & VBA.TypeName(existingPage) & "'."
+                ex_Core.fn_Diagnostic_LogError "PrototypeNew: worksheet '" & PRSNL_EVNT_BUILDER_SHEET_BASE_NAME & "' is bound to unexpected page type '" & TypeName(existingPage) & "'."
             #End If
-            MsgBox "PrototypeNew: worksheet '" & PRSNL_EVNT_BUILDER_SHEET_BASE_NAME & "' is bound to unexpected page type '" & VBA.TypeName(existingPage) & "'.", vbExclamation, "PrototypeNew / Config runtime"
+            VBA.MsgBox "PrototypeNew: worksheet '" & PRSNL_EVNT_BUILDER_SHEET_BASE_NAME & "' is bound to unexpected page type '" & TypeName(existingPage) & "'.", vbExclamation, "PrototypeNew / Config runtime"
             Exit Function
         End If
 
@@ -535,7 +536,7 @@ Public Function OnOpenPrsnlEvntBuilderPageCommand(Optional ByVal arg As Variant)
             #If LOGGING_DEBUG_ENABLED Then
                 ex_Core.fn_Diagnostic_LogError "PrototypeNew: failed to run PrsnlEvntBuilder page pipeline for existing page."
             #End If
-            MsgBox "PrototypeNew: failed to run PrsnlEvntBuilder page pipeline for existing page.", vbExclamation, "PrototypeNew / Config runtime"
+            VBA.MsgBox "PrototypeNew: failed to run PrsnlEvntBuilder page pipeline for existing page.", vbExclamation, "PrototypeNew / Config runtime"
             Exit Function
         End If
 
@@ -543,7 +544,7 @@ Public Function OnOpenPrsnlEvntBuilderPageCommand(Optional ByVal arg As Variant)
             #If LOGGING_DEBUG_ENABLED Then
                 ex_Core.fn_Diagnostic_LogError "PrototypeNew: failed to render existing PrsnlEvntBuilder page."
             #End If
-            MsgBox "PrototypeNew: failed to render existing PrsnlEvntBuilder page.", vbExclamation, "PrototypeNew / Config runtime"
+            VBA.MsgBox "PrototypeNew: failed to render existing PrsnlEvntBuilder page.", vbExclamation, "PrototypeNew / Config runtime"
             Exit Function
         End If
 
@@ -557,7 +558,7 @@ Public Function OnOpenPrsnlEvntBuilderPageCommand(Optional ByVal arg As Variant)
         #If LOGGING_DEBUG_ENABLED Then
             ex_Core.fn_Diagnostic_LogError "PrototypeNew: failed to allocate worksheet name for PrsnlEvntBuilder page."
         #End If
-        MsgBox "PrototypeNew: failed to allocate worksheet name for PrsnlEvntBuilder page.", vbExclamation, "PrototypeNew / Config runtime"
+        VBA.MsgBox "PrototypeNew: failed to allocate worksheet name for PrsnlEvntBuilder page.", vbExclamation, "PrototypeNew / Config runtime"
         Exit Function
     End If
 
@@ -566,7 +567,7 @@ Public Function OnOpenPrsnlEvntBuilderPageCommand(Optional ByVal arg As Variant)
         #If LOGGING_DEBUG_ENABLED Then
             ex_Core.fn_Diagnostic_LogError "PrototypeNew: failed to allocate PrsnlEvntBuilder page instance."
         #End If
-        MsgBox "PrototypeNew: failed to allocate PrsnlEvntBuilder page instance.", vbExclamation, "PrototypeNew / Config runtime"
+        VBA.MsgBox "PrototypeNew: failed to allocate PrsnlEvntBuilder page instance.", vbExclamation, "PrototypeNew / Config runtime"
         Exit Function
     End If
 
@@ -579,7 +580,7 @@ Public Function OnOpenPrsnlEvntBuilderPageCommand(Optional ByVal arg As Variant)
         #If LOGGING_DEBUG_ENABLED Then
             ex_Core.fn_Diagnostic_LogError "PrototypeNew: failed to run PrsnlEvntBuilder page pipeline."
         #End If
-        MsgBox "PrototypeNew: failed to run PrsnlEvntBuilder page pipeline.", vbExclamation, "PrototypeNew / Config runtime"
+        VBA.MsgBox "PrototypeNew: failed to run PrsnlEvntBuilder page pipeline.", vbExclamation, "PrototypeNew / Config runtime"
         GoTo EH_CREATE
     End If
 
@@ -587,7 +588,7 @@ Public Function OnOpenPrsnlEvntBuilderPageCommand(Optional ByVal arg As Variant)
         #If LOGGING_DEBUG_ENABLED Then
             ex_Core.fn_Diagnostic_LogError "PrototypeNew: failed to render PrsnlEvntBuilder page."
         #End If
-        MsgBox "PrototypeNew: failed to render PrsnlEvntBuilder page.", vbExclamation, "PrototypeNew / Config runtime"
+        VBA.MsgBox "PrototypeNew: failed to render PrsnlEvntBuilder page.", vbExclamation, "PrototypeNew / Config runtime"
         GoTo EH_CREATE
     End If
 
@@ -606,7 +607,7 @@ EH_CREATE:
         #If LOGGING_DEBUG_ENABLED Then
             ex_Core.fn_Diagnostic_LogError "PrototypeNew: failed to create PrsnlEvntBuilder page."
         #End If
-        MsgBox "PrototypeNew: failed to create PrsnlEvntBuilder page.", vbExclamation, "PrototypeNew / Config runtime"
+        VBA.MsgBox "PrototypeNew: failed to create PrsnlEvntBuilder page.", vbExclamation, "PrototypeNew / Config runtime"
     End If
     Exit Function
 
@@ -614,7 +615,116 @@ EH_OPEN:
     #If LOGGING_DEBUG_ENABLED Then
         ex_Core.fn_Diagnostic_LogError "PrototypeNew: exception in OnOpenPrsnlEvntBuilderPageCommand: [" & VBA.CStr(Err.Number) & "] " & Err.Description
     #End If
-    MsgBox "PrototypeNew: exception in OnOpenPrsnlEvntBuilderPageCommand: [" & VBA.CStr(Err.Number) & "] " & Err.Description, vbExclamation, "PrototypeNew / Config runtime"
+    VBA.MsgBox "PrototypeNew: exception in OnOpenPrsnlEvntBuilderPageCommand: [" & VBA.CStr(Err.Number) & "] " & Err.Description, vbExclamation, "PrototypeNew / Config runtime"
+    Resume EH_CREATE
+End Function
+
+Public Function OnOpenComparingPageCommand(Optional ByVal arg As Variant) As Boolean
+    #If LOGGING_DEBUG_ENABLED Then
+        ex_Core.fn_Diagnostic_LogInfo "enter:obj_PageMainCtrl.OnOpenComparingPageCommand"
+    #End If
+    Dim sheetName As String
+    Dim existingPage As obj_IPage
+    Dim comparingPage As obj_IPage
+    Dim parentPage As obj_IPage
+    Dim isPageCreated As Boolean
+
+    On Error GoTo EH_OPEN
+
+    If rt_PageManager.fn_TryGetPageByWorksheetName(COMPARING_SHEET_BASE_NAME, existingPage) Then
+        If existingPage Is Nothing Then GoTo EH_CREATE
+        If Not TypeOf existingPage Is obj_PageComparing Then
+            #If LOGGING_DEBUG_ENABLED Then
+                ex_Core.fn_Diagnostic_LogError "PrototypeNew: worksheet '" & COMPARING_SHEET_BASE_NAME & "' is bound to unexpected page type '" & TypeName(existingPage) & "'."
+            #End If
+            VBA.MsgBox "PrototypeNew: worksheet '" & COMPARING_SHEET_BASE_NAME & "' is bound to unexpected page type '" & TypeName(existingPage) & "'.", vbExclamation, "PrototypeNew / Config runtime"
+            Exit Function
+        End If
+
+        If Not existingPage.RunPagePipeline() Then
+            #If LOGGING_DEBUG_ENABLED Then
+                ex_Core.fn_Diagnostic_LogError "PrototypeNew: failed to run Comparing page pipeline for existing page."
+            #End If
+            VBA.MsgBox "PrototypeNew: failed to run Comparing page pipeline for existing page.", vbExclamation, "PrototypeNew / Config runtime"
+            Exit Function
+        End If
+
+        If Not rt_PageManager.fn_RenderPageAndActivate(existingPage, "pagemain:open-comparing:reuse") Then
+            #If LOGGING_DEBUG_ENABLED Then
+                ex_Core.fn_Diagnostic_LogError "PrototypeNew: failed to render existing Comparing page."
+            #End If
+            VBA.MsgBox "PrototypeNew: failed to render existing Comparing page.", vbExclamation, "PrototypeNew / Config runtime"
+            Exit Function
+        End If
+
+        rt_Messaging.fn_ShowStatusBarSuccess "Comparing page has been refreshed.", 3
+        OnOpenComparingPageCommand = True
+        Exit Function
+    End If
+
+    sheetName = private_BuildUniqueWorksheetName(ThisWorkbook, COMPARING_SHEET_BASE_NAME)
+    If VBA.Len(sheetName) = 0 Then
+        #If LOGGING_DEBUG_ENABLED Then
+            ex_Core.fn_Diagnostic_LogError "PrototypeNew: failed to allocate worksheet name for Comparing page."
+        #End If
+        VBA.MsgBox "PrototypeNew: failed to allocate worksheet name for Comparing page.", vbExclamation, "PrototypeNew / Config runtime"
+        Exit Function
+    End If
+
+    Set comparingPage = New obj_PageComparing
+    If comparingPage Is Nothing Then
+        #If LOGGING_DEBUG_ENABLED Then
+            ex_Core.fn_Diagnostic_LogError "PrototypeNew: failed to allocate Comparing page instance."
+        #End If
+        VBA.MsgBox "PrototypeNew: failed to allocate Comparing page instance.", vbExclamation, "PrototypeNew / Config runtime"
+        Exit Function
+    End If
+
+    Set parentPage = m_Page
+
+    If Not rt_PageManager.fn_CreatePage(comparingPage, "ui\ComparingUI.xml", sheetName, parentPage) Then GoTo EH_CREATE
+    isPageCreated = True
+
+    If Not comparingPage.RunPagePipeline() Then
+        #If LOGGING_DEBUG_ENABLED Then
+            ex_Core.fn_Diagnostic_LogError "PrototypeNew: failed to run Comparing page pipeline."
+        #End If
+        VBA.MsgBox "PrototypeNew: failed to run Comparing page pipeline.", vbExclamation, "PrototypeNew / Config runtime"
+        GoTo EH_CREATE
+    End If
+
+    If Not rt_PageManager.fn_RenderPageAndActivate(comparingPage, "pagemain:open-comparing") Then
+        #If LOGGING_DEBUG_ENABLED Then
+            ex_Core.fn_Diagnostic_LogError "PrototypeNew: failed to render Comparing page."
+        #End If
+        VBA.MsgBox "PrototypeNew: failed to render Comparing page.", vbExclamation, "PrototypeNew / Config runtime"
+        GoTo EH_CREATE
+    End If
+
+    rt_Messaging.fn_ShowStatusBarSuccess "Comparing page has been created.", 3
+    OnOpenComparingPageCommand = True
+    Exit Function
+
+EH_CREATE:
+    On Error Resume Next
+    If Not comparingPage Is Nothing And isPageCreated Then
+        Call rt_PageManager.fn_RemovePage(comparingPage, True)
+    End If
+    On Error GoTo 0
+
+    If Not OnOpenComparingPageCommand Then
+        #If LOGGING_DEBUG_ENABLED Then
+            ex_Core.fn_Diagnostic_LogError "PrototypeNew: failed to create Comparing page."
+        #End If
+        VBA.MsgBox "PrototypeNew: failed to create Comparing page.", vbExclamation, "PrototypeNew / Config runtime"
+    End If
+    Exit Function
+
+EH_OPEN:
+    #If LOGGING_DEBUG_ENABLED Then
+        ex_Core.fn_Diagnostic_LogError "PrototypeNew: exception in OnOpenComparingPageCommand: [" & VBA.CStr(Err.Number) & "] " & Err.Description
+    #End If
+    VBA.MsgBox "PrototypeNew: exception in OnOpenComparingPageCommand: [" & VBA.CStr(Err.Number) & "] " & Err.Description, vbExclamation, "PrototypeNew / Config runtime"
     Resume EH_CREATE
 End Function
 
@@ -666,7 +776,7 @@ EH_PREPARE_RUNTIME:
     #If LOGGING_DEBUG_ENABLED Then
         ex_Core.fn_Diagnostic_LogError "PrototypeNew: exception in config runtime prepare: [" & VBA.CStr(Err.Number) & "] " & Err.Description
     #End If
-    MsgBox "PrototypeNew: exception in config runtime prepare: [" & VBA.CStr(Err.Number) & "] " & Err.Description, vbExclamation, "PrototypeNew / Config runtime"
+    VBA.MsgBox "PrototypeNew: exception in config runtime prepare: [" & VBA.CStr(Err.Number) & "] " & Err.Description, vbExclamation, "PrototypeNew / Config runtime"
 End Function
 
 Private Function private_TrySaveCurrentConfigProfile() As Boolean
@@ -706,7 +816,7 @@ Private Function private_TrySaveCurrentConfigProfile() As Boolean
         #If LOGGING_DEBUG_ENABLED Then
             ex_Core.fn_Diagnostic_LogError "PrototypeNew: failed to read current entries from config control '" & CONFIG_CONTROL_NAME & "'."
         #End If
-        MsgBox "PrototypeNew: failed to read current entries from config control '" & CONFIG_CONTROL_NAME & "'.", vbExclamation, "PrototypeNew / Config runtime"
+        VBA.MsgBox "PrototypeNew: failed to read current entries from config control '" & CONFIG_CONTROL_NAME & "'.", vbExclamation, "PrototypeNew / Config runtime"
         Exit Function
     End If
 
@@ -723,7 +833,7 @@ Private Function private_TrySaveCurrentConfigProfile() As Boolean
         #If LOGGING_DEBUG_ENABLED Then
             ex_Core.fn_Diagnostic_LogError "PrototypeNew: failed to build source config node from control '" & CONFIG_CONTROL_NAME & "'."
         #End If
-        MsgBox "PrototypeNew: failed to build source config node from control '" & CONFIG_CONTROL_NAME & "'.", vbExclamation, "PrototypeNew / Config runtime"
+        VBA.MsgBox "PrototypeNew: failed to build source config node from control '" & CONFIG_CONTROL_NAME & "'.", vbExclamation, "PrototypeNew / Config runtime"
         Exit Function
     End If
     If Not private_TryReplaceProfileRowsFromSourceNode(profileNode, generatedConfigNode) Then
@@ -744,7 +854,7 @@ EH_SAVE_PROFILE:
     #If LOGGING_DEBUG_ENABLED Then
         ex_Core.fn_Diagnostic_LogError "PrototypeNew: exception in config profile save: [" & VBA.CStr(Err.Number) & "] " & Err.Description
     #End If
-    MsgBox "PrototypeNew: exception in config profile save: [" & VBA.CStr(Err.Number) & "] " & Err.Description, vbExclamation, "PrototypeNew / Config runtime"
+    VBA.MsgBox "PrototypeNew: exception in config profile save: [" & VBA.CStr(Err.Number) & "] " & Err.Description, vbExclamation, "PrototypeNew / Config runtime"
 End Function
 
 Private Function private_TryRegisterConfigFromXmlProfile( _
@@ -783,7 +893,7 @@ Private Function private_TryRegisterConfigFromProfileNode( _
         #If LOGGING_DEBUG_ENABLED Then
             ex_Core.fn_Diagnostic_LogError "PrototypeNew: config profile node is not specified."
         #End If
-        MsgBox "PrototypeNew: config profile node is not specified.", vbExclamation, "PrototypeNew / Config runtime"
+        VBA.MsgBox "PrototypeNew: config profile node is not specified.", vbExclamation, "PrototypeNew / Config runtime"
         Exit Function
     End If
 
@@ -793,7 +903,7 @@ Private Function private_TryRegisterConfigFromProfileNode( _
         #If LOGGING_DEBUG_ENABLED Then
             ex_Core.fn_Diagnostic_LogError "PrototypeNew: failed to parse selected config profile node."
         #End If
-        MsgBox "PrototypeNew: failed to parse selected config profile node.", vbExclamation, "PrototypeNew / Config runtime"
+        VBA.MsgBox "PrototypeNew: failed to parse selected config profile node.", vbExclamation, "PrototypeNew / Config runtime"
         Exit Function
     End If
 
@@ -804,7 +914,7 @@ Private Function private_TryRegisterConfigFromProfileNode( _
         #If LOGGING_DEBUG_ENABLED Then
             ex_Core.fn_Diagnostic_LogError "PrototypeNew: config table entries collection is not initialized."
         #End If
-        MsgBox "PrototypeNew: config table entries collection is not initialized.", vbExclamation, "PrototypeNew / Config runtime"
+        VBA.MsgBox "PrototypeNew: config table entries collection is not initialized.", vbExclamation, "PrototypeNew / Config runtime"
         Exit Function
     End If
 
@@ -847,14 +957,14 @@ Private Function private_TryLoadProfileDomAndNode( _
         #If LOGGING_DEBUG_ENABLED Then
             ex_Core.fn_Diagnostic_LogError "PrototypeNew: config profiles file path is empty."
         #End If
-        MsgBox "PrototypeNew: config profiles file path is empty.", vbExclamation, "PrototypeNew / Config runtime"
+        VBA.MsgBox "PrototypeNew: config profiles file path is empty.", vbExclamation, "PrototypeNew / Config runtime"
         Exit Function
     End If
     If VBA.Len(normalizedProfileKey) = 0 Then
         #If LOGGING_DEBUG_ENABLED Then
             ex_Core.fn_Diagnostic_LogError "PrototypeNew: config profile key is empty."
         #End If
-        MsgBox "PrototypeNew: config profile key is empty.", vbExclamation, "PrototypeNew / Config runtime"
+        VBA.MsgBox "PrototypeNew: config profile key is empty.", vbExclamation, "PrototypeNew / Config runtime"
         Exit Function
     End If
 
@@ -868,7 +978,7 @@ Private Function private_TryLoadProfileDomAndNode( _
         #If LOGGING_DEBUG_ENABLED Then
             ex_Core.fn_Diagnostic_LogError "PrototypeNew: failed to load config profiles file '" & normalizedFilePath & "'."
         #End If
-        MsgBox "PrototypeNew: failed to load config profiles file '" & normalizedFilePath & "'.", vbExclamation, "PrototypeNew / Config runtime"
+        VBA.MsgBox "PrototypeNew: failed to load config profiles file '" & normalizedFilePath & "'.", vbExclamation, "PrototypeNew / Config runtime"
         Exit Function
     End If
 
@@ -894,7 +1004,7 @@ Private Function private_TryLoadProfileDomAndNode( _
         #If LOGGING_DEBUG_ENABLED Then
             ex_Core.fn_Diagnostic_LogError "PrototypeNew: config profile '" & normalizedProfileKey & "' was not found in file '" & normalizedFilePath & "'."
         #End If
-        MsgBox "PrototypeNew: config profile '" & normalizedProfileKey & "' was not found in file '" & normalizedFilePath & "'.", vbExclamation, "PrototypeNew / Config runtime"
+        VBA.MsgBox "PrototypeNew: config profile '" & normalizedProfileKey & "' was not found in file '" & normalizedFilePath & "'.", vbExclamation, "PrototypeNew / Config runtime"
         Exit Function
     End If
 
@@ -921,14 +1031,14 @@ Private Function private_TryBuildModeSelectOptions( _
         #If LOGGING_DEBUG_ENABLED Then
             ex_Core.fn_Diagnostic_LogError "PrototypeNew: mode source provider returned empty collection."
         #End If
-        MsgBox "PrototypeNew: mode source provider returned empty collection.", vbExclamation, "PrototypeNew / Config runtime"
+        VBA.MsgBox "PrototypeNew: mode source provider returned empty collection.", vbExclamation, "PrototypeNew / Config runtime"
         Exit Function
     End If
     If outOptions.Count = 0 Then
         #If LOGGING_DEBUG_ENABLED Then
             ex_Core.fn_Diagnostic_LogError "PrototypeNew: mode source provider returned no mode options."
         #End If
-        MsgBox "PrototypeNew: mode source provider returned no mode options.", vbExclamation, "PrototypeNew / Config runtime"
+        VBA.MsgBox "PrototypeNew: mode source provider returned no mode options.", vbExclamation, "PrototypeNew / Config runtime"
         Exit Function
     End If
 
@@ -959,7 +1069,7 @@ Private Function private_TryEnsureSelectItemsProvidersRegistered() As Boolean
         #If LOGGING_DEBUG_ENABLED Then
             ex_Core.fn_Diagnostic_LogError "PrototypeNew: failed to create mode source provider."
         #End If
-        MsgBox "PrototypeNew: failed to create mode source provider.", vbExclamation, "PrototypeNew / Config runtime"
+        VBA.MsgBox "PrototypeNew: failed to create mode source provider.", vbExclamation, "PrototypeNew / Config runtime"
         Exit Function
     End If
     If Not m_ModeItemsProvider.Initialize(MODES_RUNTIME_KEY, MODES_ROOT_REL_PATH, MODE_ON_SELECT_MACRO) Then Exit Function
@@ -969,7 +1079,7 @@ Private Function private_TryEnsureSelectItemsProvidersRegistered() As Boolean
         #If LOGGING_DEBUG_ENABLED Then
             ex_Core.fn_Diagnostic_LogError "PrototypeNew: failed to create profile source provider."
         #End If
-        MsgBox "PrototypeNew: failed to create profile source provider.", vbExclamation, "PrototypeNew / Config runtime"
+        VBA.MsgBox "PrototypeNew: failed to create profile source provider.", vbExclamation, "PrototypeNew / Config runtime"
         Exit Function
     End If
     If Not m_ProfileItemsProvider.Initialize(PROFILES_RUNTIME_KEY, MODES_ROOT_REL_PATH, MODE_PROFILES_FILE_SUFFIX, PROFILE_ON_SELECT_MACRO) Then Exit Function
@@ -1003,7 +1113,7 @@ Private Function private_TryBuildProfileSelectOptionsByMode( _
         #If LOGGING_DEBUG_ENABLED Then
             ex_Core.fn_Diagnostic_LogError "PrototypeNew: profile source provider is not initialized."
         #End If
-        MsgBox "PrototypeNew: profile source provider is not initialized.", vbExclamation, "PrototypeNew / Config runtime"
+        VBA.MsgBox "PrototypeNew: profile source provider is not initialized.", vbExclamation, "PrototypeNew / Config runtime"
         Exit Function
     End If
     If Not m_ProfileItemsProvider.SetCurrentModeId(modeId) Then Exit Function
@@ -1014,7 +1124,7 @@ Private Function private_TryBuildProfileSelectOptionsByMode( _
         #If LOGGING_DEBUG_ENABLED Then
             ex_Core.fn_Diagnostic_LogError "PrototypeNew: profile source provider returned no profile options for mode '" & modeId & "'."
         #End If
-        MsgBox "PrototypeNew: profile source provider returned no profile options for mode '" & modeId & "'.", vbExclamation, "PrototypeNew / Config runtime"
+        VBA.MsgBox "PrototypeNew: profile source provider returned no profile options for mode '" & modeId & "'.", vbExclamation, "PrototypeNew / Config runtime"
         Exit Function
     End If
 
@@ -1023,7 +1133,7 @@ Private Function private_TryBuildProfileSelectOptionsByMode( _
         #If LOGGING_DEBUG_ENABLED Then
             ex_Core.fn_Diagnostic_LogError "PrototypeNew: profile source provider did not resolve profiles file path for mode '" & modeId & "'."
         #End If
-        MsgBox "PrototypeNew: profile source provider did not resolve profiles file path for mode '" & modeId & "'.", vbExclamation, "PrototypeNew / Config runtime"
+        VBA.MsgBox "PrototypeNew: profile source provider did not resolve profiles file path for mode '" & modeId & "'.", vbExclamation, "PrototypeNew / Config runtime"
         Exit Function
     End If
 
@@ -1056,21 +1166,21 @@ Private Function private_TryResolveSelectedIdForControl( _
         #If LOGGING_DEBUG_ENABLED Then
             ex_Core.fn_Diagnostic_LogError "PrototypeNew: worksheet is not specified for selectedId resolve."
         #End If
-        MsgBox "PrototypeNew: worksheet is not specified for selectedId resolve.", vbExclamation, "PrototypeNew / Config runtime"
+        VBA.MsgBox "PrototypeNew: worksheet is not specified for selectedId resolve.", vbExclamation, "PrototypeNew / Config runtime"
         Exit Function
     End If
     If options Is Nothing Then
         #If LOGGING_DEBUG_ENABLED Then
             ex_Core.fn_Diagnostic_LogError "PrototypeNew: options are not specified for control '" & controlName & "'."
         #End If
-        MsgBox "PrototypeNew: options are not specified for control '" & controlName & "'.", vbExclamation, "PrototypeNew / Config runtime"
+        VBA.MsgBox "PrototypeNew: options are not specified for control '" & controlName & "'.", vbExclamation, "PrototypeNew / Config runtime"
         Exit Function
     End If
     If options.Count = 0 Then
         #If LOGGING_DEBUG_ENABLED Then
             ex_Core.fn_Diagnostic_LogError "PrototypeNew: options are empty for control '" & controlName & "'."
         #End If
-        MsgBox "PrototypeNew: options are empty for control '" & controlName & "'.", vbExclamation, "PrototypeNew / Config runtime"
+        VBA.MsgBox "PrototypeNew: options are empty for control '" & controlName & "'.", vbExclamation, "PrototypeNew / Config runtime"
         Exit Function
     End If
 
@@ -1087,7 +1197,7 @@ Private Function private_TryResolveSelectedIdForControl( _
         #If LOGGING_DEBUG_ENABLED Then
             ex_Core.fn_Diagnostic_LogError "PrototypeNew: failed to resolve first option id for control '" & controlName & "'."
         #End If
-        MsgBox "PrototypeNew: failed to resolve first option id for control '" & controlName & "'.", vbExclamation, "PrototypeNew / Config runtime"
+        VBA.MsgBox "PrototypeNew: failed to resolve first option id for control '" & controlName & "'.", vbExclamation, "PrototypeNew / Config runtime"
         Exit Function
     End If
 
@@ -1109,8 +1219,8 @@ Private Function private_SelectOptionsContainsId(ByVal options As Collection, By
     If VBA.Len(normalizedId) = 0 Then Exit Function
 
     For Each itemObj In options
-        If Not VBA.IsObject(itemObj) Then GoTo ContinueOptionContains
-        If VBA.StrComp(VBA.TypeName(itemObj), "obj_SelectOption", VBA.vbTextCompare) <> 0 Then GoTo ContinueOptionContains
+        If Not IsObject(itemObj) Then GoTo ContinueOptionContains
+        If VBA.StrComp(TypeName(itemObj), "obj_SelectOption", VBA.vbTextCompare) <> 0 Then GoTo ContinueOptionContains
 
         If VBA.LCase$(VBA.Trim$(VBA.CStr(itemObj.Id))) = normalizedId Then
             private_SelectOptionsContainsId = True
@@ -1130,8 +1240,8 @@ Private Function private_TryGetFirstOptionId(ByVal options As Collection, ByRef 
     If options Is Nothing Then Exit Function
 
     For Each itemObj In options
-        If Not VBA.IsObject(itemObj) Then GoTo ContinueFirstOption
-        If VBA.StrComp(VBA.TypeName(itemObj), "obj_SelectOption", VBA.vbTextCompare) <> 0 Then GoTo ContinueFirstOption
+        If Not IsObject(itemObj) Then GoTo ContinueFirstOption
+        If VBA.StrComp(TypeName(itemObj), "obj_SelectOption", VBA.vbTextCompare) <> 0 Then GoTo ContinueFirstOption
 
         outId = VBA.Trim$(VBA.CStr(itemObj.Id))
         private_TryGetFirstOptionId = True
@@ -1160,7 +1270,7 @@ Private Function private_TryGetStoredSelectedIdForControl( _
         #If LOGGING_DEBUG_ENABLED Then
             ex_Core.fn_Diagnostic_LogError "PrototypeNew: select key is empty for control '" & controlName & "'."
         #End If
-        MsgBox "PrototypeNew: select key is empty for control '" & controlName & "'.", vbExclamation, "PrototypeNew / Config runtime"
+        VBA.MsgBox "PrototypeNew: select key is empty for control '" & controlName & "'.", vbExclamation, "PrototypeNew / Config runtime"
         Exit Function
     End If
 
@@ -1187,7 +1297,7 @@ Private Function private_TrySetStoredSelectedIdForControl( _
         #If LOGGING_DEBUG_ENABLED Then
             ex_Core.fn_Diagnostic_LogError "PrototypeNew: select key is empty for control '" & controlName & "'."
         #End If
-        MsgBox "PrototypeNew: select key is empty for control '" & controlName & "'.", vbExclamation, "PrototypeNew / Config runtime"
+        VBA.MsgBox "PrototypeNew: select key is empty for control '" & controlName & "'.", vbExclamation, "PrototypeNew / Config runtime"
         Exit Function
     End If
 
@@ -1210,21 +1320,21 @@ Private Function private_TryResolveConfigControl( _
         #If LOGGING_DEBUG_ENABLED Then
             ex_Core.fn_Diagnostic_LogError "PrototypeNew: config control '" & CONFIG_CONTROL_NAME & "' was not found in runtime registry."
         #End If
-        MsgBox "PrototypeNew: config control '" & CONFIG_CONTROL_NAME & "' was not found in runtime registry.", vbExclamation, "PrototypeNew / Config runtime"
+        VBA.MsgBox "PrototypeNew: config control '" & CONFIG_CONTROL_NAME & "' was not found in runtime registry.", vbExclamation, "PrototypeNew / Config runtime"
         Exit Function
     End If
     If rawControl Is Nothing Then
         #If LOGGING_DEBUG_ENABLED Then
             ex_Core.fn_Diagnostic_LogError "PrototypeNew: config control '" & CONFIG_CONTROL_NAME & "' runtime entry is empty."
         #End If
-        MsgBox "PrototypeNew: config control '" & CONFIG_CONTROL_NAME & "' runtime entry is empty.", vbExclamation, "PrototypeNew / Config runtime"
+        VBA.MsgBox "PrototypeNew: config control '" & CONFIG_CONTROL_NAME & "' runtime entry is empty.", vbExclamation, "PrototypeNew / Config runtime"
         Exit Function
     End If
     If Not TypeOf rawControl Is obj_ConfigControlVM Then
         #If LOGGING_DEBUG_ENABLED Then
-            ex_Core.fn_Diagnostic_LogError "PrototypeNew: config control '" & CONFIG_CONTROL_NAME & "' has unexpected type '" & VBA.TypeName(rawControl) & "'."
+            ex_Core.fn_Diagnostic_LogError "PrototypeNew: config control '" & CONFIG_CONTROL_NAME & "' has unexpected type '" & TypeName(rawControl) & "'."
         #End If
-        MsgBox "PrototypeNew: config control '" & CONFIG_CONTROL_NAME & "' has unexpected type '" & VBA.TypeName(rawControl) & "'.", vbExclamation, "PrototypeNew / Config runtime"
+        VBA.MsgBox "PrototypeNew: config control '" & CONFIG_CONTROL_NAME & "' has unexpected type '" & TypeName(rawControl) & "'.", vbExclamation, "PrototypeNew / Config runtime"
         Exit Function
     End If
 
@@ -1249,14 +1359,14 @@ Private Function private_TryReplaceProfileRowsFromSourceNode( _
         #If LOGGING_DEBUG_ENABLED Then
             ex_Core.fn_Diagnostic_LogError "PrototypeNew: target profile node is not specified for save."
         #End If
-        MsgBox "PrototypeNew: target profile node is not specified for save.", vbExclamation, "PrototypeNew / Config runtime"
+        VBA.MsgBox "PrototypeNew: target profile node is not specified for save.", vbExclamation, "PrototypeNew / Config runtime"
         Exit Function
     End If
     If sourceConfigNode Is Nothing Then
         #If LOGGING_DEBUG_ENABLED Then
             ex_Core.fn_Diagnostic_LogError "PrototypeNew: source config node is not specified for save."
         #End If
-        MsgBox "PrototypeNew: source config node is not specified for save.", vbExclamation, "PrototypeNew / Config runtime"
+        VBA.MsgBox "PrototypeNew: source config node is not specified for save.", vbExclamation, "PrototypeNew / Config runtime"
         Exit Function
     End If
 
@@ -1280,14 +1390,14 @@ Private Function private_TryReplaceProfileRowsFromSourceNode( _
         #If LOGGING_DEBUG_ENABLED Then
             ex_Core.fn_Diagnostic_LogError "PrototypeNew: source config node does not contain readable rows for save."
         #End If
-        MsgBox "PrototypeNew: source config node does not contain readable rows for save.", vbExclamation, "PrototypeNew / Config runtime"
+        VBA.MsgBox "PrototypeNew: source config node does not contain readable rows for save.", vbExclamation, "PrototypeNew / Config runtime"
         Exit Function
     End If
     If sourceRowNodes.Length = 0 Then
         #If LOGGING_DEBUG_ENABLED Then
             ex_Core.fn_Diagnostic_LogError "PrototypeNew: source config node is empty and cannot replace profile rows."
         #End If
-        MsgBox "PrototypeNew: source config node is empty and cannot replace profile rows.", vbExclamation, "PrototypeNew / Config runtime"
+        VBA.MsgBox "PrototypeNew: source config node is empty and cannot replace profile rows.", vbExclamation, "PrototypeNew / Config runtime"
         Exit Function
     End If
 
@@ -1303,7 +1413,7 @@ Private Function private_TryReplaceProfileRowsFromSourceNode( _
             #If LOGGING_DEBUG_ENABLED Then
                 ex_Core.fn_Diagnostic_LogError "PrototypeNew: failed to clone source row node while updating profile."
             #End If
-            MsgBox "PrototypeNew: failed to clone source row node while updating profile.", vbExclamation, "PrototypeNew / Config runtime"
+            VBA.MsgBox "PrototypeNew: failed to clone source row node while updating profile.", vbExclamation, "PrototypeNew / Config runtime"
             Exit Function
         End If
         targetProfileNode.appendChild clonedRowNode
@@ -1317,7 +1427,7 @@ EH_XML:
     #If LOGGING_DEBUG_ENABLED Then
         ex_Core.fn_Diagnostic_LogError "PrototypeNew: failed to transfer source config rows into profile node: " & Err.Description
     #End If
-    MsgBox "PrototypeNew: failed to transfer source config rows into profile node: " & Err.Description, vbExclamation, "PrototypeNew / Config runtime"
+    VBA.MsgBox "PrototypeNew: failed to transfer source config rows into profile node: " & Err.Description, vbExclamation, "PrototypeNew / Config runtime"
 End Function
 
 
@@ -1332,14 +1442,14 @@ Private Function private_TrySaveDomToFile(ByVal dom As Object, ByVal filePath As
         #If LOGGING_DEBUG_ENABLED Then
             ex_Core.fn_Diagnostic_LogError "PrototypeNew: DOM is not specified for file save."
         #End If
-        MsgBox "PrototypeNew: DOM is not specified for file save.", vbExclamation, "PrototypeNew / Config runtime"
+        VBA.MsgBox "PrototypeNew: DOM is not specified for file save.", vbExclamation, "PrototypeNew / Config runtime"
         Exit Function
     End If
     If VBA.Len(filePath) = 0 Then
         #If LOGGING_DEBUG_ENABLED Then
             ex_Core.fn_Diagnostic_LogError "PrototypeNew: file path is empty for profile save."
         #End If
-        MsgBox "PrototypeNew: file path is empty for profile save.", vbExclamation, "PrototypeNew / Config runtime"
+        VBA.MsgBox "PrototypeNew: file path is empty for profile save.", vbExclamation, "PrototypeNew / Config runtime"
         Exit Function
     End If
 
@@ -1347,7 +1457,7 @@ Private Function private_TrySaveDomToFile(ByVal dom As Object, ByVal filePath As
         #If LOGGING_DEBUG_ENABLED Then
             ex_Core.fn_Diagnostic_LogError "PrototypeNew: failed to write profile file '" & filePath & "': " & saveError
         #End If
-        MsgBox "PrototypeNew: failed to write profile file '" & filePath & "': " & saveError, vbExclamation, "PrototypeNew / Config runtime"
+        VBA.MsgBox "PrototypeNew: failed to write profile file '" & filePath & "': " & saveError, vbExclamation, "PrototypeNew / Config runtime"
         Exit Function
     End If
 

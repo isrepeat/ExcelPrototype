@@ -36,13 +36,13 @@ Private m_IsDisposed As Boolean
 
 Private Sub Class_Initialize()
 #If LOGGING_VERBOSE_ENABLED Then
-    ex_Core.fn_Diagnostic_LogInfo "lifecycle:" & VBA.TypeName(Me) & ".Class_Initialize"
+    ex_Core.fn_Diagnostic_LogInfo "lifecycle:" & TypeName(Me) & ".Class_Initialize"
 #End If
 End Sub
 
 Private Sub Class_Terminate()
 #If LOGGING_VERBOSE_ENABLED Then
-    ex_Core.fn_Diagnostic_LogInfo "lifecycle:" & VBA.TypeName(Me) & ".Class_Terminate"
+    ex_Core.fn_Diagnostic_LogInfo "lifecycle:" & TypeName(Me) & ".Class_Terminate"
 #End If
     If m_IsDisposed Then Exit Sub
     On Error Resume Next
@@ -55,7 +55,7 @@ End Sub
 ' //
 Private Function obj_IControl_Initialize(ByVal page As obj_IPage) As Boolean
 #If LOGGING_VERBOSE_ENABLED Then
-    ex_Core.fn_Diagnostic_LogInfo "lifecycle:" & VBA.TypeName(Me) & ".Initialize"
+    ex_Core.fn_Diagnostic_LogInfo "lifecycle:" & TypeName(Me) & ".Initialize"
 #End If
     m_IsDisposed = False
     m_IsConfigured = False
@@ -65,7 +65,7 @@ End Function
 
 Private Sub obj_IControl_Dispose()
 #If LOGGING_VERBOSE_ENABLED Then
-    ex_Core.fn_Diagnostic_LogInfo "lifecycle:" & VBA.TypeName(Me) & ".Dispose"
+    ex_Core.fn_Diagnostic_LogInfo "lifecycle:" & TypeName(Me) & ".Dispose"
 #End If
     If m_IsDisposed Then Exit Sub
     m_IsDisposed = True
@@ -218,7 +218,7 @@ Private Sub obj_IControl_Render()
 
     ' Build in-memory first, then write once to minimize COM overhead.
     If Not private_TryBuildRenderBuffer(valueBlock, styleSegments) Then Exit Sub
-    If VBA.IsEmpty(valueBlock) Then Exit Sub
+    If IsEmpty(valueBlock) Then Exit Sub
 
     Set targetRange = ws.Range( _
         ws.Cells(m_RowStart, m_ColStart), _
@@ -279,7 +279,7 @@ End Function
 '     If m_CellButtonPayloadById Is Nothing Then Exit Function
 '     If Not m_CellButtonPayloadById.Exists(actionKey) Then Exit Function
 
-'     If VBA.IsObject(m_CellButtonPayloadById(actionKey)) Then
+'     If IsObject(m_CellButtonPayloadById(actionKey)) Then
 '         Set payloadObject = m_CellButtonPayloadById(actionKey)
 '         RuntimeHandleCellButtonClick = rt_Bridge.fn_RunCallback(m_CellButtonClickMacroRef, m_CellButtonClickCallbackContext, payloadObject)
 '     Else
@@ -381,7 +381,7 @@ Private Function private_TryApplyItemVisibilityFilterRaw( _
     Set filteredItems = New Collection
 
     For Each tableItem In tableItems
-        If Not VBA.IsObject(tableItem) Then
+        If Not IsObject(tableItem) Then
 #If LOGGING_DEBUG_ENABLED Then
             ex_Core.fn_Diagnostic_LogError "TableList: itemsSource entry must be an object for itemVisibility evaluation in control '" & controlName & "'."
 #End If
@@ -1272,14 +1272,14 @@ End Function
 Private Function private_TryResolveTableViewItem(ByVal rawItem As Variant, ByRef outTableView As obj_TableViewItem) As Boolean
     Dim tableDynamic As obj_TableDynamic
 
-    If Not VBA.IsObject(rawItem) Then
+    If Not IsObject(rawItem) Then
 #If LOGGING_DEBUG_ENABLED Then
         ex_Core.fn_Diagnostic_LogError "TableList: itemsSource entry must be an object."
 #End If
         Exit Function
     End If
 
-    Select Case VBA.LCase$(VBA.TypeName(rawItem))
+    Select Case VBA.LCase$(TypeName(rawItem))
         Case "obj_tableviewitem"
             Set outTableView = rawItem
             private_TryResolveTableViewItem = True
@@ -1292,7 +1292,7 @@ Private Function private_TryResolveTableViewItem(ByVal rawItem As Variant, ByRef
 
         Case Else
 #If LOGGING_DEBUG_ENABLED Then
-            ex_Core.fn_Diagnostic_LogError "TableList: unsupported item type '" & VBA.TypeName(rawItem) & _
+            ex_Core.fn_Diagnostic_LogError "TableList: unsupported item type '" & TypeName(rawItem) & _
                    "'. Expected obj_TableViewItem, obj_TableDynamic or obj_Table."
 #End If
     End Select
@@ -1301,14 +1301,14 @@ End Function
 Private Function private_TryResolveTableModelFromAny(ByVal tableItem As Variant, ByRef outTable As obj_TableDynamic) As Boolean
     Dim fixedTable As obj_Table
 
-    If Not VBA.IsObject(tableItem) Then
+    If Not IsObject(tableItem) Then
 #If LOGGING_DEBUG_ENABLED Then
         ex_Core.fn_Diagnostic_LogError "TableList: itemsSource entry must be an object of type obj_TableDynamic or obj_Table."
 #End If
         Exit Function
     End If
 
-    Select Case VBA.LCase$(VBA.TypeName(tableItem))
+    Select Case VBA.LCase$(TypeName(tableItem))
         Case "obj_tabledynamic"
             Set outTable = tableItem
             private_TryResolveTableModelFromAny = True
@@ -1321,7 +1321,7 @@ Private Function private_TryResolveTableModelFromAny(ByVal tableItem As Variant,
 
         Case Else
 #If LOGGING_DEBUG_ENABLED Then
-            ex_Core.fn_Diagnostic_LogError "TableList: unsupported table model type '" & VBA.TypeName(tableItem) & _
+            ex_Core.fn_Diagnostic_LogError "TableList: unsupported table model type '" & TypeName(tableItem) & _
                    "'. Expected obj_TableDynamic or obj_Table."
 #End If
     End Select
@@ -1347,14 +1347,14 @@ End Function
 Private Function private_TryResolveRowViewItem(ByVal rawItem As Variant, ByRef outRowView As obj_RowViewItem) As Boolean
     Dim row As obj_Row
 
-    If Not VBA.IsObject(rawItem) Then
+    If Not IsObject(rawItem) Then
 #If LOGGING_DEBUG_ENABLED Then
         ex_Core.fn_Diagnostic_LogError "TableList: row item must be an object."
 #End If
         Exit Function
     End If
 
-    Select Case VBA.LCase$(VBA.TypeName(rawItem))
+    Select Case VBA.LCase$(TypeName(rawItem))
         Case "obj_rowviewitem"
             Set outRowView = rawItem
             private_TryResolveRowViewItem = True
@@ -1367,7 +1367,7 @@ Private Function private_TryResolveRowViewItem(ByVal rawItem As Variant, ByRef o
 
         Case Else
 #If LOGGING_DEBUG_ENABLED Then
-            ex_Core.fn_Diagnostic_LogError "TableList: unsupported row item type '" & VBA.TypeName(rawItem) & _
+            ex_Core.fn_Diagnostic_LogError "TableList: unsupported row item type '" & TypeName(rawItem) & _
                    "'. Expected obj_RowViewItem or obj_Row."
 #End If
     End Select
@@ -1562,7 +1562,7 @@ End Sub
 '     End If
 
 '     If Not ex_BindingRuntime.fn_TryResolveValueBinding(rawText, dataContext, resolvedValue) Then Exit Function
-'     If VBA.IsObject(resolvedValue) Then
+'     If IsObject(resolvedValue) Then
 ' #If LOGGING_DEBUG_ENABLED Then
 '         ex_Core.fn_Diagnostic_LogError "TableList: callback binding must resolve to scalar value for control '" & m_ControlName & "'."
 ' #End If

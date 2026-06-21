@@ -15,13 +15,13 @@ Private m_InlineMarkersEnabled As Boolean
 
 Private Sub Class_Initialize()
 #If LOGGING_VERBOSE_ENABLED Then
-    ex_Core.fn_Diagnostic_LogInfo "lifecycle:" & VBA.TypeName(Me) & ".Class_Initialize"
+    ex_Core.fn_Diagnostic_LogInfo "lifecycle:" & TypeName(Me) & ".Class_Initialize"
 #End If
     m_InlineMarkersEnabled = False
 End Sub
 Private Sub Class_Terminate()
 #If LOGGING_VERBOSE_ENABLED Then
-    ex_Core.fn_Diagnostic_LogInfo "lifecycle:" & VBA.TypeName(Me) & ".Class_Terminate"
+    ex_Core.fn_Diagnostic_LogInfo "lifecycle:" & TypeName(Me) & ".Class_Terminate"
 #End If
     If m_IsDisposed Then Exit Sub
     On Error Resume Next
@@ -34,14 +34,14 @@ End Sub
 ' //
 Public Function Initialize() As Boolean
 #If LOGGING_VERBOSE_ENABLED Then
-    ex_Core.fn_Diagnostic_LogInfo "lifecycle:" & VBA.TypeName(Me) & ".Initialize"
+    ex_Core.fn_Diagnostic_LogInfo "lifecycle:" & TypeName(Me) & ".Initialize"
 #End If
     Initialize = True
 End Function
 
 Public Sub Dispose()
 #If LOGGING_VERBOSE_ENABLED Then
-    ex_Core.fn_Diagnostic_LogInfo "lifecycle:" & VBA.TypeName(Me) & ".Dispose"
+    ex_Core.fn_Diagnostic_LogInfo "lifecycle:" & TypeName(Me) & ".Dispose"
 #End If
     If m_IsDisposed Then Exit Sub
     m_IsDisposed = True
@@ -394,7 +394,7 @@ Private Function private_TryHandleInlineToken( _
 
     If Not private_HasMatchingClose(rawTextLower, searchFrom, delimiterType, tagName) Then Exit Function
 
-    Set markerInfo = CreateObject("Scripting.Dictionary")
+    Set markerInfo = VBA.CreateObject("Scripting.Dictionary")
     markerInfo.CompareMode = 1
     markerInfo("Tag") = tagName
     markerInfo("Start") = VBA.Len(outText) + 1
@@ -470,7 +470,7 @@ Private Sub private_AddInlineRun( _
     If runs Is Nothing Then Exit Sub
     If startIndex <= 0 Or runLength <= 0 Then Exit Sub
 
-    Set runInfo = CreateObject("Scripting.Dictionary")
+    Set runInfo = VBA.CreateObject("Scripting.Dictionary")
     runInfo.CompareMode = 1
     runInfo("Tag") = VBA.LCase$(VBA.Trim$(tagName))
     runInfo("Start") = VBA.CLng(startIndex)

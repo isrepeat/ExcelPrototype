@@ -112,13 +112,13 @@ Public Sub fn_RegisterLayoutBound( _
 
     m_LayoutBounds.Add Array( _
         ws.Name, _
-        CLng(rowStart), _
-        CLng(colStart), _
-        CLng(rowEnd), _
-        CLng(colEnd), _
+        VBA.CLng(rowStart), _
+        VBA.CLng(colStart), _
+        VBA.CLng(rowEnd), _
+        VBA.CLng(colEnd), _
         VBA.LCase$(VBA.Trim$(tagName)), _
         VBA.LCase$(VBA.Trim$(nodeName)), _
-        CLng(tagDepth))
+        VBA.CLng(tagDepth))
 End Sub
 
 ' //
@@ -421,10 +421,10 @@ Private Function private_ApplyLayoutBoundRule( _
 
         If Not private_PaintLayoutBoundFrame( _
             ws:=ws, _
-            rowStart:=CLng(entry(1)), _
-            colStart:=CLng(entry(2)), _
-            rowEnd:=CLng(entry(3)), _
-            colEnd:=CLng(entry(4)), _
+            rowStart:=VBA.CLng(entry(1)), _
+            colStart:=VBA.CLng(entry(2)), _
+            rowEnd:=VBA.CLng(entry(3)), _
+            colEnd:=VBA.CLng(entry(4)), _
             tagName:=VBA.CStr(entry(5)), _
             hasBorderColor:=hasBorderColor, _
             borderColor:=borderColor, _
@@ -469,7 +469,7 @@ Private Function private_LayoutBoundEntryMatchesSelector(ByRef entry As Variant,
         selectorTagDepth = VBA.Trim$(VBA.CStr(selector("tagdepth")))
         If Not private_TryParseLayoutBoundDepthSpan(selectorTagDepth, depthMin, depthMax) Then Exit Function
 
-        nodeDepth = CLng(entry(7))
+        nodeDepth = VBA.CLng(entry(7))
         If nodeDepth < depthMin Or nodeDepth > depthMax Then Exit Function
     End If
 
@@ -658,7 +658,7 @@ Private Function private_LoadControlStyles(ByVal wsUiDoc As Object) As Object
     Dim styleNode As Object
     Dim styleName As String
 
-    Set result = CreateObject("Scripting.Dictionary")
+    Set result = VBA.CreateObject("Scripting.Dictionary")
     result.CompareMode = 1
 
     Set styleNodes = wsUiDoc.selectNodes("/p:page/p:styles/p:controlStyle | /p:uiDefinition/p:styles/p:controlStyle")
@@ -696,7 +696,7 @@ Private Function private_ReadStyleDeclarations(ByVal styleNode As Object) As Obj
 
     If styleNode Is Nothing Then Exit Function
 
-    Set declarations = CreateObject("Scripting.Dictionary")
+    Set declarations = VBA.CreateObject("Scripting.Dictionary")
     declarations.CompareMode = 1
 
     ' Собираем декларации как из явных XML-атрибутов, так и из inline styles="{...}".
@@ -823,7 +823,7 @@ Private Function private_TryReadRuleSelector(ByVal ruleNode As Object, ByRef out
     Dim keyName As String
     Dim keyValue As String
 
-    Set outSelector = CreateObject("Scripting.Dictionary")
+    Set outSelector = VBA.CreateObject("Scripting.Dictionary")
     outSelector.CompareMode = 1
 
     ' Selector парсится как key=value;key=value...
@@ -1660,7 +1660,7 @@ End Sub
 
 Private Sub private_BeginDeferredRowAutoFit()
     ' Начало stage-коллекции строк для отложенного AutoFit.
-    Set m_DeferredRowAutoFitState = CreateObject("Scripting.Dictionary")
+    Set m_DeferredRowAutoFitState = VBA.CreateObject("Scripting.Dictionary")
     m_DeferredRowAutoFitState.CompareMode = 1
     m_IsCollectingDeferredRowAutoFit = True
 End Sub
@@ -1693,7 +1693,7 @@ Private Sub private_RecordDeferredRowAutoFit(ByVal targetRange As Range, ByVal e
         rowStart = rowArea.Row
         rowEnd = rowStart + rowArea.Rows.Count - 1
         For rowIndex = rowStart To rowEnd
-            rowKey = CStr(rowIndex)
+            rowKey = VBA.CStr(rowIndex)
             m_DeferredRowAutoFitState(rowKey) = enabled
         Next rowIndex
     Next rowArea
@@ -1722,8 +1722,8 @@ Private Function private_ApplyDeferredRowAutoFit(ByVal ws As Worksheet) As Boole
     ' Собираем только включенные строки, сортируем и применяем AutoFit по contiguous-спанам.
     ReDim enabledRows(1 To m_DeferredRowAutoFitState.Count)
     For Each rowKey In m_DeferredRowAutoFitState.Keys
-        If CBool(m_DeferredRowAutoFitState(CStr(rowKey))) Then
-            rowIndex = CLng(rowKey)
+        If VBA.CBool(m_DeferredRowAutoFitState(VBA.CStr(rowKey))) Then
+            rowIndex = VBA.CLng(rowKey)
             If rowIndex > 0 And rowIndex <= ws.Rows.Count Then
                 enabledCount = enabledCount + 1
                 enabledRows(enabledCount) = rowIndex
@@ -1767,7 +1767,7 @@ Private Sub private_ApplyAutoFitRowSpan(ByVal ws As Worksheet, ByVal rowStart As
     If rowEnd > ws.Rows.Count Then rowEnd = ws.Rows.Count
 
     On Error Resume Next
-    ws.Rows(CStr(rowStart) & ":" & CStr(rowEnd)).AutoFit
+    ws.Rows(VBA.CStr(rowStart) & ":" & VBA.CStr(rowEnd)).AutoFit
     On Error GoTo 0
 End Sub
 

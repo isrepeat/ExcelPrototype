@@ -23,13 +23,13 @@ Private m_IsDisposed As Boolean
 
 Private Sub Class_Initialize()
 #If LOGGING_VERBOSE_ENABLED Then
-    ex_Core.fn_Diagnostic_LogInfo "lifecycle:" & VBA.TypeName(Me) & ".Class_Initialize"
+    ex_Core.fn_Diagnostic_LogInfo "lifecycle:" & TypeName(Me) & ".Class_Initialize"
 #End If
 End Sub
 
 Private Sub Class_Terminate()
 #If LOGGING_VERBOSE_ENABLED Then
-    ex_Core.fn_Diagnostic_LogInfo "lifecycle:" & VBA.TypeName(Me) & ".Class_Terminate"
+    ex_Core.fn_Diagnostic_LogInfo "lifecycle:" & TypeName(Me) & ".Class_Terminate"
 #End If
     If m_IsDisposed Then Exit Sub
     On Error Resume Next
@@ -58,7 +58,7 @@ Public Function Initialize( _
     candidateTablesRuntimeKey = VBA.Trim$(candidateTablesRuntimeKey)
     renderReasonPrefix = VBA.Trim$(renderReasonPrefix)
     If VBA.Len(candidateTablesRuntimeKey) = 0 Then
-        MsgBox "PrototypeNew: EntityLookupFeature candidate tables runtime key is empty.", vbExclamation, "PrototypeNew / EntityLookup runtime"
+        VBA.MsgBox "PrototypeNew: EntityLookupFeature candidate tables runtime key is empty.", vbExclamation, "PrototypeNew / EntityLookup runtime"
         Exit Function
     End If
     If VBA.Len(renderReasonPrefix) = 0 Then renderReasonPrefix = "entitylookup"
@@ -202,14 +202,14 @@ Private Function private_SearchCandidates( _
     lookupKey = VBA.Trim$(lookupKey)
     queryText = VBA.Trim$(queryText)
     If VBA.Len(lookupKey) = 0 Then
-        MsgBox "PrototypeNew: lookup key is empty.", vbExclamation, "PrototypeNew / EntityLookup runtime"
+        VBA.MsgBox "PrototypeNew: lookup key is empty.", vbExclamation, "PrototypeNew / EntityLookup runtime"
         Exit Function
     End If
     If m_EntityLookupCfgParser Is Nothing Then
 #If LOGGING_DEBUG_ENABLED Then
         ex_Core.fn_Diagnostic_LogError "EntityLookup: search failed because config parser is not initialized."
 #End If
-        MsgBox "PrototypeNew: EntityLookup config is not initialized. Reopen the page from Main.", vbExclamation, "PrototypeNew / EntityLookup runtime"
+        VBA.MsgBox "PrototypeNew: EntityLookup config is not initialized. Reopen the page from Main.", vbExclamation, "PrototypeNew / EntityLookup runtime"
         Exit Function
     End If
 

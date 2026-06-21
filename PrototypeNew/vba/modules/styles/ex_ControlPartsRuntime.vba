@@ -63,7 +63,7 @@ Public Function fn_RegisterControlPart( _
 
     private_EnsureControlPartsStorage
 
-    Set entry = CreateObject("Scripting.Dictionary")
+    Set entry = VBA.CreateObject("Scripting.Dictionary")
     entry.CompareMode = 1
     entry("SheetName") = VBA.LCase$(ws.Name)
     entry("ControlType") = controlType

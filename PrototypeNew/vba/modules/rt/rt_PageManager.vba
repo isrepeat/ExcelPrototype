@@ -82,7 +82,7 @@ Public Function fn_TrySerializeModuleSnapshot(ByRef outSnapshotXml As String) As
 
         If Not private_TryCastSerializablePage(page, serializablePage) Then
 #If LOGGING_DEBUG_ENABLED Then
-            ex_Core.fn_Diagnostic_LogError "PageManager: page class '" & VBA.TypeName(page) & "' must implement obj_ISerializable."
+            ex_Core.fn_Diagnostic_LogError "PageManager: page class '" & TypeName(page) & "' must implement obj_ISerializable."
 #End If
             Exit Function
         End If
@@ -90,7 +90,7 @@ Public Function fn_TrySerializeModuleSnapshot(ByRef outSnapshotXml As String) As
         typeRoot = VBA.LCase$(VBA.Trim$(serializablePage.GetSerializableTypeRoot()))
         If VBA.Len(typeRoot) = 0 Then
 #If LOGGING_DEBUG_ENABLED Then
-            ex_Core.fn_Diagnostic_LogError "PageManager: serializable type root is empty for page class '" & VBA.TypeName(page) & "'."
+            ex_Core.fn_Diagnostic_LogError "PageManager: serializable type root is empty for page class '" & TypeName(page) & "'."
 #End If
             Exit Function
         End If
@@ -1149,7 +1149,7 @@ End Function
 
 Private Sub private_EnsureStorage()
     If g_PageById Is Nothing Then
-        Set g_PageById = CreateObject("Scripting.Dictionary")
+        Set g_PageById = VBA.CreateObject("Scripting.Dictionary")
         g_PageById.CompareMode = 1
     End If
 End Sub
