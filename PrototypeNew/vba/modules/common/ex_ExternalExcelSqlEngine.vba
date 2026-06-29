@@ -93,7 +93,11 @@ Public Function fn_TrySqlRequest( _
     If private_HasRangeMarkers(sqlParams) Then
         If Not private_TryBuildTableRefFromMarkers(sourcePath, sqlParams.SheetName, sqlParams.RangeStartMarker, sqlParams.RangeEndMarker, tableRef, markerErrorText) Then
 #If LOGGING_DEBUG_ENABLED Then
-            ex_Core.fn_Diagnostic_LogError "sql-engine:range-marker-resolve-failed source='" & sourcePath & "' sheet='" & sqlParams.SheetName & "' start='" & sqlParams.RangeStartMarker & "' end='" & sqlParams.RangeEndMarker & "' error='" & markerErrorText & "'"
+            ex_Core.fn_Diagnostic_LogError "sql-engine:range-marker-resolve-failed source='" & sourcePath & _
+                "' sheet='" & sqlParams.SheetName & _
+                "' start='" & sqlParams.RangeStartMarker & _
+                "' end='" & sqlParams.RangeEndMarker & _
+                "' error='" & markerErrorText & "'"
 #End If
             VBA.MsgBox "PrototypeNew: failed to resolve range by markers. " & markerErrorText, vbExclamation, RUNTIME_ERROR_TITLE
             Exit Function
@@ -134,9 +138,14 @@ Public Function fn_TrySqlRequest( _
         resolvedSourceColumnHeader = VBA.vbNullString
         If Not private_TryResolveHeaderInRecordset(rsSchema, VBA.CStr(sourceColumnHeaders.Item(i)), resolvedSourceColumnHeader) Then
 #If LOGGING_DEBUG_ENABLED Then
-            ex_Core.fn_Diagnostic_LogError "sql-engine:source-header-not-found requested='" & VBA.CStr(sourceColumnHeaders.Item(i)) & "' available='" & availableFields & "' genericFields=" & VBA.CStr(hasGenericFields)
+            ex_Core.fn_Diagnostic_LogError "sql-engine:source-header-not-found requested='" & _
+                VBA.CStr(sourceColumnHeaders.Item(i)) & _
+                "' available='" & availableFields & _
+                "' genericFields=" & VBA.CStr(hasGenericFields)
 #End If
-            VBA.MsgBox "PrototypeNew: mapped source header '" & VBA.CStr(sourceColumnHeaders.Item(i)) & "' is not found. Available fields: " & availableFields & private_GenericFieldsHint(hasGenericFields), vbExclamation, RUNTIME_ERROR_TITLE
+            VBA.MsgBox "PrototypeNew: mapped source header '" & VBA.CStr(sourceColumnHeaders.Item(i)) & _
+                "' is not found. Available fields: " & availableFields & _
+                private_GenericFieldsHint(hasGenericFields), vbExclamation, RUNTIME_ERROR_TITLE
             GoTo CleanupFail
         End If
         resolvedSourceColumnHeaders.Add resolvedSourceColumnHeader
@@ -316,6 +325,222 @@ EH_QUERY:
     ex_Core.fn_Diagnostic_LogError "PrototypeNew: SQL query error [" & VBA.CStr(Err.Number) & "] " & Err.Description
 #End If
     VBA.MsgBox "PrototypeNew: SQL query error [" & VBA.CStr(Err.Number) & "] " & Err.Description, vbExclamation, RUNTIME_ERROR_TITLE
+    Resume CleanupFail
+End Function
+
+Public Function fn_TrySqlRequestData( _
+    ByVal sqlParams As obj_SqlParams, _
+    ByRef outTableData As obj_TableData _
+) As Boolean
+    Dim values As Variant
+    Dim rowCount As Long
+    Dim columnCount As Long
+    Dim tableData As obj_TableData
+
+    Set outTableData = Nothing
+    If Not fn_TrySqlRequestValues(sqlParams, values, rowCount, columnCount) Then Exit Function
+
+    Set tableData = New obj_TableData
+    If Not tableData.Initialize(values, rowCount, columnCount, sqlParams.ColumnAliases) Then Exit Function
+
+    Set outTableData = tableData
+    fn_TrySqlRequestData = True
+End Function
+
+Public Function fn_TrySqlRequestValues( _
+    ByVal sqlParams As obj_SqlParams, _
+    ByRef outValues As Variant, _
+    ByRef outRowCount As Long, _
+    ByRef outColumnCount As Long _
+) As Boolean
+    Dim conn As Object
+    Dim rsSchema As Object
+    Dim rsData As Object
+    Dim tableRef As String
+    Dim sql As String
+    Dim validationError As String
+    Dim sourcePath As String
+    Dim sourceColumnHeaders As Collection
+    Dim resolvedSourceColumnHeaders As Collection
+    Dim sourceColumnOrdinals() As Long
+    Dim recordsetData As Variant
+    Dim rowIndex As Long
+    Dim colIndex As Long
+    Dim recordIndex As Long
+    Dim availableFields As String
+    Dim hasGenericFields As Boolean
+    Dim resolvedSourceColumnHeader As String
+    Dim markerErrorText As String
+    Dim i As Long
+
+    On Error GoTo EH_QUERY
+
+    outRowCount = 0
+    outColumnCount = 0
+    outValues = Empty
+
+    If sqlParams Is Nothing Then
+        VBA.MsgBox "PrototypeNew: SQL params object is not specified.", vbExclamation, RUNTIME_ERROR_TITLE
+        Exit Function
+    End If
+
+#If LOGGING_DEBUG_ENABLED Then
+    ex_Core.fn_Diagnostic_LogInfo "sql-engine:try-request-values " & sqlParams.fn_ToString()
+#End If
+
+    If Not sqlParams.TryValidate(validationError) Then
+#If LOGGING_DEBUG_ENABLED Then
+        ex_Core.fn_Diagnostic_LogError "sql-engine:invalid-params " & validationError & "; " & sqlParams.fn_ToString()
+#End If
+        VBA.MsgBox "PrototypeNew: invalid SQL params. " & validationError, vbExclamation, RUNTIME_ERROR_TITLE
+        Exit Function
+    End If
+
+    If Not sqlParams.RowProcessor Is Nothing Then
+        VBA.MsgBox "PrototypeNew: array SQL request does not support custom row processors.", vbExclamation, RUNTIME_ERROR_TITLE
+        Exit Function
+    End If
+
+    sourcePath = private_ResolvePathLocal(sqlParams.SourcePath)
+    If VBA.Len(sourcePath) = 0 Then
+#If LOGGING_DEBUG_ENABLED Then
+        ex_Core.fn_Diagnostic_LogError "sql-engine:source-path-empty raw='" & sqlParams.SourcePath & "'"
+#End If
+        VBA.MsgBox "PrototypeNew: resolved source path is empty.", vbExclamation, RUNTIME_ERROR_TITLE
+        Exit Function
+    End If
+    If VBA.Dir$(sourcePath) = VBA.vbNullString Then
+#If LOGGING_DEBUG_ENABLED Then
+        ex_Core.fn_Diagnostic_LogError "sql-engine:source-file-not-found path='" & sourcePath & "' raw='" & sqlParams.SourcePath & "'"
+#End If
+        VBA.MsgBox "PrototypeNew: source file not found: " & sourcePath, vbExclamation, RUNTIME_ERROR_TITLE
+        Exit Function
+    End If
+
+    If private_HasRangeMarkers(sqlParams) Then
+        If Not private_TryBuildTableRefFromMarkers(sourcePath, sqlParams.SheetName, sqlParams.RangeStartMarker, sqlParams.RangeEndMarker, tableRef, markerErrorText) Then
+#If LOGGING_DEBUG_ENABLED Then
+            ex_Core.fn_Diagnostic_LogError "sql-engine:range-marker-resolve-failed source='" & sourcePath & _
+                "' sheet='" & sqlParams.SheetName & _
+                "' start='" & sqlParams.RangeStartMarker & _
+                "' end='" & sqlParams.RangeEndMarker & _
+                "' error='" & markerErrorText & "'"
+#End If
+            VBA.MsgBox "PrototypeNew: failed to resolve range by markers. " & markerErrorText, vbExclamation, RUNTIME_ERROR_TITLE
+            Exit Function
+        End If
+    Else
+        tableRef = private_BuildTableRefFromSheetName(sqlParams.SheetName)
+        If VBA.Len(tableRef) = 0 Then
+#If LOGGING_DEBUG_ENABLED Then
+            ex_Core.fn_Diagnostic_LogError "sql-engine:table-ref-empty sheet='" & sqlParams.SheetName & "'"
+#End If
+            VBA.MsgBox "PrototypeNew: failed to build SQL table reference from SheetName '" & sqlParams.SheetName & "'.", vbExclamation, RUNTIME_ERROR_TITLE
+            Exit Function
+        End If
+    End If
+
+#If LOGGING_DEBUG_ENABLED Then
+    ex_Core.fn_Diagnostic_LogInfo "sql-engine:resolved-source-values path='" & sourcePath & "' tableRef='" & tableRef & "'"
+#End If
+
+    Set sourceColumnHeaders = sqlParams.SourceColumnHeaders
+
+    Set conn = VBA.CreateObject("ADODB.Connection")
+    conn.Open private_BuildAdoConnectionString(sourcePath)
+
+    Set rsSchema = VBA.CreateObject("ADODB.Recordset")
+    rsSchema.Open "SELECT * FROM " & tableRef & " WHERE 1=0", conn, 0, 1
+    availableFields = private_ListRecordsetFields(rsSchema, 40)
+    hasGenericFields = private_RecordsetLooksLikeGenericFields(rsSchema)
+
+    Set resolvedSourceColumnHeaders = New Collection
+    For i = 1 To sourceColumnHeaders.Count
+        resolvedSourceColumnHeader = VBA.vbNullString
+        If Not private_TryResolveHeaderInRecordset(rsSchema, VBA.CStr(sourceColumnHeaders.Item(i)), resolvedSourceColumnHeader) Then
+#If LOGGING_DEBUG_ENABLED Then
+            ex_Core.fn_Diagnostic_LogError "sql-engine:source-header-not-found requested='" & _
+                VBA.CStr(sourceColumnHeaders.Item(i)) & _
+                "' available='" & availableFields & _
+                "' genericFields=" & VBA.CStr(hasGenericFields)
+#End If
+            VBA.MsgBox "PrototypeNew: mapped source header '" & VBA.CStr(sourceColumnHeaders.Item(i)) & _
+                "' is not found. Available fields: " & availableFields & _
+                private_GenericFieldsHint(hasGenericFields), vbExclamation, RUNTIME_ERROR_TITLE
+            GoTo CleanupFail
+        End If
+        resolvedSourceColumnHeaders.Add resolvedSourceColumnHeader
+    Next i
+
+    rsSchema.Close
+    Set rsSchema = Nothing
+
+    sql = "SELECT " & private_BuildSelectColumnsClause(resolvedSourceColumnHeaders) & " FROM " & tableRef
+    If VBA.Len(VBA.Trim$(sqlParams.WhereConditions)) > 0 Then
+        sql = sql & " WHERE " & sqlParams.WhereConditions
+    End If
+#If LOGGING_DEBUG_ENABLED Then
+    ex_Core.fn_Diagnostic_LogInfo "sql-engine:data-sql-values " & sql
+#End If
+
+    Set rsData = VBA.CreateObject("ADODB.Recordset")
+    rsData.Open sql, conn, 0, 1
+    If rsData.EOF Then
+        fn_TrySqlRequestValues = True
+        GoTo CleanupDone
+    End If
+
+    ReDim sourceColumnOrdinals(1 To resolvedSourceColumnHeaders.Count)
+    For i = 1 To resolvedSourceColumnHeaders.Count
+        sourceColumnOrdinals(i) = private_RecordsetGetFieldOrdinal(rsData, VBA.CStr(resolvedSourceColumnHeaders.Item(i)))
+        If sourceColumnOrdinals(i) < 0 Then
+#If LOGGING_DEBUG_ENABLED Then
+            ex_Core.fn_Diagnostic_LogError "sql-engine:data-field-ordinal-missing header='" & VBA.CStr(resolvedSourceColumnHeaders.Item(i)) & "'"
+#End If
+            VBA.MsgBox "PrototypeNew: resolved header '" & VBA.CStr(resolvedSourceColumnHeaders.Item(i)) & "' is not available in data recordset.", vbExclamation, RUNTIME_ERROR_TITLE
+            GoTo CleanupFail
+        End If
+    Next i
+
+    recordsetData = rsData.GetRows
+    If Not IsEmpty(recordsetData) Then
+        outRowCount = UBound(recordsetData, 2) - LBound(recordsetData, 2) + 1
+        outColumnCount = resolvedSourceColumnHeaders.Count
+        ReDim outValues(1 To outRowCount, 1 To outColumnCount)
+        rowIndex = 0
+        For recordIndex = LBound(recordsetData, 2) To UBound(recordsetData, 2)
+            rowIndex = rowIndex + 1
+            For colIndex = 1 To outColumnCount
+                outValues(rowIndex, colIndex) = private_ToSafeValue(recordsetData(sourceColumnOrdinals(colIndex), recordIndex))
+            Next colIndex
+        Next recordIndex
+    End If
+
+#If LOGGING_DEBUG_ENABLED Then
+    ex_Core.fn_Diagnostic_LogInfo "sql-engine:request-values-done rowsRead=" & VBA.CStr(outRowCount) & "; resultColumns=" & VBA.CStr(outColumnCount)
+#End If
+
+    fn_TrySqlRequestValues = True
+
+CleanupDone:
+    On Error Resume Next
+    If Not rsSchema Is Nothing Then If rsSchema.State <> 0 Then rsSchema.Close
+    If Not rsData Is Nothing Then If rsData.State <> 0 Then rsData.Close
+    If Not conn Is Nothing Then If conn.State <> 0 Then conn.Close
+    On Error GoTo 0
+    Exit Function
+
+CleanupFail:
+    outValues = Empty
+    outRowCount = 0
+    outColumnCount = 0
+    GoTo CleanupDone
+
+EH_QUERY:
+#If LOGGING_DEBUG_ENABLED Then
+    ex_Core.fn_Diagnostic_LogError "PrototypeNew: SQL values query error [" & VBA.CStr(Err.Number) & "] " & Err.Description
+#End If
+    VBA.MsgBox "PrototypeNew: SQL values query error [" & VBA.CStr(Err.Number) & "] " & Err.Description, vbExclamation, RUNTIME_ERROR_TITLE
     Resume CleanupFail
 End Function
 
@@ -1020,4 +1245,24 @@ Private Function private_ToSafeText(ByVal valueIn As Variant) As String
 
 EH_SAFE_TEXT:
     private_ToSafeText = VBA.vbNullString
+End Function
+
+Private Function private_ToSafeValue(ByVal valueIn As Variant) As Variant
+    On Error GoTo EH
+
+    If VBA.IsError(valueIn) Then
+        private_ToSafeValue = "#ERR"
+        Exit Function
+    End If
+
+    If VBA.IsNull(valueIn) Or VBA.IsEmpty(valueIn) Then
+        private_ToSafeValue = VBA.vbNullString
+        Exit Function
+    End If
+
+    private_ToSafeValue = valueIn
+    Exit Function
+
+EH:
+    private_ToSafeValue = VBA.vbNullString
 End Function
