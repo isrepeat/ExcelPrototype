@@ -17,6 +17,9 @@ Private m_ControlBase As obj_ControlBase
 Private m_ControlName As String
 Private m_ItemsSourceRaw As String
 Private m_ItemVisibilityRaw As String
+Private m_RenderAsListObject As Boolean
+Private m_TableNameRaw As String
+Private m_RuntimeTableName As String
 #If CELL_BUTTON_VIEW_ENABLED Then
 ' Private m_CellButtonClickRaw As String
 ' Private m_CellButtonClickMacroRef As String
@@ -73,6 +76,7 @@ Private Sub obj_IControl_Dispose()
     Err.Clear
     Set m_ControlBase = Nothing
     Set m_TableItems = Nothing
+    m_RuntimeTableName = VBA.vbNullString
 #If CELL_BUTTON_VIEW_ENABLED Then
 '     Set m_CellButtonClickCallbackContext = Nothing
 '     Set m_CellButtonPayloadById = Nothing
@@ -90,6 +94,9 @@ Private Sub obj_IControl_Configure(ByVal controlNode As Object)
     m_IsConfigured = False
     Set m_TableItems = Nothing
     Set m_ControlBase = Nothing
+    m_RenderAsListObject = False
+    m_TableNameRaw = VBA.vbNullString
+    m_RuntimeTableName = VBA.vbNullString
 #If CELL_BUTTON_VIEW_ENABLED Then
 '     Set m_CellButtonClickCallbackContext = Nothing
 '     Set m_CellButtonPayloadById = Nothing
@@ -114,6 +121,8 @@ Private Sub obj_IControl_Configure(ByVal controlNode As Object)
     End If
 
     m_ItemVisibilityRaw = VBA.Trim$(VBA.CStr(ex_XmlCore.fn_NodeAttrText(controlNode, "itemVisibility")))
+    If Not private_TryReadOptionalBooleanAttr(controlNode, "renderAsListObject", False, m_RenderAsListObject) Then Exit Sub
+    m_TableNameRaw = VBA.Trim$(VBA.CStr(ex_XmlCore.fn_NodeAttrText(controlNode, "tableName")))
 #If CELL_BUTTON_VIEW_ENABLED Then
 '     m_CellButtonClickRaw = VBA.Trim$(VBA.CStr(ex_XmlCore.fn_NodeAttrText(controlNode, "cellButtonClick")))
 
@@ -175,6 +184,10 @@ Private Sub obj_IControl_Render()
     Dim valueBlock As Variant
     Dim targetRange As Range
     Dim styleSegments As Collection
+    Dim renderStart As Single
+    Dim stageStart As Single
+    Dim rowCount As Long
+    Dim columnCount As Long
 #If CELL_BUTTON_VIEW_ENABLED Then
 '     Dim cellButtonActions As Collection
 #End If
@@ -216,24 +229,59 @@ Private Sub obj_IControl_Render()
         Exit Sub
     End If
 
+    renderStart = VBA.Timer
+
     ' Build in-memory first, then write once to minimize COM overhead.
+    stageStart = VBA.Timer
     If Not private_TryBuildRenderBuffer(valueBlock, styleSegments) Then Exit Sub
     If IsEmpty(valueBlock) Then Exit Sub
+    rowCount = UBound(valueBlock, 1)
+    columnCount = UBound(valueBlock, 2)
+    private_LogRenderStep "build-buffer", stageStart, _
+        "rows=" & VBA.CStr(rowCount) & _
+        " columns=" & VBA.CStr(columnCount) & _
+        " styleSegments=" & private_CollectionCountText(styleSegments)
 
     Set targetRange = ws.Range( _
         ws.Cells(m_RowStart, m_ColStart), _
-        ws.Cells(m_RowStart + UBound(valueBlock, 1) - 1, m_ColStart + UBound(valueBlock, 2) - 1))
+        ws.Cells(m_RowStart + rowCount - 1, m_ColStart + columnCount - 1))
 
+    If m_RenderAsListObject Then
+        stageStart = VBA.Timer
+        If Not private_TryDeleteIntersectingTables(ws, ws.Range(ws.Cells(m_RowStart, m_ColStart), ws.Cells(m_RowEnd, m_ColEnd))) Then Exit Sub
+        private_LogRenderStep "delete-intersecting-tables", stageStart
+    End If
+
+    stageStart = VBA.Timer
     targetRange.Value2 = valueBlock
+    private_LogRenderStep "write-values", stageStart, _
+        "rows=" & VBA.CStr(rowCount) & _
+        " columns=" & VBA.CStr(columnCount)
 
+    If m_RenderAsListObject Then
+        stageStart = VBA.Timer
+        If Not private_TryCreateRenderedListObject(ws, styleSegments) Then Exit Sub
+        private_LogRenderStep "create-list-object", stageStart
+    End If
+
+    stageStart = VBA.Timer
     If Not private_TryRegisterControlPartSegments(ws, styleSegments) Then Exit Sub
+    private_LogRenderStep "register-control-parts", stageStart, _
+        "styleSegments=" & private_CollectionCountText(styleSegments)
 
 #If ENALBE_STYLES Then
+    stageStart = VBA.Timer
     private_ApplyStyleSegments ws, styleSegments
+    private_LogRenderStep "apply-styles", stageStart, _
+        "styleSegments=" & private_CollectionCountText(styleSegments)
 #End If
+
 #If CELL_BUTTON_VIEW_ENABLED Then
 '     If Not private_TryRenderCellButtonShapes(ws, cellButtonActions) Then Exit Sub
 #End If
+    private_LogRenderStep "total", renderStart, _
+        "rows=" & VBA.CStr(rowCount) & _
+        " columns=" & VBA.CStr(columnCount)
 End Sub
 
 Private Function obj_IControl_Measure( _
@@ -247,7 +295,7 @@ End Function
 
 Private Function obj_IControl_SupportsAttribute(ByVal attrName As String) As Boolean
     Select Case VBA.LCase$(VBA.Trim$(attrName))
-        Case "itemssource", "itemvisibility"
+        Case "itemssource", "itemvisibility", "renderaslistobject", "tablename"
             obj_IControl_SupportsAttribute = True
 #If CELL_BUTTON_VIEW_ENABLED Then
 '         Case "cellbuttonclick"
@@ -292,6 +340,40 @@ End Function
 ' //
 ' // Internal
 ' //
+Private Sub private_LogRenderStep( _
+    ByVal stepName As String, _
+    ByVal startedAt As Single, _
+    Optional ByVal details As String = "" _
+)
+#If LOGGING_DEBUG_ENABLED Then
+    Dim messageText As String
+
+    messageText = "tablelist:render control='" & private_LogSafeText(m_ControlName) & _
+        "' step='" & private_LogSafeText(stepName) & _
+        "' ms=" & VBA.Format$(private_ElapsedMs(startedAt, VBA.Timer), "0")
+    details = VBA.Trim$(VBA.CStr(details))
+    If VBA.Len(details) > 0 Then messageText = messageText & " " & details
+    ex_Core.fn_Diagnostic_LogInfo messageText
+#End If
+End Sub
+
+Private Function private_ElapsedMs(ByVal startedAt As Single, ByVal finishedAt As Single) As Double
+    If finishedAt < startedAt Then finishedAt = finishedAt + 86400!
+    private_ElapsedMs = (CDbl(finishedAt) - CDbl(startedAt)) * 1000#
+End Function
+
+Private Function private_LogSafeText(ByVal valueText As String) As String
+    private_LogSafeText = VBA.Replace$(VBA.CStr(valueText), "'", "''")
+End Function
+
+Private Function private_CollectionCountText(ByVal items As Collection) As String
+    If items Is Nothing Then
+        private_CollectionCountText = "<none>"
+    Else
+        private_CollectionCountText = VBA.CStr(items.Count)
+    End If
+End Function
+
 Private Function private_TryMeasureNode( _
     ByVal controlNode As Object, _
     ByRef outSpanRows As Long, _
@@ -604,6 +686,7 @@ Private Function private_TryWriteTableItemToBuffer( _
     Dim writeEnd As Long
     Dim rowViewItemIndex As Long
     Dim tableRowIndex As Long
+    Dim rowStyleKind As String
 
     If tableViewItem Is Nothing Then
         private_TryWriteTableItemToBuffer = True
@@ -684,7 +767,7 @@ Private Function private_TryWriteTableItemToBuffer( _
             If rowViewItem Is Nothing Then GoTo ContinueRowView
 
             If Not private_TryAppendRowViewData( _
-                rowViewItem, tableDynamic.ColumnCount, valueBlock, styleSegments, plannedRows, ioCurrentOutputRow) Then Exit Function
+                rowViewItem, tableDynamic, valueBlock, styleSegments, plannedRows, ioCurrentOutputRow) Then Exit Function
 
 ContinueRowView:
         Next rowViewItemIndex
@@ -703,12 +786,18 @@ ContinueRowView:
 #If CELL_BUTTON_VIEW_ENABLED Then
 '                 private_CollectCellButtonActions row, ioCurrentOutputRow, tableDynamic.ColumnCount, cellButtonActions
 #End If
+#If ENALBE_STYLES Then
+                rowStyleKind = private_ResolveDataRowStyleKind(row)
+                private_AddStyleSegment styleSegments, rowStyleKind, tableDynamic.ColumnCount, ioCurrentOutputRow, ioCurrentOutputRow
+                private_AddChangedCellStyleSegments styleSegments, row, tableDynamic.ColumnCount, ioCurrentOutputRow
+#End If
 ContinueTableRow:
             Next tableRowIndex
             writeEnd = ioCurrentOutputRow
 #If ENALBE_STYLES Then
             If writeEnd >= writeStart Then
-                private_AddStyleSegment styleSegments, "data", tableDynamic.ColumnCount, writeStart, writeEnd
+                ' Строки с обычным стилем уже сгруппированы выше вместе с diff-строками.
+                private_AddColumnFormatStyleSegments styleSegments, tableDynamic, writeStart, writeEnd
             End If
 #End If
         End If
@@ -730,14 +819,16 @@ End Function
 
 Private Function private_TryAppendRowViewData( _
     ByVal rowViewItem As obj_RowViewItem, _
-    ByVal columnCount As Long, _
+    ByVal tableDynamic As obj_TableDynamic, _
     ByRef valueBlock As Variant, _
     ByVal styleSegments As Collection, _
     ByVal plannedRows As Long, _
     ByRef ioCurrentOutputRow As Long _
 ) As Boolean
     Dim row As obj_Row
+    Dim columnCount As Long
     Dim spacerIndex As Long
+    Dim rowStyleKind As String
 
     If rowViewItem Is Nothing Then
         private_TryAppendRowViewData = True
@@ -748,6 +839,9 @@ Private Function private_TryAppendRowViewData( _
         private_TryAppendRowViewData = True
         Exit Function
     End If
+    If tableDynamic Is Nothing Then Exit Function
+    columnCount = tableDynamic.ColumnCount
+    If columnCount <= 0 Then Exit Function
 
     If Not private_TryAppendBannerBlock( _
         rowViewItem.Banner, "rowbanner", columnCount, valueBlock, styleSegments, plannedRows, ioCurrentOutputRow) Then Exit Function
@@ -771,7 +865,10 @@ Private Function private_TryAppendRowViewData( _
 '     private_CollectCellButtonActions row, ioCurrentOutputRow, columnCount, cellButtonActions
 #End If
 #If ENALBE_STYLES Then
-    private_AddStyleSegment styleSegments, "data", columnCount, ioCurrentOutputRow, ioCurrentOutputRow
+    rowStyleKind = private_ResolveDataRowStyleKind(row)
+    private_AddStyleSegment styleSegments, rowStyleKind, columnCount, ioCurrentOutputRow, ioCurrentOutputRow
+    private_AddChangedCellStyleSegments styleSegments, row, columnCount, ioCurrentOutputRow
+    private_AddColumnFormatStyleSegments styleSegments, tableDynamic, ioCurrentOutputRow, ioCurrentOutputRow
 #End If
 
     For spacerIndex = 1 To rowViewItem.SpacerRowsAfter
@@ -886,22 +983,34 @@ Private Sub private_AddStyleSegment( _
     ByVal styleKind As String, _
     ByVal columnCount As Long, _
     ByVal rowStart As Long, _
-    ByVal rowEnd As Long _
+    ByVal rowEnd As Long, _
+    Optional ByVal columnStart As Long = 1, _
+    Optional ByVal columnEnd As Long = 0 _
 )
     Dim segment As Object
     Dim lastSegment As Object
 
     If styleSegments Is Nothing Then Exit Sub
     If rowEnd < rowStart Then Exit Sub
+    If columnCount <= 0 Then Exit Sub
+    If columnStart <= 0 Then columnStart = 1
+    If columnEnd <= 0 Then columnEnd = columnCount
+    If columnEnd < columnStart Then Exit Sub
+    If columnStart > columnCount Then Exit Sub
+    If columnEnd > columnCount Then columnEnd = columnCount
 
     ' Merge adjacent segments with same style+width to reduce style operations later.
     If styleSegments.Count > 0 Then
         Set lastSegment = styleSegments(styleSegments.Count)
         If VBA.StrComp(VBA.CStr(lastSegment("StyleKind")), styleKind, VBA.vbTextCompare) = 0 Then
             If VBA.CLng(lastSegment("ColumnCount")) = columnCount Then
-                If VBA.CLng(lastSegment("RowEnd")) + 1 = rowStart Then
-                    lastSegment("RowEnd") = rowEnd
-                    Exit Sub
+                If VBA.CLng(lastSegment("ColumnStart")) = columnStart Then
+                    If VBA.CLng(lastSegment("ColumnEnd")) = columnEnd Then
+                        If VBA.CLng(lastSegment("RowEnd")) + 1 = rowStart Then
+                            lastSegment("RowEnd") = rowEnd
+                            Exit Sub
+                        End If
+                    End If
                 End If
             End If
         End If
@@ -913,6 +1022,8 @@ Private Sub private_AddStyleSegment( _
     segment("ColumnCount") = columnCount
     segment("RowStart") = rowStart
     segment("RowEnd") = rowEnd
+    segment("ColumnStart") = columnStart
+    segment("ColumnEnd") = columnEnd
 
     styleSegments.Add segment
 End Sub
@@ -924,14 +1035,18 @@ Private Sub private_ApplyStyleSegments(ByVal ws As Worksheet, ByVal styleSegment
     Dim groupedKey As String
     Dim groupedRange As Range
     Dim key As Variant
-    Dim sepPos As Long
+    Dim keyParts As Variant
     Dim styleKind As String
     Dim columnCount As Long
+    Dim columnStart As Long
+    Dim columnEnd As Long
     Dim backColor As Long
     Dim fontColor As Long
     Dim borderColor As Long
     Dim fontSize As Double
     Dim fontBold As Boolean
+    Dim passIndex As Long
+    Dim applyChangedCellStyle As Boolean
 
     If ws Is Nothing Then Exit Sub
     If styleSegments Is Nothing Then Exit Sub
@@ -943,15 +1058,19 @@ Private Sub private_ApplyStyleSegments(ByVal ws As Worksheet, ByVal styleSegment
     For Each segment In styleSegments
         styleKind = VBA.LCase$(VBA.CStr(segment("StyleKind")))
         columnCount = VBA.CLng(segment("ColumnCount"))
+        columnStart = VBA.CLng(segment("ColumnStart"))
+        columnEnd = VBA.CLng(segment("ColumnEnd"))
 
         Set segmentRange = private_BuildSegmentRange( _
             ws, _
             VBA.CLng(segment("RowStart")), _
             VBA.CLng(segment("RowEnd")), _
-            columnCount)
+            columnCount, _
+            columnStart, _
+            columnEnd)
         If segmentRange Is Nothing Then GoTo ContinueSegment
 
-        groupedKey = styleKind & "|" & VBA.CStr(columnCount)
+        groupedKey = styleKind & "|" & VBA.CStr(columnCount) & "|" & VBA.CStr(columnStart) & "|" & VBA.CStr(columnEnd)
 
         If groupedRanges.Exists(groupedKey) Then
             Set groupedRange = groupedRanges(groupedKey)
@@ -963,21 +1082,28 @@ Private Sub private_ApplyStyleSegments(ByVal ws As Worksheet, ByVal styleSegment
 ContinueSegment:
     Next segment
 
-    For Each key In groupedRanges.Keys
-        sepPos = VBA.InStrRev(VBA.CStr(key), "|", -1, VBA.vbBinaryCompare)
-        If sepPos <= 1 Then GoTo ContinueGroup
+    ' Строковые diff-стили наносим первым проходом, а подсветку конкретных
+    ' измененных ячеек вторым. Иначе Excel может перетереть cell-style стилем строки.
+    For passIndex = 1 To 2
+        applyChangedCellStyle = (passIndex = 2)
+        For Each key In groupedRanges.Keys
+            keyParts = VBA.Split(VBA.CStr(key), "|")
+            If UBound(keyParts) < 0 Then GoTo ContinueGroup
+            styleKind = VBA.CStr(keyParts(0))
+            If (VBA.StrComp(styleKind, "diffchangedcell", VBA.vbTextCompare) = 0) <> applyChangedCellStyle Then GoTo ContinueGroup
 
-        styleKind = VBA.Left$(VBA.CStr(key), sepPos - 1)
+            Set groupedRange = groupedRanges(VBA.CStr(key))
+            If groupedRange Is Nothing Then GoTo ContinueGroup
 
-        If Not private_TryResolveStylePreset(styleKind, backColor, fontColor, borderColor, fontSize, fontBold) Then Exit Sub
+            If VBA.StrComp(styleKind, "datelike", VBA.vbTextCompare) = 0 Then GoTo ContinueGroup
 
-        Set groupedRange = groupedRanges(VBA.CStr(key))
-        If groupedRange Is Nothing Then GoTo ContinueGroup
+            If Not private_TryResolveStylePreset(styleKind, backColor, fontColor, borderColor, fontSize, fontBold) Then Exit Sub
 
-        private_ApplyRowStyle groupedRange, backColor, fontColor, borderColor, fontSize, fontBold
+            private_ApplyRowStyle groupedRange, backColor, fontColor, borderColor, fontSize, fontBold
 
 ContinueGroup:
-	    Next key
+        Next key
+    Next passIndex
 End Sub
 
 #If CELL_BUTTON_VIEW_ENABLED Then
@@ -1149,7 +1275,9 @@ Private Function private_TryRegisterControlPartSegments(ByVal ws As Worksheet, B
             ws, _
             VBA.CLng(segment("RowStart")), _
             VBA.CLng(segment("RowEnd")), _
-            VBA.CLng(segment("ColumnCount")))
+            VBA.CLng(segment("ColumnCount")), _
+            VBA.CLng(segment("ColumnStart")), _
+            VBA.CLng(segment("ColumnEnd")))
         If segmentRange Is Nothing Then GoTo ContinueSegment
 
         If Not ex_ControlPartsRuntime.fn_RegisterControlPart( _
@@ -1173,34 +1301,141 @@ Private Function private_MapStyleKindToControlPart(ByVal styleKind As String) As
             private_MapStyleKindToControlPart = "header"
         Case "data"
             private_MapStyleKindToControlPart = "rows"
+        Case "diffadded"
+            private_MapStyleKindToControlPart = "diffadded"
+        Case "diffdeleted"
+            private_MapStyleKindToControlPart = "diffdeleted"
+        Case "diffmodified"
+            private_MapStyleKindToControlPart = "diffmodified"
+        Case "diffaddedmoved"
+            private_MapStyleKindToControlPart = "diffaddedmoved"
+        Case "diffdeletedmoved"
+            private_MapStyleKindToControlPart = "diffdeletedmoved"
+        Case "diffchangedcell"
+            private_MapStyleKindToControlPart = "diffchangedcell"
+        Case "diffellipsis"
+            private_MapStyleKindToControlPart = "diffellipsis"
         Case "spacer"
             private_MapStyleKindToControlPart = "spacer"
         Case "tablebanner"
             private_MapStyleKindToControlPart = "itembanner"
         Case "rowbanner"
             private_MapStyleKindToControlPart = "rowbanner"
+        Case "datelike"
+            private_MapStyleKindToControlPart = "datelike"
     End Select
 End Function
+
+Private Function private_ResolveDataRowStyleKind(ByVal rowObj As obj_Row) As String
+    Dim rowDesc As String
+
+    private_ResolveDataRowStyleKind = "data"
+    If rowObj Is Nothing Then Exit Function
+
+    rowDesc = VBA.LCase$(VBA.Trim$(rowObj.Desc))
+    If VBA.InStr(1, rowDesc, "diff:added-moved", VBA.vbTextCompare) > 0 Then
+        private_ResolveDataRowStyleKind = "diffaddedmoved"
+    ElseIf VBA.InStr(1, rowDesc, "diff:deleted-moved", VBA.vbTextCompare) > 0 Then
+        private_ResolveDataRowStyleKind = "diffdeletedmoved"
+    ElseIf VBA.InStr(1, rowDesc, "diff:added", VBA.vbTextCompare) > 0 Then
+        private_ResolveDataRowStyleKind = "diffadded"
+    ElseIf VBA.InStr(1, rowDesc, "diff:deleted", VBA.vbTextCompare) > 0 Then
+        private_ResolveDataRowStyleKind = "diffdeleted"
+    ElseIf VBA.InStr(1, rowDesc, "diff:modified", VBA.vbTextCompare) > 0 Then
+        private_ResolveDataRowStyleKind = "diffmodified"
+    ElseIf VBA.InStr(1, rowDesc, "diff:ellipsis", VBA.vbTextCompare) > 0 Then
+        private_ResolveDataRowStyleKind = "diffellipsis"
+    End If
+End Function
+
+Private Sub private_AddChangedCellStyleSegments( _
+    ByVal styleSegments As Collection, _
+    ByVal rowObj As obj_Row, _
+    ByVal columnCount As Long, _
+    ByVal relativeRow As Long _
+)
+    Dim colIndex As Long
+    Dim cellObj As obj_Cell
+    Dim cellDesc As String
+
+    If styleSegments Is Nothing Then Exit Sub
+    If rowObj Is Nothing Then Exit Sub
+    If columnCount <= 0 Then Exit Sub
+    If relativeRow <= 0 Then Exit Sub
+
+    For colIndex = 1 To columnCount
+        Set cellObj = Nothing
+        If Not rowObj.TryGetCellAt(colIndex, cellObj) Then GoTo ContinueCell
+        If cellObj Is Nothing Then GoTo ContinueCell
+
+        cellDesc = VBA.LCase$(VBA.Trim$(cellObj.Desc))
+        If VBA.InStr(1, cellDesc, "diff:changed", VBA.vbTextCompare) > 0 Then
+            private_AddStyleSegment styleSegments, "diffchangedcell", columnCount, relativeRow, relativeRow, colIndex, colIndex
+        End If
+ContinueCell:
+    Next colIndex
+End Sub
+
+Private Sub private_AddColumnFormatStyleSegments( _
+    ByVal styleSegments As Collection, _
+    ByVal tableDynamic As obj_TableDynamic, _
+    ByVal relativeRowStart As Long, _
+    ByVal relativeRowEnd As Long _
+)
+    Dim colIndex As Long
+    Dim colObj As obj_Column
+    Dim formatKind As String
+
+    If styleSegments Is Nothing Then Exit Sub
+    If tableDynamic Is Nothing Then Exit Sub
+    If relativeRowStart <= 0 Or relativeRowEnd < relativeRowStart Then Exit Sub
+    If tableDynamic.Columns Is Nothing Then Exit Sub
+
+    For colIndex = 1 To tableDynamic.ColumnCount
+        Set colObj = Nothing
+        Set colObj = tableDynamic.Columns.Item(colIndex)
+        If colObj Is Nothing Then GoTo ContinueColumn
+
+        formatKind = VBA.LCase$(VBA.Trim$(colObj.FormatKind))
+        Select Case formatKind
+            Case "date"
+                private_AddStyleSegment styleSegments, "datelike", tableDynamic.ColumnCount, relativeRowStart, relativeRowEnd, colIndex, colIndex
+        End Select
+
+ContinueColumn:
+    Next colIndex
+End Sub
 
 Private Function private_BuildSegmentRange( _
     ByVal ws As Worksheet, _
     ByVal relativeRowStart As Long, _
     ByVal relativeRowEnd As Long, _
-    ByVal columnCount As Long _
+    ByVal columnCount As Long, _
+    Optional ByVal relativeColStart As Long = 1, _
+    Optional ByVal relativeColEnd As Long = 0 _
 ) As Range
     Dim absRowStart As Long
     Dim absRowEnd As Long
+    Dim absColStart As Long
+    Dim absColEnd As Long
 
     If ws Is Nothing Then Exit Function
     If relativeRowStart <= 0 Or relativeRowEnd < relativeRowStart Then Exit Function
     If columnCount <= 0 Then Exit Function
+    If relativeColStart <= 0 Then relativeColStart = 1
+    If relativeColEnd <= 0 Then relativeColEnd = columnCount
+    If relativeColEnd < relativeColStart Then Exit Function
+    If relativeColStart > columnCount Then Exit Function
+    If relativeColEnd > columnCount Then relativeColEnd = columnCount
 
     absRowStart = m_RowStart + relativeRowStart - 1
     absRowEnd = m_RowStart + relativeRowEnd - 1
+    absColStart = m_ColStart + relativeColStart - 1
+    absColEnd = m_ColStart + relativeColEnd - 1
 
     Set private_BuildSegmentRange = ws.Range( _
-        ws.Cells(absRowStart, m_ColStart), _
-        ws.Cells(absRowEnd, m_ColStart + columnCount - 1))
+        ws.Cells(absRowStart, absColStart), _
+        ws.Cells(absRowEnd, absColEnd))
 End Function
 
 Private Function private_TryResolveStylePreset( _
@@ -1230,6 +1465,55 @@ Private Function private_TryResolveStylePreset( _
             backColor = VBA.RGB(58, 58, 58)
             fontColor = VBA.RGB(240, 240, 240)
             borderColor = VBA.RGB(42, 42, 42)
+            fontSize = 10
+            fontBold = False
+
+        Case "diffadded"
+            backColor = VBA.RGB(31, 86, 27)
+            fontColor = VBA.RGB(245, 245, 245)
+            borderColor = VBA.RGB(10, 10, 10)
+            fontSize = 10
+            fontBold = False
+
+        Case "diffdeleted"
+            backColor = VBA.RGB(204, 0, 0)
+            fontColor = VBA.RGB(245, 245, 245)
+            borderColor = VBA.RGB(10, 10, 10)
+            fontSize = 10
+            fontBold = False
+
+        Case "diffmodified"
+            backColor = VBA.RGB(145, 31, 135)
+            fontColor = VBA.RGB(245, 245, 245)
+            borderColor = VBA.RGB(10, 10, 10)
+            fontSize = 10
+            fontBold = False
+
+        Case "diffaddedmoved"
+            backColor = VBA.RGB(78, 100, 36)
+            fontColor = VBA.RGB(245, 245, 245)
+            borderColor = VBA.RGB(10, 10, 10)
+            fontSize = 10
+            fontBold = False
+
+        Case "diffdeletedmoved"
+            backColor = VBA.RGB(107, 35, 35)
+            fontColor = VBA.RGB(245, 245, 245)
+            borderColor = VBA.RGB(10, 10, 10)
+            fontSize = 10
+            fontBold = False
+
+        Case "diffchangedcell"
+            backColor = VBA.RGB(224, 116, 214)
+            fontColor = VBA.RGB(245, 245, 245)
+            borderColor = VBA.RGB(10, 10, 10)
+            fontSize = 10
+            fontBold = False
+
+        Case "diffellipsis"
+            backColor = VBA.RGB(33, 33, 33)
+            fontColor = VBA.RGB(190, 190, 190)
+            borderColor = VBA.RGB(10, 10, 10)
             fontSize = 10
             fontBold = False
 
@@ -1421,6 +1705,7 @@ Private Function private_ConvertFixedTableToDynamic(ByVal fixedTable As obj_Tabl
         Set targetColumn = New obj_Column
         targetColumn.Position = sourceColumn.Position
         targetColumn.Name = sourceColumn.Name
+        targetColumn.FormatKind = sourceColumn.FormatKind
         Set sourceAliases = sourceColumn.Aliases
         If Not sourceAliases Is Nothing Then
             For Each aliasItem In sourceAliases
@@ -1444,6 +1729,230 @@ ContinueSourceRow:
     Next sourceRowIndex
 
     Set private_ConvertFixedTableToDynamic = tableDynamic
+End Function
+
+Private Function private_TryCreateRenderedListObject(ByVal ws As Worksheet, ByVal styleSegments As Collection) As Boolean
+    Dim tableRange As Range
+    Dim tableObj As ListObject
+    Dim targetTableName As String
+
+    If ws Is Nothing Then Exit Function
+
+    If Not private_TryResolveListObjectRange(ws, styleSegments, tableRange) Then Exit Function
+    If tableRange Is Nothing Then
+        private_TryCreateRenderedListObject = True
+        Exit Function
+    End If
+
+    On Error GoTo EH_TABLE
+    Set tableObj = ws.ListObjects.Add(SourceType:=xlSrcRange, Source:=tableRange, XlListObjectHasHeaders:=xlYes)
+    On Error GoTo 0
+
+    targetTableName = private_BuildTableName(ws)
+    If VBA.Len(targetTableName) > 0 Then
+        On Error Resume Next
+        tableObj.Name = targetTableName
+        On Error GoTo 0
+    End If
+
+    On Error Resume Next
+    tableObj.TableStyle = "TableStyleMedium2"
+    tableObj.ShowAutoFilter = True
+    tableObj.ShowTableStyleRowStripes = False
+    tableObj.ShowTableStyleColumnStripes = False
+    On Error GoTo 0
+
+    m_RuntimeTableName = VBA.Trim$(tableObj.Name)
+    private_TryCreateRenderedListObject = True
+    Exit Function
+
+EH_TABLE:
+#If LOGGING_DEBUG_ENABLED Then
+    ex_Core.fn_Diagnostic_LogError "TableList: failed to create Excel table for control '" & m_ControlName & "': " & Err.Description
+#End If
+End Function
+
+Private Function private_TryResolveListObjectRange( _
+    ByVal ws As Worksheet, _
+    ByVal styleSegments As Collection, _
+    ByRef outRange As Range _
+) As Boolean
+    Dim segment As Object
+    Dim styleKind As String
+    Dim headerRowStart As Long
+    Dim headerRowEnd As Long
+    Dim headerColumnStart As Long
+    Dim headerColumnEnd As Long
+    Dim bodyRowEnd As Long
+    Dim headerCount As Long
+
+    If ws Is Nothing Then Exit Function
+    If styleSegments Is Nothing Then
+        private_TryResolveListObjectRange = True
+        Exit Function
+    End If
+
+    For Each segment In styleSegments
+        styleKind = VBA.LCase$(VBA.Trim$(VBA.CStr(segment("StyleKind"))))
+        Select Case styleKind
+            Case "header"
+                headerCount = headerCount + 1
+                If headerCount = 1 Then
+                    headerRowStart = VBA.CLng(segment("RowStart"))
+                    headerRowEnd = VBA.CLng(segment("RowEnd"))
+                    headerColumnStart = VBA.CLng(segment("ColumnStart"))
+                    headerColumnEnd = VBA.CLng(segment("ColumnEnd"))
+                    bodyRowEnd = headerRowEnd
+                End If
+
+            Case "data", "diffadded", "diffdeleted", "diffmodified", "diffaddedmoved", "diffdeletedmoved", "diffchangedcell", "diffellipsis", "rowbanner"
+                If headerCount = 1 Then
+                    If VBA.CLng(segment("RowEnd")) > bodyRowEnd Then bodyRowEnd = VBA.CLng(segment("RowEnd"))
+                End If
+        End Select
+    Next segment
+
+    If headerCount <> 1 Then
+#If LOGGING_DEBUG_ENABLED Then
+        ex_Core.fn_Diagnostic_LogError "TableList: renderAsListObject requires exactly one header segment for control '" & m_ControlName & "'."
+#End If
+        Exit Function
+    End If
+
+    Set outRange = ws.Range( _
+        ws.Cells(m_RowStart + headerRowStart - 1, m_ColStart + headerColumnStart - 1), _
+        ws.Cells(m_RowStart + bodyRowEnd - 1, m_ColStart + headerColumnEnd - 1))
+
+    private_TryResolveListObjectRange = True
+End Function
+
+Private Function private_TryDeleteIntersectingTables(ByVal ws As Worksheet, ByVal boundsRange As Range) As Boolean
+    Dim idx As Long
+    Dim tableObj As ListObject
+
+    If ws Is Nothing Then Exit Function
+    If boundsRange Is Nothing Then Exit Function
+
+    On Error GoTo EH_DELETE
+    For idx = ws.ListObjects.Count To 1 Step -1
+        Set tableObj = ws.ListObjects(idx)
+        If Not tableObj Is Nothing Then
+            If Not Application.Intersect(tableObj.Range, boundsRange) Is Nothing Then
+                tableObj.Delete
+            End If
+        End If
+    Next idx
+
+    private_TryDeleteIntersectingTables = True
+    Exit Function
+
+EH_DELETE:
+#If LOGGING_DEBUG_ENABLED Then
+    ex_Core.fn_Diagnostic_LogError "TableList: failed to delete intersecting tables for control '" & m_ControlName & "': " & Err.Description
+#End If
+End Function
+
+Private Function private_BuildTableName(ByVal ws As Worksheet) As String
+    Dim baseName As String
+
+    baseName = VBA.Trim$(m_TableNameRaw)
+    If VBA.Len(baseName) = 0 Then baseName = "tablelist" & m_ControlName
+    baseName = private_SanitizeTableName(baseName)
+    If VBA.Len(baseName) = 0 Then baseName = "tableListResult"
+    private_BuildTableName = private_BuildUniqueTableName(ws, baseName)
+End Function
+
+Private Function private_BuildUniqueTableName(ByVal ws As Worksheet, ByVal baseName As String) As String
+    Dim candidate As String
+    Dim suffixIndex As Long
+
+    If ws Is Nothing Then Exit Function
+    baseName = VBA.Left$(VBA.Trim$(baseName), 240)
+    If VBA.Len(baseName) = 0 Then baseName = "tableListResult"
+
+    candidate = baseName
+    suffixIndex = 1
+    Do While private_TableNameExists(ws, candidate)
+        suffixIndex = suffixIndex + 1
+        candidate = VBA.Left$(baseName, 240 - VBA.Len(VBA.CStr(suffixIndex))) & VBA.CStr(suffixIndex)
+    Loop
+
+    private_BuildUniqueTableName = candidate
+End Function
+
+Private Function private_TableNameExists(ByVal ws As Worksheet, ByVal tableName As String) As Boolean
+    Dim tableObj As ListObject
+
+    If ws Is Nothing Then Exit Function
+    If VBA.Len(VBA.Trim$(tableName)) = 0 Then Exit Function
+
+    For Each tableObj In ws.ListObjects
+        If VBA.StrComp(tableObj.Name, tableName, VBA.vbTextCompare) = 0 Then
+            private_TableNameExists = True
+            Exit Function
+        End If
+    Next tableObj
+End Function
+
+Private Function private_SanitizeTableName(ByVal valueText As String) As String
+    Dim i As Long
+    Dim ch As String
+    Dim outName As String
+
+    valueText = VBA.Trim$(valueText)
+    For i = 1 To VBA.Len(valueText)
+        ch = VBA.Mid$(valueText, i, 1)
+        If (ch >= "A" And ch <= "Z") Or _
+           (ch >= "a" And ch <= "z") Or _
+           (ch >= "0" And ch <= "9") Or _
+           ch = "_" Then
+            outName = outName & ch
+        Else
+            outName = outName & "_"
+        End If
+    Next i
+
+    If VBA.Len(outName) = 0 Then Exit Function
+    If Not ((VBA.Left$(outName, 1) >= "A" And VBA.Left$(outName, 1) <= "Z") Or _
+            (VBA.Left$(outName, 1) >= "a" And VBA.Left$(outName, 1) <= "z") Or _
+            VBA.Left$(outName, 1) = "_") Then
+        outName = "tbl_" & outName
+    End If
+
+    If VBA.Len(outName) > 255 Then outName = VBA.Left$(outName, 255)
+    private_SanitizeTableName = outName
+End Function
+
+Private Function private_TryReadOptionalBooleanAttr( _
+    ByVal controlNode As Object, _
+    ByVal attrName As String, _
+    ByVal defaultValue As Boolean, _
+    ByRef outValue As Boolean _
+) As Boolean
+    Dim rawText As String
+
+    outValue = defaultValue
+    If controlNode Is Nothing Then Exit Function
+
+    rawText = VBA.Trim$(VBA.CStr(ex_XmlCore.fn_NodeAttrText(controlNode, attrName)))
+    If VBA.Len(rawText) = 0 Then
+        private_TryReadOptionalBooleanAttr = True
+        Exit Function
+    End If
+
+    Select Case VBA.LCase$(rawText)
+        Case "true", "1", "yes"
+            outValue = True
+        Case "false", "0", "no"
+            outValue = False
+        Case Else
+#If LOGGING_DEBUG_ENABLED Then
+            ex_Core.fn_Diagnostic_LogError "TableList: attribute '" & attrName & "' must be boolean for control '" & m_ControlName & "'."
+#End If
+            Exit Function
+    End Select
+
+    private_TryReadOptionalBooleanAttr = True
 End Function
 
 Private Sub private_ApplyRowStyle( _
