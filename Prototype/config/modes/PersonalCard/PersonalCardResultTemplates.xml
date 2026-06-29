@@ -81,17 +81,13 @@
 #_      {
           #let __isSameMonth = $ex_DateHelpers.m_IsSameMonth({OutDate}, {ReturnDate});
         }#^
-#_      ,  до {City
+#_      , у {City
             |regexreplace:"[Мм]\.[ \t]*","м. "
             |regexreplace:"[Сс]ел\.[ \t]*","сел. "
             |regexreplace:"[Сс]\.[ \t]*","с. "
             |regexreplace:"обл\.","області"
-        }, #^
-#_      терміном на {DaysCount|calendarDaysUa}, #^
-#_      {#if AdditionalWayDays == 1}без урахування 1 доби, необхідної для проїзду до місця проведення відпустки та у зворотному напрямку, {#endif}#^
-#_      {#if AdditionalWayDays > 1}без урахування {AdditionalWayDays} діб, необхідних для проїзду до місця проведення відпустки та у зворотньму напрямку, {#endif}#^
-#_      {#if __isSameMonth}з {OutDate|dateformat:"\dd"} по {ReturnDate|dateformat:"\dd \month"} 2026 року.{#newline}{#endif}#^
-#_      {#if #not __isSameMonth}з {OutDate|dateformat:"\dd \month"} по {ReturnDate|dateformat:"\dd \month"} 2026 року.{#newline}{#endif}#^
+        } #^
+#_      терміном на {DaysCount|calendarDaysUa}{#if AdditionalWayDays == 1}, без урахування 1 доби, необхідної для проїзду до місця проведення відпустки та у зворотному напрямку,{#endif}{#if AdditionalWayDays > 1}, без урахування {AdditionalWayDays} діб, необхідних для проїзду до місця проведення відпустки та у зворотному напрямку,{#endif}{#if __isSameMonth} з {OutDate|dateformat:"\dd"} по {ReturnDate|dateformat:"\dd \month"} 2026 року.{#newline}{#endif}{#if #not __isSameMonth} з {OutDate|dateformat:"\dd \month"} по {ReturnDate|dateformat:"\dd \month"} 2026 року.{#newline}{#endif}#^
         ]]>
       </text>
     </sharedTemplate>
