@@ -108,6 +108,7 @@ Public Function PushColumn(ByVal tableColumn As obj_Column) As Boolean
     Set newColumn = New obj_Column
     newColumn.Name = tableColumn.Name
     newColumn.Position = m_Columns.Count + 1
+    newColumn.FormatKind = tableColumn.FormatKind
 
     If VBA.Len(newColumn.Name) = 0 Then
         newColumn.Name = "Col" & VBA.CStr(newColumn.Position)
@@ -147,6 +148,7 @@ Public Function InsertColumnAt( _
 
     Set newColumn = New obj_Column
     newColumn.Name = VBA.Trim$(tableColumn.Name)
+    newColumn.FormatKind = tableColumn.FormatKind
     If VBA.Len(newColumn.Name) = 0 Then newColumn.Name = "Col" & VBA.CStr(oneBasedIndex)
     If Not private_CopyColumnAliases(tableColumn, newColumn) Then Exit Function
 

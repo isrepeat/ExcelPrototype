@@ -9,6 +9,7 @@ Private m_IsDisposed As Boolean
 
 Private m_Name As String
 Private m_Position As Long
+Private m_FormatKind As String
 Private m_AliasesByKey As Object
 
 Private Sub Class_Initialize()
@@ -66,6 +67,14 @@ Public Property Let Position(ByVal value As Long)
     Else
         m_Position = 0
     End If
+End Property
+
+Public Property Get FormatKind() As String
+    FormatKind = m_FormatKind
+End Property
+
+Public Property Let FormatKind(ByVal value As String)
+    m_FormatKind = VBA.LCase$(VBA.Trim$(VBA.CStr(value)))
 End Property
 
 Public Property Get Aliases() As Collection
