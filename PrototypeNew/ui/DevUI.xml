@@ -92,6 +92,16 @@
           />
         <control
           type="Button"
+          name="OpenComparing"
+          caption="Open Comparing"
+          style="actionWarning"
+          dataContext="{PageRuntimeSource='RuntimeObjects.PageMain.Controller'}"
+          onClick="{Binding Method=OnOpenComparingPageCommand}"
+          spanColls="5"
+          spanRows="2"
+          />
+        <control
+          type="Button"
           name="UpdateSheet"
           caption="Update Sheet"
           style="actionWarning"
