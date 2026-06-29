@@ -21,8 +21,7 @@
     <item key="HospitalsCommanders.Sheet[Dictionary].ColumnHeadersAliases" value="HospitalName; HospitalShort; FoodColumn; CommanderTVO"/>
     <item key="HospitalsCommanders.Sheet[Dictionary].Map[HospitalName]" value="Назва лікарні"/>
     <item key="HospitalsCommanders.Sheet[Dictionary].Map[HospitalShort]" value="Скорочення"/>
-    <item key="HospitalsCommanders.Sheet[Dictionary].Map[FoodColumn]" value="Стовпець1"/>
-    <item key="HospitalsCommanders.Sheet[Dictionary].Map[CommanderTVO]" value="ТВО|TVO"/>
+    <item key="HospitalsCommanders.Sheet[Dictionary].Map[FoodColumn]" value="Атестат"/>
     <item key="HospitalsCommanders.Sheet[Commanders].SheetName" value="Лікарні, Командири$D1:E2000"/>
     <item key="HospitalsCommanders.Sheet[Commanders].ColumnHeadersAliases" value="CommanderTVO; CommanderReport"/>
     <item key="HospitalsCommanders.Sheet[Commanders].Map[CommanderTVO]" value="ТВО|TVO"/>
