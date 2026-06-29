@@ -6,6 +6,7 @@ Attribute VB_Name = "obj_PageComparingCtrl"
 Option Explicit
 #Const LOGGING_DEBUG_ENABLED = True
 #Const LOGGING_VERBOSE_ENABLED = False
+#Const LOGGING_PERFORMACE = True
 
 Private Const CONTROLLER_RUNTIME_OBJECT_KEY As String = "RuntimeObjects.PageComparing.Controller"
 Private Const RUNTIME_ERROR_TITLE As String = "PrototypeNew / Comparing runtime"
@@ -14,6 +15,9 @@ Private Const DIFF_CONTEXT_ROWS As Long = 1
 Private Const OLD_ROW_COLUMN_ALIAS As String = "OldRow"
 Private Const NEW_ROW_COLUMN_ALIAS As String = "NewRow"
 
+' Контроллер сценария страницы Comparing. Отвечает за разбор конфигурации,
+' чтение внешних таблиц, вычисление diff, состояние condensed/full и публикацию
+' итогового источника TableList, который потребляет ComparingUI.xml.
 Private m_Page As obj_IPage
 Private m_ConfigTable As obj_ConfigTable
 Private m_CfgParser As obj_ComparingCfgParser
@@ -58,6 +62,11 @@ Public Property Get IsCondensedDiffView() As Boolean
     IsCondensedDiffView = m_IsCondensedDiffView
 End Property
 
+' Инициализация контроллера: подключает контроллер страницы Comparing к runtime-
+' источникам и публикует пустой источник DiffTables, чтобы UI мог отрисоваться
+' до первого запуска сравнения.
+'
+' Callstack[1]: obj_PageComparing.obj_IPage_Initialize -> obj_PageComparingCtrl.Initialize
 Public Function Initialize(ByVal page As obj_IPage) As Boolean
 #If LOGGING_DEBUG_ENABLED Then
     ex_Core.fn_Diagnostic_LogInfo "enter:obj_PageComparingCtrl.Initialize"
@@ -93,6 +102,11 @@ Public Function Initialize(ByVal page As obj_IPage) As Boolean
     Initialize = True
 End Function
 
+' Освобождает кэши parser/config/diff, которыми владеет контроллер. Жизненным
+' циклом worksheet управляет объект страницы; контроллер очищает только runtime-состояние.
+'
+' Callstack[1]: obj_PageComparing.private_Dispose -> obj_PageComparingCtrl.Dispose
+' Callstack[2]: obj_PageComparingCtrl.Class_Terminate -> obj_PageComparingCtrl.Dispose
 Public Sub Dispose()
 #If LOGGING_DEBUG_ENABLED Then
     ex_Core.fn_Diagnostic_LogInfo "enter:obj_PageComparingCtrl.Dispose"
@@ -112,6 +126,11 @@ Public Sub Dispose()
     On Error GoTo 0
 End Sub
 
+' Пересобирает конфигурацию Comparing из родительского DevConfig-контрола и
+' валидирует скелет до любых дорогих SQL-чтений. Это data-этап конвейера страницы.
+'
+' Callstack[1]: obj_PageComparing.obj_IPage_RunPagePipeline -> obj_PageComparingCtrl.UpdateData
+' Callstack[2]: obj_PageComparing.obj_ISerializable_TryRestoreState -> obj_PageComparingCtrl.UpdateData
 Public Function UpdateData(ByVal configControl As obj_ConfigControlVM) As Boolean
     Dim configTable As obj_ConfigTable
     Dim cfgParser As obj_ComparingCfgParser
@@ -144,6 +163,12 @@ Public Function UpdateData(ByVal configControl As obj_ConfigControlVM) As Boolea
     UpdateData = True
 End Function
 
+' Полный pipeline сравнения: читает левую/правую исходные таблицы, строит
+' diff-события, материализует видимый источник TableList и при необходимости
+' выполняет повторный рендер страницы. Это основная команда кнопки "Run compare".
+'
+' Callstack[1]: ComparingUI.RunComparingPipeline -> obj_PageComparing.OnRunPipelineAndRenderCommand -> obj_PageComparingCtrl.RunPipeline
+' Callstack[2]: obj_PageComparingCtrl.ToggleDiffView -> obj_PageComparingCtrl.RunPipeline
 Public Function RunPipeline(Optional ByVal notifyChange As Boolean = True) As Boolean
 #If LOGGING_DEBUG_ENABLED Then
     ex_Core.fn_Diagnostic_LogInfo "enter:obj_PageComparingCtrl.RunPipeline"
@@ -154,8 +179,9 @@ Public Function RunPipeline(Optional ByVal notifyChange As Boolean = True) As Bo
     ' CompareColumns из профиля: видимые бизнес-колонки результата и набор
     ' полей, по которым строка считается modified.
     Dim compareColumns As Collection
-    ' Метаданные к CompareColumns, например OutDate{fmt:Date}. Сравнение и SQL
-    ' их не используют; map нужен только чтобы пометить UI-колонки как datelike.
+    ' Метаданные к CompareColumns, например OutDate{fmt:Date}. Map нужен,
+    ' чтобы date-like колонки сравнивались и отображались одинаково, даже если
+    ' ADO отдает одну сторону как Date-текст, а другую как Excel serial.
     Dim compareColumnFormats As Object
     ' Фактически читаемые из источника колонки: compareColumns плюс keyColumns,
     ' которых нет в видимом результате, но которые нужны для сопоставления строк.
@@ -185,42 +211,77 @@ Public Function RunPipeline(Optional ByVal notifyChange As Boolean = True) As Bo
         Exit Function
     End If
 
+#If LOGGING_PERFORMACE Then
     totalStart = VBA.Timer
+#End If
 #If LOGGING_DEBUG_ENABLED Then
     ex_Core.fn_Diagnostic_LogInfo "comparing:pipeline start notifyChange=" & VBA.CStr(notifyChange)
 #End If
 
+#If LOGGING_PERFORMACE Then
     stageStart = VBA.Timer
-    If Not m_CfgParser.TryGetCompareSettings(leftTableRef, rightTableRef, keyColumns, compareColumns, compareColumnFormats, ignoreCase, trimText) Then Exit Function
+#End If
+    If Not m_CfgParser.TryGetCompareSettings( _
+        leftTableRef, _
+        rightTableRef, _
+        keyColumns, _
+        compareColumns, _
+        compareColumnFormats, _
+        ignoreCase, _
+        trimText) Then Exit Function
+#If LOGGING_PERFORMACE Then
     private_LogPipelineStep "settings", stageStart, _
         "left='" & leftTableRef & _
         "' right='" & rightTableRef & "'"
 
     stageStart = VBA.Timer
+#End If
     If Not private_TryBuildOutputColumns(compareColumns, outputColumns) Then Exit Function
     If Not private_TryBuildLoadColumns(compareColumns, keyColumns, loadColumns) Then Exit Function
-    If Not m_CfgParser.TryBuildTableSqlParams(leftTableRef, loadColumns, leftSqlParams) Then Exit Function
-    If Not m_CfgParser.TryBuildTableSqlParams(rightTableRef, loadColumns, rightSqlParams) Then Exit Function
+    If Not m_CfgParser.TryBuildTableSqlParams( _
+        leftTableRef, _
+        loadColumns, _
+        leftSqlParams) Then Exit Function
+    If Not m_CfgParser.TryBuildTableSqlParams( _
+        rightTableRef, _
+        loadColumns, _
+        rightSqlParams) Then Exit Function
+#If LOGGING_PERFORMACE Then
     private_LogPipelineStep "build-sql-params", stageStart, _
         "outputColumns=" & VBA.CStr(outputColumns.Count) & _
         " loadColumns=" & VBA.CStr(loadColumns.Count)
 
     stageStart = VBA.Timer
+#End If
     ' Для Comparing читаем внешние Excel-таблицы сразу в легкий obj_TableData.
     ' Он хранит только 2D Variant-массив, без тысяч obj_Row/obj_Cell, поэтому
     ' сравнение больших таблиц не платит за создание и последующее разрушение
     ' тяжелой объектной модели.
-    If Not ex_ExternalExcelSqlEngine.fn_TrySqlRequestData(leftSqlParams, leftData) Then Exit Function
-    private_LogPipelineStep "read-left", stageStart, "rows=" & VBA.CStr(leftData.RowCount) & " columns=" & VBA.CStr(leftData.ColumnCount)
+    If Not ex_ExternalExcelSqlEngine.fn_TrySqlRequestData( _
+        leftSqlParams, _
+        leftData) Then Exit Function
+#If LOGGING_PERFORMACE Then
+    private_LogPipelineStep "read-left", stageStart, _
+        "rows=" & VBA.CStr(leftData.RowCount) & _
+        " columns=" & VBA.CStr(leftData.ColumnCount)
 
     stageStart = VBA.Timer
-    If Not ex_ExternalExcelSqlEngine.fn_TrySqlRequestData(rightSqlParams, rightData) Then Exit Function
-    private_LogPipelineStep "read-right", stageStart, "rows=" & VBA.CStr(rightData.RowCount) & " columns=" & VBA.CStr(rightData.ColumnCount)
+#End If
+    If Not ex_ExternalExcelSqlEngine.fn_TrySqlRequestData( _
+        rightSqlParams, _
+        rightData) Then Exit Function
+#If LOGGING_PERFORMACE Then
+    private_LogPipelineStep "read-right", stageStart, _
+        "rows=" & VBA.CStr(rightData.RowCount) & _
+        " columns=" & VBA.CStr(rightData.ColumnCount)
+#End If
 
     Set m_LastOutputColumns = outputColumns
     Set m_LastOutputColumnFormats = compareColumnFormats
 
+#If LOGGING_PERFORMACE Then
     stageStart = VBA.Timer
+#End If
     If Not private_TryBuildDiffRowsFromData( _
         leftData, _
         rightData, _
@@ -228,31 +289,48 @@ Public Function RunPipeline(Optional ByVal notifyChange As Boolean = True) As Bo
         outputColumns, _
         keyColumns, _
         compareColumns, _
+        compareColumnFormats, _
         ignoreCase, _
         trimText, _
         diffRows, _
         statusText) Then Exit Function
+#If LOGGING_PERFORMACE Then
     private_LogPipelineStep "build-diff", stageStart, "rows=" & VBA.CStr(diffRows.Count)
+#End If
     m_StatusText = statusText
     Set m_LastDiffRows = diffRows
 
+#If LOGGING_PERFORMACE Then
     stageStart = VBA.Timer
+#End If
     If Not private_TryRefreshDiffTableItemsSource(visibleRowCount) Then Exit Function
+#If LOGGING_PERFORMACE Then
     private_LogPipelineStep "set-result-source", stageStart, _
         "visibleRows=" & VBA.CStr(visibleRowCount) & _
         " mode='" & private_GetDiffViewModeName() & "'"
+#End If
 
     If notifyChange Then
+#If LOGGING_PERFORMACE Then
         stageStart = VBA.Timer
+#End If
         If Not rt_PageManager.fn_RenderPage(m_Page, "comparing:run-pipeline") Then Exit Function
+#If LOGGING_PERFORMACE Then
         private_LogPipelineStep "page-rerender", stageStart
+#End If
     End If
 
     rt_Messaging.fn_ShowStatusBarNotice m_StatusText, 4
+#If LOGGING_PERFORMACE Then
     private_LogPipelineStep "total", totalStart, m_StatusText
+#End If
     RunPipeline = True
 End Function
 
+' Обертка UI-маршрута для кнопки View [Condensed]/Full. Runtime-вызовы кнопки
+' проходят через этот метод, чтобы команда сохраняла стандартный optional-аргумент.
+'
+' Callstack[1]: Shape.OnAction -> rt_Bridge.fn_OnShapeClick -> obj_PageBase.DispatchShapeClick -> obj_ButtonControlVM.RuntimeHandleClick -> obj_PageComparingCtrl.RuntimeToggleDiffView
 Public Function RuntimeToggleDiffView(Optional ByVal arg As Variant) As Boolean
 #If LOGGING_DEBUG_ENABLED Then
     ex_Core.fn_Diagnostic_LogInfo "enter:obj_PageComparingCtrl.RuntimeToggleDiffView"
@@ -260,6 +338,10 @@ Public Function RuntimeToggleDiffView(Optional ByVal arg As Variant) As Boolean
     RuntimeToggleDiffView = ToggleDiffView(True)
 End Function
 
+' Переключает режим diff condensed/full и повторно запускает pipeline сравнения,
+' чтобы видимый набор строк и status text оставались консистентными с выбранным режимом.
+'
+' Callstack[1]: obj_PageComparingCtrl.RuntimeToggleDiffView -> obj_PageComparingCtrl.ToggleDiffView
 Public Function ToggleDiffView(Optional ByVal notifyChange As Boolean = True) As Boolean
     If m_Page Is Nothing Then Exit Function
     m_IsCondensedDiffView = Not m_IsCondensedDiffView
@@ -334,6 +416,10 @@ ContinueKey:
     private_TryBuildLoadColumns = (outColumns.Count > 0)
 End Function
 
+' Собирает семантическую модель diff из облегченных SQL-данных:
+' key indexes -> LCS matches -> added/deleted/moved/modified events -> row DTOs.
+'
+' Callstack[1]: obj_PageComparingCtrl.RunPipeline -> private_TryBuildDiffRowsFromData
 Private Function private_TryBuildDiffRowsFromData( _
     ByVal leftData As obj_TableData, _
     ByVal rightData As obj_TableData, _
@@ -341,6 +427,7 @@ Private Function private_TryBuildDiffRowsFromData( _
     ByVal outputColumns As Collection, _
     ByVal keyColumns As Collection, _
     ByVal compareColumns As Collection, _
+    ByVal columnFormats As Object, _
     ByVal ignoreCase As Boolean, _
     ByVal trimText As Boolean, _
     ByRef outDiffRows As Collection, _
@@ -379,8 +466,14 @@ Private Function private_TryBuildDiffRowsFromData( _
     If leftData Is Nothing Then Exit Function
     If rightData Is Nothing Then Exit Function
 
-    If Not private_TryBuildColumnIndexList(loadColumns, keyColumns, keyColumnIndexes) Then Exit Function
-    If Not private_TryBuildCompareColumnIndexSet(outputColumns, compareColumns, compareColumnIndexes) Then Exit Function
+    If Not private_TryBuildColumnIndexList( _
+        loadColumns, _
+        keyColumns, _
+        keyColumnIndexes) Then Exit Function
+    If Not private_TryBuildCompareColumnIndexSet( _
+        outputColumns, _
+        compareColumns, _
+        compareColumnIndexes) Then Exit Function
 
     ' Pipeline сравнения:
     ' 1) строим ключи строк по keyColumns для Old/New;
@@ -397,19 +490,45 @@ Private Function private_TryBuildDiffRowsFromData( _
     ReDim eventLeftRows(1 To maxEvents)
     ReDim eventRightRows(1 To maxEvents)
 
+#If LOGGING_PERFORMACE Then
     stageStart = VBA.Timer
-    If Not private_TryBuildKeyIndexFromData(leftData, keyColumnIndexes, ignoreCase, trimText, leftKeys, leftKeyIndex, "left") Then Exit Function
+#End If
+    If Not private_TryBuildKeyIndexFromData( _
+        leftData, _
+        loadColumns, _
+        keyColumnIndexes, _
+        columnFormats, _
+        ignoreCase, _
+        trimText, _
+        leftKeys, _
+        leftKeyIndex, _
+        "left") Then Exit Function
+#If LOGGING_PERFORMACE Then
     private_LogPipelineStep "build-diff:left-key-index", stageStart, "rows=" & VBA.CStr(leftData.RowCount)
 
     stageStart = VBA.Timer
-    If Not private_TryBuildKeyIndexFromData(rightData, keyColumnIndexes, ignoreCase, trimText, rightKeys, rightKeyIndex, "right") Then Exit Function
+#End If
+    If Not private_TryBuildKeyIndexFromData( _
+        rightData, _
+        loadColumns, _
+        keyColumnIndexes, _
+        columnFormats, _
+        ignoreCase, _
+        trimText, _
+        rightKeys, _
+        rightKeyIndex, _
+        "right") Then Exit Function
+#If LOGGING_PERFORMACE Then
     private_LogPipelineStep "build-diff:right-key-index", stageStart, "rows=" & VBA.CStr(rightData.RowCount)
 
     stageStart = VBA.Timer
+#End If
     If Not private_TryBuildLcsKeys(leftKeys, rightKeys, lcsKeys) Then Exit Function
+#If LOGGING_PERFORMACE Then
     private_LogPipelineStep "build-diff:lcs-keys", stageStart, "matches=" & VBA.CStr(lcsKeys.Count)
 
     stageStart = VBA.Timer
+#End If
     eventStageStart = stageStart
     oldPos = 1
     newPos = 1
@@ -420,11 +539,25 @@ Private Function private_TryBuildDiffRowsFromData( _
         Do While oldPos < oldMatch
             oldKey = leftKeys(oldPos)
             If rightKeyIndex.Exists(oldKey) Then
-                private_AddDiffEvent eventTypes, eventLeftRows, eventRightRows, eventCount, "deleted-moved", oldPos, 0
+                private_AddDiffEvent _
+                    eventTypes, _
+                    eventLeftRows, _
+                    eventRightRows, _
+                    eventCount, _
+                    "deleted-moved", _
+                    oldPos, _
+                    0
                 deletedCount = deletedCount + 1
                 movedCount = movedCount + 1
             Else
-                private_AddDiffEvent eventTypes, eventLeftRows, eventRightRows, eventCount, "deleted", oldPos, 0
+                private_AddDiffEvent _
+                    eventTypes, _
+                    eventLeftRows, _
+                    eventRightRows, _
+                    eventCount, _
+                    "deleted", _
+                    oldPos, _
+                    0
                 deletedCount = deletedCount + 1
             End If
             oldPos = oldPos + 1
@@ -433,23 +566,53 @@ Private Function private_TryBuildDiffRowsFromData( _
         Do While newPos < newMatch
             newKey = rightKeys(newPos)
             If leftKeyIndex.Exists(newKey) Then
-                private_AddDiffEvent eventTypes, eventLeftRows, eventRightRows, eventCount, "added-moved", 0, newPos
+                private_AddDiffEvent _
+                    eventTypes, _
+                    eventLeftRows, _
+                    eventRightRows, _
+                    eventCount, _
+                    "added-moved", _
+                    0, _
+                    newPos
                 addedCount = addedCount + 1
             Else
-                private_AddDiffEvent eventTypes, eventLeftRows, eventRightRows, eventCount, "added", 0, newPos
+                private_AddDiffEvent _
+                    eventTypes, _
+                    eventLeftRows, _
+                    eventRightRows, _
+                    eventCount, _
+                    "added", _
+                    0, _
+                    newPos
                 addedCount = addedCount + 1
             End If
             newPos = newPos + 1
         Loop
 
-        If private_RowHasCompareChangesInData(leftData, oldMatch, rightData, newMatch, outputColumns, compareColumnIndexes, ignoreCase, trimText) Then
+        If private_RowHasCompareChangesInData( _
+            leftData, _
+            oldMatch, _
+            rightData, _
+            newMatch, _
+            outputColumns, _
+            compareColumnIndexes, _
+            columnFormats, _
+            ignoreCase, _
+            trimText) Then
             rowType = "modified"
             modifiedCount = modifiedCount + 1
         Else
             rowType = "unchanged"
             unchangedCount = unchangedCount + 1
         End If
-        private_AddDiffEvent eventTypes, eventLeftRows, eventRightRows, eventCount, rowType, oldMatch, newMatch
+        private_AddDiffEvent _
+            eventTypes, _
+            eventLeftRows, _
+            eventRightRows, _
+            eventCount, _
+            rowType, _
+            oldMatch, _
+            newMatch
 
         oldPos = oldMatch + 1
         newPos = newMatch + 1
@@ -458,11 +621,25 @@ Private Function private_TryBuildDiffRowsFromData( _
     Do While oldPos <= leftData.RowCount
         oldKey = leftKeys(oldPos)
         If rightKeyIndex.Exists(oldKey) Then
-            private_AddDiffEvent eventTypes, eventLeftRows, eventRightRows, eventCount, "deleted-moved", oldPos, 0
+            private_AddDiffEvent _
+                eventTypes, _
+                eventLeftRows, _
+                eventRightRows, _
+                eventCount, _
+                "deleted-moved", _
+                oldPos, _
+                0
             deletedCount = deletedCount + 1
             movedCount = movedCount + 1
         Else
-            private_AddDiffEvent eventTypes, eventLeftRows, eventRightRows, eventCount, "deleted", oldPos, 0
+            private_AddDiffEvent _
+                eventTypes, _
+                eventLeftRows, _
+                eventRightRows, _
+                eventCount, _
+                "deleted", _
+                oldPos, _
+                0
             deletedCount = deletedCount + 1
         End If
         oldPos = oldPos + 1
@@ -471,14 +648,29 @@ Private Function private_TryBuildDiffRowsFromData( _
     Do While newPos <= rightData.RowCount
         newKey = rightKeys(newPos)
         If leftKeyIndex.Exists(newKey) Then
-            private_AddDiffEvent eventTypes, eventLeftRows, eventRightRows, eventCount, "added-moved", 0, newPos
+            private_AddDiffEvent _
+                eventTypes, _
+                eventLeftRows, _
+                eventRightRows, _
+                eventCount, _
+                "added-moved", _
+                0, _
+                newPos
             addedCount = addedCount + 1
         Else
-            private_AddDiffEvent eventTypes, eventLeftRows, eventRightRows, eventCount, "added", 0, newPos
+            private_AddDiffEvent _
+                eventTypes, _
+                eventLeftRows, _
+                eventRightRows, _
+                eventCount, _
+                "added", _
+                0, _
+                newPos
             addedCount = addedCount + 1
         End If
         newPos = newPos + 1
     Loop
+#If LOGGING_PERFORMACE Then
     private_LogPipelineStep "build-diff:events", eventStageStart, _
         "events=" & VBA.CStr(eventCount) & _
         " added=" & VBA.CStr(addedCount) & _
@@ -488,11 +680,13 @@ Private Function private_TryBuildDiffRowsFromData( _
         " unchanged=" & VBA.CStr(unchangedCount)
 
     stageStart = VBA.Timer
+#End If
     If Not private_TryMaterializeDiffEventsFromData( _
         leftData, _
         rightData, _
         outputColumns, _
         compareColumns, _
+        columnFormats, _
         ignoreCase, _
         trimText, _
         eventTypes, _
@@ -507,10 +701,12 @@ Private Function private_TryBuildDiffRowsFromData( _
         ", modified=" & VBA.CStr(modifiedCount) & _
         ", moved=" & VBA.CStr(movedCount) & _
         ", unchanged=" & VBA.CStr(unchangedCount) & "."
+#If LOGGING_PERFORMACE Then
     private_LogPipelineStep "build-diff:materialize-rows", stageStart, _
         "events=" & VBA.CStr(eventCount) & _
         " rows=" & VBA.CStr(outDiffRows.Count) & _
         " mode='" & private_GetDiffViewModeName() & "'"
+#End If
     private_TryBuildDiffRowsFromData = True
 End Function
 
@@ -563,20 +759,47 @@ Private Function private_TryBuildDiffRows( _
     ReDim eventLeftRows(1 To maxEvents)
     ReDim eventRightRows(1 To maxEvents)
 
+#If LOGGING_PERFORMACE Then
     stageStart = VBA.Timer
-    If Not private_TryBuildKeyIndex(leftTable, keyColumns, ignoreCase, trimText, leftKeys, leftKeyIndex, "left") Then Exit Function
+#End If
+    If Not private_TryBuildKeyIndex( _
+        leftTable, _
+        keyColumns, _
+        ignoreCase, _
+        trimText, _
+        leftKeys, _
+        leftKeyIndex, _
+        "left") Then Exit Function
+#If LOGGING_PERFORMACE Then
     private_LogPipelineStep "build-diff:left-key-index", stageStart, "rows=" & VBA.CStr(leftTable.RowCount)
 
     stageStart = VBA.Timer
-    If Not private_TryBuildKeyIndex(rightTable, keyColumns, ignoreCase, trimText, rightKeys, rightKeyIndex, "right") Then Exit Function
+#End If
+    If Not private_TryBuildKeyIndex( _
+        rightTable, _
+        keyColumns, _
+        ignoreCase, _
+        trimText, _
+        rightKeys, _
+        rightKeyIndex, _
+        "right") Then Exit Function
+#If LOGGING_PERFORMACE Then
     private_LogPipelineStep "build-diff:right-key-index", stageStart, "rows=" & VBA.CStr(rightTable.RowCount)
 
     stageStart = VBA.Timer
+#End If
     If Not private_TryBuildLcsKeys(leftKeys, rightKeys, lcsKeys) Then Exit Function
+#If LOGGING_PERFORMACE Then
     private_LogPipelineStep "build-diff:lcs-keys", stageStart, "matches=" & VBA.CStr(lcsKeys.Count)
-    If Not private_TryBuildCompareColumnIndexSet(outputColumns, compareColumns, compareColumnIndexes) Then Exit Function
+#End If
+    If Not private_TryBuildCompareColumnIndexSet( _
+        outputColumns, _
+        compareColumns, _
+        compareColumnIndexes) Then Exit Function
 
+#If LOGGING_PERFORMACE Then
     stageStart = VBA.Timer
+#End If
     eventStageStart = stageStart
     oldPos = 1
     newPos = 1
@@ -585,41 +808,83 @@ Private Function private_TryBuildDiffRows( _
         newMatch = CLng(rightKeyIndex(VBA.CStr(matchKey)))
 
         Do While oldPos < oldMatch
-            private_AddDiffEvent eventTypes, eventLeftRows, eventRightRows, eventCount, "deleted", oldPos, 0
+            private_AddDiffEvent _
+                eventTypes, _
+                eventLeftRows, _
+                eventRightRows, _
+                eventCount, _
+                "deleted", _
+                oldPos, _
+                0
             deletedCount = deletedCount + 1
             oldPos = oldPos + 1
         Loop
 
         Do While newPos < newMatch
-            private_AddDiffEvent eventTypes, eventLeftRows, eventRightRows, eventCount, "added", 0, newPos
+            private_AddDiffEvent _
+                eventTypes, _
+                eventLeftRows, _
+                eventRightRows, _
+                eventCount, _
+                "added", _
+                0, _
+                newPos
             addedCount = addedCount + 1
             newPos = newPos + 1
         Loop
 
-        If private_RowHasCompareChangesIndexed(leftTable.Rows.Item(oldMatch), rightTable.Rows.Item(newMatch), outputColumns, compareColumnIndexes, ignoreCase, trimText) Then
+        If private_RowHasCompareChangesIndexed( _
+            leftTable.Rows.Item(oldMatch), _
+            rightTable.Rows.Item(newMatch), _
+            outputColumns, _
+            compareColumnIndexes, _
+            ignoreCase, _
+            trimText) Then
             rowType = "modified"
             modifiedCount = modifiedCount + 1
         Else
             rowType = "unchanged"
             unchangedCount = unchangedCount + 1
         End If
-        private_AddDiffEvent eventTypes, eventLeftRows, eventRightRows, eventCount, rowType, oldMatch, newMatch
+        private_AddDiffEvent _
+            eventTypes, _
+            eventLeftRows, _
+            eventRightRows, _
+            eventCount, _
+            rowType, _
+            oldMatch, _
+            newMatch
 
         oldPos = oldMatch + 1
         newPos = newMatch + 1
     Next matchKey
 
     Do While oldPos <= leftTable.RowCount
-        private_AddDiffEvent eventTypes, eventLeftRows, eventRightRows, eventCount, "deleted", oldPos, 0
+        private_AddDiffEvent _
+            eventTypes, _
+            eventLeftRows, _
+            eventRightRows, _
+            eventCount, _
+            "deleted", _
+            oldPos, _
+            0
         deletedCount = deletedCount + 1
         oldPos = oldPos + 1
     Loop
 
     Do While newPos <= rightTable.RowCount
-        private_AddDiffEvent eventTypes, eventLeftRows, eventRightRows, eventCount, "added", 0, newPos
+        private_AddDiffEvent _
+            eventTypes, _
+            eventLeftRows, _
+            eventRightRows, _
+            eventCount, _
+            "added", _
+            0, _
+            newPos
         addedCount = addedCount + 1
         newPos = newPos + 1
     Loop
+#If LOGGING_PERFORMACE Then
     private_LogPipelineStep "build-diff:events", eventStageStart, _
         "events=" & VBA.CStr(eventCount) & _
         " added=" & VBA.CStr(addedCount) & _
@@ -628,6 +893,7 @@ Private Function private_TryBuildDiffRows( _
         " unchanged=" & VBA.CStr(unchangedCount)
 
     stageStart = VBA.Timer
+#End If
     If Not private_TryMaterializeDiffEvents( _
         leftTable, _
         rightTable, _
@@ -646,10 +912,12 @@ Private Function private_TryBuildDiffRows( _
         ", deleted=" & VBA.CStr(deletedCount) & _
         ", modified=" & VBA.CStr(modifiedCount) & _
         ", unchanged=" & VBA.CStr(unchangedCount) & "."
+#If LOGGING_PERFORMACE Then
     private_LogPipelineStep "build-diff:materialize-rows", stageStart, _
         "events=" & VBA.CStr(eventCount) & _
         " rows=" & VBA.CStr(outDiffRows.Count) & _
         " mode='" & private_GetDiffViewModeName() & "'"
+#End If
     private_TryBuildDiffRows = True
 End Function
 
@@ -701,19 +969,40 @@ Private Function private_TryMaterializeDiffEvents( _
     For eventIndex = 1 To eventCount
         If Not condensedView Then
             If Not private_AddDiffRowFromEvent( _
-                leftTable, rightTable, outDiffRows, eventTypes(eventIndex), _
-                eventLeftRows(eventIndex), eventRightRows(eventIndex), _
-                outputColumns, compareColumns, ignoreCase, trimText) Then Exit Function
+                leftTable, _
+                rightTable, _
+                outDiffRows, _
+                eventTypes(eventIndex), _
+                eventLeftRows(eventIndex), _
+                eventRightRows(eventIndex), _
+                outputColumns, _
+                compareColumns, _
+                ignoreCase, _
+                trimText) Then Exit Function
         ElseIf Not hasVisibleEvents Then
             If Not private_AddDiffRowFromEvent( _
-                leftTable, rightTable, outDiffRows, eventTypes(eventIndex), _
-                eventLeftRows(eventIndex), eventRightRows(eventIndex), _
-                outputColumns, compareColumns, ignoreCase, trimText) Then Exit Function
+                leftTable, _
+                rightTable, _
+                outDiffRows, _
+                eventTypes(eventIndex), _
+                eventLeftRows(eventIndex), _
+                eventRightRows(eventIndex), _
+                outputColumns, _
+                compareColumns, _
+                ignoreCase, _
+                trimText) Then Exit Function
         ElseIf keepEvents(eventIndex) Then
             If Not private_AddDiffRowFromEvent( _
-                leftTable, rightTable, outDiffRows, eventTypes(eventIndex), _
-                eventLeftRows(eventIndex), eventRightRows(eventIndex), _
-                outputColumns, compareColumns, ignoreCase, trimText) Then Exit Function
+                leftTable, _
+                rightTable, _
+                outDiffRows, _
+                eventTypes(eventIndex), _
+                eventLeftRows(eventIndex), _
+                eventRightRows(eventIndex), _
+                outputColumns, _
+                compareColumns, _
+                ignoreCase, _
+                trimText) Then Exit Function
             inCollapsedRun = False
         ElseIf Not inCollapsedRun Then
             outDiffRows.Add private_CreateEllipsisDiffRow(outputColumns.Count)
@@ -786,11 +1075,16 @@ Private Function private_AddDiffRowFromEvent( _
         (VBA.StrComp(rowType, "modified", VBA.vbTextCompare) = 0))
 End Function
 
+' Преобразует diff-события в словари rowInfo для источника UI items. В режиме
+' condensed скрывает длинные участки unchanged и вставляет строки-ellipsis.
+'
+' Callstack[1]: private_TryBuildDiffRowsFromData -> private_TryMaterializeDiffEventsFromData
 Private Function private_TryMaterializeDiffEventsFromData( _
     ByVal leftData As obj_TableData, _
     ByVal rightData As obj_TableData, _
     ByVal outputColumns As Collection, _
     ByVal compareColumns As Collection, _
+    ByVal columnFormats As Object, _
     ByVal ignoreCase As Boolean, _
     ByVal trimText As Boolean, _
     ByRef eventTypes() As String, _
@@ -822,19 +1116,43 @@ Private Function private_TryMaterializeDiffEventsFromData( _
     For eventIndex = 1 To eventCount
         If Not condensedView Then
             If Not private_AddDiffRowFromDataEvent( _
-                leftData, rightData, outDiffRows, eventTypes(eventIndex), _
-                eventLeftRows(eventIndex), eventRightRows(eventIndex), _
-                outputColumns, compareColumns, ignoreCase, trimText) Then Exit Function
+                leftData, _
+                rightData, _
+                outDiffRows, _
+                eventTypes(eventIndex), _
+                eventLeftRows(eventIndex), _
+                eventRightRows(eventIndex), _
+                outputColumns, _
+                compareColumns, _
+                columnFormats, _
+                ignoreCase, _
+                trimText) Then Exit Function
         ElseIf Not hasVisibleEvents Then
             If Not private_AddDiffRowFromDataEvent( _
-                leftData, rightData, outDiffRows, eventTypes(eventIndex), _
-                eventLeftRows(eventIndex), eventRightRows(eventIndex), _
-                outputColumns, compareColumns, ignoreCase, trimText) Then Exit Function
+                leftData, _
+                rightData, _
+                outDiffRows, _
+                eventTypes(eventIndex), _
+                eventLeftRows(eventIndex), _
+                eventRightRows(eventIndex), _
+                outputColumns, _
+                compareColumns, _
+                columnFormats, _
+                ignoreCase, _
+                trimText) Then Exit Function
         ElseIf keepEvents(eventIndex) Then
             If Not private_AddDiffRowFromDataEvent( _
-                leftData, rightData, outDiffRows, eventTypes(eventIndex), _
-                eventLeftRows(eventIndex), eventRightRows(eventIndex), _
-                outputColumns, compareColumns, ignoreCase, trimText) Then Exit Function
+                leftData, _
+                rightData, _
+                outDiffRows, _
+                eventTypes(eventIndex), _
+                eventLeftRows(eventIndex), _
+                eventRightRows(eventIndex), _
+                outputColumns, _
+                compareColumns, _
+                columnFormats, _
+                ignoreCase, _
+                trimText) Then Exit Function
             inCollapsedRun = False
         ElseIf Not inCollapsedRun Then
             outDiffRows.Add private_CreateEllipsisDiffRow(outputColumns.Count)
@@ -845,6 +1163,10 @@ Private Function private_TryMaterializeDiffEventsFromData( _
     private_TryMaterializeDiffEventsFromData = True
 End Function
 
+' Создает один rowInfo DTO из облегченного diff-события. Здесь нормализуются
+' display-значения для date-like колонок и выставляются маркеры changed-cell.
+'
+' Callstack[1]: private_TryMaterializeDiffEventsFromData -> private_AddDiffRowFromDataEvent
 Private Function private_AddDiffRowFromDataEvent( _
     ByVal leftData As obj_TableData, _
     ByVal rightData As obj_TableData, _
@@ -854,6 +1176,7 @@ Private Function private_AddDiffRowFromDataEvent( _
     ByVal rightRowIndex As Long, _
     ByVal outputColumns As Collection, _
     ByVal compareColumns As Collection, _
+    ByVal columnFormats As Object, _
     ByVal ignoreCase As Boolean, _
     ByVal trimText As Boolean _
 ) As Boolean
@@ -862,6 +1185,8 @@ Private Function private_AddDiffRowFromDataEvent( _
     Dim changedCols As Object
     Dim colIndex As Long
     Dim aliasText As String
+    Dim formatKind As String
+    Dim rawValue As Variant
     Dim sourceRowIndex As Long
     Dim useRightSource As Boolean
     Dim collectChangedCells As Boolean
@@ -887,17 +1212,30 @@ Private Function private_AddDiffRowFromDataEvent( _
         (leftRowIndex > 0 And _
          rightRowIndex > 0 And _
          VBA.StrComp(rowType, "modified", VBA.vbTextCompare) = 0)
+         
     For colIndex = 1 To outputColumns.Count
+        aliasText = VBA.Trim$(VBA.CStr(outputColumns.Item(colIndex)))
+        formatKind = private_GetColumnFormatKind(columnFormats, aliasText)
         If useRightSource Then
-            values.Add rightData.ValueAt(sourceRowIndex, colIndex)
+            rawValue = rightData.ValueAt(sourceRowIndex, colIndex)
         Else
-            values.Add leftData.ValueAt(sourceRowIndex, colIndex)
+            rawValue = leftData.ValueAt(sourceRowIndex, colIndex)
         End If
+
+        values.Add private_FormatColumnDisplayValue(rawValue, formatKind)
+        
         If collectChangedCells Then
-            aliasText = VBA.Trim$(VBA.CStr(outputColumns.Item(colIndex)))
             If private_CollectionContains(compareColumns, aliasText) Then
-                If private_NormalizeColumnCompareValue(leftData.ValueAt(leftRowIndex, colIndex), ignoreCase, trimText) <> _
-                   private_NormalizeColumnCompareValue(rightData.ValueAt(rightRowIndex, colIndex), ignoreCase, trimText) Then
+                If private_NormalizeColumnCompareValue( _
+                    leftData.ValueAt(leftRowIndex, colIndex), _
+                    formatKind, _
+                    ignoreCase, _
+                    trimText) <> _
+                   private_NormalizeColumnCompareValue( _
+                    rightData.ValueAt(rightRowIndex, colIndex), _
+                    formatKind, _
+                    ignoreCase, _
+                    trimText) Then
                     changedCols.Add VBA.CStr(colIndex), True
                 End If
             End If
@@ -986,7 +1324,9 @@ End Function
 
 Private Function private_TryBuildKeyIndexFromData( _
     ByVal tableData As obj_TableData, _
+    ByVal loadColumns As Collection, _
     ByVal keyColumnIndexes As Collection, _
+    ByVal columnFormats As Object, _
     ByVal ignoreCase As Boolean, _
     ByVal trimText As Boolean, _
     ByRef outKeys() As String, _
@@ -1007,7 +1347,14 @@ Private Function private_TryBuildKeyIndexFromData( _
     ReDim outKeys(1 To tableData.RowCount)
 
     For rowIndex = 1 To tableData.RowCount
-        keyText = private_BuildRowKeyFromData(tableData, rowIndex, keyColumnIndexes, ignoreCase, trimText)
+        keyText = private_BuildRowKeyFromData( _
+            tableData, _
+            rowIndex, _
+            loadColumns, _
+            keyColumnIndexes, _
+            columnFormats, _
+            ignoreCase, _
+            trimText)
         If VBA.Len(keyText) = 0 Then
             private_ShowCompareError "Empty key in " & tableLabel & " table at row " & VBA.CStr(rowIndex) & "."
             Exit Function
@@ -1026,7 +1373,9 @@ End Function
 Private Function private_BuildRowKeyFromData( _
     ByVal tableData As obj_TableData, _
     ByVal rowIndex As Long, _
+    ByVal loadColumns As Collection, _
     ByVal keyColumnIndexes As Collection, _
+    ByVal columnFormats As Object, _
     ByVal ignoreCase As Boolean, _
     ByVal trimText As Boolean _
 ) As String
@@ -1038,7 +1387,11 @@ Private Function private_BuildRowKeyFromData( _
     If keyColumnIndexes Is Nothing Then Exit Function
     For Each keyItem In keyColumnIndexes
         colIndex = CLng(keyItem)
-        partText = private_NormalizeColumnCompareValue(tableData.ValueAt(rowIndex, colIndex), ignoreCase, trimText)
+        partText = private_NormalizeColumnCompareValue( _
+            tableData.ValueAt(rowIndex, colIndex), _
+            private_GetColumnFormatKindByIndex(loadColumns, columnFormats, colIndex), _
+            ignoreCase, _
+            trimText)
         If VBA.Len(private_BuildRowKeyFromData) > 0 Then private_BuildRowKeyFromData = private_BuildRowKeyFromData & VBA.ChrW$(30)
         private_BuildRowKeyFromData = private_BuildRowKeyFromData & partText
     Next keyItem
@@ -1243,6 +1596,11 @@ Private Function private_AddDiffRow( _
     private_AddDiffRow = True
 End Function
 
+' Собирает модель элементов TableList, которую потребляет ComparingUI. Добавляет
+' служебные колонки OldRow и NewRow, прокидывает маркеры формата колонок и
+' сохраняет per-cell diff-маркеры для стилизации changed-cell.
+'
+' Callstack[1]: private_TryRefreshDiffTableItemsSource -> private_TryBuildDiffTableItems
 Private Function private_TryBuildDiffTableItems( _
     ByVal outputColumns As Collection, _
     ByVal outputColumnFormats As Object, _
@@ -1330,6 +1688,10 @@ Private Function private_TryBuildDiffTableItems( _
     private_TryBuildDiffTableItems = True
 End Function
 
+' Публикует последние материализованные строки diff в RuntimeItems.Comparing.DiffTables,
+' чтобы контрол TableList мог перерисоваться из единого актуального items source.
+'
+' Callstack[1]: obj_PageComparingCtrl.RunPipeline -> private_TryRefreshDiffTableItemsSource
 Private Function private_TryRefreshDiffTableItemsSource(ByRef outVisibleRowCount As Long) As Boolean
     Dim visibleDiffRows As Collection
     Dim diffTableItems As Collection
@@ -1339,24 +1701,37 @@ Private Function private_TryRefreshDiffTableItemsSource(ByRef outVisibleRowCount
     If m_LastOutputColumns Is Nothing Then Exit Function
     If m_LastDiffRows Is Nothing Then Exit Function
 
+#If LOGGING_PERFORMACE Then
     stageStart = VBA.Timer
+#End If
+    
     Set visibleDiffRows = m_LastDiffRows
     If Not visibleDiffRows Is Nothing Then outVisibleRowCount = visibleDiffRows.Count
+#If LOGGING_PERFORMACE Then
     private_LogPipelineStep "refresh-diff-source:visible-rows", stageStart, _
         "sourceRows=" & VBA.CStr(m_LastDiffRows.Count) & _
         " visibleRows=" & VBA.CStr(outVisibleRowCount) & _
         " mode='" & private_GetDiffViewModeName() & "'"
-
     stageStart = VBA.Timer
-    If Not private_TryBuildDiffTableItems(m_LastOutputColumns, m_LastOutputColumnFormats, visibleDiffRows, diffTableItems) Then Exit Function
+#End If
+
+    If Not private_TryBuildDiffTableItems( _
+        m_LastOutputColumns, _
+        m_LastOutputColumnFormats, _
+        visibleDiffRows, _
+        diffTableItems) Then Exit Function
+#If LOGGING_PERFORMACE Then
     private_LogPipelineStep "refresh-diff-source:build-table-items", stageStart, _
         "visibleRows=" & VBA.CStr(outVisibleRowCount) & _
         " columns=" & VBA.CStr(m_LastOutputColumns.Count + 2)
-
     stageStart = VBA.Timer
+#End If
+    
     If Not private_TrySetDiffTableItemsSource(diffTableItems) Then Exit Function
+#If LOGGING_PERFORMACE Then
     private_LogPipelineStep "refresh-diff-source:set-items-source", stageStart, _
         "tables=" & VBA.CStr(diffTableItems.Count)
+#End If
 
     private_TryRefreshDiffTableItemsSource = True
 End Function
@@ -1409,7 +1784,10 @@ Private Function private_TrySetDiffTableItemsSource(ByVal tableItems As Collecti
     If pageBase.RuntimeSources Is Nothing Then Exit Function
     If tableItems Is Nothing Then Set tableItems = New Collection
 
-    private_TrySetDiffTableItemsSource = pageBase.RuntimeSources.SetItemsSource(DIFF_TABLES_ITEMS_SOURCE_KEY, tableItems, False)
+    private_TrySetDiffTableItemsSource = pageBase.RuntimeSources.SetItemsSource( _
+        DIFF_TABLES_ITEMS_SOURCE_KEY, _
+        tableItems, _
+        False)
 End Function
 
 Private Function private_RowHasCompareChanges( _
@@ -1471,10 +1849,13 @@ Private Function private_RowHasCompareChangesInData( _
     ByVal rightRowIndex As Long, _
     ByVal outputColumns As Collection, _
     ByVal compareColumnIndexes As Object, _
+    ByVal columnFormats As Object, _
     ByVal ignoreCase As Boolean, _
     ByVal trimText As Boolean _
 ) As Boolean
     Dim colIndex As Long
+    Dim aliasText As String
+    Dim formatKind As String
 
     If leftData Is Nothing Then Exit Function
     If rightData Is Nothing Then Exit Function
@@ -1483,8 +1864,10 @@ Private Function private_RowHasCompareChangesInData( _
 
     For colIndex = 1 To outputColumns.Count
         If compareColumnIndexes.Exists(VBA.CStr(colIndex)) Then
-            If private_NormalizeColumnCompareValue(leftData.ValueAt(leftRowIndex, colIndex), ignoreCase, trimText) <> _
-               private_NormalizeColumnCompareValue(rightData.ValueAt(rightRowIndex, colIndex), ignoreCase, trimText) Then
+            aliasText = VBA.Trim$(VBA.CStr(outputColumns.Item(colIndex)))
+            formatKind = private_GetColumnFormatKind(columnFormats, aliasText)
+            If private_NormalizeColumnCompareValue(leftData.ValueAt(leftRowIndex, colIndex), formatKind, ignoreCase, trimText) <> _
+               private_NormalizeColumnCompareValue(rightData.ValueAt(rightRowIndex, colIndex), formatKind, ignoreCase, trimText) Then
                 private_RowHasCompareChangesInData = True
                 Exit Function
             End If
@@ -1541,9 +1924,12 @@ End Function
 
 Private Function private_NormalizeColumnCompareValue( _
     ByVal valueIn As Variant, _
+    ByVal formatKind As String, _
     ByVal ignoreCase As Boolean, _
     ByVal trimText As Boolean _
 ) As String
+    Dim dateValue As Date
+
     If VBA.IsError(valueIn) Then
         private_NormalizeColumnCompareValue = "#ERR"
         Exit Function
@@ -1553,10 +1939,39 @@ Private Function private_NormalizeColumnCompareValue( _
         Exit Function
     End If
 
+    If VBA.StrComp(VBA.Trim$(formatKind), "date", VBA.vbTextCompare) = 0 Then
+        If private_TryCoerceDateValue(valueIn, dateValue) Then
+            private_NormalizeColumnCompareValue = VBA.Format$(dateValue, "yyyy-mm-dd")
+            Exit Function
+        End If
+    End If
+
     ' Сравнение идет по фактическому значению, которое пришло из SQL/Excel,
     ' а текстовые правила ignoreCase/trimText применяются уже поверх общего
     ' CStr-представления.
-    private_NormalizeColumnCompareValue = private_NormalizeCompareValue(VBA.CStr(valueIn), ignoreCase, trimText)
+    private_NormalizeColumnCompareValue = private_NormalizeCompareValue( _
+        VBA.CStr(valueIn), _
+        ignoreCase, _
+        trimText)
+End Function
+
+Private Function private_FormatColumnDisplayValue(ByVal valueIn As Variant, ByVal formatKind As String) As String
+    Dim dateValue As Date
+
+    If VBA.StrComp(VBA.Trim$(formatKind), "date", VBA.vbTextCompare) = 0 Then
+        If private_TryCoerceDateValue(valueIn, dateValue) Then
+            private_FormatColumnDisplayValue = VBA.Format$(dateValue, "dd.mm.yyyy")
+            Exit Function
+        End If
+    End If
+
+    If VBA.IsError(valueIn) Then
+        private_FormatColumnDisplayValue = "#ERR"
+    ElseIf VBA.IsNull(valueIn) Or VBA.IsEmpty(valueIn) Then
+        private_FormatColumnDisplayValue = VBA.vbNullString
+    Else
+        private_FormatColumnDisplayValue = VBA.CStr(valueIn)
+    End If
 End Function
 
 Private Function private_GetColumnFormatKind(ByVal columnFormats As Object, ByVal columnAlias As String) As String
@@ -1564,6 +1979,86 @@ Private Function private_GetColumnFormatKind(ByVal columnFormats As Object, ByVa
     If VBA.Len(columnAlias) = 0 Then Exit Function
     If columnFormats Is Nothing Then Exit Function
     If columnFormats.Exists(columnAlias) Then private_GetColumnFormatKind = VBA.LCase$(VBA.Trim$(VBA.CStr(columnFormats(columnAlias))))
+End Function
+
+Private Function private_GetColumnFormatKindByIndex( _
+    ByVal columns As Collection, _
+    ByVal columnFormats As Object, _
+    ByVal colIndex As Long _
+) As String
+    If columns Is Nothing Then Exit Function
+    If colIndex <= 0 Or colIndex > columns.Count Then Exit Function
+    private_GetColumnFormatKindByIndex = private_GetColumnFormatKind(columnFormats, VBA.CStr(columns.Item(colIndex)))
+End Function
+
+Private Function private_TryCoerceDateValue(ByVal valueIn As Variant, ByRef outDate As Date) As Boolean
+    Dim textValue As String
+    Dim numericValue As Double
+
+    On Error GoTo EH
+    If VBA.IsError(valueIn) Then Exit Function
+    If VBA.IsNull(valueIn) Or VBA.IsEmpty(valueIn) Then Exit Function
+
+    textValue = VBA.Trim$(VBA.CStr(valueIn))
+    If VBA.Len(textValue) = 0 Then Exit Function
+
+    If private_TryParseDmyDate(textValue, outDate) Then
+        private_TryCoerceDateValue = True
+        Exit Function
+    End If
+
+    If VBA.IsNumeric(textValue) Then
+        numericValue = VBA.CDbl(textValue)
+        If numericValue > 0 Then
+            outDate = VBA.CDate(numericValue)
+            private_TryCoerceDateValue = True
+            Exit Function
+        End If
+    End If
+
+    If VBA.IsDate(textValue) Then
+        outDate = VBA.CDate(textValue)
+        private_TryCoerceDateValue = True
+        Exit Function
+    End If
+
+    Exit Function
+
+EH:
+    private_TryCoerceDateValue = False
+End Function
+
+Private Function private_TryParseDmyDate(ByVal valueText As String, ByRef outDate As Date) As Boolean
+    Dim parts As Variant
+    Dim dayValue As Long
+    Dim monthValue As Long
+    Dim yearValue As Long
+
+    On Error GoTo EH
+    valueText = VBA.Trim$(VBA.CStr(valueText))
+    parts = VBA.Split(valueText, ".")
+    If UBound(parts) <> 2 Then Exit Function
+    If Not VBA.IsNumeric(parts(0)) Then Exit Function
+    If Not VBA.IsNumeric(parts(1)) Then Exit Function
+    If Not VBA.IsNumeric(parts(2)) Then Exit Function
+
+    dayValue = VBA.CLng(parts(0))
+    monthValue = VBA.CLng(parts(1))
+    yearValue = VBA.CLng(parts(2))
+    If yearValue < 100 Then yearValue = 2000 + yearValue
+    If dayValue < 1 Or dayValue > 31 Then Exit Function
+    If monthValue < 1 Or monthValue > 12 Then Exit Function
+
+    outDate = VBA.DateSerial(yearValue, monthValue, dayValue)
+    If VBA.Day(outDate) <> dayValue Then Exit Function
+    If VBA.Month(outDate) <> monthValue Then Exit Function
+    If VBA.Year(outDate) <> yearValue Then Exit Function
+
+    private_TryParseDmyDate = True
+    Exit Function
+
+EH:
+    private_TryParseDmyDate = False
 End Function
 
 Private Function private_CollectionContains(ByVal items As Collection, ByVal valueText As String) As Boolean
@@ -1605,7 +2100,7 @@ Private Sub private_LogPipelineStep( _
     ByVal startedAt As Single, _
     Optional ByVal details As String = "" _
 )
-#If LOGGING_DEBUG_ENABLED Then
+#If LOGGING_DEBUG_ENABLED And LOGGING_PERFORMACE Then
     Dim messageText As String
 
     messageText = "comparing:pipeline step='" & private_LogSafeText(stepName) & _
@@ -1632,6 +2127,10 @@ Private Sub private_ShowCompareError(ByVal messageText As String)
     VBA.MsgBox "PrototypeNew: " & VBA.CStr(messageText), vbExclamation, RUNTIME_ERROR_TITLE
 End Sub
 
+' Команда ручного обновления страницы. Выполняет ререндер текущих runtime-источников
+' без повторного чтения внешних файлов и без пересборки diff-строк.
+'
+' Callstack[1]: ComparingUI.RerenderComparingPage -> obj_PageComparing.OnRenderCommand -> obj_PageComparingCtrl.RerenderPage
 Public Function RerenderPage(Optional ByVal notifyStatus As Boolean = True) As Boolean
 #If LOGGING_DEBUG_ENABLED Then
     ex_Core.fn_Diagnostic_LogInfo "enter:obj_PageComparingCtrl.RerenderPage"
