@@ -857,7 +857,7 @@ Private Function private_TryReadRuleSelector(ByVal ruleNode As Object, ByRef out
         End If
 
         Select Case keyName
-            Case "col", "row", "address", "type", "name", "part", "tag", "tagdepth"
+            Case "col", "row", "address", "type", "name", "part", "tag", "tagdepth", "columnalias"
                 If outSelector.Exists(keyName) Then
 #If LOGGING_DEBUG_ENABLED Then
                     ex_Core.fn_Diagnostic_LogError "PrototypeNew: duplicate selector key '" & keyName & "'."
@@ -897,6 +897,9 @@ Private Function private_TryResolveControlPartTargetScope( _
     Dim controlType As String
     Dim controlName As String
     Dim partName As String
+    Dim columnAlias As String
+    Dim aliasColumnScope As Range
+    Dim intersectedScope As Range
 
     If ws Is Nothing Then Exit Function
     If selector Is Nothing Then
@@ -924,6 +927,9 @@ Private Function private_TryResolveControlPartTargetScope( _
     If selector.Exists("name") Then
         controlName = VBA.LCase$(VBA.Trim$(VBA.CStr(selector("name"))))
     End If
+    If selector.Exists("columnalias") Then
+        columnAlias = VBA.LCase$(VBA.Trim$(VBA.CStr(selector("columnalias"))))
+    End If
 
     If VBA.Len(controlType) = 0 Then
 #If LOGGING_DEBUG_ENABLED Then
@@ -941,6 +947,31 @@ Private Function private_TryResolveControlPartTargetScope( _
     ' ControlPart scope приходит из runtime-реестра частей контролов.
     If Not ex_ControlPartsRuntime.fn_TryResolveControlPartScope( _
         ws, controlType, controlName, partName, outScope, outColumnScope) Then Exit Function
+
+    If VBA.Len(columnAlias) > 0 Then
+        If Not ex_ControlPartsRuntime.fn_TryResolveControlColumnAliasScope( _
+            ws, controlType, controlName, columnAlias, aliasColumnScope) Then Exit Function
+
+        If outScope Is Nothing Or aliasColumnScope Is Nothing Then
+            Set outScope = Nothing
+            Set outColumnScope = Nothing
+            private_TryResolveControlPartTargetScope = True
+            Exit Function
+        End If
+
+        On Error Resume Next
+        Set intersectedScope = Application.Intersect(outScope, aliasColumnScope)
+        On Error GoTo 0
+        Set outScope = intersectedScope
+
+        If outScope Is Nothing Then
+            Set outColumnScope = Nothing
+            private_TryResolveControlPartTargetScope = True
+            Exit Function
+        End If
+
+        Set outColumnScope = outScope.EntireColumn
+    End If
 
     private_TryResolveControlPartTargetScope = True
 End Function
