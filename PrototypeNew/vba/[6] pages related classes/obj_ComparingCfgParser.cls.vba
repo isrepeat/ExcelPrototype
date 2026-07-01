@@ -56,7 +56,6 @@ Public Function TryValidateSkeleton(ByRef outStatusText As String) As Boolean
     Dim rightRef As String
     Dim keyColumns As String
     Dim compareColumns As String
-    Dim outputMode As String
 
     outStatusText = VBA.vbNullString
     If Not private_TryBuildConfigMap(cfgMap) Then Exit Function
@@ -65,7 +64,6 @@ Public Function TryValidateSkeleton(ByRef outStatusText As String) As Boolean
     If Not private_TryGetRequiredConfigValue(cfgMap, "Comparing.RightTable", rightRef) Then Exit Function
     If Not private_TryGetRequiredConfigValue(cfgMap, "Comparing.KeyColumns", keyColumns) Then Exit Function
     If Not private_TryGetRequiredConfigValue(cfgMap, "Comparing.CompareColumns", compareColumns) Then Exit Function
-    outputMode = m_CfgTableParser.CfgParserBase.GetOptionalConfigValue(cfgMap, "Comparing.OutputMode", "Summary")
 
     If Not private_ValidateTableRef(leftRef, "Comparing.LeftTable") Then Exit Function
     If Not private_ValidateTableRef(rightRef, "Comparing.RightTable") Then Exit Function
@@ -75,8 +73,7 @@ Public Function TryValidateSkeleton(ByRef outStatusText As String) As Boolean
     outStatusText = _
         "Config ready: " & leftRef & " -> " & rightRef & _
         "; keys: " & keyColumns & _
-        "; compare: " & compareColumns & _
-        "; output: " & outputMode
+        "; compare: " & compareColumns
     TryValidateSkeleton = True
 End Function
 
