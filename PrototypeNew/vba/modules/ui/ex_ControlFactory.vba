@@ -45,7 +45,7 @@ Public Function fn_CreateControlByTypeRoot( _
         Case "tablelist"
             Set control = New obj_TableListControlVM
 
-        Case "entitylookupcandidates"
+        Case "lookupcandidates"
             Set control = New obj_LookupCandidatesControlVM
 
         Case "tablesingle"

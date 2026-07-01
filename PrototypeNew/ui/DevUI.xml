@@ -59,7 +59,7 @@
           </stackPanel>
       </stackPanel>
 
-      <stackPanel at="r2c24" orientation="vertical">
+      <stackPanel at="r2c21" orientation="vertical">
         <control
           type="Button"
           name="OpenPersonalCard"
@@ -233,7 +233,7 @@
         <rule target="controlPart"
               selector="type=config;part=key"
               styles="{
-                width:38;
+                width:55;
                 vertical:center;
               }"/>
 

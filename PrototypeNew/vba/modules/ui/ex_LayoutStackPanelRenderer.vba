@@ -23,6 +23,8 @@ Public Function fn_Render( _
     ByVal colEnd As Long _
 ) As Boolean
     Dim stackDepth As Long
+    Dim pageBase As obj_PageBase
+    Dim containerName As String
 
     If layoutNode Is Nothing Then
 #If LOGGING_DEBUG_ENABLED Then
@@ -40,6 +42,20 @@ Public Function fn_Render( _
     If Not renderCtx Is Nothing Then
         stackDepth = private_GetStackPanelDepth(layoutNode)
         ex_StylePipelineEngine.fn_RegisterLayoutBound renderCtx.Worksheet, rowStart, colStart, rowEnd, colEnd, "stackpanel", vbNullString, stackDepth
+
+        containerName = VBA.Trim$(VBA.CStr(ex_XmlCore.fn_NodeAttrText(layoutNode, "name")))
+        If VBA.Len(containerName) > 0 Then
+            Set pageBase = renderCtx.Page.GetPageBase()
+            If pageBase Is Nothing Then Exit Function
+            If Not pageBase.RegisterLayoutContainer( _
+                containerName, _
+                "stackpanel", _
+                renderCtx.Worksheet.Name, _
+                rowStart, _
+                colStart, _
+                rowEnd, _
+                colEnd) Then Exit Function
+        End If
     End If
 
     fn_Render = ex_XmlLayoutEngine.fn_RenderContainerNodeInBounds( _

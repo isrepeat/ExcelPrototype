@@ -74,7 +74,7 @@ Private Sub obj_IControl_Configure(ByVal controlNode As Object)
 
     Set m_ControlBase = New obj_ControlBase
     If Not m_ControlBase.Initialize(m_Page) Then Exit Sub
-    If Not m_ControlBase.Configure(pageBase, controlNode, "EntityLookupCandidates", "entitylookupcandidates", m_ControlName) Then Exit Sub
+    If Not m_ControlBase.Configure(pageBase, controlNode, "LookupCandidates", "lookupcandidates", m_ControlName) Then Exit Sub
 
     ' XML задает только внешний слот кандидатов. Сам контрол может сдвинуть
     ' внутренний TableList внутри этого слота так, чтобы search column совпала
@@ -109,7 +109,7 @@ End Sub
 Private Sub obj_IControl_Render()
     If Not m_IsConfigured Then
 #If LOGGING_DEBUG_ENABLED Then
-        ex_Core.fn_Diagnostic_LogError "EntityLookupCandidates: control '" & m_ControlName & "' is not configured."
+        ex_Core.fn_Diagnostic_LogError "LookupCandidates: control '" & m_ControlName & "' is not configured."
 #End If
         Exit Sub
     End If
@@ -182,7 +182,7 @@ Private Function private_TryResolveAdjustedBounds( _
     If pageBase Is Nothing Then Exit Function
 
     ' Эти bounds уже посчитаны XML layout engine-ом из обычных spanRows/spanColls.
-    ' Для EntityLookupCandidates это "контейнер", а не финальная позиция таблицы.
+    ' Для LookupCandidates это "контейнер", а не финальная позиция таблицы.
     If Not private_TryReadLayoutLongAttr(controlNode, "__layoutRowStart", outRowStart, True) Then Exit Function
     If Not private_TryReadLayoutLongAttr(controlNode, "__layoutColStart", outColStart, True) Then Exit Function
     If Not private_TryReadLayoutLongAttr(controlNode, "__layoutRowEnd", outRowEnd, True) Then Exit Function
@@ -254,7 +254,7 @@ Private Function private_TryResolveLookupFeature( _
         If resolvedObject Is Nothing Then Exit Function
         If Not TypeOf resolvedObject Is obj_EntityLookupFeature Then
 #If LOGGING_DEBUG_ENABLED Then
-            ex_Core.fn_Diagnostic_LogError "EntityLookupCandidates: lookupFeature for control '" & m_ControlName & "' resolved to unexpected type '" & VBA.TypeName(resolvedObject) & "'."
+            ex_Core.fn_Diagnostic_LogError "LookupCandidates: lookupFeature for control '" & m_ControlName & "' resolved to unexpected type '" & VBA.TypeName(resolvedObject) & "'."
 #End If
             Exit Function
         End If
@@ -274,7 +274,7 @@ Private Function private_TryResolveLookupFeature( _
     End If
     If Not TypeOf dataContext Is obj_EntityLookupFeature Then
 #If LOGGING_DEBUG_ENABLED Then
-        ex_Core.fn_Diagnostic_LogError "EntityLookupCandidates: dataContext for control '" & m_ControlName & "' is not obj_EntityLookupFeature and lookupFeature is not specified."
+        ex_Core.fn_Diagnostic_LogError "LookupCandidates: dataContext for control '" & m_ControlName & "' is not obj_EntityLookupFeature and lookupFeature is not specified."
 #End If
         Exit Function
     End If
@@ -379,7 +379,7 @@ Private Function private_TryReadLayoutLongAttr( _
     If VBA.Len(rawText) = 0 Then
         If isRequired Then
 #If LOGGING_DEBUG_ENABLED Then
-            ex_Core.fn_Diagnostic_LogError "EntityLookupCandidates: runtime layout attribute '" & attrName & "' is missing for control '" & m_ControlName & "'."
+            ex_Core.fn_Diagnostic_LogError "LookupCandidates: runtime layout attribute '" & attrName & "' is missing for control '" & m_ControlName & "'."
 #End If
             Exit Function
         End If
@@ -389,7 +389,7 @@ Private Function private_TryReadLayoutLongAttr( _
     End If
     If Not VBA.IsNumeric(rawText) Then
 #If LOGGING_DEBUG_ENABLED Then
-        ex_Core.fn_Diagnostic_LogError "EntityLookupCandidates: runtime layout attribute '" & attrName & "' must be numeric for control '" & m_ControlName & "'."
+        ex_Core.fn_Diagnostic_LogError "LookupCandidates: runtime layout attribute '" & attrName & "' must be numeric for control '" & m_ControlName & "'."
 #End If
         Exit Function
     End If

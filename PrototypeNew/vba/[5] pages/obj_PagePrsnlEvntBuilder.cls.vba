@@ -21,6 +21,7 @@ Private Const PAGE_RUNTIME_OBJECT_KEY As String = "RuntimeObjects.PrsnlEvntBuild
 Private Const HOTKEYS_RUNTIME_KEY As String = "RuntimeItems.PrsnlEvntBuilder.Hotkeys"
 Private Const HOTKEYS_CONTROL_NAME As String = "SheetHotkeys"
 Private Const DICTIONARY_MISSING_MEMBER_AS_EMPTY_KEY As String = "__MissingMemberAsEmpty"
+Private Const EVENT_DRAFT_VALUES_CONTAINER_NAME As String = "EventDraftValues"
 
 Private m_PageBase As obj_PageBase
 Private m_Controller As obj_PagePrsnlEvntBuilderCtrl
@@ -102,8 +103,15 @@ Private Function obj_IPage_RunPagePipeline() As Boolean
 End Function
 
 Private Function obj_IPage_Render() As Boolean
+    Dim draftValues As Variant
+    Dim hasDraftValues As Boolean
+
     If Not m_PageBase.IsReady() Then Exit Function
+    hasDraftValues = private_TryCaptureLayoutContainerValues(EVENT_DRAFT_VALUES_CONTAINER_NAME, draftValues)
     If Not m_PageBase.Render() Then Exit Function
+    If hasDraftValues Then
+        If Not private_TryRestoreLayoutContainerValues(EVENT_DRAFT_VALUES_CONTAINER_NAME, draftValues) Then Exit Function
+    End If
     If Not private_TryRestorePendingControlSnapshots() Then Exit Function
     ' HotkeysControl рендерится из RuntimeItems. После render повторно применяем
     ' его текущую таблицу, чтобы restored/default строки стали активными OnKey-привязками.
@@ -663,6 +671,66 @@ Private Function private_TryRunLookupSearch( _
     If Not private_TryEnsureControllerData() Then Exit Function
     If Not m_Controller.SearchCandidates(lookupKey, queryText, countFound, False) Then Exit Function
     private_TryRunLookupSearch = private_RerenderSelf(rerenderReason)
+End Function
+
+Private Function private_TryCaptureLayoutContainerValues( _
+    ByVal containerName As String, _
+    ByRef outValues As Variant _
+) As Boolean
+    Dim containerRange As Range
+
+    If m_PageBase Is Nothing Then Exit Function
+    Set containerRange = Nothing
+    If Not m_PageBase.TryGetLayoutContainerRange(containerName, containerRange) Then Exit Function
+    If containerRange Is Nothing Then Exit Function
+
+    outValues = containerRange.Value2
+    private_TryCaptureLayoutContainerValues = True
+End Function
+
+Private Function private_TryRestoreLayoutContainerValues( _
+    ByVal containerName As String, _
+    ByRef values As Variant _
+) As Boolean
+    Dim containerRange As Range
+
+    If m_PageBase Is Nothing Then Exit Function
+    Set containerRange = Nothing
+    If Not m_PageBase.TryGetLayoutContainerRange(containerName, containerRange) Then Exit Function
+    If containerRange Is Nothing Then Exit Function
+
+    If Not private_ContainerValueShapeMatches(containerRange, values) Then Exit Function
+    containerRange.NumberFormat = "@"
+    containerRange.Value2 = values
+
+    private_TryRestoreLayoutContainerValues = True
+End Function
+
+Private Function private_ContainerValueShapeMatches( _
+    ByVal containerRange As Range, _
+    ByRef values As Variant _
+) As Boolean
+    If containerRange Is Nothing Then Exit Function
+
+    If VBA.IsArray(values) Then
+        private_ContainerValueShapeMatches = _
+            (containerRange.Rows.Count = private_ArrayRowCount(values) And _
+             containerRange.Columns.Count = private_ArrayColumnCount(values))
+    Else
+        private_ContainerValueShapeMatches = (containerRange.Rows.Count = 1 And containerRange.Columns.Count = 1)
+    End If
+End Function
+
+Private Function private_ArrayRowCount(ByRef values As Variant) As Long
+    On Error Resume Next
+    private_ArrayRowCount = UBound(values, 1) - LBound(values, 1) + 1
+    On Error GoTo 0
+End Function
+
+Private Function private_ArrayColumnCount(ByRef values As Variant) As Long
+    On Error Resume Next
+    private_ArrayColumnCount = UBound(values, 2) - LBound(values, 2) + 1
+    On Error GoTo 0
 End Function
 
 Private Function private_RerenderSelf(ByVal reasonText As String) As Boolean
