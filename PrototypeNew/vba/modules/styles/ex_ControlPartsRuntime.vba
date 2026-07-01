@@ -4,6 +4,7 @@ Option Explicit
 #Const LOGGING_VERBOSE_ENABLED = False
 
 Private g_ControlParts As Collection
+Private g_ControlColumnAliases As Collection
 
 Public Sub fn_Module_Dispose()
 #If LOGGING_VERBOSE_ENABLED Then
@@ -11,6 +12,7 @@ Public Sub fn_Module_Dispose()
 #End If
     On Error Resume Next
     Set g_ControlParts = Nothing
+    Set g_ControlColumnAliases = Nothing
     On Error GoTo 0
 End Sub
 
@@ -19,6 +21,7 @@ End Sub
 ' //
 Public Sub fn_ResetControlParts()
     Set g_ControlParts = Nothing
+    Set g_ControlColumnAliases = Nothing
 End Sub
 
 
@@ -73,6 +76,91 @@ Public Function fn_RegisterControlPart( _
 
     g_ControlParts.Add entry
     fn_RegisterControlPart = True
+End Function
+
+Public Function fn_RegisterControlColumnAlias( _
+    ByVal ws As Worksheet, _
+    ByVal controlType As String, _
+    ByVal controlName As String, _
+    ByVal columnAlias As String, _
+    ByVal columnRange As Range _
+) As Boolean
+    Dim entry As Object
+
+    If ws Is Nothing Then Exit Function
+    If columnRange Is Nothing Then Exit Function
+
+    controlType = VBA.LCase$(VBA.Trim$(controlType))
+    controlName = VBA.LCase$(VBA.Trim$(controlName))
+    columnAlias = VBA.LCase$(VBA.Trim$(columnAlias))
+
+    If VBA.Len(controlType) = 0 Then Exit Function
+    If VBA.Len(columnAlias) = 0 Then Exit Function
+
+    private_EnsureControlColumnAliasesStorage
+
+    Set entry = VBA.CreateObject("Scripting.Dictionary")
+    entry.CompareMode = 1
+    entry("SheetName") = VBA.LCase$(ws.Name)
+    entry("ControlType") = controlType
+    entry("ControlName") = controlName
+    entry("ColumnAlias") = columnAlias
+    Set entry("Range") = columnRange
+
+    g_ControlColumnAliases.Add entry
+    fn_RegisterControlColumnAlias = True
+End Function
+
+Public Function fn_TryResolveControlColumnAliasScope( _
+    ByVal ws As Worksheet, _
+    ByVal controlType As String, _
+    ByVal controlName As String, _
+    ByVal columnAlias As String, _
+    ByRef outColumnScope As Range _
+) As Boolean
+    Dim entry As Object
+    Dim aliasRange As Range
+    Dim wsKey As String
+
+    If ws Is Nothing Then Exit Function
+
+    wsKey = VBA.LCase$(ws.Name)
+    controlType = VBA.LCase$(VBA.Trim$(controlType))
+    controlName = VBA.LCase$(VBA.Trim$(controlName))
+    columnAlias = VBA.LCase$(VBA.Trim$(columnAlias))
+
+    If VBA.Len(controlType) = 0 Then Exit Function
+    If VBA.Len(columnAlias) = 0 Then Exit Function
+
+    If g_ControlColumnAliases Is Nothing Then
+        fn_TryResolveControlColumnAliasScope = True
+        Exit Function
+    End If
+
+    For Each entry In g_ControlColumnAliases
+        If VBA.LCase$(VBA.CStr(entry("SheetName"))) <> wsKey Then GoTo ContinueEntry
+        If VBA.LCase$(VBA.CStr(entry("ControlType"))) <> controlType Then GoTo ContinueEntry
+        If VBA.Len(controlName) > 0 Then
+            If VBA.LCase$(VBA.CStr(entry("ControlName"))) <> controlName Then GoTo ContinueEntry
+        End If
+        If VBA.LCase$(VBA.CStr(entry("ColumnAlias"))) <> columnAlias Then GoTo ContinueEntry
+
+        Set aliasRange = Nothing
+        On Error Resume Next
+        Set aliasRange = entry("Range")
+        On Error GoTo 0
+        If aliasRange Is Nothing Then GoTo ContinueEntry
+
+        If outColumnScope Is Nothing Then
+            Set outColumnScope = aliasRange
+        Else
+            Set outColumnScope = Application.Union(outColumnScope, aliasRange)
+        End If
+
+ContinueEntry:
+    Next entry
+
+    fn_TryResolveControlColumnAliasScope = True
 End Function
 
 
@@ -155,4 +243,9 @@ End Function
 Private Sub private_EnsureControlPartsStorage()
     If Not g_ControlParts Is Nothing Then Exit Sub
     Set g_ControlParts = New Collection
+End Sub
+
+Private Sub private_EnsureControlColumnAliasesStorage()
+    If Not g_ControlColumnAliases Is Nothing Then Exit Sub
+    Set g_ControlColumnAliases = New Collection
 End Sub
