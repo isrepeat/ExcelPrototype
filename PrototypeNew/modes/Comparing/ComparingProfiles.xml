@@ -28,7 +28,6 @@
     <item key="Comparing.RightTable" value="Right.Sheet[RightMain]"/>
     <item key="Comparing.KeyColumns" value="Name"/>
     <item key="Comparing.CompareColumns" value="Age; City; Event"/>
-    <item key="Comparing.OutputMode" value="Summary"/>
     <item key="Comparing.IgnoreCase" value="true"/>
     <item key="Comparing.TrimText" value="true"/>
   </profile>
@@ -89,7 +88,6 @@
     <item key="Comparing.RightTable" value="Right.Sheet[AbsentRight]"/>
     <item key="Comparing.KeyColumns" value="TaxId; Event; OutDate; OutOrder"/>
     <item key="Comparing.CompareColumns" value="Rank; FullName; TaxId; Position; Event; Destination; IsOutside; OutOrder; OutFoodDate{fmt:Date}; OutDate{fmt:Date}; OutTerm; PlannedReturnDate{fmt:Date}; ReturnDate{fmt:Date}; ReturnFoodDate{fmt:Date}; ReturnOrder; OutReason; ReturnReason"/>
-    <item key="Comparing.OutputMode" value="Summary"/>
     <item key="Comparing.IgnoreCase" value="true"/>
     <item key="Comparing.TrimText" value="true"/>
   </profile>
@@ -148,7 +146,6 @@
     <item key="Comparing.RightTable" value="Right.Sheet[AbsentRight]"/>
     <item key="Comparing.KeyColumns" value="TaxId; FullName; Event; OutDate; OutOrder"/>
     <item key="Comparing.CompareColumns" value="Rank; FullName; TaxId; Position; Event; Destination; IsOutside; OutOrder; OutFoodDate{fmt:Date}; OutDate{fmt:Date}; OutTerm; PlannedReturnDate{fmt:Date}; ReturnDate{fmt:Date}; ReturnFoodDate{fmt:Date}; ReturnOrder; OutReason; ReturnReason"/>
-    <item key="Comparing.OutputMode" value="Summary"/>
     <item key="Comparing.IgnoreCase" value="true"/>
     <item key="Comparing.TrimText" value="true"/>
   </profile>

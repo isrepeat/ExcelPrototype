@@ -332,19 +332,24 @@
       </layer>
 
       <layer name="comparing-column-alignment">
-        <rule target="controlPart" selector="type=tablelist;name=ComparingDiffTable;part=rows;columnAlias=Action" styles="{ horizontal:center; }"/>
-        <rule target="controlPart" selector="type=tablelist;name=ComparingDiffTable;part=rows;columnAlias=OldRow" styles="{ horizontal:center; }"/>
-        <rule target="controlPart" selector="type=tablelist;name=ComparingDiffTable;part=rows;columnAlias=NewRow" styles="{ horizontal:center; }"/>
-        <rule target="controlPart" selector="type=tablelist;name=ComparingDiffTable;part=rows;columnAlias=Destination" styles="{ horizontal:center; }"/>
-        <rule target="controlPart" selector="type=tablelist;name=ComparingDiffTable;part=rows;columnAlias=IsOutside" styles="{ horizontal:center; }"/>
-        <rule target="controlPart" selector="type=tablelist;name=ComparingDiffTable;part=rows;columnAlias=OutOrder" styles="{ horizontal:center; }"/>
-        <rule target="controlPart" selector="type=tablelist;name=ComparingDiffTable;part=rows;columnAlias=OutFoodDate" styles="{ horizontal:center; }"/>
-        <rule target="controlPart" selector="type=tablelist;name=ComparingDiffTable;part=rows;columnAlias=OutDate" styles="{ horizontal:center; }"/>
-        <rule target="controlPart" selector="type=tablelist;name=ComparingDiffTable;part=rows;columnAlias=OutTerm" styles="{ horizontal:center; }"/>
-        <rule target="controlPart" selector="type=tablelist;name=ComparingDiffTable;part=rows;columnAlias=PlannedReturnDate" styles="{ horizontal:center; }"/>
-        <rule target="controlPart" selector="type=tablelist;name=ComparingDiffTable;part=rows;columnAlias=ReturnDate" styles="{ horizontal:center; }"/>
-        <rule target="controlPart" selector="type=tablelist;name=ComparingDiffTable;part=rows;columnAlias=ReturnFoodDate" styles="{ horizontal:center; }"/>
-        <rule target="controlPart" selector="type=tablelist;name=ComparingDiffTable;part=rows;columnAlias=ReturnOrder" styles="{ horizontal:center; }"/>
+        <rule target="controlPart" selector="type=tablelist;name=ComparingDiffTable;part=rows;columnAlias=Action" styles="{ horizontal:center; width:8.5; }"/>
+        <rule target="controlPart" selector="type=tablelist;name=ComparingDiffTable;part=rows;columnAlias=OldRow" styles="{ horizontal:center; width:6; }"/>
+        <rule target="controlPart" selector="type=tablelist;name=ComparingDiffTable;part=rows;columnAlias=NewRow" styles="{ horizontal:center; width:6; }"/>
+        <rule target="controlPart" selector="type=tablelist;name=ComparingDiffTable;part=rows;columnAlias=TaxId" styles="{ horizontal:center; }"/>
+        <rule target="controlPart" selector="type=tablelist;name=ComparingDiffTable;part=rows;columnAlias=Position" styles="{ horizontal:center; }"/>
+        <rule target="controlPart" selector="type=tablelist;name=ComparingDiffTable;part=rows;columnAlias=Event" styles="{ horizontal:center; width:11; }"/>
+        <rule target="controlPart" selector="type=tablelist;name=ComparingDiffTable;part=rows;columnAlias=Destination" styles="{ horizontal:center; width:13; }"/>
+        <rule target="controlPart" selector="type=tablelist;name=ComparingDiffTable;part=rows;columnAlias=IsOutside" styles="{ horizontal:center; width:7; }"/>
+        <rule target="controlPart" selector="type=tablelist;name=ComparingDiffTable;part=rows;columnAlias=OutOrder" styles="{ horizontal:center; width:9; }"/>
+        <rule target="controlPart" selector="type=tablelist;name=ComparingDiffTable;part=rows;columnAlias=OutFoodDate" styles="{ horizontal:center; width:9.5; }"/>
+        <rule target="controlPart" selector="type=tablelist;name=ComparingDiffTable;part=rows;columnAlias=OutDate" styles="{ horizontal:center; width:9.5; }"/>
+        <rule target="controlPart" selector="type=tablelist;name=ComparingDiffTable;part=rows;columnAlias=OutTerm" styles="{ horizontal:center; width:8; }"/>
+        <rule target="controlPart" selector="type=tablelist;name=ComparingDiffTable;part=rows;columnAlias=PlannedReturnDate" styles="{ horizontal:center; width:9.5; }"/>
+        <rule target="controlPart" selector="type=tablelist;name=ComparingDiffTable;part=rows;columnAlias=ReturnDate" styles="{ horizontal:center; width:9.5; }"/>
+        <rule target="controlPart" selector="type=tablelist;name=ComparingDiffTable;part=rows;columnAlias=ReturnFoodDate" styles="{ horizontal:center; width:9.5; }"/>
+        <rule target="controlPart" selector="type=tablelist;name=ComparingDiffTable;part=rows;columnAlias=ReturnOrder" styles="{ horizontal:center; width:9; }"/>
+        <rule target="controlPart" selector="type=tablelist;name=ComparingDiffTable;part=rows;columnAlias=OutReason" styles="{ width:18; }"/>
+        <rule target="controlPart" selector="type=tablelist;name=ComparingDiffTable;part=rows;columnAlias=ReturnReason" styles="{ width:18; }"/>
       </layer>
     </stylePipelineStage>
   </styles>

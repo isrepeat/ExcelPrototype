@@ -234,6 +234,7 @@
               selector="type=config;part=key"
               styles="{
                 width:38;
+                vertical:center;
               }"/>
 
         <rule target="controlPart"

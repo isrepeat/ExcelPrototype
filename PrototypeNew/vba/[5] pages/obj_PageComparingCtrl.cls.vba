@@ -629,7 +629,7 @@ ContinueOldGap:
                     "added-moved", _
                     0, _
                     newPos
-                addedCount = addedCount + 1
+                movedCount = movedCount + 1
             Else
                 private_AddDiffEvent _
                     eventTypes, _
@@ -736,7 +736,7 @@ ContinueOldTail:
                 "added-moved", _
                 0, _
                 newPos
-            addedCount = addedCount + 1
+            movedCount = movedCount + 1
         Else
             private_AddDiffEvent _
                 eventTypes, _
