@@ -133,7 +133,7 @@
 
       <stackPanel orientation="vertical" spanColls="50">
         <control
-          type="EntityLookupCandidates"
+          type="LookupCandidates"
           name="LookupCandidatesTable"
           dataContext="{PageRuntimeSource='RuntimeObjects.PageEntityLookup.Controller'}"
           lookupFeature="{Binding Path=LookupFeature}"

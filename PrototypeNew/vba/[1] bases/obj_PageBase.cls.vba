@@ -16,6 +16,7 @@ Private m_UiDom As Object
 Private m_IsDisposed As Boolean
 Private m_IsRendering As Boolean
 Private m_ControlByKey As Object
+Private m_LayoutContainerByName As Object
 Private m_RouteByShape As Object
 Private m_RouteByCell As Object
 Private m_RouteByHotkey As Object
@@ -659,6 +660,81 @@ Public Function RegisterControl(ByVal controlKey As String, ByVal iControl As Ob
     RegisterControl = True
 End Function
 
+Public Function RegisterLayoutContainer( _
+    ByVal containerName As String, _
+    ByVal containerType As String, _
+    ByVal sheetName As String, _
+    ByVal rowStart As Long, _
+    ByVal colStart As Long, _
+    ByVal rowEnd As Long, _
+    ByVal colEnd As Long _
+) As Boolean
+    Dim entry As Object
+    Dim containerKey As String
+
+    If Not private_EnsureNotDisposed("RegisterLayoutContainer") Then Exit Function
+
+    containerName = VBA.Trim$(containerName)
+    containerType = VBA.LCase$(VBA.Trim$(containerType))
+    sheetName = VBA.Trim$(sheetName)
+
+    If VBA.Len(containerName) = 0 Then Exit Function
+    If VBA.Len(containerType) = 0 Then Exit Function
+    If VBA.Len(sheetName) = 0 Then Exit Function
+    If rowStart <= 0 Or colStart <= 0 Then Exit Function
+    If rowEnd < rowStart Or colEnd < colStart Then Exit Function
+
+    private_EnsureStorage
+    containerKey = VBA.LCase$(containerName)
+
+    Set entry = VBA.CreateObject("Scripting.Dictionary")
+    entry.CompareMode = 1
+    entry("Name") = containerName
+    entry("Type") = containerType
+    entry("Sheet") = sheetName
+    entry("RowStart") = VBA.CLng(rowStart)
+    entry("ColStart") = VBA.CLng(colStart)
+    entry("RowEnd") = VBA.CLng(rowEnd)
+    entry("ColEnd") = VBA.CLng(colEnd)
+
+    If m_LayoutContainerByName.Exists(containerKey) Then m_LayoutContainerByName.Remove containerKey
+    m_LayoutContainerByName.Add containerKey, entry
+
+    RegisterLayoutContainer = True
+End Function
+
+Public Function TryGetLayoutContainerRange( _
+    ByVal containerName As String, _
+    ByRef outRange As Range _
+) As Boolean
+    Dim containerKey As String
+    Dim entry As Object
+    Dim ws As Worksheet
+
+    If Not private_EnsureNotDisposed("TryGetLayoutContainerRange") Then Exit Function
+    Set outRange = Nothing
+
+    containerKey = VBA.LCase$(VBA.Trim$(containerName))
+    If VBA.Len(containerKey) = 0 Then Exit Function
+    If m_LayoutContainerByName Is Nothing Then Exit Function
+    If Not m_LayoutContainerByName.Exists(containerKey) Then Exit Function
+
+    Set entry = m_LayoutContainerByName(containerKey)
+    If entry Is Nothing Then Exit Function
+
+    Set ws = m_Worksheet
+    If ws Is Nothing Then Exit Function
+    If VBA.StrComp(VBA.Trim$(VBA.CStr(entry("Sheet"))), ws.Name, VBA.vbTextCompare) <> 0 Then Exit Function
+
+    On Error Resume Next
+    Set outRange = ws.Range( _
+        ws.Cells(VBA.CLng(entry("RowStart")), VBA.CLng(entry("ColStart"))), _
+        ws.Cells(VBA.CLng(entry("RowEnd")), VBA.CLng(entry("ColEnd"))))
+    On Error GoTo 0
+
+    TryGetLayoutContainerRange = Not outRange Is Nothing
+End Function
+
 ' Callstack[1]: rt_PageManager.fn_RenderPage -> page.Render -> obj_PageBase.Render -> ex_XmlLayoutEngine.fn_RenderNode -> ex_LayoutControlRenderer.fn_Render -> obj_ButtonControlVM.private_TryBindRuntimeRoute -> m_Page.RegisterShapeRoute -> obj_PageBase.RegisterShapeRoute
 ' Callstack[2]: rt_PageManager.fn_RenderPage -> page.Render -> obj_PageBase.Render -> ex_XmlLayoutEngine.fn_RenderNode -> ex_LayoutControlRenderer.fn_Render -> obj_SelectControlVM.private_TryBindRuntimeRoutes -> m_Page.RegisterShapeRoute -> obj_PageBase.RegisterShapeRoute
 Public Function RegisterShapeRoute( _
@@ -1000,6 +1076,7 @@ Public Function ResetControlActions() As Boolean
     End If
 
     Set m_ControlByKey = Nothing
+    Set m_LayoutContainerByName = Nothing
     Set m_RouteByShape = Nothing
     Set m_RouteByCell = Nothing
     Set m_RouteByHotkey = Nothing
@@ -1635,6 +1712,11 @@ Private Sub private_EnsureStorage()
     If m_ControlByKey Is Nothing Then
         Set m_ControlByKey = VBA.CreateObject("Scripting.Dictionary")
         m_ControlByKey.CompareMode = 1
+    End If
+
+    If m_LayoutContainerByName Is Nothing Then
+        Set m_LayoutContainerByName = VBA.CreateObject("Scripting.Dictionary")
+        m_LayoutContainerByName.CompareMode = 1
     End If
 
     If m_RouteByShape Is Nothing Then

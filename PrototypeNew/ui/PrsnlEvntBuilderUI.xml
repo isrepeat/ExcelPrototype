@@ -15,8 +15,8 @@
 
       <stackPanel spanColls="7" spanRows="1"/>
 
-      <stackPanel orientation="horizontal">
-        <stackPanel orientation="vertical" spanColls="1" spanRows="2">
+      <stackPanel orientation="vertical" spanColls="7" spanRows="2">
+        <stackPanel name="EventDraftHeaders" orientation="horizontal" spanColls="7" spanRows="1">
           <control
             type="Label"
             name="HospitalHeader"
@@ -24,6 +24,57 @@
             style="tableHeaderCell"
             spanColls="1"
             spanRows="1"/>
+
+          <control
+            type="Label"
+            name="FioHeader"
+            text="FIO"
+            style="tableHeaderCell"
+            spanColls="1"
+            spanRows="1"/>
+
+          <control
+            type="Label"
+            name="TvoHeader"
+            text="TVO"
+            style="tableHeaderCell"
+            spanColls="1"
+            spanRows="1"/>
+
+          <control
+            type="Label"
+            name="CommanderHeader"
+            text="Commander"
+            style="tableHeaderCell"
+            spanColls="1"
+            spanRows="1"/>
+
+          <control
+            type="Label"
+            name="DateHeader"
+            text="Date"
+            style="tableHeaderCell"
+            spanColls="1"
+            spanRows="1"/>
+
+          <control
+            type="Label"
+            name="ColumnRes2Header"
+            text="Colum Res 2"
+            style="tableHeaderCell"
+            spanColls="1"
+            spanRows="1"/>
+
+          <control
+            type="Label"
+            name="ColumnRes3Header"
+            text="Colum Res 3"
+            style="tableHeaderCell"
+            spanColls="1"
+            spanRows="1"/>
+        </stackPanel>
+
+        <stackPanel name="EventDraftValues" orientation="horizontal" spanColls="7" spanRows="1">
           <control
             type="Input"
             name="HospitalLookupInput"
@@ -33,16 +84,7 @@
             onChangeArg="Hospital"
             spanColls="1"
             spanRows="1"/>
-        </stackPanel>
 
-        <stackPanel orientation="vertical" spanColls="1" spanRows="2">
-          <control
-            type="Label"
-            name="FioHeader"
-            text="FIO"
-            style="tableHeaderCell"
-            spanColls="1"
-            spanRows="1"/>
           <control
             type="Input"
             name="FioLookupInput"
@@ -52,16 +94,7 @@
             onChangeArg="FIO"
             spanColls="1"
             spanRows="1"/>
-        </stackPanel>
 
-        <stackPanel orientation="vertical" spanColls="1" spanRows="2">
-          <control
-            type="Label"
-            name="TvoHeader"
-            text="TVO"
-            style="tableHeaderCell"
-            spanColls="1"
-            spanRows="1"/>
           <control
             type="Label"
             name="TvoDraftCell"
@@ -69,16 +102,7 @@
             style="tableDataCell"
             spanColls="1"
             spanRows="1"/>
-        </stackPanel>
 
-        <stackPanel orientation="vertical" spanColls="1" spanRows="2">
-          <control
-            type="Label"
-            name="CommanderHeader"
-            text="Commander"
-            style="tableHeaderCell"
-            spanColls="1"
-            spanRows="1"/>
           <control
             type="Input"
             name="CommanderLookupInput"
@@ -88,16 +112,7 @@
             onChangeArg="Commander"
             spanColls="1"
             spanRows="1"/>
-        </stackPanel>
 
-        <stackPanel orientation="vertical" spanColls="1" spanRows="2">
-          <control
-            type="Label"
-            name="DateHeader"
-            text="Date"
-            style="tableHeaderCell"
-            spanColls="1"
-            spanRows="1"/>
           <control
             type="Label"
             name="DateDraftCell"
@@ -105,16 +120,7 @@
             style="tableDataCell"
             spanColls="1"
             spanRows="1"/>
-        </stackPanel>
 
-        <stackPanel orientation="vertical" spanColls="1" spanRows="2">
-          <control
-            type="Label"
-            name="ColumnRes2Header"
-            text="Colum Res 2"
-            style="tableHeaderCell"
-            spanColls="1"
-            spanRows="1"/>
           <control
             type="Label"
             name="ColumnRes2DraftCell"
@@ -122,16 +128,7 @@
             style="tableDataCell"
             spanColls="1"
             spanRows="1"/>
-        </stackPanel>
 
-        <stackPanel orientation="vertical" spanColls="1" spanRows="2">
-          <control
-            type="Label"
-            name="ColumnRes3Header"
-            text="Colum Res 3"
-            style="tableHeaderCell"
-            spanColls="1"
-            spanRows="1"/>
           <control
             type="Label"
             name="ColumnRes3DraftCell"
@@ -144,7 +141,7 @@
 
       <stackPanel orientation="vertical" spanColls="50">
         <control
-          type="EntityLookupCandidates"
+          type="LookupCandidates"
           name="LookupCandidatesTable"
           dataContext="{PageRuntimeSource='RuntimeObjects.PrsnlEvntBuilder.Controller'}"
           lookupFeature="{Binding Path=LookupFeature}"
