@@ -69,7 +69,6 @@ Public Function fn_RegisterPageHotkey(ByVal pageId As String, ByVal hotkeyKey As
     Dim slotIndex As Long
 
     pageId = VBA.LCase$(VBA.Trim$(pageId))
-    hotkeyKey = VBA.Trim$(hotkeyKey)
     If VBA.Len(pageId) = 0 Then Exit Function
     If VBA.Len(hotkeyKey) = 0 Then Exit Function
 
@@ -173,7 +172,7 @@ Public Sub fn_DispatchSlot(ByVal slotIndex As Long)
     private_EnsureStorage
     hotkeyKey = VBA.vbNullString
     If g_HotkeyBySlot.Exists(VBA.CStr(slotIndex)) Then
-        hotkeyKey = VBA.Trim$(VBA.CStr(g_HotkeyBySlot(VBA.CStr(slotIndex))))
+        hotkeyKey = VBA.CStr(g_HotkeyBySlot(VBA.CStr(slotIndex)))
     End If
     If VBA.Len(hotkeyKey) = 0 Then Exit Sub
 
@@ -302,7 +301,6 @@ Private Sub private_UnregisterHotkey(ByVal hotkeyKey As String)
     Dim slotIndex As Long
 
     If g_EntryByHotkey Is Nothing Then Exit Sub
-    hotkeyKey = VBA.Trim$(hotkeyKey)
     If VBA.Len(hotkeyKey) = 0 Then Exit Sub
 
     On Error Resume Next

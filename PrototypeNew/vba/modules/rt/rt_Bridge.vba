@@ -112,7 +112,6 @@ Public Sub fn_OnHotkey(ByVal hotkeyKey As String)
 
     On Error GoTo EH_HOTKEY
     If g_IsDispatchingHotkey Then Exit Sub
-    hotkeyKey = VBA.Trim$(hotkeyKey)
     If VBA.Len(hotkeyKey) = 0 Then Exit Sub
 
     Set activeSheetObj = Application.ActiveSheet

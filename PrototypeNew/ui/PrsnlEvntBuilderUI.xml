@@ -15,7 +15,7 @@
 
       <stackPanel spanColls="22" spanRows="1"/>
 
-      <stackPanel orientation="vertical" spanColls="22" spanRows="2">
+      <stackPanel name="EventDraftForm" orientation="vertical" spanColls="22" spanRows="2">
         <stackPanel name="EventDraftHeaders" orientation="horizontal" spanColls="22" spanRows="1">
           <control
             type="Label"

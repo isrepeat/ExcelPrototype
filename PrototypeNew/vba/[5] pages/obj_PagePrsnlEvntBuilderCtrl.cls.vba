@@ -13,7 +13,9 @@ Private Const DUMMY_TABLES_RUNTIME_KEY As String = "RuntimeItems.PrsnlEvntBuilde
 Private Const HOTKEYS_RUNTIME_KEY As String = "RuntimeItems.PrsnlEvntBuilder.Hotkeys"
 Private Const HOTKEY_ACTION_1 As String = "Action 1"
 Private Const HOTKEY_ACTION_2 As String = "Action 2"
+Private Const HOTKEY_SELECT_FORM_ROW As String = "Select Form Row"
 Private Const LOOKUP_CANDIDATES_CONTROL_NAME As String = "LookupCandidatesTable"
+Private Const EVENT_DRAFT_FORM_CONTAINER_NAME As String = "EventDraftForm"
 Private Const EVENT_DRAFT_VALUES_CONTAINER_NAME As String = "EventDraftValues"
 
 Private m_Page As obj_IPage
@@ -162,6 +164,9 @@ Public Function RuntimeHandleHotkeyAction(ByVal actionId As Variant) As Boolean
             targetCell.Interior.Color = VBA.RGB(126, 36, 121)
             targetCell.Font.Color = VBA.RGB(255, 255, 255)
 
+        Case VBA.LCase$(HOTKEY_SELECT_FORM_ROW)
+            If Not private_TrySelectScopedRowFromSelection(targetCell) Then Exit Function
+
         Case Else
             Exit Function
     End Select
@@ -287,6 +292,60 @@ RestoreEventsAndFail:
     On Error GoTo 0
 End Function
 
+Private Function private_TrySelectScopedRowFromSelection(ByVal targetCell As Range) As Boolean
+    Dim pageBase As obj_PageBase
+    Dim ws As Worksheet
+    Dim formRange As Range
+    Dim scopedRow As Range
+    Dim listObj As ListObject
+
+    If targetCell Is Nothing Then Exit Function
+    If m_Page Is Nothing Then Exit Function
+
+    Set pageBase = m_Page.GetPageBase()
+    If pageBase Is Nothing Then Exit Function
+    Set ws = pageBase.Worksheet
+    If ws Is Nothing Then Exit Function
+    If Not (targetCell.Worksheet Is ws) Then Exit Function
+
+    If pageBase.TryGetLayoutContainerRange(EVENT_DRAFT_FORM_CONTAINER_NAME, formRange) Then
+        If Not formRange Is Nothing Then
+            Set scopedRow = Nothing
+            On Error Resume Next
+            If Not Application.Intersect(targetCell, formRange) Is Nothing Then
+                Set scopedRow = Application.Intersect(targetCell.EntireRow, formRange)
+            End If
+            On Error GoTo 0
+            If Not scopedRow Is Nothing Then
+                scopedRow.Select
+                private_TrySelectScopedRowFromSelection = True
+                Exit Function
+            End If
+        End If
+    End If
+
+    For Each listObj In ws.ListObjects
+        If listObj Is Nothing Then GoTo ContinueListObject
+        If listObj.Range Is Nothing Then GoTo ContinueListObject
+        Set scopedRow = Nothing
+        On Error Resume Next
+        If Not Application.Intersect(targetCell, listObj.Range) Is Nothing Then
+            Set scopedRow = Application.Intersect(targetCell.EntireRow, listObj.Range)
+        End If
+        On Error GoTo 0
+        If Not scopedRow Is Nothing Then
+            scopedRow.Select
+            private_TrySelectScopedRowFromSelection = True
+            Exit Function
+        End If
+
+ContinueListObject:
+    Next listObj
+
+    targetCell.EntireRow.Select
+    private_TrySelectScopedRowFromSelection = True
+End Function
+
 Private Function private_TryResolveCandidateRowsArea( _
     ByVal ws As Worksheet, _
     ByVal targetCell As Range, _
@@ -339,6 +398,7 @@ Private Function private_EnsureHotkeyRows(ByVal notifyChange As Boolean) As Bool
     Dim runtimeSources As obj_PageRuntimeSources
     Dim hotkeyRows As Collection
     Dim existingRows As Collection
+    Dim hasChanges As Boolean
 
     ' Сеем default-строки хоткеев только когда page runtime source отсутствует/пустой.
     ' После Apply HotkeysControl пишет отредактированные строки обратно в тот же
@@ -352,6 +412,14 @@ Private Function private_EnsureHotkeyRows(ByVal notifyChange As Boolean) As Bool
     If runtimeSources.TryGetItemsSourceByKey(VBA.LCase$(HOTKEYS_RUNTIME_KEY), existingRows, True) Then
         If Not existingRows Is Nothing Then
             If existingRows.Count > 0 Then
+                Set hotkeyRows = existingRows
+                If Not private_EnsureHotkeyRow(hotkeyRows, HOTKEY_ACTION_1, "CTRL+ENTER", hasChanges) Then Exit Function
+                If Not private_EnsureHotkeyRow(hotkeyRows, HOTKEY_ACTION_2, "CTRL+SHIFT+R", hasChanges) Then Exit Function
+                If Not private_EnsureHotkeyRow(hotkeyRows, HOTKEY_SELECT_FORM_ROW, "SHIFT+SPACE", hasChanges) Then Exit Function
+                If hasChanges Then
+                    If Not runtimeSources.RemoveItemsSource(VBA.LCase$(HOTKEYS_RUNTIME_KEY)) Then Exit Function
+                    If Not runtimeSources.SetItemsSource(VBA.LCase$(HOTKEYS_RUNTIME_KEY), hotkeyRows, notifyChange) Then Exit Function
+                End If
                 private_EnsureHotkeyRows = True
                 Exit Function
             End If
@@ -366,11 +434,54 @@ Private Function private_EnsureHotkeyRows(ByVal notifyChange As Boolean) As Bool
     ' routes для этой страницы.
     If Not private_AddHotkeyRow(hotkeyRows, HOTKEY_ACTION_1, "CTRL+ENTER") Then Exit Function
     If Not private_AddHotkeyRow(hotkeyRows, HOTKEY_ACTION_2, "CTRL+SHIFT+R") Then Exit Function
+    If Not private_AddHotkeyRow(hotkeyRows, HOTKEY_SELECT_FORM_ROW, "SHIFT+SPACE") Then Exit Function
 
     If Not runtimeSources.RemoveItemsSource(VBA.LCase$(HOTKEYS_RUNTIME_KEY)) Then Exit Function
     If Not runtimeSources.SetItemsSource(VBA.LCase$(HOTKEYS_RUNTIME_KEY), hotkeyRows, notifyChange) Then Exit Function
 
     private_EnsureHotkeyRows = True
+End Function
+
+Private Function private_EnsureHotkeyRow( _
+    ByVal hotkeyRows As Collection, _
+    ByVal actionId As String, _
+    ByVal defaultHotkey As String, _
+    ByRef ioHasChanges As Boolean _
+) As Boolean
+    If hotkeyRows Is Nothing Then Exit Function
+    If Not private_HotkeyRowsContainAction(hotkeyRows, actionId) Then
+        If Not private_AddHotkeyRow(hotkeyRows, actionId, defaultHotkey) Then Exit Function
+        ioHasChanges = True
+    End If
+
+    private_EnsureHotkeyRow = True
+End Function
+
+Private Function private_HotkeyRowsContainAction( _
+    ByVal hotkeyRows As Collection, _
+    ByVal actionId As String _
+) As Boolean
+    Dim rowItem As Variant
+    Dim configEntry As obj_ConfigEntry
+
+    If hotkeyRows Is Nothing Then Exit Function
+    actionId = VBA.Trim$(actionId)
+    If VBA.Len(actionId) = 0 Then Exit Function
+
+    For Each rowItem In hotkeyRows
+        If Not VBA.IsObject(rowItem) Then GoTo ContinueRow
+        Set configEntry = Nothing
+        On Error Resume Next
+        Set configEntry = rowItem
+        On Error GoTo 0
+        If configEntry Is Nothing Then GoTo ContinueRow
+        If VBA.StrComp(VBA.Trim$(configEntry.Key), actionId, VBA.vbTextCompare) = 0 Then
+            private_HotkeyRowsContainAction = True
+            Exit Function
+        End If
+
+ContinueRow:
+    Next rowItem
 End Function
 
 Private Function private_AddHotkeyRow( _
