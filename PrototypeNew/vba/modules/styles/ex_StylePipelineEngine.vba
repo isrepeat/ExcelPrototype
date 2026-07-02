@@ -356,6 +356,9 @@ Private Function private_ApplySingleRule(ByVal ws As Worksheet, ByVal ruleNode A
             If scopeRange Is Nothing Then Exit Function
             Set columnScope = scopeRange.EntireColumn
 
+        Case "layoutcontainer"
+            If Not private_TryResolveLayoutContainerTargetScope(ws, selector, scopeRange, columnScope) Then Exit Function
+
         Case "controlpart"
             If Not private_TryResolveControlPartTargetScope(ws, selector, scopeRange, columnScope) Then Exit Function
     End Select
@@ -808,7 +811,7 @@ End Function
 
 Private Function private_IsSupportedStyleKey(ByVal keyName As String) As Boolean
     Select Case VBA.LCase$(VBA.Trim$(keyName))
-        Case "backcolor", "fontcolor", "bordercolor", "borderweight", "borderlinestyle", "fontname", "fontsize", "fontbold", "fontitalic", "horizontal", "vertical", "overflow", "width", "minwidth", "maxwidth", "autofitcolumns", "rowheight", "celltype"
+        Case "backcolor", "fontcolor", "bordercolor", "borderweight", "borderlinestyle", "fontname", "fontsize", "fontbold", "fontitalic", "horizontal", "vertical", "overflow", "width", "minwidth", "maxwidth", "autofitcolumns", "rowheight", "celltype", "zoom"
             private_IsSupportedStyleKey = True
     End Select
 End Function
@@ -882,9 +885,60 @@ End Function
 
 Private Function private_RuleTargetIsSupported(ByVal targetName As String) As Boolean
     Select Case VBA.LCase$(VBA.Trim$(targetName))
-        Case "row", "column", "cell", "range", "usedrange", "sheet", "controlpart", "layoutbound"
+        Case "row", "column", "cell", "range", "usedrange", "sheet", "layoutcontainer", "controlpart", "layoutbound"
             private_RuleTargetIsSupported = True
     End Select
+End Function
+
+
+Private Function private_TryResolveLayoutContainerTargetScope( _
+    ByVal ws As Worksheet, _
+    ByVal selector As Object, _
+    ByRef outScope As Range, _
+    ByRef outColumnScope As Range _
+) As Boolean
+    Dim containerName As String
+    Dim pageRef As obj_IPage
+    Dim pageBase As obj_PageBase
+
+    Set outScope = Nothing
+    Set outColumnScope = Nothing
+
+    If ws Is Nothing Then Exit Function
+    If selector Is Nothing Then
+#If LOGGING_DEBUG_ENABLED Then
+        ex_Core.fn_Diagnostic_LogError "PrototypeNew: layoutContainer rule requires selector."
+#End If
+        Exit Function
+    End If
+
+    If Not selector.Exists("name") Then
+#If LOGGING_DEBUG_ENABLED Then
+        ex_Core.fn_Diagnostic_LogError "PrototypeNew: layoutContainer rule requires selector key 'name'."
+#End If
+        Exit Function
+    End If
+
+    containerName = VBA.Trim$(VBA.CStr(selector("name")))
+    If VBA.Len(containerName) = 0 Then
+#If LOGGING_DEBUG_ENABLED Then
+        ex_Core.fn_Diagnostic_LogError "PrototypeNew: layoutContainer selector 'name' is empty."
+#End If
+        Exit Function
+    End If
+
+    If Not rt_PageManager.fn_TryGetPageByWorksheet(ws, pageRef) Then Exit Function
+    If pageRef Is Nothing Then Exit Function
+
+    Set pageBase = pageRef.GetPageBase()
+    If pageBase Is Nothing Then Exit Function
+    If Not pageBase.TryGetLayoutContainerRange(containerName, outScope) Then
+        private_TryResolveLayoutContainerTargetScope = True
+        Exit Function
+    End If
+
+    If Not outScope Is Nothing Then Set outColumnScope = outScope.EntireColumn
+    private_TryResolveLayoutContainerTargetScope = True
 End Function
 
 
@@ -1204,11 +1258,28 @@ Private Function private_ApplyRangeDeclarations( _
     Dim hasMaxWidth As Boolean
     Dim autoFitColumnsEnabled As Boolean
     Dim numberFormatValue As String
+    Dim zoomValue As Long
 
     If targetRange Is Nothing Then Exit Function
     If declarations Is Nothing Then
         private_ApplyRangeDeclarations = True
         Exit Function
+    End If
+
+    If declarations.Exists("zoom") Then
+        If VBA.StrComp(VBA.LCase$(VBA.Trim$(contextName)), "sheet", VBA.vbBinaryCompare) <> 0 Then
+#If LOGGING_DEBUG_ENABLED Then
+            ex_Core.fn_Diagnostic_LogError "PrototypeNew: zoom is supported only for sheet target."
+#End If
+            Exit Function
+        End If
+        If Not private_TryParseZoomPercent(VBA.CStr(declarations("zoom")), zoomValue) Then
+#If LOGGING_DEBUG_ENABLED Then
+            ex_Core.fn_Diagnostic_LogError "PrototypeNew: invalid zoom in " & contextName & ". Use a percentage from 1% to 100%."
+#End If
+            Exit Function
+        End If
+        If Not private_TryApplyWorksheetZoom(targetRange.Worksheet, zoomValue) Then Exit Function
     End If
 
     If declarations.Exists("backcolor") Then
@@ -1429,6 +1500,52 @@ Private Function private_ApplyRangeDeclarations( _
     End If
 
     private_ApplyRangeDeclarations = True
+End Function
+
+Private Function private_TryParseZoomPercent(ByVal zoomText As String, ByRef outZoom As Long) As Boolean
+    Dim numericText As String
+    Dim zoomValue As Double
+
+    outZoom = 0
+    zoomText = VBA.Trim$(zoomText)
+    If VBA.Len(zoomText) < 2 Then Exit Function
+    If VBA.Right$(zoomText, 1) <> "%" Then Exit Function
+
+    numericText = VBA.Trim$(VBA.Left$(zoomText, VBA.Len(zoomText) - 1))
+    If Not ex_HelpersCSS.fn_TryParsePositiveDouble(numericText, zoomValue) Then Exit Function
+    If zoomValue < 1 Or zoomValue > 100 Then Exit Function
+    If zoomValue <> VBA.Fix(zoomValue) Then Exit Function
+
+    outZoom = VBA.CLng(zoomValue)
+    private_TryParseZoomPercent = True
+End Function
+
+Private Function private_TryApplyWorksheetZoom(ByVal ws As Worksheet, ByVal zoomValue As Long) As Boolean
+    Dim previousSheet As Object
+
+    If ws Is Nothing Then Exit Function
+    If zoomValue < 1 Or zoomValue > 100 Then Exit Function
+    If Application.ActiveWindow Is Nothing Then
+        private_TryApplyWorksheetZoom = True
+        Exit Function
+    End If
+
+    On Error GoTo EH_ZOOM
+    Set previousSheet = ActiveSheet
+    If Not (ActiveSheet Is ws) Then ws.Activate
+    Application.ActiveWindow.Zoom = zoomValue
+    If Not previousSheet Is Nothing Then
+        If Not (previousSheet Is ActiveSheet) Then previousSheet.Activate
+    End If
+    On Error GoTo 0
+
+    private_TryApplyWorksheetZoom = True
+    Exit Function
+
+EH_ZOOM:
+#If LOGGING_DEBUG_ENABLED Then
+    ex_Core.fn_Diagnostic_LogError "PrototypeNew: failed to apply worksheet zoom: " & Err.Description
+#End If
 End Function
 
 
