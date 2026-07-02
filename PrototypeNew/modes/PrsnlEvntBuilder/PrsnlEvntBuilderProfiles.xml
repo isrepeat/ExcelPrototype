@@ -4,7 +4,7 @@
     <item attr="#" key="Profile.Name" value="Personal Event Builder / Lookup"/>
 
     <item attr="#" key="Personnel source" value=""/>
-    <item key="Source.Personnel.FilePath" value="C:\Users\SVI\Desktop\2026-06-10 А7383 Особовий склад.xlsx"/>
+    <item key="Source.Personnel.FilePath" value="C:\Users\SVI\Desktop\2026-06-29 А7383 Особовий склад.xlsx"/>
     <item key="Source.Personnel.SheetsAliases" value="StateMain"/>
     <item key="Personnel.Sheet[StateMain].SheetName" value="ШПС$A2:Q10000"/>
     <item key="Personnel.Sheet[StateMain].ColumnHeadersAliases" value="Rank; FIO; IPN; PositionCode; PositionName"/>
@@ -28,14 +28,29 @@
     <item key="HospitalsCommanders.Sheet[Commanders].Map[CommanderReport]" value="Рапорт основний"/>
 
     <item attr="#" key="Main table columns" value=""/>
-    <item key="EntityLookup.Table.Columns" value="Hospital; FIO; TVO; Commander; Date; ColumnRes2; ColumnRes3"/>
-    <item key="EntityLookup.Table.Column[Hospital].Caption" value="Hospital"/>
-    <item key="EntityLookup.Table.Column[FIO].Caption" value="FIO"/>
-    <item key="EntityLookup.Table.Column[TVO].Caption" value="TVO"/>
-    <item key="EntityLookup.Table.Column[Commander].Caption" value="Commander"/>
-    <item key="EntityLookup.Table.Column[Date].Caption" value="Date"/>
-    <item key="EntityLookup.Table.Column[ColumnRes2].Caption" value="Colum Res 2"/>
-    <item key="EntityLookup.Table.Column[ColumnRes3].Caption" value="Colum Res 3"/>
+    <item key="EntityLookup.Table.Columns" value="Hospital; HospitalShort; Vacation; Rank; FIO; IPN; PositionCode; PositionName; ReportTVO; ReportPerson; IncomingNo; IncomingDate; DocumentNote; DocNo; DocDate; DurationDays; DateFrom; DateTo; VhNo; VhDate; VlkNo; VlkDate"/>
+    <item key="EntityLookup.Table.Column[Hospital].Caption" value="Лікарня"/>
+    <item key="EntityLookup.Table.Column[HospitalShort].Caption" value="Лікарня скорочена назва"/>
+    <item key="EntityLookup.Table.Column[Vacation].Caption" value="Відпустка"/>
+    <item key="EntityLookup.Table.Column[Rank].Caption" value="Звання"/>
+    <item key="EntityLookup.Table.Column[FIO].Caption" value="ПІБ"/>
+    <item key="EntityLookup.Table.Column[IPN].Caption" value="ІПН"/>
+    <item key="EntityLookup.Table.Column[PositionCode].Caption" value="Код посади"/>
+    <item key="EntityLookup.Table.Column[PositionName].Caption" value="Посада"/>
+    <item key="EntityLookup.Table.Column[ReportTVO].Caption" value="Рапорт ТВО"/>
+    <item key="EntityLookup.Table.Column[ReportPerson].Caption" value="Рапорт кого"/>
+    <item key="EntityLookup.Table.Column[IncomingNo].Caption" value="Вх. №"/>
+    <item key="EntityLookup.Table.Column[IncomingDate].Caption" value="Вх. дата"/>
+    <item key="EntityLookup.Table.Column[DocumentNote].Caption" value="Документ / Замітки"/>
+    <item key="EntityLookup.Table.Column[DocNo].Caption" value="Дох. №"/>
+    <item key="EntityLookup.Table.Column[DocDate].Caption" value="Док. дата"/>
+    <item key="EntityLookup.Table.Column[DurationDays].Caption" value="На скільки"/>
+    <item key="EntityLookup.Table.Column[DateFrom].Caption" value="З"/>
+    <item key="EntityLookup.Table.Column[DateTo].Caption" value="По"/>
+    <item key="EntityLookup.Table.Column[VhNo].Caption" value="В/х №"/>
+    <item key="EntityLookup.Table.Column[VhDate].Caption" value="В/х дата"/>
+    <item key="EntityLookup.Table.Column[VlkNo].Caption" value="ВЛК №"/>
+    <item key="EntityLookup.Table.Column[VlkDate].Caption" value="ВЛК дата"/>
 
     <item attr="#" key="Lookup bindings" value=""/>
     <item key="EntityLookup.Lookups" value="Hospital; FIO; Commander"/>
@@ -49,7 +64,7 @@
     <item key="EntityLookup.Lookup[FIO].SearchColumnAlias" value="Personnel.Sheet[StateMain].Column[FIO]"/>
     <item key="EntityLookup.Lookup[FIO].ResultColumnsAliases" value="Rank; FIO; IPN; PositionCode; PositionName"/>
 
-    <item key="EntityLookup.Lookup[Commander].TargetColumn" value="Commander"/>
+    <item key="EntityLookup.Lookup[Commander].TargetColumn" value="ReportPerson"/>
     <item key="EntityLookup.Lookup[Commander].CandidatesSectionCaption" value="Commander candidates"/>
     <item key="EntityLookup.Lookup[Commander].SearchColumnAlias" value="HospitalsCommanders.Sheet[Commanders].Column[CommanderReport]"/>
     <item key="EntityLookup.Lookup[Commander].ResultColumnsAliases" value="CommanderTVO; CommanderReport"/>

@@ -13,68 +13,166 @@
           spanColls="2"/>
       </stackPanel>
 
-      <stackPanel spanColls="7" spanRows="1"/>
+      <stackPanel spanColls="22" spanRows="1"/>
 
-      <stackPanel orientation="vertical" spanColls="7" spanRows="2">
-        <stackPanel name="EventDraftHeaders" orientation="horizontal" spanColls="7" spanRows="1">
+      <stackPanel orientation="vertical" spanColls="22" spanRows="2">
+        <stackPanel name="EventDraftHeaders" orientation="horizontal" spanColls="22" spanRows="1">
           <control
             type="Label"
             name="HospitalHeader"
-            text="Hospital"
+            text="Лікарня"
             style="tableHeaderCell"
-            spanColls="1"
-            spanRows="1"/>
+            />
+
+          <control
+            type="Label"
+            name="HospitalShortHeader"
+            text="Лікарня скорочена назва"
+            style="tableHeaderCell"
+            />
+
+          <control
+            type="Label"
+            name="VacationHeader"
+            text="Відпустка"
+            style="tableHeaderCell"
+            />
+
+          <control
+            type="Label"
+            name="RankHeader"
+            text="Звання"
+            style="tableHeaderCell"
+            />
 
           <control
             type="Label"
             name="FioHeader"
-            text="FIO"
+            text="ПІБ"
             style="tableHeaderCell"
-            spanColls="1"
-            spanRows="1"/>
+            />
 
           <control
             type="Label"
-            name="TvoHeader"
-            text="TVO"
+            name="IpnHeader"
+            text="ІПН"
             style="tableHeaderCell"
-            spanColls="1"
-            spanRows="1"/>
+            />
 
           <control
             type="Label"
-            name="CommanderHeader"
-            text="Commander"
+            name="PositionCodeHeader"
+            text="Код посади"
             style="tableHeaderCell"
-            spanColls="1"
-            spanRows="1"/>
+            />
 
           <control
             type="Label"
-            name="DateHeader"
-            text="Date"
+            name="PositionNameHeader"
+            text="Посада"
             style="tableHeaderCell"
-            spanColls="1"
-            spanRows="1"/>
+            />
 
           <control
             type="Label"
-            name="ColumnRes2Header"
-            text="Colum Res 2"
+            name="ReportTvoHeader"
+            text="Рапорт ТВО"
             style="tableHeaderCell"
-            spanColls="1"
-            spanRows="1"/>
+            />
 
           <control
             type="Label"
-            name="ColumnRes3Header"
-            text="Colum Res 3"
+            name="ReportPersonHeader"
+            text="Рапорт кого"
             style="tableHeaderCell"
-            spanColls="1"
-            spanRows="1"/>
+            />
+
+          <control
+            type="Label"
+            name="IncomingNoHeader"
+            text="Вх. №"
+            style="tableHeaderCell"
+            />
+
+          <control
+            type="Label"
+            name="IncomingDateHeader"
+            text="Вх. дата"
+            style="tableHeaderCell"
+            />
+
+          <control
+            type="Label"
+            name="DocumentNoteHeader"
+            text="Документ / Замітки"
+            style="tableHeaderCell"
+            />
+
+          <control
+            type="Label"
+            name="DocNoHeader"
+            text="Дох. №"
+            style="tableHeaderCell"
+            />
+
+          <control
+            type="Label"
+            name="DocDateHeader"
+            text="Док. дата"
+            style="tableHeaderCell"
+            />
+
+          <control
+            type="Label"
+            name="DurationDaysHeader"
+            text="На скільки"
+            style="tableHeaderCell"
+            />
+
+          <control
+            type="Label"
+            name="DateFromHeader"
+            text="З"
+            style="tableHeaderCell"
+            />
+
+          <control
+            type="Label"
+            name="DateToHeader"
+            text="По"
+            style="tableHeaderCell"
+            />
+
+          <control
+            type="Label"
+            name="VhNoHeader"
+            text="В/х №"
+            style="tableHeaderCell"
+            />
+
+          <control
+            type="Label"
+            name="VhDateHeader"
+            text="В/х дата"
+            style="tableHeaderCell"
+            />
+
+          <control
+            type="Label"
+            name="VlkNoHeader"
+            text="ВЛК №"
+            style="tableHeaderCell"
+            />
+
+          <control
+            type="Label"
+            name="VlkDateHeader"
+            text="ВЛК дата"
+            style="tableHeaderCell"
+            />
         </stackPanel>
 
-        <stackPanel name="EventDraftValues" orientation="horizontal" spanColls="7" spanRows="1">
+        <stackPanel name="EventDraftValues" orientation="horizontal" spanColls="22" spanRows="1">
           <control
             type="Input"
             name="HospitalLookupInput"
@@ -84,6 +182,27 @@
             onChangeArg="Hospital"
             spanColls="1"
             spanRows="1"/>
+
+          <control
+            type="Label"
+            name="HospitalShortDraftCell"
+            text=""
+            style="tableDataCell"
+            />
+
+          <control
+            type="Label"
+            name="VacationDraftCell"
+            text=""
+            style="tableDataCell"
+            />
+
+          <control
+            type="Label"
+            name="RankDraftCell"
+            text=""
+            style="tableDataCell"
+            />
 
           <control
             type="Input"
@@ -97,11 +216,31 @@
 
           <control
             type="Label"
-            name="TvoDraftCell"
+            name="IpnDraftCell"
             text=""
             style="tableDataCell"
-            spanColls="1"
-            spanRows="1"/>
+            />
+
+          <control
+            type="Label"
+            name="PositionCodeDraftCell"
+            text=""
+            style="tableDataCell"
+            />
+
+          <control
+            type="Label"
+            name="PositionNameDraftCell"
+            text=""
+            style="tableDataCell"
+            />
+
+          <control
+            type="Label"
+            name="ReportTvoDraftCell"
+            text=""
+            style="tableDataCell"
+            />
 
           <control
             type="Input"
@@ -115,27 +254,87 @@
 
           <control
             type="Label"
-            name="DateDraftCell"
+            name="IncomingNoDraftCell"
             text=""
             style="tableDataCell"
-            spanColls="1"
-            spanRows="1"/>
+            />
 
           <control
             type="Label"
-            name="ColumnRes2DraftCell"
+            name="IncomingDateDraftCell"
             text=""
             style="tableDataCell"
-            spanColls="1"
-            spanRows="1"/>
+            />
 
           <control
             type="Label"
-            name="ColumnRes3DraftCell"
+            name="DocumentNoteDraftCell"
             text=""
             style="tableDataCell"
-            spanColls="1"
-            spanRows="1"/>
+            />
+
+          <control
+            type="Label"
+            name="DocNoDraftCell"
+            text=""
+            style="tableDataCell"
+            />
+
+          <control
+            type="Label"
+            name="DocDateDraftCell"
+            text=""
+            style="tableDataCell"
+            />
+
+          <control
+            type="Label"
+            name="DurationDaysDraftCell"
+            text=""
+            style="tableDataCell"
+            />
+
+          <control
+            type="Label"
+            name="DateFromDraftCell"
+            text=""
+            style="tableDataCell"
+            />
+
+          <control
+            type="Label"
+            name="DateToDraftCell"
+            text=""
+            style="tableDataCell"
+            />
+
+          <control
+            type="Label"
+            name="VhNoDraftCell"
+            text=""
+            style="tableDataCell"
+            />
+
+          <control
+            type="Label"
+            name="VhDateDraftCell"
+            text=""
+            style="tableDataCell"
+            />
+
+          <control
+            type="Label"
+            name="VlkNoDraftCell"
+            text=""
+            style="tableDataCell"
+            />
+
+          <control
+            type="Label"
+            name="VlkDateDraftCell"
+            text=""
+            style="tableDataCell"
+            />
         </stackPanel>
       </stackPanel>
 
@@ -171,7 +370,12 @@
                 width:15;
                 rowHeight:21;
                 cellType:text;
+                zoom:70%;
               }"/>
+
+        <rule target="column"
+              selector="address=A:A"
+              styles="{ width:2.38; }"/>
       </layer>
 
       <layer name="entitylookup-lookup-inputs">
@@ -186,6 +390,54 @@
                 vertical:center;
                 cellType:text;
               }"/>
+      </layer>
+
+      <layer name="event-draft-form">
+        <rule target="layoutContainer"
+              selector="name=EventDraftHeaders"
+              styles="{
+                horizontal:center;
+                vertical:center;
+              }"/>
+
+        <rule target="controlPart"
+              selector="type=label;part=cell"
+              styles="{
+                overflow:wrap;
+                rowHeight:48;
+                vertical:center;
+              }"/>
+
+        <rule target="controlPart"
+              selector="type=input;part=cell"
+              styles="{
+                overflow:wrap;
+                rowHeight:48;
+                vertical:center;
+              }"/>
+
+        <rule target="controlPart" selector="type=label;name=HospitalHeader;part=cell" styles="{ width:31; }"/>
+        <rule target="controlPart" selector="type=label;name=HospitalShortHeader;part=cell" styles="{ width:16; }"/>
+        <rule target="controlPart" selector="type=label;name=VacationHeader;part=cell" styles="{ width:16; }"/>
+        <rule target="controlPart" selector="type=label;name=RankHeader;part=cell" styles="{ width:16; }"/>
+        <rule target="controlPart" selector="type=label;name=FioHeader;part=cell" styles="{ width:22; }"/>
+        <rule target="controlPart" selector="type=label;name=IpnHeader;part=cell" styles="{ width:16; }"/>
+        <rule target="controlPart" selector="type=label;name=PositionCodeHeader;part=cell" styles="{ width:13; }"/>
+        <rule target="controlPart" selector="type=label;name=PositionNameHeader;part=cell" styles="{ width:23; }"/>
+        <rule target="controlPart" selector="type=label;name=ReportTvoHeader;part=cell" styles="{ width:9; }"/>
+        <rule target="controlPart" selector="type=label;name=ReportPersonHeader;part=cell" styles="{ width:37; }"/>
+        <rule target="controlPart" selector="type=label;name=IncomingNoHeader;part=cell" styles="{ width:9; }"/>
+        <rule target="controlPart" selector="type=label;name=IncomingDateHeader;part=cell" styles="{ width:7; }"/>
+        <rule target="controlPart" selector="type=label;name=DocumentNoteHeader;part=cell" styles="{ width:22; }"/>
+        <rule target="controlPart" selector="type=label;name=DocNoHeader;part=cell" styles="{ width:7; }"/>
+        <rule target="controlPart" selector="type=label;name=DocDateHeader;part=cell" styles="{ width:8; }"/>
+        <rule target="controlPart" selector="type=label;name=DurationDaysHeader;part=cell" styles="{ width:9; }"/>
+        <rule target="controlPart" selector="type=label;name=DateFromHeader;part=cell" styles="{ width:9; }"/>
+        <rule target="controlPart" selector="type=label;name=DateToHeader;part=cell" styles="{ width:9; }"/>
+        <rule target="controlPart" selector="type=label;name=VhNoHeader;part=cell" styles="{ width:9; }"/>
+        <rule target="controlPart" selector="type=label;name=VhDateHeader;part=cell" styles="{ width:9; }"/>
+        <rule target="controlPart" selector="type=label;name=VlkNoHeader;part=cell" styles="{ width:12; }"/>
+        <rule target="controlPart" selector="type=label;name=VlkDateHeader;part=cell" styles="{ width:9; }"/>
       </layer>
 
       <layer name="entitylookup-labels">
