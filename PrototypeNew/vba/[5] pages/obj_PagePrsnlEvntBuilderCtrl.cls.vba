@@ -13,6 +13,8 @@ Private Const DUMMY_TABLES_RUNTIME_KEY As String = "RuntimeItems.PrsnlEvntBuilde
 Private Const HOTKEYS_RUNTIME_KEY As String = "RuntimeItems.PrsnlEvntBuilder.Hotkeys"
 Private Const HOTKEY_ACTION_1 As String = "Action 1"
 Private Const HOTKEY_ACTION_2 As String = "Action 2"
+Private Const LOOKUP_CANDIDATES_CONTROL_NAME As String = "LookupCandidatesTable"
+Private Const EVENT_DRAFT_VALUES_CONTAINER_NAME As String = "EventDraftValues"
 
 Private m_Page As obj_IPage
 Private m_LookupFeature As obj_EntityLookupFeature
@@ -148,12 +150,13 @@ Public Function RuntimeHandleHotkeyAction(ByVal actionId As Variant) As Boolean
     actionText = VBA.Trim$(VBA.CStr(actionId))
     cellValue = VBA.CStr(targetCell.Value2)
 
-    ' Демо-реализация: красим выделенную ячейку. Реальные actions могут ветвиться
-    ' по стабильным action ids, читать состояние листа, вызывать сервисы, rerender и т.д.
+    ' Page-specific actions branch by stable action ids and read current sheet state.
     Select Case VBA.LCase$(actionText)
         Case VBA.LCase$(HOTKEY_ACTION_1)
-            targetCell.Interior.Color = VBA.RGB(255, 235, 59)
-            targetCell.Font.Color = VBA.RGB(31, 35, 41)
+            If Not private_TryAcceptCandidateRowFromSelection(targetCell) Then
+                RuntimeHandleHotkeyAction = True
+                Exit Function
+            End If
 
         Case VBA.LCase$(HOTKEY_ACTION_2)
             targetCell.Interior.Color = VBA.RGB(126, 36, 121)
@@ -204,6 +207,131 @@ Private Function private_RegisterDummyTables(ByVal notifyChange As Boolean) As B
     If Not runtimeSources.SetItemsSource(VBA.LCase$(DUMMY_TABLES_RUNTIME_KEY), dummyTables, notifyChange) Then Exit Function
 
     private_RegisterDummyTables = True
+End Function
+
+Private Function private_TryAcceptCandidateRowFromSelection(ByVal targetCell As Range) As Boolean
+    Dim pageBase As obj_PageBase
+    Dim ws As Worksheet
+    Dim candidateRowsArea As Range
+    Dim candidateRowRange As Range
+    Dim draftValuesRange As Range
+    Dim rowOffset As Long
+    Dim sourceRow As Long
+    Dim firstCol As Long
+    Dim lastCol As Long
+    Dim colIndex As Long
+    Dim previousEnableEvents As Boolean
+
+    If targetCell Is Nothing Then Exit Function
+    If m_Page Is Nothing Then Exit Function
+
+    Set pageBase = m_Page.GetPageBase()
+    If pageBase Is Nothing Then Exit Function
+    Set ws = pageBase.Worksheet
+    If ws Is Nothing Then Exit Function
+    If Not (targetCell.Worksheet Is ws) Then Exit Function
+
+    ' TableList already registers rendered data rows as controlPart=rows.
+    ' This keeps the hotkey independent from hard-coded row/column numbers.
+    If Not private_TryResolveCandidateRowsArea(ws, targetCell, candidateRowsArea) Then
+        rt_Messaging.fn_ShowStatusBarWarning "Select a candidate row cell first.", 3
+        Exit Function
+    End If
+
+    ' EventDraftValues is the named layout container for the form value row.
+    ' The controller only needs this container range, not individual input names.
+    If Not pageBase.TryGetLayoutContainerRange(EVENT_DRAFT_VALUES_CONTAINER_NAME, draftValuesRange) Then
+        rt_Messaging.fn_ShowStatusBarWarning "Event draft values container is not rendered.", 3
+        Exit Function
+    End If
+
+    ' Convert the active cell position into the concrete rendered candidate row.
+    ' The candidate rows area can move after rerender, so the relative row offset is used.
+    rowOffset = targetCell.Row - candidateRowsArea.Row + 1
+    If rowOffset <= 0 Or rowOffset > candidateRowsArea.Rows.Count Then Exit Function
+
+    sourceRow = candidateRowsArea.Row + rowOffset - 1
+    Set candidateRowRange = ws.Range( _
+        ws.Cells(sourceRow, candidateRowsArea.Column), _
+        ws.Cells(sourceRow, candidateRowsArea.Column + candidateRowsArea.Columns.Count - 1))
+
+    ' LookupCandidates visually aligns result columns under the form columns.
+    ' Therefore the safest generic mapping is the intersection of absolute Excel columns.
+    firstCol = private_MaxLong(candidateRowRange.Column, draftValuesRange.Column)
+    lastCol = private_MinLong( _
+        candidateRowRange.Column + candidateRowRange.Columns.Count - 1, _
+        draftValuesRange.Column + draftValuesRange.Columns.Count - 1)
+    If lastCol < firstCol Then
+        rt_Messaging.fn_ShowStatusBarWarning "Selected candidate row does not overlap the event form.", 3
+        Exit Function
+    End If
+
+    ' Values are written directly into sheet cells. Disable events so this accept action
+    ' does not recursively trigger input onChange/search/rerender for each copied cell.
+    previousEnableEvents = Application.EnableEvents
+    On Error GoTo RestoreEventsAndFail
+    Application.EnableEvents = False
+    For colIndex = firstCol To lastCol
+        ws.Cells(draftValuesRange.Row, colIndex).Value2 = ws.Cells(sourceRow, colIndex).Value2
+    Next colIndex
+    Application.EnableEvents = previousEnableEvents
+    On Error GoTo 0
+
+    candidateRowRange.Select
+    private_TryAcceptCandidateRowFromSelection = True
+    Exit Function
+
+RestoreEventsAndFail:
+    On Error Resume Next
+    Application.EnableEvents = previousEnableEvents
+    On Error GoTo 0
+End Function
+
+Private Function private_TryResolveCandidateRowsArea( _
+    ByVal ws As Worksheet, _
+    ByVal targetCell As Range, _
+    ByRef outRowsArea As Range _
+) As Boolean
+    Dim rowsScope As Range
+    Dim columnScope As Range
+    Dim area As Range
+
+    Set outRowsArea = Nothing
+    If ws Is Nothing Then Exit Function
+    If targetCell Is Nothing Then Exit Function
+
+    If Not ex_ControlPartsRuntime.fn_TryResolveControlPartScope( _
+        ws, _
+        "tablelist", _
+        LOOKUP_CANDIDATES_CONTROL_NAME, _
+        "rows", _
+        rowsScope, _
+        columnScope) Then Exit Function
+    If rowsScope Is Nothing Then Exit Function
+
+    For Each area In rowsScope.Areas
+        If Not Application.Intersect(targetCell, area) Is Nothing Then
+            Set outRowsArea = area
+            private_TryResolveCandidateRowsArea = True
+            Exit Function
+        End If
+    Next area
+End Function
+
+Private Function private_MaxLong(ByVal leftValue As Long, ByVal rightValue As Long) As Long
+    If leftValue >= rightValue Then
+        private_MaxLong = leftValue
+    Else
+        private_MaxLong = rightValue
+    End If
+End Function
+
+Private Function private_MinLong(ByVal leftValue As Long, ByVal rightValue As Long) As Long
+    If leftValue <= rightValue Then
+        private_MinLong = leftValue
+    Else
+        private_MinLong = rightValue
+    End If
 End Function
 
 Private Function private_EnsureHotkeyRows(ByVal notifyChange As Boolean) As Boolean

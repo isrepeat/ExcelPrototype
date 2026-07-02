@@ -127,6 +127,7 @@ Private Sub obj_IControl_Render()
     targetRange.VerticalAlignment = xlVAlignCenter
     targetRange.WrapText = False
     If Not private_ApplyPresetStyle(targetRange, m_ControlLayout.StyleName) Then Exit Sub
+    If Not private_RegisterControlPart(ws, targetRange) Then Exit Sub
     Exit Sub
 
 EH_RANGE:
@@ -212,6 +213,21 @@ Private Function private_ApplyPresetStyle(ByVal targetRange As Range, ByVal styl
     End Select
 
     private_ApplyPresetStyle = True
+End Function
+
+Private Function private_RegisterControlPart( _
+    ByVal ws As Worksheet, _
+    ByVal labelRange As Range _
+) As Boolean
+    If ws Is Nothing Then Exit Function
+    If labelRange Is Nothing Then Exit Function
+
+    private_RegisterControlPart = ex_ControlPartsRuntime.fn_RegisterControlPart( _
+        ws, _
+        "label", _
+        m_ControlName, _
+        "cell", _
+        labelRange)
 End Function
 
 Private Function private_GetWorksheetByName(ByVal page As obj_PageBase, ByVal sheetName As String) As Worksheet
