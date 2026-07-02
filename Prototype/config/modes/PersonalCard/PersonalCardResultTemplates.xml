@@ -280,7 +280,7 @@
           {#include vars.FlagDoNotRemoveFromFoodSupport}
           #let __HasFoodAttestatLine = $ex_Helpers.m_RegexFirstMatch("{Hospital}", "центр\s+[Пп]івнічного\s+регіону|центру\s+[Зз]ахідного\s+регіону");
         }#^
-#_      У {Hospital|lowerFirstLetter}:
+#_      У {Hospital|lowerFirstLetter}, з {#if OutDate}{OutDate|dateformat:"\dd \month"}{#endif}{#if #not OutDate}{DATE|dateformat:"\dd \month"}{#endif} 2026 року:
 #_      {#include block.MetadataAttributesInline}
 #_      {Rank|accusative} {FIO|accusative}, {Position|accusative|lowerFirstLetter}.
 #_      {#include block.AssignToDuty}#^
