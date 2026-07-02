@@ -616,7 +616,7 @@ Private Function private_TryMapKeyPart( _
     End Select
 
     If VBA.Len(outKeyToken) = 0 Then
-        outErrorText = "Unsupported key '" & keyText & "'. Use a single character, ENTER, NUMENTER, TAB, ESC, DELETE, BACKSPACE, arrows, HOME/END, PGUP/PGDN, or F1-F24."
+        outErrorText = "Unsupported key '" & keyText & "'. Use a single character, ENTER, NUMENTER, TAB, ESC, DELETE, BACKSPACE, SPACE, arrows, HOME/END, PGUP/PGDN, or F1-F24."
         Exit Function
     End If
 
@@ -848,7 +848,6 @@ Private Function private_AddRouteEntry( _
     Dim configEntry As obj_ConfigEntry
 
     If rows Is Nothing Then Exit Function
-    hotkeyKey = VBA.Trim$(hotkeyKey)
     actionText = VBA.Trim$(actionText)
     If VBA.Len(hotkeyKey) = 0 Then Exit Function
     If VBA.Len(actionText) = 0 Then Exit Function

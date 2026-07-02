@@ -935,7 +935,6 @@ Public Function RegisterHotkeyRouteByKey( _
     ' При dispatch rt_Bridge сначала выбирает активную страницу, а эта map уже решает,
     ' что хоткей значит именно на этой странице.
     If Not private_EnsureNotDisposed("RegisterHotkeyRouteByKey") Then Exit Function
-    hotkeyKey = VBA.Trim$(hotkeyKey)
     controlKey = VBA.LCase$(VBA.Trim$(controlKey))
     methodName = VBA.Trim$(methodName)
 
@@ -1239,7 +1238,6 @@ Public Function DispatchHotkey(ByVal hotkeyKey As String) As Boolean
     Dim invokeErrorText As String
 
     If Not private_EnsureNotDisposed("DispatchHotkey") Then Exit Function
-    hotkeyKey = VBA.Trim$(hotkeyKey)
     If VBA.Len(hotkeyKey) = 0 Then Exit Function
 
     ' Этот метод вызывается только после того, как rt_Bridge сопоставил
@@ -1969,7 +1967,6 @@ Private Function private_TryGetHotkeyRoute( _
         Exit Function
     End If
 
-    hotkeyKey = VBA.Trim$(hotkeyKey)
     If VBA.Len(hotkeyKey) = 0 Then
         outReason = "hotkey-empty"
         Exit Function
@@ -1990,7 +1987,6 @@ End Function
 
 Private Sub private_RemoveHotkeyRoute(ByVal hotkeyKey As String)
     If m_RouteByHotkey Is Nothing Then Exit Sub
-    hotkeyKey = VBA.Trim$(hotkeyKey)
     If VBA.Len(hotkeyKey) = 0 Then Exit Sub
     If m_RouteByHotkey.Exists(hotkeyKey) Then
         m_RouteByHotkey.Remove hotkeyKey
