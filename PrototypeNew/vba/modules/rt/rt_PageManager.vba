@@ -453,6 +453,7 @@ Public Function fn_RenderPage(ByVal page As obj_IPage, Optional ByVal reason As 
     Dim normalizedReason As String
     Dim errDescription As String
     Dim pageId As String
+    Dim activeSheetObj As Object
 
     If page Is Nothing Then
 #If LOGGING_DEBUG_ENABLED Then
@@ -500,6 +501,18 @@ Public Function fn_RenderPage(ByVal page As obj_IPage, Optional ByVal reason As 
         pageId = VBA.LCase$(VBA.Trim$(pageBase.PageId))
         If VBA.Len(pageId) = 0 Then pageId = private_TryResolvePageIdByObject(page)
         g_LastRenderedPageId = pageId
+        On Error Resume Next
+        Set activeSheetObj = Application.ActiveSheet
+        On Error GoTo EH_RENDER
+        If TypeOf activeSheetObj Is Worksheet Then
+            If activeSheetObj Is pageBase.Worksheet Then
+                If Not rt_HotkeyRuntime.fn_ActivatePageHotkeys(pageId) Then
+#If LOGGING_DEBUG_ENABLED Then
+                    ex_Core.fn_Diagnostic_LogError "page-manager:render hotkey-sync-failed sheet='" & sheetName & "'"
+#End If
+                End If
+            End If
+        End If
 #If LOGGING_DEBUG_ENABLED Then
         ex_Core.fn_Diagnostic_LogInfo "page-manager:render-done sheet='" & sheetName & "'"
 #End If
@@ -523,6 +536,7 @@ Public Function fn_RenderPageAndActivate(ByVal page As obj_IPage, Optional ByVal
     Dim sheetName As String
     Dim sheetCodeName As String
     Dim errDescription As String
+    Dim pageId As String
 
     If Not fn_RenderPage(page, reason) Then Exit Function
 
@@ -559,6 +573,13 @@ Public Function fn_RenderPageAndActivate(ByVal page As obj_IPage, Optional ByVal
 
     On Error GoTo EH_ACTIVATE
     pageBase.Worksheet.Activate
+    pageId = VBA.LCase$(VBA.Trim$(pageBase.PageId))
+    If VBA.Len(pageId) = 0 Then pageId = page.GetPageId()
+    If Not rt_HotkeyRuntime.fn_ActivatePageHotkeys(pageId) Then
+#If LOGGING_DEBUG_ENABLED Then
+        ex_Core.fn_Diagnostic_LogError "page-manager:activate-after-render hotkey-sync-failed sheet='" & VBA.Replace$(sheetName, "'", "''") & "'"
+#End If
+    End If
     fn_RenderPageAndActivate = True
     Exit Function
 

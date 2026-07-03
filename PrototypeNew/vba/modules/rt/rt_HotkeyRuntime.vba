@@ -6,14 +6,12 @@ Option Explicit
 Private Const MAX_HOTKEY_SLOTS As Long = 20
 
 ' Application.OnKey глобален на уровне Excel/книги; Excel не умеет ограничивать
-' такую привязку конкретным листом.
-' Поэтому этот модуль отвечает только за физическую глобальную связку:
-'   OnKey token -> фиксированный slot macro -> rt_Bridge.fn_OnHotkey(hotkeyKey)
-' Ограничение по странице происходит позже: rt_Bridge/PageBase смотрят активный лист.
-' Словарь Pages под каждым хоткеем держит глобальную привязку живой, пока хотя бы
-' одна страница продолжает иметь route для этого hotkey.
+' такую привязку конкретным листом. Поэтому runtime хранит routes всех страниц,
+' но физически включает OnKey только для активной страницы.
 Private g_EntryByHotkey As Object
 Private g_HotkeyBySlot As Object
+Private g_ActiveHotkeyByKey As Object
+Private g_ActivePageId As String
 
 Public Sub fn_Module_Dispose()
     fn_UnregisterAllHotkeys
@@ -74,13 +72,15 @@ Public Function fn_RegisterPageHotkey(ByVal pageId As String, ByVal hotkeyKey As
 
     private_EnsureStorage
 
-    ' Если другая страница уже использует этот физический хоткей, оставляем одну
-    ' OnKey-привязку и просто добавляем pageId. Dispatch выберет нужный route
-    ' по активному листу.
+    ' Если другая страница уже использует этот token, оставляем один slot macro
+    ' и просто добавляем pageId. Физически OnKey включается только для active page.
     If g_EntryByHotkey.Exists(hotkeyKey) Then
         Set entry = g_EntryByHotkey(hotkeyKey)
         Set pages = entry("Pages")
         pages(pageId) = True
+        If VBA.StrComp(g_ActivePageId, pageId, VBA.vbTextCompare) = 0 Then
+            If Not private_AssignPhysicalHotkey(hotkeyKey) Then Exit Function
+        End If
         fn_RegisterPageHotkey = True
         Exit Function
     End If
@@ -106,16 +106,41 @@ Public Function fn_RegisterPageHotkey(ByVal pageId As String, ByVal hotkeyKey As
     Set g_EntryByHotkey(hotkeyKey) = entry
     g_HotkeyBySlot(VBA.CStr(slotIndex)) = hotkeyKey
 
-    ' OnKey не умеет надежно передавать произвольные аргументы в один общий макрос,
-    ' поэтому каждый уникальный hotkey ведет в фиксированный slot macro, а token
-    ' хоткея достается из g_HotkeyBySlot.
-    If Not private_AssignOnKey(hotkeyKey, private_BuildSlotMacroRef(slotIndex)) Then
-        g_HotkeyBySlot.Remove VBA.CStr(slotIndex)
-        g_EntryByHotkey.Remove hotkeyKey
-        Exit Function
+    If VBA.StrComp(g_ActivePageId, pageId, VBA.vbTextCompare) = 0 Then
+        If Not private_AssignPhysicalHotkey(hotkeyKey) Then Exit Function
     End If
 
     fn_RegisterPageHotkey = True
+End Function
+
+Public Function fn_ActivatePageHotkeys(ByVal pageId As String) As Boolean
+    Dim hotkeyKey As Variant
+    Dim entry As Object
+    Dim pages As Object
+    Dim hasFailure As Boolean
+
+    pageId = VBA.LCase$(VBA.Trim$(pageId))
+    private_EnsureStorage
+
+    private_UnassignActivePhysicalHotkeys
+    g_ActivePageId = pageId
+
+    If VBA.Len(pageId) = 0 Then
+        fn_ActivatePageHotkeys = True
+        Exit Function
+    End If
+
+    For Each hotkeyKey In g_EntryByHotkey.Keys
+        Set entry = g_EntryByHotkey(hotkeyKey)
+        Set pages = entry("Pages")
+        If Not pages Is Nothing Then
+            If pages.Exists(pageId) Then
+                If Not private_AssignPhysicalHotkey(VBA.CStr(hotkeyKey)) Then hasFailure = True
+            End If
+        End If
+    Next hotkeyKey
+
+    fn_ActivatePageHotkeys = Not hasFailure
 End Function
 
 Public Sub fn_UnregisterPageHotkeys(ByVal pageId As String)
@@ -144,6 +169,11 @@ Public Sub fn_UnregisterPageHotkeys(ByVal pageId As String)
     For Each removeKey In keysToRemove
         private_UnregisterHotkey VBA.CStr(removeKey)
     Next removeKey
+
+    If VBA.StrComp(g_ActivePageId, pageId, VBA.vbTextCompare) = 0 Then
+        private_UnassignActivePhysicalHotkeys
+        g_ActivePageId = VBA.vbNullString
+    End If
 End Sub
 
 Public Sub fn_UnregisterAllHotkeys()
@@ -151,7 +181,14 @@ Public Sub fn_UnregisterAllHotkeys()
     Dim keysToRemove As Collection
     Dim removeKey As Variant
 
-    If g_EntryByHotkey Is Nothing Then Exit Sub
+    private_UnassignActivePhysicalHotkeys
+    g_ActivePageId = VBA.vbNullString
+
+    If g_EntryByHotkey Is Nothing Then
+        Set g_HotkeyBySlot = Nothing
+        Set g_ActiveHotkeyByKey = Nothing
+        Exit Sub
+    End If
 
     Set keysToRemove = New Collection
     For Each hotkeyKey In g_EntryByHotkey.Keys
@@ -164,6 +201,7 @@ Public Sub fn_UnregisterAllHotkeys()
 
     Set g_EntryByHotkey = Nothing
     Set g_HotkeyBySlot = Nothing
+    Set g_ActiveHotkeyByKey = Nothing
 End Sub
 
 Public Sub fn_DispatchSlot(ByVal slotIndex As Long)
@@ -270,6 +308,11 @@ Private Sub private_EnsureStorage()
         Set g_HotkeyBySlot = VBA.CreateObject("Scripting.Dictionary")
         g_HotkeyBySlot.CompareMode = 1
     End If
+
+    If g_ActiveHotkeyByKey Is Nothing Then
+        Set g_ActiveHotkeyByKey = VBA.CreateObject("Scripting.Dictionary")
+        g_ActiveHotkeyByKey.CompareMode = 1
+    End If
 End Sub
 
 Private Function private_AllocateSlotIndex() As Long
@@ -284,6 +327,26 @@ Private Function private_AllocateSlotIndex() As Long
     Next idx
 End Function
 
+Private Function private_AssignPhysicalHotkey(ByVal hotkeyKey As String) As Boolean
+    Dim entry As Object
+    Dim slotIndex As Long
+
+    private_EnsureStorage
+    If VBA.Len(hotkeyKey) = 0 Then Exit Function
+    If g_ActiveHotkeyByKey.Exists(hotkeyKey) Then
+        private_AssignPhysicalHotkey = True
+        Exit Function
+    End If
+    If Not g_EntryByHotkey.Exists(hotkeyKey) Then Exit Function
+
+    Set entry = g_EntryByHotkey(hotkeyKey)
+    slotIndex = VBA.CLng(entry("SlotIndex"))
+    If Not private_AssignOnKey(hotkeyKey, private_BuildSlotMacroRef(slotIndex)) Then Exit Function
+
+    g_ActiveHotkeyByKey(hotkeyKey) = True
+    private_AssignPhysicalHotkey = True
+End Function
+
 Private Function private_AssignOnKey(ByVal hotkeyKey As String, ByVal macroRef As String) As Boolean
     On Error GoTo EH_ASSIGN
     Application.OnKey hotkeyKey, macroRef
@@ -296,6 +359,21 @@ EH_ASSIGN:
 #End If
 End Function
 
+Private Sub private_UnassignActivePhysicalHotkeys()
+    Dim hotkeyKey As Variant
+
+    If g_ActiveHotkeyByKey Is Nothing Then Exit Sub
+
+    For Each hotkeyKey In g_ActiveHotkeyByKey.Keys
+        On Error Resume Next
+        Application.OnKey VBA.CStr(hotkeyKey)
+        On Error GoTo 0
+    Next hotkeyKey
+
+    Set g_ActiveHotkeyByKey = VBA.CreateObject("Scripting.Dictionary")
+    g_ActiveHotkeyByKey.CompareMode = 1
+End Sub
+
 Private Sub private_UnregisterHotkey(ByVal hotkeyKey As String)
     Dim entry As Object
     Dim slotIndex As Long
@@ -303,9 +381,14 @@ Private Sub private_UnregisterHotkey(ByVal hotkeyKey As String)
     If g_EntryByHotkey Is Nothing Then Exit Sub
     If VBA.Len(hotkeyKey) = 0 Then Exit Sub
 
-    On Error Resume Next
-    Application.OnKey hotkeyKey
-    On Error GoTo 0
+    If Not g_ActiveHotkeyByKey Is Nothing Then
+        If g_ActiveHotkeyByKey.Exists(hotkeyKey) Then
+            On Error Resume Next
+            Application.OnKey hotkeyKey
+            On Error GoTo 0
+            g_ActiveHotkeyByKey.Remove hotkeyKey
+        End If
+    End If
 
     If g_EntryByHotkey.Exists(hotkeyKey) Then
         Set entry = g_EntryByHotkey(hotkeyKey)

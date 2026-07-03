@@ -23,6 +23,31 @@ End Sub
 
 Private Sub Workbook_BeforeClose(Cancel As Boolean)
     Call rt_RestoreManager.fn_SaveRuntimeState
+    Call rt_HotkeyRuntime.fn_UnregisterAllHotkeys
+End Sub
+
+Private Sub Workbook_Activate()
+    On Error GoTo EH_WORKBOOK_ACTIVATE
+    rt_Bridge.fn_OnSheetActivate ActiveSheet
+    Exit Sub
+
+EH_WORKBOOK_ACTIVATE:
+#If LOGGING_DEBUG_ENABLED Then
+    ex_Core.fn_Diagnostic_LogError "PrototypeNew: Workbook_Activate failed: " & Err.Description
+#End If
+End Sub
+
+Private Sub Workbook_Deactivate()
+    Dim syncOk As Boolean
+
+    On Error GoTo EH_WORKBOOK_DEACTIVATE
+    syncOk = rt_HotkeyRuntime.fn_ActivatePageHotkeys(VBA.vbNullString)
+    Exit Sub
+
+EH_WORKBOOK_DEACTIVATE:
+#If LOGGING_DEBUG_ENABLED Then
+    ex_Core.fn_Diagnostic_LogError "PrototypeNew: Workbook_Deactivate failed: " & Err.Description
+#End If
 End Sub
 
 Private Sub Workbook_SheetChange(ByVal Sh As Object, ByVal Target As Range)
@@ -33,6 +58,17 @@ Private Sub Workbook_SheetChange(ByVal Sh As Object, ByVal Target As Range)
 EH_SHEET_CHANGE:
 #If LOGGING_DEBUG_ENABLED Then
     ex_Core.fn_Diagnostic_LogError "PrototypeNew: Workbook_SheetChange failed: " & Err.Description
+#End If
+End Sub
+
+Private Sub Workbook_SheetActivate(ByVal Sh As Object)
+    On Error GoTo EH_SHEET_ACTIVATE
+    rt_Bridge.fn_OnSheetActivate Sh
+    Exit Sub
+
+EH_SHEET_ACTIVATE:
+#If LOGGING_DEBUG_ENABLED Then
+    ex_Core.fn_Diagnostic_LogError "PrototypeNew: Workbook_SheetActivate failed: " & Err.Description
 #End If
 End Sub
 
