@@ -777,6 +777,8 @@ Private Function private_TryRegisterHotkeyRows( _
     Dim hotkeyText As String
     Dim hotkeyKey As String
     Dim parseError As String
+    Dim activeSheetObj As Object
+    Dim pageId As String
 
     outRegisteredCount = 0
     If hotkeyRows Is Nothing Then Exit Function
@@ -836,6 +838,19 @@ ContinueValidateRow:
 
 ContinueRegisterRow:
     Next rowItem
+
+    If Not pageBase.Worksheet Is Nothing Then
+        On Error Resume Next
+        Set activeSheetObj = Application.ActiveSheet
+        On Error GoTo 0
+        If TypeOf activeSheetObj Is Worksheet Then
+            If activeSheetObj Is pageBase.Worksheet Then
+                pageId = VBA.LCase$(VBA.Trim$(pageBase.PageId))
+                If VBA.Len(pageId) = 0 Then pageId = VBA.LCase$(VBA.Trim$(m_Page.GetPageId()))
+                If Not rt_HotkeyRuntime.fn_ActivatePageHotkeys(pageId) Then Exit Function
+            End If
+        End If
+    End If
 
     private_TryRegisterHotkeyRows = True
 End Function

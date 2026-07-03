@@ -103,6 +103,49 @@ Public Function fn_IsDispatchingHotkey() As Boolean
     fn_IsDispatchingHotkey = g_IsDispatchingHotkey
 End Function
 
+Public Sub fn_OnSheetActivate(ByVal Sh As Object)
+    Dim ws As Worksheet
+    Dim page As obj_IPage
+    Dim pageBase As obj_PageBase
+    Dim pageId As String
+    Dim wsName As String
+    Dim syncOk As Boolean
+
+    On Error GoTo EH_ACTIVATE
+    If Sh Is Nothing Then Exit Sub
+    If Not TypeOf Sh Is Worksheet Then
+        syncOk = rt_HotkeyRuntime.fn_ActivatePageHotkeys(VBA.vbNullString)
+        Exit Sub
+    End If
+
+    Set ws = Sh
+    wsName = VBA.Trim$(VBA.CStr(ws.Name))
+    If Not rt_PageManager.fn_TryGetPageByWorksheet(ws, page) Then
+        syncOk = rt_HotkeyRuntime.fn_ActivatePageHotkeys(VBA.vbNullString)
+        Exit Sub
+    End If
+
+    Set pageBase = page.GetPageBase()
+    If pageBase Is Nothing Then
+        syncOk = rt_HotkeyRuntime.fn_ActivatePageHotkeys(VBA.vbNullString)
+        Exit Sub
+    End If
+
+    pageId = VBA.LCase$(VBA.Trim$(pageBase.PageId))
+    If VBA.Len(pageId) = 0 Then pageId = VBA.LCase$(VBA.Trim$(page.GetPageId()))
+    If Not rt_HotkeyRuntime.fn_ActivatePageHotkeys(pageId) Then
+#If LOGGING_DEBUG_ENABLED Then
+        ex_Core.fn_Diagnostic_LogError "bridge:sheet-activate hotkey-sync-failed sheet='" & private_EscapeForLog(wsName) & "'"
+#End If
+    End If
+    Exit Sub
+
+EH_ACTIVATE:
+#If LOGGING_DEBUG_ENABLED Then
+    ex_Core.fn_Diagnostic_LogError "rt_Bridge: sheet activate dispatch failed: " & Err.Description
+#End If
+End Sub
+
 Public Sub fn_OnHotkey(ByVal hotkeyKey As String)
     Dim activeSheetObj As Object
     Dim ws As Worksheet
