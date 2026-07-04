@@ -24,6 +24,7 @@ End Sub
 Private Sub Workbook_BeforeClose(Cancel As Boolean)
     Call rt_RestoreManager.fn_SaveRuntimeState
     Call rt_HotkeyRuntime.fn_UnregisterAllHotkeys
+    Call rt_UndoManager.fn_Module_Dispose
 End Sub
 
 Private Sub Workbook_Activate()

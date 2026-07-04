@@ -58,6 +58,8 @@ Public Function Initialize(ByVal configTable As obj_ConfigTable) As Boolean
     Dim cfgMap As Object
     Dim exportAlias As String
 
+    private_LogMethodEntry "Initialize"
+
     m_IsDisposed = False
     m_TargetWorkbookPath = VBA.vbNullString
     m_TargetSheetName = VBA.vbNullString
@@ -86,12 +88,14 @@ Public Function Initialize(ByVal configTable As obj_ConfigTable) As Boolean
 End Function
 
 Public Function TryGetSectionTypeOptions(ByRef outSectionTypeOptions As Collection) As Boolean
+    private_LogMethodEntry "TryGetSectionTypeOptions"
     Set outSectionTypeOptions = private_BuildSectionTypeOptions()
     If outSectionTypeOptions Is Nothing Then Exit Function
     TryGetSectionTypeOptions = (outSectionTypeOptions.Count > 0)
 End Function
 
 Public Sub Dispose()
+    private_LogMethodEntry "Dispose"
     If m_IsDisposed Then Exit Sub
     m_IsDisposed = True
     On Error Resume Next
@@ -115,9 +119,9 @@ Public Function Export( _
     Dim prevEnableEvents As Boolean
     Dim prevDisplayAlerts As Boolean
     Dim prevCalculation As XlCalculation
-    Dim undoSnapshot As Object
 
     On Error GoTo EH
+    private_LogMethodEntry "Export"
     If m_IsDisposed Then
         VBA.MsgBox "PrototypeNew: DailyScope exporter is disposed.", VBA.vbExclamation, "PrototypeNew / DailyScope export"
         Exit Function
@@ -135,13 +139,8 @@ Public Function Export( _
     If Not private_TryFindConfiguredTargetTable(targetWs, targetTable) Then GoTo CleanFail
 
     If Not private_TryGetSectionWriteRowRange(targetTable, targetSectionCaption, targetRowRange, insertedRow) Then GoTo CleanFail
-    If Not private_TryBuildUndoSnapshot(targetWb, targetWs, targetTable, targetRowRange, insertedRow, sourceTable, undoSnapshot) Then GoTo CleanFail
 
     If Not private_TryWriteSourceRow(sourceTable, targetTable, targetRowRange) Then GoTo CleanFail
-    If Not rt_ExportUndo.fn_PushDailyScopeExportUndo(undoSnapshot) Then
-        VBA.MsgBox "PrototypeNew: failed to register DailyScope undo action.", VBA.vbExclamation, "PrototypeNew / DailyScope export"
-        GoTo CleanFail
-    End If
 
     If Not openedByExporter And SAVE_ALREADY_OPEN_WORKBOOK Then targetWb.Save
     Export = True
@@ -172,114 +171,6 @@ EH:
     On Error GoTo 0
 End Function
 
-Private Function private_TryBuildUndoSnapshot( _
-    ByVal targetWb As Workbook, _
-    ByVal targetWs As Worksheet, _
-    ByVal targetTable As ListObject, _
-    ByVal targetRowRange As Range, _
-    ByVal insertedRow As ListRow, _
-    ByVal sourceTable As obj_TableDynamic, _
-    ByRef outSnapshot As Object _
-) As Boolean
-    Dim rowIndex As Long
-    Dim isInsertedRow As Boolean
-    Dim columnIndexes As Collection
-    Dim oldValues As Collection
-
-    Set outSnapshot = Nothing
-    If targetWb Is Nothing Then Exit Function
-    If targetWs Is Nothing Then Exit Function
-    If targetTable Is Nothing Then Exit Function
-    If targetRowRange Is Nothing Then Exit Function
-    If sourceTable Is Nothing Then Exit Function
-
-    isInsertedRow = Not (insertedRow Is Nothing)
-
-    If isInsertedRow Then
-        rowIndex = insertedRow.Index
-    Else
-        If Not private_TryResolveListRowIndexByRange(targetTable, targetRowRange, rowIndex) Then Exit Function
-        If Not private_TryCaptureRowUndoValues(sourceTable, targetTable, targetRowRange, columnIndexes, oldValues) Then Exit Function
-    End If
-
-    Set outSnapshot = ex_Helpers.fn_CreateDictionaryTextCompare()
-    If outSnapshot Is Nothing Then Exit Function
-
-    outSnapshot("WorkbookPath") = targetWb.FullName
-    outSnapshot("WorkbookName") = targetWb.Name
-    outSnapshot("SheetName") = targetWs.Name
-    outSnapshot("TableName") = targetTable.Name
-    outSnapshot("RowIndex") = rowIndex
-    outSnapshot("InsertedRow") = isInsertedRow
-
-    If Not isInsertedRow Then
-        Set outSnapshot("ColumnIndexes") = columnIndexes
-        Set outSnapshot("OldValues") = oldValues
-    End If
-
-    private_TryBuildUndoSnapshot = True
-End Function
-
-Private Function private_TryResolveListRowIndexByRange( _
-    ByVal targetTable As ListObject, _
-    ByVal rowRange As Range, _
-    ByRef outRowIndex As Long _
-) As Boolean
-    outRowIndex = 0
-    If targetTable Is Nothing Then Exit Function
-    If rowRange Is Nothing Then Exit Function
-    If targetTable.DataBodyRange Is Nothing Then Exit Function
-
-    outRowIndex = rowRange.Row - targetTable.DataBodyRange.Row + 1
-    If outRowIndex <= 0 Then Exit Function
-    If outRowIndex > targetTable.ListRows.Count Then Exit Function
-    private_TryResolveListRowIndexByRange = True
-End Function
-
-Private Function private_TryCaptureRowUndoValues( _
-    ByVal sourceTable As obj_TableDynamic, _
-    ByVal targetTable As ListObject, _
-    ByVal rowRange As Range, _
-    ByRef outColumnIndexes As Collection, _
-    ByRef outOldValues As Collection _
-) As Boolean
-    Dim sourceColIndex As Long
-    Dim sourceColumn As obj_Column
-    Dim sourceColumnName As String
-    Dim targetColumnIndex As Long
-    Dim targetColumnIndexByName As Object
-
-    Set outColumnIndexes = Nothing
-    Set outOldValues = Nothing
-    If sourceTable Is Nothing Then Exit Function
-    If targetTable Is Nothing Then Exit Function
-    If rowRange Is Nothing Then Exit Function
-
-    Set outColumnIndexes = New Collection
-    Set outOldValues = New Collection
-
-    If Not private_TryBuildTargetColumnIndexByName(targetTable, targetColumnIndexByName) Then Exit Function
-
-    For sourceColIndex = 1 To sourceTable.ColumnCount
-        Set sourceColumn = sourceTable.Columns.Item(sourceColIndex)
-        If sourceColumn Is Nothing Then GoTo ContinueSourceColumn
-
-        sourceColumnName = VBA.Trim$(VBA.CStr(sourceColumn.Name))
-        If VBA.Len(sourceColumnName) = 0 Then GoTo ContinueSourceColumn
-        If Not targetColumnIndexByName.exists(sourceColumnName) Then GoTo ContinueSourceColumn
-
-        targetColumnIndex = VBA.CLng(targetColumnIndexByName(sourceColumnName))
-        If targetColumnIndex <= 0 Then GoTo ContinueSourceColumn
-
-        outColumnIndexes.Add targetColumnIndex
-        outOldValues.Add rowRange.Cells(1, targetColumnIndex).Value2
-
-ContinueSourceColumn:
-    Next sourceColIndex
-
-    private_TryCaptureRowUndoValues = True
-End Function
-
 ' //
 ' // Internal
 ' //
@@ -290,6 +181,8 @@ Private Function private_TryOpenTargetWorkbook( _
     Dim wb As Workbook
     Dim resolvedPath As String
     Dim targetWorkbookName As String
+
+    private_LogMethodEntry "private_TryOpenTargetWorkbook"
 
     Set outWorkbook = Nothing
     outOpenedByExporter = False
@@ -334,6 +227,7 @@ Private Function private_TryGetWorksheet( _
     ByVal worksheetName As String, _
     ByRef outWorksheet As Worksheet _
 ) As Boolean
+    private_LogMethodEntry "private_TryGetWorksheet"
     Set outWorksheet = Nothing
     If wb Is Nothing Then Exit Function
 
@@ -356,6 +250,8 @@ Private Function private_TryFindConfiguredTargetTable( _
     Dim tableObj As ListObject
     Dim targetRange As Range
     Dim startCell As Range
+
+    private_LogMethodEntry "private_TryFindConfiguredTargetTable"
 
     Set outTable = Nothing
     If ws Is Nothing Then Exit Function
@@ -384,6 +280,7 @@ ContinueTable:
 End Function
 
 Private Function private_ResolveTargetWorksheetName() As String
+    private_LogMethodEntry "private_ResolveTargetWorksheetName"
     private_ResolveTargetWorksheetName = private_ExtractSheetNameToken(m_TargetSheetName)
     If VBA.Len(private_ResolveTargetWorksheetName) = 0 Then
         VBA.MsgBox "PrototypeNew: target worksheet is not configured for DailyScope export.", VBA.vbExclamation, "PrototypeNew / DailyScope export"
@@ -638,6 +535,7 @@ ContinueEntry:
 End Function
 
 Private Function private_ValidateSourceTable(ByVal sourceTable As obj_TableDynamic) As Boolean
+    private_LogMethodEntry "private_ValidateSourceTable"
     If sourceTable Is Nothing Then
         VBA.MsgBox "PrototypeNew: export source table is not specified.", VBA.vbExclamation, "PrototypeNew / DailyScope export"
         Exit Function
@@ -667,6 +565,8 @@ Private Function private_TryWriteSourceRow( _
     Dim targetColumnIndexByName As Object
     Dim sourceColumnName As String
     Dim sourceColumnKey As String
+
+    private_LogMethodEntry "private_TryWriteSourceRow"
 
     If sourceTable Is Nothing Then Exit Function
     If targetTable Is Nothing Then Exit Function
@@ -1217,6 +1117,7 @@ Private Sub private_BeginFastExcelMode( _
     ByRef outDisplayAlerts As Boolean, _
     ByRef outCalculation As XlCalculation _
 )
+    private_LogMethodEntry "private_BeginFastExcelMode"
     outScreenUpdating = Application.ScreenUpdating
     outEnableEvents = Application.EnableEvents
     outDisplayAlerts = Application.DisplayAlerts
@@ -1234,10 +1135,17 @@ Private Sub private_RestoreFastExcelMode( _
     ByVal displayAlerts As Boolean, _
     ByVal calculation As XlCalculation _
 )
+    private_LogMethodEntry "private_RestoreFastExcelMode"
     On Error Resume Next
     Application.Calculation = calculation
     Application.DisplayAlerts = displayAlerts
     Application.EnableEvents = enableEvents
     Application.ScreenUpdating = screenUpdating
     On Error GoTo 0
+End Sub
+
+Private Sub private_LogMethodEntry(ByVal methodName As String)
+#If LOGGING_DEBUG_ENABLED Then
+    ex_Core.fn_Diagnostic_LogInfo "exporter:enter " & VBA.Trim$(methodName)
+#End If
 End Sub

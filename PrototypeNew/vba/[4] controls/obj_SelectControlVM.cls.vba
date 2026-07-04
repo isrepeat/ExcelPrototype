@@ -1114,6 +1114,8 @@ Private Function private_TryRefreshItemsAndRerenderAfterDropDownOpenedCallback()
     Dim pageBase As obj_PageBase
     Dim currentSelectedId As String
     Dim selectedIndexRefreshed As Long
+    Dim previousUiCount As Long
+    Dim resolvedCount As Long
 
     ' Этот метод намеренно перерисовывает только текущий Select-контрол.
     ' Полный page rerender здесь не нужен: нам важно обновить список "на месте"
@@ -1132,11 +1134,16 @@ Private Function private_TryRefreshItemsAndRerenderAfterDropDownOpenedCallback()
 
     currentSelectedId = VBA.Trim$(Me.GetSelectedId())
     If VBA.Len(currentSelectedId) = 0 Then currentSelectedId = VBA.Trim$(m_SelectedIdRaw)
+    previousUiCount = 0
+    If Not m_UiOptionIds Is Nothing Then previousUiCount = m_UiOptionIds.Count
 
     ' 1) Перечитываем itemsSource после DropDownOpened callback.
     If Not ex_RuntimeSourceResolver.fn_TryResolveItemsSource(pageBase.RuntimeSources, m_ItemsSourceRaw, m_Items) Then Exit Function
     ' 2) Пересобираем плоские буферы caption/id/action/raw.
     If Not private_TryBuildItemBuffers() Then Exit Function
+    resolvedCount = 0
+    If Not m_ItemIds Is Nothing Then resolvedCount = m_ItemIds.Count
+
 
     ' 3) Сохраняем выбор пользователя (по id), если элемент все еще существует.
     selectedIndexRefreshed = private_FindSelectedIndexById(currentSelectedId)
@@ -1449,6 +1456,8 @@ Private Function private_AsDictionary(ByVal sourceObject As Object) As Object
 End Function
 
 Private Function private_TryResolveSelectedIdText(ByRef outSelectedIdText As String) As Boolean
+    Dim storedSelectedId As String
+
     ' Порядок получения selectedId:
     ' 1) selectedId в XML
     ' 2) сохраненное состояние в CustomXMLPart (obj_SelectControlVMStatic)
@@ -1458,8 +1467,9 @@ Private Function private_TryResolveSelectedIdText(ByRef outSelectedIdText As Str
         Exit Function
     End If
 
-    If Not private_TryLoadStoredSelectedId(outSelectedIdText) Then Exit Function
-    outSelectedIdText = VBA.Trim$(outSelectedIdText)
+    If Not private_TryLoadStoredSelectedId(storedSelectedId) Then Exit Function
+    outSelectedIdText = VBA.Trim$(storedSelectedId)
+
     private_TryResolveSelectedIdText = True
 End Function
 
