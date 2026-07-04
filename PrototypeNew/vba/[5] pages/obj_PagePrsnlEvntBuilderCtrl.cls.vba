@@ -11,15 +11,30 @@ Private Const CONTROLLER_RUNTIME_OBJECT_KEY As String = "RuntimeObjects.PrsnlEvn
 Private Const CANDIDATE_TABLES_RUNTIME_KEY As String = "RuntimeItems.PrsnlEvntBuilder.EntityLookup.CandidateTables"
 Private Const DUMMY_TABLES_RUNTIME_KEY As String = "RuntimeItems.PrsnlEvntBuilder.DummyTables"
 Private Const HOTKEYS_RUNTIME_KEY As String = "RuntimeItems.PrsnlEvntBuilder.Hotkeys"
+Private Const SECTION_TYPES_RUNTIME_KEY As String = "RuntimeItems.PrsnlEvntBuilder.SectionTypes"
 Private Const HOTKEY_ACTION_1 As String = "Action 1"
 Private Const HOTKEY_ACTION_2 As String = "Action 2"
 Private Const HOTKEY_SELECT_FORM_ROW As String = "Select Form Row"
+Private Const EXPORT_CONFIG_PREFIX As String = "Export."
+Private Const EXPORT_FILE_PATH_SUFFIX As String = ".FilePath"
+Private Const EXPORT_CLASS_SUFFIX As String = ".ExporterClass"
+Private Const EXPORT_SHEET_NAME_SUFFIX As String = ".SheetName"
+Private Const EXPORT_RANGE_START_MARKER_SUFFIX As String = ".RangeStartMarker"
+Private Const EXPORT_RANGE_END_MARKER_SUFFIX As String = ".RangeEndMarker"
+Private Const EXPORT_ACTION_PREFIX As String = "Export "
+Private Const DEFAULT_EXPORTER_CLASS As String = "obj_ExporterToDailyScope"
+Private Const MAX_EXPORT_HOTKEYS As Long = 9
 Private Const LOOKUP_CANDIDATES_CONTROL_NAME As String = "LookupCandidatesTable"
 Private Const EVENT_DRAFT_FORM_CONTAINER_NAME As String = "EventDraftForm"
 Private Const EVENT_DRAFT_VALUES_CONTAINER_NAME As String = "EventDraftValues"
+Private Const EVENT_DRAFT_SECTION_TYPE_CONTAINER_NAME As String = "EventDraftSectionType"
+Private Const EXPORT_META_SECTION_TYPE_COLUMN_NAME As String = "meta_SectionType"
 
 Private m_Page As obj_IPage
 Private m_LookupFeature As obj_EntityLookupFeature
+Private m_ExportAliases As Collection
+Private m_ExporterClassByAlias As Object
+Private m_ExportConfigTableByAlias As Object
 Private m_IsDisposed As Boolean
 
 Private Sub Class_Initialize()
@@ -77,6 +92,7 @@ Public Function Initialize(ByVal page As Object) As Boolean
 
     m_IsDisposed = False
     Set m_Page = pageInterface
+    private_ResetExportSettings
 
     Set pageBase = m_Page.GetPageBase()
     If pageBase Is Nothing Then Exit Function
@@ -88,6 +104,7 @@ Public Function Initialize(ByVal page As Object) As Boolean
         CANDIDATE_TABLES_RUNTIME_KEY, _
         "prsnlevntbuilder:entitylookup") Then Exit Function
 
+    If Not private_RegisterSectionTypeOptions(False) Then Exit Function
     If Not private_RegisterDummyTables(False) Then Exit Function
     If Not private_EnsureHotkeyRows(False) Then Exit Function
     Initialize = True
@@ -104,17 +121,24 @@ Public Sub Dispose()
     If Not m_LookupFeature Is Nothing Then m_LookupFeature.Dispose
     Set m_LookupFeature = Nothing
     Set m_Page = Nothing
+    Set m_ExportAliases = Nothing
+    Set m_ExporterClassByAlias = Nothing
+    Set m_ExportConfigTableByAlias = Nothing
     On Error GoTo 0
 End Sub
 
 Public Function UpdateData(ByVal configControl As obj_ConfigControlVM) As Boolean
     If m_LookupFeature Is Nothing Then Exit Function
     UpdateData = m_LookupFeature.UpdateData(configControl)
+    If Not UpdateData Then Exit Function
+    If Not private_TryUpdateExportSettings(configControl) Then Exit Function
+    UpdateData = True
 End Function
 
 Public Function PrepareRuntime(Optional ByVal notifyChange As Boolean = False) As Boolean
     If m_LookupFeature Is Nothing Then Exit Function
     If Not m_LookupFeature.PrepareLookupRuntime(notifyChange) Then Exit Function
+    If Not private_RegisterSectionTypeOptions(notifyChange) Then Exit Function
     If Not private_RegisterDummyTables(notifyChange) Then Exit Function
     If Not private_EnsureHotkeyRows(notifyChange) Then Exit Function
     PrepareRuntime = True
@@ -151,6 +175,15 @@ Public Function RuntimeHandleHotkeyAction(ByVal actionId As Variant) As Boolean
 
     actionText = VBA.Trim$(VBA.CStr(actionId))
     cellValue = VBA.CStr(targetCell.Value2)
+
+    If private_IsExportAction(actionText) Then
+        If Not private_TryExportDraftByAction(actionText) Then
+            RuntimeHandleHotkeyAction = True
+            Exit Function
+        End If
+        RuntimeHandleHotkeyAction = True
+        Exit Function
+    End If
 
     ' Page-specific actions branch by stable action ids and read current sheet state.
     Select Case VBA.LCase$(actionText)
@@ -212,6 +245,30 @@ Private Function private_RegisterDummyTables(ByVal notifyChange As Boolean) As B
     If Not runtimeSources.SetItemsSource(VBA.LCase$(DUMMY_TABLES_RUNTIME_KEY), dummyTables, notifyChange) Then Exit Function
 
     private_RegisterDummyTables = True
+End Function
+
+Private Function private_RegisterSectionTypeOptions(ByVal notifyChange As Boolean) As Boolean
+    Dim pageBase As obj_PageBase
+    Dim runtimeSources As obj_PageRuntimeSources
+    Dim sectionTypes As Collection
+    Dim exporterToDailyScope As obj_ExporterToDailyScope
+
+    If m_Page Is Nothing Then Exit Function
+    Set pageBase = m_Page.GetPageBase()
+    If pageBase Is Nothing Then Exit Function
+    Set runtimeSources = pageBase.RuntimeSources
+    If runtimeSources Is Nothing Then Exit Function
+
+    Set exporterToDailyScope = New obj_ExporterToDailyScope
+    If Not exporterToDailyScope.Initialize(Nothing) Then Exit Function
+    If Not exporterToDailyScope.TryGetSectionTypeOptions(sectionTypes) Then Exit Function
+    If sectionTypes Is Nothing Then Exit Function
+    If sectionTypes.Count = 0 Then Exit Function
+
+    If Not runtimeSources.RemoveItemsSource(VBA.LCase$(SECTION_TYPES_RUNTIME_KEY)) Then Exit Function
+    If Not runtimeSources.SetItemsSource(VBA.LCase$(SECTION_TYPES_RUNTIME_KEY), sectionTypes, notifyChange) Then Exit Function
+
+    private_RegisterSectionTypeOptions = True
 End Function
 
 Private Function private_TryAcceptCandidateRowFromSelection(ByVal targetCell As Range) As Boolean
@@ -346,6 +403,380 @@ ContinueListObject:
     private_TrySelectScopedRowFromSelection = True
 End Function
 
+Private Function private_TryExportDraftByAction(ByVal actionId As String) As Boolean
+    Dim sourceTable As obj_TableDynamic
+    Dim exporter As obj_IDataExporter
+    Dim exportAlias As String
+    Dim exporterClassName As String
+    Dim exportConfigTable As obj_ConfigTable
+
+    If Not private_TryResolveExportAliasFromAction(actionId, exportAlias) Then Exit Function
+        If Not private_TryGetExportSettings(exportAlias, exporterClassName, exportConfigTable) Then Exit Function
+    If Not private_TryBuildDraftFormSourceTable(sourceTable) Then Exit Function
+
+    If Not private_TryCreateDataExporter(exporterClassName, exportConfigTable, exporter) Then Exit Function
+
+        If Not exporter.Export(sourceTable) Then Exit Function
+
+    rt_Messaging.fn_ShowStatusBarSuccess EXPORT_ACTION_PREFIX & exportAlias & ": done", 3
+    private_TryExportDraftByAction = True
+End Function
+
+Private Function private_TryUpdateExportSettings(ByVal configControl As obj_ConfigControlVM) As Boolean
+    Dim configTable As obj_ConfigTable
+    Dim cfgParserBase As obj_CfgParserBase
+    Dim configEntries As Collection
+    Dim cfgMap As Object
+
+    private_ResetExportSettings
+    If configControl Is Nothing Then
+        private_TryUpdateExportSettings = True
+        Exit Function
+    End If
+
+    If Not configControl.TryBuildConfigTableFromRendered(configTable) Then Exit Function
+    If configTable Is Nothing Then Exit Function
+
+    Set cfgParserBase = New obj_CfgParserBase
+    If Not cfgParserBase.Initialize(configTable) Then Exit Function
+    If Not cfgParserBase.TryGetConfigEntries(configEntries) Then Exit Function
+    If Not cfgParserBase.BuildConfigDictionary(configEntries, cfgMap) Then Exit Function
+
+    If Not private_TryLoadExportSettings(configEntries, cfgParserBase, cfgMap) Then Exit Function
+    private_TryUpdateExportSettings = True
+End Function
+
+Private Sub private_ResetExportSettings()
+    Set m_ExportAliases = New Collection
+    Set m_ExporterClassByAlias = ex_Helpers.fn_CreateDictionaryTextCompare()
+    Set m_ExportConfigTableByAlias = ex_Helpers.fn_CreateDictionaryTextCompare()
+End Sub
+
+Private Function private_TryLoadExportSettings( _
+    ByVal configEntries As Collection, _
+    ByVal cfgParserBase As obj_CfgParserBase, _
+    ByVal cfgMap As Object _
+) As Boolean
+    Dim entryObj As Variant
+    Dim configEntry As obj_ConfigEntry
+    Dim keyText As String
+    Dim exportAlias As String
+    Dim keySuffix As String
+    Dim exporterClassName As String
+    Dim targetWorkbookPath As String
+    Dim targetSheetName As String
+    Dim rangeStartMarker As String
+    Dim rangeEndMarker As String
+    Dim exportConfigTable As obj_ConfigTable
+    Dim aliasObj As Variant
+
+    If configEntries Is Nothing Then
+        private_TryLoadExportSettings = True
+        Exit Function
+    End If
+    If cfgParserBase Is Nothing Then Exit Function
+    If cfgMap Is Nothing Then Exit Function
+
+    For Each entryObj In configEntries
+        If Not VBA.IsObject(entryObj) Then GoTo ContinueEntry
+        Set configEntry = Nothing
+        On Error Resume Next
+        Set configEntry = entryObj
+        On Error GoTo 0
+        If configEntry Is Nothing Then GoTo ContinueEntry
+
+        keyText = VBA.Trim$(configEntry.Key)
+        If Not private_TryParseExportConfigKey(keyText, exportAlias, keySuffix) Then GoTo ContinueEntry
+        If Not private_ExportAliasExists(exportAlias) Then m_ExportAliases.Add exportAlias
+
+ContinueEntry:
+    Next entryObj
+
+    For Each aliasObj In m_ExportAliases
+        exportAlias = VBA.Trim$(VBA.CStr(aliasObj))
+        If VBA.Len(exportAlias) = 0 Then GoTo ContinueAlias
+
+        exporterClassName = cfgParserBase.GetOptionalConfigValue( _
+            cfgMap, _
+            EXPORT_CONFIG_PREFIX & exportAlias & EXPORT_CLASS_SUFFIX, _
+            DEFAULT_EXPORTER_CLASS)
+        exporterClassName = VBA.Trim$(exporterClassName)
+        If VBA.Len(exporterClassName) = 0 Then exporterClassName = DEFAULT_EXPORTER_CLASS
+
+        targetWorkbookPath = cfgParserBase.GetOptionalConfigValue( _
+            cfgMap, _
+            EXPORT_CONFIG_PREFIX & exportAlias & EXPORT_FILE_PATH_SUFFIX, _
+            VBA.vbNullString)
+        targetSheetName = cfgParserBase.GetOptionalConfigValue( _
+            cfgMap, _
+            EXPORT_CONFIG_PREFIX & exportAlias & EXPORT_SHEET_NAME_SUFFIX, _
+            VBA.vbNullString)
+        rangeStartMarker = cfgParserBase.GetOptionalConfigValue( _
+            cfgMap, _
+            EXPORT_CONFIG_PREFIX & exportAlias & EXPORT_RANGE_START_MARKER_SUFFIX, _
+            VBA.vbNullString)
+        rangeEndMarker = cfgParserBase.GetOptionalConfigValue( _
+            cfgMap, _
+            EXPORT_CONFIG_PREFIX & exportAlias & EXPORT_RANGE_END_MARKER_SUFFIX, _
+            VBA.vbNullString)
+
+        Set exportConfigTable = private_BuildExportConfigTable( _
+            exportAlias, _
+            exporterClassName, _
+            targetWorkbookPath, _
+            targetSheetName, _
+            rangeStartMarker, _
+            rangeEndMarker)
+        If exportConfigTable Is Nothing Then Exit Function
+
+        m_ExporterClassByAlias(exportAlias) = exporterClassName
+        Set m_ExportConfigTableByAlias(exportAlias) = exportConfigTable
+
+ContinueAlias:
+    Next aliasObj
+
+    private_TryLoadExportSettings = True
+End Function
+
+Private Function private_TryParseExportConfigKey( _
+    ByVal keyText As String, _
+    ByRef outExportAlias As String, _
+    ByRef outKeySuffix As String _
+) As Boolean
+    Dim keyLower As String
+    Dim suffixPos As Long
+
+    outExportAlias = VBA.vbNullString
+    outKeySuffix = VBA.vbNullString
+
+    keyText = VBA.Trim$(keyText)
+    keyLower = VBA.LCase$(keyText)
+    If VBA.Left$(keyLower, VBA.Len(VBA.LCase$(EXPORT_CONFIG_PREFIX))) <> VBA.LCase$(EXPORT_CONFIG_PREFIX) Then Exit Function
+
+    suffixPos = VBA.InStr(VBA.Len(EXPORT_CONFIG_PREFIX) + 1, keyText, ".", VBA.vbTextCompare)
+    If suffixPos <= VBA.Len(EXPORT_CONFIG_PREFIX) + 1 Then Exit Function
+
+    outKeySuffix = VBA.Mid$(keyText, suffixPos)
+    If VBA.StrComp(outKeySuffix, EXPORT_FILE_PATH_SUFFIX, VBA.vbTextCompare) <> 0 _
+        And VBA.StrComp(outKeySuffix, EXPORT_CLASS_SUFFIX, VBA.vbTextCompare) <> 0 _
+        And VBA.StrComp(outKeySuffix, EXPORT_SHEET_NAME_SUFFIX, VBA.vbTextCompare) <> 0 _
+        And VBA.StrComp(outKeySuffix, EXPORT_RANGE_START_MARKER_SUFFIX, VBA.vbTextCompare) <> 0 _
+        And VBA.StrComp(outKeySuffix, EXPORT_RANGE_END_MARKER_SUFFIX, VBA.vbTextCompare) <> 0 Then Exit Function
+
+    outExportAlias = VBA.Trim$(VBA.Mid$(keyText, VBA.Len(EXPORT_CONFIG_PREFIX) + 1, suffixPos - VBA.Len(EXPORT_CONFIG_PREFIX) - 1))
+    If VBA.Len(outExportAlias) = 0 Then Exit Function
+
+    private_TryParseExportConfigKey = True
+End Function
+
+Private Function private_ExportAliasExists(ByVal exportAlias As String) As Boolean
+    Dim aliasObj As Variant
+
+    If m_ExportAliases Is Nothing Then Exit Function
+    exportAlias = VBA.Trim$(exportAlias)
+    If VBA.Len(exportAlias) = 0 Then Exit Function
+
+    For Each aliasObj In m_ExportAliases
+        If VBA.StrComp(VBA.Trim$(VBA.CStr(aliasObj)), exportAlias, VBA.vbTextCompare) = 0 Then
+            private_ExportAliasExists = True
+            Exit Function
+        End If
+    Next aliasObj
+End Function
+
+Private Function private_IsExportAction(ByVal actionId As String) As Boolean
+    actionId = VBA.Trim$(actionId)
+    If VBA.Len(actionId) <= VBA.Len(EXPORT_ACTION_PREFIX) Then Exit Function
+    private_IsExportAction = (VBA.Left$(VBA.LCase$(actionId), VBA.Len(VBA.LCase$(EXPORT_ACTION_PREFIX))) = VBA.LCase$(EXPORT_ACTION_PREFIX))
+End Function
+
+Private Function private_TryResolveExportAliasFromAction( _
+    ByVal actionId As String, _
+    ByRef outExportAlias As String _
+) As Boolean
+    Dim exportAlias As String
+
+    outExportAlias = VBA.vbNullString
+    If Not private_IsExportAction(actionId) Then Exit Function
+
+    exportAlias = VBA.Trim$(VBA.Mid$(actionId, VBA.Len(EXPORT_ACTION_PREFIX) + 1))
+    If VBA.Len(exportAlias) = 0 Then Exit Function
+    If Not private_ExportAliasExists(exportAlias) Then
+        VBA.MsgBox "PrototypeNew: export action is not configured: " & actionId, VBA.vbExclamation, "PrototypeNew / Data export"
+        Exit Function
+    End If
+
+    outExportAlias = exportAlias
+    private_TryResolveExportAliasFromAction = True
+End Function
+
+Private Function private_TryGetExportSettings( _
+    ByVal exportAlias As String, _
+    ByRef outExporterClassName As String, _
+    ByRef outExportConfigTable As obj_ConfigTable _
+) As Boolean
+    outExporterClassName = VBA.vbNullString
+    Set outExportConfigTable = Nothing
+
+    exportAlias = VBA.Trim$(exportAlias)
+    If VBA.Len(exportAlias) = 0 Then Exit Function
+    If m_ExporterClassByAlias Is Nothing Then Exit Function
+    If m_ExportConfigTableByAlias Is Nothing Then Exit Function
+    If Not m_ExporterClassByAlias.Exists(exportAlias) Then Exit Function
+
+    outExporterClassName = VBA.Trim$(VBA.CStr(m_ExporterClassByAlias(exportAlias)))
+    If VBA.Len(outExporterClassName) = 0 Then outExporterClassName = DEFAULT_EXPORTER_CLASS
+    If m_ExportConfigTableByAlias.Exists(exportAlias) Then Set outExportConfigTable = m_ExportConfigTableByAlias(exportAlias)
+    If outExportConfigTable Is Nothing Then Exit Function
+
+    private_TryGetExportSettings = True
+End Function
+
+Private Function private_TryCreateDataExporter( _
+    ByVal exporterClassName As String, _
+    ByVal exportConfigTable As obj_ConfigTable, _
+    ByRef outExporter As obj_IDataExporter _
+) As Boolean
+    Dim exporterToDailyScope As obj_ExporterToDailyScope
+
+    Set outExporter = Nothing
+    exporterClassName = VBA.Trim$(exporterClassName)
+    If VBA.Len(exporterClassName) = 0 Then exporterClassName = DEFAULT_EXPORTER_CLASS
+
+    Select Case VBA.LCase$(exporterClassName)
+        Case VBA.LCase$("obj_ExporterToDailyScope")
+            Set exporterToDailyScope = New obj_ExporterToDailyScope
+            If Not exporterToDailyScope.Initialize(exportConfigTable) Then Exit Function
+            Set outExporter = exporterToDailyScope
+
+        Case Else
+            VBA.MsgBox "PrototypeNew: unsupported data exporter class: " & exporterClassName, VBA.vbExclamation, "PrototypeNew / Data export"
+            Exit Function
+    End Select
+
+    private_TryCreateDataExporter = Not outExporter Is Nothing
+End Function
+
+Private Function private_BuildExportConfigTable( _
+    ByVal exportAlias As String, _
+    ByVal exporterClassName As String, _
+    ByVal targetWorkbookPath As String, _
+    ByVal targetSheetName As String, _
+    ByVal rangeStartMarker As String, _
+    ByVal rangeEndMarker As String _
+) As obj_ConfigTable
+    Dim configTable As obj_ConfigTable
+
+    Set configTable = New obj_ConfigTable
+    If Not configTable.Initialize() Then Exit Function
+
+    If Not configTable.AddRow(VBA.vbNullString, EXPORT_CONFIG_PREFIX & exportAlias & EXPORT_CLASS_SUFFIX, exporterClassName) Then Exit Function
+    If Not configTable.AddRow(VBA.vbNullString, EXPORT_CONFIG_PREFIX & exportAlias & EXPORT_FILE_PATH_SUFFIX, targetWorkbookPath) Then Exit Function
+    If Not configTable.AddRow(VBA.vbNullString, EXPORT_CONFIG_PREFIX & exportAlias & EXPORT_SHEET_NAME_SUFFIX, targetSheetName) Then Exit Function
+    If Not configTable.AddRow(VBA.vbNullString, EXPORT_CONFIG_PREFIX & exportAlias & EXPORT_RANGE_START_MARKER_SUFFIX, rangeStartMarker) Then Exit Function
+    If Not configTable.AddRow(VBA.vbNullString, EXPORT_CONFIG_PREFIX & exportAlias & EXPORT_RANGE_END_MARKER_SUFFIX, rangeEndMarker) Then Exit Function
+
+    Set private_BuildExportConfigTable = configTable
+End Function
+
+Private Function private_TryBuildDraftFormSourceTable(ByRef outTable As obj_TableDynamic) As Boolean
+    Dim pageBase As obj_PageBase
+    Dim ws As Worksheet
+    Dim draftValuesRange As Range
+    Dim sourceTable As obj_TableDynamic
+    Dim sourceRow As obj_Row
+    Dim colOffset As Long
+    Dim sheetCol As Long
+    Dim headerText As String
+    Dim sectionTypeText As String
+
+    Set outTable = Nothing
+    If m_Page Is Nothing Then Exit Function
+
+    Set pageBase = m_Page.GetPageBase()
+    If pageBase Is Nothing Then Exit Function
+    Set ws = pageBase.Worksheet
+    If ws Is Nothing Then Exit Function
+
+    If Not pageBase.TryGetLayoutContainerRange(EVENT_DRAFT_VALUES_CONTAINER_NAME, draftValuesRange) Then
+        rt_Messaging.fn_ShowStatusBarWarning "Event draft values container is not rendered.", 3
+        Exit Function
+    End If
+    If draftValuesRange Is Nothing Then Exit Function
+    If draftValuesRange.Row <= 1 Then
+        rt_Messaging.fn_ShowStatusBarWarning "Event draft values container has no header row above it.", 3
+        Exit Function
+    End If
+
+    Set sourceTable = New obj_TableDynamic
+    sourceTable.SectionTitle = "PrsnlEvntBuilder draft form"
+    Set sourceRow = New obj_Row
+
+    For colOffset = 1 To draftValuesRange.Columns.Count
+        sheetCol = draftValuesRange.Column + colOffset - 1
+        headerText = private_ReadHeaderText(ws.Cells(draftValuesRange.Row - 1, sheetCol))
+        If VBA.Len(headerText) = 0 Then headerText = "Column " & VBA.CStr(colOffset)
+        If Not private_AddSourceColumn(sourceTable, headerText) Then Exit Function
+        sourceRow.PushCellRaw ws.Cells(draftValuesRange.Row, sheetCol).Value2
+    Next colOffset
+
+    If Not private_TryGetSelectedSectionType(sectionTypeText) Then Exit Function
+    If Not private_AddSourceColumn(sourceTable, EXPORT_META_SECTION_TYPE_COLUMN_NAME) Then Exit Function
+    sourceRow.PushCellRaw sectionTypeText
+
+    If Not sourceTable.PushRow(sourceRow) Then Exit Function
+    Set outTable = sourceTable
+    private_TryBuildDraftFormSourceTable = True
+End Function
+
+Private Function private_TryGetSelectedSectionType(ByRef outSectionType As String) As Boolean
+    Dim pageBase As obj_PageBase
+    Dim rawControl As Object
+    Dim sectionTypeSelect As obj_SelectControlVM
+
+    outSectionType = VBA.vbNullString
+    If m_Page Is Nothing Then Exit Function
+    Set pageBase = m_Page.GetPageBase()
+    If pageBase Is Nothing Then Exit Function
+
+    If Not pageBase.TryGetRegisteredControlByName(EVENT_DRAFT_SECTION_TYPE_CONTAINER_NAME, rawControl) Then
+        rt_Messaging.fn_ShowStatusBarWarning "Event section type selector is not rendered.", 3
+        Exit Function
+    End If
+
+    On Error Resume Next
+    Set sectionTypeSelect = rawControl
+    On Error GoTo 0
+    If sectionTypeSelect Is Nothing Then
+        rt_Messaging.fn_ShowStatusBarWarning "Event section type selector is not a Select control.", 3
+        Exit Function
+    End If
+
+    outSectionType = VBA.Trim$(sectionTypeSelect.GetSelectedId())
+    If VBA.Len(outSectionType) = 0 Then
+        rt_Messaging.fn_ShowStatusBarWarning "Event section type is not selected.", 3
+        Exit Function
+    End If
+
+    private_TryGetSelectedSectionType = True
+End Function
+
+Private Function private_ReadHeaderText(ByVal headerCell As Range) As String
+    Dim valueText As String
+
+    If headerCell Is Nothing Then Exit Function
+
+    On Error Resume Next
+    If headerCell.MergeCells Then
+        valueText = VBA.CStr(headerCell.MergeArea.Cells(1, 1).Value2)
+    Else
+        valueText = VBA.CStr(headerCell.Value2)
+    End If
+    On Error GoTo 0
+
+    private_ReadHeaderText = VBA.Trim$(valueText)
+End Function
+
 Private Function private_TryResolveCandidateRowsArea( _
     ByVal ws As Worksheet, _
     ByVal targetCell As Range, _
@@ -413,8 +844,10 @@ Private Function private_EnsureHotkeyRows(ByVal notifyChange As Boolean) As Bool
         If Not existingRows Is Nothing Then
             If existingRows.Count > 0 Then
                 Set hotkeyRows = existingRows
+                If Not private_RemoveStaleExportHotkeyRows(hotkeyRows, hasChanges) Then Exit Function
                 If Not private_EnsureHotkeyRow(hotkeyRows, HOTKEY_ACTION_1, "CTRL+ENTER", hasChanges) Then Exit Function
                 If Not private_EnsureHotkeyRow(hotkeyRows, HOTKEY_ACTION_2, "CTRL+SHIFT+R", hasChanges) Then Exit Function
+                If Not private_EnsureExportHotkeyRows(hotkeyRows, hasChanges) Then Exit Function
                 If Not private_EnsureHotkeyRow(hotkeyRows, HOTKEY_SELECT_FORM_ROW, "SHIFT+SPACE", hasChanges) Then Exit Function
                 If hasChanges Then
                     If Not runtimeSources.RemoveItemsSource(VBA.LCase$(HOTKEYS_RUNTIME_KEY)) Then Exit Function
@@ -434,6 +867,7 @@ Private Function private_EnsureHotkeyRows(ByVal notifyChange As Boolean) As Bool
     ' routes для этой страницы.
     If Not private_AddHotkeyRow(hotkeyRows, HOTKEY_ACTION_1, "CTRL+ENTER") Then Exit Function
     If Not private_AddHotkeyRow(hotkeyRows, HOTKEY_ACTION_2, "CTRL+SHIFT+R") Then Exit Function
+    If Not private_AddExportHotkeyRows(hotkeyRows) Then Exit Function
     If Not private_AddHotkeyRow(hotkeyRows, HOTKEY_SELECT_FORM_ROW, "SHIFT+SPACE") Then Exit Function
 
     If Not runtimeSources.RemoveItemsSource(VBA.LCase$(HOTKEYS_RUNTIME_KEY)) Then Exit Function
@@ -455,6 +889,125 @@ Private Function private_EnsureHotkeyRow( _
     End If
 
     private_EnsureHotkeyRow = True
+End Function
+
+Private Function private_EnsureExportHotkeyRows( _
+    ByVal hotkeyRows As Collection, _
+    ByRef ioHasChanges As Boolean _
+) As Boolean
+    Dim exportIndex As Long
+    Dim aliasObj As Variant
+    Dim exportAlias As String
+    Dim actionId As String
+    Dim defaultHotkey As String
+
+    If hotkeyRows Is Nothing Then Exit Function
+    If m_ExportAliases Is Nothing Then
+        private_EnsureExportHotkeyRows = True
+        Exit Function
+    End If
+
+    exportIndex = 0
+    For Each aliasObj In m_ExportAliases
+        exportAlias = VBA.Trim$(VBA.CStr(aliasObj))
+        If VBA.Len(exportAlias) = 0 Then GoTo ContinueAlias
+
+        exportIndex = exportIndex + 1
+        If exportIndex > MAX_EXPORT_HOTKEYS Then GoTo ContinueAlias
+
+        actionId = private_BuildExportActionId(exportAlias)
+        defaultHotkey = private_BuildExportDefaultHotkey(exportIndex)
+        If Not private_EnsureHotkeyRow(hotkeyRows, actionId, defaultHotkey, ioHasChanges) Then Exit Function
+
+ContinueAlias:
+    Next aliasObj
+
+    private_EnsureExportHotkeyRows = True
+End Function
+
+Private Function private_AddExportHotkeyRows(ByVal hotkeyRows As Collection) As Boolean
+    Dim exportIndex As Long
+    Dim aliasObj As Variant
+    Dim exportAlias As String
+
+    If hotkeyRows Is Nothing Then Exit Function
+    If m_ExportAliases Is Nothing Then
+        private_AddExportHotkeyRows = True
+        Exit Function
+    End If
+
+    exportIndex = 0
+    For Each aliasObj In m_ExportAliases
+        exportAlias = VBA.Trim$(VBA.CStr(aliasObj))
+        If VBA.Len(exportAlias) = 0 Then GoTo ContinueAlias
+
+        exportIndex = exportIndex + 1
+        If exportIndex > MAX_EXPORT_HOTKEYS Then GoTo ContinueAlias
+
+        If Not private_AddHotkeyRow( _
+            hotkeyRows, _
+            private_BuildExportActionId(exportAlias), _
+            private_BuildExportDefaultHotkey(exportIndex)) Then Exit Function
+
+ContinueAlias:
+    Next aliasObj
+
+    private_AddExportHotkeyRows = True
+End Function
+
+Private Function private_RemoveStaleExportHotkeyRows( _
+    ByVal hotkeyRows As Collection, _
+    ByRef ioHasChanges As Boolean _
+) As Boolean
+    Dim idx As Long
+    Dim rowObj As Object
+    Dim configEntry As obj_ConfigEntry
+    Dim actionId As String
+
+    If hotkeyRows Is Nothing Then Exit Function
+
+    For idx = hotkeyRows.Count To 1 Step -1
+        Set rowObj = Nothing
+        Set configEntry = Nothing
+        On Error Resume Next
+        Set rowObj = hotkeyRows.Item(idx)
+        Set configEntry = rowObj
+        On Error GoTo 0
+        If configEntry Is Nothing Then GoTo ContinueRow
+
+        actionId = VBA.Trim$(configEntry.Key)
+        If VBA.Left$(VBA.LCase$(actionId), VBA.Len(VBA.LCase$(EXPORT_ACTION_PREFIX))) = VBA.LCase$(EXPORT_ACTION_PREFIX) Then
+            If Not private_IsKnownExportAction(actionId) Then
+                hotkeyRows.Remove idx
+                ioHasChanges = True
+            End If
+        End If
+
+ContinueRow:
+    Next idx
+
+    private_RemoveStaleExportHotkeyRows = True
+End Function
+
+Private Function private_IsKnownExportAction(ByVal actionId As String) As Boolean
+    Dim exportAlias As String
+
+    If Not private_IsExportAction(actionId) Then Exit Function
+    exportAlias = VBA.Trim$(VBA.Mid$(VBA.Trim$(actionId), VBA.Len(EXPORT_ACTION_PREFIX) + 1))
+    If VBA.Len(exportAlias) = 0 Then Exit Function
+
+    private_IsKnownExportAction = private_ExportAliasExists(exportAlias)
+End Function
+
+Private Function private_BuildExportActionId(ByVal exportAlias As String) As String
+    exportAlias = VBA.Trim$(exportAlias)
+    If VBA.Len(exportAlias) = 0 Then Exit Function
+    private_BuildExportActionId = EXPORT_ACTION_PREFIX & exportAlias
+End Function
+
+Private Function private_BuildExportDefaultHotkey(ByVal exportIndex As Long) As String
+    If exportIndex <= 0 Or exportIndex > MAX_EXPORT_HOTKEYS Then Exit Function
+    private_BuildExportDefaultHotkey = "CTRL+" & VBA.CStr(exportIndex)
 End Function
 
 Private Function private_HotkeyRowsContainAction( _
@@ -536,4 +1089,15 @@ Private Function private_AddColumn( _
     If VBA.Len(colObj.Name) = 0 Then colObj.Name = "Column " & VBA.CStr(tableObj.ColumnCount + 1)
     colObj.Position = tableObj.ColumnCount + 1
     private_AddColumn = tableObj.PushColumn(colObj)
+End Function
+
+Private Function private_AddSourceColumn(ByVal tableObj As obj_TableDynamic, ByVal columnName As String) As Boolean
+    Dim colObj As obj_Column
+
+    If tableObj Is Nothing Then Exit Function
+    Set colObj = New obj_Column
+    colObj.Name = VBA.Trim$(columnName)
+    If VBA.Len(colObj.Name) = 0 Then colObj.Name = "Column " & VBA.CStr(tableObj.ColumnCount + 1)
+    colObj.Position = tableObj.ColumnCount + 1
+    private_AddSourceColumn = tableObj.PushColumn(colObj)
 End Function

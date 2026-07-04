@@ -6,6 +6,7 @@ Attribute VB_Name = "obj_PagePrsnlEvntBuilder"
 Option Explicit
 #Const LOGGING_DEBUG_ENABLED = True
 #Const LOGGING_VERBOSE_ENABLED = False
+#Const PRSNL_EVNT_BUILDER_HOTKEYS_ENABLED = True
 
 Implements obj_IPage
 Implements obj_ISerializable
@@ -113,9 +114,11 @@ Private Function obj_IPage_Render() As Boolean
         If Not private_TryRestoreLayoutContainerValues(EVENT_DRAFT_VALUES_CONTAINER_NAME, draftValues) Then Exit Function
     End If
     If Not private_TryRestorePendingControlSnapshots() Then Exit Function
+#If PRSNL_EVNT_BUILDER_HOTKEYS_ENABLED Then
     ' HotkeysControl рендерится из RuntimeItems. После render повторно применяем
     ' его текущую таблицу, чтобы restored/default строки стали активными OnKey-привязками.
     If Not private_TryRegisterRenderedHotkeys() Then Exit Function
+#End If
     obj_IPage_Render = True
 End Function
 
