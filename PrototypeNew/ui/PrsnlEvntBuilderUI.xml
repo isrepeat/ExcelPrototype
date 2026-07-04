@@ -19,7 +19,6 @@
         type="Select"
         name="EventDraftSectionType"
         itemsSource="{PageRuntimeSource='RuntimeItems.PrsnlEvntBuilder.SectionTypes'}"
-        selectedId="з лікування"
         placeholder="Тип події"
         style="configSelectHeader"
         panelStyle="configSelectPanel"
