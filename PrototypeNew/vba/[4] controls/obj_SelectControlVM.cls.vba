@@ -13,6 +13,9 @@ Implements obj_ISerializable
 Private Const DEFAULT_PLACEHOLDER As String = "Choose option"
 Private Const DEFAULT_ITEM_HEIGHT As Double = 18#
 Private Const DEFAULT_ITEM_MARGIN As Double = 2#
+Private Const SHAPE_NAME_MAX_LEN As Long = 30
+Private Const SHAPE_CONTROL_HASH_LEN As Long = 8
+Private Const SHAPE_SUFFIX_HASH_LEN As Long = 8
 
 Private m_ControlBase As obj_ControlBase
 ' Общие layout-параметры контрола (лист, границы в ячейках, style).
@@ -54,6 +57,8 @@ Private m_IsDropdownExpanded As Boolean
 Private m_IsConfigured As Boolean
 Private m_Page As obj_IPage
 Private m_CallbackContext As Object
+Private m_ShapeNameByXmlSuffix As Object
+Private m_XmlSuffixByShapeName As Object
 
 Private Sub Class_Initialize()
 #If LOGGING_VERBOSE_ENABLED Then
@@ -110,6 +115,8 @@ Private Sub obj_IControl_Dispose()
     Set m_UiOptionActionMacros = Nothing
     Set m_UiOptionRawItems = Nothing
     Set m_CallbackContext = Nothing
+    Set m_ShapeNameByXmlSuffix = Nothing
+    Set m_XmlSuffixByShapeName = Nothing
     Set m_Page = Nothing
     On Error GoTo 0
 End Sub
@@ -136,6 +143,8 @@ Private Sub obj_IControl_Configure(ByVal controlNode As Object)
     Set m_UiOptionRawItems = Nothing
     Set m_ControlBase = Nothing
     Set m_CallbackContext = Nothing
+    Set m_ShapeNameByXmlSuffix = Nothing
+    Set m_XmlSuffixByShapeName = Nothing
     m_IsDropdownExpanded = False
     m_SelectedIndex = 0
 
@@ -1578,6 +1587,7 @@ Private Function private_CreateShapeByRange( _
         Case "panel"
             shapeStyle = VBA.Trim$(m_PanelStyleName)
         Case Else
+            shapeRole = "item"
             shapeStyle = VBA.Trim$(m_ItemStyleName)
     End Select
 
@@ -1659,6 +1669,7 @@ Private Function private_CreateShapeByBounds( _
         Case "panel"
             shapeStyle = VBA.Trim$(m_PanelStyleName)
         Case Else
+            shapeRole = "item"
             shapeStyle = VBA.Trim$(m_ItemStyleName)
     End Select
 
@@ -1750,6 +1761,7 @@ Private Sub private_DeleteControlShapes(ByVal ws As Worksheet)
     Dim i As Long
     Dim shp As Shape
     Dim controlMeta As String
+    Dim deletedCount As Long
 
     If ws Is Nothing Then Exit Sub
 
@@ -1758,10 +1770,15 @@ Private Sub private_DeleteControlShapes(ByVal ws As Worksheet)
         controlMeta = VBA.LCase$(VBA.Trim$(ex_ShapeMetaRuntime.fn_GetShapeMetaValue(shp, "pn.control", VBA.vbNullString)))
         If VBA.Len(controlMeta) = 0 Then GoTo ContinueShape
         If controlMeta = VBA.LCase$(VBA.Trim$(m_ControlName)) Then
+            deletedCount = deletedCount + 1
             shp.Delete
         End If
 ContinueShape:
     Next i
+
+#If LOGGING_DEBUG_ENABLED Then
+    If deletedCount > 0 Then ex_Core.fn_Diagnostic_LogInfo "select:delete-control-shapes control='" & VBA.Replace$(VBA.Trim$(m_ControlName), "'", "''") & "' count=" & VBA.CStr(deletedCount)
+#End If
 End Sub
 
 Private Sub private_DeleteStaleItemShapes(ByVal ws As Worksheet, ByVal keepItemCount As Long)
@@ -1817,7 +1834,30 @@ EH_SET:
 End Function
 
 Private Function private_BuildShapeName(ByVal suffix As String) As String
-    private_BuildShapeName = "sel_" & private_NormalizeNamePart(m_ControlName) & "_" & private_NormalizeNamePart(suffix)
+    Dim normalizedSuffix As String
+    Dim normalizedControlName As String
+    Dim maxControlAliasLen As Long
+    Dim maxSuffixAliasLen As Long
+    Dim controlAlias As String
+    Dim suffixAlias As String
+    Dim shapeName As String
+
+    normalizedSuffix = private_NormalizeNamePart(suffix)
+    normalizedControlName = private_NormalizeNamePart(m_ControlName)
+    maxControlAliasLen = SHAPE_CONTROL_HASH_LEN
+    maxSuffixAliasLen = SHAPE_SUFFIX_HASH_LEN
+
+    If VBA.Len("sel__") + maxControlAliasLen + maxSuffixAliasLen > SHAPE_NAME_MAX_LEN Then
+        maxSuffixAliasLen = SHAPE_NAME_MAX_LEN - VBA.Len("sel__") - maxControlAliasLen
+    End If
+
+    controlAlias = private_BuildShortControlAlias(normalizedControlName, maxControlAliasLen)
+    suffixAlias = private_BuildShortControlAlias(normalizedSuffix, maxSuffixAliasLen)
+
+    shapeName = "sel_" & controlAlias & "_" & suffixAlias
+    private_RememberShapeNameMapping normalizedSuffix, shapeName
+
+    private_BuildShapeName = shapeName
 End Function
 
 Private Function private_NormalizeNamePart(ByVal rawText As String) As String
@@ -1845,6 +1885,85 @@ Private Function private_NormalizeNamePart(ByVal rawText As String) As String
 
     If VBA.Len(outText) = 0 Then outText = "x"
     private_NormalizeNamePart = VBA.Left$(outText, 120)
+End Function
+
+Private Function private_BuildShortControlAlias(ByVal normalizedControlName As String, ByVal maxLen As Long) As String
+    Dim hashText As String
+
+    normalizedControlName = VBA.LCase$(VBA.Trim$(normalizedControlName))
+    If VBA.Len(normalizedControlName) = 0 Then normalizedControlName = "x"
+
+    If maxLen <= 0 Then
+        private_BuildShortControlAlias = "x"
+        Exit Function
+    End If
+
+    If VBA.Len(normalizedControlName) <= maxLen Then
+        private_BuildShortControlAlias = normalizedControlName
+        Exit Function
+    End If
+
+    hashText = private_ComputeStableHexHash(normalizedControlName)
+    private_BuildShortControlAlias = VBA.Left$(hashText, maxLen)
+End Function
+
+Private Sub private_RememberShapeNameMapping(ByVal xmlSuffix As String, ByVal shapeName As String)
+    Dim suffixKey As String
+    Dim shapeKey As String
+
+    suffixKey = VBA.LCase$(VBA.Trim$(xmlSuffix))
+    shapeKey = VBA.LCase$(VBA.Trim$(shapeName))
+    If VBA.Len(suffixKey) = 0 Then Exit Sub
+    If VBA.Len(shapeKey) = 0 Then Exit Sub
+
+    If m_ShapeNameByXmlSuffix Is Nothing Then
+        Set m_ShapeNameByXmlSuffix = VBA.CreateObject("Scripting.Dictionary")
+        m_ShapeNameByXmlSuffix.CompareMode = 1
+    End If
+    If m_XmlSuffixByShapeName Is Nothing Then
+        Set m_XmlSuffixByShapeName = VBA.CreateObject("Scripting.Dictionary")
+        m_XmlSuffixByShapeName.CompareMode = 1
+    End If
+
+    m_ShapeNameByXmlSuffix(suffixKey) = shapeName
+    m_XmlSuffixByShapeName(shapeKey) = xmlSuffix
+End Sub
+
+Private Function private_ComputeStableHexHash(ByVal sourceText As String) As String
+    Dim i As Long
+    Dim hashValue As Double
+    Dim codePoint As Long
+    Dim workValue As Double
+    Dim digitValue As Long
+    Dim hexChars As String
+    Dim outHex As String
+    Dim modBase As Double
+
+    sourceText = VBA.CStr(sourceText)
+    hashValue = 2166136261#
+    modBase = 4294967296#
+
+    For i = 1 To VBA.Len(sourceText)
+        codePoint = VBA.AscW(VBA.Mid$(sourceText, i, 1))
+        If codePoint < 0 Then codePoint = codePoint + 65536
+
+        ' Не используем VBA.Mod: он приводит к целочисленной арифметике
+        ' и может дать Overflow на промежуточных значениях.
+        hashValue = (hashValue * 16777619#) + VBA.CDbl(codePoint)
+        hashValue = hashValue - modBase * VBA.Int(hashValue / modBase)
+    Next i
+
+    workValue = hashValue
+    hexChars = "0123456789abcdef"
+    outHex = VBA.vbNullString
+
+    For i = 1 To SHAPE_CONTROL_HASH_LEN
+        digitValue = VBA.CLng(workValue - (16# * VBA.Int(workValue / 16#)))
+        outHex = VBA.Mid$(hexChars, digitValue + 1, 1) & outHex
+        workValue = VBA.Int(workValue / 16#)
+    Next i
+
+    private_ComputeStableHexHash = outHex
 End Function
 
 Private Function private_GetRuntimeCallbackMacroRef() As String
