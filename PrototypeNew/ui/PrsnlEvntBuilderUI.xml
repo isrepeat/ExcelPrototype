@@ -15,18 +15,38 @@
 
       <stackPanel spanColls="22" spanRows="1"/>
 
-      <control
-        type="Select"
-        name="EventDraftSectionType"
-        itemsSource="{PageRuntimeSource='RuntimeItems.PrsnlEvntBuilder.SectionTypes'}"
-        placeholder="Тип події"
-        style="configSelectHeader"
-        panelStyle="configSelectPanel"
-        itemStyle="configSelectItem"
-        itemHeight="25"
-        itemMargin="2"
-        spanColls="2"
-        spanRows="3"/>
+      <stackPanel name="EventDraftSectionTypeRow" orientation="horizontal" spanColls="8" spanRows="3">
+        <control
+          type="Select"
+          name="EventDraftSectionType"
+          itemsSource="{PageRuntimeSource='RuntimeItems.PrsnlEvntBuilder.SectionTypes'}"
+          placeholder="Тип події"
+          style="configSelectHeader"
+          panelStyle="configSelectPanel"
+          itemStyle="configSelectItem"
+          itemHeight="25"
+          itemMargin="2"
+          spanColls="2"
+          spanRows="3"/>
+        
+        <control
+          type="Label"
+          name="EventDraftOrderNoHeader"
+          text="Номер наказу:"
+          style="tableDataHeader"
+          spanColls="1"
+          spanRows="1"/>
+
+        <stackPanel name="EventDraftOrderNoValue" orientation="horizontal">
+          <control
+            type="Label"
+            name="EventDraftOrderNoLabel"
+            text=""
+            style="tableDataCell"
+            spanColls="1"
+            spanRows="1"/>
+        </stackPanel>
+      </stackPanel>
 
       <stackPanel name="EventDraftForm" orientation="vertical" spanColls="22" spanRows="2">
         <stackPanel name="EventDraftHeaders" orientation="horizontal" spanColls="22" spanRows="1">
@@ -463,6 +483,7 @@
         <rule target="controlPart" selector="type=label;name=VhDateHeader;part=cell" styles="{ width:9; }"/>
         <rule target="controlPart" selector="type=label;name=VlkNoHeader;part=cell" styles="{ width:12; }"/>
         <rule target="controlPart" selector="type=label;name=VlkDateHeader;part=cell" styles="{ width:9; }"/>
+        <rule target="controlPart" selector="type=label;name=EventDraftOrderNoLabel;part=cell" styles="{ width:16; }"/>
       </layer>
 
       <layer name="entitylookup-labels">
