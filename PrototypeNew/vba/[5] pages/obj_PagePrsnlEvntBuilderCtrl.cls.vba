@@ -28,6 +28,10 @@ Private Const LOOKUP_CANDIDATES_CONTROL_NAME As String = "LookupCandidatesTable"
 Private Const EVENT_DRAFT_FORM_CONTAINER_NAME As String = "EventDraftForm"
 Private Const EVENT_DRAFT_VALUES_CONTAINER_NAME As String = "EventDraftValues"
 Private Const EVENT_DRAFT_SECTION_TYPE_CONTAINER_NAME As String = "EventDraftSectionType"
+Private Const EVENT_DRAFT_ORDER_NO_LABEL_CONTROL_NAME As String = "EventDraftOrderNoLabel"
+Private Const EVENT_DRAFT_INCOMING_NO_HEADER_NAME As String = "Вх. №"
+Private Const EVENT_DRAFT_ORDER_LABEL_PREFIX As String = "Наказ №: "
+Private Const EXPORT_META_MANUAL_ORDER_NO_COLUMN_NAME As String = "meta_ManualOrderNo"
 Private Const EXPORT_META_SECTION_TYPE_COLUMN_NAME As String = "meta_SectionType"
 
 Private m_Page As obj_IPage
@@ -638,6 +642,7 @@ Private Function private_TryCreateDataExporter( _
     ByRef outExporter As obj_IDataExporter _
 ) As Boolean
     Dim exporterToDailyScope As obj_ExporterToDailyScope
+    Dim exporterToMovement As obj_ExporterToMovement
 
     Set outExporter = Nothing
     exporterClassName = VBA.Trim$(exporterClassName)
@@ -648,6 +653,11 @@ Private Function private_TryCreateDataExporter( _
             Set exporterToDailyScope = New obj_ExporterToDailyScope
             If Not exporterToDailyScope.Initialize(exportConfigTable) Then Exit Function
             Set outExporter = exporterToDailyScope
+
+        Case VBA.LCase$("obj_ExporterToMovement")
+            Set exporterToMovement = New obj_ExporterToMovement
+            If Not exporterToMovement.Initialize(exportConfigTable) Then Exit Function
+            Set outExporter = exporterToMovement
 
         Case Else
             VBA.MsgBox "PrototypeNew: unsupported data exporter class: " & exporterClassName, VBA.vbExclamation, "PrototypeNew / Data export"
@@ -689,6 +699,7 @@ Private Function private_TryBuildDraftFormSourceTable(ByRef outTable As obj_Tabl
     Dim sheetCol As Long
     Dim headerText As String
     Dim sectionTypeText As String
+    Dim manualOrderNoText As String
 
     Set outTable = Nothing
     If m_Page Is Nothing Then Exit Function
@@ -721,12 +732,35 @@ Private Function private_TryBuildDraftFormSourceTable(ByRef outTable As obj_Tabl
     Next colOffset
 
     If Not private_TryGetSelectedSectionType(sectionTypeText) Then Exit Function
+    manualOrderNoText = private_TryReadManualOrderNoValue(pageBase, ws)
+
+    If Not private_AddSourceColumn(sourceTable, EXPORT_META_MANUAL_ORDER_NO_COLUMN_NAME) Then Exit Function
+    sourceRow.PushCellRaw manualOrderNoText
+
     If Not private_AddSourceColumn(sourceTable, EXPORT_META_SECTION_TYPE_COLUMN_NAME) Then Exit Function
     sourceRow.PushCellRaw sectionTypeText
 
     If Not sourceTable.PushRow(sourceRow) Then Exit Function
     Set outTable = sourceTable
     private_TryBuildDraftFormSourceTable = True
+End Function
+
+Private Function private_TryReadManualOrderNoValue( _
+    ByVal pageBase As obj_PageBase, _
+    ByVal ws As Worksheet _
+) As String
+    Dim labelScope As Range
+    Dim columnScope As Range
+
+    If pageBase Is Nothing Then Exit Function
+    If ws Is Nothing Then Exit Function
+
+    Set labelScope = Nothing
+    Set columnScope = Nothing
+    If Not ex_ControlPartsRuntime.fn_TryResolveControlPartScope(ws, "label", EVENT_DRAFT_ORDER_NO_LABEL_CONTROL_NAME, "cell", labelScope, columnScope) Then Exit Function
+    If labelScope Is Nothing Then Exit Function
+
+    private_TryReadManualOrderNoValue = VBA.Trim$(VBA.CStr(labelScope.Cells(1, 1).Value2))
 End Function
 
 Private Function private_TryGetSelectedSectionType(ByRef outSectionType As String) As Boolean
@@ -775,6 +809,72 @@ Private Function private_ReadHeaderText(ByVal headerCell As Range) As String
     On Error GoTo 0
 
     private_ReadHeaderText = VBA.Trim$(valueText)
+End Function
+
+Private Sub private_TryRefreshOrderNoLabel()
+    Dim pageBase As obj_PageBase
+    Dim ws As Worksheet
+    Dim draftValuesRange As Range
+    Dim orderNoText As String
+    Dim labelScope As Range
+    Dim columnScope As Range
+    Dim labelText As String
+
+    If m_Page Is Nothing Then Exit Sub
+    Set pageBase = m_Page.GetPageBase()
+    If pageBase Is Nothing Then Exit Sub
+    Set ws = pageBase.Worksheet
+    If ws Is Nothing Then Exit Sub
+
+    If Not pageBase.TryGetLayoutContainerRange(EVENT_DRAFT_VALUES_CONTAINER_NAME, draftValuesRange) Then Exit Sub
+    If draftValuesRange Is Nothing Then Exit Sub
+
+    If Not private_TryReadDraftValueByHeader(ws, draftValuesRange, EVENT_DRAFT_INCOMING_NO_HEADER_NAME, orderNoText) Then
+        orderNoText = VBA.vbNullString
+    End If
+
+    labelText = EVENT_DRAFT_ORDER_LABEL_PREFIX
+    If VBA.Len(VBA.Trim$(orderNoText)) > 0 Then
+        labelText = labelText & VBA.Trim$(orderNoText)
+    Else
+        labelText = labelText & "-"
+    End If
+
+    Set labelScope = Nothing
+    Set columnScope = Nothing
+    If Not ex_ControlPartsRuntime.fn_TryResolveControlPartScope(ws, "label", EVENT_DRAFT_ORDER_NO_LABEL_CONTROL_NAME, "cell", labelScope, columnScope) Then Exit Sub
+    If labelScope Is Nothing Then Exit Sub
+
+    labelScope.Value2 = labelText
+End Sub
+
+Private Function private_TryReadDraftValueByHeader( _
+    ByVal ws As Worksheet, _
+    ByVal draftValuesRange As Range, _
+    ByVal headerName As String, _
+    ByRef outValueText As String _
+) As Boolean
+    Dim colOffset As Long
+    Dim sheetCol As Long
+    Dim headerText As String
+
+    outValueText = VBA.vbNullString
+    If ws Is Nothing Then Exit Function
+    If draftValuesRange Is Nothing Then Exit Function
+    If draftValuesRange.Row <= 1 Then Exit Function
+
+    headerName = VBA.Trim$(headerName)
+    If VBA.Len(headerName) = 0 Then Exit Function
+
+    For colOffset = 1 To draftValuesRange.Columns.Count
+        sheetCol = draftValuesRange.Column + colOffset - 1
+        headerText = private_ReadHeaderText(ws.Cells(draftValuesRange.Row - 1, sheetCol))
+        If VBA.StrComp(VBA.Trim$(headerText), headerName, VBA.vbTextCompare) = 0 Then
+            outValueText = VBA.Trim$(VBA.CStr(ws.Cells(draftValuesRange.Row, sheetCol).Value2))
+            private_TryReadDraftValueByHeader = True
+            Exit Function
+        End If
+    Next colOffset
 End Function
 
 Private Function private_TryResolveCandidateRowsArea( _

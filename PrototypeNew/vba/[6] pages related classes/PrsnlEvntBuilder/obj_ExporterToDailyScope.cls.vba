@@ -10,18 +10,10 @@ Option Explicit
 Implements obj_IDataExporter
 
 Private m_IsDisposed As Boolean
-Private m_TargetWorkbookPath As String
-Private m_TargetSheetName As String
-Private m_TargetRangeStartMarker As String
-Private m_TargetRangeEndMarker As String
+Private m_Base As obj_DataExporterBase
+Private m_Data As obj_PrsnlEvntBuilderData
 
 Private Const SAVE_ALREADY_OPEN_WORKBOOK As Boolean = False
-Private Const EXPORT_CONFIG_PREFIX As String = "Export."
-Private Const EXPORT_CLASS_SUFFIX As String = ".ExporterClass"
-Private Const EXPORT_FILE_PATH_SUFFIX As String = ".FilePath"
-Private Const EXPORT_SHEET_NAME_SUFFIX As String = ".SheetName"
-Private Const EXPORT_RANGE_START_MARKER_SUFFIX As String = ".RangeStartMarker"
-Private Const EXPORT_RANGE_END_MARKER_SUFFIX As String = ".RangeEndMarker"
 
 Private Sub Class_Initialize()
 #If LOGGING_VERBOSE_ENABLED Then
@@ -53,43 +45,20 @@ End Function
 ' // API
 ' //
 Public Function Initialize(ByVal configTable As obj_ConfigTable) As Boolean
-    Dim cfgParserBase As obj_CfgParserBase
-    Dim configEntries As Collection
-    Dim cfgMap As Object
-    Dim exportAlias As String
-
     private_LogMethodEntry "Initialize"
 
     m_IsDisposed = False
-    m_TargetWorkbookPath = VBA.vbNullString
-    m_TargetSheetName = VBA.vbNullString
-    m_TargetRangeStartMarker = VBA.vbNullString
-    m_TargetRangeEndMarker = VBA.vbNullString
+    Set m_Base = New obj_DataExporterBase
+    Set m_Data = New obj_PrsnlEvntBuilderData
 
-    If configTable Is Nothing Then
-        Initialize = True
-        Exit Function
-    End If
-
-    exportAlias = private_TryResolveExportAliasFromConfigTable(configTable)
-    If VBA.Len(exportAlias) = 0 Then Exit Function
-
-    Set cfgParserBase = New obj_CfgParserBase
-    If Not cfgParserBase.Initialize(configTable) Then Exit Function
-    If Not cfgParserBase.TryGetConfigEntries(configEntries) Then Exit Function
-    If Not cfgParserBase.BuildConfigDictionary(configEntries, cfgMap) Then Exit Function
-
-    m_TargetWorkbookPath = VBA.Trim$(cfgParserBase.GetOptionalConfigValue(cfgMap, EXPORT_CONFIG_PREFIX & exportAlias & EXPORT_FILE_PATH_SUFFIX, VBA.vbNullString))
-    m_TargetSheetName = VBA.Trim$(cfgParserBase.GetOptionalConfigValue(cfgMap, EXPORT_CONFIG_PREFIX & exportAlias & EXPORT_SHEET_NAME_SUFFIX, VBA.vbNullString))
-    m_TargetRangeStartMarker = VBA.Trim$(cfgParserBase.GetOptionalConfigValue(cfgMap, EXPORT_CONFIG_PREFIX & exportAlias & EXPORT_RANGE_START_MARKER_SUFFIX, VBA.vbNullString))
-    m_TargetRangeEndMarker = VBA.Trim$(cfgParserBase.GetOptionalConfigValue(cfgMap, EXPORT_CONFIG_PREFIX & exportAlias & EXPORT_RANGE_END_MARKER_SUFFIX, VBA.vbNullString))
+    If Not m_Base.Initialize(configTable, "DailyScope", "PrototypeNew / DailyScope export") Then Exit Function
 
     Initialize = True
 End Function
 
 Public Function TryGetSectionTypeOptions(ByRef outSectionTypeOptions As Collection) As Boolean
     private_LogMethodEntry "TryGetSectionTypeOptions"
-    Set outSectionTypeOptions = private_BuildSectionTypeOptions()
+    Set outSectionTypeOptions = m_Data.SectionTypeNames
     If outSectionTypeOptions Is Nothing Then Exit Function
     TryGetSectionTypeOptions = (outSectionTypeOptions.Count > 0)
 End Function
@@ -99,6 +68,9 @@ Public Sub Dispose()
     If m_IsDisposed Then Exit Sub
     m_IsDisposed = True
     On Error Resume Next
+    If Not m_Base Is Nothing Then m_Base.Dispose
+    Set m_Base = Nothing
+    Set m_Data = Nothing
 
     On Error GoTo 0
 End Sub
@@ -126,17 +98,17 @@ Public Function Export( _
         VBA.MsgBox "PrototypeNew: DailyScope exporter is disposed.", VBA.vbExclamation, "PrototypeNew / DailyScope export"
         Exit Function
     End If
-    If Not private_ValidateSourceTable(sourceTable) Then Exit Function
+    If Not m_Base.ValidateSourceTable(sourceTable) Then Exit Function
     If Not private_TryResolveTargetSectionCaption(sourceTable, targetSectionCaption) Then Exit Function
 
-    private_BeginFastExcelMode prevScreenUpdating, prevEnableEvents, prevDisplayAlerts, prevCalculation
+    m_Base.BeginFastExcelMode prevScreenUpdating, prevEnableEvents, prevDisplayAlerts, prevCalculation
     fastModeStarted = True
 
-    If Not private_TryOpenTargetWorkbook(targetWb, openedByExporter) Then GoTo CleanFail
-    targetSheetName = private_ResolveTargetWorksheetName()
+    If Not m_Base.TryOpenTargetWorkbook(targetWb, openedByExporter) Then GoTo CleanFail
+    targetSheetName = m_Base.ResolveTargetWorksheetName()
     If VBA.Len(targetSheetName) = 0 Then GoTo CleanFail
-    If Not private_TryGetWorksheet(targetWb, targetSheetName, targetWs) Then GoTo CleanFail
-    If Not private_TryFindConfiguredTargetTable(targetWs, targetTable) Then GoTo CleanFail
+    If Not m_Base.TryGetWorksheet(targetWb, targetSheetName, targetWs) Then GoTo CleanFail
+    If Not m_Base.TryFindConfiguredTargetTable(targetWs, targetTable) Then GoTo CleanFail
 
     If Not private_TryGetSectionWriteRowRange(targetTable, targetSectionCaption, targetRowRange, insertedRow) Then GoTo CleanFail
 
@@ -160,495 +132,15 @@ CleanExit:
         targetWb.Close SaveChanges:=Export
         On Error GoTo 0
     End If
-    If fastModeStarted Then private_RestoreFastExcelMode prevScreenUpdating, prevEnableEvents, prevDisplayAlerts, prevCalculation
+    If fastModeStarted Then m_Base.RestoreFastExcelMode prevScreenUpdating, prevEnableEvents, prevDisplayAlerts, prevCalculation
     Exit Function
 
 EH:
     VBA.MsgBox "PrototypeNew: DailyScope test export failed. " & Err.Description, VBA.vbExclamation, "PrototypeNew / DailyScope export"
     On Error Resume Next
     If openedByExporter Then targetWb.Close SaveChanges:=False
-    If fastModeStarted Then private_RestoreFastExcelMode prevScreenUpdating, prevEnableEvents, prevDisplayAlerts, prevCalculation
+    If fastModeStarted Then m_Base.RestoreFastExcelMode prevScreenUpdating, prevEnableEvents, prevDisplayAlerts, prevCalculation
     On Error GoTo 0
-End Function
-
-' //
-' // Internal
-' //
-Private Function private_TryOpenTargetWorkbook( _
-    ByRef outWorkbook As Workbook, _
-    ByRef outOpenedByExporter As Boolean _
-) As Boolean
-    Dim wb As Workbook
-    Dim resolvedPath As String
-    Dim targetWorkbookName As String
-
-    private_LogMethodEntry "private_TryOpenTargetWorkbook"
-
-    Set outWorkbook = Nothing
-    outOpenedByExporter = False
-    resolvedPath = VBA.Trim$(m_TargetWorkbookPath)
-
-    If VBA.Len(resolvedPath) > 0 Then
-        Set outWorkbook = private_FindOpenWorkbookByPath(resolvedPath)
-        If Not outWorkbook Is Nothing Then
-            private_TryOpenTargetWorkbook = True
-            Exit Function
-        End If
-    End If
-
-    targetWorkbookName = private_ExtractWorkbookNameFromPath(resolvedPath)
-    If VBA.Len(targetWorkbookName) > 0 Then
-        For Each wb In Application.Workbooks
-            If VBA.StrComp(wb.Name, targetWorkbookName, VBA.vbTextCompare) = 0 Then
-                Set outWorkbook = wb
-                private_TryOpenTargetWorkbook = True
-                Exit Function
-            End If
-        Next wb
-    End If
-
-    If VBA.Len(resolvedPath) = 0 Then
-        VBA.MsgBox "PrototypeNew: target workbook path is not configured for DailyScope export.", VBA.vbExclamation, "PrototypeNew / DailyScope export"
-        Exit Function
-    End If
-
-    If VBA.Len(VBA.Dir$(resolvedPath)) = 0 Then
-        VBA.MsgBox "PrototypeNew: DailyScope target workbook was not found: " & resolvedPath, VBA.vbExclamation, "PrototypeNew / DailyScope export"
-        Exit Function
-    End If
-
-    Set outWorkbook = Application.Workbooks.Open(resolvedPath)
-    outOpenedByExporter = True
-    private_TryOpenTargetWorkbook = Not outWorkbook Is Nothing
-End Function
-
-Private Function private_TryGetWorksheet( _
-    ByVal wb As Workbook, _
-    ByVal worksheetName As String, _
-    ByRef outWorksheet As Worksheet _
-) As Boolean
-    private_LogMethodEntry "private_TryGetWorksheet"
-    Set outWorksheet = Nothing
-    If wb Is Nothing Then Exit Function
-
-    On Error Resume Next
-    Set outWorksheet = wb.Worksheets(worksheetName)
-    On Error GoTo 0
-
-    If outWorksheet Is Nothing Then
-        VBA.MsgBox "PrototypeNew: DailyScope worksheet was not found: " & worksheetName, VBA.vbExclamation, "PrototypeNew / DailyScope export"
-        Exit Function
-    End If
-
-    private_TryGetWorksheet = True
-End Function
-
-Private Function private_TryFindConfiguredTargetTable( _
-    ByVal ws As Worksheet, _
-    ByRef outTable As ListObject _
-) As Boolean
-    Dim tableObj As ListObject
-    Dim targetRange As Range
-    Dim startCell As Range
-
-    private_LogMethodEntry "private_TryFindConfiguredTargetTable"
-
-    Set outTable = Nothing
-    If ws Is Nothing Then Exit Function
-    If Not private_TryResolveConfiguredTargetRange(ws, targetRange) Then Exit Function
-    If targetRange Is Nothing Then Exit Function
-    Set startCell = targetRange.Cells(1, 1)
-
-    For Each tableObj In ws.ListObjects
-        If tableObj Is Nothing Then GoTo ContinueTable
-        If tableObj.Range Is Nothing Then GoTo ContinueTable
-        If tableObj.Range.Row = startCell.Row And tableObj.Range.Column = startCell.Column Then
-            Set outTable = tableObj
-            private_TryFindConfiguredTargetTable = True
-            Exit Function
-        End If
-        If Not Application.Intersect(tableObj.Range, targetRange) Is Nothing Then
-            Set outTable = tableObj
-            private_TryFindConfiguredTargetTable = True
-            Exit Function
-        End If
-
-ContinueTable:
-    Next tableObj
-
-    VBA.MsgBox "PrototypeNew: target table was not found for configured markers on sheet '" & ws.Name & "'.", VBA.vbExclamation, "PrototypeNew / DailyScope export"
-End Function
-
-Private Function private_ResolveTargetWorksheetName() As String
-    private_LogMethodEntry "private_ResolveTargetWorksheetName"
-    private_ResolveTargetWorksheetName = private_ExtractSheetNameToken(m_TargetSheetName)
-    If VBA.Len(private_ResolveTargetWorksheetName) = 0 Then
-        VBA.MsgBox "PrototypeNew: target worksheet is not configured for DailyScope export.", VBA.vbExclamation, "PrototypeNew / DailyScope export"
-    End If
-End Function
-
-Private Function private_TryResolveConfiguredTargetRange( _
-    ByVal ws As Worksheet, _
-    ByRef outRange As Range _
-) As Boolean
-    Dim startCell As Range
-    Dim endCell As Range
-    Dim leftCol As Long
-    Dim topRow As Long
-    Dim rightCol As Long
-    Dim bottomRow As Long
-    Dim markerErrorText As String
-
-    Set outRange = Nothing
-    If ws Is Nothing Then Exit Function
-
-    If VBA.Len(VBA.Trim$(m_TargetRangeStartMarker)) = 0 Or VBA.Len(VBA.Trim$(m_TargetRangeEndMarker)) = 0 Then
-        VBA.MsgBox "PrototypeNew: target range markers are not configured for DailyScope export.", VBA.vbExclamation, "PrototypeNew / DailyScope export"
-        Exit Function
-    End If
-
-    If Not private_TryResolveMarkerCell(ws, m_TargetRangeStartMarker, startCell, markerErrorText) Then
-        VBA.MsgBox "PrototypeNew: failed to resolve RangeStartMarker. " & markerErrorText, VBA.vbExclamation, "PrototypeNew / DailyScope export"
-        Exit Function
-    End If
-    If Not private_TryResolveEndMarkerCell(ws, m_TargetRangeEndMarker, startCell, endCell, markerErrorText) Then
-        VBA.MsgBox "PrototypeNew: failed to resolve RangeEndMarker. " & markerErrorText, VBA.vbExclamation, "PrototypeNew / DailyScope export"
-        Exit Function
-    End If
-
-    topRow = startCell.Row
-    If endCell.Row < topRow Then topRow = endCell.Row
-    bottomRow = startCell.Row
-    If endCell.Row > bottomRow Then bottomRow = endCell.Row
-    leftCol = startCell.Column
-    If endCell.Column < leftCol Then leftCol = endCell.Column
-    rightCol = startCell.Column
-    If endCell.Column > rightCol Then rightCol = endCell.Column
-
-    On Error Resume Next
-    Set outRange = ws.Range(ws.Cells(topRow, leftCol), ws.Cells(bottomRow, rightCol))
-    On Error GoTo 0
-    private_TryResolveConfiguredTargetRange = Not outRange Is Nothing
-End Function
-
-Private Function private_TryResolveEndMarkerCell( _
-    ByVal ws As Worksheet, _
-    ByVal markerText As String, _
-    ByVal startCell As Range, _
-    ByRef outCell As Range, _
-    ByRef outErrorText As String _
-) As Boolean
-    outErrorText = VBA.vbNullString
-    Set outCell = Nothing
-    If ws Is Nothing Then Exit Function
-    If startCell Is Nothing Then Exit Function
-
-    If private_IsCellReferenceMarker(markerText) Then
-        private_TryResolveEndMarkerCell = private_TryResolveMarkerCell(ws, markerText, outCell, outErrorText)
-        Exit Function
-    End If
-
-    Set outCell = private_FindMarkerTextCellAfterAnchor(ws, markerText, startCell)
-    If outCell Is Nothing Then
-        outErrorText = "End marker '" & markerText & "' was not found on sheet '" & ws.Name & "'."
-        Exit Function
-    End If
-
-    private_TryResolveEndMarkerCell = True
-End Function
-
-Private Function private_TryResolveMarkerCell( _
-    ByVal ws As Worksheet, _
-    ByVal markerText As String, _
-    ByRef outCell As Range, _
-    ByRef outErrorText As String _
-) As Boolean
-    outErrorText = VBA.vbNullString
-    Set outCell = Nothing
-    markerText = VBA.Trim$(markerText)
-    If VBA.Len(markerText) = 0 Then
-        outErrorText = "Marker is empty."
-        Exit Function
-    End If
-
-    If private_IsCellReferenceMarker(markerText) Then
-        If Not private_TryGetCellByMarkerAddress(ws, markerText, outCell) Then
-            outErrorText = "Cell marker '" & markerText & "' is invalid for worksheet '" & ws.Name & "'."
-            Exit Function
-        End If
-        private_TryResolveMarkerCell = True
-        Exit Function
-    End If
-
-    Set outCell = private_FindFirstMarkerTextCell(ws, markerText)
-    If outCell Is Nothing Then
-        outErrorText = "Text marker '" & markerText & "' was not found on worksheet '" & ws.Name & "'."
-        Exit Function
-    End If
-
-    private_TryResolveMarkerCell = True
-End Function
-
-Private Function private_IsCellReferenceMarker(ByVal markerText As String) As Boolean
-    markerText = VBA.Trim$(markerText)
-    private_IsCellReferenceMarker = (VBA.Left$(markerText, 1) = "$")
-End Function
-
-Private Function private_TryGetCellByMarkerAddress( _
-    ByVal ws As Worksheet, _
-    ByVal markerText As String, _
-    ByRef outCell As Range _
-) As Boolean
-    On Error GoTo EH_CELL_ADDR
-    Set outCell = ws.Range(markerText)
-    private_TryGetCellByMarkerAddress = Not outCell Is Nothing
-    Exit Function
-
-EH_CELL_ADDR:
-    Set outCell = Nothing
-End Function
-
-Private Function private_FindFirstMarkerTextCell(ByVal ws As Worksheet, ByVal markerText As String) As Range
-    Dim searchRange As Range
-
-    If ws Is Nothing Then Exit Function
-    markerText = VBA.Trim$(markerText)
-    If VBA.Len(markerText) = 0 Then Exit Function
-
-    Set searchRange = ws.UsedRange
-    If searchRange Is Nothing Then Exit Function
-
-    Set private_FindFirstMarkerTextCell = searchRange.Find(What:=markerText, After:=searchRange.Cells(searchRange.Cells.Count), LookIn:=xlValues, LookAt:=xlWhole, SearchOrder:=xlByRows, SearchDirection:=xlNext, MatchCase:=False)
-End Function
-
-Private Function private_FindMarkerTextCellAfterAnchor( _
-    ByVal ws As Worksheet, _
-    ByVal markerText As String, _
-    ByVal anchorCell As Range _
-) As Range
-    Dim searchRange As Range
-    Dim firstFound As Range
-    Dim currentFound As Range
-    Dim firstAddress As String
-    Dim bestWeight As Double
-    Dim currentWeight As Double
-
-    If ws Is Nothing Then Exit Function
-    If anchorCell Is Nothing Then Exit Function
-    markerText = VBA.Trim$(markerText)
-    If VBA.Len(markerText) = 0 Then Exit Function
-
-    Set searchRange = ws.UsedRange
-    If searchRange Is Nothing Then Exit Function
-
-    Set firstFound = searchRange.Find(What:=markerText, After:=searchRange.Cells(searchRange.Cells.Count), LookIn:=xlValues, LookAt:=xlWhole, SearchOrder:=xlByRows, SearchDirection:=xlNext, MatchCase:=False)
-    If firstFound Is Nothing Then Exit Function
-
-    bestWeight = -1
-    firstAddress = firstFound.Address
-    Set currentFound = firstFound
-
-    Do
-        If currentFound.Row > anchorCell.Row Or (currentFound.Row = anchorCell.Row And currentFound.Column > anchorCell.Column) Then
-            currentWeight = VBA.CDbl(currentFound.Row) * 100000# + VBA.CDbl(currentFound.Column)
-            If bestWeight < 0 Or currentWeight < bestWeight Then
-                bestWeight = currentWeight
-                Set private_FindMarkerTextCellAfterAnchor = currentFound
-            End If
-        End If
-        Set currentFound = searchRange.FindNext(currentFound)
-        If currentFound Is Nothing Then Exit Do
-    Loop While currentFound.Address <> firstAddress
-End Function
-
-Private Function private_FindOpenWorkbookByPath(ByVal sourcePath As String) As Workbook
-    Dim wb As Workbook
-    Dim normalizedPath As String
-
-    normalizedPath = VBA.LCase$(VBA.Trim$(sourcePath))
-    If VBA.Len(normalizedPath) = 0 Then Exit Function
-
-    For Each wb In Application.Workbooks
-        If VBA.StrComp(VBA.LCase$(VBA.Trim$(wb.FullName)), normalizedPath, VBA.vbBinaryCompare) = 0 Then
-            Set private_FindOpenWorkbookByPath = wb
-            Exit Function
-        End If
-    Next wb
-End Function
-
-Private Function private_ExtractWorkbookNameFromPath(ByVal sourcePath As String) As String
-    sourcePath = VBA.Trim$(sourcePath)
-    If VBA.Len(sourcePath) = 0 Then Exit Function
-    private_ExtractWorkbookNameFromPath = VBA.Trim$(VBA.Dir$(sourcePath))
-End Function
-
-Private Function private_ExtractSheetNameToken(ByVal configuredSheetName As String) As String
-    Dim token As String
-    Dim dollarPos As Long
-
-    token = VBA.Trim$(configuredSheetName)
-    If VBA.Len(token) = 0 Then Exit Function
-
-    If VBA.Left$(token, 1) = "[" And VBA.Right$(token, 1) = "]" Then
-        token = VBA.Mid$(token, 2, VBA.Len(token) - 2)
-    End If
-
-    dollarPos = VBA.InStr(1, token, "$", VBA.vbBinaryCompare)
-    If dollarPos > 0 Then token = VBA.Left$(token, dollarPos - 1)
-
-    private_ExtractSheetNameToken = VBA.Trim$(token)
-End Function
-
-Private Function private_TryResolveExportAliasFromConfigTable(ByVal configTable As obj_ConfigTable) As String
-    Dim configEntries As Collection
-    Dim entryObj As Variant
-    Dim configEntry As obj_ConfigEntry
-    Dim keyText As String
-    Dim keySuffix As String
-    Dim suffixPos As Long
-
-    If configTable Is Nothing Then Exit Function
-    If configTable.Items Is Nothing Then Exit Function
-    Set configEntries = configTable.Items.AsCollection
-    If configEntries Is Nothing Then Exit Function
-
-    For Each entryObj In configEntries
-        Set configEntry = Nothing
-        On Error Resume Next
-        Set configEntry = entryObj
-        On Error GoTo 0
-        If configEntry Is Nothing Then GoTo ContinueEntry
-        keyText = VBA.Trim$(configEntry.Key)
-        suffixPos = VBA.InStr(VBA.Len(EXPORT_CONFIG_PREFIX) + 1, keyText, ".", VBA.vbTextCompare)
-        If suffixPos <= VBA.Len(EXPORT_CONFIG_PREFIX) + 1 Then GoTo ContinueEntry
-        keySuffix = VBA.Mid$(keyText, suffixPos)
-        If VBA.StrComp(keySuffix, EXPORT_CLASS_SUFFIX, VBA.vbTextCompare) = 0 Or _
-           VBA.StrComp(keySuffix, EXPORT_FILE_PATH_SUFFIX, VBA.vbTextCompare) = 0 Or _
-           VBA.StrComp(keySuffix, EXPORT_SHEET_NAME_SUFFIX, VBA.vbTextCompare) = 0 Or _
-           VBA.StrComp(keySuffix, EXPORT_RANGE_START_MARKER_SUFFIX, VBA.vbTextCompare) = 0 Or _
-           VBA.StrComp(keySuffix, EXPORT_RANGE_END_MARKER_SUFFIX, VBA.vbTextCompare) = 0 Then
-            private_TryResolveExportAliasFromConfigTable = VBA.Trim$(VBA.Mid$(keyText, VBA.Len(EXPORT_CONFIG_PREFIX) + 1, suffixPos - VBA.Len(EXPORT_CONFIG_PREFIX) - 1))
-            Exit Function
-        End If
-ContinueEntry:
-    Next entryObj
-End Function
-
-Private Function private_ValidateSourceTable(ByVal sourceTable As obj_TableDynamic) As Boolean
-    private_LogMethodEntry "private_ValidateSourceTable"
-    If sourceTable Is Nothing Then
-        VBA.MsgBox "PrototypeNew: export source table is not specified.", VBA.vbExclamation, "PrototypeNew / DailyScope export"
-        Exit Function
-    End If
-    If sourceTable.RowCount <= 0 Then
-        VBA.MsgBox "PrototypeNew: export source table has no rows.", VBA.vbExclamation, "PrototypeNew / DailyScope export"
-        Exit Function
-    End If
-    If sourceTable.ColumnCount <= 0 Then
-        VBA.MsgBox "PrototypeNew: export source table has no columns.", VBA.vbExclamation, "PrototypeNew / DailyScope export"
-        Exit Function
-    End If
-
-    private_ValidateSourceTable = True
-End Function
-
-Private Function private_TryWriteSourceRow( _
-    ByVal sourceTable As obj_TableDynamic, _
-    ByVal targetTable As ListObject, _
-    ByVal rowRange As Range _
-) As Boolean
-    Dim sourceRow As obj_Row
-    Dim sourceColumn As obj_Column
-    Dim sourceColIndex As Long
-    Dim targetColumnIndex As Long
-    Dim writtenCount As Long
-    Dim targetColumnIndexByName As Object
-    Dim sourceColumnName As String
-    Dim sourceColumnKey As String
-
-    private_LogMethodEntry "private_TryWriteSourceRow"
-
-    If sourceTable Is Nothing Then Exit Function
-    If targetTable Is Nothing Then Exit Function
-    If rowRange Is Nothing Then Exit Function
-
-    Set sourceRow = sourceTable.Rows.Item(1)
-    If sourceRow Is Nothing Then Exit Function
-
-    If Not private_TryBuildTargetColumnIndexByName(targetTable, targetColumnIndexByName) Then Exit Function
-
-    For sourceColIndex = 1 To sourceTable.ColumnCount
-        Set sourceColumn = sourceTable.Columns.Item(sourceColIndex)
-        If sourceColumn Is Nothing Then GoTo ContinueSourceColumn
-        sourceColumnName = VBA.Trim$(VBA.CStr(sourceColumn.Name))
-        If VBA.Len(sourceColumnName) = 0 Then GoTo ContinueSourceColumn
-
-        targetColumnIndex = 0
-        If targetColumnIndexByName.exists(sourceColumnName) Then
-            targetColumnIndex = VBA.CLng(targetColumnIndexByName(sourceColumnName))
-        Else
-            sourceColumnKey = private_NormalizeColumnNameForMatch(sourceColumnName)
-            If VBA.Len(sourceColumnKey) > 0 Then
-                If targetColumnIndexByName.exists(sourceColumnKey) Then
-                    targetColumnIndex = VBA.CLng(targetColumnIndexByName(sourceColumnKey))
-                End If
-            End If
-        End If
-        If targetColumnIndex <= 0 Then GoTo ContinueSourceColumn
-
-        ' Paste-values semantics: write only scalar values to mapped cells,
-        ' do not copy styles and do not overwrite unmapped columns.
-        rowRange.Cells(1, targetColumnIndex).Value2 = sourceRow.GetCellValue(sourceColIndex)
-        writtenCount = writtenCount + 1
-
-ContinueSourceColumn:
-    Next sourceColIndex
-
-    If writtenCount <= 0 Then
-        VBA.MsgBox "PrototypeNew: DailyScope export found no matching target columns for source table: " & sourceTable.HeaderText, VBA.vbExclamation, "PrototypeNew / DailyScope export"
-        Exit Function
-    End If
-
-    private_TryWriteSourceRow = True
-End Function
-
-Private Function private_TryBuildTargetColumnIndexByName( _
-    ByVal targetTable As ListObject, _
-    ByRef outColumnIndexByName As Object _
-) As Boolean
-    Dim tableColumn As ListColumn
-    Dim columnName As String
-    Dim normalizedKey As String
-
-    Set outColumnIndexByName = Nothing
-    If targetTable Is Nothing Then Exit Function
-
-    Set outColumnIndexByName = ex_Helpers.fn_CreateDictionaryTextCompare()
-    For Each tableColumn In targetTable.ListColumns
-        columnName = VBA.Trim$(VBA.CStr(tableColumn.Name))
-        If VBA.Len(columnName) > 0 Then
-            outColumnIndexByName(columnName) = tableColumn.Index
-
-            normalizedKey = private_NormalizeColumnNameForMatch(columnName)
-            If VBA.Len(normalizedKey) > 0 Then
-                If Not outColumnIndexByName.Exists(normalizedKey) Then
-                    outColumnIndexByName(normalizedKey) = tableColumn.Index
-                End If
-            End If
-        End If
-    Next tableColumn
-
-    private_TryBuildTargetColumnIndexByName = Not outColumnIndexByName Is Nothing
-End Function
-
-Private Function private_NormalizeColumnNameForMatch(ByVal columnName As String) As String
-    columnName = private_NormalizeText(columnName)
-    columnName = VBA.Replace(columnName, "№", "")
-    columnName = VBA.Replace(columnName, "n", "")
-    Do While VBA.InStr(1, columnName, "  ", VBA.vbBinaryCompare) > 0
-        columnName = VBA.Replace(columnName, "  ", " ")
-    Loop
-    private_NormalizeColumnNameForMatch = VBA.Trim$(columnName)
 End Function
 
 Private Function private_TryResolveTargetSectionCaption( _
@@ -676,6 +168,78 @@ Private Function private_TryResolveTargetSectionCaption( _
     End If
 
     VBA.MsgBox "PrototypeNew: unknown DailyScope section key: " & sectionKey, VBA.vbExclamation, "PrototypeNew / DailyScope export"
+End Function
+
+Private Function private_TryWriteSourceRow( _
+    ByVal sourceTable As obj_TableDynamic, _
+    ByVal targetTable As ListObject, _
+    ByVal rowRange As Range _
+) As Boolean
+    Dim sourceRow As obj_Row
+    Dim sourceColumn As obj_Column
+    Dim sourceColumnIndex As Long
+    Dim targetColumnIndex As Long
+    Dim sourceValue As Variant
+
+    If sourceTable Is Nothing Then Exit Function
+    If targetTable Is Nothing Then Exit Function
+    If rowRange Is Nothing Then Exit Function
+    If sourceTable.RowCount <= 0 Then Exit Function
+
+    Set sourceRow = sourceTable.Rows.Item(1)
+    If sourceRow Is Nothing Then Exit Function
+
+    For sourceColumnIndex = 1 To sourceTable.ColumnCount
+        Set sourceColumn = sourceTable.Columns.Item(sourceColumnIndex)
+        If sourceColumn Is Nothing Then GoTo ContinueColumn
+
+        targetColumnIndex = private_FindTargetColumnIndex(targetTable, sourceColumn.Name)
+        If targetColumnIndex <= 0 Then GoTo ContinueColumn
+
+        sourceValue = sourceRow.GetCellValue(sourceColumnIndex)
+        If Not private_TryWriteCellValueWithFormulaPolicy(rowRange.Cells(1, targetColumnIndex), sourceValue) Then Exit Function
+
+ContinueColumn:
+    Next sourceColumnIndex
+
+    private_TryWriteSourceRow = True
+End Function
+
+Private Function private_FindTargetColumnIndex(ByVal targetTable As ListObject, ByVal targetColumnName As String) As Long
+    Dim columnObj As ListColumn
+    Dim expectedName As String
+    Dim candidateName As String
+
+    If targetTable Is Nothing Then Exit Function
+
+    expectedName = private_NormalizeText(targetColumnName)
+    If VBA.Len(expectedName) = 0 Then Exit Function
+
+    For Each columnObj In targetTable.ListColumns
+        candidateName = private_NormalizeText(VBA.CStr(columnObj.Name))
+        If VBA.StrComp(candidateName, expectedName, VBA.vbTextCompare) = 0 Then
+            private_FindTargetColumnIndex = columnObj.Index
+            Exit Function
+        End If
+    Next columnObj
+End Function
+
+Private Function private_TryWriteCellValueWithFormulaPolicy( _
+    ByVal targetCell As Range, _
+    ByVal incomingValue As Variant _
+) As Boolean
+    Dim incomingText As String
+
+    If targetCell Is Nothing Then Exit Function
+
+    incomingText = VBA.Trim$(VBA.CStr(incomingValue))
+    If VBA.Len(incomingText) = 0 And targetCell.HasFormula Then
+        private_TryWriteCellValueWithFormulaPolicy = True
+        Exit Function
+    End If
+
+    targetCell.Value2 = incomingValue
+    private_TryWriteCellValueWithFormulaPolicy = True
 End Function
 
 Private Function private_TryGetSectionWriteRowRange( _
@@ -936,34 +500,6 @@ Private Function private_TryMapSectionKeyToCaption(ByVal sectionKey As String, B
     private_TryMapSectionKeyToCaption = VBA.Len(outCaption) > 0
 End Function
 
-Private Function private_BuildSectionTypeOptions() As Collection
-    Dim sectionTypes As Collection
-
-    Set sectionTypes = New Collection
-    sectionTypes.Add "з лікування"
-    sectionTypes.Add "з відпустки для лікування"
-    sectionTypes.Add "з щорічної основної відпустки"
-    sectionTypes.Add "з відпустки за сімейними обставинами"
-    sectionTypes.Add "з лікування медична рота"
-    sectionTypes.Add "з амбулаторного обстеження влк"
-    sectionTypes.Add "на лікування"
-    sectionTypes.Add "у частину щорічної основної відпустки"
-    sectionTypes.Add "у відпустку за сімейними обставинами"
-    sectionTypes.Add "у відпустку для лікування"
-    sectionTypes.Add "на лікування медична рота"
-    sectionTypes.Add "на амбулаторне обстеження влк"
-    sectionTypes.Add "зміна місця перебування лікування => відпустка для лік"
-    sectionTypes.Add "зміна місця перебування відпустка для лік => відпустка для лік"
-    sectionTypes.Add "зміна місця перебування відпустка для лік => лікування"
-    sectionTypes.Add "зміна місця перебування відпустка для лік => влк"
-    sectionTypes.Add "зміна місця перебування влк => відпустка для лік"
-    sectionTypes.Add "зміна місця перебування влк => лікування"
-    sectionTypes.Add "у відрядження"
-    sectionTypes.Add "у відрядження сзч"
-
-    Set private_BuildSectionTypeOptions = sectionTypes
-End Function
-
 Private Function private_IsSupportedSectionType(ByVal valueText As String) As Boolean
     Dim normalizedText As String
     Dim sectionTypes As Collection
@@ -972,7 +508,7 @@ Private Function private_IsSupportedSectionType(ByVal valueText As String) As Bo
     normalizedText = private_NormalizeText(valueText)
     If VBA.Len(normalizedText) = 0 Then Exit Function
 
-    Set sectionTypes = private_BuildSectionTypeOptions()
+    Set sectionTypes = m_Data.SectionTypeNames
     If sectionTypes Is Nothing Then Exit Function
 
     For Each sectionTypeValue In sectionTypes
@@ -1029,7 +565,7 @@ Private Function private_BuildKnownSectionCaptions() As Collection
     Set knownCaptionMap = ex_Helpers.fn_CreateDictionaryTextCompare()
     If knownCaptionMap Is Nothing Then Exit Function
 
-    Set sectionTypes = private_BuildSectionTypeOptions()
+    Set sectionTypes = m_Data.SectionTypeNames
     If sectionTypes Is Nothing Then Exit Function
 
     For Each sectionTypeValue In sectionTypes
@@ -1110,39 +646,6 @@ Private Function private_NormalizeText(ByVal valueText As String) As String
     Loop
     private_NormalizeText = VBA.Trim$(valueText)
 End Function
-
-Private Sub private_BeginFastExcelMode( _
-    ByRef outScreenUpdating As Boolean, _
-    ByRef outEnableEvents As Boolean, _
-    ByRef outDisplayAlerts As Boolean, _
-    ByRef outCalculation As XlCalculation _
-)
-    private_LogMethodEntry "private_BeginFastExcelMode"
-    outScreenUpdating = Application.ScreenUpdating
-    outEnableEvents = Application.EnableEvents
-    outDisplayAlerts = Application.DisplayAlerts
-    outCalculation = Application.Calculation
-
-    Application.ScreenUpdating = False
-    Application.EnableEvents = False
-    Application.DisplayAlerts = False
-    Application.Calculation = xlCalculationManual
-End Sub
-
-Private Sub private_RestoreFastExcelMode( _
-    ByVal screenUpdating As Boolean, _
-    ByVal enableEvents As Boolean, _
-    ByVal displayAlerts As Boolean, _
-    ByVal calculation As XlCalculation _
-)
-    private_LogMethodEntry "private_RestoreFastExcelMode"
-    On Error Resume Next
-    Application.Calculation = calculation
-    Application.DisplayAlerts = displayAlerts
-    Application.EnableEvents = enableEvents
-    Application.ScreenUpdating = screenUpdating
-    On Error GoTo 0
-End Sub
 
 Private Sub private_LogMethodEntry(ByVal methodName As String)
 #If LOGGING_DEBUG_ENABLED Then

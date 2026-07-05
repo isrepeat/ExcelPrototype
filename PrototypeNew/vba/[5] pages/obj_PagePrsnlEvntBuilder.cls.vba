@@ -23,6 +23,7 @@ Private Const HOTKEYS_RUNTIME_KEY As String = "RuntimeItems.PrsnlEvntBuilder.Hot
 Private Const HOTKEYS_CONTROL_NAME As String = "SheetHotkeys"
 Private Const DICTIONARY_MISSING_MEMBER_AS_EMPTY_KEY As String = "__MissingMemberAsEmpty"
 Private Const EVENT_DRAFT_VALUES_CONTAINER_NAME As String = "EventDraftValues"
+Private Const EVENT_DRAFT_ORDER_NO_CONTAINER_NAME As String = "EventDraftOrderNoValue"
 
 Private m_PageBase As obj_PageBase
 Private m_Controller As obj_PagePrsnlEvntBuilderCtrl
@@ -106,13 +107,22 @@ End Function
 Private Function obj_IPage_Render() As Boolean
     Dim draftValues As Variant
     Dim hasDraftValues As Boolean
+    Dim orderNoValues As Variant
+    Dim hasOrderNoValues As Boolean
 
     If Not m_PageBase.IsReady() Then Exit Function
+
     hasDraftValues = private_TryCaptureLayoutContainerValues(EVENT_DRAFT_VALUES_CONTAINER_NAME, draftValues)
+    hasOrderNoValues = private_TryCaptureLayoutContainerValues(EVENT_DRAFT_ORDER_NO_CONTAINER_NAME, orderNoValues)
     If Not m_PageBase.Render() Then Exit Function
+
     If hasDraftValues Then
         If Not private_TryRestoreLayoutContainerValues(EVENT_DRAFT_VALUES_CONTAINER_NAME, draftValues) Then Exit Function
     End If
+    If hasOrderNoValues Then
+        If Not private_TryRestoreLayoutContainerValues(EVENT_DRAFT_ORDER_NO_CONTAINER_NAME, orderNoValues) Then Exit Function
+    End If
+
     If Not private_TryRestorePendingControlSnapshots() Then Exit Function
 #If PRSNL_EVNT_BUILDER_HOTKEYS_ENABLED Then
     ' HotkeysControl рендерится из RuntimeItems. После render повторно применяем
