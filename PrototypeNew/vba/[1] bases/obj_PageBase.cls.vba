@@ -138,6 +138,7 @@ End Function
 
 Public Sub Dispose(Optional ByVal deleteWorksheet As Boolean = True)
     Dim ws As Worksheet
+    Dim worksheetName As String
 
 #If LOGGING_VERBOSE_ENABLED Then
     ex_Core.fn_Diagnostic_LogInfo "lifecycle:" & VBA.TypeName(Me) & ".Dispose"
@@ -146,6 +147,14 @@ Public Sub Dispose(Optional ByVal deleteWorksheet As Boolean = True)
 
     Call Me.ResetControlActions
     Set ws = m_Worksheet
+    If Not ws Is Nothing Then
+        On Error Resume Next
+        worksheetName = VBA.Trim$(ws.Name)
+        On Error GoTo 0
+        If VBA.Len(worksheetName) > 0 Then
+            Call ex_ControlPartsRuntime.fn_RemoveControlPartsByWorksheetName(worksheetName)
+        End If
+    End If
     Set m_Worksheet = Nothing
     Set m_Page = Nothing
     m_UiPath = VBA.vbNullString

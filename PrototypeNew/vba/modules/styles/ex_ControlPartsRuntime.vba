@@ -24,6 +24,21 @@ Public Sub fn_ResetControlParts()
     Set g_ControlColumnAliases = Nothing
 End Sub
 
+Public Function fn_RemoveControlPartsByWorksheetName(ByVal worksheetName As String) As Boolean
+    Dim worksheetKey As String
+
+    worksheetKey = VBA.LCase$(VBA.Trim$(worksheetName))
+    If VBA.Len(worksheetKey) = 0 Then
+        fn_RemoveControlPartsByWorksheetName = True
+        Exit Function
+    End If
+
+    Call private_RemoveEntriesByWorksheetKey(g_ControlParts, worksheetKey)
+    Call private_RemoveEntriesByWorksheetKey(g_ControlColumnAliases, worksheetKey)
+
+    fn_RemoveControlPartsByWorksheetName = True
+End Function
+
 
 Public Function fn_RegisterControlPart( _
     ByVal ws As Worksheet, _
@@ -239,6 +254,39 @@ End Function
 ' //
 ' // Internal
 ' //
+
+Private Function private_RemoveEntriesByWorksheetKey( _
+    ByRef entries As Collection, _
+    ByVal worksheetKey As String _
+) As Long
+    Dim entryIndex As Long
+    Dim entry As Object
+    Dim entrySheetName As String
+
+    worksheetKey = VBA.LCase$(VBA.Trim$(worksheetKey))
+    If VBA.Len(worksheetKey) = 0 Then Exit Function
+    If entries Is Nothing Then Exit Function
+
+    For entryIndex = entries.Count To 1 Step -1
+        Set entry = Nothing
+        entrySheetName = VBA.vbNullString
+
+        On Error Resume Next
+        Set entry = entries.Item(entryIndex)
+        If Not entry Is Nothing Then entrySheetName = VBA.LCase$(VBA.Trim$(VBA.CStr(entry("SheetName"))))
+        On Error GoTo 0
+
+        If VBA.StrComp(entrySheetName, worksheetKey, VBA.vbTextCompare) = 0 Then
+            On Error Resume Next
+            If Not entry Is Nothing Then Set entry("Range") = Nothing
+            entries.Remove entryIndex
+            On Error GoTo 0
+            private_RemoveEntriesByWorksheetKey = private_RemoveEntriesByWorksheetKey + 1
+        End If
+    Next entryIndex
+
+    If entries.Count = 0 Then Set entries = Nothing
+End Function
 
 Private Sub private_EnsureControlPartsStorage()
     If Not g_ControlParts Is Nothing Then Exit Sub
