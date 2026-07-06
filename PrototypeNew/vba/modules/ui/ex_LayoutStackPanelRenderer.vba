@@ -20,7 +20,8 @@ Public Function fn_Render( _
     ByVal rowStart As Long, _
     ByVal colStart As Long, _
     ByVal rowEnd As Long, _
-    ByVal colEnd As Long _
+    ByVal colEnd As Long, _
+    Optional ByVal dataContext As Object _
 ) As Boolean
     Dim stackDepth As Long
     Dim pageBase As obj_PageBase
@@ -64,7 +65,8 @@ Public Function fn_Render( _
         layoutRowStart:=rowStart, _
         layoutColStart:=colStart, _
         layoutRowEnd:=rowEnd, _
-        layoutColEnd:=colEnd)
+        layoutColEnd:=colEnd, _
+        dataContext:=dataContext)
 End Function
 
 Private Function private_GetStackPanelDepth(ByVal stackPanelNode As Object) As Long

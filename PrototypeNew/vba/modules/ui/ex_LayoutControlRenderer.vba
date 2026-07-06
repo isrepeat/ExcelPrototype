@@ -66,7 +66,8 @@ Public Function fn_Render( _
     Optional ByVal rowStart As Long = 0, _
     Optional ByVal colStart As Long = 0, _
     Optional ByVal rowEnd As Long = 0, _
-    Optional ByVal colEnd As Long = 0 _
+    Optional ByVal colEnd As Long = 0, _
+    Optional ByVal dataContext As Object _
 ) As Boolean
     Dim wb As Workbook
     Dim ws As Worksheet
@@ -143,6 +144,7 @@ Public Function fn_Render( _
     Set runtimeControlNode = private_LoadControlNodeFromControlUi( _
         wb, controlUiRelPath, layoutNode, control, layoutControlName, typeRoot)
     If runtimeControlNode Is Nothing Then Exit Function
+    If Not private_TryApplyInheritedDataContext(runtimeControlNode, renderCtx, dataContext) Then Exit Function
 
     ' Назначаем служебные runtime-границы (лист + координаты размещения).
     ' Эти атрибуты не пользовательские, они нужны VM в рантайме.
@@ -201,7 +203,7 @@ Public Function fn_Render( _
     ' рендерим его в тех же границах.
     If Not ex_XmlLayoutEngine.fn_RenderTemplateChildren( _
         renderCtx, runtimeControlNode, _
-        rowStart, colStart, rowEnd, colEnd) Then Exit Function
+        rowStart, colStart, rowEnd, colEnd, dataContext) Then Exit Function
 
     fn_Render = True
     Exit Function
@@ -328,9 +330,69 @@ Private Function private_IsLayoutAttribute(ByVal attrName As String) As Boolean
     ' Атрибуты раскладки страницы. Они управляют размещением в grid/stack/list,
     ' но не являются "настройками VM контрола".
     Select Case VBA.LCase$(VBA.Trim$(attrName))
-        Case "at", "spancolls", "spanrows", "visibility", "debugstyle"
+        Case "at", "spancolls", "spanrows", "visibility", "debugstyle", "tags"
             private_IsLayoutAttribute = True
     End Select
+End Function
+
+Private Function private_TryApplyInheritedDataContext( _
+    ByVal runtimeControlNode As Object, _
+    ByVal renderCtx As obj_LayoutRenderContext, _
+    ByVal dataContext As Object _
+) As Boolean
+    Dim dataContextRaw As String
+    Dim sourceKey As String
+
+    If runtimeControlNode Is Nothing Then Exit Function
+
+    dataContextRaw = VBA.Trim$(VBA.CStr(ex_XmlCore.fn_NodeAttrText(runtimeControlNode, "dataContext")))
+    If VBA.Len(dataContextRaw) > 0 Or dataContext Is Nothing Then
+        private_TryApplyInheritedDataContext = True
+        Exit Function
+    End If
+
+    sourceKey = private_RegisterRuntimeObjectSourceKey(dataContext, renderCtx)
+    If VBA.Len(sourceKey) = 0 Then Exit Function
+
+    On Error Resume Next
+    runtimeControlNode.setAttribute "dataContext", private_BuildPageRuntimeSourceExpression(sourceKey)
+    If Err.Number <> 0 Then
+#If LOGGING_DEBUG_ENABLED Then
+        ex_Core.fn_Diagnostic_LogError "PrototypeNew: failed to apply inherited dataContext to control: " & Err.Description
+#End If
+        Err.Clear
+        On Error GoTo 0
+        Exit Function
+    End If
+    On Error GoTo 0
+
+    private_TryApplyInheritedDataContext = True
+End Function
+
+Private Function private_RegisterRuntimeObjectSourceKey( _
+    ByVal sourceObject As Object, _
+    ByVal renderCtx As obj_LayoutRenderContext _
+) As String
+    Dim sourceKey As String
+
+    If sourceObject Is Nothing Then Exit Function
+    If renderCtx Is Nothing Then
+#If LOGGING_DEBUG_ENABLED Then
+        ex_Core.fn_Diagnostic_LogError "PrototypeNew: render context is not specified."
+#End If
+        Exit Function
+    End If
+
+    sourceKey = renderCtx.NextObjectRuntimeSourceKey()
+
+    If Not renderCtx.Page.GetPageBase().RuntimeSources.SetObjectSource(sourceKey, sourceObject) Then Exit Function
+    private_RegisterRuntimeObjectSourceKey = sourceKey
+End Function
+
+Private Function private_BuildPageRuntimeSourceExpression(ByVal sourceKey As String) As String
+    sourceKey = VBA.Trim$(sourceKey)
+    If VBA.Len(sourceKey) = 0 Then Exit Function
+    private_BuildPageRuntimeSourceExpression = "{PageRuntimeSource='" & VBA.Replace$(sourceKey, "'", "''") & "'}"
 End Function
 
 

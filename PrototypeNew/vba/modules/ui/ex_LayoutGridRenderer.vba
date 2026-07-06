@@ -20,7 +20,8 @@ Public Function fn_Render( _
     ByVal rowStart As Long, _
     ByVal colStart As Long, _
     ByVal rowEnd As Long, _
-    ByVal colEnd As Long _
+    ByVal colEnd As Long, _
+    Optional ByVal dataContext As Object _
 ) As Boolean
     If layoutNode Is Nothing Then
 #If LOGGING_DEBUG_ENABLED Then
@@ -45,5 +46,6 @@ Public Function fn_Render( _
         layoutRowStart:=rowStart, _
         layoutColStart:=colStart, _
         layoutRowEnd:=rowEnd, _
-        layoutColEnd:=colEnd)
+        layoutColEnd:=colEnd, _
+        dataContext:=dataContext)
 End Function

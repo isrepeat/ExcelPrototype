@@ -21,7 +21,8 @@ Public Function fn_Render( _
     ByVal rowStart As Long, _
     ByVal colStart As Long, _
     ByVal rowEnd As Long, _
-    ByVal colEnd As Long _
+    ByVal colEnd As Long, _
+    Optional ByVal dataContext As Object _
 ) As Boolean
     Dim wb As Workbook
     Dim ws As Worksheet
@@ -57,11 +58,11 @@ Public Function fn_Render( _
     ' objectSource для itemControl резолвится через общий resolver:
     ' - runtime source expression ({PageRuntimeSource/...}, {GlobalRuntimeSource/...})
     ' - либо Binding, который должен вернуть Object.
-    If Not ex_RuntimeSourceResolver.fn_TryResolveObjectSource( _
-        pageBase.RuntimeSources, _
+    If Not private_TryResolveObjectSourceForMeasure( _
+        renderCtx, _
         ex_XmlCore.fn_NodeAttrText(layoutNode, "objectSource"), _
-        sourceObject, _
-        True) Then Exit Function
+        dataContext, _
+        sourceObject) Then Exit Function
     If sourceObject Is Nothing Then
         fn_Render = True
         Exit Function
@@ -94,7 +95,8 @@ Public Function fn_Render( _
         layoutRowStart:=rowStart, _
         layoutColStart:=colStart, _
         layoutRowEnd:=rowEnd, _
-        layoutColEnd:=colEnd)
+        layoutColEnd:=colEnd, _
+        dataContext:=sourceObject)
 End Function
 
 
@@ -325,7 +327,7 @@ Private Function private_ApplyNodeBindingsRecursive( _
                     runtimeListSourceKey = private_RegisterRuntimeListItemsSourceKey(runtimeItems, renderCtx)
                     If VBA.Len(runtimeListSourceKey) = 0 Then Exit Function
                     ' После этого itemsSource проходит обычный путь через RuntimeSourceResolver.
-                    rootNode.setAttribute attrName, runtimeListSourceKey
+                    rootNode.setAttribute attrName, private_BuildPageRuntimeSourceExpression(runtimeListSourceKey)
                 ElseIf VBA.StrComp(VBA.LCase$(attrName), "objectsource", VBA.vbBinaryCompare) = 0 And _
                        VBA.StrComp(rootNodeName, "itemcontrol", VBA.vbBinaryCompare) = 0 Then
 
@@ -336,7 +338,7 @@ Private Function private_ApplyNodeBindingsRecursive( _
                         runtimeObjectSourceKey = private_RegisterRuntimeObjectSourceKey(resolvedObject, renderCtx)
                         If VBA.Len(runtimeObjectSourceKey) = 0 Then Exit Function
                         ' objectSource также преобразуем в runtime key вместо прямой object-ссылки.
-                        rootNode.setAttribute attrName, runtimeObjectSourceKey
+                        rootNode.setAttribute attrName, private_BuildPageRuntimeSourceExpression(runtimeObjectSourceKey)
                     End If
                 Else
 #If LOGGING_DEBUG_ENABLED Then
@@ -406,6 +408,12 @@ Private Function private_RegisterRuntimeObjectSourceKey( _
 
     If Not renderCtx.Page.GetPageBase().RuntimeSources.SetObjectSource(sourceKey, sourceObject) Then Exit Function
     private_RegisterRuntimeObjectSourceKey = sourceKey
+End Function
+
+Private Function private_BuildPageRuntimeSourceExpression(ByVal sourceKey As String) As String
+    sourceKey = VBA.Trim$(sourceKey)
+    If VBA.Len(sourceKey) = 0 Then Exit Function
+    private_BuildPageRuntimeSourceExpression = "{PageRuntimeSource='" & VBA.Replace$(sourceKey, "'", "''") & "'}"
 End Function
 
 
