@@ -27,18 +27,43 @@ Private Const MAX_EXPORT_HOTKEYS As Long = 9
 Private Const LOOKUP_CANDIDATES_CONTROL_NAME As String = "LookupCandidatesTable"
 Private Const EVENT_DRAFT_FORM_CONTAINER_NAME As String = "EventDraftForm"
 Private Const EVENT_DRAFT_VALUES_CONTAINER_NAME As String = "EventDraftValues"
-Private Const EVENT_DRAFT_SECTION_TYPE_CONTAINER_NAME As String = "EventDraftSectionType"
 Private Const EVENT_DRAFT_ORDER_NO_LABEL_CONTROL_NAME As String = "EventDraftOrderNoLabel"
 Private Const EVENT_DRAFT_INCOMING_NO_HEADER_NAME As String = "Вх. №"
 Private Const EVENT_DRAFT_ORDER_LABEL_PREFIX As String = "Наказ №: "
 Private Const EXPORT_META_MANUAL_ORDER_NO_COLUMN_NAME As String = "meta_ManualOrderNo"
 Private Const EXPORT_META_SECTION_TYPE_COLUMN_NAME As String = "meta_SectionType"
+Private Const SECTION_TYPE_BUTTON_STYLE_NORMAL As String = "sectionTypeButton"
+Private Const SECTION_TYPE_BUTTON_STYLE_SELECTED As String = "sectionTypeButtonSelected"
+Private Const DRAFT_FIELD_HOSPITAL As String = "Hospital"
+Private Const DRAFT_FIELD_HOSPITAL_SHORT As String = "HospitalShort"
+Private Const DRAFT_FIELD_VACATION As String = "Vacation"
+Private Const DRAFT_FIELD_RANK As String = "Rank"
+Private Const DRAFT_FIELD_FIO As String = "Fio"
+Private Const DRAFT_FIELD_IPN As String = "Ipn"
+Private Const DRAFT_FIELD_POSITION_CODE As String = "PositionCode"
+Private Const DRAFT_FIELD_POSITION_NAME As String = "PositionName"
+Private Const DRAFT_FIELD_REPORT_TVO As String = "ReportTvo"
+Private Const DRAFT_FIELD_REPORT_PERSON As String = "ReportPerson"
+Private Const DRAFT_FIELD_INCOMING_NO As String = "IncomingNo"
+Private Const DRAFT_FIELD_INCOMING_DATE As String = "IncomingDate"
+Private Const DRAFT_FIELD_DOCUMENT_NOTE As String = "DocumentNote"
+Private Const DRAFT_FIELD_DOC_NO As String = "DocNo"
+Private Const DRAFT_FIELD_DOC_DATE As String = "DocDate"
+Private Const DRAFT_FIELD_DURATION_DAYS As String = "DurationDays"
+Private Const DRAFT_FIELD_DATE_FROM As String = "DateFrom"
+Private Const DRAFT_FIELD_DATE_TO As String = "DateTo"
+Private Const DRAFT_FIELD_VH_NO As String = "VhNo"
+Private Const DRAFT_FIELD_VH_DATE As String = "VhDate"
+Private Const DRAFT_FIELD_VLK_NO As String = "VlkNo"
+Private Const DRAFT_FIELD_VLK_DATE As String = "VlkDate"
 
 Private m_Page As obj_IPage
 Private m_LookupFeature As obj_EntityLookupFeature
 Private m_ExportAliases As Collection
 Private m_ExporterClassByAlias As Object
 Private m_ExportConfigTableByAlias As Object
+Private m_SelectedSectionType As String
+Private m_Data As obj_PrsnlEvntBuilderData
 Private m_IsDisposed As Boolean
 
 Private Sub Class_Initialize()
@@ -66,6 +91,98 @@ End Property
 
 Public Property Get LookupFeature() As obj_EntityLookupFeature
     Set LookupFeature = m_LookupFeature
+End Property
+
+Public Property Get NonTreatmentFieldVisibilityState() As String
+    NonTreatmentFieldVisibilityState = private_GetDraftFieldVisibilityState(DRAFT_FIELD_DATE_FROM)
+End Property
+
+Public Property Get HospitalFieldVisibilityState() As String
+    HospitalFieldVisibilityState = private_GetDraftFieldVisibilityState(DRAFT_FIELD_HOSPITAL)
+End Property
+
+Public Property Get HospitalShortFieldVisibilityState() As String
+    HospitalShortFieldVisibilityState = private_GetDraftFieldVisibilityState(DRAFT_FIELD_HOSPITAL_SHORT)
+End Property
+
+Public Property Get VacationFieldVisibilityState() As String
+    VacationFieldVisibilityState = private_GetDraftFieldVisibilityState(DRAFT_FIELD_VACATION)
+End Property
+
+Public Property Get RankFieldVisibilityState() As String
+    RankFieldVisibilityState = private_GetDraftFieldVisibilityState(DRAFT_FIELD_RANK)
+End Property
+
+Public Property Get FioFieldVisibilityState() As String
+    FioFieldVisibilityState = private_GetDraftFieldVisibilityState(DRAFT_FIELD_FIO)
+End Property
+
+Public Property Get IpnFieldVisibilityState() As String
+    IpnFieldVisibilityState = private_GetDraftFieldVisibilityState(DRAFT_FIELD_IPN)
+End Property
+
+Public Property Get PositionCodeFieldVisibilityState() As String
+    PositionCodeFieldVisibilityState = private_GetDraftFieldVisibilityState(DRAFT_FIELD_POSITION_CODE)
+End Property
+
+Public Property Get PositionNameFieldVisibilityState() As String
+    PositionNameFieldVisibilityState = private_GetDraftFieldVisibilityState(DRAFT_FIELD_POSITION_NAME)
+End Property
+
+Public Property Get ReportTvoFieldVisibilityState() As String
+    ReportTvoFieldVisibilityState = private_GetDraftFieldVisibilityState(DRAFT_FIELD_REPORT_TVO)
+End Property
+
+Public Property Get ReportPersonFieldVisibilityState() As String
+    ReportPersonFieldVisibilityState = private_GetDraftFieldVisibilityState(DRAFT_FIELD_REPORT_PERSON)
+End Property
+
+Public Property Get IncomingNoFieldVisibilityState() As String
+    IncomingNoFieldVisibilityState = private_GetDraftFieldVisibilityState(DRAFT_FIELD_INCOMING_NO)
+End Property
+
+Public Property Get IncomingDateFieldVisibilityState() As String
+    IncomingDateFieldVisibilityState = private_GetDraftFieldVisibilityState(DRAFT_FIELD_INCOMING_DATE)
+End Property
+
+Public Property Get DocumentNoteFieldVisibilityState() As String
+    DocumentNoteFieldVisibilityState = private_GetDraftFieldVisibilityState(DRAFT_FIELD_DOCUMENT_NOTE)
+End Property
+
+Public Property Get DocNoFieldVisibilityState() As String
+    DocNoFieldVisibilityState = private_GetDraftFieldVisibilityState(DRAFT_FIELD_DOC_NO)
+End Property
+
+Public Property Get DocDateFieldVisibilityState() As String
+    DocDateFieldVisibilityState = private_GetDraftFieldVisibilityState(DRAFT_FIELD_DOC_DATE)
+End Property
+
+Public Property Get DurationDaysFieldVisibilityState() As String
+    DurationDaysFieldVisibilityState = private_GetDraftFieldVisibilityState(DRAFT_FIELD_DURATION_DAYS)
+End Property
+
+Public Property Get DateFromFieldVisibilityState() As String
+    DateFromFieldVisibilityState = private_GetDraftFieldVisibilityState(DRAFT_FIELD_DATE_FROM)
+End Property
+
+Public Property Get DateToFieldVisibilityState() As String
+    DateToFieldVisibilityState = private_GetDraftFieldVisibilityState(DRAFT_FIELD_DATE_TO)
+End Property
+
+Public Property Get VhNoFieldVisibilityState() As String
+    VhNoFieldVisibilityState = private_GetDraftFieldVisibilityState(DRAFT_FIELD_VH_NO)
+End Property
+
+Public Property Get VhDateFieldVisibilityState() As String
+    VhDateFieldVisibilityState = private_GetDraftFieldVisibilityState(DRAFT_FIELD_VH_DATE)
+End Property
+
+Public Property Get VlkNoFieldVisibilityState() As String
+    VlkNoFieldVisibilityState = private_GetDraftFieldVisibilityState(DRAFT_FIELD_VLK_NO)
+End Property
+
+Public Property Get VlkDateFieldVisibilityState() As String
+    VlkDateFieldVisibilityState = private_GetDraftFieldVisibilityState(DRAFT_FIELD_VLK_DATE)
 End Property
 
 ' //
@@ -96,6 +213,7 @@ Public Function Initialize(ByVal page As Object) As Boolean
 
     m_IsDisposed = False
     Set m_Page = pageInterface
+    Set m_Data = New obj_PrsnlEvntBuilderData
     private_ResetExportSettings
 
     Set pageBase = m_Page.GetPageBase()
@@ -128,6 +246,8 @@ Public Sub Dispose()
     Set m_ExportAliases = Nothing
     Set m_ExporterClassByAlias = Nothing
     Set m_ExportConfigTableByAlias = Nothing
+    Set m_Data = Nothing
+    m_SelectedSectionType = VBA.vbNullString
     On Error GoTo 0
 End Sub
 
@@ -212,6 +332,62 @@ Public Function RuntimeHandleHotkeyAction(ByVal actionId As Variant) As Boolean
     RuntimeHandleHotkeyAction = True
 End Function
 
+Public Function OnSectionTypeButtonClick(Optional ByVal sectionTypeId As Variant) As Boolean
+    Dim newSectionType As String
+    Dim previousEnableEvents As Boolean
+    Dim perfStart As Double
+    Dim perfLast As Double
+
+    perfStart = VBA.Timer
+    perfLast = perfStart
+
+    newSectionType = VBA.Trim$(VBA.CStr(sectionTypeId))
+    If VBA.Len(newSectionType) = 0 Then Exit Function
+    If VBA.StrComp(private_NormalizeText(newSectionType), private_NormalizeText(m_SelectedSectionType), vbTextCompare) = 0 Then
+#If LOGGING_DEBUG_ENABLED Then
+        private_LogPerfStep "section-type-click:no-op", perfStart, perfLast, "sectionType='" & private_EscapeForLog(newSectionType) & "'"
+#End If
+        OnSectionTypeButtonClick = True
+        Exit Function
+    End If
+
+#If LOGGING_DEBUG_ENABLED Then
+    private_LogPerfStep "section-type-click:start", perfStart, perfLast, "from='" & private_EscapeForLog(m_SelectedSectionType) & "' to='" & private_EscapeForLog(newSectionType) & "'"
+#End If
+
+    m_SelectedSectionType = newSectionType
+    If m_Page Is Nothing Then Exit Function
+    If Not private_RegisterSectionTypeOptions(False) Then Exit Function
+#If LOGGING_DEBUG_ENABLED Then
+    private_LogPerfStep "section-type-click:section-types-registered", perfStart, perfLast, "sectionType='" & private_EscapeForLog(m_SelectedSectionType) & "'"
+#End If
+
+    previousEnableEvents = Application.EnableEvents
+    Application.EnableEvents = False
+#If LOGGING_DEBUG_ENABLED Then
+    private_LogPerfStep "section-type-click:events-disabled", perfStart, perfLast, "previousEnableEvents=" & VBA.LCase$(VBA.CStr(previousEnableEvents))
+#End If
+    On Error GoTo EH
+
+    OnSectionTypeButtonClick = rt_PageManager.fn_RenderPage(m_Page, "prsnlevntbuilder:section-type-changed")
+#If LOGGING_DEBUG_ENABLED Then
+    private_LogPerfStep "section-type-click:render-returned", perfStart, perfLast, "ok=" & VBA.LCase$(VBA.CStr(OnSectionTypeButtonClick))
+#End If
+
+Cleanup:
+    Application.EnableEvents = previousEnableEvents
+#If LOGGING_DEBUG_ENABLED Then
+    private_LogPerfStep "section-type-click:done", perfStart, perfLast, "ok=" & VBA.LCase$(VBA.CStr(OnSectionTypeButtonClick))
+#End If
+    Exit Function
+
+EH:
+#If LOGGING_DEBUG_ENABLED Then
+    private_LogPerfStep "section-type-click:error", perfStart, perfLast, "err='" & private_EscapeForLog(Err.Description) & "'"
+#End If
+    Resume Cleanup
+End Function
+
 Public Function SearchCandidates( _
     ByVal lookupKey As String, _
     ByVal queryText As String, _
@@ -255,25 +431,132 @@ Private Function private_RegisterSectionTypeOptions(ByVal notifyChange As Boolea
     Dim pageBase As obj_PageBase
     Dim runtimeSources As obj_PageRuntimeSources
     Dim sectionTypes As Collection
-    Dim exporterToDailyScope As obj_ExporterToDailyScope
+    Dim sectionTypeOptions As Collection
+    Dim perfStart As Double
+    Dim perfLast As Double
+
+    perfStart = VBA.Timer
+    perfLast = perfStart
 
     If m_Page Is Nothing Then Exit Function
+    If m_Data Is Nothing Then Set m_Data = New obj_PrsnlEvntBuilderData
     Set pageBase = m_Page.GetPageBase()
     If pageBase Is Nothing Then Exit Function
     Set runtimeSources = pageBase.RuntimeSources
     If runtimeSources Is Nothing Then Exit Function
+#If LOGGING_DEBUG_ENABLED Then
+    private_LogPerfStep "section-types:runtime-ready", perfStart, perfLast, "notifyChange=" & VBA.LCase$(VBA.CStr(notifyChange))
+#End If
 
-    Set exporterToDailyScope = New obj_ExporterToDailyScope
-    If Not exporterToDailyScope.Initialize(Nothing) Then Exit Function
-    If Not exporterToDailyScope.TryGetSectionTypeOptions(sectionTypes) Then Exit Function
+    Set sectionTypes = m_Data.SectionTypeNames
+#If LOGGING_DEBUG_ENABLED Then
+    private_LogPerfStep "section-types:data-provider-ready", perfStart, perfLast
+#End If
     If sectionTypes Is Nothing Then Exit Function
     If sectionTypes.Count = 0 Then Exit Function
+#If LOGGING_DEBUG_ENABLED Then
+    private_LogPerfStep "section-types:options-loaded", perfStart, perfLast, "count=" & VBA.CStr(sectionTypes.Count)
+#End If
+    If VBA.Len(VBA.Trim$(m_SelectedSectionType)) = 0 Then m_SelectedSectionType = VBA.Trim$(VBA.CStr(sectionTypes.Item(1)))
+    If Not private_TryBuildSectionTypeButtonOptions(sectionTypes, sectionTypeOptions) Then Exit Function
+#If LOGGING_DEBUG_ENABLED Then
+    private_LogPerfStep "section-types:button-options-built", perfStart, perfLast, "rows=" & VBA.CStr(sectionTypeOptions.Count)
+#End If
 
     If Not runtimeSources.RemoveItemsSource(VBA.LCase$(SECTION_TYPES_RUNTIME_KEY)) Then Exit Function
-    If Not runtimeSources.SetItemsSource(VBA.LCase$(SECTION_TYPES_RUNTIME_KEY), sectionTypes, notifyChange) Then Exit Function
+#If LOGGING_DEBUG_ENABLED Then
+    private_LogPerfStep "section-types:runtime-source-removed", perfStart, perfLast
+#End If
+    If Not runtimeSources.SetItemsSource(VBA.LCase$(SECTION_TYPES_RUNTIME_KEY), sectionTypeOptions, notifyChange) Then Exit Function
+#If LOGGING_DEBUG_ENABLED Then
+    private_LogPerfStep "section-types:runtime-source-set", perfStart, perfLast
+#End If
 
     private_RegisterSectionTypeOptions = True
 End Function
+
+Private Function private_TryBuildSectionTypeButtonOptions( _
+    ByVal sectionTypes As Collection, _
+    ByRef outRows As Collection _
+) As Boolean
+    Dim sectionTypeObj As Variant
+    Dim sectionTypeText As String
+    Dim optionObj As obj_SelectOption
+    Dim rowItems As Collection
+    Dim rowObj As Object
+
+    Set outRows = Nothing
+    If sectionTypes Is Nothing Then Exit Function
+
+    Set outRows = New Collection
+    Set rowItems = Nothing
+    For Each sectionTypeObj In sectionTypes
+        sectionTypeText = VBA.Trim$(VBA.CStr(sectionTypeObj))
+        If VBA.Len(sectionTypeText) = 0 Then GoTo ContinueSectionType
+
+        If rowItems Is Nothing Then
+            Set rowItems = New Collection
+            Set rowObj = VBA.CreateObject("Scripting.Dictionary")
+            rowObj.CompareMode = 1
+            Set rowObj("Items") = rowItems
+            outRows.Add rowObj
+        ElseIf rowItems.Count >= 2 Then
+            Set rowItems = New Collection
+            Set rowObj = VBA.CreateObject("Scripting.Dictionary")
+            rowObj.CompareMode = 1
+            Set rowObj("Items") = rowItems
+            outRows.Add rowObj
+        End If
+
+        Set optionObj = New obj_SelectOption
+        optionObj.Caption = sectionTypeText
+        optionObj.Id = sectionTypeText
+        If VBA.StrComp(private_NormalizeText(sectionTypeText), private_NormalizeText(m_SelectedSectionType), VBA.vbTextCompare) = 0 Then
+            optionObj.StyleName = SECTION_TYPE_BUTTON_STYLE_SELECTED
+        Else
+            optionObj.StyleName = SECTION_TYPE_BUTTON_STYLE_NORMAL
+        End If
+        rowItems.Add optionObj
+
+ContinueSectionType:
+    Next sectionTypeObj
+
+    private_TryBuildSectionTypeButtonOptions = True
+End Function
+
+#If LOGGING_DEBUG_ENABLED Then
+Private Sub private_LogPerfStep( _
+    ByVal stepName As String, _
+    ByVal startedAt As Double, _
+    ByRef lastAt As Double, _
+    Optional ByVal details As String = "" _
+)
+    Dim nowAt As Double
+    Dim stepMs As Double
+    Dim totalMs As Double
+    Dim messageText As String
+
+    nowAt = VBA.Timer
+    stepMs = private_ElapsedMs(lastAt, nowAt)
+    totalMs = private_ElapsedMs(startedAt, nowAt)
+    lastAt = nowAt
+
+    messageText = "perf:prsnlevntbuilder:" & stepName & _
+        " stepMs=" & VBA.Format$(stepMs, "0.0") & _
+        " totalMs=" & VBA.Format$(totalMs, "0.0")
+    If VBA.Len(VBA.Trim$(details)) > 0 Then messageText = messageText & " " & details
+    ex_Core.fn_Diagnostic_LogInfo messageText
+End Sub
+
+Private Function private_ElapsedMs(ByVal startedAt As Double, ByVal endedAt As Double) As Double
+    If endedAt < startedAt Then endedAt = endedAt + 86400#
+    private_ElapsedMs = (endedAt - startedAt) * 1000#
+End Function
+
+Private Function private_EscapeForLog(ByVal valueText As String) As String
+    private_EscapeForLog = VBA.Replace$(VBA.Trim$(VBA.CStr(valueText)), "'", "''")
+End Function
+#End If
 
 Private Function private_TryAcceptCandidateRowFromSelection(ByVal targetCell As Range) As Boolean
     Dim pageBase As obj_PageBase
@@ -764,35 +1047,387 @@ Private Function private_TryReadManualOrderNoValue( _
 End Function
 
 Private Function private_TryGetSelectedSectionType(ByRef outSectionType As String) As Boolean
-    Dim pageBase As obj_PageBase
-    Dim rawControl As Object
-    Dim sectionTypeSelect As obj_SelectControlVM
-
-    outSectionType = VBA.vbNullString
-    If m_Page Is Nothing Then Exit Function
-    Set pageBase = m_Page.GetPageBase()
-    If pageBase Is Nothing Then Exit Function
-
-    If Not pageBase.TryGetRegisteredControlByName(EVENT_DRAFT_SECTION_TYPE_CONTAINER_NAME, rawControl) Then
-        rt_Messaging.fn_ShowStatusBarWarning "Event section type selector is not rendered.", 3
-        Exit Function
-    End If
-
-    On Error Resume Next
-    Set sectionTypeSelect = rawControl
-    On Error GoTo 0
-    If sectionTypeSelect Is Nothing Then
-        rt_Messaging.fn_ShowStatusBarWarning "Event section type selector is not a Select control.", 3
-        Exit Function
-    End If
-
-    outSectionType = VBA.Trim$(sectionTypeSelect.GetSelectedId())
+    outSectionType = VBA.Trim$(m_SelectedSectionType)
     If VBA.Len(outSectionType) = 0 Then
         rt_Messaging.fn_ShowStatusBarWarning "Event section type is not selected.", 3
         Exit Function
     End If
 
     private_TryGetSelectedSectionType = True
+End Function
+
+Private Function private_GetDraftFieldVisibilityState(ByVal fieldKey As String) As String
+    If private_IsDraftFieldVisible(fieldKey) Then
+        private_GetDraftFieldVisibilityState = "visible"
+    Else
+        private_GetDraftFieldVisibilityState = "collapsed"
+    End If
+End Function
+
+Private Function private_IsDraftFieldVisible(ByVal fieldKey As String) As Boolean
+    Dim sectionTypeText As String
+    Dim normalizedSectionType As String
+    Dim fieldVisibilityFlags As Object
+
+    fieldKey = VBA.Trim$(fieldKey)
+    If VBA.Len(fieldKey) = 0 Then Exit Function
+
+    If Not private_TryGetSelectedSectionType(sectionTypeText) Then
+        private_IsDraftFieldVisible = True
+        Exit Function
+    End If
+
+    normalizedSectionType = private_NormalizeText(sectionTypeText)
+    Set fieldVisibilityFlags = private_BuildDraftFieldVisibilityFlags(normalizedSectionType)
+    If fieldVisibilityFlags Is Nothing Then
+        private_IsDraftFieldVisible = True
+        Exit Function
+    End If
+    If Not fieldVisibilityFlags.Exists(fieldKey) Then
+        private_IsDraftFieldVisible = True
+        Exit Function
+    End If
+
+    private_IsDraftFieldVisible = VBA.CBool(fieldVisibilityFlags(fieldKey))
+End Function
+
+Private Function private_BuildDraftFieldVisibilityFlags(ByVal normalizedSectionType As String) As Object
+    Dim flags As Object
+
+    Set flags = private_CreateDraftFieldVisibilityFlags(True)
+    If m_Data Is Nothing Then
+        Set private_BuildDraftFieldVisibilityFlags = flags
+        Exit Function
+    End If
+
+    normalizedSectionType = private_NormalizeText(normalizedSectionType)
+    Select Case normalizedSectionType
+        Case private_NormalizeText(m_Data.SectionTypeCloseFromTreatment)
+            private_SetAllDraftFieldVisibilityFlags flags, False
+            private_SetDraftFieldsVisible flags, _
+                DRAFT_FIELD_HOSPITAL, _
+                DRAFT_FIELD_HOSPITAL_SHORT, _
+                DRAFT_FIELD_RANK, _
+                DRAFT_FIELD_FIO, _
+                DRAFT_FIELD_IPN, _
+                DRAFT_FIELD_POSITION_CODE, _
+                DRAFT_FIELD_POSITION_NAME, _
+                DRAFT_FIELD_REPORT_TVO, _
+                DRAFT_FIELD_REPORT_PERSON, _
+                DRAFT_FIELD_INCOMING_NO, _
+                DRAFT_FIELD_INCOMING_DATE, _
+                DRAFT_FIELD_DOCUMENT_NOTE, _
+                DRAFT_FIELD_DOC_NO, _
+                DRAFT_FIELD_DOC_DATE
+
+        Case private_NormalizeText(m_Data.SectionTypeCloseFromTreatmentMedicalCompany)
+            private_SetAllDraftFieldVisibilityFlags flags, False
+            private_SetDraftFieldsVisible flags, _
+                DRAFT_FIELD_RANK, _
+                DRAFT_FIELD_FIO, _
+                DRAFT_FIELD_IPN, _
+                DRAFT_FIELD_POSITION_CODE, _
+                DRAFT_FIELD_POSITION_NAME, _
+                DRAFT_FIELD_REPORT_TVO, _
+                DRAFT_FIELD_REPORT_PERSON, _
+                DRAFT_FIELD_INCOMING_NO, _
+                DRAFT_FIELD_INCOMING_DATE, _
+                DRAFT_FIELD_DOCUMENT_NOTE, _
+                DRAFT_FIELD_DOC_NO, _
+                DRAFT_FIELD_DOC_DATE
+
+        Case private_NormalizeText(m_Data.SectionTypeCloseFromAmbulatoryVlk)
+            private_SetAllDraftFieldVisibilityFlags flags, False
+            private_SetDraftFieldsVisible flags, _
+                DRAFT_FIELD_RANK, _
+                DRAFT_FIELD_FIO, _
+                DRAFT_FIELD_IPN, _
+                DRAFT_FIELD_POSITION_CODE, _
+                DRAFT_FIELD_POSITION_NAME, _
+                DRAFT_FIELD_REPORT_TVO, _
+                DRAFT_FIELD_REPORT_PERSON, _
+                DRAFT_FIELD_INCOMING_NO, _
+                DRAFT_FIELD_INCOMING_DATE, _
+                DRAFT_FIELD_DOCUMENT_NOTE, _
+                DRAFT_FIELD_DOC_NO, _
+                DRAFT_FIELD_DOC_DATE, _
+                DRAFT_FIELD_VLK_NO, _
+                DRAFT_FIELD_VLK_DATE
+
+        Case private_NormalizeText(m_Data.SectionTypeToTreatment)
+            private_SetAllDraftFieldVisibilityFlags flags, False
+            private_SetDraftFieldsVisible flags, _
+                DRAFT_FIELD_HOSPITAL, _
+                DRAFT_FIELD_HOSPITAL_SHORT, _
+                DRAFT_FIELD_RANK, _
+                DRAFT_FIELD_FIO, _
+                DRAFT_FIELD_IPN, _
+                DRAFT_FIELD_POSITION_CODE, _
+                DRAFT_FIELD_POSITION_NAME, _
+                DRAFT_FIELD_REPORT_TVO, _
+                DRAFT_FIELD_REPORT_PERSON, _
+                DRAFT_FIELD_INCOMING_NO, _
+                DRAFT_FIELD_INCOMING_DATE, _
+                DRAFT_FIELD_DOCUMENT_NOTE, _
+                DRAFT_FIELD_DOC_NO, _
+                DRAFT_FIELD_DOC_DATE
+
+        Case private_NormalizeText(m_Data.SectionTypeCloseFromTreatmentVacation), _
+             private_NormalizeText(m_Data.SectionTypeCloseFromAnnualVacation), _
+             private_NormalizeText(m_Data.SectionTypeCloseFromFamilyVacation)
+            private_SetAllDraftFieldVisibilityFlags flags, False
+            private_SetDraftFieldsVisible flags, _
+                DRAFT_FIELD_RANK, _
+                DRAFT_FIELD_FIO, _
+                DRAFT_FIELD_IPN, _
+                DRAFT_FIELD_POSITION_CODE, _
+                DRAFT_FIELD_POSITION_NAME, _
+                DRAFT_FIELD_REPORT_TVO, _
+                DRAFT_FIELD_REPORT_PERSON, _
+                DRAFT_FIELD_INCOMING_NO, _
+                DRAFT_FIELD_INCOMING_DATE, _
+                DRAFT_FIELD_VH_NO, _
+                DRAFT_FIELD_VH_DATE
+
+        Case private_NormalizeText(m_Data.SectionTypeToAnnualVacationPart), _
+             private_NormalizeText(m_Data.SectionTypeToFamilyVacation)
+            private_SetAllDraftFieldVisibilityFlags flags, False
+            private_SetDraftFieldsVisible flags, _
+                DRAFT_FIELD_VACATION, _
+                DRAFT_FIELD_RANK, _
+                DRAFT_FIELD_FIO, _
+                DRAFT_FIELD_IPN, _
+                DRAFT_FIELD_POSITION_CODE, _
+                DRAFT_FIELD_POSITION_NAME, _
+                DRAFT_FIELD_INCOMING_NO, _
+                DRAFT_FIELD_INCOMING_DATE, _
+                DRAFT_FIELD_DURATION_DAYS, _
+                DRAFT_FIELD_DATE_FROM, _
+                DRAFT_FIELD_DATE_TO, _
+                DRAFT_FIELD_VH_NO, _
+                DRAFT_FIELD_VH_DATE
+
+        Case private_NormalizeText(m_Data.SectionTypeToTreatmentVacation)
+            private_SetAllDraftFieldVisibilityFlags flags, False
+            private_SetDraftFieldsVisible flags, _
+                DRAFT_FIELD_VACATION, _
+                DRAFT_FIELD_RANK, _
+                DRAFT_FIELD_FIO, _
+                DRAFT_FIELD_IPN, _
+                DRAFT_FIELD_POSITION_CODE, _
+                DRAFT_FIELD_POSITION_NAME, _
+                DRAFT_FIELD_INCOMING_NO, _
+                DRAFT_FIELD_INCOMING_DATE, _
+                DRAFT_FIELD_DURATION_DAYS, _
+                DRAFT_FIELD_DATE_FROM, _
+                DRAFT_FIELD_DATE_TO, _
+                DRAFT_FIELD_VH_NO, _
+                DRAFT_FIELD_VH_DATE, _
+                DRAFT_FIELD_VLK_NO, _
+                DRAFT_FIELD_VLK_DATE
+
+        Case private_NormalizeText(m_Data.SectionTypeToTreatmentMedicalCompany), _
+             private_NormalizeText(m_Data.SectionTypeToAmbulatoryVlk)
+            private_SetAllDraftFieldVisibilityFlags flags, False
+            private_SetDraftFieldsVisible flags, _
+                DRAFT_FIELD_RANK, _
+                DRAFT_FIELD_FIO, _
+                DRAFT_FIELD_IPN, _
+                DRAFT_FIELD_POSITION_CODE, _
+                DRAFT_FIELD_POSITION_NAME, _
+                DRAFT_FIELD_REPORT_TVO, _
+                DRAFT_FIELD_REPORT_PERSON, _
+                DRAFT_FIELD_INCOMING_NO, _
+                DRAFT_FIELD_INCOMING_DATE, _
+                DRAFT_FIELD_DOC_NO
+
+        Case private_NormalizeText(m_Data.SectionTypeTransferTreatmentToTreatmentVacation)
+            private_SetAllDraftFieldVisibilityFlags flags, False
+            private_SetDraftFieldsVisible flags, _
+                DRAFT_FIELD_HOSPITAL, _
+                DRAFT_FIELD_HOSPITAL_SHORT, _
+                DRAFT_FIELD_VACATION, _
+                DRAFT_FIELD_RANK, _
+                DRAFT_FIELD_FIO, _
+                DRAFT_FIELD_IPN, _
+                DRAFT_FIELD_POSITION_CODE, _
+                DRAFT_FIELD_POSITION_NAME, _
+                DRAFT_FIELD_INCOMING_NO, _
+                DRAFT_FIELD_INCOMING_DATE, _
+                DRAFT_FIELD_DOCUMENT_NOTE, _
+                DRAFT_FIELD_DOC_NO, _
+                DRAFT_FIELD_DOC_DATE, _
+                DRAFT_FIELD_DURATION_DAYS, _
+                DRAFT_FIELD_DATE_FROM, _
+                DRAFT_FIELD_DATE_TO, _
+                DRAFT_FIELD_VH_NO, _
+                DRAFT_FIELD_VH_DATE, _
+                DRAFT_FIELD_VLK_NO, _
+                DRAFT_FIELD_VLK_DATE
+
+        Case private_NormalizeText(m_Data.SectionTypeTransferTreatmentVacationToTreatmentVacation)
+            private_SetAllDraftFieldVisibilityFlags flags, False
+            private_SetDraftFieldsVisible flags, _
+                DRAFT_FIELD_VACATION, _
+                DRAFT_FIELD_RANK, _
+                DRAFT_FIELD_FIO, _
+                DRAFT_FIELD_IPN, _
+                DRAFT_FIELD_POSITION_CODE, _
+                DRAFT_FIELD_POSITION_NAME, _
+                DRAFT_FIELD_INCOMING_NO, _
+                DRAFT_FIELD_INCOMING_DATE, _
+                DRAFT_FIELD_DURATION_DAYS, _
+                DRAFT_FIELD_DATE_FROM, _
+                DRAFT_FIELD_DATE_TO, _
+                DRAFT_FIELD_VH_NO, _
+                DRAFT_FIELD_VH_DATE, _
+                DRAFT_FIELD_VLK_NO, _
+                DRAFT_FIELD_VLK_DATE
+
+        Case private_NormalizeText(m_Data.SectionTypeTransferTreatmentVacationToTreatment)
+            private_SetAllDraftFieldVisibilityFlags flags, False
+            private_SetDraftFieldsVisible flags, _
+                DRAFT_FIELD_HOSPITAL, _
+                DRAFT_FIELD_HOSPITAL_SHORT, _
+                DRAFT_FIELD_RANK, _
+                DRAFT_FIELD_FIO, _
+                DRAFT_FIELD_IPN, _
+                DRAFT_FIELD_POSITION_CODE, _
+                DRAFT_FIELD_POSITION_NAME, _
+                DRAFT_FIELD_INCOMING_NO, _
+                DRAFT_FIELD_INCOMING_DATE, _
+                DRAFT_FIELD_DOCUMENT_NOTE, _
+                DRAFT_FIELD_DOC_NO, _
+                DRAFT_FIELD_DOC_DATE, _
+                DRAFT_FIELD_DATE_FROM
+
+        Case private_NormalizeText(m_Data.SectionTypeTransferTreatmentVacationToVlk)
+            private_SetAllDraftFieldVisibilityFlags flags, False
+            private_SetDraftFieldsVisible flags, _
+                DRAFT_FIELD_RANK, _
+                DRAFT_FIELD_FIO, _
+                DRAFT_FIELD_IPN, _
+                DRAFT_FIELD_POSITION_CODE, _
+                DRAFT_FIELD_POSITION_NAME, _
+                DRAFT_FIELD_INCOMING_NO, _
+                DRAFT_FIELD_INCOMING_DATE, _
+                DRAFT_FIELD_DOCUMENT_NOTE, _
+                DRAFT_FIELD_DOC_NO, _
+                DRAFT_FIELD_DOC_DATE, _
+                DRAFT_FIELD_DATE_FROM
+
+        Case private_NormalizeText(m_Data.SectionTypeTransferVlkToTreatmentVacation)
+            private_SetAllDraftFieldVisibilityFlags flags, False
+            private_SetDraftFieldsVisible flags, _
+                DRAFT_FIELD_VACATION, _
+                DRAFT_FIELD_RANK, _
+                DRAFT_FIELD_FIO, _
+                DRAFT_FIELD_IPN, _
+                DRAFT_FIELD_POSITION_CODE, _
+                DRAFT_FIELD_POSITION_NAME, _
+                DRAFT_FIELD_INCOMING_NO, _
+                DRAFT_FIELD_INCOMING_DATE, _
+                DRAFT_FIELD_DURATION_DAYS, _
+                DRAFT_FIELD_DATE_FROM, _
+                DRAFT_FIELD_DATE_TO, _
+                DRAFT_FIELD_VH_NO, _
+                DRAFT_FIELD_VH_DATE, _
+                DRAFT_FIELD_VLK_NO, _
+                DRAFT_FIELD_VLK_DATE
+
+        Case private_NormalizeText(m_Data.SectionTypeTransferVlkToTreatment)
+            private_SetAllDraftFieldVisibilityFlags flags, False
+            private_SetDraftFieldsVisible flags, _
+                DRAFT_FIELD_HOSPITAL, _
+                DRAFT_FIELD_HOSPITAL_SHORT, _
+                DRAFT_FIELD_RANK, _
+                DRAFT_FIELD_FIO, _
+                DRAFT_FIELD_IPN, _
+                DRAFT_FIELD_POSITION_CODE, _
+                DRAFT_FIELD_POSITION_NAME, _
+                DRAFT_FIELD_REPORT_TVO, _
+                DRAFT_FIELD_REPORT_PERSON, _
+                DRAFT_FIELD_INCOMING_NO, _
+                DRAFT_FIELD_INCOMING_DATE, _
+                DRAFT_FIELD_DOCUMENT_NOTE, _
+                DRAFT_FIELD_DOC_NO, _
+                DRAFT_FIELD_DOC_DATE, _
+                DRAFT_FIELD_VLK_NO, _
+                DRAFT_FIELD_VLK_DATE
+
+        Case Else
+            private_SetAllDraftFieldVisibilityFlags flags, True
+    End Select
+
+    Set private_BuildDraftFieldVisibilityFlags = flags
+End Function
+
+Private Function private_CreateDraftFieldVisibilityFlags(ByVal defaultValue As Boolean) As Object
+    Dim flags As Object
+
+    Set flags = VBA.CreateObject("Scripting.Dictionary")
+    flags.CompareMode = 1
+
+    flags(DRAFT_FIELD_HOSPITAL) = defaultValue
+    flags(DRAFT_FIELD_HOSPITAL_SHORT) = defaultValue
+    flags(DRAFT_FIELD_VACATION) = defaultValue
+    flags(DRAFT_FIELD_RANK) = defaultValue
+    flags(DRAFT_FIELD_FIO) = defaultValue
+    flags(DRAFT_FIELD_IPN) = defaultValue
+    flags(DRAFT_FIELD_POSITION_CODE) = defaultValue
+    flags(DRAFT_FIELD_POSITION_NAME) = defaultValue
+    flags(DRAFT_FIELD_REPORT_TVO) = defaultValue
+    flags(DRAFT_FIELD_REPORT_PERSON) = defaultValue
+    flags(DRAFT_FIELD_INCOMING_NO) = defaultValue
+    flags(DRAFT_FIELD_INCOMING_DATE) = defaultValue
+    flags(DRAFT_FIELD_DOCUMENT_NOTE) = defaultValue
+    flags(DRAFT_FIELD_DOC_NO) = defaultValue
+    flags(DRAFT_FIELD_DOC_DATE) = defaultValue
+    flags(DRAFT_FIELD_DURATION_DAYS) = defaultValue
+    flags(DRAFT_FIELD_DATE_FROM) = defaultValue
+    flags(DRAFT_FIELD_DATE_TO) = defaultValue
+    flags(DRAFT_FIELD_VH_NO) = defaultValue
+    flags(DRAFT_FIELD_VH_DATE) = defaultValue
+    flags(DRAFT_FIELD_VLK_NO) = defaultValue
+    flags(DRAFT_FIELD_VLK_DATE) = defaultValue
+
+    Set private_CreateDraftFieldVisibilityFlags = flags
+End Function
+
+Private Sub private_SetAllDraftFieldVisibilityFlags(ByVal flags As Object, ByVal isVisible As Boolean)
+    Dim fieldKey As Variant
+
+    If flags Is Nothing Then Exit Sub
+    For Each fieldKey In flags.Keys
+        flags(fieldKey) = isVisible
+    Next fieldKey
+End Sub
+
+Private Sub private_SetDraftFieldsVisible(ByVal flags As Object, ParamArray fieldKeys() As Variant)
+    Dim fieldKey As Variant
+    Dim fieldKeyText As String
+
+    If flags Is Nothing Then Exit Sub
+    For Each fieldKey In fieldKeys
+        fieldKeyText = VBA.Trim$(VBA.CStr(fieldKey))
+        If VBA.Len(fieldKeyText) > 0 Then flags(fieldKeyText) = True
+    Next fieldKey
+End Sub
+
+Private Function private_NormalizeText(ByVal valueText As String) As String
+    valueText = VBA.LCase$(VBA.Trim$(VBA.CStr(valueText)))
+    valueText = VBA.Replace(valueText, VBA.vbCr, " ")
+    valueText = VBA.Replace(valueText, VBA.vbLf, " ")
+    valueText = VBA.Replace(valueText, VBA.vbTab, " ")
+    valueText = VBA.Replace(valueText, ":", VBA.vbNullString)
+    valueText = VBA.Replace(valueText, ".", VBA.vbNullString)
+    valueText = VBA.Replace(valueText, "/", " ")
+    valueText = VBA.Replace(valueText, "(", " ")
+    valueText = VBA.Replace(valueText, ")", " ")
+    Do While VBA.InStr(1, valueText, "  ", VBA.vbBinaryCompare) > 0
+        valueText = VBA.Replace(valueText, "  ", " ")
+    Loop
+    private_NormalizeText = VBA.Trim$(valueText)
 End Function
 
 Private Function private_ReadHeaderText(ByVal headerCell As Range) As String

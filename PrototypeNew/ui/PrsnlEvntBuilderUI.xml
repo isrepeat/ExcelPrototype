@@ -11,29 +11,41 @@
           actionMethod="RuntimeHandleHotkeyAction"
           tableName="tblPrsnlEvntBuilderHotkeys"
           spanColls="2"/>
+
+        <control
+          type="Button"
+          name="UpdateSheet"
+          caption="Update Sheet"
+          style="actionWarning"
+          dataContext="{PageRuntimeSource='RuntimeObjects.PrsnlEvntBuilder'}"
+          onClick="{Binding Method=OnRenderCommand}"
+          spanColls="5"
+          spanRows="2"/>
       </stackPanel>
 
       <stackPanel spanColls="22" spanRows="1"/>
 
-      <stackPanel name="EventDraftSectionTypeRow" orientation="horizontal" spanColls="8" spanRows="3">
+      <stackPanel name="EventDraftSectionTypeRow" orientation="horizontal" spanColls="8" spanRows="10">
         <control
-          type="Select"
-          name="EventDraftSectionType"
+          type="ButtonGroup"
+          name="EventDraftSectionTypeButtonGroup"
           itemsSource="{PageRuntimeSource='RuntimeItems.PrsnlEvntBuilder.SectionTypes'}"
-          placeholder="Тип події"
-          style="configSelectHeader"
-          panelStyle="configSelectPanel"
-          itemStyle="configSelectItem"
-          itemHeight="25"
-          itemMargin="2"
-          spanColls="2"
-          spanRows="3"/>
+          captionPath="Caption"
+          idPath="Id"
+          stylePath="StyleName"
+          shapePrefix="btn_STBar_"
+          onClick="{Binding Method=OnSectionTypeButtonClick}"
+          onClickContext="{PageRuntimeSource='RuntimeObjects.PrsnlEvntBuilder.Controller'}"
+          columns="2"
+          flow="column"
+          spanColls="4"
+          spanRows="10"/>
         
         <control
           type="Label"
           name="EventDraftOrderNoHeader"
           text="Номер наказу:"
-          style="tableDataHeader"
+          style="tableHeaderCell"
           spanColls="1"
           spanRows="1"/>
 
@@ -48,138 +60,165 @@
         </stackPanel>
       </stackPanel>
 
-      <stackPanel name="EventDraftForm" orientation="vertical" spanColls="22" spanRows="2">
+      <stackPanel
+        name="EventDraftForm"
+        dataContext="{PageRuntimeSource='RuntimeObjects.PrsnlEvntBuilder.Controller'}"
+        orientation="vertical"
+        spanColls="22"
+        spanRows="2">
         <stackPanel name="EventDraftHeaders" orientation="horizontal" spanColls="22" spanRows="1">
           <control
             type="Label"
             name="HospitalHeader"
             text="Лікарня"
+            visibility="{Binding Path=HospitalFieldVisibilityState}"
             style="tableHeaderCell"
             />
           <control
             type="Label"
             name="HospitalShortHeader"
             text="Лікарня скорочена назва"
+            visibility="{Binding Path=HospitalShortFieldVisibilityState}"
             style="tableHeaderCell"
             />
           <control
             type="Label"
             name="VacationHeader"
             text="Відпустка"
+            visibility="{Binding Path=VacationFieldVisibilityState}"
             style="tableHeaderCell"
             />
           <control
             type="Label"
             name="RankHeader"
             text="Звання"
+            visibility="{Binding Path=RankFieldVisibilityState}"
             style="tableHeaderCell"
             />
           <control
             type="Label"
             name="FioHeader"
             text="ПІБ"
+            visibility="{Binding Path=FioFieldVisibilityState}"
             style="tableHeaderCell"
             />
           <control
             type="Label"
             name="IpnHeader"
             text="ІПН"
+            visibility="{Binding Path=IpnFieldVisibilityState}"
             style="tableHeaderCell"
             />
           <control
             type="Label"
             name="PositionCodeHeader"
             text="Код посади"
+            visibility="{Binding Path=PositionCodeFieldVisibilityState}"
             style="tableHeaderCell"
             />
           <control
             type="Label"
             name="PositionNameHeader"
             text="Посада"
+            visibility="{Binding Path=PositionNameFieldVisibilityState}"
             style="tableHeaderCell"
             />
           <control
             type="Label"
             name="ReportTvoHeader"
             text="Рапорт ТВО"
+            visibility="{Binding Path=ReportTvoFieldVisibilityState}"
             style="tableHeaderCell"
             />
           <control
             type="Label"
             name="ReportPersonHeader"
             text="Рапорт кого"
+            visibility="{Binding Path=ReportPersonFieldVisibilityState}"
             style="tableHeaderCell"
             />
           <control
             type="Label"
             name="IncomingNoHeader"
             text="Вх. №"
+            visibility="{Binding Path=IncomingNoFieldVisibilityState}"
             style="tableHeaderCell"
             />
           <control
             type="Label"
             name="IncomingDateHeader"
             text="Вх. дата"
+            visibility="{Binding Path=IncomingDateFieldVisibilityState}"
             style="tableHeaderCell"
             />
           <control
             type="Label"
             name="DocumentNoteHeader"
             text="Документ / Замітки"
+            visibility="{Binding Path=DocumentNoteFieldVisibilityState}"
             style="tableHeaderCell"
             />
           <control
             type="Label"
             name="DocNoHeader"
             text="Док. №"
+            visibility="{Binding Path=DocNoFieldVisibilityState}"
             style="tableHeaderCell"
             />
           <control
             type="Label"
             name="DocDateHeader"
             text="Док. дата"
+            visibility="{Binding Path=DocDateFieldVisibilityState}"
             style="tableHeaderCell"
             />
           <control
             type="Label"
             name="DurationDaysHeader"
             text="На скільки"
+            visibility="{Binding Path=DurationDaysFieldVisibilityState}"
             style="tableHeaderCell"
             />
           <control
             type="Label"
             name="DateFromHeader"
             text="З"
+            visibility="{Binding Path=DateFromFieldVisibilityState}"
             style="tableHeaderCell"
             />
           <control
             type="Label"
             name="DateToHeader"
             text="По"
+            visibility="{Binding Path=DateToFieldVisibilityState}"
             style="tableHeaderCell"
             />
           <control
             type="Label"
             name="VhNoHeader"
             text="В/к №"
+            visibility="{Binding Path=VhNoFieldVisibilityState}"
             style="tableHeaderCell"
             />
           <control
             type="Label"
             name="VhDateHeader"
             text="В/к дата"
+            visibility="{Binding Path=VhDateFieldVisibilityState}"
             style="tableHeaderCell"
             />
           <control
             type="Label"
             name="VlkNoHeader"
             text="ВЛК №"
+            visibility="{Binding Path=VlkNoFieldVisibilityState}"
             style="tableHeaderCell"
             />
           <control
             type="Label"
             name="VlkDateHeader"
             text="ВЛК дата"
+            visibility="{Binding Path=VlkDateFieldVisibilityState}"
             style="tableHeaderCell"
             />
         </stackPanel>
@@ -188,163 +227,207 @@
           <control
             type="Input"
             name="HospitalLookupInput"
+            tags="Hospital"
             dataContext="{PageRuntimeSource='RuntimeObjects.PrsnlEvntBuilder'}"
             value="{Binding Path=LookupQueryValues.Hospital}"
             onChange="{Binding Method=OnLookupInputCellChangedCommand}"
             onChangeArg="Hospital"
+            visibility="{Binding Path=HospitalFieldVisibilityState}"
             spanColls="1"
             spanRows="1"/>
 
           <control
             type="Label"
             name="HospitalShortDraftCell"
+            tags="HospitalShort"
             text=""
+            visibility="{Binding Path=HospitalShortFieldVisibilityState}"
             style="tableDataCell"
             />
 
           <control
             type="Label"
             name="VacationDraftCell"
+            tags="Vacation"
             text=""
+            visibility="{Binding Path=VacationFieldVisibilityState}"
             style="tableDataCell"
             />
 
           <control
             type="Label"
             name="RankDraftCell"
+            tags="Rank"
             text=""
+            visibility="{Binding Path=RankFieldVisibilityState}"
             style="tableDataCell"
             />
 
           <control
             type="Input"
             name="FioLookupInput"
+            tags="FIO"
             dataContext="{PageRuntimeSource='RuntimeObjects.PrsnlEvntBuilder'}"
             value="{Binding Path=LookupQueryValues.FIO}"
             onChange="{Binding Method=OnLookupInputCellChangedCommand}"
             onChangeArg="FIO"
+            visibility="{Binding Path=FioFieldVisibilityState}"
             spanColls="1"
             spanRows="1"/>
 
           <control
             type="Label"
             name="IpnDraftCell"
+            tags="Ipn"
             text=""
+            visibility="{Binding Path=IpnFieldVisibilityState}"
             style="tableDataCell"
             />
 
           <control
             type="Label"
             name="PositionCodeDraftCell"
+            tags="PositionCode"
             text=""
+            visibility="{Binding Path=PositionCodeFieldVisibilityState}"
             style="tableDataCell"
             />
 
           <control
             type="Label"
             name="PositionNameDraftCell"
+            tags="PositionName"
             text=""
+            visibility="{Binding Path=PositionNameFieldVisibilityState}"
             style="tableDataCell"
             />
 
           <control
             type="Label"
             name="ReportTvoDraftCell"
+            tags="ReportTvo"
             text=""
+            visibility="{Binding Path=ReportTvoFieldVisibilityState}"
             style="tableDataCell"
             />
 
           <control
             type="Input"
             name="CommanderLookupInput"
+            tags="ReportPerson"
             dataContext="{PageRuntimeSource='RuntimeObjects.PrsnlEvntBuilder'}"
             value="{Binding Path=LookupQueryValues.Commander}"
             onChange="{Binding Method=OnLookupInputCellChangedCommand}"
             onChangeArg="Commander"
+            visibility="{Binding Path=ReportPersonFieldVisibilityState}"
             spanColls="1"
             spanRows="1"/>
 
           <control
             type="Label"
             name="IncomingNoDraftCell"
+            tags="IncomingNo"
             text=""
+            visibility="{Binding Path=IncomingNoFieldVisibilityState}"
             style="tableDataCell"
             />
 
           <control
             type="Label"
             name="IncomingDateDraftCell"
+            tags="IncomingDate"
             text=""
+            visibility="{Binding Path=IncomingDateFieldVisibilityState}"
             style="tableDataCell"
             />
 
           <control
             type="Label"
             name="DocumentNoteDraftCell"
+            tags="DocumentNote"
             text=""
+            visibility="{Binding Path=DocumentNoteFieldVisibilityState}"
             style="tableDataCell"
             />
 
           <control
             type="Label"
             name="DocNoDraftCell"
+            tags="DocNo"
             text=""
+            visibility="{Binding Path=DocNoFieldVisibilityState}"
             style="tableDataCell"
             />
 
           <control
             type="Label"
             name="DocDateDraftCell"
+            tags="DocDate"
             text=""
+            visibility="{Binding Path=DocDateFieldVisibilityState}"
             style="tableDataCell"
             />
 
           <control
             type="Label"
             name="DurationDaysDraftCell"
+            tags="DurationDays"
             text=""
+            visibility="{Binding Path=DurationDaysFieldVisibilityState}"
             style="tableDataCell"
             />
 
           <control
             type="Label"
             name="DateFromDraftCell"
+            tags="DateFrom"
             text=""
+            visibility="{Binding Path=DateFromFieldVisibilityState}"
             style="tableDataCell"
             />
 
           <control
             type="Label"
             name="DateToDraftCell"
+            tags="DateTo"
             text=""
+            visibility="{Binding Path=DateToFieldVisibilityState}"
             style="tableDataCell"
             />
 
           <control
             type="Label"
             name="VhNoDraftCell"
+            tags="VhNo"
             text=""
+            visibility="{Binding Path=VhNoFieldVisibilityState}"
             style="tableDataCell"
             />
 
           <control
             type="Label"
             name="VhDateDraftCell"
+            tags="VhDate"
             text=""
+            visibility="{Binding Path=VhDateFieldVisibilityState}"
             style="tableDataCell"
             />
 
           <control
             type="Label"
             name="VlkNoDraftCell"
+            tags="VlkNo"
             text=""
+            visibility="{Binding Path=VlkNoFieldVisibilityState}"
             style="tableDataCell"
             />
 
           <control
             type="Label"
             name="VlkDateDraftCell"
+            tags="VlkDate"
             text=""
+            visibility="{Binding Path=VlkDateFieldVisibilityState}"
             style="tableDataCell"
             />
         </stackPanel>
@@ -371,6 +454,16 @@
   </grid>
 
   <styles>
+    <controlStyle
+      name="actionWarning"
+      backColor="#ED7D31"
+      textColor="#0A0A0A"
+      borderColor="#A84912"
+      borderWeight="1.25"
+      fontName="Calibri"
+      fontSize="11"
+      fontBold="false"/>
+
     <controlStyle
       name="configSelectHeader"
       backColor="#438E20"
@@ -400,6 +493,26 @@
       fontName="Calibri"
       fontSize="13"
       fontBold="false"/>
+
+    <controlStyle
+      name="sectionTypeButton"
+      backColor="#0E5A1E"
+      textColor="#FFFFFF"
+      borderColor="#063F12"
+      borderWeight="1"
+      fontName="Calibri"
+      fontSize="11"
+      fontBold="true"/>
+
+    <controlStyle
+      name="sectionTypeButtonSelected"
+      backColor="#FFC000"
+      textColor="#0A0A0A"
+      borderColor="#B38300"
+      borderWeight="1.25"
+      fontName="Calibri"
+      fontSize="11"
+      fontBold="true"/>
 
     <stylePipelineStage name="default">
       <layer name="entitylookup-base">

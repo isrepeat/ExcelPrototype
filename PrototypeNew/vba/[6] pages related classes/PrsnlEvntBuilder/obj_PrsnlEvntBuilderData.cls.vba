@@ -43,6 +43,86 @@ Public Property Get SectionTypeNames() As Collection
     Set SectionTypeNames = private_CopyCollection(m_SectionTypeNames)
 End Property
 
+Public Property Get SectionTypeCloseFromTreatment() As String
+    SectionTypeCloseFromTreatment = SECTION_TYPE_CLOSE_FROM_TREATMENT
+End Property
+
+Public Property Get SectionTypeCloseFromTreatmentVacation() As String
+    SectionTypeCloseFromTreatmentVacation = SECTION_TYPE_CLOSE_FROM_TREATMENT_VACATION
+End Property
+
+Public Property Get SectionTypeCloseFromAnnualVacation() As String
+    SectionTypeCloseFromAnnualVacation = SECTION_TYPE_CLOSE_FROM_ANNUAL_VACATION
+End Property
+
+Public Property Get SectionTypeCloseFromFamilyVacation() As String
+    SectionTypeCloseFromFamilyVacation = SECTION_TYPE_CLOSE_FROM_FAMILY_VACATION
+End Property
+
+Public Property Get SectionTypeCloseFromTreatmentMedicalCompany() As String
+    SectionTypeCloseFromTreatmentMedicalCompany = SECTION_TYPE_CLOSE_FROM_TREATMENT_MEDICAL_COMPANY
+End Property
+
+Public Property Get SectionTypeCloseFromAmbulatoryVlk() As String
+    SectionTypeCloseFromAmbulatoryVlk = SECTION_TYPE_CLOSE_FROM_AMBULATORY_VLK
+End Property
+
+Public Property Get SectionTypeToTreatment() As String
+    SectionTypeToTreatment = SECTION_TYPE_TO_TREATMENT
+End Property
+
+Public Property Get SectionTypeToAnnualVacationPart() As String
+    SectionTypeToAnnualVacationPart = SECTION_TYPE_TO_ANNUAL_VACATION_PART
+End Property
+
+Public Property Get SectionTypeToFamilyVacation() As String
+    SectionTypeToFamilyVacation = SECTION_TYPE_TO_FAMILY_VACATION
+End Property
+
+Public Property Get SectionTypeToTreatmentVacation() As String
+    SectionTypeToTreatmentVacation = SECTION_TYPE_TO_TREATMENT_VACATION
+End Property
+
+Public Property Get SectionTypeToTreatmentMedicalCompany() As String
+    SectionTypeToTreatmentMedicalCompany = SECTION_TYPE_TO_TREATMENT_MEDICAL_COMPANY
+End Property
+
+Public Property Get SectionTypeToAmbulatoryVlk() As String
+    SectionTypeToAmbulatoryVlk = SECTION_TYPE_TO_AMBULATORY_VLK
+End Property
+
+Public Property Get SectionTypeTransferTreatmentToTreatmentVacation() As String
+    SectionTypeTransferTreatmentToTreatmentVacation = SECTION_TYPE_TRANSFER_TREATMENT_TO_TREATMENT_VACATION
+End Property
+
+Public Property Get SectionTypeTransferTreatmentVacationToTreatmentVacation() As String
+    SectionTypeTransferTreatmentVacationToTreatmentVacation = SECTION_TYPE_TRANSFER_TREATMENT_VACATION_TO_TREATMENT_VACATION
+End Property
+
+Public Property Get SectionTypeTransferTreatmentVacationToTreatment() As String
+    SectionTypeTransferTreatmentVacationToTreatment = SECTION_TYPE_TRANSFER_TREATMENT_VACATION_TO_TREATMENT
+End Property
+
+Public Property Get SectionTypeTransferTreatmentVacationToVlk() As String
+    SectionTypeTransferTreatmentVacationToVlk = SECTION_TYPE_TRANSFER_TREATMENT_VACATION_TO_VLK
+End Property
+
+Public Property Get SectionTypeTransferVlkToTreatmentVacation() As String
+    SectionTypeTransferVlkToTreatmentVacation = SECTION_TYPE_TRANSFER_VLK_TO_TREATMENT_VACATION
+End Property
+
+Public Property Get SectionTypeTransferVlkToTreatment() As String
+    SectionTypeTransferVlkToTreatment = SECTION_TYPE_TRANSFER_VLK_TO_TREATMENT
+End Property
+
+Public Property Get SectionTypeToBusinessTrip() As String
+    SectionTypeToBusinessTrip = SECTION_TYPE_TO_BUSINESS_TRIP
+End Property
+
+Public Property Get SectionTypeToBusinessTripSzch() As String
+    SectionTypeToBusinessTripSzch = SECTION_TYPE_TO_BUSINESS_TRIP_SZCH
+End Property
+
 Public Function IsMovementClosingSectionType(ByVal sectionTypeText As String) As Boolean
     Select Case private_NormalizeText(sectionTypeText)
         Case private_NormalizeText(SECTION_TYPE_CLOSE_FROM_TREATMENT), _
