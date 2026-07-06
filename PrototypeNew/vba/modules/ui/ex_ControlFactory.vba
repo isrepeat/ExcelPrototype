@@ -39,6 +39,9 @@ Public Function fn_CreateControlByTypeRoot( _
         Case "hotkeys"
             Set control = New obj_HotkeysControlVM
 
+        Case "buttongroup"
+            Set control = New obj_ButtonGroupControlVM
+
         Case "select"
             Set control = New obj_SelectControlVM
 

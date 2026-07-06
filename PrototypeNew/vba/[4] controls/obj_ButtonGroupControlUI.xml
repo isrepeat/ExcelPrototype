@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<uiDefinition xmlns="urn:excelprototype:profiles" version="1">
+  <layout>
+    <control
+      name="default"
+      itemsSource=""
+      onClick=""
+      onClickContext=""
+      columns="2"
+      captionPath="Caption"
+      idPath="Id"
+      stylePath="StyleName"
+      shapePrefix=""/>
+  </layout>
+</uiDefinition>
