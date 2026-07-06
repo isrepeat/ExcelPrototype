@@ -150,6 +150,44 @@ Public Function fn_TryResolveValueBinding( _
     fn_TryResolveValueBinding = True
 End Function
 
+' Возвращает dataContext, явно указанный внутри Binding, например:
+'   {Binding DataContext={PageRuntimeSource='RuntimeObjects.Page.Controller'}; Method=DoWork}
+'
+' Если DataContext не указан, возвращаем defaultSourceObject. Это удобно для callback-ов:
+' визуальный dataContext контрола остается своим, а целевой объект события можно выбрать
+' прямо в onClick, не вводя отдельный control-specific атрибут.
+Public Function fn_TryResolveBindingSourceObject( _
+    ByVal rawText As String, _
+    ByVal runtimeSources As obj_PageRuntimeSources, _
+    ByVal defaultSourceObject As Object, _
+    ByRef outSourceObject As Object _
+) As Boolean
+    Dim bindingBody As String
+    Dim sourceRaw As String
+
+    Set outSourceObject = defaultSourceObject
+
+    If Not private_TryExtractBindingBody(rawText, bindingBody) Then
+        fn_TryResolveBindingSourceObject = True
+        Exit Function
+    End If
+
+    If Not private_TryExtractNamedArg(bindingBody, "DataContext", sourceRaw) Then
+        fn_TryResolveBindingSourceObject = True
+        Exit Function
+    End If
+
+    If Not private_IsRuntimeObjectSourceExpression(sourceRaw) Then
+#If LOGGING_DEBUG_ENABLED Then
+        ex_Core.fn_Diagnostic_LogError "PrototypeNew: Binding DataContext supports only {PageRuntimeSource='...'} or {GlobalRuntimeSource='...'}."
+#End If
+        Exit Function
+    End If
+
+    If Not ex_RuntimeSourceResolver.fn_TryResolveObjectSource(runtimeSources, sourceRaw, outSourceObject, False) Then Exit Function
+    fn_TryResolveBindingSourceObject = True
+End Function
+
 ' //
 ' // Internal
 ' //
@@ -392,6 +430,28 @@ Private Function private_TryExtractBindingBody(ByVal rawText As String, ByRef ou
 
     outBody = VBA.Trim$(VBA.Mid$(normalized, prefixLen + 1, VBA.Len(normalized) - prefixLen - 1))
     private_TryExtractBindingBody = True
+End Function
+
+
+Private Function private_IsRuntimeObjectSourceExpression(ByVal rawSource As String) As Boolean
+    Dim normalizedSource As String
+    Dim expressionBody As String
+    Dim eqPos As Long
+    Dim argName As String
+
+    normalizedSource = VBA.Trim$(rawSource)
+    If VBA.Len(normalizedSource) < 3 Then Exit Function
+    If VBA.Left$(normalizedSource, 1) <> "{" Then Exit Function
+    If VBA.Right$(normalizedSource, 1) <> "}" Then Exit Function
+
+    expressionBody = VBA.Trim$(VBA.Mid$(normalizedSource, 2, VBA.Len(normalizedSource) - 2))
+    eqPos = VBA.InStr(1, expressionBody, "=", VBA.vbBinaryCompare)
+    If eqPos <= 1 Then Exit Function
+
+    argName = VBA.Trim$(VBA.Left$(expressionBody, eqPos - 1))
+    private_IsRuntimeObjectSourceExpression = _
+        (VBA.StrComp(argName, "PageRuntimeSource", VBA.vbTextCompare) = 0 Or _
+         VBA.StrComp(argName, "GlobalRuntimeSource", VBA.vbTextCompare) = 0)
 End Function
 
 
