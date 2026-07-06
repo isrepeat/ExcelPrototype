@@ -66,7 +66,8 @@ Public Function TrySetActiveCandidateLayout( _
     ByVal cfgParser As obj_EntityLookupCfgParser, _
     ByVal lookupKey As String, _
     ByVal tableObj As obj_TableDynamic, _
-    ByVal searchColumnAlias As String _
+    ByVal searchColumnAlias As String, _
+    Optional ByVal inputGridColumnOverride As Long = 0 _
 ) As Boolean
     Dim inputGridCol As Long
     Dim searchColumnIndex As Long
@@ -82,7 +83,15 @@ Public Function TrySetActiveCandidateLayout( _
         Exit Function
     End If
 
-    If Not cfgParser.TryGetLookupInputGridColumn(lookupKey, inputGridCol) Then Exit Function
+    ' inputGridColumnOverride приходит от LookupCandidatesControlVM, когда UI
+    ' смог найти реальный visible input по layout tag. Если override не задан,
+    ' сохраняем прежнее поведение: колонка input-а считается по порядку
+    ' EntityLookup.Table.Columns в конфиге.
+    If inputGridColumnOverride > 0 Then
+        inputGridCol = inputGridColumnOverride
+    ElseIf Not cfgParser.TryGetLookupInputGridColumn(lookupKey, inputGridCol) Then
+        Exit Function
+    End If
     If Not private_TryGetCandidateSearchColumnIndex(tableObj, searchColumnAlias, searchColumnIndex) Then
         private_ShowLayoutError "Failed to find search column alias '" & searchColumnAlias & "' in candidate columns for lookup '" & lookupKey & "'."
         Exit Function
