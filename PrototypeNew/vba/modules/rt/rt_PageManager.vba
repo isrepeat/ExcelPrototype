@@ -454,6 +454,11 @@ Public Function fn_RenderPage(ByVal page As obj_IPage, Optional ByVal reason As 
     Dim errDescription As String
     Dim pageId As String
     Dim activeSheetObj As Object
+    Dim perfStart As Double
+    Dim perfLast As Double
+
+    perfStart = VBA.Timer
+    perfLast = perfStart
 
     If page Is Nothing Then
 #If LOGGING_DEBUG_ENABLED Then
@@ -492,10 +497,14 @@ Public Function fn_RenderPage(ByVal page As obj_IPage, Optional ByVal reason As 
 
 #If LOGGING_DEBUG_ENABLED Then
     ex_Core.fn_Diagnostic_LogInfo "page-manager:render-start sheet='" & sheetName & "' reason='" & VBA.Replace$(normalizedReason, "'", "''") & "'"
+    private_LogRenderPerfStep "page-manager:start", perfStart, perfLast, "sheet='" & sheetName & "' reason='" & VBA.Replace$(normalizedReason, "'", "''") & "'"
 #End If
 
     On Error GoTo EH_RENDER
     fn_RenderPage = page.Render()
+#If LOGGING_DEBUG_ENABLED Then
+    private_LogRenderPerfStep "page-manager:page-render-returned", perfStart, perfLast, "sheet='" & sheetName & "' ok=" & VBA.LCase$(VBA.CStr(fn_RenderPage))
+#End If
 
     If fn_RenderPage Then
         pageId = VBA.LCase$(VBA.Trim$(pageBase.PageId))
@@ -515,10 +524,12 @@ Public Function fn_RenderPage(ByVal page As obj_IPage, Optional ByVal reason As 
         End If
 #If LOGGING_DEBUG_ENABLED Then
         ex_Core.fn_Diagnostic_LogInfo "page-manager:render-done sheet='" & sheetName & "'"
+        private_LogRenderPerfStep "page-manager:done", perfStart, perfLast, "sheet='" & sheetName & "' pageId='" & VBA.Replace$(pageId, "'", "''") & "'"
 #End If
     Else
 #If LOGGING_DEBUG_ENABLED Then
         ex_Core.fn_Diagnostic_LogError "page-manager:render-failed sheet='" & sheetName & "'"
+        private_LogRenderPerfStep "page-manager:failed", perfStart, perfLast, "sheet='" & sheetName & "'"
 #End If
     End If
     Exit Function
@@ -527,8 +538,39 @@ EH_RENDER:
     errDescription = Err.Description
 #If LOGGING_DEBUG_ENABLED Then
     ex_Core.fn_Diagnostic_LogError "page-manager:render-exception sheet='" & sheetName & "' err='" & VBA.Replace$(errDescription, "'", "''") & "'"
+    private_LogRenderPerfStep "page-manager:exception", perfStart, perfLast, "sheet='" & sheetName & "' err='" & VBA.Replace$(errDescription, "'", "''") & "'"
 #End If
 End Function
+
+#If LOGGING_DEBUG_ENABLED Then
+Private Sub private_LogRenderPerfStep( _
+    ByVal stepName As String, _
+    ByVal startedAt As Double, _
+    ByRef lastAt As Double, _
+    Optional ByVal details As String = "" _
+)
+    Dim nowAt As Double
+    Dim stepMs As Double
+    Dim totalMs As Double
+    Dim messageText As String
+
+    nowAt = VBA.Timer
+    stepMs = private_ElapsedMs(lastAt, nowAt)
+    totalMs = private_ElapsedMs(startedAt, nowAt)
+    lastAt = nowAt
+
+    messageText = "perf:render:" & stepName & _
+        " stepMs=" & VBA.Format$(stepMs, "0.0") & _
+        " totalMs=" & VBA.Format$(totalMs, "0.0")
+    If VBA.Len(VBA.Trim$(details)) > 0 Then messageText = messageText & " " & details
+    ex_Core.fn_Diagnostic_LogInfo messageText
+End Sub
+
+Private Function private_ElapsedMs(ByVal startedAt As Double, ByVal endedAt As Double) As Double
+    If endedAt < startedAt Then endedAt = endedAt + 86400#
+    private_ElapsedMs = (endedAt - startedAt) * 1000#
+End Function
+#End If
 
 
 Public Function fn_RenderPageAndActivate(ByVal page As obj_IPage, Optional ByVal reason As String = VBA.vbNullString) As Boolean
