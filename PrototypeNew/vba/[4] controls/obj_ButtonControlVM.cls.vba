@@ -18,11 +18,14 @@ Private m_ControlName As String
 Private m_CaptionRaw As String
 Private m_CaptionInlineSource As String
 Private m_OnClickRaw As String
+Private m_OnClickArgRaw As String
 Private m_ControlLayout As obj_ControlLayout
 Private m_CaptionText As String
 Private m_CaptionInlineTextPart As obj_InlineTextPart
 Private m_OnClickMacroRef As String
 Private m_OnClickCallbackContext As Object
+Private m_OnClickArgValue As Variant
+Private m_HasOnClickArg As Boolean
 Private m_RuntimeControlKey As String
 Private m_IsConfigured As Boolean
 Private m_Page As obj_IPage
@@ -89,6 +92,9 @@ Private Sub obj_IControl_Configure(ByVal controlNode As Object)
     m_CaptionInlineSource = VBA.vbNullString
     m_CaptionText = VBA.vbNullString
     m_RuntimeControlKey = VBA.vbNullString
+    m_OnClickArgRaw = VBA.vbNullString
+    m_HasOnClickArg = False
+    m_OnClickArgValue = VBA.vbNullString
 
     Set pageBase = m_Page.GetPageBase()
     Set m_ControlBase = New obj_ControlBase
@@ -115,6 +121,13 @@ Private Sub obj_IControl_Configure(ByVal controlNode As Object)
     If Not private_TryResolveCaptionInlineText(pageBase, m_CaptionInlineSource) Then Exit Sub
 
     Set callbackContext = dataContext
+    ' Предпочтительный способ выбрать целевой объект callback-а — указать DataContext
+    ' прямо в onClick binding:
+    '   onClick="{Binding DataContext={PageRuntimeSource='RuntimeObjects.Page.Controller'}; Method=DoWork}"
+    ' Тогда визуальный dataContext кнопки остается доступен для caption/onClickArg,
+    ' а событие клика вызывается на явно указанном runtime object.
+    If Not ex_BindingRuntime.fn_TryResolveBindingSourceObject(m_OnClickRaw, pageBase.RuntimeSources, dataContext, callbackContext) Then Exit Sub
+
     If Not ex_BindingRuntime.fn_TryResolveValueBinding(m_OnClickRaw, callbackContext, onClickResolved) Then Exit Sub
     If VBA.IsObject(onClickResolved) Then
 #If LOGGING_DEBUG_ENABLED Then
@@ -131,6 +144,22 @@ Private Sub obj_IControl_Configure(ByVal controlNode As Object)
         Exit Sub
     End If
     Set m_OnClickCallbackContext = callbackContext
+
+    ' Опциональный scalar-аргумент callback-а. Значение резолвится при Configure
+    ' относительно dataContext кнопки, а затем передается в RuntimeHandleClick.
+    ' Оставляем только scalar, потому что rt_Bridge передает его как один аргумент
+    ' метода, а не как runtime object source.
+    m_OnClickArgRaw = VBA.Trim$(VBA.CStr(ex_XmlCore.fn_NodeAttrText(controlNode, "onClickArg")))
+    If VBA.Len(m_OnClickArgRaw) > 0 Then
+        If Not ex_BindingRuntime.fn_TryResolveValueBinding(m_OnClickArgRaw, dataContext, m_OnClickArgValue) Then Exit Sub
+        If VBA.IsObject(m_OnClickArgValue) Then
+#If LOGGING_DEBUG_ENABLED Then
+            ex_Core.fn_Diagnostic_LogError "Button: onClickArg binding must resolve to scalar callback argument for control '" & m_ControlName & "'."
+#End If
+            Exit Sub
+        End If
+        m_HasOnClickArg = True
+    End If
 
     Set m_ControlLayout = New obj_ControlLayout
     If Not m_ControlLayout.TryReadFromNode(controlNode, "Button", m_ControlName, "style") Then Exit Sub
@@ -255,7 +284,7 @@ End Function
 
 Private Function obj_IControl_SupportsAttribute(ByVal attrName As String) As Boolean
     Select Case VBA.LCase$(VBA.Trim$(attrName))
-        Case "caption", "onclick"
+        Case "caption", "onclick", "onclickarg"
             obj_IControl_SupportsAttribute = True
     End Select
 End Function
@@ -285,7 +314,14 @@ End Function
 ' //
 ' Callstack[1]: Shape.OnAction -> rt_Bridge.fn_OnShapeClick -> rt_PageManager.fn_TryGetPageByWorksheet -> page.DispatchShapeClick -> obj_PageMain.obj_IPage_DispatchShapeClick -> obj_PageBase.DispatchShapeClick -> obj_PageBase.private_TryInvokeControlAction -> obj_ButtonControlVM.RuntimeHandleClick
 Public Function RuntimeHandleClick() As Boolean
-    If Not rt_Bridge.fn_RunCallback(m_OnClickMacroRef, m_OnClickCallbackContext) Then Exit Function
+    ' Вызываем Method() или Method(arg) в зависимости от наличия onClickArg в XML.
+    ' m_OnClickCallbackContext может быть обычным dataContext или объектом, указанным
+    ' в onClick binding через DataContext.
+    If m_HasOnClickArg Then
+        If Not rt_Bridge.fn_RunCallback(m_OnClickMacroRef, m_OnClickCallbackContext, m_OnClickArgValue) Then Exit Function
+    Else
+        If Not rt_Bridge.fn_RunCallback(m_OnClickMacroRef, m_OnClickCallbackContext) Then Exit Function
+    End If
     RuntimeHandleClick = True
 End Function
 
@@ -316,6 +352,9 @@ Public Function TrySerializeSnapshot(ByRef outSnapshotXml As String) As Boolean
         " captionRaw=""" & ex_Helpers.fn_EscapeXmlAttr(m_CaptionRaw) & """" & _
         " captionInlineSource=""" & ex_Helpers.fn_EscapeXmlAttr(m_CaptionInlineSource) & """" & _
         " onClickRaw=""" & ex_Helpers.fn_EscapeXmlAttr(m_OnClickRaw) & """" & _
+        " onClickArgRaw=""" & ex_Helpers.fn_EscapeXmlAttr(m_OnClickArgRaw) & """" & _
+        " onClickArgValue=""" & ex_Helpers.fn_EscapeXmlAttr(VBA.CStr(m_OnClickArgValue)) & """" & _
+        " hasOnClickArg=""" & VBA.LCase$(VBA.CStr(m_HasOnClickArg)) & """" & _
         " captionText=""" & ex_Helpers.fn_EscapeXmlAttr(m_CaptionText) & """" & _
         " onClickMacroRef=""" & ex_Helpers.fn_EscapeXmlAttr(m_OnClickMacroRef) & """" & _
         " runtimeKey=""" & ex_Helpers.fn_EscapeXmlAttr(m_RuntimeControlKey) & """" & _
@@ -372,6 +411,11 @@ Public Function TryDeserializeSnapshot(ByVal snapshotXml As String) As Boolean
     m_CaptionRaw = VBA.CStr(root.getAttribute("captionRaw"))
     m_CaptionInlineSource = VBA.CStr(root.getAttribute("captionInlineSource"))
     m_CaptionText = VBA.CStr(root.getAttribute("captionText"))
+    If Not wasConfiguredFromContract Then
+        m_OnClickArgRaw = VBA.Trim$(VBA.CStr(root.getAttribute("onClickArgRaw")))
+        m_OnClickArgValue = VBA.CStr(root.getAttribute("onClickArgValue"))
+        m_HasOnClickArg = ex_Helpers.fn_ReadSnapshotBooleanAttr(root, "hasOnClickArg", False)
+    End If
     snapshotOnClickMacroRef = VBA.Trim$(VBA.CStr(root.getAttribute("onClickMacroRef")))
     If VBA.Len(snapshotOnClickMacroRef) = 0 Then snapshotOnClickMacroRef = VBA.Trim$(VBA.CStr(root.getAttribute("onClick")))
     If Not keepConfiguredCallback Then

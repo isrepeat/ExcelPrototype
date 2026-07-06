@@ -5,7 +5,6 @@
       name="default"
       itemsSource=""
       onClick=""
-      onClickContext=""
       columns="2"
       captionPath="Caption"
       idPath="Id"

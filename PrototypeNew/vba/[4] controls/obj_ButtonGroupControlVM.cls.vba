@@ -13,6 +13,8 @@ Private Const DEFAULT_COLUMNS As Long = 2
 Private Const DEFAULT_CAPTION_PATH As String = "Caption"
 Private Const DEFAULT_ID_PATH As String = "Id"
 Private Const DEFAULT_STYLE_PATH As String = "StyleName"
+Private Const FLOW_ROW As String = "row"
+Private Const FLOW_COLUMN As String = "column"
 
 Private m_ControlBase As obj_ControlBase
 Private m_ControlLayout As obj_ControlLayout
@@ -20,7 +22,6 @@ Private m_Page As obj_IPage
 Private m_ControlName As String
 Private m_ItemsSourceRaw As String
 Private m_OnClickRaw As String
-Private m_OnClickContextRaw As String
 Private m_OnClickMacroRef As String
 Private m_OnClickCallbackContext As Object
 Private m_Items As Collection
@@ -30,6 +31,7 @@ Private m_CaptionPath As String
 Private m_IdPath As String
 Private m_StylePath As String
 Private m_ShapePrefix As String
+Private m_FlowDirection As String
 Private m_IsConfigured As Boolean
 Private m_IsDisposed As Boolean
 
@@ -71,6 +73,7 @@ Private Sub obj_IControl_Configure(ByVal controlNode As Object)
     m_IdPath = DEFAULT_ID_PATH
     m_StylePath = DEFAULT_STYLE_PATH
     m_ShapePrefix = VBA.vbNullString
+    m_FlowDirection = FLOW_ROW
 
     If m_Page Is Nothing Then Exit Sub
     Set pageBase = m_Page.GetPageBase()
@@ -102,10 +105,10 @@ Private Sub obj_IControl_Configure(ByVal controlNode As Object)
     End If
 
     Set callbackContext = dataContext
-    m_OnClickContextRaw = VBA.Trim$(VBA.CStr(ex_XmlCore.fn_NodeAttrText(controlNode, "onClickContext")))
-    If VBA.Len(m_OnClickContextRaw) > 0 Then
-        If Not ex_RuntimeSourceResolver.fn_TryResolveObjectSource(pageBase.RuntimeSources, m_OnClickContextRaw, callbackContext, False) Then Exit Sub
-    End If
+    ' Для ButtonGroup callback target можно указать прямо в onClick binding:
+    '   onClick="{Binding DataContext={PageRuntimeSource='RuntimeObjects.Page.Controller'}; Method=SelectItem}"
+    ' Это держит метод и его target в одном выражении.
+    If Not ex_BindingRuntime.fn_TryResolveBindingSourceObject(m_OnClickRaw, pageBase.RuntimeSources, dataContext, callbackContext) Then Exit Sub
 
     If Not ex_BindingRuntime.fn_TryResolveValueBinding(m_OnClickRaw, callbackContext, onClickResolved) Then Exit Sub
     If VBA.IsObject(onClickResolved) Then Exit Sub
@@ -123,6 +126,7 @@ Private Sub obj_IControl_Configure(ByVal controlNode As Object)
     m_IdPath = private_ReadPathAttr(controlNode, "idPath", DEFAULT_ID_PATH)
     m_StylePath = private_ReadPathAttr(controlNode, "stylePath", DEFAULT_STYLE_PATH)
     m_ShapePrefix = VBA.Trim$(VBA.CStr(ex_XmlCore.fn_NodeAttrText(controlNode, "shapePrefix")))
+    m_FlowDirection = private_ReadFlowDirection(controlNode)
 
     Set m_ControlLayout = New obj_ControlLayout
     If Not m_ControlLayout.TryReadFromNode(controlNode, "ButtonGroup", m_ControlName, "style") Then Exit Sub
@@ -151,6 +155,7 @@ Private Sub obj_IControl_Render()
     Dim shapeName As String
     Dim macroRef As String
     Dim flattenedItems As Collection
+    Dim rowsPerColumn As Long
     Dim perfStart As Double
     Dim perfLast As Double
 
@@ -181,13 +186,20 @@ Private Sub obj_IControl_Render()
 
     If Not pageBase.RegisterControl(m_RuntimeControlKey, Me) Then Exit Sub
 
+    rowsPerColumn = private_RowsPerColumn(itemCount)
     itemIndex = 0
     For Each itemObj In flattenedItems
         itemIndex = itemIndex + 1
         If Not private_TryReadItem(itemObj, captionText, itemId, styleName) Then GoTo ContinueItem
 
-        rowIndex = (itemIndex - 1) \ m_Columns
-        colIndex = (itemIndex - 1) Mod m_Columns
+        If private_IsColumnFlow() Then
+            rowIndex = (itemIndex - 1) Mod rowsPerColumn
+            colIndex = (itemIndex - 1) \ rowsPerColumn
+        Else
+            rowIndex = (itemIndex - 1) \ m_Columns
+            colIndex = (itemIndex - 1) Mod m_Columns
+        End If
+        If colIndex >= m_Columns Then Exit For
 
         rowStart = m_ControlLayout.RowStart + rowIndex
         rowEnd = rowStart
@@ -235,7 +247,7 @@ End Function
 
 Private Function obj_IControl_SupportsAttribute(ByVal attrName As String) As Boolean
     Select Case VBA.LCase$(VBA.Trim$(attrName))
-        Case "itemssource", "onclick", "onclickcontext", "columns", "captionpath", "idpath", "stylepath", "shapeprefix"
+        Case "itemssource", "onclick", "columns", "captionpath", "idpath", "stylepath", "shapeprefix", "flow"
             obj_IControl_SupportsAttribute = True
     End Select
 End Function
@@ -257,6 +269,18 @@ Private Function private_ReadPathAttr(ByVal controlNode As Object, ByVal attrNam
     private_ReadPathAttr = attrValue
 End Function
 
+Private Function private_ReadFlowDirection(ByVal controlNode As Object) As String
+    Dim flowText As String
+
+    flowText = VBA.LCase$(VBA.Trim$(VBA.CStr(ex_XmlCore.fn_NodeAttrText(controlNode, "flow"))))
+    Select Case flowText
+        Case FLOW_COLUMN
+            private_ReadFlowDirection = FLOW_COLUMN
+        Case Else
+            private_ReadFlowDirection = FLOW_ROW
+    End Select
+End Function
+
 Private Function private_ButtonSpanCols() As Long
     Dim availableCols As Long
 
@@ -267,6 +291,26 @@ Private Function private_ButtonSpanCols() As Long
         private_ButtonSpanCols = availableCols \ m_Columns
         If private_ButtonSpanCols <= 0 Then private_ButtonSpanCols = 1
     End If
+End Function
+
+Private Function private_RowsPerColumn(ByVal itemCount As Long) As Long
+    Dim availableRows As Long
+
+    availableRows = m_ControlLayout.RowEnd - m_ControlLayout.RowStart + 1
+    If availableRows <= 0 Then availableRows = 1
+    If itemCount <= 0 Then
+        private_RowsPerColumn = availableRows
+    ElseIf Not private_IsColumnFlow() Then
+        private_RowsPerColumn = availableRows
+    Else
+        private_RowsPerColumn = (itemCount + m_Columns - 1) \ m_Columns
+        If private_RowsPerColumn <= 0 Then private_RowsPerColumn = 1
+        If private_RowsPerColumn > availableRows Then private_RowsPerColumn = availableRows
+    End If
+End Function
+
+Private Function private_IsColumnFlow() As Boolean
+    private_IsColumnFlow = (VBA.StrComp(m_FlowDirection, FLOW_COLUMN, VBA.vbTextCompare) = 0)
 End Function
 
 Private Function private_FlattenItems(ByVal sourceItems As Collection) As Collection
