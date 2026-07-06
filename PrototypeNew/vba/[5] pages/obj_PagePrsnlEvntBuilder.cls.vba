@@ -105,20 +105,17 @@ Private Function obj_IPage_RunPagePipeline() As Boolean
 End Function
 
 Private Function obj_IPage_Render() As Boolean
-    Dim draftValues As Variant
-    Dim hasDraftValues As Boolean
+    Dim draftValuesByTag As Object
     Dim orderNoValues As Variant
     Dim hasOrderNoValues As Boolean
 
     If Not m_PageBase.IsReady() Then Exit Function
 
-    hasDraftValues = private_TryCaptureLayoutContainerValues(EVENT_DRAFT_VALUES_CONTAINER_NAME, draftValues)
+    If Not private_TryCaptureTaggedDraftValues(draftValuesByTag) Then Exit Function
     hasOrderNoValues = private_TryCaptureLayoutContainerValues(EVENT_DRAFT_ORDER_NO_CONTAINER_NAME, orderNoValues)
     If Not m_PageBase.Render() Then Exit Function
 
-    If hasDraftValues Then
-        If Not private_TryRestoreLayoutContainerValues(EVENT_DRAFT_VALUES_CONTAINER_NAME, draftValues) Then Exit Function
-    End If
+    If Not private_TryRestoreTaggedDraftValues(draftValuesByTag) Then Exit Function
     If hasOrderNoValues Then
         If Not private_TryRestoreLayoutContainerValues(EVENT_DRAFT_ORDER_NO_CONTAINER_NAME, orderNoValues) Then Exit Function
     End If
@@ -259,14 +256,50 @@ End Function
 ' //
 Public Function OnRenderCommand(Optional ByVal arg As Variant) As Boolean
     Dim pageRef As obj_IPage
+    Dim previousEnableEvents As Boolean
 
     Set pageRef = Me
+    previousEnableEvents = Application.EnableEvents
+    Application.EnableEvents = False
+    On Error GoTo EH
+
     OnRenderCommand = rt_PageManager.fn_RenderPage(pageRef, "prsnlevntbuilder:public-render-page")
+
+Cleanup:
+    Application.EnableEvents = previousEnableEvents
+    Exit Function
+
+EH:
+    Resume Cleanup
 End Function
 
 Public Property Get LookupQueryValues() As Object
     private_EnsureLookupQueryStorage
     Set LookupQueryValues = m_QueryValuesByLookupKey
+End Property
+
+Public Property Get HospitalFieldVisibilityState() As String
+    If m_Controller Is Nothing Then
+        HospitalFieldVisibilityState = "visible"
+    Else
+        HospitalFieldVisibilityState = m_Controller.HospitalFieldVisibilityState
+    End If
+End Property
+
+Public Property Get FioFieldVisibilityState() As String
+    If m_Controller Is Nothing Then
+        FioFieldVisibilityState = "visible"
+    Else
+        FioFieldVisibilityState = m_Controller.FioFieldVisibilityState
+    End If
+End Property
+
+Public Property Get ReportPersonFieldVisibilityState() As String
+    If m_Controller Is Nothing Then
+        ReportPersonFieldVisibilityState = "visible"
+    Else
+        ReportPersonFieldVisibilityState = m_Controller.ReportPersonFieldVisibilityState
+    End If
 End Property
 
 Public Function OnLookupInputCellChangedCommand(Optional ByVal arg As Variant) As Boolean
@@ -279,6 +312,12 @@ Public Function OnLookupInputCellChangedCommand(Optional ByVal arg As Variant) A
     If Not private_TryReadCellText(changedCellAddress, queryText) Then Exit Function
 
     private_SetLookupQueryValue lookupKey, queryText
+    If VBA.Len(VBA.Trim$(queryText)) = 0 Then
+        If m_Controller Is Nothing Then Exit Function
+        OnLookupInputCellChangedCommand = m_Controller.ClearLookupCandidates(False)
+        Exit Function
+    End If
+
     OnLookupInputCellChangedCommand = private_TryRunLookupSearch(lookupKey, queryText, "prsnlevntbuilder:auto-search-" & private_NormalizeReasonToken(lookupKey))
 End Function
 
@@ -676,7 +715,7 @@ Private Function private_TryRunLookupSearch( _
 
     If m_Controller Is Nothing Then Exit Function
     If VBA.Len(VBA.Trim$(queryText)) = 0 Then
-        If Not m_Controller.ClearLookupCandidates(True) Then Exit Function
+        If Not m_Controller.ClearLookupCandidates(False) Then Exit Function
         private_TryRunLookupSearch = True
         Exit Function
     End If
@@ -699,6 +738,112 @@ Private Function private_TryCaptureLayoutContainerValues( _
 
     outValues = containerRange.Value2
     private_TryCaptureLayoutContainerValues = True
+End Function
+
+Private Function private_TryCaptureTaggedDraftValues(ByRef outValuesByTag As Object) As Boolean
+    Dim containerRange As Range
+    Dim tagValues As Object
+    Dim tagEntries As Collection
+    Dim tagEntryObj As Variant
+    Dim tagEntry As Object
+    Dim tagText As String
+    Dim tagRange As Range
+
+    Set outValuesByTag = Nothing
+    If m_PageBase Is Nothing Then Exit Function
+
+    Set tagValues = ex_Helpers.fn_CreateDictionaryTextCompare()
+    Set containerRange = Nothing
+    If Not m_PageBase.TryGetLayoutContainerRange(EVENT_DRAFT_VALUES_CONTAINER_NAME, containerRange) Then
+        Set outValuesByTag = tagValues
+        private_TryCaptureTaggedDraftValues = True
+        Exit Function
+    End If
+    If containerRange Is Nothing Then
+        Set outValuesByTag = tagValues
+        private_TryCaptureTaggedDraftValues = True
+        Exit Function
+    End If
+
+    ' The draft row can change its visible columns between section types.
+    ' Capture values by logical tags, not by absolute/relative column index.
+    ' Example: value under tags="DocNo" must return to the new DocNo cell
+    ' even if DocNo shifts left/right after visibility recalculation.
+    Set tagEntries = Nothing
+    If Not m_PageBase.TryGetLayoutTagEntriesInRange(containerRange, tagEntries, "visible") Then Exit Function
+    If tagEntries Is Nothing Then
+        Set outValuesByTag = tagValues
+        private_TryCaptureTaggedDraftValues = True
+        Exit Function
+    End If
+
+    For Each tagEntryObj In tagEntries
+        If Not VBA.IsObject(tagEntryObj) Then GoTo ContinueTag
+        Set tagEntry = tagEntryObj
+        If tagEntry Is Nothing Then GoTo ContinueTag
+        If Not tagEntry.Exists("Tag") Then GoTo ContinueTag
+
+        tagText = VBA.Trim$(VBA.CStr(tagEntry("Tag")))
+        If VBA.Len(tagText) = 0 Then GoTo ContinueTag
+
+        Set tagRange = Nothing
+        If Not private_TryGetLayoutTagEntryRange(tagEntry, tagRange) Then GoTo ContinueTag
+        If tagRange Is Nothing Then GoTo ContinueTag
+
+        ' Snapshot shape: logical tag -> current cell value.
+        ' We intentionally do not store column indexes here.
+        tagValues(tagText) = tagRange.Cells(1, 1).Value2
+
+ContinueTag:
+    Next tagEntryObj
+
+    Set outValuesByTag = tagValues
+    private_TryCaptureTaggedDraftValues = True
+End Function
+
+Private Function private_TryRestoreTaggedDraftValues(ByVal valuesByTag As Object) As Boolean
+    Dim containerRange As Range
+    Dim tagObj As Variant
+    Dim tagText As String
+    Dim tagRange As Range
+    Dim targetCell As Range
+
+    If valuesByTag Is Nothing Then
+        private_TryRestoreTaggedDraftValues = True
+        Exit Function
+    End If
+    If m_PageBase Is Nothing Then Exit Function
+
+    Set containerRange = Nothing
+    If Not m_PageBase.TryGetLayoutContainerRange(EVENT_DRAFT_VALUES_CONTAINER_NAME, containerRange) Then
+        private_TryRestoreTaggedDraftValues = True
+        Exit Function
+    End If
+    If containerRange Is Nothing Then
+        private_TryRestoreTaggedDraftValues = True
+        Exit Function
+    End If
+
+    ' After render the old ranges are invalid: the same logical field may now
+    ' be located in another worksheet column. Resolve each saved tag against
+    ' the freshly registered visible layout tags inside EventDraftValues.
+    For Each tagObj In valuesByTag.Keys
+        tagText = VBA.Trim$(VBA.CStr(tagObj))
+        If VBA.Len(tagText) = 0 Then GoTo ContinueTag
+
+        Set tagRange = Nothing
+        If Not private_TryGetVisibleLayoutTagRangeInContainer(tagText, containerRange, tagRange) Then Exit Function
+        If tagRange Is Nothing Then GoTo ContinueTag
+
+        Set targetCell = tagRange.Cells(1, 1)
+        targetCell.NumberFormat = "@"
+        ' Restore by semantic field tag, not by previous visual position.
+        targetCell.Value2 = valuesByTag(tagObj)
+
+ContinueTag:
+    Next tagObj
+
+    private_TryRestoreTaggedDraftValues = True
 End Function
 
 Private Function private_TryRestoreLayoutContainerValues( _
@@ -744,6 +889,72 @@ Private Function private_ArrayColumnCount(ByRef values As Variant) As Long
     On Error Resume Next
     private_ArrayColumnCount = UBound(values, 2) - LBound(values, 2) + 1
     On Error GoTo 0
+End Function
+
+Private Function private_TryGetVisibleLayoutTagRangeInContainer( _
+    ByVal tagText As String, _
+    ByVal containerRange As Range, _
+    ByRef outRange As Range _
+) As Boolean
+    Dim tagEntries As Collection
+    Dim tagEntryObj As Variant
+    Dim tagEntry As Object
+    Dim entryTag As String
+
+    Set outRange = Nothing
+    If m_PageBase Is Nothing Then Exit Function
+    If containerRange Is Nothing Then Exit Function
+
+    tagText = VBA.Trim$(tagText)
+    If VBA.Len(tagText) = 0 Then Exit Function
+
+    Set tagEntries = Nothing
+    If Not m_PageBase.TryGetLayoutTagEntriesInRange(containerRange, tagEntries, "visible") Then Exit Function
+    If tagEntries Is Nothing Then
+        private_TryGetVisibleLayoutTagRangeInContainer = True
+        Exit Function
+    End If
+
+    ' Scope the search to EventDraftValues. The same tag may be reused elsewhere
+    ' on the page later; draft restore must only touch the form value row.
+    For Each tagEntryObj In tagEntries
+        If Not VBA.IsObject(tagEntryObj) Then GoTo ContinueEntry
+        Set tagEntry = tagEntryObj
+        If tagEntry Is Nothing Then GoTo ContinueEntry
+        If Not tagEntry.Exists("Tag") Then GoTo ContinueEntry
+
+        entryTag = VBA.Trim$(VBA.CStr(tagEntry("Tag")))
+        If VBA.StrComp(entryTag, tagText, VBA.vbTextCompare) <> 0 Then GoTo ContinueEntry
+
+        If Not private_TryGetLayoutTagEntryRange(tagEntry, outRange) Then Exit Function
+        private_TryGetVisibleLayoutTagRangeInContainer = True
+        Exit Function
+
+ContinueEntry:
+    Next tagEntryObj
+
+    private_TryGetVisibleLayoutTagRangeInContainer = True
+End Function
+
+Private Function private_TryGetLayoutTagEntryRange( _
+    ByVal tagEntry As Object, _
+    ByRef outRange As Range _
+) As Boolean
+    Dim ws As Worksheet
+
+    Set outRange = Nothing
+    If tagEntry Is Nothing Then Exit Function
+    If m_PageBase Is Nothing Then Exit Function
+    Set ws = m_PageBase.Worksheet
+    If ws Is Nothing Then Exit Function
+
+    On Error Resume Next
+    Set outRange = ws.Range( _
+        ws.Cells(VBA.CLng(tagEntry("RowStart")), VBA.CLng(tagEntry("ColStart"))), _
+        ws.Cells(VBA.CLng(tagEntry("RowEnd")), VBA.CLng(tagEntry("ColEnd"))))
+    On Error GoTo 0
+
+    private_TryGetLayoutTagEntryRange = Not outRange Is Nothing
 End Function
 
 Private Function private_RerenderSelf(ByVal reasonText As String) As Boolean
