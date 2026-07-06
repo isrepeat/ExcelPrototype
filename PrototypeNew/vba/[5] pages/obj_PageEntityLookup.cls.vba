@@ -251,6 +251,12 @@ Public Function OnLookupInputCellChangedCommand(Optional ByVal arg As Variant) A
     If Not private_TryReadCellText(changedCellAddress, queryText) Then Exit Function
 
     private_SetLookupQueryValue lookupKey, queryText
+    If VBA.Len(VBA.Trim$(queryText)) = 0 Then
+        If m_Controller Is Nothing Then Exit Function
+        OnLookupInputCellChangedCommand = m_Controller.ClearLookupCandidates(False)
+        Exit Function
+    End If
+
     OnLookupInputCellChangedCommand = private_TryRunLookupSearch(lookupKey, queryText, "entitylookup:auto-search-" & private_NormalizeReasonToken(lookupKey))
 End Function
 
@@ -505,7 +511,7 @@ Private Function private_TryRunLookupSearch( _
 
     If m_Controller Is Nothing Then Exit Function
     If VBA.Len(VBA.Trim$(queryText)) = 0 Then
-        If Not m_Controller.ClearLookupCandidates(True) Then Exit Function
+        If Not m_Controller.ClearLookupCandidates(False) Then Exit Function
         private_TryRunLookupSearch = True
         Exit Function
     End If
