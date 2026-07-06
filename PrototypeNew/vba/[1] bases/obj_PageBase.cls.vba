@@ -17,6 +17,7 @@ Private m_IsDisposed As Boolean
 Private m_IsRendering As Boolean
 Private m_ControlByKey As Object
 Private m_LayoutContainerByName As Object
+Private m_LayoutTagEntriesByTag As Object
 Private m_RouteByShape As Object
 Private m_RouteByCell As Object
 Private m_RouteByHotkey As Object
@@ -235,11 +236,16 @@ Public Function Render() As Boolean
     Dim errSource As String
     Dim errDescription As String
     Dim layoutRenderContext As obj_LayoutRenderContext
+    Dim perfStart As Double
+    Dim perfLast As Double
 
     If Not private_EnsureNotDisposed("Render") Then Exit Function
     If Not Me.IsReady() Then Exit Function
 
     If m_IsRendering Then Exit Function
+
+    perfStart = VBA.Timer
+    perfLast = perfStart
 
     Set ws = m_Worksheet
     Set wb = ws.Parent
@@ -261,6 +267,9 @@ Public Function Render() As Boolean
 #End If
         Exit Function
     End If
+#If LOGGING_DEBUG_ENABLED Then
+    private_LogRenderPerfStep "pagebase:resolve-ui-path", perfStart, perfLast, "sheet='" & private_EscapeForLog(ws.Name) & "' uiPath='" & private_EscapeForLog(resolvedUiPath) & "'"
+#End If
 
     ' Загружаем и сохраняем DOM, чтобы стили и снапшоты работали с одним деревом.
     Set m_UiDom = ex_XmlCore.fn_LoadDomByRelativePath( _
@@ -270,6 +279,9 @@ Public Function Render() As Boolean
         "PrototypeNew: failed to parse page UI file: ", _
         UI_NS)
     If m_UiDom Is Nothing Then Exit Function
+#If LOGGING_DEBUG_ENABLED Then
+    private_LogRenderPerfStep "pagebase:load-ui-dom", perfStart, perfLast, "sheet='" & private_EscapeForLog(ws.Name) & "'"
+#End If
 
     Set pageNode = m_UiDom.selectSingleNode("/p:page")
     If pageNode Is Nothing Then
@@ -284,6 +296,9 @@ Public Function Render() As Boolean
     m_IsRendering = True
     Set app = Application
     private_EnterFastRenderMode app, prevScreenUpdating, prevEnableEvents, prevDisplayAlerts, prevCalculation, prevStatusBar
+#If LOGGING_DEBUG_ENABLED Then
+    private_LogRenderPerfStep "pagebase:enter-fast-render-mode", perfStart, perfLast, "sheet='" & private_EscapeForLog(ws.Name) & "' retainShapes=" & VBA.LCase$(VBA.CStr(retainGeneratedShapes))
+#End If
     On Error GoTo EH_RENDER
 
     ' Сбрасываем runtime-реестры, чтобы не тянуть старые контролы/маршруты.
@@ -292,30 +307,66 @@ Public Function Render() As Boolean
     ex_ControlRefreshRuntime.fn_ResetRegisteredControls
     ex_StylePipelineEngine.fn_ResetLayoutBounds
     ex_LayoutControlFallbackRndr.fn_ResetControlFallbacks
+#If LOGGING_DEBUG_ENABLED Then
+    private_LogRenderPerfStep "pagebase:reset-runtime-registries", perfStart, perfLast, "sheet='" & private_EscapeForLog(ws.Name) & "'"
+#End If
 
     If Not Me.ResetControlActions() Then GoTo Cleanup
+#If LOGGING_DEBUG_ENABLED Then
+    private_LogRenderPerfStep "pagebase:reset-control-actions", perfStart, perfLast, "sheet='" & private_EscapeForLog(ws.Name) & "'"
+#End If
     If Not private_TryClearPageRuntime(Not retainGeneratedShapes) Then GoTo Cleanup
+#If LOGGING_DEBUG_ENABLED Then
+    private_LogRenderPerfStep "pagebase:clear-page-runtime", perfStart, perfLast, "sheet='" & private_EscapeForLog(ws.Name) & "' clearShapes=" & VBA.LCase$(VBA.CStr(Not retainGeneratedShapes))
+#End If
     ' Один контекст на один проход: worksheet/workbook и seed-ы runtime ключей.
     Set layoutRenderContext = New obj_LayoutRenderContext
     If Not layoutRenderContext.Initialize(m_Page) Then GoTo Cleanup
+#If LOGGING_DEBUG_ENABLED Then
+    private_LogRenderPerfStep "pagebase:init-layout-context", perfStart, perfLast, "sheet='" & private_EscapeForLog(ws.Name) & "'"
+#End If
     If Not ex_XmlLayoutEngine.fn_RenderNode(layoutRenderContext, pageNode) Then GoTo Cleanup
+#If LOGGING_DEBUG_ENABLED Then
+    private_LogRenderPerfStep "pagebase:layout-render-node", perfStart, perfLast, "sheet='" & private_EscapeForLog(ws.Name) & "'"
+#End If
     If Not ex_StylePipelineEngine.fn_ApplyPageStyles(ws, m_UiDom) Then GoTo Cleanup
+#If LOGGING_DEBUG_ENABLED Then
+    private_LogRenderPerfStep "pagebase:apply-page-styles", perfStart, perfLast, "sheet='" & private_EscapeForLog(ws.Name) & "'"
+#End If
     ex_LayoutControlFallbackRndr.fn_ApplyPendingControlFallbacks ws
+#If LOGGING_DEBUG_ENABLED Then
+    private_LogRenderPerfStep "pagebase:apply-control-fallbacks", perfStart, perfLast, "sheet='" & private_EscapeForLog(ws.Name) & "'"
+#End If
     If Not Me.ApplyInlineRuns() Then GoTo Cleanup
+#If LOGGING_DEBUG_ENABLED Then
+    private_LogRenderPerfStep "pagebase:apply-inline-runs", perfStart, perfLast, "sheet='" & private_EscapeForLog(ws.Name) & "'"
+#End If
 
     ' В retained-режиме глобально shape не удаляем до рендера.
     ' После рендера чистим только orphan-shape (контролы, которые больше не присутствуют в текущем layout).
     If retainGeneratedShapes Then
         Call private_DeleteOrphanRuntimeShapesByControlRegistry(ws)
+#If LOGGING_DEBUG_ENABLED Then
+        private_LogRenderPerfStep "pagebase:delete-orphan-shapes", perfStart, perfLast, "sheet='" & private_EscapeForLog(ws.Name) & "'"
+#End If
     End If
 
     private_LogRuntimeInfo "render-bindings controls=" & VBA.CStr(private_GetDictionaryCount(m_ControlByKey)) & " shapeRoutes=" & VBA.CStr(private_GetDictionaryCount(m_RouteByShape)) & " cellRoutes=" & VBA.CStr(private_GetDictionaryCount(m_RouteByCell))
+#If LOGGING_DEBUG_ENABLED Then
+    private_LogRenderPerfStep "pagebase:log-runtime-info", perfStart, perfLast, "sheet='" & private_EscapeForLog(ws.Name) & "'"
+#End If
 
     Render = True
     m_LastRenderedUiPath = resolvedUiPath
+#If LOGGING_DEBUG_ENABLED Then
+    private_LogRenderPerfStep "pagebase:render-success", perfStart, perfLast, "sheet='" & private_EscapeForLog(ws.Name) & "'"
+#End If
 
 Cleanup:
     private_LeaveFastRenderMode app, prevScreenUpdating, prevEnableEvents, prevDisplayAlerts, prevCalculation, prevStatusBar
+#If LOGGING_DEBUG_ENABLED Then
+    private_LogRenderPerfStep "pagebase:leave-fast-render-mode", perfStart, perfLast, "sheet='" & private_EscapeForLog(ws.Name) & "' ok=" & VBA.LCase$(VBA.CStr(Render))
+#End If
     m_IsRendering = False
     Exit Function
 
@@ -328,6 +379,7 @@ EH_RENDER:
     m_IsRendering = False
 #If LOGGING_DEBUG_ENABLED Then
     ex_Core.fn_Diagnostic_LogError "PrototypeNew: render failed: [" & errSource & " #" & VBA.CStr(errNumber) & "] " & errDescription
+    private_LogRenderPerfStep "pagebase:render-exception", perfStart, perfLast, "sheet='" & private_EscapeForLog(ws.Name) & "' err='" & private_EscapeForLog(errDescription) & "'"
 #End If
 End Function
 
@@ -744,6 +796,275 @@ Public Function TryGetLayoutContainerRange( _
     TryGetLayoutContainerRange = Not outRange Is Nothing
 End Function
 
+Public Function RegisterLayoutTags( _
+    ByVal tagsText As String, _
+    ByVal elementName As String, _
+    ByVal elementType As String, _
+    ByVal sheetName As String, _
+    ByVal rowStart As Long, _
+    ByVal colStart As Long, _
+    ByVal rowEnd As Long, _
+    ByVal colEnd As Long, _
+    Optional ByVal visibilityState As String = "visible" _
+) As Boolean
+    Dim tags As Collection
+    Dim tagObj As Variant
+    Dim tagText As String
+    Dim tagKey As String
+    Dim entries As Collection
+    Dim entry As Object
+
+    If Not private_EnsureNotDisposed("RegisterLayoutTags") Then Exit Function
+
+    ' Layout tags are runtime metadata produced by XML layout rendering.
+    ' They bind a logical tag from XML, for example tags="FIO;Person",
+    ' to the actual worksheet bounds that the renderer assigned this turn.
+    tagsText = VBA.Trim$(tagsText)
+    elementName = VBA.Trim$(elementName)
+    elementType = VBA.LCase$(VBA.Trim$(elementType))
+    sheetName = VBA.Trim$(sheetName)
+    visibilityState = VBA.LCase$(VBA.Trim$(visibilityState))
+
+    If VBA.Len(tagsText) = 0 Then
+        RegisterLayoutTags = True
+        Exit Function
+    End If
+    If VBA.Len(elementType) = 0 Then Exit Function
+    If VBA.Len(sheetName) = 0 Then Exit Function
+    If rowStart <= 0 Or colStart <= 0 Then Exit Function
+    If rowEnd < rowStart Or colEnd < colStart Then Exit Function
+    If VBA.Len(visibilityState) = 0 Then visibilityState = "visible"
+
+    Set tags = private_SplitTags(tagsText)
+    If tags Is Nothing Then
+        RegisterLayoutTags = True
+        Exit Function
+    End If
+
+    private_EnsureStorage
+    For Each tagObj In tags
+        tagText = VBA.Trim$(VBA.CStr(tagObj))
+        tagKey = VBA.LCase$(tagText)
+        If VBA.Len(tagKey) = 0 Then GoTo ContinueTag
+
+        If m_LayoutTagEntriesByTag.Exists(tagKey) Then
+            Set entries = m_LayoutTagEntriesByTag(tagKey)
+        Else
+            Set entries = New Collection
+            Set m_LayoutTagEntriesByTag(tagKey) = entries
+        End If
+
+        Set entry = VBA.CreateObject("Scripting.Dictionary")
+        entry.CompareMode = 1
+        entry("Tag") = tagText
+        entry("Name") = elementName
+        entry("Type") = elementType
+        entry("Sheet") = sheetName
+        entry("RowStart") = VBA.CLng(rowStart)
+        entry("ColStart") = VBA.CLng(colStart)
+        entry("RowEnd") = VBA.CLng(rowEnd)
+        entry("ColEnd") = VBA.CLng(colEnd)
+        entry("Visibility") = visibilityState
+        entries.Add entry
+
+ContinueTag:
+    Next tagObj
+
+    RegisterLayoutTags = True
+End Function
+
+Public Function TryGetFirstLayoutTagRange( _
+    ByVal tagText As String, _
+    ByRef outRange As Range, _
+    Optional ByVal visibilityStateFilter As String = "visible" _
+) As Boolean
+    Dim tagKey As String
+    Dim entries As Collection
+    Dim entryObj As Variant
+    Dim entry As Object
+    Dim ws As Worksheet
+    Dim entryVisibility As String
+    Dim filterText As String
+
+    If Not private_EnsureNotDisposed("TryGetFirstLayoutTagRange") Then Exit Function
+    Set outRange = Nothing
+
+    ' Consumers such as LookupCandidates usually need the rendered visible
+    ' control for a logical tag, not the old static XML/config order.
+    tagKey = VBA.LCase$(VBA.Trim$(tagText))
+    If VBA.Len(tagKey) = 0 Then Exit Function
+    If m_LayoutTagEntriesByTag Is Nothing Then Exit Function
+    If Not m_LayoutTagEntriesByTag.Exists(tagKey) Then Exit Function
+
+    Set ws = m_Worksheet
+    If ws Is Nothing Then Exit Function
+
+    filterText = VBA.LCase$(VBA.Trim$(visibilityStateFilter))
+    Set entries = m_LayoutTagEntriesByTag(tagKey)
+    If entries Is Nothing Then Exit Function
+
+    For Each entryObj In entries
+        If Not VBA.IsObject(entryObj) Then GoTo ContinueEntry
+        Set entry = entryObj
+        If entry Is Nothing Then GoTo ContinueEntry
+
+        If VBA.StrComp(VBA.Trim$(VBA.CStr(entry("Sheet"))), ws.Name, VBA.vbTextCompare) <> 0 Then GoTo ContinueEntry
+        entryVisibility = VBA.LCase$(VBA.Trim$(VBA.CStr(entry("Visibility"))))
+        If VBA.Len(filterText) > 0 Then
+            If VBA.StrComp(entryVisibility, filterText, VBA.vbTextCompare) <> 0 Then GoTo ContinueEntry
+        End If
+
+        On Error Resume Next
+        Set outRange = ws.Range( _
+            ws.Cells(VBA.CLng(entry("RowStart")), VBA.CLng(entry("ColStart"))), _
+            ws.Cells(VBA.CLng(entry("RowEnd")), VBA.CLng(entry("ColEnd"))))
+        On Error GoTo 0
+
+        If Not outRange Is Nothing Then
+            TryGetFirstLayoutTagRange = True
+            Exit Function
+        End If
+
+ContinueEntry:
+    Next entryObj
+End Function
+
+Public Function TryGetLayoutTagEntries( _
+    ByVal tagText As String, _
+    ByRef outEntries As Collection, _
+    Optional ByVal visibilityStateFilter As String = VBA.vbNullString _
+) As Boolean
+    Dim tagKey As String
+    Dim entries As Collection
+    Dim entryObj As Variant
+    Dim entry As Object
+    Dim entryCopy As Object
+    Dim entryVisibility As String
+    Dim filterText As String
+    Dim ws As Worksheet
+    Dim keyObj As Variant
+
+    If Not private_EnsureNotDisposed("TryGetLayoutTagEntries") Then Exit Function
+    Set outEntries = Nothing
+
+    tagKey = VBA.LCase$(VBA.Trim$(tagText))
+    If VBA.Len(tagKey) = 0 Then Exit Function
+    If m_LayoutTagEntriesByTag Is Nothing Then Exit Function
+    If Not m_LayoutTagEntriesByTag.Exists(tagKey) Then Exit Function
+
+    Set ws = m_Worksheet
+    If ws Is Nothing Then Exit Function
+
+    filterText = VBA.LCase$(VBA.Trim$(visibilityStateFilter))
+    Set entries = m_LayoutTagEntriesByTag(tagKey)
+    If entries Is Nothing Then Exit Function
+
+    Set outEntries = New Collection
+    For Each entryObj In entries
+        If Not VBA.IsObject(entryObj) Then GoTo ContinueEntry
+        Set entry = entryObj
+        If entry Is Nothing Then GoTo ContinueEntry
+
+        If VBA.StrComp(VBA.Trim$(VBA.CStr(entry("Sheet"))), ws.Name, VBA.vbTextCompare) <> 0 Then GoTo ContinueEntry
+        entryVisibility = VBA.LCase$(VBA.Trim$(VBA.CStr(entry("Visibility"))))
+        If VBA.Len(filterText) > 0 Then
+            If VBA.StrComp(entryVisibility, filterText, VBA.vbTextCompare) <> 0 Then GoTo ContinueEntry
+        End If
+
+        Set entryCopy = VBA.CreateObject("Scripting.Dictionary")
+        entryCopy.CompareMode = 1
+        For Each keyObj In entry.Keys
+            If VBA.IsObject(entry(keyObj)) Then
+                Set entryCopy(keyObj) = entry(keyObj)
+            Else
+                entryCopy(keyObj) = entry(keyObj)
+            End If
+        Next keyObj
+        outEntries.Add entryCopy
+
+ContinueEntry:
+    Next entryObj
+
+    TryGetLayoutTagEntries = True
+End Function
+
+Public Function TryGetLayoutTagEntriesInRange( _
+    ByVal scopeRange As Range, _
+    ByRef outEntries As Collection, _
+    Optional ByVal visibilityStateFilter As String = "visible" _
+) As Boolean
+    Dim tagKeyObj As Variant
+    Dim entries As Collection
+    Dim entryObj As Variant
+    Dim entry As Object
+    Dim entryCopy As Object
+    Dim entryRange As Range
+    Dim intersectRange As Range
+    Dim entryVisibility As String
+    Dim filterText As String
+    Dim ws As Worksheet
+    Dim keyObj As Variant
+
+    If Not private_EnsureNotDisposed("TryGetLayoutTagEntriesInRange") Then Exit Function
+    Set outEntries = Nothing
+
+    If scopeRange Is Nothing Then Exit Function
+    Set ws = m_Worksheet
+    If ws Is Nothing Then Exit Function
+
+    Set outEntries = New Collection
+    If m_LayoutTagEntriesByTag Is Nothing Then
+        TryGetLayoutTagEntriesInRange = True
+        Exit Function
+    End If
+
+    filterText = VBA.LCase$(VBA.Trim$(visibilityStateFilter))
+    For Each tagKeyObj In m_LayoutTagEntriesByTag.Keys
+        Set entries = m_LayoutTagEntriesByTag(tagKeyObj)
+        If entries Is Nothing Then GoTo ContinueTag
+
+        For Each entryObj In entries
+            If Not VBA.IsObject(entryObj) Then GoTo ContinueEntry
+            Set entry = entryObj
+            If entry Is Nothing Then GoTo ContinueEntry
+
+            If VBA.StrComp(VBA.Trim$(VBA.CStr(entry("Sheet"))), ws.Name, VBA.vbTextCompare) <> 0 Then GoTo ContinueEntry
+            entryVisibility = VBA.LCase$(VBA.Trim$(VBA.CStr(entry("Visibility"))))
+            If VBA.Len(filterText) > 0 Then
+                If VBA.StrComp(entryVisibility, filterText, VBA.vbTextCompare) <> 0 Then GoTo ContinueEntry
+            End If
+
+            Set entryRange = Nothing
+            Set intersectRange = Nothing
+            On Error Resume Next
+            Set entryRange = ws.Range( _
+                ws.Cells(VBA.CLng(entry("RowStart")), VBA.CLng(entry("ColStart"))), _
+                ws.Cells(VBA.CLng(entry("RowEnd")), VBA.CLng(entry("ColEnd"))))
+            Set intersectRange = Application.Intersect(entryRange, scopeRange)
+            On Error GoTo 0
+            If entryRange Is Nothing Then GoTo ContinueEntry
+            If intersectRange Is Nothing Then GoTo ContinueEntry
+
+            Set entryCopy = VBA.CreateObject("Scripting.Dictionary")
+            entryCopy.CompareMode = 1
+            For Each keyObj In entry.Keys
+                If VBA.IsObject(entry(keyObj)) Then
+                    Set entryCopy(keyObj) = entry(keyObj)
+                Else
+                    entryCopy(keyObj) = entry(keyObj)
+                End If
+            Next keyObj
+            outEntries.Add entryCopy
+
+ContinueEntry:
+        Next entryObj
+
+ContinueTag:
+    Next tagKeyObj
+
+    TryGetLayoutTagEntriesInRange = True
+End Function
+
 ' Callstack[1]: rt_PageManager.fn_RenderPage -> page.Render -> obj_PageBase.Render -> ex_XmlLayoutEngine.fn_RenderNode -> ex_LayoutControlRenderer.fn_Render -> obj_ButtonControlVM.private_TryBindRuntimeRoute -> m_Page.RegisterShapeRoute -> obj_PageBase.RegisterShapeRoute
 ' Callstack[2]: rt_PageManager.fn_RenderPage -> page.Render -> obj_PageBase.Render -> ex_XmlLayoutEngine.fn_RenderNode -> ex_LayoutControlRenderer.fn_Render -> obj_SelectControlVM.private_TryBindRuntimeRoutes -> m_Page.RegisterShapeRoute -> obj_PageBase.RegisterShapeRoute
 Public Function RegisterShapeRoute( _
@@ -1085,6 +1406,7 @@ Public Function ResetControlActions() As Boolean
 
     Set m_ControlByKey = Nothing
     Set m_LayoutContainerByName = Nothing
+    Set m_LayoutTagEntriesByTag = Nothing
     Set m_RouteByShape = Nothing
     Set m_RouteByCell = Nothing
     Set m_RouteByHotkey = Nothing
@@ -1669,6 +1991,25 @@ Private Function private_ShouldRetainGeneratedShapes(ByVal previousUiPath As Str
     private_ShouldRetainGeneratedShapes = (VBA.StrComp(previousUiPath, currentUiPath, VBA.vbBinaryCompare) = 0)
 End Function
 
+Private Function private_SplitTags(ByVal tagsText As String) As Collection
+    Dim result As Collection
+    Dim parts As Variant
+    Dim idx As Long
+    Dim tagText As String
+
+    tagsText = VBA.Trim$(tagsText)
+    If VBA.Len(tagsText) = 0 Then Exit Function
+
+    Set result = New Collection
+    parts = VBA.Split(tagsText, ";")
+    For idx = LBound(parts) To UBound(parts)
+        tagText = VBA.Trim$(VBA.CStr(parts(idx)))
+        If VBA.Len(tagText) > 0 Then result.Add tagText
+    Next idx
+
+    If result.Count > 0 Then Set private_SplitTags = result
+End Function
+
 Private Sub private_DeleteOrphanRuntimeShapesByControlRegistry(ByVal ws As Worksheet)
     Dim i As Long
     Dim shp As Shape
@@ -1724,6 +2065,11 @@ Private Sub private_EnsureStorage()
     If m_LayoutContainerByName Is Nothing Then
         Set m_LayoutContainerByName = VBA.CreateObject("Scripting.Dictionary")
         m_LayoutContainerByName.CompareMode = 1
+    End If
+
+    If m_LayoutTagEntriesByTag Is Nothing Then
+        Set m_LayoutTagEntriesByTag = VBA.CreateObject("Scripting.Dictionary")
+        m_LayoutTagEntriesByTag.CompareMode = 1
     End If
 
     If m_RouteByShape Is Nothing Then
@@ -2216,6 +2562,36 @@ End Function
 Private Function private_EscapeForLog(ByVal valueText As String) As String
     private_EscapeForLog = VBA.Replace$(VBA.CStr(valueText), "'", "''")
 End Function
+
+#If LOGGING_DEBUG_ENABLED Then
+Private Sub private_LogRenderPerfStep( _
+    ByVal stepName As String, _
+    ByVal startedAt As Double, _
+    ByRef lastAt As Double, _
+    Optional ByVal details As String = "" _
+)
+    Dim nowAt As Double
+    Dim stepMs As Double
+    Dim totalMs As Double
+    Dim messageText As String
+
+    nowAt = VBA.Timer
+    stepMs = private_ElapsedMs(lastAt, nowAt)
+    totalMs = private_ElapsedMs(startedAt, nowAt)
+    lastAt = nowAt
+
+    messageText = "perf:render:" & stepName & _
+        " stepMs=" & VBA.Format$(stepMs, "0.0") & _
+        " totalMs=" & VBA.Format$(totalMs, "0.0")
+    If VBA.Len(VBA.Trim$(details)) > 0 Then messageText = messageText & " " & details
+    ex_Core.fn_Diagnostic_LogInfo messageText
+End Sub
+
+Private Function private_ElapsedMs(ByVal startedAt As Double, ByVal endedAt As Double) As Double
+    If endedAt < startedAt Then endedAt = endedAt + 86400#
+    private_ElapsedMs = (endedAt - startedAt) * 1000#
+End Function
+#End If
 
 Private Sub private_LogRuntimeInfo(ByVal messageText As String)
     On Error Resume Next
