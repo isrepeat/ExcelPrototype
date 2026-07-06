@@ -10,6 +10,7 @@ Private m_IsDisposed As Boolean
 Private m_Caption As String
 Private m_Id As String
 Private m_OnSelect As String
+Private m_StyleName As String
 
 Private Sub Class_Initialize()
 #If LOGGING_VERBOSE_ENABLED Then
@@ -69,3 +70,10 @@ Public Property Let OnSelect(ByVal value As String)
     m_OnSelect = VBA.CStr(value)
 End Property
 
+Public Property Get StyleName() As String
+    StyleName = m_StyleName
+End Property
+
+Public Property Let StyleName(ByVal value As String)
+    m_StyleName = VBA.CStr(value)
+End Property
