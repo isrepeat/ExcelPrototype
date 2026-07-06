@@ -177,6 +177,7 @@ Private Function private_TryResolveAdjustedBounds( _
     Dim rowSpan As Long
     Dim colSpan As Long
     Dim candidateSpanCols As Long
+    Dim inputGridColumnOverride As Long
 
     If controlNode Is Nothing Then Exit Function
     If pageBase Is Nothing Then Exit Function
@@ -216,7 +217,12 @@ Private Function private_TryResolveAdjustedBounds( _
     ' возвращает относительный адрес внутри контейнера, например r1c2.
     candidateSpanCols = colSpan
     If candidateSpanCols <= 0 Then candidateSpanCols = 1
-    If Not private_TryBuildCandidateAt(cfgParser, lookupKey, candidateTable, searchColumnAlias, candidateSpanCols, candidateAt) Then Exit Function
+    ' Если UI пометил lookup input тегом, совпадающим с target column из
+    ' EntityLookup.Lookup[*].TargetColumn, выравниваем кандидатов по реальному
+    ' rendered-положению этого input. Если тега нет, ниже останется старый
+    ' config-based расчет через EntityLookup.Table.Columns.
+    If Not private_TryResolveInputGridColumnOverride(pageBase, cfgParser, lookupKey, outColStart, inputGridColumnOverride) Then Exit Function
+    If Not private_TryBuildCandidateAt(cfgParser, lookupKey, candidateTable, searchColumnAlias, candidateSpanCols, inputGridColumnOverride, candidateAt) Then Exit Function
     If Not private_TryParseAtAddress(candidateAt, relativeRow, relativeCol) Then Exit Function
 
     If relativeRow <= 0 Then relativeRow = 1
@@ -322,6 +328,7 @@ Private Function private_TryBuildCandidateAt( _
     ByVal candidateTable As obj_TableDynamic, _
     ByVal searchColumnAlias As String, _
     ByVal candidateSpanCols As Long, _
+    ByVal inputGridColumnOverride As Long, _
     ByRef outCandidateAt As String _
 ) As Boolean
     Dim presentationState As obj_EntityLookupLayoutState
@@ -332,11 +339,62 @@ Private Function private_TryBuildCandidateAt( _
     ' Формула внутри PresentationState:
     ' startGridCol = inputGridCol - searchColumnIndex + 1.
     ' Так search column из candidateTable встает под lookup input.
-    If Not presentationState.TrySetActiveCandidateLayout(cfgParser, lookupKey, candidateTable, searchColumnAlias) Then Exit Function
+    If Not presentationState.TrySetActiveCandidateLayout(cfgParser, lookupKey, candidateTable, searchColumnAlias, inputGridColumnOverride) Then Exit Function
 
     outCandidateAt = presentationState.ActiveCandidatesAt
     presentationState.Dispose
     private_TryBuildCandidateAt = True
+End Function
+
+Private Function private_TryResolveInputGridColumnOverride( _
+    ByVal pageBase As obj_PageBase, _
+    ByVal cfgParser As obj_EntityLookupCfgParser, _
+    ByVal lookupKey As String, _
+    ByVal containerColStart As Long, _
+    ByRef outInputGridColumn As Long _
+) As Boolean
+    Dim targetColumnKey As String
+    Dim targetRange As Range
+
+    ' inputGridColumnOverride - это bridge между layout engine и lookup layout:
+    ' cfgParser знает логическую target column lookup-а, а PageBase знает, где
+    ' сейчас реально отрендерен control с таким tags="...".
+    ' 0 означает "override не найден, используй старую схему из конфига".
+    outInputGridColumn = 0
+    If pageBase Is Nothing Then Exit Function
+    If cfgParser Is Nothing Then Exit Function
+    If containerColStart <= 0 Then Exit Function
+
+    lookupKey = VBA.Trim$(lookupKey)
+    If VBA.Len(lookupKey) = 0 Then
+        private_TryResolveInputGridColumnOverride = True
+        Exit Function
+    End If
+
+    If Not cfgParser.TryGetLookupTargetColumn(lookupKey, targetColumnKey) Then Exit Function
+    targetColumnKey = VBA.Trim$(targetColumnKey)
+    ' В XML input должен иметь tags, содержащий этот targetColumnKey.
+    ' Пример: lookup Commander -> TargetColumn=ReportPerson ->
+    ' <control type="Input" ... tags="ReportPerson" />.
+    If VBA.Len(targetColumnKey) = 0 Then
+        private_TryResolveInputGridColumnOverride = True
+        Exit Function
+    End If
+
+    Set targetRange = Nothing
+    If Not pageBase.TryGetFirstLayoutTagRange(targetColumnKey, targetRange, "visible") Then
+        private_TryResolveInputGridColumnOverride = True
+        Exit Function
+    End If
+    If targetRange Is Nothing Then
+        private_TryResolveInputGridColumnOverride = True
+        Exit Function
+    End If
+
+    outInputGridColumn = targetRange.Column - containerColStart + 1
+    If outInputGridColumn < 0 Then outInputGridColumn = 0
+
+    private_TryResolveInputGridColumnOverride = True
 End Function
 
 Private Function private_TryParseAtAddress( _
