@@ -6,6 +6,7 @@ Attribute VB_Name = "obj_PageBase"
 Option Explicit
 #Const LOGGING_DEBUG_ENABLED = True
 #Const LOGGING_VERBOSE_ENABLED = False
+#Const LOGGING_ROUTE_VERBOSE_ENABLED = False
 
 Private m_Worksheet As Worksheet
 Private m_Page As obj_IPage
@@ -311,7 +312,7 @@ Public Function Render() As Boolean
     private_LogRenderPerfStep "pagebase:reset-runtime-registries", perfStart, perfLast, "sheet='" & private_EscapeForLog(ws.Name) & "'"
 #End If
 
-    If Not Me.ResetControlActions() Then GoTo Cleanup
+    If Not Me.ResetControlActions(True) Then GoTo Cleanup
 #If LOGGING_DEBUG_ENABLED Then
     private_LogRenderPerfStep "pagebase:reset-control-actions", perfStart, perfLast, "sheet='" & private_EscapeForLog(ws.Name) & "'"
 #End If
@@ -717,7 +718,9 @@ Public Function RegisterControl(ByVal controlKey As String, ByVal iControl As Ob
 
     private_EnsureStorage
     Set m_ControlByKey(controlKey) = iControl
+#If LOGGING_ROUTE_VERBOSE_ENABLED Then
     private_LogRuntimeInfo "register-control key='" & private_EscapeForLog(controlKey) & "' controls=" & VBA.CStr(private_GetDictionaryCount(m_ControlByKey))
+#End If
     RegisterControl = True
 End Function
 
@@ -1123,7 +1126,9 @@ Public Function RegisterShapeRoute( _
     End If
 
     Set m_RouteByShape(shapeKey) = entry
+#If LOGGING_ROUTE_VERBOSE_ENABLED Then
     private_LogRuntimeInfo "register-route shape='" & private_EscapeForLog(shapeName) & "' control='" & private_EscapeForLog(controlKey) & "' method='" & private_EscapeForLog(methodName) & "' routes=" & VBA.CStr(private_GetDictionaryCount(m_RouteByShape))
+#End If
     RegisterShapeRoute = True
 End Function
 
@@ -1182,7 +1187,9 @@ Public Function RegisterCellRoute( _
     End If
 
     Set m_RouteByCell(cellKey) = entry
+#If LOGGING_ROUTE_VERBOSE_ENABLED Then
     private_LogRuntimeInfo "register-route cell='" & private_EscapeForLog(cellAddress) & "' control='" & private_EscapeForLog(controlKey) & "' method='" & private_EscapeForLog(methodName) & "' routes=" & VBA.CStr(private_GetDictionaryCount(m_RouteByCell))
+#End If
     RegisterCellRoute = True
 End Function
 
@@ -1246,7 +1253,9 @@ Public Function RegisterHotkeyRoute( _
 
     If Not rt_HotkeyRuntime.fn_RegisterPageHotkey(m_PageId, hotkeyKey) Then Exit Function
     Set m_RouteByHotkey(hotkeyKey) = entry
+#If LOGGING_ROUTE_VERBOSE_ENABLED Then
     private_LogRuntimeInfo "register-route hotkey='" & private_EscapeForLog(hotkeyKey) & "' control='" & private_EscapeForLog(controlKey) & "' method='" & private_EscapeForLog(methodName) & "' routes=" & VBA.CStr(private_GetDictionaryCount(m_RouteByHotkey))
+#End If
     RegisterHotkeyRoute = True
 End Function
 
@@ -1309,17 +1318,19 @@ Public Function RegisterHotkeyRouteByKey( _
 
     If Not rt_HotkeyRuntime.fn_RegisterPageHotkey(m_PageId, hotkeyKey) Then Exit Function
     Set m_RouteByHotkey(hotkeyKey) = entry
+#If LOGGING_ROUTE_VERBOSE_ENABLED Then
     private_LogRuntimeInfo "register-route hotkey='" & private_EscapeForLog(hotkeyKey) & "' control='" & private_EscapeForLog(controlKey) & "' method='" & private_EscapeForLog(methodName) & "' routes=" & VBA.CStr(private_GetDictionaryCount(m_RouteByHotkey))
+#End If
     RegisterHotkeyRouteByKey = True
 End Function
 
 Public Function ResetHotkeyRoutes() As Boolean
     If Not private_EnsureNotDisposed("ResetHotkeyRoutes") Then Exit Function
     ' Повторное применение таблицы хоткеев заменяет только hotkey routes этой страницы.
-    ' Shape/cell routes не трогаются; rt_HotkeyRuntime удаляет только ссылки этой
-    ' страницы из глобальных OnKey slots.
+    ' Shape/cell routes не трогаются. Для активной страницы физические OnKey
+    ' оставляем до финальной сверки, чтобы не снимать/назначать тот же набор заново.
     Set m_RouteByHotkey = Nothing
-    rt_HotkeyRuntime.fn_UnregisterPageHotkeys m_PageId
+    rt_HotkeyRuntime.fn_UnregisterPageHotkeys m_PageId, True
     ResetHotkeyRoutes = True
 End Function
 
@@ -1393,7 +1404,7 @@ End Function
 ' Callstack[3]: obj_PageBase.Clear -> ResetControlActions
 ' Callstack[4]: obj_PageBase.Dispose -> ResetControlActions
 ' Callstack[5]: obj_PageMain.ResetControlActions -> obj_PageMain.obj_IPage_ResetControlActions -> obj_PageBase.ResetControlActions
-Public Function ResetControlActions() As Boolean
+Public Function ResetControlActions(Optional ByVal keepActivePhysicalHotkeys As Boolean = False) As Boolean
     Dim key As Variant
 
     If Not private_EnsureNotDisposed("ResetControlActions") Then Exit Function
@@ -1410,7 +1421,7 @@ Public Function ResetControlActions() As Boolean
     Set m_RouteByShape = Nothing
     Set m_RouteByCell = Nothing
     Set m_RouteByHotkey = Nothing
-    rt_HotkeyRuntime.fn_UnregisterPageHotkeys m_PageId
+    rt_HotkeyRuntime.fn_UnregisterPageHotkeys m_PageId, keepActivePhysicalHotkeys
     private_LogRuntimeInfo "reset-control-actions"
     ResetControlActions = True
 End Function

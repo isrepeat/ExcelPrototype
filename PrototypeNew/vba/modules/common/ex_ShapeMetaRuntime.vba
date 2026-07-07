@@ -174,6 +174,7 @@ Private Function private_TryWriteShapeMetaMap(ByVal shp As Shape, ByVal meta As 
     Dim altText As String
     Dim baseText As String
     Dim blockText As String
+    Dim nextAltText As String
 
     If shp Is Nothing Then
 #If LOGGING_DEBUG_ENABLED Then
@@ -189,15 +190,24 @@ Private Function private_TryWriteShapeMetaMap(ByVal shp As Shape, ByVal meta As 
     baseText = VBA.Trim$(private_RemoveMetaBlock(altText))
     blockText = private_BuildMetaBlock(meta)
 
-    On Error GoTo EH_WRITE
     If VBA.Len(blockText) = 0 Then
-        shp.AlternativeText = baseText
+        nextAltText = baseText
     ElseIf VBA.Len(baseText) = 0 Then
-        shp.AlternativeText = blockText
+        nextAltText = blockText
     Else
-        shp.AlternativeText = baseText & VBA.vbLf & blockText
+        nextAltText = baseText & VBA.vbLf & blockText
     End If
 
+    ' Metadata часто пересобирается при retained render с теми же значениями.
+    ' Не пишем AlternativeText повторно: запись в Shape через COM заметно дороже
+    ' строкового сравнения и на группах кнопок складывается в ощутимое время.
+    If VBA.StrComp(altText, nextAltText, VBA.vbBinaryCompare) = 0 Then
+        private_TryWriteShapeMetaMap = True
+        Exit Function
+    End If
+
+    On Error GoTo EH_WRITE
+    shp.AlternativeText = nextAltText
     private_TryWriteShapeMetaMap = True
     Exit Function
 
