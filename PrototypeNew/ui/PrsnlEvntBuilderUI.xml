@@ -25,16 +25,16 @@
 
       <stackPanel spanColls="22" spanRows="1"/>
 
-      <stackPanel name="EventDraftSectionTypeRow" orientation="horizontal">
+      <stackPanel name="EventDraftProfileRow" orientation="horizontal">
         <control
           type="ButtonGroup"
-          name="EventDraftSectionTypeButtonGroup"
-          itemsSource="{PageRuntimeSource='RuntimeItems.PrsnlEvntBuilder.SectionTypes'}"
+          name="EventDraftProfileButtonGroup"
+          itemsSource="{PageRuntimeSource='RuntimeItems.PrsnlEvntBuilder.Profiles'}"
           captionPath="Caption"
           idPath="Id"
           stylePath="StyleName"
           shapePrefix="btn_STBar_"
-          onClick="{Binding DataContext={PageRuntimeSource='RuntimeObjects.PrsnlEvntBuilder.Controller'}; Method=OnSectionTypeButtonClick}"
+          onClick="{Binding DataContext={PageRuntimeSource='RuntimeObjects.PrsnlEvntBuilder.Controller'}; Method=OnProfileButtonClick}"
           columns="4"
           flow="column"
           itemSpanRows="2"
@@ -70,155 +70,284 @@
           <control
             type="Label"
             name="HospitalHeader"
+            tags="profile.allFields;
+                  profile.closeTreatment;
+                  profile.toTreatment;
+                  profile.transferTreatmentToTreatmentVacation;
+                  profile.transferTreatmentVacationToTreatment;
+                  profile.transferVlkToTreatment"
             text="Лікарня"
-            visibility="{Binding Path=HospitalFieldVisibilityState}"
             style="tableHeaderCell"
             />
           <control
             type="Label"
             name="HospitalShortHeader"
+            tags="profile.allFields;
+                  profile.closeTreatment;
+                  profile.toTreatment;
+                  profile.transferTreatmentToTreatmentVacation;
+                  profile.transferTreatmentVacationToTreatment;
+                  profile.transferVlkToTreatment"
             text="Лікарня скорочена назва"
-            visibility="{Binding Path=HospitalShortFieldVisibilityState}"
             style="tableHeaderCell"
             />
           <control
             type="Label"
             name="VacationHeader"
+            tags="profile.allFields;
+                  profile.toAnnualVacationPart;
+                  profile.toFamilyVacation;
+                  profile.toTreatmentVacation;
+                  profile.transferTreatmentToTreatmentVacation;
+                  profile.transferTreatmentVacationToTreatmentVacation;
+                  profile.transferVlkToTreatmentVacation"
             text="Відпустка"
-            visibility="{Binding Path=VacationFieldVisibilityState}"
             style="tableHeaderCell"
             />
           <control
             type="Label"
             name="RankHeader"
+            tags="profile.allFields;
+                  profile.core"
             text="Звання"
-            visibility="{Binding Path=RankFieldVisibilityState}"
             style="tableHeaderCell"
             />
           <control
             type="Label"
             name="FioHeader"
+            tags="profile.allFields;
+                  profile.core"
             text="ПІБ"
-            visibility="{Binding Path=FioFieldVisibilityState}"
             style="tableHeaderCell"
             />
           <control
             type="Label"
             name="IpnHeader"
+            tags="profile.allFields;
+                  profile.core"
             text="ІПН"
-            visibility="{Binding Path=IpnFieldVisibilityState}"
             style="tableHeaderCell"
             />
           <control
             type="Label"
             name="PositionCodeHeader"
+            tags="profile.allFields;
+                  profile.core"
             text="Код посади"
-            visibility="{Binding Path=PositionCodeFieldVisibilityState}"
             style="tableHeaderCell"
             />
           <control
             type="Label"
             name="PositionNameHeader"
+            tags="profile.allFields;
+                  profile.core"
             text="Посада"
-            visibility="{Binding Path=PositionNameFieldVisibilityState}"
             style="tableHeaderCell"
             />
           <control
             type="Label"
             name="ReportTvoHeader"
+            tags="profile.allFields;
+                  profile.closeTreatment;
+                  profile.closeTreatmentVacation;
+                  profile.closeAnnualVacation;
+                  profile.closeFamilyVacation;
+                  profile.closeTreatmentMedicalCompany;
+                  profile.closeAmbulatoryVlk;
+                  profile.toTreatment;
+                  profile.toTreatmentMedicalCompany;
+                  profile.toAmbulatoryVlk;
+                  profile.transferTreatmentToTreatmentVacation;
+                  profile.transferTreatmentVacationToTreatmentVacation;
+                  profile.transferTreatmentVacationToTreatment;
+                  profile.transferTreatmentVacationToVlk;
+                  profile.transferVlkToTreatmentVacation;
+                  profile.transferVlkToTreatment"
             text="Рапорт ТВО"
-            visibility="{Binding Path=ReportTvoFieldVisibilityState}"
             style="tableHeaderCell"
             />
           <control
             type="Label"
             name="ReportPersonHeader"
+            tags="profile.allFields;
+                  profile.closeTreatment;
+                  profile.closeTreatmentVacation;
+                  profile.closeAnnualVacation;
+                  profile.closeFamilyVacation;
+                  profile.closeTreatmentMedicalCompany;
+                  profile.closeAmbulatoryVlk;
+                  profile.toTreatment;
+                  profile.toTreatmentMedicalCompany;
+                  profile.toAmbulatoryVlk;
+                  profile.transferTreatmentToTreatmentVacation;
+                  profile.transferTreatmentVacationToTreatmentVacation;
+                  profile.transferTreatmentVacationToTreatment;
+                  profile.transferTreatmentVacationToVlk;
+                  profile.transferVlkToTreatmentVacation;
+                  profile.transferVlkToTreatment"
             text="Рапорт кого"
-            visibility="{Binding Path=ReportPersonFieldVisibilityState}"
             style="tableHeaderCell"
             />
           <control
             type="Label"
             name="IncomingNoHeader"
+            tags="profile.allFields;
+                  profile.core"
             text="Вх. №"
-            visibility="{Binding Path=IncomingNoFieldVisibilityState}"
             style="tableHeaderCell"
             />
           <control
             type="Label"
             name="IncomingDateHeader"
+            tags="profile.allFields;
+                  profile.core"
             text="Вх. дата"
-            visibility="{Binding Path=IncomingDateFieldVisibilityState}"
             style="tableHeaderCell"
             />
           <control
             type="Label"
             name="DocumentNoteHeader"
+            tags="profile.allFields;
+                  profile.closeTreatment;
+                  profile.closeTreatmentMedicalCompany;
+                  profile.closeAmbulatoryVlk;
+                  profile.toTreatment;
+                  profile.transferTreatmentToTreatmentVacation;
+                  profile.transferTreatmentVacationToTreatment;
+                  profile.transferTreatmentVacationToVlk;
+                  profile.transferVlkToTreatment"
             text="Документ / Замітки"
-            visibility="{Binding Path=DocumentNoteFieldVisibilityState}"
             style="tableHeaderCell"
             />
           <control
             type="Label"
             name="DocNoHeader"
+            tags="profile.allFields;
+                  profile.closeTreatment;
+                  profile.closeTreatmentMedicalCompany;
+                  profile.closeAmbulatoryVlk;
+                  profile.toTreatment;
+                  profile.toTreatmentMedicalCompany;
+                  profile.toAmbulatoryVlk;
+                  profile.transferTreatmentToTreatmentVacation;
+                  profile.transferTreatmentVacationToTreatment;
+                  profile.transferTreatmentVacationToVlk;
+                  profile.transferVlkToTreatment"
             text="Док. №"
-            visibility="{Binding Path=DocNoFieldVisibilityState}"
             style="tableHeaderCell"
             />
           <control
             type="Label"
             name="DocDateHeader"
+            tags="profile.allFields;
+                  profile.closeTreatment;
+                  profile.closeTreatmentMedicalCompany;
+                  profile.closeAmbulatoryVlk;
+                  profile.toTreatment;
+                  profile.transferTreatmentToTreatmentVacation;
+                  profile.transferTreatmentVacationToTreatment;
+                  profile.transferTreatmentVacationToVlk;
+                  profile.transferVlkToTreatment"
             text="Док. дата"
-            visibility="{Binding Path=DocDateFieldVisibilityState}"
             style="tableHeaderCell"
             />
           <control
             type="Label"
             name="DurationDaysHeader"
+            tags="profile.allFields;
+                  profile.toAnnualVacationPart;
+                  profile.toFamilyVacation;
+                  profile.toTreatmentVacation;
+                  profile.transferTreatmentToTreatmentVacation;
+                  profile.transferTreatmentVacationToTreatmentVacation;
+                  profile.transferVlkToTreatmentVacation"
             text="На скільки"
-            visibility="{Binding Path=DurationDaysFieldVisibilityState}"
             style="tableHeaderCell"
             />
           <control
             type="Label"
             name="DateFromHeader"
+            tags="profile.allFields;
+                  profile.toAnnualVacationPart;
+                  profile.toFamilyVacation;
+                  profile.toTreatmentVacation;
+                  profile.transferTreatmentToTreatmentVacation;
+                  profile.transferTreatmentVacationToTreatmentVacation;
+                  profile.transferTreatmentVacationToTreatment;
+                  profile.transferTreatmentVacationToVlk;
+                  profile.transferVlkToTreatmentVacation"
             text="З"
-            visibility="{Binding Path=DateFromFieldVisibilityState}"
             style="tableHeaderCell"
             />
           <control
             type="Label"
             name="DateToHeader"
+            tags="profile.allFields;
+                  profile.toAnnualVacationPart;
+                  profile.toFamilyVacation;
+                  profile.toTreatmentVacation;
+                  profile.transferTreatmentToTreatmentVacation;
+                  profile.transferTreatmentVacationToTreatmentVacation;
+                  profile.transferVlkToTreatmentVacation"
             text="По"
-            visibility="{Binding Path=DateToFieldVisibilityState}"
             style="tableHeaderCell"
             />
           <control
             type="Label"
             name="VhNoHeader"
+            tags="profile.allFields;
+                  profile.closeTreatmentVacation;
+                  profile.closeAnnualVacation;
+                  profile.closeFamilyVacation;
+                  profile.toAnnualVacationPart;
+                  profile.toFamilyVacation;
+                  profile.toTreatmentVacation;
+                  profile.transferTreatmentToTreatmentVacation;
+                  profile.transferTreatmentVacationToTreatmentVacation;
+                  profile.transferVlkToTreatmentVacation"
             text="В/к №"
-            visibility="{Binding Path=VhNoFieldVisibilityState}"
             style="tableHeaderCell"
             />
           <control
             type="Label"
             name="VhDateHeader"
+            tags="profile.allFields;
+                  profile.closeTreatmentVacation;
+                  profile.closeAnnualVacation;
+                  profile.closeFamilyVacation;
+                  profile.toAnnualVacationPart;
+                  profile.toFamilyVacation;
+                  profile.toTreatmentVacation;
+                  profile.transferTreatmentToTreatmentVacation;
+                  profile.transferTreatmentVacationToTreatmentVacation;
+                  profile.transferVlkToTreatmentVacation"
             text="В/к дата"
-            visibility="{Binding Path=VhDateFieldVisibilityState}"
             style="tableHeaderCell"
             />
           <control
             type="Label"
             name="VlkNoHeader"
+            tags="profile.allFields;
+                  profile.closeAmbulatoryVlk;
+                  profile.toTreatmentVacation;
+                  profile.transferTreatmentToTreatmentVacation;
+                  profile.transferTreatmentVacationToTreatmentVacation;
+                  profile.transferVlkToTreatmentVacation;
+                  profile.transferVlkToTreatment"
             text="ВЛК №"
-            visibility="{Binding Path=VlkNoFieldVisibilityState}"
             style="tableHeaderCell"
             />
           <control
             type="Label"
             name="VlkDateHeader"
+            tags="profile.allFields;
+                  profile.closeAmbulatoryVlk;
+                  profile.toTreatmentVacation;
+                  profile.transferTreatmentToTreatmentVacation;
+                  profile.transferTreatmentVacationToTreatmentVacation;
+                  profile.transferVlkToTreatmentVacation;
+                  profile.transferVlkToTreatment"
             text="ВЛК дата"
-            visibility="{Binding Path=VlkDateFieldVisibilityState}"
             style="tableHeaderCell"
             />
         </stackPanel>
@@ -227,207 +356,336 @@
           <control
             type="Input"
             name="HospitalLookupInput"
-            tags="Hospital"
+            tags="Hospital;
+                  profile.allFields;
+                  profile.closeTreatment;
+                  profile.toTreatment;
+                  profile.transferTreatmentToTreatmentVacation;
+                  profile.transferTreatmentVacationToTreatment;
+                  profile.transferVlkToTreatment"
             dataContext="{PageRuntimeSource='RuntimeObjects.PrsnlEvntBuilder'}"
             value="{Binding Path=LookupQueryValues.Hospital}"
             onChange="{Binding Method=OnLookupInputCellChangedCommand}"
             onChangeArg="Hospital"
-            visibility="{Binding Path=HospitalFieldVisibilityState}"
             spanColls="1"
             spanRows="1"/>
 
           <control
             type="Label"
             name="HospitalShortDraftCell"
-            tags="HospitalShort"
+            tags="HospitalShort;
+                  profile.allFields;
+                  profile.closeTreatment;
+                  profile.toTreatment;
+                  profile.transferTreatmentToTreatmentVacation;
+                  profile.transferTreatmentVacationToTreatment;
+                  profile.transferVlkToTreatment"
             text=""
-            visibility="{Binding Path=HospitalShortFieldVisibilityState}"
             style="tableDataCell"
             />
 
           <control
             type="Label"
             name="VacationDraftCell"
-            tags="Vacation"
+            tags="Vacation;
+                  profile.allFields;
+                  profile.toAnnualVacationPart;
+                  profile.toFamilyVacation;
+                  profile.toTreatmentVacation;
+                  profile.transferTreatmentToTreatmentVacation;
+                  profile.transferTreatmentVacationToTreatmentVacation;
+                  profile.transferVlkToTreatmentVacation"
             text=""
-            visibility="{Binding Path=VacationFieldVisibilityState}"
             style="tableDataCell"
             />
 
           <control
             type="Label"
             name="RankDraftCell"
-            tags="Rank"
+            tags="Rank;
+                  profile.allFields;
+                  profile.core"
             text=""
-            visibility="{Binding Path=RankFieldVisibilityState}"
             style="tableDataCell"
             />
 
           <control
             type="Input"
             name="FioLookupInput"
-            tags="FIO"
+            tags="FIO;
+                  profile.allFields;
+                  profile.core"
             dataContext="{PageRuntimeSource='RuntimeObjects.PrsnlEvntBuilder'}"
             value="{Binding Path=LookupQueryValues.FIO}"
             onChange="{Binding Method=OnLookupInputCellChangedCommand}"
             onChangeArg="FIO"
-            visibility="{Binding Path=FioFieldVisibilityState}"
             spanColls="1"
             spanRows="1"/>
 
           <control
             type="Label"
             name="IpnDraftCell"
-            tags="Ipn"
+            tags="Ipn;
+                  profile.allFields;
+                  profile.core"
             text=""
-            visibility="{Binding Path=IpnFieldVisibilityState}"
             style="tableDataCell"
             />
 
           <control
             type="Label"
             name="PositionCodeDraftCell"
-            tags="PositionCode"
+            tags="PositionCode;
+                  profile.allFields;
+                  profile.core"
             text=""
-            visibility="{Binding Path=PositionCodeFieldVisibilityState}"
             style="tableDataCell"
             />
 
           <control
             type="Label"
             name="PositionNameDraftCell"
-            tags="PositionName"
+            tags="PositionName;
+                  profile.allFields;
+                  profile.core"
             text=""
-            visibility="{Binding Path=PositionNameFieldVisibilityState}"
             style="tableDataCell"
             />
 
           <control
             type="Label"
             name="ReportTvoDraftCell"
-            tags="ReportTvo"
+            tags="ReportTvo;
+                  profile.allFields;
+                  profile.closeTreatment;
+                  profile.closeTreatmentVacation;
+                  profile.closeAnnualVacation;
+                  profile.closeFamilyVacation;
+                  profile.closeTreatmentMedicalCompany;
+                  profile.closeAmbulatoryVlk;
+                  profile.toTreatment;
+                  profile.toTreatmentMedicalCompany;
+                  profile.toAmbulatoryVlk;
+                  profile.transferTreatmentToTreatmentVacation;
+                  profile.transferTreatmentVacationToTreatmentVacation;
+                  profile.transferTreatmentVacationToTreatment;
+                  profile.transferTreatmentVacationToVlk;
+                  profile.transferVlkToTreatmentVacation;
+                  profile.transferVlkToTreatment"
             text=""
-            visibility="{Binding Path=ReportTvoFieldVisibilityState}"
             style="tableDataCell"
             />
 
           <control
             type="Input"
             name="CommanderLookupInput"
-            tags="ReportPerson"
+            tags="ReportPerson;
+                  profile.allFields;
+                  profile.closeTreatment;
+                  profile.closeTreatmentVacation;
+                  profile.closeAnnualVacation;
+                  profile.closeFamilyVacation;
+                  profile.closeTreatmentMedicalCompany;
+                  profile.closeAmbulatoryVlk;
+                  profile.toTreatment;
+                  profile.toTreatmentMedicalCompany;
+                  profile.toAmbulatoryVlk;
+                  profile.transferTreatmentToTreatmentVacation;
+                  profile.transferTreatmentVacationToTreatmentVacation;
+                  profile.transferTreatmentVacationToTreatment;
+                  profile.transferTreatmentVacationToVlk;
+                  profile.transferVlkToTreatmentVacation;
+                  profile.transferVlkToTreatment"
             dataContext="{PageRuntimeSource='RuntimeObjects.PrsnlEvntBuilder'}"
             value="{Binding Path=LookupQueryValues.Commander}"
             onChange="{Binding Method=OnLookupInputCellChangedCommand}"
             onChangeArg="Commander"
-            visibility="{Binding Path=ReportPersonFieldVisibilityState}"
             spanColls="1"
             spanRows="1"/>
 
           <control
             type="Label"
             name="IncomingNoDraftCell"
-            tags="IncomingNo"
+            tags="IncomingNo;
+                  profile.allFields;
+                  profile.core"
             text=""
-            visibility="{Binding Path=IncomingNoFieldVisibilityState}"
             style="tableDataCell"
             />
 
           <control
             type="Label"
             name="IncomingDateDraftCell"
-            tags="IncomingDate"
+            tags="IncomingDate;
+                  profile.allFields;
+                  profile.core"
             text=""
-            visibility="{Binding Path=IncomingDateFieldVisibilityState}"
             style="tableDataCell"
             />
 
           <control
             type="Label"
             name="DocumentNoteDraftCell"
-            tags="DocumentNote"
+            tags="DocumentNote;
+                  profile.allFields;
+                  profile.closeTreatment;
+                  profile.closeTreatmentMedicalCompany;
+                  profile.closeAmbulatoryVlk;
+                  profile.toTreatment;
+                  profile.transferTreatmentToTreatmentVacation;
+                  profile.transferTreatmentVacationToTreatment;
+                  profile.transferTreatmentVacationToVlk;
+                  profile.transferVlkToTreatment"
             text=""
-            visibility="{Binding Path=DocumentNoteFieldVisibilityState}"
             style="tableDataCell"
             />
 
           <control
             type="Label"
             name="DocNoDraftCell"
-            tags="DocNo"
+            tags="DocNo;
+                  profile.allFields;
+                  profile.closeTreatment;
+                  profile.closeTreatmentMedicalCompany;
+                  profile.closeAmbulatoryVlk;
+                  profile.toTreatment;
+                  profile.toTreatmentMedicalCompany;
+                  profile.toAmbulatoryVlk;
+                  profile.transferTreatmentToTreatmentVacation;
+                  profile.transferTreatmentVacationToTreatment;
+                  profile.transferTreatmentVacationToVlk;
+                  profile.transferVlkToTreatment"
             text=""
-            visibility="{Binding Path=DocNoFieldVisibilityState}"
             style="tableDataCell"
             />
 
           <control
             type="Label"
             name="DocDateDraftCell"
-            tags="DocDate"
+            tags="DocDate;
+                  profile.allFields;
+                  profile.closeTreatment;
+                  profile.closeTreatmentMedicalCompany;
+                  profile.closeAmbulatoryVlk;
+                  profile.toTreatment;
+                  profile.transferTreatmentToTreatmentVacation;
+                  profile.transferTreatmentVacationToTreatment;
+                  profile.transferTreatmentVacationToVlk;
+                  profile.transferVlkToTreatment"
             text=""
-            visibility="{Binding Path=DocDateFieldVisibilityState}"
             style="tableDataCell"
             />
 
           <control
             type="Label"
             name="DurationDaysDraftCell"
-            tags="DurationDays"
+            tags="DurationDays;
+                  profile.allFields;
+                  profile.toAnnualVacationPart;
+                  profile.toFamilyVacation;
+                  profile.toTreatmentVacation;
+                  profile.transferTreatmentToTreatmentVacation;
+                  profile.transferTreatmentVacationToTreatmentVacation;
+                  profile.transferVlkToTreatmentVacation"
             text=""
-            visibility="{Binding Path=DurationDaysFieldVisibilityState}"
             style="tableDataCell"
             />
 
           <control
             type="Label"
             name="DateFromDraftCell"
-            tags="DateFrom"
+            tags="DateFrom;
+                  profile.allFields;
+                  profile.toAnnualVacationPart;
+                  profile.toFamilyVacation;
+                  profile.toTreatmentVacation;
+                  profile.transferTreatmentToTreatmentVacation;
+                  profile.transferTreatmentVacationToTreatmentVacation;
+                  profile.transferTreatmentVacationToTreatment;
+                  profile.transferTreatmentVacationToVlk;
+                  profile.transferVlkToTreatmentVacation"
             text=""
-            visibility="{Binding Path=DateFromFieldVisibilityState}"
             style="tableDataCell"
             />
 
           <control
             type="Label"
             name="DateToDraftCell"
-            tags="DateTo"
+            tags="DateTo;
+                  profile.allFields;
+                  profile.toAnnualVacationPart;
+                  profile.toFamilyVacation;
+                  profile.toTreatmentVacation;
+                  profile.transferTreatmentToTreatmentVacation;
+                  profile.transferTreatmentVacationToTreatmentVacation;
+                  profile.transferVlkToTreatmentVacation"
             text=""
-            visibility="{Binding Path=DateToFieldVisibilityState}"
             style="tableDataCell"
             />
 
           <control
             type="Label"
             name="VhNoDraftCell"
-            tags="VhNo"
+            tags="VhNo;
+                  profile.allFields;
+                  profile.closeTreatmentVacation;
+                  profile.closeAnnualVacation;
+                  profile.closeFamilyVacation;
+                  profile.toAnnualVacationPart;
+                  profile.toFamilyVacation;
+                  profile.toTreatmentVacation;
+                  profile.transferTreatmentToTreatmentVacation;
+                  profile.transferTreatmentVacationToTreatmentVacation;
+                  profile.transferVlkToTreatmentVacation"
             text=""
-            visibility="{Binding Path=VhNoFieldVisibilityState}"
             style="tableDataCell"
             />
 
           <control
             type="Label"
             name="VhDateDraftCell"
-            tags="VhDate"
+            tags="VhDate;
+                  profile.allFields;
+                  profile.closeTreatmentVacation;
+                  profile.closeAnnualVacation;
+                  profile.closeFamilyVacation;
+                  profile.toAnnualVacationPart;
+                  profile.toFamilyVacation;
+                  profile.toTreatmentVacation;
+                  profile.transferTreatmentToTreatmentVacation;
+                  profile.transferTreatmentVacationToTreatmentVacation;
+                  profile.transferVlkToTreatmentVacation"
             text=""
-            visibility="{Binding Path=VhDateFieldVisibilityState}"
             style="tableDataCell"
             />
 
           <control
             type="Label"
             name="VlkNoDraftCell"
-            tags="VlkNo"
+            tags="VlkNo;
+                  profile.allFields;
+                  profile.closeAmbulatoryVlk;
+                  profile.toTreatmentVacation;
+                  profile.transferTreatmentToTreatmentVacation;
+                  profile.transferTreatmentVacationToTreatmentVacation;
+                  profile.transferVlkToTreatmentVacation;
+                  profile.transferVlkToTreatment"
             text=""
-            visibility="{Binding Path=VlkNoFieldVisibilityState}"
             style="tableDataCell"
             />
 
           <control
             type="Label"
             name="VlkDateDraftCell"
-            tags="VlkDate"
+            tags="VlkDate;
+                  profile.allFields;
+                  profile.closeAmbulatoryVlk;
+                  profile.toTreatmentVacation;
+                  profile.transferTreatmentToTreatmentVacation;
+                  profile.transferTreatmentVacationToTreatmentVacation;
+                  profile.transferVlkToTreatmentVacation;
+                  profile.transferVlkToTreatment"
             text=""
-            visibility="{Binding Path=VlkDateFieldVisibilityState}"
             style="tableDataCell"
             />
         </stackPanel>
@@ -495,7 +753,7 @@
       fontBold="false"/>
 
     <controlStyle
-      name="sectionTypeButton"
+      name="profileButton"
       backColor="#0E5A1E"
       textColor="#FFFFFF"
       borderColor="#063F12"
@@ -505,7 +763,7 @@
       fontBold="true"/>
 
     <controlStyle
-      name="sectionTypeButtonSelected"
+      name="profileButtonSelected"
       backColor="#FFC000"
       textColor="#0A0A0A"
       borderColor="#B38300"

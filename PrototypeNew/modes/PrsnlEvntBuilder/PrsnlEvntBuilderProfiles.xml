@@ -28,6 +28,7 @@
     <item key="HospitalsCommanders.Sheet[Commanders].Map[CommanderReport]" value="Рапорт основний"/>
 
     <item attr="#" key="Main table columns" value=""/>
+    <item key="EntityLookup.ProfilesProviderClass" value="obj_PrsnlEvntBuilderData"/>
     <item key="EntityLookup.Table.Columns" value="Hospital; HospitalShort; Vacation; Rank; FIO; IPN; PositionCode; PositionName; ReportTVO; ReportPerson; IncomingNo; IncomingDate; DocumentNote; DocNo; DocDate; DurationDays; DateFrom; DateTo; VhNo; VhDate; VlkNo; VlkDate"/>
     <item key="EntityLookup.Table.Column[Hospital].Caption" value="Лікарня"/>
     <item key="EntityLookup.Table.Column[HospitalShort].Caption" value="Лікарня скорочена назва"/>
