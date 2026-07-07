@@ -348,30 +348,6 @@ Public Property Get LookupQueryValues() As Object
     Set LookupQueryValues = m_QueryValuesByLookupKey
 End Property
 
-Public Property Get HospitalFieldVisibilityState() As String
-    If m_Controller Is Nothing Then
-        HospitalFieldVisibilityState = "visible"
-    Else
-        HospitalFieldVisibilityState = m_Controller.HospitalFieldVisibilityState
-    End If
-End Property
-
-Public Property Get FioFieldVisibilityState() As String
-    If m_Controller Is Nothing Then
-        FioFieldVisibilityState = "visible"
-    Else
-        FioFieldVisibilityState = m_Controller.FioFieldVisibilityState
-    End If
-End Property
-
-Public Property Get ReportPersonFieldVisibilityState() As String
-    If m_Controller Is Nothing Then
-        ReportPersonFieldVisibilityState = "visible"
-    Else
-        ReportPersonFieldVisibilityState = m_Controller.ReportPersonFieldVisibilityState
-    End If
-End Property
-
 Public Function OnLookupInputCellChangedCommand(Optional ByVal arg As Variant) As Boolean
     Dim lookupKey As String
     Dim changedCellAddress As String
@@ -834,11 +810,12 @@ Private Function private_TryCaptureTaggedDraftValues(ByRef outValuesByTag As Obj
         private_TryCaptureTaggedDraftValues = True
         Exit Function
     End If
-
-    ' The draft row can change its visible columns between section types.
-    ' Capture values by logical tags, not by absolute/relative column index.
-    ' Example: value under tags="DocNo" must return to the new DocNo cell
-    ' even if DocNo shifts left/right after visibility recalculation.
+    ' Строка черновика может менять набор и порядок видимых колонок между профилями.
+    ' Поэтому сохраняем значения по логическим field-тегам, а не по номеру колонки.
+    ' Пример: значение из tags="DocNo" должно вернуться в новую ячейку DocNo,
+    ' даже если DocNo после пересчета видимости сдвинулся влево/вправо.
+    ' Служебные profile.* теги групповые и повторяются у нескольких колонок,
+    ' поэтому для восстановления значений они намеренно игнорируются.
     Set tagEntries = Nothing
     If Not m_PageBase.TryGetLayoutTagEntriesInRange(containerRange, tagEntries, "visible") Then Exit Function
     If tagEntries Is Nothing Then
@@ -846,7 +823,6 @@ Private Function private_TryCaptureTaggedDraftValues(ByRef outValuesByTag As Obj
         private_TryCaptureTaggedDraftValues = True
         Exit Function
     End If
-
     For Each tagEntryObj In tagEntries
         If Not VBA.IsObject(tagEntryObj) Then GoTo ContinueTag
         Set tagEntry = tagEntryObj
@@ -855,13 +831,14 @@ Private Function private_TryCaptureTaggedDraftValues(ByRef outValuesByTag As Obj
 
         tagText = VBA.Trim$(VBA.CStr(tagEntry("Tag")))
         If VBA.Len(tagText) = 0 Then GoTo ContinueTag
+        If private_IsProfileTag(tagText) Then GoTo ContinueTag
 
         Set tagRange = Nothing
         If Not private_TryGetLayoutTagEntryRange(tagEntry, tagRange) Then GoTo ContinueTag
         If tagRange Is Nothing Then GoTo ContinueTag
 
-        ' Snapshot shape: logical tag -> current cell value.
-        ' We intentionally do not store column indexes here.
+        ' Снимок имеет форму: логический field-тег -> текущее значение ячейки.
+        ' Номера колонок тут специально не сохраняем.
         tagValues(tagText) = tagRange.Cells(1, 1).Value2
 
 ContinueTag:
@@ -873,12 +850,18 @@ End Function
 
 Private Function private_TryRestoreTaggedDraftValues(ByVal valuesByTag As Object) As Boolean
     Dim containerRange As Range
+    Dim visibleRangeByTag As Object
     Dim tagObj As Variant
     Dim tagText As String
     Dim tagRange As Range
-    Dim targetCell As Range
+    Dim restoredValues As Variant
+    Dim hasRestoredValue As Boolean
 
     If valuesByTag Is Nothing Then
+        private_TryRestoreTaggedDraftValues = True
+        Exit Function
+    End If
+    If valuesByTag.Count = 0 Then
         private_TryRestoreTaggedDraftValues = True
         Exit Function
     End If
@@ -893,25 +876,45 @@ Private Function private_TryRestoreTaggedDraftValues(ByVal valuesByTag As Object
         private_TryRestoreTaggedDraftValues = True
         Exit Function
     End If
+    ' После render старые Range уже невалидны: то же логическое поле может оказаться
+    ' в другой колонке листа. Строим свежую карту только для тех field-тегов,
+    ' значения которых реально были сохранены перед render.
+    Set visibleRangeByTag = Nothing
+    If Not private_TryBuildVisibleLayoutTagRangeMapInContainer(containerRange, valuesByTag, visibleRangeByTag) Then Exit Function
+    If visibleRangeByTag Is Nothing Then
+        private_TryRestoreTaggedDraftValues = True
+        Exit Function
+    End If
 
-    ' After render the old ranges are invalid: the same logical field may now
-    ' be located in another worksheet column. Resolve each saved tag against
-    ' the freshly registered visible layout tags inside EventDraftValues.
+    restoredValues = containerRange.Value2
     For Each tagObj In valuesByTag.Keys
         tagText = VBA.Trim$(VBA.CStr(tagObj))
         If VBA.Len(tagText) = 0 Then GoTo ContinueTag
+        If private_IsProfileTag(tagText) Then GoTo ContinueTag
 
         Set tagRange = Nothing
-        If Not private_TryGetVisibleLayoutTagRangeInContainer(tagText, containerRange, tagRange) Then Exit Function
+        If Not visibleRangeByTag.Exists(tagText) Then
+            GoTo ContinueTag
+        End If
+        Set tagRange = visibleRangeByTag(tagText)
         If tagRange Is Nothing Then GoTo ContinueTag
 
-        Set targetCell = tagRange.Cells(1, 1)
-        targetCell.NumberFormat = "@"
-        ' Restore by semantic field tag, not by previous visual position.
-        targetCell.Value2 = valuesByTag(tagObj)
+        ' Восстанавливаем по смысловому тегу поля, а не по прежней позиции на экране.
+        If Not private_TrySetContainerValueByCell(containerRange, restoredValues, tagRange.Cells(1, 1), valuesByTag(tagObj)) Then Exit Function
+        hasRestoredValue = True
 
 ContinueTag:
     Next tagObj
+
+    If Not hasRestoredValue Then
+        private_TryRestoreTaggedDraftValues = True
+        Exit Function
+    End If
+
+    ' Пишем всю строку формы одним вызовом в Excel. Это заметно дешевле,
+    ' чем делать NumberFormat/Value2 отдельно для каждой восстановленной ячейки.
+    containerRange.NumberFormat = "@"
+    containerRange.Value2 = restoredValues
 
     private_TryRestoreTaggedDraftValues = True
 End Function
@@ -949,6 +952,33 @@ Private Function private_ContainerValueShapeMatches( _
     End If
 End Function
 
+Private Function private_TrySetContainerValueByCell( _
+    ByVal containerRange As Range, _
+    ByRef containerValues As Variant, _
+    ByVal targetCell As Range, _
+    ByVal valueToSet As Variant _
+) As Boolean
+    Dim rowOffset As Long
+    Dim colOffset As Long
+
+    If containerRange Is Nothing Then Exit Function
+    If targetCell Is Nothing Then Exit Function
+
+    rowOffset = targetCell.Row - containerRange.Row + 1
+    colOffset = targetCell.Column - containerRange.Column + 1
+    If rowOffset <= 0 Or colOffset <= 0 Then Exit Function
+    If rowOffset > containerRange.Rows.Count Or colOffset > containerRange.Columns.Count Then Exit Function
+
+    If VBA.IsArray(containerValues) Then
+        containerValues(rowOffset, colOffset) = valueToSet
+    Else
+        If rowOffset <> 1 Or colOffset <> 1 Then Exit Function
+        containerValues = valueToSet
+    End If
+
+    private_TrySetContainerValueByCell = True
+End Function
+
 Private Function private_ArrayRowCount(ByRef values As Variant) As Long
     On Error Resume Next
     private_ArrayRowCount = UBound(values, 1) - LBound(values, 1) + 1
@@ -961,49 +991,75 @@ Private Function private_ArrayColumnCount(ByRef values As Variant) As Long
     On Error GoTo 0
 End Function
 
-Private Function private_TryGetVisibleLayoutTagRangeInContainer( _
-    ByVal tagText As String, _
+Private Function private_TryBuildVisibleLayoutTagRangeMapInContainer( _
     ByVal containerRange As Range, _
-    ByRef outRange As Range _
+    ByVal requiredTags As Object, _
+    ByRef outRangeByTag As Object _
 ) As Boolean
     Dim tagEntries As Collection
     Dim tagEntryObj As Variant
     Dim tagEntry As Object
-    Dim entryTag As String
+    Dim tagObj As Variant
+    Dim tagText As String
+    Dim tagRange As Range
 
-    Set outRange = Nothing
+    Set outRangeByTag = Nothing
     If m_PageBase Is Nothing Then Exit Function
     If containerRange Is Nothing Then Exit Function
-
-    tagText = VBA.Trim$(tagText)
-    If VBA.Len(tagText) = 0 Then Exit Function
-
-    Set tagEntries = Nothing
-    If Not m_PageBase.TryGetLayoutTagEntriesInRange(containerRange, tagEntries, "visible") Then Exit Function
-    If tagEntries Is Nothing Then
-        private_TryGetVisibleLayoutTagRangeInContainer = True
+    If requiredTags Is Nothing Then
+        Set outRangeByTag = ex_Helpers.fn_CreateDictionaryTextCompare()
+        private_TryBuildVisibleLayoutTagRangeMapInContainer = True
         Exit Function
     End If
 
-    ' Scope the search to EventDraftValues. The same tag may be reused elsewhere
-    ' on the page later; draft restore must only touch the form value row.
-    For Each tagEntryObj In tagEntries
-        If Not VBA.IsObject(tagEntryObj) Then GoTo ContinueEntry
-        Set tagEntry = tagEntryObj
-        If tagEntry Is Nothing Then GoTo ContinueEntry
-        If Not tagEntry.Exists("Tag") Then GoTo ContinueEntry
+    Set outRangeByTag = ex_Helpers.fn_CreateDictionaryTextCompare()
 
-        entryTag = VBA.Trim$(VBA.CStr(tagEntry("Tag")))
-        If VBA.StrComp(entryTag, tagText, VBA.vbTextCompare) <> 0 Then GoTo ContinueEntry
+    ' Берем только обычные field-теги из snapshot-а. Служебные profile.* теги
+    ' описывают видимость, часто повторяются у многих колонок и не являются
+    ' адресом для restore. Точечный lookup по тегу дешевле, чем обход всей
+    ' runtime-карты layout-тегов, особенно после добавления длинных profile.* списков.
+    For Each tagObj In requiredTags.Keys
+        tagText = VBA.Trim$(VBA.CStr(tagObj))
+        If VBA.Len(tagText) = 0 Then GoTo ContinueTag
+        If private_IsProfileTag(tagText) Then GoTo ContinueTag
+        If outRangeByTag.Exists(tagText) Then GoTo ContinueTag
 
-        If Not private_TryGetLayoutTagEntryRange(tagEntry, outRange) Then Exit Function
-        private_TryGetVisibleLayoutTagRangeInContainer = True
-        Exit Function
+        Set tagEntries = Nothing
+        If Not m_PageBase.TryGetLayoutTagEntries(tagText, tagEntries, "visible") Then
+            ' Поле могло быть видимым в старом профиле и исчезнуть в новом.
+            ' Это нормальная ситуация при смене профиля: пропускаем тег,
+            ' но продолжаем восстанавливать остальные общие поля.
+            GoTo ContinueTag
+        End If
+        If tagEntries Is Nothing Then
+            GoTo ContinueTag
+        End If
+
+        For Each tagEntryObj In tagEntries
+            If Not VBA.IsObject(tagEntryObj) Then GoTo ContinueEntry
+            Set tagEntry = tagEntryObj
+            If tagEntry Is Nothing Then GoTo ContinueEntry
+
+            Set tagRange = Nothing
+            If Not private_TryGetLayoutTagEntryRange(tagEntry, tagRange) Then Exit Function
+            If tagRange Is Nothing Then GoTo ContinueEntry
+            If Application.Intersect(tagRange, containerRange) Is Nothing Then GoTo ContinueEntry
+
+            Set outRangeByTag(tagText) = tagRange
+            Exit For
 
 ContinueEntry:
-    Next tagEntryObj
+        Next tagEntryObj
 
-    private_TryGetVisibleLayoutTagRangeInContainer = True
+ContinueTag:
+    Next tagObj
+
+    private_TryBuildVisibleLayoutTagRangeMapInContainer = True
+End Function
+
+Private Function private_IsProfileTag(ByVal tagText As String) As Boolean
+    tagText = VBA.LCase$(VBA.Trim$(tagText))
+    private_IsProfileTag = (VBA.Left$(tagText, VBA.Len("profile.")) = "profile.")
 End Function
 
 Private Function private_TryGetLayoutTagEntryRange( _

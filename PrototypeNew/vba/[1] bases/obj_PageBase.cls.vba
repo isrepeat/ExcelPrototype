@@ -846,9 +846,10 @@ Public Function RegisterLayoutTags( _
 
     private_EnsureStorage
     For Each tagObj In tags
-        tagText = VBA.Trim$(VBA.CStr(tagObj))
-        tagKey = VBA.LCase$(tagText)
+        tagText = VBA.CStr(tagObj)
+        tagKey = private_NormalizeLayoutTagText(tagText)
         If VBA.Len(tagKey) = 0 Then GoTo ContinueTag
+        tagText = tagKey
 
         If m_LayoutTagEntriesByTag.Exists(tagKey) Then
             Set entries = m_LayoutTagEntriesByTag(tagKey)
@@ -894,7 +895,7 @@ Public Function TryGetFirstLayoutTagRange( _
 
     ' Consumers such as LookupCandidates usually need the rendered visible
     ' control for a logical tag, not the old static XML/config order.
-    tagKey = VBA.LCase$(VBA.Trim$(tagText))
+    tagKey = private_NormalizeLayoutTagText(tagText)
     If VBA.Len(tagKey) = 0 Then Exit Function
     If m_LayoutTagEntriesByTag Is Nothing Then Exit Function
     If Not m_LayoutTagEntriesByTag.Exists(tagKey) Then Exit Function
@@ -950,7 +951,7 @@ Public Function TryGetLayoutTagEntries( _
     If Not private_EnsureNotDisposed("TryGetLayoutTagEntries") Then Exit Function
     Set outEntries = Nothing
 
-    tagKey = VBA.LCase$(VBA.Trim$(tagText))
+    tagKey = private_NormalizeLayoutTagText(tagText)
     If VBA.Len(tagKey) = 0 Then Exit Function
     If m_LayoutTagEntriesByTag Is Nothing Then Exit Function
     If Not m_LayoutTagEntriesByTag.Exists(tagKey) Then Exit Function
@@ -2014,11 +2015,19 @@ Private Function private_SplitTags(ByVal tagsText As String) As Collection
     Set result = New Collection
     parts = VBA.Split(tagsText, ";")
     For idx = LBound(parts) To UBound(parts)
-        tagText = VBA.Trim$(VBA.CStr(parts(idx)))
+        tagText = private_NormalizeLayoutTagText(VBA.CStr(parts(idx)))
         If VBA.Len(tagText) > 0 Then result.Add tagText
     Next idx
 
     If result.Count > 0 Then Set private_SplitTags = result
+End Function
+
+Private Function private_NormalizeLayoutTagText(ByVal tagText As String) As String
+    tagText = VBA.CStr(tagText)
+    tagText = VBA.Replace(tagText, VBA.vbCr, " ")
+    tagText = VBA.Replace(tagText, VBA.vbLf, " ")
+    tagText = VBA.Replace(tagText, VBA.vbTab, " ")
+    private_NormalizeLayoutTagText = VBA.LCase$(VBA.Trim$(tagText))
 End Function
 
 Private Sub private_DeleteOrphanRuntimeShapesByControlRegistry(ByVal ws As Worksheet)

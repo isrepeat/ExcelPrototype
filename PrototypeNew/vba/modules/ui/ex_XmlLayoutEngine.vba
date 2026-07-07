@@ -324,16 +324,98 @@ Private Function private_TryResolveNodeVisibilityState( _
     visibilityRaw = VBA.Trim$(VBA.CStr(ex_XmlCore.fn_NodeAttrText(node, "visibility")))
     If VBA.Len(visibilityRaw) = 0 Then
         outVisibilityState = VISIBILITY_STATE_VISIBLE
-        private_TryResolveNodeVisibilityState = True
+    Else
+        ' visibility всегда вычисляется относительно текущего dataContext узла.
+        ' Для вложенных list/itemControl этот контекст приходит от родительского итема.
+        ' Если dataContext не передан сверху, пробуем поднять локальный context узла.
+        If Not private_TryResolveNodeVisibilityContext(renderCtx, node, dataContext, visibilityContext) Then Exit Function
+        If Not ex_BindingRuntime.fn_TryResolveVisibilityStateBinding(visibilityRaw, visibilityContext, outVisibilityState) Then Exit Function
+    End If
+
+    If Not private_TryApplyProfileTagVisibilityState(renderCtx, node, outVisibilityState) Then Exit Function
+    private_TryResolveNodeVisibilityState = True
+End Function
+
+Private Function private_TryApplyProfileTagVisibilityState( _
+    ByVal renderCtx As obj_LayoutRenderContext, _
+    ByVal node As Object, _
+    ByRef ioVisibilityState As String _
+) As Boolean
+    Dim tagsText As String
+    Dim controllerObj As Object
+    Dim profileVisibilityState As Variant
+
+    If node Is Nothing Then
+        private_TryApplyProfileTagVisibilityState = True
+        Exit Function
+    End If
+    If VBA.StrComp(ioVisibilityState, VISIBILITY_STATE_COLLAPSED, VBA.vbBinaryCompare) = 0 Then
+        private_TryApplyProfileTagVisibilityState = True
         Exit Function
     End If
 
-    ' visibility всегда вычисляется относительно текущего dataContext узла.
-    ' Для вложенных list/itemControl этот контекст приходит от родительского итема.
-    ' Если dataContext не передан сверху, пробуем поднять локальный context узла.
-    If Not private_TryResolveNodeVisibilityContext(renderCtx, node, dataContext, visibilityContext) Then Exit Function
-    If Not ex_BindingRuntime.fn_TryResolveVisibilityStateBinding(visibilityRaw, visibilityContext, outVisibilityState) Then Exit Function
-    private_TryResolveNodeVisibilityState = True
+    tagsText = VBA.Trim$(VBA.CStr(ex_XmlCore.fn_NodeAttrText(node, "tags")))
+    If Not private_HasProfileTags(tagsText) Then
+        private_TryApplyProfileTagVisibilityState = True
+        Exit Function
+    End If
+
+    ' profile.* теги являются декларативным слоем видимости.
+    ' Layout engine не знает бизнес-правила профиля: он только передает теги
+    ' контроллеру страницы, а контроллер делегирует выбор provider-классу из конфига.
+    If renderCtx Is Nothing Then Exit Function
+    If renderCtx.Page Is Nothing Then Exit Function
+    If Not renderCtx.Page.TryGetController(controllerObj) Then Exit Function
+    If controllerObj Is Nothing Then Exit Function
+
+    On Error Resume Next
+    profileVisibilityState = VBA.CallByName(controllerObj, "ResolveProfileVisibilityState", VbMethod, tagsText)
+    If Err.Number <> 0 Then
+#If LOGGING_DEBUG_ENABLED Then
+        ex_Core.fn_Diagnostic_LogError "PrototypeNew: page controller must expose ResolveProfileVisibilityState(tagsText) for profile-tagged layout nodes."
+#End If
+        Err.Clear
+        On Error GoTo 0
+        Exit Function
+    End If
+    On Error GoTo 0
+
+    ioVisibilityState = private_NormalizeVisibilityState(VBA.CStr(profileVisibilityState))
+    private_TryApplyProfileTagVisibilityState = True
+End Function
+
+Private Function private_HasProfileTags(ByVal tagsText As String) As Boolean
+    Dim tagObj As Variant
+    Dim tagText As String
+
+    tagsText = VBA.Trim$(tagsText)
+    If VBA.Len(tagsText) = 0 Then Exit Function
+
+    For Each tagObj In VBA.Split(tagsText, ";")
+        tagText = private_NormalizeTagText(VBA.CStr(tagObj))
+        If VBA.Left$(tagText, VBA.Len("profile.")) = "profile." Then
+            private_HasProfileTags = True
+            Exit Function
+        End If
+    Next tagObj
+End Function
+
+Private Function private_NormalizeTagText(ByVal tagText As String) As String
+    tagText = VBA.CStr(tagText)
+    tagText = VBA.Replace(tagText, VBA.vbCr, " ")
+    tagText = VBA.Replace(tagText, VBA.vbLf, " ")
+    tagText = VBA.Replace(tagText, VBA.vbTab, " ")
+    private_NormalizeTagText = VBA.LCase$(VBA.Trim$(tagText))
+End Function
+
+Private Function private_NormalizeVisibilityState(ByVal visibilityState As String) As String
+    visibilityState = VBA.LCase$(VBA.Trim$(visibilityState))
+    Select Case visibilityState
+        Case VISIBILITY_STATE_HIDDEN, VISIBILITY_STATE_COLLAPSED
+            private_NormalizeVisibilityState = visibilityState
+        Case Else
+            private_NormalizeVisibilityState = VISIBILITY_STATE_VISIBLE
+    End Select
 End Function
 
 

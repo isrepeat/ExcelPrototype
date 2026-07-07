@@ -26,6 +26,30 @@ Private Const SECTION_TYPE_TRANSFER_VLK_TO_TREATMENT As String = "Зміна м�
 Private Const SECTION_TYPE_TO_BUSINESS_TRIP As String = "У відрядження"
 Private Const SECTION_TYPE_TO_BUSINESS_TRIP_SZCH As String = "У відрядження сзч"
 
+Private Const PROFILE_TAG_PREFIX As String = "profile."
+Private Const PROFILE_TAG_ALL_FIELDS As String = "profile.allFields"
+Private Const PROFILE_TAG_CORE As String = "profile.core"
+Private Const PROFILE_TAG_CLOSE_TREATMENT As String = "profile.closeTreatment"
+Private Const PROFILE_TAG_CLOSE_TREATMENT_VACATION As String = "profile.closeTreatmentVacation"
+Private Const PROFILE_TAG_CLOSE_ANNUAL_VACATION As String = "profile.closeAnnualVacation"
+Private Const PROFILE_TAG_CLOSE_FAMILY_VACATION As String = "profile.closeFamilyVacation"
+Private Const PROFILE_TAG_CLOSE_TREATMENT_MEDICAL_COMPANY As String = "profile.closeTreatmentMedicalCompany"
+Private Const PROFILE_TAG_CLOSE_AMBULATORY_VLK As String = "profile.closeAmbulatoryVlk"
+Private Const PROFILE_TAG_TO_TREATMENT As String = "profile.toTreatment"
+Private Const PROFILE_TAG_TO_ANNUAL_VACATION_PART As String = "profile.toAnnualVacationPart"
+Private Const PROFILE_TAG_TO_FAMILY_VACATION As String = "profile.toFamilyVacation"
+Private Const PROFILE_TAG_TO_TREATMENT_VACATION As String = "profile.toTreatmentVacation"
+Private Const PROFILE_TAG_TO_TREATMENT_MEDICAL_COMPANY As String = "profile.toTreatmentMedicalCompany"
+Private Const PROFILE_TAG_TO_AMBULATORY_VLK As String = "profile.toAmbulatoryVlk"
+Private Const PROFILE_TAG_TRANSFER_TREATMENT_TO_TREATMENT_VACATION As String = "profile.transferTreatmentToTreatmentVacation"
+Private Const PROFILE_TAG_TRANSFER_TREATMENT_VACATION_TO_TREATMENT_VACATION As String = "profile.transferTreatmentVacationToTreatmentVacation"
+Private Const PROFILE_TAG_TRANSFER_TREATMENT_VACATION_TO_TREATMENT As String = "profile.transferTreatmentVacationToTreatment"
+Private Const PROFILE_TAG_TRANSFER_TREATMENT_VACATION_TO_VLK As String = "profile.transferTreatmentVacationToVlk"
+Private Const PROFILE_TAG_TRANSFER_VLK_TO_TREATMENT_VACATION As String = "profile.transferVlkToTreatmentVacation"
+Private Const PROFILE_TAG_TRANSFER_VLK_TO_TREATMENT As String = "profile.transferVlkToTreatment"
+Private Const PROFILE_TAG_TO_BUSINESS_TRIP As String = "profile.toBusinessTrip"
+Private Const PROFILE_TAG_TO_BUSINESS_TRIP_SZCH As String = "profile.toBusinessTripSzch"
+
 Private Const MOVEMENT_EVENT_STATIONARY_TREATMENT As String = "Стаціонарне лікування"
 Private Const MOVEMENT_EVENT_ANNUAL_VACATION As String = "Щорічна відпустка"
 Private Const MOVEMENT_EVENT_FAMILY_VACATION As String = "Відпустка за сімейними обставинами"
@@ -33,15 +57,35 @@ Private Const MOVEMENT_EVENT_TREATMENT_VACATION As String = "Відпустка 
 Private Const MOVEMENT_EVENT_AMBULATORY_VLK As String = "Амбулаторне ВЛК"
 Private Const MOVEMENT_EVENT_STATIONARY_VLK As String = "Стаціонарне ВЛК"
 
-Private m_SectionTypeNames As Collection
+Private m_ProfileNames As Collection
+Private m_ProfileTagBySectionType As Object
 
 Private Sub Class_Initialize()
-    Set m_SectionTypeNames = private_BuildSectionTypeNames()
+    Set m_ProfileNames = private_BuildProfileNames()
+    Set m_ProfileTagBySectionType = private_BuildProfileTagMap()
 End Sub
 
 Public Property Get SectionTypeNames() As Collection
-    Set SectionTypeNames = private_CopyCollection(m_SectionTypeNames)
+    Set SectionTypeNames = private_CopyCollection(m_ProfileNames)
 End Property
+
+Public Property Get ProfileNames() As Collection
+    Set ProfileNames = private_CopyCollection(m_ProfileNames)
+End Property
+
+Public Function ResolveProfileVisibilityState( _
+    ByVal profileText As String, _
+    ByVal tagsText As String _
+) As String
+    ' UI перечисляет profile.* теги на колонках формы.
+    ' Provider выбирает теги активного профиля, а layout engine скрывает все,
+    ' где нет пересечения. Контроллер при этом не знает ни алиасы колонок, ни теги.
+    If private_ShouldShowTaggedControlForProfile(profileText, tagsText) Then
+        ResolveProfileVisibilityState = "visible"
+    Else
+        ResolveProfileVisibilityState = "collapsed"
+    End If
+End Function
 
 Public Property Get SectionTypeCloseFromTreatment() As String
     SectionTypeCloseFromTreatment = SECTION_TYPE_CLOSE_FROM_TREATMENT
@@ -218,32 +262,143 @@ Public Function TryMapMovementSectionTypeToEventText( _
     TryMapMovementSectionTypeToEventText = (VBA.Len(outEventText) > 0)
 End Function
 
-Private Function private_BuildSectionTypeNames() As Collection
-    Dim sectionTypes As Collection
+Private Function private_BuildProfileNames() As Collection
+    Dim profileNames As Collection
 
-    Set sectionTypes = New Collection
-    sectionTypes.Add SECTION_TYPE_CLOSE_FROM_TREATMENT
-    sectionTypes.Add SECTION_TYPE_CLOSE_FROM_TREATMENT_VACATION
-    sectionTypes.Add SECTION_TYPE_CLOSE_FROM_ANNUAL_VACATION
-    sectionTypes.Add SECTION_TYPE_CLOSE_FROM_FAMILY_VACATION
-    sectionTypes.Add SECTION_TYPE_CLOSE_FROM_TREATMENT_MEDICAL_COMPANY
-    sectionTypes.Add SECTION_TYPE_CLOSE_FROM_AMBULATORY_VLK
-    sectionTypes.Add SECTION_TYPE_TO_TREATMENT
-    sectionTypes.Add SECTION_TYPE_TO_ANNUAL_VACATION_PART
-    sectionTypes.Add SECTION_TYPE_TO_FAMILY_VACATION
-    sectionTypes.Add SECTION_TYPE_TO_TREATMENT_VACATION
-    sectionTypes.Add SECTION_TYPE_TO_TREATMENT_MEDICAL_COMPANY
-    sectionTypes.Add SECTION_TYPE_TO_AMBULATORY_VLK
-    sectionTypes.Add SECTION_TYPE_TRANSFER_TREATMENT_TO_TREATMENT_VACATION
-    sectionTypes.Add SECTION_TYPE_TRANSFER_TREATMENT_VACATION_TO_TREATMENT_VACATION
-    sectionTypes.Add SECTION_TYPE_TRANSFER_TREATMENT_VACATION_TO_TREATMENT
-    sectionTypes.Add SECTION_TYPE_TRANSFER_TREATMENT_VACATION_TO_VLK
-    sectionTypes.Add SECTION_TYPE_TRANSFER_VLK_TO_TREATMENT_VACATION
-    sectionTypes.Add SECTION_TYPE_TRANSFER_VLK_TO_TREATMENT
-    sectionTypes.Add SECTION_TYPE_TO_BUSINESS_TRIP
-    sectionTypes.Add SECTION_TYPE_TO_BUSINESS_TRIP_SZCH
+    Set profileNames = New Collection
+    profileNames.Add SECTION_TYPE_CLOSE_FROM_TREATMENT
+    profileNames.Add SECTION_TYPE_CLOSE_FROM_TREATMENT_VACATION
+    profileNames.Add SECTION_TYPE_CLOSE_FROM_ANNUAL_VACATION
+    profileNames.Add SECTION_TYPE_CLOSE_FROM_FAMILY_VACATION
+    profileNames.Add SECTION_TYPE_CLOSE_FROM_TREATMENT_MEDICAL_COMPANY
+    profileNames.Add SECTION_TYPE_CLOSE_FROM_AMBULATORY_VLK
+    profileNames.Add SECTION_TYPE_TO_TREATMENT
+    profileNames.Add SECTION_TYPE_TO_ANNUAL_VACATION_PART
+    profileNames.Add SECTION_TYPE_TO_FAMILY_VACATION
+    profileNames.Add SECTION_TYPE_TO_TREATMENT_VACATION
+    profileNames.Add SECTION_TYPE_TO_TREATMENT_MEDICAL_COMPANY
+    profileNames.Add SECTION_TYPE_TO_AMBULATORY_VLK
+    profileNames.Add SECTION_TYPE_TRANSFER_TREATMENT_TO_TREATMENT_VACATION
+    profileNames.Add SECTION_TYPE_TRANSFER_TREATMENT_VACATION_TO_TREATMENT_VACATION
+    profileNames.Add SECTION_TYPE_TRANSFER_TREATMENT_VACATION_TO_TREATMENT
+    profileNames.Add SECTION_TYPE_TRANSFER_TREATMENT_VACATION_TO_VLK
+    profileNames.Add SECTION_TYPE_TRANSFER_VLK_TO_TREATMENT_VACATION
+    profileNames.Add SECTION_TYPE_TRANSFER_VLK_TO_TREATMENT
+    profileNames.Add SECTION_TYPE_TO_BUSINESS_TRIP
+    profileNames.Add SECTION_TYPE_TO_BUSINESS_TRIP_SZCH
 
-    Set private_BuildSectionTypeNames = sectionTypes
+    Set private_BuildProfileNames = profileNames
+End Function
+
+Private Function private_BuildProfileTagMap() As Object
+    Dim tagMap As Object
+
+    Set tagMap = VBA.CreateObject("Scripting.Dictionary")
+    tagMap.CompareMode = 1
+
+    tagMap(private_NormalizeText(SECTION_TYPE_CLOSE_FROM_TREATMENT)) = PROFILE_TAG_CLOSE_TREATMENT
+    tagMap(private_NormalizeText(SECTION_TYPE_CLOSE_FROM_TREATMENT_VACATION)) = PROFILE_TAG_CLOSE_TREATMENT_VACATION
+    tagMap(private_NormalizeText(SECTION_TYPE_CLOSE_FROM_ANNUAL_VACATION)) = PROFILE_TAG_CLOSE_ANNUAL_VACATION
+    tagMap(private_NormalizeText(SECTION_TYPE_CLOSE_FROM_FAMILY_VACATION)) = PROFILE_TAG_CLOSE_FAMILY_VACATION
+    tagMap(private_NormalizeText(SECTION_TYPE_CLOSE_FROM_TREATMENT_MEDICAL_COMPANY)) = PROFILE_TAG_CLOSE_TREATMENT_MEDICAL_COMPANY
+    tagMap(private_NormalizeText(SECTION_TYPE_CLOSE_FROM_AMBULATORY_VLK)) = PROFILE_TAG_CLOSE_AMBULATORY_VLK
+    tagMap(private_NormalizeText(SECTION_TYPE_TO_TREATMENT)) = PROFILE_TAG_TO_TREATMENT
+    tagMap(private_NormalizeText(SECTION_TYPE_TO_ANNUAL_VACATION_PART)) = PROFILE_TAG_TO_ANNUAL_VACATION_PART
+    tagMap(private_NormalizeText(SECTION_TYPE_TO_FAMILY_VACATION)) = PROFILE_TAG_TO_FAMILY_VACATION
+    tagMap(private_NormalizeText(SECTION_TYPE_TO_TREATMENT_VACATION)) = PROFILE_TAG_TO_TREATMENT_VACATION
+    tagMap(private_NormalizeText(SECTION_TYPE_TO_TREATMENT_MEDICAL_COMPANY)) = PROFILE_TAG_TO_TREATMENT_MEDICAL_COMPANY
+    tagMap(private_NormalizeText(SECTION_TYPE_TO_AMBULATORY_VLK)) = PROFILE_TAG_TO_AMBULATORY_VLK
+    tagMap(private_NormalizeText(SECTION_TYPE_TRANSFER_TREATMENT_TO_TREATMENT_VACATION)) = PROFILE_TAG_TRANSFER_TREATMENT_TO_TREATMENT_VACATION
+    tagMap(private_NormalizeText(SECTION_TYPE_TRANSFER_TREATMENT_VACATION_TO_TREATMENT_VACATION)) = PROFILE_TAG_TRANSFER_TREATMENT_VACATION_TO_TREATMENT_VACATION
+    tagMap(private_NormalizeText(SECTION_TYPE_TRANSFER_TREATMENT_VACATION_TO_TREATMENT)) = PROFILE_TAG_TRANSFER_TREATMENT_VACATION_TO_TREATMENT
+    tagMap(private_NormalizeText(SECTION_TYPE_TRANSFER_TREATMENT_VACATION_TO_VLK)) = PROFILE_TAG_TRANSFER_TREATMENT_VACATION_TO_VLK
+    tagMap(private_NormalizeText(SECTION_TYPE_TRANSFER_VLK_TO_TREATMENT_VACATION)) = PROFILE_TAG_TRANSFER_VLK_TO_TREATMENT_VACATION
+    tagMap(private_NormalizeText(SECTION_TYPE_TRANSFER_VLK_TO_TREATMENT)) = PROFILE_TAG_TRANSFER_VLK_TO_TREATMENT
+    tagMap(private_NormalizeText(SECTION_TYPE_TO_BUSINESS_TRIP)) = PROFILE_TAG_TO_BUSINESS_TRIP
+    tagMap(private_NormalizeText(SECTION_TYPE_TO_BUSINESS_TRIP_SZCH)) = PROFILE_TAG_TO_BUSINESS_TRIP_SZCH
+
+    Set private_BuildProfileTagMap = tagMap
+End Function
+
+Private Function private_ShouldShowTaggedControlForProfile( _
+    ByVal profileText As String, _
+    ByVal tagsText As String _
+) As Boolean
+    Dim visibleTags As Object
+    Dim tagObj As Variant
+    Dim tagText As String
+    Dim hasProfileTags As Boolean
+
+    tagsText = VBA.Trim$(tagsText)
+    If VBA.Len(tagsText) = 0 Then
+        private_ShouldShowTaggedControlForProfile = True
+        Exit Function
+    End If
+
+    Set visibleTags = private_ProfileVisibleTags(profileText)
+    If visibleTags Is Nothing Then Exit Function
+
+    For Each tagObj In VBA.Split(tagsText, ";")
+        tagText = private_NormalizeTagText(VBA.CStr(tagObj))
+        If VBA.Len(tagText) = 0 Then GoTo ContinueTag
+        If Not private_IsProfileTag(tagText) Then GoTo ContinueTag
+
+        hasProfileTags = True
+        If visibleTags.Exists(tagText) Then
+            private_ShouldShowTaggedControlForProfile = True
+            Exit Function
+        End If
+
+ContinueTag:
+    Next tagObj
+
+    ' Обычные layout tags без profile.* не участвуют в фильтрации видимости.
+    private_ShouldShowTaggedControlForProfile = Not hasProfileTags
+End Function
+
+Private Function private_ProfileVisibleTags(ByVal profileText As String) As Object
+    Dim result As Object
+    Dim profileKey As String
+    Dim profileTag As String
+
+    Set result = VBA.CreateObject("Scripting.Dictionary")
+    result.CompareMode = 1
+    profileKey = private_NormalizeText(profileText)
+    If m_ProfileTagBySectionType Is Nothing Then Set m_ProfileTagBySectionType = private_BuildProfileTagMap()
+    If Not m_ProfileTagBySectionType.Exists(profileKey) Then Exit Function
+
+    profileTag = VBA.Trim$(VBA.CStr(m_ProfileTagBySectionType(profileKey)))
+    private_AddProfileTag result, PROFILE_TAG_CORE
+    private_AddProfileTag result, profileTag
+
+    ' Для профилей без отдельной настройки формы показываем все колонки,
+    ' помеченные wildcard-тегом profile.allFields.
+    Select Case profileTag
+        Case PROFILE_TAG_TO_BUSINESS_TRIP, PROFILE_TAG_TO_BUSINESS_TRIP_SZCH
+            private_AddProfileTag result, PROFILE_TAG_ALL_FIELDS
+    End Select
+
+    Set private_ProfileVisibleTags = result
+End Function
+
+Private Function private_IsProfileTag(ByVal tagText As String) As Boolean
+    tagText = private_NormalizeTagText(tagText)
+    private_IsProfileTag = (VBA.Left$(tagText, VBA.Len(PROFILE_TAG_PREFIX)) = PROFILE_TAG_PREFIX)
+End Function
+
+Private Sub private_AddProfileTag(ByVal tags As Object, ByVal tagText As String)
+    tagText = private_NormalizeTagText(tagText)
+    If tags Is Nothing Then Exit Sub
+    If VBA.Len(tagText) = 0 Then Exit Sub
+    tags(tagText) = True
+End Sub
+
+Private Function private_NormalizeTagText(ByVal tagText As String) As String
+    tagText = VBA.CStr(tagText)
+    tagText = VBA.Replace(tagText, VBA.vbCr, " ")
+    tagText = VBA.Replace(tagText, VBA.vbLf, " ")
+    tagText = VBA.Replace(tagText, VBA.vbTab, " ")
+    private_NormalizeTagText = VBA.LCase$(VBA.Trim$(tagText))
 End Function
 
 Private Function private_NormalizeText(ByVal valueText As String) As String
