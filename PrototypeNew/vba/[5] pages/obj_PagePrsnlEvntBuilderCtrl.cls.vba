@@ -12,8 +12,9 @@ Private Const CANDIDATE_TABLES_RUNTIME_KEY As String = "RuntimeItems.PrsnlEvntBu
 Private Const DUMMY_TABLES_RUNTIME_KEY As String = "RuntimeItems.PrsnlEvntBuilder.DummyTables"
 Private Const HOTKEYS_RUNTIME_KEY As String = "RuntimeItems.PrsnlEvntBuilder.Hotkeys"
 Private Const SECTION_TYPES_RUNTIME_KEY As String = "RuntimeItems.PrsnlEvntBuilder.SectionTypes"
-Private Const HOTKEY_ACTION_1 As String = "Action 1"
-Private Const HOTKEY_ACTION_2 As String = "Action 2"
+Private Const HOTKEY_ACCEPT_CANDIDATE_ROW As String = "Accept Candidate Row"
+Private Const STALE_HOTKEY_ACTION_1 As String = "Action 1"
+Private Const STALE_HOTKEY_ACTION_2 As String = "Action 2"
 Private Const HOTKEY_SELECT_FORM_ROW As String = "Select Form Row"
 Private Const EXPORT_CONFIG_PREFIX As String = "Export."
 Private Const EXPORT_FILE_PATH_SUFFIX As String = ".FilePath"
@@ -311,15 +312,11 @@ Public Function RuntimeHandleHotkeyAction(ByVal actionId As Variant) As Boolean
 
     ' Page-specific actions branch by stable action ids and read current sheet state.
     Select Case VBA.LCase$(actionText)
-        Case VBA.LCase$(HOTKEY_ACTION_1)
+        Case VBA.LCase$(HOTKEY_ACCEPT_CANDIDATE_ROW)
             If Not private_TryAcceptCandidateRowFromSelection(targetCell) Then
                 RuntimeHandleHotkeyAction = True
                 Exit Function
             End If
-
-        Case VBA.LCase$(HOTKEY_ACTION_2)
-            targetCell.Interior.Color = VBA.RGB(126, 36, 121)
-            targetCell.Font.Color = VBA.RGB(255, 255, 255)
 
         Case VBA.LCase$(HOTKEY_SELECT_FORM_ROW)
             If Not private_TrySelectScopedRowFromSelection(targetCell) Then Exit Function
@@ -1252,6 +1249,8 @@ Private Function private_BuildDraftFieldVisibilityFlags(ByVal normalizedSectionT
                 DRAFT_FIELD_IPN, _
                 DRAFT_FIELD_POSITION_CODE, _
                 DRAFT_FIELD_POSITION_NAME, _
+                DRAFT_FIELD_REPORT_TVO, _
+                DRAFT_FIELD_REPORT_PERSON, _
                 DRAFT_FIELD_INCOMING_NO, _
                 DRAFT_FIELD_INCOMING_DATE, _
                 DRAFT_FIELD_DOCUMENT_NOTE, _
@@ -1274,6 +1273,8 @@ Private Function private_BuildDraftFieldVisibilityFlags(ByVal normalizedSectionT
                 DRAFT_FIELD_IPN, _
                 DRAFT_FIELD_POSITION_CODE, _
                 DRAFT_FIELD_POSITION_NAME, _
+                DRAFT_FIELD_REPORT_TVO, _
+                DRAFT_FIELD_REPORT_PERSON, _
                 DRAFT_FIELD_INCOMING_NO, _
                 DRAFT_FIELD_INCOMING_DATE, _
                 DRAFT_FIELD_DURATION_DAYS, _
@@ -1294,6 +1295,8 @@ Private Function private_BuildDraftFieldVisibilityFlags(ByVal normalizedSectionT
                 DRAFT_FIELD_IPN, _
                 DRAFT_FIELD_POSITION_CODE, _
                 DRAFT_FIELD_POSITION_NAME, _
+                DRAFT_FIELD_REPORT_TVO, _
+                DRAFT_FIELD_REPORT_PERSON, _
                 DRAFT_FIELD_INCOMING_NO, _
                 DRAFT_FIELD_INCOMING_DATE, _
                 DRAFT_FIELD_DOCUMENT_NOTE, _
@@ -1309,6 +1312,8 @@ Private Function private_BuildDraftFieldVisibilityFlags(ByVal normalizedSectionT
                 DRAFT_FIELD_IPN, _
                 DRAFT_FIELD_POSITION_CODE, _
                 DRAFT_FIELD_POSITION_NAME, _
+                DRAFT_FIELD_REPORT_TVO, _
+                DRAFT_FIELD_REPORT_PERSON, _
                 DRAFT_FIELD_INCOMING_NO, _
                 DRAFT_FIELD_INCOMING_DATE, _
                 DRAFT_FIELD_DOCUMENT_NOTE, _
@@ -1325,6 +1330,8 @@ Private Function private_BuildDraftFieldVisibilityFlags(ByVal normalizedSectionT
                 DRAFT_FIELD_IPN, _
                 DRAFT_FIELD_POSITION_CODE, _
                 DRAFT_FIELD_POSITION_NAME, _
+                DRAFT_FIELD_REPORT_TVO, _
+                DRAFT_FIELD_REPORT_PERSON, _
                 DRAFT_FIELD_INCOMING_NO, _
                 DRAFT_FIELD_INCOMING_DATE, _
                 DRAFT_FIELD_DURATION_DAYS, _
@@ -1580,8 +1587,9 @@ Private Function private_EnsureHotkeyRows(ByVal notifyChange As Boolean) As Bool
             If existingRows.Count > 0 Then
                 Set hotkeyRows = existingRows
                 If Not private_RemoveStaleExportHotkeyRows(hotkeyRows, hasChanges) Then Exit Function
-                If Not private_EnsureHotkeyRow(hotkeyRows, HOTKEY_ACTION_1, "CTRL+ENTER", hasChanges) Then Exit Function
-                If Not private_EnsureHotkeyRow(hotkeyRows, HOTKEY_ACTION_2, "CTRL+SHIFT+R", hasChanges) Then Exit Function
+                If Not private_RemoveHotkeyRowsByAction(hotkeyRows, STALE_HOTKEY_ACTION_1, hasChanges) Then Exit Function
+                If Not private_RemoveHotkeyRowsByAction(hotkeyRows, STALE_HOTKEY_ACTION_2, hasChanges) Then Exit Function
+                If Not private_EnsureHotkeyRow(hotkeyRows, HOTKEY_ACCEPT_CANDIDATE_ROW, "CTRL+ENTER", hasChanges) Then Exit Function
                 If Not private_EnsureExportHotkeyRows(hotkeyRows, hasChanges) Then Exit Function
                 If Not private_EnsureHotkeyRow(hotkeyRows, HOTKEY_SELECT_FORM_ROW, "SHIFT+SPACE", hasChanges) Then Exit Function
                 If hasChanges Then
@@ -1600,8 +1608,7 @@ Private Function private_EnsureHotkeyRows(ByVal notifyChange As Boolean) As Bool
     ' Defaults — это только стартовые данные страницы. Активными они становятся
     ' после render HotkeysControl и RuntimeRegisterBoundRows, где регистрируются
     ' routes для этой страницы.
-    If Not private_AddHotkeyRow(hotkeyRows, HOTKEY_ACTION_1, "CTRL+ENTER") Then Exit Function
-    If Not private_AddHotkeyRow(hotkeyRows, HOTKEY_ACTION_2, "CTRL+SHIFT+R") Then Exit Function
+    If Not private_AddHotkeyRow(hotkeyRows, HOTKEY_ACCEPT_CANDIDATE_ROW, "CTRL+ENTER") Then Exit Function
     If Not private_AddExportHotkeyRows(hotkeyRows) Then Exit Function
     If Not private_AddHotkeyRow(hotkeyRows, HOTKEY_SELECT_FORM_ROW, "SHIFT+SPACE") Then Exit Function
 
@@ -1624,6 +1631,42 @@ Private Function private_EnsureHotkeyRow( _
     End If
 
     private_EnsureHotkeyRow = True
+End Function
+
+Private Function private_RemoveHotkeyRowsByAction( _
+    ByVal hotkeyRows As Collection, _
+    ByVal actionId As String, _
+    ByRef ioHasChanges As Boolean _
+) As Boolean
+    Dim idx As Long
+    Dim rowObj As Object
+    Dim configEntry As obj_ConfigEntry
+
+    If hotkeyRows Is Nothing Then Exit Function
+    actionId = VBA.Trim$(actionId)
+    If VBA.Len(actionId) = 0 Then
+        private_RemoveHotkeyRowsByAction = True
+        Exit Function
+    End If
+
+    For idx = hotkeyRows.Count To 1 Step -1
+        Set rowObj = Nothing
+        Set configEntry = Nothing
+        On Error Resume Next
+        Set rowObj = hotkeyRows.Item(idx)
+        Set configEntry = rowObj
+        On Error GoTo 0
+        If configEntry Is Nothing Then GoTo ContinueRow
+
+        If VBA.StrComp(VBA.Trim$(configEntry.Key), actionId, VBA.vbTextCompare) = 0 Then
+            hotkeyRows.Remove idx
+            ioHasChanges = True
+        End If
+
+ContinueRow:
+    Next idx
+
+    private_RemoveHotkeyRowsByAction = True
 End Function
 
 Private Function private_EnsureExportHotkeyRows( _

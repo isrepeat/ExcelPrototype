@@ -13,6 +13,7 @@ Private Const DEFAULT_COLUMNS As Long = 2
 Private Const DEFAULT_CAPTION_PATH As String = "Caption"
 Private Const DEFAULT_ID_PATH As String = "Id"
 Private Const DEFAULT_STYLE_PATH As String = "StyleName"
+Private Const DEFAULT_ITEM_SPAN_ROWS As Long = 1
 Private Const FLOW_ROW As String = "row"
 Private Const FLOW_COLUMN As String = "column"
 
@@ -32,6 +33,7 @@ Private m_IdPath As String
 Private m_StylePath As String
 Private m_ShapePrefix As String
 Private m_FlowDirection As String
+Private m_ItemSpanRows As Long
 Private m_IsConfigured As Boolean
 Private m_IsDisposed As Boolean
 
@@ -74,6 +76,7 @@ Private Sub obj_IControl_Configure(ByVal controlNode As Object)
     m_StylePath = DEFAULT_STYLE_PATH
     m_ShapePrefix = VBA.vbNullString
     m_FlowDirection = FLOW_ROW
+    m_ItemSpanRows = DEFAULT_ITEM_SPAN_ROWS
 
     If m_Page Is Nothing Then Exit Sub
     Set pageBase = m_Page.GetPageBase()
@@ -127,6 +130,8 @@ Private Sub obj_IControl_Configure(ByVal controlNode As Object)
     m_StylePath = private_ReadPathAttr(controlNode, "stylePath", DEFAULT_STYLE_PATH)
     m_ShapePrefix = VBA.Trim$(VBA.CStr(ex_XmlCore.fn_NodeAttrText(controlNode, "shapePrefix")))
     m_FlowDirection = private_ReadFlowDirection(controlNode)
+    ' itemSpanRows задает высоту одной кнопки в layout-строках.
+    m_ItemSpanRows = private_ReadPositiveLongAttr(controlNode, "itemSpanRows", DEFAULT_ITEM_SPAN_ROWS)
 
     Set m_ControlLayout = New obj_ControlLayout
     If Not m_ControlLayout.TryReadFromNode(controlNode, "ButtonGroup", m_ControlName, "style") Then Exit Sub
@@ -156,8 +161,7 @@ Private Sub obj_IControl_Render()
     Dim macroRef As String
     Dim flattenedItems As Collection
     Dim rowsPerColumn As Long
-    Dim perfStart As Double
-    Dim perfLast As Double
+    Dim buttonSpanCols As Long
 
     If Not m_IsConfigured Then Exit Sub
     If m_Page Is Nothing Then Exit Sub
@@ -167,14 +171,8 @@ Private Sub obj_IControl_Render()
     If ws Is Nothing Then Exit Sub
     If m_Items Is Nothing Then Exit Sub
 
-    perfStart = VBA.Timer
-    perfLast = perfStart
-
     Set flattenedItems = private_FlattenItems(m_Items)
     itemCount = flattenedItems.Count
-#If LOGGING_DEBUG_ENABLED Then
-    private_LogPerfStep "buttongroup:items-flattened", perfStart, perfLast, "control='" & private_EscapeForLog(m_ControlName) & "' count=" & VBA.CStr(itemCount)
-#End If
     If itemCount <= 0 Then
         If Not pageBase.RegisterControl(m_RuntimeControlKey, Me) Then Exit Sub
         private_DeleteExtraShapes ws, 1
@@ -187,6 +185,7 @@ Private Sub obj_IControl_Render()
     If Not pageBase.RegisterControl(m_RuntimeControlKey, Me) Then Exit Sub
 
     rowsPerColumn = private_RowsPerColumn(itemCount)
+    buttonSpanCols = private_ButtonSpanCols()
     itemIndex = 0
     For Each itemObj In flattenedItems
         itemIndex = itemIndex + 1
@@ -201,11 +200,12 @@ Private Sub obj_IControl_Render()
         End If
         If colIndex >= m_Columns Then Exit For
 
-        rowStart = m_ControlLayout.RowStart + rowIndex
-        rowEnd = rowStart
-        colStart = m_ControlLayout.ColStart + colIndex * private_ButtonSpanCols()
-        colEnd = colStart + private_ButtonSpanCols() - 1
+        rowStart = m_ControlLayout.RowStart + rowIndex * m_ItemSpanRows
+        rowEnd = rowStart + m_ItemSpanRows - 1
+        colStart = m_ControlLayout.ColStart + colIndex * buttonSpanCols
+        colEnd = colStart + buttonSpanCols - 1
         If rowStart > m_ControlLayout.RowEnd Then Exit For
+        If rowEnd > m_ControlLayout.RowEnd Then rowEnd = m_ControlLayout.RowEnd
         If colEnd > m_ControlLayout.ColEnd Then colEnd = m_ControlLayout.ColEnd
 
         On Error Resume Next
@@ -229,9 +229,6 @@ ContinueItem:
     Next itemObj
 
     private_DeleteExtraShapes ws, itemIndex + 1
-#If LOGGING_DEBUG_ENABLED Then
-    private_LogPerfStep "buttongroup:rendered", perfStart, perfLast, "control='" & private_EscapeForLog(m_ControlName) & "' count=" & VBA.CStr(itemIndex)
-#End If
 End Sub
 
 Private Function obj_IControl_Measure( _
@@ -247,7 +244,7 @@ End Function
 
 Private Function obj_IControl_SupportsAttribute(ByVal attrName As String) As Boolean
     Select Case VBA.LCase$(VBA.Trim$(attrName))
-        Case "itemssource", "onclick", "columns", "captionpath", "idpath", "stylepath", "shapeprefix", "flow"
+        Case "itemssource", "onclick", "columns", "captionpath", "idpath", "stylepath", "shapeprefix", "flow", "itemspanrows"
             obj_IControl_SupportsAttribute = True
     End Select
 End Function
@@ -281,6 +278,22 @@ Private Function private_ReadFlowDirection(ByVal controlNode As Object) As Strin
     End Select
 End Function
 
+Private Function private_ReadPositiveLongAttr( _
+    ByVal controlNode As Object, _
+    ByVal attrName As String, _
+    ByVal defaultValue As Long _
+) As Long
+    Dim attrValue As String
+
+    private_ReadPositiveLongAttr = defaultValue
+    attrValue = VBA.Trim$(VBA.CStr(ex_XmlCore.fn_NodeAttrText(controlNode, attrName)))
+    If VBA.Len(attrValue) = 0 Then Exit Function
+    If Not VBA.IsNumeric(attrValue) Then Exit Function
+
+    private_ReadPositiveLongAttr = VBA.CLng(attrValue)
+    If private_ReadPositiveLongAttr <= 0 Then private_ReadPositiveLongAttr = defaultValue
+End Function
+
 Private Function private_ButtonSpanCols() As Long
     Dim availableCols As Long
 
@@ -295,17 +308,20 @@ End Function
 
 Private Function private_RowsPerColumn(ByVal itemCount As Long) As Long
     Dim availableRows As Long
+    Dim availableItemRows As Long
 
     availableRows = m_ControlLayout.RowEnd - m_ControlLayout.RowStart + 1
     If availableRows <= 0 Then availableRows = 1
+    availableItemRows = availableRows \ m_ItemSpanRows
+    If availableItemRows <= 0 Then availableItemRows = 1
     If itemCount <= 0 Then
-        private_RowsPerColumn = availableRows
+        private_RowsPerColumn = availableItemRows
     ElseIf Not private_IsColumnFlow() Then
-        private_RowsPerColumn = availableRows
+        private_RowsPerColumn = availableItemRows
     Else
         private_RowsPerColumn = (itemCount + m_Columns - 1) \ m_Columns
         If private_RowsPerColumn <= 0 Then private_RowsPerColumn = 1
-        If private_RowsPerColumn > availableRows Then private_RowsPerColumn = availableRows
+        If private_RowsPerColumn > availableItemRows Then private_RowsPerColumn = availableItemRows
     End If
 End Function
 
@@ -503,28 +519,39 @@ Private Function private_GetOrCreateShape(ByVal ws As Worksheet, ByVal shapeName
         Set shp = ws.Shapes.AddShape(msoShapeRoundedRectangle, targetRange.Left, targetRange.Top, targetRange.Width, targetRange.Height)
         shp.Name = shapeName
     Else
-        shp.Left = targetRange.Left
-        shp.Top = targetRange.Top
-        shp.Width = targetRange.Width
-        shp.Height = targetRange.Height
+        ' В retained render shape обычно уже на нужном месте. Избегаем лишних
+        ' COM-записей в Excel object model: они заметно дороже обычных сравнений.
+        If Not private_DoublesClose(shp.Left, targetRange.Left) Then shp.Left = targetRange.Left
+        If Not private_DoublesClose(shp.Top, targetRange.Top) Then shp.Top = targetRange.Top
+        If Not private_DoublesClose(shp.Width, targetRange.Width) Then shp.Width = targetRange.Width
+        If Not private_DoublesClose(shp.Height, targetRange.Height) Then shp.Height = targetRange.Height
     End If
-    shp.Placement = xlMoveAndSize
+    If shp.Placement <> xlMoveAndSize Then shp.Placement = xlMoveAndSize
 
     Set private_GetOrCreateShape = shp
 End Function
 
 Private Sub private_ApplyShapeContent(ByVal shp As Shape, ByVal captionText As String)
+    Dim currentText As String
+
     If shp Is Nothing Then Exit Sub
 
     On Error Resume Next
-    shp.TextFrame2.TextRange.Text = captionText
+    currentText = VBA.CStr(shp.TextFrame2.TextRange.Text)
+    If VBA.StrComp(currentText, captionText, VBA.vbBinaryCompare) <> 0 Then
+        shp.TextFrame2.TextRange.Text = captionText
+        shp.TextFrame.Characters.Text = captionText
+    End If
     shp.TextFrame2.VerticalAnchor = msoAnchorMiddle
     shp.TextFrame2.TextRange.ParagraphFormat.Alignment = msoAlignCenter
-    shp.TextFrame.Characters.Text = captionText
     shp.TextFrame.HorizontalAlignment = xlHAlignCenter
     shp.TextFrame.VerticalAlignment = xlVAlignCenter
     On Error GoTo 0
 End Sub
+
+Private Function private_DoublesClose(ByVal leftValue As Double, ByVal rightValue As Double) As Boolean
+    private_DoublesClose = (VBA.Abs(leftValue - rightValue) < 0.05)
+End Function
 
 Private Function private_SetShapeMeta(ByVal shp As Shape, ByVal styleName As String) As Boolean
     Dim metaMap As Object
@@ -590,37 +617,3 @@ Private Function private_QualifyMacroName(ByVal macroName As String) As String
     wbName = VBA.Replace$(wbName, "'", "''")
     private_QualifyMacroName = "'" & wbName & "'!" & macroName
 End Function
-
-#If LOGGING_DEBUG_ENABLED Then
-Private Sub private_LogPerfStep( _
-    ByVal stepName As String, _
-    ByVal startedAt As Double, _
-    ByRef lastAt As Double, _
-    Optional ByVal details As String = "" _
-)
-    Dim nowAt As Double
-    Dim stepMs As Double
-    Dim totalMs As Double
-    Dim messageText As String
-
-    nowAt = VBA.Timer
-    stepMs = private_ElapsedMs(lastAt, nowAt)
-    totalMs = private_ElapsedMs(startedAt, nowAt)
-    lastAt = nowAt
-
-    messageText = "perf:render:" & stepName & _
-        " stepMs=" & VBA.Format$(stepMs, "0.0") & _
-        " totalMs=" & VBA.Format$(totalMs, "0.0")
-    If VBA.Len(VBA.Trim$(details)) > 0 Then messageText = messageText & " " & details
-    ex_Core.fn_Diagnostic_LogInfo messageText
-End Sub
-
-Private Function private_ElapsedMs(ByVal startedAt As Double, ByVal endedAt As Double) As Double
-    If endedAt < startedAt Then endedAt = endedAt + 86400#
-    private_ElapsedMs = (endedAt - startedAt) * 1000#
-End Function
-
-Private Function private_EscapeForLog(ByVal valueText As String) As String
-    private_EscapeForLog = VBA.Replace$(VBA.Trim$(VBA.CStr(valueText)), "'", "''")
-End Function
-#End If
