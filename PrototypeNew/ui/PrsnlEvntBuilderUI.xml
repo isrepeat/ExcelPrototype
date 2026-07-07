@@ -25,7 +25,7 @@
 
       <stackPanel spanColls="22" spanRows="1"/>
 
-      <stackPanel name="EventDraftSectionTypeRow" orientation="horizontal" spanColls="8" spanRows="10">
+      <stackPanel name="EventDraftSectionTypeRow" orientation="horizontal">
         <control
           type="ButtonGroup"
           name="EventDraftSectionTypeButtonGroup"
@@ -35,10 +35,11 @@
           stylePath="StyleName"
           shapePrefix="btn_STBar_"
           onClick="{Binding DataContext={PageRuntimeSource='RuntimeObjects.PrsnlEvntBuilder.Controller'}; Method=OnSectionTypeButtonClick}"
-          columns="2"
+          columns="4"
           flow="column"
-          spanColls="4"
-          spanRows="10"/>
+          itemSpanRows="2"
+          spanColls="8"
+          spanRows="11"/>
         
         <control
           type="Label"
@@ -524,7 +525,7 @@
                 width:15;
                 rowHeight:21;
                 cellType:text;
-                zoom:80%;
+                zoom:75%;
               }"/>
 
         <rule target="column"
