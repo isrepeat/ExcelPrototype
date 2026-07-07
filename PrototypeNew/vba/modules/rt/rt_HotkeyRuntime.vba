@@ -122,6 +122,14 @@ Public Function fn_ActivatePageHotkeys(ByVal pageId As String) As Boolean
     pageId = VBA.LCase$(VBA.Trim$(pageId))
     private_EnsureStorage
 
+    ' Повторный render активной страницы часто заново строит те же page-local routes.
+    ' Если физические Application.OnKey уже соответствуют этой странице, не снимаем
+    ' и не назначаем их повторно: OnKey — одна из самых дорогих частей rerender-а.
+    If private_AreActivePageHotkeysCurrent(pageId) Then
+        fn_ActivatePageHotkeys = True
+        Exit Function
+    End If
+
     private_UnassignActivePhysicalHotkeys
     g_ActivePageId = pageId
 
@@ -140,29 +148,71 @@ Public Function fn_ActivatePageHotkeys(ByVal pageId As String) As Boolean
         End If
     Next hotkeyKey
 
+    private_RemoveEmptyHotkeyEntries
     fn_ActivatePageHotkeys = Not hasFailure
 End Function
 
-Public Sub fn_UnregisterPageHotkeys(ByVal pageId As String)
+Private Function private_AreActivePageHotkeysCurrent(ByVal pageId As String) As Boolean
+    Dim expectedKeys As Object
+    Dim hotkeyKey As Variant
+    Dim entry As Object
+    Dim pages As Object
+
+    pageId = VBA.LCase$(VBA.Trim$(pageId))
+    If VBA.Len(pageId) = 0 Then
+        private_AreActivePageHotkeysCurrent = (VBA.Len(VBA.Trim$(g_ActivePageId)) = 0)
+        Exit Function
+    End If
+    If VBA.StrComp(g_ActivePageId, pageId, VBA.vbTextCompare) <> 0 Then Exit Function
+    If g_EntryByHotkey Is Nothing Then Exit Function
+    If g_ActiveHotkeyByKey Is Nothing Then Exit Function
+
+    Set expectedKeys = VBA.CreateObject("Scripting.Dictionary")
+    expectedKeys.CompareMode = 1
+
+    For Each hotkeyKey In g_EntryByHotkey.Keys
+        Set entry = g_EntryByHotkey(hotkeyKey)
+        Set pages = entry("Pages")
+        If Not pages Is Nothing Then
+            If pages.Exists(pageId) Then expectedKeys(VBA.CStr(hotkeyKey)) = True
+        End If
+    Next hotkeyKey
+
+    If expectedKeys.Count <> g_ActiveHotkeyByKey.Count Then Exit Function
+    For Each hotkeyKey In expectedKeys.Keys
+        If Not g_ActiveHotkeyByKey.Exists(VBA.CStr(hotkeyKey)) Then Exit Function
+    Next hotkeyKey
+
+    private_AreActivePageHotkeysCurrent = True
+End Function
+
+Public Sub fn_UnregisterPageHotkeys(ByVal pageId As String, Optional ByVal keepActivePhysicalHotkeys As Boolean = False)
     Dim hotkeyKey As Variant
     Dim keysToRemove As Collection
     Dim entry As Object
     Dim pages As Object
     Dim removeKey As Variant
+    Dim keepPhysicalForActivePage As Boolean
 
     pageId = VBA.LCase$(VBA.Trim$(pageId))
     If VBA.Len(pageId) = 0 Then Exit Sub
     If g_EntryByHotkey Is Nothing Then Exit Sub
 
+    keepPhysicalForActivePage = _
+        (keepActivePhysicalHotkeys And VBA.StrComp(g_ActivePageId, pageId, VBA.vbTextCompare) = 0)
+
     ' Убираем только эту страницу из общих hotkeys. Физическая OnKey-привязка
-    ' освобождается только когда ни одна страница больше не ссылается на token.
+    ' обычно освобождается только когда ни одна страница больше не ссылается на token.
+    ' Во время rerender активной страницы можно временно оставить физические OnKey:
+    ' если после render будут зарегистрированы те же hotkeys, Excel не придется
+    ' снимать и назначать их заново.
     Set keysToRemove = New Collection
     For Each hotkeyKey In g_EntryByHotkey.Keys
         Set entry = g_EntryByHotkey(hotkeyKey)
         Set pages = entry("Pages")
         If Not pages Is Nothing Then
             If pages.Exists(pageId) Then pages.Remove pageId
-            If pages.Count = 0 Then keysToRemove.Add VBA.CStr(hotkeyKey)
+            If pages.Count = 0 And Not keepPhysicalForActivePage Then keysToRemove.Add VBA.CStr(hotkeyKey)
         End If
     Next hotkeyKey
 
@@ -170,7 +220,7 @@ Public Sub fn_UnregisterPageHotkeys(ByVal pageId As String)
         private_UnregisterHotkey VBA.CStr(removeKey)
     Next removeKey
 
-    If VBA.StrComp(g_ActivePageId, pageId, VBA.vbTextCompare) = 0 Then
+    If VBA.StrComp(g_ActivePageId, pageId, VBA.vbTextCompare) = 0 And Not keepPhysicalForActivePage Then
         private_UnassignActivePhysicalHotkeys
         g_ActivePageId = VBA.vbNullString
     End If
@@ -398,6 +448,31 @@ Private Sub private_UnregisterHotkey(ByVal hotkeyKey As String)
         End If
         g_EntryByHotkey.Remove hotkeyKey
     End If
+End Sub
+
+Private Sub private_RemoveEmptyHotkeyEntries()
+    Dim hotkeyKey As Variant
+    Dim keysToRemove As Collection
+    Dim entry As Object
+    Dim pages As Object
+    Dim removeKey As Variant
+
+    If g_EntryByHotkey Is Nothing Then Exit Sub
+
+    Set keysToRemove = New Collection
+    For Each hotkeyKey In g_EntryByHotkey.Keys
+        Set entry = g_EntryByHotkey(hotkeyKey)
+        Set pages = entry("Pages")
+        If pages Is Nothing Then
+            keysToRemove.Add VBA.CStr(hotkeyKey)
+        ElseIf pages.Count = 0 Then
+            keysToRemove.Add VBA.CStr(hotkeyKey)
+        End If
+    Next hotkeyKey
+
+    For Each removeKey In keysToRemove
+        private_UnregisterHotkey VBA.CStr(removeKey)
+    Next removeKey
 End Sub
 
 Private Function private_BuildSlotMacroRef(ByVal slotIndex As Long) As String

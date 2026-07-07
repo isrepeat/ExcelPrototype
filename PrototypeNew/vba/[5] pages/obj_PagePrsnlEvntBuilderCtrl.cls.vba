@@ -13,8 +13,6 @@ Private Const DUMMY_TABLES_RUNTIME_KEY As String = "RuntimeItems.PrsnlEvntBuilde
 Private Const HOTKEYS_RUNTIME_KEY As String = "RuntimeItems.PrsnlEvntBuilder.Hotkeys"
 Private Const SECTION_TYPES_RUNTIME_KEY As String = "RuntimeItems.PrsnlEvntBuilder.SectionTypes"
 Private Const HOTKEY_ACCEPT_CANDIDATE_ROW As String = "Accept Candidate Row"
-Private Const STALE_HOTKEY_ACTION_1 As String = "Action 1"
-Private Const STALE_HOTKEY_ACTION_2 As String = "Action 2"
 Private Const HOTKEY_SELECT_FORM_ROW As String = "Select Form Row"
 Private Const EXPORT_CONFIG_PREFIX As String = "Export."
 Private Const EXPORT_FILE_PATH_SUFFIX As String = ".FilePath"
@@ -1587,8 +1585,6 @@ Private Function private_EnsureHotkeyRows(ByVal notifyChange As Boolean) As Bool
             If existingRows.Count > 0 Then
                 Set hotkeyRows = existingRows
                 If Not private_RemoveStaleExportHotkeyRows(hotkeyRows, hasChanges) Then Exit Function
-                If Not private_RemoveHotkeyRowsByAction(hotkeyRows, STALE_HOTKEY_ACTION_1, hasChanges) Then Exit Function
-                If Not private_RemoveHotkeyRowsByAction(hotkeyRows, STALE_HOTKEY_ACTION_2, hasChanges) Then Exit Function
                 If Not private_EnsureHotkeyRow(hotkeyRows, HOTKEY_ACCEPT_CANDIDATE_ROW, "CTRL+ENTER", hasChanges) Then Exit Function
                 If Not private_EnsureExportHotkeyRows(hotkeyRows, hasChanges) Then Exit Function
                 If Not private_EnsureHotkeyRow(hotkeyRows, HOTKEY_SELECT_FORM_ROW, "SHIFT+SPACE", hasChanges) Then Exit Function

@@ -108,25 +108,95 @@ Private Function obj_IPage_Render() As Boolean
     Dim draftValuesByTag As Object
     Dim orderNoValues As Variant
     Dim hasOrderNoValues As Boolean
+    Dim app As Application
+    Dim prevCursor As Variant
+    Dim hasPrevCursor As Boolean
+    Dim renderOk As Boolean
+    Dim perfStart As Double
+    Dim perfLast As Double
 
-    If Not m_PageBase.IsReady() Then Exit Function
+    On Error GoTo EH
 
-    If Not private_TryCaptureTaggedDraftValues(draftValuesByTag) Then Exit Function
+    If Not m_PageBase.IsReady() Then GoTo Cleanup
+
+    Set app = Application
+    ' PageBase снимает fast render mode до восстановления значений и hotkeys.
+    ' Держим wait-курсор до конца page-level хвоста, чтобы Excel не мигал busy/default/busy.
+    prevCursor = xlDefault
+    On Error Resume Next
+    prevCursor = app.Cursor
+    If Err.Number <> 0 Then Err.Clear
+    app.Cursor = xlWait
+    hasPrevCursor = (Err.Number = 0)
+    Err.Clear
+    On Error GoTo EH
+
+    perfStart = VBA.Timer
+    perfLast = perfStart
+#If LOGGING_DEBUG_ENABLED Then
+    private_LogRenderPerfStep "prsnlevnt:render:start", perfStart, perfLast
+#End If
+
+    If Not private_TryCaptureTaggedDraftValues(draftValuesByTag) Then GoTo Cleanup
+#If LOGGING_DEBUG_ENABLED Then
+    private_LogRenderPerfStep "prsnlevnt:render:capture-tagged-draft-values", perfStart, perfLast
+#End If
+
     hasOrderNoValues = private_TryCaptureLayoutContainerValues(EVENT_DRAFT_ORDER_NO_CONTAINER_NAME, orderNoValues)
-    If Not m_PageBase.Render() Then Exit Function
+#If LOGGING_DEBUG_ENABLED Then
+    private_LogRenderPerfStep "prsnlevnt:render:capture-order-no-values", perfStart, perfLast, "hasValues=" & VBA.CStr(hasOrderNoValues)
+#End If
 
-    If Not private_TryRestoreTaggedDraftValues(draftValuesByTag) Then Exit Function
+    If Not m_PageBase.Render() Then GoTo Cleanup
+#If LOGGING_DEBUG_ENABLED Then
+    private_LogRenderPerfStep "prsnlevnt:render:pagebase-render-returned", perfStart, perfLast
+#End If
+
+    If Not private_TryRestoreTaggedDraftValues(draftValuesByTag) Then GoTo Cleanup
+#If LOGGING_DEBUG_ENABLED Then
+    private_LogRenderPerfStep "prsnlevnt:render:restore-tagged-draft-values", perfStart, perfLast
+#End If
+
     If hasOrderNoValues Then
-        If Not private_TryRestoreLayoutContainerValues(EVENT_DRAFT_ORDER_NO_CONTAINER_NAME, orderNoValues) Then Exit Function
+        If Not private_TryRestoreLayoutContainerValues(EVENT_DRAFT_ORDER_NO_CONTAINER_NAME, orderNoValues) Then GoTo Cleanup
     End If
+#If LOGGING_DEBUG_ENABLED Then
+    private_LogRenderPerfStep "prsnlevnt:render:restore-order-no-values", perfStart, perfLast, "hasValues=" & VBA.CStr(hasOrderNoValues)
+#End If
 
-    If Not private_TryRestorePendingControlSnapshots() Then Exit Function
+    If Not private_TryRestorePendingControlSnapshots() Then GoTo Cleanup
+#If LOGGING_DEBUG_ENABLED Then
+    private_LogRenderPerfStep "prsnlevnt:render:restore-pending-control-snapshots", perfStart, perfLast
+#End If
+
 #If PRSNL_EVNT_BUILDER_HOTKEYS_ENABLED Then
     ' HotkeysControl рендерится из RuntimeItems. После render повторно применяем
     ' его текущую таблицу, чтобы restored/default строки стали активными OnKey-привязками.
-    If Not private_TryRegisterRenderedHotkeys() Then Exit Function
+    If Not private_TryRegisterRenderedHotkeys() Then GoTo Cleanup
+#If LOGGING_DEBUG_ENABLED Then
+    private_LogRenderPerfStep "prsnlevnt:render:register-rendered-hotkeys", perfStart, perfLast
 #End If
-    obj_IPage_Render = True
+#End If
+    renderOk = True
+
+Cleanup:
+#If LOGGING_DEBUG_ENABLED Then
+    If perfStart > 0 Then private_LogRenderPerfStep "prsnlevnt:render:complete", perfStart, perfLast, "ok=" & VBA.CStr(renderOk)
+#End If
+    If hasPrevCursor Then
+        On Error Resume Next
+        app.Cursor = prevCursor
+        On Error GoTo 0
+    End If
+    obj_IPage_Render = renderOk
+    Exit Function
+
+EH:
+#If LOGGING_DEBUG_ENABLED Then
+    ex_Core.fn_Diagnostic_LogError "obj_PagePrsnlEvntBuilder.Render failed: " & Err.Description
+#End If
+    renderOk = False
+    Resume Cleanup
 End Function
 
 Private Function obj_IPage_UpdateUiPath( _
@@ -979,6 +1049,36 @@ Private Sub private_SetLookupQueryValue(ByVal lookupKey As String, ByVal queryTe
     private_EnsureLookupQueryStorage
     m_QueryValuesByLookupKey(lookupKey) = VBA.Trim$(queryText)
 End Sub
+
+#If LOGGING_DEBUG_ENABLED Then
+Private Sub private_LogRenderPerfStep( _
+    ByVal stepName As String, _
+    ByVal startedAt As Double, _
+    ByRef lastAt As Double, _
+    Optional ByVal details As String = "" _
+)
+    Dim nowAt As Double
+    Dim stepMs As Double
+    Dim totalMs As Double
+    Dim messageText As String
+
+    nowAt = VBA.Timer
+    stepMs = private_ElapsedMs(lastAt, nowAt)
+    totalMs = private_ElapsedMs(startedAt, nowAt)
+    lastAt = nowAt
+
+    messageText = "perf:render:" & stepName & _
+        " stepMs=" & VBA.Format$(stepMs, "0.0") & _
+        " totalMs=" & VBA.Format$(totalMs, "0.0")
+    If VBA.Len(VBA.Trim$(details)) > 0 Then messageText = messageText & " " & details
+    ex_Core.fn_Diagnostic_LogInfo messageText
+End Sub
+
+Private Function private_ElapsedMs(ByVal startedAt As Double, ByVal endedAt As Double) As Double
+    If endedAt < startedAt Then endedAt = endedAt + 86400#
+    private_ElapsedMs = (endedAt - startedAt) * 1000#
+End Function
+#End If
 
 Private Function private_NormalizeReasonToken(ByVal valueText As String) As String
     Dim i As Long
