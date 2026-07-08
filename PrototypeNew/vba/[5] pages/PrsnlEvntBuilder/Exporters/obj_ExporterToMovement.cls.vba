@@ -142,106 +142,105 @@ Public Function Export( _
     Dim closingTargetIpn As String
 
     On Error GoTo EH
-    private_LogMethodEntry "Export"
-    private_LogInfo "movement:export start"
 
+    ' //
+    ' // Flow экспорта Movement
+    ' //
+    ' // 1. Контроллер передает коллекцию sourceTables и общий context.
+    ' //    Для Movement сейчас используется первая таблица: основная строка "Формы экспорта".
+    ' //    Из context берутся общие значения, например тип секции и номер приказа.
+    ' // 2. По типу секции определяется режим записи:
+    ' //    - обычное выбытие/opening: проверить закрытие прошлой строки и дописать новую;
+    ' //    - closing: найти последнюю открытую строку по ІПН и закрыть ее;
+    ' //    - mirror transfer: сначала закрыть старую строку, затем сразу открыть новую.
+    ' // 3. Для opening/mirror заранее собирается массив первых 6 целевых колонок
+    ' //    таблицы Movement: звание, ПІБ, ІПН, код посади, подія, напрям/місце.
+    ' // 4. После открытия target workbook/sheet/table выполняется одна из трех веток ниже.
+    ' // 5. При ошибке после вставки новой строки CleanFail удаляет вставленную строку,
+    ' //    чтобы частичный экспорт не оставлял мусор в целевой таблице.
+    '
     If m_IsDisposed Then
         private_LogError "Movement exporter is disposed."
         VBA.MsgBox "PrototypeNew: Movement exporter is disposed.", VBA.vbExclamation, "PrototypeNew / Movement export"
         Exit Function
     End If
 
+    ' Основная source-таблица содержит данные строки события. Meta-таблицы
+    ' в этом экспортере пока не используются.
     If Not m_Base.TryGetMainSourceTable(sourceTables, sourceTable) Then Exit Function
+
+    ' SectionType определяет семантику операции. Для mirror transfer флаг closing
+    ' принудительно сбрасывается, потому что mirror-ветка сама делает оба действия:
+    ' закрытие старой записи и открытие новой.
     sectionTypeRaw = private_GetSectionTypeTextFromContext(context, sourceTable)
     sectionTypeNormalized = private_NormalizeText(sectionTypeRaw)
     isClosingEvent = private_IsClosingSectionType(sectionTypeNormalized)
     isMirrorTransferEvent = private_IsMirrorTransferSectionType(sectionTypeRaw)
     If isMirrorTransferEvent Then isClosingEvent = False
-    private_LogInfo "movement:source rows=" & VBA.CStr(sourceTable.RowCount) & " cols=" & VBA.CStr(sourceTable.ColumnCount)
-    private_LogInfo "movement:event-section raw='" & private_EscapeForLog(sectionTypeRaw) & "' normalized='" & private_EscapeForLog(sectionTypeNormalized) & "'"
-    private_LogInfo "movement:event-mode closing=" & private_BoolText(isClosingEvent)
-    private_LogInfo "movement:event-mode mirror-transfer=" & private_BoolText(isMirrorTransferEvent)
 
+    ' Некоторые типы выбытия пишут дополнительные поля открывающей записи:
+    ' срок выбытия и В/к №. Helper сам решает, нужны ли эти поля для sectionType.
     If Not private_TryBuildSpecialOpeningValues(sourceTable, sectionTypeRaw, writeSpecialOpeningFields, specialDurationValue, specialVkNoValue) Then Exit Function
-    private_LogInfo "movement:special-open-fields enabled=" & private_BoolText(writeSpecialOpeningFields) & _
-        " duration='" & private_EscapeForLog(VBA.CStr(specialDurationValue)) & _
-        "' vk='" & private_EscapeForLog(VBA.CStr(specialVkNoValue)) & "'"
 
+    ' Для части профилей значение "Подія" берется не из формы напрямую,
+    ' а мапится из типа секции в справочнике PrsnlEvntBuilderData.
     shouldWriteMappedEvent = private_TryMapSectionTypeToEventText(sectionTypeRaw, mappedEventText)
-    private_LogInfo "movement:mapped-event enabled=" & private_BoolText(shouldWriteMappedEvent) & " value='" & private_EscapeForLog(mappedEventText) & "'"
 
+    ' Closing-режим только закрывает существующую строку, поэтому values для новой
+    ' строки ему не нужны. Opening и mirror transfer будут писать новую строку.
     If Not isClosingEvent Then
         If Not private_TryBuildMovementRowValues(sourceTable, sectionTypeRaw, targetValues) Then Exit Function
-        private_LogInfo "movement:row-values rank='" & private_EscapeForLog(VBA.CStr(targetValues(1, 1))) & _
-            "' fio='" & private_EscapeForLog(VBA.CStr(targetValues(1, 2))) & _
-            "' ipn='" & private_EscapeForLog(VBA.CStr(targetValues(1, 3))) & _
-            "' position='" & private_EscapeForLog(VBA.CStr(targetValues(1, 4))) & _
-            "' event='" & private_EscapeForLog(VBA.CStr(targetValues(1, 5))) & _
-            "' destination='" & private_EscapeForLog(VBA.CStr(targetValues(1, 6))) & "'"
     End If
 
     m_Base.BeginFastExcelMode prevScreenUpdating, prevEnableEvents, prevDisplayAlerts, prevCalculation
     fastModeStarted = True
-    private_LogInfo "movement:fast-mode enabled"
 
     If Not m_Base.TryOpenTargetWorkbook(targetWb, openedByExporter) Then GoTo CleanFail
-    private_LogInfo "movement:workbook ready name='" & private_EscapeForLog(targetWb.Name) & "' openedByExporter=" & private_BoolText(openedByExporter)
 
     If Not m_Base.TryGetWorksheet(targetWb, m_Base.ResolveTargetWorksheetName(), targetWs) Then GoTo CleanFail
-    private_LogInfo "movement:worksheet ready name='" & private_EscapeForLog(targetWs.Name) & "'"
     If Not m_Base.TryFindConfiguredTargetTable(targetWs, targetTable) Then GoTo CleanFail
-    private_LogInfo "movement:table ready name='" & private_EscapeForLog(targetTable.Name) & "' rows=" & VBA.CStr(targetTable.ListRows.Count) & " cols=" & VBA.CStr(targetTable.ListColumns.Count)
 
     If isClosingEvent Then
-        private_LogInfo "movement:event-branch selected='closing-only'"
+        ' Closing: закрываем уже существующее движение.
+        ' Ищем последнюю строку целевой таблицы по ІПН и заполняем поля прибытия:
+        ' наказ прибуття, на продовольче, прибуття.
         If Not private_TryBuildMovementClosingValues(sourceTable, targetWb, context, closingOrderNo, closingOnFoodDate, closingArrivalDate) Then GoTo CleanFail
-        private_LogInfo "movement:closing-values orderNo='" & private_EscapeForLog(VBA.CStr(closingOrderNo)) & _
-            "' arrival='" & private_EscapeForLog(private_FormatLogDateValue(closingArrivalDate)) & _
-            "' onFood='" & private_EscapeForLog(private_FormatLogDateValue(closingOnFoodDate)) & "'"
 
         If Not private_TryGetRequiredSourceText(sourceTable, sourceTable.Rows.Item(1), MOVEMENT_TARGET_IPN, closingTargetIpn) Then GoTo CleanFail
         If Not private_TryFindLastRowByIpn(targetTable, closingTargetIpn, targetRowRange) Then GoTo CleanFail
-        private_LogInfo "movement:closing-row address='" & private_EscapeForLog(targetRowRange.Address(False, False)) & "'"
         If Not private_TryWriteMovementClosingRow(targetTable, targetRowRange, closingOrderNo, closingOnFoodDate, closingArrivalDate) Then GoTo CleanFail
-        private_LogInfo "movement:write-closing-row done"
     ElseIf isMirrorTransferEvent Then
-        private_LogInfo "movement:event-branch selected='mirror-close-then-open'"
+        ' Mirror transfer: "зеркальный перевод" внутри таблицы Movement.
+        ' Смысл: одним событием закрываем предыдущую открытую строку военнослужащего
+        ' и тут же создаем новую открытую строку. Даты/номер приказа закрытия
+        ' зеркально используются как даты/номер приказа открытия новой строки.
         If Not private_TryBuildMovementClosingValues(sourceTable, targetWb, context, closingOrderNo, closingOnFoodDate, closingArrivalDate) Then GoTo CleanFail
-        private_LogInfo "movement:mirror-close-values orderNo='" & private_EscapeForLog(VBA.CStr(closingOrderNo)) & _
-            "' arrival='" & private_EscapeForLog(private_FormatLogDateValue(closingArrivalDate)) & _
-            "' onFood='" & private_EscapeForLog(private_FormatLogDateValue(closingOnFoodDate)) & "'"
 
         If Not private_TryGetRequiredSourceText(sourceTable, sourceTable.Rows.Item(1), MOVEMENT_TARGET_IPN, closingTargetIpn) Then GoTo CleanFail
         If Not private_TryFindLastRowByIpn(targetTable, closingTargetIpn, targetRowRange) Then GoTo CleanFail
-        private_LogInfo "movement:mirror-close-row address='" & private_EscapeForLog(targetRowRange.Address(False, False)) & "'"
         If Not private_TryWriteMovementClosingRow(targetTable, targetRowRange, closingOrderNo, closingOnFoodDate, closingArrivalDate) Then GoTo CleanFail
-        private_LogInfo "movement:mirror-write-closing-row done"
 
+        ' Mirror/opening часть: те же значения, которыми закрыли старую строку,
+        ' становятся начальными значениями новой строки.
         mirrorOpeningOrderNo = closingOrderNo
         mirrorOpeningDepartureDate = closingArrivalDate
         mirrorOpeningFoodFromDate = closingOnFoodDate
-        private_LogInfo "movement:mirror-open-values orderNo='" & private_EscapeForLog(VBA.CStr(mirrorOpeningOrderNo)) & _
-            "' departure='" & private_EscapeForLog(private_FormatLogDateValue(mirrorOpeningDepartureDate)) & _
-            "' foodFrom='" & private_EscapeForLog(private_FormatLogDateValue(mirrorOpeningFoodFromDate)) & "'"
 
         If Not private_TryGetAppendRowRange(targetTable, targetRowRange, insertedRow) Then GoTo CleanFail
-        private_LogInfo "movement:mirror-append-row address='" & private_EscapeForLog(targetRowRange.Address(False, False)) & "'"
         If Not private_TryWriteMovementRow(targetTable, targetRowRange, targetValues, mirrorOpeningOrderNo, mirrorOpeningFoodFromDate, mirrorOpeningDepartureDate, writeSpecialOpeningFields, specialDurationValue, specialVkNoValue, shouldWriteMappedEvent, mappedEventText) Then GoTo CleanFail
-        private_LogInfo "movement:mirror-write-open-row done"
     Else
-        private_LogInfo "movement:event-branch selected='opening-only'"
+        ' Opening: обычное выбытие. Создаем новую строку и заполняем поля выбытия:
+        ' наказ вибуття, з продовольчого, вибуття, плюс базовые первые 6 колонок.
+        ' Перед созданием новой строки проверяем, что последняя Movement-запись
+        ' по этому ІПН уже закрыта полями прибытия. Иначе получится две
+        ' одновременно открытые записи по одному военнослужащему.
+        If Not private_TryValidateLastMovementRowClosedForOpening(targetTable, sourceTable) Then GoTo CleanFail
         If Not private_TryBuildMovementOutgoingValues(sourceTable, targetWb, context, outgoingOrderNo, outgoingFoodFromDate, outgoingDepartureDate) Then GoTo CleanFail
-        private_LogInfo "movement:outgoing orderNo='" & private_EscapeForLog(VBA.CStr(outgoingOrderNo)) & _
-            "' departure='" & private_EscapeForLog(private_FormatLogDateValue(outgoingDepartureDate)) & _
-            "' foodFrom='" & private_EscapeForLog(private_FormatLogDateValue(outgoingFoodFromDate)) & "'"
         If Not private_TryGetAppendRowRange(targetTable, targetRowRange, insertedRow) Then GoTo CleanFail
-        private_LogInfo "movement:append-row address='" & private_EscapeForLog(targetRowRange.Address(False, False)) & "'"
         If Not private_TryWriteMovementRow(targetTable, targetRowRange, targetValues, outgoingOrderNo, outgoingFoodFromDate, outgoingDepartureDate, writeSpecialOpeningFields, specialDurationValue, specialVkNoValue, shouldWriteMappedEvent, mappedEventText) Then GoTo CleanFail
-        private_LogInfo "movement:write-row done"
     End If
 
     If Not openedByExporter And SAVE_ALREADY_OPEN_WORKBOOK Then targetWb.Save
-    private_LogInfo "movement:export success"
     Export = True
     GoTo CleanExit
 
@@ -481,6 +480,133 @@ Private Function private_NormalizeComparableToken(ByVal rawValue As Variant) As 
     private_NormalizeComparableToken = valueText
 End Function
 
+Private Function private_TryValidateLastMovementRowClosedForOpening( _
+    ByVal targetTable As ListObject, _
+    ByVal sourceTable As obj_TableDynamic _
+) As Boolean
+    Dim sourceRow As obj_Row
+    Dim ipnValue As Variant
+    Dim lastRowRange As Range
+    Dim validationIssueText As String
+
+    If targetTable Is Nothing Then Exit Function
+    If sourceTable Is Nothing Then Exit Function
+    If sourceTable.RowCount <= 0 Then Exit Function
+
+    Set sourceRow = sourceTable.Rows.Item(1)
+    If sourceRow Is Nothing Then Exit Function
+    If Not private_TryGetRequiredSourceText(sourceTable, sourceRow, MOVEMENT_TARGET_IPN, ipnValue) Then Exit Function
+
+    If Not private_TryFindLastRowByIpnForOpening(targetTable, VBA.CStr(ipnValue), lastRowRange) Then Exit Function
+    If lastRowRange Is Nothing Then
+        private_TryValidateLastMovementRowClosedForOpening = True
+        Exit Function
+    End If
+
+    If private_IsMovementRowClosed(targetTable, lastRowRange, validationIssueText) Then
+        private_TryValidateLastMovementRowClosedForOpening = True
+        Exit Function
+    End If
+
+    private_LogError "Movement opening blocked because latest row by ІПН='" & _
+        private_EscapeForLog(VBA.CStr(ipnValue)) & "' is not closed. " & _
+        private_EscapeForLog(validationIssueText)
+    VBA.MsgBox _
+        "PrototypeNew: Movement opening export was stopped." & VBA.vbCrLf & VBA.vbCrLf & _
+        "Причина: последняя запись по '" & MOVEMENT_TARGET_IPN & "' = '" & VBA.CStr(ipnValue) & "' не закрыта." & VBA.vbCrLf & _
+        "Строка целевой таблицы: " & lastRowRange.Address(False, False) & VBA.vbCrLf & _
+        "Проблема: " & validationIssueText & VBA.vbCrLf & VBA.vbCrLf & _
+        "Сначала закройте предыдущую запись прибытия, затем повторите экспорт выбытия.", _
+        VBA.vbExclamation, _
+        "PrototypeNew / Movement export"
+End Function
+
+Private Function private_TryFindLastRowByIpnForOpening( _
+    ByVal targetTable As ListObject, _
+    ByVal ipnValue As String, _
+    ByRef outRowRange As Range _
+) As Boolean
+    Dim ipnColumnIndex As Long
+    Dim rowIndex As Long
+    Dim candidateValue As String
+    Dim expectedValue As String
+
+    Set outRowRange = Nothing
+    If targetTable Is Nothing Then Exit Function
+
+    expectedValue = private_NormalizeComparableToken(ipnValue)
+    If VBA.Len(expectedValue) = 0 Then
+        private_LogError "Movement opening validation failed because source IПН is empty."
+        VBA.MsgBox "PrototypeNew: Movement opening requires source value '" & MOVEMENT_TARGET_IPN & "'.", VBA.vbExclamation, "PrototypeNew / Movement export"
+        Exit Function
+    End If
+
+    ipnColumnIndex = private_FindTargetColumnIndex(targetTable, MOVEMENT_TARGET_IPN)
+    If ipnColumnIndex <= 0 Then
+        private_LogError "Movement opening validation failed because target column '" & private_EscapeForLog(MOVEMENT_TARGET_IPN) & "' was not found."
+        VBA.MsgBox "PrototypeNew: Movement target column '" & MOVEMENT_TARGET_IPN & "' was not found.", VBA.vbExclamation, "PrototypeNew / Movement export"
+        Exit Function
+    End If
+
+    For rowIndex = targetTable.ListRows.Count To 1 Step -1
+        candidateValue = private_NormalizeComparableToken(targetTable.ListRows.Item(rowIndex).Range.Cells(1, ipnColumnIndex).Value2)
+        If VBA.StrComp(candidateValue, expectedValue, VBA.vbTextCompare) = 0 Then
+            Set outRowRange = targetTable.ListRows.Item(rowIndex).Range
+            Exit For
+        End If
+    Next rowIndex
+
+    private_TryFindLastRowByIpnForOpening = True
+End Function
+
+Private Function private_IsMovementRowClosed( _
+    ByVal targetTable As ListObject, _
+    ByVal rowRange As Range, _
+    ByRef outIssueText As String _
+) As Boolean
+    outIssueText = VBA.vbNullString
+    If Not private_AppendMissingCloseFieldIssue(targetTable, rowRange, MOVEMENT_TARGET_ARRIVAL_ORDER_NO, outIssueText) Then Exit Function
+    If Not private_AppendMissingCloseFieldIssue(targetTable, rowRange, MOVEMENT_TARGET_ON_FOOD, outIssueText) Then Exit Function
+    If Not private_AppendMissingCloseFieldIssue(targetTable, rowRange, MOVEMENT_TARGET_ARRIVAL, outIssueText) Then Exit Function
+
+    private_IsMovementRowClosed = (VBA.Len(outIssueText) = 0)
+End Function
+
+Private Function private_AppendMissingCloseFieldIssue( _
+    ByVal targetTable As ListObject, _
+    ByVal rowRange As Range, _
+    ByVal targetColumnName As String, _
+    ByRef ioIssueText As String _
+) As Boolean
+    Dim targetColumnIndex As Long
+    Dim targetValueText As String
+
+    If targetTable Is Nothing Then Exit Function
+    If rowRange Is Nothing Then Exit Function
+
+    targetColumnIndex = private_FindTargetColumnIndex(targetTable, targetColumnName)
+    If targetColumnIndex <= 0 Then
+        private_AppendIssueText ioIssueText, "не найдена колонка '" & targetColumnName & "'"
+        private_AppendMissingCloseFieldIssue = True
+        Exit Function
+    End If
+
+    targetValueText = VBA.Trim$(VBA.CStr(rowRange.Cells(1, targetColumnIndex).Value2))
+    If VBA.Len(targetValueText) = 0 Then
+        private_AppendIssueText ioIssueText, "пустое поле '" & targetColumnName & "'"
+    End If
+
+    private_AppendMissingCloseFieldIssue = True
+End Function
+
+Private Sub private_AppendIssueText(ByRef ioIssueText As String, ByVal issueText As String)
+    issueText = VBA.Trim$(issueText)
+    If VBA.Len(issueText) = 0 Then Exit Sub
+
+    If VBA.Len(ioIssueText) > 0 Then ioIssueText = ioIssueText & "; "
+    ioIssueText = ioIssueText & issueText
+End Sub
+
 Private Function private_TryWriteMovementClosingRow( _
     ByVal targetTable As ListObject, _
     ByVal rowRange As Range, _
@@ -538,8 +664,6 @@ Private Function private_TryBuildMovementRowValues( _
 
     destinationValue = private_ResolveMovementDestinationValue(sourceTable, sourceRow, sectionTypeText)
     outValues(1, 6) = destinationValue
-    private_LogInfo "movement:event resolved value='" & private_EscapeForLog(VBA.CStr(outValues(1, 5))) & "'"
-    private_LogInfo "movement:destination resolved value='" & private_EscapeForLog(VBA.CStr(destinationValue)) & "'"
 
     private_TryBuildMovementRowValues = True
 End Function
@@ -574,7 +698,6 @@ Private Function private_TryGetRequiredSourceText( _
     End If
 
     outValue = sourceRow.GetCellValue(columnIndex)
-    private_LogInfo "movement:required-source column='" & private_EscapeForLog(columnName) & "' index=" & VBA.CStr(columnIndex) & " value='" & private_EscapeForLog(VBA.CStr(outValue)) & "'"
     private_TryGetRequiredSourceText = True
 End Function
 
@@ -587,13 +710,11 @@ Private Function private_GetOptionalSourceText( _
 
     columnIndex = private_GetSourceColumnIndex(sourceTable, columnName)
     If columnIndex <= 0 Then
-        private_LogInfo "movement:optional-source column missing='" & private_EscapeForLog(columnName) & "'"
         private_GetOptionalSourceText = VBA.vbNullString
         Exit Function
     End If
 
     private_GetOptionalSourceText = sourceRow.GetCellValue(columnIndex)
-    private_LogInfo "movement:optional-source column='" & private_EscapeForLog(columnName) & "' index=" & VBA.CStr(columnIndex) & " value='" & private_EscapeForLog(VBA.CStr(private_GetOptionalSourceText)) & "'"
 End Function
 
 Private Function private_GetSourceColumnIndex(ByVal sourceTable As obj_TableDynamic, ByVal columnName As String) As Long
@@ -637,7 +758,6 @@ Private Function private_TryGetAppendRowRange( _
     reusableRowIndex = private_FindTrailingEmptyReuseRowIndex(targetTable)
     If reusableRowIndex > 0 Then
         Set outRowRange = targetTable.ListRows.Item(reusableRowIndex).Range
-        private_LogInfo "movement:reuse-empty-row index=" & VBA.CStr(reusableRowIndex) & " address='" & private_EscapeForLog(outRowRange.Address(False, False)) & "'"
         private_TryGetAppendRowRange = Not outRowRange Is Nothing
         Exit Function
     End If
@@ -888,24 +1008,15 @@ Private Function private_TryResolveOrderDateByNumber( _
     On Error Resume Next
     Set ws = targetWorkbook.Worksheets(MOVEMENT_ORDERS_SHEET_NAME)
     On Error GoTo 0
-    If ws Is Nothing Then
-        private_LogInfo "movement:orders-sheet missing name='" & private_EscapeForLog(MOVEMENT_ORDERS_SHEET_NAME) & "'"
-        Exit Function
-    End If
+    If ws Is Nothing Then Exit Function
 
     Set ordersTable = private_FindListObjectByName(ws, MOVEMENT_ORDER_DATE_TABLE_NAME)
-    If ordersTable Is Nothing Then
-        private_LogInfo "movement:order-date table missing name='" & private_EscapeForLog(MOVEMENT_ORDER_DATE_TABLE_NAME) & "' sheet='" & private_EscapeForLog(ws.Name) & "'"
-        Exit Function
-    End If
+    If ordersTable Is Nothing Then Exit Function
     If ordersTable.DataBodyRange Is Nothing Then Exit Function
 
     orderDateColumnIndex = private_FindTargetColumnIndex(ordersTable, MOVEMENT_ORDER_DATE_COLUMN_NAME)
     orderNoColumnIndex = private_FindTargetColumnIndex(ordersTable, MOVEMENT_ORDER_NO_COLUMN_NAME)
-    If orderDateColumnIndex <= 0 Or orderNoColumnIndex <= 0 Then
-        private_LogInfo "movement:order-date table columns missing date='" & private_EscapeForLog(MOVEMENT_ORDER_DATE_COLUMN_NAME) & "' no='" & private_EscapeForLog(MOVEMENT_ORDER_NO_COLUMN_NAME) & "'"
-        Exit Function
-    End If
+    If orderDateColumnIndex <= 0 Or orderNoColumnIndex <= 0 Then Exit Function
 
     For rowIndex = 1 To ordersTable.ListRows.Count
         candidateOrderToken = private_NormalizeOrderNumberToken(ordersTable.DataBodyRange.Cells(rowIndex, orderNoColumnIndex).Value2)
@@ -914,7 +1025,6 @@ Private Function private_TryResolveOrderDateByNumber( _
 
         If private_TryParseDateValue(ordersTable.DataBodyRange.Cells(rowIndex, orderDateColumnIndex).Value2, candidateDate) Then
             outOrderDate = candidateDate
-            private_LogInfo "movement:order-date resolved table='" & private_EscapeForLog(ordersTable.Name) & "' orderNo='" & private_EscapeForLog(orderNoToken) & "' date='" & private_EscapeForLog(private_FormatLogDateValue(outOrderDate)) & "'"
             private_TryResolveOrderDateByNumber = True
             Exit Function
         End If
@@ -1003,7 +1113,6 @@ Private Function private_TryWriteNamedColumnValue( _
 
     targetColumnIndex = private_FindTargetColumnIndex(targetTable, targetColumnName)
     If targetColumnIndex <= 0 Then
-        private_LogInfo "movement:target-column missing='" & private_EscapeForLog(targetColumnName) & "'"
         private_TryWriteNamedColumnValue = True
         Exit Function
     End If
@@ -1044,12 +1153,10 @@ Private Function private_TryWriteCellValueWithFormulaPolicy( _
 
     incomingText = VBA.Trim$(VBA.CStr(incomingValue))
     If VBA.Len(incomingText) = 0 And targetCell.HasFormula Then
-        private_LogInfo logPrefix & " skip-formula-preserve address='" & private_EscapeForLog(targetCell.Address(False, False)) & "'"
         private_TryWriteCellValueWithFormulaPolicy = True
         Exit Function
     End If
 
-    private_LogInfo logPrefix & " value='" & private_EscapeForLog(VBA.CStr(incomingValue)) & "'"
     targetCell.Value2 = incomingValue
     private_TryWriteCellValueWithFormulaPolicy = True
 End Function

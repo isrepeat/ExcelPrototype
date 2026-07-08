@@ -40,6 +40,7 @@ Private Const EXPORT_FORM_MAIN_RUNTIME_KEY As String = "RuntimeItems.PrsnlEvntBu
 Private Const EXPORT_FORM_META_RUNTIME_KEY As String = "RuntimeItems.PrsnlEvntBuilder.ExportForm.Meta"
 Private Const HOTKEY_ACCEPT_CANDIDATE_ROW As String = "Accept Candidate Row"
 Private Const HOTKEY_SELECT_FORM_ROW As String = "Select Form Row"
+Private Const HOTKEY_APPLY_EXPORT_FORM As String = "Apply Export Form"
 Private Const EXPORT_ACTION_PREFIX As String = "Export "
 Private Const DEFAULT_EXPORTER_CLASS As String = "obj_ExporterToDailyScope"
 Private Const MAX_EXPORT_HOTKEYS As Long = 9
@@ -255,6 +256,14 @@ Public Function RuntimeHandleHotkeyAction(ByVal actionId As Variant) As Boolean
 
         Case VBA.LCase$(HOTKEY_SELECT_FORM_ROW)
             If Not private_TrySelectScopedRowFromSelection(targetCell) Then Exit Function
+
+        Case VBA.LCase$(HOTKEY_APPLY_EXPORT_FORM)
+            If Not Me.RuntimeApplyExportForm() Then
+                RuntimeHandleHotkeyAction = True
+                Exit Function
+            End If
+            RuntimeHandleHotkeyAction = True
+            Exit Function
 
         Case Else
             Exit Function
@@ -1303,6 +1312,7 @@ Private Function private_EnsureHotkeyRows(ByVal notifyChange As Boolean) As Bool
                 If Not private_EnsureHotkeyRow(hotkeyRows, HOTKEY_ACCEPT_CANDIDATE_ROW, "CTRL+ENTER", hasChanges) Then Exit Function
                 If Not private_EnsureExportHotkeyRows(hotkeyRows, hasChanges) Then Exit Function
                 If Not private_EnsureHotkeyRow(hotkeyRows, HOTKEY_SELECT_FORM_ROW, "SHIFT+SPACE", hasChanges) Then Exit Function
+                If Not private_EnsureHotkeyRow(hotkeyRows, HOTKEY_APPLY_EXPORT_FORM, "ALT+ARROWDOWN", hasChanges) Then Exit Function
                 If hasChanges Then
                     If Not runtimeSources.RemoveItemsSource(VBA.LCase$(HOTKEYS_RUNTIME_KEY)) Then Exit Function
                     If Not runtimeSources.SetItemsSource(VBA.LCase$(HOTKEYS_RUNTIME_KEY), hotkeyRows, notifyChange) Then Exit Function
@@ -1322,6 +1332,7 @@ Private Function private_EnsureHotkeyRows(ByVal notifyChange As Boolean) As Bool
     If Not private_AddHotkeyRow(hotkeyRows, HOTKEY_ACCEPT_CANDIDATE_ROW, "CTRL+ENTER") Then Exit Function
     If Not private_AddExportHotkeyRows(hotkeyRows) Then Exit Function
     If Not private_AddHotkeyRow(hotkeyRows, HOTKEY_SELECT_FORM_ROW, "SHIFT+SPACE") Then Exit Function
+    If Not private_AddHotkeyRow(hotkeyRows, HOTKEY_APPLY_EXPORT_FORM, "ALT+ARROWDOWN") Then Exit Function
 
     If Not runtimeSources.RemoveItemsSource(VBA.LCase$(HOTKEYS_RUNTIME_KEY)) Then Exit Function
     If Not runtimeSources.SetItemsSource(VBA.LCase$(HOTKEYS_RUNTIME_KEY), hotkeyRows, notifyChange) Then Exit Function
