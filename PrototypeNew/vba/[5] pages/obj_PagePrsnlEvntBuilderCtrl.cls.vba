@@ -146,6 +146,7 @@ Public Function UpdateData(ByVal configControl As obj_ConfigControlVM) As Boolea
         Exit Function
     End If
     If Not private_TryUpdateExportSettings(configControl) Then Exit Function
+    If Not private_EnsureHotkeyRows(False) Then Exit Function
     UpdateData = True
 End Function
 
