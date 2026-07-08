@@ -38,15 +38,8 @@ Private Const PROFILES_RUNTIME_KEY As String = "RuntimeItems.PrsnlEvntBuilder.Pr
 Private Const META_PROFILES_RUNTIME_KEY As String = "RuntimeItems.PrsnlEvntBuilder.MetaProfiles"
 Private Const EXPORT_FORM_MAIN_RUNTIME_KEY As String = "RuntimeItems.PrsnlEvntBuilder.ExportForm.Main"
 Private Const EXPORT_FORM_META_RUNTIME_KEY As String = "RuntimeItems.PrsnlEvntBuilder.ExportForm.Meta"
-Private Const PROFILES_PROVIDER_CLASS_KEY As String = "EntityLookup.ProfilesProviderClass"
 Private Const HOTKEY_ACCEPT_CANDIDATE_ROW As String = "Accept Candidate Row"
 Private Const HOTKEY_SELECT_FORM_ROW As String = "Select Form Row"
-Private Const EXPORT_CONFIG_PREFIX As String = "Export."
-Private Const EXPORT_FILE_PATH_SUFFIX As String = ".FilePath"
-Private Const EXPORT_CLASS_SUFFIX As String = ".ExporterClass"
-Private Const EXPORT_SHEET_NAME_SUFFIX As String = ".SheetName"
-Private Const EXPORT_RANGE_START_MARKER_SUFFIX As String = ".RangeStartMarker"
-Private Const EXPORT_RANGE_END_MARKER_SUFFIX As String = ".RangeEndMarker"
 Private Const EXPORT_ACTION_PREFIX As String = "Export "
 Private Const DEFAULT_EXPORTER_CLASS As String = "obj_ExporterToDailyScope"
 Private Const MAX_EXPORT_HOTKEYS As Long = 9
@@ -766,12 +759,12 @@ Private Function private_TryExportDraftByAction(ByVal actionId As String) As Boo
     Dim exportConfigTable As obj_ConfigTable
 
     If Not private_TryResolveExportAliasFromAction(actionId, exportAlias) Then Exit Function
-        If Not private_TryGetExportSettings(exportAlias, exporterClassName, exportConfigTable) Then Exit Function
+    If Not private_TryGetExportSettings(exportAlias, exporterClassName, exportConfigTable) Then Exit Function
     If Not private_TryBuildExportSourceTables(sourceTables, exportContext) Then Exit Function
 
     If Not private_TryCreateDataExporter(exporterClassName, exportConfigTable, exporter) Then Exit Function
 
-        If Not exporter.Export(sourceTables, exportContext) Then Exit Function
+    If Not exporter.Export(sourceTables, exportContext) Then Exit Function
 
     rt_Messaging.fn_ShowStatusBarSuccess EXPORT_ACTION_PREFIX & exportAlias & ": done", 3
     private_TryExportDraftByAction = True
@@ -779,9 +772,7 @@ End Function
 
 Private Function private_TryUpdateExportSettings(ByVal configControl As obj_ConfigControlVM) As Boolean
     Dim configTable As obj_ConfigTable
-    Dim cfgParserBase As obj_CfgParserBase
-    Dim configEntries As Collection
-    Dim cfgMap As Object
+    Dim cfgParser As obj_PrsnlEvntBuilderCfgParser
 
     private_ResetExportSettings
     If configControl Is Nothing Then
@@ -792,34 +783,25 @@ Private Function private_TryUpdateExportSettings(ByVal configControl As obj_Conf
     If Not configControl.TryBuildConfigTableFromRendered(configTable) Then Exit Function
     If configTable Is Nothing Then Exit Function
 
-    Set cfgParserBase = New obj_CfgParserBase
-    If Not cfgParserBase.Initialize(configTable) Then Exit Function
-    If Not cfgParserBase.TryGetConfigEntries(configEntries) Then Exit Function
-    If Not cfgParserBase.BuildConfigDictionary(configEntries, cfgMap) Then Exit Function
+    Set cfgParser = New obj_PrsnlEvntBuilderCfgParser
+    If Not cfgParser.Initialize(configTable) Then Exit Function
+    If Not cfgParser.TryGetExportSettings(m_ExportAliases, m_ExporterClassByAlias, m_ExportConfigTableByAlias) Then Exit Function
 
-    If Not private_TryLoadExportSettings(configEntries, cfgParserBase, cfgMap) Then Exit Function
     private_TryUpdateExportSettings = True
 End Function
 
 Private Function private_TryUpdateProfilesProvider(ByVal configControl As obj_ConfigControlVM) As Boolean
     Dim configTable As obj_ConfigTable
-    Dim cfgParserBase As obj_CfgParserBase
-    Dim configEntries As Collection
-    Dim cfgMap As Object
+    Dim cfgParser As obj_PrsnlEvntBuilderCfgParser
     Dim providerClassName As String
 
     If configControl Is Nothing Then Exit Function
     If Not configControl.TryBuildConfigTableFromRendered(configTable) Then Exit Function
     If configTable Is Nothing Then Exit Function
 
-    Set cfgParserBase = New obj_CfgParserBase
-    If Not cfgParserBase.Initialize(configTable) Then Exit Function
-    If Not cfgParserBase.TryGetConfigEntries(configEntries) Then Exit Function
-    If Not cfgParserBase.BuildConfigDictionary(configEntries, cfgMap) Then Exit Function
-    If Not cfgParserBase.TryGetRequiredConfigValue(cfgMap, PROFILES_PROVIDER_CLASS_KEY, providerClassName) Then
-        VBA.MsgBox "PrototypeNew: required config key '" & PROFILES_PROVIDER_CLASS_KEY & "' is missing.", VBA.vbExclamation, "PrototypeNew / PrsnlEvntBuilder"
-        Exit Function
-    End If
+    Set cfgParser = New obj_PrsnlEvntBuilderCfgParser
+    If Not cfgParser.Initialize(configTable) Then Exit Function
+    If Not cfgParser.TryGetProfilesProviderClass(providerClassName) Then Exit Function
 
     If Not private_TryCreateProfilesProvider(providerClassName) Then Exit Function
     private_TryUpdateProfilesProvider = True
@@ -845,123 +827,6 @@ Private Sub private_ResetExportSettings()
     Set m_ExporterClassByAlias = ex_Helpers.fn_CreateDictionaryTextCompare()
     Set m_ExportConfigTableByAlias = ex_Helpers.fn_CreateDictionaryTextCompare()
 End Sub
-
-Private Function private_TryLoadExportSettings( _
-    ByVal configEntries As Collection, _
-    ByVal cfgParserBase As obj_CfgParserBase, _
-    ByVal cfgMap As Object _
-) As Boolean
-    Dim entryObj As Variant
-    Dim configEntry As obj_ConfigEntry
-    Dim keyText As String
-    Dim exportAlias As String
-    Dim keySuffix As String
-    Dim exporterClassName As String
-    Dim targetWorkbookPath As String
-    Dim targetSheetName As String
-    Dim rangeStartMarker As String
-    Dim rangeEndMarker As String
-    Dim exportConfigTable As obj_ConfigTable
-    Dim aliasObj As Variant
-
-    If configEntries Is Nothing Then
-        private_TryLoadExportSettings = True
-        Exit Function
-    End If
-    If cfgParserBase Is Nothing Then Exit Function
-    If cfgMap Is Nothing Then Exit Function
-
-    For Each entryObj In configEntries
-        If Not VBA.IsObject(entryObj) Then GoTo ContinueEntry
-        Set configEntry = Nothing
-        On Error Resume Next
-        Set configEntry = entryObj
-        On Error GoTo 0
-        If configEntry Is Nothing Then GoTo ContinueEntry
-
-        keyText = VBA.Trim$(configEntry.Key)
-        If Not private_TryParseExportConfigKey(keyText, exportAlias, keySuffix) Then GoTo ContinueEntry
-        If Not private_ExportAliasExists(exportAlias) Then m_ExportAliases.Add exportAlias
-
-ContinueEntry:
-    Next entryObj
-
-    For Each aliasObj In m_ExportAliases
-        exportAlias = VBA.Trim$(VBA.CStr(aliasObj))
-        If VBA.Len(exportAlias) = 0 Then GoTo ContinueAlias
-
-        exporterClassName = cfgParserBase.GetOptionalConfigValue( _
-            cfgMap, _
-            EXPORT_CONFIG_PREFIX & exportAlias & EXPORT_CLASS_SUFFIX, _
-            DEFAULT_EXPORTER_CLASS)
-        exporterClassName = VBA.Trim$(exporterClassName)
-        If VBA.Len(exporterClassName) = 0 Then exporterClassName = DEFAULT_EXPORTER_CLASS
-
-        targetWorkbookPath = cfgParserBase.GetOptionalConfigValue( _
-            cfgMap, _
-            EXPORT_CONFIG_PREFIX & exportAlias & EXPORT_FILE_PATH_SUFFIX, _
-            VBA.vbNullString)
-        targetSheetName = cfgParserBase.GetOptionalConfigValue( _
-            cfgMap, _
-            EXPORT_CONFIG_PREFIX & exportAlias & EXPORT_SHEET_NAME_SUFFIX, _
-            VBA.vbNullString)
-        rangeStartMarker = cfgParserBase.GetOptionalConfigValue( _
-            cfgMap, _
-            EXPORT_CONFIG_PREFIX & exportAlias & EXPORT_RANGE_START_MARKER_SUFFIX, _
-            VBA.vbNullString)
-        rangeEndMarker = cfgParserBase.GetOptionalConfigValue( _
-            cfgMap, _
-            EXPORT_CONFIG_PREFIX & exportAlias & EXPORT_RANGE_END_MARKER_SUFFIX, _
-            VBA.vbNullString)
-
-        Set exportConfigTable = private_BuildExportConfigTable( _
-            exportAlias, _
-            exporterClassName, _
-            targetWorkbookPath, _
-            targetSheetName, _
-            rangeStartMarker, _
-            rangeEndMarker)
-        If exportConfigTable Is Nothing Then Exit Function
-
-        m_ExporterClassByAlias(exportAlias) = exporterClassName
-        Set m_ExportConfigTableByAlias(exportAlias) = exportConfigTable
-
-ContinueAlias:
-    Next aliasObj
-
-    private_TryLoadExportSettings = True
-End Function
-
-Private Function private_TryParseExportConfigKey( _
-    ByVal keyText As String, _
-    ByRef outExportAlias As String, _
-    ByRef outKeySuffix As String _
-) As Boolean
-    Dim keyLower As String
-    Dim suffixPos As Long
-
-    outExportAlias = VBA.vbNullString
-    outKeySuffix = VBA.vbNullString
-
-    keyText = VBA.Trim$(keyText)
-    keyLower = VBA.LCase$(keyText)
-    If VBA.Left$(keyLower, VBA.Len(VBA.LCase$(EXPORT_CONFIG_PREFIX))) <> VBA.LCase$(EXPORT_CONFIG_PREFIX) Then Exit Function
-
-    suffixPos = VBA.InStr(VBA.Len(EXPORT_CONFIG_PREFIX) + 1, keyText, ".", VBA.vbTextCompare)
-    If suffixPos <= VBA.Len(EXPORT_CONFIG_PREFIX) + 1 Then Exit Function
-
-    outKeySuffix = VBA.Mid$(keyText, suffixPos)
-    If VBA.StrComp(outKeySuffix, EXPORT_FILE_PATH_SUFFIX, VBA.vbTextCompare) <> 0 _
-        And VBA.StrComp(outKeySuffix, EXPORT_CLASS_SUFFIX, VBA.vbTextCompare) <> 0 _
-        And VBA.StrComp(outKeySuffix, EXPORT_SHEET_NAME_SUFFIX, VBA.vbTextCompare) <> 0 _
-        And VBA.StrComp(outKeySuffix, EXPORT_RANGE_START_MARKER_SUFFIX, VBA.vbTextCompare) <> 0 _
-        And VBA.StrComp(outKeySuffix, EXPORT_RANGE_END_MARKER_SUFFIX, VBA.vbTextCompare) <> 0 Then Exit Function
-
-    outExportAlias = VBA.Trim$(VBA.Mid$(keyText, VBA.Len(EXPORT_CONFIG_PREFIX) + 1, suffixPos - VBA.Len(EXPORT_CONFIG_PREFIX) - 1))
-    If VBA.Len(outExportAlias) = 0 Then Exit Function
-
-    private_TryParseExportConfigKey = True
-End Function
 
 Private Function private_ExportAliasExists(ByVal exportAlias As String) As Boolean
     Dim aliasObj As Variant
@@ -1055,28 +920,6 @@ Private Function private_TryCreateDataExporter( _
     End Select
 
     private_TryCreateDataExporter = Not outExporter Is Nothing
-End Function
-
-Private Function private_BuildExportConfigTable( _
-    ByVal exportAlias As String, _
-    ByVal exporterClassName As String, _
-    ByVal targetWorkbookPath As String, _
-    ByVal targetSheetName As String, _
-    ByVal rangeStartMarker As String, _
-    ByVal rangeEndMarker As String _
-) As obj_ConfigTable
-    Dim configTable As obj_ConfigTable
-
-    Set configTable = New obj_ConfigTable
-    If Not configTable.Initialize() Then Exit Function
-
-    If Not configTable.AddRow(VBA.vbNullString, EXPORT_CONFIG_PREFIX & exportAlias & EXPORT_CLASS_SUFFIX, exporterClassName) Then Exit Function
-    If Not configTable.AddRow(VBA.vbNullString, EXPORT_CONFIG_PREFIX & exportAlias & EXPORT_FILE_PATH_SUFFIX, targetWorkbookPath) Then Exit Function
-    If Not configTable.AddRow(VBA.vbNullString, EXPORT_CONFIG_PREFIX & exportAlias & EXPORT_SHEET_NAME_SUFFIX, targetSheetName) Then Exit Function
-    If Not configTable.AddRow(VBA.vbNullString, EXPORT_CONFIG_PREFIX & exportAlias & EXPORT_RANGE_START_MARKER_SUFFIX, rangeStartMarker) Then Exit Function
-    If Not configTable.AddRow(VBA.vbNullString, EXPORT_CONFIG_PREFIX & exportAlias & EXPORT_RANGE_END_MARKER_SUFFIX, rangeEndMarker) Then Exit Function
-
-    Set private_BuildExportConfigTable = configTable
 End Function
 
 Private Function private_TryBuildExportSourceTables( _
