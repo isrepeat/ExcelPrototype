@@ -603,6 +603,9 @@ Private Function private_TryMapKeyPart( _
         Case "UP", "DOWN", "LEFT", "RIGHT", "HOME", "END", "PGUP", "PGDN"
             outKeyToken = "{" & keyText & "}"
 
+        Case "ARROWUP", "ARROWDOWN", "ARROWLEFT", "ARROWRIGHT"
+            outKeyToken = "{" & VBA.Mid$(keyText, VBA.Len("ARROW") + 1) & "}"
+
         Case Else
             If VBA.Len(keyText) = 1 Then
                 outKeyToken = keyText
