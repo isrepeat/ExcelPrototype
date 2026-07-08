@@ -14,7 +14,7 @@ Private Const EXPORT_CLASS_SUFFIX As String = ".ExporterClass"
 Private Const EXPORT_SHEET_NAME_SUFFIX As String = ".SheetName"
 Private Const EXPORT_RANGE_START_MARKER_SUFFIX As String = ".RangeStartMarker"
 Private Const EXPORT_RANGE_END_MARKER_SUFFIX As String = ".RangeEndMarker"
-Private Const DEFAULT_EXPORTER_CLASS As String = "obj_ExporterToDailyScope"
+Private Const DEFAULT_EXPORTER_CLASS As String = "obj_PEB_ExptrDailyScope"
 
 Private m_ConfigTable As obj_ConfigTable
 Private m_CfgParserBase As obj_CfgParserBase
