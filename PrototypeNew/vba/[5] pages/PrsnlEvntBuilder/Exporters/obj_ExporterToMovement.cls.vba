@@ -513,10 +513,10 @@ Private Function private_TryValidateLastMovementRowClosedForOpening( _
         private_EscapeForLog(validationIssueText)
     VBA.MsgBox _
         "PrototypeNew: Movement opening export was stopped." & VBA.vbCrLf & VBA.vbCrLf & _
-        "Причина: последняя запись по '" & MOVEMENT_TARGET_IPN & "' = '" & VBA.CStr(ipnValue) & "' не закрыта." & VBA.vbCrLf & _
-        "Строка целевой таблицы: " & lastRowRange.Address(False, False) & VBA.vbCrLf & _
-        "Проблема: " & validationIssueText & VBA.vbCrLf & VBA.vbCrLf & _
-        "Сначала закройте предыдущую запись прибытия, затем повторите экспорт выбытия.", _
+        "Reason: the latest row for '" & MOVEMENT_TARGET_IPN & "' = '" & VBA.CStr(ipnValue) & "' is not closed." & VBA.vbCrLf & _
+        "Target table row: " & lastRowRange.Address(False, False) & VBA.vbCrLf & _
+        "Problem: " & validationIssueText & VBA.vbCrLf & VBA.vbCrLf & _
+        "Close the previous arrival record first, then run the opening export again.", _
         VBA.vbExclamation, _
         "PrototypeNew / Movement export"
 End Function
@@ -586,14 +586,14 @@ Private Function private_AppendMissingCloseFieldIssue( _
 
     targetColumnIndex = private_FindTargetColumnIndex(targetTable, targetColumnName)
     If targetColumnIndex <= 0 Then
-        private_AppendIssueText ioIssueText, "не найдена колонка '" & targetColumnName & "'"
+        private_AppendIssueText ioIssueText, "missing column '" & targetColumnName & "'"
         private_AppendMissingCloseFieldIssue = True
         Exit Function
     End If
 
     targetValueText = VBA.Trim$(VBA.CStr(rowRange.Cells(1, targetColumnIndex).Value2))
     If VBA.Len(targetValueText) = 0 Then
-        private_AppendIssueText ioIssueText, "пустое поле '" & targetColumnName & "'"
+        private_AppendIssueText ioIssueText, "empty field '" & targetColumnName & "'"
     End If
 
     private_AppendMissingCloseFieldIssue = True
