@@ -7,11 +7,37 @@ Option Explicit
 #Const LOGGING_DEBUG_ENABLED = True
 #Const LOGGING_VERBOSE_ENABLED = False
 
+' //
+' // Flow "Формы экспорта"
+' //
+' // 1. Верхняя draft-форма всегда показывает текущий выбранный профиль:
+' //    основной профиль события или meta-профиль.
+' // 2. Кнопка Apply переносит текущую draft-форму в staging-состояние контроллера:
+' //    - основной профиль создает/заменяет m_ExportMainTable;
+' //    - meta-профиль добавляет новую таблицу в m_ExportMetaTables.
+' // 3. UI рендерит staging-состояние как "Форму экспорта":
+' //    RuntimeItems.PrsnlEvntBuilder.ExportForm.Main -> основная таблица;
+' //    RuntimeItems.PrsnlEvntBuilder.ExportForm.Meta -> список meta-таблиц.
+' //    Эти UI-таблицы намеренно чистые: в них нет служебных колонок вроде
+' //    meta_ProfileType, ManualOrderNo или SectionType.
+' // 4. При запуске экспорта контроллер не отдает UI-таблицы напрямую.
+' //    private_TryBuildExportSourceTables собирает отдельный export-source:
+' //    - Collection таблиц, где tables(1) = main, tables(2..n) = meta;
+' //    - context-объект с общими значениями, например SectionType и ManualOrderNo.
+' // 5. Для meta-таблиц только в export-source копии добавляется колонка
+' //    meta_ProfileType. Это нужно экспортерам, чтобы понять тип meta-строки,
+' //    но не засорять визуальную "Форму экспорта" на листе.
+' // 6. При смене основного профиля контроллер очищает staging-состояние,
+' //    чтобы meta-строки старого контекста не подтянулись к новому событию.
+'
 Private Const CONTROLLER_RUNTIME_OBJECT_KEY As String = "RuntimeObjects.PrsnlEvntBuilder.Controller"
 Private Const CANDIDATE_TABLES_RUNTIME_KEY As String = "RuntimeItems.PrsnlEvntBuilder.EntityLookup.CandidateTables"
 Private Const DUMMY_TABLES_RUNTIME_KEY As String = "RuntimeItems.PrsnlEvntBuilder.DummyTables"
 Private Const HOTKEYS_RUNTIME_KEY As String = "RuntimeItems.PrsnlEvntBuilder.Hotkeys"
 Private Const PROFILES_RUNTIME_KEY As String = "RuntimeItems.PrsnlEvntBuilder.Profiles"
+Private Const META_PROFILES_RUNTIME_KEY As String = "RuntimeItems.PrsnlEvntBuilder.MetaProfiles"
+Private Const EXPORT_FORM_MAIN_RUNTIME_KEY As String = "RuntimeItems.PrsnlEvntBuilder.ExportForm.Main"
+Private Const EXPORT_FORM_META_RUNTIME_KEY As String = "RuntimeItems.PrsnlEvntBuilder.ExportForm.Meta"
 Private Const PROFILES_PROVIDER_CLASS_KEY As String = "EntityLookup.ProfilesProviderClass"
 Private Const HOTKEY_ACCEPT_CANDIDATE_ROW As String = "Accept Candidate Row"
 Private Const HOTKEY_SELECT_FORM_ROW As String = "Select Form Row"
@@ -30,10 +56,13 @@ Private Const EVENT_DRAFT_VALUES_CONTAINER_NAME As String = "EventDraftValues"
 Private Const EVENT_DRAFT_ORDER_NO_LABEL_CONTROL_NAME As String = "EventDraftOrderNoLabel"
 Private Const EVENT_DRAFT_INCOMING_NO_HEADER_NAME As String = "Вх. №"
 Private Const EVENT_DRAFT_ORDER_LABEL_PREFIX As String = "Наказ №: "
-Private Const EXPORT_META_MANUAL_ORDER_NO_COLUMN_NAME As String = "meta_ManualOrderNo"
-Private Const EXPORT_META_SECTION_TYPE_COLUMN_NAME As String = "meta_SectionType"
+Private Const EXPORT_META_PROFILE_TYPE_COLUMN_NAME As String = "meta_ProfileType"
+Private Const EXPORT_CONTEXT_MANUAL_ORDER_NO_KEY As String = "ManualOrderNo"
+Private Const EXPORT_CONTEXT_SECTION_TYPE_KEY As String = "SectionType"
 Private Const PROFILE_BUTTON_STYLE_NORMAL As String = "profileButton"
 Private Const PROFILE_BUTTON_STYLE_SELECTED As String = "profileButtonSelected"
+Private Const META_PROFILE_BUTTON_STYLE_NORMAL As String = "metaProfileButton"
+Private Const META_PROFILE_BUTTON_STYLE_SELECTED As String = "metaProfileButtonSelected"
 
 Private m_Page As obj_IPage
 Private m_LookupFeature As obj_EntityLookupFeature
@@ -41,6 +70,11 @@ Private m_ExportAliases As Collection
 Private m_ExporterClassByAlias As Object
 Private m_ExportConfigTableByAlias As Object
 Private m_SelectedProfile As String
+' Состояние "Формы экспорта": одна основная таблица и ноль/несколько
+' meta-таблиц, подготовленных кнопкой Apply перед передачей в экспортер.
+Private m_SelectedMainProfile As String
+Private m_ExportMainTable As obj_TableDynamic
+Private m_ExportMetaTables As Collection
 Private m_Data As obj_PrsnlEvntBuilderData
 Private m_IsDisposed As Boolean
 
@@ -113,6 +147,8 @@ Public Function Initialize(ByVal page As Object) As Boolean
         "prsnlevntbuilder:entitylookup") Then Exit Function
 
     If Not private_RegisterProfileOptions(False) Then Exit Function
+    If Not private_RegisterMetaProfileOptions(False) Then Exit Function
+    If Not private_RegisterExportFormTables(False) Then Exit Function
     If Not private_RegisterDummyTables(False) Then Exit Function
     If Not private_EnsureHotkeyRows(False) Then Exit Function
     Initialize = True
@@ -134,6 +170,9 @@ Public Sub Dispose()
     Set m_ExportConfigTableByAlias = Nothing
     Set m_Data = Nothing
     m_SelectedProfile = VBA.vbNullString
+    m_SelectedMainProfile = VBA.vbNullString
+    Set m_ExportMainTable = Nothing
+    Set m_ExportMetaTables = Nothing
     On Error GoTo 0
 End Sub
 
@@ -146,6 +185,7 @@ Public Function UpdateData(ByVal configControl As obj_ConfigControlVM) As Boolea
         Exit Function
     End If
     If Not private_TryUpdateExportSettings(configControl) Then Exit Function
+    If Not private_RegisterExportFormTables(False) Then Exit Function
     If Not private_EnsureHotkeyRows(False) Then Exit Function
     UpdateData = True
 End Function
@@ -154,6 +194,8 @@ Public Function PrepareRuntime(Optional ByVal notifyChange As Boolean = False) A
     If m_LookupFeature Is Nothing Then Exit Function
     If Not m_LookupFeature.PrepareLookupRuntime(notifyChange) Then Exit Function
     If Not private_RegisterProfileOptions(notifyChange) Then Exit Function
+    If Not private_RegisterMetaProfileOptions(notifyChange) Then Exit Function
+    If Not private_RegisterExportFormTables(notifyChange) Then Exit Function
     If Not private_RegisterDummyTables(notifyChange) Then Exit Function
     If Not private_EnsureHotkeyRows(notifyChange) Then Exit Function
     PrepareRuntime = True
@@ -252,9 +294,20 @@ Public Function OnProfileButtonClick(Optional ByVal profileId As Variant) As Boo
     private_LogPerfStep "profile-click:start", perfStart, perfLast, "from='" & private_EscapeForLog(m_SelectedProfile) & "' to='" & private_EscapeForLog(newProfile) & "'"
 #End If
 
+    If private_IsMainProfile(newProfile) Then
+        If VBA.Len(VBA.Trim$(m_SelectedMainProfile)) = 0 Then
+            m_SelectedMainProfile = newProfile
+        ElseIf VBA.StrComp(private_NormalizeText(newProfile), private_NormalizeText(m_SelectedMainProfile), VBA.vbTextCompare) <> 0 Then
+            private_ClearExportFormState
+            m_SelectedMainProfile = newProfile
+        End If
+    End If
+
     m_SelectedProfile = newProfile
     If m_Page Is Nothing Then Exit Function
     If Not private_RegisterProfileOptions(False) Then Exit Function
+    If Not private_RegisterMetaProfileOptions(False) Then Exit Function
+    If Not private_RegisterExportFormTables(False) Then Exit Function
 #If LOGGING_DEBUG_ENABLED Then
     private_LogPerfStep "profile-click:profiles-registered", perfStart, perfLast, "profile='" & private_EscapeForLog(m_SelectedProfile) & "'"
 #End If
@@ -283,6 +336,50 @@ EH:
     private_LogPerfStep "profile-click:error", perfStart, perfLast, "err='" & private_EscapeForLog(Err.Description) & "'"
 #End If
     Resume Cleanup
+End Function
+
+Public Function OnMetaProfileButtonClick(Optional ByVal profileId As Variant) As Boolean
+    OnMetaProfileButtonClick = Me.OnProfileButtonClick(profileId)
+End Function
+
+Public Function RuntimeApplyExportForm() As Boolean
+    Dim sourceTable As obj_TableDynamic
+    Dim profileText As String
+    Dim previousEnableEvents As Boolean
+
+    ' Apply переносит текущую видимую draft-форму в "Форму экспорта".
+    ' Основной профиль заменяет основную строку; meta-профиль дописывает meta-строку.
+    If Not private_TryGetSelectedProfile(profileText) Then Exit Function
+    If Not private_TryBuildDraftFormSourceTable(sourceTable, False) Then Exit Function
+    If sourceTable Is Nothing Then Exit Function
+
+    sourceTable.SectionTitle = profileText
+    If private_IsMetaProfile(profileText) Then
+        If m_ExportMainTable Is Nothing Then
+            rt_Messaging.fn_ShowStatusBarWarning "Create main export row before adding meta rows.", 3
+            Exit Function
+        End If
+        If m_ExportMetaTables Is Nothing Then Set m_ExportMetaTables = New Collection
+        m_ExportMetaTables.Add sourceTable
+    Else
+        Set m_ExportMainTable = sourceTable
+        m_SelectedMainProfile = profileText
+    End If
+
+    If Not private_RegisterExportFormTables(False) Then Exit Function
+
+    previousEnableEvents = Application.EnableEvents
+    Application.EnableEvents = False
+    On Error GoTo RestoreEventsAndFail
+    RuntimeApplyExportForm = rt_PageManager.fn_RenderPage(m_Page, "prsnlevntbuilder:export-form-applied")
+    Application.EnableEvents = previousEnableEvents
+    If RuntimeApplyExportForm Then rt_Messaging.fn_ShowStatusBarSuccess "Export form updated: " & profileText, 3
+    Exit Function
+
+RestoreEventsAndFail:
+    On Error Resume Next
+    Application.EnableEvents = previousEnableEvents
+    On Error GoTo 0
 End Function
 
 Public Function SearchCandidates( _
@@ -355,7 +452,14 @@ Private Function private_RegisterProfileOptions(ByVal notifyChange As Boolean) A
     private_LogPerfStep "profiles:options-loaded", perfStart, perfLast, "count=" & VBA.CStr(profiles.Count)
 #End If
     If VBA.Len(VBA.Trim$(m_SelectedProfile)) = 0 Then m_SelectedProfile = VBA.Trim$(VBA.CStr(profiles.Item(1)))
-    If Not private_TryBuildProfileButtonOptions(profiles, profileOptions) Then Exit Function
+    If VBA.Len(VBA.Trim$(m_SelectedMainProfile)) = 0 Then m_SelectedMainProfile = VBA.Trim$(m_SelectedProfile)
+    If Not private_TryBuildOptionButtonRows( _
+        profiles, _
+        m_SelectedMainProfile, _
+        PROFILE_BUTTON_STYLE_NORMAL, _
+        PROFILE_BUTTON_STYLE_SELECTED, _
+        2, _
+        profileOptions) Then Exit Function
 #If LOGGING_DEBUG_ENABLED Then
     private_LogPerfStep "profiles:button-options-built", perfStart, perfLast, "rows=" & VBA.CStr(profileOptions.Count)
 #End If
@@ -372,8 +476,73 @@ Private Function private_RegisterProfileOptions(ByVal notifyChange As Boolean) A
     private_RegisterProfileOptions = True
 End Function
 
-Private Function private_TryBuildProfileButtonOptions( _
+Private Function private_RegisterMetaProfileOptions(ByVal notifyChange As Boolean) As Boolean
+    Dim pageBase As obj_PageBase
+    Dim runtimeSources As obj_PageRuntimeSources
+    Dim profiles As Collection
+    Dim profileOptions As Collection
+
+    If m_Page Is Nothing Then Exit Function
+    If m_Data Is Nothing Then Set m_Data = New obj_PrsnlEvntBuilderData
+    Set pageBase = m_Page.GetPageBase()
+    If pageBase Is Nothing Then Exit Function
+    Set runtimeSources = pageBase.RuntimeSources
+    If runtimeSources Is Nothing Then Exit Function
+
+    Set profiles = m_Data.MetaProfileNames
+    If profiles Is Nothing Then Exit Function
+    If Not private_TryBuildOptionButtonRows( _
+        profiles, _
+        m_SelectedProfile, _
+        META_PROFILE_BUTTON_STYLE_NORMAL, _
+        META_PROFILE_BUTTON_STYLE_SELECTED, _
+        1, _
+        profileOptions) Then Exit Function
+
+    If Not runtimeSources.RemoveItemsSource(VBA.LCase$(META_PROFILES_RUNTIME_KEY)) Then Exit Function
+    If Not runtimeSources.SetItemsSource(VBA.LCase$(META_PROFILES_RUNTIME_KEY), profileOptions, notifyChange) Then Exit Function
+
+    private_RegisterMetaProfileOptions = True
+End Function
+
+Private Function private_RegisterExportFormTables(ByVal notifyChange As Boolean) As Boolean
+    Dim pageBase As obj_PageBase
+    Dim runtimeSources As obj_PageRuntimeSources
+    Dim mainTables As Collection
+    Dim metaTables As Collection
+    Dim metaTableObj As Variant
+
+    If m_Page Is Nothing Then Exit Function
+    Set pageBase = m_Page.GetPageBase()
+    If pageBase Is Nothing Then Exit Function
+    Set runtimeSources = pageBase.RuntimeSources
+    If runtimeSources Is Nothing Then Exit Function
+
+    Set mainTables = New Collection
+    If Not m_ExportMainTable Is Nothing Then mainTables.Add m_ExportMainTable
+
+    Set metaTables = New Collection
+    If Not m_ExportMetaTables Is Nothing Then
+        For Each metaTableObj In m_ExportMetaTables
+            If IsObject(metaTableObj) Then metaTables.Add metaTableObj
+        Next metaTableObj
+    End If
+
+    If Not runtimeSources.RemoveItemsSource(VBA.LCase$(EXPORT_FORM_MAIN_RUNTIME_KEY)) Then Exit Function
+    If Not runtimeSources.SetItemsSource(VBA.LCase$(EXPORT_FORM_MAIN_RUNTIME_KEY), mainTables, notifyChange) Then Exit Function
+
+    If Not runtimeSources.RemoveItemsSource(VBA.LCase$(EXPORT_FORM_META_RUNTIME_KEY)) Then Exit Function
+    If Not runtimeSources.SetItemsSource(VBA.LCase$(EXPORT_FORM_META_RUNTIME_KEY), metaTables, notifyChange) Then Exit Function
+
+    private_RegisterExportFormTables = True
+End Function
+
+Private Function private_TryBuildOptionButtonRows( _
     ByVal profiles As Collection, _
+    ByVal selectedProfileText As String, _
+    ByVal normalStyleName As String, _
+    ByVal selectedStyleName As String, _
+    ByVal itemsPerRow As Long, _
     ByRef outRows As Collection _
 ) As Boolean
     Dim profileObj As Variant
@@ -384,6 +553,7 @@ Private Function private_TryBuildProfileButtonOptions( _
 
     Set outRows = Nothing
     If profiles Is Nothing Then Exit Function
+    If itemsPerRow <= 0 Then itemsPerRow = 1
 
     Set outRows = New Collection
     Set rowItems = Nothing
@@ -397,7 +567,7 @@ Private Function private_TryBuildProfileButtonOptions( _
             rowObj.CompareMode = 1
             Set rowObj("Items") = rowItems
             outRows.Add rowObj
-        ElseIf rowItems.Count >= 2 Then
+        ElseIf rowItems.Count >= itemsPerRow Then
             Set rowItems = New Collection
             Set rowObj = VBA.CreateObject("Scripting.Dictionary")
             rowObj.CompareMode = 1
@@ -408,17 +578,17 @@ Private Function private_TryBuildProfileButtonOptions( _
         Set optionObj = New obj_SelectOption
         optionObj.Caption = profileText
         optionObj.Id = profileText
-        If VBA.StrComp(private_NormalizeText(profileText), private_NormalizeText(m_SelectedProfile), VBA.vbTextCompare) = 0 Then
-            optionObj.StyleName = PROFILE_BUTTON_STYLE_SELECTED
+        If VBA.StrComp(private_NormalizeText(profileText), private_NormalizeText(selectedProfileText), VBA.vbTextCompare) = 0 Then
+            optionObj.StyleName = selectedStyleName
         Else
-            optionObj.StyleName = PROFILE_BUTTON_STYLE_NORMAL
+            optionObj.StyleName = normalStyleName
         End If
         rowItems.Add optionObj
 
 ContinueProfile:
     Next profileObj
 
-    private_TryBuildProfileButtonOptions = True
+    private_TryBuildOptionButtonRows = True
 End Function
 
 #If LOGGING_DEBUG_ENABLED Then
@@ -588,7 +758,8 @@ ContinueListObject:
 End Function
 
 Private Function private_TryExportDraftByAction(ByVal actionId As String) As Boolean
-    Dim sourceTable As obj_TableDynamic
+    Dim sourceTables As Collection
+    Dim exportContext As Object
     Dim exporter As obj_IDataExporter
     Dim exportAlias As String
     Dim exporterClassName As String
@@ -596,11 +767,11 @@ Private Function private_TryExportDraftByAction(ByVal actionId As String) As Boo
 
     If Not private_TryResolveExportAliasFromAction(actionId, exportAlias) Then Exit Function
         If Not private_TryGetExportSettings(exportAlias, exporterClassName, exportConfigTable) Then Exit Function
-    If Not private_TryBuildDraftFormSourceTable(sourceTable) Then Exit Function
+    If Not private_TryBuildExportSourceTables(sourceTables, exportContext) Then Exit Function
 
     If Not private_TryCreateDataExporter(exporterClassName, exportConfigTable, exporter) Then Exit Function
 
-        If Not exporter.Export(sourceTable) Then Exit Function
+        If Not exporter.Export(sourceTables, exportContext) Then Exit Function
 
     rt_Messaging.fn_ShowStatusBarSuccess EXPORT_ACTION_PREFIX & exportAlias & ": done", 3
     private_TryExportDraftByAction = True
@@ -908,7 +1079,123 @@ Private Function private_BuildExportConfigTable( _
     Set private_BuildExportConfigTable = configTable
 End Function
 
-Private Function private_TryBuildDraftFormSourceTable(ByRef outTable As obj_TableDynamic) As Boolean
+Private Function private_TryBuildExportSourceTables( _
+    ByRef outTables As Collection, _
+    ByRef outContext As Object _
+) As Boolean
+    Dim pageBase As obj_PageBase
+    Dim ws As Worksheet
+    Dim mainTable As obj_TableDynamic
+    Dim exportTable As obj_TableDynamic
+    Dim metaSourceTable As obj_TableDynamic
+    Dim metaTableObj As Variant
+    Dim sectionTypeText As String
+    Dim manualOrderNoText As String
+
+    Set outTables = Nothing
+    Set outContext = Nothing
+    If m_Page Is Nothing Then Exit Function
+    Set pageBase = m_Page.GetPageBase()
+    If pageBase Is Nothing Then Exit Function
+    Set ws = pageBase.Worksheet
+    If ws Is Nothing Then Exit Function
+
+    ' Экспортеры получают чистый контракт:
+    '   tables(1) = основная таблица экспорта
+    '   tables(2..n) = meta-таблицы экспорта
+    '   context = общие значения для всех таблиц, например номер приказа и тип секции.
+    Set outTables = New Collection
+    Set outContext = VBA.CreateObject("Scripting.Dictionary")
+    outContext.CompareMode = 1
+
+    sectionTypeText = VBA.Trim$(m_SelectedMainProfile)
+    If VBA.Len(sectionTypeText) = 0 Then sectionTypeText = VBA.Trim$(m_SelectedProfile)
+    manualOrderNoText = private_TryReadManualOrderNoValue(pageBase, ws)
+
+    outContext(EXPORT_CONTEXT_SECTION_TYPE_KEY) = sectionTypeText
+    outContext(EXPORT_CONTEXT_MANUAL_ORDER_NO_KEY) = manualOrderNoText
+
+    If Not m_ExportMainTable Is Nothing Then
+        Set mainTable = m_ExportMainTable
+    Else
+        If private_IsMetaProfile(m_SelectedProfile) Then
+            rt_Messaging.fn_ShowStatusBarWarning "Create main export row before exporting meta rows.", 3
+            Exit Function
+        End If
+        If Not private_TryBuildDraftFormSourceTable(mainTable, False) Then Exit Function
+        mainTable.SectionTitle = sectionTypeText
+    End If
+
+    If Not private_TryCloneSourceTableForExport(mainTable, VBA.vbNullString, exportTable) Then Exit Function
+    outTables.Add exportTable
+
+    If Not m_ExportMetaTables Is Nothing Then
+        For Each metaTableObj In m_ExportMetaTables
+            If Not IsObject(metaTableObj) Then GoTo ContinueMetaTable
+            Set metaSourceTable = Nothing
+            On Error Resume Next
+            Set metaSourceTable = metaTableObj
+            On Error GoTo 0
+            If metaSourceTable Is Nothing Then GoTo ContinueMetaTable
+            If Not private_TryCloneSourceTableForExport(metaSourceTable, VBA.CStr(metaSourceTable.SectionTitle), exportTable) Then Exit Function
+            outTables.Add exportTable
+ContinueMetaTable:
+        Next metaTableObj
+    End If
+
+    private_TryBuildExportSourceTables = True
+End Function
+
+Private Function private_TryCloneSourceTableForExport( _
+    ByVal sourceTable As obj_TableDynamic, _
+    ByVal metaProfileType As String, _
+    ByRef outTable As obj_TableDynamic _
+) As Boolean
+    Dim resultTable As obj_TableDynamic
+    Dim sourceColumn As obj_Column
+    Dim sourceRow As obj_Row
+    Dim resultRow As obj_Row
+    Dim colIndex As Long
+    Dim rowIndex As Long
+
+    Set outTable = Nothing
+    If sourceTable Is Nothing Then Exit Function
+    If sourceTable.ColumnCount <= 0 Then Exit Function
+
+    ' UI-таблицы остаются чистыми. Только копии meta-таблиц для экспортера
+    ' получают meta_ProfileType, чтобы экспортер мог понять тип meta-строки.
+    Set resultTable = New obj_TableDynamic
+    resultTable.SectionTitle = sourceTable.SectionTitle
+
+    For colIndex = 1 To sourceTable.ColumnCount
+        Set sourceColumn = sourceTable.Columns.Item(colIndex)
+        If sourceColumn Is Nothing Then Exit Function
+        If Not private_AddSourceColumn(resultTable, sourceColumn.Name) Then Exit Function
+    Next colIndex
+    metaProfileType = VBA.Trim$(metaProfileType)
+    If VBA.Len(metaProfileType) > 0 Then
+        If Not private_AddSourceColumn(resultTable, EXPORT_META_PROFILE_TYPE_COLUMN_NAME) Then Exit Function
+    End If
+
+    For rowIndex = 1 To sourceTable.RowCount
+        Set sourceRow = sourceTable.Rows.Item(rowIndex)
+        If sourceRow Is Nothing Then Exit Function
+        Set resultRow = New obj_Row
+        For colIndex = 1 To sourceTable.ColumnCount
+            resultRow.PushCellRaw sourceRow.GetCellValue(colIndex)
+        Next colIndex
+        If VBA.Len(metaProfileType) > 0 Then resultRow.PushCellRaw metaProfileType
+        If Not resultTable.PushRow(resultRow) Then Exit Function
+    Next rowIndex
+
+    Set outTable = resultTable
+    private_TryCloneSourceTableForExport = True
+End Function
+
+Private Function private_TryBuildDraftFormSourceTable( _
+    ByRef outTable As obj_TableDynamic, _
+    Optional ByVal includeBlankHeaderColumns As Boolean = False _
+) As Boolean
     Dim pageBase As obj_PageBase
     Dim ws As Worksheet
     Dim draftValuesRange As Range
@@ -917,8 +1204,6 @@ Private Function private_TryBuildDraftFormSourceTable(ByRef outTable As obj_Tabl
     Dim colOffset As Long
     Dim sheetCol As Long
     Dim headerText As String
-    Dim profileText As String
-    Dim manualOrderNoText As String
 
     Set outTable = Nothing
     If m_Page Is Nothing Then Exit Function
@@ -938,6 +1223,8 @@ Private Function private_TryBuildDraftFormSourceTable(ByRef outTable As obj_Tabl
         Exit Function
     End If
 
+    ' Собираем таблицу только из отрендеренных колонок draft-формы.
+    ' Пустые заголовки по умолчанию пропускаем, чтобы не появлялись Column N.
     Set sourceTable = New obj_TableDynamic
     sourceTable.SectionTitle = "PrsnlEvntBuilder draft form"
     Set sourceRow = New obj_Row
@@ -945,19 +1232,15 @@ Private Function private_TryBuildDraftFormSourceTable(ByRef outTable As obj_Tabl
     For colOffset = 1 To draftValuesRange.Columns.Count
         sheetCol = draftValuesRange.Column + colOffset - 1
         headerText = private_ReadHeaderText(ws.Cells(draftValuesRange.Row - 1, sheetCol))
-        If VBA.Len(headerText) = 0 Then headerText = "Column " & VBA.CStr(colOffset)
+        If VBA.Len(headerText) = 0 Then
+            If Not includeBlankHeaderColumns Then GoTo ContinueDraftColumn
+            headerText = "Column " & VBA.CStr(colOffset)
+        End If
         If Not private_AddSourceColumn(sourceTable, headerText) Then Exit Function
         sourceRow.PushCellRaw ws.Cells(draftValuesRange.Row, sheetCol).Value2
+
+ContinueDraftColumn:
     Next colOffset
-
-    If Not private_TryGetSelectedProfile(profileText) Then Exit Function
-    manualOrderNoText = private_TryReadManualOrderNoValue(pageBase, ws)
-
-    If Not private_AddSourceColumn(sourceTable, EXPORT_META_MANUAL_ORDER_NO_COLUMN_NAME) Then Exit Function
-    sourceRow.PushCellRaw manualOrderNoText
-
-    If Not private_AddSourceColumn(sourceTable, EXPORT_META_SECTION_TYPE_COLUMN_NAME) Then Exit Function
-    sourceRow.PushCellRaw profileText
 
     If Not sourceTable.PushRow(sourceRow) Then Exit Function
     Set outTable = sourceTable
@@ -991,6 +1274,22 @@ Private Function private_TryGetSelectedProfile(ByRef outProfile As String) As Bo
 
     private_TryGetSelectedProfile = True
 End Function
+
+Private Function private_IsMetaProfile(ByVal profileText As String) As Boolean
+    If m_Data Is Nothing Then Set m_Data = New obj_PrsnlEvntBuilderData
+    private_IsMetaProfile = m_Data.IsMetaProfileName(profileText)
+End Function
+
+Private Function private_IsMainProfile(ByVal profileText As String) As Boolean
+    profileText = VBA.Trim$(profileText)
+    If VBA.Len(profileText) = 0 Then Exit Function
+    private_IsMainProfile = Not private_IsMetaProfile(profileText)
+End Function
+
+Private Sub private_ClearExportFormState()
+    Set m_ExportMainTable = Nothing
+    Set m_ExportMetaTables = New Collection
+End Sub
 
  Private Function private_NormalizeText(ByVal valueText As String) As String
     valueText = VBA.LCase$(VBA.Trim$(VBA.CStr(valueText)))

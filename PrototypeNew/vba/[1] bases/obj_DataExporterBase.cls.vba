@@ -219,6 +219,33 @@ Public Function ValidateSourceTable(ByVal sourceTable As obj_TableDynamic) As Bo
     ValidateSourceTable = True
 End Function
 
+Public Function TryGetMainSourceTable( _
+    ByVal sourceTables As Collection, _
+    ByRef outSourceTable As obj_TableDynamic _
+) As Boolean
+    Set outSourceTable = Nothing
+    If sourceTables Is Nothing Then
+        VBA.MsgBox "PrototypeNew: export source tables are not specified.", VBA.vbExclamation, m_DialogTitle
+        Exit Function
+    End If
+    If sourceTables.Count <= 0 Then
+        VBA.MsgBox "PrototypeNew: export source tables list is empty.", VBA.vbExclamation, m_DialogTitle
+        Exit Function
+    End If
+    If Not IsObject(sourceTables.Item(1)) Then
+        VBA.MsgBox "PrototypeNew: main export source table is not an object.", VBA.vbExclamation, m_DialogTitle
+        Exit Function
+    End If
+    If VBA.StrComp(VBA.LCase$(VBA.TypeName(sourceTables.Item(1))), "obj_tabledynamic", VBA.vbTextCompare) <> 0 Then
+        VBA.MsgBox "PrototypeNew: main export source table has unsupported type: " & VBA.TypeName(sourceTables.Item(1)), VBA.vbExclamation, m_DialogTitle
+        Exit Function
+    End If
+
+    Set outSourceTable = sourceTables.Item(1)
+    If Not Me.ValidateSourceTable(outSourceTable) Then Exit Function
+    TryGetMainSourceTable = True
+End Function
+
 Public Sub BeginFastExcelMode( _
     ByRef outScreenUpdating As Boolean, _
     ByRef outEnableEvents As Boolean, _

@@ -2,6 +2,7 @@
 <page xmlns="urn:excelprototype:profiles" version="1">
   <grid anchorCell="A1">
     <stackPanel at="r2c2" orientation="vertical">
+      <!-- Верхние команды: таблица хоткеев и ручной перерендер страницы. -->
       <stackPanel orientation="horizontal">
         <control
           type="Hotkeys"
@@ -25,6 +26,7 @@
 
       <stackPanel spanColls="22" spanRows="1"/>
 
+      <!-- Строка профилей: основные профили, meta-профили, номер приказа, Apply. -->
       <stackPanel name="EventDraftProfileRow" orientation="horizontal">
         <control
           type="ButtonGroup"
@@ -40,6 +42,21 @@
           itemSpanRows="2"
           spanColls="8"
           spanRows="11"/>
+
+        <control
+          type="ButtonGroup"
+          name="EventDraftMetaProfileButtonGroup"
+          itemsSource="{PageRuntimeSource='RuntimeItems.PrsnlEvntBuilder.MetaProfiles'}"
+          captionPath="Caption"
+          idPath="Id"
+          stylePath="StyleName"
+          shapePrefix="btn_STBarMeta_"
+          onClick="{Binding DataContext={PageRuntimeSource='RuntimeObjects.PrsnlEvntBuilder.Controller'}; Method=OnMetaProfileButtonClick}"
+          columns="1"
+          flow="column"
+          itemSpanRows="2"
+          spanColls="2"
+          spanRows="5"/>
         
         <control
           type="Label"
@@ -58,8 +75,21 @@
             spanColls="1"
             spanRows="1"/>
         </stackPanel>
+
+        <stackPanel spanColls="2" spanRows="1"/>
+
+        <control
+          type="Button"
+          name="ApplyExportForm"
+          caption="Apply"
+          style="exportApplyButton"
+          dataContext="{PageRuntimeSource='RuntimeObjects.PrsnlEvntBuilder.Controller'}"
+          onClick="{Binding Method=RuntimeApplyExportForm}"
+          spanColls="2"
+          spanRows="2"/>
       </stackPanel>
 
+      <!-- Draft-форма: текущий основной или meta-профиль редактирует эту строку. -->
       <stackPanel
         name="EventDraftForm"
         dataContext="{PageRuntimeSource='RuntimeObjects.PrsnlEvntBuilder.Controller'}"
@@ -108,7 +138,9 @@
             type="Label"
             name="RankHeader"
             tags="profile.allFields;
-                  profile.core"
+                  profile.core;
+                  profile.metaTvo;
+                  profile.metaDocument"
             text="Звання"
             style="tableHeaderCell"
             />
@@ -116,7 +148,9 @@
             type="Label"
             name="FioHeader"
             tags="profile.allFields;
-                  profile.core"
+                  profile.core;
+                  profile.metaTvo;
+                  profile.metaDocument"
             text="ПІБ"
             style="tableHeaderCell"
             />
@@ -124,7 +158,9 @@
             type="Label"
             name="IpnHeader"
             tags="profile.allFields;
-                  profile.core"
+                  profile.core;
+                  profile.metaTvo;
+                  profile.metaDocument"
             text="ІПН"
             style="tableHeaderCell"
             />
@@ -132,7 +168,9 @@
             type="Label"
             name="PositionCodeHeader"
             tags="profile.allFields;
-                  profile.core"
+                  profile.core;
+                  profile.metaTvo;
+                  profile.metaDocument"
             text="Код посади"
             style="tableHeaderCell"
             />
@@ -140,7 +178,9 @@
             type="Label"
             name="PositionNameHeader"
             tags="profile.allFields;
-                  profile.core"
+                  profile.core;
+                  profile.metaTvo;
+                  profile.metaDocument"
             text="Посада"
             style="tableHeaderCell"
             />
@@ -162,7 +202,8 @@
                   profile.transferTreatmentVacationToTreatment;
                   profile.transferTreatmentVacationToVlk;
                   profile.transferVlkToTreatmentVacation;
-                  profile.transferVlkToTreatment"
+                  profile.transferVlkToTreatment;
+                  profile.metaTvo"
             text="Рапорт ТВО"
             style="tableHeaderCell"
             />
@@ -184,7 +225,8 @@
                   profile.transferTreatmentVacationToTreatment;
                   profile.transferTreatmentVacationToVlk;
                   profile.transferVlkToTreatmentVacation;
-                  profile.transferVlkToTreatment"
+                  profile.transferVlkToTreatment;
+                  profile.metaTvo"
             text="Рапорт кого"
             style="tableHeaderCell"
             />
@@ -192,7 +234,8 @@
             type="Label"
             name="IncomingNoHeader"
             tags="profile.allFields;
-                  profile.core"
+                  profile.core;
+                  profile.metaDocument"
             text="Вх. №"
             style="tableHeaderCell"
             />
@@ -200,7 +243,8 @@
             type="Label"
             name="IncomingDateHeader"
             tags="profile.allFields;
-                  profile.core"
+                  profile.core;
+                  profile.metaDocument"
             text="Вх. дата"
             style="tableHeaderCell"
             />
@@ -215,7 +259,8 @@
                   profile.transferTreatmentToTreatmentVacation;
                   profile.transferTreatmentVacationToTreatment;
                   profile.transferTreatmentVacationToVlk;
-                  profile.transferVlkToTreatment"
+                  profile.transferVlkToTreatment;
+                  profile.metaDocument"
             text="Документ / Замітки"
             style="tableHeaderCell"
             />
@@ -232,7 +277,8 @@
                   profile.transferTreatmentToTreatmentVacation;
                   profile.transferTreatmentVacationToTreatment;
                   profile.transferTreatmentVacationToVlk;
-                  profile.transferVlkToTreatment"
+                  profile.transferVlkToTreatment;
+                  profile.metaDocument"
             text="Док. №"
             style="tableHeaderCell"
             />
@@ -247,7 +293,8 @@
                   profile.transferTreatmentToTreatmentVacation;
                   profile.transferTreatmentVacationToTreatment;
                   profile.transferTreatmentVacationToVlk;
-                  profile.transferVlkToTreatment"
+                  profile.transferVlkToTreatment;
+                  profile.metaDocument"
             text="Док. дата"
             style="tableHeaderCell"
             />
@@ -404,7 +451,9 @@
             name="RankDraftCell"
             tags="Rank;
                   profile.allFields;
-                  profile.core"
+                  profile.core;
+                  profile.metaTvo;
+                  profile.metaDocument"
             text=""
             style="tableDataCell"
             />
@@ -414,7 +463,9 @@
             name="FioLookupInput"
             tags="FIO;
                   profile.allFields;
-                  profile.core"
+                  profile.core;
+                  profile.metaTvo;
+                  profile.metaDocument"
             dataContext="{PageRuntimeSource='RuntimeObjects.PrsnlEvntBuilder'}"
             value="{Binding Path=LookupQueryValues.FIO}"
             onChange="{Binding Method=OnLookupInputCellChangedCommand}"
@@ -427,7 +478,9 @@
             name="IpnDraftCell"
             tags="Ipn;
                   profile.allFields;
-                  profile.core"
+                  profile.core;
+                  profile.metaTvo;
+                  profile.metaDocument"
             text=""
             style="tableDataCell"
             />
@@ -437,7 +490,9 @@
             name="PositionCodeDraftCell"
             tags="PositionCode;
                   profile.allFields;
-                  profile.core"
+                  profile.core;
+                  profile.metaTvo;
+                  profile.metaDocument"
             text=""
             style="tableDataCell"
             />
@@ -447,7 +502,9 @@
             name="PositionNameDraftCell"
             tags="PositionName;
                   profile.allFields;
-                  profile.core"
+                  profile.core;
+                  profile.metaTvo;
+                  profile.metaDocument"
             text=""
             style="tableDataCell"
             />
@@ -471,7 +528,8 @@
                   profile.transferTreatmentVacationToTreatment;
                   profile.transferTreatmentVacationToVlk;
                   profile.transferVlkToTreatmentVacation;
-                  profile.transferVlkToTreatment"
+                  profile.transferVlkToTreatment;
+                  profile.metaTvo"
             text=""
             style="tableDataCell"
             />
@@ -495,7 +553,8 @@
                   profile.transferTreatmentVacationToTreatment;
                   profile.transferTreatmentVacationToVlk;
                   profile.transferVlkToTreatmentVacation;
-                  profile.transferVlkToTreatment"
+                  profile.transferVlkToTreatment;
+                  profile.metaTvo"
             dataContext="{PageRuntimeSource='RuntimeObjects.PrsnlEvntBuilder'}"
             value="{Binding Path=LookupQueryValues.Commander}"
             onChange="{Binding Method=OnLookupInputCellChangedCommand}"
@@ -508,7 +567,8 @@
             name="IncomingNoDraftCell"
             tags="IncomingNo;
                   profile.allFields;
-                  profile.core"
+                  profile.core;
+                  profile.metaDocument"
             text=""
             style="tableDataCell"
             />
@@ -518,7 +578,8 @@
             name="IncomingDateDraftCell"
             tags="IncomingDate;
                   profile.allFields;
-                  profile.core"
+                  profile.core;
+                  profile.metaDocument"
             text=""
             style="tableDataCell"
             />
@@ -535,7 +596,8 @@
                   profile.transferTreatmentToTreatmentVacation;
                   profile.transferTreatmentVacationToTreatment;
                   profile.transferTreatmentVacationToVlk;
-                  profile.transferVlkToTreatment"
+                  profile.transferVlkToTreatment;
+                  profile.metaDocument"
             text=""
             style="tableDataCell"
             />
@@ -554,7 +616,8 @@
                   profile.transferTreatmentToTreatmentVacation;
                   profile.transferTreatmentVacationToTreatment;
                   profile.transferTreatmentVacationToVlk;
-                  profile.transferVlkToTreatment"
+                  profile.transferVlkToTreatment;
+                  profile.metaDocument"
             text=""
             style="tableDataCell"
             />
@@ -571,7 +634,8 @@
                   profile.transferTreatmentToTreatmentVacation;
                   profile.transferTreatmentVacationToTreatment;
                   profile.transferTreatmentVacationToVlk;
-                  profile.transferVlkToTreatment"
+                  profile.transferVlkToTreatment;
+                  profile.metaDocument"
             text=""
             style="tableDataCell"
             />
@@ -691,6 +755,7 @@
         </stackPanel>
       </stackPanel>
 
+      <!-- Кандидаты поиска находятся сразу под draft-формой для быстрого выбора. -->
       <stackPanel orientation="vertical" spanColls="50">
         <control
           type="LookupCandidates"
@@ -708,10 +773,34 @@
           spanColls="6"/> -->
       </stackPanel>
 
+      <!-- Форма экспорта: Apply пишет основную таблицу и дописанные meta-таблицы. -->
+      <stackPanel
+        name="EventExportForm"
+        orientation="vertical"
+        spanColls="50"
+        spanRows="24">
+        <control
+          type="TableList"
+          name="EventExportMainTable"
+          dataContext="{PageRuntimeSource='RuntimeObjects.PrsnlEvntBuilder.Controller'}"
+          itemsSource="{PageRuntimeSource='RuntimeItems.PrsnlEvntBuilder.ExportForm.Main'}"
+          spanColls="50"
+          spanRows="4"/>
+
+        <control
+          type="TableList"
+          name="EventExportMetaTables"
+          dataContext="{PageRuntimeSource='RuntimeObjects.PrsnlEvntBuilder.Controller'}"
+          itemsSource="{PageRuntimeSource='RuntimeItems.PrsnlEvntBuilder.ExportForm.Meta'}"
+          spanColls="50"
+          spanRows="20"/>
+      </stackPanel>
+
     </stackPanel>
   </grid>
 
   <styles>
+    <!-- Стили shape-кнопок для команд и переключателей профилей. -->
     <controlStyle
       name="actionWarning"
       backColor="#ED7D31"
@@ -721,6 +810,16 @@
       fontName="Calibri"
       fontSize="11"
       fontBold="false"/>
+
+    <controlStyle
+      name="exportApplyButton"
+      backColor="#0E5A1E"
+      textColor="#FFFFFF"
+      borderColor="#A7F3D0"
+      borderWeight="1.25"
+      fontName="Calibri"
+      fontSize="11"
+      fontBold="true"/>
 
     <controlStyle
       name="configSelectHeader"
@@ -772,7 +871,28 @@
       fontSize="11"
       fontBold="true"/>
 
+    <controlStyle
+      name="metaProfileButton"
+      backColor="#C75512"
+      textColor="#FFFFFF"
+      borderColor="#8F3A0B"
+      borderWeight="1"
+      fontName="Calibri"
+      fontSize="11"
+      fontBold="true"/>
+
+    <controlStyle
+      name="metaProfileButtonSelected"
+      backColor="#F4B183"
+      textColor="#0A0A0A"
+      borderColor="#C75512"
+      borderWeight="1.25"
+      fontName="Calibri"
+      fontSize="11"
+      fontBold="true"/>
+
     <stylePipelineStage name="default">
+      <!-- Базовый стиль листа: темная сетка, размеры по умолчанию, отступ в колонке A. -->
       <layer name="entitylookup-base">
         <rule target="sheet"
               styles="{
@@ -791,6 +911,7 @@
               styles="{ width:2.38; }"/>
       </layer>
 
+      <!-- Ячейки lookup-input внутри draft-формы. -->
       <layer name="entitylookup-lookup-inputs">
         <rule target="controlPart"
               selector="type=input;part=cell"
@@ -805,6 +926,7 @@
               }"/>
       </layer>
 
+      <!-- Размеры draft-формы и ширины колонок, зависящие от профиля. -->
       <layer name="event-draft-form">
         <rule target="layoutContainer"
               selector="name=EventDraftHeaders"
@@ -857,6 +979,92 @@
         <rule target="controlPart" selector="type=label;name=EventDraftOrderNoLabel;part=cell" styles="{ width:16; }"/>
       </layer>
 
+      <!-- Таблицы формы экспорта, которые рендерит Apply: основная строка и meta-список. -->
+      <layer name="event-export-form">
+        <rule target="layoutContainer"
+              selector="name=EventExportForm"
+              styles="{
+                rowHeight:21;
+              }"/>
+
+        <rule target="controlPart"
+              selector="type=tablelist;name=EventExportMainTable;part=section"
+              styles="{
+                backColor:#84227E;
+                fontColor:#FFFFFF;
+                borderColor:#51164D;
+                borderWeight:thin;
+                fontBold:true;
+                horizontal:center;
+              }"/>
+
+        <rule target="controlPart"
+              selector="type=tablelist;name=EventExportMainTable;part=header"
+              styles="{
+                backColor:#050505;
+                fontColor:#FFFFFF;
+                borderColor:#FF0000;
+                borderWeight:thin;
+                fontBold:true;
+                horizontal:center;
+                vertical:center;
+                overflow:wrap;
+                rowHeight:44;
+              }"/>
+
+        <rule target="controlPart"
+              selector="type=tablelist;name=EventExportMainTable;part=rows"
+              styles="{
+                backColor:#3B3B3B;
+                fontColor:#FFFFFF;
+                borderColor:#111318;
+                borderWeight:thin;
+                horizontal:center;
+                vertical:center;
+                overflow:wrap;
+                rowHeight:72;
+              }"/>
+
+        <rule target="controlPart"
+              selector="type=tablelist;name=EventExportMetaTables;part=section"
+              styles="{
+                backColor:#0070C0;
+                fontColor:#FFFFFF;
+                borderColor:#004C82;
+                borderWeight:thin;
+                fontBold:true;
+                horizontal:center;
+              }"/>
+
+        <rule target="controlPart"
+              selector="type=tablelist;name=EventExportMetaTables;part=header"
+              styles="{
+                backColor:#050505;
+                fontColor:#FFFFFF;
+                borderColor:#FF0000;
+                borderWeight:thin;
+                fontBold:true;
+                horizontal:center;
+                vertical:center;
+                overflow:wrap;
+                rowHeight:24;
+              }"/>
+
+        <rule target="controlPart"
+              selector="type=tablelist;name=EventExportMetaTables;part=rows"
+              styles="{
+                backColor:#3B3B3B;
+                fontColor:#FFFFFF;
+                borderColor:#111318;
+                borderWeight:thin;
+                horizontal:center;
+                vertical:center;
+                overflow:wrap;
+                rowHeight:24;
+              }"/>
+      </layer>
+
+      <!-- Кандидаты поиска и общие стили секций/заголовков/строк TableList. -->
       <layer name="entitylookup-labels">
         <rule target="controlPart"
               selector="type=tablelist;part=section"
@@ -894,6 +1102,7 @@
               }"/>
       </layer>
 
+      <!-- Стили таблицы хоткеев. -->
       <layer name="hotkey-panel">
         <rule target="controlPart"
               selector="type=hotkeys;part=action"
@@ -920,6 +1129,7 @@
               }"/>
       </layer>
 
+      <!-- Debug-рамки layout-а для настройки границ страницы. -->
       <layer name="layout-debug-bounds">
         <rule target="layoutBound"
               selector="tag=grid"

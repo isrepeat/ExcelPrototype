@@ -25,6 +25,8 @@ Private Const SECTION_TYPE_TRANSFER_VLK_TO_TREATMENT_VACATION As String = "Зм�
 Private Const SECTION_TYPE_TRANSFER_VLK_TO_TREATMENT As String = "Зміна місця перебування влк => лікування"
 Private Const SECTION_TYPE_TO_BUSINESS_TRIP As String = "У відрядження"
 Private Const SECTION_TYPE_TO_BUSINESS_TRIP_SZCH As String = "У відрядження сзч"
+Private Const META_SECTION_TYPE_TVO As String = "Мета: ТВО"
+Private Const META_SECTION_TYPE_DOCUMENT As String = "Мета: документ"
 
 Private Const PROFILE_TAG_PREFIX As String = "profile."
 Private Const PROFILE_TAG_ALL_FIELDS As String = "profile.allFields"
@@ -49,6 +51,8 @@ Private Const PROFILE_TAG_TRANSFER_VLK_TO_TREATMENT_VACATION As String = "profil
 Private Const PROFILE_TAG_TRANSFER_VLK_TO_TREATMENT As String = "profile.transferVlkToTreatment"
 Private Const PROFILE_TAG_TO_BUSINESS_TRIP As String = "profile.toBusinessTrip"
 Private Const PROFILE_TAG_TO_BUSINESS_TRIP_SZCH As String = "profile.toBusinessTripSzch"
+Private Const PROFILE_TAG_META_TVO As String = "profile.metaTvo"
+Private Const PROFILE_TAG_META_DOCUMENT As String = "profile.metaDocument"
 
 Private Const MOVEMENT_EVENT_STATIONARY_TREATMENT As String = "Стаціонарне лікування"
 Private Const MOVEMENT_EVENT_ANNUAL_VACATION As String = "Щорічна відпустка"
@@ -58,10 +62,12 @@ Private Const MOVEMENT_EVENT_AMBULATORY_VLK As String = "Амбулаторне 
 Private Const MOVEMENT_EVENT_STATIONARY_VLK As String = "Стаціонарне ВЛК"
 
 Private m_ProfileNames As Collection
+Private m_MetaProfileNames As Collection
 Private m_ProfileTagBySectionType As Object
 
 Private Sub Class_Initialize()
     Set m_ProfileNames = private_BuildProfileNames()
+    Set m_MetaProfileNames = private_BuildMetaProfileNames()
     Set m_ProfileTagBySectionType = private_BuildProfileTagMap()
 End Sub
 
@@ -71,6 +77,10 @@ End Property
 
 Public Property Get ProfileNames() As Collection
     Set ProfileNames = private_CopyCollection(m_ProfileNames)
+End Property
+
+Public Property Get MetaProfileNames() As Collection
+    Set MetaProfileNames = private_CopyCollection(m_MetaProfileNames)
 End Property
 
 Public Function ResolveProfileVisibilityState( _
@@ -166,6 +176,22 @@ End Property
 Public Property Get SectionTypeToBusinessTripSzch() As String
     SectionTypeToBusinessTripSzch = SECTION_TYPE_TO_BUSINESS_TRIP_SZCH
 End Property
+
+Public Property Get MetaSectionTypeTvo() As String
+    MetaSectionTypeTvo = META_SECTION_TYPE_TVO
+End Property
+
+Public Property Get MetaSectionTypeDocument() As String
+    MetaSectionTypeDocument = META_SECTION_TYPE_DOCUMENT
+End Property
+
+Public Function IsMetaProfileName(ByVal profileText As String) As Boolean
+    Select Case private_NormalizeText(profileText)
+        Case private_NormalizeText(META_SECTION_TYPE_TVO), _
+             private_NormalizeText(META_SECTION_TYPE_DOCUMENT)
+            IsMetaProfileName = True
+    End Select
+End Function
 
 Public Function IsMovementClosingSectionType(ByVal sectionTypeText As String) As Boolean
     Select Case private_NormalizeText(sectionTypeText)
@@ -290,6 +316,16 @@ Private Function private_BuildProfileNames() As Collection
     Set private_BuildProfileNames = profileNames
 End Function
 
+Private Function private_BuildMetaProfileNames() As Collection
+    Dim profileNames As Collection
+
+    Set profileNames = New Collection
+    profileNames.Add META_SECTION_TYPE_TVO
+    profileNames.Add META_SECTION_TYPE_DOCUMENT
+
+    Set private_BuildMetaProfileNames = profileNames
+End Function
+
 Private Function private_BuildProfileTagMap() As Object
     Dim tagMap As Object
 
@@ -316,6 +352,8 @@ Private Function private_BuildProfileTagMap() As Object
     tagMap(private_NormalizeText(SECTION_TYPE_TRANSFER_VLK_TO_TREATMENT)) = PROFILE_TAG_TRANSFER_VLK_TO_TREATMENT
     tagMap(private_NormalizeText(SECTION_TYPE_TO_BUSINESS_TRIP)) = PROFILE_TAG_TO_BUSINESS_TRIP
     tagMap(private_NormalizeText(SECTION_TYPE_TO_BUSINESS_TRIP_SZCH)) = PROFILE_TAG_TO_BUSINESS_TRIP_SZCH
+    tagMap(private_NormalizeText(META_SECTION_TYPE_TVO)) = PROFILE_TAG_META_TVO
+    tagMap(private_NormalizeText(META_SECTION_TYPE_DOCUMENT)) = PROFILE_TAG_META_DOCUMENT
 
     Set private_BuildProfileTagMap = tagMap
 End Function
@@ -368,8 +406,8 @@ Private Function private_ProfileVisibleTags(ByVal profileText As String) As Obje
     If Not m_ProfileTagBySectionType.Exists(profileKey) Then Exit Function
 
     profileTag = VBA.Trim$(VBA.CStr(m_ProfileTagBySectionType(profileKey)))
-    private_AddProfileTag result, PROFILE_TAG_CORE
     private_AddProfileTag result, profileTag
+    If Not private_IsMetaProfileTag(profileTag) Then private_AddProfileTag result, PROFILE_TAG_CORE
 
     ' Для профилей без отдельной настройки формы показываем все колонки,
     ' помеченные wildcard-тегом profile.allFields.
@@ -379,6 +417,14 @@ Private Function private_ProfileVisibleTags(ByVal profileText As String) As Obje
     End Select
 
     Set private_ProfileVisibleTags = result
+End Function
+
+Private Function private_IsMetaProfileTag(ByVal profileTag As String) As Boolean
+    Select Case private_NormalizeTagText(profileTag)
+        Case private_NormalizeTagText(PROFILE_TAG_META_TVO), _
+             private_NormalizeTagText(PROFILE_TAG_META_DOCUMENT)
+            private_IsMetaProfileTag = True
+    End Select
 End Function
 
 Private Function private_IsProfileTag(ByVal tagText As String) As Boolean
