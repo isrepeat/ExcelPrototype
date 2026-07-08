@@ -44,7 +44,7 @@ Private Const HOTKEY_ACCEPT_CANDIDATE_ROW As String = "Accept Candidate Row"
 Private Const HOTKEY_SELECT_FORM_ROW As String = "Select Form Row"
 Private Const HOTKEY_APPLY_EXPORT_FORM As String = "Apply Export Form"
 Private Const EXPORT_ACTION_PREFIX As String = "Export "
-Private Const DEFAULT_EXPORTER_CLASS As String = "obj_ExporterToDailyScope"
+Private Const DEFAULT_EXPORTER_CLASS As String = "obj_PEB_ExptrDailyScope"
 Private Const MAX_EXPORT_HOTKEYS As Long = 9
 Private Const LOOKUP_CANDIDATES_CONTROL_NAME As String = "LookupCandidatesTable"
 Private Const EVENT_DRAFT_FORM_CONTAINER_NAME As String = "EventDraftForm"
@@ -907,21 +907,21 @@ Private Function private_TryCreateDataExporter( _
     ByVal exportConfigTable As obj_ConfigTable, _
     ByRef outExporter As obj_IDataExporter _
 ) As Boolean
-    Dim exporterToDailyScope As obj_ExporterToDailyScope
-    Dim exporterToMovement As obj_ExporterToMovement
+    Dim exporterToDailyScope As obj_PEB_ExptrDailyScope
+    Dim exporterToMovement As obj_PEB_ExptrMovement
 
     Set outExporter = Nothing
     exporterClassName = VBA.Trim$(exporterClassName)
     If VBA.Len(exporterClassName) = 0 Then exporterClassName = DEFAULT_EXPORTER_CLASS
 
     Select Case VBA.LCase$(exporterClassName)
-        Case VBA.LCase$("obj_ExporterToDailyScope")
-            Set exporterToDailyScope = New obj_ExporterToDailyScope
+        Case VBA.LCase$("obj_PEB_ExptrDailyScope")
+            Set exporterToDailyScope = New obj_PEB_ExptrDailyScope
             If Not exporterToDailyScope.Initialize(exportConfigTable) Then Exit Function
             Set outExporter = exporterToDailyScope
 
-        Case VBA.LCase$("obj_ExporterToMovement")
-            Set exporterToMovement = New obj_ExporterToMovement
+        Case VBA.LCase$("obj_PEB_ExptrMovement")
+            Set exporterToMovement = New obj_PEB_ExptrMovement
             If Not exporterToMovement.Initialize(exportConfigTable) Then Exit Function
             Set outExporter = exporterToMovement
 

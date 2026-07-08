@@ -75,11 +75,11 @@
     <item key="Export.Daily.SheetName" value="04_07"/>
     <item key="Export.Daily.RangeStartMarker" value="$B2"/>
     <item key="Export.Daily.RangeEndMarker" value="EndTable_DailyEvents"/>
-    <item key="Export.Daily.ExporterClass" value="obj_ExporterToDailyScope"/>
+    <item key="Export.Daily.ExporterClass" value="obj_PEB_ExptrDailyScope"/>
     <item key="Export.Movement.FilePath" value="C:\Users\SVI\Desktop\РУХ_last.xlsx"/>
     <item key="Export.Movement.SheetName" value="Відсутні"/>
     <item key="Export.Movement.RangeStartMarker" value="$B6"/>
     <item key="Export.Movement.RangeEndMarker" value="$X7"/>
-    <item key="Export.Movement.ExporterClass" value="obj_ExporterToMovement"/>
+    <item key="Export.Movement.ExporterClass" value="obj_PEB_ExptrMovement"/>
   </profile>
 </profiles>

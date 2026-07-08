@@ -2,7 +2,7 @@ VERSION 1.0 CLASS
 BEGIN
   MultiUse = -1  'True
 END
-Attribute VB_Name = "obj_ExporterToDailyScope"
+Attribute VB_Name = "obj_PEB_ExptrDailyScope"
 Option Explicit
 #Const LOGGING_DEBUG_ENABLED = False
 #Const LOGGING_VERBOSE_ENABLED = False
