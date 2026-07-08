@@ -6,6 +6,7 @@ Attribute VB_Name = "obj_IDataExporter"
 Option Explicit
 
 Public Function Export( _
-  ByVal sourceTable As obj_TableDynamic _
+  ByVal sourceTables As Collection, _
+  Optional ByVal context As Object = Nothing _
 ) As Boolean
 End Function

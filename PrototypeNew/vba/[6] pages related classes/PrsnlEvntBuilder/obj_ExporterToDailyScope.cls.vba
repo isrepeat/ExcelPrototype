@@ -36,9 +36,10 @@ End Sub
 ' // Interface
 ' //
 Private Function obj_IDataExporter_Export( _
-    ByVal sourceTable As obj_TableDynamic _
+    ByVal sourceTables As Collection, _
+    Optional ByVal context As Object = Nothing _
 ) As Boolean
-    obj_IDataExporter_Export = Me.Export(sourceTable)
+    obj_IDataExporter_Export = Me.Export(sourceTables, context)
 End Function
 
 ' //
@@ -76,8 +77,10 @@ Public Sub Dispose()
 End Sub
 
 Public Function Export( _
-    ByVal sourceTable As obj_TableDynamic _
+    ByVal sourceTables As Collection, _
+    Optional ByVal context As Object = Nothing _
 ) As Boolean
+    Dim sourceTable As obj_TableDynamic
     Dim targetWb As Workbook
     Dim targetWs As Worksheet
     Dim targetTable As ListObject
@@ -98,8 +101,8 @@ Public Function Export( _
         VBA.MsgBox "PrototypeNew: DailyScope exporter is disposed.", VBA.vbExclamation, "PrototypeNew / DailyScope export"
         Exit Function
     End If
-    If Not m_Base.ValidateSourceTable(sourceTable) Then Exit Function
-    If Not private_TryResolveTargetSectionCaption(sourceTable, targetSectionCaption) Then Exit Function
+    If Not m_Base.TryGetMainSourceTable(sourceTables, sourceTable) Then Exit Function
+    If Not private_TryResolveTargetSectionCaption(sourceTable, context, targetSectionCaption) Then Exit Function
 
     m_Base.BeginFastExcelMode prevScreenUpdating, prevEnableEvents, prevDisplayAlerts, prevCalculation
     fastModeStarted = True
@@ -145,20 +148,19 @@ End Function
 
 Private Function private_TryResolveTargetSectionCaption( _
     ByVal sourceTable As obj_TableDynamic, _
+    ByVal context As Object, _
     ByRef outSectionCaption As String _
 ) As Boolean
-    Dim sourceRow As obj_Row
     Dim sectionKey As String
 
     outSectionCaption = VBA.vbNullString
     If sourceTable Is Nothing Then Exit Function
     If sourceTable.RowCount <= 0 Then Exit Function
 
-    Set sourceRow = sourceTable.Rows.Item(1)
-    If sourceRow Is Nothing Then Exit Function
-
-    If Not private_TryGetSourceTextByAnyColumn(sourceTable, sourceRow, sectionKey, "meta_SectionType") Then
-        VBA.MsgBox "PrototypeNew: DailyScope export requires meta_SectionType.", VBA.vbExclamation, "PrototypeNew / DailyScope export"
+    sectionKey = private_GetContextText(context, "SectionType")
+    If VBA.Len(sectionKey) = 0 Then sectionKey = VBA.Trim$(sourceTable.SectionTitle)
+    If VBA.Len(sectionKey) = 0 Then
+        VBA.MsgBox "PrototypeNew: DailyScope export requires SectionType in export context or source table SectionTitle.", VBA.vbExclamation, "PrototypeNew / DailyScope export"
         Exit Function
     End If
 
@@ -168,6 +170,20 @@ Private Function private_TryResolveTargetSectionCaption( _
     End If
 
     VBA.MsgBox "PrototypeNew: unknown DailyScope section key: " & sectionKey, VBA.vbExclamation, "PrototypeNew / DailyScope export"
+End Function
+
+Private Function private_GetContextText(ByVal context As Object, ByVal keyText As String) As String
+    If context Is Nothing Then Exit Function
+    keyText = VBA.Trim$(keyText)
+    If VBA.Len(keyText) = 0 Then Exit Function
+
+    On Error Resume Next
+    If context.Exists(keyText) Then private_GetContextText = VBA.Trim$(VBA.CStr(context(keyText)))
+    If Err.Number <> 0 Then
+        Err.Clear
+        private_GetContextText = VBA.Trim$(VBA.CStr(VBA.CallByName(context, keyText, VbGet)))
+    End If
+    On Error GoTo 0
 End Function
 
 Private Function private_TryWriteSourceRow( _

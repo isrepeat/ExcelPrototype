@@ -17,8 +17,8 @@ Private Const SAVE_ALREADY_OPEN_WORKBOOK As Boolean = False
 Private Const MOVEMENT_TARGET_COLUMN_COUNT As Long = 6
 Private Const MOVEMENT_TRAILING_EMPTY_LOOKBACK_ROWS As Long = 20
 Private Const MOVEMENT_SOURCE_INCOMING_NO As String = "Вх. №"
-Private Const MOVEMENT_SOURCE_MANUAL_ORDER_NO As String = "meta_ManualOrderNo"
-Private Const MOVEMENT_SOURCE_SECTION_TYPE As String = "meta_SectionType"
+Private Const MOVEMENT_CONTEXT_MANUAL_ORDER_NO As String = "ManualOrderNo"
+Private Const MOVEMENT_CONTEXT_SECTION_TYPE As String = "SectionType"
 Private Const MOVEMENT_SOURCE_EVENT As String = "Подія"
 Private Const MOVEMENT_SOURCE_INCOMING_DATE As String = "Вх. дата"
 Private Const MOVEMENT_SOURCE_DEPARTURE_DATE As String = "З"
@@ -61,9 +61,10 @@ End Sub
 ' // Interface
 ' //
 Private Function obj_IDataExporter_Export( _
-    ByVal sourceTable As obj_TableDynamic _
+    ByVal sourceTables As Collection, _
+    Optional ByVal context As Object = Nothing _
 ) As Boolean
-    obj_IDataExporter_Export = Me.Export(sourceTable)
+    obj_IDataExporter_Export = Me.Export(sourceTables, context)
 End Function
 
 ' //
@@ -104,8 +105,10 @@ Public Sub Dispose()
 End Sub
 
 Public Function Export( _
-    ByVal sourceTable As obj_TableDynamic _
+    ByVal sourceTables As Collection, _
+    Optional ByVal context As Object = Nothing _
 ) As Boolean
+    Dim sourceTable As obj_TableDynamic
     Dim targetWb As Workbook
     Dim targetWs As Worksheet
     Dim targetTable As ListObject
@@ -148,8 +151,8 @@ Public Function Export( _
         Exit Function
     End If
 
-    If Not m_Base.ValidateSourceTable(sourceTable) Then Exit Function
-    sectionTypeRaw = private_GetSectionTypeTextFromSource(sourceTable)
+    If Not m_Base.TryGetMainSourceTable(sourceTables, sourceTable) Then Exit Function
+    sectionTypeRaw = private_GetSectionTypeTextFromContext(context, sourceTable)
     sectionTypeNormalized = private_NormalizeText(sectionTypeRaw)
     isClosingEvent = private_IsClosingSectionType(sectionTypeNormalized)
     isMirrorTransferEvent = private_IsMirrorTransferSectionType(sectionTypeRaw)
@@ -159,7 +162,7 @@ Public Function Export( _
     private_LogInfo "movement:event-mode closing=" & private_BoolText(isClosingEvent)
     private_LogInfo "movement:event-mode mirror-transfer=" & private_BoolText(isMirrorTransferEvent)
 
-    If Not private_TryBuildSpecialOpeningValues(sourceTable, writeSpecialOpeningFields, specialDurationValue, specialVkNoValue) Then Exit Function
+    If Not private_TryBuildSpecialOpeningValues(sourceTable, sectionTypeRaw, writeSpecialOpeningFields, specialDurationValue, specialVkNoValue) Then Exit Function
     private_LogInfo "movement:special-open-fields enabled=" & private_BoolText(writeSpecialOpeningFields) & _
         " duration='" & private_EscapeForLog(VBA.CStr(specialDurationValue)) & _
         "' vk='" & private_EscapeForLog(VBA.CStr(specialVkNoValue)) & "'"
@@ -168,7 +171,7 @@ Public Function Export( _
     private_LogInfo "movement:mapped-event enabled=" & private_BoolText(shouldWriteMappedEvent) & " value='" & private_EscapeForLog(mappedEventText) & "'"
 
     If Not isClosingEvent Then
-        If Not private_TryBuildMovementRowValues(sourceTable, targetValues) Then Exit Function
+        If Not private_TryBuildMovementRowValues(sourceTable, sectionTypeRaw, targetValues) Then Exit Function
         private_LogInfo "movement:row-values rank='" & private_EscapeForLog(VBA.CStr(targetValues(1, 1))) & _
             "' fio='" & private_EscapeForLog(VBA.CStr(targetValues(1, 2))) & _
             "' ipn='" & private_EscapeForLog(VBA.CStr(targetValues(1, 3))) & _
@@ -191,7 +194,7 @@ Public Function Export( _
 
     If isClosingEvent Then
         private_LogInfo "movement:event-branch selected='closing-only'"
-        If Not private_TryBuildMovementClosingValues(sourceTable, targetWb, closingOrderNo, closingOnFoodDate, closingArrivalDate) Then GoTo CleanFail
+        If Not private_TryBuildMovementClosingValues(sourceTable, targetWb, context, closingOrderNo, closingOnFoodDate, closingArrivalDate) Then GoTo CleanFail
         private_LogInfo "movement:closing-values orderNo='" & private_EscapeForLog(VBA.CStr(closingOrderNo)) & _
             "' arrival='" & private_EscapeForLog(private_FormatLogDateValue(closingArrivalDate)) & _
             "' onFood='" & private_EscapeForLog(private_FormatLogDateValue(closingOnFoodDate)) & "'"
@@ -203,7 +206,7 @@ Public Function Export( _
         private_LogInfo "movement:write-closing-row done"
     ElseIf isMirrorTransferEvent Then
         private_LogInfo "movement:event-branch selected='mirror-close-then-open'"
-        If Not private_TryBuildMovementClosingValues(sourceTable, targetWb, closingOrderNo, closingOnFoodDate, closingArrivalDate) Then GoTo CleanFail
+        If Not private_TryBuildMovementClosingValues(sourceTable, targetWb, context, closingOrderNo, closingOnFoodDate, closingArrivalDate) Then GoTo CleanFail
         private_LogInfo "movement:mirror-close-values orderNo='" & private_EscapeForLog(VBA.CStr(closingOrderNo)) & _
             "' arrival='" & private_EscapeForLog(private_FormatLogDateValue(closingArrivalDate)) & _
             "' onFood='" & private_EscapeForLog(private_FormatLogDateValue(closingOnFoodDate)) & "'"
@@ -227,7 +230,7 @@ Public Function Export( _
         private_LogInfo "movement:mirror-write-open-row done"
     Else
         private_LogInfo "movement:event-branch selected='opening-only'"
-        If Not private_TryBuildMovementOutgoingValues(sourceTable, targetWb, outgoingOrderNo, outgoingFoodFromDate, outgoingDepartureDate) Then GoTo CleanFail
+        If Not private_TryBuildMovementOutgoingValues(sourceTable, targetWb, context, outgoingOrderNo, outgoingFoodFromDate, outgoingDepartureDate) Then GoTo CleanFail
         private_LogInfo "movement:outgoing orderNo='" & private_EscapeForLog(VBA.CStr(outgoingOrderNo)) & _
             "' departure='" & private_EscapeForLog(private_FormatLogDateValue(outgoingDepartureDate)) & _
             "' foodFrom='" & private_EscapeForLog(private_FormatLogDateValue(outgoingFoodFromDate)) & "'"
@@ -273,26 +276,47 @@ Private Function private_IsMirrorTransferSectionType(ByVal sectionTypeText As St
     private_IsMirrorTransferSectionType = m_Data.IsMovementMirrorTransferSectionType(sectionTypeText)
 End Function
 
-Private Function private_GetSectionTypeTextFromSource(ByVal sourceTable As obj_TableDynamic) As String
-    Dim sourceRow As obj_Row
+Private Function private_GetSectionTypeTextFromContext( _
+    ByVal context As Object, _
+    ByVal sourceTable As obj_TableDynamic _
+) As String
+    Dim sectionTypeText As String
 
+    sectionTypeText = private_GetContextText(context, MOVEMENT_CONTEXT_SECTION_TYPE)
+    If VBA.Len(sectionTypeText) > 0 Then
+        private_GetSectionTypeTextFromContext = sectionTypeText
+        Exit Function
+    End If
     If sourceTable Is Nothing Then Exit Function
-    If sourceTable.RowCount <= 0 Then Exit Function
+    sectionTypeText = VBA.Trim$(sourceTable.SectionTitle)
+    If VBA.Len(sectionTypeText) > 0 Then
+        private_GetSectionTypeTextFromContext = sectionTypeText
+        Exit Function
+    End If
+End Function
 
-    Set sourceRow = sourceTable.Rows.Item(1)
-    If sourceRow Is Nothing Then Exit Function
+Private Function private_GetContextText(ByVal context As Object, ByVal keyText As String) As String
+    If context Is Nothing Then Exit Function
+    keyText = VBA.Trim$(keyText)
+    If VBA.Len(keyText) = 0 Then Exit Function
 
-    private_GetSectionTypeTextFromSource = VBA.Trim$(VBA.CStr(private_GetOptionalSourceText(sourceTable, sourceRow, MOVEMENT_SOURCE_SECTION_TYPE)))
+    On Error Resume Next
+    If context.Exists(keyText) Then private_GetContextText = VBA.Trim$(VBA.CStr(context(keyText)))
+    If Err.Number <> 0 Then
+        Err.Clear
+        private_GetContextText = VBA.Trim$(VBA.CStr(VBA.CallByName(context, keyText, VbGet)))
+    End If
+    On Error GoTo 0
 End Function
 
 Private Function private_TryBuildSpecialOpeningValues( _
     ByVal sourceTable As obj_TableDynamic, _
+    ByVal sectionTypeText As String, _
     ByRef outShouldWrite As Boolean, _
     ByRef outDurationValue As Variant, _
     ByRef outVkNoValue As Variant _
 ) As Boolean
     Dim sourceRow As obj_Row
-    Dim sectionTypeText As String
 
     outShouldWrite = False
     outDurationValue = VBA.vbNullString
@@ -303,7 +327,6 @@ Private Function private_TryBuildSpecialOpeningValues( _
     Set sourceRow = sourceTable.Rows.Item(1)
     If sourceRow Is Nothing Then Exit Function
 
-    sectionTypeText = VBA.CStr(private_GetOptionalSourceText(sourceTable, sourceRow, MOVEMENT_SOURCE_SECTION_TYPE))
     If Not private_ShouldWriteSpecialOpeningFieldsForSectionType(sectionTypeText) Then
         private_TryBuildSpecialOpeningValues = True
         Exit Function
@@ -339,21 +362,6 @@ Private Function private_GetOptionalSourceTextByAnyColumn( _
     Next columnName
 End Function
 
-Private Function private_IsClosingEvent(ByVal sourceTable As obj_TableDynamic) As Boolean
-    Dim sourceRow As obj_Row
-    Dim sectionTypeText As Variant
-    Dim normalizedSectionType As String
-
-    If sourceTable Is Nothing Then Exit Function
-    If sourceTable.RowCount <= 0 Then Exit Function
-    Set sourceRow = sourceTable.Rows.Item(1)
-    If sourceRow Is Nothing Then Exit Function
-
-    sectionTypeText = private_GetOptionalSourceText(sourceTable, sourceRow, MOVEMENT_SOURCE_SECTION_TYPE)
-    normalizedSectionType = private_NormalizeText(VBA.CStr(sectionTypeText))
-    private_IsClosingEvent = private_IsClosingSectionType(normalizedSectionType)
-End Function
-
 Private Function private_IsClosingSectionType(ByVal normalizedSectionType As String) As Boolean
     private_IsClosingSectionType = m_Data.IsMovementClosingSectionType(normalizedSectionType)
 End Function
@@ -361,6 +369,7 @@ End Function
 Private Function private_TryBuildMovementClosingValues( _
     ByVal sourceTable As obj_TableDynamic, _
     ByVal targetWorkbook As Workbook, _
+    ByVal context As Object, _
     ByRef outOrderNo As Variant, _
     ByRef outOnFoodDate As Variant, _
     ByRef outArrivalDate As Variant _
@@ -383,7 +392,7 @@ Private Function private_TryBuildMovementClosingValues( _
     Set sourceRow = sourceTable.Rows.Item(1)
     If sourceRow Is Nothing Then Exit Function
 
-    manualOrderNo = private_GetOptionalSourceText(sourceTable, sourceRow, MOVEMENT_SOURCE_MANUAL_ORDER_NO)
+    manualOrderNo = private_GetContextText(context, MOVEMENT_CONTEXT_MANUAL_ORDER_NO)
     outOrderNo = manualOrderNo
     If VBA.Len(VBA.Trim$(VBA.CStr(outOrderNo))) = 0 Then
         outOrderNo = private_GetOptionalSourceText(sourceTable, sourceRow, MOVEMENT_SOURCE_INCOMING_NO)
@@ -494,12 +503,12 @@ End Function
 ' //
 Private Function private_TryBuildMovementRowValues( _
     ByVal sourceTable As obj_TableDynamic, _
+    ByVal sectionTypeText As String, _
     ByRef outValues As Variant _
 ) As Boolean
     Dim sourceRow As obj_Row
     Dim requiredValue As Variant
     Dim destinationValue As Variant
-    Dim sectionTypeText As String
     Dim mappedEventText As String
 
     Set sourceRow = Nothing
@@ -521,14 +530,13 @@ Private Function private_TryBuildMovementRowValues( _
     If Not private_TryGetRequiredSourceText(sourceTable, sourceRow, "Код посади", requiredValue) Then Exit Function
     outValues(1, 4) = requiredValue
 
-    sectionTypeText = VBA.CStr(private_GetOptionalSourceText(sourceTable, sourceRow, MOVEMENT_SOURCE_SECTION_TYPE))
     If private_TryMapSectionTypeToEventText(sectionTypeText, mappedEventText) Then
         outValues(1, 5) = mappedEventText
     Else
         outValues(1, 5) = private_GetOptionalSourceText(sourceTable, sourceRow, MOVEMENT_SOURCE_EVENT)
     End If
 
-    destinationValue = private_ResolveMovementDestinationValue(sourceTable, sourceRow)
+    destinationValue = private_ResolveMovementDestinationValue(sourceTable, sourceRow, sectionTypeText)
     outValues(1, 6) = destinationValue
     private_LogInfo "movement:event resolved value='" & private_EscapeForLog(VBA.CStr(outValues(1, 5))) & "'"
     private_LogInfo "movement:destination resolved value='" & private_EscapeForLog(VBA.CStr(destinationValue)) & "'"
@@ -538,11 +546,9 @@ End Function
 
 Private Function private_ResolveMovementDestinationValue( _
     ByVal sourceTable As obj_TableDynamic, _
-    ByVal sourceRow As obj_Row _
+    ByVal sourceRow As obj_Row, _
+    ByVal sectionTypeText As String _
 ) As Variant
-    Dim sectionTypeText As String
-
-    sectionTypeText = VBA.CStr(private_GetOptionalSourceText(sourceTable, sourceRow, MOVEMENT_SOURCE_SECTION_TYPE))
     If m_Data.UsesMovementVacationDestination(sectionTypeText) Then
         private_ResolveMovementDestinationValue = private_GetOptionalSourceText(sourceTable, sourceRow, "Відпустка")
         Exit Function
@@ -739,6 +745,7 @@ End Function
 Private Function private_TryBuildMovementOutgoingValues( _
     ByVal sourceTable As obj_TableDynamic, _
     ByVal targetWorkbook As Workbook, _
+    ByVal context As Object, _
     ByRef outOrderNo As Variant, _
     ByRef outFoodFromDate As Variant, _
     ByRef outDepartureDate As Variant _
@@ -764,7 +771,7 @@ Private Function private_TryBuildMovementOutgoingValues( _
     Set sourceRow = sourceTable.Rows.Item(1)
     If sourceRow Is Nothing Then Exit Function
 
-    manualOrderNo = private_GetOptionalSourceText(sourceTable, sourceRow, MOVEMENT_SOURCE_MANUAL_ORDER_NO)
+    manualOrderNo = private_GetContextText(context, MOVEMENT_CONTEXT_MANUAL_ORDER_NO)
     outOrderNo = manualOrderNo
     If VBA.Len(VBA.Trim$(VBA.CStr(outOrderNo))) = 0 Then
         outOrderNo = private_GetOptionalSourceText(sourceTable, sourceRow, MOVEMENT_SOURCE_INCOMING_NO)
