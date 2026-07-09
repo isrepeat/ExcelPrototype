@@ -55,6 +55,7 @@ Private Const EVENT_DRAFT_ORDER_LABEL_PREFIX As String = "Наказ №: "
 Private Const EXPORT_META_PROFILE_TYPE_COLUMN_NAME As String = "meta_ProfileType"
 Private Const EXPORT_CONTEXT_MANUAL_ORDER_NO_KEY As String = "ManualOrderNo"
 Private Const EXPORT_CONTEXT_SECTION_TYPE_KEY As String = "SectionType"
+Private Const EXPORT_CONTEXT_WORD_PREVIEW_TEXT_KEY As String = "WordExportPreviewText"
 Private Const PROFILE_BUTTON_STYLE_NORMAL As String = "profileButton"
 Private Const PROFILE_BUTTON_STYLE_SELECTED As String = "profileButtonSelected"
 Private Const META_PROFILE_BUTTON_STYLE_NORMAL As String = "metaProfileButton"
@@ -65,12 +66,14 @@ Private m_LookupFeature As obj_EntityLookupFeature
 Private m_ExportAliases As Collection
 Private m_ExporterClassByAlias As Object
 Private m_ExportConfigTableByAlias As Object
+Private m_SourceColumnAliasByCaption As Object
 Private m_SelectedProfile As String
 ' Состояние "Формы экспорта": одна основная таблица и ноль/несколько
 ' meta-таблиц, подготовленных кнопкой Apply перед передачей в экспортер.
 Private m_SelectedMainProfile As String
 Private m_ExportMainTable As obj_TableDynamic
 Private m_ExportMetaTables As Collection
+Private m_WordExportPreviewText As String
 Private m_Data As obj_PrsnlEvntBuilderData
 Private m_IsDisposed As Boolean
 
@@ -169,8 +172,13 @@ Public Sub Dispose()
     m_SelectedMainProfile = VBA.vbNullString
     Set m_ExportMainTable = Nothing
     Set m_ExportMetaTables = Nothing
+    m_WordExportPreviewText = VBA.vbNullString
     On Error GoTo 0
 End Sub
+
+Public Property Get WordExportPreviewText() As String
+    WordExportPreviewText = m_WordExportPreviewText
+End Property
 
 Public Function UpdateData(ByVal configControl As obj_ConfigControlVM) As Boolean
     If m_LookupFeature Is Nothing Then Exit Function
@@ -776,6 +784,7 @@ Private Function private_TryExportDraftByAction(ByVal actionId As String) As Boo
     If Not private_TryCreateDataExporter(exporterClassName, exportConfigTable, exporter) Then Exit Function
 
     If Not exporter.Export(sourceTables, exportContext) Then Exit Function
+    If Not private_TryCaptureWordExportPreview(exportContext) Then Exit Function
 
     rt_Messaging.fn_ShowStatusBarSuccess EXPORT_ACTION_PREFIX & exportAlias & ": done", 3
     private_TryExportDraftByAction = True
@@ -796,6 +805,7 @@ Private Function private_TryUpdateExportSettings(ByVal configControl As obj_Conf
 
     Set cfgParser = New obj_PrsnlEvntBuilderCfgParser
     If Not cfgParser.Initialize(configTable) Then Exit Function
+    If Not cfgParser.TryGetEntityLookupColumnAliasByCaption(m_SourceColumnAliasByCaption) Then Exit Function
     If Not cfgParser.TryGetExportSettings(m_ExportAliases, m_ExporterClassByAlias, m_ExportConfigTableByAlias) Then Exit Function
 
     private_TryUpdateExportSettings = True
@@ -837,6 +847,7 @@ Private Sub private_ResetExportSettings()
     Set m_ExportAliases = New Collection
     Set m_ExporterClassByAlias = ex_Helpers.fn_CreateDictionaryTextCompare()
     Set m_ExportConfigTableByAlias = ex_Helpers.fn_CreateDictionaryTextCompare()
+    Set m_SourceColumnAliasByCaption = ex_Helpers.fn_CreateDictionaryTextCompare()
 End Sub
 
 Private Function private_ExportAliasExists(ByVal exportAlias As String) As Boolean
@@ -909,6 +920,7 @@ Private Function private_TryCreateDataExporter( _
 ) As Boolean
     Dim exporterToDailyScope As obj_PEB_ExptrDailyScope
     Dim exporterToMovement As obj_PEB_ExptrMovement
+    Dim exporterToWord As obj_PEB_ExptrWord
 
     Set outExporter = Nothing
     exporterClassName = VBA.Trim$(exporterClassName)
@@ -925,12 +937,55 @@ Private Function private_TryCreateDataExporter( _
             If Not exporterToMovement.Initialize(exportConfigTable) Then Exit Function
             Set outExporter = exporterToMovement
 
+        Case VBA.LCase$("obj_PEB_ExptrWord")
+            Set exporterToWord = New obj_PEB_ExptrWord
+            If Not exporterToWord.Initialize(exportConfigTable) Then Exit Function
+            Set outExporter = exporterToWord
+
         Case Else
             VBA.MsgBox "PrototypeNew: unsupported data exporter class: " & exporterClassName, VBA.vbExclamation, "PrototypeNew / Data export"
             Exit Function
     End Select
 
     private_TryCreateDataExporter = Not outExporter Is Nothing
+End Function
+
+Private Function private_TryCaptureWordExportPreview(ByVal exportContext As Object) As Boolean
+    Dim previewText As String
+    Dim previousEnableEvents As Boolean
+
+    If exportContext Is Nothing Then
+        private_TryCaptureWordExportPreview = True
+        Exit Function
+    End If
+
+    On Error Resume Next
+    If exportContext.Exists(EXPORT_CONTEXT_WORD_PREVIEW_TEXT_KEY) Then
+        previewText = VBA.CStr(exportContext(EXPORT_CONTEXT_WORD_PREVIEW_TEXT_KEY))
+    End If
+    If Err.Number <> 0 Then
+        Err.Clear
+        previewText = VBA.CStr(VBA.CallByName(exportContext, EXPORT_CONTEXT_WORD_PREVIEW_TEXT_KEY, VbGet))
+    End If
+    On Error GoTo 0
+
+    If VBA.Len(VBA.Trim$(previewText)) = 0 Then
+        private_TryCaptureWordExportPreview = True
+        Exit Function
+    End If
+
+    m_WordExportPreviewText = previewText
+    previousEnableEvents = Application.EnableEvents
+    Application.EnableEvents = False
+    On Error GoTo RestoreEventsAndFail
+    private_TryCaptureWordExportPreview = rt_PageManager.fn_RenderPage(m_Page, "prsnlevntbuilder:word-preview-updated")
+    Application.EnableEvents = previousEnableEvents
+    Exit Function
+
+RestoreEventsAndFail:
+    On Error Resume Next
+    Application.EnableEvents = previousEnableEvents
+    On Error GoTo 0
 End Function
 
 Private Function private_TryBuildExportSourceTables( _
@@ -1025,7 +1080,7 @@ Private Function private_TryCloneSourceTableForExport( _
     For colIndex = 1 To sourceTable.ColumnCount
         Set sourceColumn = sourceTable.Columns.Item(colIndex)
         If sourceColumn Is Nothing Then Exit Function
-        If Not private_AddSourceColumn(resultTable, sourceColumn.Name) Then Exit Function
+        If Not resultTable.PushColumn(sourceColumn) Then Exit Function
     Next colIndex
     metaProfileType = VBA.Trim$(metaProfileType)
     If VBA.Len(metaProfileType) > 0 Then
@@ -1596,11 +1651,25 @@ End Function
 
 Private Function private_AddSourceColumn(ByVal tableObj As obj_TableDynamic, ByVal columnName As String) As Boolean
     Dim colObj As obj_Column
+    Dim columnAlias As String
 
     If tableObj Is Nothing Then Exit Function
     Set colObj = New obj_Column
     colObj.Name = VBA.Trim$(columnName)
     If VBA.Len(colObj.Name) = 0 Then colObj.Name = "Column " & VBA.CStr(tableObj.ColumnCount + 1)
     colObj.Position = tableObj.ColumnCount + 1
+
+    ' Export-form таблица строится из видимых заголовков листа. Чтобы WORD
+    ' templates могли ссылаться на стабильные ключи ({FIO}, {IPN}, ...), рядом
+    ' сохраняем alias из PrsnlEvntBuilderProfiles.xml.
+    If Not m_SourceColumnAliasByCaption Is Nothing Then
+        If m_SourceColumnAliasByCaption.Exists(colObj.Name) Then
+            columnAlias = VBA.Trim$(VBA.CStr(m_SourceColumnAliasByCaption(colObj.Name)))
+            If VBA.Len(columnAlias) > 0 Then
+                If Not colObj.AddAlias(columnAlias) Then Exit Function
+            End If
+        End If
+    End If
+
     private_AddSourceColumn = tableObj.PushColumn(colObj)
 End Function
