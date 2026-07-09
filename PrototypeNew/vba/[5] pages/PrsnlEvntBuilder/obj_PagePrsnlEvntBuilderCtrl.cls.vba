@@ -20,8 +20,10 @@ Option Explicit
 ' //    RuntimeItems.PrsnlEvntBuilder.ExportForm.Meta -> список meta-таблиц.
 ' //    Эти UI-таблицы намеренно чистые: в них нет служебных колонок вроде
 ' //    meta_ProfileType, ManualOrderNo или SectionType.
-' // 4. При запуске экспорта контроллер читает только staging-состояние
-' //    "Формы экспорта". Draft-форма напрямую не экспортируется: сначала Apply.
+' // 4. При запуске экспорта контроллер сначала читает staging-состояние
+' //    "Формы экспорта". Если Apply еще не нажимали и staging пустой,
+' //    используется fallback: текущая draft-строка экспортируется как одна
+' //    основная таблица без meta-таблиц.
 ' //    Контроллер не отдает UI-таблицы напрямую.
 ' //    private_TryBuildExportSourceTables собирает отдельный export-source:
 ' //    - Collection таблиц, где tables(1) = main, tables(2..n) = meta;
@@ -1025,13 +1027,13 @@ Private Function private_TryBuildExportSourceTables( _
     outContext(EXPORT_CONTEXT_MANUAL_ORDER_NO_KEY) = manualOrderNoText
 
     If m_ExportMainTable Is Nothing Then
-        rt_Messaging.fn_ShowStatusBarWarning "Export form is empty. Press Apply before export.", 3
-        VBA.MsgBox _
-            "PrototypeNew: export was stopped because the Export Form is empty." & VBA.vbCrLf & VBA.vbCrLf & _
-            "CTRL+1/CTRL+2 export only data prepared in the Export Form." & VBA.vbCrLf & _
-            "Press Apply for the main profile first to create the main export row.", _
-            VBA.vbExclamation, _
-            "PrototypeNew / PrsnlEvntBuilder export"
+        ' Удобный shortcut для частого случая "одна строка без meta": CTRL+1/2/3
+        ' может экспортировать текущую draft-строку даже без предварительного Apply.
+        If Not private_TryBuildDraftFormSourceTable(mainTable, False) Then Exit Function
+        If Not private_TryCloneSourceTableForExport(mainTable, VBA.vbNullString, exportTable) Then Exit Function
+        outTables.Add exportTable
+        rt_Messaging.fn_ShowStatusBarWarning "Export Form is empty. Export uses the current draft row.", 3
+        private_TryBuildExportSourceTables = True
         Exit Function
     End If
 
