@@ -8,6 +8,9 @@ Option Explicit
 #Const LOGGING_VERBOSE_ENABLED = False
 
 Private Const PROFILES_PROVIDER_CLASS_KEY As String = "EntityLookup.ProfilesProviderClass"
+Private Const ENTITY_LOOKUP_TABLE_COLUMNS_KEY As String = "EntityLookup.Table.Columns"
+Private Const ENTITY_LOOKUP_TABLE_COLUMN_PREFIX As String = "EntityLookup.Table.Column["
+Private Const ENTITY_LOOKUP_TABLE_COLUMN_CAPTION_SUFFIX As String = "].Caption"
 Private Const EXPORT_CONFIG_PREFIX As String = "Export."
 Private Const EXPORT_FILE_PATH_SUFFIX As String = ".FilePath"
 Private Const EXPORT_CLASS_SUFFIX As String = ".ExporterClass"
@@ -80,6 +83,44 @@ Public Function TryGetProfilesProviderClass(ByRef outProviderClassName As String
     End If
 
     TryGetProfilesProviderClass = True
+End Function
+
+Public Function TryGetEntityLookupColumnAliasByCaption(ByRef outAliasByCaption As Object) As Boolean
+    Dim columnAliasesText As String
+    Dim columnAliases As Collection
+    Dim aliasObj As Variant
+    Dim columnAlias As String
+    Dim columnCaption As String
+
+    Set outAliasByCaption = ex_Helpers.fn_CreateDictionaryTextCompare()
+    If m_CfgParserBase Is Nothing Then Exit Function
+    If m_CfgMap Is Nothing Then Exit Function
+
+    columnAliasesText = m_CfgParserBase.GetOptionalConfigValue(m_CfgMap, ENTITY_LOOKUP_TABLE_COLUMNS_KEY, VBA.vbNullString)
+    Set columnAliases = m_CfgParserBase.SplitListToCollection(columnAliasesText)
+    If columnAliases Is Nothing Then
+        TryGetEntityLookupColumnAliasByCaption = True
+        Exit Function
+    End If
+
+    For Each aliasObj In columnAliases
+        columnAlias = VBA.Trim$(VBA.CStr(aliasObj))
+        If VBA.Len(columnAlias) = 0 Then GoTo ContinueAlias
+
+        columnCaption = m_CfgParserBase.GetOptionalConfigValue( _
+            m_CfgMap, _
+            ENTITY_LOOKUP_TABLE_COLUMN_PREFIX & columnAlias & ENTITY_LOOKUP_TABLE_COLUMN_CAPTION_SUFFIX, _
+            VBA.vbNullString)
+        columnCaption = VBA.Trim$(columnCaption)
+
+        ' Видимый caption на листе остается именем колонки, а стабильный ключ
+        ' из конфига сохраняем как alias DynamicTable.
+        If VBA.Len(columnCaption) > 0 Then outAliasByCaption(columnCaption) = columnAlias
+
+ContinueAlias:
+    Next aliasObj
+
+    TryGetEntityLookupColumnAliasByCaption = True
 End Function
 
 Public Function TryGetExportSettings( _

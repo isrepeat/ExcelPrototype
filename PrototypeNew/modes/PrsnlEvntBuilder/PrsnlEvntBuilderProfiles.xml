@@ -81,5 +81,6 @@
     <item key="Export.Movement.RangeStartMarker" value="$B6"/>
     <item key="Export.Movement.RangeEndMarker" value="$X7"/>
     <item key="Export.Movement.ExporterClass" value="obj_PEB_ExptrMovement"/>
+    <item key="Export.Word.ExporterClass" value="obj_PEB_ExptrWord"/>
   </profile>
 </profiles>

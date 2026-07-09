@@ -778,7 +778,7 @@
         name="EventExportForm"
         orientation="vertical"
         spanColls="50"
-        spanRows="24">
+        >
         <control
           type="TableList"
           name="EventExportMainTable"
@@ -792,9 +792,19 @@
           name="EventExportMetaTables"
           dataContext="{PageRuntimeSource='RuntimeObjects.PrsnlEvntBuilder.Controller'}"
           itemsSource="{PageRuntimeSource='RuntimeItems.PrsnlEvntBuilder.ExportForm.Meta'}"
-          spanColls="50"
-          spanRows="20"/>
+          spanColls="50"/>
       </stackPanel>
+
+      <!-- WORD export preview: CTRL+3 формирует текст по WORD-шаблону и выводит сюда. -->
+      <control
+        type="Banner"
+        name="WordExportPreview"
+        dataContext="{PageRuntimeSource='RuntimeObjects.PrsnlEvntBuilder.Controller'}"
+        header="WORD export preview"
+        message="{Binding Path=WordExportPreviewText}"
+        visibility="{Binding Path=WordExportPreviewText; Op=ne; Value=; TrueAs=Visible; FalseAs=Collapsed}"
+        spanColls="50"
+        spanRows="5"/>
 
     </stackPanel>
   </grid>
@@ -923,6 +933,31 @@
                 horizontal:left;
                 vertical:center;
                 cellType:text;
+              }"/>
+      </layer>
+
+      <!-- Баннер предпросмотра WORD-экспорта. -->
+      <layer name="word-export-preview">
+        <rule target="controlPart"
+              selector="type=banner;name=WordExportPreview;part=header"
+              styles="{
+                backColor:#1F4E79;
+                fontColor:#F2F8FF;
+                borderColor:#102A43;
+                borderWeight:thin;
+                fontBold:true;
+                horizontal:left;
+              }"/>
+
+        <rule target="controlPart"
+              selector="type=banner;name=WordExportPreview;part=message"
+              styles="{
+                backColor:#252A31;
+                fontColor:#F8FAFC;
+                borderColor:#111827;
+                borderWeight:thin;
+                overflow:wrap;
+                vertical:top;
               }"/>
       </layer>
 

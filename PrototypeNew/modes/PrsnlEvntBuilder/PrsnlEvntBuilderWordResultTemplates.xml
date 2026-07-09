@@ -1,0 +1,77 @@
+<?xml version="1.0" encoding="utf-8"?>
+<wordResultTemplates xmlns="urn:excelprototype:profiles" version="1">
+  <!-- Упрощенная версия PersonalCardResultTemplates для PEB WORD preview.
+       Placeholders можно писать по alias DynamicTable ({FIO}) или по видимому
+       заголовку ({ПІБ}). Поддерживаются sharedTemplate/#include, #if, #for,
+       #let, formatter pipeline и layout tokens: {#newline}, #^/{#^}, #_/{#_}. -->
+  <sharedTemplates>
+    <sharedTemplate id="block.PersonLine">
+      <text>
+        <![CDATA[
+#_        {Rank|upperFirstLetter} {FIO}, {PositionName|lowerFirstLetter}#^
+        ]]>
+      </text>
+    </sharedTemplate>
+
+    <sharedTemplate id="block.IncomingBasis">
+      <text>
+        <![CDATA[
+#_        Підстава: рапорт {ReportPerson|lowerFirstLetter} (вх. № {IncomingNo} від {IncomingDate})#^
+        ]]>
+        </text>
+    </sharedTemplate>
+
+    <sharedTemplate id="block.OptionalDocumentBasis">
+      <text>
+        <![CDATA[
+#_        {#if DocumentNote}; {DocumentNote|lowerFirstLetter}#^
+#_        {#if DocNo} № {DocNo}{#endif}#^
+#_        {#if DocDate} від {DocDate}{#endif}#^
+#_        {#endif}#^
+        ]]>
+        </text>
+    </sharedTemplate>
+
+    <sharedTemplate id="block.MetaRowsInline">
+      <text>
+        <![CDATA[
+#_        {#for item in MetaTables}#^
+#_          {#if item.__first}{#newline}Додатково: {#endif}#^
+#_          {#if #not item.__first}; {#endif}#^
+#_          {item.__sectionTitle}#^
+#_          {#if item.FIO}: {item.FIO}{#endif}#^
+#_          {#if item.DocumentNote}: {item.DocumentNote}{#endif}#^
+#_        {#endfor}#^
+        ]]>
+      </text>
+    </sharedTemplate>
+  </sharedTemplates>
+
+  <template id="CloseFromTreatment" sectionType="З лікування">
+    <text>
+      <![CDATA[
+#_      #let Person = {Rank|upperFirstLetter} {FIO}, {PositionName|lowerFirstLetter};#^
+#_      З {HospitalShort|lowerFirstLetter}: {Person}.#^
+#_      {#newline}#^
+#_      {#include block.IncomingBasis}#^
+#_      {#include block.OptionalDocumentBasis}.#^
+#_      {#include block.MetaRowsInline}#^
+      ]]>
+    </text>
+  </template>
+
+  <template id="CloseFromAnnualVacation" sectionType="З щорічної основної відпустки">
+    <text>
+      <![CDATA[
+#_      {#include block.PersonLine}.#^
+#_      {#newline}#^
+#_      Повернувся з щорічної основної відпустки.#^
+#_      {#newline}#^
+#_      {#include block.IncomingBasis}; відпускний квиток#^
+#_      {#if VhNo} № {VhNo}{#endif}#^
+#_      {#if VhDate} від {VhDate}{#endif}.#^
+#_      {#include block.MetaRowsInline}#^
+        ]]>
+    </text>
+  </template>
+</wordResultTemplates>
