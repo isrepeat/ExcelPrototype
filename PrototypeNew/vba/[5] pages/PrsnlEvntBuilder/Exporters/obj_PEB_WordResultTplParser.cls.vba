@@ -21,6 +21,10 @@ Private Const TOKEN_INCLUDE_OPEN As String = "{#include"
 Private Const TOKEN_LET As String = "#let"
 Private Const FORMATTER_UPPER_FIRST_LETTER As String = "upperFirstLetter"
 Private Const FORMATTER_LOWER_FIRST_LETTER As String = "lowerFirstLetter"
+Private Const FORMATTER_REGEX_REPLACE As String = "regexreplace"
+Private Const FORMATTER_DATE_OFFSET As String = "dateoffset"
+Private Const FORMATTER_DATE_FORMAT As String = "dateformat"
+Private Const FORMATTER_DATE_STORAGE_FORMAT As String = "dd.mm.yyyy"
 
 Private m_TemplateRelPath As String
 Private m_IsDisposed As Boolean
@@ -148,7 +152,10 @@ Private Function private_RenderTemplate( _
     '   #_ / {#_}        -> удалить token и пробелы/табуляцию до первого символа
     '   {#newline}       -> перенос строки
     '   {SectionType}    -> тип секции из export context/source table
-    '   {Column|formatter} -> значение по alias/заголовку + formatter pipeline
+    '   {[Column]|formatter} -> значение колонки DynamicTable по alias/заголовку + formatter pipeline
+    '      dateoffset:"+1"             -> сдвинуть дату на N дней
+    '      dateformat:"\dd \month"     -> отформатировать дату в текст
+    '   {item.[Column]} -> значение колонки строки внутри #for
     '
     ' Это все еще не полный PersonalCard parser: внешние VBA-вызовы, падежи,
     ' даты, colors и морфология намеренно не перенесены в этот PEB preview.
@@ -190,17 +197,24 @@ Private Function private_GetPlaceholderValue( _
     ByVal renderVars As Object, _
     ByVal loopRows As Object _
 ) As String
-    Dim placeholderParts() As String
+    Dim placeholderParts As Collection
     Dim valueName As String
     Dim resultValue As String
     Dim formatterIndex As Long
 
-    placeholderParts = VBA.Split(VBA.Trim$(placeholderName), "|")
-    valueName = VBA.Trim$(VBA.CStr(placeholderParts(LBound(placeholderParts))))
+    Set placeholderParts = private_SplitByDelimiterOutsideQuotes(VBA.Trim$(placeholderName), "|")
+    If placeholderParts Is Nothing Then Exit Function
+    If placeholderParts.Count <= 0 Then Exit Function
+
+    valueName = VBA.Trim$(VBA.CStr(placeholderParts.Item(1)))
     resultValue = private_GetRawPlaceholderValue(valueName, sectionTypeText, sourceTables, renderVars, loopRows)
 
-    For formatterIndex = LBound(placeholderParts) + 1 To UBound(placeholderParts)
-        resultValue = private_ApplyFormatter(resultValue, VBA.Trim$(VBA.CStr(placeholderParts(formatterIndex))))
+    ' Formatter pipeline пишется прямо в placeholder:
+    '   {[FIO]|lowerFirstLetter|regexreplace:"\s+"," "}
+    ' Разбиваем по | только вне кавычек, чтобы regex с alternation не ломал
+    ' список formatter-ов.
+    For formatterIndex = 2 To placeholderParts.Count
+        resultValue = private_ApplyFormatter(resultValue, VBA.Trim$(VBA.CStr(placeholderParts.Item(formatterIndex))))
     Next formatterIndex
 
     private_GetPlaceholderValue = resultValue
@@ -213,9 +227,6 @@ Private Function private_GetRawPlaceholderValue( _
     ByVal renderVars As Object, _
     ByVal loopRows As Object _
 ) As String
-    Dim sourceTable As obj_TableDynamic
-    Dim sourceRow As obj_Row
-    Dim columnIndex As Long
     Dim loopVarName As String
     Dim loopFieldName As String
     Dim dotPos As Long
@@ -240,21 +251,21 @@ Private Function private_GetRawPlaceholderValue( _
     If dotPos > 1 Then
         loopVarName = VBA.Trim$(VBA.Left$(placeholderName, dotPos - 1))
         loopFieldName = VBA.Trim$(VBA.Mid$(placeholderName, dotPos + 1))
-        If private_TryGetLoopFieldValue(loopRows, loopVarName, loopFieldName, private_GetRawPlaceholderValue) Then Exit Function
+        If private_IsBracketFieldToken(loopFieldName) Then
+            loopFieldName = private_UnwrapBracketFieldToken(loopFieldName)
+            If private_TryGetLoopFieldValue(loopRows, loopVarName, loopFieldName, private_GetRawPlaceholderValue) Then Exit Function
+        ElseIf VBA.Left$(loopFieldName, 2) = "__" Then
+            If private_TryGetLoopFieldValue(loopRows, loopVarName, loopFieldName, private_GetRawPlaceholderValue) Then Exit Function
+        End If
+        Exit Function
     End If
 
-    If sourceTables Is Nothing Then Exit Function
-    If sourceTables.Count <= 0 Then Exit Function
-    Set sourceTable = private_TryGetSourceTable(sourceTables, 1)
-    If sourceTable Is Nothing Then Exit Function
-
-    If sourceTable.RowCount <= 0 Then Exit Function
-    columnIndex = private_FindSourceColumnIndex(sourceTable, placeholderName)
-    If columnIndex <= 0 Then Exit Function
-
-    Set sourceRow = sourceTable.Rows.Item(1)
-    If sourceRow Is Nothing Then Exit Function
-    private_GetRawPlaceholderValue = VBA.Trim$(sourceRow.GetCellValue(columnIndex))
+    If private_IsBracketFieldToken(placeholderName) Then
+        ' Поля DynamicTable в новом DSL читаются только через {[AliasOrHeader]}.
+        ' Так они визуально отличаются от DSL-переменных вроде {SectionType}
+        ' или {item.__first}.
+        private_GetRawPlaceholderValue = private_GetMainTableFieldValue(private_UnwrapBracketFieldToken(placeholderName), sourceTables)
+    End If
 End Function
 
 Private Function private_ExpandSharedTemplateIncludes( _
@@ -675,9 +686,14 @@ Private Function private_EvaluateExpressionText( _
     Dim resultText As String
     Dim placeholderName As String
     Dim placeholderValue As String
+    Dim functionValue As String
 
     trimmedText = VBA.Trim$(expressionText)
     If VBA.Len(trimmedText) = 0 Then Exit Function
+    If private_TryEvaluateHelperFunction(trimmedText, sectionTypeText, sourceTables, renderVars, loopRows, functionValue) Then
+        private_EvaluateExpressionText = functionValue
+        Exit Function
+    End If
     If private_IsQuoted(trimmedText) Then
         private_EvaluateExpressionText = VBA.Mid$(trimmedText, 2, VBA.Len(trimmedText) - 2)
         Exit Function
@@ -745,14 +761,60 @@ Private Function private_TokenExists( _
     If dotPos > 1 Then
         loopVarName = VBA.Trim$(VBA.Left$(tokenText, dotPos - 1))
         loopFieldName = VBA.Trim$(VBA.Mid$(tokenText, dotPos + 1))
-        private_TokenExists = private_TryGetLoopFieldValue(loopRows, loopVarName, loopFieldName, dummyValue)
+        If private_IsBracketFieldToken(loopFieldName) Then
+            private_TokenExists = private_TryGetLoopFieldValue( _
+                loopRows, _
+                loopVarName, _
+                private_UnwrapBracketFieldToken(loopFieldName), _
+                dummyValue)
+        ElseIf VBA.Left$(loopFieldName, 2) = "__" Then
+            private_TokenExists = private_TryGetLoopFieldValue(loopRows, loopVarName, loopFieldName, dummyValue)
+        End If
         Exit Function
     End If
 
+    If Not private_IsBracketFieldToken(tokenText) Then Exit Function
+
     Set sourceTable = private_TryGetSourceTable(sourceTables, 1)
     If sourceTable Is Nothing Then Exit Function
+    tokenText = private_UnwrapBracketFieldToken(tokenText)
     private_TokenExists = sourceTable.TryGetColumnIndexByAlias(tokenText, columnIndex)
     If Not private_TokenExists Then private_TokenExists = sourceTable.TryGetColumnIndexByName(tokenText, columnIndex)
+End Function
+
+Private Function private_GetMainTableFieldValue(ByVal fieldName As String, ByVal sourceTables As Collection) As String
+    Dim sourceTable As obj_TableDynamic
+    Dim sourceRow As obj_Row
+    Dim columnIndex As Long
+
+    fieldName = VBA.Trim$(fieldName)
+    If VBA.Len(fieldName) = 0 Then Exit Function
+    If sourceTables Is Nothing Then Exit Function
+    If sourceTables.Count <= 0 Then Exit Function
+
+    Set sourceTable = private_TryGetSourceTable(sourceTables, 1)
+    If sourceTable Is Nothing Then Exit Function
+    If sourceTable.RowCount <= 0 Then Exit Function
+
+    columnIndex = private_FindSourceColumnIndex(sourceTable, fieldName)
+    If columnIndex <= 0 Then Exit Function
+
+    Set sourceRow = sourceTable.Rows.Item(1)
+    If sourceRow Is Nothing Then Exit Function
+
+    private_GetMainTableFieldValue = VBA.Trim$(sourceRow.GetCellValue(columnIndex))
+End Function
+
+Private Function private_IsBracketFieldToken(ByVal tokenText As String) As Boolean
+    tokenText = VBA.Trim$(tokenText)
+    If VBA.Len(tokenText) < 3 Then Exit Function
+    private_IsBracketFieldToken = (VBA.Left$(tokenText, 1) = "[" And VBA.Right$(tokenText, 1) = "]")
+End Function
+
+Private Function private_UnwrapBracketFieldToken(ByVal tokenText As String) As String
+    tokenText = VBA.Trim$(tokenText)
+    If Not private_IsBracketFieldToken(tokenText) Then Exit Function
+    private_UnwrapBracketFieldToken = VBA.Trim$(VBA.Mid$(tokenText, 2, VBA.Len(tokenText) - 2))
 End Function
 
 Private Function private_IsTruthy(ByVal valueText As String) As Boolean
@@ -767,6 +829,88 @@ Private Function private_IsQuoted(ByVal valueText As String) As Boolean
     If VBA.Len(valueText) < 2 Then Exit Function
     private_IsQuoted = (VBA.Left$(valueText, 1) = """" And VBA.Right$(valueText, 1) = """") _
         Or (VBA.Left$(valueText, 1) = "'" And VBA.Right$(valueText, 1) = "'")
+End Function
+
+Private Function private_TryEvaluateHelperFunction( _
+    ByVal expressionText As String, _
+    ByVal sectionTypeText As String, _
+    ByVal sourceTables As Collection, _
+    ByVal renderVars As Object, _
+    ByVal loopRows As Object, _
+    ByRef outValue As String _
+) As Boolean
+    Dim functionName As String
+    Dim argsText As String
+    Dim args As Collection
+    Dim textArg As String
+    Dim patternArg As String
+    Dim replacementArg As String
+    Dim openPos As Long
+
+    outValue = VBA.vbNullString
+    expressionText = VBA.Trim$(expressionText)
+    If VBA.Left$(expressionText, VBA.Len("$ex_Helpers.")) <> "$ex_Helpers." Then Exit Function
+    If VBA.Right$(expressionText, 1) <> ")" Then Exit Function
+
+    ' Минимальная поддержка внешних helper-вызовов для #let/#if.
+    ' Сейчас переносим только regex-методы, которые нужны шаблонам:
+    ' $ex_Helpers.m_RegexIsMatch("{[ReportPerson]}", "...")
+    ' Аргументы сначала проходят через placeholder evaluation, поэтому внутри
+    ' строк можно ссылаться на поля DynamicTable.
+    openPos = VBA.InStr(1, expressionText, "(", VBA.vbBinaryCompare)
+    If openPos <= VBA.Len("$ex_Helpers.") + 1 Then Exit Function
+
+    functionName = VBA.Mid$(expressionText, VBA.Len("$ex_Helpers.") + 1, openPos - VBA.Len("$ex_Helpers.") - 1)
+    argsText = VBA.Mid$(expressionText, openPos + 1, VBA.Len(expressionText) - openPos - 1)
+    Set args = private_SplitArguments(argsText)
+
+    Select Case VBA.LCase$(VBA.Trim$(functionName))
+        Case "m_regexismatch"
+            If args.Count <> 2 Then Exit Function
+            textArg = private_EvaluateFunctionArgument(VBA.CStr(args.Item(1)), sectionTypeText, sourceTables, renderVars, loopRows)
+            patternArg = private_EvaluateFunctionArgument(VBA.CStr(args.Item(2)), sectionTypeText, sourceTables, renderVars, loopRows)
+            outValue = VBA.CStr(ex_Helpers.m_RegexIsMatch(textArg, patternArg))
+            private_TryEvaluateHelperFunction = True
+        Case "m_regexfirstmatch"
+            If args.Count <> 2 Then Exit Function
+            textArg = private_EvaluateFunctionArgument(VBA.CStr(args.Item(1)), sectionTypeText, sourceTables, renderVars, loopRows)
+            patternArg = private_EvaluateFunctionArgument(VBA.CStr(args.Item(2)), sectionTypeText, sourceTables, renderVars, loopRows)
+            outValue = ex_Helpers.m_RegexFirstMatch(textArg, patternArg)
+            private_TryEvaluateHelperFunction = True
+        Case "m_regexgetgroup"
+            If args.Count < 2 Or args.Count > 3 Then Exit Function
+            textArg = private_EvaluateFunctionArgument(VBA.CStr(args.Item(1)), sectionTypeText, sourceTables, renderVars, loopRows)
+            patternArg = private_EvaluateFunctionArgument(VBA.CStr(args.Item(2)), sectionTypeText, sourceTables, renderVars, loopRows)
+            If args.Count = 3 Then
+                outValue = ex_Helpers.m_RegexGetGroup(textArg, patternArg, VBA.CLng(VBA.Val(VBA.CStr(args.Item(3)))))
+            Else
+                outValue = ex_Helpers.m_RegexGetGroup(textArg, patternArg)
+            End If
+            private_TryEvaluateHelperFunction = True
+        Case "m_regexreplace"
+            If args.Count <> 3 Then Exit Function
+            textArg = private_EvaluateFunctionArgument(VBA.CStr(args.Item(1)), sectionTypeText, sourceTables, renderVars, loopRows)
+            patternArg = private_EvaluateFunctionArgument(VBA.CStr(args.Item(2)), sectionTypeText, sourceTables, renderVars, loopRows)
+            replacementArg = private_EvaluateFunctionArgument(VBA.CStr(args.Item(3)), sectionTypeText, sourceTables, renderVars, loopRows)
+            outValue = ex_Helpers.m_RegexReplace(textArg, patternArg, replacementArg)
+            private_TryEvaluateHelperFunction = True
+    End Select
+End Function
+
+Private Function private_EvaluateFunctionArgument( _
+    ByVal argumentText As String, _
+    ByVal sectionTypeText As String, _
+    ByVal sourceTables As Collection, _
+    ByVal renderVars As Object, _
+    ByVal loopRows As Object _
+) As String
+    argumentText = VBA.Trim$(argumentText)
+    If private_IsQuoted(argumentText) Then argumentText = VBA.Mid$(argumentText, 2, VBA.Len(argumentText) - 2)
+    If VBA.InStr(1, argumentText, "{", VBA.vbBinaryCompare) > 0 Then
+        private_EvaluateFunctionArgument = private_EvaluateExpressionText(argumentText, sectionTypeText, sourceTables, renderVars, loopRows)
+    Else
+        private_EvaluateFunctionArgument = argumentText
+    End If
 End Function
 
 Private Function private_BuildLoopRows(ByVal collectionName As String, ByVal sourceTables As Collection) As Collection
@@ -900,15 +1044,133 @@ Private Function private_NormalizeCollectionKey(ByVal valueText As String) As St
 End Function
 
 Private Function private_ApplyFormatter(ByVal valueText As String, ByVal formatterText As String) As String
+    Dim formatterName As String
+    Dim argsText As String
+    Dim colonPos As Long
+    Dim args As Collection
+    Dim dateValue As Date
+    Dim offsetDays As Long
+    Dim formatPattern As String
+
     formatterText = VBA.Trim$(formatterText)
-    Select Case VBA.LCase$(formatterText)
+    formatterName = formatterText
+    colonPos = VBA.InStr(1, formatterText, ":", VBA.vbBinaryCompare)
+    If colonPos > 0 Then
+        formatterName = VBA.Trim$(VBA.Left$(formatterText, colonPos - 1))
+        argsText = VBA.Trim$(VBA.Mid$(formatterText, colonPos + 1))
+    End If
+
+    Select Case VBA.LCase$(formatterName)
         Case VBA.LCase$(FORMATTER_UPPER_FIRST_LETTER)
             private_ApplyFormatter = private_UpperFirstLetter(valueText)
         Case VBA.LCase$(FORMATTER_LOWER_FIRST_LETTER)
             private_ApplyFormatter = private_LowerFirstLetter(valueText)
+        Case VBA.LCase$(FORMATTER_REGEX_REPLACE)
+            ' Формат: |regexreplace:"pattern","replacement".
+            ' Аргументы разбираются с учетом кавычек, поэтому запятые внутри
+            ' regex/replacement не режут список параметров.
+            Set args = private_SplitArguments(argsText)
+            If Not args Is Nothing Then
+                If args.Count = 2 Then
+                    private_ApplyFormatter = ex_Helpers.m_RegexReplace( _
+                        valueText, _
+                        private_UnquoteFormatterArgument(VBA.CStr(args.Item(1))), _
+                        private_UnquoteFormatterArgument(VBA.CStr(args.Item(2))))
+                    Exit Function
+                End If
+            End If
+            private_ApplyFormatter = valueText
+        Case VBA.LCase$(FORMATTER_DATE_OFFSET)
+            ' Формат: |dateoffset:"+1".
+            ' Возвращаем дату в стабильном виде dd.mm.yyyy, чтобы следующий
+            ' formatter dateformat мог независимо выбрать отображение.
+            If Not private_TryParseFormatterDate(valueText, dateValue) Then
+                private_ApplyFormatter = valueText
+                Exit Function
+            End If
+            argsText = private_UnquoteFormatterArgument(argsText)
+            If VBA.Len(argsText) = 0 Or Not VBA.IsNumeric(argsText) Then
+                private_ApplyFormatter = valueText
+                Exit Function
+            End If
+            offsetDays = VBA.CLng(argsText)
+            private_ApplyFormatter = VBA.Format$(VBA.DateAdd("d", offsetDays, dateValue), FORMATTER_DATE_STORAGE_FORMAT)
+        Case VBA.LCase$(FORMATTER_DATE_FORMAT)
+            ' Формат: |dateformat:"\dd \month \yyyy року".
+            ' Отображение даты остается ответственностью шаблона, а не WORD exporter-а.
+            If Not private_TryParseFormatterDate(valueText, dateValue) Then
+                private_ApplyFormatter = valueText
+                Exit Function
+            End If
+            formatPattern = private_UnquoteFormatterArgument(argsText)
+            private_ApplyFormatter = ex_Helpers.fn_FormatUaDatePattern(dateValue, formatPattern)
         Case Else
             private_ApplyFormatter = valueText
     End Select
+End Function
+
+Private Function private_TryParseFormatterDate(ByVal valueText As String, ByRef outDate As Date) As Boolean
+    valueText = VBA.Trim$(valueText)
+    If VBA.Len(valueText) = 0 Then Exit Function
+
+    ' Formatter stage получает уже resolved date из WORD exporter-а. Контекст
+    ' 01.01.1900 здесь нужен только как безопасный base для полностью заданных
+    ' дат или sentinel-дат, а не для бизнес-резолва короткой даты.
+    private_TryParseFormatterDate = ex_Helpers.fn_TryResolveDateWithContext( _
+        valueText, _
+        VBA.DateSerial(1900, 1, 1), _
+        outDate)
+End Function
+
+Private Function private_SplitArguments(ByVal argsText As String) As Collection
+    Set private_SplitArguments = private_SplitByDelimiterOutsideQuotes(argsText, ",")
+End Function
+
+Private Function private_SplitByDelimiterOutsideQuotes( _
+    ByVal sourceText As String, _
+    ByVal delimiterText As String _
+) As Collection
+    Dim result As Collection
+    Dim i As Long
+    Dim ch As String
+    Dim currentPart As String
+    Dim quoteChar As String
+    Dim inQuote As Boolean
+
+    Set result = New Collection
+    ' Универсальный splitter для DSL-строк: нужен и для formatter pipeline,
+    ' и для аргументов helper-вызовов. Главное правило - delimiter внутри
+    ' кавычек является частью значения, а не разделителем.
+    For i = 1 To VBA.Len(sourceText)
+        ch = VBA.Mid$(sourceText, i, 1)
+        If inQuote Then
+            currentPart = currentPart & ch
+            If ch = quoteChar Then inQuote = False
+        Else
+            If ch = """" Or ch = "'" Then
+                inQuote = True
+                quoteChar = ch
+                currentPart = currentPart & ch
+            ElseIf ch = delimiterText Then
+                result.Add VBA.Trim$(currentPart)
+                currentPart = VBA.vbNullString
+            Else
+                currentPart = currentPart & ch
+            End If
+        End If
+    Next i
+
+    If VBA.Len(VBA.Trim$(currentPart)) > 0 Or VBA.Len(sourceText) > 0 Then result.Add VBA.Trim$(currentPart)
+    Set private_SplitByDelimiterOutsideQuotes = result
+End Function
+
+Private Function private_UnquoteFormatterArgument(ByVal valueText As String) As String
+    valueText = VBA.Trim$(valueText)
+    If private_IsQuoted(valueText) Then
+        private_UnquoteFormatterArgument = VBA.Mid$(valueText, 2, VBA.Len(valueText) - 2)
+    Else
+        private_UnquoteFormatterArgument = valueText
+    End If
 End Function
 
 Private Function private_UpperFirstLetter(ByVal valueText As String) As String
