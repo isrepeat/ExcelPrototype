@@ -1,14 +1,18 @@
 <?xml version="1.0" encoding="utf-8"?>
 <wordResultTemplates xmlns="urn:excelprototype:profiles" version="1">
   <!-- Упрощенная версия PersonalCardResultTemplates для PEB WORD preview.
-       Placeholders можно писать по alias DynamicTable ({FIO}) или по видимому
-       заголовку ({ПІБ}). Поддерживаются sharedTemplate/#include, #if, #for,
-       #let, formatter pipeline и layout tokens: {#newline}, #^/{#^}, #_/{#_}. -->
+       Колонки DynamicTable читаются только как {[AliasOrHeader]} или item.[AliasOrHeader],
+       а обычные {Person}/{SectionType}/item.__first остаются переменными DSL.
+       Поддерживаются sharedTemplate/#include, #if, #for, #let, formatter pipeline
+       включая dateoffset:"+1" и dateformat:"\dd \month".
+       и layout tokens: {#newline}, #^/{#^}, #_/{#_}. -->
   <sharedTemplates>
     <sharedTemplate id="block.PersonLine">
       <text>
         <![CDATA[
-#_        {Rank|upperFirstLetter} {FIO}, {PositionName|lowerFirstLetter}#^
+#_        {#if [RankGenitive]}{[RankGenitive]}{#endif}{#if #not [RankGenitive]}{[Rank]|lowerFirstLetter}{#endif} #^
+#_        {#if [FIOGenitive]}{[FIOGenitive]}{#endif}{#if #not [FIOGenitive]}{[FIO]}{#endif}, #^
+#_        {#if [PositionGenitive]}{[PositionGenitive]|lowerFirstLetter}{#endif}{#if #not [PositionGenitive]}{[PositionName]|lowerFirstLetter}{#endif}#^
         ]]>
       </text>
     </sharedTemplate>
@@ -16,7 +20,11 @@
     <sharedTemplate id="block.IncomingBasis">
       <text>
         <![CDATA[
-#_        Підстава: рапорт {ReportPerson|lowerFirstLetter} (вх. № {IncomingNo} від {IncomingDate})#^
+#_        #let __IsRaportFromSelf = $ex_Helpers.m_RegexIsMatch("{[ReportPerson]}", "^\s*$|^\s*[Сс][Аа][Мм]\s*$");#^
+#_        Підстава: рапорт #^
+#_        {#if __IsRaportFromSelf}військовослужбовця{#endif}#^
+#_        {#if #not __IsRaportFromSelf}{#if [ReporterGenitive]}{[ReporterGenitive]}{#endif}{#if #not [ReporterGenitive]}{[ReportPerson]|lowerFirstLetter}{#endif}{#endif}#^
+#_        (вх. № {[IncomingNo]} від {#if [IncomingDateShort]}{[IncomingDateShort]}{#endif}{#if #not [IncomingDateShort]}{[IncomingDate]}{#endif})#^
         ]]>
         </text>
     </sharedTemplate>
@@ -24,9 +32,9 @@
     <sharedTemplate id="block.OptionalDocumentBasis">
       <text>
         <![CDATA[
-#_        {#if DocumentNote}; {DocumentNote|lowerFirstLetter}#^
-#_        {#if DocNo} № {DocNo}{#endif}#^
-#_        {#if DocDate} від {DocDate}{#endif}#^
+#_        {#if [DocumentNote]}; {[DocumentNote]|lowerFirstLetter}#^
+#_        {#if [DocNo]} № {[DocNo]}{#endif}#^
+#_        {#if [DocDateFull]} від {[DocDateFull]}{#endif}{#if #not [DocDateFull]}{#if [DocDate]} від {[DocDate]}{#endif}{#endif}#^
 #_        {#endif}#^
         ]]>
         </text>
@@ -39,8 +47,8 @@
 #_          {#if item.__first}{#newline}Додатково: {#endif}#^
 #_          {#if #not item.__first}; {#endif}#^
 #_          {item.__sectionTitle}#^
-#_          {#if item.FIO}: {item.FIO}{#endif}#^
-#_          {#if item.DocumentNote}: {item.DocumentNote}{#endif}#^
+#_          {#if item.[FIO]}: {item.[FIO]}{#endif}#^
+#_          {#if item.[DocumentNote]}: {item.[DocumentNote]}{#endif}#^
 #_        {#endfor}#^
         ]]>
       </text>
@@ -50,8 +58,15 @@
   <template id="CloseFromTreatment" sectionType="З лікування">
     <text>
       <![CDATA[
-#_      #let Person = {Rank|upperFirstLetter} {FIO}, {PositionName|lowerFirstLetter};#^
-#_      З {HospitalShort|lowerFirstLetter}: {Person}.#^
+#_      {#if [HospitalGenitive]}{[HospitalGenitive]|lowerFirstLetter}{#endif}{#if #not [HospitalGenitive]}{[HospitalShort]|lowerFirstLetter}{#endif}#^
+#_      {#if [DateFromFull]}, з {[DateFromFull]}{#endif}{#if #not [DateFromFull]}{#if [DocDateFull]}, з {[DocDateFull]}{#endif}{#endif}.#^
+#_      {#newline}#^
+#_      {#include block.PersonLine}.#^
+#_      {#newline}#^
+#_      Зарахувати на продовольче забезпечення#^
+#_      {#if [DateFromFullPlusOne]} з {[DateFromFullPlusOne]}{#endif}#^
+#_      {#if #not [DateFromFullPlusOne]}{#if [IncomingDateFullPlusOne]} з {[IncomingDateFullPlusOne]}{#endif}{#endif}#^
+#_      {#if #not [DateFromFullPlusOne]}{#if #not [IncomingDateFullPlusOne]}{#if [DocDateFullPlusOne]} з {[DocDateFullPlusOne]}{#endif}{#endif}{#endif}.#^
 #_      {#newline}#^
 #_      {#include block.IncomingBasis}#^
 #_      {#include block.OptionalDocumentBasis}.#^
@@ -68,8 +83,8 @@
 #_      Повернувся з щорічної основної відпустки.#^
 #_      {#newline}#^
 #_      {#include block.IncomingBasis}; відпускний квиток#^
-#_      {#if VhNo} № {VhNo}{#endif}#^
-#_      {#if VhDate} від {VhDate}{#endif}.#^
+#_      {#if [VhNo]} № {[VhNo]}{#endif}#^
+#_      {#if [VhDateFull]} від {[VhDateFull]}{#endif}{#if #not [VhDateFull]}{#if [VhDate]} від {[VhDate]}{#endif}{#endif}.#^
 #_      {#include block.MetaRowsInline}#^
         ]]>
     </text>
