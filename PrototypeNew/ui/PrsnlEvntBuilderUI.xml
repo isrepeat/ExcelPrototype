@@ -186,7 +186,7 @@
             />
           <control
             type="Label"
-            name="ReportTvoHeader"
+            name="ReportRankHeader"
             tags="profile.allFields;
                   profile.closeTreatment;
                   profile.closeTreatmentVacation;
@@ -204,7 +204,7 @@
                   profile.transferVlkToTreatmentVacation;
                   profile.transferVlkToTreatment;
                   profile.metaTvo"
-            text="Рапорт ТВО"
+            text="Звання (рапорт)"
             style="tableHeaderCell"
             />
           <control
@@ -227,7 +227,30 @@
                   profile.transferVlkToTreatmentVacation;
                   profile.transferVlkToTreatment;
                   profile.metaTvo"
-            text="Рапорт кого"
+            text="ФІО (рапорт)"
+            style="tableHeaderCell"
+            />
+          <control
+            type="Label"
+            name="ReportPositionCodeHeader"
+            tags="profile.allFields;
+                  profile.closeTreatment;
+                  profile.closeTreatmentVacation;
+                  profile.closeAnnualVacation;
+                  profile.closeFamilyVacation;
+                  profile.closeTreatmentMedicalCompany;
+                  profile.closeAmbulatoryVlk;
+                  profile.toTreatment;
+                  profile.toTreatmentMedicalCompany;
+                  profile.toAmbulatoryVlk;
+                  profile.transferTreatmentToTreatmentVacation;
+                  profile.transferTreatmentVacationToTreatmentVacation;
+                  profile.transferTreatmentVacationToTreatment;
+                  profile.transferTreatmentVacationToVlk;
+                  profile.transferVlkToTreatmentVacation;
+                  profile.transferVlkToTreatment;
+                  profile.metaTvo"
+            text="Код посади (рапорт)"
             style="tableHeaderCell"
             />
           <control
@@ -511,8 +534,8 @@
 
           <control
             type="Label"
-            name="ReportTvoDraftCell"
-            tags="ReportTvo;
+            name="ReportRankDraftCell"
+            tags="ReportRank;
                   profile.allFields;
                   profile.closeTreatment;
                   profile.closeTreatmentVacation;
@@ -561,6 +584,31 @@
             onChangeArg="Commander"
             spanColls="1"
             spanRows="1"/>
+
+          <control
+            type="Label"
+            name="ReportPositionCodeDraftCell"
+            tags="ReportPositionCode;
+                  profile.allFields;
+                  profile.closeTreatment;
+                  profile.closeTreatmentVacation;
+                  profile.closeAnnualVacation;
+                  profile.closeFamilyVacation;
+                  profile.closeTreatmentMedicalCompany;
+                  profile.closeAmbulatoryVlk;
+                  profile.toTreatment;
+                  profile.toTreatmentMedicalCompany;
+                  profile.toAmbulatoryVlk;
+                  profile.transferTreatmentToTreatmentVacation;
+                  profile.transferTreatmentVacationToTreatmentVacation;
+                  profile.transferTreatmentVacationToTreatment;
+                  profile.transferTreatmentVacationToVlk;
+                  profile.transferVlkToTreatmentVacation;
+                  profile.transferVlkToTreatment;
+                  profile.metaTvo"
+            text=""
+            style="tableDataCell"
+            />
 
           <control
             type="Label"
@@ -804,7 +852,7 @@
         message="{Binding Path=WordExportPreviewText}"
         visibility="{Binding Path=WordExportPreviewText; Op=ne; Value=; TrueAs=Visible; FalseAs=Collapsed}"
         spanColls="50"
-        spanRows="5"/>
+        spanRows="10"/>
 
     </stackPanel>
   </grid>
@@ -997,8 +1045,9 @@
         <rule target="controlPart" selector="type=label;name=IpnHeader;part=cell" styles="{ width:16; }"/>
         <rule target="controlPart" selector="type=label;name=PositionCodeHeader;part=cell" styles="{ width:12; }"/>
         <rule target="controlPart" selector="type=label;name=PositionNameHeader;part=cell" styles="{ width:18; }"/>
-        <rule target="controlPart" selector="type=label;name=ReportTvoHeader;part=cell" styles="{ width:7.5; }"/>
-        <rule target="controlPart" selector="type=label;name=ReportPersonHeader;part=cell" styles="{ width:23.5; }"/>
+        <rule target="controlPart" selector="type=label;name=ReportRankHeader;part=cell" styles="{ width:11; }"/>
+        <rule target="controlPart" selector="type=label;name=ReportPersonHeader;part=cell" styles="{ width:20; }"/>
+        <rule target="controlPart" selector="type=label;name=ReportPositionCodeHeader;part=cell" styles="{ width:12; }"/>
         <rule target="controlPart" selector="type=label;name=IncomingNoHeader;part=cell" styles="{ width:9; }"/>
         <rule target="controlPart" selector="type=label;name=IncomingDateHeader;part=cell" styles="{ width:7; }"/>
         <rule target="controlPart" selector="type=label;name=DocumentNoteHeader;part=cell" styles="{ width:13; }"/>

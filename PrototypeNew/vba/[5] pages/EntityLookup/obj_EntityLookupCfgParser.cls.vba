@@ -223,9 +223,12 @@ Public Function TryBuildLookupSqlParams( _
     Dim searchSourceHeader As String
     Dim searchMappedHeader As String
     Dim resultAliasObj As Variant
-    Dim resultAlias As String
+    Dim resultAliasToken As String
+    Dim sourceResultAlias As String
+    Dim targetResultAlias As String
     Dim sourceColumnHeader As String
     Dim mappedColumnHeader As String
+    Dim outputMappedHeader As String
     Dim sqlParams As obj_SqlParams
     Dim normalizedAliases As Collection
     Dim columnAliasSet As Object
@@ -289,10 +292,22 @@ Public Function TryBuildLookupSqlParams( _
         private_ShowConfigError "ResultColumnsAliases is empty for column '" & columnKey & "'."
         Exit Function
     End If
+
+    ' ResultColumnsAliases поддерживает remap вида SourceAlias=>TargetAlias.
+    ' Это нужно, когда один и тот же внешний справочник возвращает стандартные
+    ' поля, но форма должна положить их в другие колонки. Например:
+    ' Rank=>ReportRank, FIO=>ReportPerson, PositionCode=>ReportPositionCode.
+    ' SourceAlias всегда валидируется против source table, а TargetAlias идет
+    ' дальше в DynamicTable/candidates как имя результирующей колонки.
     For Each resultAliasObj In normalizedAliases
-        resultAlias = VBA.Trim$(VBA.CStr(resultAliasObj))
-        If VBA.Len(resultAlias) = 0 Then GoTo ContinueValidateResultAlias
-        If Not private_TryValidateDeclaredColumnAlias(columnAliasSet, tablePathPrefix, resultAlias, "ResultColumnsAliases for lookup '" & columnKey & "'") Then Exit Function
+        resultAliasToken = VBA.Trim$(VBA.CStr(resultAliasObj))
+        If VBA.Len(resultAliasToken) = 0 Then GoTo ContinueValidateResultAlias
+        If Not private_TryParseResultAliasMapping(resultAliasToken, sourceResultAlias, targetResultAlias) Then
+            private_ShowConfigError "Invalid ResultColumnsAliases item '" & resultAliasToken & "' for lookup '" & columnKey & "'. Use SourceAlias or SourceAlias=>TargetAlias."
+            Exit Function
+        End If
+        If Not private_TryValidateDeclaredColumnAlias(columnAliasSet, tablePathPrefix, sourceResultAlias, "ResultColumnsAliases for lookup '" & columnKey & "'") Then Exit Function
+        If VBA.StrComp(sourceResultAlias, searchColumnAlias, VBA.vbTextCompare) = 0 Then outSearchColumnAlias = targetResultAlias
 ContinueValidateResultAlias:
     Next resultAliasObj
 
@@ -308,15 +323,20 @@ ContinueValidateResultAlias:
     End If
 
     For Each resultAliasObj In normalizedAliases
-        resultAlias = VBA.Trim$(VBA.CStr(resultAliasObj))
-        If VBA.Len(resultAlias) = 0 Then GoTo ContinueResultAlias
+        resultAliasToken = VBA.Trim$(VBA.CStr(resultAliasObj))
+        If VBA.Len(resultAliasToken) = 0 Then GoTo ContinueResultAlias
+        If Not private_TryParseResultAliasMapping(resultAliasToken, sourceResultAlias, targetResultAlias) Then Exit Function
 
-        If Not m_CfgTableParser.TryResolveMapByColumnAlias(cfgMap, tablePathPrefix, resultAlias, sourceColumnHeader, mappedColumnHeader) Then
-            private_ShowConfigError "Failed to resolve result alias '" & resultAlias & "' for table prefix '" & tablePathPrefix & "'."
+        If Not m_CfgTableParser.TryResolveMapByColumnAlias(cfgMap, tablePathPrefix, sourceResultAlias, sourceColumnHeader, mappedColumnHeader) Then
+            private_ShowConfigError "Failed to resolve result alias '" & sourceResultAlias & "' for table prefix '" & tablePathPrefix & "'."
             Exit Function
         End If
-        If Not sqlParams.AddColumnMapping(sourceColumnHeader, mappedColumnHeader, resultAlias) Then
-            private_ShowConfigError "Failed to add SQL column mapping for alias '" & resultAlias & "'."
+        ' В SQL читаем физический source header, но наружу отдаём target alias.
+        ' Так candidate table может сразу заполнять колонку формы, не создавая
+        ' дубликаты source-полей с теми же подписями.
+        outputMappedHeader = private_GetOutputColumnCaption(cfgMap, targetResultAlias, mappedColumnHeader)
+        If Not sqlParams.AddColumnMapping(sourceColumnHeader, outputMappedHeader, targetResultAlias) Then
+            private_ShowConfigError "Failed to add SQL column mapping for alias '" & targetResultAlias & "'."
             Exit Function
         End If
 ContinueResultAlias:
@@ -325,6 +345,50 @@ ContinueResultAlias:
     Set outSqlParams = sqlParams
     Set outResultColumnAliases = normalizedAliases
     TryBuildLookupSqlParams = True
+End Function
+
+Private Function private_TryParseResultAliasMapping( _
+    ByVal aliasToken As String, _
+    ByRef outSourceAlias As String, _
+    ByRef outTargetAlias As String _
+) As Boolean
+    Dim arrowPos As Long
+
+    outSourceAlias = VBA.vbNullString
+    outTargetAlias = VBA.vbNullString
+    aliasToken = VBA.Trim$(aliasToken)
+    If VBA.Len(aliasToken) = 0 Then Exit Function
+
+    ' Формат без стрелки оставляем обратносуместимым: FIO значит FIO=>FIO.
+    ' Стрелка задает явное перенаправление результата lookup-а в другую
+    ' колонку формы.
+    arrowPos = VBA.InStr(1, aliasToken, "=>", VBA.vbBinaryCompare)
+    If arrowPos > 0 Then
+        outSourceAlias = VBA.Trim$(VBA.Left$(aliasToken, arrowPos - 1))
+        outTargetAlias = VBA.Trim$(VBA.Mid$(aliasToken, arrowPos + 2))
+    Else
+        outSourceAlias = aliasToken
+        outTargetAlias = aliasToken
+    End If
+
+    private_TryParseResultAliasMapping = (VBA.Len(outSourceAlias) > 0 And VBA.Len(outTargetAlias) > 0)
+End Function
+
+Private Function private_GetOutputColumnCaption( _
+    ByVal cfgMap As Object, _
+    ByVal targetAlias As String, _
+    ByVal defaultCaption As String _
+) As String
+    targetAlias = VBA.Trim$(targetAlias)
+    private_GetOutputColumnCaption = VBA.Trim$(defaultCaption)
+    If VBA.Len(targetAlias) = 0 Then Exit Function
+    If m_CfgTableParser Is Nothing Then Exit Function
+    If m_CfgTableParser.CfgParserBase Is Nothing Then Exit Function
+
+    private_GetOutputColumnCaption = m_CfgTableParser.CfgParserBase.GetOptionalConfigValue( _
+        cfgMap, _
+        private_BuildTableColumnPrefix(targetAlias) & "Caption", _
+        private_GetOutputColumnCaption)
 End Function
 
 ' //
