@@ -12,8 +12,13 @@ Implements obj_IDataExporter
 Private m_IsDisposed As Boolean
 Private m_Base As obj_DataExporterBase
 Private m_Data As obj_PrsnlEvntBuilderData
+Private m_ExporterCommonData As obj_PEB_ExporterCommonData
 
 Private Const SAVE_ALREADY_OPEN_WORKBOOK As Boolean = False
+Private Const SOURCE_ALIAS_REPORT_RANK As String = "ReportRank"
+Private Const SOURCE_ALIAS_REPORT_PERSON As String = "ReportPerson"
+Private Const SOURCE_ALIAS_REPORT_POSITION_CODE As String = "ReportPositionCode"
+Private Const TARGET_COLUMN_REPORT_PERSON As String = "Рапорт кого"
 
 Private Sub Class_Initialize()
 #If LOGGING_VERBOSE_ENABLED Then
@@ -51,8 +56,10 @@ Public Function Initialize(ByVal configTable As obj_ConfigTable) As Boolean
     m_IsDisposed = False
     Set m_Base = New obj_DataExporterBase
     Set m_Data = New obj_PrsnlEvntBuilderData
+    Set m_ExporterCommonData = New obj_PEB_ExporterCommonData
 
     If Not m_Base.Initialize(configTable, "DailyScope", "PrototypeNew / DailyScope export") Then Exit Function
+    If Not m_ExporterCommonData.Initialize(configTable) Then Exit Function
 
     Initialize = True
 End Function
@@ -70,8 +77,10 @@ Public Sub Dispose()
     m_IsDisposed = True
     On Error Resume Next
     If Not m_Base Is Nothing Then m_Base.Dispose
+    If Not m_ExporterCommonData Is Nothing Then m_ExporterCommonData.Dispose
     Set m_Base = Nothing
     Set m_Data = Nothing
+    Set m_ExporterCommonData = Nothing
 
     On Error GoTo 0
 End Sub
@@ -218,7 +227,91 @@ Private Function private_TryWriteSourceRow( _
 ContinueColumn:
     Next sourceColumnIndex
 
+    ' Обычный copy-by-caption не подходит для target-колонки "Рапорт кого":
+    ' в форме теперь хранятся раздельные поля рапортующего
+    ' (звание/ФІО/код посади), а DailyScope ждет уже собранную строку в
+    ' родительном падеже. Поэтому после общего копирования точечно
+    ' перезаписываем эту колонку вычисленным значением.
+    If Not private_TryWriteReporterGenitiveValue(sourceTable, sourceRow, targetTable, rowRange) Then Exit Function
+
     private_TryWriteSourceRow = True
+End Function
+
+Private Function private_TryWriteReporterGenitiveValue( _
+    ByVal sourceTable As obj_TableDynamic, _
+    ByVal sourceRow As obj_Row, _
+    ByVal targetTable As ListObject, _
+    ByVal rowRange As Range _
+) As Boolean
+    Dim targetColumnIndex As Long
+    Dim reportRankText As String
+    Dim reportPersonText As String
+    Dim reportPositionCodeText As String
+    Dim reportRankGenitive As String
+    Dim reportPersonInitialsGenitive As String
+    Dim reportPositionGenitive As String
+    Dim reporterText As String
+
+    private_TryWriteReporterGenitiveValue = True
+    If sourceTable Is Nothing Then Exit Function
+    If sourceRow Is Nothing Then Exit Function
+    If targetTable Is Nothing Then Exit Function
+    If rowRange Is Nothing Then Exit Function
+
+    targetColumnIndex = private_FindTargetColumnIndex(targetTable, TARGET_COLUMN_REPORT_PERSON)
+    If targetColumnIndex <= 0 Then Exit Function
+
+    If Not private_TryGetSourceTextByAnyColumn(sourceTable, sourceRow, reportRankText, SOURCE_ALIAS_REPORT_RANK, "Звання (рапорт)") Then reportRankText = VBA.vbNullString
+    If Not private_TryGetSourceTextByAnyColumn( _
+        sourceTable, sourceRow, reportPersonText, SOURCE_ALIAS_REPORT_PERSON, _
+        "ФІО (рапорт)", "Рапорт кого") Then reportPersonText = VBA.vbNullString
+    If Not private_TryGetSourceTextByAnyColumn( _
+        sourceTable, sourceRow, reportPositionCodeText, SOURCE_ALIAS_REPORT_POSITION_CODE, _
+        "Код посади (рапорт)") Then reportPositionCodeText = VBA.vbNullString
+
+    If VBA.Len(reportRankText) = 0 And VBA.Len(reportPersonText) = 0 And VBA.Len(reportPositionCodeText) = 0 Then Exit Function
+    ' "сам" не ищем в АЛФ и не склоняем как командира: в DailyScope должна
+    ' остаться явная отметка, что рапорт от самого военнослужащего.
+    If private_IsSelfReportText(reportPersonText) Then
+        If Not private_TryWriteCellValueWithFormulaPolicy(rowRange.Cells(1, targetColumnIndex), private_LowerFirstLetter(reportPersonText)) Then
+            private_TryWriteReporterGenitiveValue = False
+        End If
+        Exit Function
+    End If
+    If m_ExporterCommonData Is Nothing Then Exit Function
+
+    If Not m_ExporterCommonData.TryResolvePositionGenitive(reportPositionCodeText, reportPositionGenitive) Then
+        private_TryWriteReporterGenitiveValue = False
+        Exit Function
+    End If
+    If Not m_ExporterCommonData.TryResolveRankGenitive(reportRankText, reportRankGenitive) Then
+        private_TryWriteReporterGenitiveValue = False
+        Exit Function
+    End If
+    If Not m_ExporterCommonData.TryResolveFioInitialsGenitiveByName(reportPersonText, reportPersonInitialsGenitive) Then
+        private_TryWriteReporterGenitiveValue = False
+        Exit Function
+    End If
+
+    ' Итоговый формат соответствует приказной формулировке:
+    ' <посада в родовом> <звание в родовом> <ФИО-инициалы в родовом>.
+    ' Например: "командира 1 механізованого батальйону майора КАСТЄРОВА С.О."
+    reporterText = private_JoinNonEmptyParts( _
+        private_JoinNonEmptyParts(reportPositionGenitive, reportRankGenitive), _
+        reportPersonInitialsGenitive)
+
+    If VBA.Len(reporterText) = 0 Then reporterText = reportPersonText
+    If VBA.Len(reporterText) = 0 Then Exit Function
+    reporterText = private_LowerFirstLetter(reporterText)
+
+    If Not private_TryWriteCellValueWithFormulaPolicy(rowRange.Cells(1, targetColumnIndex), reporterText) Then
+        private_TryWriteReporterGenitiveValue = False
+    End If
+End Function
+
+Private Function private_LowerFirstLetter(ByVal valueText As String) As String
+    If VBA.Len(valueText) = 0 Then Exit Function
+    private_LowerFirstLetter = VBA.LCase$(VBA.Left$(valueText, 1)) & VBA.Mid$(valueText, 2)
 End Function
 
 Private Function private_FindTargetColumnIndex(ByVal targetTable As ListObject, ByVal targetColumnName As String) As Long
@@ -488,6 +581,9 @@ Private Function private_GetSourceColumnIndex(ByVal sourceTable As obj_TableDyna
     expectedName = private_NormalizeText(columnName)
     If VBA.Len(expectedName) = 0 Then Exit Function
 
+    If sourceTable.TryGetColumnIndexByAlias(columnName, private_GetSourceColumnIndex) Then Exit Function
+    If sourceTable.TryGetColumnIndexByName(columnName, private_GetSourceColumnIndex) Then Exit Function
+
     For sourceColIndex = 1 To sourceTable.ColumnCount
         Set sourceColumn = sourceTable.Columns.Item(sourceColIndex)
         If sourceColumn Is Nothing Then GoTo ContinueColumn
@@ -498,6 +594,23 @@ Private Function private_GetSourceColumnIndex(ByVal sourceTable As obj_TableDyna
 
 ContinueColumn:
     Next sourceColIndex
+End Function
+
+Private Function private_JoinNonEmptyParts(ByVal leftText As String, ByVal rightText As String) As String
+    leftText = VBA.Trim$(leftText)
+    rightText = VBA.Trim$(rightText)
+    If VBA.Len(leftText) = 0 Then
+        private_JoinNonEmptyParts = rightText
+    ElseIf VBA.Len(rightText) = 0 Then
+        private_JoinNonEmptyParts = leftText
+    Else
+        private_JoinNonEmptyParts = leftText & " " & rightText
+    End If
+End Function
+
+Private Function private_IsSelfReportText(ByVal valueText As String) As Boolean
+    valueText = private_NormalizeText(valueText)
+    private_IsSelfReportText = (VBA.StrComp(valueText, "сам", VBA.vbTextCompare) = 0)
 End Function
 
 Private Function private_TryMapSectionKeyToCaption(ByVal sectionKey As String, ByRef outCaption As String) As Boolean

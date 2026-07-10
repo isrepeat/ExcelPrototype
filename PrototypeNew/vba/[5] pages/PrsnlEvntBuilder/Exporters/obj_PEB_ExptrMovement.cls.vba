@@ -12,6 +12,7 @@ Implements obj_IDataExporter
 Private m_IsDisposed As Boolean
 Private m_Base As obj_DataExporterBase
 Private m_Data As obj_PrsnlEvntBuilderData
+Private m_CommonData As obj_PEB_ExporterCommonData
 
 Private Const SAVE_ALREADY_OPEN_WORKBOOK As Boolean = False
 Private Const MOVEMENT_TARGET_COLUMN_COUNT As Long = 6
@@ -26,20 +27,22 @@ Private Const MOVEMENT_SOURCE_DURATION_TERM As String = "Термін вибут
 Private Const MOVEMENT_SOURCE_DURATION_DAYS As String = "На скільки"
 Private Const MOVEMENT_SOURCE_ESCORT_DOC As String = "Супровідний документ"
 Private Const MOVEMENT_SOURCE_VK_NO As String = "В/к №"
+Private Const MOVEMENT_SOURCE_REPORT_RANK As String = "ReportRank"
+Private Const MOVEMENT_SOURCE_REPORT_PERSON As String = "ReportPerson"
+Private Const MOVEMENT_SOURCE_REPORT_POSITION_CODE As String = "ReportPositionCode"
 Private Const MOVEMENT_TARGET_ORDER_NO As String = "Наказ вибуття"
 Private Const MOVEMENT_TARGET_FOOD_FROM As String = "З продовольчого"
 Private Const MOVEMENT_TARGET_DEPARTURE As String = "Вибуття"
 Private Const MOVEMENT_TARGET_ARRIVAL_ORDER_NO As String = "Наказ прибуття"
 Private Const MOVEMENT_TARGET_ON_FOOD As String = "На продовольче"
 Private Const MOVEMENT_TARGET_ARRIVAL As String = "Прибуття"
+Private Const MOVEMENT_TARGET_OUT_REASON As String = "Підстава вибуття"
+Private Const MOVEMENT_TARGET_RETURN_REASON As String = "Підстава прибуття"
 Private Const MOVEMENT_TARGET_IPN As String = "ІПН"
 Private Const MOVEMENT_TARGET_DURATION_DAYS As String = "На скільки"
 Private Const MOVEMENT_TARGET_VK_NO As String = "В/к №"
 Private Const MOVEMENT_TARGET_EVENT As String = "Подія"
-Private Const MOVEMENT_ORDERS_SHEET_NAME As String = "Накази"
-Private Const MOVEMENT_ORDER_DATE_TABLE_NAME As String = "tbMapNumberOrderToDate"
-Private Const MOVEMENT_ORDER_DATE_COLUMN_NAME As String = "Дата наказу"
-Private Const MOVEMENT_ORDER_NO_COLUMN_NAME As String = "Номер наказу"
+Private Const SENTINEL_SHORT_DATE As Date = #1/1/1900#
 
 Private Sub Class_Initialize()
 #If LOGGING_VERBOSE_ENABLED Then
@@ -76,8 +79,10 @@ Public Function Initialize(ByVal configTable As obj_ConfigTable) As Boolean
     m_IsDisposed = False
     Set m_Base = New obj_DataExporterBase
     Set m_Data = New obj_PrsnlEvntBuilderData
+    Set m_CommonData = New obj_PEB_ExporterCommonData
 
     If Not m_Base.Initialize(configTable, "Movement", "PrototypeNew / Movement export") Then Exit Function
+    If Not m_CommonData.Initialize(configTable) Then Exit Function
     private_LogInfo "movement:init workbook='" & private_EscapeForLog(m_Base.TargetWorkbookPath) & _
         "' sheet='" & private_EscapeForLog(m_Base.TargetSheetName) & _
         "' start='" & private_EscapeForLog(m_Base.TargetRangeStartMarker) & _
@@ -99,8 +104,10 @@ Public Sub Dispose()
     m_IsDisposed = True
     On Error Resume Next
     If Not m_Base Is Nothing Then m_Base.Dispose
+    If Not m_CommonData Is Nothing Then m_CommonData.Dispose
     Set m_Base = Nothing
     Set m_Data = Nothing
+    Set m_CommonData = Nothing
     On Error GoTo 0
 End Sub
 
@@ -140,6 +147,7 @@ Public Function Export( _
     Dim isClosingEvent As Boolean
     Dim isMirrorTransferEvent As Boolean
     Dim closingTargetIpn As String
+    Dim basisSummaryText As String
 
     On Error GoTo EH
 
@@ -185,6 +193,7 @@ Public Function Export( _
     ' Для части профилей значение "Подія" берется не из формы напрямую,
     ' а мапится из типа секции в справочнике PrsnlEvntBuilderData.
     shouldWriteMappedEvent = private_TryMapSectionTypeToEventText(sectionTypeRaw, mappedEventText)
+    If Not private_TryBuildMovementBasisSummary(sourceTable, context, basisSummaryText) Then Exit Function
 
     ' Closing-режим только закрывает существующую строку, поэтому values для новой
     ' строки ему не нужны. Opening и mirror transfer будут писать новую строку.
@@ -204,21 +213,21 @@ Public Function Export( _
         ' Closing: закрываем уже существующее движение.
         ' Ищем последнюю строку целевой таблицы по ІПН и заполняем поля прибытия:
         ' наказ прибуття, на продовольче, прибуття.
-        If Not private_TryBuildMovementClosingValues(sourceTable, targetWb, context, closingOrderNo, closingOnFoodDate, closingArrivalDate) Then GoTo CleanFail
+        If Not private_TryBuildMovementClosingValues(sourceTable, context, closingOrderNo, closingOnFoodDate, closingArrivalDate) Then GoTo CleanFail
 
         If Not private_TryGetRequiredSourceText(sourceTable, sourceTable.Rows.Item(1), MOVEMENT_TARGET_IPN, closingTargetIpn) Then GoTo CleanFail
         If Not private_TryFindLastRowByIpn(targetTable, closingTargetIpn, targetRowRange) Then GoTo CleanFail
-        If Not private_TryWriteMovementClosingRow(targetTable, targetRowRange, closingOrderNo, closingOnFoodDate, closingArrivalDate) Then GoTo CleanFail
+        If Not private_TryWriteMovementClosingRow(targetTable, targetRowRange, closingOrderNo, closingOnFoodDate, closingArrivalDate, basisSummaryText) Then GoTo CleanFail
     ElseIf isMirrorTransferEvent Then
         ' Mirror transfer: "зеркальный перевод" внутри таблицы Movement.
         ' Смысл: одним событием закрываем предыдущую открытую строку военнослужащего
         ' и тут же создаем новую открытую строку. Даты/номер приказа закрытия
         ' зеркально используются как даты/номер приказа открытия новой строки.
-        If Not private_TryBuildMovementClosingValues(sourceTable, targetWb, context, closingOrderNo, closingOnFoodDate, closingArrivalDate) Then GoTo CleanFail
+        If Not private_TryBuildMovementClosingValues(sourceTable, context, closingOrderNo, closingOnFoodDate, closingArrivalDate) Then GoTo CleanFail
 
         If Not private_TryGetRequiredSourceText(sourceTable, sourceTable.Rows.Item(1), MOVEMENT_TARGET_IPN, closingTargetIpn) Then GoTo CleanFail
         If Not private_TryFindLastRowByIpn(targetTable, closingTargetIpn, targetRowRange) Then GoTo CleanFail
-        If Not private_TryWriteMovementClosingRow(targetTable, targetRowRange, closingOrderNo, closingOnFoodDate, closingArrivalDate) Then GoTo CleanFail
+        If Not private_TryWriteMovementClosingRow(targetTable, targetRowRange, closingOrderNo, closingOnFoodDate, closingArrivalDate, basisSummaryText) Then GoTo CleanFail
 
         ' Mirror/opening часть: те же значения, которыми закрыли старую строку,
         ' становятся начальными значениями новой строки.
@@ -227,7 +236,11 @@ Public Function Export( _
         mirrorOpeningFoodFromDate = closingOnFoodDate
 
         If Not private_TryGetAppendRowRange(targetTable, targetRowRange, insertedRow) Then GoTo CleanFail
-        If Not private_TryWriteMovementRow(targetTable, targetRowRange, targetValues, mirrorOpeningOrderNo, mirrorOpeningFoodFromDate, mirrorOpeningDepartureDate, writeSpecialOpeningFields, specialDurationValue, specialVkNoValue, shouldWriteMappedEvent, mappedEventText) Then GoTo CleanFail
+        If Not private_TryWriteMovementRow( _
+            targetTable, targetRowRange, targetValues, _
+            mirrorOpeningOrderNo, mirrorOpeningFoodFromDate, mirrorOpeningDepartureDate, _
+            writeSpecialOpeningFields, specialDurationValue, specialVkNoValue, _
+            shouldWriteMappedEvent, mappedEventText, basisSummaryText) Then GoTo CleanFail
     Else
         ' Opening: обычное выбытие. Создаем новую строку и заполняем поля выбытия:
         ' наказ вибуття, з продовольчого, вибуття, плюс базовые первые 6 колонок.
@@ -235,9 +248,13 @@ Public Function Export( _
         ' по этому ІПН уже закрыта полями прибытия. Иначе получится две
         ' одновременно открытые записи по одному военнослужащему.
         If Not private_TryValidateLastMovementRowClosedForOpening(targetTable, sourceTable) Then GoTo CleanFail
-        If Not private_TryBuildMovementOutgoingValues(sourceTable, targetWb, context, outgoingOrderNo, outgoingFoodFromDate, outgoingDepartureDate) Then GoTo CleanFail
+        If Not private_TryBuildMovementOutgoingValues(sourceTable, context, outgoingOrderNo, outgoingFoodFromDate, outgoingDepartureDate) Then GoTo CleanFail
         If Not private_TryGetAppendRowRange(targetTable, targetRowRange, insertedRow) Then GoTo CleanFail
-        If Not private_TryWriteMovementRow(targetTable, targetRowRange, targetValues, outgoingOrderNo, outgoingFoodFromDate, outgoingDepartureDate, writeSpecialOpeningFields, specialDurationValue, specialVkNoValue, shouldWriteMappedEvent, mappedEventText) Then GoTo CleanFail
+        If Not private_TryWriteMovementRow( _
+            targetTable, targetRowRange, targetValues, _
+            outgoingOrderNo, outgoingFoodFromDate, outgoingDepartureDate, _
+            writeSpecialOpeningFields, specialDurationValue, specialVkNoValue, _
+            shouldWriteMappedEvent, mappedEventText, basisSummaryText) Then GoTo CleanFail
     End If
 
     If Not openedByExporter And SAVE_ALREADY_OPEN_WORKBOOK Then targetWb.Save
@@ -367,7 +384,6 @@ End Function
 
 Private Function private_TryBuildMovementClosingValues( _
     ByVal sourceTable As obj_TableDynamic, _
-    ByVal targetWorkbook As Workbook, _
     ByVal context As Object, _
     ByRef outOrderNo As Variant, _
     ByRef outOnFoodDate As Variant, _
@@ -398,14 +414,14 @@ Private Function private_TryBuildMovementClosingValues( _
     End If
 
     arrivalDateRaw = private_GetOptionalSourceText(sourceTable, sourceRow, MOVEMENT_SOURCE_DEPARTURE_DATE)
-    hasArrivalDateFromForm = private_TryParseIncomingDateWithOrderContext(arrivalDateRaw, outOrderNo, targetWorkbook, arrivalDateFromForm)
+    hasArrivalDateFromForm = private_TryParseIncomingDateWithOrderContext(arrivalDateRaw, outOrderNo, arrivalDateFromForm)
     If VBA.Len(VBA.Trim$(VBA.CStr(arrivalDateRaw))) > 0 And Not hasArrivalDateFromForm Then
         private_LogError "Movement failed to resolve arrival date raw='" & private_EscapeForLog(VBA.CStr(arrivalDateRaw)) & "' by orderNo='" & private_EscapeForLog(VBA.CStr(outOrderNo)) & "'."
         VBA.MsgBox "PrototypeNew: failed to resolve full date for '" & MOVEMENT_SOURCE_DEPARTURE_DATE & "' from value '" & VBA.CStr(arrivalDateRaw) & "' and order number '" & VBA.CStr(outOrderNo) & "'.", VBA.vbExclamation, "PrototypeNew / Movement export"
         Exit Function
     End If
 
-    hasOrderDateByNo = private_TryResolveOrderDateByNumber(targetWorkbook, outOrderNo, orderDateByNo)
+    hasOrderDateByNo = private_TryResolveOrderDateFromCommonData(outOrderNo, orderDateByNo)
 
     If hasArrivalDateFromForm Then
         outArrivalDate = arrivalDateFromForm
@@ -612,7 +628,8 @@ Private Function private_TryWriteMovementClosingRow( _
     ByVal rowRange As Range, _
     ByVal arrivalOrderNo As Variant, _
     ByVal onFoodDate As Variant, _
-    ByVal arrivalDate As Variant _
+    ByVal arrivalDate As Variant, _
+    ByVal basisSummaryText As String _
 ) As Boolean
     If targetTable Is Nothing Then Exit Function
     If rowRange Is Nothing Then Exit Function
@@ -620,6 +637,9 @@ Private Function private_TryWriteMovementClosingRow( _
     If Not private_TryWriteNamedColumnValue(targetTable, rowRange, MOVEMENT_TARGET_ARRIVAL_ORDER_NO, arrivalOrderNo) Then Exit Function
     If Not private_TryWriteNamedColumnValue(targetTable, rowRange, MOVEMENT_TARGET_ON_FOOD, onFoodDate) Then Exit Function
     If Not private_TryWriteNamedColumnValue(targetTable, rowRange, MOVEMENT_TARGET_ARRIVAL, arrivalDate) Then Exit Function
+    If VBA.Len(VBA.Trim$(basisSummaryText)) > 0 Then
+        If Not private_TryWriteNamedColumnValue(targetTable, rowRange, MOVEMENT_TARGET_RETURN_REASON, basisSummaryText) Then Exit Function
+    End If
 
     private_TryWriteMovementClosingRow = True
 End Function
@@ -681,6 +701,89 @@ Private Function private_ResolveMovementDestinationValue( _
     private_ResolveMovementDestinationValue = private_GetOptionalSourceText(sourceTable, sourceRow, "Лікарня скорочена назва")
 End Function
 
+Private Function private_TryBuildMovementBasisSummary( _
+    ByVal sourceTable As obj_TableDynamic, _
+    ByVal context As Object, _
+    ByRef outBasisSummary As String _
+) As Boolean
+    Dim sourceRow As obj_Row
+    Dim reportRankText As String
+    Dim reportPersonText As String
+    Dim reportPositionCodeText As String
+    Dim incomingNoText As String
+    Dim incomingDateText As String
+    Dim orderNoText As String
+    Dim reportRankGenitive As String
+    Dim reportPositionGenitive As String
+    Dim reportPositionShortGenitive As String
+    Dim reportPersonInitialsGenitive As String
+    Dim reporterCoreText As String
+    Dim reporterText As String
+    Dim incomingDateValue As Date
+    Dim incomingDateResolvedText As String
+    Dim basisDetailsText As String
+
+    outBasisSummary = VBA.vbNullString
+    If sourceTable Is Nothing Then Exit Function
+    If sourceTable.RowCount <= 0 Then Exit Function
+    If m_CommonData Is Nothing Then Exit Function
+
+    Set sourceRow = sourceTable.Rows.Item(1)
+    If sourceRow Is Nothing Then Exit Function
+
+    If Not private_TryGetSourceTextByAnyColumn(sourceTable, sourceRow, reportRankText, MOVEMENT_SOURCE_REPORT_RANK, "Звання (рапорт)", "Рапорт ТВО") Then reportRankText = VBA.vbNullString
+    If Not private_TryGetSourceTextByAnyColumn(sourceTable, sourceRow, reportPersonText, MOVEMENT_SOURCE_REPORT_PERSON, "ФІО (рапорт)", "Рапорт кого") Then reportPersonText = VBA.vbNullString
+    If Not private_TryGetSourceTextByAnyColumn(sourceTable, sourceRow, reportPositionCodeText, MOVEMENT_SOURCE_REPORT_POSITION_CODE, "Код посади (рапорт)") Then reportPositionCodeText = VBA.vbNullString
+    If Not private_TryGetSourceTextByAnyColumn(sourceTable, sourceRow, incomingNoText, MOVEMENT_SOURCE_INCOMING_NO) Then incomingNoText = VBA.vbNullString
+    If Not private_TryGetSourceTextByAnyColumn(sourceTable, sourceRow, incomingDateText, MOVEMENT_SOURCE_INCOMING_DATE) Then incomingDateText = VBA.vbNullString
+
+    If private_IsSelfReportText(reportPersonText) Then
+        reporterText = "військовослужбовця"
+    Else
+        If Not m_CommonData.TryResolveRankGenitive(reportRankText, reportRankGenitive) Then Exit Function
+        If Not m_CommonData.TryResolvePositionGenitive(reportPositionCodeText, reportPositionGenitive) Then Exit Function
+        If Not m_CommonData.TryResolveFioInitialsGenitiveByName(reportPersonText, reportPersonInitialsGenitive) Then Exit Function
+
+        ' Movement использует короткую формулировку основания:
+        ' "рапорт ком. 1 мб майора РУБАНА І.І.".
+        ' Поэтому звание не ставим перед должностью, а саму должность
+        ' приводим к нижнему регистру первой буквы и сокращаем локальными
+        ' правилами, которые раньше жили в формуле целевой таблицы.
+        reportPositionShortGenitive = private_AbbreviateMovementBasisText( _
+            private_LowerFirstLetter(reportPositionGenitive))
+        reporterCoreText = private_JoinNonEmptyParts( _
+            private_JoinNonEmptyParts(reportPositionShortGenitive, reportRankGenitive), _
+            reportPersonInitialsGenitive)
+        reporterText = reporterCoreText
+        If VBA.Len(reporterText) = 0 Then reporterText = reportPersonText
+    End If
+
+    If VBA.Len(reporterText) = 0 Then reporterText = "військовослужбовця"
+    reporterText = private_LowerFirstLetter(reporterText)
+
+    orderNoText = private_GetContextText(context, MOVEMENT_CONTEXT_MANUAL_ORDER_NO)
+    If VBA.Len(orderNoText) = 0 Then orderNoText = incomingNoText
+    If VBA.Len(incomingDateText) > 0 Then
+        If Not private_TryParseIncomingDateWithOrderContext(incomingDateText, orderNoText, incomingDateValue) Then
+            VBA.MsgBox "PrototypeNew: failed to resolve full date for '" & MOVEMENT_SOURCE_INCOMING_DATE & _
+                "' from value '" & incomingDateText & "'.", VBA.vbExclamation, "PrototypeNew / Movement export"
+            Exit Function
+        End If
+        incomingDateResolvedText = VBA.Format$(incomingDateValue, "dd.mm.yyyy")
+    End If
+
+    If VBA.Len(incomingNoText) > 0 Then basisDetailsText = "вх. № " & incomingNoText
+    If VBA.Len(incomingDateResolvedText) > 0 Then
+        If VBA.Len(basisDetailsText) > 0 Then basisDetailsText = basisDetailsText & " "
+        basisDetailsText = basisDetailsText & "від " & incomingDateResolvedText
+    End If
+
+    outBasisSummary = "рапорт " & reporterText
+    If VBA.Len(basisDetailsText) > 0 Then outBasisSummary = outBasisSummary & " (" & basisDetailsText & ")"
+    outBasisSummary = outBasisSummary & "."
+    private_TryBuildMovementBasisSummary = True
+End Function
+
 Private Function private_TryGetRequiredSourceText( _
     ByVal sourceTable As obj_TableDynamic, _
     ByVal sourceRow As obj_Row, _
@@ -717,12 +820,38 @@ Private Function private_GetOptionalSourceText( _
     private_GetOptionalSourceText = sourceRow.GetCellValue(columnIndex)
 End Function
 
+Private Function private_TryGetSourceTextByAnyColumn( _
+    ByVal sourceTable As obj_TableDynamic, _
+    ByVal sourceRow As obj_Row, _
+    ByRef outValue As String, _
+    ParamArray columnNames() As Variant _
+) As Boolean
+    Dim columnName As Variant
+    Dim valueText As String
+
+    outValue = VBA.vbNullString
+    If sourceTable Is Nothing Then Exit Function
+    If sourceRow Is Nothing Then Exit Function
+
+    For Each columnName In columnNames
+        valueText = VBA.Trim$(VBA.CStr(private_GetOptionalSourceText(sourceTable, sourceRow, VBA.CStr(columnName))))
+        If VBA.Len(valueText) > 0 Then
+            outValue = valueText
+            private_TryGetSourceTextByAnyColumn = True
+            Exit Function
+        End If
+    Next columnName
+End Function
+
 Private Function private_GetSourceColumnIndex(ByVal sourceTable As obj_TableDynamic, ByVal columnName As String) As Long
     Dim sourceColIndex As Long
     Dim sourceColumn As obj_Column
     Dim expectedName As String
 
     If sourceTable Is Nothing Then Exit Function
+    If sourceTable.TryGetColumnIndexByAlias(columnName, private_GetSourceColumnIndex) Then Exit Function
+    If sourceTable.TryGetColumnIndexByName(columnName, private_GetSourceColumnIndex) Then Exit Function
+
     expectedName = private_NormalizeText(columnName)
     If VBA.Len(expectedName) = 0 Then Exit Function
 
@@ -736,6 +865,69 @@ Private Function private_GetSourceColumnIndex(ByVal sourceTable As obj_TableDyna
 
 ContinueColumn:
     Next sourceColIndex
+End Function
+
+Private Function private_JoinNonEmptyParts(ByVal leftText As String, ByVal rightText As String) As String
+    leftText = VBA.Trim$(leftText)
+    rightText = VBA.Trim$(rightText)
+    If VBA.Len(leftText) = 0 Then
+        private_JoinNonEmptyParts = rightText
+    ElseIf VBA.Len(rightText) = 0 Then
+        private_JoinNonEmptyParts = leftText
+    Else
+        private_JoinNonEmptyParts = leftText & " " & rightText
+    End If
+End Function
+
+Private Function private_IsSelfReportText(ByVal valueText As String) As Boolean
+    valueText = private_NormalizeText(valueText)
+    private_IsSelfReportText = (VBA.StrComp(valueText, "сам", VBA.vbTextCompare) = 0)
+End Function
+
+Private Function private_LowerFirstLetter(ByVal valueText As String) As String
+    If VBA.Len(valueText) = 0 Then Exit Function
+    private_LowerFirstLetter = VBA.LCase$(VBA.Left$(valueText, 1)) & VBA.Mid$(valueText, 2)
+End Function
+
+Private Function private_AbbreviateMovementBasisText(ByVal valueText As String) As String
+    valueText = private_CutTextBeforeMarker(valueText, "; відпускний квиток")
+    valueText = private_CutTextBeforeMarker(valueText, "; посвідчення про відрядження")
+
+    valueText = VBA.Replace(valueText, "тимчасово виконуючого обов'язки", "ТВО", 1, -1, VBA.vbTextCompare)
+    valueText = VBA.Replace(valueText, "начальника медичного пункту", "НМП", 1, -1, VBA.vbTextCompare)
+    valueText = VBA.Replace(valueText, "командира ", "ком. ", 1, -1, VBA.vbTextCompare)
+    valueText = VBA.Replace(valueText, " механізованого батальйону", " мб", 1, -1, VBA.vbTextCompare)
+    valueText = VBA.Replace(valueText, " танкового батальйону", " тб", 1, -1, VBA.vbTextCompare)
+    valueText = VBA.Replace(valueText, " стрілецького батальйону", " сб", 1, -1, VBA.vbTextCompare)
+    valueText = VBA.Replace(valueText, "довідка військово-лікарської комісії", "довідка ВЛК", 1, -1, VBA.vbTextCompare)
+    valueText = VBA.Replace(valueText, "медичної карти стаціонарного хворого", "МКСХ", 1, -1, VBA.vbTextCompare)
+    valueText = VBA.Replace(valueText, "медична карта стаціонарного хворого", "МКСХ", 1, -1, VBA.vbTextCompare)
+    valueText = VBA.Replace(valueText, "військової частини", "вч.", 1, -1, VBA.vbTextCompare)
+
+    valueText = private_NormalizeInlineText(valueText)
+    If VBA.Len(valueText) > 0 Then
+        If VBA.Right$(valueText, 1) = "." Then valueText = VBA.Left$(valueText, VBA.Len(valueText) - 1)
+    End If
+    private_AbbreviateMovementBasisText = valueText
+End Function
+
+Private Function private_CutTextBeforeMarker(ByVal valueText As String, ByVal markerText As String) As String
+    Dim markerPos As Long
+
+    markerPos = VBA.InStr(1, valueText, markerText, VBA.vbTextCompare)
+    If markerPos > 0 Then valueText = VBA.Left$(valueText, markerPos - 1)
+    private_CutTextBeforeMarker = VBA.Trim$(valueText)
+End Function
+
+Private Function private_NormalizeInlineText(ByVal valueText As String) As String
+    valueText = VBA.Replace(valueText, VBA.vbCr, " ")
+    valueText = VBA.Replace(valueText, VBA.vbLf, " ")
+    valueText = VBA.Replace(valueText, VBA.vbTab, " ")
+    valueText = VBA.Replace(valueText, VBA.ChrW(160), " ")
+    Do While VBA.InStr(1, valueText, "  ", VBA.vbBinaryCompare) > 0
+        valueText = VBA.Replace(valueText, "  ", " ")
+    Loop
+    private_NormalizeInlineText = VBA.Trim$(valueText)
 End Function
 
 Private Function private_TryGetAppendRowRange( _
@@ -823,7 +1015,8 @@ Private Function private_TryWriteMovementRow( _
     ByVal specialDurationValue As Variant, _
     ByVal specialVkNoValue As Variant, _
     ByVal writeMappedEvent As Boolean, _
-    ByVal mappedEventText As String _
+    ByVal mappedEventText As String, _
+    ByVal basisSummaryText As String _
 ) As Boolean
     Dim columnIndex As Long
 
@@ -851,6 +1044,9 @@ Private Function private_TryWriteMovementRow( _
     If writeMappedEvent Then
         If Not private_TryWriteNamedColumnValue(targetTable, rowRange, MOVEMENT_TARGET_EVENT, mappedEventText) Then Exit Function
     End If
+    If VBA.Len(VBA.Trim$(basisSummaryText)) > 0 Then
+        If Not private_TryWriteNamedColumnValue(targetTable, rowRange, MOVEMENT_TARGET_OUT_REASON, basisSummaryText) Then Exit Function
+    End If
 
     private_TryWriteMovementRow = True
 End Function
@@ -864,7 +1060,6 @@ End Function
 
 Private Function private_TryBuildMovementOutgoingValues( _
     ByVal sourceTable As obj_TableDynamic, _
-    ByVal targetWorkbook As Workbook, _
     ByVal context As Object, _
     ByRef outOrderNo As Variant, _
     ByRef outFoodFromDate As Variant, _
@@ -899,15 +1094,15 @@ Private Function private_TryBuildMovementOutgoingValues( _
     incomingDateRaw = private_GetOptionalSourceText(sourceTable, sourceRow, MOVEMENT_SOURCE_INCOMING_DATE)
     departureDateRaw = private_GetOptionalSourceText(sourceTable, sourceRow, MOVEMENT_SOURCE_DEPARTURE_DATE)
 
-    hasIncomingDate = private_TryParseIncomingDateWithOrderContext(incomingDateRaw, outOrderNo, targetWorkbook, incomingDate)
+    hasIncomingDate = private_TryParseIncomingDateWithOrderContext(incomingDateRaw, outOrderNo, incomingDate)
     If VBA.Len(VBA.Trim$(VBA.CStr(incomingDateRaw))) > 0 And Not hasIncomingDate Then
         private_LogError "Movement failed to resolve incoming date raw='" & private_EscapeForLog(VBA.CStr(incomingDateRaw)) & "' by orderNo='" & private_EscapeForLog(VBA.CStr(outOrderNo)) & "'."
         VBA.MsgBox "PrototypeNew: failed to resolve full date for '" & MOVEMENT_SOURCE_INCOMING_DATE & "' from value '" & VBA.CStr(incomingDateRaw) & "' and order number '" & VBA.CStr(outOrderNo) & "'.", VBA.vbExclamation, "PrototypeNew / Movement export"
         Exit Function
     End If
 
-    hasDepartureDateFromForm = private_TryParseDateValue(departureDateRaw, departureDateFromForm)
-    hasOrderDateByNo = private_TryResolveOrderDateByNumber(targetWorkbook, outOrderNo, orderDateByNo)
+    hasDepartureDateFromForm = private_TryParseIncomingDateWithOrderContext(departureDateRaw, outOrderNo, departureDateFromForm)
+    hasOrderDateByNo = private_TryResolveOrderDateFromCommonData(outOrderNo, orderDateByNo)
 
     If hasDepartureDateFromForm Then
         outDepartureDate = departureDateFromForm
@@ -931,173 +1126,33 @@ End Function
 Private Function private_TryParseIncomingDateWithOrderContext( _
     ByVal rawIncomingDate As Variant, _
     ByVal rawOrderNo As Variant, _
-    ByVal targetWorkbook As Workbook, _
     ByRef outDateValue As Date _
 ) As Boolean
-    Dim valueText As String
-    Dim normalizedText As String
-    Dim parts() As String
-    Dim dayValue As Long
-    Dim monthValue As Long
-    Dim yearValue As Long
     Dim orderDate As Date
-    Dim hasOrderDate As Boolean
 
-    valueText = VBA.Trim$(VBA.CStr(rawIncomingDate))
-    If VBA.Len(valueText) = 0 Then Exit Function
-
-    normalizedText = VBA.Replace(valueText, "-", ".")
-    normalizedText = VBA.Replace(normalizedText, "/", ".")
-    normalizedText = VBA.Replace(normalizedText, " ", VBA.vbNullString)
-    If VBA.Len(normalizedText) = 0 Then Exit Function
-
-    parts = VBA.Split(normalizedText, ".")
-
-    If UBound(parts) = 2 Then
-        dayValue = VBA.CLng(VBA.Val(parts(0)))
-        monthValue = VBA.CLng(VBA.Val(parts(1)))
-        yearValue = VBA.CLng(VBA.Val(parts(2)))
-        private_TryParseIncomingDateWithOrderContext = private_TryBuildDate(dayValue, monthValue, yearValue, outDateValue)
-        Exit Function
+    If private_TryResolveOrderDateFromCommonData(rawOrderNo, orderDate) Then
+        private_TryParseIncomingDateWithOrderContext = ex_Helpers.fn_TryResolveDateWithContext(rawIncomingDate, orderDate, outDateValue)
+    ElseIf ex_Helpers.fn_IsShortDateValue(rawIncomingDate) Then
+        outDateValue = SENTINEL_SHORT_DATE
+        private_TryParseIncomingDateWithOrderContext = True
+    Else
+        private_TryParseIncomingDateWithOrderContext = ex_Helpers.fn_TryResolveDateWithContext(rawIncomingDate, SENTINEL_SHORT_DATE, outDateValue)
     End If
-
-    hasOrderDate = private_TryResolveOrderDateByNumber(targetWorkbook, rawOrderNo, orderDate)
-
-    If UBound(parts) = 1 Then
-        dayValue = VBA.CLng(VBA.Val(parts(0)))
-        monthValue = VBA.CLng(VBA.Val(parts(1)))
-        If hasOrderDate Then
-            yearValue = VBA.Year(orderDate)
-            private_TryParseIncomingDateWithOrderContext = private_TryBuildDate(dayValue, monthValue, yearValue, outDateValue)
-            Exit Function
-        End If
-    End If
-
-    If UBound(parts) = 0 Then
-        dayValue = VBA.CLng(VBA.Val(parts(0)))
-        If hasOrderDate Then
-            monthValue = VBA.Month(orderDate)
-            yearValue = VBA.Year(orderDate)
-            private_TryParseIncomingDateWithOrderContext = private_TryBuildDate(dayValue, monthValue, yearValue, outDateValue)
-            Exit Function
-        End If
-    End If
-
-    private_TryParseIncomingDateWithOrderContext = private_TryParseDateValue(rawIncomingDate, outDateValue)
 End Function
 
-Private Function private_TryResolveOrderDateByNumber( _
-    ByVal targetWorkbook As Workbook, _
+Private Function private_TryResolveOrderDateFromCommonData( _
     ByVal rawOrderNo As Variant, _
     ByRef outOrderDate As Date _
 ) As Boolean
-    Dim ws As Worksheet
-    Dim ordersTable As ListObject
-    Dim orderDateColumnIndex As Long
-    Dim orderNoColumnIndex As Long
-    Dim orderNoToken As String
-    Dim rowIndex As Long
-    Dim candidateOrderToken As String
-    Dim candidateDate As Date
+    ' Movement не читает карту приказов напрямую. Единый источник даты приказа
+    ' живет в obj_PEB_ExporterCommonData, чтобы WORD/DailyScope/Movement
+    ' одинаково резолвили сокращенные даты от одного OrderDate.
+    If m_CommonData Is Nothing Then Exit Function
+    If Not m_CommonData.SetOrderNo(rawOrderNo) Then Exit Function
+    If Not m_CommonData.HasOrderDate Then Exit Function
 
-    If targetWorkbook Is Nothing Then Exit Function
-
-    orderNoToken = private_NormalizeOrderNumberToken(rawOrderNo)
-    If VBA.Len(orderNoToken) = 0 Then Exit Function
-
-    On Error Resume Next
-    Set ws = targetWorkbook.Worksheets(MOVEMENT_ORDERS_SHEET_NAME)
-    On Error GoTo 0
-    If ws Is Nothing Then Exit Function
-
-    Set ordersTable = private_FindListObjectByName(ws, MOVEMENT_ORDER_DATE_TABLE_NAME)
-    If ordersTable Is Nothing Then Exit Function
-    If ordersTable.DataBodyRange Is Nothing Then Exit Function
-
-    orderDateColumnIndex = private_FindTargetColumnIndex(ordersTable, MOVEMENT_ORDER_DATE_COLUMN_NAME)
-    orderNoColumnIndex = private_FindTargetColumnIndex(ordersTable, MOVEMENT_ORDER_NO_COLUMN_NAME)
-    If orderDateColumnIndex <= 0 Or orderNoColumnIndex <= 0 Then Exit Function
-
-    For rowIndex = 1 To ordersTable.ListRows.Count
-        candidateOrderToken = private_NormalizeOrderNumberToken(ordersTable.DataBodyRange.Cells(rowIndex, orderNoColumnIndex).Value2)
-        If VBA.Len(candidateOrderToken) = 0 Then GoTo ContinueRow
-        If VBA.StrComp(candidateOrderToken, orderNoToken, VBA.vbTextCompare) <> 0 Then GoTo ContinueRow
-
-        If private_TryParseDateValue(ordersTable.DataBodyRange.Cells(rowIndex, orderDateColumnIndex).Value2, candidateDate) Then
-            outOrderDate = candidateDate
-            private_TryResolveOrderDateByNumber = True
-            Exit Function
-        End If
-
-ContinueRow:
-    Next rowIndex
-End Function
-
-Private Function private_FindListObjectByName( _
-    ByVal ws As Worksheet, _
-    ByVal tableName As String _
-) As ListObject
-    Dim tableObj As ListObject
-    Dim expectedName As String
-
-    If ws Is Nothing Then Exit Function
-    expectedName = VBA.Trim$(tableName)
-    If VBA.Len(expectedName) = 0 Then Exit Function
-
-    For Each tableObj In ws.ListObjects
-        If VBA.StrComp(tableObj.Name, expectedName, VBA.vbTextCompare) = 0 Then
-            Set private_FindListObjectByName = tableObj
-            Exit Function
-        End If
-    Next tableObj
-End Function
-
-Private Function private_NormalizeOrderNumberToken(ByVal rawValue As Variant) As String
-    Dim valueText As String
-    Dim numericValue As Double
-
-    valueText = VBA.Trim$(VBA.CStr(rawValue))
-    valueText = VBA.Replace(valueText, " ", VBA.vbNullString)
-    If VBA.Len(valueText) = 0 Then Exit Function
-
-    If VBA.IsNumeric(valueText) Then
-        numericValue = VBA.CDbl(valueText)
-        If numericValue >= 0 Then
-            private_NormalizeOrderNumberToken = VBA.CStr(VBA.CLng(numericValue))
-            Exit Function
-        End If
-    End If
-
-    private_NormalizeOrderNumberToken = valueText
-End Function
-
-Private Function private_TryBuildDate( _
-    ByVal dayValue As Long, _
-    ByVal monthValue As Long, _
-    ByVal yearValue As Long, _
-    ByRef outDateValue As Date _
-) As Boolean
-    Dim candidate As Date
-
-    If yearValue < 1900 Then Exit Function
-    If monthValue < 1 Or monthValue > 12 Then Exit Function
-    If dayValue < 1 Or dayValue > 31 Then Exit Function
-
-    On Error Resume Next
-    candidate = VBA.DateSerial(yearValue, monthValue, dayValue)
-    If Err.Number <> 0 Then
-        Err.Clear
-        On Error GoTo 0
-        Exit Function
-    End If
-    On Error GoTo 0
-
-    If VBA.Day(candidate) <> dayValue Then Exit Function
-    If VBA.Month(candidate) <> monthValue Then Exit Function
-    If VBA.Year(candidate) <> yearValue Then Exit Function
-
-    outDateValue = candidate
-    private_TryBuildDate = True
+    outOrderDate = m_CommonData.OrderDate
+    private_TryResolveOrderDateFromCommonData = True
 End Function
 
 Private Function private_TryWriteNamedColumnValue( _
@@ -1159,52 +1214,6 @@ Private Function private_TryWriteCellValueWithFormulaPolicy( _
 
     targetCell.Value2 = incomingValue
     private_TryWriteCellValueWithFormulaPolicy = True
-End Function
-
-Private Function private_TryParseDateValue(ByVal rawValue As Variant, ByRef outDateValue As Date) As Boolean
-    Dim valueText As String
-    Dim normalizedText As String
-    Dim parts() As String
-    Dim dayValue As Long
-    Dim monthValue As Long
-    Dim yearValue As Long
-    Dim serialValue As Double
-
-    valueText = VBA.Trim$(VBA.CStr(rawValue))
-    If VBA.Len(valueText) = 0 Then Exit Function
-
-    If VBA.IsNumeric(valueText) Then
-        serialValue = VBA.CDbl(valueText)
-        If serialValue > 0 Then
-            outDateValue = VBA.DateSerial(1899, 12, 30) + serialValue
-            private_TryParseDateValue = True
-            Exit Function
-        End If
-    End If
-
-    normalizedText = VBA.Replace(valueText, "-", ".")
-    parts = VBA.Split(normalizedText, ".")
-    If UBound(parts) = 2 Then
-        dayValue = VBA.CLng(VBA.Val(parts(0)))
-        monthValue = VBA.CLng(VBA.Val(parts(1)))
-        yearValue = VBA.CLng(VBA.Val(parts(2)))
-        If yearValue >= 1900 And monthValue >= 1 And monthValue <= 12 And dayValue >= 1 And dayValue <= 31 Then
-            On Error Resume Next
-            outDateValue = VBA.DateSerial(yearValue, monthValue, dayValue)
-            If Err.Number = 0 Then
-                private_TryParseDateValue = True
-                On Error GoTo 0
-                Exit Function
-            End If
-            Err.Clear
-            On Error GoTo 0
-        End If
-    End If
-
-    If VBA.IsDate(valueText) Then
-        outDateValue = VBA.CDate(valueText)
-        private_TryParseDateValue = True
-    End If
 End Function
 
 Private Function private_FormatLogDateValue(ByVal valueObj As Variant) As String
