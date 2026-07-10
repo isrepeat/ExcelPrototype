@@ -68,6 +68,7 @@ Private m_LookupFeature As obj_EntityLookupFeature
 Private m_ExportAliases As Collection
 Private m_ExporterClassByAlias As Object
 Private m_ExportConfigTableByAlias As Object
+Private m_ProfileConfigTable As obj_ConfigTable
 Private m_SourceColumnAliasByCaption As Object
 Private m_SelectedProfile As String
 ' Состояние "Формы экспорта": одна основная таблица и ноль/несколько
@@ -804,6 +805,7 @@ Private Function private_TryUpdateExportSettings(ByVal configControl As obj_Conf
 
     If Not configControl.TryBuildConfigTableFromRendered(configTable) Then Exit Function
     If configTable Is Nothing Then Exit Function
+    Set m_ProfileConfigTable = configTable
 
     Set cfgParser = New obj_PrsnlEvntBuilderCfgParser
     If Not cfgParser.Initialize(configTable) Then Exit Function
@@ -849,6 +851,7 @@ Private Sub private_ResetExportSettings()
     Set m_ExportAliases = New Collection
     Set m_ExporterClassByAlias = ex_Helpers.fn_CreateDictionaryTextCompare()
     Set m_ExportConfigTableByAlias = ex_Helpers.fn_CreateDictionaryTextCompare()
+    Set m_ProfileConfigTable = Nothing
     Set m_SourceColumnAliasByCaption = ex_Helpers.fn_CreateDictionaryTextCompare()
 End Sub
 
@@ -931,17 +934,17 @@ Private Function private_TryCreateDataExporter( _
     Select Case VBA.LCase$(exporterClassName)
         Case VBA.LCase$("obj_PEB_ExptrDailyScope")
             Set exporterToDailyScope = New obj_PEB_ExptrDailyScope
-            If Not exporterToDailyScope.Initialize(exportConfigTable) Then Exit Function
+            If Not exporterToDailyScope.Initialize(exportConfigTable, m_ProfileConfigTable) Then Exit Function
             Set outExporter = exporterToDailyScope
 
         Case VBA.LCase$("obj_PEB_ExptrMovement")
             Set exporterToMovement = New obj_PEB_ExptrMovement
-            If Not exporterToMovement.Initialize(exportConfigTable) Then Exit Function
+            If Not exporterToMovement.Initialize(exportConfigTable, m_ProfileConfigTable) Then Exit Function
             Set outExporter = exporterToMovement
 
         Case VBA.LCase$("obj_PEB_ExptrWord")
             Set exporterToWord = New obj_PEB_ExptrWord
-            If Not exporterToWord.Initialize(exportConfigTable) Then Exit Function
+            If Not exporterToWord.Initialize(exportConfigTable, m_ProfileConfigTable) Then Exit Function
             Set outExporter = exporterToWord
 
         Case Else

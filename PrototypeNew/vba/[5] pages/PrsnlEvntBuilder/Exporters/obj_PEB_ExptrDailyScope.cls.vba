@@ -12,13 +12,15 @@ Implements obj_IDataExporter
 Private m_IsDisposed As Boolean
 Private m_Base As obj_DataExporterBase
 Private m_Data As obj_PrsnlEvntBuilderData
-Private m_ExporterCommonData As obj_PEB_ExporterCommonData
+Private m_ExporterDataProvider As obj_PEB_ExptrDataPrvdr
 
 Private Const SAVE_ALREADY_OPEN_WORKBOOK As Boolean = False
 Private Const SOURCE_ALIAS_REPORT_RANK As String = "ReportRank"
 Private Const SOURCE_ALIAS_REPORT_PERSON As String = "ReportPerson"
 Private Const SOURCE_ALIAS_REPORT_POSITION_CODE As String = "ReportPositionCode"
+Private Const TARGET_COLUMN_REPORT_TVO As String = "Рапорт ТВО"
 Private Const TARGET_COLUMN_REPORT_PERSON As String = "Рапорт кого"
+Private Const REPORT_TVO_DAILY_TEXT As String = "тимчасово виконуючого обов'язки"
 
 Private Sub Class_Initialize()
 #If LOGGING_VERBOSE_ENABLED Then
@@ -50,16 +52,23 @@ End Function
 ' //
 ' // API
 ' //
-Public Function Initialize(ByVal configTable As obj_ConfigTable) As Boolean
+Public Function Initialize( _
+    ByVal configTable As obj_ConfigTable, _
+    Optional ByVal profileConfigTable As obj_ConfigTable = Nothing _
+) As Boolean
+    Dim dataProviderConfigTable As obj_ConfigTable
+
     private_LogMethodEntry "Initialize"
 
     m_IsDisposed = False
     Set m_Base = New obj_DataExporterBase
     Set m_Data = New obj_PrsnlEvntBuilderData
-    Set m_ExporterCommonData = New obj_PEB_ExporterCommonData
+    Set m_ExporterDataProvider = New obj_PEB_ExptrDataPrvdr
+    Set dataProviderConfigTable = configTable
+    If Not profileConfigTable Is Nothing Then Set dataProviderConfigTable = profileConfigTable
 
     If Not m_Base.Initialize(configTable, "DailyScope", "PrototypeNew / DailyScope export") Then Exit Function
-    If Not m_ExporterCommonData.Initialize(configTable) Then Exit Function
+    If Not m_ExporterDataProvider.Initialize(dataProviderConfigTable) Then Exit Function
 
     Initialize = True
 End Function
@@ -77,10 +86,10 @@ Public Sub Dispose()
     m_IsDisposed = True
     On Error Resume Next
     If Not m_Base Is Nothing Then m_Base.Dispose
-    If Not m_ExporterCommonData Is Nothing Then m_ExporterCommonData.Dispose
+    If Not m_ExporterDataProvider Is Nothing Then m_ExporterDataProvider.Dispose
     Set m_Base = Nothing
     Set m_Data = Nothing
-    Set m_ExporterCommonData = Nothing
+    Set m_ExporterDataProvider = Nothing
 
     On Error GoTo 0
 End Sub
@@ -250,7 +259,9 @@ Private Function private_TryWriteReporterGenitiveValue( _
     Dim reportRankGenitive As String
     Dim reportPersonInitialsGenitive As String
     Dim reportPositionGenitive As String
+    Dim reportTvoPositionGenitive As String
     Dim reporterText As String
+    Dim isReporterTvo As Boolean
 
     private_TryWriteReporterGenitiveValue = True
     If sourceTable Is Nothing Then Exit Function
@@ -278,17 +289,26 @@ Private Function private_TryWriteReporterGenitiveValue( _
         End If
         Exit Function
     End If
-    If m_ExporterCommonData Is Nothing Then Exit Function
+    If m_ExporterDataProvider Is Nothing Then Exit Function
+    If m_ExporterDataProvider.CommonData Is Nothing Then Exit Function
 
-    If Not m_ExporterCommonData.TryResolvePositionGenitive(reportPositionCodeText, reportPositionGenitive) Then
+    If Not m_ExporterDataProvider.TryResolveReporterTvoPositionGenitive(reportPersonText, reportTvoPositionGenitive, isReporterTvo) Then
         private_TryWriteReporterGenitiveValue = False
         Exit Function
     End If
-    If Not m_ExporterCommonData.TryResolveRankGenitive(reportRankText, reportRankGenitive) Then
+    If isReporterTvo Then
+        reportPositionGenitive = reportTvoPositionGenitive
+    Else
+        If Not m_ExporterDataProvider.CommonData.TryResolvePositionGenitive(reportPositionCodeText, reportPositionGenitive) Then
+            private_TryWriteReporterGenitiveValue = False
+            Exit Function
+        End If
+    End If
+    If Not m_ExporterDataProvider.CommonData.TryResolveRankGenitive(reportRankText, reportRankGenitive) Then
         private_TryWriteReporterGenitiveValue = False
         Exit Function
     End If
-    If Not m_ExporterCommonData.TryResolveFioInitialsGenitiveByName(reportPersonText, reportPersonInitialsGenitive) Then
+    If Not m_ExporterDataProvider.CommonData.TryResolveFioInitialsGenitiveByName(reportPersonText, reportPersonInitialsGenitive) Then
         private_TryWriteReporterGenitiveValue = False
         Exit Function
     End If
@@ -306,7 +326,42 @@ Private Function private_TryWriteReporterGenitiveValue( _
 
     If Not private_TryWriteCellValueWithFormulaPolicy(rowRange.Cells(1, targetColumnIndex), reporterText) Then
         private_TryWriteReporterGenitiveValue = False
+        Exit Function
     End If
+
+    If isReporterTvo Then
+        If Not private_TryWriteTargetColumnText(targetTable, rowRange, TARGET_COLUMN_REPORT_TVO, REPORT_TVO_DAILY_TEXT) Then
+            private_TryWriteReporterGenitiveValue = False
+            Exit Function
+        End If
+    Else
+        If Not private_TryWriteTargetColumnText(targetTable, rowRange, TARGET_COLUMN_REPORT_TVO, VBA.vbNullString) Then
+            private_TryWriteReporterGenitiveValue = False
+            Exit Function
+        End If
+    End If
+End Function
+
+Private Function private_TryWriteTargetColumnText( _
+    ByVal targetTable As ListObject, _
+    ByVal rowRange As Range, _
+    ByVal targetColumnName As String, _
+    ByVal valueText As String _
+) As Boolean
+    Dim targetColumnIndex As Long
+
+    private_TryWriteTargetColumnText = True
+    If targetTable Is Nothing Then Exit Function
+    If rowRange Is Nothing Then Exit Function
+
+    targetColumnIndex = private_FindTargetColumnIndex(targetTable, targetColumnName)
+    If targetColumnIndex <= 0 Then
+        Exit Function
+    End If
+
+    private_TryWriteTargetColumnText = private_TryWriteCellValueWithFormulaPolicy( _
+        rowRange.Cells(1, targetColumnIndex), _
+        valueText)
 End Function
 
 Private Function private_LowerFirstLetter(ByVal valueText As String) As String

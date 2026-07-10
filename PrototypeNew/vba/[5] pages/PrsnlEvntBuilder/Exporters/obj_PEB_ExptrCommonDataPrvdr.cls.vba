@@ -2,7 +2,7 @@ VERSION 1.0 CLASS
 BEGIN
   MultiUse = -1  'True
 END
-Attribute VB_Name = "obj_PEB_ExporterCommonData"
+Attribute VB_Name = "obj_PEB_ExptrCommonDataPrvdr"
 Option Explicit
 #Const LOGGING_DEBUG_ENABLED = False
 #Const LOGGING_VERBOSE_ENABLED = False
@@ -86,12 +86,10 @@ Public Sub Dispose()
     m_HasOrderDate = False
 End Sub
 
-' Общий data-provider для экспортеров PrsnlEvntBuilder.
-' Он держит две группы данных:
-'   1) runtime context текущего экспорта, например номер/дату приказа;
-'   2) lookup-и к общим справочникам склонений.
-' Экспортеры не должны знать, где физически лежат АЛФ/Установи/Посади:
-' они просят у этого класса уже готовые значения в нужном падеже.
+' Статический provider общих данных PrsnlEvntBuilder.
+' Здесь остаются только стабильные справочники, не завязанные на профиль:
+' АЛФ, Установи, Переліки, Посади, Мапа наказів.
+' Динамические источники вроде ежедневной ШПС держит obj_PEB_ExptrDataPrvdr.
 Public Function SetOrderNo(ByVal orderNo As Variant) As Boolean
     If m_IsDisposed Then Exit Function
 

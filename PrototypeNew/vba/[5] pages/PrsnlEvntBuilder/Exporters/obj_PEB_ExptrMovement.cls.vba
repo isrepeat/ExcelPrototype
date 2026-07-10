@@ -12,7 +12,7 @@ Implements obj_IDataExporter
 Private m_IsDisposed As Boolean
 Private m_Base As obj_DataExporterBase
 Private m_Data As obj_PrsnlEvntBuilderData
-Private m_CommonData As obj_PEB_ExporterCommonData
+Private m_DataProvider As obj_PEB_ExptrDataPrvdr
 
 Private Const SAVE_ALREADY_OPEN_WORKBOOK As Boolean = False
 Private Const MOVEMENT_TARGET_COLUMN_COUNT As Long = 6
@@ -73,16 +73,23 @@ End Function
 ' //
 ' // API
 ' //
-Public Function Initialize(ByVal configTable As obj_ConfigTable) As Boolean
+Public Function Initialize( _
+    ByVal configTable As obj_ConfigTable, _
+    Optional ByVal profileConfigTable As obj_ConfigTable = Nothing _
+) As Boolean
+    Dim dataProviderConfigTable As obj_ConfigTable
+
     private_LogMethodEntry "Initialize"
 
     m_IsDisposed = False
     Set m_Base = New obj_DataExporterBase
     Set m_Data = New obj_PrsnlEvntBuilderData
-    Set m_CommonData = New obj_PEB_ExporterCommonData
+    Set m_DataProvider = New obj_PEB_ExptrDataPrvdr
+    Set dataProviderConfigTable = configTable
+    If Not profileConfigTable Is Nothing Then Set dataProviderConfigTable = profileConfigTable
 
     If Not m_Base.Initialize(configTable, "Movement", "PrototypeNew / Movement export") Then Exit Function
-    If Not m_CommonData.Initialize(configTable) Then Exit Function
+    If Not m_DataProvider.Initialize(dataProviderConfigTable) Then Exit Function
     private_LogInfo "movement:init workbook='" & private_EscapeForLog(m_Base.TargetWorkbookPath) & _
         "' sheet='" & private_EscapeForLog(m_Base.TargetSheetName) & _
         "' start='" & private_EscapeForLog(m_Base.TargetRangeStartMarker) & _
@@ -104,10 +111,10 @@ Public Sub Dispose()
     m_IsDisposed = True
     On Error Resume Next
     If Not m_Base Is Nothing Then m_Base.Dispose
-    If Not m_CommonData Is Nothing Then m_CommonData.Dispose
+    If Not m_DataProvider Is Nothing Then m_DataProvider.Dispose
     Set m_Base = Nothing
     Set m_Data = Nothing
-    Set m_CommonData = Nothing
+    Set m_DataProvider = Nothing
     On Error GoTo 0
 End Sub
 
@@ -715,10 +722,12 @@ Private Function private_TryBuildMovementBasisSummary( _
     Dim orderNoText As String
     Dim reportRankGenitive As String
     Dim reportPositionGenitive As String
+    Dim reportTvoPositionGenitive As String
     Dim reportPositionShortGenitive As String
     Dim reportPersonInitialsGenitive As String
     Dim reporterCoreText As String
     Dim reporterText As String
+    Dim isReporterTvo As Boolean
     Dim incomingDateValue As Date
     Dim incomingDateResolvedText As String
     Dim basisDetailsText As String
@@ -726,7 +735,8 @@ Private Function private_TryBuildMovementBasisSummary( _
     outBasisSummary = VBA.vbNullString
     If sourceTable Is Nothing Then Exit Function
     If sourceTable.RowCount <= 0 Then Exit Function
-    If m_CommonData Is Nothing Then Exit Function
+    If m_DataProvider Is Nothing Then Exit Function
+    If m_DataProvider.CommonData Is Nothing Then Exit Function
 
     Set sourceRow = sourceTable.Rows.Item(1)
     If sourceRow Is Nothing Then Exit Function
@@ -740,17 +750,26 @@ Private Function private_TryBuildMovementBasisSummary( _
     If private_IsSelfReportText(reportPersonText) Then
         reporterText = "військовослужбовця"
     Else
-        If Not m_CommonData.TryResolveRankGenitive(reportRankText, reportRankGenitive) Then Exit Function
-        If Not m_CommonData.TryResolvePositionGenitive(reportPositionCodeText, reportPositionGenitive) Then Exit Function
-        If Not m_CommonData.TryResolveFioInitialsGenitiveByName(reportPersonText, reportPersonInitialsGenitive) Then Exit Function
+        If Not m_DataProvider.CommonData.TryResolveRankGenitive(reportRankText, reportRankGenitive) Then Exit Function
+        If Not m_DataProvider.TryResolveReporterTvoPositionGenitive(reportPersonText, reportTvoPositionGenitive, isReporterTvo) Then Exit Function
+        If isReporterTvo Then
+            reportPositionGenitive = reportTvoPositionGenitive
+        Else
+            If Not m_DataProvider.CommonData.TryResolvePositionGenitive(reportPositionCodeText, reportPositionGenitive) Then Exit Function
+        End If
+        If Not m_DataProvider.CommonData.TryResolveFioInitialsGenitiveByName(reportPersonText, reportPersonInitialsGenitive) Then Exit Function
 
         ' Movement использует короткую формулировку основания:
         ' "рапорт ком. 1 мб майора РУБАНА І.І.".
         ' Поэтому звание не ставим перед должностью, а саму должность
         ' приводим к нижнему регистру первой буквы и сокращаем локальными
         ' правилами, которые раньше жили в формуле целевой таблицы.
-        reportPositionShortGenitive = private_AbbreviateMovementBasisText( _
-            private_LowerFirstLetter(reportPositionGenitive))
+        If isReporterTvo Then
+            reportPositionShortGenitive = "ТВО " & private_LowerFirstLetter(reportPositionGenitive)
+        Else
+            reportPositionShortGenitive = private_AbbreviateMovementBasisText( _
+                private_LowerFirstLetter(reportPositionGenitive))
+        End If
         reporterCoreText = private_JoinNonEmptyParts( _
             private_JoinNonEmptyParts(reportPositionShortGenitive, reportRankGenitive), _
             reportPersonInitialsGenitive)
@@ -759,7 +778,7 @@ Private Function private_TryBuildMovementBasisSummary( _
     End If
 
     If VBA.Len(reporterText) = 0 Then reporterText = "військовослужбовця"
-    reporterText = private_LowerFirstLetter(reporterText)
+    If Not isReporterTvo Then reporterText = private_LowerFirstLetter(reporterText)
 
     orderNoText = private_GetContextText(context, MOVEMENT_CONTEXT_MANUAL_ORDER_NO)
     If VBA.Len(orderNoText) = 0 Then orderNoText = incomingNoText
@@ -1145,13 +1164,14 @@ Private Function private_TryResolveOrderDateFromCommonData( _
     ByRef outOrderDate As Date _
 ) As Boolean
     ' Movement не читает карту приказов напрямую. Единый источник даты приказа
-    ' живет в obj_PEB_ExporterCommonData, чтобы WORD/DailyScope/Movement
+    ' живет в obj_PEB_ExptrCommonDataPrvdr, чтобы WORD/DailyScope/Movement
     ' одинаково резолвили сокращенные даты от одного OrderDate.
-    If m_CommonData Is Nothing Then Exit Function
-    If Not m_CommonData.SetOrderNo(rawOrderNo) Then Exit Function
-    If Not m_CommonData.HasOrderDate Then Exit Function
+    If m_DataProvider Is Nothing Then Exit Function
+    If m_DataProvider.CommonData Is Nothing Then Exit Function
+    If Not m_DataProvider.CommonData.SetOrderNo(rawOrderNo) Then Exit Function
+    If Not m_DataProvider.CommonData.HasOrderDate Then Exit Function
 
-    outOrderDate = m_CommonData.OrderDate
+    outOrderDate = m_DataProvider.CommonData.OrderDate
     private_TryResolveOrderDateFromCommonData = True
 End Function
 
