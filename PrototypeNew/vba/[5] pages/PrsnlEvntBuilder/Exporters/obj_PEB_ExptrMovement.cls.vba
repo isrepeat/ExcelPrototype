@@ -43,6 +43,10 @@ Private Const MOVEMENT_TARGET_DURATION_DAYS As String = "На скільки"
 Private Const MOVEMENT_TARGET_VK_NO As String = "В/к №"
 Private Const MOVEMENT_TARGET_EVENT As String = "Подія"
 Private Const SENTINEL_SHORT_DATE As Date = #1/1/1900#
+Private Const SPECIAL_POSITION_PREFIX_ROZP As String = "A1A"
+Private Const SPECIAL_POSITION_PREFIX_SPIS As String = "A1B"
+Private Const SPECIAL_POSITION_CODE_ROZP As String = "РОЗП"
+Private Const SPECIAL_POSITION_CODE_SPIS As String = "СПИС"
 
 Private Sub Class_Initialize()
 #If LOGGING_VERBOSE_ENABLED Then
@@ -183,6 +187,7 @@ Public Function Export( _
     ' Основная source-таблица содержит данные строки события. Meta-таблицы
     ' в этом экспортере пока не используются.
     If Not m_Base.TryGetMainSourceTable(sourceTables, sourceTable) Then Exit Function
+    If Not private_TryValidateManualOrderNoSpecified(context) Then Exit Function
 
     ' SectionType определяет семантику операции. Для mirror transfer флаг closing
     ' принудительно сбрасывается, потому что mirror-ветка сама делает оба действия:
@@ -330,6 +335,19 @@ Private Function private_GetContextText(ByVal context As Object, ByVal keyText A
         private_GetContextText = VBA.Trim$(VBA.CStr(VBA.CallByName(context, keyText, VbGet)))
     End If
     On Error GoTo 0
+End Function
+
+Private Function private_TryValidateManualOrderNoSpecified(ByVal context As Object) As Boolean
+    Dim manualOrderNoText As String
+
+    manualOrderNoText = private_GetContextText(context, MOVEMENT_CONTEXT_MANUAL_ORDER_NO)
+    If VBA.Len(VBA.Trim$(manualOrderNoText)) = 0 Then
+        private_LogError "Movement export blocked: manual order number is empty."
+        VBA.MsgBox "PrototypeNew: order number is required for Movement export. Fill the order number field before exporting.", VBA.vbExclamation, "PrototypeNew / Movement export"
+        Exit Function
+    End If
+
+    private_TryValidateManualOrderNoSpecified = True
 End Function
 
 Private Function private_TryBuildSpecialOpeningValues( _
@@ -681,7 +699,7 @@ Private Function private_TryBuildMovementRowValues( _
     If Not private_TryGetRequiredSourceText(sourceTable, sourceRow, "ІПН", requiredValue) Then Exit Function
     outValues(1, 3) = requiredValue
     If Not private_TryGetRequiredSourceText(sourceTable, sourceRow, "Код посади", requiredValue) Then Exit Function
-    outValues(1, 4) = requiredValue
+    outValues(1, 4) = private_NormalizePositionCodeForMovement(requiredValue)
 
     If private_TryMapSectionTypeToEventText(sectionTypeText, mappedEventText) Then
         outValues(1, 5) = mappedEventText
@@ -693,6 +711,39 @@ Private Function private_TryBuildMovementRowValues( _
     outValues(1, 6) = destinationValue
 
     private_TryBuildMovementRowValues = True
+End Function
+
+Private Function private_NormalizePositionCodeForMovement(ByVal sourcePositionCodeValue As Variant) As String
+    Dim sourcePositionCodeText As String
+    Dim normalizedCodeText As String
+
+    If VBA.IsError(sourcePositionCodeValue) Then Exit Function
+    If VBA.IsNull(sourcePositionCodeValue) Then Exit Function
+    If VBA.IsEmpty(sourcePositionCodeValue) Then Exit Function
+
+    sourcePositionCodeText = VBA.CStr(sourcePositionCodeValue)
+    normalizedCodeText = private_NormalizeSpecialPositionPrefix(sourcePositionCodeText)
+
+    If VBA.Left$(normalizedCodeText, VBA.Len(SPECIAL_POSITION_PREFIX_ROZP)) = SPECIAL_POSITION_PREFIX_ROZP Then
+        private_NormalizePositionCodeForMovement = SPECIAL_POSITION_CODE_ROZP
+        Exit Function
+    End If
+    If VBA.Left$(normalizedCodeText, VBA.Len(SPECIAL_POSITION_PREFIX_SPIS)) = SPECIAL_POSITION_PREFIX_SPIS Then
+        private_NormalizePositionCodeForMovement = SPECIAL_POSITION_CODE_SPIS
+        Exit Function
+    End If
+
+    private_NormalizePositionCodeForMovement = sourcePositionCodeText
+End Function
+
+Private Function private_NormalizeSpecialPositionPrefix(ByVal sourcePositionCodeText As String) As String
+    Dim normalizedCodeText As String
+
+    normalizedCodeText = VBA.UCase$(VBA.Trim$(sourcePositionCodeText))
+    normalizedCodeText = VBA.Replace(normalizedCodeText, "А", "A")
+    normalizedCodeText = VBA.Replace(normalizedCodeText, "В", "B")
+    normalizedCodeText = VBA.Replace(normalizedCodeText, " ", VBA.vbNullString)
+    private_NormalizeSpecialPositionPrefix = normalizedCodeText
 End Function
 
 Private Function private_ResolveMovementDestinationValue( _

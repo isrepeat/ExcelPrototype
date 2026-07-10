@@ -313,6 +313,7 @@
                   profile.closeTreatmentMedicalCompany;
                   profile.closeAmbulatoryVlk;
                   profile.toTreatment;
+                  profile.toAmbulatoryVlk;
                   profile.transferTreatmentToTreatmentVacation;
                   profile.transferTreatmentVacationToTreatment;
                   profile.transferTreatmentVacationToVlk;
@@ -679,6 +680,7 @@
                   profile.closeTreatmentMedicalCompany;
                   profile.closeAmbulatoryVlk;
                   profile.toTreatment;
+                  profile.toAmbulatoryVlk;
                   profile.transferTreatmentToTreatmentVacation;
                   profile.transferTreatmentVacationToTreatment;
                   profile.transferTreatmentVacationToVlk;

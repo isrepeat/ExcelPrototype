@@ -43,6 +43,7 @@ Private Const ALF_GENITIVE_HEADER As String = "Родовий"
 Private Const ALF_INITIALS_GENITIVE_HEADER As String = "ПІП (Родовий)"
 Private Const INSTITUTIONS_KEY_HEADER As String = "Позначення"
 Private Const INSTITUTIONS_GENITIVE_HEADER As String = "Родовий"
+Private Const INSTITUTIONS_ACCUSATIVE_HEADER As String = "Знахідний"
 Private Const RANKS_KEY_HEADER As String = "Звання"
 Private Const RANKS_GENITIVE_HEADER As String = "Родовий"
 Private Const POSITIONS_KEY_HEADER As String = "Код"
@@ -233,6 +234,31 @@ Public Function TryResolveHospitalGenitive( _
         hospitalShortText, _
         "Установи", _
         outHospitalGenitive)
+End Function
+
+Public Function TryResolveHospitalAccusative( _
+    ByVal hospitalShortText As String, _
+    ByRef outHospitalAccusative As String _
+) As Boolean
+    If m_IsDisposed Then Exit Function
+    hospitalShortText = private_NormalizeLookupKey(hospitalShortText)
+    outHospitalAccusative = VBA.vbNullString
+    If VBA.Len(hospitalShortText) = 0 Then
+        TryResolveHospitalAccusative = True
+        Exit Function
+    End If
+
+    TryResolveHospitalAccusative = private_TryLookupWorkbookValue( _
+        DEFAULT_INSTITUTIONS_REL_PATH, _
+        private_BuildAdoRangeRef( _
+            INSTITUTIONS_SHEET_NAME, _
+            INSTITUTIONS_RANGE_START, _
+            INSTITUTIONS_RANGE_END_COLUMN & VBA.CStr(EXCEL_MAX_ROW)), _
+        INSTITUTIONS_KEY_HEADER, _
+        INSTITUTIONS_ACCUSATIVE_HEADER, _
+        hospitalShortText, _
+        "Установи", _
+        outHospitalAccusative)
 End Function
 
 Public Function TryResolveRankGenitive( _

@@ -15,12 +15,62 @@ Private m_Data As obj_PrsnlEvntBuilderData
 Private m_ExporterDataProvider As obj_PEB_ExptrDataPrvdr
 
 Private Const SAVE_ALREADY_OPEN_WORKBOOK As Boolean = False
+Private Const SOURCE_ALIAS_HOSPITAL As String = "Hospital"
+Private Const SOURCE_ALIAS_HOSPITAL_SHORT As String = "HospitalShort"
+Private Const SOURCE_ALIAS_VACATION As String = "Vacation"
+Private Const SOURCE_ALIAS_RANK As String = "Rank"
+Private Const SOURCE_ALIAS_FIO As String = "FIO"
+Private Const SOURCE_ALIAS_IPN As String = "IPN"
+Private Const SOURCE_ALIAS_POSITION_CODE As String = "PositionCode"
+Private Const SOURCE_ALIAS_POSITION_NAME As String = "PositionName"
 Private Const SOURCE_ALIAS_REPORT_RANK As String = "ReportRank"
 Private Const SOURCE_ALIAS_REPORT_PERSON As String = "ReportPerson"
 Private Const SOURCE_ALIAS_REPORT_POSITION_CODE As String = "ReportPositionCode"
+Private Const SOURCE_ALIAS_INCOMING_NO As String = "IncomingNo"
+Private Const SOURCE_ALIAS_INCOMING_DATE As String = "IncomingDate"
+Private Const SOURCE_ALIAS_DOCUMENT_NOTE As String = "DocumentNote"
+Private Const SOURCE_ALIAS_DOC_NO As String = "DocNo"
+Private Const SOURCE_ALIAS_DOC_DATE As String = "DocDate"
+Private Const SOURCE_ALIAS_DURATION_DAYS As String = "DurationDays"
+Private Const SOURCE_ALIAS_DATE_FROM As String = "DateFrom"
+Private Const SOURCE_ALIAS_DATE_TO As String = "DateTo"
+Private Const SOURCE_ALIAS_VH_NO As String = "VhNo"
+Private Const SOURCE_ALIAS_VH_DATE As String = "VhDate"
+Private Const SOURCE_ALIAS_VLK_NO As String = "VlkNo"
+Private Const SOURCE_ALIAS_VLK_DATE As String = "VlkDate"
+Private Const TARGET_COLUMN_HOSPITAL As String = "Лікарня"
+Private Const TARGET_COLUMN_HOSPITAL_SHORT As String = "Лікарня скорочена назва"
+Private Const TARGET_COLUMN_VACATION As String = "Відпустка"
+Private Const TARGET_COLUMN_RANK As String = "Звання"
+Private Const TARGET_COLUMN_FIO As String = "ПІБ"
+Private Const TARGET_COLUMN_IPN As String = "ІПН"
+Private Const TARGET_COLUMN_POSITION_CODE As String = "Код посади"
+Private Const TARGET_COLUMN_POSITION_NAME As String = "Посада"
 Private Const TARGET_COLUMN_REPORT_TVO As String = "Рапорт ТВО"
 Private Const TARGET_COLUMN_REPORT_PERSON As String = "Рапорт кого"
+Private Const TARGET_COLUMN_INCOMING_NO As String = "Вх.№"
+Private Const TARGET_COLUMN_INCOMING_NO_ALT As String = "Вх. №"
+Private Const TARGET_COLUMN_INCOMING_DATE As String = "Вх.Дата"
+Private Const TARGET_COLUMN_INCOMING_DATE_ALT As String = "Вх. дата"
+Private Const TARGET_COLUMN_DOCUMENT_NOTE As String = "Документ / Замітки"
+Private Const TARGET_COLUMN_DOC_NO As String = "Док.№"
+Private Const TARGET_COLUMN_DOC_NO_ALT As String = "Док. №"
+Private Const TARGET_COLUMN_DOC_DATE As String = "Док.дата"
+Private Const TARGET_COLUMN_DOC_DATE_ALT As String = "Док. дата"
+Private Const TARGET_COLUMN_DURATION_DAYS As String = "На скільки"
+Private Const TARGET_COLUMN_DATE_FROM As String = "З"
+Private Const TARGET_COLUMN_DATE_TO As String = "По"
+Private Const TARGET_COLUMN_VH_NO As String = "В/к №"
+Private Const TARGET_COLUMN_VH_DATE As String = "В/к дата"
+Private Const TARGET_COLUMN_VLK_NO As String = "ВЛК №"
+Private Const TARGET_COLUMN_VLK_DATE As String = "ВЛК дата"
 Private Const REPORT_TVO_DAILY_TEXT As String = "тимчасово виконуючого обов'язки"
+Private Const SPECIAL_POSITION_PREFIX_ROZP As String = "A1A"
+Private Const SPECIAL_POSITION_PREFIX_SPIS As String = "A1B"
+Private Const SPECIAL_POSITION_CODE_ROZP As String = "РОЗП"
+Private Const SPECIAL_POSITION_CODE_SPIS As String = "СПИС"
+Private Const SPECIAL_POSITION_NAME_ROZP As String = "який перебуває у розпорядженні командира військової частини А7383"
+Private Const SPECIAL_POSITION_NAME_SPIS As String = "який зарахований до списків військової частини А7383"
 
 Private Sub Class_Initialize()
 #If LOGGING_VERBOSE_ENABLED Then
@@ -105,6 +155,7 @@ Public Function Export( _
     Dim insertedRow As ListRow
     Dim targetRowRange As Range
     Dim targetSectionCaption As String
+    Dim sectionKey As String
     Dim targetSheetName As String
     Dim openedByExporter As Boolean
     Dim fastModeStarted As Boolean
@@ -120,7 +171,7 @@ Public Function Export( _
         Exit Function
     End If
     If Not m_Base.TryGetMainSourceTable(sourceTables, sourceTable) Then Exit Function
-    If Not private_TryResolveTargetSectionCaption(sourceTable, context, targetSectionCaption) Then Exit Function
+    If Not private_TryResolveTargetSectionCaption(sourceTable, context, targetSectionCaption, sectionKey) Then Exit Function
 
     m_Base.BeginFastExcelMode prevScreenUpdating, prevEnableEvents, prevDisplayAlerts, prevCalculation
     fastModeStarted = True
@@ -133,7 +184,7 @@ Public Function Export( _
 
     If Not private_TryGetSectionWriteRowRange(targetTable, targetSectionCaption, targetRowRange, insertedRow) Then GoTo CleanFail
 
-    If Not private_TryWriteSourceRow(sourceTable, targetTable, targetRowRange) Then GoTo CleanFail
+    If Not private_TryWriteSourceRow(sourceTable, targetTable, targetRowRange, sectionKey) Then GoTo CleanFail
 
     If Not openedByExporter And SAVE_ALREADY_OPEN_WORKBOOK Then targetWb.Save
     Export = True
@@ -167,11 +218,13 @@ End Function
 Private Function private_TryResolveTargetSectionCaption( _
     ByVal sourceTable As obj_TableDynamic, _
     ByVal context As Object, _
-    ByRef outSectionCaption As String _
+    ByRef outSectionCaption As String, _
+    ByRef outSectionKey As String _
 ) As Boolean
     Dim sectionKey As String
 
     outSectionCaption = VBA.vbNullString
+    outSectionKey = VBA.vbNullString
     If sourceTable Is Nothing Then Exit Function
     If sourceTable.RowCount <= 0 Then Exit Function
 
@@ -183,6 +236,7 @@ Private Function private_TryResolveTargetSectionCaption( _
     End If
 
     If private_TryMapSectionKeyToCaption(sectionKey, outSectionCaption) Then
+        outSectionKey = sectionKey
         private_TryResolveTargetSectionCaption = True
         Exit Function
     End If
@@ -207,13 +261,10 @@ End Function
 Private Function private_TryWriteSourceRow( _
     ByVal sourceTable As obj_TableDynamic, _
     ByVal targetTable As ListObject, _
-    ByVal rowRange As Range _
+    ByVal rowRange As Range, _
+    ByVal sectionKey As String _
 ) As Boolean
     Dim sourceRow As obj_Row
-    Dim sourceColumn As obj_Column
-    Dim sourceColumnIndex As Long
-    Dim targetColumnIndex As Long
-    Dim sourceValue As Variant
 
     If sourceTable Is Nothing Then Exit Function
     If targetTable Is Nothing Then Exit Function
@@ -223,18 +274,30 @@ Private Function private_TryWriteSourceRow( _
     Set sourceRow = sourceTable.Rows.Item(1)
     If sourceRow Is Nothing Then Exit Function
 
-    For sourceColumnIndex = 1 To sourceTable.ColumnCount
-        Set sourceColumn = sourceTable.Columns.Item(sourceColumnIndex)
-        If sourceColumn Is Nothing Then GoTo ContinueColumn
-
-        targetColumnIndex = private_FindTargetColumnIndex(targetTable, sourceColumn.Name)
-        If targetColumnIndex <= 0 Then GoTo ContinueColumn
-
-        sourceValue = sourceRow.GetCellValue(sourceColumnIndex)
-        If Not private_TryWriteCellValueWithFormulaPolicy(rowRange.Cells(1, targetColumnIndex), sourceValue) Then Exit Function
-
-ContinueColumn:
-    Next sourceColumnIndex
+    ' Базовый export-контракт DailyScope: source читаем по стабильным alias-ам
+    ' DynamicTable, а target ищем по фактическим заголовкам целевой таблицы.
+    ' Это намеренно не copy-by-caption: UI формы может менять подписи колонок,
+    ' не ломая экспорт в DailyScope.
+    If Not private_TryWriteDirectSourceValue(sourceTable, sourceRow, targetTable, rowRange, SOURCE_ALIAS_HOSPITAL, TARGET_COLUMN_HOSPITAL) Then Exit Function
+    If Not private_TryWriteDirectSourceValue(sourceTable, sourceRow, targetTable, rowRange, SOURCE_ALIAS_HOSPITAL_SHORT, TARGET_COLUMN_HOSPITAL_SHORT) Then Exit Function
+    If Not private_TryWriteDirectSourceValue(sourceTable, sourceRow, targetTable, rowRange, SOURCE_ALIAS_VACATION, TARGET_COLUMN_VACATION) Then Exit Function
+    If Not private_TryWriteDirectSourceValue(sourceTable, sourceRow, targetTable, rowRange, SOURCE_ALIAS_RANK, TARGET_COLUMN_RANK) Then Exit Function
+    If Not private_TryWriteDirectSourceValue(sourceTable, sourceRow, targetTable, rowRange, SOURCE_ALIAS_FIO, TARGET_COLUMN_FIO) Then Exit Function
+    If Not private_TryWriteDirectSourceValue(sourceTable, sourceRow, targetTable, rowRange, SOURCE_ALIAS_IPN, TARGET_COLUMN_IPN) Then Exit Function
+    If Not private_TryWriteDirectSourceValue(sourceTable, sourceRow, targetTable, rowRange, SOURCE_ALIAS_POSITION_CODE, TARGET_COLUMN_POSITION_CODE) Then Exit Function
+    If Not private_TryWriteDirectSourceValue(sourceTable, sourceRow, targetTable, rowRange, SOURCE_ALIAS_POSITION_NAME, TARGET_COLUMN_POSITION_NAME) Then Exit Function
+    If Not private_TryWriteDirectSourceValue(sourceTable, sourceRow, targetTable, rowRange, SOURCE_ALIAS_INCOMING_NO, TARGET_COLUMN_INCOMING_NO, TARGET_COLUMN_INCOMING_NO_ALT) Then Exit Function
+    If Not private_TryWriteDirectSourceValue(sourceTable, sourceRow, targetTable, rowRange, SOURCE_ALIAS_INCOMING_DATE, TARGET_COLUMN_INCOMING_DATE, TARGET_COLUMN_INCOMING_DATE_ALT) Then Exit Function
+    If Not private_TryWriteDirectSourceValue(sourceTable, sourceRow, targetTable, rowRange, SOURCE_ALIAS_DOCUMENT_NOTE, TARGET_COLUMN_DOCUMENT_NOTE) Then Exit Function
+    If Not private_TryWriteDirectSourceValue(sourceTable, sourceRow, targetTable, rowRange, SOURCE_ALIAS_DOC_NO, TARGET_COLUMN_DOC_NO, TARGET_COLUMN_DOC_NO_ALT) Then Exit Function
+    If Not private_TryWriteDirectSourceValue(sourceTable, sourceRow, targetTable, rowRange, SOURCE_ALIAS_DOC_DATE, TARGET_COLUMN_DOC_DATE, TARGET_COLUMN_DOC_DATE_ALT) Then Exit Function
+    If Not private_TryWriteDirectSourceValue(sourceTable, sourceRow, targetTable, rowRange, SOURCE_ALIAS_DURATION_DAYS, TARGET_COLUMN_DURATION_DAYS) Then Exit Function
+    If Not private_TryWriteDirectSourceValue(sourceTable, sourceRow, targetTable, rowRange, SOURCE_ALIAS_DATE_FROM, TARGET_COLUMN_DATE_FROM) Then Exit Function
+    If Not private_TryWriteDirectSourceValue(sourceTable, sourceRow, targetTable, rowRange, SOURCE_ALIAS_DATE_TO, TARGET_COLUMN_DATE_TO) Then Exit Function
+    If Not private_TryWriteDirectSourceValue(sourceTable, sourceRow, targetTable, rowRange, SOURCE_ALIAS_VH_NO, TARGET_COLUMN_VH_NO) Then Exit Function
+    If Not private_TryWriteDirectSourceValue(sourceTable, sourceRow, targetTable, rowRange, SOURCE_ALIAS_VH_DATE, TARGET_COLUMN_VH_DATE) Then Exit Function
+    If Not private_TryWriteDirectSourceValue(sourceTable, sourceRow, targetTable, rowRange, SOURCE_ALIAS_VLK_NO, TARGET_COLUMN_VLK_NO) Then Exit Function
+    If Not private_TryWriteDirectSourceValue(sourceTable, sourceRow, targetTable, rowRange, SOURCE_ALIAS_VLK_DATE, TARGET_COLUMN_VLK_DATE) Then Exit Function
 
     ' Обычный copy-by-caption не подходит для target-колонки "Рапорт кого":
     ' в форме теперь хранятся раздельные поля рапортующего
@@ -242,8 +305,161 @@ ContinueColumn:
     ' родительном падеже. Поэтому после общего копирования точечно
     ' перезаписываем эту колонку вычисленным значением.
     If Not private_TryWriteReporterGenitiveValue(sourceTable, sourceRow, targetTable, rowRange) Then Exit Function
+    If Not private_TryWriteHospitalDeclensionValue(sourceTable, sourceRow, targetTable, rowRange, sectionKey) Then Exit Function
+    If Not private_TryWriteSpecialPositionValue(sourceTable, sourceRow, targetTable, rowRange) Then Exit Function
 
     private_TryWriteSourceRow = True
+End Function
+
+Private Function private_TryWriteDirectSourceValue( _
+    ByVal sourceTable As obj_TableDynamic, _
+    ByVal sourceRow As obj_Row, _
+    ByVal targetTable As ListObject, _
+    ByVal rowRange As Range, _
+    ByVal sourceAlias As String, _
+    ParamArray targetColumnNames() As Variant _
+) As Boolean
+    Dim sourceColumnIndex As Long
+    Dim targetColumnName As Variant
+    Dim targetColumnIndex As Long
+    Dim sourceValue As Variant
+
+    private_TryWriteDirectSourceValue = True
+    If sourceTable Is Nothing Then Exit Function
+    If sourceRow Is Nothing Then Exit Function
+    If targetTable Is Nothing Then Exit Function
+    If rowRange Is Nothing Then Exit Function
+
+    sourceColumnIndex = private_GetSourceColumnIndex(sourceTable, sourceAlias)
+    If sourceColumnIndex <= 0 Then Exit Function
+
+    For Each targetColumnName In targetColumnNames
+        targetColumnIndex = private_FindTargetColumnIndex(targetTable, VBA.CStr(targetColumnName))
+        If targetColumnIndex > 0 Then Exit For
+    Next targetColumnName
+    If targetColumnIndex <= 0 Then Exit Function
+
+    sourceValue = sourceRow.GetCellValue(sourceColumnIndex)
+    private_TryWriteDirectSourceValue = private_TryWriteCellValueWithFormulaPolicy( _
+        rowRange.Cells(1, targetColumnIndex), _
+        sourceValue)
+End Function
+
+Private Function private_TryWriteHospitalDeclensionValue( _
+    ByVal sourceTable As obj_TableDynamic, _
+    ByVal sourceRow As obj_Row, _
+    ByVal targetTable As ListObject, _
+    ByVal rowRange As Range, _
+    ByVal sectionKey As String _
+) As Boolean
+    Dim hospitalShortText As String
+    Dim hospitalFullText As String
+    Dim hospitalValueText As String
+
+    private_TryWriteHospitalDeclensionValue = True
+    If sourceTable Is Nothing Then Exit Function
+    If sourceRow Is Nothing Then Exit Function
+    If targetTable Is Nothing Then Exit Function
+    If rowRange Is Nothing Then Exit Function
+    If m_ExporterDataProvider Is Nothing Then Exit Function
+    If m_ExporterDataProvider.CommonData Is Nothing Then Exit Function
+
+    If Not private_TryGetSourceTextByAnyColumn( _
+        sourceTable, sourceRow, hospitalShortText, _
+        SOURCE_ALIAS_HOSPITAL_SHORT, "Лікарня скорочена назва") Then hospitalShortText = VBA.vbNullString
+    If Not private_TryGetSourceTextByAnyColumn( _
+        sourceTable, sourceRow, hospitalFullText, _
+        SOURCE_ALIAS_HOSPITAL, TARGET_COLUMN_HOSPITAL) Then hospitalFullText = VBA.vbNullString
+
+    If VBA.Len(hospitalShortText) = 0 And VBA.Len(hospitalFullText) = 0 Then Exit Function
+
+    ' Для секций "На лікування..." DailyScope ожидает лечебное заведение
+    ' в знахідному падеже; для остальных секций остается родительный.
+    If private_ShouldUseHospitalAccusative(sectionKey) Then
+        If Not m_ExporterDataProvider.CommonData.TryResolveHospitalAccusative(hospitalShortText, hospitalValueText) Then
+            private_TryWriteHospitalDeclensionValue = False
+            Exit Function
+        End If
+    Else
+        If Not m_ExporterDataProvider.CommonData.TryResolveHospitalGenitive(hospitalShortText, hospitalValueText) Then
+            private_TryWriteHospitalDeclensionValue = False
+            Exit Function
+        End If
+    End If
+
+    If VBA.Len(hospitalValueText) = 0 Then hospitalValueText = hospitalFullText
+    If VBA.Len(hospitalValueText) = 0 Then hospitalValueText = hospitalShortText
+    If Not private_TryWriteTargetColumnText(targetTable, rowRange, TARGET_COLUMN_HOSPITAL, hospitalValueText) Then
+        private_TryWriteHospitalDeclensionValue = False
+    End If
+End Function
+
+Private Function private_TryWriteSpecialPositionValue( _
+    ByVal sourceTable As obj_TableDynamic, _
+    ByVal sourceRow As obj_Row, _
+    ByVal targetTable As ListObject, _
+    ByVal rowRange As Range _
+) As Boolean
+    Dim positionCodeText As String
+    Dim targetPositionCodeText As String
+    Dim targetPositionNameText As String
+
+    private_TryWriteSpecialPositionValue = True
+    If sourceTable Is Nothing Then Exit Function
+    If sourceRow Is Nothing Then Exit Function
+    If targetTable Is Nothing Then Exit Function
+    If rowRange Is Nothing Then Exit Function
+
+    If Not private_TryGetSourceTextByAnyColumn( _
+        sourceTable, sourceRow, positionCodeText, _
+        SOURCE_ALIAS_POSITION_CODE, TARGET_COLUMN_POSITION_CODE) Then Exit Function
+
+    ' Некоторые служебные коды ШПС в целевых таблицах должны выглядеть как
+    ' состояние военнослужащего, а не как исходный код должности.
+    If Not private_TryResolveSpecialPositionMapping( _
+        positionCodeText, targetPositionCodeText, targetPositionNameText) Then Exit Function
+
+    If Not private_TryWriteTargetColumnText(targetTable, rowRange, TARGET_COLUMN_POSITION_CODE, targetPositionCodeText) Then
+        private_TryWriteSpecialPositionValue = False
+        Exit Function
+    End If
+    If Not private_TryWriteTargetColumnText(targetTable, rowRange, TARGET_COLUMN_POSITION_NAME, targetPositionNameText) Then
+        private_TryWriteSpecialPositionValue = False
+    End If
+End Function
+
+Private Function private_TryResolveSpecialPositionMapping( _
+    ByVal sourcePositionCodeText As String, _
+    ByRef outTargetPositionCodeText As String, _
+    ByRef outTargetPositionNameText As String _
+) As Boolean
+    Dim normalizedCodeText As String
+
+    outTargetPositionCodeText = VBA.vbNullString
+    outTargetPositionNameText = VBA.vbNullString
+
+    normalizedCodeText = private_NormalizeSpecialPositionPrefix(sourcePositionCodeText)
+    If VBA.Left$(normalizedCodeText, VBA.Len(SPECIAL_POSITION_PREFIX_ROZP)) = SPECIAL_POSITION_PREFIX_ROZP Then
+        outTargetPositionCodeText = SPECIAL_POSITION_CODE_ROZP
+        outTargetPositionNameText = SPECIAL_POSITION_NAME_ROZP
+        private_TryResolveSpecialPositionMapping = True
+        Exit Function
+    End If
+    If VBA.Left$(normalizedCodeText, VBA.Len(SPECIAL_POSITION_PREFIX_SPIS)) = SPECIAL_POSITION_PREFIX_SPIS Then
+        outTargetPositionCodeText = SPECIAL_POSITION_CODE_SPIS
+        outTargetPositionNameText = SPECIAL_POSITION_NAME_SPIS
+        private_TryResolveSpecialPositionMapping = True
+    End If
+End Function
+
+Private Function private_NormalizeSpecialPositionPrefix(ByVal sourcePositionCodeText As String) As String
+    Dim normalizedCodeText As String
+
+    normalizedCodeText = VBA.UCase$(VBA.Trim$(sourcePositionCodeText))
+    normalizedCodeText = VBA.Replace(normalizedCodeText, "А", "A")
+    normalizedCodeText = VBA.Replace(normalizedCodeText, "В", "B")
+    normalizedCodeText = VBA.Replace(normalizedCodeText, " ", VBA.vbNullString)
+    private_NormalizeSpecialPositionPrefix = normalizedCodeText
 End Function
 
 Private Function private_TryWriteReporterGenitiveValue( _
@@ -666,6 +882,11 @@ End Function
 Private Function private_IsSelfReportText(ByVal valueText As String) As Boolean
     valueText = private_NormalizeText(valueText)
     private_IsSelfReportText = (VBA.StrComp(valueText, "сам", VBA.vbTextCompare) = 0)
+End Function
+
+Private Function private_ShouldUseHospitalAccusative(ByVal sectionKey As String) As Boolean
+    sectionKey = private_NormalizeText(sectionKey)
+    private_ShouldUseHospitalAccusative = (VBA.Left$(sectionKey, VBA.Len("на лікування")) = "на лікування")
 End Function
 
 Private Function private_TryMapSectionKeyToCaption(ByVal sectionKey As String, ByRef outCaption As String) As Boolean
