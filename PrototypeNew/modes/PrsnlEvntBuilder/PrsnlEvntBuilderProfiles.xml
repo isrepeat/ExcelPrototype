@@ -4,7 +4,7 @@
     <item attr="#" key="Profile.Name" value="Personal Event Builder / Lookup"/>
 
     <item attr="#" key="Personnel source" value=""/>
-    <item key="Source.Personnel.FilePath" value="C:\Users\SVI\Desktop\2026-06-29 А7383 Особовий склад.xlsx"/>
+    <item key="Source.Personnel.FilePath" value="C:\Users\SVI\Desktop\2026-07-07 А7383 Особовий склад.xlsx"/>
     <item key="Source.Personnel.SheetsAliases" value="StateMain"/>
     <item key="Personnel.Sheet[StateMain].SheetName" value="ШПС$A2:Q10000"/>
     <item key="Personnel.Sheet[StateMain].ColumnHeadersAliases" value="Rank; FIO; IPN; PositionCode; PositionName"/>
@@ -14,22 +14,17 @@
     <item key="Personnel.Sheet[StateMain].Map[PositionCode]" value="Код посади"/>
     <item key="Personnel.Sheet[StateMain].Map[PositionName]" value="Повна назва посади"/>
 
-    <item attr="#" key="Hospitals and commanders source" value=""/>
+    <item attr="#" key="Hospitals source" value=""/>
     <item key="Source.HospitalsCommanders.FilePath" value="C:\WORK Alexandr Bondarenko\НАКАЗИ\Лікарні та Командири.xlsx"/>
-    <item key="Source.HospitalsCommanders.SheetsAliases" value="Dictionary; Commanders"/>
+    <item key="Source.HospitalsCommanders.SheetsAliases" value="Dictionary"/>
     <item key="HospitalsCommanders.Sheet[Dictionary].SheetName" value="Лікарні, Командири$A1:D2000"/>
-    <item key="HospitalsCommanders.Sheet[Dictionary].ColumnHeadersAliases" value="HospitalName; HospitalShort; FoodColumn; CommanderTVO"/>
+    <item key="HospitalsCommanders.Sheet[Dictionary].ColumnHeadersAliases" value="HospitalName; HospitalShort; FoodColumn"/>
     <item key="HospitalsCommanders.Sheet[Dictionary].Map[HospitalName]" value="Назва лікарні"/>
     <item key="HospitalsCommanders.Sheet[Dictionary].Map[HospitalShort]" value="Скорочення"/>
     <item key="HospitalsCommanders.Sheet[Dictionary].Map[FoodColumn]" value="Атестат"/>
-    <item key="HospitalsCommanders.Sheet[Commanders].SheetName" value="Лікарні, Командири$D1:E2000"/>
-    <item key="HospitalsCommanders.Sheet[Commanders].ColumnHeadersAliases" value="CommanderTVO; CommanderReport"/>
-    <item key="HospitalsCommanders.Sheet[Commanders].Map[CommanderTVO]" value="ТВО|TVO"/>
-    <item key="HospitalsCommanders.Sheet[Commanders].Map[CommanderReport]" value="Рапорт основний"/>
-
     <item attr="#" key="Main table columns" value=""/>
     <item key="EntityLookup.ProfilesProviderClass" value="obj_PrsnlEvntBuilderData"/>
-    <item key="EntityLookup.Table.Columns" value="Hospital; HospitalShort; Vacation; Rank; FIO; IPN; PositionCode; PositionName; ReportTVO; ReportPerson; IncomingNo; IncomingDate; DocumentNote; DocNo; DocDate; DurationDays; DateFrom; DateTo; VhNo; VhDate; VlkNo; VlkDate"/>
+    <item key="EntityLookup.Table.Columns" value="Hospital; HospitalShort; Vacation; Rank; FIO; IPN; PositionCode; PositionName; ReportRank; ReportPerson; ReportPositionCode; IncomingNo; IncomingDate; DocumentNote; DocNo; DocDate; DurationDays; DateFrom; DateTo; VhNo; VhDate; VlkNo; VlkDate"/>
     <item key="EntityLookup.Table.Column[Hospital].Caption" value="Лікарня"/>
     <item key="EntityLookup.Table.Column[HospitalShort].Caption" value="Лікарня скорочена назва"/>
     <item key="EntityLookup.Table.Column[Vacation].Caption" value="Відпустка"/>
@@ -38,8 +33,9 @@
     <item key="EntityLookup.Table.Column[IPN].Caption" value="ІПН"/>
     <item key="EntityLookup.Table.Column[PositionCode].Caption" value="Код посади"/>
     <item key="EntityLookup.Table.Column[PositionName].Caption" value="Посада"/>
-    <item key="EntityLookup.Table.Column[ReportTVO].Caption" value="Рапорт ТВО"/>
-    <item key="EntityLookup.Table.Column[ReportPerson].Caption" value="Рапорт кого"/>
+    <item key="EntityLookup.Table.Column[ReportRank].Caption" value="Звання (рапорт)"/>
+    <item key="EntityLookup.Table.Column[ReportPerson].Caption" value="ФІО (рапорт)"/>
+    <item key="EntityLookup.Table.Column[ReportPositionCode].Caption" value="Код посади (рапорт)"/>
     <item key="EntityLookup.Table.Column[IncomingNo].Caption" value="Вх. №"/>
     <item key="EntityLookup.Table.Column[IncomingDate].Caption" value="Вх. дата"/>
     <item key="EntityLookup.Table.Column[DocumentNote].Caption" value="Документ / Замітки"/>
@@ -67,20 +63,20 @@
 
     <item key="EntityLookup.Lookup[Commander].TargetColumn" value="ReportPerson"/>
     <item key="EntityLookup.Lookup[Commander].CandidatesSectionCaption" value="Commander candidates"/>
-    <item key="EntityLookup.Lookup[Commander].SearchColumnAlias" value="HospitalsCommanders.Sheet[Commanders].Column[CommanderReport]"/>
-    <item key="EntityLookup.Lookup[Commander].ResultColumnsAliases" value="CommanderTVO; CommanderReport"/>
+    <item key="EntityLookup.Lookup[Commander].SearchColumnAlias" value="Personnel.Sheet[StateMain].Column[FIO]"/>
+    <item key="EntityLookup.Lookup[Commander].ResultColumnsAliases" value="Rank=>ReportRank; FIO=>ReportPerson; PositionCode=>ReportPositionCode"/>
 
     <item attr="#" key="Export" value=""/>
+    <item key="Export.Daily.ExporterClass" value="obj_PEB_ExptrDailyScope"/>
     <item key="Export.Daily.FilePath" value="C:\WORK Alexandr Bondarenko\НАКАЗИ\DailyScope.xlsx"/>
-    <item key="Export.Daily.SheetName" value="04_07"/>
+    <item key="Export.Daily.SheetName" value="08_07"/>
     <item key="Export.Daily.RangeStartMarker" value="$B2"/>
     <item key="Export.Daily.RangeEndMarker" value="EndTable_DailyEvents"/>
-    <item key="Export.Daily.ExporterClass" value="obj_PEB_ExptrDailyScope"/>
+    <item key="Export.Movement.ExporterClass" value="obj_PEB_ExptrMovement"/>
     <item key="Export.Movement.FilePath" value="C:\Users\SVI\Desktop\РУХ_last.xlsx"/>
     <item key="Export.Movement.SheetName" value="Відсутні"/>
     <item key="Export.Movement.RangeStartMarker" value="$B6"/>
     <item key="Export.Movement.RangeEndMarker" value="$X7"/>
-    <item key="Export.Movement.ExporterClass" value="obj_PEB_ExptrMovement"/>
     <item key="Export.Word.ExporterClass" value="obj_PEB_ExptrWord"/>
   </profile>
 </profiles>
