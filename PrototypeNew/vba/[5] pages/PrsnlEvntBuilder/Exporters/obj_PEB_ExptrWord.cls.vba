@@ -61,7 +61,7 @@ Private Const WORD_RESOLVED_DATE_STORAGE_FORMAT As String = "dd.mm.yyyy"
 Private m_IsDisposed As Boolean
 Private m_Base As obj_DataExporterBase
 Private m_TemplateParser As obj_PEB_WordResultTplParser
-Private m_ExporterCommonData As obj_PEB_ExporterCommonData
+Private m_ExporterDataProvider As obj_PEB_ExptrDataPrvdr
 
 Private Sub Class_Initialize()
 #If LOGGING_VERBOSE_ENABLED Then
@@ -92,15 +92,22 @@ End Function
 ' //
 ' // API
 ' //
-Public Function Initialize(ByVal configTable As obj_ConfigTable) As Boolean
+Public Function Initialize( _
+    ByVal configTable As obj_ConfigTable, _
+    Optional ByVal profileConfigTable As obj_ConfigTable = Nothing _
+) As Boolean
+    Dim dataProviderConfigTable As obj_ConfigTable
+
     m_IsDisposed = False
     Set m_Base = New obj_DataExporterBase
     Set m_TemplateParser = New obj_PEB_WordResultTplParser
-    Set m_ExporterCommonData = New obj_PEB_ExporterCommonData
+    Set m_ExporterDataProvider = New obj_PEB_ExptrDataPrvdr
+    Set dataProviderConfigTable = configTable
+    If Not profileConfigTable Is Nothing Then Set dataProviderConfigTable = profileConfigTable
 
     If Not m_Base.Initialize(configTable, "WORD", "PrototypeNew / WORD export") Then Exit Function
     If Not m_TemplateParser.Initialize(WORD_RESULT_TEMPLATES_REL_PATH) Then Exit Function
-    If Not m_ExporterCommonData.Initialize(configTable) Then Exit Function
+    If Not m_ExporterDataProvider.Initialize(dataProviderConfigTable) Then Exit Function
 
     Initialize = True
 End Function
@@ -111,10 +118,10 @@ Public Sub Dispose()
     On Error Resume Next
     If Not m_Base Is Nothing Then m_Base.Dispose
     If Not m_TemplateParser Is Nothing Then m_TemplateParser.Dispose
-    If Not m_ExporterCommonData Is Nothing Then m_ExporterCommonData.Dispose
+    If Not m_ExporterDataProvider Is Nothing Then m_ExporterDataProvider.Dispose
     Set m_Base = Nothing
     Set m_TemplateParser = Nothing
-    Set m_ExporterCommonData = Nothing
+    Set m_ExporterDataProvider = Nothing
     On Error GoTo 0
 End Sub
 
@@ -177,7 +184,8 @@ Private Function private_TryEnrichMainSourceTableForWord( _
     Dim reporterGenitive As String
 
     If sourceTable Is Nothing Then Exit Function
-    If m_ExporterCommonData Is Nothing Then Exit Function
+    If m_ExporterDataProvider Is Nothing Then Exit Function
+    If m_ExporterDataProvider.CommonData Is Nothing Then Exit Function
 
     If Not private_TryGetMainTableValue(sourceTable, SOURCE_ALIAS_IPN, ipnText) Then ipnText = VBA.vbNullString
     If Not private_TryGetMainTableValue(sourceTable, SOURCE_ALIAS_RANK, rankText) Then rankText = VBA.vbNullString
@@ -199,8 +207,8 @@ Private Function private_TryEnrichMainSourceTableForWord( _
     ' ...Resolved/...Short = 01.02.2025, ...Full = 01 лютого 2025 року,
     ' ...FullPlusOne = полный формат даты + 1 день.
     orderNoText = private_GetContextText(context, CONTEXT_MANUAL_ORDER_NO)
-    If Not m_ExporterCommonData.SetOrderNo(orderNoText) Then Exit Function
-    If VBA.Len(VBA.Trim$(orderNoText)) > 0 And Not m_ExporterCommonData.HasOrderDate Then
+    If Not m_ExporterDataProvider.CommonData.SetOrderNo(orderNoText) Then Exit Function
+    If VBA.Len(VBA.Trim$(orderNoText)) > 0 And Not m_ExporterDataProvider.CommonData.HasOrderDate Then
         rt_Messaging.fn_ShowStatusBarWarning _
             "Order date was not found for order number '" & orderNoText & "'. Short dates use 01.01.1900.", _
             5
@@ -208,14 +216,14 @@ Private Function private_TryEnrichMainSourceTableForWord( _
 
     ' Все склонения берутся из общего provider-а. Если справочник пустой или
     ' ключ не найден, provider сам показывает MsgBox с конкретной причиной.
-    If Not m_ExporterCommonData.TryResolveRankGenitive(rankText, rankGenitive) Then Exit Function
-    If Not m_ExporterCommonData.TryResolveFioGenitive(ipnText, fioGenitive) Then Exit Function
-    If Not m_ExporterCommonData.TryResolvePositionGenitive(positionCodeText, positionGenitive) Then Exit Function
-    If Not m_ExporterCommonData.TryResolveHospitalGenitive(hospitalShortText, hospitalGenitive) Then Exit Function
-    If Not m_ExporterCommonData.TryResolveRankGenitive(reportRankText, reportRankGenitive) Then Exit Function
-    If Not m_ExporterCommonData.TryResolveFioGenitiveByName(reportPersonText, reportPersonGenitive) Then Exit Function
-    If Not m_ExporterCommonData.TryResolveFioInitialsGenitiveByName(reportPersonText, reportPersonInitialsGenitive) Then Exit Function
-    If Not m_ExporterCommonData.TryResolvePositionGenitive(reportPositionCodeText, reportPositionGenitive) Then Exit Function
+    If Not m_ExporterDataProvider.CommonData.TryResolveRankGenitive(rankText, rankGenitive) Then Exit Function
+    If Not m_ExporterDataProvider.CommonData.TryResolveFioGenitive(ipnText, fioGenitive) Then Exit Function
+    If Not m_ExporterDataProvider.CommonData.TryResolvePositionGenitive(positionCodeText, positionGenitive) Then Exit Function
+    If Not m_ExporterDataProvider.CommonData.TryResolveHospitalGenitive(hospitalShortText, hospitalGenitive) Then Exit Function
+    If Not m_ExporterDataProvider.CommonData.TryResolveRankGenitive(reportRankText, reportRankGenitive) Then Exit Function
+    If Not m_ExporterDataProvider.CommonData.TryResolveFioGenitiveByName(reportPersonText, reportPersonGenitive) Then Exit Function
+    If Not m_ExporterDataProvider.CommonData.TryResolveFioInitialsGenitiveByName(reportPersonText, reportPersonInitialsGenitive) Then Exit Function
+    If Not m_ExporterDataProvider.CommonData.TryResolvePositionGenitive(reportPositionCodeText, reportPositionGenitive) Then Exit Function
 
     reporterGenitive = private_JoinNonEmptyParts( _
         private_JoinNonEmptyParts(reportPositionGenitive, reportRankGenitive), _
@@ -300,8 +308,10 @@ Private Function private_TryUpsertResolvedDateValues( _
     ' номер приказа -> дата приказа. Если номера/даты приказа нет, короткие
     ' даты намеренно превращаются в 01.01.1900, чтобы проблема была видна
     ' глазами в WORD preview.
-    If m_ExporterCommonData.HasOrderDate Then
-        If Not ex_Helpers.fn_TryResolveDateWithContext(trimmedDateText, m_ExporterCommonData.OrderDate, resolvedDate) Then
+    If m_ExporterDataProvider Is Nothing Then Exit Function
+    If m_ExporterDataProvider.CommonData Is Nothing Then Exit Function
+    If m_ExporterDataProvider.CommonData.HasOrderDate Then
+        If Not ex_Helpers.fn_TryResolveDateWithContext(trimmedDateText, m_ExporterDataProvider.CommonData.OrderDate, resolvedDate) Then
             VBA.MsgBox "PrototypeNew: failed to resolve full date for '" & sourceAlias & _
                 "' from value '" & trimmedDateText & "'.", VBA.vbExclamation, "PrototypeNew / WORD export"
             Exit Function
