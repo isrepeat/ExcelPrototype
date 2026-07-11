@@ -330,6 +330,10 @@ Public Function Render() As Boolean
 #If LOGGING_DEBUG_ENABLED Then
     private_LogRenderPerfStep "pagebase:layout-render-node", perfStart, perfLast, "sheet='" & private_EscapeForLog(ws.Name) & "'"
 #End If
+    If Not ex_StylePipelineEngine.fn_ApplyTextNumberFormatToControlBounds(ws) Then GoTo Cleanup
+#If LOGGING_DEBUG_ENABLED Then
+    private_LogRenderPerfStep "pagebase:batch-control-number-format", perfStart, perfLast, "sheet='" & private_EscapeForLog(ws.Name) & "'"
+#End If
     If Not ex_StylePipelineEngine.fn_ApplyPageStyles(ws, m_UiDom) Then GoTo Cleanup
 #If LOGGING_DEBUG_ENABLED Then
     private_LogRenderPerfStep "pagebase:apply-page-styles", perfStart, perfLast, "sheet='" & private_EscapeForLog(ws.Name) & "'"

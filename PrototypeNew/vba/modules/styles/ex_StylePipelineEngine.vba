@@ -121,6 +121,32 @@ Public Sub fn_RegisterLayoutBound( _
         VBA.CLng(tagDepth))
 End Sub
 
+Public Function fn_ApplyTextNumberFormatToControlBounds(ByVal ws As Worksheet) As Boolean
+    Dim entry As Variant
+    Dim minRow As Long, minCol As Long, maxRow As Long, maxCol As Long
+
+    If ws Is Nothing Then Exit Function
+    If m_LayoutBounds Is Nothing Then
+        fn_ApplyTextNumberFormatToControlBounds = True
+        Exit Function
+    End If
+
+    For Each entry In m_LayoutBounds
+        If VBA.StrComp(VBA.CStr(entry(0)), ws.Name, VBA.vbTextCompare) <> 0 Then GoTo ContinueEntry
+        If VBA.StrComp(VBA.CStr(entry(5)), "control", VBA.vbTextCompare) <> 0 Then GoTo ContinueEntry
+        If minRow = 0 Or VBA.CLng(entry(1)) < minRow Then minRow = VBA.CLng(entry(1))
+        If minCol = 0 Or VBA.CLng(entry(2)) < minCol Then minCol = VBA.CLng(entry(2))
+        If VBA.CLng(entry(3)) > maxRow Then maxRow = VBA.CLng(entry(3))
+        If VBA.CLng(entry(4)) > maxCol Then maxCol = VBA.CLng(entry(4))
+ContinueEntry:
+    Next entry
+
+    If minRow > 0 And minCol > 0 Then
+        ws.Range(ws.Cells(minRow, minCol), ws.Cells(maxRow, maxCol)).NumberFormat = "@"
+    End If
+    fn_ApplyTextNumberFormatToControlBounds = True
+End Function
+
 ' //
 ' // Internal
 ' //
