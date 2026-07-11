@@ -152,7 +152,7 @@ Public Function Initialize(ByVal page As Object) As Boolean
     m_ExportModeIndex = 0
     Set m_ExportHistory = VBA.CreateObject("Scripting.Dictionary")
     m_ExportHistory.CompareMode = 1
-    m_IsLookupEnabled = True
+    m_IsLookupEnabled = False
 
     Set pageBase = m_Page.GetPageBase()
     If pageBase Is Nothing Then Exit Function
@@ -340,6 +340,17 @@ Public Function RuntimeHandleHotkeyAction(ByVal actionId As Variant) As Boolean
     ex_Core.fn_Diagnostic_LogInfo "prsnlevntbuilder:hotkey-action:start action='" & private_EscapeForLog(actionText) & "' cell='" & private_EscapeForLog(cellAddress) & "'"
 #End If
 
+    ' This dedicated action also starts with "Export ", so handle it before
+    ' generic "Export <alias>" actions. The button calls the same method.
+    If VBA.StrComp(actionText, HOTKEY_EXPORT_TO_WORD, VBA.vbTextCompare) = 0 Then
+#If LOGGING_DEBUG_ENABLED Then
+        ex_Core.fn_Diagnostic_LogInfo "prsnlevntbuilder:hotkey-action:word-export-branch"
+#End If
+        Call private_TryExportWordToDocument
+        RuntimeHandleHotkeyAction = True
+        Exit Function
+    End If
+
     If private_IsExportAction(actionText) Then
 #If LOGGING_DEBUG_ENABLED Then
         ex_Core.fn_Diagnostic_LogInfo "prsnlevntbuilder:hotkey-action:export-branch action='" & private_EscapeForLog(actionText) & "'"
@@ -354,15 +365,6 @@ Public Function RuntimeHandleHotkeyAction(ByVal actionId As Variant) As Boolean
 #If LOGGING_DEBUG_ENABLED Then
         ex_Core.fn_Diagnostic_LogInfo "prsnlevntbuilder:hotkey-action:export-branch-done action='" & private_EscapeForLog(actionText) & "'"
 #End If
-        RuntimeHandleHotkeyAction = True
-        Exit Function
-    End If
-
-    If VBA.StrComp(actionText, HOTKEY_EXPORT_TO_WORD, VBA.vbTextCompare) = 0 Then
-#If LOGGING_DEBUG_ENABLED Then
-        ex_Core.fn_Diagnostic_LogInfo "prsnlevntbuilder:hotkey-action:word-export-branch"
-#End If
-        Call private_TryExportWordToDocument
         RuntimeHandleHotkeyAction = True
         Exit Function
     End If
