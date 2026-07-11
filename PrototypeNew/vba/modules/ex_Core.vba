@@ -183,6 +183,37 @@ Public Sub fn_Dev_ToggleLogging()
 
     Call ex_HelpersSheet.fn_TryRerenderActivePage("settings:toggle-logging")
 End Sub
+
+Public Sub fn_Dev_ClearLogs()
+    private_Diagnostic_ClearCoreLogFile
+    private_ShowStatusSuccess "Log file was cleared.", True, 3
+End Sub
+
+Public Sub fn_Dev_OpenLogs()
+    Dim logPath As String
+    Dim commandText As String
+    Dim shellRunner As Object
+    Dim errorText As String
+
+    If VBA.Len(VBA.Trim$(ThisWorkbook.Path)) = 0 Then
+        VBA.MsgBox "Cannot open the log because the workbook has not been saved.", vbExclamation, "PrototypeNew / Logging"
+        Exit Sub
+    End If
+
+    logPath = ThisWorkbook.Path & "\\" & CORE_LOG_FILE_REL_PATH
+    If VBA.Len(VBA.Dir$(logPath, VBA.vbNormal)) = 0 Then private_Diagnostic_ClearCoreLogFile
+
+    On Error GoTo EH
+    commandText = "notepad.exe """ & logPath & """"
+    Set shellRunner = VBA.CreateObject("WScript.Shell")
+    shellRunner.Run commandText, VBA.vbNormalFocus, False
+    Set shellRunner = Nothing
+    Exit Sub
+EH:
+    errorText = Err.Description
+    Set shellRunner = Nothing
+    VBA.MsgBox "Failed to open the log file in Notepad: " & errorText, vbExclamation, "PrototypeNew / Logging"
+End Sub
 ' --------------------------------------
 '  } // namespace Dev
 ' --------------------------------------

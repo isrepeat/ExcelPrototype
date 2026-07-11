@@ -103,6 +103,80 @@ Public Property Get RuntimeObjectSourceKey() As String
     RuntimeObjectSourceKey = CONTROLLER_RUNTIME_OBJECT_KEY
 End Property
 
+Public Property Get IsPersonalCardMode() As Boolean
+    IsPersonalCardMode = private_IsCurrentMode("PersonalCard")
+End Property
+
+Public Property Get IsPrsnlEvntBuilderMode() As Boolean
+    IsPrsnlEvntBuilderMode = private_IsCurrentMode("PrsnlEvntBuilder")
+End Property
+
+Public Property Get IsComparingMode() As Boolean
+    IsComparingMode = private_IsCurrentMode("Comparing")
+End Property
+
+Public Function OnOpenCurrentModeUiFileCommand(Optional ByVal arg As Variant) As Boolean
+    Dim modeId As String
+    Dim filePath As String
+
+    If Not private_TryGetCurrentModeId(modeId) Then Exit Function
+    filePath = ThisWorkbook.Path & "\ui\" & modeId & "UI.xml"
+    OnOpenCurrentModeUiFileCommand = private_TryOpenModeFileInNotepad(filePath, "UI file")
+End Function
+
+Public Function OnOpenCurrentModeProfilesFileCommand(Optional ByVal arg As Variant) As Boolean
+    Dim modeId As String
+    Dim filePath As String
+
+    If Not private_TryGetCurrentModeId(modeId) Then Exit Function
+    filePath = ThisWorkbook.Path & "\modes\" & modeId & "\" & modeId & MODE_PROFILES_FILE_SUFFIX
+    OnOpenCurrentModeProfilesFileCommand = private_TryOpenModeFileInNotepad(filePath, "profiles file")
+End Function
+
+Private Function private_TryGetCurrentModeId(ByRef outModeId As String) As Boolean
+    outModeId = VBA.vbNullString
+    If m_ProfileItemsProvider Is Nothing Then
+        VBA.MsgBox "Current mode is not initialized.", vbExclamation, "PrototypeNew / Mode files"
+        Exit Function
+    End If
+
+    outModeId = VBA.Trim$(m_ProfileItemsProvider.CurrentModeId)
+    If VBA.Len(outModeId) = 0 Then
+        VBA.MsgBox "Current mode is not selected.", vbExclamation, "PrototypeNew / Mode files"
+        Exit Function
+    End If
+    private_TryGetCurrentModeId = True
+End Function
+
+Private Function private_TryOpenModeFileInNotepad(ByVal filePath As String, ByVal fileLabel As String) As Boolean
+    Dim shellRunner As Object
+    Dim commandText As String
+    Dim errorText As String
+
+    filePath = VBA.Trim$(filePath)
+    If VBA.Len(filePath) = 0 Or VBA.Len(VBA.Dir$(filePath, VBA.vbNormal)) = 0 Then
+        VBA.MsgBox "PrototypeNew: " & fileLabel & " was not found:" & VBA.vbCrLf & filePath, vbExclamation, "PrototypeNew / Mode files"
+        Exit Function
+    End If
+
+    On Error GoTo EH
+    commandText = "notepad.exe """ & filePath & """"
+    Set shellRunner = VBA.CreateObject("WScript.Shell")
+    shellRunner.Run commandText, VBA.vbNormalFocus, False
+    Set shellRunner = Nothing
+    private_TryOpenModeFileInNotepad = True
+    Exit Function
+EH:
+    errorText = Err.Description
+    Set shellRunner = Nothing
+    VBA.MsgBox "Failed to open " & fileLabel & ": " & errorText, vbExclamation, "PrototypeNew / Mode files"
+End Function
+
+Private Function private_IsCurrentMode(ByVal expectedModeId As String) As Boolean
+    If m_ProfileItemsProvider Is Nothing Then Exit Function
+    private_IsCurrentMode = (VBA.StrComp(m_ProfileItemsProvider.CurrentModeId, expectedModeId, VBA.vbTextCompare) = 0)
+End Function
+
 Public Function OnConfigModeDropDownOpenedCommand(Optional ByVal arg As Variant) As Boolean
     #If LOGGING_DEBUG_ENABLED Then
         ex_Core.fn_Diagnostic_LogInfo "enter:obj_PageMainCtrl.OnConfigModeDropDownOpenedCommand"
