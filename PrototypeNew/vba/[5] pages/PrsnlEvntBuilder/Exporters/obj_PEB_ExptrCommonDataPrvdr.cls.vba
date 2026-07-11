@@ -24,6 +24,7 @@ Private Const DEFAULT_INSTITUTIONS_REL_PATH As String = "modes\PrsnlEvntBuilder\
 Private Const INSTITUTIONS_SHEET_NAME As String = "Лікувальні Заклади"
 Private Const INSTITUTIONS_RANGE_START As String = "A3"
 Private Const INSTITUTIONS_RANGE_END_COLUMN As String = "E"
+Private Const INSTITUTIONS_RANGE_END_ROW As Long = 10000
 Private Const DEFAULT_RANKS_REL_PATH As String = "modes\PrsnlEvntBuilder\Переліки.xlsx"
 Private Const RANKS_SHEET_NAME As String = "Звання"
 Private Const RANKS_RANGE_START As String = "A1"
@@ -43,14 +44,17 @@ Private Const EXCEL_MAX_ROW As Long = 1048576
 Private Const ALF_KEY_HEADER As String = "ІПН"
 Private Const ALF_FIO_KEY_HEADER As String = "ПІБ"
 Private Const ALF_GENITIVE_HEADER As String = "Родовий"
+Private Const ALF_DATIVE_HEADER As String = "Давальний"
 Private Const ALF_INITIALS_GENITIVE_HEADER As String = "ПІП (Родовий)"
 Private Const INSTITUTIONS_KEY_HEADER As String = "Позначення"
 Private Const INSTITUTIONS_GENITIVE_HEADER As String = "Родовий"
 Private Const INSTITUTIONS_ACCUSATIVE_HEADER As String = "Знахідний"
 Private Const RANKS_KEY_HEADER As String = "Звання"
 Private Const RANKS_GENITIVE_HEADER As String = "Родовий"
+Private Const RANKS_DATIVE_HEADER As String = "Давальний"
 Private Const POSITIONS_KEY_HEADER As String = "Код"
 Private Const POSITIONS_GENITIVE_HEADER As String = "Родовий"
+Private Const POSITIONS_DATIVE_HEADER As String = "Давальний"
 Private Const ORDER_DATE_COLUMN_NAME As String = "Дата наказу"
 Private Const ORDER_NO_COLUMN_NAME As String = "Номер наказу"
 
@@ -84,6 +88,26 @@ Public Function Initialize(Optional ByVal configTable As obj_ConfigTable = Nothi
     m_ExportModes.Add EXPORT_MODE_REWRITE_LAST
 
     Initialize = True
+End Function
+
+Public Function TryResolveFioDative( _
+    ByVal ipnText As String, _
+    ByRef outFioDative As String _
+) As Boolean
+    ' АЛФ связывает человека по ИПН, поэтому одинаковые ФИО не создают
+    ' неоднозначность при получении полного имени в дательном падеже.
+    If m_IsDisposed Then Exit Function
+    ipnText = private_NormalizeLookupKey(ipnText)
+    outFioDative = VBA.vbNullString
+    If VBA.Len(ipnText) = 0 Then
+        TryResolveFioDative = True
+        Exit Function
+    End If
+
+    TryResolveFioDative = private_TryLookupWorkbookValue( _
+        DEFAULT_ALF_REL_PATH, _
+        private_BuildAdoRangeRef(ALF_SHEET_NAME, ALF_RANGE_START, ALF_RANGE_END_COLUMN & VBA.CStr(EXCEL_MAX_ROW)), _
+        ALF_KEY_HEADER, ALF_DATIVE_HEADER, ipnText, "АЛФ", outFioDative)
 End Function
 
 Public Sub Dispose()
@@ -260,7 +284,7 @@ Public Function TryResolveHospitalGenitive( _
         private_BuildAdoRangeRef( _
             INSTITUTIONS_SHEET_NAME, _
             INSTITUTIONS_RANGE_START, _
-            INSTITUTIONS_RANGE_END_COLUMN & VBA.CStr(EXCEL_MAX_ROW)), _
+            INSTITUTIONS_RANGE_END_COLUMN & VBA.CStr(INSTITUTIONS_RANGE_END_ROW)), _
         INSTITUTIONS_KEY_HEADER, _
         INSTITUTIONS_GENITIVE_HEADER, _
         hospitalShortText, _
@@ -285,7 +309,7 @@ Public Function TryResolveHospitalAccusative( _
         private_BuildAdoRangeRef( _
             INSTITUTIONS_SHEET_NAME, _
             INSTITUTIONS_RANGE_START, _
-            INSTITUTIONS_RANGE_END_COLUMN & VBA.CStr(EXCEL_MAX_ROW)), _
+            INSTITUTIONS_RANGE_END_COLUMN & VBA.CStr(INSTITUTIONS_RANGE_END_ROW)), _
         INSTITUTIONS_KEY_HEADER, _
         INSTITUTIONS_ACCUSATIVE_HEADER, _
         hospitalShortText, _
@@ -318,6 +342,26 @@ Public Function TryResolveRankGenitive( _
         outRankGenitive)
 End Function
 
+Public Function TryResolveRankDative( _
+    ByVal rankText As String, _
+    ByRef outRankDative As String _
+) As Boolean
+    ' Используем ту же таблицу званий, что и для Genitive, но колонку
+    ' "Давальний". Пустое исходное звание является допустимым значением.
+    If m_IsDisposed Then Exit Function
+    rankText = private_NormalizeLookupKey(rankText)
+    outRankDative = VBA.vbNullString
+    If VBA.Len(rankText) = 0 Then
+        TryResolveRankDative = True
+        Exit Function
+    End If
+
+    TryResolveRankDative = private_TryLookupWorkbookValue( _
+        DEFAULT_RANKS_REL_PATH, _
+        private_BuildAdoRangeRef(RANKS_SHEET_NAME, RANKS_RANGE_START, RANKS_RANGE_END_COLUMN & VBA.CStr(EXCEL_MAX_ROW)), _
+        RANKS_KEY_HEADER, RANKS_DATIVE_HEADER, rankText, "Переліки / Звання", outRankDative)
+End Function
+
 Public Function TryResolvePositionGenitive( _
     ByVal positionText As String, _
     ByRef outPositionGenitive As String _
@@ -341,6 +385,25 @@ Public Function TryResolvePositionGenitive( _
         positionText, _
         "Посади", _
         outPositionGenitive)
+End Function
+
+Public Function TryResolvePositionDative( _
+    ByVal positionText As String, _
+    ByRef outPositionDative As String _
+) As Boolean
+    ' Должность ищется по стабильному коду, а не по отображаемому названию.
+    If m_IsDisposed Then Exit Function
+    positionText = private_NormalizeLookupKey(positionText)
+    outPositionDative = VBA.vbNullString
+    If VBA.Len(positionText) = 0 Then
+        TryResolvePositionDative = True
+        Exit Function
+    End If
+
+    TryResolvePositionDative = private_TryLookupWorkbookValue( _
+        DEFAULT_POSITIONS_REL_PATH, _
+        private_BuildAdoRangeRef(POSITIONS_SHEET_NAME, POSITIONS_RANGE_START, POSITIONS_RANGE_END_COLUMN & VBA.CStr(EXCEL_MAX_ROW)), _
+        POSITIONS_KEY_HEADER, POSITIONS_DATIVE_HEADER, positionText, "Посади", outPositionDative)
 End Function
 
 ' //

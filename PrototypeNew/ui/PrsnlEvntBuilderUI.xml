@@ -220,8 +220,7 @@
                   profile.transferTreatmentVacationToTreatment;
                   profile.transferTreatmentVacationToVlk;
                   profile.transferVlkToTreatmentVacation;
-                  profile.transferVlkToTreatment;
-                  profile.metaTvo"
+                  profile.transferVlkToTreatment"
             text="Звання (рапорт)"
             style="tableHeaderCell"
             />
@@ -243,8 +242,7 @@
                   profile.transferTreatmentVacationToTreatment;
                   profile.transferTreatmentVacationToVlk;
                   profile.transferVlkToTreatmentVacation;
-                  profile.transferVlkToTreatment;
-                  profile.metaTvo"
+                  profile.transferVlkToTreatment"
             text="ФІО (рапорт)"
             style="tableHeaderCell"
             />
@@ -266,8 +264,7 @@
                   profile.transferTreatmentVacationToTreatment;
                   profile.transferTreatmentVacationToVlk;
                   profile.transferVlkToTreatmentVacation;
-                  profile.transferVlkToTreatment;
-                  profile.metaTvo"
+                  profile.transferVlkToTreatment"
             text="Код посади (рапорт)"
             style="tableHeaderCell"
             />
@@ -370,7 +367,6 @@
             type="Label"
             name="DateToHeader"
             tags="profile.allFields;
-                  profile.toAnnualVacationPart;
                   profile.toFamilyVacation;
                   profile.toTreatmentVacation;
                   profile.transferTreatmentToTreatmentVacation;
@@ -563,8 +559,7 @@
                   profile.transferTreatmentVacationToTreatment;
                   profile.transferTreatmentVacationToVlk;
                   profile.transferVlkToTreatmentVacation;
-                  profile.transferVlkToTreatment;
-                  profile.metaTvo"
+                  profile.transferVlkToTreatment"
             text=""
             style="tableDataCell"
             />
@@ -588,8 +583,7 @@
                   profile.transferTreatmentVacationToTreatment;
                   profile.transferTreatmentVacationToVlk;
                   profile.transferVlkToTreatmentVacation;
-                  profile.transferVlkToTreatment;
-                  profile.metaTvo"
+                  profile.transferVlkToTreatment"
             dataContext="{PageRuntimeSource='RuntimeObjects.PrsnlEvntBuilder'}"
             value="{Binding Path=LookupQueryValues.Commander}"
             onChange="{Binding Method=OnLookupInputCellChangedCommand}"
@@ -616,8 +610,7 @@
                   profile.transferTreatmentVacationToTreatment;
                   profile.transferTreatmentVacationToVlk;
                   profile.transferVlkToTreatmentVacation;
-                  profile.transferVlkToTreatment;
-                  profile.metaTvo"
+                  profile.transferVlkToTreatment"
             text=""
             style="tableDataCell"
             />
@@ -736,7 +729,6 @@
             name="DateToDraftCell"
             tags="DateTo;
                   profile.allFields;
-                  profile.toAnnualVacationPart;
                   profile.toFamilyVacation;
                   profile.toTreatmentVacation;
                   profile.transferTreatmentToTreatmentVacation;
@@ -985,7 +977,7 @@
                 width:15;
                 rowHeight:21;
                 cellType:text;
-                zoom:75%;
+                zoom:80%;
               }"/>
 
         <rule target="column"

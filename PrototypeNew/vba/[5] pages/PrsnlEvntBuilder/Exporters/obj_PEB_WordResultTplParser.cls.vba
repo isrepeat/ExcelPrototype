@@ -4,7 +4,7 @@ BEGIN
 END
 Attribute VB_Name = "obj_PEB_WordResultTplParser"
 Option Explicit
-#Const LOGGING_DEBUG_ENABLED = False
+#Const LOGGING_DEBUG_ENABLED = True
 #Const LOGGING_VERBOSE_ENABLED = False
 
 Private Const PROFILES_NS As String = "urn:excelprototype:profiles"
@@ -31,6 +31,8 @@ Private Const PREVIEW_PLACEHOLDER_COLOR As String = "#66CCFF"
 
 Private m_TemplateRelPath As String
 Private m_TemplateDoc As Object
+Private m_TemplateLastModified As Date
+Private m_HasTemplateLastModified As Boolean
 Private m_IsDisposed As Boolean
 Private m_NamedCollections As Object
 
@@ -57,11 +59,7 @@ Public Function Initialize(ByVal templateRelPath As String) As Boolean
     m_IsDisposed = False
     m_TemplateRelPath = VBA.Trim$(templateRelPath)
     If VBA.Len(m_TemplateRelPath) = 0 Then Exit Function
-    Set m_TemplateDoc = ex_XmlCore.fn_LoadDomByRelativePath( _
-        ThisWorkbook, m_TemplateRelPath, _
-        "Missing WORD result templates file: ", _
-        "Failed to parse WORD result templates file: ", PROFILES_NS)
-    If m_TemplateDoc Is Nothing Then Exit Function
+    If Not private_TryReloadTemplateIfChanged(True) Then Exit Function
     Initialize = True
 End Function
 
@@ -70,6 +68,8 @@ Public Sub Dispose()
     m_IsDisposed = True
     m_TemplateRelPath = VBA.vbNullString
     Set m_TemplateDoc = Nothing
+    m_TemplateLastModified = 0
+    m_HasTemplateLastModified = False
     Set m_NamedCollections = Nothing
 End Sub
 
@@ -89,8 +89,13 @@ Public Function TryRenderForSectionType( _
     If m_IsDisposed Then Exit Function
     If sourceTables Is Nothing Then Exit Function
     If sourceTables.Count <= 0 Then Exit Function
+    If Not private_TryReloadTemplateIfChanged() Then Exit Function
 
     If Not private_TryGetTemplateTextBySectionType(sectionTypeText, templateText, outTemplateId) Then Exit Function
+#If LOGGING_DEBUG_ENABLED Then
+    ex_Core.fn_Diagnostic_LogInfo "peb-word-parser:render template='" & outTemplateId & _
+        "' section='" & sectionTypeText & "'"
+#End If
     ' Keep named loop collections in parser state so nested #for blocks can
     ' resolve collections by explicit DSL key (no implicit backward fallback).
     Set m_NamedCollections = namedCollections
@@ -101,13 +106,60 @@ Public Function TryRenderForSectionType( _
     loopRows.CompareMode = 1
 
     outResultText = private_RenderTemplate(templateText, sectionTypeText, sourceTables, renderVars, loopRows)
-
     TryRenderForSectionType = True
 End Function
 
 ' //
 ' // Internal
 ' //
+Private Function private_TryReloadTemplateIfChanged( _
+    Optional ByVal forceReload As Boolean = False _
+) As Boolean
+    Dim templatePath As String
+    Dim currentLastModified As Date
+    Dim refreshedDoc As Object
+
+    templatePath = ex_XmlCore.fn_CombineBasePath(ThisWorkbook, m_TemplateRelPath)
+    If VBA.Len(VBA.Trim$(templatePath)) = 0 Then
+        VBA.MsgBox "PrototypeNew: failed to resolve WORD result templates path: " & m_TemplateRelPath, VBA.vbExclamation, "PrototypeNew / WORD export"
+        Exit Function
+    End If
+
+    On Error GoTo EH
+    currentLastModified = VBA.FileDateTime(templatePath)
+    On Error GoTo 0
+
+    If Not forceReload And m_HasTemplateLastModified Then
+        ' Быстрый путь: DOM остается валиден, пока timestamp файла не изменился.
+        If currentLastModified = m_TemplateLastModified Then
+            private_TryReloadTemplateIfChanged = True
+            Exit Function
+        End If
+    End If
+
+    ' Загружаем в отдельный DOM и только после успешного parse заменяем кеш.
+    Set refreshedDoc = ex_XmlCore.fn_LoadDomByFilePath( _
+        templatePath, _
+        "Missing WORD result templates file: ", _
+        "Failed to parse WORD result templates file: ", PROFILES_NS)
+    If refreshedDoc Is Nothing Then
+        VBA.MsgBox "PrototypeNew: failed to reload WORD result templates file: " & templatePath, VBA.vbExclamation, "PrototypeNew / WORD export"
+        Exit Function
+    End If
+
+    Set m_TemplateDoc = refreshedDoc
+    m_TemplateLastModified = currentLastModified
+    m_HasTemplateLastModified = True
+#If LOGGING_DEBUG_ENABLED Then
+    ex_Core.fn_Diagnostic_LogInfo "peb-word-parser:templates-reloaded path='" & templatePath & "'"
+#End If
+    private_TryReloadTemplateIfChanged = True
+    Exit Function
+
+EH:
+    VBA.MsgBox "PrototypeNew: failed to read WORD result templates modification date: " & templatePath & VBA.vbCrLf & Err.Description, VBA.vbExclamation, "PrototypeNew / WORD export"
+End Function
+
 Private Function private_TryGetTemplateTextBySectionType( _
     ByVal sectionTypeText As String, _
     ByRef outTemplateText As String, _
@@ -580,6 +632,7 @@ Private Function private_RenderIfBlocks( _
     Dim conditionText As String
     Dim bodyText As String
     Dim renderedText As String
+    Dim conditionResult As Boolean
 
     resultText = VBA.CStr(sourceText)
 
@@ -596,7 +649,8 @@ Private Function private_RenderIfBlocks( _
         conditionText = private_ParseIfCondition(headerText)
         bodyText = VBA.Mid$(resultText, openEndPos + 1, closePos - openEndPos - 1)
 
-        If private_EvaluateCondition(conditionText, sectionTypeText, sourceTables, renderVars, loopRows) Then
+        conditionResult = private_EvaluateCondition(conditionText, sectionTypeText, sourceTables, renderVars, loopRows)
+        If conditionResult Then
             renderedText = private_RenderTemplate(bodyText, sectionTypeText, sourceTables, renderVars, loopRows, False)
         Else
             renderedText = VBA.vbNullString
@@ -744,6 +798,17 @@ Private Function private_EvaluateExpressionText( _
     End If
     If private_IsQuoted(trimmedText) Then
         private_EvaluateExpressionText = VBA.Mid$(trimmedText, 2, VBA.Len(trimmedText) - 2)
+        Exit Function
+    End If
+
+    ' Bracket tokens always represent DynamicTable fields. A missing column is
+    ' an empty value, not a literal expression such as "[DateFromFull]".
+    ' Returning the token text made missing optional fields truthy in #if and
+    ' prevented their fallback branches from rendering.
+    If private_IsBracketFieldToken(trimmedText) _
+        Or (VBA.InStr(1, trimmedText, ".[", VBA.vbBinaryCompare) > 1 And VBA.Right$(trimmedText, 1) = "]") Then
+        private_EvaluateExpressionText = private_GetPlaceholderValue( _
+            trimmedText, sectionTypeText, sourceTables, renderVars, loopRows)
         Exit Function
     End If
 

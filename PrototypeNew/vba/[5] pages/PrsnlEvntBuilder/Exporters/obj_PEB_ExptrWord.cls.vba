@@ -4,7 +4,7 @@ BEGIN
 END
 Attribute VB_Name = "obj_PEB_ExptrWord"
 Option Explicit
-#Const LOGGING_DEBUG_ENABLED = False
+#Const LOGGING_DEBUG_ENABLED = True
 #Const LOGGING_VERBOSE_ENABLED = False
 
 Implements obj_IDataExporter
@@ -17,7 +17,9 @@ Private Const CONTEXT_MANUAL_ORDER_NO As String = "ManualOrderNo"
 Private Const SENTINEL_SHORT_DATE As Date = #1/1/1900#
 Private Const SOURCE_ALIAS_IPN As String = "IPN"
 Private Const SOURCE_ALIAS_RANK As String = "Rank"
+Private Const SOURCE_ALIAS_FIO As String = "FIO"
 Private Const SOURCE_ALIAS_POSITION_CODE As String = "PositionCode"
+Private Const SOURCE_ALIAS_POSITION_NAME As String = "PositionName"
 Private Const SOURCE_ALIAS_HOSPITAL_SHORT As String = "HospitalShort"
 Private Const SOURCE_ALIAS_REPORT_RANK As String = "ReportRank"
 Private Const SOURCE_ALIAS_REPORT_PERSON As String = "ReportPerson"
@@ -25,12 +27,19 @@ Private Const SOURCE_ALIAS_REPORT_POSITION_CODE As String = "ReportPositionCode"
 Private Const SOURCE_ALIAS_INCOMING_DATE As String = "IncomingDate"
 Private Const SOURCE_ALIAS_DOC_DATE As String = "DocDate"
 Private Const SOURCE_ALIAS_DATE_FROM As String = "DateFrom"
+Private Const SOURCE_ALIAS_DURATION_DAYS As String = "DurationDays"
 Private Const SOURCE_ALIAS_VH_DATE As String = "VhDate"
 Private Const SOURCE_ALIAS_VLK_DATE As String = "VlkDate"
 Private Const WORD_ALIAS_RANK_GENITIVE As String = "RankGenitive"
 Private Const WORD_ALIAS_FIO_GENITIVE As String = "FIOGenitive"
+Private Const WORD_ALIAS_FIO_INITIALS_GENITIVE As String = "FIOInitialsGenitive"
 Private Const WORD_ALIAS_POSITION_GENITIVE As String = "PositionGenitive"
+Private Const WORD_ALIAS_POSITION_DEFAULT As String = "Position"
+Private Const WORD_ALIAS_RANK_DATIVE As String = "RankDative"
+Private Const WORD_ALIAS_FIO_DATIVE As String = "FIODative"
+Private Const WORD_ALIAS_POSITION_DATIVE As String = "PositionDative"
 Private Const WORD_ALIAS_HOSPITAL_GENITIVE As String = "HospitalGenitive"
+Private Const WORD_ALIAS_HOSPITAL_ACCUSATIVE As String = "HospitalAccusative"
 Private Const WORD_ALIAS_REPORT_RANK_GENITIVE As String = "ReportRankGenitive"
 Private Const WORD_ALIAS_REPORT_PERSON_GENITIVE As String = "ReportPersonGenitive"
 Private Const WORD_ALIAS_REPORT_PERSON_INITIALS_GENITIVE As String = "ReportPersonInitialsGenitive"
@@ -49,6 +58,7 @@ Private Const WORD_ALIAS_VLK_DATE_SHORT As String = "VlkDateShort"
 Private Const WORD_ALIAS_INCOMING_DATE_FULL As String = "IncomingDateFull"
 Private Const WORD_ALIAS_DOC_DATE_FULL As String = "DocDateFull"
 Private Const WORD_ALIAS_DATE_FROM_FULL As String = "DateFromFull"
+Private Const WORD_ALIAS_DATE_TO_FULL As String = "DateToFull"
 Private Const WORD_ALIAS_VH_DATE_FULL As String = "VhDateFull"
 Private Const WORD_ALIAS_VLK_DATE_FULL As String = "VlkDateFull"
 Private Const WORD_ALIAS_INCOMING_DATE_FULL_PLUS_ONE As String = "IncomingDateFullPlusOne"
@@ -56,8 +66,8 @@ Private Const WORD_ALIAS_DOC_DATE_FULL_PLUS_ONE As String = "DocDateFullPlusOne"
 Private Const WORD_ALIAS_DATE_FROM_FULL_PLUS_ONE As String = "DateFromFullPlusOne"
 Private Const WORD_ALIAS_VH_DATE_FULL_PLUS_ONE As String = "VhDateFullPlusOne"
 Private Const WORD_ALIAS_VLK_DATE_FULL_PLUS_ONE As String = "VlkDateFullPlusOne"
-Private Const WORD_ALIAS_FROM_FOOD_DATE As String = "FromFoodDate"
-Private Const WORD_ALIAS_ON_FOOD_DATE As String = "OnFoodDate"
+Private Const WORD_ALIAS_ENROLL_TO_FOOD_SUPPORT_DATE As String = "EnrollToFoodSupportDate"
+Private Const WORD_ALIAS_REMOVE_FROM_FOOD_SUPPORT_DATE As String = "RemoveFromFoodSupportDate"
 Private Const WORD_RESOLVED_DATE_STORAGE_FORMAT As String = "dd.mm.yyyy"
 Private Const WORD_ANCHOR_PREFIX As String = "{\export:"
 Private Const WORD_ANCHOR_BEGIN_SUFFIX As String = "_Begin}"
@@ -68,6 +78,7 @@ Private Const WORD_BOOKMARK_MAX_LENGTH As Long = 40
 Private Const REPORT_TVO_TEXT As String = "тимчасово виконуючого обов'язки"
 Private Const META_SECTION_TYPE_DOCUMENT As String = "Мета: документ"
 Private Const META_SECTION_TYPE_TVO As String = "Мета: ТВО"
+Private Const SECTION_TYPE_TO_ANNUAL_VACATION_PART As String = "У частину щорічної основної відпустки"
 Private Const LOOP_COLLECTION_META_DOCUMENT_TABLES As String = "MetaDocumentTables"
 Private Const LOOP_COLLECTION_META_TVO_TABLES As String = "MetaTvoTables"
 
@@ -169,6 +180,7 @@ Public Function Export( _
     End If
 
     If Not private_TryEnrichMainSourceTableForWord(sourceTable, context) Then Exit Function
+    If Not private_TryEnrichMetaTvoTablesForWord(sourceTables) Then Exit Function
     Set namedCollections = private_BuildNamedLoopCollections(sourceTables)
     If namedCollections Is Nothing Then Exit Function
     If Not m_TemplateParser.TryRenderForSectionType(sectionTypeText, sourceTables, namedCollections, previewText, templateId) Then Exit Function
@@ -276,12 +288,13 @@ Private Function private_TryAppendBeforeWordEndAnchor( _
         GoTo CleanFail
     End If
 
-    ' Append a new independent item immediately before the section's _End
-    ' marker. Existing records and their bookmarks are left untouched.
+    ' Append the rendered text exactly as produced by the export template.
+    ' Separators between records must be defined explicitly in that template.
+    ' Existing records and their bookmarks are left untouched.
     insertedStart = endRange.Start
     Set insertRange = wordDoc.Range(insertedStart, insertedStart)
-    insertRange.Text = VBA.vbCr & plainRenderedText & VBA.vbCr
-    insertedEnd = insertedStart + VBA.Len(VBA.vbCr & plainRenderedText & VBA.vbCr)
+    insertRange.Text = plainRenderedText
+    insertedEnd = insertedStart + VBA.Len(plainRenderedText)
     Set insertRange = wordDoc.Range(insertedStart, insertedEnd)
     ' Do not inherit highlight from a neighbouring anchor or an older export.
     insertRange.HighlightColorIndex = 0
@@ -473,6 +486,7 @@ Private Function private_TryEnrichMainSourceTableForWord( _
 ) As Boolean
     Dim ipnText As String
     Dim rankText As String
+    Dim fioText As String
     Dim positionCodeText As String
     Dim hospitalShortText As String
     Dim reportRankText As String
@@ -484,10 +498,14 @@ Private Function private_TryEnrichMainSourceTableForWord( _
     Dim vhDateText As String
     Dim vlkDateText As String
     Dim orderNoText As String
+    Dim sectionTypeText As String
+    Dim durationDaysText As String
     Dim rankGenitive As String
     Dim fioGenitive As String
+    Dim fioInitialsGenitive As String
     Dim positionGenitive As String
     Dim hospitalGenitive As String
+    Dim hospitalAccusative As String
     Dim reportRankGenitive As String
     Dim reportPersonGenitive As String
     Dim reportPersonInitialsGenitive As String
@@ -499,9 +517,11 @@ Private Function private_TryEnrichMainSourceTableForWord( _
     Dim incomingDate As Date
     Dim hasDateFrom As Boolean
     Dim hasIncomingDate As Boolean
-    Dim fromFoodDateText As String
-    Dim onFoodDateText As String
-    Dim onFoodDateValue As Date
+    Dim removeFromFoodSupportDateText As String
+    Dim enrollToFoodSupportDateText As String
+    Dim enrollToFoodSupportDateValue As Date
+    Dim vacationTotalDays As Long
+    Dim vacationDateTo As Date
 
     If sourceTable Is Nothing Then Exit Function
     If m_ExporterDataProvider Is Nothing Then Exit Function
@@ -509,6 +529,7 @@ Private Function private_TryEnrichMainSourceTableForWord( _
 
     If Not private_TryGetMainTableValue(sourceTable, SOURCE_ALIAS_IPN, ipnText) Then ipnText = VBA.vbNullString
     If Not private_TryGetMainTableValue(sourceTable, SOURCE_ALIAS_RANK, rankText) Then rankText = VBA.vbNullString
+    If Not private_TryGetMainTableValue(sourceTable, SOURCE_ALIAS_FIO, fioText) Then fioText = VBA.vbNullString
     If Not private_TryGetMainTableValue(sourceTable, SOURCE_ALIAS_POSITION_CODE, positionCodeText) Then positionCodeText = VBA.vbNullString
     If Not private_TryGetMainTableValue(sourceTable, SOURCE_ALIAS_HOSPITAL_SHORT, hospitalShortText) Then hospitalShortText = VBA.vbNullString
     If Not private_TryGetMainTableValue(sourceTable, SOURCE_ALIAS_REPORT_RANK, reportRankText) Then reportRankText = VBA.vbNullString
@@ -517,6 +538,7 @@ Private Function private_TryEnrichMainSourceTableForWord( _
     If Not private_TryGetMainTableValue(sourceTable, SOURCE_ALIAS_INCOMING_DATE, incomingDateText) Then incomingDateText = VBA.vbNullString
     If Not private_TryGetMainTableValue(sourceTable, SOURCE_ALIAS_DOC_DATE, docDateText) Then docDateText = VBA.vbNullString
     If Not private_TryGetMainTableValue(sourceTable, SOURCE_ALIAS_DATE_FROM, dateFromText) Then dateFromText = VBA.vbNullString
+    If Not private_TryGetMainTableValue(sourceTable, SOURCE_ALIAS_DURATION_DAYS, durationDaysText) Then durationDaysText = VBA.vbNullString
     If Not private_TryGetMainTableValue(sourceTable, SOURCE_ALIAS_VH_DATE, vhDateText) Then vhDateText = VBA.vbNullString
     If Not private_TryGetMainTableValue(sourceTable, SOURCE_ALIAS_VLK_DATE, vlkDateText) Then vlkDateText = VBA.vbNullString
 
@@ -538,8 +560,10 @@ Private Function private_TryEnrichMainSourceTableForWord( _
     ' ключ не найден, provider сам показывает MsgBox с конкретной причиной.
     If Not m_ExporterDataProvider.CommonData.TryResolveRankGenitive(rankText, rankGenitive) Then Exit Function
     If Not m_ExporterDataProvider.CommonData.TryResolveFioGenitive(ipnText, fioGenitive) Then Exit Function
+    If Not m_ExporterDataProvider.CommonData.TryResolveFioInitialsGenitiveByName(fioText, fioInitialsGenitive) Then Exit Function
     If Not m_ExporterDataProvider.CommonData.TryResolvePositionGenitive(positionCodeText, positionGenitive) Then Exit Function
     If Not m_ExporterDataProvider.CommonData.TryResolveHospitalGenitive(hospitalShortText, hospitalGenitive) Then Exit Function
+    If Not m_ExporterDataProvider.CommonData.TryResolveHospitalAccusative(hospitalShortText, hospitalAccusative) Then Exit Function
     If Not m_ExporterDataProvider.CommonData.TryResolveRankGenitive(reportRankText, reportRankGenitive) Then Exit Function
     If Not m_ExporterDataProvider.CommonData.TryResolveFioGenitiveByName(reportPersonText, reportPersonGenitive) Then Exit Function
     If Not m_ExporterDataProvider.CommonData.TryResolveFioInitialsGenitiveByName(reportPersonText, reportPersonInitialsGenitive) Then Exit Function
@@ -570,11 +594,17 @@ Private Function private_TryEnrichMainSourceTableForWord( _
     If VBA.Len(VBA.Trim$(fioGenitive)) > 0 Then
         If Not private_TryUpsertMainTableValue(sourceTable, WORD_ALIAS_FIO_GENITIVE, fioGenitive) Then Exit Function
     End If
+    If VBA.Len(VBA.Trim$(fioInitialsGenitive)) > 0 Then
+        If Not private_TryUpsertMainTableValue(sourceTable, WORD_ALIAS_FIO_INITIALS_GENITIVE, fioInitialsGenitive) Then Exit Function
+    End If
     If VBA.Len(VBA.Trim$(positionGenitive)) > 0 Then
         If Not private_TryUpsertMainTableValue(sourceTable, WORD_ALIAS_POSITION_GENITIVE, positionGenitive) Then Exit Function
     End If
     If VBA.Len(VBA.Trim$(hospitalGenitive)) > 0 Then
         If Not private_TryUpsertMainTableValue(sourceTable, WORD_ALIAS_HOSPITAL_GENITIVE, hospitalGenitive) Then Exit Function
+    End If
+    If VBA.Len(VBA.Trim$(hospitalAccusative)) > 0 Then
+        If Not private_TryUpsertMainTableValue(sourceTable, WORD_ALIAS_HOSPITAL_ACCUSATIVE, hospitalAccusative) Then Exit Function
     End If
     If VBA.Len(VBA.Trim$(reportRankGenitive)) > 0 Then
         If Not private_TryUpsertMainTableValue(sourceTable, WORD_ALIAS_REPORT_RANK_GENITIVE, reportRankGenitive) Then Exit Function
@@ -615,30 +645,139 @@ Private Function private_TryEnrichMainSourceTableForWord( _
     If Not private_TryResolveDateByRawText(dateFromText, hasDateFrom, dateFromDate) Then Exit Function
     If Not private_TryResolveDateByRawText(incomingDateText, hasIncomingDate, incomingDate) Then Exit Function
 
+    sectionTypeText = private_GetContextText(context, CONTEXT_SECTION_TYPE)
+    If VBA.Len(sectionTypeText) = 0 Then sectionTypeText = VBA.Trim$(sourceTable.SectionTitle)
+
+    ' В форме частичной ежегодной отпуска пользователь вводит только дату
+    ' начала и продолжительность. Дату окончания не храним в UI: вычисляем
+    ' включительно (start + total days - 1) и отдаем шаблону как DateToFull.
+    If VBA.StrComp(sectionTypeText, SECTION_TYPE_TO_ANNUAL_VACATION_PART, VBA.vbTextCompare) = 0 Then
+        If hasDateFrom Then
+            If Not private_TrySumDurationDays(durationDaysText, vacationTotalDays) Then Exit Function
+            If vacationTotalDays > 0 Then
+                vacationDateTo = VBA.DateAdd("d", vacationTotalDays - 1, dateFromDate)
+                If Not private_TryUpsertMainTableValue( _
+                    sourceTable, WORD_ALIAS_DATE_TO_FULL, ex_Helpers.fn_FormatUaDateLong(vacationDateTo)) Then Exit Function
+            End If
+        End If
+    End If
+
     If hasDateFrom Then
-        fromFoodDateText = ex_Helpers.fn_FormatUaDateLong(dateFromDate)
+        removeFromFoodSupportDateText = ex_Helpers.fn_FormatUaDateLong(dateFromDate)
     ElseIf hasIncomingDate Then
-        fromFoodDateText = ex_Helpers.fn_FormatUaDateLong(incomingDate)
+        removeFromFoodSupportDateText = ex_Helpers.fn_FormatUaDateLong(incomingDate)
     End If
 
     If hasIncomingDate Then
-        onFoodDateValue = VBA.DateAdd("d", 1, incomingDate)
+        enrollToFoodSupportDateValue = VBA.DateAdd("d", 1, incomingDate)
         If hasDateFrom Then
-            If dateFromDate > onFoodDateValue Then onFoodDateValue = dateFromDate
+            If dateFromDate > enrollToFoodSupportDateValue Then enrollToFoodSupportDateValue = dateFromDate
         End If
-        onFoodDateText = ex_Helpers.fn_FormatUaDateLong(onFoodDateValue)
+        enrollToFoodSupportDateText = ex_Helpers.fn_FormatUaDateLong(enrollToFoodSupportDateValue)
     ElseIf hasDateFrom Then
-        onFoodDateText = ex_Helpers.fn_FormatUaDateLong(dateFromDate)
+        enrollToFoodSupportDateText = ex_Helpers.fn_FormatUaDateLong(dateFromDate)
     End If
 
-    If VBA.Len(VBA.Trim$(fromFoodDateText)) > 0 Then
-        If Not private_TryUpsertMainTableValue(sourceTable, WORD_ALIAS_FROM_FOOD_DATE, fromFoodDateText) Then Exit Function
+    If VBA.Len(VBA.Trim$(removeFromFoodSupportDateText)) > 0 Then
+        If Not private_TryUpsertMainTableValue(sourceTable, WORD_ALIAS_REMOVE_FROM_FOOD_SUPPORT_DATE, removeFromFoodSupportDateText) Then Exit Function
     End If
-    If VBA.Len(VBA.Trim$(onFoodDateText)) > 0 Then
-        If Not private_TryUpsertMainTableValue(sourceTable, WORD_ALIAS_ON_FOOD_DATE, onFoodDateText) Then Exit Function
+    If VBA.Len(VBA.Trim$(enrollToFoodSupportDateText)) > 0 Then
+        If Not private_TryUpsertMainTableValue(sourceTable, WORD_ALIAS_ENROLL_TO_FOOD_SUPPORT_DATE, enrollToFoodSupportDateText) Then Exit Function
     End If
 
     private_TryEnrichMainSourceTableForWord = True
+End Function
+
+Private Function private_TrySumDurationDays( _
+    ByVal durationText As String, _
+    ByRef outTotalDays As Long _
+) As Boolean
+    Dim rx As Object
+    Dim matches As Object
+    Dim matchObj As Object
+
+    outTotalDays = 0
+    durationText = VBA.Trim$(durationText)
+    If VBA.Len(durationText) = 0 Then
+        private_TrySumDurationDays = True
+        Exit Function
+    End If
+
+    On Error GoTo EH
+    ' DurationDays допускает пользовательские записи вроде "20+2" или
+    ' "20 (2)". Суммируем все целые числа, повторяя смысл Excel-формулы формы.
+    Set rx = VBA.CreateObject("VBScript.RegExp")
+    rx.Global = True
+    rx.Pattern = "\d+"
+    Set matches = rx.Execute(durationText)
+    For Each matchObj In matches
+        outTotalDays = outTotalDays + VBA.CLng(matchObj.Value)
+    Next matchObj
+    private_TrySumDurationDays = True
+    Exit Function
+
+EH:
+    VBA.MsgBox "PrototypeNew: failed to calculate vacation duration from '" & durationText & "': " & Err.Description, VBA.vbExclamation, "PrototypeNew / WORD export"
+End Function
+
+Private Function private_TryEnrichMetaTvoTablesForWord(ByVal sourceTables As Collection) As Boolean
+    Dim tableIndex As Long
+    Dim sourceTable As obj_TableDynamic
+    Dim rankText As String
+    Dim ipnText As String
+    Dim positionCodeText As String
+    Dim positionText As String
+    Dim rankGenitive As String
+    Dim rankDative As String
+    Dim fioGenitive As String
+    Dim fioDative As String
+    Dim positionGenitive As String
+    Dim positionDative As String
+    Dim enrichedCount As Long
+
+    If sourceTables Is Nothing Then Exit Function
+
+    ' Служебные падежные колонки добавляются только в export-source копии
+    ' meta-ТВО таблиц. Визуальная форма при этом остается из пяти полей.
+    For tableIndex = 2 To sourceTables.Count
+        Set sourceTable = Nothing
+        Set sourceTable = sourceTables.Item(tableIndex)
+        If sourceTable Is Nothing Then GoTo ContinueTable
+        If VBA.StrComp( _
+            private_NormalizeCollectionKey(sourceTable.SectionTitle), _
+            private_NormalizeCollectionKey(META_SECTION_TYPE_TVO), _
+            VBA.vbTextCompare) <> 0 Then GoTo ContinueTable
+
+        If Not private_TryGetMainTableValue(sourceTable, SOURCE_ALIAS_RANK, rankText) Then rankText = VBA.vbNullString
+        If Not private_TryGetMainTableValue(sourceTable, SOURCE_ALIAS_IPN, ipnText) Then ipnText = VBA.vbNullString
+        If Not private_TryGetMainTableValue(sourceTable, SOURCE_ALIAS_POSITION_CODE, positionCodeText) Then positionCodeText = VBA.vbNullString
+        If Not private_TryGetMainTableValue(sourceTable, SOURCE_ALIAS_POSITION_NAME, positionText) Then positionText = VBA.vbNullString
+
+        ' Для каждого базового Rank/FIO/Position шаблон получает единый набор:
+        ' default без суффикса, Genitive и Dative.
+        If Not m_ExporterDataProvider.CommonData.TryResolveRankGenitive(rankText, rankGenitive) Then Exit Function
+        If Not m_ExporterDataProvider.CommonData.TryResolveRankDative(rankText, rankDative) Then Exit Function
+        If Not m_ExporterDataProvider.CommonData.TryResolveFioGenitive(ipnText, fioGenitive) Then Exit Function
+        If Not m_ExporterDataProvider.CommonData.TryResolveFioDative(ipnText, fioDative) Then Exit Function
+        If Not m_ExporterDataProvider.CommonData.TryResolvePositionGenitive(positionCodeText, positionGenitive) Then Exit Function
+        If Not m_ExporterDataProvider.CommonData.TryResolvePositionDative(positionCodeText, positionDative) Then Exit Function
+
+        If Not private_TryUpsertMainTableValue(sourceTable, WORD_ALIAS_RANK_GENITIVE, rankGenitive) Then Exit Function
+        If Not private_TryUpsertMainTableValue(sourceTable, WORD_ALIAS_RANK_DATIVE, rankDative) Then Exit Function
+        If Not private_TryUpsertMainTableValue(sourceTable, WORD_ALIAS_FIO_GENITIVE, fioGenitive) Then Exit Function
+        If Not private_TryUpsertMainTableValue(sourceTable, WORD_ALIAS_FIO_DATIVE, fioDative) Then Exit Function
+        If Not private_TryUpsertMainTableValue(sourceTable, WORD_ALIAS_POSITION_DEFAULT, positionText) Then Exit Function
+        If Not private_TryUpsertMainTableValue(sourceTable, WORD_ALIAS_POSITION_GENITIVE, positionGenitive) Then Exit Function
+        If Not private_TryUpsertMainTableValue(sourceTable, WORD_ALIAS_POSITION_DATIVE, positionDative) Then Exit Function
+        enrichedCount = enrichedCount + 1
+
+ContinueTable:
+    Next tableIndex
+
+#If LOGGING_DEBUG_ENABLED Then
+    If enrichedCount > 0 Then ex_Core.fn_Diagnostic_LogInfo "peb-word:meta-tvo-enriched count=" & VBA.CStr(enrichedCount)
+#End If
+    private_TryEnrichMetaTvoTablesForWord = True
 End Function
 
 Private Function private_TryResolveDateByRawText( _
