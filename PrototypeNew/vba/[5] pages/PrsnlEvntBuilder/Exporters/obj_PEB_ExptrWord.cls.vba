@@ -57,6 +57,12 @@ Private Const WORD_ALIAS_DATE_FROM_FULL_PLUS_ONE As String = "DateFromFullPlusOn
 Private Const WORD_ALIAS_VH_DATE_FULL_PLUS_ONE As String = "VhDateFullPlusOne"
 Private Const WORD_ALIAS_VLK_DATE_FULL_PLUS_ONE As String = "VlkDateFullPlusOne"
 Private Const WORD_RESOLVED_DATE_STORAGE_FORMAT As String = "dd.mm.yyyy"
+Private Const WORD_ANCHOR_PREFIX As String = "{\export:"
+Private Const WORD_ANCHOR_BEGIN_SUFFIX As String = "_Begin}"
+Private Const WORD_ANCHOR_END_SUFFIX As String = "_End}"
+Private Const WD_FIND_STOP As Long = 0
+Private Const WORD_RECORD_BOOKMARK_PREFIX As String = "PEB_"
+Private Const WORD_BOOKMARK_MAX_LENGTH As Long = 40
 
 Private m_IsDisposed As Boolean
 Private m_Base As obj_DataExporterBase
@@ -132,6 +138,8 @@ Public Function Export( _
     Dim sourceTable As obj_TableDynamic
     Dim sectionTypeText As String
     Dim previewText As String
+    Dim templateId As String
+    Dim recordIpn As String
 
     If VBA.StrComp(private_GetContextText(context, "ExportMode"), "Rewrite Last", VBA.vbTextCompare) = 0 Then
         VBA.MsgBox "PrototypeNew: WORD exporter does not support Rewrite Last because it generates a preview and does not persist person records.", VBA.vbExclamation, "PrototypeNew / WORD export"
@@ -152,10 +160,297 @@ Public Function Export( _
     End If
 
     If Not private_TryEnrichMainSourceTableForWord(sourceTable, context) Then Exit Function
-    If Not m_TemplateParser.TryRenderForSectionType(sectionTypeText, sourceTables, previewText) Then Exit Function
+    If Not m_TemplateParser.TryRenderForSectionType(sectionTypeText, sourceTables, previewText, templateId) Then Exit Function
     If Not private_TrySetContextText(context, CONTEXT_WORD_PREVIEW_TEXT, previewText) Then Exit Function
 
+    ' CTRL+3 is the preview action. The dedicated button/CTRL+4 passes
+    ' WriteToWord=True and persists the same rendered text in the document.
+    If private_GetContextBoolean(context, "WriteToWord") Then
+        If Not private_TryGetMainTableValue(sourceTable, SOURCE_ALIAS_IPN, recordIpn) Then
+            VBA.MsgBox "PrototypeNew: WORD export requires IPN to create a record bookmark.", VBA.vbExclamation, "PrototypeNew / WORD export"
+            Exit Function
+        End If
+        recordIpn = VBA.Trim$(recordIpn)
+        If VBA.Len(recordIpn) = 0 Then
+            VBA.MsgBox "PrototypeNew: WORD export requires a non-empty IPN to create a record bookmark.", VBA.vbExclamation, "PrototypeNew / WORD export"
+            Exit Function
+        End If
+        If Not private_TryAppendBeforeWordEndAnchor(templateId, recordIpn, previewText) Then Exit Function
+    End If
+
     Export = True
+End Function
+
+Private Function private_TryAppendBeforeWordEndAnchor( _
+    ByVal templateId As String, _
+    ByVal recordIpn As String, _
+    ByVal renderedText As String _
+) As Boolean
+    Dim targetPath As String
+    Dim templatePath As String
+    Dim beginMarker As String
+    Dim endMarker As String
+    Dim wordApp As Object
+    Dim wordDoc As Object
+    Dim beginRange As Object
+    Dim endRange As Object
+    Dim insertRange As Object
+    Dim insertedStart As Long
+    Dim insertedEnd As Long
+    Dim plainRenderedText As String
+    Dim documentOpened As Boolean
+    Dim errorDescription As String
+    Dim bookmarkName As String
+
+    On Error GoTo EH
+
+    templatePath = VBA.Trim$(m_Base.TargetWorkbookPath)
+    If VBA.Len(templatePath) = 0 Then
+        VBA.MsgBox "PrototypeNew: required profile key 'Export.Word.FilePath' is empty.", VBA.vbExclamation, "PrototypeNew / WORD export"
+        Exit Function
+    End If
+    If Not private_IsAbsolutePath(templatePath) Then templatePath = ThisWorkbook.Path & Application.PathSeparator & templatePath
+    If VBA.Len(VBA.Dir$(templatePath, VBA.vbNormal Or VBA.vbReadOnly Or VBA.vbHidden Or VBA.vbSystem)) = 0 Then
+        VBA.MsgBox "PrototypeNew: WORD template file was not found: " & templatePath, VBA.vbExclamation, "PrototypeNew / WORD export"
+        Exit Function
+    End If
+
+    targetPath = private_BuildResultDocumentPath(templatePath)
+    If VBA.Len(targetPath) = 0 Then
+        VBA.MsgBox "PrototypeNew: failed to build the WORD result path from template: " & templatePath, VBA.vbExclamation, "PrototypeNew / WORD export"
+        Exit Function
+    End If
+
+    ' Export.Word.FilePath always points to an immutable template. The first
+    ' export creates a sibling *_result document; subsequent exports append to it.
+    If VBA.Len(VBA.Dir$(targetPath, VBA.vbNormal Or VBA.vbReadOnly Or VBA.vbHidden Or VBA.vbSystem)) = 0 Then
+        VBA.FileCopy templatePath, targetPath
+    End If
+
+    ' Never write through a document which is open in Word (ours or another
+    ' process). This also avoids silently editing a user's unsaved document.
+    If private_IsDocumentOpenInRunningWord(targetPath) Or private_IsFileLocked(targetPath) Then
+        VBA.MsgBox "Невозможно выполнить экспорт, пока документ открыт." & VBA.vbCrLf & _
+            "Закройте документ и повторите попытку:" & VBA.vbCrLf & targetPath, _
+            VBA.vbExclamation, "PrototypeNew / WORD export"
+        Exit Function
+    End If
+
+    beginMarker = WORD_ANCHOR_PREFIX & VBA.Trim$(templateId) & WORD_ANCHOR_BEGIN_SUFFIX
+    endMarker = WORD_ANCHOR_PREFIX & VBA.Trim$(templateId) & WORD_ANCHOR_END_SUFFIX
+    plainRenderedText = private_StripPreviewColorMarkers(renderedText)
+    bookmarkName = private_BuildRecordBookmarkName(templateId, recordIpn)
+    If VBA.Len(bookmarkName) = 0 Then
+        VBA.MsgBox "PrototypeNew: failed to build a WORD bookmark for IPN '" & recordIpn & "'.", VBA.vbExclamation, "PrototypeNew / WORD export"
+        Exit Function
+    End If
+
+    If Not rt_PEB_WordExportRuntime.fn_GetOrCreateWordApp(wordApp) Then Exit Function
+    Set wordDoc = wordApp.Documents.Open(targetPath, False, False, False)
+    documentOpened = True
+
+    If Not private_TryFindWordText(wordDoc.Content, beginMarker, beginRange) Then
+        VBA.MsgBox "PrototypeNew: WORD begin anchor was not found: " & beginMarker, VBA.vbExclamation, "PrototypeNew / WORD export"
+        GoTo CleanFail
+    End If
+    Set insertRange = wordDoc.Range(beginRange.End, wordDoc.Content.End)
+    If Not private_TryFindWordText(insertRange, endMarker, endRange) Then
+        VBA.MsgBox "PrototypeNew: WORD end anchor was not found after begin anchor: " & endMarker, VBA.vbExclamation, "PrototypeNew / WORD export"
+        GoTo CleanFail
+    End If
+
+    bookmarkName = private_BuildUniqueRecordBookmarkName(wordDoc, bookmarkName)
+    If VBA.Len(bookmarkName) = 0 Then
+        VBA.MsgBox "PrototypeNew: failed to create a unique WORD bookmark for IPN '" & recordIpn & "'.", VBA.vbExclamation, "PrototypeNew / WORD export"
+        GoTo CleanFail
+    End If
+
+    ' Append a new independent item immediately before the section's _End
+    ' marker. Existing records and their bookmarks are left untouched.
+    insertedStart = endRange.Start
+    Set insertRange = wordDoc.Range(insertedStart, insertedStart)
+    insertRange.Text = VBA.vbCr & plainRenderedText & VBA.vbCr
+    insertedEnd = insertedStart + VBA.Len(VBA.vbCr & plainRenderedText & VBA.vbCr)
+    Set insertRange = wordDoc.Range(insertedStart, insertedEnd)
+    ' Do not inherit highlight from a neighbouring anchor or an older export.
+    insertRange.HighlightColorIndex = 0
+    wordDoc.Bookmarks.Add bookmarkName, insertRange
+
+    wordDoc.Save
+    wordDoc.Close False
+    documentOpened = False
+    private_TryAppendBeforeWordEndAnchor = True
+    Exit Function
+
+CleanFail:
+    On Error Resume Next
+    If documentOpened Then wordDoc.Close False
+    On Error GoTo 0
+    Exit Function
+EH:
+    errorDescription = Err.Description
+    On Error Resume Next
+    If documentOpened Then wordDoc.Close False
+    On Error GoTo 0
+    VBA.MsgBox "PrototypeNew: WORD export failed: " & errorDescription, VBA.vbExclamation, "PrototypeNew / WORD export"
+End Function
+
+Private Function private_BuildResultDocumentPath(ByVal templatePath As String) As String
+    Dim extensionPos As Long
+    Dim slashPos As Long
+    Dim backslashPos As Long
+
+    templatePath = VBA.Trim$(templatePath)
+    If VBA.Len(templatePath) = 0 Then Exit Function
+
+    slashPos = VBA.InStrRev(templatePath, "/")
+    backslashPos = VBA.InStrRev(templatePath, "\")
+    extensionPos = VBA.InStrRev(templatePath, ".")
+
+    If extensionPos > slashPos And extensionPos > backslashPos Then
+        private_BuildResultDocumentPath = VBA.Left$(templatePath, extensionPos - 1) & _
+            "_result" & VBA.Mid$(templatePath, extensionPos)
+    Else
+        private_BuildResultDocumentPath = templatePath & "_result.docx"
+    End If
+End Function
+
+Private Function private_BuildRecordBookmarkName(ByVal templateId As String, ByVal recordIpn As String) As String
+    Dim safeTemplateId As String
+    Dim safeIpn As String
+    Dim availableTemplateLength As Long
+
+    safeTemplateId = private_NormalizeBookmarkPart(templateId)
+    safeIpn = private_NormalizeBookmarkPart(recordIpn)
+    If VBA.Len(safeTemplateId) = 0 Or VBA.Len(safeIpn) = 0 Then Exit Function
+
+    availableTemplateLength = WORD_BOOKMARK_MAX_LENGTH - VBA.Len(WORD_RECORD_BOOKMARK_PREFIX) - VBA.Len(safeIpn) - 1
+    If availableTemplateLength <= 0 Then Exit Function
+    If VBA.Len(safeTemplateId) > availableTemplateLength Then safeTemplateId = VBA.Left$(safeTemplateId, availableTemplateLength)
+
+    private_BuildRecordBookmarkName = WORD_RECORD_BOOKMARK_PREFIX & safeTemplateId & "_" & safeIpn
+End Function
+
+Private Function private_BuildUniqueRecordBookmarkName(ByVal wordDoc As Object, ByVal baseName As String) As String
+    Dim candidateName As String
+    Dim suffixText As String
+    Dim sequenceNo As Long
+    Dim baseMaxLength As Long
+
+    baseName = VBA.Trim$(baseName)
+    If wordDoc Is Nothing Or VBA.Len(baseName) = 0 Then Exit Function
+    If Not wordDoc.Bookmarks.Exists(baseName) Then
+        private_BuildUniqueRecordBookmarkName = baseName
+        Exit Function
+    End If
+
+    sequenceNo = 2
+    Do
+        suffixText = "_" & VBA.CStr(sequenceNo)
+        baseMaxLength = WORD_BOOKMARK_MAX_LENGTH - VBA.Len(suffixText)
+        candidateName = VBA.Left$(baseName, baseMaxLength) & suffixText
+        If Not wordDoc.Bookmarks.Exists(candidateName) Then
+            private_BuildUniqueRecordBookmarkName = candidateName
+            Exit Function
+        End If
+        sequenceNo = sequenceNo + 1
+    Loop While sequenceNo < 100000
+End Function
+
+Private Function private_NormalizeBookmarkPart(ByVal valueText As String) As String
+    Dim rx As Object
+    valueText = VBA.Trim$(valueText)
+    If VBA.Len(valueText) = 0 Then Exit Function
+    Set rx = VBA.CreateObject("VBScript.RegExp")
+    rx.Global = True
+    rx.Pattern = "[^A-Za-z0-9_]"
+    private_NormalizeBookmarkPart = rx.Replace(valueText, "_")
+End Function
+
+Private Function private_StripPreviewColorMarkers(ByVal renderedText As String) As String
+    Dim rx As Object
+    Set rx = VBA.CreateObject("VBScript.RegExp")
+    rx.Global = True
+    rx.IgnoreCase = True
+    rx.Pattern = "\[\[/?color(?:=[^\]]+)?\]\]"
+    private_StripPreviewColorMarkers = rx.Replace(renderedText, VBA.vbNullString)
+End Function
+
+Private Function private_TryFindWordText(ByVal sourceRange As Object, ByVal targetText As String, ByRef outRange As Object) As Boolean
+    Dim findRange As Object
+    Set outRange = Nothing
+    If sourceRange Is Nothing Then Exit Function
+    Set findRange = sourceRange.Duplicate
+    With findRange.Find
+        .ClearFormatting
+        .Text = targetText
+        .Forward = True
+        .Wrap = WD_FIND_STOP
+        .Format = False
+        .MatchCase = False
+        .MatchWildcards = False
+    End With
+    If findRange.Find.Execute Then
+        Set outRange = findRange.Duplicate
+        private_TryFindWordText = True
+    End If
+End Function
+
+Private Function private_IsDocumentOpenInRunningWord(ByVal targetPath As String) As Boolean
+    Dim wordApp As Object
+    Dim doc As Object
+
+    On Error Resume Next
+    Set wordApp = VBA.GetObject(, "Word.Application")
+    On Error GoTo 0
+    If wordApp Is Nothing Then Exit Function
+
+    For Each doc In wordApp.Documents
+        If VBA.StrComp(VBA.CStr(doc.FullName), targetPath, VBA.vbTextCompare) = 0 Then
+            private_IsDocumentOpenInRunningWord = True
+            Exit Function
+        End If
+    Next doc
+End Function
+
+Private Function private_IsFileLocked(ByVal targetPath As String) As Boolean
+    Dim fileHandle As Integer
+
+    On Error GoTo Locked
+    fileHandle = VBA.FreeFile
+    Open targetPath For Binary Access Read Write Lock Read Write As #fileHandle
+    Close #fileHandle
+    private_IsFileLocked = False
+    Exit Function
+
+Locked:
+    private_IsFileLocked = True
+    On Error Resume Next
+    If fileHandle > 0 Then Close #fileHandle
+    On Error GoTo 0
+End Function
+
+Private Function private_IsAbsolutePath(ByVal pathText As String) As Boolean
+    pathText = VBA.Trim$(pathText)
+    private_IsAbsolutePath = (VBA.Len(pathText) >= 3 And VBA.Mid$(pathText, 2, 2) = ":\") _
+        Or (VBA.Left$(pathText, 2) = "\\")
+End Function
+
+Private Function private_GetContextBoolean(ByVal context As Object, ByVal keyText As String) As Boolean
+    Dim rawValue As Variant
+    If context Is Nothing Then Exit Function
+    On Error Resume Next
+    If context.Exists(keyText) Then rawValue = context(keyText)
+    If Err.Number <> 0 Then
+        Err.Clear
+        rawValue = VBA.CallByName(context, keyText, VbGet)
+    End If
+    On Error GoTo 0
+    If VBA.VarType(rawValue) = VBA.vbBoolean Then
+        private_GetContextBoolean = VBA.CBool(rawValue)
+    Else
+        private_GetContextBoolean = (VBA.StrComp(VBA.Trim$(VBA.CStr(rawValue)), "True", VBA.vbTextCompare) = 0)
+    End If
 End Function
 
 ' //

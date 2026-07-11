@@ -55,7 +55,7 @@
     </sharedTemplate>
   </sharedTemplates>
 
-  <template id="CloseFromTreatment" sectionType="З лікування">
+  <template id="FromHospital" sectionType="З лікування">
     <text>
       <![CDATA[
 #_      {#if [HospitalGenitive]}{[HospitalGenitive]|lowerFirstLetter}{#endif}{#if #not [HospitalGenitive]}{[HospitalShort]|lowerFirstLetter}{#endif}#^
@@ -75,7 +75,7 @@
     </text>
   </template>
 
-  <template id="CloseFromAnnualVacation" sectionType="З щорічної основної відпустки">
+  <template id="FromAnnualMainVacation" sectionType="З щорічної основної відпустки">
     <text>
       <![CDATA[
 #_      {#include block.PersonLine}.#^
