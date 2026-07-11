@@ -20,6 +20,9 @@ Private Const MOVEMENT_TRAILING_EMPTY_LOOKBACK_ROWS As Long = 20
 Private Const MOVEMENT_SOURCE_INCOMING_NO As String = "Вх. №"
 Private Const MOVEMENT_CONTEXT_MANUAL_ORDER_NO As String = "ManualOrderNo"
 Private Const MOVEMENT_CONTEXT_SECTION_TYPE As String = "SectionType"
+Private Const MOVEMENT_CONTEXT_EXPORT_MODE As String = "ExportMode"
+Private Const EXPORT_MODE_REWRITE_LAST As String = "Rewrite Last"
+Private Const EXPORT_HISTORY_KEY As String = "MovementHistory"
 Private Const MOVEMENT_SOURCE_EVENT As String = "Подія"
 Private Const MOVEMENT_SOURCE_INCOMING_DATE As String = "Вх. дата"
 Private Const MOVEMENT_SOURCE_DEPARTURE_DATE As String = "З"
@@ -159,6 +162,7 @@ Public Function Export( _
     Dim isMirrorTransferEvent As Boolean
     Dim closingTargetIpn As String
     Dim basisSummaryText As String
+    Dim rewriteLast As Boolean
 
     On Error GoTo EH
 
@@ -196,6 +200,7 @@ Public Function Export( _
     sectionTypeNormalized = private_NormalizeText(sectionTypeRaw)
     isClosingEvent = private_IsClosingSectionType(sectionTypeNormalized)
     isMirrorTransferEvent = private_IsMirrorTransferSectionType(sectionTypeRaw)
+    rewriteLast = (VBA.StrComp(private_GetContextText(context, MOVEMENT_CONTEXT_EXPORT_MODE), EXPORT_MODE_REWRITE_LAST, VBA.vbTextCompare) = 0)
     If isMirrorTransferEvent Then isClosingEvent = False
 
     ' Некоторые типы выбытия пишут дополнительные поля открывающей записи:
@@ -259,15 +264,23 @@ Public Function Export( _
         ' Перед созданием новой строки проверяем, что последняя Movement-запись
         ' по этому ІПН уже закрыта полями прибытия. Иначе получится две
         ' одновременно открытые записи по одному военнослужащему.
-        If Not private_TryValidateLastMovementRowClosedForOpening(targetTable, sourceTable) Then GoTo CleanFail
+        If Not rewriteLast Then
+            If Not private_TryValidateLastMovementRowClosedForOpening(targetTable, sourceTable) Then GoTo CleanFail
+        End If
         If Not private_TryBuildMovementOutgoingValues(sourceTable, context, outgoingOrderNo, outgoingFoodFromDate, outgoingDepartureDate) Then GoTo CleanFail
-        If Not private_TryGetAppendRowRange(targetTable, targetRowRange, insertedRow) Then GoTo CleanFail
+        If rewriteLast Then
+            If Not m_Base.TryGetRememberedExportRow(context, EXPORT_HISTORY_KEY, targetTable, targetRowRange) Then GoTo CleanFail
+        Else
+            If Not private_TryGetAppendRowRange(targetTable, targetRowRange, insertedRow) Then GoTo CleanFail
+        End If
         If Not private_TryWriteMovementRow( _
             targetTable, targetRowRange, targetValues, _
             outgoingOrderNo, outgoingFoodFromDate, outgoingDepartureDate, _
             writeSpecialOpeningFields, specialDurationValue, specialVkNoValue, _
             shouldWriteMappedEvent, mappedEventText, basisSummaryText) Then GoTo CleanFail
     End If
+
+    If Not m_Base.TryRememberExportRow(context, EXPORT_HISTORY_KEY, targetTable, targetRowRange) Then GoTo CleanFail
 
     If Not openedByExporter And SAVE_ALREADY_OPEN_WORKBOOK Then targetWb.Save
     Export = True

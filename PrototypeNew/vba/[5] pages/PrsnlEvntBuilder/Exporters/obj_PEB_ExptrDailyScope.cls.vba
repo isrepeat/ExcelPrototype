@@ -21,6 +21,9 @@ Private Const SOURCE_ALIAS_VACATION As String = "Vacation"
 Private Const SOURCE_ALIAS_RANK As String = "Rank"
 Private Const SOURCE_ALIAS_FIO As String = "FIO"
 Private Const SOURCE_ALIAS_IPN As String = "IPN"
+Private Const EXPORT_CONTEXT_MODE As String = "ExportMode"
+Private Const EXPORT_MODE_REWRITE_LAST As String = "Rewrite Last"
+Private Const EXPORT_HISTORY_KEY As String = "DailyScopeHistory"
 Private Const SOURCE_ALIAS_POSITION_CODE As String = "PositionCode"
 Private Const SOURCE_ALIAS_POSITION_NAME As String = "PositionName"
 Private Const SOURCE_ALIAS_REPORT_RANK As String = "ReportRank"
@@ -182,9 +185,14 @@ Public Function Export( _
     If Not m_Base.TryGetWorksheet(targetWb, targetSheetName, targetWs) Then GoTo CleanFail
     If Not m_Base.TryFindConfiguredTargetTable(targetWs, targetTable) Then GoTo CleanFail
 
-    If Not private_TryGetSectionWriteRowRange(targetTable, targetSectionCaption, targetRowRange, insertedRow) Then GoTo CleanFail
+    If VBA.StrComp(private_GetContextText(context, EXPORT_CONTEXT_MODE), EXPORT_MODE_REWRITE_LAST, VBA.vbTextCompare) = 0 Then
+        If Not m_Base.TryGetRememberedExportRow(context, EXPORT_HISTORY_KEY, targetTable, targetRowRange) Then GoTo CleanFail
+    Else
+        If Not private_TryGetSectionWriteRowRange(targetTable, targetSectionCaption, targetRowRange, insertedRow) Then GoTo CleanFail
+    End If
 
     If Not private_TryWriteSourceRow(sourceTable, targetTable, targetRowRange, sectionKey) Then GoTo CleanFail
+    If Not m_Base.TryRememberExportRow(context, EXPORT_HISTORY_KEY, targetTable, targetRowRange) Then GoTo CleanFail
 
     If Not openedByExporter And SAVE_ALREADY_OPEN_WORKBOOK Then targetWb.Save
     Export = True

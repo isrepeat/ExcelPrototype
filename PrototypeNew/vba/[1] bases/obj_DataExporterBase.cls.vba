@@ -246,6 +246,66 @@ Public Function TryGetMainSourceTable( _
     TryGetMainSourceTable = True
 End Function
 
+Public Function TryRememberExportRow(ByVal context As Object, ByVal exporterKey As String, ByVal targetTable As ListObject, ByVal rowRange As Range) As Boolean
+    Dim history As Object
+    Dim entry As Object
+
+    If context Is Nothing Then Exit Function
+    If targetTable Is Nothing Then Exit Function
+    If rowRange Is Nothing Then Exit Function
+    If Not private_TryGetContextObject(context, "ExportHistory", history) Then Exit Function
+
+    ' История живет в context контроллера и переживает создание нового экземпляра
+    ' экспортера. Храним координаты, а не данные человека: строка может быть черновой.
+    Set entry = VBA.CreateObject("Scripting.Dictionary")
+    entry.CompareMode = 1
+    entry("Workbook") = targetTable.Parent.Parent.FullName
+    entry("Worksheet") = targetTable.Parent.Name
+    entry("Table") = targetTable.Name
+    entry("RowIndex") = rowRange.Row - targetTable.DataBodyRange.Row + 1
+    Set history(VBA.Trim$(exporterKey)) = entry
+    TryRememberExportRow = True
+End Function
+
+Public Function TryGetRememberedExportRow(ByVal context As Object, ByVal exporterKey As String, ByVal targetTable As ListObject, ByRef outRowRange As Range) As Boolean
+    Dim history As Object
+    Dim entry As Object
+    Dim rowIndex As Long
+
+    Set outRowRange = Nothing
+    If context Is Nothing Then Exit Function
+    If targetTable Is Nothing Then Exit Function
+    If Not private_TryGetContextObject(context, "ExportHistory", history) Then Exit Function
+    exporterKey = VBA.Trim$(exporterKey)
+    If Not history.Exists(exporterKey) Then
+        VBA.MsgBox "PrototypeNew: Rewrite Last is unavailable because this exporter has no insertion history in the current session.", VBA.vbExclamation, m_DialogTitle
+        Exit Function
+    End If
+    Set entry = history(exporterKey)
+    ' Не переносим Rewrite Last между разными физическими export targets.
+    If VBA.StrComp(VBA.CStr(entry("Workbook")), targetTable.Parent.Parent.FullName, VBA.vbTextCompare) <> 0 Or _
+       VBA.StrComp(VBA.CStr(entry("Worksheet")), targetTable.Parent.Name, VBA.vbTextCompare) <> 0 Or _
+       VBA.StrComp(VBA.CStr(entry("Table")), targetTable.Name, VBA.vbTextCompare) <> 0 Then
+        VBA.MsgBox "PrototypeNew: the remembered export location belongs to another workbook, worksheet, or table.", VBA.vbExclamation, m_DialogTitle
+        Exit Function
+    End If
+    rowIndex = VBA.CLng(entry("RowIndex"))
+    If rowIndex < 1 Or rowIndex > targetTable.ListRows.Count Then
+        VBA.MsgBox "PrototypeNew: the remembered export row no longer exists. Use Default mode to create a new history entry.", VBA.vbExclamation, m_DialogTitle
+        Exit Function
+    End If
+    Set outRowRange = targetTable.ListRows.Item(rowIndex).Range
+    TryGetRememberedExportRow = Not outRowRange Is Nothing
+End Function
+
+Private Function private_TryGetContextObject(ByVal context As Object, ByVal keyText As String, ByRef outValue As Object) As Boolean
+    Set outValue = Nothing
+    On Error Resume Next
+    If context.Exists(keyText) Then Set outValue = context(keyText)
+    On Error GoTo 0
+    private_TryGetContextObject = Not outValue Is Nothing
+End Function
+
 Public Sub BeginFastExcelMode( _
     ByRef outScreenUpdating As Boolean, _
     ByRef outEnableEvents As Boolean, _

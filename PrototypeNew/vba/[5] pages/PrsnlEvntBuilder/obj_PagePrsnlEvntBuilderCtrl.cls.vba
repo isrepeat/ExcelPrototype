@@ -58,6 +58,10 @@ Private Const EXPORT_META_PROFILE_TYPE_COLUMN_NAME As String = "meta_ProfileType
 Private Const EXPORT_CONTEXT_MANUAL_ORDER_NO_KEY As String = "ManualOrderNo"
 Private Const EXPORT_CONTEXT_SECTION_TYPE_KEY As String = "SectionType"
 Private Const EXPORT_CONTEXT_WORD_PREVIEW_TEXT_KEY As String = "WordExportPreviewText"
+Private Const EXPORT_CONTEXT_MODE_KEY As String = "ExportMode"
+Private Const EXPORT_CONTEXT_HISTORY_KEY As String = "ExportHistory"
+Private Const EXPORT_MODE_CONTROL_NAME As String = "ExportMode"
+Private Const LOOKUP_MODE_CONTROL_NAME As String = "LookupMode"
 Private Const PROFILE_BUTTON_STYLE_NORMAL As String = "profileButton"
 Private Const PROFILE_BUTTON_STYLE_SELECTED As String = "profileButtonSelected"
 Private Const META_PROFILE_BUTTON_STYLE_NORMAL As String = "metaProfileButton"
@@ -77,6 +81,10 @@ Private m_SelectedMainProfile As String
 Private m_ExportMainTable As obj_TableDynamic
 Private m_ExportMetaTables As Collection
 Private m_WordExportPreviewText As String
+Private m_ExportModeIndex As Long
+Private m_ExportCommonData As obj_PEB_ExptrCommonDataPrvdr
+Private m_ExportHistory As Object
+Private m_IsLookupEnabled As Boolean
 Private m_Data As obj_PrsnlEvntBuilderData
 Private m_IsDisposed As Boolean
 
@@ -136,7 +144,13 @@ Public Function Initialize(ByVal page As Object) As Boolean
     m_IsDisposed = False
     Set m_Page = pageInterface
     Set m_Data = New obj_PrsnlEvntBuilderData
+    Set m_ExportCommonData = New obj_PEB_ExptrCommonDataPrvdr
+    If Not m_ExportCommonData.Initialize() Then Exit Function
     private_ResetExportSettings
+    m_ExportModeIndex = 0
+    Set m_ExportHistory = VBA.CreateObject("Scripting.Dictionary")
+    m_ExportHistory.CompareMode = 1
+    m_IsLookupEnabled = True
 
     Set pageBase = m_Page.GetPageBase()
     If pageBase Is Nothing Then Exit Function
@@ -171,6 +185,9 @@ Public Sub Dispose()
     Set m_ExporterClassByAlias = Nothing
     Set m_ExportConfigTableByAlias = Nothing
     Set m_Data = Nothing
+    If Not m_ExportCommonData Is Nothing Then m_ExportCommonData.Dispose
+    Set m_ExportCommonData = Nothing
+    Set m_ExportHistory = Nothing
     m_SelectedProfile = VBA.vbNullString
     m_SelectedMainProfile = VBA.vbNullString
     Set m_ExportMainTable = Nothing
@@ -182,6 +199,68 @@ End Sub
 Public Property Get WordExportPreviewText() As String
     WordExportPreviewText = m_WordExportPreviewText
 End Property
+
+Public Property Get IsRewriteLastExportMode() As Boolean
+    IsRewriteLastExportMode = (VBA.StrComp(private_GetExportModeName(), "Rewrite Last", VBA.vbTextCompare) = 0)
+End Property
+
+Public Property Get IsLookupEnabled() As Boolean
+    IsLookupEnabled = m_IsLookupEnabled
+End Property
+
+Public Function ToggleLookupEnabled() As Boolean
+    m_IsLookupEnabled = Not m_IsLookupEnabled
+    ' Как и ExportMode, это только visual-state кнопки: страница и input-ячейки
+    ' не должны перерисовываться и инициировать lookup callbacks.
+    If Not ex_ControlRefreshRuntime.fn_TryRefreshStaticControl(LOOKUP_MODE_CONTROL_NAME) Then
+        m_IsLookupEnabled = Not m_IsLookupEnabled
+        VBA.MsgBox "PrototypeNew: failed to refresh the Lookup button.", VBA.vbExclamation, "PrototypeNew / EntityLookup"
+        Exit Function
+    End If
+
+    ToggleLookupEnabled = True
+    If m_IsLookupEnabled Then
+        rt_Messaging.fn_ShowStatusBarSuccess "Lookup enabled", 3
+    Else
+        rt_Messaging.fn_ShowStatusBarWarning "Lookup disabled", 3
+    End If
+End Function
+
+Public Function CycleExportMode() As Boolean
+    Dim exportModes As Collection
+    Dim previousModeIndex As Long
+
+    If m_ExportCommonData Is Nothing Then Exit Function
+    If m_Page Is Nothing Then Exit Function
+    Set exportModes = m_ExportCommonData.ExportModes
+    If exportModes Is Nothing Then Exit Function
+    If exportModes.Count = 0 Then Exit Function
+
+    previousModeIndex = m_ExportModeIndex
+    m_ExportModeIndex = (m_ExportModeIndex + 1) Mod exportModes.Count
+    ' Caption зависит от режима, поэтому обновляем только bounds кнопки. Полный
+    ' render страницы здесь запускал Worksheet_Change и повторные SQL-запросы.
+    If Not ex_ControlRefreshRuntime.fn_TryRefreshStaticControl(EXPORT_MODE_CONTROL_NAME) Then GoTo RestoreModeAndFail
+
+    CycleExportMode = True
+    If CycleExportMode Then rt_Messaging.fn_ShowStatusBarSuccess "Export mode: " & private_GetExportModeName(), 3
+    Exit Function
+
+RestoreModeAndFail:
+    m_ExportModeIndex = previousModeIndex
+    VBA.MsgBox "PrototypeNew: failed to refresh the ExportMode button.", VBA.vbExclamation, "PrototypeNew / Data export"
+End Function
+
+Private Function private_GetExportModeName() As String
+    Dim modeName As String
+
+    If m_ExportCommonData Is Nothing Then Exit Function
+    If Not m_ExportCommonData.TryGetExportModeName(m_ExportModeIndex, modeName) Then
+        VBA.MsgBox "PrototypeNew: export mode index is invalid: " & VBA.CStr(m_ExportModeIndex), VBA.vbExclamation, "PrototypeNew / Data export"
+        Exit Function
+    End If
+    private_GetExportModeName = modeName
+End Function
 
 Public Function UpdateData(ByVal configControl As obj_ConfigControlVM) As Boolean
     If m_LookupFeature Is Nothing Then Exit Function
@@ -1028,6 +1107,14 @@ Private Function private_TryBuildExportSourceTables( _
 
     outContext(EXPORT_CONTEXT_SECTION_TYPE_KEY) = sectionTypeText
     outContext(EXPORT_CONTEXT_MANUAL_ORDER_NO_KEY) = manualOrderNoText
+    outContext(EXPORT_CONTEXT_MODE_KEY) = private_GetExportModeName()
+    ' Один словарь переиспользуется всеми краткоживущими экземплярами экспортеров
+    ' до Dispose контроллера страницы.
+    If m_ExportHistory Is Nothing Then
+        Set m_ExportHistory = VBA.CreateObject("Scripting.Dictionary")
+        m_ExportHistory.CompareMode = 1
+    End If
+    Set outContext(EXPORT_CONTEXT_HISTORY_KEY) = m_ExportHistory
 
     If m_ExportMainTable Is Nothing Then
         ' Удобный shortcut для частого случая "одна строка без meta": CTRL+1/2/3

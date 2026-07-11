@@ -78,15 +78,38 @@
 
         <stackPanel spanColls="2" spanRows="1"/>
 
-        <control
-          type="Button"
-          name="ApplyExportForm"
-          caption="Apply"
-          style="exportApplyButton"
-          dataContext="{PageRuntimeSource='RuntimeObjects.PrsnlEvntBuilder.Controller'}"
-          onClick="{Binding Method=RuntimeApplyExportForm}"
-          spanColls="2"
-          spanRows="2"/>
+        <!-- Компактная вертикальная панель действий: Apply и два локальных toggle-state. -->
+        <stackPanel name="EventDraftActions" orientation="vertical" spanColls="3" spanRows="6">
+          <control
+            type="Button"
+            name="ApplyExportForm"
+            caption="Apply"
+            style="exportApplyButton"
+            dataContext="{PageRuntimeSource='RuntimeObjects.PrsnlEvntBuilder.Controller'}"
+            onClick="{Binding Method=RuntimeApplyExportForm}"
+            spanColls="3"
+            spanRows="2"/>
+
+          <control
+            type="Button"
+            name="LookupMode"
+            caption="{Binding Path=IsLookupEnabled;TrueAs=Lookup [[[color=#FFFF00]]enable[[/color]]];FalseAs=Lookup [[[color=#FFFF00]]disable[[/color]]]}"
+            style="exportApplyButton"
+            dataContext="{PageRuntimeSource='RuntimeObjects.PrsnlEvntBuilder.Controller'}"
+            onClick="{Binding Method=ToggleLookupEnabled}"
+            spanColls="3"
+            spanRows="2"/>
+
+          <control
+            type="Button"
+            name="ExportMode"
+            caption="{Binding Path=IsRewriteLastExportMode;TrueAs=Export mode [[[color=#FFFF00]]Rewrite Last[[/color]]];FalseAs=Export mode [[[color=#FFFF00]]Default[[/color]]]}"
+            style="exportApplyButton"
+            dataContext="{PageRuntimeSource='RuntimeObjects.PrsnlEvntBuilder.Controller'}"
+            onClick="{Binding Method=CycleExportMode}"
+            spanColls="3"
+            spanRows="2"/>
+        </stackPanel>
       </stackPanel>
 
       <!-- Draft-форма: текущий основной или meta-профиль редактирует эту строку. -->

@@ -133,6 +133,11 @@ Public Function Export( _
     Dim sectionTypeText As String
     Dim previewText As String
 
+    If VBA.StrComp(private_GetContextText(context, "ExportMode"), "Rewrite Last", VBA.vbTextCompare) = 0 Then
+        VBA.MsgBox "PrototypeNew: WORD exporter does not support Rewrite Last because it generates a preview and does not persist person records.", VBA.vbExclamation, "PrototypeNew / WORD export"
+        Exit Function
+    End If
+
     If m_IsDisposed Then
         VBA.MsgBox "PrototypeNew: WORD exporter is disposed.", VBA.vbExclamation, "PrototypeNew / WORD export"
         Exit Function
