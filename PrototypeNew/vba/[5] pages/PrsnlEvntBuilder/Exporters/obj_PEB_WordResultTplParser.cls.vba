@@ -25,8 +25,10 @@ Private Const FORMATTER_REGEX_REPLACE As String = "regexreplace"
 Private Const FORMATTER_DATE_OFFSET As String = "dateoffset"
 Private Const FORMATTER_DATE_FORMAT As String = "dateformat"
 Private Const FORMATTER_DATE_STORAGE_FORMAT As String = "dd.mm.yyyy"
+Private Const PREVIEW_PLACEHOLDER_COLOR As String = "#66CCFF"
 
 Private m_TemplateRelPath As String
+Private m_TemplateDoc As Object
 Private m_IsDisposed As Boolean
 
 Private Sub Class_Initialize()
@@ -51,30 +53,39 @@ End Sub
 Public Function Initialize(ByVal templateRelPath As String) As Boolean
     m_IsDisposed = False
     m_TemplateRelPath = VBA.Trim$(templateRelPath)
-    Initialize = (VBA.Len(m_TemplateRelPath) > 0)
+    If VBA.Len(m_TemplateRelPath) = 0 Then Exit Function
+    Set m_TemplateDoc = ex_XmlCore.fn_LoadDomByRelativePath( _
+        ThisWorkbook, m_TemplateRelPath, _
+        "Missing WORD result templates file: ", _
+        "Failed to parse WORD result templates file: ", PROFILES_NS)
+    If m_TemplateDoc Is Nothing Then Exit Function
+    Initialize = True
 End Function
 
 Public Sub Dispose()
     If m_IsDisposed Then Exit Sub
     m_IsDisposed = True
     m_TemplateRelPath = VBA.vbNullString
+    Set m_TemplateDoc = Nothing
 End Sub
 
 Public Function TryRenderForSectionType( _
     ByVal sectionTypeText As String, _
     ByVal sourceTables As Collection, _
-    ByRef outResultText As String _
+    ByRef outResultText As String, _
+    Optional ByRef outTemplateId As String = VBA.vbNullString _
 ) As Boolean
     Dim templateText As String
     Dim renderVars As Object
     Dim loopRows As Object
 
     outResultText = VBA.vbNullString
+    outTemplateId = VBA.vbNullString
     If m_IsDisposed Then Exit Function
     If sourceTables Is Nothing Then Exit Function
     If sourceTables.Count <= 0 Then Exit Function
 
-    If Not private_TryGetTemplateTextBySectionType(sectionTypeText, templateText) Then Exit Function
+    If Not private_TryGetTemplateTextBySectionType(sectionTypeText, templateText, outTemplateId) Then Exit Function
 
     Set renderVars = VBA.CreateObject("Scripting.Dictionary")
     renderVars.CompareMode = 1
@@ -91,7 +102,8 @@ End Function
 ' //
 Private Function private_TryGetTemplateTextBySectionType( _
     ByVal sectionTypeText As String, _
-    ByRef outTemplateText As String _
+    ByRef outTemplateText As String, _
+    ByRef outTemplateId As String _
 ) As Boolean
     Dim doc As Object
     Dim node As Object
@@ -99,18 +111,14 @@ Private Function private_TryGetTemplateTextBySectionType( _
     Dim includeChain As Collection
 
     outTemplateText = VBA.vbNullString
+    outTemplateId = VBA.vbNullString
     sectionTypeText = VBA.Trim$(sectionTypeText)
     If VBA.Len(sectionTypeText) = 0 Then
         VBA.MsgBox "PrototypeNew: WORD template section type is empty.", VBA.vbExclamation, "PrototypeNew / WORD export"
         Exit Function
     End If
 
-    Set doc = ex_XmlCore.fn_LoadDomByRelativePath( _
-        ThisWorkbook, _
-        m_TemplateRelPath, _
-        "Missing WORD result templates file: ", _
-        "Failed to parse WORD result templates file: ", _
-        PROFILES_NS)
+    Set doc = m_TemplateDoc
     If doc Is Nothing Then
         VBA.MsgBox "PrototypeNew: failed to load WORD result templates: " & m_TemplateRelPath, VBA.vbExclamation, "PrototypeNew / WORD export"
         Exit Function
@@ -124,6 +132,11 @@ Private Function private_TryGetTemplateTextBySectionType( _
     End If
 
     Set includeChain = New Collection
+    outTemplateId = VBA.Trim$(VBA.CStr(node.ParentNode.getAttribute("id")))
+    If VBA.Len(outTemplateId) = 0 Then
+        VBA.MsgBox "PrototypeNew: WORD result template id is empty for section type: " & sectionTypeText, VBA.vbExclamation, "PrototypeNew / WORD export"
+        Exit Function
+    End If
     outTemplateText = private_ExpandSharedTemplateIncludes(VBA.CStr(node.Text), doc, includeChain)
     private_TryGetTemplateTextBySectionType = True
 End Function
@@ -182,6 +195,12 @@ Private Function private_RenderTemplate( _
         Set matchObj = matches.Item(matchIndex)
         placeholderName = VBA.Trim$(VBA.CStr(matchObj.SubMatches(0)))
         placeholderValue = private_GetPlaceholderValue(placeholderName, sectionTypeText, sourceTables, renderVars, loopRows)
+        ' Banner supports inline color markers. Mark only the resolved value,
+        ' while all literal template text keeps the banner's white font.
+        If VBA.Len(placeholderValue) > 0 Then
+            placeholderValue = "[[color=" & PREVIEW_PLACEHOLDER_COLOR & "]]" & _
+                placeholderValue & "[[/color]]"
+        End If
         resultText = VBA.Left$(resultText, matchObj.FirstIndex) & _
             placeholderValue & _
             VBA.Mid$(resultText, matchObj.FirstIndex + matchObj.Length + 1)

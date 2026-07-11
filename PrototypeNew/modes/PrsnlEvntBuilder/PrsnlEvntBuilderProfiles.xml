@@ -78,5 +78,6 @@
     <item key="Export.Movement.RangeStartMarker" value="$B6"/>
     <item key="Export.Movement.RangeEndMarker" value="$X7"/>
     <item key="Export.Word.ExporterClass" value="obj_PEB_ExptrWord"/>
+    <item key="Export.Word.FilePath" value="modes\PrsnlEvntBuilder\Template_07.docx"/>
   </profile>
 </profiles>

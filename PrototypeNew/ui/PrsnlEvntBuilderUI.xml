@@ -868,16 +868,29 @@
           spanColls="50"/>
       </stackPanel>
 
-      <!-- WORD export preview: CTRL+3 формирует текст по WORD-шаблону и выводит сюда. -->
-      <control
-        type="Banner"
-        name="WordExportPreview"
-        dataContext="{PageRuntimeSource='RuntimeObjects.PrsnlEvntBuilder.Controller'}"
-        header="WORD export preview"
-        message="{Binding Path=WordExportPreviewText}"
-        visibility="{Binding Path=WordExportPreviewText; Op=ne; Value=; TrueAs=Visible; FalseAs=Collapsed}"
-        spanColls="50"
-        spanRows="10"/>
+      <!-- CTRL+3 builds the preview; the button and CTRL+4 write it to WORD. -->
+      <stackPanel orientation="horizontal" spanColls="12">
+        <control
+          type="Banner"
+          name="WordExportPreview"
+          dataContext="{PageRuntimeSource='RuntimeObjects.PrsnlEvntBuilder.Controller'}"
+          header="WORD export preview"
+          message="{Binding Path=WordExportPreviewText}"
+          visibility="{Binding Path=WordExportPreviewText; Op=ne; Value=; TrueAs=Visible; FalseAs=Collapsed}"
+          spanColls="7"
+          spanRows="10"/>
+
+        <control
+          type="Button"
+          name="ExportToWord"
+          caption="Export to WORD"
+          style="exportApplyButton"
+          dataContext="{PageRuntimeSource='RuntimeObjects.PrsnlEvntBuilder.Controller'}"
+          onClick="{Binding Method=OnExportToWordClick}"
+          visibility="{Binding Path=WordExportPreviewText; Op=ne; Value=; TrueAs=Visible; FalseAs=Collapsed}"
+          spanColls="5"
+          spanRows="2"/>
+      </stackPanel>
 
     </stackPanel>
   </grid>
@@ -1029,6 +1042,7 @@
                 fontColor:#F8FAFC;
                 borderColor:#111827;
                 borderWeight:thin;
+                fontSize:16;
                 overflow:wrap;
                 vertical:top;
               }"/>

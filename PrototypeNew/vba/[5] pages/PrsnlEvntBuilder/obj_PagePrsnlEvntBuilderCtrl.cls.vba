@@ -45,6 +45,7 @@ Private Const EXPORT_FORM_META_RUNTIME_KEY As String = "RuntimeItems.PrsnlEvntBu
 Private Const HOTKEY_ACCEPT_CANDIDATE_ROW As String = "Accept Candidate Row"
 Private Const HOTKEY_SELECT_FORM_ROW As String = "Select Form Row"
 Private Const HOTKEY_APPLY_EXPORT_FORM As String = "Apply Export Form"
+Private Const HOTKEY_EXPORT_TO_WORD As String = "Export to WORD"
 Private Const EXPORT_ACTION_PREFIX As String = "Export "
 Private Const DEFAULT_EXPORTER_CLASS As String = "obj_PEB_ExptrDailyScope"
 Private Const MAX_EXPORT_HOTKEYS As Long = 9
@@ -84,6 +85,7 @@ Private m_WordExportPreviewText As String
 Private m_ExportModeIndex As Long
 Private m_ExportCommonData As obj_PEB_ExptrCommonDataPrvdr
 Private m_ExportHistory As Object
+Private m_CachedWordExporter As obj_IDataExporter
 Private m_IsLookupEnabled As Boolean
 Private m_Data As obj_PrsnlEvntBuilderData
 Private m_IsDisposed As Boolean
@@ -188,6 +190,7 @@ Public Sub Dispose()
     If Not m_ExportCommonData Is Nothing Then m_ExportCommonData.Dispose
     Set m_ExportCommonData = Nothing
     Set m_ExportHistory = Nothing
+    Set m_CachedWordExporter = Nothing
     m_SelectedProfile = VBA.vbNullString
     m_SelectedMainProfile = VBA.vbNullString
     Set m_ExportMainTable = Nothing
@@ -338,6 +341,12 @@ Public Function RuntimeHandleHotkeyAction(ByVal actionId As Variant) As Boolean
         Exit Function
     End If
 
+    If VBA.StrComp(actionText, HOTKEY_EXPORT_TO_WORD, VBA.vbTextCompare) = 0 Then
+        Call private_TryExportWordToDocument
+        RuntimeHandleHotkeyAction = True
+        Exit Function
+    End If
+
     ' Page-specific actions branch by stable action ids and read current sheet state.
     Select Case VBA.LCase$(actionText)
         Case VBA.LCase$(HOTKEY_ACCEPT_CANDIDATE_ROW)
@@ -363,6 +372,32 @@ Public Function RuntimeHandleHotkeyAction(ByVal actionId As Variant) As Boolean
 
     rt_Messaging.fn_ShowStatusBarSuccess actionText & ": " & targetCell.Address(False, False) & " = '" & cellValue & "'", 3
     RuntimeHandleHotkeyAction = True
+End Function
+
+Public Function OnExportToWordClick(Optional ByVal ignored As Variant) As Boolean
+    OnExportToWordClick = private_TryExportWordToDocument()
+End Function
+
+Private Function private_TryExportWordToDocument() As Boolean
+    Dim sourceTables As Collection
+    Dim exportContext As Object
+    Dim exporter As obj_IDataExporter
+    Dim exporterClassName As String
+    Dim exportConfigTable As obj_ConfigTable
+
+    If Not private_TryGetExportSettings("Word", exporterClassName, exportConfigTable) Then
+        VBA.MsgBox "PrototypeNew: Export.Word settings are missing.", VBA.vbExclamation, "PrototypeNew / WORD export"
+        Exit Function
+    End If
+    If Not private_TryBuildExportSourceTables(sourceTables, exportContext) Then Exit Function
+    exportContext("WriteToWord") = True
+    If Not private_TryCreateDataExporter(exporterClassName, exportConfigTable, exporter) Then Exit Function
+    If Not exporter.Export(sourceTables, exportContext) Then Exit Function
+    ' CTRL+4/button exports the already prepared logical result to WORD.
+    ' Do not capture the preview here: that path calls RenderPage and a WORD
+    ' write does not change any visible state on the Excel page.
+    rt_Messaging.fn_ShowStatusBarSuccess "Export to WORD: done", 3
+    private_TryExportWordToDocument = True
 End Function
 
 Public Function OnProfileButtonClick(Optional ByVal profileId As Variant) As Boolean
@@ -927,6 +962,9 @@ Private Function private_TryCreateProfilesProvider(ByVal providerClassName As St
 End Function
 
 Private Sub private_ResetExportSettings()
+    ' This exporter owns profile-backed lookup providers; keep it warm between
+    ' exports and invalidate it only when configuration is rebuilt.
+    Set m_CachedWordExporter = Nothing
     Set m_ExportAliases = New Collection
     Set m_ExporterClassByAlias = ex_Helpers.fn_CreateDictionaryTextCompare()
     Set m_ExportConfigTableByAlias = ex_Helpers.fn_CreateDictionaryTextCompare()
@@ -1022,9 +1060,15 @@ Private Function private_TryCreateDataExporter( _
             Set outExporter = exporterToMovement
 
         Case VBA.LCase$("obj_PEB_ExptrWord")
+            If Not m_CachedWordExporter Is Nothing Then
+                Set outExporter = m_CachedWordExporter
+                private_TryCreateDataExporter = True
+                Exit Function
+            End If
             Set exporterToWord = New obj_PEB_ExptrWord
             If Not exporterToWord.Initialize(exportConfigTable, m_ProfileConfigTable) Then Exit Function
             Set outExporter = exporterToWord
+            Set m_CachedWordExporter = outExporter
 
         Case Else
             VBA.MsgBox "PrototypeNew: unsupported data exporter class: " & exporterClassName, VBA.vbExclamation, "PrototypeNew / Data export"
@@ -1461,6 +1505,7 @@ Private Function private_EnsureHotkeyRows(ByVal notifyChange As Boolean) As Bool
                 If Not private_RemoveStaleExportHotkeyRows(hotkeyRows, hasChanges) Then Exit Function
                 If Not private_EnsureHotkeyRow(hotkeyRows, HOTKEY_ACCEPT_CANDIDATE_ROW, "CTRL+ENTER", hasChanges) Then Exit Function
                 If Not private_EnsureExportHotkeyRows(hotkeyRows, hasChanges) Then Exit Function
+                If Not private_EnsureHotkeyRow(hotkeyRows, HOTKEY_EXPORT_TO_WORD, "CTRL+4", hasChanges) Then Exit Function
                 If Not private_EnsureHotkeyRow(hotkeyRows, HOTKEY_SELECT_FORM_ROW, "SHIFT+SPACE", hasChanges) Then Exit Function
                 If Not private_EnsureHotkeyRow(hotkeyRows, HOTKEY_APPLY_EXPORT_FORM, "ALT+ARROWDOWN", hasChanges) Then Exit Function
                 If hasChanges Then
@@ -1481,6 +1526,7 @@ Private Function private_EnsureHotkeyRows(ByVal notifyChange As Boolean) As Bool
     ' routes для этой страницы.
     If Not private_AddHotkeyRow(hotkeyRows, HOTKEY_ACCEPT_CANDIDATE_ROW, "CTRL+ENTER") Then Exit Function
     If Not private_AddExportHotkeyRows(hotkeyRows) Then Exit Function
+    If Not private_AddHotkeyRow(hotkeyRows, HOTKEY_EXPORT_TO_WORD, "CTRL+4") Then Exit Function
     If Not private_AddHotkeyRow(hotkeyRows, HOTKEY_SELECT_FORM_ROW, "SHIFT+SPACE") Then Exit Function
     If Not private_AddHotkeyRow(hotkeyRows, HOTKEY_APPLY_EXPORT_FORM, "ALT+ARROWDOWN") Then Exit Function
 
