@@ -179,6 +179,10 @@ Public Function SetCurrentModeId(ByVal modeId As String) As Boolean
     SetCurrentModeId = True
 End Function
 
+Public Property Get CurrentModeId() As String
+    CurrentModeId = m_CurrentModeId
+End Property
+
 Public Property Get CurrentProfilesFilePath() As String
     CurrentProfilesFilePath = m_CurrentProfilesFilePath
 End Property
