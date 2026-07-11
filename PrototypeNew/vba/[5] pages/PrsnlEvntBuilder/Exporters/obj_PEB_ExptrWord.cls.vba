@@ -56,6 +56,8 @@ Private Const WORD_ALIAS_DOC_DATE_FULL_PLUS_ONE As String = "DocDateFullPlusOne"
 Private Const WORD_ALIAS_DATE_FROM_FULL_PLUS_ONE As String = "DateFromFullPlusOne"
 Private Const WORD_ALIAS_VH_DATE_FULL_PLUS_ONE As String = "VhDateFullPlusOne"
 Private Const WORD_ALIAS_VLK_DATE_FULL_PLUS_ONE As String = "VlkDateFullPlusOne"
+Private Const WORD_ALIAS_FROM_FOOD_DATE As String = "FromFoodDate"
+Private Const WORD_ALIAS_ON_FOOD_DATE As String = "OnFoodDate"
 Private Const WORD_RESOLVED_DATE_STORAGE_FORMAT As String = "dd.mm.yyyy"
 Private Const WORD_ANCHOR_PREFIX As String = "{\export:"
 Private Const WORD_ANCHOR_BEGIN_SUFFIX As String = "_Begin}"
@@ -63,6 +65,12 @@ Private Const WORD_ANCHOR_END_SUFFIX As String = "_End}"
 Private Const WD_FIND_STOP As Long = 0
 Private Const WORD_RECORD_BOOKMARK_PREFIX As String = "PEB_"
 Private Const WORD_BOOKMARK_MAX_LENGTH As Long = 40
+Private Const REPORT_TVO_TEXT As String = "тимчасово виконуючого обов'язки"
+Private Const META_SECTION_TYPE_DOCUMENT As String = "Мета: документ"
+Private Const META_SECTION_TYPE_TVO As String = "Мета: ТВО"
+Private Const LOOP_COLLECTION_META_DOCUMENT_TABLES As String = "MetaDocumentTables"
+Private Const LOOP_COLLECTION_META_TVO_TABLES As String = "MetaTvoTables"
+
 
 Private m_IsDisposed As Boolean
 Private m_Base As obj_DataExporterBase
@@ -136,6 +144,7 @@ Public Function Export( _
     Optional ByVal context As Object = Nothing _
 ) As Boolean
     Dim sourceTable As obj_TableDynamic
+    Dim namedCollections As Object
     Dim sectionTypeText As String
     Dim previewText As String
     Dim templateId As String
@@ -160,7 +169,9 @@ Public Function Export( _
     End If
 
     If Not private_TryEnrichMainSourceTableForWord(sourceTable, context) Then Exit Function
-    If Not m_TemplateParser.TryRenderForSectionType(sectionTypeText, sourceTables, previewText, templateId) Then Exit Function
+    Set namedCollections = private_BuildNamedLoopCollections(sourceTables)
+    If namedCollections Is Nothing Then Exit Function
+    If Not m_TemplateParser.TryRenderForSectionType(sectionTypeText, sourceTables, namedCollections, previewText, templateId) Then Exit Function
     If Not private_TrySetContextText(context, CONTEXT_WORD_PREVIEW_TEXT, previewText) Then Exit Function
 
     ' CTRL+3 is the preview action. The dedicated button/CTRL+4 passes
@@ -481,7 +492,16 @@ Private Function private_TryEnrichMainSourceTableForWord( _
     Dim reportPersonGenitive As String
     Dim reportPersonInitialsGenitive As String
     Dim reportPositionGenitive As String
+    Dim reportTvoPositionGenitive As String
     Dim reporterGenitive As String
+    Dim isReporterTvo As Boolean
+    Dim dateFromDate As Date
+    Dim incomingDate As Date
+    Dim hasDateFrom As Boolean
+    Dim hasIncomingDate As Boolean
+    Dim fromFoodDateText As String
+    Dim onFoodDateText As String
+    Dim onFoodDateValue As Date
 
     If sourceTable Is Nothing Then Exit Function
     If m_ExporterDataProvider Is Nothing Then Exit Function
@@ -523,11 +543,23 @@ Private Function private_TryEnrichMainSourceTableForWord( _
     If Not m_ExporterDataProvider.CommonData.TryResolveRankGenitive(reportRankText, reportRankGenitive) Then Exit Function
     If Not m_ExporterDataProvider.CommonData.TryResolveFioGenitiveByName(reportPersonText, reportPersonGenitive) Then Exit Function
     If Not m_ExporterDataProvider.CommonData.TryResolveFioInitialsGenitiveByName(reportPersonText, reportPersonInitialsGenitive) Then Exit Function
-    If Not m_ExporterDataProvider.CommonData.TryResolvePositionGenitive(reportPositionCodeText, reportPositionGenitive) Then Exit Function
 
-    reporterGenitive = private_JoinNonEmptyParts( _
-        private_JoinNonEmptyParts(reportPositionGenitive, reportRankGenitive), _
-        reportPersonInitialsGenitive)
+    If Not m_ExporterDataProvider.TryResolveReporterTvoPositionGenitive(reportPersonText, reportTvoPositionGenitive, isReporterTvo) Then Exit Function
+    If isReporterTvo Then
+        reportPositionGenitive = reportTvoPositionGenitive
+    Else
+        If Not m_ExporterDataProvider.CommonData.TryResolvePositionGenitive(reportPositionCodeText, reportPositionGenitive) Then Exit Function
+    End If
+
+    If isReporterTvo Then
+        reporterGenitive = private_JoinNonEmptyParts( _
+            private_JoinNonEmptyParts(REPORT_TVO_TEXT & " " & private_LowerFirstLetter(reportPositionGenitive), reportRankGenitive), _
+            reportPersonInitialsGenitive)
+    Else
+        reporterGenitive = private_JoinNonEmptyParts( _
+            private_JoinNonEmptyParts(private_LowerFirstLetter(reportPositionGenitive), reportRankGenitive), _
+            reportPersonInitialsGenitive)
+    End If
 
     ' Upsert не влияет на видимую форму экспорта: это служебное обогащение
     ' DynamicTable перед шаблонизацией. XML-шаблон может читать новые поля,
@@ -580,7 +612,66 @@ Private Function private_TryEnrichMainSourceTableForWord( _
         WORD_ALIAS_VLK_DATE_SHORT, WORD_ALIAS_VLK_DATE_FULL, _
         WORD_ALIAS_VLK_DATE_FULL_PLUS_ONE, vlkDateText) Then Exit Function
 
+    If Not private_TryResolveDateByRawText(dateFromText, hasDateFrom, dateFromDate) Then Exit Function
+    If Not private_TryResolveDateByRawText(incomingDateText, hasIncomingDate, incomingDate) Then Exit Function
+
+    If hasDateFrom Then
+        fromFoodDateText = ex_Helpers.fn_FormatUaDateLong(dateFromDate)
+    ElseIf hasIncomingDate Then
+        fromFoodDateText = ex_Helpers.fn_FormatUaDateLong(incomingDate)
+    End If
+
+    If hasIncomingDate Then
+        onFoodDateValue = VBA.DateAdd("d", 1, incomingDate)
+        If hasDateFrom Then
+            If dateFromDate > onFoodDateValue Then onFoodDateValue = dateFromDate
+        End If
+        onFoodDateText = ex_Helpers.fn_FormatUaDateLong(onFoodDateValue)
+    ElseIf hasDateFrom Then
+        onFoodDateText = ex_Helpers.fn_FormatUaDateLong(dateFromDate)
+    End If
+
+    If VBA.Len(VBA.Trim$(fromFoodDateText)) > 0 Then
+        If Not private_TryUpsertMainTableValue(sourceTable, WORD_ALIAS_FROM_FOOD_DATE, fromFoodDateText) Then Exit Function
+    End If
+    If VBA.Len(VBA.Trim$(onFoodDateText)) > 0 Then
+        If Not private_TryUpsertMainTableValue(sourceTable, WORD_ALIAS_ON_FOOD_DATE, onFoodDateText) Then Exit Function
+    End If
+
     private_TryEnrichMainSourceTableForWord = True
+End Function
+
+Private Function private_TryResolveDateByRawText( _
+    ByVal rawDateText As String, _
+    ByRef outHasDate As Boolean, _
+    ByRef outDateValue As Date _
+) As Boolean
+    Dim trimmedDateText As String
+
+    outHasDate = False
+    trimmedDateText = VBA.Trim$(rawDateText)
+    If VBA.Len(trimmedDateText) = 0 Then
+        private_TryResolveDateByRawText = True
+        Exit Function
+    End If
+
+    If m_ExporterDataProvider Is Nothing Then Exit Function
+    If m_ExporterDataProvider.CommonData Is Nothing Then Exit Function
+
+    If m_ExporterDataProvider.CommonData.HasOrderDate Then
+        If Not ex_Helpers.fn_TryResolveDateWithContext(trimmedDateText, m_ExporterDataProvider.CommonData.OrderDate, outDateValue) Then
+            VBA.MsgBox "PrototypeNew: failed to resolve date from value '" & trimmedDateText & "'.", VBA.vbExclamation, "PrototypeNew / WORD export"
+            Exit Function
+        End If
+    ElseIf ex_Helpers.fn_IsShortDateValue(trimmedDateText) Then
+        outDateValue = SENTINEL_SHORT_DATE
+    ElseIf Not ex_Helpers.fn_TryResolveDateWithContext(trimmedDateText, SENTINEL_SHORT_DATE, outDateValue) Then
+        VBA.MsgBox "PrototypeNew: failed to resolve date from value '" & trimmedDateText & "'.", VBA.vbExclamation, "PrototypeNew / WORD export"
+        Exit Function
+    End If
+
+    outHasDate = True
+    private_TryResolveDateByRawText = True
 End Function
 
 Private Function private_TryUpsertResolvedDateValues( _
@@ -650,6 +741,103 @@ Private Function private_JoinNonEmptyParts(ByVal leftText As String, ByVal right
     End If
 End Function
 
+Private Function private_LowerFirstLetter(ByVal valueText As String) As String
+    valueText = VBA.Trim$(valueText)
+    If VBA.Len(valueText) = 0 Then Exit Function
+    private_LowerFirstLetter = VBA.LCase$(VBA.Left$(valueText, 1)) & VBA.Mid$(valueText, 2)
+End Function
+
+Private Function private_BuildNamedLoopCollections(ByVal sourceTables As Collection) As Object
+    Dim result As Object
+    Dim mainTables As Collection
+    Dim metaTables As Collection
+    Dim metaDocumentTables As Collection
+    Dim metaTvoTables As Collection
+    Dim sourceTable As obj_TableDynamic
+    Dim tableIndex As Long
+    Dim sectionTitle As String
+    Dim normalizedSectionTitle As String
+
+    If sourceTables Is Nothing Then Exit Function
+    If sourceTables.Count <= 0 Then Exit Function
+
+    Set result = VBA.CreateObject("Scripting.Dictionary")
+    result.CompareMode = 1
+    Set mainTables = New Collection
+    Set metaTables = New Collection
+    Set metaDocumentTables = New Collection
+    Set metaTvoTables = New Collection
+
+    For tableIndex = 1 To sourceTables.Count
+        Set sourceTable = Nothing
+        Set sourceTable = sourceTables.Item(tableIndex)
+        If sourceTable Is Nothing Then GoTo ContinueTable
+
+        If tableIndex = 1 Then
+            mainTables.Add sourceTable
+        Else
+            metaTables.Add sourceTable
+
+            sectionTitle = VBA.Trim$(sourceTable.SectionTitle)
+            normalizedSectionTitle = private_NormalizeCollectionKey(sectionTitle)
+            If VBA.StrComp(normalizedSectionTitle, private_NormalizeCollectionKey(META_SECTION_TYPE_DOCUMENT), VBA.vbTextCompare) = 0 Then
+                metaDocumentTables.Add sourceTable
+            End If
+            If VBA.StrComp(normalizedSectionTitle, private_NormalizeCollectionKey(META_SECTION_TYPE_TVO), VBA.vbTextCompare) = 0 Then
+                metaTvoTables.Add sourceTable
+            End If
+        End If
+
+        sectionTitle = VBA.Trim$(sourceTable.SectionTitle)
+        If VBA.Len(sectionTitle) > 0 Then
+            If Not private_TryAddNamedTableCollection(result, sectionTitle, sourceTable) Then Exit Function
+            If Not private_TryAddNamedTableCollection(result, private_NormalizeCollectionKey(sectionTitle), sourceTable) Then Exit Function
+        End If
+
+ContinueTable:
+    Next tableIndex
+
+    Set result("MainTable") = mainTables
+    Set result("MetaTables") = metaTables
+    Set result(LOOP_COLLECTION_META_DOCUMENT_TABLES) = metaDocumentTables
+    Set result(LOOP_COLLECTION_META_TVO_TABLES) = metaTvoTables
+
+    Set private_BuildNamedLoopCollections = result
+End Function
+
+Private Function private_TryAddNamedTableCollection( _
+    ByVal collectionsMap As Object, _
+    ByVal collectionKey As String, _
+    ByVal sourceTable As obj_TableDynamic _
+) As Boolean
+    Dim tableCollection As Collection
+
+    private_TryAddNamedTableCollection = True
+    If collectionsMap Is Nothing Then Exit Function
+    If sourceTable Is Nothing Then Exit Function
+
+    collectionKey = VBA.Trim$(collectionKey)
+    If VBA.Len(collectionKey) = 0 Then Exit Function
+
+    If collectionsMap.Exists(collectionKey) Then
+        Set tableCollection = collectionsMap(collectionKey)
+    Else
+        Set tableCollection = New Collection
+        Set collectionsMap(collectionKey) = tableCollection
+    End If
+
+    tableCollection.Add sourceTable
+End Function
+
+Private Function private_NormalizeCollectionKey(ByVal valueText As String) As String
+    valueText = VBA.LCase$(VBA.Trim$(valueText))
+    valueText = VBA.Replace(valueText, " ", VBA.vbNullString)
+    valueText = VBA.Replace(valueText, ":", VBA.vbNullString)
+    valueText = VBA.Replace(valueText, "-", VBA.vbNullString)
+    valueText = VBA.Replace(valueText, "_", VBA.vbNullString)
+    private_NormalizeCollectionKey = valueText
+End Function
+
 Private Function private_TryGetMainTableValue( _
     ByVal sourceTable As obj_TableDynamic, _
     ByVal columnAlias As String, _
@@ -671,7 +859,7 @@ Private Function private_TryGetMainTableValue( _
     Set sourceRow = sourceTable.Rows.Item(1)
     If sourceRow Is Nothing Then Exit Function
 
-    outValue = VBA.Trim$(sourceRow.GetCellValue(columnIndex))
+    outValue = private_NormalizeTemplateScalar(VBA.CStr(sourceRow.GetCellValue(columnIndex)))
     private_TryGetMainTableValue = True
 End Function
 
@@ -702,6 +890,7 @@ Private Function private_TryUpsertMainTableValue( _
 
     Set sourceRow = sourceTable.Rows.Item(1)
     If sourceRow Is Nothing Then Exit Function
+    valueText = private_NormalizeTemplateScalar(valueText)
     private_TryUpsertMainTableValue = sourceRow.SetCellRaw(columnIndex, valueText)
 End Function
 
@@ -711,10 +900,10 @@ Private Function private_GetContextText(ByVal context As Object, ByVal keyText A
     If VBA.Len(keyText) = 0 Then Exit Function
 
     On Error Resume Next
-    If context.Exists(keyText) Then private_GetContextText = VBA.Trim$(VBA.CStr(context(keyText)))
+    If context.Exists(keyText) Then private_GetContextText = private_NormalizeTemplateScalar(VBA.CStr(context(keyText)))
     If Err.Number <> 0 Then
         Err.Clear
-        private_GetContextText = VBA.Trim$(VBA.CStr(VBA.CallByName(context, keyText, VbGet)))
+        private_GetContextText = private_NormalizeTemplateScalar(VBA.CStr(VBA.CallByName(context, keyText, VbGet)))
     End If
     On Error GoTo 0
 End Function
@@ -724,6 +913,9 @@ Private Function private_TrySetContextText( _
     ByVal keyText As String, _
     ByVal valueText As String _
 ) As Boolean
+    Dim normalizedKey As String
+    Dim valueToStore As String
+
     If context Is Nothing Then
         VBA.MsgBox "PrototypeNew: WORD export context is not specified.", VBA.vbExclamation, "PrototypeNew / WORD export"
         Exit Function
@@ -731,14 +923,45 @@ Private Function private_TrySetContextText( _
 
     keyText = VBA.Trim$(keyText)
     If VBA.Len(keyText) = 0 Then Exit Function
+    normalizedKey = VBA.LCase$(keyText)
+    valueToStore = valueText
+    If VBA.StrComp(normalizedKey, VBA.LCase$(CONTEXT_WORD_PREVIEW_TEXT), VBA.vbTextCompare) <> 0 Then
+        valueToStore = private_NormalizeTemplateScalar(valueText)
+    End If
 
     On Error Resume Next
-    context(keyText) = valueText
+    context(keyText) = valueToStore
     If Err.Number <> 0 Then
         Err.Clear
-        VBA.CallByName context, keyText, VbLet, valueText
+        VBA.CallByName context, keyText, VbLet, valueToStore
     End If
     private_TrySetContextText = (Err.Number = 0)
     Err.Clear
     On Error GoTo 0
+End Function
+
+Private Function private_NormalizeTemplateScalar(ByVal valueText As String) As String
+    Dim rx As Object
+
+    valueText = VBA.CStr(valueText)
+    valueText = VBA.Replace(valueText, VBA.vbCrLf, " ")
+    valueText = VBA.Replace(valueText, VBA.vbCr, " ")
+    valueText = VBA.Replace(valueText, VBA.vbLf, " ")
+    valueText = VBA.Replace(valueText, VBA.vbTab, " ")
+
+    ' Remove invisible separators that break #if truthiness/formatting in templates.
+    valueText = VBA.Replace(valueText, VBA.ChrW$(160), " ")
+    valueText = VBA.Replace(valueText, VBA.ChrW$(8239), " ")
+    valueText = VBA.Replace(valueText, VBA.ChrW$(8203), VBA.vbNullString)
+    valueText = VBA.Replace(valueText, VBA.ChrW$(8204), VBA.vbNullString)
+    valueText = VBA.Replace(valueText, VBA.ChrW$(8205), VBA.vbNullString)
+    valueText = VBA.Replace(valueText, VBA.ChrW$(65279), VBA.vbNullString)
+
+    Set rx = VBA.CreateObject("VBScript.RegExp")
+    rx.Global = True
+    rx.IgnoreCase = False
+    rx.Pattern = "\s+"
+    valueText = rx.Replace(valueText, " ")
+
+    private_NormalizeTemplateScalar = VBA.Trim$(valueText)
 End Function

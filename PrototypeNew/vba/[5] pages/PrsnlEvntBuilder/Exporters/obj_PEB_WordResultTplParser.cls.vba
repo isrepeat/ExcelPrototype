@@ -9,6 +9,8 @@ Option Explicit
 
 Private Const PROFILES_NS As String = "urn:excelprototype:profiles"
 Private Const TOKEN_NEWLINE As String = "{#newline}"
+Private Const TOKEN_SPACE As String = "{#space}"
+Private Const TOKEN_SPACE_SENTINEL As String = "<<__PEB_SPACE__>>"
 Private Const TOKEN_JOIN_LINE As String = "#^"
 Private Const TOKEN_JOIN_LINE_BRACED As String = "{#^}"
 Private Const TOKEN_TRIM_INDENT As String = "#_"
@@ -30,6 +32,7 @@ Private Const PREVIEW_PLACEHOLDER_COLOR As String = "#66CCFF"
 Private m_TemplateRelPath As String
 Private m_TemplateDoc As Object
 Private m_IsDisposed As Boolean
+Private m_NamedCollections As Object
 
 Private Sub Class_Initialize()
 #If LOGGING_VERBOSE_ENABLED Then
@@ -67,11 +70,13 @@ Public Sub Dispose()
     m_IsDisposed = True
     m_TemplateRelPath = VBA.vbNullString
     Set m_TemplateDoc = Nothing
+    Set m_NamedCollections = Nothing
 End Sub
 
 Public Function TryRenderForSectionType( _
     ByVal sectionTypeText As String, _
     ByVal sourceTables As Collection, _
+    ByVal namedCollections As Object, _
     ByRef outResultText As String, _
     Optional ByRef outTemplateId As String = VBA.vbNullString _
 ) As Boolean
@@ -86,6 +91,9 @@ Public Function TryRenderForSectionType( _
     If sourceTables.Count <= 0 Then Exit Function
 
     If Not private_TryGetTemplateTextBySectionType(sectionTypeText, templateText, outTemplateId) Then Exit Function
+    ' Keep named loop collections in parser state so nested #for blocks can
+    ' resolve collections by explicit DSL key (no implicit backward fallback).
+    Set m_NamedCollections = namedCollections
 
     Set renderVars = VBA.CreateObject("Scripting.Dictionary")
     renderVars.CompareMode = 1
@@ -146,7 +154,8 @@ Private Function private_RenderTemplate( _
     ByVal sectionTypeText As String, _
     ByVal sourceTables As Collection, _
     ByVal renderVars As Object, _
-    ByVal loopRows As Object _
+    ByVal loopRows As Object, _
+    Optional ByVal normalizeOutput As Boolean = True _
 ) As String
     Dim resultText As String
     Dim rx As Object
@@ -164,6 +173,7 @@ Private Function private_RenderTemplate( _
     '   #^ / {#^}        -> удалить token и следующий перенос строки
     '   #_ / {#_}        -> удалить token и пробелы/табуляцию до первого символа
     '   {#newline}       -> перенос строки
+    '   {#space}         -> один пробел
     '   {SectionType}    -> тип секции из export context/source table
     '   {[Column]|formatter} -> значение колонки DynamicTable по alias/заголовку + formatter pipeline
     '      dateoffset:"+1"             -> сдвинуть дату на N дней
@@ -173,11 +183,15 @@ Private Function private_RenderTemplate( _
     ' Это все еще не полный PersonalCard parser: внешние VBA-вызовы, падежи,
     ' даты, colors и морфология намеренно не перенесены в этот PEB preview.
     resultText = VBA.CStr(templateText)
+    ' Render order is important: first evaluate control structures, then apply
+    ' layout tokens (#^/#_), then resolve placeholders and normalize output.
     resultText = private_ResolveLetBindings(resultText, sectionTypeText, sourceTables, renderVars, loopRows)
     resultText = private_RenderForBlocks(resultText, sectionTypeText, sourceTables, renderVars, loopRows)
     resultText = private_RenderIfBlocks(resultText, sectionTypeText, sourceTables, renderVars, loopRows)
     resultText = private_ApplyLayoutTokens(resultText)
     resultText = VBA.Replace(resultText, TOKEN_NEWLINE, VBA.vbCrLf)
+    ' Keep explicit template spaces protected until final output normalization.
+    resultText = VBA.Replace(resultText, TOKEN_SPACE, TOKEN_SPACE_SENTINEL)
 
     Set rx = VBA.CreateObject("VBScript.RegExp")
     rx.Global = True
@@ -187,7 +201,11 @@ Private Function private_RenderTemplate( _
 
     Set matches = rx.Execute(resultText)
     If matches Is Nothing Then
-        private_RenderTemplate = resultText
+        If normalizeOutput Then
+            private_RenderTemplate = private_NormalizeRenderedText(resultText)
+        Else
+            private_RenderTemplate = resultText
+        End If
         Exit Function
     End If
 
@@ -206,7 +224,18 @@ Private Function private_RenderTemplate( _
             VBA.Mid$(resultText, matchObj.FirstIndex + matchObj.Length + 1)
     Next matchIndex
 
-    private_RenderTemplate = private_NormalizeRenderedText(resultText)
+    If normalizeOutput Then
+        private_RenderTemplate = private_ResolveSpaceSentinels(private_NormalizeRenderedText(resultText))
+    Else
+        ' Keep sentinel unresolved in nested renders, otherwise outer #_ can
+        ' trim the restored leading space before conditional fragments.
+        private_RenderTemplate = resultText
+    End If
+End Function
+
+Private Function private_ResolveSpaceSentinels(ByVal valueText As String) As String
+    ' Final pass: convert protected {#space} sentinels back to regular spaces.
+    private_ResolveSpaceSentinels = VBA.Replace(valueText, TOKEN_SPACE_SENTINEL, " ")
 End Function
 
 Private Function private_GetPlaceholderValue( _
@@ -521,7 +550,7 @@ Private Function private_RenderForCollection( _
 
         If loopRows.Exists(loopVarName) Then loopRows.Remove loopVarName
         loopRows.Add loopVarName, loopRowCtx
-        renderedPart = renderedPart & private_RenderTemplate(bodyText, sectionTypeText, sourceTables, renderVars, loopRows)
+        renderedPart = renderedPart & private_RenderTemplate(bodyText, sectionTypeText, sourceTables, renderVars, loopRows, False)
     Next loopItem
 
     If Not loopRows Is Nothing Then
@@ -568,7 +597,7 @@ Private Function private_RenderIfBlocks( _
         bodyText = VBA.Mid$(resultText, openEndPos + 1, closePos - openEndPos - 1)
 
         If private_EvaluateCondition(conditionText, sectionTypeText, sourceTables, renderVars, loopRows) Then
-            renderedText = private_RenderTemplate(bodyText, sectionTypeText, sourceTables, renderVars, loopRows)
+            renderedText = private_RenderTemplate(bodyText, sectionTypeText, sourceTables, renderVars, loopRows, False)
         Else
             renderedText = VBA.vbNullString
         End If
@@ -934,42 +963,52 @@ End Function
 
 Private Function private_BuildLoopRows(ByVal collectionName As String, ByVal sourceTables As Collection) As Collection
     Dim resultRows As Collection
-    Dim tableIndex As Long
+    Dim tableCollection As Collection
+    Dim tableItem As Variant
     Dim tableObj As obj_TableDynamic
 
     Set resultRows = New Collection
     collectionName = VBA.Trim$(collectionName)
     If VBA.Len(collectionName) = 0 Then Exit Function
-    If sourceTables Is Nothing Then Exit Function
 
-    If VBA.StrComp(collectionName, "MainTable", VBA.vbTextCompare) = 0 Then
-        Set tableObj = private_TryGetSourceTable(sourceTables, 1)
+    If Not private_TryGetNamedTableCollection(collectionName, tableCollection) Then Exit Function
+
+    For Each tableItem In tableCollection
+        Set tableObj = Nothing
+        On Error Resume Next
+        Set tableObj = tableItem
+        On Error GoTo 0
         If Not tableObj Is Nothing Then private_AddTableRowsToLoopCollection tableObj, resultRows
-        Set private_BuildLoopRows = resultRows
-        Exit Function
-    End If
-
-    If VBA.StrComp(collectionName, "MetaTables", VBA.vbTextCompare) = 0 Then
-        For tableIndex = 2 To sourceTables.Count
-            Set tableObj = private_TryGetSourceTable(sourceTables, tableIndex)
-            If Not tableObj Is Nothing Then private_AddTableRowsToLoopCollection tableObj, resultRows
-        Next tableIndex
-        Set private_BuildLoopRows = resultRows
-        Exit Function
-    End If
-
-    For tableIndex = 1 To sourceTables.Count
-        Set tableObj = private_TryGetSourceTable(sourceTables, tableIndex)
-        If tableObj Is Nothing Then GoTo ContinueTable
-        If VBA.StrComp(VBA.Trim$(tableObj.SectionTitle), collectionName, VBA.vbTextCompare) = 0 _
-            Or VBA.StrComp(private_NormalizeCollectionKey(tableObj.SectionTitle), private_NormalizeCollectionKey(collectionName), VBA.vbTextCompare) = 0 Then
-            private_AddTableRowsToLoopCollection tableObj, resultRows
-        End If
-
-ContinueTable:
-    Next tableIndex
+    Next tableItem
 
     Set private_BuildLoopRows = resultRows
+End Function
+
+Private Function private_TryGetNamedTableCollection( _
+    ByVal collectionName As String, _
+    ByRef outCollection As Collection _
+) As Boolean
+    Dim normalizedKey As String
+    Dim collectionObj As Object
+
+    Set outCollection = Nothing
+    If m_NamedCollections Is Nothing Then Exit Function
+
+    collectionName = VBA.Trim$(collectionName)
+    If VBA.Len(collectionName) = 0 Then Exit Function
+
+    If m_NamedCollections.Exists(collectionName) Then
+        Set collectionObj = m_NamedCollections(collectionName)
+    Else
+        normalizedKey = private_NormalizeCollectionKey(collectionName)
+        If VBA.Len(normalizedKey) > 0 Then
+            If m_NamedCollections.Exists(normalizedKey) Then Set collectionObj = m_NamedCollections(normalizedKey)
+        End If
+    End If
+
+    If collectionObj Is Nothing Then Exit Function
+    Set outCollection = collectionObj
+    private_TryGetNamedTableCollection = True
 End Function
 
 Private Sub private_AddTableRowsToLoopCollection(ByVal tableObj As obj_TableDynamic, ByVal resultRows As Collection)

@@ -312,6 +312,9 @@ Public Function RuntimeHandleHotkeyAction(ByVal actionId As Variant) As Boolean
     Dim targetCell As Range
     Dim actionText As String
     Dim cellValue As String
+    Dim cellAddress As String
+
+    On Error GoTo EH
 
     ' Это page-specific action target для HotkeysControl.
     ' HotkeysControl передает только настроенный Action text; контроллер решает,
@@ -331,17 +334,34 @@ Public Function RuntimeHandleHotkeyAction(ByVal actionId As Variant) As Boolean
 
     actionText = VBA.Trim$(VBA.CStr(actionId))
     cellValue = VBA.CStr(targetCell.Value2)
+    cellAddress = targetCell.Address(False, False)
+
+#If LOGGING_DEBUG_ENABLED Then
+    ex_Core.fn_Diagnostic_LogInfo "prsnlevntbuilder:hotkey-action:start action='" & private_EscapeForLog(actionText) & "' cell='" & private_EscapeForLog(cellAddress) & "'"
+#End If
 
     If private_IsExportAction(actionText) Then
+#If LOGGING_DEBUG_ENABLED Then
+        ex_Core.fn_Diagnostic_LogInfo "prsnlevntbuilder:hotkey-action:export-branch action='" & private_EscapeForLog(actionText) & "'"
+#End If
         If Not private_TryExportDraftByAction(actionText) Then
+#If LOGGING_DEBUG_ENABLED Then
+            ex_Core.fn_Diagnostic_LogError "prsnlevntbuilder:hotkey-action:export-branch-failed action='" & private_EscapeForLog(actionText) & "'"
+#End If
             RuntimeHandleHotkeyAction = True
             Exit Function
         End If
+#If LOGGING_DEBUG_ENABLED Then
+        ex_Core.fn_Diagnostic_LogInfo "prsnlevntbuilder:hotkey-action:export-branch-done action='" & private_EscapeForLog(actionText) & "'"
+#End If
         RuntimeHandleHotkeyAction = True
         Exit Function
     End If
 
     If VBA.StrComp(actionText, HOTKEY_EXPORT_TO_WORD, VBA.vbTextCompare) = 0 Then
+#If LOGGING_DEBUG_ENABLED Then
+        ex_Core.fn_Diagnostic_LogInfo "prsnlevntbuilder:hotkey-action:word-export-branch"
+#End If
         Call private_TryExportWordToDocument
         RuntimeHandleHotkeyAction = True
         Exit Function
@@ -372,6 +392,12 @@ Public Function RuntimeHandleHotkeyAction(ByVal actionId As Variant) As Boolean
 
     rt_Messaging.fn_ShowStatusBarSuccess actionText & ": " & targetCell.Address(False, False) & " = '" & cellValue & "'", 3
     RuntimeHandleHotkeyAction = True
+    Exit Function
+
+EH:
+#If LOGGING_DEBUG_ENABLED Then
+    ex_Core.fn_Diagnostic_LogError "prsnlevntbuilder:hotkey-action:error action='" & private_EscapeForLog(actionText) & "' cell='" & private_EscapeForLog(cellAddress) & "' errNo=" & VBA.CStr(Err.Number) & " err='" & private_EscapeForLog(Err.Description) & "'"
+#End If
 End Function
 
 Public Function OnExportToWordClick(Optional ByVal ignored As Variant) As Boolean
@@ -894,17 +920,47 @@ Private Function private_TryExportDraftByAction(ByVal actionId As String) As Boo
     Dim exporterClassName As String
     Dim exportConfigTable As obj_ConfigTable
 
+    On Error GoTo EH
+
+#If LOGGING_DEBUG_ENABLED Then
+    ex_Core.fn_Diagnostic_LogInfo "prsnlevntbuilder:export-action:start action='" & private_EscapeForLog(actionId) & "'"
+#End If
+
     If Not private_TryResolveExportAliasFromAction(actionId, exportAlias) Then Exit Function
+#If LOGGING_DEBUG_ENABLED Then
+    ex_Core.fn_Diagnostic_LogInfo "prsnlevntbuilder:export-action:alias alias='" & private_EscapeForLog(exportAlias) & "'"
+#End If
     If Not private_TryGetExportSettings(exportAlias, exporterClassName, exportConfigTable) Then Exit Function
+#If LOGGING_DEBUG_ENABLED Then
+    ex_Core.fn_Diagnostic_LogInfo "prsnlevntbuilder:export-action:settings class='" & private_EscapeForLog(exporterClassName) & "'"
+#End If
     If Not private_TryBuildExportSourceTables(sourceTables, exportContext) Then Exit Function
+#If LOGGING_DEBUG_ENABLED Then
+    ex_Core.fn_Diagnostic_LogInfo "prsnlevntbuilder:export-action:source-ready tables=" & VBA.CStr(sourceTables.Count)
+#End If
 
     If Not private_TryCreateDataExporter(exporterClassName, exportConfigTable, exporter) Then Exit Function
+#If LOGGING_DEBUG_ENABLED Then
+    ex_Core.fn_Diagnostic_LogInfo "prsnlevntbuilder:export-action:exporter-ready type='" & private_EscapeForLog(VBA.TypeName(exporter)) & "'"
+#End If
 
     If Not exporter.Export(sourceTables, exportContext) Then Exit Function
+#If LOGGING_DEBUG_ENABLED Then
+    ex_Core.fn_Diagnostic_LogInfo "prsnlevntbuilder:export-action:exporter-done alias='" & private_EscapeForLog(exportAlias) & "'"
+#End If
     If Not private_TryCaptureWordExportPreview(exportContext) Then Exit Function
+#If LOGGING_DEBUG_ENABLED Then
+    ex_Core.fn_Diagnostic_LogInfo "prsnlevntbuilder:export-action:preview-captured alias='" & private_EscapeForLog(exportAlias) & "'"
+#End If
 
     rt_Messaging.fn_ShowStatusBarSuccess EXPORT_ACTION_PREFIX & exportAlias & ": done", 3
     private_TryExportDraftByAction = True
+    Exit Function
+
+EH:
+#If LOGGING_DEBUG_ENABLED Then
+    ex_Core.fn_Diagnostic_LogError "prsnlevntbuilder:export-action:error action='" & private_EscapeForLog(actionId) & "' alias='" & private_EscapeForLog(exportAlias) & "' class='" & private_EscapeForLog(exporterClassName) & "' errNo=" & VBA.CStr(Err.Number) & " err='" & private_EscapeForLog(Err.Description) & "'"
+#End If
 End Function
 
 Private Function private_TryUpdateExportSettings(ByVal configControl As obj_ConfigControlVM) As Boolean
@@ -1082,7 +1138,12 @@ Private Function private_TryCaptureWordExportPreview(ByVal exportContext As Obje
     Dim previewText As String
     Dim previousEnableEvents As Boolean
 
+    On Error GoTo EH
+
     If exportContext Is Nothing Then
+#If LOGGING_DEBUG_ENABLED Then
+        ex_Core.fn_Diagnostic_LogInfo "prsnlevntbuilder:preview-capture:context-empty"
+#End If
         private_TryCaptureWordExportPreview = True
         Exit Function
     End If
@@ -1090,30 +1151,57 @@ Private Function private_TryCaptureWordExportPreview(ByVal exportContext As Obje
     On Error Resume Next
     If exportContext.Exists(EXPORT_CONTEXT_WORD_PREVIEW_TEXT_KEY) Then
         previewText = VBA.CStr(exportContext(EXPORT_CONTEXT_WORD_PREVIEW_TEXT_KEY))
+#If LOGGING_DEBUG_ENABLED Then
+        ex_Core.fn_Diagnostic_LogInfo "prsnlevntbuilder:preview-capture:context-exists-hit"
+#End If
     End If
     If Err.Number <> 0 Then
+#If LOGGING_DEBUG_ENABLED Then
+        ex_Core.fn_Diagnostic_LogWarning "prsnlevntbuilder:preview-capture:context-exists-error errNo=" & VBA.CStr(Err.Number) & " err='" & private_EscapeForLog(Err.Description) & "'"
+#End If
         Err.Clear
         previewText = VBA.CStr(VBA.CallByName(exportContext, EXPORT_CONTEXT_WORD_PREVIEW_TEXT_KEY, VbGet))
+#If LOGGING_DEBUG_ENABLED Then
+        ex_Core.fn_Diagnostic_LogInfo "prsnlevntbuilder:preview-capture:callbyname-hit"
+#End If
     End If
     On Error GoTo 0
 
     If VBA.Len(VBA.Trim$(previewText)) = 0 Then
+#If LOGGING_DEBUG_ENABLED Then
+        ex_Core.fn_Diagnostic_LogWarning "prsnlevntbuilder:preview-capture:preview-empty"
+#End If
         private_TryCaptureWordExportPreview = True
         Exit Function
     End If
 
+#If LOGGING_DEBUG_ENABLED Then
+    ex_Core.fn_Diagnostic_LogInfo "prsnlevntbuilder:preview-capture:preview-ready len=" & VBA.CStr(VBA.Len(previewText))
+#End If
     m_WordExportPreviewText = previewText
     previousEnableEvents = Application.EnableEvents
     Application.EnableEvents = False
     On Error GoTo RestoreEventsAndFail
     private_TryCaptureWordExportPreview = rt_PageManager.fn_RenderPage(m_Page, "prsnlevntbuilder:word-preview-updated")
+#If LOGGING_DEBUG_ENABLED Then
+    ex_Core.fn_Diagnostic_LogInfo "prsnlevntbuilder:preview-capture:render-returned ok=" & VBA.LCase$(VBA.CStr(private_TryCaptureWordExportPreview))
+#End If
     Application.EnableEvents = previousEnableEvents
     Exit Function
 
 RestoreEventsAndFail:
     On Error Resume Next
+#If LOGGING_DEBUG_ENABLED Then
+    ex_Core.fn_Diagnostic_LogError "prsnlevntbuilder:preview-capture:render-failed errNo=" & VBA.CStr(Err.Number) & " err='" & private_EscapeForLog(Err.Description) & "'"
+#End If
     Application.EnableEvents = previousEnableEvents
     On Error GoTo 0
+    Exit Function
+
+EH:
+#If LOGGING_DEBUG_ENABLED Then
+    ex_Core.fn_Diagnostic_LogError "prsnlevntbuilder:preview-capture:error errNo=" & VBA.CStr(Err.Number) & " err='" & private_EscapeForLog(Err.Description) & "'"
+#End If
 End Function
 
 Private Function private_TryBuildExportSourceTables( _
