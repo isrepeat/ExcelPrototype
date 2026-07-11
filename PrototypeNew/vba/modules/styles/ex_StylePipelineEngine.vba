@@ -12,6 +12,9 @@ Private m_LayoutBounds As Collection
 ' Состояние отложенного AutoFit по строкам на время применения одного style stage.
 Private m_DeferredRowAutoFitState As Object
 Private m_IsCollectingDeferredRowAutoFit As Boolean
+Private m_ControlStylesCache As Object
+Private m_RuleSelectorCache As Object
+Private m_RuleDeclarationsCache As Object
 
 Public Sub fn_Module_Dispose()
 #If LOGGING_VERBOSE_ENABLED Then
@@ -19,6 +22,9 @@ Public Sub fn_Module_Dispose()
 #End If
     Set m_LayoutBounds = Nothing
     Set m_DeferredRowAutoFitState = Nothing
+    Set m_ControlStylesCache = Nothing
+    Set m_RuleSelectorCache = Nothing
+    Set m_RuleDeclarationsCache = Nothing
     m_IsCollectingDeferredRowAutoFit = False
 End Sub
 
@@ -44,7 +50,7 @@ Public Function fn_ApplyPageStyles(ByVal ws As Worksheet, ByVal wsUiDoc As Objec
         Exit Function
     End If
 
-    Set stylesByName = private_LoadControlStyles(wsUiDoc)
+    Set stylesByName = private_GetCompiledControlStyles(wsUiDoc)
     If stylesByName Is Nothing Then Exit Function
 
     If Not private_ApplyControlStyles(ws, stylesByName) Then Exit Function
@@ -342,9 +348,7 @@ Private Function private_ApplySingleRule(ByVal ws As Worksheet, ByVal ruleNode A
         Exit Function
     End If
 
-    If Not private_TryReadRuleSelector(ruleNode, selector) Then Exit Function
-
-    Set declarations = private_ReadStyleDeclarations(ruleNode)
+    If Not private_TryGetCompiledRule(ruleNode, selector, declarations) Then Exit Function
     If declarations Is Nothing Then Exit Function
 
     Select Case ruleTarget
@@ -680,6 +684,69 @@ Private Function private_TryParseLayoutBoundBorderLineStyle(ByVal valueText As S
     private_TryParseLayoutBoundBorderLineStyle = True
 End Function
 
+
+Private Function private_GetCompiledControlStyles(ByVal wsUiDoc As Object) As Object
+    Dim cacheKey As String
+    Dim compiledStyles As Object
+
+    If wsUiDoc Is Nothing Then Exit Function
+    private_EnsureCompiledStyleCaches
+    cacheKey = VBA.CStr(wsUiDoc.XML)
+    If m_ControlStylesCache.Exists(cacheKey) Then
+        Set private_GetCompiledControlStyles = m_ControlStylesCache(cacheKey)
+        Exit Function
+    End If
+
+    Set compiledStyles = private_LoadControlStyles(wsUiDoc)
+    If compiledStyles Is Nothing Then Exit Function
+    m_ControlStylesCache.Add cacheKey, compiledStyles
+    Set private_GetCompiledControlStyles = compiledStyles
+End Function
+
+Private Function private_TryGetCompiledRule( _
+    ByVal ruleNode As Object, _
+    ByRef outSelector As Object, _
+    ByRef outDeclarations As Object _
+) As Boolean
+    Dim cacheKey As String
+
+    Set outSelector = Nothing
+    Set outDeclarations = Nothing
+    If ruleNode Is Nothing Then Exit Function
+    private_EnsureCompiledStyleCaches
+    cacheKey = VBA.CStr(ruleNode.XML)
+
+    If m_RuleSelectorCache.Exists(cacheKey) Then
+        Set outSelector = m_RuleSelectorCache(cacheKey)
+    Else
+        If Not private_TryReadRuleSelector(ruleNode, outSelector) Then Exit Function
+        m_RuleSelectorCache.Add cacheKey, outSelector
+    End If
+
+    If m_RuleDeclarationsCache.Exists(cacheKey) Then
+        Set outDeclarations = m_RuleDeclarationsCache(cacheKey)
+    Else
+        Set outDeclarations = private_ReadStyleDeclarations(ruleNode)
+        If outDeclarations Is Nothing Then Exit Function
+        m_RuleDeclarationsCache.Add cacheKey, outDeclarations
+    End If
+    private_TryGetCompiledRule = True
+End Function
+
+Private Sub private_EnsureCompiledStyleCaches()
+    If m_ControlStylesCache Is Nothing Then
+        Set m_ControlStylesCache = VBA.CreateObject("Scripting.Dictionary")
+        m_ControlStylesCache.CompareMode = 0
+    End If
+    If m_RuleSelectorCache Is Nothing Then
+        Set m_RuleSelectorCache = VBA.CreateObject("Scripting.Dictionary")
+        m_RuleSelectorCache.CompareMode = 0
+    End If
+    If m_RuleDeclarationsCache Is Nothing Then
+        Set m_RuleDeclarationsCache = VBA.CreateObject("Scripting.Dictionary")
+        m_RuleDeclarationsCache.CompareMode = 0
+    End If
+End Sub
 
 Private Function private_LoadControlStyles(ByVal wsUiDoc As Object) As Object
     Dim result As Object
