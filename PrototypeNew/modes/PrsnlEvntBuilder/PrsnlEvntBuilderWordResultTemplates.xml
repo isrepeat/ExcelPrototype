@@ -29,13 +29,21 @@
         </text>
     </sharedTemplate>
 
-    <sharedTemplate id="block.OptionalDocumentBasis">
+    <sharedTemplate id="block.OptionalBasisDocuments">
       <text>
-        <![CDATA[
-#_        {#if [DocumentNote]}; {[DocumentNote]|lowerFirstLetter}#^
+        <![CDATA[#^
+        {#if [DocumentNote] #or [DocNo] #or [DocDate]}; {[DocumentNote]|lowerFirstLetter}#^
 #_        {#if [DocNo]} № {[DocNo]}{#endif}#^
 #_        {#if [DocDateFull]} від {[DocDateFull]}{#endif}{#if #not [DocDateFull]}{#if [DocDate]} від {[DocDate]}{#endif}{#endif}#^
 #_        {#endif}#^
+#_        {#for item in MetaDocumentTables}#^
+#_          {#if item.[DocumentNote] #or item.[DocNo] #or item.[DocDate]}#^
+#_            {#if [DocumentNote]}; {#endif}{#if #not [DocumentNote]}{#if #not item.__first}; {#endif}{#endif}#^
+#_            {item.[DocumentNote]|lowerFirstLetter}#^
+#_            {#if item.[DocNo]} № {item.[DocNo]}{#endif}#^
+#_            {#if item.[DocDate]} від {item.[DocDate]}{#endif}#^
+#_          {#endif}#^
+#_        {#endfor}#^
         ]]>
         </text>
     </sharedTemplate>
@@ -58,19 +66,15 @@
   <template id="FromHospital" sectionType="З лікування">
     <text>
       <![CDATA[
-#_      {#if [HospitalGenitive]}{[HospitalGenitive]|lowerFirstLetter}{#endif}{#if #not [HospitalGenitive]}{[HospitalShort]|lowerFirstLetter}{#endif}#^
-#_      {#if [DateFromFull]}, з {[DateFromFull]}{#endif}{#if #not [DateFromFull]}{#if [DocDateFull]}, з {[DocDateFull]}{#endif}{#endif}.#^
+#_      з {#if [HospitalGenitive]}{[HospitalGenitive]|lowerFirstLetter}{#endif}{#if #not [HospitalGenitive]}{[HospitalShort]|lowerFirstLetter}{#endif}#^
+#_      {#if [FromFoodDate]}, з {[FromFoodDate]}{#endif}.#^
 #_      {#newline}#^
 #_      {#include block.PersonLine}.#^
 #_      {#newline}#^
 #_      Зарахувати на продовольче забезпечення#^
-#_      {#if [DateFromFullPlusOne]} з {[DateFromFullPlusOne]}{#endif}#^
-#_      {#if #not [DateFromFullPlusOne]}{#if [IncomingDateFullPlusOne]} з {[IncomingDateFullPlusOne]}{#endif}{#endif}#^
-#_      {#if #not [DateFromFullPlusOne]}{#if #not [IncomingDateFullPlusOne]}{#if [DocDateFullPlusOne]} з {[DocDateFullPlusOne]}{#endif}{#endif}{#endif}.#^
+#_      {#if [OnFoodDate]}{#space}з {[OnFoodDate]}{#endif}.#^
 #_      {#newline}#^
-#_      {#include block.IncomingBasis}#^
-#_      {#include block.OptionalDocumentBasis}.#^
-#_      {#include block.MetaRowsInline}#^
+#_      {#include block.IncomingBasis}{#include block.OptionalBasisDocuments}.#^
       ]]>
     </text>
   </template>
@@ -85,7 +89,6 @@
 #_      {#include block.IncomingBasis}; відпускний квиток#^
 #_      {#if [VhNo]} № {[VhNo]}{#endif}#^
 #_      {#if [VhDateFull]} від {[VhDateFull]}{#endif}{#if #not [VhDateFull]}{#if [VhDate]} від {[VhDate]}{#endif}{#endif}.#^
-#_      {#include block.MetaRowsInline}#^
         ]]>
     </text>
   </template>

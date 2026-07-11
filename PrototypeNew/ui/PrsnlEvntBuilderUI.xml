@@ -162,8 +162,7 @@
             name="RankHeader"
             tags="profile.allFields;
                   profile.core;
-                  profile.metaTvo;
-                  profile.metaDocument"
+                  profile.metaTvo"
             text="Звання"
             style="tableHeaderCell"
             />
@@ -172,8 +171,7 @@
             name="FioHeader"
             tags="profile.allFields;
                   profile.core;
-                  profile.metaTvo;
-                  profile.metaDocument"
+                  profile.metaTvo"
             text="ПІБ"
             style="tableHeaderCell"
             />
@@ -182,8 +180,7 @@
             name="IpnHeader"
             tags="profile.allFields;
                   profile.core;
-                  profile.metaTvo;
-                  profile.metaDocument"
+                  profile.metaTvo"
             text="ІПН"
             style="tableHeaderCell"
             />
@@ -192,8 +189,7 @@
             name="PositionCodeHeader"
             tags="profile.allFields;
                   profile.core;
-                  profile.metaTvo;
-                  profile.metaDocument"
+                  profile.metaTvo"
             text="Код посади"
             style="tableHeaderCell"
             />
@@ -202,8 +198,7 @@
             name="PositionNameHeader"
             tags="profile.allFields;
                   profile.core;
-                  profile.metaTvo;
-                  profile.metaDocument"
+                  profile.metaTvo"
             text="Посада"
             style="tableHeaderCell"
             />
@@ -280,8 +275,7 @@
             type="Label"
             name="IncomingNoHeader"
             tags="profile.allFields;
-                  profile.core;
-                  profile.metaDocument"
+                  profile.core"
             text="Вх. №"
             style="tableHeaderCell"
             />
@@ -289,8 +283,7 @@
             type="Label"
             name="IncomingDateHeader"
             tags="profile.allFields;
-                  profile.core;
-                  profile.metaDocument"
+                  profile.core"
             text="Вх. дата"
             style="tableHeaderCell"
             />
@@ -499,8 +492,7 @@
             tags="Rank;
                   profile.allFields;
                   profile.core;
-                  profile.metaTvo;
-                  profile.metaDocument"
+                  profile.metaTvo"
             text=""
             style="tableDataCell"
             />
@@ -511,8 +503,7 @@
             tags="FIO;
                   profile.allFields;
                   profile.core;
-                  profile.metaTvo;
-                  profile.metaDocument"
+                  profile.metaTvo"
             dataContext="{PageRuntimeSource='RuntimeObjects.PrsnlEvntBuilder'}"
             value="{Binding Path=LookupQueryValues.FIO}"
             onChange="{Binding Method=OnLookupInputCellChangedCommand}"
@@ -526,8 +517,7 @@
             tags="Ipn;
                   profile.allFields;
                   profile.core;
-                  profile.metaTvo;
-                  profile.metaDocument"
+                  profile.metaTvo"
             text=""
             style="tableDataCell"
             />
@@ -538,8 +528,7 @@
             tags="PositionCode;
                   profile.allFields;
                   profile.core;
-                  profile.metaTvo;
-                  profile.metaDocument"
+                  profile.metaTvo"
             text=""
             style="tableDataCell"
             />
@@ -550,8 +539,7 @@
             tags="PositionName;
                   profile.allFields;
                   profile.core;
-                  profile.metaTvo;
-                  profile.metaDocument"
+                  profile.metaTvo"
             text=""
             style="tableDataCell"
             />
@@ -639,8 +627,7 @@
             name="IncomingNoDraftCell"
             tags="IncomingNo;
                   profile.allFields;
-                  profile.core;
-                  profile.metaDocument"
+                  profile.core"
             text=""
             style="tableDataCell"
             />
@@ -650,8 +637,7 @@
             name="IncomingDateDraftCell"
             tags="IncomingDate;
                   profile.allFields;
-                  profile.core;
-                  profile.metaDocument"
+                  profile.core"
             text=""
             style="tableDataCell"
             />
@@ -869,7 +855,7 @@
       </stackPanel>
 
       <!-- CTRL+3 builds the preview; the button and CTRL+4 write it to WORD. -->
-      <stackPanel orientation="horizontal" spanColls="12">
+      <stackPanel orientation="horizontal">
         <control
           type="Banner"
           name="WordExportPreview"
@@ -878,7 +864,7 @@
           message="{Binding Path=WordExportPreviewText}"
           visibility="{Binding Path=WordExportPreviewText; Op=ne; Value=; TrueAs=Visible; FalseAs=Collapsed}"
           spanColls="7"
-          spanRows="10"/>
+          spanRows="15"/>
 
         <control
           type="Button"
@@ -888,7 +874,7 @@
           dataContext="{PageRuntimeSource='RuntimeObjects.PrsnlEvntBuilder.Controller'}"
           onClick="{Binding Method=OnExportToWordClick}"
           visibility="{Binding Path=WordExportPreviewText; Op=ne; Value=; TrueAs=Visible; FalseAs=Collapsed}"
-          spanColls="5"
+          spanColls="2"
           spanRows="2"/>
       </stackPanel>
 
@@ -1031,6 +1017,7 @@
                 fontColor:#F2F8FF;
                 borderColor:#102A43;
                 borderWeight:thin;
+                fontSize:16;
                 fontBold:true;
                 horizontal:left;
               }"/>

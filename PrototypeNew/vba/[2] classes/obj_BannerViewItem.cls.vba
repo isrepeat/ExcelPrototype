@@ -204,6 +204,9 @@ Public Function Render( _
     messageRange.VerticalAlignment = xlVAlignTop
     messageRange.WrapText = True
 
+    If Not private_RegisterControlPart(ws, viewName, "header", headerRange) Then Exit Function
+    If Not private_RegisterControlPart(ws, viewName, "message", messageRange) Then Exit Function
+
     ' Регистрируем runs; фактическое применение централизованно делает PageBase.ApplyInlineRuns.
     If Not m_HeaderInlineTextPart.RegisterForRange(page, headerRange) Then Exit Function
     If Not m_MessageInlineTextPart.RegisterForRange(page, messageRange) Then Exit Function
@@ -239,5 +242,22 @@ Private Function private_IsVisibleResolved() As Boolean
     Else
         private_IsVisibleResolved = (m_Banner.Visible And m_ViewPresentation.EffectiveVisible)
     End If
+End Function
+
+Private Function private_RegisterControlPart( _
+    ByVal ws As Worksheet, _
+    ByVal controlName As String, _
+    ByVal partName As String, _
+    ByVal targetRange As Range _
+) As Boolean
+    If ws Is Nothing Then Exit Function
+    If targetRange Is Nothing Then Exit Function
+
+    private_RegisterControlPart = ex_ControlPartsRuntime.fn_RegisterControlPart( _
+        ws, _
+        "banner", _
+        controlName, _
+        partName, _
+        targetRange)
 End Function
 

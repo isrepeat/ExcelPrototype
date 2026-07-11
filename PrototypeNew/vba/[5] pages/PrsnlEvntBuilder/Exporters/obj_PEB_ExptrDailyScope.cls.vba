@@ -67,7 +67,7 @@ Private Const TARGET_COLUMN_VH_NO As String = "В/к №"
 Private Const TARGET_COLUMN_VH_DATE As String = "В/к дата"
 Private Const TARGET_COLUMN_VLK_NO As String = "ВЛК №"
 Private Const TARGET_COLUMN_VLK_DATE As String = "ВЛК дата"
-Private Const REPORT_TVO_DAILY_TEXT As String = "тимчасово виконуючого обов'язки"
+Private Const REPORT_TVO_TEXT As String = "тимчасово виконуючого обов'язки"
 Private Const SPECIAL_POSITION_PREFIX_ROZP As String = "A1A"
 Private Const SPECIAL_POSITION_PREFIX_SPIS As String = "A1B"
 Private Const SPECIAL_POSITION_CODE_ROZP As String = "РОЗП"
@@ -554,7 +554,7 @@ Private Function private_TryWriteReporterGenitiveValue( _
     End If
 
     If isReporterTvo Then
-        If Not private_TryWriteTargetColumnText(targetTable, rowRange, TARGET_COLUMN_REPORT_TVO, REPORT_TVO_DAILY_TEXT) Then
+        If Not private_TryWriteTargetColumnText(targetTable, rowRange, TARGET_COLUMN_REPORT_TVO, REPORT_TVO_TEXT) Then
             private_TryWriteReporterGenitiveValue = False
             Exit Function
         End If
