@@ -11,6 +11,10 @@ Private m_IsDisposed As Boolean
 Private m_OrderNo As Variant
 Private m_OrderDate As Date
 Private m_HasOrderDate As Boolean
+Private m_ExportModes As Collection
+
+Private Const EXPORT_MODE_DEFAULT As String = "Default"
+Private Const EXPORT_MODE_REWRITE_LAST As String = "Rewrite Last"
 
 Private Const DEFAULT_ALF_REL_PATH As String = "modes\PrsnlEvntBuilder\АЛФ.xlsx"
 Private Const ALF_SHEET_NAME As String = "ОС"
@@ -29,7 +33,6 @@ Private Const POSITIONS_SHEET_NAME As String = "Посади"
 Private Const POSITIONS_RANGE_START As String = "A4"
 Private Const POSITIONS_RANGE_END_COLUMN As String = "E"
 Private Const DEFAULT_ORDER_MAP_REL_PATH As String = "modes\PrsnlEvntBuilder\Мапа наказів.xlsx"
-Private Const DEFAULT_ORDER_MAP_ALT_REL_PATH As String = "modes\PrsnlEvntBuilder\Mapa nakaziv.xlsx"
 Private Const ORDER_MAP_SHEET_NAME As String = "Накази"
 Private Const ORDER_MAP_2026_RANGE_START As String = "D2"
 Private Const ORDER_MAP_2026_RANGE_END_COLUMN As String = "E"
@@ -75,6 +78,10 @@ Public Function Initialize(Optional ByVal configTable As obj_ConfigTable = Nothi
     m_OrderNo = VBA.vbNullString
     m_OrderDate = 0
     m_HasOrderDate = False
+    Set m_ExportModes = New Collection
+    ' Порядок коллекции определяет цикл multi-toggle кнопки ExportMode.
+    m_ExportModes.Add EXPORT_MODE_DEFAULT
+    m_ExportModes.Add EXPORT_MODE_REWRITE_LAST
 
     Initialize = True
 End Function
@@ -85,7 +92,32 @@ Public Sub Dispose()
     m_OrderNo = VBA.vbNullString
     m_OrderDate = 0
     m_HasOrderDate = False
+    Set m_ExportModes = Nothing
 End Sub
+
+Public Property Get ExportModes() As Collection
+    Dim result As Collection
+    Dim modeValue As Variant
+
+    If m_IsDisposed Then Exit Property
+    If m_ExportModes Is Nothing Then Exit Property
+
+    Set result = New Collection
+    For Each modeValue In m_ExportModes
+        result.Add VBA.CStr(modeValue)
+    Next modeValue
+    Set ExportModes = result
+End Property
+
+Public Function TryGetExportModeName(ByVal zeroBasedIndex As Long, ByRef outModeName As String) As Boolean
+    outModeName = VBA.vbNullString
+    If m_IsDisposed Then Exit Function
+    If m_ExportModes Is Nothing Then Exit Function
+    If zeroBasedIndex < 0 Or zeroBasedIndex >= m_ExportModes.Count Then Exit Function
+
+    outModeName = VBA.CStr(m_ExportModes.Item(zeroBasedIndex + 1))
+    TryGetExportModeName = (VBA.Len(outModeName) > 0)
+End Function
 
 ' Статический provider общих данных PrsnlEvntBuilder.
 ' Здесь остаются только стабильные справочники, не завязанные на профиль:
@@ -405,15 +437,8 @@ Private Function private_TryResolveOrderMapWorkbookPath(ByRef outPath As String)
         Exit Function
     End If
 
-    outPath = private_ResolveWorkbookPath(DEFAULT_ORDER_MAP_ALT_REL_PATH)
-    If VBA.Len(outPath) > 0 And VBA.Len(VBA.Dir$(outPath)) > 0 Then
-        private_TryResolveOrderMapWorkbookPath = True
-        Exit Function
-    End If
-
     VBA.MsgBox "PrototypeNew: order map workbook was not found." & _
-        VBA.vbCrLf & "Expected: " & DEFAULT_ORDER_MAP_REL_PATH & _
-        VBA.vbCrLf & "Alternative: " & DEFAULT_ORDER_MAP_ALT_REL_PATH, VBA.vbExclamation, "PrototypeNew / WORD export"
+        VBA.vbCrLf & "Expected: " & DEFAULT_ORDER_MAP_REL_PATH, VBA.vbExclamation, "PrototypeNew / WORD export"
 End Function
 
 Private Function private_TryLookupWorkbookDate( _
@@ -433,13 +458,9 @@ Private Function private_TryLookupWorkbookDate( _
     outDate = 0
     resolvedPath = private_ResolveWorkbookPath(workbookPath)
     If VBA.Len(resolvedPath) = 0 Or VBA.Len(VBA.Dir$(resolvedPath)) = 0 Then
-        resolvedPath = private_ResolveWorkbookPath(DEFAULT_ORDER_MAP_ALT_REL_PATH)
-        If VBA.Len(resolvedPath) = 0 Or VBA.Len(VBA.Dir$(resolvedPath)) = 0 Then
-            VBA.MsgBox "PrototypeNew: order map workbook was not found." & _
-                VBA.vbCrLf & "Expected: " & workbookPath & _
-                VBA.vbCrLf & "Alternative: " & DEFAULT_ORDER_MAP_ALT_REL_PATH, VBA.vbExclamation, "PrototypeNew / WORD export"
-            Exit Function
-        End If
+        VBA.MsgBox "PrototypeNew: order map workbook was not found." & _
+            VBA.vbCrLf & "Expected: " & workbookPath, VBA.vbExclamation, "PrototypeNew / WORD export"
+        Exit Function
     End If
 
     On Error GoTo LookupFail
