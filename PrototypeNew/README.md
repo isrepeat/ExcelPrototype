@@ -7,9 +7,8 @@ No hardcoded control names in VBA. UI page is described in XML, and runtime buil
 
 ## Current scope
 - Read Dev layout from `PrototypeNew/ui/DevUI.xml`.
-- For each declared control, use `type` as root and auto-resolve:
-	- control UI: `PrototypeNew/vba/[4] controls/obj_<Type>ControlUI.xml`
-	- VM class: `obj_<Type>ControlVM`
+- For each declared control, use `type` to resolve its VM class `obj_<Type>ControlVM`.
+- The page XML is the single UI source; controls and their optional template children are cloned directly from the loaded page DOM.
 - Build controls through `obj_IControl` + `ex_ControlFactory`.
 - Render controls through object VM classes (currently `obj_ButtonControlVM`, `obj_LabelControlVM`, `obj_TableListControlVM`, `obj_TableSingleControlVM`, `obj_BannerControlVM`).
 - Button controls are rendered as Excel `Shape` objects (not Forms buttons) for richer visual customization.
@@ -355,7 +354,7 @@ Call pageBase.RuntimeSources.SetObjectSource("RuntimeObjects.Test.Banner", banne
 
 - `ex_LayoutControlRenderer.fn_Render(renderCtx, layoutControlNode, layoutRowStart, layoutColStart, layoutRowEnd, layoutColEnd)`
 	- validates control attributes against each control's contract (`obj_IControl.SupportsAttribute`).
-	- loads control template `obj_<Type>ControlUI.xml`, applies allowed overrides from page UI, and renders control VM class.
+	- clones the control node directly from page UI, validates VM attributes, and renders the control VM class without per-control XML file I/O.
 	- passes worksheet row/column bounds to controls rendered from worksheet-span layout path.
 	- triggers recursive rendering for template child controls via `ex_XmlLayoutEngine`.
 
