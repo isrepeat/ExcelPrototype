@@ -12,12 +12,13 @@ Private m_OrderNo As Variant
 Private m_OrderDate As Date
 Private m_HasOrderDate As Boolean
 Private m_ExportModes As Collection
+Private m_WorkbookConnections As Object
 
 Private Const EXPORT_MODE_DEFAULT As String = "Default"
 Private Const EXPORT_MODE_REWRITE_LAST As String = "Rewrite Last"
 
-Private Const DEFAULT_ALF_REL_PATH As String = "modes\PrsnlEvntBuilder\АЛФ.xlsx"
-Private Const ALF_SHEET_NAME As String = "ОС"
+Private Const DEFAULT_SHPO_REL_PATH As String = "modes\PrsnlEvntBuilder\ШПО.xlsx"
+Private Const ALF_SHEET_NAME As String = "АЛФ"
 Private Const ALF_RANGE_START As String = "A1"
 Private Const ALF_RANGE_END_COLUMN As String = "J"
 Private Const DEFAULT_INSTITUTIONS_REL_PATH As String = "modes\PrsnlEvntBuilder\Установи.xlsx"
@@ -25,13 +26,11 @@ Private Const INSTITUTIONS_SHEET_NAME As String = "Лікувальні Закл
 Private Const INSTITUTIONS_RANGE_START As String = "A3"
 Private Const INSTITUTIONS_RANGE_END_COLUMN As String = "E"
 Private Const INSTITUTIONS_RANGE_END_ROW As Long = 10000
-Private Const DEFAULT_RANKS_REL_PATH As String = "modes\PrsnlEvntBuilder\Переліки.xlsx"
 Private Const RANKS_SHEET_NAME As String = "Звання"
 Private Const RANKS_RANGE_START As String = "A1"
 Private Const RANKS_RANGE_END_COLUMN As String = "E"
-Private Const DEFAULT_POSITIONS_REL_PATH As String = "modes\PrsnlEvntBuilder\Посади.xlsm"
 Private Const POSITIONS_SHEET_NAME As String = "Посади"
-Private Const POSITIONS_RANGE_START As String = "A4"
+Private Const POSITIONS_RANGE_START As String = "A1"
 Private Const POSITIONS_RANGE_END_COLUMN As String = "E"
 Private Const DEFAULT_ORDER_MAP_REL_PATH As String = "modes\PrsnlEvntBuilder\Мапа наказів.xlsx"
 Private Const ORDER_MAP_SHEET_NAME As String = "Накази"
@@ -39,7 +38,8 @@ Private Const ORDER_MAP_2026_RANGE_START As String = "D2"
 Private Const ORDER_MAP_2026_RANGE_END_COLUMN As String = "E"
 Private Const ORDER_MAP_2025_RANGE_START As String = "A2"
 Private Const ORDER_MAP_2025_RANGE_END_COLUMN As String = "B"
-Private Const EXCEL_MAX_ROW As Long = 1048576
+'Private Const EXCEL_MAX_ROW As Long = 1048576
+Private Const EXCEL_MAX_ROW As Long = 12000
 
 Private Const ALF_KEY_HEADER As String = "ІПН"
 Private Const ALF_FIO_KEY_HEADER As String = "ПІБ"
@@ -55,6 +55,16 @@ Private Const RANKS_DATIVE_HEADER As String = "Давальний"
 Private Const POSITIONS_KEY_HEADER As String = "Код"
 Private Const POSITIONS_GENITIVE_HEADER As String = "Родовий"
 Private Const POSITIONS_DATIVE_HEADER As String = "Давальний"
+Private Const POSITIONS_DEFAULT_HEADER As String = "Назва"
+Private Const OS_SHEET_NAME As String = "ОС"
+Private Const OS_RANGE_START As String = "X1"
+Private Const OS_RANGE_END_COLUMN As String = "AB"
+Private Const OS_IPN_HEADER As String = "ІПН"
+Private Const OS_RANK_HEADER As String = "Військове звання фактично"
+Private Const SPECIAL_POSITION_PREFIX_ROZP As String = "A1A"
+Private Const SPECIAL_POSITION_PREFIX_SPIS As String = "A1B"
+Private Const SPECIAL_POSITION_CODE_ROZP As String = "РОЗП"
+Private Const SPECIAL_POSITION_CODE_SPIS As String = "СПИС"
 Private Const ORDER_DATE_COLUMN_NAME As String = "Дата наказу"
 Private Const ORDER_NO_COLUMN_NAME As String = "Номер наказу"
 
@@ -82,6 +92,8 @@ Public Function Initialize(Optional ByVal configTable As obj_ConfigTable = Nothi
     m_OrderNo = VBA.vbNullString
     m_OrderDate = 0
     m_HasOrderDate = False
+    Set m_WorkbookConnections = VBA.CreateObject("Scripting.Dictionary")
+    m_WorkbookConnections.CompareMode = 1
     Set m_ExportModes = New Collection
     ' Порядок коллекции определяет цикл multi-toggle кнопки ExportMode.
     m_ExportModes.Add EXPORT_MODE_DEFAULT
@@ -105,9 +117,9 @@ Public Function TryResolveFioDative( _
     End If
 
     TryResolveFioDative = private_TryLookupWorkbookValue( _
-        DEFAULT_ALF_REL_PATH, _
+        DEFAULT_SHPO_REL_PATH, _
         private_BuildAdoRangeRef(ALF_SHEET_NAME, ALF_RANGE_START, ALF_RANGE_END_COLUMN & VBA.CStr(EXCEL_MAX_ROW)), _
-        ALF_KEY_HEADER, ALF_DATIVE_HEADER, ipnText, "АЛФ", outFioDative)
+        ALF_KEY_HEADER, ALF_DATIVE_HEADER, ipnText, "ШПО / АЛФ", outFioDative)
 End Function
 
 Public Sub Dispose()
@@ -117,6 +129,10 @@ Public Sub Dispose()
     m_OrderDate = 0
     m_HasOrderDate = False
     Set m_ExportModes = Nothing
+    On Error Resume Next
+    private_CloseWorkbookConnections
+    Set m_WorkbookConnections = Nothing
+    On Error GoTo 0
 End Sub
 
 Public Property Get ExportModes() As Collection
@@ -145,7 +161,7 @@ End Function
 
 ' Статический provider общих данных PrsnlEvntBuilder.
 ' Здесь остаются только стабильные справочники, не завязанные на профиль:
-' АЛФ, Установи, Переліки, Посади, Мапа наказів.
+' ШПО (АЛФ/Посади/Звання), Установи, Мапа наказів.
 ' Динамические источники вроде ежедневной ШПС держит obj_PEB_ExptrDataPrvdr.
 Public Function SetOrderNo(ByVal orderNo As Variant) As Boolean
     If m_IsDisposed Then Exit Function
@@ -233,7 +249,7 @@ Public Function TryResolveFioGenitive( _
     End If
 
     TryResolveFioGenitive = private_TryLookupWorkbookValue( _
-        DEFAULT_ALF_REL_PATH, _
+        DEFAULT_SHPO_REL_PATH, _
         private_BuildAdoRangeRef( _
             ALF_SHEET_NAME, _
             ALF_RANGE_START, _
@@ -241,8 +257,33 @@ Public Function TryResolveFioGenitive( _
         ALF_KEY_HEADER, _
         ALF_GENITIVE_HEADER, _
         ipnText, _
-        "АЛФ", _
+        "ШПО / АЛФ", _
         outFioGenitive)
+End Function
+
+Public Function TryResolveFioInitialsGenitive( _
+    ByVal ipnText As String, _
+    ByRef outFioInitialsGenitive As String _
+) As Boolean
+    If m_IsDisposed Then Exit Function
+    ipnText = private_NormalizeLookupKey(ipnText)
+    outFioInitialsGenitive = VBA.vbNullString
+    If VBA.Len(ipnText) = 0 Then
+        TryResolveFioInitialsGenitive = True
+        Exit Function
+    End If
+
+    TryResolveFioInitialsGenitive = private_TryLookupWorkbookValue( _
+        DEFAULT_SHPO_REL_PATH, _
+        private_BuildAdoRangeRef( _
+            ALF_SHEET_NAME, _
+            ALF_RANGE_START, _
+            ALF_RANGE_END_COLUMN & VBA.CStr(EXCEL_MAX_ROW)), _
+        ALF_KEY_HEADER, _
+        ALF_INITIALS_GENITIVE_HEADER, _
+        ipnText, _
+        "ШПО / АЛФ", _
+        outFioInitialsGenitive)
 End Function
 
 Public Function TryResolveFioGenitiveByName( _
@@ -330,7 +371,7 @@ Public Function TryResolveRankGenitive( _
     End If
 
     TryResolveRankGenitive = private_TryLookupWorkbookValue( _
-        DEFAULT_RANKS_REL_PATH, _
+        DEFAULT_SHPO_REL_PATH, _
         private_BuildAdoRangeRef( _
             RANKS_SHEET_NAME, _
             RANKS_RANGE_START, _
@@ -338,7 +379,7 @@ Public Function TryResolveRankGenitive( _
         RANKS_KEY_HEADER, _
         RANKS_GENITIVE_HEADER, _
         rankText, _
-        "Переліки / Звання", _
+        "ШПО / Звання", _
         outRankGenitive)
 End Function
 
@@ -357,9 +398,9 @@ Public Function TryResolveRankDative( _
     End If
 
     TryResolveRankDative = private_TryLookupWorkbookValue( _
-        DEFAULT_RANKS_REL_PATH, _
+        DEFAULT_SHPO_REL_PATH, _
         private_BuildAdoRangeRef(RANKS_SHEET_NAME, RANKS_RANGE_START, RANKS_RANGE_END_COLUMN & VBA.CStr(EXCEL_MAX_ROW)), _
-        RANKS_KEY_HEADER, RANKS_DATIVE_HEADER, rankText, "Переліки / Звання", outRankDative)
+        RANKS_KEY_HEADER, RANKS_DATIVE_HEADER, rankText, "ШПО / Звання", outRankDative)
 End Function
 
 Public Function TryResolvePositionGenitive( _
@@ -367,7 +408,7 @@ Public Function TryResolvePositionGenitive( _
     ByRef outPositionGenitive As String _
 ) As Boolean
     If m_IsDisposed Then Exit Function
-    positionText = private_NormalizeLookupKey(positionText)
+    positionText = private_NormalizePositionCodeForLookup(positionText)
     outPositionGenitive = VBA.vbNullString
     If VBA.Len(positionText) = 0 Then
         TryResolvePositionGenitive = True
@@ -375,7 +416,7 @@ Public Function TryResolvePositionGenitive( _
     End If
 
     TryResolvePositionGenitive = private_TryLookupWorkbookValue( _
-        DEFAULT_POSITIONS_REL_PATH, _
+        DEFAULT_SHPO_REL_PATH, _
         private_BuildAdoRangeRef( _
             POSITIONS_SHEET_NAME, _
             POSITIONS_RANGE_START, _
@@ -383,7 +424,7 @@ Public Function TryResolvePositionGenitive( _
         POSITIONS_KEY_HEADER, _
         POSITIONS_GENITIVE_HEADER, _
         positionText, _
-        "Посади", _
+        "ШПО / Посади", _
         outPositionGenitive)
 End Function
 
@@ -393,7 +434,7 @@ Public Function TryResolvePositionDative( _
 ) As Boolean
     ' Должность ищется по стабильному коду, а не по отображаемому названию.
     If m_IsDisposed Then Exit Function
-    positionText = private_NormalizeLookupKey(positionText)
+    positionText = private_NormalizePositionCodeForLookup(positionText)
     outPositionDative = VBA.vbNullString
     If VBA.Len(positionText) = 0 Then
         TryResolvePositionDative = True
@@ -401,14 +442,135 @@ Public Function TryResolvePositionDative( _
     End If
 
     TryResolvePositionDative = private_TryLookupWorkbookValue( _
-        DEFAULT_POSITIONS_REL_PATH, _
+        DEFAULT_SHPO_REL_PATH, _
         private_BuildAdoRangeRef(POSITIONS_SHEET_NAME, POSITIONS_RANGE_START, POSITIONS_RANGE_END_COLUMN & VBA.CStr(EXCEL_MAX_ROW)), _
-        POSITIONS_KEY_HEADER, POSITIONS_DATIVE_HEADER, positionText, "Посади", outPositionDative)
+        POSITIONS_KEY_HEADER, POSITIONS_DATIVE_HEADER, positionText, "ШПО / Посади", outPositionDative)
+End Function
+
+Public Function TryResolvePositionGenitiveOptional( _
+    ByVal positionText As String, _
+    ByRef outPositionGenitive As String, _
+    ByRef outFound As Boolean _
+) As Boolean
+    ' WORD preview may use the current source position when a TVO position
+    ' code has not yet been added to the declension dictionary.
+    If m_IsDisposed Then Exit Function
+    positionText = private_NormalizePositionCodeForLookup(positionText)
+    outPositionGenitive = VBA.vbNullString
+    outFound = False
+    If VBA.Len(positionText) = 0 Then
+        TryResolvePositionGenitiveOptional = True
+        Exit Function
+    End If
+
+    TryResolvePositionGenitiveOptional = private_TryLookupWorkbookValue( _
+        DEFAULT_SHPO_REL_PATH, _
+        private_BuildAdoRangeRef(POSITIONS_SHEET_NAME, POSITIONS_RANGE_START, POSITIONS_RANGE_END_COLUMN & VBA.CStr(EXCEL_MAX_ROW)), _
+        POSITIONS_KEY_HEADER, POSITIONS_GENITIVE_HEADER, positionText, "ШПО / Посади", outPositionGenitive, True, outFound)
+End Function
+
+Public Function TryResolvePositionDativeOptional( _
+    ByVal positionText As String, _
+    ByRef outPositionDative As String, _
+    ByRef outFound As Boolean _
+) As Boolean
+    If m_IsDisposed Then Exit Function
+    positionText = private_NormalizePositionCodeForLookup(positionText)
+    outPositionDative = VBA.vbNullString
+    outFound = False
+    If VBA.Len(positionText) = 0 Then
+        TryResolvePositionDativeOptional = True
+        Exit Function
+    End If
+
+    TryResolvePositionDativeOptional = private_TryLookupWorkbookValue( _
+        DEFAULT_SHPO_REL_PATH, _
+        private_BuildAdoRangeRef(POSITIONS_SHEET_NAME, POSITIONS_RANGE_START, POSITIONS_RANGE_END_COLUMN & VBA.CStr(EXCEL_MAX_ROW)), _
+        POSITIONS_KEY_HEADER, POSITIONS_DATIVE_HEADER, positionText, "ШПО / Посади", outPositionDative, True, outFound)
+End Function
+
+Public Function TryResolvePositionDefault( _
+    ByVal positionCodeText As String, _
+    ByRef outPositionText As String _
+) As Boolean
+    If m_IsDisposed Then Exit Function
+    positionCodeText = private_NormalizePositionCodeForLookup(positionCodeText)
+    outPositionText = VBA.vbNullString
+    If VBA.Len(positionCodeText) = 0 Then Exit Function
+
+    TryResolvePositionDefault = private_TryLookupWorkbookValue( _
+        DEFAULT_SHPO_REL_PATH, _
+        private_BuildAdoRangeRef(POSITIONS_SHEET_NAME, POSITIONS_RANGE_START, POSITIONS_RANGE_END_COLUMN & VBA.CStr(EXCEL_MAX_ROW)), _
+        POSITIONS_KEY_HEADER, POSITIONS_DEFAULT_HEADER, positionCodeText, "ШПО / Посади", outPositionText)
+End Function
+
+' Возвращает обычную, родительную и дательную формы должности одним SQL.
+' Обычное название сохраняется для fallback и диагностического preview.
+Public Function TryResolvePositionFormsOptional( _
+    ByVal positionCodeText As String, _
+    ByRef outPositionDefault As String, _
+    ByRef outPositionGenitive As String, _
+    ByRef outPositionDative As String, _
+    ByRef outFound As Boolean _
+) As Boolean
+    If m_IsDisposed Then Exit Function
+
+    positionCodeText = private_NormalizePositionCodeForLookup(positionCodeText)
+    outPositionDefault = VBA.vbNullString
+    outPositionGenitive = VBA.vbNullString
+    outPositionDative = VBA.vbNullString
+    outFound = False
+    If VBA.Len(positionCodeText) = 0 Then
+        TryResolvePositionFormsOptional = True
+        Exit Function
+    End If
+
+    TryResolvePositionFormsOptional = private_TryLookupWorkbookThreeValues( _
+        DEFAULT_SHPO_REL_PATH, _
+        private_BuildAdoRangeRef(POSITIONS_SHEET_NAME, POSITIONS_RANGE_START, POSITIONS_RANGE_END_COLUMN & VBA.CStr(EXCEL_MAX_ROW)), _
+        POSITIONS_KEY_HEADER, POSITIONS_DEFAULT_HEADER, POSITIONS_GENITIVE_HEADER, POSITIONS_DATIVE_HEADER, _
+        positionCodeText, "ШПО / Посади", _
+        outPositionDefault, outPositionGenitive, outPositionDative, outFound)
+End Function
+
+Public Function TryResolveRankByIpn( _
+    ByVal ipnText As String, _
+    ByRef outRankText As String _
+) As Boolean
+    If m_IsDisposed Then Exit Function
+    ipnText = private_NormalizeLookupKey(ipnText)
+    outRankText = VBA.vbNullString
+    If VBA.Len(ipnText) = 0 Then Exit Function
+
+    TryResolveRankByIpn = private_TryLookupWorkbookValue( _
+        DEFAULT_SHPO_REL_PATH, _
+        private_BuildAdoRangeRef(OS_SHEET_NAME, OS_RANGE_START, OS_RANGE_END_COLUMN & VBA.CStr(EXCEL_MAX_ROW)), _
+        OS_IPN_HEADER, OS_RANK_HEADER, ipnText, "ШПО / ОС", outRankText)
 End Function
 
 ' //
 ' // Internal
 ' //
+Private Function private_NormalizePositionCodeForLookup(ByVal positionText As String) As String
+    Dim normalizedCode As String
+
+    normalizedCode = VBA.UCase$(private_NormalizeLookupKey(positionText))
+    If normalizedCode = SPECIAL_POSITION_CODE_ROZP Or normalizedCode = SPECIAL_POSITION_CODE_SPIS Then
+        private_NormalizePositionCodeForLookup = normalizedCode
+        Exit Function
+    End If
+    If VBA.Left$(normalizedCode, VBA.Len(SPECIAL_POSITION_PREFIX_ROZP)) = SPECIAL_POSITION_PREFIX_ROZP Then
+        private_NormalizePositionCodeForLookup = SPECIAL_POSITION_CODE_ROZP
+        Exit Function
+    End If
+    If VBA.Left$(normalizedCode, VBA.Len(SPECIAL_POSITION_PREFIX_SPIS)) = SPECIAL_POSITION_PREFIX_SPIS Then
+        private_NormalizePositionCodeForLookup = SPECIAL_POSITION_CODE_SPIS
+        Exit Function
+    End If
+
+    private_NormalizePositionCodeForLookup = normalizedCode
+End Function
+
 Private Function private_TryResolveAlfByFio( _
     ByVal fioText As String, _
     ByVal valueHeader As String, _
@@ -424,7 +586,7 @@ Private Function private_TryResolveAlfByFio( _
     End If
 
     private_TryResolveAlfByFio = private_TryLookupWorkbookValue( _
-        DEFAULT_ALF_REL_PATH, _
+        DEFAULT_SHPO_REL_PATH, _
         private_BuildAdoRangeRef( _
             ALF_SHEET_NAME, _
             ALF_RANGE_START, _
@@ -432,8 +594,10 @@ Private Function private_TryResolveAlfByFio( _
         ALF_FIO_KEY_HEADER, _
         valueHeader, _
         fioText, _
-        "АЛФ / " & sourceLabelSuffix, _
-        outValue)
+        "ШПО / АЛФ / " & sourceLabelSuffix, _
+        outValue, _
+        allowMissingRow:=False, _
+        requireUniqueMatch:=True)
 End Function
 
 Private Function private_TryLookupWorkbookValue( _
@@ -443,14 +607,23 @@ Private Function private_TryLookupWorkbookValue( _
     ByVal valueHeader As String, _
     ByVal lookupKey As String, _
     ByVal sourceLabel As String, _
-    ByRef outValue As String _
+    ByRef outValue As String, _
+    Optional ByVal allowMissingRow As Boolean = False, _
+    Optional ByRef outFound As Boolean = False, _
+    Optional ByVal requireUniqueMatch As Boolean = False _
 ) As Boolean
     Dim resolvedPath As String
     Dim conn As Object
     Dim rs As Object
     Dim sql As String
+    Dim quotedKeyHeader As String
+    Dim safeKeyExpression As String
+    Dim lookupErrorNumber As Long
+    Dim lookupErrorSource As String
+    Dim lookupErrorDescription As String
 
     outValue = VBA.vbNullString
+    outFound = False
     resolvedPath = private_ResolveWorkbookPath(workbookPath)
     If VBA.Len(resolvedPath) = 0 Or VBA.Len(VBA.Dir$(resolvedPath)) = 0 Then
         VBA.MsgBox "PrototypeNew: declension source workbook was not found: " & workbookPath, VBA.vbExclamation, "PrototypeNew / WORD export"
@@ -458,40 +631,436 @@ Private Function private_TryLookupWorkbookValue( _
     End If
 
     On Error GoTo LookupFail
-    Set conn = VBA.CreateObject("ADODB.Connection")
-    conn.Open private_BuildAdoConnectionString(resolvedPath)
+    If Not private_TryGetWorkbookConnection(resolvedPath, conn) Then Exit Function
 
-    sql = "SELECT TOP 1 " & private_QuoteSqlIdentifier(valueHeader) & _
-        " FROM " & tableRef & _
-        " WHERE LCase(Trim(CStr(" & private_QuoteSqlIdentifier(keyHeader) & "))) = " & private_AdoSqlTextLiteral(lookupKey)
+    quotedKeyHeader = private_QuoteSqlIdentifier(keyHeader)
+    safeKeyExpression = "IIf(IsNull(" & quotedKeyHeader & "), '', " & quotedKeyHeader & ")"
+    If VBA.StrComp(keyHeader, ALF_KEY_HEADER, VBA.vbTextCompare) = 0 And private_IsDigitsOnly(lookupKey) Then
+        ' ІПН in ШПО is stored consistently as text. Keep the stable identifier
+        ' lookup exact and avoid transformations over the indexed source field.
+        sql = "SELECT TOP " & VBA.CStr(IIf(requireUniqueMatch, 2, 1)) & " " & private_QuoteSqlIdentifier(valueHeader) & _
+            " FROM " & tableRef & _
+            " WHERE " & quotedKeyHeader & " = " & private_AdoSqlTextLiteral(lookupKey)
+    Else
+        sql = "SELECT TOP " & VBA.CStr(IIf(requireUniqueMatch, 2, 1)) & " " & private_QuoteSqlIdentifier(valueHeader) & _
+            " FROM " & tableRef & _
+            " WHERE LCase(Trim(Replace(Replace(Replace(Replace(CStr(" & safeKeyExpression & _
+            "), Chr(160), ' '), Chr(13), ''), Chr(10), ''), Chr(9), ''))) = " & _
+            private_AdoSqlTextLiteral(lookupKey)
+    End If
 
     Set rs = VBA.CreateObject("ADODB.Recordset")
     rs.Open sql, conn, 0, 1
 
     If rs.EOF Then
-        VBA.MsgBox "PrototypeNew: declension row was not found in " & sourceLabel & " for key: " & lookupKey, VBA.vbExclamation, "PrototypeNew / WORD export"
+        private_LogLookupMissDiagnostics conn, resolvedPath, tableRef, quotedKeyHeader, sourceLabel, lookupKey, sql
+        If allowMissingRow Then
+            private_TryLookupWorkbookValue = True
+        Else
+            VBA.MsgBox "PrototypeNew: declension row was not found in " & sourceLabel & " for key: " & lookupKey, VBA.vbExclamation, "PrototypeNew / WORD export"
+        End If
         GoTo CleanupDone
     End If
 
     outValue = VBA.Trim$(private_RecordsetFieldText(rs.Fields(0).Value))
+    If requireUniqueMatch Then
+        rs.MoveNext
+        If Not rs.EOF Then
+            VBA.MsgBox "PrototypeNew: more than one row was found in " & sourceLabel & _
+                " for FIO: " & lookupKey & VBA.vbCrLf & _
+                "The reporter cannot be resolved unambiguously.", _
+                VBA.vbExclamation, "PrototypeNew / WORD export"
+            outValue = VBA.vbNullString
+            GoTo CleanupDone
+        End If
+    End If
+    outFound = True
     private_TryLookupWorkbookValue = True
 
 CleanupDone:
     On Error Resume Next
     If Not rs Is Nothing Then If rs.State <> 0 Then rs.Close
-    If Not conn Is Nothing Then If conn.State <> 0 Then conn.Close
     Set rs = Nothing
     Set conn = Nothing
     On Error GoTo 0
     Exit Function
 
 LookupFail:
+    ' Capture the original ADO failure before cleanup changes the Err object.
+    lookupErrorNumber = Err.Number
+    lookupErrorSource = Err.Source
+    lookupErrorDescription = Err.Description
+    private_DropWorkbookConnection resolvedPath
+    ex_Core.fn_Diagnostic_LogError "peb-declension:query-failed source='" & sourceLabel & _
+        "' key='" & lookupKey & _
+        "' workbook='" & resolvedPath & _
+        "' range='" & tableRef & _
+        "' sql='" & VBA.Replace$(sql, "'", "''") & _
+        "' errNumber='" & VBA.CStr(lookupErrorNumber) & _
+        "' errSource='" & VBA.Replace$(lookupErrorSource, "'", "''") & _
+        "' errDescription='" & VBA.Replace$(lookupErrorDescription, "'", "''") & "'"
     VBA.MsgBox "PrototypeNew: failed to query declension source " & sourceLabel & "." & _
         VBA.vbCrLf & "Workbook: " & workbookPath & _
         VBA.vbCrLf & "Range: " & tableRef & _
-        VBA.vbCrLf & "Error: " & Err.Description, VBA.vbExclamation, "PrototypeNew / WORD export"
+        VBA.vbCrLf & "SQL: " & sql & _
+        VBA.vbCrLf & "Error " & VBA.CStr(lookupErrorNumber) & _
+        " (" & lookupErrorSource & "): " & lookupErrorDescription, _
+        VBA.vbExclamation, "PrototypeNew / WORD export"
     Resume CleanupDone
 End Function
+
+Private Function private_TryLookupWorkbookThreeValues( _
+    ByVal workbookPath As String, ByVal tableRef As String, _
+    ByVal keyHeader As String, ByVal firstHeader As String, _
+    ByVal secondHeader As String, ByVal thirdHeader As String, _
+    ByVal lookupKey As String, ByVal sourceLabel As String, _
+    ByRef outFirst As String, ByRef outSecond As String, ByRef outThird As String, _
+    ByRef outFound As Boolean _
+) As Boolean
+    Dim resolvedPath As String
+    Dim conn As Object
+    Dim rs As Object
+    Dim sql As String
+    Dim quotedKeyHeader As String
+    Dim safeKeyExpression As String
+    Dim errNumber As Long
+    Dim errSource As String
+    Dim errDescription As String
+
+    outFirst = VBA.vbNullString
+    outSecond = VBA.vbNullString
+    outThird = VBA.vbNullString
+    outFound = False
+    resolvedPath = private_ResolveWorkbookPath(workbookPath)
+    If VBA.Len(resolvedPath) = 0 Or VBA.Len(VBA.Dir$(resolvedPath)) = 0 Then
+        VBA.MsgBox "PrototypeNew: declension source workbook was not found: " & workbookPath, VBA.vbExclamation, "PrototypeNew / WORD export"
+        Exit Function
+    End If
+
+    On Error GoTo LookupFail
+    If Not private_TryGetWorkbookConnection(resolvedPath, conn) Then Exit Function
+    quotedKeyHeader = private_QuoteSqlIdentifier(keyHeader)
+    safeKeyExpression = "IIf(IsNull(" & quotedKeyHeader & "), '', " & quotedKeyHeader & ")"
+    sql = "SELECT TOP 1 " & private_QuoteSqlIdentifier(firstHeader) & ", " & _
+        private_QuoteSqlIdentifier(secondHeader) & ", " & private_QuoteSqlIdentifier(thirdHeader) & _
+        " FROM " & tableRef & _
+        " WHERE LCase(Trim(Replace(Replace(Replace(Replace(CStr(" & safeKeyExpression & _
+        "), Chr(160), ' '), Chr(13), ''), Chr(10), ''), Chr(9), ''))) = " & _
+        private_AdoSqlTextLiteral(lookupKey)
+
+    Set rs = VBA.CreateObject("ADODB.Recordset")
+    rs.Open sql, conn, 0, 1
+    If rs.EOF Then
+        private_TryLookupWorkbookThreeValues = True
+        GoTo CleanupDone
+    End If
+
+    outFirst = VBA.Trim$(private_RecordsetFieldText(rs.Fields(0).Value))
+    outSecond = VBA.Trim$(private_RecordsetFieldText(rs.Fields(1).Value))
+    outThird = VBA.Trim$(private_RecordsetFieldText(rs.Fields(2).Value))
+    outFound = True
+    private_TryLookupWorkbookThreeValues = True
+
+CleanupDone:
+    On Error Resume Next
+    If Not rs Is Nothing Then If rs.State <> 0 Then rs.Close
+    Set rs = Nothing
+    Set conn = Nothing
+    On Error GoTo 0
+    Exit Function
+
+LookupFail:
+    errNumber = Err.Number
+    errSource = Err.Source
+    errDescription = Err.Description
+    private_DropWorkbookConnection resolvedPath
+    VBA.MsgBox "PrototypeNew: failed to query declension source " & sourceLabel & "." & _
+        VBA.vbCrLf & "Workbook: " & workbookPath & _
+        VBA.vbCrLf & "Range: " & tableRef & _
+        VBA.vbCrLf & "SQL: " & sql & _
+        VBA.vbCrLf & "Error " & VBA.CStr(errNumber) & " (" & errSource & "): " & errDescription, _
+        VBA.vbExclamation, "PrototypeNew / WORD export"
+    Resume CleanupDone
+End Function
+
+Private Function private_IsDigitsOnly(ByVal valueText As String) As Boolean
+    Dim charIndex As Long
+    Dim charText As String
+
+    valueText = VBA.Trim$(valueText)
+    If VBA.Len(valueText) = 0 Then Exit Function
+    For charIndex = 1 To VBA.Len(valueText)
+        charText = VBA.Mid$(valueText, charIndex, 1)
+        If charText < "0" Or charText > "9" Then Exit Function
+    Next charIndex
+    private_IsDigitsOnly = True
+End Function
+
+Private Sub private_LogLookupMissDiagnostics( _
+    ByVal conn As Object, _
+    ByVal resolvedPath As String, _
+    ByVal tableRef As String, _
+    ByVal quotedKeyHeader As String, _
+    ByVal sourceLabel As String, _
+    ByVal lookupKey As String, _
+    ByVal lookupSql As String _
+)
+    Dim probeRs As Object
+    Dim probeSql As String
+    Dim rowCountText As String
+    Dim sampleText As String
+    Dim sampleValue As String
+    Dim fieldTypeText As String
+    Dim numericCountText As String
+    Dim quotedCountText As String
+    Dim cstrCountText As String
+    Dim scalarErrorText As String
+    Dim scanMatchText As String
+    Dim scanNearText As String
+    Dim scanRows As Long
+    Dim fileInfoText As String
+    Dim openWorkbookText As String
+    Dim connectionText As String
+
+    On Error Resume Next
+    Set probeRs = VBA.CreateObject("ADODB.Recordset")
+    probeSql = "SELECT COUNT(*) AS RowCount FROM " & tableRef
+    probeRs.Open probeSql, conn, 0, 1
+    If Err.Number = 0 And Not probeRs.EOF Then rowCountText = VBA.CStr(probeRs.Fields(0).Value)
+    If Not probeRs Is Nothing Then If probeRs.State <> 0 Then probeRs.Close
+    Err.Clear
+
+    probeSql = "SELECT TOP 5 " & quotedKeyHeader & " FROM " & tableRef & _
+        " WHERE " & quotedKeyHeader & " Is Not Null"
+    probeRs.Open probeSql, conn, 0, 1
+    If Err.Number = 0 Then
+        Do While Not probeRs.EOF
+            sampleValue = private_RecordsetFieldText(probeRs.Fields(0).Value)
+            If VBA.Len(sampleText) > 0 Then sampleText = sampleText & " | "
+            sampleText = sampleText & sampleValue
+            probeRs.MoveNext
+        Loop
+    End If
+    If Not probeRs Is Nothing Then If probeRs.State <> 0 Then probeRs.Close
+
+    If private_IsDigitsOnly(lookupKey) Then
+        numericCountText = private_DiagnosticQueryScalar(conn, _
+            "SELECT COUNT(*) FROM " & tableRef & " WHERE " & quotedKeyHeader & " = " & lookupKey, scalarErrorText)
+        If VBA.Len(scalarErrorText) > 0 Then numericCountText = "error: " & scalarErrorText
+
+        scalarErrorText = VBA.vbNullString
+        quotedCountText = private_DiagnosticQueryScalar(conn, _
+            "SELECT COUNT(*) FROM " & tableRef & " WHERE " & quotedKeyHeader & " = " & private_AdoSqlTextLiteral(lookupKey), scalarErrorText)
+        If VBA.Len(scalarErrorText) > 0 Then quotedCountText = "error: " & scalarErrorText
+
+        scalarErrorText = VBA.vbNullString
+        cstrCountText = private_DiagnosticQueryScalar(conn, _
+            "SELECT COUNT(*) FROM " & tableRef & " WHERE CStr(" & quotedKeyHeader & ") = " & private_AdoSqlTextLiteral(lookupKey), scalarErrorText)
+        If VBA.Len(scalarErrorText) > 0 Then cstrCountText = "error: " & scalarErrorText
+    End If
+
+    private_DiagnosticScanLookupKey conn, tableRef, quotedKeyHeader, lookupKey, _
+        fieldTypeText, scanRows, scanMatchText, scanNearText
+    fileInfoText = private_DiagnosticGetFileInfo(resolvedPath)
+    openWorkbookText = private_DiagnosticGetOpenWorkbookInfo(resolvedPath)
+    On Error Resume Next
+    connectionText = VBA.CStr(conn.ConnectionString)
+    Err.Clear
+    On Error GoTo 0
+
+    ex_Core.fn_Diagnostic_LogError "peb-declension:lookup-miss source='" & sourceLabel & _
+        "' key='" & lookupKey & _
+        "' workbook='" & resolvedPath & _
+        "' range='" & tableRef & _
+        "' rows='" & rowCountText & _
+        "' samples='" & VBA.Replace$(sampleText, "'", "''") & _
+        "' sql='" & VBA.Replace$(lookupSql, "'", "''") & "'"
+    ex_Core.fn_Diagnostic_LogError "peb-declension:lookup-probes key='" & lookupKey & _
+        "' fieldType='" & fieldTypeText & _
+        "' numericCount='" & numericCountText & _
+        "' quotedCount='" & quotedCountText & _
+        "' cstrCount='" & cstrCountText & _
+        "' scannedRows='" & VBA.CStr(scanRows) & _
+        "' clientMatch='" & VBA.Replace$(scanMatchText, "'", "''") & _
+        "' nearValues='" & VBA.Replace$(scanNearText, "'", "''") & "'"
+    ex_Core.fn_Diagnostic_LogError "peb-declension:lookup-source-state file='" & _
+        VBA.Replace$(fileInfoText, "'", "''") & _
+        "' openWorkbook='" & VBA.Replace$(openWorkbookText, "'", "''") & _
+        "' connection='" & VBA.Replace$(connectionText, "'", "''") & "'"
+    Set probeRs = Nothing
+    On Error GoTo 0
+End Sub
+
+Private Function private_DiagnosticQueryScalar( _
+    ByVal conn As Object, _
+    ByVal sql As String, _
+    ByRef outErrorText As String _
+) As String
+    Dim rs As Object
+
+    outErrorText = VBA.vbNullString
+    On Error GoTo QueryFail
+    Set rs = VBA.CreateObject("ADODB.Recordset")
+    rs.Open sql, conn, 0, 1
+    If Not rs.EOF Then private_DiagnosticQueryScalar = private_RecordsetFieldText(rs.Fields(0).Value)
+Cleanup:
+    On Error Resume Next
+    If Not rs Is Nothing Then If rs.State <> 0 Then rs.Close
+    Set rs = Nothing
+    On Error GoTo 0
+    Exit Function
+QueryFail:
+    outErrorText = Err.Description
+    Resume Cleanup
+End Function
+
+Private Sub private_DiagnosticScanLookupKey( _
+    ByVal conn As Object, _
+    ByVal tableRef As String, _
+    ByVal quotedKeyHeader As String, _
+    ByVal lookupKey As String, _
+    ByRef outFieldTypeText As String, _
+    ByRef outScannedRows As Long, _
+    ByRef outMatchText As String, _
+    ByRef outNearText As String _
+)
+    Dim rs As Object
+    Dim rawValue As Variant
+    Dim valueText As String
+    Dim lookupSuffix As String
+    Dim nearCount As Long
+
+    On Error GoTo ScanDone
+    Set rs = VBA.CreateObject("ADODB.Recordset")
+    rs.Open "SELECT " & quotedKeyHeader & " FROM " & tableRef & _
+        " WHERE " & quotedKeyHeader & " Is Not Null", conn, 0, 1
+    outFieldTypeText = VBA.CStr(rs.Fields(0).Type)
+    lookupSuffix = VBA.Right$(lookupKey, 4)
+
+    Do While Not rs.EOF
+        outScannedRows = outScannedRows + 1
+        rawValue = rs.Fields(0).Value
+        valueText = private_RecordsetFieldText(rawValue)
+        If VBA.StrComp(valueText, lookupKey, VBA.vbBinaryCompare) = 0 Then
+            outMatchText = "row=" & VBA.CStr(outScannedRows) & _
+                "; value=" & valueText & _
+                "; varType=" & VBA.CStr(VBA.VarType(rawValue))
+            Exit Do
+        End If
+        If nearCount < 5 And VBA.Len(lookupSuffix) > 0 Then
+            If VBA.Right$(valueText, VBA.Len(lookupSuffix)) = lookupSuffix Then
+                If VBA.Len(outNearText) > 0 Then outNearText = outNearText & " | "
+                outNearText = outNearText & valueText
+                nearCount = nearCount + 1
+            End If
+        End If
+        rs.MoveNext
+    Loop
+
+ScanDone:
+    If Err.Number <> 0 Then
+        outMatchText = "scan-error: " & Err.Description
+        Err.Clear
+    End If
+    On Error Resume Next
+    If Not rs Is Nothing Then If rs.State <> 0 Then rs.Close
+    Set rs = Nothing
+    On Error GoTo 0
+End Sub
+
+Private Function private_DiagnosticGetFileInfo(ByVal filePath As String) As String
+    Dim fso As Object
+    Dim fileObj As Object
+
+    On Error GoTo InfoFail
+    Set fso = VBA.CreateObject("Scripting.FileSystemObject")
+    Set fileObj = fso.GetFile(filePath)
+    private_DiagnosticGetFileInfo = "path=" & fileObj.Path & _
+        "; size=" & VBA.CStr(fileObj.Size) & _
+        "; modified=" & VBA.Format$(fileObj.DateLastModified, "yyyy-mm-dd hh:nn:ss")
+    Exit Function
+InfoFail:
+    private_DiagnosticGetFileInfo = "error: " & Err.Description
+End Function
+
+Private Function private_DiagnosticGetOpenWorkbookInfo(ByVal filePath As String) As String
+    Dim workbookObj As Object
+
+    On Error GoTo InfoFail
+    For Each workbookObj In Application.Workbooks
+        If VBA.StrComp(VBA.CStr(workbookObj.FullName), filePath, VBA.vbTextCompare) = 0 Then
+            private_DiagnosticGetOpenWorkbookInfo = "open=true; saved=" & _
+                VBA.LCase$(VBA.CStr(workbookObj.Saved)) & "; name=" & VBA.CStr(workbookObj.Name)
+            Exit Function
+        End If
+    Next workbookObj
+    private_DiagnosticGetOpenWorkbookInfo = "open=false"
+    Exit Function
+InfoFail:
+    private_DiagnosticGetOpenWorkbookInfo = "error: " & Err.Description
+End Function
+
+Private Function private_TryGetWorkbookConnection( _
+    ByVal resolvedPath As String, _
+    ByRef outConnection As Object _
+) As Boolean
+    Dim connectionKey As String
+
+    ' Каждая внешняя книга получает одно соединение на lifetime provider-а.
+    ' Значения не кешируются: resolver-ы по-прежнему выполняют SQL при вызове.
+    On Error GoTo ConnectionFail
+    If m_WorkbookConnections Is Nothing Then
+        Set m_WorkbookConnections = VBA.CreateObject("Scripting.Dictionary")
+        m_WorkbookConnections.CompareMode = 1
+    End If
+    connectionKey = VBA.LCase$(VBA.Trim$(resolvedPath))
+    If Not m_WorkbookConnections.Exists(connectionKey) Then
+        Set outConnection = VBA.CreateObject("ADODB.Connection")
+        outConnection.Open private_BuildAdoConnectionString(resolvedPath)
+        m_WorkbookConnections.Add connectionKey, outConnection
+    Else
+        Set outConnection = m_WorkbookConnections(connectionKey)
+        If outConnection.State = 0 Then outConnection.Open private_BuildAdoConnectionString(resolvedPath)
+    End If
+
+    private_TryGetWorkbookConnection = True
+    Exit Function
+
+ConnectionFail:
+    VBA.MsgBox "PrototypeNew: failed to open external data source." & _
+        VBA.vbCrLf & "Workbook: " & resolvedPath & _
+        VBA.vbCrLf & "Error: " & Err.Description, VBA.vbExclamation, "PrototypeNew / WORD export"
+End Function
+
+Private Sub private_DropWorkbookConnection(ByVal resolvedPath As String)
+    Dim connectionKey As String
+    Dim conn As Object
+
+    If m_WorkbookConnections Is Nothing Then Exit Sub
+    connectionKey = VBA.LCase$(VBA.Trim$(resolvedPath))
+    If Not m_WorkbookConnections.Exists(connectionKey) Then Exit Sub
+    On Error Resume Next
+    Set conn = m_WorkbookConnections(connectionKey)
+    If Not conn Is Nothing Then If conn.State <> 0 Then conn.Close
+    m_WorkbookConnections.Remove connectionKey
+    Set conn = Nothing
+    On Error GoTo 0
+End Sub
+
+Private Sub private_CloseWorkbookConnections()
+    Dim connectionKey As Variant
+    Dim conn As Object
+
+    If m_WorkbookConnections Is Nothing Then Exit Sub
+    On Error Resume Next
+    For Each connectionKey In m_WorkbookConnections.Keys
+        Set conn = m_WorkbookConnections(connectionKey)
+        If Not conn Is Nothing Then If conn.State <> 0 Then conn.Close
+        Set conn = Nothing
+    Next connectionKey
+    m_WorkbookConnections.RemoveAll
+    On Error GoTo 0
+End Sub
 
 Private Function private_TryResolveOrderMapWorkbookPath(ByRef outPath As String) As Boolean
     outPath = private_ResolveWorkbookPath(DEFAULT_ORDER_MAP_REL_PATH)
@@ -527,8 +1096,7 @@ Private Function private_TryLookupWorkbookDate( _
     End If
 
     On Error GoTo LookupFail
-    Set conn = VBA.CreateObject("ADODB.Connection")
-    conn.Open private_BuildAdoConnectionString(resolvedPath)
+    If Not private_TryGetWorkbookConnection(resolvedPath, conn) Then Exit Function
 
     ' Номер приказа сравниваем как текстовый token. Диапазон начинается со
     ' строки заголовков блока года, поэтому ADO видит поля "Дата наказу" и
@@ -550,7 +1118,6 @@ Private Function private_TryLookupWorkbookDate( _
 CleanupDone:
     On Error Resume Next
     If Not rs Is Nothing Then If rs.State <> 0 Then rs.Close
-    If Not conn Is Nothing Then If conn.State <> 0 Then conn.Close
     Set rs = Nothing
     Set conn = Nothing
     On Error GoTo 0

@@ -184,17 +184,17 @@ Private Function private_TryGetTemplateTextBySectionType( _
         Exit Function
     End If
 
-    xpath = "/p:wordResultTemplates/p:template[@sectionType=" & ex_XmlCore.fn_XPathLiteral(sectionTypeText) & "]/p:text"
+    xpath = "/p:wordResultTemplates/p:template[@name=" & ex_XmlCore.fn_XPathLiteral(sectionTypeText) & "]/p:text"
     Set node = doc.selectSingleNode(xpath)
     If node Is Nothing Then
-        VBA.MsgBox "PrototypeNew: WORD result template was not found for section type: " & sectionTypeText, VBA.vbExclamation, "PrototypeNew / WORD export"
+        VBA.MsgBox "PrototypeNew: WORD result template was not found by name: " & sectionTypeText, VBA.vbExclamation, "PrototypeNew / WORD export"
         Exit Function
     End If
 
     Set includeChain = New Collection
     outTemplateId = VBA.Trim$(VBA.CStr(node.ParentNode.getAttribute("id")))
     If VBA.Len(outTemplateId) = 0 Then
-        VBA.MsgBox "PrototypeNew: WORD result template id is empty for section type: " & sectionTypeText, VBA.vbExclamation, "PrototypeNew / WORD export"
+        VBA.MsgBox "PrototypeNew: WORD result template id is empty for name: " & sectionTypeText, VBA.vbExclamation, "PrototypeNew / WORD export"
         Exit Function
     End If
     outTemplateText = private_ExpandSharedTemplateIncludes(VBA.CStr(node.Text), doc, includeChain)
@@ -267,7 +267,8 @@ Private Function private_RenderTemplate( _
         placeholderValue = private_GetPlaceholderValue(placeholderName, sectionTypeText, sourceTables, renderVars, loopRows)
         ' Banner supports inline color markers. Mark only the resolved value,
         ' while all literal template text keeps the banner's white font.
-        If VBA.Len(placeholderValue) > 0 Then
+        If VBA.Len(placeholderValue) > 0 And _
+            VBA.InStr(1, placeholderValue, "[[color=", VBA.vbTextCompare) = 0 Then
             placeholderValue = "[[color=" & PREVIEW_PLACEHOLDER_COLOR & "]]" & _
                 placeholderValue & "[[/color]]"
         End If

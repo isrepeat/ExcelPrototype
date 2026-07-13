@@ -69,7 +69,7 @@
     <item attr="#" key="Export" value=""/>
     <item key="Export.Daily.ExporterClass" value="obj_PEB_ExptrDailyScope"/>
     <item key="Export.Daily.FilePath" value="C:\WORK Alexandr Bondarenko\НАКАЗИ\DailyScope.xlsx"/>
-    <item key="Export.Daily.SheetName" value="09_07"/>
+    <item key="Export.Daily.SheetName" value="10_07"/>
     <item key="Export.Daily.RangeStartMarker" value="$B2"/>
     <item key="Export.Daily.RangeEndMarker" value="EndTable_DailyEvents"/>
     <item key="Export.Movement.ExporterClass" value="obj_PEB_ExptrMovement"/>

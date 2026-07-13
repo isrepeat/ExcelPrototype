@@ -166,6 +166,7 @@ Public Function Export( _
     Dim prevEnableEvents As Boolean
     Dim prevDisplayAlerts As Boolean
     Dim prevCalculation As XlCalculation
+    Dim exportValidationError As String
 
     On Error GoTo EH
     private_LogMethodEntry "Export"
@@ -175,6 +176,10 @@ Public Function Export( _
     End If
     If Not m_Base.TryGetMainSourceTable(sourceTables, sourceTable) Then Exit Function
     If Not private_TryResolveTargetSectionCaption(sourceTable, context, targetSectionCaption, sectionKey) Then Exit Function
+    If Not m_ExporterDataProvider.IsExportAllowed(sourceTable, sectionKey, exportValidationError) Then
+        VBA.MsgBox exportValidationError, VBA.vbExclamation, "PrototypeNew / DailyScope export"
+        Exit Function
+    End If
 
     m_Base.BeginFastExcelMode prevScreenUpdating, prevEnableEvents, prevDisplayAlerts, prevCalculation
     fastModeStarted = True
