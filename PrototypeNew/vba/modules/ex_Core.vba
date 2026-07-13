@@ -1570,6 +1570,9 @@ Private Function private_Dev_TryRunSafeUpdateByMode( _
 #If LOGGING_DEBUG_ENABLED Then
         private_Diagnostic_LogCoreSelfEvent "safe-update:done op='" & operationName & "'"
 #End If
+        If VBA.StrComp(operationName, "full", VBA.vbTextCompare) = 0 Then
+            private_Diagnostic_ClearCoreLogFile
+        End If
         private_Dev_TryRunSafeUpdateByMode = True
         Exit Function
     End If
@@ -1632,6 +1635,11 @@ Private Function private_Dev_TryRunSafeUpdateByMode( _
 #If LOGGING_DEBUG_ENABLED Then
     private_Diagnostic_LogCoreSelfEvent "safe-update:done op='" & operationName & "'"
 #End If
+    ' Full import is a clean diagnostic boundary. Clear only after the import
+    ' succeeded and deferred runtime restoration was queued successfully.
+    If VBA.StrComp(operationName, "full", VBA.vbTextCompare) = 0 Then
+        private_Diagnostic_ClearCoreLogFile
+    End If
     private_Dev_TryRunSafeUpdateByMode = True
 End Function
 

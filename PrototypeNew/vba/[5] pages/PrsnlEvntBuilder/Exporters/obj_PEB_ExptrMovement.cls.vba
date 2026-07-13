@@ -163,6 +163,7 @@ Public Function Export( _
     Dim closingTargetIpn As String
     Dim basisSummaryText As String
     Dim rewriteLast As Boolean
+    Dim exportValidationError As String
 
     On Error GoTo EH
 
@@ -202,6 +203,10 @@ Public Function Export( _
     isMirrorTransferEvent = private_IsMirrorTransferSectionType(sectionTypeRaw)
     rewriteLast = (VBA.StrComp(private_GetContextText(context, MOVEMENT_CONTEXT_EXPORT_MODE), EXPORT_MODE_REWRITE_LAST, VBA.vbTextCompare) = 0)
     If isMirrorTransferEvent Then isClosingEvent = False
+    If Not m_DataProvider.IsExportAllowed(sourceTable, sectionTypeRaw, exportValidationError) Then
+        VBA.MsgBox exportValidationError, VBA.vbExclamation, "PrototypeNew / Movement export"
+        Exit Function
+    End If
 
     ' Некоторые типы выбытия пишут дополнительные поля открывающей записи:
     ' срок выбытия и В/к №. Helper сам решает, нужны ли эти поля для sectionType.

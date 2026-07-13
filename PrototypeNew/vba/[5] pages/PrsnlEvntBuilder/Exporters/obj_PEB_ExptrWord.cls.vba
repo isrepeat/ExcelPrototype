@@ -6,11 +6,14 @@ Attribute VB_Name = "obj_PEB_ExptrWord"
 Option Explicit
 #Const LOGGING_DEBUG_ENABLED = True
 #Const LOGGING_VERBOSE_ENABLED = False
+#Const TVO_POSITION_FALLBACK_ENABLED = True
+#Const TVO_POSITION_FALLBACK_HIGHLIGHT_ENABLED = True
 
 Implements obj_IDataExporter
 
 ' Runtime path is relative to ThisWorkbook.Path, same as page UI paths.
 Private Const WORD_RESULT_TEMPLATES_REL_PATH As String = "modes\PrsnlEvntBuilder\PrsnlEvntBuilderWordResultTemplates.xml"
+Private Const PREVIEW_FALLBACK_COLOR As String = "#FF0000"
 Private Const CONTEXT_SECTION_TYPE As String = "SectionType"
 Private Const CONTEXT_WORD_PREVIEW_TEXT As String = "WordExportPreviewText"
 Private Const CONTEXT_MANUAL_ORDER_NO As String = "ManualOrderNo"
@@ -160,7 +163,7 @@ Public Function Export( _
     Dim previewText As String
     Dim templateId As String
     Dim recordIpn As String
-
+    Dim exportValidationError As String
     If VBA.StrComp(private_GetContextText(context, "ExportMode"), "Rewrite Last", VBA.vbTextCompare) = 0 Then
         VBA.MsgBox "PrototypeNew: WORD exporter does not support Rewrite Last because it generates a preview and does not persist person records.", VBA.vbExclamation, "PrototypeNew / WORD export"
         Exit Function
@@ -178,8 +181,12 @@ Public Function Export( _
         VBA.MsgBox "PrototypeNew: WORD export requires SectionType in export context or source table SectionTitle.", VBA.vbExclamation, "PrototypeNew / WORD export"
         Exit Function
     End If
-
+    If Not m_ExporterDataProvider.IsExportAllowed(sourceTable, sectionTypeText, exportValidationError) Then
+        VBA.MsgBox exportValidationError, VBA.vbExclamation, "PrototypeNew / WORD export"
+        Exit Function
+    End If
     If Not private_TryEnrichMainSourceTableForWord(sourceTable, context) Then Exit Function
+    If Not private_TryAppendMovementTvoTablesForReturn(sourceTables, sourceTable, sectionTypeText) Then Exit Function
     If Not private_TryEnrichMetaTvoTablesForWord(sourceTables) Then Exit Function
     Set namedCollections = private_BuildNamedLoopCollections(sourceTables)
     If namedCollections Is Nothing Then Exit Function
@@ -488,6 +495,7 @@ Private Function private_TryEnrichMainSourceTableForWord( _
     Dim rankText As String
     Dim fioText As String
     Dim positionCodeText As String
+    Dim positionText As String
     Dim hospitalShortText As String
     Dim reportRankText As String
     Dim reportPersonText As String
@@ -522,7 +530,6 @@ Private Function private_TryEnrichMainSourceTableForWord( _
     Dim enrollToFoodSupportDateValue As Date
     Dim vacationTotalDays As Long
     Dim vacationDateTo As Date
-
     If sourceTable Is Nothing Then Exit Function
     If m_ExporterDataProvider Is Nothing Then Exit Function
     If m_ExporterDataProvider.CommonData Is Nothing Then Exit Function
@@ -531,6 +538,7 @@ Private Function private_TryEnrichMainSourceTableForWord( _
     If Not private_TryGetMainTableValue(sourceTable, SOURCE_ALIAS_RANK, rankText) Then rankText = VBA.vbNullString
     If Not private_TryGetMainTableValue(sourceTable, SOURCE_ALIAS_FIO, fioText) Then fioText = VBA.vbNullString
     If Not private_TryGetMainTableValue(sourceTable, SOURCE_ALIAS_POSITION_CODE, positionCodeText) Then positionCodeText = VBA.vbNullString
+    If Not private_TryGetMainTableValue(sourceTable, SOURCE_ALIAS_POSITION_NAME, positionText) Then positionText = VBA.vbNullString
     If Not private_TryGetMainTableValue(sourceTable, SOURCE_ALIAS_HOSPITAL_SHORT, hospitalShortText) Then hospitalShortText = VBA.vbNullString
     If Not private_TryGetMainTableValue(sourceTable, SOURCE_ALIAS_REPORT_RANK, reportRankText) Then reportRankText = VBA.vbNullString
     If Not private_TryGetMainTableValue(sourceTable, SOURCE_ALIAS_REPORT_PERSON, reportPersonText) Then reportPersonText = VBA.vbNullString
@@ -560,7 +568,7 @@ Private Function private_TryEnrichMainSourceTableForWord( _
     ' ключ не найден, provider сам показывает MsgBox с конкретной причиной.
     If Not m_ExporterDataProvider.CommonData.TryResolveRankGenitive(rankText, rankGenitive) Then Exit Function
     If Not m_ExporterDataProvider.CommonData.TryResolveFioGenitive(ipnText, fioGenitive) Then Exit Function
-    If Not m_ExporterDataProvider.CommonData.TryResolveFioInitialsGenitiveByName(fioText, fioInitialsGenitive) Then Exit Function
+    If Not m_ExporterDataProvider.CommonData.TryResolveFioInitialsGenitive(ipnText, fioInitialsGenitive) Then Exit Function
     If Not m_ExporterDataProvider.CommonData.TryResolvePositionGenitive(positionCodeText, positionGenitive) Then Exit Function
     If Not m_ExporterDataProvider.CommonData.TryResolveHospitalGenitive(hospitalShortText, hospitalGenitive) Then Exit Function
     If Not m_ExporterDataProvider.CommonData.TryResolveHospitalAccusative(hospitalShortText, hospitalAccusative) Then Exit Function
@@ -599,6 +607,9 @@ Private Function private_TryEnrichMainSourceTableForWord( _
     End If
     If VBA.Len(VBA.Trim$(positionGenitive)) > 0 Then
         If Not private_TryUpsertMainTableValue(sourceTable, WORD_ALIAS_POSITION_GENITIVE, positionGenitive) Then Exit Function
+    End If
+    If VBA.Len(VBA.Trim$(positionText)) > 0 Then
+        If Not private_TryUpsertMainTableValue(sourceTable, WORD_ALIAS_POSITION_DEFAULT, positionText) Then Exit Function
     End If
     If VBA.Len(VBA.Trim$(hospitalGenitive)) > 0 Then
         If Not private_TryUpsertMainTableValue(sourceTable, WORD_ALIAS_HOSPITAL_GENITIVE, hospitalGenitive) Then Exit Function
@@ -720,6 +731,117 @@ EH:
     VBA.MsgBox "PrototypeNew: failed to calculate vacation duration from '" & durationText & "': " & Err.Description, VBA.vbExclamation, "PrototypeNew / WORD export"
 End Function
 
+Private Function private_TryAppendMovementTvoTablesForReturn( _
+    ByVal sourceTables As Collection, _
+    ByVal mainSourceTable As obj_TableDynamic, _
+    ByVal sectionTypeText As String _
+) As Boolean
+    Dim data As obj_PrsnlEvntBuilderData
+    Dim existingTable As obj_TableDynamic
+    Dim tableIndex As Long
+    Dim mainIpn As String
+    Dim movementFound As Boolean
+    Dim tvoChain As Collection
+    Dim chainValue As Variant
+    Dim chainItem As Object
+    Dim tvoTable As obj_TableDynamic
+    Dim rankText As String
+    Dim fioText As String
+    Dim positionCode As String
+    Dim positionText As String
+    If sourceTables Is Nothing Then Exit Function
+    If mainSourceTable Is Nothing Then Exit Function
+    Set data = New obj_PrsnlEvntBuilderData
+    If Not data.IsMovementClosingSectionType(sectionTypeText) Then
+        private_TryAppendMovementTvoTablesForReturn = True
+        Exit Function
+    End If
+
+    ' Явно добавленная пользователем meta-ТВО строка имеет приоритет над
+    ' восстановлением из Movement и предотвращает дублирование пунктов.
+    For tableIndex = 2 To sourceTables.Count
+        Set existingTable = sourceTables.Item(tableIndex)
+        If Not existingTable Is Nothing Then
+            If VBA.StrComp( _
+                private_NormalizeCollectionKey(existingTable.SectionTitle), _
+                private_NormalizeCollectionKey(META_SECTION_TYPE_TVO), _
+                VBA.vbTextCompare) = 0 Then
+                private_TryAppendMovementTvoTablesForReturn = True
+                Exit Function
+            End If
+        End If
+    Next tableIndex
+
+    If Not private_TryGetMainTableValue(mainSourceTable, SOURCE_ALIAS_IPN, mainIpn) Then Exit Function
+    If Not m_ExporterDataProvider.TryGetLatestMovementTvoChain(mainIpn, movementFound, tvoChain) Then Exit Function
+    If Not movementFound Or tvoChain Is Nothing Then
+        private_TryAppendMovementTvoTablesForReturn = True
+        Exit Function
+    End If
+
+    For Each chainValue In tvoChain
+        Set chainItem = chainValue
+        fioText = VBA.CStr(chainItem("FIO"))
+        positionCode = VBA.CStr(chainItem("PositionCode"))
+        If Not m_ExporterDataProvider.CommonData.TryResolveRankByIpn(VBA.CStr(chainItem("IPN")), rankText) Then Exit Function
+        ' Все три формы должности будут прочитаны одним запросом на этапе
+        ' meta enrichment; здесь сохраняем только код из Movement.
+        positionText = VBA.vbNullString
+
+        Set tvoTable = private_BuildTvoSourceTable( _
+            rankText, fioText, VBA.CStr(chainItem("IPN")), positionCode, positionText)
+        If tvoTable Is Nothing Then Exit Function
+        sourceTables.Add tvoTable
+    Next chainValue
+
+    private_TryAppendMovementTvoTablesForReturn = True
+End Function
+
+Private Function private_BuildTvoSourceTable( _
+    ByVal rankText As String, _
+    ByVal fioText As String, _
+    ByVal ipnText As String, _
+    ByVal positionCodeText As String, _
+    ByVal positionText As String _
+) As obj_TableDynamic
+    Dim tableObj As obj_TableDynamic
+    Dim rowObj As obj_Row
+
+    Set tableObj = New obj_TableDynamic
+    tableObj.SectionTitle = META_SECTION_TYPE_TVO
+    If Not private_TryAddWordSourceColumn(tableObj, SOURCE_ALIAS_RANK) Then Exit Function
+    If Not private_TryAddWordSourceColumn(tableObj, SOURCE_ALIAS_FIO) Then Exit Function
+    If Not private_TryAddWordSourceColumn(tableObj, SOURCE_ALIAS_IPN) Then Exit Function
+    If Not private_TryAddWordSourceColumn(tableObj, SOURCE_ALIAS_POSITION_CODE) Then Exit Function
+    If Not private_TryAddWordSourceColumn(tableObj, WORD_ALIAS_POSITION_DEFAULT) Then Exit Function
+
+    Set rowObj = New obj_Row
+    rowObj.PushCellRaw rankText
+    rowObj.PushCellRaw fioText
+    rowObj.PushCellRaw ipnText
+    rowObj.PushCellRaw positionCodeText
+    rowObj.PushCellRaw positionText
+    If Not tableObj.PushRow(rowObj) Then Exit Function
+
+    Set private_BuildTvoSourceTable = tableObj
+End Function
+
+Private Function private_TryAddWordSourceColumn( _
+    ByVal tableObj As obj_TableDynamic, _
+    ByVal aliasText As String _
+) As Boolean
+    Dim columnObj As obj_Column
+
+    If tableObj Is Nothing Then Exit Function
+    aliasText = VBA.Trim$(aliasText)
+    If VBA.Len(aliasText) = 0 Then Exit Function
+    Set columnObj = New obj_Column
+    columnObj.Name = aliasText
+    columnObj.Position = tableObj.ColumnCount + 1
+    If Not columnObj.AddAlias(aliasText) Then Exit Function
+    private_TryAddWordSourceColumn = tableObj.PushColumn(columnObj)
+End Function
+
 Private Function private_TryEnrichMetaTvoTablesForWord(ByVal sourceTables As Collection) As Boolean
     Dim tableIndex As Long
     Dim sourceTable As obj_TableDynamic
@@ -733,8 +855,10 @@ Private Function private_TryEnrichMetaTvoTablesForWord(ByVal sourceTables As Col
     Dim fioDative As String
     Dim positionGenitive As String
     Dim positionDative As String
+    Dim positionGenitiveFound As Boolean
+    Dim positionDativeFound As Boolean
+    Dim fallbackPositionText As String
     Dim enrichedCount As Long
-
     If sourceTables Is Nothing Then Exit Function
 
     ' Служебные падежные колонки добавляются только в export-source копии
@@ -751,7 +875,7 @@ Private Function private_TryEnrichMetaTvoTablesForWord(ByVal sourceTables As Col
         If Not private_TryGetMainTableValue(sourceTable, SOURCE_ALIAS_RANK, rankText) Then rankText = VBA.vbNullString
         If Not private_TryGetMainTableValue(sourceTable, SOURCE_ALIAS_IPN, ipnText) Then ipnText = VBA.vbNullString
         If Not private_TryGetMainTableValue(sourceTable, SOURCE_ALIAS_POSITION_CODE, positionCodeText) Then positionCodeText = VBA.vbNullString
-        If Not private_TryGetMainTableValue(sourceTable, SOURCE_ALIAS_POSITION_NAME, positionText) Then positionText = VBA.vbNullString
+        If Not private_TryGetMainTableValue(sourceTable, WORD_ALIAS_POSITION_DEFAULT, positionText) Then positionText = VBA.vbNullString
 
         ' Для каждого базового Rank/FIO/Position шаблон получает единый набор:
         ' default без суффикса, Genitive и Dative.
@@ -759,8 +883,41 @@ Private Function private_TryEnrichMetaTvoTablesForWord(ByVal sourceTables As Col
         If Not m_ExporterDataProvider.CommonData.TryResolveRankDative(rankText, rankDative) Then Exit Function
         If Not m_ExporterDataProvider.CommonData.TryResolveFioGenitive(ipnText, fioGenitive) Then Exit Function
         If Not m_ExporterDataProvider.CommonData.TryResolveFioDative(ipnText, fioDative) Then Exit Function
-        If Not m_ExporterDataProvider.CommonData.TryResolvePositionGenitive(positionCodeText, positionGenitive) Then Exit Function
-        If Not m_ExporterDataProvider.CommonData.TryResolvePositionDative(positionCodeText, positionDative) Then Exit Function
+#If TVO_POSITION_FALLBACK_ENABLED Then
+        If Not m_ExporterDataProvider.CommonData.TryResolvePositionFormsOptional( _
+            positionCodeText, fallbackPositionText, positionGenitive, positionDative, positionGenitiveFound) Then Exit Function
+        positionDativeFound = positionGenitiveFound
+        If positionGenitiveFound Then positionText = fallbackPositionText
+
+        ' Missing dictionary rows are allowed only by this compile-time feature.
+        ' The source row supplies the uninflected name and red marks it in preview.
+        If Not positionGenitiveFound Or Not positionDativeFound Then
+            If VBA.Len(VBA.Trim$(positionText)) = 0 Then
+                VBA.MsgBox "PrototypeNew: position code '" & positionCodeText & _
+                    "' was not found in ШПО / Посади, and the source row has no position name for the TVO person.", _
+                    VBA.vbExclamation, "PrototypeNew / WORD export"
+                Exit Function
+            End If
+#If TVO_POSITION_FALLBACK_HIGHLIGHT_ENABLED Then
+            fallbackPositionText = private_WrapPreviewColor(positionText, PREVIEW_FALLBACK_COLOR)
+#Else
+            fallbackPositionText = positionText
+#End If
+            positionText = fallbackPositionText
+            If Not positionGenitiveFound Then positionGenitive = fallbackPositionText
+            If Not positionDativeFound Then positionDative = fallbackPositionText
+        End If
+#Else
+        ' Strict mode preserves the original behavior: a missing position row
+        ' is reported by CommonData and stops preview/export immediately.
+        If Not m_ExporterDataProvider.CommonData.TryResolvePositionFormsOptional( _
+            positionCodeText, positionText, positionGenitive, positionDative, positionGenitiveFound) Then Exit Function
+        If Not positionGenitiveFound Then
+            VBA.MsgBox "PrototypeNew: declension row was not found in ШПО / Посади for key: " & positionCodeText, _
+                VBA.vbExclamation, "PrototypeNew / WORD export"
+            Exit Function
+        End If
+#End If
 
         If Not private_TryUpsertMainTableValue(sourceTable, WORD_ALIAS_RANK_GENITIVE, rankGenitive) Then Exit Function
         If Not private_TryUpsertMainTableValue(sourceTable, WORD_ALIAS_RANK_DATIVE, rankDative) Then Exit Function
@@ -778,6 +935,11 @@ ContinueTable:
     If enrichedCount > 0 Then ex_Core.fn_Diagnostic_LogInfo "peb-word:meta-tvo-enriched count=" & VBA.CStr(enrichedCount)
 #End If
     private_TryEnrichMetaTvoTablesForWord = True
+End Function
+
+Private Function private_WrapPreviewColor(ByVal valueText As String, ByVal colorText As String) As String
+    If VBA.Len(valueText) = 0 Then Exit Function
+    private_WrapPreviewColor = "[[color=" & colorText & "]]" & valueText & "[[/color]]"
 End Function
 
 Private Function private_TryResolveDateByRawText( _

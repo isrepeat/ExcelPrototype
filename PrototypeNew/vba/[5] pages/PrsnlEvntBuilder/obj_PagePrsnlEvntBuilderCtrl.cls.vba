@@ -85,7 +85,9 @@ Private m_WordExportPreviewText As String
 Private m_ExportModeIndex As Long
 Private m_ExportCommonData As obj_PEB_ExptrCommonDataPrvdr
 Private m_ExportHistory As Object
-Private m_CachedWordExporter As obj_IDataExporter
+Private m_CachedDailyScopeExporter As obj_PEB_ExptrDailyScope
+Private m_CachedMovementExporter As obj_PEB_ExptrMovement
+Private m_CachedWordExporter As obj_PEB_ExptrWord
 Private m_IsLookupEnabled As Boolean
 Private m_Data As obj_PrsnlEvntBuilderData
 Private m_IsDisposed As Boolean
@@ -190,7 +192,7 @@ Public Sub Dispose()
     If Not m_ExportCommonData Is Nothing Then m_ExportCommonData.Dispose
     Set m_ExportCommonData = Nothing
     Set m_ExportHistory = Nothing
-    Set m_CachedWordExporter = Nothing
+    private_DisposeCachedExporters
     m_SelectedProfile = VBA.vbNullString
     m_SelectedMainProfile = VBA.vbNullString
     Set m_ExportMainTable = Nothing
@@ -1020,14 +1022,27 @@ Private Function private_TryCreateProfilesProvider(ByVal providerClassName As St
 End Function
 
 Private Sub private_ResetExportSettings()
-    ' This exporter owns profile-backed lookup providers; keep it warm between
-    ' exports and invalidate it only when configuration is rebuilt.
-    Set m_CachedWordExporter = Nothing
+    ' Exporters own profile-backed lookup providers; keep them warm between
+    ' exports and invalidate them only when configuration is rebuilt.
+    private_DisposeCachedExporters
     Set m_ExportAliases = New Collection
     Set m_ExporterClassByAlias = ex_Helpers.fn_CreateDictionaryTextCompare()
     Set m_ExportConfigTableByAlias = ex_Helpers.fn_CreateDictionaryTextCompare()
     Set m_ProfileConfigTable = Nothing
     Set m_SourceColumnAliasByCaption = ex_Helpers.fn_CreateDictionaryTextCompare()
+End Sub
+
+Private Sub private_DisposeCachedExporters()
+    ' Cached exporters own their ADO providers/connections. Dispose them
+    ' explicitly whenever the profile configuration or page lifetime ends.
+    On Error Resume Next
+    If Not m_CachedDailyScopeExporter Is Nothing Then m_CachedDailyScopeExporter.Dispose
+    If Not m_CachedMovementExporter Is Nothing Then m_CachedMovementExporter.Dispose
+    If Not m_CachedWordExporter Is Nothing Then m_CachedWordExporter.Dispose
+    Set m_CachedDailyScopeExporter = Nothing
+    Set m_CachedMovementExporter = Nothing
+    Set m_CachedWordExporter = Nothing
+    On Error GoTo 0
 End Sub
 
 Private Function private_ExportAliasExists(ByVal exportAlias As String) As Boolean
@@ -1108,14 +1123,26 @@ Private Function private_TryCreateDataExporter( _
 
     Select Case VBA.LCase$(exporterClassName)
         Case VBA.LCase$("obj_PEB_ExptrDailyScope")
+            If Not m_CachedDailyScopeExporter Is Nothing Then
+                Set outExporter = m_CachedDailyScopeExporter
+                private_TryCreateDataExporter = True
+                Exit Function
+            End If
             Set exporterToDailyScope = New obj_PEB_ExptrDailyScope
             If Not exporterToDailyScope.Initialize(exportConfigTable, m_ProfileConfigTable) Then Exit Function
             Set outExporter = exporterToDailyScope
+            Set m_CachedDailyScopeExporter = exporterToDailyScope
 
         Case VBA.LCase$("obj_PEB_ExptrMovement")
+            If Not m_CachedMovementExporter Is Nothing Then
+                Set outExporter = m_CachedMovementExporter
+                private_TryCreateDataExporter = True
+                Exit Function
+            End If
             Set exporterToMovement = New obj_PEB_ExptrMovement
             If Not exporterToMovement.Initialize(exportConfigTable, m_ProfileConfigTable) Then Exit Function
             Set outExporter = exporterToMovement
+            Set m_CachedMovementExporter = exporterToMovement
 
         Case VBA.LCase$("obj_PEB_ExptrWord")
             If Not m_CachedWordExporter Is Nothing Then
@@ -1126,7 +1153,7 @@ Private Function private_TryCreateDataExporter( _
             Set exporterToWord = New obj_PEB_ExptrWord
             If Not exporterToWord.Initialize(exportConfigTable, m_ProfileConfigTable) Then Exit Function
             Set outExporter = exporterToWord
-            Set m_CachedWordExporter = outExporter
+            Set m_CachedWordExporter = exporterToWord
 
         Case Else
             VBA.MsgBox "PrototypeNew: unsupported data exporter class: " & exporterClassName, VBA.vbExclamation, "PrototypeNew / Data export"
