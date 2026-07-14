@@ -33,6 +33,8 @@ Private Const MOVEMENT_SOURCE_VK_NO As String = "В/к №"
 Private Const MOVEMENT_SOURCE_REPORT_RANK As String = "ReportRank"
 Private Const MOVEMENT_SOURCE_REPORT_PERSON As String = "ReportPerson"
 Private Const MOVEMENT_SOURCE_REPORT_POSITION_CODE As String = "ReportPositionCode"
+Private Const MOVEMENT_SOURCE_PERSON_RANK As String = "Rank"
+Private Const MOVEMENT_SOURCE_PERSON_IPN As String = "IPN"
 Private Const MOVEMENT_TARGET_ORDER_NO As String = "Наказ вибуття"
 Private Const MOVEMENT_TARGET_FOOD_FROM As String = "З продовольчого"
 Private Const MOVEMENT_TARGET_DEPARTURE As String = "Вибуття"
@@ -794,6 +796,10 @@ Private Function private_TryBuildMovementBasisSummary( _
     Dim reportTvoPositionGenitive As String
     Dim reportPositionShortGenitive As String
     Dim reportPersonInitialsGenitive As String
+    Dim personRankText As String
+    Dim personIpnText As String
+    Dim personRankGenitive As String
+    Dim personInitialsGenitive As String
     Dim reporterCoreText As String
     Dim reporterText As String
     Dim isReporterTvo As Boolean
@@ -817,7 +823,37 @@ Private Function private_TryBuildMovementBasisSummary( _
     If Not private_TryGetSourceTextByAnyColumn(sourceTable, sourceRow, incomingDateText, MOVEMENT_SOURCE_INCOMING_DATE) Then incomingDateText = VBA.vbNullString
 
     If private_IsSelfReportText(reportPersonText) Then
-        reporterText = "військовослужбовця"
+        ' Пустое поле рапортующего и значение "сам" означают, что рапорт
+        ' подал основной военнослужащий. В основании указываем его звание и
+        ' фамилию с инициалами в родительном падеже, но не должность.
+        If Not private_TryGetSourceTextByAnyColumn( _
+            sourceTable, sourceRow, personRankText, MOVEMENT_SOURCE_PERSON_RANK, "Звання") Then
+            VBA.MsgBox "PrototypeNew: self-report basis requires the person's rank.", _
+                VBA.vbExclamation, "PrototypeNew / Movement export"
+            Exit Function
+        End If
+        If Not private_TryGetSourceTextByAnyColumn( _
+            sourceTable, sourceRow, personIpnText, MOVEMENT_SOURCE_PERSON_IPN, "ІПН") Then
+            VBA.MsgBox "PrototypeNew: self-report basis requires the person's IPN.", _
+                VBA.vbExclamation, "PrototypeNew / Movement export"
+            Exit Function
+        End If
+        If VBA.Len(VBA.Trim$(personRankText)) = 0 Or VBA.Len(VBA.Trim$(personIpnText)) = 0 Then
+            VBA.MsgBox "PrototypeNew: self-report basis requires non-empty rank and IPN.", _
+                VBA.vbExclamation, "PrototypeNew / Movement export"
+            Exit Function
+        End If
+        If Not m_DataProvider.CommonData.TryResolveRankGenitive( _
+            personRankText, personRankGenitive) Then Exit Function
+        If Not m_DataProvider.CommonData.TryResolveFioInitialsGenitive( _
+            personIpnText, personInitialsGenitive) Then Exit Function
+
+        reporterText = private_JoinNonEmptyParts(personRankGenitive, personInitialsGenitive)
+        If VBA.Len(VBA.Trim$(reporterText)) = 0 Then
+            VBA.MsgBox "PrototypeNew: failed to build rank and initials for self-report basis.", _
+                VBA.vbExclamation, "PrototypeNew / Movement export"
+            Exit Function
+        End If
     Else
         If Not m_DataProvider.CommonData.TryResolveRankGenitive(reportRankText, reportRankGenitive) Then Exit Function
         If Not m_DataProvider.TryResolveReporterTvoPositionGenitive(reportPersonText, reportTvoPositionGenitive, isReporterTvo) Then Exit Function
@@ -969,7 +1005,8 @@ End Function
 
 Private Function private_IsSelfReportText(ByVal valueText As String) As Boolean
     valueText = private_NormalizeText(valueText)
-    private_IsSelfReportText = (VBA.StrComp(valueText, "сам", VBA.vbTextCompare) = 0)
+    private_IsSelfReportText = (VBA.Len(valueText) = 0 Or _
+        VBA.StrComp(valueText, "сам", VBA.vbTextCompare) = 0)
 End Function
 
 Private Function private_LowerFirstLetter(ByVal valueText As String) As String
