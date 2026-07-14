@@ -4,10 +4,10 @@ BEGIN
 END
 Attribute VB_Name = "obj_PEB_ExptrDataPrvdr"
 Option Explicit
-#Const LOGGING_DEBUG_ENABLED = False
+#Const LOGGING_DEBUG_ENABLED = True
 #Const LOGGING_VERBOSE_ENABLED = False
 ' Проверяет допустимость нового события по последней Movement-записи человека.
-' Смены статуса и закрывающие события пока пропускаются отдельными правилами.
+' Смены статуса пока пропускаются; opening и closing используют единое правило.
 #Const MOVEMENT_EXPORT_VALIDATION_ENABLED = True
 
 Private m_IsDisposed As Boolean
@@ -100,10 +100,9 @@ Public Property Get MovementSheetName() As String
     MovementSheetName = m_MovementSheetName
 End Property
 
-' Читает последнюю физическую строку Movement-листа для указанного ИПН.
-' Отсутствие строки не является ошибкой: в этом случае outFound=False.
-' Критерий закрытия совпадает с obj_PEB_ExptrMovement: заполнены приказ
-' прибытия, дата постановки на продовольствие и дата прибытия.
+' Совместимый узкий API для callers, которым данные ТВО не нужны.
+' Основной export-flow вызывает объединённый helper напрямую и переиспользует
+' outTvoChain; эта обёртка сохранена только для прежнего публичного контракта.
 Public Function TryGetLatestMovementEvent( _
     ByVal ipnText As String, _
     ByRef outFound As Boolean, _
@@ -112,6 +111,31 @@ Public Function TryGetLatestMovementEvent( _
     ByRef outDepartureDateText As String, _
     ByRef outArrivalDateText As String _
 ) As Boolean
+    Dim ignoredTvoChain As Collection
+
+    TryGetLatestMovementEvent = TryGetLatestMovementEventAndTvoChain( _
+        ipnText, _
+        outFound, _
+        outEventText, _
+        outIsClosed, _
+        outDepartureDateText, _
+        outArrivalDateText, _
+        ignoredTvoChain)
+End Function
+
+' Читает одним запросом последнюю физическую строку Movement-листа и цепочку ТВО.
+' Отсутствие строки не является ошибкой: в этом случае outFound=False.
+' Критерий закрытия совпадает с obj_PEB_ExptrMovement: заполнены приказ
+' прибытия, дата постановки на продовольствие и дата прибытия.
+Public Function TryGetLatestMovementEventAndTvoChain( _
+    ByVal ipnText As String, _
+    ByRef outFound As Boolean, _
+    ByRef outEventText As String, _
+    ByRef outIsClosed As Boolean, _
+    ByRef outDepartureDateText As String, _
+    ByRef outArrivalDateText As String, _
+    ByRef outTvoChain As Collection _
+) As Boolean
     Dim resolvedPath As String
     Dim movementTableRef As String
     Dim query As obj_ExtWorkbookQuery
@@ -119,11 +143,16 @@ Public Function TryGetLatestMovementEvent( _
     Dim resultRow As obj_Row
     Dim arrivalOrderText As String
     Dim onFoodDateText As String
+    Dim tvoFioText As String
+    Dim tvoIpnText As String
+    Dim tvoPositionText As String
+
     outFound = False
     outEventText = VBA.vbNullString
     outIsClosed = False
     outDepartureDateText = VBA.vbNullString
     outArrivalDateText = VBA.vbNullString
+    Set outTvoChain = New Collection
 
     If m_IsDisposed Then Exit Function
     ipnText = private_NormalizeLookupKey(ipnText)
@@ -164,34 +193,50 @@ Public Function TryGetLatestMovementEvent( _
     If Not query.AddSelectColumn(MOVEMENT_ARRIVAL_DATE_HEADER) Then Exit Function
     If Not query.AddSelectColumn(MOVEMENT_ARRIVAL_ORDER_HEADER) Then Exit Function
     If Not query.AddSelectColumn(MOVEMENT_ON_FOOD_HEADER) Then Exit Function
+    ' Валидация и восстановление ТВО используют одну и ту же последнюю строку.
+    ' Читаем TVO-колонки тем же запросом, чтобы exporter не сканировал Movement
+    ' повторно после успешной проверки IsExportAllowed.
+    If Not query.AddSelectColumn(MOVEMENT_TVO_FIO_HEADER) Then Exit Function
+    If Not query.AddSelectColumn(MOVEMENT_TVO_IPN_HEADER) Then Exit Function
+    If Not query.AddSelectColumn(MOVEMENT_TVO_POSITION_HEADER) Then Exit Function
     If Not m_QueryEngine.TryExecute(query, resultTable) Then Exit Function
 
     If Not resultTable Is Nothing Then outFound = (resultTable.RowCount > 0)
     If outFound Then
         Set resultRow = resultTable.Rows.Item(1)
         If resultRow Is Nothing Then Exit Function
-        outEventText = VBA.CStr(resultRow.GetCellValue(1))
-        outDepartureDateText = VBA.CStr(resultRow.GetCellValue(2))
-        outArrivalDateText = VBA.CStr(resultRow.GetCellValue(3))
-        arrivalOrderText = VBA.CStr(resultRow.GetCellValue(4))
-        onFoodDateText = VBA.CStr(resultRow.GetCellValue(5))
+        If Not resultRow.TryGetCellValueByColumn(MOVEMENT_EVENT_HEADER, outEventText) Then Exit Function
+        If Not resultRow.TryGetCellValueByColumn(MOVEMENT_DEPARTURE_DATE_HEADER, outDepartureDateText) Then Exit Function
+        If Not resultRow.TryGetCellValueByColumn(MOVEMENT_ARRIVAL_DATE_HEADER, outArrivalDateText) Then Exit Function
+        If Not resultRow.TryGetCellValueByColumn(MOVEMENT_ARRIVAL_ORDER_HEADER, arrivalOrderText) Then Exit Function
+        If Not resultRow.TryGetCellValueByColumn(MOVEMENT_ON_FOOD_HEADER, onFoodDateText) Then Exit Function
+        If Not resultRow.TryGetCellValueByColumn(MOVEMENT_TVO_FIO_HEADER, tvoFioText) Then Exit Function
+        If Not resultRow.TryGetCellValueByColumn(MOVEMENT_TVO_IPN_HEADER, tvoIpnText) Then Exit Function
+        If Not resultRow.TryGetCellValueByColumn(MOVEMENT_TVO_POSITION_HEADER, tvoPositionText) Then Exit Function
+        If Not private_TryBuildTvoChain( _
+            tvoFioText, _
+            tvoIpnText, _
+            tvoPositionText, _
+            ipnText, _
+            outTvoChain) Then Exit Function
     End If
     If outFound Then
         outIsClosed = (VBA.Len(VBA.Trim$(arrivalOrderText)) > 0) _
             And (VBA.Len(VBA.Trim$(onFoodDateText)) > 0) _
             And (VBA.Len(VBA.Trim$(outArrivalDateText)) > 0)
     End If
-    TryGetLatestMovementEvent = True
+    TryGetLatestMovementEventAndTvoChain = True
 End Function
 
 ' Единая предварительная проверка для всех PEB exporters. Обычное выбытие
-' нельзя экспортировать, пока последняя Movement-запись человека не закрыта.
-' Прибытия разрешаются: именно они закрывают предыдущую запись. Смены статуса
-' временно пропускаются без проверки до появления отдельных правил.
+' разрешено, если прошлой записи нет либо она закрыта. Прибытие, наоборот,
+' может закрывать только существующую открытую запись. Смены статуса временно
+' пропускаются без проверки до появления отдельных правил.
 Public Function IsExportAllowed( _
     ByVal sourceTable As obj_TableDynamic, _
     ByVal exportSectionType As String, _
-    ByRef outErrorMessage As String _
+    ByRef outErrorMessage As String, _
+    ByRef outLatestTvoChain As Collection _
 ) As Boolean
     Dim data As obj_PrsnlEvntBuilderData
     Dim ipnText As String
@@ -200,7 +245,9 @@ Public Function IsExportAllowed( _
     Dim previousIsClosed As Boolean
     Dim previousDepartureDateText As String
     Dim previousArrivalDateText As String
+
     outErrorMessage = VBA.vbNullString
+    Set outLatestTvoChain = New Collection
 #If Not MOVEMENT_EXPORT_VALIDATION_ENABLED Then
     ' Пока правила переходов между событиями не завершены, все exporters
     ' получают единое разрешение без обращения к Movement.
@@ -232,10 +279,6 @@ Public Function IsExportAllowed( _
         IsExportAllowed = True
         Exit Function
     End If
-    If data.IsMovementClosingSectionType(exportSectionType) Then
-        IsExportAllowed = True
-        Exit Function
-    End If
 
     If Not private_TryGetFirstRowText(sourceTable, MOVEMENT_IPN_HEADER, ipnText) Then
         outErrorMessage = "Export source does not contain a valid IPN."
@@ -245,12 +288,33 @@ Public Function IsExportAllowed( _
         outErrorMessage = "Export source IPN is empty."
         Exit Function
     End If
-    If Not TryGetLatestMovementEvent( _
+    If Not TryGetLatestMovementEventAndTvoChain( _
         ipnText, found, previousEventText, previousIsClosed, _
-        previousDepartureDateText, previousArrivalDateText) Then
+        previousDepartureDateText, previousArrivalDateText, outLatestTvoChain) Then
         outErrorMessage = "Failed to read the latest Movement event for IPN '" & ipnText & "'."
         Exit Function
     End If
+
+    If data.IsMovementClosingSectionType(exportSectionType) Then
+        If Not found Then
+            outErrorMessage = "Export was stopped because there is no Movement event to close." & _
+                VBA.vbCrLf & "IPN: " & ipnText
+            Exit Function
+        End If
+        If previousIsClosed Then
+            outErrorMessage = "Export was stopped because the latest Movement event is already closed." & _
+                VBA.vbCrLf & "IPN: " & ipnText & _
+                VBA.vbCrLf & "Previous event: " & previousEventText & _
+                VBA.vbCrLf & "Departure date: " & previousDepartureDateText & _
+                VBA.vbCrLf & "Arrival date: " & previousArrivalDateText & _
+                VBA.vbCrLf & "Existing Movement values were not changed."
+            Exit Function
+        End If
+
+        IsExportAllowed = True
+        Exit Function
+    End If
+
     If found And Not previousIsClosed Then
         outErrorMessage = "Export was stopped because the latest Movement event is not closed." & _
             VBA.vbCrLf & "IPN: " & ipnText & _
@@ -279,11 +343,7 @@ Public Function TryGetLatestMovementTvoChain( _
     Dim tvoFioText As String
     Dim tvoIpnText As String
     Dim tvoPositionText As String
-    Dim fioItems As Collection
-    Dim ipnItems As Collection
-    Dim positionItems As Collection
-    Dim chainItem As Object
-    Dim itemIndex As Long
+
     outFound = False
     Set outChain = New Collection
     If m_IsDisposed Then Exit Function
@@ -314,27 +374,48 @@ Public Function TryGetLatestMovementTvoChain( _
     End If
     Set resultRow = resultTable.Rows.Item(1)
     If resultRow Is Nothing Then Exit Function
-    tvoFioText = VBA.CStr(resultRow.GetCellValue(1))
-    tvoIpnText = VBA.CStr(resultRow.GetCellValue(2))
-    tvoPositionText = VBA.CStr(resultRow.GetCellValue(3))
+    If Not resultRow.TryGetCellValueByColumn(MOVEMENT_TVO_FIO_HEADER, tvoFioText) Then Exit Function
+    If Not resultRow.TryGetCellValueByColumn(MOVEMENT_TVO_IPN_HEADER, tvoIpnText) Then Exit Function
+    If Not resultRow.TryGetCellValueByColumn(MOVEMENT_TVO_POSITION_HEADER, tvoPositionText) Then Exit Function
 
+    If Not private_TryBuildTvoChain(tvoFioText, tvoIpnText, tvoPositionText, ipnText, outChain) Then Exit Function
+
+    TryGetLatestMovementTvoChain = True
+End Function
+
+' Преобразует три синхронных многострочных Movement-поля в один snapshot цепочки.
+' Helper используется как отдельным TVO lookup, так и объединённым запросом
+' validation + TVO, поэтому правила проверки структуры не дублируются.
+Private Function private_TryBuildTvoChain( _
+    ByVal tvoFioText As String, _
+    ByVal tvoIpnText As String, _
+    ByVal tvoPositionText As String, _
+    ByVal ownerIpn As String, _
+    ByRef outChain As Collection _
+) As Boolean
+    Dim fioItems As Collection
+    Dim ipnItems As Collection
+    Dim positionItems As Collection
+    Dim chainItem As Object
+    Dim itemIndex As Long
+
+    Set outChain = New Collection
     Set fioItems = private_SplitNonEmptyLines(tvoFioText)
     Set ipnItems = private_SplitNonEmptyLines(tvoIpnText)
     Set positionItems = private_SplitNonEmptyLines(tvoPositionText)
+
     If fioItems.Count <> ipnItems.Count Or fioItems.Count <> positionItems.Count Then
         VBA.MsgBox "PrototypeNew: Movement TVO chain columns have different item counts." & _
-            VBA.vbCrLf & "IPN: " & ipnText & _
+            VBA.vbCrLf & "IPN: " & ownerIpn & _
             VBA.vbCrLf & MOVEMENT_TVO_FIO_HEADER & ": " & VBA.CStr(fioItems.Count) & _
             VBA.vbCrLf & MOVEMENT_TVO_IPN_HEADER & ": " & VBA.CStr(ipnItems.Count) & _
             VBA.vbCrLf & MOVEMENT_TVO_POSITION_HEADER & ": " & VBA.CStr(positionItems.Count), _
             VBA.vbExclamation, "PrototypeNew / exporter data provider"
         Exit Function
     End If
-    ' Movement уже хранит готовую линейную цепочку произвольной длины. Каждый
-    ' следующий элемент замещает предыдущего участника на его штатной должности,
-    ' указанной в той же строке ТВО Посада. Здесь не выполняется рекурсивный
-    ' поиск по другим Movement-записям и не поддерживается замена ранее
-    ' назначенного ТВО другим человеком: читаем только сохранённый snapshot.
+
+    ' Movement хранит готовую линейную цепочку произвольной длины. Каждый
+    ' следующий элемент возвращается на собственную должность PositionCode.
     For itemIndex = 1 To fioItems.Count
         If VBA.Len(private_NormalizeLookupKey(VBA.CStr(ipnItems.Item(itemIndex)))) = 0 Then
             VBA.MsgBox "PrototypeNew: Movement TVO chain contains an empty IPN at depth " & VBA.CStr(itemIndex) & ".", VBA.vbExclamation, "PrototypeNew / exporter data provider"
@@ -350,7 +431,7 @@ Public Function TryGetLatestMovementTvoChain( _
         outChain.Add chainItem
     Next itemIndex
 
-    TryGetLatestMovementTvoChain = True
+    private_TryBuildTvoChain = True
 End Function
 
 Public Function TryResolveReporterTvoPositionGenitive( _

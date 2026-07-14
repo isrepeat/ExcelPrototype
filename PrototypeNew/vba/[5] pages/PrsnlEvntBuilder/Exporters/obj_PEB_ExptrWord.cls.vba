@@ -164,6 +164,8 @@ Public Function Export( _
     Dim templateId As String
     Dim recordIpn As String
     Dim exportValidationError As String
+    Dim latestMovementTvoChain As Collection
+
     If VBA.StrComp(private_GetContextText(context, "ExportMode"), "Rewrite Last", VBA.vbTextCompare) = 0 Then
         VBA.MsgBox "PrototypeNew: WORD exporter does not support Rewrite Last because it generates a preview and does not persist person records.", VBA.vbExclamation, "PrototypeNew / WORD export"
         Exit Function
@@ -181,12 +183,12 @@ Public Function Export( _
         VBA.MsgBox "PrototypeNew: WORD export requires SectionType in export context or source table SectionTitle.", VBA.vbExclamation, "PrototypeNew / WORD export"
         Exit Function
     End If
-    If Not m_ExporterDataProvider.IsExportAllowed(sourceTable, sectionTypeText, exportValidationError) Then
+    If Not m_ExporterDataProvider.IsExportAllowed(sourceTable, sectionTypeText, exportValidationError, latestMovementTvoChain) Then
         VBA.MsgBox exportValidationError, VBA.vbExclamation, "PrototypeNew / WORD export"
         Exit Function
     End If
     If Not private_TryEnrichMainSourceTableForWord(sourceTable, context) Then Exit Function
-    If Not private_TryAppendMovementTvoTablesForReturn(sourceTables, sourceTable, sectionTypeText) Then Exit Function
+    If Not private_TryAppendMovementTvoTablesForReturn(sourceTables, sourceTable, sectionTypeText, latestMovementTvoChain) Then Exit Function
     If Not private_TryEnrichMetaTvoTablesForWord(sourceTables) Then Exit Function
     Set namedCollections = private_BuildNamedLoopCollections(sourceTables)
     If namedCollections Is Nothing Then Exit Function
@@ -734,14 +736,12 @@ End Function
 Private Function private_TryAppendMovementTvoTablesForReturn( _
     ByVal sourceTables As Collection, _
     ByVal mainSourceTable As obj_TableDynamic, _
-    ByVal sectionTypeText As String _
+    ByVal sectionTypeText As String, _
+    ByVal latestMovementTvoChain As Collection _
 ) As Boolean
     Dim data As obj_PrsnlEvntBuilderData
     Dim existingTable As obj_TableDynamic
     Dim tableIndex As Long
-    Dim mainIpn As String
-    Dim movementFound As Boolean
-    Dim tvoChain As Collection
     Dim chainValue As Variant
     Dim chainItem As Object
     Dim tvoTable As obj_TableDynamic
@@ -772,14 +772,14 @@ Private Function private_TryAppendMovementTvoTablesForReturn( _
         End If
     Next tableIndex
 
-    If Not private_TryGetMainTableValue(mainSourceTable, SOURCE_ALIAS_IPN, mainIpn) Then Exit Function
-    If Not m_ExporterDataProvider.TryGetLatestMovementTvoChain(mainIpn, movementFound, tvoChain) Then Exit Function
-    If Not movementFound Or tvoChain Is Nothing Then
+    ' Цепочка является частью snapshot, уже полученного IsExportAllowed.
+    ' Это исключает повторный запрос последней строки Movement при preview.
+    If latestMovementTvoChain Is Nothing Then
         private_TryAppendMovementTvoTablesForReturn = True
         Exit Function
     End If
 
-    For Each chainValue In tvoChain
+    For Each chainValue In latestMovementTvoChain
         Set chainItem = chainValue
         fioText = VBA.CStr(chainItem("FIO"))
         positionCode = VBA.CStr(chainItem("PositionCode"))

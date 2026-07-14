@@ -4,7 +4,7 @@ BEGIN
 END
 Attribute VB_Name = "obj_PEB_ExptrMovement"
 Option Explicit
-#Const LOGGING_DEBUG_ENABLED = False
+#Const LOGGING_DEBUG_ENABLED = True
 #Const LOGGING_VERBOSE_ENABLED = False
 
 Implements obj_IDataExporter
@@ -166,6 +166,7 @@ Public Function Export( _
     Dim basisSummaryText As String
     Dim rewriteLast As Boolean
     Dim exportValidationError As String
+    Dim latestMovementTvoChain As Collection
 
     On Error GoTo EH
 
@@ -205,7 +206,8 @@ Public Function Export( _
     isMirrorTransferEvent = private_IsMirrorTransferSectionType(sectionTypeRaw)
     rewriteLast = (VBA.StrComp(private_GetContextText(context, MOVEMENT_CONTEXT_EXPORT_MODE), EXPORT_MODE_REWRITE_LAST, VBA.vbTextCompare) = 0)
     If isMirrorTransferEvent Then isClosingEvent = False
-    If Not m_DataProvider.IsExportAllowed(sourceTable, sectionTypeRaw, exportValidationError) Then
+    If Not m_DataProvider.IsExportAllowed(sourceTable, sectionTypeRaw, exportValidationError, latestMovementTvoChain) Then
+        private_LogError "Movement export blocked by last-event validation: " & private_EscapeForLog(exportValidationError)
         VBA.MsgBox exportValidationError, VBA.vbExclamation, "PrototypeNew / Movement export"
         Exit Function
     End If
@@ -268,12 +270,6 @@ Public Function Export( _
     Else
         ' Opening: обычное выбытие. Создаем новую строку и заполняем поля выбытия:
         ' наказ вибуття, з продовольчого, вибуття, плюс базовые первые 6 колонок.
-        ' Перед созданием новой строки проверяем, что последняя Movement-запись
-        ' по этому ІПН уже закрыта полями прибытия. Иначе получится две
-        ' одновременно открытые записи по одному военнослужащему.
-        If Not rewriteLast Then
-            If Not private_TryValidateLastMovementRowClosedForOpening(targetTable, sourceTable) Then GoTo CleanFail
-        End If
         If Not private_TryBuildMovementOutgoingValues(sourceTable, context, outgoingOrderNo, outgoingFoodFromDate, outgoingDepartureDate) Then GoTo CleanFail
         If rewriteLast Then
             If Not m_Base.TryGetRememberedExportRow(context, EXPORT_HISTORY_KEY, targetTable, targetRowRange) Then GoTo CleanFail
@@ -540,133 +536,6 @@ Private Function private_NormalizeComparableToken(ByVal rawValue As Variant) As 
     valueText = VBA.Replace(valueText, " ", VBA.vbNullString)
     private_NormalizeComparableToken = valueText
 End Function
-
-Private Function private_TryValidateLastMovementRowClosedForOpening( _
-    ByVal targetTable As ListObject, _
-    ByVal sourceTable As obj_TableDynamic _
-) As Boolean
-    Dim sourceRow As obj_Row
-    Dim ipnValue As Variant
-    Dim lastRowRange As Range
-    Dim validationIssueText As String
-
-    If targetTable Is Nothing Then Exit Function
-    If sourceTable Is Nothing Then Exit Function
-    If sourceTable.RowCount <= 0 Then Exit Function
-
-    Set sourceRow = sourceTable.Rows.Item(1)
-    If sourceRow Is Nothing Then Exit Function
-    If Not private_TryGetRequiredSourceText(sourceTable, sourceRow, MOVEMENT_TARGET_IPN, ipnValue) Then Exit Function
-
-    If Not private_TryFindLastRowByIpnForOpening(targetTable, VBA.CStr(ipnValue), lastRowRange) Then Exit Function
-    If lastRowRange Is Nothing Then
-        private_TryValidateLastMovementRowClosedForOpening = True
-        Exit Function
-    End If
-
-    If private_IsMovementRowClosed(targetTable, lastRowRange, validationIssueText) Then
-        private_TryValidateLastMovementRowClosedForOpening = True
-        Exit Function
-    End If
-
-    private_LogError "Movement opening blocked because latest row by ІПН='" & _
-        private_EscapeForLog(VBA.CStr(ipnValue)) & "' is not closed. " & _
-        private_EscapeForLog(validationIssueText)
-    VBA.MsgBox _
-        "PrototypeNew: Movement opening export was stopped." & VBA.vbCrLf & VBA.vbCrLf & _
-        "Reason: the latest row for '" & MOVEMENT_TARGET_IPN & "' = '" & VBA.CStr(ipnValue) & "' is not closed." & VBA.vbCrLf & _
-        "Target table row: " & lastRowRange.Address(False, False) & VBA.vbCrLf & _
-        "Problem: " & validationIssueText & VBA.vbCrLf & VBA.vbCrLf & _
-        "Close the previous arrival record first, then run the opening export again.", _
-        VBA.vbExclamation, _
-        "PrototypeNew / Movement export"
-End Function
-
-Private Function private_TryFindLastRowByIpnForOpening( _
-    ByVal targetTable As ListObject, _
-    ByVal ipnValue As String, _
-    ByRef outRowRange As Range _
-) As Boolean
-    Dim ipnColumnIndex As Long
-    Dim rowIndex As Long
-    Dim candidateValue As String
-    Dim expectedValue As String
-
-    Set outRowRange = Nothing
-    If targetTable Is Nothing Then Exit Function
-
-    expectedValue = private_NormalizeComparableToken(ipnValue)
-    If VBA.Len(expectedValue) = 0 Then
-        private_LogError "Movement opening validation failed because source IПН is empty."
-        VBA.MsgBox "PrototypeNew: Movement opening requires source value '" & MOVEMENT_TARGET_IPN & "'.", VBA.vbExclamation, "PrototypeNew / Movement export"
-        Exit Function
-    End If
-
-    ipnColumnIndex = private_FindTargetColumnIndex(targetTable, MOVEMENT_TARGET_IPN)
-    If ipnColumnIndex <= 0 Then
-        private_LogError "Movement opening validation failed because target column '" & private_EscapeForLog(MOVEMENT_TARGET_IPN) & "' was not found."
-        VBA.MsgBox "PrototypeNew: Movement target column '" & MOVEMENT_TARGET_IPN & "' was not found.", VBA.vbExclamation, "PrototypeNew / Movement export"
-        Exit Function
-    End If
-
-    For rowIndex = targetTable.ListRows.Count To 1 Step -1
-        candidateValue = private_NormalizeComparableToken(targetTable.ListRows.Item(rowIndex).Range.Cells(1, ipnColumnIndex).Value2)
-        If VBA.StrComp(candidateValue, expectedValue, VBA.vbTextCompare) = 0 Then
-            Set outRowRange = targetTable.ListRows.Item(rowIndex).Range
-            Exit For
-        End If
-    Next rowIndex
-
-    private_TryFindLastRowByIpnForOpening = True
-End Function
-
-Private Function private_IsMovementRowClosed( _
-    ByVal targetTable As ListObject, _
-    ByVal rowRange As Range, _
-    ByRef outIssueText As String _
-) As Boolean
-    outIssueText = VBA.vbNullString
-    If Not private_AppendMissingCloseFieldIssue(targetTable, rowRange, MOVEMENT_TARGET_ARRIVAL_ORDER_NO, outIssueText) Then Exit Function
-    If Not private_AppendMissingCloseFieldIssue(targetTable, rowRange, MOVEMENT_TARGET_ON_FOOD, outIssueText) Then Exit Function
-    If Not private_AppendMissingCloseFieldIssue(targetTable, rowRange, MOVEMENT_TARGET_ARRIVAL, outIssueText) Then Exit Function
-
-    private_IsMovementRowClosed = (VBA.Len(outIssueText) = 0)
-End Function
-
-Private Function private_AppendMissingCloseFieldIssue( _
-    ByVal targetTable As ListObject, _
-    ByVal rowRange As Range, _
-    ByVal targetColumnName As String, _
-    ByRef ioIssueText As String _
-) As Boolean
-    Dim targetColumnIndex As Long
-    Dim targetValueText As String
-
-    If targetTable Is Nothing Then Exit Function
-    If rowRange Is Nothing Then Exit Function
-
-    targetColumnIndex = private_FindTargetColumnIndex(targetTable, targetColumnName)
-    If targetColumnIndex <= 0 Then
-        private_AppendIssueText ioIssueText, "missing column '" & targetColumnName & "'"
-        private_AppendMissingCloseFieldIssue = True
-        Exit Function
-    End If
-
-    targetValueText = VBA.Trim$(VBA.CStr(rowRange.Cells(1, targetColumnIndex).Value2))
-    If VBA.Len(targetValueText) = 0 Then
-        private_AppendIssueText ioIssueText, "empty field '" & targetColumnName & "'"
-    End If
-
-    private_AppendMissingCloseFieldIssue = True
-End Function
-
-Private Sub private_AppendIssueText(ByRef ioIssueText As String, ByVal issueText As String)
-    issueText = VBA.Trim$(issueText)
-    If VBA.Len(issueText) = 0 Then Exit Sub
-
-    If VBA.Len(ioIssueText) > 0 Then ioIssueText = ioIssueText & "; "
-    ioIssueText = ioIssueText & issueText
-End Sub
 
 Private Function private_TryWriteMovementClosingRow( _
     ByVal targetTable As ListObject, _
