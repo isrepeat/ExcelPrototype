@@ -52,6 +52,7 @@ Private Const MAX_EXPORT_HOTKEYS As Long = 9
 Private Const LOOKUP_CANDIDATES_CONTROL_NAME As String = "LookupCandidatesTable"
 Private Const EVENT_DRAFT_FORM_CONTAINER_NAME As String = "EventDraftForm"
 Private Const EVENT_DRAFT_VALUES_CONTAINER_NAME As String = "EventDraftValues"
+Private Const EVENT_DRAFT_ORDER_NO_CONTAINER_NAME As String = "EventDraftOrderNoValue"
 Private Const EVENT_DRAFT_ORDER_NO_LABEL_CONTROL_NAME As String = "EventDraftOrderNoLabel"
 Private Const EVENT_DRAFT_INCOMING_NO_HEADER_NAME As String = "Вх. №"
 Private Const EVENT_DRAFT_ORDER_LABEL_PREFIX As String = "Наказ №: "
@@ -1419,18 +1420,23 @@ Private Function private_TryReadManualOrderNoValue( _
     ByVal pageBase As obj_PageBase, _
     ByVal ws As Worksheet _
 ) As String
-    Dim labelScope As Range
-    Dim columnScope As Range
+    Dim orderNoScope As Range
 
     If pageBase Is Nothing Then Exit Function
     If ws Is Nothing Then Exit Function
 
-    Set labelScope = Nothing
-    Set columnScope = Nothing
-    If Not ex_ControlPartsRuntime.fn_TryResolveControlPartScope(ws, "label", EVENT_DRAFT_ORDER_NO_LABEL_CONTROL_NAME, "cell", labelScope, columnScope) Then Exit Function
-    If labelScope Is Nothing Then Exit Function
+    ' Номер приказа является редактируемым значением layout-контейнера.
+    ' Читаем тот же контейнер, который obj_PagePrsnlEvntBuilder сохраняет и
+    ' восстанавливает при rerender. ControlParts registry относится к деталям
+    ' текущего render-а и может быть уже перестроен, хотя значение в ячейке
+    ' визуально осталось; из-за этого прежний lookup иногда возвращал пусто.
+    Set orderNoScope = Nothing
+    If Not pageBase.TryGetLayoutContainerRange( _
+        EVENT_DRAFT_ORDER_NO_CONTAINER_NAME, _
+        orderNoScope) Then Exit Function
+    If orderNoScope Is Nothing Then Exit Function
 
-    private_TryReadManualOrderNoValue = VBA.Trim$(VBA.CStr(labelScope.Cells(1, 1).Value2))
+    private_TryReadManualOrderNoValue = VBA.Trim$(VBA.CStr(orderNoScope.Cells(1, 1).Value2))
 End Function
 
 Private Function private_TryGetSelectedProfile(ByRef outProfile As String) As Boolean
