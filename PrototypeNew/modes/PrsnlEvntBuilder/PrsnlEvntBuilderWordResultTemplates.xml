@@ -20,7 +20,7 @@
         <![CDATA[
 #_        #let __IsRaportFromSelf = $ex_Helpers.m_RegexIsMatch("{[ReportPerson]}", "^\s*$|^\s*[Сс][Аа][Мм]\s*$");#^
 #_        Підстава: рапорт #^
-#_        {#if __IsRaportFromSelf}{[FIOInitialsGenitive]}{#endif}#^
+#_        {#if __IsRaportFromSelf}{[RankGenitive]} {[FIOInitialsGenitive]}{#endif}#^
 #_        {#if #not __IsRaportFromSelf}{[ReporterGenitive]}{#endif}#^
 #_        (вх. № {[IncomingNo]} від {[IncomingDateShort]})#^
         ]]>

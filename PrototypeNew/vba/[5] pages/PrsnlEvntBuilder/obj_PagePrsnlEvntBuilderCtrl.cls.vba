@@ -462,6 +462,11 @@ Public Function OnProfileButtonClick(Optional ByVal profileId As Variant) As Boo
         End If
     End If
 
+    ' Preview относится к конкретной секции и собранному для нее export context.
+    ' После фактической смены main/meta-профиля старый текст больше не валиден.
+    ' Пустое значение заставляет visibility binding скрыть banner и WORD-кнопку;
+    ' новое preview появится только после следующего запуска CTRL+3.
+    m_WordExportPreviewText = VBA.vbNullString
     m_SelectedProfile = newProfile
     If m_Page Is Nothing Then Exit Function
     If Not private_RegisterProfileOptions(False) Then Exit Function
