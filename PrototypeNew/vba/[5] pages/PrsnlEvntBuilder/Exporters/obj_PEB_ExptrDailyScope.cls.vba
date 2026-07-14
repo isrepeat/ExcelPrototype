@@ -4,7 +4,7 @@ BEGIN
 END
 Attribute VB_Name = "obj_PEB_ExptrDailyScope"
 Option Explicit
-#Const LOGGING_DEBUG_ENABLED = False
+#Const LOGGING_DEBUG_ENABLED = True
 #Const LOGGING_VERBOSE_ENABLED = False
 
 Implements obj_IDataExporter
@@ -68,6 +68,8 @@ Private Const TARGET_COLUMN_VH_DATE As String = "В/к дата"
 Private Const TARGET_COLUMN_VLK_NO As String = "ВЛК №"
 Private Const TARGET_COLUMN_VLK_DATE As String = "ВЛК дата"
 Private Const REPORT_TVO_TEXT As String = "тимчасово виконуючого обов'язки"
+Private Const META_SECTION_TYPE_TVO As String = "Мета: ТВО"
+Private Const TVO_ROW_MARKER As String = "ТВО"
 Private Const SPECIAL_POSITION_PREFIX_ROZP As String = "A1A"
 Private Const SPECIAL_POSITION_PREFIX_SPIS As String = "A1B"
 Private Const SPECIAL_POSITION_CODE_ROZP As String = "РОЗП"
@@ -167,16 +169,19 @@ Public Function Export( _
     Dim prevDisplayAlerts As Boolean
     Dim prevCalculation As XlCalculation
     Dim exportValidationError As String
+    Dim latestMovementTvoChain As Collection
+    Dim insertedTvoRows As Collection
 
     On Error GoTo EH
     private_LogMethodEntry "Export"
+    Set insertedTvoRows = New Collection
     If m_IsDisposed Then
         VBA.MsgBox "PrototypeNew: DailyScope exporter is disposed.", VBA.vbExclamation, "PrototypeNew / DailyScope export"
         Exit Function
     End If
     If Not m_Base.TryGetMainSourceTable(sourceTables, sourceTable) Then Exit Function
     If Not private_TryResolveTargetSectionCaption(sourceTable, context, targetSectionCaption, sectionKey) Then Exit Function
-    If Not m_ExporterDataProvider.IsExportAllowed(sourceTable, sectionKey, exportValidationError) Then
+    If Not m_ExporterDataProvider.IsExportAllowed(sourceTable, sectionKey, exportValidationError, latestMovementTvoChain) Then
         VBA.MsgBox exportValidationError, VBA.vbExclamation, "PrototypeNew / DailyScope export"
         Exit Function
     End If
@@ -197,6 +202,7 @@ Public Function Export( _
     End If
 
     If Not private_TryWriteSourceRow(sourceTable, targetTable, targetRowRange, sectionKey) Then GoTo CleanFail
+    If Not private_TryAppendTvoRows(sourceTables, sourceTable, sectionKey, latestMovementTvoChain, targetTable, targetRowRange, insertedTvoRows) Then GoTo CleanFail
     If Not m_Base.TryRememberExportRow(context, EXPORT_HISTORY_KEY, targetTable, targetRowRange) Then GoTo CleanFail
 
     If Not openedByExporter And SAVE_ALREADY_OPEN_WORKBOOK Then targetWb.Save
@@ -205,6 +211,7 @@ Public Function Export( _
 
 CleanFail:
     Export = False
+    private_DeleteInsertedRows insertedTvoRows
     If Not insertedRow Is Nothing Then
         On Error Resume Next
         insertedRow.Delete
@@ -223,10 +230,214 @@ CleanExit:
 EH:
     VBA.MsgBox "PrototypeNew: DailyScope test export failed. " & Err.Description, VBA.vbExclamation, "PrototypeNew / DailyScope export"
     On Error Resume Next
+    private_DeleteInsertedRows insertedTvoRows
+    If Not insertedRow Is Nothing Then insertedRow.Delete
     If openedByExporter Then targetWb.Close SaveChanges:=False
     If fastModeStarted Then m_Base.RestoreFastExcelMode prevScreenUpdating, prevEnableEvents, prevDisplayAlerts, prevCalculation
     On Error GoTo 0
 End Function
+
+' Добавляет под основной строкой отдельную строку для каждого участника цепочки ТВО.
+' Явные meta-ТВО строки формы имеют приоритет. Для события возвращения, где форма
+' обычно их не содержит, используется snapshot цепочки из последней Movement-строки.
+Private Function private_TryAppendTvoRows( _
+    ByVal sourceTables As Collection, _
+    ByVal mainSourceTable As obj_TableDynamic, _
+    ByVal sectionKey As String, _
+    ByVal latestMovementTvoChain As Collection, _
+    ByVal targetTable As ListObject, _
+    ByVal mainRowRange As Range, _
+    ByVal insertedRows As Collection _
+) As Boolean
+    Dim tvoItems As Collection
+    Dim itemValue As Variant
+    Dim itemObj As Object
+    Dim insertedRow As ListRow
+    Dim insertPosition As Long
+
+
+    If sourceTables Is Nothing Then Exit Function
+    If mainSourceTable Is Nothing Then Exit Function
+    If targetTable Is Nothing Then Exit Function
+    If mainRowRange Is Nothing Then Exit Function
+    If insertedRows Is Nothing Then Exit Function
+
+    If Not private_TryBuildTvoItems(sourceTables, mainSourceTable, sectionKey, latestMovementTvoChain, tvoItems) Then Exit Function
+    If tvoItems Is Nothing Then Exit Function
+
+    insertPosition = mainRowRange.Row - targetTable.DataBodyRange.Row + 2
+    For Each itemValue In tvoItems
+        Set itemObj = itemValue
+        Set insertedRow = targetTable.ListRows.Add(Position:=insertPosition)
+        If insertedRow Is Nothing Then
+            VBA.MsgBox "PrototypeNew: failed to insert a TVO row into DailyScope.", VBA.vbExclamation, "PrototypeNew / DailyScope export"
+            Exit Function
+        End If
+        insertedRows.Add insertedRow
+
+        If Not private_TryApplyTvoRowFormat(mainRowRange, insertedRow.Range) Then Exit Function
+        If Not private_TryWriteTvoRow(targetTable, insertedRow.Range, itemObj) Then Exit Function
+        insertPosition = insertPosition + 1
+    Next itemValue
+
+    private_TryAppendTvoRows = True
+End Function
+
+Private Function private_TryBuildTvoItems( _
+    ByVal sourceTables As Collection, _
+    ByVal mainSourceTable As obj_TableDynamic, _
+    ByVal sectionKey As String, _
+    ByVal latestMovementTvoChain As Collection, _
+    ByRef outItems As Collection _
+) As Boolean
+    Dim tableIndex As Long
+    Dim tvoTable As obj_TableDynamic
+    Dim tvoRow As obj_Row
+    Dim itemObj As Object
+    Dim chainValue As Variant
+    Dim chainItem As Object
+
+
+    Set outItems = New Collection
+
+    ' Сначала переносим явно заданные пользователем meta-ТВО строки.
+    For tableIndex = 2 To sourceTables.Count
+        Set tvoTable = sourceTables.Item(tableIndex)
+        If Not tvoTable Is Nothing Then
+            If VBA.StrComp(private_NormalizeText(tvoTable.SectionTitle), private_NormalizeText(META_SECTION_TYPE_TVO), VBA.vbTextCompare) = 0 Then
+                If tvoTable.RowCount > 0 Then
+                    Set tvoRow = tvoTable.Rows.Item(1)
+                    If tvoRow Is Nothing Then Exit Function
+                    If Not private_TryBuildTvoItemFromSource(tvoTable, tvoRow, itemObj) Then Exit Function
+                    outItems.Add itemObj
+                End If
+            End If
+        End If
+    Next tableIndex
+
+    If outItems.Count > 0 Then
+        private_TryBuildTvoItems = True
+        Exit Function
+    End If
+
+    ' Историческая цепочка нужна только при закрытии Movement-события.
+    If Not m_Data.IsMovementClosingSectionType(sectionKey) Then
+        private_TryBuildTvoItems = True
+        Exit Function
+    End If
+
+    ' IsExportAllowed уже прочитал последнюю Movement-строку вместе с TVO-полями.
+    ' Используем переданный snapshot и не выполняем второй scan открытого листа.
+    If latestMovementTvoChain Is Nothing Then
+        private_TryBuildTvoItems = True
+        Exit Function
+    End If
+
+    For Each chainValue In latestMovementTvoChain
+        Set chainItem = chainValue
+        If Not private_TryBuildTvoItem( _
+            VBA.CStr(chainItem("FIO")), _
+            VBA.CStr(chainItem("IPN")), _
+            VBA.CStr(chainItem("PositionCode")), _
+            VBA.vbNullString, _
+            VBA.vbNullString, _
+            itemObj) Then Exit Function
+        outItems.Add itemObj
+    Next chainValue
+
+    private_TryBuildTvoItems = True
+End Function
+
+Private Function private_TryBuildTvoItemFromSource( _
+    ByVal sourceTable As obj_TableDynamic, _
+    ByVal sourceRow As obj_Row, _
+    ByRef outItem As Object _
+) As Boolean
+    Dim fioText As String
+    Dim ipnText As String
+    Dim positionCodeText As String
+    Dim positionText As String
+    Dim rankText As String
+
+    If Not private_TryGetSourceTextByAnyColumn(sourceTable, sourceRow, fioText, SOURCE_ALIAS_FIO, TARGET_COLUMN_FIO) Then Exit Function
+    If Not private_TryGetSourceTextByAnyColumn(sourceTable, sourceRow, ipnText, SOURCE_ALIAS_IPN, TARGET_COLUMN_IPN) Then Exit Function
+    If Not private_TryGetSourceTextByAnyColumn(sourceTable, sourceRow, positionCodeText, SOURCE_ALIAS_POSITION_CODE, TARGET_COLUMN_POSITION_CODE) Then Exit Function
+    If Not private_TryGetSourceTextByAnyColumn(sourceTable, sourceRow, positionText, "Position", SOURCE_ALIAS_POSITION_NAME, TARGET_COLUMN_POSITION_NAME) Then positionText = VBA.vbNullString
+    If Not private_TryGetSourceTextByAnyColumn(sourceTable, sourceRow, rankText, SOURCE_ALIAS_RANK, TARGET_COLUMN_RANK) Then rankText = VBA.vbNullString
+
+    private_TryBuildTvoItemFromSource = private_TryBuildTvoItem( _
+        fioText, ipnText, positionCodeText, positionText, rankText, outItem)
+End Function
+
+Private Function private_TryBuildTvoItem( _
+    ByVal fioText As String, _
+    ByVal ipnText As String, _
+    ByVal positionCodeText As String, _
+    ByVal positionText As String, _
+    ByVal rankText As String, _
+    ByRef outItem As Object _
+) As Boolean
+
+    Set outItem = Nothing
+    If m_ExporterDataProvider Is Nothing Then Exit Function
+    If m_ExporterDataProvider.CommonData Is Nothing Then Exit Function
+
+    If VBA.Len(VBA.Trim$(rankText)) = 0 Then
+        If Not m_ExporterDataProvider.CommonData.TryResolveRankByIpn(ipnText, rankText) Then Exit Function
+    End If
+    If VBA.Len(VBA.Trim$(positionText)) = 0 Then
+        If Not m_ExporterDataProvider.CommonData.TryResolvePositionDefault(positionCodeText, positionText) Then Exit Function
+    End If
+
+    Set outItem = VBA.CreateObject("Scripting.Dictionary")
+    outItem.CompareMode = 1
+    outItem("Rank") = rankText
+    outItem("FIO") = fioText
+    outItem("IPN") = ipnText
+    outItem("PositionCode") = positionCodeText
+    outItem("Position") = positionText
+    private_TryBuildTvoItem = True
+End Function
+
+Private Function private_TryWriteTvoRow( _
+    ByVal targetTable As ListObject, _
+    ByVal rowRange As Range, _
+    ByVal itemObj As Object _
+) As Boolean
+    If itemObj Is Nothing Then Exit Function
+    If Not private_TryWriteTargetColumnText(targetTable, rowRange, TARGET_COLUMN_RANK, VBA.CStr(itemObj("Rank"))) Then Exit Function
+    If Not private_TryWriteTargetColumnText(targetTable, rowRange, TARGET_COLUMN_FIO, VBA.CStr(itemObj("FIO"))) Then Exit Function
+    If Not private_TryWriteTargetColumnText(targetTable, rowRange, TARGET_COLUMN_IPN, VBA.CStr(itemObj("IPN"))) Then Exit Function
+    If Not private_TryWriteTargetColumnText(targetTable, rowRange, TARGET_COLUMN_POSITION_CODE, VBA.CStr(itemObj("PositionCode"))) Then Exit Function
+    If Not private_TryWriteTargetColumnText(targetTable, rowRange, TARGET_COLUMN_POSITION_NAME, VBA.CStr(itemObj("Position"))) Then Exit Function
+    If Not private_TryWriteTargetColumnText(targetTable, rowRange, TARGET_COLUMN_DOCUMENT_NOTE, TVO_ROW_MARKER) Then Exit Function
+    private_TryWriteTvoRow = True
+End Function
+
+Private Function private_TryApplyTvoRowFormat(ByVal templateRange As Range, ByVal targetRange As Range) As Boolean
+    On Error GoTo EH
+    If templateRange Is Nothing Then Exit Function
+    If targetRange Is Nothing Then Exit Function
+    templateRange.Copy
+    targetRange.PasteSpecial xlPasteFormats
+    Application.CutCopyMode = False
+    private_TryApplyTvoRowFormat = True
+    Exit Function
+EH:
+    Application.CutCopyMode = False
+    VBA.MsgBox "PrototypeNew: failed to apply DailyScope TVO row format.", VBA.vbExclamation, "PrototypeNew / DailyScope export"
+End Function
+
+Private Sub private_DeleteInsertedRows(ByVal insertedRows As Collection)
+    Dim rowIndex As Long
+
+    If insertedRows Is Nothing Then Exit Sub
+    On Error Resume Next
+    For rowIndex = insertedRows.Count To 1 Step -1
+        insertedRows.Item(rowIndex).Delete
+    Next rowIndex
+    On Error GoTo 0
+End Sub
 
 Private Function private_TryResolveTargetSectionCaption( _
     ByVal sourceTable As obj_TableDynamic, _
