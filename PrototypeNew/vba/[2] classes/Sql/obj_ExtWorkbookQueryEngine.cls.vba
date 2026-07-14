@@ -198,6 +198,9 @@ Private Function private_TryExecuteOpenWorkbook( _
     Dim conditions As Collection
     Dim selectedColumnIndexes() As Long
     Dim conditionColumnIndexes() As Long
+    Dim conditionOperations() As Long
+    Dim conditionExpectedValues() As String
+    Dim conditionNormalizeFlags() As Boolean
     Dim effectiveEndColumn As Long
     Dim effectiveLastRow As Long
     Dim usedLastRow As Long
@@ -212,6 +215,10 @@ Private Function private_TryExecuteOpenWorkbook( _
     Dim i As Long
     Dim conditionCount As Long
     Dim rowMatches As Boolean
+    Dim useSingleReverseEqualsFastPath As Boolean
+    Dim fastConditionMatrix As Variant
+    Dim fastActualValue As String
+    Dim fastCompareMode As VbCompareMethod
     Dim headerText As String
     Dim condition As obj_ExtWorkbookCondition
 
@@ -263,9 +270,22 @@ Private Function private_TryExecuteOpenWorkbook( _
     If conditionCount > 0 Then
         ReDim conditionColumnIndexes(1 To conditionCount)
         ReDim conditionValues(1 To conditionCount)
+        ReDim conditionOperations(1 To conditionCount)
+        ReDim conditionExpectedValues(1 To conditionCount)
+        ReDim conditionNormalizeFlags(1 To conditionCount)
         For i = 1 To conditionCount
             Set condition = conditions.Item(i)
             If Not private_TryResolveHeaderColumn(headerMap, condition.ColumnName, conditionColumnIndexes(i)) Then Exit Function
+            ' Объекты условий и Collection используются только на этапе подготовки.
+            ' В горячем цикле по строкам остаются обычные массивы примитивов,
+            ' поэтому стоимость object-property/Collection.Item не умножается
+            ' на количество строк внешней таблицы.
+            conditionOperations(i) = VBA.CLng(condition.Operation)
+            conditionNormalizeFlags(i) = VBA.CBool(condition.NormalizeValue)
+            conditionExpectedValues(i) = VBA.CStr(condition.Value)
+            If conditionNormalizeFlags(i) Then
+                conditionExpectedValues(i) = private_NormalizeKey(conditionExpectedValues(i))
+            End If
         Next i
     End If
 
@@ -300,20 +320,67 @@ Private Function private_TryExecuteOpenWorkbook( _
         rowStep = 1
     End If
 
-    For rowOffset = rowStart To rowEnd Step rowStep
-        rowMatches = True
-        If conditionCount > 0 Then
-            rowMatches = private_RowMatchesConditions(conditions, conditionValues, rowOffset)
+    ' Частый запрос "последняя физическая строка, где column = value" не
+    ' проходит через универсальный dispatcher условий. Он применим к любой
+    ' книге/колонке и включается только по структуре запроса, без знания о
+    ' Movement или ИПН. Первый найденный снизу элемент сразу завершает поиск.
+    useSingleReverseEqualsFastPath = False
+    ' VBA And не short-circuit, поэтому к массиву conditionOperations можно
+    ' обращаться только после отдельной проверки conditionCount.
+    If conditionCount = 1 Then
+        useSingleReverseEqualsFastPath = _
+            (conditionOperations(1) = en_ExtWorkbookQueryOp.ExtQueryOpEquals) _
+            And query.ReverseOrder _
+            And (query.MaxRows = 1)
+    End If
+
+    If useSingleReverseEqualsFastPath Then
+        fastConditionMatrix = conditionValues(1)
+        If conditionNormalizeFlags(1) Then
+            fastCompareMode = VBA.vbBinaryCompare
+        Else
+            fastCompareMode = VBA.vbTextCompare
         End If
-        If rowMatches Then
-            If Not private_TryPushWorksheetRow(outTable, selectedValues, rowOffset, selectColumns.Count) Then
-                Set outTable = Nothing
-                Exit Function
+
+        For rowOffset = rowStart To rowEnd Step rowStep
+            If IsArray(fastConditionMatrix) Then
+                fastActualValue = private_SafeText(fastConditionMatrix(rowOffset, 1))
+            Else
+                fastActualValue = private_SafeText(fastConditionMatrix)
             End If
-            resultCount = resultCount + 1
-            If query.MaxRows > 0 And resultCount >= query.MaxRows Then Exit For
-        End If
-    Next rowOffset
+            If conditionNormalizeFlags(1) Then fastActualValue = private_NormalizeKey(fastActualValue)
+
+            If VBA.StrComp(fastActualValue, conditionExpectedValues(1), fastCompareMode) = 0 Then
+                If Not private_TryPushWorksheetRow(outTable, selectedValues, rowOffset, selectColumns.Count) Then
+                    Set outTable = Nothing
+                    Exit Function
+                End If
+                resultCount = 1
+                Exit For
+            End If
+        Next rowOffset
+    Else
+        For rowOffset = rowStart To rowEnd Step rowStep
+            rowMatches = True
+            If conditionCount > 0 Then
+                rowMatches = private_RowMatchesPreparedConditions( _
+                    conditionValues, _
+                    conditionOperations, _
+                    conditionExpectedValues, _
+                    conditionNormalizeFlags, _
+                    conditionCount, _
+                    rowOffset)
+            End If
+            If rowMatches Then
+                If Not private_TryPushWorksheetRow(outTable, selectedValues, rowOffset, selectColumns.Count) Then
+                    Set outTable = Nothing
+                    Exit Function
+                End If
+                resultCount = resultCount + 1
+                If query.MaxRows > 0 And resultCount >= query.MaxRows Then Exit For
+            End If
+        Next rowOffset
+    End If
 
     private_TryExecuteOpenWorkbook = True
     Exit Function
@@ -570,62 +637,66 @@ Private Function private_TryResolveHeaderColumn( _
     VBA.MsgBox "PrototypeNew: column '" & headerName & "' was not found in the open external workbook.", VBA.vbExclamation, ERROR_TITLE
 End Function
 
-Private Function private_RowMatchesConditions( _
-    ByVal conditions As Collection, _
+Private Function private_RowMatchesPreparedConditions( _
     ByRef conditionValues() As Variant, _
+    ByRef conditionOperations() As Long, _
+    ByRef conditionExpectedValues() As String, _
+    ByRef conditionNormalizeFlags() As Boolean, _
+    ByVal conditionCount As Long, _
     ByVal rowOffset As Long _
 ) As Boolean
-    Dim condition As obj_ExtWorkbookCondition
     Dim i As Long
 
-    ' Пустая коллекция эквивалентна SELECT без WHERE: подходит каждая строка.
-    For i = 1 To conditions.Count
-        Set condition = conditions.Item(i)
-        If Not private_ConditionMatches( _
-            private_MatrixValue(conditionValues(i), rowOffset, 1), condition) Then Exit Function
+    ' Все свойства conditions уже скомпилированы в массивы до начала scan.
+    ' Здесь нет обращений к Collection или obj_ExtWorkbookCondition.
+    For i = 1 To conditionCount
+        If Not private_PreparedConditionMatches( _
+            private_MatrixValue(conditionValues(i), rowOffset, 1), _
+            conditionOperations(i), _
+            conditionExpectedValues(i), _
+            conditionNormalizeFlags(i)) Then Exit Function
     Next i
-    private_RowMatchesConditions = True
+    private_RowMatchesPreparedConditions = True
 End Function
 
-Private Function private_ConditionMatches( _
+Private Function private_PreparedConditionMatches( _
     ByVal rawValue As Variant, _
-    ByVal condition As obj_ExtWorkbookCondition _
+    ByVal operationValue As Long, _
+    ByVal expectedValue As String, _
+    ByVal normalizeValue As Boolean _
 ) As Boolean
     Dim actualValue As String
-    Dim expectedValue As String
     Dim compareMode As VbCompareMethod
     Dim compareResult As Long
 
     actualValue = private_SafeText(rawValue)
-    expectedValue = condition.Value
-    If condition.NormalizeValue Then
+    If normalizeValue Then
         actualValue = private_NormalizeKey(actualValue)
-        expectedValue = private_NormalizeKey(expectedValue)
         compareMode = VBA.vbBinaryCompare
     Else
         compareMode = VBA.vbTextCompare
     End If
     compareResult = VBA.StrComp(actualValue, expectedValue, compareMode)
 
-    Select Case condition.Operation
+    Select Case operationValue
         Case en_ExtWorkbookQueryOp.ExtQueryOpEquals
-            private_ConditionMatches = (compareResult = 0)
+            private_PreparedConditionMatches = (compareResult = 0)
         Case en_ExtWorkbookQueryOp.ExtQueryOpNotEquals
-            private_ConditionMatches = (compareResult <> 0)
+            private_PreparedConditionMatches = (compareResult <> 0)
         Case en_ExtWorkbookQueryOp.ExtQueryOpContains
-            private_ConditionMatches = (VBA.InStr(1, actualValue, expectedValue, compareMode) > 0)
+            private_PreparedConditionMatches = (VBA.InStr(1, actualValue, expectedValue, compareMode) > 0)
         Case en_ExtWorkbookQueryOp.ExtQueryOpStartsWith
-            private_ConditionMatches = (VBA.StrComp(VBA.Left$(actualValue, VBA.Len(expectedValue)), expectedValue, compareMode) = 0)
+            private_PreparedConditionMatches = (VBA.StrComp(VBA.Left$(actualValue, VBA.Len(expectedValue)), expectedValue, compareMode) = 0)
         Case en_ExtWorkbookQueryOp.ExtQueryOpEndsWith
-            private_ConditionMatches = (VBA.StrComp(VBA.Right$(actualValue, VBA.Len(expectedValue)), expectedValue, compareMode) = 0)
+            private_PreparedConditionMatches = (VBA.StrComp(VBA.Right$(actualValue, VBA.Len(expectedValue)), expectedValue, compareMode) = 0)
         Case en_ExtWorkbookQueryOp.ExtQueryOpIsEmpty
-            private_ConditionMatches = (VBA.Len(actualValue) = 0)
+            private_PreparedConditionMatches = (VBA.Len(actualValue) = 0)
         Case en_ExtWorkbookQueryOp.ExtQueryOpIsNotEmpty
-            private_ConditionMatches = (VBA.Len(actualValue) > 0)
+            private_PreparedConditionMatches = (VBA.Len(actualValue) > 0)
         Case en_ExtWorkbookQueryOp.ExtQueryOpGreaterThan
-            private_ConditionMatches = (compareResult > 0)
+            private_PreparedConditionMatches = (compareResult > 0)
         Case en_ExtWorkbookQueryOp.ExtQueryOpLessThan
-            private_ConditionMatches = (compareResult < 0)
+            private_PreparedConditionMatches = (compareResult < 0)
     End Select
 End Function
 
