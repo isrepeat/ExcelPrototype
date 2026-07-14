@@ -14,6 +14,7 @@ Private m_CellCount As Long
 Private m_Desc As String
 Private m_Index As Long
 Private m_IsDisposed As Boolean
+Private m_TableSchema As obj_DynamicTableSchema
 
 Private Sub Class_Initialize()
 #If LOGGING_VERBOSE_ENABLED Then
@@ -109,6 +110,7 @@ Public Sub Dispose()
     m_IsDisposed = True
     On Error Resume Next
     Erase m_Cells
+    Set m_TableSchema = Nothing
     m_CellCount = 0
     m_Desc = VBA.vbNullString
     m_Index = 0
@@ -205,6 +207,75 @@ Public Function GetCellValue(ByVal oneBasedIndex As Long) As String
     GetCellValue = cellObj.Value
 End Function
 
+' Binds shared table schema without copying aliases into every row.
+Public Sub BindTableSchema(ByVal tableSchema As obj_DynamicTableSchema)
+    Set m_TableSchema = tableSchema
+End Sub
+
+Public Sub DetachTableSchema()
+    Set m_TableSchema = Nothing
+End Sub
+
+' Exposes schema lookup for callers that need the physical cell position.
+Public Function TryGetColumnIndex( _
+    ByVal aliasOrName As String, _
+    ByRef outIndex As Long _
+) As Boolean
+    outIndex = 0
+    If m_TableSchema Is Nothing Then
+#If LOGGING_DEBUG_ENABLED Then
+        ex_Core.fn_Diagnostic_LogError "obj_Row: table schema is not bound; cannot resolve column '" & aliasOrName & "'."
+#End If
+        Exit Function
+    End If
+    TryGetColumnIndex = m_TableSchema.TryGetColumnIndex(aliasOrName, outIndex)
+End Function
+
+' Returns the cell object by column alias/name without exposing an index.
+Public Function TryGetCellByColumn( _
+    ByVal aliasOrName As String, _
+    ByRef outCell As obj_Cell _
+) As Boolean
+    Dim columnIndex As Long
+
+    Set outCell = Nothing
+    If Not Me.TryGetColumnIndex(aliasOrName, columnIndex) Then Exit Function
+    Set outCell = private_GetCellObject(columnIndex)
+    TryGetCellByColumn = Not outCell Is Nothing
+End Function
+
+' Resolves a column alias first and its display name second.
+Public Function TryGetCellValueByColumn( _
+    ByVal aliasOrName As String, _
+    ByRef outValue As String _
+) As Boolean
+    Dim columnIndex As Long
+    Dim cellObj As obj_Cell
+
+    outValue = VBA.vbNullString
+    If Not Me.TryGetColumnIndex(aliasOrName, columnIndex) Then
+#If LOGGING_DEBUG_ENABLED Then
+        ex_Core.fn_Diagnostic_LogError "obj_Row: column alias/name '" & aliasOrName & "' was not found."
+#End If
+        VBA.MsgBox "PrototypeNew: row column alias/name '" & aliasOrName & "' was not found or the row is not bound to a table schema.", _
+            VBA.vbExclamation, "PrototypeNew / row"
+        Exit Function
+    End If
+
+    Set cellObj = private_GetCellObject(columnIndex)
+    If cellObj Is Nothing Then
+#If LOGGING_DEBUG_ENABLED Then
+        ex_Core.fn_Diagnostic_LogError "obj_Row: resolved column '" & aliasOrName & "' has no cell at index " & VBA.CStr(columnIndex) & "."
+#End If
+        VBA.MsgBox "PrototypeNew: row column '" & aliasOrName & "' exists in the table schema, but the row has no corresponding cell.", _
+            VBA.vbExclamation, "PrototypeNew / row"
+        Exit Function
+    End If
+
+    outValue = cellObj.Value
+    TryGetCellValueByColumn = True
+End Function
+
 Public Function TryFindCellIndexByDesc(ByVal descToken As String, ByRef outIndex As Long) As Boolean
     Dim i As Long
     Dim cellObj As obj_Cell
@@ -293,6 +364,7 @@ Public Function Clone(Optional ByVal targetColumnCount As Long = 0) As Object
 
     result.Desc = m_Desc
     result.Index = m_Index
+    result.BindTableSchema m_TableSchema
 
     Set Clone = result
 End Function
