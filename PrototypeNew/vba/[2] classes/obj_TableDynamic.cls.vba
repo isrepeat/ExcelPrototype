@@ -10,6 +10,7 @@ Option Explicit
 Private m_SectionTitle As String
 Private m_Columns As list__obj_Column
 Private m_Rows As list__obj_Row
+Private m_Schema As obj_DynamicTableSchema
 Private m_IsDisposed As Boolean
 
 Private Sub Class_Initialize()
@@ -18,6 +19,8 @@ Private Sub Class_Initialize()
 #End If
     Set m_Columns = New list__obj_Column
     Set m_Rows = New list__obj_Row
+    Set m_Schema = New obj_DynamicTableSchema
+    Call m_Schema.Initialize(m_Columns)
 End Sub
 
 Private Sub Class_Terminate()
@@ -92,6 +95,8 @@ Public Sub Dispose()
     Err.Clear
     Set m_Columns = Nothing
     Set m_Rows = Nothing
+    If Not m_Schema Is Nothing Then m_Schema.Dispose
+    Set m_Schema = Nothing
     On Error GoTo 0
 End Sub
 
@@ -115,7 +120,9 @@ Public Function PushColumn(ByVal tableColumn As obj_Column) As Boolean
     End If
 
     If Not private_CopyColumnAliases(tableColumn, newColumn) Then Exit Function
-    PushColumn = m_Columns.Add(newColumn)
+    If Not m_Columns.Add(newColumn) Then Exit Function
+    If Not m_Schema.BindColumns(m_Columns) Then Exit Function
+    PushColumn = True
 End Function
 
 Public Function InsertColumnAt( _
@@ -167,6 +174,8 @@ Public Function InsertColumnAt( _
     Next i
 
     Set m_Columns = rebuiltColumns
+    If m_Schema Is Nothing Then Set m_Schema = New obj_DynamicTableSchema
+    If Not m_Schema.BindColumns(m_Columns) Then Exit Function
 
     For i = 1 To m_Rows.Count
         Set rowObj = m_Rows.Item(i)
@@ -193,6 +202,7 @@ Public Function PushRow(ByVal tableRow As obj_Row) As Boolean
         If Not private_EnsureColumns(requiredCols) Then Exit Function
     End If
 
+    tableRow.BindTableSchema m_Schema
     PushRow = m_Rows.Add(tableRow)
 End Function
 
@@ -240,6 +250,7 @@ Public Function InsertRowAt( _
     Next i
 
     Set m_Rows = rebuiltRows
+    tableRow.BindTableSchema m_Schema
     InsertRowAt = True
 End Function
 
@@ -338,6 +349,8 @@ Private Function private_EnsureColumns(ByVal requiredCount As Long) As Boolean
         autoColumn.Name = "Col" & VBA.CStr(i)
         m_Columns.Add autoColumn
     Next i
+
+    If Not m_Schema.BindColumns(m_Columns) Then Exit Function
 
     private_EnsureColumns = True
 End Function
