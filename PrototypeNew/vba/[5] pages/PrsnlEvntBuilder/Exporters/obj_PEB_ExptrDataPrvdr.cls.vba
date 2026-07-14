@@ -16,7 +16,9 @@ Private m_MovementWorkbookPath As String
 Private m_MovementSheetName As String
 Private m_MovementRangeStartMarker As String
 Private m_MovementRangeEndMarker As String
-Private m_MovementConnection As Object
+' Provider хранит только единый engine. Он сам переключается между SQL для
+' закрытого Movement и чтением Worksheet, если источник уже открыт пользователем.
+Private m_QueryEngine As obj_ExtWorkbookQueryEngine
 
 Private Const CONFIG_MOVEMENT_FILE_PATH_KEY As String = "Export.Movement.FilePath"
 Private Const CONFIG_MOVEMENT_SHEET_NAME_KEY As String = "Export.Movement.SheetName"
@@ -59,9 +61,10 @@ Public Function Initialize(ByVal configTable As obj_ConfigTable) As Boolean
     m_MovementSheetName = VBA.vbNullString
     m_MovementRangeStartMarker = VBA.vbNullString
     m_MovementRangeEndMarker = VBA.vbNullString
-    Set m_MovementConnection = Nothing
+    Set m_QueryEngine = New obj_ExtWorkbookQueryEngine
 
     If Not m_CommonData.Initialize() Then Exit Function
+    If Not m_QueryEngine.Initialize Then Exit Function
     If Not private_TryLoadConfig(configTable) Then Exit Function
 
     Initialize = True
@@ -73,14 +76,12 @@ Public Sub Dispose()
     On Error Resume Next
     If Not m_CommonData Is Nothing Then m_CommonData.Dispose
     Set m_CommonData = Nothing
+    If Not m_QueryEngine Is Nothing Then m_QueryEngine.Dispose
+    Set m_QueryEngine = Nothing
     m_MovementWorkbookPath = VBA.vbNullString
     m_MovementSheetName = VBA.vbNullString
     m_MovementRangeStartMarker = VBA.vbNullString
     m_MovementRangeEndMarker = VBA.vbNullString
-    If Not m_MovementConnection Is Nothing Then
-        If m_MovementConnection.State <> 0 Then m_MovementConnection.Close
-    End If
-    Set m_MovementConnection = Nothing
     On Error GoTo 0
 End Sub
 
@@ -113,9 +114,9 @@ Public Function TryGetLatestMovementEvent( _
 ) As Boolean
     Dim resolvedPath As String
     Dim movementTableRef As String
-    Dim conn As Object
-    Dim rs As Object
-    Dim sql As String
+    Dim query As obj_ExtWorkbookQuery
+    Dim resultTable As obj_TableDynamic
+    Dim resultRow As obj_Row
     Dim arrivalOrderText As String
     Dim onFoodDateText As String
     outFound = False
@@ -148,55 +149,39 @@ Public Function TryGetLatestMovementEvent( _
     End If
 
     If Not private_TryResolveMovementQueryContext(resolvedPath, movementTableRef) Then Exit Function
-    On Error GoTo LookupFail
-    If Not private_TryGetMovementConnection(resolvedPath, conn) Then Exit Function
+    If m_QueryEngine Is Nothing Then Exit Function
+    ' Описание запроса не зависит от текущего состояния Movement-книги.
+    ' ReverseOrder + MaxRows=1 означает последнюю физическую запись этого ИПН
+    ' как для SQL recordset, так и для массива открытого Worksheet.
+    Set query = New obj_ExtWorkbookQuery
+    query.SourcePath = resolvedPath
+    query.TableRef = movementTableRef
+    If Not query.AddCondition(MOVEMENT_IPN_HEADER, en_ExtWorkbookQueryOp.ExtQueryOpEquals, ipnText, True) Then Exit Function
+    query.ReverseOrder = True
+    query.MaxRows = 1
+    If Not query.AddSelectColumn(MOVEMENT_EVENT_HEADER) Then Exit Function
+    If Not query.AddSelectColumn(MOVEMENT_DEPARTURE_DATE_HEADER) Then Exit Function
+    If Not query.AddSelectColumn(MOVEMENT_ARRIVAL_DATE_HEADER) Then Exit Function
+    If Not query.AddSelectColumn(MOVEMENT_ARRIVAL_ORDER_HEADER) Then Exit Function
+    If Not query.AddSelectColumn(MOVEMENT_ON_FOOD_HEADER) Then Exit Function
+    If Not m_QueryEngine.TryExecute(query, resultTable) Then Exit Function
 
-    ' ACE возвращает строки Excel-листа в физическом порядке. Проходим весь
-    ' результат и перезаписываем outputs, поэтому после EOF остаётся последняя
-    ' строка человека, аналогично обратному обходу ListObject в Movement exporter.
-    sql = "SELECT " & _
-        private_QuoteSqlIdentifier(MOVEMENT_EVENT_HEADER) & ", " & _
-        private_QuoteSqlIdentifier(MOVEMENT_DEPARTURE_DATE_HEADER) & ", " & _
-        private_QuoteSqlIdentifier(MOVEMENT_ARRIVAL_DATE_HEADER) & ", " & _
-        private_QuoteSqlIdentifier(MOVEMENT_ARRIVAL_ORDER_HEADER) & ", " & _
-        private_QuoteSqlIdentifier(MOVEMENT_ON_FOOD_HEADER) & _
-        " FROM " & movementTableRef & _
-        " WHERE " & private_BuildNormalizedSqlTextExpression(MOVEMENT_IPN_HEADER) & _
-        " = " & private_AdoSqlTextLiteral(ipnText)
-
-    Set rs = VBA.CreateObject("ADODB.Recordset")
-    rs.Open sql, conn, 0, 1
-    Do While Not rs.EOF
-        outFound = True
-        outEventText = private_RecordsetFieldText(rs.Fields(0).Value)
-        outDepartureDateText = private_RecordsetFieldText(rs.Fields(1).Value)
-        outArrivalDateText = private_RecordsetFieldText(rs.Fields(2).Value)
-        arrivalOrderText = private_RecordsetFieldText(rs.Fields(3).Value)
-        onFoodDateText = private_RecordsetFieldText(rs.Fields(4).Value)
-        rs.MoveNext
-    Loop
+    If Not resultTable Is Nothing Then outFound = (resultTable.RowCount > 0)
+    If outFound Then
+        Set resultRow = resultTable.Rows.Item(1)
+        If resultRow Is Nothing Then Exit Function
+        outEventText = VBA.CStr(resultRow.GetCellValue(1))
+        outDepartureDateText = VBA.CStr(resultRow.GetCellValue(2))
+        outArrivalDateText = VBA.CStr(resultRow.GetCellValue(3))
+        arrivalOrderText = VBA.CStr(resultRow.GetCellValue(4))
+        onFoodDateText = VBA.CStr(resultRow.GetCellValue(5))
+    End If
     If outFound Then
         outIsClosed = (VBA.Len(VBA.Trim$(arrivalOrderText)) > 0) _
             And (VBA.Len(VBA.Trim$(onFoodDateText)) > 0) _
             And (VBA.Len(VBA.Trim$(outArrivalDateText)) > 0)
     End If
     TryGetLatestMovementEvent = True
-
-CleanupDone:
-    On Error Resume Next
-    If Not rs Is Nothing Then If rs.State <> 0 Then rs.Close
-    Set rs = Nothing
-    Set conn = Nothing
-    On Error GoTo 0
-    Exit Function
-
-LookupFail:
-    VBA.MsgBox "PrototypeNew: failed to read latest Movement event." & _
-        VBA.vbCrLf & "Workbook: " & m_MovementWorkbookPath & _
-        VBA.vbCrLf & "Sheet: " & m_MovementSheetName & _
-        VBA.vbCrLf & "IPN: " & ipnText & _
-        VBA.vbCrLf & "Error: " & Err.Description, VBA.vbExclamation, "PrototypeNew / exporter data provider"
-    Resume CleanupDone
 End Function
 
 ' Единая предварительная проверка для всех PEB exporters. Обычное выбытие
@@ -288,9 +273,9 @@ Public Function TryGetLatestMovementTvoChain( _
 ) As Boolean
     Dim resolvedPath As String
     Dim movementTableRef As String
-    Dim conn As Object
-    Dim rs As Object
-    Dim sql As String
+    Dim query As obj_ExtWorkbookQuery
+    Dim resultTable As obj_TableDynamic
+    Dim resultRow As obj_Row
     Dim tvoFioText As String
     Dim tvoIpnText As String
     Dim tvoPositionText As String
@@ -299,9 +284,6 @@ Public Function TryGetLatestMovementTvoChain( _
     Dim positionItems As Collection
     Dim chainItem As Object
     Dim itemIndex As Long
-    Dim lookupErrorNumber As Long
-    Dim lookupErrorSource As String
-    Dim lookupErrorDescription As String
     outFound = False
     Set outChain = New Collection
     If m_IsDisposed Then Exit Function
@@ -312,33 +294,29 @@ Public Function TryGetLatestMovementTvoChain( _
         Exit Function
     End If
     If Not private_TryResolveMovementQueryContext(resolvedPath, movementTableRef) Then Exit Function
+    If m_QueryEngine Is Nothing Then Exit Function
+    Set query = New obj_ExtWorkbookQuery
+    query.SourcePath = resolvedPath
+    query.TableRef = movementTableRef
+    If Not query.AddCondition(MOVEMENT_IPN_HEADER, en_ExtWorkbookQueryOp.ExtQueryOpEquals, ipnText, True) Then Exit Function
+    query.ReverseOrder = True
+    query.MaxRows = 1
+    If Not query.AddSelectColumn(MOVEMENT_TVO_FIO_HEADER) Then Exit Function
+    If Not query.AddSelectColumn(MOVEMENT_TVO_IPN_HEADER) Then Exit Function
+    If Not query.AddSelectColumn(MOVEMENT_TVO_POSITION_HEADER) Then Exit Function
+    If Not m_QueryEngine.TryExecute(query, resultTable) Then Exit Function
 
-    On Error GoTo LookupFail
-    If Not private_TryGetMovementConnection(resolvedPath, conn) Then Exit Function
-    sql = "SELECT " & _
-        private_QuoteSqlIdentifier(MOVEMENT_TVO_FIO_HEADER) & ", " & _
-        private_QuoteSqlIdentifier(MOVEMENT_TVO_IPN_HEADER) & ", " & _
-        private_QuoteSqlIdentifier(MOVEMENT_TVO_POSITION_HEADER) & _
-        " FROM " & movementTableRef & _
-        " WHERE " & private_BuildNormalizedSqlTextExpression(MOVEMENT_IPN_HEADER) & _
-        " = " & private_AdoSqlTextLiteral(ipnText)
-
-    Set rs = VBA.CreateObject("ADODB.Recordset")
-    rs.Open sql, conn, 0, 1
-    Do While Not rs.EOF
-        outFound = True
-        ' SELECT задаёт стабильный порядок полей. Чтение по индексу не зависит
-        ' от того, как ACE нормализует кириллические имена заголовков recordset.
-        tvoFioText = private_RecordsetFieldText(rs.Fields(0).Value)
-        tvoIpnText = private_RecordsetFieldText(rs.Fields(1).Value)
-        tvoPositionText = private_RecordsetFieldText(rs.Fields(2).Value)
-        rs.MoveNext
-    Loop
+    If Not resultTable Is Nothing Then outFound = (resultTable.RowCount > 0)
 
     If Not outFound Then
         TryGetLatestMovementTvoChain = True
-        GoTo CleanupDone
+        Exit Function
     End If
+    Set resultRow = resultTable.Rows.Item(1)
+    If resultRow Is Nothing Then Exit Function
+    tvoFioText = VBA.CStr(resultRow.GetCellValue(1))
+    tvoIpnText = VBA.CStr(resultRow.GetCellValue(2))
+    tvoPositionText = VBA.CStr(resultRow.GetCellValue(3))
 
     Set fioItems = private_SplitNonEmptyLines(tvoFioText)
     Set ipnItems = private_SplitNonEmptyLines(tvoIpnText)
@@ -350,7 +328,7 @@ Public Function TryGetLatestMovementTvoChain( _
             VBA.vbCrLf & MOVEMENT_TVO_IPN_HEADER & ": " & VBA.CStr(ipnItems.Count) & _
             VBA.vbCrLf & MOVEMENT_TVO_POSITION_HEADER & ": " & VBA.CStr(positionItems.Count), _
             VBA.vbExclamation, "PrototypeNew / exporter data provider"
-        GoTo CleanupDone
+        Exit Function
     End If
     ' Movement уже хранит готовую линейную цепочку произвольной длины. Каждый
     ' следующий элемент замещает предыдущего участника на его штатной должности,
@@ -360,7 +338,7 @@ Public Function TryGetLatestMovementTvoChain( _
     For itemIndex = 1 To fioItems.Count
         If VBA.Len(private_NormalizeLookupKey(VBA.CStr(ipnItems.Item(itemIndex)))) = 0 Then
             VBA.MsgBox "PrototypeNew: Movement TVO chain contains an empty IPN at depth " & VBA.CStr(itemIndex) & ".", VBA.vbExclamation, "PrototypeNew / exporter data provider"
-            GoTo CleanupDone
+            Exit Function
         End If
 
         Set chainItem = VBA.CreateObject("Scripting.Dictionary")
@@ -373,30 +351,6 @@ Public Function TryGetLatestMovementTvoChain( _
     Next itemIndex
 
     TryGetLatestMovementTvoChain = True
-
-CleanupDone:
-    On Error Resume Next
-    If Not rs Is Nothing Then If rs.State <> 0 Then rs.Close
-    Set rs = Nothing
-    Set conn = Nothing
-    On Error GoTo 0
-    Exit Function
-
-LookupFail:
-    ' Err нужно сохранить сразу: обращения к ADO/VBA в диагностике или cleanup
-    ' могут очистить исходную ошибку и оставить в MsgBox пустое поле Error.
-    lookupErrorNumber = Err.Number
-    lookupErrorSource = Err.Source
-    lookupErrorDescription = Err.Description
-    VBA.MsgBox "PrototypeNew: failed to read Movement TVO chain." & _
-        VBA.vbCrLf & "Workbook: " & m_MovementWorkbookPath & _
-        VBA.vbCrLf & "Sheet: " & m_MovementSheetName & _
-        VBA.vbCrLf & "IPN: " & ipnText & _
-        VBA.vbCrLf & "SQL: " & sql & _
-        VBA.vbCrLf & "Error " & VBA.CStr(lookupErrorNumber) & _
-        " (" & lookupErrorSource & "): " & lookupErrorDescription, _
-        VBA.vbExclamation, "PrototypeNew / exporter data provider"
-    Resume CleanupDone
 End Function
 
 Public Function TryResolveReporterTvoPositionGenitive( _
@@ -453,9 +407,6 @@ Private Function private_TryResolveMovementQueryContext( _
     ByRef outResolvedPath As String, _
     ByRef outTableRef As String _
 ) As Boolean
-    Dim conn As Object
-    Dim movementLastRow As Long
-
     outResolvedPath = VBA.vbNullString
     outTableRef = VBA.vbNullString
     If VBA.Len(VBA.Trim$(m_MovementWorkbookPath)) = 0 Then
@@ -480,31 +431,17 @@ Private Function private_TryResolveMovementQueryContext( _
         VBA.MsgBox "PrototypeNew: Movement workbook was not found: " & m_MovementWorkbookPath, VBA.vbExclamation, "PrototypeNew / exporter data provider"
         Exit Function
     End If
-    On Error GoTo EH
-    If Not private_TryGetMovementConnection(outResolvedPath, conn) Then GoTo CleanExit
-    If Not private_TryGetMovementLastRowThroughAdo(conn, movementLastRow) Then GoTo CleanExit
-
     outTableRef = private_BuildMovementSheetTableRef( _
-        m_MovementSheetName, m_MovementRangeStartMarker, m_MovementRangeEndMarker, movementLastRow)
+        m_MovementSheetName, m_MovementRangeStartMarker, m_MovementRangeEndMarker, EXCEL_MAX_ROW)
     If VBA.Len(outTableRef) = 0 Then
         VBA.MsgBox "PrototypeNew: failed to build Movement table range from profile configuration.", VBA.vbExclamation, "PrototypeNew / exporter data provider"
-        GoTo CleanExit
+        ' Здесь больше нет локальных ADO-объектов, требующих cleanup: соединением
+        ' владеет obj_ExtWorkbookQueryEngine. При ошибке построения range просто
+        ' завершаем текущую операцию.
+        Exit Function
     End If
 
     private_TryResolveMovementQueryContext = True
-
-CleanExit:
-    On Error Resume Next
-    Set conn = Nothing
-    On Error GoTo 0
-    Exit Function
-
-EH:
-    VBA.MsgBox "PrototypeNew: failed to resolve Movement SQL range." & _
-        VBA.vbCrLf & "Workbook: " & outResolvedPath & _
-        VBA.vbCrLf & "Sheet: " & m_MovementSheetName & _
-        VBA.vbCrLf & "Error: " & Err.Description, VBA.vbExclamation, "PrototypeNew / exporter data provider"
-    Resume CleanExit
 End Function
 
 Private Function private_SplitNonEmptyLines(ByVal valueText As String) As Collection
@@ -574,32 +511,6 @@ CleanExit:
     On Error GoTo 0
 End Function
 
-
-Private Function private_TryGetMovementConnection( _
-    ByVal resolvedPath As String, _
-    ByRef outConnection As Object _
-) As Boolean
-    Set outConnection = Nothing
-    If VBA.Len(VBA.Trim$(resolvedPath)) = 0 Then Exit Function
-
-    On Error GoTo ConnectionFail
-    If m_MovementConnection Is Nothing Then
-        Set m_MovementConnection = VBA.CreateObject("ADODB.Connection")
-        m_MovementConnection.Open private_BuildAdoConnectionString(resolvedPath)
-    ElseIf m_MovementConnection.State = 0 Then
-        m_MovementConnection.Open private_BuildAdoConnectionString(resolvedPath)
-    End If
-
-    Set outConnection = m_MovementConnection
-    private_TryGetMovementConnection = True
-    Exit Function
-
-ConnectionFail:
-    VBA.MsgBox "PrototypeNew: failed to open Movement data source." & _
-        VBA.vbCrLf & "Workbook: " & resolvedPath & _
-        VBA.vbCrLf & "Error: " & Err.Description, _
-        VBA.vbExclamation, "PrototypeNew / exporter data provider"
-End Function
 
 Private Function private_BuildAdoConnectionString(ByVal sourcePath As String) As String
     Dim ext As String

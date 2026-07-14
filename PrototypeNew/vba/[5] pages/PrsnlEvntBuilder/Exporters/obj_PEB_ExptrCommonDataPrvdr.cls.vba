@@ -13,6 +13,10 @@ Private m_OrderDate As Date
 Private m_HasOrderDate As Boolean
 Private m_ExportModes As Collection
 Private m_WorkbookConnections As Object
+' Все новые обращения к ШПО/справочникам описываются одинаковым query object.
+' Engine читает закрытый источник через ADO, а открытый — из живого Worksheet,
+' включая несохраненные изменения пользователя.
+Private m_QueryEngine As obj_ExtWorkbookQueryEngine
 
 Private Const EXPORT_MODE_DEFAULT As String = "Default"
 Private Const EXPORT_MODE_REWRITE_LAST As String = "Rewrite Last"
@@ -94,6 +98,8 @@ Public Function Initialize(Optional ByVal configTable As obj_ConfigTable = Nothi
     m_HasOrderDate = False
     Set m_WorkbookConnections = VBA.CreateObject("Scripting.Dictionary")
     m_WorkbookConnections.CompareMode = 1
+    Set m_QueryEngine = New obj_ExtWorkbookQueryEngine
+    If Not m_QueryEngine.Initialize Then Exit Function
     Set m_ExportModes = New Collection
     ' Порядок коллекции определяет цикл multi-toggle кнопки ExportMode.
     m_ExportModes.Add EXPORT_MODE_DEFAULT
@@ -130,6 +136,8 @@ Public Sub Dispose()
     m_HasOrderDate = False
     Set m_ExportModes = Nothing
     On Error Resume Next
+    If Not m_QueryEngine Is Nothing Then m_QueryEngine.Dispose
+    Set m_QueryEngine = Nothing
     private_CloseWorkbookConnections
     Set m_WorkbookConnections = Nothing
     On Error GoTo 0
@@ -613,14 +621,9 @@ Private Function private_TryLookupWorkbookValue( _
     Optional ByVal requireUniqueMatch As Boolean = False _
 ) As Boolean
     Dim resolvedPath As String
-    Dim conn As Object
-    Dim rs As Object
-    Dim sql As String
-    Dim quotedKeyHeader As String
-    Dim safeKeyExpression As String
-    Dim lookupErrorNumber As Long
-    Dim lookupErrorSource As String
-    Dim lookupErrorDescription As String
+    Dim query As obj_ExtWorkbookQuery
+    Dim resultTable As obj_TableDynamic
+    Dim resultRow As obj_Row
 
     outValue = VBA.vbNullString
     outFound = False
@@ -629,84 +632,42 @@ Private Function private_TryLookupWorkbookValue( _
         VBA.MsgBox "PrototypeNew: declension source workbook was not found: " & workbookPath, VBA.vbExclamation, "PrototypeNew / WORD export"
         Exit Function
     End If
+    If m_QueryEngine Is Nothing Then Exit Function
+    ' Provider задает только смысл запроса: ключ и возвращаемую колонку.
+    ' Конкретный способ доступа к книге инкапсулирован в m_QueryEngine.
+    Set query = New obj_ExtWorkbookQuery
+    query.SourcePath = resolvedPath
+    query.TableRef = tableRef
+    If Not query.AddCondition(keyHeader, en_ExtWorkbookQueryOp.ExtQueryOpEquals, lookupKey, True) Then Exit Function
+    query.MaxRows = IIf(requireUniqueMatch, 2, 1)
+    If Not query.AddSelectColumn(valueHeader) Then Exit Function
+    If Not m_QueryEngine.TryExecute(query, resultTable) Then Exit Function
 
-    On Error GoTo LookupFail
-    If Not private_TryGetWorkbookConnection(resolvedPath, conn) Then Exit Function
-
-    quotedKeyHeader = private_QuoteSqlIdentifier(keyHeader)
-    safeKeyExpression = "IIf(IsNull(" & quotedKeyHeader & "), '', " & quotedKeyHeader & ")"
-    If VBA.StrComp(keyHeader, ALF_KEY_HEADER, VBA.vbTextCompare) = 0 And private_IsDigitsOnly(lookupKey) Then
-        ' ІПН in ШПО is stored consistently as text. Keep the stable identifier
-        ' lookup exact and avoid transformations over the indexed source field.
-        sql = "SELECT TOP " & VBA.CStr(IIf(requireUniqueMatch, 2, 1)) & " " & private_QuoteSqlIdentifier(valueHeader) & _
-            " FROM " & tableRef & _
-            " WHERE " & quotedKeyHeader & " = " & private_AdoSqlTextLiteral(lookupKey)
-    Else
-        sql = "SELECT TOP " & VBA.CStr(IIf(requireUniqueMatch, 2, 1)) & " " & private_QuoteSqlIdentifier(valueHeader) & _
-            " FROM " & tableRef & _
-            " WHERE LCase(Trim(Replace(Replace(Replace(Replace(CStr(" & safeKeyExpression & _
-            "), Chr(160), ' '), Chr(13), ''), Chr(10), ''), Chr(9), ''))) = " & _
-            private_AdoSqlTextLiteral(lookupKey)
-    End If
-
-    Set rs = VBA.CreateObject("ADODB.Recordset")
-    rs.Open sql, conn, 0, 1
-
-    If rs.EOF Then
-        private_LogLookupMissDiagnostics conn, resolvedPath, tableRef, quotedKeyHeader, sourceLabel, lookupKey, sql
+    If resultTable Is Nothing Then
+        Exit Function
+    ElseIf resultTable.RowCount = 0 Then
+        ex_Core.fn_Diagnostic_LogError "peb-declension:lookup-miss source='" & sourceLabel & _
+            "' key='" & lookupKey & "' workbook='" & resolvedPath & "' range='" & tableRef & "'"
         If allowMissingRow Then
             private_TryLookupWorkbookValue = True
         Else
             VBA.MsgBox "PrototypeNew: declension row was not found in " & sourceLabel & " for key: " & lookupKey, VBA.vbExclamation, "PrototypeNew / WORD export"
         End If
-        GoTo CleanupDone
+        Exit Function
     End If
 
-    outValue = VBA.Trim$(private_RecordsetFieldText(rs.Fields(0).Value))
-    If requireUniqueMatch Then
-        rs.MoveNext
-        If Not rs.EOF Then
-            VBA.MsgBox "PrototypeNew: more than one row was found in " & sourceLabel & _
-                " for FIO: " & lookupKey & VBA.vbCrLf & _
-                "The reporter cannot be resolved unambiguously.", _
-                VBA.vbExclamation, "PrototypeNew / WORD export"
-            outValue = VBA.vbNullString
-            GoTo CleanupDone
-        End If
+    If requireUniqueMatch And resultTable.RowCount > 1 Then
+        VBA.MsgBox "PrototypeNew: more than one row was found in " & sourceLabel & _
+            " for FIO: " & lookupKey & VBA.vbCrLf & _
+            "The reporter cannot be resolved unambiguously.", _
+            VBA.vbExclamation, "PrototypeNew / WORD export"
+        Exit Function
     End If
+    Set resultRow = resultTable.Rows.Item(1)
+    If resultRow Is Nothing Then Exit Function
+    outValue = VBA.Trim$(VBA.CStr(resultRow.GetCellValue(1)))
     outFound = True
     private_TryLookupWorkbookValue = True
-
-CleanupDone:
-    On Error Resume Next
-    If Not rs Is Nothing Then If rs.State <> 0 Then rs.Close
-    Set rs = Nothing
-    Set conn = Nothing
-    On Error GoTo 0
-    Exit Function
-
-LookupFail:
-    ' Capture the original ADO failure before cleanup changes the Err object.
-    lookupErrorNumber = Err.Number
-    lookupErrorSource = Err.Source
-    lookupErrorDescription = Err.Description
-    private_DropWorkbookConnection resolvedPath
-    ex_Core.fn_Diagnostic_LogError "peb-declension:query-failed source='" & sourceLabel & _
-        "' key='" & lookupKey & _
-        "' workbook='" & resolvedPath & _
-        "' range='" & tableRef & _
-        "' sql='" & VBA.Replace$(sql, "'", "''") & _
-        "' errNumber='" & VBA.CStr(lookupErrorNumber) & _
-        "' errSource='" & VBA.Replace$(lookupErrorSource, "'", "''") & _
-        "' errDescription='" & VBA.Replace$(lookupErrorDescription, "'", "''") & "'"
-    VBA.MsgBox "PrototypeNew: failed to query declension source " & sourceLabel & "." & _
-        VBA.vbCrLf & "Workbook: " & workbookPath & _
-        VBA.vbCrLf & "Range: " & tableRef & _
-        VBA.vbCrLf & "SQL: " & sql & _
-        VBA.vbCrLf & "Error " & VBA.CStr(lookupErrorNumber) & _
-        " (" & lookupErrorSource & "): " & lookupErrorDescription, _
-        VBA.vbExclamation, "PrototypeNew / WORD export"
-    Resume CleanupDone
 End Function
 
 Private Function private_TryLookupWorkbookThreeValues( _
@@ -718,14 +679,9 @@ Private Function private_TryLookupWorkbookThreeValues( _
     ByRef outFound As Boolean _
 ) As Boolean
     Dim resolvedPath As String
-    Dim conn As Object
-    Dim rs As Object
-    Dim sql As String
-    Dim quotedKeyHeader As String
-    Dim safeKeyExpression As String
-    Dim errNumber As Long
-    Dim errSource As String
-    Dim errDescription As String
+    Dim query As obj_ExtWorkbookQuery
+    Dim resultTable As obj_TableDynamic
+    Dim resultRow As obj_Row
 
     outFirst = VBA.vbNullString
     outSecond = VBA.vbNullString
@@ -736,51 +692,32 @@ Private Function private_TryLookupWorkbookThreeValues( _
         VBA.MsgBox "PrototypeNew: declension source workbook was not found: " & workbookPath, VBA.vbExclamation, "PrototypeNew / WORD export"
         Exit Function
     End If
-
-    On Error GoTo LookupFail
-    If Not private_TryGetWorkbookConnection(resolvedPath, conn) Then Exit Function
-    quotedKeyHeader = private_QuoteSqlIdentifier(keyHeader)
-    safeKeyExpression = "IIf(IsNull(" & quotedKeyHeader & "), '', " & quotedKeyHeader & ")"
-    sql = "SELECT TOP 1 " & private_QuoteSqlIdentifier(firstHeader) & ", " & _
-        private_QuoteSqlIdentifier(secondHeader) & ", " & private_QuoteSqlIdentifier(thirdHeader) & _
-        " FROM " & tableRef & _
-        " WHERE LCase(Trim(Replace(Replace(Replace(Replace(CStr(" & safeKeyExpression & _
-        "), Chr(160), ' '), Chr(13), ''), Chr(10), ''), Chr(9), ''))) = " & _
-        private_AdoSqlTextLiteral(lookupKey)
-
-    Set rs = VBA.CreateObject("ADODB.Recordset")
-    rs.Open sql, conn, 0, 1
-    If rs.EOF Then
+    If m_QueryEngine Is Nothing Then Exit Function
+    ' Все три формы читаются одним запросом и возвращаются в порядке добавления
+    ' колонок независимо от того, открыт справочник или закрыт.
+    Set query = New obj_ExtWorkbookQuery
+    query.SourcePath = resolvedPath
+    query.TableRef = tableRef
+    If Not query.AddCondition(keyHeader, en_ExtWorkbookQueryOp.ExtQueryOpEquals, lookupKey, True) Then Exit Function
+    query.MaxRows = 1
+    If Not query.AddSelectColumn(firstHeader) Then Exit Function
+    If Not query.AddSelectColumn(secondHeader) Then Exit Function
+    If Not query.AddSelectColumn(thirdHeader) Then Exit Function
+    If Not m_QueryEngine.TryExecute(query, resultTable) Then Exit Function
+    If resultTable Is Nothing Then
+        Exit Function
+    ElseIf resultTable.RowCount = 0 Then
         private_TryLookupWorkbookThreeValues = True
-        GoTo CleanupDone
+        Exit Function
     End If
 
-    outFirst = VBA.Trim$(private_RecordsetFieldText(rs.Fields(0).Value))
-    outSecond = VBA.Trim$(private_RecordsetFieldText(rs.Fields(1).Value))
-    outThird = VBA.Trim$(private_RecordsetFieldText(rs.Fields(2).Value))
+    Set resultRow = resultTable.Rows.Item(1)
+    If resultRow Is Nothing Then Exit Function
+    outFirst = VBA.Trim$(VBA.CStr(resultRow.GetCellValue(1)))
+    outSecond = VBA.Trim$(VBA.CStr(resultRow.GetCellValue(2)))
+    outThird = VBA.Trim$(VBA.CStr(resultRow.GetCellValue(3)))
     outFound = True
     private_TryLookupWorkbookThreeValues = True
-
-CleanupDone:
-    On Error Resume Next
-    If Not rs Is Nothing Then If rs.State <> 0 Then rs.Close
-    Set rs = Nothing
-    Set conn = Nothing
-    On Error GoTo 0
-    Exit Function
-
-LookupFail:
-    errNumber = Err.Number
-    errSource = Err.Source
-    errDescription = Err.Description
-    private_DropWorkbookConnection resolvedPath
-    VBA.MsgBox "PrototypeNew: failed to query declension source " & sourceLabel & "." & _
-        VBA.vbCrLf & "Workbook: " & workbookPath & _
-        VBA.vbCrLf & "Range: " & tableRef & _
-        VBA.vbCrLf & "SQL: " & sql & _
-        VBA.vbCrLf & "Error " & VBA.CStr(errNumber) & " (" & errSource & "): " & errDescription, _
-        VBA.vbExclamation, "PrototypeNew / WORD export"
-    Resume CleanupDone
 End Function
 
 Private Function private_IsDigitsOnly(ByVal valueText As String) As Boolean
@@ -1083,9 +1020,9 @@ Private Function private_TryLookupWorkbookDate( _
     ByRef outDate As Date _
 ) As Boolean
     Dim resolvedPath As String
-    Dim conn As Object
-    Dim rs As Object
-    Dim sql As String
+    Dim query As obj_ExtWorkbookQuery
+    Dim resultTable As obj_TableDynamic
+    Dim resultRow As obj_Row
 
     outDate = 0
     resolvedPath = private_ResolveWorkbookPath(workbookPath)
@@ -1095,40 +1032,22 @@ Private Function private_TryLookupWorkbookDate( _
         Exit Function
     End If
 
-    On Error GoTo LookupFail
-    If Not private_TryGetWorkbookConnection(resolvedPath, conn) Then Exit Function
-
-    ' Номер приказа сравниваем как текстовый token. Диапазон начинается со
-    ' строки заголовков блока года, поэтому ADO видит поля "Дата наказу" и
-    ' "Номер наказу" так же, как остальные справочники склонений.
-    sql = "SELECT TOP 1 " & private_QuoteSqlIdentifier(valueHeader) & _
-        " FROM " & tableRef & _
-        " WHERE LCase(Trim(CStr(" & private_QuoteSqlIdentifier(keyHeader) & "))) = " & private_AdoSqlTextLiteral(lookupKey)
-
-    Set rs = VBA.CreateObject("ADODB.Recordset")
-    rs.Open sql, conn, 0, 1
-
-    If rs.EOF Then GoTo CleanupDone
-
+    If m_QueryEngine Is Nothing Then Exit Function
+    Set query = New obj_ExtWorkbookQuery
+    query.SourcePath = resolvedPath
+    query.TableRef = tableRef
+    If Not query.AddCondition(keyHeader, en_ExtWorkbookQueryOp.ExtQueryOpEquals, lookupKey, True) Then Exit Function
+    query.MaxRows = 1
+    If Not query.AddSelectColumn(valueHeader) Then Exit Function
+    If Not m_QueryEngine.TryExecute(query, resultTable) Then Exit Function
+    If resultTable Is Nothing Then Exit Function
+    If resultTable.RowCount = 0 Then Exit Function
+    Set resultRow = resultTable.Rows.Item(1)
+    If resultRow Is Nothing Then Exit Function
     private_TryLookupWorkbookDate = ex_Helpers.fn_TryResolveDateWithContext( _
-        rs.Fields(0).Value, _
+        resultRow.GetCellValue(1), _
         VBA.DateSerial(1900, 1, 1), _
         outDate)
-
-CleanupDone:
-    On Error Resume Next
-    If Not rs Is Nothing Then If rs.State <> 0 Then rs.Close
-    Set rs = Nothing
-    Set conn = Nothing
-    On Error GoTo 0
-    Exit Function
-
-LookupFail:
-    VBA.MsgBox "PrototypeNew: failed to query order map source " & sourceLabel & "." & _
-        VBA.vbCrLf & "Workbook: " & workbookPath & _
-        VBA.vbCrLf & "Range: " & tableRef & _
-        VBA.vbCrLf & "Error: " & Err.Description, VBA.vbExclamation, "PrototypeNew / WORD export"
-    Resume CleanupDone
 End Function
 
 Private Function private_BuildAdoConnectionString(ByVal sourcePath As String) As String
