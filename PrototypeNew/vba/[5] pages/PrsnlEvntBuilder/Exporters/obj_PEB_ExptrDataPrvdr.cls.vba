@@ -12,6 +12,8 @@ Option Explicit
 
 Private m_IsDisposed As Boolean
 Private m_CommonData As obj_PEB_ExptrCommonDataPrvdr
+Private m_PersonnelWorkbookPath As String
+Private m_PersonnelTableRef As String
 Private m_MovementWorkbookPath As String
 Private m_MovementSheetName As String
 Private m_MovementRangeStartMarker As String
@@ -20,6 +22,8 @@ Private m_MovementRangeEndMarker As String
 ' закрытого Movement и чтением Worksheet, если источник уже открыт пользователем.
 Private m_QueryEngine As obj_ExtWorkbookQueryEngine
 
+Private Const CONFIG_PERSONNEL_FILE_PATH_KEY As String = "Source.Personnel.FilePath"
+Private Const CONFIG_PERSONNEL_STATE_RANGE_KEY As String = "Personnel.Sheet[StateMain].SheetName"
 Private Const CONFIG_MOVEMENT_FILE_PATH_KEY As String = "Export.Movement.FilePath"
 Private Const CONFIG_MOVEMENT_SHEET_NAME_KEY As String = "Export.Movement.SheetName"
 Private Const CONFIG_MOVEMENT_RANGE_START_KEY As String = "Export.Movement.RangeStartMarker"
@@ -33,6 +37,8 @@ Private Const MOVEMENT_ON_FOOD_HEADER As String = "На продовольче"
 Private Const MOVEMENT_TVO_FIO_HEADER As String = "ТВО ПІБ"
 Private Const MOVEMENT_TVO_IPN_HEADER As String = "ТВО ІПН"
 Private Const MOVEMENT_TVO_POSITION_HEADER As String = "ТВО Посада"
+Private Const PERSONNEL_TVO_HEADER As String = "ТВО"
+Private Const PERSONNEL_POSITION_CODE_HEADER As String = "Код посади"
 Private Const EXCEL_MAX_ROW As Long = 1048576
 
 Private Sub Class_Initialize()
@@ -57,6 +63,8 @@ End Sub
 Public Function Initialize(ByVal configTable As obj_ConfigTable) As Boolean
     m_IsDisposed = False
     Set m_CommonData = New obj_PEB_ExptrCommonDataPrvdr
+    m_PersonnelWorkbookPath = VBA.vbNullString
+    m_PersonnelTableRef = VBA.vbNullString
     m_MovementWorkbookPath = VBA.vbNullString
     m_MovementSheetName = VBA.vbNullString
     m_MovementRangeStartMarker = VBA.vbNullString
@@ -78,6 +86,8 @@ Public Sub Dispose()
     Set m_CommonData = Nothing
     If Not m_QueryEngine Is Nothing Then m_QueryEngine.Dispose
     Set m_QueryEngine = Nothing
+    m_PersonnelWorkbookPath = VBA.vbNullString
+    m_PersonnelTableRef = VBA.vbNullString
     m_MovementWorkbookPath = VBA.vbNullString
     m_MovementSheetName = VBA.vbNullString
     m_MovementRangeStartMarker = VBA.vbNullString
@@ -439,6 +449,8 @@ Public Function TryResolveReporterTvoPositionGenitive( _
     ByRef outPositionGenitive As String, _
     ByRef outIsTvo As Boolean _
 ) As Boolean
+    Dim tvoPositionCode As String
+
     If m_IsDisposed Then Exit Function
     If m_CommonData Is Nothing Then Exit Function
 
@@ -451,9 +463,23 @@ Public Function TryResolveReporterTvoPositionGenitive( _
         Exit Function
     End If
 
-    ' Внешняя таблица особового состава больше не является источником PEB. Определение того,
-    ' что рапортующий сам является ТВО, будет восстановлено отдельным правилом
-    ' по Movement; до этого момента используем его штатную должность формы.
+    ' ШПО остается основным источником склонений. Personnel используется здесь
+    ' только для отсутствующей в ШПО связи: в чьей строке колонка "ТВО"
+    ' содержит ФИО рапортующего. Код должности найденной строки затем склоняется
+    ' обычным CommonData provider-ом по справочнику должностей ШПО.
+    If Not private_TryLookupPersonnelTvoPositionCode( _
+        reporterFioText, _
+        tvoPositionCode, _
+        outIsTvo) Then Exit Function
+    If Not outIsTvo Then
+        TryResolveReporterTvoPositionGenitive = True
+        Exit Function
+    End If
+
+    If Not m_CommonData.TryResolvePositionGenitive( _
+        tvoPositionCode, _
+        outPositionGenitive) Then Exit Function
+
     TryResolveReporterTvoPositionGenitive = True
 End Function
 
@@ -565,6 +591,16 @@ Private Function private_TryLoadConfig(ByVal configTable As obj_ConfigTable) As 
         GoTo CleanExit
     End If
 
+    m_PersonnelWorkbookPath = cfgParserBase.GetOptionalConfigValue( _
+        cfgMap, _
+        CONFIG_PERSONNEL_FILE_PATH_KEY, _
+        VBA.vbNullString)
+    m_PersonnelTableRef = private_BuildConfiguredAdoRangeRef( _
+        cfgParserBase.GetOptionalConfigValue( _
+            cfgMap, _
+            CONFIG_PERSONNEL_STATE_RANGE_KEY, _
+            VBA.vbNullString))
+
     ' Эти ключи пока только экспонируются будущим helper-ам определения
     ' предыдущего статуса. Они optional, чтобы существующие профили без
     ' Movement export продолжали инициализировать provider.
@@ -590,6 +626,107 @@ CleanExit:
     If Not cfgParserBase Is Nothing Then cfgParserBase.Dispose
     Set cfgParserBase = Nothing
     On Error GoTo 0
+End Function
+
+
+' Ищет должность, обязанности по которой временно исполняет рапортующий.
+' QueryEngine обеспечивает одинаковый контракт для открытого Personnel
+' (чтение Range) и закрытого Personnel (ACE/ADO SQL с HDR=YES).
+Private Function private_TryLookupPersonnelTvoPositionCode( _
+    ByVal reporterFioText As String, _
+    ByRef outPositionCode As String, _
+    ByRef outFound As Boolean _
+) As Boolean
+    Dim resolvedPath As String
+    Dim reporterSurnameText As String
+    Dim query As obj_ExtWorkbookQuery
+    Dim resultTable As obj_TableDynamic
+    Dim resultRow As obj_Row
+
+    outPositionCode = VBA.vbNullString
+    outFound = False
+
+    reporterSurnameText = private_GetFirstLookupWord(reporterFioText)
+    If VBA.Len(reporterSurnameText) = 0 Then
+        VBA.MsgBox "PrototypeNew: failed to extract the reporter surname from '" & reporterFioText & "'.", _
+            VBA.vbExclamation, "PrototypeNew / exporter data provider"
+        Exit Function
+    End If
+
+    If m_QueryEngine Is Nothing Then Exit Function
+    If VBA.Len(VBA.Trim$(m_PersonnelWorkbookPath)) = 0 Then
+        VBA.MsgBox "PrototypeNew: required profile key '" & CONFIG_PERSONNEL_FILE_PATH_KEY & "' is empty.", _
+            VBA.vbExclamation, "PrototypeNew / exporter data provider"
+        Exit Function
+    End If
+    If VBA.Len(VBA.Trim$(m_PersonnelTableRef)) = 0 Then
+        VBA.MsgBox "PrototypeNew: required profile key '" & CONFIG_PERSONNEL_STATE_RANGE_KEY & "' is empty.", _
+            VBA.vbExclamation, "PrototypeNew / exporter data provider"
+        Exit Function
+    End If
+
+    resolvedPath = private_ResolveWorkbookPath(m_PersonnelWorkbookPath)
+    If VBA.Len(resolvedPath) = 0 Or VBA.Len(VBA.Dir$(resolvedPath)) = 0 Then
+        VBA.MsgBox "PrototypeNew: personnel source workbook was not found: " & m_PersonnelWorkbookPath, _
+            VBA.vbExclamation, "PrototypeNew / exporter data provider"
+        Exit Function
+    End If
+
+    Set query = New obj_ExtWorkbookQuery
+    query.SourcePath = resolvedPath
+    query.TableRef = m_PersonnelTableRef
+    query.MaxRows = 2
+    If Not query.AddSelectColumn(PERSONNEL_POSITION_CODE_HEADER) Then Exit Function
+    If Not query.AddCondition( _
+        PERSONNEL_TVO_HEADER, _
+        en_ExtWorkbookQueryOp.ExtQueryOpContains, _
+        reporterSurnameText, _
+        True) Then Exit Function
+
+    If Not m_QueryEngine.TryExecute(query, resultTable) Then Exit Function
+    If resultTable Is Nothing Then Exit Function
+    If resultTable.RowCount = 0 Then
+        private_TryLookupPersonnelTvoPositionCode = True
+        Exit Function
+    End If
+    If resultTable.RowCount > 1 Then
+        VBA.MsgBox "PrototypeNew: reporter '" & reporterFioText & _
+            "' is referenced as TVO in more than one Personnel row. Export was stopped because the TVO position is ambiguous.", _
+            VBA.vbExclamation, "PrototypeNew / exporter data provider"
+        Exit Function
+    End If
+
+    Set resultRow = resultTable.Rows.Item(1)
+    If resultRow Is Nothing Then Exit Function
+    If Not resultRow.TryGetCellValueByColumn( _
+        PERSONNEL_POSITION_CODE_HEADER, _
+        outPositionCode) Then Exit Function
+
+    outPositionCode = VBA.Trim$(outPositionCode)
+    If VBA.Len(outPositionCode) = 0 Then
+        VBA.MsgBox "PrototypeNew: Personnel row referencing reporter '" & reporterFioText & _
+            "' as TVO has an empty '" & PERSONNEL_POSITION_CODE_HEADER & "' value.", _
+            VBA.vbExclamation, "PrototypeNew / exporter data provider"
+        Exit Function
+    End If
+
+    outFound = True
+    private_TryLookupPersonnelTvoPositionCode = True
+End Function
+
+
+Private Function private_GetFirstLookupWord(ByVal valueText As String) As String
+    Dim separatorPos As Long
+
+    valueText = private_NormalizeLookupKey(valueText)
+    If VBA.Len(valueText) = 0 Then Exit Function
+
+    separatorPos = VBA.InStr(1, valueText, " ", VBA.vbBinaryCompare)
+    If separatorPos > 1 Then
+        private_GetFirstLookupWord = VBA.Left$(valueText, separatorPos - 1)
+    Else
+        private_GetFirstLookupWord = valueText
+    End If
 End Function
 
 
@@ -763,6 +900,7 @@ Private Function private_ResolveWorkbookPath(ByVal workbookPath As String) As St
         private_ResolveWorkbookPath = ex_XmlCore.fn_CombineBasePath(ThisWorkbook, workbookPath)
     End If
 End Function
+
 
 Private Function private_NormalizeLookupKey(ByVal valueText As String) As String
     valueText = VBA.Trim$(VBA.CStr(valueText))
