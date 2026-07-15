@@ -27,7 +27,6 @@ Private Const EXPORT_HISTORY_KEY As String = "MovementHistory"
 Private Const MOVEMENT_SOURCE_EVENT As String = "Подія"
 Private Const MOVEMENT_SOURCE_INCOMING_DATE As String = "Вх. дата"
 Private Const MOVEMENT_SOURCE_DEPARTURE_DATE As String = "З"
-Private Const MOVEMENT_SOURCE_DURATION_TERM As String = "Термін вибуття"
 Private Const MOVEMENT_SOURCE_DURATION_DAYS As String = "На скільки"
 Private Const MOVEMENT_SOURCE_VK_NO As String = "В/к №"
 Private Const MOVEMENT_SOURCE_REPORT_RANK As String = "ReportRank"
@@ -44,7 +43,7 @@ Private Const MOVEMENT_TARGET_ARRIVAL As String = "Прибуття"
 Private Const MOVEMENT_TARGET_OUT_REASON As String = "Підстава вибуття"
 Private Const MOVEMENT_TARGET_RETURN_REASON As String = "Підстава прибуття"
 Private Const MOVEMENT_TARGET_IPN As String = "ІПН"
-Private Const MOVEMENT_TARGET_DURATION_DAYS As String = "На скільки"
+Private Const MOVEMENT_TARGET_DURATION_TERM As String = "Термін вибуття"
 Private Const MOVEMENT_TARGET_ESCORT_DOCUMENT As String = "Супровідний документ"
 Private Const MOVEMENT_TARGET_EVENT As String = "Подія"
 Private Const MOVEMENT_TARGET_TVO_FIO As String = "ТВО ПІБ"
@@ -59,6 +58,7 @@ Private Const SPECIAL_POSITION_PREFIX_ROZP As String = "A1A"
 Private Const SPECIAL_POSITION_PREFIX_SPIS As String = "A1B"
 Private Const SPECIAL_POSITION_CODE_ROZP As String = "РОЗП"
 Private Const SPECIAL_POSITION_CODE_SPIS As String = "СПИС"
+Private Const MEDICAL_COMPANY_DESTINATION As String = "Медична рота А7383"
 
 Private Sub Class_Initialize()
 #If LOGGING_VERBOSE_ENABLED Then
@@ -407,7 +407,7 @@ Private Function private_TryBuildSpecialOpeningValues( _
     End If
 
     outShouldWrite = True
-    outDurationValue = private_GetOptionalSourceTextByAnyColumn(sourceTable, sourceRow, MOVEMENT_SOURCE_DURATION_TERM, MOVEMENT_SOURCE_DURATION_DAYS)
+    outDurationValue = private_GetOptionalSourceTextByAnyColumn(sourceTable, sourceRow, MOVEMENT_SOURCE_DURATION_DAYS)
     outVkNoValue = m_DataProvider.CommonData.FormatVacationTicketNoForExport( _
         private_GetOptionalSourceTextByAnyColumn(sourceTable, sourceRow, MOVEMENT_SOURCE_VK_NO), _
         private_GetContextText(context, MOVEMENT_CONTEXT_MANUAL_ORDER_NO))
@@ -703,6 +703,16 @@ Private Function private_ResolveMovementDestinationValue( _
     ByVal sourceRow As obj_Row, _
     ByVal sectionTypeText As String _
 ) As Variant
+    ' В профиле выбытия в медицинскую роту поле больницы намеренно скрыто,
+    ' поэтому направление задаётся семантикой самой секции.
+    If VBA.StrComp( _
+        private_NormalizeText(sectionTypeText), _
+        private_NormalizeText(m_Data.SectionTypeToTreatmentMedicalCompany), _
+        VBA.vbTextCompare) = 0 Then
+        private_ResolveMovementDestinationValue = MEDICAL_COMPANY_DESTINATION
+        Exit Function
+    End If
+
     If m_Data.UsesMovementVacationDestination(sectionTypeText) Then
         private_ResolveMovementDestinationValue = private_GetOptionalSourceText(sourceTable, sourceRow, "Відпустка")
         Exit Function
@@ -1098,7 +1108,7 @@ Private Function private_TryWriteMovementRow( _
     If Not private_TryWriteNamedColumnValue(targetTable, rowRange, MOVEMENT_TARGET_DEPARTURE, outgoingDepartureDate) Then Exit Function
 
     If writeSpecialFields Then
-        If Not private_TryWriteNamedColumnValue(targetTable, rowRange, MOVEMENT_TARGET_DURATION_DAYS, specialDurationValue) Then Exit Function
+        If Not private_TryWriteNamedColumnValue(targetTable, rowRange, MOVEMENT_TARGET_DURATION_TERM, specialDurationValue) Then Exit Function
         If Not private_TryWriteNamedColumnValue(targetTable, rowRange, MOVEMENT_TARGET_ESCORT_DOCUMENT, specialVkNoValue) Then Exit Function
     End If
 

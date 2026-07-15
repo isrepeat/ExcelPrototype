@@ -1253,6 +1253,8 @@ Private Function private_GetKnownSectionCaptionByText(ByVal valueText As String)
             private_GetKnownSectionCaptionByText = "Зміна місця перебування" & VBA.vbLf & "(Відпустка лік / Відпустка лік.):"
         Case "зміна місця перебування відпустка для лік => лікування"
             private_GetKnownSectionCaptionByText = "Зміна місця перебування" & VBA.vbLf & "(Відпустка лік. / Лікування):"
+        Case "з щорічної відпустки => лікування"
+            private_GetKnownSectionCaptionByText = "З щорічної відпустки => лікування:"
         Case "зміна місця перебування відпустка для лік => влк"
             private_GetKnownSectionCaptionByText = "Зміна місця перебування" & VBA.vbLf & "(Відпустка лік. / ВЛК):"
         Case "зміна місця перебування влк => відпустка для лік"
