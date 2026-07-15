@@ -21,6 +21,7 @@ Private Const SECTION_TYPE_TO_AMBULATORY_VLK As String = "На амбулато�
 Private Const SECTION_TYPE_TRANSFER_TREATMENT_TO_TREATMENT_VACATION As String = "Зміна місця перебування лікування => відпустка для лік"
 Private Const SECTION_TYPE_TRANSFER_TREATMENT_VACATION_TO_TREATMENT_VACATION As String = "Зміна місця перебування відпустка для лік => відпустка для лік"
 Private Const SECTION_TYPE_TRANSFER_TREATMENT_VACATION_TO_TREATMENT As String = "Зміна місця перебування відпустка для лік => лікування"
+Private Const SECTION_TYPE_TRANSFER_ANNUAL_VACATION_TO_TREATMENT As String = "З щорічної відпустки => лікування"
 Private Const SECTION_TYPE_TRANSFER_TREATMENT_VACATION_TO_VLK As String = "Зміна місця перебування відпустка для лік => влк"
 Private Const SECTION_TYPE_TRANSFER_VLK_TO_TREATMENT_VACATION As String = "Зміна місця перебування влк => відпустка для лік"
 Private Const SECTION_TYPE_TRANSFER_VLK_TO_TREATMENT As String = "Зміна місця перебування влк => лікування"
@@ -46,6 +47,7 @@ Private Const WORD_TEMPLATE_TO_AMBULATORY_VLK As String = "ToOutpatientExaminati
 Private Const WORD_TEMPLATE_MOVE_HOSPITAL_TO_TREATMENT_VACATION As String = "MoveFromHospitalToVacationForCuring"
 Private Const WORD_TEMPLATE_MOVE_TREATMENT_VACATION_TO_TREATMENT_VACATION As String = "MoveFromVacationForCuringToVacationForCuring"
 Private Const WORD_TEMPLATE_MOVE_TREATMENT_VACATION_TO_HOSPITAL As String = "MoveFromVacationForCuringToHospital"
+Private Const WORD_TEMPLATE_MOVE_ANNUAL_VACATION_TO_HOSPITAL As String = "MoveFromAnnualVacationToHospital"
 Private Const WORD_TEMPLATE_MOVE_TREATMENT_VACATION_TO_VLK As String = "MoveFromVacationForCuringToVlk"
 Private Const WORD_TEMPLATE_MOVE_VLK_TO_TREATMENT_VACATION As String = "MoveFromVlkToVacationForCuring"
 Private Const WORD_TEMPLATE_MOVE_VLK_TO_HOSPITAL As String = "MoveFromVlkToHospital"
@@ -185,6 +187,10 @@ Public Property Get SectionTypeTransferTreatmentVacationToTreatment() As String
     SectionTypeTransferTreatmentVacationToTreatment = SECTION_TYPE_TRANSFER_TREATMENT_VACATION_TO_TREATMENT
 End Property
 
+Public Property Get SectionTypeTransferAnnualVacationToTreatment() As String
+    SectionTypeTransferAnnualVacationToTreatment = SECTION_TYPE_TRANSFER_ANNUAL_VACATION_TO_TREATMENT
+End Property
+
 Public Property Get SectionTypeTransferTreatmentVacationToVlk() As String
     SectionTypeTransferTreatmentVacationToVlk = SECTION_TYPE_TRANSFER_TREATMENT_VACATION_TO_VLK
 End Property
@@ -256,6 +262,8 @@ Public Function TryResolveWordTemplateId( _
             outTemplateId = WORD_TEMPLATE_MOVE_TREATMENT_VACATION_TO_TREATMENT_VACATION
         Case private_NormalizeText(SECTION_TYPE_TRANSFER_TREATMENT_VACATION_TO_TREATMENT)
             outTemplateId = WORD_TEMPLATE_MOVE_TREATMENT_VACATION_TO_HOSPITAL
+        Case private_NormalizeText(SECTION_TYPE_TRANSFER_ANNUAL_VACATION_TO_TREATMENT)
+            outTemplateId = WORD_TEMPLATE_MOVE_ANNUAL_VACATION_TO_HOSPITAL
         Case private_NormalizeText(SECTION_TYPE_TRANSFER_TREATMENT_VACATION_TO_VLK)
             outTemplateId = WORD_TEMPLATE_MOVE_TREATMENT_VACATION_TO_VLK
         Case private_NormalizeText(SECTION_TYPE_TRANSFER_VLK_TO_TREATMENT_VACATION)
@@ -306,6 +314,7 @@ Public Function IsMovementMirrorTransferSectionType(ByVal sectionTypeText As Str
         Case private_NormalizeText(SECTION_TYPE_TRANSFER_TREATMENT_TO_TREATMENT_VACATION), _
              private_NormalizeText(SECTION_TYPE_TRANSFER_TREATMENT_VACATION_TO_TREATMENT_VACATION), _
              private_NormalizeText(SECTION_TYPE_TRANSFER_TREATMENT_VACATION_TO_TREATMENT), _
+             private_NormalizeText(SECTION_TYPE_TRANSFER_ANNUAL_VACATION_TO_TREATMENT), _
              private_NormalizeText(SECTION_TYPE_TRANSFER_TREATMENT_VACATION_TO_VLK), _
              private_NormalizeText(SECTION_TYPE_TRANSFER_VLK_TO_TREATMENT_VACATION), _
              private_NormalizeText(SECTION_TYPE_TRANSFER_VLK_TO_TREATMENT), _
@@ -322,6 +331,7 @@ Public Function ShouldWriteMovementSpecialOpeningFields(ByVal sectionTypeText As
              private_NormalizeText(SECTION_TYPE_TRANSFER_TREATMENT_TO_TREATMENT_VACATION), _
              private_NormalizeText(SECTION_TYPE_TRANSFER_TREATMENT_VACATION_TO_TREATMENT_VACATION), _
              private_NormalizeText(SECTION_TYPE_TRANSFER_TREATMENT_VACATION_TO_TREATMENT), _
+             private_NormalizeText(SECTION_TYPE_TRANSFER_ANNUAL_VACATION_TO_TREATMENT), _
              private_NormalizeText(SECTION_TYPE_TRANSFER_VLK_TO_TREATMENT_VACATION)
             ShouldWriteMovementSpecialOpeningFields = True
     End Select
@@ -349,6 +359,7 @@ Public Function TryMapMovementSectionTypeToEventText( _
         Case private_NormalizeText(SECTION_TYPE_TO_TREATMENT), _
              private_NormalizeText(SECTION_TYPE_TO_TREATMENT_MEDICAL_COMPANY), _
              private_NormalizeText(SECTION_TYPE_TRANSFER_TREATMENT_VACATION_TO_TREATMENT), _
+             private_NormalizeText(SECTION_TYPE_TRANSFER_ANNUAL_VACATION_TO_TREATMENT), _
              private_NormalizeText(SECTION_TYPE_TRANSFER_VLK_TO_TREATMENT), _
              private_NormalizeText(SECTION_TYPE_TRANSFER_MEDICAL_COMPANY_TO_TREATMENT)
             outEventText = MOVEMENT_EVENT_STATIONARY_TREATMENT
@@ -395,6 +406,7 @@ Private Function private_BuildProfileNames() As Collection
     profileNames.Add SECTION_TYPE_TRANSFER_TREATMENT_TO_TREATMENT_VACATION
     profileNames.Add SECTION_TYPE_TRANSFER_TREATMENT_VACATION_TO_TREATMENT_VACATION
     profileNames.Add SECTION_TYPE_TRANSFER_TREATMENT_VACATION_TO_TREATMENT
+    profileNames.Add SECTION_TYPE_TRANSFER_ANNUAL_VACATION_TO_TREATMENT
     profileNames.Add SECTION_TYPE_TRANSFER_TREATMENT_VACATION_TO_VLK
     profileNames.Add SECTION_TYPE_TRANSFER_VLK_TO_TREATMENT_VACATION
     profileNames.Add SECTION_TYPE_TRANSFER_VLK_TO_TREATMENT
@@ -439,6 +451,9 @@ Private Function private_BuildProfileTagMap() As Object
     tagMap(private_NormalizeText(SECTION_TYPE_TRANSFER_TREATMENT_TO_TREATMENT_VACATION)) = PROFILE_TAG_TRANSFER_TREATMENT_TO_TREATMENT_VACATION
     tagMap(private_NormalizeText(SECTION_TYPE_TRANSFER_TREATMENT_VACATION_TO_TREATMENT_VACATION)) = PROFILE_TAG_TRANSFER_TREATMENT_VACATION_TO_TREATMENT_VACATION
     tagMap(private_NormalizeText(SECTION_TYPE_TRANSFER_TREATMENT_VACATION_TO_TREATMENT)) = PROFILE_TAG_TRANSFER_TREATMENT_VACATION_TO_TREATMENT
+    ' Обе секции перехода из отпуска на лечение используют одинаковые поля
+    ' формы, но сохраняют независимые идентификаторы Movement и WORD-шаблонов.
+    tagMap(private_NormalizeText(SECTION_TYPE_TRANSFER_ANNUAL_VACATION_TO_TREATMENT)) = PROFILE_TAG_TRANSFER_TREATMENT_VACATION_TO_TREATMENT
     tagMap(private_NormalizeText(SECTION_TYPE_TRANSFER_TREATMENT_VACATION_TO_VLK)) = PROFILE_TAG_TRANSFER_TREATMENT_VACATION_TO_VLK
     tagMap(private_NormalizeText(SECTION_TYPE_TRANSFER_VLK_TO_TREATMENT_VACATION)) = PROFILE_TAG_TRANSFER_VLK_TO_TREATMENT_VACATION
     tagMap(private_NormalizeText(SECTION_TYPE_TRANSFER_VLK_TO_TREATMENT)) = PROFILE_TAG_TRANSFER_VLK_TO_TREATMENT

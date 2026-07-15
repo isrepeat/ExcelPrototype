@@ -25,6 +25,7 @@ Private Const SOURCE_ALIAS_FIO As String = "FIO"
 Private Const SOURCE_ALIAS_POSITION_CODE As String = "PositionCode"
 Private Const SOURCE_ALIAS_POSITION_NAME As String = "PositionName"
 Private Const SOURCE_ALIAS_HOSPITAL_SHORT As String = "HospitalShort"
+Private Const SOURCE_ALIAS_VACATION As String = "Vacation"
 Private Const SOURCE_ALIAS_REPORT_RANK As String = "ReportRank"
 Private Const SOURCE_ALIAS_REPORT_PERSON As String = "ReportPerson"
 Private Const SOURCE_ALIAS_REPORT_POSITION_CODE As String = "ReportPositionCode"
@@ -377,6 +378,7 @@ Public Function RemoveResultDocumentAnchors(ByRef clearedBlockCount As Long) As 
     Dim leadingBreakCount As Long
     Dim trailingBreakCount As Long
     Dim anchorId As String
+    Dim beginMarker As String
     Dim endMarker As String
     Dim matchIndex As Long
     Dim documentOpened As Boolean
@@ -421,10 +423,17 @@ Public Function RemoveResultDocumentAnchors(ByRef clearedBlockCount As Long) As 
     For matchIndex = beginMatches.Count - 1 To 0 Step -1
         Set beginMatch = beginMatches(matchIndex)
         anchorId = VBA.CStr(beginMatch.SubMatches(0))
+        beginMarker = VBA.CStr(beginMatch.Value)
         endMarker = WORD_ANCHOR_PREFIX & anchorId & WORD_ANCHOR_END_SUFFIX
 
-        Set beginRange = wordDoc.Range(wordDoc.Content.Start + beginMatch.FirstIndex, _
-                                       wordDoc.Content.Start + beginMatch.FirstIndex + beginMatch.Length)
+        ' FirstIndex относится к строке Content.Text и может расходиться с
+        ' координатами Word Range из-за полей и служебных символов документа.
+        ' Поэтому regex определяет только текст якоря, а фактический диапазон
+        ' повторно находим средствами Word — так завершающая "}" не остаётся.
+        If Not private_TryFindWordText(wordDoc.Content, beginMarker, beginRange) Then
+            VBA.MsgBox "PrototypeNew: WORD begin anchor was not found: " & beginMarker, VBA.vbExclamation, "PrototypeNew / WORD document"
+            GoTo CleanFail
+        End If
         Set endSearchRange = wordDoc.Range(beginRange.End, wordDoc.Content.End)
         If Not private_TryFindWordText(endSearchRange, endMarker, endRange) Then
             VBA.MsgBox "PrototypeNew: WORD end anchor was not found after begin anchor: " & endMarker, VBA.vbExclamation, "PrototypeNew / WORD document"
@@ -668,6 +677,7 @@ Private Function private_TryEnrichMainSourceTableForWord( _
     Dim positionCodeText As String
     Dim positionText As String
     Dim hospitalShortText As String
+    Dim vacationText As String
     Dim reportRankText As String
     Dim reportPersonText As String
     Dim reportPositionCodeText As String
@@ -714,6 +724,7 @@ Private Function private_TryEnrichMainSourceTableForWord( _
     If Not private_TryGetMainTableValue(sourceTable, SOURCE_ALIAS_POSITION_CODE, positionCodeText) Then positionCodeText = VBA.vbNullString
     If Not private_TryGetMainTableValue(sourceTable, SOURCE_ALIAS_POSITION_NAME, positionText) Then positionText = VBA.vbNullString
     If Not private_TryGetMainTableValue(sourceTable, SOURCE_ALIAS_HOSPITAL_SHORT, hospitalShortText) Then hospitalShortText = VBA.vbNullString
+    If Not private_TryGetMainTableValue(sourceTable, SOURCE_ALIAS_VACATION, vacationText) Then vacationText = VBA.vbNullString
     If Not private_TryGetMainTableValue(sourceTable, SOURCE_ALIAS_REPORT_RANK, reportRankText) Then reportRankText = VBA.vbNullString
     If Not private_TryGetMainTableValue(sourceTable, SOURCE_ALIAS_REPORT_PERSON, reportPersonText) Then reportPersonText = VBA.vbNullString
     If Not private_TryGetMainTableValue(sourceTable, SOURCE_ALIAS_REPORT_POSITION_CODE, reportPositionCodeText) Then reportPositionCodeText = VBA.vbNullString
@@ -797,6 +808,9 @@ Private Function private_TryEnrichMainSourceTableForWord( _
     End If
     If VBA.Len(VBA.Trim$(hospitalAccusative)) > 0 Then
         If Not private_TryUpsertMainTableValue(sourceTable, WORD_ALIAS_HOSPITAL_ACCUSATIVE, hospitalAccusative) Then Exit Function
+    End If
+    If VBA.Len(VBA.Trim$(vacationText)) > 0 Then
+        If Not private_TryUpsertMainTableValue(sourceTable, SOURCE_ALIAS_VACATION, vacationText) Then Exit Function
     End If
     If VBA.Len(VBA.Trim$(reportRankGenitive)) > 0 Then
         If Not private_TryUpsertMainTableValue(sourceTable, WORD_ALIAS_REPORT_RANK_GENITIVE, reportRankGenitive) Then Exit Function
@@ -900,6 +914,7 @@ Private Function private_TryEnrichPreviousVacationTicketForWord( _
     Set data = New obj_PrsnlEvntBuilderData
     isSupportedSection = _
         (VBA.StrComp(sectionTypeText, data.SectionTypeTransferTreatmentVacationToTreatment, VBA.vbTextCompare) = 0) _
+        Or (VBA.StrComp(sectionTypeText, data.SectionTypeTransferAnnualVacationToTreatment, VBA.vbTextCompare) = 0) _
         Or (VBA.StrComp(sectionTypeText, data.SectionTypeTransferTreatmentVacationToVlk, VBA.vbTextCompare) = 0)
     If Not isSupportedSection Then
         private_TryEnrichPreviousVacationTicketForWord = True
@@ -1398,6 +1413,7 @@ End Function
 Private Function private_NormalizeHospitalWordTypography(ByVal valueText As String) As String
     Static hospitalNumberRx As Object
 
+    valueText = private_NormalizeLocationWordTypography(valueText)
     valueText = private_KeepSurnameWithInitialsTogether(valueText)
     If VBA.Len(valueText) = 0 Then Exit Function
 
@@ -1411,6 +1427,34 @@ Private Function private_NormalizeHospitalWordTypography(ByVal valueText As Stri
 
     private_NormalizeHospitalWordTypography = hospitalNumberRx.Replace( _
         valueText, "№" & VBA.ChrW$(160) & "$1")
+End Function
+
+Private Function private_NormalizeLocationWordTypography(ByVal valueText As String) As String
+    Static settlementRx As Object
+    Static regionRx As Object
+
+    valueText = VBA.Trim$(valueText)
+    If VBA.Len(valueText) = 0 Then Exit Function
+
+    If regionRx Is Nothing Then
+        Set regionRx = VBA.CreateObject("VBScript.RegExp")
+        regionRx.Global = True
+        regionRx.IgnoreCase = True
+        ' В адресных значениях сокращение области всегда раскрываем полностью.
+        regionRx.Pattern = "обл\."
+    End If
+    valueText = regionRx.Replace(valueText, "області")
+
+    If settlementRx Is Nothing Then
+        Set settlementRx = VBA.CreateObject("VBScript.RegExp")
+        settlementRx.Global = True
+        settlementRx.IgnoreCase = True
+        ' Сначала проверяем длинное "сел.", затем "м."/"с.". После точки
+        ' всегда оставляем ровно один неразрывный пробел.
+        settlementRx.Pattern = "(сел|м|с)\.[ \t]*"
+    End If
+    private_NormalizeLocationWordTypography = settlementRx.Replace( _
+        valueText, "$1." & VBA.ChrW$(160))
 End Function
 
 Private Function private_ApplyGeneratedAliasWordTypography( _
@@ -1436,6 +1480,9 @@ Private Function private_ApplyGeneratedAliasWordTypography( _
         Case VBA.LCase$(WORD_ALIAS_HOSPITAL_GENITIVE), _
              VBA.LCase$(WORD_ALIAS_HOSPITAL_ACCUSATIVE)
             valueText = private_NormalizeHospitalWordTypography(valueText)
+
+        Case VBA.LCase$(SOURCE_ALIAS_VACATION)
+            valueText = private_NormalizeLocationWordTypography(valueText)
     End Select
 
     private_ApplyGeneratedAliasWordTypography = valueText
