@@ -22,6 +22,14 @@
     <item key="HospitalsCommanders.Sheet[Dictionary].Map[HospitalName]" value="Назва лікарні"/>
     <item key="HospitalsCommanders.Sheet[Dictionary].Map[HospitalShort]" value="Скорочення"/>
     <item key="HospitalsCommanders.Sheet[Dictionary].Map[FoodColumn]" value="Атестат"/>
+
+    <item attr="#" key="Documents source" value=""/>
+    <item key="Source.Documents.FilePath" value="C:\WORK Alexandr Bondarenko\НАКАЗИ\Документи.xlsx"/>
+    <item key="Source.Documents.SheetsAliases" value="Dictionary"/>
+    <item key="Documents.Sheet[Dictionary].SheetName" value="Документи$B2:B2000"/>
+    <item key="Documents.Sheet[Dictionary].ColumnHeadersAliases" value="DocumentName"/>
+    <item key="Documents.Sheet[Dictionary].Map[DocumentName]" value="Назва документа"/>
+
     <item attr="#" key="Main table columns" value=""/>
     <item key="EntityLookup.ProfilesProviderClass" value="obj_PrsnlEvntBuilderData"/>
     <item key="EntityLookup.Table.Columns" value="Hospital; HospitalShort; Vacation; Rank; FIO; IPN; PositionCode; PositionName; ReportRank; ReportPerson; ReportPositionCode; IncomingNo; IncomingDate; DocumentNote; DocNo; DocDate; DurationDays; DateFrom; DateTo; VhNo; VhDate; VlkNo; VlkDate"/>
@@ -50,7 +58,7 @@
     <item key="EntityLookup.Table.Column[VlkDate].Caption" value="ВЛК дата"/>
 
     <item attr="#" key="Lookup bindings" value=""/>
-    <item key="EntityLookup.Lookups" value="Hospital; FIO; Commander"/>
+    <item key="EntityLookup.Lookups" value="Hospital; FIO; Commander; DocumentNote"/>
     <item key="EntityLookup.Lookup[Hospital].TargetColumn" value="Hospital"/>
     <item key="EntityLookup.Lookup[Hospital].CandidatesSectionCaption" value="Hospital candidates"/>
     <item key="EntityLookup.Lookup[Hospital].SearchColumnAlias" value="HospitalsCommanders.Sheet[Dictionary].Column[HospitalName]"/>
@@ -66,10 +74,15 @@
     <item key="EntityLookup.Lookup[Commander].SearchColumnAlias" value="Personnel.Sheet[StateMain].Column[FIO]"/>
     <item key="EntityLookup.Lookup[Commander].ResultColumnsAliases" value="Rank=>ReportRank; FIO=>ReportPerson; PositionCode=>ReportPositionCode"/>
 
+    <item key="EntityLookup.Lookup[DocumentNote].TargetColumn" value="DocumentNote"/>
+    <item key="EntityLookup.Lookup[DocumentNote].CandidatesSectionCaption" value="Document candidates"/>
+    <item key="EntityLookup.Lookup[DocumentNote].SearchColumnAlias" value="Documents.Sheet[Dictionary].Column[DocumentName]"/>
+    <item key="EntityLookup.Lookup[DocumentNote].ResultColumnsAliases" value="DocumentName=>DocumentNote"/>
+
     <item attr="#" key="Export" value=""/>
     <item key="Export.Daily.ExporterClass" value="obj_PEB_ExptrDailyScope"/>
     <item key="Export.Daily.FilePath" value="C:\WORK Alexandr Bondarenko\НАКАЗИ\DailyScope.xlsx"/>
-    <item key="Export.Daily.SheetName" value="10_07"/>
+    <item key="Export.Daily.SheetName" value="11_07"/>
     <item key="Export.Daily.RangeStartMarker" value="$B2"/>
     <item key="Export.Daily.RangeEndMarker" value="EndTable_DailyEvents"/>
     <item key="Export.Movement.ExporterClass" value="obj_PEB_ExptrMovement"/>

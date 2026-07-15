@@ -11,6 +11,7 @@ Private Const SECTION_TYPE_CLOSE_FROM_ANNUAL_VACATION As String = "З щоріч
 Private Const SECTION_TYPE_CLOSE_FROM_FAMILY_VACATION As String = "З відпустки за сімейними обставинами"
 Private Const SECTION_TYPE_CLOSE_FROM_TREATMENT_MEDICAL_COMPANY As String = "З лікування медична рота"
 Private Const SECTION_TYPE_CLOSE_FROM_AMBULATORY_VLK As String = "З амбулаторного обстеження влк"
+Private Const SECTION_TYPE_CLOSE_FROM_STATIONARY_VLK As String = "З стаціонарного ВЛК"
 Private Const SECTION_TYPE_TO_TREATMENT As String = "На лікування"
 Private Const SECTION_TYPE_TO_ANNUAL_VACATION_PART As String = "У частину щорічної основної відпустки"
 Private Const SECTION_TYPE_TO_FAMILY_VACATION As String = "У відпустку за сімейними обставинами"
@@ -23,10 +24,32 @@ Private Const SECTION_TYPE_TRANSFER_TREATMENT_VACATION_TO_TREATMENT As String = 
 Private Const SECTION_TYPE_TRANSFER_TREATMENT_VACATION_TO_VLK As String = "Зміна місця перебування відпустка для лік => влк"
 Private Const SECTION_TYPE_TRANSFER_VLK_TO_TREATMENT_VACATION As String = "Зміна місця перебування влк => відпустка для лік"
 Private Const SECTION_TYPE_TRANSFER_VLK_TO_TREATMENT As String = "Зміна місця перебування влк => лікування"
+Private Const SECTION_TYPE_TRANSFER_MEDICAL_COMPANY_TO_TREATMENT As String = "Зміна місця перебування мед рота => лікування"
 Private Const SECTION_TYPE_TO_BUSINESS_TRIP As String = "У відрядження"
 Private Const SECTION_TYPE_TO_BUSINESS_TRIP_SZCH As String = "У відрядження сзч"
 Private Const META_SECTION_TYPE_TVO As String = "Мета: ТВО"
 Private Const META_SECTION_TYPE_DOCUMENT As String = "Мета: документ"
+
+Private Const WORD_TEMPLATE_FROM_HOSPITAL As String = "FromHospital"
+Private Const WORD_TEMPLATE_FROM_TREATMENT_VACATION As String = "FromVacationForCuring"
+Private Const WORD_TEMPLATE_FROM_ANNUAL_MAIN_VACATION As String = "FromAnnualMainVacation"
+Private Const WORD_TEMPLATE_FROM_FAMILY_VACATION As String = "FromVacationForFamily"
+Private Const WORD_TEMPLATE_FROM_TREATMENT_MEDICAL_COMPANY As String = "FromMedicalCompanyForTreatment"
+Private Const WORD_TEMPLATE_FROM_AMBULATORY_VLK As String = "FromOutpatientExaminationOrVlk"
+Private Const WORD_TEMPLATE_FROM_STATIONARY_VLK As String = "FromStationaryVlk"
+Private Const WORD_TEMPLATE_TO_HOSPITAL As String = "ToHospital"
+Private Const WORD_TEMPLATE_TO_ANNUAL_MAIN_VACATION As String = "ToAnnualMainVacation"
+Private Const WORD_TEMPLATE_TO_FAMILY_VACATION As String = "ToVacationForFamily"
+Private Const WORD_TEMPLATE_TO_TREATMENT_VACATION As String = "ToVacationForCuring"
+Private Const WORD_TEMPLATE_TO_TREATMENT_MEDICAL_COMPANY As String = "ToMedicalCompanyForTreatment"
+Private Const WORD_TEMPLATE_TO_AMBULATORY_VLK As String = "ToOutpatientExaminationOrVlk"
+Private Const WORD_TEMPLATE_MOVE_HOSPITAL_TO_TREATMENT_VACATION As String = "MoveFromHospitalToVacationForCuring"
+Private Const WORD_TEMPLATE_MOVE_TREATMENT_VACATION_TO_TREATMENT_VACATION As String = "MoveFromVacationForCuringToVacationForCuring"
+Private Const WORD_TEMPLATE_MOVE_TREATMENT_VACATION_TO_HOSPITAL As String = "MoveFromVacationForCuringToHospital"
+Private Const WORD_TEMPLATE_MOVE_TREATMENT_VACATION_TO_VLK As String = "MoveFromVacationForCuringToVlk"
+Private Const WORD_TEMPLATE_MOVE_VLK_TO_TREATMENT_VACATION As String = "MoveFromVlkToVacationForCuring"
+Private Const WORD_TEMPLATE_MOVE_VLK_TO_HOSPITAL As String = "MoveFromVlkToHospital"
+Private Const WORD_TEMPLATE_MOVE_MEDICAL_COMPANY_TO_HOSPITAL As String = "MoveFromMedicalCompanyForTreatmentToHospital"
 
 Private Const PROFILE_TAG_PREFIX As String = "profile."
 Private Const PROFILE_TAG_ALL_FIELDS As String = "profile.allFields"
@@ -49,6 +72,7 @@ Private Const PROFILE_TAG_TRANSFER_TREATMENT_VACATION_TO_TREATMENT As String = "
 Private Const PROFILE_TAG_TRANSFER_TREATMENT_VACATION_TO_VLK As String = "profile.transferTreatmentVacationToVlk"
 Private Const PROFILE_TAG_TRANSFER_VLK_TO_TREATMENT_VACATION As String = "profile.transferVlkToTreatmentVacation"
 Private Const PROFILE_TAG_TRANSFER_VLK_TO_TREATMENT As String = "profile.transferVlkToTreatment"
+Private Const PROFILE_TAG_TRANSFER_MEDICAL_COMPANY_TO_TREATMENT As String = "profile.transferMedicalCompanyToTreatment"
 Private Const PROFILE_TAG_TO_BUSINESS_TRIP As String = "profile.toBusinessTrip"
 Private Const PROFILE_TAG_TO_BUSINESS_TRIP_SZCH As String = "profile.toBusinessTripSzch"
 Private Const PROFILE_TAG_META_TVO As String = "profile.metaTvo"
@@ -121,6 +145,10 @@ Public Property Get SectionTypeCloseFromAmbulatoryVlk() As String
     SectionTypeCloseFromAmbulatoryVlk = SECTION_TYPE_CLOSE_FROM_AMBULATORY_VLK
 End Property
 
+Public Property Get SectionTypeCloseFromStationaryVlk() As String
+    SectionTypeCloseFromStationaryVlk = SECTION_TYPE_CLOSE_FROM_STATIONARY_VLK
+End Property
+
 Public Property Get SectionTypeToTreatment() As String
     SectionTypeToTreatment = SECTION_TYPE_TO_TREATMENT
 End Property
@@ -169,6 +197,10 @@ Public Property Get SectionTypeTransferVlkToTreatment() As String
     SectionTypeTransferVlkToTreatment = SECTION_TYPE_TRANSFER_VLK_TO_TREATMENT
 End Property
 
+Public Property Get SectionTypeTransferMedicalCompanyToTreatment() As String
+    SectionTypeTransferMedicalCompanyToTreatment = SECTION_TYPE_TRANSFER_MEDICAL_COMPANY_TO_TREATMENT
+End Property
+
 Public Property Get SectionTypeToBusinessTrip() As String
     SectionTypeToBusinessTrip = SECTION_TYPE_TO_BUSINESS_TRIP
 End Property
@@ -185,6 +217,58 @@ Public Property Get MetaSectionTypeDocument() As String
     MetaSectionTypeDocument = META_SECTION_TYPE_DOCUMENT
 End Property
 
+Public Function TryResolveWordTemplateId( _
+    ByVal sectionTypeText As String, _
+    ByRef outTemplateId As String _
+) As Boolean
+    outTemplateId = VBA.vbNullString
+
+    Select Case private_NormalizeText(sectionTypeText)
+        Case private_NormalizeText(SECTION_TYPE_CLOSE_FROM_TREATMENT)
+            outTemplateId = WORD_TEMPLATE_FROM_HOSPITAL
+        Case private_NormalizeText(SECTION_TYPE_CLOSE_FROM_TREATMENT_VACATION)
+            outTemplateId = WORD_TEMPLATE_FROM_TREATMENT_VACATION
+        Case private_NormalizeText(SECTION_TYPE_CLOSE_FROM_ANNUAL_VACATION)
+            outTemplateId = WORD_TEMPLATE_FROM_ANNUAL_MAIN_VACATION
+        Case private_NormalizeText(SECTION_TYPE_CLOSE_FROM_FAMILY_VACATION)
+            outTemplateId = WORD_TEMPLATE_FROM_FAMILY_VACATION
+        Case private_NormalizeText(SECTION_TYPE_CLOSE_FROM_TREATMENT_MEDICAL_COMPANY)
+            outTemplateId = WORD_TEMPLATE_FROM_TREATMENT_MEDICAL_COMPANY
+        Case private_NormalizeText(SECTION_TYPE_CLOSE_FROM_AMBULATORY_VLK)
+            outTemplateId = WORD_TEMPLATE_FROM_AMBULATORY_VLK
+        Case private_NormalizeText(SECTION_TYPE_CLOSE_FROM_STATIONARY_VLK)
+            outTemplateId = WORD_TEMPLATE_FROM_STATIONARY_VLK
+        Case private_NormalizeText(SECTION_TYPE_TO_TREATMENT)
+            outTemplateId = WORD_TEMPLATE_TO_HOSPITAL
+        Case private_NormalizeText(SECTION_TYPE_TO_ANNUAL_VACATION_PART)
+            outTemplateId = WORD_TEMPLATE_TO_ANNUAL_MAIN_VACATION
+        Case private_NormalizeText(SECTION_TYPE_TO_FAMILY_VACATION)
+            outTemplateId = WORD_TEMPLATE_TO_FAMILY_VACATION
+        Case private_NormalizeText(SECTION_TYPE_TO_TREATMENT_VACATION)
+            outTemplateId = WORD_TEMPLATE_TO_TREATMENT_VACATION
+        Case private_NormalizeText(SECTION_TYPE_TO_TREATMENT_MEDICAL_COMPANY)
+            outTemplateId = WORD_TEMPLATE_TO_TREATMENT_MEDICAL_COMPANY
+        Case private_NormalizeText(SECTION_TYPE_TO_AMBULATORY_VLK)
+            outTemplateId = WORD_TEMPLATE_TO_AMBULATORY_VLK
+        Case private_NormalizeText(SECTION_TYPE_TRANSFER_TREATMENT_TO_TREATMENT_VACATION)
+            outTemplateId = WORD_TEMPLATE_MOVE_HOSPITAL_TO_TREATMENT_VACATION
+        Case private_NormalizeText(SECTION_TYPE_TRANSFER_TREATMENT_VACATION_TO_TREATMENT_VACATION)
+            outTemplateId = WORD_TEMPLATE_MOVE_TREATMENT_VACATION_TO_TREATMENT_VACATION
+        Case private_NormalizeText(SECTION_TYPE_TRANSFER_TREATMENT_VACATION_TO_TREATMENT)
+            outTemplateId = WORD_TEMPLATE_MOVE_TREATMENT_VACATION_TO_HOSPITAL
+        Case private_NormalizeText(SECTION_TYPE_TRANSFER_TREATMENT_VACATION_TO_VLK)
+            outTemplateId = WORD_TEMPLATE_MOVE_TREATMENT_VACATION_TO_VLK
+        Case private_NormalizeText(SECTION_TYPE_TRANSFER_VLK_TO_TREATMENT_VACATION)
+            outTemplateId = WORD_TEMPLATE_MOVE_VLK_TO_TREATMENT_VACATION
+        Case private_NormalizeText(SECTION_TYPE_TRANSFER_VLK_TO_TREATMENT)
+            outTemplateId = WORD_TEMPLATE_MOVE_VLK_TO_HOSPITAL
+        Case private_NormalizeText(SECTION_TYPE_TRANSFER_MEDICAL_COMPANY_TO_TREATMENT)
+            outTemplateId = WORD_TEMPLATE_MOVE_MEDICAL_COMPANY_TO_HOSPITAL
+    End Select
+
+    TryResolveWordTemplateId = (VBA.Len(outTemplateId) > 0)
+End Function
+
 Public Function IsMetaProfileName(ByVal profileText As String) As Boolean
     Select Case private_NormalizeText(profileText)
         Case private_NormalizeText(META_SECTION_TYPE_TVO), _
@@ -200,7 +284,8 @@ Public Function IsMovementClosingSectionType(ByVal sectionTypeText As String) As
              private_NormalizeText(SECTION_TYPE_CLOSE_FROM_ANNUAL_VACATION), _
              private_NormalizeText(SECTION_TYPE_CLOSE_FROM_FAMILY_VACATION), _
              private_NormalizeText(SECTION_TYPE_CLOSE_FROM_TREATMENT_MEDICAL_COMPANY), _
-             private_NormalizeText(SECTION_TYPE_CLOSE_FROM_AMBULATORY_VLK)
+             private_NormalizeText(SECTION_TYPE_CLOSE_FROM_AMBULATORY_VLK), _
+             private_NormalizeText(SECTION_TYPE_CLOSE_FROM_STATIONARY_VLK)
             IsMovementClosingSectionType = True
     End Select
 End Function
@@ -223,7 +308,8 @@ Public Function IsMovementMirrorTransferSectionType(ByVal sectionTypeText As Str
              private_NormalizeText(SECTION_TYPE_TRANSFER_TREATMENT_VACATION_TO_TREATMENT), _
              private_NormalizeText(SECTION_TYPE_TRANSFER_TREATMENT_VACATION_TO_VLK), _
              private_NormalizeText(SECTION_TYPE_TRANSFER_VLK_TO_TREATMENT_VACATION), _
-             private_NormalizeText(SECTION_TYPE_TRANSFER_VLK_TO_TREATMENT)
+             private_NormalizeText(SECTION_TYPE_TRANSFER_VLK_TO_TREATMENT), _
+             private_NormalizeText(SECTION_TYPE_TRANSFER_MEDICAL_COMPANY_TO_TREATMENT)
             IsMovementMirrorTransferSectionType = True
     End Select
 End Function
@@ -263,7 +349,8 @@ Public Function TryMapMovementSectionTypeToEventText( _
         Case private_NormalizeText(SECTION_TYPE_TO_TREATMENT), _
              private_NormalizeText(SECTION_TYPE_TO_TREATMENT_MEDICAL_COMPANY), _
              private_NormalizeText(SECTION_TYPE_TRANSFER_TREATMENT_VACATION_TO_TREATMENT), _
-             private_NormalizeText(SECTION_TYPE_TRANSFER_VLK_TO_TREATMENT)
+             private_NormalizeText(SECTION_TYPE_TRANSFER_VLK_TO_TREATMENT), _
+             private_NormalizeText(SECTION_TYPE_TRANSFER_MEDICAL_COMPANY_TO_TREATMENT)
             outEventText = MOVEMENT_EVENT_STATIONARY_TREATMENT
 
         Case private_NormalizeText(SECTION_TYPE_TO_ANNUAL_VACATION_PART)
@@ -298,6 +385,7 @@ Private Function private_BuildProfileNames() As Collection
     profileNames.Add SECTION_TYPE_CLOSE_FROM_FAMILY_VACATION
     profileNames.Add SECTION_TYPE_CLOSE_FROM_TREATMENT_MEDICAL_COMPANY
     profileNames.Add SECTION_TYPE_CLOSE_FROM_AMBULATORY_VLK
+    profileNames.Add SECTION_TYPE_CLOSE_FROM_STATIONARY_VLK
     profileNames.Add SECTION_TYPE_TO_TREATMENT
     profileNames.Add SECTION_TYPE_TO_ANNUAL_VACATION_PART
     profileNames.Add SECTION_TYPE_TO_FAMILY_VACATION
@@ -310,6 +398,7 @@ Private Function private_BuildProfileNames() As Collection
     profileNames.Add SECTION_TYPE_TRANSFER_TREATMENT_VACATION_TO_VLK
     profileNames.Add SECTION_TYPE_TRANSFER_VLK_TO_TREATMENT_VACATION
     profileNames.Add SECTION_TYPE_TRANSFER_VLK_TO_TREATMENT
+    profileNames.Add SECTION_TYPE_TRANSFER_MEDICAL_COMPANY_TO_TREATMENT
     profileNames.Add SECTION_TYPE_TO_BUSINESS_TRIP
     profileNames.Add SECTION_TYPE_TO_BUSINESS_TRIP_SZCH
 
@@ -338,6 +427,9 @@ Private Function private_BuildProfileTagMap() As Object
     tagMap(private_NormalizeText(SECTION_TYPE_CLOSE_FROM_FAMILY_VACATION)) = PROFILE_TAG_CLOSE_FAMILY_VACATION
     tagMap(private_NormalizeText(SECTION_TYPE_CLOSE_FROM_TREATMENT_MEDICAL_COMPANY)) = PROFILE_TAG_CLOSE_TREATMENT_MEDICAL_COMPANY
     tagMap(private_NormalizeText(SECTION_TYPE_CLOSE_FROM_AMBULATORY_VLK)) = PROFILE_TAG_CLOSE_AMBULATORY_VLK
+    ' Для обоих вариантов возвращения с ВЛК сейчас требуется одинаковый набор
+    ' полей формы. Типы секций и WORD-шаблоны при этом остаются независимыми.
+    tagMap(private_NormalizeText(SECTION_TYPE_CLOSE_FROM_STATIONARY_VLK)) = PROFILE_TAG_CLOSE_AMBULATORY_VLK
     tagMap(private_NormalizeText(SECTION_TYPE_TO_TREATMENT)) = PROFILE_TAG_TO_TREATMENT
     tagMap(private_NormalizeText(SECTION_TYPE_TO_ANNUAL_VACATION_PART)) = PROFILE_TAG_TO_ANNUAL_VACATION_PART
     tagMap(private_NormalizeText(SECTION_TYPE_TO_FAMILY_VACATION)) = PROFILE_TAG_TO_FAMILY_VACATION
@@ -350,6 +442,7 @@ Private Function private_BuildProfileTagMap() As Object
     tagMap(private_NormalizeText(SECTION_TYPE_TRANSFER_TREATMENT_VACATION_TO_VLK)) = PROFILE_TAG_TRANSFER_TREATMENT_VACATION_TO_VLK
     tagMap(private_NormalizeText(SECTION_TYPE_TRANSFER_VLK_TO_TREATMENT_VACATION)) = PROFILE_TAG_TRANSFER_VLK_TO_TREATMENT_VACATION
     tagMap(private_NormalizeText(SECTION_TYPE_TRANSFER_VLK_TO_TREATMENT)) = PROFILE_TAG_TRANSFER_VLK_TO_TREATMENT
+    tagMap(private_NormalizeText(SECTION_TYPE_TRANSFER_MEDICAL_COMPANY_TO_TREATMENT)) = PROFILE_TAG_TRANSFER_MEDICAL_COMPANY_TO_TREATMENT
     tagMap(private_NormalizeText(SECTION_TYPE_TO_BUSINESS_TRIP)) = PROFILE_TAG_TO_BUSINESS_TRIP
     tagMap(private_NormalizeText(SECTION_TYPE_TO_BUSINESS_TRIP_SZCH)) = PROFILE_TAG_TO_BUSINESS_TRIP_SZCH
     tagMap(private_NormalizeText(META_SECTION_TYPE_TVO)) = PROFILE_TAG_META_TVO

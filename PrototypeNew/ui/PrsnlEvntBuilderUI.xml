@@ -110,6 +110,39 @@
             spanColls="3"
             spanRows="2"/>
         </stackPanel>
+
+        <!-- Независимые переключатели проверки последнего Movement-события. -->
+        <stackPanel name="ExporterValidationActions" orientation="vertical" spanColls="3" spanRows="6">
+          <control
+            type="Button"
+            name="ValidateDailyScope"
+            caption="{Binding Path=IsDailyScopeValidationEnabled;TrueAs=Daily validation [[[color=#FFFF00]]enable[[/color]]];FalseAs=Daily validation [[[color=#FFFF00]]disable[[/color]]]}"
+            style="exportApplyButton"
+            dataContext="{PageRuntimeSource='RuntimeObjects.PrsnlEvntBuilder.Controller'}"
+            onClick="{Binding Method=ToggleDailyScopeValidation}"
+            spanColls="3"
+            spanRows="2"/>
+
+          <control
+            type="Button"
+            name="ValidateMovement"
+            caption="{Binding Path=IsMovementValidationEnabled;TrueAs=Movement validation [[[color=#FFFF00]]enable[[/color]]];FalseAs=Movement validation [[[color=#FFFF00]]disable[[/color]]]}"
+            style="exportApplyButton"
+            dataContext="{PageRuntimeSource='RuntimeObjects.PrsnlEvntBuilder.Controller'}"
+            onClick="{Binding Method=ToggleMovementValidation}"
+            spanColls="3"
+            spanRows="2"/>
+
+          <control
+            type="Button"
+            name="ValidateWord"
+            caption="{Binding Path=IsWordValidationEnabled;TrueAs=WORD validation [[[color=#FFFF00]]enable[[/color]]];FalseAs=WORD validation [[[color=#FFFF00]]disable[[/color]]]}"
+            style="exportApplyButton"
+            dataContext="{PageRuntimeSource='RuntimeObjects.PrsnlEvntBuilder.Controller'}"
+            onClick="{Binding Method=ToggleWordValidation}"
+            spanColls="3"
+            spanRows="2"/>
+        </stackPanel>
       </stackPanel>
 
       <!-- Draft-форма: текущий основной или meta-профиль редактирует эту строку. -->
@@ -128,7 +161,8 @@
                   profile.toTreatment;
                   profile.transferTreatmentToTreatmentVacation;
                   profile.transferTreatmentVacationToTreatment;
-                  profile.transferVlkToTreatment"
+                  profile.transferVlkToTreatment;
+                  profile.transferMedicalCompanyToTreatment"
             text="Лікарня"
             style="tableHeaderCell"
             />
@@ -140,7 +174,8 @@
                   profile.toTreatment;
                   profile.transferTreatmentToTreatmentVacation;
                   profile.transferTreatmentVacationToTreatment;
-                  profile.transferVlkToTreatment"
+                  profile.transferVlkToTreatment;
+                  profile.transferMedicalCompanyToTreatment"
             text="Лікарня скорочена назва"
             style="tableHeaderCell"
             />
@@ -220,7 +255,8 @@
                   profile.transferTreatmentVacationToTreatment;
                   profile.transferTreatmentVacationToVlk;
                   profile.transferVlkToTreatmentVacation;
-                  profile.transferVlkToTreatment"
+                  profile.transferVlkToTreatment;
+                  profile.transferMedicalCompanyToTreatment"
             text="Звання (рапорт)"
             style="tableHeaderCell"
             />
@@ -242,7 +278,8 @@
                   profile.transferTreatmentVacationToTreatment;
                   profile.transferTreatmentVacationToVlk;
                   profile.transferVlkToTreatmentVacation;
-                  profile.transferVlkToTreatment"
+                  profile.transferVlkToTreatment;
+                  profile.transferMedicalCompanyToTreatment"
             text="ФІО (рапорт)"
             style="tableHeaderCell"
             />
@@ -264,7 +301,8 @@
                   profile.transferTreatmentVacationToTreatment;
                   profile.transferTreatmentVacationToVlk;
                   profile.transferVlkToTreatmentVacation;
-                  profile.transferVlkToTreatment"
+                  profile.transferVlkToTreatment;
+                  profile.transferMedicalCompanyToTreatment"
             text="Код посади (рапорт)"
             style="tableHeaderCell"
             />
@@ -290,12 +328,14 @@
             tags="profile.allFields;
                   profile.closeTreatment;
                   profile.closeTreatmentMedicalCompany;
-                  profile.closeAmbulatoryVlk;
                   profile.toTreatment;
+                  profile.toTreatmentMedicalCompany;
+                  profile.toAmbulatoryVlk;
                   profile.transferTreatmentToTreatmentVacation;
                   profile.transferTreatmentVacationToTreatment;
                   profile.transferTreatmentVacationToVlk;
                   profile.transferVlkToTreatment;
+                  profile.transferMedicalCompanyToTreatment;
                   profile.metaDocument"
             text="Документ / Замітки"
             style="tableHeaderCell"
@@ -306,7 +346,6 @@
             tags="profile.allFields;
                   profile.closeTreatment;
                   profile.closeTreatmentMedicalCompany;
-                  profile.closeAmbulatoryVlk;
                   profile.toTreatment;
                   profile.toTreatmentMedicalCompany;
                   profile.toAmbulatoryVlk;
@@ -314,6 +353,7 @@
                   profile.transferTreatmentVacationToTreatment;
                   profile.transferTreatmentVacationToVlk;
                   profile.transferVlkToTreatment;
+                  profile.transferMedicalCompanyToTreatment;
                   profile.metaDocument"
             text="Док. №"
             style="tableHeaderCell"
@@ -324,13 +364,14 @@
             tags="profile.allFields;
                   profile.closeTreatment;
                   profile.closeTreatmentMedicalCompany;
-                  profile.closeAmbulatoryVlk;
                   profile.toTreatment;
+                  profile.toTreatmentMedicalCompany;
                   profile.toAmbulatoryVlk;
                   profile.transferTreatmentToTreatmentVacation;
                   profile.transferTreatmentVacationToTreatment;
                   profile.transferTreatmentVacationToVlk;
                   profile.transferVlkToTreatment;
+                  profile.transferMedicalCompanyToTreatment;
                   profile.metaDocument"
             text="Док. дата"
             style="tableHeaderCell"
@@ -359,19 +400,15 @@
                   profile.transferTreatmentVacationToTreatmentVacation;
                   profile.transferTreatmentVacationToTreatment;
                   profile.transferTreatmentVacationToVlk;
-                  profile.transferVlkToTreatmentVacation"
+                  profile.transferVlkToTreatmentVacation;
+                  profile.transferMedicalCompanyToTreatment"
             text="З"
             style="tableHeaderCell"
             />
           <control
             type="Label"
             name="DateToHeader"
-            tags="profile.allFields;
-                  profile.toFamilyVacation;
-                  profile.toTreatmentVacation;
-                  profile.transferTreatmentToTreatmentVacation;
-                  profile.transferTreatmentVacationToTreatmentVacation;
-                  profile.transferVlkToTreatmentVacation"
+            tags="profile.allFields"
             text="По"
             style="tableHeaderCell"
             />
@@ -445,7 +482,8 @@
                   profile.toTreatment;
                   profile.transferTreatmentToTreatmentVacation;
                   profile.transferTreatmentVacationToTreatment;
-                  profile.transferVlkToTreatment"
+                  profile.transferVlkToTreatment;
+                  profile.transferMedicalCompanyToTreatment"
             dataContext="{PageRuntimeSource='RuntimeObjects.PrsnlEvntBuilder'}"
             value="{Binding Path=LookupQueryValues.Hospital}"
             onChange="{Binding Method=OnLookupInputCellChangedCommand}"
@@ -462,7 +500,8 @@
                   profile.toTreatment;
                   profile.transferTreatmentToTreatmentVacation;
                   profile.transferTreatmentVacationToTreatment;
-                  profile.transferVlkToTreatment"
+                  profile.transferVlkToTreatment;
+                  profile.transferMedicalCompanyToTreatment"
             text=""
             style="tableDataCell"
             />
@@ -559,7 +598,8 @@
                   profile.transferTreatmentVacationToTreatment;
                   profile.transferTreatmentVacationToVlk;
                   profile.transferVlkToTreatmentVacation;
-                  profile.transferVlkToTreatment"
+                  profile.transferVlkToTreatment;
+                  profile.transferMedicalCompanyToTreatment"
             text=""
             style="tableDataCell"
             />
@@ -583,7 +623,8 @@
                   profile.transferTreatmentVacationToTreatment;
                   profile.transferTreatmentVacationToVlk;
                   profile.transferVlkToTreatmentVacation;
-                  profile.transferVlkToTreatment"
+                  profile.transferVlkToTreatment;
+                  profile.transferMedicalCompanyToTreatment"
             dataContext="{PageRuntimeSource='RuntimeObjects.PrsnlEvntBuilder'}"
             value="{Binding Path=LookupQueryValues.Commander}"
             onChange="{Binding Method=OnLookupInputCellChangedCommand}"
@@ -610,7 +651,8 @@
                   profile.transferTreatmentVacationToTreatment;
                   profile.transferTreatmentVacationToVlk;
                   profile.transferVlkToTreatmentVacation;
-                  profile.transferVlkToTreatment"
+                  profile.transferVlkToTreatment;
+                  profile.transferMedicalCompanyToTreatment"
             text=""
             style="tableDataCell"
             />
@@ -636,21 +678,25 @@
             />
 
           <control
-            type="Label"
-            name="DocumentNoteDraftCell"
+            type="Input"
+            name="DocumentNoteLookupInput"
             tags="DocumentNote;
                   profile.allFields;
                   profile.closeTreatment;
                   profile.closeTreatmentMedicalCompany;
-                  profile.closeAmbulatoryVlk;
                   profile.toTreatment;
+                  profile.toTreatmentMedicalCompany;
+                  profile.toAmbulatoryVlk;
                   profile.transferTreatmentToTreatmentVacation;
                   profile.transferTreatmentVacationToTreatment;
                   profile.transferTreatmentVacationToVlk;
                   profile.transferVlkToTreatment;
+                  profile.transferMedicalCompanyToTreatment;
                   profile.metaDocument"
-            text=""
-            style="tableDataCell"
+            dataContext="{PageRuntimeSource='RuntimeObjects.PrsnlEvntBuilder'}"
+            value="{Binding Path=LookupQueryValues.DocumentNote}"
+            onChange="{Binding Method=OnLookupInputCellChangedCommand}"
+            onChangeArg="DocumentNote"
             />
 
           <control
@@ -660,7 +706,6 @@
                   profile.allFields;
                   profile.closeTreatment;
                   profile.closeTreatmentMedicalCompany;
-                  profile.closeAmbulatoryVlk;
                   profile.toTreatment;
                   profile.toTreatmentMedicalCompany;
                   profile.toAmbulatoryVlk;
@@ -668,6 +713,7 @@
                   profile.transferTreatmentVacationToTreatment;
                   profile.transferTreatmentVacationToVlk;
                   profile.transferVlkToTreatment;
+                  profile.transferMedicalCompanyToTreatment;
                   profile.metaDocument"
             text=""
             style="tableDataCell"
@@ -680,13 +726,14 @@
                   profile.allFields;
                   profile.closeTreatment;
                   profile.closeTreatmentMedicalCompany;
-                  profile.closeAmbulatoryVlk;
                   profile.toTreatment;
+                  profile.toTreatmentMedicalCompany;
                   profile.toAmbulatoryVlk;
                   profile.transferTreatmentToTreatmentVacation;
                   profile.transferTreatmentVacationToTreatment;
                   profile.transferTreatmentVacationToVlk;
                   profile.transferVlkToTreatment;
+                  profile.transferMedicalCompanyToTreatment;
                   profile.metaDocument"
             text=""
             style="tableDataCell"
@@ -719,7 +766,8 @@
                   profile.transferTreatmentVacationToTreatmentVacation;
                   profile.transferTreatmentVacationToTreatment;
                   profile.transferTreatmentVacationToVlk;
-                  profile.transferVlkToTreatmentVacation"
+                  profile.transferVlkToTreatmentVacation;
+                  profile.transferMedicalCompanyToTreatment"
             text=""
             style="tableDataCell"
             />
@@ -728,12 +776,7 @@
             type="Label"
             name="DateToDraftCell"
             tags="DateTo;
-                  profile.allFields;
-                  profile.toFamilyVacation;
-                  profile.toTreatmentVacation;
-                  profile.transferTreatmentToTreatmentVacation;
-                  profile.transferTreatmentVacationToTreatmentVacation;
-                  profile.transferVlkToTreatmentVacation"
+                  profile.allFields"
             text=""
             style="tableDataCell"
             />
@@ -866,6 +909,16 @@
           dataContext="{PageRuntimeSource='RuntimeObjects.PrsnlEvntBuilder.Controller'}"
           onClick="{Binding Method=OnExportToWordClick}"
           visibility="{Binding Path=WordExportPreviewText; Op=ne; Value=; TrueAs=Visible; FalseAs=Collapsed}"
+          spanColls="2"
+          spanRows="2"/>
+
+        <control
+          type="Button"
+          name="ClearWordDocument"
+          caption="Remove WORD anchors"
+          style="actionWarning"
+          dataContext="{PageRuntimeSource='RuntimeObjects.PrsnlEvntBuilder.Controller'}"
+          onClick="{Binding Method=OnClearWordDocumentClick}"
           spanColls="2"
           spanRows="2"/>
       </stackPanel>
@@ -1068,7 +1121,7 @@
         <rule target="controlPart" selector="type=label;name=ReportPositionCodeHeader;part=cell" styles="{ width:12; }"/>
         <rule target="controlPart" selector="type=label;name=IncomingNoHeader;part=cell" styles="{ width:9; }"/>
         <rule target="controlPart" selector="type=label;name=IncomingDateHeader;part=cell" styles="{ width:7; }"/>
-        <rule target="controlPart" selector="type=label;name=DocumentNoteHeader;part=cell" styles="{ width:13; }"/>
+        <rule target="controlPart" selector="type=label;name=DocumentNoteHeader;part=cell" styles="{ width:15; }"/>
         <rule target="controlPart" selector="type=label;name=DocNoHeader;part=cell" styles="{ width:7; }"/>
         <rule target="controlPart" selector="type=label;name=DocDateHeader;part=cell" styles="{ width:8; }"/>
         <rule target="controlPart" selector="type=label;name=DurationDaysHeader;part=cell" styles="{ width:9; }"/>
@@ -1200,7 +1253,7 @@
                 borderWeight:thin;
                 vertical:center;
                 overflow:wrap;
-                rowHeight:34;
+                rowHeight:40;
               }"/>
       </layer>
 

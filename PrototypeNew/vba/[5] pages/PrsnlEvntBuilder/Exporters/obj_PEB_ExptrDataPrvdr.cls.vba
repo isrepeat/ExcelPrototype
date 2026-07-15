@@ -6,10 +6,6 @@ Attribute VB_Name = "obj_PEB_ExptrDataPrvdr"
 Option Explicit
 #Const LOGGING_DEBUG_ENABLED = True
 #Const LOGGING_VERBOSE_ENABLED = False
-' Проверяет допустимость нового события по последней Movement-записи человека.
-' Смены статуса пока пропускаются; opening и closing используют единое правило.
-#Const MOVEMENT_EXPORT_VALIDATION_ENABLED = True
-
 Private m_IsDisposed As Boolean
 Private m_CommonData As obj_PEB_ExptrCommonDataPrvdr
 Private m_PersonnelWorkbookPath As String
@@ -31,12 +27,14 @@ Private Const CONFIG_MOVEMENT_RANGE_END_KEY As String = "Export.Movement.RangeEn
 Private Const MOVEMENT_IPN_HEADER As String = "ІПН"
 Private Const MOVEMENT_EVENT_HEADER As String = "Подія"
 Private Const MOVEMENT_DEPARTURE_DATE_HEADER As String = "Вибуття"
+Private Const MOVEMENT_DEPARTURE_ORDER_HEADER As String = "Наказ вибуття"
 Private Const MOVEMENT_ARRIVAL_DATE_HEADER As String = "Прибуття"
 Private Const MOVEMENT_ARRIVAL_ORDER_HEADER As String = "Наказ прибуття"
 Private Const MOVEMENT_ON_FOOD_HEADER As String = "На продовольче"
 Private Const MOVEMENT_TVO_FIO_HEADER As String = "ТВО ПІБ"
 Private Const MOVEMENT_TVO_IPN_HEADER As String = "ТВО ІПН"
 Private Const MOVEMENT_TVO_POSITION_HEADER As String = "ТВО Посада"
+Private Const MOVEMENT_ESCORT_DOCUMENT_HEADER As String = "Супровідний документ"
 Private Const PERSONNEL_TVO_HEADER As String = "ТВО"
 Private Const PERSONNEL_POSITION_CODE_HEADER As String = "Код посади"
 Private Const EXCEL_MAX_ROW As Long = 1048576
@@ -122,6 +120,7 @@ Public Function TryGetLatestMovementEvent( _
     ByRef outArrivalDateText As String _
 ) As Boolean
     Dim ignoredTvoChain As Collection
+    Dim ignoredLatestRecord As Object
 
     TryGetLatestMovementEvent = TryGetLatestMovementEventAndTvoChain( _
         ipnText, _
@@ -130,7 +129,8 @@ Public Function TryGetLatestMovementEvent( _
         outIsClosed, _
         outDepartureDateText, _
         outArrivalDateText, _
-        ignoredTvoChain)
+        ignoredTvoChain, _
+        ignoredLatestRecord)
 End Function
 
 ' Читает одним запросом последнюю физическую строку Movement-листа и цепочку ТВО.
@@ -144,7 +144,8 @@ Public Function TryGetLatestMovementEventAndTvoChain( _
     ByRef outIsClosed As Boolean, _
     ByRef outDepartureDateText As String, _
     ByRef outArrivalDateText As String, _
-    ByRef outTvoChain As Collection _
+    ByRef outTvoChain As Collection, _
+    ByRef outLatestRecord As Object _
 ) As Boolean
     Dim resolvedPath As String
     Dim movementTableRef As String
@@ -156,6 +157,8 @@ Public Function TryGetLatestMovementEventAndTvoChain( _
     Dim tvoFioText As String
     Dim tvoIpnText As String
     Dim tvoPositionText As String
+    Dim departureOrderText As String
+    Dim escortDocumentText As String
 
     outFound = False
     outEventText = VBA.vbNullString
@@ -163,6 +166,8 @@ Public Function TryGetLatestMovementEventAndTvoChain( _
     outDepartureDateText = VBA.vbNullString
     outArrivalDateText = VBA.vbNullString
     Set outTvoChain = New Collection
+    Set outLatestRecord = VBA.CreateObject("Scripting.Dictionary")
+    outLatestRecord.CompareMode = 1
 
     If m_IsDisposed Then Exit Function
     ipnText = private_NormalizeLookupKey(ipnText)
@@ -200,6 +205,7 @@ Public Function TryGetLatestMovementEventAndTvoChain( _
     query.MaxRows = 1
     If Not query.AddSelectColumn(MOVEMENT_EVENT_HEADER) Then Exit Function
     If Not query.AddSelectColumn(MOVEMENT_DEPARTURE_DATE_HEADER) Then Exit Function
+    If Not query.AddSelectColumn(MOVEMENT_DEPARTURE_ORDER_HEADER) Then Exit Function
     If Not query.AddSelectColumn(MOVEMENT_ARRIVAL_DATE_HEADER) Then Exit Function
     If Not query.AddSelectColumn(MOVEMENT_ARRIVAL_ORDER_HEADER) Then Exit Function
     If Not query.AddSelectColumn(MOVEMENT_ON_FOOD_HEADER) Then Exit Function
@@ -209,6 +215,7 @@ Public Function TryGetLatestMovementEventAndTvoChain( _
     If Not query.AddSelectColumn(MOVEMENT_TVO_FIO_HEADER) Then Exit Function
     If Not query.AddSelectColumn(MOVEMENT_TVO_IPN_HEADER) Then Exit Function
     If Not query.AddSelectColumn(MOVEMENT_TVO_POSITION_HEADER) Then Exit Function
+    If Not query.AddSelectColumn(MOVEMENT_ESCORT_DOCUMENT_HEADER) Then Exit Function
     If Not m_QueryEngine.TryExecute(query, resultTable) Then Exit Function
 
     If Not resultTable Is Nothing Then outFound = (resultTable.RowCount > 0)
@@ -217,12 +224,16 @@ Public Function TryGetLatestMovementEventAndTvoChain( _
         If resultRow Is Nothing Then Exit Function
         If Not resultRow.TryGetCellValueByColumn(MOVEMENT_EVENT_HEADER, outEventText) Then Exit Function
         If Not resultRow.TryGetCellValueByColumn(MOVEMENT_DEPARTURE_DATE_HEADER, outDepartureDateText) Then Exit Function
+        If Not resultRow.TryGetCellValueByColumn(MOVEMENT_DEPARTURE_ORDER_HEADER, departureOrderText) Then Exit Function
         If Not resultRow.TryGetCellValueByColumn(MOVEMENT_ARRIVAL_DATE_HEADER, outArrivalDateText) Then Exit Function
         If Not resultRow.TryGetCellValueByColumn(MOVEMENT_ARRIVAL_ORDER_HEADER, arrivalOrderText) Then Exit Function
         If Not resultRow.TryGetCellValueByColumn(MOVEMENT_ON_FOOD_HEADER, onFoodDateText) Then Exit Function
         If Not resultRow.TryGetCellValueByColumn(MOVEMENT_TVO_FIO_HEADER, tvoFioText) Then Exit Function
         If Not resultRow.TryGetCellValueByColumn(MOVEMENT_TVO_IPN_HEADER, tvoIpnText) Then Exit Function
         If Not resultRow.TryGetCellValueByColumn(MOVEMENT_TVO_POSITION_HEADER, tvoPositionText) Then Exit Function
+        If Not resultRow.TryGetCellValueByColumn(MOVEMENT_ESCORT_DOCUMENT_HEADER, escortDocumentText) Then Exit Function
+        outLatestRecord(MOVEMENT_DEPARTURE_ORDER_HEADER) = departureOrderText
+        outLatestRecord(MOVEMENT_ESCORT_DOCUMENT_HEADER) = escortDocumentText
         If Not private_TryBuildTvoChain( _
             tvoFioText, _
             tvoIpnText, _
@@ -246,7 +257,9 @@ Public Function IsExportAllowed( _
     ByVal sourceTable As obj_TableDynamic, _
     ByVal exportSectionType As String, _
     ByRef outErrorMessage As String, _
-    ByRef outLatestTvoChain As Collection _
+    ByRef outLatestTvoChain As Collection, _
+    ByRef outLatestMovementRecord As Object, _
+    Optional ByVal applyValidationRules As Boolean = True _
 ) As Boolean
     Dim data As obj_PrsnlEvntBuilderData
     Dim ipnText As String
@@ -258,13 +271,8 @@ Public Function IsExportAllowed( _
 
     outErrorMessage = VBA.vbNullString
     Set outLatestTvoChain = New Collection
-#If Not MOVEMENT_EXPORT_VALIDATION_ENABLED Then
-    ' Пока правила переходов между событиями не завершены, все exporters
-    ' получают единое разрешение без обращения к Movement.
-    IsExportAllowed = True
-    Exit Function
-#End If
-
+    Set outLatestMovementRecord = VBA.CreateObject("Scripting.Dictionary")
+    outLatestMovementRecord.CompareMode = 1
     If m_IsDisposed Then
         outErrorMessage = "Exporter data provider is disposed."
         Exit Function
@@ -284,12 +292,6 @@ Public Function IsExportAllowed( _
         Exit Function
     End If
 
-    Set data = New obj_PrsnlEvntBuilderData
-    If data.IsMovementMirrorTransferSectionType(exportSectionType) Then
-        IsExportAllowed = True
-        Exit Function
-    End If
-
     If Not private_TryGetFirstRowText(sourceTable, MOVEMENT_IPN_HEADER, ipnText) Then
         outErrorMessage = "Export source does not contain a valid IPN."
         Exit Function
@@ -300,8 +302,24 @@ Public Function IsExportAllowed( _
     End If
     If Not TryGetLatestMovementEventAndTvoChain( _
         ipnText, found, previousEventText, previousIsClosed, _
-        previousDepartureDateText, previousArrivalDateText, outLatestTvoChain) Then
+        previousDepartureDateText, previousArrivalDateText, outLatestTvoChain, outLatestMovementRecord) Then
         outErrorMessage = "Failed to read the latest Movement event for IPN '" & ipnText & "'."
+        Exit Function
+    End If
+
+    ' Даже при отключённой блокирующей валидации snapshot последней Movement-
+    ' записи читается выше: WORD и DailyScope используют его для ТВО и данных
+    ' предыдущего события. Флаг отключает только правила opening/closing.
+    If Not applyValidationRules Then
+        IsExportAllowed = True
+        Exit Function
+    End If
+
+    Set data = New obj_PrsnlEvntBuilderData
+    ' Mirror transfer по-прежнему не блокируется правилами opening/closing,
+    ' но последняя строка уже прочитана и доступна экспортерам как snapshot.
+    If data.IsMovementMirrorTransferSectionType(exportSectionType) Then
+        IsExportAllowed = True
         Exit Function
     End If
 
@@ -335,6 +353,17 @@ Public Function IsExportAllowed( _
     End If
 
     IsExportAllowed = True
+End Function
+
+Public Function NormalizeIncomingNoForExport(ByVal incomingNoText As String) As String
+    ' Только чистое значение из 1–5 ASCII-цифр получает служебное обрамление.
+    ' Пробелы, уже существующие префиксы/суффиксы и более длинные номера
+    ' считаются самостоятельным форматом и возвращаются без изменений.
+    NormalizeIncomingNoForExport = incomingNoText
+    If VBA.Len(incomingNoText) < 1 Or VBA.Len(incomingNoText) > 5 Then Exit Function
+    If incomingNoText Like "*[!0-9]*" Then Exit Function
+
+    NormalizeIncomingNoForExport = "1656/" & incomingNoText & "-в"
 End Function
 
 ' Возвращает сохранённую в последней Movement-строке цепочку ТВО.

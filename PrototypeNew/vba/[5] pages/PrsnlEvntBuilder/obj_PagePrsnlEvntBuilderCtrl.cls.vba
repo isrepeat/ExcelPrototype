@@ -62,8 +62,14 @@ Private Const EXPORT_CONTEXT_SECTION_TYPE_KEY As String = "SectionType"
 Private Const EXPORT_CONTEXT_WORD_PREVIEW_TEXT_KEY As String = "WordExportPreviewText"
 Private Const EXPORT_CONTEXT_MODE_KEY As String = "ExportMode"
 Private Const EXPORT_CONTEXT_HISTORY_KEY As String = "ExportHistory"
+Private Const EXPORT_CONTEXT_VALIDATE_DAILY_SCOPE_KEY As String = "ValidateDailyScope"
+Private Const EXPORT_CONTEXT_VALIDATE_MOVEMENT_KEY As String = "ValidateMovement"
+Private Const EXPORT_CONTEXT_VALIDATE_WORD_KEY As String = "ValidateWord"
 Private Const EXPORT_MODE_CONTROL_NAME As String = "ExportMode"
 Private Const LOOKUP_MODE_CONTROL_NAME As String = "LookupMode"
+Private Const VALIDATE_DAILY_SCOPE_CONTROL_NAME As String = "ValidateDailyScope"
+Private Const VALIDATE_MOVEMENT_CONTROL_NAME As String = "ValidateMovement"
+Private Const VALIDATE_WORD_CONTROL_NAME As String = "ValidateWord"
 Private Const PROFILE_BUTTON_STYLE_NORMAL As String = "profileButton"
 Private Const PROFILE_BUTTON_STYLE_SELECTED As String = "profileButtonSelected"
 Private Const META_PROFILE_BUTTON_STYLE_NORMAL As String = "metaProfileButton"
@@ -90,6 +96,9 @@ Private m_CachedDailyScopeExporter As obj_PEB_ExptrDailyScope
 Private m_CachedMovementExporter As obj_PEB_ExptrMovement
 Private m_CachedWordExporter As obj_PEB_ExptrWord
 Private m_IsLookupEnabled As Boolean
+Private m_IsDailyScopeValidationEnabled As Boolean
+Private m_IsMovementValidationEnabled As Boolean
+Private m_IsWordValidationEnabled As Boolean
 Private m_Data As obj_PrsnlEvntBuilderData
 Private m_IsDisposed As Boolean
 
@@ -156,6 +165,9 @@ Public Function Initialize(ByVal page As Object) As Boolean
     Set m_ExportHistory = VBA.CreateObject("Scripting.Dictionary")
     m_ExportHistory.CompareMode = 1
     m_IsLookupEnabled = False
+    m_IsDailyScopeValidationEnabled = True
+    m_IsMovementValidationEnabled = True
+    m_IsWordValidationEnabled = False
 
     Set pageBase = m_Page.GetPageBase()
     If pageBase Is Nothing Then Exit Function
@@ -213,6 +225,54 @@ End Property
 Public Property Get IsLookupEnabled() As Boolean
     IsLookupEnabled = m_IsLookupEnabled
 End Property
+
+Public Property Get IsDailyScopeValidationEnabled() As Boolean
+    IsDailyScopeValidationEnabled = m_IsDailyScopeValidationEnabled
+End Property
+
+Public Property Get IsMovementValidationEnabled() As Boolean
+    IsMovementValidationEnabled = m_IsMovementValidationEnabled
+End Property
+
+Public Property Get IsWordValidationEnabled() As Boolean
+    IsWordValidationEnabled = m_IsWordValidationEnabled
+End Property
+
+Public Function ToggleDailyScopeValidation() As Boolean
+    ToggleDailyScopeValidation = private_ToggleExporterValidation( _
+        m_IsDailyScopeValidationEnabled, VALIDATE_DAILY_SCOPE_CONTROL_NAME, "DailyScope")
+End Function
+
+Public Function ToggleMovementValidation() As Boolean
+    ToggleMovementValidation = private_ToggleExporterValidation( _
+        m_IsMovementValidationEnabled, VALIDATE_MOVEMENT_CONTROL_NAME, "Movement")
+End Function
+
+Public Function ToggleWordValidation() As Boolean
+    ToggleWordValidation = private_ToggleExporterValidation( _
+        m_IsWordValidationEnabled, VALIDATE_WORD_CONTROL_NAME, "WORD")
+End Function
+
+Private Function private_ToggleExporterValidation( _
+    ByRef validationEnabled As Boolean, _
+    ByVal controlName As String, _
+    ByVal exporterCaption As String _
+) As Boolean
+    validationEnabled = Not validationEnabled
+    If Not ex_ControlRefreshRuntime.fn_TryRefreshStaticControl(controlName) Then
+        validationEnabled = Not validationEnabled
+        VBA.MsgBox "PrototypeNew: failed to refresh the " & exporterCaption & _
+            " validation button.", VBA.vbExclamation, "PrototypeNew / Data export"
+        Exit Function
+    End If
+
+    private_ToggleExporterValidation = True
+    If validationEnabled Then
+        rt_Messaging.fn_ShowStatusBarSuccess exporterCaption & " validation enabled", 3
+    Else
+        rt_Messaging.fn_ShowStatusBarWarning exporterCaption & " validation disabled", 3
+    End If
+End Function
 
 Public Function ToggleLookupEnabled() As Boolean
     m_IsLookupEnabled = Not m_IsLookupEnabled
@@ -407,6 +467,28 @@ End Function
 
 Public Function OnExportToWordClick(Optional ByVal ignored As Variant) As Boolean
     OnExportToWordClick = private_TryExportWordToDocument()
+End Function
+
+Public Function OnClearWordDocumentClick(Optional ByVal ignored As Variant) As Boolean
+    Dim exporter As obj_IDataExporter
+    Dim exporterClassName As String
+    Dim exportConfigTable As obj_ConfigTable
+    Dim clearedBlockCount As Long
+
+    If Not private_TryGetExportSettings("Word", exporterClassName, exportConfigTable) Then
+        VBA.MsgBox "PrototypeNew: Export.Word settings are missing.", VBA.vbExclamation, "PrototypeNew / WORD document"
+        Exit Function
+    End If
+    If VBA.StrComp(exporterClassName, "obj_PEB_ExptrWord", VBA.vbTextCompare) <> 0 Then
+        VBA.MsgBox "PrototypeNew: WORD document actions require obj_PEB_ExptrWord, configured: " & exporterClassName, VBA.vbExclamation, "PrototypeNew / WORD document"
+        Exit Function
+    End If
+    If Not private_TryCreateDataExporter(exporterClassName, exportConfigTable, exporter) Then Exit Function
+    If m_CachedWordExporter Is Nothing Then Exit Function
+    If Not m_CachedWordExporter.RemoveResultDocumentAnchors(clearedBlockCount) Then Exit Function
+
+    rt_Messaging.fn_ShowStatusBarSuccess "WORD document: removed anchor blocks: " & VBA.CStr(clearedBlockCount), 3
+    OnClearWordDocumentClick = True
 End Function
 
 Private Function private_TryExportWordToDocument() As Boolean
@@ -1275,6 +1357,9 @@ Private Function private_TryBuildExportSourceTables( _
     outContext(EXPORT_CONTEXT_SECTION_TYPE_KEY) = sectionTypeText
     outContext(EXPORT_CONTEXT_MANUAL_ORDER_NO_KEY) = manualOrderNoText
     outContext(EXPORT_CONTEXT_MODE_KEY) = private_GetExportModeName()
+    outContext(EXPORT_CONTEXT_VALIDATE_DAILY_SCOPE_KEY) = m_IsDailyScopeValidationEnabled
+    outContext(EXPORT_CONTEXT_VALIDATE_MOVEMENT_KEY) = m_IsMovementValidationEnabled
+    outContext(EXPORT_CONTEXT_VALIDATE_WORD_KEY) = m_IsWordValidationEnabled
     ' Один словарь переиспользуется всеми краткоживущими экземплярами экспортеров
     ' до Dispose контроллера страницы.
     If m_ExportHistory Is Nothing Then

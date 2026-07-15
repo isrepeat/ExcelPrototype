@@ -48,6 +48,7 @@ Private Const EXCEL_MAX_ROW As Long = 12000
 Private Const ALF_KEY_HEADER As String = "ІПН"
 Private Const ALF_FIO_KEY_HEADER As String = "ПІБ"
 Private Const ALF_GENITIVE_HEADER As String = "Родовий"
+Private Const ALF_ACCUSATIVE_HEADER As String = "Знахідний"
 Private Const ALF_DATIVE_HEADER As String = "Давальний"
 Private Const ALF_INITIALS_GENITIVE_HEADER As String = "ПІП (Родовий)"
 Private Const INSTITUTIONS_KEY_HEADER As String = "Позначення"
@@ -200,6 +201,55 @@ Public Property Get OrderDate() As Date
     OrderDate = m_OrderDate
 End Property
 
+Public Function FormatVacationTicketNoForExport( _
+    ByVal rawTicketNo As Variant, _
+    ByVal orderNo As Variant _
+) As String
+    Dim ticketNoText As String
+    Dim orderNoText As String
+    Dim rx As Object
+
+    ticketNoText = VBA.Trim$(VBA.CStr(rawTicketNo))
+    orderNoText = VBA.Trim$(VBA.CStr(orderNo))
+    If VBA.Len(ticketNoText) = 0 Then Exit Function
+
+    ' Простые номера из формы приводим к полному номеру отпускного билета.
+    ' Уже оформленные составные номера оставляем без изменений.
+    Set rx = VBA.CreateObject("VBScript.RegExp")
+    rx.Global = False
+    rx.Pattern = "^\d+$"
+    If rx.Test(ticketNoText) And VBA.Len(orderNoText) > 0 Then
+        FormatVacationTicketNoForExport = "2026/" & orderNoText & "/" & ticketNoText
+    Else
+        FormatVacationTicketNoForExport = ticketNoText
+    End If
+End Function
+
+Public Function TryCalculateFoodSupportDate( _
+    ByVal hasExplicitEventDate As Boolean, _
+    ByVal explicitEventDate As Date, _
+    ByRef outFoodSupportDate As Date _
+) As Boolean
+    ' Единое правило для снятия и зачисления на продовольственное обеспечение:
+    ' минимально допустима дата OrderDate + 1; более поздняя явная дата события
+    ' имеет приоритет. Если дата приказа неизвестна, сохраняем прежнее поведение
+    ' Movement и используем явную дату, когда она доступна.
+    outFoodSupportDate = 0
+    If m_HasOrderDate Then
+        outFoodSupportDate = VBA.DateAdd("d", 1, m_OrderDate)
+        If hasExplicitEventDate Then
+            If explicitEventDate > outFoodSupportDate Then outFoodSupportDate = explicitEventDate
+        End If
+        TryCalculateFoodSupportDate = True
+        Exit Function
+    End If
+
+    If hasExplicitEventDate Then
+        outFoodSupportDate = explicitEventDate
+        TryCalculateFoodSupportDate = True
+    End If
+End Function
+
 Public Function TryResolveOrderDateByNumber( _
     ByVal orderNo As Variant, _
     ByRef outOrderDate As Date _
@@ -267,6 +317,31 @@ Public Function TryResolveFioGenitive( _
         ipnText, _
         "ШПО / АЛФ", _
         outFioGenitive)
+End Function
+
+Public Function TryResolveFioAccusative( _
+    ByVal ipnText As String, _
+    ByRef outFioAccusative As String _
+) As Boolean
+    If m_IsDisposed Then Exit Function
+    ipnText = private_NormalizeLookupKey(ipnText)
+    outFioAccusative = VBA.vbNullString
+    If VBA.Len(ipnText) = 0 Then
+        TryResolveFioAccusative = True
+        Exit Function
+    End If
+
+    TryResolveFioAccusative = private_TryLookupWorkbookValue( _
+        DEFAULT_SHPO_REL_PATH, _
+        private_BuildAdoRangeRef( _
+            ALF_SHEET_NAME, _
+            ALF_RANGE_START, _
+            ALF_RANGE_END_COLUMN & VBA.CStr(EXCEL_MAX_ROW)), _
+        ALF_KEY_HEADER, _
+        ALF_ACCUSATIVE_HEADER, _
+        ipnText, _
+        "ШПО / АЛФ", _
+        outFioAccusative)
 End Function
 
 Public Function TryResolveFioInitialsGenitive( _

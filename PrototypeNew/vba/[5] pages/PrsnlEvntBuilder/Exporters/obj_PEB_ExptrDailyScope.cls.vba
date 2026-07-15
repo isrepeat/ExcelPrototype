@@ -22,6 +22,7 @@ Private Const SOURCE_ALIAS_RANK As String = "Rank"
 Private Const SOURCE_ALIAS_FIO As String = "FIO"
 Private Const SOURCE_ALIAS_IPN As String = "IPN"
 Private Const EXPORT_CONTEXT_MODE As String = "ExportMode"
+Private Const EXPORT_CONTEXT_VALIDATION_ENABLED As String = "ValidateDailyScope"
 Private Const EXPORT_MODE_REWRITE_LAST As String = "Rewrite Last"
 Private Const EXPORT_HISTORY_KEY As String = "DailyScopeHistory"
 Private Const SOURCE_ALIAS_POSITION_CODE As String = "PositionCode"
@@ -170,7 +171,9 @@ Public Function Export( _
     Dim prevCalculation As XlCalculation
     Dim exportValidationError As String
     Dim latestMovementTvoChain As Collection
+    Dim latestMovementRecord As Object
     Dim insertedTvoRows As Collection
+    Dim validationEnabled As Boolean
 
     On Error GoTo EH
     private_LogMethodEntry "Export"
@@ -181,7 +184,8 @@ Public Function Export( _
     End If
     If Not m_Base.TryGetMainSourceTable(sourceTables, sourceTable) Then Exit Function
     If Not private_TryResolveTargetSectionCaption(sourceTable, context, targetSectionCaption, sectionKey) Then Exit Function
-    If Not m_ExporterDataProvider.IsExportAllowed(sourceTable, sectionKey, exportValidationError, latestMovementTvoChain) Then
+    validationEnabled = (VBA.StrComp(private_GetContextText(context, EXPORT_CONTEXT_VALIDATION_ENABLED), "False", VBA.vbTextCompare) <> 0)
+    If Not m_ExporterDataProvider.IsExportAllowed(sourceTable, sectionKey, exportValidationError, latestMovementTvoChain, latestMovementRecord, validationEnabled) Then
         VBA.MsgBox exportValidationError, VBA.vbExclamation, "PrototypeNew / DailyScope export"
         Exit Function
     End If
@@ -1229,6 +1233,8 @@ Private Function private_GetKnownSectionCaptionByText(ByVal valueText As String)
             private_GetKnownSectionCaptionByText = "З лікування (медична рота):"
         Case "з амбулаторного обстеження влк"
             private_GetKnownSectionCaptionByText = "З амбулаторного обстеження / ВЛК:"
+        Case "з стаціонарного влк"
+            private_GetKnownSectionCaptionByText = "З стаціонарного ВЛК:"
         Case "на лікування"
             private_GetKnownSectionCaptionByText = "На лікування:" & VBA.vbLf & "(давальний відмінок)"
         Case "у частину щорічної основної відпустки"
@@ -1253,6 +1259,8 @@ Private Function private_GetKnownSectionCaptionByText(ByVal valueText As String)
             private_GetKnownSectionCaptionByText = "Зміна місця перебування" & VBA.vbLf & "(ВЛК / Відпустка лік.):"
         Case "зміна місця перебування влк => лікування"
             private_GetKnownSectionCaptionByText = "Зміна місця перебування" & VBA.vbLf & "(ВЛК / Лікування):"
+        Case "зміна місця перебування мед рота => лікування"
+            private_GetKnownSectionCaptionByText = "Зміна місця перебування" & VBA.vbLf & "(Мед. рота / Лікування):"
         Case "у відрядження"
             private_GetKnownSectionCaptionByText = "У відрядження"
         Case "у відрядження сзч"
