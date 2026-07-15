@@ -21,6 +21,7 @@ Private Const MOVEMENT_SOURCE_INCOMING_NO As String = "Вх. №"
 Private Const MOVEMENT_CONTEXT_MANUAL_ORDER_NO As String = "ManualOrderNo"
 Private Const MOVEMENT_CONTEXT_SECTION_TYPE As String = "SectionType"
 Private Const MOVEMENT_CONTEXT_EXPORT_MODE As String = "ExportMode"
+Private Const MOVEMENT_CONTEXT_VALIDATION_ENABLED As String = "ValidateMovement"
 Private Const EXPORT_MODE_REWRITE_LAST As String = "Rewrite Last"
 Private Const EXPORT_HISTORY_KEY As String = "MovementHistory"
 Private Const MOVEMENT_SOURCE_EVENT As String = "Подія"
@@ -28,7 +29,6 @@ Private Const MOVEMENT_SOURCE_INCOMING_DATE As String = "Вх. дата"
 Private Const MOVEMENT_SOURCE_DEPARTURE_DATE As String = "З"
 Private Const MOVEMENT_SOURCE_DURATION_TERM As String = "Термін вибуття"
 Private Const MOVEMENT_SOURCE_DURATION_DAYS As String = "На скільки"
-Private Const MOVEMENT_SOURCE_ESCORT_DOC As String = "Супровідний документ"
 Private Const MOVEMENT_SOURCE_VK_NO As String = "В/к №"
 Private Const MOVEMENT_SOURCE_REPORT_RANK As String = "ReportRank"
 Private Const MOVEMENT_SOURCE_REPORT_PERSON As String = "ReportPerson"
@@ -45,8 +45,15 @@ Private Const MOVEMENT_TARGET_OUT_REASON As String = "Підстава вибу�
 Private Const MOVEMENT_TARGET_RETURN_REASON As String = "Підстава прибуття"
 Private Const MOVEMENT_TARGET_IPN As String = "ІПН"
 Private Const MOVEMENT_TARGET_DURATION_DAYS As String = "На скільки"
-Private Const MOVEMENT_TARGET_VK_NO As String = "В/к №"
+Private Const MOVEMENT_TARGET_ESCORT_DOCUMENT As String = "Супровідний документ"
 Private Const MOVEMENT_TARGET_EVENT As String = "Подія"
+Private Const MOVEMENT_TARGET_TVO_FIO As String = "ТВО ПІБ"
+Private Const MOVEMENT_TARGET_TVO_IPN As String = "ТВО ІПН"
+Private Const MOVEMENT_TARGET_TVO_POSITION As String = "ТВО Посада"
+Private Const META_SECTION_TYPE_TVO As String = "Мета: ТВО"
+Private Const SOURCE_ALIAS_FIO As String = "FIO"
+Private Const SOURCE_ALIAS_IPN As String = "IPN"
+Private Const SOURCE_ALIAS_POSITION_CODE As String = "PositionCode"
 Private Const SENTINEL_SHORT_DATE As Date = #1/1/1900#
 Private Const SPECIAL_POSITION_PREFIX_ROZP As String = "A1A"
 Private Const SPECIAL_POSITION_PREFIX_SPIS As String = "A1B"
@@ -167,6 +174,11 @@ Public Function Export( _
     Dim rewriteLast As Boolean
     Dim exportValidationError As String
     Dim latestMovementTvoChain As Collection
+    Dim latestMovementRecord As Object
+    Dim validationEnabled As Boolean
+    Dim tvoFioText As String
+    Dim tvoIpnText As String
+    Dim tvoPositionText As String
 
     On Error GoTo EH
 
@@ -192,8 +204,8 @@ Public Function Export( _
         Exit Function
     End If
 
-    ' Основная source-таблица содержит данные строки события. Meta-таблицы
-    ' в этом экспортере пока не используются.
+    ' Основная source-таблица содержит данные строки события, а meta-ТВО
+    ' таблицы ниже собираются в синхронные многострочные Movement-поля.
     If Not m_Base.TryGetMainSourceTable(sourceTables, sourceTable) Then Exit Function
     If Not private_TryValidateManualOrderNoSpecified(context) Then Exit Function
 
@@ -206,15 +218,17 @@ Public Function Export( _
     isMirrorTransferEvent = private_IsMirrorTransferSectionType(sectionTypeRaw)
     rewriteLast = (VBA.StrComp(private_GetContextText(context, MOVEMENT_CONTEXT_EXPORT_MODE), EXPORT_MODE_REWRITE_LAST, VBA.vbTextCompare) = 0)
     If isMirrorTransferEvent Then isClosingEvent = False
-    If Not m_DataProvider.IsExportAllowed(sourceTable, sectionTypeRaw, exportValidationError, latestMovementTvoChain) Then
+    validationEnabled = (VBA.StrComp(private_GetContextText(context, MOVEMENT_CONTEXT_VALIDATION_ENABLED), "False", VBA.vbTextCompare) <> 0)
+    If Not m_DataProvider.IsExportAllowed(sourceTable, sectionTypeRaw, exportValidationError, latestMovementTvoChain, latestMovementRecord, validationEnabled) Then
         private_LogError "Movement export blocked by last-event validation: " & private_EscapeForLog(exportValidationError)
         VBA.MsgBox exportValidationError, VBA.vbExclamation, "PrototypeNew / Movement export"
         Exit Function
     End If
 
     ' Некоторые типы выбытия пишут дополнительные поля открывающей записи:
-    ' срок выбытия и В/к №. Helper сам решает, нужны ли эти поля для sectionType.
-    If Not private_TryBuildSpecialOpeningValues(sourceTable, sectionTypeRaw, writeSpecialOpeningFields, specialDurationValue, specialVkNoValue) Then Exit Function
+    ' срок выбытия и сопровождающий документ. Helper сам решает, нужны ли эти поля для sectionType.
+    If Not private_TryBuildSpecialOpeningValues(sourceTable, context, sectionTypeRaw, writeSpecialOpeningFields, specialDurationValue, specialVkNoValue) Then Exit Function
+    If Not private_TryBuildMovementTvoValues(sourceTables, tvoFioText, tvoIpnText, tvoPositionText) Then Exit Function
 
     ' Для части профилей значение "Подія" берется не из формы напрямую,
     ' а мапится из типа секции в справочнике PrsnlEvntBuilderData.
@@ -266,7 +280,8 @@ Public Function Export( _
             targetTable, targetRowRange, targetValues, _
             mirrorOpeningOrderNo, mirrorOpeningFoodFromDate, mirrorOpeningDepartureDate, _
             writeSpecialOpeningFields, specialDurationValue, specialVkNoValue, _
-            shouldWriteMappedEvent, mappedEventText, basisSummaryText) Then GoTo CleanFail
+            shouldWriteMappedEvent, mappedEventText, basisSummaryText, _
+            tvoFioText, tvoIpnText, tvoPositionText) Then GoTo CleanFail
     Else
         ' Opening: обычное выбытие. Создаем новую строку и заполняем поля выбытия:
         ' наказ вибуття, з продовольчого, вибуття, плюс базовые первые 6 колонок.
@@ -280,7 +295,8 @@ Public Function Export( _
             targetTable, targetRowRange, targetValues, _
             outgoingOrderNo, outgoingFoodFromDate, outgoingDepartureDate, _
             writeSpecialOpeningFields, specialDurationValue, specialVkNoValue, _
-            shouldWriteMappedEvent, mappedEventText, basisSummaryText) Then GoTo CleanFail
+            shouldWriteMappedEvent, mappedEventText, basisSummaryText, _
+            tvoFioText, tvoIpnText, tvoPositionText) Then GoTo CleanFail
     End If
 
     If Not m_Base.TryRememberExportRow(context, EXPORT_HISTORY_KEY, targetTable, targetRowRange) Then GoTo CleanFail
@@ -368,6 +384,7 @@ End Function
 
 Private Function private_TryBuildSpecialOpeningValues( _
     ByVal sourceTable As obj_TableDynamic, _
+    ByVal context As Object, _
     ByVal sectionTypeText As String, _
     ByRef outShouldWrite As Boolean, _
     ByRef outDurationValue As Variant, _
@@ -391,8 +408,65 @@ Private Function private_TryBuildSpecialOpeningValues( _
 
     outShouldWrite = True
     outDurationValue = private_GetOptionalSourceTextByAnyColumn(sourceTable, sourceRow, MOVEMENT_SOURCE_DURATION_TERM, MOVEMENT_SOURCE_DURATION_DAYS)
-    outVkNoValue = private_GetOptionalSourceTextByAnyColumn(sourceTable, sourceRow, MOVEMENT_SOURCE_ESCORT_DOC, MOVEMENT_SOURCE_VK_NO, "Док. №")
+    outVkNoValue = m_DataProvider.CommonData.FormatVacationTicketNoForExport( _
+        private_GetOptionalSourceTextByAnyColumn(sourceTable, sourceRow, MOVEMENT_SOURCE_VK_NO), _
+        private_GetContextText(context, MOVEMENT_CONTEXT_MANUAL_ORDER_NO))
     private_TryBuildSpecialOpeningValues = True
+End Function
+
+Private Function private_TryBuildMovementTvoValues( _
+    ByVal sourceTables As Collection, _
+    ByRef outFioText As String, _
+    ByRef outIpnText As String, _
+    ByRef outPositionText As String _
+) As Boolean
+    Dim tableIndex As Long
+    Dim rowIndex As Long
+    Dim tvoTable As obj_TableDynamic
+    Dim tvoRow As obj_Row
+    Dim fioText As String
+    Dim ipnText As String
+    Dim positionText As String
+    Dim separatorText As String
+
+    outFioText = VBA.vbNullString
+    outIpnText = VBA.vbNullString
+    outPositionText = VBA.vbNullString
+    separatorText = VBA.vbLf & VBA.vbLf
+    If sourceTables Is Nothing Then Exit Function
+
+    For tableIndex = 2 To sourceTables.Count
+        Set tvoTable = Nothing
+        Set tvoTable = sourceTables.Item(tableIndex)
+        If tvoTable Is Nothing Then GoTo ContinueTable
+        If VBA.StrComp(private_NormalizeText(tvoTable.SectionTitle), _
+            private_NormalizeText(META_SECTION_TYPE_TVO), VBA.vbTextCompare) <> 0 Then GoTo ContinueTable
+
+        For rowIndex = 1 To tvoTable.RowCount
+            Set tvoRow = tvoTable.Rows.Item(rowIndex)
+            If tvoRow Is Nothing Then Exit Function
+            If Not private_TryGetSourceTextByAnyColumn(tvoTable, tvoRow, fioText, SOURCE_ALIAS_FIO, MOVEMENT_TARGET_TVO_FIO) Then GoTo InvalidTvoRow
+            If Not private_TryGetSourceTextByAnyColumn(tvoTable, tvoRow, ipnText, SOURCE_ALIAS_IPN, MOVEMENT_TARGET_TVO_IPN) Then GoTo InvalidTvoRow
+            If Not private_TryGetSourceTextByAnyColumn(tvoTable, tvoRow, positionText, SOURCE_ALIAS_POSITION_CODE, MOVEMENT_TARGET_TVO_POSITION) Then GoTo InvalidTvoRow
+
+            If VBA.Len(outFioText) > 0 Then
+                outFioText = outFioText & separatorText
+                outIpnText = outIpnText & separatorText
+                outPositionText = outPositionText & separatorText
+            End If
+            outFioText = outFioText & fioText
+            outIpnText = outIpnText & ipnText
+            outPositionText = outPositionText & positionText
+        Next rowIndex
+ContinueTable:
+    Next tableIndex
+
+    private_TryBuildMovementTvoValues = True
+    Exit Function
+
+InvalidTvoRow:
+    VBA.MsgBox "PrototypeNew: meta-ТВО строка должна содержать ПІБ, ІПН и код посади.", _
+        VBA.vbExclamation, "PrototypeNew / Movement export"
 End Function
 
 Private Function private_ShouldWriteSpecialOpeningFieldsForSectionType(ByVal rawSectionType As String) As Boolean
@@ -434,8 +508,8 @@ Private Function private_TryBuildMovementClosingValues( _
     Dim manualOrderNo As Variant
     Dim arrivalDateRaw As Variant
     Dim arrivalDateFromForm As Date
-    Dim effectiveArrivalDate As Date
     Dim orderDateByNo As Date
+    Dim foodSupportDate As Date
     Dim hasArrivalDateFromForm As Boolean
     Dim hasOrderDateByNo As Boolean
 
@@ -470,20 +544,9 @@ Private Function private_TryBuildMovementClosingValues( _
         outArrivalDate = orderDateByNo
     End If
 
-    If hasOrderDateByNo Then
-        If hasArrivalDateFromForm Then
-            effectiveArrivalDate = arrivalDateFromForm
-        Else
-            effectiveArrivalDate = orderDateByNo
-        End If
-
-        If effectiveArrivalDate > orderDateByNo Then
-            outOnFoodDate = effectiveArrivalDate
-        Else
-            outOnFoodDate = VBA.DateAdd("d", 1, orderDateByNo)
-        End If
-    ElseIf hasArrivalDateFromForm Then
-        outOnFoodDate = arrivalDateFromForm
+    If m_DataProvider.CommonData.TryCalculateFoodSupportDate( _
+        hasArrivalDateFromForm, arrivalDateFromForm, foodSupportDate) Then
+        outOnFoodDate = foodSupportDate
     End If
 
     private_TryBuildMovementClosingValues = True
@@ -765,6 +828,7 @@ Private Function private_TryBuildMovementBasisSummary( _
         incomingDateResolvedText = VBA.Format$(incomingDateValue, "dd.mm.yyyy")
     End If
 
+    incomingNoText = m_DataProvider.NormalizeIncomingNoForExport(incomingNoText)
     If VBA.Len(incomingNoText) > 0 Then basisDetailsText = "вх. № " & incomingNoText
     If VBA.Len(incomingDateResolvedText) > 0 Then
         If VBA.Len(basisDetailsText) > 0 Then basisDetailsText = basisDetailsText & " "
@@ -1010,7 +1074,10 @@ Private Function private_TryWriteMovementRow( _
     ByVal specialVkNoValue As Variant, _
     ByVal writeMappedEvent As Boolean, _
     ByVal mappedEventText As String, _
-    ByVal basisSummaryText As String _
+    ByVal basisSummaryText As String, _
+    ByVal tvoFioText As String, _
+    ByVal tvoIpnText As String, _
+    ByVal tvoPositionText As String _
 ) As Boolean
     Dim columnIndex As Long
 
@@ -1032,7 +1099,7 @@ Private Function private_TryWriteMovementRow( _
 
     If writeSpecialFields Then
         If Not private_TryWriteNamedColumnValue(targetTable, rowRange, MOVEMENT_TARGET_DURATION_DAYS, specialDurationValue) Then Exit Function
-        If Not private_TryWriteNamedColumnValue(targetTable, rowRange, MOVEMENT_TARGET_VK_NO, specialVkNoValue) Then Exit Function
+        If Not private_TryWriteNamedColumnValue(targetTable, rowRange, MOVEMENT_TARGET_ESCORT_DOCUMENT, specialVkNoValue) Then Exit Function
     End If
 
     If writeMappedEvent Then
@@ -1041,6 +1108,11 @@ Private Function private_TryWriteMovementRow( _
     If VBA.Len(VBA.Trim$(basisSummaryText)) > 0 Then
         If Not private_TryWriteNamedColumnValue(targetTable, rowRange, MOVEMENT_TARGET_OUT_REASON, basisSummaryText) Then Exit Function
     End If
+    ' Пишем колонки даже при пустой цепочке: в режиме Rewrite Last это очищает
+    ' значения ТВО, которые могли остаться от предыдущей версии записи.
+    If Not private_TryWriteNamedColumnValue(targetTable, rowRange, MOVEMENT_TARGET_TVO_FIO, tvoFioText) Then Exit Function
+    If Not private_TryWriteNamedColumnValue(targetTable, rowRange, MOVEMENT_TARGET_TVO_IPN, tvoIpnText) Then Exit Function
+    If Not private_TryWriteNamedColumnValue(targetTable, rowRange, MOVEMENT_TARGET_TVO_POSITION, tvoPositionText) Then Exit Function
 
     private_TryWriteMovementRow = True
 End Function
@@ -1069,6 +1141,7 @@ Private Function private_TryBuildMovementOutgoingValues( _
     Dim hasIncomingDate As Boolean
     Dim hasDepartureDateFromForm As Boolean
     Dim hasOrderDateByNo As Boolean
+    Dim foodSupportDate As Date
 
     outOrderNo = VBA.vbNullString
     outFoodFromDate = VBA.vbNullString
@@ -1104,14 +1177,9 @@ Private Function private_TryBuildMovementOutgoingValues( _
         outDepartureDate = incomingDate
     End If
 
-    If hasOrderDateByNo Then
-        If hasDepartureDateFromForm And departureDateFromForm > orderDateByNo Then
-            outFoodFromDate = departureDateFromForm
-        Else
-            outFoodFromDate = VBA.DateAdd("d", 1, orderDateByNo)
-        End If
-    ElseIf hasDepartureDateFromForm Then
-        outFoodFromDate = departureDateFromForm
+    If m_DataProvider.CommonData.TryCalculateFoodSupportDate( _
+        hasDepartureDateFromForm, departureDateFromForm, foodSupportDate) Then
+        outFoodFromDate = foodSupportDate
     End If
 
     private_TryBuildMovementOutgoingValues = True

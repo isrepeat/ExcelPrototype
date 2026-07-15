@@ -7,6 +7,9 @@ Option Explicit
 #Const LOGGING_DEBUG_ENABLED = True
 #Const LOGGING_VERBOSE_ENABLED = False
 
+Private Const LOOKUP_ALL_TOKEN As String = "*"
+Private Const LOOKUP_ALL_MAX_ROWS As Long = 30
+
 Private Const RUNTIME_ERROR_TITLE As String = "PrototypeNew / EntityLookup runtime"
 Private Const MODE_PREFIX As String = "EntityLookup.Column["
 Private Const TABLE_PREFIX As String = "EntityLookup.Table.Column["
@@ -230,6 +233,8 @@ Public Function TryBuildLookupSqlParams( _
     Dim mappedColumnHeader As String
     Dim outputMappedHeader As String
     Dim sqlParams As obj_SqlParams
+    Dim notBlankCondition As String
+    Dim containsCondition As String
     Dim normalizedAliases As Collection
     Dim columnAliasSet As Object
 
@@ -316,10 +321,27 @@ ContinueValidateResultAlias:
     sqlParams.SheetName = sheetName
     sqlParams.RangeStartMarker = rangeStartMarker
     sqlParams.RangeEndMarker = rangeEndMarker
-    sqlParams.WhereConditions = ex_HelpersSql.fn_BuildWhereContainsSql(searchSourceHeader, queryText)
-    If VBA.Len(sqlParams.WhereConditions) = 0 Then
-        private_ShowConfigError "Failed to build search condition for column '" & columnKey & "'."
+    notBlankCondition = ex_HelpersSql.fn_BuildWhereNotBlankSql(searchSourceHeader)
+    If VBA.Len(notBlankCondition) = 0 Then
+        private_ShowConfigError "Failed to build non-empty search condition for column '" & columnKey & "'."
         Exit Function
+    End If
+
+    If VBA.StrComp(VBA.Trim$(queryText), LOOKUP_ALL_TOKEN, VBA.vbBinaryCompare) = 0 Then
+        ' "*" отключает только текстовую фильтрацию LIKE. Общий фильтр
+        ' пустых строк сохраняется, поэтому TOP N считается по заполненным
+        ' записям, а хвост пустого диапазона не попадает в candidates.
+        sqlParams.WhereConditions = notBlankCondition
+        sqlParams.MaxRows = LOOKUP_ALL_MAX_ROWS
+    Else
+        containsCondition = ex_HelpersSql.fn_BuildWhereContainsSql(searchSourceHeader, queryText)
+        If VBA.Len(containsCondition) = 0 Then
+            private_ShowConfigError "Failed to build search condition for column '" & columnKey & "'."
+            Exit Function
+        End If
+        ' Фильтр непустых значений применяется ко всем lookup-запросам,
+        ' независимо от конкретного внешнего справочника.
+        sqlParams.WhereConditions = "(" & notBlankCondition & ") AND (" & containsCondition & ")"
     End If
 
     For Each resultAliasObj In normalizedAliases

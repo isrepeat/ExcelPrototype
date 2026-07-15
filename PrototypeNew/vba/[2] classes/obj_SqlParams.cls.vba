@@ -12,6 +12,7 @@ Private m_SheetName As String
 Private m_RangeStartMarker As String
 Private m_RangeEndMarker As String
 Private m_WhereConditions As String
+Private m_MaxRows As Long
 Private m_SourceColumnHeaders As Collection
 Private m_MappedColumnHeaders As Collection
 Private m_ColumnAliases As Collection
@@ -80,6 +81,15 @@ Public Property Let WhereConditions(ByVal value As String)
     m_WhereConditions = VBA.Trim$(VBA.CStr(value))
 End Property
 
+Public Property Get MaxRows() As Long
+    MaxRows = m_MaxRows
+End Property
+
+Public Property Let MaxRows(ByVal value As Long)
+    If value < 0 Then value = 0
+    m_MaxRows = value
+End Property
+
 Public Property Get SourceColumnHeaders() As Collection
     If m_SourceColumnHeaders Is Nothing Then Set m_SourceColumnHeaders = New Collection
     Set SourceColumnHeaders = m_SourceColumnHeaders
@@ -118,6 +128,7 @@ Public Function Initialize() As Boolean
     m_RangeStartMarker = VBA.vbNullString
     m_RangeEndMarker = VBA.vbNullString
     m_WhereConditions = VBA.vbNullString
+    m_MaxRows = 0
     Set m_SourceColumnHeaders = New Collection
     Set m_MappedColumnHeaders = New Collection
     Set m_ColumnAliases = New Collection
@@ -223,6 +234,7 @@ Public Function fn_ToString() As String
         "RangeStartMarker=" & private_QuoteValue(m_RangeStartMarker) & "; " & _
         "RangeEndMarker=" & private_QuoteValue(m_RangeEndMarker) & "; " & _
         "WhereConditions=" & private_QuoteValue(m_WhereConditions) & "; " & _
+        "MaxRows=" & VBA.CStr(m_MaxRows) & "; " & _
         "SourceColumnHeaders=[" & private_CollectionToDelimitedText(m_SourceColumnHeaders, ", ") & "]; " & _
         "MappedColumnHeaders=[" & private_CollectionToDelimitedText(m_MappedColumnHeaders, ", ") & "]; " & _
         "ColumnAliases=[" & private_CollectionToDelimitedText(m_ColumnAliases, ", ") & "]; " & _

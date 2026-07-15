@@ -15,6 +15,7 @@ Implements obj_IDataExporter
 Private Const WORD_RESULT_TEMPLATES_REL_PATH As String = "modes\PrsnlEvntBuilder\PrsnlEvntBuilderWordResultTemplates.xml"
 Private Const PREVIEW_FALLBACK_COLOR As String = "#FF0000"
 Private Const CONTEXT_SECTION_TYPE As String = "SectionType"
+Private Const CONTEXT_VALIDATION_ENABLED As String = "ValidateWord"
 Private Const CONTEXT_WORD_PREVIEW_TEXT As String = "WordExportPreviewText"
 Private Const CONTEXT_MANUAL_ORDER_NO As String = "ManualOrderNo"
 Private Const SENTINEL_SHORT_DATE As Date = #1/1/1900#
@@ -27,7 +28,9 @@ Private Const SOURCE_ALIAS_HOSPITAL_SHORT As String = "HospitalShort"
 Private Const SOURCE_ALIAS_REPORT_RANK As String = "ReportRank"
 Private Const SOURCE_ALIAS_REPORT_PERSON As String = "ReportPerson"
 Private Const SOURCE_ALIAS_REPORT_POSITION_CODE As String = "ReportPositionCode"
+Private Const SOURCE_ALIAS_INCOMING_NO As String = "IncomingNo"
 Private Const SOURCE_ALIAS_INCOMING_DATE As String = "IncomingDate"
+Private Const SOURCE_ALIAS_DOCUMENT_NOTE As String = "DocumentNote"
 Private Const SOURCE_ALIAS_DOC_DATE As String = "DocDate"
 Private Const SOURCE_ALIAS_DATE_FROM As String = "DateFrom"
 Private Const SOURCE_ALIAS_DURATION_DAYS As String = "DurationDays"
@@ -35,6 +38,7 @@ Private Const SOURCE_ALIAS_VH_DATE As String = "VhDate"
 Private Const SOURCE_ALIAS_VLK_DATE As String = "VlkDate"
 Private Const WORD_ALIAS_RANK_GENITIVE As String = "RankGenitive"
 Private Const WORD_ALIAS_FIO_GENITIVE As String = "FIOGenitive"
+Private Const WORD_ALIAS_FIO_ACCUSATIVE As String = "FIOAccusative"
 Private Const WORD_ALIAS_FIO_INITIALS_GENITIVE As String = "FIOInitialsGenitive"
 Private Const WORD_ALIAS_POSITION_GENITIVE As String = "PositionGenitive"
 Private Const WORD_ALIAS_POSITION_DEFAULT As String = "Position"
@@ -48,30 +52,39 @@ Private Const WORD_ALIAS_REPORT_PERSON_GENITIVE As String = "ReportPersonGenitiv
 Private Const WORD_ALIAS_REPORT_PERSON_INITIALS_GENITIVE As String = "ReportPersonInitialsGenitive"
 Private Const WORD_ALIAS_REPORT_POSITION_GENITIVE As String = "ReportPositionGenitive"
 Private Const WORD_ALIAS_REPORTER_GENITIVE As String = "ReporterGenitive"
-Private Const WORD_ALIAS_INCOMING_DATE_RESOLVED As String = "IncomingDateResolved"
-Private Const WORD_ALIAS_DOC_DATE_RESOLVED As String = "DocDateResolved"
-Private Const WORD_ALIAS_DATE_FROM_RESOLVED As String = "DateFromResolved"
-Private Const WORD_ALIAS_VH_DATE_RESOLVED As String = "VhDateResolved"
-Private Const WORD_ALIAS_VLK_DATE_RESOLVED As String = "VlkDateResolved"
+Private Const WORD_ALIAS_ORDER_NO As String = "OrderNo"
 Private Const WORD_ALIAS_INCOMING_DATE_SHORT As String = "IncomingDateShort"
 Private Const WORD_ALIAS_DOC_DATE_SHORT As String = "DocDateShort"
 Private Const WORD_ALIAS_DATE_FROM_SHORT As String = "DateFromShort"
 Private Const WORD_ALIAS_VH_DATE_SHORT As String = "VhDateShort"
 Private Const WORD_ALIAS_VLK_DATE_SHORT As String = "VlkDateShort"
-Private Const WORD_ALIAS_INCOMING_DATE_FULL As String = "IncomingDateFull"
-Private Const WORD_ALIAS_DOC_DATE_FULL As String = "DocDateFull"
-Private Const WORD_ALIAS_DATE_FROM_FULL As String = "DateFromFull"
-Private Const WORD_ALIAS_DATE_TO_FULL As String = "DateToFull"
-Private Const WORD_ALIAS_VH_DATE_FULL As String = "VhDateFull"
-Private Const WORD_ALIAS_VLK_DATE_FULL As String = "VlkDateFull"
-Private Const WORD_ALIAS_INCOMING_DATE_FULL_PLUS_ONE As String = "IncomingDateFullPlusOne"
-Private Const WORD_ALIAS_DOC_DATE_FULL_PLUS_ONE As String = "DocDateFullPlusOne"
-Private Const WORD_ALIAS_DATE_FROM_FULL_PLUS_ONE As String = "DateFromFullPlusOne"
-Private Const WORD_ALIAS_VH_DATE_FULL_PLUS_ONE As String = "VhDateFullPlusOne"
-Private Const WORD_ALIAS_VLK_DATE_FULL_PLUS_ONE As String = "VlkDateFullPlusOne"
-Private Const WORD_ALIAS_ENROLL_TO_FOOD_SUPPORT_DATE As String = "EnrollToFoodSupportDate"
-Private Const WORD_ALIAS_REMOVE_FROM_FOOD_SUPPORT_DATE As String = "RemoveFromFoodSupportDate"
-Private Const WORD_RESOLVED_DATE_STORAGE_FORMAT As String = "dd.mm.yyyy"
+
+' DateTo отсутствует в draft-форме: для частичной ежегодной отпуска экспортёр
+' вычисляет его из DateFrom + DurationDays - 1 и добавляет в контекст под этим
+' alias. Суффикс Short означает единое компактное представление полной даты с
+' определённым годом, но ещё не готовый длинный текст для WORD. Шаблон должен
+' явно выбрать представление через formatter, например:
+'   {[DateToShort]|dateformat:"\dd \month \yyyy року"}
+Private Const WORD_ALIAS_DATE_TO_SHORT As String = "DateToShort"
+Private Const WORD_ALIAS_VACATION_DAYS As String = "VacationDays"
+Private Const WORD_ALIAS_ADDITIONAL_WAY_DAYS As String = "AdditionalWayDays"
+Private Const WORD_ALIAS_VACATION_TOTAL_DAYS As String = "VacationTotalDays"
+Private Const WORD_ALIAS_VACATION_DATES_SAME_MONTH As String = "VacationDatesSameMonth"
+Private Const WORD_ALIAS_ENROLL_TO_FOOD_SUPPORT_DATE As String = "EnrollToFoodSupportDateShort"
+Private Const WORD_ALIAS_REMOVE_FROM_FOOD_SUPPORT_DATE As String = "RemoveFromFoodSupportDateShort"
+Private Const WORD_ALIAS_PREV_VK_NUM As String = "PrevVkNum"
+Private Const WORD_ALIAS_PREV_VK_DATE As String = "PrevVkDateShort"
+Private Const LATEST_MOVEMENT_DEPARTURE_ORDER_KEY As String = "Наказ вибуття"
+Private Const LATEST_MOVEMENT_ESCORT_DOCUMENT_KEY As String = "Супровідний документ"
+
+' Канонический компактный формат date aliases внутри контекста шаблона.
+' Он нужен не для окончательного отображения в WORD, а чтобы formatter pipeline
+' мог снова однозначно распознать дату независимо от региональных настроек Excel.
+' Поэтому здесь намеренно нет названий месяцев, слова "року" и типографических
+' пробелов: всё это контролируется непосредственно маской dateformat в XML.
+' Этим форматом заполняются DateToShort, DateFromShort, PrevVkDateShort
+' и другие вычисленные/нормализованные aliases с суффиксом Short.
+Private Const WORD_SHORT_DATE_STORAGE_FORMAT As String = "dd.mm.yyyy"
 Private Const WORD_ANCHOR_PREFIX As String = "{\export:"
 Private Const WORD_ANCHOR_BEGIN_SUFFIX As String = "_Begin}"
 Private Const WORD_ANCHOR_END_SUFFIX As String = "_End}"
@@ -165,6 +178,9 @@ Public Function Export( _
     Dim recordIpn As String
     Dim exportValidationError As String
     Dim latestMovementTvoChain As Collection
+    Dim latestMovementRecord As Object
+    Dim builderData As obj_PrsnlEvntBuilderData
+    Dim validationEnabled As Boolean
 
     If VBA.StrComp(private_GetContextText(context, "ExportMode"), "Rewrite Last", VBA.vbTextCompare) = 0 Then
         VBA.MsgBox "PrototypeNew: WORD exporter does not support Rewrite Last because it generates a preview and does not persist person records.", VBA.vbExclamation, "PrototypeNew / WORD export"
@@ -183,16 +199,26 @@ Public Function Export( _
         VBA.MsgBox "PrototypeNew: WORD export requires SectionType in export context or source table SectionTitle.", VBA.vbExclamation, "PrototypeNew / WORD export"
         Exit Function
     End If
-    If Not m_ExporterDataProvider.IsExportAllowed(sourceTable, sectionTypeText, exportValidationError, latestMovementTvoChain) Then
+    ' WORD validation defaults to disabled when the context key is absent.
+    validationEnabled = private_GetContextBoolean(context, CONTEXT_VALIDATION_ENABLED)
+    If Not m_ExporterDataProvider.IsExportAllowed(sourceTable, sectionTypeText, exportValidationError, latestMovementTvoChain, latestMovementRecord, validationEnabled) Then
         VBA.MsgBox exportValidationError, VBA.vbExclamation, "PrototypeNew / WORD export"
         Exit Function
     End If
     If Not private_TryEnrichMainSourceTableForWord(sourceTable, context) Then Exit Function
+    If Not private_TryEnrichPreviousVacationTicketForWord(sourceTable, sectionTypeText, latestMovementRecord) Then Exit Function
+    If Not private_TryNormalizeDocumentNotesForWord(sourceTables, sectionTypeText) Then Exit Function
+    If Not private_TryEnrichMetaDocumentDatesForWord(sourceTables) Then Exit Function
     If Not private_TryAppendMovementTvoTablesForReturn(sourceTables, sourceTable, sectionTypeText, latestMovementTvoChain) Then Exit Function
     If Not private_TryEnrichMetaTvoTablesForWord(sourceTables) Then Exit Function
     Set namedCollections = private_BuildNamedLoopCollections(sourceTables)
     If namedCollections Is Nothing Then Exit Function
-    If Not m_TemplateParser.TryRenderForSectionType(sectionTypeText, sourceTables, namedCollections, previewText, templateId) Then Exit Function
+    Set builderData = New obj_PrsnlEvntBuilderData
+    If Not builderData.TryResolveWordTemplateId(sectionTypeText, templateId) Then
+        VBA.MsgBox "PrototypeNew: WORD result template is not mapped for section: " & sectionTypeText, VBA.vbExclamation, "PrototypeNew / WORD export"
+        Exit Function
+    End If
+    If Not m_TemplateParser.TryRenderForTemplateId(templateId, sectionTypeText, sourceTables, namedCollections, previewText) Then Exit Function
     If Not private_TrySetContextText(context, CONTEXT_WORD_PREVIEW_TEXT, previewText) Then Exit Function
 
     ' CTRL+3 is the preview action. The dedicated button/CTRL+4 passes
@@ -326,6 +352,149 @@ EH:
     If documentOpened Then wordDoc.Close False
     On Error GoTo 0
     VBA.MsgBox "PrototypeNew: WORD export failed: " & errorDescription, VBA.vbExclamation, "PrototypeNew / WORD export"
+End Function
+
+' Завершает подготовку всех сформированных блоков результирующего документа:
+' сохраняет экспортированный текст, но удаляет маркеры
+' {\export:<id>_Begin}/{\export:<id>_End}, а также примыкающие к содержимому
+' переводы строк CR/LF и ручные разрывы строк. Идентификаторы читаются из самого
+' документа, поэтому новые секции не требуют изменений VBA. Операция необратима
+' для текущего result-файла: для дальнейшего экспорта потребуется новый результат.
+Public Function RemoveResultDocumentAnchors(ByRef clearedBlockCount As Long) As Boolean
+    Dim templatePath As String
+    Dim targetPath As String
+    Dim wordApp As Object
+    Dim wordDoc As Object
+    Dim documentText As String
+    Dim beginMatches As Object
+    Dim beginMatch As Object
+    Dim rx As Object
+    Dim beginRange As Object
+    Dim endSearchRange As Object
+    Dim endRange As Object
+    Dim boundaryRange As Object
+    Dim blockText As String
+    Dim leadingBreakCount As Long
+    Dim trailingBreakCount As Long
+    Dim anchorId As String
+    Dim endMarker As String
+    Dim matchIndex As Long
+    Dim documentOpened As Boolean
+    Dim errorDescription As String
+
+    On Error GoTo EH
+    clearedBlockCount = 0
+
+    templatePath = VBA.Trim$(m_Base.TargetWorkbookPath)
+    If VBA.Len(templatePath) = 0 Then
+        VBA.MsgBox "PrototypeNew: required profile key 'Export.Word.FilePath' is empty.", VBA.vbExclamation, "PrototypeNew / WORD document"
+        Exit Function
+    End If
+    If Not private_IsAbsolutePath(templatePath) Then templatePath = ThisWorkbook.Path & Application.PathSeparator & templatePath
+
+    targetPath = private_BuildResultDocumentPath(templatePath)
+    If VBA.Len(targetPath) = 0 Or VBA.Len(VBA.Dir$(targetPath, VBA.vbNormal Or VBA.vbReadOnly Or VBA.vbHidden Or VBA.vbSystem)) = 0 Then
+        VBA.MsgBox "PrototypeNew: WORD result document was not found:" & VBA.vbCrLf & targetPath, VBA.vbExclamation, "PrototypeNew / WORD document"
+        Exit Function
+    End If
+
+    If private_IsDocumentOpenInRunningWord(targetPath) Or private_IsFileLocked(targetPath) Then
+        VBA.MsgBox "Невозможно очистить документ, пока он открыт." & VBA.vbCrLf & _
+            "Закройте документ и повторите попытку:" & VBA.vbCrLf & targetPath, _
+            VBA.vbExclamation, "PrototypeNew / WORD document"
+        Exit Function
+    End If
+
+    If Not rt_PEB_WordExportRuntime.fn_GetOrCreateWordApp(wordApp) Then Exit Function
+    Set wordDoc = wordApp.Documents.Open(targetPath, False, False, False)
+    documentOpened = True
+
+    documentText = VBA.CStr(wordDoc.Content.Text)
+    Set rx = VBA.CreateObject("VBScript.RegExp")
+    rx.Global = True
+    rx.IgnoreCase = True
+    rx.Pattern = "\{\\export:([^}\r\n]+)_Begin\}"
+    Set beginMatches = rx.Execute(documentText)
+
+    ' Идём с конца документа, чтобы удаление блока не смещало сохранённые
+    ' позиции начальных якорей предыдущих блоков.
+    For matchIndex = beginMatches.Count - 1 To 0 Step -1
+        Set beginMatch = beginMatches(matchIndex)
+        anchorId = VBA.CStr(beginMatch.SubMatches(0))
+        endMarker = WORD_ANCHOR_PREFIX & anchorId & WORD_ANCHOR_END_SUFFIX
+
+        Set beginRange = wordDoc.Range(wordDoc.Content.Start + beginMatch.FirstIndex, _
+                                       wordDoc.Content.Start + beginMatch.FirstIndex + beginMatch.Length)
+        Set endSearchRange = wordDoc.Range(beginRange.End, wordDoc.Content.End)
+        If Not private_TryFindWordText(endSearchRange, endMarker, endRange) Then
+            VBA.MsgBox "PrototypeNew: WORD end anchor was not found after begin anchor: " & endMarker, VBA.vbExclamation, "PrototypeNew / WORD document"
+            GoTo CleanFail
+        End If
+
+        blockText = VBA.CStr(wordDoc.Range(beginRange.End, endRange.Start).Text)
+        leadingBreakCount = private_CountLeadingWordLineBreaks(blockText)
+        trailingBreakCount = private_CountTrailingWordLineBreaks(blockText)
+        ' В пустом блоке одни и те же переводы строк одновременно являются
+        ' начальными и хвостовыми. Относим пересечение к началу блока, чтобы
+        ' не удалить текст за его границами.
+        If leadingBreakCount + trailingBreakCount > VBA.Len(blockText) Then
+            trailingBreakCount = VBA.Len(blockText) - leadingBreakCount
+        End If
+
+        ' Внутри блока тоже идём справа налево. Так сохраняются текст,
+        ' форматирование и закладки записей между двумя якорями.
+        endRange.Text = VBA.vbNullString
+        If trailingBreakCount > 0 Then
+            Set boundaryRange = wordDoc.Range(endRange.Start - trailingBreakCount, endRange.Start)
+            boundaryRange.Text = VBA.vbNullString
+        End If
+        If leadingBreakCount > 0 Then
+            Set boundaryRange = wordDoc.Range(beginRange.End, beginRange.End + leadingBreakCount)
+            boundaryRange.Text = VBA.vbNullString
+        End If
+        beginRange.Text = VBA.vbNullString
+        clearedBlockCount = clearedBlockCount + 1
+    Next matchIndex
+
+    wordDoc.Save
+    wordDoc.Close False
+    documentOpened = False
+    RemoveResultDocumentAnchors = True
+    Exit Function
+
+CleanFail:
+    On Error Resume Next
+    If documentOpened Then wordDoc.Close False
+    On Error GoTo 0
+    Exit Function
+EH:
+    errorDescription = Err.Description
+    On Error Resume Next
+    If documentOpened Then wordDoc.Close False
+    On Error GoTo 0
+    VBA.MsgBox "PrototypeNew: WORD document cleanup failed: " & errorDescription, VBA.vbExclamation, "PrototypeNew / WORD document"
+End Function
+
+Private Function private_CountLeadingWordLineBreaks(ByVal valueText As String) As Long
+    Dim charIndex As Long
+    Dim currentChar As String
+
+    For charIndex = 1 To VBA.Len(valueText)
+        currentChar = VBA.Mid$(valueText, charIndex, 1)
+        If currentChar <> VBA.vbCr And currentChar <> VBA.vbLf And currentChar <> VBA.Chr$(11) Then Exit For
+        private_CountLeadingWordLineBreaks = private_CountLeadingWordLineBreaks + 1
+    Next charIndex
+End Function
+
+Private Function private_CountTrailingWordLineBreaks(ByVal valueText As String) As Long
+    Dim charIndex As Long
+    Dim currentChar As String
+
+    For charIndex = VBA.Len(valueText) To 1 Step -1
+        currentChar = VBA.Mid$(valueText, charIndex, 1)
+        If currentChar <> VBA.vbCr And currentChar <> VBA.vbLf And currentChar <> VBA.Chr$(11) Then Exit For
+        private_CountTrailingWordLineBreaks = private_CountTrailingWordLineBreaks + 1
+    Next charIndex
 End Function
 
 Private Function private_BuildResultDocumentPath(ByVal templatePath As String) As String
@@ -502,6 +671,7 @@ Private Function private_TryEnrichMainSourceTableForWord( _
     Dim reportRankText As String
     Dim reportPersonText As String
     Dim reportPositionCodeText As String
+    Dim incomingNoText As String
     Dim incomingDateText As String
     Dim docDateText As String
     Dim dateFromText As String
@@ -512,6 +682,7 @@ Private Function private_TryEnrichMainSourceTableForWord( _
     Dim durationDaysText As String
     Dim rankGenitive As String
     Dim fioGenitive As String
+    Dim fioAccusative As String
     Dim fioInitialsGenitive As String
     Dim positionGenitive As String
     Dim hospitalGenitive As String
@@ -524,14 +695,15 @@ Private Function private_TryEnrichMainSourceTableForWord( _
     Dim reporterGenitive As String
     Dim isReporterTvo As Boolean
     Dim dateFromDate As Date
-    Dim incomingDate As Date
     Dim hasDateFrom As Boolean
-    Dim hasIncomingDate As Boolean
     Dim removeFromFoodSupportDateText As String
     Dim enrollToFoodSupportDateText As String
-    Dim enrollToFoodSupportDateValue As Date
+    Dim foodSupportDateValue As Date
     Dim vacationTotalDays As Long
+    Dim vacationDays As Long
+    Dim additionalWayDays As Long
     Dim vacationDateTo As Date
+    Dim builderData As obj_PrsnlEvntBuilderData
     If sourceTable Is Nothing Then Exit Function
     If m_ExporterDataProvider Is Nothing Then Exit Function
     If m_ExporterDataProvider.CommonData Is Nothing Then Exit Function
@@ -545,6 +717,7 @@ Private Function private_TryEnrichMainSourceTableForWord( _
     If Not private_TryGetMainTableValue(sourceTable, SOURCE_ALIAS_REPORT_RANK, reportRankText) Then reportRankText = VBA.vbNullString
     If Not private_TryGetMainTableValue(sourceTable, SOURCE_ALIAS_REPORT_PERSON, reportPersonText) Then reportPersonText = VBA.vbNullString
     If Not private_TryGetMainTableValue(sourceTable, SOURCE_ALIAS_REPORT_POSITION_CODE, reportPositionCodeText) Then reportPositionCodeText = VBA.vbNullString
+    If Not private_TryGetMainTableValue(sourceTable, SOURCE_ALIAS_INCOMING_NO, incomingNoText) Then incomingNoText = VBA.vbNullString
     If Not private_TryGetMainTableValue(sourceTable, SOURCE_ALIAS_INCOMING_DATE, incomingDateText) Then incomingDateText = VBA.vbNullString
     If Not private_TryGetMainTableValue(sourceTable, SOURCE_ALIAS_DOC_DATE, docDateText) Then docDateText = VBA.vbNullString
     If Not private_TryGetMainTableValue(sourceTable, SOURCE_ALIAS_DATE_FROM, dateFromText) Then dateFromText = VBA.vbNullString
@@ -555,11 +728,13 @@ Private Function private_TryEnrichMainSourceTableForWord( _
     ' WORD preview работает не только с исходными колонками формы. Перед
     ' render-ом мы дописываем в main DynamicTable вычисленные поля:
     ' склонения ФИО/звания/посады/лечебного учреждения, строку рапортующего
-    ' и resolved date aliases. Для дат пишем сразу несколько представлений:
-    ' ...Resolved/...Short = 01.02.2025, ...Full = 01 лютого 2025 року,
-    ' ...FullPlusOne = полный формат даты + 1 день.
+    ' и date aliases. Все даты передаём в едином компактном виде
+    ' ...Short = 01.02.2025; полный вид формирует XML через dateformat.
     orderNoText = private_GetContextText(context, CONTEXT_MANUAL_ORDER_NO)
     If Not m_ExporterDataProvider.CommonData.SetOrderNo(orderNoText) Then Exit Function
+    If VBA.Len(VBA.Trim$(orderNoText)) > 0 Then
+        If Not private_TryUpsertMainTableValue(sourceTable, WORD_ALIAS_ORDER_NO, orderNoText) Then Exit Function
+    End If
     If VBA.Len(VBA.Trim$(orderNoText)) > 0 And Not m_ExporterDataProvider.CommonData.HasOrderDate Then
         rt_Messaging.fn_ShowStatusBarWarning _
             "Order date was not found for order number '" & orderNoText & "'. Short dates use 01.01.1900.", _
@@ -570,6 +745,7 @@ Private Function private_TryEnrichMainSourceTableForWord( _
     ' ключ не найден, provider сам показывает MsgBox с конкретной причиной.
     If Not m_ExporterDataProvider.CommonData.TryResolveRankGenitive(rankText, rankGenitive) Then Exit Function
     If Not m_ExporterDataProvider.CommonData.TryResolveFioGenitive(ipnText, fioGenitive) Then Exit Function
+    If Not m_ExporterDataProvider.CommonData.TryResolveFioAccusative(ipnText, fioAccusative) Then Exit Function
     If Not m_ExporterDataProvider.CommonData.TryResolveFioInitialsGenitive(ipnText, fioInitialsGenitive) Then Exit Function
     If Not m_ExporterDataProvider.CommonData.TryResolvePositionGenitive(positionCodeText, positionGenitive) Then Exit Function
     If Not m_ExporterDataProvider.CommonData.TryResolveHospitalGenitive(hospitalShortText, hospitalGenitive) Then Exit Function
@@ -604,6 +780,9 @@ Private Function private_TryEnrichMainSourceTableForWord( _
     If VBA.Len(VBA.Trim$(fioGenitive)) > 0 Then
         If Not private_TryUpsertMainTableValue(sourceTable, WORD_ALIAS_FIO_GENITIVE, fioGenitive) Then Exit Function
     End If
+    If VBA.Len(VBA.Trim$(fioAccusative)) > 0 Then
+        If Not private_TryUpsertMainTableValue(sourceTable, WORD_ALIAS_FIO_ACCUSATIVE, fioAccusative) Then Exit Function
+    End If
     If VBA.Len(VBA.Trim$(fioInitialsGenitive)) > 0 Then
         If Not private_TryUpsertMainTableValue(sourceTable, WORD_ALIAS_FIO_INITIALS_GENITIVE, fioInitialsGenitive) Then Exit Function
     End If
@@ -634,62 +813,65 @@ Private Function private_TryEnrichMainSourceTableForWord( _
     If VBA.Len(VBA.Trim$(reporterGenitive)) > 0 Then
         If Not private_TryUpsertMainTableValue(sourceTable, WORD_ALIAS_REPORTER_GENITIVE, reporterGenitive) Then Exit Function
     End If
-    If Not private_TryUpsertResolvedDateValues( _
-        sourceTable, SOURCE_ALIAS_INCOMING_DATE, WORD_ALIAS_INCOMING_DATE_RESOLVED, _
-        WORD_ALIAS_INCOMING_DATE_SHORT, WORD_ALIAS_INCOMING_DATE_FULL, _
-        WORD_ALIAS_INCOMING_DATE_FULL_PLUS_ONE, incomingDateText) Then Exit Function
-    If Not private_TryUpsertResolvedDateValues( _
-        sourceTable, SOURCE_ALIAS_DOC_DATE, WORD_ALIAS_DOC_DATE_RESOLVED, _
-        WORD_ALIAS_DOC_DATE_SHORT, WORD_ALIAS_DOC_DATE_FULL, _
-        WORD_ALIAS_DOC_DATE_FULL_PLUS_ONE, docDateText) Then Exit Function
-    If Not private_TryUpsertResolvedDateValues( _
-        sourceTable, SOURCE_ALIAS_DATE_FROM, WORD_ALIAS_DATE_FROM_RESOLVED, _
-        WORD_ALIAS_DATE_FROM_SHORT, WORD_ALIAS_DATE_FROM_FULL, _
-        WORD_ALIAS_DATE_FROM_FULL_PLUS_ONE, dateFromText) Then Exit Function
-    If Not private_TryUpsertResolvedDateValues( _
-        sourceTable, SOURCE_ALIAS_VH_DATE, WORD_ALIAS_VH_DATE_RESOLVED, _
-        WORD_ALIAS_VH_DATE_SHORT, WORD_ALIAS_VH_DATE_FULL, _
-        WORD_ALIAS_VH_DATE_FULL_PLUS_ONE, vhDateText) Then Exit Function
-    If Not private_TryUpsertResolvedDateValues( _
-        sourceTable, SOURCE_ALIAS_VLK_DATE, WORD_ALIAS_VLK_DATE_RESOLVED, _
-        WORD_ALIAS_VLK_DATE_SHORT, WORD_ALIAS_VLK_DATE_FULL, _
-        WORD_ALIAS_VLK_DATE_FULL_PLUS_ONE, vlkDateText) Then Exit Function
+    If VBA.Len(incomingNoText) > 0 Then
+        If Not private_TryUpsertMainTableValue( _
+            sourceTable, SOURCE_ALIAS_INCOMING_NO, _
+            m_ExporterDataProvider.NormalizeIncomingNoForExport(incomingNoText)) Then Exit Function
+    End If
+    If Not private_TryUpsertShortDateValue(sourceTable, SOURCE_ALIAS_INCOMING_DATE, WORD_ALIAS_INCOMING_DATE_SHORT, incomingDateText) Then Exit Function
+    If Not private_TryUpsertShortDateValue(sourceTable, SOURCE_ALIAS_DOC_DATE, WORD_ALIAS_DOC_DATE_SHORT, docDateText) Then Exit Function
+    If Not private_TryUpsertShortDateValue(sourceTable, SOURCE_ALIAS_DATE_FROM, WORD_ALIAS_DATE_FROM_SHORT, dateFromText) Then Exit Function
+    If Not private_TryUpsertShortDateValue(sourceTable, SOURCE_ALIAS_VH_DATE, WORD_ALIAS_VH_DATE_SHORT, vhDateText) Then Exit Function
+    If Not private_TryUpsertShortDateValue(sourceTable, SOURCE_ALIAS_VLK_DATE, WORD_ALIAS_VLK_DATE_SHORT, vlkDateText) Then Exit Function
 
     If Not private_TryResolveDateByRawText(dateFromText, hasDateFrom, dateFromDate) Then Exit Function
-    If Not private_TryResolveDateByRawText(incomingDateText, hasIncomingDate, incomingDate) Then Exit Function
 
     sectionTypeText = private_GetContextText(context, CONTEXT_SECTION_TYPE)
     If VBA.Len(sectionTypeText) = 0 Then sectionTypeText = VBA.Trim$(sourceTable.SectionTitle)
 
-    ' В форме частичной ежегодной отпуска пользователь вводит только дату
-    ' начала и продолжительность. Дату окончания не храним в UI: вычисляем
-    ' включительно (start + total days - 1) и отдаем шаблону как DateToFull.
-    If VBA.StrComp(sectionTypeText, SECTION_TYPE_TO_ANNUAL_VACATION_PART, VBA.vbTextCompare) = 0 Then
+    ' Продолжительность отпуска храним в контексте тремя отдельными числами.
+    ' Например, "15+4 (дорога)" превращается в 15 дней отпуска, 4 дня дороги
+    ' и 19 календарных дней общего периода. Исходную пользовательскую строку
+    ' шаблон больше не выводит.
+    If VBA.Len(VBA.Trim$(durationDaysText)) > 0 Then
+        If Not private_TryParseVacationDuration( _
+            durationDaysText, vacationDays, additionalWayDays, vacationTotalDays) Then Exit Function
+        If Not private_TryUpsertMainTableValue( _
+            sourceTable, WORD_ALIAS_VACATION_DAYS, VBA.CStr(vacationDays)) Then Exit Function
+        If Not private_TryUpsertMainTableValue( _
+            sourceTable, WORD_ALIAS_ADDITIONAL_WAY_DAYS, VBA.CStr(additionalWayDays)) Then Exit Function
+        If Not private_TryUpsertMainTableValue( _
+            sourceTable, WORD_ALIAS_VACATION_TOTAL_DAYS, VBA.CStr(vacationTotalDays)) Then Exit Function
+    End If
+
+    ' Для всех секций выбытия или перевода в отпуск вычисляем дату окончания
+    ' включительно: DateFrom + VacationTotalDays - 1. Окончательное отображение
+    ' даты (месяц словами, "року", NBSP) по-прежнему задаёт XML-шаблон.
+    Set builderData = New obj_PrsnlEvntBuilderData
+    If builderData.UsesMovementVacationDestination(sectionTypeText) Then
         If hasDateFrom Then
-            If Not private_TrySumDurationDays(durationDaysText, vacationTotalDays) Then Exit Function
             If vacationTotalDays > 0 Then
                 vacationDateTo = VBA.DateAdd("d", vacationTotalDays - 1, dateFromDate)
                 If Not private_TryUpsertMainTableValue( _
-                    sourceTable, WORD_ALIAS_DATE_TO_FULL, ex_Helpers.fn_FormatUaDateLong(vacationDateTo)) Then Exit Function
+                    sourceTable, WORD_ALIAS_DATE_TO_SHORT, VBA.Format$(vacationDateTo, WORD_SHORT_DATE_STORAGE_FORMAT)) Then Exit Function
+                If Not private_TryUpsertMainTableValue( _
+                    sourceTable, WORD_ALIAS_VACATION_DATES_SAME_MONTH, _
+                    VBA.CStr(VBA.Year(dateFromDate) = VBA.Year(vacationDateTo) And _
+                             VBA.Month(dateFromDate) = VBA.Month(vacationDateTo))) Then Exit Function
             End If
         End If
     End If
 
-    If hasDateFrom Then
-        removeFromFoodSupportDateText = ex_Helpers.fn_FormatUaDateLong(dateFromDate)
-    ElseIf hasIncomingDate Then
-        removeFromFoodSupportDateText = ex_Helpers.fn_FormatUaDateLong(incomingDate)
+    ' WORD и Movement используют один helper: max(OrderDate + 1, DateFrom).
+    If Not m_ExporterDataProvider.CommonData.TryCalculateFoodSupportDate( _
+        hasDateFrom, dateFromDate, foodSupportDateValue) Then
+        VBA.MsgBox "PrototypeNew: cannot calculate food-support date because both order date and DateFrom are unavailable.", _
+            VBA.vbExclamation, "PrototypeNew / WORD export"
+        Exit Function
     End If
 
-    If hasIncomingDate Then
-        enrollToFoodSupportDateValue = VBA.DateAdd("d", 1, incomingDate)
-        If hasDateFrom Then
-            If dateFromDate > enrollToFoodSupportDateValue Then enrollToFoodSupportDateValue = dateFromDate
-        End If
-        enrollToFoodSupportDateText = ex_Helpers.fn_FormatUaDateLong(enrollToFoodSupportDateValue)
-    ElseIf hasDateFrom Then
-        enrollToFoodSupportDateText = ex_Helpers.fn_FormatUaDateLong(dateFromDate)
-    End If
+    removeFromFoodSupportDateText = VBA.Format$(foodSupportDateValue, WORD_SHORT_DATE_STORAGE_FORMAT)
+    enrollToFoodSupportDateText = removeFromFoodSupportDateText
 
     If VBA.Len(VBA.Trim$(removeFromFoodSupportDateText)) > 0 Then
         If Not private_TryUpsertMainTableValue(sourceTable, WORD_ALIAS_REMOVE_FROM_FOOD_SUPPORT_DATE, removeFromFoodSupportDateText) Then Exit Function
@@ -701,32 +883,194 @@ Private Function private_TryEnrichMainSourceTableForWord( _
     private_TryEnrichMainSourceTableForWord = True
 End Function
 
-Private Function private_TrySumDurationDays( _
+Private Function private_TryEnrichPreviousVacationTicketForWord( _
+    ByVal sourceTable As obj_TableDynamic, _
+    ByVal sectionTypeText As String, _
+    ByVal latestMovementRecord As Object _
+) As Boolean
+    Dim data As obj_PrsnlEvntBuilderData
+    Dim escortDocumentText As String
+    Dim departureOrderText As String
+    Dim departureOrderDate As Date
+    Dim previousTicketDateText As String
+    Dim isSupportedSection As Boolean
+
+    If sourceTable Is Nothing Then Exit Function
+
+    Set data = New obj_PrsnlEvntBuilderData
+    isSupportedSection = _
+        (VBA.StrComp(sectionTypeText, data.SectionTypeTransferTreatmentVacationToTreatment, VBA.vbTextCompare) = 0) _
+        Or (VBA.StrComp(sectionTypeText, data.SectionTypeTransferTreatmentVacationToVlk, VBA.vbTextCompare) = 0)
+    If Not isSupportedSection Then
+        private_TryEnrichPreviousVacationTicketForWord = True
+        Exit Function
+    End If
+
+    If latestMovementRecord Is Nothing Then
+        VBA.MsgBox "PrototypeNew: latest Movement record is unavailable for the previous vacation ticket.", VBA.vbExclamation, "PrototypeNew / WORD export"
+        Exit Function
+    End If
+
+    If latestMovementRecord.Exists(LATEST_MOVEMENT_ESCORT_DOCUMENT_KEY) Then
+        escortDocumentText = private_NormalizeTemplateScalar( _
+            VBA.CStr(latestMovementRecord(LATEST_MOVEMENT_ESCORT_DOCUMENT_KEY)))
+    End If
+    If latestMovementRecord.Exists(LATEST_MOVEMENT_DEPARTURE_ORDER_KEY) Then
+        departureOrderText = private_NormalizeTemplateScalar( _
+            VBA.CStr(latestMovementRecord(LATEST_MOVEMENT_DEPARTURE_ORDER_KEY)))
+    End If
+
+    If VBA.Len(VBA.Trim$(escortDocumentText)) = 0 Then
+        VBA.MsgBox "PrototypeNew: latest Movement record has no 'Супровідний документ' value for PrevVkNum.", VBA.vbExclamation, "PrototypeNew / WORD export"
+        Exit Function
+    End If
+    If VBA.Len(VBA.Trim$(departureOrderText)) = 0 Then
+        VBA.MsgBox "PrototypeNew: latest Movement record has no 'Наказ вибуття' value for PrevVkDate.", VBA.vbExclamation, "PrototypeNew / WORD export"
+        Exit Function
+    End If
+    If Not m_ExporterDataProvider.CommonData.TryResolveOrderDateByNumber(departureOrderText, departureOrderDate) Then
+        VBA.MsgBox "PrototypeNew: failed to resolve PrevVkDate by departure order '" & departureOrderText & "'.", VBA.vbExclamation, "PrototypeNew / WORD export"
+        Exit Function
+    End If
+
+    previousTicketDateText = VBA.Format$(departureOrderDate, WORD_SHORT_DATE_STORAGE_FORMAT)
+    If Not private_TryUpsertMainTableValue(sourceTable, WORD_ALIAS_PREV_VK_NUM, escortDocumentText) Then Exit Function
+    If Not private_TryUpsertMainTableValue(sourceTable, WORD_ALIAS_PREV_VK_DATE, previousTicketDateText) Then Exit Function
+
+    private_TryEnrichPreviousVacationTicketForWord = True
+End Function
+
+Private Function private_TryNormalizeDocumentNotesForWord( _
+    ByVal sourceTables As Collection, _
+    ByVal sectionTypeText As String _
+) As Boolean
+    Dim data As obj_PrsnlEvntBuilderData
+    Dim sourceTable As obj_TableDynamic
+    Dim sourceRow As obj_Row
+    Dim tableValue As Variant
+    Dim rowIndex As Long
+    Dim columnIndex As Long
+    Dim documentNoteText As String
+    Dim normalizedDocumentNote As String
+    Dim isArrival As Boolean
+
+    If sourceTables Is Nothing Then Exit Function
+
+    Set data = New obj_PrsnlEvntBuilderData
+    isArrival = data.IsMovementClosingSectionType(sectionTypeText)
+
+    For Each tableValue In sourceTables
+        Set sourceTable = tableValue
+        If sourceTable Is Nothing Then GoTo ContinueTable
+
+        If Not sourceTable.TryGetColumnIndexByAlias(SOURCE_ALIAS_DOCUMENT_NOTE, columnIndex) Then
+            If Not sourceTable.TryGetColumnIndexByName(SOURCE_ALIAS_DOCUMENT_NOTE, columnIndex) Then GoTo ContinueTable
+        End If
+
+        For rowIndex = 1 To sourceTable.RowCount
+            Set sourceRow = sourceTable.Rows.Item(rowIndex)
+            If sourceRow Is Nothing Then GoTo ContinueRow
+
+            documentNoteText = private_NormalizeTemplateScalar(VBA.CStr(sourceRow.GetCellValue(columnIndex)))
+            normalizedDocumentNote = private_NormalizeDocumentNoteForWord(documentNoteText, isArrival)
+            If VBA.StrComp(documentNoteText, normalizedDocumentNote, VBA.vbBinaryCompare) <> 0 Then
+                If Not sourceRow.SetCellRaw(columnIndex, normalizedDocumentNote) Then Exit Function
+            End If
+ContinueRow:
+        Next rowIndex
+ContinueTable:
+    Next tableValue
+
+    private_TryNormalizeDocumentNotesForWord = True
+End Function
+
+Private Function private_TryEnrichMetaDocumentDatesForWord(ByVal sourceTables As Collection) As Boolean
+    Dim sourceTable As obj_TableDynamic
+    Dim tableIndex As Long
+    Dim docDateText As String
+
+    If sourceTables Is Nothing Then Exit Function
+
+    For tableIndex = 2 To sourceTables.Count
+        Set sourceTable = sourceTables.Item(tableIndex)
+        If sourceTable Is Nothing Then GoTo ContinueTable
+        If VBA.StrComp( _
+            private_NormalizeCollectionKey(sourceTable.SectionTitle), _
+            private_NormalizeCollectionKey(META_SECTION_TYPE_DOCUMENT), _
+            VBA.vbTextCompare) <> 0 Then GoTo ContinueTable
+
+        If Not private_TryGetMainTableValue(sourceTable, SOURCE_ALIAS_DOC_DATE, docDateText) Then
+            VBA.MsgBox "PrototypeNew: meta document table has no DocDate column.", VBA.vbExclamation, "PrototypeNew / WORD export"
+            Exit Function
+        End If
+        If Not private_TryUpsertShortDateValue( _
+            sourceTable, SOURCE_ALIAS_DOC_DATE, WORD_ALIAS_DOC_DATE_SHORT, docDateText) Then Exit Function
+ContinueTable:
+    Next tableIndex
+
+    private_TryEnrichMetaDocumentDatesForWord = True
+End Function
+
+Private Function private_NormalizeDocumentNoteForWord( _
+    ByVal documentNoteText As String, _
+    ByVal isArrival As Boolean _
+) As String
+    Dim normalizedKey As String
+
+    documentNoteText = private_NormalizeTemplateScalar(documentNoteText)
+    normalizedKey = VBA.LCase$(VBA.Trim$(documentNoteText))
+
+    Select Case normalizedKey
+        Case "м/к"
+            If isArrival Then
+                private_NormalizeDocumentNoteForWord = "виписка із медичної карти стаціонарного хворого"
+            Else
+                private_NormalizeDocumentNoteForWord = "медична карта стаціонарного хворого"
+            End If
+        Case Else
+            private_NormalizeDocumentNoteForWord = documentNoteText
+    End Select
+End Function
+
+Private Function private_TryParseVacationDuration( _
     ByVal durationText As String, _
+    ByRef outVacationDays As Long, _
+    ByRef outAdditionalWayDays As Long, _
     ByRef outTotalDays As Long _
 ) As Boolean
     Dim rx As Object
     Dim matches As Object
-    Dim matchObj As Object
 
+    outVacationDays = 0
+    outAdditionalWayDays = 0
     outTotalDays = 0
     durationText = VBA.Trim$(durationText)
     If VBA.Len(durationText) = 0 Then
-        private_TrySumDurationDays = True
+        private_TryParseVacationDuration = True
         Exit Function
     End If
 
     On Error GoTo EH
-    ' DurationDays допускает пользовательские записи вроде "20+2" или
-    ' "20 (2)". Суммируем все целые числа, повторяя смысл Excel-формулы формы.
+    ' Первое число — количество дней самого отпуска. Первое число после плюса
+    ' — дополнительные дни на дорогу. Текст после второго числа не учитывается.
+    ' Для совместимости также принимается прежняя форма "20 (2)".
     Set rx = VBA.CreateObject("VBScript.RegExp")
-    rx.Global = True
-    rx.Pattern = "\d+"
+    rx.Global = False
+    rx.IgnoreCase = True
+    rx.Pattern = "^\s*(\d+)(?:\s*(?:\+|\()\s*(\d+))?"
     Set matches = rx.Execute(durationText)
-    For Each matchObj In matches
-        outTotalDays = outTotalDays + VBA.CLng(matchObj.Value)
-    Next matchObj
-    private_TrySumDurationDays = True
+    If matches.Count = 0 Then
+        VBA.MsgBox "PrototypeNew: unsupported vacation duration: '" & durationText & "'. Expected, for example, '15' or '15+4 (дорога)'.", _
+            VBA.vbExclamation, "PrototypeNew / WORD export"
+        Exit Function
+    End If
+
+    outVacationDays = VBA.CLng(matches(0).SubMatches(0))
+    If VBA.Len(VBA.CStr(matches(0).SubMatches(1))) > 0 Then
+        outAdditionalWayDays = VBA.CLng(matches(0).SubMatches(1))
+    End If
+    outTotalDays = outVacationDays + outAdditionalWayDays
+    private_TryParseVacationDuration = True
     Exit Function
 
 EH:
@@ -975,24 +1319,19 @@ Private Function private_TryResolveDateByRawText( _
     private_TryResolveDateByRawText = True
 End Function
 
-Private Function private_TryUpsertResolvedDateValues( _
+Private Function private_TryUpsertShortDateValue( _
     ByVal sourceTable As obj_TableDynamic, _
     ByVal sourceAlias As String, _
-    ByVal resolvedAlias As String, _
     ByVal shortAlias As String, _
-    ByVal fullAlias As String, _
-    ByVal fullPlusOneAlias As String, _
     ByVal rawDateText As String _
 ) As Boolean
     Dim resolvedDate As Date
     Dim trimmedDateText As String
     Dim shortDateText As String
-    Dim fullDateText As String
-    Dim fullPlusOneDateText As String
 
     trimmedDateText = VBA.Trim$(rawDateText)
     If VBA.Len(trimmedDateText) = 0 Then
-        private_TryUpsertResolvedDateValues = True
+        private_TryUpsertShortDateValue = True
         Exit Function
     End If
 
@@ -1016,18 +1355,13 @@ Private Function private_TryUpsertResolvedDateValues( _
         Exit Function
     End If
 
-    shortDateText = VBA.Format$(resolvedDate, WORD_RESOLVED_DATE_STORAGE_FORMAT)
-    fullDateText = ex_Helpers.fn_FormatUaDateLong(resolvedDate)
-    fullPlusOneDateText = ex_Helpers.fn_FormatUaDateLong(VBA.DateAdd("d", 1, resolvedDate))
+    shortDateText = VBA.Format$(resolvedDate, WORD_SHORT_DATE_STORAGE_FORMAT)
 
-    ' Resolved оставляем как технический alias для formatter pipeline, а Short/Full
-    ' даем шаблону как готовые текстовые представления без лишнего форматирования.
-    If Not private_TryUpsertMainTableValue(sourceTable, resolvedAlias, shortDateText) Then Exit Function
+    ' Short — единое представление даты в контексте. Его можно вывести напрямую
+    ' либо преобразовать в длинный вид через dateformat непосредственно в XML.
     If Not private_TryUpsertMainTableValue(sourceTable, shortAlias, shortDateText) Then Exit Function
-    If Not private_TryUpsertMainTableValue(sourceTable, fullAlias, fullDateText) Then Exit Function
-    If Not private_TryUpsertMainTableValue(sourceTable, fullPlusOneAlias, fullPlusOneDateText) Then Exit Function
 
-    private_TryUpsertResolvedDateValues = True
+    private_TryUpsertShortDateValue = True
 End Function
 
 Private Function private_JoinNonEmptyParts(ByVal leftText As String, ByVal rightText As String) As String
@@ -1040,6 +1374,71 @@ Private Function private_JoinNonEmptyParts(ByVal leftText As String, ByVal right
     Else
         private_JoinNonEmptyParts = leftText & " " & rightText
     End If
+End Function
+
+Private Function private_KeepSurnameWithInitialsTogether(ByVal valueText As String) As String
+    Static initialsRx As Object
+
+    valueText = VBA.Trim$(valueText)
+    If VBA.Len(valueText) = 0 Then Exit Function
+
+    If initialsRx Is Nothing Then
+        Set initialsRx = VBA.CreateObject("VBScript.RegExp")
+        initialsRx.Global = True
+        initialsRx.IgnoreCase = False
+        ' Два инициала могут быть записаны как "І. І." или "І.І.". Меняем
+        ' только пробел перед всей группой: "Прізвище І. І.".
+        initialsRx.Pattern = "(\S+)[ \t]+([А-ЯІЇЄҐA-Z]\.[ \t]*[А-ЯІЇЄҐA-Z]\.)"
+    End If
+
+    private_KeepSurnameWithInitialsTogether = initialsRx.Replace( _
+        valueText, "$1" & VBA.ChrW$(160) & "$2")
+End Function
+
+Private Function private_NormalizeHospitalWordTypography(ByVal valueText As String) As String
+    Static hospitalNumberRx As Object
+
+    valueText = private_KeepSurnameWithInitialsTogether(valueText)
+    If VBA.Len(valueText) = 0 Then Exit Function
+
+    If hospitalNumberRx Is Nothing Then
+        Set hospitalNumberRx = VBA.CreateObject("VBScript.RegExp")
+        hospitalNumberRx.Global = True
+        hospitalNumberRx.IgnoreCase = False
+        ' Не даём WORD разорвать обозначение и значение: "№ 18".
+        hospitalNumberRx.Pattern = "№[ \t]+(\S)"
+    End If
+
+    private_NormalizeHospitalWordTypography = hospitalNumberRx.Replace( _
+        valueText, "№" & VBA.ChrW$(160) & "$1")
+End Function
+
+Private Function private_ApplyGeneratedAliasWordTypography( _
+    ByVal columnAlias As String, _
+    ByVal valueText As String _
+) As String
+    ' Вызывается после private_NormalizeTemplateScalar: входные NBSP сначала
+    ' удаляются как потенциальный мусор, а затем заново добавляются только в
+    ' известных генерируемых WORD aliases. Исходные поля формы не изменяются.
+    Select Case VBA.LCase$(VBA.Trim$(columnAlias))
+        ' Все поддерживаемые склонённые формы персоны проходят через один
+        ' formatter. Для полного ФИО это безопасный no-op, но если справочник
+        ' вернёт форму с инициалами, граница фамилия/инициалы также будет NBSP.
+        Case VBA.LCase$(WORD_ALIAS_FIO_GENITIVE), _
+             VBA.LCase$(WORD_ALIAS_FIO_ACCUSATIVE), _
+             VBA.LCase$(WORD_ALIAS_FIO_DATIVE), _
+             VBA.LCase$(WORD_ALIAS_FIO_INITIALS_GENITIVE), _
+             VBA.LCase$(WORD_ALIAS_REPORT_PERSON_GENITIVE), _
+             VBA.LCase$(WORD_ALIAS_REPORT_PERSON_INITIALS_GENITIVE), _
+             VBA.LCase$(WORD_ALIAS_REPORTER_GENITIVE)
+            valueText = private_KeepSurnameWithInitialsTogether(valueText)
+
+        Case VBA.LCase$(WORD_ALIAS_HOSPITAL_GENITIVE), _
+             VBA.LCase$(WORD_ALIAS_HOSPITAL_ACCUSATIVE)
+            valueText = private_NormalizeHospitalWordTypography(valueText)
+    End Select
+
+    private_ApplyGeneratedAliasWordTypography = valueText
 End Function
 
 Private Function private_LowerFirstLetter(ByVal valueText As String) As String
@@ -1192,6 +1591,7 @@ Private Function private_TryUpsertMainTableValue( _
     Set sourceRow = sourceTable.Rows.Item(1)
     If sourceRow Is Nothing Then Exit Function
     valueText = private_NormalizeTemplateScalar(valueText)
+    valueText = private_ApplyGeneratedAliasWordTypography(columnAlias, valueText)
     private_TryUpsertMainTableValue = sourceRow.SetCellRaw(columnIndex, valueText)
 End Function
 

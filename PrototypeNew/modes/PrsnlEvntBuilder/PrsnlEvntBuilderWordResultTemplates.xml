@@ -3,26 +3,33 @@
   <!-- Упрощенная версия PersonalCardResultTemplates для PEB WORD preview.
        Колонки DynamicTable читаются только как {[AliasOrHeader]} или item.[AliasOrHeader],
        а обычные {Person}/{SectionType}/item.__first остаются переменными DSL.
-       Поддерживаются sharedTemplate/#include, #if, #for, #let, formatter pipeline
+       Поддерживаются sharedTemplate/#include, #if/#else, #for, #let, formatter pipeline
        включая dateoffset:"+1" и dateformat:"\dd \month".
        и layout tokens: {#newline}, #^/{#^}, #_/{#_}. -->
   <sharedTemplates>
-    <sharedTemplate id="block.PersonLine">
+    <sharedTemplate id="block.PersonLineUpper">
       <text>
-        <![CDATA[
-#_        {[RankGenitive]} {[FIOGenitive]}, {[PositionGenitive]|lowerFirstLetter}#^
+        <![CDATA[#^
+#_        {[RankGenitive]|upperFirstLetter} {[FIOAccusative]}, {[PositionGenitive]|lowerFirstLetter}#^
+        ]]>
+      </text>
+    </sharedTemplate>
+
+    <sharedTemplate id="block.PersonLineLower">
+      <text>
+        <![CDATA[#^
+#_        {[RankGenitive]} {[FIOAccusative]}, {[PositionGenitive]|lowerFirstLetter}#^
         ]]>
       </text>
     </sharedTemplate>
 
     <sharedTemplate id="block.IncomingBasis">
       <text>
-        <![CDATA[
+        <![CDATA[#^
 #_        #let __IsRaportFromSelf = $ex_Helpers.m_RegexIsMatch("{[ReportPerson]}", "^\s*$|^\s*[Сс][Аа][Мм]\s*$");#^
 #_        Підстава: рапорт #^
-#_        {#if __IsRaportFromSelf}{[RankGenitive]} {[FIOInitialsGenitive]}{#endif}#^
-#_        {#if #not __IsRaportFromSelf}{[ReporterGenitive]}{#endif}#^
-#_        (вх. № {[IncomingNo]} від {[IncomingDateShort]})#^
+#_        {#if __IsRaportFromSelf}{[RankGenitive]} {[FIOInitialsGenitive]}{#else}{[ReporterGenitive]}{#endif}#^
+#_        {#space}(вх. № {[IncomingNo]} від {[IncomingDateShort]})#^
         ]]>
         </text>
     </sharedTemplate>
@@ -30,16 +37,16 @@
     <sharedTemplate id="block.OptionalBasisDocuments">
       <text>
         <![CDATA[#^
-        {#if [DocumentNote] #or [DocNo] #or [DocDate]}; {[DocumentNote]|lowerFirstLetter}#^
-#_        {#if [DocNo]}{#space}№ {[DocNo]}{#endif}#^
-#_        {#if [DocDate]}{#space}від {[DocDateFull]}{#endif}#^
+        {#if [DocumentNote] #or [DocNo] #or [DocDateShort]}; {[DocumentNote]|lowerFirstLetter}#^
+#_        {#if [DocNo]}{#space}№ {[DocNo]}{#endif}#^
+#_        {#if [DocDateShort]}{#space}від {[DocDateShort]|dateformat:"\dd \month \yyyy року"}{#endif}#^
 #_        {#endif}#^
 #_        {#for item in MetaDocumentTables}#^
-#_          {#if item.[DocumentNote] #or item.[DocNo] #or item.[DocDate]}#^
-#_            {#if [DocumentNote]}; {#endif}{#if #not [DocumentNote]}{#if #not item.__first}; {#endif}{#endif}#^
+#_          {#if item.[DocumentNote] #or item.[DocNo] #or item.[DocDateShort]}#^
+#_            {#if [DocumentNote]}; {#else}{#if #not item.__first}; {#endif}{#endif}#^
 #_            {item.[DocumentNote]|lowerFirstLetter}#^
-#_            {#if item.[DocNo]}{#space}№ {item.[DocNo]}{#endif}#^
-#_            {#if item.[DocDate]}{#space}від {item.[DocDate]}{#endif}#^
+#_            {#if item.[DocNo]}{#space}№ {item.[DocNo]}{#endif}#^
+#_            {#if item.[DocDateShort]}{#space}від {item.[DocDateShort]|dateformat:"\dd \month \yyyy року"}{#endif}#^
 #_          {#endif}#^
 #_        {#endfor}#^
         ]]>
@@ -48,7 +55,7 @@
 
     <sharedTemplate id="block.MetaRowsInline">
       <text>
-        <![CDATA[
+        <![CDATA[#^
 #_        {#for item in MetaTables}#^
 #_          {#if item.__first}{#newline}Додатково: {#endif}#^
 #_          {#if #not item.__first}; {#endif}#^
@@ -64,10 +71,12 @@
       <text>
         <![CDATA[#^
 #_        , у {[Vacation]}#^
-#_        {#if [DurationDays]}{#space}терміном на {[DurationDays]} календарних діб{#endif}#^
-#_        {#if [DateFromFull]}{#space}з {[DateFromFull]}{#endif}#^
-#_        {#if [DateToFull]}{#space}по {[DateToFull]}{#endif}.#^
-#_        {#newline}#^
+#_        {#if [VacationDays]}{#space}терміном на {[VacationDays]} календарних діб#^
+#_        {#if [AdditionalWayDays] == 1}, без урахування 1 доби, необхідної для проїзду до місця проведення відпустки та у зворотному напрямку,{#endif}#^
+#_        {#if [AdditionalWayDays] > 1}, без урахування {[AdditionalWayDays]} діб, необхідних для проїзду до місця проведення відпустки та у зворотному напрямку,{#endif}#^
+#_        {#endif}#^
+#_        {#if [DateFromShort]}{#space}з {#if [VacationDatesSameMonth]}{[DateFromShort]|dateformat:"\dd"}{#else}{[DateFromShort]|dateformat:"\dd \month \yyyy року"}{#endif}{#endif}#^
+#_        {#if [DateToShort]}{#space}по {[DateToShort]|dateformat:"\dd \month \yyyy року"}{#endif}.#^
         ]]>
       </text>
     </sharedTemplate>
@@ -76,9 +85,10 @@
       <text>
         <![CDATA[#^
 #_        {#for item in MetaTvoTables}#^
-#_          Тимчасове виконання обов'язків за посадою {[Position]|lowerFirstLetter} покласти на #^
-#_          {item.[Rank]|lowerFirstLetter} {item.[FIO]}, {item.[Position]|lowerFirstLetter}.#^
-#_          {#newline}#^
+#_          {#if #not item.__first}{#newline}{#endif}#^
+#_          Тимчасове виконання обов'язків за посадою {[PositionGenitive]|lowerFirstLetter} покласти на #^
+#_          {item.[RankGenitive]|lowerFirstLetter} {item.[FIOGenitive]}, {item.[PositionGenitive]|lowerFirstLetter}.#^
+#_          {#if item.__last}{#newline}{#endif}#^
 #_        {#endfor}#^
         ]]>
       </text>
@@ -88,10 +98,26 @@
       <text>
         <![CDATA[#^
 #_        {#for item in MetaTvoTables}#^
+#_          {#if #not item.__first}{#newline}{#endif}#^
 #_          {item.[RankDative]|upperFirstLetter} {item.[FIODative]} повернутись до виконання обов'язків #^
 #_          {item.[PositionGenitive]|lowerFirstLetter}.#^
-#_          {#newline}#^
+#_          {#if item.__last}{#newline}{#endif}#^
 #_        {#endfor}#^
+        ]]>
+      </text>
+    </sharedTemplate>
+
+    <sharedTemplate id="block.ReturnFromVacation">
+      <text>
+        <![CDATA[#^
+#_        {#include block.PersonLineUpper}.#^
+#_        {#newline}#^
+#_        {#include block.ReturnToDuty}#^
+#_        {#include block.EnrollToFoodSupport}#^
+#_        {#newline}#^
+#_        {#include block.IncomingBasis}#^
+#_        {#include block.OptionalVacationTicket}#^
+#_        .#^
         ]]>
       </text>
     </sharedTemplate>
@@ -100,7 +126,7 @@
       <text>
         <![CDATA[#^
 #_        Зарахувати на продовольче забезпечення#^
-#_        {#space}з {[EnrollToFoodSupportDate]}.#^
+#_        {#space}з {[EnrollToFoodSupportDateShort]|dateformat:"\dd \month \yyyy року"}.#^
         ]]>
       </text>
     </sharedTemplate>
@@ -109,7 +135,47 @@
       <text>
         <![CDATA[#^
 #_        Зняти з продовольчого забезпечення#^
-#_        {#space}з {[RemoveFromFoodSupportDate]}.#^
+#_        {#space}з {[RemoveFromFoodSupportDateShort]|dateformat:"\dd \month \yyyy року"}.#^
+        ]]>
+      </text>
+    </sharedTemplate>
+
+    <sharedTemplate id="block.StatusChangePersonLine">
+      <text>
+        <![CDATA[#^
+#_        NN. {[RankGenitive]|upperFirstLetter} {[FIOGenitive]}, {[PositionGenitive]|lowerFirstLetter}, #^
+        ]]>
+      </text>
+    </sharedTemplate>
+
+    <sharedTemplate id="block.StatusChangeDateFrom">
+      <text>
+        <![CDATA[#^
+#_        {#if [DateFromShort]}, з {[DateFromShort]|dateformat:"\dd \month \yyyy року"}{#endif}.#^
+        ]]>
+      </text>
+    </sharedTemplate>
+
+    <sharedTemplate id="block.OptionalVlkCertificate">
+      <text>
+        <![CDATA[#^
+#_        {#if [VlkNo] #or [VlkDateShort]}; довідка військово-лікарської комісії{#if [VlkNo]} № {[VlkNo]}{#endif}{#if [VlkDateShort]} від {[VlkDateShort]|dateformat:"\dd \month \yyyy року"}{#endif}{#endif}#^
+        ]]>
+      </text>
+    </sharedTemplate>
+
+    <sharedTemplate id="block.OptionalVacationTicket">
+      <text>
+        <![CDATA[#^
+#_        {#if [VhNo] #or [VhDateShort]}; відпускний квиток{#if [VhNo]} № 2026/{[OrderNo]}/{[VhNo]}{#endif}{#if [VhDateShort]} від {[VhDateShort]|dateformat:"\dd \month \yyyy року"}{#endif}{#endif}#^
+        ]]>
+      </text>
+    </sharedTemplate>
+
+    <sharedTemplate id="block.OptionalPreviousVacationTicket">
+      <text>
+        <![CDATA[#^
+#_        {#if [PrevVkNum] #or [PrevVkDateShort]}; відпускний квиток{#if [PrevVkNum]} № {[PrevVkNum]}{#endif}{#if [PrevVkDateShort]} від {[PrevVkDateShort]|dateformat:"\dd \month \yyyy року"}{#endif}{#endif}#^
         ]]>
       </text>
     </sharedTemplate>
@@ -119,69 +185,296 @@
 
 
 
-  <template id="FromHospital" name="З лікування">
+  <template id="FromHospital">
     <text>
       <![CDATA[#^
 #_      З {[HospitalGenitive]|lowerFirstLetter}#^
-#_      , з #^
-#_      {#if [DateFromFull]}{[DateFromFull]}{#endif}#^
-#_      {#if #not [DateFromFull]}{[IncomingDateFull]}{#endif}.#^
+#_      , з #^
+#_      {#if [DateFromShort]}{[DateFromShort]|dateformat:"\dd \month \yyyy року"}{#else}{[IncomingDateShort]|dateformat:"\dd \month \yyyy року"}{#endif}:#^
 #_      {#newline}#^
-#_      {#include block.PersonLine}.#^
+#_      {#newline}#^
+#_      {#include block.PersonLineLower}.#^
 #_      {#newline}#^
 #_      {#include block.ReturnToDuty}#^
 #_      {#include block.EnrollToFoodSupport}#^
+#_      {#newline}#^
 #_      {#include block.IncomingBasis}#^
 #_      {#include block.OptionalBasisDocuments}#^
-#_      .{#newline}
+#_      .{#newline}{#newline}#^
       ]]>
     </text>
   </template>
 
-  <template id="FromAnnualMainVacation" name="З щорічної основної відпустки">
+  <template id="FromVacationForCuring">
     <text>
       <![CDATA[#^
-#_      {#include block.PersonLine}.#^
-#_      {#newline}#^
-#_      {#include block.ReturnToDuty}#^
-#_      {#include block.EnrollToFoodSupport}#^
-#_      {#include block.IncomingBasis}#^
-#_      ; відпускний квиток № {[VhNo]} від {[VhDateFull]}#^
-#_      .{#newline}
+#_      {#include block.ReturnFromVacation}#^
+#_      {#newline}{#newline}#^
+      ]]>
+    </text>
+  </template>
+
+  <template id="FromAnnualMainVacation">
+    <text>
+      <![CDATA[#^
+#_      {#include block.ReturnFromVacation}#^
+#_      {#newline}{#newline}#^
         ]]>
     </text>
   </template>
 
-  <template id="ToHospital" name="На лікування">
+  <template id="FromVacationForFamily">
     <text>
       <![CDATA[#^
-#_      У {[HospitalAccusative]|lowerFirstLetter}#^
-#_      , з #^
-#_      {#if [DateFromFull]}{[DateFromFull]}{#endif}#^
-#_      {#if #not [DateFromFull]}{[IncomingDateFull]}{#endif}:#^
-#_      {#newline}#^
-#_      {#include block.PersonLine}.#^
-#_      {#newline}#^
-#_      {#include block.AssignToDuty}#^
-#_      {#include block.RemoveFromFoodSupport}#^
-#_      {#include block.IncomingBasis}#^
-#_      {#include block.OptionalBasisDocuments}#^
-#_      .{#newline}
+#_      {#include block.ReturnFromVacation}#^
+#_      {#newline}{#newline}#^
       ]]>
     </text>
   </template>
 
-  <template id="ToAnnualMainVacation" name="У частину щорічної основної відпустки">
+  <template id="FromMedicalCompanyForTreatment">
     <text>
       <![CDATA[#^
-#_      {#include block.PersonLine}#^
-#_      {#include block.VacationDestinationPeriod}#^
-#_      {#include block.AssignToDuty}#^
-#_      {#include block.RemoveFromFoodSupport}#^
+#_      {#include block.PersonLineUpper}.#^
+#_      {#newline}#^
+#_      {#include block.ReturnToDuty}#^
+#_      {#include block.EnrollToFoodSupport}#^
+#_      {#newline}#^
 #_      {#include block.IncomingBasis}#^
 #_      {#include block.OptionalBasisDocuments}#^
-#_      ; відпускний квиток № {[VhNo]} від {[VhDateFull]}#^
-#_      .{#newline}
+#_      .{#newline}{#newline}#^
+      ]]>
+    </text>
+  </template>
+
+  <template id="FromOutpatientExaminationOrVlk">
+    <text>
+      <![CDATA[#^
+#_      {#include block.PersonLineUpper}.#^
+#_      {#newline}#^
+#_      {#include block.ReturnToDuty}#^
+#_      {#include block.EnrollToFoodSupport}#^
+#_      {#newline}#^
+#_      {#include block.IncomingBasis}#^
+#_      {#include block.OptionalVlkCertificate}#^
+#_      .{#newline}{#newline}#^
+      ]]>
+    </text>
+  </template>
+
+  <template id="FromStationaryVlk">
+    <text>
+      <![CDATA[#^
+#_      {#include block.PersonLineUpper}.#^
+#_      {#newline}#^
+#_      {#include block.ReturnToDuty}#^
+#_      {#include block.EnrollToFoodSupport}#^
+#_      {#newline}#^
+#_      {#include block.IncomingBasis}#^
+#_      {#include block.OptionalVlkCertificate}#^
+#_      .{#newline}{#newline}#^
+      ]]>
+    </text>
+  </template>
+
+  <template id="ToHospital">
+    <text>
+      <![CDATA[#^
+#_      У {[HospitalAccusative]|lowerFirstLetter}#^
+#_      , з #^
+#_      {#if [DateFromShort]}{[DateFromShort]|dateformat:"\dd \month \yyyy року"}{#else}{[IncomingDateShort]|dateformat:"\dd \month \yyyy року"}{#endif}:#^
+#_      {#newline}#^
+#_      {#newline}#^
+#_      {#include block.PersonLineLower}.#^
+#_      {#newline}#^
+#_      {#include block.AssignToDuty}#^
+#_      {#include block.RemoveFromFoodSupport}#^
+#_      {#newline}#^
+#_      {#include block.IncomingBasis}#^
+#_      {#include block.OptionalBasisDocuments}#^
+#_      .{#newline}{#newline}#^
+      ]]>
+    </text>
+  </template>
+
+  <template id="ToAnnualMainVacation">
+    <text>
+      <![CDATA[#^
+#_      {#include block.PersonLineUpper}#^
+#_      {#include block.VacationDestinationPeriod}#^
+#_      {#newline}#^
+#_      {#include block.AssignToDuty}#^
+#_      {#include block.RemoveFromFoodSupport}#^
+#_      {#newline}#^
+#_      {#include block.IncomingBasis}#^
+#_      {#include block.OptionalBasisDocuments}#^
+#_      ; відпускний квиток № 2026/{[OrderNo]}/{[VhNo]} від {[VhDateShort]|dateformat:"\dd \month \yyyy року"}#^
+#_      .{#newline}{#newline}#^
+      ]]>
+    </text>
+  </template>
+
+  <template id="ToVacationForFamily">
+    <text>
+      <![CDATA[#^
+#_      {#include block.PersonLineUpper}#^
+#_      {#include block.VacationDestinationPeriod}#^
+#_      {#newline}#^
+#_      {#include block.AssignToDuty}#^
+#_      {#include block.RemoveFromFoodSupport}#^
+#_      {#newline}#^
+#_      {#include block.IncomingBasis}#^
+#_      {#include block.OptionalVacationTicket}#^
+#_      .{#newline}{#newline}#^
+      ]]>
+    </text>
+  </template>
+
+  <template id="ToVacationForCuring">
+    <text>
+      <![CDATA[#^
+#_      {#include block.PersonLineUpper}#^
+#_      {#include block.VacationDestinationPeriod}#^
+#_      {#newline}#^
+#_      {#include block.AssignToDuty}#^
+#_      {#include block.RemoveFromFoodSupport}#^
+#_      {#newline}#^
+#_      {#include block.IncomingBasis}#^
+#_      {#include block.OptionalVlkCertificate}#^
+#_      {#include block.OptionalVacationTicket}#^
+#_      .{#newline}{#newline}#^
+      ]]>
+    </text>
+  </template>
+
+  <template id="ToMedicalCompanyForTreatment">
+    <text>
+      <![CDATA[#^
+#_      {#include block.PersonLineUpper}.#^
+#_      {#newline}#^
+#_      {#include block.AssignToDuty}#^
+#_      {#include block.IncomingBasis}#^
+#_      {#include block.OptionalBasisDocuments}#^
+#_      .{#newline}{#newline}#^
+      ]]>
+    </text>
+  </template>
+
+  <template id="ToOutpatientExaminationOrVlk">
+    <text>
+      <![CDATA[#^
+#_      {#include block.PersonLineUpper}.#^
+#_      {#newline}#^
+#_      {#include block.IncomingBasis}#^
+#_      {#include block.OptionalBasisDocuments}#^
+#_      .{#newline}{#newline}#^
+      ]]>
+    </text>
+  </template>
+
+  <template id="MoveFromHospitalToVacationForCuring">
+    <text>
+      <![CDATA[#^
+#_      {#include block.StatusChangePersonLine}#^
+#_      який перебував на лікуванні у {[HospitalAccusative]|lowerFirstLetter}, вважати таким, що вибув у відпустку для лікування#^
+#_      {#include block.VacationDestinationPeriod}#^
+#_      {#newline}#^
+#_      {#include block.IncomingBasis}#^
+#_      {#include block.OptionalVlkCertificate}#^
+#_      {#include block.OptionalBasisDocuments}#^
+#_      {#include block.OptionalVacationTicket}#^
+#_      .{#newline}{#newline}#^
+      ]]>
+    </text>
+  </template>
+
+  <template id="MoveFromVacationForCuringToVacationForCuring">
+    <text>
+      <![CDATA[#^
+#_      {#include block.StatusChangePersonLine}#^
+#_      який перебував у відпустці для лікування, вважати таким, що вибув у відпустку для лікування#^
+#_      {#include block.VacationDestinationPeriod}#^
+#_      {#newline}#^
+#_      {#include block.IncomingBasis}#^
+#_      {#include block.OptionalVlkCertificate}#^
+#_      {#include block.OptionalVacationTicket}#^
+#_      .{#newline}{#newline}#^
+      ]]>
+    </text>
+  </template>
+
+  <template id="MoveFromVacationForCuringToHospital">
+    <text>
+      <![CDATA[#^
+#_      {#include block.StatusChangePersonLine}#^
+#_      який перебував у відпустці для лікування, вважати таким, що вибув на лікування у {[HospitalAccusative]|lowerFirstLetter}#^
+#_      {#include block.StatusChangeDateFrom}#^
+#_      {#newline}#^
+#_      {#include block.IncomingBasis}#^
+#_      {#include block.OptionalBasisDocuments}#^
+#_      {#include block.OptionalPreviousVacationTicket}#^
+#_      .{#newline}{#newline}#^
+      ]]>
+    </text>
+  </template>
+
+  <template id="MoveFromVacationForCuringToVlk">
+    <text>
+      <![CDATA[#^
+#_      {#include block.StatusChangePersonLine}#^
+#_      який перебував у відпустці для лікування, вважати таким, що вибув на медичний огляд військово-лікарської комісії#^
+#_      {#include block.StatusChangeDateFrom}#^
+#_      {#newline}#^
+#_      {#include block.IncomingBasis}#^
+#_      {#include block.OptionalBasisDocuments}#^
+#_      {#include block.OptionalPreviousVacationTicket}#^
+#_      .{#newline}{#newline}#^
+      ]]>
+    </text>
+  </template>
+
+  <template id="MoveFromVlkToVacationForCuring">
+    <text>
+      <![CDATA[#^
+#_      {#include block.StatusChangePersonLine}#^
+#_      який перебував на медичному огляді військово-лікарської комісії, вважати таким, що вибув у відпустку для лікування#^
+#_      {#include block.VacationDestinationPeriod}#^
+#_      {#newline}#^
+#_      {#include block.IncomingBasis}#^
+#_      {#include block.OptionalVlkCertificate}#^
+#_      {#include block.OptionalVacationTicket}#^
+#_      .{#newline}{#newline}#^
+      ]]>
+    </text>
+  </template>
+
+  <template id="MoveFromVlkToHospital">
+    <text>
+      <![CDATA[#^
+#_      {#include block.StatusChangePersonLine}#^
+#_      який перебував на медичному огляді військово-лікарської комісії, вважати таким, що вибув на лікування у {[HospitalAccusative]|lowerFirstLetter}#^
+#_      {#include block.StatusChangeDateFrom}#^
+#_      {#newline}#^
+#_      {#include block.IncomingBasis}#^
+#_      {#include block.OptionalVlkCertificate}#^
+#_      {#include block.OptionalBasisDocuments}#^
+#_      .{#newline}{#newline}#^
+      ]]>
+    </text>
+  </template>
+
+  <template id="MoveFromMedicalCompanyForTreatmentToHospital">
+    <text>
+      <![CDATA[#^
+#_      {#include block.StatusChangePersonLine}#^
+#_      який перебував на лікуванні у медичній роті, вважати таким, що вибув на лікування у {[HospitalAccusative]|lowerFirstLetter}#^
+#_      {#include block.StatusChangeDateFrom}#^
+#_      {#newline}#^
+#_      {#include block.RemoveFromFoodSupport}#^
+#_      {#newline}#^
+#_      {#include block.IncomingBasis}#^
+#_      {#include block.OptionalBasisDocuments}#^
+#_      .{#newline}{#newline}#^
       ]]>
     </text>
   </template>

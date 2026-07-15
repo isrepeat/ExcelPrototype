@@ -167,7 +167,12 @@ Public Function fn_TrySqlRequest( _
     ' 5) Data-pass:
     ' Строим и выполняем реальный SELECT только по валидационно-резолвленным колонкам.
     ' Если в SqlParams задано WHERE-условие, добавляем его в запрос.
-    sql = "SELECT " & private_BuildSelectColumnsClause(resolvedSourceColumnHeaders) & " FROM " & tableRef
+    ' MaxRows и WhereConditions являются независимыми параметрами. Для
+    ' специального lookup по "*" parser задает TOP N и оставляет в WHERE
+    ' только общий фильтр пустых строк, без текстового условия LIKE.
+    sql = "SELECT "
+    If sqlParams.MaxRows > 0 Then sql = sql & "TOP " & VBA.CStr(sqlParams.MaxRows) & " "
+    sql = sql & private_BuildSelectColumnsClause(resolvedSourceColumnHeaders) & " FROM " & tableRef
     If Not hasCustomRowProcessor And VBA.Len(VBA.Trim$(sqlParams.WhereConditions)) > 0 Then
         sql = sql & " WHERE " & sqlParams.WhereConditions
     End If
@@ -475,7 +480,11 @@ Public Function fn_TrySqlRequestValues( _
     rsSchema.Close
     Set rsSchema = Nothing
 
-    sql = "SELECT " & private_BuildSelectColumnsClause(resolvedSourceColumnHeaders) & " FROM " & tableRef
+    ' Аналогичная сборка запроса для API, возвращающего только значения:
+    ' MaxRows добавляет TOP N, а наличие WHERE проверяется отдельно ниже.
+    sql = "SELECT "
+    If sqlParams.MaxRows > 0 Then sql = sql & "TOP " & VBA.CStr(sqlParams.MaxRows) & " "
+    sql = sql & private_BuildSelectColumnsClause(resolvedSourceColumnHeaders) & " FROM " & tableRef
     If VBA.Len(VBA.Trim$(sqlParams.WhereConditions)) > 0 Then
         sql = sql & " WHERE " & sqlParams.WhereConditions
     End If

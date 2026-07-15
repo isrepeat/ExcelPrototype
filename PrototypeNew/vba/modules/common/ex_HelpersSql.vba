@@ -27,6 +27,16 @@ Public Function fn_BuildWhereContainsSql(ByVal sourceColumnHeader As String, ByV
     fn_BuildWhereContainsSql = fn_QuoteSqlIdentifier(sourceColumnHeader) & " LIKE " & fn_QuoteSqlLiteral("%" & valueText & "%")
 End Function
 
+Public Function fn_BuildWhereNotBlankSql(ByVal sourceColumnHeader As String) As String
+    Dim quotedHeader As String
+
+    sourceColumnHeader = VBA.Trim$(sourceColumnHeader)
+    If VBA.Len(sourceColumnHeader) = 0 Then Exit Function
+
+    quotedHeader = fn_QuoteSqlIdentifier(sourceColumnHeader)
+    fn_BuildWhereNotBlankSql = quotedHeader & " IS NOT NULL AND Trim(" & quotedHeader & ") <> ''"
+End Function
+
 Public Function fn_QuoteSqlIdentifier(ByVal valueText As String) As String
     valueText = VBA.Trim$(valueText)
     If VBA.Len(valueText) >= 2 Then

@@ -16,6 +16,7 @@ Private Const TOKEN_JOIN_LINE_BRACED As String = "{#^}"
 Private Const TOKEN_TRIM_INDENT As String = "#_"
 Private Const TOKEN_TRIM_INDENT_BRACED As String = "{#_}"
 Private Const TOKEN_IF_OPEN As String = "{#if"
+Private Const TOKEN_IF_ELSE As String = "{#else}"
 Private Const TOKEN_IF_CLOSE As String = "{#endif}"
 Private Const TOKEN_FOR_OPEN As String = "{#for"
 Private Const TOKEN_FOR_CLOSE As String = "{#endfor}"
@@ -73,27 +74,26 @@ Public Sub Dispose()
     Set m_NamedCollections = Nothing
 End Sub
 
-Public Function TryRenderForSectionType( _
+Public Function TryRenderForTemplateId( _
+    ByVal templateId As String, _
     ByVal sectionTypeText As String, _
     ByVal sourceTables As Collection, _
     ByVal namedCollections As Object, _
-    ByRef outResultText As String, _
-    Optional ByRef outTemplateId As String = VBA.vbNullString _
+    ByRef outResultText As String _
 ) As Boolean
     Dim templateText As String
     Dim renderVars As Object
     Dim loopRows As Object
 
     outResultText = VBA.vbNullString
-    outTemplateId = VBA.vbNullString
     If m_IsDisposed Then Exit Function
     If sourceTables Is Nothing Then Exit Function
     If sourceTables.Count <= 0 Then Exit Function
     If Not private_TryReloadTemplateIfChanged() Then Exit Function
 
-    If Not private_TryGetTemplateTextBySectionType(sectionTypeText, templateText, outTemplateId) Then Exit Function
+    If Not private_TryGetTemplateTextById(templateId, templateText) Then Exit Function
 #If LOGGING_DEBUG_ENABLED Then
-    ex_Core.fn_Diagnostic_LogInfo "peb-word-parser:render template='" & outTemplateId & _
+    ex_Core.fn_Diagnostic_LogInfo "peb-word-parser:render template='" & templateId & _
         "' section='" & sectionTypeText & "'"
 #End If
     ' Keep named loop collections in parser state so nested #for blocks can
@@ -106,7 +106,7 @@ Public Function TryRenderForSectionType( _
     loopRows.CompareMode = 1
 
     outResultText = private_RenderTemplate(templateText, sectionTypeText, sourceTables, renderVars, loopRows)
-    TryRenderForSectionType = True
+    TryRenderForTemplateId = True
 End Function
 
 ' //
@@ -160,10 +160,9 @@ EH:
     VBA.MsgBox "PrototypeNew: failed to read WORD result templates modification date: " & templatePath & VBA.vbCrLf & Err.Description, VBA.vbExclamation, "PrototypeNew / WORD export"
 End Function
 
-Private Function private_TryGetTemplateTextBySectionType( _
-    ByVal sectionTypeText As String, _
-    ByRef outTemplateText As String, _
-    ByRef outTemplateId As String _
+Private Function private_TryGetTemplateTextById( _
+    ByVal templateId As String, _
+    ByRef outTemplateText As String _
 ) As Boolean
     Dim doc As Object
     Dim node As Object
@@ -171,10 +170,9 @@ Private Function private_TryGetTemplateTextBySectionType( _
     Dim includeChain As Collection
 
     outTemplateText = VBA.vbNullString
-    outTemplateId = VBA.vbNullString
-    sectionTypeText = VBA.Trim$(sectionTypeText)
-    If VBA.Len(sectionTypeText) = 0 Then
-        VBA.MsgBox "PrototypeNew: WORD template section type is empty.", VBA.vbExclamation, "PrototypeNew / WORD export"
+    templateId = VBA.Trim$(templateId)
+    If VBA.Len(templateId) = 0 Then
+        VBA.MsgBox "PrototypeNew: WORD result template id is empty.", VBA.vbExclamation, "PrototypeNew / WORD export"
         Exit Function
     End If
 
@@ -184,21 +182,16 @@ Private Function private_TryGetTemplateTextBySectionType( _
         Exit Function
     End If
 
-    xpath = "/p:wordResultTemplates/p:template[@name=" & ex_XmlCore.fn_XPathLiteral(sectionTypeText) & "]/p:text"
+    xpath = "/p:wordResultTemplates/p:template[@id=" & ex_XmlCore.fn_XPathLiteral(templateId) & "]/p:text"
     Set node = doc.selectSingleNode(xpath)
     If node Is Nothing Then
-        VBA.MsgBox "PrototypeNew: WORD result template was not found by name: " & sectionTypeText, VBA.vbExclamation, "PrototypeNew / WORD export"
+        VBA.MsgBox "PrototypeNew: WORD result template was not found by id: " & templateId, VBA.vbExclamation, "PrototypeNew / WORD export"
         Exit Function
     End If
 
     Set includeChain = New Collection
-    outTemplateId = VBA.Trim$(VBA.CStr(node.ParentNode.getAttribute("id")))
-    If VBA.Len(outTemplateId) = 0 Then
-        VBA.MsgBox "PrototypeNew: WORD result template id is empty for name: " & sectionTypeText, VBA.vbExclamation, "PrototypeNew / WORD export"
-        Exit Function
-    End If
     outTemplateText = private_ExpandSharedTemplateIncludes(VBA.CStr(node.Text), doc, includeChain)
-    private_TryGetTemplateTextBySectionType = True
+    private_TryGetTemplateTextById = True
 End Function
 
 Private Function private_RenderTemplate( _
@@ -220,7 +213,7 @@ Private Function private_RenderTemplate( _
     ' Поддерживаем PEB WORD-preview syntax:
     '   {#include id}    -> вставить sharedTemplate из XML
     '   #let A = expr;   -> сохранить локальное значение для последующих blocks/placeholders
-    '   {#if expr}...{#endif}
+    '   {#if expr}...{#else}...{#endif}
     '   {#for item in Collection}...{#endfor}
     '   #^ / {#^}        -> удалить token и следующий перенос строки
     '   #_ / {#_}        -> удалить token и пробелы/табуляцию до первого символа
@@ -629,9 +622,13 @@ Private Function private_RenderIfBlocks( _
     Dim closePos As Long
     Dim openPos As Long
     Dim openEndPos As Long
+    Dim elsePos As Long
+    Dim secondElsePos As Long
     Dim headerText As String
     Dim conditionText As String
-    Dim bodyText As String
+    Dim trueBodyText As String
+    Dim falseBodyText As String
+    Dim selectedBodyText As String
     Dim renderedText As String
     Dim conditionResult As Boolean
 
@@ -648,11 +645,29 @@ Private Function private_RenderIfBlocks( _
 
         headerText = VBA.Mid$(resultText, openPos, openEndPos - openPos + 1)
         conditionText = private_ParseIfCondition(headerText)
-        bodyText = VBA.Mid$(resultText, openEndPos + 1, closePos - openEndPos - 1)
+
+        ' К этому моменту найден самый внутренний #if: вложенные блоки уже
+        ' обработаны предыдущими итерациями. Поэтому первый #else между
+        ' заголовком и #endif принадлежит именно текущему условию.
+        elsePos = VBA.InStr(openEndPos + 1, resultText, TOKEN_IF_ELSE, VBA.vbTextCompare)
+        If elsePos > 0 And elsePos < closePos Then
+            secondElsePos = VBA.InStr(elsePos + VBA.Len(TOKEN_IF_ELSE), resultText, TOKEN_IF_ELSE, VBA.vbTextCompare)
+            If secondElsePos > 0 And secondElsePos < closePos Then Exit Do
+            trueBodyText = VBA.Mid$(resultText, openEndPos + 1, elsePos - openEndPos - 1)
+            falseBodyText = VBA.Mid$(resultText, elsePos + VBA.Len(TOKEN_IF_ELSE), closePos - elsePos - VBA.Len(TOKEN_IF_ELSE))
+        Else
+            trueBodyText = VBA.Mid$(resultText, openEndPos + 1, closePos - openEndPos - 1)
+            falseBodyText = VBA.vbNullString
+        End If
 
         conditionResult = private_EvaluateCondition(conditionText, sectionTypeText, sourceTables, renderVars, loopRows)
         If conditionResult Then
-            renderedText = private_RenderTemplate(bodyText, sectionTypeText, sourceTables, renderVars, loopRows, False)
+            selectedBodyText = trueBodyText
+        Else
+            selectedBodyText = falseBodyText
+        End If
+        If VBA.Len(selectedBodyText) > 0 Then
+            renderedText = private_RenderTemplate(selectedBodyText, sectionTypeText, sourceTables, renderVars, loopRows, False)
         Else
             renderedText = VBA.vbNullString
         End If
@@ -663,8 +678,9 @@ Private Function private_RenderIfBlocks( _
     Loop
 
     If VBA.InStr(1, resultText, TOKEN_IF_OPEN, VBA.vbTextCompare) > 0 _
+        Or VBA.InStr(1, resultText, TOKEN_IF_ELSE, VBA.vbTextCompare) > 0 _
         Or VBA.InStr(1, resultText, TOKEN_IF_CLOSE, VBA.vbTextCompare) > 0 Then
-        VBA.MsgBox "PrototypeNew: invalid WORD #if block. Use {#if expression}...{#endif}.", VBA.vbExclamation, "PrototypeNew / WORD export"
+        VBA.MsgBox "PrototypeNew: invalid WORD #if block. Use {#if expression}...{#else}...{#endif}.", VBA.vbExclamation, "PrototypeNew / WORD export"
     End If
 
     private_RenderIfBlocks = resultText
@@ -803,7 +819,7 @@ Private Function private_EvaluateExpressionText( _
     End If
 
     ' Bracket tokens always represent DynamicTable fields. A missing column is
-    ' an empty value, not a literal expression such as "[DateFromFull]".
+    ' an empty value, not a literal expression such as "[DateFromShort]".
     ' Returning the token text made missing optional fields truthy in #if and
     ' prevented their fallback branches from rendering.
     If private_IsBracketFieldToken(trimmedText) _
