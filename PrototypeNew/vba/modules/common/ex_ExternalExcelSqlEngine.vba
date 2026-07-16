@@ -7,12 +7,19 @@ Private Const RUNTIME_ERROR_TITLE As String = "PrototypeNew / SQL runtime"
 Private Const ADO_UNSUPPORTED_EXT_ERROR_CODE As Long = VBA.vbObjectError + 7312
 Private Const RANGE_REF_CACHE_NAMESPACE As String = "SqlEngine.RangeRefsByMarkers"
 Private Const RANGE_REF_CACHE_VERSION As String = "v1"
+Private Const SCHEMA_CACHE_VERSION As String = "v1"
+
+Private m_ConnectionsByPath As Object
+Private m_ResolvedHeadersByKey As Object
 
 Public Sub fn_Module_Dispose()
 #If LOGGING_VERBOSE_ENABLED Then
     ex_Core.fn_Diagnostic_LogInfo "lifecycle:ex_ExternalExcelSqlEngine.fn_Module_Dispose"
 #End If
     On Error Resume Next
+    private_CloseAllCachedConnections
+    Set m_ConnectionsByPath = Nothing
+    Set m_ResolvedHeadersByKey = Nothing
     Call ex_CacheRuntime.fn_ClearNamespace(RANGE_REF_CACHE_NAMESPACE)
     On Error GoTo 0
 End Sub
@@ -121,38 +128,13 @@ Public Function fn_TrySqlRequest( _
     Set mappedColumnHeaders = sqlParams.MappedColumnHeaders
     Set columnAliases = sqlParams.ColumnAliases
 
-    ' 3) Открываем ADO-подключение к Excel-файлу.
-    Set conn = VBA.CreateObject("ADODB.Connection")
-    conn.Open private_BuildAdoConnectionString(sourcePath)
+    ' 3) Повторно используем одно read-only ADO-соединение для каждого пути источника.
+    If Not private_TryGetCachedConnection(sourcePath, conn) Then GoTo CleanupFail
 
-    ' 4) Schema-pass:
-    ' SELECT ... WHERE 1=0 не читает строки, но возвращает структуру полей.
-    ' Это нужно, чтобы проверить, что все SourceColumnHeaders реально доступны у провайдера.
-    Set rsSchema = VBA.CreateObject("ADODB.Recordset")
-    rsSchema.Open "SELECT * FROM " & tableRef & " WHERE 1=0", conn, 0, 1
-    availableFields = private_ListRecordsetFields(rsSchema, 40)
-    hasGenericFields = private_RecordsetLooksLikeGenericFields(rsSchema)
-
-    Set resolvedSourceColumnHeaders = New Collection
-    For i = 1 To sourceColumnHeaders.Count
-        resolvedSourceColumnHeader = VBA.vbNullString
-        If Not private_TryResolveHeaderInRecordset(rsSchema, VBA.CStr(sourceColumnHeaders.Item(i)), resolvedSourceColumnHeader) Then
-#If LOGGING_DEBUG_ENABLED Then
-            ex_Core.fn_Diagnostic_LogError "sql-engine:source-header-not-found requested='" & _
-                VBA.CStr(sourceColumnHeaders.Item(i)) & _
-                "' available='" & availableFields & _
-                "' genericFields=" & VBA.CStr(hasGenericFields)
-#End If
-            VBA.MsgBox "PrototypeNew: mapped source header '" & VBA.CStr(sourceColumnHeaders.Item(i)) & _
-                "' is not found. Available fields: " & availableFields & _
-                private_GenericFieldsHint(hasGenericFields), vbExclamation, RUNTIME_ERROR_TITLE
-            GoTo CleanupFail
-        End If
-        resolvedSourceColumnHeaders.Add resolvedSourceColumnHeader
-    Next i
-
-    rsSchema.Close
-    Set rsSchema = Nothing
+    ' 4) Определяем физические имена полей. Запрос схемы WHERE 1=0 выполняется только
+    ' при промахе кэша для версии файла, ссылки таблицы и набора заголовков.
+    If Not private_TryGetResolvedSourceHeaders( _
+        conn, sourcePath, tableRef, sourceColumnHeaders, resolvedSourceColumnHeaders) Then GoTo CleanupFail
 
     Set rowProcessor = sqlParams.RowProcessor
     hasCustomRowProcessor = Not rowProcessor Is Nothing
@@ -308,11 +290,10 @@ CleanupDone:
     End If
     On Error GoTo 0
 
-    ' Единая точка освобождения COM-ресурсов (recordset/connection).
+    ' Recordset создаётся на запрос, а соединение остаётся в кэше модуля.
     On Error Resume Next
     If Not rsSchema Is Nothing Then If rsSchema.State <> 0 Then rsSchema.Close
     If Not rsData Is Nothing Then If rsData.State <> 0 Then rsData.Close
-    If Not conn Is Nothing Then If conn.State <> 0 Then conn.Close
     On Error GoTo 0
     Exit Function
 
@@ -322,6 +303,7 @@ CleanupFail:
     ex_Core.fn_Diagnostic_LogError "sql-engine:cleanup-fail " & sqlParams.fn_ToString()
 #End If
     Set outTable = Nothing
+    private_InvalidateSourceCaches sourcePath
     GoTo CleanupDone
 
 EH_QUERY:
@@ -451,34 +433,9 @@ Public Function fn_TrySqlRequestValues( _
 
     Set sourceColumnHeaders = sqlParams.SourceColumnHeaders
 
-    Set conn = VBA.CreateObject("ADODB.Connection")
-    conn.Open private_BuildAdoConnectionString(sourcePath)
-
-    Set rsSchema = VBA.CreateObject("ADODB.Recordset")
-    rsSchema.Open "SELECT * FROM " & tableRef & " WHERE 1=0", conn, 0, 1
-    availableFields = private_ListRecordsetFields(rsSchema, 40)
-    hasGenericFields = private_RecordsetLooksLikeGenericFields(rsSchema)
-
-    Set resolvedSourceColumnHeaders = New Collection
-    For i = 1 To sourceColumnHeaders.Count
-        resolvedSourceColumnHeader = VBA.vbNullString
-        If Not private_TryResolveHeaderInRecordset(rsSchema, VBA.CStr(sourceColumnHeaders.Item(i)), resolvedSourceColumnHeader) Then
-#If LOGGING_DEBUG_ENABLED Then
-            ex_Core.fn_Diagnostic_LogError "sql-engine:source-header-not-found requested='" & _
-                VBA.CStr(sourceColumnHeaders.Item(i)) & _
-                "' available='" & availableFields & _
-                "' genericFields=" & VBA.CStr(hasGenericFields)
-#End If
-            VBA.MsgBox "PrototypeNew: mapped source header '" & VBA.CStr(sourceColumnHeaders.Item(i)) & _
-                "' is not found. Available fields: " & availableFields & _
-                private_GenericFieldsHint(hasGenericFields), vbExclamation, RUNTIME_ERROR_TITLE
-            GoTo CleanupFail
-        End If
-        resolvedSourceColumnHeaders.Add resolvedSourceColumnHeader
-    Next i
-
-    rsSchema.Close
-    Set rsSchema = Nothing
+    If Not private_TryGetCachedConnection(sourcePath, conn) Then GoTo CleanupFail
+    If Not private_TryGetResolvedSourceHeaders( _
+        conn, sourcePath, tableRef, sourceColumnHeaders, resolvedSourceColumnHeaders) Then GoTo CleanupFail
 
     ' Аналогичная сборка запроса для API, возвращающего только значения:
     ' MaxRows добавляет TOP N, а наличие WHERE проверяется отдельно ниже.
@@ -535,7 +492,6 @@ CleanupDone:
     On Error Resume Next
     If Not rsSchema Is Nothing Then If rsSchema.State <> 0 Then rsSchema.Close
     If Not rsData Is Nothing Then If rsData.State <> 0 Then rsData.Close
-    If Not conn Is Nothing Then If conn.State <> 0 Then conn.Close
     On Error GoTo 0
     Exit Function
 
@@ -543,6 +499,7 @@ CleanupFail:
     outValues = Empty
     outRowCount = 0
     outColumnCount = 0
+    private_InvalidateSourceCaches sourcePath
     GoTo CleanupDone
 
 EH_QUERY:
@@ -564,6 +521,231 @@ Private Function private_BuildSelectColumnsClause(ByVal headers As Collection) A
         private_BuildSelectColumnsClause = private_BuildSelectColumnsClause & private_QuoteSqlIdentifier(VBA.CStr(headers.Item(i)))
     Next i
 End Function
+
+Private Function private_TryGetCachedConnection( _
+    ByVal sourcePath As String, _
+    ByRef outConnection As Object _
+) As Boolean
+    Dim cacheKey As String
+    Dim currentStamp As String
+    Dim entry As Object
+    Dim conn As Object
+
+    Set outConnection = Nothing
+    sourcePath = VBA.Trim$(sourcePath)
+    If VBA.Len(sourcePath) = 0 Then Exit Function
+    private_EnsureSqlCaches
+
+    cacheKey = private_NormalizeCacheKeyPart(sourcePath)
+    currentStamp = private_BuildFileVersionToken(sourcePath)
+    If m_ConnectionsByPath.Exists(cacheKey) Then
+        Set entry = m_ConnectionsByPath(cacheKey)
+        If Not entry Is Nothing Then
+            If VBA.StrComp(VBA.CStr(entry("Stamp")), currentStamp, VBA.vbBinaryCompare) = 0 Then
+                Set conn = entry("Connection")
+                If Not conn Is Nothing Then
+                    If conn.State = 0 Then conn.Open private_BuildAdoConnectionString(sourcePath)
+                    Set outConnection = conn
+#If LOGGING_DEBUG_ENABLED Then
+                    ex_Core.fn_Diagnostic_LogInfo "sql-engine:connection-cache-hit path='" & sourcePath & "'"
+#End If
+                    private_TryGetCachedConnection = True
+                    Exit Function
+                End If
+            End If
+        End If
+        private_InvalidateSourceCaches sourcePath
+        private_EnsureSqlCaches
+    End If
+
+    Set conn = VBA.CreateObject("ADODB.Connection")
+    conn.Open private_BuildAdoConnectionString(sourcePath)
+    Set entry = VBA.CreateObject("Scripting.Dictionary")
+    entry.CompareMode = 1
+    entry("Stamp") = currentStamp
+    Set entry("Connection") = conn
+    Set m_ConnectionsByPath(cacheKey) = entry
+    Set outConnection = conn
+#If LOGGING_DEBUG_ENABLED Then
+    ex_Core.fn_Diagnostic_LogInfo "sql-engine:connection-cache-miss path='" & sourcePath & "'"
+#End If
+    private_TryGetCachedConnection = True
+End Function
+
+Private Function private_TryGetResolvedSourceHeaders( _
+    ByVal conn As Object, _
+    ByVal sourcePath As String, _
+    ByVal tableRef As String, _
+    ByVal requestedHeaders As Collection, _
+    ByRef outResolvedHeaders As Collection _
+) As Boolean
+    Dim cacheKey As String
+    Dim cachedHeaders As Collection
+    Dim resolvedHeaders As Collection
+    Dim rsSchema As Object
+    Dim availableFields As String
+    Dim hasGenericFields As Boolean
+    Dim requestedHeader As String
+    Dim resolvedHeader As String
+    Dim i As Long
+
+    Set outResolvedHeaders = Nothing
+    If conn Is Nothing Then Exit Function
+    If requestedHeaders Is Nothing Then Exit Function
+    If requestedHeaders.Count <= 0 Then Exit Function
+    private_EnsureSqlCaches
+
+    cacheKey = private_BuildSchemaCacheKey(sourcePath, tableRef, requestedHeaders)
+    If m_ResolvedHeadersByKey.Exists(cacheKey) Then
+        Set cachedHeaders = m_ResolvedHeadersByKey(cacheKey)
+        Set outResolvedHeaders = private_CopyStringCollection(cachedHeaders)
+#If LOGGING_DEBUG_ENABLED Then
+        ex_Core.fn_Diagnostic_LogInfo "sql-engine:schema-cache-hit path='" & sourcePath & "' tableRef='" & tableRef & "'"
+#End If
+        private_TryGetResolvedSourceHeaders = Not outResolvedHeaders Is Nothing
+        Exit Function
+    End If
+
+    On Error GoTo EH_SCHEMA
+    Set rsSchema = VBA.CreateObject("ADODB.Recordset")
+    rsSchema.Open "SELECT * FROM " & tableRef & " WHERE 1=0", conn, 0, 1
+    availableFields = private_ListRecordsetFields(rsSchema, 40)
+    hasGenericFields = private_RecordsetLooksLikeGenericFields(rsSchema)
+    Set resolvedHeaders = New Collection
+
+    For i = 1 To requestedHeaders.Count
+        requestedHeader = VBA.CStr(requestedHeaders.Item(i))
+        resolvedHeader = VBA.vbNullString
+        If Not private_TryResolveHeaderInRecordset(rsSchema, requestedHeader, resolvedHeader) Then
+#If LOGGING_DEBUG_ENABLED Then
+            ex_Core.fn_Diagnostic_LogError "sql-engine:source-header-not-found requested='" & requestedHeader & _
+                "' available='" & availableFields & "' genericFields=" & VBA.CStr(hasGenericFields)
+#End If
+            VBA.MsgBox "PrototypeNew: mapped source header '" & requestedHeader & _
+                "' is not found. Available fields: " & availableFields & _
+                private_GenericFieldsHint(hasGenericFields), vbExclamation, RUNTIME_ERROR_TITLE
+            GoTo CleanupSchemaFail
+        End If
+        resolvedHeaders.Add resolvedHeader
+    Next i
+
+    rsSchema.Close
+    Set rsSchema = Nothing
+    Set m_ResolvedHeadersByKey(cacheKey) = private_CopyStringCollection(resolvedHeaders)
+    Set outResolvedHeaders = private_CopyStringCollection(resolvedHeaders)
+#If LOGGING_DEBUG_ENABLED Then
+    ex_Core.fn_Diagnostic_LogInfo "sql-engine:schema-cache-miss path='" & sourcePath & "' tableRef='" & tableRef & "'"
+#End If
+    private_TryGetResolvedSourceHeaders = True
+    Exit Function
+
+CleanupSchemaFail:
+    On Error Resume Next
+    If Not rsSchema Is Nothing Then If rsSchema.State <> 0 Then rsSchema.Close
+    On Error GoTo 0
+    Exit Function
+
+EH_SCHEMA:
+#If LOGGING_DEBUG_ENABLED Then
+    ex_Core.fn_Diagnostic_LogError "sql-engine:schema-query-error [" & VBA.CStr(Err.Number) & "] " & Err.Description
+#End If
+    VBA.MsgBox "PrototypeNew: SQL schema query error [" & VBA.CStr(Err.Number) & "] " & Err.Description, _
+        vbExclamation, RUNTIME_ERROR_TITLE
+    Resume CleanupSchemaFail
+End Function
+
+Private Function private_BuildSchemaCacheKey( _
+    ByVal sourcePath As String, _
+    ByVal tableRef As String, _
+    ByVal requestedHeaders As Collection _
+) As String
+    Dim i As Long
+    Dim headersToken As String
+
+    If Not requestedHeaders Is Nothing Then
+        For i = 1 To requestedHeaders.Count
+            If i > 1 Then headersToken = headersToken & VBA.ChrW$(30)
+            headersToken = headersToken & private_NormalizeCacheKeyPart(VBA.CStr(requestedHeaders.Item(i)))
+        Next i
+    End If
+
+    private_BuildSchemaCacheKey = SCHEMA_CACHE_VERSION & "|" & _
+        private_NormalizeCacheKeyPart(sourcePath) & "|" & _
+        private_BuildFileVersionToken(sourcePath) & "|" & _
+        private_NormalizeCacheKeyPart(tableRef) & "|" & headersToken
+End Function
+
+Private Function private_CopyStringCollection(ByVal sourceItems As Collection) As Collection
+    Dim result As Collection
+    Dim itemObj As Variant
+
+    Set result = New Collection
+    If Not sourceItems Is Nothing Then
+        For Each itemObj In sourceItems
+            result.Add VBA.CStr(itemObj)
+        Next itemObj
+    End If
+    Set private_CopyStringCollection = result
+End Function
+
+Private Sub private_EnsureSqlCaches()
+    If m_ConnectionsByPath Is Nothing Then
+        Set m_ConnectionsByPath = VBA.CreateObject("Scripting.Dictionary")
+        m_ConnectionsByPath.CompareMode = 1
+    End If
+    If m_ResolvedHeadersByKey Is Nothing Then
+        Set m_ResolvedHeadersByKey = VBA.CreateObject("Scripting.Dictionary")
+        m_ResolvedHeadersByKey.CompareMode = 1
+    End If
+End Sub
+
+Private Sub private_InvalidateSourceCaches(ByVal sourcePath As String)
+    Dim pathKey As String
+    Dim entry As Object
+    Dim conn As Object
+    Dim keyObj As Variant
+    Dim keysToRemove As Collection
+
+    pathKey = private_NormalizeCacheKeyPart(sourcePath)
+    If VBA.Len(pathKey) = 0 Then Exit Sub
+
+    On Error Resume Next
+    If Not m_ConnectionsByPath Is Nothing Then
+        If m_ConnectionsByPath.Exists(pathKey) Then
+            Set entry = m_ConnectionsByPath(pathKey)
+            If Not entry Is Nothing Then Set conn = entry("Connection")
+            If Not conn Is Nothing Then If conn.State <> 0 Then conn.Close
+            m_ConnectionsByPath.Remove pathKey
+        End If
+    End If
+    On Error GoTo 0
+
+    If m_ResolvedHeadersByKey Is Nothing Then Exit Sub
+    Set keysToRemove = New Collection
+    For Each keyObj In m_ResolvedHeadersByKey.Keys
+        If VBA.InStr(1, VBA.CStr(keyObj), "|" & pathKey & "|", VBA.vbTextCompare) > 0 Then keysToRemove.Add VBA.CStr(keyObj)
+    Next keyObj
+    For Each keyObj In keysToRemove
+        m_ResolvedHeadersByKey.Remove VBA.CStr(keyObj)
+    Next keyObj
+End Sub
+
+Private Sub private_CloseAllCachedConnections()
+    Dim keyObj As Variant
+    Dim entry As Object
+    Dim conn As Object
+
+    If m_ConnectionsByPath Is Nothing Then Exit Sub
+    On Error Resume Next
+    For Each keyObj In m_ConnectionsByPath.Keys
+        Set entry = Nothing
+        Set conn = Nothing
+        Set entry = m_ConnectionsByPath(keyObj)
+        If Not entry Is Nothing Then Set conn = entry("Connection")
+        If Not conn Is Nothing Then If conn.State <> 0 Then conn.Close
+    Next keyObj
+    On Error GoTo 0
+End Sub
 
 Private Function private_BuildAdoConnectionString(ByVal sourcePath As String) As String
     Dim ext As String
