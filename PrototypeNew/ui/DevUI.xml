@@ -268,6 +268,8 @@
               selector="type=config;part=key"
               styles="{
                 width:55;
+                fontSize:12;
+                overflow:wrap;
                 vertical:center;
               }"/>
 
@@ -275,6 +277,8 @@
               selector="type=config;part=value"
               styles="{
                 width:70;
+                fontSize:12;
+                fontColor:#F1A983;
                 overflow:wrap;
                 rowHeight:auto;
               }"/>
