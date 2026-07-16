@@ -41,7 +41,7 @@
           flow="column"
           itemSpanRows="2"
           spanColls="8"
-          spanRows="11"/>
+          spanRows="12"/>
 
         <control
           type="ButtonGroup"
@@ -157,6 +157,8 @@
             type="Label"
             name="HospitalHeader"
             tags="profile.allFields;
+                  profile.toBusinessTrip;
+                  profile.toBusinessTripSzch;
                   profile.closeTreatment;
                   profile.toTreatment;
                   profile.transferTreatmentToTreatmentVacation;
@@ -170,6 +172,8 @@
             type="Label"
             name="HospitalShortHeader"
             tags="profile.allFields;
+                  profile.toBusinessTrip;
+                  profile.toBusinessTripSzch;
                   profile.closeTreatment;
                   profile.toTreatment;
                   profile.transferTreatmentToTreatmentVacation;
@@ -183,6 +187,8 @@
             type="Label"
             name="VacationHeader"
             tags="profile.allFields;
+                  profile.toBusinessTrip;
+                  profile.toBusinessTripSzch;
                   profile.toAnnualVacationPart;
                   profile.toFamilyVacation;
                   profile.toTreatmentVacation;
@@ -196,6 +202,8 @@
             type="Label"
             name="RankHeader"
             tags="profile.allFields;
+                  profile.toBusinessTrip;
+                  profile.toBusinessTripSzch;
                   profile.core;
                   profile.metaTvo"
             text="Звання"
@@ -205,6 +213,8 @@
             type="Label"
             name="FioHeader"
             tags="profile.allFields;
+                  profile.toBusinessTrip;
+                  profile.toBusinessTripSzch;
                   profile.core;
                   profile.metaTvo"
             text="ПІБ"
@@ -214,6 +224,8 @@
             type="Label"
             name="IpnHeader"
             tags="profile.allFields;
+                  profile.toBusinessTrip;
+                  profile.toBusinessTripSzch;
                   profile.core;
                   profile.metaTvo"
             text="ІПН"
@@ -223,6 +235,8 @@
             type="Label"
             name="PositionCodeHeader"
             tags="profile.allFields;
+                  profile.toBusinessTrip;
+                  profile.toBusinessTripSzch;
                   profile.core;
                   profile.metaTvo"
             text="Код посади"
@@ -232,6 +246,8 @@
             type="Label"
             name="PositionNameHeader"
             tags="profile.allFields;
+                  profile.toBusinessTrip;
+                  profile.toBusinessTripSzch;
                   profile.core;
                   profile.metaTvo"
             text="Посада"
@@ -241,6 +257,8 @@
             type="Label"
             name="ReportRankHeader"
             tags="profile.allFields;
+                  profile.toBusinessTrip;
+                  profile.toBusinessTripSzch;
                   profile.closeTreatment;
                   profile.closeTreatmentVacation;
                   profile.closeAnnualVacation;
@@ -264,6 +282,8 @@
             type="Label"
             name="ReportPersonHeader"
             tags="profile.allFields;
+                  profile.toBusinessTrip;
+                  profile.toBusinessTripSzch;
                   profile.closeTreatment;
                   profile.closeTreatmentVacation;
                   profile.closeAnnualVacation;
@@ -287,6 +307,8 @@
             type="Label"
             name="ReportPositionCodeHeader"
             tags="profile.allFields;
+                  profile.toBusinessTrip;
+                  profile.toBusinessTripSzch;
                   profile.closeTreatment;
                   profile.closeTreatmentVacation;
                   profile.closeAnnualVacation;
@@ -310,6 +332,8 @@
             type="Label"
             name="IncomingNoHeader"
             tags="profile.allFields;
+                  profile.toBusinessTrip;
+                  profile.toBusinessTripSzch;
                   profile.core"
             text="Вх. №"
             style="tableHeaderCell"
@@ -318,6 +342,8 @@
             type="Label"
             name="IncomingDateHeader"
             tags="profile.allFields;
+                  profile.toBusinessTrip;
+                  profile.toBusinessTripSzch;
                   profile.core"
             text="Вх. дата"
             style="tableHeaderCell"
@@ -326,6 +352,8 @@
             type="Label"
             name="DocumentNoteHeader"
             tags="profile.allFields;
+                  profile.toBusinessTrip;
+                  profile.toBusinessTripSzch;
                   profile.closeTreatment;
                   profile.closeTreatmentMedicalCompany;
                   profile.toTreatment;
@@ -344,6 +372,8 @@
             type="Label"
             name="DocNoHeader"
             tags="profile.allFields;
+                  profile.toBusinessTrip;
+                  profile.toBusinessTripSzch;
                   profile.closeTreatment;
                   profile.closeTreatmentMedicalCompany;
                   profile.toTreatment;
@@ -362,6 +392,8 @@
             type="Label"
             name="DocDateHeader"
             tags="profile.allFields;
+                  profile.toBusinessTrip;
+                  profile.toBusinessTripSzch;
                   profile.closeTreatment;
                   profile.closeTreatmentMedicalCompany;
                   profile.toTreatment;
@@ -380,6 +412,8 @@
             type="Label"
             name="DurationDaysHeader"
             tags="profile.allFields;
+                  profile.toBusinessTrip;
+                  profile.toBusinessTripSzch;
                   profile.toAnnualVacationPart;
                   profile.toFamilyVacation;
                   profile.toTreatmentVacation;
@@ -393,6 +427,9 @@
             type="Label"
             name="DateFromHeader"
             tags="profile.allFields;
+                  profile.toBusinessTrip;
+                  profile.toBusinessTripSzch;
+                  profile.closeTreatment;
                   profile.toAnnualVacationPart;
                   profile.toFamilyVacation;
                   profile.toTreatmentVacation;
@@ -416,6 +453,8 @@
             type="Label"
             name="VhNoHeader"
             tags="profile.allFields;
+                  profile.toBusinessTrip;
+                  profile.toBusinessTripSzch;
                   profile.closeTreatmentVacation;
                   profile.closeAnnualVacation;
                   profile.closeFamilyVacation;
@@ -432,6 +471,8 @@
             type="Label"
             name="VhDateHeader"
             tags="profile.allFields;
+                  profile.toBusinessTrip;
+                  profile.toBusinessTripSzch;
                   profile.closeTreatmentVacation;
                   profile.closeAnnualVacation;
                   profile.closeFamilyVacation;
@@ -478,6 +519,8 @@
             name="HospitalLookupInput"
             tags="_Hospital;
                   profile.allFields;
+                  profile.toBusinessTrip;
+                  profile.toBusinessTripSzch;
                   profile.closeTreatment;
                   profile.toTreatment;
                   profile.transferTreatmentToTreatmentVacation;
@@ -496,6 +539,8 @@
             name="HospitalShortDraftCell"
             tags="_HospitalShort;
                   profile.allFields;
+                  profile.toBusinessTrip;
+                  profile.toBusinessTripSzch;
                   profile.closeTreatment;
                   profile.toTreatment;
                   profile.transferTreatmentToTreatmentVacation;
@@ -511,6 +556,8 @@
             name="VacationDraftCell"
             tags="_Vacation;
                   profile.allFields;
+                  profile.toBusinessTrip;
+                  profile.toBusinessTripSzch;
                   profile.toAnnualVacationPart;
                   profile.toFamilyVacation;
                   profile.toTreatmentVacation;
@@ -526,6 +573,8 @@
             name="RankDraftCell"
             tags="_Rank;
                   profile.allFields;
+                  profile.toBusinessTrip;
+                  profile.toBusinessTripSzch;
                   profile.core;
                   profile.metaTvo"
             text=""
@@ -537,6 +586,8 @@
             name="FioLookupInput"
             tags="_FIO;
                   profile.allFields;
+                  profile.toBusinessTrip;
+                  profile.toBusinessTripSzch;
                   profile.core;
                   profile.metaTvo"
             dataContext="{PageRuntimeSource='RuntimeObjects.PrsnlEvntBuilder'}"
@@ -551,6 +602,8 @@
             name="IpnDraftCell"
             tags="_IPN;
                   profile.allFields;
+                  profile.toBusinessTrip;
+                  profile.toBusinessTripSzch;
                   profile.core;
                   profile.metaTvo"
             text=""
@@ -562,6 +615,8 @@
             name="PositionCodeDraftCell"
             tags="_PositionCode;
                   profile.allFields;
+                  profile.toBusinessTrip;
+                  profile.toBusinessTripSzch;
                   profile.core;
                   profile.metaTvo"
             text=""
@@ -573,6 +628,8 @@
             name="PositionNameDraftCell"
             tags="_PositionName;
                   profile.allFields;
+                  profile.toBusinessTrip;
+                  profile.toBusinessTripSzch;
                   profile.core;
                   profile.metaTvo"
             text=""
@@ -584,6 +641,8 @@
             name="ReportRankDraftCell"
             tags="_ReportRank;
                   profile.allFields;
+                  profile.toBusinessTrip;
+                  profile.toBusinessTripSzch;
                   profile.closeTreatment;
                   profile.closeTreatmentVacation;
                   profile.closeAnnualVacation;
@@ -609,6 +668,8 @@
             name="CommanderLookupInput"
             tags="_ReportPerson;
                   profile.allFields;
+                  profile.toBusinessTrip;
+                  profile.toBusinessTripSzch;
                   profile.closeTreatment;
                   profile.closeTreatmentVacation;
                   profile.closeAnnualVacation;
@@ -637,6 +698,8 @@
             name="ReportPositionCodeDraftCell"
             tags="_ReportPositionCode;
                   profile.allFields;
+                  profile.toBusinessTrip;
+                  profile.toBusinessTripSzch;
                   profile.closeTreatment;
                   profile.closeTreatmentVacation;
                   profile.closeAnnualVacation;
@@ -662,6 +725,8 @@
             name="IncomingNoDraftCell"
             tags="_IncomingNo;
                   profile.allFields;
+                  profile.toBusinessTrip;
+                  profile.toBusinessTripSzch;
                   profile.core"
             text=""
             style="tableDataCell"
@@ -672,6 +737,8 @@
             name="IncomingDateDraftCell"
             tags="_IncomingDate;
                   profile.allFields;
+                  profile.toBusinessTrip;
+                  profile.toBusinessTripSzch;
                   profile.core"
             text=""
             style="tableDataCell"
@@ -682,6 +749,8 @@
             name="DocumentNoteLookupInput"
             tags="_DocumentNote;
                   profile.allFields;
+                  profile.toBusinessTrip;
+                  profile.toBusinessTripSzch;
                   profile.closeTreatment;
                   profile.closeTreatmentMedicalCompany;
                   profile.toTreatment;
@@ -704,6 +773,8 @@
             name="DocNoDraftCell"
             tags="_DocNo;
                   profile.allFields;
+                  profile.toBusinessTrip;
+                  profile.toBusinessTripSzch;
                   profile.closeTreatment;
                   profile.closeTreatmentMedicalCompany;
                   profile.toTreatment;
@@ -724,6 +795,8 @@
             name="DocDateDraftCell"
             tags="_DocDate;
                   profile.allFields;
+                  profile.toBusinessTrip;
+                  profile.toBusinessTripSzch;
                   profile.closeTreatment;
                   profile.closeTreatmentMedicalCompany;
                   profile.toTreatment;
@@ -744,6 +817,8 @@
             name="DurationDaysDraftCell"
             tags="_DurationDays;
                   profile.allFields;
+                  profile.toBusinessTrip;
+                  profile.toBusinessTripSzch;
                   profile.toAnnualVacationPart;
                   profile.toFamilyVacation;
                   profile.toTreatmentVacation;
@@ -759,6 +834,9 @@
             name="DateFromDraftCell"
             tags="_DateFrom;
                   profile.allFields;
+                  profile.toBusinessTrip;
+                  profile.toBusinessTripSzch;
+                  profile.closeTreatment;
                   profile.toAnnualVacationPart;
                   profile.toFamilyVacation;
                   profile.toTreatmentVacation;
@@ -776,7 +854,9 @@
             type="Label"
             name="DateToDraftCell"
             tags="_DateTo;
-                  profile.allFields"
+                  profile.allFields;
+                  profile.toBusinessTrip;
+                  profile.toBusinessTripSzch"
             text=""
             style="tableDataCell"
             />
@@ -786,6 +866,8 @@
             name="VhNoDraftCell"
             tags="_VhNo;
                   profile.allFields;
+                  profile.toBusinessTrip;
+                  profile.toBusinessTripSzch;
                   profile.closeTreatmentVacation;
                   profile.closeAnnualVacation;
                   profile.closeFamilyVacation;
@@ -804,6 +886,8 @@
             name="VhDateDraftCell"
             tags="_VhDate;
                   profile.allFields;
+                  profile.toBusinessTrip;
+                  profile.toBusinessTripSzch;
                   profile.closeTreatmentVacation;
                   profile.closeAnnualVacation;
                   profile.closeFamilyVacation;
@@ -909,6 +993,18 @@
           dataContext="{PageRuntimeSource='RuntimeObjects.PrsnlEvntBuilder.Controller'}"
           onClick="{Binding Method=OnExportToWordClick}"
           visibility="{Binding Path=WordExportPreviewText; Op=ne; Value=; TrueAs=Visible; FalseAs=Collapsed}"
+          spanColls="2"
+          spanRows="2"/>
+
+        <!-- Выполняется до Remove WORD anchors, пока доступны секционные
+             якоря и скрытые metadata-bookmarks экспортированных пунктов. -->
+        <control
+          type="Button"
+          name="RegroupWordHospitalPoints"
+          caption="Group WORD hospital points"
+          style="exportApplyButton"
+          dataContext="{PageRuntimeSource='RuntimeObjects.PrsnlEvntBuilder.Controller'}"
+          onClick="{Binding Method=OnRegroupWordHospitalPointsClick}"
           spanColls="2"
           spanRows="2"/>
 
