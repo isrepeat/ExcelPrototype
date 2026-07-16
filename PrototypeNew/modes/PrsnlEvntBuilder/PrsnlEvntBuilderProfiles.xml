@@ -14,6 +14,17 @@
     <item key="Personnel.Sheet[StateMain].Map[PositionCode]" value="Код посади"/>
     <item key="Personnel.Sheet[StateMain].Map[PositionName]" value="Повна назва посади"/>
 
+    <item attr="#" key="Absence candidates extension source" value=""/>
+    <item key="Source.AbsenceEvents.FilePath" value="C:\Users\SVI\Desktop\ЕЖОС_last.xlsx"/>
+    <item key="Source.AbsenceEvents.SheetsAliases" value="TemporaryAbsent"/>
+    <item key="AbsenceEvents.Sheet[TemporaryAbsent].SheetName" value="5. Тимчасово відсутні$A5:Q20000"/>
+    <item key="AbsenceEvents.Sheet[TemporaryAbsent].ColumnHeadersAliases" value="FIO; Vacation; DepartureDate; DurationDays; VhNo"/>
+    <item key="AbsenceEvents.Sheet[TemporaryAbsent].Map[FIO]" value="66"/>
+    <item key="AbsenceEvents.Sheet[TemporaryAbsent].Map[Vacation]" value="69"/>
+    <item key="AbsenceEvents.Sheet[TemporaryAbsent].Map[DepartureDate]" value="70"/>
+    <item key="AbsenceEvents.Sheet[TemporaryAbsent].Map[DurationDays]" value="72"/>
+    <item key="AbsenceEvents.Sheet[TemporaryAbsent].Map[VhNo]" value="Стовпець1"/>
+
     <item attr="#" key="Hospitals source" value=""/>
     <item key="Source.HospitalsCommanders.FilePath" value="C:\WORK Alexandr Bondarenko\НАКАЗИ\Лікарні та Командири.xlsx"/>
     <item key="Source.HospitalsCommanders.SheetsAliases" value="Dictionary"/>
@@ -32,52 +43,67 @@
 
     <item attr="#" key="Main table columns" value=""/>
     <item key="EntityLookup.ProfilesProviderClass" value="obj_PrsnlEvntBuilderData"/>
-    <item key="EntityLookup.Table.Columns" value="Hospital; HospitalShort; Vacation; Rank; FIO; IPN; PositionCode; PositionName; ReportRank; ReportPerson; ReportPositionCode; IncomingNo; IncomingDate; DocumentNote; DocNo; DocDate; DurationDays; DateFrom; DateTo; VhNo; VhDate; VlkNo; VlkDate"/>
-    <item key="EntityLookup.Table.Column[Hospital].Caption" value="Лікарня"/>
-    <item key="EntityLookup.Table.Column[HospitalShort].Caption" value="Лікарня скорочена назва"/>
-    <item key="EntityLookup.Table.Column[Vacation].Caption" value="Відпустка"/>
-    <item key="EntityLookup.Table.Column[Rank].Caption" value="Звання"/>
-    <item key="EntityLookup.Table.Column[FIO].Caption" value="ПІБ"/>
-    <item key="EntityLookup.Table.Column[IPN].Caption" value="ІПН"/>
-    <item key="EntityLookup.Table.Column[PositionCode].Caption" value="Код посади"/>
-    <item key="EntityLookup.Table.Column[PositionName].Caption" value="Посада"/>
-    <item key="EntityLookup.Table.Column[ReportRank].Caption" value="Звання (рапорт)"/>
-    <item key="EntityLookup.Table.Column[ReportPerson].Caption" value="ФІО (рапорт)"/>
-    <item key="EntityLookup.Table.Column[ReportPositionCode].Caption" value="Код посади (рапорт)"/>
-    <item key="EntityLookup.Table.Column[IncomingNo].Caption" value="Вх. №"/>
-    <item key="EntityLookup.Table.Column[IncomingDate].Caption" value="Вх. дата"/>
-    <item key="EntityLookup.Table.Column[DocumentNote].Caption" value="Документ / Замітки"/>
-    <item key="EntityLookup.Table.Column[DocNo].Caption" value="Док. №"/>
-    <item key="EntityLookup.Table.Column[DocDate].Caption" value="Док. дата"/>
-    <item key="EntityLookup.Table.Column[DurationDays].Caption" value="На скільки"/>
-    <item key="EntityLookup.Table.Column[DateFrom].Caption" value="З"/>
-    <item key="EntityLookup.Table.Column[DateTo].Caption" value="По"/>
-    <item key="EntityLookup.Table.Column[VhNo].Caption" value="В/к №"/>
-    <item key="EntityLookup.Table.Column[VhDate].Caption" value="В/к дата"/>
-    <item key="EntityLookup.Table.Column[VlkNo].Caption" value="ВЛК №"/>
-    <item key="EntityLookup.Table.Column[VlkDate].Caption" value="ВЛК дата"/>
+    <item key="EntityLookup.Table.Columns" value="_Hospital; _HospitalShort; _Vacation; _Rank; _FIO; _IPN; _PositionCode; _PositionName; _ReportRank; _ReportPerson; _ReportPositionCode; _IncomingNo; _IncomingDate; _DocumentNote; _DocNo; _DocDate; _DurationDays; _DateFrom; _DateTo; _VhNo; _VhDate; _VlkNo; _VlkDate"/>
+    <item key="EntityLookup.Table.Column[_Hospital].Caption" value="Лікарня"/>
+    <item key="EntityLookup.Table.Column[_HospitalShort].Caption" value="Лікарня скорочена назва"/>
+    <item key="EntityLookup.Table.Column[_Vacation].Caption" value="Відпустка"/>
+    <item key="EntityLookup.Table.Column[_Rank].Caption" value="Звання"/>
+    <item key="EntityLookup.Table.Column[_FIO].Caption" value="ПІБ"/>
+    <item key="EntityLookup.Table.Column[_IPN].Caption" value="ІПН"/>
+    <item key="EntityLookup.Table.Column[_PositionCode].Caption" value="Код посади"/>
+    <item key="EntityLookup.Table.Column[_PositionName].Caption" value="Посада"/>
+    <item key="EntityLookup.Table.Column[_ReportRank].Caption" value="Звання (рапорт)"/>
+    <item key="EntityLookup.Table.Column[_ReportPerson].Caption" value="ФІО (рапорт)"/>
+    <item key="EntityLookup.Table.Column[_ReportPositionCode].Caption" value="Код посади (рапорт)"/>
+    <item key="EntityLookup.Table.Column[_IncomingNo].Caption" value="Вх. №"/>
+    <item key="EntityLookup.Table.Column[_IncomingDate].Caption" value="Вх. дата"/>
+    <item key="EntityLookup.Table.Column[_DocumentNote].Caption" value="Документ / Замітки"/>
+    <item key="EntityLookup.Table.Column[_DocNo].Caption" value="Док. №"/>
+    <item key="EntityLookup.Table.Column[_DocDate].Caption" value="Док. дата"/>
+    <item key="EntityLookup.Table.Column[_DurationDays].Caption" value="На скільки"/>
+    <item key="EntityLookup.Table.Column[_DateFrom].Caption" value="З"/>
+    <item key="EntityLookup.Table.Column[_DateTo].Caption" value="По"/>
+    <item key="EntityLookup.Table.Column[_VhNo].Caption" value="В/к №"/>
+    <item key="EntityLookup.Table.Column[_VhDate].Caption" value="В/к дата"/>
+    <item key="EntityLookup.Table.Column[_VlkNo].Caption" value="ВЛК №"/>
+    <item key="EntityLookup.Table.Column[_VlkDate].Caption" value="ВЛК дата"/>
 
     <item attr="#" key="Lookup bindings" value=""/>
-    <item key="EntityLookup.Lookups" value="Hospital; FIO; Commander; DocumentNote"/>
-    <item key="EntityLookup.Lookup[Hospital].TargetColumn" value="Hospital"/>
-    <item key="EntityLookup.Lookup[Hospital].CandidatesSectionCaption" value="Hospital candidates"/>
-    <item key="EntityLookup.Lookup[Hospital].SearchColumnAlias" value="HospitalsCommanders.Sheet[Dictionary].Column[HospitalName]"/>
-    <item key="EntityLookup.Lookup[Hospital].ResultColumnsAliases" value="HospitalName; HospitalShort"/>
+    <item key="EntityLookup.Lookups" value="op_Hospital; op_FIO; op_Commander; op_DocumentNote"/>
+    <item key="EntityLookup.Lookup[op_Hospital].TargetColumn" value="EntityLookup.Table.Column[_Hospital]"/>
+    <item key="EntityLookup.Lookup[op_Hospital].CandidatesSectionCaption" value="Hospital candidates"/>
+    <item key="EntityLookup.Lookup[op_Hospital].SearchColumnAlias" value="HospitalsCommanders.Sheet[Dictionary].Column[HospitalName]"/>
+    <item key="EntityLookup.Lookup[op_Hospital].ResultColumnsAliases[HospitalsCommanders.Sheet[Dictionary].Column[HospitalName]]" value="EntityLookup.Table.Column[_Hospital]"/>
+    <item key="EntityLookup.Lookup[op_Hospital].ResultColumnsAliases[HospitalsCommanders.Sheet[Dictionary].Column[HospitalShort]]" value="EntityLookup.Table.Column[_HospitalShort]"/>
 
-    <item key="EntityLookup.Lookup[FIO].TargetColumn" value="FIO"/>
-    <item key="EntityLookup.Lookup[FIO].CandidatesSectionCaption" value="Candidates"/>
-    <item key="EntityLookup.Lookup[FIO].SearchColumnAlias" value="Personnel.Sheet[StateMain].Column[FIO]"/>
-    <item key="EntityLookup.Lookup[FIO].ResultColumnsAliases" value="Rank; FIO; IPN; PositionCode; PositionName"/>
+    <item key="EntityLookup.Lookup[op_FIO].TargetColumn" value="EntityLookup.Table.Column[_FIO]"/>
+    <item key="EntityLookup.Lookup[op_FIO].CandidatesSectionCaption" value="Candidates"/>
+    <item key="EntityLookup.Lookup[op_FIO].SearchColumnAlias" value="Personnel.Sheet[StateMain].Column[FIO]"/>
+    <item key="EntityLookup.Lookup[op_FIO].ResultColumnsAliases[Personnel.Sheet[StateMain].Column[Rank]]" value="EntityLookup.Table.Column[_Rank]"/>
+    <item key="EntityLookup.Lookup[op_FIO].ResultColumnsAliases[Personnel.Sheet[StateMain].Column[FIO]]" value="EntityLookup.Table.Column[_FIO]"/>
+    <item key="EntityLookup.Lookup[op_FIO].ResultColumnsAliases[Personnel.Sheet[StateMain].Column[IPN]]" value="EntityLookup.Table.Column[_IPN]"/>
+    <item key="EntityLookup.Lookup[op_FIO].ResultColumnsAliases[Personnel.Sheet[StateMain].Column[PositionCode]]" value="EntityLookup.Table.Column[_PositionCode]"/>
+    <item key="EntityLookup.Lookup[op_FIO].ResultColumnsAliases[Personnel.Sheet[StateMain].Column[PositionName]]" value="EntityLookup.Table.Column[_PositionName]"/>
 
-    <item key="EntityLookup.Lookup[Commander].TargetColumn" value="ReportPerson"/>
-    <item key="EntityLookup.Lookup[Commander].CandidatesSectionCaption" value="Commander candidates"/>
-    <item key="EntityLookup.Lookup[Commander].SearchColumnAlias" value="Personnel.Sheet[StateMain].Column[FIO]"/>
-    <item key="EntityLookup.Lookup[Commander].ResultColumnsAliases" value="Rank=>ReportRank; FIO=>ReportPerson; PositionCode=>ReportPositionCode"/>
+    <!-- This lookup is invoked only by PrsnlEvntBuilder code after the main FIO lookup. -->
+    <item key="EntityLookup.Lookup[op_FIOAbsenceExtension].TargetColumn" value="EntityLookup.Table.Column[_FIO]"/>
+    <item key="EntityLookup.Lookup[op_FIOAbsenceExtension].SearchColumnAlias" value="AbsenceEvents.Sheet[TemporaryAbsent].Column[FIO]"/>
+    <item key="EntityLookup.Lookup[op_FIOAbsenceExtension].ResultColumnsAliases[AbsenceEvents.Sheet[TemporaryAbsent].Column[FIO]]" value="EntityLookup.Table.Column[_FIO]"/>
+    <item key="EntityLookup.Lookup[op_FIOAbsenceExtension].ResultColumnsAliases[AbsenceEvents.Sheet[TemporaryAbsent].Column[Vacation]]" value="EntityLookup.Table.Column[_Vacation]"/>
+    <item key="EntityLookup.Lookup[op_FIOAbsenceExtension].ResultColumnsAliases[AbsenceEvents.Sheet[TemporaryAbsent].Column[DurationDays]]" value="EntityLookup.Table.Column[_DurationDays]"/>
+    <item key="EntityLookup.Lookup[op_FIOAbsenceExtension].ResultColumnsAliases[AbsenceEvents.Sheet[TemporaryAbsent].Column[VhNo]]" value="EntityLookup.Table.Column[_VhNo]"/>
 
-    <item key="EntityLookup.Lookup[DocumentNote].TargetColumn" value="DocumentNote"/>
-    <item key="EntityLookup.Lookup[DocumentNote].CandidatesSectionCaption" value="Document candidates"/>
-    <item key="EntityLookup.Lookup[DocumentNote].SearchColumnAlias" value="Documents.Sheet[Dictionary].Column[DocumentName]"/>
-    <item key="EntityLookup.Lookup[DocumentNote].ResultColumnsAliases" value="DocumentName=>DocumentNote"/>
+    <item key="EntityLookup.Lookup[op_Commander].TargetColumn" value="EntityLookup.Table.Column[_ReportPerson]"/>
+    <item key="EntityLookup.Lookup[op_Commander].CandidatesSectionCaption" value="Commander candidates"/>
+    <item key="EntityLookup.Lookup[op_Commander].SearchColumnAlias" value="Personnel.Sheet[StateMain].Column[FIO]"/>
+    <item key="EntityLookup.Lookup[op_Commander].ResultColumnsAliases[Personnel.Sheet[StateMain].Column[Rank]]" value="EntityLookup.Table.Column[_ReportRank]"/>
+    <item key="EntityLookup.Lookup[op_Commander].ResultColumnsAliases[Personnel.Sheet[StateMain].Column[FIO]]" value="EntityLookup.Table.Column[_ReportPerson]"/>
+    <item key="EntityLookup.Lookup[op_Commander].ResultColumnsAliases[Personnel.Sheet[StateMain].Column[PositionCode]]" value="EntityLookup.Table.Column[_ReportPositionCode]"/>
+
+    <item key="EntityLookup.Lookup[op_DocumentNote].TargetColumn" value="EntityLookup.Table.Column[_DocumentNote]"/>
+    <item key="EntityLookup.Lookup[op_DocumentNote].CandidatesSectionCaption" value="Document candidates"/>
+    <item key="EntityLookup.Lookup[op_DocumentNote].SearchColumnAlias" value="Documents.Sheet[Dictionary].Column[DocumentName]"/>
+    <item key="EntityLookup.Lookup[op_DocumentNote].ResultColumnsAliases[Documents.Sheet[Dictionary].Column[DocumentName]]" value="EntityLookup.Table.Column[_DocumentNote]"/>
 
     <item attr="#" key="Export" value=""/>
     <item key="Export.Daily.ExporterClass" value="obj_PEB_ExptrDailyScope"/>
