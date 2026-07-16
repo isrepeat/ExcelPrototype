@@ -45,6 +45,7 @@ Private Const EXPORT_FORM_META_RUNTIME_KEY As String = "RuntimeItems.PrsnlEvntBu
 Private Const HOTKEY_ACCEPT_CANDIDATE_ROW As String = "Accept Candidate Row"
 Private Const HOTKEY_SELECT_FORM_ROW As String = "Select Form Row"
 Private Const HOTKEY_APPLY_EXPORT_FORM As String = "Apply Export Form"
+Private Const HOTKEY_CLEAR_EXPORT_FORM As String = "Clear Export Form"
 Private Const HOTKEY_EXPORT_TO_WORD As String = "Export to WORD"
 Private Const EXPORT_ACTION_PREFIX As String = "Export "
 Private Const DEFAULT_EXPORTER_CLASS As String = "obj_PEB_ExptrDailyScope"
@@ -451,6 +452,14 @@ Public Function RuntimeHandleHotkeyAction(ByVal actionId As Variant) As Boolean
             RuntimeHandleHotkeyAction = True
             Exit Function
 
+        Case VBA.LCase$(HOTKEY_CLEAR_EXPORT_FORM)
+            If Not Me.RuntimeClearExportFormAndCandidates() Then
+                RuntimeHandleHotkeyAction = True
+                Exit Function
+            End If
+            RuntimeHandleHotkeyAction = True
+            Exit Function
+
         Case Else
             Exit Function
     End Select
@@ -463,6 +472,47 @@ EH:
 #If LOGGING_DEBUG_ENABLED Then
     ex_Core.fn_Diagnostic_LogError "prsnlevntbuilder:hotkey-action:error action='" & private_EscapeForLog(actionText) & "' cell='" & private_EscapeForLog(cellAddress) & "' errNo=" & VBA.CStr(Err.Number) & " err='" & private_EscapeForLog(Err.Description) & "'"
 #End If
+End Function
+
+Public Function RuntimeClearExportFormAndCandidates() As Boolean
+    Dim pageBase As obj_PageBase
+    Dim draftValuesRange As Range
+    Dim previousEnableEvents As Boolean
+
+    If m_Page Is Nothing Then Exit Function
+    Set pageBase = m_Page.GetPageBase()
+    If pageBase Is Nothing Then Exit Function
+    If Not pageBase.TryGetLayoutContainerRange( _
+        EVENT_DRAFT_VALUES_CONTAINER_NAME, draftValuesRange) Then Exit Function
+    If draftValuesRange Is Nothing Then Exit Function
+
+    previousEnableEvents = Application.EnableEvents
+    On Error GoTo RestoreEventsAndFail
+    Application.EnableEvents = False
+
+    draftValuesRange.ClearContents
+    private_ClearExportFormState
+    m_WordExportPreviewText = VBA.vbNullString
+
+    If Not m_LookupFeature Is Nothing Then
+        If Not m_LookupFeature.ClearLookupCandidates(False) Then GoTo RestoreEventsAndFail
+    End If
+    If Not private_RegisterExportFormTables(False) Then GoTo RestoreEventsAndFail
+
+    RuntimeClearExportFormAndCandidates = rt_PageManager.fn_RenderPage( _
+        m_Page, "prsnlevntbuilder:clear-export-form-and-candidates")
+
+    Application.EnableEvents = previousEnableEvents
+    On Error GoTo 0
+    If RuntimeClearExportFormAndCandidates Then
+        rt_Messaging.fn_ShowStatusBarSuccess "Export form and candidates cleared.", 3
+    End If
+    Exit Function
+
+RestoreEventsAndFail:
+    On Error Resume Next
+    Application.EnableEvents = previousEnableEvents
+    On Error GoTo 0
 End Function
 
 Public Function OnExportToWordClick(Optional ByVal ignored As Variant) As Boolean
@@ -489,6 +539,34 @@ Public Function OnClearWordDocumentClick(Optional ByVal ignored As Variant) As B
 
     rt_Messaging.fn_ShowStatusBarSuccess "WORD document: removed anchor blocks: " & VBA.CStr(clearedBlockCount), 3
     OnClearWordDocumentClick = True
+End Function
+
+Public Function OnRegroupWordHospitalPointsClick(Optional ByVal ignored As Variant) As Boolean
+    Dim exporter As obj_IDataExporter
+    Dim exporterClassName As String
+    Dim exportConfigTable As obj_ConfigTable
+    Dim regroupedPointCount As Long
+
+    ' Кнопка использует тот же кэшированный WORD exporter, что экспорт и
+    ' удаление якорей, поэтому путь result-документа определяется единообразно.
+    If Not private_TryGetExportSettings("Word", exporterClassName, exportConfigTable) Then
+        VBA.MsgBox "PrototypeNew: Export.Word settings are missing.", _
+            VBA.vbExclamation, "PrototypeNew / WORD document"
+        Exit Function
+    End If
+    If VBA.StrComp(exporterClassName, "obj_PEB_ExptrWord", VBA.vbTextCompare) <> 0 Then
+        VBA.MsgBox "PrototypeNew: WORD document actions require obj_PEB_ExptrWord, configured: " & _
+            exporterClassName, VBA.vbExclamation, "PrototypeNew / WORD document"
+        Exit Function
+    End If
+    If Not private_TryCreateDataExporter(exporterClassName, exportConfigTable, exporter) Then Exit Function
+    If m_CachedWordExporter Is Nothing Then Exit Function
+    If Not m_CachedWordExporter.RegroupResultDocumentHospitalPoints( _
+        regroupedPointCount) Then Exit Function
+
+    rt_Messaging.fn_ShowStatusBarSuccess _
+        "WORD document: grouped hospital points: " & VBA.CStr(regroupedPointCount), 3
+    OnRegroupWordHospitalPointsClick = True
 End Function
 
 Private Function private_TryExportWordToDocument() As Boolean
@@ -1866,6 +1944,7 @@ Private Function private_EnsureHotkeyRows(ByVal notifyChange As Boolean) As Bool
                 If Not private_EnsureHotkeyRow(hotkeyRows, HOTKEY_EXPORT_TO_WORD, "CTRL+4", hasChanges) Then Exit Function
                 If Not private_EnsureHotkeyRow(hotkeyRows, HOTKEY_SELECT_FORM_ROW, "SHIFT+SPACE", hasChanges) Then Exit Function
                 If Not private_EnsureHotkeyRow(hotkeyRows, HOTKEY_APPLY_EXPORT_FORM, "ALT+ARROWDOWN", hasChanges) Then Exit Function
+                If Not private_EnsureHotkeyRow(hotkeyRows, HOTKEY_CLEAR_EXPORT_FORM, "ALT+ARROWUP", hasChanges) Then Exit Function
                 If hasChanges Then
                     If Not runtimeSources.RemoveItemsSource(VBA.LCase$(HOTKEYS_RUNTIME_KEY)) Then Exit Function
                     If Not runtimeSources.SetItemsSource(VBA.LCase$(HOTKEYS_RUNTIME_KEY), hotkeyRows, notifyChange) Then Exit Function
@@ -1887,6 +1966,7 @@ Private Function private_EnsureHotkeyRows(ByVal notifyChange As Boolean) As Bool
     If Not private_AddHotkeyRow(hotkeyRows, HOTKEY_EXPORT_TO_WORD, "CTRL+4") Then Exit Function
     If Not private_AddHotkeyRow(hotkeyRows, HOTKEY_SELECT_FORM_ROW, "SHIFT+SPACE") Then Exit Function
     If Not private_AddHotkeyRow(hotkeyRows, HOTKEY_APPLY_EXPORT_FORM, "ALT+ARROWDOWN") Then Exit Function
+    If Not private_AddHotkeyRow(hotkeyRows, HOTKEY_CLEAR_EXPORT_FORM, "ALT+ARROWUP") Then Exit Function
 
     If Not runtimeSources.RemoveItemsSource(VBA.LCase$(HOTKEYS_RUNTIME_KEY)) Then Exit Function
     If Not runtimeSources.SetItemsSource(VBA.LCase$(HOTKEYS_RUNTIME_KEY), hotkeyRows, notifyChange) Then Exit Function

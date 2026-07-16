@@ -27,7 +27,7 @@ Private Const SECTION_TYPE_TRANSFER_VLK_TO_TREATMENT_VACATION As String = "Зм�
 Private Const SECTION_TYPE_TRANSFER_VLK_TO_TREATMENT As String = "Зміна місця перебування влк => лікування"
 Private Const SECTION_TYPE_TRANSFER_MEDICAL_COMPANY_TO_TREATMENT As String = "Зміна місця перебування мед рота => лікування"
 Private Const SECTION_TYPE_TO_BUSINESS_TRIP As String = "У відрядження"
-Private Const SECTION_TYPE_TO_BUSINESS_TRIP_SZCH As String = "У відрядження сзч"
+Private Const SECTION_TYPE_TO_BUSINESS_TRIP_SZCH As String = "У відрядження СЗЧ"
 Private Const META_SECTION_TYPE_TVO As String = "Мета: ТВО"
 Private Const META_SECTION_TYPE_DOCUMENT As String = "Мета: документ"
 
@@ -86,6 +86,7 @@ Private Const MOVEMENT_EVENT_FAMILY_VACATION As String = "Відпустка з�
 Private Const MOVEMENT_EVENT_TREATMENT_VACATION As String = "Відпустка для лікування"
 Private Const MOVEMENT_EVENT_AMBULATORY_VLK As String = "Амбулаторне ВЛК"
 Private Const MOVEMENT_EVENT_STATIONARY_VLK As String = "Стаціонарне ВЛК"
+Private Const MOVEMENT_EVENT_BUSINESS_TRIP As String = "Відрядження"
 
 Private m_ProfileNames As Collection
 Private m_MetaProfileNames As Collection
@@ -328,6 +329,8 @@ Public Function ShouldWriteMovementSpecialOpeningFields(ByVal sectionTypeText As
         Case private_NormalizeText(SECTION_TYPE_TO_ANNUAL_VACATION_PART), _
              private_NormalizeText(SECTION_TYPE_TO_FAMILY_VACATION), _
              private_NormalizeText(SECTION_TYPE_TO_TREATMENT_VACATION), _
+             private_NormalizeText(SECTION_TYPE_TO_BUSINESS_TRIP), _
+             private_NormalizeText(SECTION_TYPE_TO_BUSINESS_TRIP_SZCH), _
              private_NormalizeText(SECTION_TYPE_TRANSFER_TREATMENT_TO_TREATMENT_VACATION), _
              private_NormalizeText(SECTION_TYPE_TRANSFER_TREATMENT_VACATION_TO_TREATMENT_VACATION), _
              private_NormalizeText(SECTION_TYPE_TRANSFER_TREATMENT_VACATION_TO_TREATMENT), _
@@ -342,6 +345,8 @@ Public Function UsesMovementVacationDestination(ByVal sectionTypeText As String)
         Case private_NormalizeText(SECTION_TYPE_TO_ANNUAL_VACATION_PART), _
              private_NormalizeText(SECTION_TYPE_TO_FAMILY_VACATION), _
              private_NormalizeText(SECTION_TYPE_TO_TREATMENT_VACATION), _
+             private_NormalizeText(SECTION_TYPE_TO_BUSINESS_TRIP), _
+             private_NormalizeText(SECTION_TYPE_TO_BUSINESS_TRIP_SZCH), _
              private_NormalizeText(SECTION_TYPE_TRANSFER_TREATMENT_TO_TREATMENT_VACATION), _
              private_NormalizeText(SECTION_TYPE_TRANSFER_TREATMENT_VACATION_TO_TREATMENT_VACATION), _
              private_NormalizeText(SECTION_TYPE_TRANSFER_VLK_TO_TREATMENT_VACATION)
@@ -381,6 +386,10 @@ Public Function TryMapMovementSectionTypeToEventText( _
 
         Case private_NormalizeText(SECTION_TYPE_TO_AMBULATORY_VLK)
             outEventText = MOVEMENT_EVENT_AMBULATORY_VLK
+
+        Case private_NormalizeText(SECTION_TYPE_TO_BUSINESS_TRIP), _
+             private_NormalizeText(SECTION_TYPE_TO_BUSINESS_TRIP_SZCH)
+            outEventText = MOVEMENT_EVENT_BUSINESS_TRIP
     End Select
 
     TryMapMovementSectionTypeToEventText = (VBA.Len(outEventText) > 0)
@@ -516,13 +525,6 @@ Private Function private_ProfileVisibleTags(ByVal profileText As String) As Obje
     profileTag = VBA.Trim$(VBA.CStr(m_ProfileTagBySectionType(profileKey)))
     private_AddProfileTag result, profileTag
     If Not private_IsMetaProfileTag(profileTag) Then private_AddProfileTag result, PROFILE_TAG_CORE
-
-    ' Для профилей без отдельной настройки формы показываем все колонки,
-    ' помеченные wildcard-тегом profile.allFields.
-    Select Case profileTag
-        Case PROFILE_TAG_TO_BUSINESS_TRIP, PROFILE_TAG_TO_BUSINESS_TRIP_SZCH
-            private_AddProfileTag result, PROFILE_TAG_ALL_FIELDS
-    End Select
 
     Set private_ProfileVisibleTags = result
 End Function

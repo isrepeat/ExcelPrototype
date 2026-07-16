@@ -827,8 +827,13 @@ Private Function private_TryBuildMovementBasisSummary( _
     If VBA.Len(reporterText) = 0 Then reporterText = "військовослужбовця"
     If Not isReporterTvo Then reporterText = private_LowerFirstLetter(reporterText)
 
+    incomingNoText = m_DataProvider.NormalizeIncomingNoForExport(incomingNoText)
     orderNoText = private_GetContextText(context, MOVEMENT_CONTEXT_MANUAL_ORDER_NO)
     If VBA.Len(orderNoText) = 0 Then orderNoText = incomingNoText
+
+    ' Блок входящего документа добавляем, если указан хотя бы один реквизит.
+    ' Номер и дата формируются независимо; весь блок пропускается только тогда,
+    ' когда оба значения пустые.
     If VBA.Len(incomingDateText) > 0 Then
         If Not private_TryParseIncomingDateWithOrderContext(incomingDateText, orderNoText, incomingDateValue) Then
             VBA.MsgBox "PrototypeNew: failed to resolve full date for '" & MOVEMENT_SOURCE_INCOMING_DATE & _
@@ -838,7 +843,6 @@ Private Function private_TryBuildMovementBasisSummary( _
         incomingDateResolvedText = VBA.Format$(incomingDateValue, "dd.mm.yyyy")
     End If
 
-    incomingNoText = m_DataProvider.NormalizeIncomingNoForExport(incomingNoText)
     If VBA.Len(incomingNoText) > 0 Then basisDetailsText = "вх. № " & incomingNoText
     If VBA.Len(incomingDateResolvedText) > 0 Then
         If VBA.Len(basisDetailsText) > 0 Then basisDetailsText = basisDetailsText & " "
