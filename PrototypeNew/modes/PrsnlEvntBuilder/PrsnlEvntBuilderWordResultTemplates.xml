@@ -37,16 +37,16 @@
     <sharedTemplate id="block.OptionalBasisDocuments">
       <text>
         <![CDATA[#^
-        {#if [DocumentNote] #or [DocNo] #or [DocDateShort]}; {[DocumentNote]|lowerFirstLetter}#^
+        {#if [DocumentNote] #and [DocNo] #or [DocumentNote] #and [DocDateShort]}; {[DocumentNote]|lowerFirstLetter}#^
 #_        {#if [DocNo]}{#space}№ {[DocNo]}{#endif}#^
-#_        {#if [DocDateShort]}{#space}від {[DocDateShort]|dateformat:"\dd \month \yyyy року"}{#endif}#^
+#_        {#if [DocDateShort]}{#space}від {[DocDateShort]}{#endif}#^
 #_        {#endif}#^
 #_        {#for item in MetaDocumentTables}#^
-#_          {#if item.[DocumentNote] #or item.[DocNo] #or item.[DocDateShort]}#^
-#_            {#if [DocumentNote]}; {#else}{#if #not item.__first}; {#endif}{#endif}#^
+#_          {#if item.[DocumentNote] #and item.[DocNo] #or item.[DocumentNote] #and item.[DocDateShort]}#^
+#_            {#if [DocumentNote] #and [DocNo] #or [DocumentNote] #and [DocDateShort]}; {#else}{#if #not item.__first}; {#endif}{#endif}#^
 #_            {item.[DocumentNote]|lowerFirstLetter}#^
 #_            {#if item.[DocNo]}{#space}№ {item.[DocNo]}{#endif}#^
-#_            {#if item.[DocDateShort]}{#space}від {item.[DocDateShort]|dateformat:"\dd \month \yyyy року"}{#endif}#^
+#_            {#if item.[DocDateShort]}{#space}від {item.[DocDateShort]}{#endif}#^
 #_          {#endif}#^
 #_        {#endfor}#^
         ]]>
@@ -159,7 +159,7 @@
     <sharedTemplate id="block.OptionalVlkCertificate">
       <text>
         <![CDATA[#^
-#_        {#if [VlkNo] #or [VlkDateShort]}; довідка військово-лікарської комісії{#if [VlkNo]} № {[VlkNo]}{#endif}{#if [VlkDateShort]} від {[VlkDateShort]|dateformat:"\dd \month \yyyy року"}{#endif}{#endif}#^
+#_        {#if [VlkNo] #or [VlkDateShort]}; довідка військово-лікарської комісії{#if [VlkNo]} № {[VlkNo]}{#endif}{#if [VlkDateShort]} від {[VlkDateShort]}{#endif}{#endif}#^
         ]]>
       </text>
     </sharedTemplate>
@@ -167,7 +167,7 @@
     <sharedTemplate id="block.OptionalVacationTicket">
       <text>
         <![CDATA[#^
-#_        {#if [VhNo] #or [VhDateShort]}; відпускний квиток{#if [VhNo]} № 2026/{[OrderNo]}/{[VhNo]}{#endif}{#if [VhDateShort]} від {[VhDateShort]|dateformat:"\dd \month \yyyy року"}{#endif}{#endif}#^
+#_        {#if [VhNo] #or [VhDateShort]}; відпускний квиток{#if [VhNo]} № 2026/{[OrderNo]}/{[VhNo]}{#endif}{#if [VhDateShort]} від {[VhDateShort]}{#endif}{#endif}#^
         ]]>
       </text>
     </sharedTemplate>
@@ -175,7 +175,7 @@
     <sharedTemplate id="block.OptionalPreviousVacationTicket">
       <text>
         <![CDATA[#^
-#_        {#if [PrevVkNum] #or [PrevVkDateShort]}; відпускний квиток{#if [PrevVkNum]} № {[PrevVkNum]}{#endif}{#if [PrevVkDateShort]} від {[PrevVkDateShort]|dateformat:"\dd \month \yyyy року"}{#endif}{#endif}#^
+#_        {#if [PrevVkNum] #or [PrevVkDateShort]}; відпускний квиток{#if [PrevVkNum]} № {[PrevVkNum]}{#endif}{#if [PrevVkDateShort]} від {[PrevVkDateShort]}{#endif}{#endif}#^
         ]]>
       </text>
     </sharedTemplate>
@@ -308,7 +308,7 @@
 #_      {#newline}#^
 #_      {#include block.IncomingBasis}#^
 #_      {#include block.OptionalBasisDocuments}#^
-#_      ; відпускний квиток № 2026/{[OrderNo]}/{[VhNo]} від {[VhDateShort]|dateformat:"\dd \month \yyyy року"}#^
+#_      ; відпускний квиток № 2026/{[OrderNo]}/{[VhNo]} від {[VhDateShort]}#^
 #_      .{#newline}{#newline}#^
       ]]>
     </text>
@@ -376,7 +376,7 @@
     <text>
       <![CDATA[#^
 #_      {#include block.StatusChangePersonLine}#^
-#_      який перебував на лікуванні у {[HospitalAccusative]|lowerFirstLetter}, вважати таким, що вибув у відпустку для лікування#^
+#_      який перебував на лікуванні у {[HospitalDative]|lowerFirstLetter}, вважати таким, що вибув у відпустку для лікування#^
 #_      {#include block.VacationDestinationPeriod}#^
 #_      {#newline}#^
 #_      {#include block.IncomingBasis}#^

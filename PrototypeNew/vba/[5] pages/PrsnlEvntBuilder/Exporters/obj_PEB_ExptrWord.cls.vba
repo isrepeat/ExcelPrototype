@@ -48,6 +48,7 @@ Private Const WORD_ALIAS_FIO_DATIVE As String = "FIODative"
 Private Const WORD_ALIAS_POSITION_DATIVE As String = "PositionDative"
 Private Const WORD_ALIAS_HOSPITAL_GENITIVE As String = "HospitalGenitive"
 Private Const WORD_ALIAS_HOSPITAL_ACCUSATIVE As String = "HospitalAccusative"
+Private Const WORD_ALIAS_HOSPITAL_DATIVE As String = "HospitalDative"
 Private Const WORD_ALIAS_REPORT_RANK_GENITIVE As String = "ReportRankGenitive"
 Private Const WORD_ALIAS_REPORT_PERSON_GENITIVE As String = "ReportPersonGenitive"
 Private Const WORD_ALIAS_REPORT_PERSON_INITIALS_GENITIVE As String = "ReportPersonInitialsGenitive"
@@ -90,8 +91,13 @@ Private Const WORD_ANCHOR_PREFIX As String = "{\export:"
 Private Const WORD_ANCHOR_BEGIN_SUFFIX As String = "_Begin}"
 Private Const WORD_ANCHOR_END_SUFFIX As String = "_End}"
 Private Const WD_FIND_STOP As Long = 0
+' PEB_* охватывает весь экспортированный пункт человека. Вложенная PEM_*
+' охватывает первый символ пункта и хранит ключ сортировки в своём имени.
 Private Const WORD_RECORD_BOOKMARK_PREFIX As String = "PEB_"
+Private Const WORD_METADATA_BOOKMARK_PREFIX As String = "PEM_"
 Private Const WORD_BOOKMARK_MAX_LENGTH As Long = 40
+Private Const WORD_TEMPLATE_TO_HOSPITAL As String = "ToHospital"
+Private Const WORD_TEMPLATE_FROM_HOSPITAL As String = "FromHospital"
 Private Const REPORT_TVO_TEXT As String = "тимчасово виконуючого обов'язки"
 Private Const META_SECTION_TYPE_DOCUMENT As String = "Мета: документ"
 Private Const META_SECTION_TYPE_TVO As String = "Мета: ТВО"
@@ -182,6 +188,8 @@ Public Function Export( _
     Dim latestMovementRecord As Object
     Dim builderData As obj_PrsnlEvntBuilderData
     Dim validationEnabled As Boolean
+    Dim groupingHospitalShort As String
+    Dim groupingDateShort As String
 
     If VBA.StrComp(private_GetContextText(context, "ExportMode"), "Rewrite Last", VBA.vbTextCompare) = 0 Then
         VBA.MsgBox "PrototypeNew: WORD exporter does not support Rewrite Last because it generates a preview and does not persist person records.", VBA.vbExclamation, "PrototypeNew / WORD export"
@@ -234,7 +242,21 @@ Public Function Export( _
             VBA.MsgBox "PrototypeNew: WORD export requires a non-empty IPN to create a record bookmark.", VBA.vbExclamation, "PrototypeNew / WORD export"
             Exit Function
         End If
-        If Not private_TryAppendBeforeWordEndAnchor(templateId, recordIpn, previewText) Then Exit Function
+        If private_IsHospitalGroupingTemplate(templateId) Then
+            ' Метаданные нужны только двум больничным секциям. Значения берём
+            ' из уже обогащённого WORD-контекста. Как и WORD-шаблон FromHospital,
+            ' при пустом поле "З" используем дату входящего документа.
+            If Not private_TryGetMainTableValue( _
+                sourceTable, SOURCE_ALIAS_HOSPITAL_SHORT, groupingHospitalShort) Then Exit Function
+            If Not private_TryGetMainTableValue( _
+                sourceTable, WORD_ALIAS_DATE_FROM_SHORT, groupingDateShort) Then Exit Function
+            If VBA.Len(VBA.Trim$(groupingDateShort)) = 0 Then
+                If Not private_TryGetMainTableValue( _
+                    sourceTable, WORD_ALIAS_INCOMING_DATE_SHORT, groupingDateShort) Then Exit Function
+            End If
+        End If
+        If Not private_TryAppendBeforeWordEndAnchor( _
+            templateId, recordIpn, previewText, groupingHospitalShort, groupingDateShort) Then Exit Function
     End If
 
     Export = True
@@ -243,7 +265,9 @@ End Function
 Private Function private_TryAppendBeforeWordEndAnchor( _
     ByVal templateId As String, _
     ByVal recordIpn As String, _
-    ByVal renderedText As String _
+    ByVal renderedText As String, _
+    Optional ByVal groupingHospitalShort As String = "", _
+    Optional ByVal groupingDateShort As String = "" _
 ) As Boolean
     Dim targetPath As String
     Dim templatePath As String
@@ -252,6 +276,7 @@ Private Function private_TryAppendBeforeWordEndAnchor( _
     Dim wordApp As Object
     Dim wordDoc As Object
     Dim beginRange As Object
+    Dim endSearchRange As Object
     Dim endRange As Object
     Dim insertRange As Object
     Dim insertedStart As Long
@@ -260,6 +285,8 @@ Private Function private_TryAppendBeforeWordEndAnchor( _
     Dim documentOpened As Boolean
     Dim errorDescription As String
     Dim bookmarkName As String
+    Dim metadataBookmarkName As String
+    Dim metadataRange As Object
 
     On Error GoTo EH
 
@@ -303,6 +330,10 @@ Private Function private_TryAppendBeforeWordEndAnchor( _
         VBA.MsgBox "PrototypeNew: failed to build a WORD bookmark for IPN '" & recordIpn & "'.", VBA.vbExclamation, "PrototypeNew / WORD export"
         Exit Function
     End If
+    If private_IsHospitalGroupingTemplate(templateId) Then
+        metadataBookmarkName = private_BuildGroupingMetadataBookmarkName( _
+            groupingHospitalShort, groupingDateShort)
+    End If
 
     If Not rt_PEB_WordExportRuntime.fn_GetOrCreateWordApp(wordApp) Then Exit Function
     Set wordDoc = wordApp.Documents.Open(targetPath, False, False, False)
@@ -318,10 +349,14 @@ Private Function private_TryAppendBeforeWordEndAnchor( _
         GoTo CleanFail
     End If
 
-    bookmarkName = private_BuildUniqueRecordBookmarkName(wordDoc, bookmarkName)
+    bookmarkName = private_BuildUniqueBookmarkName(wordDoc, bookmarkName)
     If VBA.Len(bookmarkName) = 0 Then
         VBA.MsgBox "PrototypeNew: failed to create a unique WORD bookmark for IPN '" & recordIpn & "'.", VBA.vbExclamation, "PrototypeNew / WORD export"
         GoTo CleanFail
+    End If
+    If VBA.Len(metadataBookmarkName) > 0 Then
+        metadataBookmarkName = private_BuildUniqueBookmarkName(wordDoc, metadataBookmarkName)
+        If VBA.Len(metadataBookmarkName) = 0 Then GoTo CleanFail
     End If
 
     ' Append the rendered text exactly as produced by the export template.
@@ -335,6 +370,22 @@ Private Function private_TryAppendBeforeWordEndAnchor( _
     ' Do not inherit highlight from a neighbouring anchor or an older export.
     insertRange.HighlightColorIndex = 0
     wordDoc.Bookmarks.Add bookmarkName, insertRange
+    If VBA.Len(metadataBookmarkName) > 0 Then
+        ' PEM-закладка не добавляет текст: она охватывает первый уже существующий
+        ' символ пункта. Ненулевая длина стабильно сохраняется самим Word.
+        Set metadataRange = wordDoc.Range(insertedStart, insertedStart + 1)
+        wordDoc.Bookmarks.Add metadataBookmarkName, metadataRange
+    End If
+
+    ' Word расширяет предыдущую PEB-закладку, когда новый текст вставляется
+    ' непосредственно в её End. После каждой вставки восстанавливаем непересекающиеся
+    ' границы всех пунктов секции. End-якорь ищем повторно: ранее полученный
+    ' Word Range не обязан автоматически сдвинуться после вставки.
+    Set endSearchRange = wordDoc.Range(beginRange.End, wordDoc.Content.End)
+    Set endRange = Nothing
+    If Not private_TryFindWordText(endSearchRange, endMarker, endRange) Then GoTo CleanFail
+    If Not private_TryNormalizeSectionRecordBookmarks( _
+        wordDoc, templateId, beginRange.End, endRange.Start) Then GoTo CleanFail
 
     wordDoc.Save
     wordDoc.Close False
@@ -353,6 +404,309 @@ EH:
     If documentOpened Then wordDoc.Close False
     On Error GoTo 0
     VBA.MsgBox "PrototypeNew: WORD export failed: " & errorDescription, VBA.vbExclamation, "PrototypeNew / WORD export"
+End Function
+
+' Перегруппировывает только уже записанный *_result документ. Секционные
+' текстовые якоря обязательны: они не позволяют смешать пункты разных приказов.
+Public Function RegroupResultDocumentHospitalPoints(ByRef regroupedPointCount As Long) As Boolean
+    Dim templatePath As String
+    Dim targetPath As String
+    Dim wordApp As Object
+    Dim wordDoc As Object
+    Dim sectionPointCount As Long
+    Dim documentOpened As Boolean
+    Dim errorDescription As String
+
+    On Error GoTo EH
+    regroupedPointCount = 0
+
+    templatePath = VBA.Trim$(m_Base.TargetWorkbookPath)
+    If VBA.Len(templatePath) = 0 Then
+        VBA.MsgBox "PrototypeNew: required profile key 'Export.Word.FilePath' is empty.", _
+            VBA.vbExclamation, "PrototypeNew / WORD document"
+        Exit Function
+    End If
+    If Not private_IsAbsolutePath(templatePath) Then
+        templatePath = ThisWorkbook.Path & Application.PathSeparator & templatePath
+    End If
+    targetPath = private_BuildResultDocumentPath(templatePath)
+    If VBA.Len(targetPath) = 0 Or _
+        VBA.Len(VBA.Dir$(targetPath, VBA.vbNormal Or VBA.vbReadOnly Or VBA.vbHidden Or VBA.vbSystem)) = 0 Then
+        VBA.MsgBox "PrototypeNew: WORD result document was not found:" & VBA.vbCrLf & targetPath, _
+            VBA.vbExclamation, "PrototypeNew / WORD document"
+        Exit Function
+    End If
+    If private_IsDocumentOpenInRunningWord(targetPath) Or private_IsFileLocked(targetPath) Then
+        VBA.MsgBox "Невозможно перегруппировать пункты, пока документ открыт." & VBA.vbCrLf & _
+            "Закройте документ и повторите попытку:" & VBA.vbCrLf & targetPath, _
+            VBA.vbExclamation, "PrototypeNew / WORD document"
+        Exit Function
+    End If
+
+    If Not rt_PEB_WordExportRuntime.fn_GetOrCreateWordApp(wordApp) Then Exit Function
+    Set wordDoc = wordApp.Documents.Open(targetPath, False, False, False)
+    documentOpened = True
+
+    If Not private_TryRegroupHospitalSection( _
+        wordApp, wordDoc, WORD_TEMPLATE_TO_HOSPITAL, sectionPointCount) Then GoTo CleanFail
+    regroupedPointCount = regroupedPointCount + sectionPointCount
+    If Not private_TryRegroupHospitalSection( _
+        wordApp, wordDoc, WORD_TEMPLATE_FROM_HOSPITAL, sectionPointCount) Then GoTo CleanFail
+    regroupedPointCount = regroupedPointCount + sectionPointCount
+
+    wordDoc.Save
+    wordDoc.Close False
+    documentOpened = False
+    RegroupResultDocumentHospitalPoints = True
+    Exit Function
+
+CleanFail:
+    On Error Resume Next
+    If documentOpened Then wordDoc.Close False
+    On Error GoTo 0
+    Exit Function
+EH:
+    errorDescription = Err.Description
+    On Error Resume Next
+    If documentOpened Then wordDoc.Close False
+    On Error GoTo 0
+    VBA.MsgBox "PrototypeNew: WORD grouping failed: " & errorDescription, _
+        VBA.vbExclamation, "PrototypeNew / WORD document"
+End Function
+
+Private Function private_TryRegroupHospitalSection( _
+    ByVal wordApp As Object, _
+    ByVal wordDoc As Object, _
+    ByVal templateId As String, _
+    ByRef outPointCount As Long _
+) As Boolean
+    Dim beginMarker As String
+    Dim endMarker As String
+    Dim beginRange As Object
+    Dim endSearchRange As Object
+    Dim endRange As Object
+    Dim bookmarkObj As Object
+    Dim bookmarkName As String
+    Dim metadataBookmarkName As String
+    Dim recordPrefix As String
+    Dim hospitalShortText As String
+    Dim dateShortText As String
+    Dim entries() As Object
+    Dim entry As Object
+    Dim swapEntry As Object
+    Dim entryCount As Long
+    Dim i As Long
+    Dim j As Long
+    Dim blockStart As Long
+    Dim blockEnd As Long
+    Dim recordRange As Object
+    Dim metadataRange As Object
+    Dim scratchDoc As Object
+    Dim scratchRange As Object
+    Dim scratchContent As Object
+    Dim targetRange As Object
+    Dim targetStart As Long
+    Dim currentStart As Long
+    Dim errorDescription As String
+
+    On Error GoTo EH
+    outPointCount = 0
+    If wordApp Is Nothing Or wordDoc Is Nothing Then Exit Function
+
+    beginMarker = WORD_ANCHOR_PREFIX & templateId & WORD_ANCHOR_BEGIN_SUFFIX
+    endMarker = WORD_ANCHOR_PREFIX & templateId & WORD_ANCHOR_END_SUFFIX
+    If Not private_TryFindWordText(wordDoc.Content, beginMarker, beginRange) Then
+        VBA.MsgBox "PrototypeNew: WORD begin anchor was not found: " & beginMarker, _
+            VBA.vbExclamation, "PrototypeNew / WORD document"
+        Exit Function
+    End If
+    Set endSearchRange = wordDoc.Range(beginRange.End, wordDoc.Content.End)
+    If Not private_TryFindWordText(endSearchRange, endMarker, endRange) Then
+        VBA.MsgBox "PrototypeNew: WORD end anchor was not found after begin anchor: " & endMarker, _
+            VBA.vbExclamation, "PrototypeNew / WORD document"
+        Exit Function
+    End If
+
+    ' Исправляет в том числе документы, созданные до появления нормализации:
+    ' старые PEB-закладки могли растянуться до конца всей секции.
+    If Not private_TryNormalizeSectionRecordBookmarks( _
+        wordDoc, templateId, beginRange.End, endRange.Start) Then Exit Function
+
+    ' Собираем только PEB-закладки нужного templateId, расположенные строго
+    ' между Begin/End текущей секции и имеющие связанную PEM-закладку.
+    recordPrefix = VBA.LCase$(WORD_RECORD_BOOKMARK_PREFIX & _
+        private_NormalizeBookmarkPart(templateId) & "_")
+    For Each bookmarkObj In wordDoc.Bookmarks
+        bookmarkName = VBA.CStr(bookmarkObj.Name)
+        If VBA.Left$(VBA.LCase$(bookmarkName), VBA.Len(recordPrefix)) <> recordPrefix Then GoTo ContinueBookmark
+        If bookmarkObj.Range.Start < beginRange.End Or bookmarkObj.Range.End > endRange.Start Then GoTo ContinueBookmark
+
+        Set recordRange = bookmarkObj.Range
+        If Not private_TryFindGroupingMetadataBookmark( _
+            wordDoc, recordRange, metadataBookmarkName, hospitalShortText, dateShortText) Then _
+            GoTo ContinueBookmark
+        Set metadataRange = wordDoc.Bookmarks(metadataBookmarkName).Range
+
+        entryCount = entryCount + 1
+        ReDim Preserve entries(1 To entryCount)
+        Set entry = VBA.CreateObject("Scripting.Dictionary")
+        entry.CompareMode = 1
+        entry("BookmarkName") = bookmarkName
+        entry("MetadataBookmarkName") = metadataBookmarkName
+        entry("SortKey") = private_BuildGroupingSortKey(dateShortText, hospitalShortText)
+        entry("OriginalIndex") = entryCount
+        entry("Length") = bookmarkObj.Range.End - bookmarkObj.Range.Start
+        entry("Start") = bookmarkObj.Range.Start
+        entry("End") = bookmarkObj.Range.End
+        Set entries(entryCount) = entry
+
+        If blockStart = 0 Or bookmarkObj.Range.Start < blockStart Then blockStart = bookmarkObj.Range.Start
+        If bookmarkObj.Range.End > blockEnd Then blockEnd = bookmarkObj.Range.End
+ContinueBookmark:
+    Next bookmarkObj
+
+    If entryCount <= 1 Then
+        outPointCount = entryCount
+        private_TryRegroupHospitalSection = True
+        Exit Function
+    End If
+
+    ' Стабильная сортировка: одинаковые ключи не меняются местами. Ключ строится
+    ' как дата YYYYMMDD, затем короткое название учреждения.
+    For i = 1 To entryCount - 1
+        For j = i + 1 To entryCount
+            If VBA.StrComp(VBA.CStr(entries(j)("SortKey")), _
+                VBA.CStr(entries(i)("SortKey")), VBA.vbTextCompare) < 0 Then
+                Set swapEntry = entries(i)
+                Set entries(i) = entries(j)
+                Set entries(j) = swapEntry
+            End If
+        Next j
+    Next i
+
+    ' FormattedText нельзя надёжно хранить как обычную строку. Собираем пункты
+    ' в нужном порядке во временном документе, сохраняя стили и разметку Word.
+    Set scratchDoc = wordApp.Documents.Add
+    For i = 1 To entryCount
+        Set recordRange = wordDoc.Bookmarks(VBA.CStr(entries(i)("BookmarkName"))).Range.Duplicate
+        Set scratchRange = scratchDoc.Range(scratchDoc.Content.End - 1, scratchDoc.Content.End - 1)
+        scratchRange.FormattedText = recordRange.FormattedText
+    Next i
+    Set scratchContent = scratchDoc.Range(0, scratchDoc.Content.End - 1)
+
+    ' Старые закладки удаляем до замены диапазона, иначе Word может оставить
+    ' их границы на прежних позициях или автоматически удалить непредсказуемо.
+    For i = 1 To entryCount
+        bookmarkName = VBA.CStr(entries(i)("BookmarkName"))
+        metadataBookmarkName = VBA.CStr(entries(i)("MetadataBookmarkName"))
+        If wordDoc.Bookmarks.Exists(metadataBookmarkName) Then wordDoc.Bookmarks(metadataBookmarkName).Delete
+        If wordDoc.Bookmarks.Exists(bookmarkName) Then wordDoc.Bookmarks(bookmarkName).Delete
+    Next i
+
+    targetStart = blockStart
+    Set targetRange = wordDoc.Range(blockStart, blockEnd)
+    targetRange.FormattedText = scratchContent.FormattedText
+    scratchDoc.Close False
+    Set scratchDoc = Nothing
+
+    ' После вставки FormattedText восстанавливаем обе закладки по сохранённым
+    ' длинам каждого пункта и снова скрываем диапазон метаданных.
+    currentStart = targetStart
+    For i = 1 To entryCount
+        Set recordRange = wordDoc.Range( _
+            currentStart, currentStart + VBA.CLng(entries(i)("Length")))
+        wordDoc.Bookmarks.Add VBA.CStr(entries(i)("BookmarkName")), recordRange
+        Set metadataRange = wordDoc.Range(currentStart, currentStart + 1)
+        wordDoc.Bookmarks.Add VBA.CStr(entries(i)("MetadataBookmarkName")), metadataRange
+        currentStart = currentStart + VBA.CLng(entries(i)("Length"))
+    Next i
+
+    outPointCount = entryCount
+    private_TryRegroupHospitalSection = True
+    Exit Function
+
+EH:
+    errorDescription = Err.Description
+    On Error Resume Next
+    If Not scratchDoc Is Nothing Then scratchDoc.Close False
+    On Error GoTo 0
+    VBA.MsgBox "PrototypeNew: failed to regroup WORD section '" & templateId & _
+        "': " & errorDescription, VBA.vbExclamation, "PrototypeNew / WORD document"
+End Function
+
+Private Function private_TryNormalizeSectionRecordBookmarks( _
+    ByVal wordDoc As Object, _
+    ByVal templateId As String, _
+    ByVal sectionStart As Long, _
+    ByVal sectionEnd As Long _
+) As Boolean
+    Dim recordPrefix As String
+    Dim bookmarkObj As Object
+    Dim bookmarkName As String
+    Dim bookmarkNames() As String
+    Dim bookmarkStarts() As Long
+    Dim bookmarkCount As Long
+    Dim i As Long
+    Dim j As Long
+    Dim swapName As String
+    Dim swapStart As Long
+    Dim normalizedEnd As Long
+    Dim normalizedRange As Object
+
+    If wordDoc Is Nothing Then Exit Function
+    If sectionEnd <= sectionStart Then Exit Function
+    recordPrefix = VBA.LCase$(WORD_RECORD_BOOKMARK_PREFIX & _
+        private_NormalizeBookmarkPart(templateId) & "_")
+
+    ' Для восстановления достаточно надёжных левых границ. Word растягивает End,
+    ' но Start каждой ранее созданной записи сохраняет корректно.
+    For Each bookmarkObj In wordDoc.Bookmarks
+        bookmarkName = VBA.CStr(bookmarkObj.Name)
+        If VBA.Left$(VBA.LCase$(bookmarkName), VBA.Len(recordPrefix)) <> recordPrefix Then _
+            GoTo ContinueBookmark
+        If bookmarkObj.Range.Start < sectionStart Or bookmarkObj.Range.Start >= sectionEnd Then _
+            GoTo ContinueBookmark
+        bookmarkCount = bookmarkCount + 1
+        ReDim Preserve bookmarkNames(1 To bookmarkCount)
+        ReDim Preserve bookmarkStarts(1 To bookmarkCount)
+        bookmarkNames(bookmarkCount) = bookmarkName
+        bookmarkStarts(bookmarkCount) = bookmarkObj.Range.Start
+ContinueBookmark:
+    Next bookmarkObj
+
+    For i = 1 To bookmarkCount - 1
+        For j = i + 1 To bookmarkCount
+            If bookmarkStarts(j) < bookmarkStarts(i) Then
+                swapStart = bookmarkStarts(i)
+                bookmarkStarts(i) = bookmarkStarts(j)
+                bookmarkStarts(j) = swapStart
+                swapName = bookmarkNames(i)
+                bookmarkNames(i) = bookmarkNames(j)
+                bookmarkNames(j) = swapName
+            End If
+        Next j
+    Next i
+
+    ' Сначала удаляем только внешние PEB-закладки. Вложенные PEM-закладки
+    ' сохраняются, поскольку их диапазоны и имена не изменяются.
+    For i = 1 To bookmarkCount
+        If wordDoc.Bookmarks.Exists(bookmarkNames(i)) Then
+            wordDoc.Bookmarks(bookmarkNames(i)).Delete
+        End If
+    Next i
+
+    For i = 1 To bookmarkCount
+        If i < bookmarkCount Then
+            normalizedEnd = bookmarkStarts(i + 1)
+        Else
+            normalizedEnd = sectionEnd
+        End If
+        If normalizedEnd <= bookmarkStarts(i) Then Exit Function
+        Set normalizedRange = wordDoc.Range(bookmarkStarts(i), normalizedEnd)
+        wordDoc.Bookmarks.Add bookmarkNames(i), normalizedRange
+    Next i
+
+    private_TryNormalizeSectionRecordBookmarks = True
 End Function
 
 ' Завершает подготовку всех сформированных блоков результирующего документа:
@@ -383,6 +737,8 @@ Public Function RemoveResultDocumentAnchors(ByRef clearedBlockCount As Long) As 
     Dim matchIndex As Long
     Dim documentOpened As Boolean
     Dim errorDescription As String
+    Dim bookmarkIndex As Long
+    Dim bookmarkObj As Object
 
     On Error GoTo EH
     clearedBlockCount = 0
@@ -465,6 +821,16 @@ Public Function RemoveResultDocumentAnchors(ByRef clearedBlockCount As Long) As 
         clearedBlockCount = clearedBlockCount + 1
     Next matchIndex
 
+    ' Финализация удаляет и скрытые данные сортировки. После этого документ
+    ' остаётся визуально чистым, а повторная перегруппировка намеренно невозможна.
+    For bookmarkIndex = wordDoc.Bookmarks.Count To 1 Step -1
+        Set bookmarkObj = wordDoc.Bookmarks.Item(bookmarkIndex)
+        If VBA.Left$(VBA.CStr(bookmarkObj.Name), VBA.Len(WORD_METADATA_BOOKMARK_PREFIX)) = _
+            WORD_METADATA_BOOKMARK_PREFIX Then
+            bookmarkObj.Delete
+        End If
+    Next bookmarkIndex
+
     wordDoc.Save
     wordDoc.Close False
     documentOpened = False
@@ -542,7 +908,147 @@ Private Function private_BuildRecordBookmarkName(ByVal templateId As String, ByV
     private_BuildRecordBookmarkName = WORD_RECORD_BOOKMARK_PREFIX & safeTemplateId & "_" & safeIpn
 End Function
 
-Private Function private_BuildUniqueRecordBookmarkName(ByVal wordDoc As Object, ByVal baseName As String) As String
+Private Function private_BuildGroupingMetadataBookmarkName( _
+    ByVal hospitalShortText As String, _
+    ByVal dateShortText As String _
+) As String
+    Dim sortKey As String
+    Dim separatorPos As Long
+    Dim dateKey As String
+    Dim hospitalKey As String
+    Dim availableHospitalLength As Long
+
+    hospitalShortText = VBA.Trim$(hospitalShortText)
+    dateShortText = VBA.Trim$(dateShortText)
+    If VBA.Len(hospitalShortText) = 0 Or VBA.Len(dateShortText) = 0 Then Exit Function
+
+    sortKey = private_BuildGroupingSortKey(dateShortText, hospitalShortText)
+    separatorPos = VBA.InStr(1, sortKey, "|", VBA.vbBinaryCompare)
+    If separatorPos <= 1 Then Exit Function
+    dateKey = VBA.Left$(sortKey, separatorPos - 1)
+    hospitalKey = private_NormalizeMetadataBookmarkPart(hospitalShortText)
+    availableHospitalLength = WORD_BOOKMARK_MAX_LENGTH - _
+        VBA.Len(WORD_METADATA_BOOKMARK_PREFIX) - VBA.Len(dateKey) - 1
+    If availableHospitalLength <= 0 Or VBA.Len(hospitalKey) = 0 Then Exit Function
+    If VBA.Len(hospitalKey) > availableHospitalLength Then
+        hospitalKey = VBA.Left$(hospitalKey, availableHospitalLength)
+    End If
+    private_BuildGroupingMetadataBookmarkName = WORD_METADATA_BOOKMARK_PREFIX & _
+        dateKey & "_" & hospitalKey
+End Function
+
+Private Function private_TryParseGroupingMetadataBookmarkName( _
+    ByVal metadataBookmarkName As String, _
+    ByRef outHospitalShortText As String, _
+    ByRef outDateShortText As String _
+) As Boolean
+    Dim payloadText As String
+    Dim separatorPos As Long
+    Dim dateKey As String
+
+    outHospitalShortText = VBA.vbNullString
+    outDateShortText = VBA.vbNullString
+    If VBA.Left$(metadataBookmarkName, VBA.Len(WORD_METADATA_BOOKMARK_PREFIX)) <> _
+        WORD_METADATA_BOOKMARK_PREFIX Then Exit Function
+
+    payloadText = VBA.Mid$(metadataBookmarkName, VBA.Len(WORD_METADATA_BOOKMARK_PREFIX) + 1)
+    separatorPos = VBA.InStr(1, payloadText, "_", VBA.vbBinaryCompare)
+    If separatorPos <= 1 Then Exit Function
+    dateKey = VBA.Left$(payloadText, separatorPos - 1)
+    If VBA.Len(dateKey) <> 8 Or Not VBA.IsNumeric(dateKey) Then Exit Function
+    outDateShortText = VBA.Mid$(dateKey, 7, 2) & "." & _
+        VBA.Mid$(dateKey, 5, 2) & "." & VBA.Left$(dateKey, 4)
+    outHospitalShortText = VBA.Trim$(VBA.Mid$(payloadText, separatorPos + 1))
+    private_TryParseGroupingMetadataBookmarkName = ( _
+        VBA.Len(outDateShortText) > 0 And VBA.Len(outHospitalShortText) > 0)
+End Function
+
+Private Function private_TryFindGroupingMetadataBookmark( _
+    ByVal wordDoc As Object, _
+    ByVal recordRange As Object, _
+    ByRef outMetadataBookmarkName As String, _
+    ByRef outHospitalShortText As String, _
+    ByRef outDateShortText As String _
+) As Boolean
+    Dim bookmarkObj As Object
+    Dim bookmarkName As String
+
+    outMetadataBookmarkName = VBA.vbNullString
+    outHospitalShortText = VBA.vbNullString
+    outDateShortText = VBA.vbNullString
+    If wordDoc Is Nothing Or recordRange Is Nothing Then Exit Function
+
+    ' После сохранения и повторного открытия Word может сдвинуть нулевую
+    ' закладку на один служебный символ относительно начала PEB-диапазона.
+    ' Поэтому проверяем принадлежность всему пункту. Правую границу исключаем,
+    ' чтобы не принять PEM-закладку следующего соседнего пункта.
+    For Each bookmarkObj In wordDoc.Bookmarks
+        bookmarkName = VBA.CStr(bookmarkObj.Name)
+        If VBA.Left$(bookmarkName, VBA.Len(WORD_METADATA_BOOKMARK_PREFIX)) <> _
+            WORD_METADATA_BOOKMARK_PREFIX Then GoTo ContinueBookmark
+        If bookmarkObj.Range.Start < recordRange.Start Then GoTo ContinueBookmark
+        If bookmarkObj.Range.Start >= recordRange.End Then GoTo ContinueBookmark
+        If Not private_TryParseGroupingMetadataBookmarkName( _
+            bookmarkName, outHospitalShortText, outDateShortText) Then GoTo ContinueBookmark
+        outMetadataBookmarkName = bookmarkName
+        private_TryFindGroupingMetadataBookmark = True
+        Exit Function
+ContinueBookmark:
+    Next bookmarkObj
+End Function
+
+Private Function private_NormalizeMetadataBookmarkPart(ByVal valueText As String) As String
+    Dim resultText As String
+    Dim charIndex As Long
+    Dim charText As String
+    Const ALLOWED_CHARS As String = _
+        "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789_" & _
+        "АБВГДЕЁЖЗИЙКЛМНОПРСТУФХЦЧШЩЪЫЬЭЮЯ" & _
+        "абвгдеёжзийклмнопрстуфхцчшщъыьэюяІіЇїЄєҐґ"
+
+    valueText = VBA.Trim$(valueText)
+    For charIndex = 1 To VBA.Len(valueText)
+        charText = VBA.Mid$(valueText, charIndex, 1)
+        If VBA.InStr(1, ALLOWED_CHARS, charText, VBA.vbBinaryCompare) > 0 Then
+            resultText = resultText & charText
+        ElseIf VBA.Right$(resultText, 1) <> "_" Then
+            resultText = resultText & "_"
+        End If
+    Next charIndex
+    Do While VBA.Right$(resultText, 1) = "_"
+        resultText = VBA.Left$(resultText, VBA.Len(resultText) - 1)
+    Loop
+    private_NormalizeMetadataBookmarkPart = resultText
+End Function
+
+Private Function private_BuildGroupingSortKey( _
+    ByVal dateShortText As String, _
+    ByVal hospitalShortText As String _
+) As String
+    Dim dateParts As Variant
+    Dim dateKey As String
+
+    dateShortText = VBA.Trim$(dateShortText)
+    hospitalShortText = VBA.LCase$(VBA.Trim$(hospitalShortText))
+    dateParts = VBA.Split(dateShortText, ".")
+    If UBound(dateParts) = 2 Then
+        dateKey = VBA.CStr(dateParts(2)) & VBA.Right$("0" & VBA.CStr(dateParts(1)), 2) & _
+            VBA.Right$("0" & VBA.CStr(dateParts(0)), 2)
+    Else
+        dateKey = dateShortText
+    End If
+    private_BuildGroupingSortKey = dateKey & "|" & hospitalShortText
+End Function
+
+Private Function private_IsHospitalGroupingTemplate(ByVal templateId As String) As Boolean
+    Select Case VBA.LCase$(VBA.Trim$(templateId))
+        Case VBA.LCase$(WORD_TEMPLATE_TO_HOSPITAL), _
+             VBA.LCase$(WORD_TEMPLATE_FROM_HOSPITAL)
+            private_IsHospitalGroupingTemplate = True
+    End Select
+End Function
+
+Private Function private_BuildUniqueBookmarkName(ByVal wordDoc As Object, ByVal baseName As String) As String
     Dim candidateName As String
     Dim suffixText As String
     Dim sequenceNo As Long
@@ -551,7 +1057,7 @@ Private Function private_BuildUniqueRecordBookmarkName(ByVal wordDoc As Object, 
     baseName = VBA.Trim$(baseName)
     If wordDoc Is Nothing Or VBA.Len(baseName) = 0 Then Exit Function
     If Not wordDoc.Bookmarks.Exists(baseName) Then
-        private_BuildUniqueRecordBookmarkName = baseName
+        private_BuildUniqueBookmarkName = baseName
         Exit Function
     End If
 
@@ -561,7 +1067,7 @@ Private Function private_BuildUniqueRecordBookmarkName(ByVal wordDoc As Object, 
         baseMaxLength = WORD_BOOKMARK_MAX_LENGTH - VBA.Len(suffixText)
         candidateName = VBA.Left$(baseName, baseMaxLength) & suffixText
         If Not wordDoc.Bookmarks.Exists(candidateName) Then
-            private_BuildUniqueRecordBookmarkName = candidateName
+            private_BuildUniqueBookmarkName = candidateName
             Exit Function
         End If
         sequenceNo = sequenceNo + 1
@@ -697,6 +1203,7 @@ Private Function private_TryEnrichMainSourceTableForWord( _
     Dim positionGenitive As String
     Dim hospitalGenitive As String
     Dim hospitalAccusative As String
+    Dim hospitalDative As String
     Dim reportRankGenitive As String
     Dim reportPersonGenitive As String
     Dim reportPersonInitialsGenitive As String
@@ -761,6 +1268,7 @@ Private Function private_TryEnrichMainSourceTableForWord( _
     If Not m_ExporterDataProvider.CommonData.TryResolvePositionGenitive(positionCodeText, positionGenitive) Then Exit Function
     If Not m_ExporterDataProvider.CommonData.TryResolveHospitalGenitive(hospitalShortText, hospitalGenitive) Then Exit Function
     If Not m_ExporterDataProvider.CommonData.TryResolveHospitalAccusative(hospitalShortText, hospitalAccusative) Then Exit Function
+    If Not m_ExporterDataProvider.CommonData.TryResolveHospitalDative(hospitalShortText, hospitalDative) Then Exit Function
     If Not m_ExporterDataProvider.CommonData.TryResolveRankGenitive(reportRankText, reportRankGenitive) Then Exit Function
     If Not m_ExporterDataProvider.CommonData.TryResolveFioGenitiveByName(reportPersonText, reportPersonGenitive) Then Exit Function
     If Not m_ExporterDataProvider.CommonData.TryResolveFioInitialsGenitiveByName(reportPersonText, reportPersonInitialsGenitive) Then Exit Function
@@ -808,6 +1316,9 @@ Private Function private_TryEnrichMainSourceTableForWord( _
     End If
     If VBA.Len(VBA.Trim$(hospitalAccusative)) > 0 Then
         If Not private_TryUpsertMainTableValue(sourceTable, WORD_ALIAS_HOSPITAL_ACCUSATIVE, hospitalAccusative) Then Exit Function
+    End If
+    If VBA.Len(VBA.Trim$(hospitalDative)) > 0 Then
+        If Not private_TryUpsertMainTableValue(sourceTable, WORD_ALIAS_HOSPITAL_DATIVE, hospitalDative) Then Exit Function
     End If
     If VBA.Len(VBA.Trim$(vacationText)) > 0 Then
         If Not private_TryUpsertMainTableValue(sourceTable, SOURCE_ALIAS_VACATION, vacationText) Then Exit Function
@@ -1346,6 +1857,11 @@ Private Function private_TryUpsertShortDateValue( _
 
     trimmedDateText = VBA.Trim$(rawDateText)
     If VBA.Len(trimmedDateText) = 0 Then
+        ' Алиас должен присутствовать в контексте даже при пустой дате.
+        ' Тогда шаблонная проверка [*DateShort] вернёт False и просто не
+        ' выведет дату, не останавливая экспорт из-за отсутствующего поля.
+        If Not private_TryUpsertMainTableValue( _
+            sourceTable, shortAlias, VBA.vbNullString) Then Exit Function
         private_TryUpsertShortDateValue = True
         Exit Function
     End If
