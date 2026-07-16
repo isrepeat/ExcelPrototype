@@ -115,7 +115,13 @@ Public Function SearchCandidates( _
     ByRef outCandidateCount As Long, _
     Optional ByVal notifyChange As Boolean = True _
 ) As Boolean
+    Dim formColumns As Collection
+
     If m_LookupFeature Is Nothing Then Exit Function
+    ' У отдельной страницы EntityLookup одна статическая форма, поэтому объявленная
+    ' схема одновременно является её активной runtime-схемой.
+    If Not m_LookupFeature.TryGetFormColumnKeys(formColumns) Then Exit Function
+    If Not m_LookupFeature.UpdateActiveFormColumns(formColumns) Then Exit Function
     SearchCandidates = m_LookupFeature.SearchCandidates(lookupKey, queryText, outCandidateCount, notifyChange)
 End Function
 

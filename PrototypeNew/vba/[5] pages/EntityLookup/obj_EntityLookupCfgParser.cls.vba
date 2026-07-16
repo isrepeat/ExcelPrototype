@@ -217,7 +217,6 @@ Public Function TryBuildLookupSqlParams( _
     Dim tableAlias As String
     Dim searchColumnRef As String
     Dim searchColumnAlias As String
-    Dim rawResultColumnAliases As String
     Dim tablePathPrefix As String
     Dim sourcePath As String
     Dim sheetName As String
@@ -237,6 +236,10 @@ Public Function TryBuildLookupSqlParams( _
     Dim containsCondition As String
     Dim normalizedAliases As Collection
     Dim columnAliasSet As Object
+    Dim selectedSourceAliases As Object
+    Dim allSourceAliases As Collection
+    Dim auxiliaryAliasObj As Variant
+    Dim auxiliaryAlias As String
 
     Set outSqlParams = Nothing
     Set outResultColumnAliases = Nothing
@@ -290,28 +293,28 @@ Public Function TryBuildLookupSqlParams( _
         Exit Function
     End If
 
-    If Not private_TryGetRequiredConfigValue(cfgMap, columnPrefix & "ResultColumnsAliases", rawResultColumnAliases) Then Exit Function
-    Set normalizedAliases = private_BuildResultColumnAliases(rawResultColumnAliases)
+    Set normalizedAliases = private_BuildQualifiedResultColumnMappings( _
+        cfgMap, columnPrefix, sourceAlias, tableAlias, columnKey)
     If normalizedAliases Is Nothing Then Exit Function
     If normalizedAliases.Count <= 0 Then
-        private_ShowConfigError "ResultColumnsAliases is empty for column '" & columnKey & "'."
+        private_ShowConfigError "No qualified ResultColumnsAliases mappings are configured for lookup '" & columnKey & "'."
         Exit Function
     End If
+    Set selectedSourceAliases = ex_Helpers.fn_CreateDictionaryTextCompare()
 
-    ' ResultColumnsAliases поддерживает remap вида SourceAlias=>TargetAlias.
-    ' Это нужно, когда один и тот же внешний справочник возвращает стандартные
-    ' поля, но форма должна положить их в другие колонки. Например:
-    ' Rank=>ReportRank, FIO=>ReportPerson, PositionCode=>ReportPositionCode.
-    ' SourceAlias всегда валидируется против source table, а TargetAlias идет
-    ' дальше в DynamicTable/candidates как имя результирующей колонки.
+    ' Каждый маппинг задаётся в конфиге полностью квалифицированными ссылками:
+    ' ResultColumnsAliases[Source.Sheet[Table].Column[SourceAlias]] =
+    '     EntityLookup.Table.Column[TargetAlias].
+    ' Внутри запись нормализуется в SourceAlias=>TargetAlias для SQL builder.
     For Each resultAliasObj In normalizedAliases
         resultAliasToken = VBA.Trim$(VBA.CStr(resultAliasObj))
         If VBA.Len(resultAliasToken) = 0 Then GoTo ContinueValidateResultAlias
         If Not private_TryParseResultAliasMapping(resultAliasToken, sourceResultAlias, targetResultAlias) Then
-            private_ShowConfigError "Invalid ResultColumnsAliases item '" & resultAliasToken & "' for lookup '" & columnKey & "'. Use SourceAlias or SourceAlias=>TargetAlias."
+            private_ShowConfigError "Invalid normalized ResultColumnsAliases mapping '" & resultAliasToken & "' for lookup '" & columnKey & "'."
             Exit Function
         End If
         If Not private_TryValidateDeclaredColumnAlias(columnAliasSet, tablePathPrefix, sourceResultAlias, "ResultColumnsAliases for lookup '" & columnKey & "'") Then Exit Function
+        selectedSourceAliases(sourceResultAlias) = True
         If VBA.StrComp(sourceResultAlias, searchColumnAlias, VBA.vbTextCompare) = 0 Then outSearchColumnAlias = targetResultAlias
 ContinueValidateResultAlias:
     Next resultAliasObj
@@ -363,6 +366,23 @@ ContinueValidateResultAlias:
         End If
 ContinueResultAlias:
     Next resultAliasObj
+
+    ' ColumnHeadersAliases задаёт полный контракт выборки источника. Колонки без
+    ' цели в ResultColumnsAliases остаются служебными: проекция выводит их после
+    ' активной формы, а код может использовать их для отбора и фильтрации.
+    If Not m_CfgTableParser.TryGetRequiredColumnHeadersAliases(cfgMap, tablePathPrefix, allSourceAliases) Then Exit Function
+    For Each auxiliaryAliasObj In allSourceAliases
+        auxiliaryAlias = VBA.Trim$(VBA.CStr(auxiliaryAliasObj))
+        If VBA.Len(auxiliaryAlias) = 0 Then GoTo ContinueAuxiliaryAlias
+        If selectedSourceAliases.Exists(auxiliaryAlias) Then GoTo ContinueAuxiliaryAlias
+        If Not m_CfgTableParser.TryResolveMapByColumnAlias( _
+            cfgMap, tablePathPrefix, auxiliaryAlias, sourceColumnHeader, mappedColumnHeader) Then Exit Function
+        If Not sqlParams.AddColumnMapping(sourceColumnHeader, mappedColumnHeader, auxiliaryAlias) Then
+            private_ShowConfigError "Failed to add auxiliary SQL column mapping for source alias '" & auxiliaryAlias & "'."
+            Exit Function
+        End If
+ContinueAuxiliaryAlias:
+    Next auxiliaryAliasObj
 
     Set outSqlParams = sqlParams
     Set outResultColumnAliases = normalizedAliases
@@ -629,6 +649,7 @@ Private Function private_TryGetLookupTargetColumn( _
     ByRef outTargetColumnKey As String _
 ) As Boolean
     Dim lookupPrefix As String
+    Dim targetColumnRef As String
 
     outTargetColumnKey = VBA.vbNullString
     If m_CfgTableParser Is Nothing Then Exit Function
@@ -640,41 +661,130 @@ Private Function private_TryGetLookupTargetColumn( _
     lookupPrefix = private_BuildLookupPrefix(lookupKey)
     If VBA.Len(lookupPrefix) = 0 Then Exit Function
 
-    outTargetColumnKey = m_CfgTableParser.CfgParserBase.GetOptionalConfigValue(cfgMap, lookupPrefix & "TargetColumn", lookupKey)
-    outTargetColumnKey = VBA.Trim$(outTargetColumnKey)
-    If VBA.Len(outTargetColumnKey) = 0 Then
+    targetColumnRef = m_CfgTableParser.CfgParserBase.GetOptionalConfigValue(cfgMap, lookupPrefix & "TargetColumn")
+    targetColumnRef = VBA.Trim$(targetColumnRef)
+    If VBA.Len(targetColumnRef) = 0 Then
         private_ShowConfigError "Missing or invalid config key: " & lookupPrefix & "TargetColumn"
+        Exit Function
+    End If
+    If Not private_TryParseEntityLookupTableColumnRef(targetColumnRef, outTargetColumnKey) Then
+        private_ShowConfigError "Invalid TargetColumn reference '" & targetColumnRef & "' for lookup '" & lookupKey & _
+            "'. Expected EntityLookup.Table.Column[ColumnAlias]."
+        Exit Function
+    End If
+    If Not private_IsDeclaredEntityLookupTableColumn(cfgMap, outTargetColumnKey) Then
+        private_ShowConfigError "TargetColumn '" & targetColumnRef & "' references a column not declared in EntityLookup.Table.Columns."
         Exit Function
     End If
 
     private_TryGetLookupTargetColumn = True
 End Function
 
-Private Function private_BuildResultColumnAliases( _
-    ByVal rawAliases As String _
+Private Function private_BuildQualifiedResultColumnMappings( _
+    ByVal cfgMap As Object, _
+    ByVal lookupPrefix As String, _
+    ByVal expectedSourceAlias As String, _
+    ByVal expectedTableAlias As String, _
+    ByVal lookupKey As String _
 ) As Collection
-    Dim aliases As Collection
     Dim result As Collection
     Dim seen As Object
-    Dim aliasObj As Variant
-    Dim aliasText As String
+    Dim cfgKeyObj As Variant
+    Dim cfgKey As String
+    Dim mappingsPrefix As String
+    Dim sourceRef As String
+    Dim targetRef As String
+    Dim sourceAlias As String
+    Dim tableAlias As String
+    Dim sourceColumnAlias As String
+    Dim targetColumnAlias As String
+    Dim mappingToken As String
 
-    Set aliases = m_CfgTableParser.CfgParserBase.SplitListToCollection(rawAliases)
     Set result = New Collection
     Set seen = ex_Helpers.fn_CreateDictionaryTextCompare()
+    If cfgMap Is Nothing Then Exit Function
 
-    If Not aliases Is Nothing Then
-        For Each aliasObj In aliases
-            aliasText = VBA.Trim$(VBA.CStr(aliasObj))
-            If VBA.Len(aliasText) = 0 Then GoTo ContinueAlias
-            If seen.Exists(VBA.LCase$(aliasText)) Then GoTo ContinueAlias
-            seen(VBA.LCase$(aliasText)) = True
-            result.Add aliasText
-ContinueAlias:
-        Next aliasObj
-    End If
+    mappingsPrefix = VBA.LCase$(lookupPrefix & "ResultColumnsAliases[")
+    For Each cfgKeyObj In cfgMap.Keys
+        cfgKey = VBA.CStr(cfgKeyObj)
+        If VBA.Left$(VBA.LCase$(cfgKey), VBA.Len(mappingsPrefix)) <> mappingsPrefix Then GoTo ContinueMapping
+        If VBA.Right$(cfgKey, 1) <> "]" Then GoTo ContinueMapping
 
-    Set private_BuildResultColumnAliases = result
+        sourceRef = VBA.Mid$(cfgKey, VBA.Len(mappingsPrefix) + 1, VBA.Len(cfgKey) - VBA.Len(mappingsPrefix) - 1)
+        targetRef = VBA.Trim$(VBA.CStr(cfgMap(cfgKeyObj)))
+        If Not m_CfgTableParser.TryParseColumnRefToken(sourceRef, sourceAlias, tableAlias, sourceColumnAlias) Then
+            private_ShowConfigError "Invalid source column reference in ResultColumnsAliases for lookup '" & lookupKey & "': " & sourceRef
+            Exit Function
+        End If
+        If VBA.StrComp(sourceAlias, expectedSourceAlias, VBA.vbTextCompare) <> 0 Or _
+           VBA.StrComp(tableAlias, expectedTableAlias, VBA.vbTextCompare) <> 0 Then
+            private_ShowConfigError "ResultColumnsAliases source '" & sourceRef & "' does not belong to lookup source " & _
+                expectedSourceAlias & ".Sheet[" & expectedTableAlias & "]."
+            Exit Function
+        End If
+        If Not private_TryParseEntityLookupTableColumnRef(targetRef, targetColumnAlias) Then
+            private_ShowConfigError "Invalid target column reference in ResultColumnsAliases for lookup '" & lookupKey & _
+                "': " & targetRef & ". Expected EntityLookup.Table.Column[ColumnAlias]."
+            Exit Function
+        End If
+        If Not private_IsDeclaredEntityLookupTableColumn(cfgMap, targetColumnAlias) Then
+            private_ShowConfigError "ResultColumnsAliases target '" & targetRef & _
+                "' is not declared in EntityLookup.Table.Columns."
+            Exit Function
+        End If
+
+        mappingToken = sourceColumnAlias & "=>" & targetColumnAlias
+        If seen.Exists(VBA.LCase$(sourceColumnAlias)) Then
+            private_ShowConfigError "Duplicate source column mapping '" & sourceColumnAlias & "' for lookup '" & lookupKey & "'."
+            Exit Function
+        End If
+        seen(VBA.LCase$(sourceColumnAlias)) = True
+        result.Add mappingToken
+ContinueMapping:
+    Next cfgKeyObj
+
+    Set private_BuildQualifiedResultColumnMappings = result
+End Function
+
+Private Function private_TryParseEntityLookupTableColumnRef( _
+    ByVal referenceText As String, _
+    ByRef outColumnAlias As String _
+) As Boolean
+    Const REF_PREFIX As String = "EntityLookup.Table.Column["
+    Dim suffix As String
+
+    outColumnAlias = VBA.vbNullString
+    referenceText = VBA.Trim$(referenceText)
+    If VBA.Len(referenceText) <= VBA.Len(REF_PREFIX) + 1 Then Exit Function
+    If VBA.StrComp(VBA.Left$(referenceText, VBA.Len(REF_PREFIX)), REF_PREFIX, VBA.vbTextCompare) <> 0 Then Exit Function
+    If VBA.Right$(referenceText, 1) <> "]" Then Exit Function
+
+    suffix = VBA.Mid$(referenceText, VBA.Len(REF_PREFIX) + 1)
+    outColumnAlias = VBA.Trim$(VBA.Left$(suffix, VBA.Len(suffix) - 1))
+    If VBA.Len(outColumnAlias) = 0 Then Exit Function
+    If VBA.InStr(1, outColumnAlias, "[", VBA.vbBinaryCompare) > 0 Then Exit Function
+    If VBA.InStr(1, outColumnAlias, "]", VBA.vbBinaryCompare) > 0 Then Exit Function
+
+    private_TryParseEntityLookupTableColumnRef = True
+End Function
+
+Private Function private_IsDeclaredEntityLookupTableColumn( _
+    ByVal cfgMap As Object, _
+    ByVal columnAlias As String _
+) As Boolean
+    Dim columnKeys As Collection
+    Dim columnKeyObj As Variant
+
+    columnAlias = VBA.Trim$(columnAlias)
+    If VBA.Len(columnAlias) = 0 Then Exit Function
+    If Not private_TryGetTableColumnKeysFromMap(cfgMap, columnKeys) Then Exit Function
+
+    For Each columnKeyObj In columnKeys
+        If VBA.StrComp(VBA.Trim$(VBA.CStr(columnKeyObj)), columnAlias, VBA.vbTextCompare) = 0 Then
+            private_IsDeclaredEntityLookupTableColumn = True
+            Exit Function
+        End If
+    Next columnKeyObj
 End Function
 
 Private Sub private_ShowConfigError(ByVal messageText As String)
