@@ -142,6 +142,7 @@ Private Sub obj_IControl_Render()
     Dim hashRows As Collection
     Dim rxRows As Collection
     Dim page As obj_PageBase
+    Dim namespaceColors As Object
 
     ' Базовые проверки: контрол должен быть настроен и привязан к странице/листу.
     If Not m_IsConfigured Then
@@ -184,6 +185,7 @@ Private Sub obj_IControl_Render()
     ' Собираем номера строк для специальных style-part (attrhash/attrrx).
     Set hashRows = New Collection
     Set rxRows = New Collection
+    Set namespaceColors = ex_Helpers.fn_CreateDictionaryTextCompare()
 
     ' Проверяем, помещается ли весь контент в выделенный layout-диапазон.
     ' Если нет — не рендерим частично, чтобы не получить обрезанную таблицу.
@@ -286,6 +288,7 @@ ContinueItem:
     ' Регистрируем строковые части для специальных атрибутов (# и rx).
     If Not private_RegisterAttrRows(ws, "attrhash", hashRows) Then Exit Sub
     If Not private_RegisterAttrRows(ws, "attrrx", rxRows) Then Exit Sub
+    If Not private_RegisterNamespaceHighlights(page, writeRange, namespaceColors) Then Exit Sub
     If Not private_TryRegisterRuntimeControl() Then Exit Sub
     Exit Sub
 
@@ -294,6 +297,180 @@ EH_TABLE:
     ex_Core.fn_Diagnostic_LogError "Config: failed to create table for control '" & m_ControlName & "': " & Err.Description
 #End If
 End Sub
+
+' Регистрирует цветовые фрагменты текста после отрисовки таблицы. PageBase
+' применяет их после обычных стилей, поэтому стиль шрифта колонки не затирает
+' подсветку namespace.
+Private Function private_RegisterNamespaceHighlights( _
+    ByVal page As obj_PageBase, _
+    ByVal renderedRange As Range, _
+    ByVal namespaceColors As Object _
+) As Boolean
+    Dim rowIndex As Long
+    Dim columnIndex As Long
+    Dim targetCell As Range
+    Dim cellText As String
+    Dim runs As Collection
+    Dim inlineProfile As obj_InlineTextProfile
+
+    If page Is Nothing Then Exit Function
+    If renderedRange Is Nothing Then Exit Function
+    If namespaceColors Is Nothing Then Exit Function
+
+    Set inlineProfile = New obj_InlineTextProfile
+    inlineProfile.InlineMarkersEnabled = True
+
+    ' Attr намеренно пропускаем: квалифицированные ссылки находятся в Key и Value.
+    For rowIndex = 2 To renderedRange.Rows.Count
+        For columnIndex = 2 To 3
+            Set targetCell = renderedRange.Cells(rowIndex, columnIndex)
+            cellText = VBA.CStr(targetCell.Value2)
+            If VBA.InStr(1, cellText, "[", VBA.vbBinaryCompare) <= 0 Then GoTo ContinueCell
+
+            Set runs = private_BuildNamespaceHighlightRuns(cellText, namespaceColors)
+            If runs Is Nothing Then Exit Function
+            If runs.Count > 0 Then
+                If Not page.RegisterInlineRuns(targetCell, runs, inlineProfile) Then Exit Function
+            End If
+ContinueCell:
+        Next columnIndex
+    Next rowIndex
+
+    private_RegisterNamespaceHighlights = True
+End Function
+
+Private Function private_BuildNamespaceHighlightRuns( _
+    ByVal textValue As String, _
+    ByVal namespaceColors As Object _
+) As Collection
+    Dim result As Collection
+    Dim openPositions() As Long
+    Dim namespaceKeys() As String
+    Dim stackDepth As Long
+    Dim charIndex As Long
+    Dim charText As String
+    Dim runInfo As Object
+    Dim namespaceKey As String
+    Dim colorSpec As String
+    Dim runStart As Long
+    Dim runLength As Long
+
+    Set result = New Collection
+    If namespaceColors Is Nothing Then
+        Set private_BuildNamespaceHighlightRuns = result
+        Exit Function
+    End If
+
+    For charIndex = 1 To VBA.Len(textValue)
+        charText = VBA.Mid$(textValue, charIndex, 1)
+        Select Case charText
+            Case "["
+                stackDepth = stackDepth + 1
+                ReDim Preserve openPositions(1 To stackDepth)
+                ReDim Preserve namespaceKeys(1 To stackDepth)
+                openPositions(stackDepth) = charIndex
+                namespaceKeys(stackDepth) = private_ResolveNamespaceKey(textValue, charIndex)
+
+            Case "]"
+                If stackDepth <= 0 Then GoTo ContinueCharacter
+                runStart = openPositions(stackDepth) + 1
+                runLength = charIndex - runStart
+                namespaceKey = namespaceKeys(stackDepth)
+                stackDepth = stackDepth - 1
+
+                If runLength <= 0 Or VBA.Len(namespaceKey) = 0 Then GoTo ContinueCharacter
+                colorSpec = private_GetNamespaceColorSpec(namespaceColors, namespaceKey)
+                If VBA.Len(colorSpec) = 0 Then GoTo ContinueCharacter
+
+                Set runInfo = VBA.CreateObject("Scripting.Dictionary")
+                runInfo.CompareMode = 1
+                runInfo("Tag") = "color"
+                runInfo("Start") = VBA.CLng(runStart)
+                runInfo("Length") = VBA.CLng(runLength)
+                runInfo("ColorSpec") = colorSpec
+                ' Внешние скобки закрываются позже. Вставляем их перед внутренними,
+                ' чтобы цвет вложенного namespace применился последним и сохранился.
+                If result.Count > 0 Then
+                    result.Add runInfo, Before:=1
+                Else
+                    result.Add runInfo
+                End If
+        End Select
+ContinueCharacter:
+    Next charIndex
+
+    Set private_BuildNamespaceHighlightRuns = result
+End Function
+
+' Возвращает квалифицированный структурный префикс перед открывающей скобкой.
+' Уже присутствующие значения в скобках нормализуются до [], чтобы алиасы
+' не создавали отдельный цвет namespace (например Personnel.Sheet[].Column).
+Private Function private_ResolveNamespaceKey( _
+    ByVal textValue As String, _
+    ByVal openPosition As Long _
+) As String
+    Dim segmentStart As Long
+    Dim i As Long
+    Dim depth As Long
+    Dim charText As String
+    Dim prefixText As String
+    Dim normalized As String
+
+    segmentStart = 1
+    depth = 0
+    For i = openPosition - 1 To 1 Step -1
+        charText = VBA.Mid$(textValue, i, 1)
+        If charText = "]" Then
+            depth = depth + 1
+        ElseIf charText = "[" Then
+            If depth > 0 Then
+                depth = depth - 1
+            Else
+                segmentStart = i + 1
+                Exit For
+            End If
+        End If
+    Next i
+
+    prefixText = VBA.Trim$(VBA.Mid$(textValue, segmentStart, openPosition - segmentStart))
+    depth = 0
+    For i = 1 To VBA.Len(prefixText)
+        charText = VBA.Mid$(prefixText, i, 1)
+        If charText = "[" Then
+            depth = depth + 1
+            If depth = 1 Then normalized = normalized & "[]"
+        ElseIf charText = "]" Then
+            If depth > 0 Then depth = depth - 1
+        ElseIf depth = 0 Then
+            normalized = normalized & charText
+        End If
+    Next i
+
+    private_ResolveNamespaceKey = VBA.LCase$(VBA.Trim$(normalized))
+End Function
+
+Private Function private_GetNamespaceColorSpec( _
+    ByVal namespaceColors As Object, _
+    ByVal namespaceKey As String _
+) As String
+    Dim palette As Variant
+    Dim colorIndex As Long
+
+    namespaceKey = VBA.LCase$(VBA.Trim$(namespaceKey))
+    If VBA.Len(namespaceKey) = 0 Then Exit Function
+    If namespaceColors.Exists(namespaceKey) Then
+        private_GetNamespaceColorSpec = VBA.CStr(namespaceColors(namespaceKey))
+        Exit Function
+    End If
+
+    palette = Array( _
+        "#7DD3FC", "#C4B5FD", "#86EFAC", "#FDE68A", _
+        "#FDA4AF", "#FDBA74", "#67E8F9", "#D8B4FE", _
+        "#A7F3D0", "#FCA5A5", "#93C5FD", "#F0ABFC")
+    colorIndex = namespaceColors.Count Mod (UBound(palette) - LBound(palette) + 1)
+    private_GetNamespaceColorSpec = VBA.CStr(palette(LBound(palette) + colorIndex))
+    namespaceColors(namespaceKey) = private_GetNamespaceColorSpec
+End Function
 
 Private Function private_RegisterColumnPart( _
     ByVal ws As Worksheet, _
