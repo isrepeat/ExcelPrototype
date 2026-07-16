@@ -8,7 +8,7 @@ Option Explicit
 #Const LOGGING_VERBOSE_ENABLED = False
 
 Private Const LOOKUP_ALL_TOKEN As String = "*"
-Private Const LOOKUP_ALL_MAX_ROWS As Long = 30
+Private Const LOOKUP_MAX_ROWS As Long = 30
 
 Private Const RUNTIME_ERROR_TITLE As String = "PrototypeNew / EntityLookup runtime"
 Private Const MODE_PREFIX As String = "EntityLookup.Column["
@@ -324,6 +324,9 @@ ContinueValidateResultAlias:
     sqlParams.SheetName = sheetName
     sqlParams.RangeStartMarker = rangeStartMarker
     sqlParams.RangeEndMarker = rangeEndMarker
+    ' Лимит применяется самим движком запроса: SQL использует TOP 30,
+    ' а универсальный движок прекращает чтение после тридцатой строки.
+    sqlParams.MaxRows = LOOKUP_MAX_ROWS
     notBlankCondition = ex_HelpersSql.fn_BuildWhereNotBlankSql(searchSourceHeader)
     If VBA.Len(notBlankCondition) = 0 Then
         private_ShowConfigError "Failed to build non-empty search condition for column '" & columnKey & "'."
@@ -335,7 +338,6 @@ ContinueValidateResultAlias:
         ' пустых строк сохраняется, поэтому TOP N считается по заполненным
         ' записям, а хвост пустого диапазона не попадает в candidates.
         sqlParams.WhereConditions = notBlankCondition
-        sqlParams.MaxRows = LOOKUP_ALL_MAX_ROWS
     Else
         containsCondition = ex_HelpersSql.fn_BuildWhereContainsSql(searchSourceHeader, queryText)
         If VBA.Len(containsCondition) = 0 Then
