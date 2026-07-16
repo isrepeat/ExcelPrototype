@@ -28,7 +28,7 @@ Private Const ALF_RANGE_END_COLUMN As String = "J"
 Private Const DEFAULT_INSTITUTIONS_REL_PATH As String = "modes\PrsnlEvntBuilder\Установи.xlsx"
 Private Const INSTITUTIONS_SHEET_NAME As String = "Лікувальні Заклади"
 Private Const INSTITUTIONS_RANGE_START As String = "A3"
-Private Const INSTITUTIONS_RANGE_END_COLUMN As String = "E"
+Private Const INSTITUTIONS_RANGE_END_COLUMN As String = "F"
 Private Const INSTITUTIONS_RANGE_END_ROW As Long = 10000
 Private Const RANKS_SHEET_NAME As String = "Звання"
 Private Const RANKS_RANGE_START As String = "A1"
@@ -54,6 +54,7 @@ Private Const ALF_INITIALS_GENITIVE_HEADER As String = "ПІП (Родовий)"
 Private Const INSTITUTIONS_KEY_HEADER As String = "Позначення"
 Private Const INSTITUTIONS_GENITIVE_HEADER As String = "Родовий"
 Private Const INSTITUTIONS_ACCUSATIVE_HEADER As String = "Знахідний"
+Private Const INSTITUTIONS_DATIVE_HEADER As String = "Давальний"
 Private Const RANKS_KEY_HEADER As String = "Звання"
 Private Const RANKS_GENITIVE_HEADER As String = "Родовий"
 Private Const RANKS_DATIVE_HEADER As String = "Давальний"
@@ -439,6 +440,31 @@ Public Function TryResolveHospitalAccusative( _
         hospitalShortText, _
         "Установи", _
         outHospitalAccusative)
+End Function
+
+Public Function TryResolveHospitalDative( _
+    ByVal hospitalShortText As String, _
+    ByRef outHospitalDative As String _
+) As Boolean
+    If m_IsDisposed Then Exit Function
+    hospitalShortText = private_NormalizeLookupKey(hospitalShortText)
+    outHospitalDative = VBA.vbNullString
+    If VBA.Len(hospitalShortText) = 0 Then
+        TryResolveHospitalDative = True
+        Exit Function
+    End If
+
+    TryResolveHospitalDative = private_TryLookupWorkbookValue( _
+        DEFAULT_INSTITUTIONS_REL_PATH, _
+        private_BuildAdoRangeRef( _
+            INSTITUTIONS_SHEET_NAME, _
+            INSTITUTIONS_RANGE_START, _
+            INSTITUTIONS_RANGE_END_COLUMN & VBA.CStr(INSTITUTIONS_RANGE_END_ROW)), _
+        INSTITUTIONS_KEY_HEADER, _
+        INSTITUTIONS_DATIVE_HEADER, _
+        hospitalShortText, _
+        "Установи", _
+        outHospitalDative)
 End Function
 
 Public Function TryResolveRankGenitive( _
