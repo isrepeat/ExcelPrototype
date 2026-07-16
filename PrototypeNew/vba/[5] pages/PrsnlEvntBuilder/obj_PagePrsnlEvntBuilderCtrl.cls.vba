@@ -555,6 +555,12 @@ Public Function OnProfileButtonClick(Optional ByVal profileId As Variant) As Boo
     If Not private_RegisterProfileOptions(False) Then Exit Function
     If Not private_RegisterMetaProfileOptions(False) Then Exit Function
     If Not private_RegisterExportFormTables(False) Then Exit Function
+    ' Проекция кандидатов относится к схеме формы профиля, где запускался поиск.
+    ' Перед отрисовкой другого профиля очищаем её, иначе LookupCandidates попробует
+    ' совместить старую проекцию с новым набором видимых полей.
+    If Not m_LookupFeature Is Nothing Then
+        If Not m_LookupFeature.ClearLookupCandidates(False) Then Exit Function
+    End If
 #If LOGGING_DEBUG_ENABLED Then
     private_LogPerfStep "profile-click:profiles-registered", perfStart, perfLast, "profile='" & private_EscapeForLog(m_SelectedProfile) & "'"
 #End If
@@ -635,8 +641,137 @@ Public Function SearchCandidates( _
     ByRef outCandidateCount As Long, _
     Optional ByVal notifyChange As Boolean = True _
 ) As Boolean
+    Dim minAbsenceDepartureDate As Date
+    Dim maxAbsenceDepartureDate As Date
+    Dim absenceSelectorImpl As obj_PEB_AbsenceCnddtSlctr
+    Dim absenceSelector As obj_ILookupCandidateSelector
+
     If m_LookupFeature Is Nothing Then Exit Function
-    SearchCandidates = m_LookupFeature.SearchCandidates(lookupKey, queryText, outCandidateCount, notifyChange)
+    If Not private_UpdateLookupActiveFormColumns() Then Exit Function
+    ' Расширение из нескольких источников включено только на этой странице.
+    ' Универсальный EntityLookup не зависит от источников PrsnlEvntBuilder.
+    If VBA.StrComp(VBA.Trim$(lookupKey), "op_FIO", VBA.vbTextCompare) = 0 Then
+        If Not private_TryResolveAbsenceDepartureDateRange( _
+            minAbsenceDepartureDate, maxAbsenceDepartureDate) Then Exit Function
+        Set absenceSelectorImpl = New obj_PEB_AbsenceCnddtSlctr
+        If Not absenceSelectorImpl.Initialize( _
+            "DepartureDate", minAbsenceDepartureDate, maxAbsenceDepartureDate) Then Exit Function
+        Set absenceSelector = absenceSelectorImpl
+        If Not m_LookupFeature.SearchCandidates(lookupKey, queryText, outCandidateCount, False) Then Exit Function
+        If Not m_LookupFeature.ExtendCandidates( _
+            "op_FIOAbsenceExtension", _
+            "_FIO", _
+            queryText, _
+            absenceSelector, _
+            notifyChange) Then Exit Function
+        SearchCandidates = True
+    Else
+        SearchCandidates = m_LookupFeature.SearchCandidates(lookupKey, queryText, outCandidateCount, notifyChange)
+    End If
+End Function
+
+Private Function private_TryResolveAbsenceDepartureDateRange( _
+    ByRef outMinDate As Date, _
+    ByRef outMaxDate As Date _
+) As Boolean
+    Dim pageBase As obj_PageBase
+    Dim ws As Worksheet
+    Dim orderNoText As String
+
+    outMinDate = 0
+    outMaxDate = 0
+    If m_Page Is Nothing Then Exit Function
+    If m_ExportCommonData Is Nothing Then Exit Function
+    Set pageBase = m_Page.GetPageBase()
+    If pageBase Is Nothing Then Exit Function
+    Set ws = pageBase.Worksheet
+    If ws Is Nothing Then Exit Function
+
+    orderNoText = private_TryReadManualOrderNoValue(pageBase, ws)
+    If VBA.Len(VBA.Trim$(orderNoText)) = 0 Then
+        VBA.MsgBox "PrototypeNew: enter the current order number before searching FIO candidates. " & _
+            "The ЕЖОС candidate must have a departure date from the order date through 10 days after it.", _
+            vbExclamation, "PrototypeNew / EntityLookup runtime"
+        Exit Function
+    End If
+    If Not m_ExportCommonData.SetOrderNo(orderNoText) Then Exit Function
+    If Not m_ExportCommonData.HasOrderDate Then
+        VBA.MsgBox "PrototypeNew: order date was not found for order number '" & orderNoText & _
+            "'. ЕЖОС candidate selection was stopped.", _
+            vbExclamation, "PrototypeNew / EntityLookup runtime"
+        Exit Function
+    End If
+
+    outMinDate = VBA.DateValue(m_ExportCommonData.OrderDate)
+    outMaxDate = VBA.DateAdd("d", 10, outMinDate)
+    private_TryResolveAbsenceDepartureDateRange = True
+End Function
+
+Private Function private_UpdateLookupActiveFormColumns() As Boolean
+    Dim pageBase As obj_PageBase
+    Dim declaredAliases As Collection
+    Dim activeAliases As Collection
+    Dim aliasObj As Variant
+    Dim aliasText As String
+    Dim targetRange As Range
+    Dim aliases() As String
+    Dim gridColumns() As Long
+    Dim itemCount As Long
+    Dim i As Long
+    Dim j As Long
+    Dim swapAlias As String
+    Dim swapColumn As Long
+
+    If m_Page Is Nothing Then Exit Function
+    If m_LookupFeature Is Nothing Then Exit Function
+    Set pageBase = m_Page.GetPageBase()
+    If pageBase Is Nothing Then Exit Function
+    If Not m_LookupFeature.TryGetFormColumnKeys(declaredAliases) Then Exit Function
+    If declaredAliases Is Nothing Then Exit Function
+
+    ' Учитываем только видимые контролы. Их фактические колонки листа задают
+    ' порядок полей формы для активного профиля и режима.
+    For Each aliasObj In declaredAliases
+        aliasText = VBA.Trim$(VBA.CStr(aliasObj))
+        If VBA.Len(aliasText) = 0 Then GoTo ContinueAlias
+        Set targetRange = Nothing
+        If Not pageBase.TryGetFirstLayoutTagRange(aliasText, targetRange, "visible") Then GoTo ContinueAlias
+        If targetRange Is Nothing Then GoTo ContinueAlias
+
+        itemCount = itemCount + 1
+        ReDim Preserve aliases(1 To itemCount)
+        ReDim Preserve gridColumns(1 To itemCount)
+        aliases(itemCount) = aliasText
+        gridColumns(itemCount) = targetRange.Column
+ContinueAlias:
+    Next aliasObj
+
+    If itemCount <= 0 Then
+        VBA.MsgBox "PrototypeNew: failed to resolve visible EntityLookup form columns for the active profile.", _
+            vbExclamation, "PrototypeNew / EntityLookup runtime"
+        Exit Function
+    End If
+
+    ' Стабильно сортируем по фактической колонке Excel независимо от порядка в конфиге.
+    For i = 1 To itemCount - 1
+        For j = i + 1 To itemCount
+            If gridColumns(j) < gridColumns(i) Then
+                swapColumn = gridColumns(i)
+                gridColumns(i) = gridColumns(j)
+                gridColumns(j) = swapColumn
+                swapAlias = aliases(i)
+                aliases(i) = aliases(j)
+                aliases(j) = swapAlias
+            End If
+        Next j
+    Next i
+
+    Set activeAliases = New Collection
+    For i = 1 To itemCount
+        activeAliases.Add aliases(i)
+    Next i
+
+    private_UpdateLookupActiveFormColumns = m_LookupFeature.UpdateActiveFormColumns(activeAliases)
 End Function
 
 Public Function TryGetLookupKeys(ByRef outLookupKeys As Collection) As Boolean
@@ -883,6 +1018,8 @@ Private Function private_TryAcceptCandidateRowFromSelection(ByVal targetCell As 
     Dim firstCol As Long
     Dim lastCol As Long
     Dim colIndex As Long
+    Dim primaryCandidateColumnCount As Long
+    Dim primaryCandidateLastCol As Long
     Dim previousEnableEvents As Boolean
 
     If targetCell Is Nothing Then Exit Function
@@ -918,11 +1055,15 @@ Private Function private_TryAcceptCandidateRowFromSelection(ByVal targetCell As 
         ws.Cells(sourceRow, candidateRowsArea.Column), _
         ws.Cells(sourceRow, candidateRowsArea.Column + candidateRowsArea.Columns.Count - 1))
 
-    ' LookupCandidates visually aligns result columns under the form columns.
-    ' Therefore the safest generic mapping is the intersection of absolute Excel columns.
+    ' LookupCandidates выравнивает результат под колонками формы. После основного
+    ' зелёного диапазона могут идти служебные колонки, которые нельзя переносить.
+    If m_LookupFeature Is Nothing Then Exit Function
+    If Not m_LookupFeature.TryGetPrimaryCandidateColumnCount(primaryCandidateColumnCount) Then Exit Function
+    primaryCandidateLastCol = candidateRowRange.Column + primaryCandidateColumnCount - 1
+
     firstCol = private_MaxLong(candidateRowRange.Column, draftValuesRange.Column)
     lastCol = private_MinLong( _
-        candidateRowRange.Column + candidateRowRange.Columns.Count - 1, _
+        primaryCandidateLastCol, _
         draftValuesRange.Column + draftValuesRange.Columns.Count - 1)
     If lastCol < firstCol Then
         rt_Messaging.fn_ShowStatusBarWarning "Selected candidate row does not overlap the event form.", 3
@@ -935,7 +1076,11 @@ Private Function private_TryAcceptCandidateRowFromSelection(ByVal targetCell As 
     On Error GoTo RestoreEventsAndFail
     Application.EnableEvents = False
     For colIndex = firstCol To lastCol
-        ws.Cells(draftValuesRange.Row, colIndex).Value2 = ws.Cells(sourceRow, colIndex).Value2
+        ' Пустые ячейки кандидата обозначают разрыв или отсутствие данных,
+        ' поэтому они не должны очищать уже заполненные значения формы.
+        If VBA.Len(VBA.Trim$(VBA.CStr(ws.Cells(sourceRow, colIndex).Value2))) > 0 Then
+            ws.Cells(draftValuesRange.Row, colIndex).Value2 = ws.Cells(sourceRow, colIndex).Value2
+        End If
     Next colIndex
     Application.EnableEvents = previousEnableEvents
     On Error GoTo 0
@@ -2018,6 +2163,12 @@ Private Function private_AddSourceColumn(ByVal tableObj As obj_TableDynamic, ByV
             columnAlias = VBA.Trim$(VBA.CStr(m_SourceColumnAliasByCaption(colObj.Name)))
             If VBA.Len(columnAlias) > 0 Then
                 If Not colObj.AddAlias(columnAlias) Then Exit Function
+                ' Целевые алиасы EntityLookup имеют префикс "_", отличающий их от
+                ' алиасов внешних источников. Старый алиас сохраняем для совместимости
+                ' с существующими экспортёрами и шаблонами.
+                If VBA.Left$(columnAlias, 1) = "_" And VBA.Len(columnAlias) > 1 Then
+                    If Not colObj.AddAlias(VBA.Mid$(columnAlias, 2)) Then Exit Function
+                End If
             End If
         End If
     End If
