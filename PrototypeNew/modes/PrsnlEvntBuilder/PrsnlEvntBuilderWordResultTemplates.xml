@@ -140,10 +140,19 @@
       </text>
     </sharedTemplate>
 
+    <sharedTemplate id="block.OptionalFoodCertificate">
+      <text>
+        <![CDATA[#^
+#_        #let __IssueFoodCertificate = $ex_Helpers.m_RegexIsMatch("{[HospitalShort]}", "^\s*ВМКЦ\s+(ПнР|ЦнР|ЗхР|СхР)\s*$");#^
+#_        {#if __IssueFoodCertificate}{#newline}Видати продовольчий атестат.{#endif}#^
+        ]]>
+      </text>
+    </sharedTemplate>
+
     <sharedTemplate id="block.StatusChangePersonLine">
       <text>
         <![CDATA[#^
-#_        NN. {[RankGenitive]|upperFirstLetter} {[FIOGenitive]}, {[PositionGenitive]|lowerFirstLetter}, #^
+#_        NN. {[RankGenitive]|upperFirstLetter} {[FIOAccusative]}, {[PositionGenitive]|lowerFirstLetter}, #^
         ]]>
       </text>
     </sharedTemplate>
@@ -167,7 +176,7 @@
     <sharedTemplate id="block.OptionalVacationTicket">
       <text>
         <![CDATA[#^
-#_        {#if [VhNo] #or [VhDateShort]}; відпускний квиток{#if [VhNo]} № 2026/{[OrderNo]}/{[VhNo]}{#endif}{#if [VhDateShort]} від {[VhDateShort]}{#endif}{#endif}#^
+#_        {#if [VhNo] #or [VhDateShort]}; відпускний квиток{#if [VhNo]} № {#if [VhNo] > 3000}3/71/{[VhNo]}{#else}2026/{[OrderNo]}/{[VhNo]}{#endif}{#endif}{#if [VhDateShort]} від {[VhDateShort]}{#endif}{#endif}#^
         ]]>
       </text>
     </sharedTemplate>
@@ -285,6 +294,7 @@
 #_      {#newline}#^
 #_      {#include block.AssignToDuty}#^
 #_      {#include block.RemoveFromFoodSupport}#^
+#_      {#include block.OptionalFoodCertificate}#^
 #_      {#newline}#^
 #_      {#include block.IncomingBasis}#^
 #_      {#include block.OptionalBasisDocuments}#^
@@ -304,7 +314,7 @@
 #_      {#newline}#^
 #_      {#include block.IncomingBasis}#^
 #_      {#include block.OptionalBasisDocuments}#^
-#_      ; відпускний квиток № 2026/{[OrderNo]}/{[VhNo]} від {[VhDateShort]}#^
+#_      ; відпускний квиток № {#if [VhNo] > 3000}3/71/{[VhNo]}{#else}2026/{[OrderNo]}/{[VhNo]}{#endif} від {[VhDateShort]}#^
 #_      .{#newline}{#newline}#^
       ]]>
     </text>
@@ -405,6 +415,7 @@
 #_      {#include block.StatusChangePersonLine}#^
 #_      який перебував у відпустці для лікування, вважати таким, що вибув на лікування у {[HospitalAccusative]|lowerFirstLetter}#^
 #_      {#include block.StatusChangeDateFrom}#^
+#_      {#include block.OptionalFoodCertificate}#^
 #_      {#newline}#^
 #_      {#include block.IncomingBasis}#^
 #_      {#include block.OptionalBasisDocuments}#^
@@ -420,6 +431,7 @@
 #_      {#include block.StatusChangePersonLine}#^
 #_      який перебував у щорічній основній відпустці, вважати таким, що вибув на лікування у {[HospitalAccusative]|lowerFirstLetter}#^
 #_      {#include block.StatusChangeDateFrom}#^
+#_      {#include block.OptionalFoodCertificate}#^
 #_      {#newline}#^
 #_      {#include block.IncomingBasis}#^
 #_      {#include block.OptionalBasisDocuments}#^
@@ -465,6 +477,7 @@
 #_      {#include block.StatusChangePersonLine}#^
 #_      який перебував на медичному огляді військово-лікарської комісії, вважати таким, що вибув на лікування у {[HospitalAccusative]|lowerFirstLetter}#^
 #_      {#include block.StatusChangeDateFrom}#^
+#_      {#include block.OptionalFoodCertificate}#^
 #_      {#newline}#^
 #_      {#include block.IncomingBasis}#^
 #_      {#include block.OptionalVlkCertificate}#^
@@ -482,6 +495,7 @@
 #_      {#include block.StatusChangeDateFrom}#^
 #_      {#newline}#^
 #_      {#include block.RemoveFromFoodSupport}#^
+#_      {#include block.OptionalFoodCertificate}#^
 #_      {#newline}#^
 #_      {#include block.IncomingBasis}#^
 #_      {#include block.OptionalBasisDocuments}#^
@@ -502,7 +516,9 @@
   <template id="DummyMoveFromFamilyVacationToHospital">
     <text>
       <![CDATA[#^
-#_      [DUMMY] відпустка за сімейними => лікування.{#newline}{#newline}#^
+#_      [DUMMY] відпустка за сімейними => лікування.#^
+#_      {#include block.OptionalFoodCertificate}#^
+#_      {#newline}{#newline}#^
       ]]>
     </text>
   </template>
