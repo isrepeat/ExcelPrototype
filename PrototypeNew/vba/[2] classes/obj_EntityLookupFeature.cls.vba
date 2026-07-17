@@ -244,11 +244,14 @@ Public Function ExtendCandidates( _
     If Not m_EntityLookupCfgParser.TryBuildLookupSqlParams( _
         extensionLookupKey, queryText, sqlParams, ignoredSearchAlias, ignoredResultAliases) Then Exit Function
     If Not ex_ExternalExcelSqlEngine.fn_TrySqlRequest(sqlParams, extensionTable) Then Exit Function
-    If extensionTable Is Nothing Then Exit Function
 
-    If extensionTable.RowCount > 0 Then
-        If Not private_MergeCandidateExtension( _
-            extensionTable, joinColumnAlias, candidateSelector) Then Exit Function
+    ' Пустой результат дополнительного источника не является ошибкой поиска.
+    ' В этом случае показываем кандидатов основного запроса без расширенных данных.
+    If Not extensionTable Is Nothing Then
+        If extensionTable.RowCount > 0 Then
+            If Not private_MergeCandidateExtension( _
+                extensionTable, joinColumnAlias, candidateSelector) Then Exit Function
+        End If
     End If
     If Not private_ProjectCandidateTable(m_CandidateDataTable, m_CandidateTable) Then
         Set m_CandidateTable = Nothing

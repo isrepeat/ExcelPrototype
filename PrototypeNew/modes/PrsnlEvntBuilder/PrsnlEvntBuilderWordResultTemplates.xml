@@ -238,8 +238,6 @@
 #_      {#include block.PersonLineUpper}.#^
 #_      {#newline}#^
 #_      {#include block.ReturnToDuty}#^
-#_      {#include block.EnrollToFoodSupport}#^
-#_      {#newline}#^
 #_      {#include block.IncomingBasis}#^
 #_      {#include block.OptionalBasisDocuments}#^
 #_      .{#newline}{#newline}#^
@@ -253,8 +251,6 @@
 #_      {#include block.PersonLineUpper}.#^
 #_      {#newline}#^
 #_      {#include block.ReturnToDuty}#^
-#_      {#include block.EnrollToFoodSupport}#^
-#_      {#newline}#^
 #_      {#include block.IncomingBasis}#^
 #_      {#include block.OptionalVlkCertificate}#^
 #_      .{#newline}{#newline}#^

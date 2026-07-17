@@ -475,44 +475,24 @@ EH:
 End Function
 
 Public Function RuntimeClearExportFormAndCandidates() As Boolean
-    Dim pageBase As obj_PageBase
-    Dim draftValuesRange As Range
-    Dim previousEnableEvents As Boolean
-
     If m_Page Is Nothing Then Exit Function
-    Set pageBase = m_Page.GetPageBase()
-    If pageBase Is Nothing Then Exit Function
-    If Not pageBase.TryGetLayoutContainerRange( _
-        EVENT_DRAFT_VALUES_CONTAINER_NAME, draftValuesRange) Then Exit Function
-    If draftValuesRange Is Nothing Then Exit Function
 
-    previousEnableEvents = Application.EnableEvents
-    On Error GoTo RestoreEventsAndFail
-    Application.EnableEvents = False
-
-    draftValuesRange.ClearContents
+    ' Верхняя draft-форма остаётся заполненной. Команда очищает только staging,
+    ' сформированный через Apply, его WORD preview и текущих Lookup-кандидатов.
     private_ClearExportFormState
     m_WordExportPreviewText = VBA.vbNullString
 
     If Not m_LookupFeature Is Nothing Then
-        If Not m_LookupFeature.ClearLookupCandidates(False) Then GoTo RestoreEventsAndFail
+        If Not m_LookupFeature.ClearLookupCandidates(False) Then Exit Function
     End If
-    If Not private_RegisterExportFormTables(False) Then GoTo RestoreEventsAndFail
+    If Not private_RegisterExportFormTables(False) Then Exit Function
 
     RuntimeClearExportFormAndCandidates = rt_PageManager.fn_RenderPage( _
         m_Page, "prsnlevntbuilder:clear-export-form-and-candidates")
 
-    Application.EnableEvents = previousEnableEvents
-    On Error GoTo 0
     If RuntimeClearExportFormAndCandidates Then
         rt_Messaging.fn_ShowStatusBarSuccess "Export form and candidates cleared.", 3
     End If
-    Exit Function
-
-RestoreEventsAndFail:
-    On Error Resume Next
-    Application.EnableEvents = previousEnableEvents
-    On Error GoTo 0
 End Function
 
 Public Function OnExportToWordClick(Optional ByVal ignored As Variant) As Boolean
