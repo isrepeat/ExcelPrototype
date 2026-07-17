@@ -75,12 +75,16 @@ Private Const DRAFT_ALIAS_RANK As String = "_Rank"
 Private Const DRAFT_ALIAS_IPN As String = "_IPN"
 Private Const DRAFT_ALIAS_POSITION_CODE As String = "_PositionCode"
 Private Const DRAFT_ALIAS_POSITION_NAME As String = "_PositionName"
+Private Const DRAFT_ALIAS_VACATION As String = "_Vacation"
 Private Const DRAFT_ALIAS_REPORT_RANK As String = "_ReportRank"
 Private Const DRAFT_ALIAS_REPORT_POSITION_CODE As String = "_ReportPositionCode"
 Private Const DRAFT_ALIAS_INCOMING_NO As String = "_IncomingNo"
 Private Const DRAFT_ALIAS_INCOMING_DATE As String = "_IncomingDate"
-Private Const DRAFT_ALIAS_DATE_FROM As String = "_DateFrom"
+Private Const DRAFT_ALIAS_DURATION_DAYS As String = "_DurationDays"
 Private Const DRAFT_ALIAS_VH_NO As String = "_VhNo"
+Private Const DRAFT_ALIAS_VH_DATE As String = "_VhDate"
+Private Const DRAFT_ALIAS_VLK_NO As String = "_VlkNo"
+Private Const DRAFT_ALIAS_VLK_DATE As String = "_VlkDate"
 
 Private m_Page As obj_IPage
 Private m_LookupFeature As obj_EntityLookupFeature
@@ -347,12 +351,16 @@ Private Function private_AppendFioDependentAliases( _
             private_AddStandardFioDependentAliases dependentAliases
 
         Case private_NormalizeText(m_Data.SectionTypeCloseFromAnnualVacation), _
-             private_NormalizeText(m_Data.SectionTypeToAnnualVacationPart), _
              private_NormalizeText(m_Data.SectionTypeCloseFromTreatmentVacation), _
-             private_NormalizeText(m_Data.SectionTypeToTreatmentVacation), _
-             private_NormalizeText(m_Data.SectionTypeCloseFromFamilyVacation), _
+             private_NormalizeText(m_Data.SectionTypeCloseFromFamilyVacation)
+            private_AddCloseVacationFioDependentAliases dependentAliases
+
+        Case private_NormalizeText(m_Data.SectionTypeToAnnualVacationPart), _
              private_NormalizeText(m_Data.SectionTypeToFamilyVacation)
-            private_AddVacationFioDependentAliases dependentAliases
+            private_AddToVacationFioDependentAliases dependentAliases
+
+        Case private_NormalizeText(m_Data.SectionTypeToTreatmentVacation)
+            private_AddToTreatmentVacationFioDependentAliases dependentAliases
 
         Case private_NormalizeText(m_Data.SectionTypeTransferTreatmentToTreatmentVacation), _
              private_NormalizeText(m_Data.SectionTypeTransferTreatmentToStationaryVlk), _
@@ -444,14 +452,28 @@ Private Sub private_AddStandardFioDependentAliases(ByVal dependentAliases As Obj
     dependentAliases(DRAFT_ALIAS_POSITION_NAME) = True
 End Sub
 
-Private Sub private_AddVacationFioDependentAliases(ByVal dependentAliases As Object)
-    ' При смене человека данные конкретного отпускного документа больше не
-    ' относятся к выбранной строке, поэтому очищаем их вместе с персональными.
+Private Sub private_AddToVacationFioDependentAliases(ByVal dependentAliases As Object)
+    ' При смене человека данные оформляемого отпуска больше не относятся
+    ' к выбранной строке, поэтому очищаем их вместе с персональными полями.
     private_AddStandardFioDependentAliases dependentAliases
+    dependentAliases(DRAFT_ALIAS_VACATION) = True
     dependentAliases(DRAFT_ALIAS_INCOMING_NO) = True
     dependentAliases(DRAFT_ALIAS_INCOMING_DATE) = True
-    dependentAliases(DRAFT_ALIAS_DATE_FROM) = True
+    dependentAliases(DRAFT_ALIAS_DURATION_DAYS) = True
     dependentAliases(DRAFT_ALIAS_VH_NO) = True
+End Sub
+
+Private Sub private_AddCloseVacationFioDependentAliases(ByVal dependentAliases As Object)
+    ' Для возврата из отпуска очищаются только реквизиты отпускного билета.
+    private_AddStandardFioDependentAliases dependentAliases
+    dependentAliases(DRAFT_ALIAS_VH_NO) = True
+    dependentAliases(DRAFT_ALIAS_VH_DATE) = True
+End Sub
+
+Private Sub private_AddToTreatmentVacationFioDependentAliases(ByVal dependentAliases As Object)
+    private_AddToVacationFioDependentAliases dependentAliases
+    dependentAliases(DRAFT_ALIAS_VLK_NO) = True
+    dependentAliases(DRAFT_ALIAS_VLK_DATE) = True
 End Sub
 
 Private Sub private_AddStandardCommanderDependentAliases(ByVal dependentAliases As Object)
