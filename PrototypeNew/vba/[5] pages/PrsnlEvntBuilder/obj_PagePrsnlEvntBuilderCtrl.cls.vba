@@ -657,6 +657,7 @@ Public Function OnClearWordDocumentClick(Optional ByVal ignored As Variant) As B
     Dim exporterClassName As String
     Dim exportConfigTable As obj_ConfigTable
     Dim clearedBlockCount As Long
+    Dim orderNoText As String
 
     If Not private_TryGetExportSettings("Word", exporterClassName, exportConfigTable) Then
         VBA.MsgBox "PrototypeNew: Export.Word settings are missing.", VBA.vbExclamation, "PrototypeNew / WORD document"
@@ -668,7 +669,9 @@ Public Function OnClearWordDocumentClick(Optional ByVal ignored As Variant) As B
     End If
     If Not private_TryCreateDataExporter(exporterClassName, exportConfigTable, exporter) Then Exit Function
     If m_CachedWordExporter Is Nothing Then Exit Function
-    If Not m_CachedWordExporter.RemoveResultDocumentAnchors(clearedBlockCount) Then Exit Function
+    If Not private_TryGetCurrentManualOrderNo(orderNoText) Then Exit Function
+    If Not m_CachedWordExporter.RemoveResultDocumentAnchors( _
+        clearedBlockCount, orderNoText) Then Exit Function
 
     rt_Messaging.fn_ShowStatusBarSuccess "WORD document: removed anchor blocks: " & VBA.CStr(clearedBlockCount), 3
     OnClearWordDocumentClick = True
@@ -679,6 +682,7 @@ Public Function OnRegroupWordHospitalPointsClick(Optional ByVal ignored As Varia
     Dim exporterClassName As String
     Dim exportConfigTable As obj_ConfigTable
     Dim regroupedPointCount As Long
+    Dim orderNoText As String
 
     ' Кнопка использует тот же кэшированный WORD exporter, что экспорт и
     ' удаление якорей, поэтому путь result-документа определяется единообразно.
@@ -694,8 +698,9 @@ Public Function OnRegroupWordHospitalPointsClick(Optional ByVal ignored As Varia
     End If
     If Not private_TryCreateDataExporter(exporterClassName, exportConfigTable, exporter) Then Exit Function
     If m_CachedWordExporter Is Nothing Then Exit Function
+    If Not private_TryGetCurrentManualOrderNo(orderNoText) Then Exit Function
     If Not m_CachedWordExporter.RegroupResultDocumentHospitalPoints( _
-        regroupedPointCount) Then Exit Function
+        regroupedPointCount, orderNoText) Then Exit Function
 
     rt_Messaging.fn_ShowStatusBarSuccess _
         "WORD document: grouped hospital points: " & VBA.CStr(regroupedPointCount), 3
@@ -1869,6 +1874,26 @@ Private Function private_TryReadManualOrderNoValue( _
     If orderNoScope Is Nothing Then Exit Function
 
     private_TryReadManualOrderNoValue = VBA.Trim$(VBA.CStr(orderNoScope.Cells(1, 1).Value2))
+End Function
+
+Private Function private_TryGetCurrentManualOrderNo(ByRef outOrderNo As String) As Boolean
+    Dim pageBase As obj_PageBase
+    Dim ws As Worksheet
+
+    outOrderNo = VBA.vbNullString
+    If m_Page Is Nothing Then Exit Function
+    Set pageBase = m_Page.GetPageBase()
+    If pageBase Is Nothing Then Exit Function
+    Set ws = pageBase.Worksheet
+    If ws Is Nothing Then Exit Function
+
+    outOrderNo = private_TryReadManualOrderNoValue(pageBase, ws)
+    If VBA.Len(VBA.Trim$(outOrderNo)) = 0 Then
+        VBA.MsgBox "PrototypeNew: enter the order number before working with the WORD document.", _
+            VBA.vbExclamation, "PrototypeNew / WORD document"
+        Exit Function
+    End If
+    private_TryGetCurrentManualOrderNo = True
 End Function
 
 Private Function private_TryGetSelectedProfile(ByRef outProfile As String) As Boolean

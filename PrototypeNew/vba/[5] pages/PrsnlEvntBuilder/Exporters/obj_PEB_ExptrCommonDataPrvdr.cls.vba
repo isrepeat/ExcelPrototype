@@ -32,7 +32,7 @@ Private Const RANKS_RANGE_END_COLUMN As String = "E"
 Private Const POSITIONS_SHEET_NAME As String = "Посади"
 Private Const POSITIONS_RANGE_START As String = "A1"
 Private Const POSITIONS_RANGE_END_COLUMN As String = "E"
-Private Const DEFAULT_ORDER_MAP_REL_PATH As String = "modes\PrsnlEvntBuilder\Мапа наказів.xlsx"
+Private Const DEFAULT_ORDER_MAP_REL_PATH As String = "modes\PrsnlEvntBuilder\Накази.xlsx"
 Private Const ORDER_MAP_SHEET_NAME As String = "Накази"
 Private Const ORDER_MAP_2026_RANGE_START As String = "D2"
 Private Const ORDER_MAP_2026_RANGE_END_COLUMN As String = "E"
@@ -137,7 +137,7 @@ End Sub
 
 ' Статический provider общих данных PrsnlEvntBuilder.
 ' Здесь остаются только стабильные справочники, не завязанные на профиль:
-' ШПО (АЛФ/Посади/Звання), Установи, Мапа наказів.
+' ШПО (АЛФ/Посади/Звання), Установи, Накази.
 ' Динамические источники вроде ежедневной ШПС держит obj_PEB_ExptrDataPrvdr.
 Public Function SetOrderNo(ByVal orderNo As Variant) As Boolean
     If m_IsDisposed Then Exit Function
@@ -229,7 +229,7 @@ Public Function TryResolveOrderDateByNumber( _
     If VBA.Len(orderNoToken) = 0 Then Exit Function
     If Not private_TryResolveOrderMapWorkbookPath(orderMapPath) Then Exit Function
 
-    ' "Мапа наказів" разложена горизонтальными блоками по годам.
+    ' "Накази" разложены горизонтальными блоками по годам.
     ' Сначала проверяем актуальный блок 2026, затем старый блок 2025. Важно:
     ' lookup идет через отдельный workbook, поэтому WORD/DailyScope больше не
     ' зависят от служебной таблицы внутри Movement workbook.
@@ -242,7 +242,7 @@ Public Function TryResolveOrderDateByNumber( _
         ORDER_NO_COLUMN_NAME, _
         ORDER_DATE_COLUMN_NAME, _
         orderNoToken, _
-        "Мапа наказів / 2026", _
+        "Накази / 2026", _
         outOrderDate) Then
         TryResolveOrderDateByNumber = True
         Exit Function
@@ -257,7 +257,7 @@ Public Function TryResolveOrderDateByNumber( _
         ORDER_NO_COLUMN_NAME, _
         ORDER_DATE_COLUMN_NAME, _
         orderNoToken, _
-        "Мапа наказів / 2025", _
+        "Накази / 2025", _
         outOrderDate)
 End Function
 
