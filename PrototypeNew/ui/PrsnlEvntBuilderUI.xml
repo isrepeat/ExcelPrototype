@@ -430,6 +430,7 @@
                   profile.toBusinessTrip;
                   profile.toBusinessTripSzch;
                   profile.closeTreatment;
+                  profile.toTreatment;
                   profile.toAnnualVacationPart;
                   profile.toFamilyVacation;
                   profile.toTreatmentVacation;
@@ -837,6 +838,7 @@
                   profile.toBusinessTrip;
                   profile.toBusinessTripSzch;
                   profile.closeTreatment;
+                  profile.toTreatment;
                   profile.toAnnualVacationPart;
                   profile.toFamilyVacation;
                   profile.toTreatmentVacation;
