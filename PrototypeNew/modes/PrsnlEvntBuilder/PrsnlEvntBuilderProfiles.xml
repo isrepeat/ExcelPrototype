@@ -26,13 +26,12 @@
     <item key="AbsenceEvents.Sheet[TemporaryAbsent].Map[VhNo]" value="Стовпець1"/>
 
     <item attr="#" key="Hospitals source" value=""/>
-    <item key="Source.HospitalsCommanders.FilePath" value="C:\WORK Alexandr Bondarenko\НАКАЗИ\Лікарні та Командири.xlsx"/>
-    <item key="Source.HospitalsCommanders.SheetsAliases" value="Dictionary"/>
-    <item key="HospitalsCommanders.Sheet[Dictionary].SheetName" value="Лікарні, Командири$A1:D2000"/>
-    <item key="HospitalsCommanders.Sheet[Dictionary].ColumnHeadersAliases" value="HospitalName; HospitalShort; FoodColumn"/>
-    <item key="HospitalsCommanders.Sheet[Dictionary].Map[HospitalName]" value="Назва лікарні"/>
-    <item key="HospitalsCommanders.Sheet[Dictionary].Map[HospitalShort]" value="Скорочення"/>
-    <item key="HospitalsCommanders.Sheet[Dictionary].Map[FoodColumn]" value="Атестат"/>
+    <item key="Source.Hospitals.FilePath" value="C:\Users\SVI\Desktop\Установи.xlsx"/>
+    <item key="Source.Hospitals.SheetsAliases" value="Dictionary"/>
+    <item key="Hospitals.Sheet[Dictionary].SheetName" value="Лікувальні Заклади$A3:F10000"/>
+    <item key="Hospitals.Sheet[Dictionary].ColumnHeadersAliases" value="HospitalName; HospitalShort"/>
+    <item key="Hospitals.Sheet[Dictionary].Map[HospitalName]" value="Назва"/>
+    <item key="Hospitals.Sheet[Dictionary].Map[HospitalShort]" value="Позначення"/>
 
     <item attr="#" key="Documents source" value=""/>
     <item key="Source.Documents.FilePath" value="C:\WORK Alexandr Bondarenko\НАКАЗИ\Документи.xlsx"/>
@@ -72,9 +71,9 @@
     <item key="EntityLookup.Lookups" value="op_Hospital; op_FIO; op_Commander; op_DocumentNote"/>
     <item key="EntityLookup.Lookup[op_Hospital].TargetColumn" value="EntityLookup.Table.Column[_Hospital]"/>
     <item key="EntityLookup.Lookup[op_Hospital].CandidatesSectionCaption" value="Hospital candidates"/>
-    <item key="EntityLookup.Lookup[op_Hospital].SearchColumnAlias" value="HospitalsCommanders.Sheet[Dictionary].Column[HospitalName]"/>
-    <item key="EntityLookup.Lookup[op_Hospital].ResultColumnsAliases[HospitalsCommanders.Sheet[Dictionary].Column[HospitalName]]" value="EntityLookup.Table.Column[_Hospital]"/>
-    <item key="EntityLookup.Lookup[op_Hospital].ResultColumnsAliases[HospitalsCommanders.Sheet[Dictionary].Column[HospitalShort]]" value="EntityLookup.Table.Column[_HospitalShort]"/>
+    <item key="EntityLookup.Lookup[op_Hospital].SearchColumnAlias" value="Hospitals.Sheet[Dictionary].Column[HospitalName]"/>
+    <item key="EntityLookup.Lookup[op_Hospital].ResultColumnsAliases[Hospitals.Sheet[Dictionary].Column[HospitalName]]" value="EntityLookup.Table.Column[_Hospital]"/>
+    <item key="EntityLookup.Lookup[op_Hospital].ResultColumnsAliases[Hospitals.Sheet[Dictionary].Column[HospitalShort]]" value="EntityLookup.Table.Column[_HospitalShort]"/>
 
     <item key="EntityLookup.Lookup[op_FIO].TargetColumn" value="EntityLookup.Table.Column[_FIO]"/>
     <item key="EntityLookup.Lookup[op_FIO].CandidatesSectionCaption" value="Candidates"/>
@@ -108,7 +107,7 @@
     <item attr="#" key="Export" value=""/>
     <item key="Export.Daily.ExporterClass" value="obj_PEB_ExptrDailyScope"/>
     <item key="Export.Daily.FilePath" value="C:\WORK Alexandr Bondarenko\НАКАЗИ\DailyScope.xlsx"/>
-    <item key="Export.Daily.SheetName" value="14_07"/>
+    <item key="Export.Daily.SheetName" value="15_07"/>
     <item key="Export.Daily.RangeStartMarker" value="$B2"/>
     <item key="Export.Daily.RangeEndMarker" value="EndTable_DailyEvents"/>
     <item key="Export.Movement.ExporterClass" value="obj_PEB_ExptrMovement"/>
