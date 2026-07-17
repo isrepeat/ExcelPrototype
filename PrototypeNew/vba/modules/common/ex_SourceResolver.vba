@@ -94,6 +94,104 @@ Public Function fn_ResolveLatestByDmyPattern( _
     fn_ResolveLatestByDmyPattern = bestPath
 End Function
 
+Public Function fn_ResolveAllByDmyPattern( _
+    ByVal filePathPattern As String, _
+    Optional ByVal resolverArgs As String = vbNullString _
+) As Collection
+    Dim normalizedPattern As String
+    Dim absolutePattern As String
+    Dim folderPath As String
+    Dim filePattern As String
+    Dim searchMask As String
+    Dim candidateName As String
+    Dim candidatePath As String
+    Dim candidateDate As Date
+    Dim candidateWriteTime As Date
+    Dim validationError As String
+    Dim sortDescending As Boolean
+    Dim paths() As String
+    Dim dates() As Date
+    Dim writeTimes() As Date
+    Dim itemCount As Long
+    Dim i As Long
+    Dim result As Collection
+
+    normalizedPattern = private_NormalizeFilePath(filePathPattern)
+    If VBA.Len(normalizedPattern) = 0 Then
+        Err.Raise ERR_BASE + 1, "ex_SourceResolver", "Resolver pattern is empty."
+    End If
+
+    absolutePattern = private_ToAbsolutePath(normalizedPattern)
+    folderPath = private_GetParentDirectory(absolutePattern)
+    filePattern = private_GetFileName(absolutePattern)
+    If VBA.Len(folderPath) = 0 Or VBA.Len(filePattern) = 0 Then
+        Err.Raise ERR_BASE + 3, "ex_SourceResolver", _
+            "Resolver pattern must include both folder and file name: " & absolutePattern
+    End If
+    If Not private_ValidateDmyPattern(filePattern, validationError) Then
+        Err.Raise ERR_BASE + 4, "ex_SourceResolver", validationError & " Pattern: " & absolutePattern
+    End If
+    If VBA.Len(VBA.Dir$(folderPath, vbDirectory)) = 0 Then
+        Err.Raise ERR_BASE + 5, "ex_SourceResolver", "Resolver folder was not found: " & folderPath
+    End If
+
+    sortDescending = (VBA.InStr(1, resolverArgs, "order=desc", VBA.vbTextCompare) > 0)
+    searchMask = private_BuildSearchMask(filePattern)
+    candidateName = VBA.Dir$(folderPath & "\" & searchMask, vbNormal Or vbReadOnly Or vbHidden Or vbSystem)
+    Do While VBA.Len(candidateName) > 0
+        If private_TryExtractDateByPattern(filePattern, candidateName, candidateDate) Then
+            itemCount = itemCount + 1
+            ReDim Preserve paths(1 To itemCount)
+            ReDim Preserve dates(1 To itemCount)
+            ReDim Preserve writeTimes(1 To itemCount)
+            candidatePath = folderPath & "\" & candidateName
+            paths(itemCount) = candidatePath
+            dates(itemCount) = candidateDate
+            writeTimes(itemCount) = VBA.FileDateTime(candidatePath)
+        End If
+        candidateName = VBA.Dir$
+    Loop
+    If itemCount = 0 Then
+        Err.Raise ERR_BASE + 7, "ex_SourceResolver", _
+            "No files matched the date pattern. Pattern: " & absolutePattern & ", search mask: " & searchMask
+    End If
+
+    private_SortResolvedPaths paths, dates, writeTimes, itemCount, sortDescending
+    Set result = New Collection
+    For i = 1 To itemCount
+        result.Add paths(i)
+    Next i
+    Set fn_ResolveAllByDmyPattern = result
+End Function
+
+Public Function fn_ExpandDmyRuntimeAliasByResolvedPath( _
+    ByVal runtimeAliasPattern As String, _
+    ByVal filePathPattern As String, _
+    ByVal resolvedPath As String _
+) As String
+    Dim expandedAlias As String
+    Dim patternFileName As String
+    Dim resolvedFileName As String
+    Dim resolvedDate As Date
+
+    expandedAlias = VBA.Trim$(runtimeAliasPattern)
+    If VBA.Len(expandedAlias) = 0 Then
+        Err.Raise ERR_BASE + 8, "ex_SourceResolver", "Runtime alias pattern is empty."
+    End If
+
+    patternFileName = private_GetFileName(private_NormalizeFilePath(filePathPattern))
+    resolvedFileName = private_GetFileName(private_NormalizeFilePath(resolvedPath))
+    If Not private_TryExtractDateByPattern(patternFileName, resolvedFileName, resolvedDate) Then
+        Err.Raise ERR_BASE + 9, "ex_SourceResolver", _
+            "Resolved file does not match runtime alias date pattern: " & resolvedPath
+    End If
+
+    expandedAlias = VBA.Replace(expandedAlias, "{dd}", VBA.Format$(resolvedDate, "dd"), 1, -1, VBA.vbTextCompare)
+    expandedAlias = VBA.Replace(expandedAlias, "{mm}", VBA.Format$(resolvedDate, "mm"), 1, -1, VBA.vbTextCompare)
+    expandedAlias = VBA.Replace(expandedAlias, "{yyyy}", VBA.Format$(resolvedDate, "yyyy"), 1, -1, VBA.vbTextCompare)
+    fn_ExpandDmyRuntimeAliasByResolvedPath = expandedAlias
+End Function
+
 ' //
 ' // Internal
 ' //
@@ -346,3 +444,41 @@ Private Function private_GetFileName(ByVal filePath As String) As String
         private_GetFileName = VBA.Mid$(filePath, slashPos + 1)
     End If
 End Function
+
+Private Sub private_SortResolvedPaths( _
+    ByRef paths() As String, _
+    ByRef dates() As Date, _
+    ByRef writeTimes() As Date, _
+    ByVal itemCount As Long, _
+    ByVal sortDescending As Boolean _
+)
+    Dim i As Long
+    Dim j As Long
+    Dim shouldSwap As Boolean
+    Dim swapPath As String
+    Dim swapDate As Date
+    Dim swapWriteTime As Date
+
+    For i = 1 To itemCount - 1
+        For j = i + 1 To itemCount
+            If sortDescending Then
+                shouldSwap = (dates(j) > dates(i)) Or _
+                    (dates(j) = dates(i) And writeTimes(j) > writeTimes(i))
+            Else
+                shouldSwap = (dates(j) < dates(i)) Or _
+                    (dates(j) = dates(i) And writeTimes(j) < writeTimes(i))
+            End If
+            If shouldSwap Then
+                swapPath = paths(i)
+                paths(i) = paths(j)
+                paths(j) = swapPath
+                swapDate = dates(i)
+                dates(i) = dates(j)
+                dates(j) = swapDate
+                swapWriteTime = writeTimes(i)
+                writeTimes(i) = writeTimes(j)
+                writeTimes(j) = swapWriteTime
+            End If
+        Next j
+    Next i
+End Sub

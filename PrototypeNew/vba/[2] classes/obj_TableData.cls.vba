@@ -90,9 +90,36 @@ Public Sub Dispose()
 End Sub
 
 Public Function ValueAt(ByVal rowIndex As Long, ByVal colIndex As Long) As String
+    Dim rawValue As Variant
+
+    On Error GoTo ConversionFailed
+
     If rowIndex <= 0 Or rowIndex > m_RowCount Then Exit Function
     If colIndex <= 0 Or colIndex > m_ColumnCount Then Exit Function
-    ValueAt = VBA.CStr(m_Values(rowIndex, colIndex))
+    rawValue = m_Values(rowIndex, colIndex)
+    ' Внешние Excel/ADO-источники могут возвращать Null, Empty или CVErr.
+    ' Для табличного представления такие значения считаются пустыми: прямой
+    ' CStr прервал бы публикацию всей коллекции источников.
+    If VBA.IsNull(rawValue) Or VBA.IsEmpty(rawValue) Or VBA.IsError(rawValue) Then Exit Function
+    ValueAt = VBA.CStr(rawValue)
+    Exit Function
+
+ConversionFailed:
+    ' ACE/ADO иногда помечает значение как Variant/Date (VarType=7), хотя
+    ' лежащий в Excel серийный номер даты некорректен или выходит за диапазон,
+    ' поддерживаемый VBA. В таком случае даже CStr(rawValue) завершается
+    ' ошибкой 5. Впервые это проявилось на строке 205, колонке 18 одного из
+    ' источников, но обработка намеренно общая и не привязана к координатам.
+    '
+    ' Одна поврежденная ячейка не должна отменять публикацию всех файлов:
+    ' возвращаем пустую строку, а координаты, VarType и ошибку пишем в лог,
+    ' чтобы исходную книгу можно было исправить отдельно.
+    ex_Core.fn_Diagnostic_LogError "obj_TableData.ValueAt: skipped value row=" & _
+        VBA.CStr(rowIndex) & " col=" & VBA.CStr(colIndex) & _
+        " varType=" & VBA.CStr(VBA.VarType(rawValue)) & _
+        " number=" & VBA.CStr(Err.Number) & _
+        " description='" & Err.Description & "'"
+    Err.Clear
 End Function
 
 Public Function TryGetColumnIndexByAlias(ByVal aliasText As String, ByRef outColumnIndex As Long) As Boolean

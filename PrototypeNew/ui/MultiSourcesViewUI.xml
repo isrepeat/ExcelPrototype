@@ -1,0 +1,155 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<page xmlns="urn:excelprototype:profiles" version="1">
+  <templates>
+    <template name="filterHeaderTpl">
+      <!-- Заголовок использует стабильный алиас колонки из конфигурации. -->
+      <control
+        type="Label"
+        name="FilterHeader"
+        text="{Binding Path=Key}"
+        spanColls="1"
+        spanRows="1"/>
+    </template>
+
+    <template name="filterInputTpl">
+      <!-- Одна пустая ячейка фильтра на каждую колонку таблицы. -->
+      <control
+        type="Input"
+        name="FilterInput"
+        value="{Binding Path=Value}"
+        style="inputField"
+        spanColls="1"
+        spanRows="1"/>
+    </template>
+  </templates>
+
+  <grid anchorCell="A1">
+    <stackPanel at="r2c2" orientation="vertical">
+      <stackPanel orientation="horizontal">
+        <control
+          type="Button"
+          name="Search"
+          caption="Search"
+          style="modeAccent"
+          dataContext="{PageRuntimeSource='RuntimeObjects.MultiSourcesView'}"
+          onClick="{Binding Method=OnRunPipelineAndRenderCommand}"
+          spanColls="3"
+          spanRows="2"/>
+
+        <control
+          type="Button"
+          name="UpdateSheet"
+          caption="Update Sheet"
+          dataContext="{PageRuntimeSource='RuntimeObjects.MultiSourcesView'}"
+          onClick="{Binding Method=OnRenderCommand}"
+          spanColls="3"
+          spanRows="2"/>
+      </stackPanel>
+
+      <!-- Заголовки видны до загрузки файлов и используют тот же список,
+           что и расположенные непосредственно под ними поля фильтров. -->
+      <list
+        name="ColumnFilterHeaders"
+        orientation="horizontal"
+        itemsSource="{PageRuntimeSource='RuntimeItems.MultiSourcesView.Filters'}"
+        itemsSourceTemplate="filterHeaderTpl"/>
+
+      <list
+        name="ColumnFilters"
+        orientation="horizontal"
+        itemsSource="{PageRuntimeSource='RuntimeItems.MultiSourcesView.Filters'}"
+        itemsSourceTemplate="filterInputTpl"/>
+
+      <!-- Визуально отделяет панель поиска от результатов. -->
+      <stackPanel spanColls="40" spanRows="1"/>
+
+      <!-- Область включает последовательно выведенные таблицы всех
+           найденных дневных файлов; 400 строк хватало лишь на 1-2 файла. -->
+      <control
+        type="TableList"
+        name="SourcesTables"
+        itemsSource="{PageRuntimeSource='RuntimeItems.MultiSourcesView.Tables'}"
+        spanColls="40"
+        spanRows="10000"/>
+    </stackPanel>
+  </grid>
+
+  <styles>
+    <controlStyle name="modeAccent" backColor="#2563EB" textColor="#FFFFFF" borderColor="#1D4ED8" fontBold="true"/>
+    <stylePipelineStage name="default">
+      <layer name="base">
+        <rule
+          target="sheet"
+          styles="{
+            backColor:#20242A;
+            fontColor:#E5E7EB;
+            borderColor:#111318;
+            borderWeight:thin;
+            width:18;
+            rowHeight:20;
+            cellType:text;
+          }"/>
+      </layer>
+      <layer name="tables">
+        <rule target="controlPart"
+              selector="type=label;part=cell"
+              styles="{
+                backColor:#161616;
+                fontColor:#DDEEFF;
+                fontBold:true;
+                horizontal:center;
+                vertical:center;
+                overflow:wrap;
+                rowHeight:30;
+              }"/>
+
+        <!-- Дополнительные selector-ы controlPart для таблиц источников:
+             sourceAlias=Main-01.07.2026 выбирает конкретный источник;
+             sourceAliasTemplate=MedicalDaily выбирает все таблицы,
+             раскрытые из одного стабильного алиаса конфигурации. -->
+        <rule target="controlPart"
+              selector="type=input;part=cell"
+              styles="{
+                backColor:#393939;
+                fontColor:#FFFFFF;
+                horizontal:left;
+                vertical:center;
+                overflow:wrap;
+                rowHeight:30;
+                cellType:text;
+              }"/>
+
+        <rule
+          target="controlPart"
+          selector="type=tablelist;name=SourcesTables;part=section"
+          styles="{
+            backColor:#173A5E;
+            fontColor:#EAF6FF;
+            fontBold:true;
+            rowHeight:25;
+          }"/>
+
+        <rule
+          target="controlPart"
+          selector="type=tablelist;name=SourcesTables;part=header"
+          styles="{
+            backColor:#2B4A6B;
+            fontColor:#DDEEFF;
+            fontBold:true;
+            overflow:wrap;
+            rowHeight:25;
+          }"/>
+
+        <rule
+          target="controlPart"
+          selector="type=tablelist;name=SourcesTables;part=rows"
+          styles="{
+            backColor:#3A3A3A;
+            fontColor:#F0F0F0;
+            overflow:wrap;
+            rowHeight:22;
+          }"/>
+      </layer>
+    </stylePipelineStage>
+  </styles>
+</page>

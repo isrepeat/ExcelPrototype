@@ -14,6 +14,7 @@ Private Const PERSONAL_CARD_SHEET_BASE_NAME As String = "PersonalCard"
 Private Const ENTITY_LOOKUP_SHEET_BASE_NAME As String = "EntityLookup"
 Private Const PRSNL_EVNT_BUILDER_SHEET_BASE_NAME As String = "PrsnlEvntBuilder"
 Private Const COMPARING_SHEET_BASE_NAME As String = "Comparing"
+Private Const MULTI_SOURCES_VIEW_SHEET_BASE_NAME As String = "MultiSourcesView"
 Private Const MODE_ON_SELECT_MACRO As String = "OnConfigModeChanged"
 Private Const PROFILE_ON_SELECT_MACRO As String = "OnConfigProfileChanged"
 Private Const MODE_PICKER_CONTROL_NAME As String = "ConfigModePicker"
@@ -115,6 +116,10 @@ Public Property Get IsComparingMode() As Boolean
     IsComparingMode = private_IsCurrentMode("Comparing")
 End Property
 
+Public Property Get IsMultiSourcesViewMode() As Boolean
+    IsMultiSourcesViewMode = private_IsCurrentMode("MultiSourcesView")
+End Property
+
 Public Function OnOpenCurrentModeUiFileCommand(Optional ByVal arg As Variant) As Boolean
     Dim modeId As String
     Dim filePath As String
@@ -122,6 +127,49 @@ Public Function OnOpenCurrentModeUiFileCommand(Optional ByVal arg As Variant) As
     If Not private_TryGetCurrentModeId(modeId) Then Exit Function
     filePath = ThisWorkbook.Path & "\ui\" & modeId & "UI.xml"
     OnOpenCurrentModeUiFileCommand = private_TryOpenModeFileInNotepad(filePath, "UI file")
+End Function
+
+Public Function OnOpenMultiSourcesViewPageCommand(Optional ByVal arg As Variant) As Boolean
+    Dim sheetName As String
+    Dim existingPage As obj_IPage
+    Dim viewPage As obj_IPage
+    Dim parentPage As obj_IPage
+    Dim isPageCreated As Boolean
+
+    On Error GoTo EH_OPEN
+    If rt_PageManager.fn_TryGetPageByWorksheetName(MULTI_SOURCES_VIEW_SHEET_BASE_NAME, existingPage) Then
+        If existingPage Is Nothing Then GoTo EH_CREATE
+        If Not TypeOf existingPage Is obj_PageMultiSourcesView Then
+            VBA.MsgBox "Worksheet '" & MULTI_SOURCES_VIEW_SHEET_BASE_NAME & "' is bound to an unexpected page type.", VBA.vbExclamation, "PrototypeNew / MultiSourcesView"
+            Exit Function
+        End If
+        If Not existingPage.RunPagePipeline() Then Exit Function
+        If Not rt_PageManager.fn_RenderPageAndActivate(existingPage, "pagemain:open-multisourcesview:reuse") Then Exit Function
+        OnOpenMultiSourcesViewPageCommand = True
+        Exit Function
+    End If
+
+    sheetName = private_BuildUniqueWorksheetName(ThisWorkbook, MULTI_SOURCES_VIEW_SHEET_BASE_NAME)
+    If VBA.Len(sheetName) = 0 Then Exit Function
+    Set viewPage = New obj_PageMultiSourcesView
+    Set parentPage = m_Page
+    If Not rt_PageManager.fn_CreatePage(viewPage, "ui\MultiSourcesViewUI.xml", sheetName, parentPage) Then GoTo EH_CREATE
+    isPageCreated = True
+    If Not viewPage.RunPagePipeline() Then GoTo EH_CREATE
+    If Not rt_PageManager.fn_RenderPageAndActivate(viewPage, "pagemain:open-multisourcesview") Then GoTo EH_CREATE
+    rt_Messaging.fn_ShowStatusBarSuccess "MultiSourcesView page has been created.", 3
+    OnOpenMultiSourcesViewPageCommand = True
+    Exit Function
+
+EH_CREATE:
+    On Error Resume Next
+    If Not viewPage Is Nothing And isPageCreated Then Call rt_PageManager.fn_RemovePage(viewPage, True)
+    On Error GoTo 0
+    If Not OnOpenMultiSourcesViewPageCommand Then VBA.MsgBox "Failed to create MultiSourcesView page.", VBA.vbExclamation, "PrototypeNew / MultiSourcesView"
+    Exit Function
+EH_OPEN:
+    VBA.MsgBox "MultiSourcesView error: [" & VBA.CStr(Err.Number) & "] " & Err.Description, VBA.vbExclamation, "PrototypeNew / MultiSourcesView"
+    Resume EH_CREATE
 End Function
 
 Public Function OnOpenCurrentModeProfilesFileCommand(Optional ByVal arg As Variant) As Boolean

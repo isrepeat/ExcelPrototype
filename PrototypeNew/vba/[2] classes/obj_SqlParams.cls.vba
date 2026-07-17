@@ -8,6 +8,8 @@ Option Explicit
 #Const LOGGING_VERBOSE_ENABLED = False
 
 Private m_SourcePath As String
+Private m_SourceAlias As String
+Private m_SourceAliasTemplate As String
 Private m_SheetName As String
 Private m_RangeStartMarker As String
 Private m_RangeEndMarker As String
@@ -47,6 +49,22 @@ End Property
 
 Public Property Let SourcePath(ByVal value As String)
     m_SourcePath = VBA.Trim$(VBA.CStr(value))
+End Property
+
+Public Property Get SourceAlias() As String
+    SourceAlias = m_SourceAlias
+End Property
+
+Public Property Let SourceAlias(ByVal value As String)
+    m_SourceAlias = VBA.Trim$(VBA.CStr(value))
+End Property
+
+Public Property Get SourceAliasTemplate() As String
+    SourceAliasTemplate = m_SourceAliasTemplate
+End Property
+
+Public Property Let SourceAliasTemplate(ByVal value As String)
+    m_SourceAliasTemplate = VBA.Trim$(VBA.CStr(value))
 End Property
 
 Public Property Get SheetName() As String
@@ -126,6 +144,8 @@ Public Function Initialize() As Boolean
     ex_Core.fn_Diagnostic_LogInfo "lifecycle:" & VBA.TypeName(Me) & ".Initialize"
 #End If
     m_RangeStartMarker = VBA.vbNullString
+    m_SourceAlias = VBA.vbNullString
+    m_SourceAliasTemplate = VBA.vbNullString
     m_RangeEndMarker = VBA.vbNullString
     m_WhereConditions = VBA.vbNullString
     m_MaxRows = 0
@@ -144,6 +164,8 @@ Public Sub Dispose()
     m_IsDisposed = True
 
     On Error Resume Next
+    m_SourceAlias = VBA.vbNullString
+    m_SourceAliasTemplate = VBA.vbNullString
     Set m_SourceColumnHeaders = Nothing
     Set m_MappedColumnHeaders = Nothing
     Set m_ColumnAliases = Nothing

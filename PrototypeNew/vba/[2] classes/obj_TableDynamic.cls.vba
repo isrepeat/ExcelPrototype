@@ -8,6 +8,8 @@ Option Explicit
 #Const LOGGING_VERBOSE_ENABLED = False
 
 Private m_SectionTitle As String
+Private m_SourceAlias As String
+Private m_SourceAliasTemplate As String
 Private m_Columns As list__obj_Column
 Private m_Rows As list__obj_Row
 Private m_Schema As obj_DynamicTableSchema
@@ -42,6 +44,25 @@ End Property
 
 Public Property Let SectionTitle(ByVal value As String)
     m_SectionTitle = VBA.CStr(value)
+End Property
+
+' Конкретный runtime-алиас физического источника, например Main-01.07.2026.
+Public Property Get SourceAlias() As String
+    SourceAlias = m_SourceAlias
+End Property
+
+Public Property Let SourceAlias(ByVal value As String)
+    m_SourceAlias = VBA.Trim$(VBA.CStr(value))
+End Property
+
+' Стабильный алиас группы из конфигурации, например MedicalDaily.
+' Имя свойства сохранено как SourceAliasTemplate для selector-контракта стилей.
+Public Property Get SourceAliasTemplate() As String
+    SourceAliasTemplate = m_SourceAliasTemplate
+End Property
+
+Public Property Let SourceAliasTemplate(ByVal value As String)
+    m_SourceAliasTemplate = VBA.Trim$(VBA.CStr(value))
 End Property
 
 Public Property Get ColumnCount() As Long
@@ -93,6 +114,8 @@ Public Sub Dispose()
     On Error Resume Next
     Err.Clear
     Err.Clear
+    m_SourceAlias = VBA.vbNullString
+    m_SourceAliasTemplate = VBA.vbNullString
     Set m_Columns = Nothing
     Set m_Rows = Nothing
     If Not m_Schema Is Nothing Then m_Schema.Dispose
