@@ -11,15 +11,11 @@ Private m_IsDisposed As Boolean
 Private m_OrderNo As Variant
 Private m_OrderDate As Date
 Private m_HasOrderDate As Boolean
-Private m_ExportModes As Collection
 Private m_WorkbookConnections As Object
 ' Все новые обращения к ШПО/справочникам описываются одинаковым query object.
 ' Engine читает закрытый источник через ADO, а открытый — из живого Worksheet,
 ' включая несохраненные изменения пользователя.
 Private m_QueryEngine As obj_ExtWorkbookQueryEngine
-
-Private Const EXPORT_MODE_DEFAULT As String = "Default"
-Private Const EXPORT_MODE_REWRITE_LAST As String = "Rewrite Last"
 
 Private Const DEFAULT_SHPO_REL_PATH As String = "modes\PrsnlEvntBuilder\ШПО.xlsx"
 Private Const ALF_SHEET_NAME As String = "АЛФ"
@@ -102,11 +98,6 @@ Public Function Initialize(Optional ByVal configTable As obj_ConfigTable = Nothi
     m_WorkbookConnections.CompareMode = 1
     Set m_QueryEngine = New obj_ExtWorkbookQueryEngine
     If Not m_QueryEngine.Initialize Then Exit Function
-    Set m_ExportModes = New Collection
-    ' Порядок коллекции определяет цикл multi-toggle кнопки ExportMode.
-    m_ExportModes.Add EXPORT_MODE_DEFAULT
-    m_ExportModes.Add EXPORT_MODE_REWRITE_LAST
-
     Initialize = True
 End Function
 
@@ -136,7 +127,6 @@ Public Sub Dispose()
     m_OrderNo = VBA.vbNullString
     m_OrderDate = 0
     m_HasOrderDate = False
-    Set m_ExportModes = Nothing
     On Error Resume Next
     If Not m_QueryEngine Is Nothing Then m_QueryEngine.Dispose
     Set m_QueryEngine = Nothing
@@ -144,30 +134,6 @@ Public Sub Dispose()
     Set m_WorkbookConnections = Nothing
     On Error GoTo 0
 End Sub
-
-Public Property Get ExportModes() As Collection
-    Dim result As Collection
-    Dim modeValue As Variant
-
-    If m_IsDisposed Then Exit Property
-    If m_ExportModes Is Nothing Then Exit Property
-
-    Set result = New Collection
-    For Each modeValue In m_ExportModes
-        result.Add VBA.CStr(modeValue)
-    Next modeValue
-    Set ExportModes = result
-End Property
-
-Public Function TryGetExportModeName(ByVal zeroBasedIndex As Long, ByRef outModeName As String) As Boolean
-    outModeName = VBA.vbNullString
-    If m_IsDisposed Then Exit Function
-    If m_ExportModes Is Nothing Then Exit Function
-    If zeroBasedIndex < 0 Or zeroBasedIndex >= m_ExportModes.Count Then Exit Function
-
-    outModeName = VBA.CStr(m_ExportModes.Item(zeroBasedIndex + 1))
-    TryGetExportModeName = (VBA.Len(outModeName) > 0)
-End Function
 
 ' Статический provider общих данных PrsnlEvntBuilder.
 ' Здесь остаются только стабильные справочники, не завязанные на профиль:

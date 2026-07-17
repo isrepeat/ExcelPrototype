@@ -101,7 +101,6 @@ Private Const WORD_TEMPLATE_FROM_HOSPITAL As String = "FromHospital"
 Private Const REPORT_TVO_TEXT As String = "тимчасово виконуючого обов'язки"
 Private Const META_SECTION_TYPE_DOCUMENT As String = "Мета: документ"
 Private Const META_SECTION_TYPE_TVO As String = "Мета: ТВО"
-Private Const SECTION_TYPE_TO_ANNUAL_VACATION_PART As String = "У частину щорічної основної відпустки"
 Private Const LOOP_COLLECTION_META_DOCUMENT_TABLES As String = "MetaDocumentTables"
 Private Const LOOP_COLLECTION_META_TVO_TABLES As String = "MetaTvoTables"
 
@@ -190,11 +189,6 @@ Public Function Export( _
     Dim validationEnabled As Boolean
     Dim groupingHospitalShort As String
     Dim groupingDateShort As String
-
-    If VBA.StrComp(private_GetContextText(context, "ExportMode"), "Rewrite Last", VBA.vbTextCompare) = 0 Then
-        VBA.MsgBox "PrototypeNew: WORD exporter does not support Rewrite Last because it generates a preview and does not persist person records.", VBA.vbExclamation, "PrototypeNew / WORD export"
-        Exit Function
-    End If
 
     If m_IsDisposed Then
         VBA.MsgBox "PrototypeNew: WORD exporter is disposed.", VBA.vbExclamation, "PrototypeNew / WORD export"
