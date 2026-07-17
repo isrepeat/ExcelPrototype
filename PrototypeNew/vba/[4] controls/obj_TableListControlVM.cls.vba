@@ -226,6 +226,10 @@ Private Sub obj_IControl_Render()
     If Not private_TryRegisterControlColumnAliasSegments(ws, valueBlock, rowCount, columnCount, styleSegments) Then Exit Sub
     private_LogRenderStep "register-column-aliases", stageStart
 
+    stageStart = VBA.Timer
+    If Not private_TryRegisterControlSourceAliasSegments(ws, rowCount, styleSegments) Then Exit Sub
+    private_LogRenderStep "register-source-aliases", stageStart
+
     ' Размеченным ранее смысловым частям назначаются реальные диапазоны
     ' ячеек листа, затем эти Range публикуются как controlPart для XML style pipeline.
     stageStart = VBA.Timer
@@ -252,6 +256,73 @@ Private Function obj_IControl_Measure( _
     Optional ByVal dataContext As Object _
 ) As Boolean
     obj_IControl_Measure = private_TryMeasureNode(controlNode, outSpanRows, outSpanColls)
+End Function
+
+Private Function private_TryRegisterControlSourceAliasSegments( _
+    ByVal ws As Worksheet, _
+    ByVal rowCount As Long, _
+    ByVal styleSegments As Collection _
+) As Boolean
+    Dim visibleTables As Collection
+    Dim headerRows As Collection
+    Dim tableItem As Variant
+    Dim tableViewItem As obj_TableViewItem
+    Dim tableDynamic As obj_TableDynamic
+    Dim segment As Object
+    Dim tableIndex As Long
+    Dim relativeStartRow As Long
+    Dim relativeEndRow As Long
+    Dim tableRange As Range
+
+    If ws Is Nothing Or rowCount <= 0 Then Exit Function
+    Set visibleTables = New Collection
+    For Each tableItem In m_TableItems
+        Set tableViewItem = Nothing
+        If Not private_TryResolveTableViewItem(tableItem, tableViewItem) Then Exit Function
+        If Not tableViewItem Is Nothing Then
+            If tableViewItem.IsVisible() Then
+                Set tableDynamic = tableViewItem.Model
+                If Not tableDynamic Is Nothing Then visibleTables.Add tableDynamic
+            End If
+        End If
+    Next tableItem
+
+    Set headerRows = New Collection
+    For Each segment In styleSegments
+        If VBA.StrComp(VBA.CStr(segment("StyleKind")), "header", VBA.vbTextCompare) = 0 Then
+            headerRows.Add VBA.CLng(segment("RowStart"))
+        End If
+    Next segment
+    If headerRows.Count <> visibleTables.Count Then
+#If LOGGING_DEBUG_ENABLED Then
+        ex_Core.fn_Diagnostic_LogError "TableList: source alias registration cannot map tables to header segments."
+#End If
+        Exit Function
+    End If
+
+    For tableIndex = 1 To visibleTables.Count
+        Set tableDynamic = visibleTables.Item(tableIndex)
+        relativeStartRow = VBA.CLng(headerRows.Item(tableIndex)) - 1
+        If tableIndex < headerRows.Count Then
+            relativeEndRow = VBA.CLng(headerRows.Item(tableIndex + 1)) - 2
+        Else
+            relativeEndRow = rowCount
+        End If
+        Set tableRange = ws.Range( _
+            ws.Cells(m_RowStart + relativeStartRow - 1, m_ColStart), _
+            ws.Cells(m_RowStart + relativeEndRow - 1, m_ColStart + tableDynamic.ColumnCount - 1))
+        ' Старые/обычные TableDynamic могут не иметь source metadata.
+        ' Они продолжают рендериться, просто селекторы sourceAlias к ним
+        ' неприменимы.
+        If VBA.Len(VBA.Trim$(tableDynamic.SourceAlias)) > 0 Or _
+           VBA.Len(VBA.Trim$(tableDynamic.SourceAliasTemplate)) > 0 Then
+            If Not ex_ControlPartsRuntime.fn_RegisterControlSourceAlias( _
+                ws, "tablelist", m_ControlName, tableDynamic.SourceAlias, _
+                tableDynamic.SourceAliasTemplate, tableRange) Then Exit Function
+        End If
+    Next tableIndex
+
+    private_TryRegisterControlSourceAliasSegments = True
 End Function
 
 Private Function obj_IControl_SupportsAttribute(ByVal attrName As String) As Boolean

@@ -1342,6 +1342,10 @@ Private Function private_NormalizeHeader(ByVal valueText As String) As String
     normalized = VBA.Replace$(normalized, VBA.vbTab, " ")
     normalized = VBA.Replace$(normalized, VBA.ChrW$(160), " ")
     normalized = VBA.Replace$(normalized, "#", ".")
+    ' ACE/ADO заменяет перенос строки перед уточнением в скобках на "_".
+    ' Нормализуем только конструкцию "_(", а не все подчеркивания: обычный
+    ' символ "_" может быть легальной частью настоящего имени колонки.
+    normalized = VBA.Replace$(normalized, "_(", " (")
     normalized = VBA.Replace$(normalized, VBA.ChrW$(&H2019), "'")
     normalized = VBA.Replace$(normalized, VBA.ChrW$(&H2BC), "'")
     normalized = VBA.Replace$(normalized, VBA.ChrW$(&H60), "'")

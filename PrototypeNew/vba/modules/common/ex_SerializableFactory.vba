@@ -40,6 +40,11 @@ Public Function fn_TryCreatePageByTypeRoot( _
             fn_TryCreatePageByTypeRoot = True
             Exit Function
 
+        Case "page.multisourcesview"
+            Set outPage = New obj_PageMultiSourcesView
+            fn_TryCreatePageByTypeRoot = True
+            Exit Function
+
         Case "page.main"
             Set outPage = New obj_PageMain
             fn_TryCreatePageByTypeRoot = True

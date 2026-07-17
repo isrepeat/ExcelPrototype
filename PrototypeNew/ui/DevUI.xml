@@ -95,6 +95,17 @@
           />
         <control
           type="Button"
+          name="OpenMultiSourcesView"
+          caption="MultiSourcesView"
+          style="modeAccent"
+          visibility="{Binding Path=IsMultiSourcesViewMode; TrueAs=Visible; FalseAs=Collapsed}"
+          dataContext="{PageRuntimeSource='RuntimeObjects.PageMain.Controller'}"
+          onClick="{Binding Method=OnOpenMultiSourcesViewPageCommand}"
+          spanColls="5"
+          spanRows="2"
+          />
+        <control
+          type="Button"
           name="OpenModeUiFile"
           caption="Open UI File"
           style="modeFileAction"
