@@ -20,10 +20,7 @@ Private Const MOVEMENT_TRAILING_EMPTY_LOOKBACK_ROWS As Long = 20
 Private Const MOVEMENT_SOURCE_INCOMING_NO As String = "Вх. №"
 Private Const MOVEMENT_CONTEXT_MANUAL_ORDER_NO As String = "ManualOrderNo"
 Private Const MOVEMENT_CONTEXT_SECTION_TYPE As String = "SectionType"
-Private Const MOVEMENT_CONTEXT_EXPORT_MODE As String = "ExportMode"
 Private Const MOVEMENT_CONTEXT_VALIDATION_ENABLED As String = "ValidateMovement"
-Private Const EXPORT_MODE_REWRITE_LAST As String = "Rewrite Last"
-Private Const EXPORT_HISTORY_KEY As String = "MovementHistory"
 Private Const MOVEMENT_SOURCE_EVENT As String = "Подія"
 Private Const MOVEMENT_SOURCE_INCOMING_DATE As String = "Вх. дата"
 Private Const MOVEMENT_SOURCE_DEPARTURE_DATE As String = "З"
@@ -171,7 +168,6 @@ Public Function Export( _
     Dim isMirrorTransferEvent As Boolean
     Dim closingTargetIpn As String
     Dim basisSummaryText As String
-    Dim rewriteLast As Boolean
     Dim exportValidationError As String
     Dim latestMovementTvoChain As Collection
     Dim latestMovementRecord As Object
@@ -216,7 +212,6 @@ Public Function Export( _
     sectionTypeNormalized = private_NormalizeText(sectionTypeRaw)
     isClosingEvent = private_IsClosingSectionType(sectionTypeNormalized)
     isMirrorTransferEvent = private_IsMirrorTransferSectionType(sectionTypeRaw)
-    rewriteLast = (VBA.StrComp(private_GetContextText(context, MOVEMENT_CONTEXT_EXPORT_MODE), EXPORT_MODE_REWRITE_LAST, VBA.vbTextCompare) = 0)
     If isMirrorTransferEvent Then isClosingEvent = False
     validationEnabled = (VBA.StrComp(private_GetContextText(context, MOVEMENT_CONTEXT_VALIDATION_ENABLED), "False", VBA.vbTextCompare) <> 0)
     If Not m_DataProvider.IsExportAllowed(sourceTable, sectionTypeRaw, exportValidationError, latestMovementTvoChain, latestMovementRecord, validationEnabled) Then
@@ -286,11 +281,7 @@ Public Function Export( _
         ' Opening: обычное выбытие. Создаем новую строку и заполняем поля выбытия:
         ' наказ вибуття, з продовольчого, вибуття, плюс базовые первые 6 колонок.
         If Not private_TryBuildMovementOutgoingValues(sourceTable, context, outgoingOrderNo, outgoingFoodFromDate, outgoingDepartureDate) Then GoTo CleanFail
-        If rewriteLast Then
-            If Not m_Base.TryGetRememberedExportRow(context, EXPORT_HISTORY_KEY, targetTable, targetRowRange) Then GoTo CleanFail
-        Else
-            If Not private_TryGetAppendRowRange(targetTable, targetRowRange, insertedRow) Then GoTo CleanFail
-        End If
+        If Not private_TryGetAppendRowRange(targetTable, targetRowRange, insertedRow) Then GoTo CleanFail
         If Not private_TryWriteMovementRow( _
             targetTable, targetRowRange, targetValues, _
             outgoingOrderNo, outgoingFoodFromDate, outgoingDepartureDate, _
@@ -298,8 +289,6 @@ Public Function Export( _
             shouldWriteMappedEvent, mappedEventText, basisSummaryText, _
             tvoFioText, tvoIpnText, tvoPositionText) Then GoTo CleanFail
     End If
-
-    If Not m_Base.TryRememberExportRow(context, EXPORT_HISTORY_KEY, targetTable, targetRowRange) Then GoTo CleanFail
 
     If Not openedByExporter And SAVE_ALREADY_OPEN_WORKBOOK Then targetWb.Save
     Export = True
@@ -1122,8 +1111,8 @@ Private Function private_TryWriteMovementRow( _
     If VBA.Len(VBA.Trim$(basisSummaryText)) > 0 Then
         If Not private_TryWriteNamedColumnValue(targetTable, rowRange, MOVEMENT_TARGET_OUT_REASON, basisSummaryText) Then Exit Function
     End If
-    ' Пишем колонки даже при пустой цепочке: в режиме Rewrite Last это очищает
-    ' значения ТВО, которые могли остаться от предыдущей версии записи.
+    ' Пишем колонки даже при пустой цепочке, чтобы новая строка имела полный
+    ' и предсказуемый набор значений ТВО.
     If Not private_TryWriteNamedColumnValue(targetTable, rowRange, MOVEMENT_TARGET_TVO_FIO, tvoFioText) Then Exit Function
     If Not private_TryWriteNamedColumnValue(targetTable, rowRange, MOVEMENT_TARGET_TVO_IPN, tvoIpnText) Then Exit Function
     If Not private_TryWriteNamedColumnValue(targetTable, rowRange, MOVEMENT_TARGET_TVO_POSITION, tvoPositionText) Then Exit Function

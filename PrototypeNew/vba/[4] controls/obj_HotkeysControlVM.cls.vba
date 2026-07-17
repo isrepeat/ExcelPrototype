@@ -46,6 +46,7 @@ Private m_ConfigTableViewItem As obj_ConfigTableViewItem
 Private m_ActionCallbackContext As Object
 Private m_IsConfigured As Boolean
 Private m_IsDisposed As Boolean
+Private m_ShowPanel As Boolean
 
 Private Sub Class_Terminate()
     If m_IsDisposed Then Exit Sub
@@ -60,6 +61,7 @@ End Sub
 Private Function obj_IControl_Initialize(ByVal page As obj_IPage) As Boolean
     m_IsDisposed = False
     m_IsConfigured = False
+    m_ShowPanel = True
     Set m_Page = page
     obj_IControl_Initialize = True
 End Function
@@ -81,6 +83,7 @@ Private Sub obj_IControl_Dispose()
     m_RuntimeControlKey = VBA.vbNullString
     m_ActionControlKey = VBA.vbNullString
     m_RuntimeTableName = VBA.vbNullString
+    m_ShowPanel = True
     m_IsConfigured = False
     On Error GoTo 0
 End Sub
@@ -105,6 +108,11 @@ Private Sub obj_IControl_Configure(ByVal controlNode As Object)
     Set m_ControlBase = New obj_ControlBase
     If Not m_ControlBase.Initialize(m_Page) Then Exit Sub
     If Not m_ControlBase.Configure(pageBase, controlNode, "Hotkeys", "hotkeys", m_ControlName) Then Exit Sub
+
+    ' Headless-режим оставляет регистрацию Application.OnKey, но не создаёт
+    ' редактируемую таблицу и Apply-кнопку на листе.
+    m_ShowPanel = private_ParseBooleanAttribute( _
+        ex_XmlCore.fn_NodeAttrText(controlNode, "showPanel"), True)
 
     ' Configure только подготавливает runtime contract:
     ' читает XML-атрибуты, резолвит itemsSource/dataContext/actionMethod и layout bounds.
@@ -188,6 +196,20 @@ Private Sub obj_IControl_Render()
     If pageBase Is Nothing Then Exit Sub
     Set ws = private_GetWorksheetByName(pageBase, m_ControlLayout.LayoutSheetName)
     If ws Is Nothing Then Exit Sub
+
+    If Not m_ShowPanel Then
+        private_DeleteConfiguredTable ws
+        Set boundsRange = ws.Range( _
+            ws.Cells(m_ControlLayout.RowStart, m_ControlLayout.ColStart), _
+            ws.Cells(m_ControlLayout.RowEnd, m_ControlLayout.ColStart + HOTKEY_COL_COUNT - 1))
+        If Not private_TryDeleteIntersectingTables(ws, boundsRange) Then Exit Sub
+        boundsRange.UnMerge
+        boundsRange.ClearContents
+        private_DeleteApplyButton ws
+        If Not private_TryRegisterRuntimeControl() Then Exit Sub
+        Exit Sub
+    End If
+
     If m_ConfigTableViewItem Is Nothing Then Exit Sub
     If Not m_ConfigTableViewItem.TryResyncEntryItemsFromModel() Then Exit Sub
     Set entryItems = m_ConfigTableViewItem.EntryItems
@@ -283,7 +305,7 @@ End Function
 
 Private Function obj_IControl_SupportsAttribute(ByVal attrName As String) As Boolean
     Select Case VBA.LCase$(VBA.Trim$(attrName))
-        Case "itemssource", "tablename", "actionmethod"
+        Case "itemssource", "tablename", "actionmethod", "showpanel"
             obj_IControl_SupportsAttribute = True
     End Select
 End Function
@@ -1102,6 +1124,59 @@ Private Function private_GetUiShapeByName(ByVal ws As Worksheet, ByVal shapeName
     On Error Resume Next
     Set private_GetUiShapeByName = ws.Shapes(shapeName)
     On Error GoTo 0
+End Function
+
+Private Sub private_DeleteApplyButton(ByVal ws As Worksheet)
+    Dim shp As Shape
+
+    If ws Is Nothing Then Exit Sub
+    Set shp = private_GetUiShapeByName(ws, "btn_" & m_ControlName & "_Apply")
+    If shp Is Nothing Then Exit Sub
+
+    On Error Resume Next
+    shp.Delete
+    On Error GoTo 0
+End Sub
+
+Private Sub private_DeleteConfiguredTable(ByVal ws As Worksheet)
+    Dim tableObj As ListObject
+    Dim tableName As String
+
+    If ws Is Nothing Then Exit Sub
+    tableName = VBA.Trim$(m_TableNameRaw)
+    If VBA.Len(tableName) = 0 Then Exit Sub
+
+    On Error Resume Next
+    Set tableObj = ws.ListObjects(tableName)
+    On Error GoTo 0
+    If tableObj Is Nothing Then Exit Sub
+
+    On Error Resume Next
+    tableObj.Range.ClearContents
+    tableObj.Delete
+    On Error GoTo 0
+End Sub
+
+Private Function private_ParseBooleanAttribute( _
+    ByVal rawValue As Variant, _
+    ByVal defaultValue As Boolean _
+) As Boolean
+    Dim normalized As String
+
+    normalized = VBA.LCase$(VBA.Trim$(VBA.CStr(rawValue)))
+    If VBA.Len(normalized) = 0 Then
+        private_ParseBooleanAttribute = defaultValue
+        Exit Function
+    End If
+
+    Select Case normalized
+        Case "true", "1", "yes", "on"
+            private_ParseBooleanAttribute = True
+        Case "false", "0", "no", "off"
+            private_ParseBooleanAttribute = False
+        Case Else
+            private_ParseBooleanAttribute = defaultValue
+    End Select
 End Function
 
 Private Function private_GetWorksheetByName(ByVal page As obj_PageBase, ByVal sheetName As String) As Worksheet

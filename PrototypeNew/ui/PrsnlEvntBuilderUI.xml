@@ -1,18 +1,22 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <page xmlns="urn:excelprototype:profiles" version="1">
   <grid anchorCell="A1">
-    <stackPanel at="r2c2" orientation="vertical">
-      <!-- Верхние команды: таблица хоткеев и ручной перерендер страницы. -->
-      <stackPanel orientation="horizontal">
-        <control
-          type="Hotkeys"
-          name="SheetHotkeys"
-          dataContext="{PageRuntimeSource='RuntimeObjects.PrsnlEvntBuilder.Controller'}"
-          itemsSource="{PageRuntimeSource='RuntimeItems.PrsnlEvntBuilder.Hotkeys'}"
-          actionMethod="RuntimeHandleHotkeyAction"
-          tableName="tblPrsnlEvntBuilderHotkeys"
-          spanColls="2"/>
+    <!-- Headless-контрол сохраняет регистрацию сочетаний клавиш без таблицы на листе. -->
+    <control
+      type="Hotkeys"
+      name="SheetHotkeys"
+      dataContext="{PageRuntimeSource='RuntimeObjects.PrsnlEvntBuilder.Controller'}"
+      itemsSource="{PageRuntimeSource='RuntimeItems.PrsnlEvntBuilder.Hotkeys'}"
+      actionMethod="RuntimeHandleHotkeyAction"
+      tableName="tblPrsnlEvntBuilderHotkeys"
+      showPanel="false"
+      at="r1c1"
+      spanColls="2"
+      spanRows="1"/>
 
+    <stackPanel at="r2c2" orientation="vertical">
+      <!-- Верхняя команда ручного перерендера страницы. -->
+      <stackPanel orientation="horizontal">
         <control
           type="Button"
           name="UpdateSheet"
@@ -41,7 +45,7 @@
           flow="column"
           itemSpanRows="2"
           spanColls="8"
-          spanRows="12"/>
+          spanRows="14"/>
 
         <control
           type="ButtonGroup"
@@ -78,8 +82,8 @@
 
         <stackPanel spanColls="2" spanRows="1"/>
 
-        <!-- Компактная вертикальная панель действий: Apply и два локальных toggle-state. -->
-        <stackPanel name="EventDraftActions" orientation="vertical" spanColls="3" spanRows="6">
+        <!-- Компактная вертикальная панель действий: Apply и Lookup. -->
+        <stackPanel name="EventDraftActions" orientation="vertical" spanColls="3" spanRows="4">
           <control
             type="Button"
             name="ApplyExportForm"
@@ -100,15 +104,6 @@
             spanColls="3"
             spanRows="2"/>
 
-          <control
-            type="Button"
-            name="ExportMode"
-            caption="{Binding Path=IsRewriteLastExportMode;TrueAs=Export mode [[[color=#FFFF00]]Rewrite Last[[/color]]];FalseAs=Export mode [[[color=#FFFF00]]Default[[/color]]]}"
-            style="exportApplyButton"
-            dataContext="{PageRuntimeSource='RuntimeObjects.PrsnlEvntBuilder.Controller'}"
-            onClick="{Binding Method=CycleExportMode}"
-            spanColls="3"
-            spanRows="2"/>
         </stackPanel>
 
         <!-- Независимые переключатели проверки последнего Movement-события. -->

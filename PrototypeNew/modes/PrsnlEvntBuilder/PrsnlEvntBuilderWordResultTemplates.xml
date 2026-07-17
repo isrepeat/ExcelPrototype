@@ -489,4 +489,37 @@
       ]]>
     </text>
   </template>
+
+  <!-- Временные заглушки для новых секций. Их заменят полноценные формулировки приказа. -->
+  <template id="DummyMoveFromHospitalToStationaryVlk">
+    <text>
+      <![CDATA[#^
+#_      [DUMMY] лікування => стаціонарне ВЛК.{#newline}{#newline}#^
+      ]]>
+    </text>
+  </template>
+
+  <template id="DummyMoveFromFamilyVacationToHospital">
+    <text>
+      <![CDATA[#^
+#_      [DUMMY] відпустка за сімейними => лікування.{#newline}{#newline}#^
+      ]]>
+    </text>
+  </template>
+
+  <template id="DummyMoveFromStationaryVlkToVacationForCuring">
+    <text>
+      <![CDATA[#^
+#_      [DUMMY] стаціонарне ВЛК => відпустка для лікування.{#newline}{#newline}#^
+      ]]>
+    </text>
+  </template>
+
+  <template id="DummyMoveFromMedicalCompanyToVacationForCuring">
+    <text>
+      <![CDATA[#^
+#_      [DUMMY] медична рота => відпустка для лікування.{#newline}{#newline}#^
+      ]]>
+    </text>
+  </template>
 </wordResultTemplates>
