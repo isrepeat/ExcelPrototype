@@ -54,9 +54,6 @@ Private Const LOOKUP_CANDIDATES_CONTROL_NAME As String = "LookupCandidatesTable"
 Private Const EVENT_DRAFT_FORM_CONTAINER_NAME As String = "EventDraftForm"
 Private Const EVENT_DRAFT_VALUES_CONTAINER_NAME As String = "EventDraftValues"
 Private Const EVENT_DRAFT_ORDER_NO_CONTAINER_NAME As String = "EventDraftOrderNoValue"
-Private Const EVENT_DRAFT_ORDER_NO_LABEL_CONTROL_NAME As String = "EventDraftOrderNoLabel"
-Private Const EVENT_DRAFT_INCOMING_NO_HEADER_NAME As String = "Вх. №"
-Private Const EVENT_DRAFT_ORDER_LABEL_PREFIX As String = "Наказ №: "
 Private Const EXPORT_META_PROFILE_TYPE_COLUMN_NAME As String = "meta_ProfileType"
 Private Const EXPORT_CONTEXT_MANUAL_ORDER_NO_KEY As String = "ManualOrderNo"
 Private Const EXPORT_CONTEXT_SECTION_TYPE_KEY As String = "SectionType"
@@ -72,6 +69,18 @@ Private Const PROFILE_BUTTON_STYLE_NORMAL As String = "profileButton"
 Private Const PROFILE_BUTTON_STYLE_SELECTED As String = "profileButtonSelected"
 Private Const META_PROFILE_BUTTON_STYLE_NORMAL As String = "metaProfileButton"
 Private Const META_PROFILE_BUTTON_STYLE_SELECTED As String = "metaProfileButtonSelected"
+' Канонические алиасы полей draft-формы. Отображаемые Caption этих полей
+' принадлежат конфигу и не должны использоваться в логике контроллера.
+Private Const DRAFT_ALIAS_RANK As String = "_Rank"
+Private Const DRAFT_ALIAS_IPN As String = "_IPN"
+Private Const DRAFT_ALIAS_POSITION_CODE As String = "_PositionCode"
+Private Const DRAFT_ALIAS_POSITION_NAME As String = "_PositionName"
+Private Const DRAFT_ALIAS_REPORT_RANK As String = "_ReportRank"
+Private Const DRAFT_ALIAS_REPORT_POSITION_CODE As String = "_ReportPositionCode"
+Private Const DRAFT_ALIAS_INCOMING_NO As String = "_IncomingNo"
+Private Const DRAFT_ALIAS_INCOMING_DATE As String = "_IncomingDate"
+Private Const DRAFT_ALIAS_DATE_FROM As String = "_DateFrom"
+Private Const DRAFT_ALIAS_VH_NO As String = "_VhNo"
 
 Private m_Page As obj_IPage
 Private m_LookupFeature As obj_EntityLookupFeature
@@ -279,6 +288,177 @@ Public Function ToggleLookupEnabled() As Boolean
         rt_Messaging.fn_ShowStatusBarWarning "Lookup disabled", 3
     End If
 End Function
+
+' Очищает поля, значение которых зависит от изменённого Lookup-ключа.
+' Используется единый Select Case, чтобы новые связанные группы добавлялись
+' без отдельных обработчиков Worksheet_Change для каждого профиля формы.
+Public Function ClearDependentDraftFields(ByVal lookupKey As String) As Boolean
+    Dim dependentAliases As Object
+    Dim sectionText As String
+
+    Set dependentAliases = ex_Helpers.fn_CreateDictionaryTextCompare()
+    sectionText = VBA.Trim$(m_SelectedMainProfile)
+    If VBA.Len(sectionText) = 0 Then
+        If Not private_TryGetSelectedProfile(sectionText) Then Exit Function
+    End If
+
+    Select Case VBA.LCase$(VBA.Trim$(lookupKey))
+        Case "op_fio"
+            ' Правила намеренно выбираются по основной секции. Если сейчас открыт
+            ' meta-профиль, m_SelectedMainProfile всё равно указывает на событие,
+            ' к которому относится редактируемая форма.
+            If Not private_AppendFioDependentAliases(sectionText, dependentAliases) Then Exit Function
+
+        Case "op_commander"
+            If Not private_AppendCommanderDependentAliases(sectionText, dependentAliases) Then Exit Function
+
+        Case Else
+            ClearDependentDraftFields = True
+            Exit Function
+    End Select
+
+    If Not private_ClearVisibleDraftFieldsByAlias(dependentAliases) Then Exit Function
+    ClearDependentDraftFields = True
+End Function
+
+Private Function private_AppendFioDependentAliases( _
+    ByVal sectionText As String, _
+    ByVal dependentAliases As Object _
+) As Boolean
+    Dim sectionKey As String
+
+    If dependentAliases Is Nothing Then Exit Function
+    If m_Data Is Nothing Then Set m_Data = New obj_PrsnlEvntBuilderData
+    sectionKey = private_NormalizeText(sectionText)
+
+    Select Case sectionKey
+        ' Сейчас все основные события получают персональные данные из одного
+        ' op_FIO. Отдельный Select Case оставляет правила секционными: когда для
+        ' конкретного события набор изменится, его следует вынести в отдельный Case.
+        Case private_NormalizeText(m_Data.SectionTypeCloseFromTreatment), _
+             private_NormalizeText(m_Data.SectionTypeCloseFromTreatmentMedicalCompany), _
+             private_NormalizeText(m_Data.SectionTypeCloseFromAmbulatoryVlk), _
+             private_NormalizeText(m_Data.SectionTypeCloseFromStationaryVlk)
+            private_AddStandardFioDependentAliases dependentAliases
+
+        Case private_NormalizeText(m_Data.SectionTypeToTreatment), _
+             private_NormalizeText(m_Data.SectionTypeToTreatmentMedicalCompany), _
+             private_NormalizeText(m_Data.SectionTypeToAmbulatoryVlk)
+            private_AddStandardFioDependentAliases dependentAliases
+
+        Case private_NormalizeText(m_Data.SectionTypeCloseFromAnnualVacation), _
+             private_NormalizeText(m_Data.SectionTypeToAnnualVacationPart), _
+             private_NormalizeText(m_Data.SectionTypeCloseFromTreatmentVacation), _
+             private_NormalizeText(m_Data.SectionTypeToTreatmentVacation), _
+             private_NormalizeText(m_Data.SectionTypeCloseFromFamilyVacation), _
+             private_NormalizeText(m_Data.SectionTypeToFamilyVacation)
+            private_AddVacationFioDependentAliases dependentAliases
+
+        Case private_NormalizeText(m_Data.SectionTypeTransferTreatmentToTreatmentVacation), _
+             private_NormalizeText(m_Data.SectionTypeTransferTreatmentToStationaryVlk), _
+             private_NormalizeText(m_Data.SectionTypeTransferAnnualVacationToTreatment), _
+             private_NormalizeText(m_Data.SectionTypeTransferFamilyVacationToTreatment), _
+             private_NormalizeText(m_Data.SectionTypeTransferTreatmentVacationToTreatment), _
+             private_NormalizeText(m_Data.SectionTypeTransferTreatmentVacationToVlk)
+            private_AddStandardFioDependentAliases dependentAliases
+
+        Case private_NormalizeText(m_Data.SectionTypeTransferAmbulatoryVlkToTreatment), _
+             private_NormalizeText(m_Data.SectionTypeTransferAmbulatoryVlkToTreatmentVacation), _
+             private_NormalizeText(m_Data.SectionTypeTransferStationaryVlkToTreatmentVacation), _
+             private_NormalizeText(m_Data.SectionTypeTransferMedicalCompanyToTreatment), _
+             private_NormalizeText(m_Data.SectionTypeTransferMedicalCompanyToTreatmentVacation), _
+             private_NormalizeText(m_Data.SectionTypeToBusinessTrip), _
+             private_NormalizeText(m_Data.SectionTypeToBusinessTripSzch)
+            private_AddStandardFioDependentAliases dependentAliases
+
+        Case Else
+            VBA.MsgBox "PrototypeNew: dependent-field rules are missing for section '" & _
+                sectionText & "' and lookup 'op_FIO'.", _
+                VBA.vbExclamation, "PrototypeNew / PrsnlEvntBuilder"
+            Exit Function
+    End Select
+
+    private_AppendFioDependentAliases = True
+End Function
+
+Private Function private_AppendCommanderDependentAliases( _
+    ByVal sectionText As String, _
+    ByVal dependentAliases As Object _
+) As Boolean
+    Dim sectionKey As String
+
+    If dependentAliases Is Nothing Then Exit Function
+    If m_Data Is Nothing Then Set m_Data = New obj_PrsnlEvntBuilderData
+    sectionKey = private_NormalizeText(sectionText)
+
+    Select Case sectionKey
+        ' Набор можно разделять по секциям независимо от правил op_FIO.
+        Case private_NormalizeText(m_Data.SectionTypeCloseFromTreatment), _
+             private_NormalizeText(m_Data.SectionTypeCloseFromTreatmentVacation), _
+             private_NormalizeText(m_Data.SectionTypeCloseFromAnnualVacation), _
+             private_NormalizeText(m_Data.SectionTypeCloseFromFamilyVacation), _
+             private_NormalizeText(m_Data.SectionTypeCloseFromTreatmentMedicalCompany), _
+             private_NormalizeText(m_Data.SectionTypeCloseFromAmbulatoryVlk), _
+             private_NormalizeText(m_Data.SectionTypeCloseFromStationaryVlk)
+            private_AddStandardCommanderDependentAliases dependentAliases
+
+        Case private_NormalizeText(m_Data.SectionTypeToTreatment), _
+             private_NormalizeText(m_Data.SectionTypeToAnnualVacationPart), _
+             private_NormalizeText(m_Data.SectionTypeToFamilyVacation), _
+             private_NormalizeText(m_Data.SectionTypeToTreatmentVacation), _
+             private_NormalizeText(m_Data.SectionTypeToTreatmentMedicalCompany), _
+             private_NormalizeText(m_Data.SectionTypeToAmbulatoryVlk)
+            private_AddStandardCommanderDependentAliases dependentAliases
+
+        Case private_NormalizeText(m_Data.SectionTypeTransferTreatmentToTreatmentVacation), _
+             private_NormalizeText(m_Data.SectionTypeTransferTreatmentToStationaryVlk), _
+             private_NormalizeText(m_Data.SectionTypeTransferAnnualVacationToTreatment), _
+             private_NormalizeText(m_Data.SectionTypeTransferFamilyVacationToTreatment), _
+             private_NormalizeText(m_Data.SectionTypeTransferTreatmentVacationToTreatment), _
+             private_NormalizeText(m_Data.SectionTypeTransferTreatmentVacationToVlk)
+            private_AddStandardCommanderDependentAliases dependentAliases
+
+        Case private_NormalizeText(m_Data.SectionTypeTransferAmbulatoryVlkToTreatment), _
+             private_NormalizeText(m_Data.SectionTypeTransferAmbulatoryVlkToTreatmentVacation), _
+             private_NormalizeText(m_Data.SectionTypeTransferStationaryVlkToTreatmentVacation), _
+             private_NormalizeText(m_Data.SectionTypeTransferMedicalCompanyToTreatment), _
+             private_NormalizeText(m_Data.SectionTypeTransferMedicalCompanyToTreatmentVacation), _
+             private_NormalizeText(m_Data.SectionTypeToBusinessTrip), _
+             private_NormalizeText(m_Data.SectionTypeToBusinessTripSzch)
+            private_AddStandardCommanderDependentAliases dependentAliases
+
+        Case Else
+            VBA.MsgBox "PrototypeNew: dependent-field rules are missing for section '" & _
+                sectionText & "' and lookup 'op_Commander'.", _
+                VBA.vbExclamation, "PrototypeNew / PrsnlEvntBuilder"
+            Exit Function
+    End Select
+
+    private_AppendCommanderDependentAliases = True
+End Function
+
+Private Sub private_AddStandardFioDependentAliases(ByVal dependentAliases As Object)
+    dependentAliases(DRAFT_ALIAS_RANK) = True
+    dependentAliases(DRAFT_ALIAS_IPN) = True
+    dependentAliases(DRAFT_ALIAS_POSITION_CODE) = True
+    dependentAliases(DRAFT_ALIAS_POSITION_NAME) = True
+End Sub
+
+Private Sub private_AddVacationFioDependentAliases(ByVal dependentAliases As Object)
+    ' При смене человека данные конкретного отпускного документа больше не
+    ' относятся к выбранной строке, поэтому очищаем их вместе с персональными.
+    private_AddStandardFioDependentAliases dependentAliases
+    dependentAliases(DRAFT_ALIAS_INCOMING_NO) = True
+    dependentAliases(DRAFT_ALIAS_INCOMING_DATE) = True
+    dependentAliases(DRAFT_ALIAS_DATE_FROM) = True
+    dependentAliases(DRAFT_ALIAS_VH_NO) = True
+End Sub
+
+Private Sub private_AddStandardCommanderDependentAliases(ByVal dependentAliases As Object)
+    dependentAliases(DRAFT_ALIAS_REPORT_RANK) = True
+    dependentAliases(DRAFT_ALIAS_REPORT_POSITION_CODE) = True
+    dependentAliases(DRAFT_ALIAS_INCOMING_NO) = True
+End Sub
 
 Public Function UpdateData(ByVal configControl As obj_ConfigControlVM) As Boolean
     If m_LookupFeature Is Nothing Then Exit Function
@@ -1727,70 +1907,75 @@ Private Function private_ReadHeaderText(ByVal headerCell As Range) As String
     private_ReadHeaderText = VBA.Trim$(valueText)
 End Function
 
-Private Sub private_TryRefreshOrderNoLabel()
+Private Function private_ClearVisibleDraftFieldsByAlias(ByVal aliasesToClear As Object) As Boolean
     Dim pageBase As obj_PageBase
     Dim ws As Worksheet
     Dim draftValuesRange As Range
-    Dim orderNoText As String
-    Dim labelScope As Range
-    Dim columnScope As Range
-    Dim labelText As String
+    Dim tagEntries As Collection
+    Dim tagEntryObj As Variant
+    Dim tagEntry As Object
+    Dim tagText As String
+    Dim tagRange As Range
+    Dim clearRange As Range
+    Dim previousEnableEvents As Boolean
 
-    If m_Page Is Nothing Then Exit Sub
+    If aliasesToClear Is Nothing Then Exit Function
+    If aliasesToClear.Count = 0 Then
+        private_ClearVisibleDraftFieldsByAlias = True
+        Exit Function
+    End If
+    If m_Page Is Nothing Then Exit Function
+
     Set pageBase = m_Page.GetPageBase()
-    If pageBase Is Nothing Then Exit Sub
+    If pageBase Is Nothing Then Exit Function
     Set ws = pageBase.Worksheet
-    If ws Is Nothing Then Exit Sub
-
-    If Not pageBase.TryGetLayoutContainerRange(EVENT_DRAFT_VALUES_CONTAINER_NAME, draftValuesRange) Then Exit Sub
-    If draftValuesRange Is Nothing Then Exit Sub
-
-    If Not private_TryReadDraftValueByHeader(ws, draftValuesRange, EVENT_DRAFT_INCOMING_NO_HEADER_NAME, orderNoText) Then
-        orderNoText = VBA.vbNullString
-    End If
-
-    labelText = EVENT_DRAFT_ORDER_LABEL_PREFIX
-    If VBA.Len(VBA.Trim$(orderNoText)) > 0 Then
-        labelText = labelText & VBA.Trim$(orderNoText)
-    Else
-        labelText = labelText & "-"
-    End If
-
-    Set labelScope = Nothing
-    Set columnScope = Nothing
-    If Not ex_ControlPartsRuntime.fn_TryResolveControlPartScope(ws, "label", EVENT_DRAFT_ORDER_NO_LABEL_CONTROL_NAME, "cell", labelScope, columnScope) Then Exit Sub
-    If labelScope Is Nothing Then Exit Sub
-
-    labelScope.Value2 = labelText
-End Sub
-
-Private Function private_TryReadDraftValueByHeader( _
-    ByVal ws As Worksheet, _
-    ByVal draftValuesRange As Range, _
-    ByVal headerName As String, _
-    ByRef outValueText As String _
-) As Boolean
-    Dim colOffset As Long
-    Dim sheetCol As Long
-    Dim headerText As String
-
-    outValueText = VBA.vbNullString
     If ws Is Nothing Then Exit Function
+    If Not pageBase.TryGetLayoutContainerRange(EVENT_DRAFT_VALUES_CONTAINER_NAME, draftValuesRange) Then Exit Function
     If draftValuesRange Is Nothing Then Exit Function
-    If draftValuesRange.Row <= 1 Then Exit Function
 
-    headerName = VBA.Trim$(headerName)
-    If VBA.Len(headerName) = 0 Then Exit Function
+    Set tagEntries = Nothing
+    If Not pageBase.TryGetLayoutTagEntriesInRange(draftValuesRange, tagEntries, "visible") Then Exit Function
+    If tagEntries Is Nothing Then
+        private_ClearVisibleDraftFieldsByAlias = True
+        Exit Function
+    End If
 
-    For colOffset = 1 To draftValuesRange.Columns.Count
-        sheetCol = draftValuesRange.Column + colOffset - 1
-        headerText = private_ReadHeaderText(ws.Cells(draftValuesRange.Row - 1, sheetCol))
-        If VBA.StrComp(VBA.Trim$(headerText), headerName, VBA.vbTextCompare) = 0 Then
-            outValueText = VBA.Trim$(VBA.CStr(ws.Cells(draftValuesRange.Row, sheetCol).Value2))
-            private_TryReadDraftValueByHeader = True
-            Exit Function
-        End If
-    Next colOffset
+    previousEnableEvents = Application.EnableEvents
+    On Error GoTo RestoreEventsAndFail
+    Application.EnableEvents = False
+
+    ' Layout registry связывает канонический алиас (_Rank, _IPN...) с текущим
+    ' физическим адресом. Поэтому Caption и позиция колонки здесь не участвуют.
+    For Each tagEntryObj In tagEntries
+        If Not VBA.IsObject(tagEntryObj) Then GoTo ContinueTag
+        Set tagEntry = tagEntryObj
+        If tagEntry Is Nothing Then GoTo ContinueTag
+        If Not tagEntry.Exists("Tag") Then GoTo ContinueTag
+
+        tagText = VBA.Trim$(VBA.CStr(tagEntry("Tag")))
+        If Not aliasesToClear.Exists(tagText) Then GoTo ContinueTag
+
+        Set tagRange = Nothing
+        Set clearRange = Nothing
+        Set tagRange = ws.Range( _
+            ws.Cells(VBA.CLng(tagEntry("RowStart")), VBA.CLng(tagEntry("ColStart"))), _
+            ws.Cells(VBA.CLng(tagEntry("RowEnd")), VBA.CLng(tagEntry("ColEnd"))))
+        Set clearRange = Application.Intersect(tagRange, draftValuesRange)
+        If clearRange Is Nothing Then GoTo ContinueTag
+        clearRange.ClearContents
+
+ContinueTag:
+    Next tagEntryObj
+
+    Application.EnableEvents = previousEnableEvents
+    On Error GoTo 0
+    private_ClearVisibleDraftFieldsByAlias = True
+    Exit Function
+
+RestoreEventsAndFail:
+    On Error Resume Next
+    Application.EnableEvents = previousEnableEvents
+    On Error GoTo 0
 End Function
 
 Private Function private_TryResolveCandidateRowsArea( _

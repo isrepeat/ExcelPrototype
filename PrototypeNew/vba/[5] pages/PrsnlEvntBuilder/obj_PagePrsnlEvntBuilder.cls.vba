@@ -106,6 +106,7 @@ End Function
 
 Private Function obj_IPage_Render() As Boolean
     Dim draftValuesByTag As Object
+    Dim activeDraftFieldTag As String
     Dim orderNoValues As Variant
     Dim hasOrderNoValues As Boolean
     Dim app As Application
@@ -137,6 +138,7 @@ Private Function obj_IPage_Render() As Boolean
     private_LogRenderPerfStep "prsnlevnt:render:start", perfStart, perfLast
 #End If
 
+    If Not private_TryCaptureActiveDraftFieldTag(activeDraftFieldTag) Then GoTo Cleanup
     If Not private_TryCaptureTaggedDraftValues(draftValuesByTag) Then GoTo Cleanup
 #If LOGGING_DEBUG_ENABLED Then
     private_LogRenderPerfStep "prsnlevnt:render:capture-tagged-draft-values", perfStart, perfLast
@@ -177,6 +179,7 @@ Private Function obj_IPage_Render() As Boolean
     private_LogRenderPerfStep "prsnlevnt:render:register-rendered-hotkeys", perfStart, perfLast
 #End If
 #End If
+    If Not private_TryRestoreActiveDraftField(activeDraftFieldTag) Then GoTo Cleanup
     renderOk = True
 
 Cleanup:
@@ -358,9 +361,10 @@ Public Function OnLookupInputCellChangedCommand(Optional ByVal arg As Variant) A
     If Not private_TryReadCellText(changedCellAddress, queryText) Then Exit Function
 
     private_SetLookupQueryValue lookupKey, queryText
+    If m_Controller Is Nothing Then Exit Function
+    If Not m_Controller.ClearDependentDraftFields(lookupKey) Then Exit Function
     ' Disabled lookup still captures pasted input values, but deliberately skips
     ' candidate clearing, SQL requests and the render caused by search results.
-    If m_Controller Is Nothing Then Exit Function
     If Not m_Controller.IsLookupEnabled Then
         OnLookupInputCellChangedCommand = True
         Exit Function
@@ -852,6 +856,131 @@ ContinueTag:
 
     Set outValuesByTag = tagValues
     private_TryCaptureTaggedDraftValues = True
+End Function
+
+Private Function private_TryCaptureActiveDraftFieldTag(ByRef outFieldTag As String) As Boolean
+    Dim containerRange As Range
+    Dim activeCellRange As Range
+    Dim tagEntries As Collection
+    Dim tagEntryObj As Variant
+    Dim tagEntry As Object
+    Dim tagRange As Range
+    Dim tagText As String
+
+    outFieldTag = VBA.vbNullString
+    If m_PageBase Is Nothing Then Exit Function
+
+    Set containerRange = Nothing
+    If Not m_PageBase.TryGetLayoutContainerRange(EVENT_DRAFT_VALUES_CONTAINER_NAME, containerRange) Then
+        private_TryCaptureActiveDraftFieldTag = True
+        Exit Function
+    End If
+    If containerRange Is Nothing Then
+        private_TryCaptureActiveDraftFieldTag = True
+        Exit Function
+    End If
+
+    On Error Resume Next
+    Set activeCellRange = Application.ActiveCell
+    On Error GoTo 0
+    If activeCellRange Is Nothing Then
+        private_TryCaptureActiveDraftFieldTag = True
+        Exit Function
+    End If
+    If Not (activeCellRange.Worksheet Is containerRange.Worksheet) Then
+        private_TryCaptureActiveDraftFieldTag = True
+        Exit Function
+    End If
+    If Application.Intersect(activeCellRange, containerRange) Is Nothing Then
+        private_TryCaptureActiveDraftFieldTag = True
+        Exit Function
+    End If
+
+    Set tagEntries = Nothing
+    If Not m_PageBase.TryGetLayoutTagEntriesInRange(containerRange, tagEntries, "visible") Then Exit Function
+    If tagEntries Is Nothing Then
+        private_TryCaptureActiveDraftFieldTag = True
+        Exit Function
+    End If
+
+    ' У одной ячейки есть field-тег (_FIO, _Rank...) и несколько profile.* тегов.
+    ' Для позиционирования сохраняем только логический тег поля.
+    For Each tagEntryObj In tagEntries
+        If Not VBA.IsObject(tagEntryObj) Then GoTo ContinueTag
+        Set tagEntry = tagEntryObj
+        If tagEntry Is Nothing Then GoTo ContinueTag
+        If Not tagEntry.Exists("Tag") Then GoTo ContinueTag
+
+        tagText = VBA.Trim$(VBA.CStr(tagEntry("Tag")))
+        If VBA.Len(tagText) = 0 Then GoTo ContinueTag
+        If private_IsProfileTag(tagText) Then GoTo ContinueTag
+        If VBA.Left$(tagText, 1) <> "_" Then GoTo ContinueTag
+
+        Set tagRange = Nothing
+        If Not private_TryGetLayoutTagEntryRange(tagEntry, tagRange) Then GoTo ContinueTag
+        If tagRange Is Nothing Then GoTo ContinueTag
+        If Not Application.Intersect(activeCellRange, tagRange) Is Nothing Then
+            outFieldTag = tagText
+            Exit For
+        End If
+ContinueTag:
+    Next tagEntryObj
+
+    private_TryCaptureActiveDraftFieldTag = True
+End Function
+
+Private Function private_TryRestoreActiveDraftField(ByVal fieldTag As String) As Boolean
+    Dim containerRange As Range
+    Dim tagEntries As Collection
+    Dim tagEntryObj As Variant
+    Dim tagEntry As Object
+    Dim tagRange As Range
+    Dim tagText As String
+
+    fieldTag = VBA.Trim$(fieldTag)
+    If VBA.Len(fieldTag) = 0 Then
+        private_TryRestoreActiveDraftField = True
+        Exit Function
+    End If
+    If m_PageBase Is Nothing Then Exit Function
+
+    Set containerRange = Nothing
+    If Not m_PageBase.TryGetLayoutContainerRange(EVENT_DRAFT_VALUES_CONTAINER_NAME, containerRange) Then
+        private_TryRestoreActiveDraftField = True
+        Exit Function
+    End If
+    If containerRange Is Nothing Then
+        private_TryRestoreActiveDraftField = True
+        Exit Function
+    End If
+
+    Set tagEntries = Nothing
+    If Not m_PageBase.TryGetLayoutTagEntriesInRange(containerRange, tagEntries, "visible") Then Exit Function
+    If tagEntries Is Nothing Then
+        private_TryRestoreActiveDraftField = True
+        Exit Function
+    End If
+
+    For Each tagEntryObj In tagEntries
+        If Not VBA.IsObject(tagEntryObj) Then GoTo ContinueTag
+        Set tagEntry = tagEntryObj
+        If tagEntry Is Nothing Then GoTo ContinueTag
+        If Not tagEntry.Exists("Tag") Then GoTo ContinueTag
+
+        tagText = VBA.Trim$(VBA.CStr(tagEntry("Tag")))
+        If VBA.StrComp(tagText, fieldTag, VBA.vbTextCompare) <> 0 Then GoTo ContinueTag
+
+        Set tagRange = Nothing
+        If Not private_TryGetLayoutTagEntryRange(tagEntry, tagRange) Then GoTo ContinueTag
+        If tagRange Is Nothing Then GoTo ContinueTag
+        Application.Goto tagRange.Cells(1, 1), False
+        Exit For
+ContinueTag:
+    Next tagEntryObj
+
+    ' Отсутствие поля в новой секции является штатным случаем: физическую
+    ' активную ячейку тогда не переносим принудительно.
+    private_TryRestoreActiveDraftField = True
 End Function
 
 Private Function private_TryRestoreTaggedDraftValues(ByVal valuesByTag As Object) As Boolean
