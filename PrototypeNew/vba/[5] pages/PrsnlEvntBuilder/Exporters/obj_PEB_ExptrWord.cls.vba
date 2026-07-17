@@ -250,7 +250,8 @@ Public Function Export( _
             End If
         End If
         If Not private_TryAppendBeforeWordEndAnchor( _
-            templateId, recordIpn, previewText, groupingHospitalShort, groupingDateShort) Then Exit Function
+            templateId, recordIpn, previewText, groupingHospitalShort, groupingDateShort, _
+            private_GetContextText(context, CONTEXT_MANUAL_ORDER_NO)) Then Exit Function
     End If
 
     Export = True
@@ -261,7 +262,8 @@ Private Function private_TryAppendBeforeWordEndAnchor( _
     ByVal recordIpn As String, _
     ByVal renderedText As String, _
     Optional ByVal groupingHospitalShort As String = "", _
-    Optional ByVal groupingDateShort As String = "" _
+    Optional ByVal groupingDateShort As String = "", _
+    Optional ByVal orderNo As String = "" _
 ) As Boolean
     Dim targetPath As String
     Dim templatePath As String
@@ -295,7 +297,7 @@ Private Function private_TryAppendBeforeWordEndAnchor( _
         Exit Function
     End If
 
-    targetPath = private_BuildResultDocumentPath(templatePath)
+    targetPath = private_BuildResultDocumentPath(templatePath, orderNo)
     If VBA.Len(targetPath) = 0 Then
         VBA.MsgBox "PrototypeNew: failed to build the WORD result path from template: " & templatePath, VBA.vbExclamation, "PrototypeNew / WORD export"
         Exit Function
@@ -400,9 +402,12 @@ EH:
     VBA.MsgBox "PrototypeNew: WORD export failed: " & errorDescription, VBA.vbExclamation, "PrototypeNew / WORD export"
 End Function
 
-' Перегруппировывает только уже записанный *_result документ. Секционные
+' Перегруппировывает только уже записанный документ текущего приказа. Секционные
 ' текстовые якоря обязательны: они не позволяют смешать пункты разных приказов.
-Public Function RegroupResultDocumentHospitalPoints(ByRef regroupedPointCount As Long) As Boolean
+Public Function RegroupResultDocumentHospitalPoints( _
+    ByRef regroupedPointCount As Long, _
+    Optional ByVal orderNo As String = "" _
+) As Boolean
     Dim templatePath As String
     Dim targetPath As String
     Dim wordApp As Object
@@ -423,7 +428,7 @@ Public Function RegroupResultDocumentHospitalPoints(ByRef regroupedPointCount As
     If Not private_IsAbsolutePath(templatePath) Then
         templatePath = ThisWorkbook.Path & Application.PathSeparator & templatePath
     End If
-    targetPath = private_BuildResultDocumentPath(templatePath)
+    targetPath = private_BuildResultDocumentPath(templatePath, orderNo)
     If VBA.Len(targetPath) = 0 Or _
         VBA.Len(VBA.Dir$(targetPath, VBA.vbNormal Or VBA.vbReadOnly Or VBA.vbHidden Or VBA.vbSystem)) = 0 Then
         VBA.MsgBox "PrototypeNew: WORD result document was not found:" & VBA.vbCrLf & targetPath, _
@@ -709,7 +714,10 @@ End Function
 ' переводы строк CR/LF и ручные разрывы строк. Идентификаторы читаются из самого
 ' документа, поэтому новые секции не требуют изменений VBA. Операция необратима
 ' для текущего result-файла: для дальнейшего экспорта потребуется новый результат.
-Public Function RemoveResultDocumentAnchors(ByRef clearedBlockCount As Long) As Boolean
+Public Function RemoveResultDocumentAnchors( _
+    ByRef clearedBlockCount As Long, _
+    Optional ByVal orderNo As String = "" _
+) As Boolean
     Dim templatePath As String
     Dim targetPath As String
     Dim wordApp As Object
@@ -744,7 +752,7 @@ Public Function RemoveResultDocumentAnchors(ByRef clearedBlockCount As Long) As 
     End If
     If Not private_IsAbsolutePath(templatePath) Then templatePath = ThisWorkbook.Path & Application.PathSeparator & templatePath
 
-    targetPath = private_BuildResultDocumentPath(templatePath)
+    targetPath = private_BuildResultDocumentPath(templatePath, orderNo)
     If VBA.Len(targetPath) = 0 Or VBA.Len(VBA.Dir$(targetPath, VBA.vbNormal Or VBA.vbReadOnly Or VBA.vbHidden Or VBA.vbSystem)) = 0 Then
         VBA.MsgBox "PrototypeNew: WORD result document was not found:" & VBA.vbCrLf & targetPath, VBA.vbExclamation, "PrototypeNew / WORD document"
         Exit Function
@@ -866,13 +874,23 @@ Private Function private_CountTrailingWordLineBreaks(ByVal valueText As String) 
     Next charIndex
 End Function
 
-Private Function private_BuildResultDocumentPath(ByVal templatePath As String) As String
+Private Function private_BuildResultDocumentPath( _
+    ByVal templatePath As String, _
+    ByVal orderNo As String _
+) As String
     Dim extensionPos As Long
     Dim slashPos As Long
     Dim backslashPos As Long
+    Dim safeOrderNo As String
 
     templatePath = VBA.Trim$(templatePath)
     If VBA.Len(templatePath) = 0 Then Exit Function
+    safeOrderNo = private_NormalizeResultFileNamePart(orderNo)
+    If VBA.Len(safeOrderNo) = 0 Then
+        VBA.MsgBox "PrototypeNew: WORD result document requires a non-empty order number.", _
+            VBA.vbExclamation, "PrototypeNew / WORD export"
+        Exit Function
+    End If
 
     slashPos = VBA.InStrRev(templatePath, "/")
     backslashPos = VBA.InStrRev(templatePath, "\")
@@ -880,10 +898,22 @@ Private Function private_BuildResultDocumentPath(ByVal templatePath As String) A
 
     If extensionPos > slashPos And extensionPos > backslashPos Then
         private_BuildResultDocumentPath = VBA.Left$(templatePath, extensionPos - 1) & _
-            "_result" & VBA.Mid$(templatePath, extensionPos)
+            "_" & safeOrderNo & VBA.Mid$(templatePath, extensionPos)
     Else
-        private_BuildResultDocumentPath = templatePath & "_result.docx"
+        private_BuildResultDocumentPath = templatePath & "_" & safeOrderNo & ".docx"
     End If
+End Function
+
+Private Function private_NormalizeResultFileNamePart(ByVal valueText As String) As String
+    Dim invalidChars As Variant
+    Dim invalidChar As Variant
+
+    valueText = VBA.Trim$(valueText)
+    invalidChars = VBA.Array("\", "/", ":", "*", "?", """", "<", ">", "|")
+    For Each invalidChar In invalidChars
+        valueText = VBA.Replace(valueText, VBA.CStr(invalidChar), "_")
+    Next invalidChar
+    private_NormalizeResultFileNamePart = valueText
 End Function
 
 Private Function private_BuildRecordBookmarkName(ByVal templateId As String, ByVal recordIpn As String) As String
