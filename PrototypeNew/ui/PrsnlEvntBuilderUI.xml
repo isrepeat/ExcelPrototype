@@ -970,8 +970,11 @@
           spanColls="50"/>
       </stackPanel>
 
-      <!-- CTRL+3 builds the preview; the button and CTRL+4 write it to WORD. -->
-      <stackPanel orientation="horizontal">
+      <!-- CTRL+3 builds the preview; the button and CTRL+4 write it to WORD.
+           Именованный panel является partial-reflow boundary: Banner и Button
+           одновременно переходят из Collapsed в Visible, поэтому обновлять
+           только один из этих контролов нельзя. -->
+      <stackPanel name="WordExportPanel" orientation="horizontal">
         <control
           type="Banner"
           name="WordExportPreview"

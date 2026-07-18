@@ -19,6 +19,7 @@ Private Const HOTKEY_ROW_SNAPSHOT_NODE As String = "row"
 Private Const PARENT_PAGE_ID_ATTR As String = "parentPageId"
 Private Const PARENT_CONFIG_CONTROL_NAME As String = "DevConfig"
 Private Const PAGE_RUNTIME_OBJECT_KEY As String = "RuntimeObjects.PrsnlEvntBuilder"
+Private Const LOOKUP_CANDIDATES_CONTROL_NAME As String = "LookupCandidatesTable"
 Private Const HOTKEYS_RUNTIME_KEY As String = "RuntimeItems.PrsnlEvntBuilder.Hotkeys"
 Private Const HOTKEYS_CONTROL_NAME As String = "SheetHotkeys"
 Private Const DICTIONARY_MISSING_MEMBER_AS_EMPTY_KEY As String = "__MissingMemberAsEmpty"
@@ -772,13 +773,36 @@ Private Function private_TryRunLookupSearch( _
     If m_Controller Is Nothing Then Exit Function
     If VBA.Len(VBA.Trim$(queryText)) = 0 Then
         If Not m_Controller.ClearLookupCandidates(False) Then Exit Function
-        private_TryRunLookupSearch = True
+        private_TryRunLookupSearch = private_TryReflowLookupCandidates(rerenderReason & ":clear")
         Exit Function
     End If
 
     If Not private_TryEnsureControllerData() Then Exit Function
     If Not m_Controller.SearchCandidates(lookupKey, queryText, countFound, False) Then Exit Function
-    private_TryRunLookupSearch = private_RerenderSelf(rerenderReason)
+    private_TryRunLookupSearch = private_TryReflowLookupCandidates(rerenderReason)
+End Function
+
+Private Function private_TryReflowLookupCandidates(ByVal reason As String) As Boolean
+    Dim startedAt As Single
+
+    If m_PageBase Is Nothing Then Exit Function
+    startedAt = VBA.Timer
+    If Not m_PageBase.TryReflowControl(LOOKUP_CANDIDATES_CONTROL_NAME) Then
+        VBA.MsgBox _
+            "PrototypeNew: partial reflow of '" & LOOKUP_CANDIDATES_CONTROL_NAME & _
+            "' failed. The page was not fully re-rendered; use Update Sheet to recover.", _
+            VBA.vbExclamation, _
+            "PrototypeNew / partial reflow"
+        Exit Function
+    End If
+
+#If LOGGING_DEBUG_ENABLED Then
+    ex_Core.fn_Diagnostic_LogInfo "perf:prsnlevntbuilder:partial-reflow control='" & _
+        LOOKUP_CANDIDATES_CONTROL_NAME & "' reason='" & _
+        VBA.Replace$(VBA.Trim$(reason), "'", "''") & "' ms=" & _
+        VBA.Format$((VBA.Timer - startedAt) * 1000!, "0")
+#End If
+    private_TryReflowLookupCandidates = True
 End Function
 
 Private Function private_TryCaptureLayoutContainerValues( _

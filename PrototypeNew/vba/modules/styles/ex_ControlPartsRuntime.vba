@@ -3,6 +3,13 @@ Option Explicit
 #Const LOGGING_DEBUG_ENABLED = True
 #Const LOGGING_VERBOSE_ENABLED = False
 
+' Runtime-индекс визуальных частей control используется selector-движком как
+' связь "control/part/source alias -> Range". При partial render весь индекс не
+' сбрасывается: записи target удаляются и создаются его renderer-ом заново, а
+' ranges перенесённых siblings транслируются вместе с worksheet subtree.
+'
+' Это не только оптимизация. Если metadata отстанет от листа, последующий
+' локальный style pass применит rule к старым координатам другого контрола.
 Private g_ControlParts As Collection
 Private g_ControlColumnAliases As Collection
 Private g_ControlSourceAliases As Collection
@@ -41,6 +48,98 @@ Public Function fn_RemoveControlPartsByWorksheetName(ByVal worksheetName As Stri
     Call private_RemoveEntriesByWorksheetKey(g_ControlSourceAliases, worksheetKey)
 
     fn_RemoveControlPartsByWorksheetName = True
+End Function
+
+
+Public Function fn_RemoveControlPartsByControl( _
+    ByVal worksheetName As String, _
+    ByVal controlName As String _
+) As Boolean
+    Dim worksheetKey As String
+    Dim controlKey As String
+
+    worksheetKey = VBA.LCase$(VBA.Trim$(worksheetName))
+    controlKey = VBA.LCase$(VBA.Trim$(controlName))
+    If VBA.Len(worksheetKey) = 0 Or VBA.Len(controlKey) = 0 Then Exit Function
+
+    ' Локальный render заменяет только parts изменившегося контрола.
+    ' Parts остальных контролов нужны retained style pipeline и не сбрасываются.
+    Call private_RemoveEntriesByControlKey(g_ControlParts, worksheetKey, controlKey)
+    Call private_RemoveEntriesByControlKey(g_ControlColumnAliases, worksheetKey, controlKey)
+    Call private_RemoveEntriesByControlKey(g_ControlSourceAliases, worksheetKey, controlKey)
+
+    fn_RemoveControlPartsByControl = True
+End Function
+
+
+Public Function fn_TryGetControlVisualScope( _
+    ByVal ws As Worksheet, _
+    ByVal controlName As String, _
+    ByRef outScope As Range _
+) As Boolean
+    Dim entry As Variant
+    Dim entryRange As Range
+
+    Set outScope = Nothing
+    If ws Is Nothing Then Exit Function
+    controlName = VBA.LCase$(VBA.Trim$(controlName))
+    If VBA.Len(controlName) = 0 Then Exit Function
+    If g_ControlParts Is Nothing Then
+        fn_TryGetControlVisualScope = True
+        Exit Function
+    End If
+
+    For Each entry In g_ControlParts
+        If VBA.LCase$(VBA.CStr(entry("SheetName"))) <> VBA.LCase$(ws.Name) Then GoTo ContinueEntry
+        If VBA.LCase$(VBA.CStr(entry("ControlName"))) <> controlName Then GoTo ContinueEntry
+        Set entryRange = Nothing
+        On Error Resume Next
+        Set entryRange = entry("Range")
+        On Error GoTo 0
+        If entryRange Is Nothing Then GoTo ContinueEntry
+        If outScope Is Nothing Then
+            Set outScope = entryRange
+        Else
+            Set outScope = Application.Union(outScope, entryRange)
+        End If
+ContinueEntry:
+    Next entry
+    fn_TryGetControlVisualScope = True
+End Function
+
+
+Public Function fn_TranslateControlPartsBelow( _
+    ByVal ws As Worksheet, _
+    ByVal firstRow As Long, _
+    ByVal rowDelta As Long _
+) As Boolean
+    If ws Is Nothing Or firstRow <= 0 Then Exit Function
+    If rowDelta = 0 Then
+        fn_TranslateControlPartsBelow = True
+        Exit Function
+    End If
+
+    If Not private_TranslateEntryRangesBelow(g_ControlParts, ws, firstRow, rowDelta) Then Exit Function
+    If Not private_TranslateEntryRangesBelow(g_ControlColumnAliases, ws, firstRow, rowDelta) Then Exit Function
+    If Not private_TranslateEntryRangesBelow(g_ControlSourceAliases, ws, firstRow, rowDelta) Then Exit Function
+
+    fn_TranslateControlPartsBelow = True
+End Function
+
+
+Public Function fn_TranslateControlPartsInRegion( _
+    ByVal ws As Worksheet, _
+    ByVal rowStart As Long, _
+    ByVal colStart As Long, _
+    ByVal rowEnd As Long, _
+    ByVal colEnd As Long, _
+    ByVal rowDelta As Long _
+) As Boolean
+    If ws Is Nothing Then Exit Function
+    If Not private_TranslateEntryRangesInRegion(g_ControlParts, ws, rowStart, colStart, rowEnd, colEnd, rowDelta) Then Exit Function
+    If Not private_TranslateEntryRangesInRegion(g_ControlColumnAliases, ws, rowStart, colStart, rowEnd, colEnd, rowDelta) Then Exit Function
+    If Not private_TranslateEntryRangesInRegion(g_ControlSourceAliases, ws, rowStart, colStart, rowEnd, colEnd, rowDelta) Then Exit Function
+    fn_TranslateControlPartsInRegion = True
 End Function
 
 Public Function fn_RegisterControlSourceAlias( _
@@ -375,6 +474,113 @@ Private Function private_RemoveEntriesByWorksheetKey( _
     Next entryIndex
 
     If entries.Count = 0 Then Set entries = Nothing
+End Function
+
+Private Function private_RemoveEntriesByControlKey( _
+    ByRef entries As Collection, _
+    ByVal worksheetKey As String, _
+    ByVal controlKey As String _
+) As Long
+    Dim entryIndex As Long
+    Dim entry As Object
+    Dim entrySheetName As String
+    Dim entryControlName As String
+
+    If entries Is Nothing Then Exit Function
+
+    For entryIndex = entries.Count To 1 Step -1
+        Set entry = Nothing
+        entrySheetName = VBA.vbNullString
+        entryControlName = VBA.vbNullString
+        On Error Resume Next
+        Set entry = entries.Item(entryIndex)
+        If Not entry Is Nothing Then
+            entrySheetName = VBA.LCase$(VBA.Trim$(VBA.CStr(entry("SheetName"))))
+            entryControlName = VBA.LCase$(VBA.Trim$(VBA.CStr(entry("ControlName"))))
+        End If
+        On Error GoTo 0
+
+        If entrySheetName = worksheetKey And entryControlName = controlKey Then
+            On Error Resume Next
+            Set entry("Range") = Nothing
+            entries.Remove entryIndex
+            On Error GoTo 0
+            private_RemoveEntriesByControlKey = private_RemoveEntriesByControlKey + 1
+        End If
+    Next entryIndex
+
+    If entries.Count = 0 Then Set entries = Nothing
+End Function
+
+Private Function private_TranslateEntryRangesBelow( _
+    ByRef entries As Collection, _
+    ByVal ws As Worksheet, _
+    ByVal firstRow As Long, _
+    ByVal rowDelta As Long _
+) As Boolean
+    Dim entry As Variant
+    Dim entryRange As Range
+    Dim translatedRange As Range
+    Dim newRow As Long
+
+    If entries Is Nothing Then
+        private_TranslateEntryRangesBelow = True
+        Exit Function
+    End If
+
+    For Each entry In entries
+        If VBA.LCase$(VBA.Trim$(VBA.CStr(entry("SheetName")))) <> VBA.LCase$(ws.Name) Then GoTo ContinueEntry
+        Set entryRange = Nothing
+        On Error Resume Next
+        Set entryRange = entry("Range")
+        On Error GoTo 0
+        If entryRange Is Nothing Then GoTo ContinueEntry
+        If entryRange.Row < firstRow Then GoTo ContinueEntry
+
+        newRow = entryRange.Row + rowDelta
+        If newRow <= 0 Then Exit Function
+        Set translatedRange = ws.Range( _
+            ws.Cells(newRow, entryRange.Column), _
+            ws.Cells(newRow + entryRange.Rows.Count - 1, entryRange.Column + entryRange.Columns.Count - 1))
+        Set entry("Range") = translatedRange
+ContinueEntry:
+    Next entry
+
+    private_TranslateEntryRangesBelow = True
+End Function
+
+Private Function private_TranslateEntryRangesInRegion( _
+    ByRef entries As Collection, _
+    ByVal ws As Worksheet, _
+    ByVal rowStart As Long, _
+    ByVal colStart As Long, _
+    ByVal rowEnd As Long, _
+    ByVal colEnd As Long, _
+    ByVal rowDelta As Long _
+) As Boolean
+    Dim entry As Variant
+    Dim entryRange As Range
+    Dim translatedRange As Range
+
+    If entries Is Nothing Then
+        private_TranslateEntryRangesInRegion = True
+        Exit Function
+    End If
+    For Each entry In entries
+        If VBA.LCase$(VBA.CStr(entry("SheetName"))) <> VBA.LCase$(ws.Name) Then GoTo ContinueEntry
+        Set entryRange = Nothing
+        On Error Resume Next
+        Set entryRange = entry("Range")
+        On Error GoTo 0
+        If entryRange Is Nothing Then GoTo ContinueEntry
+        If entryRange.Row < rowStart Or entryRange.Column < colStart Then GoTo ContinueEntry
+        If entryRange.Row + entryRange.Rows.Count - 1 > rowEnd Then GoTo ContinueEntry
+        If entryRange.Column + entryRange.Columns.Count - 1 > colEnd Then GoTo ContinueEntry
+        Set translatedRange = entryRange.Offset(rowDelta, 0)
+        Set entry("Range") = translatedRange
+ContinueEntry:
+    Next entry
+    private_TranslateEntryRangesInRegion = True
 End Function
 
 Private Sub private_EnsureControlPartsStorage()
