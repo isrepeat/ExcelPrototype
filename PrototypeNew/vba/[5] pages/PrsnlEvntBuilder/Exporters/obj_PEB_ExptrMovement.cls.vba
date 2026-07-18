@@ -380,6 +380,7 @@ Private Function private_TryBuildSpecialOpeningValues( _
     ByRef outVkNoValue As Variant _
 ) As Boolean
     Dim sourceRow As obj_Row
+    Dim formattedVkNo As String
 
     outShouldWrite = False
     outDurationValue = VBA.vbNullString
@@ -397,9 +398,11 @@ Private Function private_TryBuildSpecialOpeningValues( _
 
     outShouldWrite = True
     outDurationValue = private_GetOptionalSourceTextByAnyColumn(sourceTable, sourceRow, MOVEMENT_SOURCE_DURATION_DAYS)
-    outVkNoValue = m_DataProvider.CommonData.FormatVacationTicketNoForExport( _
+    If Not m_DataProvider.CommonData.TryFormatVacationTicketNoForExport( _
         private_GetOptionalSourceTextByAnyColumn(sourceTable, sourceRow, MOVEMENT_SOURCE_VK_NO), _
-        private_GetContextText(context, MOVEMENT_CONTEXT_MANUAL_ORDER_NO))
+        private_GetContextText(context, MOVEMENT_CONTEXT_MANUAL_ORDER_NO), _
+        formattedVkNo) Then Exit Function
+    outVkNoValue = formattedVkNo
     private_TryBuildSpecialOpeningValues = True
 End Function
 

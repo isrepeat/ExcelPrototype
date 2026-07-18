@@ -172,24 +172,82 @@ Public Function FormatVacationTicketNoForExport( _
     ByVal rawTicketNo As Variant, _
     ByVal orderNo As Variant _
 ) As String
+    Dim formattedValue As String
+
+    If TryFormatVacationTicketNoForExport(rawTicketNo, orderNo, formattedValue) Then
+        FormatVacationTicketNoForExport = formattedValue
+    End If
+End Function
+
+Public Function TryFormatVacationTicketNoForExport( _
+    ByVal rawTicketNo As Variant, _
+    ByVal orderNo As Variant, _
+    ByRef outTicketNo As String _
+) As Boolean
     Dim ticketNoText As String
     Dim orderNoText As String
     Dim rx As Object
+    Dim parts As Variant
+    Dim partIndex As Long
+    Dim comparableTicketNo As String
 
+    outTicketNo = VBA.vbNullString
     ticketNoText = VBA.Trim$(VBA.CStr(rawTicketNo))
-    orderNoText = VBA.Trim$(VBA.CStr(orderNo))
-    If VBA.Len(ticketNoText) = 0 Then Exit Function
+    orderNoText = private_NormalizeOrderNumberToken(orderNo)
+    If VBA.Len(ticketNoText) = 0 Then
+        TryFormatVacationTicketNoForExport = True
+        Exit Function
+    End If
 
-    ' Простые номера из формы приводим к полному номеру отпускного билета.
-    ' Уже оформленные составные номера оставляем без изменений.
     Set rx = VBA.CreateObject("VBScript.RegExp")
     rx.Global = False
     rx.Pattern = "^\d+$"
-    If rx.Test(ticketNoText) And VBA.Len(orderNoText) > 0 Then
-        FormatVacationTicketNoForExport = "2026/" & orderNoText & "/" & ticketNoText
-    Else
-        FormatVacationTicketNoForExport = ticketNoText
-    End If
+
+    parts = VBA.Split(ticketNoText, "/")
+    If UBound(parts) > 2 Then GoTo InvalidFormat
+    For partIndex = LBound(parts) To UBound(parts)
+        If Not rx.Test(VBA.CStr(parts(partIndex))) Then GoTo InvalidFormat
+    Next partIndex
+
+    Select Case UBound(parts) - LBound(parts) + 1
+        Case 1
+            comparableTicketNo = ticketNoText
+            Do While VBA.Len(comparableTicketNo) > 1 And VBA.Left$(comparableTicketNo, 1) = "0"
+                comparableTicketNo = VBA.Mid$(comparableTicketNo, 2)
+            Loop
+            If VBA.Len(comparableTicketNo) > 4 Or _
+               (VBA.Len(comparableTicketNo) = 4 And VBA.StrComp(comparableTicketNo, "3000", VBA.vbBinaryCompare) > 0) Then
+                outTicketNo = "3/71/" & ticketNoText
+            Else
+                If VBA.Len(orderNoText) = 0 Or Not rx.Test(orderNoText) Then
+                    VBA.MsgBox _
+                        "PrototypeNew: отпускной билет '" & ticketNoText & _
+                        "' требует числовой номер текущего приказа.", _
+                        VBA.vbExclamation, "PrototypeNew / WORD export"
+                    Exit Function
+                End If
+                outTicketNo = VBA.CStr(VBA.Year(VBA.Date)) & "/" & orderNoText & "/" & ticketNoText
+            End If
+
+        Case 2
+            outTicketNo = VBA.CStr(VBA.Year(VBA.Date)) & "/" & ticketNoText
+
+        Case 3
+            outTicketNo = ticketNoText
+
+        Case Else
+            GoTo InvalidFormat
+    End Select
+
+    TryFormatVacationTicketNoForExport = True
+    Exit Function
+
+InvalidFormat:
+    VBA.MsgBox _
+        "PrototypeNew: некорректный номер отпускного билета '" & ticketNoText & "'." & VBA.vbCrLf & _
+        "Допустимые формы: <номер>, <приказ>/<билет> или <год>/<приказ>/<билет>." & VBA.vbCrLf & _
+        "Каждая часть должна содержать только цифры.", _
+        VBA.vbExclamation, "PrototypeNew / WORD export"
 End Function
 
 Public Function TryCalculateFoodSupportDate( _

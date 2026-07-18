@@ -176,7 +176,7 @@
     <sharedTemplate id="block.OptionalVacationTicket">
       <text>
         <![CDATA[#^
-#_        {#if [VhNo] #or [VhDateShort]}; відпускний квиток{#if [VhNo]} № {#if [VhNo] > 3000}3/71/{[VhNo]}{#else}2026/{[OrderNo]}/{[VhNo]}{#endif}{#endif}{#if [VhDateShort]} від {[VhDateShort]}{#endif}{#endif}#^
+#_        {#if [VhNo] #or [VhDateShort]}; відпускний квиток{#if [VhNo]} № {[VhNo]}{#endif}{#if [VhDateShort]} від {[VhDateShort]}{#endif}{#endif}#^
         ]]>
       </text>
     </sharedTemplate>
@@ -314,7 +314,7 @@
 #_      {#newline}#^
 #_      {#include block.IncomingBasis}#^
 #_      {#include block.OptionalBasisDocuments}#^
-#_      ; відпускний квиток № {#if [VhNo] > 3000}3/71/{[VhNo]}{#else}2026/{[OrderNo]}/{[VhNo]}{#endif} від {[VhDateShort]}#^
+#_      ; відпускний квиток № {[VhNo]} від {[VhDateShort]}#^
 #_      .{#newline}{#newline}#^
       ]]>
     </text>
