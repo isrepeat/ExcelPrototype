@@ -4,7 +4,7 @@
     <item attr="#" key="Profile.Name" value="Personal Event Builder / Lookup"/>
 
     <item attr="#" key="Personnel source" value=""/>
-    <item key="Source.Personnel.FilePath" value="C:\Users\SVI\Desktop\2026-07-14 А7383 Особовий склад.xlsx"/>
+    <item key="Source.Personnel.FilePath" value="C:\Users\SVI\Desktop\2026-07-16 А7383 Особовий склад.xlsx"/>
     <item key="Source.Personnel.SheetsAliases" value="StateMain"/>
     <item key="Personnel.Sheet[StateMain].SheetName" value="ШПС$A2:Q10000"/>
     <item key="Personnel.Sheet[StateMain].ColumnHeadersAliases" value="Rank; FIO; IPN; PositionCode; PositionName"/>
@@ -105,11 +105,11 @@
     <item key="EntityLookup.Lookup[op_DocumentNote].ResultColumnsAliases[Documents.Sheet[Dictionary].Column[DocumentName]]" value="EntityLookup.Table.Column[_DocumentNote]"/>
 
     <item attr="#" key="Export" value=""/>
-    <item key="Export.Daily.ExporterClass" value="obj_PEB_ExptrDailyScope"/>
+    <!-- <item key="Export.Daily.ExporterClass" value="obj_PEB_ExptrDailyScope"/>
     <item key="Export.Daily.FilePath" value="C:\WORK Alexandr Bondarenko\НАКАЗИ\DailyScope.xlsx"/>
     <item key="Export.Daily.SheetName" value="15_07"/>
     <item key="Export.Daily.RangeStartMarker" value="$B2"/>
-    <item key="Export.Daily.RangeEndMarker" value="EndTable_DailyEvents"/>
+    <item key="Export.Daily.RangeEndMarker" value="EndTable_DailyEvents"/> -->
     <item key="Export.Movement.ExporterClass" value="obj_PEB_ExptrMovement"/>
     <item key="Export.Movement.FilePath" value="C:\Users\SVI\Desktop\РУХ_last.xlsx"/>
     <item key="Export.Movement.SheetName" value="Відсутні"/>

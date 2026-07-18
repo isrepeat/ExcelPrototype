@@ -2093,6 +2093,7 @@ Private Function private_EnsureHotkeyRows(ByVal notifyChange As Boolean) As Bool
             If existingRows.Count > 0 Then
                 Set hotkeyRows = existingRows
                 If Not private_RemoveStaleExportHotkeyRows(hotkeyRows, hasChanges) Then Exit Function
+                If Not private_ClearHotkeyAssignment(hotkeyRows, "CTRL+1", hasChanges) Then Exit Function
                 If Not private_EnsureHotkeyRow(hotkeyRows, HOTKEY_ACCEPT_CANDIDATE_ROW, "CTRL+ENTER", hasChanges) Then Exit Function
                 If Not private_EnsureExportHotkeyRows(hotkeyRows, hasChanges) Then Exit Function
                 If Not private_EnsureHotkeyRow(hotkeyRows, HOTKEY_EXPORT_TO_WORD, "CTRL+4", hasChanges) Then Exit Function
@@ -2126,6 +2127,36 @@ Private Function private_EnsureHotkeyRows(ByVal notifyChange As Boolean) As Bool
     If Not runtimeSources.SetItemsSource(VBA.LCase$(HOTKEYS_RUNTIME_KEY), hotkeyRows, notifyChange) Then Exit Function
 
     private_EnsureHotkeyRows = True
+End Function
+
+Private Function private_ClearHotkeyAssignment( _
+    ByVal hotkeyRows As Collection, _
+    ByVal disabledHotkey As String, _
+    ByRef ioHasChanges As Boolean _
+) As Boolean
+    Dim rowItem As Variant
+    Dim configEntry As obj_ConfigEntry
+
+    If hotkeyRows Is Nothing Then Exit Function
+    disabledHotkey = VBA.UCase$(VBA.Replace$(VBA.Trim$(disabledHotkey), " ", VBA.vbNullString))
+
+    For Each rowItem In hotkeyRows
+        Set configEntry = Nothing
+        On Error Resume Next
+        Set configEntry = rowItem
+        On Error GoTo 0
+        If Not configEntry Is Nothing Then
+            If VBA.StrComp( _
+                VBA.UCase$(VBA.Replace$(VBA.Trim$(configEntry.Value), " ", VBA.vbNullString)), _
+                disabledHotkey, _
+                VBA.vbBinaryCompare) = 0 Then
+                configEntry.Value = VBA.vbNullString
+                ioHasChanges = True
+            End If
+        End If
+    Next rowItem
+
+    private_ClearHotkeyAssignment = True
 End Function
 
 Private Function private_EnsureHotkeyRow( _
@@ -2295,6 +2326,8 @@ End Function
 
 Private Function private_BuildExportDefaultHotkey(ByVal exportIndex As Long) As String
     If exportIndex <= 0 Or exportIndex > MAX_EXPORT_HOTKEYS Then Exit Function
+    ' CTRL+1 временно зарезервирован и не должен запускать PEB export.
+    If exportIndex = 1 Then Exit Function
     private_BuildExportDefaultHotkey = "CTRL+" & VBA.CStr(exportIndex)
 End Function
 
