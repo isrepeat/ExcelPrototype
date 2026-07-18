@@ -74,6 +74,10 @@ Public Function fn_RenderNode( _
             If Not private_TryResolveNodeVisibilityState(renderCtx, layoutNode, nodeDataContext, nodeVisibilityState) Then Exit Function
             If VBA.StrComp(nodeVisibilityState, VISIBILITY_STATE_COLLAPSED, VBA.vbBinaryCompare) = 0 Then
                 ' Collapsed: не рисуем и не резервируем визуальную область.
+                ' Поэтому у такого узла нет retained descriptor, от которого
+                ' мог бы стартовать TryReflowControl. Переход Collapsed -> Visible
+                ' обновляется через ближайший именованный layout-container,
+                ' descriptor которого существовал в предыдущем render.
                 fn_RenderNode = True
                 Exit Function
             End If
@@ -88,6 +92,12 @@ Public Function fn_RenderNode( _
             End If
 
             If Not private_TryRegisterLayoutNodeTags(renderCtx, layoutNode, rowStart, colStart, rowEnd, colEnd, VISIBILITY_STATE_VISIBLE) Then Exit Function
+
+            ' Retained reflow descriptor: structural key + parent + фактические
+            ' bounds. По этому дереву partial render распространяет size delta,
+            ' не двигая независимых horizontal/grid siblings.
+            ex_ControlRefreshRuntime.fn_RegisterLayoutNodeRenderBounds _
+                layoutNode, ws.Name, rowStart, colStart, rowEnd, colEnd
 
             Select Case nodeKind
                 Case "control"

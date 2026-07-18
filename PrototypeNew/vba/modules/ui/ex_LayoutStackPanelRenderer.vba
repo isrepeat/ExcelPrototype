@@ -42,10 +42,17 @@ Public Function fn_Render( _
 
     If Not renderCtx Is Nothing Then
         stackDepth = private_GetStackPanelDepth(layoutNode)
-        ex_StylePipelineEngine.fn_RegisterLayoutBound renderCtx.Worksheet, rowStart, colStart, rowEnd, colEnd, "stackpanel", vbNullString, stackDepth
-
         containerName = VBA.Trim$(VBA.CStr(ex_XmlCore.fn_NodeAttrText(layoutNode, "name")))
+        ex_StylePipelineEngine.fn_RegisterLayoutBound _
+            renderCtx.Worksheet, rowStart, colStart, rowEnd, colEnd, _
+            "stackpanel", containerName, stackDepth
+
         If VBA.Len(containerName) > 0 Then
+            ' Только именованный container доступен публичному partial-reflow API.
+            ' Безымянные stackPanel по-прежнему участвуют в retained layout tree,
+            ' но однозначно адресовать их из page/controller кода нельзя. Здесь
+            ' сохраняются именно фактические bounds последнего render — они
+            ' служат исходной областью очистки и точкой привязки нового subtree.
             Set pageBase = renderCtx.Page.GetPageBase()
             If pageBase Is Nothing Then Exit Function
             If Not pageBase.RegisterLayoutContainer( _

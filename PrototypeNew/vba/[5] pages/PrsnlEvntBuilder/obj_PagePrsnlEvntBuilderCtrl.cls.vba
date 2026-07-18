@@ -51,6 +51,7 @@ Private Const EXPORT_ACTION_PREFIX As String = "Export "
 Private Const DEFAULT_EXPORTER_CLASS As String = "obj_PEB_ExptrDailyScope"
 Private Const MAX_EXPORT_HOTKEYS As Long = 9
 Private Const LOOKUP_CANDIDATES_CONTROL_NAME As String = "LookupCandidatesTable"
+Private Const WORD_EXPORT_PANEL_CONTAINER_NAME As String = "WordExportPanel"
 Private Const EVENT_DRAFT_FORM_CONTAINER_NAME As String = "EventDraftForm"
 Private Const EVENT_DRAFT_VALUES_CONTAINER_NAME As String = "EventDraftValues"
 Private Const EVENT_DRAFT_ORDER_NO_CONTAINER_NAME As String = "EventDraftOrderNoValue"
@@ -1614,7 +1615,7 @@ End Function
 
 Private Function private_TryCaptureWordExportPreview(ByVal exportContext As Object) As Boolean
     Dim previewText As String
-    Dim previousEnableEvents As Boolean
+    Dim pageBase As obj_PageBase
 
     On Error GoTo EH
 
@@ -1657,23 +1658,26 @@ Private Function private_TryCaptureWordExportPreview(ByVal exportContext As Obje
     ex_Core.fn_Diagnostic_LogInfo "prsnlevntbuilder:preview-capture:preview-ready len=" & VBA.CStr(VBA.Len(previewText))
 #End If
     m_WordExportPreviewText = previewText
-    previousEnableEvents = Application.EnableEvents
-    Application.EnableEvents = False
-    On Error GoTo RestoreEventsAndFail
-    private_TryCaptureWordExportPreview = rt_PageManager.fn_RenderPage(m_Page, "prsnlevntbuilder:word-preview-updated")
+    If m_Page Is Nothing Then Exit Function
+    Set pageBase = m_Page.GetPageBase()
+    If pageBase Is Nothing Then Exit Function
+    ' Обновляем весь WordExportPanel, а не только Banner. До первого CTRL+3 и
+    ' preview, и кнопка ExportToWord имеют Collapsed, следовательно собственных
+    ' retained bounds у них нет. Bounds родительского stackPanel существуют и
+    ' позволяют одним reflow одновременно показать оба control и сдвинуть лишь
+    ' зависимый хвост страницы.
+    private_TryCaptureWordExportPreview = pageBase.TryReflowLayoutContainer( _
+        WORD_EXPORT_PANEL_CONTAINER_NAME)
+    If Not private_TryCaptureWordExportPreview Then
+        VBA.MsgBox _
+            "PrototypeNew: failed to partially render WORD preview panel '" & _
+            WORD_EXPORT_PANEL_CONTAINER_NAME & "'.", _
+            VBA.vbExclamation, _
+            "PrototypeNew / WORD preview"
+    End If
 #If LOGGING_DEBUG_ENABLED Then
-    ex_Core.fn_Diagnostic_LogInfo "prsnlevntbuilder:preview-capture:render-returned ok=" & VBA.LCase$(VBA.CStr(private_TryCaptureWordExportPreview))
+    ex_Core.fn_Diagnostic_LogInfo "prsnlevntbuilder:preview-capture:partial-container-returned ok=" & VBA.LCase$(VBA.CStr(private_TryCaptureWordExportPreview))
 #End If
-    Application.EnableEvents = previousEnableEvents
-    Exit Function
-
-RestoreEventsAndFail:
-    On Error Resume Next
-#If LOGGING_DEBUG_ENABLED Then
-    ex_Core.fn_Diagnostic_LogError "prsnlevntbuilder:preview-capture:render-failed errNo=" & VBA.CStr(Err.Number) & " err='" & private_EscapeForLog(Err.Description) & "'"
-#End If
-    Application.EnableEvents = previousEnableEvents
-    On Error GoTo 0
     Exit Function
 
 EH:
@@ -2096,7 +2100,9 @@ Private Function private_EnsureHotkeyRows(ByVal notifyChange As Boolean) As Bool
                 If Not private_ClearHotkeyAssignment(hotkeyRows, "CTRL+1", hasChanges) Then Exit Function
                 If Not private_EnsureHotkeyRow(hotkeyRows, HOTKEY_ACCEPT_CANDIDATE_ROW, "CTRL+ENTER", hasChanges) Then Exit Function
                 If Not private_EnsureExportHotkeyRows(hotkeyRows, hasChanges) Then Exit Function
-                If Not private_EnsureHotkeyRow(hotkeyRows, HOTKEY_EXPORT_TO_WORD, "CTRL+4", hasChanges) Then Exit Function
+                ' CTRL+4, как и CTRL+3 для WORD preview, является системным
+                ' контрактом страницы и не зависит от порядка Export aliases.
+                If Not private_EnsureHotkeyRow(hotkeyRows, HOTKEY_EXPORT_TO_WORD, "CTRL+4", hasChanges, True) Then Exit Function
                 If Not private_EnsureHotkeyRow(hotkeyRows, HOTKEY_SELECT_FORM_ROW, "SHIFT+SPACE", hasChanges) Then Exit Function
                 If Not private_EnsureHotkeyRow(hotkeyRows, HOTKEY_APPLY_EXPORT_FORM, "ALT+ARROWDOWN", hasChanges) Then Exit Function
                 If Not private_EnsureHotkeyRow(hotkeyRows, HOTKEY_CLEAR_EXPORT_FORM, "ALT+ARROWUP", hasChanges) Then Exit Function
@@ -2163,12 +2169,52 @@ Private Function private_EnsureHotkeyRow( _
     ByVal hotkeyRows As Collection, _
     ByVal actionId As String, _
     ByVal defaultHotkey As String, _
-    ByRef ioHasChanges As Boolean _
+    ByRef ioHasChanges As Boolean, _
+    Optional ByVal enforceDefault As Boolean = False _
 ) As Boolean
+    Dim rowItem As Variant
+    Dim configEntry As obj_ConfigEntry
+    Dim targetEntry As obj_ConfigEntry
+    Dim normalizedDefault As String
+
     If hotkeyRows Is Nothing Then Exit Function
     If Not private_HotkeyRowsContainAction(hotkeyRows, actionId) Then
         If Not private_AddHotkeyRow(hotkeyRows, actionId, defaultHotkey) Then Exit Function
         ioHasChanges = True
+    End If
+    If enforceDefault Then
+        normalizedDefault = VBA.UCase$(VBA.Replace$(VBA.Trim$(defaultHotkey), " ", VBA.vbNullString))
+
+        ' Сначала освобождаем обязательный hotkey у другой action-строки.
+        ' Затем обновляем нужную строку. Так runtime автоматически мигрирует
+        ' старое Export Word = CTRL+2, появившееся из-за ordinal mapping.
+        For Each rowItem In hotkeyRows
+            Set configEntry = Nothing
+            On Error Resume Next
+            Set configEntry = rowItem
+            On Error GoTo 0
+            If Not configEntry Is Nothing Then
+                If VBA.StrComp(VBA.Trim$(configEntry.Key), actionId, VBA.vbTextCompare) = 0 Then
+                    Set targetEntry = configEntry
+                ElseIf VBA.StrComp( _
+                    VBA.UCase$(VBA.Replace$(VBA.Trim$(configEntry.Value), " ", VBA.vbNullString)), _
+                    normalizedDefault, _
+                    VBA.vbBinaryCompare) = 0 Then
+                    configEntry.Value = VBA.vbNullString
+                    ioHasChanges = True
+                End If
+            End If
+        Next rowItem
+
+        If Not targetEntry Is Nothing Then
+            If VBA.StrComp( _
+                VBA.UCase$(VBA.Replace$(VBA.Trim$(targetEntry.Value), " ", VBA.vbNullString)), _
+                normalizedDefault, _
+                VBA.vbBinaryCompare) <> 0 Then
+                targetEntry.Value = defaultHotkey
+                ioHasChanges = True
+            End If
+        End If
     End If
 
     private_EnsureHotkeyRow = True
@@ -2235,8 +2281,10 @@ Private Function private_EnsureExportHotkeyRows( _
         If exportIndex > MAX_EXPORT_HOTKEYS Then GoTo ContinueAlias
 
         actionId = private_BuildExportActionId(exportAlias)
-        defaultHotkey = private_BuildExportDefaultHotkey(exportIndex)
-        If Not private_EnsureHotkeyRow(hotkeyRows, actionId, defaultHotkey, ioHasChanges) Then Exit Function
+        defaultHotkey = private_BuildExportDefaultHotkey(exportIndex, exportAlias)
+        If Not private_EnsureHotkeyRow( _
+            hotkeyRows, actionId, defaultHotkey, ioHasChanges, _
+            private_IsRequiredExportHotkeyAlias(exportAlias)) Then Exit Function
 
 ContinueAlias:
     Next aliasObj
@@ -2266,7 +2314,7 @@ Private Function private_AddExportHotkeyRows(ByVal hotkeyRows As Collection) As 
         If Not private_AddHotkeyRow( _
             hotkeyRows, _
             private_BuildExportActionId(exportAlias), _
-            private_BuildExportDefaultHotkey(exportIndex)) Then Exit Function
+            private_BuildExportDefaultHotkey(exportIndex, exportAlias)) Then Exit Function
 
 ContinueAlias:
     Next aliasObj
@@ -2324,11 +2372,34 @@ Private Function private_BuildExportActionId(ByVal exportAlias As String) As Str
     private_BuildExportActionId = EXPORT_ACTION_PREFIX & exportAlias
 End Function
 
-Private Function private_BuildExportDefaultHotkey(ByVal exportIndex As Long) As String
+Private Function private_BuildExportDefaultHotkey( _
+    ByVal exportIndex As Long, _
+    Optional ByVal exportAlias As String = "" _
+) As String
     If exportIndex <= 0 Or exportIndex > MAX_EXPORT_HOTKEYS Then Exit Function
+
+    ' Системные экспортеры имеют стабильные shortcuts. Раньше hotkey зависел
+    ' от ordinal alias: после отключения Daily aliases Word стал вторым и
+    ' автоматически переехал с CTRL+3 на CTRL+2.
+    Select Case VBA.LCase$(VBA.Trim$(exportAlias))
+        Case "movement"
+            private_BuildExportDefaultHotkey = "CTRL+2"
+            Exit Function
+        Case "word"
+            private_BuildExportDefaultHotkey = "CTRL+3"
+            Exit Function
+    End Select
+
     ' CTRL+1 временно зарезервирован и не должен запускать PEB export.
     If exportIndex = 1 Then Exit Function
     private_BuildExportDefaultHotkey = "CTRL+" & VBA.CStr(exportIndex)
+End Function
+
+Private Function private_IsRequiredExportHotkeyAlias(ByVal exportAlias As String) As Boolean
+    Select Case VBA.LCase$(VBA.Trim$(exportAlias))
+        Case "movement", "word"
+            private_IsRequiredExportHotkeyAlias = True
+    End Select
 End Function
 
 Private Function private_HotkeyRowsContainAction( _

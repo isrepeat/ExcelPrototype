@@ -305,7 +305,9 @@ Public Function Render() As Boolean
     ' Сбрасываем runtime-реестры, чтобы не тянуть старые контролы/маршруты.
     ex_ControlPartsRuntime.fn_ResetControlParts
     Me.ResetInlineRuns
-    ex_ControlRefreshRuntime.fn_ResetRegisteredControls
+    ' Bounds других уже отрендеренных страниц нужны для их будущего partial
+    ' reflow. Сбрасываем только записи текущего worksheet.
+    ex_ControlRefreshRuntime.fn_ResetRegisteredControlsByWorksheet ws.Name
     ex_StylePipelineEngine.fn_ResetLayoutBounds
     ex_LayoutControlFallbackRndr.fn_ResetControlFallbacks
 #If LOGGING_DEBUG_ENABLED Then
@@ -389,6 +391,304 @@ EH_RENDER:
     private_LogRenderPerfStep "pagebase:render-exception", perfStart, perfLast, "sheet='" & private_EscapeForLog(ws.Name) & "' err='" & private_EscapeForLog(errDescription) & "'"
 #End If
 End Function
+
+' Частичный vertical reflow одного динамического контрола.
+' В отличие от Render этот путь не сбрасывает page registries и не вызывает
+' Configure/Render у соседей: готовый хвост страницы переносится как subtree.
+'
+' Жизненный цикл операции:
+' 1) повторно measure только target по актуальному runtime source;
+' 2) по retained layout-дереву вычислить patches зависимых siblings/предков;
+' 3) физически перенести уже готовые диапазоны и Shapes;
+' 4) заново Render + style только target;
+' 5) зафиксировать новые bounds target и его предков.
+'
+' API рассчитан на изменение высоты существующего видимого control. Если узел
+' был Collapsed, descriptor/bounds для него отсутствуют — нужно обновлять его
+' именованный родитель через TryReflowLayoutContainer.
+Public Function TryReflowControl(ByVal controlName As String) As Boolean
+    Dim ws As Worksheet
+    Dim controlNode As Object
+    Dim renderCtx As obj_LayoutRenderContext
+    Dim oldRowStart As Long, oldColStart As Long, oldRowEnd As Long, oldColEnd As Long
+    Dim newSpanRows As Long, newSpanCols As Long
+    Dim newRowEnd As Long, newColEnd As Long
+    Dim rowDelta As Long
+    Dim reflowPatches As Collection
+    Dim ancestorUpdates As Collection
+    Dim app As Application
+    Dim prevScreenUpdating As Boolean
+    Dim prevEnableEvents As Boolean
+    Dim prevDisplayAlerts As Boolean
+    Dim prevCalculation As XlCalculation
+    Dim prevStatusBar As Variant
+    Dim escapedName As String
+    Dim perfStart As Double
+    Dim perfLast As Double
+    Dim oldVisualScope As Range
+
+    If Not private_EnsureNotDisposed("TryReflowControl") Then Exit Function
+    If m_IsRendering Then Exit Function
+    controlName = VBA.Trim$(controlName)
+    If VBA.Len(controlName) = 0 Then Exit Function
+    perfStart = VBA.Timer
+    perfLast = perfStart
+    Set ws = m_Worksheet
+    If ws Is Nothing Or m_UiDom Is Nothing Then Exit Function
+
+    If Not ex_ControlRefreshRuntime.fn_TryGetControlRenderBounds( _
+        controlName, ws.Name, oldRowStart, oldColStart, oldRowEnd, oldColEnd) Then Exit Function
+
+    escapedName = ex_XmlCore.fn_XPathLiteral(controlName)
+    Set controlNode = m_UiDom.selectSingleNode( _
+        "/p:page//p:control[@name=" & escapedName & "] | " & _
+        "/p:uiDefinition/p:layout//p:control[@name=" & escapedName & "]")
+    If controlNode Is Nothing Then Exit Function
+
+    Set renderCtx = New obj_LayoutRenderContext
+    If Not renderCtx.Initialize(m_Page) Then Exit Function
+    If Not ex_XmlLayoutEngine.fn_TryGetEffectiveNodeSpan( _
+        renderCtx, controlNode, newSpanRows, newSpanCols) Then Exit Function
+    If newSpanRows <= 0 Then newSpanRows = 1
+    If newSpanCols <= 0 Then newSpanCols = oldColEnd - oldColStart + 1
+    ' Текущий reflow patch решает vertical size changes. Изменение ширины
+    ' потребовало бы отдельного horizontal propagation и column patches.
+    If newSpanCols <> oldColEnd - oldColStart + 1 Then Exit Function
+
+    newRowEnd = oldRowStart + newSpanRows - 1
+    newColEnd = oldColStart + newSpanCols - 1
+    rowDelta = newRowEnd - oldRowEnd
+#If LOGGING_DEBUG_ENABLED Then
+    private_LogRenderPerfStep "pagebase:partial-reflow-measure", perfStart, perfLast, _
+        "control='" & private_EscapeForLog(controlName) & "' oldRows=" & _
+        VBA.CStr(oldRowEnd - oldRowStart + 1) & " newRows=" & VBA.CStr(newSpanRows) & _
+        " delta=" & VBA.CStr(rowDelta)
+#End If
+
+    If Not ex_ControlRefreshRuntime.fn_TryBuildLayoutReflowPlan( _
+        ws.Name, controlName, newSpanRows, reflowPatches, ancestorUpdates) Then Exit Function
+
+    Set app = Application
+    m_IsRendering = True
+    private_EnterFastRenderMode app, prevScreenUpdating, prevEnableEvents, prevDisplayAlerts, prevCalculation, prevStatusBar
+    On Error GoTo EH_REFLOW
+
+    ' Исправляет уже созданные старой Copy-реализацией дубликаты одиночных
+    ' кнопок. Выполняем даже при rowDelta = 0, чтобы обычный локальный refresh
+    ' также мог вернуть страницу в консистентное состояние.
+    private_DeleteDuplicateSingleButtonRuntimeShapes ws
+
+    ' Старый target очищается до переноса. При shrink переносимый хвост займет
+    ' освободившуюся нижнюю часть и не будет случайно очищен после translation.
+    If Not ex_ControlPartsRuntime.fn_TryGetControlVisualScope(ws, controlName, oldVisualScope) Then GoTo Cleanup
+    If oldVisualScope Is Nothing Then
+        Set oldVisualScope = ws.Range(ws.Cells(oldRowStart, oldColStart), ws.Cells(oldRowEnd, oldColEnd))
+    End If
+    oldVisualScope.Clear
+    If Not ex_ControlPartsRuntime.fn_RemoveControlPartsByControl(ws.Name, controlName) Then GoTo Cleanup
+    If Not ex_StylePipelineEngine.fn_RemoveLayoutBoundsByControl(ws.Name, controlName) Then GoTo Cleanup
+
+    If Not reflowPatches Is Nothing Then
+        If Not private_TryApplyLayoutReflowPatches(ws, reflowPatches) Then GoTo Cleanup
+#If LOGGING_DEBUG_ENABLED Then
+        private_LogRenderPerfStep "pagebase:partial-reflow-translate-subtree", perfStart, perfLast, _
+            "control='" & private_EscapeForLog(controlName) & "' patches=" & VBA.CStr(reflowPatches.Count)
+#End If
+    End If
+
+    ' Translate переносит содержимое subtree, но итоговая геометрия retained
+    ' Shape должна определяться декларативным layout, а не его текущей позицией
+    ' на листе. Это также исправляет ручное перетаскивание кнопки пользователем.
+    If Not private_TryReconcileSingleButtonRuntimeShapes(ws) Then GoTo Cleanup
+
+    If Not ex_StylePipelineEngine.fn_ApplySheetBaseStylesToRange( _
+        ws, m_UiDom, _
+        ws.Range(ws.Cells(oldRowStart, oldColStart), ws.Cells(newRowEnd, newColEnd))) Then GoTo Cleanup
+
+    If Not ex_XmlLayoutEngine.fn_RenderNodeInBounds( _
+        renderCtx, controlNode, oldRowStart, oldColStart, newRowEnd, newColEnd) Then GoTo Cleanup
+#If LOGGING_DEBUG_ENABLED Then
+    private_LogRenderPerfStep "pagebase:partial-reflow-render-control", perfStart, perfLast, _
+        "control='" & private_EscapeForLog(controlName) & "'"
+#End If
+    If Not ex_StylePipelineEngine.fn_ApplyControlPartStylesForControl( _
+        ws, m_UiDom, controlName) Then GoTo Cleanup
+    If Not ex_ControlRefreshRuntime.fn_CommitLayoutReflowPlan( _
+        ws.Name, controlName, newRowEnd, newColEnd, ancestorUpdates) Then GoTo Cleanup
+    If Not private_CommitRuntimeAncestorUpdates(ancestorUpdates) Then GoTo Cleanup
+    If Not ex_StylePipelineEngine.fn_CommitAncestorLayoutBounds( _
+        ws.Name, ancestorUpdates) Then GoTo Cleanup
+#If LOGGING_DEBUG_ENABLED Then
+    private_LogRenderPerfStep "pagebase:partial-reflow-local-styles", perfStart, perfLast, _
+        "control='" & private_EscapeForLog(controlName) & "'"
+#End If
+
+    TryReflowControl = True
+
+Cleanup:
+    private_LeaveFastRenderMode app, prevScreenUpdating, prevEnableEvents, prevDisplayAlerts, prevCalculation, prevStatusBar
+    m_IsRendering = False
+    Exit Function
+
+EH_REFLOW:
+#If LOGGING_DEBUG_ENABLED Then
+    ex_Core.fn_Diagnostic_LogError "PageBase: partial reflow failed for control '" & _
+        VBA.Replace$(controlName, "'", "''") & "': " & Err.Description
+#End If
+    Resume Cleanup
+End Function
+
+' Частично пересчитывает именованный layout-container целиком, но сохраняет все
+' ветви страницы вне него. Внутри контейнера допускается изменение visibility,
+' состава и размеров нескольких controls: subtree measure/render выполняется
+' заново, а расположенный после контейнера хвост только транслируется.
+'
+' Имя здесь является публичным адресом reflow boundary. Выбирать слишком
+' крупный container невыгодно (увеличится локальный render), слишком маленький
+' нельзя, если его siblings совместно меняют visibility или геометрию.
+Public Function TryReflowLayoutContainer(ByVal containerName As String) As Boolean
+    Dim ws As Worksheet
+    Dim containerNode As Object
+    Dim controlNodes As Object
+    Dim controlNode As Object
+    Dim renderCtx As obj_LayoutRenderContext
+    Dim oldRange As Range
+    Dim clearRange As Range
+    Dim newRange As Range
+    Dim rowStart As Long, colStart As Long
+    Dim newSpanRows As Long, newSpanCols As Long
+    Dim newRowEnd As Long, newColEnd As Long
+    Dim controlName As String
+    Dim reflowPatches As Collection
+    Dim ancestorUpdates As Collection
+    Dim app As Application
+    Dim prevScreenUpdating As Boolean
+    Dim prevEnableEvents As Boolean
+    Dim prevDisplayAlerts As Boolean
+    Dim prevCalculation As XlCalculation
+    Dim prevStatusBar As Variant
+    Dim escapedName As String
+
+    If Not private_EnsureNotDisposed("TryReflowLayoutContainer") Then Exit Function
+    If m_IsRendering Then Exit Function
+    containerName = VBA.Trim$(containerName)
+    If VBA.Len(containerName) = 0 Then Exit Function
+    Set ws = m_Worksheet
+    If ws Is Nothing Or m_UiDom Is Nothing Then Exit Function
+    If Not Me.TryGetLayoutContainerRange(containerName, oldRange) Then Exit Function
+    If oldRange Is Nothing Then Exit Function
+
+    rowStart = oldRange.Row
+    colStart = oldRange.Column
+    escapedName = ex_XmlCore.fn_XPathLiteral(containerName)
+    Set containerNode = m_UiDom.selectSingleNode( _
+        "/p:page//p:stackPanel[@name=" & escapedName & "] | " & _
+        "/p:uiDefinition/p:layout//p:stackPanel[@name=" & escapedName & "]")
+    If containerNode Is Nothing Then Exit Function
+
+    Set renderCtx = New obj_LayoutRenderContext
+    If Not renderCtx.Initialize(m_Page) Then Exit Function
+    If Not ex_XmlLayoutEngine.fn_TryGetEffectiveNodeSpan( _
+        renderCtx, containerNode, newSpanRows, newSpanCols) Then Exit Function
+    If newSpanRows <= 0 Or newSpanCols <= 0 Then Exit Function
+    newRowEnd = rowStart + newSpanRows - 1
+    newColEnd = colStart + newSpanCols - 1
+
+    If Not ex_ControlRefreshRuntime.fn_TryBuildLayoutContainerReflowPlan( _
+        ws.Name, containerName, newSpanRows, reflowPatches, ancestorUpdates) Then Exit Function
+
+    Set app = Application
+    m_IsRendering = True
+    private_EnterFastRenderMode app, prevScreenUpdating, prevEnableEvents, prevDisplayAlerts, prevCalculation, prevStatusBar
+    On Error GoTo EH_CONTAINER_REFLOW
+
+    ' Удаляем только runtime metadata дочерних контролов. Shape-кнопки не
+    ' удаляются: дочерний render переиспользует их по стабильным именам.
+    If Not ex_StylePipelineEngine.fn_RemoveLayoutBoundsByNode( _
+        ws.Name, "stackpanel", containerName) Then GoTo CleanupContainer
+    private_RemoveInlineRunEntriesInRange oldRange
+    Set controlNodes = containerNode.selectNodes(".//p:control[@name]")
+    If Not controlNodes Is Nothing Then
+        For Each controlNode In controlNodes
+            controlName = VBA.Trim$(VBA.CStr(ex_XmlCore.fn_NodeAttrText(controlNode, "name")))
+            If VBA.Len(controlName) = 0 Then GoTo ContinueCleanupControl
+            If Not ex_ControlPartsRuntime.fn_RemoveControlPartsByControl( _
+                ws.Name, controlName) Then GoTo CleanupContainer
+            If Not ex_StylePipelineEngine.fn_RemoveLayoutBoundsByControl( _
+                ws.Name, controlName) Then GoTo CleanupContainer
+ContinueCleanupControl:
+        Next controlNode
+    End If
+
+    Set newRange = ws.Range(ws.Cells(rowStart, colStart), ws.Cells(newRowEnd, newColEnd))
+    Set clearRange = Application.Union(oldRange, newRange)
+    oldRange.Clear
+
+    If Not reflowPatches Is Nothing Then
+        If Not private_TryApplyLayoutReflowPatches(ws, reflowPatches) Then GoTo CleanupContainer
+    End If
+    ' Новый диапазон очищаем уже после translation. При росте он мог до
+    ' переноса пересекаться с downstream subtree и стереть его содержимое.
+    clearRange.Clear
+    If Not ex_StylePipelineEngine.fn_ApplySheetBaseStylesToRange( _
+        ws, m_UiDom, clearRange) Then GoTo CleanupContainer
+    If Not ex_XmlLayoutEngine.fn_RenderNodeInBounds( _
+        renderCtx, containerNode, rowStart, colStart, newRowEnd, newColEnd) Then GoTo CleanupContainer
+
+    If Not controlNodes Is Nothing Then
+        For Each controlNode In controlNodes
+            controlName = VBA.Trim$(VBA.CStr(ex_XmlCore.fn_NodeAttrText(controlNode, "name")))
+            If VBA.Len(controlName) = 0 Then GoTo ContinueStyleControl
+            If Not ex_StylePipelineEngine.fn_ApplyControlPartStylesForControl( _
+                ws, m_UiDom, controlName) Then GoTo CleanupContainer
+ContinueStyleControl:
+        Next controlNode
+    End If
+    If Not ex_StylePipelineEngine.fn_ApplyRetainedControlStyles(ws, m_UiDom) Then GoTo CleanupContainer
+    If Not Me.ApplyInlineRuns() Then GoTo CleanupContainer
+
+    If Not ex_ControlRefreshRuntime.fn_CommitLayoutContainerReflowPlan( _
+        ws.Name, containerName, newRowEnd, newColEnd, ancestorUpdates) Then GoTo CleanupContainer
+    If Not private_CommitRuntimeAncestorUpdates(ancestorUpdates) Then GoTo CleanupContainer
+    If Not ex_StylePipelineEngine.fn_CommitAncestorLayoutBounds( _
+        ws.Name, ancestorUpdates) Then GoTo CleanupContainer
+    If Not private_TryReconcileSingleButtonRuntimeShapes(ws) Then GoTo CleanupContainer
+
+    TryReflowLayoutContainer = True
+
+CleanupContainer:
+    private_LeaveFastRenderMode app, prevScreenUpdating, prevEnableEvents, prevDisplayAlerts, prevCalculation, prevStatusBar
+    m_IsRendering = False
+    Exit Function
+
+EH_CONTAINER_REFLOW:
+#If LOGGING_DEBUG_ENABLED Then
+    ex_Core.fn_Diagnostic_LogError "PageBase: partial container reflow failed for '" & _
+        VBA.Replace$(containerName, "'", "''") & "': " & Err.Description
+#End If
+    Resume CleanupContainer
+End Function
+
+Private Sub private_RemoveInlineRunEntriesInRange(ByVal targetRange As Range)
+    Dim idx As Long
+    Dim entry As Object
+    Dim entryRange As Range
+    Dim overlapRange As Range
+
+    If targetRange Is Nothing Or m_InlineRunEntries Is Nothing Then Exit Sub
+    For idx = m_InlineRunEntries.Count To 1 Step -1
+        Set entry = m_InlineRunEntries(idx)
+        If VBA.LCase$(VBA.CStr(entry("TargetType"))) <> INLINE_TARGET_RANGE Then GoTo ContinueEntry
+        Set entryRange = Nothing
+        Set overlapRange = Nothing
+        On Error Resume Next
+        Set entryRange = targetRange.Worksheet.Range(VBA.CStr(entry("CellAddress")))
+        If Not entryRange Is Nothing Then Set overlapRange = Application.Intersect(entryRange, targetRange)
+        On Error GoTo 0
+        If Not overlapRange Is Nothing Then m_InlineRunEntries.Remove idx
+ContinueEntry:
+    Next idx
+End Sub
 
 ' Callstack[1]: obj_BannerViewItem.Render -> m_PageBase.RegisterInlineRuns -> obj_PageBase.RegisterInlineRuns
 Public Function RegisterInlineRuns( _
@@ -2566,6 +2866,490 @@ Private Function private_GetDictionaryCount(ByVal dictObj As Object) As Long
     Err.Clear
     On Error GoTo 0
 End Function
+
+Private Function private_TryApplyLayoutReflowPatches( _
+    ByVal ws As Worksheet, _
+    ByVal patches As Collection _
+) As Boolean
+    Dim patchIndex As Long
+    Dim patch As Object
+    Dim moveDown As Boolean
+
+    If ws Is Nothing Or patches Is Nothing Then Exit Function
+    If patches.Count = 0 Then
+        private_TryApplyLayoutReflowPatches = True
+        Exit Function
+    End If
+
+    Set patch = patches.Item(1)
+    moveDown = (VBA.CLng(patch("RowDelta")) > 0)
+    If moveDown Then
+        ' При росте сначала двигаем нижние siblings: верхний translate не должен
+        ' перезаписать еще не перенесенный нижний subtree.
+        For patchIndex = patches.Count To 1 Step -1
+            Set patch = patches.Item(patchIndex)
+            If Not private_TryApplySingleLayoutReflowPatch(ws, patch) Then Exit Function
+        Next patchIndex
+    Else
+        For patchIndex = 1 To patches.Count
+            Set patch = patches.Item(patchIndex)
+            If Not private_TryApplySingleLayoutReflowPatch(ws, patch) Then Exit Function
+        Next patchIndex
+    End If
+
+    private_TryApplyLayoutReflowPatches = True
+End Function
+
+Private Function private_CommitRuntimeAncestorUpdates(ByVal ancestorUpdates As Collection) As Boolean
+    Dim key As Variant
+    Dim entry As Object
+    Dim updateEntry As Object
+
+    If ancestorUpdates Is Nothing Or m_LayoutContainerByName Is Nothing Then
+        private_CommitRuntimeAncestorUpdates = True
+        Exit Function
+    End If
+    For Each key In m_LayoutContainerByName.Keys
+        Set entry = m_LayoutContainerByName(key)
+        For Each updateEntry In ancestorUpdates
+            If VBA.CLng(entry("RowStart")) = VBA.CLng(updateEntry("RowStart")) And _
+               VBA.CLng(entry("ColStart")) = VBA.CLng(updateEntry("ColStart")) And _
+               VBA.CLng(entry("RowEnd")) = VBA.CLng(updateEntry("OldRowEnd")) And _
+               VBA.CLng(entry("ColEnd")) = VBA.CLng(updateEntry("ColEnd")) Then
+                entry("RowEnd") = VBA.CLng(updateEntry("RowEnd"))
+                Exit For
+            End If
+        Next updateEntry
+    Next key
+    private_CommitRuntimeAncestorUpdates = True
+End Function
+
+Private Function private_TryApplySingleLayoutReflowPatch( _
+    ByVal ws As Worksheet, _
+    ByVal patch As Object _
+) As Boolean
+    Dim rowStart As Long, colStart As Long, rowEnd As Long, colEnd As Long, rowDelta As Long
+    Dim vacatedRange As Range
+
+    If patch Is Nothing Then Exit Function
+    rowStart = VBA.CLng(patch("RowStart")): colStart = VBA.CLng(patch("ColStart"))
+    rowEnd = VBA.CLng(patch("RowEnd")): colEnd = VBA.CLng(patch("ColEnd"))
+    rowDelta = VBA.CLng(patch("RowDelta"))
+    If rowDelta = 0 Or rowEnd < rowStart Then
+        private_TryApplySingleLayoutReflowPatch = True
+        Exit Function
+    End If
+
+    If Not private_TryTranslateWorksheetSubtreeRows( _
+        ws, rowStart, colStart, rowEnd, colEnd, rowDelta) Then Exit Function
+    If rowDelta > 0 Then
+        Set vacatedRange = ws.Range( _
+            ws.Cells(rowStart, colStart), _
+            ws.Cells(rowStart + rowDelta - 1, colEnd))
+    Else
+        Set vacatedRange = ws.Range( _
+            ws.Cells(rowEnd + rowDelta + 1, colStart), _
+            ws.Cells(rowEnd, colEnd))
+    End If
+    If Not ex_StylePipelineEngine.fn_ApplySheetBaseStylesToRange( _
+        ws, m_UiDom, vacatedRange) Then Exit Function
+    If Not private_TranslateRuntimeRegion(rowStart, colStart, rowEnd, colEnd, rowDelta) Then Exit Function
+    If Not ex_ControlRefreshRuntime.fn_TranslateRegisteredControlsInRegion( _
+        ws.Name, rowStart, colStart, rowEnd, colEnd, rowDelta) Then Exit Function
+    If Not ex_ControlRefreshRuntime.fn_TranslateLayoutEntriesInRegion( _
+        ws.Name, rowStart, colStart, rowEnd, colEnd, rowDelta) Then Exit Function
+    If Not ex_ControlPartsRuntime.fn_TranslateControlPartsInRegion( _
+        ws, rowStart, colStart, rowEnd, colEnd, rowDelta) Then Exit Function
+    If Not ex_StylePipelineEngine.fn_TranslateLayoutBoundsInRegion( _
+        ws.Name, rowStart, colStart, rowEnd, colEnd, rowDelta) Then Exit Function
+
+    private_TryApplySingleLayoutReflowPatch = True
+End Function
+
+Private Function private_TryTranslateWorksheetSubtreeRows( _
+    ByVal ws As Worksheet, _
+    ByVal firstRow As Long, _
+    ByVal firstCol As Long, _
+    ByVal lastRow As Long, _
+    ByVal lastCol As Long, _
+    ByVal rowDelta As Long _
+) As Boolean
+    Dim sourceRange As Range
+    Dim destinationCell As Range
+    Dim rowHeights() As Double
+    Dim rowIndex As Long
+    Dim shapeInfo As Collection
+    Dim knownShapeNames As Object
+    Dim info As Object
+    Dim shp As Shape
+    Dim topCell As Range
+    Dim newTopCell As Range
+    Dim shapeIndex As Long
+
+    If ws Is Nothing Then Exit Function
+    If firstRow <= 0 Or firstCol <= 0 Or lastRow < firstRow Or lastCol < firstCol Then Exit Function
+    If firstRow + rowDelta <= 0 Or lastRow + rowDelta > ws.Rows.Count Then Exit Function
+    If rowDelta = 0 Then
+        private_TryTranslateWorksheetSubtreeRows = True
+        Exit Function
+    End If
+
+    ' Здесь принципиально нужен Cut, а не Copy. Для Shape с
+    ' Placement = xlMoveAndSize Excel копирует фигуру вместе с диапазоном.
+    ' После нескольких partial reflow это создавало дубликаты кнопок, а ручная
+    ' коррекция позиции продолжала двигать только исходный Shape по его имени.
+    ' Cut переносит subtree как одну сущность и сам освобождает исходный край.
+    ' Высоты строк и точный offset Shapes всё равно сохраняем отдельно: Excel
+    ' не переносит RowHeight вместе с обычным диапазоном, а позиция Shape после
+    ' пересекающегося Cut может округлиться относительно границы ячейки.
+    '
+    ' Мы не вставляем/удаляем строки листа: такая операция сдвинула бы также
+    ' независимые контролы слева/справа. Переносится только прямоугольник,
+    ' рассчитанный layout-планом, поэтому horizontal/grid siblings сохраняют
+    ' декларативные позиции.
+    ReDim rowHeights(firstRow To lastRow)
+    For rowIndex = firstRow To lastRow
+        rowHeights(rowIndex) = ws.Rows(rowIndex).RowHeight
+    Next rowIndex
+
+    Set knownShapeNames = VBA.CreateObject("Scripting.Dictionary")
+    knownShapeNames.CompareMode = 1
+    For Each shp In ws.Shapes
+        knownShapeNames(shp.Name) = True
+    Next shp
+
+    Set shapeInfo = New Collection
+    For Each shp In ws.Shapes
+        Set topCell = Nothing
+        On Error Resume Next
+        Set topCell = shp.TopLeftCell
+        On Error GoTo 0
+        If topCell Is Nothing Then GoTo ContinueShape
+        If topCell.Row < firstRow Or topCell.Row > lastRow Then GoTo ContinueShape
+        If topCell.Column < firstCol Or topCell.Column > lastCol Then GoTo ContinueShape
+
+        Set info = VBA.CreateObject("Scripting.Dictionary")
+        info.CompareMode = 1
+        info("Name") = shp.Name
+        info("Row") = VBA.CLng(topCell.Row)
+        info("Col") = VBA.CLng(topCell.Column)
+        info("TopOffset") = VBA.CDbl(shp.Top - topCell.Top)
+        info("LeftOffset") = VBA.CDbl(shp.Left - topCell.Left)
+        shapeInfo.Add info
+ContinueShape:
+    Next shp
+
+    Set sourceRange = ws.Range(ws.Cells(firstRow, firstCol), ws.Cells(lastRow, lastCol))
+    Set destinationCell = ws.Cells(firstRow + rowDelta, firstCol)
+    sourceRange.Cut Destination:=destinationCell
+    Application.CutCopyMode = False
+
+    ' Cut не должен создавать Shapes. Инвариант защищает runtime от различий
+    ' между версиями Excel: если приложение всё же создало копию объекта,
+    ' оставляем только фигуры, существовавшие до translate-операции.
+    For shapeIndex = ws.Shapes.Count To 1 Step -1
+        Set shp = ws.Shapes(shapeIndex)
+        If Not knownShapeNames.Exists(shp.Name) Then shp.Delete
+    Next shapeIndex
+
+    For rowIndex = firstRow To lastRow
+        ws.Rows(rowIndex + rowDelta).RowHeight = rowHeights(rowIndex)
+    Next rowIndex
+
+    For Each info In shapeInfo
+        Set shp = Nothing
+        On Error Resume Next
+        Set shp = ws.Shapes(VBA.CStr(info("Name")))
+        On Error GoTo 0
+        If shp Is Nothing Then GoTo ContinueMovedShape
+        Set newTopCell = ws.Cells(VBA.CLng(info("Row")) + rowDelta, VBA.CLng(info("Col")))
+        shp.Top = newTopCell.Top + VBA.CDbl(info("TopOffset"))
+        shp.Left = newTopCell.Left + VBA.CDbl(info("LeftOffset"))
+ContinueMovedShape:
+    Next info
+
+    private_TryTranslateWorksheetSubtreeRows = True
+End Function
+
+Private Sub private_DeleteDuplicateSingleButtonRuntimeShapes(ByVal ws As Worksheet)
+    Dim canonicalNamesByControl As Object
+    Dim shp As Shape
+    Dim controlName As String
+    Dim canonicalName As String
+    Dim shapeIndex As Long
+
+    If ws Is Nothing Then Exit Sub
+    Set canonicalNamesByControl = VBA.CreateObject("Scripting.Dictionary")
+    canonicalNamesByControl.CompareMode = 1
+
+    ' Сначала находим именно одиночные ButtonControlVM по стабильному имени.
+    ' ButtonGroup/Select/Hotkeys используют другие схемы имен и сюда не попадут.
+    For Each shp In ws.Shapes
+        controlName = VBA.Trim$(ex_ShapeMetaRuntime.fn_GetShapeMetaValue( _
+            shp, "pn.control", VBA.vbNullString))
+        If VBA.Len(controlName) = 0 Then GoTo ContinueCanonicalShape
+        canonicalName = "btn_" & controlName
+        If VBA.StrComp(shp.Name, canonicalName, VBA.vbTextCompare) = 0 Then
+            canonicalNamesByControl(controlName) = canonicalName
+        End If
+ContinueCanonicalShape:
+    Next shp
+
+    If canonicalNamesByControl.Count = 0 Then Exit Sub
+    For shapeIndex = ws.Shapes.Count To 1 Step -1
+        Set shp = ws.Shapes(shapeIndex)
+        controlName = VBA.Trim$(ex_ShapeMetaRuntime.fn_GetShapeMetaValue( _
+            shp, "pn.control", VBA.vbNullString))
+        If VBA.Len(controlName) = 0 Then GoTo ContinueDuplicateShape
+        If Not canonicalNamesByControl.Exists(controlName) Then GoTo ContinueDuplicateShape
+        canonicalName = VBA.CStr(canonicalNamesByControl(controlName))
+        If VBA.StrComp(shp.Name, canonicalName, VBA.vbTextCompare) <> 0 Then shp.Delete
+ContinueDuplicateShape:
+    Next shapeIndex
+End Sub
+
+Private Function private_TryReconcileSingleButtonRuntimeShapes(ByVal ws As Worksheet) As Boolean
+    Dim shp As Shape
+    Dim controlName As String
+    Dim canonicalName As String
+    Dim rowStart As Long
+    Dim colStart As Long
+    Dim rowEnd As Long
+    Dim colEnd As Long
+    Dim targetRange As Range
+
+    If ws Is Nothing Then Exit Function
+    On Error GoTo EH_RECONCILE_BUTTONS
+
+    For Each shp In ws.Shapes
+        controlName = VBA.Trim$(ex_ShapeMetaRuntime.fn_GetShapeMetaValue( _
+            shp, "pn.control", VBA.vbNullString))
+        If VBA.Len(controlName) = 0 Then GoTo ContinueShape
+
+        ' Только ButtonControlVM имеет ровно один Shape со стабильным именем
+        ' btn_<control>. ButtonGroup, Select и Hotkeys имеют внутренние части,
+        ' геометрию которых нельзя приравнивать к общим bounds контрола.
+        ' Координаты намеренно берём из runtime registry, а не из текущего Shape.
+        ' Поэтому локальный refresh восстанавливает декларативную позицию даже
+        ' после ручного перетаскивания кнопки пользователем.
+        canonicalName = "btn_" & controlName
+        If VBA.StrComp(shp.Name, canonicalName, VBA.vbTextCompare) <> 0 Then GoTo ContinueShape
+        If Not ex_ControlRefreshRuntime.fn_TryGetControlRenderBounds( _
+            controlName, ws.Name, rowStart, colStart, rowEnd, colEnd) Then GoTo ContinueShape
+
+        Set targetRange = ws.Range( _
+            ws.Cells(rowStart, colStart), _
+            ws.Cells(rowEnd, colEnd))
+        shp.Left = targetRange.Left
+        shp.Top = targetRange.Top
+        shp.Width = targetRange.Width
+        shp.Height = targetRange.Height
+        shp.Placement = xlMoveAndSize
+ContinueShape:
+    Next shp
+
+    private_TryReconcileSingleButtonRuntimeShapes = True
+    Exit Function
+
+EH_RECONCILE_BUTTONS:
+#If LOGGING_DEBUG_ENABLED Then
+    ex_Core.fn_Diagnostic_LogError _
+        "PageBase: failed to reconcile retained Button shapes: " & Err.Description
+#End If
+End Function
+
+Private Function private_TranslateRuntimeRows( _
+    ByVal firstRow As Long, _
+    ByVal rowDelta As Long _
+) As Boolean
+    Dim key As Variant
+    Dim entryObj As Variant
+    Dim entries As Collection
+    Dim translatedRoutes As Object
+    Dim routeEntry As Object
+    Dim cellRange As Range
+    Dim newCellKey As String
+    Dim inlineEntry As Object
+
+    If firstRow <= 0 Then Exit Function
+    If rowDelta = 0 Then
+        private_TranslateRuntimeRows = True
+        Exit Function
+    End If
+
+    ' Named containers: downstream nodes сдвигаются целиком, а ancestor,
+    ' пересекающий boundary, только меняет нижнюю границу.
+    If Not m_LayoutContainerByName Is Nothing Then
+        For Each key In m_LayoutContainerByName.Keys
+            Set entryObj = m_LayoutContainerByName(key)
+            private_TranslateCoordinateEntry entryObj, firstRow, rowDelta
+        Next key
+    End If
+
+    ' Layout tags должны продолжать указывать на те же логические поля после
+    ' физического переноса нижней части страницы.
+    If Not m_LayoutTagEntriesByTag Is Nothing Then
+        For Each key In m_LayoutTagEntriesByTag.Keys
+            Set entries = m_LayoutTagEntriesByTag(key)
+            For Each entryObj In entries
+                private_TranslateCoordinateEntry entryObj, firstRow, rowDelta
+            Next entryObj
+        Next key
+    End If
+
+    ' SheetChange маршрутизируется по адресу ячейки, поэтому переносим и key,
+    ' и строковый callback argument, зарегистрированный InputControlVM.
+    If Not m_RouteByCell Is Nothing Then
+        Set translatedRoutes = VBA.CreateObject("Scripting.Dictionary")
+        translatedRoutes.CompareMode = 1
+        For Each key In m_RouteByCell.Keys
+            Set routeEntry = m_RouteByCell(key)
+            Set cellRange = Nothing
+            On Error Resume Next
+            Set cellRange = m_Worksheet.Range(VBA.CStr(key))
+            On Error GoTo 0
+            newCellKey = VBA.CStr(key)
+            If Not cellRange Is Nothing Then
+                If cellRange.Row >= firstRow Then
+                    newCellKey = cellRange.Offset(rowDelta, 0).Address(False, False)
+                    If routeEntry.Exists("HasArg") Then
+                        If VBA.CBool(routeEntry("HasArg")) Then routeEntry("ArgValue") = newCellKey
+                    End If
+                End If
+            End If
+            Set translatedRoutes(VBA.UCase$(newCellKey)) = routeEntry
+        Next key
+        Set m_RouteByCell = translatedRoutes
+    End If
+
+    If Not m_InlineRunEntries Is Nothing Then
+        For Each inlineEntry In m_InlineRunEntries
+            If VBA.LCase$(VBA.CStr(inlineEntry("TargetType"))) = INLINE_TARGET_RANGE Then
+                Set cellRange = Nothing
+                On Error Resume Next
+                Set cellRange = m_Worksheet.Range(VBA.CStr(inlineEntry("CellAddress")))
+                On Error GoTo 0
+                If Not cellRange Is Nothing Then
+                    If cellRange.Row >= firstRow Then
+                        newCellKey = cellRange.Offset(rowDelta, 0).Address(False, False)
+                        inlineEntry("CellAddress") = newCellKey
+                        inlineEntry("TargetKey") = VBA.LCase$(newCellKey)
+                    End If
+                End If
+            End If
+        Next inlineEntry
+    End If
+
+    private_TranslateRuntimeRows = True
+End Function
+
+Private Function private_TranslateRuntimeRegion( _
+    ByVal rowStart As Long, _
+    ByVal colStart As Long, _
+    ByVal rowEnd As Long, _
+    ByVal colEnd As Long, _
+    ByVal rowDelta As Long _
+) As Boolean
+    Dim key As Variant
+    Dim entryObj As Variant
+    Dim entries As Collection
+    Dim translatedRoutes As Object
+    Dim routeEntry As Object
+    Dim cellRange As Range
+    Dim newCellKey As String
+    Dim inlineEntry As Object
+
+    If Not m_LayoutContainerByName Is Nothing Then
+        For Each key In m_LayoutContainerByName.Keys
+            Set entryObj = m_LayoutContainerByName(key)
+            private_TranslateCoordinateEntryInRegion entryObj, rowStart, colStart, rowEnd, colEnd, rowDelta
+        Next key
+    End If
+    If Not m_LayoutTagEntriesByTag Is Nothing Then
+        For Each key In m_LayoutTagEntriesByTag.Keys
+            Set entries = m_LayoutTagEntriesByTag(key)
+            For Each entryObj In entries
+                private_TranslateCoordinateEntryInRegion entryObj, rowStart, colStart, rowEnd, colEnd, rowDelta
+            Next entryObj
+        Next key
+    End If
+
+    If Not m_RouteByCell Is Nothing Then
+        Set translatedRoutes = VBA.CreateObject("Scripting.Dictionary")
+        translatedRoutes.CompareMode = 1
+        For Each key In m_RouteByCell.Keys
+            Set routeEntry = m_RouteByCell(key)
+            Set cellRange = Nothing
+            On Error Resume Next
+            Set cellRange = m_Worksheet.Range(VBA.CStr(key))
+            On Error GoTo 0
+            newCellKey = VBA.CStr(key)
+            If Not cellRange Is Nothing Then
+                If cellRange.Row >= rowStart And cellRange.Row <= rowEnd And _
+                   cellRange.Column >= colStart And cellRange.Column <= colEnd Then
+                    newCellKey = cellRange.Offset(rowDelta, 0).Address(False, False)
+                    If VBA.CBool(routeEntry("HasArg")) Then routeEntry("ArgValue") = newCellKey
+                End If
+            End If
+            Set translatedRoutes(VBA.UCase$(newCellKey)) = routeEntry
+        Next key
+        Set m_RouteByCell = translatedRoutes
+    End If
+
+    If Not m_InlineRunEntries Is Nothing Then
+        For Each inlineEntry In m_InlineRunEntries
+            If VBA.LCase$(VBA.CStr(inlineEntry("TargetType"))) = INLINE_TARGET_RANGE Then
+                Set cellRange = Nothing
+                On Error Resume Next
+                Set cellRange = m_Worksheet.Range(VBA.CStr(inlineEntry("CellAddress")))
+                On Error GoTo 0
+                If Not cellRange Is Nothing Then
+                    If cellRange.Row >= rowStart And cellRange.Row <= rowEnd And _
+                       cellRange.Column >= colStart And cellRange.Column <= colEnd Then
+                        newCellKey = cellRange.Offset(rowDelta, 0).Address(False, False)
+                        inlineEntry("CellAddress") = newCellKey
+                        inlineEntry("TargetKey") = VBA.LCase$(newCellKey)
+                    End If
+                End If
+            End If
+        Next inlineEntry
+    End If
+    private_TranslateRuntimeRegion = True
+End Function
+
+Private Sub private_TranslateCoordinateEntryInRegion( _
+    ByVal entry As Object, _
+    ByVal rowStart As Long, _
+    ByVal colStart As Long, _
+    ByVal rowEnd As Long, _
+    ByVal colEnd As Long, _
+    ByVal rowDelta As Long _
+)
+    If entry Is Nothing Then Exit Sub
+    If VBA.CLng(entry("RowStart")) < rowStart Or VBA.CLng(entry("RowEnd")) > rowEnd Then Exit Sub
+    If VBA.CLng(entry("ColStart")) < colStart Or VBA.CLng(entry("ColEnd")) > colEnd Then Exit Sub
+    entry("RowStart") = VBA.CLng(entry("RowStart")) + rowDelta
+    entry("RowEnd") = VBA.CLng(entry("RowEnd")) + rowDelta
+End Sub
+
+Private Sub private_TranslateCoordinateEntry( _
+    ByVal entry As Object, _
+    ByVal firstRow As Long, _
+    ByVal rowDelta As Long _
+)
+    Dim rowStart As Long
+    Dim rowEnd As Long
+
+    If entry Is Nothing Then Exit Sub
+    rowStart = VBA.CLng(entry("RowStart"))
+    rowEnd = VBA.CLng(entry("RowEnd"))
+    If rowStart >= firstRow Then
+        entry("RowStart") = rowStart + rowDelta
+        entry("RowEnd") = rowEnd + rowDelta
+    ElseIf rowEnd >= firstRow Then
+        entry("RowEnd") = rowEnd + rowDelta
+    End If
+End Sub
 
 Private Function private_BuildLogContext() As String
     Dim sheetName As String
