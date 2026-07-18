@@ -12,6 +12,9 @@ Private m_LayoutBounds As Collection
 ' Состояние отложенного AutoFit по строкам на время применения одного style stage.
 Private m_DeferredRowAutoFitState As Object
 Private m_IsCollectingDeferredRowAutoFit As Boolean
+' Централизованный cache компиляции stylesheet. Ключом является XML-текст:
+' изменился page/rule XML -> автоматически получаем новый cache entry.
+' Dictionaries ниже используются только для чтения после компиляции.
 Private m_ControlStylesCache As Object
 Private m_RuleSelectorCache As Object
 Private m_RuleDeclarationsCache As Object
@@ -137,6 +140,11 @@ Public Function fn_ApplyTextNumberFormatToControlBounds(ByVal ws As Worksheet) A
         Exit Function
     End If
 
+    ' Раньше каждый control делал отдельный Range.NumberFormat="@" через COM.
+    ' Здесь строим общий прямоугольник всех control bounds и форматируем его
+    ' одним вызовом. Дополнительные ячейки внутри прямоугольника безопасны:
+    ' страница использует текстовый baseline, чтобы Excel не превращал коды
+    ' и строки вида 01.05 в даты/числа.
     For Each entry In m_LayoutBounds
         If VBA.StrComp(VBA.CStr(entry(0)), ws.Name, VBA.vbTextCompare) <> 0 Then GoTo ContinueEntry
         If VBA.StrComp(VBA.CStr(entry(5)), "control", VBA.vbTextCompare) <> 0 Then GoTo ContinueEntry
@@ -160,6 +168,8 @@ End Function
 Private Function private_ApplyControlStyles(ByVal ws As Worksheet, ByVal stylesByName As Object) As Boolean
     Dim shp As Shape
     Dim styleName As String
+    Dim styleSignature As String
+    Dim previousStyleSignature As String
 
     If ws Is Nothing Then Exit Function
     If stylesByName Is Nothing Then Exit Function
@@ -178,12 +188,52 @@ Private Function private_ApplyControlStyles(ByVal ws As Worksheet, ByVal stylesB
             Exit Function
         End If
 
+        styleSignature = private_BuildShapeStyleSignature(styleName, stylesByName(styleName))
+        previousStyleSignature = private_ReadShapeMetaValue(shp, "pn.appliedStyleSignature")
+        ' Retained-style: если имя стиля и все declarations совпали, Shape уже
+        ' имеет нужный вид. Пропускаем серию Fill/Line/TextFrame COM-записей.
+        If VBA.StrComp(previousStyleSignature, styleSignature, VBA.vbBinaryCompare) = 0 Then GoTo ContinueShape
+
         If Not private_ApplyShapeStyle(shp, stylesByName(styleName), "controlStyle:" & styleName) Then Exit Function
+        If Not ex_ShapeMetaRuntime.fn_TrySetShapeMetaValue(shp, "pn.appliedStyleSignature", styleSignature) Then Exit Function
 
 ContinueShape:
     Next shp
 
     private_ApplyControlStyles = True
+End Function
+
+Private Function private_BuildShapeStyleSignature(ByVal styleName As String, ByVal declarations As Object) As String
+    Dim keyObj As Variant
+    Dim keys As Variant
+    Dim idx As Long
+    Dim swapIdx As Long
+    Dim tempKey As String
+    Dim resultText As String
+
+    resultText = VBA.LCase$(VBA.Trim$(styleName))
+    If declarations Is Nothing Then
+        private_BuildShapeStyleSignature = resultText
+        Exit Function
+    End If
+    If declarations.Count = 0 Then
+        private_BuildShapeStyleSignature = resultText
+        Exit Function
+    End If
+    ' Scripting.Dictionary не гарантирует контракт порядка Keys. Сортировка
+    ' делает signature детерминированной для одинакового набора declarations.
+    keys = declarations.Keys
+    For idx = LBound(keys) To UBound(keys) - 1
+        For swapIdx = idx + 1 To UBound(keys)
+            If VBA.StrComp(VBA.CStr(keys(idx)), VBA.CStr(keys(swapIdx)), VBA.vbTextCompare) > 0 Then
+                tempKey = VBA.CStr(keys(idx)): keys(idx) = keys(swapIdx): keys(swapIdx) = tempKey
+            End If
+        Next swapIdx
+    Next idx
+    For Each keyObj In keys
+        resultText = resultText & "|" & VBA.LCase$(VBA.CStr(keyObj)) & "=" & VBA.CStr(declarations(keyObj))
+    Next keyObj
+    private_BuildShapeStyleSignature = resultText
 End Function
 
 
@@ -691,6 +741,8 @@ Private Function private_GetCompiledControlStyles(ByVal wsUiDoc As Object) As Ob
 
     If wsUiDoc Is Nothing Then Exit Function
     private_EnsureCompiledStyleCaches
+    ' Не привязываемся к пути файла: один и тот же stylesheet может применяться
+    ' из разных page DOM, а любое изменение XML само инвалидирует ключ.
     cacheKey = VBA.CStr(wsUiDoc.XML)
     If m_ControlStylesCache.Exists(cacheKey) Then
         Set private_GetCompiledControlStyles = m_ControlStylesCache(cacheKey)
@@ -714,6 +766,8 @@ Private Function private_TryGetCompiledRule( _
     Set outDeclarations = Nothing
     If ruleNode Is Nothing Then Exit Function
     private_EnsureCompiledStyleCaches
+    ' Selector и declarations правила парсятся один раз за жизнь module cache.
+    ' Закэшированные объекты далее считаются immutable.
     cacheKey = VBA.CStr(ruleNode.XML)
 
     If m_RuleSelectorCache.Exists(cacheKey) Then

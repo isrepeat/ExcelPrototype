@@ -330,6 +330,8 @@ Public Function Render() As Boolean
 #If LOGGING_DEBUG_ENABLED Then
     private_LogRenderPerfStep "pagebase:layout-render-node", perfStart, perfLast, "sheet='" & private_EscapeForLog(ws.Name) & "'"
 #End If
+    ' Layout уже собрал bounds всех контролов. Применяем текстовый формат одним
+    ' batch COM-вызовом до общего style pass вместо одного вызова на control.
     If Not ex_StylePipelineEngine.fn_ApplyTextNumberFormatToControlBounds(ws) Then GoTo Cleanup
 #If LOGGING_DEBUG_ENABLED Then
     private_LogRenderPerfStep "pagebase:batch-control-number-format", perfStart, perfLast, "sheet='" & private_EscapeForLog(ws.Name) & "'"
