@@ -177,6 +177,9 @@ Private Sub obj_IControl_Render()
     Dim targetRange As Range
     Dim metaMap As Object
     Dim pageBase As obj_PageBase
+    Dim renderSignature As String
+    Dim previousRenderSignature As String
+    Dim visualUnchanged As Boolean
 
     If Not m_IsConfigured Then
 #If LOGGING_DEBUG_ENABLED Then
@@ -223,12 +226,22 @@ Private Sub obj_IControl_Render()
     End If
 
     buttonName = "btn_" & m_ControlName
+    ' Retained-render: signature описывает только визуальное состояние Shape.
+    ' Если она совпала с pn.renderSignature прошлого успешного render-а,
+    ' не отправляем в Excel дорогие COM-записи геометрии/текста/meta.
+    ' Callback в signature намеренно не входит: route ниже регистрируется всегда.
+    renderSignature = private_BuildVisualSignature()
 
     Set shp = private_GetUiShapeByName(ws, buttonName)
     If shp Is Nothing Then
         Set shp = ws.Shapes.AddShape(msoShapeRoundedRectangle, targetRange.Left, targetRange.Top, targetRange.Width, targetRange.Height)
         shp.Name = buttonName
     Else
+        previousRenderSignature = ex_ShapeMetaRuntime.fn_GetShapeMetaValue(shp, "pn.renderSignature", VBA.vbNullString)
+        visualUnchanged = (VBA.StrComp(previousRenderSignature, renderSignature, VBA.vbBinaryCompare) = 0)
+    End If
+
+    If Not visualUnchanged Then
         shp.Left = targetRange.Left
         shp.Top = targetRange.Top
         shp.Width = targetRange.Width
@@ -237,25 +250,33 @@ Private Sub obj_IControl_Render()
     shp.Placement = xlMoveAndSize
     If Not private_TryBindRuntimeRoute(shp) Then Exit Sub
 
-    On Error Resume Next
-    shp.TextFrame2.TextRange.Text = m_CaptionText
-    shp.TextFrame2.VerticalAnchor = msoAnchorMiddle
-    shp.TextFrame2.TextRange.ParagraphFormat.Alignment = msoAlignCenter
-    shp.TextFrame.Characters.Text = m_CaptionText
-    shp.TextFrame.HorizontalAlignment = xlHAlignCenter
-    shp.TextFrame.VerticalAlignment = xlVAlignCenter
+    If Not visualUnchanged Then
+        On Error Resume Next
+        shp.TextFrame2.TextRange.Text = m_CaptionText
+        shp.TextFrame2.VerticalAnchor = msoAnchorMiddle
+        shp.TextFrame2.TextRange.ParagraphFormat.Alignment = msoAlignCenter
+        shp.TextFrame.Characters.Text = m_CaptionText
+        shp.TextFrame.HorizontalAlignment = xlHAlignCenter
+        shp.TextFrame.VerticalAlignment = xlVAlignCenter
+        On Error GoTo EH_BUTTON
+    End If
+    ' Inline-runs живут в реестре одного render-прохода. Даже при сохраненном
+    ' Shape их нужно зарегистрировать заново, иначе цветовые участки caption
+    ' пропадут после ResetInlineRuns в PageBase.
     If Not private_RegisterCaptionInlineRuns(pageBase, shp) Then Exit Sub
 
-    Set metaMap = VBA.CreateObject("Scripting.Dictionary")
-    metaMap.CompareMode = 1
-    metaMap("pn.control") = m_ControlName
-    If VBA.Len(VBA.Trim$(m_ControlLayout.StyleName)) > 0 Then
-        metaMap("pn.style") = m_ControlLayout.StyleName
-    Else
-        metaMap("pn.style") = VBA.vbNullString
+    If Not visualUnchanged Then
+        Set metaMap = VBA.CreateObject("Scripting.Dictionary")
+        metaMap.CompareMode = 1
+        metaMap("pn.control") = m_ControlName
+        If VBA.Len(VBA.Trim$(m_ControlLayout.StyleName)) > 0 Then
+            metaMap("pn.style") = m_ControlLayout.StyleName
+        Else
+            metaMap("pn.style") = VBA.vbNullString
+        End If
+        metaMap("pn.renderSignature") = renderSignature
+        If Not ex_ShapeMetaRuntime.fn_TrySetShapeMetaValues(shp, metaMap) Then Exit Sub
     End If
-    If Not ex_ShapeMetaRuntime.fn_TrySetShapeMetaValues(shp, metaMap) Then Exit Sub
-    On Error GoTo EH_BUTTON
 
     Exit Sub
 
@@ -270,6 +291,16 @@ EH_RANGE:
     ex_Core.fn_Diagnostic_LogError "Button: failed to resolve target range for control '" & m_ControlName & "': " & Err.Description
 #End If
 End Sub
+
+Private Function private_BuildVisualSignature() As String
+    ' В signature включаем все значения, изменение которых требует физически
+    ' обновить Shape. Стиль здесь представлен именем; изменение declarations
+    ' того же стиля отдельно ловит pn.appliedStyleSignature style-engine-а.
+    private_BuildVisualSignature = VBA.LCase$(VBA.Trim$(m_ControlName)) & "|" & _
+        VBA.CStr(m_ControlLayout.RowStart) & ":" & VBA.CStr(m_ControlLayout.ColStart) & ":" & _
+        VBA.CStr(m_ControlLayout.RowEnd) & ":" & VBA.CStr(m_ControlLayout.ColEnd) & "|" & _
+        VBA.Trim$(m_ControlLayout.StyleName) & "|" & m_CaptionText
+End Function
 
 Private Function obj_IControl_Measure( _
     ByVal controlNode As Object, _

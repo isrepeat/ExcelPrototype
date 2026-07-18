@@ -130,9 +130,9 @@ Public Function fn_Render( _
     Set control = ex_ControlFactory.fn_CreateControlByTypeRoot(typeRoot, page)
     If control Is Nothing Then Exit Function
 
-    ' ControlUI.xml files used to be loaded and parsed here for every control.
-    ' They were mostly placeholder defaults. Clone the already loaded page DOM
-    ' node instead, keeping inline template children without any disk I/O.
+    ' Раньше здесь для КАЖДОГО контрола читался obj_*ControlUI.xml, создавался
+    ' отдельный DOM и выполнялся XPath. Теперь page XML — единый источник UI:
+    ' дешевый cloneNode сохраняет inline template children без файлового I/O.
     Set runtimeControlNode = layoutNode.cloneNode(True)
     If runtimeControlNode Is Nothing Then Exit Function
     If Not private_PrepareRuntimeControlNode( _

@@ -162,6 +162,9 @@ Private Sub obj_IControl_Render()
     Dim flattenedItems As Collection
     Dim rowsPerColumn As Long
     Dim buttonSpanCols As Long
+    Dim renderSignature As String
+    Dim previousRenderSignature As String
+    Dim visualUnchanged As Boolean
 
     If Not m_IsConfigured Then Exit Sub
     If m_Page Is Nothing Then Exit Sub
@@ -218,8 +221,20 @@ Private Sub obj_IControl_Render()
         If shp Is Nothing Then GoTo ContinueItem
 
         If VBA.Len(styleName) = 0 Then styleName = m_ControlLayout.StyleName
-        private_ApplyShapeContent shp, captionText
-        If Not private_SetShapeMeta(shp, styleName) Then GoTo ContinueItem
+        ' У ButtonGroup один VM управляет десятками Shapes. Сравнение короткой
+        ' signature в памяти дешевле повторной записи caption/alignment/meta
+        ' через Excel COM для каждого неизменившегося элемента группы.
+        renderSignature = private_BuildItemVisualSignature( _
+            itemIndex, rowStart, colStart, rowEnd, colEnd, captionText, styleName)
+        previousRenderSignature = ex_ShapeMetaRuntime.fn_GetShapeMetaValue( _
+            shp, "pn.renderSignature", VBA.vbNullString)
+        visualUnchanged = (VBA.StrComp(previousRenderSignature, renderSignature, VBA.vbBinaryCompare) = 0)
+        If Not visualUnchanged Then
+            private_ApplyShapeContent shp, captionText
+            If Not private_SetShapeMeta(shp, styleName, renderSignature) Then GoTo ContinueItem
+        End If
+        ' OnAction и route относятся к runtime-состоянию текущего прохода,
+        ' поэтому проверяем/регистрируем их даже при неизменившемся Shape.
         If Not private_AssignShapeOnAction(shp, macroRef) Then GoTo ContinueItem
         If Not pageBase.RegisterShapeRoute(shp.Name, m_RuntimeControlKey, "RuntimeHandleClick", True, itemId) Then GoTo ContinueItem
 
@@ -553,7 +568,11 @@ Private Function private_DoublesClose(ByVal leftValue As Double, ByVal rightValu
     private_DoublesClose = (VBA.Abs(leftValue - rightValue) < 0.05)
 End Function
 
-Private Function private_SetShapeMeta(ByVal shp As Shape, ByVal styleName As String) As Boolean
+Private Function private_SetShapeMeta( _
+    ByVal shp As Shape, _
+    ByVal styleName As String, _
+    Optional ByVal renderSignature As String = VBA.vbNullString _
+) As Boolean
     Dim metaMap As Object
 
     If shp Is Nothing Then Exit Function
@@ -561,7 +580,26 @@ Private Function private_SetShapeMeta(ByVal shp As Shape, ByVal styleName As Str
     metaMap.CompareMode = 1
     metaMap("pn.control") = m_ControlName
     If VBA.Len(VBA.Trim$(styleName)) > 0 Then metaMap("pn.style") = VBA.Trim$(styleName)
+    If VBA.Len(renderSignature) > 0 Then metaMap("pn.renderSignature") = renderSignature
     private_SetShapeMeta = ex_ShapeMetaRuntime.fn_TrySetShapeMetaValues(shp, metaMap)
+End Function
+
+Private Function private_BuildItemVisualSignature( _
+    ByVal itemIndex As Long, _
+    ByVal rowStart As Long, _
+    ByVal colStart As Long, _
+    ByVal rowEnd As Long, _
+    ByVal colEnd As Long, _
+    ByVal captionText As String, _
+    ByVal styleName As String _
+) As String
+    ' itemIndex нужен, чтобы перестановка элементов считалась изменением даже
+    ' при совпадающих caption. Bounds фиксируют фактическое место элемента.
+    private_BuildItemVisualSignature = VBA.LCase$(VBA.Trim$(m_ControlName)) & "|" & _
+        VBA.CStr(itemIndex) & "|" & _
+        VBA.CStr(rowStart) & ":" & VBA.CStr(colStart) & ":" & _
+        VBA.CStr(rowEnd) & ":" & VBA.CStr(colEnd) & "|" & _
+        VBA.Trim$(styleName) & "|" & captionText
 End Function
 
 Private Function private_AssignShapeOnAction(ByVal shp As Shape, ByVal macroRef As String) As Boolean
