@@ -35,6 +35,7 @@ Private Const SOURCE_ALIAS_DOCUMENT_NOTE As String = "DocumentNote"
 Private Const SOURCE_ALIAS_DOC_DATE As String = "DocDate"
 Private Const SOURCE_ALIAS_DATE_FROM As String = "DateFrom"
 Private Const SOURCE_ALIAS_DURATION_DAYS As String = "DurationDays"
+Private Const SOURCE_ALIAS_VH_NO As String = "VhNo"
 Private Const SOURCE_ALIAS_VH_DATE As String = "VhDate"
 Private Const SOURCE_ALIAS_VLK_DATE As String = "VlkDate"
 Private Const WORD_ALIAS_RANK_GENITIVE As String = "RankGenitive"
@@ -1220,6 +1221,8 @@ Private Function private_TryEnrichMainSourceTableForWord( _
     Dim orderNoText As String
     Dim sectionTypeText As String
     Dim durationDaysText As String
+    Dim vhNoText As String
+    Dim normalizedVhNoText As String
     Dim rankGenitive As String
     Dim fioGenitive As String
     Dim fioAccusative As String
@@ -1264,6 +1267,7 @@ Private Function private_TryEnrichMainSourceTableForWord( _
     If Not private_TryGetMainTableValue(sourceTable, SOURCE_ALIAS_DOC_DATE, docDateText) Then docDateText = VBA.vbNullString
     If Not private_TryGetMainTableValue(sourceTable, SOURCE_ALIAS_DATE_FROM, dateFromText) Then dateFromText = VBA.vbNullString
     If Not private_TryGetMainTableValue(sourceTable, SOURCE_ALIAS_DURATION_DAYS, durationDaysText) Then durationDaysText = VBA.vbNullString
+    If Not private_TryGetMainTableValue(sourceTable, SOURCE_ALIAS_VH_NO, vhNoText) Then vhNoText = VBA.vbNullString
     If Not private_TryGetMainTableValue(sourceTable, SOURCE_ALIAS_VH_DATE, vhDateText) Then vhDateText = VBA.vbNullString
     If Not private_TryGetMainTableValue(sourceTable, SOURCE_ALIAS_VLK_DATE, vlkDateText) Then vlkDateText = VBA.vbNullString
 
@@ -1274,6 +1278,11 @@ Private Function private_TryEnrichMainSourceTableForWord( _
     ' ...Short = 01.02.2025; полный вид формирует XML через dateformat.
     orderNoText = private_GetContextText(context, CONTEXT_MANUAL_ORDER_NO)
     If Not m_ExporterDataProvider.CommonData.SetOrderNo(orderNoText) Then Exit Function
+    If Not m_ExporterDataProvider.CommonData.TryFormatVacationTicketNoForExport( _
+        vhNoText, orderNoText, normalizedVhNoText) Then Exit Function
+    If VBA.Len(normalizedVhNoText) > 0 Then
+        If Not private_TryUpsertMainTableValue(sourceTable, SOURCE_ALIAS_VH_NO, normalizedVhNoText) Then Exit Function
+    End If
     If VBA.Len(VBA.Trim$(orderNoText)) > 0 Then
         If Not private_TryUpsertMainTableValue(sourceTable, WORD_ALIAS_ORDER_NO, orderNoText) Then Exit Function
     End If
