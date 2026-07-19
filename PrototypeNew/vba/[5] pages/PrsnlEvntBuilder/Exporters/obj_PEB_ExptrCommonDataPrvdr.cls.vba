@@ -405,6 +405,131 @@ Public Function TryResolveFioGenitiveByName( _
         outFioGenitive)
 End Function
 
+Public Function TryResolveFioDefaultByGenitive( _
+    ByVal fioGenitive As String, _
+    ByRef outFioDefault As String _
+) As Boolean
+    If m_IsDisposed Then Exit Function
+    fioGenitive = private_NormalizeLookupKey(fioGenitive)
+    outFioDefault = VBA.vbNullString
+    If VBA.Len(fioGenitive) = 0 Then
+        TryResolveFioDefaultByGenitive = True
+        Exit Function
+    End If
+
+    ' Обратный поиск нужен extractor-у приказов: склонённое ФИО из текста
+    ' связывается с несклонённой формой в той же строке АЛФ.
+    TryResolveFioDefaultByGenitive = private_TryLookupWorkbookValue( _
+        DEFAULT_SHPO_REL_PATH, _
+        private_BuildAdoRangeRef( _
+            ALF_SHEET_NAME, _
+            ALF_RANGE_START, _
+            ALF_RANGE_END_COLUMN & VBA.CStr(EXCEL_MAX_ROW)), _
+        ALF_GENITIVE_HEADER, _
+        ALF_FIO_KEY_HEADER, _
+        fioGenitive, _
+        "ШПО / АЛФ / ФИО в родовом падеже", _
+        outFioDefault, _
+        allowMissingRow:=False, _
+        requireUniqueMatch:=True)
+End Function
+
+Public Function TryFindFioDefaultByGenitive( _
+    ByVal fioGenitive As String, _
+    ByRef outFound As Boolean, _
+    ByRef outFioDefault As String _
+) As Boolean
+    If m_IsDisposed Then Exit Function
+    fioGenitive = private_NormalizeLookupKey(fioGenitive)
+    outFound = False
+    outFioDefault = VBA.vbNullString
+    If VBA.Len(fioGenitive) = 0 Then
+        TryFindFioDefaultByGenitive = True
+        Exit Function
+    End If
+
+    ' Неблокирующий вариант для нормализации: отсутствие человека в АЛФ
+    ' является штатным результатом, а не ошибкой всего pipeline.
+    TryFindFioDefaultByGenitive = private_TryLookupWorkbookValue( _
+        DEFAULT_SHPO_REL_PATH, _
+        private_BuildAdoRangeRef( _
+            ALF_SHEET_NAME, _
+            ALF_RANGE_START, _
+            ALF_RANGE_END_COLUMN & VBA.CStr(EXCEL_MAX_ROW)), _
+        ALF_GENITIVE_HEADER, _
+        ALF_FIO_KEY_HEADER, _
+        fioGenitive, _
+        "ШПО / АЛФ / ФИО в родовом падеже", _
+        outFioDefault, _
+        allowMissingRow:=True, _
+        outFound:=outFound, _
+        requireUniqueMatch:=False)
+End Function
+
+Public Function TryFindFioDefaultByDeclinedForm( _
+    ByVal fioDeclined As String, _
+    ByRef outFound As Boolean, _
+    ByRef outFioDefault As String _
+) As Boolean
+    If m_IsDisposed Then Exit Function
+    fioDeclined = private_NormalizeLookupKey(fioDeclined)
+    outFound = False
+    outFioDefault = VBA.vbNullString
+    If VBA.Len(fioDeclined) = 0 Then
+        TryFindFioDefaultByDeclinedForm = True
+        Exit Function
+    End If
+
+    ' В приказах ФИО не обязано быть в родовом падеже: формулировка события
+    ' может использовать также дательный или винительный. Ищем точную строку
+    ' по всем поддерживаемым формам и из найденной строки возвращаем ПІБ.
+    ' Промах отдельной колонки не логируется: ошибкой является только итоговое
+    ' отсутствие человека, которое уже обрабатывает вызывающий transformer.
+    If Not private_TryFindFioDefaultByDeclensionHeader( _
+        fioDeclined, ALF_GENITIVE_HEADER, outFound, outFioDefault) Then Exit Function
+    If outFound Then
+        TryFindFioDefaultByDeclinedForm = True
+        Exit Function
+    End If
+    If Not private_TryFindFioDefaultByDeclensionHeader( _
+        fioDeclined, ALF_DATIVE_HEADER, outFound, outFioDefault) Then Exit Function
+    If outFound Then
+        TryFindFioDefaultByDeclinedForm = True
+        Exit Function
+    End If
+    If Not private_TryFindFioDefaultByDeclensionHeader( _
+        fioDeclined, ALF_ACCUSATIVE_HEADER, outFound, outFioDefault) Then Exit Function
+
+    TryFindFioDefaultByDeclinedForm = True
+End Function
+
+Private Function private_TryFindFioDefaultByDeclensionHeader( _
+    ByVal fioDeclined As String, _
+    ByVal declensionHeader As String, _
+    ByRef outFound As Boolean, _
+    ByRef outFioDefault As String _
+) As Boolean
+    ' requireUniqueMatch=False намеренно: старый АЛФ может содержать повторные
+    ' склонённые формы. Для нормализации достаточно первой подходящей строки;
+    ' строгая проверка уникальности остаётся в публичных resolve-методах.
+    private_TryFindFioDefaultByDeclensionHeader = _
+        private_TryLookupWorkbookValue( _
+            DEFAULT_SHPO_REL_PATH, _
+            private_BuildAdoRangeRef( _
+                ALF_SHEET_NAME, _
+                ALF_RANGE_START, _
+                ALF_RANGE_END_COLUMN & VBA.CStr(EXCEL_MAX_ROW)), _
+            declensionHeader, _
+            ALF_FIO_KEY_HEADER, _
+            fioDeclined, _
+            "ШПО / АЛФ / " & declensionHeader, _
+            outFioDefault, _
+            allowMissingRow:=True, _
+            outFound:=outFound, _
+            requireUniqueMatch:=False, _
+            logMissingRow:=False)
+End Function
+
 Public Function TryResolveFioInitialsGenitiveByName( _
     ByVal fioText As String, _
     ByRef outFioInitialsGenitive As String _
@@ -743,7 +868,8 @@ Private Function private_TryLookupWorkbookValue( _
     ByRef outValue As String, _
     Optional ByVal allowMissingRow As Boolean = False, _
     Optional ByRef outFound As Boolean = False, _
-    Optional ByVal requireUniqueMatch As Boolean = False _
+    Optional ByVal requireUniqueMatch As Boolean = False, _
+    Optional ByVal logMissingRow As Boolean = True _
 ) As Boolean
     Dim resolvedPath As String
     Dim query As obj_ExtWorkbookQuery
@@ -771,8 +897,13 @@ Private Function private_TryLookupWorkbookValue( _
     If resultTable Is Nothing Then
         Exit Function
     ElseIf resultTable.RowCount = 0 Then
-        ex_Core.fn_Diagnostic_LogError "peb-declension:lookup-miss source='" & sourceLabel & _
-            "' key='" & lookupKey & "' workbook='" & resolvedPath & "' range='" & tableRef & "'"
+        ' Неблокирующие составные lookup могут выполнить несколько пробных
+        ' запросов. logMissingRow позволяет не превращать каждый такой пробный
+        ' промах в ложную диагностическую ошибку.
+        If logMissingRow Then
+            ex_Core.fn_Diagnostic_LogError "peb-declension:lookup-miss source='" & sourceLabel & _
+                "' key='" & lookupKey & "' workbook='" & resolvedPath & "' range='" & tableRef & "'"
+        End If
         If allowMissingRow Then
             private_TryLookupWorkbookValue = True
         Else
