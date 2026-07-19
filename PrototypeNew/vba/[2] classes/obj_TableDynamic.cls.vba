@@ -229,6 +229,21 @@ Public Function PushRow(ByVal tableRow As obj_Row) As Boolean
     PushRow = m_Rows.Add(tableRow)
 End Function
 
+' Публичный API для caller-а: тег ставится на ячейку модели до render-а и
+' затем доступен XML selector-ам TableList как part=tag-<имя>.
+Public Function AddCellTag( _
+    ByVal oneBasedRowIndex As Long, _
+    ByVal oneBasedColumnIndex As Long, _
+    ByVal tagName As String _
+) As Boolean
+    Dim rowObj As obj_Row
+
+    If oneBasedRowIndex <= 0 Or oneBasedRowIndex > m_Rows.Count Then Exit Function
+    Set rowObj = m_Rows.Item(oneBasedRowIndex)
+    If rowObj Is Nothing Then Exit Function
+    AddCellTag = rowObj.AddCellTag(oneBasedColumnIndex, tagName)
+End Function
+
 Public Function InsertRowAt( _
     ByVal tableRow As obj_Row, _
     ByVal oneBasedIndex As Long _

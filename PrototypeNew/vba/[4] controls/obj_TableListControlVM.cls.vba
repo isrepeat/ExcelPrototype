@@ -787,7 +787,7 @@ ContinueRowView:
                 ' более точный StyleKind из row.Desc: diffadded, diffmodified, ...
                 rowStyleKind = private_ResolveDataRowStyleKind(row)
                 private_AddStyleSegment styleSegments, rowStyleKind, tableDynamic.ColumnCount, ioCurrentOutputRow, ioCurrentOutputRow
-                private_AddChangedCellStyleSegments styleSegments, row, tableDynamic.ColumnCount, ioCurrentOutputRow
+                private_AddCellMetadataStyleSegments styleSegments, row, tableDynamic.ColumnCount, ioCurrentOutputRow
 #End If
 ContinueTableRow:
             Next tableRowIndex
@@ -864,7 +864,7 @@ Private Function private_TryAppendRowViewData( _
     ' а смысл строки/ячеек фиксируется в styleSegments.
     rowStyleKind = private_ResolveDataRowStyleKind(row)
     private_AddStyleSegment styleSegments, rowStyleKind, columnCount, ioCurrentOutputRow, ioCurrentOutputRow
-    private_AddChangedCellStyleSegments styleSegments, row, columnCount, ioCurrentOutputRow
+    private_AddCellMetadataStyleSegments styleSegments, row, columnCount, ioCurrentOutputRow
     private_AddColumnFormatStyleSegments styleSegments, tableDynamic, ioCurrentOutputRow, ioCurrentOutputRow
 #End If
 
@@ -1061,6 +1061,10 @@ ContinueSegment:
                 VBA.StrComp(styleKind, "diffchangedmodifiedoldcell", VBA.vbTextCompare) = 0 Or _
                 VBA.StrComp(styleKind, "diffchangedmodifiednewcell", VBA.vbTextCompare) = 0 _
             ) <> applyChangedCellStyle Then GoTo ContinueGroup
+
+            ' tag-* не является встроенным стилем renderer-а. Сегмент нужен
+            ' только для публикации controlPart и оформляется XML pipeline-ом.
+            If VBA.Left$(VBA.LCase$(styleKind), 4) = "tag-" Then GoTo ContinueGroup
 
             Set groupedRange = groupedRanges(VBA.CStr(key))
             If groupedRange Is Nothing Then GoTo ContinueGroup
@@ -1281,7 +1285,13 @@ End Function
 Private Function private_MapStyleKindToControlPart(ByVal styleKind As String) As String
     ' StyleKind - внутреннее имя сегмента при сборке valueBlock.
     ' ControlPart - публичное имя, которым пользуется XML selector.
-    Select Case VBA.LCase$(VBA.Trim$(styleKind))
+    styleKind = VBA.LCase$(VBA.Trim$(styleKind))
+    If VBA.Left$(styleKind, 4) = "tag-" Then
+        private_MapStyleKindToControlPart = styleKind
+        Exit Function
+    End If
+
+    Select Case styleKind
         Case "section"
             private_MapStyleKindToControlPart = "section"
         Case "header"
@@ -1355,7 +1365,7 @@ Private Function private_ResolveDataRowStyleKind(ByVal rowObj As obj_Row) As Str
     End If
 End Function
 
-Private Sub private_AddChangedCellStyleSegments( _
+Private Sub private_AddCellMetadataStyleSegments( _
     ByVal styleSegments As Collection, _
     ByVal rowObj As obj_Row, _
     ByVal columnCount As Long, _
@@ -1364,6 +1374,8 @@ Private Sub private_AddChangedCellStyleSegments( _
     Dim colIndex As Long
     Dim cellObj As obj_Cell
     Dim cellDesc As String
+    Dim cellTags As Collection
+    Dim tagItem As Variant
 
     If styleSegments Is Nothing Then Exit Sub
     If rowObj Is Nothing Then Exit Sub
@@ -1384,6 +1396,17 @@ Private Sub private_AddChangedCellStyleSegments( _
             private_AddStyleSegment styleSegments, "diffchangedmodifiednewcell", columnCount, relativeRow, relativeRow, colIndex, colIndex
         ElseIf VBA.InStr(1, cellDesc, "diff:changed", VBA.vbTextCompare) > 0 Then
             private_AddStyleSegment styleSegments, "diffchangedcell", columnCount, relativeRow, relativeRow, colIndex, colIndex
+        End If
+
+        ' Теги модели транслируются в универсальные controlPart-сегменты.
+        ' Сам TableList не знает их предметного смысла и не задаёт им стиль.
+        Set cellTags = cellObj.Tags
+        If Not cellTags Is Nothing Then
+            For Each tagItem In cellTags
+                private_AddStyleSegment styleSegments, _
+                    "tag-" & VBA.CStr(tagItem), columnCount, _
+                    relativeRow, relativeRow, colIndex, colIndex
+            Next tagItem
         End If
 ContinueCell:
     Next colIndex

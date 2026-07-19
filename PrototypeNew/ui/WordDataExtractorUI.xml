@@ -85,6 +85,15 @@
             overflow:wrap;
             rowHeight:22;
           }"/>
+
+        <!-- Семантический тег приходит из модели таблицы. Цвет является
+             настройкой этой страницы и не зашит в общий TableList renderer. -->
+        <rule
+          target="controlPart"
+          selector="type=tablelist;name=ExtractedTables;part=tag-fio-not-normalized"
+          styles="{
+            fontColor:#9CA3AF;
+          }"/>
       </layer>
 
     </stylePipelineStage>
