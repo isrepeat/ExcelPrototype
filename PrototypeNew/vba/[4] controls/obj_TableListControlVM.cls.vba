@@ -782,6 +782,8 @@ ContinueRowView:
                 ioCurrentOutputRow = ioCurrentOutputRow + 1
                 Set row = sourceRow
                 row.CopyToMatrixRow valueBlock, ioCurrentOutputRow, tableDynamic.ColumnCount
+                private_CoerceDateCellsInMatrixRow _
+                    valueBlock, ioCurrentOutputRow, tableDynamic
 #If ENALBE_STYLES Then
                 ' Обычная строка получает StyleKind=data; diff-строки получают
                 ' более точный StyleKind из row.Desc: diffadded, diffmodified, ...
@@ -859,6 +861,8 @@ Private Function private_TryAppendRowViewData( _
 
     ioCurrentOutputRow = ioCurrentOutputRow + 1
     row.CopyToMatrixRow valueBlock, ioCurrentOutputRow, columnCount
+    private_CoerceDateCellsInMatrixRow _
+        valueBlock, ioCurrentOutputRow, tableDynamic
 #If ENALBE_STYLES Then
     ' RowViewItem идет тем же путем: значение пишется в valueBlock,
     ' а смысл строки/ячеек фиксируется в styleSegments.
@@ -878,6 +882,91 @@ Private Function private_TryAppendRowViewData( _
     Next spacerIndex
 
     private_TryAppendRowViewData = True
+End Function
+
+Private Sub private_CoerceDateCellsInMatrixRow( _
+    ByRef valueBlock As Variant, _
+    ByVal matrixRow As Long, _
+    ByVal tableDynamic As obj_TableDynamic _
+)
+    Dim colIndex As Long
+    Dim colObj As obj_Column
+    Dim rawValue As Variant
+    Dim parsedDate As Date
+
+    If tableDynamic Is Nothing Then Exit Sub
+    If tableDynamic.Columns Is Nothing Then Exit Sub
+    If matrixRow <= 0 Then Exit Sub
+
+    For colIndex = 1 To tableDynamic.ColumnCount
+        Set colObj = tableDynamic.Columns.Item(colIndex)
+        If colObj Is Nothing Then GoTo ContinueColumn
+        If VBA.InStr(1, colObj.FormatKind, "date", VBA.vbTextCompare) = 0 Then _
+            GoTo ContinueColumn
+
+        rawValue = valueBlock(matrixRow, colIndex)
+        If private_TryCoerceDateSerial(rawValue, parsedDate) Then
+            ' Value2 должен получить число, а не строку с похожим видом даты.
+            ' Тогда дата сохраняет тип при копировании и группируется фильтром.
+            valueBlock(matrixRow, colIndex) = VBA.CDbl(parsedDate)
+        End If
+ContinueColumn:
+    Next colIndex
+End Sub
+
+Private Function private_TryCoerceDateSerial( _
+    ByVal rawValue As Variant, _
+    ByRef outDate As Date _
+) As Boolean
+    Dim valueText As String
+    Dim parts As Variant
+    Dim dayValue As Long
+    Dim monthValue As Long
+    Dim yearValue As Long
+    Dim numericValue As Double
+
+    On Error GoTo CleanFail
+    If VBA.IsError(rawValue) Or VBA.IsNull(rawValue) Or VBA.IsEmpty(rawValue) Then _
+        Exit Function
+    valueText = VBA.Trim$(VBA.CStr(rawValue))
+    If VBA.Len(valueText) = 0 Then Exit Function
+
+    ' Сначала разбираем канонический формат явно, независимо от региональных
+    ' настроек Windows/Excel. DateSerial дополнительно валидируем обратным чтением.
+    parts = VBA.Split(valueText, ".")
+    If UBound(parts) = 2 Then
+        If VBA.IsNumeric(parts(0)) And VBA.IsNumeric(parts(1)) And _
+           VBA.IsNumeric(parts(2)) Then
+            dayValue = VBA.CLng(parts(0))
+            monthValue = VBA.CLng(parts(1))
+            yearValue = VBA.CLng(parts(2))
+            If yearValue < 100 Then yearValue = 2000 + yearValue
+            If dayValue >= 1 And dayValue <= 31 And _
+               monthValue >= 1 And monthValue <= 12 Then
+                outDate = VBA.DateSerial(yearValue, monthValue, dayValue)
+                If VBA.Day(outDate) = dayValue And _
+                   VBA.Month(outDate) = monthValue And _
+                   VBA.Year(outDate) = yearValue Then
+                    private_TryCoerceDateSerial = True
+                    Exit Function
+                End If
+            End If
+        End If
+    End If
+
+    ' Источники Comparing могут уже содержать serial date. Не прогоняем его
+    ' через locale-зависимый CDate(String), если достаточно числового значения.
+    If VBA.IsNumeric(valueText) Then
+        numericValue = VBA.CDbl(valueText)
+        If numericValue > 0 Then
+            outDate = VBA.CDate(numericValue)
+            private_TryCoerceDateSerial = True
+        End If
+    End If
+    Exit Function
+
+CleanFail:
+    private_TryCoerceDateSerial = False
 End Function
 
 Private Function private_TryAppendBannerBlock( _

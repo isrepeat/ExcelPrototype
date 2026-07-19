@@ -560,7 +560,25 @@ Private Function private_AddColumn(ByVal tableObj As obj_TableDynamic, ByVal col
     colObj.Name = private_AttrOrDefault(columnNode, "caption", aliasText)
     colObj.Position = tableObj.ColumnCount + 1
     colObj.AddAlias aliasText
+    colObj.FormatKind = VBA.LCase$(VBA.Trim$( _
+        ex_XmlCore.fn_NodeAttrText(columnNode, "format")))
+    If VBA.Len(colObj.FormatKind) = 0 Then
+        ' Основные date-alias едины для всех datasets. Пометка FormatKind не
+        ' форматирует значение сама: TableList превратит колонку в part=datelike,
+        ' а итоговый NumberFormat задаст style pipeline страницы.
+        If private_IsDateColumnAlias(aliasText) Then colObj.FormatKind = "date"
+    End If
     private_AddColumn = tableObj.PushColumn(colObj)
+End Function
+
+Private Function private_IsDateColumnAlias(ByVal aliasText As String) As Boolean
+    Select Case VBA.LCase$(VBA.Trim$(aliasText))
+        Case "eventdate", "eventto", "exclusiondate", _
+             "enrollmentdate", "returndate", _
+             "foodenrollmentdate", "foodremovaldate", _
+             "returnfrom", "assignmentfrom"
+            private_IsDateColumnAlias = True
+    End Select
 End Function
 
 Private Function private_ApplyTransforms(ByVal valueText As String, ByVal ownerNode As Object) As String
