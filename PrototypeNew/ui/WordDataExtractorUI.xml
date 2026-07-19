@@ -94,6 +94,15 @@
           styles="{
             fontColor:#9CA3AF;
           }"/>
+
+        <!-- FormatKind=date публикуется TableList как part=datelike.
+             cellType:date устанавливает Excel NumberFormat dd.mm.yyyy. -->
+        <rule
+          target="controlPart"
+          selector="type=tablelist;name=ExtractedTables;part=datelike"
+          styles="{
+            cellType:date;
+          }"/>
       </layer>
 
     </stylePipelineStage>
