@@ -106,7 +106,7 @@ Private Function private_ExtractDataset(ByVal datasetNode As Object, ByVal sourc
     Dim fieldValues As Object, columnNodes As Object, columnNode As Object
     Dim fieldNodes As Object, fieldNode As Object
     Dim patternNode As Object, patternText As String, datasetId As String
-    Dim matchIndex As Long, valueText As String
+    Dim matchIndex As Long, datasetMatchIndex As Long, valueText As String
     Dim scopeTexts As Collection, scopeText As Variant
     Dim contextItems As Collection, contextItem As Variant
     Dim contextKey As Variant
@@ -156,8 +156,12 @@ Private Function private_ExtractDataset(ByVal datasetNode As Object, ByVal sourc
         If Not private_CollectContextItems( _
             datasetNode, VBA.CStr(scopeText), contextItems) Then Exit Function
         For Each contextItem In contextItems
+            ' Порядок относится к текущему context-блоку: общая групповая
+            ' «Підстава» и список людей всегда индексируются внутри него.
+            datasetMatchIndex = 0
             Set matches = rx.Execute(VBA.CStr(contextItem("$text")))
             For Each matchObj In matches
+                datasetMatchIndex = datasetMatchIndex + 1
                 Set fieldValues = VBA.CreateObject("Scripting.Dictionary")
                 fieldValues.CompareMode = 1
                 For Each contextKey In contextItem.Keys
@@ -166,6 +170,7 @@ Private Function private_ExtractDataset(ByVal datasetNode As Object, ByVal sourc
                     End If
                 Next contextKey
                 fieldValues("$match") = VBA.CStr(matchObj.Value)
+                fieldValues("$matchIndex") = datasetMatchIndex
                 For matchIndex = 0 To matchObj.SubMatches.Count - 1
                     fieldValues("$" & VBA.CStr(matchIndex + 1)) = VBA.CStr(matchObj.SubMatches(matchIndex))
                 Next matchIndex
@@ -176,7 +181,8 @@ Private Function private_ExtractDataset(ByVal datasetNode As Object, ByVal sourc
                 Set rowObj = New obj_Row
                 For Each columnNode In columnNodes
                     valueText = private_ResolveValue(ex_XmlCore.fn_NodeAttrText(columnNode, "value"), fieldValues)
-                    valueText = private_ApplyTransforms(valueText, columnNode)
+                    valueText = private_ApplyTransforms( _
+                        valueText, columnNode, fieldValues)
                     rowObj.PushCellRaw valueText
                 Next columnNode
                 If Not tableObj.PushRow(rowObj) Then Exit Function
@@ -233,6 +239,9 @@ Private Function private_GetColumnOrder( _
         Case "durationdays": private_GetColumnOrder = 50
         Case "eventto": private_GetColumnOrder = 60
         Case "foodenrollmentdate": private_GetColumnOrder = 80
+        Case "arrivaldurationdays": private_GetColumnOrder = 81
+        Case "position": private_GetColumnOrder = 82
+        Case "assignmentorigin": private_GetColumnOrder = 83
         Case "returndate", "enrollmentdate": private_GetColumnOrder = 70
         Case "basis": private_GetColumnOrder = 90
         Case Else: private_GetColumnOrder = 100
@@ -549,7 +558,8 @@ Private Function private_ExtractField(ByVal fieldNode As Object, ByVal recordTex
             End If
         End If
     End If
-    values("$" & fieldId) = private_ApplyTransforms(valueText, fieldNode)
+    values("$" & fieldId) = private_ApplyTransforms( _
+        valueText, fieldNode, values)
     private_ExtractField = True
 End Function
 
@@ -581,9 +591,16 @@ Private Function private_IsDateColumnAlias(ByVal aliasText As String) As Boolean
     End Select
 End Function
 
-Private Function private_ApplyTransforms(ByVal valueText As String, ByVal ownerNode As Object) As String
+Private Function private_ApplyTransforms( _
+    ByVal valueText As String, _
+    ByVal ownerNode As Object, _
+    ByVal values As Object _
+) As String
     Dim nodes As Object, node As Object, transformType As String, rx As Object
     Dim parsedDate As Date
+    Dim indexExpression As String
+    Dim itemIndex As Long
+    Dim selectedValue As String
     Set nodes = ownerNode.selectNodes("p:transform")
     For Each node In nodes
         transformType = VBA.LCase$(VBA.Trim$(ex_XmlCore.fn_NodeAttrText(node, "type")))
@@ -610,6 +627,15 @@ Private Function private_ApplyTransforms(ByVal valueText As String, ByVal ownerN
                     valueText = VBA.Format$(parsedDate, _
                         private_AttrOrDefault(node, "format", "dd.mm.yyyy"))
                 End If
+            Case "orderedtripcredential"
+                indexExpression = private_AttrOrDefault( _
+                    node, "indexFrom", "$matchIndex")
+                itemIndex = VBA.CLng(VBA.Val( _
+                    private_ResolveValue(indexExpression, values)))
+                If private_TrySelectTripCredential( _
+                    valueText, itemIndex, selectedValue) Then
+                    valueText = selectedValue
+                End If
             Case "boolean"
                 If VBA.Len(VBA.Trim$(valueText)) > 0 Then
                     valueText = private_AttrOrDefault(node, "trueValue", "true")
@@ -622,6 +648,109 @@ Private Function private_ApplyTransforms(ByVal valueText As String, ByVal ownerN
         End Select
     Next node
     private_ApplyTransforms = valueText
+End Function
+
+Private Function private_TrySelectTripCredential( _
+    ByVal basisText As String, _
+    ByVal oneBasedIndex As Long, _
+    ByRef outValue As String _
+) As Boolean
+    Dim rx As Object
+    Dim matches As Object
+    Dim matchObj As Object
+    Dim startNumber As String
+    Dim endNumber As String
+    Dim credentialDate As String
+    Dim credentialDateFormatted As String
+    Dim startPrefix As String
+    Dim endPrefix As String
+    Dim startSequence As Long
+    Dim endSequence As Long
+    Dim rangeCount As Long
+    Dim parsedDate As Date
+
+    outValue = VBA.vbNullString
+    If oneBasedIndex <= 0 Then Exit Function
+
+    Set rx = VBA.CreateObject("VBScript.RegExp")
+    rx.Global = True
+    rx.IgnoreCase = True
+    rx.MultiLine = True
+    rx.Pattern = "посвідчення\s+про\s+відрядження\s+№№?\s*" & _
+        "([0-9]+(?:/[0-9]+)*)(?:\s*[-–—]\s*" & _
+        "([0-9]+(?:/[0-9]+)*))?(?:\s+від\s+" & _
+        "(\d{1,2}(?:[.\-/]\d{1,2}[.\-/]\d{2,4}|" & _
+        "\s+[а-яіїєґ]+\s+\d{4}\s+року)))?"
+    Set matches = rx.Execute(basisText)
+
+    For Each matchObj In matches
+        startNumber = VBA.CStr(matchObj.SubMatches(0))
+        endNumber = VBA.CStr(matchObj.SubMatches(1))
+        credentialDate = VBA.CStr(matchObj.SubMatches(2))
+        credentialDateFormatted = VBA.Trim$(credentialDate)
+        If VBA.Len(credentialDateFormatted) > 0 Then
+            If private_TryParseDateValue(credentialDateFormatted, parsedDate) Then
+                credentialDateFormatted = VBA.Format$(parsedDate, "dd.mm.yyyy")
+            End If
+        End If
+        rangeCount = 1
+
+        If VBA.Len(endNumber) > 0 Then
+            If private_TrySplitCredentialNumber( _
+                startNumber, startPrefix, startSequence) And _
+               private_TrySplitCredentialNumber( _
+                endNumber, endPrefix, endSequence) Then
+                ' В сокращённой записи `47/117-118` правая граница наследует
+                ' префикс слева; обратные и смешанные диапазоны не разворачиваем.
+                If VBA.Len(endPrefix) = 0 Then endPrefix = startPrefix
+                If VBA.StrComp(startPrefix, endPrefix, _
+                    VBA.vbBinaryCompare) = 0 And endSequence >= startSequence Then
+                    rangeCount = endSequence - startSequence + 1
+                End If
+            End If
+        End If
+
+        If oneBasedIndex <= rangeCount Then
+            If rangeCount = 1 Then
+                outValue = "посвідчення про відрядження № " & startNumber
+            Else
+                outValue = "посвідчення про відрядження № " & _
+                    startPrefix & VBA.CStr(startSequence + oneBasedIndex - 1)
+            End If
+            If VBA.Len(credentialDateFormatted) > 0 Then
+                outValue = outValue & " від " & credentialDateFormatted
+            End If
+            outValue = outValue & "."
+            private_TrySelectTripCredential = True
+            Exit Function
+        End If
+        oneBasedIndex = oneBasedIndex - rangeCount
+    Next matchObj
+End Function
+
+Private Function private_TrySplitCredentialNumber( _
+    ByVal numberText As String, _
+    ByRef outPrefix As String, _
+    ByRef outSequence As Long _
+) As Boolean
+    Dim slashPosition As Long
+    Dim sequenceText As String
+
+    outPrefix = VBA.vbNullString
+    outSequence = 0
+    numberText = VBA.Trim$(numberText)
+    If VBA.Len(numberText) = 0 Then Exit Function
+
+    slashPosition = VBA.InStrRev(numberText, "/")
+    If slashPosition > 0 Then
+        outPrefix = VBA.Left$(numberText, slashPosition)
+        sequenceText = VBA.Mid$(numberText, slashPosition + 1)
+    Else
+        sequenceText = numberText
+    End If
+    If Not VBA.IsNumeric(sequenceText) Then Exit Function
+    outSequence = VBA.CLng(sequenceText)
+    private_TrySplitCredentialNumber = True
 End Function
 
 Private Function private_TryParseDateRangeStart( _
