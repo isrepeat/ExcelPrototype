@@ -1,0 +1,145 @@
+# DSL режима WordDataExtractor
+
+`WordDataExtractorRules.xml` описывает извлечение независимо от UI страницы.
+Профиль выбирает файл правил и конкретный pipeline:
+
+```xml
+<item key="WordDataExtractor.RulesFile" value="modes\WordDataExtractor\WordDataExtractorRules.xml"/>
+<item key="WordDataExtractor.Pipeline" value="personnel-order"/>
+```
+
+## Модель обработки
+
+1. `pipeline` — один сценарий обработки документа.
+2. Каждый `dataset` создаёт одну результирующую таблицу.
+3. Опциональный `scope/match` сначала выделяет область документа по устойчивому тексту заголовка.
+4. Прямой дочерний `dataset/match` выполняется только внутри этой области; каждое совпадение становится строкой.
+5. Группы захвата доступны как `$match`, `$1`, `$2` и далее.
+6. `field` читает группу или ранее вычисленное поле и может выполнить дополнительный regex.
+7. `column` мапит поле или литерал в колонку результата.
+8. Вложенные `transform` преобразуют отдельные строковые значения.
+9. Опциональный табличный transformer из профиля преобразует собранные таблицы перед рендером.
+10. Внутри `scope` можно рекурсивно вкладывать именованные `context`. Полный
+    match доступен как `$contextId`, а группы — как `$contextId.1`,
+    `$contextId.2` и далее. Значения всех родителей наследуются строками.
+11. `pipeline/commonFields` и `pipeline/commonColumns` задают поля, которые
+    извлекаются из каждого пункта и объединяются с колонками его dataset.
+12. Атрибут `dataset@flow` (`arrival`, `departure`, `other`) позволяет общей
+    колонке ограничить направления через `flows="arrival;other"`.
+13. `dataset@optional="true"` разрешает отсутствие секции в конкретном приказе.
+
+При объединении колонок extractor сохраняет единый порядок основных данных.
+У событий выбытия дата идёт перед `З продовольчого`, у событий прибытия —
+`Прибуття` перед `На продовольче`. Специфичные колонки dataset идут после
+основных в порядке объявления. Для `flow="departure"` выводится только
+`ТВО покласти на`, для `flow="arrival"` — только
+`Повернутись до виконання обов'язків`; у нейтрального `other` нет колонок ТВО.
+Атрибут `includeCommonColumns="false"` полностью отключает commonColumns для
+составного события с собственной схемой таблицы.
+Атрибут `commonColumnIds="id1;id2"` оставляет только явно перечисленные общие
+колонки, когда направление события само по себе недостаточно для фильтрации.
+
+```xml
+<dataset id="people" caption="Люди">
+  <scope>
+    <match multiline="false"><![CDATA[
+      Начальные слова нужной секции[\s\S]*?(?=Начальные слова следующей секции|\s*$)
+    ]]></match>
+  </scope>
+  <match><![CDATA[Особа:\s*([^\r\n]+)]]></match>
+  <fields>
+    <field id="line" from="$1"><transform type="trim"/></field>
+    <field id="id" from="$line" regex="ID:\s*(\d+)" group="1" default=""/>
+  </fields>
+  <table>
+    <column id="id" caption="Идентификатор" value="$id"/>
+    <column id="raw" caption="Исходный текст" value="$line"/>
+  </table>
+</dataset>
+```
+
+Контексты поддерживают произвольную глубину:
+
+```xml
+<scope>
+  <match><![CDATA[Текст основной секции[\s\S]*]]></match>
+  <context id="dateBlock">
+    <match><![CDATA[з\s+(\d{1,2}\s+\S+\s+\d{4}\s+року)[\s\S]*]]></match>
+    <context id="subsection">
+      <match><![CDATA[Підрозділ:\s*([^\r]+)[\s\S]*]]></match>
+    </context>
+  </context>
+</scope>
+```
+
+В полях листового `dataset/match` будут одновременно доступны
+`$dateBlock.1` и `$subsection.1`.
+
+## Расширение через табличные transformers
+
+Если `WordDataExtractor.TransformerClass` в профиле пуст, extractor передаёт
+собранные таблицы рендеру без дополнительных действий. Если класс задан,
+runtime-контроллер создаёт его перед публикацией результата:
+
+```xml
+<item key="WordDataExtractor.TransformerClass"
+      value="obj_WDE_OrderTransformer"/>
+<item key="Source.Personnel.FilePath" value="C:\path\State.xlsx"/>
+<item key="Personnel.Sheet[StateMain].SheetName" value="ШПС$A2:Q10000"/>
+<item key="Personnel.Sheet[StateMain].Map[FIO]" value="Прізвище, ім’я, по батькові"/>
+<item key="Personnel.Sheet[StateMain].Map[IPN]" value="ІПН"/>
+```
+
+Класс должен реализовать `obj_ITableTransformer`. Метод `Transform`
+получает входную `obj_TableDynamic`, текущую `obj_ConfigTable` профиля и
+возвращает новую результирующую таблицу. Реализации находятся в каталоге
+`WordDataExtractor/Transformers`. Как и exporter-ы PEB, VBA project classes
+создаются локальным runtime `Select Case` по имени из профиля — отдельного
+factory-модуля нет.
+
+`obj_WDE_OrderTransformer` копирует таблицу и нормализует колонку `fio`.
+Если в строке есть `ipn`, несклонённое ФИО ищется в настроенном State по ИПН.
+Если ИПН отсутствует, выполняется обратный поиск в `ШПО.xlsx`, на листе `АЛФ`:
+исходная форма проверяется в колонках `Родовий`, `Давальний` и `Знахідний`,
+а несклонённое значение читается из `ПІБ`. Если человек не найден, transformer
+записывает `Not found` и продолжает обработку остальных строк.
+
+Атрибуты `field`:
+
+- `id` — имя поля, доступное как `$id`;
+- `from` — `$match`, `$N`, другое `$field` либо литерал;
+- `regex` — опциональное выражение `VBScript.RegExp`;
+- `group` — номер группы захвата; `0` означает полный match;
+- `default` — значение, если regex поля не нашёл совпадение;
+- `ignoreCase`, `multiline` — флаги regex, по умолчанию `true`.
+
+Доступные преобразования:
+
+- `<transform type="trim"/>`
+- `<transform type="upper"/>`
+- `<transform type="lower"/>`
+- `<transform type="replace" find="old" with="new"/>`
+- `<transform type="regexReplace" pattern="\s+" with=" "/>`
+- `<transform type="regexReplace" pattern="\s+" withToken="space"/>`
+- `<transform type="dateFormat" format="dd.mm.yyyy"/>`
+- `<transform type="dateRangeStartFormat" format="dd.mm.yyyy"/>`
+- `<transform type="boolean" trueValue="true" falseValue="false"/>`
+
+`dateFormat` понимает числовые даты и украинские названия месяцев, например
+`11 липня 2026 року`, и приводит их к заданному короткому формату.
+`dateRangeStartFormat` возвращает начало диапазона и поддерживает сокращённую
+запись `11 липня по 09 серпня 2026 року`, наследуя год правой границы, а также
+`11 по 30 липня 2026 року`, наследуя одновременно месяц и год.
+
+Для replacement, состоящего только из пробела, табуляции или переноса строки,
+следует использовать `withToken="space|tab|newline"`. XML-парсер может
+нормализовать пробельное значение обычного атрибута `with`.
+
+`scope/match` опционален и не связан с нумерацией. Это произвольный regex,
+который определяет область поиска: текстовую секцию, блок между заголовками,
+табличный фрагмент или весь документ. Без `scope` dataset ищет по всему документу.
+Атрибут `group` выбирает группу результата (`0` по умолчанию означает полный match).
+
+Выражения используют диалект `VBScript.RegExp`. Доступны обычные группы захвата,
+но недоступны именованные группы и lookbehind. Для длинных выражений и XML-символов
+следует использовать CDATA.

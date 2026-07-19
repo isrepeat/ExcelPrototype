@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<profiles version="1">
+  <profile id="default" caption="WORD data extractor">
+    <item attr="#" key="Profile.Name" value="WORD data extractor"/>
+    <item key="WordDataExtractor.RulesFile" value="modes\WordDataExtractor\WordDataExtractorRules.xml"/>
+    <item key="WordDataExtractor.Pipeline" value="personnel-order"/>
+    <item key="WordDataExtractor.DocumentPath" value="C:\WORK Alexandr Bondarenko\НАКАЗИ\Зібранні накази\07 липень\TestExtract.docx"/>
+    <item key="WordDataExtractor.TransformerClass" value="obj_WDE_OrderTransformer"/>
+    <item key="Source.Personnel.FilePath" value="C:\Users\SVI\Desktop\2026-07-16 А7383 Особовий склад.xlsx"/>
+    <item key="Personnel.Sheet[StateMain].SheetName" value="ШПС$A2:Q10000"/>
+    <item key="Personnel.Sheet[StateMain].Map[FIO]" value="Прізвище, ім’я, по батькові"/>
+    <item key="Personnel.Sheet[StateMain].Map[IPN]" value="ІПН"/>
+  </profile>
+</profiles>

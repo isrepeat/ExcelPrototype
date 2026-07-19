@@ -45,6 +45,11 @@ Public Function fn_TryCreatePageByTypeRoot( _
             fn_TryCreatePageByTypeRoot = True
             Exit Function
 
+        Case "page.worddataextractor"
+            Set outPage = New obj_PageWordDataExtractor
+            fn_TryCreatePageByTypeRoot = True
+            Exit Function
+
         Case "page.main"
             Set outPage = New obj_PageMain
             fn_TryCreatePageByTypeRoot = True

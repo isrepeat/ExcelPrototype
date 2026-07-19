@@ -106,6 +106,17 @@
           />
         <control
           type="Button"
+          name="OpenWordDataExtractor"
+          caption="WordDataExtractor"
+          style="modeAccent"
+          visibility="{Binding Path=IsWordDataExtractorMode; TrueAs=Visible; FalseAs=Collapsed}"
+          dataContext="{PageRuntimeSource='RuntimeObjects.PageMain.Controller'}"
+          onClick="{Binding Method=OnOpenWordDataExtractorPageCommand}"
+          spanColls="5"
+          spanRows="2"
+          />
+        <control
+          type="Button"
           name="OpenModeUiFile"
           caption="Open UI File"
           style="modeFileAction"

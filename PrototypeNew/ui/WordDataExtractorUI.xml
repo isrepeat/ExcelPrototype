@@ -1,0 +1,92 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<page xmlns="urn:excelprototype:profiles" version="1">
+  <grid anchorCell="A1">
+    <stackPanel at="r2c2" orientation="vertical">
+      <stackPanel orientation="horizontal">
+        <control
+          type="Button"
+          name="Extract"
+          caption="Extract WORD"
+          style="modeAccent"
+          dataContext="{PageRuntimeSource='RuntimeObjects.WordDataExtractor.Controller'}"
+          onClick="{Binding Method=ExtractAndRender}"
+          spanColls="4"
+          spanRows="2"/>
+
+        <control
+          type="Button"
+          name="UpdateSheet"
+          caption="Update Sheet"
+          dataContext="{PageRuntimeSource='RuntimeObjects.WordDataExtractor.Controller'}"
+          onClick="{Binding Method=Rerender}"
+          spanColls="4"
+          spanRows="2"/>
+      </stackPanel>
+
+      <stackPanel spanColls="40" spanRows="1"/>
+
+      <control
+        type="TableList"
+        name="ExtractedTables"
+        itemsSource="{PageRuntimeSource='RuntimeItems.WordDataExtractor.Tables'}"/>
+    </stackPanel>
+  </grid>
+  <styles>
+    <controlStyle
+      name="modeAccent"
+      backColor="#2563EB"
+      textColor="#FFFFFF"
+      borderColor="#1D4ED8"
+      fontBold="true"/>
+
+    <stylePipelineStage name="default">
+      <layer name="base">
+        <rule
+          target="sheet"
+          styles="{
+            backColor:#20242A;
+            fontColor:#E5E7EB;
+            borderColor:#111318;
+            borderWeight:thin;
+            width:18;
+            rowHeight:20;
+            cellType:text;
+          }"/>
+      </layer>
+
+      <layer name="tables">
+        <rule
+          target="controlPart"
+          selector="type=tablelist;name=ExtractedTables;part=section"
+          styles="{
+            backColor:#173A5E;
+            fontColor:#EAF6FF;
+            fontBold:true;
+            rowHeight:25;
+          }"/>
+
+        <rule
+          target="controlPart"
+          selector="type=tablelist;name=ExtractedTables;part=header"
+          styles="{
+            backColor:#2B4A6B;
+            fontColor:#DDEEFF;
+            fontBold:true;
+            overflow:wrap;
+            rowHeight:25;
+          }"/>
+
+        <rule
+          target="controlPart"
+          selector="type=tablelist;name=ExtractedTables;part=rows"
+          styles="{
+            backColor:#3A3A3A;
+            fontColor:#F0F0F0;
+            overflow:wrap;
+            rowHeight:22;
+          }"/>
+      </layer>
+
+    </stylePipelineStage>
+  </styles>
+</page>

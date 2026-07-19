@@ -15,6 +15,7 @@ Private Const ENTITY_LOOKUP_SHEET_BASE_NAME As String = "EntityLookup"
 Private Const PRSNL_EVNT_BUILDER_SHEET_BASE_NAME As String = "PrsnlEvntBuilder"
 Private Const COMPARING_SHEET_BASE_NAME As String = "Comparing"
 Private Const MULTI_SOURCES_VIEW_SHEET_BASE_NAME As String = "MultiSourcesView"
+Private Const WORD_DATA_EXTRACTOR_SHEET_BASE_NAME As String = "WordDataExtractor"
 Private Const MODE_ON_SELECT_MACRO As String = "OnConfigModeChanged"
 Private Const PROFILE_ON_SELECT_MACRO As String = "OnConfigProfileChanged"
 Private Const MODE_PICKER_CONTROL_NAME As String = "ConfigModePicker"
@@ -119,6 +120,53 @@ End Property
 Public Property Get IsMultiSourcesViewMode() As Boolean
     IsMultiSourcesViewMode = private_IsCurrentMode("MultiSourcesView")
 End Property
+
+Public Property Get IsWordDataExtractorMode() As Boolean
+    IsWordDataExtractorMode = private_IsCurrentMode("WordDataExtractor")
+End Property
+
+Public Function OnOpenWordDataExtractorPageCommand(Optional ByVal arg As Variant) As Boolean
+    Dim sheetName As String
+    Dim existingPage As obj_IPage
+    Dim extractorPage As obj_IPage
+    Dim parentPage As obj_IPage
+    Dim isPageCreated As Boolean
+
+    On Error GoTo EH_OPEN
+    If rt_PageManager.fn_TryGetPageByWorksheetName(WORD_DATA_EXTRACTOR_SHEET_BASE_NAME, existingPage) Then
+        If existingPage Is Nothing Then GoTo EH_CREATE
+        If Not TypeOf existingPage Is obj_PageWordDataExtractor Then
+            VBA.MsgBox "Worksheet '" & WORD_DATA_EXTRACTOR_SHEET_BASE_NAME & "' is bound to an unexpected page type.", VBA.vbExclamation, "PrototypeNew / WordDataExtractor"
+            Exit Function
+        End If
+        If Not existingPage.RunPagePipeline() Then Exit Function
+        If Not rt_PageManager.fn_RenderPageAndActivate(existingPage, "pagemain:open-worddataextractor:reuse") Then Exit Function
+        OnOpenWordDataExtractorPageCommand = True
+        Exit Function
+    End If
+
+    sheetName = private_BuildUniqueWorksheetName(ThisWorkbook, WORD_DATA_EXTRACTOR_SHEET_BASE_NAME)
+    If VBA.Len(sheetName) = 0 Then Exit Function
+    Set extractorPage = New obj_PageWordDataExtractor
+    Set parentPage = m_Page
+    If Not rt_PageManager.fn_CreatePage(extractorPage, "ui\WordDataExtractorUI.xml", sheetName, parentPage) Then GoTo EH_CREATE
+    isPageCreated = True
+    If Not extractorPage.RunPagePipeline() Then GoTo EH_CREATE
+    If Not rt_PageManager.fn_RenderPageAndActivate(extractorPage, "pagemain:open-worddataextractor") Then GoTo EH_CREATE
+    rt_Messaging.fn_ShowStatusBarSuccess "WordDataExtractor page has been created.", 3
+    OnOpenWordDataExtractorPageCommand = True
+    Exit Function
+
+EH_CREATE:
+    On Error Resume Next
+    If Not extractorPage Is Nothing And isPageCreated Then Call rt_PageManager.fn_RemovePage(extractorPage, True)
+    On Error GoTo 0
+    If Not OnOpenWordDataExtractorPageCommand Then VBA.MsgBox "Failed to create WordDataExtractor page.", VBA.vbExclamation, "PrototypeNew / WordDataExtractor"
+    Exit Function
+EH_OPEN:
+    VBA.MsgBox "WordDataExtractor error: [" & VBA.CStr(Err.Number) & "] " & Err.Description, VBA.vbExclamation, "PrototypeNew / WordDataExtractor"
+    Resume EH_CREATE
+End Function
 
 Public Function OnOpenCurrentModeUiFileCommand(Optional ByVal arg As Variant) As Boolean
     Dim modeId As String
