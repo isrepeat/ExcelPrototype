@@ -239,10 +239,10 @@ Private Function private_TryBuildDocumentText( _
         resultText = resultText & paragraphText
     Next paragraph
 
-    ' Неразрывные пробелы и маркеры конца ячейки таблицы мешают обычным
-    ' regex с \s и границами абзацев. Нормализуем их до пробела/CR.
-    resultText = VBA.Replace(resultText, VBA.ChrW(160), " ")
-    resultText = VBA.Replace(resultText, VBA.ChrW(8239), " ")
+    ' Пробелы Word нормализуются централизованно до выполнения любого scope,
+    ' context или field regex. Поэтому начальные фразы секций не обязаны
+    ' отдельно перечислять NBSP и прочие визуально неотличимые разделители.
+    resultText = private_NormalizeWordWhitespace(resultText)
     resultText = VBA.Replace(resultText, VBA.Chr$(7), VBA.vbCr)
 
     outText = resultText
@@ -250,6 +250,27 @@ Private Function private_TryBuildDocumentText( _
     Exit Function
 EH:
     ex_Core.fn_Diagnostic_LogError "WordDataExtractor: ошибка сборки текста документа: " & Err.Description
+End Function
+
+Private Function private_NormalizeWordWhitespace( _
+    ByVal sourceText As String _
+) As String
+    Dim codePoint As Long
+
+    sourceText = VBA.Replace(sourceText, VBA.ChrW$(160), " ")
+    sourceText = VBA.Replace(sourceText, VBA.ChrW$(5760), " ")
+    ' U+2000..U+200A: en/em/figure/thin/hair spaces и их варианты.
+    For codePoint = 8192 To 8202
+        sourceText = VBA.Replace(sourceText, VBA.ChrW$(codePoint), " ")
+    Next codePoint
+    sourceText = VBA.Replace(sourceText, VBA.ChrW$(8239), " ")
+    sourceText = VBA.Replace(sourceText, VBA.ChrW$(8287), " ")
+    sourceText = VBA.Replace(sourceText, VBA.ChrW$(12288), " ")
+    ' Невидимые разделители не должны склеивать или разрывать ключевые фразы.
+    sourceText = VBA.Replace(sourceText, VBA.ChrW$(8203), VBA.vbNullString)
+    sourceText = VBA.Replace(sourceText, VBA.ChrW$(8288), VBA.vbNullString)
+    sourceText = VBA.Replace(sourceText, VBA.ChrW$(65279), VBA.vbNullString)
+    private_NormalizeWordWhitespace = sourceText
 End Function
 
 Private Sub private_Error(ByVal messageText As String)

@@ -9,7 +9,7 @@ Implements obj_ITableTransformer
 
 Private Const FIO_COLUMN_ALIAS As String = "fio"
 Private Const IPN_COLUMN_ALIAS As String = "ipn"
-Private Const NOT_FOUND_PLACEHOLDER As String = "Not found"
+Private Const UNRESOLVED_FIO_TAG As String = "fio-not-normalized"
 Private Const CONFIG_STATE_PATH As String = "Source.Personnel.FilePath"
 Private Const CONFIG_STATE_RANGE As String = "Personnel.Sheet[StateMain].SheetName"
 Private Const CONFIG_STATE_FIO_HEADER As String = "Personnel.Sheet[StateMain].Map[FIO]"
@@ -139,10 +139,11 @@ Private Function private_TryTransformRows( _
             If Not commonData.TryFindFioDefaultByDeclinedForm( _
                 fioDeclined, personFound, fioDefault) Then Exit Function
         End If
-        ' Отсутствие конкретного человека не должно отменять весь extraction:
-        ' сохраняем строку события с явным placeholder и продолжаем pipeline.
+        ' Отсутствие человека не должно отменять extraction или уничтожать
+        ' исходные данные. Оставляем склонённое ФИО и ставим семантический тег;
+        ' конкретное оформление задаётся снаружи selector-ом TableList.
         If Not personFound Or VBA.Len(VBA.Trim$(fioDefault)) = 0 Then
-            fioDefault = NOT_FOUND_PLACEHOLDER
+            fioDefault = fioDeclined
             ex_Core.fn_Diagnostic_LogError _
                 "WordDataExtractor/OrderTransformer: person-not-found ipn='" & _
                 ipnText & "' fio='" & fioDeclined & "'"
@@ -150,7 +151,14 @@ Private Function private_TryTransformRows( _
 
         Set targetRow = sourceRow.Clone(sourceTable.ColumnCount)
         If targetRow Is Nothing Then Exit Function
-        If Not targetRow.SetCellRaw(fioColumnIndex, fioDefault) Then Exit Function
+        If personFound And VBA.Len(VBA.Trim$(fioDefault)) > 0 Then
+            If Not targetRow.SetCellRaw( _
+                fioColumnIndex, fioDefault) Then Exit Function
+        Else
+            If Not targetRow.SetCellRaw(fioColumnIndex, fioDefault) Then Exit Function
+            If Not targetRow.AddCellTag( _
+                fioColumnIndex, UNRESOLVED_FIO_TAG) Then Exit Function
+        End If
         If Not targetTable.PushRow(targetRow) Then Exit Function
     Next i
     private_TryTransformRows = True
@@ -187,7 +195,7 @@ Private Function private_TryFindStateFioByIpn( _
     End If
     If resultTable.RowCount > 1 Then
         ' ИПН обязан быть уникальным. Выбор первой из нескольких строк скрыл бы
-        ' повреждение State, поэтому неоднозначность превращается в Not found.
+        ' повреждение State, поэтому такое ФИО считается ненормализованным.
         ex_Core.fn_Diagnostic_LogError _
             "WordDataExtractor/OrderTransformer: duplicate State rows for IPN '" & _
             ipnText & "'."

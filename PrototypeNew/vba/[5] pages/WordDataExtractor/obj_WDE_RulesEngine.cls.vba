@@ -9,6 +9,7 @@ Private Const RULES_NS As String = "urn:excelprototype:word-data-extractor:v1"
 Private m_Doc As Object
 Private m_RulesRelPath As String
 Private m_IsDisposed As Boolean
+Private m_ScopeBoundaryPositions As Collection
 
 Public Function Initialize(ByVal rulesRelPath As String) As Boolean
     m_RulesRelPath = VBA.Trim$(rulesRelPath)
@@ -30,6 +31,7 @@ End Function
 Public Sub Dispose()
     m_IsDisposed = True
     Set m_Doc = Nothing
+    Set m_ScopeBoundaryPositions = Nothing
     m_RulesRelPath = VBA.vbNullString
 End Sub
 
@@ -46,12 +48,57 @@ Public Function ExtractTables(ByVal pipelineId As String, ByVal documentText As 
         Exit Function
     End If
     Set outTables = New Collection
+    If Not private_CollectScopeBoundaryPositions( _
+        pipelineNode, documentText) Then Exit Function
     Set datasetNodes = pipelineNode.selectNodes("p:dataset")
     For Each datasetNode In datasetNodes
         If Not private_ExtractDataset(datasetNode, documentText, outTables) Then Exit Function
     Next datasetNode
+    Set m_ScopeBoundaryPositions = Nothing
     ExtractTables = True
 End Function
+
+Private Function private_CollectScopeBoundaryPositions( _
+    ByVal pipelineNode As Object, _
+    ByVal documentText As String _
+) As Boolean
+    Dim scopeNodes As Object
+    Dim scopeNode As Object
+    Dim rx As Object
+    Dim matches As Object
+    Dim matchObj As Object
+
+    Set m_ScopeBoundaryPositions = New Collection
+    Set scopeNodes = pipelineNode.selectNodes( _
+        "p:dataset/p:scope/p:match")
+    For Each scopeNode In scopeNodes
+        Set rx = private_CreateRegex(VBA.CStr(scopeNode.Text), _
+            private_BoolAttr(scopeNode, "ignoreCase", True), _
+            private_BoolAttr(scopeNode, "multiline", False))
+        If rx Is Nothing Then Exit Function
+        Set matches = rx.Execute(documentText)
+        For Each matchObj In matches
+            private_AddScopeBoundaryPosition _
+                VBA.CLng(matchObj.FirstIndex) + 1
+        Next matchObj
+    Next scopeNode
+    private_CollectScopeBoundaryPositions = True
+End Function
+
+Private Sub private_AddScopeBoundaryPosition(ByVal position As Long)
+    Dim i As Long
+    Dim currentPosition As Long
+
+    For i = 1 To m_ScopeBoundaryPositions.Count
+        currentPosition = VBA.CLng(m_ScopeBoundaryPositions.Item(i))
+        If currentPosition = position Then Exit Sub
+        If currentPosition > position Then
+            m_ScopeBoundaryPositions.Add position, Before:=i
+            Exit Sub
+        End If
+    Next i
+    m_ScopeBoundaryPositions.Add position
+End Sub
 
 Private Function private_ExtractDataset(ByVal datasetNode As Object, ByVal sourceText As String, ByVal tables As Collection) As Boolean
     Dim rx As Object, matches As Object, matchObj As Object
@@ -181,6 +228,7 @@ Private Function private_GetColumnOrder( _
         Case "eventdate"
             If datasetFlow = "arrival" Then _
                 private_GetColumnOrder = 70 Else private_GetColumnOrder = 30
+        Case "exclusiondate": private_GetColumnOrder = 40
         Case "foodremovaldate": private_GetColumnOrder = 40
         Case "durationdays": private_GetColumnOrder = 50
         Case "eventto": private_GetColumnOrder = 60
@@ -401,6 +449,8 @@ Private Function private_CollectScopeTexts( _
     Dim scopeMatchNode As Object
     Dim rx As Object, matches As Object, matchObj As Object
     Dim groupIndex As Long, scopeText As String
+    Dim relativeScopeStart As Long
+    Dim absoluteScopeStart As Long
 
     Set outScopeTexts = New Collection
     Set scopeMatchNode = datasetNode.selectSingleNode("p:scope/p:match")
@@ -423,7 +473,19 @@ Private Function private_CollectScopeTexts( _
         ElseIf groupIndex <= matchObj.SubMatches.Count Then
             scopeText = VBA.CStr(matchObj.SubMatches(groupIndex - 1))
         End If
-        If VBA.Len(scopeText) > 0 Then outScopeTexts.Add scopeText
+        If VBA.Len(scopeText) > 0 Then
+            ' Scope regex отвечает за распознавание собственного заголовка.
+            ' Фактический конец централизованно ограничивается ближайшим
+            ' началом любой другой присутствующей секции из того же pipeline.
+            relativeScopeStart = VBA.InStr(1, VBA.CStr(matchObj.Value), _
+                scopeText, VBA.vbBinaryCompare)
+            If relativeScopeStart = 0 Then relativeScopeStart = 1
+            absoluteScopeStart = VBA.CLng(matchObj.FirstIndex) + _
+                relativeScopeStart
+            scopeText = private_ClipScopeAtNextBoundary( _
+                scopeText, absoluteScopeStart)
+            outScopeTexts.Add scopeText
+        End If
     Next matchObj
 
     If outScopeTexts.Count = 0 Then
@@ -441,6 +503,27 @@ Private Function private_CollectScopeTexts( _
         Exit Function
     End If
     private_CollectScopeTexts = True
+End Function
+
+Private Function private_ClipScopeAtNextBoundary( _
+    ByVal scopeText As String, _
+    ByVal absoluteScopeStart As Long _
+) As String
+    Dim boundaryPosition As Variant
+    Dim scopeEnd As Long
+
+    private_ClipScopeAtNextBoundary = scopeText
+    If m_ScopeBoundaryPositions Is Nothing Then Exit Function
+    scopeEnd = absoluteScopeStart + VBA.Len(scopeText)
+    For Each boundaryPosition In m_ScopeBoundaryPositions
+        If VBA.CLng(boundaryPosition) > absoluteScopeStart Then
+            If VBA.CLng(boundaryPosition) < scopeEnd Then
+                private_ClipScopeAtNextBoundary = VBA.Left$(scopeText, _
+                    VBA.CLng(boundaryPosition) - absoluteScopeStart)
+            End If
+            Exit Function
+        End If
+    Next boundaryPosition
 End Function
 
 Private Function private_ExtractField(ByVal fieldNode As Object, ByVal recordText As String, ByVal values As Object) As Boolean

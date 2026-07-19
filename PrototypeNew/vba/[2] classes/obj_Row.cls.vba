@@ -177,6 +177,14 @@ Public Function SetCellRaw( _
     SetCellRaw = Me.AssignCellAt(oneBasedIndex, cellObj)
 End Function
 
+Public Function AddCellTag(ByVal oneBasedIndex As Long, ByVal tagName As String) As Boolean
+    Dim cellObj As obj_Cell
+
+    Set cellObj = private_GetCellObject(oneBasedIndex)
+    If cellObj Is Nothing Then Exit Function
+    AddCellTag = cellObj.AddTag(tagName)
+End Function
+
 Public Function AssignCellAt( _
     ByVal oneBasedIndex As Long, _
     ByVal cell As obj_Cell _
