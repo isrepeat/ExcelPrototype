@@ -706,7 +706,7 @@ Private Function private_ResolveMovementDestinationValue( _
     End If
 
     If m_Data.UsesMovementVacationDestination(sectionTypeText) Then
-        private_ResolveMovementDestinationValue = private_GetOptionalSourceText(sourceTable, sourceRow, "Відпустка")
+        private_ResolveMovementDestinationValue = private_GetOptionalSourceText(sourceTable, sourceRow, "Куди")
         Exit Function
     End If
 

@@ -76,7 +76,7 @@ Private Const DRAFT_ALIAS_RANK As String = "_Rank"
 Private Const DRAFT_ALIAS_IPN As String = "_IPN"
 Private Const DRAFT_ALIAS_POSITION_CODE As String = "_PositionCode"
 Private Const DRAFT_ALIAS_POSITION_NAME As String = "_PositionName"
-Private Const DRAFT_ALIAS_VACATION As String = "_Vacation"
+Private Const DRAFT_ALIAS_DESTINATION As String = "_Destination"
 Private Const DRAFT_ALIAS_REPORT_RANK As String = "_ReportRank"
 Private Const DRAFT_ALIAS_REPORT_POSITION_CODE As String = "_ReportPositionCode"
 Private Const DRAFT_ALIAS_INCOMING_NO As String = "_IncomingNo"
@@ -464,7 +464,7 @@ Private Sub private_AddToVacationFioDependentAliases(ByVal dependentAliases As O
     ' При смене человека данные оформляемого отпуска больше не относятся
     ' к выбранной строке, поэтому очищаем их вместе с персональными полями.
     private_AddStandardFioDependentAliases dependentAliases
-    dependentAliases(DRAFT_ALIAS_VACATION) = True
+    dependentAliases(DRAFT_ALIAS_DESTINATION) = True
     dependentAliases(DRAFT_ALIAS_INCOMING_NO) = True
     dependentAliases(DRAFT_ALIAS_INCOMING_DATE) = True
     dependentAliases(DRAFT_ALIAS_DURATION_DAYS) = True

@@ -18,9 +18,9 @@
     <item key="Source.AbsenceEvents.FilePath" value="C:\Users\SVI\Desktop\ЕЖОС_last.xlsx"/>
     <item key="Source.AbsenceEvents.SheetsAliases" value="TemporaryAbsent"/>
     <item key="AbsenceEvents.Sheet[TemporaryAbsent].SheetName" value="5. Тимчасово відсутні$A5:Q20000"/>
-    <item key="AbsenceEvents.Sheet[TemporaryAbsent].ColumnHeadersAliases" value="FIO; Vacation; DepartureDate; DurationDays; VhNo"/>
+    <item key="AbsenceEvents.Sheet[TemporaryAbsent].ColumnHeadersAliases" value="FIO; Destination; DepartureDate; DurationDays; VhNo"/>
     <item key="AbsenceEvents.Sheet[TemporaryAbsent].Map[FIO]" value="66"/>
-    <item key="AbsenceEvents.Sheet[TemporaryAbsent].Map[Vacation]" value="69"/>
+    <item key="AbsenceEvents.Sheet[TemporaryAbsent].Map[Destination]" value="69"/>
     <item key="AbsenceEvents.Sheet[TemporaryAbsent].Map[DepartureDate]" value="70"/>
     <item key="AbsenceEvents.Sheet[TemporaryAbsent].Map[DurationDays]" value="72"/>
     <item key="AbsenceEvents.Sheet[TemporaryAbsent].Map[VhNo]" value="Стовпець1"/>
@@ -42,10 +42,10 @@
 
     <item attr="#" key="Main table columns" value=""/>
     <item key="EntityLookup.ProfilesProviderClass" value="obj_PrsnlEvntBuilderData"/>
-    <item key="EntityLookup.Table.Columns" value="_Hospital; _HospitalShort; _Vacation; _Rank; _FIO; _IPN; _PositionCode; _PositionName; _ReportRank; _ReportPerson; _ReportPositionCode; _IncomingNo; _IncomingDate; _DocumentNote; _DocNo; _DocDate; _DurationDays; _DateFrom; _DateTo; _VacationTicketNo; _VacationTicketDate; _VlkNo; _VlkDate"/>
+    <item key="EntityLookup.Table.Columns" value="_Hospital; _HospitalShort; _Destination; _Rank; _FIO; _IPN; _PositionCode; _PositionName; _ReportRank; _ReportPerson; _ReportPositionCode; _IncomingNo; _IncomingDate; _DocumentNote; _DocNo; _DocDate; _DurationDays; _DateFrom; _DateTo; _VacationTicketNo; _VacationTicketDate; _VlkNo; _VlkDate"/>
     <item key="EntityLookup.Table.Column[_Hospital].Caption" value="Лікарня"/>
     <item key="EntityLookup.Table.Column[_HospitalShort].Caption" value="Лікарня скорочена назва"/>
-    <item key="EntityLookup.Table.Column[_Vacation].Caption" value="Відпустка"/>
+    <item key="EntityLookup.Table.Column[_Destination].Caption" value="Куди"/>
     <item key="EntityLookup.Table.Column[_Rank].Caption" value="Звання"/>
     <item key="EntityLookup.Table.Column[_FIO].Caption" value="ПІБ"/>
     <item key="EntityLookup.Table.Column[_IPN].Caption" value="ІПН"/>
@@ -88,7 +88,7 @@
     <item key="EntityLookup.Lookup[op_FIOAbsenceExtension].TargetColumn" value="EntityLookup.Table.Column[_FIO]"/>
     <item key="EntityLookup.Lookup[op_FIOAbsenceExtension].SearchColumnAlias" value="AbsenceEvents.Sheet[TemporaryAbsent].Column[FIO]"/>
     <item key="EntityLookup.Lookup[op_FIOAbsenceExtension].ResultColumnsAliases[AbsenceEvents.Sheet[TemporaryAbsent].Column[FIO]]" value="EntityLookup.Table.Column[_FIO]"/>
-    <item key="EntityLookup.Lookup[op_FIOAbsenceExtension].ResultColumnsAliases[AbsenceEvents.Sheet[TemporaryAbsent].Column[Vacation]]" value="EntityLookup.Table.Column[_Vacation]"/>
+    <item key="EntityLookup.Lookup[op_FIOAbsenceExtension].ResultColumnsAliases[AbsenceEvents.Sheet[TemporaryAbsent].Column[Destination]]" value="EntityLookup.Table.Column[_Destination]"/>
     <item key="EntityLookup.Lookup[op_FIOAbsenceExtension].ResultColumnsAliases[AbsenceEvents.Sheet[TemporaryAbsent].Column[DurationDays]]" value="EntityLookup.Table.Column[_DurationDays]"/>
     <item key="EntityLookup.Lookup[op_FIOAbsenceExtension].ResultColumnsAliases[AbsenceEvents.Sheet[TemporaryAbsent].Column[VhNo]]" value="EntityLookup.Table.Column[_VacationTicketNo]"/>
 
