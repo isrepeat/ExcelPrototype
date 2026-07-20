@@ -404,6 +404,7 @@
 #_      {#include block.IncomingBasis}#^
 #_      {#include block.OptionalVlkCertificate}#^
 #_      {#include block.OptionalVacationTicket}#^
+#_      {#include block.OptionalPreviousVacationTicket}#^
 #_      .{#newline}{#newline}#^
       ]]>
     </text>
@@ -504,6 +505,61 @@
     </text>
   </template>
 
+<template id="MoveFromMedicalCompanyForTreatmentToVacationForCuring">
+    <text>
+      <![CDATA[#^
+#_      {#include block.StatusChangePersonLine}#^
+#_      який перебував на лікуванні в медичній роті, вважати таким, що вибув у відпустку для лікування#^
+#_      {#include block.VacationDestinationPeriod}#^
+#_      {#newline}#^
+#_      {#include block.RemoveFromFoodSupport}#^
+#_      {#newline}#^
+#_      {#include block.IncomingBasis}#^
+#_      {#include block.OptionalVlkCertificate}#^
+#_      {#include block.OptionalBasisDocuments}#^
+#_      {#include block.OptionalVacationTicket}#^
+#_      .{#newline}{#newline}#^
+      ]]>
+    </text>
+  </template>
+
+  <template id="MoveFromMedicalCompanyVacationForCuringToHospital">
+    <text>
+      <![CDATA[#^
+#_      {#include block.StatusChangePersonLine}#^
+#_      який перебував у відпустці для лікування в медичній роті, вважати таким, що вибув на лікування у {[HospitalAccusative]|lowerFirstLetter}#^
+#_      {#include block.StatusChangeDateFrom}#^
+#_      {#newline}#^
+#_      {#include block.RemoveFromFoodSupport}#^
+#_      {#include block.OptionalFoodCertificate}#^
+#_      {#newline}#^
+#_      {#include block.IncomingBasis}#^
+#_      {#include block.OptionalBasisDocuments}#^
+#_      {#include block.OptionalPreviousVacationTicket}#^
+#_      .{#newline}{#newline}#^
+      ]]>
+    </text>
+  </template>
+
+  <template id="MoveFromMedicalCompanyVacationForCuringToVacationForCuring">
+    <text>
+      <![CDATA[#^
+#_      {#include block.StatusChangePersonLine}#^
+#_      який перебував у відпустці для лікування у медичній роті, вважати таким, що вибув у відпустку для лікування#^
+#_      {#include block.VacationDestinationPeriod}#^
+#_      {#newline}#^
+#_      {#include block.RemoveFromFoodSupport}#^
+#_      {#newline}#^
+#_      {#include block.IncomingBasis}#^
+#_      {#include block.OptionalVlkCertificate}#^
+#_      {#include block.OptionalBasisDocuments}#^
+#_      {#include block.OptionalVacationTicket}#^
+#_      {#include block.OptionalPreviousVacationTicket}#^
+#_      .{#newline}{#newline}#^
+      ]]>
+    </text>
+  </template>
+
   <!-- Временные заглушки для новых секций. Их заменят полноценные формулировки приказа. -->
   <template id="DummyMoveFromHospitalToStationaryVlk">
     <text>
@@ -531,11 +587,4 @@
     </text>
   </template>
 
-  <template id="DummyMoveFromMedicalCompanyToVacationForCuring">
-    <text>
-      <![CDATA[#^
-#_      [DUMMY] медична рота => відпустка для лікування.{#newline}{#newline}#^
-      ]]>
-    </text>
-  </template>
 </wordResultTemplates>
