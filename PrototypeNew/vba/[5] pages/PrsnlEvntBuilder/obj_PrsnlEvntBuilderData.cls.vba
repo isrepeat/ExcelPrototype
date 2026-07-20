@@ -100,6 +100,7 @@ Private Const MOVEMENT_EVENT_TREATMENT_VACATION As String = "Відпустка 
 Private Const MOVEMENT_EVENT_AMBULATORY_VLK As String = "Амбулаторне ВЛК"
 Private Const MOVEMENT_EVENT_STATIONARY_VLK As String = "Стаціонарне ВЛК"
 Private Const MOVEMENT_EVENT_BUSINESS_TRIP As String = "Відрядження"
+Private Const MOVEMENT_EVENT_SZCH As String = "Самовільне залишення частини"
 
 Private m_ProfileNames As Collection
 Private m_MetaProfileNames As Collection
@@ -376,6 +377,21 @@ Public Function IsMovementMirrorTransferSectionType(ByVal sectionTypeText As Str
              private_NormalizeText(SECTION_TYPE_TRANSFER_MEDICAL_COMPANY_TREATMENT_TO_TREATMENT_VACATION), _
              private_NormalizeText(SECTION_TYPE_TRANSFER_MEDICAL_COMPANY_TREATMENT_VACATION_TO_TREATMENT)
             IsMovementMirrorTransferSectionType = True
+    End Select
+End Function
+
+' Описывает редкие opening-события, которым разрешено сосуществовать с
+' конкретным предыдущим открытым статусом без его автоматического закрытия.
+Public Function CanOpenMovementAlongsidePreviousEvent( _
+    ByVal sectionTypeText As String, _
+    ByVal previousEventText As String _
+) As Boolean
+    Select Case private_NormalizeText(sectionTypeText)
+        Case private_NormalizeText(SECTION_TYPE_TO_BUSINESS_TRIP_SZCH)
+            CanOpenMovementAlongsidePreviousEvent = (VBA.StrComp( _
+                private_NormalizeText(previousEventText), _
+                private_NormalizeText(MOVEMENT_EVENT_SZCH), _
+                VBA.vbTextCompare) = 0)
     End Select
 End Function
 
