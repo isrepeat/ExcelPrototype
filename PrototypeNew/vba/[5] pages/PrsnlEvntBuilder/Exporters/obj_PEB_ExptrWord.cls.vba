@@ -1450,6 +1450,7 @@ Private Function private_TryEnrichPreviousVacationTicketForWord( _
     Dim escortDocumentText As String
     Dim departureOrderText As String
     Dim departureOrderDate As Date
+    Dim normalizedPreviousTicketNo As String
     Dim previousTicketDateText As String
     Dim isSupportedSection As Boolean
 
@@ -1458,8 +1459,11 @@ Private Function private_TryEnrichPreviousVacationTicketForWord( _
     Set data = New obj_PrsnlEvntBuilderData
     isSupportedSection = _
         (VBA.StrComp(sectionTypeText, data.SectionTypeTransferTreatmentVacationToTreatment, VBA.vbTextCompare) = 0) _
+        Or (VBA.StrComp(sectionTypeText, data.SectionTypeTransferTreatmentVacationToTreatmentVacation, VBA.vbTextCompare) = 0) _
         Or (VBA.StrComp(sectionTypeText, data.SectionTypeTransferAnnualVacationToTreatment, VBA.vbTextCompare) = 0) _
-        Or (VBA.StrComp(sectionTypeText, data.SectionTypeTransferTreatmentVacationToVlk, VBA.vbTextCompare) = 0)
+        Or (VBA.StrComp(sectionTypeText, data.SectionTypeTransferTreatmentVacationToVlk, VBA.vbTextCompare) = 0) _
+        Or (VBA.StrComp(sectionTypeText, data.SectionTypeTransferMedicalCompanyToTreatmentVacation, VBA.vbTextCompare) = 0) _
+        Or (VBA.StrComp(sectionTypeText, data.SectionTypeTransferMedicalCompanyTreatmentVacationToTreatment, VBA.vbTextCompare) = 0)
     If Not isSupportedSection Then
         private_TryEnrichPreviousVacationTicketForWord = True
         Exit Function
@@ -1491,9 +1495,11 @@ Private Function private_TryEnrichPreviousVacationTicketForWord( _
         VBA.MsgBox "PrototypeNew: failed to resolve PrevVkDate by departure order '" & departureOrderText & "'.", VBA.vbExclamation, "PrototypeNew / WORD export"
         Exit Function
     End If
+    If Not m_ExporterDataProvider.CommonData.TryFormatVacationTicketNoForExport( _
+        escortDocumentText, departureOrderText, normalizedPreviousTicketNo) Then Exit Function
 
     previousTicketDateText = VBA.Format$(departureOrderDate, WORD_SHORT_DATE_STORAGE_FORMAT)
-    If Not private_TryUpsertMainTableValue(sourceTable, WORD_ALIAS_PREV_VK_NUM, escortDocumentText) Then Exit Function
+    If Not private_TryUpsertMainTableValue(sourceTable, WORD_ALIAS_PREV_VK_NUM, normalizedPreviousTicketNo) Then Exit Function
     If Not private_TryUpsertMainTableValue(sourceTable, WORD_ALIAS_PREV_VK_DATE, previousTicketDateText) Then Exit Function
 
     private_TryEnrichPreviousVacationTicketForWord = True
