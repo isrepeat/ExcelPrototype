@@ -25,7 +25,7 @@ Private Const MOVEMENT_SOURCE_EVENT As String = "Подія"
 Private Const MOVEMENT_SOURCE_INCOMING_DATE As String = "Вх. дата"
 Private Const MOVEMENT_SOURCE_DEPARTURE_DATE As String = "З"
 Private Const MOVEMENT_SOURCE_DURATION_DAYS As String = "На скільки"
-Private Const MOVEMENT_SOURCE_VK_NO As String = "В/к №"
+Private Const MOVEMENT_SOURCE_VACATION_TICKET_NO As String = "Квит. №"
 Private Const MOVEMENT_SOURCE_REPORT_RANK As String = "ReportRank"
 Private Const MOVEMENT_SOURCE_REPORT_PERSON As String = "ReportPerson"
 Private Const MOVEMENT_SOURCE_REPORT_POSITION_CODE As String = "ReportPositionCode"
@@ -399,7 +399,7 @@ Private Function private_TryBuildSpecialOpeningValues( _
     outShouldWrite = True
     outDurationValue = private_GetOptionalSourceTextByAnyColumn(sourceTable, sourceRow, MOVEMENT_SOURCE_DURATION_DAYS)
     If Not m_DataProvider.CommonData.TryFormatVacationTicketNoForExport( _
-        private_GetOptionalSourceTextByAnyColumn(sourceTable, sourceRow, MOVEMENT_SOURCE_VK_NO), _
+        private_GetOptionalSourceTextByAnyColumn(sourceTable, sourceRow, MOVEMENT_SOURCE_VACATION_TICKET_NO), _
         private_GetContextText(context, MOVEMENT_CONTEXT_MANUAL_ORDER_NO), _
         formattedVkNo) Then Exit Function
     outVkNoValue = formattedVkNo

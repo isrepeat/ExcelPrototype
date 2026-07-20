@@ -38,7 +38,7 @@
     <item key="Daily.Sheet[DailyEvents].RangeStartMarker" value="$B2"/>
     <item key="Daily.Sheet[DailyEvents].RangeEndMarker" value="EndTable_DailyEvents"/>
     <!-- <item key="Daily.Sheet[DailyEvents].SheetNameResolver" value="ex_SourceResolvers.m_ResolveWithDateFormatter"/> -->
-    <item key="Daily.Sheet[DailyEvents].ColumnHeadersAliases" value="Hospital; Vacation; Rank; FIO; Position; RaportTVO; RaportFrom; InNum; InDate; DocNote; DocNum; DocDate; DaysCount; DateFrom; DateTo; VkNum; VkDate; VlkNum; VlkDate; Type"/>
+    <item key="Daily.Sheet[DailyEvents].ColumnHeadersAliases" value="Hospital; Vacation; Rank; FIO; Position; RaportTVO; RaportFrom; InNum; InDate; DocNote; DocNum; DocDate; DaysCount; DateFrom; DateTo; VacationTicketNo; VacationTicketDate; VlkNum; VlkDate; Type"/>
     <item key="Daily.Sheet[DailyEvents].Key" value="FIO"/>
     <item key="Daily.Sheet[DailyEvents].Sort" value="InDate"/>
     <item key="Daily.Sheet[DailyEvents].AdditionalSqlParams" value="RowProcessor=obj_PersonalCardSqlRowPcsr;"/>
@@ -57,8 +57,8 @@
     <item key="Daily.Sheet[DailyEvents].Map[DaysCount]" value="На скільки"/>
     <item key="Daily.Sheet[DailyEvents].Map[DateFrom]" value="З"/>
     <item key="Daily.Sheet[DailyEvents].Map[DateTo]" value="По"/>
-    <item key="Daily.Sheet[DailyEvents].Map[VkNum]" value="В/к №"/>
-    <item key="Daily.Sheet[DailyEvents].Map[VkDate]" value="В/к дата"/>
+    <item key="Daily.Sheet[DailyEvents].Map[VacationTicketNo]" value="Квит. №"/>
+    <item key="Daily.Sheet[DailyEvents].Map[VacationTicketDate]" value="Квит. дата"/>
     <item key="Daily.Sheet[DailyEvents].Map[VlkNum]" value="ВЛК №"/>
     <item key="Daily.Sheet[DailyEvents].Map[VlkDate]" value="ВЛК дата"/>
     <item key="Daily.Sheet[DailyEvents].Map[Type]" value="Type"/>

@@ -35,8 +35,8 @@ Private Const SOURCE_ALIAS_DOCUMENT_NOTE As String = "DocumentNote"
 Private Const SOURCE_ALIAS_DOC_DATE As String = "DocDate"
 Private Const SOURCE_ALIAS_DATE_FROM As String = "DateFrom"
 Private Const SOURCE_ALIAS_DURATION_DAYS As String = "DurationDays"
-Private Const SOURCE_ALIAS_VH_NO As String = "VhNo"
-Private Const SOURCE_ALIAS_VH_DATE As String = "VhDate"
+Private Const SOURCE_ALIAS_VACATION_TICKET_NO As String = "VacationTicketNo"
+Private Const SOURCE_ALIAS_VACATION_TICKET_DATE As String = "VacationTicketDate"
 Private Const SOURCE_ALIAS_VLK_DATE As String = "VlkDate"
 Private Const WORD_ALIAS_RANK_GENITIVE As String = "RankGenitive"
 Private Const WORD_ALIAS_FIO_GENITIVE As String = "FIOGenitive"
@@ -59,7 +59,7 @@ Private Const WORD_ALIAS_ORDER_NO As String = "OrderNo"
 Private Const WORD_ALIAS_INCOMING_DATE_SHORT As String = "IncomingDateShort"
 Private Const WORD_ALIAS_DOC_DATE_SHORT As String = "DocDateShort"
 Private Const WORD_ALIAS_DATE_FROM_SHORT As String = "DateFromShort"
-Private Const WORD_ALIAS_VH_DATE_SHORT As String = "VhDateShort"
+Private Const WORD_ALIAS_VACATION_TICKET_DATE_SHORT As String = "VacationTicketDateShort"
 Private Const WORD_ALIAS_VLK_DATE_SHORT As String = "VlkDateShort"
 
 ' DateTo отсутствует в draft-форме: для частичной ежегодной отпуска экспортёр
@@ -76,8 +76,8 @@ Private Const WORD_ALIAS_VACATION_DATES_SAME_MONTH As String = "VacationDatesSam
 Private Const WORD_ALIAS_VACATION_DATES_SAME_YEAR As String = "VacationDatesSameYear"
 Private Const WORD_ALIAS_ENROLL_TO_FOOD_SUPPORT_DATE As String = "EnrollToFoodSupportDateShort"
 Private Const WORD_ALIAS_REMOVE_FROM_FOOD_SUPPORT_DATE As String = "RemoveFromFoodSupportDateShort"
-Private Const WORD_ALIAS_PREV_VK_NUM As String = "PrevVkNum"
-Private Const WORD_ALIAS_PREV_VK_DATE As String = "PrevVkDateShort"
+Private Const WORD_ALIAS_PREV_VACATION_TICKET_NO As String = "PrevVacationTicketNo"
+Private Const WORD_ALIAS_PREV_VACATION_TICKET_DATE_SHORT As String = "PrevVacationTicketDateShort"
 Private Const LATEST_MOVEMENT_DEPARTURE_ORDER_KEY As String = "Наказ вибуття"
 Private Const LATEST_MOVEMENT_ESCORT_DOCUMENT_KEY As String = "Супровідний документ"
 
@@ -86,7 +86,7 @@ Private Const LATEST_MOVEMENT_ESCORT_DOCUMENT_KEY As String = "Супровід�
 ' мог снова однозначно распознать дату независимо от региональных настроек Excel.
 ' Поэтому здесь намеренно нет названий месяцев, слова "року" и типографических
 ' пробелов: всё это контролируется непосредственно маской dateformat в XML.
-' Этим форматом заполняются DateToShort, DateFromShort, PrevVkDateShort
+' Этим форматом заполняются DateToShort, DateFromShort, PrevVacationTicketDateShort
 ' и другие вычисленные/нормализованные aliases с суффиксом Short.
 Private Const WORD_SHORT_DATE_STORAGE_FORMAT As String = "dd.mm.yyyy"
 Private Const WORD_ANCHOR_PREFIX As String = "{\export:"
@@ -1217,13 +1217,13 @@ Private Function private_TryEnrichMainSourceTableForWord( _
     Dim incomingDateText As String
     Dim docDateText As String
     Dim dateFromText As String
-    Dim vhDateText As String
+    Dim vacationTicketDateText As String
     Dim vlkDateText As String
     Dim orderNoText As String
     Dim sectionTypeText As String
     Dim durationDaysText As String
-    Dim vhNoText As String
-    Dim normalizedVhNoText As String
+    Dim vacationTicketNoText As String
+    Dim normalizedVacationTicketNoText As String
     Dim rankGenitive As String
     Dim fioGenitive As String
     Dim fioAccusative As String
@@ -1268,8 +1268,8 @@ Private Function private_TryEnrichMainSourceTableForWord( _
     If Not private_TryGetMainTableValue(sourceTable, SOURCE_ALIAS_DOC_DATE, docDateText) Then docDateText = VBA.vbNullString
     If Not private_TryGetMainTableValue(sourceTable, SOURCE_ALIAS_DATE_FROM, dateFromText) Then dateFromText = VBA.vbNullString
     If Not private_TryGetMainTableValue(sourceTable, SOURCE_ALIAS_DURATION_DAYS, durationDaysText) Then durationDaysText = VBA.vbNullString
-    If Not private_TryGetMainTableValue(sourceTable, SOURCE_ALIAS_VH_NO, vhNoText) Then vhNoText = VBA.vbNullString
-    If Not private_TryGetMainTableValue(sourceTable, SOURCE_ALIAS_VH_DATE, vhDateText) Then vhDateText = VBA.vbNullString
+    If Not private_TryGetMainTableValue(sourceTable, SOURCE_ALIAS_VACATION_TICKET_NO, vacationTicketNoText) Then vacationTicketNoText = VBA.vbNullString
+    If Not private_TryGetMainTableValue(sourceTable, SOURCE_ALIAS_VACATION_TICKET_DATE, vacationTicketDateText) Then vacationTicketDateText = VBA.vbNullString
     If Not private_TryGetMainTableValue(sourceTable, SOURCE_ALIAS_VLK_DATE, vlkDateText) Then vlkDateText = VBA.vbNullString
 
     ' WORD preview работает не только с исходными колонками формы. Перед
@@ -1280,9 +1280,9 @@ Private Function private_TryEnrichMainSourceTableForWord( _
     orderNoText = private_GetContextText(context, CONTEXT_MANUAL_ORDER_NO)
     If Not m_ExporterDataProvider.CommonData.SetOrderNo(orderNoText) Then Exit Function
     If Not m_ExporterDataProvider.CommonData.TryFormatVacationTicketNoForExport( _
-        vhNoText, orderNoText, normalizedVhNoText) Then Exit Function
-    If VBA.Len(normalizedVhNoText) > 0 Then
-        If Not private_TryUpsertMainTableValue(sourceTable, SOURCE_ALIAS_VH_NO, normalizedVhNoText) Then Exit Function
+        vacationTicketNoText, orderNoText, normalizedVacationTicketNoText) Then Exit Function
+    If VBA.Len(normalizedVacationTicketNoText) > 0 Then
+        If Not private_TryUpsertMainTableValue(sourceTable, SOURCE_ALIAS_VACATION_TICKET_NO, normalizedVacationTicketNoText) Then Exit Function
     End If
     If VBA.Len(VBA.Trim$(orderNoText)) > 0 Then
         If Not private_TryUpsertMainTableValue(sourceTable, WORD_ALIAS_ORDER_NO, orderNoText) Then Exit Function
@@ -1380,7 +1380,7 @@ Private Function private_TryEnrichMainSourceTableForWord( _
     If Not private_TryUpsertShortDateValue(sourceTable, SOURCE_ALIAS_INCOMING_DATE, WORD_ALIAS_INCOMING_DATE_SHORT, incomingDateText) Then Exit Function
     If Not private_TryUpsertShortDateValue(sourceTable, SOURCE_ALIAS_DOC_DATE, WORD_ALIAS_DOC_DATE_SHORT, docDateText) Then Exit Function
     If Not private_TryUpsertShortDateValue(sourceTable, SOURCE_ALIAS_DATE_FROM, WORD_ALIAS_DATE_FROM_SHORT, dateFromText) Then Exit Function
-    If Not private_TryUpsertShortDateValue(sourceTable, SOURCE_ALIAS_VH_DATE, WORD_ALIAS_VH_DATE_SHORT, vhDateText) Then Exit Function
+    If Not private_TryUpsertShortDateValue(sourceTable, SOURCE_ALIAS_VACATION_TICKET_DATE, WORD_ALIAS_VACATION_TICKET_DATE_SHORT, vacationTicketDateText) Then Exit Function
     If Not private_TryUpsertShortDateValue(sourceTable, SOURCE_ALIAS_VLK_DATE, WORD_ALIAS_VLK_DATE_SHORT, vlkDateText) Then Exit Function
 
     If Not private_TryResolveDateByRawText(dateFromText, hasDateFrom, dateFromDate) Then Exit Function
@@ -1488,23 +1488,23 @@ Private Function private_TryEnrichPreviousVacationTicketForWord( _
     End If
 
     If VBA.Len(VBA.Trim$(escortDocumentText)) = 0 Then
-        VBA.MsgBox "PrototypeNew: latest Movement record has no 'Супровідний документ' value for PrevVkNum.", VBA.vbExclamation, "PrototypeNew / WORD export"
+        VBA.MsgBox "PrototypeNew: latest Movement record has no 'Супровідний документ' value for PrevVacationTicketNo.", VBA.vbExclamation, "PrototypeNew / WORD export"
         Exit Function
     End If
     If VBA.Len(VBA.Trim$(departureOrderText)) = 0 Then
-        VBA.MsgBox "PrototypeNew: latest Movement record has no 'Наказ вибуття' value for PrevVkDate.", VBA.vbExclamation, "PrototypeNew / WORD export"
+        VBA.MsgBox "PrototypeNew: latest Movement record has no 'Наказ вибуття' value for PrevVacationTicketDate.", VBA.vbExclamation, "PrototypeNew / WORD export"
         Exit Function
     End If
     If Not m_ExporterDataProvider.CommonData.TryResolveOrderDateByNumber(departureOrderText, departureOrderDate) Then
-        VBA.MsgBox "PrototypeNew: failed to resolve PrevVkDate by departure order '" & departureOrderText & "'.", VBA.vbExclamation, "PrototypeNew / WORD export"
+        VBA.MsgBox "PrototypeNew: failed to resolve PrevVacationTicketDate by departure order '" & departureOrderText & "'.", VBA.vbExclamation, "PrototypeNew / WORD export"
         Exit Function
     End If
     If Not m_ExporterDataProvider.CommonData.TryFormatVacationTicketNoForExport( _
         escortDocumentText, departureOrderText, normalizedPreviousTicketNo) Then Exit Function
 
     previousTicketDateText = VBA.Format$(departureOrderDate, WORD_SHORT_DATE_STORAGE_FORMAT)
-    If Not private_TryUpsertMainTableValue(sourceTable, WORD_ALIAS_PREV_VK_NUM, normalizedPreviousTicketNo) Then Exit Function
-    If Not private_TryUpsertMainTableValue(sourceTable, WORD_ALIAS_PREV_VK_DATE, previousTicketDateText) Then Exit Function
+    If Not private_TryUpsertMainTableValue(sourceTable, WORD_ALIAS_PREV_VACATION_TICKET_NO, normalizedPreviousTicketNo) Then Exit Function
+    If Not private_TryUpsertMainTableValue(sourceTable, WORD_ALIAS_PREV_VACATION_TICKET_DATE_SHORT, previousTicketDateText) Then Exit Function
 
     private_TryEnrichPreviousVacationTicketForWord = True
 End Function

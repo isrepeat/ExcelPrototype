@@ -176,7 +176,7 @@
     <sharedTemplate id="block.OptionalVacationTicket">
       <text>
         <![CDATA[#^
-#_        {#if [VhNo] #or [VhDateShort]}; відпускний квиток{#if [VhNo]} № {[VhNo]}{#endif}{#if [VhDateShort]} від {[VhDateShort]}{#endif}{#endif}#^
+#_        {#if [VacationTicketNo] #or [VacationTicketDateShort]}; відпускний квиток{#if [VacationTicketNo]} № {[VacationTicketNo]}{#endif}{#if [VacationTicketDateShort]} від {[VacationTicketDateShort]}{#endif}{#endif}#^
         ]]>
       </text>
     </sharedTemplate>
@@ -184,7 +184,7 @@
     <sharedTemplate id="block.OptionalPreviousVacationTicket">
       <text>
         <![CDATA[#^
-#_        {#if [PrevVkNum] #or [PrevVkDateShort]}; відпускний квиток{#if [PrevVkNum]} № {[PrevVkNum]}{#endif}{#if [PrevVkDateShort]} від {[PrevVkDateShort]}{#endif}{#endif}#^
+#_        {#if [PrevVacationTicketNo] #or [PrevVacationTicketDateShort]}; відпускний квиток{#if [PrevVacationTicketNo]} № {[PrevVacationTicketNo]}{#endif}{#if [PrevVacationTicketDateShort]} від {[PrevVacationTicketDateShort]}{#endif}{#endif}#^
         ]]>
       </text>
     </sharedTemplate>
@@ -314,7 +314,7 @@
 #_      {#newline}#^
 #_      {#include block.IncomingBasis}#^
 #_      {#include block.OptionalBasisDocuments}#^
-#_      ; відпускний квиток № {[VhNo]} від {[VhDateShort]}#^
+#_      ; відпускний квиток № {[VacationTicketNo]} від {[VacationTicketDateShort]}#^
 #_      .{#newline}{#newline}#^
       ]]>
     </text>

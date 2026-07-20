@@ -180,6 +180,7 @@ Private Sub obj_IControl_Render()
     Dim renderSignature As String
     Dim previousRenderSignature As String
     Dim visualUnchanged As Boolean
+    Dim geometryUnchanged As Boolean
 
     If Not m_IsConfigured Then
 #If LOGGING_DEBUG_ENABLED Then
@@ -226,10 +227,9 @@ Private Sub obj_IControl_Render()
     End If
 
     buttonName = "btn_" & m_ControlName
-    ' Retained-render: signature описывает только визуальное состояние Shape.
-    ' Если она совпала с pn.renderSignature прошлого успешного render-а,
-    ' не отправляем в Excel дорогие COM-записи геометрии/текста/meta.
-    ' Callback в signature намеренно не входит: route ниже регистрируется всегда.
+    ' Retained-signature отсекает повторные записи текста/meta. Геометрия ниже
+    ' проверяется отдельно: Excel мог сдвинуть Shape независимо от signature.
+    ' Callback в signature намеренно не входит: route регистрируется всегда.
     renderSignature = private_BuildVisualSignature()
 
     Set shp = private_GetUiShapeByName(ws, buttonName)
@@ -241,7 +241,15 @@ Private Sub obj_IControl_Render()
         visualUnchanged = (VBA.StrComp(previousRenderSignature, renderSignature, VBA.vbBinaryCompare) = 0)
     End If
 
-    If Not visualUnchanged Then
+    ' Excel может физически сдвинуть Shape при Cut/Insert диапазонов во время
+    ' partial reflow. Логическая signature при этом не меняется, поэтому
+    ' геометрию сверяем отдельно с фактическим targetRange.
+    geometryUnchanged = _
+        private_DoublesClose(shp.Left, targetRange.Left) And _
+        private_DoublesClose(shp.Top, targetRange.Top) And _
+        private_DoublesClose(shp.Width, targetRange.Width) And _
+        private_DoublesClose(shp.Height, targetRange.Height)
+    If Not geometryUnchanged Then
         shp.Left = targetRange.Left
         shp.Top = targetRange.Top
         shp.Width = targetRange.Width
@@ -291,6 +299,13 @@ EH_RANGE:
     ex_Core.fn_Diagnostic_LogError "Button: failed to resolve target range for control '" & m_ControlName & "': " & Err.Description
 #End If
 End Sub
+
+Private Function private_DoublesClose( _
+    ByVal leftValue As Double, _
+    ByVal rightValue As Double _
+) As Boolean
+    private_DoublesClose = (VBA.Abs(leftValue - rightValue) < 0.05)
+End Function
 
 Private Function private_BuildVisualSignature() As String
     ' В signature включаем все значения, изменение которых требует физически
@@ -421,6 +436,8 @@ Public Function TryDeserializeSnapshot(ByVal snapshotXml As String) As Boolean
     Dim wasConfiguredFromContract As Boolean
     Dim isConfiguredAttr As String
     Dim versionText As String
+    Dim configuredLayout As obj_ControlLayout
+    Dim configuredRuntimeControlKey As String
 
     snapshotXml = VBA.Trim$(snapshotXml)
     If VBA.Len(snapshotXml) = 0 Then Exit Function
@@ -431,6 +448,10 @@ Public Function TryDeserializeSnapshot(ByVal snapshotXml As String) As Boolean
     configuredOnClickRaw = VBA.Trim$(m_OnClickRaw)
     configuredOnClickMacroRef = VBA.Trim$(m_OnClickMacroRef)
     keepConfiguredCallback = (VBA.Len(configuredOnClickMacroRef) > 0)
+    If wasConfiguredFromContract Then
+        Set configuredLayout = m_ControlLayout
+        configuredRuntimeControlKey = m_RuntimeControlKey
+    End If
 
     If Not ex_Core.fn_CustomXmlPartStore_TryLoadDomFromXml(snapshotXml, dom) Then Exit Function
     Set root = dom.DocumentElement
@@ -498,17 +519,25 @@ Public Function TryDeserializeSnapshot(ByVal snapshotXml As String) As Boolean
 
     If VBA.Len(shapeName) = 0 Then shapeName = "btn_" & m_ControlName
 
-    ' 1) Восстанавливаем объект layout (лист/границы/style) из snapshot-атрибутов.
-    Set m_ControlLayout = New obj_ControlLayout
-    If Not m_ControlLayout.TryReadFromRuntimeValues( _
-        "Button", _
-        m_ControlName, _
-        layoutSheetName, _
-        layoutRowStart, _
-        layoutColStart, _
-        layoutRowEnd, _
-        layoutColEnd, _
-        layoutStyle) Then Exit Function
+    ' Актуальный XML владеет структурой контрола. Snapshot не должен возвращать
+    ' старые координаты после переноса кнопки между layout-контейнерами.
+    If wasConfiguredFromContract Then
+        If configuredLayout Is Nothing Then Exit Function
+        Set m_ControlLayout = configuredLayout
+        m_RuntimeControlKey = configuredRuntimeControlKey
+        layoutSheetName = VBA.Trim$(m_ControlLayout.LayoutSheetName)
+    Else
+        Set m_ControlLayout = New obj_ControlLayout
+        If Not m_ControlLayout.TryReadFromRuntimeValues( _
+            "Button", _
+            m_ControlName, _
+            layoutSheetName, _
+            layoutRowStart, _
+            layoutColStart, _
+            layoutRowEnd, _
+            layoutColEnd, _
+            layoutStyle) Then Exit Function
+    End If
 
     ' 2) Ищем worksheet по имени листа из snapshot.
     Set ws = ex_HelpersSheet.fn_GetRuntimeWorksheetByName(layoutSheetName)

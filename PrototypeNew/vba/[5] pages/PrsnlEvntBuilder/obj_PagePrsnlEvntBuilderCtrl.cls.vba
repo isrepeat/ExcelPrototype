@@ -82,8 +82,8 @@ Private Const DRAFT_ALIAS_REPORT_POSITION_CODE As String = "_ReportPositionCode"
 Private Const DRAFT_ALIAS_INCOMING_NO As String = "_IncomingNo"
 Private Const DRAFT_ALIAS_INCOMING_DATE As String = "_IncomingDate"
 Private Const DRAFT_ALIAS_DURATION_DAYS As String = "_DurationDays"
-Private Const DRAFT_ALIAS_VH_NO As String = "_VhNo"
-Private Const DRAFT_ALIAS_VH_DATE As String = "_VhDate"
+Private Const DRAFT_ALIAS_VACATION_TICKET_NO As String = "_VacationTicketNo"
+Private Const DRAFT_ALIAS_VACATION_TICKET_DATE As String = "_VacationTicketDate"
 Private Const DRAFT_ALIAS_VLK_NO As String = "_VlkNo"
 Private Const DRAFT_ALIAS_VLK_DATE As String = "_VlkDate"
 
@@ -467,14 +467,14 @@ Private Sub private_AddToVacationFioDependentAliases(ByVal dependentAliases As O
     dependentAliases(DRAFT_ALIAS_INCOMING_NO) = True
     dependentAliases(DRAFT_ALIAS_INCOMING_DATE) = True
     dependentAliases(DRAFT_ALIAS_DURATION_DAYS) = True
-    dependentAliases(DRAFT_ALIAS_VH_NO) = True
+    dependentAliases(DRAFT_ALIAS_VACATION_TICKET_NO) = True
 End Sub
 
 Private Sub private_AddCloseVacationFioDependentAliases(ByVal dependentAliases As Object)
     ' Для возврата из отпуска очищаются только реквизиты отпускного билета.
     private_AddStandardFioDependentAliases dependentAliases
-    dependentAliases(DRAFT_ALIAS_VH_NO) = True
-    dependentAliases(DRAFT_ALIAS_VH_DATE) = True
+    dependentAliases(DRAFT_ALIAS_VACATION_TICKET_NO) = True
+    dependentAliases(DRAFT_ALIAS_VACATION_TICKET_DATE) = True
 End Sub
 
 Private Sub private_AddToTreatmentVacationFioDependentAliases(ByVal dependentAliases As Object)
@@ -1683,11 +1683,8 @@ Private Function private_TryCaptureWordExportPreview(ByVal exportContext As Obje
     If m_Page Is Nothing Then Exit Function
     Set pageBase = m_Page.GetPageBase()
     If pageBase Is Nothing Then Exit Function
-    ' Обновляем весь WordExportPanel, а не только Banner. До первого CTRL+3 и
-    ' preview, и кнопка ExportToWord имеют Collapsed, следовательно собственных
-    ' retained bounds у них нет. Bounds родительского stackPanel существуют и
-    ' позволяют одним reflow одновременно показать оба control и сдвинуть лишь
-    ' зависимый хвост страницы.
+    ' Обновляем минимальный boundary. Retained layout распространяет разницу
+    ' высоты по предкам и переносит только следующий vertical flow.
     private_TryCaptureWordExportPreview = pageBase.TryReflowLayoutContainer( _
         WORD_EXPORT_PANEL_CONTAINER_NAME)
     If Not private_TryCaptureWordExportPreview Then

@@ -554,10 +554,11 @@ Public Function TryReflowLayoutContainer(ByVal containerName As String) As Boole
     Dim renderCtx As obj_LayoutRenderContext
     Dim oldRange As Range
     Dim clearRange As Range
-    Dim newRange As Range
     Dim rowStart As Long, colStart As Long
+    Dim oldRowEnd As Long, oldColEnd As Long
     Dim newSpanRows As Long, newSpanCols As Long
     Dim newRowEnd As Long, newColEnd As Long
+    Dim clearRowEnd As Long, clearColEnd As Long
     Dim controlName As String
     Dim reflowPatches As Collection
     Dim ancestorUpdates As Collection
@@ -580,6 +581,8 @@ Public Function TryReflowLayoutContainer(ByVal containerName As String) As Boole
 
     rowStart = oldRange.Row
     colStart = oldRange.Column
+    oldRowEnd = rowStart + oldRange.Rows.Count - 1
+    oldColEnd = colStart + oldRange.Columns.Count - 1
     escapedName = ex_XmlCore.fn_XPathLiteral(containerName)
     Set containerNode = m_UiDom.selectSingleNode( _
         "/p:page//p:stackPanel[@name=" & escapedName & "] | " & _
@@ -591,8 +594,13 @@ Public Function TryReflowLayoutContainer(ByVal containerName As String) As Boole
     If Not ex_XmlLayoutEngine.fn_TryGetEffectiveNodeSpan( _
         renderCtx, containerNode, newSpanRows, newSpanCols) Then Exit Function
     If newSpanRows <= 0 Or newSpanCols <= 0 Then Exit Function
+
     newRowEnd = rowStart + newSpanRows - 1
     newColEnd = colStart + newSpanCols - 1
+    clearRowEnd = oldRowEnd
+    If newRowEnd > clearRowEnd Then clearRowEnd = newRowEnd
+    clearColEnd = oldColEnd
+    If newColEnd > clearColEnd Then clearColEnd = newColEnd
 
     If Not ex_ControlRefreshRuntime.fn_TryBuildLayoutContainerReflowPlan( _
         ws.Name, containerName, newSpanRows, reflowPatches, ancestorUpdates) Then Exit Function
@@ -620,15 +628,17 @@ ContinueCleanupControl:
         Next controlNode
     End If
 
-    Set newRange = ws.Range(ws.Cells(rowStart, colStart), ws.Cells(newRowEnd, newColEnd))
-    Set clearRange = Application.Union(oldRange, newRange)
     oldRange.Clear
 
     If Not reflowPatches Is Nothing Then
         If Not private_TryApplyLayoutReflowPatches(ws, reflowPatches) Then GoTo CleanupContainer
     End If
-    ' Новый диапазон очищаем уже после translation. При росте он мог до
-    ' переноса пересекаться с downstream subtree и стереть его содержимое.
+    ' Range-объект нельзя держать через Cut: Excel перенаправляет его на
+    ' destination и последующий Clear стирает уже перемещённый sibling.
+    ' Восстанавливаем scope по сохранённым числовым координатам после patches.
+    Set clearRange = ws.Range( _
+        ws.Cells(rowStart, colStart), _
+        ws.Cells(clearRowEnd, clearColEnd))
     clearRange.Clear
     If Not ex_StylePipelineEngine.fn_ApplySheetBaseStylesToRange( _
         ws, m_UiDom, clearRange) Then GoTo CleanupContainer
@@ -2985,6 +2995,7 @@ Private Function private_TryTranslateWorksheetSubtreeRows( _
     Dim topCell As Range
     Dim newTopCell As Range
     Dim shapeIndex As Long
+    Dim moveRow As Long
 
     If ws Is Nothing Then Exit Function
     If firstRow <= 0 Or firstCol <= 0 Or lastRow < firstRow Or lastCol < firstCol Then Exit Function
@@ -2998,10 +3009,10 @@ Private Function private_TryTranslateWorksheetSubtreeRows( _
     ' Placement = xlMoveAndSize Excel копирует фигуру вместе с диапазоном.
     ' После нескольких partial reflow это создавало дубликаты кнопок, а ручная
     ' коррекция позиции продолжала двигать только исходный Shape по его имени.
-    ' Cut переносит subtree как одну сущность и сам освобождает исходный край.
-    ' Высоты строк и точный offset Shapes всё равно сохраняем отдельно: Excel
-    ' не переносит RowHeight вместе с обычным диапазоном, а позиция Shape после
-    ' пересекающегося Cut может округлиться относительно границы ячейки.
+    ' Cut сохраняет содержимое/форматы и освобождает исходные ячейки. Сам
+    ' translate ниже выполняется построчно, чтобы диапазоны не перекрывались.
+    ' Высоты строк и точный offset Shapes сохраняем отдельно: Excel не переносит
+    ' RowHeight, а позиция Shape может округлиться относительно границы ячейки.
     '
     ' Мы не вставляем/удаляем строки листа: такая операция сдвинула бы также
     ' независимые контролы слева/справа. Переносится только прямоугольник,
@@ -3039,9 +3050,22 @@ Private Function private_TryTranslateWorksheetSubtreeRows( _
 ContinueShape:
     Next shp
 
-    Set sourceRange = ws.Range(ws.Cells(firstRow, firstCol), ws.Cells(lastRow, lastCol))
-    Set destinationCell = ws.Cells(firstRow + rowDelta, firstCol)
-    sourceRange.Cut Destination:=destinationCell
+    ' Один Cut всего прямоугольника в пересекающийся диапазон может потерять
+    ' граничную строку. Переносим строки в безопасном направлении: вниз — от
+    ' последней к первой, вверх — от первой к последней.
+    If rowDelta > 0 Then
+        For moveRow = lastRow To firstRow Step -1
+            Set sourceRange = ws.Range(ws.Cells(moveRow, firstCol), ws.Cells(moveRow, lastCol))
+            Set destinationCell = ws.Cells(moveRow + rowDelta, firstCol)
+            sourceRange.Cut Destination:=destinationCell
+        Next moveRow
+    Else
+        For moveRow = firstRow To lastRow
+            Set sourceRange = ws.Range(ws.Cells(moveRow, firstCol), ws.Cells(moveRow, lastCol))
+            Set destinationCell = ws.Cells(moveRow + rowDelta, firstCol)
+            sourceRange.Cut Destination:=destinationCell
+        Next moveRow
+    End If
     Application.CutCopyMode = False
 
     ' Cut не должен создавать Shapes. Инвариант защищает runtime от различий
