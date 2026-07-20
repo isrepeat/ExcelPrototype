@@ -109,6 +109,7 @@ Private m_IsLookupEnabled As Boolean
 Private m_IsDailyScopeValidationEnabled As Boolean
 Private m_IsMovementValidationEnabled As Boolean
 Private m_IsWordValidationEnabled As Boolean
+Private m_SuppressLookupSearch As Boolean
 Private m_Data As obj_PrsnlEvntBuilderData
 Private m_IsDisposed As Boolean
 
@@ -636,7 +637,12 @@ EH:
 End Function
 
 Public Function RuntimeClearExportFormAndCandidates() As Boolean
+    Dim previousSuppressLookupSearch As Boolean
+    Dim renderSucceeded As Boolean
+
     If m_Page Is Nothing Then Exit Function
+    previousSuppressLookupSearch = m_SuppressLookupSearch
+    On Error GoTo RestoreSuppression
 
     ' Верхняя draft-форма остаётся заполненной. Команда очищает только staging,
     ' сформированный через Apply, его WORD preview и текущих Lookup-кандидатов.
@@ -648,12 +654,22 @@ Public Function RuntimeClearExportFormAndCandidates() As Boolean
     End If
     If Not private_RegisterExportFormTables(False) Then Exit Function
 
-    RuntimeClearExportFormAndCandidates = rt_PageManager.fn_RenderPage( _
+    ' Полный render восстанавливает draft-значения и может повторно инициировать
+    ' lookup для заполненного ФИО. Команда очистки не является поиском, поэтому
+    ' временно подавляем только SearchCandidates, не меняя режим Lookup.
+    m_SuppressLookupSearch = True
+    renderSucceeded = rt_PageManager.fn_RenderPage( _
         m_Page, "prsnlevntbuilder:clear-export-form-and-candidates")
+    m_SuppressLookupSearch = previousSuppressLookupSearch
+    RuntimeClearExportFormAndCandidates = renderSucceeded
 
     If RuntimeClearExportFormAndCandidates Then
         rt_Messaging.fn_ShowStatusBarSuccess "Export form and candidates cleared.", 3
     End If
+    Exit Function
+
+RestoreSuppression:
+    m_SuppressLookupSearch = previousSuppressLookupSearch
 End Function
 
 Public Function OnExportToWordClick(Optional ByVal ignored As Variant) As Boolean
@@ -873,6 +889,11 @@ Public Function SearchCandidates( _
     Dim absenceSelectorImpl As obj_PEB_AbsenceCnddtSlctr
     Dim absenceSelector As obj_ILookupCandidateSelector
 
+    outCandidateCount = 0
+    If m_SuppressLookupSearch Then
+        SearchCandidates = True
+        Exit Function
+    End If
     If m_LookupFeature Is Nothing Then Exit Function
     If Not private_UpdateLookupActiveFormColumns() Then Exit Function
     ' Расширение из нескольких источников включено только на этой странице.
