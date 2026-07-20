@@ -207,12 +207,12 @@ Private Sub obj_IControl_Render()
         Set targetRange = ws.Range(ws.Cells(rowStart, colStart), ws.Cells(rowEnd, colEnd))
         On Error GoTo 0
         If targetRange Is Nothing Then GoTo ContinueItem
-        If Not private_RegisterItemTags(ws, targetRange, itemTags) Then Exit Sub
-        If Not private_RegisterItemStates(ws, targetRange, itemStates) Then Exit Sub
 
         shapeName = private_BuildShapeName(itemIndex)
         Set shp = private_GetOrCreateShape(ws, shapeName, targetRange)
         If shp Is Nothing Then GoTo ContinueItem
+        If Not private_RegisterItemTags(ws, targetRange, shp, itemTags) Then Exit Sub
+        If Not private_RegisterItemStates(ws, targetRange, shp, itemStates) Then Exit Sub
 
         ' У ButtonGroup один VM управляет десятками Shapes. Сравнение короткой
         ' signature в памяти дешевле повторной записи caption/alignment/meta
@@ -402,7 +402,12 @@ InvalidContract:
     ex_Core.fn_Diagnostic_LogError "ButtonGroup: every item must implement obj_IButtonGroupItem and provide non-empty Id/Caption for control '" & m_ControlName & "'."
 End Function
 
-Private Function private_RegisterItemTags(ByVal ws As Worksheet, ByVal targetRange As Range, ByVal tags As Collection) As Boolean
+Private Function private_RegisterItemTags( _
+    ByVal ws As Worksheet, _
+    ByVal targetRange As Range, _
+    ByVal shp As Shape, _
+    ByVal tags As Collection _
+) As Boolean
     Dim tagItem As Variant
 
     If tags Is Nothing Then
@@ -411,12 +416,17 @@ Private Function private_RegisterItemTags(ByVal ws As Worksheet, ByVal targetRan
     End If
     For Each tagItem In tags
         If Not ex_ControlPartsRuntime.fn_RegisterControlPart( _
-            ws, "buttongroup", m_ControlName, "tag-" & VBA.CStr(tagItem), targetRange) Then Exit Function
+            ws, "buttongroup", m_ControlName, "tag-" & VBA.CStr(tagItem), targetRange, shp) Then Exit Function
     Next tagItem
     private_RegisterItemTags = True
 End Function
 
-Private Function private_RegisterItemStates(ByVal ws As Worksheet, ByVal targetRange As Range, ByVal states As Collection) As Boolean
+Private Function private_RegisterItemStates( _
+    ByVal ws As Worksheet, _
+    ByVal targetRange As Range, _
+    ByVal shp As Shape, _
+    ByVal states As Collection _
+) As Boolean
     Dim stateItem As Variant
 
     If states Is Nothing Then
@@ -425,7 +435,7 @@ Private Function private_RegisterItemStates(ByVal ws As Worksheet, ByVal targetR
     End If
     For Each stateItem In states
         If Not ex_ControlPartsRuntime.fn_RegisterControlPart( _
-            ws, "buttongroup", m_ControlName, "state-" & VBA.CStr(stateItem), targetRange) Then Exit Function
+            ws, "buttongroup", m_ControlName, "state-" & VBA.CStr(stateItem), targetRange, shp) Then Exit Function
     Next stateItem
     private_RegisterItemStates = True
 End Function
@@ -525,6 +535,7 @@ Private Function private_SetShapeMeta( _
     metaMap("pn.control") = m_ControlName
     If VBA.Len(VBA.Trim$(styleName)) > 0 Then metaMap("pn.style") = VBA.Trim$(styleName)
     metaMap("pn.appliedStyleSignature") = VBA.vbNullString
+    metaMap("pn.appliedPartStyleSignature") = VBA.vbNullString
     If VBA.Len(renderSignature) > 0 Then metaMap("pn.renderSignature") = renderSignature
     private_SetShapeMeta = ex_ShapeMetaRuntime.fn_TrySetShapeMetaValues(shp, metaMap)
 End Function
