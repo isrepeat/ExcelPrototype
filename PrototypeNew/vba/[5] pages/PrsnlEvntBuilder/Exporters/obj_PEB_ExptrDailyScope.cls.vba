@@ -35,8 +35,8 @@ Private Const SOURCE_ALIAS_DOC_DATE As String = "DocDate"
 Private Const SOURCE_ALIAS_DURATION_DAYS As String = "DurationDays"
 Private Const SOURCE_ALIAS_DATE_FROM As String = "DateFrom"
 Private Const SOURCE_ALIAS_DATE_TO As String = "DateTo"
-Private Const SOURCE_ALIAS_VH_NO As String = "VhNo"
-Private Const SOURCE_ALIAS_VH_DATE As String = "VhDate"
+Private Const SOURCE_ALIAS_VACATION_TICKET_NO As String = "VacationTicketNo"
+Private Const SOURCE_ALIAS_VACATION_TICKET_DATE As String = "VacationTicketDate"
 Private Const SOURCE_ALIAS_VLK_NO As String = "VlkNo"
 Private Const SOURCE_ALIAS_VLK_DATE As String = "VlkDate"
 Private Const TARGET_COLUMN_HOSPITAL As String = "Лікарня"
@@ -61,8 +61,8 @@ Private Const TARGET_COLUMN_DOC_DATE_ALT As String = "Док. дата"
 Private Const TARGET_COLUMN_DURATION_DAYS As String = "На скільки"
 Private Const TARGET_COLUMN_DATE_FROM As String = "З"
 Private Const TARGET_COLUMN_DATE_TO As String = "По"
-Private Const TARGET_COLUMN_VH_NO As String = "В/к №"
-Private Const TARGET_COLUMN_VH_DATE As String = "В/к дата"
+Private Const TARGET_COLUMN_VACATION_TICKET_NO As String = "Квит. №"
+Private Const TARGET_COLUMN_VACATION_TICKET_DATE As String = "Квит. дата"
 Private Const TARGET_COLUMN_VLK_NO As String = "ВЛК №"
 Private Const TARGET_COLUMN_VLK_DATE As String = "ВЛК дата"
 Private Const REPORT_TVO_TEXT As String = "тимчасово виконуючого обов'язки"
@@ -513,8 +513,8 @@ Private Function private_TryWriteSourceRow( _
     If Not private_TryWriteDirectSourceValue(sourceTable, sourceRow, targetTable, rowRange, SOURCE_ALIAS_DURATION_DAYS, TARGET_COLUMN_DURATION_DAYS) Then Exit Function
     If Not private_TryWriteDirectSourceValue(sourceTable, sourceRow, targetTable, rowRange, SOURCE_ALIAS_DATE_FROM, TARGET_COLUMN_DATE_FROM) Then Exit Function
     If Not private_TryWriteDirectSourceValue(sourceTable, sourceRow, targetTable, rowRange, SOURCE_ALIAS_DATE_TO, TARGET_COLUMN_DATE_TO) Then Exit Function
-    If Not private_TryWriteDirectSourceValue(sourceTable, sourceRow, targetTable, rowRange, SOURCE_ALIAS_VH_NO, TARGET_COLUMN_VH_NO) Then Exit Function
-    If Not private_TryWriteDirectSourceValue(sourceTable, sourceRow, targetTable, rowRange, SOURCE_ALIAS_VH_DATE, TARGET_COLUMN_VH_DATE) Then Exit Function
+    If Not private_TryWriteDirectSourceValue(sourceTable, sourceRow, targetTable, rowRange, SOURCE_ALIAS_VACATION_TICKET_NO, TARGET_COLUMN_VACATION_TICKET_NO) Then Exit Function
+    If Not private_TryWriteDirectSourceValue(sourceTable, sourceRow, targetTable, rowRange, SOURCE_ALIAS_VACATION_TICKET_DATE, TARGET_COLUMN_VACATION_TICKET_DATE) Then Exit Function
     If Not private_TryWriteDirectSourceValue(sourceTable, sourceRow, targetTable, rowRange, SOURCE_ALIAS_VLK_NO, TARGET_COLUMN_VLK_NO) Then Exit Function
     If Not private_TryWriteDirectSourceValue(sourceTable, sourceRow, targetTable, rowRange, SOURCE_ALIAS_VLK_DATE, TARGET_COLUMN_VLK_DATE) Then Exit Function
 

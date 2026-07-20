@@ -76,62 +76,58 @@
             spanRows="1"/>
         </stackPanel>
 
-        <stackPanel spanColls="2" spanRows="1"/>
+        <!-- Lookup остаётся отдельным компактным переключателем рядом с номером приказа. -->
+        <control
+          type="Button"
+          name="LookupMode"
+          caption="{Binding Path=IsLookupEnabled;TrueAs=Lookup [[[color=#FFFF00]]enable[[/color]]];FalseAs=Lookup [[[color=#FFFF00]]disable[[/color]]]}"
+          style="exportApplyButton"
+          dataContext="{PageRuntimeSource='RuntimeObjects.PrsnlEvntBuilder.Controller'}"
+          onClick="{Binding Method=ToggleLookupEnabled}"
+          spanColls="2"
+          spanRows="2"/>
 
-        <!-- Компактная вертикальная панель действий: Apply и Lookup. -->
-        <stackPanel name="EventDraftActions" orientation="vertical" spanColls="3" spanRows="4">
+        <!-- Превью занимает освободившуюся правую часть верхней строки. -->
+        <stackPanel name="WordExportPanel" orientation="horizontal">
+          <control
+            type="Banner"
+            name="WordExportPreview"
+            dataContext="{PageRuntimeSource='RuntimeObjects.PrsnlEvntBuilder.Controller'}"
+            header="WORD export preview"
+            message="{Binding Path=WordExportPreviewText}"
+            visibility="{Binding Path=WordExportPreviewText; Op=ne; Value=; TrueAs=Visible; FalseAs=Collapsed}"
+            spanColls="7"
+            spanRows="15"/>
+
           <control
             type="Button"
-            name="ApplyExportForm"
-            caption="Apply"
+            name="ExportToWord"
+            caption="Export to WORD"
             style="exportApplyButton"
             dataContext="{PageRuntimeSource='RuntimeObjects.PrsnlEvntBuilder.Controller'}"
-            onClick="{Binding Method=RuntimeApplyExportForm}"
-            spanColls="3"
+            onClick="{Binding Method=OnExportToWordClick}"
+            visibility="{Binding Path=WordExportPreviewText; Op=ne; Value=; TrueAs=Visible; FalseAs=Collapsed}"
+            spanColls="2"
             spanRows="2"/>
 
           <control
             type="Button"
-            name="LookupMode"
-            caption="{Binding Path=IsLookupEnabled;TrueAs=Lookup [[[color=#FFFF00]]enable[[/color]]];FalseAs=Lookup [[[color=#FFFF00]]disable[[/color]]]}"
+            name="RegroupWordHospitalPoints"
+            caption="Group WORD hospital points"
             style="exportApplyButton"
             dataContext="{PageRuntimeSource='RuntimeObjects.PrsnlEvntBuilder.Controller'}"
-            onClick="{Binding Method=ToggleLookupEnabled}"
-            spanColls="3"
-            spanRows="2"/>
-
-        </stackPanel>
-
-        <!-- Независимые переключатели проверки последнего Movement-события. -->
-        <stackPanel name="ExporterValidationActions" orientation="vertical" spanColls="3" spanRows="6">
-          <control
-            type="Button"
-            name="ValidateDailyScope"
-            caption="{Binding Path=IsDailyScopeValidationEnabled;TrueAs=Daily validation [[[color=#FFFF00]]enable[[/color]]];FalseAs=Daily validation [[[color=#FFFF00]]disable[[/color]]]}"
-            style="exportApplyButton"
-            dataContext="{PageRuntimeSource='RuntimeObjects.PrsnlEvntBuilder.Controller'}"
-            onClick="{Binding Method=ToggleDailyScopeValidation}"
-            spanColls="3"
+            onClick="{Binding Method=OnRegroupWordHospitalPointsClick}"
+            spanColls="2"
             spanRows="2"/>
 
           <control
             type="Button"
-            name="ValidateMovement"
-            caption="{Binding Path=IsMovementValidationEnabled;TrueAs=Movement validation [[[color=#FFFF00]]enable[[/color]]];FalseAs=Movement validation [[[color=#FFFF00]]disable[[/color]]]}"
-            style="exportApplyButton"
+            name="ClearWordDocument"
+            caption="Remove WORD anchors"
+            style="actionWarning"
             dataContext="{PageRuntimeSource='RuntimeObjects.PrsnlEvntBuilder.Controller'}"
-            onClick="{Binding Method=ToggleMovementValidation}"
-            spanColls="3"
-            spanRows="2"/>
-
-          <control
-            type="Button"
-            name="ValidateWord"
-            caption="{Binding Path=IsWordValidationEnabled;TrueAs=WORD validation [[[color=#FFFF00]]enable[[/color]]];FalseAs=WORD validation [[[color=#FFFF00]]disable[[/color]]]}"
-            style="exportApplyButton"
-            dataContext="{PageRuntimeSource='RuntimeObjects.PrsnlEvntBuilder.Controller'}"
-            onClick="{Binding Method=ToggleWordValidation}"
-            spanColls="3"
+            onClick="{Binding Method=OnClearWordDocumentClick}"
+            spanColls="2"
             spanRows="2"/>
         </stackPanel>
       </stackPanel>
@@ -143,7 +139,9 @@
         orientation="vertical"
         spanColls="22"
         spanRows="2">
-        <stackPanel name="EventDraftHeaders" orientation="horizontal" spanColls="22" spanRows="1">
+        <!-- Ширина вычисляется по видимым полям: фиксированный spanColls оставлял
+             закрашенный хвост после Collapsed-колонок. -->
+        <stackPanel name="EventDraftHeaders" orientation="horizontal" spanRows="1">
           <control
             type="Label"
             name="HospitalHeader"
@@ -443,7 +441,7 @@
             />
           <control
             type="Label"
-            name="VhNoHeader"
+            name="VacationTicketNoHeader"
             tags="profile.allFields;
                   profile.toBusinessTrip;
                   profile.toBusinessTripSzch;
@@ -456,12 +454,12 @@
                   profile.transferTreatmentToTreatmentVacation;
                   profile.transferTreatmentVacationToTreatmentVacation;
                   profile.transferVlkToTreatmentVacation"
-            text="В/к №"
+            text="Квит. №"
             style="tableHeaderCell"
             />
           <control
             type="Label"
-            name="VhDateHeader"
+            name="VacationTicketDateHeader"
             tags="profile.allFields;
                   profile.toBusinessTrip;
                   profile.toBusinessTripSzch;
@@ -474,7 +472,7 @@
                   profile.transferTreatmentToTreatmentVacation;
                   profile.transferTreatmentVacationToTreatmentVacation;
                   profile.transferVlkToTreatmentVacation"
-            text="В/к дата"
+            text="Квит. дата"
             style="tableHeaderCell"
             />
           <control
@@ -505,7 +503,9 @@
             />
         </stackPanel>
 
-        <stackPanel name="EventDraftValues" orientation="horizontal" spanColls="22" spanRows="1">
+        <!-- Значения измеряются тем же способом, что и заголовки, поэтому фон
+             формы заканчивается на последней видимой колонке. -->
+        <stackPanel name="EventDraftValues" orientation="horizontal" spanRows="1">
           <control
             type="Input"
             name="HospitalLookupInput"
@@ -856,8 +856,8 @@
 
           <control
             type="Label"
-            name="VhNoDraftCell"
-            tags="_VhNo;
+            name="VacationTicketNoDraftCell"
+            tags="_VacationTicketNo;
                   profile.allFields;
                   profile.toBusinessTrip;
                   profile.toBusinessTripSzch;
@@ -876,8 +876,8 @@
 
           <control
             type="Label"
-            name="VhDateDraftCell"
-            tags="_VhDate;
+            name="VacationTicketDateDraftCell"
+            tags="_VacationTicketDate;
                   profile.allFields;
                   profile.toBusinessTrip;
                   profile.toBusinessTripSzch;
@@ -966,55 +966,6 @@
           spanColls="50"/>
       </stackPanel>
 
-      <!-- CTRL+3 builds the preview; the button and CTRL+4 write it to WORD.
-           Именованный panel является partial-reflow boundary: Banner и Button
-           одновременно переходят из Collapsed в Visible, поэтому обновлять
-           только один из этих контролов нельзя. -->
-      <stackPanel name="WordExportPanel" orientation="horizontal">
-        <control
-          type="Banner"
-          name="WordExportPreview"
-          dataContext="{PageRuntimeSource='RuntimeObjects.PrsnlEvntBuilder.Controller'}"
-          header="WORD export preview"
-          message="{Binding Path=WordExportPreviewText}"
-          visibility="{Binding Path=WordExportPreviewText; Op=ne; Value=; TrueAs=Visible; FalseAs=Collapsed}"
-          spanColls="7"
-          spanRows="15"/>
-
-        <control
-          type="Button"
-          name="ExportToWord"
-          caption="Export to WORD"
-          style="exportApplyButton"
-          dataContext="{PageRuntimeSource='RuntimeObjects.PrsnlEvntBuilder.Controller'}"
-          onClick="{Binding Method=OnExportToWordClick}"
-          visibility="{Binding Path=WordExportPreviewText; Op=ne; Value=; TrueAs=Visible; FalseAs=Collapsed}"
-          spanColls="2"
-          spanRows="2"/>
-
-        <!-- Выполняется до Remove WORD anchors, пока доступны секционные
-             якоря и скрытые metadata-bookmarks экспортированных пунктов. -->
-        <control
-          type="Button"
-          name="RegroupWordHospitalPoints"
-          caption="Group WORD hospital points"
-          style="exportApplyButton"
-          dataContext="{PageRuntimeSource='RuntimeObjects.PrsnlEvntBuilder.Controller'}"
-          onClick="{Binding Method=OnRegroupWordHospitalPointsClick}"
-          spanColls="2"
-          spanRows="2"/>
-
-        <control
-          type="Button"
-          name="ClearWordDocument"
-          caption="Remove WORD anchors"
-          style="actionWarning"
-          dataContext="{PageRuntimeSource='RuntimeObjects.PrsnlEvntBuilder.Controller'}"
-          onClick="{Binding Method=OnClearWordDocumentClick}"
-          spanColls="2"
-          spanRows="2"/>
-      </stackPanel>
-
     </stackPanel>
   </grid>
 
@@ -1022,9 +973,9 @@
     <!-- Стили shape-кнопок для команд и переключателей профилей. -->
     <controlStyle
       name="actionWarning"
-      backColor="#ED7D31"
-      textColor="#0A0A0A"
-      borderColor="#A84912"
+      backColor="#382B23"
+      textColor="#FDBA74"
+      borderColor="#B56B32"
       borderWeight="1.25"
       fontName="Calibri"
       fontSize="11"
@@ -1032,9 +983,9 @@
 
     <controlStyle
       name="exportApplyButton"
-      backColor="#0E5A1E"
-      textColor="#FFFFFF"
-      borderColor="#A7F3D0"
+      backColor="#24362B"
+      textColor="#86EFAC"
+      borderColor="#4E8A62"
       borderWeight="1.25"
       fontName="Calibri"
       fontSize="11"
@@ -1042,9 +993,9 @@
 
     <controlStyle
       name="configSelectHeader"
-      backColor="#438E20"
-      textColor="#0A0A0A"
-      borderColor="#285D14"
+      backColor="#202A24"
+      textColor="#86EFAC"
+      borderColor="#3F6B4C"
       borderWeight="1"
       fontName="Calibri"
       fontSize="14"
@@ -1052,7 +1003,7 @@
 
     <controlStyle
       name="configSelectPanel"
-      backColor="#2B3138"
+      backColor="#20252B"
       textColor="#F1F5F9"
       borderColor="#1C2024"
       borderWeight="0.75"
@@ -1062,7 +1013,7 @@
 
     <controlStyle
       name="configSelectItem"
-      backColor="#3B424A"
+      backColor="#272D34"
       textColor="#F8FAFC"
       borderColor="#282D32"
       borderWeight="0.75"
@@ -1072,9 +1023,9 @@
 
     <controlStyle
       name="profileButton"
-      backColor="#0E5A1E"
-      textColor="#FFFFFF"
-      borderColor="#063F12"
+      backColor="#252A31"
+      textColor="#86EFAC"
+      borderColor="#46515E"
       borderWeight="1"
       fontName="Calibri"
       fontSize="11"
@@ -1082,9 +1033,9 @@
 
     <controlStyle
       name="metaProfileButton"
-      backColor="#C75512"
-      textColor="#FFFFFF"
-      borderColor="#8F3A0B"
+      backColor="#252A31"
+      textColor="#FDBA74"
+      borderColor="#46515E"
       borderWeight="1"
       fontName="Calibri"
       fontSize="11"
@@ -1097,7 +1048,7 @@
               styles="{
                 backColor:#1F2329;
                 fontColor:#E5E7EB;
-                borderColor:#111318;
+                borderColor:#000000;
                 borderWeight:thin;
                 width:15;
                 rowHeight:21;
@@ -1117,7 +1068,7 @@
               styles="{
                 backColor:#2B3036;
                 fontColor:#F8FAFC;
-                borderColor:#6B7280;
+                borderColor:#000000;
                 borderWeight:thin;
                 horizontal:left;
                 vertical:center;
@@ -1130,9 +1081,9 @@
         <rule target="controlPart"
               selector="type=banner;name=WordExportPreview;part=header"
               styles="{
-                backColor:#1F4E79;
-                fontColor:#F2F8FF;
-                borderColor:#102A43;
+                backColor:#202936;
+                fontColor:#BFDBFE;
+                borderColor:#000000;
                 borderWeight:thin;
                 fontSize:16;
                 fontBold:true;
@@ -1144,7 +1095,7 @@
               styles="{
                 backColor:#252A31;
                 fontColor:#F8FAFC;
-                borderColor:#111827;
+                borderColor:#000000;
                 borderWeight:thin;
                 fontSize:16;
                 overflow:wrap;
@@ -1157,21 +1108,15 @@
         <rule target="controlPart"
               selector="type=buttongroup;name=EventDraftProfileButtonGroup;part=tag-departure"
               styles="{
-                backColor:#1F4E79;
-                fontColor:#FFFFFF;
-                borderColor:#102A43;
-                borderWeight:1;
-                fontName:Calibri;
-                fontSize:11;
-                fontBold:true;
+                fontColor:#7DD3FC;
               }"/>
         <rule target="controlPart"
               selector="type=buttongroup;name=EventDraftProfileButtonGroup;part=state-selected"
               styles="{
-                backColor:#FFC000;
-                fontColor:#0A0A0A;
-                borderColor:#B38300;
-                borderWeight:1.25;
+                backColor:#FACC15;
+                fontColor:#111318;
+                borderColor:#000000;
+                borderWeight:1.5;
                 fontName:Calibri;
                 fontSize:11;
                 fontBold:true;
@@ -1179,10 +1124,10 @@
         <rule target="controlPart"
               selector="type=buttongroup;name=EventDraftMetaProfileButtonGroup;part=state-selected"
               styles="{
-                backColor:#F4B183;
-                fontColor:#0A0A0A;
-                borderColor:#C75512;
-                borderWeight:1.25;
+                backColor:#FACC15;
+                fontColor:#111318;
+                borderColor:#000000;
+                borderWeight:1.5;
                 fontName:Calibri;
                 fontSize:11;
                 fontBold:true;
@@ -1194,6 +1139,10 @@
         <rule target="layoutContainer"
               selector="name=EventDraftHeaders"
               styles="{
+                backColor:#111318;
+                fontColor:#F8FAFC;
+                borderColor:#000000;
+                borderWeight:thin;
                 horizontal:center;
                 vertical:center;
                 overflow:wrap;
@@ -1203,19 +1152,31 @@
         <rule target="layoutContainer"
               selector="name=EventDraftValues"
               styles="{
+                backColor:#262B31;
+                fontColor:#E5E7EB;
+                borderColor:#000000;
+                borderWeight:thin;
                 horizontal:center;
                 vertical:center;
                 overflow:wrap;
                 rowHeight:64;
               }"/>
 
-        <!-- <rule target="controlPart"
+        <!-- Editable cells идут после общего EventDraftValues, чтобы каскад
+             сохранял различие между input и вычисляемыми label-ячейками. -->
+        <rule target="controlPart"
               selector="type=input;part=cell"
               styles="{
+                backColor:#36424E;
+                fontColor:#FFFFFF;
+                borderColor:#000000;
+                borderWeight:thin;
+                horizontal:center;
                 overflow:wrap;
                 rowHeight:64;
                 vertical:center;
-              }"/> -->
+                cellType:text;
+              }"/>
 
         <rule target="controlPart" selector="type=label;name=HospitalHeader;part=cell" styles="{ width:24; }"/>
         <rule target="controlPart" selector="type=label;name=HospitalShortHeader;part=cell" styles="{ width:12; }"/>
@@ -1236,8 +1197,8 @@
         <rule target="controlPart" selector="type=label;name=DurationDaysHeader;part=cell" styles="{ width:9; }"/>
         <rule target="controlPart" selector="type=label;name=DateFromHeader;part=cell" styles="{ width:7.5; }"/>
         <rule target="controlPart" selector="type=label;name=DateToHeader;part=cell" styles="{ width:7.5; }"/>
-        <rule target="controlPart" selector="type=label;name=VhNoHeader;part=cell" styles="{ width:9; }"/>
-        <rule target="controlPart" selector="type=label;name=VhDateHeader;part=cell" styles="{ width:9; }"/>
+        <rule target="controlPart" selector="type=label;name=VacationTicketNoHeader;part=cell" styles="{ width:9; }"/>
+        <rule target="controlPart" selector="type=label;name=VacationTicketDateHeader;part=cell" styles="{ width:9; }"/>
         <rule target="controlPart" selector="type=label;name=VlkNoHeader;part=cell" styles="{ width:12; }"/>
         <rule target="controlPart" selector="type=label;name=VlkDateHeader;part=cell" styles="{ width:9; }"/>
         <rule target="controlPart" selector="type=label;name=EventDraftOrderNoLabel;part=cell" styles="{ width:16; }"/>
@@ -1254,20 +1215,21 @@
         <rule target="controlPart"
               selector="type=tablelist;name=EventExportMainTable;part=section"
               styles="{
-                backColor:#84227E;
-                fontColor:#FFFFFF;
-                borderColor:#51164D;
+                backColor:#29232E;
+                fontColor:#E9B8F4;
+                borderColor:#000000;
                 borderWeight:thin;
                 fontBold:true;
                 horizontal:center;
+                vertical:center;
               }"/>
 
         <rule target="controlPart"
               selector="type=tablelist;name=EventExportMainTable;part=header"
               styles="{
-                backColor:#050505;
-                fontColor:#FFFFFF;
-                borderColor:#FF0000;
+                backColor:#1D232B;
+                fontColor:#E5E7EB;
+                borderColor:#000000;
                 borderWeight:thin;
                 fontBold:true;
                 horizontal:center;
@@ -1279,9 +1241,9 @@
         <rule target="controlPart"
               selector="type=tablelist;name=EventExportMainTable;part=rows"
               styles="{
-                backColor:#3B3B3B;
-                fontColor:#FFFFFF;
-                borderColor:#111318;
+                backColor:#252B33;
+                fontColor:#E5E7EB;
+                borderColor:#000000;
                 borderWeight:thin;
                 horizontal:center;
                 vertical:center;
@@ -1292,20 +1254,21 @@
         <rule target="controlPart"
               selector="type=tablelist;name=EventExportMetaTables;part=section"
               styles="{
-                backColor:#0070C0;
-                fontColor:#FFFFFF;
-                borderColor:#004C82;
+                backColor:#202936;
+                fontColor:#93C5FD;
+                borderColor:#000000;
                 borderWeight:thin;
                 fontBold:true;
                 horizontal:center;
+                vertical:center;
               }"/>
 
         <rule target="controlPart"
               selector="type=tablelist;name=EventExportMetaTables;part=header"
               styles="{
-                backColor:#050505;
-                fontColor:#FFFFFF;
-                borderColor:#FF0000;
+                backColor:#1D232B;
+                fontColor:#E5E7EB;
+                borderColor:#000000;
                 borderWeight:thin;
                 fontBold:true;
                 horizontal:center;
@@ -1317,9 +1280,9 @@
         <rule target="controlPart"
               selector="type=tablelist;name=EventExportMetaTables;part=rows"
               styles="{
-                backColor:#3B3B3B;
-                fontColor:#FFFFFF;
-                borderColor:#111318;
+                backColor:#252B33;
+                fontColor:#E5E7EB;
+                borderColor:#000000;
                 borderWeight:thin;
                 horizontal:center;
                 vertical:center;
@@ -1331,35 +1294,38 @@
       <!-- Кандидаты поиска и общие стили секций/заголовков/строк TableList. -->
       <layer name="entitylookup-labels">
         <rule target="controlPart"
-              selector="type=tablelist;part=section"
+              selector="type=tablelist;name=LookupCandidatesTable;part=section"
               styles="{
-                backColor:#242424;
-                fontColor:#00B0F0;
-                borderColor:#111318;
+                backColor:#151918;
+                fontColor:#F8FAFC;
+                borderColor:#000000;
                 borderWeight:thin;
                 fontBold:true;
                 horizontal:center;
+                vertical:center;
               }"/>
 
         <rule target="controlPart"
-              selector="type=tablelist;part=header"
+              selector="type=tablelist;name=LookupCandidatesTable;part=header"
               styles="{
-                backColor:#00370F;
-                fontColor:#92D050;
+                backColor:#073B17;
+                fontColor:#F8FAFC;
                 borderColor:#000000;
                 borderWeight:thin;
-                fontBold:false;
+                fontBold:true;
                 horizontal:center;
+                vertical:center;
                 overflow:wrap;
               }"/>
 
         <rule target="controlPart"
-              selector="type=tablelist;part=rows"
+              selector="type=tablelist;name=LookupCandidatesTable;part=rows"
               styles="{
-                backColor:#00370F;
-                fontColor:#F8FAFC;
+                backColor:#0D5A22;
+                fontColor:#FFFFFF;
                 borderColor:#000000;
                 borderWeight:thin;
+                horizontal:center;
                 vertical:center;
                 overflow:wrap;
                 rowHeight:40;
@@ -1368,18 +1334,18 @@
         <rule target="controlPart"
               selector="type=tablelist;name=LookupCandidatesTable;part=header;columnAlias=__lookup_auxiliary__"
               styles="{
-                backColor:#C65911;
+                backColor:#5A3512;
                 fontColor:#FFF2CC;
-                borderColor:#7F6000;
+                borderColor:#000000;
                 borderWeight:thin;
               }"/>
 
         <rule target="controlPart"
               selector="type=tablelist;name=LookupCandidatesTable;part=rows;columnAlias=__lookup_auxiliary__"
               styles="{
-                backColor:#C65911;
+                backColor:#704214;
                 fontColor:#FFF2CC;
-                borderColor:#7F6000;
+                borderColor:#000000;
                 borderWeight:thin;
               }"/>
       </layer>
@@ -1389,9 +1355,9 @@
         <rule target="controlPart"
               selector="type=hotkeys;part=action"
               styles="{
-                backColor:#7E2479;
-                fontColor:#FFFFFF;
-                borderColor:#31112F;
+                backColor:#29232E;
+                fontColor:#E9D5FF;
+                borderColor:#000000;
                 borderWeight:thin;
                 horizontal:center;
                 vertical:center;
@@ -1401,9 +1367,9 @@
         <rule target="controlPart"
               selector="type=hotkeys;part=hotkey"
               styles="{
-                backColor:#7E2479;
-                fontColor:#C58AC9;
-                borderColor:#31112F;
+                backColor:#29232E;
+                fontColor:#C4B5FD;
+                borderColor:#000000;
                 borderWeight:thin;
                 horizontal:center;
                 vertical:center;
@@ -1411,7 +1377,7 @@
               }"/>
       </layer>
 
-      <!-- Debug-рамки layout-а для настройки границ страницы. -->
+      <!-- Debug-рамки layout-а отключены для обычного отображения страницы.
       <layer name="layout-debug-bounds">
         <rule target="layoutBound"
               selector="tag=grid"
@@ -1461,6 +1427,7 @@
                 borderLineStyle:dash;
               }"/>
       </layer>
+      -->
     </stylePipelineStage>
   </styles>
 </page>
