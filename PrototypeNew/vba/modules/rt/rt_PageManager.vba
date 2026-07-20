@@ -153,6 +153,8 @@ Public Function fn_TryDeserializeModuleSnapshot(ByVal snapshotXml As String) As 
     Dim worksheetName As String
     Dim isRestorePrepared As Boolean
     Dim finalizeOk As Boolean
+    Dim restoreContextProvider As obj_IPageRestoreContextProvider
+    Dim restoreContext As Object
 
     snapshotXml = VBA.Trim$(snapshotXml)
     If VBA.Len(snapshotXml) = 0 Then
@@ -209,7 +211,15 @@ Public Function fn_TryDeserializeModuleSnapshot(ByVal snapshotXml As String) As 
             If Not ex_SerializableFactory.fn_TryCreatePageByTypeRoot(typeRoot, page) Then GoTo ContinuePage
             If page Is Nothing Then GoTo ContinuePage
 
-            If Not fn_RestorePage(page, uiPath, sheetName, pageId) Then GoTo ContinuePage
+            Set restoreContext = Nothing
+            Set restoreContextProvider = Nothing
+            If TypeOf page Is obj_IPageRestoreContextProvider Then
+                Set restoreContextProvider = page
+                If Not restoreContextProvider.TryBuildRestoreContext(payloadXml, restoreContext) Then GoTo ContinuePage
+                If restoreContext Is Nothing Then GoTo ContinuePage
+            End If
+
+            If Not fn_RestorePage(page, uiPath, sheetName, pageId, restoreContext) Then GoTo ContinuePage
             isPageCreated = True
 
             If VBA.Len(payloadXml) > 0 Then
