@@ -11,6 +11,7 @@ Option Explicit
 ' Это не только оптимизация. Если metadata отстанет от листа, последующий
 ' локальный style pass применит rule к старым координатам другого контрола.
 Private g_ControlParts As Collection
+Private g_ControlPartShapes As Object
 Private g_ControlColumnAliases As Collection
 Private g_ControlSourceAliases As Collection
 
@@ -20,6 +21,7 @@ Public Sub fn_Module_Dispose()
 #End If
     On Error Resume Next
     Set g_ControlParts = Nothing
+    Set g_ControlPartShapes = Nothing
     Set g_ControlColumnAliases = Nothing
     Set g_ControlSourceAliases = Nothing
     On Error GoTo 0
@@ -30,6 +32,7 @@ End Sub
 ' //
 Public Sub fn_ResetControlParts()
     Set g_ControlParts = Nothing
+    Set g_ControlPartShapes = Nothing
     Set g_ControlColumnAliases = Nothing
     Set g_ControlSourceAliases = Nothing
 End Sub
@@ -44,6 +47,7 @@ Public Function fn_RemoveControlPartsByWorksheetName(ByVal worksheetName As Stri
     End If
 
     Call private_RemoveEntriesByWorksheetKey(g_ControlParts, worksheetKey)
+    private_RemoveControlPartShapeBuckets worksheetKey
     Call private_RemoveEntriesByWorksheetKey(g_ControlColumnAliases, worksheetKey)
     Call private_RemoveEntriesByWorksheetKey(g_ControlSourceAliases, worksheetKey)
 
@@ -65,6 +69,7 @@ Public Function fn_RemoveControlPartsByControl( _
     ' Локальный render заменяет только parts изменившегося контрола.
     ' Parts остальных контролов нужны retained style pipeline и не сбрасываются.
     Call private_RemoveEntriesByControlKey(g_ControlParts, worksheetKey, controlKey)
+    private_RemoveControlPartShapeBuckets worksheetKey, controlKey
     Call private_RemoveEntriesByControlKey(g_ControlColumnAliases, worksheetKey, controlKey)
     Call private_RemoveEntriesByControlKey(g_ControlSourceAliases, worksheetKey, controlKey)
 
@@ -136,9 +141,9 @@ Public Function fn_TranslateControlPartsInRegion( _
     ByVal rowDelta As Long _
 ) As Boolean
     If ws Is Nothing Then Exit Function
-    If Not private_TranslateEntryRangesInRegion(g_ControlParts, ws, rowStart, colStart, rowEnd, colEnd, rowDelta) Then Exit Function
-    If Not private_TranslateEntryRangesInRegion(g_ControlColumnAliases, ws, rowStart, colStart, rowEnd, colEnd, rowDelta) Then Exit Function
-    If Not private_TranslateEntryRangesInRegion(g_ControlSourceAliases, ws, rowStart, colStart, rowEnd, colEnd, rowDelta) Then Exit Function
+    ' Реестр хранит живые Excel Range. При Cut Excel сам переносит эти ссылки
+    ' вместе с ячейками; дополнительный Offset давал двойной сдвиг metadata и
+    ' рассинхронизировал, например, первую строку таблицы кандидатов.
     fn_TranslateControlPartsInRegion = True
 End Function
 
@@ -233,9 +238,13 @@ Public Function fn_RegisterControlPart( _
     ByVal controlType As String, _
     ByVal controlName As String, _
     ByVal partName As String, _
-    ByVal partRange As Range _
+    ByVal partRange As Range, _
+    Optional ByVal partShape As Variant _
 ) As Boolean
     Dim entry As Object
+    Dim registeredShape As Shape
+    Dim shapeBucket As Collection
+    Dim shapeBucketKey As String
 
     If ws Is Nothing Then
 #If LOGGING_DEBUG_ENABLED Then
@@ -278,7 +287,75 @@ Public Function fn_RegisterControlPart( _
     Set entry("Range") = partRange
 
     g_ControlParts.Add entry
+
+    ' Shape индексируется тем же semantic part, что и Range. Style pipeline
+    ' получает точные targets без повторного перебора всей ws.Shapes.
+    If VBA.IsObject(partShape) Then Set registeredShape = partShape
+    If Not registeredShape Is Nothing Then
+        private_EnsureControlPartShapesStorage
+        shapeBucketKey = private_ControlPartShapeBucketKey( _
+            ws.Name, controlType, controlName, partName)
+        If g_ControlPartShapes.Exists(shapeBucketKey) Then
+            Set shapeBucket = g_ControlPartShapes(shapeBucketKey)
+        Else
+            Set shapeBucket = New Collection
+            Set g_ControlPartShapes(shapeBucketKey) = shapeBucket
+        End If
+        shapeBucket.Add registeredShape
+    End If
     fn_RegisterControlPart = True
+End Function
+
+Public Function fn_TryResolveControlPartShapes( _
+    ByVal ws As Worksheet, _
+    ByVal controlType As String, _
+    ByVal controlName As String, _
+    ByVal partName As String, _
+    ByRef outShapes As Collection _
+) As Boolean
+    Dim bucketKey As Variant
+    Dim bucket As Collection
+    Dim shapeItem As Variant
+    Dim exactKey As String
+    Dim keyPrefix As String
+    Dim keySuffix As String
+
+    Set outShapes = New Collection
+    If ws Is Nothing Then Exit Function
+    controlType = VBA.LCase$(VBA.Trim$(controlType))
+    controlName = VBA.LCase$(VBA.Trim$(controlName))
+    partName = VBA.LCase$(VBA.Trim$(partName))
+    If VBA.Len(controlType) = 0 Or VBA.Len(partName) = 0 Then Exit Function
+    If g_ControlPartShapes Is Nothing Then
+        fn_TryResolveControlPartShapes = True
+        Exit Function
+    End If
+
+    If VBA.Len(controlName) > 0 Then
+        exactKey = private_ControlPartShapeBucketKey(ws.Name, controlType, controlName, partName)
+        If g_ControlPartShapes.Exists(exactKey) Then
+            Set bucket = g_ControlPartShapes(exactKey)
+            For Each shapeItem In bucket
+                outShapes.Add shapeItem
+            Next shapeItem
+        End If
+        fn_TryResolveControlPartShapes = True
+        Exit Function
+    End If
+
+    keyPrefix = VBA.LCase$(ws.Name) & "|" & controlType & "|"
+    keySuffix = "|" & partName
+    For Each bucketKey In g_ControlPartShapes.Keys
+        If VBA.Left$(VBA.CStr(bucketKey), VBA.Len(keyPrefix)) <> keyPrefix Then GoTo ContinueBucket
+        If VBA.Right$(VBA.CStr(bucketKey), VBA.Len(keySuffix)) <> keySuffix Then GoTo ContinueBucket
+        Set bucket = g_ControlPartShapes(bucketKey)
+        For Each shapeItem In bucket
+            outShapes.Add shapeItem
+        Next shapeItem
+ContinueBucket:
+    Next bucketKey
+
+    fn_TryResolveControlPartShapes = True
 End Function
 
 Public Function fn_RegisterControlColumnAlias( _
@@ -549,43 +626,57 @@ ContinueEntry:
     private_TranslateEntryRangesBelow = True
 End Function
 
-Private Function private_TranslateEntryRangesInRegion( _
-    ByRef entries As Collection, _
-    ByVal ws As Worksheet, _
-    ByVal rowStart As Long, _
-    ByVal colStart As Long, _
-    ByVal rowEnd As Long, _
-    ByVal colEnd As Long, _
-    ByVal rowDelta As Long _
-) As Boolean
-    Dim entry As Variant
-    Dim entryRange As Range
-    Dim translatedRange As Range
-
-    If entries Is Nothing Then
-        private_TranslateEntryRangesInRegion = True
-        Exit Function
-    End If
-    For Each entry In entries
-        If VBA.LCase$(VBA.CStr(entry("SheetName"))) <> VBA.LCase$(ws.Name) Then GoTo ContinueEntry
-        Set entryRange = Nothing
-        On Error Resume Next
-        Set entryRange = entry("Range")
-        On Error GoTo 0
-        If entryRange Is Nothing Then GoTo ContinueEntry
-        If entryRange.Row < rowStart Or entryRange.Column < colStart Then GoTo ContinueEntry
-        If entryRange.Row + entryRange.Rows.Count - 1 > rowEnd Then GoTo ContinueEntry
-        If entryRange.Column + entryRange.Columns.Count - 1 > colEnd Then GoTo ContinueEntry
-        Set translatedRange = entryRange.Offset(rowDelta, 0)
-        Set entry("Range") = translatedRange
-ContinueEntry:
-    Next entry
-    private_TranslateEntryRangesInRegion = True
-End Function
-
 Private Sub private_EnsureControlPartsStorage()
     If Not g_ControlParts Is Nothing Then Exit Sub
     Set g_ControlParts = New Collection
+End Sub
+
+Private Sub private_EnsureControlPartShapesStorage()
+    If Not g_ControlPartShapes Is Nothing Then Exit Sub
+    Set g_ControlPartShapes = VBA.CreateObject("Scripting.Dictionary")
+    g_ControlPartShapes.CompareMode = 1
+End Sub
+
+Private Function private_ControlPartShapeBucketKey( _
+    ByVal sheetName As String, _
+    ByVal controlType As String, _
+    ByVal controlName As String, _
+    ByVal partName As String _
+) As String
+    private_ControlPartShapeBucketKey = VBA.LCase$(VBA.Trim$(sheetName)) & "|" & _
+        VBA.LCase$(VBA.Trim$(controlType)) & "|" & _
+        VBA.LCase$(VBA.Trim$(controlName)) & "|" & _
+        VBA.LCase$(VBA.Trim$(partName))
+End Function
+
+Private Sub private_RemoveControlPartShapeBuckets( _
+    ByVal worksheetKey As String, _
+    Optional ByVal controlKey As String = VBA.vbNullString _
+)
+    Dim bucketKey As Variant
+    Dim keysToRemove As Collection
+    Dim removeKey As Variant
+    Dim keyPrefix As String
+    Dim controlMarker As String
+
+    If g_ControlPartShapes Is Nothing Then Exit Sub
+    worksheetKey = VBA.LCase$(VBA.Trim$(worksheetKey))
+    controlKey = VBA.LCase$(VBA.Trim$(controlKey))
+    keyPrefix = worksheetKey & "|"
+    controlMarker = "|" & controlKey & "|"
+    Set keysToRemove = New Collection
+
+    For Each bucketKey In g_ControlPartShapes.Keys
+        If VBA.Left$(VBA.CStr(bucketKey), VBA.Len(keyPrefix)) <> keyPrefix Then GoTo ContinueKey
+        If VBA.Len(controlKey) > 0 Then
+            If VBA.InStr(1, VBA.CStr(bucketKey), controlMarker, VBA.vbBinaryCompare) = 0 Then GoTo ContinueKey
+        End If
+        keysToRemove.Add VBA.CStr(bucketKey)
+ContinueKey:
+    Next bucketKey
+    For Each removeKey In keysToRemove
+        g_ControlPartShapes.Remove VBA.CStr(removeKey)
+    Next removeKey
 End Sub
 
 Private Sub private_EnsureControlColumnAliasesStorage()

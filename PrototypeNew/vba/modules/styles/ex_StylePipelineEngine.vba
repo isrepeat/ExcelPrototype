@@ -62,10 +62,13 @@ Public Function fn_ApplyPageStyles(ByVal ws As Worksheet, ByVal wsUiDoc As Objec
     Set stylesByName = private_GetCompiledControlStyles(wsUiDoc)
     If stylesByName Is Nothing Then Exit Function
 
-    If Not private_ApplyControlStyles(ws, stylesByName) Then Exit Function
-    If Not private_ApplyPipelineStageByName(ws, wsUiDoc, "default", True) Then Exit Function
+    ex_ShapeMetaRuntime.fn_BeginReadCache
+    If Not private_ApplyControlStyles(ws, stylesByName) Then GoTo CleanApplyPageStyles
+    If Not private_ApplyPipelineStageByName(ws, wsUiDoc, "default", True) Then GoTo CleanApplyPageStyles
 
     fn_ApplyPageStyles = True
+CleanApplyPageStyles:
+    ex_ShapeMetaRuntime.fn_EndReadCache
 End Function
 
 
@@ -96,8 +99,11 @@ Public Function fn_ApplyPageStyleStage( _
         Exit Function
     End If
 
-    If Not private_ApplyPipelineStageByName(ws, wsUiDoc, stageName, True) Then Exit Function
+    ex_ShapeMetaRuntime.fn_BeginReadCache
+    If Not private_ApplyPipelineStageByName(ws, wsUiDoc, stageName, True) Then GoTo CleanApplyPageStyleStage
     fn_ApplyPageStyleStage = True
+CleanApplyPageStyleStage:
+    ex_ShapeMetaRuntime.fn_EndReadCache
 End Function
 
 
@@ -114,7 +120,9 @@ Public Function fn_ApplyRetainedControlStyles( _
     ' Partial container render может создать новый Shape (например скрытая до
     ' этого кнопка ExportToWord). Общий retained-pass дешёвый: неизменившиеся
     ' Shapes отсекаются по pn.appliedStyleSignature.
+    ex_ShapeMetaRuntime.fn_BeginReadCache
     fn_ApplyRetainedControlStyles = private_ApplyControlStyles(ws, stylesByName)
+    ex_ShapeMetaRuntime.fn_EndReadCache
 End Function
 
 
@@ -152,6 +160,7 @@ Public Function fn_ApplyControlPartStylesForControl( _
     Set stageNodes = wsUiDoc.selectNodes("/p:page/p:styles/p:stylePipelineStage | /p:uiDefinition/p:styles/p:stylePipelineStage")
     If stageNodes Is Nothing Then Exit Function
 
+    ex_ShapeMetaRuntime.fn_BeginReadCache
     private_BeginDeferredRowAutoFit
     For Each stageNode In stageNodes
         stageKey = VBA.LCase$(VBA.Trim$(ex_XmlCore.fn_NodeAttrText(stageNode, "name")))
@@ -185,11 +194,13 @@ ContinueStage:
 
     If Not private_ApplyDeferredRowAutoFit(ws) Then GoTo CleanFail
     private_EndDeferredRowAutoFit
+    ex_ShapeMetaRuntime.fn_EndReadCache
     fn_ApplyControlPartStylesForControl = True
     Exit Function
 
 CleanFail:
     private_EndDeferredRowAutoFit
+    ex_ShapeMetaRuntime.fn_EndReadCache
 End Function
 
 
@@ -828,8 +839,7 @@ Private Function private_ApplyControlPartRuleForControl( _
 End Function
 
 ' Shape-контролы используют тот же controlPart selector, что и диапазоны.
-' Renderer публикует tagged item как Range, а pipeline применяет declarations
-' ко всем Shape этого control, расположенным внутри зарегистрированного part.
+' Renderer публикует tagged item одновременно как Range и как точный Shape target.
 Private Function private_ApplyControlPartShapeDeclarations( _
     ByVal ws As Worksheet, _
     ByVal selector As Object, _
@@ -837,11 +847,15 @@ Private Function private_ApplyControlPartShapeDeclarations( _
     ByVal declarations As Object _
 ) As Boolean
     Dim shp As Shape
+    Dim partShapes As Collection
+    Dim shapeItem As Variant
     Dim controlName As String
-    Dim shapeControlName As String
     Dim controlType As String
-    Dim anchorCell As Range
-    Dim matchedCell As Range
+    Dim partName As String
+    Dim baseStyleSignature As String
+    Dim partStyleSignature As String
+    Dim previousPartStyleSignature As String
+    Dim ruleSignatureName As String
 
     If ws Is Nothing Or selector Is Nothing Or partScope Is Nothing Then Exit Function
     If declarations Is Nothing Then Exit Function
@@ -851,23 +865,34 @@ Private Function private_ApplyControlPartShapeDeclarations( _
         Exit Function
     End If
     If selector.Exists("name") Then controlName = VBA.LCase$(VBA.Trim$(VBA.CStr(selector("name"))))
+    If selector.Exists("part") Then partName = VBA.LCase$(VBA.Trim$(VBA.CStr(selector("part"))))
+    If VBA.Len(partName) = 0 Then Exit Function
 
-    For Each shp In ws.Shapes
-        shapeControlName = VBA.LCase$(VBA.Trim$(private_ReadShapeMetaValue(shp, "pn.control")))
-        If VBA.Len(shapeControlName) = 0 Then GoTo ContinueShape
-        If VBA.Len(controlName) > 0 And shapeControlName <> controlName Then GoTo ContinueShape
+    If Not ex_ControlPartsRuntime.fn_TryResolveControlPartShapes( _
+        ws, controlType, controlName, partName, partShapes) Then Exit Function
+    If partShapes Is Nothing Then Exit Function
 
-        Set anchorCell = Nothing
-        Set matchedCell = Nothing
+    ruleSignatureName = "controlPart:" & controlType & ":" & controlName & ":" & partName
+    For Each shapeItem In partShapes
+        Set shp = Nothing
         On Error Resume Next
-        Set anchorCell = shp.TopLeftCell
-        If Not anchorCell Is Nothing Then Set matchedCell = Application.Intersect(anchorCell, partScope)
+        Set shp = shapeItem
         On Error GoTo 0
-        If matchedCell Is Nothing Then GoTo ContinueShape
+        If shp Is Nothing Then GoTo ContinueShape
+
+        ' Part signature зависит и от базового controlStyle: если он изменился
+        ' или был восстановлен после смены state, semantic override применяется снова.
+        baseStyleSignature = private_ReadShapeMetaValue(shp, "pn.appliedStyleSignature")
+        partStyleSignature = baseStyleSignature & "|" & _
+            private_BuildShapeStyleSignature(ruleSignatureName, declarations)
+        previousPartStyleSignature = private_ReadShapeMetaValue(shp, "pn.appliedPartStyleSignature")
+        If VBA.StrComp(previousPartStyleSignature, partStyleSignature, VBA.vbBinaryCompare) = 0 Then GoTo ContinueShape
 
         If Not private_ApplyShapeStyle(shp, declarations, "controlPart") Then Exit Function
+        If Not ex_ShapeMetaRuntime.fn_TrySetShapeMetaValue( _
+            shp, "pn.appliedPartStyleSignature", partStyleSignature) Then Exit Function
 ContinueShape:
-    Next shp
+    Next shapeItem
 
     private_ApplyControlPartShapeDeclarations = True
 End Function

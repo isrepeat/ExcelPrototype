@@ -5,15 +5,35 @@ Option Explicit
 
 Private Const META_BLOCK_BEGIN As String = "[[EX_PN_META]]"
 Private Const META_BLOCK_END As String = "[[/EX_PN_META]]"
+' AlternativeText — COM-свойство, а metadata каждого Shape читается несколько
+' раз базовым и semantic style passes. Вложенный scoped-cache живёт ровно один
+' style pass и после каждой записи продолжает содержать актуальный Dictionary.
+Private g_ReadCache As Object
+Private g_ReadCacheDepth As Long
 
 Public Sub fn_Module_Dispose()
 #If LOGGING_VERBOSE_ENABLED Then
     ex_Core.fn_Diagnostic_LogInfo "lifecycle:ex_ShapeMetaRuntime.fn_Module_Dispose"
 #End If
+    Set g_ReadCache = Nothing
+    g_ReadCacheDepth = 0
 End Sub
 ' //
 ' // API
 ' //
+Public Sub fn_BeginReadCache()
+    g_ReadCacheDepth = g_ReadCacheDepth + 1
+    If g_ReadCacheDepth = 1 Then
+        Set g_ReadCache = VBA.CreateObject("Scripting.Dictionary")
+        g_ReadCache.CompareMode = 1
+    End If
+End Sub
+
+Public Sub fn_EndReadCache()
+    If g_ReadCacheDepth > 0 Then g_ReadCacheDepth = g_ReadCacheDepth - 1
+    If g_ReadCacheDepth = 0 Then Set g_ReadCache = Nothing
+End Sub
+
 Public Function fn_ReadShapeMetaMap(ByVal shp As Shape) As Object
     Dim meta As Object
     Dim altText As String
@@ -23,6 +43,7 @@ Public Function fn_ReadShapeMetaMap(ByVal shp As Shape) As Object
     Dim sepPos As Long
     Dim keyName As String
     Dim valueText As String
+    Dim cacheKey As String
 
     Set meta = VBA.CreateObject("Scripting.Dictionary")
     meta.CompareMode = 1
@@ -32,12 +53,21 @@ Public Function fn_ReadShapeMetaMap(ByVal shp As Shape) As Object
         Exit Function
     End If
 
+    cacheKey = private_GetShapeCacheKey(shp)
+    If Not g_ReadCache Is Nothing Then
+        If g_ReadCache.Exists(cacheKey) Then
+            Set fn_ReadShapeMetaMap = g_ReadCache(cacheKey)
+            Exit Function
+        End If
+    End If
+
     On Error Resume Next
     altText = VBA.CStr(shp.AlternativeText)
     On Error GoTo 0
 
     blockText = private_GetMetaBlockContent(altText)
     If VBA.Len(blockText) = 0 Then
+        If Not g_ReadCache Is Nothing Then Set g_ReadCache(cacheKey) = meta
         Set fn_ReadShapeMetaMap = meta
         Exit Function
     End If
@@ -61,6 +91,8 @@ Public Function fn_ReadShapeMetaMap(ByVal shp As Shape) As Object
 
 ContinueLine:
     Next lineText
+
+    If Not g_ReadCache Is Nothing Then Set g_ReadCache(cacheKey) = meta
 
     Set fn_ReadShapeMetaMap = meta
 End Function
@@ -156,6 +188,13 @@ End Function
 ' //
 ' // Internal
 ' //
+Private Function private_GetShapeCacheKey(ByVal shp As Shape) As String
+    If shp Is Nothing Then Exit Function
+    On Error Resume Next
+    private_GetShapeCacheKey = VBA.LCase$(VBA.CStr(shp.Name))
+    On Error GoTo 0
+End Function
+
 Private Sub private_SetMetaValue(ByVal meta As Object, ByVal keyName As String, ByVal valueText As String)
     keyName = VBA.Trim$(keyName)
     If VBA.Len(keyName) = 0 Then Exit Sub
