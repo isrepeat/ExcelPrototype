@@ -15,8 +15,8 @@
       spanRows="1"/>
 
     <stackPanel at="r2c2" orientation="vertical">
-      <!-- Верхняя команда ручного перерендера страницы. -->
-      <stackPanel orientation="horizontal">
+      <!-- Компактная командная строка не участвует в высоте основного блока профилей. -->
+      <stackPanel name="EventDraftCommandRow" orientation="horizontal">
         <control
           type="Button"
           name="UpdateSheet"
@@ -24,13 +24,41 @@
           style="actionWarning"
           dataContext="{PageRuntimeSource='RuntimeObjects.PrsnlEvntBuilder'}"
           onClick="{Binding Method=OnRenderCommand}"
-          spanColls="5"
+          spanColls="2"
+          spanRows="2"/>
+
+        <control
+          type="Label"
+          name="EventDraftOrderNoHeader"
+          text="Номер наказу:"
+          style="tableHeaderCell"
+          spanColls="1"
+          spanRows="1"/>
+
+        <stackPanel name="EventDraftOrderNoValue" orientation="horizontal">
+          <control
+            type="Label"
+            name="EventDraftOrderNoLabel"
+            text=""
+            style="tableDataCell"
+            spanColls="1"
+            spanRows="1"/>
+        </stackPanel>
+
+        <control
+          type="Button"
+          name="LookupMode"
+          caption="{Binding Path=IsLookupEnabled;TrueAs=Lookup [[[color=#FFFF00]]enable[[/color]]];FalseAs=Lookup [[[color=#FFFF00]]disable[[/color]]]}"
+          style="exportApplyButton"
+          dataContext="{PageRuntimeSource='RuntimeObjects.PrsnlEvntBuilder.Controller'}"
+          onClick="{Binding Method=ToggleLookupEnabled}"
+          spanColls="2"
           spanRows="2"/>
       </stackPanel>
 
       <stackPanel spanColls="22" spanRows="1"/>
 
-      <!-- Строка профилей: основные профили, meta-профили, номер приказа, Apply. -->
+      <!-- Основные и meta-профили слева, WORD-превью выровнено по их верхней границе. -->
       <stackPanel name="EventDraftProfileRow" orientation="horizontal">
         <control
           type="ButtonGroup"
@@ -57,35 +85,9 @@
           itemSpanRows="2"
           spanColls="2"
           spanRows="5"/>
-        
-        <control
-          type="Label"
-          name="EventDraftOrderNoHeader"
-          text="Номер наказу:"
-          style="tableHeaderCell"
-          spanColls="1"
-          spanRows="1"/>
 
-        <stackPanel name="EventDraftOrderNoValue" orientation="horizontal">
-          <control
-            type="Label"
-            name="EventDraftOrderNoLabel"
-            text=""
-            style="tableDataCell"
-            spanColls="1"
-            spanRows="1"/>
-        </stackPanel>
-
-        <!-- Lookup остаётся отдельным компактным переключателем рядом с номером приказа. -->
-        <control
-          type="Button"
-          name="LookupMode"
-          caption="{Binding Path=IsLookupEnabled;TrueAs=Lookup [[[color=#FFFF00]]enable[[/color]]];FalseAs=Lookup [[[color=#FFFF00]]disable[[/color]]]}"
-          style="exportApplyButton"
-          dataContext="{PageRuntimeSource='RuntimeObjects.PrsnlEvntBuilder.Controller'}"
-          onClick="{Binding Method=ToggleLookupEnabled}"
-          spanColls="2"
-          spanRows="2"/>
+        <!-- Один столбец отделяет превью от кнопок и ставит его в колонку M. -->
+        <stackPanel spanColls="1" spanRows="1"/>
 
         <!-- Превью занимает освободившуюся правую часть верхней строки. -->
         <stackPanel name="WordExportPanel" orientation="horizontal">
@@ -99,36 +101,39 @@
             spanColls="7"
             spanRows="15"/>
 
-          <control
-            type="Button"
-            name="ExportToWord"
-            caption="Export to WORD"
-            style="exportApplyButton"
-            dataContext="{PageRuntimeSource='RuntimeObjects.PrsnlEvntBuilder.Controller'}"
-            onClick="{Binding Method=OnExportToWordClick}"
-            visibility="{Binding Path=WordExportPreviewText; Op=ne; Value=; TrueAs=Visible; FalseAs=Collapsed}"
-            spanColls="2"
-            spanRows="2"/>
+          <!-- Экспортные действия образуют самостоятельную колонку справа от превью. -->
+          <stackPanel name="WordExportActions" orientation="vertical">
+            <control
+              type="Button"
+              name="ExportToWord"
+              caption="Export to WORD"
+              style="exportApplyButton"
+              dataContext="{PageRuntimeSource='RuntimeObjects.PrsnlEvntBuilder.Controller'}"
+              onClick="{Binding Method=OnExportToWordClick}"
+              visibility="{Binding Path=WordExportPreviewText; Op=ne; Value=; TrueAs=Visible; FalseAs=Collapsed}"
+              spanColls="2"
+              spanRows="2"/>
 
-          <control
-            type="Button"
-            name="RegroupWordHospitalPoints"
-            caption="Group WORD hospital points"
-            style="exportApplyButton"
-            dataContext="{PageRuntimeSource='RuntimeObjects.PrsnlEvntBuilder.Controller'}"
-            onClick="{Binding Method=OnRegroupWordHospitalPointsClick}"
-            spanColls="2"
-            spanRows="2"/>
+            <control
+              type="Button"
+              name="RegroupWordHospitalPoints"
+              caption="Group WORD hospital points"
+              style="exportApplyButton"
+              dataContext="{PageRuntimeSource='RuntimeObjects.PrsnlEvntBuilder.Controller'}"
+              onClick="{Binding Method=OnRegroupWordHospitalPointsClick}"
+              spanColls="2"
+              spanRows="2"/>
 
-          <control
-            type="Button"
-            name="ClearWordDocument"
-            caption="Remove WORD anchors"
-            style="actionWarning"
-            dataContext="{PageRuntimeSource='RuntimeObjects.PrsnlEvntBuilder.Controller'}"
-            onClick="{Binding Method=OnClearWordDocumentClick}"
-            spanColls="2"
-            spanRows="2"/>
+            <control
+              type="Button"
+              name="ClearWordDocument"
+              caption="Remove WORD anchors"
+              style="actionWarning"
+              dataContext="{PageRuntimeSource='RuntimeObjects.PrsnlEvntBuilder.Controller'}"
+              onClick="{Binding Method=OnClearWordDocumentClick}"
+              spanColls="2"
+              spanRows="2"/>
+          </stackPanel>
         </stackPanel>
       </stackPanel>
 
