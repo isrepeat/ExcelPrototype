@@ -75,7 +75,7 @@
 #_        {#if [AdditionalWayDays] == 1}, без урахування 1 доби, необхідної для проїзду до місця проведення відпустки та у зворотному напрямку,{#endif}#^
 #_        {#if [AdditionalWayDays] > 1}, без урахування {[AdditionalWayDays]} діб, необхідних для проїзду до місця проведення відпустки та у зворотному напрямку,{#endif}#^
 #_        {#endif}#^
-#_        {#if [DateFromShort]}{#space}з {#if [VacationDatesSameMonth]}{[DateFromShort]|dateformat:"\dd"}{#else}{[DateFromShort]|dateformat:"\dd \month \yyyy року"}{#endif}{#endif}#^
+#_        {#if [DateFromShort]}{#space}з {#if [VacationDatesSameMonth]}{[DateFromShort]|dateformat:"\dd"}{#else}{#if [VacationDatesSameYear]}{[DateFromShort]|dateformat:"\dd \month"}{#else}{[DateFromShort]|dateformat:"\dd \month \yyyy року"}{#endif}{#endif}{#endif}#^
 #_        {#if [DateToShort]}{#space}по {[DateToShort]|dateformat:"\dd \month \yyyy року"}{#endif}.#^
         ]]>
       </text>

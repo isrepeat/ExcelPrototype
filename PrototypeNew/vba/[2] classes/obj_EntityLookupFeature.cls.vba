@@ -108,7 +108,6 @@ End Sub
 
 Public Function UpdateData(ByVal configControl As obj_ConfigControlVM) As Boolean
     Dim configTable As obj_ConfigTable
-    Dim cfgParser As obj_EntityLookupCfgParser
 
     If configControl Is Nothing Then
 #If LOGGING_DEBUG_ENABLED Then
@@ -120,6 +119,14 @@ Public Function UpdateData(ByVal configControl As obj_ConfigControlVM) As Boolea
     If Not configControl.TryBuildConfigTableFromRendered(configTable) Then Exit Function
     If configTable Is Nothing Then Exit Function
 
+    UpdateData = UpdateDataFromConfigTable(configTable)
+End Function
+
+Public Function UpdateDataFromConfigTable(ByVal configTable As obj_ConfigTable) As Boolean
+    Dim cfgParser As obj_EntityLookupCfgParser
+
+    If configTable Is Nothing Then Exit Function
+
     Set cfgParser = New obj_EntityLookupCfgParser
     If Not cfgParser.Initialize(configTable) Then Exit Function
 
@@ -129,7 +136,7 @@ Public Function UpdateData(ByVal configControl As obj_ConfigControlVM) As Boolea
 
     Set m_ConfigTable = configTable
     Set m_EntityLookupCfgParser = cfgParser
-    UpdateData = True
+    UpdateDataFromConfigTable = True
 End Function
 
 Public Function PrepareLookupRuntime(Optional ByVal notifyChange As Boolean = False) As Boolean

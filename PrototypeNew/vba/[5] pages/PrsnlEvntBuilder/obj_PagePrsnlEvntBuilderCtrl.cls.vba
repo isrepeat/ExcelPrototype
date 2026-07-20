@@ -489,18 +489,19 @@ Private Sub private_AddStandardCommanderDependentAliases(ByVal dependentAliases 
     dependentAliases(DRAFT_ALIAS_INCOMING_NO) = True
 End Sub
 
-Public Function UpdateData(ByVal configControl As obj_ConfigControlVM) As Boolean
+Public Function UpdateDataFromConfigTable(ByVal configTable As obj_ConfigTable) As Boolean
     If m_LookupFeature Is Nothing Then Exit Function
-    UpdateData = m_LookupFeature.UpdateData(configControl)
-    If Not UpdateData Then Exit Function
-    If Not private_TryUpdateProfilesProvider(configControl) Then
-        UpdateData = False
+    If configTable Is Nothing Then Exit Function
+    UpdateDataFromConfigTable = m_LookupFeature.UpdateDataFromConfigTable(configTable)
+    If Not UpdateDataFromConfigTable Then Exit Function
+    If Not private_TryUpdateProfilesProvider(configTable) Then
+        UpdateDataFromConfigTable = False
         Exit Function
     End If
-    If Not private_TryUpdateExportSettings(configControl) Then Exit Function
+    If Not private_TryUpdateExportSettings(configTable) Then Exit Function
     If Not private_RegisterExportFormTables(False) Then Exit Function
     If Not private_EnsureHotkeyRows(False) Then Exit Function
-    UpdateData = True
+    UpdateDataFromConfigTable = True
 End Function
 
 Public Function PrepareRuntime(Optional ByVal notifyChange As Boolean = False) As Boolean
@@ -666,6 +667,7 @@ Public Function OnClearWordDocumentClick(Optional ByVal ignored As Variant) As B
     Dim clearedBlockCount As Long
     Dim orderNoText As String
 
+    If Not private_TryEnsureModeConfigCurrent() Then Exit Function
     If Not private_TryGetExportSettings("Word", exporterClassName, exportConfigTable) Then
         VBA.MsgBox "PrototypeNew: Export.Word settings are missing.", VBA.vbExclamation, "PrototypeNew / WORD document"
         Exit Function
@@ -691,6 +693,7 @@ Public Function OnRegroupWordHospitalPointsClick(Optional ByVal ignored As Varia
     Dim regroupedPointCount As Long
     Dim orderNoText As String
 
+    If Not private_TryEnsureModeConfigCurrent() Then Exit Function
     ' Кнопка использует тот же кэшированный WORD exporter, что экспорт и
     ' удаление якорей, поэтому путь result-документа определяется единообразно.
     If Not private_TryGetExportSettings("Word", exporterClassName, exportConfigTable) Then
@@ -721,6 +724,7 @@ Private Function private_TryExportWordToDocument() As Boolean
     Dim exporterClassName As String
     Dim exportConfigTable As obj_ConfigTable
 
+    If Not private_TryEnsureModeConfigCurrent() Then Exit Function
     If Not private_TryGetExportSettings("Word", exporterClassName, exportConfigTable) Then
         VBA.MsgBox "PrototypeNew: Export.Word settings are missing.", VBA.vbExclamation, "PrototypeNew / WORD export"
         Exit Function
@@ -1382,6 +1386,8 @@ Private Function private_TryExportDraftByAction(ByVal actionId As String) As Boo
 
     On Error GoTo EH
 
+    If Not private_TryEnsureModeConfigCurrent() Then Exit Function
+
 #If LOGGING_DEBUG_ENABLED Then
     ex_Core.fn_Diagnostic_LogInfo "prsnlevntbuilder:export-action:start action='" & private_EscapeForLog(actionId) & "'"
 #End If
@@ -1423,18 +1429,23 @@ EH:
 #End If
 End Function
 
-Private Function private_TryUpdateExportSettings(ByVal configControl As obj_ConfigControlVM) As Boolean
-    Dim configTable As obj_ConfigTable
+Private Function private_TryEnsureModeConfigCurrent() As Boolean
+    Dim builderPage As obj_PagePrsnlEvntBuilder
+
+    If m_Page Is Nothing Then Exit Function
+    If Not TypeOf m_Page Is obj_PagePrsnlEvntBuilder Then Exit Function
+    Set builderPage = m_Page
+    private_TryEnsureModeConfigCurrent = builderPage.EnsureModeConfigCurrent()
+End Function
+
+Private Function private_TryUpdateExportSettings(ByVal configTable As obj_ConfigTable) As Boolean
     Dim cfgParser As obj_PrsnlEvntBuilderCfgParser
 
     private_ResetExportSettings
-    If configControl Is Nothing Then
+    If configTable Is Nothing Then
         private_TryUpdateExportSettings = True
         Exit Function
     End If
-
-    If Not configControl.TryBuildConfigTableFromRendered(configTable) Then Exit Function
-    If configTable Is Nothing Then Exit Function
     Set m_ProfileConfigTable = configTable
 
     Set cfgParser = New obj_PrsnlEvntBuilderCfgParser
@@ -1445,13 +1456,10 @@ Private Function private_TryUpdateExportSettings(ByVal configControl As obj_Conf
     private_TryUpdateExportSettings = True
 End Function
 
-Private Function private_TryUpdateProfilesProvider(ByVal configControl As obj_ConfigControlVM) As Boolean
-    Dim configTable As obj_ConfigTable
+Private Function private_TryUpdateProfilesProvider(ByVal configTable As obj_ConfigTable) As Boolean
     Dim cfgParser As obj_PrsnlEvntBuilderCfgParser
     Dim providerClassName As String
 
-    If configControl Is Nothing Then Exit Function
-    If Not configControl.TryBuildConfigTableFromRendered(configTable) Then Exit Function
     If configTable Is Nothing Then Exit Function
 
     Set cfgParser = New obj_PrsnlEvntBuilderCfgParser
