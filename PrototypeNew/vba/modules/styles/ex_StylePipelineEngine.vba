@@ -769,6 +769,9 @@ Private Function private_ApplySingleRule(ByVal ws As Worksheet, ByVal ruleNode A
     End If
 
     If Not private_ApplyRangeDeclarations(scopeRange, columnScope, declarations, ruleTarget) Then Exit Function
+    If ruleTarget = "controlpart" Then
+        If Not private_ApplyControlPartShapeDeclarations(ws, selector, scopeRange, declarations) Then Exit Function
+    End If
 
     private_ApplySingleRule = True
 End Function
@@ -819,7 +822,54 @@ Private Function private_ApplyControlPartRuleForControl( _
     Set partialDeclarations = private_GetPartialSafeDeclarations(declarations)
     If Not private_ApplyRangeDeclarations( _
         scopeRange, columnScope, partialDeclarations, "controlpart-partial") Then Exit Function
+    If Not private_ApplyControlPartShapeDeclarations( _
+        ws, effectiveSelector, scopeRange, partialDeclarations) Then Exit Function
     private_ApplyControlPartRuleForControl = True
+End Function
+
+' Shape-контролы используют тот же controlPart selector, что и диапазоны.
+' Renderer публикует tagged item как Range, а pipeline применяет declarations
+' ко всем Shape этого control, расположенным внутри зарегистрированного part.
+Private Function private_ApplyControlPartShapeDeclarations( _
+    ByVal ws As Worksheet, _
+    ByVal selector As Object, _
+    ByVal partScope As Range, _
+    ByVal declarations As Object _
+) As Boolean
+    Dim shp As Shape
+    Dim controlName As String
+    Dim shapeControlName As String
+    Dim controlType As String
+    Dim anchorCell As Range
+    Dim matchedCell As Range
+
+    If ws Is Nothing Or selector Is Nothing Or partScope Is Nothing Then Exit Function
+    If declarations Is Nothing Then Exit Function
+    If selector.Exists("type") Then controlType = VBA.LCase$(VBA.Trim$(VBA.CStr(selector("type"))))
+    If controlType <> "buttongroup" Then
+        private_ApplyControlPartShapeDeclarations = True
+        Exit Function
+    End If
+    If selector.Exists("name") Then controlName = VBA.LCase$(VBA.Trim$(VBA.CStr(selector("name"))))
+
+    For Each shp In ws.Shapes
+        shapeControlName = VBA.LCase$(VBA.Trim$(private_ReadShapeMetaValue(shp, "pn.control")))
+        If VBA.Len(shapeControlName) = 0 Then GoTo ContinueShape
+        If VBA.Len(controlName) > 0 And shapeControlName <> controlName Then GoTo ContinueShape
+
+        Set anchorCell = Nothing
+        Set matchedCell = Nothing
+        On Error Resume Next
+        Set anchorCell = shp.TopLeftCell
+        If Not anchorCell Is Nothing Then Set matchedCell = Application.Intersect(anchorCell, partScope)
+        On Error GoTo 0
+        If matchedCell Is Nothing Then GoTo ContinueShape
+
+        If Not private_ApplyShapeStyle(shp, declarations, "controlPart") Then Exit Function
+ContinueShape:
+    Next shp
+
+    private_ApplyControlPartShapeDeclarations = True
 End Function
 
 

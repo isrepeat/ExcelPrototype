@@ -66,10 +66,10 @@ Private Const LOOKUP_MODE_CONTROL_NAME As String = "LookupMode"
 Private Const VALIDATE_DAILY_SCOPE_CONTROL_NAME As String = "ValidateDailyScope"
 Private Const VALIDATE_MOVEMENT_CONTROL_NAME As String = "ValidateMovement"
 Private Const VALIDATE_WORD_CONTROL_NAME As String = "ValidateWord"
-Private Const PROFILE_BUTTON_STYLE_NORMAL As String = "profileButton"
-Private Const PROFILE_BUTTON_STYLE_SELECTED As String = "profileButtonSelected"
-Private Const META_PROFILE_BUTTON_STYLE_NORMAL As String = "metaProfileButton"
-Private Const META_PROFILE_BUTTON_STYLE_SELECTED As String = "metaProfileButtonSelected"
+Private Const PROFILE_BUTTON_TAG_ARRIVAL As String = "arrival"
+Private Const PROFILE_BUTTON_TAG_DEPARTURE As String = "departure"
+Private Const META_PROFILE_BUTTON_TAG_NORMAL As String = "meta"
+Private Const PROFILE_BUTTON_STATE_SELECTED As String = "selected"
 ' Канонические алиасы полей draft-формы. Отображаемые Caption этих полей
 ' принадлежат конфигу и не должны использоваться в логике контроллера.
 Private Const DRAFT_ALIAS_RANK As String = "_Rank"
@@ -1065,8 +1065,9 @@ Private Function private_RegisterProfileOptions(ByVal notifyChange As Boolean) A
     If Not private_TryBuildOptionButtonRows( _
         profiles, _
         m_SelectedMainProfile, _
-        PROFILE_BUTTON_STYLE_NORMAL, _
-        PROFILE_BUTTON_STYLE_SELECTED, _
+        PROFILE_BUTTON_TAG_ARRIVAL, _
+        PROFILE_BUTTON_STATE_SELECTED, _
+        True, _
         2, _
         profileOptions) Then Exit Function
 #If LOGGING_DEBUG_ENABLED Then
@@ -1103,8 +1104,9 @@ Private Function private_RegisterMetaProfileOptions(ByVal notifyChange As Boolea
     If Not private_TryBuildOptionButtonRows( _
         profiles, _
         m_SelectedProfile, _
-        META_PROFILE_BUTTON_STYLE_NORMAL, _
-        META_PROFILE_BUTTON_STYLE_SELECTED, _
+        META_PROFILE_BUTTON_TAG_NORMAL, _
+        PROFILE_BUTTON_STATE_SELECTED, _
+        False, _
         1, _
         profileOptions) Then Exit Function
 
@@ -1149,8 +1151,9 @@ End Function
 Private Function private_TryBuildOptionButtonRows( _
     ByVal profiles As Collection, _
     ByVal selectedProfileText As String, _
-    ByVal normalStyleName As String, _
-    ByVal selectedStyleName As String, _
+    ByVal normalTagName As String, _
+    ByVal selectedStateName As String, _
+    ByVal useMovementDirectionTags As Boolean, _
     ByVal itemsPerRow As Long, _
     ByRef outRows As Collection _
 ) As Boolean
@@ -1188,9 +1191,14 @@ Private Function private_TryBuildOptionButtonRows( _
         optionObj.Caption = profileText
         optionObj.Id = profileText
         If VBA.StrComp(private_NormalizeText(profileText), private_NormalizeText(selectedProfileText), VBA.vbTextCompare) = 0 Then
-            optionObj.StyleName = selectedStyleName
+            If Not optionObj.SetState(selectedStateName, True) Then Exit Function
         Else
-            optionObj.StyleName = normalStyleName
+            ' Контроллер сообщает только семантический тег; оформление задаётся в XML.
+            If useMovementDirectionTags And Not m_Data.IsMovementClosingSectionType(profileText) Then
+                If Not optionObj.AddTag(PROFILE_BUTTON_TAG_DEPARTURE) Then Exit Function
+            Else
+                If Not optionObj.AddTag(normalTagName) Then Exit Function
+            End If
         End If
         rowItems.Add optionObj
 

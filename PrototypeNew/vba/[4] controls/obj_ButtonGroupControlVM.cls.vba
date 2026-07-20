@@ -10,9 +10,6 @@ Option Explicit
 Implements obj_IControl
 
 Private Const DEFAULT_COLUMNS As Long = 2
-Private Const DEFAULT_CAPTION_PATH As String = "Caption"
-Private Const DEFAULT_ID_PATH As String = "Id"
-Private Const DEFAULT_STYLE_PATH As String = "StyleName"
 Private Const DEFAULT_ITEM_SPAN_ROWS As Long = 1
 Private Const FLOW_ROW As String = "row"
 Private Const FLOW_COLUMN As String = "column"
@@ -28,9 +25,6 @@ Private m_OnClickCallbackContext As Object
 Private m_Items As Collection
 Private m_RuntimeControlKey As String
 Private m_Columns As Long
-Private m_CaptionPath As String
-Private m_IdPath As String
-Private m_StylePath As String
 Private m_ShapePrefix As String
 Private m_FlowDirection As String
 Private m_ItemSpanRows As Long
@@ -71,9 +65,6 @@ Private Sub obj_IControl_Configure(ByVal controlNode As Object)
     m_RuntimeControlKey = VBA.vbNullString
     m_OnClickMacroRef = VBA.vbNullString
     m_Columns = DEFAULT_COLUMNS
-    m_CaptionPath = DEFAULT_CAPTION_PATH
-    m_IdPath = DEFAULT_ID_PATH
-    m_StylePath = DEFAULT_STYLE_PATH
     m_ShapePrefix = VBA.vbNullString
     m_FlowDirection = FLOW_ROW
     m_ItemSpanRows = DEFAULT_ITEM_SPAN_ROWS
@@ -125,9 +116,6 @@ Private Sub obj_IControl_Configure(ByVal controlNode As Object)
         If m_Columns <= 0 Then m_Columns = DEFAULT_COLUMNS
     End If
 
-    m_CaptionPath = private_ReadPathAttr(controlNode, "captionPath", DEFAULT_CAPTION_PATH)
-    m_IdPath = private_ReadPathAttr(controlNode, "idPath", DEFAULT_ID_PATH)
-    m_StylePath = private_ReadPathAttr(controlNode, "stylePath", DEFAULT_STYLE_PATH)
     m_ShapePrefix = VBA.Trim$(VBA.CStr(ex_XmlCore.fn_NodeAttrText(controlNode, "shapePrefix")))
     m_FlowDirection = private_ReadFlowDirection(controlNode)
     ' itemSpanRows задает высоту одной кнопки в layout-строках.
@@ -156,6 +144,9 @@ Private Sub obj_IControl_Render()
     Dim captionText As String
     Dim itemId As String
     Dim styleName As String
+    Dim itemTags As Collection
+    Dim itemStates As Collection
+    Dim tagsSignature As String
     Dim shp As Shape
     Dim shapeName As String
     Dim macroRef As String
@@ -189,10 +180,11 @@ Private Sub obj_IControl_Render()
 
     rowsPerColumn = private_RowsPerColumn(itemCount)
     buttonSpanCols = private_ButtonSpanCols()
+    styleName = m_ControlLayout.StyleName
     itemIndex = 0
     For Each itemObj In flattenedItems
         itemIndex = itemIndex + 1
-        If Not private_TryReadItem(itemObj, captionText, itemId, styleName) Then GoTo ContinueItem
+        If Not private_TryReadItem(itemObj, captionText, itemId, itemTags, itemStates) Then Exit Sub
 
         If private_IsColumnFlow() Then
             rowIndex = (itemIndex - 1) Mod rowsPerColumn
@@ -215,17 +207,19 @@ Private Sub obj_IControl_Render()
         Set targetRange = ws.Range(ws.Cells(rowStart, colStart), ws.Cells(rowEnd, colEnd))
         On Error GoTo 0
         If targetRange Is Nothing Then GoTo ContinueItem
+        If Not private_RegisterItemTags(ws, targetRange, itemTags) Then Exit Sub
+        If Not private_RegisterItemStates(ws, targetRange, itemStates) Then Exit Sub
 
         shapeName = private_BuildShapeName(itemIndex)
         Set shp = private_GetOrCreateShape(ws, shapeName, targetRange)
         If shp Is Nothing Then GoTo ContinueItem
 
-        If VBA.Len(styleName) = 0 Then styleName = m_ControlLayout.StyleName
         ' У ButtonGroup один VM управляет десятками Shapes. Сравнение короткой
         ' signature в памяти дешевле повторной записи caption/alignment/meta
         ' через Excel COM для каждого неизменившегося элемента группы.
+        tagsSignature = private_BuildTagsSignature(itemTags) & "|states=" & private_BuildTagsSignature(itemStates)
         renderSignature = private_BuildItemVisualSignature( _
-            itemIndex, rowStart, colStart, rowEnd, colEnd, captionText, styleName)
+            itemIndex, rowStart, colStart, rowEnd, colEnd, captionText, styleName, tagsSignature)
         previousRenderSignature = ex_ShapeMetaRuntime.fn_GetShapeMetaValue( _
             shp, "pn.renderSignature", VBA.vbNullString)
         visualUnchanged = (VBA.StrComp(previousRenderSignature, renderSignature, VBA.vbBinaryCompare) = 0)
@@ -259,7 +253,7 @@ End Function
 
 Private Function obj_IControl_SupportsAttribute(ByVal attrName As String) As Boolean
     Select Case VBA.LCase$(VBA.Trim$(attrName))
-        Case "itemssource", "onclick", "columns", "captionpath", "idpath", "stylepath", "shapeprefix", "flow", "itemspanrows"
+        Case "itemssource", "onclick", "columns", "shapeprefix", "flow", "itemspanrows"
             obj_IControl_SupportsAttribute = True
     End Select
 End Function
@@ -271,14 +265,6 @@ End Function
 Public Function RuntimeHandleClick(Optional ByVal itemId As Variant) As Boolean
     If Not rt_Bridge.fn_RunCallback(m_OnClickMacroRef, m_OnClickCallbackContext, itemId) Then Exit Function
     RuntimeHandleClick = True
-End Function
-
-Private Function private_ReadPathAttr(ByVal controlNode As Object, ByVal attrName As String, ByVal defaultValue As String) As String
-    Dim attrValue As String
-
-    attrValue = VBA.Trim$(VBA.CStr(ex_XmlCore.fn_NodeAttrText(controlNode, attrName)))
-    If VBA.Len(attrValue) = 0 Then attrValue = defaultValue
-    private_ReadPathAttr = attrValue
 End Function
 
 Private Function private_ReadFlowDirection(ByVal controlNode As Object) As String
@@ -390,110 +376,68 @@ Private Function private_TryReadItem( _
     ByVal itemObj As Variant, _
     ByRef outCaption As String, _
     ByRef outId As String, _
-    ByRef outStyleName As String _
+    ByRef outTags As Collection, _
+    ByRef outStates As Collection _
 ) As Boolean
-    outCaption = private_ReadPathText(itemObj, m_CaptionPath)
-    outId = private_ReadPathText(itemObj, m_IdPath)
-    outStyleName = private_ReadPathText(itemObj, m_StylePath)
+    Dim contractItem As obj_IButtonGroupItem
 
-    If Not VBA.IsObject(itemObj) Then
-        If VBA.Len(VBA.Trim$(outCaption)) = 0 Then outCaption = VBA.Trim$(VBA.CStr(itemObj))
-    End If
-    If VBA.Len(VBA.Trim$(outId)) = 0 Then outId = outCaption
+    Set outTags = Nothing
+    Set outStates = Nothing
+    If Not VBA.IsObject(itemObj) Then GoTo InvalidContract
+    On Error Resume Next
+    Set contractItem = itemObj
+    On Error GoTo 0
+    If contractItem Is Nothing Then GoTo InvalidContract
 
-    private_TryReadItem = (VBA.Len(VBA.Trim$(outCaption)) > 0)
+    outCaption = VBA.Trim$(contractItem.Caption)
+    outId = VBA.Trim$(contractItem.Id)
+    Set outTags = contractItem.Tags
+    Set outStates = contractItem.States
+    If VBA.Len(outCaption) = 0 Or VBA.Len(outId) = 0 Then GoTo InvalidContract
+
+    private_TryReadItem = True
+    Exit Function
+
+InvalidContract:
+    ex_Core.fn_Diagnostic_LogError "ButtonGroup: every item must implement obj_IButtonGroupItem and provide non-empty Id/Caption for control '" & m_ControlName & "'."
 End Function
 
-Private Function private_ReadPathText(ByVal itemObj As Variant, ByVal pathText As String) As String
-    Dim currentValue As Variant
+Private Function private_RegisterItemTags(ByVal ws As Worksheet, ByVal targetRange As Range, ByVal tags As Collection) As Boolean
+    Dim tagItem As Variant
 
-    pathText = VBA.Trim$(pathText)
-    If VBA.Len(pathText) = 0 Then Exit Function
-    If pathText = "." Then
-        If VBA.IsObject(itemObj) Then Exit Function
-        private_ReadPathText = VBA.Trim$(VBA.CStr(itemObj))
+    If tags Is Nothing Then
+        private_RegisterItemTags = True
         Exit Function
     End If
-
-    If Not private_TryReadPathValue(itemObj, pathText, currentValue) Then Exit Function
-    If VBA.IsObject(currentValue) Then Exit Function
-    private_ReadPathText = VBA.Trim$(VBA.CStr(currentValue))
+    For Each tagItem In tags
+        If Not ex_ControlPartsRuntime.fn_RegisterControlPart( _
+            ws, "buttongroup", m_ControlName, "tag-" & VBA.CStr(tagItem), targetRange) Then Exit Function
+    Next tagItem
+    private_RegisterItemTags = True
 End Function
 
-Private Function private_TryReadPathValue(ByVal itemObj As Variant, ByVal pathText As String, ByRef outValue As Variant) As Boolean
-    Dim pathParts() As String
-    Dim pathIndex As Long
-    Dim currentValue As Variant
-    Dim nextValue As Variant
+Private Function private_RegisterItemStates(ByVal ws As Worksheet, ByVal targetRange As Range, ByVal states As Collection) As Boolean
+    Dim stateItem As Variant
 
-    pathParts = VBA.Split(pathText, ".")
-    If VBA.IsObject(itemObj) Then
-        Set currentValue = itemObj
-    Else
-        currentValue = itemObj
+    If states Is Nothing Then
+        private_RegisterItemStates = True
+        Exit Function
     End If
-
-    For pathIndex = LBound(pathParts) To UBound(pathParts)
-        If Not private_TryReadMemberValue(currentValue, VBA.Trim$(pathParts(pathIndex)), nextValue) Then Exit Function
-        If VBA.IsObject(nextValue) Then
-            Set currentValue = nextValue
-        Else
-            currentValue = nextValue
-        End If
-    Next pathIndex
-
-    If VBA.IsObject(currentValue) Then
-        Set outValue = currentValue
-    Else
-        outValue = currentValue
-    End If
-    private_TryReadPathValue = True
+    For Each stateItem In states
+        If Not ex_ControlPartsRuntime.fn_RegisterControlPart( _
+            ws, "buttongroup", m_ControlName, "state-" & VBA.CStr(stateItem), targetRange) Then Exit Function
+    Next stateItem
+    private_RegisterItemStates = True
 End Function
 
-Private Function private_TryReadMemberValue(ByVal itemObj As Variant, ByVal memberName As String, ByRef outValue As Variant) As Boolean
-    Dim valueObj As Object
-    Dim memberValue As Variant
+Private Function private_BuildTagsSignature(ByVal tags As Collection) As String
+    Dim tagItem As Variant
 
-    memberName = VBA.Trim$(memberName)
-    If VBA.Len(memberName) = 0 Then Exit Function
-    If Not VBA.IsObject(itemObj) Then Exit Function
-    Set valueObj = itemObj
-
-    On Error Resume Next
-    If VBA.TypeName(valueObj) = "Dictionary" Or VBA.TypeName(valueObj) = "Scripting.Dictionary" Then
-        If Not valueObj.Exists(memberName) Then
-            On Error GoTo 0
-            Exit Function
-        End If
-
-        Set outValue = valueObj(memberName)
-        If Err.Number = 0 Then
-            private_TryReadMemberValue = True
-            On Error GoTo 0
-            Exit Function
-        End If
-        Err.Clear
-
-        outValue = valueObj(memberName)
-    Else
-        Set outValue = VBA.CallByName(valueObj, memberName, VbGet)
-        If Err.Number = 0 Then
-            private_TryReadMemberValue = True
-            On Error GoTo 0
-            Exit Function
-        End If
-        Err.Clear
-
-        memberValue = VBA.CallByName(valueObj, memberName, VbGet)
-        If VBA.IsObject(memberValue) Then
-            Set outValue = memberValue
-        Else
-            outValue = memberValue
-        End If
-    End If
-    private_TryReadMemberValue = (Err.Number = 0)
-    Err.Clear
-    On Error GoTo 0
+    If tags Is Nothing Then Exit Function
+    For Each tagItem In tags
+        If VBA.Len(private_BuildTagsSignature) > 0 Then private_BuildTagsSignature = private_BuildTagsSignature & ","
+        private_BuildTagsSignature = private_BuildTagsSignature & VBA.LCase$(VBA.Trim$(VBA.CStr(tagItem)))
+    Next tagItem
 End Function
 
 Private Function private_BuildShapeName(ByVal itemIndex As Long) As String
@@ -580,6 +524,7 @@ Private Function private_SetShapeMeta( _
     metaMap.CompareMode = 1
     metaMap("pn.control") = m_ControlName
     If VBA.Len(VBA.Trim$(styleName)) > 0 Then metaMap("pn.style") = VBA.Trim$(styleName)
+    metaMap("pn.appliedStyleSignature") = VBA.vbNullString
     If VBA.Len(renderSignature) > 0 Then metaMap("pn.renderSignature") = renderSignature
     private_SetShapeMeta = ex_ShapeMetaRuntime.fn_TrySetShapeMetaValues(shp, metaMap)
 End Function
@@ -591,7 +536,8 @@ Private Function private_BuildItemVisualSignature( _
     ByVal rowEnd As Long, _
     ByVal colEnd As Long, _
     ByVal captionText As String, _
-    ByVal styleName As String _
+    ByVal styleName As String, _
+    ByVal tagsSignature As String _
 ) As String
     ' itemIndex нужен, чтобы перестановка элементов считалась изменением даже
     ' при совпадающих caption. Bounds фиксируют фактическое место элемента.
@@ -599,7 +545,7 @@ Private Function private_BuildItemVisualSignature( _
         VBA.CStr(itemIndex) & "|" & _
         VBA.CStr(rowStart) & ":" & VBA.CStr(colStart) & ":" & _
         VBA.CStr(rowEnd) & ":" & VBA.CStr(colEnd) & "|" & _
-        VBA.Trim$(styleName) & "|" & captionText
+        VBA.Trim$(styleName) & "|" & tagsSignature & "|" & captionText
 End Function
 
 Private Function private_AssignShapeOnAction(ByVal shp As Shape, ByVal macroRef As String) As Boolean
