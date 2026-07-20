@@ -10,6 +10,7 @@ Option Explicit
 
 Implements obj_IPage
 Implements obj_ISerializable
+Implements obj_IPageRestoreContextProvider
 
 Private Const SERIALIZABLE_TYPE_ROOT As String = "page.prsnlevntbuilder"
 Private Const SNAPSHOT_ROOT_NODE As String = "pageState"
@@ -17,6 +18,8 @@ Private Const CONTROL_SNAPSHOT_NODE As String = "controlSnapshot"
 Private Const HOTKEYS_SNAPSHOT_NODE As String = "hotkeys"
 Private Const HOTKEY_ROW_SNAPSHOT_NODE As String = "row"
 Private Const PARENT_PAGE_ID_ATTR As String = "parentPageId"
+Private Const CONFIG_CONTEXT_NODE As String = "modeConfigContext"
+Private Const CONFIG_CONTEXT_ROW_NODE As String = "row"
 Private Const PAGE_RUNTIME_OBJECT_KEY As String = "RuntimeObjects.PrsnlEvntBuilder"
 Private Const LOOKUP_CANDIDATES_CONTROL_NAME As String = "LookupCandidatesTable"
 Private Const HOTKEYS_RUNTIME_KEY As String = "RuntimeItems.PrsnlEvntBuilder.Hotkeys"
@@ -311,6 +314,7 @@ End Function
 
 Private Function obj_ISerializable_TryRestoreState() As Boolean
     Dim parentPage As obj_IPage
+    Dim mainPage As obj_PageMain
 
     If Not m_PageBase.IsReady() Then Exit Function
 
@@ -325,12 +329,64 @@ Private Function obj_ISerializable_TryRestoreState() As Boolean
     End If
 
     If Not m_Controller Is Nothing Then
+        ' До регистрации в Main используем точный config snapshot страницы;
+        ' Main-контролы ещё не отрисованы и пока не могут отдать live-значения.
         If Not private_TryApplyConfigContext() Then Exit Function
         If Not private_SyncLookupQueryKeysFromController() Then Exit Function
         If Not m_Controller.PrepareRuntime(False) Then Exit Function
     End If
 
+    If Not m_ParentPage Is Nothing Then
+        If TypeOf m_ParentPage Is obj_PageMain Then
+            Set mainPage = m_ParentPage
+            If Not mainPage.AttachRestoredModeConfigContext(m_ConfigContext) Then Exit Function
+        End If
+    End If
+
     obj_ISerializable_TryRestoreState = True
+End Function
+
+Private Function obj_IPageRestoreContextProvider_TryBuildRestoreContext( _
+    ByVal snapshotXml As String, _
+    ByRef outContext As Object _
+) As Boolean
+    Dim dom As Object
+    Dim rootNode As Object
+    Dim contextNode As Object
+    Dim rowNodes As Object
+    Dim rowNode As Object
+    Dim configTable As obj_ConfigTable
+    Dim configContext As obj_ModeConfigContext
+    Dim contextId As String
+    Dim modeId As String
+    Dim profileId As String
+
+    Set outContext = Nothing
+    If Not ex_Core.fn_CustomXmlPartStore_TryLoadDomFromXml(snapshotXml, dom) Then Exit Function
+    Set rootNode = dom.DocumentElement
+    If rootNode Is Nothing Then Exit Function
+    Set contextNode = rootNode.selectSingleNode("*[local-name()='" & CONFIG_CONTEXT_NODE & "']")
+    If contextNode Is Nothing Then Exit Function
+
+    contextId = VBA.Trim$(VBA.CStr(contextNode.getAttribute("contextId")))
+    modeId = VBA.Trim$(VBA.CStr(contextNode.getAttribute("modeId")))
+    profileId = VBA.Trim$(VBA.CStr(contextNode.getAttribute("profileId")))
+    Set configTable = New obj_ConfigTable
+    If Not configTable.Initialize() Then Exit Function
+    Set rowNodes = contextNode.selectNodes("*[local-name()='" & CONFIG_CONTEXT_ROW_NODE & "']")
+    If Not rowNodes Is Nothing Then
+        For Each rowNode In rowNodes
+            If Not configTable.AddRow( _
+                VBA.CStr(rowNode.getAttribute("attr")), _
+                VBA.CStr(rowNode.getAttribute("key")), _
+                VBA.CStr(rowNode.getAttribute("value"))) Then Exit Function
+        Next rowNode
+    End If
+
+    Set configContext = New obj_ModeConfigContext
+    If Not configContext.Initialize(contextId, modeId, profileId, configTable) Then Exit Function
+    Set outContext = configContext
+    obj_IPageRestoreContextProvider_TryBuildRestoreContext = True
 End Function
 
 ' //
@@ -413,6 +469,11 @@ Private Function private_TrySerializeSnapshot(ByRef outSnapshotXml As String) As
     Dim snapshotItem As Variant
     Dim controlNode As Object
     Dim snapshotXml As String
+    Dim contextNode As Object
+    Dim rowNode As Object
+    Dim configTable As obj_ConfigTable
+    Dim configEntry As obj_ConfigEntry
+    Dim entryIndex As Long
 
     outSnapshotXml = VBA.vbNullString
 
@@ -420,6 +481,27 @@ Private Function private_TrySerializeSnapshot(ByRef outSnapshotXml As String) As
 
     m_PageBase.WriteBaseSnapshotAttributes rootNode
     rootNode.setAttribute PARENT_PAGE_ID_ATTR, VBA.LCase$(VBA.Trim$(m_ParentPageId))
+    If m_ConfigContext Is Nothing Then Exit Function
+    Set configTable = m_ConfigContext.ConfigTable
+    If configTable Is Nothing Then Exit Function
+
+    ' Контекст входит в snapshot страницы, потому что он обязателен уже на этапе
+    ' Initialize и не может быть восстановлен из текущего выбора на Main.
+    Set contextNode = dom.createElement(CONFIG_CONTEXT_NODE)
+    contextNode.setAttribute "contextId", m_ConfigContext.ContextId
+    contextNode.setAttribute "modeId", m_ConfigContext.ModeId
+    contextNode.setAttribute "profileId", m_ConfigContext.ProfileId
+    For entryIndex = 1 To configTable.Items.Count
+        Set configEntry = configTable.Items.Item(entryIndex)
+        If configEntry Is Nothing Then GoTo ContinueConfigEntry
+        Set rowNode = dom.createElement(CONFIG_CONTEXT_ROW_NODE)
+        rowNode.setAttribute "attr", configEntry.Attr
+        rowNode.setAttribute "key", configEntry.Key
+        rowNode.setAttribute "value", configEntry.Value
+        contextNode.appendChild rowNode
+ContinueConfigEntry:
+    Next entryIndex
+    rootNode.appendChild contextNode
     ' Строки хоткеев — это данные страницы, а не внутреннее состояние HotkeysControl.
     ' Сохраняем bound RuntimeItems collection здесь, чтобы будущий render контрола
     ' прочитал уже пользовательские значения.

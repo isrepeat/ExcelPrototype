@@ -66,6 +66,17 @@ Public Function RefreshFromOwnerIfActive() As Boolean
     RefreshFromOwnerIfActive = m_OwnerController.TryRefreshModeConfigContext(Me)
 End Function
 
+Public Function BindOwner( _
+    ByVal parentPage As obj_IPage, _
+    ByVal ownerController As obj_PageMainCtrl _
+) As Boolean
+    If parentPage Is Nothing Then Exit Function
+    If ownerController Is Nothing Then Exit Function
+    Set m_ParentPage = parentPage
+    Set m_OwnerController = ownerController
+    BindOwner = True
+End Function
+
 Public Property Get ContextId() As String
     ContextId = m_ContextId
 End Property

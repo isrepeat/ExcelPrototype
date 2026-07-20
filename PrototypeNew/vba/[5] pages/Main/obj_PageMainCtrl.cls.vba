@@ -153,6 +153,23 @@ Public Function TryRefreshModeConfigContext(ByVal configContext As obj_ModeConfi
     TryRefreshModeConfigContext = True
 End Function
 
+Public Function AttachRestoredModeConfigContext(ByVal configContext As obj_ModeConfigContext) As Boolean
+    Dim contextId As String
+
+    If configContext Is Nothing Then Exit Function
+    If m_Page Is Nothing Then Exit Function
+    contextId = VBA.LCase$(VBA.Trim$(configContext.ContextId))
+    If VBA.Len(contextId) = 0 Then Exit Function
+    If m_ConfigContextsById Is Nothing Then Set m_ConfigContextsById = ex_Helpers.fn_CreateDictionaryTextCompare()
+
+    ' После restore возвращаем контекст в реестр Main: дальнейшие несохранённые
+    ' правки активного mode/profile снова обновляют уже открытую PEB-страницу.
+    If m_ConfigContextsById.Exists(contextId) Then m_ConfigContextsById.Remove contextId
+    m_ConfigContextsById.Add contextId, configContext
+    If Not configContext.BindOwner(m_Page, Me) Then Exit Function
+    AttachRestoredModeConfigContext = True
+End Function
+
 Public Function OnOpenWordDataExtractorPageCommand(Optional ByVal arg As Variant) As Boolean
     Dim sheetName As String
     Dim existingPage As obj_IPage

@@ -112,6 +112,11 @@ Private Function obj_IPage_GetPageId() As String
     obj_IPage_GetPageId = m_PageBase.PageId
 End Function
 
+Public Function AttachRestoredModeConfigContext(ByVal configContext As obj_ModeConfigContext) As Boolean
+    If m_PageMainController Is Nothing Then Exit Function
+    AttachRestoredModeConfigContext = m_PageMainController.AttachRestoredModeConfigContext(configContext)
+End Function
+
 Private Function obj_IPage_TryGetController(ByRef outController As Object) As Boolean
     Set outController = Nothing
     Set outController = m_PageMainController
