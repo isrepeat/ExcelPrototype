@@ -73,6 +73,7 @@ Private Const WORD_ALIAS_VACATION_DAYS As String = "VacationDays"
 Private Const WORD_ALIAS_ADDITIONAL_WAY_DAYS As String = "AdditionalWayDays"
 Private Const WORD_ALIAS_VACATION_TOTAL_DAYS As String = "VacationTotalDays"
 Private Const WORD_ALIAS_VACATION_DATES_SAME_MONTH As String = "VacationDatesSameMonth"
+Private Const WORD_ALIAS_VACATION_DATES_SAME_YEAR As String = "VacationDatesSameYear"
 Private Const WORD_ALIAS_ENROLL_TO_FOOD_SUPPORT_DATE As String = "EnrollToFoodSupportDateShort"
 Private Const WORD_ALIAS_REMOVE_FROM_FOOD_SUPPORT_DATE As String = "RemoveFromFoodSupportDateShort"
 Private Const WORD_ALIAS_PREV_VK_NUM As String = "PrevVkNum"
@@ -1416,6 +1417,9 @@ Private Function private_TryEnrichMainSourceTableForWord( _
                     sourceTable, WORD_ALIAS_VACATION_DATES_SAME_MONTH, _
                     VBA.CStr(VBA.Year(dateFromDate) = VBA.Year(vacationDateTo) And _
                              VBA.Month(dateFromDate) = VBA.Month(vacationDateTo))) Then Exit Function
+                If Not private_TryUpsertMainTableValue( _
+                    sourceTable, WORD_ALIAS_VACATION_DATES_SAME_YEAR, _
+                    VBA.CStr(VBA.Year(dateFromDate) = VBA.Year(vacationDateTo))) Then Exit Function
             End If
         End If
     End If

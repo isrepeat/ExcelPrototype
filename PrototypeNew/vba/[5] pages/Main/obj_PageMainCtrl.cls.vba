@@ -28,6 +28,7 @@ Private Const CONFIG_RUNTIME_KEY As String = "RuntimeItems.PageMain.Config"
 Private m_Page As obj_IPage
 Private m_ModeItemsProvider As obj_SIP_ModeFolders
 Private m_ProfileItemsProvider As obj_SIP_ModeProfilesXml
+Private m_ConfigContextsById As Object
 Private m_SelectItemsProvidersReady As Boolean
 Private m_IsDisposed As Boolean
 
@@ -67,6 +68,7 @@ Public Function Initialize(ByVal page As obj_IPage) As Boolean
 
     m_IsDisposed = False
     Set m_Page = page
+    Set m_ConfigContextsById = ex_Helpers.fn_CreateDictionaryTextCompare()
     Set pageBase = m_Page.GetPageBase()
 
     ' Привязку objectSource для контроллера создаем один раз при инициализации.
@@ -96,6 +98,7 @@ Public Sub Dispose()
     Call ex_SelectItemsSourceProviders.fn_UnregisterProvider(PROFILES_RUNTIME_KEY)
     Set m_ModeItemsProvider = Nothing
     Set m_ProfileItemsProvider = Nothing
+    Set m_ConfigContextsById = Nothing
     m_SelectItemsProvidersReady = False
     Set m_Page = Nothing
     On Error GoTo 0
@@ -124,6 +127,31 @@ End Property
 Public Property Get IsWordDataExtractorMode() As Boolean
     IsWordDataExtractorMode = private_IsCurrentMode("WordDataExtractor")
 End Property
+
+Public Function TryRefreshModeConfigContext(ByVal configContext As obj_ModeConfigContext) As Boolean
+    Dim activeContextId As String
+    Dim modeId As String
+    Dim profileId As String
+    Dim rawControl As Object
+    Dim configControl As obj_ConfigControlVM
+    Dim configTable As obj_ConfigTable
+
+    If configContext Is Nothing Then Exit Function
+    If Not private_TryResolveActiveConfigIdentity(activeContextId, modeId, profileId) Then Exit Function
+    If VBA.StrComp(activeContextId, configContext.ContextId, VBA.vbTextCompare) <> 0 Then
+        TryRefreshModeConfigContext = True
+        Exit Function
+    End If
+
+    If Not m_Page.TryGetRegisteredControlByName(CONFIG_CONTROL_NAME, rawControl) Then Exit Function
+    If rawControl Is Nothing Then Exit Function
+    If Not TypeOf rawControl Is obj_ConfigControlVM Then Exit Function
+    Set configControl = rawControl
+    If Not configControl.TryBuildConfigTableFromRendered(configTable) Then Exit Function
+    If Not configContext.ReplaceConfigTable(configTable) Then Exit Function
+
+    TryRefreshModeConfigContext = True
+End Function
 
 Public Function OnOpenWordDataExtractorPageCommand(Optional ByVal arg As Variant) As Boolean
     Dim sheetName As String
@@ -687,7 +715,7 @@ Public Function OnOpenPrsnlEvntBuilderPageCommand(Optional ByVal arg As Variant)
     Dim sheetName As String
     Dim existingPage As obj_IPage
     Dim builderPage As obj_IPage
-    Dim parentPage As obj_IPage
+    Dim configContext As obj_ModeConfigContext
     Dim isPageCreated As Boolean
 
     On Error GoTo EH_OPEN
@@ -741,9 +769,9 @@ Public Function OnOpenPrsnlEvntBuilderPageCommand(Optional ByVal arg As Variant)
         Exit Function
     End If
 
-    Set parentPage = m_Page
+    If Not private_TryGetOrCreateActiveConfigContext(configContext) Then GoTo EH_CREATE
 
-    If Not rt_PageManager.fn_CreatePage(builderPage, "ui\PrsnlEvntBuilderUI.xml", sheetName, parentPage) Then GoTo EH_CREATE
+    If Not rt_PageManager.fn_CreatePage(builderPage, "ui\PrsnlEvntBuilderUI.xml", sheetName, configContext) Then GoTo EH_CREATE
     isPageCreated = True
 
     If Not builderPage.RunPagePipeline() Then
@@ -901,6 +929,69 @@ End Function
 ' //
 ' // Internal
 ' //
+Private Function private_TryGetOrCreateActiveConfigContext( _
+    ByRef outContext As obj_ModeConfigContext _
+) As Boolean
+    Dim rawControl As Object
+    Dim configControl As obj_ConfigControlVM
+    Dim configTable As obj_ConfigTable
+    Dim modeId As String
+    Dim profileId As String
+    Dim contextId As String
+
+    Set outContext = Nothing
+    If m_Page Is Nothing Then Exit Function
+    If m_ConfigContextsById Is Nothing Then Set m_ConfigContextsById = ex_Helpers.fn_CreateDictionaryTextCompare()
+
+    If Not m_Page.TryGetRegisteredControlByName(CONFIG_CONTROL_NAME, rawControl) Then Exit Function
+    If rawControl Is Nothing Then Exit Function
+    If Not TypeOf rawControl Is obj_ConfigControlVM Then Exit Function
+    Set configControl = rawControl
+    If Not configControl.TryBuildConfigTableFromRendered(configTable) Then Exit Function
+    If configTable Is Nothing Then Exit Function
+
+    If Not private_TryResolveActiveConfigIdentity(contextId, modeId, profileId) Then Exit Function
+    ' Реестр сохраняет независимые runtime-контексты при переключении Main.
+    ' DevConfig редактирует активный контекст, но не подменяет уже открытые.
+    If m_ConfigContextsById.Exists(contextId) Then
+        Set outContext = m_ConfigContextsById(contextId)
+        If outContext Is Nothing Then Exit Function
+        If Not outContext.ReplaceConfigTable(configTable) Then Exit Function
+    Else
+        Set outContext = New obj_ModeConfigContext
+        If Not outContext.Initialize(contextId, modeId, profileId, configTable, m_Page, Me) Then Exit Function
+        m_ConfigContextsById.Add contextId, outContext
+    End If
+
+    private_TryGetOrCreateActiveConfigContext = True
+End Function
+
+Private Function private_TryResolveActiveConfigIdentity( _
+    ByRef outContextId As String, _
+    ByRef outModeId As String, _
+    ByRef outProfileId As String _
+) As Boolean
+    Dim profileOptions As Collection
+    Dim profilesFilePath As String
+    Dim pageBase As obj_PageBase
+    Dim ws As Worksheet
+
+    outContextId = VBA.vbNullString
+    outModeId = VBA.vbNullString
+    outProfileId = VBA.vbNullString
+    If Not private_TryGetCurrentModeId(outModeId) Then Exit Function
+    If Not private_TryBuildProfileSelectOptionsByMode(outModeId, profileOptions, profilesFilePath) Then Exit Function
+    Set pageBase = m_Page.GetPageBase()
+    If pageBase Is Nothing Then Exit Function
+    Set ws = pageBase.Worksheet
+    If ws Is Nothing Then Exit Function
+    If Not private_TryResolveSelectedIdForControl( _
+        ws, PROFILE_PICKER_CONTROL_NAME, profileOptions, outProfileId) Then Exit Function
+
+    outContextId = VBA.LCase$(VBA.Trim$(outModeId)) & "|" & VBA.LCase$(VBA.Trim$(outProfileId))
+    private_TryResolveActiveConfigIdentity = (VBA.Len(outContextId) > 1)
+End Function
+
 Private Function private_TryPrepareModeProfileConfigRuntime( _
     Optional ByVal notifyChange As Boolean = False _
 ) As Boolean

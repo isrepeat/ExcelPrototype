@@ -17,7 +17,6 @@ Private Const CONTROL_SNAPSHOT_NODE As String = "controlSnapshot"
 Private Const HOTKEYS_SNAPSHOT_NODE As String = "hotkeys"
 Private Const HOTKEY_ROW_SNAPSHOT_NODE As String = "row"
 Private Const PARENT_PAGE_ID_ATTR As String = "parentPageId"
-Private Const PARENT_CONFIG_CONTROL_NAME As String = "DevConfig"
 Private Const PAGE_RUNTIME_OBJECT_KEY As String = "RuntimeObjects.PrsnlEvntBuilder"
 Private Const LOOKUP_CANDIDATES_CONTROL_NAME As String = "LookupCandidatesTable"
 Private Const HOTKEYS_RUNTIME_KEY As String = "RuntimeItems.PrsnlEvntBuilder.Hotkeys"
@@ -31,6 +30,8 @@ Private m_Controller As obj_PagePrsnlEvntBuilderCtrl
 Private m_PendingControlSnapshots As Collection
 Private m_ParentPageId As String
 Private m_ParentPage As obj_IPage
+Private m_ConfigContext As obj_ModeConfigContext
+Private m_AppliedConfigRevision As Long
 Private m_QueryValuesByLookupKey As Object
 Private m_IsDisposed As Boolean
 
@@ -63,16 +64,29 @@ Private Function obj_IPage_Initialize( _
     Optional ByVal Context As Object = Nothing _
 ) As Boolean
     Dim parentPage As obj_IPage
+    Dim configContext As obj_ModeConfigContext
 
     m_ParentPageId = VBA.vbNullString
     Set m_ParentPage = Nothing
+    Set m_ConfigContext = Nothing
+    m_AppliedConfigRevision = 0
 
     If Not Context Is Nothing Then
-        If TypeOf Context Is obj_IPage Then
-            Set parentPage = Context
-            m_ParentPageId = VBA.LCase$(VBA.Trim$(parentPage.GetPageId()))
-            Set m_ParentPage = parentPage
+        If TypeOf Context Is obj_ModeConfigContext Then
+            Set configContext = Context
+            Set m_ConfigContext = configContext
+            Set parentPage = configContext.ParentPage
+            If Not parentPage Is Nothing Then
+                m_ParentPageId = VBA.LCase$(VBA.Trim$(parentPage.GetPageId()))
+                Set m_ParentPage = parentPage
+            End If
         End If
+    End If
+
+    If m_ConfigContext Is Nothing Then
+        VBA.MsgBox "PrototypeNew: PrsnlEvntBuilder initialization requires obj_ModeConfigContext.", _
+            vbExclamation, "PrototypeNew / Config runtime"
+        Exit Function
     End If
 
     If Not m_PageBase.Initialize(ws, Me, uiPath, pageId) Then Exit Function
@@ -89,15 +103,12 @@ Private Sub obj_IPage_Dispose(Optional ByVal deleteWorksheet As Boolean = True)
 End Sub
 
 Private Function obj_IPage_RunPagePipeline() As Boolean
-    Dim configControl As obj_ConfigControlVM
-
 #If LOGGING_DEBUG_ENABLED Then
     ex_Core.fn_Diagnostic_LogInfo "enter:obj_PagePrsnlEvntBuilder.RunPagePipeline"
 #End If
     If Not m_PageBase.IsReady() Then Exit Function
-    If Not private_TryResolveParentConfigControl(configControl) Then Exit Function
     If Not m_Controller Is Nothing Then
-        If Not m_Controller.UpdateData(configControl) Then Exit Function
+        If Not private_TryApplyConfigContext() Then Exit Function
         If Not private_SyncLookupQueryKeysFromController() Then Exit Function
         If Not m_Controller.PrepareRuntime(False) Then Exit Function
     End If
@@ -300,7 +311,6 @@ End Function
 
 Private Function obj_ISerializable_TryRestoreState() As Boolean
     Dim parentPage As obj_IPage
-    Dim configControl As obj_ConfigControlVM
 
     If Not m_PageBase.IsReady() Then Exit Function
 
@@ -315,10 +325,8 @@ Private Function obj_ISerializable_TryRestoreState() As Boolean
     End If
 
     If Not m_Controller Is Nothing Then
-        If private_TryResolveParentConfigControl(configControl) Then
-            If Not m_Controller.UpdateData(configControl) Then Exit Function
-            If Not private_SyncLookupQueryKeysFromController() Then Exit Function
-        End If
+        If Not private_TryApplyConfigContext() Then Exit Function
+        If Not private_SyncLookupQueryKeysFromController() Then Exit Function
         If Not m_Controller.PrepareRuntime(False) Then Exit Function
     End If
 
@@ -391,6 +399,8 @@ Private Sub private_Dispose(Optional ByVal deleteWorksheet As Boolean = True)
     Set m_PendingControlSnapshots = Nothing
     m_ParentPageId = VBA.vbNullString
     Set m_ParentPage = Nothing
+    Set m_ConfigContext = Nothing
+    m_AppliedConfigRevision = 0
     If Not m_PageBase Is Nothing Then m_PageBase.Dispose deleteWorksheet
     Set m_PageBase = Nothing
     On Error GoTo 0
@@ -597,38 +607,47 @@ Private Function private_TryGetParentPage(ByRef outParentPage As obj_IPage) As B
     private_TryGetParentPage = True
 End Function
 
-Private Function private_TryResolveParentConfigControl(ByRef outConfigControl As obj_ConfigControlVM) As Boolean
-    Dim parentPage As obj_IPage
-    Dim rawControl As Object
-
-    Set outConfigControl = Nothing
-    If Not private_TryGetParentPage(parentPage) Then Exit Function
-    If parentPage Is Nothing Then Exit Function
-
-    Set rawControl = Nothing
-    If Not parentPage.TryGetRegisteredControlByName(PARENT_CONFIG_CONTROL_NAME, rawControl) Then Exit Function
-    If rawControl Is Nothing Then Exit Function
-    If Not TypeOf rawControl Is obj_ConfigControlVM Then Exit Function
-
-    Set outConfigControl = rawControl
-    private_TryResolveParentConfigControl = True
+Private Function private_TryEnsureControllerData() As Boolean
+    If m_Controller Is Nothing Then Exit Function
+    If Not private_TryApplyConfigContext() Then Exit Function
+    If Not private_SyncLookupQueryKeysFromController() Then Exit Function
+    private_TryEnsureControllerData = True
 End Function
 
-Private Function private_TryEnsureControllerData() As Boolean
-    Dim configControl As obj_ConfigControlVM
+Public Function EnsureModeConfigCurrent() As Boolean
+    If Not private_TryApplyConfigContext() Then Exit Function
+    If Not private_SyncLookupQueryKeysFromController() Then Exit Function
+    EnsureModeConfigCurrent = True
+End Function
+
+Private Function private_TryApplyConfigContext() As Boolean
+    Dim configTable As obj_ConfigTable
 
     If m_Controller Is Nothing Then Exit Function
-    If Not private_TryResolveParentConfigControl(configControl) Then
-#If LOGGING_DEBUG_ENABLED Then
-        ex_Core.fn_Diagnostic_LogError "PagePrsnlEvntBuilder: failed to resolve parent DevConfig before lookup search."
-#End If
-        VBA.MsgBox "PrototypeNew: failed to resolve parent DevConfig before lookup search.", vbExclamation, "PrototypeNew / EntityLookup runtime"
+    If m_ConfigContext Is Nothing Then
+        VBA.MsgBox "PrototypeNew: PrsnlEvntBuilder mode configuration context is unavailable.", _
+            vbExclamation, "PrototypeNew / Config runtime"
+        Exit Function
+    End If
+    If Not m_ConfigContext.RefreshFromOwnerIfActive() Then Exit Function
+    ' При чужом активном конфиге Main сохраняется последняя таблица PEB.
+    ' При своём — несохранённые изменения уже попали в неё через refresh выше.
+    If m_AppliedConfigRevision = m_ConfigContext.Revision Then
+        private_TryApplyConfigContext = True
         Exit Function
     End If
 
-    If Not m_Controller.UpdateData(configControl) Then Exit Function
-    If Not private_SyncLookupQueryKeysFromController() Then Exit Function
-    private_TryEnsureControllerData = True
+    Set configTable = m_ConfigContext.ConfigTable
+    If configTable Is Nothing Then
+        VBA.MsgBox "PrototypeNew: PrsnlEvntBuilder configuration context '" & _
+            m_ConfigContext.ContextId & "' has no ConfigTable.", _
+            vbExclamation, "PrototypeNew / Config runtime"
+        Exit Function
+    End If
+    If Not m_Controller.UpdateDataFromConfigTable(configTable) Then Exit Function
+
+    m_AppliedConfigRevision = m_ConfigContext.Revision
+    private_TryApplyConfigContext = True
 End Function
 
 Private Function private_SyncLookupQueryKeysFromController() As Boolean
