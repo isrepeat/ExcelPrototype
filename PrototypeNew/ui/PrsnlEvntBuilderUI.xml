@@ -36,9 +36,7 @@
           type="ButtonGroup"
           name="EventDraftProfileButtonGroup"
           itemsSource="{PageRuntimeSource='RuntimeItems.PrsnlEvntBuilder.Profiles'}"
-          captionPath="Caption"
-          idPath="Id"
-          stylePath="StyleName"
+          style="profileButton"
           shapePrefix="btn_STBar_"
           onClick="{Binding DataContext={PageRuntimeSource='RuntimeObjects.PrsnlEvntBuilder.Controller'}; Method=OnProfileButtonClick}"
           columns="4"
@@ -51,9 +49,7 @@
           type="ButtonGroup"
           name="EventDraftMetaProfileButtonGroup"
           itemsSource="{PageRuntimeSource='RuntimeItems.PrsnlEvntBuilder.MetaProfiles'}"
-          captionPath="Caption"
-          idPath="Id"
-          stylePath="StyleName"
+          style="metaProfileButton"
           shapePrefix="btn_STBarMeta_"
           onClick="{Binding DataContext={PageRuntimeSource='RuntimeObjects.PrsnlEvntBuilder.Controller'}; Method=OnMetaProfileButtonClick}"
           columns="1"
@@ -1085,31 +1081,11 @@
       fontBold="true"/>
 
     <controlStyle
-      name="profileButtonSelected"
-      backColor="#FFC000"
-      textColor="#0A0A0A"
-      borderColor="#B38300"
-      borderWeight="1.25"
-      fontName="Calibri"
-      fontSize="11"
-      fontBold="true"/>
-
-    <controlStyle
       name="metaProfileButton"
       backColor="#C75512"
       textColor="#FFFFFF"
       borderColor="#8F3A0B"
       borderWeight="1"
-      fontName="Calibri"
-      fontSize="11"
-      fontBold="true"/>
-
-    <controlStyle
-      name="metaProfileButtonSelected"
-      backColor="#F4B183"
-      textColor="#0A0A0A"
-      borderColor="#C75512"
-      borderWeight="1.25"
       fontName="Calibri"
       fontSize="11"
       fontBold="true"/>
@@ -1173,6 +1149,43 @@
                 fontSize:16;
                 overflow:wrap;
                 vertical:top;
+              }"/>
+      </layer>
+
+      <!-- ButtonGroup получает только семантические теги элементов. -->
+      <layer name="profile-button-tags">
+        <rule target="controlPart"
+              selector="type=buttongroup;name=EventDraftProfileButtonGroup;part=tag-departure"
+              styles="{
+                backColor:#1F4E79;
+                fontColor:#FFFFFF;
+                borderColor:#102A43;
+                borderWeight:1;
+                fontName:Calibri;
+                fontSize:11;
+                fontBold:true;
+              }"/>
+        <rule target="controlPart"
+              selector="type=buttongroup;name=EventDraftProfileButtonGroup;part=state-selected"
+              styles="{
+                backColor:#FFC000;
+                fontColor:#0A0A0A;
+                borderColor:#B38300;
+                borderWeight:1.25;
+                fontName:Calibri;
+                fontSize:11;
+                fontBold:true;
+              }"/>
+        <rule target="controlPart"
+              selector="type=buttongroup;name=EventDraftMetaProfileButtonGroup;part=state-selected"
+              styles="{
+                backColor:#F4B183;
+                fontColor:#0A0A0A;
+                borderColor:#C75512;
+                borderWeight:1.25;
+                fontName:Calibri;
+                fontSize:11;
+                fontBold:true;
               }"/>
       </layer>
 
