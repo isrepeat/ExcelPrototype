@@ -151,8 +151,6 @@
             type="Label"
             name="HospitalHeader"
             tags="profile.allFields;
-                  profile.toBusinessTrip;
-                  profile.toBusinessTripSzch;
                   profile.closeTreatment;
                   profile.toTreatment;
                   profile.transferTreatmentToTreatmentVacation;
@@ -166,8 +164,6 @@
             type="Label"
             name="HospitalShortHeader"
             tags="profile.allFields;
-                  profile.toBusinessTrip;
-                  profile.toBusinessTripSzch;
                   profile.closeTreatment;
                   profile.toTreatment;
                   profile.transferTreatmentToTreatmentVacation;
@@ -179,7 +175,7 @@
             />
           <control
             type="Label"
-            name="VacationHeader"
+            name="DestinationHeader"
             tags="profile.allFields;
                   profile.toBusinessTrip;
                   profile.toBusinessTripSzch;
@@ -189,7 +185,7 @@
                   profile.transferTreatmentToTreatmentVacation;
                   profile.transferTreatmentVacationToTreatmentVacation;
                   profile.transferVlkToTreatmentVacation"
-            text="Відпустка"
+            text="Куди"
             style="tableHeaderCell"
             />
           <control
@@ -516,8 +512,6 @@
             name="HospitalLookupInput"
             tags="_Hospital;
                   profile.allFields;
-                  profile.toBusinessTrip;
-                  profile.toBusinessTripSzch;
                   profile.closeTreatment;
                   profile.toTreatment;
                   profile.transferTreatmentToTreatmentVacation;
@@ -536,8 +530,6 @@
             name="HospitalShortDraftCell"
             tags="_HospitalShort;
                   profile.allFields;
-                  profile.toBusinessTrip;
-                  profile.toBusinessTripSzch;
                   profile.closeTreatment;
                   profile.toTreatment;
                   profile.transferTreatmentToTreatmentVacation;
@@ -550,8 +542,8 @@
 
           <control
             type="Label"
-            name="VacationDraftCell"
-            tags="_Vacation;
+            name="DestinationDraftCell"
+            tags="_Destination;
                   profile.allFields;
                   profile.toBusinessTrip;
                   profile.toBusinessTripSzch;
@@ -852,9 +844,7 @@
             type="Label"
             name="DateToDraftCell"
             tags="_DateTo;
-                  profile.allFields;
-                  profile.toBusinessTrip;
-                  profile.toBusinessTripSzch"
+                  profile.allFields"
             text=""
             style="tableDataCell"
             />
@@ -1185,7 +1175,7 @@
 
         <rule target="controlPart" selector="type=label;name=HospitalHeader;part=cell" styles="{ width:24; }"/>
         <rule target="controlPart" selector="type=label;name=HospitalShortHeader;part=cell" styles="{ width:12; }"/>
-        <rule target="controlPart" selector="type=label;name=VacationHeader;part=cell" styles="{ width:16; }"/>
+        <rule target="controlPart" selector="type=label;name=DestinationHeader;part=cell" styles="{ width:16; }"/>
         <rule target="controlPart" selector="type=label;name=RankHeader;part=cell" styles="{ width:16; }"/>
         <rule target="controlPart" selector="type=label;name=FioHeader;part=cell" styles="{ width:22; }"/>
         <rule target="controlPart" selector="type=label;name=IpnHeader;part=cell" styles="{ width:16; }"/>

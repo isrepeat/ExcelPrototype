@@ -25,7 +25,7 @@ Private Const SOURCE_ALIAS_FIO As String = "FIO"
 Private Const SOURCE_ALIAS_POSITION_CODE As String = "PositionCode"
 Private Const SOURCE_ALIAS_POSITION_NAME As String = "PositionName"
 Private Const SOURCE_ALIAS_HOSPITAL_SHORT As String = "HospitalShort"
-Private Const SOURCE_ALIAS_VACATION As String = "Vacation"
+Private Const SOURCE_ALIAS_DESTINATION As String = "Destination"
 Private Const SOURCE_ALIAS_REPORT_RANK As String = "ReportRank"
 Private Const SOURCE_ALIAS_REPORT_PERSON As String = "ReportPerson"
 Private Const SOURCE_ALIAS_REPORT_POSITION_CODE As String = "ReportPositionCode"
@@ -1209,7 +1209,7 @@ Private Function private_TryEnrichMainSourceTableForWord( _
     Dim positionCodeText As String
     Dim positionText As String
     Dim hospitalShortText As String
-    Dim vacationText As String
+    Dim destinationText As String
     Dim reportRankText As String
     Dim reportPersonText As String
     Dim reportPositionCodeText As String
@@ -1259,7 +1259,7 @@ Private Function private_TryEnrichMainSourceTableForWord( _
     If Not private_TryGetMainTableValue(sourceTable, SOURCE_ALIAS_POSITION_CODE, positionCodeText) Then positionCodeText = VBA.vbNullString
     If Not private_TryGetMainTableValue(sourceTable, SOURCE_ALIAS_POSITION_NAME, positionText) Then positionText = VBA.vbNullString
     If Not private_TryGetMainTableValue(sourceTable, SOURCE_ALIAS_HOSPITAL_SHORT, hospitalShortText) Then hospitalShortText = VBA.vbNullString
-    If Not private_TryGetMainTableValue(sourceTable, SOURCE_ALIAS_VACATION, vacationText) Then vacationText = VBA.vbNullString
+    If Not private_TryGetMainTableValue(sourceTable, SOURCE_ALIAS_DESTINATION, destinationText) Then destinationText = VBA.vbNullString
     If Not private_TryGetMainTableValue(sourceTable, SOURCE_ALIAS_REPORT_RANK, reportRankText) Then reportRankText = VBA.vbNullString
     If Not private_TryGetMainTableValue(sourceTable, SOURCE_ALIAS_REPORT_PERSON, reportPersonText) Then reportPersonText = VBA.vbNullString
     If Not private_TryGetMainTableValue(sourceTable, SOURCE_ALIAS_REPORT_POSITION_CODE, reportPositionCodeText) Then reportPositionCodeText = VBA.vbNullString
@@ -1354,8 +1354,8 @@ Private Function private_TryEnrichMainSourceTableForWord( _
     If VBA.Len(VBA.Trim$(hospitalDative)) > 0 Then
         If Not private_TryUpsertMainTableValue(sourceTable, WORD_ALIAS_HOSPITAL_DATIVE, hospitalDative) Then Exit Function
     End If
-    If VBA.Len(VBA.Trim$(vacationText)) > 0 Then
-        If Not private_TryUpsertMainTableValue(sourceTable, SOURCE_ALIAS_VACATION, vacationText) Then Exit Function
+    If VBA.Len(VBA.Trim$(destinationText)) > 0 Then
+        If Not private_TryUpsertMainTableValue(sourceTable, SOURCE_ALIAS_DESTINATION, destinationText) Then Exit Function
     End If
     If VBA.Len(VBA.Trim$(reportRankGenitive)) > 0 Then
         If Not private_TryUpsertMainTableValue(sourceTable, WORD_ALIAS_REPORT_RANK_GENITIVE, reportRankGenitive) Then Exit Function
@@ -2040,7 +2040,7 @@ Private Function private_ApplyGeneratedAliasWordTypography( _
              VBA.LCase$(WORD_ALIAS_HOSPITAL_ACCUSATIVE)
             valueText = private_NormalizeHospitalWordTypography(valueText)
 
-        Case VBA.LCase$(SOURCE_ALIAS_VACATION)
+        Case VBA.LCase$(SOURCE_ALIAS_DESTINATION)
             valueText = private_NormalizeLocationWordTypography(valueText)
     End Select
 

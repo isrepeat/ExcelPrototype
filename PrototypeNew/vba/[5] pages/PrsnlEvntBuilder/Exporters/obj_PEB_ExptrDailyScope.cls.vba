@@ -17,7 +17,7 @@ Private m_ExporterDataProvider As obj_PEB_ExptrDataPrvdr
 Private Const SAVE_ALREADY_OPEN_WORKBOOK As Boolean = False
 Private Const SOURCE_ALIAS_HOSPITAL As String = "Hospital"
 Private Const SOURCE_ALIAS_HOSPITAL_SHORT As String = "HospitalShort"
-Private Const SOURCE_ALIAS_VACATION As String = "Vacation"
+Private Const SOURCE_ALIAS_DESTINATION As String = "Destination"
 Private Const SOURCE_ALIAS_RANK As String = "Rank"
 Private Const SOURCE_ALIAS_FIO As String = "FIO"
 Private Const SOURCE_ALIAS_IPN As String = "IPN"
@@ -41,7 +41,7 @@ Private Const SOURCE_ALIAS_VLK_NO As String = "VlkNo"
 Private Const SOURCE_ALIAS_VLK_DATE As String = "VlkDate"
 Private Const TARGET_COLUMN_HOSPITAL As String = "Лікарня"
 Private Const TARGET_COLUMN_HOSPITAL_SHORT As String = "Лікарня скорочена назва"
-Private Const TARGET_COLUMN_VACATION As String = "Відпустка"
+Private Const TARGET_COLUMN_DESTINATION As String = "Відпустка"
 Private Const TARGET_COLUMN_RANK As String = "Звання"
 Private Const TARGET_COLUMN_FIO As String = "ПІБ"
 Private Const TARGET_COLUMN_IPN As String = "ІПН"
@@ -499,7 +499,7 @@ Private Function private_TryWriteSourceRow( _
     ' не ломая экспорт в DailyScope.
     If Not private_TryWriteDirectSourceValue(sourceTable, sourceRow, targetTable, rowRange, SOURCE_ALIAS_HOSPITAL, TARGET_COLUMN_HOSPITAL) Then Exit Function
     If Not private_TryWriteDirectSourceValue(sourceTable, sourceRow, targetTable, rowRange, SOURCE_ALIAS_HOSPITAL_SHORT, TARGET_COLUMN_HOSPITAL_SHORT) Then Exit Function
-    If Not private_TryWriteDirectSourceValue(sourceTable, sourceRow, targetTable, rowRange, SOURCE_ALIAS_VACATION, TARGET_COLUMN_VACATION) Then Exit Function
+    If Not private_TryWriteDirectSourceValue(sourceTable, sourceRow, targetTable, rowRange, SOURCE_ALIAS_DESTINATION, TARGET_COLUMN_DESTINATION) Then Exit Function
     If Not private_TryWriteDirectSourceValue(sourceTable, sourceRow, targetTable, rowRange, SOURCE_ALIAS_RANK, TARGET_COLUMN_RANK) Then Exit Function
     If Not private_TryWriteDirectSourceValue(sourceTable, sourceRow, targetTable, rowRange, SOURCE_ALIAS_FIO, TARGET_COLUMN_FIO) Then Exit Function
     If Not private_TryWriteDirectSourceValue(sourceTable, sourceRow, targetTable, rowRange, SOURCE_ALIAS_IPN, TARGET_COLUMN_IPN) Then Exit Function
