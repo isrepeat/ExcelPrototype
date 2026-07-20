@@ -34,4 +34,39 @@
     <item key="MultiSourcesView.Columns" value="FIO; IPN; HospitalizationDate; BasisDocName; BasisDocDate; BasisDocNumber; FullHospitalName; TreatmentStatus; AfterTreatmentDocName; AfterTreatmentDocDate; AfterTreatmentDocNumber;"/>
     <item key="MultiSourcesView.MaxRows" value="500"/>
   </profile>
+
+  <profile id="medical-2026-06" caption="Multi sources view / 2026.06">
+    <item attr="#" key="Profile.Name" value="Multi sources view / 2026.06"/>
+    <item attr="#" key="Sources" value=""/>
+    <item key="Source.MedicalDaily.FilePath" value="..\..\..\WORK Alexandr Bondarenko\НАКАЗИ\Ст. запис. мед. 2026.06 (червень)\Стройова записка медичної служби станом на {dd}.{mm}.{yyyy}.xlsx"/>
+    <item key="Source.MedicalDaily.FilePathResolver" value="ResolveAllByDmyPattern"/>
+    <item key="Source.MedicalDaily.FilePathResolverArgs" value="order=asc"/>
+    <item key="Source.MedicalDaily.RuntimeAliasPattern" value="Main-{dd}.{mm}.{yyyy}"/>
+    <item key="MedicalDaily.Sheet[StateMain].SheetName" value="Аркуш1$A3:S1048576"/>
+    <item key="MedicalDaily.Sheet[StateMain].ColumnHeadersAliases" value="No; Unit; Rank; FIO; HospitalizationDate; BasisDocName; BasisDocDate; BasisDocNumber; CombatInjury; FullHospitalName; Diagnosis; TreatmentStatus; AfterTreatmentDocName; AfterTreatmentDocDate; AfterTreatmentDocNumber; PhoneNumber; IPN; BirthDate; Certificates"/>
+    <!-- <item key="MedicalDaily.Sheet[StateMain].Map[No]" value="№ з/п"/> -->
+    <!-- <item key="MedicalDaily.Sheet[StateMain].Map[Unit]" value="Підрозділ"/> -->
+    <!-- <item key="MedicalDaily.Sheet[StateMain].Map[Rank]" value="Військове звання"/> -->
+    <item key="MedicalDaily.Sheet[StateMain].Map[FIO]" value="П.І.Б."/>
+    <item key="MedicalDaily.Sheet[StateMain].Map[HospitalizationDate]" value="Дата госпіталізації / переведення"/>
+    <item key="MedicalDaily.Sheet[StateMain].Map[BasisDocName]" value="На підставі чого госпіталізований (Назва документу)"/>
+    <item key="MedicalDaily.Sheet[StateMain].Map[BasisDocDate]" value="На підставі чого госпіталізований (дата, документу)"/>
+    <item key="MedicalDaily.Sheet[StateMain].Map[BasisDocNumber]" value="На підставі чого госпіталізований (№ документу)"/>
+    <!-- <item key="MedicalDaily.Sheet[StateMain].Map[CombatInjury]" value="Бойове поранення"/> -->
+    <item key="MedicalDaily.Sheet[StateMain].Map[FullHospitalName]" value="Повна назва лікувального закладу"/>
+    <!-- <item key="MedicalDaily.Sheet[StateMain].Map[Diagnosis]" value="Діагноз"/> -->
+    <item key="MedicalDaily.Sheet[StateMain].Map[TreatmentStatus]" value="Статус лікування"/>
+    <item key="MedicalDaily.Sheet[StateMain].Map[AfterTreatmentDocName]" value="Назва документу який він отримав після вибуття з лікування"/>
+    <item key="MedicalDaily.Sheet[StateMain].Map[AfterTreatmentDocDate]" value="Дата документу який він отримав після вибуття з лікування"/>
+    <item key="MedicalDaily.Sheet[StateMain].Map[AfterTreatmentDocNumber]" value="№ документу який він отримав після вибуття з лікування"/>
+    <!-- <item key="MedicalDaily.Sheet[StateMain].Map[PhoneNumber]" value="Номер телефону"/> -->
+    <item key="MedicalDaily.Sheet[StateMain].Map[IPN]" value="ІПН"/>
+    <!-- <item key="MedicalDaily.Sheet[StateMain].Map[BirthDate]" value="Дата народження"/> -->
+    <!-- <item key="MedicalDaily.Sheet[StateMain].Map[Certificates]" value="Довідки"/> -->
+
+    <item attr="#" key="View" value=""/>
+    <item key="MultiSourcesView.Tables" value="MedicalDaily.Sheet[StateMain]"/>
+    <item key="MultiSourcesView.Columns" value="FIO; IPN; HospitalizationDate; BasisDocName; BasisDocDate; BasisDocNumber; FullHospitalName; TreatmentStatus; AfterTreatmentDocName; AfterTreatmentDocDate; AfterTreatmentDocNumber;"/>
+    <item key="MultiSourcesView.MaxRows" value="500"/>
+  </profile>
 </profiles>
