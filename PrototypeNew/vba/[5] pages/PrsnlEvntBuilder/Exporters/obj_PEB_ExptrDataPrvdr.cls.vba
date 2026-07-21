@@ -268,6 +268,7 @@ Public Function IsExportAllowed( _
     Dim previousIsClosed As Boolean
     Dim previousDepartureDateText As String
     Dim previousArrivalDateText As String
+    Dim requiredPreviousEventText As String
 
     outErrorMessage = VBA.vbNullString
     Set outLatestTvoChain = New Collection
@@ -316,6 +317,35 @@ Public Function IsExportAllowed( _
     End If
 
     Set data = New obj_PrsnlEvntBuilderData
+    ' Большинство mirror-переходов допускает общий pipeline закрытия. Для смены
+    ' вида отпуска этого недостаточно: новая запись обязана закрыть открытое
+    ' событие именно исходного вида, иначе можно завершить несвязанный статус.
+    If data.TryGetRequiredPreviousMovementEvent(exportSectionType, requiredPreviousEventText) Then
+        If Not found Then
+            outErrorMessage = "Export was stopped because there is no Movement event to close." & _
+                VBA.vbCrLf & "IPN: " & ipnText & _
+                VBA.vbCrLf & "Required previous event: " & requiredPreviousEventText
+            Exit Function
+        End If
+        If previousIsClosed Then
+            outErrorMessage = "Export was stopped because the latest Movement event is already closed." & _
+                VBA.vbCrLf & "IPN: " & ipnText & _
+                VBA.vbCrLf & "Previous event: " & previousEventText & _
+                VBA.vbCrLf & "Required previous event: " & requiredPreviousEventText
+            Exit Function
+        End If
+        If VBA.StrComp( _
+            private_NormalizeLookupKey(previousEventText), _
+            private_NormalizeLookupKey(requiredPreviousEventText), _
+            VBA.vbTextCompare) <> 0 Then
+            outErrorMessage = "Export was stopped because the latest Movement event has an unexpected type." & _
+                VBA.vbCrLf & "IPN: " & ipnText & _
+                VBA.vbCrLf & "Previous event: " & previousEventText & _
+                VBA.vbCrLf & "Required previous event: " & requiredPreviousEventText
+            Exit Function
+        End If
+    End If
+
     ' Mirror transfer по-прежнему не блокируется правилами opening/closing,
     ' но последняя строка уже прочитана и доступна экспортерам как snapshot.
     If data.IsMovementMirrorTransferSectionType(exportSectionType) Then

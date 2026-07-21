@@ -1465,6 +1465,8 @@ Private Function private_TryEnrichPreviousVacationTicketForWord( _
         (VBA.StrComp(sectionTypeText, data.SectionTypeTransferTreatmentVacationToTreatment, VBA.vbTextCompare) = 0) _
         Or (VBA.StrComp(sectionTypeText, data.SectionTypeTransferTreatmentVacationToTreatmentVacation, VBA.vbTextCompare) = 0) _
         Or (VBA.StrComp(sectionTypeText, data.SectionTypeTransferAnnualVacationToTreatment, VBA.vbTextCompare) = 0) _
+        Or (VBA.StrComp(sectionTypeText, data.SectionTypeTransferAnnualVacationToFamilyVacation, VBA.vbTextCompare) = 0) _
+        Or (VBA.StrComp(sectionTypeText, data.SectionTypeTransferFamilyVacationToAnnualVacation, VBA.vbTextCompare) = 0) _
         Or (VBA.StrComp(sectionTypeText, data.SectionTypeTransferTreatmentVacationToVlk, VBA.vbTextCompare) = 0) _
         Or (VBA.StrComp(sectionTypeText, data.SectionTypeTransferMedicalCompanyToTreatmentVacation, VBA.vbTextCompare) = 0) _
         Or (VBA.StrComp(sectionTypeText, data.SectionTypeTransferMedicalCompanyTreatmentVacationToTreatment, VBA.vbTextCompare) = 0)

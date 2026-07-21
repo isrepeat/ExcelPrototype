@@ -39,6 +39,7 @@ Private Const CANDIDATE_TABLES_RUNTIME_KEY As String = "RuntimeItems.PrsnlEvntBu
 Private Const DUMMY_TABLES_RUNTIME_KEY As String = "RuntimeItems.PrsnlEvntBuilder.DummyTables"
 Private Const HOTKEYS_RUNTIME_KEY As String = "RuntimeItems.PrsnlEvntBuilder.Hotkeys"
 Private Const PROFILES_RUNTIME_KEY As String = "RuntimeItems.PrsnlEvntBuilder.Profiles"
+Private Const ADDITIONAL_PROFILES_RUNTIME_KEY As String = "RuntimeItems.PrsnlEvntBuilder.AdditionalProfiles"
 Private Const META_PROFILES_RUNTIME_KEY As String = "RuntimeItems.PrsnlEvntBuilder.MetaProfiles"
 Private Const EXPORT_FORM_MAIN_RUNTIME_KEY As String = "RuntimeItems.PrsnlEvntBuilder.ExportForm.Main"
 Private Const EXPORT_FORM_META_RUNTIME_KEY As String = "RuntimeItems.PrsnlEvntBuilder.ExportForm.Meta"
@@ -63,6 +64,7 @@ Private Const EXPORT_CONTEXT_VALIDATE_DAILY_SCOPE_KEY As String = "ValidateDaily
 Private Const EXPORT_CONTEXT_VALIDATE_MOVEMENT_KEY As String = "ValidateMovement"
 Private Const EXPORT_CONTEXT_VALIDATE_WORD_KEY As String = "ValidateWord"
 Private Const LOOKUP_MODE_CONTROL_NAME As String = "LookupMode"
+Private Const ADDITIONAL_PROFILE_SELECT_CONTROL_NAME As String = "EventDraftAdditionalProfileSelect"
 Private Const VALIDATE_DAILY_SCOPE_CONTROL_NAME As String = "ValidateDailyScope"
 Private Const VALIDATE_MOVEMENT_CONTROL_NAME As String = "ValidateMovement"
 Private Const VALIDATE_WORD_CONTROL_NAME As String = "ValidateWord"
@@ -188,6 +190,11 @@ Public Function Initialize(ByVal page As Object) As Boolean
         "prsnlevntbuilder:entitylookup") Then Exit Function
 
     If Not private_RegisterProfileOptions(False) Then Exit Function
+    ' Select хранит runtime selectedId между page renders. При первом открытии
+    ' синхронизируем его с фактически выбранным профилем, чтобы устаревший
+    ' дополнительный пункт не подменял placeholder основной секции.
+    If Not private_TrySyncAdditionalProfileSelectState() Then Exit Function
+    If Not private_RegisterAdditionalProfileOptions(False) Then Exit Function
     If Not private_RegisterMetaProfileOptions(False) Then Exit Function
     If Not private_RegisterExportFormTables(False) Then Exit Function
     If Not private_RegisterDummyTables(False) Then Exit Function
@@ -369,6 +376,8 @@ Private Function private_AppendFioDependentAliases( _
              private_NormalizeText(m_Data.SectionTypeTransferTreatmentToStationaryVlk), _
              private_NormalizeText(m_Data.SectionTypeTransferAnnualVacationToTreatment), _
              private_NormalizeText(m_Data.SectionTypeTransferFamilyVacationToTreatment), _
+             private_NormalizeText(m_Data.SectionTypeTransferAnnualVacationToFamilyVacation), _
+             private_NormalizeText(m_Data.SectionTypeTransferFamilyVacationToAnnualVacation), _
              private_NormalizeText(m_Data.SectionTypeTransferTreatmentVacationToTreatment), _
              private_NormalizeText(m_Data.SectionTypeTransferTreatmentVacationToVlk)
             private_AddStandardFioDependentAliases dependentAliases
@@ -428,6 +437,8 @@ Private Function private_AppendCommanderDependentAliases( _
              private_NormalizeText(m_Data.SectionTypeTransferTreatmentToStationaryVlk), _
              private_NormalizeText(m_Data.SectionTypeTransferAnnualVacationToTreatment), _
              private_NormalizeText(m_Data.SectionTypeTransferFamilyVacationToTreatment), _
+             private_NormalizeText(m_Data.SectionTypeTransferAnnualVacationToFamilyVacation), _
+             private_NormalizeText(m_Data.SectionTypeTransferFamilyVacationToAnnualVacation), _
              private_NormalizeText(m_Data.SectionTypeTransferTreatmentVacationToTreatment), _
              private_NormalizeText(m_Data.SectionTypeTransferTreatmentVacationToVlk)
             private_AddStandardCommanderDependentAliases dependentAliases
@@ -509,6 +520,7 @@ Public Function PrepareRuntime(Optional ByVal notifyChange As Boolean = False) A
     If m_LookupFeature Is Nothing Then Exit Function
     If Not m_LookupFeature.PrepareLookupRuntime(notifyChange) Then Exit Function
     If Not private_RegisterProfileOptions(notifyChange) Then Exit Function
+    If Not private_RegisterAdditionalProfileOptions(notifyChange) Then Exit Function
     If Not private_RegisterMetaProfileOptions(notifyChange) Then Exit Function
     If Not private_RegisterExportFormTables(notifyChange) Then Exit Function
     If Not private_RegisterDummyTables(notifyChange) Then Exit Function
@@ -795,7 +807,11 @@ Public Function OnProfileButtonClick(Optional ByVal profileId As Variant) As Boo
     m_WordExportPreviewText = VBA.vbNullString
     m_SelectedProfile = newProfile
     If m_Page Is Nothing Then Exit Function
+    If private_IsMainProfile(newProfile) And Not m_Data.IsAdditionalProfileName(newProfile) Then
+        If Not private_TryResetAdditionalProfileSelect() Then Exit Function
+    End If
     If Not private_RegisterProfileOptions(False) Then Exit Function
+    If Not private_RegisterAdditionalProfileOptions(False) Then Exit Function
     If Not private_RegisterMetaProfileOptions(False) Then Exit Function
     If Not private_RegisterExportFormTables(False) Then Exit Function
     ' Проекция кандидатов относится к схеме формы профиля, где запускался поиск.
@@ -836,6 +852,30 @@ End Function
 
 Public Function OnMetaProfileButtonClick(Optional ByVal profileId As Variant) As Boolean
     OnMetaProfileButtonClick = Me.OnProfileButtonClick(profileId)
+End Function
+
+Public Function OnAdditionalProfileChanged(Optional ByVal ignored As Variant) As Boolean
+    Dim pageBase As obj_PageBase
+    Dim rawControl As Object
+    Dim selectControl As obj_SelectControlVM
+    Dim selectedProfile As String
+
+    If m_Page Is Nothing Then Exit Function
+    Set pageBase = m_Page.GetPageBase()
+    If pageBase Is Nothing Then Exit Function
+    If Not pageBase.TryGetRegisteredControlByName( _
+        ADDITIONAL_PROFILE_SELECT_CONTROL_NAME, rawControl) Then Exit Function
+    If rawControl Is Nothing Then Exit Function
+    If Not TypeOf rawControl Is obj_SelectControlVM Then Exit Function
+
+    Set selectControl = rawControl
+    selectedProfile = VBA.Trim$(selectControl.GetSelectedId())
+    ' Пустой ID — штатное placeholder-состояние Select, а не профиль.
+    If VBA.Len(selectedProfile) = 0 Then
+        OnAdditionalProfileChanged = True
+        Exit Function
+    End If
+    OnAdditionalProfileChanged = Me.OnProfileButtonClick(selectedProfile)
 End Function
 
 Public Function RuntimeApplyExportForm() As Boolean
@@ -1072,7 +1112,7 @@ Private Function private_RegisterProfileOptions(ByVal notifyChange As Boolean) A
     private_LogPerfStep "profiles:runtime-ready", perfStart, perfLast, "notifyChange=" & VBA.LCase$(VBA.CStr(notifyChange))
 #End If
 
-    Set profiles = m_Data.ProfileNames
+    Set profiles = m_Data.PrimaryProfileNames
 #If LOGGING_DEBUG_ENABLED Then
     private_LogPerfStep "profiles:data-provider-ready", perfStart, perfLast
 #End If
@@ -1105,6 +1145,87 @@ Private Function private_RegisterProfileOptions(ByVal notifyChange As Boolean) A
 #End If
 
     private_RegisterProfileOptions = True
+End Function
+
+Private Function private_RegisterAdditionalProfileOptions(ByVal notifyChange As Boolean) As Boolean
+    Dim pageBase As obj_PageBase
+    Dim runtimeSources As obj_PageRuntimeSources
+    Dim profiles As Collection
+    Dim profileOptions As Collection
+    Dim profileObj As Variant
+    Dim profileText As String
+    Dim optionObj As obj_SelectOption
+
+    If m_Page Is Nothing Then Exit Function
+    If m_Data Is Nothing Then Set m_Data = New obj_PrsnlEvntBuilderData
+    Set pageBase = m_Page.GetPageBase()
+    If pageBase Is Nothing Then Exit Function
+    Set runtimeSources = pageBase.RuntimeSources
+    If runtimeSources Is Nothing Then Exit Function
+
+    Set profiles = m_Data.AdditionalProfileNames
+    If profiles Is Nothing Then Exit Function
+    Set profileOptions = New Collection
+
+    For Each profileObj In profiles
+        profileText = VBA.Trim$(VBA.CStr(profileObj))
+        If VBA.Len(profileText) = 0 Then GoTo ContinueProfile
+        Set optionObj = New obj_SelectOption
+        optionObj.Caption = profileText
+        optionObj.Id = profileText
+        profileOptions.Add optionObj
+ContinueProfile:
+    Next profileObj
+    If profileOptions.Count = 0 Then Exit Function
+
+    If Not runtimeSources.RemoveItemsSource(VBA.LCase$(ADDITIONAL_PROFILES_RUNTIME_KEY)) Then Exit Function
+    If Not runtimeSources.SetItemsSource( _
+        VBA.LCase$(ADDITIONAL_PROFILES_RUNTIME_KEY), profileOptions, notifyChange) Then Exit Function
+
+    private_RegisterAdditionalProfileOptions = True
+End Function
+
+Private Function private_TrySyncAdditionalProfileSelectState() As Boolean
+    Dim pageBase As obj_PageBase
+    Dim selectState As obj_SelectControlVMStatic
+    Dim selectKey As String
+    Dim selectedId As String
+
+    If m_Page Is Nothing Then Exit Function
+    If m_Data Is Nothing Then Exit Function
+    Set pageBase = m_Page.GetPageBase()
+    If pageBase Is Nothing Then Exit Function
+    If pageBase.Worksheet Is Nothing Then Exit Function
+
+    If m_Data.IsAdditionalProfileName(m_SelectedProfile) Then
+        selectedId = VBA.Trim$(m_SelectedProfile)
+    Else
+        selectedId = VBA.vbNullString
+    End If
+    selectKey = VBA.LCase$(pageBase.Worksheet.Name & "|" & _
+        ADDITIONAL_PROFILE_SELECT_CONTROL_NAME)
+    Set selectState = New obj_SelectControlVMStatic
+    private_TrySyncAdditionalProfileSelectState = _
+        selectState.SetSelectedId(selectKey, selectedId)
+End Function
+
+Private Function private_TryResetAdditionalProfileSelect() As Boolean
+    Dim pageBase As obj_PageBase
+    Dim rawControl As Object
+    Dim selectControl As obj_SelectControlVM
+
+    If m_Page Is Nothing Then Exit Function
+    Set pageBase = m_Page.GetPageBase()
+    If pageBase Is Nothing Then Exit Function
+
+    Set rawControl = Nothing
+    If Not pageBase.TryGetRegisteredControlByName( _
+        ADDITIONAL_PROFILE_SELECT_CONTROL_NAME, rawControl) Then Exit Function
+    If rawControl Is Nothing Then Exit Function
+    If Not TypeOf rawControl Is obj_SelectControlVM Then Exit Function
+
+    Set selectControl = rawControl
+    private_TryResetAdditionalProfileSelect = selectControl.ResetSelection()
 End Function
 
 Private Function private_RegisterMetaProfileOptions(ByVal notifyChange As Boolean) As Boolean
