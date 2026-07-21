@@ -24,6 +24,8 @@ Private Const SECTION_TYPE_TRANSFER_TREATMENT_TO_TREATMENT_VACATION As String = 
 Private Const SECTION_TYPE_TRANSFER_TREATMENT_TO_STATIONARY_VLK As String = "лікування => стаціонарне ВЛК"
 Private Const SECTION_TYPE_TRANSFER_ANNUAL_VACATION_TO_TREATMENT As String = "щорічна відпустка => лікування"
 Private Const SECTION_TYPE_TRANSFER_FAMILY_VACATION_TO_TREATMENT As String = "відпустка за сімейними => лікування"
+Private Const SECTION_TYPE_TRANSFER_ANNUAL_VACATION_TO_FAMILY_VACATION As String = "щорічна відпустка => сімейна відпустка"
+Private Const SECTION_TYPE_TRANSFER_FAMILY_VACATION_TO_ANNUAL_VACATION As String = "сімейна відпустка => щорічна відпустка"
 Private Const SECTION_TYPE_TRANSFER_TREATMENT_VACATION_TO_TREATMENT_VACATION As String = "відпустка для лікування => відпустка для лікування"
 Private Const SECTION_TYPE_TRANSFER_TREATMENT_VACATION_TO_TREATMENT As String = "відпустка для лікування => лікування"
 Private Const SECTION_TYPE_TRANSFER_TREATMENT_VACATION_TO_VLK As String = "відпустка для лікування => стаціонарне ВЛК"
@@ -57,6 +59,8 @@ Private Const WORD_TEMPLATE_MOVE_TREATMENT_TO_STATIONARY_VLK As String = "DummyM
 Private Const WORD_TEMPLATE_MOVE_TREATMENT_VACATION_TO_HOSPITAL As String = "MoveFromVacationForCuringToHospital"
 Private Const WORD_TEMPLATE_MOVE_ANNUAL_VACATION_TO_HOSPITAL As String = "MoveFromAnnualVacationToHospital"
 Private Const WORD_TEMPLATE_MOVE_FAMILY_VACATION_TO_HOSPITAL As String = "DummyMoveFromFamilyVacationToHospital"
+Private Const WORD_TEMPLATE_MOVE_ANNUAL_VACATION_TO_FAMILY_VACATION As String = "MoveFromAnnualVacationToFamilyVacation"
+Private Const WORD_TEMPLATE_MOVE_FAMILY_VACATION_TO_ANNUAL_VACATION As String = "MoveFromFamilyVacationToAnnualVacation"
 Private Const WORD_TEMPLATE_MOVE_TREATMENT_VACATION_TO_VLK As String = "MoveFromVacationForCuringToVlk"
 Private Const WORD_TEMPLATE_MOVE_AMBULATORY_VLK_TO_TREATMENT_VACATION As String = "MoveFromVlkToVacationForCuring"
 Private Const WORD_TEMPLATE_MOVE_AMBULATORY_VLK_TO_HOSPITAL As String = "MoveFromVlkToHospital"
@@ -103,11 +107,18 @@ Private Const MOVEMENT_EVENT_BUSINESS_TRIP As String = "Відрядження"
 Private Const MOVEMENT_EVENT_SZCH As String = "Самовільне залишення частини"
 
 Private m_ProfileNames As Collection
+Private m_PrimaryProfileNames As Collection
+Private m_AdditionalProfileNames As Collection
 Private m_MetaProfileNames As Collection
 Private m_ProfileTagBySectionType As Object
 
 Private Sub Class_Initialize()
-    Set m_ProfileNames = private_BuildProfileNames()
+    ' UI показывает частые профили постоянными кнопками, а редкие — через Select.
+    ' Объединённая коллекция остаётся каноническим каталогом для общей валидации,
+    ' тегов формы и exporter-логики, которым способ выбора профиля не важен.
+    Set m_PrimaryProfileNames = private_BuildPrimaryProfileNames()
+    Set m_AdditionalProfileNames = private_BuildAdditionalProfileNames()
+    Set m_ProfileNames = private_CombineProfileNames(m_PrimaryProfileNames, m_AdditionalProfileNames)
     Set m_MetaProfileNames = private_BuildMetaProfileNames()
     Set m_ProfileTagBySectionType = private_BuildProfileTagMap()
 End Sub
@@ -119,6 +130,29 @@ End Property
 Public Property Get ProfileNames() As Collection
     Set ProfileNames = private_CopyCollection(m_ProfileNames)
 End Property
+
+Public Property Get PrimaryProfileNames() As Collection
+    Set PrimaryProfileNames = private_CopyCollection(m_PrimaryProfileNames)
+End Property
+
+Public Property Get AdditionalProfileNames() As Collection
+    Set AdditionalProfileNames = private_CopyCollection(m_AdditionalProfileNames)
+End Property
+
+Public Function IsAdditionalProfileName(ByVal profileText As String) As Boolean
+    Dim profileObj As Variant
+
+    If m_AdditionalProfileNames Is Nothing Then Exit Function
+    For Each profileObj In m_AdditionalProfileNames
+        If VBA.StrComp( _
+            private_NormalizeText(VBA.CStr(profileObj)), _
+            private_NormalizeText(profileText), _
+            VBA.vbTextCompare) = 0 Then
+            IsAdditionalProfileName = True
+            Exit Function
+        End If
+    Next profileObj
+End Function
 
 Public Property Get MetaProfileNames() As Collection
     Set MetaProfileNames = private_CopyCollection(m_MetaProfileNames)
@@ -214,6 +248,14 @@ Public Property Get SectionTypeTransferFamilyVacationToTreatment() As String
     SectionTypeTransferFamilyVacationToTreatment = SECTION_TYPE_TRANSFER_FAMILY_VACATION_TO_TREATMENT
 End Property
 
+Public Property Get SectionTypeTransferAnnualVacationToFamilyVacation() As String
+    SectionTypeTransferAnnualVacationToFamilyVacation = SECTION_TYPE_TRANSFER_ANNUAL_VACATION_TO_FAMILY_VACATION
+End Property
+
+Public Property Get SectionTypeTransferFamilyVacationToAnnualVacation() As String
+    SectionTypeTransferFamilyVacationToAnnualVacation = SECTION_TYPE_TRANSFER_FAMILY_VACATION_TO_ANNUAL_VACATION
+End Property
+
 Public Property Get SectionTypeTransferTreatmentVacationToVlk() As String
     SectionTypeTransferTreatmentVacationToVlk = SECTION_TYPE_TRANSFER_TREATMENT_VACATION_TO_VLK
 End Property
@@ -307,6 +349,10 @@ Public Function TryResolveWordTemplateId( _
             outTemplateId = WORD_TEMPLATE_MOVE_ANNUAL_VACATION_TO_HOSPITAL
         Case private_NormalizeText(SECTION_TYPE_TRANSFER_FAMILY_VACATION_TO_TREATMENT)
             outTemplateId = WORD_TEMPLATE_MOVE_FAMILY_VACATION_TO_HOSPITAL
+        Case private_NormalizeText(SECTION_TYPE_TRANSFER_ANNUAL_VACATION_TO_FAMILY_VACATION)
+            outTemplateId = WORD_TEMPLATE_MOVE_ANNUAL_VACATION_TO_FAMILY_VACATION
+        Case private_NormalizeText(SECTION_TYPE_TRANSFER_FAMILY_VACATION_TO_ANNUAL_VACATION)
+            outTemplateId = WORD_TEMPLATE_MOVE_FAMILY_VACATION_TO_ANNUAL_VACATION
         Case private_NormalizeText(SECTION_TYPE_TRANSFER_TREATMENT_VACATION_TO_VLK)
             outTemplateId = WORD_TEMPLATE_MOVE_TREATMENT_VACATION_TO_VLK
         Case private_NormalizeText(SECTION_TYPE_TRANSFER_AMBULATORY_VLK_TO_TREATMENT_VACATION)
@@ -368,6 +414,8 @@ Public Function IsMovementMirrorTransferSectionType(ByVal sectionTypeText As Str
              private_NormalizeText(SECTION_TYPE_TRANSFER_TREATMENT_VACATION_TO_TREATMENT), _
              private_NormalizeText(SECTION_TYPE_TRANSFER_ANNUAL_VACATION_TO_TREATMENT), _
              private_NormalizeText(SECTION_TYPE_TRANSFER_FAMILY_VACATION_TO_TREATMENT), _
+             private_NormalizeText(SECTION_TYPE_TRANSFER_ANNUAL_VACATION_TO_FAMILY_VACATION), _
+             private_NormalizeText(SECTION_TYPE_TRANSFER_FAMILY_VACATION_TO_ANNUAL_VACATION), _
              private_NormalizeText(SECTION_TYPE_TRANSFER_TREATMENT_VACATION_TO_VLK), _
              private_NormalizeText(SECTION_TYPE_TRANSFER_AMBULATORY_VLK_TO_TREATMENT_VACATION), _
              private_NormalizeText(SECTION_TYPE_TRANSFER_AMBULATORY_VLK_TO_TREATMENT), _
@@ -395,6 +443,24 @@ Public Function CanOpenMovementAlongsidePreviousEvent( _
     End Select
 End Function
 
+' Новые отпускные переходы закрывают только ожидаемый предыдущий статус,
+' чтобы зеркальная запись не могла случайно завершить другое событие.
+Public Function TryGetRequiredPreviousMovementEvent( _
+    ByVal sectionTypeText As String, _
+    ByRef outEventText As String _
+) As Boolean
+    outEventText = VBA.vbNullString
+
+    Select Case private_NormalizeText(sectionTypeText)
+        Case private_NormalizeText(SECTION_TYPE_TRANSFER_ANNUAL_VACATION_TO_FAMILY_VACATION)
+            outEventText = MOVEMENT_EVENT_ANNUAL_VACATION
+        Case private_NormalizeText(SECTION_TYPE_TRANSFER_FAMILY_VACATION_TO_ANNUAL_VACATION)
+            outEventText = MOVEMENT_EVENT_FAMILY_VACATION
+    End Select
+
+    TryGetRequiredPreviousMovementEvent = (VBA.Len(outEventText) > 0)
+End Function
+
 Public Function ShouldWriteMovementSpecialOpeningFields(ByVal sectionTypeText As String) As Boolean
     Select Case private_NormalizeText(sectionTypeText)
         Case private_NormalizeText(SECTION_TYPE_TO_ANNUAL_VACATION_PART), _
@@ -408,6 +474,8 @@ Public Function ShouldWriteMovementSpecialOpeningFields(ByVal sectionTypeText As
              private_NormalizeText(SECTION_TYPE_TRANSFER_TREATMENT_VACATION_TO_TREATMENT), _
              private_NormalizeText(SECTION_TYPE_TRANSFER_ANNUAL_VACATION_TO_TREATMENT), _
              private_NormalizeText(SECTION_TYPE_TRANSFER_FAMILY_VACATION_TO_TREATMENT), _
+             private_NormalizeText(SECTION_TYPE_TRANSFER_ANNUAL_VACATION_TO_FAMILY_VACATION), _
+             private_NormalizeText(SECTION_TYPE_TRANSFER_FAMILY_VACATION_TO_ANNUAL_VACATION), _
              private_NormalizeText(SECTION_TYPE_TRANSFER_AMBULATORY_VLK_TO_TREATMENT_VACATION), _
              private_NormalizeText(SECTION_TYPE_TRANSFER_STATIONARY_VLK_TO_TREATMENT_VACATION), _
              private_NormalizeText(SECTION_TYPE_TRANSFER_MEDICAL_COMPANY_TO_TREATMENT_VACATION), _
@@ -425,6 +493,8 @@ Public Function UsesMovementVacationDestination(ByVal sectionTypeText As String)
              private_NormalizeText(SECTION_TYPE_TO_BUSINESS_TRIP_SZCH), _
              private_NormalizeText(SECTION_TYPE_TRANSFER_TREATMENT_TO_TREATMENT_VACATION), _
              private_NormalizeText(SECTION_TYPE_TRANSFER_TREATMENT_VACATION_TO_TREATMENT_VACATION), _
+             private_NormalizeText(SECTION_TYPE_TRANSFER_ANNUAL_VACATION_TO_FAMILY_VACATION), _
+             private_NormalizeText(SECTION_TYPE_TRANSFER_FAMILY_VACATION_TO_ANNUAL_VACATION), _
              private_NormalizeText(SECTION_TYPE_TRANSFER_AMBULATORY_VLK_TO_TREATMENT_VACATION), _
              private_NormalizeText(SECTION_TYPE_TRANSFER_STATIONARY_VLK_TO_TREATMENT_VACATION), _
              private_NormalizeText(SECTION_TYPE_TRANSFER_MEDICAL_COMPANY_TO_TREATMENT_VACATION), _
@@ -453,7 +523,11 @@ Public Function TryMapMovementSectionTypeToEventText( _
         Case private_NormalizeText(SECTION_TYPE_TO_ANNUAL_VACATION_PART)
             outEventText = MOVEMENT_EVENT_ANNUAL_VACATION
 
-        Case private_NormalizeText(SECTION_TYPE_TO_FAMILY_VACATION)
+        Case private_NormalizeText(SECTION_TYPE_TRANSFER_FAMILY_VACATION_TO_ANNUAL_VACATION)
+            outEventText = MOVEMENT_EVENT_ANNUAL_VACATION
+
+        Case private_NormalizeText(SECTION_TYPE_TO_FAMILY_VACATION), _
+             private_NormalizeText(SECTION_TYPE_TRANSFER_ANNUAL_VACATION_TO_FAMILY_VACATION)
             outEventText = MOVEMENT_EVENT_FAMILY_VACATION
 
         Case private_NormalizeText(SECTION_TYPE_TO_TREATMENT_VACATION), _
@@ -480,7 +554,7 @@ Public Function TryMapMovementSectionTypeToEventText( _
     TryMapMovementSectionTypeToEventText = (VBA.Len(outEventText) > 0)
 End Function
 
-Private Function private_BuildProfileNames() As Collection
+Private Function private_BuildPrimaryProfileNames() As Collection
     Dim profileNames As Collection
 
     Set profileNames = New Collection
@@ -506,15 +580,47 @@ Private Function private_BuildProfileNames() As Collection
     profileNames.Add SECTION_TYPE_TRANSFER_TREATMENT_VACATION_TO_TREATMENT_VACATION
     profileNames.Add SECTION_TYPE_TRANSFER_TREATMENT_VACATION_TO_TREATMENT
     profileNames.Add SECTION_TYPE_TRANSFER_TREATMENT_VACATION_TO_VLK
+    profileNames.Add SECTION_TYPE_TRANSFER_STATIONARY_VLK_TO_TREATMENT_VACATION
+
+    Set private_BuildPrimaryProfileNames = profileNames
+End Function
+
+Private Function private_BuildAdditionalProfileNames() As Collection
+    Dim profileNames As Collection
+
+    Set profileNames = New Collection
     profileNames.Add SECTION_TYPE_TRANSFER_MEDICAL_COMPANY_TO_TREATMENT
     profileNames.Add SECTION_TYPE_TRANSFER_MEDICAL_COMPANY_TO_TREATMENT_VACATION
     profileNames.Add SECTION_TYPE_TRANSFER_MEDICAL_COMPANY_TREATMENT_TO_TREATMENT_VACATION
     profileNames.Add SECTION_TYPE_TRANSFER_MEDICAL_COMPANY_TREATMENT_VACATION_TO_TREATMENT
     profileNames.Add SECTION_TYPE_TRANSFER_AMBULATORY_VLK_TO_TREATMENT
     profileNames.Add SECTION_TYPE_TRANSFER_AMBULATORY_VLK_TO_TREATMENT_VACATION
-    profileNames.Add SECTION_TYPE_TRANSFER_STATIONARY_VLK_TO_TREATMENT_VACATION
+    profileNames.Add SECTION_TYPE_TRANSFER_ANNUAL_VACATION_TO_FAMILY_VACATION
+    profileNames.Add SECTION_TYPE_TRANSFER_FAMILY_VACATION_TO_ANNUAL_VACATION
 
-    Set private_BuildProfileNames = profileNames
+    Set private_BuildAdditionalProfileNames = profileNames
+End Function
+
+Private Function private_CombineProfileNames( _
+    ByVal primaryProfiles As Collection, _
+    ByVal additionalProfiles As Collection _
+) As Collection
+    Dim result As Collection
+    Dim profileObj As Variant
+
+    Set result = New Collection
+    If Not primaryProfiles Is Nothing Then
+        For Each profileObj In primaryProfiles
+            result.Add profileObj
+        Next profileObj
+    End If
+    If Not additionalProfiles Is Nothing Then
+        For Each profileObj In additionalProfiles
+            result.Add profileObj
+        Next profileObj
+    End If
+
+    Set private_CombineProfileNames = result
 End Function
 
 Private Function private_BuildMetaProfileNames() As Collection
@@ -556,6 +662,8 @@ Private Function private_BuildProfileTagMap() As Object
     ' формы, но сохраняют независимые идентификаторы Movement и WORD-шаблонов.
     tagMap(private_NormalizeText(SECTION_TYPE_TRANSFER_ANNUAL_VACATION_TO_TREATMENT)) = PROFILE_TAG_TRANSFER_TREATMENT_VACATION_TO_TREATMENT
     tagMap(private_NormalizeText(SECTION_TYPE_TRANSFER_FAMILY_VACATION_TO_TREATMENT)) = PROFILE_TAG_TRANSFER_TREATMENT_VACATION_TO_TREATMENT
+    tagMap(private_NormalizeText(SECTION_TYPE_TRANSFER_ANNUAL_VACATION_TO_FAMILY_VACATION)) = PROFILE_TAG_TO_FAMILY_VACATION
+    tagMap(private_NormalizeText(SECTION_TYPE_TRANSFER_FAMILY_VACATION_TO_ANNUAL_VACATION)) = PROFILE_TAG_TO_ANNUAL_VACATION_PART
     tagMap(private_NormalizeText(SECTION_TYPE_TRANSFER_TREATMENT_VACATION_TO_VLK)) = PROFILE_TAG_TRANSFER_TREATMENT_VACATION_TO_VLK
     tagMap(private_NormalizeText(SECTION_TYPE_TRANSFER_AMBULATORY_VLK_TO_TREATMENT_VACATION)) = PROFILE_TAG_TRANSFER_VLK_TO_TREATMENT_VACATION
     tagMap(private_NormalizeText(SECTION_TYPE_TRANSFER_AMBULATORY_VLK_TO_TREATMENT)) = PROFILE_TAG_TRANSFER_VLK_TO_TREATMENT

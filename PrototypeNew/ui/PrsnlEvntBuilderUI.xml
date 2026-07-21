@@ -54,6 +54,23 @@
           onClick="{Binding Method=ToggleLookupEnabled}"
           spanColls="2"
           spanRows="2"/>
+
+        <!-- Редкие переходы используют тот же профильный pipeline, но не
+             занимают постоянное место в основной матрице кнопок. -->
+        <control
+          type="Select"
+          name="EventDraftAdditionalProfileSelect"
+          dataContext="{PageRuntimeSource='RuntimeObjects.PrsnlEvntBuilder.Controller'}"
+          itemsSource="{PageRuntimeSource='RuntimeItems.PrsnlEvntBuilder.AdditionalProfiles'}"
+          onChange="{Binding Method=OnAdditionalProfileChanged}"
+          placeholder="Додаткові секції"
+          headerStyle="profileButton"
+          panelStyle="configSelectPanel"
+          itemStyle="profileButton"
+          itemHeight="30"
+          itemMargin="2"
+          spanColls="4"
+          spanRows="2"/>
       </stackPanel>
 
       <stackPanel spanColls="22" spanRows="1"/>
@@ -1123,6 +1140,17 @@
                 fontColor:#111318;
                 borderColor:#000000;
                 borderWeight:1.5;
+                fontName:Calibri;
+                fontSize:11;
+                fontBold:true;
+              }"/>
+        <rule target="controlPart"
+              selector="type=select;name=EventDraftAdditionalProfileSelect;part=state-selected"
+              styles="{
+                backColor:#315B3C;
+                fontColor:#F8FAFC;
+                borderColor:#66A36F;
+                borderWeight:1.25;
                 fontName:Calibri;
                 fontSize:11;
                 fontBold:true;
