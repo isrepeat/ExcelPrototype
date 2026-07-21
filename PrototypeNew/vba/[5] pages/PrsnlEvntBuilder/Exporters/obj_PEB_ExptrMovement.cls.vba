@@ -51,10 +51,6 @@ Private Const SOURCE_ALIAS_FIO As String = "FIO"
 Private Const SOURCE_ALIAS_IPN As String = "IPN"
 Private Const SOURCE_ALIAS_POSITION_CODE As String = "PositionCode"
 Private Const SENTINEL_SHORT_DATE As Date = #1/1/1900#
-Private Const SPECIAL_POSITION_PREFIX_ROZP As String = "A1A"
-Private Const SPECIAL_POSITION_PREFIX_SPIS As String = "A1B"
-Private Const SPECIAL_POSITION_CODE_ROZP As String = "РОЗП"
-Private Const SPECIAL_POSITION_CODE_SPIS As String = "СПИС"
 Private Const MEDICAL_COMPANY_DESTINATION As String = "Медична рота А7383"
 
 Private Sub Class_Initialize()
@@ -175,6 +171,13 @@ Public Function Export( _
     Dim tvoFioText As String
     Dim tvoIpnText As String
     Dim tvoPositionText As String
+    Dim undoAction As obj_PEB_ExportUndoAction
+    Dim changedRowIndex As Long
+    Dim changedBeforeFormula As Variant
+    Dim changedAfterFormula As Variant
+    Dim insertedRowIndex As Long
+    Dim insertedAfterFormula As Variant
+    Dim undoActionReady As Boolean
 
     On Error GoTo EH
 
@@ -252,7 +255,10 @@ Public Function Export( _
 
         If Not private_TryGetRequiredSourceText(sourceTable, sourceTable.Rows.Item(1), MOVEMENT_TARGET_IPN, closingTargetIpn) Then GoTo CleanFail
         If Not private_TryFindLastRowByIpn(targetTable, closingTargetIpn, targetRowRange) Then GoTo CleanFail
+        changedRowIndex = targetRowRange.Row - targetTable.DataBodyRange.Row + 1
+        changedBeforeFormula = targetRowRange.Formula
         If Not private_TryWriteMovementClosingRow(targetTable, targetRowRange, closingOrderNo, closingOnFoodDate, closingArrivalDate, basisSummaryText) Then GoTo CleanFail
+        changedAfterFormula = targetRowRange.Formula
     ElseIf isMirrorTransferEvent Then
         ' Mirror transfer: "зеркальный перевод" внутри таблицы Movement.
         ' Смысл: одним событием закрываем предыдущую открытую строку военнослужащего
@@ -262,7 +268,10 @@ Public Function Export( _
 
         If Not private_TryGetRequiredSourceText(sourceTable, sourceTable.Rows.Item(1), MOVEMENT_TARGET_IPN, closingTargetIpn) Then GoTo CleanFail
         If Not private_TryFindLastRowByIpn(targetTable, closingTargetIpn, targetRowRange) Then GoTo CleanFail
+        changedRowIndex = targetRowRange.Row - targetTable.DataBodyRange.Row + 1
+        changedBeforeFormula = targetRowRange.Formula
         If Not private_TryWriteMovementClosingRow(targetTable, targetRowRange, closingOrderNo, closingOnFoodDate, closingArrivalDate, basisSummaryText) Then GoTo CleanFail
+        changedAfterFormula = targetRowRange.Formula
 
         ' Mirror/opening часть: те же значения, которыми закрыли старую строку,
         ' становятся начальными значениями новой строки.
@@ -277,6 +286,8 @@ Public Function Export( _
             writeSpecialOpeningFields, specialDurationValue, specialVkNoValue, _
             shouldWriteMappedEvent, mappedEventText, basisSummaryText, _
             tvoFioText, tvoIpnText, tvoPositionText) Then GoTo CleanFail
+        insertedRowIndex = insertedRow.Index
+        insertedAfterFormula = insertedRow.Range.Formula
     Else
         ' Opening: обычное выбытие. Создаем новую строку и заполняем поля выбытия:
         ' наказ вибуття, з продовольчого, вибуття, плюс базовые первые 6 колонок.
@@ -288,7 +299,19 @@ Public Function Export( _
             writeSpecialOpeningFields, specialDurationValue, specialVkNoValue, _
             shouldWriteMappedEvent, mappedEventText, basisSummaryText, _
             tvoFioText, tvoIpnText, tvoPositionText) Then GoTo CleanFail
+        insertedRowIndex = insertedRow.Index
+        insertedAfterFormula = insertedRow.Range.Formula
     End If
+
+    ' Action содержит только путь/имена и снимки Formula, поэтому не удерживает
+    ' COM-ссылки на целевую книгу после завершения экспорта.
+    Set undoAction = New obj_PEB_ExportUndoAction
+    undoActionReady = undoAction.InitializeMovement( _
+        targetWb.FullName, targetWb.Name, targetWs.Name, targetTable.Name, _
+        targetTable.ListRows.Count, _
+        changedRowIndex, changedBeforeFormula, changedAfterFormula, _
+        insertedRowIndex, insertedAfterFormula)
+    If Not undoActionReady Then GoTo CleanFail
 
     If Not openedByExporter And SAVE_ALREADY_OPEN_WORKBOOK Then targetWb.Save
     Export = True
@@ -302,6 +325,13 @@ CleanFail:
         insertedRow.Delete
         On Error GoTo 0
     End If
+    If changedRowIndex > 0 And Not targetTable Is Nothing Then
+        ' Mirror мог успеть закрыть старую запись до сбоя вставки. Возвращаем
+        ' её снимок, чтобы failed export оставался атомарным и без Ctrl+Z.
+        On Error Resume Next
+        targetTable.ListRows(changedRowIndex).Range.Formula = changedBeforeFormula
+        On Error GoTo 0
+    End If
 
 CleanExit:
     If openedByExporter Then
@@ -310,6 +340,11 @@ CleanExit:
         On Error GoTo 0
     End If
     If fastModeStarted Then m_Base.RestoreFastExcelMode prevScreenUpdating, prevEnableEvents, prevDisplayAlerts, prevCalculation
+    If Export And undoActionReady Then
+        If Not rt_UndoManager.fn_PushExecutedAction(undoAction) Then
+            rt_Messaging.fn_ShowStatusBarWarning "Movement export completed, but its undo action was not registered.", 5
+        End If
+    End If
     Exit Function
 
 EH:
@@ -625,6 +660,10 @@ Private Function private_TryBuildMovementRowValues( _
     Dim requiredValue As Variant
     Dim destinationValue As Variant
     Dim mappedEventText As String
+    Dim rankText As String
+    Dim positionCodeText As String
+    Dim mappedPositionCodeText As String
+    Dim mappedPositionNameText As String
 
     Set sourceRow = Nothing
     If VBA.IsArray(outValues) Then Erase outValues
@@ -637,13 +676,26 @@ Private Function private_TryBuildMovementRowValues( _
     ReDim outValues(1 To 1, 1 To MOVEMENT_TARGET_COLUMN_COUNT)
 
     If Not private_TryGetRequiredSourceText(sourceTable, sourceRow, "Звання", requiredValue) Then Exit Function
+    rankText = VBA.CStr(requiredValue)
     outValues(1, 1) = requiredValue
     If Not private_TryGetRequiredSourceText(sourceTable, sourceRow, "ПІБ", requiredValue) Then Exit Function
     outValues(1, 2) = requiredValue
     If Not private_TryGetRequiredSourceText(sourceTable, sourceRow, "ІПН", requiredValue) Then Exit Function
     outValues(1, 3) = requiredValue
     If Not private_TryGetRequiredSourceText(sourceTable, sourceRow, "Код посади", requiredValue) Then Exit Function
-    outValues(1, 4) = private_NormalizePositionCodeForMovement(requiredValue)
+    positionCodeText = VBA.CStr(requiredValue)
+    outValues(1, 4) = positionCodeText
+    If Not m_DataProvider Is Nothing Then
+        If Not m_DataProvider.CommonData Is Nothing Then
+            ' Movement использует тот же общий mapping специальных кодов, что
+            ' DailyScope; текстовое описание здесь не требуется.
+            If m_DataProvider.CommonData.TryResolveSpecialPositionMapping( _
+                positionCodeText, rankText, _
+                mappedPositionCodeText, mappedPositionNameText) Then
+                outValues(1, 4) = mappedPositionCodeText
+            End If
+        End If
+    End If
 
     If private_TryMapSectionTypeToEventText(sectionTypeText, mappedEventText) Then
         outValues(1, 5) = mappedEventText
@@ -655,39 +707,6 @@ Private Function private_TryBuildMovementRowValues( _
     outValues(1, 6) = destinationValue
 
     private_TryBuildMovementRowValues = True
-End Function
-
-Private Function private_NormalizePositionCodeForMovement(ByVal sourcePositionCodeValue As Variant) As String
-    Dim sourcePositionCodeText As String
-    Dim normalizedCodeText As String
-
-    If VBA.IsError(sourcePositionCodeValue) Then Exit Function
-    If VBA.IsNull(sourcePositionCodeValue) Then Exit Function
-    If VBA.IsEmpty(sourcePositionCodeValue) Then Exit Function
-
-    sourcePositionCodeText = VBA.CStr(sourcePositionCodeValue)
-    normalizedCodeText = private_NormalizeSpecialPositionPrefix(sourcePositionCodeText)
-
-    If VBA.Left$(normalizedCodeText, VBA.Len(SPECIAL_POSITION_PREFIX_ROZP)) = SPECIAL_POSITION_PREFIX_ROZP Then
-        private_NormalizePositionCodeForMovement = SPECIAL_POSITION_CODE_ROZP
-        Exit Function
-    End If
-    If VBA.Left$(normalizedCodeText, VBA.Len(SPECIAL_POSITION_PREFIX_SPIS)) = SPECIAL_POSITION_PREFIX_SPIS Then
-        private_NormalizePositionCodeForMovement = SPECIAL_POSITION_CODE_SPIS
-        Exit Function
-    End If
-
-    private_NormalizePositionCodeForMovement = sourcePositionCodeText
-End Function
-
-Private Function private_NormalizeSpecialPositionPrefix(ByVal sourcePositionCodeText As String) As String
-    Dim normalizedCodeText As String
-
-    normalizedCodeText = VBA.UCase$(VBA.Trim$(sourcePositionCodeText))
-    normalizedCodeText = VBA.Replace(normalizedCodeText, "А", "A")
-    normalizedCodeText = VBA.Replace(normalizedCodeText, "В", "B")
-    normalizedCodeText = VBA.Replace(normalizedCodeText, " ", VBA.vbNullString)
-    private_NormalizeSpecialPositionPrefix = normalizedCodeText
 End Function
 
 Private Function private_ResolveMovementDestinationValue( _

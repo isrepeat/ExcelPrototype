@@ -67,6 +67,7 @@ Private Const SPECIAL_POSITION_PREFIX_ROZP As String = "A1A"
 Private Const SPECIAL_POSITION_PREFIX_SPIS As String = "A1B"
 Private Const SPECIAL_POSITION_CODE_ROZP As String = "РОЗП"
 Private Const SPECIAL_POSITION_CODE_SPIS As String = "СПИС"
+Private Const SPECIAL_POSITION_NAME_ROZP_OFFICER As String = "який перебуває у розпорядженні командира військової частини А3369"
 Private Const ORDER_DATE_COLUMN_NAME As String = "Дата наказу"
 Private Const ORDER_NO_COLUMN_NAME As String = "Номер наказу"
 
@@ -806,27 +807,79 @@ Public Function TryResolveRankByIpn( _
         OS_IPN_HEADER, OS_RANK_HEADER, ipnText, "ШПО / ОС", outRankText)
 End Function
 
+Public Function TryResolveSpecialPositionMapping( _
+    ByVal sourcePositionCodeText As String, _
+    ByVal sourceRankText As String, _
+    ByRef outTargetPositionCodeText As String, _
+    ByRef outTargetPositionNameText As String _
+) As Boolean
+    Dim normalizedCodeText As String
+
+    If m_IsDisposed Then Exit Function
+    outTargetPositionCodeText = VBA.vbNullString
+    outTargetPositionNameText = VBA.vbNullString
+    normalizedCodeText = private_NormalizePositionCodeForLookup(sourcePositionCodeText)
+
+    Select Case normalizedCodeText
+        Case SPECIAL_POSITION_CODE_ROZP
+            outTargetPositionCodeText = SPECIAL_POSITION_CODE_ROZP
+            ' Только офицерский состав является исключением. Для остальных
+            ' итоговое название РОЗП остаётся данными справочника «Посади».
+            If private_IsOfficerRank(sourceRankText) Then
+                outTargetPositionNameText = SPECIAL_POSITION_NAME_ROZP_OFFICER
+            Else
+                If Not TryResolvePositionDefault( _
+                    SPECIAL_POSITION_CODE_ROZP, _
+                    outTargetPositionNameText) Then Exit Function
+            End If
+            TryResolveSpecialPositionMapping = True
+        Case SPECIAL_POSITION_CODE_SPIS
+            outTargetPositionCodeText = SPECIAL_POSITION_CODE_SPIS
+            If Not TryResolvePositionDefault( _
+                SPECIAL_POSITION_CODE_SPIS, _
+                outTargetPositionNameText) Then Exit Function
+            TryResolveSpecialPositionMapping = True
+    End Select
+End Function
+
 ' //
 ' // Internal
 ' //
 Private Function private_NormalizePositionCodeForLookup(ByVal positionText As String) As String
     Dim normalizedCode As String
+    Dim normalizedSpecialCode As String
 
     normalizedCode = VBA.UCase$(private_NormalizeLookupKey(positionText))
     If normalizedCode = SPECIAL_POSITION_CODE_ROZP Or normalizedCode = SPECIAL_POSITION_CODE_SPIS Then
         private_NormalizePositionCodeForLookup = normalizedCode
         Exit Function
     End If
-    If VBA.Left$(normalizedCode, VBA.Len(SPECIAL_POSITION_PREFIX_ROZP)) = SPECIAL_POSITION_PREFIX_ROZP Then
+    ' Коды ШПС могут содержать визуально одинаковые кириллические А/В.
+    normalizedSpecialCode = VBA.Replace(normalizedCode, " ", VBA.vbNullString)
+    normalizedSpecialCode = VBA.Replace(normalizedSpecialCode, "А", "A")
+    normalizedSpecialCode = VBA.Replace(normalizedSpecialCode, "В", "B")
+    If VBA.Left$(normalizedSpecialCode, VBA.Len(SPECIAL_POSITION_PREFIX_ROZP)) = SPECIAL_POSITION_PREFIX_ROZP Then
         private_NormalizePositionCodeForLookup = SPECIAL_POSITION_CODE_ROZP
         Exit Function
     End If
-    If VBA.Left$(normalizedCode, VBA.Len(SPECIAL_POSITION_PREFIX_SPIS)) = SPECIAL_POSITION_PREFIX_SPIS Then
+    If VBA.Left$(normalizedSpecialCode, VBA.Len(SPECIAL_POSITION_PREFIX_SPIS)) = SPECIAL_POSITION_PREFIX_SPIS Then
         private_NormalizePositionCodeForLookup = SPECIAL_POSITION_CODE_SPIS
         Exit Function
     End If
 
     private_NormalizePositionCodeForLookup = normalizedCode
+End Function
+
+Private Function private_IsOfficerRank(ByVal rankText As String) As Boolean
+    Dim normalizedRank As String
+
+    normalizedRank = private_NormalizeLookupKey(rankText)
+    ' В используемом наборе данных максимальное звание — полковник.
+    Select Case normalizedRank
+        Case "молодший лейтенант", "лейтенант", "старший лейтенант", _
+             "капітан", "майор", "підполковник", "полковник"
+            private_IsOfficerRank = True
+    End Select
 End Function
 
 Private Function private_TryResolveAlfByFio( _
