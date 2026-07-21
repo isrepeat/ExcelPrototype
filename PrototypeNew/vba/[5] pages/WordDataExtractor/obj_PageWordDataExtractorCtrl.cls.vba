@@ -43,6 +43,8 @@ End Sub
 Public Function UpdateData(ByVal configControl As obj_ConfigControlVM) As Boolean
     Dim configTable As obj_ConfigTable, parser As obj_CfgParserBase
     Dim entries As Collection, cfgMap As Object
+    Dim documentDir As String
+    Dim documentFilename As String
     m_IsReady = False
     If configControl Is Nothing Then Exit Function
     If Not configControl.TryBuildConfigTableFromRendered(configTable) Then Exit Function
@@ -58,12 +60,74 @@ Public Function UpdateData(ByVal configControl As obj_ConfigControlVM) As Boolea
         private_Error "В профиле отсутствует обязательный ключ WordDataExtractor.Pipeline."
         Exit Function
     End If
-    m_DocumentPath = parser.GetOptionalConfigValue(cfgMap, "WordDataExtractor.DocumentPath")
+    m_DocumentPath = VBA.Trim$(parser.GetOptionalConfigValue( _
+        cfgMap, "WordDataExtractor.DocumentPath"))
+    If VBA.Len(m_DocumentPath) = 0 Then
+        ' Раздельная запись является альтернативой, а не дополнением:
+        ' непустой DocumentPath всегда имеет приоритет над Dir/Filename.
+        documentDir = VBA.Trim$(parser.GetOptionalConfigValue( _
+            cfgMap, "WordDataExtractor.DocumentDir"))
+        documentFilename = VBA.Trim$(parser.GetOptionalConfigValue( _
+            cfgMap, "WordDataExtractor.DocumentFilename"))
+        If VBA.Len(documentDir) = 0 Xor VBA.Len(documentFilename) = 0 Then
+            private_Error "Для альтернативного пути должны быть заполнены оба ключа: " & _
+                "WordDataExtractor.DocumentDir и WordDataExtractor.DocumentFilename."
+            Exit Function
+        End If
+        If VBA.Len(documentDir) > 0 Then
+            m_DocumentPath = private_CombineDirectoryAndFilename( _
+                documentDir, documentFilename)
+            If VBA.Len(m_DocumentPath) = 0 Then Exit Function
+        End If
+    End If
+    m_DocumentPath = private_EnsureDefaultDocumentExtension(m_DocumentPath)
     m_TransformerClassName = parser.GetOptionalConfigValue( _
         cfgMap, "WordDataExtractor.TransformerClass")
     Set m_ConfigTable = configTable
     m_IsReady = True
     UpdateData = True
+End Function
+
+Private Function private_EnsureDefaultDocumentExtension( _
+    ByVal documentPath As String _
+) As String
+    Dim lastSeparatorPosition As Long
+    Dim lastDotPosition As Long
+
+    documentPath = VBA.Trim$(documentPath)
+    If VBA.Len(documentPath) = 0 Then Exit Function
+
+    lastSeparatorPosition = VBA.InStrRev(documentPath, "\")
+    If VBA.InStrRev(documentPath, "/") > lastSeparatorPosition Then
+        lastSeparatorPosition = VBA.InStrRev(documentPath, "/")
+    End If
+    lastDotPosition = VBA.InStrRev(documentPath, ".")
+
+    ' Точка в имени директории не является расширением файла.
+    If lastDotPosition <= lastSeparatorPosition Then
+        documentPath = documentPath & ".docx"
+    ElseIf lastDotPosition = VBA.Len(documentPath) Then
+        documentPath = documentPath & "docx"
+    End If
+    private_EnsureDefaultDocumentExtension = documentPath
+End Function
+
+Private Function private_CombineDirectoryAndFilename( _
+    ByVal directoryPath As String, _
+    ByVal filename As String _
+) As String
+    Dim trailingChar As String
+
+    directoryPath = VBA.Trim$(directoryPath)
+    filename = VBA.Trim$(filename)
+    If VBA.Len(directoryPath) = 0 Or VBA.Len(filename) = 0 Then Exit Function
+
+    trailingChar = VBA.Right$(directoryPath, 1)
+    If trailingChar = "\" Or trailingChar = "/" Then
+        private_CombineDirectoryAndFilename = directoryPath & filename
+    Else
+        private_CombineDirectoryAndFilename = directoryPath & "\" & filename
+    End If
 End Function
 
 Public Function ExtractAndRender(Optional ByVal arg As Variant) As Boolean
@@ -75,7 +139,8 @@ Public Function ExtractAndRender(Optional ByVal arg As Variant) As Boolean
         Exit Function
     End If
     If VBA.Len(VBA.Trim$(m_DocumentPath)) = 0 Then
-        private_Error "В текущем профиле не заполнен WordDataExtractor.DocumentPath."
+        private_Error "В текущем профиле не заполнен WordDataExtractor.DocumentPath " & _
+            "или пара WordDataExtractor.DocumentDir/DocumentFilename."
         Exit Function
     End If
     If Not private_ReadWordDocument(m_DocumentPath, documentText) Then Exit Function
@@ -170,6 +235,51 @@ End Function
 
 Public Function Rerender(Optional ByVal arg As Variant) As Boolean
     Rerender = rt_PageManager.fn_RenderPage(m_Page, "worddataextractor:rerender")
+End Function
+
+Public Function OpenRulesFile(Optional ByVal arg As Variant) As Boolean
+    Dim resolvedPath As String
+    Dim shellRunner As Object
+    Dim commandText As String
+    Dim errorText As String
+
+    If Not m_IsReady Then
+        private_Error "Конфигурация не готова. Повторно откройте режим с главной страницы."
+        Exit Function
+    End If
+
+    resolvedPath = private_ResolveWorkbookRelativePath(m_RulesPath)
+    If VBA.Len(resolvedPath) = 0 Or _
+        VBA.Len(VBA.Dir$(resolvedPath, VBA.vbNormal)) = 0 Then
+        private_Error "Файл правил не найден: " & resolvedPath
+        Exit Function
+    End If
+
+    On Error GoTo EH
+    commandText = "notepad.exe """ & resolvedPath & """"
+    Set shellRunner = VBA.CreateObject("WScript.Shell")
+    shellRunner.Run commandText, VBA.vbNormalFocus, False
+    Set shellRunner = Nothing
+    OpenRulesFile = True
+    Exit Function
+EH:
+    errorText = Err.Description
+    Set shellRunner = Nothing
+    private_Error "Не удалось открыть файл правил: " & errorText
+End Function
+
+Private Function private_ResolveWorkbookRelativePath(ByVal filePath As String) As String
+    filePath = VBA.Trim$(filePath)
+    If VBA.Len(filePath) = 0 Then Exit Function
+
+    ' RulesFile допускает как абсолютный, так и относительный путь профиля.
+    If VBA.InStr(1, filePath, ":", VBA.vbBinaryCompare) > 0 Or _
+        VBA.Left$(filePath, 2) = "\\" Then
+        private_ResolveWorkbookRelativePath = filePath
+    Else
+        private_ResolveWorkbookRelativePath = _
+            ex_XmlCore.fn_CombineBasePath(ThisWorkbook, filePath)
+    End If
 End Function
 
 Private Function private_ReadWordDocument(ByVal filePath As String, ByRef outText As String) As Boolean

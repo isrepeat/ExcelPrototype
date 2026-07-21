@@ -622,6 +622,14 @@ Private Function private_ApplyTransforms( _
                     valueText = VBA.Format$(parsedDate, _
                         private_AttrOrDefault(node, "format", "dd.mm.yyyy"))
                 End If
+            Case "dateadddays"
+                If private_TryParseDateValue(valueText, parsedDate) Then
+                    parsedDate = VBA.DateAdd("d", _
+                        VBA.CLng(VBA.Val(private_AttrOrDefault(node, "days", "0"))), _
+                        parsedDate)
+                    valueText = VBA.Format$(parsedDate, _
+                        private_AttrOrDefault(node, "format", "dd.mm.yyyy"))
+                End If
             Case "daterangestartformat"
                 If private_TryParseDateRangeStart(valueText, parsedDate) Then
                     valueText = VBA.Format$(parsedDate, _
