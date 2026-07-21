@@ -22,9 +22,14 @@ EH:
 End Sub
 
 Private Sub Workbook_BeforeClose(Cancel As Boolean)
+    ' Внешние ADO-соединения освобождаем до snapshot/hotkey/undo cleanup:
+    ' если последующий shutdown-шаг завершится ошибкой, файлы-источники всё
+    ' равно не должны остаться заблокированными после закрытия книги.
+    Call ex_ExternalExcelSqlEngine.fn_ResetRuntimeCache
     Call rt_RestoreManager.fn_SaveRuntimeState
     Call rt_HotkeyRuntime.fn_UnregisterAllHotkeys
     Call rt_UndoManager.fn_Module_Dispose
+    ' Идемпотентный module dispose остаётся последней страховкой lifecycle.
     Call ex_ExternalExcelSqlEngine.fn_Module_Dispose
 End Sub
 

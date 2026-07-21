@@ -16,6 +16,13 @@ Public Sub fn_Module_Dispose()
 #If LOGGING_VERBOSE_ENABLED Then
     ex_Core.fn_Diagnostic_LogInfo "lifecycle:ex_ExternalExcelSqlEngine.fn_Module_Dispose"
 #End If
+    fn_ResetRuntimeCache
+End Sub
+
+' Закрывает глобальные ADO-соединения, которые переживают отдельные страницы.
+' Модуль остаётся готовым к работе: следующий SQL-запрос лениво пересоздаст
+' словари и соединения через private_EnsureSqlCaches.
+Public Sub fn_ResetRuntimeCache()
     On Error Resume Next
     private_CloseAllCachedConnections
     Set m_ConnectionsByPath = Nothing
