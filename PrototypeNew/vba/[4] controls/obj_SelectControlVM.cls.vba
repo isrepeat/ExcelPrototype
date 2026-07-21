@@ -59,6 +59,9 @@ Private m_Page As obj_IPage
 Private m_CallbackContext As Object
 Private m_ShapeNameByXmlSuffix As Object
 Private m_XmlSuffixByShapeName As Object
+Private m_SemanticPartsSignature As String
+Private m_StyledSelectionSignature As String
+Private m_IsControlRenderPass As Boolean
 
 Private Sub Class_Initialize()
 #If LOGGING_VERBOSE_ENABLED Then
@@ -147,6 +150,9 @@ Private Sub obj_IControl_Configure(ByVal controlNode As Object)
     Set m_XmlSuffixByShapeName = Nothing
     m_IsDropdownExpanded = False
     m_SelectedIndex = 0
+    m_SemanticPartsSignature = VBA.vbNullString
+    m_StyledSelectionSignature = VBA.vbNullString
+    m_IsControlRenderPass = False
 
     If m_Page Is Nothing Then Exit Sub
     Set pageBase = m_Page.GetPageBase()
@@ -192,7 +198,7 @@ Private Sub obj_IControl_Configure(ByVal controlNode As Object)
 
     ' 2) Читаем общий layout (лист + границы + style).
     Set m_ControlLayout = New obj_ControlLayout
-    If Not m_ControlLayout.TryReadFromNode(controlNode, "Select", m_ControlName, "style") Then Exit Sub
+    If Not m_ControlLayout.TryReadFromNode(controlNode, "Select", m_ControlName, "headerStyle") Then Exit Sub
 
     ' 3) Разрешаем itemsSource в runtime-коллекцию и готовим буферы.
     Set pageBase = m_ControlBase.PageBase
@@ -200,15 +206,11 @@ Private Sub obj_IControl_Configure(ByVal controlNode As Object)
     If Not ex_RuntimeSourceResolver.fn_TryResolveItemsSource(pageBase.RuntimeSources, m_ItemsSourceRaw, m_Items) Then Exit Sub
     If Not private_TryBuildItemBuffers() Then Exit Sub
 
-    ' 4) Определяем начальный выбранный элемент:
-    '    selectedId из XML -> state store -> fallback на первый item.
+    ' 4) Определяем начальный выбранный элемент. Пустой selectedId означает
+    '    настоящее placeholder-состояние, а не неявный выбор первого item.
     m_SelectStateKey = VBA.LCase$(m_ControlLayout.LayoutSheetName & "|" & m_ControlName)
     If Not private_TryResolveSelectedIdText(selectedIdText) Then Exit Sub
     m_SelectedIndex = private_FindSelectedIndexById(selectedIdText)
-
-    If m_SelectedIndex = 0 And Not m_ItemIds Is Nothing Then
-        If m_ItemIds.Count > 0 Then m_SelectedIndex = 1
-    End If
 
     m_IsConfigured = True
 End Sub
@@ -235,6 +237,7 @@ Private Sub obj_IControl_Render()
     Dim panelWidth As Double
     Dim panelHeight As Double
     Dim pageBase As obj_PageBase
+    Dim uiStateInitialized As Boolean
 
     If Not m_IsConfigured Then
 #If LOGGING_DEBUG_ENABLED Then
@@ -295,12 +298,21 @@ Private Sub obj_IControl_Render()
 
     Set headerShape = private_CreateShapeByRange(ws, headerRange, "header", callbackMacroRef)
     If headerShape Is Nothing Then Exit Sub
-    private_ApplyHeaderVisualDefaults headerShape
+    ' Встроенная палитра нужна только Select без XML-стиля. Иначе локальный
+    ' rerender не должен затирать уже применённый controlStyle.
+    If VBA.Len(VBA.Trim$(m_ControlLayout.StyleName)) = 0 Then
+        private_ApplyHeaderVisualDefaults headerShape
+    End If
 
     If renderItemCount > 0 Then
         Set panelShape = private_CreateShapeByBounds(ws, panelLeft, panelTop, panelWidth, panelHeight, "panel", VBA.vbNullString)
         If panelShape Is Nothing Then Exit Sub
-        private_ApplyPanelVisualDefaults panelShape
+        ' Новый page-render всегда начинает с закрытого dropdown. Скрываем
+        ' переиспользованный panel до любых последующих configure/style шагов.
+        panelShape.Visible = msoFalse
+        If VBA.Len(VBA.Trim$(m_PanelStyleName)) = 0 Then
+            private_ApplyPanelVisualDefaults panelShape
+        End If
     Else
         Set panelShape = private_CreateShapeByBounds(ws, headerLeft, headerTop, headerWidth, headerHeight, "panel", VBA.vbNullString)
         If panelShape Is Nothing Then Exit Sub
@@ -320,7 +332,8 @@ Private Sub obj_IControl_Render()
     If selectedIndexRendered <= 0 Or selectedIndexRendered > renderItemCount Then selectedIndexRendered = 0
 
     ' Синхронизируем runtime-буферы VM с только что созданными shape.
-    If Not private_InitializeUiState( _
+    m_IsControlRenderPass = True
+    uiStateInitialized = private_InitializeUiState( _
         headerShapeName:=headerShape.Name, _
         panelShapeName:=panelShape.Name, _
         itemShapeNames:=itemShapes, _
@@ -328,7 +341,9 @@ Private Sub obj_IControl_Render()
         itemIds:=itemIds, _
         itemActionMacros:=itemActions, _
         itemRawItems:=itemRawItems, _
-        selectedIndex:=selectedIndexRendered) Then Exit Sub
+        selectedIndex:=selectedIndexRendered)
+    m_IsControlRenderPass = False
+    If Not uiStateInitialized Then Exit Sub
 
     If Not private_TryBindUiRoutes(ws, headerShape.Name, itemShapes) Then Exit Sub
 End Sub
@@ -347,7 +362,7 @@ End Function
 Private Function obj_IControl_SupportsAttribute(ByVal attrName As String) As Boolean
     Select Case VBA.LCase$(VBA.Trim$(attrName))
         Case "itemssource", "placeholder", "onchange", "dropdownopened", "selectedid", _
-             "style", _
+             "headerstyle", _
              "itemstyle", "panelstyle", "itemheight", "itemmargin"
             obj_IControl_SupportsAttribute = True
     End Select
@@ -419,6 +434,39 @@ End Function
 
 Public Function GetSelectedOptionId() As String
     GetSelectedOptionId = Me.GetSelectedId()
+End Function
+
+' Программно синхронизирует выбранный item без запуска пользовательского
+' onChange. Используется страницами, когда связанное состояние меняется
+' другим контролом, например основной кнопкой рядом с dropdown.
+Public Function TrySelectId(ByVal selectedId As String) As Boolean
+    Dim selectedIndex As Long
+
+    selectedId = VBA.Trim$(selectedId)
+    If VBA.Len(selectedId) = 0 Then Exit Function
+    selectedIndex = private_FindSelectedIndexById(selectedId)
+    If selectedIndex <= 0 Then Exit Function
+
+    m_SelectedIndex = selectedIndex
+    m_IsDropdownExpanded = False
+    If Not private_TryPersistSelectedId(selectedId) Then Exit Function
+    If Not private_ApplyUiStateToShapes() Then Exit Function
+    TrySelectId = True
+End Function
+
+' Возвращает Select в placeholder-состояние. По умолчанию программный сброс
+' не имитирует пользовательский выбор; при необходимости потребитель может
+' явно запросить onChange через notifyChange=True.
+Public Function ResetSelection(Optional ByVal notifyChange As Boolean = False) As Boolean
+    m_SelectedIndex = 0
+    m_IsDropdownExpanded = False
+    If Not private_TryPersistSelectedId(VBA.vbNullString) Then Exit Function
+    If Not private_ApplyUiStateToShapes() Then Exit Function
+
+    If notifyChange And VBA.Len(VBA.Trim$(m_OnChangeMacroRef)) > 0 Then
+        If Not private_RunOptionMacro(m_OnChangeMacroRef) Then Exit Function
+    End If
+    ResetSelection = True
 End Function
 
 Public Function HandleHeaderClick() As Boolean
@@ -504,9 +552,9 @@ End Function
 
 Public Function TrySerializeSnapshot(ByRef outSnapshotXml As String) As Boolean
     Dim i As Long
-    Dim shapeName As String
     Dim selectedIndexText As String
-    Dim isDropdownExpandedText As String
+    Dim optionTags As Collection
+    Dim optionStates As Collection
 
     outSnapshotXml = VBA.vbNullString
 
@@ -524,9 +572,7 @@ Public Function TrySerializeSnapshot(ByRef outSnapshotXml As String) As Boolean
     If m_UiOptionCaptions.Count <> m_UiOptionRawItems.Count Then Exit Function
 
     selectedIndexText = VBA.CStr(m_SelectedIndex)
-    isDropdownExpandedText = VBA.IIf(m_IsDropdownExpanded, "true", "false")
-
-    outSnapshotXml = "<select version=""2"""
+    outSnapshotXml = "<select version=""4"""
     outSnapshotXml = outSnapshotXml & " controlName=""" & ex_Helpers.fn_EscapeXmlAttr(m_ControlName) & """"
     outSnapshotXml = outSnapshotXml & " itemsSource=""" & ex_Helpers.fn_EscapeXmlAttr(m_ItemsSourceRaw) & """"
     outSnapshotXml = outSnapshotXml & " selectedIdRaw=""" & ex_Helpers.fn_EscapeXmlAttr(m_SelectedIdRaw) & """"
@@ -535,32 +581,26 @@ Public Function TrySerializeSnapshot(ByRef outSnapshotXml As String) As Boolean
     outSnapshotXml = outSnapshotXml & " colStart=""" & VBA.CStr(m_ControlLayout.ColStart) & """"
     outSnapshotXml = outSnapshotXml & " rowEnd=""" & VBA.CStr(m_ControlLayout.RowEnd) & """"
     outSnapshotXml = outSnapshotXml & " colEnd=""" & VBA.CStr(m_ControlLayout.ColEnd) & """"
-    outSnapshotXml = outSnapshotXml & " style=""" & ex_Helpers.fn_EscapeXmlAttr(m_ControlLayout.StyleName) & """"
     outSnapshotXml = outSnapshotXml & " selectKey=""" & ex_Helpers.fn_EscapeXmlAttr(m_SelectStateKey) & """"
-    outSnapshotXml = outSnapshotXml & " placeholder=""" & ex_Helpers.fn_EscapeXmlAttr(m_PlaceholderText) & """"
     outSnapshotXml = outSnapshotXml & " onChangeRaw=""" & ex_Helpers.fn_EscapeXmlAttr(m_OnChangeRaw) & """"
     outSnapshotXml = outSnapshotXml & " onChange=""" & ex_Helpers.fn_EscapeXmlAttr(m_OnChangeMacroRef) & """"
     outSnapshotXml = outSnapshotXml & " dropDownOpenedRaw=""" & ex_Helpers.fn_EscapeXmlAttr(m_DropDownOpenedRaw) & """"
     outSnapshotXml = outSnapshotXml & " dropDownOpened=""" & ex_Helpers.fn_EscapeXmlAttr(m_DropDownOpenedMacroRef) & """"
-    outSnapshotXml = outSnapshotXml & " itemStyle=""" & ex_Helpers.fn_EscapeXmlAttr(m_ItemStyleName) & """"
-    outSnapshotXml = outSnapshotXml & " panelStyle=""" & ex_Helpers.fn_EscapeXmlAttr(m_PanelStyleName) & """"
-    outSnapshotXml = outSnapshotXml & " itemHeight=""" & VBA.CStr(m_ItemHeight) & """"
-    outSnapshotXml = outSnapshotXml & " itemMargin=""" & VBA.CStr(m_ItemMargin) & """"
     outSnapshotXml = outSnapshotXml & " selectedIndex=""" & ex_Helpers.fn_EscapeXmlAttr(selectedIndexText) & """"
-    outSnapshotXml = outSnapshotXml & " isOpen=""" & isDropdownExpandedText & """"
     outSnapshotXml = outSnapshotXml & " isConfigured=""" & VBA.IIf(m_IsConfigured, "true", "false") & """"
     outSnapshotXml = outSnapshotXml & ">"
     outSnapshotXml = outSnapshotXml & "<header shape=""" & ex_Helpers.fn_EscapeXmlAttr(m_UiHeaderShapeName) & """ />"
     outSnapshotXml = outSnapshotXml & "<panel shape=""" & ex_Helpers.fn_EscapeXmlAttr(m_UiDropdownPanelShapeName) & """ />"
 
     For i = 1 To m_UiOptionIds.Count
-        shapeName = private_GetSnapshotOptionShapeName(i)
+        If Not private_TryGetOptionSemantics(i, optionTags, optionStates) Then Exit Function
         outSnapshotXml = outSnapshotXml & _
             "<item" & _
-            " shape=""" & ex_Helpers.fn_EscapeXmlAttr(shapeName) & """" & _
             " caption=""" & ex_Helpers.fn_EscapeXmlAttr(VBA.CStr(m_UiOptionCaptions(i))) & """" & _
             " id=""" & ex_Helpers.fn_EscapeXmlAttr(VBA.CStr(m_UiOptionIds(i))) & """" & _
             " action=""" & ex_Helpers.fn_EscapeXmlAttr(VBA.CStr(m_UiOptionActionMacros(i))) & """" & _
+            " tags=""" & ex_Helpers.fn_EscapeXmlAttr(private_CollectionSignature(optionTags)) & """" & _
+            " states=""" & ex_Helpers.fn_EscapeXmlAttr(private_CollectionSignature(optionStates)) & """" & _
                 " rawValue=""" & ex_Helpers.fn_EscapeXmlAttr(ex_Helpers.fn_GetSnapshotRawValueText(m_UiOptionRawItems, i, VBA.CStr(m_UiOptionIds(i)))) & """" & _
             " />"
     Next i
@@ -594,8 +634,11 @@ Public Function TryDeserializeSnapshot(ByVal snapshotXml As String) As Boolean
     Dim layoutStyle As String
     Dim isConfiguredAttr As String
     Dim i As Long
-    Dim rawObj As Object
+    Dim optionObj As obj_SelectOption
     Dim pageBase As obj_PageBase
+    Dim currentControlNode As Object
+    Dim escapedControlName As String
+    Dim restoredPanelShape As Shape
 
     snapshotXml = VBA.Trim$(snapshotXml)
     If VBA.Len(snapshotXml) = 0 Then Exit Function
@@ -609,31 +652,47 @@ Public Function TryDeserializeSnapshot(ByVal snapshotXml As String) As Boolean
     m_ItemsSourceRaw = VBA.Trim$(VBA.CStr(root.getAttribute("itemsSource")))
     m_SelectedIdRaw = VBA.Trim$(VBA.CStr(root.getAttribute("selectedIdRaw")))
     m_SelectStateKey = VBA.LCase$(VBA.Trim$(VBA.CStr(root.getAttribute("selectKey"))))
-    m_PlaceholderText = VBA.CStr(root.getAttribute("placeholder"))
     m_OnChangeRaw = VBA.CStr(root.getAttribute("onChangeRaw"))
     m_OnChangeMacroRef = VBA.Trim$(VBA.CStr(root.getAttribute("onChange")))
     m_DropDownOpenedRaw = VBA.CStr(root.getAttribute("dropDownOpenedRaw"))
     m_DropDownOpenedMacroRef = VBA.Trim$(VBA.CStr(root.getAttribute("dropDownOpened")))
-    m_ItemStyleName = VBA.Trim$(VBA.CStr(root.getAttribute("itemStyle")))
-    m_PanelStyleName = VBA.Trim$(VBA.CStr(root.getAttribute("panelStyle")))
-    m_ItemHeight = ex_Helpers.fn_ReadSnapshotDoubleAttr(root, "itemHeight", DEFAULT_ITEM_HEIGHT)
-    m_ItemMargin = ex_Helpers.fn_ReadSnapshotDoubleAttr(root, "itemMargin", DEFAULT_ITEM_MARGIN)
-    isDropdownExpanded = ex_Helpers.fn_ReadSnapshotBooleanAttr(root, "isOpen", False)
+    ' Open/closed — transient UI-state: после reload Select всегда закрыт.
+    isDropdownExpanded = False
     isConfiguredAttr = VBA.LCase$(VBA.Trim$(VBA.CStr(root.getAttribute("isConfigured"))))
     layoutSheetName = VBA.Trim$(VBA.CStr(root.getAttribute("sheet")))
     layoutRowStart = ex_Helpers.fn_ReadSnapshotLongAttr(root, "rowStart", 1)
     layoutColStart = ex_Helpers.fn_ReadSnapshotLongAttr(root, "colStart", 1)
     layoutRowEnd = ex_Helpers.fn_ReadSnapshotLongAttr(root, "rowEnd", layoutRowStart)
     layoutColEnd = ex_Helpers.fn_ReadSnapshotLongAttr(root, "colEnd", layoutColStart)
-    layoutStyle = VBA.Trim$(VBA.CStr(root.getAttribute("style")))
-
     If VBA.Len(m_ControlName) = 0 Then Exit Function
     If VBA.Len(m_SelectStateKey) = 0 Then
         m_SelectStateKey = VBA.LCase$(VBA.Trim$(layoutSheetName) & "|" & m_ControlName)
     End If
+    Set pageBase = m_Page.GetPageBase()
+    If pageBase Is Nothing Then Exit Function
+    If pageBase.XmlDom Is Nothing Then Exit Function
+    escapedControlName = ex_XmlCore.fn_XPathLiteral(m_ControlName)
+    Set currentControlNode = pageBase.XmlDom.selectSingleNode( _
+        "/p:page//p:control[@name=" & escapedControlName & "] | " & _
+        "/p:uiDefinition/p:layout//p:control[@name=" & escapedControlName & "]")
+    If currentControlNode Is Nothing Then Exit Function
+
+    ' Snapshot хранит runtime-состояние, но не является источником UI-конфига.
+    ' После reload стили и geometry читаются из актуального XML так же, как при
+    ' полном render, поэтому восстановленный Select не получает старую палитру.
+    layoutStyle = VBA.Trim$(VBA.CStr(ex_XmlCore.fn_NodeAttrText( _
+        currentControlNode, "headerStyle")))
+    m_ItemStyleName = VBA.Trim$(VBA.CStr(ex_XmlCore.fn_NodeAttrText( _
+        currentControlNode, "itemStyle")))
+    m_PanelStyleName = VBA.Trim$(VBA.CStr(ex_XmlCore.fn_NodeAttrText( _
+        currentControlNode, "panelStyle")))
+    m_PlaceholderText = VBA.CStr(ex_XmlCore.fn_NodeAttrText( _
+        currentControlNode, "placeholder"))
     If VBA.Len(VBA.Trim$(m_PlaceholderText)) = 0 Then m_PlaceholderText = DEFAULT_PLACEHOLDER
-    If m_ItemHeight <= 0# Then m_ItemHeight = DEFAULT_ITEM_HEIGHT
-    If m_ItemMargin < 0# Then m_ItemMargin = DEFAULT_ITEM_MARGIN
+    If Not private_TryReadPositiveDoubleAttr( _
+        currentControlNode, "itemHeight", DEFAULT_ITEM_HEIGHT, m_ItemHeight) Then Exit Function
+    If Not private_TryReadNonNegativeDoubleAttr( _
+        currentControlNode, "itemMargin", DEFAULT_ITEM_MARGIN, m_ItemMargin) Then Exit Function
 
     Set m_ControlLayout = New obj_ControlLayout
     If Not m_ControlLayout.TryReadFromRuntimeValues( _
@@ -650,6 +709,10 @@ Public Function TryDeserializeSnapshot(ByVal snapshotXml As String) As Boolean
     If ws Is Nothing Then Exit Function
     If Not private_TryRestoreCallbackContextFromPage() Then Exit Function
 
+    ' Lazy item Shape не восстанавливаются из snapshot. Удаляем старый overlay,
+    ' чтобы следующее раскрытие построило его из актуального XML/style pipeline.
+    private_DeleteStaleItemShapes ws, 0
+
     Set headerNode = root.selectSingleNode("*[local-name()='header']")
     If headerNode Is Nothing Then Exit Function
     headerShapeName = VBA.Trim$(VBA.CStr(headerNode.getAttribute("shape")))
@@ -659,6 +722,8 @@ Public Function TryDeserializeSnapshot(ByVal snapshotXml As String) As Boolean
     If panelNode Is Nothing Then Exit Function
     panelShapeName = VBA.Trim$(VBA.CStr(panelNode.getAttribute("shape")))
     If VBA.Len(panelShapeName) = 0 Then Exit Function
+    Set restoredPanelShape = private_GetUiShapeByName(ws, panelShapeName)
+    If Not restoredPanelShape Is Nothing Then restoredPanelShape.Visible = msoFalse
 
     Set itemShapeNames = New Collection
     Set itemCaptions = New Collection
@@ -669,25 +734,25 @@ Public Function TryDeserializeSnapshot(ByVal snapshotXml As String) As Boolean
     Set itemNodes = root.selectNodes("*[local-name()='item']")
     If Not itemNodes Is Nothing Then
         For Each itemNode In itemNodes
-            itemShapeNames.Add VBA.CStr(itemNode.getAttribute("shape"))
             itemCaptions.Add VBA.CStr(itemNode.getAttribute("caption"))
             itemIds.Add VBA.CStr(itemNode.getAttribute("id"))
             itemActionMacros.Add VBA.CStr(itemNode.getAttribute("action"))
 
-            Set rawObj = VBA.CreateObject("Scripting.Dictionary")
-            rawObj.CompareMode = 1
-            rawObj("Id") = VBA.CStr(itemNode.getAttribute("id"))
-            rawObj("Caption") = VBA.CStr(itemNode.getAttribute("caption"))
-            rawObj("RawValue") = VBA.CStr(itemNode.getAttribute("rawValue"))
-            If VBA.Len(VBA.Trim$(VBA.CStr(rawObj("RawValue")))) = 0 Then rawObj("RawValue") = VBA.CStr(itemNode.getAttribute("id"))
-            itemRawItems.Add rawObj
+            Set optionObj = New obj_SelectOption
+            optionObj.Id = VBA.CStr(itemNode.getAttribute("id"))
+            optionObj.Caption = VBA.CStr(itemNode.getAttribute("caption"))
+            optionObj.OnSelect = VBA.CStr(itemNode.getAttribute("action"))
+            If Not private_TryRestoreOptionSemantics( _
+                optionObj, _
+                VBA.CStr(itemNode.getAttribute("tags")), _
+                VBA.CStr(itemNode.getAttribute("states"))) Then Exit Function
+            itemRawItems.Add optionObj
         Next itemNode
     End If
 
     ' Lazy-render snapshot может не содержать item-узлы (shape еще не были материализованы).
     ' В этом случае восстанавливаем item-данные из текущего runtime itemsSource.
     If itemCaptions.Count = 0 Then
-        Set pageBase = Nothing
         Set pageBase = m_Page.GetPageBase()
         If Not pageBase Is Nothing Then
             If VBA.Len(VBA.Trim$(m_ItemsSourceRaw)) > 0 Then
@@ -709,6 +774,13 @@ Public Function TryDeserializeSnapshot(ByVal snapshotXml As String) As Boolean
     Else
         selectedIndex = 0
     End If
+
+    If Not private_TrySyncRestoredShapeStyleMetadata( _
+        ws, headerShapeName, panelShapeName, itemShapeNames) Then Exit Function
+    ' Restore меняет runtime buffers и style metadata поверх уже созданного VM;
+    ' прежняя semantic signature больше не доказывает актуальность Shape.
+    m_SemanticPartsSignature = VBA.vbNullString
+    m_StyledSelectionSignature = VBA.vbNullString
 
     If Not private_InitializeUiState( _
         headerShapeName:=headerShapeName, _
@@ -733,6 +805,49 @@ Public Function TryDeserializeSnapshot(ByVal snapshotXml As String) As Boolean
         m_IsConfigured = True
     End If
     TryDeserializeSnapshot = True
+End Function
+
+Private Function private_TrySyncRestoredShapeStyleMetadata( _
+    ByVal ws As Worksheet, _
+    ByVal headerShapeName As String, _
+    ByVal panelShapeName As String, _
+    ByVal itemShapeNames As Collection _
+) As Boolean
+    Dim shp As Shape
+    Dim i As Long
+
+    If ws Is Nothing Or itemShapeNames Is Nothing Then Exit Function
+    Set shp = private_GetUiShapeByName(ws, headerShapeName)
+    If shp Is Nothing Then Exit Function
+    If Not private_TrySetShapeStyleMetadata(shp, m_ControlLayout.StyleName) Then Exit Function
+
+    Set shp = private_GetUiShapeByName(ws, panelShapeName)
+    If Not shp Is Nothing Then
+        If Not private_TrySetShapeStyleMetadata(shp, m_PanelStyleName) Then Exit Function
+    End If
+    For i = 1 To itemShapeNames.Count
+        Set shp = private_GetUiShapeByName(ws, VBA.CStr(itemShapeNames(i)))
+        If shp Is Nothing Then GoTo ContinueItem
+        If Not private_TrySetShapeStyleMetadata(shp, m_ItemStyleName) Then Exit Function
+ContinueItem:
+    Next i
+    private_TrySyncRestoredShapeStyleMetadata = True
+End Function
+
+Private Function private_TrySetShapeStyleMetadata( _
+    ByVal shp As Shape, _
+    ByVal styleName As String _
+) As Boolean
+    Dim metaMap As Object
+
+    If shp Is Nothing Then Exit Function
+    Set metaMap = VBA.CreateObject("Scripting.Dictionary")
+    metaMap.CompareMode = 1
+    metaMap("pn.style") = VBA.Trim$(styleName)
+    metaMap("pn.appliedStyleSignature") = VBA.vbNullString
+    metaMap("pn.appliedPartStyleSignature") = VBA.vbNullString
+    private_TrySetShapeStyleMetadata = _
+        ex_ShapeMetaRuntime.fn_TrySetShapeMetaValues(shp, metaMap)
 End Function
 
 ' //
@@ -956,6 +1071,8 @@ Private Function private_ApplyUiStateToShapes() As Boolean
     Set headerShape = private_GetUiShapeByName(ws, m_UiHeaderShapeName)
     If headerShape Is Nothing Then Exit Function
 
+    If Not private_TryRefreshSemanticParts(ws, headerShape) Then Exit Function
+
     Set panelShape = private_GetUiShapeByName(ws, m_UiDropdownPanelShapeName)
 
     If m_IsDropdownExpanded Then
@@ -984,6 +1101,7 @@ Private Function private_ApplyUiStateToShapes() As Boolean
     End If
 
     private_SetShapeText headerShape, headerText
+    private_AlignHeaderText headerShape
 
     ' Open/close panel + item-shapes.
     If Not panelShape Is Nothing Then
@@ -995,10 +1113,11 @@ Private Function private_ApplyUiStateToShapes() As Boolean
         Set itemShape = private_GetUiShapeByName(ws, VBA.CStr(m_UiOptionShapeNames(i)))
         If itemShape Is Nothing Then GoTo ContinueItem
 
-        itemShape.Visible = VBA.IIf(m_IsDropdownExpanded, msoTrue, msoFalse)
-        If m_IsDropdownExpanded Then itemShape.ZOrder msoBringToFront
+        private_AlignItemText itemShape
 
-        ' Выделяем выбранный item через Bold.
+        ' Сначала нормализуем шрифт всех item. Если менять Visible в этом же
+        ' проходе, Excel показывает промежуточный кадр с base fontBold у ещё
+        ' не обработанных элементов.
         On Error Resume Next
         itemShape.TextFrame.Characters.Font.Bold = (i = m_SelectedIndex)
         itemShape.TextFrame2.TextRange.Font.Bold = (i = m_SelectedIndex)
@@ -1007,8 +1126,316 @@ Private Function private_ApplyUiStateToShapes() As Boolean
 ContinueItem:
     Next i
 
+    ' Видимость меняется отдельной фазой уже после завершения форматирования.
+    For i = 1 To m_UiOptionShapeNames.Count
+        Set itemShape = private_GetUiShapeByName(ws, VBA.CStr(m_UiOptionShapeNames(i)))
+        If itemShape Is Nothing Then GoTo ContinueVisibility
+        itemShape.Visible = VBA.IIf(m_IsDropdownExpanded, msoTrue, msoFalse)
+        If m_IsDropdownExpanded Then itemShape.ZOrder msoBringToFront
+ContinueVisibility:
+    Next i
+
     private_ApplyUiStateToShapes = True
 End Function
+
+Private Function private_TryRefreshSemanticParts( _
+    ByVal ws As Worksheet, _
+    ByVal headerShape As Shape _
+) As Boolean
+    Dim semanticSignature As String
+    Dim selectionSignature As String
+    Dim selectionChanged As Boolean
+    Dim selectedTags As Collection
+    Dim selectedStates As Collection
+    Dim optionTags As Collection
+    Dim optionStates As Collection
+    Dim panelShape As Shape
+    Dim itemShape As Shape
+    Dim registeredHeaders As Collection
+    Dim i As Long
+
+    If ws Is Nothing Or headerShape Is Nothing Then Exit Function
+    If m_UiOptionShapeNames Is Nothing Then Exit Function
+
+    If Me.HasSelectedOption() Then
+        If Not private_TryGetOptionSemantics(m_SelectedIndex, selectedTags, selectedStates) Then Exit Function
+    End If
+    semanticSignature = private_BuildSemanticPartsSignature(selectedTags, selectedStates)
+    selectionSignature = private_BuildSelectionSemanticSignature(selectedTags, selectedStates)
+    selectionChanged = (VBA.StrComp( _
+        m_StyledSelectionSignature, selectionSignature, VBA.vbBinaryCompare) <> 0)
+    If VBA.StrComp(m_SemanticPartsSignature, semanticSignature, VBA.vbBinaryCompare) = 0 Then
+        If Not ex_ControlPartsRuntime.fn_TryResolveControlPartShapes( _
+            ws, "select", m_ControlName, "header", registeredHeaders) Then Exit Function
+        If Not registeredHeaders Is Nothing Then
+            If registeredHeaders.Count > 0 Then
+                private_TryRefreshSemanticParts = True
+                Exit Function
+            End If
+        End If
+    End If
+
+    ' Dynamic parts принадлежат только этому Select: старые state/tag buckets
+    ' удаляются перед публикацией текущего semantic snapshot.
+    If Not ex_ControlPartsRuntime.fn_RemoveControlPartsByControl( _
+        ws.Name, m_ControlName) Then Exit Function
+
+    If Not private_RegisterShapePart(ws, headerShape, "header") Then Exit Function
+    If Me.HasSelectedOption() Then
+        If Not private_RegisterShapePart(ws, headerShape, "state-selected") Then Exit Function
+        If Not private_RegisterShapeCollectionParts(ws, headerShape, "tag-", selectedTags) Then Exit Function
+        If Not private_RegisterShapeCollectionParts(ws, headerShape, "state-", selectedStates) Then Exit Function
+    Else
+        If Not private_RegisterShapePart(ws, headerShape, "state-placeholder") Then Exit Function
+    End If
+    If m_IsDropdownExpanded Then
+        If Not private_RegisterShapePart(ws, headerShape, "state-open") Then Exit Function
+    Else
+        If Not private_RegisterShapePart(ws, headerShape, "state-closed") Then Exit Function
+    End If
+
+    Set panelShape = private_GetUiShapeByName(ws, m_UiDropdownPanelShapeName)
+    If Not panelShape Is Nothing Then
+        If Not private_RegisterShapePart(ws, panelShape, "panel") Then Exit Function
+    End If
+
+    For i = 1 To m_UiOptionShapeNames.Count
+        Set itemShape = private_GetUiShapeByName(ws, VBA.CStr(m_UiOptionShapeNames(i)))
+        If itemShape Is Nothing Then GoTo ContinueItem
+        If Not private_RegisterShapePart(ws, itemShape, "item") Then Exit Function
+        If Not private_TryGetOptionSemantics(i, optionTags, optionStates) Then Exit Function
+        ' Item parts имеют отдельный namespace, чтобы header tag/state rules
+        ' не перекрашивали строки раскрытого списка.
+        If Not private_RegisterShapeCollectionParts(ws, itemShape, "item-tag-", optionTags) Then Exit Function
+        If Not private_RegisterShapeCollectionParts(ws, itemShape, "item-state-", optionStates) Then Exit Function
+        If i = m_SelectedIndex Then
+            If Not private_RegisterShapePart(ws, itemShape, "item-selected") Then Exit Function
+        End If
+ContinueItem:
+    Next i
+
+    ' Полный render позже выполнит единый page style-pass. При интерактивной
+    ' смене состояния обновляем только Shape и rules этого Select.
+    If Not m_IsControlRenderPass Then
+        If Not private_TryApplySemanticStateStyles( _
+            ws, headerShape, panelShape, selectionChanged) Then Exit Function
+    End If
+    m_SemanticPartsSignature = semanticSignature
+    m_StyledSelectionSignature = selectionSignature
+    private_TryRefreshSemanticParts = True
+End Function
+
+Private Function private_BuildSelectionSemanticSignature( _
+    ByVal selectedTags As Collection, _
+    ByVal selectedStates As Collection _
+) As String
+    private_BuildSelectionSemanticSignature = _
+        VBA.IIf(Me.HasSelectedOption(), "selected", "placeholder") & _
+        "|index=" & VBA.CStr(m_SelectedIndex) & _
+        "|shapes=" & VBA.CStr(m_UiOptionShapeNames.Count) & _
+        "|tags=" & private_CollectionSignature(selectedTags) & _
+        "|states=" & private_CollectionSignature(selectedStates)
+End Function
+
+Private Function private_BuildSemanticPartsSignature( _
+    ByVal selectedTags As Collection, _
+    ByVal selectedStates As Collection _
+) As String
+    Dim optionTags As Collection
+    Dim optionStates As Collection
+    Dim optionSignature As String
+    Dim i As Long
+
+    If Not m_UiOptionRawItems Is Nothing Then
+        For i = 1 To m_UiOptionRawItems.Count
+            If Not private_TryGetOptionSemantics(i, optionTags, optionStates) Then Exit Function
+            optionSignature = optionSignature & "|item" & VBA.CStr(i) & "=" & _
+                private_CollectionSignature(optionTags) & ":" & _
+                private_CollectionSignature(optionStates)
+        Next i
+    End If
+    private_BuildSemanticPartsSignature = _
+        VBA.IIf(Me.HasSelectedOption(), "selected", "placeholder") & _
+        "|" & VBA.IIf(m_IsDropdownExpanded, "open", "closed") & _
+        "|index=" & VBA.CStr(m_SelectedIndex) & _
+        "|shapes=" & VBA.CStr(m_UiOptionShapeNames.Count) & _
+        "|tags=" & private_CollectionSignature(selectedTags) & _
+        "|states=" & private_CollectionSignature(selectedStates) & _
+        optionSignature
+End Function
+
+Private Function private_CollectionSignature(ByVal values As Collection) As String
+    Dim valueItem As Variant
+
+    If values Is Nothing Then Exit Function
+    For Each valueItem In values
+        If VBA.Len(private_CollectionSignature) > 0 Then private_CollectionSignature = private_CollectionSignature & ","
+        private_CollectionSignature = private_CollectionSignature & _
+            VBA.LCase$(VBA.Trim$(VBA.CStr(valueItem)))
+    Next valueItem
+End Function
+
+Private Function private_TryGetOptionSemantics( _
+    ByVal itemIndex As Long, _
+    ByRef outTags As Collection, _
+    ByRef outStates As Collection _
+) As Boolean
+    If m_UiOptionRawItems Is Nothing Then Exit Function
+    If itemIndex <= 0 Or itemIndex > m_UiOptionRawItems.Count Then Exit Function
+
+    private_TryGetOptionSemantics = private_TryGetRawItemSemantics( _
+        m_UiOptionRawItems(itemIndex), outTags, outStates)
+End Function
+
+Private Function private_TryGetRawItemSemantics( _
+    ByVal rawValue As Variant, _
+    ByRef outTags As Collection, _
+    ByRef outStates As Collection _
+) As Boolean
+    Dim contractItem As obj_IButtonGroupItem
+    Dim rawItem As Object
+    Dim semanticValues As Collection
+
+    Set outTags = New Collection
+    Set outStates = New Collection
+    If Not VBA.IsObject(rawValue) Then
+        private_TryGetRawItemSemantics = True
+        Exit Function
+    End If
+    Set rawItem = rawValue
+    On Error Resume Next
+    Set contractItem = rawItem
+    On Error GoTo 0
+    If contractItem Is Nothing Then
+        private_TryGetRawItemSemantics = True
+        Exit Function
+    End If
+
+    Set semanticValues = contractItem.Tags
+    If Not semanticValues Is Nothing Then Set outTags = semanticValues
+    Set semanticValues = contractItem.States
+    If Not semanticValues Is Nothing Then Set outStates = semanticValues
+    private_TryGetRawItemSemantics = True
+End Function
+
+Private Function private_TryRestoreOptionSemantics( _
+    ByVal optionObj As obj_SelectOption, _
+    ByVal tagsText As String, _
+    ByVal statesText As String _
+) As Boolean
+    Dim valueItem As Variant
+    Dim valueText As String
+
+    If optionObj Is Nothing Then Exit Function
+    For Each valueItem In VBA.Split(tagsText, ",")
+        valueText = VBA.LCase$(VBA.Trim$(VBA.CStr(valueItem)))
+        If VBA.Len(valueText) > 0 Then
+            If Not optionObj.AddTag(valueText) Then Exit Function
+        End If
+    Next valueItem
+    For Each valueItem In VBA.Split(statesText, ",")
+        valueText = VBA.LCase$(VBA.Trim$(VBA.CStr(valueItem)))
+        If VBA.Len(valueText) > 0 Then
+            If Not optionObj.SetState(valueText, True) Then Exit Function
+        End If
+    Next valueItem
+    private_TryRestoreOptionSemantics = True
+End Function
+
+Private Function private_RegisterShapeCollectionParts( _
+    ByVal ws As Worksheet, _
+    ByVal shp As Shape, _
+    ByVal partPrefix As String, _
+    ByVal values As Collection _
+) As Boolean
+    Dim valueItem As Variant
+
+    If values Is Nothing Then
+        private_RegisterShapeCollectionParts = True
+        Exit Function
+    End If
+    For Each valueItem In values
+        If Not private_RegisterShapePart( _
+            ws, shp, partPrefix & VBA.LCase$(VBA.Trim$(VBA.CStr(valueItem)))) Then Exit Function
+    Next valueItem
+    private_RegisterShapeCollectionParts = True
+End Function
+
+Private Function private_RegisterShapePart( _
+    ByVal ws As Worksheet, _
+    ByVal shp As Shape, _
+    ByVal partName As String _
+) As Boolean
+    Dim partRange As Range
+
+    If ws Is Nothing Or shp Is Nothing Then Exit Function
+    partName = VBA.LCase$(VBA.Trim$(partName))
+    If VBA.Len(partName) = 0 Then Exit Function
+    On Error Resume Next
+    Set partRange = ws.Range(shp.TopLeftCell, shp.BottomRightCell)
+    On Error GoTo 0
+    If partRange Is Nothing Then Exit Function
+
+    private_RegisterShapePart = ex_ControlPartsRuntime.fn_RegisterControlPart( _
+        ws, "select", m_ControlName, partName, partRange, shp)
+End Function
+
+Private Function private_TryApplySemanticStateStyles( _
+    ByVal ws As Worksheet, _
+    ByVal headerShape As Shape, _
+    ByVal panelShape As Shape, _
+    ByVal selectionChanged As Boolean _
+) As Boolean
+    Dim pageBase As obj_PageBase
+    Dim itemShape As Shape
+    Dim i As Long
+
+    If ws Is Nothing Or headerShape Is Nothing Then Exit Function
+    If Not m_ControlBase Is Nothing Then Set pageBase = m_ControlBase.PageBase
+    If pageBase Is Nothing Then Set pageBase = m_Page.GetPageBase()
+    If pageBase Is Nothing Then Exit Function
+    If pageBase.XmlDom Is Nothing Then Exit Function
+
+    If Not ex_StylePipelineEngine.fn_ApplyControlStyleToShape( _
+        headerShape, pageBase.XmlDom, True) Then Exit Function
+    If selectionChanged Then
+        If Not panelShape Is Nothing Then
+            If Not ex_StylePipelineEngine.fn_ApplyControlStyleToShape( _
+                panelShape, pageBase.XmlDom, True) Then Exit Function
+        End If
+        For i = 1 To m_UiOptionShapeNames.Count
+            Set itemShape = private_GetUiShapeByName(ws, VBA.CStr(m_UiOptionShapeNames(i)))
+            If itemShape Is Nothing Then GoTo ContinueItem
+            If Not ex_StylePipelineEngine.fn_ApplyControlStyleToShape( _
+                itemShape, pageBase.XmlDom, True) Then Exit Function
+ContinueItem:
+        Next i
+    End If
+
+    private_TryApplySemanticStateStyles = _
+        ex_StylePipelineEngine.fn_ApplyControlPartStylesForControl( _
+            ws, pageBase.XmlDom, m_ControlName, True)
+End Function
+
+Private Sub private_AlignHeaderText(ByVal shp As Shape)
+    If shp Is Nothing Then Exit Sub
+    On Error Resume Next
+    shp.TextFrame.HorizontalAlignment = xlHAlignCenter
+    shp.TextFrame.VerticalAlignment = xlVAlignCenter
+    shp.TextFrame2.VerticalAnchor = msoAnchorMiddle
+    shp.TextFrame2.TextRange.ParagraphFormat.Alignment = msoAlignCenter
+    On Error GoTo 0
+End Sub
+
+Private Sub private_AlignItemText(ByVal shp As Shape)
+    If shp Is Nothing Then Exit Sub
+    On Error Resume Next
+    shp.TextFrame.HorizontalAlignment = xlHAlignLeft
+    shp.TextFrame.VerticalAlignment = xlVAlignCenter
+    shp.TextFrame2.VerticalAnchor = msoAnchorMiddle
+    shp.TextFrame2.TextRange.ParagraphFormat.Alignment = msoAlignLeft
+    On Error GoTo 0
+End Sub
 
 Private Function private_ReanchorDropdownToHeader( _
     ByVal ws As Worksheet, _
@@ -1083,19 +1510,6 @@ Private Function private_GetOptionCollectionText(ByVal values As Collection, ByV
     private_GetOptionCollectionText = VBA.Trim$(VBA.CStr(values(idx)))
 End Function
 
-Private Function private_GetSnapshotOptionShapeName(ByVal itemIndex As Long) As String
-    If itemIndex <= 0 Then Exit Function
-
-    If Not m_UiOptionShapeNames Is Nothing Then
-        If itemIndex <= m_UiOptionShapeNames.Count Then
-            private_GetSnapshotOptionShapeName = VBA.Trim$(VBA.CStr(m_UiOptionShapeNames(itemIndex)))
-            If VBA.Len(private_GetSnapshotOptionShapeName) > 0 Then Exit Function
-        End If
-    End If
-
-    private_GetSnapshotOptionShapeName = private_BuildShapeName("item" & VBA.CStr(itemIndex))
-End Function
-
 Private Function private_RunOptionMacro(ByVal macroRef As String) As Boolean
     macroRef = VBA.Trim$(macroRef)
     If VBA.Len(macroRef) = 0 Then
@@ -1147,11 +1561,6 @@ Private Function private_TryRefreshItemsAndRerenderAfterDropDownOpenedCallback()
 
     ' 3) Сохраняем выбор пользователя (по id), если элемент все еще существует.
     selectedIndexRefreshed = private_FindSelectedIndexById(currentSelectedId)
-    If selectedIndexRefreshed = 0 Then
-        If Not m_ItemIds Is Nothing Then
-            If m_ItemIds.Count > 0 Then selectedIndexRefreshed = 1
-        End If
-    End If
     m_SelectedIndex = selectedIndexRefreshed
 
     ' 4) Если состав опций не изменился, не пересоздаем shapes/routes:
@@ -1234,7 +1643,9 @@ Private Function private_TryEnsureDropdownItemsReady() As Boolean
     End If
 
     If renderItemCount > 0 Then
-        private_ApplyPanelVisualDefaults panelShape
+        If VBA.Len(VBA.Trim$(m_PanelStyleName)) = 0 Then
+            private_ApplyPanelVisualDefaults panelShape
+        End If
     Else
         panelShape.Visible = msoFalse
     End If
@@ -1247,8 +1658,13 @@ Private Function private_TryEnsureDropdownItemsReady() As Boolean
         Set itemShape = private_CreateShapeByBounds(ws, panelLeft, itemTop, panelWidth, m_ItemHeight, "item" & VBA.CStr(i), callbackMacroRef)
         If itemShape Is Nothing Then Exit Function
 
+        ' Lazy item создаётся скрытым: базовый/semantic styles и шрифт должны
+        ' примениться до первого видимого кадра раскрытого списка.
+        itemShape.Visible = msoFalse
         private_SetShapeText itemShape, VBA.CStr(m_UiOptionCaptions(i))
-        private_ApplyItemVisualDefaults itemShape
+        If VBA.Len(VBA.Trim$(m_ItemStyleName)) = 0 Then
+            private_ApplyItemVisualDefaults itemShape
+        End If
         itemShapeNames.Add itemShape.Name
     Next i
 
@@ -1259,6 +1675,10 @@ End Function
 
 Private Function private_AreResolvedItemBuffersEqualToUiState() As Boolean
     Dim i As Long
+    Dim sourceTags As Collection
+    Dim sourceStates As Collection
+    Dim uiTags As Collection
+    Dim uiStates As Collection
 
     If m_ItemCaptions Is Nothing Then Exit Function
     If m_ItemIds Is Nothing Then Exit Function
@@ -1276,6 +1696,10 @@ Private Function private_AreResolvedItemBuffersEqualToUiState() As Boolean
         If VBA.StrComp(VBA.CStr(m_ItemIds(i)), VBA.CStr(m_UiOptionIds(i)), VBA.vbBinaryCompare) <> 0 Then Exit Function
         If VBA.StrComp(VBA.CStr(m_ItemCaptions(i)), VBA.CStr(m_UiOptionCaptions(i)), VBA.vbBinaryCompare) <> 0 Then Exit Function
         If VBA.StrComp(VBA.CStr(m_ItemActionMacros(i)), VBA.CStr(m_UiOptionActionMacros(i)), VBA.vbBinaryCompare) <> 0 Then Exit Function
+        If Not private_TryGetRawItemSemantics(m_ItemRawItems(i), sourceTags, sourceStates) Then Exit Function
+        If Not private_TryGetRawItemSemantics(m_UiOptionRawItems(i), uiTags, uiStates) Then Exit Function
+        If VBA.StrComp(private_CollectionSignature(sourceTags), private_CollectionSignature(uiTags), VBA.vbBinaryCompare) <> 0 Then Exit Function
+        If VBA.StrComp(private_CollectionSignature(sourceStates), private_CollectionSignature(uiStates), VBA.vbBinaryCompare) <> 0 Then Exit Function
     Next i
 
     private_AreResolvedItemBuffersEqualToUiState = True

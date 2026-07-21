@@ -125,11 +125,55 @@ Public Function fn_ApplyRetainedControlStyles( _
     ex_ShapeMetaRuntime.fn_EndReadCache
 End Function
 
+' Восстанавливает базовый controlStyle ровно одного Shape. Используется
+' stateful-контролами перед повторным наложением semantic controlPart rules,
+' чтобы свойства ушедшего state/tag не оставались на Shape.
+Public Function fn_ApplyControlStyleToShape( _
+    ByVal shp As Shape, _
+    ByVal wsUiDoc As Object, _
+    Optional ByVal forceApply As Boolean = False _
+) As Boolean
+    Dim stylesByName As Object
+    Dim styleName As String
+    Dim styleSignature As String
+    Dim previousStyleSignature As String
+
+    If shp Is Nothing Or wsUiDoc Is Nothing Then Exit Function
+    Set stylesByName = private_GetCompiledControlStyles(wsUiDoc)
+    If stylesByName Is Nothing Then Exit Function
+
+    styleName = VBA.LCase$(VBA.Trim$(private_ReadShapeMetaValue(shp, "pn.style")))
+    If VBA.Len(styleName) = 0 Then
+        fn_ApplyControlStyleToShape = True
+        Exit Function
+    End If
+    If Not stylesByName.Exists(styleName) Then Exit Function
+
+    styleSignature = private_BuildShapeStyleSignature(styleName, stylesByName(styleName))
+    previousStyleSignature = private_ReadShapeMetaValue(shp, "pn.appliedStyleSignature")
+    If Not forceApply Then
+        If VBA.StrComp(previousStyleSignature, styleSignature, VBA.vbBinaryCompare) = 0 Then
+            fn_ApplyControlStyleToShape = True
+            Exit Function
+        End If
+    End If
+
+    If Not private_ApplyShapeStyle(shp, stylesByName(styleName), "controlStyle:" & styleName) Then Exit Function
+    If Not ex_ShapeMetaRuntime.fn_TrySetShapeMetaValue( _
+        shp, "pn.appliedStyleSignature", styleSignature) Then Exit Function
+    ' После восстановления базы semantic overlay должен примениться заново.
+    If Not ex_ShapeMetaRuntime.fn_TrySetShapeMetaValue( _
+        shp, "pn.appliedPartStyleSignature", VBA.vbNullString) Then Exit Function
+
+    fn_ApplyControlStyleToShape = True
+End Function
+
 
 Public Function fn_ApplyControlPartStylesForControl( _
     ByVal ws As Worksheet, _
     ByVal wsUiDoc As Object, _
-    ByVal controlName As String _
+    ByVal controlName As String, _
+    Optional ByVal shapeOnly As Boolean = False _
 ) As Boolean
     Dim stageNodes As Object
     Dim stageNode As Object
@@ -174,6 +218,10 @@ Public Function fn_ApplyControlPartStylesForControl( _
                 If Not private_TryReadNodeEnabled(ruleNode, True, ruleEnabled) Then GoTo CleanFail
                 If Not ruleEnabled Then GoTo ContinueRule
                 ruleTarget = VBA.LCase$(VBA.Trim$(ex_XmlCore.fn_NodeAttrText(ruleNode, "target")))
+                ' Stateful floating controls обновляют только свои Shape.
+                ' Sheet/range replay здесь затёр бы debug/layout оформление
+                ' ячеек, которые геометрически находятся под dropdown.
+                If shapeOnly And ruleTarget <> "controlpart" Then GoTo ContinueRule
                 If ruleTarget = "controlpart" Then
                     If Not private_ApplyControlPartRuleForControl(ws, ruleNode, controlName) Then GoTo CleanFail
                 ElseIf ruleTarget <> "layoutbound" Then
@@ -779,7 +827,11 @@ Private Function private_ApplySingleRule(ByVal ws As Worksheet, ByVal ruleNode A
         Exit Function
     End If
 
-    If Not private_ApplyRangeDeclarations(scopeRange, columnScope, declarations, ruleTarget) Then Exit Function
+    ' Select состоит из floating Shape. Его semantic parts используют Range
+    ' только как spatial scope для индекса и не должны красить ячейки под ним.
+    If Not private_IsShapeOnlyControlPartSelector(selector) Then
+        If Not private_ApplyRangeDeclarations(scopeRange, columnScope, declarations, ruleTarget) Then Exit Function
+    End If
     If ruleTarget = "controlpart" Then
         If Not private_ApplyControlPartShapeDeclarations(ws, selector, scopeRange, declarations) Then Exit Function
     End If
@@ -831,11 +883,20 @@ Private Function private_ApplyControlPartRuleForControl( _
     End If
 
     Set partialDeclarations = private_GetPartialSafeDeclarations(declarations)
-    If Not private_ApplyRangeDeclarations( _
-        scopeRange, columnScope, partialDeclarations, "controlpart-partial") Then Exit Function
+    If Not private_IsShapeOnlyControlPartSelector(effectiveSelector) Then
+        If Not private_ApplyRangeDeclarations( _
+            scopeRange, columnScope, partialDeclarations, "controlpart-partial") Then Exit Function
+    End If
     If Not private_ApplyControlPartShapeDeclarations( _
         ws, effectiveSelector, scopeRange, partialDeclarations) Then Exit Function
     private_ApplyControlPartRuleForControl = True
+End Function
+
+Private Function private_IsShapeOnlyControlPartSelector(ByVal selector As Object) As Boolean
+    If selector Is Nothing Then Exit Function
+    If Not selector.Exists("type") Then Exit Function
+    private_IsShapeOnlyControlPartSelector = ( _
+        VBA.LCase$(VBA.Trim$(VBA.CStr(selector("type")))) = "select")
 End Function
 
 ' Shape-контролы используют тот же controlPart selector, что и диапазоны.
@@ -860,7 +921,7 @@ Private Function private_ApplyControlPartShapeDeclarations( _
     If ws Is Nothing Or selector Is Nothing Or partScope Is Nothing Then Exit Function
     If declarations Is Nothing Then Exit Function
     If selector.Exists("type") Then controlType = VBA.LCase$(VBA.Trim$(VBA.CStr(selector("type"))))
-    If controlType <> "buttongroup" Then
+    If controlType <> "buttongroup" And controlType <> "select" Then
         private_ApplyControlPartShapeDeclarations = True
         Exit Function
     End If
