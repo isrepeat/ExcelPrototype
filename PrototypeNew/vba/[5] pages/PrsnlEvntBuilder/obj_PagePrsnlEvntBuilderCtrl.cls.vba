@@ -714,6 +714,20 @@ Public Function OnClearWordDocumentClick(Optional ByVal ignored As Variant) As B
     OnClearWordDocumentClick = True
 End Function
 
+Public Function OnUndoLastExportClick(Optional ByVal ignored As Variant) As Boolean
+    Dim actionMatched As Boolean
+
+    ' Кнопка использует общий Excel undo-stack, но откатывает только последнее
+    ' действие экспорта PEB. Более новое действие другого типа не пропускается.
+    If rt_UndoManager.fn_TryUndoLastByScopePrefix("PEB.Export.", actionMatched) Then
+        rt_Messaging.fn_ShowStatusBarSuccess "Last export action was undone.", 3
+        OnUndoLastExportClick = True
+    ElseIf Not actionMatched Then
+        rt_Messaging.fn_ShowStatusBarWarning _
+            "There is no last PEB export action available to undo.", 4
+    End If
+End Function
+
 Public Function OnRegroupWordHospitalPointsClick(Optional ByVal ignored As Variant) As Boolean
     Dim exporter As obj_IDataExporter
     Dim exporterClassName As String

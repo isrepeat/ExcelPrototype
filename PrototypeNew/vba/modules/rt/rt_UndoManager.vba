@@ -59,6 +59,35 @@ Public Function fn_CanRedo() As Boolean
     fn_CanRedo = (g_RedoStack.Count > 0)
 End Function
 
+Public Function fn_TryUndoLastByScopePrefix( _
+    ByVal scopePrefix As String, _
+    Optional ByRef outActionMatched As Boolean _
+) As Boolean
+    Dim action As obj_IUndoAction
+    Dim normalizedPrefix As String
+
+    On Error GoTo EH
+    outActionMatched = False
+    private_EnsureStorage
+    normalizedPrefix = VBA.Trim$(scopePrefix)
+    If VBA.Len(normalizedPrefix) = 0 Then Exit Function
+    If g_IsReplaying Or g_UndoStack.Count = 0 Then Exit Function
+
+    Set action = g_UndoStack.Item(g_UndoStack.Count)
+    If action Is Nothing Then Exit Function
+
+    ' Scoped-команда не ищет подходящее действие глубже в истории: undo должен
+    ' сохранять строгий LIFO-порядок и никогда не перепрыгивать более новое действие.
+    If VBA.StrComp( _
+        VBA.Left$(action.GetScopeKey(), VBA.Len(normalizedPrefix)), _
+        normalizedPrefix, _
+        VBA.vbTextCompare) <> 0 Then Exit Function
+
+    outActionMatched = True
+    fn_TryUndoLastByScopePrefix = fn_UndoLast()
+EH:
+End Function
+
 Public Sub fn_ClearAll()
     private_EnsureStorage
     Set g_UndoStack = New Collection

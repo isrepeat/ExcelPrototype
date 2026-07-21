@@ -285,6 +285,8 @@ Private Function private_TryAppendBeforeWordEndAnchor( _
     Dim bookmarkName As String
     Dim metadataBookmarkName As String
     Dim metadataRange As Object
+    Dim undoAction As obj_PEB_ExportUndoAction
+    Dim undoActionReady As Boolean
 
     On Error GoTo EH
 
@@ -385,9 +387,20 @@ Private Function private_TryAppendBeforeWordEndAnchor( _
     If Not private_TryNormalizeSectionRecordBookmarks( _
         wordDoc, templateId, beginRange.End, endRange.Start) Then GoTo CleanFail
 
+    ' Bookmark после нормализации остаётся стабильным локатором конкретной
+    ' вставки. Undo action хранит также позицию и текст для симметричного redo,
+    ' но не удерживает Word Document/Range после закрытия файла.
+    Set undoAction = New obj_PEB_ExportUndoAction
+    undoActionReady = undoAction.InitializeWord( _
+        targetPath, bookmarkName, insertedStart, plainRenderedText, metadataBookmarkName)
+    If Not undoActionReady Then GoTo CleanFail
+
     wordDoc.Save
     wordDoc.Close False
     documentOpened = False
+    If Not rt_UndoManager.fn_PushExecutedAction(undoAction) Then
+        rt_Messaging.fn_ShowStatusBarWarning "WORD export completed, but its undo action was not registered.", 5
+    End If
     private_TryAppendBeforeWordEndAnchor = True
     Exit Function
 

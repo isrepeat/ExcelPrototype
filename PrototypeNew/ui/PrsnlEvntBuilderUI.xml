@@ -114,7 +114,6 @@
             dataContext="{PageRuntimeSource='RuntimeObjects.PrsnlEvntBuilder.Controller'}"
             header="WORD export preview"
             message="{Binding Path=WordExportPreviewText}"
-            visibility="{Binding Path=WordExportPreviewText; Op=ne; Value=; TrueAs=Visible; FalseAs=Collapsed}"
             spanColls="7"
             spanRows="15"/>
 
@@ -148,6 +147,16 @@
               style="actionWarning"
               dataContext="{PageRuntimeSource='RuntimeObjects.PrsnlEvntBuilder.Controller'}"
               onClick="{Binding Method=OnClearWordDocumentClick}"
+              spanColls="2"
+              spanRows="2"/>
+
+            <control
+              type="Button"
+              name="UndoLastExport"
+              caption="Undo last export"
+              style="actionWarning"
+              dataContext="{PageRuntimeSource='RuntimeObjects.PrsnlEvntBuilder.Controller'}"
+              onClick="{Binding Method=OnUndoLastExportClick}"
               spanColls="2"
               spanRows="2"/>
           </stackPanel>

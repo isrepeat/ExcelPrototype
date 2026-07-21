@@ -68,12 +68,6 @@ Private Const TARGET_COLUMN_VLK_DATE As String = "ВЛК дата"
 Private Const REPORT_TVO_TEXT As String = "тимчасово виконуючого обов'язки"
 Private Const META_SECTION_TYPE_TVO As String = "Мета: ТВО"
 Private Const TVO_ROW_MARKER As String = "ТВО"
-Private Const SPECIAL_POSITION_PREFIX_ROZP As String = "A1A"
-Private Const SPECIAL_POSITION_PREFIX_SPIS As String = "A1B"
-Private Const SPECIAL_POSITION_CODE_ROZP As String = "РОЗП"
-Private Const SPECIAL_POSITION_CODE_SPIS As String = "СПИС"
-Private Const SPECIAL_POSITION_NAME_ROZP As String = "який перебуває у розпорядженні командира військової частини А7383"
-Private Const SPECIAL_POSITION_NAME_SPIS As String = "який зарахований до списків військової частини А7383"
 
 Private Sub Class_Initialize()
 #If LOGGING_VERBOSE_ENABLED Then
@@ -620,6 +614,7 @@ Private Function private_TryWriteSpecialPositionValue( _
     ByVal rowRange As Range _
 ) As Boolean
     Dim positionCodeText As String
+    Dim rankText As String
     Dim targetPositionCodeText As String
     Dim targetPositionNameText As String
 
@@ -632,11 +627,18 @@ Private Function private_TryWriteSpecialPositionValue( _
     If Not private_TryGetSourceTextByAnyColumn( _
         sourceTable, sourceRow, positionCodeText, _
         SOURCE_ALIAS_POSITION_CODE, TARGET_COLUMN_POSITION_CODE) Then Exit Function
+    If Not private_TryGetSourceTextByAnyColumn( _
+        sourceTable, sourceRow, rankText, _
+        SOURCE_ALIAS_RANK, TARGET_COLUMN_RANK) Then rankText = VBA.vbNullString
+    If m_ExporterDataProvider Is Nothing Then Exit Function
+    If m_ExporterDataProvider.CommonData Is Nothing Then Exit Function
 
     ' Некоторые служебные коды ШПС в целевых таблицах должны выглядеть как
-    ' состояние военнослужащего, а не как исходный код должности.
-    If Not private_TryResolveSpecialPositionMapping( _
-        positionCodeText, targetPositionCodeText, targetPositionNameText) Then Exit Function
+    ' состояние военнослужащего. Само правило едино для всех exporters и
+    ' поэтому принадлежит общему provider-у, а не DailyScope.
+    If Not m_ExporterDataProvider.CommonData.TryResolveSpecialPositionMapping( _
+        positionCodeText, rankText, _
+        targetPositionCodeText, targetPositionNameText) Then Exit Function
 
     If Not private_TryWriteTargetColumnText(targetTable, rowRange, TARGET_COLUMN_POSITION_CODE, targetPositionCodeText) Then
         private_TryWriteSpecialPositionValue = False
@@ -645,40 +647,6 @@ Private Function private_TryWriteSpecialPositionValue( _
     If Not private_TryWriteTargetColumnText(targetTable, rowRange, TARGET_COLUMN_POSITION_NAME, targetPositionNameText) Then
         private_TryWriteSpecialPositionValue = False
     End If
-End Function
-
-Private Function private_TryResolveSpecialPositionMapping( _
-    ByVal sourcePositionCodeText As String, _
-    ByRef outTargetPositionCodeText As String, _
-    ByRef outTargetPositionNameText As String _
-) As Boolean
-    Dim normalizedCodeText As String
-
-    outTargetPositionCodeText = VBA.vbNullString
-    outTargetPositionNameText = VBA.vbNullString
-
-    normalizedCodeText = private_NormalizeSpecialPositionPrefix(sourcePositionCodeText)
-    If VBA.Left$(normalizedCodeText, VBA.Len(SPECIAL_POSITION_PREFIX_ROZP)) = SPECIAL_POSITION_PREFIX_ROZP Then
-        outTargetPositionCodeText = SPECIAL_POSITION_CODE_ROZP
-        outTargetPositionNameText = SPECIAL_POSITION_NAME_ROZP
-        private_TryResolveSpecialPositionMapping = True
-        Exit Function
-    End If
-    If VBA.Left$(normalizedCodeText, VBA.Len(SPECIAL_POSITION_PREFIX_SPIS)) = SPECIAL_POSITION_PREFIX_SPIS Then
-        outTargetPositionCodeText = SPECIAL_POSITION_CODE_SPIS
-        outTargetPositionNameText = SPECIAL_POSITION_NAME_SPIS
-        private_TryResolveSpecialPositionMapping = True
-    End If
-End Function
-
-Private Function private_NormalizeSpecialPositionPrefix(ByVal sourcePositionCodeText As String) As String
-    Dim normalizedCodeText As String
-
-    normalizedCodeText = VBA.UCase$(VBA.Trim$(sourcePositionCodeText))
-    normalizedCodeText = VBA.Replace(normalizedCodeText, "А", "A")
-    normalizedCodeText = VBA.Replace(normalizedCodeText, "В", "B")
-    normalizedCodeText = VBA.Replace(normalizedCodeText, " ", VBA.vbNullString)
-    private_NormalizeSpecialPositionPrefix = normalizedCodeText
 End Function
 
 Private Function private_TryWriteReporterGenitiveValue( _
