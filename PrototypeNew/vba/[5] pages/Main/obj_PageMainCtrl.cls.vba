@@ -470,6 +470,11 @@ Public Function OnClearWorkbookPagesExceptMainCommand(Optional ByVal arg As Vari
 ContinuePages:
     Next pageItem
 
+    ' SQL engine общий для всех страниц и поэтому не входит в их Dispose-chain.
+    ' После удаления дочерних страниц явно освобождаем ADO-соединения, иначе
+    ' закрытые источники (например ЕЖОС) могут оставаться заблокированными.
+    ex_ExternalExcelSqlEngine.fn_ResetRuntimeCache
+
     Set wb = ThisWorkbook
     prevDisplayAlerts = Application.DisplayAlerts
     Application.DisplayAlerts = False
