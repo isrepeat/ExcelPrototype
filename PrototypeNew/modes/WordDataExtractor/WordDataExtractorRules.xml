@@ -51,14 +51,17 @@
             <transform type="dateAddDays" days="1" format="dd.mm.yyyy"/>
           </field>
           <field id="orderNo" from="$2"><transform type="trim"/></field>
+          <field id="departureSummary" from="">
+            <transform type="join" values="$orderNo;$nextDate;$orderDate" separatorToken="tab"/>
+          </field>
+          <field id="arrivalSummary" from="">
+            <transform type="join" values="$orderDate;$nextDate;$orderNo" separatorToken="tab"/>
+          </field>
         </fields>
         <table>
-          <column id="departureOrderNo" caption="Наказ вибуття" value="$orderNo"/>
-          <column id="departureFoodDate" caption="З продовольчого" value="$nextDate" format="date"/>
-          <column id="departureDate" caption="Вибуття" value="$orderDate" format="date"/>
-          <column id="arrivalDate" caption="Прибуття" value="$orderDate" format="date"/>
-          <column id="arrivalFoodDate" caption="На продовольче" value="$nextDate" format="date"/>
-          <column id="arrivalOrderNo" caption="Наказ прибуття" value="$orderNo"/>
+          <column id="orderDate" caption="Дата наказу" value="$orderDate" format="date"/>
+          <column id="departureSummary" caption="Вибуття" value="$departureSummary"/>
+          <column id="arrivalSummary" caption="Прибуття" value="$arrivalSummary"/>
         </table>
       </dataset>
 
