@@ -10,7 +10,7 @@
           style="modeAccent"
           dataContext="{PageRuntimeSource='RuntimeObjects.WordDataExtractor.Controller'}"
           onClick="{Binding Method=ExtractAndRender}"
-          spanColls="4"
+          spanColls="2"
           spanRows="2"/>
 
         <control
@@ -19,7 +19,7 @@
           caption="Update Sheet"
           dataContext="{PageRuntimeSource='RuntimeObjects.WordDataExtractor.Controller'}"
           onClick="{Binding Method=Rerender}"
-          spanColls="4"
+          spanColls="2"
           spanRows="2"/>
 
         <control
@@ -28,7 +28,7 @@
           caption="Open Rules XML"
           dataContext="{PageRuntimeSource='RuntimeObjects.WordDataExtractor.Controller'}"
           onClick="{Binding Method=OpenRulesFile}"
-          spanColls="4"
+          spanColls="2"
           spanRows="2"/>
       </stackPanel>
 

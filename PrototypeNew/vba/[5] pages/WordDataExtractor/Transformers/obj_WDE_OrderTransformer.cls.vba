@@ -34,8 +34,10 @@ Private Function obj_ITableTransformer_Transform( _
     If sourceTable Is Nothing Or configTable Is Nothing Then Exit Function
     If Not sourceTable.TryGetColumnIndexByAlias( _
         FIO_COLUMN_ALIAS, fioColumnIndex) Then
-        private_ShowError "В таблице не найдена колонка с алиасом '" & _
-            FIO_COLUMN_ALIAS & "'."
+        ' Transformer нормализует только кадровые таблицы. Служебные таблицы
+        ' pipeline (например, "Дати") не содержат ФИО и проходят без изменений.
+        Set outTable = sourceTable
+        obj_ITableTransformer_Transform = True
         Exit Function
     End If
     hasIpnColumn = sourceTable.TryGetColumnIndexByAlias( _

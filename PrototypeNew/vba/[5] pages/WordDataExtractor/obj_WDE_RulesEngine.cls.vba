@@ -630,6 +630,14 @@ Private Function private_ApplyTransforms( _
                     valueText = VBA.Format$(parsedDate, _
                         private_AttrOrDefault(node, "format", "dd.mm.yyyy"))
                 End If
+            Case "join"
+                ' Составные ячейки описываются в DSL без специальных правил
+                ' конкретного dataset. separatorToken позволяет безопасно
+                ' задать tab/newline, которые неудобно хранить в XML-атрибуте.
+                valueText = private_JoinResolvedValues( _
+                    ex_XmlCore.fn_NodeAttrText(node, "values"), _
+                    ex_XmlCore.fn_NodeAttrText(node, "separatorToken"), _
+                    values)
             Case "daterangestartformat"
                 If private_TryParseDateRangeStart(valueText, parsedDate) Then
                     valueText = VBA.Format$(parsedDate, _
@@ -656,6 +664,35 @@ Private Function private_ApplyTransforms( _
         End Select
     Next node
     private_ApplyTransforms = valueText
+End Function
+
+Private Function private_JoinResolvedValues( _
+    ByVal expressionsText As String, _
+    ByVal separatorToken As String, _
+    ByVal values As Object _
+) As String
+    Dim expressions As Variant
+    Dim expressionItem As Variant
+    Dim separatorText As String
+    Dim resultText As String
+    Dim isFirstValue As Boolean
+
+    Select Case VBA.LCase$(VBA.Trim$(separatorToken))
+        Case "tab": separatorText = VBA.vbTab
+        Case "newline": separatorText = VBA.vbCrLf
+        Case "space": separatorText = " "
+        Case Else: separatorText = separatorToken
+    End Select
+
+    expressions = VBA.Split(expressionsText, ";")
+    isFirstValue = True
+    For Each expressionItem In expressions
+        If Not isFirstValue Then resultText = resultText & separatorText
+        resultText = resultText & private_ResolveValue( _
+            VBA.Trim$(VBA.CStr(expressionItem)), values)
+        isFirstValue = False
+    Next expressionItem
+    private_JoinResolvedValues = resultText
 End Function
 
 Private Function private_TrySelectTripCredential( _
