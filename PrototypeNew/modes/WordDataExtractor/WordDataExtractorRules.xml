@@ -66,13 +66,13 @@
       </dataset>
 
       <!-- Секция 1: военнослужащие, прибывшие в воинскую часть А7383. -->
-      <dataset id="arrived-to-unit" caption="Прибули до військової частини А7383" flow="arrival" commonColumnIds="foodEnrollmentDate" optional="true">
+      <dataset id="arrived-to-unit" caption="Прибули до військової частини А7383" flow="arrival" includeCommonColumns="false" optional="true">
         <scope>
           <match ignoreCase="true" multiline="false" group="0"><![CDATA[Вважати\s+такими,\s*що\s+прибули\s+до\s+військової\s+частини\s+А7383[\s\S]*?(?=\r[^\r]{0,80}Вважати\s+такими,\s*що\s+прибули\s+до\s+складу\s+сил\s+і\s+засобів\s+2\s+корпусу|\s*$)]]></match>
         </scope>
 
         <!-- Один match становится одной строкой: от звания до абзаца «Підстава:». -->
-        <match ignoreCase="true" multiline="false"><![CDATA[(?:^|\r)\s*(?:\d+(?:\.\d+)*\.?\s*)?(?:рядовий|рядового|солдат|солдата|старший\s+солдат|старшого\s+солдата|молодший\s+сержант|молодшого\s+сержанта|сержант|сержанта|старший\s+сержант|старшого\s+сержанта|головний\s+сержант|головного\s+сержанта|штаб-сержант|штаб-сержанта|майстер-сержант|майстер-сержанта|лейтенант|лейтенанта|старший\s+лейтенант|старшого\s+лейтенанта|капітан|капітана|майор|майора|підполковник|підполковника|полковник|полковника)\s+[\s\S]*?колишнього\s+військовослужбовця(?:\s+військової\s+служби\s+за\s+контрактом)?\s+військової\s+частини\s+[А-ЯA-Z]\d+[\s\S]*?Підстава:\s*[^\r]*(?=\r|$)]]></match>
+        <match ignoreCase="true" multiline="false"><![CDATA[(?:^|\r)\s*(?:\d+(?:\.\d+)*\.?\s*)?(?:рядовий|рядового|солдат|солдата|старший\s+солдат|старшого\s+солдата|молодший\s+сержант|молодшого\s+сержанта|сержант|сержанта|старший\s+сержант|старшого\s+сержанта|головний\s+сержант|головного\s+сержанта|штаб-сержант|штаб-сержанта|майстер-сержант|майстер-сержанта|лейтенант|лейтенанта|старший\s+лейтенант|старшого\s+лейтенанта|капітан|капітана|майор|майора|підполковник|підполковника|полковник|полковника)\s+[\s\S]*?колишнього\s+військовослужбовця(?:\s+військової\s+служби\s+за\s+контрактом)?\s+військової\s+частини\s+[А-ЯA-Z]?\d+[\s\S]*?Підстава:\s*[^\r]*(?=\r|$)]]></match>
 
         <fields>
           <field id="fio" from="$match" ignoreCase="true"
@@ -87,9 +87,24 @@
           </field>
 
           <field id="formerUnit" from="$match" ignoreCase="true"
-            regex="колишнього\s+військовослужбовця(?:\s+військової\s+служби\s+за\s+контрактом)?\s+військової\s+частини\s+([А-ЯA-Z]\d+)"
+            regex="колишнього\s+військовослужбовця(?:\s+військової\s+служби\s+за\s+контрактом)?\s+військової\s+частини\s+([А-ЯA-Z]?\d+)"
             group="1" default="">
             <transform type="upper"/>
+          </field>
+
+          <field id="position" from="">
+            <transform type="join"
+              values="колишній військовослужбовець військової частини;$formerUnit"
+              separatorToken="space"/>
+          </field>
+
+          <!-- После должности приказ может уточнять документ, согласно
+               которому военнослужащий был зачислен. Сохраняем формулировку
+               целиком, но без завершающей точки абзаца. -->
+          <field id="assignmentOrigin" from="$match" ignoreCase="true"
+            regex="(згідно\s+[^\r]+)" group="1" default="">
+            <transform type="trim"/>
+            <transform type="regexReplace" pattern="\s*\.\s*$" with=""/>
           </field>
 
           <field id="basis" from="$match" ignoreCase="true"
@@ -101,7 +116,8 @@
         <table>
           <column id="fio" caption="ПІБ" value="$fio"/>
           <column id="ipn" caption="ІПН" value="$ipn"/>
-          <column id="formerUnit" caption="Колишня військова частина" value="$formerUnit"/>
+          <column id="position" caption="Посада" value="$position"/>
+          <column id="assignmentOrigin" caption="Звідки" value="$assignmentOrigin"/>
           <column id="basis" caption="Підстава" value="$basis"/>
         </table>
 
@@ -203,6 +219,16 @@
           <column id="returnDate" caption="Прибуття" value="$returnDate"/>
           <column id="basis" caption="Підстава" value="$basis"/>
         </table>
+      </dataset>
+
+      <dataset id="returned-from-medical-company" caption="З медичної роти військової частини А7383" flow="arrival" optional="true">
+        <scope>
+          <match ignoreCase="true" multiline="false"><![CDATA[(?:^|\r)\s*(?:\d+(?:\.\d+)*\.?\s*)?З\s+медичної\s+роти(?:\s+військової\s+частини\s+А7383)?[\s\S]*?(?=\r\s*\d+(?:\.\d+)+\.?\s*(?:З|Із|У|На)\s+|\s*$)]]></match>
+          <context id="eventDate"><match ignoreCase="true" multiline="false"><![CDATA[(?:^|\r)\s*з\s+(\d{1,2}(?:[.\-/]\d{1,2}[.\-/]\d{2,4}|\s+[а-яіїєґ]+\s+\d{4}\s+року))[^\r]*(?:\r[\s\S]*?)(?=\r\s*з\s+\d{1,2}|\s*$)]]></match></context>
+        </scope>
+        <match ignoreCase="false" multiline="false"><![CDATA[(?:^|\r)\s*[^\r]*[А-ЯІЇЄҐ][А-ЯІЇЄҐ'’\-]{2,}\s+[^\r,]+,[\s\S]*?Підстава:\s*[^\r]*(?=\r|$)]]></match>
+        <fields><field id="fio" from="$match" ignoreCase="false" regex="\s([А-ЯІЇЄҐ][А-ЯІЇЄҐ'’\-]{2,}\s+[А-ЯІЇЄҐ][А-Яа-яІіЇїЄєҐґ'’\-]+\s+[А-ЯІЇЄҐ][А-Яа-яІіЇїЄєҐґ'’\-]+)\s*," group="1" default=""><transform type="trim"/></field><field id="ipn" from="$match" regex=",\s*(\d{10})\s*," group="1" default=""><transform type="trim"/></field><field id="eventDate" from="$eventDate.1"><transform type="dateFormat" format="dd.mm.yyyy"/></field><field id="basis" from="$match" regex="Підстава:\s*([^\r]+)" group="1" default=""><transform type="trim"/></field></fields>
+        <table><column id="fio" caption="ПІБ" value="$fio"/><column id="ipn" caption="ІПН" value="$ipn"/><column id="eventDate" caption="Прибуття" value="$eventDate"/><column id="basis" caption="Підстава" value="$basis"/></table>
       </dataset>
 
       <!-- Одна датированная подсекция отпуска может содержать несколько
@@ -346,16 +372,6 @@
         <table><column id="fio" caption="ПІБ" value="$fio"/><column id="ipn" caption="ІПН" value="$ipn"/><column id="eventDate" caption="Прибуття" value="$eventDate"/><column id="basis" caption="Підстава" value="$basis"/></table>
       </dataset>
 
-      <dataset id="returned-from-medical-company" caption="З медичної роти військової частини А7383" flow="arrival" optional="true">
-        <scope>
-          <match ignoreCase="true" multiline="false"><![CDATA[(?:^|\r)\s*(?:\d+(?:\.\d+)*\.?\s*)?З\s+медичної\s+роти(?:\s+військової\s+частини\s+А7383)?[\s\S]*?(?=\r\s*\d+(?:\.\d+)+\.?\s*(?:З|Із|У|На)\s+|\s*$)]]></match>
-          <context id="eventDate"><match ignoreCase="true" multiline="false"><![CDATA[(?:^|\r)\s*з\s+(\d{1,2}(?:[.\-/]\d{1,2}[.\-/]\d{2,4}|\s+[а-яіїєґ]+\s+\d{4}\s+року))[^\r]*(?:\r[\s\S]*?)(?=\r\s*з\s+\d{1,2}|\s*$)]]></match></context>
-        </scope>
-        <match ignoreCase="false" multiline="false"><![CDATA[(?:^|\r)\s*[^\r]*[А-ЯІЇЄҐ][А-ЯІЇЄҐ'’\-]{2,}\s+[^\r,]+,[\s\S]*?Підстава:\s*[^\r]*(?=\r|$)]]></match>
-        <fields><field id="fio" from="$match" ignoreCase="false" regex="\s([А-ЯІЇЄҐ][А-ЯІЇЄҐ'’\-]{2,}\s+[А-ЯІЇЄҐ][А-Яа-яІіЇїЄєҐґ'’\-]+\s+[А-ЯІЇЄҐ][А-Яа-яІіЇїЄєҐґ'’\-]+)\s*," group="1" default=""><transform type="trim"/></field><field id="ipn" from="$match" regex=",\s*(\d{10})\s*," group="1" default=""><transform type="trim"/></field><field id="eventDate" from="$eventDate.1"><transform type="dateFormat" format="dd.mm.yyyy"/></field><field id="basis" from="$match" regex="Підстава:\s*([^\r]+)" group="1" default=""><transform type="trim"/></field></fields>
-        <table><column id="fio" caption="ПІБ" value="$fio"/><column id="ipn" caption="ІПН" value="$ipn"/><column id="eventDate" caption="Прибуття" value="$eventDate"/><column id="basis" caption="Підстава" value="$basis"/></table>
-      </dataset>
-
       <!-- В одной секции может быть несколько мест назначения. Дата выбытия,
            снятие с продовольствия и основание задаются один раз для всей группы
            военнослужащих внутри соответствующего destination-блока. -->
@@ -392,6 +408,25 @@
           <column id="foodRemovalDate" caption="З продовольчого" value="$foodRemovalDate"/>
           <column id="basis" caption="Підстава" value="$basis"/>
         </table>
+      </dataset>
+
+      <!-- Внутри общего пункта о выбывших формулировки причины различаются,
+           поэтому признаком строки служит само исключение из списков. Scope
+           заканчивается перед «На лікування», а match ограничен одним
+           нумерованным подпунктом и не может захватить следующего человека. -->
+      <dataset id="excluded-from-personnel-lists" caption="Виключення зі списків особового складу" includeCommonColumns="false">
+        <scope>
+          <match ignoreCase="true" multiline="false"><![CDATA[(?:^|\r)\s*\d+\.?\s*Вважати\s+такими,\s*що\s+вибули[^\r]*(?:\r|$)[\s\S]*?(?=\r\s*\d+(?:\.\d+)+\.?\s*На\s+лікування\s*:|\r\s*\d+\.\s+(?!\d)|\s*$)]]></match>
+        </scope>
+        <match ignoreCase="true" multiline="false"><![CDATA[(?:^|\r)\s*\d+(?:\.\d+)+\.?\s*(?:рядовий|рядового|солдат|солдата|старший\s+солдат|старшого\s+солдата|молодший\s+сержант|молодшого\s+сержанта|сержант|сержанта|старший\s+сержант|старшого\s+сержанта|головний\s+сержант|головного\s+сержанта|штаб-сержант|штаб-сержанта|майстер-сержант|майстер-сержанта|молодший\s+лейтенант|молодшого\s+лейтенанта|лейтенант|лейтенанта|старший\s+лейтенант|старшого\s+лейтенанта|капітан|капітана|майор|майора|підполковник|підполковника|полковник|полковника)\s+(?:(?!\r\s*\d+(?:\.\d+)+\.?\s)[\s\S])*?(?:виключити|виключен(?:ий|а))\s+зі\s+списків\s+особового\s+складу(?:(?!\r\s*\d+(?:\.\d+)+\.?\s|Підстава:)[\s\S])*?Підстава:\s*[^\r]*(?=\r|$)]]></match>
+        <fields>
+          <field id="fio" from="$match" ignoreCase="true" regex="(?:рядовий|рядового|солдат|солдата|старший\s+солдат|старшого\s+солдата|молодший\s+сержант|молодшого\s+сержанта|сержант|сержанта|старший\s+сержант|старшого\s+сержанта|головний\s+сержант|головного\s+сержанта|штаб-сержант|штаб-сержанта|майстер-сержант|майстер-сержанта|молодший\s+лейтенант|молодшого\s+лейтенанта|лейтенант|лейтенанта|старший\s+лейтенант|старшого\s+лейтенанта|капітан|капітана|майор|майора|підполковник|підполковника|полковник|полковника)\s+(?:запасу\s+)?([А-ЯІЇЄҐ][А-ЯІЇЄҐ'’\-]+\s+[А-ЯІЇЄҐ][А-Яа-яІіЇїЄєҐґ'’\-]+\s+[А-ЯІЇЄҐ][А-Яа-яІіЇїЄєҐґ'’\-]+)\s*," group="1" default=""><transform type="trim"/></field>
+          <field id="ipn" from="$match" regex=",\s*(\d{10})\s*," group="1" default=""><transform type="trim"/></field>
+          <field id="eventDate" from="$match" regex="(?:вважати\s+та(?:ким|кою),\s*що\s+|\r\s*)з\s+(\d{1,2}(?:[.\-/]\d{1,2}[.\-/]\d{2,4}|\s+[а-яіїєґ]+\s+\d{4}\s+року))(?:(?!Підстава:)[\s\S])*?(?:виключен(?:ий|а)|виключити)\s+зі\s+списків" group="1" default=""><transform type="dateFormat" format="dd.mm.yyyy"/></field>
+          <field id="foodRemovalDate" from="$match" regex="з\s+продовольчого\s+забезпечення\s+з\s+(\d{1,2}(?:[.\-/]\d{1,2}[.\-/]\d{2,4}|\s+[а-яіїєґ]+\s+\d{4}\s+року))" group="1" default=""><transform type="dateFormat" format="dd.mm.yyyy"/></field>
+          <field id="basis" from="$match" regex="Підстава:\s*([^\r]+)" group="1" default=""><transform type="trim"/></field>
+        </fields>
+        <table><column id="fio" caption="ПІБ" value="$fio"/><column id="ipn" caption="ІПН" value="$ipn"/><column id="eventDate" caption="Вибуття" value="$eventDate"/><column id="foodRemovalDate" caption="З продовольчого" value="$foodRemovalDate"/><column id="basis" caption="Підстава" value="$basis"/></table>
       </dataset>
 
       <dataset id="departed-for-treatment" caption="Вибули на лікування" flow="departure" optional="true">
@@ -492,21 +527,6 @@
         <table><column id="fio" caption="ПІБ" value="$fio"/><column id="ipn" caption="ІПН" value="$ipn"/><column id="eventDate" caption="Вибуття" value="$eventDate"/><column id="basis" caption="Підстава" value="$basis"/></table>
       </dataset>
 
-      <!-- У этих пунктов нет собственного заголовка в документе. Отличаем их
-           по одновременному прекращению командировки и исключению из списков;
-           последующие упоминания периодов СЗЧ сами по себе строку не создают. -->
-      <dataset id="excluded-from-personnel-lists" caption="Виключення зі списків особового складу" includeCommonColumns="false">
-        <match ignoreCase="true" multiline="false"><![CDATA[(?:^|\r)\s*(?:(?:\d+(?:\.\d+)*\.?\s*Вважати\s+такими,\s*що\s+вибули\s*(?:\r\s*)+)|(?:\d+(?:\.\d+)*\.?\s*))?(?:рядовий|рядового|солдат|солдата|старший\s+солдат|старшого\s+солдата|молодший\s+сержант|молодшого\s+сержанта|сержант|сержанта|старший\s+сержант|старшого\s+сержанта|головний\s+сержант|головного\s+сержанта|штаб-сержант|штаб-сержанта|майстер-сержант|майстер-сержанта|молодший\s+лейтенант|молодшого\s+лейтенанта|лейтенант|лейтенанта|старший\s+лейтенант|старшого\s+лейтенанта|капітан|капітана|майор|майора|підполковник|підполковника|полковник|полковника)\s+(?:(?!Підстава:)[\s\S])*?вважати\s+та(?:ким|кою),\s*що\s+з\s+\d{1,2}(?:[.\-/]\d{1,2}[.\-/]\d{2,4}|\s+[а-яіїєґ]+\s+\d{4}\s+року)(?:(?!Підстава:)[\s\S])*?виключен(?:ий|а)\s+зі\s+списків\s+особового\s+складу(?:(?!Підстава:)[\s\S])*?Підстава:\s*[^\r]*(?=\r|$)]]></match>
-        <fields>
-          <field id="fio" from="$match" ignoreCase="true" regex="(?:рядовий|рядового|солдат|солдата|старший\s+солдат|старшого\s+солдата|молодший\s+сержант|молодшого\s+сержанта|сержант|сержанта|старший\s+сержант|старшого\s+сержанта|головний\s+сержант|головного\s+сержанта|штаб-сержант|штаб-сержанта|майстер-сержант|майстер-сержанта|молодший\s+лейтенант|молодшого\s+лейтенанта|лейтенант|лейтенанта|старший\s+лейтенант|старшого\s+лейтенанта|капітан|капітана|майор|майора|підполковник|підполковника|полковник|полковника)\s+([А-ЯІЇЄҐ][А-ЯІЇЄҐ'’\-]+\s+[А-ЯІЇЄҐ][А-Яа-яІіЇїЄєҐґ'’\-]+\s+[А-ЯІЇЄҐ][А-Яа-яІіЇїЄєҐґ'’\-]+)\s*," group="1" default=""><transform type="trim"/></field>
-          <field id="ipn" from="$match" regex=",\s*(\d{10})\s*," group="1" default=""><transform type="trim"/></field>
-          <field id="eventDate" from="$match" regex="вважати\s+та(?:ким|кою),\s*що\s+з\s+(\d{1,2}(?:[.\-/]\d{1,2}[.\-/]\d{2,4}|\s+[а-яіїєґ]+\s+\d{4}\s+року))" group="1" default=""><transform type="dateFormat" format="dd.mm.yyyy"/></field>
-          <field id="foodRemovalDate" from="$match" regex="з\s+продовольчого\s+забезпечення\s+з\s+(\d{1,2}(?:[.\-/]\d{1,2}[.\-/]\d{2,4}|\s+[а-яіїєґ]+\s+\d{4}\s+року))" group="1" default=""><transform type="dateFormat" format="dd.mm.yyyy"/></field>
-          <field id="basis" from="$match" regex="Підстава:\s*([^\r]+)" group="1" default=""><transform type="trim"/></field>
-        </fields>
-        <table><column id="fio" caption="ПІБ" value="$fio"/><column id="ipn" caption="ІПН" value="$ipn"/><column id="eventDate" caption="Вибуття" value="$eventDate"/><column id="foodRemovalDate" caption="З продовольчого" value="$foodRemovalDate"/><column id="basis" caption="Підстава" value="$basis"/></table>
-      </dataset>
-
       <!-- Пункты, в которых человек переводится из одного состояния
            отсутствия в другое: лечение -> отпуск, лечение -> лечение и т. п. -->
       <dataset id="status-changes" caption="Зміна статусів">
@@ -546,9 +566,9 @@
           <field id="fio" from="$match" ignoreCase="false" regex="\s([А-ЯІЇЄҐ][А-ЯІЇЄҐ'’\-]{2,}\s+[А-ЯІЇЄҐ][А-Яа-яІіЇїЄєҐґ'’\-]+\s+[А-ЯІЇЄҐ][А-Яа-яІіЇїЄєҐґ'’\-]+)\s*," group="1" default=""><transform type="trim"/></field>
           <field id="ipn" from="$match" regex=",\s*(\d{10})\s*," group="1" default=""><transform type="trim"/></field>
           <field id="returnFrom" from="$match" regex="що\s+з\s+(\d{1,2}\s+[а-яіїєґ]+\s+\d{4}\s+року)\s+поверну" group="1" default=""><transform type="dateFormat" format="dd.mm.yyyy"/></field>
-          <field id="returnTo" from="$match" regex="поверну(?:вся|лася)\s+до\s+військової\s+частини\s+([А-ЯA-Z]\d+)" group="1" default=""><transform type="upper"/></field>
+          <field id="returnTo" from="$match" regex="поверну(?:вся|лася)\s+до\s+військової\s+частини\s+([А-ЯA-Z]?\d+)" group="1" default=""><transform type="upper"/></field>
           <field id="assignmentFrom" from="$match" regex="Направити\s+у\s+відрядження[\s\S]*?з\s+(\d{1,2}\s+[а-яіїєґ]+\s+\d{4}\s+року)" group="1" default=""><transform type="dateFormat" format="dd.mm.yyyy"/></field>
-          <field id="assignmentTo" from="$match" regex="Направити\s+у\s+відрядження\s+у\s+військову\s+частину\s+([А-ЯA-Z]\d+)" group="1" default=""><transform type="upper"/></field>
+          <field id="assignmentTo" from="$match" regex="Направити\s+у\s+відрядження\s+у\s+військову\s+частину\s+([А-ЯA-Z]?\d+)" group="1" default=""><transform type="upper"/></field>
         </fields>
         <table><column id="fio" caption="ПІБ" value="$fio"/><column id="ipn" caption="ІПН" value="$ipn"/><column id="returnFrom" caption="Повернення з" value="$returnFrom"/><column id="returnTo" caption="Повернення до" value="$returnTo"/><column id="assignmentFrom" caption="Відрядження з" value="$assignmentFrom"/><column id="assignmentTo" caption="Відрядження до" value="$assignmentTo"/></table>
       </dataset>
