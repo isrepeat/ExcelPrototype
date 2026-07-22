@@ -176,7 +176,9 @@ Public Function Export( _
     Dim changedBeforeFormula As Variant
     Dim changedAfterFormula As Variant
     Dim insertedRowIndex As Long
+    Dim insertedBeforeFormula As Variant
     Dim insertedAfterFormula As Variant
+    Dim insertedRowWasAdded As Boolean
     Dim undoActionReady As Boolean
 
     On Error GoTo EH
@@ -280,27 +282,31 @@ Public Function Export( _
         mirrorOpeningFoodFromDate = closingOnFoodDate
 
         If Not private_TryGetAppendRowRange(targetTable, targetRowRange, insertedRow) Then GoTo CleanFail
+        insertedRowIndex = targetRowRange.Row - targetTable.DataBodyRange.Row + 1
+        insertedBeforeFormula = targetRowRange.Formula
+        insertedRowWasAdded = Not insertedRow Is Nothing
         If Not private_TryWriteMovementRow( _
             targetTable, targetRowRange, targetValues, _
             mirrorOpeningOrderNo, mirrorOpeningFoodFromDate, mirrorOpeningDepartureDate, _
             writeSpecialOpeningFields, specialDurationValue, specialVkNoValue, _
             shouldWriteMappedEvent, mappedEventText, basisSummaryText, _
             tvoFioText, tvoIpnText, tvoPositionText) Then GoTo CleanFail
-        insertedRowIndex = insertedRow.Index
-        insertedAfterFormula = insertedRow.Range.Formula
+        insertedAfterFormula = targetRowRange.Formula
     Else
         ' Opening: обычное выбытие. Создаем новую строку и заполняем поля выбытия:
         ' наказ вибуття, з продовольчого, вибуття, плюс базовые первые 6 колонок.
         If Not private_TryBuildMovementOutgoingValues(sourceTable, context, outgoingOrderNo, outgoingFoodFromDate, outgoingDepartureDate) Then GoTo CleanFail
         If Not private_TryGetAppendRowRange(targetTable, targetRowRange, insertedRow) Then GoTo CleanFail
+        insertedRowIndex = targetRowRange.Row - targetTable.DataBodyRange.Row + 1
+        insertedBeforeFormula = targetRowRange.Formula
+        insertedRowWasAdded = Not insertedRow Is Nothing
         If Not private_TryWriteMovementRow( _
             targetTable, targetRowRange, targetValues, _
             outgoingOrderNo, outgoingFoodFromDate, outgoingDepartureDate, _
             writeSpecialOpeningFields, specialDurationValue, specialVkNoValue, _
             shouldWriteMappedEvent, mappedEventText, basisSummaryText, _
             tvoFioText, tvoIpnText, tvoPositionText) Then GoTo CleanFail
-        insertedRowIndex = insertedRow.Index
-        insertedAfterFormula = insertedRow.Range.Formula
+        insertedAfterFormula = targetRowRange.Formula
     End If
 
     ' Action содержит только путь/имена и снимки Formula, поэтому не удерживает
@@ -310,7 +316,7 @@ Public Function Export( _
         targetWb.FullName, targetWb.Name, targetWs.Name, targetTable.Name, _
         targetTable.ListRows.Count, _
         changedRowIndex, changedBeforeFormula, changedAfterFormula, _
-        insertedRowIndex, insertedAfterFormula)
+        insertedRowIndex, insertedAfterFormula, insertedRowWasAdded, insertedBeforeFormula)
     If Not undoActionReady Then GoTo CleanFail
 
     If Not openedByExporter And SAVE_ALREADY_OPEN_WORKBOOK Then targetWb.Save
@@ -323,6 +329,12 @@ CleanFail:
     If Not insertedRow Is Nothing Then
         On Error Resume Next
         insertedRow.Delete
+        On Error GoTo 0
+    ElseIf insertedRowIndex > 0 And Not targetTable Is Nothing Then
+        ' Переиспользованная пустая строка уже существовала до экспорта.
+        ' При сбое возвращаем её снимок вместо удаления строки таблицы.
+        On Error Resume Next
+        targetTable.ListRows(insertedRowIndex).Range.Formula = insertedBeforeFormula
         On Error GoTo 0
     End If
     If changedRowIndex > 0 And Not targetTable Is Nothing Then

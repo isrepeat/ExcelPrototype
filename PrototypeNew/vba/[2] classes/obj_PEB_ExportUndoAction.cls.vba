@@ -24,6 +24,8 @@ Private m_ChangedBeforeFormula As Variant
 Private m_ChangedAfterFormula As Variant
 Private m_InsertedRowIndex As Long
 Private m_InsertedAfterFormula As Variant
+Private m_InsertedRowWasAdded As Boolean
+Private m_InsertedBeforeFormula As Variant
 
 Private m_WordDocumentPath As String
 Private m_WordBookmarkName As String
@@ -73,7 +75,9 @@ Public Function InitializeMovement( _
     ByVal changedBeforeFormula As Variant, _
     ByVal changedAfterFormula As Variant, _
     ByVal insertedRowIndex As Long, _
-    ByVal insertedAfterFormula As Variant _
+    ByVal insertedAfterFormula As Variant, _
+    Optional ByVal insertedRowWasAdded As Boolean = True, _
+    Optional ByVal insertedBeforeFormula As Variant _
 ) As Boolean
     m_Kind = KIND_MOVEMENT
     m_Caption = "Undo last Movement export"
@@ -87,6 +91,8 @@ Public Function InitializeMovement( _
     m_ChangedAfterFormula = changedAfterFormula
     m_InsertedRowIndex = insertedRowIndex
     m_InsertedAfterFormula = insertedAfterFormula
+    m_InsertedRowWasAdded = insertedRowWasAdded
+    m_InsertedBeforeFormula = insertedBeforeFormula
 
     If VBA.Len(m_WorkbookPath) = 0 Then Exit Function
     If VBA.Len(m_WorksheetName) = 0 Or VBA.Len(m_TableName) = 0 Then Exit Function
@@ -181,7 +187,11 @@ Private Function private_ApplyMovement(ByVal isUndo As Boolean, ByRef outErrorTe
         ' запись, затем возвращаем исходное состояние закрытой строки.
         If m_InsertedRowIndex > 0 Then
             If m_InsertedRowIndex > targetTable.ListRows.Count Then GoTo InvalidRow
-            targetTable.ListRows(m_InsertedRowIndex).Delete
+            If m_InsertedRowWasAdded Then
+                targetTable.ListRows(m_InsertedRowIndex).Delete
+            Else
+                targetTable.ListRows(m_InsertedRowIndex).Range.Formula = m_InsertedBeforeFormula
+            End If
         End If
         If m_ChangedRowIndex > 0 Then
             If m_ChangedRowIndex > targetTable.ListRows.Count Then GoTo InvalidRow
@@ -189,7 +199,7 @@ Private Function private_ApplyMovement(ByVal isUndo As Boolean, ByRef outErrorTe
         End If
     Else
         If targetTable.ListRows.Count <> _
-            m_MovementRowCountAfter - VBA.IIf(m_InsertedRowIndex > 0, 1, 0) Then GoTo StateChanged
+            m_MovementRowCountAfter - VBA.IIf(m_InsertedRowIndex > 0 And m_InsertedRowWasAdded, 1, 0) Then GoTo StateChanged
         If m_ChangedRowIndex > 0 Then
             If m_ChangedRowIndex > targetTable.ListRows.Count Then GoTo StateChanged
             If Not private_AreFormulaSnapshotsEqual( _
@@ -201,8 +211,16 @@ Private Function private_ApplyMovement(ByVal isUndo As Boolean, ByRef outErrorTe
             targetTable.ListRows(m_ChangedRowIndex).Range.Formula = m_ChangedAfterFormula
         End If
         If m_InsertedRowIndex > 0 Then
-            Set insertedRow = targetTable.ListRows.Add(Position:=m_InsertedRowIndex)
-            insertedRow.Range.Formula = m_InsertedAfterFormula
+            If m_InsertedRowWasAdded Then
+                Set insertedRow = targetTable.ListRows.Add(Position:=m_InsertedRowIndex)
+                insertedRow.Range.Formula = m_InsertedAfterFormula
+            Else
+                If m_InsertedRowIndex > targetTable.ListRows.Count Then GoTo InvalidRow
+                If Not private_AreFormulaSnapshotsEqual( _
+                    targetTable.ListRows(m_InsertedRowIndex).Range.Formula, _
+                    m_InsertedBeforeFormula) Then GoTo StateChanged
+                targetTable.ListRows(m_InsertedRowIndex).Range.Formula = m_InsertedAfterFormula
+            End If
         End If
     End If
 
@@ -247,12 +265,12 @@ Private Function private_AreFormulaSnapshotsEqual( _
     End If
 
     On Error GoTo NotEqual
-    If VBA.LBound(currentFormula, 1) <> VBA.LBound(expectedFormula, 1) Then Exit Function
-    If VBA.UBound(currentFormula, 1) <> VBA.UBound(expectedFormula, 1) Then Exit Function
-    If VBA.LBound(currentFormula, 2) <> VBA.LBound(expectedFormula, 2) Then Exit Function
-    If VBA.UBound(currentFormula, 2) <> VBA.UBound(expectedFormula, 2) Then Exit Function
-    For rowIndex = VBA.LBound(currentFormula, 1) To VBA.UBound(currentFormula, 1)
-        For columnIndex = VBA.LBound(currentFormula, 2) To VBA.UBound(currentFormula, 2)
+    If LBound(currentFormula, 1) <> LBound(expectedFormula, 1) Then Exit Function
+    If UBound(currentFormula, 1) <> UBound(expectedFormula, 1) Then Exit Function
+    If LBound(currentFormula, 2) <> LBound(expectedFormula, 2) Then Exit Function
+    If UBound(currentFormula, 2) <> UBound(expectedFormula, 2) Then Exit Function
+    For rowIndex = LBound(currentFormula, 1) To UBound(currentFormula, 1)
+        For columnIndex = LBound(currentFormula, 2) To UBound(currentFormula, 2)
             If Not private_AreSnapshotValuesEqual( _
                 currentFormula(rowIndex, columnIndex), _
                 expectedFormula(rowIndex, columnIndex)) Then Exit Function

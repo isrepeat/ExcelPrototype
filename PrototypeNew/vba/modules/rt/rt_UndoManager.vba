@@ -2,8 +2,6 @@ Attribute VB_Name = "rt_UndoManager"
 Option Explicit
 
 Private Const DEFAULT_MAX_DEPTH As Long = 200
-Private Const DEFAULT_UNDO_CAPTION As String = "Undo"
-Private Const DEFAULT_REDO_CAPTION As String = "Redo"
 
 Private g_UndoStack As Collection
 Private g_RedoStack As Collection
@@ -240,14 +238,6 @@ EH_REDO:
     private_RegisterExcelUndoRedo
 End Function
 
-Public Sub fn_ExcelUndoEntryPoint()
-    Call fn_UndoLast
-End Sub
-
-Public Sub fn_ExcelRedoEntryPoint()
-    Call fn_RedoLast
-End Sub
-
 ' //
 ' // Internal
 ' //
@@ -278,54 +268,11 @@ Private Function private_PopLast(ByRef stackRef As Collection) As obj_IUndoActio
 End Function
 
 Private Sub private_RegisterExcelUndoRedo()
-    Dim macroPrefix As String
-    Dim undoCaption As String
-    Dim redoCaption As String
-    Dim registerErrorText As String
-    Dim undoMacroText As String
-    Dim redoMacroText As String
-
+    ' История PrototypeNew доступна только через явные UI-команды.
+    ' Не регистрируем Application.OnUndo/OnRepeat и не перехватываем Ctrl+Z,
+    ' Ctrl+Y или Ctrl+Shift+Z: эти клавиши остаются в распоряжении Excel.
     private_EnsureStorage
-    macroPrefix = "'" & VBA.Replace$(ThisWorkbook.Name, "'", "''") & "'!"
-    undoMacroText = macroPrefix & "rt_UndoManager.fn_ExcelUndoEntryPoint"
-    redoMacroText = macroPrefix & "rt_UndoManager.fn_ExcelRedoEntryPoint"
-
-    If g_UndoStack.Count > 0 Then
-        undoCaption = private_GetActionCaption(private_PeekLast(g_UndoStack), DEFAULT_UNDO_CAPTION)
-        If Not private_TryRegisterExcelUndo(undoCaption, undoMacroText, registerErrorText) Then
-        End If
-    End If
-
-    If g_RedoStack.Count > 0 Then
-        redoCaption = private_GetActionCaption(private_PeekLast(g_RedoStack), DEFAULT_REDO_CAPTION)
-        If Not private_TryRegisterExcelRedo(redoCaption, redoMacroText, registerErrorText) Then
-        End If
-    End If
-
-    private_RegisterExcelUndoHotkeys undoMacroText, redoMacroText
-
-End Sub
-
-Private Sub private_RegisterExcelUndoHotkeys(ByVal undoMacroText As String, ByVal redoMacroText As String)
-    ' Excel clears Application.OnUndo after many macro operations.
-    ' Keep Ctrl+Z/Ctrl+Y bound to our stack while it has entries.
-    On Error Resume Next
-
-    If g_UndoStack Is Nothing Or g_UndoStack.Count <= 0 Then
-        Application.OnKey "^z"
-    Else
-        Application.OnKey "^z", undoMacroText
-    End If
-
-    If g_RedoStack Is Nothing Or g_RedoStack.Count <= 0 Then
-        Application.OnKey "^y"
-        Application.OnKey "^+z"
-    Else
-        Application.OnKey "^y", redoMacroText
-        Application.OnKey "^+z", redoMacroText
-    End If
-
-    On Error GoTo 0
+    private_ClearExcelUndoHotkeys
 End Sub
 
 Private Sub private_ClearExcelUndoHotkeys()
@@ -335,54 +282,6 @@ Private Sub private_ClearExcelUndoHotkeys()
     Application.OnKey "^+z"
     On Error GoTo 0
 End Sub
-
-Private Function private_TryRegisterExcelUndo( _
-    ByVal captionText As String, _
-    ByVal macroText As String, _
-    ByRef outErrorText As String _
-) As Boolean
-    outErrorText = VBA.vbNullString
-    On Error GoTo EH_REGISTER_UNDO
-    Application.OnUndo captionText, macroText
-    private_TryRegisterExcelUndo = True
-    Exit Function
-
-EH_REGISTER_UNDO:
-    outErrorText = Err.Description
-End Function
-
-Private Function private_TryRegisterExcelRedo( _
-    ByVal captionText As String, _
-    ByVal macroText As String, _
-    ByRef outErrorText As String _
-) As Boolean
-    outErrorText = VBA.vbNullString
-    On Error GoTo EH_REGISTER_REDO
-    Application.OnRepeat captionText, macroText
-    private_TryRegisterExcelRedo = True
-    Exit Function
-
-EH_REGISTER_REDO:
-    outErrorText = Err.Description
-End Function
-
-Private Function private_PeekLast(ByRef stackRef As Collection) As obj_IUndoAction
-    If stackRef Is Nothing Then Exit Function
-    If stackRef.Count <= 0 Then Exit Function
-    Set private_PeekLast = stackRef.Item(stackRef.Count)
-End Function
-
-Private Function private_GetActionCaption(ByVal action As obj_IUndoAction, ByVal fallbackCaption As String) As String
-    Dim caption As String
-
-    caption = fallbackCaption
-    If Not action Is Nothing Then
-        caption = VBA.Trim$(action.GetCaption())
-        If VBA.Len(caption) = 0 Then caption = fallbackCaption
-    End If
-
-    private_GetActionCaption = "PrototypeNew: " & caption
-End Function
 
 Private Function private_GetActionDebugLabel(ByVal action As obj_IUndoAction) As String
     Dim actionId As String

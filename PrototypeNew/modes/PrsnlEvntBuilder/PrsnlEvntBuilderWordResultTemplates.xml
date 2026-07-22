@@ -336,6 +336,22 @@
     </text>
   </template>
 
+  <template id="ToMaternityLeave">
+    <text>
+      <![CDATA[#^
+#_      {#include block.PersonLineUpper}#^
+#_      {#include block.VacationDestinationPeriod}#^
+#_      {#newline}#^
+#_      {#include block.AssignToDuty}#^
+#_      {#include block.RemoveFromFoodSupport}#^
+#_      {#newline}#^
+#_      {#include block.IncomingBasis}#^
+#_      {#include block.OptionalVacationTicket}#^
+#_      .{#newline}{#newline}#^
+      ]]>
+    </text>
+  </template>
+
   <template id="ToVacationForCuring">
     <text>
       <![CDATA[#^
