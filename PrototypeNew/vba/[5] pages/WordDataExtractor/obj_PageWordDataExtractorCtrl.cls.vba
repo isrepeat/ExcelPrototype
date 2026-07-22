@@ -293,10 +293,8 @@ Private Function private_ReadWordDocument(ByVal filePath As String, ByRef outTex
     On Error GoTo EH
     If Not rt_PEB_WordExportRuntime.fn_GetOrCreateWordApp(wordApp) Then Exit Function
     Set wordDoc = wordApp.Documents.Open(filePath, False, True, False)
-    ' Document.Content.Text не содержит отображаемые метки автоматических
-    ' списков Word. Собираем текст по абзацам и сохраняем ListString, чтобы
-    ' извлекаемый текст соответствовал видимому документу. Текущие scope
-    ' определяются заголовками и от нумерации секций не зависят.
+    ' Rules определяют секции по текстовым заголовкам и не зависят от
+    ' отображаемой нумерации Word, поэтому документ читается одним COM-вызовом.
     If Not private_TryBuildDocumentText(wordDoc, outText) Then
         VBA.Err.Raise VBA.vbObjectError + 2101, "WordDataExtractor", _
             "Не удалось собрать текст из абзацев WORD-документа."
@@ -317,37 +315,13 @@ Private Function private_TryBuildDocumentText( _
     ByVal wordDoc As Object, _
     ByRef outText As String _
 ) As Boolean
-    Dim paragraph As Object
-    Dim paragraphText As String
-    Dim listLabel As String
     Dim resultText As String
 
     outText = VBA.vbNullString
     If wordDoc Is Nothing Then Exit Function
 
     On Error GoTo EH
-    For Each paragraph In wordDoc.Paragraphs
-        paragraphText = VBA.CStr(paragraph.Range.Text)
-        listLabel = VBA.vbNullString
-
-        ' У обычного абзаца ListString пуст. Ошибку отдельного повреждённого
-        ' списка не превращаем в ошибку чтения всего документа.
-        On Error Resume Next
-        listLabel = VBA.Trim$(VBA.CStr(paragraph.Range.ListFormat.ListString))
-        Err.Clear
-        On Error GoTo EH
-
-        If VBA.Len(listLabel) > 0 Then
-            resultText = resultText & listLabel
-            If VBA.Len(paragraphText) > 0 Then
-                If VBA.Left$(paragraphText, 1) <> " " And _
-                    VBA.Left$(paragraphText, 1) <> VBA.vbTab Then
-                    resultText = resultText & " "
-                End If
-            End If
-        End If
-        resultText = resultText & paragraphText
-    Next paragraph
+    resultText = VBA.CStr(wordDoc.Content.Text)
 
     ' Пробелы Word нормализуются централизованно до выполнения любого scope,
     ' context или field regex. Поэтому начальные фразы секций не обязаны

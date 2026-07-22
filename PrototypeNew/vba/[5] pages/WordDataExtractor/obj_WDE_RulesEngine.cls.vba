@@ -189,6 +189,13 @@ Private Function private_ExtractDataset(ByVal datasetNode As Object, ByVal sourc
             Next matchObj
         Next contextItem
     Next scopeText
+    ' Отсутствующие optional-секции не создают пустые визуальные таблицы.
+    ' Это также исключает их из transformer/style/render pipeline.
+    If tableObj.RowCount = 0 And _
+        private_BoolAttr(datasetNode, "optional", False) Then
+        private_ExtractDataset = True
+        Exit Function
+    End If
     tables.Add tableObj
     private_ExtractDataset = True
 End Function

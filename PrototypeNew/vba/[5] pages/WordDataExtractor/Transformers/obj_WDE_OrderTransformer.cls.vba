@@ -16,6 +16,13 @@ Private Const CONFIG_STATE_FIO_HEADER As String = "Personnel.Sheet[StateMain].Ma
 Private Const CONFIG_STATE_IPN_HEADER As String = "Personnel.Sheet[StateMain].Map[IPN]"
 
 Private m_IsDisposed As Boolean
+Private m_ResourcesReady As Boolean
+Private m_StatePath As String
+Private m_StateTableRef As String
+Private m_StateFioHeader As String
+Private m_StateIpnHeader As String
+Private m_StateEngine As obj_ExtWorkbookQueryEngine
+Private m_CommonData As obj_PEB_ExptrCommonDataPrvdr
 
 Private Function obj_ITableTransformer_Transform( _
     ByVal sourceTable As obj_TableDynamic, _
@@ -25,12 +32,9 @@ Private Function obj_ITableTransformer_Transform( _
     Dim targetTable As obj_TableDynamic
     Dim fioColumnIndex As Long, ipnColumnIndex As Long
     Dim hasIpnColumn As Boolean
-    Dim statePath As String, stateTableRef As String
-    Dim stateFioHeader As String, stateIpnHeader As String
-    Dim stateEngine As obj_ExtWorkbookQueryEngine
-    Dim commonData As obj_PEB_ExptrCommonDataPrvdr
 
     Set outTable = Nothing
+    If m_IsDisposed Then Exit Function
     If sourceTable Is Nothing Or configTable Is Nothing Then Exit Function
     If Not sourceTable.TryGetColumnIndexByAlias( _
         FIO_COLUMN_ALIAS, fioColumnIndex) Then
@@ -40,39 +44,66 @@ Private Function obj_ITableTransformer_Transform( _
         obj_ITableTransformer_Transform = True
         Exit Function
     End If
+    ' Optional datasets без строк не требуют ни клонирования, ни открытия
+    ' State/АЛФ. Исходная модель неизменяема для последующих стадий pipeline.
+    If sourceTable.RowCount = 0 Then
+        Set outTable = sourceTable
+        obj_ITableTransformer_Transform = True
+        Exit Function
+    End If
     hasIpnColumn = sourceTable.TryGetColumnIndexByAlias( _
         IPN_COLUMN_ALIAS, ipnColumnIndex)
 
-    ' State-конфигурация загружается один раз на таблицу, а query engine
-    ' переиспользует соединение для всех её строк. Это существенно дешевле,
-    ' чем открывать большой файл особового состава для каждого человека.
-    If Not private_TryLoadStateConfig(configTable, statePath, _
-        stateTableRef, stateFioHeader, stateIpnHeader) Then Exit Function
-    Set stateEngine = New obj_ExtWorkbookQueryEngine
-    If Not stateEngine.Initialize Then Exit Function
-    Set commonData = New obj_PEB_ExptrCommonDataPrvdr
-    If Not commonData.Initialize() Then
-        stateEngine.Dispose
+    ' Один экземпляр transformer обслуживает все таблицы extraction, поэтому
+    ' открытые подключения переиспользуются до единственного Dispose.
+    If Not private_TryEnsureResources(configTable) Then Exit Function
+
+    If Not private_TryCloneTableStructure(sourceTable, targetTable) Then Exit Function
+    If Not private_TryTransformRows(sourceTable, targetTable, _
+        fioColumnIndex, ipnColumnIndex, hasIpnColumn) Then Exit Function
+
+    Set outTable = targetTable
+    obj_ITableTransformer_Transform = True
+End Function
+
+Private Function private_TryEnsureResources( _
+    ByVal configTable As obj_ConfigTable _
+) As Boolean
+    If m_ResourcesReady Then
+        private_TryEnsureResources = True
         Exit Function
     End If
 
-    If Not private_TryCloneTableStructure(sourceTable, targetTable) Then GoTo CleanFail
-    If Not private_TryTransformRows(sourceTable, targetTable, _
-        fioColumnIndex, ipnColumnIndex, hasIpnColumn, stateEngine, _
-        statePath, stateTableRef, stateIpnHeader, stateFioHeader, _
-        commonData) Then GoTo CleanFail
+    If Not private_TryLoadStateConfig(configTable, m_StatePath, _
+        m_StateTableRef, m_StateFioHeader, m_StateIpnHeader) Then Exit Function
+    m_ResourcesReady = True
+    private_TryEnsureResources = True
+End Function
 
-    stateEngine.Dispose
-    commonData.Dispose
-    Set outTable = targetTable
-    obj_ITableTransformer_Transform = True
-    Exit Function
+Private Function private_TryEnsureStateEngine() As Boolean
+    If Not m_StateEngine Is Nothing Then
+        private_TryEnsureStateEngine = True
+        Exit Function
+    End If
+    Set m_StateEngine = New obj_ExtWorkbookQueryEngine
+    If Not m_StateEngine.Initialize Then
+        Set m_StateEngine = Nothing
+        Exit Function
+    End If
+    private_TryEnsureStateEngine = True
+End Function
 
-CleanFail:
-    On Error Resume Next
-    stateEngine.Dispose
-    commonData.Dispose
-    On Error GoTo 0
+Private Function private_TryEnsureCommonData() As Boolean
+    If Not m_CommonData Is Nothing Then
+        private_TryEnsureCommonData = True
+        Exit Function
+    End If
+    Set m_CommonData = New obj_PEB_ExptrCommonDataPrvdr
+    If Not m_CommonData.Initialize() Then
+        Set m_CommonData = Nothing
+        Exit Function
+    End If
+    private_TryEnsureCommonData = True
 End Function
 
 Private Function private_TryCloneTableStructure( _
@@ -107,13 +138,7 @@ Private Function private_TryTransformRows( _
     ByVal targetTable As obj_TableDynamic, _
     ByVal fioColumnIndex As Long, _
     ByVal ipnColumnIndex As Long, _
-    ByVal hasIpnColumn As Boolean, _
-    ByVal stateEngine As obj_ExtWorkbookQueryEngine, _
-    ByVal statePath As String, _
-    ByVal stateTableRef As String, _
-    ByVal stateIpnHeader As String, _
-    ByVal stateFioHeader As String, _
-    ByVal commonData As obj_PEB_ExptrCommonDataPrvdr _
+    ByVal hasIpnColumn As Boolean _
 ) As Boolean
     Dim sourceRow As obj_Row, targetRow As obj_Row
     Dim fioDeclined As String, fioDefault As String, ipnText As String
@@ -134,11 +159,13 @@ Private Function private_TryTransformRows( _
         ' ИПН — устойчивый уникальный ключ, поэтому при его наличии ШПО не
         ' используется. Без ИПН остаётся обратный поиск склонённой формы в АЛФ.
         If VBA.Len(ipnText) > 0 Then
-            If Not private_TryFindStateFioByIpn(stateEngine, statePath, _
-                stateTableRef, stateIpnHeader, stateFioHeader, ipnText, _
+            If Not private_TryEnsureStateEngine() Then Exit Function
+            If Not private_TryFindStateFioByIpn(m_StateEngine, m_StatePath, _
+                m_StateTableRef, m_StateIpnHeader, m_StateFioHeader, ipnText, _
                 personFound, fioDefault) Then Exit Function
         Else
-            If Not commonData.TryFindFioDefaultByDeclinedForm( _
+            If Not private_TryEnsureCommonData() Then Exit Function
+            If Not m_CommonData.TryFindFioDefaultByDeclinedForm( _
                 fioDeclined, personFound, fioDefault) Then Exit Function
         End If
         ' Отсутствие человека не должно отменять extraction или уничтожать
@@ -196,8 +223,6 @@ Private Function private_TryFindStateFioByIpn( _
         Exit Function
     End If
     If resultTable.RowCount > 1 Then
-        ' ИПН обязан быть уникальным. Выбор первой из нескольких строк скрыл бы
-        ' повреждение State, поэтому такое ФИО считается ненормализованным.
         ex_Core.fn_Diagnostic_LogError _
             "WordDataExtractor/OrderTransformer: duplicate State rows for IPN '" & _
             ipnText & "'."
@@ -262,7 +287,15 @@ Private Function private_ResolveWorkbookPath( _
 End Function
 
 Private Sub obj_ITableTransformer_Dispose()
+    If m_IsDisposed Then Exit Sub
     m_IsDisposed = True
+    On Error Resume Next
+    If Not m_StateEngine Is Nothing Then m_StateEngine.Dispose
+    If Not m_CommonData Is Nothing Then m_CommonData.Dispose
+    Set m_StateEngine = Nothing
+    Set m_CommonData = Nothing
+    m_ResourcesReady = False
+    On Error GoTo 0
 End Sub
 
 Private Sub private_ShowError(ByVal messageText As String)

@@ -38,7 +38,8 @@ Private Const ORDER_MAP_2026_RANGE_START As String = "D2"
 Private Const ORDER_MAP_2026_RANGE_END_COLUMN As String = "E"
 Private Const ORDER_MAP_2025_RANGE_START As String = "A2"
 Private Const ORDER_MAP_2025_RANGE_END_COLUMN As String = "B"
-'Private Const EXCEL_MAX_ROW As Long = 1048576
+' Справочники фактически помещаются в 12 000 строк; это ниже общего лимита
+' 20 000 и уменьшает область каждого точечного ACE-запроса.
 Private Const EXCEL_MAX_ROW As Long = 12000
 
 Private Const ALF_KEY_HEADER As String = "ІПН"
