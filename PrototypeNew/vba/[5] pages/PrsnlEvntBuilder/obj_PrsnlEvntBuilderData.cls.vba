@@ -13,6 +13,7 @@ Private Const SECTION_TYPE_CLOSE_FROM_TREATMENT_VACATION As String = "З від�
 Private Const SECTION_TYPE_TO_TREATMENT_VACATION As String = "У відпустку для лікування"
 Private Const SECTION_TYPE_CLOSE_FROM_FAMILY_VACATION As String = "З відпустки за сімейними обставинами"
 Private Const SECTION_TYPE_TO_FAMILY_VACATION As String = "У відпустку за сімейними обставинами"
+Private Const SECTION_TYPE_TO_MATERNITY_LEAVE As String = "У відпустку у зв'язку з вагітністю та пологами"
 Private Const SECTION_TYPE_CLOSE_FROM_TREATMENT_MEDICAL_COMPANY As String = "З медичної роти"
 Private Const SECTION_TYPE_TO_TREATMENT_MEDICAL_COMPANY As String = "У медичну роту"
 Private Const SECTION_TYPE_CLOSE_FROM_AMBULATORY_VLK As String = "З амбулаторного ВЛК"
@@ -50,6 +51,7 @@ Private Const WORD_TEMPLATE_FROM_STATIONARY_VLK As String = "FromStationaryVlk"
 Private Const WORD_TEMPLATE_TO_HOSPITAL As String = "ToHospital"
 Private Const WORD_TEMPLATE_TO_ANNUAL_MAIN_VACATION As String = "ToAnnualMainVacation"
 Private Const WORD_TEMPLATE_TO_FAMILY_VACATION As String = "ToVacationForFamily"
+Private Const WORD_TEMPLATE_TO_MATERNITY_LEAVE As String = "ToMaternityLeave"
 Private Const WORD_TEMPLATE_TO_TREATMENT_VACATION As String = "ToVacationForCuring"
 Private Const WORD_TEMPLATE_TO_TREATMENT_MEDICAL_COMPANY As String = "ToMedicalCompanyForTreatment"
 Private Const WORD_TEMPLATE_TO_AMBULATORY_VLK As String = "ToOutpatientExaminationOrVlk"
@@ -100,6 +102,7 @@ Private Const PROFILE_TAG_META_DOCUMENT As String = "profile.metaDocument"
 Private Const MOVEMENT_EVENT_STATIONARY_TREATMENT As String = "Стаціонарне лікування"
 Private Const MOVEMENT_EVENT_ANNUAL_VACATION As String = "Щорічна відпустка"
 Private Const MOVEMENT_EVENT_FAMILY_VACATION As String = "Відпустка за сімейними обставинами"
+Private Const MOVEMENT_EVENT_MATERNITY_LEAVE As String = "Відпустка у зв'язку з вагітністю та пологами"
 Private Const MOVEMENT_EVENT_TREATMENT_VACATION As String = "Відпустка для лікування"
 Private Const MOVEMENT_EVENT_AMBULATORY_VLK As String = "Амбулаторне ВЛК"
 Private Const MOVEMENT_EVENT_STATIONARY_VLK As String = "Стаціонарне ВЛК"
@@ -210,6 +213,10 @@ End Property
 
 Public Property Get SectionTypeToFamilyVacation() As String
     SectionTypeToFamilyVacation = SECTION_TYPE_TO_FAMILY_VACATION
+End Property
+
+Public Property Get SectionTypeToMaternityLeave() As String
+    SectionTypeToMaternityLeave = SECTION_TYPE_TO_MATERNITY_LEAVE
 End Property
 
 Public Property Get SectionTypeToTreatmentVacation() As String
@@ -331,6 +338,8 @@ Public Function TryResolveWordTemplateId( _
             outTemplateId = WORD_TEMPLATE_TO_ANNUAL_MAIN_VACATION
         Case private_NormalizeText(SECTION_TYPE_TO_FAMILY_VACATION)
             outTemplateId = WORD_TEMPLATE_TO_FAMILY_VACATION
+        Case private_NormalizeText(SECTION_TYPE_TO_MATERNITY_LEAVE)
+            outTemplateId = WORD_TEMPLATE_TO_MATERNITY_LEAVE
         Case private_NormalizeText(SECTION_TYPE_TO_TREATMENT_VACATION)
             outTemplateId = WORD_TEMPLATE_TO_TREATMENT_VACATION
         Case private_NormalizeText(SECTION_TYPE_TO_TREATMENT_MEDICAL_COMPANY)
@@ -465,6 +474,7 @@ Public Function ShouldWriteMovementSpecialOpeningFields(ByVal sectionTypeText As
     Select Case private_NormalizeText(sectionTypeText)
         Case private_NormalizeText(SECTION_TYPE_TO_ANNUAL_VACATION_PART), _
              private_NormalizeText(SECTION_TYPE_TO_FAMILY_VACATION), _
+             private_NormalizeText(SECTION_TYPE_TO_MATERNITY_LEAVE), _
              private_NormalizeText(SECTION_TYPE_TO_TREATMENT_VACATION), _
              private_NormalizeText(SECTION_TYPE_TO_BUSINESS_TRIP), _
              private_NormalizeText(SECTION_TYPE_TO_BUSINESS_TRIP_SZCH), _
@@ -488,6 +498,7 @@ Public Function UsesMovementVacationDestination(ByVal sectionTypeText As String)
     Select Case private_NormalizeText(sectionTypeText)
         Case private_NormalizeText(SECTION_TYPE_TO_ANNUAL_VACATION_PART), _
              private_NormalizeText(SECTION_TYPE_TO_FAMILY_VACATION), _
+             private_NormalizeText(SECTION_TYPE_TO_MATERNITY_LEAVE), _
              private_NormalizeText(SECTION_TYPE_TO_TREATMENT_VACATION), _
              private_NormalizeText(SECTION_TYPE_TO_BUSINESS_TRIP), _
              private_NormalizeText(SECTION_TYPE_TO_BUSINESS_TRIP_SZCH), _
@@ -529,6 +540,9 @@ Public Function TryMapMovementSectionTypeToEventText( _
         Case private_NormalizeText(SECTION_TYPE_TO_FAMILY_VACATION), _
              private_NormalizeText(SECTION_TYPE_TRANSFER_ANNUAL_VACATION_TO_FAMILY_VACATION)
             outEventText = MOVEMENT_EVENT_FAMILY_VACATION
+
+        Case private_NormalizeText(SECTION_TYPE_TO_MATERNITY_LEAVE)
+            outEventText = MOVEMENT_EVENT_MATERNITY_LEAVE
 
         Case private_NormalizeText(SECTION_TYPE_TO_TREATMENT_VACATION), _
              private_NormalizeText(SECTION_TYPE_TRANSFER_TREATMENT_TO_TREATMENT_VACATION), _
@@ -597,6 +611,7 @@ Private Function private_BuildAdditionalProfileNames() As Collection
     profileNames.Add SECTION_TYPE_TRANSFER_AMBULATORY_VLK_TO_TREATMENT_VACATION
     profileNames.Add SECTION_TYPE_TRANSFER_ANNUAL_VACATION_TO_FAMILY_VACATION
     profileNames.Add SECTION_TYPE_TRANSFER_FAMILY_VACATION_TO_ANNUAL_VACATION
+    profileNames.Add SECTION_TYPE_TO_MATERNITY_LEAVE
 
     Set private_BuildAdditionalProfileNames = profileNames
 End Function
@@ -651,6 +666,7 @@ Private Function private_BuildProfileTagMap() As Object
     tagMap(private_NormalizeText(SECTION_TYPE_TO_TREATMENT)) = PROFILE_TAG_TO_TREATMENT
     tagMap(private_NormalizeText(SECTION_TYPE_TO_ANNUAL_VACATION_PART)) = PROFILE_TAG_TO_ANNUAL_VACATION_PART
     tagMap(private_NormalizeText(SECTION_TYPE_TO_FAMILY_VACATION)) = PROFILE_TAG_TO_FAMILY_VACATION
+    tagMap(private_NormalizeText(SECTION_TYPE_TO_MATERNITY_LEAVE)) = PROFILE_TAG_TO_FAMILY_VACATION
     tagMap(private_NormalizeText(SECTION_TYPE_TO_TREATMENT_VACATION)) = PROFILE_TAG_TO_TREATMENT_VACATION
     tagMap(private_NormalizeText(SECTION_TYPE_TO_TREATMENT_MEDICAL_COMPANY)) = PROFILE_TAG_TO_TREATMENT_MEDICAL_COMPANY
     tagMap(private_NormalizeText(SECTION_TYPE_TO_AMBULATORY_VLK)) = PROFILE_TAG_TO_AMBULATORY_VLK

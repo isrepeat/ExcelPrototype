@@ -365,7 +365,8 @@ Private Function private_AppendFioDependentAliases( _
             private_AddCloseVacationFioDependentAliases dependentAliases
 
         Case private_NormalizeText(m_Data.SectionTypeToAnnualVacationPart), _
-             private_NormalizeText(m_Data.SectionTypeToFamilyVacation)
+             private_NormalizeText(m_Data.SectionTypeToFamilyVacation), _
+             private_NormalizeText(m_Data.SectionTypeToMaternityLeave)
             private_AddToVacationFioDependentAliases dependentAliases
 
         Case private_NormalizeText(m_Data.SectionTypeToTreatmentVacation)
@@ -427,6 +428,7 @@ Private Function private_AppendCommanderDependentAliases( _
         Case private_NormalizeText(m_Data.SectionTypeToTreatment), _
              private_NormalizeText(m_Data.SectionTypeToAnnualVacationPart), _
              private_NormalizeText(m_Data.SectionTypeToFamilyVacation), _
+             private_NormalizeText(m_Data.SectionTypeToMaternityLeave), _
              private_NormalizeText(m_Data.SectionTypeToTreatmentVacation), _
              private_NormalizeText(m_Data.SectionTypeToTreatmentMedicalCompany), _
              private_NormalizeText(m_Data.SectionTypeToAmbulatoryVlk)
