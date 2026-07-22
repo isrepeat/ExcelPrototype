@@ -13,6 +13,8 @@ Private m_PipelineId As String
 Private m_DocumentPath As String
 Private m_TransformerClassName As String
 Private m_ConfigTable As obj_ConfigTable
+Private m_AllTables As Collection
+Private m_ShowEmptyTables As Boolean
 Private m_IsReady As Boolean
 
 Public Property Get RuntimeObjectSourceKey() As String
@@ -31,14 +33,21 @@ Public Function Initialize(ByVal page As obj_IPage) As Boolean
     If pageBase Is Nothing Then Exit Function
     If Not pageBase.RuntimeSources.SetObjectSource(OBJECT_KEY, Me) Then Exit Function
     Set items = New Collection
+    Set m_AllTables = New Collection
+    m_ShowEmptyTables = True
     If Not pageBase.RuntimeSources.SetItemsSource(TABLES_KEY, items, False) Then Exit Function
     Initialize = True
 End Function
 
 Public Sub Dispose()
     Set m_ConfigTable = Nothing
+    Set m_AllTables = Nothing
     Set m_Page = Nothing
 End Sub
+
+Public Property Get ShowEmptyTables() As Boolean
+    ShowEmptyTables = m_ShowEmptyTables
+End Property
 
 Public Function UpdateData(ByVal configControl As obj_ConfigControlVM) As Boolean
     Dim configTable As obj_ConfigTable, parser As obj_CfgParserBase
@@ -150,13 +159,92 @@ Public Function ExtractAndRender(Optional ByVal arg As Variant) As Boolean
     If Not private_TryTransformTables(tables, resultTables) Then Exit Function
     Set pageBase = m_Page.GetPageBase()
     If pageBase Is Nothing Then Exit Function
-    If Not pageBase.RuntimeSources.SetItemsSource( _
-        TABLES_KEY, resultTables, False) Then Exit Function
+    Set m_AllTables = resultTables
+    If Not private_PublishVisibleTables() Then Exit Function
     If Not rt_PageManager.fn_RenderPage(m_Page, "worddataextractor:extract") Then Exit Function
     rt_Messaging.fn_ShowStatusBarSuccess _
         "WordDataExtractor: извлечено таблиц: " & _
-        VBA.CStr(resultTables.Count) & ".", 4
+        VBA.CStr(resultTables.Count) & ". Режим: " & _
+        private_CurrentTablesModeCaption() & ".", 4
     ExtractAndRender = True
+End Function
+
+Public Function ToggleEmptyTables(Optional ByVal arg As Variant) As Boolean
+    m_ShowEmptyTables = Not m_ShowEmptyTables
+    If Not private_PublishVisibleTables() Then Exit Function
+    If Not rt_PageManager.fn_RenderPage( _
+        m_Page, "worddataextractor:toggle-empty-tables") Then Exit Function
+    rt_Messaging.fn_ShowStatusBarSuccess _
+        "WordDataExtractor: " & private_CurrentTablesModeCaption() & ".", 3
+    ToggleEmptyTables = True
+End Function
+
+Private Function private_PublishVisibleTables() As Boolean
+    Dim pageBase As obj_PageBase
+    Dim visibleTables As Collection
+    Dim tableItem As Variant
+    Dim tableObj As obj_TableDynamic
+
+    If m_Page Is Nothing Then Exit Function
+    Set pageBase = m_Page.GetPageBase()
+    If pageBase Is Nothing Then Exit Function
+    Set visibleTables = New Collection
+
+    If Not m_AllTables Is Nothing Then
+        For Each tableItem In m_AllTables
+            Set tableObj = tableItem
+            If tableObj Is Nothing Then Exit Function
+            Select Case VBA.LCase$(VBA.Trim$(tableObj.SourceAlias))
+                Case "returned-from-annual-leave"
+                    If Not private_AddVisibleTableByAlias(visibleTables, _
+                        "returned-from-annual-leave") Then Exit Function
+                    If Not private_AddVisibleTableByAlias(visibleTables, _
+                        "returned-from-family-leave") Then Exit Function
+                    If Not private_AddVisibleTableByAlias(visibleTables, _
+                        "returned-from-inpatient-vlk") Then Exit Function
+                Case "returned-from-family-leave", _
+                     "returned-from-inpatient-vlk"
+                    ' Эти таблицы добавляются рядом с ежегодным отпуском.
+                Case Else
+                    If m_ShowEmptyTables Or tableObj.RowCount > 0 Then
+                        visibleTables.Add tableObj
+                    End If
+            End Select
+        Next tableItem
+    End If
+
+    private_PublishVisibleTables = pageBase.RuntimeSources.SetItemsSource( _
+        TABLES_KEY, visibleTables, False)
+End Function
+
+Private Function private_AddVisibleTableByAlias( _
+    ByVal targetTables As Collection, _
+    ByVal sourceAlias As String _
+) As Boolean
+    Dim tableItem As Variant
+    Dim tableObj As obj_TableDynamic
+
+    If targetTables Is Nothing Or m_AllTables Is Nothing Then Exit Function
+    For Each tableItem In m_AllTables
+        Set tableObj = tableItem
+        If tableObj Is Nothing Then Exit Function
+        If VBA.StrComp(VBA.Trim$(tableObj.SourceAlias), sourceAlias, _
+            vbTextCompare) = 0 Then
+            If m_ShowEmptyTables Or tableObj.RowCount > 0 Then
+                targetTables.Add tableObj
+            End If
+            private_AddVisibleTableByAlias = True
+            Exit Function
+        End If
+    Next tableItem
+End Function
+
+Private Function private_CurrentTablesModeCaption() As String
+    If m_ShowEmptyTables Then
+        private_CurrentTablesModeCaption = "показаны все таблицы"
+    Else
+        private_CurrentTablesModeCaption = "показаны только непустые таблицы"
+    End If
 End Function
 
 Private Function private_TryTransformTables( _
