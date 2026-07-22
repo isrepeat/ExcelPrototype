@@ -37,7 +37,7 @@ Private Const MOVEMENT_TVO_POSITION_HEADER As String = "ТВО Посада"
 Private Const MOVEMENT_ESCORT_DOCUMENT_HEADER As String = "Супровідний документ"
 Private Const PERSONNEL_TVO_HEADER As String = "ТВО"
 Private Const PERSONNEL_POSITION_CODE_HEADER As String = "Код посади"
-Private Const EXCEL_MAX_ROW As Long = 1048576
+Private Const EXCEL_MAX_ROW As Long = 20000
 
 Private Sub Class_Initialize()
 #If LOGGING_VERBOSE_ENABLED Then

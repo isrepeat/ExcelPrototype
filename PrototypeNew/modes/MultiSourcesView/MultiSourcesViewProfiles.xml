@@ -7,7 +7,7 @@
     <item key="Source.MedicalDaily.FilePathResolver" value="ResolveAllByDmyPattern"/>
     <item key="Source.MedicalDaily.FilePathResolverArgs" value="order=asc"/>
     <item key="Source.MedicalDaily.RuntimeAliasPattern" value="Main-{dd}.{mm}.{yyyy}"/>
-    <item key="MedicalDaily.Sheet[StateMain].SheetName" value="Аркуш1$A3:S1048576"/>
+    <item key="MedicalDaily.Sheet[StateMain].SheetName" value="Аркуш1$A3:S20000"/>
     <item key="MedicalDaily.Sheet[StateMain].ColumnHeadersAliases" value="No; Unit; Rank; FIO; HospitalizationDate; BasisDocName; BasisDocDate; BasisDocNumber; CombatInjury; FullHospitalName; Diagnosis; TreatmentStatus; AfterTreatmentDocName; AfterTreatmentDocDate; AfterTreatmentDocNumber; PhoneNumber; IPN; BirthDate; Certificates"/>
     <!-- <item key="MedicalDaily.Sheet[StateMain].Map[No]" value="№ з/п"/> -->
     <!-- <item key="MedicalDaily.Sheet[StateMain].Map[Unit]" value="Підрозділ"/> -->
@@ -42,7 +42,7 @@
     <item key="Source.MedicalDaily.FilePathResolver" value="ResolveAllByDmyPattern"/>
     <item key="Source.MedicalDaily.FilePathResolverArgs" value="order=asc"/>
     <item key="Source.MedicalDaily.RuntimeAliasPattern" value="Main-{dd}.{mm}.{yyyy}"/>
-    <item key="MedicalDaily.Sheet[StateMain].SheetName" value="Аркуш1$A3:S1048576"/>
+    <item key="MedicalDaily.Sheet[StateMain].SheetName" value="Аркуш1$A3:S20000"/>
     <item key="MedicalDaily.Sheet[StateMain].ColumnHeadersAliases" value="No; Unit; Rank; FIO; HospitalizationDate; BasisDocName; BasisDocDate; BasisDocNumber; CombatInjury; FullHospitalName; Diagnosis; TreatmentStatus; AfterTreatmentDocName; AfterTreatmentDocDate; AfterTreatmentDocNumber; PhoneNumber; IPN; BirthDate; Certificates"/>
     <!-- <item key="MedicalDaily.Sheet[StateMain].Map[No]" value="№ з/п"/> -->
     <!-- <item key="MedicalDaily.Sheet[StateMain].Map[Unit]" value="Підрозділ"/> -->
