@@ -54,6 +54,7 @@ Private Const INSTITUTIONS_ACCUSATIVE_HEADER As String = "Знахідний"
 Private Const INSTITUTIONS_DATIVE_HEADER As String = "Давальний"
 Private Const RANKS_KEY_HEADER As String = "Звання"
 Private Const RANKS_GENITIVE_HEADER As String = "Родовий"
+Private Const RANKS_ACCUSATIVE_HEADER As String = "Знахідний"
 Private Const RANKS_DATIVE_HEADER As String = "Давальний"
 Private Const POSITIONS_KEY_HEADER As String = "Код"
 Private Const POSITIONS_GENITIVE_HEADER As String = "Родовий"
@@ -641,6 +642,65 @@ Public Function TryResolveRankGenitive( _
         rankText, _
         "ШПО / Звання", _
         outRankGenitive)
+End Function
+
+Public Function TryFindRankDefaultByDeclinedForm( _
+    ByVal rankDeclined As String, _
+    ByRef outFound As Boolean, _
+    ByRef outRankDefault As String _
+) As Boolean
+    If m_IsDisposed Then Exit Function
+    rankDeclined = private_NormalizeLookupKey(rankDeclined)
+    outFound = False
+    outRankDefault = VBA.vbNullString
+    If VBA.Len(rankDeclined) = 0 Then
+        TryFindRankDefaultByDeclinedForm = True
+        Exit Function
+    End If
+
+    If Not private_TryFindRankDefaultByDeclensionHeader( _
+        rankDeclined, RANKS_GENITIVE_HEADER, outFound, _
+        outRankDefault) Then Exit Function
+    If outFound Then
+        TryFindRankDefaultByDeclinedForm = True
+        Exit Function
+    End If
+    If Not private_TryFindRankDefaultByDeclensionHeader( _
+        rankDeclined, RANKS_ACCUSATIVE_HEADER, outFound, _
+        outRankDefault) Then Exit Function
+    If outFound Then
+        TryFindRankDefaultByDeclinedForm = True
+        Exit Function
+    End If
+    If Not private_TryFindRankDefaultByDeclensionHeader( _
+        rankDeclined, RANKS_DATIVE_HEADER, outFound, _
+        outRankDefault) Then Exit Function
+
+    TryFindRankDefaultByDeclinedForm = True
+End Function
+
+Private Function private_TryFindRankDefaultByDeclensionHeader( _
+    ByVal rankDeclined As String, _
+    ByVal declensionHeader As String, _
+    ByRef outFound As Boolean, _
+    ByRef outRankDefault As String _
+) As Boolean
+    private_TryFindRankDefaultByDeclensionHeader = _
+        private_TryLookupWorkbookValue( _
+            DEFAULT_SHPO_REL_PATH, _
+            private_BuildAdoRangeRef( _
+                RANKS_SHEET_NAME, _
+                RANKS_RANGE_START, _
+                RANKS_RANGE_END_COLUMN & VBA.CStr(EXCEL_MAX_ROW)), _
+            declensionHeader, _
+            RANKS_KEY_HEADER, _
+            rankDeclined, _
+            "ШПО / Звання / " & declensionHeader, _
+            outRankDefault, _
+            allowMissingRow:=True, _
+            outFound:=outFound, _
+            requireUniqueMatch:=False, _
+            logMissingRow:=False)
 End Function
 
 Public Function TryResolveRankDative( _

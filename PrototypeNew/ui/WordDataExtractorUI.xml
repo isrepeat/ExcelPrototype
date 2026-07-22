@@ -30,6 +30,15 @@
           onClick="{Binding Method=OpenRulesFile}"
           spanColls="2"
           spanRows="2"/>
+
+        <control
+          type="Button"
+          name="ToggleEmptyTables"
+          caption="{Binding Path=ShowEmptyTables;TrueAs=Отображение [[[color=#FFFF00]]все[[/color]]];FalseAs=Отображение [[[color=#FFFF00]]не пустые[[/color]]]}"
+          dataContext="{PageRuntimeSource='RuntimeObjects.WordDataExtractor.Controller'}"
+          onClick="{Binding Method=ToggleEmptyTables}"
+          spanColls="3"
+          spanRows="2"/>
       </stackPanel>
 
       <stackPanel spanColls="40" spanRows="1"/>

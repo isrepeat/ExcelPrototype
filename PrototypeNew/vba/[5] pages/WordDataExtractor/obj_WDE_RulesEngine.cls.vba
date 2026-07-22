@@ -183,21 +183,67 @@ Private Function private_ExtractDataset(ByVal datasetNode As Object, ByVal sourc
                     valueText = private_ResolveValue(ex_XmlCore.fn_NodeAttrText(columnNode, "value"), fieldValues)
                     valueText = private_ApplyTransforms( _
                         valueText, columnNode, fieldValues)
+                    If VBA.StrComp(ex_XmlCore.fn_NodeAttrText( _
+                        columnNode, "id"), "basis", vbTextCompare) = 0 Then
+                        valueText = private_FilterBasisForDataset( _
+                            datasetId, valueText)
+                    End If
                     rowObj.PushCellRaw valueText
                 Next columnNode
                 If Not tableObj.PushRow(rowObj) Then Exit Function
             Next matchObj
         Next contextItem
     Next scopeText
-    ' Отсутствующие optional-секции не создают пустые визуальные таблицы.
-    ' Это также исключает их из transformer/style/render pipeline.
-    If tableObj.RowCount = 0 And _
-        private_BoolAttr(datasetNode, "optional", False) Then
-        private_ExtractDataset = True
-        Exit Function
-    End If
+    ' Пустые таблицы также возвращаются вызывающему коду: UI самостоятельно
+    ' решает, показывать все datasets или только содержащие строки.
     tables.Add tableObj
     private_ExtractDataset = True
+End Function
+
+Private Function private_FilterBasisForDataset( _
+    ByVal datasetId As String, _
+    ByVal basisText As String _
+) As String
+    Dim blocks As Variant
+    Dim blockItem As Variant
+    Dim blockText As String
+    Dim normalizedBlock As String
+    Dim resultText As String
+
+    ' В этих двух секциях командировочное удостоверение является полезной
+    ' частью результата. В служебной командировке оно дополнительно
+    ' нормализуется orderedTripCredential на уровне DSL.
+    Select Case VBA.LCase$(VBA.Trim$(datasetId))
+        Case "arrived-to-unit", "arrived-for-service-assignment"
+            private_FilterBasisForDataset = basisText
+            Exit Function
+    End Select
+
+    blocks = VBA.Split(basisText, ";")
+    For Each blockItem In blocks
+        blockText = VBA.Trim$(VBA.CStr(blockItem))
+        normalizedBlock = VBA.LCase$(blockText)
+        If VBA.InStr(1, normalizedBlock, _
+            "посвідчення про відрядження", vbTextCompare) = 0 And _
+           VBA.InStr(1, normalizedBlock, _
+            "відпускний квиток", vbTextCompare) = 0 And _
+           VBA.InStr(1, normalizedBlock, _
+            "відпусткний квиток", vbTextCompare) = 0 Then
+            If VBA.Len(blockText) > 0 Then
+                If VBA.Len(resultText) > 0 Then resultText = resultText & "; "
+                resultText = resultText & blockText
+            End If
+        End If
+    Next blockItem
+
+    resultText = VBA.Trim$(resultText)
+    If VBA.Len(resultText) > 0 Then
+        Select Case VBA.Right$(resultText, 1)
+            Case ".", "!", "?"
+            Case Else: resultText = resultText & "."
+        End Select
+    End If
+    private_FilterBasisForDataset = resultText
 End Function
 
 Private Sub private_AddColumnNodeOrdered( _
@@ -236,6 +282,7 @@ Private Function private_GetColumnOrder( _
     ' Основные кадровые колонки занимают стабильные позиции во всех таблицах.
     ' Неизвестные alias получают порядок 100 и остаются в хвосте в порядке DSL.
     Select Case aliasText
+        Case "rank": private_GetColumnOrder = 5
         Case "fio": private_GetColumnOrder = 10
         Case "ipn": private_GetColumnOrder = 20
         Case "eventdate"
@@ -264,6 +311,18 @@ Private Function private_ShouldIncludeCommonColumn( _
     Dim allowedColumnIds As String
     Dim columnId As String
 
+    columnId = VBA.LCase$(VBA.Trim$( _
+        ex_XmlCore.fn_NodeAttrText(columnNode, "id")))
+
+    ' Звание является общей кадровой колонкой даже для составных datasets,
+    ' отключивших остальные commonColumns. В служебные таблицы без ПІБ оно
+    ' при этом не добавляется.
+    If columnId = "rank" Then
+        private_ShouldIncludeCommonColumn = Not _
+            datasetNode.selectSingleNode("p:table/p:column[@id='fio']") Is Nothing
+        Exit Function
+    End If
+
     ' Некоторые составные события имеют собственную схему и не должны
     ' получать даже продовольственные commonColumns.
     If Not private_BoolAttr(datasetNode, _
@@ -276,8 +335,6 @@ Private Function private_ShouldIncludeCommonColumn( _
         ex_XmlCore.fn_NodeAttrText(datasetNode, "commonColumnIds"), _
         " ", VBA.vbNullString), ",", ";"))
     If VBA.Len(allowedColumnIds) > 0 Then
-        columnId = VBA.LCase$(VBA.Trim$( _
-            ex_XmlCore.fn_NodeAttrText(columnNode, "id")))
         If VBA.InStr(1, ";" & allowedColumnIds & ";", _
             ";" & columnId & ";", VBA.vbTextCompare) = 0 Then Exit Function
     End If
@@ -728,7 +785,9 @@ Private Function private_TrySelectTripCredential( _
     rx.Global = True
     rx.IgnoreCase = True
     rx.MultiLine = True
-    rx.Pattern = "посвідчення\s+про\s+відрядження\s+№№?\s*" & _
+    ' В документах встречаются оба варианта маркера диапазона:
+    ' `№№ 47/117-47/118` и `№ № 47/117-47/118`.
+    rx.Pattern = "посвідчення\s+про\s+відрядження\s+№\s*№?\s*" & _
         "([0-9]+(?:/[0-9]+)*)(?:\s*[-–—]\s*" & _
         "([0-9]+(?:/[0-9]+)*))?(?:\s+від\s+" & _
         "(\d{1,2}(?:[.\-/]\d{1,2}[.\-/]\d{2,4}|" & _

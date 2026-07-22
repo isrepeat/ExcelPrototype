@@ -9,6 +9,7 @@ Implements obj_ITableTransformer
 
 Private Const FIO_COLUMN_ALIAS As String = "fio"
 Private Const IPN_COLUMN_ALIAS As String = "ipn"
+Private Const RANK_COLUMN_ALIAS As String = "rank"
 Private Const UNRESOLVED_FIO_TAG As String = "fio-not-normalized"
 Private Const CONFIG_STATE_PATH As String = "Source.Personnel.FilePath"
 Private Const CONFIG_STATE_RANGE As String = "Personnel.Sheet[StateMain].SheetName"
@@ -30,8 +31,8 @@ Private Function obj_ITableTransformer_Transform( _
     ByRef outTable As obj_TableDynamic _
 ) As Boolean
     Dim targetTable As obj_TableDynamic
-    Dim fioColumnIndex As Long, ipnColumnIndex As Long
-    Dim hasIpnColumn As Boolean
+    Dim fioColumnIndex As Long, ipnColumnIndex As Long, rankColumnIndex As Long
+    Dim hasIpnColumn As Boolean, hasRankColumn As Boolean
 
     Set outTable = Nothing
     If m_IsDisposed Then Exit Function
@@ -53,6 +54,8 @@ Private Function obj_ITableTransformer_Transform( _
     End If
     hasIpnColumn = sourceTable.TryGetColumnIndexByAlias( _
         IPN_COLUMN_ALIAS, ipnColumnIndex)
+    hasRankColumn = sourceTable.TryGetColumnIndexByAlias( _
+        RANK_COLUMN_ALIAS, rankColumnIndex)
 
     ' Один экземпляр transformer обслуживает все таблицы extraction, поэтому
     ' открытые подключения переиспользуются до единственного Dispose.
@@ -60,7 +63,8 @@ Private Function obj_ITableTransformer_Transform( _
 
     If Not private_TryCloneTableStructure(sourceTable, targetTable) Then Exit Function
     If Not private_TryTransformRows(sourceTable, targetTable, _
-        fioColumnIndex, ipnColumnIndex, hasIpnColumn) Then Exit Function
+        fioColumnIndex, ipnColumnIndex, hasIpnColumn, _
+        rankColumnIndex, hasRankColumn) Then Exit Function
 
     Set outTable = targetTable
     obj_ITableTransformer_Transform = True
@@ -138,11 +142,14 @@ Private Function private_TryTransformRows( _
     ByVal targetTable As obj_TableDynamic, _
     ByVal fioColumnIndex As Long, _
     ByVal ipnColumnIndex As Long, _
-    ByVal hasIpnColumn As Boolean _
+    ByVal hasIpnColumn As Boolean, _
+    ByVal rankColumnIndex As Long, _
+    ByVal hasRankColumn As Boolean _
 ) As Boolean
     Dim sourceRow As obj_Row, targetRow As obj_Row
     Dim fioDeclined As String, fioDefault As String, ipnText As String
-    Dim personFound As Boolean
+    Dim rankDeclined As String, rankDefault As String
+    Dim personFound As Boolean, rankFound As Boolean
     Dim i As Long
 
     For i = 1 To sourceTable.RowCount
@@ -150,6 +157,7 @@ Private Function private_TryTransformRows( _
         If sourceRow Is Nothing Then Exit Function
         fioDeclined = VBA.Trim$(VBA.CStr( _
             sourceRow.GetCellValue(fioColumnIndex)))
+        fioDeclined = private_RemoveRankServiceSuffixFromFio(fioDeclined)
         ipnText = VBA.vbNullString
         If hasIpnColumn Then ipnText = VBA.Trim$(VBA.CStr( _
             sourceRow.GetCellValue(ipnColumnIndex)))
@@ -188,9 +196,36 @@ Private Function private_TryTransformRows( _
             If Not targetRow.AddCellTag( _
                 fioColumnIndex, UNRESOLVED_FIO_TAG) Then Exit Function
         End If
+        If hasRankColumn Then
+            rankDeclined = VBA.Trim$(VBA.CStr( _
+                sourceRow.GetCellValue(rankColumnIndex)))
+            rankDefault = VBA.vbNullString
+            rankFound = False
+            If Not private_TryEnsureCommonData() Then Exit Function
+            If Not m_CommonData.TryFindRankDefaultByDeclinedForm( _
+                rankDeclined, rankFound, rankDefault) Then Exit Function
+            If rankFound And VBA.Len(VBA.Trim$(rankDefault)) > 0 Then
+                If Not targetRow.SetCellRaw( _
+                    rankColumnIndex, rankDefault) Then Exit Function
+            End If
+        End If
         If Not targetTable.PushRow(targetRow) Then Exit Function
     Next i
     private_TryTransformRows = True
+End Function
+
+Private Function private_RemoveRankServiceSuffixFromFio( _
+    ByVal fioText As String _
+) As String
+    Const MEDICAL_SERVICE_PREFIX As String = "медичної служби "
+
+    fioText = VBA.Trim$(fioText)
+    If VBA.StrComp(VBA.Left$(fioText, VBA.Len(MEDICAL_SERVICE_PREFIX)), _
+        MEDICAL_SERVICE_PREFIX, vbTextCompare) = 0 Then
+        fioText = VBA.Trim$(VBA.Mid$(fioText, _
+            VBA.Len(MEDICAL_SERVICE_PREFIX) + 1))
+    End If
+    private_RemoveRankServiceSuffixFromFio = fioText
 End Function
 
 Private Function private_TryFindStateFioByIpn( _
