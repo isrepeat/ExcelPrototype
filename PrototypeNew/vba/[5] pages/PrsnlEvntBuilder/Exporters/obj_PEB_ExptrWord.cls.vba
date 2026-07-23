@@ -78,8 +78,6 @@ Private Const WORD_ALIAS_ENROLL_TO_FOOD_SUPPORT_DATE As String = "EnrollToFoodSu
 Private Const WORD_ALIAS_REMOVE_FROM_FOOD_SUPPORT_DATE As String = "RemoveFromFoodSupportDateShort"
 Private Const WORD_ALIAS_PREV_VACATION_TICKET_NO As String = "PrevVacationTicketNo"
 Private Const WORD_ALIAS_PREV_VACATION_TICKET_DATE_SHORT As String = "PrevVacationTicketDateShort"
-Private Const LATEST_MOVEMENT_DEPARTURE_ORDER_KEY As String = "Наказ вибуття"
-Private Const LATEST_MOVEMENT_ESCORT_DOCUMENT_KEY As String = "Супровідний документ"
 
 ' Канонический компактный формат date aliases внутри контекста шаблона.
 ' Он нужен не для окончательного отображения в WORD, а чтобы formatter pipeline
@@ -188,7 +186,7 @@ Public Function Export( _
     Dim recordIpn As String
     Dim exportValidationError As String
     Dim latestMovementTvoChain As Collection
-    Dim latestMovementRecord As Object
+    Dim ignoredLatestMovementRecord As Object
     Dim builderData As obj_PrsnlEvntBuilderData
     Dim validationEnabled As Boolean
     Dim groupingHospitalShort As String
@@ -208,12 +206,13 @@ Public Function Export( _
     End If
     ' WORD validation defaults to disabled when the context key is absent.
     validationEnabled = private_GetContextBoolean(context, CONTEXT_VALIDATION_ENABLED)
-    If Not m_ExporterCfgDataProvider.IsExportAllowed(sourceTable, sectionTypeText, exportValidationError, latestMovementTvoChain, latestMovementRecord, validationEnabled) Then
+    If Not m_ExporterCfgDataProvider.IsExportAllowed(sourceTable, sectionTypeText, exportValidationError, latestMovementTvoChain, ignoredLatestMovementRecord, validationEnabled) Then
         VBA.MsgBox exportValidationError, VBA.vbExclamation, "PrototypeNew / WORD export"
         Exit Function
     End If
     If Not private_TryEnrichMainSourceTableForWord(sourceTable, context) Then Exit Function
-    If Not private_TryEnrichPreviousVacationTicketForWord(sourceTable, sectionTypeText, latestMovementRecord) Then Exit Function
+    If Not private_TryEnrichPreviousVacationTicketForWord( _
+        sourceTable, sectionTypeText) Then Exit Function
     If Not private_TryNormalizeDocumentNotesForWord(sourceTables, sectionTypeText) Then Exit Function
     If Not private_TryEnrichMetaDocumentDatesForWord(sourceTables) Then Exit Function
     If Not private_TryAppendMovementTvoTablesForReturn(sourceTables, sourceTable, sectionTypeText, latestMovementTvoChain) Then Exit Function
@@ -1474,10 +1473,11 @@ End Function
 
 Private Function private_TryEnrichPreviousVacationTicketForWord( _
     ByVal sourceTable As obj_TableDynamic, _
-    ByVal sectionTypeText As String, _
-    ByVal latestMovementRecord As Object _
+    ByVal sectionTypeText As String _
 ) As Boolean
     Dim data As obj_PrsnlEvntBuilderData
+    Dim ipnText As String
+    Dim previousTicketFound As Boolean
     Dim escortDocumentText As String
     Dim departureOrderText As String
     Dim departureOrderDate As Date
@@ -1502,28 +1502,22 @@ Private Function private_TryEnrichPreviousVacationTicketForWord( _
         Exit Function
     End If
 
-    If latestMovementRecord Is Nothing Then
-        VBA.MsgBox "PrototypeNew: latest Movement record is unavailable for the previous vacation ticket.", VBA.vbExclamation, "PrototypeNew / WORD export"
+    If Not private_TryGetMainTableValue( _
+        sourceTable, SOURCE_ALIAS_IPN, ipnText) Then Exit Function
+    If Not m_ExporterCfgDataProvider.TryGetLatestMovementVacationTicket( _
+        ipnText, _
+        previousTicketFound, _
+        escortDocumentText, _
+        departureOrderText) Then Exit Function
+    If Not previousTicketFound Then
+        VBA.MsgBox "PrototypeNew: Movement has no previous record containing both " & _
+            "'Супровідний документ' and 'Наказ вибуття' for IPN '" & _
+            ipnText & "'.", VBA.vbExclamation, "PrototypeNew / WORD export"
         Exit Function
     End If
+    escortDocumentText = private_NormalizeTemplateScalar(escortDocumentText)
+    departureOrderText = private_NormalizeTemplateScalar(departureOrderText)
 
-    If latestMovementRecord.Exists(LATEST_MOVEMENT_ESCORT_DOCUMENT_KEY) Then
-        escortDocumentText = private_NormalizeTemplateScalar( _
-            VBA.CStr(latestMovementRecord(LATEST_MOVEMENT_ESCORT_DOCUMENT_KEY)))
-    End If
-    If latestMovementRecord.Exists(LATEST_MOVEMENT_DEPARTURE_ORDER_KEY) Then
-        departureOrderText = private_NormalizeTemplateScalar( _
-            VBA.CStr(latestMovementRecord(LATEST_MOVEMENT_DEPARTURE_ORDER_KEY)))
-    End If
-
-    If VBA.Len(VBA.Trim$(escortDocumentText)) = 0 Then
-        VBA.MsgBox "PrototypeNew: latest Movement record has no 'Супровідний документ' value for PrevVacationTicketNo.", VBA.vbExclamation, "PrototypeNew / WORD export"
-        Exit Function
-    End If
-    If VBA.Len(VBA.Trim$(departureOrderText)) = 0 Then
-        VBA.MsgBox "PrototypeNew: latest Movement record has no 'Наказ вибуття' value for PrevVacationTicketDate.", VBA.vbExclamation, "PrototypeNew / WORD export"
-        Exit Function
-    End If
     If Not m_ExporterCfgDataProvider.CommonData.TryResolveOrderDateByNumber(departureOrderText, departureOrderDate) Then
         VBA.MsgBox "PrototypeNew: failed to resolve PrevVacationTicketDate by departure order '" & departureOrderText & "'.", VBA.vbExclamation, "PrototypeNew / WORD export"
         Exit Function
