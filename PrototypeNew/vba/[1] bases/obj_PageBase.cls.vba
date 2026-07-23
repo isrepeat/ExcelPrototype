@@ -244,7 +244,6 @@ Public Function Render() As Boolean
     If Not Me.IsReady() Then Exit Function
 
     If m_IsRendering Then Exit Function
-
     perfStart = VBA.Timer
     perfLast = perfStart
 
@@ -426,6 +425,7 @@ Public Function TryReflowControl(ByVal controlName As String) As Boolean
     Dim perfStart As Double
     Dim perfLast As Double
     Dim oldVisualScope As Range
+    Dim selectionAreas As Collection
 
     If Not private_EnsureNotDisposed("TryReflowControl") Then Exit Function
     If m_IsRendering Then Exit Function
@@ -467,6 +467,8 @@ Public Function TryReflowControl(ByVal controlName As String) As Boolean
 
     If Not ex_ControlRefreshRuntime.fn_TryBuildLayoutReflowPlan( _
         ws.Name, controlName, newSpanRows, reflowPatches, ancestorUpdates) Then Exit Function
+    Set selectionAreas = private_CaptureSelectionAreas(ws)
+    private_TranslateSelectionAreasByPatches selectionAreas, reflowPatches
 
     Set app = Application
     m_IsRendering = True
@@ -523,6 +525,7 @@ Public Function TryReflowControl(ByVal controlName As String) As Boolean
         "control='" & private_EscapeForLog(controlName) & "'"
 #End If
 
+    private_RestoreSelectionAreas ws, selectionAreas
     TryReflowControl = True
 
 Cleanup:
@@ -569,6 +572,7 @@ Public Function TryReflowLayoutContainer(ByVal containerName As String) As Boole
     Dim prevCalculation As XlCalculation
     Dim prevStatusBar As Variant
     Dim escapedName As String
+    Dim selectionAreas As Collection
 
     If Not private_EnsureNotDisposed("TryReflowLayoutContainer") Then Exit Function
     If m_IsRendering Then Exit Function
@@ -604,6 +608,8 @@ Public Function TryReflowLayoutContainer(ByVal containerName As String) As Boole
 
     If Not ex_ControlRefreshRuntime.fn_TryBuildLayoutContainerReflowPlan( _
         ws.Name, containerName, newSpanRows, reflowPatches, ancestorUpdates) Then Exit Function
+    Set selectionAreas = private_CaptureSelectionAreas(ws)
+    private_TranslateSelectionAreasByPatches selectionAreas, reflowPatches
 
     Set app = Application
     m_IsRendering = True
@@ -664,6 +670,7 @@ ContinueStyleControl:
         ws.Name, ancestorUpdates) Then GoTo CleanupContainer
     If Not private_TryReconcileSingleButtonRuntimeShapes(ws) Then GoTo CleanupContainer
 
+    private_RestoreSelectionAreas ws, selectionAreas
     TryReflowLayoutContainer = True
 
 CleanupContainer:
@@ -2877,6 +2884,149 @@ Private Function private_GetDictionaryCount(ByVal dictObj As Object) As Long
     On Error GoTo 0
 End Function
 
+Private Function private_CaptureSelectionAreas(ByVal ws As Worksheet) As Collection
+    Dim selectedRange As Range
+    Dim selectedArea As Range
+    Dim areaInfo As Object
+    Dim result As Collection
+    Dim activeCellRange As Range
+
+    Set result = New Collection
+    Set private_CaptureSelectionAreas = result
+    If ws Is Nothing Then Exit Function
+
+    On Error Resume Next
+    If VBA.TypeName(Application.Selection) = "Range" Then
+        Set selectedRange = Application.Selection
+    End If
+    Set activeCellRange = Application.ActiveCell
+    On Error GoTo 0
+    If selectedRange Is Nothing Then Exit Function
+    If Not (selectedRange.Worksheet Is ws) Then Exit Function
+
+    For Each selectedArea In selectedRange.Areas
+        Set areaInfo = VBA.CreateObject("Scripting.Dictionary")
+        areaInfo.CompareMode = 1
+        areaInfo("RowStart") = VBA.CLng(selectedArea.Row)
+        areaInfo("ColStart") = VBA.CLng(selectedArea.Column)
+        areaInfo("RowCount") = VBA.CLng(selectedArea.Rows.Count)
+        areaInfo("ColCount") = VBA.CLng(selectedArea.Columns.Count)
+        If result.Count = 0 And Not activeCellRange Is Nothing Then
+            If activeCellRange.Worksheet Is ws Then
+                areaInfo("ActiveRow") = VBA.CLng(activeCellRange.Row)
+                areaInfo("ActiveCol") = VBA.CLng(activeCellRange.Column)
+            End If
+        End If
+        result.Add areaInfo
+    Next selectedArea
+End Function
+
+Private Sub private_TranslateSelectionAreasByPatches( _
+    ByVal selectionAreas As Collection, _
+    ByVal patches As Collection _
+)
+    Dim patchIndex As Long
+    Dim patch As Object
+    Dim moveDown As Boolean
+
+    If selectionAreas Is Nothing Or patches Is Nothing Then Exit Sub
+    If selectionAreas.Count = 0 Or patches.Count = 0 Then Exit Sub
+
+    Set patch = patches.Item(1)
+    moveDown = (VBA.CLng(patch("RowDelta")) > 0)
+    If moveDown Then
+        For patchIndex = patches.Count To 1 Step -1
+            Set patch = patches.Item(patchIndex)
+            private_TranslateSelectionAreasForPatch selectionAreas, patch
+        Next patchIndex
+    Else
+        For patchIndex = 1 To patches.Count
+            Set patch = patches.Item(patchIndex)
+            private_TranslateSelectionAreasForPatch selectionAreas, patch
+        Next patchIndex
+    End If
+End Sub
+
+Private Sub private_TranslateSelectionAreasForPatch( _
+    ByVal selectionAreas As Collection, _
+    ByVal patch As Object _
+)
+    Dim areaInfo As Object
+    Dim rowStart As Long
+    Dim colStart As Long
+    Dim rowEnd As Long
+    Dim colEnd As Long
+    Dim rowDelta As Long
+    Dim areaRowEnd As Long
+    Dim areaColEnd As Long
+
+    If selectionAreas Is Nothing Or patch Is Nothing Then Exit Sub
+    rowStart = VBA.CLng(patch("RowStart"))
+    colStart = VBA.CLng(patch("ColStart"))
+    rowEnd = VBA.CLng(patch("RowEnd"))
+    colEnd = VBA.CLng(patch("ColEnd"))
+    rowDelta = VBA.CLng(patch("RowDelta"))
+    If rowDelta = 0 Then Exit Sub
+
+    For Each areaInfo In selectionAreas
+        areaRowEnd = VBA.CLng(areaInfo("RowStart")) + VBA.CLng(areaInfo("RowCount")) - 1
+        areaColEnd = VBA.CLng(areaInfo("ColStart")) + VBA.CLng(areaInfo("ColCount")) - 1
+        If VBA.CLng(areaInfo("RowStart")) < rowStart Or areaRowEnd > rowEnd Then GoTo ContinueArea
+        If VBA.CLng(areaInfo("ColStart")) < colStart Or areaColEnd > colEnd Then GoTo ContinueArea
+
+        areaInfo("RowStart") = VBA.CLng(areaInfo("RowStart")) + rowDelta
+        If areaInfo.Exists("ActiveRow") Then
+            If VBA.CLng(areaInfo("ActiveRow")) >= rowStart And _
+                VBA.CLng(areaInfo("ActiveRow")) <= rowEnd And _
+                VBA.CLng(areaInfo("ActiveCol")) >= colStart And _
+                VBA.CLng(areaInfo("ActiveCol")) <= colEnd Then
+                areaInfo("ActiveRow") = VBA.CLng(areaInfo("ActiveRow")) + rowDelta
+            End If
+        End If
+ContinueArea:
+    Next areaInfo
+End Sub
+
+Private Sub private_RestoreSelectionAreas( _
+    ByVal ws As Worksheet, _
+    ByVal selectionAreas As Collection _
+)
+    Dim areaInfo As Object
+    Dim areaRange As Range
+    Dim restoredRange As Range
+    Dim activeRow As Long
+    Dim activeCol As Long
+    Dim hasActiveCell As Boolean
+
+    If ws Is Nothing Or selectionAreas Is Nothing Then Exit Sub
+    If selectionAreas.Count = 0 Then Exit Sub
+    On Error GoTo RestoreFailed
+
+    For Each areaInfo In selectionAreas
+        Set areaRange = ws.Range( _
+            ws.Cells(VBA.CLng(areaInfo("RowStart")), VBA.CLng(areaInfo("ColStart"))), _
+            ws.Cells( _
+                VBA.CLng(areaInfo("RowStart")) + VBA.CLng(areaInfo("RowCount")) - 1, _
+                VBA.CLng(areaInfo("ColStart")) + VBA.CLng(areaInfo("ColCount")) - 1))
+        If restoredRange Is Nothing Then
+            Set restoredRange = areaRange
+        Else
+            Set restoredRange = Application.Union(restoredRange, areaRange)
+        End If
+        If areaInfo.Exists("ActiveRow") Then
+            activeRow = VBA.CLng(areaInfo("ActiveRow"))
+            activeCol = VBA.CLng(areaInfo("ActiveCol"))
+            hasActiveCell = True
+        End If
+    Next areaInfo
+
+    If restoredRange Is Nothing Then Exit Sub
+    restoredRange.Select
+    If hasActiveCell Then ws.Cells(activeRow, activeCol).Activate
+RestoreFailed:
+    Err.Clear
+End Sub
+
 Private Function private_TryApplyLayoutReflowPatches( _
     ByVal ws As Worksheet, _
     ByVal patches As Collection _
@@ -2961,6 +3111,10 @@ Private Function private_TryApplySingleLayoutReflowPatch( _
             ws.Cells(rowEnd + rowDelta + 1, colStart), _
             ws.Cells(rowEnd, colEnd))
     End If
+    ' Блочный Copy намеренно оставляет исходные ячейки на месте. Очищаем
+    ' только полосу, которая действительно освободилась после translate;
+    ' пересекающуюся часть source/destination трогать нельзя.
+    vacatedRange.Clear
     If Not ex_StylePipelineEngine.fn_ApplySheetBaseStylesToRange( _
         ws, m_UiDom, vacatedRange) Then Exit Function
     If Not private_TranslateRuntimeRegion(rowStart, colStart, rowEnd, colEnd, rowDelta) Then Exit Function
@@ -2996,6 +3150,7 @@ Private Function private_TryTranslateWorksheetSubtreeRows( _
     Dim newTopCell As Range
     Dim shapeIndex As Long
     Dim moveRow As Long
+    Dim copyErrorNumber As Long
 
     If ws Is Nothing Then Exit Function
     If firstRow <= 0 Or firstCol <= 0 Or lastRow < firstRow Or lastCol < firstCol Then Exit Function
@@ -3004,15 +3159,15 @@ Private Function private_TryTranslateWorksheetSubtreeRows( _
         private_TryTranslateWorksheetSubtreeRows = True
         Exit Function
     End If
-
-    ' Здесь принципиально нужен Cut, а не Copy. Для Shape с
-    ' Placement = xlMoveAndSize Excel копирует фигуру вместе с диапазоном.
-    ' После нескольких partial reflow это создавало дубликаты кнопок, а ручная
-    ' коррекция позиции продолжала двигать только исходный Shape по его имени.
-    ' Cut сохраняет содержимое/форматы и освобождает исходные ячейки. Сам
-    ' translate ниже выполняется построчно, чтобы диапазоны не перекрывались.
-    ' Высоты строк и точный offset Shapes сохраняем отдельно: Excel не переносит
-    ' RowHeight, а позиция Shape может округлиться относительно границы ячейки.
+    ' Generated UI содержит отрисованные значения и стили, а не вычислительные
+    ' формулы, поэтому перекрывающийся subtree можно перенести одним Copy.
+    ' Это принципиально быстрее прежнего построчного Cut: каждый Cut заставлял
+    ' Excel отдельно перестраивать зависимости и занимал до нескольких секунд.
+    '
+    ' При Placement = xlMoveAndSize Copy может создать дубликаты Shapes. Ниже
+    ' удаляем все новые имена, а исходные Shapes выставляем по сохранённым
+    ' координатам. Высоты строк также восстанавливаются отдельно, поскольку
+    ' Excel не переносит RowHeight вместе с прямоугольником ячеек.
     '
     ' Мы не вставляем/удаляем строки листа: такая операция сдвинула бы также
     ' независимые контролы слева/справа. Переносится только прямоугольник,
@@ -3049,28 +3204,40 @@ Private Function private_TryTranslateWorksheetSubtreeRows( _
         shapeInfo.Add info
 ContinueShape:
     Next shp
-
-    ' Один Cut всего прямоугольника в пересекающийся диапазон может потерять
-    ' граничную строку. Переносим строки в безопасном направлении: вниз — от
-    ' последней к первой, вверх — от первой к последней.
-    If rowDelta > 0 Then
-        For moveRow = lastRow To firstRow Step -1
-            Set sourceRange = ws.Range(ws.Cells(moveRow, firstCol), ws.Cells(moveRow, lastCol))
-            Set destinationCell = ws.Cells(moveRow + rowDelta, firstCol)
-            sourceRange.Cut Destination:=destinationCell
-        Next moveRow
-    Else
-        For moveRow = firstRow To lastRow
-            Set sourceRange = ws.Range(ws.Cells(moveRow, firstCol), ws.Cells(moveRow, lastCol))
-            Set destinationCell = ws.Cells(moveRow + rowDelta, firstCol)
-            sourceRange.Cut Destination:=destinationCell
-        Next moveRow
+    Set sourceRange = ws.Range( _
+        ws.Cells(firstRow, firstCol), _
+        ws.Cells(lastRow, lastCol))
+    Set destinationCell = ws.Cells(firstRow + rowDelta, firstCol)
+    On Error Resume Next
+    sourceRange.Copy Destination:=destinationCell
+    copyErrorNumber = Err.Number
+    Err.Clear
+    On Error GoTo 0
+    If copyErrorNumber <> 0 Then
+        ' Некоторые старые сборки Excel могут запретить блочный Copy между
+        ' перекрывающимися диапазонами. Медленный путь сохраняем только как
+        ' совместимый fallback, чтобы partial reflow не ломал страницу.
+        If rowDelta > 0 Then
+            For moveRow = lastRow To firstRow Step -1
+                Set sourceRange = ws.Range( _
+                    ws.Cells(moveRow, firstCol), _
+                    ws.Cells(moveRow, lastCol))
+                Set destinationCell = ws.Cells(moveRow + rowDelta, firstCol)
+                sourceRange.Copy Destination:=destinationCell
+            Next moveRow
+        Else
+            For moveRow = firstRow To lastRow
+                Set sourceRange = ws.Range( _
+                    ws.Cells(moveRow, firstCol), _
+                    ws.Cells(moveRow, lastCol))
+                Set destinationCell = ws.Cells(moveRow + rowDelta, firstCol)
+                sourceRange.Copy Destination:=destinationCell
+            Next moveRow
+        End If
     End If
     Application.CutCopyMode = False
 
-    ' Cut не должен создавать Shapes. Инвариант защищает runtime от различий
-    ' между версиями Excel: если приложение всё же создало копию объекта,
-    ' оставляем только фигуры, существовавшие до translate-операции.
+    ' Оставляем только Shapes, существовавшие до блочного Copy.
     For shapeIndex = ws.Shapes.Count To 1 Step -1
         Set shp = ws.Shapes(shapeIndex)
         If Not knownShapeNames.Exists(shp.Name) Then shp.Delete

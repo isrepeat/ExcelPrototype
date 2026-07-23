@@ -1264,6 +1264,8 @@ Private Function private_TryEnrichMainSourceTableForWord( _
     Dim additionalWayDays As Long
     Dim vacationDateTo As Date
     Dim builderData As obj_PrsnlEvntBuilderData
+    Dim uaLocationInflector As obj_IUaInflector
+    Dim inflectedDestinationText As String
     If sourceTable Is Nothing Then Exit Function
     If m_ExporterCfgDataProvider Is Nothing Then Exit Function
     If m_ExporterCfgDataProvider.CommonData Is Nothing Then Exit Function
@@ -1318,6 +1320,16 @@ Private Function private_TryEnrichMainSourceTableForWord( _
     If Not m_ExporterCfgDataProvider.CommonData.TryResolveHospitalGenitive(hospitalShortText, hospitalGenitive) Then Exit Function
     If Not m_ExporterCfgDataProvider.CommonData.TryResolveHospitalAccusative(hospitalShortText, hospitalAccusative) Then Exit Function
     If Not m_ExporterCfgDataProvider.CommonData.TryResolveHospitalDative(hospitalShortText, hospitalDative) Then Exit Function
+    If VBA.Len(VBA.Trim$(destinationText)) > 0 Then
+        Set uaLocationInflector = New obj_UaLocationInflector
+        If Not uaLocationInflector.TryInflect( _
+            destinationText, "genitive", inflectedDestinationText) Then
+            VBA.MsgBox "Не вдалося відмінити адресу призначення: " & destinationText, _
+                VBA.vbExclamation, "PrsnlEventBuilder / WORD export"
+            Exit Function
+        End If
+        destinationText = inflectedDestinationText
+    End If
     If Not m_ExporterCfgDataProvider.CommonData.TryResolveRankGenitive(reportRankText, reportRankGenitive) Then Exit Function
     If Not m_ExporterCfgDataProvider.CommonData.TryResolveFioGenitiveByName(reportPersonText, reportPersonGenitive) Then Exit Function
     If Not m_ExporterCfgDataProvider.CommonData.TryResolveFioInitialsGenitiveByName(reportPersonText, reportPersonInitialsGenitive) Then Exit Function
@@ -1986,10 +1998,29 @@ Private Function private_KeepSurnameWithInitialsTogether(ByVal valueText As Stri
         valueText, "$1" & VBA.ChrW$(160) & "$2")
 End Function
 
+Private Function private_KeepSettlementPrefixTogether(ByVal valueText As String) As String
+    Static settlementRx As Object
+
+    valueText = VBA.Trim$(valueText)
+    If VBA.Len(valueText) = 0 Then Exit Function
+
+    If settlementRx Is Nothing Then
+        Set settlementRx = VBA.CreateObject("VBScript.RegExp")
+        settlementRx.Global = True
+        settlementRx.IgnoreCase = True
+        ' Это исключительно WORD-типографика: не даём обозначению населённого
+        ' пункта оторваться от его названия при переносе строки.
+        settlementRx.Pattern = "(сел|м|с)\.[ \t]*"
+    End If
+
+    private_KeepSettlementPrefixTogether = settlementRx.Replace( _
+        valueText, "$1." & VBA.ChrW$(160))
+End Function
+
 Private Function private_NormalizeHospitalWordTypography(ByVal valueText As String) As String
     Static hospitalNumberRx As Object
 
-    valueText = private_NormalizeLocationWordTypography(valueText)
+    valueText = private_KeepSettlementPrefixTogether(valueText)
     valueText = private_KeepSurnameWithInitialsTogether(valueText)
     If VBA.Len(valueText) = 0 Then Exit Function
 
@@ -2003,34 +2034,6 @@ Private Function private_NormalizeHospitalWordTypography(ByVal valueText As Stri
 
     private_NormalizeHospitalWordTypography = hospitalNumberRx.Replace( _
         valueText, "№" & VBA.ChrW$(160) & "$1")
-End Function
-
-Private Function private_NormalizeLocationWordTypography(ByVal valueText As String) As String
-    Static settlementRx As Object
-    Static regionRx As Object
-
-    valueText = VBA.Trim$(valueText)
-    If VBA.Len(valueText) = 0 Then Exit Function
-
-    If regionRx Is Nothing Then
-        Set regionRx = VBA.CreateObject("VBScript.RegExp")
-        regionRx.Global = True
-        regionRx.IgnoreCase = True
-        ' В адресных значениях сокращение области всегда раскрываем полностью.
-        regionRx.Pattern = "обл\."
-    End If
-    valueText = regionRx.Replace(valueText, "області")
-
-    If settlementRx Is Nothing Then
-        Set settlementRx = VBA.CreateObject("VBScript.RegExp")
-        settlementRx.Global = True
-        settlementRx.IgnoreCase = True
-        ' Сначала проверяем длинное "сел.", затем "м."/"с.". После точки
-        ' всегда оставляем ровно один неразрывный пробел.
-        settlementRx.Pattern = "(сел|м|с)\.[ \t]*"
-    End If
-    private_NormalizeLocationWordTypography = settlementRx.Replace( _
-        valueText, "$1." & VBA.ChrW$(160))
 End Function
 
 Private Function private_ApplyGeneratedAliasWordTypography( _
@@ -2058,7 +2061,7 @@ Private Function private_ApplyGeneratedAliasWordTypography( _
             valueText = private_NormalizeHospitalWordTypography(valueText)
 
         Case VBA.LCase$(SOURCE_ALIAS_DESTINATION)
-            valueText = private_NormalizeLocationWordTypography(valueText)
+            valueText = private_KeepSettlementPrefixTogether(valueText)
     End Select
 
     private_ApplyGeneratedAliasWordTypography = valueText

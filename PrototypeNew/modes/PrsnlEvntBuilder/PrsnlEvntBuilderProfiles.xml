@@ -2,7 +2,6 @@
 <profiles>
   <profile id="default" caption="Personal Event Builder / Lookup">
     <item attr="#" key="Profile.Name" value="Personal Event Builder / Lookup"/>
-    <item key="TODO:" value="Узнай где незарегистрированный рапорт о возвращении с отпуска про Решетникова Сергея"/>
     <item attr="#" key="Personnel source" value=""/>
     <item key="Source.Personnel.FilePath" value="C:\Users\SVI\Desktop\{yyyy}-{mm}-{dd} А7383 Особовий склад.xlsx"/>
     <item key="Source.Personnel.FilePathResolver" value="{Binding Method=ResolveLatestByDmyPattern}"/>

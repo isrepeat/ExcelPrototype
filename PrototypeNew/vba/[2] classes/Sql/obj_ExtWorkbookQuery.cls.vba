@@ -17,6 +17,7 @@ Private m_TableRef As String
 Private m_KeyColumn As String
 Private m_KeyValue As String
 Private m_SelectColumns As Collection
+Private m_SelectAllColumns As Boolean
 Private m_Conditions As Collection
 Private m_NormalizeKey As Boolean
 Private m_ReverseOrder As Boolean
@@ -108,6 +109,17 @@ Public Property Get SelectColumns() As Collection
     Set SelectColumns = result
 End Property
 
+' Используется для read-only preview таблиц, где нужно сохранить фактическую
+' схему источника. Обычные lookup-запросы по-прежнему перечисляют только
+' необходимые колонки и не платят стоимость чтения всей строки.
+Public Property Get SelectAllColumns() As Boolean
+    SelectAllColumns = m_SelectAllColumns
+End Property
+
+Public Property Let SelectAllColumns(ByVal value As Boolean)
+    m_SelectAllColumns = value
+End Property
+
 Public Property Get Conditions() As Collection
     Dim result As Collection
     Dim condition As obj_ExtWorkbookCondition
@@ -180,7 +192,7 @@ Public Function TryValidate(ByRef outError As String) As Boolean
         outError = "TableRef is empty."
     ElseIf m_SelectColumns Is Nothing Then
         outError = "At least one selected column is required."
-    ElseIf m_SelectColumns.Count = 0 Then
+    ElseIf m_SelectColumns.Count = 0 And Not m_SelectAllColumns Then
         outError = "At least one selected column is required."
     Else
         If Not private_TryValidateConditions(outError) Then Exit Function

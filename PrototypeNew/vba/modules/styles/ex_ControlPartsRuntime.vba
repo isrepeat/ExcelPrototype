@@ -141,9 +141,17 @@ Public Function fn_TranslateControlPartsInRegion( _
     ByVal rowDelta As Long _
 ) As Boolean
     If ws Is Nothing Then Exit Function
-    ' Реестр хранит живые Excel Range. При Cut Excel сам переносит эти ссылки
-    ' вместе с ячейками; дополнительный Offset давал двойной сдвиг metadata и
-    ' рассинхронизировал, например, первую строку таблицы кандидатов.
+
+    ' Быстрый reflow переносит generated UI через Copy, поэтому сохранённые
+    ' Excel Range остаются привязаны к исходным адресам. Явно переводим metadata
+    ' всех частей, полностью входящих в перемещаемый layout patch.
+    If Not private_TranslateEntryRangesInRegion( _
+        g_ControlParts, ws, rowStart, colStart, rowEnd, colEnd, rowDelta) Then Exit Function
+    If Not private_TranslateEntryRangesInRegion( _
+        g_ControlColumnAliases, ws, rowStart, colStart, rowEnd, colEnd, rowDelta) Then Exit Function
+    If Not private_TranslateEntryRangesInRegion( _
+        g_ControlSourceAliases, ws, rowStart, colStart, rowEnd, colEnd, rowDelta) Then Exit Function
+
     fn_TranslateControlPartsInRegion = True
 End Function
 
@@ -624,6 +632,54 @@ ContinueEntry:
     Next entry
 
     private_TranslateEntryRangesBelow = True
+End Function
+
+Private Function private_TranslateEntryRangesInRegion( _
+    ByRef entries As Collection, _
+    ByVal ws As Worksheet, _
+    ByVal rowStart As Long, _
+    ByVal colStart As Long, _
+    ByVal rowEnd As Long, _
+    ByVal colEnd As Long, _
+    ByVal rowDelta As Long _
+) As Boolean
+    Dim entry As Variant
+    Dim entryRange As Range
+    Dim translatedRange As Range
+    Dim entryRowEnd As Long
+    Dim entryColEnd As Long
+    Dim newRow As Long
+
+    If entries Is Nothing Or rowDelta = 0 Then
+        private_TranslateEntryRangesInRegion = True
+        Exit Function
+    End If
+
+    For Each entry In entries
+        If VBA.LCase$(VBA.Trim$(VBA.CStr(entry("SheetName")))) <> _
+            VBA.LCase$(ws.Name) Then GoTo ContinueEntry
+
+        Set entryRange = Nothing
+        On Error Resume Next
+        Set entryRange = entry("Range")
+        On Error GoTo 0
+        If entryRange Is Nothing Then GoTo ContinueEntry
+
+        entryRowEnd = entryRange.Row + entryRange.Rows.Count - 1
+        entryColEnd = entryRange.Column + entryRange.Columns.Count - 1
+        If entryRange.Row < rowStart Or entryRowEnd > rowEnd Then GoTo ContinueEntry
+        If entryRange.Column < colStart Or entryColEnd > colEnd Then GoTo ContinueEntry
+
+        newRow = entryRange.Row + rowDelta
+        If newRow <= 0 Then Exit Function
+        Set translatedRange = ws.Range( _
+            ws.Cells(newRow, entryRange.Column), _
+            ws.Cells(newRow + entryRange.Rows.Count - 1, entryColEnd))
+        Set entry("Range") = translatedRange
+ContinueEntry:
+    Next entry
+
+    private_TranslateEntryRangesInRegion = True
 End Function
 
 Private Sub private_EnsureControlPartsStorage()
