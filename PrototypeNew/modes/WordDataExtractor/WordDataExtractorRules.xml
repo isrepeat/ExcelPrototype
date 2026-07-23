@@ -665,7 +665,10 @@
 
       <!-- Возвращение из СЗЧ с последующим направлением по алгоритму. -->
       <dataset id="algorithm-assignment" caption="Командирування за алгоритмом" includeCommonColumns="false" optional="true">
-        <match ignoreCase="false" multiline="false"><![CDATA[(?:^|\r)\s*[^\r]*[А-ЯІЇЄҐ][А-ЯІЇЄҐ'’\-]{2,}\s+[^\r,]+,(?:(?!Підстава:)[\s\S])*?самовільно\s+залиш(?:ив|ила)(?:(?!Підстава:)[\s\S])*?поверну(?:вся|лася)\s+до\s+військової\s+частини(?:(?!Підстава:)[\s\S])*?Направити\s+у\s+відрядження(?:(?!Підстава:)[\s\S])*?алгоритм(?:у|ом)(?:(?!Підстава:)[\s\S])*?Підстава:\s*[^\r]*(?=\r|$)]]></match>
+        <!-- Основание иногда состоит из нескольких Word-абзацев. Поэтому
+             запись завершаем перед следующим нумерованным пунктом приказа,
+             а не после первой строки «Підстава». -->
+        <match ignoreCase="false" multiline="false"><![CDATA[(?:^|\r)\s*[^\r]*[А-ЯІЇЄҐ][А-ЯІЇЄҐ'’\-]{2,}\s+[^\r,]+,(?:(?!Підстава:)[\s\S])*?самовільно\s+залиш(?:ив|ила)(?:(?!Підстава:)[\s\S])*?поверну(?:вся|лася)\s+до\s+військової\s+частини(?:(?!Підстава:)[\s\S])*?Направити\s+у\s+відрядження(?:(?!Підстава:)[\s\S])*?алгоритм(?:у|ом)(?:(?!Підстава:)[\s\S])*?Підстава:\s*(?:(?!\r\s*\d+(?:\.\d+)*\.?\s+)[\s\S])*(?=\r\s*\d+(?:\.\d+)*\.?\s+|\s*$)]]></match>
         <fields>
           <field id="fio" from="$match" ignoreCase="false" regex="\s([А-ЯІЇЄҐ][А-ЯІЇЄҐ'’\-]{2,}\s+[А-ЯІЇЄҐ][А-Яа-яІіЇїЄєҐґ'’\-]+\s+[А-ЯІЇЄҐ][А-Яа-яІіЇїЄєҐґ'’\-]+)\s*," group="1" default=""><transform type="trim"/></field>
           <field id="ipn" from="$match" regex=",\s*(\d{10})\s*," group="1" default=""><transform type="trim"/></field>
@@ -673,7 +676,9 @@
           <field id="returnTo" from="$match" regex="поверну(?:вся|лася)\s+до\s+військової\s+частини\s+([А-ЯA-Z]?\d+)" group="1" default=""><transform type="upper"/></field>
           <field id="assignmentFrom" from="$match" regex="Направити\s+у\s+відрядження[\s\S]*?з\s+(\d{1,2}\s+[а-яіїєґ]+\s+\d{4}\s+року)" group="1" default=""><transform type="dateFormat" format="dd.mm.yyyy"/></field>
           <field id="assignmentTo" from="$match" regex="Направити\s+у\s+відрядження\s+у\s+військову\s+частину\s+([А-ЯA-Z]?\d+)" group="1" default=""><transform type="upper"/></field>
-          <field id="basis" from="$match" regex="Підстава:\s*([^\r]+)" group="1" default=""><transform type="trim"/></field>
+          <!-- $match уже изолирован границей следующего пункта, поэтому
+               безопасно сохраняем всё многострочное основание до его конца. -->
+          <field id="basis" from="$match" regex="Підстава:\s*([\s\S]*?)\s*$" group="1" default=""><transform type="trim"/></field>
         </fields>
         <table><column id="fio" caption="ПІБ" value="$fio"/><column id="ipn" caption="ІПН" value="$ipn"/><column id="returnFrom" caption="Повернення з" value="$returnFrom"/><column id="returnTo" caption="Повернення до" value="$returnTo"/><column id="assignmentFrom" caption="Відрядження з" value="$assignmentFrom"/><column id="assignmentTo" caption="Відрядження до" value="$assignmentTo"/><column id="basis" caption="Підстава" value="$basis"/></table>
       </dataset>
