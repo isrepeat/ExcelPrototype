@@ -161,11 +161,9 @@ Public Function TryGetMovementHistoryByIpn( _
     query.TableRef = movementTableRef
     query.SelectAllColumns = True
     If maxRows > 0 Then
-        ' При ограничении наиболее полезны последние физические события.
-        ' Без лимита сохраняем естественный хронологический порядок источника.
-        query.ReverseOrder = True
-        query.MaxRows = maxRows
-    Else
+        ' Сначала читаем совпадения в естественном порядке. После запроса
+        ' оставляем последние N строк: так UI получает последние события,
+        ' но показывает их хронологически, а не в обратном порядке.
         query.MaxRows = 0
     End If
     If Not query.AddCondition( _
@@ -176,8 +174,53 @@ Public Function TryGetMovementHistoryByIpn( _
 
     If Not m_QueryEngine.TryExecute(query, outTable) Then Exit Function
     If outTable Is Nothing Then Exit Function
+    If maxRows > 0 Then
+        If Not private_TryKeepLastRows(outTable, maxRows) Then Exit Function
+    End If
     outTable.SectionTitle = private_BuildMovementHistorySectionTitle(resolvedPath)
     TryGetMovementHistoryByIpn = True
+End Function
+
+Private Function private_TryKeepLastRows( _
+    ByRef tableToTrim As obj_TableDynamic, _
+    ByVal maxRows As Long _
+) As Boolean
+    Dim trimmedTable As obj_TableDynamic
+    Dim tableColumn As obj_Column
+    Dim sourceRow As obj_Row
+    Dim clonedRow As obj_Row
+    Dim clonedRowObj As Object
+    Dim firstRowIndex As Long
+    Dim columnIndex As Long
+    Dim rowIndex As Long
+
+    If tableToTrim Is Nothing Then Exit Function
+    If maxRows <= 0 Or tableToTrim.RowCount <= maxRows Then
+        private_TryKeepLastRows = True
+        Exit Function
+    End If
+
+    Set trimmedTable = New obj_TableDynamic
+    If Not trimmedTable.Initialize Then Exit Function
+    For columnIndex = 1 To tableToTrim.ColumnCount
+        Set tableColumn = tableToTrim.Columns.Item(columnIndex)
+        If tableColumn Is Nothing Then Exit Function
+        If Not trimmedTable.PushColumn(tableColumn) Then Exit Function
+    Next columnIndex
+
+    firstRowIndex = tableToTrim.RowCount - maxRows + 1
+    For rowIndex = firstRowIndex To tableToTrim.RowCount
+        Set sourceRow = tableToTrim.Rows.Item(rowIndex)
+        If sourceRow Is Nothing Then Exit Function
+        Set clonedRowObj = sourceRow.Clone(tableToTrim.ColumnCount)
+        If clonedRowObj Is Nothing Then Exit Function
+        If Not TypeOf clonedRowObj Is obj_Row Then Exit Function
+        Set clonedRow = clonedRowObj
+        If Not trimmedTable.PushRow(clonedRow) Then Exit Function
+    Next rowIndex
+
+    Set tableToTrim = trimmedTable
+    private_TryKeepLastRows = True
 End Function
 
 ' Ищет не последнюю физическую строку, а последнюю запись человека, которая

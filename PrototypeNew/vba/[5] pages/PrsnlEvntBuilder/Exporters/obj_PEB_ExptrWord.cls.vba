@@ -109,6 +109,7 @@ Private m_IsDisposed As Boolean
 Private m_Base As obj_DataExporterBase
 Private m_TemplateParser As obj_PEB_WordResultTplParser
 Private m_ExporterCfgDataProvider As obj_PEB_ExptrCfgDataPrvdr
+Private m_OwnsExporterCfgDataProvider As Boolean
 
 Private Sub Class_Initialize()
 #If LOGGING_VERBOSE_ENABLED Then
@@ -141,14 +142,15 @@ End Function
 ' //
 Public Function Initialize( _
     ByVal configTable As obj_ConfigTable, _
-    Optional ByVal profileConfigTable As obj_ConfigTable = Nothing _
+    Optional ByVal profileConfigTable As obj_ConfigTable = Nothing, _
+    Optional ByVal exporterCfgDataProvider As obj_PEB_ExptrCfgDataPrvdr = Nothing _
 ) As Boolean
     Dim exporterCfgDataProviderConfigTable As obj_ConfigTable
 
     m_IsDisposed = False
+    m_OwnsExporterCfgDataProvider = False
     Set m_Base = New obj_DataExporterBase
     Set m_TemplateParser = New obj_PEB_WordResultTplParser
-    Set m_ExporterCfgDataProvider = New obj_PEB_ExptrCfgDataPrvdr
     ' Target-настройки берём из exporter config, а профильные источники
     ' Personnel/Movement — из полной таблицы профиля, если controller её передал.
     Set exporterCfgDataProviderConfigTable = configTable
@@ -156,7 +158,16 @@ Public Function Initialize( _
 
     If Not m_Base.Initialize(configTable, "WORD", "PrototypeNew / WORD export") Then Exit Function
     If Not m_TemplateParser.Initialize(WORD_RESULT_TEMPLATES_REL_PATH) Then Exit Function
-    If Not m_ExporterCfgDataProvider.Initialize(exporterCfgDataProviderConfigTable) Then Exit Function
+    If exporterCfgDataProvider Is Nothing Then
+        Set m_ExporterCfgDataProvider = New obj_PEB_ExptrCfgDataPrvdr
+        m_OwnsExporterCfgDataProvider = True
+        If Not m_ExporterCfgDataProvider.Initialize(exporterCfgDataProviderConfigTable) Then Exit Function
+    Else
+        ' Страница уже использует этот provider для «Історія руху». Совместное
+        ' владение исключает второй ADO handle и попытку пересоздать занятый
+        ' Movement snapshot при формировании WORD preview.
+        Set m_ExporterCfgDataProvider = exporterCfgDataProvider
+    End If
 
     Initialize = True
 End Function
@@ -167,10 +178,13 @@ Public Sub Dispose()
     On Error Resume Next
     If Not m_Base Is Nothing Then m_Base.Dispose
     If Not m_TemplateParser Is Nothing Then m_TemplateParser.Dispose
-    If Not m_ExporterCfgDataProvider Is Nothing Then m_ExporterCfgDataProvider.Dispose
+    If m_OwnsExporterCfgDataProvider Then
+        If Not m_ExporterCfgDataProvider Is Nothing Then m_ExporterCfgDataProvider.Dispose
+    End If
     Set m_Base = Nothing
     Set m_TemplateParser = Nothing
     Set m_ExporterCfgDataProvider = Nothing
+    m_OwnsExporterCfgDataProvider = False
     On Error GoTo 0
 End Sub
 
