@@ -50,34 +50,37 @@ Public Property Get ShowEmptyTables() As Boolean
 End Property
 
 Public Function UpdateData(ByVal configControl As obj_ConfigControlVM) As Boolean
-    Dim configTable As obj_ConfigTable, parser As obj_CfgParserBase
-    Dim entries As Collection, cfgMap As Object
+    Dim configTable As obj_ConfigTable
+    Dim wordDataExtractorCfgParser As obj_WordDataExtractorCfgParser
     Dim documentDir As String
     Dim documentFilename As String
     m_IsReady = False
     If configControl Is Nothing Then Exit Function
     If Not configControl.TryBuildConfigTableFromRendered(configTable) Then Exit Function
-    Set parser = New obj_CfgParserBase
-    If Not parser.Initialize(configTable) Then Exit Function
-    If Not parser.TryGetConfigEntries(entries) Then Exit Function
-    If Not parser.BuildConfigDictionary(entries, cfgMap) Then Exit Function
-    If Not parser.TryGetRequiredConfigValue(cfgMap, "WordDataExtractor.RulesFile", m_RulesPath) Then
+    Set wordDataExtractorCfgParser = New obj_WordDataExtractorCfgParser
+    If Not wordDataExtractorCfgParser.Initialize(configTable) Then Exit Function
+    If Not wordDataExtractorCfgParser.TryGetRequiredValue( _
+        "WordDataExtractor.RulesFile", m_RulesPath) Then
         private_Error "В профиле отсутствует обязательный ключ WordDataExtractor.RulesFile."
         Exit Function
     End If
-    If Not parser.TryGetRequiredConfigValue(cfgMap, "WordDataExtractor.Pipeline", m_PipelineId) Then
+    If Not wordDataExtractorCfgParser.TryGetRequiredValue( _
+        "WordDataExtractor.Pipeline", m_PipelineId) Then
         private_Error "В профиле отсутствует обязательный ключ WordDataExtractor.Pipeline."
         Exit Function
     End If
-    m_DocumentPath = VBA.Trim$(parser.GetOptionalConfigValue( _
-        cfgMap, "WordDataExtractor.DocumentPath"))
+    m_DocumentPath = VBA.Trim$( _
+        wordDataExtractorCfgParser.GetOptionalValue( _
+            "WordDataExtractor.DocumentPath"))
     If VBA.Len(m_DocumentPath) = 0 Then
         ' Раздельная запись является альтернативой, а не дополнением:
         ' непустой DocumentPath всегда имеет приоритет над Dir/Filename.
-        documentDir = VBA.Trim$(parser.GetOptionalConfigValue( _
-            cfgMap, "WordDataExtractor.DocumentDir"))
-        documentFilename = VBA.Trim$(parser.GetOptionalConfigValue( _
-            cfgMap, "WordDataExtractor.DocumentFilename"))
+        documentDir = VBA.Trim$( _
+            wordDataExtractorCfgParser.GetOptionalValue( _
+                "WordDataExtractor.DocumentDir"))
+        documentFilename = VBA.Trim$( _
+            wordDataExtractorCfgParser.GetOptionalValue( _
+                "WordDataExtractor.DocumentFilename"))
         If VBA.Len(documentDir) = 0 Xor VBA.Len(documentFilename) = 0 Then
             private_Error "Для альтернативного пути должны быть заполнены оба ключа: " & _
                 "WordDataExtractor.DocumentDir и WordDataExtractor.DocumentFilename."
@@ -90,8 +93,9 @@ Public Function UpdateData(ByVal configControl As obj_ConfigControlVM) As Boolea
         End If
     End If
     m_DocumentPath = private_EnsureDefaultDocumentExtension(m_DocumentPath)
-    m_TransformerClassName = parser.GetOptionalConfigValue( _
-        cfgMap, "WordDataExtractor.TransformerClass")
+    m_TransformerClassName = _
+        wordDataExtractorCfgParser.GetOptionalValue( _
+            "WordDataExtractor.TransformerClass")
     Set m_ConfigTable = configTable
     m_IsReady = True
     UpdateData = True
