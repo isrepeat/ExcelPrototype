@@ -241,9 +241,11 @@ Public Sub Dispose()
     Set m_Data = Nothing
     If Not m_ExportCommonData Is Nothing Then m_ExportCommonData.Dispose
     Set m_ExportCommonData = Nothing
+    ' Сначала освобождаем borrowers, затем общий config provider, которым
+    ' WORD exporter может пользоваться без владения его lifetime.
+    private_DisposeCachedExporters
     If Not m_ExporterCfgDataProvider Is Nothing Then m_ExporterCfgDataProvider.Dispose
     Set m_ExporterCfgDataProvider = Nothing
-    private_DisposeCachedExporters
     m_SelectedProfile = VBA.vbNullString
     m_SelectedMainProfile = VBA.vbNullString
     Set m_ExportMainTable = Nothing
@@ -735,6 +737,15 @@ Public Function RuntimeHandleHotkeyAction(ByVal actionId As Variant) As Boolean
                 End If
                 If shouldRefreshMovementHistory Then
                     If Not private_TryRefreshMovementHistory() Then
+                        RuntimeHandleHotkeyAction = True
+                        Exit Function
+                    End If
+                    ' Partial reflow переносит выделенный диапазон кандидата,
+                    ' но Excel назначает ActiveCell его левой верхней ячейке.
+                    ' Возвращаем активную колонку исходной ячейки уже внутри
+                    ' диапазона с обновлёнными адресами.
+                    If Not private_TryActivateColumnWithinSelection( _
+                        targetCell.Column) Then
                         RuntimeHandleHotkeyAction = True
                         Exit Function
                     End If
@@ -1846,6 +1857,10 @@ Private Function private_TryAcceptCandidateRowFromSelection(ByVal targetCell As 
     On Error GoTo 0
 
     candidateRowRange.Select
+    ' Range.Select по умолчанию делает активной крайнюю левую ячейку.
+    ' Activate внутри уже выделенной строки сохраняет весь Selection и задаёт
+    ' естественную стартовую позицию для следующего нажатия стрелки.
+    targetCell.Activate
     private_TryAcceptCandidateRowFromSelection = True
     Exit Function
 
@@ -1853,6 +1868,46 @@ RestoreEventsAndFail:
     On Error Resume Next
     Application.EnableEvents = previousEnableEvents
     On Error GoTo 0
+End Function
+
+Private Function private_TryActivateColumnWithinSelection( _
+    ByVal preferredColumn As Long _
+) As Boolean
+    Dim selectionObj As Object
+    Dim selectedRange As Range
+    Dim activeColumnRange As Range
+
+    On Error GoTo EH
+    Set selectionObj = Application.Selection
+    If Not TypeOf selectionObj Is Range Then
+        VBA.MsgBox _
+            "PrototypeNew: candidate selection is unavailable after layout reflow.", _
+            VBA.vbExclamation, _
+            "PrototypeNew / candidate selection"
+        Exit Function
+    End If
+    Set selectedRange = selectionObj
+    Set activeColumnRange = Application.Intersect( _
+        selectedRange, _
+        selectedRange.Worksheet.Columns(preferredColumn))
+    If activeColumnRange Is Nothing Then
+        VBA.MsgBox _
+            "PrototypeNew: the previously active candidate column is outside the restored selection.", _
+            VBA.vbExclamation, _
+            "PrototypeNew / candidate selection"
+        Exit Function
+    End If
+
+    activeColumnRange.Cells(1, 1).Activate
+    private_TryActivateColumnWithinSelection = True
+    Exit Function
+
+EH:
+    VBA.MsgBox _
+        "PrototypeNew: failed to restore the active candidate cell after layout reflow." & _
+        VBA.vbCrLf & "Error: " & Err.Description, _
+        VBA.vbExclamation, _
+        "PrototypeNew / candidate selection"
 End Function
 
 Private Function private_TrySelectScopedRowFromSelection(ByVal targetCell As Range) As Boolean
@@ -2041,8 +2096,9 @@ Private Sub private_ResetExportSettings()
 End Sub
 
 Private Sub private_DisposeCachedExporters()
-    ' Cached exporters own their ADO providers/connections. Dispose them
-    ' explicitly whenever the profile configuration or page lifetime ends.
+    ' Cached exporters освобождаем при смене profile config или закрытии
+    ' страницы. WORD exporter может ссылаться на общий config provider, но
+    ' его Dispose в таком случае только отпускает ссылку и не закрывает provider.
     On Error Resume Next
     If Not m_CachedDailyScopeExporter Is Nothing Then m_CachedDailyScopeExporter.Dispose
     If Not m_CachedMovementExporter Is Nothing Then m_CachedMovementExporter.Dispose
@@ -2168,8 +2224,20 @@ Private Function private_TryCreateDataExporter( _
                 private_TryCreateDataExporter = True
                 Exit Function
             End If
+            If m_ExporterCfgDataProvider Is Nothing Then
+                VBA.MsgBox _
+                    "PrototypeNew: exporter configuration data provider is not initialized.", _
+                    VBA.vbExclamation, _
+                    "PrototypeNew / WORD export"
+                Exit Function
+            End If
             Set exporterToWord = New obj_PEB_ExptrWord
-            If Not exporterToWord.Initialize(exportConfigTable, m_ProfileConfigTable) Then Exit Function
+            ' WORD preview и «Історія руху» должны использовать один provider:
+            ' его QueryEngine владеет единственным ADO handle к Movement snapshot.
+            If Not exporterToWord.Initialize( _
+                exportConfigTable, _
+                m_ProfileConfigTable, _
+                m_ExporterCfgDataProvider) Then Exit Function
             Set outExporter = exporterToWord
             Set m_CachedWordExporter = exporterToWord
 

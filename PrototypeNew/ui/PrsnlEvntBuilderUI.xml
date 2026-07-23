@@ -249,6 +249,7 @@
           <control
             type="Input"
             name="MovementHistoryLimitInput"
+            value="2"
             style="inputField"/>
         </stackPanel>
       </stackPanel>

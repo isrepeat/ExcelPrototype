@@ -27,6 +27,7 @@ Private Const HOTKEYS_CONTROL_NAME As String = "SheetHotkeys"
 Private Const DICTIONARY_MISSING_MEMBER_AS_EMPTY_KEY As String = "__MissingMemberAsEmpty"
 Private Const EVENT_DRAFT_VALUES_CONTAINER_NAME As String = "EventDraftValues"
 Private Const EVENT_DRAFT_ORDER_NO_CONTAINER_NAME As String = "EventDraftOrderNoValue"
+Private Const MOVEMENT_HISTORY_LIMIT_CONTAINER_NAME As String = "MovementHistoryLimitField"
 
 Private m_PageBase As obj_PageBase
 Private m_Controller As obj_PagePrsnlEvntBuilderCtrl
@@ -124,6 +125,8 @@ Private Function obj_IPage_Render() As Boolean
     Dim activeDraftFieldTag As String
     Dim orderNoValues As Variant
     Dim hasOrderNoValues As Boolean
+    Dim movementHistoryLimitValues As Variant
+    Dim hasMovementHistoryLimitValues As Boolean
     Dim app As Application
     Dim prevCursor As Variant
     Dim hasPrevCursor As Boolean
@@ -173,6 +176,11 @@ Private Function obj_IPage_Render() As Boolean
 #If LOGGING_DEBUG_ENABLED Then
     private_LogRenderPerfStep "prsnlevnt:render:capture-order-no-values", perfStart, perfLast, "hasValues=" & VBA.CStr(hasOrderNoValues)
 #End If
+    ' Лимит истории не является частью draft-формы и не имеет field tag.
+    ' Сохраняем его отдельным snapshot контейнера на время полного render.
+    hasMovementHistoryLimitValues = private_TryCaptureLayoutContainerValues( _
+        MOVEMENT_HISTORY_LIMIT_CONTAINER_NAME, _
+        movementHistoryLimitValues)
 
     If Not m_PageBase.Render() Then GoTo Cleanup
 #If LOGGING_DEBUG_ENABLED Then
@@ -190,6 +198,14 @@ Private Function obj_IPage_Render() As Boolean
 #If LOGGING_DEBUG_ENABLED Then
     private_LogRenderPerfStep "prsnlevnt:render:restore-order-no-values", perfStart, perfLast, "hasValues=" & VBA.CStr(hasOrderNoValues)
 #End If
+    If hasMovementHistoryLimitValues Then
+        ' При выключенном checkbox контейнер collapsed и не имеет диапазона.
+        ' Это штатное состояние: сохранённое значение понадобится только пока
+        ' поле остаётся видимым, поэтому отсутствие target не считаем ошибкой.
+        If Not private_TryRestoreOptionalLayoutContainerValues( _
+            MOVEMENT_HISTORY_LIMIT_CONTAINER_NAME, _
+            movementHistoryLimitValues) Then GoTo Cleanup
+    End If
 
     If Not private_TryRestorePendingControlSnapshots() Then GoTo Cleanup
 #If LOGGING_DEBUG_ENABLED Then
@@ -1210,6 +1226,29 @@ Private Function private_TryRestoreLayoutContainerValues( _
     containerRange.Value2 = values
 
     private_TryRestoreLayoutContainerValues = True
+End Function
+
+Private Function private_TryRestoreOptionalLayoutContainerValues( _
+    ByVal containerName As String, _
+    ByRef values As Variant _
+) As Boolean
+    Dim containerRange As Range
+
+    If m_PageBase Is Nothing Then Exit Function
+    Set containerRange = Nothing
+    If Not m_PageBase.TryGetLayoutContainerRange(containerName, containerRange) Then
+        private_TryRestoreOptionalLayoutContainerValues = True
+        Exit Function
+    End If
+    If containerRange Is Nothing Then
+        private_TryRestoreOptionalLayoutContainerValues = True
+        Exit Function
+    End If
+    If Not private_ContainerValueShapeMatches(containerRange, values) Then Exit Function
+
+    containerRange.NumberFormat = "@"
+    containerRange.Value2 = values
+    private_TryRestoreOptionalLayoutContainerValues = True
 End Function
 
 Private Function private_ContainerValueShapeMatches( _
