@@ -108,6 +108,56 @@ Public Property Get MovementSheetName() As String
     MovementSheetName = m_MovementSheetName
 End Property
 
+' Возвращает все строки и все фактические колонки Movement для одного ИПН.
+' Этот read-only API предназначен для встроенного preview на PEB-странице;
+' export validation продолжает использовать узкий запрос последней строки.
+Public Function TryGetMovementHistoryByIpn( _
+    ByVal ipnText As String, _
+    ByRef outTable As obj_TableDynamic, _
+    Optional ByVal maxRows As Long = 0 _
+) As Boolean
+    Dim resolvedPath As String
+    Dim movementTableRef As String
+    Dim query As obj_ExtWorkbookQuery
+
+    Set outTable = Nothing
+    If m_IsDisposed Then Exit Function
+
+    ipnText = private_NormalizeLookupKey(ipnText)
+    If VBA.Len(ipnText) = 0 Then
+        VBA.MsgBox "Для перегляду історії руху заповніть поле 'ІПН'.", _
+            VBA.vbExclamation, "PrsnlEventBuilder / Movement"
+        Exit Function
+    End If
+
+    If Not private_TryResolveMovementQueryContext( _
+        resolvedPath, movementTableRef) Then Exit Function
+    If m_QueryEngine Is Nothing Then Exit Function
+
+    Set query = New obj_ExtWorkbookQuery
+    query.SourcePath = resolvedPath
+    query.TableRef = movementTableRef
+    query.SelectAllColumns = True
+    If maxRows > 0 Then
+        ' При ограничении наиболее полезны последние физические события.
+        ' Без лимита сохраняем естественный хронологический порядок источника.
+        query.ReverseOrder = True
+        query.MaxRows = maxRows
+    Else
+        query.MaxRows = 0
+    End If
+    If Not query.AddCondition( _
+        MOVEMENT_IPN_HEADER, _
+        en_ExtWorkbookQueryOp.ExtQueryOpEquals, _
+        ipnText, _
+        True) Then Exit Function
+
+    If Not m_QueryEngine.TryExecute(query, outTable) Then Exit Function
+    If outTable Is Nothing Then Exit Function
+    outTable.SectionTitle = "Історія руху"
+    TryGetMovementHistoryByIpn = True
+End Function
+
 ' Совместимый узкий API для callers, которым данные ТВО не нужны.
 ' Основной export-flow вызывает объединённый helper напрямую и переиспользует
 ' outTvoChain; эта обёртка сохранена только для прежнего публичного контракта.

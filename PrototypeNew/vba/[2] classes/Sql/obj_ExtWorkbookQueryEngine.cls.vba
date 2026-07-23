@@ -123,11 +123,21 @@ Private Function private_TryExecuteAdo( _
     sql = "SELECT "
     If Not query.ReverseOrder And query.MaxRows > 0 Then sql = sql & "TOP " & VBA.CStr(query.MaxRows) & " "
     whereClause = private_BuildWhereClause(conditions)
-    sql = sql & private_BuildSelectClause(selectColumns) & " FROM " & query.TableRef
+    If query.SelectAllColumns Then
+        sql = sql & "*"
+    Else
+        sql = sql & private_BuildSelectClause(selectColumns)
+    End If
+    sql = sql & " FROM " & query.TableRef
     If VBA.Len(whereClause) > 0 Then sql = sql & " WHERE " & whereClause
 
     Set rs = VBA.CreateObject("ADODB.Recordset")
     rs.Open sql, conn, 0, 1
+    If query.SelectAllColumns Then
+        Set selectColumns = private_BuildRecordsetFieldNames(rs)
+        If selectColumns Is Nothing Then GoTo CleanupFail
+        If selectColumns.Count = 0 Then GoTo CleanupFail
+    End If
     If Not rs.EOF Then recordsetData = rs.GetRows
 
     If Not private_TryCreateResultTable(selectColumns, outTable) Then GoTo CleanupFail
@@ -260,6 +270,18 @@ Private Function private_TryExecuteOpenWorkbook( _
     Next i
 
     Set selectColumns = query.SelectColumns
+    If query.SelectAllColumns Then
+        Set selectColumns = New Collection
+        For i = 1 To headerRange.Columns.Count
+            headerText = private_NormalizeHeader(private_MatrixValue(headerValues, 1, i))
+            If VBA.Len(headerText) > 0 Then selectColumns.Add headerText
+        Next i
+        If selectColumns.Count = 0 Then
+            VBA.MsgBox "PrototypeNew: external workbook table has no column headers.", _
+                VBA.vbExclamation, ERROR_TITLE
+            Exit Function
+        End If
+    End If
     Set conditions = query.BuildEffectiveConditions
     conditionCount = conditions.Count
     ReDim selectedColumnIndexes(1 To selectColumns.Count)
@@ -412,6 +434,18 @@ Private Function private_TryCreateResultTable( _
     Next i
     Set outTable = tableObj
     private_TryCreateResultTable = True
+End Function
+
+Private Function private_BuildRecordsetFieldNames(ByVal rs As Object) As Collection
+    Dim result As Collection
+    Dim fieldIndex As Long
+
+    If rs Is Nothing Then Exit Function
+    Set result = New Collection
+    For fieldIndex = 0 To rs.Fields.Count - 1
+        result.Add VBA.CStr(rs.Fields(fieldIndex).Name)
+    Next fieldIndex
+    Set private_BuildRecordsetFieldNames = result
 End Function
 
 Private Function private_TryPushRecordsetRow( _

@@ -43,6 +43,7 @@ Private Const ADDITIONAL_PROFILES_RUNTIME_KEY As String = "RuntimeItems.PrsnlEvn
 Private Const META_PROFILES_RUNTIME_KEY As String = "RuntimeItems.PrsnlEvntBuilder.MetaProfiles"
 Private Const EXPORT_FORM_MAIN_RUNTIME_KEY As String = "RuntimeItems.PrsnlEvntBuilder.ExportForm.Main"
 Private Const EXPORT_FORM_META_RUNTIME_KEY As String = "RuntimeItems.PrsnlEvntBuilder.ExportForm.Meta"
+Private Const MOVEMENT_HISTORY_RUNTIME_KEY As String = "RuntimeItems.PrsnlEvntBuilder.MovementHistory"
 Private Const HOTKEY_ACCEPT_CANDIDATE_ROW As String = "Accept Candidate Row"
 Private Const HOTKEY_SELECT_FORM_ROW As String = "Select Form Row"
 Private Const HOTKEY_APPLY_EXPORT_FORM As String = "Apply Export Form"
@@ -63,6 +64,8 @@ Private Const EXPORT_CONTEXT_VALIDATE_DAILY_SCOPE_KEY As String = "ValidateDaily
 Private Const EXPORT_CONTEXT_VALIDATE_MOVEMENT_KEY As String = "ValidateMovement"
 Private Const EXPORT_CONTEXT_VALIDATE_WORD_KEY As String = "ValidateWord"
 Private Const LOOKUP_MODE_CONTROL_NAME As String = "LookupMode"
+Private Const MOVEMENT_HISTORY_TABLE_CONTROL_NAME As String = "MovementHistoryTable"
+Private Const MOVEMENT_HISTORY_LIMIT_INPUT_NAME As String = "MovementHistoryLimitInput"
 Private Const ADDITIONAL_PROFILE_SELECT_CONTROL_NAME As String = "EventDraftAdditionalProfileSelect"
 Private Const VALIDATE_DAILY_SCOPE_CONTROL_NAME As String = "ValidateDailyScope"
 Private Const VALIDATE_MOVEMENT_CONTROL_NAME As String = "ValidateMovement"
@@ -113,8 +116,10 @@ Private m_SelectedProfile As String
 Private m_SelectedMainProfile As String
 Private m_ExportMainTable As obj_TableDynamic
 Private m_ExportMetaTables As Collection
+Private m_MovementHistoryTable As obj_TableDynamic
 Private m_WordExportPreviewText As String
 Private m_ExportCommonData As obj_PEB_ExptrCommonDataPrvdr
+Private m_ExporterCfgDataProvider As obj_PEB_ExptrCfgDataPrvdr
 Private m_CachedDailyScopeExporter As obj_PEB_ExptrDailyScope
 Private m_CachedMovementExporter As obj_PEB_ExptrMovement
 Private m_CachedWordExporter As obj_PEB_ExptrWord
@@ -123,6 +128,7 @@ Private m_IsDailyScopeValidationEnabled As Boolean
 Private m_IsMovementValidationEnabled As Boolean
 Private m_IsWordValidationEnabled As Boolean
 Private m_IsInstitutionsAppendFormChecked As Boolean
+Private m_IsMovementHistoryEnabled As Boolean
 Private m_SuppressLookupSearch As Boolean
 Private m_Data As obj_PrsnlEvntBuilderData
 Private m_IsDisposed As Boolean
@@ -191,6 +197,7 @@ Public Function Initialize(ByVal page As Object) As Boolean
     m_IsMovementValidationEnabled = True
     m_IsWordValidationEnabled = False
     m_IsInstitutionsAppendFormChecked = False
+    m_IsMovementHistoryEnabled = False
 
     Set pageBase = m_Page.GetPageBase()
     If pageBase Is Nothing Then Exit Function
@@ -210,6 +217,7 @@ Public Function Initialize(ByVal page As Object) As Boolean
     If Not private_RegisterAdditionalProfileOptions(False) Then Exit Function
     If Not private_RegisterMetaProfileOptions(False) Then Exit Function
     If Not private_RegisterExportFormTables(False) Then Exit Function
+    If Not private_RegisterMovementHistoryTable(False) Then Exit Function
     If Not private_RegisterDummyTables(False) Then Exit Function
     If Not private_EnsureHotkeyRows(False) Then Exit Function
     Initialize = True
@@ -232,13 +240,17 @@ Public Sub Dispose()
     Set m_Data = Nothing
     If Not m_ExportCommonData Is Nothing Then m_ExportCommonData.Dispose
     Set m_ExportCommonData = Nothing
+    If Not m_ExporterCfgDataProvider Is Nothing Then m_ExporterCfgDataProvider.Dispose
+    Set m_ExporterCfgDataProvider = Nothing
     private_DisposeCachedExporters
     m_SelectedProfile = VBA.vbNullString
     m_SelectedMainProfile = VBA.vbNullString
     Set m_ExportMainTable = Nothing
     Set m_ExportMetaTables = Nothing
+    Set m_MovementHistoryTable = Nothing
     m_WordExportPreviewText = VBA.vbNullString
     m_IsInstitutionsAppendFormChecked = False
+    m_IsMovementHistoryEnabled = False
     On Error GoTo 0
 End Sub
 
@@ -265,6 +277,43 @@ End Property
 Public Property Get IsInstitutionsAppendFormChecked() As Boolean
     IsInstitutionsAppendFormChecked = m_IsInstitutionsAppendFormChecked
 End Property
+
+Public Property Get IsMovementHistoryEnabled() As Boolean
+    IsMovementHistoryEnabled = m_IsMovementHistoryEnabled
+End Property
+
+Public Function ToggleMovementHistory() As Boolean
+    Dim previousEnabled As Boolean
+    Dim previousEnableEvents As Boolean
+    Dim renderSucceeded As Boolean
+
+    If m_Page Is Nothing Then Exit Function
+    previousEnabled = m_IsMovementHistoryEnabled
+    m_IsMovementHistoryEnabled = Not previousEnabled
+    If Not private_RegisterMovementHistoryTable(False) Then
+        m_IsMovementHistoryEnabled = previousEnabled
+        Exit Function
+    End If
+
+    previousEnableEvents = Application.EnableEvents
+    On Error GoTo EH
+    Application.EnableEvents = False
+    renderSucceeded = rt_PageManager.fn_RenderPage( _
+        m_Page, "prsnlevntbuilder:toggle-movement-history")
+
+Cleanup:
+    Application.EnableEvents = previousEnableEvents
+    If Not renderSucceeded Then
+        m_IsMovementHistoryEnabled = previousEnabled
+        Exit Function
+    End If
+    ToggleMovementHistory = True
+    Exit Function
+
+EH:
+    renderSucceeded = False
+    Resume Cleanup
+End Function
 
 Public Function ToggleInstitutionsAppendForm() As Boolean
     Dim previousChecked As Boolean
@@ -568,6 +617,7 @@ Public Function UpdateDataFromConfigTable(ByVal configTable As obj_ConfigTable) 
     End If
     If Not private_TryUpdateExportSettings(configTable) Then Exit Function
     If Not private_RegisterExportFormTables(False) Then Exit Function
+    If Not private_RegisterMovementHistoryTable(False) Then Exit Function
     If Not private_EnsureHotkeyRows(False) Then Exit Function
     UpdateDataFromConfigTable = True
 End Function
@@ -579,6 +629,7 @@ Public Function PrepareRuntime(Optional ByVal notifyChange As Boolean = False) A
     If Not private_RegisterAdditionalProfileOptions(notifyChange) Then Exit Function
     If Not private_RegisterMetaProfileOptions(notifyChange) Then Exit Function
     If Not private_RegisterExportFormTables(notifyChange) Then Exit Function
+    If Not private_RegisterMovementHistoryTable(notifyChange) Then Exit Function
     If Not private_RegisterDummyTables(notifyChange) Then Exit Function
     If Not private_EnsureHotkeyRows(notifyChange) Then Exit Function
     PrepareRuntime = True
@@ -666,6 +717,21 @@ Public Function RuntimeHandleHotkeyAction(ByVal actionId As Variant) As Boolean
     ' Page-specific actions branch by stable action ids and read current sheet state.
     Select Case VBA.LCase$(actionText)
         Case VBA.LCase$(HOTKEY_ACCEPT_CANDIDATE_ROW)
+            If m_IsMovementHistoryEnabled Then
+                ' Сначала применяем выбранного Lookup-кандидата к draft-форме.
+                ' Историю Movement запрашиваем уже по записанному в форму ИПН,
+                ' чтобы preview и экспортная строка относились к одному человеку.
+                If Not private_TryAcceptCandidateRowFromSelection(targetCell) Then
+                    RuntimeHandleHotkeyAction = True
+                    Exit Function
+                End If
+                If Not private_TryRefreshMovementHistory() Then
+                    RuntimeHandleHotkeyAction = True
+                    Exit Function
+                End If
+                RuntimeHandleHotkeyAction = True
+                Exit Function
+            End If
             If Not private_TryAcceptCandidateRowFromSelection(targetCell) Then
                 RuntimeHandleHotkeyAction = True
                 Exit Function
@@ -913,7 +979,6 @@ Public Function OnProfileButtonClick(Optional ByVal profileId As Variant) As Boo
 
     perfStart = VBA.Timer
     perfLast = perfStart
-
     newProfile = VBA.Trim$(VBA.CStr(profileId))
     If VBA.Len(newProfile) = 0 Then Exit Function
     If VBA.StrComp(private_NormalizeText(newProfile), private_NormalizeText(m_SelectedProfile), vbTextCompare) = 0 Then
@@ -1053,6 +1118,124 @@ RestoreEventsAndFail:
     On Error Resume Next
     Application.EnableEvents = previousEnableEvents
     On Error GoTo 0
+End Function
+
+Private Function private_TryRefreshMovementHistory() As Boolean
+    Dim pageBase As obj_PageBase
+    Dim sourceTable As obj_TableDynamic
+    Dim sourceRow As obj_Row
+    Dim ipnText As String
+    Dim maxRows As Long
+    Dim movementHistoryTable As obj_TableDynamic
+
+    If Not m_IsMovementHistoryEnabled Then Exit Function
+    If m_ProfileConfigTable Is Nothing Then
+        VBA.MsgBox "Не завантажено конфігурацію профілю Movement.", _
+            VBA.vbExclamation, "PrsnlEventBuilder / Movement"
+        Exit Function
+    End If
+
+    If Not private_TryBuildDraftFormSourceTable(sourceTable, False) Then Exit Function
+    If sourceTable Is Nothing Then Exit Function
+    If sourceTable.RowCount <> 1 Then Exit Function
+    Set sourceRow = sourceTable.Rows.Item(1)
+    If sourceRow Is Nothing Then Exit Function
+    If Not sourceRow.TryGetCellValueByColumn("ІПН", ipnText) Then Exit Function
+
+    ipnText = VBA.Trim$(ipnText)
+    If VBA.Len(ipnText) = 0 Then
+        VBA.MsgBox "Для перегляду історії руху заповніть поле 'ІПН'.", _
+            VBA.vbExclamation, "PrsnlEventBuilder / Movement"
+        Exit Function
+    End If
+    If Not private_TryReadMovementHistoryMaxRows(maxRows) Then Exit Function
+
+    If m_ExporterCfgDataProvider Is Nothing Then
+        Set m_ExporterCfgDataProvider = New obj_PEB_ExptrCfgDataPrvdr
+        If Not m_ExporterCfgDataProvider.Initialize(m_ProfileConfigTable) Then
+            Set m_ExporterCfgDataProvider = Nothing
+            Exit Function
+        End If
+    End If
+    If Not m_ExporterCfgDataProvider.TryGetMovementHistoryByIpn( _
+        ipnText, movementHistoryTable, maxRows) Then GoTo Cleanup
+
+    Set m_MovementHistoryTable = movementHistoryTable
+    If Not private_RegisterMovementHistoryTable(False) Then GoTo Cleanup
+
+    Set pageBase = m_Page.GetPageBase()
+    If pageBase Is Nothing Then GoTo Cleanup
+    ' Таблица уже существует в retained layout после включения checkbox.
+    ' Partial reflow перерисовывает только её и сдвигает готовую draft-форму
+    ' с кандидатами, не запуская полный render всей PEB-страницы.
+    If Not pageBase.TryReflowControl( _
+        MOVEMENT_HISTORY_TABLE_CONTROL_NAME) Then
+        VBA.MsgBox "Не вдалося частково оновити таблицю історії руху. " & _
+            "Натисніть 'Update Sheet' для відновлення сторінки.", _
+            VBA.vbExclamation, "PrsnlEventBuilder / partial reflow"
+        GoTo Cleanup
+    End If
+
+    If movementHistoryTable.RowCount = 0 Then
+        rt_Messaging.fn_ShowStatusBarWarning _
+            "Movement: події для ІПН " & ipnText & " не знайдено.", 3
+    Else
+        rt_Messaging.fn_ShowStatusBarSuccess _
+            "Movement: знайдено подій: " & VBA.CStr(movementHistoryTable.RowCount), 3
+    End If
+    private_TryRefreshMovementHistory = True
+
+Cleanup:
+    Exit Function
+End Function
+
+Private Function private_TryReadMovementHistoryMaxRows( _
+    ByRef outMaxRows As Long _
+) As Boolean
+    Dim pageBase As obj_PageBase
+    Dim rawControl As Object
+    Dim movementHistoryLimitInput As obj_InputControlVM
+    Dim rawValue As String
+    Dim numericValue As Double
+
+    outMaxRows = 0
+    If m_Page Is Nothing Then Exit Function
+    Set pageBase = m_Page.GetPageBase()
+    If pageBase Is Nothing Then Exit Function
+
+    If Not pageBase.TryGetRegisteredControlByName( _
+        MOVEMENT_HISTORY_LIMIT_INPUT_NAME, rawControl) Then
+        VBA.MsgBox "Не знайдено поле кількості записів Movement.", _
+            VBA.vbExclamation, "PrsnlEventBuilder / Movement"
+        Exit Function
+    End If
+    If rawControl Is Nothing Then Exit Function
+    If Not TypeOf rawControl Is obj_InputControlVM Then Exit Function
+    Set movementHistoryLimitInput = rawControl
+    If Not movementHistoryLimitInput.TryGetValue(rawValue) Then Exit Function
+
+    rawValue = VBA.Trim$(rawValue)
+    ' Пустое поле явно означает отсутствие SQL/result limit.
+    If VBA.Len(rawValue) = 0 Then
+        private_TryReadMovementHistoryMaxRows = True
+        Exit Function
+    End If
+
+    If Not VBA.IsNumeric(rawValue) Then GoTo InvalidValue
+    On Error GoTo InvalidValue
+    numericValue = VBA.CDbl(rawValue)
+    If numericValue < 1# Then GoTo InvalidValue
+    If numericValue <> VBA.Fix(numericValue) Then GoTo InvalidValue
+    If numericValue > 2147483647# Then GoTo InvalidValue
+    outMaxRows = VBA.CLng(numericValue)
+    private_TryReadMovementHistoryMaxRows = True
+    Exit Function
+
+InvalidValue:
+    outMaxRows = 0
+    VBA.MsgBox "Поле 'Кількість записів' має містити додатне ціле число " & _
+        "або бути порожнім для завантаження всіх записів.", _
+        VBA.vbExclamation, "PrsnlEventBuilder / Movement"
 End Function
 
 Public Function SearchCandidates( _
@@ -1430,6 +1613,36 @@ Private Function private_RegisterExportFormTables(ByVal notifyChange As Boolean)
     private_RegisterExportFormTables = True
 End Function
 
+Private Function private_RegisterMovementHistoryTable( _
+    ByVal notifyChange As Boolean _
+) As Boolean
+    Dim pageBase As obj_PageBase
+    Dim runtimeSources As obj_PageRuntimeSources
+    Dim movementHistoryTables As Collection
+
+    If m_Page Is Nothing Then Exit Function
+    Set pageBase = m_Page.GetPageBase()
+    If pageBase Is Nothing Then Exit Function
+    Set runtimeSources = pageBase.RuntimeSources
+    If runtimeSources Is Nothing Then Exit Function
+
+    Set movementHistoryTables = New Collection
+    If m_IsMovementHistoryEnabled Then
+        If Not m_MovementHistoryTable Is Nothing Then
+            movementHistoryTables.Add m_MovementHistoryTable
+        End If
+    End If
+
+    If Not runtimeSources.RemoveItemsSource( _
+        VBA.LCase$(MOVEMENT_HISTORY_RUNTIME_KEY)) Then Exit Function
+    If Not runtimeSources.SetItemsSource( _
+        VBA.LCase$(MOVEMENT_HISTORY_RUNTIME_KEY), _
+        movementHistoryTables, _
+        notifyChange) Then Exit Function
+
+    private_RegisterMovementHistoryTable = True
+End Function
+
 Private Function private_TryBuildOptionButtonRows( _
     ByVal profiles As Collection, _
     ByVal selectedProfileText As String, _
@@ -1743,6 +1956,15 @@ Private Function private_TryUpdateExportSettings(ByVal configTable As obj_Config
     If Not prsnlEvntBuilderCfgParser.TryGetEntityLookupColumnAliasByCaption(m_SourceColumnAliasByCaption) Then Exit Function
     If Not prsnlEvntBuilderCfgParser.TryGetExportSettings(m_ExportAliases, m_ExporterClassByAlias, m_ExportConfigTableByAlias) Then Exit Function
 
+    ' Один provider живёт вместе с текущей конфигурацией страницы. Благодаря
+    ' этому принадлежащий ему QueryEngine сохраняет ADO-соединение с Movement
+    ' между последовательными запросами истории по Ctrl+Enter.
+    Set m_ExporterCfgDataProvider = New obj_PEB_ExptrCfgDataPrvdr
+    If Not m_ExporterCfgDataProvider.Initialize(configTable) Then
+        Set m_ExporterCfgDataProvider = Nothing
+        Exit Function
+    End If
+
     private_TryUpdateExportSettings = True
 End Function
 
@@ -1779,6 +2001,8 @@ Private Sub private_ResetExportSettings()
     ' Exporters own profile-backed lookup providers; keep them warm between
     ' exports and invalidate them only when configuration is rebuilt.
     private_DisposeCachedExporters
+    If Not m_ExporterCfgDataProvider Is Nothing Then m_ExporterCfgDataProvider.Dispose
+    Set m_ExporterCfgDataProvider = Nothing
     Set m_ExportAliases = New Collection
     Set m_ExporterClassByAlias = ex_Helpers.fn_CreateDictionaryTextCompare()
     Set m_ExportConfigTableByAlias = ex_Helpers.fn_CreateDictionaryTextCompare()

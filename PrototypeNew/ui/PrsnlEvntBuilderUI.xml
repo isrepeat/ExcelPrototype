@@ -222,6 +222,50 @@
         </stackPanel>
       </stackPanel>
 
+      <!-- Preview Movement обновляется только по CTRL+ENTER. Сам checkbox
+           управляет видимостью и не выполняет запрос к внешней книге. -->
+      <stackPanel
+        name="MovementHistoryCommandRow"
+        orientation="horizontal"
+        dataContext="{PageRuntimeSource='RuntimeObjects.PrsnlEvntBuilder.Controller'}">
+        <control
+          type="Button"
+          name="ToggleMovementHistory"
+          caption="{Binding Path=IsMovementHistoryEnabled;TrueAs=[✓] Показати історію руху;FalseAs=[ ] Показати історію руху}"
+          style="exportApplyButton"
+          onClick="{Binding Method=ToggleMovementHistory}"
+          spanColls="4"
+          spanRows="1"/>
+
+        <stackPanel
+          name="MovementHistoryLimitField"
+          orientation="horizontal"
+          visibility="{Binding Path=IsMovementHistoryEnabled;TrueAs=Visible;FalseAs=Collapsed}">
+          <control
+            type="Label"
+            name="MovementHistoryLimitHeader"
+            text="Кількість записів:"
+            style="tableHeaderCell"/>
+          <control
+            type="Input"
+            name="MovementHistoryLimitInput"
+            style="inputField"/>
+        </stackPanel>
+      </stackPanel>
+
+      <stackPanel
+        name="MovementHistoryPanel"
+        orientation="vertical"
+        dataContext="{PageRuntimeSource='RuntimeObjects.PrsnlEvntBuilder.Controller'}"
+        visibility="{Binding Path=IsMovementHistoryEnabled;TrueAs=Visible;FalseAs=Collapsed}"
+        spanColls="50">
+        <control
+          type="TableList"
+          name="MovementHistoryTable"
+          itemsSource="{PageRuntimeSource='RuntimeItems.PrsnlEvntBuilder.MovementHistory'}"
+          spanColls="50"/>
+      </stackPanel>
+
       <!-- Draft-форма: текущий основной или meta-профиль редактирует эту строку. -->
       <stackPanel
         name="EventDraftForm"
@@ -1132,6 +1176,7 @@
                 borderWeight:thin;
                 width:15;
                 rowHeight:21;
+                overflow:wrap;
                 cellType:text;
                 zoom:80%;
               }"/>
@@ -1178,7 +1223,6 @@
                 borderColor:#000000;
                 borderWeight:thin;
                 fontSize:16;
-                overflow:wrap;
                 vertical:top;
               }"/>
       </layer>
@@ -1236,7 +1280,6 @@
                 borderWeight:thin;
                 horizontal:center;
                 vertical:center;
-                overflow:wrap;
                 rowHeight:48;
               }"/>
 
@@ -1249,7 +1292,6 @@
                 borderWeight:thin;
                 horizontal:center;
                 vertical:center;
-                overflow:wrap;
                 rowHeight:64;
               }"/>
 
@@ -1263,7 +1305,6 @@
                 borderColor:#000000;
                 borderWeight:thin;
                 horizontal:center;
-                overflow:wrap;
                 rowHeight:64;
                 vertical:center;
                 cellType:text;
@@ -1284,6 +1325,8 @@
         <rule target="controlPart" selector="type=input;name=InstitutionGenitiveInput;part=cell" styles="{ rowHeight:28; overflow:clip; }"/>
         <rule target="controlPart" selector="type=input;name=InstitutionAccusativeInput;part=cell" styles="{ rowHeight:28; overflow:clip; }"/>
         <rule target="controlPart" selector="type=input;name=InstitutionDativeInput;part=cell" styles="{ rowHeight:28; overflow:clip; }"/>
+        <rule target="controlPart" selector="type=label;name=MovementHistoryLimitHeader;part=cell" styles="{ width:18; }"/>
+        <rule target="controlPart" selector="type=input;name=MovementHistoryLimitInput;part=cell" styles="{ width:8; rowHeight:24; overflow:clip; }"/>
 
         <rule target="controlPart" selector="type=label;name=HospitalHeader;part=cell" styles="{ width:24; }"/>
         <rule target="controlPart" selector="type=label;name=HospitalShortHeader;part=cell" styles="{ width:12; }"/>
@@ -1296,19 +1339,21 @@
         <rule target="controlPart" selector="type=label;name=ReportRankHeader;part=cell" styles="{ width:11; }"/>
         <rule target="controlPart" selector="type=label;name=ReportPersonHeader;part=cell" styles="{ width:20; }"/>
         <rule target="controlPart" selector="type=label;name=ReportPositionCodeHeader;part=cell" styles="{ width:12; }"/>
-        <rule target="controlPart" selector="type=label;name=IncomingNoHeader;part=cell" styles="{ width:9; }"/>
-        <rule target="controlPart" selector="type=label;name=IncomingDateHeader;part=cell" styles="{ width:7; }"/>
+        <rule target="controlPart" selector="type=label;name=IncomingNoHeader;part=cell" styles="{ width:9.25; }"/>
+        <rule target="controlPart" selector="type=label;name=IncomingDateHeader;part=cell" styles="{ width:9.25; }"/>
         <rule target="controlPart" selector="type=label;name=DocumentNoteHeader;part=cell" styles="{ width:15; }"/>
-        <rule target="controlPart" selector="type=label;name=DocNoHeader;part=cell" styles="{ width:7; }"/>
-        <rule target="controlPart" selector="type=label;name=DocDateHeader;part=cell" styles="{ width:8; }"/>
-        <rule target="controlPart" selector="type=label;name=DurationDaysHeader;part=cell" styles="{ width:9; }"/>
-        <rule target="controlPart" selector="type=label;name=DateFromHeader;part=cell" styles="{ width:7.5; }"/>
-        <rule target="controlPart" selector="type=label;name=DateToHeader;part=cell" styles="{ width:7.5; }"/>
-        <rule target="controlPart" selector="type=label;name=VacationTicketNoHeader;part=cell" styles="{ width:9; }"/>
-        <rule target="controlPart" selector="type=label;name=VacationTicketDateHeader;part=cell" styles="{ width:9; }"/>
+        <rule target="controlPart" selector="type=label;name=DocNoHeader;part=cell" styles="{ width:9.25; }"/>
+        <rule target="controlPart" selector="type=label;name=DocDateHeader;part=cell" styles="{ width:9.25; }"/>
+        <rule target="controlPart" selector="type=label;name=DurationDaysHeader;part=cell" styles="{ width:9.25; }"/>
+        <rule target="controlPart" selector="type=label;name=DateFromHeader;part=cell" styles="{ width:9.25; }"/>
+        <rule target="controlPart" selector="type=label;name=DateToHeader;part=cell" styles="{ width:9.25; }"/>
+        <rule target="controlPart" selector="type=label;name=VacationTicketNoHeader;part=cell" styles="{ width:9.25; }"/>
+        <rule target="controlPart" selector="type=label;name=VacationTicketDateHeader;part=cell" styles="{ width:9.25; }"/>
         <rule target="controlPart" selector="type=label;name=VlkNoHeader;part=cell" styles="{ width:12; }"/>
-        <rule target="controlPart" selector="type=label;name=VlkDateHeader;part=cell" styles="{ width:9; }"/>
-        <rule target="controlPart" selector="type=label;name=EventDraftOrderNoLabel;part=cell" styles="{ width:16; }"/>
+        <rule target="controlPart" selector="type=label;name=VlkDateHeader;part=cell" styles="{ width:9.25; }"/>
+        <rule target="controlPart"
+              selector="type=label;name=EventDraftOrderNoLabel;part=cell"
+              styles="{ width:16; backColor:#36424E; }"/>
       </layer>
 
       <!-- Таблицы формы экспорта, которые рендерит Apply: основная строка и meta-список. -->
@@ -1341,7 +1386,6 @@
                 fontBold:true;
                 horizontal:center;
                 vertical:center;
-                overflow:wrap;
                 rowHeight:44;
               }"/>
 
@@ -1354,7 +1398,6 @@
                 borderWeight:thin;
                 horizontal:center;
                 vertical:center;
-                overflow:wrap;
                 rowHeight:72;
               }"/>
 
@@ -1380,7 +1423,6 @@
                 fontBold:true;
                 horizontal:center;
                 vertical:center;
-                overflow:wrap;
                 rowHeight:24;
               }"/>
 
@@ -1393,8 +1435,50 @@
                 borderWeight:thin;
                 horizontal:center;
                 vertical:center;
-                overflow:wrap;
                 rowHeight:24;
+              }"/>
+      </layer>
+
+      <!-- Встроенная история Movement: визуально отделена от зелёной таблицы
+           кандидатов тёплым коричнево-оранжевым цветом строк данных. -->
+      <layer name="movement-history-table">
+        <rule target="controlPart"
+              selector="type=tablelist;name=MovementHistoryTable;part=section"
+              styles="{
+                backColor:#20252B;
+                fontColor:#F8FAFC;
+                borderColor:#000000;
+                borderWeight:thin;
+                fontBold:true;
+                horizontal:left;
+                vertical:center;
+                overflow:clip;
+                rowHeight:22;
+              }"/>
+
+        <rule target="controlPart"
+              selector="type=tablelist;name=MovementHistoryTable;part=header"
+              styles="{
+                backColor:#101318;
+                fontColor:#FFFFFF;
+                borderColor:#000000;
+                borderWeight:thin;
+                fontBold:true;
+                horizontal:center;
+                vertical:center;
+                rowHeight:30;
+              }"/>
+
+        <rule target="controlPart"
+              selector="type=tablelist;name=MovementHistoryTable;part=rows"
+              styles="{
+                backColor:#87380D;
+                fontColor:#FFFFFF;
+                borderColor:#000000;
+                borderWeight:thin;
+                horizontal:center;
+                vertical:center;
+                rowHeight:42;
               }"/>
       </layer>
 
@@ -1422,7 +1506,6 @@
                 fontBold:true;
                 horizontal:center;
                 vertical:center;
-                overflow:wrap;
               }"/>
 
         <rule target="controlPart"
@@ -1434,7 +1517,6 @@
                 borderWeight:thin;
                 horizontal:center;
                 vertical:center;
-                overflow:wrap;
                 rowHeight:40;
               }"/>
 
