@@ -110,7 +110,7 @@ Private Const LOOP_COLLECTION_META_TVO_TABLES As String = "MetaTvoTables"
 Private m_IsDisposed As Boolean
 Private m_Base As obj_DataExporterBase
 Private m_TemplateParser As obj_PEB_WordResultTplParser
-Private m_ExporterDataProvider As obj_PEB_ExptrDataPrvdr
+Private m_ExporterCfgDataProvider As obj_PEB_ExptrCfgDataPrvdr
 
 Private Sub Class_Initialize()
 #If LOGGING_VERBOSE_ENABLED Then
@@ -145,18 +145,20 @@ Public Function Initialize( _
     ByVal configTable As obj_ConfigTable, _
     Optional ByVal profileConfigTable As obj_ConfigTable = Nothing _
 ) As Boolean
-    Dim dataProviderConfigTable As obj_ConfigTable
+    Dim exporterCfgDataProviderConfigTable As obj_ConfigTable
 
     m_IsDisposed = False
     Set m_Base = New obj_DataExporterBase
     Set m_TemplateParser = New obj_PEB_WordResultTplParser
-    Set m_ExporterDataProvider = New obj_PEB_ExptrDataPrvdr
-    Set dataProviderConfigTable = configTable
-    If Not profileConfigTable Is Nothing Then Set dataProviderConfigTable = profileConfigTable
+    Set m_ExporterCfgDataProvider = New obj_PEB_ExptrCfgDataPrvdr
+    ' Target-настройки берём из exporter config, а профильные источники
+    ' Personnel/Movement — из полной таблицы профиля, если controller её передал.
+    Set exporterCfgDataProviderConfigTable = configTable
+    If Not profileConfigTable Is Nothing Then Set exporterCfgDataProviderConfigTable = profileConfigTable
 
     If Not m_Base.Initialize(configTable, "WORD", "PrototypeNew / WORD export") Then Exit Function
     If Not m_TemplateParser.Initialize(WORD_RESULT_TEMPLATES_REL_PATH) Then Exit Function
-    If Not m_ExporterDataProvider.Initialize(dataProviderConfigTable) Then Exit Function
+    If Not m_ExporterCfgDataProvider.Initialize(exporterCfgDataProviderConfigTable) Then Exit Function
 
     Initialize = True
 End Function
@@ -167,10 +169,10 @@ Public Sub Dispose()
     On Error Resume Next
     If Not m_Base Is Nothing Then m_Base.Dispose
     If Not m_TemplateParser Is Nothing Then m_TemplateParser.Dispose
-    If Not m_ExporterDataProvider Is Nothing Then m_ExporterDataProvider.Dispose
+    If Not m_ExporterCfgDataProvider Is Nothing Then m_ExporterCfgDataProvider.Dispose
     Set m_Base = Nothing
     Set m_TemplateParser = Nothing
-    Set m_ExporterDataProvider = Nothing
+    Set m_ExporterCfgDataProvider = Nothing
     On Error GoTo 0
 End Sub
 
@@ -206,7 +208,7 @@ Public Function Export( _
     End If
     ' WORD validation defaults to disabled when the context key is absent.
     validationEnabled = private_GetContextBoolean(context, CONTEXT_VALIDATION_ENABLED)
-    If Not m_ExporterDataProvider.IsExportAllowed(sourceTable, sectionTypeText, exportValidationError, latestMovementTvoChain, latestMovementRecord, validationEnabled) Then
+    If Not m_ExporterCfgDataProvider.IsExportAllowed(sourceTable, sectionTypeText, exportValidationError, latestMovementTvoChain, latestMovementRecord, validationEnabled) Then
         VBA.MsgBox exportValidationError, VBA.vbExclamation, "PrototypeNew / WORD export"
         Exit Function
     End If
@@ -1263,8 +1265,8 @@ Private Function private_TryEnrichMainSourceTableForWord( _
     Dim vacationDateTo As Date
     Dim builderData As obj_PrsnlEvntBuilderData
     If sourceTable Is Nothing Then Exit Function
-    If m_ExporterDataProvider Is Nothing Then Exit Function
-    If m_ExporterDataProvider.CommonData Is Nothing Then Exit Function
+    If m_ExporterCfgDataProvider Is Nothing Then Exit Function
+    If m_ExporterCfgDataProvider.CommonData Is Nothing Then Exit Function
 
     If Not private_TryGetMainTableValue(sourceTable, SOURCE_ALIAS_IPN, ipnText) Then ipnText = VBA.vbNullString
     If Not private_TryGetMainTableValue(sourceTable, SOURCE_ALIAS_RANK, rankText) Then rankText = VBA.vbNullString
@@ -1291,8 +1293,8 @@ Private Function private_TryEnrichMainSourceTableForWord( _
     ' и date aliases. Все даты передаём в едином компактном виде
     ' ...Short = 01.02.2025; полный вид формирует XML через dateformat.
     orderNoText = private_GetContextText(context, CONTEXT_MANUAL_ORDER_NO)
-    If Not m_ExporterDataProvider.CommonData.SetOrderNo(orderNoText) Then Exit Function
-    If Not m_ExporterDataProvider.CommonData.TryFormatVacationTicketNoForExport( _
+    If Not m_ExporterCfgDataProvider.CommonData.SetOrderNo(orderNoText) Then Exit Function
+    If Not m_ExporterCfgDataProvider.CommonData.TryFormatVacationTicketNoForExport( _
         vacationTicketNoText, orderNoText, normalizedVacationTicketNoText) Then Exit Function
     If VBA.Len(normalizedVacationTicketNoText) > 0 Then
         If Not private_TryUpsertMainTableValue(sourceTable, SOURCE_ALIAS_VACATION_TICKET_NO, normalizedVacationTicketNoText) Then Exit Function
@@ -1300,7 +1302,7 @@ Private Function private_TryEnrichMainSourceTableForWord( _
     If VBA.Len(VBA.Trim$(orderNoText)) > 0 Then
         If Not private_TryUpsertMainTableValue(sourceTable, WORD_ALIAS_ORDER_NO, orderNoText) Then Exit Function
     End If
-    If VBA.Len(VBA.Trim$(orderNoText)) > 0 And Not m_ExporterDataProvider.CommonData.HasOrderDate Then
+    If VBA.Len(VBA.Trim$(orderNoText)) > 0 And Not m_ExporterCfgDataProvider.CommonData.HasOrderDate Then
         rt_Messaging.fn_ShowStatusBarWarning _
             "Order date was not found for order number '" & orderNoText & "'. Short dates use 01.01.1900.", _
             5
@@ -1308,23 +1310,23 @@ Private Function private_TryEnrichMainSourceTableForWord( _
 
     ' Все склонения берутся из общего provider-а. Если справочник пустой или
     ' ключ не найден, provider сам показывает MsgBox с конкретной причиной.
-    If Not m_ExporterDataProvider.CommonData.TryResolveRankGenitive(rankText, rankGenitive) Then Exit Function
-    If Not m_ExporterDataProvider.CommonData.TryResolveFioGenitive(ipnText, fioGenitive) Then Exit Function
-    If Not m_ExporterDataProvider.CommonData.TryResolveFioAccusative(ipnText, fioAccusative) Then Exit Function
-    If Not m_ExporterDataProvider.CommonData.TryResolveFioInitialsGenitive(ipnText, fioInitialsGenitive) Then Exit Function
-    If Not m_ExporterDataProvider.CommonData.TryResolvePositionGenitive(positionCodeText, positionGenitive) Then Exit Function
-    If Not m_ExporterDataProvider.CommonData.TryResolveHospitalGenitive(hospitalShortText, hospitalGenitive) Then Exit Function
-    If Not m_ExporterDataProvider.CommonData.TryResolveHospitalAccusative(hospitalShortText, hospitalAccusative) Then Exit Function
-    If Not m_ExporterDataProvider.CommonData.TryResolveHospitalDative(hospitalShortText, hospitalDative) Then Exit Function
-    If Not m_ExporterDataProvider.CommonData.TryResolveRankGenitive(reportRankText, reportRankGenitive) Then Exit Function
-    If Not m_ExporterDataProvider.CommonData.TryResolveFioGenitiveByName(reportPersonText, reportPersonGenitive) Then Exit Function
-    If Not m_ExporterDataProvider.CommonData.TryResolveFioInitialsGenitiveByName(reportPersonText, reportPersonInitialsGenitive) Then Exit Function
+    If Not m_ExporterCfgDataProvider.CommonData.TryResolveRankGenitive(rankText, rankGenitive) Then Exit Function
+    If Not m_ExporterCfgDataProvider.CommonData.TryResolveFioGenitive(ipnText, fioGenitive) Then Exit Function
+    If Not m_ExporterCfgDataProvider.CommonData.TryResolveFioAccusative(ipnText, fioAccusative) Then Exit Function
+    If Not m_ExporterCfgDataProvider.CommonData.TryResolveFioInitialsGenitive(ipnText, fioInitialsGenitive) Then Exit Function
+    If Not m_ExporterCfgDataProvider.CommonData.TryResolvePositionGenitive(positionCodeText, positionGenitive) Then Exit Function
+    If Not m_ExporterCfgDataProvider.CommonData.TryResolveHospitalGenitive(hospitalShortText, hospitalGenitive) Then Exit Function
+    If Not m_ExporterCfgDataProvider.CommonData.TryResolveHospitalAccusative(hospitalShortText, hospitalAccusative) Then Exit Function
+    If Not m_ExporterCfgDataProvider.CommonData.TryResolveHospitalDative(hospitalShortText, hospitalDative) Then Exit Function
+    If Not m_ExporterCfgDataProvider.CommonData.TryResolveRankGenitive(reportRankText, reportRankGenitive) Then Exit Function
+    If Not m_ExporterCfgDataProvider.CommonData.TryResolveFioGenitiveByName(reportPersonText, reportPersonGenitive) Then Exit Function
+    If Not m_ExporterCfgDataProvider.CommonData.TryResolveFioInitialsGenitiveByName(reportPersonText, reportPersonInitialsGenitive) Then Exit Function
 
-    If Not m_ExporterDataProvider.TryResolveReporterTvoPositionGenitive(reportPersonText, reportTvoPositionGenitive, isReporterTvo) Then Exit Function
+    If Not m_ExporterCfgDataProvider.TryResolveReporterTvoPositionGenitive(reportPersonText, reportTvoPositionGenitive, isReporterTvo) Then Exit Function
     If isReporterTvo Then
         reportPositionGenitive = reportTvoPositionGenitive
     Else
-        If Not m_ExporterDataProvider.CommonData.TryResolvePositionGenitive(reportPositionCodeText, reportPositionGenitive) Then Exit Function
+        If Not m_ExporterCfgDataProvider.CommonData.TryResolvePositionGenitive(reportPositionCodeText, reportPositionGenitive) Then Exit Function
     End If
 
     If isReporterTvo Then
@@ -1388,7 +1390,7 @@ Private Function private_TryEnrichMainSourceTableForWord( _
     If VBA.Len(incomingNoText) > 0 Then
         If Not private_TryUpsertMainTableValue( _
             sourceTable, SOURCE_ALIAS_INCOMING_NO, _
-            m_ExporterDataProvider.NormalizeIncomingNoForExport(incomingNoText)) Then Exit Function
+            m_ExporterCfgDataProvider.NormalizeIncomingNoForExport(incomingNoText)) Then Exit Function
     End If
     If Not private_TryUpsertShortDateValue(sourceTable, SOURCE_ALIAS_INCOMING_DATE, WORD_ALIAS_INCOMING_DATE_SHORT, incomingDateText) Then Exit Function
     If Not private_TryUpsertShortDateValue(sourceTable, SOURCE_ALIAS_DOC_DATE, WORD_ALIAS_DOC_DATE_SHORT, docDateText) Then Exit Function
@@ -1438,7 +1440,7 @@ Private Function private_TryEnrichMainSourceTableForWord( _
     End If
 
     ' WORD и Movement используют один helper: max(OrderDate + 1, DateFrom).
-    If Not m_ExporterDataProvider.CommonData.TryCalculateFoodSupportDate( _
+    If Not m_ExporterCfgDataProvider.CommonData.TryCalculateFoodSupportDate( _
         hasDateFrom, dateFromDate, foodSupportDateValue) Then
         VBA.MsgBox "PrototypeNew: cannot calculate food-support date because both order date and DateFrom are unavailable.", _
             VBA.vbExclamation, "PrototypeNew / WORD export"
@@ -1510,11 +1512,11 @@ Private Function private_TryEnrichPreviousVacationTicketForWord( _
         VBA.MsgBox "PrototypeNew: latest Movement record has no 'Наказ вибуття' value for PrevVacationTicketDate.", VBA.vbExclamation, "PrototypeNew / WORD export"
         Exit Function
     End If
-    If Not m_ExporterDataProvider.CommonData.TryResolveOrderDateByNumber(departureOrderText, departureOrderDate) Then
+    If Not m_ExporterCfgDataProvider.CommonData.TryResolveOrderDateByNumber(departureOrderText, departureOrderDate) Then
         VBA.MsgBox "PrototypeNew: failed to resolve PrevVacationTicketDate by departure order '" & departureOrderText & "'.", VBA.vbExclamation, "PrototypeNew / WORD export"
         Exit Function
     End If
-    If Not m_ExporterDataProvider.CommonData.TryFormatVacationTicketNoForExport( _
+    If Not m_ExporterCfgDataProvider.CommonData.TryFormatVacationTicketNoForExport( _
         escortDocumentText, departureOrderText, normalizedPreviousTicketNo) Then Exit Function
 
     previousTicketDateText = VBA.Format$(departureOrderDate, WORD_SHORT_DATE_STORAGE_FORMAT)
@@ -1711,7 +1713,7 @@ Private Function private_TryAppendMovementTvoTablesForReturn( _
         Set chainItem = chainValue
         fioText = VBA.CStr(chainItem("FIO"))
         positionCode = VBA.CStr(chainItem("PositionCode"))
-        If Not m_ExporterDataProvider.CommonData.TryResolveRankByIpn(VBA.CStr(chainItem("IPN")), rankText) Then Exit Function
+        If Not m_ExporterCfgDataProvider.CommonData.TryResolveRankByIpn(VBA.CStr(chainItem("IPN")), rankText) Then Exit Function
         ' Все три формы должности будут прочитаны одним запросом на этапе
         ' meta enrichment; здесь сохраняем только код из Movement.
         positionText = VBA.vbNullString
@@ -1807,12 +1809,12 @@ Private Function private_TryEnrichMetaTvoTablesForWord(ByVal sourceTables As Col
 
         ' Для каждого базового Rank/FIO/Position шаблон получает единый набор:
         ' default без суффикса, Genitive и Dative.
-        If Not m_ExporterDataProvider.CommonData.TryResolveRankGenitive(rankText, rankGenitive) Then Exit Function
-        If Not m_ExporterDataProvider.CommonData.TryResolveRankDative(rankText, rankDative) Then Exit Function
-        If Not m_ExporterDataProvider.CommonData.TryResolveFioGenitive(ipnText, fioGenitive) Then Exit Function
-        If Not m_ExporterDataProvider.CommonData.TryResolveFioDative(ipnText, fioDative) Then Exit Function
+        If Not m_ExporterCfgDataProvider.CommonData.TryResolveRankGenitive(rankText, rankGenitive) Then Exit Function
+        If Not m_ExporterCfgDataProvider.CommonData.TryResolveRankDative(rankText, rankDative) Then Exit Function
+        If Not m_ExporterCfgDataProvider.CommonData.TryResolveFioGenitive(ipnText, fioGenitive) Then Exit Function
+        If Not m_ExporterCfgDataProvider.CommonData.TryResolveFioDative(ipnText, fioDative) Then Exit Function
 #If TVO_POSITION_FALLBACK_ENABLED Then
-        If Not m_ExporterDataProvider.CommonData.TryResolvePositionFormsOptional( _
+        If Not m_ExporterCfgDataProvider.CommonData.TryResolvePositionFormsOptional( _
             positionCodeText, fallbackPositionText, positionGenitive, positionDative, positionGenitiveFound) Then Exit Function
         positionDativeFound = positionGenitiveFound
         If positionGenitiveFound Then positionText = fallbackPositionText
@@ -1838,7 +1840,7 @@ Private Function private_TryEnrichMetaTvoTablesForWord(ByVal sourceTables As Col
 #Else
         ' Strict mode preserves the original behavior: a missing position row
         ' is reported by CommonData and stops preview/export immediately.
-        If Not m_ExporterDataProvider.CommonData.TryResolvePositionFormsOptional( _
+        If Not m_ExporterCfgDataProvider.CommonData.TryResolvePositionFormsOptional( _
             positionCodeText, positionText, positionGenitive, positionDative, positionGenitiveFound) Then Exit Function
         If Not positionGenitiveFound Then
             VBA.MsgBox "PrototypeNew: declension row was not found in ШПО / Посади for key: " & positionCodeText, _
@@ -1884,11 +1886,11 @@ Private Function private_TryResolveDateByRawText( _
         Exit Function
     End If
 
-    If m_ExporterDataProvider Is Nothing Then Exit Function
-    If m_ExporterDataProvider.CommonData Is Nothing Then Exit Function
+    If m_ExporterCfgDataProvider Is Nothing Then Exit Function
+    If m_ExporterCfgDataProvider.CommonData Is Nothing Then Exit Function
 
-    If m_ExporterDataProvider.CommonData.HasOrderDate Then
-        If Not ex_Helpers.fn_TryResolveDateWithContext(trimmedDateText, m_ExporterDataProvider.CommonData.OrderDate, outDateValue) Then
+    If m_ExporterCfgDataProvider.CommonData.HasOrderDate Then
+        If Not ex_Helpers.fn_TryResolveDateWithContext(trimmedDateText, m_ExporterCfgDataProvider.CommonData.OrderDate, outDateValue) Then
             VBA.MsgBox "PrototypeNew: failed to resolve date from value '" & trimmedDateText & "'.", VBA.vbExclamation, "PrototypeNew / WORD export"
             Exit Function
         End If
@@ -1928,10 +1930,10 @@ Private Function private_TryUpsertShortDateValue( _
     ' номер приказа -> дата приказа. Если номера/даты приказа нет, короткие
     ' даты намеренно превращаются в 01.01.1900, чтобы проблема была видна
     ' глазами в WORD preview.
-    If m_ExporterDataProvider Is Nothing Then Exit Function
-    If m_ExporterDataProvider.CommonData Is Nothing Then Exit Function
-    If m_ExporterDataProvider.CommonData.HasOrderDate Then
-        If Not ex_Helpers.fn_TryResolveDateWithContext(trimmedDateText, m_ExporterDataProvider.CommonData.OrderDate, resolvedDate) Then
+    If m_ExporterCfgDataProvider Is Nothing Then Exit Function
+    If m_ExporterCfgDataProvider.CommonData Is Nothing Then Exit Function
+    If m_ExporterCfgDataProvider.CommonData.HasOrderDate Then
+        If Not ex_Helpers.fn_TryResolveDateWithContext(trimmedDateText, m_ExporterCfgDataProvider.CommonData.OrderDate, resolvedDate) Then
             VBA.MsgBox "PrototypeNew: failed to resolve full date for '" & sourceAlias & _
                 "' from value '" & trimmedDateText & "'.", VBA.vbExclamation, "PrototypeNew / WORD export"
             Exit Function

@@ -49,7 +49,6 @@ Private Const HOTKEY_APPLY_EXPORT_FORM As String = "Apply Export Form"
 Private Const HOTKEY_CLEAR_EXPORT_FORM As String = "Clear Export Form"
 Private Const HOTKEY_EXPORT_TO_WORD As String = "Export to WORD"
 Private Const EXPORT_ACTION_PREFIX As String = "Export "
-Private Const DEFAULT_EXPORTER_CLASS As String = "obj_PEB_ExptrDailyScope"
 Private Const MAX_EXPORT_HOTKEYS As Long = 9
 Private Const LOOKUP_CANDIDATES_CONTROL_NAME As String = "LookupCandidatesTable"
 Private Const WORD_EXPORT_PANEL_CONTAINER_NAME As String = "WordExportPanel"
@@ -72,6 +71,18 @@ Private Const PROFILE_BUTTON_TAG_ARRIVAL As String = "arrival"
 Private Const PROFILE_BUTTON_TAG_DEPARTURE As String = "departure"
 Private Const META_PROFILE_BUTTON_TAG_NORMAL As String = "meta"
 Private Const PROFILE_BUTTON_STATE_SELECTED As String = "selected"
+Private Const ABSENCE_DEPARTURE_LOOKBACK_DAYS As Long = 5
+Private Const ABSENCE_DEPARTURE_LOOKAHEAD_DAYS As Long = 10
+Private Const HOSPITALS_SOURCE_PATH_CONFIG_KEY As String = "Source.Hospitals.FilePath"
+Private Const INSTITUTIONS_SHEET_NAME As String = "Лікувальні Заклади"
+Private Const INSTITUTIONS_HEADER_ROW As Long = 3
+Private Const INSTITUTIONS_FIRST_DATA_ROW As Long = 5
+Private Const INSTITUTION_CODE_INPUT_NAME As String = "InstitutionCodeInput"
+Private Const INSTITUTION_NAME_INPUT_NAME As String = "InstitutionNameInput"
+Private Const INSTITUTION_REGION_INPUT_NAME As String = "InstitutionRegionInput"
+Private Const INSTITUTION_GENITIVE_INPUT_NAME As String = "InstitutionGenitiveInput"
+Private Const INSTITUTION_ACCUSATIVE_INPUT_NAME As String = "InstitutionAccusativeInput"
+Private Const INSTITUTION_DATIVE_INPUT_NAME As String = "InstitutionDativeInput"
 ' Канонические алиасы полей draft-формы. Отображаемые Caption этих полей
 ' принадлежат конфигу и не должны использоваться в логике контроллера.
 Private Const DRAFT_ALIAS_RANK As String = "_Rank"
@@ -111,6 +122,7 @@ Private m_IsLookupEnabled As Boolean
 Private m_IsDailyScopeValidationEnabled As Boolean
 Private m_IsMovementValidationEnabled As Boolean
 Private m_IsWordValidationEnabled As Boolean
+Private m_IsInstitutionsAppendFormChecked As Boolean
 Private m_SuppressLookupSearch As Boolean
 Private m_Data As obj_PrsnlEvntBuilderData
 Private m_IsDisposed As Boolean
@@ -178,6 +190,7 @@ Public Function Initialize(ByVal page As Object) As Boolean
     m_IsDailyScopeValidationEnabled = True
     m_IsMovementValidationEnabled = True
     m_IsWordValidationEnabled = False
+    m_IsInstitutionsAppendFormChecked = False
 
     Set pageBase = m_Page.GetPageBase()
     If pageBase Is Nothing Then Exit Function
@@ -225,6 +238,7 @@ Public Sub Dispose()
     Set m_ExportMainTable = Nothing
     Set m_ExportMetaTables = Nothing
     m_WordExportPreviewText = VBA.vbNullString
+    m_IsInstitutionsAppendFormChecked = False
     On Error GoTo 0
 End Sub
 
@@ -247,6 +261,46 @@ End Property
 Public Property Get IsWordValidationEnabled() As Boolean
     IsWordValidationEnabled = m_IsWordValidationEnabled
 End Property
+
+Public Property Get IsInstitutionsAppendFormChecked() As Boolean
+    IsInstitutionsAppendFormChecked = m_IsInstitutionsAppendFormChecked
+End Property
+
+Public Function ToggleInstitutionsAppendForm() As Boolean
+    Dim previousChecked As Boolean
+    Dim previousEnableEvents As Boolean
+    Dim renderSucceeded As Boolean
+
+    If m_Page Is Nothing Then Exit Function
+    previousChecked = m_IsInstitutionsAppendFormChecked
+    m_IsInstitutionsAppendFormChecked = Not previousChecked
+
+    ' Checkbox управляет целым layout-контейнером. Collapsed меняет высоту
+    ' страницы, поэтому требуется page render, а не refresh одной кнопки.
+    '
+    ' Как и при переключении секций, на время полного render отключаем события.
+    ' Иначе восстановление значений формы после layout вызывает Worksheet_Change,
+    ' повторную dispatch-обработку и заметно замедляет простой UI toggle.
+    previousEnableEvents = Application.EnableEvents
+    On Error GoTo EH
+    Application.EnableEvents = False
+    renderSucceeded = rt_PageManager.fn_RenderPage( _
+        m_Page, "prsnlevntbuilder:toggle-institutions-append-form")
+
+Cleanup:
+    Application.EnableEvents = previousEnableEvents
+    If Not renderSucceeded Then
+        m_IsInstitutionsAppendFormChecked = previousChecked
+        Exit Function
+    End If
+
+    ToggleInstitutionsAppendForm = True
+    Exit Function
+
+EH:
+    renderSucceeded = False
+    Resume Cleanup
+End Function
 
 Public Function ToggleDailyScopeValidation() As Boolean
     ToggleDailyScopeValidation = private_ToggleExporterValidation( _
@@ -761,6 +815,73 @@ Public Function OnRegroupWordHospitalPointsClick(Optional ByVal ignored As Varia
     OnRegroupWordHospitalPointsClick = True
 End Function
 
+' Добавляет одну строку в справочник лечебных учреждений текущего профиля.
+' Пустой регион и падежные формы допустимы: часть записей справочника
+' заполняется постепенно, но ключ и полное название нужны обязательно.
+Public Function OnAppendInstitutionClick(Optional ByVal ignored As Variant) As Boolean
+    Dim fieldNames As Variant
+    Dim values(1 To 6) As Variant
+    Dim sourcePath As String
+    Dim targetRow As Long
+    Dim operationStage As String
+
+    On Error GoTo EH
+    operationStage = "read-form"
+    fieldNames = Array( _
+        INSTITUTION_CODE_INPUT_NAME, _
+        INSTITUTION_NAME_INPUT_NAME, _
+        INSTITUTION_REGION_INPUT_NAME, _
+        INSTITUTION_GENITIVE_INPUT_NAME, _
+        INSTITUTION_ACCUSATIVE_INPUT_NAME, _
+        INSTITUTION_DATIVE_INPUT_NAME)
+
+    If Not private_TryReadInstitutionForm(fieldNames, values) Then Exit Function
+    If VBA.Len(VBA.Trim$(VBA.CStr(values(1)))) = 0 Then
+        VBA.MsgBox "Заповніть поле 'Позначення'.", VBA.vbExclamation, "PrsnlEventBuilder / Установи"
+        Exit Function
+    End If
+    If VBA.Len(VBA.Trim$(VBA.CStr(values(2)))) = 0 Then
+        VBA.MsgBox "Заповніть поле 'Назва'.", VBA.vbExclamation, "PrsnlEventBuilder / Установи"
+        Exit Function
+    End If
+
+    operationStage = "resolve-source"
+    If Not private_TryResolveHospitalsSourcePath(sourcePath) Then Exit Function
+    operationStage = "append-row"
+    If Not private_TryAppendInstitutionRow(sourcePath, values, targetRow) Then Exit Function
+
+    ' С этого момента запись уже сохранена на диске. Сразу фиксируем успешный
+    ' результат, чтобы сбой очистки UI или обновления provider не провоцировал
+    ' пользователя повторно добавить ту же строку.
+    OnAppendInstitutionClick = True
+    VBA.MsgBox "Лікувальний заклад додано в рядок " & VBA.CStr(targetRow) & ".", _
+        VBA.vbInformation, "PrsnlEventBuilder / Установи"
+
+    operationStage = "clear-form"
+    If Not private_TryClearInstitutionForm(fieldNames) Then
+        VBA.MsgBox "Рядок збережено, але не вдалося очистити поля форми.", _
+            VBA.vbExclamation, "PrsnlEventBuilder / Установи"
+    End If
+
+    ' Provider держит соединения со справочниками. После записи создаём его
+    ' заново, чтобы следующий экспорт гарантированно увидел новую строку.
+    If Not m_ExportCommonData Is Nothing Then m_ExportCommonData.Dispose
+    Set m_ExportCommonData = New obj_PEB_ExptrCommonDataPrvdr
+    operationStage = "refresh-common-data"
+    If Not m_ExportCommonData.Initialize() Then
+        VBA.MsgBox "Рядок збережено, але не вдалося оновити кеш довідника. " & _
+            "Перезапустіть сторінку перед експортом.", _
+            VBA.vbExclamation, "PrsnlEventBuilder / Установи"
+    End If
+    Exit Function
+
+EH:
+    VBA.MsgBox "Не вдалося додати лікувальний заклад." & VBA.vbCrLf & _
+        "Етап: " & operationStage & VBA.vbCrLf & _
+        "Помилка: " & Err.Description, _
+        VBA.vbExclamation, "PrsnlEventBuilder / Установи"
+End Function
+
 Private Function private_TryExportWordToDocument() As Boolean
     Dim sourceTables As Collection
     Dim exportContext As Object
@@ -994,7 +1115,8 @@ Private Function private_TryResolveAbsenceDepartureDateRange( _
     orderNoText = private_TryReadManualOrderNoValue(pageBase, ws)
     If VBA.Len(VBA.Trim$(orderNoText)) = 0 Then
         VBA.MsgBox "PrototypeNew: enter the current order number before searching FIO candidates. " & _
-            "The ЕЖОС candidate must have a departure date from the order date through 10 days after it.", _
+            "The ЕЖОС candidate must have a departure date from 5 days before " & _
+            "the order date through 10 days after it.", _
             vbExclamation, "PrototypeNew / EntityLookup runtime"
         Exit Function
     End If
@@ -1006,8 +1128,10 @@ Private Function private_TryResolveAbsenceDepartureDateRange( _
         Exit Function
     End If
 
-    outMinDate = VBA.DateValue(m_ExportCommonData.OrderDate)
-    outMaxDate = VBA.DateAdd("d", 10, outMinDate)
+    outMinDate = VBA.DateAdd( _
+        "d", -ABSENCE_DEPARTURE_LOOKBACK_DAYS, VBA.DateValue(m_ExportCommonData.OrderDate))
+    outMaxDate = VBA.DateAdd( _
+        "d", ABSENCE_DEPARTURE_LOOKAHEAD_DAYS, VBA.DateValue(m_ExportCommonData.OrderDate))
     private_TryResolveAbsenceDepartureDateRange = True
 End Function
 
@@ -1605,7 +1729,7 @@ Private Function private_TryEnsureModeConfigCurrent() As Boolean
 End Function
 
 Private Function private_TryUpdateExportSettings(ByVal configTable As obj_ConfigTable) As Boolean
-    Dim cfgParser As obj_PrsnlEvntBuilderCfgParser
+    Dim prsnlEvntBuilderCfgParser As obj_PrsnlEvntBuilderCfgParser
 
     private_ResetExportSettings
     If configTable Is Nothing Then
@@ -1614,23 +1738,23 @@ Private Function private_TryUpdateExportSettings(ByVal configTable As obj_Config
     End If
     Set m_ProfileConfigTable = configTable
 
-    Set cfgParser = New obj_PrsnlEvntBuilderCfgParser
-    If Not cfgParser.Initialize(configTable) Then Exit Function
-    If Not cfgParser.TryGetEntityLookupColumnAliasByCaption(m_SourceColumnAliasByCaption) Then Exit Function
-    If Not cfgParser.TryGetExportSettings(m_ExportAliases, m_ExporterClassByAlias, m_ExportConfigTableByAlias) Then Exit Function
+    Set prsnlEvntBuilderCfgParser = New obj_PrsnlEvntBuilderCfgParser
+    If Not prsnlEvntBuilderCfgParser.Initialize(configTable) Then Exit Function
+    If Not prsnlEvntBuilderCfgParser.TryGetEntityLookupColumnAliasByCaption(m_SourceColumnAliasByCaption) Then Exit Function
+    If Not prsnlEvntBuilderCfgParser.TryGetExportSettings(m_ExportAliases, m_ExporterClassByAlias, m_ExportConfigTableByAlias) Then Exit Function
 
     private_TryUpdateExportSettings = True
 End Function
 
 Private Function private_TryUpdateProfilesProvider(ByVal configTable As obj_ConfigTable) As Boolean
-    Dim cfgParser As obj_PrsnlEvntBuilderCfgParser
+    Dim prsnlEvntBuilderCfgParser As obj_PrsnlEvntBuilderCfgParser
     Dim providerClassName As String
 
     If configTable Is Nothing Then Exit Function
 
-    Set cfgParser = New obj_PrsnlEvntBuilderCfgParser
-    If Not cfgParser.Initialize(configTable) Then Exit Function
-    If Not cfgParser.TryGetProfilesProviderClass(providerClassName) Then Exit Function
+    Set prsnlEvntBuilderCfgParser = New obj_PrsnlEvntBuilderCfgParser
+    If Not prsnlEvntBuilderCfgParser.Initialize(configTable) Then Exit Function
+    If Not prsnlEvntBuilderCfgParser.TryGetProfilesProviderClass(providerClassName) Then Exit Function
 
     If Not private_TryCreateProfilesProvider(providerClassName) Then Exit Function
     private_TryUpdateProfilesProvider = True
@@ -1731,7 +1855,13 @@ Private Function private_TryGetExportSettings( _
     If Not m_ExporterClassByAlias.Exists(exportAlias) Then Exit Function
 
     outExporterClassName = VBA.Trim$(VBA.CStr(m_ExporterClassByAlias(exportAlias)))
-    If VBA.Len(outExporterClassName) = 0 Then outExporterClassName = DEFAULT_EXPORTER_CLASS
+    If VBA.Len(outExporterClassName) = 0 Then
+        ' Пустой class больше не подменяется DailyScope: такой fallback мог
+        ' незаметно направить данные в exporter другого назначения.
+        VBA.MsgBox "PrototypeNew: exporter class is empty for alias '" & exportAlias & "'.", _
+            VBA.vbExclamation, "PrototypeNew / Data export"
+        Exit Function
+    End If
     If m_ExportConfigTableByAlias.Exists(exportAlias) Then Set outExportConfigTable = m_ExportConfigTableByAlias(exportAlias)
     If outExportConfigTable Is Nothing Then Exit Function
 
@@ -1749,7 +1879,11 @@ Private Function private_TryCreateDataExporter( _
 
     Set outExporter = Nothing
     exporterClassName = VBA.Trim$(exporterClassName)
-    If VBA.Len(exporterClassName) = 0 Then exporterClassName = DEFAULT_EXPORTER_CLASS
+    If VBA.Len(exporterClassName) = 0 Then
+        VBA.MsgBox "PrototypeNew: exporter class is not specified.", _
+            VBA.vbExclamation, "PrototypeNew / Data export"
+        Exit Function
+    End If
 
     Select Case VBA.LCase$(exporterClassName)
         Case VBA.LCase$("obj_PEB_ExptrDailyScope")
@@ -2235,6 +2369,221 @@ Private Function private_TryResolveCandidateRowsArea( _
             Exit Function
         End If
     Next area
+End Function
+
+Private Function private_TryReadInstitutionForm( _
+    ByVal fieldNames As Variant, _
+    ByRef outValues() As Variant _
+) As Boolean
+    Dim pageBase As obj_PageBase
+    Dim rawControl As Object
+    Dim inputControl As obj_InputControlVM
+    Dim fieldIndex As Long
+    Dim fieldValue As String
+
+    If m_Page Is Nothing Then Exit Function
+    Set pageBase = m_Page.GetPageBase()
+    If pageBase Is Nothing Then Exit Function
+
+    For fieldIndex = LBound(fieldNames) To UBound(fieldNames)
+        Set rawControl = Nothing
+        Set inputControl = Nothing
+        If Not pageBase.TryGetRegisteredControlByName( _
+            VBA.CStr(fieldNames(fieldIndex)), rawControl) Then
+            VBA.MsgBox "Не знайдено поле форми: " & VBA.CStr(fieldNames(fieldIndex)), _
+                VBA.vbExclamation, "PrsnlEventBuilder / Установи"
+            Exit Function
+        End If
+        If rawControl Is Nothing Then Exit Function
+        If Not TypeOf rawControl Is obj_InputControlVM Then Exit Function
+        Set inputControl = rawControl
+        fieldValue = VBA.vbNullString
+        If Not inputControl.TryGetValue(fieldValue) Then Exit Function
+        outValues(fieldIndex + 1) = fieldValue
+    Next fieldIndex
+
+    private_TryReadInstitutionForm = True
+End Function
+
+Private Function private_TryClearInstitutionForm(ByVal fieldNames As Variant) As Boolean
+    Dim pageBase As obj_PageBase
+    Dim rawControl As Object
+    Dim inputControl As obj_InputControlVM
+    Dim fieldIndex As Long
+    Dim previousEnableEvents As Boolean
+
+    If m_Page Is Nothing Then Exit Function
+    Set pageBase = m_Page.GetPageBase()
+    If pageBase Is Nothing Then Exit Function
+
+    previousEnableEvents = Application.EnableEvents
+    On Error GoTo RestoreEventsAndFail
+    Application.EnableEvents = False
+    For fieldIndex = LBound(fieldNames) To UBound(fieldNames)
+        Set rawControl = Nothing
+        Set inputControl = Nothing
+        If Not pageBase.TryGetRegisteredControlByName( _
+            VBA.CStr(fieldNames(fieldIndex)), rawControl) Then GoTo RestoreEventsAndFail
+        If rawControl Is Nothing Then GoTo RestoreEventsAndFail
+        If Not TypeOf rawControl Is obj_InputControlVM Then GoTo RestoreEventsAndFail
+        Set inputControl = rawControl
+        If Not inputControl.ClearValue() Then GoTo RestoreEventsAndFail
+    Next fieldIndex
+    Application.EnableEvents = previousEnableEvents
+    private_TryClearInstitutionForm = True
+    Exit Function
+
+RestoreEventsAndFail:
+    On Error Resume Next
+    Application.EnableEvents = previousEnableEvents
+    On Error GoTo 0
+End Function
+
+Private Function private_TryResolveHospitalsSourcePath(ByRef outSourcePath As String) As Boolean
+    Dim cfgParserBase As obj_CfgParserBase
+    Dim configEntries As Collection
+    Dim cfgMap As Object
+    Dim configuredPath As String
+
+    outSourcePath = VBA.vbNullString
+    If m_ProfileConfigTable Is Nothing Then
+        VBA.MsgBox "Не завантажено конфігурацію поточного профілю.", _
+            VBA.vbExclamation, "PrsnlEventBuilder / Установи"
+        Exit Function
+    End If
+
+    Set cfgParserBase = New obj_CfgParserBase
+    If Not cfgParserBase.Initialize(m_ProfileConfigTable) Then Exit Function
+    If Not cfgParserBase.TryGetConfigEntries(configEntries) Then Exit Function
+    If Not cfgParserBase.BuildConfigDictionary(configEntries, cfgMap) Then Exit Function
+    If Not cfgParserBase.TryGetRequiredConfigValue( _
+        cfgMap, HOSPITALS_SOURCE_PATH_CONFIG_KEY, configuredPath) Then
+        VBA.MsgBox "У профілі не задано " & HOSPITALS_SOURCE_PATH_CONFIG_KEY & ".", _
+            VBA.vbExclamation, "PrsnlEventBuilder / Установи"
+        Exit Function
+    End If
+
+    If private_IsAbsoluteWorkbookPath(configuredPath) Then
+        outSourcePath = configuredPath
+    Else
+        outSourcePath = ex_XmlCore.fn_CombineBasePath(ThisWorkbook, configuredPath)
+    End If
+    If VBA.Len(VBA.Trim$(outSourcePath)) = 0 Or VBA.Len(VBA.Dir$(outSourcePath)) = 0 Then
+        VBA.MsgBox "Файл Установи не знайдено:" & VBA.vbCrLf & outSourcePath, _
+            VBA.vbExclamation, "PrsnlEventBuilder / Установи"
+        outSourcePath = VBA.vbNullString
+        Exit Function
+    End If
+
+    private_TryResolveHospitalsSourcePath = True
+End Function
+
+Private Function private_TryAppendInstitutionRow( _
+    ByVal sourcePath As String, _
+    ByRef values() As Variant, _
+    ByRef outTargetRow As Long _
+) As Boolean
+    Dim wb As Workbook
+    Dim ws As Worksheet
+    Dim openedHere As Boolean
+    Dim lastCell As Range
+    Dim sourceFormatRow As Long
+    Dim expectedHeaders As Variant
+    Dim headerIndex As Long
+    Dim rowValues(1 To 1, 1 To 6) As Variant
+
+    On Error GoTo EH
+    Set wb = private_FindOpenWorkbookByPath(sourcePath)
+    If wb Is Nothing Then
+        Set wb = Application.Workbooks.Open(sourcePath)
+        openedHere = True
+    End If
+    If wb Is Nothing Then GoTo EH
+    If wb.ReadOnly Then
+        VBA.MsgBox "Файл відкрито лише для читання:" & VBA.vbCrLf & sourcePath, _
+            VBA.vbExclamation, "PrsnlEventBuilder / Установи"
+        GoTo Cleanup
+    End If
+
+    On Error Resume Next
+    Set ws = wb.Worksheets(INSTITUTIONS_SHEET_NAME)
+    On Error GoTo EH
+    If ws Is Nothing Then
+        VBA.MsgBox "У файлі немає аркуша '" & INSTITUTIONS_SHEET_NAME & "'.", _
+            VBA.vbExclamation, "PrsnlEventBuilder / Установи"
+        GoTo Cleanup
+    End If
+
+    expectedHeaders = Array("Позначення", "Назва", "Регіон", "Родовий", "Знахідний", "Давальний")
+    For headerIndex = 0 To 5
+        If VBA.StrComp( _
+            VBA.Trim$(VBA.CStr(ws.Cells(INSTITUTIONS_HEADER_ROW, headerIndex + 1).Value2)), _
+            VBA.CStr(expectedHeaders(headerIndex)), VBA.vbTextCompare) <> 0 Then
+            VBA.MsgBox "Неочікуваний заголовок у " & ws.Cells(INSTITUTIONS_HEADER_ROW, headerIndex + 1).Address(False, False) & _
+                ". Очікується '" & VBA.CStr(expectedHeaders(headerIndex)) & "'.", _
+                VBA.vbExclamation, "PrsnlEventBuilder / Установи"
+            GoTo Cleanup
+        End If
+    Next headerIndex
+
+    Set lastCell = ws.Range("A:F").Find( _
+        What:="*", After:=ws.Cells(1, 1), LookIn:=xlFormulas, LookAt:=xlPart, _
+        SearchOrder:=xlByRows, SearchDirection:=xlPrevious, MatchCase:=False)
+    If lastCell Is Nothing Then
+        outTargetRow = INSTITUTIONS_FIRST_DATA_ROW
+    Else
+        outTargetRow = private_MaxLong(INSTITUTIONS_FIRST_DATA_ROW, lastCell.Row + 1)
+    End If
+
+    sourceFormatRow = outTargetRow - 1
+    If sourceFormatRow >= INSTITUTIONS_FIRST_DATA_ROW Then
+        ws.Range(ws.Cells(sourceFormatRow, 1), ws.Cells(sourceFormatRow, 6)).Copy
+        ws.Range(ws.Cells(outTargetRow, 1), ws.Cells(outTargetRow, 6)).PasteSpecial xlPasteFormats
+        Application.CutCopyMode = False
+        ws.Rows(outTargetRow).RowHeight = ws.Rows(sourceFormatRow).RowHeight
+    End If
+
+    For headerIndex = 1 To 6
+        rowValues(1, headerIndex) = values(headerIndex)
+    Next headerIndex
+    ws.Range(ws.Cells(outTargetRow, 1), ws.Cells(outTargetRow, 6)).NumberFormat = "@"
+    ws.Range(ws.Cells(outTargetRow, 1), ws.Cells(outTargetRow, 6)).Value2 = rowValues
+    wb.Save
+    private_TryAppendInstitutionRow = True
+
+Cleanup:
+    On Error Resume Next
+    Application.CutCopyMode = False
+    If openedHere And Not wb Is Nothing Then wb.Close SaveChanges:=False
+    On Error GoTo 0
+    Exit Function
+
+EH:
+    VBA.MsgBox "Не вдалося додати рядок у файл Установи:" & VBA.vbCrLf & Err.Description, _
+        VBA.vbExclamation, "PrsnlEventBuilder / Установи"
+    Resume Cleanup
+End Function
+
+Private Function private_FindOpenWorkbookByPath(ByVal workbookPath As String) As Workbook
+    Dim wb As Workbook
+
+    For Each wb In Application.Workbooks
+        If VBA.StrComp(VBA.Trim$(wb.FullName), VBA.Trim$(workbookPath), VBA.vbTextCompare) = 0 Then
+            Set private_FindOpenWorkbookByPath = wb
+            Exit Function
+        End If
+    Next wb
+End Function
+
+Private Function private_IsAbsoluteWorkbookPath(ByVal workbookPath As String) As Boolean
+    workbookPath = VBA.Trim$(workbookPath)
+    If VBA.Len(workbookPath) >= 3 Then
+        If VBA.Mid$(workbookPath, 2, 2) = ":\" Then
+            private_IsAbsoluteWorkbookPath = True
+            Exit Function
+        End If
+    End If
+    private_IsAbsoluteWorkbookPath = (VBA.Left$(workbookPath, 2) = "\\")
 End Function
 
 Private Function private_MaxLong(ByVal leftValue As Long, ByVal rightValue As Long) As Long

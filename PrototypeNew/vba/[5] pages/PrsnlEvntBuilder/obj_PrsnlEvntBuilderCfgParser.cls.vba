@@ -17,7 +17,6 @@ Private Const EXPORT_CLASS_SUFFIX As String = ".ExporterClass"
 Private Const EXPORT_SHEET_NAME_SUFFIX As String = ".SheetName"
 Private Const EXPORT_RANGE_START_MARKER_SUFFIX As String = ".RangeStartMarker"
 Private Const EXPORT_RANGE_END_MARKER_SUFFIX As String = ".RangeEndMarker"
-Private Const DEFAULT_EXPORTER_CLASS As String = "obj_PEB_ExptrDailyScope"
 
 Private m_ConfigTable As obj_ConfigTable
 Private m_CfgParserBase As obj_CfgParserBase
@@ -54,7 +53,7 @@ Public Function Initialize(ByVal configTable As obj_ConfigTable) As Boolean
     If m_ConfigTable Is Nothing Then Exit Function
 
     Set m_CfgParserBase = New obj_CfgParserBase
-    If Not m_CfgParserBase.Initialize(m_ConfigTable) Then Exit Function
+    If Not m_CfgParserBase.Initialize(m_ConfigTable, Me) Then Exit Function
     If Not m_CfgParserBase.TryGetConfigEntries(m_ConfigEntries) Then Exit Function
     If Not m_CfgParserBase.BuildConfigDictionary(m_ConfigEntries, m_CfgMap) Then Exit Function
 
@@ -71,6 +70,37 @@ Public Sub Dispose()
     Set m_CfgMap = Nothing
     On Error GoTo 0
 End Sub
+
+Public Function ResolveLatestByDmyPattern(ByVal rawValue As String) As String
+    ResolveLatestByDmyPattern = ex_SourceResolver.fn_ResolveLatestByDmyPattern(rawValue)
+End Function
+
+Public Function TryGetRequiredValue( _
+    ByVal keyName As String, _
+    ByRef outValue As String _
+) As Boolean
+    outValue = VBA.vbNullString
+    If m_CfgParserBase Is Nothing Then Exit Function
+    If m_CfgMap Is Nothing Then Exit Function
+
+    ' Parser остаётся единственным resolverDataContext режима, но не знает
+    ' семантику ключа. Конкретный потребитель хранит свои константы и решает,
+    ' как интерпретировать уже разрешённое строковое значение.
+    TryGetRequiredValue = m_CfgParserBase.TryGetRequiredConfigValue( _
+        m_CfgMap, keyName, outValue)
+End Function
+
+Public Function GetOptionalValue( _
+    ByVal keyName As String, _
+    Optional ByVal defaultValue As String = VBA.vbNullString _
+) As String
+    GetOptionalValue = defaultValue
+    If m_CfgParserBase Is Nothing Then Exit Function
+    If m_CfgMap Is Nothing Then Exit Function
+
+    GetOptionalValue = m_CfgParserBase.GetOptionalConfigValue( _
+        m_CfgMap, keyName, defaultValue)
+End Function
 
 Public Function TryGetProfilesProviderClass(ByRef outProviderClassName As String) As Boolean
     outProviderClassName = VBA.vbNullString
@@ -171,12 +201,16 @@ ContinueEntry:
         exportAlias = VBA.Trim$(VBA.CStr(aliasObj))
         If VBA.Len(exportAlias) = 0 Then GoTo ContinueAlias
 
-        exporterClassName = m_CfgParserBase.GetOptionalConfigValue( _
+        If Not m_CfgParserBase.TryGetRequiredConfigValue( _
             m_CfgMap, _
             EXPORT_CONFIG_PREFIX & exportAlias & EXPORT_CLASS_SUFFIX, _
-            DEFAULT_EXPORTER_CLASS)
+            exporterClassName) Then
+            VBA.MsgBox "PrototypeNew: required exporter class key is missing: " & _
+                EXPORT_CONFIG_PREFIX & exportAlias & EXPORT_CLASS_SUFFIX, _
+                VBA.vbExclamation, "PrototypeNew / PrsnlEvntBuilder"
+            Exit Function
+        End If
         exporterClassName = VBA.Trim$(exporterClassName)
-        If VBA.Len(exporterClassName) = 0 Then exporterClassName = DEFAULT_EXPORTER_CLASS
 
         targetWorkbookPath = m_CfgParserBase.GetOptionalConfigValue( _
             m_CfgMap, _
