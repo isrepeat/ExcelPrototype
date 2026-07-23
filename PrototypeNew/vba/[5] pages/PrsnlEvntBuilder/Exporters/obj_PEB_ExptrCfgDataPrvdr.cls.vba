@@ -180,6 +180,79 @@ Public Function TryGetMovementHistoryByIpn( _
     TryGetMovementHistoryByIpn = True
 End Function
 
+' Ищет не последнюю физическую строку, а последнюю запись человека, которая
+' действительно содержит обе части данных предыдущего отпускного билета.
+' Запрос выполняется по snapshot сохранённого Movement, поэтому live-строка,
+' добавленная перед WORD export и ещё не сохранённая, не скрывает старый билет.
+Public Function TryGetLatestMovementVacationTicket( _
+    ByVal ipnText As String, _
+    ByRef outFound As Boolean, _
+    ByRef outEscortDocumentText As String, _
+    ByRef outDepartureOrderText As String _
+) As Boolean
+    Dim resolvedPath As String
+    Dim snapshotPath As String
+    Dim movementTableRef As String
+    Dim query As obj_ExtWorkbookQuery
+    Dim resultTable As obj_TableDynamic
+    Dim resultRow As obj_Row
+    Dim rowIndex As Long
+    Dim escortDocumentText As String
+    Dim departureOrderText As String
+
+    outFound = False
+    outEscortDocumentText = VBA.vbNullString
+    outDepartureOrderText = VBA.vbNullString
+    If m_IsDisposed Then Exit Function
+
+    ipnText = private_NormalizeLookupKey(ipnText)
+    If VBA.Len(ipnText) = 0 Then Exit Function
+    If Not private_TryResolveMovementQueryContext( _
+        resolvedPath, movementTableRef) Then Exit Function
+    If m_QueryEngine Is Nothing Then Exit Function
+    If Not private_TryGetMovementSnapshotPath( _
+        resolvedPath, snapshotPath) Then Exit Function
+
+    Set query = New obj_ExtWorkbookQuery
+    query.SourcePath = snapshotPath
+    query.TableRef = movementTableRef
+    query.ReverseOrder = True
+    If Not query.AddCondition( _
+        MOVEMENT_IPN_HEADER, _
+        en_ExtWorkbookQueryOp.ExtQueryOpEquals, _
+        ipnText, _
+        True) Then Exit Function
+    If Not query.AddSelectColumn(MOVEMENT_ESCORT_DOCUMENT_HEADER) Then Exit Function
+    If Not query.AddSelectColumn(MOVEMENT_DEPARTURE_ORDER_HEADER) Then Exit Function
+    If Not m_QueryEngine.TryExecute(query, resultTable) Then Exit Function
+    If resultTable Is Nothing Then Exit Function
+
+    ' Engine уже возвращает строки в обратном физическом порядке. Проверяем
+    ' обе колонки вместе, чтобы номер и дата не были взяты из разных событий.
+    For rowIndex = 1 To resultTable.RowCount
+        Set resultRow = resultTable.Rows.Item(rowIndex)
+        If resultRow Is Nothing Then GoTo ContinueRow
+        escortDocumentText = VBA.vbNullString
+        departureOrderText = VBA.vbNullString
+        If Not resultRow.TryGetCellValueByColumn( _
+            MOVEMENT_ESCORT_DOCUMENT_HEADER, escortDocumentText) Then Exit Function
+        If Not resultRow.TryGetCellValueByColumn( _
+            MOVEMENT_DEPARTURE_ORDER_HEADER, departureOrderText) Then Exit Function
+        escortDocumentText = VBA.Trim$(escortDocumentText)
+        departureOrderText = VBA.Trim$(departureOrderText)
+        If VBA.Len(escortDocumentText) > 0 And _
+            VBA.Len(departureOrderText) > 0 Then
+            outEscortDocumentText = escortDocumentText
+            outDepartureOrderText = departureOrderText
+            outFound = True
+            Exit For
+        End If
+ContinueRow:
+    Next rowIndex
+
+    TryGetLatestMovementVacationTicket = True
+End Function
+
 ' Совместимый узкий API для callers, которым данные ТВО не нужны.
 ' Основной export-flow вызывает объединённый helper напрямую и переиспользует
 ' outTvoChain; эта обёртка сохранена только для прежнего публичного контракта.
