@@ -14,6 +14,10 @@ Private m_MovementWorkbookPath As String
 Private m_MovementSheetName As String
 Private m_MovementRangeStartMarker As String
 Private m_MovementRangeEndMarker As String
+Private m_MovementSnapshotPath As String
+Private m_MovementSnapshotSourceModifiedAt As Date
+Private m_HasMovementSnapshotSourceModifiedAt As Boolean
+Private m_TemporaryFilePaths As Collection
 ' Provider хранит только единый engine. Он сам переключается между SQL для
 ' закрытого Movement и чтением Worksheet, если источник уже открыт пользователем.
 Private m_QueryEngine As obj_ExtWorkbookQueryEngine
@@ -67,6 +71,10 @@ Public Function Initialize(ByVal configTable As obj_ConfigTable) As Boolean
     m_MovementSheetName = VBA.vbNullString
     m_MovementRangeStartMarker = VBA.vbNullString
     m_MovementRangeEndMarker = VBA.vbNullString
+    m_MovementSnapshotPath = VBA.vbNullString
+    m_MovementSnapshotSourceModifiedAt = 0
+    m_HasMovementSnapshotSourceModifiedAt = False
+    Set m_TemporaryFilePaths = New Collection
     Set m_QueryEngine = New obj_ExtWorkbookQueryEngine
 
     If Not m_CommonData.Initialize() Then Exit Function
@@ -84,12 +92,20 @@ Public Sub Dispose()
     Set m_CommonData = Nothing
     If Not m_QueryEngine Is Nothing Then m_QueryEngine.Dispose
     Set m_QueryEngine = Nothing
+    ' ADO должен освободить handle раньше удаления snapshot. Удаляем только
+    ' файлы, созданные этим экземпляром provider-а, а не произвольные *.tmp.xlsx
+    ' в каталоге пользователя.
+    private_DeleteTemporaryFiles
     m_PersonnelWorkbookPath = VBA.vbNullString
     m_PersonnelTableRef = VBA.vbNullString
     m_MovementWorkbookPath = VBA.vbNullString
     m_MovementSheetName = VBA.vbNullString
     m_MovementRangeStartMarker = VBA.vbNullString
     m_MovementRangeEndMarker = VBA.vbNullString
+    m_MovementSnapshotPath = VBA.vbNullString
+    m_MovementSnapshotSourceModifiedAt = 0
+    m_HasMovementSnapshotSourceModifiedAt = False
+    Set m_TemporaryFilePaths = Nothing
     On Error GoTo 0
 End Sub
 
@@ -117,6 +133,7 @@ Public Function TryGetMovementHistoryByIpn( _
     Optional ByVal maxRows As Long = 0 _
 ) As Boolean
     Dim resolvedPath As String
+    Dim snapshotPath As String
     Dim movementTableRef As String
     Dim query As obj_ExtWorkbookQuery
 
@@ -133,9 +150,14 @@ Public Function TryGetMovementHistoryByIpn( _
     If Not private_TryResolveMovementQueryContext( _
         resolvedPath, movementTableRef) Then Exit Function
     If m_QueryEngine Is Nothing Then Exit Function
+    ' История является read-only preview сохранённого состояния Movement.
+    ' Даже если оригинал открыт и содержит live-изменения, snapshot копируется
+    ' с диска и намеренно не включает значения до сохранения пользователем.
+    If Not private_TryGetMovementSnapshotPath( _
+        resolvedPath, snapshotPath) Then Exit Function
 
     Set query = New obj_ExtWorkbookQuery
-    query.SourcePath = resolvedPath
+    query.SourcePath = snapshotPath
     query.TableRef = movementTableRef
     query.SelectAllColumns = True
     If maxRows > 0 Then
@@ -154,7 +176,7 @@ Public Function TryGetMovementHistoryByIpn( _
 
     If Not m_QueryEngine.TryExecute(query, outTable) Then Exit Function
     If outTable Is Nothing Then Exit Function
-    outTable.SectionTitle = "Історія руху"
+    outTable.SectionTitle = private_BuildMovementHistorySectionTitle(resolvedPath)
     TryGetMovementHistoryByIpn = True
 End Function
 
@@ -666,6 +688,200 @@ Private Function private_TryResolveMovementQueryContext( _
 
     private_TryResolveMovementQueryContext = True
 End Function
+
+Private Function private_TryGetMovementSnapshotPath( _
+    ByVal sourcePath As String, _
+    ByRef outSnapshotPath As String _
+) As Boolean
+    Dim snapshotPath As String
+    Dim errorDescription As String
+    Dim sourceFileChanged As Boolean
+
+    outSnapshotPath = VBA.vbNullString
+    sourcePath = VBA.Trim$(sourcePath)
+    If VBA.Len(sourcePath) = 0 Then Exit Function
+
+    ' Snapshot создаётся один раз на время жизни provider-а. Благодаря
+    ' неизменному пути obj_ExtWorkbookQueryEngine переиспользует одно и то же
+    ' ADO-соединение между запросами истории для разных военнослужащих.
+    If VBA.Len(m_MovementSnapshotPath) > 0 Then
+        sourceFileChanged = private_HasMovementSourceFileChanged(sourcePath)
+        If VBA.Len(VBA.Dir$(m_MovementSnapshotPath)) > 0 And _
+            Not sourceFileChanged Then
+            outSnapshotPath = m_MovementSnapshotPath
+            private_TryGetMovementSnapshotPath = True
+            Exit Function
+        End If
+
+        ' При сохранении Movement или удалении snapshot извне сначала закрываем
+        ' ADO handle. Только после этого Windows разрешит заменить временный
+        ' файл по тому же пути актуальной сохранённой копией.
+        If Not m_QueryEngine Is Nothing Then m_QueryEngine.Dispose
+        Set m_QueryEngine = New obj_ExtWorkbookQueryEngine
+        If Not m_QueryEngine.Initialize Then Exit Function
+        On Error Resume Next
+        If VBA.Len(VBA.Dir$(m_MovementSnapshotPath)) > 0 Then
+            VBA.Kill m_MovementSnapshotPath
+        End If
+        On Error GoTo 0
+        m_MovementSnapshotPath = VBA.vbNullString
+        m_MovementSnapshotSourceModifiedAt = 0
+        m_HasMovementSnapshotSourceModifiedAt = False
+    End If
+
+    snapshotPath = private_BuildMovementSnapshotPath(sourcePath)
+    If VBA.Len(snapshotPath) = 0 Then
+        VBA.MsgBox "PrototypeNew: failed to build the Movement snapshot path." & _
+            VBA.vbCrLf & "Source: " & sourcePath, _
+            VBA.vbExclamation, "PrototypeNew / exporter data provider"
+        Exit Function
+    End If
+
+    On Error GoTo EH
+    ' Удаляем только ожидаемую копию этого Movement. Она могла остаться после
+    ' аварийного завершения Excel, когда Dispose не получил управление.
+    If VBA.Len(VBA.Dir$(snapshotPath)) > 0 Then VBA.Kill snapshotPath
+
+    ' Файловая копия читает последнее сохранённое состояние оригинала. Поэтому
+    ' snapshot остаётся стабильным, даже когда открытый Movement продолжает
+    ' получать несохранённые live-изменения через ListObject.
+    If Not private_TryCopySnapshotFile(sourcePath, snapshotPath) Then
+        Err.Raise VBA.vbObjectError + 2101, _
+            TypeName(Me), _
+            "The saved Movement file could not be copied."
+    End If
+
+    m_MovementSnapshotPath = snapshotPath
+    ' Timestamp фиксируется в момент создания snapshot. Если пользователь
+    ' позже сохранит Movement, заголовок старой копии не станет ошибочно
+    ' показывать уже новую дату оригинала.
+    On Error Resume Next
+    m_MovementSnapshotSourceModifiedAt = VBA.FileDateTime(sourcePath)
+    m_HasMovementSnapshotSourceModifiedAt = (Err.Number = 0)
+    Err.Clear
+    On Error GoTo EH
+    If m_TemporaryFilePaths Is Nothing Then Set m_TemporaryFilePaths = New Collection
+    private_TrackTemporaryFilePath snapshotPath
+    outSnapshotPath = snapshotPath
+    private_TryGetMovementSnapshotPath = True
+    Exit Function
+
+EH:
+    errorDescription = Err.Description
+    On Error Resume Next
+    If VBA.Len(snapshotPath) > 0 Then
+        If VBA.Len(VBA.Dir$(snapshotPath)) > 0 Then VBA.Kill snapshotPath
+    End If
+    On Error GoTo 0
+    VBA.MsgBox "PrototypeNew: failed to create the Movement snapshot." & _
+        VBA.vbCrLf & "Source: " & sourcePath & _
+        VBA.vbCrLf & "Snapshot: " & snapshotPath & _
+        VBA.vbCrLf & "Error: " & errorDescription, _
+        VBA.vbExclamation, "PrototypeNew / exporter data provider"
+End Function
+
+Private Sub private_TrackTemporaryFilePath(ByVal temporaryFilePath As String)
+    Dim trackedFilePath As Variant
+
+    temporaryFilePath = VBA.Trim$(temporaryFilePath)
+    If VBA.Len(temporaryFilePath) = 0 Then Exit Sub
+    If m_TemporaryFilePaths Is Nothing Then Set m_TemporaryFilePaths = New Collection
+
+    ' При обновлении snapshot используется тот же путь. Не добавляем его
+    ' повторно, чтобы Dispose выполнял одну операцию удаления на файл.
+    For Each trackedFilePath In m_TemporaryFilePaths
+        If VBA.StrComp( _
+            VBA.Replace$(VBA.CStr(trackedFilePath), "/", "\"), _
+            VBA.Replace$(temporaryFilePath, "/", "\"), _
+            VBA.vbTextCompare) = 0 Then Exit Sub
+    Next trackedFilePath
+    m_TemporaryFilePaths.Add temporaryFilePath
+End Sub
+
+Private Function private_HasMovementSourceFileChanged( _
+    ByVal sourcePath As String _
+) As Boolean
+    Dim currentSourceModifiedAt As Date
+
+    ' Если timestamp прочитать нельзя, сохраняем рабочий snapshot: ошибка
+    ' проверки свежести не должна ломать повторный запрос истории.
+    If Not m_HasMovementSnapshotSourceModifiedAt Then Exit Function
+    On Error GoTo DateUnavailable
+    currentSourceModifiedAt = VBA.FileDateTime(sourcePath)
+    private_HasMovementSourceFileChanged = _
+        (VBA.CDbl(currentSourceModifiedAt) <> _
+            VBA.CDbl(m_MovementSnapshotSourceModifiedAt))
+
+DateUnavailable:
+End Function
+
+Private Function private_TryCopySnapshotFile( _
+    ByVal sourcePath As String, _
+    ByVal snapshotPath As String _
+) As Boolean
+    Dim fileSystemObject As Object
+
+    On Error GoTo EH
+    Set fileSystemObject = VBA.CreateObject("Scripting.FileSystemObject")
+    ' В отличие от VBA.FileCopy, FSO не отклоняет файл только потому, что книга
+    ' открыта в Excel. Копируется именно содержимое на диске, а не Workbook DOM.
+    fileSystemObject.CopyFile sourcePath, snapshotPath, True
+    private_TryCopySnapshotFile = True
+EH:
+    Set fileSystemObject = Nothing
+End Function
+
+Private Function private_BuildMovementHistorySectionTitle( _
+    ByVal sourcePath As String _
+) As String
+    Dim sourceFileDate As Date
+
+    On Error GoTo DateUnavailable
+    If m_HasMovementSnapshotSourceModifiedAt Then
+        sourceFileDate = m_MovementSnapshotSourceModifiedAt
+    Else
+        sourceFileDate = VBA.FileDateTime(sourcePath)
+    End If
+    private_BuildMovementHistorySectionTitle = _
+        "Історія руху — snapshot файлу від " & _
+        VBA.Format$(sourceFileDate, "dd.mm.yyyy hh:nn:ss")
+    Exit Function
+
+DateUnavailable:
+    ' Ошибка чтения timestamp не должна отменять уже выполненный запрос.
+    private_BuildMovementHistorySectionTitle = "Історія руху — snapshot файлу"
+End Function
+
+Private Function private_BuildMovementSnapshotPath(ByVal sourcePath As String) As String
+    Dim extensionPos As Long
+    Dim separatorPos As Long
+
+    sourcePath = VBA.Trim$(sourcePath)
+    extensionPos = VBA.InStrRev(sourcePath, ".")
+    separatorPos = VBA.InStrRev(VBA.Replace$(sourcePath, "/", "\"), "\")
+    If extensionPos <= separatorPos Then Exit Function
+
+    private_BuildMovementSnapshotPath = _
+        VBA.Left$(sourcePath, extensionPos - 1) & _
+        " (snapshot).tmp" & VBA.Mid$(sourcePath, extensionPos)
+End Function
+
+Private Sub private_DeleteTemporaryFiles()
+    Dim fileIndex As Long
+    Dim temporaryFilePath As String
+
+    If m_TemporaryFilePaths Is Nothing Then Exit Sub
+
+    On Error Resume Next
+    For fileIndex = m_TemporaryFilePaths.Count To 1 Step -1
+        temporaryFilePath = VBA.Trim$(VBA.CStr(m_TemporaryFilePaths.Item(fileIndex)))
+        If VBA.Len(temporaryFilePath) > 0 Then
+            If VBA.Len(VBA.Dir$(temporaryFilePath)) > 0 Then VBA.Kill temporaryFilePath
+        End If
+        m_TemporaryFilePaths.Remove fileIndex
+    Next fileIndex
+    On Error GoTo 0
+End Sub
 
 Private Function private_SplitNonEmptyLines(ByVal valueText As String) As Collection
     Dim result As Collection

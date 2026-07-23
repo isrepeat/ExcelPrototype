@@ -17,6 +17,7 @@ Private m_ControlName As String
 Private m_ItemsSourceRaw As String
 Private m_ItemVisibilityRaw As String
 Private m_RenderAsListObject As Boolean
+Private m_MergeSectionCells As Boolean
 Private m_TableNameRaw As String
 Private m_RuntimeTableName As String
 Private m_LayoutSheetName As String
@@ -80,6 +81,7 @@ Private Sub obj_IControl_Configure(ByVal controlNode As Object)
     Set m_TableItems = Nothing
     Set m_ControlBase = Nothing
     m_RenderAsListObject = False
+    m_MergeSectionCells = False
     m_TableNameRaw = VBA.vbNullString
     m_RuntimeTableName = VBA.vbNullString
 
@@ -100,6 +102,7 @@ Private Sub obj_IControl_Configure(ByVal controlNode As Object)
 
     m_ItemVisibilityRaw = VBA.Trim$(VBA.CStr(ex_XmlCore.fn_NodeAttrText(controlNode, "itemVisibility")))
     If Not private_TryReadOptionalBooleanAttr(controlNode, "renderAsListObject", False, m_RenderAsListObject) Then Exit Sub
+    If Not private_TryReadOptionalBooleanAttr(controlNode, "mergeSectionCells", False, m_MergeSectionCells) Then Exit Sub
     m_TableNameRaw = VBA.Trim$(VBA.CStr(ex_XmlCore.fn_NodeAttrText(controlNode, "tableName")))
 
     m_LayoutSheetName = VBA.Trim$(ex_XmlCore.fn_NodeAttrText(controlNode, "__layoutSheetName"))
@@ -211,6 +214,10 @@ Private Sub obj_IControl_Render()
     End If
 
     stageStart = VBA.Timer
+    ' При повторном partial render section предыдущего результата уже может
+    ' быть объединён. Сначала возвращаем прямоугольную сетку, иначе Excel не
+    ' позволит записать новый двумерный valueBlock в targetRange.
+    If m_MergeSectionCells Then targetRange.UnMerge
     targetRange.Value2 = valueBlock
     private_LogRenderStep "write-values", stageStart, _
         "rows=" & VBA.CStr(rowCount) & _
@@ -243,6 +250,13 @@ Private Sub obj_IControl_Render()
     private_LogRenderStep "apply-styles", stageStart, _
         "styleSegments=" & private_CollectionCountText(styleSegments)
 #End If
+
+    If m_MergeSectionCells Then
+        ' Merge выполняется после style pipeline: оформление уже назначено
+        ' всему section-range, а объединение влияет только на отображение
+        ' длинного заголовка и не меняет координаты следующих строк.
+        private_MergeSectionRanges ws, styleSegments
+    End If
 
     private_LogRenderStep "total", renderStart, _
         "rows=" & VBA.CStr(rowCount) & _
@@ -327,7 +341,7 @@ End Function
 
 Private Function obj_IControl_SupportsAttribute(ByVal attrName As String) As Boolean
     Select Case VBA.LCase$(VBA.Trim$(attrName))
-        Case "itemssource", "itemvisibility", "renderaslistobject", "tablename"
+        Case "itemssource", "itemvisibility", "renderaslistobject", "mergesectioncells", "tablename"
             obj_IControl_SupportsAttribute = True
     End Select
 End Function
@@ -2090,6 +2104,37 @@ Private Function private_SanitizeTableName(ByVal valueText As String) As String
     If VBA.Len(outName) > 255 Then outName = VBA.Left$(outName, 255)
     private_SanitizeTableName = outName
 End Function
+
+Private Sub private_MergeSectionRanges( _
+    ByVal ws As Worksheet, _
+    ByVal styleSegments As Collection _
+)
+    Dim segment As Object
+    Dim relativeRow As Long
+    Dim sectionRange As Range
+
+    If ws Is Nothing Then Exit Sub
+    If styleSegments Is Nothing Then Exit Sub
+
+    On Error Resume Next
+    For Each segment In styleSegments
+        If VBA.StrComp( _
+            VBA.CStr(segment("StyleKind")), _
+            "section", _
+            VBA.vbTextCompare) = 0 Then
+            For relativeRow = VBA.CLng(segment("RowStart")) To _
+                VBA.CLng(segment("RowEnd"))
+                Set sectionRange = ws.Range( _
+                    ws.Cells(m_RowStart + relativeRow - 1, m_ColStart), _
+                    ws.Cells( _
+                        m_RowStart + relativeRow - 1, _
+                        m_ColStart + VBA.CLng(segment("ColumnCount")) - 1))
+                If sectionRange.Cells.CountLarge > 1 Then sectionRange.Merge
+            Next relativeRow
+        End If
+    Next segment
+    On Error GoTo 0
+End Sub
 
 Private Function private_TryReadOptionalBooleanAttr( _
     ByVal controlNode As Object, _

@@ -52,6 +52,7 @@ Private Const HOTKEY_EXPORT_TO_WORD As String = "Export to WORD"
 Private Const EXPORT_ACTION_PREFIX As String = "Export "
 Private Const MAX_EXPORT_HOTKEYS As Long = 9
 Private Const LOOKUP_CANDIDATES_CONTROL_NAME As String = "LookupCandidatesTable"
+Private Const FIO_LOOKUP_KEY As String = "op_FIO"
 Private Const WORD_EXPORT_PANEL_CONTAINER_NAME As String = "WordExportPanel"
 Private Const EVENT_DRAFT_FORM_CONTAINER_NAME As String = "EventDraftForm"
 Private Const EVENT_DRAFT_VALUES_CONTAINER_NAME As String = "EventDraftValues"
@@ -658,6 +659,7 @@ Public Function RuntimeHandleHotkeyAction(ByVal actionId As Variant) As Boolean
     Dim actionText As String
     Dim cellValue As String
     Dim cellAddress As String
+    Dim shouldRefreshMovementHistory As Boolean
 
     On Error GoTo EH
 
@@ -718,6 +720,12 @@ Public Function RuntimeHandleHotkeyAction(ByVal actionId As Variant) As Boolean
     Select Case VBA.LCase$(actionText)
         Case VBA.LCase$(HOTKEY_ACCEPT_CANDIDATE_ROW)
             If m_IsMovementHistoryEnabled Then
+                ' Movement относится только к основному человеку события.
+                ' Hospital/Commander candidates тоже заполняют draft-форму
+                ' через этот hotkey, но не должны обновлять историю по старому
+                ' или не относящемуся к ним ИПН.
+                shouldRefreshMovementHistory = _
+                    private_IsFioCandidatesContext()
                 ' Сначала применяем выбранного Lookup-кандидата к draft-форме.
                 ' Историю Movement запрашиваем уже по записанному в форму ИПН,
                 ' чтобы preview и экспортная строка относились к одному человеку.
@@ -725,9 +733,11 @@ Public Function RuntimeHandleHotkeyAction(ByVal actionId As Variant) As Boolean
                     RuntimeHandleHotkeyAction = True
                     Exit Function
                 End If
-                If Not private_TryRefreshMovementHistory() Then
-                    RuntimeHandleHotkeyAction = True
-                    Exit Function
+                If shouldRefreshMovementHistory Then
+                    If Not private_TryRefreshMovementHistory() Then
+                        RuntimeHandleHotkeyAction = True
+                        Exit Function
+                    End If
                 End If
                 RuntimeHandleHotkeyAction = True
                 Exit Function
@@ -768,6 +778,26 @@ EH:
 #If LOGGING_DEBUG_ENABLED Then
     ex_Core.fn_Diagnostic_LogError "prsnlevntbuilder:hotkey-action:error action='" & private_EscapeForLog(actionText) & "' cell='" & private_EscapeForLog(cellAddress) & "' errNo=" & VBA.CStr(Err.Number) & " err='" & private_EscapeForLog(Err.Description) & "'"
 #End If
+End Function
+
+Private Function private_IsFioCandidatesContext() As Boolean
+    Dim entityLookupCfgParser As obj_EntityLookupCfgParser
+    Dim lookupKey As String
+    Dim candidateTable As obj_TableDynamic
+    Dim searchColumnAlias As String
+
+    If m_LookupFeature Is Nothing Then Exit Function
+    If Not m_LookupFeature.TryGetActiveCandidatesContext( _
+        entityLookupCfgParser, _
+        lookupKey, _
+        candidateTable, _
+        searchColumnAlias) Then Exit Function
+
+    private_IsFioCandidatesContext = _
+        (VBA.StrComp( _
+            VBA.Trim$(lookupKey), _
+            FIO_LOOKUP_KEY, _
+            VBA.vbTextCompare) = 0)
 End Function
 
 Public Function RuntimeClearExportFormAndCandidates() As Boolean

@@ -217,6 +217,9 @@ Private Function private_TryExecuteOpenWorkbook( _
     Dim usedLastColumn As Long
     Dim selectedValues() As Variant
     Dim conditionValues() As Variant
+    Dim matchedRowOffsets As Collection
+    Dim matchedRowOffset As Variant
+    Dim matchedRowValues As Variant
     Dim rowOffset As Long
     Dim rowStart As Long
     Dim rowEnd As Long
@@ -231,6 +234,10 @@ Private Function private_TryExecuteOpenWorkbook( _
     Dim fastCompareMode As VbCompareMethod
     Dim headerText As String
     Dim condition As obj_ExtWorkbookCondition
+    Dim deferSelectedValuesRead As Boolean
+    Dim selectedFirstColumn As Long
+    Dim selectedLastColumn As Long
+    Dim matchedSourceRow As Long
 
     ' Open-workbook backend повторяет семантику SQL без ADO: первая строка
     ' TableRef считается строкой заголовков, а данные читаются со следующей.
@@ -288,6 +295,12 @@ Private Function private_TryExecuteOpenWorkbook( _
     ReDim selectedValues(1 To selectColumns.Count)
     For i = 1 To selectColumns.Count
         If Not private_TryResolveHeaderColumn(headerMap, VBA.CStr(selectColumns.Item(i)), selectedColumnIndexes(i)) Then Exit Function
+        If selectedFirstColumn = 0 Or selectedColumnIndexes(i) < selectedFirstColumn Then
+            selectedFirstColumn = selectedColumnIndexes(i)
+        End If
+        If selectedColumnIndexes(i) > selectedLastColumn Then
+            selectedLastColumn = selectedColumnIndexes(i)
+        End If
     Next i
     If conditionCount > 0 Then
         ReDim conditionColumnIndexes(1 To conditionCount)
@@ -317,8 +330,9 @@ Private Function private_TryExecuteOpenWorkbook( _
         Exit Function
     End If
 
-    ' Загружаем только условные и выбранные колонки. Итоговая таблица поэтому
-    ' совпадает по структуре с SELECT-результатом закрытого backend.
+    ' Сначала загружаем только колонки условий. Для SELECT * полные данные
+    ' открытого листа читаются позднее и только по совпавшим строкам: история
+    ' Movement не должна загружать 23 колонки для всего диапазона до 20000.
     If conditionCount > 0 Then
         For i = 1 To conditionCount
             conditionValues(i) = sourceSheet.Range( _
@@ -326,11 +340,20 @@ Private Function private_TryExecuteOpenWorkbook( _
                 sourceSheet.Cells(effectiveLastRow, conditionColumnIndexes(i))).Value2
         Next i
     End If
-    For i = 1 To selectColumns.Count
-        selectedValues(i) = sourceSheet.Range( _
-            sourceSheet.Cells(startCell.Row + 1, selectedColumnIndexes(i)), _
-            sourceSheet.Cells(effectiveLastRow, selectedColumnIndexes(i))).Value2
-    Next i
+    ' Отложенное чтение имеет смысл только при наличии фильтра: без условий
+    ' совпадает каждая строка, и множество точечных обращений к Worksheet было
+    ' бы медленнее прежней пакетной загрузки колонок. SelectAllColumns отделяет
+    ' широкий preview Movement от обычных узких запросов экспортной валидации.
+    deferSelectedValuesRead = query.SelectAllColumns And conditionCount > 0
+    If deferSelectedValuesRead Then
+        Set matchedRowOffsets = New Collection
+    Else
+        For i = 1 To selectColumns.Count
+            selectedValues(i) = sourceSheet.Range( _
+                sourceSheet.Cells(startCell.Row + 1, selectedColumnIndexes(i)), _
+                sourceSheet.Cells(effectiveLastRow, selectedColumnIndexes(i))).Value2
+        Next i
+    End If
 
     If query.ReverseOrder Then
         rowStart = effectiveLastRow - startCell.Row
@@ -373,9 +396,16 @@ Private Function private_TryExecuteOpenWorkbook( _
             If conditionNormalizeFlags(1) Then fastActualValue = private_NormalizeKey(fastActualValue)
 
             If VBA.StrComp(fastActualValue, conditionExpectedValues(1), fastCompareMode) = 0 Then
-                If Not private_TryPushWorksheetRow(outTable, selectedValues, rowOffset, selectColumns.Count) Then
-                    Set outTable = Nothing
-                    Exit Function
+                If deferSelectedValuesRead Then
+                    ' rowOffset считается от первой строки данных, а не от
+                    ' абсолютной строки листа. Это позволяет отложить Worksheet
+                    ' read, не удерживая Range на потенциально изменяемой книге.
+                    matchedRowOffsets.Add rowOffset
+                Else
+                    If Not private_TryPushWorksheetRow(outTable, selectedValues, rowOffset, selectColumns.Count) Then
+                        Set outTable = Nothing
+                        Exit Function
+                    End If
                 End If
                 resultCount = 1
                 Exit For
@@ -394,14 +424,42 @@ Private Function private_TryExecuteOpenWorkbook( _
                     rowOffset)
             End If
             If rowMatches Then
-                If Not private_TryPushWorksheetRow(outTable, selectedValues, rowOffset, selectColumns.Count) Then
-                    Set outTable = Nothing
-                    Exit Function
+                If deferSelectedValuesRead Then
+                    ' Сохраняем offsets в фактическом порядке scan. Поэтому
+                    ' последующее чтение не меняет семантику ReverseOrder.
+                    matchedRowOffsets.Add rowOffset
+                Else
+                    If Not private_TryPushWorksheetRow(outTable, selectedValues, rowOffset, selectColumns.Count) Then
+                        Set outTable = Nothing
+                        Exit Function
+                    End If
                 End If
                 resultCount = resultCount + 1
                 If query.MaxRows > 0 And resultCount >= query.MaxRows Then Exit For
             End If
         Next rowOffset
+    End If
+
+    If deferSelectedValuesRead Then
+        For Each matchedRowOffset In matchedRowOffsets
+            matchedSourceRow = startCell.Row + VBA.CLng(matchedRowOffset)
+            ' Одна найденная строка читается одним COM-вызовом. Берём
+            ' прямоугольник от первой до последней выбранной колонки, а helper
+            ' ниже восстановит точный SELECT-порядок и пропустит колонки без
+            ' заголовков, если между ними есть физические разрывы.
+            matchedRowValues = sourceSheet.Range( _
+                sourceSheet.Cells(matchedSourceRow, selectedFirstColumn), _
+                sourceSheet.Cells(matchedSourceRow, selectedLastColumn)).Value2
+            If Not private_TryPushWorksheetRangeRow( _
+                outTable, _
+                matchedRowValues, _
+                selectedColumnIndexes, _
+                selectedFirstColumn, _
+                selectColumns.Count) Then
+                Set outTable = Nothing
+                Exit Function
+            End If
+        Next matchedRowOffset
     End If
 
     private_TryExecuteOpenWorkbook = True
@@ -478,6 +536,30 @@ Private Function private_TryPushWorksheetRow( _
         rowObj.PushCellRaw private_SafeText(private_MatrixValue(selectedValues(i), rowOffset, 1))
     Next i
     private_TryPushWorksheetRow = tableObj.PushRow(rowObj)
+End Function
+
+Private Function private_TryPushWorksheetRangeRow( _
+    ByVal tableObj As obj_TableDynamic, _
+    ByVal rowValues As Variant, _
+    ByRef selectedColumnIndexes() As Long, _
+    ByVal firstSourceColumn As Long, _
+    ByVal columnCount As Long _
+) As Boolean
+    Dim rowObj As obj_Row
+    Dim i As Long
+    Dim relativeColumnIndex As Long
+
+    If tableObj Is Nothing Then Exit Function
+    Set rowObj = New obj_Row
+    For i = 1 To columnCount
+        ' Индексы query абсолютны относительно Worksheet, тогда как rowValues
+        ' начинается с firstSourceColumn. Перевод сохраняет порядок selectColumns
+        ' и поддерживает непоследовательные физические колонки.
+        relativeColumnIndex = selectedColumnIndexes(i) - firstSourceColumn + 1
+        rowObj.PushCellRaw private_SafeText( _
+            private_MatrixValue(rowValues, 1, relativeColumnIndex))
+    Next i
+    private_TryPushWorksheetRangeRow = tableObj.PushRow(rowObj)
 End Function
 
 Private Function private_BuildSelectClause(ByVal selectColumns As Collection) As String

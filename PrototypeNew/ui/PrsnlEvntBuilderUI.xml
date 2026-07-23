@@ -263,6 +263,7 @@
           type="TableList"
           name="MovementHistoryTable"
           itemsSource="{PageRuntimeSource='RuntimeItems.PrsnlEvntBuilder.MovementHistory'}"
+          mergeSectionCells="true"
           spanColls="50"/>
       </stackPanel>
 
