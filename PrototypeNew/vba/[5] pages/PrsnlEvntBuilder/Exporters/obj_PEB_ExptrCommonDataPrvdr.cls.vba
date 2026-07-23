@@ -141,7 +141,7 @@ End Sub
 ' Статический provider общих данных PrsnlEvntBuilder.
 ' Здесь остаются только стабильные справочники, не завязанные на профиль:
 ' ШПО (АЛФ/Посади/Звання), Установи, Накази.
-' Динамические источники вроде ежедневной ШПС держит obj_PEB_ExptrDataPrvdr.
+' Динамические источники вроде ежедневной ШПС держит obj_PEB_ExptrCfgDataPrvdr.
 Public Function SetOrderNo(ByVal orderNo As Variant) As Boolean
     If m_IsDisposed Then Exit Function
 

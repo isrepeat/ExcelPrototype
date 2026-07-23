@@ -12,7 +12,7 @@ Implements obj_IDataExporter
 Private m_IsDisposed As Boolean
 Private m_Base As obj_DataExporterBase
 Private m_Data As obj_PrsnlEvntBuilderData
-Private m_ExporterDataProvider As obj_PEB_ExptrDataPrvdr
+Private m_ExporterCfgDataProvider As obj_PEB_ExptrCfgDataPrvdr
 
 Private Const SAVE_ALREADY_OPEN_WORKBOOK As Boolean = False
 Private Const SOURCE_ALIAS_HOSPITAL As String = "Hospital"
@@ -103,19 +103,21 @@ Public Function Initialize( _
     ByVal configTable As obj_ConfigTable, _
     Optional ByVal profileConfigTable As obj_ConfigTable = Nothing _
 ) As Boolean
-    Dim dataProviderConfigTable As obj_ConfigTable
+    Dim exporterCfgDataProviderConfigTable As obj_ConfigTable
 
     private_LogMethodEntry "Initialize"
 
     m_IsDisposed = False
     Set m_Base = New obj_DataExporterBase
     Set m_Data = New obj_PrsnlEvntBuilderData
-    Set m_ExporterDataProvider = New obj_PEB_ExptrDataPrvdr
-    Set dataProviderConfigTable = configTable
-    If Not profileConfigTable Is Nothing Then Set dataProviderConfigTable = profileConfigTable
+    Set m_ExporterCfgDataProvider = New obj_PEB_ExptrCfgDataPrvdr
+    ' Target-настройки берём из exporter config, а профильные источники
+    ' Personnel/Movement — из полной таблицы профиля, если controller её передал.
+    Set exporterCfgDataProviderConfigTable = configTable
+    If Not profileConfigTable Is Nothing Then Set exporterCfgDataProviderConfigTable = profileConfigTable
 
     If Not m_Base.Initialize(configTable, "DailyScope", "PrototypeNew / DailyScope export") Then Exit Function
-    If Not m_ExporterDataProvider.Initialize(dataProviderConfigTable) Then Exit Function
+    If Not m_ExporterCfgDataProvider.Initialize(exporterCfgDataProviderConfigTable) Then Exit Function
 
     Initialize = True
 End Function
@@ -133,10 +135,10 @@ Public Sub Dispose()
     m_IsDisposed = True
     On Error Resume Next
     If Not m_Base Is Nothing Then m_Base.Dispose
-    If Not m_ExporterDataProvider Is Nothing Then m_ExporterDataProvider.Dispose
+    If Not m_ExporterCfgDataProvider Is Nothing Then m_ExporterCfgDataProvider.Dispose
     Set m_Base = Nothing
     Set m_Data = Nothing
-    Set m_ExporterDataProvider = Nothing
+    Set m_ExporterCfgDataProvider = Nothing
 
     On Error GoTo 0
 End Sub
@@ -176,7 +178,7 @@ Public Function Export( _
     If Not m_Base.TryGetMainSourceTable(sourceTables, sourceTable) Then Exit Function
     If Not private_TryResolveTargetSectionCaption(sourceTable, context, targetSectionCaption, sectionKey) Then Exit Function
     validationEnabled = (VBA.StrComp(private_GetContextText(context, EXPORT_CONTEXT_VALIDATION_ENABLED), "False", VBA.vbTextCompare) <> 0)
-    If Not m_ExporterDataProvider.IsExportAllowed(sourceTable, sectionKey, exportValidationError, latestMovementTvoChain, latestMovementRecord, validationEnabled) Then
+    If Not m_ExporterCfgDataProvider.IsExportAllowed(sourceTable, sectionKey, exportValidationError, latestMovementTvoChain, latestMovementRecord, validationEnabled) Then
         VBA.MsgBox exportValidationError, VBA.vbExclamation, "PrototypeNew / DailyScope export"
         Exit Function
     End If
@@ -368,14 +370,14 @@ Private Function private_TryBuildTvoItem( _
 ) As Boolean
 
     Set outItem = Nothing
-    If m_ExporterDataProvider Is Nothing Then Exit Function
-    If m_ExporterDataProvider.CommonData Is Nothing Then Exit Function
+    If m_ExporterCfgDataProvider Is Nothing Then Exit Function
+    If m_ExporterCfgDataProvider.CommonData Is Nothing Then Exit Function
 
     If VBA.Len(VBA.Trim$(rankText)) = 0 Then
-        If Not m_ExporterDataProvider.CommonData.TryResolveRankByIpn(ipnText, rankText) Then Exit Function
+        If Not m_ExporterCfgDataProvider.CommonData.TryResolveRankByIpn(ipnText, rankText) Then Exit Function
     End If
     If VBA.Len(VBA.Trim$(positionText)) = 0 Then
-        If Not m_ExporterDataProvider.CommonData.TryResolvePositionDefault(positionCodeText, positionText) Then Exit Function
+        If Not m_ExporterCfgDataProvider.CommonData.TryResolvePositionDefault(positionCodeText, positionText) Then Exit Function
     End If
 
     Set outItem = VBA.CreateObject("Scripting.Dictionary")
@@ -574,8 +576,8 @@ Private Function private_TryWriteHospitalDeclensionValue( _
     If sourceRow Is Nothing Then Exit Function
     If targetTable Is Nothing Then Exit Function
     If rowRange Is Nothing Then Exit Function
-    If m_ExporterDataProvider Is Nothing Then Exit Function
-    If m_ExporterDataProvider.CommonData Is Nothing Then Exit Function
+    If m_ExporterCfgDataProvider Is Nothing Then Exit Function
+    If m_ExporterCfgDataProvider.CommonData Is Nothing Then Exit Function
 
     If Not private_TryGetSourceTextByAnyColumn( _
         sourceTable, sourceRow, hospitalShortText, _
@@ -589,12 +591,12 @@ Private Function private_TryWriteHospitalDeclensionValue( _
     ' Для секций "На лікування..." DailyScope ожидает лечебное заведение
     ' в знахідному падеже; для остальных секций остается родительный.
     If private_ShouldUseHospitalAccusative(sectionKey) Then
-        If Not m_ExporterDataProvider.CommonData.TryResolveHospitalAccusative(hospitalShortText, hospitalValueText) Then
+        If Not m_ExporterCfgDataProvider.CommonData.TryResolveHospitalAccusative(hospitalShortText, hospitalValueText) Then
             private_TryWriteHospitalDeclensionValue = False
             Exit Function
         End If
     Else
-        If Not m_ExporterDataProvider.CommonData.TryResolveHospitalGenitive(hospitalShortText, hospitalValueText) Then
+        If Not m_ExporterCfgDataProvider.CommonData.TryResolveHospitalGenitive(hospitalShortText, hospitalValueText) Then
             private_TryWriteHospitalDeclensionValue = False
             Exit Function
         End If
@@ -630,13 +632,13 @@ Private Function private_TryWriteSpecialPositionValue( _
     If Not private_TryGetSourceTextByAnyColumn( _
         sourceTable, sourceRow, rankText, _
         SOURCE_ALIAS_RANK, TARGET_COLUMN_RANK) Then rankText = VBA.vbNullString
-    If m_ExporterDataProvider Is Nothing Then Exit Function
-    If m_ExporterDataProvider.CommonData Is Nothing Then Exit Function
+    If m_ExporterCfgDataProvider Is Nothing Then Exit Function
+    If m_ExporterCfgDataProvider.CommonData Is Nothing Then Exit Function
 
     ' Некоторые служебные коды ШПС в целевых таблицах должны выглядеть как
     ' состояние военнослужащего. Само правило едино для всех exporters и
     ' поэтому принадлежит общему provider-у, а не DailyScope.
-    If Not m_ExporterDataProvider.CommonData.TryResolveSpecialPositionMapping( _
+    If Not m_ExporterCfgDataProvider.CommonData.TryResolveSpecialPositionMapping( _
         positionCodeText, rankText, _
         targetPositionCodeText, targetPositionNameText) Then Exit Function
 
@@ -692,26 +694,26 @@ Private Function private_TryWriteReporterGenitiveValue( _
         End If
         Exit Function
     End If
-    If m_ExporterDataProvider Is Nothing Then Exit Function
-    If m_ExporterDataProvider.CommonData Is Nothing Then Exit Function
+    If m_ExporterCfgDataProvider Is Nothing Then Exit Function
+    If m_ExporterCfgDataProvider.CommonData Is Nothing Then Exit Function
 
-    If Not m_ExporterDataProvider.TryResolveReporterTvoPositionGenitive(reportPersonText, reportTvoPositionGenitive, isReporterTvo) Then
+    If Not m_ExporterCfgDataProvider.TryResolveReporterTvoPositionGenitive(reportPersonText, reportTvoPositionGenitive, isReporterTvo) Then
         private_TryWriteReporterGenitiveValue = False
         Exit Function
     End If
     If isReporterTvo Then
         reportPositionGenitive = reportTvoPositionGenitive
     Else
-        If Not m_ExporterDataProvider.CommonData.TryResolvePositionGenitive(reportPositionCodeText, reportPositionGenitive) Then
+        If Not m_ExporterCfgDataProvider.CommonData.TryResolvePositionGenitive(reportPositionCodeText, reportPositionGenitive) Then
             private_TryWriteReporterGenitiveValue = False
             Exit Function
         End If
     End If
-    If Not m_ExporterDataProvider.CommonData.TryResolveRankGenitive(reportRankText, reportRankGenitive) Then
+    If Not m_ExporterCfgDataProvider.CommonData.TryResolveRankGenitive(reportRankText, reportRankGenitive) Then
         private_TryWriteReporterGenitiveValue = False
         Exit Function
     End If
-    If Not m_ExporterDataProvider.CommonData.TryResolveFioInitialsGenitiveByName(reportPersonText, reportPersonInitialsGenitive) Then
+    If Not m_ExporterCfgDataProvider.CommonData.TryResolveFioInitialsGenitiveByName(reportPersonText, reportPersonInitialsGenitive) Then
         private_TryWriteReporterGenitiveValue = False
         Exit Function
     End If

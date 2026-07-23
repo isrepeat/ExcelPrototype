@@ -127,6 +127,8 @@ Private Function obj_IPage_Render() As Boolean
     Dim app As Application
     Dim prevCursor As Variant
     Dim hasPrevCursor As Boolean
+    Dim prevScreenUpdating As Boolean
+    Dim hasPrevScreenUpdating As Boolean
     Dim renderOk As Boolean
     Dim perfStart As Double
     Dim perfLast As Double
@@ -136,8 +138,16 @@ Private Function obj_IPage_Render() As Boolean
     If Not m_PageBase.IsReady() Then GoTo Cleanup
 
     Set app = Application
-    ' PageBase снимает fast render mode до восстановления значений и hotkeys.
-    ' Держим wait-курсор до конца page-level хвоста, чтобы Excel не мигал busy/default/busy.
+    ' PageBase завершает свой fast render mode до восстановления значений и
+    ' hotkeys на уровне PEB. Поэтому держим ScreenUpdating выключенным до конца
+    ' всего page-level render: пользователь должен увидеть только итоговый layout,
+    ' а не промежуточный кадр между PageBase.Render и восстановлением значений.
+    prevScreenUpdating = app.ScreenUpdating
+    app.ScreenUpdating = False
+    hasPrevScreenUpdating = True
+
+    ' По той же причине держим wait-курсор до конца page-level хвоста, чтобы
+    ' Excel не мигал busy/default/busy.
     prevCursor = xlDefault
     On Error Resume Next
     prevCursor = app.Cursor
@@ -204,6 +214,11 @@ Cleanup:
     If hasPrevCursor Then
         On Error Resume Next
         app.Cursor = prevCursor
+        On Error GoTo 0
+    End If
+    If hasPrevScreenUpdating Then
+        On Error Resume Next
+        app.ScreenUpdating = prevScreenUpdating
         On Error GoTo 0
     End If
     obj_IPage_Render = renderOk

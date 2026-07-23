@@ -23,6 +23,7 @@ Private m_CallbackContext As Object
 Private m_RuntimeControlKey As String
 Private m_IsConfigured As Boolean
 Private m_Page As obj_IPage
+Private m_RenderedInputRange As Range
 
 Private Sub Class_Initialize()
 #If LOGGING_VERBOSE_ENABLED Then
@@ -65,6 +66,7 @@ Private Sub obj_IControl_Dispose()
     Set m_ControlLayout = Nothing
     Set m_CallbackContext = Nothing
     Set m_Page = Nothing
+    Set m_RenderedInputRange = Nothing
     m_RuntimeControlKey = VBA.vbNullString
     m_IsConfigured = False
     On Error GoTo 0
@@ -78,6 +80,7 @@ Private Sub obj_IControl_Configure(ByVal controlNode As Object)
     Set m_ControlLayout = Nothing
     Set m_ControlBase = Nothing
     Set m_CallbackContext = Nothing
+    Set m_RenderedInputRange = Nothing
     m_ValueResolved = VBA.vbNullString
     m_OnChangeArgRaw = VBA.vbNullString
     m_HasOnChangeArg = False
@@ -162,6 +165,7 @@ Private Sub obj_IControl_Render()
     On Error GoTo 0
 
     If inputCell Is Nothing Then Exit Sub
+    Set m_RenderedInputRange = inputRange
 
     ' Для input всегда фиксируем текстовый формат, чтобы Excel не съедал пользовательский ввод
     ' (даты/коды/лидирующие нули) до того, как onChange обработает значение.
@@ -229,6 +233,23 @@ Public Function RuntimeHandleCellChange(Optional ByVal changedCellAddress As Str
     Else
         RuntimeHandleCellChange = rt_Bridge.fn_RunCallback(m_OnChangeMacroRef, m_CallbackContext, changedCellAddress)
     End If
+End Function
+
+Public Function TryGetValue(ByRef outValue As String) As Boolean
+    outValue = VBA.vbNullString
+    If m_RenderedInputRange Is Nothing Then Exit Function
+
+    ' Контрол владеет ссылкой на свой rendered Range. Consumers не должны
+    ' восстанавливать ячейку через глобальный индекс visual parts: тот индекс
+    ' предназначен для styles/layout и может меняться при partial render.
+    outValue = VBA.Trim$(VBA.CStr(m_RenderedInputRange.Cells(1, 1).Value2))
+    TryGetValue = True
+End Function
+
+Public Function ClearValue() As Boolean
+    If m_RenderedInputRange Is Nothing Then Exit Function
+    m_RenderedInputRange.ClearContents
+    ClearValue = True
 End Function
 
 ' //

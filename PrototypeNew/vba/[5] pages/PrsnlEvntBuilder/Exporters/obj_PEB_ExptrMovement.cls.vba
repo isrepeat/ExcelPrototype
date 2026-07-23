@@ -12,7 +12,7 @@ Implements obj_IDataExporter
 Private m_IsDisposed As Boolean
 Private m_Base As obj_DataExporterBase
 Private m_Data As obj_PrsnlEvntBuilderData
-Private m_DataProvider As obj_PEB_ExptrDataPrvdr
+Private m_ExporterCfgDataProvider As obj_PEB_ExptrCfgDataPrvdr
 
 Private Const SAVE_ALREADY_OPEN_WORKBOOK As Boolean = False
 Private Const MOVEMENT_TARGET_COLUMN_COUNT As Long = 6
@@ -86,19 +86,21 @@ Public Function Initialize( _
     ByVal configTable As obj_ConfigTable, _
     Optional ByVal profileConfigTable As obj_ConfigTable = Nothing _
 ) As Boolean
-    Dim dataProviderConfigTable As obj_ConfigTable
+    Dim exporterCfgDataProviderConfigTable As obj_ConfigTable
 
     private_LogMethodEntry "Initialize"
 
     m_IsDisposed = False
     Set m_Base = New obj_DataExporterBase
     Set m_Data = New obj_PrsnlEvntBuilderData
-    Set m_DataProvider = New obj_PEB_ExptrDataPrvdr
-    Set dataProviderConfigTable = configTable
-    If Not profileConfigTable Is Nothing Then Set dataProviderConfigTable = profileConfigTable
+    Set m_ExporterCfgDataProvider = New obj_PEB_ExptrCfgDataPrvdr
+    ' Target-настройки берём из exporter config, а профильные источники
+    ' Personnel/Movement — из полной таблицы профиля, если controller её передал.
+    Set exporterCfgDataProviderConfigTable = configTable
+    If Not profileConfigTable Is Nothing Then Set exporterCfgDataProviderConfigTable = profileConfigTable
 
     If Not m_Base.Initialize(configTable, "Movement", "PrototypeNew / Movement export") Then Exit Function
-    If Not m_DataProvider.Initialize(dataProviderConfigTable) Then Exit Function
+    If Not m_ExporterCfgDataProvider.Initialize(exporterCfgDataProviderConfigTable) Then Exit Function
     private_LogInfo "movement:init workbook='" & private_EscapeForLog(m_Base.TargetWorkbookPath) & _
         "' sheet='" & private_EscapeForLog(m_Base.TargetSheetName) & _
         "' start='" & private_EscapeForLog(m_Base.TargetRangeStartMarker) & _
@@ -120,10 +122,10 @@ Public Sub Dispose()
     m_IsDisposed = True
     On Error Resume Next
     If Not m_Base Is Nothing Then m_Base.Dispose
-    If Not m_DataProvider Is Nothing Then m_DataProvider.Dispose
+    If Not m_ExporterCfgDataProvider Is Nothing Then m_ExporterCfgDataProvider.Dispose
     Set m_Base = Nothing
     Set m_Data = Nothing
-    Set m_DataProvider = Nothing
+    Set m_ExporterCfgDataProvider = Nothing
     On Error GoTo 0
 End Sub
 
@@ -219,7 +221,7 @@ Public Function Export( _
     isMirrorTransferEvent = private_IsMirrorTransferSectionType(sectionTypeRaw)
     If isMirrorTransferEvent Then isClosingEvent = False
     validationEnabled = (VBA.StrComp(private_GetContextText(context, MOVEMENT_CONTEXT_VALIDATION_ENABLED), "False", VBA.vbTextCompare) <> 0)
-    If Not m_DataProvider.IsExportAllowed(sourceTable, sectionTypeRaw, exportValidationError, latestMovementTvoChain, latestMovementRecord, validationEnabled) Then
+    If Not m_ExporterCfgDataProvider.IsExportAllowed(sourceTable, sectionTypeRaw, exportValidationError, latestMovementTvoChain, latestMovementRecord, validationEnabled) Then
         private_LogError "Movement export blocked by last-event validation: " & private_EscapeForLog(exportValidationError)
         VBA.MsgBox exportValidationError, VBA.vbExclamation, "PrototypeNew / Movement export"
         Exit Function
@@ -445,7 +447,7 @@ Private Function private_TryBuildSpecialOpeningValues( _
 
     outShouldWrite = True
     outDurationValue = private_GetOptionalSourceTextByAnyColumn(sourceTable, sourceRow, MOVEMENT_SOURCE_DURATION_DAYS)
-    If Not m_DataProvider.CommonData.TryFormatVacationTicketNoForExport( _
+    If Not m_ExporterCfgDataProvider.CommonData.TryFormatVacationTicketNoForExport( _
         private_GetOptionalSourceTextByAnyColumn(sourceTable, sourceRow, MOVEMENT_SOURCE_VACATION_TICKET_NO), _
         private_GetContextText(context, MOVEMENT_CONTEXT_MANUAL_ORDER_NO), _
         formattedVkNo) Then Exit Function
@@ -583,7 +585,7 @@ Private Function private_TryBuildMovementClosingValues( _
         outArrivalDate = orderDateByNo
     End If
 
-    If m_DataProvider.CommonData.TryCalculateFoodSupportDate( _
+    If m_ExporterCfgDataProvider.CommonData.TryCalculateFoodSupportDate( _
         hasArrivalDateFromForm, arrivalDateFromForm, foodSupportDate) Then
         outOnFoodDate = foodSupportDate
     End If
@@ -697,11 +699,11 @@ Private Function private_TryBuildMovementRowValues( _
     If Not private_TryGetRequiredSourceText(sourceTable, sourceRow, "Код посади", requiredValue) Then Exit Function
     positionCodeText = VBA.CStr(requiredValue)
     outValues(1, 4) = positionCodeText
-    If Not m_DataProvider Is Nothing Then
-        If Not m_DataProvider.CommonData Is Nothing Then
+    If Not m_ExporterCfgDataProvider Is Nothing Then
+        If Not m_ExporterCfgDataProvider.CommonData Is Nothing Then
             ' Movement использует тот же общий mapping специальных кодов, что
             ' DailyScope; текстовое описание здесь не требуется.
-            If m_DataProvider.CommonData.TryResolveSpecialPositionMapping( _
+            If m_ExporterCfgDataProvider.CommonData.TryResolveSpecialPositionMapping( _
                 positionCodeText, rankText, _
                 mappedPositionCodeText, mappedPositionNameText) Then
                 outValues(1, 4) = mappedPositionCodeText
@@ -775,8 +777,8 @@ Private Function private_TryBuildMovementBasisSummary( _
     outBasisSummary = VBA.vbNullString
     If sourceTable Is Nothing Then Exit Function
     If sourceTable.RowCount <= 0 Then Exit Function
-    If m_DataProvider Is Nothing Then Exit Function
-    If m_DataProvider.CommonData Is Nothing Then Exit Function
+    If m_ExporterCfgDataProvider Is Nothing Then Exit Function
+    If m_ExporterCfgDataProvider.CommonData Is Nothing Then Exit Function
 
     Set sourceRow = sourceTable.Rows.Item(1)
     If sourceRow Is Nothing Then Exit Function
@@ -808,9 +810,9 @@ Private Function private_TryBuildMovementBasisSummary( _
                 VBA.vbExclamation, "PrototypeNew / Movement export"
             Exit Function
         End If
-        If Not m_DataProvider.CommonData.TryResolveRankGenitive( _
+        If Not m_ExporterCfgDataProvider.CommonData.TryResolveRankGenitive( _
             personRankText, personRankGenitive) Then Exit Function
-        If Not m_DataProvider.CommonData.TryResolveFioInitialsGenitive( _
+        If Not m_ExporterCfgDataProvider.CommonData.TryResolveFioInitialsGenitive( _
             personIpnText, personInitialsGenitive) Then Exit Function
 
         reporterText = private_JoinNonEmptyParts(personRankGenitive, personInitialsGenitive)
@@ -820,14 +822,14 @@ Private Function private_TryBuildMovementBasisSummary( _
             Exit Function
         End If
     Else
-        If Not m_DataProvider.CommonData.TryResolveRankGenitive(reportRankText, reportRankGenitive) Then Exit Function
-        If Not m_DataProvider.TryResolveReporterTvoPositionGenitive(reportPersonText, reportTvoPositionGenitive, isReporterTvo) Then Exit Function
+        If Not m_ExporterCfgDataProvider.CommonData.TryResolveRankGenitive(reportRankText, reportRankGenitive) Then Exit Function
+        If Not m_ExporterCfgDataProvider.TryResolveReporterTvoPositionGenitive(reportPersonText, reportTvoPositionGenitive, isReporterTvo) Then Exit Function
         If isReporterTvo Then
             reportPositionGenitive = reportTvoPositionGenitive
         Else
-            If Not m_DataProvider.CommonData.TryResolvePositionGenitive(reportPositionCodeText, reportPositionGenitive) Then Exit Function
+            If Not m_ExporterCfgDataProvider.CommonData.TryResolvePositionGenitive(reportPositionCodeText, reportPositionGenitive) Then Exit Function
         End If
-        If Not m_DataProvider.CommonData.TryResolveFioInitialsGenitiveByName(reportPersonText, reportPersonInitialsGenitive) Then Exit Function
+        If Not m_ExporterCfgDataProvider.CommonData.TryResolveFioInitialsGenitiveByName(reportPersonText, reportPersonInitialsGenitive) Then Exit Function
 
         ' Movement использует короткую формулировку основания:
         ' "рапорт ком. 1 мб майора РУБАНА І.І.".
@@ -850,7 +852,7 @@ Private Function private_TryBuildMovementBasisSummary( _
     If VBA.Len(reporterText) = 0 Then reporterText = "військовослужбовця"
     If Not isReporterTvo Then reporterText = private_LowerFirstLetter(reporterText)
 
-    incomingNoText = m_DataProvider.NormalizeIncomingNoForExport(incomingNoText)
+    incomingNoText = m_ExporterCfgDataProvider.NormalizeIncomingNoForExport(incomingNoText)
     orderNoText = private_GetContextText(context, MOVEMENT_CONTEXT_MANUAL_ORDER_NO)
     If VBA.Len(orderNoText) = 0 Then orderNoText = incomingNoText
 
@@ -1214,7 +1216,7 @@ Private Function private_TryBuildMovementOutgoingValues( _
         outDepartureDate = incomingDate
     End If
 
-    If m_DataProvider.CommonData.TryCalculateFoodSupportDate( _
+    If m_ExporterCfgDataProvider.CommonData.TryCalculateFoodSupportDate( _
         hasDepartureDateFromForm, departureDateFromForm, foodSupportDate) Then
         outFoodFromDate = foodSupportDate
     End If
@@ -1246,12 +1248,12 @@ Private Function private_TryResolveOrderDateFromCommonData( _
     ' Movement не читает карту приказов напрямую. Единый источник даты приказа
     ' живет в obj_PEB_ExptrCommonDataPrvdr, чтобы WORD/DailyScope/Movement
     ' одинаково резолвили сокращенные даты от одного OrderDate.
-    If m_DataProvider Is Nothing Then Exit Function
-    If m_DataProvider.CommonData Is Nothing Then Exit Function
-    If Not m_DataProvider.CommonData.SetOrderNo(rawOrderNo) Then Exit Function
-    If Not m_DataProvider.CommonData.HasOrderDate Then Exit Function
+    If m_ExporterCfgDataProvider Is Nothing Then Exit Function
+    If m_ExporterCfgDataProvider.CommonData Is Nothing Then Exit Function
+    If Not m_ExporterCfgDataProvider.CommonData.SetOrderNo(rawOrderNo) Then Exit Function
+    If Not m_ExporterCfgDataProvider.CommonData.HasOrderDate Then Exit Function
 
-    outOrderDate = m_DataProvider.CommonData.OrderDate
+    outOrderDate = m_ExporterCfgDataProvider.CommonData.OrderDate
     private_TryResolveOrderDateFromCommonData = True
 End Function
 

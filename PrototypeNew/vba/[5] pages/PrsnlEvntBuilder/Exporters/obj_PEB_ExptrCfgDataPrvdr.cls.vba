@@ -2,7 +2,7 @@ VERSION 1.0 CLASS
 BEGIN
   MultiUse = -1  'True
 END
-Attribute VB_Name = "obj_PEB_ExptrDataPrvdr"
+Attribute VB_Name = "obj_PEB_ExptrCfgDataPrvdr"
 Option Explicit
 #Const LOGGING_DEBUG_ENABLED = True
 #Const LOGGING_VERBOSE_ENABLED = False
@@ -636,61 +636,50 @@ Private Function private_SplitNonEmptyLines(ByVal valueText As String) As Collec
 End Function
 
 Private Function private_TryLoadConfig(ByVal configTable As obj_ConfigTable) As Boolean
-    Dim cfgParserBase As obj_CfgParserBase
-    Dim configEntries As Collection
-    Dim cfgMap As Object
+    Dim prsnlEvntBuilderCfgParser As obj_PrsnlEvntBuilderCfgParser
+    Dim rawPersonnelTableRef As String
 
     private_TryLoadConfig = True
     If configTable Is Nothing Then Exit Function
 
-    Set cfgParserBase = New obj_CfgParserBase
-    If Not cfgParserBase.Initialize(configTable) Then
-        private_TryLoadConfig = False
-        GoTo CleanExit
-    End If
-    If Not cfgParserBase.TryGetConfigEntries(configEntries) Then
-        private_TryLoadConfig = False
-        GoTo CleanExit
-    End If
-    If Not cfgParserBase.BuildConfigDictionary(configEntries, cfgMap) Then
+    ' Используем единый parser режима как resolverDataContext. При этом ключи
+    ' Personnel/Movement и их семантика остаются в config-dependent provider,
+    ' а parser только возвращает разрешённые значения по переданному ключу.
+    Set prsnlEvntBuilderCfgParser = New obj_PrsnlEvntBuilderCfgParser
+    If Not prsnlEvntBuilderCfgParser.Initialize(configTable) Then
         private_TryLoadConfig = False
         GoTo CleanExit
     End If
 
-    m_PersonnelWorkbookPath = cfgParserBase.GetOptionalConfigValue( _
-        cfgMap, _
-        CONFIG_PERSONNEL_FILE_PATH_KEY, _
-        VBA.vbNullString)
-    m_PersonnelTableRef = private_BuildConfiguredAdoRangeRef( _
-        cfgParserBase.GetOptionalConfigValue( _
-            cfgMap, _
-            CONFIG_PERSONNEL_STATE_RANGE_KEY, _
-            VBA.vbNullString))
+    If Not prsnlEvntBuilderCfgParser.TryGetRequiredValue( _
+        CONFIG_PERSONNEL_FILE_PATH_KEY, m_PersonnelWorkbookPath) Then
+        VBA.MsgBox "PrototypeNew: required profile key '" & _
+            CONFIG_PERSONNEL_FILE_PATH_KEY & "' is missing or could not be resolved.", _
+            VBA.vbExclamation, "PrototypeNew / exporter config data provider"
+        private_TryLoadConfig = False
+        GoTo CleanExit
+    End If
+    If Not prsnlEvntBuilderCfgParser.TryGetRequiredValue( _
+        CONFIG_PERSONNEL_STATE_RANGE_KEY, rawPersonnelTableRef) Then
+        VBA.MsgBox "PrototypeNew: required profile key '" & _
+            CONFIG_PERSONNEL_STATE_RANGE_KEY & "' is missing.", _
+            VBA.vbExclamation, "PrototypeNew / exporter config data provider"
+        private_TryLoadConfig = False
+        GoTo CleanExit
+    End If
+    m_PersonnelTableRef = private_BuildConfiguredAdoRangeRef(rawPersonnelTableRef)
 
-    ' Эти ключи пока только экспонируются будущим helper-ам определения
-    ' предыдущего статуса. Они optional, чтобы существующие профили без
-    ' Movement export продолжали инициализировать provider.
-    m_MovementWorkbookPath = cfgParserBase.GetOptionalConfigValue( _
-        cfgMap, _
-        CONFIG_MOVEMENT_FILE_PATH_KEY, _
-        VBA.vbNullString)
-    m_MovementSheetName = cfgParserBase.GetOptionalConfigValue( _
-        cfgMap, _
-        CONFIG_MOVEMENT_SHEET_NAME_KEY, _
-        VBA.vbNullString)
-    m_MovementRangeStartMarker = cfgParserBase.GetOptionalConfigValue( _
-        cfgMap, _
-        CONFIG_MOVEMENT_RANGE_START_KEY, _
-        VBA.vbNullString)
-    m_MovementRangeEndMarker = cfgParserBase.GetOptionalConfigValue( _
-        cfgMap, _
-        CONFIG_MOVEMENT_RANGE_END_KEY, _
-        VBA.vbNullString)
+    ' Movement optional: профили без соответствующего exporter-а не обязаны
+    ' объявлять его источник, но при наличии resolver он применяется тем же parser.
+    m_MovementWorkbookPath = prsnlEvntBuilderCfgParser.GetOptionalValue(CONFIG_MOVEMENT_FILE_PATH_KEY)
+    m_MovementSheetName = prsnlEvntBuilderCfgParser.GetOptionalValue(CONFIG_MOVEMENT_SHEET_NAME_KEY)
+    m_MovementRangeStartMarker = prsnlEvntBuilderCfgParser.GetOptionalValue(CONFIG_MOVEMENT_RANGE_START_KEY)
+    m_MovementRangeEndMarker = prsnlEvntBuilderCfgParser.GetOptionalValue(CONFIG_MOVEMENT_RANGE_END_KEY)
 
 CleanExit:
     On Error Resume Next
-    If Not cfgParserBase Is Nothing Then cfgParserBase.Dispose
-    Set cfgParserBase = Nothing
+    If Not prsnlEvntBuilderCfgParser Is Nothing Then prsnlEvntBuilderCfgParser.Dispose
+    Set prsnlEvntBuilderCfgParser = Nothing
     On Error GoTo 0
 End Function
 
@@ -844,6 +833,9 @@ End Function
 Private Function private_BuildConfiguredAdoRangeRef(ByVal rawRangeRef As String) As String
     rawRangeRef = VBA.Trim$(rawRangeRef)
     If VBA.Len(rawRangeRef) = 0 Then Exit Function
+
+    ' Экранирование закрывающей скобки относится к ADO-контракту provider,
+    ' поэтому намеренно не переносится в общий parser строковых значений.
     rawRangeRef = VBA.Replace(rawRangeRef, "]", "]]")
     private_BuildConfiguredAdoRangeRef = "[" & rawRangeRef & "]"
 End Function
