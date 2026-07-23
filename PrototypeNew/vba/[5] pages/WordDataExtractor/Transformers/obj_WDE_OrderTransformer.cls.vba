@@ -279,22 +279,19 @@ Private Function private_TryLoadStateConfig( _
     ByRef outFioHeader As String, _
     ByRef outIpnHeader As String _
 ) As Boolean
-    Dim parser As obj_CfgParserBase
-    Dim entries As Collection, cfgMap As Object
+    Dim wordDataExtractorCfgParser As obj_WordDataExtractorCfgParser
     Dim rawTableRef As String
 
-    Set parser = New obj_CfgParserBase
-    If Not parser.Initialize(configTable) Then Exit Function
-    If Not parser.TryGetConfigEntries(entries) Then Exit Function
-    If Not parser.BuildConfigDictionary(entries, cfgMap) Then Exit Function
-    If Not parser.TryGetRequiredConfigValue( _
-        cfgMap, CONFIG_STATE_PATH, outStatePath) Then Exit Function
-    If Not parser.TryGetRequiredConfigValue( _
-        cfgMap, CONFIG_STATE_RANGE, rawTableRef) Then Exit Function
-    If Not parser.TryGetRequiredConfigValue( _
-        cfgMap, CONFIG_STATE_FIO_HEADER, outFioHeader) Then Exit Function
-    If Not parser.TryGetRequiredConfigValue( _
-        cfgMap, CONFIG_STATE_IPN_HEADER, outIpnHeader) Then Exit Function
+    Set wordDataExtractorCfgParser = New obj_WordDataExtractorCfgParser
+    If Not wordDataExtractorCfgParser.Initialize(configTable) Then Exit Function
+    If Not wordDataExtractorCfgParser.TryGetRequiredValue( _
+        CONFIG_STATE_PATH, outStatePath) Then Exit Function
+    If Not wordDataExtractorCfgParser.TryGetRequiredValue( _
+        CONFIG_STATE_RANGE, rawTableRef) Then Exit Function
+    If Not wordDataExtractorCfgParser.TryGetRequiredValue( _
+        CONFIG_STATE_FIO_HEADER, outFioHeader) Then Exit Function
+    If Not wordDataExtractorCfgParser.TryGetRequiredValue( _
+        CONFIG_STATE_IPN_HEADER, outIpnHeader) Then Exit Function
 
     outStatePath = private_ResolveWorkbookPath(outStatePath)
     If VBA.Len(outStatePath) = 0 Or VBA.Len(VBA.Dir$(outStatePath)) = 0 Then

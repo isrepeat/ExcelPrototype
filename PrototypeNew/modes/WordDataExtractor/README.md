@@ -82,6 +82,15 @@
 В полях листового `dataset/match` будут одновременно доступны
 `$dateBlock.1` и `$subsection.1`.
 
+Один context может нормализовать inline- и вложенную групповую запись. Например,
+для секций прибытия из лечебного учреждения и выбытия на лечение поддерживаются
+как заголовок `З/У <заклад>, з 18 липня 2026 року:`, так и отдельные блоки
+`з 17 липня...`, `з 18 липня...` под общим заголовком учреждения. Для выбытия
+учреждение оформляется родительским context, а группы дат — его дочерними
+context. Полный match каждой группы должен завершаться перед следующей строкой
+с датой: тогда все персональные `dataset/match` внутри неё наследуют правильную
+дату.
+
 ## Расширение через табличные transformers
 
 Если `WordDataExtractor.TransformerClass` в профиле пуст, extractor передаёт
@@ -91,7 +100,10 @@ runtime-контроллер создаёт его перед публикаци
 ```xml
 <item key="WordDataExtractor.TransformerClass"
       value="obj_WDE_OrderTransformer"/>
-<item key="Source.Personnel.FilePath" value="C:\path\State.xlsx"/>
+<item key="Source.Personnel.FilePath"
+      value="C:\path\{yyyy}-{mm}-{dd} State.xlsx"/>
+<item key="Source.Personnel.FilePathResolver"
+      value="{Binding Method=ResolveLatestByDmyPattern}"/>
 <item key="Personnel.Sheet[StateMain].SheetName" value="ШПС$A2:Q10000"/>
 <item key="Personnel.Sheet[StateMain].Map[FIO]" value="Прізвище, ім’я, по батькові"/>
 <item key="Personnel.Sheet[StateMain].Map[IPN]" value="ІПН"/>
