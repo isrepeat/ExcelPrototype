@@ -284,41 +284,45 @@ Public Function TryResolveOrderDateByNumber( _
 ) As Boolean
     Dim orderNoToken As String
     Dim orderMapPath As String
+    Dim orderMapRangeStart As String
+    Dim orderMapRangeEndColumn As String
+    Dim currentYear As Long
 
     If m_IsDisposed Then Exit Function
     orderNoToken = private_NormalizeOrderNumberToken(orderNo)
     If VBA.Len(orderNoToken) = 0 Then Exit Function
     If Not private_TryResolveOrderMapWorkbookPath(orderMapPath) Then Exit Function
 
-    ' "Накази" разложены горизонтальными блоками по годам.
-    ' Сначала проверяем актуальный блок 2026, затем старый блок 2025. Важно:
-    ' lookup идет через отдельный workbook, поэтому WORD/DailyScope больше не
-    ' зависят от служебной таблицы внутри Movement workbook.
-    If private_TryLookupWorkbookDate( _
-        orderMapPath, _
-        private_BuildAdoRangeRef( _
-            ORDER_MAP_SHEET_NAME, _
-            ORDER_MAP_2026_RANGE_START, _
-            ORDER_MAP_2026_RANGE_END_COLUMN & VBA.CStr(EXCEL_MAX_ROW)), _
-        ORDER_NO_COLUMN_NAME, _
-        ORDER_DATE_COLUMN_NAME, _
-        orderNoToken, _
-        "Накази / 2026", _
-        outOrderDate) Then
-        TryResolveOrderDateByNumber = True
-        Exit Function
-    End If
+    ' «Накази» разложены горизонтальными блоками по годам. Номер ищем только
+    ' в блоке текущего системного года: одинаковый номер прошлого года не
+    ' должен ошибочно считаться текущим приказом.
+    currentYear = VBA.Year(VBA.Date)
+    Select Case currentYear
+        Case 2025
+            orderMapRangeStart = ORDER_MAP_2025_RANGE_START
+            orderMapRangeEndColumn = ORDER_MAP_2025_RANGE_END_COLUMN
+        Case 2026
+            orderMapRangeStart = ORDER_MAP_2026_RANGE_START
+            orderMapRangeEndColumn = ORDER_MAP_2026_RANGE_END_COLUMN
+        Case Else
+            VBA.MsgBox _
+                "У довіднику «Накази» не налаштовано таблицю для " & _
+                VBA.CStr(currentYear) & " року.", _
+                VBA.vbExclamation, _
+                "PrototypeNew / Накази"
+            Exit Function
+    End Select
 
     TryResolveOrderDateByNumber = private_TryLookupWorkbookDate( _
         orderMapPath, _
         private_BuildAdoRangeRef( _
             ORDER_MAP_SHEET_NAME, _
-            ORDER_MAP_2025_RANGE_START, _
-            ORDER_MAP_2025_RANGE_END_COLUMN & VBA.CStr(EXCEL_MAX_ROW)), _
+            orderMapRangeStart, _
+            orderMapRangeEndColumn & VBA.CStr(EXCEL_MAX_ROW)), _
         ORDER_NO_COLUMN_NAME, _
         ORDER_DATE_COLUMN_NAME, _
         orderNoToken, _
-        "Накази / 2025", _
+        "Накази / " & VBA.CStr(currentYear), _
         outOrderDate)
 End Function
 
