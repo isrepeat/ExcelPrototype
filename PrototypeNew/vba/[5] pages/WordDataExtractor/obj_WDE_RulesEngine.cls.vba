@@ -183,11 +183,8 @@ Private Function private_ExtractDataset(ByVal datasetNode As Object, ByVal sourc
                     valueText = private_ResolveValue(ex_XmlCore.fn_NodeAttrText(columnNode, "value"), fieldValues)
                     valueText = private_ApplyTransforms( _
                         valueText, columnNode, fieldValues)
-                    If VBA.StrComp(ex_XmlCore.fn_NodeAttrText( _
-                        columnNode, "id"), "basis", vbTextCompare) = 0 Then
-                        valueText = private_FilterBasisForDataset( _
-                            datasetId, valueText)
-                    End If
+                    valueText = private_ApplyColumnRules( _
+                        valueText, datasetNode, columnNode, fieldValues)
                     rowObj.PushCellRaw valueText
                 Next columnNode
                 If Not tableObj.PushRow(rowObj) Then Exit Function
@@ -200,50 +197,41 @@ Private Function private_ExtractDataset(ByVal datasetNode As Object, ByVal sourc
     private_ExtractDataset = True
 End Function
 
-Private Function private_FilterBasisForDataset( _
-    ByVal datasetId As String, _
-    ByVal basisText As String _
+Private Function private_ApplyColumnRules( _
+    ByVal valueText As String, _
+    ByVal datasetNode As Object, _
+    ByVal columnNode As Object, _
+    ByVal values As Object _
 ) As String
-    Dim blocks As Variant
-    Dim blockItem As Variant
-    Dim blockText As String
-    Dim normalizedBlock As String
-    Dim resultText As String
+    Dim ruleNodes As Object
+    Dim ruleNode As Object
+    Dim columnId As String
+    Dim datasetId As String
+    Dim ruleColumnId As String
+    Dim excludedDatasets As String
 
-    ' В этих двух секциях командировочное удостоверение является полезной
-    ' частью результата. В служебной командировке оно дополнительно
-    ' нормализуется orderedTripCredential на уровне DSL.
-    Select Case VBA.LCase$(VBA.Trim$(datasetId))
-        Case "arrived-to-unit", "arrived-for-service-assignment"
-            private_FilterBasisForDataset = basisText
-            Exit Function
-    End Select
+    private_ApplyColumnRules = valueText
+    columnId = VBA.LCase$(VBA.Trim$( _
+        ex_XmlCore.fn_NodeAttrText(columnNode, "id")))
+    datasetId = VBA.LCase$(VBA.Trim$( _
+        ex_XmlCore.fn_NodeAttrText(datasetNode, "id")))
+    Set ruleNodes = datasetNode.selectNodes("../p:columnRules/p:rule")
 
-    blocks = VBA.Split(basisText, ";")
-    For Each blockItem In blocks
-        blockText = VBA.Trim$(VBA.CStr(blockItem))
-        normalizedBlock = VBA.LCase$(blockText)
-        If VBA.InStr(1, normalizedBlock, _
-            "посвідчення про відрядження", vbTextCompare) = 0 And _
-           VBA.InStr(1, normalizedBlock, _
-            "відпускний квиток", vbTextCompare) = 0 And _
-           VBA.InStr(1, normalizedBlock, _
-            "відпусткний квиток", vbTextCompare) = 0 Then
-            If VBA.Len(blockText) > 0 Then
-                If VBA.Len(resultText) > 0 Then resultText = resultText & "; "
-                resultText = resultText & blockText
+    For Each ruleNode In ruleNodes
+        ruleColumnId = VBA.LCase$(VBA.Trim$( _
+            ex_XmlCore.fn_NodeAttrText(ruleNode, "columnId")))
+        If VBA.StrComp(ruleColumnId, columnId, VBA.vbBinaryCompare) = 0 Then
+            excludedDatasets = VBA.LCase$(VBA.Replace( _
+                ex_XmlCore.fn_NodeAttrText(ruleNode, "excludeDatasets"), _
+                " ", VBA.vbNullString))
+            If VBA.InStr(1, ";" & excludedDatasets & ";", _
+                ";" & datasetId & ";", VBA.vbBinaryCompare) = 0 Then
+                valueText = private_ApplyTransforms( _
+                    valueText, ruleNode, values)
             End If
         End If
-    Next blockItem
-
-    resultText = VBA.Trim$(resultText)
-    If VBA.Len(resultText) > 0 Then
-        Select Case VBA.Right$(resultText, 1)
-            Case ".", "!", "?"
-            Case Else: resultText = resultText & "."
-        End Select
-    End If
-    private_FilterBasisForDataset = resultText
+    Next ruleNode
+    private_ApplyColumnRules = valueText
 End Function
 
 Private Sub private_AddColumnNodeOrdered( _
@@ -281,6 +269,8 @@ Private Function private_GetColumnOrder( _
 
     ' Основные кадровые колонки занимают стабильные позиции во всех таблицах.
     ' Неизвестные alias получают порядок 100 и остаются в хвосте в порядке DSL.
+    ' Підстава всегда замыкает строку, включая datasets с дополнительными
+    ' специализированными колонками, неизвестными общему движку.
     Select Case aliasText
         Case "rank": private_GetColumnOrder = 5
         Case "fio": private_GetColumnOrder = 10
@@ -297,7 +287,7 @@ Private Function private_GetColumnOrder( _
         Case "position": private_GetColumnOrder = 82
         Case "assignmentorigin": private_GetColumnOrder = 83
         Case "returndate", "enrollmentdate": private_GetColumnOrder = 70
-        Case "basis": private_GetColumnOrder = 90
+        Case "basis": private_GetColumnOrder = 1000
         Case Else: private_GetColumnOrder = 100
     End Select
 End Function
@@ -602,8 +592,12 @@ End Function
 Private Function private_ExtractField(ByVal fieldNode As Object, ByVal recordText As String, ByVal values As Object) As Boolean
     Dim fieldId As String, fromExpr As String, patternText As String, valueText As String
     Dim rx As Object, matches As Object, matchObj As Object, groupIndex As Long
+    Dim existingValue As String
 
     fieldId = VBA.Trim$(ex_XmlCore.fn_NodeAttrText(fieldNode, "id"))
+    If values.Exists("$" & fieldId) Then
+        existingValue = VBA.CStr(values("$" & fieldId))
+    End If
     fromExpr = private_AttrOrDefault(fieldNode, "from", "$match")
     valueText = private_ResolveValue(fromExpr, values)
     patternText = ex_XmlCore.fn_NodeAttrText(fieldNode, "regex")
@@ -611,14 +605,26 @@ Private Function private_ExtractField(ByVal fieldNode As Object, ByVal recordTex
         Set rx = private_CreateRegex(patternText, private_BoolAttr(fieldNode, "ignoreCase", True), private_BoolAttr(fieldNode, "multiline", True))
         If rx Is Nothing Then Exit Function
         Set matches = rx.Execute(valueText)
-        valueText = private_AttrOrDefault(fieldNode, "default", VBA.vbNullString)
-        If matches.Count > 0 Then
-            Set matchObj = matches.Item(0)
-            groupIndex = VBA.CLng(VBA.Val(private_AttrOrDefault(fieldNode, "group", "1")))
-            If groupIndex = 0 Then
-                valueText = VBA.CStr(matchObj.Value)
-            ElseIf groupIndex <= matchObj.SubMatches.Count Then
-                valueText = VBA.CStr(matchObj.SubMatches(groupIndex - 1))
+        ' Групповой dataset может извлечь поле из context раньше commonField.
+        ' preserveExisting применяется только при отсутствии нового match:
+        ' найденное персональное значение по-прежнему имеет приоритет.
+        If matches.Count = 0 And _
+            private_BoolAttr(fieldNode, "preserveExisting", False) And _
+            VBA.Len(existingValue) > 0 Then
+            valueText = existingValue
+        Else
+            valueText = private_AttrOrDefault( _
+                fieldNode, "default", VBA.vbNullString)
+            If matches.Count > 0 Then
+                Set matchObj = matches.Item(0)
+                groupIndex = VBA.CLng(VBA.Val( _
+                    private_AttrOrDefault(fieldNode, "group", "1")))
+                If groupIndex = 0 Then
+                    valueText = VBA.CStr(matchObj.Value)
+                ElseIf groupIndex <= matchObj.SubMatches.Count Then
+                    valueText = VBA.CStr( _
+                        matchObj.SubMatches(groupIndex - 1))
+                End If
             End If
         End If
     End If

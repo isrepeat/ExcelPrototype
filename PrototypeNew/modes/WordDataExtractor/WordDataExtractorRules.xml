@@ -30,10 +30,13 @@
             pattern="^медичної\s+служби\s+" with=""/>
           <transform type="trim"/>
         </field>
-        <field id="foodEnrollmentDate" from="$match" ignoreCase="true"
+        <!-- Некоторые групповые datasets уже извлекают продовольственную дату
+             из родительского context. Если персональный $match её не содержит,
+             commonField не должен затирать ранее найденное значение. -->
+        <field id="foodEnrollmentDate" from="$match" ignoreCase="true" preserveExisting="true"
           regex="на\s+продовольче\s+забезпечення\s+з\s+(\d{1,2}(?:[.\-/]\d{1,2}[.\-/]\d{2,4}|\s+[а-яіїєґ]+\s+\d{4}\s+року))"
           group="1" default=""><transform type="dateFormat" format="dd.mm.yyyy"/></field>
-        <field id="foodRemovalDate" from="$match" ignoreCase="true"
+        <field id="foodRemovalDate" from="$match" ignoreCase="true" preserveExisting="true"
           regex="з\s+продовольчого\s+забезпечення\s+з\s+(\d{1,2}(?:[.\-/]\d{1,2}[.\-/]\d{2,4}|\s+[а-яіїєґ]+\s+\d{4}\s+року))"
           group="1" default=""><transform type="dateFormat" format="dd.mm.yyyy"/></field>
         <field id="tvoAssignments" from="$match" ignoreCase="true"
@@ -50,6 +53,19 @@
         <column id="tvoAssignments" caption="ТВО покласти на" value="$tvoAssignments" flows="departure"/>
         <column id="tvoReturns" caption="Повернутись до виконання обов'язків" value="$tvoReturns" flows="arrival"/>
       </commonColumns>
+
+      <!-- Правила постобработки колонок принадлежат профилю extraction, а не
+           общему движку. Для двух типов прибытия удостоверение является
+           полезным результатом, во всех остальных таблицах оно служебное. -->
+      <columnRules>
+        <rule columnId="basis"
+          excludeDatasets="arrived-to-unit;arrived-for-service-assignment">
+          <transform type="regexReplace"
+            pattern="(?:^|[,;]\s*)(?:посвідчення\s+про\s+відрядження|відпускний\s+квиток|відпусткний\s+квиток)[^;]*"
+            with=""/>
+          <transform type="trim"/>
+        </rule>
+      </columnRules>
 
       <!-- Первая служебная таблица связывает весь результат extraction с
            приказом. Даты продовольственного обеспечения начинаются на день
@@ -202,7 +218,7 @@
            продовольственного обеспечения и основания. -->
       <dataset id="returned-from-assignment" caption="З відрядження" flow="arrival" includeCommonColumns="false" optional="true">
         <scope>
-          <match ignoreCase="true" multiline="false"><![CDATA[(?:^|\r)\s*(?:\d+(?:\.\d+)*\.?\s*)?З\s+відрядження[\s\S]*?(?=\r\s*\d+(?:\.\d+)+\.?\s*(?:З|Із|У|На)\s+|\s*$)]]></match>
+          <match ignoreCase="true" multiline="false"><![CDATA[(?:^|\r)\s*(?:\d+(?:\.\d+)*\.?\s*)?З\s+відрядження[\s\S]*?(?=\r\s*(?:\d+(?:\.\d+)*\.?\s*)?(?:З\s+(?:лікувального\s+закладу|медичної\s+роти|щорічної\s+основної\s+відпустки|відпустки\s+для\s+лікування|відпустки\s+за\s+сімейними\s+обставинами|проходження\s+військово-лікарської\s+комісії)|Із\s+самовільного\s+залишення|У\s+(?:відрядження|медичну\s+роту|відпустку\s+для\s+лікування|відпустку\s+за\s+сімейними\s+обставинами|частину\s+щорічної\s+основної\s+відпустки)|На\s+(?:лікування|проходження\s+військово-лікарської\s+комісії)|До\s+постійного\s+місця\s+служби|Яких\s+вважати|Вважати\s+такими|Нижчепойменованих)\s+|\s*$)]]></match>
           <context id="returnDate">
             <match ignoreCase="true" multiline="false"><![CDATA[(?:^|\r)\s*з\s+(\d{1,2}(?:[.\-/]\d{1,2}[.\-/]\d{2,4}|\s+[а-яіїєґ]+\s+\d{4}\s+року))[^\r]*\r[\s\S]*?(?=\r\s*з\s+\d{1,2}(?:[.\-/]\d{1,2}[.\-/]\d{2,4}|\s+[а-яіїєґ]+\s+\d{4}\s+року)|\s*$)]]></match>
             <context id="assignmentGroup">
@@ -214,9 +230,9 @@
              которых общими строками указаны продовольствие и основание.
              Match потребляет только один персональный абзац, а общие
              значения наследуются из context. -->
-        <match ignoreCase="false" multiline="false"><![CDATA[(?:^|\r)\s*[^\r]*[А-ЯІЇЄҐ][А-ЯІЇЄҐ'’\-]{2,}\s+[^\r,]+,[^\r]*(?=\r|$)]]></match>
+        <match ignoreCase="true" multiline="false"><![CDATA[(?:^|\r)\s*(?:\d+(?:\.\d+)*\.?\s*)?(?:рядовий|рядового|солдат|солдата|старший\s+солдат|старшого\s+солдата|молодший\s+сержант|молодшого\s+сержанта|сержант|сержанта|старший\s+сержант|старшого\s+сержанта|головний\s+сержант|головного\s+сержанта|штаб-сержант|штаб-сержанта|майстер-сержант|майстер-сержанта|молодший\s+лейтенант|молодшого\s+лейтенанта|лейтенант|лейтенанта|старший\s+лейтенант|старшого\s+лейтенанта|капітан|капітана|майор|майора|підполковник|підполковника|полковник|полковника)\s+[А-ЯІЇЄҐ][А-ЯІЇЄҐ'’\-]+\s+[А-ЯІЇЄҐ][А-Яа-яІіЇїЄєҐґ'’\-]+\s+[А-ЯІЇЄҐ][А-Яа-яІіЇїЄєҐґ'’\-]+\s*,[^\r]*(?=\r|$)]]></match>
         <fields>
-          <field id="fio" from="$match" ignoreCase="false" regex="\s([А-ЯІЇЄҐ][А-ЯІЇЄҐ'’\-]{2,}\s+[^,\r]+)\s*," group="1" default=""><transform type="trim"/></field>
+          <field id="fio" from="$match" ignoreCase="false" regex="\s([А-ЯІЇЄҐ][А-ЯІЇЄҐ'’\-]+\s+[А-ЯІЇЄҐ][А-Яа-яІіЇїЄєҐґ'’\-]+\s+[А-ЯІЇЄҐ][А-Яа-яІіЇїЄєҐґ'’\-]+)\s*," group="1" default=""><transform type="trim"/></field>
           <field id="ipn" from="$match" regex=",\s*(\d{10})\s*," group="1" default=""><transform type="trim"/></field>
           <field id="returnDate" from="$returnDate.1"><transform type="dateFormat" format="dd.mm.yyyy"/></field>
           <field id="groupFoodEnrollmentDate" from="$assignmentGroup.1"><transform type="dateFormat" format="dd.mm.yyyy"/></field>
@@ -376,7 +392,7 @@
            снятие с продовольствия и основание. -->
       <dataset id="departed-for-assignment" caption="У відрядження" flow="departure" includeCommonColumns="false" optional="true">
         <scope>
-          <match ignoreCase="true" multiline="false"><![CDATA[(?:^|\r)\s*(?:\d+(?:\.\d+)*\.?\s*)?У\s+відрядження[\s\S]*$]]></match>
+          <match ignoreCase="true" multiline="false"><![CDATA[(?:^|\r)\s*(?:\d+(?:\.\d+)*\.?\s*)?У\s+відрядження[\s\S]*?(?=\r\s*(?:\d+(?:\.\d+)*\.?\s*)?(?:З\s+(?:відрядження|лікувального\s+закладу|медичної\s+роти|щорічної\s+основної\s+відпустки|відпустки\s+для\s+лікування|відпустки\s+за\s+сімейними\s+обставинами|проходження\s+військово-лікарської\s+комісії)|Із\s+самовільного\s+залишення|У\s+(?:медичну\s+роту|відпустку\s+для\s+лікування|відпустку\s+за\s+сімейними\s+обставинами|частину\s+щорічної\s+основної\s+відпустки)|На\s+(?:лікування|проходження\s+військово-лікарської\s+комісії)|До\s+постійного\s+місця\s+служби|Яких\s+вважати|Вважати\s+такими|Нижчепойменованих)\s+|\s*$)]]></match>
           <context id="assignmentGroup">
             <match ignoreCase="true" multiline="false" group="0"><![CDATA[[\s\S]+]]></match>
           </context>
@@ -389,7 +405,7 @@
           <field id="ipn" from="$match" regex=",\s*(\d{10})\s*," group="1" default=""><transform type="trim"/></field>
           <field id="eventDate" from="$assignmentGroup" regex="з\s+(\d{1,2}(?:\s+[а-яіїєґ]+)?(?:\s+\d{4}\s+року)?\s+по\s+\d{1,2}\s+[а-яіїєґ]+\s+\d{4}\s+року)" group="1" default=""><transform type="dateRangeStartFormat" format="dd.mm.yyyy"/></field>
           <field id="foodRemovalDate" from="$assignmentGroup" regex="з\s+продовольчого\s+забезпечення\s+з\s+(\d{1,2}(?:[.\-/]\d{1,2}[.\-/]\d{2,4}|\s+[а-яіїєґ]+\s+\d{4}\s+року))" group="1" default=""><transform type="dateFormat" format="dd.mm.yyyy"/></field>
-          <field id="durationDays" from="$assignmentGroup" regex="терміном\s+на\s+(\d+)\s+календарн(?:их|і)\s+(?:діб|днів)" group="1" default=""><transform type="trim"/></field>
+          <field id="durationDays" from="$assignmentGroup" regex="терміном\s+на\s+(\d+)\s+(?:календарн(?:их|і)\s+)?(?:діб|днів|доби)" group="1" default=""><transform type="trim"/></field>
           <field id="eventTo" from="$assignmentGroup" regex="\sпо\s+(\d{1,2}\s+[а-яіїєґ]+\s+\d{4}\s+року)" group="1" default=""><transform type="dateFormat" format="dd.mm.yyyy"/></field>
           <field id="basis" from="$assignmentGroup" regex="Підстава:\s*([^\r]+)" group="1" default=""><transform type="trim"/></field>
         </fields>
