@@ -2444,8 +2444,16 @@ Private Function private_TryBuildDraftFormSourceTable( _
     Dim draftValuesRange As Range
     Dim sourceTable As obj_TableDynamic
     Dim sourceRow As obj_Row
-    Dim colOffset As Long
-    Dim sheetCol As Long
+    Dim declaredAliases As Collection
+    Dim aliasObj As Variant
+    Dim aliases() As String
+    Dim gridColumns() As Long
+    Dim itemCount As Long
+    Dim i As Long
+    Dim j As Long
+    Dim swapAlias As String
+    Dim swapColumn As Long
+    Dim valueRange As Range
     Dim headerText As String
 
     Set outTable = Nothing
@@ -2466,24 +2474,70 @@ Private Function private_TryBuildDraftFormSourceTable( _
         Exit Function
     End If
 
-    ' Собираем таблицу только из отрендеренных колонок draft-формы.
-    ' Пустые заголовки по умолчанию пропускаем, чтобы не появлялись Column N.
+    If m_LookupFeature Is Nothing Then Exit Function
+    If Not m_LookupFeature.TryGetFormColumnKeys(declaredAliases) Then Exit Function
+    If declaredAliases Is Nothing Then Exit Function
+
+    ' Динамический layout может сдвигать видимые поля после смены профиля.
+    ' Поэтому связываем значение с колонкой по runtime-тегу контрола, а не по
+    ' одинаковому смещению внутри диапазонов заголовков и значений.
+    For Each aliasObj In declaredAliases
+        Set valueRange = Nothing
+        If Not pageBase.TryGetFirstLayoutTagRange( _
+            VBA.CStr(aliasObj), valueRange, "visible") Then GoTo ContinueAlias
+        If valueRange Is Nothing Then GoTo ContinueAlias
+        If Application.Intersect(valueRange, draftValuesRange) Is Nothing Then
+            GoTo ContinueAlias
+        End If
+
+        itemCount = itemCount + 1
+        ReDim Preserve aliases(1 To itemCount)
+        ReDim Preserve gridColumns(1 To itemCount)
+        aliases(itemCount) = VBA.CStr(aliasObj)
+        gridColumns(itemCount) = valueRange.Column
+ContinueAlias:
+    Next aliasObj
+    If itemCount <= 0 Then
+        VBA.MsgBox "PrototypeNew: active draft form has no registered visible fields.", _
+            VBA.vbExclamation, "PrototypeNew / Export"
+        Exit Function
+    End If
+
+    ' Таблица должна повторять фактический порядок полей на листе.
+    For i = 1 To itemCount - 1
+        For j = i + 1 To itemCount
+            If gridColumns(j) < gridColumns(i) Then
+                swapColumn = gridColumns(i)
+                gridColumns(i) = gridColumns(j)
+                gridColumns(j) = swapColumn
+                swapAlias = aliases(i)
+                aliases(i) = aliases(j)
+                aliases(j) = swapAlias
+            End If
+        Next j
+    Next i
+
     Set sourceTable = New obj_TableDynamic
     sourceTable.SectionTitle = "PrsnlEvntBuilder draft form"
     Set sourceRow = New obj_Row
 
-    For colOffset = 1 To draftValuesRange.Columns.Count
-        sheetCol = draftValuesRange.Column + colOffset - 1
-        headerText = private_ReadHeaderText(ws.Cells(draftValuesRange.Row - 1, sheetCol))
+    For i = 1 To itemCount
+        Set valueRange = Nothing
+        If Not pageBase.TryGetFirstLayoutTagRange( _
+            aliases(i), valueRange, "visible") Then Exit Function
+        If valueRange Is Nothing Then Exit Function
+        headerText = private_ReadHeaderText( _
+            ws.Cells(valueRange.Row - 1, valueRange.Column))
         If VBA.Len(headerText) = 0 Then
             If Not includeBlankHeaderColumns Then GoTo ContinueDraftColumn
-            headerText = "Column " & VBA.CStr(colOffset)
+            headerText = aliases(i)
         End If
-        If Not private_AddSourceColumn(sourceTable, headerText) Then Exit Function
-        sourceRow.PushCellRaw ws.Cells(draftValuesRange.Row, sheetCol).Value2
+        If Not private_AddSourceColumn( _
+            sourceTable, headerText, aliases(i)) Then Exit Function
+        sourceRow.PushCellRaw valueRange.Cells(1, 1).Value2
 
 ContinueDraftColumn:
-    Next colOffset
+    Next i
 
     If Not sourceTable.PushRow(sourceRow) Then Exit Function
     Set outTable = sourceTable
@@ -3331,7 +3385,11 @@ Private Function private_AddColumn( _
     private_AddColumn = tableObj.PushColumn(colObj)
 End Function
 
-Private Function private_AddSourceColumn(ByVal tableObj As obj_TableDynamic, ByVal columnName As String) As Boolean
+Private Function private_AddSourceColumn( _
+    ByVal tableObj As obj_TableDynamic, _
+    ByVal columnName As String, _
+    Optional ByVal explicitColumnAlias As String = VBA.vbNullString _
+) As Boolean
     Dim colObj As obj_Column
     Dim columnAlias As String
 
@@ -3344,18 +3402,19 @@ Private Function private_AddSourceColumn(ByVal tableObj As obj_TableDynamic, ByV
     ' Export-form таблица строится из видимых заголовков листа. Чтобы WORD
     ' templates могли ссылаться на стабильные ключи ({FIO}, {IPN}, ...), рядом
     ' сохраняем alias из PrsnlEvntBuilderProfiles.xml.
-    If Not m_SourceColumnAliasByCaption Is Nothing Then
+    columnAlias = VBA.Trim$(explicitColumnAlias)
+    If VBA.Len(columnAlias) = 0 And Not m_SourceColumnAliasByCaption Is Nothing Then
         If m_SourceColumnAliasByCaption.Exists(colObj.Name) Then
             columnAlias = VBA.Trim$(VBA.CStr(m_SourceColumnAliasByCaption(colObj.Name)))
-            If VBA.Len(columnAlias) > 0 Then
-                If Not colObj.AddAlias(columnAlias) Then Exit Function
-                ' Целевые алиасы EntityLookup имеют префикс "_", отличающий их от
-                ' алиасов внешних источников. Старый алиас сохраняем для совместимости
-                ' с существующими экспортёрами и шаблонами.
-                If VBA.Left$(columnAlias, 1) = "_" And VBA.Len(columnAlias) > 1 Then
-                    If Not colObj.AddAlias(VBA.Mid$(columnAlias, 2)) Then Exit Function
-                End If
-            End If
+        End If
+    End If
+    If VBA.Len(columnAlias) > 0 Then
+        If Not colObj.AddAlias(columnAlias) Then Exit Function
+        ' Целевые алиасы EntityLookup имеют префикс "_", отличающий их от
+        ' алиасов внешних источников. Старый алиас сохраняем для совместимости
+        ' с существующими экспортёрами и шаблонами.
+        If VBA.Left$(columnAlias, 1) = "_" And VBA.Len(columnAlias) > 1 Then
+            If Not colObj.AddAlias(VBA.Mid$(columnAlias, 2)) Then Exit Function
         End If
     End If
 
