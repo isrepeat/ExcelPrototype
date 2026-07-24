@@ -89,7 +89,6 @@
     <item key="EntityLookup.Lookup[op_FIOAbsenceExtension].SearchColumnAlias" value="AbsenceEvents.Sheet[TemporaryAbsent].Column[FIO]"/>
     <item key="EntityLookup.Lookup[op_FIOAbsenceExtension].ResultColumnsAliases[AbsenceEvents.Sheet[TemporaryAbsent].Column[FIO]]" value="EntityLookup.Table.Column[_FIO]"/>
     <item key="EntityLookup.Lookup[op_FIOAbsenceExtension].ResultColumnsAliases[AbsenceEvents.Sheet[TemporaryAbsent].Column[Destination]]" value="EntityLookup.Table.Column[_Destination]"/>
-    <item key="EntityLookup.Lookup[op_FIOAbsenceExtension].ResultColumnsAliases[AbsenceEvents.Sheet[TemporaryAbsent].Column[DepartureDate]]" value="EntityLookup.Table.Column[_DateFrom]"/>
     <item key="EntityLookup.Lookup[op_FIOAbsenceExtension].ResultColumnsAliases[AbsenceEvents.Sheet[TemporaryAbsent].Column[DurationDays]]" value="EntityLookup.Table.Column[_DurationDays]"/>
     <item key="EntityLookup.Lookup[op_FIOAbsenceExtension].ResultColumnsAliases[AbsenceEvents.Sheet[TemporaryAbsent].Column[VhNo]]" value="EntityLookup.Table.Column[_VacationTicketNo]"/>
 
