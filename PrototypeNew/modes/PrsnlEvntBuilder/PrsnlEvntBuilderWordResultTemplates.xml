@@ -627,10 +627,17 @@
     </text>
   </template>
 
-  <template id="DummyMoveFromStationaryVlkToVacationForCuring">
+  <template id="MoveFromStationaryVlkToVacationForCuring">
     <text>
       <![CDATA[#^
-#_      [DUMMY] стаціонарне ВЛК => відпустка для лікування.{#newline}{#newline}#^
+#_      {#include block.StatusChangePersonLine}#^
+#_      який перебував на стаціонарному медичному огляді військово-лікарської комісії, вважати таким, що вибув у відпустку для лікування#^
+#_      {#include block.VacationDestinationPeriod}#^
+#_      {#newline}#^
+#_      {#include block.IncomingBasis}#^
+#_      {#include block.OptionalVlkCertificate}#^
+#_      {#include block.OptionalVacationTicket}#^
+#_      .{#newline}{#newline}#^
       ]]>
     </text>
   </template>
