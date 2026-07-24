@@ -562,13 +562,6 @@ Public Function IsExportAllowed( _
     End If
 
     If found And Not previousIsClosed Then
-        ' Командировка во время СЗЧ создаётся отдельной открытой строкой:
-        ' фактическая дата возвращения из СЗЧ станет известна позднее и не
-        ' должна подменяться датой начала командировки.
-        If data.CanOpenMovementAlongsidePreviousEvent(exportSectionType, previousEventText) Then
-            IsExportAllowed = True
-            Exit Function
-        End If
         outErrorMessage = "Export was stopped because the latest Movement event is not closed." & _
             VBA.vbCrLf & "IPN: " & ipnText & _
             VBA.vbCrLf & "Previous event: " & previousEventText & _

@@ -417,7 +417,8 @@ Public Function IsMovementMirrorTransferSectionType(ByVal sectionTypeText As Str
     End If
 
     Select Case normalizedSectionType
-        Case private_NormalizeText(SECTION_TYPE_TRANSFER_TREATMENT_TO_TREATMENT_VACATION), _
+        Case private_NormalizeText(SECTION_TYPE_TO_BUSINESS_TRIP_SZCH), _
+             private_NormalizeText(SECTION_TYPE_TRANSFER_TREATMENT_TO_TREATMENT_VACATION), _
              private_NormalizeText(SECTION_TYPE_TRANSFER_TREATMENT_VACATION_TO_TREATMENT_VACATION), _
              private_NormalizeText(SECTION_TYPE_TRANSFER_TREATMENT_TO_STATIONARY_VLK), _
              private_NormalizeText(SECTION_TYPE_TRANSFER_TREATMENT_VACATION_TO_TREATMENT), _
@@ -437,22 +438,7 @@ Public Function IsMovementMirrorTransferSectionType(ByVal sectionTypeText As Str
     End Select
 End Function
 
-' Описывает редкие opening-события, которым разрешено сосуществовать с
-' конкретным предыдущим открытым статусом без его автоматического закрытия.
-Public Function CanOpenMovementAlongsidePreviousEvent( _
-    ByVal sectionTypeText As String, _
-    ByVal previousEventText As String _
-) As Boolean
-    Select Case private_NormalizeText(sectionTypeText)
-        Case private_NormalizeText(SECTION_TYPE_TO_BUSINESS_TRIP_SZCH)
-            CanOpenMovementAlongsidePreviousEvent = (VBA.StrComp( _
-                private_NormalizeText(previousEventText), _
-                private_NormalizeText(MOVEMENT_EVENT_SZCH), _
-                VBA.vbTextCompare) = 0)
-    End Select
-End Function
-
-' Новые отпускные переходы закрывают только ожидаемый предыдущий статус,
+' Mirror-переходы закрывают только ожидаемый предыдущий статус,
 ' чтобы зеркальная запись не могла случайно завершить другое событие.
 Public Function TryGetRequiredPreviousMovementEvent( _
     ByVal sectionTypeText As String, _
@@ -461,6 +447,8 @@ Public Function TryGetRequiredPreviousMovementEvent( _
     outEventText = VBA.vbNullString
 
     Select Case private_NormalizeText(sectionTypeText)
+        Case private_NormalizeText(SECTION_TYPE_TO_BUSINESS_TRIP_SZCH)
+            outEventText = MOVEMENT_EVENT_SZCH
         Case private_NormalizeText(SECTION_TYPE_TRANSFER_ANNUAL_VACATION_TO_FAMILY_VACATION)
             outEventText = MOVEMENT_EVENT_ANNUAL_VACATION
         Case private_NormalizeText(SECTION_TYPE_TRANSFER_FAMILY_VACATION_TO_ANNUAL_VACATION)
@@ -468,6 +456,17 @@ Public Function TryGetRequiredPreviousMovementEvent( _
     End Select
 
     TryGetRequiredPreviousMovementEvent = (VBA.Len(outEventText) > 0)
+End Function
+
+Public Function RequiresMovementClosingDateFromForm( _
+    ByVal sectionTypeText As String _
+) As Boolean
+    ' Для перехода СЗЧ -> командировка дата формы является фактической датой
+    ' закрытия СЗЧ и одновременно датой открытия новой Movement-записи.
+    RequiresMovementClosingDateFromForm = (VBA.StrComp( _
+        private_NormalizeText(sectionTypeText), _
+        private_NormalizeText(SECTION_TYPE_TO_BUSINESS_TRIP_SZCH), _
+        VBA.vbTextCompare) = 0)
 End Function
 
 Public Function ShouldWriteMovementSpecialOpeningFields(ByVal sectionTypeText As String) As Boolean

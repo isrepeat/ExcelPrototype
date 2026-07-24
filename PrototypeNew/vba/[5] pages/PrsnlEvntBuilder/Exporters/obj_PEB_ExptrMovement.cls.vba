@@ -164,6 +164,7 @@ Public Function Export( _
     Dim shouldWriteMappedEvent As Boolean
     Dim isClosingEvent As Boolean
     Dim isMirrorTransferEvent As Boolean
+    Dim requiresClosingDateFromForm As Boolean
     Dim closingTargetIpn As String
     Dim basisSummaryText As String
     Dim exportValidationError As String
@@ -219,6 +220,8 @@ Public Function Export( _
     sectionTypeNormalized = private_NormalizeText(sectionTypeRaw)
     isClosingEvent = private_IsClosingSectionType(sectionTypeNormalized)
     isMirrorTransferEvent = private_IsMirrorTransferSectionType(sectionTypeRaw)
+    requiresClosingDateFromForm = _
+        m_Data.RequiresMovementClosingDateFromForm(sectionTypeRaw)
     If isMirrorTransferEvent Then isClosingEvent = False
     validationEnabled = (VBA.StrComp(private_GetContextText(context, MOVEMENT_CONTEXT_VALIDATION_ENABLED), "False", VBA.vbTextCompare) <> 0)
     If Not m_ExporterCfgDataProvider.IsExportAllowed(sourceTable, sectionTypeRaw, exportValidationError, latestMovementTvoChain, latestMovementRecord, validationEnabled) Then
@@ -255,7 +258,13 @@ Public Function Export( _
         ' Closing: закрываем уже существующее движение.
         ' Ищем последнюю строку целевой таблицы по ІПН и заполняем поля прибытия:
         ' наказ прибуття, на продовольче, прибуття.
-        If Not private_TryBuildMovementClosingValues(sourceTable, context, closingOrderNo, closingOnFoodDate, closingArrivalDate) Then GoTo CleanFail
+        If Not private_TryBuildMovementClosingValues( _
+            sourceTable, _
+            context, _
+            closingOrderNo, _
+            closingOnFoodDate, _
+            closingArrivalDate, _
+            requiresClosingDateFromForm) Then GoTo CleanFail
 
         If Not private_TryGetRequiredSourceText(sourceTable, sourceTable.Rows.Item(1), MOVEMENT_TARGET_IPN, closingTargetIpn) Then GoTo CleanFail
         If Not private_TryFindLastRowByIpn(targetTable, closingTargetIpn, targetRowRange) Then GoTo CleanFail
@@ -268,7 +277,13 @@ Public Function Export( _
         ' Смысл: одним событием закрываем предыдущую открытую строку военнослужащего
         ' и тут же создаем новую открытую строку. Даты/номер приказа закрытия
         ' зеркально используются как даты/номер приказа открытия новой строки.
-        If Not private_TryBuildMovementClosingValues(sourceTable, context, closingOrderNo, closingOnFoodDate, closingArrivalDate) Then GoTo CleanFail
+        If Not private_TryBuildMovementClosingValues( _
+            sourceTable, _
+            context, _
+            closingOrderNo, _
+            closingOnFoodDate, _
+            closingArrivalDate, _
+            requiresClosingDateFromForm) Then GoTo CleanFail
 
         If Not private_TryGetRequiredSourceText(sourceTable, sourceTable.Rows.Item(1), MOVEMENT_TARGET_IPN, closingTargetIpn) Then GoTo CleanFail
         If Not private_TryFindLastRowByIpn(targetTable, closingTargetIpn, targetRowRange) Then GoTo CleanFail
@@ -543,7 +558,8 @@ Private Function private_TryBuildMovementClosingValues( _
     ByVal context As Object, _
     ByRef outOrderNo As Variant, _
     ByRef outOnFoodDate As Variant, _
-    ByRef outArrivalDate As Variant _
+    ByRef outArrivalDate As Variant, _
+    Optional ByVal requireArrivalDateFromForm As Boolean = False _
 ) As Boolean
     Dim sourceRow As obj_Row
     Dim manualOrderNo As Variant
@@ -574,6 +590,16 @@ Private Function private_TryBuildMovementClosingValues( _
     If VBA.Len(VBA.Trim$(VBA.CStr(arrivalDateRaw))) > 0 And Not hasArrivalDateFromForm Then
         private_LogError "Movement failed to resolve arrival date raw='" & private_EscapeForLog(VBA.CStr(arrivalDateRaw)) & "' by orderNo='" & private_EscapeForLog(VBA.CStr(outOrderNo)) & "'."
         VBA.MsgBox "PrototypeNew: failed to resolve full date for '" & MOVEMENT_SOURCE_DEPARTURE_DATE & "' from value '" & VBA.CStr(arrivalDateRaw) & "' and order number '" & VBA.CStr(outOrderNo) & "'.", VBA.vbExclamation, "PrototypeNew / Movement export"
+        Exit Function
+    End If
+    If requireArrivalDateFromForm And Not hasArrivalDateFromForm Then
+        VBA.MsgBox _
+            "PrototypeNew: section '" & _
+            private_GetSectionTypeTextFromContext(context, sourceTable) & _
+            "' requires a valid '" & MOVEMENT_SOURCE_DEPARTURE_DATE & _
+            "' value to close the previous Movement event.", _
+            VBA.vbExclamation, _
+            "PrototypeNew / Movement export"
         Exit Function
     End If
 
