@@ -424,11 +424,29 @@ End Function
 
 Private Function private_TryValidateManualOrderNoSpecified(ByVal context As Object) As Boolean
     Dim manualOrderNoText As String
+    Dim orderDate As Date
 
     manualOrderNoText = private_GetContextText(context, MOVEMENT_CONTEXT_MANUAL_ORDER_NO)
     If VBA.Len(VBA.Trim$(manualOrderNoText)) = 0 Then
         private_LogError "Movement export blocked: manual order number is empty."
         VBA.MsgBox "PrototypeNew: order number is required for Movement export. Fill the order number field before exporting.", VBA.vbExclamation, "PrototypeNew / Movement export"
+        Exit Function
+    End If
+
+    ' Номер из верхнего поля является обязательной ссылкой на справочник
+    ' «Накази», а не просто текстом для целевой строки Movement. Проверяем его
+    ' до открытия и изменения целевой книги, даже если дата события заполнена.
+    If Not private_TryResolveOrderDateFromCommonData( _
+        manualOrderNoText, _
+        orderDate) Then
+        private_LogError "Movement export blocked: order number was not found in order map. orderNo='" & _
+            private_EscapeForLog(manualOrderNoText) & "'."
+        VBA.MsgBox _
+            "Наказ № " & manualOrderNoText & _
+            " не знайдено у довіднику «Накази». Додайте наказ до довідника " & _
+            "або вкажіть інший номер.", _
+            VBA.vbExclamation, _
+            "PrototypeNew / Movement export"
         Exit Function
     End If
 
