@@ -236,6 +236,7 @@
                   profile.closeTreatment;
                   profile.toTreatment;
                   profile.toAmbulatoryVlk;
+                  profile.transferTreatmentVacationToVlk;
                   profile.transferTreatmentToTreatmentVacation;
                   profile.transferTreatmentVacationToTreatment;
                   profile.transferVlkToTreatment;
@@ -250,6 +251,7 @@
                   profile.closeTreatment;
                   profile.toTreatment;
                   profile.toAmbulatoryVlk;
+                  profile.transferTreatmentVacationToVlk;
                   profile.transferTreatmentToTreatmentVacation;
                   profile.transferTreatmentVacationToTreatment;
                   profile.transferVlkToTreatment;
@@ -599,6 +601,7 @@
                   profile.closeTreatment;
                   profile.toTreatment;
                   profile.toAmbulatoryVlk;
+                  profile.transferTreatmentVacationToVlk;
                   profile.transferTreatmentToTreatmentVacation;
                   profile.transferTreatmentVacationToTreatment;
                   profile.transferVlkToTreatment;
@@ -618,6 +621,7 @@
                   profile.closeTreatment;
                   profile.toTreatment;
                   profile.toAmbulatoryVlk;
+                  profile.transferTreatmentVacationToVlk;
                   profile.transferTreatmentToTreatmentVacation;
                   profile.transferTreatmentVacationToTreatment;
                   profile.transferVlkToTreatment;
