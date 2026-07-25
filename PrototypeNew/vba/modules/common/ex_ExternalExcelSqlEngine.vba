@@ -8,6 +8,8 @@ Private Const ADO_UNSUPPORTED_EXT_ERROR_CODE As Long = VBA.vbObjectError + 7312
 Private Const RANGE_REF_CACHE_NAMESPACE As String = "SqlEngine.RangeRefsByMarkers"
 Private Const RANGE_REF_CACHE_VERSION As String = "v1"
 Private Const SCHEMA_CACHE_VERSION As String = "v1"
+Private Const ADO_TEXT_LIMIT As Long = 255
+Private Const ADO_LONG_VALUE_CANDIDATE_TAG As String = "ado-long-value-candidate"
 
 Private m_ConnectionsByPath As Object
 Private m_ResolvedHeadersByKey As Object
@@ -233,6 +235,16 @@ Public Function fn_TrySqlRequest( _
     Set rsData = Nothing
 
     If Not IsEmpty(recordsetData) Then
+        If sqlParams.LongValuesMode = AdoLongValuesHydrate Then
+            If Not private_TryHydrateAdoLongText( _
+                recordsetData, _
+                sourceColumnOrdinals, _
+                sourceColumnHeaders, _
+                sourcePath, _
+                sqlParams.SheetName, _
+                tableRef) Then GoTo CleanupFail
+        End If
+
         For recordIndex = LBound(recordsetData, 2) To UBound(recordsetData, 2)
             rowNumber = rowNumber + 1
             Set rowObj = Nothing
@@ -241,6 +253,11 @@ Public Function fn_TrySqlRequest( _
             For i = 1 To UBound(sourceColumnOrdinals)
                 cellText = private_ToSafeText(recordsetData(sourceColumnOrdinals(i), recordIndex))
                 rowObj.PushCellRaw cellText
+                If sqlParams.LongValuesMode = AdoLongValuesMarkCandidates Then
+                    If private_IsAdoLongTextCandidate(recordsetData(sourceColumnOrdinals(i), recordIndex)) Then
+                        If Not rowObj.AddCellTag(i, ADO_LONG_VALUE_CANDIDATE_TAG) Then GoTo CleanupFail
+                    End If
+                End If
             Next i
 
             If hasCustomRowProcessor Then
@@ -476,7 +493,20 @@ Public Function fn_TrySqlRequestValues( _
     Next i
 
     recordsetData = rsData.GetRows
+    rsData.Close
+    Set rsData = Nothing
+
     If Not IsEmpty(recordsetData) Then
+        If sqlParams.LongValuesMode = AdoLongValuesHydrate Then
+            If Not private_TryHydrateAdoLongText( _
+                recordsetData, _
+                sourceColumnOrdinals, _
+                sourceColumnHeaders, _
+                sourcePath, _
+                sqlParams.SheetName, _
+                tableRef) Then GoTo CleanupFail
+        End If
+
         outRowCount = UBound(recordsetData, 2) - LBound(recordsetData, 2) + 1
         outColumnCount = resolvedSourceColumnHeaders.Count
         ReDim outValues(1 To outRowCount, 1 To outColumnCount)
@@ -527,6 +557,374 @@ Private Function private_BuildSelectColumnsClause(ByVal headers As Collection) A
         If i > 1 Then private_BuildSelectColumnsClause = private_BuildSelectColumnsClause & ", "
         private_BuildSelectColumnsClause = private_BuildSelectColumnsClause & private_QuoteSqlIdentifier(VBA.CStr(headers.Item(i)))
     Next i
+End Function
+
+' ACE/OLEDB может вернуть первые 255 символов длинной Excel-ячейки.
+' Книгу открываем только при наличии подозрительного значения и сопоставляем
+' SQL-строку со строкой листа по совокупности уже выбранных колонок.
+Private Function private_TryHydrateAdoLongText( _
+    ByRef recordsetData As Variant, _
+    ByRef sourceColumnOrdinals() As Long, _
+    ByVal sourceColumnHeaders As Collection, _
+    ByVal sourcePath As String, _
+    ByVal configuredSheetName As String, _
+    ByVal tableRef As String _
+) As Boolean
+    Dim suspiciousRows As Object
+    Dim suspiciousColumns As Object
+    Dim workbookObj As Object
+    Dim worksheetObj As Object
+    Dim sourceRange As Range
+    Dim sourceValues As Variant
+    Dim sourceColumnPositions() As Long
+    Dim hiddenExcelApp As Object
+    Dim openedHere As Boolean
+    Dim recordIndex As Long
+    Dim columnIndex As Long
+    Dim sourceRowIndex As Long
+    Dim firstMatchedRow As Long
+    Dim matchingRowCount As Long
+    Dim hydratedCellCount As Long
+    Dim recordKey As Variant
+    Dim errorText As String
+
+    private_TryHydrateAdoLongText = False
+    Set suspiciousRows = VBA.CreateObject("Scripting.Dictionary")
+    Set suspiciousColumns = VBA.CreateObject("Scripting.Dictionary")
+
+    For recordIndex = LBound(recordsetData, 2) To UBound(recordsetData, 2)
+        For columnIndex = LBound(sourceColumnOrdinals) To UBound(sourceColumnOrdinals)
+            If private_IsAdoLongTextCandidate(recordsetData(sourceColumnOrdinals(columnIndex), recordIndex)) Then
+                suspiciousRows(VBA.CStr(recordIndex)) = True
+                suspiciousColumns(VBA.CStr(columnIndex)) = True
+            End If
+        Next columnIndex
+    Next recordIndex
+
+    If suspiciousRows.Count = 0 Then
+        private_TryHydrateAdoLongText = True
+        Exit Function
+    End If
+
+#If LOGGING_DEBUG_ENABLED Then
+    ex_Core.fn_Diagnostic_LogInfo "sql-engine:long-text-hydration-start path='" & sourcePath & _
+        "' rows=" & VBA.CStr(suspiciousRows.Count) & "; columns=" & VBA.CStr(suspiciousColumns.Count)
+#End If
+
+    On Error GoTo EH_HYDRATE
+
+    Set workbookObj = private_FindOpenWorkbookByPath(sourcePath)
+    If workbookObj Is Nothing Then
+        Set hiddenExcelApp = VBA.CreateObject("Excel.Application")
+        hiddenExcelApp.Visible = False
+        hiddenExcelApp.ScreenUpdating = False
+        hiddenExcelApp.DisplayAlerts = False
+        hiddenExcelApp.EnableEvents = False
+        Set workbookObj = hiddenExcelApp.Workbooks.Open( _
+            Filename:=sourcePath, _
+            ReadOnly:=True, _
+            UpdateLinks:=0, _
+            AddToMru:=False)
+        openedHere = True
+    End If
+
+    Set worksheetObj = private_FindWorksheetByConfiguredSheetName(workbookObj, configuredSheetName)
+    If worksheetObj Is Nothing Then
+        errorText = "Worksheet was not found for SheetName '" & configuredSheetName & "'."
+        GoTo CleanupFail
+    End If
+
+    If Not private_TryGetHydrationSourceRange(worksheetObj, tableRef, sourceRange, errorText) Then GoTo CleanupFail
+    If sourceRange.Rows.Count < 2 Then
+        errorText = "Source range '" & tableRef & "' does not contain data rows."
+        GoTo CleanupFail
+    End If
+
+    If Not private_TryMapHydrationColumns( _
+        sourceRange, _
+        sourceColumnHeaders, _
+        sourceColumnPositions, _
+        errorText) Then GoTo CleanupFail
+
+    sourceValues = sourceRange.Value2
+    If Not VBA.IsArray(sourceValues) Then
+        errorText = "Source range '" & tableRef & "' could not be loaded into an array."
+        GoTo CleanupFail
+    End If
+
+    For Each recordKey In suspiciousRows.Keys
+        recordIndex = VBA.CLng(recordKey)
+        firstMatchedRow = 0
+        matchingRowCount = 0
+
+        For sourceRowIndex = 2 To UBound(sourceValues, 1)
+            If private_IsHydrationRowMatch( _
+                recordsetData, _
+                recordIndex, _
+                sourceRowIndex, _
+                sourceColumnOrdinals, _
+                sourceColumnPositions, _
+                sourceValues) Then
+                matchingRowCount = matchingRowCount + 1
+                If firstMatchedRow = 0 Then
+                    firstMatchedRow = sourceRowIndex
+                ElseIf Not private_HydrationLongValuesAreEqual( _
+                    firstMatchedRow, _
+                    sourceRowIndex, _
+                    suspiciousColumns, _
+                    sourceColumnPositions, _
+                    sourceValues) Then
+                    errorText = "SQL row " & VBA.CStr(recordIndex - LBound(recordsetData, 2) + 1) & _
+                        " has multiple worksheet matches with different long-text values."
+                    GoTo CleanupFail
+                End If
+            End If
+        Next sourceRowIndex
+
+        If matchingRowCount = 0 Then
+            errorText = "SQL row " & VBA.CStr(recordIndex - LBound(recordsetData, 2) + 1) & _
+                " could not be matched to a worksheet row."
+            GoTo CleanupFail
+        End If
+
+        For columnIndex = LBound(sourceColumnOrdinals) To UBound(sourceColumnOrdinals)
+            If private_IsAdoLongTextCandidate(recordsetData(sourceColumnOrdinals(columnIndex), recordIndex)) Then
+                recordsetData(sourceColumnOrdinals(columnIndex), recordIndex) = _
+                    sourceValues(firstMatchedRow, sourceColumnPositions(columnIndex))
+                hydratedCellCount = hydratedCellCount + 1
+            End If
+        Next columnIndex
+    Next recordKey
+
+#If LOGGING_DEBUG_ENABLED Then
+    ex_Core.fn_Diagnostic_LogInfo "sql-engine:long-text-hydration-done cells=" & VBA.CStr(hydratedCellCount)
+#End If
+
+    private_TryHydrateAdoLongText = True
+
+CleanupDone:
+    On Error Resume Next
+    If openedHere Then
+        If Not workbookObj Is Nothing Then workbookObj.Close SaveChanges:=False
+        If Not hiddenExcelApp Is Nothing Then hiddenExcelApp.Quit
+    End If
+    Set sourceRange = Nothing
+    Set worksheetObj = Nothing
+    Set workbookObj = Nothing
+    Set hiddenExcelApp = Nothing
+    On Error GoTo 0
+    Exit Function
+
+CleanupFail:
+#If LOGGING_DEBUG_ENABLED Then
+    ex_Core.fn_Diagnostic_LogError "sql-engine:long-text-hydration-failed " & errorText
+#End If
+    VBA.MsgBox "PrototypeNew: failed to restore a long text value from the source workbook. " & _
+        errorText, vbExclamation, RUNTIME_ERROR_TITLE
+    GoTo CleanupDone
+
+EH_HYDRATE:
+    errorText = "[" & Err.Source & " #" & VBA.CStr(Err.Number) & "] " & Err.Description
+    Resume CleanupFail
+End Function
+
+Private Function private_IsAdoLongTextCandidate(ByVal valueIn As Variant) As Boolean
+    If VBA.IsError(valueIn) Then Exit Function
+    If VBA.IsNull(valueIn) Or VBA.IsEmpty(valueIn) Then Exit Function
+    If VBA.VarType(valueIn) <> VBA.vbString Then Exit Function
+    private_IsAdoLongTextCandidate = (VBA.Len(VBA.CStr(valueIn)) = ADO_TEXT_LIMIT)
+End Function
+
+Private Function private_TryGetHydrationSourceRange( _
+    ByVal ws As Worksheet, _
+    ByVal tableRef As String, _
+    ByRef outRange As Range, _
+    ByRef outErrorText As String _
+) As Boolean
+    Dim cleanedRef As String
+    Dim dollarPos As Long
+    Dim rangeAddress As String
+
+    Set outRange = Nothing
+    outErrorText = VBA.vbNullString
+    If ws Is Nothing Then
+        outErrorText = "Worksheet is not initialized."
+        Exit Function
+    End If
+
+    cleanedRef = private_CleanAdoSchemaObjectName(tableRef)
+    dollarPos = VBA.InStr(1, cleanedRef, "$", VBA.vbBinaryCompare)
+    If dollarPos > 0 Then rangeAddress = VBA.Trim$(VBA.Mid$(cleanedRef, dollarPos + 1))
+
+    On Error GoTo EH_RANGE
+    If VBA.Len(rangeAddress) > 0 Then
+        Set outRange = ws.Range(rangeAddress)
+    Else
+        Set outRange = ws.UsedRange
+    End If
+    If outRange Is Nothing Then
+        outErrorText = "Source range '" & tableRef & "' was not found."
+        Exit Function
+    End If
+
+    private_TryGetHydrationSourceRange = True
+    Exit Function
+
+EH_RANGE:
+    outErrorText = "Source range '" & tableRef & "' is invalid for worksheet '" & ws.Name & "'."
+    Set outRange = Nothing
+End Function
+
+Private Function private_TryMapHydrationColumns( _
+    ByVal sourceRange As Range, _
+    ByVal resolvedHeaders As Collection, _
+    ByRef outColumnPositions() As Long, _
+    ByRef outErrorText As String _
+) As Boolean
+    Dim headerValues As Variant
+    Dim desiredHeader As String
+    Dim actualHeader As String
+    Dim columnIndex As Long
+    Dim sourceColumnIndex As Long
+
+    outErrorText = VBA.vbNullString
+    If sourceRange Is Nothing Then
+        outErrorText = "Source range is not initialized."
+        Exit Function
+    End If
+    If resolvedHeaders Is Nothing Then
+        outErrorText = "Resolved SQL headers are not initialized."
+        Exit Function
+    End If
+
+    headerValues = sourceRange.Rows(1).Value2
+    ReDim outColumnPositions(1 To resolvedHeaders.Count)
+
+    For columnIndex = 1 To resolvedHeaders.Count
+        desiredHeader = private_NormalizeHydrationHeader(VBA.CStr(resolvedHeaders.Item(columnIndex)))
+        For sourceColumnIndex = 1 To sourceRange.Columns.Count
+            If sourceRange.Columns.Count = 1 Then
+                actualHeader = private_NormalizeHydrationHeader(private_ToSafeText(headerValues))
+            Else
+                actualHeader = private_NormalizeHydrationHeader(private_ToSafeText(headerValues(1, sourceColumnIndex)))
+            End If
+            If VBA.StrComp(actualHeader, desiredHeader, VBA.vbTextCompare) = 0 Then
+                outColumnPositions(columnIndex) = sourceColumnIndex
+                Exit For
+            End If
+        Next sourceColumnIndex
+
+        If outColumnPositions(columnIndex) <= 0 Then
+            outErrorText = "Source header '" & VBA.CStr(resolvedHeaders.Item(columnIndex)) & _
+                "' was not found in worksheet range '" & sourceRange.Address & "'."
+            Exit Function
+        End If
+    Next columnIndex
+
+    private_TryMapHydrationColumns = True
+End Function
+
+Private Function private_NormalizeHydrationHeader(ByVal headerText As String) As String
+    headerText = VBA.Trim$(headerText)
+    headerText = VBA.Replace$(headerText, VBA.ChrW$(160), " ")
+    headerText = VBA.Replace$(headerText, VBA.vbCr, " ")
+    headerText = VBA.Replace$(headerText, VBA.vbLf, " ")
+    headerText = VBA.Replace$(headerText, VBA.vbTab, " ")
+    Do While VBA.InStr(1, headerText, "  ", VBA.vbBinaryCompare) > 0
+        headerText = VBA.Replace$(headerText, "  ", " ")
+    Loop
+    headerText = VBA.Replace$(headerText, "#", ".")
+    private_NormalizeHydrationHeader = VBA.LCase$(headerText)
+End Function
+
+Private Function private_IsHydrationRowMatch( _
+    ByRef recordsetData As Variant, _
+    ByVal recordIndex As Long, _
+    ByVal sourceRowIndex As Long, _
+    ByRef sourceColumnOrdinals() As Long, _
+    ByRef sourceColumnPositions() As Long, _
+    ByRef sourceValues As Variant _
+) As Boolean
+    Dim columnIndex As Long
+
+    For columnIndex = LBound(sourceColumnOrdinals) To UBound(sourceColumnOrdinals)
+        If Not private_HydrationValuesMatch( _
+            recordsetData(sourceColumnOrdinals(columnIndex), recordIndex), _
+            sourceValues(sourceRowIndex, sourceColumnPositions(columnIndex))) Then Exit Function
+    Next columnIndex
+
+    private_IsHydrationRowMatch = True
+End Function
+
+Private Function private_HydrationValuesMatch( _
+    ByVal adoValue As Variant, _
+    ByVal worksheetValue As Variant _
+) As Boolean
+    Dim adoText As String
+    Dim worksheetText As String
+
+    If VBA.IsError(adoValue) Or VBA.IsError(worksheetValue) Then
+        private_HydrationValuesMatch = (VBA.IsError(adoValue) And VBA.IsError(worksheetValue))
+        Exit Function
+    End If
+
+    If (VBA.IsNull(adoValue) Or VBA.IsEmpty(adoValue)) And _
+       (VBA.IsNull(worksheetValue) Or VBA.IsEmpty(worksheetValue)) Then
+        private_HydrationValuesMatch = True
+        Exit Function
+    End If
+
+    adoText = private_ToSafeText(adoValue)
+    worksheetText = private_ToSafeText(worksheetValue)
+
+    If private_IsAdoLongTextCandidate(adoValue) Then
+        private_HydrationValuesMatch = _
+            (VBA.StrComp(VBA.Left$(worksheetText, ADO_TEXT_LIMIT), adoText, VBA.vbBinaryCompare) = 0)
+        Exit Function
+    End If
+
+    If VBA.StrComp(worksheetText, adoText, VBA.vbBinaryCompare) = 0 Then
+        private_HydrationValuesMatch = True
+        Exit Function
+    End If
+
+    ' ADO и Value2 могут по-разному представить одно числовое значение.
+    If VBA.IsNumeric(adoValue) And VBA.IsNumeric(worksheetValue) Then
+        private_HydrationValuesMatch = (VBA.CDbl(adoValue) = VBA.CDbl(worksheetValue))
+        Exit Function
+    End If
+
+    If VBA.IsDate(adoValue) And VBA.IsNumeric(worksheetValue) Then
+        private_HydrationValuesMatch = (VBA.CDbl(VBA.CDate(adoValue)) = VBA.CDbl(worksheetValue))
+        Exit Function
+    End If
+    If VBA.IsNumeric(adoValue) And VBA.IsDate(worksheetValue) Then
+        private_HydrationValuesMatch = (VBA.CDbl(adoValue) = VBA.CDbl(VBA.CDate(worksheetValue)))
+    End If
+End Function
+
+Private Function private_HydrationLongValuesAreEqual( _
+    ByVal firstSourceRow As Long, _
+    ByVal candidateSourceRow As Long, _
+    ByVal suspiciousColumns As Object, _
+    ByRef sourceColumnPositions() As Long, _
+    ByRef sourceValues As Variant _
+) As Boolean
+    Dim columnKey As Variant
+    Dim columnIndex As Long
+    Dim firstText As String
+    Dim candidateText As String
+
+    If suspiciousColumns Is Nothing Then Exit Function
+
+    For Each columnKey In suspiciousColumns.Keys
+        columnIndex = VBA.CLng(columnKey)
+        firstText = private_ToSafeText(sourceValues(firstSourceRow, sourceColumnPositions(columnIndex)))
+        candidateText = private_ToSafeText(sourceValues(candidateSourceRow, sourceColumnPositions(columnIndex)))
+        If VBA.StrComp(firstText, candidateText, VBA.vbBinaryCompare) <> 0 Then Exit Function
+    Next columnKey
+
+    private_HydrationLongValuesAreEqual = True
 End Function
 
 Private Function private_TryGetCachedConnection( _

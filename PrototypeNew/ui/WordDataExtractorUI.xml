@@ -39,6 +39,15 @@
           onClick="{Binding Method=ToggleEmptyTables}"
           spanColls="3"
           spanRows="2"/>
+
+        <control
+          type="Button"
+          name="AdoLongValues"
+          caption="{Binding Path=AdoSupportLongValues;TrueAs=ADO Support long values [[[color=#FFFF00]]on[[/color]]];FalseAs=ADO Support long values [[[color=#FFFF00]]off[[/color]]]}"
+          dataContext="{PageRuntimeSource='RuntimeObjects.WordDataExtractor.Controller'}"
+          onClick="{Binding Method=ToggleAdoSupportLongValues}"
+          spanColls="3"
+          spanRows="2"/>
       </stackPanel>
 
       <stackPanel spanColls="40" spanRows="1"/>
@@ -111,6 +120,13 @@
           selector="type=tablelist;name=ExtractedTables;part=tag-fio-not-normalized"
           styles="{
             fontColor:#9CA3AF;
+          }"/>
+
+        <rule
+          target="controlPart"
+          selector="type=tablelist;name=ExtractedTables;part=tag-ado-long-value-candidate"
+          styles="{
+            fontColor:#C084FC;
           }"/>
 
         <!-- FormatKind=date публикуется TableList как part=datelike.

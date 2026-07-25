@@ -24,6 +24,11 @@ Private m_StateFioHeader As String
 Private m_StateIpnHeader As String
 Private m_StateEngine As obj_ExtWorkbookQueryEngine
 Private m_CommonData As obj_PEB_ExptrCommonDataPrvdr
+Private m_DataReadOptions As obj_ExternalDataReadOptions
+
+Public Property Set DataReadOptions(ByVal value As obj_ExternalDataReadOptions)
+    Set m_DataReadOptions = value
+End Property
 
 Private Function obj_ITableTransformer_Transform( _
     ByVal sourceTable As obj_TableDynamic, _
@@ -94,6 +99,7 @@ Private Function private_TryEnsureStateEngine() As Boolean
         Set m_StateEngine = Nothing
         Exit Function
     End If
+    Set m_StateEngine.DataReadOptions = m_DataReadOptions
     private_TryEnsureStateEngine = True
 End Function
 
@@ -107,6 +113,7 @@ Private Function private_TryEnsureCommonData() As Boolean
         Set m_CommonData = Nothing
         Exit Function
     End If
+    Set m_CommonData.DataReadOptions = m_DataReadOptions
     private_TryEnsureCommonData = True
 End Function
 
@@ -248,6 +255,9 @@ Private Function private_TryFindStateFioByIpn( _
     query.SourcePath = statePath
     query.TableRef = stateTableRef
     query.MaxRows = 2
+    If Not m_DataReadOptions Is Nothing Then
+        query.LongValuesMode = m_DataReadOptions.LongValuesMode
+    End If
     If Not query.AddSelectColumn(fioHeader) Then Exit Function
     If Not query.AddCondition(ipnHeader, _
         en_ExtWorkbookQueryOp.ExtQueryOpEquals, ipnText, True) Then Exit Function
@@ -326,6 +336,7 @@ Private Sub obj_ITableTransformer_Dispose()
     If Not m_CommonData Is Nothing Then m_CommonData.Dispose
     Set m_StateEngine = Nothing
     Set m_CommonData = Nothing
+    Set m_DataReadOptions = Nothing
     m_ResourcesReady = False
     On Error GoTo 0
 End Sub
