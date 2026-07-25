@@ -66,7 +66,6 @@ Private Const EXPORT_CONTEXT_VALIDATE_DAILY_SCOPE_KEY As String = "ValidateDaily
 Private Const EXPORT_CONTEXT_VALIDATE_MOVEMENT_KEY As String = "ValidateMovement"
 Private Const EXPORT_CONTEXT_VALIDATE_WORD_KEY As String = "ValidateWord"
 Private Const LOOKUP_MODE_CONTROL_NAME As String = "LookupMode"
-Private Const ADO_LONG_VALUES_CONTROL_NAME As String = "AdoLongValues"
 Private Const MOVEMENT_HISTORY_TABLE_CONTROL_NAME As String = "MovementHistoryTable"
 Private Const MOVEMENT_HISTORY_LIMIT_INPUT_NAME As String = "MovementHistoryLimitInput"
 Private Const ADDITIONAL_PROFILE_SELECT_CONTROL_NAME As String = "EventDraftAdditionalProfileSelect"
@@ -117,7 +116,6 @@ Private m_CachedDailyScopeExporter As obj_PEB_ExptrDailyScope
 Private m_CachedMovementExporter As obj_PEB_ExptrMovement
 Private m_CachedWordExporter As obj_PEB_ExptrWord
 Private m_IsLookupEnabled As Boolean
-Private m_DataReadOptions As obj_ExternalDataReadOptions
 Private m_IsDailyScopeValidationEnabled As Boolean
 Private m_IsMovementValidationEnabled As Boolean
 Private m_IsWordValidationEnabled As Boolean
@@ -186,8 +184,6 @@ Public Function Initialize(ByVal page As Object) As Boolean
     If Not m_ExportCommonData.Initialize() Then Exit Function
     private_ResetExportSettings
     m_IsLookupEnabled = True
-    Set m_DataReadOptions = New obj_ExternalDataReadOptions
-    Set m_ExportCommonData.DataReadOptions = m_DataReadOptions
     m_IsDailyScopeValidationEnabled = True
     m_IsMovementValidationEnabled = True
     m_IsWordValidationEnabled = False
@@ -202,7 +198,6 @@ Public Function Initialize(ByVal page As Object) As Boolean
         pageInterface, _
         CANDIDATE_TABLES_RUNTIME_KEY, _
         "prsnlevntbuilder:entitylookup") Then Exit Function
-    Set m_LookupFeature.DataReadOptions = m_DataReadOptions
 
     If Not private_RegisterProfileOptions(False) Then Exit Function
     ' Select хранит runtime selectedId между page renders. При первом открытии
@@ -245,7 +240,6 @@ Public Sub Dispose()
     Set m_ExportMainTable = Nothing
     Set m_ExportMetaTables = Nothing
     Set m_MovementHistoryTable = Nothing
-    Set m_DataReadOptions = Nothing
     m_WordExportPreviewText = VBA.vbNullString
     m_IsMovementHistoryEnabled = False
     On Error GoTo 0
@@ -257,11 +251,6 @@ End Property
 
 Public Property Get IsLookupEnabled() As Boolean
     IsLookupEnabled = m_IsLookupEnabled
-End Property
-
-Public Property Get AdoSupportLongValues() As Boolean
-    If m_DataReadOptions Is Nothing Then Exit Property
-    AdoSupportLongValues = m_DataReadOptions.AdoSupportLongValues
 End Property
 
 Public Property Get IsDailyScopeValidationEnabled() As Boolean
@@ -364,29 +353,6 @@ Public Function ToggleLookupEnabled() As Boolean
         rt_Messaging.fn_ShowStatusBarSuccess "Lookup enabled", 3
     Else
         rt_Messaging.fn_ShowStatusBarWarning "Lookup disabled", 3
-    End If
-End Function
-
-Public Function ToggleAdoSupportLongValues() As Boolean
-    If m_DataReadOptions Is Nothing Then
-        VBA.MsgBox "PrototypeNew: PrsnlEvntBuilder data-read options are not initialized.", _
-            VBA.vbExclamation, "PrototypeNew / EntityLookup"
-        Exit Function
-    End If
-    If Not m_DataReadOptions.ToggleLongValuesMode() Then Exit Function
-
-    If Not ex_ControlRefreshRuntime.fn_TryRefreshStaticControl(ADO_LONG_VALUES_CONTROL_NAME) Then
-        If Not m_DataReadOptions.ToggleLongValuesMode() Then Exit Function
-        VBA.MsgBox "PrototypeNew: failed to refresh the ADO long-values button.", _
-            VBA.vbExclamation, "PrototypeNew / EntityLookup"
-        Exit Function
-    End If
-
-    ToggleAdoSupportLongValues = True
-    If m_DataReadOptions.AdoSupportLongValues Then
-        rt_Messaging.fn_ShowStatusBarSuccess "ADO support for long values enabled", 3
-    Else
-        rt_Messaging.fn_ShowStatusBarWarning "ADO support for long values disabled", 3
     End If
 End Function
 
@@ -907,7 +873,6 @@ Public Function OnDisconnectDataSourcesClick( _
             "PrsnlEventBuilder / З'єднання"
         Exit Function
     End If
-    Set pebExptrCommonDataPrvdr.DataReadOptions = m_DataReadOptions
     Set m_ExportCommonData = pebExptrCommonDataPrvdr
 
     rt_Messaging.fn_ShowStatusBarSuccess _
@@ -2068,7 +2033,6 @@ Private Function private_TryUpdateExportSettings(ByVal configTable As obj_Config
         Set m_ExporterCfgDataProvider = Nothing
         Exit Function
     End If
-    Set m_ExporterCfgDataProvider.DataReadOptions = m_DataReadOptions
 
     private_TryUpdateExportSettings = True
 End Function
@@ -2292,7 +2256,6 @@ Private Function private_TryEnsureExporterCfgDataProvider() As Boolean
             "PrsnlEventBuilder / З'єднання"
         Exit Function
     End If
-    Set exporterCfgDataProvider.DataReadOptions = m_DataReadOptions
     Set m_ExporterCfgDataProvider = exporterCfgDataProvider
     private_TryEnsureExporterCfgDataProvider = True
 End Function

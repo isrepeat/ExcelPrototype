@@ -55,15 +55,6 @@
           spanColls="2"
           spanRows="2"/>
 
-        <control
-          type="Button"
-          name="AdoLongValues"
-          caption="{Binding Path=AdoSupportLongValues;TrueAs=ADO Support long values [[[color=#FFFF00]]on[[/color]]];FalseAs=ADO Support long values [[[color=#FFFF00]]off[[/color]]]}"
-          style="exportApplyButton"
-          dataContext="{PageRuntimeSource='RuntimeObjects.PrsnlEvntBuilder.Controller'}"
-          onClick="{Binding Method=ToggleAdoSupportLongValues}"
-          spanColls="3"
-          spanRows="2"/>
 
         <!-- Редкие переходы используют тот же профильный pipeline, но не
              занимают постоянное место в основной матрице кнопок. -->

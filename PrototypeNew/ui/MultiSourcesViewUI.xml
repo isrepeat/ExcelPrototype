@@ -45,14 +45,6 @@
           spanColls="3"
           spanRows="2"/>
 
-        <control
-          type="Button"
-          name="AdoLongValues"
-          caption="{Binding Path=AdoSupportLongValues;TrueAs=ADO Support long values [[[color=#FFFF00]]on[[/color]]];FalseAs=ADO Support long values [[[color=#FFFF00]]off[[/color]]]}"
-          dataContext="{PageRuntimeSource='RuntimeObjects.MultiSourcesView.Controller'}"
-          onClick="{Binding Method=ToggleAdoSupportLongValues}"
-          spanColls="3"
-          spanRows="2"/>
       </stackPanel>
 
       <!-- Заголовки видны до загрузки файлов и используют тот же список,

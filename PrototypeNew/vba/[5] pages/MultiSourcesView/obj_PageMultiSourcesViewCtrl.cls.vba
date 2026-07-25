@@ -19,7 +19,6 @@ Private Const FILTER_ROW_INDEX As Long = 5
 Private Const FILTER_FIRST_COLUMN_INDEX As Long = 2
 Private Const FILTER_EXPRESSION_EMPTY As String = "empty()"
 Private Const FILTER_EXPRESSION_NOT_EMPTY As String = "notempty()"
-Private Const ADO_LONG_VALUES_CONTROL_NAME As String = "AdoLongValues"
 Private Const ADO_LONG_VALUE_CANDIDATE_TAG As String = "ado-long-value-candidate"
 Private Const ADO_TEXT_LIMIT As Long = 255
 
@@ -34,7 +33,6 @@ Private m_SourceAliases As Collection
 Private m_SourceAliasTemplates As Collection
 Private m_FilterValues As Object
 Private m_MaxRows As Long
-Private m_DataReadOptions As obj_ExternalDataReadOptions
 Private m_IsConfigReady As Boolean
 Private m_IsDisposed As Boolean
 
@@ -48,7 +46,6 @@ Public Function Initialize(ByVal page As obj_IPage) As Boolean
 
     If page Is Nothing Then Exit Function
     m_IsDisposed = False
-    Set m_DataReadOptions = New obj_ExternalDataReadOptions
     Set m_Page = page
     Set m_FilterValues = ex_Helpers.fn_CreateDictionaryTextCompare()
     Set pageBase = page.GetPageBase()
@@ -75,7 +72,6 @@ Public Sub Dispose()
     Set m_SourceAliases = Nothing
     Set m_SourceAliasTemplates = Nothing
     Set m_FilterValues = Nothing
-    Set m_DataReadOptions = Nothing
     Set m_Page = Nothing
     On Error GoTo 0
 End Sub
@@ -97,33 +93,6 @@ Public Function UpdateData(ByVal configControl As obj_ConfigControlVM) As Boolea
     If Not private_PublishFilterItems() Then Exit Function
     m_IsConfigReady = True
     UpdateData = True
-End Function
-
-Public Property Get AdoSupportLongValues() As Boolean
-    If m_DataReadOptions Is Nothing Then Exit Property
-    AdoSupportLongValues = m_DataReadOptions.AdoSupportLongValues
-End Property
-
-Public Function ToggleAdoSupportLongValues(Optional ByVal arg As Variant) As Boolean
-    If m_DataReadOptions Is Nothing Then
-        VBA.MsgBox "PrototypeNew: MultiSourcesView data-read options are not initialized.", _
-            VBA.vbExclamation, "PrototypeNew / MultiSourcesView"
-        Exit Function
-    End If
-    If Not m_DataReadOptions.ToggleLongValuesMode() Then Exit Function
-    If Not ex_ControlRefreshRuntime.fn_TryRefreshStaticControl(ADO_LONG_VALUES_CONTROL_NAME) Then
-        If Not m_DataReadOptions.ToggleLongValuesMode() Then Exit Function
-        VBA.MsgBox "PrototypeNew: failed to refresh the ADO long-values button.", _
-            VBA.vbExclamation, "PrototypeNew / MultiSourcesView"
-        Exit Function
-    End If
-
-    ToggleAdoSupportLongValues = True
-    If m_DataReadOptions.AdoSupportLongValues Then
-        rt_Messaging.fn_ShowStatusBarSuccess "ADO support for long values enabled", 3
-    Else
-        rt_Messaging.fn_ShowStatusBarWarning "ADO support for long values disabled", 3
-    End If
 End Function
 
 Public Function RunPipeline(Optional ByVal notifyChange As Boolean = True) As Boolean
@@ -164,7 +133,6 @@ Public Function RunPipeline(Optional ByVal notifyChange As Boolean = True) As Bo
         For Each sqlParamsItem In sqlParamsList
             Set sqlParams = sqlParamsItem
             sqlParams.MaxRows = m_MaxRows
-            sqlParams.LongValuesMode = m_DataReadOptions.LongValuesMode
             sourceIndex = sourceIndex + 1
             pipelineStage = "query:" & VBA.CStr(sourceIndex)
             ex_Core.fn_Diagnostic_LogInfo "MultiSourcesView:query-start index=" & _
@@ -381,10 +349,8 @@ Private Function private_TryBuildVisibleTable( _
                 buildStage = "row=" & VBA.CStr(rowIndex) & ";col=" & VBA.CStr(colIndex)
                 Set cellObj = New obj_Cell
                 cellObj.Value = tableData.ValueAt(rowIndex, colIndex)
-                If m_DataReadOptions.LongValuesMode = AdoLongValuesMarkCandidates Then
-                    If VBA.Len(VBA.CStr(cellObj.Value)) = ADO_TEXT_LIMIT Then
-                        If Not cellObj.AddTag(ADO_LONG_VALUE_CANDIDATE_TAG) Then Exit Function
-                    End If
+                If VBA.Len(VBA.CStr(cellObj.Value)) = ADO_TEXT_LIMIT Then
+                    If Not cellObj.AddTag(ADO_LONG_VALUE_CANDIDATE_TAG) Then Exit Function
                 End If
                 If Not rowObj.PushCell(cellObj) Then Exit Function
             Next colIndex

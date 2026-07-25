@@ -22,7 +22,6 @@ Private m_Conditions As Collection
 Private m_NormalizeKey As Boolean
 Private m_ReverseOrder As Boolean
 Private m_MaxRows As Long
-Private m_LongValuesMode As en_AdoLongValuesMode
 
 Private Sub Class_Initialize()
     ' Наиболее частый сценарий — получить одну строку по нормализованному ключу.
@@ -97,14 +96,6 @@ Public Property Let MaxRows(ByVal value As Long)
     ' учета ReverseOrder, поэтому ReverseOrder=True/MaxRows=1 дает последнюю строку.
     If value < 0 Then value = 0
     m_MaxRows = value
-End Property
-
-Public Property Get LongValuesMode() As en_AdoLongValuesMode
-    LongValuesMode = m_LongValuesMode
-End Property
-
-Public Property Let LongValuesMode(ByVal value As en_AdoLongValuesMode)
-    m_LongValuesMode = value
 End Property
 
 Public Property Get SelectColumns() As Collection
@@ -203,9 +194,6 @@ Public Function TryValidate(ByRef outError As String) As Boolean
         outError = "At least one selected column is required."
     ElseIf m_SelectColumns.Count = 0 And Not m_SelectAllColumns Then
         outError = "At least one selected column is required."
-    ElseIf m_LongValuesMode <> AdoLongValuesMarkCandidates And _
-           m_LongValuesMode <> AdoLongValuesHydrate Then
-        outError = "LongValuesMode is invalid."
     Else
         If Not private_TryValidateConditions(outError) Then Exit Function
         TryValidate = True

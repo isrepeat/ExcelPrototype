@@ -18,10 +18,3 @@ Public Enum en_ExtWorkbookQueryOp
     ExtQueryOpGreaterThan = 8
     ExtQueryOpLessThan = 9
 End Enum
-
-' Политика обработки строковых значений, которые ACE возвращает ровно
-' 255 символами. Query хранит снимок режима конкретного запуска.
-Public Enum en_AdoLongValuesMode
-    AdoLongValuesMarkCandidates = 0
-    AdoLongValuesHydrate = 1
-End Enum

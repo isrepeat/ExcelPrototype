@@ -15,7 +15,6 @@ Private m_RangeStartMarker As String
 Private m_RangeEndMarker As String
 Private m_WhereConditions As String
 Private m_MaxRows As Long
-Private m_LongValuesMode As en_AdoLongValuesMode
 Private m_SourceColumnHeaders As Collection
 Private m_MappedColumnHeaders As Collection
 Private m_ColumnAliases As Collection
@@ -109,14 +108,6 @@ Public Property Let MaxRows(ByVal value As Long)
     m_MaxRows = value
 End Property
 
-Public Property Get LongValuesMode() As en_AdoLongValuesMode
-    LongValuesMode = m_LongValuesMode
-End Property
-
-Public Property Let LongValuesMode(ByVal value As en_AdoLongValuesMode)
-    m_LongValuesMode = value
-End Property
-
 Public Property Get SourceColumnHeaders() As Collection
     If m_SourceColumnHeaders Is Nothing Then Set m_SourceColumnHeaders = New Collection
     Set SourceColumnHeaders = m_SourceColumnHeaders
@@ -158,7 +149,6 @@ Public Function Initialize() As Boolean
     m_RangeEndMarker = VBA.vbNullString
     m_WhereConditions = VBA.vbNullString
     m_MaxRows = 0
-    m_LongValuesMode = AdoLongValuesMarkCandidates
     Set m_SourceColumnHeaders = New Collection
     Set m_MappedColumnHeaders = New Collection
     Set m_ColumnAliases = New Collection
@@ -254,12 +244,6 @@ Public Function TryValidate(ByRef outErrorText As String) As Boolean
         outErrorText = "SourceColumnHeaders and ColumnAliases counts must match."
         Exit Function
     End If
-    If m_LongValuesMode <> AdoLongValuesMarkCandidates And _
-       m_LongValuesMode <> AdoLongValuesHydrate Then
-        outErrorText = "LongValuesMode is invalid."
-        Exit Function
-    End If
-
     TryValidate = True
 End Function
 
@@ -272,7 +256,6 @@ Public Function fn_ToString() As String
         "RangeEndMarker=" & private_QuoteValue(m_RangeEndMarker) & "; " & _
         "WhereConditions=" & private_QuoteValue(m_WhereConditions) & "; " & _
         "MaxRows=" & VBA.CStr(m_MaxRows) & "; " & _
-        "LongValuesMode=" & VBA.CStr(m_LongValuesMode) & "; " & _
         "SourceColumnHeaders=[" & private_CollectionToDelimitedText(m_SourceColumnHeaders, ", ") & "]; " & _
         "MappedColumnHeaders=[" & private_CollectionToDelimitedText(m_MappedColumnHeaders, ", ") & "]; " & _
         "ColumnAliases=[" & private_CollectionToDelimitedText(m_ColumnAliases, ", ") & "]; " & _

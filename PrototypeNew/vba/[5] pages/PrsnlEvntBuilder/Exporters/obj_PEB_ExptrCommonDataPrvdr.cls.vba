@@ -16,7 +16,6 @@ Private m_WorkbookConnections As Object
 ' Engine читает закрытый источник через ADO, а открытый — из живого Worksheet,
 ' включая несохраненные изменения пользователя.
 Private m_QueryEngine As obj_ExtWorkbookQueryEngine
-Private m_DataReadOptions As obj_ExternalDataReadOptions
 
 Private Const DEFAULT_SHPO_REL_PATH As String = "modes\PrsnlEvntBuilder\ШПО.xlsx"
 Private Const ALF_SHEET_NAME As String = "АЛФ"
@@ -74,11 +73,6 @@ Private Const SPECIAL_POSITION_NAME_ROZP_OFFICER As String = "який пере�
 Private Const ORDER_DATE_COLUMN_NAME As String = "Дата наказу"
 Private Const ORDER_NO_COLUMN_NAME As String = "Номер наказу"
 
-Public Property Set DataReadOptions(ByVal value As obj_ExternalDataReadOptions)
-    Set m_DataReadOptions = value
-    If Not m_QueryEngine Is Nothing Then Set m_QueryEngine.DataReadOptions = value
-End Property
-
 Private Sub Class_Initialize()
 #If LOGGING_VERBOSE_ENABLED Then
     ex_Core.fn_Diagnostic_LogInfo "lifecycle:" & TypeName(Me) & ".Class_Initialize"
@@ -107,7 +101,6 @@ Public Function Initialize(Optional ByVal configTable As obj_ConfigTable = Nothi
     m_WorkbookConnections.CompareMode = 1
     Set m_QueryEngine = New obj_ExtWorkbookQueryEngine
     If Not m_QueryEngine.Initialize Then Exit Function
-    Set m_QueryEngine.DataReadOptions = m_DataReadOptions
     Initialize = True
 End Function
 
@@ -140,7 +133,6 @@ Public Sub Dispose()
     On Error Resume Next
     If Not m_QueryEngine Is Nothing Then m_QueryEngine.Dispose
     Set m_QueryEngine = Nothing
-    Set m_DataReadOptions = Nothing
     private_CloseWorkbookConnections
     Set m_WorkbookConnections = Nothing
     On Error GoTo 0
