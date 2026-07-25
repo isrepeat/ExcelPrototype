@@ -341,15 +341,6 @@ Private Function private_TryAppendBeforeWordEndAnchor( _
         VBA.FileCopy templatePath, targetPath
     End If
 
-    ' Never write through a document which is open in Word (ours or another
-    ' process). This also avoids silently editing a user's unsaved document.
-    If private_IsDocumentOpenInRunningWord(targetPath) Or private_IsFileLocked(targetPath) Then
-        VBA.MsgBox "Невозможно выполнить экспорт, пока документ открыт." & VBA.vbCrLf & _
-            "Закройте документ и повторите попытку:" & VBA.vbCrLf & targetPath, _
-            VBA.vbExclamation, "PrototypeNew / WORD export"
-        Exit Function
-    End If
-
     beginMarker = WORD_ANCHOR_PREFIX & VBA.Trim$(templateId) & WORD_ANCHOR_BEGIN_SUFFIX
     endMarker = WORD_ANCHOR_PREFIX & VBA.Trim$(templateId) & WORD_ANCHOR_END_SUFFIX
     plainRenderedText = private_NormalizeWordParagraphBreaks( _
@@ -364,9 +355,8 @@ Private Function private_TryAppendBeforeWordEndAnchor( _
             groupingHospitalShort, groupingDateShort)
     End If
 
-    If Not rt_PEB_WordExportRuntime.fn_GetOrCreateWordApp(wordApp) Then Exit Function
-    Set wordDoc = wordApp.Documents.Open(targetPath, False, False, False)
-    documentOpened = True
+    If Not rt_PEB_WordExportRuntime.fn_TryAcquireWordDocument( _
+        targetPath, wordApp, wordDoc, documentOpened) Then Exit Function
 
     If Not private_TryFindWordText(wordDoc.Content, beginMarker, beginRange) Then
         VBA.MsgBox "PrototypeNew: WORD begin anchor was not found: " & beginMarker, VBA.vbExclamation, "PrototypeNew / WORD export"
@@ -426,8 +416,10 @@ Private Function private_TryAppendBeforeWordEndAnchor( _
     If Not undoActionReady Then GoTo CleanFail
 
     wordDoc.Save
-    wordDoc.Close False
-    documentOpened = False
+    If documentOpened Then
+        wordDoc.Close False
+        documentOpened = False
+    End If
     If Not rt_UndoManager.fn_PushExecutedAction(undoAction) Then
         rt_Messaging.fn_ShowStatusBarWarning "WORD export completed, but its undo action was not registered.", 5
     End If
@@ -480,16 +472,8 @@ Public Function RegroupResultDocumentHospitalPoints( _
             VBA.vbExclamation, "PrototypeNew / WORD document"
         Exit Function
     End If
-    If private_IsDocumentOpenInRunningWord(targetPath) Or private_IsFileLocked(targetPath) Then
-        VBA.MsgBox "Невозможно перегруппировать пункты, пока документ открыт." & VBA.vbCrLf & _
-            "Закройте документ и повторите попытку:" & VBA.vbCrLf & targetPath, _
-            VBA.vbExclamation, "PrototypeNew / WORD document"
-        Exit Function
-    End If
-
-    If Not rt_PEB_WordExportRuntime.fn_GetOrCreateWordApp(wordApp) Then Exit Function
-    Set wordDoc = wordApp.Documents.Open(targetPath, False, False, False)
-    documentOpened = True
+    If Not rt_PEB_WordExportRuntime.fn_TryAcquireWordDocument( _
+        targetPath, wordApp, wordDoc, documentOpened) Then Exit Function
 
     If Not private_TryRegroupHospitalSection( _
         wordApp, wordDoc, WORD_TEMPLATE_TO_HOSPITAL, sectionPointCount) Then GoTo CleanFail
@@ -499,8 +483,10 @@ Public Function RegroupResultDocumentHospitalPoints( _
     regroupedPointCount = regroupedPointCount + sectionPointCount
 
     wordDoc.Save
-    wordDoc.Close False
-    documentOpened = False
+    If documentOpened Then
+        wordDoc.Close False
+        documentOpened = False
+    End If
     RegroupResultDocumentHospitalPoints = True
     Exit Function
 
@@ -803,16 +789,8 @@ Public Function RemoveResultDocumentAnchors( _
         Exit Function
     End If
 
-    If private_IsDocumentOpenInRunningWord(targetPath) Or private_IsFileLocked(targetPath) Then
-        VBA.MsgBox "Невозможно очистить документ, пока он открыт." & VBA.vbCrLf & _
-            "Закройте документ и повторите попытку:" & VBA.vbCrLf & targetPath, _
-            VBA.vbExclamation, "PrototypeNew / WORD document"
-        Exit Function
-    End If
-
-    If Not rt_PEB_WordExportRuntime.fn_GetOrCreateWordApp(wordApp) Then Exit Function
-    Set wordDoc = wordApp.Documents.Open(targetPath, False, False, False)
-    documentOpened = True
+    If Not rt_PEB_WordExportRuntime.fn_TryAcquireWordDocument( _
+        targetPath, wordApp, wordDoc, documentOpened) Then Exit Function
 
     documentText = VBA.CStr(wordDoc.Content.Text)
     Set rx = VBA.CreateObject("VBScript.RegExp")
@@ -879,8 +857,10 @@ Public Function RemoveResultDocumentAnchors( _
     Next bookmarkIndex
 
     wordDoc.Save
-    wordDoc.Close False
-    documentOpened = False
+    If documentOpened Then
+        wordDoc.Close False
+        documentOpened = False
+    End If
     RemoveResultDocumentAnchors = True
     Exit Function
 
@@ -1190,40 +1170,6 @@ Private Function private_TryFindWordText(ByVal sourceRange As Object, ByVal targ
         Set outRange = findRange.Duplicate
         private_TryFindWordText = True
     End If
-End Function
-
-Private Function private_IsDocumentOpenInRunningWord(ByVal targetPath As String) As Boolean
-    Dim wordApp As Object
-    Dim doc As Object
-
-    On Error Resume Next
-    Set wordApp = VBA.GetObject(, "Word.Application")
-    On Error GoTo 0
-    If wordApp Is Nothing Then Exit Function
-
-    For Each doc In wordApp.Documents
-        If VBA.StrComp(VBA.CStr(doc.FullName), targetPath, VBA.vbTextCompare) = 0 Then
-            private_IsDocumentOpenInRunningWord = True
-            Exit Function
-        End If
-    Next doc
-End Function
-
-Private Function private_IsFileLocked(ByVal targetPath As String) As Boolean
-    Dim fileHandle As Integer
-
-    On Error GoTo Locked
-    fileHandle = VBA.FreeFile
-    Open targetPath For Binary Access Read Write Lock Read Write As #fileHandle
-    Close #fileHandle
-    private_IsFileLocked = False
-    Exit Function
-
-Locked:
-    private_IsFileLocked = True
-    On Error Resume Next
-    If fileHandle > 0 Then Close #fileHandle
-    On Error GoTo 0
 End Function
 
 Private Function private_IsAbsolutePath(ByVal pathText As String) As Boolean

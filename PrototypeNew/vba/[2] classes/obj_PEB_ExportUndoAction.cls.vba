@@ -317,12 +317,11 @@ Private Function private_ApplyWord(ByVal isUndo As Boolean, ByRef outErrorText A
         outErrorText = "WORD result document is unavailable: " & m_WordDocumentPath
         Exit Function
     End If
-    If Not rt_PEB_WordExportRuntime.fn_GetOrCreateWordApp(wordApp) Then
+    If Not rt_PEB_WordExportRuntime.fn_TryAcquireWordDocument( _
+        m_WordDocumentPath, wordApp, wordDoc, documentOpened) Then
         outErrorText = "WORD application is unavailable."
         Exit Function
     End If
-    Set wordDoc = wordApp.Documents.Open(m_WordDocumentPath, False, False, False)
-    documentOpened = True
 
     If isUndo Then
         If Not wordDoc.Bookmarks.Exists(m_WordBookmarkName) Then
@@ -350,8 +349,10 @@ Private Function private_ApplyWord(ByVal isUndo As Boolean, ByRef outErrorText A
     End If
 
     wordDoc.Save
-    wordDoc.Close False
-    documentOpened = False
+    If documentOpened Then
+        wordDoc.Close False
+        documentOpened = False
+    End If
     private_ApplyWord = True
     Exit Function
 CleanFail:
