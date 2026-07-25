@@ -463,6 +463,7 @@
       <![CDATA[#^
 #_      {#include block.StatusChangePersonLine}#^
 #_      який перебував у відпустці для лікування, вважати таким, що вибув на медичний огляд військово-лікарської комісії#^
+#_      {#if [HospitalAccusative]}{#space}у {[HospitalAccusative]|lowerFirstLetter}{#endif}#^
 #_      {#include block.StatusChangeDateFrom}#^
 #_      {#newline}#^
 #_      {#include block.IncomingBasis}#^
@@ -608,21 +609,33 @@
     </text>
   </template>
 
-  <!-- Временные заглушки для новых секций. Их заменят полноценные формулировки приказа. -->
-  <template id="DummyMoveFromHospitalToStationaryVlk">
+  <template id="MoveFromHospitalToStationaryVlk">
     <text>
       <![CDATA[#^
-#_      [DUMMY] лікування => стаціонарне ВЛК.{#newline}{#newline}#^
+#_      {#include block.StatusChangePersonLine}#^
+#_      який перебував на лікуванні, вважати таким, що вибув на медичний огляд військово-лікарської комісії#^
+#_      {#if [HospitalAccusative]}{#space}у {[HospitalAccusative]|lowerFirstLetter}{#endif}#^
+#_      {#include block.StatusChangeDateFrom}#^
+#_      {#newline}#^
+#_      {#include block.IncomingBasis}#^
+#_      {#include block.OptionalBasisDocuments}#^
+#_      .{#newline}{#newline}#^
       ]]>
     </text>
   </template>
 
-  <template id="DummyMoveFromFamilyVacationToHospital">
+  <template id="MoveFromFamilyVacationToHospital">
     <text>
       <![CDATA[#^
-#_      [DUMMY] відпустка за сімейними => лікування.#^
+#_      {#include block.StatusChangePersonLine}#^
+#_      який перебував у відпустці за сімейними обставинами, вважати таким, що вибув на лікування у {[HospitalAccusative]|lowerFirstLetter}#^
+#_      {#include block.StatusChangeDateFrom}#^
 #_      {#include block.OptionalFoodCertificate}#^
-#_      {#newline}{#newline}#^
+#_      {#newline}#^
+#_      {#include block.IncomingBasis}#^
+#_      {#include block.OptionalBasisDocuments}#^
+#_      {#include block.OptionalPreviousVacationTicket}#^
+#_      .{#newline}{#newline}#^
       ]]>
     </text>
   </template>
