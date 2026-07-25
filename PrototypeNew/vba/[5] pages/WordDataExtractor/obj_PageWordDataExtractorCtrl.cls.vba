@@ -15,7 +15,6 @@ Private m_TransformerClassName As String
 Private m_ConfigTable As obj_ConfigTable
 Private m_AllTables As Collection
 Private m_ShowEmptyTables As Boolean
-Private m_DataReadOptions As obj_ExternalDataReadOptions
 Private m_IsReady As Boolean
 
 Public Property Get RuntimeObjectSourceKey() As String
@@ -36,7 +35,6 @@ Public Function Initialize(ByVal page As obj_IPage) As Boolean
     Set items = New Collection
     Set m_AllTables = New Collection
     m_ShowEmptyTables = True
-    Set m_DataReadOptions = New obj_ExternalDataReadOptions
     If Not pageBase.RuntimeSources.SetItemsSource(TABLES_KEY, items, False) Then Exit Function
     Initialize = True
 End Function
@@ -44,17 +42,11 @@ End Function
 Public Sub Dispose()
     Set m_ConfigTable = Nothing
     Set m_AllTables = Nothing
-    Set m_DataReadOptions = Nothing
     Set m_Page = Nothing
 End Sub
 
 Public Property Get ShowEmptyTables() As Boolean
     ShowEmptyTables = m_ShowEmptyTables
-End Property
-
-Public Property Get AdoSupportLongValues() As Boolean
-    If m_DataReadOptions Is Nothing Then Exit Property
-    AdoSupportLongValues = m_DataReadOptions.AdoSupportLongValues
 End Property
 
 Public Function UpdateData(ByVal configControl As obj_ConfigControlVM) As Boolean
@@ -191,26 +183,6 @@ Public Function ToggleEmptyTables(Optional ByVal arg As Variant) As Boolean
     ToggleEmptyTables = True
 End Function
 
-Public Function ToggleAdoSupportLongValues(Optional ByVal arg As Variant) As Boolean
-    If m_DataReadOptions Is Nothing Then
-        private_Error "Настройки чтения внешних данных не инициализированы."
-        Exit Function
-    End If
-    If Not m_DataReadOptions.ToggleLongValuesMode() Then Exit Function
-    If Not ex_ControlRefreshRuntime.fn_TryRefreshStaticControl("AdoLongValues") Then
-        If Not m_DataReadOptions.ToggleLongValuesMode() Then Exit Function
-        private_Error "Не удалось обновить кнопку поддержки длинных ADO-значений."
-        Exit Function
-    End If
-
-    ToggleAdoSupportLongValues = True
-    If m_DataReadOptions.AdoSupportLongValues Then
-        rt_Messaging.fn_ShowStatusBarSuccess "ADO support for long values enabled", 3
-    Else
-        rt_Messaging.fn_ShowStatusBarWarning "ADO support for long values disabled", 3
-    End If
-End Function
-
 Private Function private_PublishVisibleTables() As Boolean
     Dim pageBase As obj_PageBase
     Dim visibleTables As Collection
@@ -345,7 +317,6 @@ Private Function private_TryCreateTableTransformer( _
     Select Case VBA.LCase$(transformerClassName)
         Case VBA.LCase$("obj_WDE_OrderTransformer")
             Set orderTransformer = New obj_WDE_OrderTransformer
-            Set orderTransformer.DataReadOptions = m_DataReadOptions
             Set outTransformer = orderTransformer
 
         Case Else

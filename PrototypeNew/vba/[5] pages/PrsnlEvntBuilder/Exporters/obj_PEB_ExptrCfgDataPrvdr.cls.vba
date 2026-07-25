@@ -21,7 +21,6 @@ Private m_TemporaryFilePaths As Collection
 ' Provider хранит только единый engine. Он сам переключается между SQL для
 ' закрытого Movement и чтением Worksheet, если источник уже открыт пользователем.
 Private m_QueryEngine As obj_ExtWorkbookQueryEngine
-Private m_DataReadOptions As obj_ExternalDataReadOptions
 
 Private Const CONFIG_PERSONNEL_FILE_PATH_KEY As String = "Source.Personnel.FilePath"
 Private Const CONFIG_PERSONNEL_STATE_RANGE_KEY As String = "Personnel.Sheet[StateMain].SheetName"
@@ -43,12 +42,6 @@ Private Const MOVEMENT_ESCORT_DOCUMENT_HEADER As String = "Супровідни�
 Private Const PERSONNEL_TVO_HEADER As String = "ТВО"
 Private Const PERSONNEL_POSITION_CODE_HEADER As String = "Код посади"
 Private Const EXCEL_MAX_ROW As Long = 20000
-
-Public Property Set DataReadOptions(ByVal value As obj_ExternalDataReadOptions)
-    Set m_DataReadOptions = value
-    If Not m_QueryEngine Is Nothing Then Set m_QueryEngine.DataReadOptions = value
-    If Not m_CommonData Is Nothing Then Set m_CommonData.DataReadOptions = value
-End Property
 
 Private Sub Class_Initialize()
 #If LOGGING_VERBOSE_ENABLED Then
@@ -86,8 +79,6 @@ Public Function Initialize(ByVal configTable As obj_ConfigTable) As Boolean
 
     If Not m_CommonData.Initialize() Then Exit Function
     If Not m_QueryEngine.Initialize Then Exit Function
-    Set m_CommonData.DataReadOptions = m_DataReadOptions
-    Set m_QueryEngine.DataReadOptions = m_DataReadOptions
     If Not private_TryLoadConfig(configTable) Then Exit Function
 
     Initialize = True
@@ -101,7 +92,6 @@ Public Sub Dispose()
     Set m_CommonData = Nothing
     If Not m_QueryEngine Is Nothing Then m_QueryEngine.Dispose
     Set m_QueryEngine = Nothing
-    Set m_DataReadOptions = Nothing
     ' ADO должен освободить handle раньше удаления snapshot. Удаляем только
     ' файлы, созданные этим экземпляром provider-а, а не произвольные *.tmp.xlsx
     ' в каталоге пользователя.
@@ -838,7 +828,6 @@ Private Function private_TryGetMovementSnapshotPath( _
         If Not m_QueryEngine Is Nothing Then m_QueryEngine.Dispose
     Set m_QueryEngine = New obj_ExtWorkbookQueryEngine
     If Not m_QueryEngine.Initialize Then Exit Function
-    Set m_QueryEngine.DataReadOptions = m_DataReadOptions
         On Error Resume Next
         If VBA.Len(VBA.Dir$(m_MovementSnapshotPath)) > 0 Then
             VBA.Kill m_MovementSnapshotPath

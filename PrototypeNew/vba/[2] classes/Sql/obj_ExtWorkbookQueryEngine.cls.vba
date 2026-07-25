@@ -10,7 +10,6 @@ Option Explicit
 ' obj_ExtWorkbookQuery и всегда получают obj_TableDynamic.
 Private m_IsDisposed As Boolean
 Private m_Connections As Object
-Private m_DataReadOptions As obj_ExternalDataReadOptions
 
 Private Const ERROR_TITLE As String = "PrototypeNew / external workbook query"
 Private Const ADO_TEXT_LIMIT As Long = 255
@@ -37,10 +36,6 @@ Public Function Initialize() As Boolean
     Initialize = True
 End Function
 
-Public Property Set DataReadOptions(ByVal value As obj_ExternalDataReadOptions)
-    Set m_DataReadOptions = value
-End Property
-
 Public Sub Dispose()
     Dim key As Variant
     Dim conn As Object
@@ -59,7 +54,6 @@ Public Sub Dispose()
         m_Connections.RemoveAll
     End If
     Set m_Connections = Nothing
-    Set m_DataReadOptions = Nothing
     On Error GoTo 0
 End Sub
 
@@ -97,58 +91,9 @@ Public Function TryExecute( _
         ' сохраненные, значения непосредственно из Worksheet.
         private_DropConnection query.SourcePath
         TryExecute = private_TryExecuteOpenWorkbook(query, openWorkbook, outTable)
-    ElseIf private_GetLongValuesMode(query) = AdoLongValuesHydrate Then
-        ' Для режима поддержки длинных значений используем тот же точный
-        ' Worksheet backend, но открываем закрытый источник в скрытом Excel.
-        private_DropConnection query.SourcePath
-        TryExecute = private_TryExecuteHiddenWorkbook(query, outTable)
     Else
         TryExecute = private_TryExecuteAdo(query, outTable)
     End If
-End Function
-
-Private Function private_TryExecuteHiddenWorkbook( _
-    ByVal query As obj_ExtWorkbookQuery, _
-    ByRef outTable As obj_TableDynamic _
-) As Boolean
-    Dim hiddenExcelApp As Object
-    Dim sourceWorkbook As Workbook
-    Dim succeeded As Boolean
-    Dim errorText As String
-
-    Set outTable = Nothing
-    On Error GoTo EH
-
-    Set hiddenExcelApp = VBA.CreateObject("Excel.Application")
-    hiddenExcelApp.Visible = False
-    hiddenExcelApp.ScreenUpdating = False
-    hiddenExcelApp.DisplayAlerts = False
-    hiddenExcelApp.EnableEvents = False
-    Set sourceWorkbook = hiddenExcelApp.Workbooks.Open( _
-        Filename:=query.SourcePath, _
-        ReadOnly:=True, _
-        UpdateLinks:=0, _
-        AddToMru:=False)
-
-    succeeded = private_TryExecuteOpenWorkbook(query, sourceWorkbook, outTable)
-
-Cleanup:
-    On Error Resume Next
-    If Not sourceWorkbook Is Nothing Then sourceWorkbook.Close SaveChanges:=False
-    If Not hiddenExcelApp Is Nothing Then hiddenExcelApp.Quit
-    Set sourceWorkbook = Nothing
-    Set hiddenExcelApp = Nothing
-    On Error GoTo 0
-    private_TryExecuteHiddenWorkbook = succeeded
-    Exit Function
-
-EH:
-    errorText = Err.Description
-    VBA.MsgBox "PrototypeNew: failed to read long values from the external workbook." & _
-        VBA.vbCrLf & "Workbook: " & query.SourcePath & _
-        VBA.vbCrLf & "Error: " & errorText, VBA.vbExclamation, ERROR_TITLE
-    succeeded = False
-    Resume Cleanup
 End Function
 
 Private Function private_TryExecuteAdo( _
@@ -221,8 +166,7 @@ Private Function private_TryExecuteAdo( _
             outTable, _
             recordsetData, _
             recordIndex, _
-            selectColumns.Count, _
-            private_GetLongValuesMode(query) = AdoLongValuesMarkCandidates) Then GoTo CleanupFail
+            selectColumns.Count) Then GoTo CleanupFail
         resultCount = resultCount + 1
         If query.MaxRows > 0 And resultCount >= query.MaxRows Then Exit For
     Next recordIndex
@@ -250,18 +194,6 @@ EH:
         VBA.vbCrLf & "Range: " & query.TableRef & _
         VBA.vbCrLf & "Error: " & Err.Description, VBA.vbExclamation, ERROR_TITLE
     Resume CleanupFail
-End Function
-
-Private Function private_GetLongValuesMode( _
-    ByVal query As obj_ExtWorkbookQuery _
-) As en_AdoLongValuesMode
-    If Not m_DataReadOptions Is Nothing Then
-        private_GetLongValuesMode = m_DataReadOptions.LongValuesMode
-    ElseIf Not query Is Nothing Then
-        private_GetLongValuesMode = query.LongValuesMode
-    Else
-        private_GetLongValuesMode = AdoLongValuesMarkCandidates
-    End If
 End Function
 
 Private Function private_TryExecuteOpenWorkbook( _
@@ -584,8 +516,7 @@ Private Function private_TryPushRecordsetRow( _
     ByVal tableObj As obj_TableDynamic, _
     ByVal recordsetData As Variant, _
     ByVal recordIndex As Long, _
-    ByVal columnCount As Long, _
-    ByVal markLongValueCandidates As Boolean _
+    ByVal columnCount As Long _
 ) As Boolean
     Dim rowObj As obj_Row
     Dim i As Long
@@ -593,11 +524,9 @@ Private Function private_TryPushRecordsetRow( _
     Set rowObj = New obj_Row
     For i = 1 To columnCount
         rowObj.PushCellRaw private_SafeText(recordsetData(i - 1, recordIndex))
-        If markLongValueCandidates Then
-            If VBA.VarType(recordsetData(i - 1, recordIndex)) = VBA.vbString Then
-                If VBA.Len(VBA.CStr(recordsetData(i - 1, recordIndex))) = ADO_TEXT_LIMIT Then
-                    If Not rowObj.AddCellTag(i, ADO_LONG_VALUE_CANDIDATE_TAG) Then Exit Function
-                End If
+        If VBA.VarType(recordsetData(i - 1, recordIndex)) = VBA.vbString Then
+            If VBA.Len(VBA.CStr(recordsetData(i - 1, recordIndex))) = ADO_TEXT_LIMIT Then
+                If Not rowObj.AddCellTag(i, ADO_LONG_VALUE_CANDIDATE_TAG) Then Exit Function
             End If
         End If
     Next i
