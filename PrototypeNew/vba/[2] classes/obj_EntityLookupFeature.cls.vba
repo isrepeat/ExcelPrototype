@@ -9,6 +9,8 @@ Option Explicit
 
 Private Const DEFAULT_CANDIDATES_SECTION_TEXT As String = "Candidates"
 Private Const AUXILIARY_COLUMN_STYLE_ALIAS As String = "__lookup_auxiliary__"
+Private Const ADO_LONG_VALUE_CANDIDATE_TAG As String = "ado-long-value-candidate"
+Private Const ADO_TEXT_LIMIT As Long = 255
 
 Private m_Page As obj_IPage
 Private m_ConfigTable As obj_ConfigTable
@@ -23,6 +25,7 @@ Private m_CandidateTablesRuntimeKey As String
 Private m_RenderReasonPrefix As String
 Private m_ActiveLookupKey As String
 Private m_ActiveSearchColumnAlias As String
+Private m_DataReadOptions As obj_ExternalDataReadOptions
 Private m_IsDisposed As Boolean
 
 Private Sub Class_Initialize()
@@ -78,11 +81,16 @@ Public Function Initialize( _
     Set m_CandidateTable = Nothing
     Set m_CandidateDataTable = Nothing
     Set m_ActiveFormColumnAliases = Nothing
+    Set m_DataReadOptions = New obj_ExternalDataReadOptions
     m_ActiveLookupKey = VBA.vbNullString
     m_ActiveSearchColumnAlias = VBA.vbNullString
 
     Initialize = True
 End Function
+
+Public Property Set DataReadOptions(ByVal value As obj_ExternalDataReadOptions)
+    Set m_DataReadOptions = value
+End Property
 
 Public Sub Dispose()
 #If LOGGING_DEBUG_ENABLED Then
@@ -98,6 +106,7 @@ Public Sub Dispose()
     Set m_CandidateTable = Nothing
     Set m_CandidateDataTable = Nothing
     Set m_ActiveFormColumnAliases = Nothing
+    Set m_DataReadOptions = Nothing
     m_ActiveLookupKey = VBA.vbNullString
     m_ActiveSearchColumnAlias = VBA.vbNullString
     m_CandidateTablesRuntimeKey = VBA.vbNullString
@@ -250,6 +259,7 @@ Public Function ExtendCandidates( _
 
     If Not m_EntityLookupCfgParser.TryBuildLookupSqlParams( _
         extensionLookupKey, queryText, sqlParams, ignoredSearchAlias, ignoredResultAliases) Then Exit Function
+    sqlParams.LongValuesMode = private_GetLongValuesMode()
     If Not ex_ExternalExcelSqlEngine.fn_TrySqlRequest(sqlParams, extensionTable) Then Exit Function
 
     ' Пустой результат дополнительного источника не является ошибкой поиска.
@@ -341,6 +351,7 @@ Private Function private_SearchCandidates( _
 
     If Not m_EntityLookupCfgParser.TryBuildLookupSqlParams(lookupKey, queryText, sqlParams, searchColumnAlias, resultColumnAliases) Then Exit Function
     If sqlParams Is Nothing Then Exit Function
+    sqlParams.LongValuesMode = private_GetLongValuesMode()
 
     Set sqlTable = Nothing
     If Not ex_ExternalExcelSqlEngine.fn_TrySqlRequest(sqlParams, sqlTable) Then Exit Function
@@ -558,6 +569,11 @@ ContinueSourceColumn:
             If sourceIndexByAlias.Exists(aliasText) Then
                 sourceIndex = VBA.CLng(sourceIndexByAlias(aliasText))
                 projectedRow.PushCellRaw sourceRow.GetCellValue(sourceIndex)
+                If private_GetLongValuesMode() = AdoLongValuesMarkCandidates Then
+                    If VBA.Len(VBA.CStr(sourceRow.GetCellValue(sourceIndex))) = ADO_TEXT_LIMIT Then
+                        If Not projectedRow.AddCellTag(projectedRow.CellCount, ADO_LONG_VALUE_CANDIDATE_TAG) Then Exit Function
+                    End If
+                End If
             Else
                 projectedRow.PushCellRaw VBA.vbNullString
             End If
@@ -566,11 +582,24 @@ ContinueSourceColumn:
             aliasText = VBA.Trim$(VBA.CStr(aliasObj))
             If Not private_TryGetColumnIndex(sourceTable, aliasText, sourceIndex) Then Exit Function
             projectedRow.PushCellRaw sourceRow.GetCellValue(sourceIndex)
+            If private_GetLongValuesMode() = AdoLongValuesMarkCandidates Then
+                If VBA.Len(VBA.CStr(sourceRow.GetCellValue(sourceIndex))) = ADO_TEXT_LIMIT Then
+                    If Not projectedRow.AddCellTag(projectedRow.CellCount, ADO_LONG_VALUE_CANDIDATE_TAG) Then Exit Function
+                End If
+            End If
         Next aliasObj
         If Not outProjectedTable.PushRow(projectedRow) Then Exit Function
     Next i
 
     private_ProjectCandidateTable = True
+End Function
+
+Private Function private_GetLongValuesMode() As en_AdoLongValuesMode
+    If m_DataReadOptions Is Nothing Then
+        private_GetLongValuesMode = AdoLongValuesMarkCandidates
+    Else
+        private_GetLongValuesMode = m_DataReadOptions.LongValuesMode
+    End If
 End Function
 
 Private Function private_TryGetColumnIndex( _
