@@ -73,65 +73,6 @@
           spanRows="2"/>
       </stackPanel>
 
-      <!-- Быстрое пополнение справочника лечебных учреждений. Значения
-           записываются в источник Source.Hospitals.FilePath текущего профиля. -->
-      <!-- Имя Shape вместе с префиксом btn_ должно помещаться в лимит
-           Excel 31 символ, иначе OnAction передаёт усечённое имя и route
-           не находит зарегистрированный control. -->
-      <control
-        type="Button"
-        name="ToggleInstitutionForm"
-        caption="{Binding Path=IsInstitutionsAppendFormChecked;TrueAs=[✓] Додати лікувальний заклад;FalseAs=[ ] Додати лікувальний заклад}"
-        style="exportApplyButton"
-        dataContext="{PageRuntimeSource='RuntimeObjects.PrsnlEvntBuilder.Controller'}"
-        onClick="{Binding Method=ToggleInstitutionsAppendForm}"
-        spanColls="3"
-        spanRows="1"/>
-
-      <stackPanel
-        name="InstitutionsAppendForm"
-        orientation="vertical"
-        dataContext="{PageRuntimeSource='RuntimeObjects.PrsnlEvntBuilder.Controller'}"
-        visibility="{Binding Path=IsInstitutionsAppendFormChecked;TrueAs=Visible;FalseAs=Collapsed}">
-        <stackPanel name="InstitutionsAppendValues" orientation="horizontal">
-          <!-- Field-группы вертикальные: Label занимает одну ячейку и поэтому
-               не повторяет caption во всех ячейках широкого Range. -->
-          <stackPanel orientation="vertical">
-            <control type="Label" name="InstitutionCodeHeader" text="Позначення" style="tableHeaderCell"/>
-            <control type="Input" name="InstitutionCodeInput" style="inputField"/>
-          </stackPanel>
-          <stackPanel orientation="vertical">
-            <control type="Label" name="InstitutionNameHeader" text="Назва" style="tableHeaderCell"/>
-            <control type="Input" name="InstitutionNameInput" style="inputField"/>
-          </stackPanel>
-          <stackPanel orientation="vertical">
-            <control type="Label" name="InstitutionRegionHeader" text="Регіон" style="tableHeaderCell"/>
-            <control type="Input" name="InstitutionRegionInput" style="inputField"/>
-          </stackPanel>
-          <stackPanel orientation="vertical">
-            <control type="Label" name="InstitutionGenitiveHeader" text="Родовий" style="tableHeaderCell"/>
-            <control type="Input" name="InstitutionGenitiveInput" style="inputField"/>
-          </stackPanel>
-          <stackPanel orientation="vertical">
-            <control type="Label" name="InstitutionAccusativeHeader" text="Знахідний" style="tableHeaderCell"/>
-            <control type="Input" name="InstitutionAccusativeInput" style="inputField"/>
-          </stackPanel>
-          <stackPanel orientation="vertical">
-            <control type="Label" name="InstitutionDativeHeader" text="Давальний" style="tableHeaderCell"/>
-            <control type="Input" name="InstitutionDativeInput" style="inputField"/>
-          </stackPanel>
-          <control
-            type="Button"
-            name="AppendInstitution"
-            caption="Зберегти в Установи"
-            style="exportApplyButton"
-            dataContext="{PageRuntimeSource='RuntimeObjects.PrsnlEvntBuilder.Controller'}"
-            onClick="{Binding Method=OnAppendInstitutionClick}"
-            spanColls="3"
-            spanRows="2"/>
-        </stackPanel>
-      </stackPanel>
-
       <stackPanel spanColls="22" spanRows="1"/>
 
       <!-- Основные и meta-профили слева, WORD-превью выровнено по их верхней границе. -->
@@ -218,6 +159,16 @@
               onClick="{Binding Method=OnUndoLastExportClick}"
               spanColls="2"
               spanRows="2"/>
+
+            <control
+              type="Button"
+              name="DisconnectDataSources"
+              caption="Розірвати з'єднання з таблицями"
+              style="actionWarning"
+              dataContext="{PageRuntimeSource='RuntimeObjects.PrsnlEvntBuilder.Controller'}"
+              onClick="{Binding Method=OnDisconnectDataSourcesClick}"
+              spanColls="2"
+              spanRows="2"/>
           </stackPanel>
         </stackPanel>
       </stackPanel>
@@ -284,6 +235,7 @@
             tags="profile.allFields;
                   profile.closeTreatment;
                   profile.toTreatment;
+                  profile.toAmbulatoryVlk;
                   profile.transferTreatmentToTreatmentVacation;
                   profile.transferTreatmentVacationToTreatment;
                   profile.transferVlkToTreatment;
@@ -297,6 +249,7 @@
             tags="profile.allFields;
                   profile.closeTreatment;
                   profile.toTreatment;
+                  profile.toAmbulatoryVlk;
                   profile.transferTreatmentToTreatmentVacation;
                   profile.transferTreatmentVacationToTreatment;
                   profile.transferVlkToTreatment;
@@ -645,6 +598,7 @@
                   profile.allFields;
                   profile.closeTreatment;
                   profile.toTreatment;
+                  profile.toAmbulatoryVlk;
                   profile.transferTreatmentToTreatmentVacation;
                   profile.transferTreatmentVacationToTreatment;
                   profile.transferVlkToTreatment;
@@ -663,6 +617,7 @@
                   profile.allFields;
                   profile.closeTreatment;
                   profile.toTreatment;
+                  profile.toAmbulatoryVlk;
                   profile.transferTreatmentToTreatmentVacation;
                   profile.transferTreatmentVacationToTreatment;
                   profile.transferVlkToTreatment;
@@ -1312,21 +1267,6 @@
                 cellType:text;
               }"/>
 
-        <!-- Ширина колонки задаётся header-ячейкой и автоматически применяется
-             к Input под ней. Отдельные rules возвращают компактную высоту,
-             потому что общий draft Input рассчитан на многострочные поля. -->
-        <rule target="controlPart" selector="type=label;name=InstitutionCodeHeader;part=cell" styles="{ width:15; }"/>
-        <rule target="controlPart" selector="type=label;name=InstitutionNameHeader;part=cell" styles="{ width:24; }"/>
-        <rule target="controlPart" selector="type=label;name=InstitutionRegionHeader;part=cell" styles="{ width:16; }"/>
-        <rule target="controlPart" selector="type=label;name=InstitutionGenitiveHeader;part=cell" styles="{ width:24; }"/>
-        <rule target="controlPart" selector="type=label;name=InstitutionAccusativeHeader;part=cell" styles="{ width:24; }"/>
-        <rule target="controlPart" selector="type=label;name=InstitutionDativeHeader;part=cell" styles="{ width:24; }"/>
-        <rule target="controlPart" selector="type=input;name=InstitutionCodeInput;part=cell" styles="{ rowHeight:28; overflow:clip; }"/>
-        <rule target="controlPart" selector="type=input;name=InstitutionNameInput;part=cell" styles="{ rowHeight:28; overflow:clip; }"/>
-        <rule target="controlPart" selector="type=input;name=InstitutionRegionInput;part=cell" styles="{ rowHeight:28; overflow:clip; }"/>
-        <rule target="controlPart" selector="type=input;name=InstitutionGenitiveInput;part=cell" styles="{ rowHeight:28; overflow:clip; }"/>
-        <rule target="controlPart" selector="type=input;name=InstitutionAccusativeInput;part=cell" styles="{ rowHeight:28; overflow:clip; }"/>
-        <rule target="controlPart" selector="type=input;name=InstitutionDativeInput;part=cell" styles="{ rowHeight:28; overflow:clip; }"/>
         <rule target="controlPart" selector="type=label;name=MovementHistoryLimitHeader;part=cell" styles="{ width:18; }"/>
         <rule target="controlPart" selector="type=input;name=MovementHistoryLimitInput;part=cell" styles="{ width:8; rowHeight:24; overflow:clip; }"/>
 

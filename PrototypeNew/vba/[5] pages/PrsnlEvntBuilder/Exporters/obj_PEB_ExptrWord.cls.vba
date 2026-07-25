@@ -205,6 +205,7 @@ Public Function Export( _
     Dim validationEnabled As Boolean
     Dim groupingHospitalShort As String
     Dim groupingDateShort As String
+    Dim usePreparedPreview As Boolean
 
     If m_IsDisposed Then
         VBA.MsgBox "PrototypeNew: WORD exporter is disposed.", VBA.vbExclamation, "PrototypeNew / WORD export"
@@ -238,7 +239,19 @@ Public Function Export( _
         VBA.MsgBox "PrototypeNew: WORD result template is not mapped for section: " & sectionTypeText, VBA.vbExclamation, "PrototypeNew / WORD export"
         Exit Function
     End If
-    If Not m_TemplateParser.TryRenderForTemplateId(templateId, sectionTypeText, sourceTables, namedCollections, previewText) Then Exit Function
+    previewText = private_GetContextText(context, CONTEXT_WORD_PREVIEW_TEXT)
+    usePreparedPreview = (private_GetContextBoolean(context, "WriteToWord") And _
+        VBA.Len(VBA.Trim$(previewText)) > 0)
+    ' При экспорте непустой context содержит фактический текст Banner с листа.
+    ' Не рендерим шаблон повторно, иначе ручные правки пользователя потеряются.
+    If Not usePreparedPreview Then
+        If Not m_TemplateParser.TryRenderForTemplateId( _
+            templateId, _
+            sectionTypeText, _
+            sourceTables, _
+            namedCollections, _
+            previewText) Then Exit Function
+    End If
     If Not private_TrySetContextText(context, CONTEXT_WORD_PREVIEW_TEXT, previewText) Then Exit Function
 
     ' CTRL+3 is the preview action. The dedicated button/CTRL+4 passes
@@ -339,7 +352,8 @@ Private Function private_TryAppendBeforeWordEndAnchor( _
 
     beginMarker = WORD_ANCHOR_PREFIX & VBA.Trim$(templateId) & WORD_ANCHOR_BEGIN_SUFFIX
     endMarker = WORD_ANCHOR_PREFIX & VBA.Trim$(templateId) & WORD_ANCHOR_END_SUFFIX
-    plainRenderedText = private_StripPreviewColorMarkers(renderedText)
+    plainRenderedText = private_NormalizeWordParagraphBreaks( _
+        private_StripPreviewColorMarkers(renderedText))
     bookmarkName = private_BuildRecordBookmarkName(templateId, recordIpn)
     If VBA.Len(bookmarkName) = 0 Then
         VBA.MsgBox "PrototypeNew: failed to build a WORD bookmark for IPN '" & recordIpn & "'.", VBA.vbExclamation, "PrototypeNew / WORD export"
@@ -381,6 +395,7 @@ Private Function private_TryAppendBeforeWordEndAnchor( _
     Set insertRange = wordDoc.Range(insertedStart, insertedStart)
     insertRange.Text = plainRenderedText
     insertedEnd = insertedStart + VBA.Len(plainRenderedText)
+
     Set insertRange = wordDoc.Range(insertedStart, insertedEnd)
     ' Do not inherit highlight from a neighbouring anchor or an older export.
     insertRange.HighlightColorIndex = 0
@@ -1145,6 +1160,16 @@ Private Function private_StripPreviewColorMarkers(ByVal renderedText As String) 
     rx.IgnoreCase = True
     rx.Pattern = "\[\[/?color(?:=[^\]]+)?\]\]"
     private_StripPreviewColorMarkers = rx.Replace(renderedText, VBA.vbNullString)
+End Function
+
+' Excel хранит перенос строки внутри ячейки как LF, а Word использует CR
+' как границу абзаца. Неразрывные и типографические пробелы не изменяем.
+Private Function private_NormalizeWordParagraphBreaks( _
+    ByVal sourceText As String _
+) As String
+    sourceText = VBA.Replace(sourceText, VBA.vbCrLf, VBA.vbCr)
+    sourceText = VBA.Replace(sourceText, VBA.vbLf, VBA.vbCr)
+    private_NormalizeWordParagraphBreaks = sourceText
 End Function
 
 Private Function private_TryFindWordText(ByVal sourceRange As Object, ByVal targetText As String, ByRef outRange As Object) As Boolean
@@ -2230,17 +2255,29 @@ Private Function private_TryUpsertMainTableValue( _
 End Function
 
 Private Function private_GetContextText(ByVal context As Object, ByVal keyText As String) As String
+    Dim rawValueText As String
+
     If context Is Nothing Then Exit Function
     keyText = VBA.Trim$(keyText)
     If VBA.Len(keyText) = 0 Then Exit Function
 
     On Error Resume Next
-    If context.Exists(keyText) Then private_GetContextText = private_NormalizeTemplateScalar(VBA.CStr(context(keyText)))
+    If context.Exists(keyText) Then rawValueText = VBA.CStr(context(keyText))
     If Err.Number <> 0 Then
         Err.Clear
-        private_GetContextText = private_NormalizeTemplateScalar(VBA.CStr(VBA.CallByName(context, keyText, VbGet)))
+        rawValueText = VBA.CStr(VBA.CallByName(context, keyText, VbGet))
     End If
     On Error GoTo 0
+
+    ' Готовый preview является многострочным документным текстом, а не
+    ' скалярным значением шаблона. Его CR/LF и неразрывные пробелы должны
+    ' пройти в Word без private_NormalizeTemplateScalar.
+    If VBA.StrComp( _
+        keyText, CONTEXT_WORD_PREVIEW_TEXT, VBA.vbTextCompare) = 0 Then
+        private_GetContextText = rawValueText
+    Else
+        private_GetContextText = private_NormalizeTemplateScalar(rawValueText)
+    End If
 End Function
 
 Private Function private_TrySetContextText( _
