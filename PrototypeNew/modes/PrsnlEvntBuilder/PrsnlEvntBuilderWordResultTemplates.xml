@@ -385,7 +385,7 @@
   <template id="ToOutpatientExaminationOrVlk">
     <text>
       <![CDATA[#^
-#_      {#include block.PersonLineUpper}.#^
+#_      {#include block.PersonLineUpper}{#if [HospitalAccusative]}, у {[HospitalAccusative]|lowerFirstLetter}{#endif}.#^
 #_      {#newline}#^
 #_      {#include block.IncomingBasis}#^
 #_      {#include block.OptionalBasisDocuments}#^

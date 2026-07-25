@@ -54,6 +54,7 @@ Private Const MAX_EXPORT_HOTKEYS As Long = 9
 Private Const LOOKUP_CANDIDATES_CONTROL_NAME As String = "LookupCandidatesTable"
 Private Const FIO_LOOKUP_KEY As String = "op_FIO"
 Private Const WORD_EXPORT_PANEL_CONTAINER_NAME As String = "WordExportPanel"
+Private Const WORD_EXPORT_PREVIEW_CONTROL_NAME As String = "WordExportPreview"
 Private Const EVENT_DRAFT_FORM_CONTAINER_NAME As String = "EventDraftForm"
 Private Const EVENT_DRAFT_VALUES_CONTAINER_NAME As String = "EventDraftValues"
 Private Const EVENT_DRAFT_ORDER_NO_CONTAINER_NAME As String = "EventDraftOrderNoValue"
@@ -77,16 +78,6 @@ Private Const META_PROFILE_BUTTON_TAG_NORMAL As String = "meta"
 Private Const PROFILE_BUTTON_STATE_SELECTED As String = "selected"
 Private Const ABSENCE_DEPARTURE_LOOKBACK_DAYS As Long = 5
 Private Const ABSENCE_DEPARTURE_LOOKAHEAD_DAYS As Long = 10
-Private Const HOSPITALS_SOURCE_PATH_CONFIG_KEY As String = "Source.Hospitals.FilePath"
-Private Const INSTITUTIONS_SHEET_NAME As String = "Лікувальні Заклади"
-Private Const INSTITUTIONS_HEADER_ROW As Long = 3
-Private Const INSTITUTIONS_FIRST_DATA_ROW As Long = 5
-Private Const INSTITUTION_CODE_INPUT_NAME As String = "InstitutionCodeInput"
-Private Const INSTITUTION_NAME_INPUT_NAME As String = "InstitutionNameInput"
-Private Const INSTITUTION_REGION_INPUT_NAME As String = "InstitutionRegionInput"
-Private Const INSTITUTION_GENITIVE_INPUT_NAME As String = "InstitutionGenitiveInput"
-Private Const INSTITUTION_ACCUSATIVE_INPUT_NAME As String = "InstitutionAccusativeInput"
-Private Const INSTITUTION_DATIVE_INPUT_NAME As String = "InstitutionDativeInput"
 ' Канонические алиасы полей draft-формы. Отображаемые Caption этих полей
 ' принадлежат конфигу и не должны использоваться в логике контроллера.
 Private Const DRAFT_ALIAS_RANK As String = "_Rank"
@@ -128,7 +119,6 @@ Private m_IsLookupEnabled As Boolean
 Private m_IsDailyScopeValidationEnabled As Boolean
 Private m_IsMovementValidationEnabled As Boolean
 Private m_IsWordValidationEnabled As Boolean
-Private m_IsInstitutionsAppendFormChecked As Boolean
 Private m_IsMovementHistoryEnabled As Boolean
 Private m_SuppressLookupSearch As Boolean
 Private m_Data As obj_PrsnlEvntBuilderData
@@ -197,7 +187,6 @@ Public Function Initialize(ByVal page As Object) As Boolean
     m_IsDailyScopeValidationEnabled = True
     m_IsMovementValidationEnabled = True
     m_IsWordValidationEnabled = False
-    m_IsInstitutionsAppendFormChecked = False
     m_IsMovementHistoryEnabled = False
 
     Set pageBase = m_Page.GetPageBase()
@@ -252,7 +241,6 @@ Public Sub Dispose()
     Set m_ExportMetaTables = Nothing
     Set m_MovementHistoryTable = Nothing
     m_WordExportPreviewText = VBA.vbNullString
-    m_IsInstitutionsAppendFormChecked = False
     m_IsMovementHistoryEnabled = False
     On Error GoTo 0
 End Sub
@@ -275,10 +263,6 @@ End Property
 
 Public Property Get IsWordValidationEnabled() As Boolean
     IsWordValidationEnabled = m_IsWordValidationEnabled
-End Property
-
-Public Property Get IsInstitutionsAppendFormChecked() As Boolean
-    IsInstitutionsAppendFormChecked = m_IsInstitutionsAppendFormChecked
 End Property
 
 Public Property Get IsMovementHistoryEnabled() As Boolean
@@ -311,42 +295,6 @@ Cleanup:
         Exit Function
     End If
     ToggleMovementHistory = True
-    Exit Function
-
-EH:
-    renderSucceeded = False
-    Resume Cleanup
-End Function
-
-Public Function ToggleInstitutionsAppendForm() As Boolean
-    Dim previousChecked As Boolean
-    Dim previousEnableEvents As Boolean
-    Dim renderSucceeded As Boolean
-
-    If m_Page Is Nothing Then Exit Function
-    previousChecked = m_IsInstitutionsAppendFormChecked
-    m_IsInstitutionsAppendFormChecked = Not previousChecked
-
-    ' Checkbox управляет целым layout-контейнером. Collapsed меняет высоту
-    ' страницы, поэтому требуется page render, а не refresh одной кнопки.
-    '
-    ' Как и при переключении секций, на время полного render отключаем события.
-    ' Иначе восстановление значений формы после layout вызывает Worksheet_Change,
-    ' повторную dispatch-обработку и заметно замедляет простой UI toggle.
-    previousEnableEvents = Application.EnableEvents
-    On Error GoTo EH
-    Application.EnableEvents = False
-    renderSucceeded = rt_PageManager.fn_RenderPage( _
-        m_Page, "prsnlevntbuilder:toggle-institutions-append-form")
-
-Cleanup:
-    Application.EnableEvents = previousEnableEvents
-    If Not renderSucceeded Then
-        m_IsInstitutionsAppendFormChecked = previousChecked
-        Exit Function
-    End If
-
-    ToggleInstitutionsAppendForm = True
     Exit Function
 
 EH:
@@ -891,6 +839,55 @@ Public Function OnUndoLastExportClick(Optional ByVal ignored As Variant) As Bool
     End If
 End Function
 
+Public Function OnDisconnectDataSourcesClick( _
+    Optional ByVal ignored As Variant _
+) As Boolean
+    Dim pebExptrCommonDataPrvdr As obj_PEB_ExptrCommonDataPrvdr
+
+    On Error GoTo EH
+
+    ' Сначала освобождаем exporters-заёмщиков, затем профильный provider:
+    ' он владеет собственным query engine и временным Movement snapshot.
+    private_DisposeCachedExporters
+    If Not m_ExporterCfgDataProvider Is Nothing Then
+        m_ExporterCfgDataProvider.Dispose
+    End If
+    Set m_ExporterCfgDataProvider = Nothing
+
+    ' Common provider также держит отдельный obj_ExtWorkbookQueryEngine.
+    ' Новый экземпляр остаётся холодным: Initialize подготавливает runtime,
+    ' а ADO-соединение будет создано только следующим фактическим запросом.
+    If Not m_ExportCommonData Is Nothing Then m_ExportCommonData.Dispose
+    Set m_ExportCommonData = Nothing
+
+    ' Глобальный SQL engine не входит в lifecycle страницы и поэтому
+    ' сбрасывается явно, как при выполнении команды Clear Pages.
+    ex_ExternalExcelSqlEngine.fn_ResetRuntimeCache
+
+    Set pebExptrCommonDataPrvdr = New obj_PEB_ExptrCommonDataPrvdr
+    If Not pebExptrCommonDataPrvdr.Initialize() Then
+        VBA.MsgBox _
+            "З'єднання закрито, але не вдалося повторно підготувати " & _
+            "provider спільних даних. Оновіть сторінку перед наступним запитом.", _
+            VBA.vbExclamation, _
+            "PrsnlEventBuilder / З'єднання"
+        Exit Function
+    End If
+    Set m_ExportCommonData = pebExptrCommonDataPrvdr
+
+    rt_Messaging.fn_ShowStatusBarSuccess _
+        "Усі з'єднання з зовнішніми таблицями розірвано.", 4
+    OnDisconnectDataSourcesClick = True
+    Exit Function
+
+EH:
+    VBA.MsgBox _
+        "Не вдалося розірвати всі з'єднання з зовнішніми таблицями: [" & _
+        VBA.CStr(Err.Number) & "] " & Err.Description, _
+        VBA.vbExclamation, _
+        "PrsnlEventBuilder / З'єднання"
+End Function
+
 Public Function OnRegroupWordHospitalPointsClick(Optional ByVal ignored As Variant) As Boolean
     Dim exporter As obj_IDataExporter
     Dim exporterClassName As String
@@ -922,79 +919,13 @@ Public Function OnRegroupWordHospitalPointsClick(Optional ByVal ignored As Varia
     OnRegroupWordHospitalPointsClick = True
 End Function
 
-' Добавляет одну строку в справочник лечебных учреждений текущего профиля.
-' Пустой регион и падежные формы допустимы: часть записей справочника
-' заполняется постепенно, но ключ и полное название нужны обязательно.
-Public Function OnAppendInstitutionClick(Optional ByVal ignored As Variant) As Boolean
-    Dim fieldNames As Variant
-    Dim values(1 To 6) As Variant
-    Dim sourcePath As String
-    Dim targetRow As Long
-    Dim operationStage As String
-
-    On Error GoTo EH
-    operationStage = "read-form"
-    fieldNames = Array( _
-        INSTITUTION_CODE_INPUT_NAME, _
-        INSTITUTION_NAME_INPUT_NAME, _
-        INSTITUTION_REGION_INPUT_NAME, _
-        INSTITUTION_GENITIVE_INPUT_NAME, _
-        INSTITUTION_ACCUSATIVE_INPUT_NAME, _
-        INSTITUTION_DATIVE_INPUT_NAME)
-
-    If Not private_TryReadInstitutionForm(fieldNames, values) Then Exit Function
-    If VBA.Len(VBA.Trim$(VBA.CStr(values(1)))) = 0 Then
-        VBA.MsgBox "Заповніть поле 'Позначення'.", VBA.vbExclamation, "PrsnlEventBuilder / Установи"
-        Exit Function
-    End If
-    If VBA.Len(VBA.Trim$(VBA.CStr(values(2)))) = 0 Then
-        VBA.MsgBox "Заповніть поле 'Назва'.", VBA.vbExclamation, "PrsnlEventBuilder / Установи"
-        Exit Function
-    End If
-
-    operationStage = "resolve-source"
-    If Not private_TryResolveHospitalsSourcePath(sourcePath) Then Exit Function
-    operationStage = "append-row"
-    If Not private_TryAppendInstitutionRow(sourcePath, values, targetRow) Then Exit Function
-
-    ' С этого момента запись уже сохранена на диске. Сразу фиксируем успешный
-    ' результат, чтобы сбой очистки UI или обновления provider не провоцировал
-    ' пользователя повторно добавить ту же строку.
-    OnAppendInstitutionClick = True
-    VBA.MsgBox "Лікувальний заклад додано в рядок " & VBA.CStr(targetRow) & ".", _
-        VBA.vbInformation, "PrsnlEventBuilder / Установи"
-
-    operationStage = "clear-form"
-    If Not private_TryClearInstitutionForm(fieldNames) Then
-        VBA.MsgBox "Рядок збережено, але не вдалося очистити поля форми.", _
-            VBA.vbExclamation, "PrsnlEventBuilder / Установи"
-    End If
-
-    ' Provider держит соединения со справочниками. После записи создаём его
-    ' заново, чтобы следующий экспорт гарантированно увидел новую строку.
-    If Not m_ExportCommonData Is Nothing Then m_ExportCommonData.Dispose
-    Set m_ExportCommonData = New obj_PEB_ExptrCommonDataPrvdr
-    operationStage = "refresh-common-data"
-    If Not m_ExportCommonData.Initialize() Then
-        VBA.MsgBox "Рядок збережено, але не вдалося оновити кеш довідника. " & _
-            "Перезапустіть сторінку перед експортом.", _
-            VBA.vbExclamation, "PrsnlEventBuilder / Установи"
-    End If
-    Exit Function
-
-EH:
-    VBA.MsgBox "Не вдалося додати лікувальний заклад." & VBA.vbCrLf & _
-        "Етап: " & operationStage & VBA.vbCrLf & _
-        "Помилка: " & Err.Description, _
-        VBA.vbExclamation, "PrsnlEventBuilder / Установи"
-End Function
-
 Private Function private_TryExportWordToDocument() As Boolean
     Dim sourceTables As Collection
     Dim exportContext As Object
     Dim exporter As obj_IDataExporter
     Dim exporterClassName As String
     Dim exportConfigTable As obj_ConfigTable
+    Dim editedPreviewText As String
 
     If Not private_TryEnsureModeConfigCurrent() Then Exit Function
     If Not private_TryGetExportSettings("Word", exporterClassName, exportConfigTable) Then
@@ -1002,6 +933,12 @@ Private Function private_TryExportWordToDocument() As Boolean
         Exit Function
     End If
     If Not private_TryBuildExportSourceTables(sourceTables, exportContext) Then Exit Function
+    If Not private_TryReadRenderedWordPreview(editedPreviewText) Then Exit Function
+    If VBA.Len(VBA.Trim$(editedPreviewText)) > 0 Then
+        ' Источником становится фактический текст Banner на листе, а не
+        ' сохранённая модель: пользователь мог вручную исправить preview.
+        exportContext(EXPORT_CONTEXT_WORD_PREVIEW_TEXT_KEY) = editedPreviewText
+    End If
     exportContext("WriteToWord") = True
     If Not private_TryCreateDataExporter(exporterClassName, exportConfigTable, exporter) Then Exit Function
     If Not exporter.Export(sourceTables, exportContext) Then Exit Function
@@ -1010,6 +947,59 @@ Private Function private_TryExportWordToDocument() As Boolean
     ' write does not change any visible state on the Excel page.
     rt_Messaging.fn_ShowStatusBarSuccess "Export to WORD: done", 3
     private_TryExportWordToDocument = True
+End Function
+
+Private Function private_TryReadRenderedWordPreview( _
+    ByRef outPreviewText As String _
+) As Boolean
+    Dim pageBase As obj_PageBase
+    Dim ws As Worksheet
+    Dim messageRange As Range
+    Dim columnScope As Range
+
+    outPreviewText = VBA.vbNullString
+
+    ' Пустая модель означает, что Banner не отрендерен и control part
+    ' отсутствует. В этом случае WORD exporter использует обычный шаблон.
+    If VBA.Len(VBA.Trim$(m_WordExportPreviewText)) = 0 Then
+        private_TryReadRenderedWordPreview = True
+        Exit Function
+    End If
+    If m_Page Is Nothing Then Exit Function
+    Set pageBase = m_Page.GetPageBase()
+    If pageBase Is Nothing Then Exit Function
+    Set ws = pageBase.Worksheet
+    If ws Is Nothing Then Exit Function
+
+    If Not ex_ControlPartsRuntime.fn_TryResolveControlPartScope( _
+        ws, _
+        "banner", _
+        WORD_EXPORT_PREVIEW_CONTROL_NAME, _
+        "message", _
+        messageRange, _
+        columnScope) Then Exit Function
+    If messageRange Is Nothing Then
+        VBA.MsgBox _
+            "Не вдалося знайти область тексту WORD preview на аркуші. " & _
+            "Натисніть 'Update Sheet' та повторіть експорт.", _
+            VBA.vbExclamation, _
+            "PrsnlEventBuilder / WORD preview"
+        Exit Function
+    End If
+
+    On Error GoTo EH
+    ' Banner message является объединённым диапазоном; значение хранится
+    ' в его верхней левой ячейке даже после ручного редактирования.
+    outPreviewText = VBA.CStr(messageRange.Cells(1, 1).Value2)
+    private_TryReadRenderedWordPreview = True
+    Exit Function
+
+EH:
+    VBA.MsgBox _
+        "Не вдалося прочитати текст WORD preview: [" & _
+        VBA.CStr(Err.Number) & "] " & Err.Description, _
+        VBA.vbExclamation, _
+        "PrsnlEventBuilder / WORD preview"
 End Function
 
 Public Function OnProfileButtonClick(Optional ByVal profileId As Variant) As Boolean
@@ -1191,13 +1181,7 @@ Private Function private_TryRefreshMovementHistory() As Boolean
     End If
     If Not private_TryReadMovementHistoryMaxRows(maxRows) Then Exit Function
 
-    If m_ExporterCfgDataProvider Is Nothing Then
-        Set m_ExporterCfgDataProvider = New obj_PEB_ExptrCfgDataPrvdr
-        If Not m_ExporterCfgDataProvider.Initialize(m_ProfileConfigTable) Then
-            Set m_ExporterCfgDataProvider = Nothing
-            Exit Function
-        End If
-    End If
+    If Not private_TryEnsureExporterCfgDataProvider() Then Exit Function
     If Not m_ExporterCfgDataProvider.TryGetMovementHistoryByIpn( _
         ipnText, movementHistoryTable, maxRows) Then GoTo Cleanup
 
@@ -2224,13 +2208,7 @@ Private Function private_TryCreateDataExporter( _
                 private_TryCreateDataExporter = True
                 Exit Function
             End If
-            If m_ExporterCfgDataProvider Is Nothing Then
-                VBA.MsgBox _
-                    "PrototypeNew: exporter configuration data provider is not initialized.", _
-                    VBA.vbExclamation, _
-                    "PrototypeNew / WORD export"
-                Exit Function
-            End If
+            If Not private_TryEnsureExporterCfgDataProvider() Then Exit Function
             Set exporterToWord = New obj_PEB_ExptrWord
             ' WORD preview и «Історія руху» должны использовать один provider:
             ' его QueryEngine владеет единственным ADO handle к Movement snapshot.
@@ -2247,6 +2225,39 @@ Private Function private_TryCreateDataExporter( _
     End Select
 
     private_TryCreateDataExporter = Not outExporter Is Nothing
+End Function
+
+Private Function private_TryEnsureExporterCfgDataProvider() As Boolean
+    Dim exporterCfgDataProvider As obj_PEB_ExptrCfgDataPrvdr
+
+    If Not m_ExporterCfgDataProvider Is Nothing Then
+        private_TryEnsureExporterCfgDataProvider = True
+        Exit Function
+    End If
+    If m_ProfileConfigTable Is Nothing Then
+        VBA.MsgBox _
+            "Не завантажено конфігурацію профілю для підключення " & _
+            "до Personnel та Movement.", _
+            VBA.vbExclamation, _
+            "PrsnlEventBuilder / З'єднання"
+        Exit Function
+    End If
+
+    ' Після ручного disconnect сторінка та її config залишаються живими.
+    ' Provider відновлюється ліниво перед першим запитом або WORD-дією,
+    ' тому сама команда розриву не відкриває нове ADO-з'єднання одразу.
+    Set exporterCfgDataProvider = New obj_PEB_ExptrCfgDataPrvdr
+    If Not exporterCfgDataProvider.Initialize(m_ProfileConfigTable) Then
+        exporterCfgDataProvider.Dispose
+        VBA.MsgBox _
+            "Не вдалося повторно підготувати provider конфігурації " & _
+            "для Personnel та Movement.", _
+            VBA.vbExclamation, _
+            "PrsnlEventBuilder / З'єднання"
+        Exit Function
+    End If
+    Set m_ExporterCfgDataProvider = exporterCfgDataProvider
+    private_TryEnsureExporterCfgDataProvider = True
 End Function
 
 Private Function private_TryCaptureWordExportPreview(ByVal exportContext As Object) As Boolean
@@ -2745,221 +2756,6 @@ Private Function private_TryResolveCandidateRowsArea( _
             Exit Function
         End If
     Next area
-End Function
-
-Private Function private_TryReadInstitutionForm( _
-    ByVal fieldNames As Variant, _
-    ByRef outValues() As Variant _
-) As Boolean
-    Dim pageBase As obj_PageBase
-    Dim rawControl As Object
-    Dim inputControl As obj_InputControlVM
-    Dim fieldIndex As Long
-    Dim fieldValue As String
-
-    If m_Page Is Nothing Then Exit Function
-    Set pageBase = m_Page.GetPageBase()
-    If pageBase Is Nothing Then Exit Function
-
-    For fieldIndex = LBound(fieldNames) To UBound(fieldNames)
-        Set rawControl = Nothing
-        Set inputControl = Nothing
-        If Not pageBase.TryGetRegisteredControlByName( _
-            VBA.CStr(fieldNames(fieldIndex)), rawControl) Then
-            VBA.MsgBox "Не знайдено поле форми: " & VBA.CStr(fieldNames(fieldIndex)), _
-                VBA.vbExclamation, "PrsnlEventBuilder / Установи"
-            Exit Function
-        End If
-        If rawControl Is Nothing Then Exit Function
-        If Not TypeOf rawControl Is obj_InputControlVM Then Exit Function
-        Set inputControl = rawControl
-        fieldValue = VBA.vbNullString
-        If Not inputControl.TryGetValue(fieldValue) Then Exit Function
-        outValues(fieldIndex + 1) = fieldValue
-    Next fieldIndex
-
-    private_TryReadInstitutionForm = True
-End Function
-
-Private Function private_TryClearInstitutionForm(ByVal fieldNames As Variant) As Boolean
-    Dim pageBase As obj_PageBase
-    Dim rawControl As Object
-    Dim inputControl As obj_InputControlVM
-    Dim fieldIndex As Long
-    Dim previousEnableEvents As Boolean
-
-    If m_Page Is Nothing Then Exit Function
-    Set pageBase = m_Page.GetPageBase()
-    If pageBase Is Nothing Then Exit Function
-
-    previousEnableEvents = Application.EnableEvents
-    On Error GoTo RestoreEventsAndFail
-    Application.EnableEvents = False
-    For fieldIndex = LBound(fieldNames) To UBound(fieldNames)
-        Set rawControl = Nothing
-        Set inputControl = Nothing
-        If Not pageBase.TryGetRegisteredControlByName( _
-            VBA.CStr(fieldNames(fieldIndex)), rawControl) Then GoTo RestoreEventsAndFail
-        If rawControl Is Nothing Then GoTo RestoreEventsAndFail
-        If Not TypeOf rawControl Is obj_InputControlVM Then GoTo RestoreEventsAndFail
-        Set inputControl = rawControl
-        If Not inputControl.ClearValue() Then GoTo RestoreEventsAndFail
-    Next fieldIndex
-    Application.EnableEvents = previousEnableEvents
-    private_TryClearInstitutionForm = True
-    Exit Function
-
-RestoreEventsAndFail:
-    On Error Resume Next
-    Application.EnableEvents = previousEnableEvents
-    On Error GoTo 0
-End Function
-
-Private Function private_TryResolveHospitalsSourcePath(ByRef outSourcePath As String) As Boolean
-    Dim cfgParserBase As obj_CfgParserBase
-    Dim configEntries As Collection
-    Dim cfgMap As Object
-    Dim configuredPath As String
-
-    outSourcePath = VBA.vbNullString
-    If m_ProfileConfigTable Is Nothing Then
-        VBA.MsgBox "Не завантажено конфігурацію поточного профілю.", _
-            VBA.vbExclamation, "PrsnlEventBuilder / Установи"
-        Exit Function
-    End If
-
-    Set cfgParserBase = New obj_CfgParserBase
-    If Not cfgParserBase.Initialize(m_ProfileConfigTable) Then Exit Function
-    If Not cfgParserBase.TryGetConfigEntries(configEntries) Then Exit Function
-    If Not cfgParserBase.BuildConfigDictionary(configEntries, cfgMap) Then Exit Function
-    If Not cfgParserBase.TryGetRequiredConfigValue( _
-        cfgMap, HOSPITALS_SOURCE_PATH_CONFIG_KEY, configuredPath) Then
-        VBA.MsgBox "У профілі не задано " & HOSPITALS_SOURCE_PATH_CONFIG_KEY & ".", _
-            VBA.vbExclamation, "PrsnlEventBuilder / Установи"
-        Exit Function
-    End If
-
-    If private_IsAbsoluteWorkbookPath(configuredPath) Then
-        outSourcePath = configuredPath
-    Else
-        outSourcePath = ex_XmlCore.fn_CombineBasePath(ThisWorkbook, configuredPath)
-    End If
-    If VBA.Len(VBA.Trim$(outSourcePath)) = 0 Or VBA.Len(VBA.Dir$(outSourcePath)) = 0 Then
-        VBA.MsgBox "Файл Установи не знайдено:" & VBA.vbCrLf & outSourcePath, _
-            VBA.vbExclamation, "PrsnlEventBuilder / Установи"
-        outSourcePath = VBA.vbNullString
-        Exit Function
-    End If
-
-    private_TryResolveHospitalsSourcePath = True
-End Function
-
-Private Function private_TryAppendInstitutionRow( _
-    ByVal sourcePath As String, _
-    ByRef values() As Variant, _
-    ByRef outTargetRow As Long _
-) As Boolean
-    Dim wb As Workbook
-    Dim ws As Worksheet
-    Dim openedHere As Boolean
-    Dim lastCell As Range
-    Dim sourceFormatRow As Long
-    Dim expectedHeaders As Variant
-    Dim headerIndex As Long
-    Dim rowValues(1 To 1, 1 To 6) As Variant
-
-    On Error GoTo EH
-    Set wb = private_FindOpenWorkbookByPath(sourcePath)
-    If wb Is Nothing Then
-        Set wb = Application.Workbooks.Open(sourcePath)
-        openedHere = True
-    End If
-    If wb Is Nothing Then GoTo EH
-    If wb.ReadOnly Then
-        VBA.MsgBox "Файл відкрито лише для читання:" & VBA.vbCrLf & sourcePath, _
-            VBA.vbExclamation, "PrsnlEventBuilder / Установи"
-        GoTo Cleanup
-    End If
-
-    On Error Resume Next
-    Set ws = wb.Worksheets(INSTITUTIONS_SHEET_NAME)
-    On Error GoTo EH
-    If ws Is Nothing Then
-        VBA.MsgBox "У файлі немає аркуша '" & INSTITUTIONS_SHEET_NAME & "'.", _
-            VBA.vbExclamation, "PrsnlEventBuilder / Установи"
-        GoTo Cleanup
-    End If
-
-    expectedHeaders = Array("Позначення", "Назва", "Регіон", "Родовий", "Знахідний", "Давальний")
-    For headerIndex = 0 To 5
-        If VBA.StrComp( _
-            VBA.Trim$(VBA.CStr(ws.Cells(INSTITUTIONS_HEADER_ROW, headerIndex + 1).Value2)), _
-            VBA.CStr(expectedHeaders(headerIndex)), VBA.vbTextCompare) <> 0 Then
-            VBA.MsgBox "Неочікуваний заголовок у " & ws.Cells(INSTITUTIONS_HEADER_ROW, headerIndex + 1).Address(False, False) & _
-                ". Очікується '" & VBA.CStr(expectedHeaders(headerIndex)) & "'.", _
-                VBA.vbExclamation, "PrsnlEventBuilder / Установи"
-            GoTo Cleanup
-        End If
-    Next headerIndex
-
-    Set lastCell = ws.Range("A:F").Find( _
-        What:="*", After:=ws.Cells(1, 1), LookIn:=xlFormulas, LookAt:=xlPart, _
-        SearchOrder:=xlByRows, SearchDirection:=xlPrevious, MatchCase:=False)
-    If lastCell Is Nothing Then
-        outTargetRow = INSTITUTIONS_FIRST_DATA_ROW
-    Else
-        outTargetRow = private_MaxLong(INSTITUTIONS_FIRST_DATA_ROW, lastCell.Row + 1)
-    End If
-
-    sourceFormatRow = outTargetRow - 1
-    If sourceFormatRow >= INSTITUTIONS_FIRST_DATA_ROW Then
-        ws.Range(ws.Cells(sourceFormatRow, 1), ws.Cells(sourceFormatRow, 6)).Copy
-        ws.Range(ws.Cells(outTargetRow, 1), ws.Cells(outTargetRow, 6)).PasteSpecial xlPasteFormats
-        Application.CutCopyMode = False
-        ws.Rows(outTargetRow).RowHeight = ws.Rows(sourceFormatRow).RowHeight
-    End If
-
-    For headerIndex = 1 To 6
-        rowValues(1, headerIndex) = values(headerIndex)
-    Next headerIndex
-    ws.Range(ws.Cells(outTargetRow, 1), ws.Cells(outTargetRow, 6)).NumberFormat = "@"
-    ws.Range(ws.Cells(outTargetRow, 1), ws.Cells(outTargetRow, 6)).Value2 = rowValues
-    wb.Save
-    private_TryAppendInstitutionRow = True
-
-Cleanup:
-    On Error Resume Next
-    Application.CutCopyMode = False
-    If openedHere And Not wb Is Nothing Then wb.Close SaveChanges:=False
-    On Error GoTo 0
-    Exit Function
-
-EH:
-    VBA.MsgBox "Не вдалося додати рядок у файл Установи:" & VBA.vbCrLf & Err.Description, _
-        VBA.vbExclamation, "PrsnlEventBuilder / Установи"
-    Resume Cleanup
-End Function
-
-Private Function private_FindOpenWorkbookByPath(ByVal workbookPath As String) As Workbook
-    Dim wb As Workbook
-
-    For Each wb In Application.Workbooks
-        If VBA.StrComp(VBA.Trim$(wb.FullName), VBA.Trim$(workbookPath), VBA.vbTextCompare) = 0 Then
-            Set private_FindOpenWorkbookByPath = wb
-            Exit Function
-        End If
-    Next wb
-End Function
-
-Private Function private_IsAbsoluteWorkbookPath(ByVal workbookPath As String) As Boolean
-    workbookPath = VBA.Trim$(workbookPath)
-    If VBA.Len(workbookPath) >= 3 Then
-        If VBA.Mid$(workbookPath, 2, 2) = ":\" Then
-            private_IsAbsoluteWorkbookPath = True
-            Exit Function
-        End If
-    End If
-    private_IsAbsoluteWorkbookPath = (VBA.Left$(workbookPath, 2) = "\\")
 End Function
 
 Private Function private_MaxLong(ByVal leftValue As Long, ByVal rightValue As Long) As Long
