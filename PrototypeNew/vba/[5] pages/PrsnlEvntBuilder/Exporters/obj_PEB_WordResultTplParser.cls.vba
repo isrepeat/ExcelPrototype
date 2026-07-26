@@ -109,6 +109,85 @@ Public Function TryRenderForTemplateId( _
     TryRenderForTemplateId = True
 End Function
 
+Public Function TryGetGroupingDefinition( _
+    ByVal templateId As String, _
+    ByRef outHasGrouping As Boolean, _
+    ByRef outGroupBy As String, _
+    ByRef outGroupOrder As String _
+) As Boolean
+    Dim templateNode As Object
+
+    outHasGrouping = False
+    outGroupBy = VBA.vbNullString
+    outGroupOrder = VBA.vbNullString
+    If m_IsDisposed Then Exit Function
+    If Not private_TryReloadTemplateIfChanged() Then Exit Function
+    Set templateNode = m_TemplateDoc.selectSingleNode( _
+        "/p:wordResultTemplates/p:template[@id=" & _
+        ex_XmlCore.fn_XPathLiteral(VBA.Trim$(templateId)) & "]")
+    If templateNode Is Nothing Then
+        VBA.MsgBox "PrototypeNew: WORD result template was not found by id: " & _
+            templateId, VBA.vbExclamation, "PrototypeNew / WORD export"
+        Exit Function
+    End If
+
+    outGroupBy = VBA.Trim$(ex_XmlCore.fn_NodeAttrText( _
+        templateNode, "groupBy"))
+    outGroupOrder = VBA.LCase$(VBA.Trim$(ex_XmlCore.fn_NodeAttrText( _
+        templateNode, "groupOrder")))
+    outHasGrouping = (VBA.Len(outGroupBy) > 0)
+    If Not outHasGrouping Then
+        If Not templateNode.selectSingleNode("p:groupHeader") Is Nothing Then
+            VBA.MsgBox "PrototypeNew: groupHeader requires template@groupBy: " & _
+                templateId, VBA.vbExclamation, "PrototypeNew / WORD export"
+            Exit Function
+        End If
+        TryGetGroupingDefinition = True
+        Exit Function
+    End If
+    If templateNode.selectSingleNode("p:groupHeader") Is Nothing Then
+        VBA.MsgBox "PrototypeNew: grouped WORD template requires groupHeader: " & _
+            templateId, VBA.vbExclamation, "PrototypeNew / WORD export"
+        Exit Function
+    End If
+    Select Case outGroupOrder
+        Case "date", "text", "none"
+        Case Else
+            VBA.MsgBox "PrototypeNew: unsupported template groupOrder '" & _
+                outGroupOrder & "': " & templateId, _
+                VBA.vbExclamation, "PrototypeNew / WORD export"
+            Exit Function
+    End Select
+    TryGetGroupingDefinition = True
+End Function
+
+Public Function TryRenderGroupHeaderForTemplateId( _
+    ByVal templateId As String, _
+    ByVal sectionTypeText As String, _
+    ByVal sourceTables As Collection, _
+    ByVal namedCollections As Object, _
+    ByRef outResultText As String _
+) As Boolean
+    Dim templateText As String
+    Dim renderVars As Object
+    Dim loopRows As Object
+
+    outResultText = VBA.vbNullString
+    If m_IsDisposed Then Exit Function
+    If sourceTables Is Nothing Or sourceTables.Count <= 0 Then Exit Function
+    If Not private_TryReloadTemplateIfChanged() Then Exit Function
+    If Not private_TryGetTemplateChildTextById( _
+        templateId, "groupHeader", templateText) Then Exit Function
+    Set m_NamedCollections = namedCollections
+    Set renderVars = VBA.CreateObject("Scripting.Dictionary")
+    renderVars.CompareMode = 1
+    Set loopRows = VBA.CreateObject("Scripting.Dictionary")
+    loopRows.CompareMode = 1
+    outResultText = private_RenderTemplate( _
+        templateText, sectionTypeText, sourceTables, renderVars, loopRows)
+    TryRenderGroupHeaderForTemplateId = True
+End Function
+
 ' //
 ' // Internal
 ' //
@@ -192,6 +271,34 @@ Private Function private_TryGetTemplateTextById( _
     Set includeChain = New Collection
     outTemplateText = private_ExpandSharedTemplateIncludes(VBA.CStr(node.Text), doc, includeChain)
     private_TryGetTemplateTextById = True
+End Function
+
+Private Function private_TryGetTemplateChildTextById( _
+    ByVal templateId As String, _
+    ByVal childName As String, _
+    ByRef outTemplateText As String _
+) As Boolean
+    Dim node As Object
+    Dim xpath As String
+    Dim includeChain As Collection
+
+    outTemplateText = VBA.vbNullString
+    templateId = VBA.Trim$(templateId)
+    childName = VBA.Trim$(childName)
+    If VBA.Len(templateId) = 0 Or VBA.Len(childName) = 0 Then Exit Function
+    xpath = "/p:wordResultTemplates/p:template[@id=" & _
+        ex_XmlCore.fn_XPathLiteral(templateId) & "]/p:" & childName
+    Set node = m_TemplateDoc.selectSingleNode(xpath)
+    If node Is Nothing Then
+        VBA.MsgBox "PrototypeNew: WORD template element '" & childName & _
+            "' was not found: " & templateId, _
+            VBA.vbExclamation, "PrototypeNew / WORD export"
+        Exit Function
+    End If
+    Set includeChain = New Collection
+    outTemplateText = private_ExpandSharedTemplateIncludes( _
+        VBA.CStr(node.Text), m_TemplateDoc, includeChain)
+    private_TryGetTemplateChildTextById = True
 End Function
 
 Private Function private_RenderTemplate( _

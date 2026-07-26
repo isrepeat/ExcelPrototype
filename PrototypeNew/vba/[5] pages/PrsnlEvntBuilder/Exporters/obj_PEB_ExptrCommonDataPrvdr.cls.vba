@@ -70,6 +70,7 @@ Private Const SPECIAL_POSITION_PREFIX_SPIS As String = "A1B"
 Private Const SPECIAL_POSITION_CODE_ROZP As String = "РОЗП"
 Private Const SPECIAL_POSITION_CODE_SPIS As String = "СПИС"
 Private Const SPECIAL_POSITION_NAME_ROZP_OFFICER As String = "який перебуває у розпорядженні командира військової частини А3369"
+Private Const SPECIAL_POSITION_NAME_ROZP_OTHER As String = "який перебуває у розпорядженні командира військової частини А7383"
 Private Const ORDER_DATE_COLUMN_NAME As String = "Дата наказу"
 Private Const ORDER_NO_COLUMN_NAME As String = "Номер наказу"
 
@@ -888,14 +889,10 @@ Public Function TryResolveSpecialPositionMapping( _
     Select Case normalizedCodeText
         Case SPECIAL_POSITION_CODE_ROZP
             outTargetPositionCodeText = SPECIAL_POSITION_CODE_ROZP
-            ' Только офицерский состав является исключением. Для остальных
-            ' итоговое название РОЗП остаётся данными справочника «Посади».
             If private_IsOfficerRank(sourceRankText) Then
                 outTargetPositionNameText = SPECIAL_POSITION_NAME_ROZP_OFFICER
             Else
-                If Not TryResolvePositionDefault( _
-                    SPECIAL_POSITION_CODE_ROZP, _
-                    outTargetPositionNameText) Then Exit Function
+                outTargetPositionNameText = SPECIAL_POSITION_NAME_ROZP_OTHER
             End If
             TryResolveSpecialPositionMapping = True
         Case SPECIAL_POSITION_CODE_SPIS

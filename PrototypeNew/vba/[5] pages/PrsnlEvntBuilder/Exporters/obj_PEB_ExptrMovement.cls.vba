@@ -51,7 +51,6 @@ Private Const SOURCE_ALIAS_FIO As String = "FIO"
 Private Const SOURCE_ALIAS_IPN As String = "IPN"
 Private Const SOURCE_ALIAS_POSITION_CODE As String = "PositionCode"
 Private Const SENTINEL_SHORT_DATE As Date = #1/1/1900#
-Private Const MEDICAL_COMPANY_DESTINATION As String = "Медична рота А7383"
 
 Private Sub Class_Initialize()
 #If LOGGING_VERBOSE_ENABLED Then
@@ -772,16 +771,6 @@ Private Function private_ResolveMovementDestinationValue( _
     ByVal sourceRow As obj_Row, _
     ByVal sectionTypeText As String _
 ) As Variant
-    ' В профиле выбытия в медицинскую роту поле больницы намеренно скрыто,
-    ' поэтому направление задаётся семантикой самой секции.
-    If VBA.StrComp( _
-        private_NormalizeText(sectionTypeText), _
-        private_NormalizeText(m_Data.SectionTypeToTreatmentMedicalCompany), _
-        VBA.vbTextCompare) = 0 Then
-        private_ResolveMovementDestinationValue = MEDICAL_COMPANY_DESTINATION
-        Exit Function
-    End If
-
     If m_Data.UsesMovementVacationDestination(sectionTypeText) Then
         private_ResolveMovementDestinationValue = private_GetOptionalSourceText(sourceTable, sourceRow, "Куди")
         Exit Function

@@ -70,7 +70,7 @@
     <sharedTemplate id="block.VacationDestinationPeriod">
       <text>
         <![CDATA[#^
-#_        , у {[Destination]}#^
+#_         у {[Destination]}#^
 #_        {#if [VacationDays]}{#space}терміном на {[VacationDays]} календарних діб#^
 #_        {#if [AdditionalWayDays] == 1}, без урахування 1 доби, необхідної для проїзду до місця проведення відпустки та у зворотному напрямку,{#endif}#^
 #_        {#if [AdditionalWayDays] > 1}, без урахування {[AdditionalWayDays]} діб, необхідних для проїзду до місця проведення відпустки та у зворотному напрямку,{#endif}#^
@@ -125,8 +125,8 @@
     <sharedTemplate id="block.EnrollToFoodSupport">
       <text>
         <![CDATA[#^
-#_        Зарахувати на продовольче забезпечення#^
-#_        {#space}з {[EnrollToFoodSupportDateShort]|dateformat:"\dd \month \yyyy року"}.#^
+#_        {#if [RequiresFoodSupportChange]}Зарахувати на продовольче забезпечення#^
+#_        {#space}з {[EnrollToFoodSupportDateShort]|dateformat:"\dd \month \yyyy року"}.{#endif}#^
         ]]>
       </text>
     </sharedTemplate>
@@ -134,8 +134,8 @@
     <sharedTemplate id="block.RemoveFromFoodSupport">
       <text>
         <![CDATA[#^
-#_        Зняти з продовольчого забезпечення#^
-#_        {#space}з {[RemoveFromFoodSupportDateShort]|dateformat:"\dd \month \yyyy року"}.#^
+#_        {#if [RequiresFoodSupportChange]}Зняти з продовольчого забезпечення#^
+#_        {#space}з {[RemoveFromFoodSupportDateShort]|dateformat:"\dd \month \yyyy року"}.{#endif}#^
         ]]>
       </text>
     </sharedTemplate>
@@ -194,12 +194,18 @@
 
 
 
-  <template id="FromHospital">
+  <template id="FromHospital"
+    groupBy="EffectiveReturnDateShort"
+    groupOrder="date">
+    <groupHeader>
+      <![CDATA[#^
+#_      {[EffectiveReturnDateShort]|dateformat:"\dd \month \yyyy року"}:#^
+#_      {#newline}{#newline}#^
+      ]]>
+    </groupHeader>
     <text>
       <![CDATA[#^
-#_      З {[HospitalGenitive]|lowerFirstLetter}#^
-#_      , з #^
-#_      {#if [DateFromShort]}{[DateFromShort]|dateformat:"\dd \month \yyyy року"}{#else}{[IncomingDateShort]|dateformat:"\dd \month \yyyy року"}{#endif}:#^
+#_      З {[HospitalGenitive]|lowerFirstLetter}:#^
 #_      {#newline}#^
 #_      {#newline}#^
 #_      {#include block.PersonLineLower}.#^
@@ -241,19 +247,6 @@
     </text>
   </template>
 
-  <template id="FromMedicalCompanyForTreatment">
-    <text>
-      <![CDATA[#^
-#_      {#include block.PersonLineUpper}.#^
-#_      {#newline}#^
-#_      {#include block.ReturnToDuty}#^
-#_      {#include block.IncomingBasis}#^
-#_      {#include block.OptionalBasisDocuments}#^
-#_      .{#newline}{#newline}#^
-      ]]>
-    </text>
-  </template>
-
   <template id="FromOutpatientExaminationOrVlk">
     <text>
       <![CDATA[#^
@@ -287,7 +280,7 @@
       <![CDATA[#^
 #_      У {[HospitalAccusative]|lowerFirstLetter}#^
 #_      , з #^
-#_      {#if [DateFromShort]}{[DateFromShort]|dateformat:"\dd \month \yyyy року"}{#else}{[IncomingDateShort]|dateformat:"\dd \month \yyyy року"}{#endif}:#^
+#_      {[EffectiveReturnDateShort]|dateformat:"\dd \month \yyyy року"}:#^
 #_      {#newline}#^
 #_      {#newline}#^
 #_      {#include block.PersonLineLower}.#^
@@ -364,19 +357,6 @@
 #_      {#include block.IncomingBasis}#^
 #_      {#include block.OptionalVlkCertificate}#^
 #_      {#include block.OptionalVacationTicket}#^
-#_      .{#newline}{#newline}#^
-      ]]>
-    </text>
-  </template>
-
-  <template id="ToMedicalCompanyForTreatment">
-    <text>
-      <![CDATA[#^
-#_      {#include block.PersonLineUpper}.#^
-#_      {#newline}#^
-#_      {#include block.AssignToDuty}#^
-#_      {#include block.IncomingBasis}#^
-#_      {#include block.OptionalBasisDocuments}#^
 #_      .{#newline}{#newline}#^
       ]]>
     </text>

@@ -403,13 +403,11 @@ Private Function private_AppendFioDependentAliases( _
         ' op_FIO. Отдельный Select Case оставляет правила секционными: когда для
         ' конкретного события набор изменится, его следует вынести в отдельный Case.
         Case private_NormalizeText(m_Data.SectionTypeCloseFromTreatment), _
-             private_NormalizeText(m_Data.SectionTypeCloseFromTreatmentMedicalCompany), _
              private_NormalizeText(m_Data.SectionTypeCloseFromAmbulatoryVlk), _
              private_NormalizeText(m_Data.SectionTypeCloseFromStationaryVlk)
             private_AddStandardFioDependentAliases dependentAliases
 
         Case private_NormalizeText(m_Data.SectionTypeToTreatment), _
-             private_NormalizeText(m_Data.SectionTypeToTreatmentMedicalCompany), _
              private_NormalizeText(m_Data.SectionTypeToAmbulatoryVlk)
             private_AddStandardFioDependentAliases dependentAliases
 
@@ -474,7 +472,6 @@ Private Function private_AppendCommanderDependentAliases( _
              private_NormalizeText(m_Data.SectionTypeCloseFromTreatmentVacation), _
              private_NormalizeText(m_Data.SectionTypeCloseFromAnnualVacation), _
              private_NormalizeText(m_Data.SectionTypeCloseFromFamilyVacation), _
-             private_NormalizeText(m_Data.SectionTypeCloseFromTreatmentMedicalCompany), _
              private_NormalizeText(m_Data.SectionTypeCloseFromAmbulatoryVlk), _
              private_NormalizeText(m_Data.SectionTypeCloseFromStationaryVlk)
             private_AddStandardCommanderDependentAliases dependentAliases
@@ -484,7 +481,6 @@ Private Function private_AppendCommanderDependentAliases( _
              private_NormalizeText(m_Data.SectionTypeToFamilyVacation), _
              private_NormalizeText(m_Data.SectionTypeToMaternityLeave), _
              private_NormalizeText(m_Data.SectionTypeToTreatmentVacation), _
-             private_NormalizeText(m_Data.SectionTypeToTreatmentMedicalCompany), _
              private_NormalizeText(m_Data.SectionTypeToAmbulatoryVlk)
             private_AddStandardCommanderDependentAliases dependentAliases
 

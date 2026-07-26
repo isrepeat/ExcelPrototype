@@ -340,10 +340,8 @@
                   profile.closeTreatmentVacation;
                   profile.closeAnnualVacation;
                   profile.closeFamilyVacation;
-                  profile.closeTreatmentMedicalCompany;
                   profile.closeAmbulatoryVlk;
                   profile.toTreatment;
-                  profile.toTreatmentMedicalCompany;
                   profile.toAmbulatoryVlk;
                   profile.transferTreatmentToTreatmentVacation;
                   profile.transferTreatmentVacationToTreatmentVacation;
@@ -365,10 +363,8 @@
                   profile.closeTreatmentVacation;
                   profile.closeAnnualVacation;
                   profile.closeFamilyVacation;
-                  profile.closeTreatmentMedicalCompany;
                   profile.closeAmbulatoryVlk;
                   profile.toTreatment;
-                  profile.toTreatmentMedicalCompany;
                   profile.toAmbulatoryVlk;
                   profile.transferTreatmentToTreatmentVacation;
                   profile.transferTreatmentVacationToTreatmentVacation;
@@ -390,10 +386,8 @@
                   profile.closeTreatmentVacation;
                   profile.closeAnnualVacation;
                   profile.closeFamilyVacation;
-                  profile.closeTreatmentMedicalCompany;
                   profile.closeAmbulatoryVlk;
                   profile.toTreatment;
-                  profile.toTreatmentMedicalCompany;
                   profile.toAmbulatoryVlk;
                   profile.transferTreatmentToTreatmentVacation;
                   profile.transferTreatmentVacationToTreatmentVacation;
@@ -432,9 +426,7 @@
                   profile.toBusinessTrip;
                   profile.toBusinessTripSzch;
                   profile.closeTreatment;
-                  profile.closeTreatmentMedicalCompany;
                   profile.toTreatment;
-                  profile.toTreatmentMedicalCompany;
                   profile.toAmbulatoryVlk;
                   profile.transferTreatmentToTreatmentVacation;
                   profile.transferTreatmentVacationToTreatment;
@@ -452,9 +444,7 @@
                   profile.toBusinessTrip;
                   profile.toBusinessTripSzch;
                   profile.closeTreatment;
-                  profile.closeTreatmentMedicalCompany;
                   profile.toTreatment;
-                  profile.toTreatmentMedicalCompany;
                   profile.toAmbulatoryVlk;
                   profile.transferTreatmentToTreatmentVacation;
                   profile.transferTreatmentVacationToTreatment;
@@ -472,9 +462,7 @@
                   profile.toBusinessTrip;
                   profile.toBusinessTripSzch;
                   profile.closeTreatment;
-                  profile.closeTreatmentMedicalCompany;
                   profile.toTreatment;
-                  profile.toTreatmentMedicalCompany;
                   profile.toAmbulatoryVlk;
                   profile.transferTreatmentToTreatmentVacation;
                   profile.transferTreatmentVacationToTreatment;
@@ -727,10 +715,8 @@
                   profile.closeTreatmentVacation;
                   profile.closeAnnualVacation;
                   profile.closeFamilyVacation;
-                  profile.closeTreatmentMedicalCompany;
                   profile.closeAmbulatoryVlk;
                   profile.toTreatment;
-                  profile.toTreatmentMedicalCompany;
                   profile.toAmbulatoryVlk;
                   profile.transferTreatmentToTreatmentVacation;
                   profile.transferTreatmentVacationToTreatmentVacation;
@@ -754,10 +740,8 @@
                   profile.closeTreatmentVacation;
                   profile.closeAnnualVacation;
                   profile.closeFamilyVacation;
-                  profile.closeTreatmentMedicalCompany;
                   profile.closeAmbulatoryVlk;
                   profile.toTreatment;
-                  profile.toTreatmentMedicalCompany;
                   profile.toAmbulatoryVlk;
                   profile.transferTreatmentToTreatmentVacation;
                   profile.transferTreatmentVacationToTreatmentVacation;
@@ -784,10 +768,8 @@
                   profile.closeTreatmentVacation;
                   profile.closeAnnualVacation;
                   profile.closeFamilyVacation;
-                  profile.closeTreatmentMedicalCompany;
                   profile.closeAmbulatoryVlk;
                   profile.toTreatment;
-                  profile.toTreatmentMedicalCompany;
                   profile.toAmbulatoryVlk;
                   profile.transferTreatmentToTreatmentVacation;
                   profile.transferTreatmentVacationToTreatmentVacation;
@@ -832,9 +814,7 @@
                   profile.toBusinessTrip;
                   profile.toBusinessTripSzch;
                   profile.closeTreatment;
-                  profile.closeTreatmentMedicalCompany;
                   profile.toTreatment;
-                  profile.toTreatmentMedicalCompany;
                   profile.toAmbulatoryVlk;
                   profile.transferTreatmentToTreatmentVacation;
                   profile.transferTreatmentVacationToTreatment;
@@ -856,9 +836,7 @@
                   profile.toBusinessTrip;
                   profile.toBusinessTripSzch;
                   profile.closeTreatment;
-                  profile.closeTreatmentMedicalCompany;
                   profile.toTreatment;
-                  profile.toTreatmentMedicalCompany;
                   profile.toAmbulatoryVlk;
                   profile.transferTreatmentToTreatmentVacation;
                   profile.transferTreatmentVacationToTreatment;
@@ -878,9 +856,7 @@
                   profile.toBusinessTrip;
                   profile.toBusinessTripSzch;
                   profile.closeTreatment;
-                  profile.closeTreatmentMedicalCompany;
                   profile.toTreatment;
-                  profile.toTreatmentMedicalCompany;
                   profile.toAmbulatoryVlk;
                   profile.transferTreatmentToTreatmentVacation;
                   profile.transferTreatmentVacationToTreatment;
