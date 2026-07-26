@@ -5,7 +5,7 @@
     <item key="WordDataExtractor.RulesFile" value="modes\WordDataExtractor\WordDataExtractorRules.xml"/>
     <item key="WordDataExtractor.Pipeline" value="personnel-order"/>
     <item key="WordDataExtractor.DocumentDir" value="C:\WORK Alexandr Bondarenko\НАКАЗИ\Зібранні накази\07 липень"/>
-    <item key="WordDataExtractor.DocumentFilename" value="2026-07-18 №208 (ТВО Чухлатий)"/>
+    <item key="WordDataExtractor.DocumentFilename" value="2026-07-21 №211 (ТВО Чухлатий)"/>
     <item key="WordDataExtractor.TransformerClass" value="obj_WDE_OrderTransformer"/>
     <item key="Source.Personnel.FilePath" value="C:\Users\SVI\Desktop\{yyyy}-{mm}-{dd} А7383 Особовий склад.xlsx"/>
     <item key="Source.Personnel.FilePathResolver" value="{Binding Method=ResolveLatestByDmyPattern}"/>

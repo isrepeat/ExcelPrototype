@@ -1,19 +1,200 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<wordDataExtractor xmlns="urn:excelprototype:word-data-extractor:v1" version="1">
+<wordDataExtractor xmlns="urn:excelprototype:word-data-extractor:v4" version="4">
   <!--
     Иерархия обработки:
-      pipeline -> dataset -> scope (область секции) -> match (пункт человека)
-               -> fields -> колонки результирующей таблицы.
+      pipeline -> structure -> context@path / pattern
+               -> [rule-id] -> rules/rule@id
+               -> scope или source -> match -> fields -> table.
 
-    scope не привязан к нумерации: это произвольный regex, который вырезает
-    логическую область документа по устойчивым начальным словам заголовка.
-    Номера секций намеренно не участвуют в правилах.
+    context задаёт общую иерархию диапазонов. В pattern символ / означает
+    вложенность, ?, * и + — допустимую кратность структурного уровня.
+    requiredPattern требует хотя бы одну итоговую строку.
 
     Word разделяет абзацы символом CR (\r). Конструкция [\s\S] используется,
     когда выражение должно проходить через несколько абзацев.
   -->
   <pipelines>
     <pipeline id="personnel-order">
+      <structure>
+        <requiredPattern id="order-dates">
+          <![CDATA[
+            [order-dates]+
+          ]]>
+        </requiredPattern>
+
+        <!--
+          Маркеры основных пунктов образуют общие диапазоны для всех событий.
+          Если документ не имеет этого уровня нумерации, * прозрачно сохраняет
+          корневой контекст.
+        -->
+        <context path="[main-item-marker]*">
+          <pattern id="arrived-to-unit">
+            <![CDATA[
+              [arrived-to-unit] /
+              [arrived-to-unit]+
+            ]]>
+          </pattern>
+
+          <context id="arrivals" path="[arrivals-section]?">
+            <context path="[sub-item-marker]*">
+              <pattern id="arrived-to-corps">
+                <![CDATA[
+                  [arrived-to-corps]+
+                ]]>
+              </pattern>
+              <pattern id="returned-from-assignment">
+                <![CDATA[
+                  [returned-from-assignment] /
+                  [returned-from-assignment]+
+                ]]>
+              </pattern>
+              <pattern id="returned-from-hospital">
+                <![CDATA[
+                  [returned-from-hospital] /
+                  [returned-from-hospital-date]* /
+                  [returned-from-hospital-person]+
+                ]]>
+              </pattern>
+              <pattern id="returned-from-medical-company">
+                <![CDATA[
+                  [returned-from-medical-company] /
+                  [returned-from-medical-company]+
+                ]]>
+              </pattern>
+              <pattern id="returned-from-annual-leave">
+                <![CDATA[
+                  [returned-from-annual-leave] /
+                  [returned-from-annual-leave-date]* /
+                  [returned-from-annual-leave-person]+
+                ]]>
+              </pattern>
+              <pattern id="returned-from-treatment-leave">
+                <![CDATA[
+                  [returned-from-treatment-leave] /
+                  [returned-from-treatment-leave]+
+                ]]>
+              </pattern>
+              <pattern id="returned-from-awol">
+                <![CDATA[
+                  [returned-from-awol] /
+                  [returned-from-awol]+
+                ]]>
+              </pattern>
+              <pattern id="arrived-for-service-assignment">
+                <![CDATA[
+                  [arrived-for-service-assignment] /
+                  [arrived-for-service-assignment]+
+                ]]>
+              </pattern>
+              <pattern id="returned-from-inpatient-vlk">
+                <![CDATA[
+                  [returned-from-inpatient-vlk] /
+                  [returned-from-inpatient-vlk]+
+                ]]>
+              </pattern>
+              <pattern id="returned-from-family-leave">
+                <![CDATA[
+                  [returned-from-family-leave] /
+                  [returned-from-family-leave]+
+                ]]>
+              </pattern>
+            </context>
+          </context>
+
+          <context id="departures" path="[departures-section]?">
+            <context path="[sub-item-marker]*">
+              <pattern id="departed-for-assignment">
+                <![CDATA[
+                  [departed-for-assignment] /
+                  [departed-for-assignment]+
+                ]]>
+              </pattern>
+              <pattern id="departed-to-permanent-duty">
+                <![CDATA[
+                  [departed-to-permanent-duty] /
+                  [departed-to-permanent-duty]+
+                ]]>
+              </pattern>
+              <pattern id="excluded-from-personnel-lists">
+                <![CDATA[
+                  [excluded-from-personnel-lists]+
+                ]]>
+              </pattern>
+              <pattern id="departed-for-treatment">
+                <![CDATA[
+                  [departed-for-treatment] /
+                  [departed-for-treatment-destination]* /
+                  [departed-for-treatment-person]+
+                ]]>
+              </pattern>
+              <pattern id="departed-for-annual-leave">
+                <![CDATA[
+                  [departed-for-annual-leave] /
+                  [departed-for-annual-leave-date]* /
+                  [departed-for-annual-leave-person]+
+                ]]>
+              </pattern>
+              <pattern id="departed-for-treatment-leave">
+                <![CDATA[
+                  [departed-for-treatment-leave] /
+                  [departed-for-treatment-leave]+
+                ]]>
+              </pattern>
+              <pattern id="departed-for-family-leave">
+                <![CDATA[
+                  [departed-for-family-leave] /
+                  [departed-for-family-leave]+
+                ]]>
+              </pattern>
+              <pattern id="departed-for-maternity-leave">
+                <![CDATA[
+                  [departed-for-maternity-leave] /
+                  [departed-for-maternity-leave]+
+                ]]>
+              </pattern>
+            </context>
+          </context>
+
+          <pattern id="departed-awol">
+            <![CDATA[
+              [departed-awol] /
+              [departed-awol]+
+            ]]>
+          </pattern>
+          <pattern id="status-changes">
+            <![CDATA[
+              [status-changes]+
+            ]]>
+          </pattern>
+          <pattern id="awol-non-return">
+            <![CDATA[
+              [awol-non-return]+
+            ]]>
+          </pattern>
+          <pattern id="algorithm-assignment">
+            <![CDATA[
+              [algorithm-assignment]+
+            ]]>
+          </pattern>
+          <pattern id="missing-in-action">
+            <![CDATA[
+              [missing-in-action] /
+              [missing-in-action]+
+            ]]>
+          </pattern>
+          <pattern id="deceased">
+            <![CDATA[
+              [deceased] /
+              [deceased]+
+            ]]>
+          </pattern>
+          <pattern id="killed-in-action">
+            <![CDATA[
+              [killed-in-action]+
+            ]]>
+          </pattern>
+        </context>
+      </structure>
 
       <!-- Поля, одинаковые для всех кадровых событий. Они извлекаются из
            полного текста пункта и автоматически добавляются в каждую таблицу. -->
@@ -70,7 +251,31 @@
       <!-- Первая служебная таблица связывает весь результат extraction с
            приказом. Даты продовольственного обеспечения начинаются на день
            позже даты приказа и вычисляются универсальным dateAddDays. -->
-      <dataset id="order-dates" caption="Дати" includeCommonColumns="false">
+      <rules>
+      <!-- Структурные правила не создают таблицы: они делят родительский
+           диапазон на основные пункты, подпункты и логические разделы. -->
+      <rule id="main-item-marker" kind="section">
+        <scope>
+          <match ignoreCase="true" multiline="false"><![CDATA[(?:^|\r)\s*\d+\.\s+]]></match>
+        </scope>
+      </rule>
+      <rule id="sub-item-marker" kind="section">
+        <scope>
+          <match ignoreCase="true" multiline="false"><![CDATA[(?:^|\r)\s*\d+\.\d+\.\s+]]></match>
+        </scope>
+      </rule>
+      <rule id="arrivals-section" kind="section">
+        <scope>
+          <match ignoreCase="true" multiline="false"><![CDATA[Вважати\s+такими,\s*що\s+прибули\s+до\s+складу]]></match>
+        </scope>
+      </rule>
+      <rule id="departures-section" kind="section">
+        <scope>
+          <match ignoreCase="true" multiline="false"><![CDATA[Вважати\s+такими,\s*що\s+вибули]]></match>
+        </scope>
+      </rule>
+
+      <rule id="order-dates" caption="Дати" source="document" includeCommonColumns="false">
         <match ignoreCase="true" multiline="false"><![CDATA[(?:^|\r)\s*(\d{1,2}[.\-/]\d{1,2}[.\-/]\d{4})[^\r]*?№\s*([0-9]+(?:[/\-][0-9]+)*)\s*(?=\r|$)]]></match>
         <fields>
           <field id="orderDate" from="$1">
@@ -92,12 +297,12 @@
           <column id="departureSummary" caption="Вибуття" value="$departureSummary"/>
           <column id="arrivalSummary" caption="Прибуття" value="$arrivalSummary"/>
         </table>
-      </dataset>
+      </rule>
 
       <!-- Секция 1: военнослужащие, прибывшие в воинскую часть А7383. -->
-      <dataset id="arrived-to-unit" caption="Прибули до військової частини А7383" flow="arrival" includeCommonColumns="false" optional="true">
+      <rule id="arrived-to-unit" caption="Прибули до військової частини А7383" flow="arrival" includeCommonColumns="false">
         <scope>
-          <match ignoreCase="true" multiline="false" group="0"><![CDATA[Вважати\s+такими,\s*що\s+прибули\s+до\s+військової\s+частини\s+А7383[\s\S]*?(?=\r[^\r]{0,80}Вважати\s+такими,\s*що\s+прибули\s+до\s+складу\s+сил\s+і\s+засобів\s+2\s+корпусу|\s*$)]]></match>
+          <match ignoreCase="true" multiline="false" group="0"><![CDATA[Вважати\s+такими,\s*що\s+прибули\s+до\s+військової\s+частини\s+А7383]]></match>
         </scope>
 
         <!-- Один match становится одной строкой: от звания до ближайшего
@@ -158,12 +363,12 @@
           <column id="basis" caption="Підстава" value="$basis"/>
         </table>
 
-      </dataset>
+      </rule>
 
       <!-- Секция 2: военнослужащие, прибывшие в состав сил и средств корпуса. -->
-      <dataset id="arrived-to-corps" caption="Прибули до складу сил і засобів 2 корпусу" flow="arrival" commonColumnIds="foodEnrollmentDate" optional="true">
+      <rule id="arrived-to-corps" caption="Прибули до складу сил і засобів 2 корпусу" flow="arrival" commonColumnIds="foodEnrollmentDate">
         <scope>
-          <match ignoreCase="true" multiline="false" group="0"><![CDATA[Вважати\s+такими,\s*що\s+прибули\s+до\s+складу\s+сил\s+і\s+засобів\s+2\s+корпусу[\s\S]*$]]></match>
+          <match ignoreCase="true" multiline="false" group="0"><![CDATA[Вважати\s+такими,\s*що\s+прибули\s+до\s+складу\s+сил\s+і\s+засобів\s+2\s+корпусу]]></match>
         </scope>
 
         <!-- В отдельных подпунктах звание перед ФИО может отсутствовать.
@@ -210,15 +415,15 @@
           <column id="enrollmentDate" caption="Прибуття" value="$enrollmentDate"/>
           <column id="basis" caption="Підстава" value="$basis"/>
         </table>
-      </dataset>
+      </rule>
 
       <!-- Возвращение из командировки. Дата задаётся один раз для группы
            пунктов и наследуется всеми местами отправления до следующего блока
            «з <дата>». Каждое место отправления имеет собственные строки
            продовольственного обеспечения и основания. -->
-      <dataset id="returned-from-assignment" caption="З відрядження" flow="arrival" includeCommonColumns="false" optional="true">
+      <rule id="returned-from-assignment" caption="З відрядження" flow="arrival" includeCommonColumns="false">
         <scope>
-          <match ignoreCase="true" multiline="false"><![CDATA[(?:^|\r)\s*(?:\d+(?:\.\d+)*\.?\s*)?З\s+відрядження[\s\S]*?(?=\r\s*(?:\d+(?:\.\d+)*\.?\s*)?(?:З\s+(?:лікувального\s+закладу|медичної\s+роти|щорічної\s+основної\s+відпустки|відпустки\s+для\s+лікування|відпустки\s+за\s+сімейними\s+обставинами|проходження\s+військово-лікарської\s+комісії)|Із\s+самовільного\s+залишення|У\s+(?:відрядження|медичну\s+роту|відпустку\s+для\s+лікування|відпустку\s+за\s+сімейними\s+обставинами|частину\s+щорічної\s+основної\s+відпустки)|На\s+(?:лікування|проходження\s+військово-лікарської\s+комісії)|До\s+постійного\s+місця\s+служби|Яких\s+вважати|Вважати\s+такими|Нижчепойменованих)\s+|\s*$)]]></match>
+          <match ignoreCase="true" multiline="false"><![CDATA[(?:^|\r)\s*(?:\d+(?:\.\d+)*\.?\s*)?З\s+відрядження]]></match>
           <context id="returnDate">
             <match ignoreCase="true" multiline="false"><![CDATA[(?:^|\r)\s*з\s+(\d{1,2}(?:[.\-/]\d{1,2}[.\-/]\d{2,4}|\s+[а-яіїєґ]+\s+\d{4}\s+року))[^\r]*\r[\s\S]*?(?=\r\s*з\s+\d{1,2}(?:[.\-/]\d{1,2}[.\-/]\d{2,4}|\s+[а-яіїєґ]+\s+\d{4}\s+року)|\s*$)]]></match>
             <context id="assignmentGroup">
@@ -241,18 +446,27 @@
           </field>
         </fields>
         <table><column id="fio" caption="ПІБ" value="$fio"/><column id="ipn" caption="ІПН" value="$ipn"/><column id="returnDate" caption="Прибуття" value="$returnDate"/><column id="foodEnrollmentDate" caption="На продовольче" value="$groupFoodEnrollmentDate"/><column id="basis" caption="Підстава" value="$basis"/></table>
-      </dataset>
+      </rule>
 
-      <!-- Возвращение из лечебного учреждения. Дата может находиться в
-           отдельном абзаце перед пунктом, поэтому наследуется из context. -->
-      <dataset id="returned-from-hospital" caption="З лікувального закладу" flow="arrival" optional="true">
+      <!-- Заголовок, датированные прокси-секции и персональные записи
+           возвращения из лечебного учреждения описаны отдельными rules. -->
+      <rule id="returned-from-hospital" kind="section">
         <scope>
-          <match ignoreCase="true" multiline="false" group="0"><![CDATA[(?:^|\r)\s*(?:\d+(?:\.\d+)*\.?\s*)?З\s+лікувального\s+закладу\s*[:.]?\s*[\s\S]*?(?=\r\s*(?:\d+(?:\.\d+)+\.?\s*З\s+|З\s+медичної\s+роти(?:\s|[:,.]|$))|\s*$)]]></match>
-          <context id="returnDate">
-            <match ignoreCase="true" multiline="false"><![CDATA[(?:^|\r)\s*[Зз]\s+(?:[^\r]*?\s+[Зз]\s+)?(\d{1,2}(?:[.\-/]\d{1,2}[.\-/]\d{2,4}|\s+[а-яіїєґ]+\s+\d{4}\s+року))[^\r]*(?:\r[\s\S]*?)(?=\r\s*[Зз]\s+(?:[^\r]*?\s+[Зз]\s+)?\d{1,2}(?:[.\-/]\d{1,2}[.\-/]\d{2,4}|\s+[а-яіїєґ]+\s+\d{4}\s+року)|\s*$)]]></match>
-          </context>
+          <match ignoreCase="true" multiline="false" group="0"><![CDATA[(?:^|\r)\s*(?:\d+(?:\.\d+)*\.?\s*)?З\s+лікувального\s+закладу\s*[:.]?\s*]]></match>
         </scope>
+      </rule>
 
+      <rule id="returned-from-hospital-date" kind="section">
+        <match ignoreCase="true" multiline="false"><![CDATA[(?:^|\r)\s*[Зз]\s+(?:[^\r]*?\s+[Зз]\s+)?(\d{1,2}(?:[.\-/]\d{1,2}[.\-/]\d{2,4}|\s+[а-яіїєґ]+\s+\d{4}\s+року))[^\r]*]]></match>
+        <fields>
+          <field id="returnDate" from="$1">
+            <transform type="dateFormat" format="dd.mm.yyyy"/>
+          </field>
+        </fields>
+      </rule>
+
+      <rule id="returned-from-hospital-person"
+        caption="З лікувального закладу" flow="arrival">
         <match ignoreCase="true" multiline="false"><![CDATA[(?:^|\r)\s*(?:рядовий|рядового|солдат|солдата|старший\s+солдат|старшого\s+солдата|молодший\s+сержант|молодшого\s+сержанта|сержант|сержанта|старший\s+сержант|старшого\s+сержанта|головний\s+сержант|головного\s+сержанта|штаб-сержант|штаб-сержанта|майстер-сержант|майстер-сержанта|лейтенант|лейтенанта|старший\s+лейтенант|старшого\s+лейтенанта|капітан|капітана|майор|майора|підполковник|підполковника|полковник|полковника)\s+[\s\S]*?Підстава:\s*[^\r]*(?=\r|$)]]></match>
 
         <fields>
@@ -261,7 +475,12 @@
             group="1" default=""><transform type="trim"/></field>
           <field id="ipn" from="$match" ignoreCase="true"
             regex=",\s*(\d{10})\s*," group="1" default=""><transform type="trim"/></field>
-          <field id="returnDate" from="$returnDate.1"><transform type="dateFormat" format="dd.mm.yyyy"/></field>
+          <field id="returnDate" from="$returnDate"/>
+          <field id="returnDate" from="$match" preserveExisting="true"
+            regex="\bз\s+(\d{1,2}(?:[.\-/]\d{1,2}[.\-/]\d{2,4}|\s+[а-яіїєґ]+\s+\d{4}\s+року))"
+            group="1" default="">
+            <transform type="dateFormat" format="dd.mm.yyyy"/>
+          </field>
           <field id="basis" from="$match" ignoreCase="true"
             regex="Підстава:\s*([^\r]+)" group="1" default=""><transform type="trim"/></field>
         </fields>
@@ -272,7 +491,7 @@
           <column id="returnDate" caption="Прибуття" value="$returnDate"/>
           <column id="basis" caption="Підстава" value="$basis"/>
         </table>
-      </dataset>
+      </rule>
 
       <!-- Дата возвращения из медроты поддерживает обе структуры приказа:
            1) «З медичної роти ..., з 18 липня 2026 року:»;
@@ -280,26 +499,35 @@
               «з 17 липня ...», «з 18 липня ...» с людьми внутри каждой.
            Context целиком ограничивается следующей строкой с датой, поэтому
            все персональные пункты внутри группы наследуют одну eventDate. -->
-      <dataset id="returned-from-medical-company" caption="З медичної роти військової частини А7383" flow="arrival" optional="true">
+      <rule id="returned-from-medical-company" caption="З медичної роти військової частини А7383" flow="arrival">
         <scope>
-          <match ignoreCase="true" multiline="false"><![CDATA[(?:^|\r)\s*(?:\d+(?:\.\d+)*\.?\s*)?З\s+медичної\s+роти(?:\s+військової\s+частини\s+А7383)?[\s\S]*?(?=\r\s*\d+(?:\.\d+)+\.?\s*(?:З|Із|У|На)\s+|\s*$)]]></match>
+          <match ignoreCase="true" multiline="false"><![CDATA[(?:^|\r)\s*(?:\d+(?:\.\d+)*\.?\s*)?З\s+медичної\s+роти(?:\s+військової\s+частини\s+А7383)?]]></match>
           <context id="eventDate"><match ignoreCase="true" multiline="false"><![CDATA[(?:^|\r)\s*[Зз]\s+(?:[^\r]*?\s+[Зз]\s+)?(\d{1,2}(?:[.\-/]\d{1,2}[.\-/]\d{2,4}|\s+[а-яіїєґ]+\s+\d{4}\s+року))[^\r]*(?:\r[\s\S]*?)(?=\r\s*[Зз]\s+(?:[^\r]*?\s+[Зз]\s+)?\d{1,2}(?:[.\-/]\d{1,2}[.\-/]\d{2,4}|\s+[а-яіїєґ]+\s+\d{4}\s+року)|\s*$)]]></match></context>
         </scope>
         <match ignoreCase="false" multiline="false"><![CDATA[(?:^|\r)\s*[^\r]*[А-ЯІЇЄҐ][А-ЯІЇЄҐ'’\-]{2,}\s+[^\r,]+,[\s\S]*?Підстава:\s*[^\r]*(?=\r|$)]]></match>
         <fields><field id="fio" from="$match" ignoreCase="false" regex="\s([А-ЯІЇЄҐ][А-ЯІЇЄҐ'’\-]{2,}\s+[А-ЯІЇЄҐ][А-Яа-яІіЇїЄєҐґ'’\-]+\s+[А-ЯІЇЄҐ][А-Яа-яІіЇїЄєҐґ'’\-]+)\s*," group="1" default=""><transform type="trim"/></field><field id="ipn" from="$match" regex=",\s*(\d{10})\s*," group="1" default=""><transform type="trim"/></field><field id="eventDate" from="$eventDate.1"><transform type="dateFormat" format="dd.mm.yyyy"/></field><field id="basis" from="$match" regex="Підстава:\s*([^\r]+)" group="1" default=""><transform type="trim"/></field></fields>
         <table><column id="fio" caption="ПІБ" value="$fio"/><column id="ipn" caption="ІПН" value="$ipn"/><column id="eventDate" caption="Прибуття" value="$eventDate"/><column id="basis" caption="Підстава" value="$basis"/></table>
-      </dataset>
+      </rule>
 
-      <!-- Одна датированная подсекция отпуска может содержать несколько
-           пунктов; каждый из них получает одну и ту же дату context-блока. -->
-      <dataset id="returned-from-annual-leave" caption="З щорічної основної відпустки" flow="arrival" optional="true">
+      <!-- Заголовок события ограничивает родительский диапазон. Датированные
+           подсекции внутри него повторяются и передают returnDate людям. -->
+      <rule id="returned-from-annual-leave" kind="section">
         <scope>
-          <match ignoreCase="true" multiline="false" group="0"><![CDATA[(?:^|\r)\s*(?:\d+(?:\.\d+)*\.?\s*)?З\s+щорічної\s+основної\s+відпустки\s*[:.]?\s*[\s\S]*?(?=\r\s*\d+\.\s*Вважати\s+такими,\s*що\s+вибули|\r\s*\d+(?:\.\d+)+\.?\s*З\s+|\s*$)]]></match>
-          <context id="returnDate">
-            <match ignoreCase="true" multiline="false"><![CDATA[(?:^|\r)\s*з\s+(?:[^\r]*?\s+з\s+)?(\d{1,2}(?:[.\-/]\d{1,2}[.\-/]\d{2,4}|\s+[а-яіїєґ]+\s+\d{4}\s+року))[^\r]*(?:\r[\s\S]*?)(?=\r\s*з\s+(?:[^\r]*?\s+з\s+)?\d{1,2}(?:[.\-/]\d{1,2}[.\-/]\d{2,4}|\s+[а-яіїєґ]+\s+\d{4}\s+року)|\s*$)]]></match>
-          </context>
+          <match ignoreCase="true" multiline="false" group="0"><![CDATA[(?:^|\r)\s*(?:\d+(?:\.\d+)*\.?\s*)?З\s+щорічної\s+основної\s+відпустки\s*[:.]?\s*]]></match>
         </scope>
+      </rule>
 
+      <rule id="returned-from-annual-leave-date" kind="section">
+        <match ignoreCase="true" multiline="false"><![CDATA[(?:^|\r)\s*з\s+(?:[^\r]*?\s+з\s+)?(\d{1,2}(?:[.\-/]\d{1,2}[.\-/]\d{2,4}|\s+[а-яіїєґ]+\s+\d{4}\s+року))[^\r]*]]></match>
+        <fields>
+          <field id="returnDate" from="$1">
+            <transform type="dateFormat" format="dd.mm.yyyy"/>
+          </field>
+        </fields>
+      </rule>
+
+      <rule id="returned-from-annual-leave-person"
+        caption="З щорічної основної відпустки" flow="arrival">
         <!-- «Молодший лейтенант» — отдельное звание, а не вариант «лейтенанта»:
              без этих форм запись даже не доходила до извлечения ПІБ. -->
         <match ignoreCase="true" multiline="false"><![CDATA[(?:^|\r)\s*(?:рядовий|рядового|солдат|солдата|старший\s+солдат|старшого\s+солдата|молодший\s+сержант|молодшого\s+сержанта|сержант|сержанта|старший\s+сержант|старшого\s+сержанта|головний\s+сержант|головного\s+сержанта|штаб-сержант|штаб-сержанта|майстер-сержант|майстер-сержанта|молодший\s+лейтенант|молодшого\s+лейтенанта|лейтенант|лейтенанта|старший\s+лейтенант|старшого\s+лейтенанта|капітан|капітана|майор|майора|підполковник|підполковника|полковник|полковника)\s+[\s\S]*?Підстава:\s*[^\r]*(?=\r|$)]]></match>
@@ -310,7 +538,14 @@
             group="1" default=""><transform type="trim"/></field>
           <field id="ipn" from="$match" ignoreCase="true"
             regex=",\s*(\d{10})\s*," group="1" default=""><transform type="trim"/></field>
-          <field id="returnDate" from="$returnDate.1"><transform type="dateFormat" format="dd.mm.yyyy"/></field>
+          <field id="returnDate" from="$returnDate"/>
+          <!-- Если промежуточной секции с датой нет, дата может находиться
+               непосредственно в персональном пункте. -->
+          <field id="returnDate" from="$match" preserveExisting="true"
+            regex="Зарахувати\s+на\s+продовольче\s+забезпечення\s+з\s+(\d{1,2}(?:[.\-/]\d{1,2}[.\-/]\d{2,4}|\s+[а-яіїєґ]+\s+\d{4}\s+року))"
+            group="1" default="">
+            <transform type="dateFormat" format="dd.mm.yyyy"/>
+          </field>
           <field id="basis" from="$match" ignoreCase="true"
             regex="Підстава:\s*([^\r]+)" group="1" default=""><transform type="trim"/></field>
         </fields>
@@ -321,11 +556,11 @@
           <column id="returnDate" caption="Прибуття" value="$returnDate"/>
           <column id="basis" caption="Підстава" value="$basis"/>
         </table>
-      </dataset>
+      </rule>
 
-      <dataset id="returned-from-treatment-leave" caption="З відпустки для лікування" flow="arrival" optional="true">
+      <rule id="returned-from-treatment-leave" caption="З відпустки для лікування" flow="arrival">
         <scope>
-          <match ignoreCase="true" multiline="false"><![CDATA[(?:^|\r)\s*(?:\d+(?:\.\d+)*\.?\s*)?З\s+відпустки\s+для\s+лікування[\s\S]*?(?=\r\s*\d+(?:\.\d+)+\.?\s*Із\s+самовільного|\s*$)]]></match>
+          <match ignoreCase="true" multiline="false"><![CDATA[(?:^|\r)\s*(?:\d+(?:\.\d+)*\.?\s*)?З\s+відпустки\s+для\s+лікування]]></match>
           <context id="eventDate"><match ignoreCase="true" multiline="false"><![CDATA[(?:^|\r)\s*з\s+(\d{1,2}(?:[.\-/]\d{1,2}[.\-/]\d{2,4}|\s+[а-яіїєґ]+\s+\d{4}\s+року))[^\r]*(?:\r[\s\S]*?)(?=\r\s*з\s+\d{1,2}(?:[.\-/]\d{1,2}[.\-/]\d{2,4}|\s+[а-яіїєґ]+\s+\d{4}\s+року)|\s*$)]]></match></context>
         </scope>
         <match ignoreCase="false" multiline="false"><![CDATA[(?:^|\r)\s*[^\r]*[А-ЯІЇЄҐ][А-ЯІЇЄҐ'’\-]{2,}\s+[^\r,]+,[\s\S]*?Підстава:\s*[^\r]*(?=\r|$)]]></match>
@@ -336,11 +571,11 @@
           <field id="basis" from="$match" regex="Підстава:\s*([^\r]+)" group="1" default=""><transform type="trim"/></field>
         </fields>
         <table><column id="fio" caption="ПІБ" value="$fio"/><column id="ipn" caption="ІПН" value="$ipn"/><column id="eventDate" caption="Прибуття" value="$eventDate"/><column id="basis" caption="Підстава" value="$basis"/></table>
-      </dataset>
+      </rule>
 
-      <dataset id="returned-from-awol" caption="Із самовільного залишення військової частини" flow="arrival" optional="true">
+      <rule id="returned-from-awol" caption="Із самовільного залишення військової частини" flow="arrival">
         <scope>
-          <match ignoreCase="true" multiline="false"><![CDATA[(?:^|\r)\s*(?:\d+(?:\.\d+)*\.?\s*)?Із\s+самовільного\s+залишення\s+військової\s+частини[\s\S]*?(?=\r\s*\d+(?:\.\d+)+\.?\s*З\s+проходження|\s*$)]]></match>
+          <match ignoreCase="true" multiline="false"><![CDATA[(?:^|\r)\s*(?:\d+(?:\.\d+)*\.?\s*)?Із\s+самовільного\s+залишення\s+військової\s+частини]]></match>
           <context id="eventDate"><match ignoreCase="true" multiline="false"><![CDATA[(?:^|\r)\s*з\s+(\d{1,2}(?:[.\-/]\d{1,2}[.\-/]\d{2,4}|\s+[а-яіїєґ]+\s+\d{4}\s+року))[^\r]*(?:\r[\s\S]*?)(?=\r\s*з\s+\d{1,2}(?:[.\-/]\d{1,2}[.\-/]\d{2,4}|\s+[а-яіїєґ]+\s+\d{4}\s+року)|\s*$)]]></match></context>
         </scope>
         <match ignoreCase="false" multiline="false"><![CDATA[(?:^|\r)\s*[^\r]*[А-ЯІЇЄҐ][А-ЯІЇЄҐ'’\-]{2,}\s+[^\r,]+,[\s\S]*?Підстава:\s*[^\r]*(?=\r|$)]]></match>
@@ -351,14 +586,14 @@
           <field id="basis" from="$match" regex="Підстава:\s*([^\r]+)" group="1" default=""><transform type="trim"/></field>
         </fields>
         <table><column id="fio" caption="ПІБ" value="$fio"/><column id="ipn" caption="ІПН" value="$ipn"/><column id="eventDate" caption="Прибуття" value="$eventDate"/><column id="basis" caption="Підстава" value="$basis"/></table>
-      </dataset>
+      </rule>
 
       <!-- Групповой пункт о прибытии в служебную командировку. Персональные
            абзацы идут подряд, а даты зачисления и «Підстава» размещены после
            всего списка, поэтому читаются из общего context секции. -->
-      <dataset id="arrived-for-service-assignment" caption="У службове відрядження у військову частину А7383" flow="arrival" includeCommonColumns="false" optional="true">
+      <rule id="arrived-for-service-assignment" caption="У службове відрядження у військову частину А7383" flow="arrival" includeCommonColumns="false">
         <scope>
-          <match ignoreCase="true" multiline="false"><![CDATA[(?:^|\r)\s*(?:\d+(?:\.\d+)*\.?\s*)?У\s+службове\s+відрядження\s+у\s+військову\s+частину\s+[АA]7383[\s\S]*$]]></match>
+          <match ignoreCase="true" multiline="false"><![CDATA[(?:^|\r)\s*(?:\d+(?:\.\d+)*\.?\s*)?У\s+службове\s+відрядження\s+у\s+військову\s+частину\s+[АA]7383]]></match>
           <context id="assignmentGroup">
             <match ignoreCase="true" multiline="false" group="0"><![CDATA[[\s\S]+]]></match>
           </context>
@@ -384,15 +619,15 @@
           </field>
         </fields>
         <table><column id="fio" caption="ПІБ" value="$fio"/><column id="ipn" caption="ІПН" value="$ipn"/><column id="eventDate" caption="Прибуття" value="$eventDate"/><column id="foodEnrollmentDate" caption="На продовольче" value="$foodEnrollmentDate"/><column id="arrivalDurationDays" caption="Термін прибуття" value="$arrivalDurationDays"/><column id="position" caption="Посада" value="$position"/><column id="assignmentOrigin" caption="Звідки" value="$assignmentOrigin"/><column id="basis" caption="Підстава" value="$basis"/></table>
-      </dataset>
+      </rule>
 
       <!-- Обычная командировка является отдельной секцией после прибытия в
            служебную командировку. В одном групповом пункте может идти несколько
            персональных абзацев, после которых общими строками указываются
            снятие с продовольствия и основание. -->
-      <dataset id="departed-for-assignment" caption="У відрядження" flow="departure" includeCommonColumns="false" optional="true">
+      <rule id="departed-for-assignment" caption="У відрядження" flow="departure" includeCommonColumns="false">
         <scope>
-          <match ignoreCase="true" multiline="false"><![CDATA[(?:^|\r)\s*(?:\d+(?:\.\d+)*\.?\s*)?У\s+відрядження[\s\S]*?(?=\r\s*(?:\d+(?:\.\d+)*\.?\s*)?(?:З\s+(?:відрядження|лікувального\s+закладу|медичної\s+роти|щорічної\s+основної\s+відпустки|відпустки\s+для\s+лікування|відпустки\s+за\s+сімейними\s+обставинами|проходження\s+військово-лікарської\s+комісії)|Із\s+самовільного\s+залишення|У\s+(?:медичну\s+роту|відпустку\s+для\s+лікування|відпустку\s+за\s+сімейними\s+обставинами|частину\s+щорічної\s+основної\s+відпустки)|На\s+(?:лікування|проходження\s+військово-лікарської\s+комісії)|До\s+постійного\s+місця\s+служби|Яких\s+вважати|Вважати\s+такими|Нижчепойменованих)\s+|\s*$)]]></match>
+          <match ignoreCase="true" multiline="false"><![CDATA[(?:^|\r)\s*(?:\d+(?:\.\d+)*\.?\s*)?У\s+відрядження]]></match>
           <context id="assignmentGroup">
             <match ignoreCase="true" multiline="false" group="0"><![CDATA[[\s\S]+]]></match>
           </context>
@@ -410,10 +645,10 @@
           <field id="basis" from="$assignmentGroup" regex="Підстава:\s*([^\r]+)" group="1" default=""><transform type="trim"/></field>
         </fields>
         <table><column id="fio" caption="ПІБ" value="$fio"/><column id="ipn" caption="ІПН" value="$ipn"/><column id="eventDate" caption="Вибуття" value="$eventDate"/><column id="foodRemovalDate" caption="З продовольчого" value="$foodRemovalDate"/><column id="durationDays" caption="Термін вибуття" value="$durationDays"/><column id="eventTo" caption="По" value="$eventTo"/><column id="basis" caption="Підстава" value="$basis"/></table>
-      </dataset>
+      </rule>
 
-      <dataset id="returned-from-inpatient-vlk" caption="З проходження військово-лікарської комісії стаціонарно" flow="arrival" optional="true">
-        <scope><match ignoreCase="true" multiline="false"><![CDATA[(?:^|\r)\s*(?:\d+(?:\.\d+)*\.?\s*)?З\s+проходження\s+військово-лікарської\s+комісії\s+стаціонарно[\s\S]*?(?=\r\s*(?:\d+\.?\s*)?Вважати\s+такими,\s*що\s+вибули|\s*$)]]></match></scope>
+      <rule id="returned-from-inpatient-vlk" caption="З проходження військово-лікарської комісії стаціонарно" flow="arrival">
+        <scope><match ignoreCase="true" multiline="false"><![CDATA[(?:^|\r)\s*(?:\d+(?:\.\d+)*\.?\s*)?З\s+проходження\s+військово-лікарської\s+комісії\s+стаціонарно]]></match></scope>
         <match ignoreCase="false" multiline="false"><![CDATA[(?:^|\r)\s*[^\r]*[А-ЯІЇЄҐ][А-ЯІЇЄҐ'’\-]{2,}\s+[^\r,]+,[\s\S]*?Підстава:\s*[^\r]*(?=\r|$)]]></match>
         <fields>
           <field id="fio" from="$match" ignoreCase="false" regex="\s([А-ЯІЇЄҐ][А-ЯІЇЄҐ'’\-]{2,}\s+[А-ЯІЇЄҐ][А-Яа-яІіЇїЄєҐґ'’\-]+\s+[А-ЯІЇЄҐ][А-Яа-яІіЇїЄєҐґ'’\-]+)\s*," group="1" default=""><transform type="trim"/></field>
@@ -422,26 +657,26 @@
           <field id="basis" from="$match" regex="Підстава:\s*([^\r]+)" group="1" default=""><transform type="trim"/></field>
         </fields>
         <table><column id="fio" caption="ПІБ" value="$fio"/><column id="ipn" caption="ІПН" value="$ipn"/><column id="eventDate" caption="Прибуття" value="$eventDate"/><column id="basis" caption="Підстава" value="$basis"/></table>
-      </dataset>
+      </rule>
 
-      <dataset id="returned-from-family-leave" caption="З відпустки за сімейними обставинами" flow="arrival" optional="true">
+      <rule id="returned-from-family-leave" caption="З відпустки за сімейними обставинами" flow="arrival">
         <scope>
-          <match ignoreCase="true" multiline="false"><![CDATA[(?:^|\r)\s*(?:\d+(?:\.\d+)*\.?\s*)?З\s+відпустки\s+за\s+сімейними\s+обставинами[\s\S]*?(?=\r\s*\d+(?:\.\d+)+\.?\s*(?:З|Із|У|На)\s+|\s*$)]]></match>
+          <match ignoreCase="true" multiline="false"><![CDATA[(?:^|\r)\s*(?:\d+(?:\.\d+)*\.?\s*)?З\s+відпустки\s+за\s+сімейними\s+обставинами]]></match>
           <context id="eventDate"><match ignoreCase="true" multiline="false"><![CDATA[(?:^|\r)\s*з\s+(\d{1,2}(?:[.\-/]\d{1,2}[.\-/]\d{2,4}|\s+[а-яіїєґ]+\s+\d{4}\s+року))[^\r]*(?:\r[\s\S]*?)(?=\r\s*з\s+\d{1,2}|\s*$)]]></match></context>
         </scope>
         <match ignoreCase="false" multiline="false"><![CDATA[(?:^|\r)\s*[^\r]*[А-ЯІЇЄҐ][А-ЯІЇЄҐ'’\-]{2,}\s+[^\r,]+,[\s\S]*?Підстава:\s*[^\r]*(?=\r|$)]]></match>
         <fields><field id="fio" from="$match" ignoreCase="false" regex="\s([А-ЯІЇЄҐ][А-ЯІЇЄҐ'’\-]{2,}\s+[А-ЯІЇЄҐ][А-Яа-яІіЇїЄєҐґ'’\-]+\s+[А-ЯІЇЄҐ][А-Яа-яІіЇїЄєҐґ'’\-]+)\s*," group="1" default=""><transform type="trim"/></field><field id="ipn" from="$match" regex=",\s*(\d{10})\s*," group="1" default=""><transform type="trim"/></field><field id="eventDate" from="$eventDate.1"><transform type="dateFormat" format="dd.mm.yyyy"/></field><field id="basis" from="$match" regex="Підстава:\s*([^\r]+)" group="1" default=""><transform type="trim"/></field></fields>
         <table><column id="fio" caption="ПІБ" value="$fio"/><column id="ipn" caption="ІПН" value="$ipn"/><column id="eventDate" caption="Прибуття" value="$eventDate"/><column id="basis" caption="Підстава" value="$basis"/></table>
-      </dataset>
+      </rule>
 
       <!-- В одной секции может быть несколько мест назначения. Дата выбытия,
            снятие с продовольствия и основание задаются один раз для всей группы
            военнослужащих внутри соответствующего destination-блока. -->
-      <dataset id="departed-to-permanent-duty" caption="До постійного місця служби" flow="departure" includeCommonColumns="false" optional="true">
+      <rule id="departed-to-permanent-duty" caption="До постійного місця служби" flow="departure" includeCommonColumns="false">
         <scope>
-          <match ignoreCase="true" multiline="false"><![CDATA[(?:^|\r)\s*(?:\d+(?:\.\d+)*\.?\s*)?До\s+постійного\s+місця\s+служби\s*[:.]?\s*[\s\S]*?(?=\r\s*\d+\.\s*Вважати\s+такими,\s*що\s+вибули|\s*$)]]></match>
+          <match ignoreCase="true" multiline="false"><![CDATA[(?:^|\r)\s*(?:\d+(?:\.\d+)*\.?\s*)?До\s+постійного\s+місця\s+служби\s*[:.]?\s*]]></match>
           <context id="destination">
-            <match ignoreCase="true" multiline="false"><![CDATA[(?:^|\r)\s*(у\s+[^\r]+?)\s*,?\s*з\s+(\d{1,2}(?:[.\-/]\d{1,2}[.\-/]\d{2,4}|\s+[а-яіїєґ]+\s+\d{4}\s+року))[^\r]*(?:\r[\s\S]*?)(?=\r\s*у\s+[^\r]+?\s*,?\s*з\s+\d{1,2}(?:[.\-/]\d{1,2}[.\-/]\d{2,4}|\s+[а-яіїєґ]+\s+\d{4}\s+року)|\s*$)]]></match>
+            <match ignoreCase="true" multiline="false"><![CDATA[(?:^|\r)\s*(у\s+[^\r]+?)\s*,?\s*(?:з\s+)?(\d{1,2}(?:[.\-/]\d{1,2}[.\-/]\d{2,4}|\s+[а-яіїєґ]+\s+\d{4}\s+року))[^\r]*(?:\r[\s\S]*?)(?=\r\s*у\s+[^\r]+?\s*,?\s*(?:з\s+)?\d{1,2}(?:[.\-/]\d{1,2}[.\-/]\d{2,4}|\s+[а-яіїєґ]+\s+\d{4}\s+року)|\s*$)]]></match>
           </context>
         </scope>
         <!-- Персональные абзацы здесь не содержат собственного «Підстава»:
@@ -470,15 +705,15 @@
           <column id="foodRemovalDate" caption="З продовольчого" value="$foodRemovalDate"/>
           <column id="basis" caption="Підстава" value="$basis"/>
         </table>
-      </dataset>
+      </rule>
 
       <!-- Внутри общего пункта о выбывших формулировки причины различаются,
            поэтому признаком строки служит само исключение из списков. Scope
            заканчивается перед «На лікування», а match ограничен одним
            нумерованным подпунктом и не может захватить следующего человека. -->
-      <dataset id="excluded-from-personnel-lists" caption="Виключення зі списків особового складу" includeCommonColumns="false" optional="true">
+      <rule id="excluded-from-personnel-lists" caption="Виключення зі списків особового складу" includeCommonColumns="false">
         <scope>
-          <match ignoreCase="true" multiline="false"><![CDATA[(?:^|\r)\s*(?:\d+\.?\s*)?Вважати\s+такими,\s*що\s+вибули[^\r]*(?:\r|$)[\s\S]*?(?=\r\s*(?:\d+(?:\.\d+)+\.?\s*)?На\s+лікування\s*:|\s*$)]]></match>
+          <match ignoreCase="true" multiline="false"><![CDATA[(?:^|\r)\s*(?:\d+\.?\s*)?Вважати\s+такими,\s*що\s+вибули[^\r]*(?:\r|$)]]></match>
         </scope>
         <match ignoreCase="true" multiline="false"><![CDATA[(?:^|\r)\s*(?:\d+(?:\.\d+)+\.?\s*)?(?:рядовий|рядового|солдат|солдата|старший\s+солдат|старшого\s+солдата|молодший\s+сержант|молодшого\s+сержанта|сержант|сержанта|старший\s+сержант|старшого\s+сержанта|головний\s+сержант|головного\s+сержанта|штаб-сержант|штаб-сержанта|майстер-сержант|майстер-сержанта|молодший\s+лейтенант|молодшого\s+лейтенанта|лейтенант|лейтенанта|старший\s+лейтенант|старшого\s+лейтенанта|капітан|капітана|майор|майора|підполковник|підполковника|полковник|полковника)\s+(?:(?!Підстава:)[\s\S])*?(?:виключити|виключен(?:ий|а))\s+зі\s+списків\s+особового\s+складу(?:(?!Підстава:)[\s\S])*?Підстава:\s*[^\r]*(?=\r|$)]]></match>
         <fields>
@@ -489,40 +724,68 @@
           <field id="basis" from="$match" regex="Підстава:\s*([^\r]+)" group="1" default=""><transform type="trim"/></field>
         </fields>
         <table><column id="fio" caption="ПІБ" value="$fio"/><column id="ipn" caption="ІПН" value="$ipn"/><column id="eventDate" caption="Вибуття" value="$eventDate"/><column id="foodRemovalDate" caption="З продовольчого" value="$foodRemovalDate"/><column id="basis" caption="Підстава" value="$basis"/></table>
-      </dataset>
+      </rule>
 
-      <dataset id="departed-for-treatment" caption="Вибули на лікування" flow="departure" optional="true">
+      <rule id="departed-for-treatment" kind="section">
         <scope>
-          <match ignoreCase="true" multiline="false"><![CDATA[(?:^|\r)\s*(?:\d+(?:\.\d+)*\.?\s*)?На\s+лікування[\s\S]*?(?=\r\s*\d+(?:\.\d+)*\.?\s*У\s+частину\s+щорічної|\s*$)]]></match>
-          <!-- Учреждение является родительской группой, а дата — вложенной.
-               Поддерживаются как «у <заклад>, з <дата>:», так и общий
-               заголовок «у <заклад>:» с несколькими группами «з <дата>:». -->
-          <context id="destination">
-            <match ignoreCase="true" multiline="false"><![CDATA[(?:^|\r)\s*([Уу]\s+[^\r]+?)(?=\s*(?:,\s*[Зз]\s+\d{1,2}(?:[.\-/]\d{1,2}[.\-/]\d{2,4}|\s+[а-яіїєґ]+\s+\d{4}\s+року)|:\s*(?:\r|$)))[^\r]*(?:\r[\s\S]*?)(?=\r\s*[Уу]\s+[^\r]+?(?:,\s*[Зз]\s+\d{1,2}(?:[.\-/]\d{1,2}[.\-/]\d{2,4}|\s+[а-яіїєґ]+\s+\d{4}\s+року)|:\s*(?:\r|$))|\s*$)]]></match>
-            <context id="eventDate">
-              <match ignoreCase="true" multiline="false"><![CDATA[(?:^|\r)\s*(?:[Уу]\s+[^\r]*?\s*,?\s*)?[Зз]\s+(\d{1,2}(?:[.\-/]\d{1,2}[.\-/]\d{2,4}|\s+[а-яіїєґ]+\s+\d{4}\s+року))[^\r]*(?:\r[\s\S]*?)(?=\r\s*[Зз]\s+\d{1,2}(?:[.\-/]\d{1,2}[.\-/]\d{2,4}|\s+[а-яіїєґ]+\s+\d{4}\s+року)|\s*$)]]></match>
-            </context>
-          </context>
+          <!--
+            Медрота и стационарная ВЛК являются вариантами лечения, а не
+            отдельными результирующими datasets. Ненумерованный заголовок
+            допустим только в начале текущего структурного контекста, чтобы
+            вложенное место назначения не активировало второе событие.
+          -->
+          <match ignoreCase="true" multiline="false"><![CDATA[(?:^\s*|(?:^|\r)\s*\d+(?:\.\d+)*\.?\s*)(?:На\s+лікування|У\s+медичну\s+роту(?:\s+військової\s+частини\s+А7383)?|На\s+проходження\s+військово-лікарської\s+комісії\s+стаціонарно)]]></match>
         </scope>
+      </rule>
+
+      <rule id="departed-for-treatment-destination" kind="section">
+        <match ignoreCase="true" multiline="false"><![CDATA[(?:^|\r)\s*(?:\d+(?:\.\d+)*\.?\s*)?(?:(?:[Уу]\s+[^\r]*?|На\s+проходження\s+військово-лікарської\s+комісії\s+стаціонарно)\s*,?\s*)?[Зз]\s+(\d{1,2}(?:[.\-/]\d{1,2}[.\-/]\d{2,4}|\s+[а-яіїєґ]+\s+\d{4}\s+року))[^\r]*]]></match>
+        <fields>
+          <field id="eventDate" from="$1">
+            <transform type="dateFormat" format="dd.mm.yyyy"/>
+          </field>
+        </fields>
+      </rule>
+
+      <rule id="departed-for-treatment-person"
+        caption="Вибули на лікування" flow="departure">
         <match ignoreCase="false" multiline="false"><![CDATA[(?:^|\r)\s*[^\r]*[А-ЯІЇЄҐ][А-ЯІЇЄҐ'’\-]{2,}\s+[^\r,]+,[\s\S]*?Підстава:\s*[^\r]*(?=\r|$)]]></match>
         <fields>
           <field id="fio" from="$match" ignoreCase="false" regex="\s([А-ЯІЇЄҐ][А-ЯІЇЄҐ'’\-]{2,}\s+[А-ЯІЇЄҐ][А-Яа-яІіЇїЄєҐґ'’\-]+\s+[А-ЯІЇЄҐ][А-Яа-яІіЇїЄєҐґ'’\-]+)\s*," group="1" default=""><transform type="trim"/></field>
           <field id="ipn" from="$match" regex=",\s*(\d{10})\s*," group="1" default=""><transform type="trim"/></field>
-          <field id="destination" from="$destination.1"><transform type="trim"/></field><field id="eventDate" from="$eventDate.1"><transform type="dateFormat" format="dd.mm.yyyy"/></field>
+          <field id="eventDate" from="$eventDate"/>
+          <field id="eventDate" from="$match" preserveExisting="true"
+            regex="\b[Зз]\s+(\d{1,2}(?:[.\-/]\d{1,2}[.\-/]\d{2,4}|\s+[а-яіїєґ]+\s+\d{4}\s+року))"
+            group="1" default="">
+            <transform type="dateFormat" format="dd.mm.yyyy"/>
+          </field>
           <field id="basis" from="$match" regex="Підстава:\s*([^\r]+)" group="1" default=""><transform type="trim"/></field>
         </fields>
         <table><column id="fio" caption="ПІБ" value="$fio"/><column id="ipn" caption="ІПН" value="$ipn"/><column id="eventDate" caption="Вибуття" value="$eventDate"/><column id="basis" caption="Підстава" value="$basis"/></table>
-      </dataset>
+      </rule>
 
-      <dataset id="departed-for-annual-leave" caption="У частину щорічної основної відпустки" flow="departure" optional="true">
-        <!-- Следующая ожидаемая секция может отсутствовать. Поэтому scope
-             завершается перед любым следующим подразделом выбытия, а не
-             только перед «У відпустку для лікування». -->
-        <scope><match ignoreCase="true" multiline="false"><![CDATA[(?:^|\r)\s*(?:\d+(?:\.\d+)*\.?\s*)?У\s+частину\s+щорічної\s+основної\s+відпустки[\s\S]*?(?=\r\s*(?:\d+(?:\.\d+)*\.?\s*)?(?:З|Із|У|На|До|Яких)\s+|\r\s*(?:\d+\.?\s*)?Вважати\s+такими|\s*$)]]></match></scope>
+      <rule id="departed-for-annual-leave" kind="section">
+        <scope><match ignoreCase="true" multiline="false"><![CDATA[(?:^|\r)\s*(?:\d+(?:\.\d+)*\.?\s*)?У\s+частину\s+щорічної\s+основної\s+відпустки]]></match></scope>
+      </rule>
+
+      <rule id="departed-for-annual-leave-date" kind="section">
+        <match ignoreCase="true" multiline="false"><![CDATA[(?:^|\r)\s*[Зз]\s+(\d{1,2}(?:[.\-/]\d{1,2}[.\-/]\d{2,4}|\s+[а-яіїєґ]+\s+\d{4}\s+року))[^\r]*]]></match>
+        <fields>
+          <field id="eventDate" from="$1">
+            <transform type="dateFormat" format="dd.mm.yyyy"/>
+          </field>
+        </fields>
+      </rule>
+
+      <rule id="departed-for-annual-leave-person"
+        caption="У частину щорічної основної відпустки" flow="departure">
         <match ignoreCase="false" multiline="false"><![CDATA[(?:^|\r)\s*[^\r]*[А-ЯІЇЄҐ][А-ЯІЇЄҐ'’\-]{2,}\s+[^\r,]+,[\s\S]*?Підстава:\s*[^\r]*(?=\r|$)]]></match>
         <fields>
           <field id="fio" from="$match" ignoreCase="false" regex="\s([А-ЯІЇЄҐ][А-ЯІЇЄҐ'’\-]{2,}\s+[А-ЯІЇЄҐ][А-Яа-яІіЇїЄєҐґ'’\-]+\s+[А-ЯІЇЄҐ][А-Яа-яІіЇїЄєҐґ'’\-]+)\s*," group="1" default=""><transform type="trim"/></field><field id="ipn" from="$match" regex=",\s*(\d{10})\s*," group="1" default=""><transform type="trim"/></field>
-          <field id="eventDate" from="$match" regex="(?:терміном\s+)?на\s+\d+\s+календарн(?:их|і)\s+(?:діб|днів)[\s\S]*?з\s+(\d{1,2}\s+[а-яіїєґ]+\s+\d{4}\s+року)" group="1" default=""><transform type="dateFormat" format="dd.mm.yyyy"/></field>
+          <field id="eventDate" from="$eventDate"/>
+          <field id="eventDate" from="$match" preserveExisting="true"
+            regex="(?:терміном\s+)?на\s+\d+\s+календарн(?:их|і)\s+(?:діб|днів)[\s\S]*?з\s+(\d{1,2}\s+[а-яіїєґ]+\s+\d{4}\s+року)"
+            group="1" default=""><transform type="dateFormat" format="dd.mm.yyyy"/></field>
           <field id="durationDays" from="$match" regex="((?:терміном\s+)?на\s+\d+\s+календарн(?:их|і)\s+(?:діб|днів)(?:(?:,\s*)?без\s+урахування\s+\d+\s+діб)?)" group="1" default="">
             <transform type="regexReplace" pattern="^(?:терміном\s+)?на\s+(\d+)[\s\S]*?без\s+урахування\s+(\d+)\s+діб$" with="$1 + $2"/>
             <transform type="regexReplace" pattern="^(?:терміном\s+)?на\s+(\d+)\s+календарн(?:их|і)\s+(?:діб|днів)$" with="$1"/>
@@ -532,13 +795,13 @@
           <field id="basis" from="$match" regex="Підстава:\s*([^\r]+)" group="1" default=""><transform type="trim"/></field>
         </fields>
         <table><column id="fio" caption="ПІБ" value="$fio"/><column id="ipn" caption="ІПН" value="$ipn"/><column id="eventDate" caption="Вибуття" value="$eventDate"/><column id="durationDays" caption="Термін вибуття" value="$durationDays"/><column id="eventTo" caption="По" value="$eventTo"/><column id="basis" caption="Підстава" value="$basis"/></table>
-      </dataset>
+      </rule>
 
-      <dataset id="departed-for-treatment-leave" caption="У відпустку для лікування" flow="departure" optional="true">
+      <rule id="departed-for-treatment-leave" caption="У відпустку для лікування" flow="departure">
         <!-- Подраздел 3.x заканчивается перед следующим основным пунктом
              вида «4. ...». Последующие переходы «с лечения в отпуск» должны
              обрабатываться dataset-ом изменения статусов. -->
-        <scope><match ignoreCase="true" multiline="false"><![CDATA[(?:^|\r)\s*(?:\d+(?:\.\d+)+\.?\s*)?У\s+відпустку\s+для\s+лікування[\s\S]*?(?=\r\s*(?:\d+(?:\.\d+)*\.?\s*)?(?:З|Із|У|На|До|Яких|Вважати)\s+|\s*$)]]></match></scope>
+        <scope><match ignoreCase="true" multiline="false"><![CDATA[(?:^|\r)\s*(?:\d+(?:\.\d+)+\.?\s*)?У\s+відпустку\s+для\s+лікування]]></match></scope>
         <match ignoreCase="false" multiline="false"><![CDATA[(?:^|\r)\s*[^\r]*[А-ЯІЇЄҐ][А-ЯІЇЄҐ'’\-]{2,}\s+[^\r,]+,(?:(?!Підстава:)[\s\S])*?терміном\s+на\s+\d+\s+календарн(?:их|і)\s+(?:діб|днів)(?:(?!Підстава:)[\s\S])*?\sз\s+\d{1,2}(?:\s+[а-яіїєґ]+)?(?:\s+\d{4}\s+року)?\s+по\s+\d{1,2}\s+[а-яіїєґ]+\s+\d{4}\s+року(?:(?!Підстава:)[\s\S])*?Підстава:\s*[^\r]*(?=\r|$)]]></match>
         <fields>
           <field id="fio" from="$match" ignoreCase="false" regex="\s([А-ЯІЇЄҐ][А-ЯІЇЄҐ'’\-]{2,}\s+[А-ЯІЇЄҐ][А-Яа-яІіЇїЄєҐґ'’\-]+\s+[А-ЯІЇЄҐ][А-Яа-яІіЇїЄєҐґ'’\-]+)\s*," group="1" default=""><transform type="trim"/></field><field id="ipn" from="$match" regex=",\s*(\d{10})\s*," group="1" default=""><transform type="trim"/></field>
@@ -554,10 +817,10 @@
           <field id="eventTo" from="$match" regex="\sпо\s+(\d{1,2}\s+[а-яіїєґ]+\s+\d{4}\s+року)" group="1" default=""><transform type="dateFormat" format="dd.mm.yyyy"/></field>
         </fields>
         <table><column id="fio" caption="ПІБ" value="$fio"/><column id="ipn" caption="ІПН" value="$ipn"/><column id="eventDate" caption="Вибуття" value="$eventDate"/><column id="durationDays" caption="Термін вибуття" value="$durationDays"/><column id="eventTo" caption="По" value="$eventTo"/><column id="basis" caption="Підстава" value="$basis"/></table>
-      </dataset>
+      </rule>
 
-      <dataset id="departed-for-family-leave" caption="У відпустку за сімейними обставинами" flow="departure" optional="true">
-        <scope><match ignoreCase="true" multiline="false"><![CDATA[(?:^|\r)\s*(?:\d+(?:\.\d+)*\.?\s*)?У\s+відпустку\s+за\s+сімейними\s+обставинами[\s\S]*?(?=\r\s*(?:\d+(?:\.\d+)*\.?\s*)?(?:З|Із|У|На|До|Яких|Вважати)\s+|\s*$)]]></match></scope>
+      <rule id="departed-for-family-leave" caption="У відпустку за сімейними обставинами" flow="departure">
+        <scope><match ignoreCase="true" multiline="false"><![CDATA[(?:^|\r)\s*(?:\d+(?:\.\d+)*\.?\s*)?У\s+відпустку\s+за\s+сімейними\s+обставинами]]></match></scope>
         <match ignoreCase="false" multiline="false"><![CDATA[(?:^|\r)\s*[^\r]*[А-ЯІЇЄҐ][А-ЯІЇЄҐ'’\-]{2,}\s+[^\r,]+,[\s\S]*?Підстава:\s*[^\r]*(?=\r|$)]]></match>
         <fields>
           <field id="fio" from="$match" ignoreCase="false" regex="\s([А-ЯІЇЄҐ][А-ЯІЇЄҐ'’\-]{2,}\s+[А-ЯІЇЄҐ][А-Яа-яІіЇїЄєҐґ'’\-]+\s+[А-ЯІЇЄҐ][А-Яа-яІіЇїЄєҐґ'’\-]+)\s*," group="1" default=""><transform type="trim"/></field>
@@ -572,13 +835,13 @@
           <field id="basis" from="$match" regex="Підстава:\s*([^\r]+)" group="1" default=""><transform type="trim"/></field>
         </fields>
         <table><column id="fio" caption="ПІБ" value="$fio"/><column id="ipn" caption="ІПН" value="$ipn"/><column id="eventDate" caption="Вибуття" value="$eventDate"/><column id="durationDays" caption="Термін вибуття" value="$durationDays"/><column id="eventTo" caption="По" value="$eventTo"/><column id="basis" caption="Підстава" value="$basis"/></table>
-      </dataset>
+      </rule>
 
       <!-- Отпуск по беременности и родам является самостоятельным событием,
            а не вариантом семейного или ежегодного отпуска. -->
-      <dataset id="departed-for-maternity-leave" caption="У відпустку у зв’язку з вагітністю та пологами" flow="departure" optional="true">
+      <rule id="departed-for-maternity-leave" caption="У відпустку у зв’язку з вагітністю та пологами" flow="departure">
         <scope>
-          <match ignoreCase="true" multiline="false"><![CDATA[(?:^|\r)\s*(?:\d+(?:\.\d+)*\.?\s*)?У\s+відпустку\s+у\s+зв[’']язку\s+з\s+вагітністю\s+та\s+пологами[\s\S]*?(?=\r\s*\d+(?:\.\d+)+\.?\s+|\r\s*\d+\.\s+(?!\d)|\s*$)]]></match>
+          <match ignoreCase="true" multiline="false"><![CDATA[(?:^|\r)\s*(?:\d+(?:\.\d+)*\.?\s*)?У\s+відпустку\s+у\s+зв[’']язку\s+з\s+вагітністю\s+та\s+пологами]]></match>
         </scope>
         <match ignoreCase="true" multiline="false"><![CDATA[(?:^|\r)\s*(?:рядовий|рядового|солдат|солдата|старший\s+солдат|старшого\s+солдата|молодший\s+сержант|молодшого\s+сержанта|сержант|сержанта|старший\s+сержант|старшого\s+сержанта|головний\s+сержант|головного\s+сержанта|штаб-сержант|штаб-сержанта|майстер-сержант|майстер-сержанта|молодший\s+лейтенант|молодшого\s+лейтенанта|лейтенант|лейтенанта|старший\s+лейтенант|старшого\s+лейтенанта|капітан|капітана|майор|майора|підполковник|підполковника|полковник|полковника)\s+(?:(?!Підстава:)[\s\S])*?Підстава:\s*[^\r]*(?=\r|$)]]></match>
         <fields>
@@ -610,38 +873,22 @@
           <column id="eventTo" caption="По" value="$eventTo"/>
           <column id="basis" caption="Підстава" value="$basis"/>
         </table>
-      </dataset>
+      </rule>
 
-      <!-- Для медроты назначение фиксировано, но дата может быть inline в
-           заголовке либо задаваться несколькими вложенными группами. -->
-      <dataset id="departed-for-medical-company" caption="У медичну роту військової частини А7383" flow="departure" optional="true">
-        <scope><match ignoreCase="true" multiline="false"><![CDATA[(?:^|\r)\s*(?:\d+(?:\.\d+)*\.?\s*)?У\s+медичну\s+роту(?:\s+військової\s+частини\s+А7383)?[\s\S]*?(?=\r\s*(?:\d+(?:\.\d+)*\.?\s*)?(?:З|Із|У|На|До|Яких|Вважати)\s+|\s*$)]]></match><context id="eventDate"><match ignoreCase="true" multiline="false"><![CDATA[(?:^|\r)\s*(?:\d+(?:\.\d+)*\.?\s*)?(?:[Уу]\s+[^\r]*?\s*,?\s*)?[Зз]\s+(\d{1,2}(?:[.\-/]\d{1,2}[.\-/]\d{2,4}|\s+[а-яіїєґ]+\s+\d{4}\s+року))[^\r]*(?:\r[\s\S]*?)(?=\r\s*[Зз]\s+\d{1,2}(?:[.\-/]\d{1,2}[.\-/]\d{2,4}|\s+[а-яіїєґ]+\s+\d{4}\s+року)|\s*$)]]></match></context></scope>
-        <match ignoreCase="false" multiline="false"><![CDATA[(?:^|\r)\s*[^\r]*[А-ЯІЇЄҐ][А-ЯІЇЄҐ'’\-]{2,}\s+[^\r,]+,[\s\S]*?Підстава:\s*[^\r]*(?=\r|$)]]></match>
-        <fields><field id="fio" from="$match" ignoreCase="false" regex="\s([А-ЯІЇЄҐ][А-ЯІЇЄҐ'’\-]{2,}\s+[А-ЯІЇЄҐ][А-Яа-яІіЇїЄєҐґ'’\-]+\s+[А-ЯІЇЄҐ][А-Яа-яІіЇїЄєҐґ'’\-]+)\s*," group="1" default=""><transform type="trim"/></field><field id="ipn" from="$match" regex=",\s*(\d{10})\s*," group="1" default=""/><field id="eventDate" from="$eventDate.1"><transform type="dateFormat" format="dd.mm.yyyy"/></field><field id="basis" from="$match" regex="Підстава:\s*([^\r]+)" group="1" default=""><transform type="trim"/></field></fields>
-        <table><column id="fio" caption="ПІБ" value="$fio"/><column id="ipn" caption="ІПН" value="$ipn"/><column id="eventDate" caption="Вибуття" value="$eventDate"/><column id="basis" caption="Підстава" value="$basis"/></table>
-      </dataset>
-
-      <dataset id="departed-for-inpatient-vlk" caption="На проходження військово-лікарської комісії стаціонарно" flow="departure" optional="true">
-        <scope><match ignoreCase="true" multiline="false"><![CDATA[(?:^|\r)\s*(?:\d+(?:\.\d+)*\.?\s*)?На\s+проходження\s+військово-лікарської\s+комісії\s+стаціонарно[\s\S]*?(?=\r\s*(?:\d+(?:\.\d+)*\.?\s*)?(?:З|Із|У|На|До|Яких|Вважати)\s+|\s*$)]]></match><context id="eventDate"><match ignoreCase="true" multiline="false"><![CDATA[(?:^|\r)\s*з\s+(\d{1,2}(?:[.\-/]\d{1,2}[.\-/]\d{2,4}|\s+[а-яіїєґ]+\s+\d{4}\s+року))[^\r]*(?:\r[\s\S]*?)(?=\r\s*з\s+\d{1,2}|\s*$)]]></match></context></scope>
-        <match ignoreCase="false" multiline="false"><![CDATA[(?:^|\r)\s*[^\r]*[А-ЯІЇЄҐ][А-ЯІЇЄҐ'’\-]{2,}\s+[^\r,]+,[\s\S]*?Підстава:\s*[^\r]*(?=\r|$)]]></match>
-        <fields><field id="fio" from="$match" ignoreCase="false" regex="\s([А-ЯІЇЄҐ][А-ЯІЇЄҐ'’\-]{2,}\s+[А-ЯІЇЄҐ][А-Яа-яІіЇїЄєҐґ'’\-]+\s+[А-ЯІЇЄҐ][А-Яа-яІіЇїЄєҐґ'’\-]+)\s*," group="1" default=""><transform type="trim"/></field><field id="ipn" from="$match" regex=",\s*(\d{10})\s*," group="1" default=""/><field id="eventDate" from="$eventDate.1"><transform type="dateFormat" format="dd.mm.yyyy"/></field><field id="basis" from="$match" regex="Підстава:\s*([^\r]+)" group="1" default=""><transform type="trim"/></field></fields>
-        <table><column id="fio" caption="ПІБ" value="$fio"/><column id="ipn" caption="ІПН" value="$ipn"/><column id="eventDate" caption="Вибуття" value="$eventDate"/><column id="basis" caption="Підстава" value="$basis"/></table>
-      </dataset>
-
-      <dataset id="departed-awol" caption="Самовільно залишили військову частину" commonColumnIds="foodRemovalDate" optional="true">
-        <scope><match ignoreCase="true" multiline="false"><![CDATA[(?:^|\r)\s*(?:\d+(?:\.\d+)*\.?\s*)?Яких\s+вважати\s+такими,\s*які\s+самовільно\s+залишили\s+військову\s+частину[\s\S]*$]]></match></scope>
+      <rule id="departed-awol" caption="Самовільно залишили військову частину" commonColumnIds="foodRemovalDate">
+        <scope><match ignoreCase="true" multiline="false"><![CDATA[(?:^|\r)\s*(?:\d+(?:\.\d+)*\.?\s*)?Яких\s+вважати\s+такими,\s*які\s+самовільно\s+залишили\s+військову\s+частину]]></match></scope>
         <match ignoreCase="false" multiline="false"><![CDATA[(?:^|\r)\s*[^\r]*[А-ЯІЇЄҐ][А-ЯІЇЄҐ'’\-]{2,}\s+[^\r,]+,(?:(?!Підстава:)[\s\S])*?як(?:ий|а)\s+з\s+\d{1,2}\s+[а-яіїєґ]+\s+\d{4}\s+року\s+самовільно\s+залиш(?:ив|ила)(?:(?!Підстава:)[\s\S])*?Підстава:\s*[^\r]*(?=\r|$)]]></match>
         <fields>
           <field id="fio" from="$match" ignoreCase="false" regex="\s([А-ЯІЇЄҐ][А-ЯІЇЄҐ'’\-]{2,}\s+[А-ЯІЇЄҐ][А-Яа-яІіЇїЄєҐґ'’\-]+\s+[А-ЯІЇЄҐ][А-Яа-яІіЇїЄєҐґ'’\-]+)\s*," group="1" default=""><transform type="trim"/></field><field id="ipn" from="$match" regex=",\s*(\d{10})\s*," group="1" default=""><transform type="trim"/></field>
           <field id="eventDate" from="$match" regex="як(?:ий|а|і)\s+з\s+(\d{1,2}\s+[а-яіїєґ]+\s+\d{4}\s+року)\s+самовільно" group="1" default=""><transform type="dateFormat" format="dd.mm.yyyy"/></field><field id="basis" from="$match" regex="Підстава:\s*([^\r]+)" group="1" default=""><transform type="trim"/></field>
         </fields>
         <table><column id="fio" caption="ПІБ" value="$fio"/><column id="ipn" caption="ІПН" value="$ipn"/><column id="eventDate" caption="Вибуття" value="$eventDate"/><column id="basis" caption="Підстава" value="$basis"/></table>
-      </dataset>
+      </rule>
 
       <!-- Пункты, в которых человек переводится из одного состояния
            отсутствия в другое: лечение -> отпуск, лечение -> лечение,
            самовольное оставление части -> арест и т. п. -->
-      <dataset id="status-changes" caption="Зміна статусів" optional="true">
+      <rule id="status-changes" caption="Зміна статусів" source="unclaimed">
         <match ignoreCase="false" multiline="false"><![CDATA[(?:^|\r)\s*[^\r]*[А-ЯІЇЄҐ][А-ЯІЇЄҐ'’\-]{2,}\s+[^\r,]+,(?:(?!Підстава:)[\s\S])*?(?:(?:як(?:ий|а)\s+перебува(?:в|ла)(?:(?!Підстава:)[\s\S])*?вважати\s+та(?:ким|кою),\s*що\s+вибу(?:в|ла))|(?:як(?:ий|а)\s+самовільно\s+залиш(?:ив|ила)\s+(?:військову\s+)?частину(?:(?!Підстава:)[\s\S])*?вважати\s+та(?:ким|кою),\s*як(?:ий|а)(?:(?!Підстава:)[\s\S])*?перебуває\s+під\s+арештом))(?:(?!Підстава:)[\s\S])*?Підстава:\s*[^\r]*(?=\r|$)]]></match>
         <fields>
           <field id="fio" from="$match" ignoreCase="false" regex="\s([А-ЯІЇЄҐ][А-ЯІЇЄҐ'’\-]{2,}\s+[А-ЯІЇЄҐ][А-Яа-яІіЇїЄєҐґ'’\-]+\s+[А-ЯІЇЄҐ][А-Яа-яІіЇїЄєҐґ'’\-]+)\s*," group="1" default=""><transform type="trim"/></field>
@@ -664,11 +911,11 @@
           </field>
         </fields>
         <table><column id="fio" caption="ПІБ" value="$fio"/><column id="ipn" caption="ІПН" value="$ipn"/><column id="previousStatus" caption="Попередній статус" value="$previousStatus"/><column id="newStatus" caption="Новий статус" value="$newStatus"/><column id="eventDate" caption="Вибуття" value="$eventDate"/><column id="durationDays" caption="На скільки" value="$durationDays"/><column id="eventTo" caption="По" value="$eventTo"/><column id="basis" caption="Підстава" value="$basis"/><column id="temporaryPersonnel" caption="Тимчасово прибулий склад" value="$temporaryPersonnel"/></table>
-      </dataset>
+      </rule>
 
       <!-- СЗЧ вследствие неприбытия из любого события либо прямого
            самовольного оставления другой воинской части. -->
-      <dataset id="awol-non-return" caption="СЗЧ" includeCommonColumns="false" optional="true">
+      <rule id="awol-non-return" caption="СЗЧ" source="unclaimed" includeCommonColumns="false">
         <match ignoreCase="false" multiline="false"><![CDATA[(?:^|\r)\s*[^\r]*[А-ЯІЇЄҐ][А-ЯІЇЄҐ'’\-]{2,}\s+[^\r,]+,(?:(?!Підстава:)[\s\S])*?(?:(?:як(?:ий|а)\s+\d{1,2}\s+[а-яіїєґ]+\s+\d{4}\s+року\s+не\s+поверну(?:вся|лася)(?:(?!Підстава:)[\s\S])*?до\s+військової\s+частини)|(?:вважати\s+та(?:ким|кою),\s*як(?:ий|а)\s+\d{1,2}\s+[а-яіїєґ]+\s+\d{4}\s+року\s*,?\s*самовільно\s+залиш(?:ив|ила)\s+військову\s+частину))(?:(?!Підстава:)[\s\S])*?Підстава:\s*[^\r]*(?=\r|$)]]></match>
         <fields>
           <field id="fio" from="$match" ignoreCase="false" regex="\s([А-ЯІЇЄҐ][А-ЯІЇЄҐ'’\-]{2,}\s+[А-ЯІЇЄҐ][А-Яа-яІіЇїЄєҐґ'’\-]+\s+[А-ЯІЇЄҐ][А-Яа-яІіЇїЄєҐґ'’\-]+)\s*," group="1" default=""><transform type="trim"/></field>
@@ -677,10 +924,10 @@
           <field id="basis" from="$match" regex="Підстава:\s*([^\r]+)" group="1" default=""><transform type="trim"/></field>
         </fields>
         <table><column id="fio" caption="ПІБ" value="$fio"/><column id="ipn" caption="ІПН" value="$ipn"/><column id="eventDate" caption="Вибуття" value="$eventDate"/><column id="basis" caption="Підстава" value="$basis"/></table>
-      </dataset>
+      </rule>
 
       <!-- Возвращение из СЗЧ с последующим направлением по алгоритму. -->
-      <dataset id="algorithm-assignment" caption="Командирування за алгоритмом" includeCommonColumns="false" optional="true">
+      <rule id="algorithm-assignment" caption="Командирування за алгоритмом" source="unclaimed" includeCommonColumns="false">
         <!-- Основание иногда состоит из нескольких Word-абзацев. Поэтому
              запись завершаем перед следующим нумерованным пунктом приказа,
              а не после первой строки «Підстава». -->
@@ -697,13 +944,13 @@
           <field id="basis" from="$match" regex="Підстава:\s*([\s\S]*?)\s*$" group="1" default=""><transform type="trim"/></field>
         </fields>
         <table><column id="fio" caption="ПІБ" value="$fio"/><column id="ipn" caption="ІПН" value="$ipn"/><column id="returnFrom" caption="Повернення з" value="$returnFrom"/><column id="returnTo" caption="Повернення до" value="$returnTo"/><column id="assignmentFrom" caption="Відрядження з" value="$assignmentFrom"/><column id="assignmentTo" caption="Відрядження до" value="$assignmentTo"/><column id="basis" caption="Підстава" value="$basis"/></table>
-      </dataset>
+      </rule>
 
       <!-- Военнослужащие, пропавшие без вести. Дата события может находиться
            в отдельном подзаголовке и распространяться на несколько пунктов. -->
-      <dataset id="missing-in-action" caption="Зниклі безвісти" flow="departure" optional="true">
+      <rule id="missing-in-action" caption="Зниклі безвісти" flow="departure">
         <scope>
-          <match ignoreCase="true" multiline="false"><![CDATA[(?:^|\r)\s*(?:\d+(?:\.\d+)+\.?\s*)?Яких\s+вважати\s+зниклими\s+безвісти\s*[:.]?\s*[\s\S]*?(?=\r\s*(?:\d+(?:\.\d+)*\.?\s*)?(?:З|Із|У|На|До|Яких|Вважати|Нижчепойменованих)\s+|\s*$)]]></match>
+          <match ignoreCase="true" multiline="false"><![CDATA[(?:^|\r)\s*(?:\d+(?:\.\d+)+\.?\s*)?Яких\s+вважати\s+зниклими\s+безвісти\s*[:.]?\s*]]></match>
           <context id="missingDate"><match ignoreCase="true" multiline="false"><![CDATA[(?:^|\r)\s*[Зз]\s+(\d{1,2}(?:[.\-/]\d{1,2}[.\-/]\d{2,4}|\s+[а-яіїєґ]+\s+\d{4}\s+року))\s*:[^\r]*(?:\r[\s\S]*?)(?=\r\s*[Зз]\s+\d{1,2}(?:[.\-/]\d{1,2}[.\-/]\d{2,4}|\s+[а-яіїєґ]+\s+\d{4}\s+року)\s*:|\s*$)]]></match></context>
         </scope>
         <match ignoreCase="true" multiline="false"><![CDATA[(?:^|\r)\s*(?:\d+(?:\.\d+)*\.?\s*)?(?:рядовий|рядового|солдат|солдата|старший\s+солдат|старшого\s+солдата|молодший\s+сержант|молодшого\s+сержанта|сержант|сержанта|старший\s+сержант|старшого\s+сержанта|головний\s+сержант|головного\s+сержанта|штаб-сержант|штаб-сержанта|майстер-сержант|майстер-сержанта|молодший\s+лейтенант|молодшого\s+лейтенанта|лейтенант|лейтенанта|старший\s+лейтенант|старшого\s+лейтенанта|капітан|капітана|майор|майора|підполковник|підполковника|полковник|полковника)\s+(?:(?!Підстава:)[\s\S])*?зник(?:лим|лою)?\s+безвісти(?:(?!Підстава:)[\s\S])*?Підстава:\s*[^\r]*(?=\r|$)]]></match>
@@ -723,14 +970,14 @@
           <column id="paymentSuspensionDate" caption="Призупинення виплат" value="$paymentSuspensionDate"/>
           <column id="basis" caption="Підстава" value="$basis"/>
         </table>
-      </dataset>
+      </rule>
 
       <!-- Смерть по причинам, не описанным как гибель при защите Отечества.
            Dataset расположен перед «Які загинули», чтобы последняя секция
            сохранила своё место в самом конце flow. -->
-      <dataset id="deceased" caption="Які померли" includeCommonColumns="false" optional="true">
+      <rule id="deceased" caption="Які померли" includeCommonColumns="false">
         <scope>
-          <match ignoreCase="true" multiline="false"><![CDATA[(?:^|\r)\s*(?:\d+(?:\.\d+)+\.?\s*)?Яких\s+вважати\s+померлими\s*\(загиблими\)\s*:[\s\S]*?(?=\r\s*(?:\d+(?:\.\d+)*\.?\s*)?(?:З|Із|У|На|До|Яких|Вважати)\s+|\s*$)]]></match>
+          <match ignoreCase="true" multiline="false"><![CDATA[(?:^|\r)\s*(?:\d+(?:\.\d+)+\.?\s*)?Яких\s+вважати\s+померлими\s*\(загиблими\)\s*:]]></match>
           <context id="deathDate"><match ignoreCase="true" multiline="false"><![CDATA[(?:^|\r)\s*(\d{1,2}(?:[.\-/]\d{1,2}[.\-/]\d{2,4}|\s+[а-яіїєґ]+\s+\d{4}\s+року))\s*:[\s\S]*]]></match></context>
         </scope>
         <match ignoreCase="true" multiline="false"><![CDATA[(?:^|\r)\s*(?:рядовий|рядового|солдат|солдата|старший\s+солдат|старшого\s+солдата|молодший\s+сержант|молодшого\s+сержанта|сержант|сержанта|старший\s+сержант|старшого\s+сержанта|головний\s+сержант|головного\s+сержанта|штаб-сержант|штаб-сержанта|майстер-сержант|майстер-сержанта|молодший\s+лейтенант|молодшого\s+лейтенанта|лейтенант|лейтенанта|старший\s+лейтенант|старшого\s+лейтенанта|капітан|капітана|майор|майора|підполковник|підполковника|полковник|полковника)\s+(?:(?!П(?:ід|ді)става:)[\s\S])*?(?:помер|померла|загину(?:в|ла))(?:(?!П(?:ід|ді)става:)[\s\S])*?П(?:ід|ді)става:\s*[^\r]*(?=\r|$)]]></match>
@@ -741,13 +988,13 @@
           <field id="basis" from="$match" regex="П(?:ід|ді)става:\s*([^\r]+)" group="1" default=""><transform type="trim"/></field>
         </fields>
         <table><column id="fio" caption="ПІБ" value="$fio"/><column id="ipn" caption="ІПН" value="$ipn"/><column id="eventDate" caption="Дата смерті" value="$eventDate"/><column id="basis" caption="Підстава" value="$basis"/></table>
-      </dataset>
+      </rule>
 
       <!-- Пункты о гибели обычно не имеют отдельного заголовка секции и
            содержат много последующих абзацев о семье и выплатах. Строку
            ограничиваем началом персонального пункта и его «Підстава».
            Dataset намеренно расположен последним в итоговом flow. -->
-      <dataset id="killed-in-action" caption="Які загинули" includeCommonColumns="false" optional="true">
+      <rule id="killed-in-action" caption="Які загинули" source="unclaimed" includeCommonColumns="false">
         <match ignoreCase="true" multiline="false"><![CDATA[(?:^|\r)\s*(?:\d+(?:\.\d+)*\.?\s*)?(?:рядовий|рядового|солдат|солдата|старший\s+солдат|старшого\s+солдата|молодший\s+сержант|молодшого\s+сержанта|сержант|сержанта|старший\s+сержант|старшого\s+сержанта|головний\s+сержант|головного\s+сержанта|штаб-сержант|штаб-сержанта|майстер-сержант|майстер-сержанта|лейтенант|лейтенанта|старший\s+лейтенант|старшого\s+лейтенанта|капітан|капітана|майор|майора|підполковник|підполковника|полковник|полковника)\s+(?:(?!Підстава:)[\s\S])*?(?:загину(?:в|ла)|загибеллю)(?:(?!Підстава:)[\s\S])*?Підстава:\s*[^\r]*(?=\r|$)]]></match>
         <fields>
           <field id="fio" from="$match" ignoreCase="true" regex="(?:рядовий|рядового|солдат|солдата|старший\s+солдат|старшого\s+солдата|молодший\s+сержант|молодшого\s+сержанта|сержант|сержанта|старший\s+сержант|старшого\s+сержанта|головний\s+сержант|головного\s+сержанта|штаб-сержант|штаб-сержанта|майстер-сержант|майстер-сержанта|лейтенант|лейтенанта|старший\s+лейтенант|старшого\s+лейтенанта|капітан|капітана|майор|майора|підполковник|підполковника|полковник|полковника)\s+([А-ЯІЇЄҐ][А-ЯІЇЄҐ'’\-]+\s+[^,\r]+)\s*," group="1" default=""><transform type="trim"/></field>
@@ -757,7 +1004,8 @@
           <field id="basis" from="$match" regex="Підстава:\s*([^\r]+)" group="1" default=""><transform type="trim"/></field>
         </fields>
         <table><column id="fio" caption="ПІБ" value="$fio"/><column id="ipn" caption="ІПН" value="$ipn"/><column id="eventDate" caption="Дата загибелі" value="$eventDate"/><column id="exclusionDate" caption="Виключення зі списків" value="$exclusionDate"/><column id="basis" caption="Підстава" value="$basis"/></table>
-      </dataset>
+      </rule>
+      </rules>
 
     </pipeline>
   </pipelines>
