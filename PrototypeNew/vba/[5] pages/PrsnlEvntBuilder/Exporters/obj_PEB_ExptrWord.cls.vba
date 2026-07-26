@@ -59,8 +59,10 @@ Private Const WORD_ALIAS_ORDER_NO As String = "OrderNo"
 Private Const WORD_ALIAS_INCOMING_DATE_SHORT As String = "IncomingDateShort"
 Private Const WORD_ALIAS_DOC_DATE_SHORT As String = "DocDateShort"
 Private Const WORD_ALIAS_DATE_FROM_SHORT As String = "DateFromShort"
+Private Const WORD_ALIAS_EFFECTIVE_RETURN_DATE_SHORT As String = "EffectiveReturnDateShort"
 Private Const WORD_ALIAS_VACATION_TICKET_DATE_SHORT As String = "VacationTicketDateShort"
 Private Const WORD_ALIAS_VLK_DATE_SHORT As String = "VlkDateShort"
+Private Const WORD_GROUP_BOOKMARK_PREFIX As String = "PEG_"
 
 ' DateTo отсутствует в draft-форме: для частичной ежегодной отпуска экспортёр
 ' вычисляет его из DateFrom + DurationDays - 1 и добавляет в контекст под этим
@@ -76,6 +78,7 @@ Private Const WORD_ALIAS_VACATION_DATES_SAME_MONTH As String = "VacationDatesSam
 Private Const WORD_ALIAS_VACATION_DATES_SAME_YEAR As String = "VacationDatesSameYear"
 Private Const WORD_ALIAS_ENROLL_TO_FOOD_SUPPORT_DATE As String = "EnrollToFoodSupportDateShort"
 Private Const WORD_ALIAS_REMOVE_FROM_FOOD_SUPPORT_DATE As String = "RemoveFromFoodSupportDateShort"
+Private Const WORD_ALIAS_REQUIRES_FOOD_SUPPORT_CHANGE As String = "RequiresFoodSupportChange"
 Private Const WORD_ALIAS_PREV_VACATION_TICKET_NO As String = "PrevVacationTicketNo"
 Private Const WORD_ALIAS_PREV_VACATION_TICKET_DATE_SHORT As String = "PrevVacationTicketDateShort"
 
@@ -203,8 +206,11 @@ Public Function Export( _
     Dim ignoredLatestMovementRecord As Object
     Dim builderData As obj_PrsnlEvntBuilderData
     Dim validationEnabled As Boolean
-    Dim groupingHospitalShort As String
-    Dim groupingDateShort As String
+    Dim hasGrouping As Boolean
+    Dim groupByText As String
+    Dim groupOrderText As String
+    Dim groupKeyText As String
+    Dim groupHeaderText As String
     Dim usePreparedPreview As Boolean
 
     If m_IsDisposed Then
@@ -253,6 +259,8 @@ Public Function Export( _
             previewText) Then Exit Function
     End If
     If Not private_TrySetContextText(context, CONTEXT_WORD_PREVIEW_TEXT, previewText) Then Exit Function
+    If Not m_TemplateParser.TryGetGroupingDefinition( _
+        templateId, hasGrouping, groupByText, groupOrderText) Then Exit Function
 
     ' CTRL+3 is the preview action. The dedicated button/CTRL+4 passes
     ' WriteToWord=True and persists the same rendered text in the document.
@@ -266,21 +274,22 @@ Public Function Export( _
             VBA.MsgBox "PrototypeNew: WORD export requires a non-empty IPN to create a record bookmark.", VBA.vbExclamation, "PrototypeNew / WORD export"
             Exit Function
         End If
-        If private_IsHospitalGroupingTemplate(templateId) Then
-            ' Метаданные нужны только двум больничным секциям. Значения берём
-            ' из уже обогащённого WORD-контекста. Как и WORD-шаблон FromHospital,
-            ' при пустом поле "З" используем дату входящего документа.
+        If hasGrouping Then
             If Not private_TryGetMainTableValue( _
-                sourceTable, SOURCE_ALIAS_HOSPITAL_SHORT, groupingHospitalShort) Then Exit Function
-            If Not private_TryGetMainTableValue( _
-                sourceTable, WORD_ALIAS_DATE_FROM_SHORT, groupingDateShort) Then Exit Function
-            If VBA.Len(VBA.Trim$(groupingDateShort)) = 0 Then
-                If Not private_TryGetMainTableValue( _
-                    sourceTable, WORD_ALIAS_INCOMING_DATE_SHORT, groupingDateShort) Then Exit Function
+                sourceTable, groupByText, groupKeyText) Then Exit Function
+            groupKeyText = VBA.Trim$(groupKeyText)
+            If VBA.Len(groupKeyText) = 0 Then
+                VBA.MsgBox "PrototypeNew: grouped WORD template '" & templateId & _
+                    "' requires a non-empty value [" & groupByText & "].", _
+                    VBA.vbExclamation, "PrototypeNew / WORD export"
+                Exit Function
             End If
+            If Not m_TemplateParser.TryRenderGroupHeaderForTemplateId( _
+                templateId, sectionTypeText, sourceTables, namedCollections, _
+                groupHeaderText) Then Exit Function
         End If
         If Not private_TryAppendBeforeWordEndAnchor( _
-            templateId, recordIpn, previewText, groupingHospitalShort, groupingDateShort, _
+            templateId, recordIpn, previewText, groupKeyText, groupOrderText, groupHeaderText, _
             private_GetContextText(context, CONTEXT_MANUAL_ORDER_NO)) Then Exit Function
     End If
 
@@ -291,8 +300,9 @@ Private Function private_TryAppendBeforeWordEndAnchor( _
     ByVal templateId As String, _
     ByVal recordIpn As String, _
     ByVal renderedText As String, _
-    Optional ByVal groupingHospitalShort As String = "", _
-    Optional ByVal groupingDateShort As String = "", _
+    Optional ByVal groupKeyText As String = "", _
+    Optional ByVal groupOrderText As String = "", _
+    Optional ByVal groupHeaderText As String = "", _
     Optional ByVal orderNo As String = "" _
 ) As Boolean
     Dim targetPath As String
@@ -311,8 +321,9 @@ Private Function private_TryAppendBeforeWordEndAnchor( _
     Dim documentOpened As Boolean
     Dim errorDescription As String
     Dim bookmarkName As String
-    Dim metadataBookmarkName As String
-    Dim metadataRange As Object
+    Dim groupBookmarkName As String
+    Dim groupRange As Object
+    Dim groupStart As Long
     Dim undoAction As obj_PEB_ExportUndoAction
     Dim undoActionReady As Boolean
 
@@ -350,9 +361,12 @@ Private Function private_TryAppendBeforeWordEndAnchor( _
         VBA.MsgBox "PrototypeNew: failed to build a WORD bookmark for IPN '" & recordIpn & "'.", VBA.vbExclamation, "PrototypeNew / WORD export"
         Exit Function
     End If
-    If private_IsHospitalGroupingTemplate(templateId) Then
-        metadataBookmarkName = private_BuildGroupingMetadataBookmarkName( _
-            groupingHospitalShort, groupingDateShort)
+    If VBA.Len(VBA.Trim$(groupKeyText)) > 0 Then
+        groupBookmarkName = private_BuildGroupBookmarkName( _
+            templateId, groupKeyText, groupOrderText)
+        If VBA.Len(groupBookmarkName) = 0 Then Exit Function
+        groupHeaderText = private_NormalizeWordParagraphBreaks( _
+            private_StripPreviewColorMarkers(groupHeaderText))
     End If
 
     If Not rt_PEB_WordExportRuntime.fn_TryAcquireWordDocument( _
@@ -373,15 +387,30 @@ Private Function private_TryAppendBeforeWordEndAnchor( _
         VBA.MsgBox "PrototypeNew: failed to create a unique WORD bookmark for IPN '" & recordIpn & "'.", VBA.vbExclamation, "PrototypeNew / WORD export"
         GoTo CleanFail
     End If
-    If VBA.Len(metadataBookmarkName) > 0 Then
-        metadataBookmarkName = private_BuildUniqueBookmarkName(wordDoc, metadataBookmarkName)
-        If VBA.Len(metadataBookmarkName) = 0 Then GoTo CleanFail
+    insertedStart = endRange.Start
+    If VBA.Len(groupBookmarkName) > 0 Then
+        If wordDoc.Bookmarks.Exists(groupBookmarkName) Then
+            Set groupRange = wordDoc.Bookmarks(groupBookmarkName).Range
+            If groupRange.Start < beginRange.End Or groupRange.End > endRange.Start Then
+                VBA.MsgBox "PrototypeNew: WORD group bookmark is outside its section: " & _
+                    groupBookmarkName, VBA.vbExclamation, "PrototypeNew / WORD export"
+                GoTo CleanFail
+            End If
+            groupStart = groupRange.Start
+            insertedStart = groupRange.End
+            wordDoc.Bookmarks(groupBookmarkName).Delete
+        Else
+            If Not private_TryFindGroupInsertPosition( _
+                wordDoc, templateId, groupBookmarkName, groupOrderText, _
+                beginRange.End, endRange.Start, insertedStart) Then GoTo CleanFail
+            plainRenderedText = groupHeaderText & plainRenderedText
+            groupStart = insertedStart
+        End If
     End If
 
-    ' Append the rendered text exactly as produced by the export template.
-    ' Separators between records must be defined explicitly in that template.
-    ' Existing records and their bookmarks are left untouched.
-    insertedStart = endRange.Start
+    ' В плоском режиме текст по-прежнему вставляется непосредственно перед End.
+    ' В grouped-режиме заголовок создаётся один раз, а записи дописываются внутрь
+    ' закладки своей группы.
     Set insertRange = wordDoc.Range(insertedStart, insertedStart)
     insertRange.Text = plainRenderedText
     insertedEnd = insertedStart + VBA.Len(plainRenderedText)
@@ -390,11 +419,9 @@ Private Function private_TryAppendBeforeWordEndAnchor( _
     ' Do not inherit highlight from a neighbouring anchor or an older export.
     insertRange.HighlightColorIndex = 0
     wordDoc.Bookmarks.Add bookmarkName, insertRange
-    If VBA.Len(metadataBookmarkName) > 0 Then
-        ' PEM-закладка не добавляет текст: она охватывает первый уже существующий
-        ' символ пункта. Ненулевая длина стабильно сохраняется самим Word.
-        Set metadataRange = wordDoc.Range(insertedStart, insertedStart + 1)
-        wordDoc.Bookmarks.Add metadataBookmarkName, metadataRange
+    If VBA.Len(groupBookmarkName) > 0 Then
+        Set groupRange = wordDoc.Range(groupStart, insertedEnd)
+        wordDoc.Bookmarks.Add groupBookmarkName, groupRange
     End If
 
     ' Word расширяет предыдущую PEB-закладку, когда новый текст вставляется
@@ -412,7 +439,8 @@ Private Function private_TryAppendBeforeWordEndAnchor( _
     ' но не удерживает Word Document/Range после закрытия файла.
     Set undoAction = New obj_PEB_ExportUndoAction
     undoActionReady = undoAction.InitializeWord( _
-        targetPath, bookmarkName, insertedStart, plainRenderedText, metadataBookmarkName)
+        targetPath, bookmarkName, insertedStart, plainRenderedText, _
+        VBA.vbNullString, groupBookmarkName, groupStart)
     If Not undoActionReady Then GoTo CleanFail
 
     wordDoc.Save
@@ -957,6 +985,80 @@ Private Function private_BuildRecordBookmarkName(ByVal templateId As String, ByV
     private_BuildRecordBookmarkName = WORD_RECORD_BOOKMARK_PREFIX & safeTemplateId & "_" & safeIpn
 End Function
 
+Private Function private_BuildGroupBookmarkName( _
+    ByVal templateId As String, _
+    ByVal groupKeyText As String, _
+    ByVal groupOrderText As String _
+) As String
+    Dim templatePart As String
+    Dim keyPart As String
+    Dim dateParts As Variant
+
+    templatePart = private_NormalizeBookmarkPart(templateId)
+    groupKeyText = VBA.Trim$(groupKeyText)
+    Select Case VBA.LCase$(VBA.Trim$(groupOrderText))
+        Case "date"
+            dateParts = VBA.Split(groupKeyText, ".")
+            If UBound(dateParts) <> 2 Then
+                VBA.MsgBox "PrototypeNew: groupOrder='date' expects DD.MM.YYYY, got: " & _
+                    groupKeyText, VBA.vbExclamation, "PrototypeNew / WORD export"
+                Exit Function
+            End If
+            keyPart = VBA.CStr(dateParts(2)) & _
+                VBA.Right$("0" & VBA.CStr(dateParts(1)), 2) & _
+                VBA.Right$("0" & VBA.CStr(dateParts(0)), 2)
+        Case "text", "none"
+            keyPart = private_NormalizeBookmarkPart( _
+                VBA.LCase$(groupKeyText))
+        Case Else
+            Exit Function
+    End Select
+    private_BuildGroupBookmarkName = WORD_GROUP_BOOKMARK_PREFIX & _
+        templatePart & "_" & keyPart
+    If VBA.Len(private_BuildGroupBookmarkName) > WORD_BOOKMARK_MAX_LENGTH Then
+        VBA.MsgBox "PrototypeNew: WORD group bookmark exceeds 40 characters: " & _
+            private_BuildGroupBookmarkName, VBA.vbExclamation, _
+            "PrototypeNew / WORD export"
+        private_BuildGroupBookmarkName = VBA.vbNullString
+    End If
+End Function
+
+Private Function private_TryFindGroupInsertPosition( _
+    ByVal wordDoc As Object, _
+    ByVal templateId As String, _
+    ByVal newGroupBookmarkName As String, _
+    ByVal groupOrderText As String, _
+    ByVal sectionStart As Long, _
+    ByVal sectionEnd As Long, _
+    ByRef outInsertPosition As Long _
+) As Boolean
+    Dim bookmarkObj As Object
+    Dim bookmarkName As String
+    Dim prefixText As String
+
+    outInsertPosition = sectionEnd
+    If wordDoc Is Nothing Then Exit Function
+    If VBA.LCase$(VBA.Trim$(groupOrderText)) = "none" Then
+        private_TryFindGroupInsertPosition = True
+        Exit Function
+    End If
+    prefixText = VBA.LCase$(WORD_GROUP_BOOKMARK_PREFIX & _
+        private_NormalizeBookmarkPart(templateId) & "_")
+    For Each bookmarkObj In wordDoc.Bookmarks
+        bookmarkName = VBA.CStr(bookmarkObj.Name)
+        If VBA.Left$(VBA.LCase$(bookmarkName), VBA.Len(prefixText)) <> prefixText Then _
+            GoTo ContinueBookmark
+        If bookmarkObj.Range.Start < sectionStart Or bookmarkObj.Range.End > sectionEnd Then _
+            GoTo ContinueBookmark
+        If VBA.StrComp(bookmarkName, newGroupBookmarkName, VBA.vbTextCompare) > 0 Then
+            If bookmarkObj.Range.Start < outInsertPosition Then _
+                outInsertPosition = bookmarkObj.Range.Start
+        End If
+ContinueBookmark:
+    Next bookmarkObj
+    private_TryFindGroupInsertPosition = True
+End Function
+
 Private Function private_BuildGroupingMetadataBookmarkName( _
     ByVal hospitalShortText As String, _
     ByVal dateShortText As String _
@@ -1243,6 +1345,7 @@ Private Function private_TryEnrichMainSourceTableForWord( _
     Dim removeFromFoodSupportDateText As String
     Dim enrollToFoodSupportDateText As String
     Dim foodSupportDateValue As Date
+    Dim requiresFoodSupportChange As Boolean
     Dim vacationTotalDays As Long
     Dim vacationDays As Long
     Dim additionalWayDays As Long
@@ -1393,6 +1496,15 @@ Private Function private_TryEnrichMainSourceTableForWord( _
     If Not private_TryUpsertShortDateValue(sourceTable, SOURCE_ALIAS_DATE_FROM, WORD_ALIAS_DATE_FROM_SHORT, dateFromText) Then Exit Function
     If Not private_TryUpsertShortDateValue(sourceTable, SOURCE_ALIAS_VACATION_TICKET_DATE, WORD_ALIAS_VACATION_TICKET_DATE_SHORT, vacationTicketDateText) Then Exit Function
     If Not private_TryUpsertShortDateValue(sourceTable, SOURCE_ALIAS_VLK_DATE, WORD_ALIAS_VLK_DATE_SHORT, vlkDateText) Then Exit Function
+    If VBA.Len(VBA.Trim$(dateFromText)) > 0 Then
+        If Not private_TryUpsertShortDateValue( _
+            sourceTable, SOURCE_ALIAS_DATE_FROM, _
+            WORD_ALIAS_EFFECTIVE_RETURN_DATE_SHORT, dateFromText) Then Exit Function
+    Else
+        If Not private_TryUpsertShortDateValue( _
+            sourceTable, SOURCE_ALIAS_INCOMING_DATE, _
+            WORD_ALIAS_EFFECTIVE_RETURN_DATE_SHORT, incomingDateText) Then Exit Function
+    End If
 
     If Not private_TryResolveDateByRawText(dateFromText, hasDateFrom, dateFromDate) Then Exit Function
 
@@ -1418,6 +1530,12 @@ Private Function private_TryEnrichMainSourceTableForWord( _
     ' включительно: DateFrom + VacationTotalDays - 1. Окончательное отображение
     ' даты (месяц словами, "року", NBSP) по-прежнему задаёт XML-шаблон.
     Set builderData = New obj_PrsnlEvntBuilderData
+    requiresFoodSupportChange = private_RequiresFoodSupportChange( _
+        sectionTypeText, hospitalShortText, builderData)
+    If Not private_TryUpsertMainTableValue( _
+        sourceTable, WORD_ALIAS_REQUIRES_FOOD_SUPPORT_CHANGE, _
+        VBA.CStr(requiresFoodSupportChange)) Then Exit Function
+
     If builderData.UsesMovementVacationDestination(sectionTypeText) Then
         If hasDateFrom Then
             If vacationTotalDays > 0 Then
@@ -1435,25 +1553,58 @@ Private Function private_TryEnrichMainSourceTableForWord( _
         End If
     End If
 
-    ' WORD и Movement используют один helper: max(OrderDate + 1, DateFrom).
-    If Not m_ExporterCfgDataProvider.CommonData.TryCalculateFoodSupportDate( _
-        hasDateFrom, dateFromDate, foodSupportDateValue) Then
-        VBA.MsgBox "PrototypeNew: cannot calculate food-support date because both order date and DateFrom are unavailable.", _
-            VBA.vbExclamation, "PrototypeNew / WORD export"
-        Exit Function
-    End If
+    If requiresFoodSupportChange Then
+        ' WORD и Movement используют один helper: max(OrderDate + 1, DateFrom).
+        If Not m_ExporterCfgDataProvider.CommonData.TryCalculateFoodSupportDate( _
+            hasDateFrom, dateFromDate, foodSupportDateValue) Then
+            VBA.MsgBox "PrototypeNew: cannot calculate food-support date because both order date and DateFrom are unavailable.", _
+                VBA.vbExclamation, "PrototypeNew / WORD export"
+            Exit Function
+        End If
 
-    removeFromFoodSupportDateText = VBA.Format$(foodSupportDateValue, WORD_SHORT_DATE_STORAGE_FORMAT)
-    enrollToFoodSupportDateText = removeFromFoodSupportDateText
+        removeFromFoodSupportDateText = VBA.Format$( _
+            foodSupportDateValue, WORD_SHORT_DATE_STORAGE_FORMAT)
+        enrollToFoodSupportDateText = removeFromFoodSupportDateText
 
-    If VBA.Len(VBA.Trim$(removeFromFoodSupportDateText)) > 0 Then
-        If Not private_TryUpsertMainTableValue(sourceTable, WORD_ALIAS_REMOVE_FROM_FOOD_SUPPORT_DATE, removeFromFoodSupportDateText) Then Exit Function
-    End If
-    If VBA.Len(VBA.Trim$(enrollToFoodSupportDateText)) > 0 Then
-        If Not private_TryUpsertMainTableValue(sourceTable, WORD_ALIAS_ENROLL_TO_FOOD_SUPPORT_DATE, enrollToFoodSupportDateText) Then Exit Function
+        If VBA.Len(VBA.Trim$(removeFromFoodSupportDateText)) > 0 Then
+            If Not private_TryUpsertMainTableValue( _
+                sourceTable, WORD_ALIAS_REMOVE_FROM_FOOD_SUPPORT_DATE, _
+                removeFromFoodSupportDateText) Then Exit Function
+        End If
+        If VBA.Len(VBA.Trim$(enrollToFoodSupportDateText)) > 0 Then
+            If Not private_TryUpsertMainTableValue( _
+                sourceTable, WORD_ALIAS_ENROLL_TO_FOOD_SUPPORT_DATE, _
+                enrollToFoodSupportDateText) Then Exit Function
+        End If
     End If
 
     private_TryEnrichMainSourceTableForWord = True
+End Function
+
+Private Function private_RequiresFoodSupportChange( _
+    ByVal sectionTypeText As String, _
+    ByVal hospitalShortText As String, _
+    ByVal builderData As obj_PrsnlEvntBuilderData _
+) As Boolean
+    Dim normalizedSectionType As String
+    Dim normalizedHospital As String
+
+    If builderData Is Nothing Then Exit Function
+    normalizedSectionType = VBA.LCase$(VBA.Trim$(sectionTypeText))
+    Select Case normalizedSectionType
+        Case VBA.LCase$(builderData.SectionTypeTransferMedicalCompanyToTreatment), _
+             VBA.LCase$(builderData.SectionTypeTransferMedicalCompanyToTreatmentVacation), _
+             VBA.LCase$(builderData.SectionTypeTransferMedicalCompanyTreatmentToTreatmentVacation), _
+             VBA.LCase$(builderData.SectionTypeTransferMedicalCompanyTreatmentVacationToTreatment)
+            Exit Function
+    End Select
+
+    normalizedHospital = VBA.LCase$(VBA.Trim$(hospitalShortText))
+    If VBA.InStr(1, normalizedHospital, "медичн", VBA.vbTextCompare) > 0 And _
+        VBA.InStr(1, normalizedHospital, "рот", VBA.vbTextCompare) > 0 And _
+        VBA.InStr(1, normalizedHospital, "а7383", VBA.vbTextCompare) > 0 Then Exit Function
+
+    private_RequiresFoodSupportChange = True
 End Function
 
 Private Function private_TryEnrichPreviousVacationTicketForWord( _

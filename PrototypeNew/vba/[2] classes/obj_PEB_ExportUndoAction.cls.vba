@@ -30,6 +30,8 @@ Private m_InsertedBeforeFormula As Variant
 Private m_WordDocumentPath As String
 Private m_WordBookmarkName As String
 Private m_WordMetadataBookmarkName As String
+Private m_WordGroupBookmarkName As String
+Private m_WordGroupStart As Long
 Private m_WordInsertedStart As Long
 Private m_WordInsertedText As String
 
@@ -106,13 +108,17 @@ Public Function InitializeWord( _
     ByVal bookmarkName As String, _
     ByVal insertedStart As Long, _
     ByVal insertedText As String, _
-    Optional ByVal metadataBookmarkName As String = VBA.vbNullString _
+    Optional ByVal metadataBookmarkName As String = VBA.vbNullString, _
+    Optional ByVal groupBookmarkName As String = VBA.vbNullString, _
+    Optional ByVal groupStart As Long = 0 _
 ) As Boolean
     m_Kind = KIND_WORD
     m_Caption = "Undo last WORD export"
     m_WordDocumentPath = VBA.Trim$(documentPath)
     m_WordBookmarkName = VBA.Trim$(bookmarkName)
     m_WordMetadataBookmarkName = VBA.Trim$(metadataBookmarkName)
+    m_WordGroupBookmarkName = VBA.Trim$(groupBookmarkName)
+    m_WordGroupStart = groupStart
     m_WordInsertedStart = insertedStart
     m_WordInsertedText = insertedText
 
@@ -310,6 +316,7 @@ Private Function private_ApplyWord(ByVal isUndo As Boolean, ByRef outErrorText A
     Dim wordDoc As Object
     Dim targetRange As Object
     Dim documentOpened As Boolean
+    Dim groupStart As Long
 
     On Error GoTo EH
     outErrorText = VBA.vbNullString
@@ -335,11 +342,22 @@ Private Function private_ApplyWord(ByVal isUndo As Boolean, ByRef outErrorText A
             outErrorText = "WORD document structure changed; recorded insertion point is unavailable."
             GoTo CleanFail
         End If
+        groupStart = m_WordGroupStart
+        If VBA.Len(m_WordGroupBookmarkName) > 0 And _
+            wordDoc.Bookmarks.Exists(m_WordGroupBookmarkName) Then
+            groupStart = wordDoc.Bookmarks(m_WordGroupBookmarkName).Range.Start
+            wordDoc.Bookmarks(m_WordGroupBookmarkName).Delete
+        End If
         Set targetRange = wordDoc.Range(m_WordInsertedStart, m_WordInsertedStart)
         targetRange.Text = m_WordInsertedText
         Set targetRange = wordDoc.Range(m_WordInsertedStart, m_WordInsertedStart + VBA.Len(m_WordInsertedText))
         targetRange.HighlightColorIndex = 0
         wordDoc.Bookmarks.Add m_WordBookmarkName, targetRange
+        If VBA.Len(m_WordGroupBookmarkName) > 0 Then
+            Set targetRange = wordDoc.Range( _
+                groupStart, m_WordInsertedStart + VBA.Len(m_WordInsertedText))
+            wordDoc.Bookmarks.Add m_WordGroupBookmarkName, targetRange
+        End If
         If VBA.Len(m_WordMetadataBookmarkName) > 0 And VBA.Len(m_WordInsertedText) > 0 Then
             ' Grouping metadata bookmark охватывает первый символ той же вставки.
             ' Основной delete удаляет его автоматически; redo восстанавливает.
