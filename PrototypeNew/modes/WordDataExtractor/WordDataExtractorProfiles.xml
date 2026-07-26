@@ -13,4 +13,17 @@
     <item key="Personnel.Sheet[StateMain].Map[FIO]" value="Прізвище, ім’я, по батькові"/>
     <item key="Personnel.Sheet[StateMain].Map[IPN]" value="ІПН"/>
   </profile>
+
+  <profile id="nutrition-counts" caption="WORD: чисельність котлового забезпечення">
+    <item attr="#" key="Profile.Name" value="WORD: чисельність котлового забезпечення"/>
+    <item key="WordDataExtractor.RulesFile" value="modes\WordDataExtractor\WordNutritionCountsRules.xml"/>
+    <item key="WordDataExtractor.Pipeline" value="nutrition-counts"/>
+    <item key="WordDataExtractor.DocumentDir" value="C:\WORK Alexandr Bondarenko\НАКАЗИ\Усі\21.07.2025-01.09.2025"/>
+    <!-- <item key="WordDataExtractor.DocumentDir" value="C:\WORK Alexandr Bondarenko\НАКАЗИ\Усі\01.07.2026+"/> -->
+    <item key="WordDataExtractor.DocumentFilename" value="{yyyy}-{mm}-{dd} №*"/>
+    <item key="WordDataExtractor.DocumentPathResolver" value="ResolveAllByDmyPattern"/>
+    <item key="WordDataExtractor.DocumentPathResolverArgs" value="order=asc;dateFrom=22.07.2025;dateTo=01.09.2025"/>
+    <!-- <item key="WordDataExtractor.DocumentPathResolverArgs" value="order=asc;dateFrom=01.07.2026;dateTo=21.07.2026"/> -->
+    <item key="WordDataExtractor.DocumentDateColumnCaption" value="дата"/>
+  </profile>
 </profiles>

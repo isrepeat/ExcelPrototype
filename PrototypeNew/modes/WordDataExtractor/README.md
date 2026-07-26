@@ -8,6 +8,35 @@
 <item key="WordDataExtractor.Pipeline" value="personnel-order"/>
 ```
 
+Профиль `nutrition-counts` использует отдельный
+`WordNutritionCountsRules.xml`. Он читает настроенный Word-документ целиком,
+находит внутри него блок котлового обеспечения и выводит одну строку с
+четырьмя показателями.
+
+Для пакетной обработки профиль использует DMY-шаблон:
+
+```xml
+<item key="WordDataExtractor.DocumentFilename"
+      value="{yyyy}-{mm}-{dd} №*"/>
+<item key="WordDataExtractor.DocumentPathResolver"
+      value="ResolveAllByDmyPattern"/>
+<item key="WordDataExtractor.DocumentPathResolverArgs"
+      value="order=asc;dateFrom=21.07.2025;dateTo=25.07.2025"/>
+<item key="WordDataExtractor.DocumentDateColumnCaption"
+      value="дата"/>
+```
+
+Контроллер разрешает все подходящие файлы, выполняет один pipeline для каждого
+документа и объединяет таблицы с одинаковым `SourceAlias`. Если задан
+`DocumentDateColumnCaption`, первой колонкой добавляется дата, извлечённая из
+имени файла. Если optional dataset не создал строк, пакетный режим сохраняет
+для документа строку с датой и пустыми значениями остальных колонок только
+при явном `<table emitEmptyRow="true">` в rules. Без этого атрибута пустой
+dataset остаётся без строк. Rules по-прежнему описывают содержимое одного
+документа.
+`dateFrom` и `dateTo` включаются в диапазон; поддерживаются форматы
+`dd.mm.yyyy` и `yyyy-mm-dd`.
+
 ## Модель обработки
 
 1. `pipeline` — один сценарий обработки документа.

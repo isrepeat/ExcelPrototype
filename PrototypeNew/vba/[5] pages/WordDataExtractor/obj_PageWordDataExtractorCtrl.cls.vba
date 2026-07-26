@@ -11,6 +11,9 @@ Private m_Page As obj_IPage
 Private m_RulesPath As String
 Private m_PipelineId As String
 Private m_DocumentPath As String
+Private m_DocumentPathPattern As String
+Private m_DocumentPaths As Collection
+Private m_DocumentDateColumnCaption As String
 Private m_TransformerClassName As String
 Private m_ConfigTable As obj_ConfigTable
 Private m_AllTables As Collection
@@ -42,6 +45,7 @@ End Function
 Public Sub Dispose()
     Set m_ConfigTable = Nothing
     Set m_AllTables = Nothing
+    Set m_DocumentPaths = Nothing
     Set m_Page = Nothing
 End Sub
 
@@ -54,6 +58,8 @@ Public Function UpdateData(ByVal configControl As obj_ConfigControlVM) As Boolea
     Dim wordDataExtractorCfgParser As obj_WordDataExtractorCfgParser
     Dim documentDir As String
     Dim documentFilename As String
+    Dim documentPathResolver As String
+    Dim documentPathResolverArgs As String
     m_IsReady = False
     If configControl Is Nothing Then Exit Function
     If Not configControl.TryBuildConfigTableFromRendered(configTable) Then Exit Function
@@ -93,12 +99,53 @@ Public Function UpdateData(ByVal configControl As obj_ConfigControlVM) As Boolea
         End If
     End If
     m_DocumentPath = private_EnsureDefaultDocumentExtension(m_DocumentPath)
+    m_DocumentPathPattern = m_DocumentPath
+    documentPathResolver = VBA.Trim$( _
+        wordDataExtractorCfgParser.GetOptionalValue( _
+            "WordDataExtractor.DocumentPathResolver"))
+    documentPathResolverArgs = VBA.Trim$( _
+        wordDataExtractorCfgParser.GetOptionalValue( _
+            "WordDataExtractor.DocumentPathResolverArgs"))
+    Set m_DocumentPaths = Nothing
+    If VBA.Len(documentPathResolver) = 0 Then
+        Set m_DocumentPaths = New Collection
+        If VBA.Len(m_DocumentPath) > 0 Then _
+            m_DocumentPaths.Add m_DocumentPath
+    ElseIf VBA.StrComp(documentPathResolver, _
+        "ResolveAllByDmyPattern", VBA.vbTextCompare) = 0 Then
+        On Error GoTo EH_RESOLVE_DOCUMENTS
+        Set m_DocumentPaths = _
+            ex_SourceResolver.fn_ResolveAllByDmyPattern( _
+                m_DocumentPathPattern, documentPathResolverArgs)
+        On Error GoTo 0
+    Else
+        private_Error "Не поддерживается WordDataExtractor.DocumentPathResolver: " & _
+            documentPathResolver
+        Exit Function
+    End If
+    If m_DocumentPaths Is Nothing Then
+        private_Error "Resolver документов не вернул коллекцию файлов."
+        Exit Function
+    End If
+    If m_DocumentPaths.Count = 0 Then
+        private_Error "Resolver документов не нашёл ни одного файла."
+        Exit Function
+    End If
+    m_DocumentDateColumnCaption = VBA.Trim$( _
+        wordDataExtractorCfgParser.GetOptionalValue( _
+            "WordDataExtractor.DocumentDateColumnCaption"))
     m_TransformerClassName = _
         wordDataExtractorCfgParser.GetOptionalValue( _
             "WordDataExtractor.TransformerClass")
     Set m_ConfigTable = configTable
     m_IsReady = True
     UpdateData = True
+    Exit Function
+EH_RESOLVE_DOCUMENTS:
+    private_Error "Не удалось разрешить список Word-документов: " & _
+        Err.Description
+    Err.Clear
+    On Error GoTo 0
 End Function
 
 Private Function private_EnsureDefaultDocumentExtension( _
@@ -144,30 +191,54 @@ Private Function private_CombineDirectoryAndFilename( _
 End Function
 
 Public Function ExtractAndRender(Optional ByVal arg As Variant) As Boolean
-    Dim engine As obj_WDE_RulesEngine, tables As Collection, documentText As String
+    Dim engine As obj_WDE_RulesEngine
+    Dim tables As Collection
+    Dim transformedTables As Collection
     Dim resultTables As Collection
+    Dim documentText As String
+    Dim documentPathItem As Variant
+    Dim documentDateText As String
     Dim pageBase As obj_PageBase
     If Not m_IsReady Then
         private_Error "Конфигурация не готова. Повторно откройте режим с главной страницы."
         Exit Function
     End If
-    If VBA.Len(VBA.Trim$(m_DocumentPath)) = 0 Then
+    If m_DocumentPaths Is Nothing Then
+        private_Error "Список Word-документов не подготовлен."
+        Exit Function
+    End If
+    If m_DocumentPaths.Count = 0 Then
         private_Error "В текущем профиле не заполнен WordDataExtractor.DocumentPath " & _
             "или пара WordDataExtractor.DocumentDir/DocumentFilename."
         Exit Function
     End If
-    If Not private_ReadWordDocument(m_DocumentPath, documentText) Then Exit Function
     Set engine = New obj_WDE_RulesEngine
     If Not engine.Initialize(m_RulesPath) Then Exit Function
-    If Not engine.ExtractTables(m_PipelineId, documentText, tables) Then Exit Function
-    If Not private_TryTransformTables(tables, resultTables) Then Exit Function
+    Set resultTables = New Collection
+    For Each documentPathItem In m_DocumentPaths
+        If Not private_ReadWordDocument( _
+            VBA.CStr(documentPathItem), documentText) Then Exit Function
+        If Not engine.ExtractTables( _
+            m_PipelineId, documentText, tables) Then Exit Function
+        If Not private_TryTransformTables( _
+            tables, transformedTables) Then Exit Function
+        documentDateText = VBA.vbNullString
+        If VBA.Len(m_DocumentDateColumnCaption) > 0 Then
+            If Not private_TryResolveDocumentDate( _
+                VBA.CStr(documentPathItem), documentDateText) Then _
+                Exit Function
+        End If
+        If Not private_MergeDocumentTables(resultTables, _
+            transformedTables, documentDateText) Then Exit Function
+    Next documentPathItem
     Set pageBase = m_Page.GetPageBase()
     If pageBase Is Nothing Then Exit Function
     Set m_AllTables = resultTables
     If Not private_PublishVisibleTables() Then Exit Function
     If Not rt_PageManager.fn_RenderPage(m_Page, "worddataextractor:extract") Then Exit Function
     rt_Messaging.fn_ShowStatusBarSuccess _
-        "WordDataExtractor: извлечено таблиц: " & _
+        "WordDataExtractor: обработано документов: " & _
+        VBA.CStr(m_DocumentPaths.Count) & ", извлечено таблиц: " & _
         VBA.CStr(resultTables.Count) & ". Режим: " & _
         private_CurrentTablesModeCaption() & ".", 4
     ExtractAndRender = True
@@ -249,6 +320,114 @@ Private Function private_CurrentTablesModeCaption() As String
     Else
         private_CurrentTablesModeCaption = "показаны только непустые таблицы"
     End If
+End Function
+
+Private Function private_TryResolveDocumentDate( _
+    ByVal resolvedPath As String, _
+    ByRef outDateText As String _
+) As Boolean
+    outDateText = VBA.vbNullString
+    If VBA.Len(VBA.Trim$(m_DocumentPathPattern)) = 0 Then
+        private_Error "Не задан шаблон пути для извлечения даты документа."
+        Exit Function
+    End If
+    On Error GoTo EH
+    outDateText = ex_SourceResolver.fn_ExpandDmyRuntimeAliasByResolvedPath( _
+        "{dd}.{mm}.{yyyy}", m_DocumentPathPattern, resolvedPath)
+    private_TryResolveDocumentDate = _
+        (VBA.Len(VBA.Trim$(outDateText)) > 0)
+    Exit Function
+EH:
+    private_Error "Не удалось извлечь дату из имени Word-документа '" & _
+        resolvedPath & "': " & Err.Description
+    Err.Clear
+    On Error GoTo 0
+End Function
+
+Private Function private_MergeDocumentTables( _
+    ByVal targetTables As Collection, _
+    ByVal sourceTables As Collection, _
+    ByVal documentDateText As String _
+) As Boolean
+    Dim sourceTableItem As Variant
+    Dim sourceTable As obj_TableDynamic
+    Dim targetTable As obj_TableDynamic
+    Dim rowObj As obj_Row
+    Dim clonedRow As obj_Row
+    Dim rowIndex As Long
+
+    If targetTables Is Nothing Or sourceTables Is Nothing Then Exit Function
+    For Each sourceTableItem In sourceTables
+        Set sourceTable = sourceTableItem
+        If sourceTable Is Nothing Then Exit Function
+        If VBA.Len(m_DocumentDateColumnCaption) > 0 Then
+            If Not private_AddDocumentDateColumn( _
+                sourceTable, documentDateText) Then Exit Function
+        End If
+        Set targetTable = private_FindTableByAlias( _
+            targetTables, sourceTable.SourceAlias)
+        If targetTable Is Nothing Then
+            targetTables.Add sourceTable
+        Else
+            If VBA.StrComp(targetTable.HeaderText, sourceTable.HeaderText, _
+                VBA.vbBinaryCompare) <> 0 Then
+                private_Error "Нельзя объединить таблицу '" & _
+                    sourceTable.SourceAlias & _
+                    "': схемы колонок в документах отличаются."
+                Exit Function
+            End If
+            For rowIndex = 1 To sourceTable.Rows.Count
+                Set rowObj = sourceTable.Rows.Item(rowIndex)
+                If rowObj Is Nothing Then Exit Function
+                Set clonedRow = rowObj.Clone(targetTable.ColumnCount)
+                If clonedRow Is Nothing Then Exit Function
+                If Not targetTable.PushRow(clonedRow) Then Exit Function
+            Next rowIndex
+        End If
+    Next sourceTableItem
+    private_MergeDocumentTables = True
+End Function
+
+Private Function private_AddDocumentDateColumn( _
+    ByVal tableObj As obj_TableDynamic, _
+    ByVal documentDateText As String _
+) As Boolean
+    Dim dateColumn As obj_Column
+    Dim rowObj As obj_Row
+    Dim rowIndex As Long
+
+    If tableObj Is Nothing Then Exit Function
+    Set dateColumn = New obj_Column
+    dateColumn.Name = m_DocumentDateColumnCaption
+    dateColumn.FormatKind = "date"
+    If Not dateColumn.AddAlias("documentDate") Then Exit Function
+    If Not tableObj.InsertColumnAt(dateColumn, 1) Then Exit Function
+    For rowIndex = 1 To tableObj.Rows.Count
+        Set rowObj = tableObj.Rows.Item(rowIndex)
+        If rowObj Is Nothing Then Exit Function
+        If Not rowObj.SetCellRaw(1, documentDateText) Then Exit Function
+    Next rowIndex
+    private_AddDocumentDateColumn = True
+End Function
+
+Private Function private_FindTableByAlias( _
+    ByVal tables As Collection, _
+    ByVal sourceAlias As String _
+) As obj_TableDynamic
+    Dim tableItem As Variant
+    Dim tableObj As obj_TableDynamic
+
+    If tables Is Nothing Then Exit Function
+    For Each tableItem In tables
+        Set tableObj = tableItem
+        If Not tableObj Is Nothing Then
+            If VBA.StrComp(tableObj.SourceAlias, sourceAlias, _
+                VBA.vbTextCompare) = 0 Then
+                Set private_FindTableByAlias = tableObj
+                Exit Function
+            End If
+        End If
+    Next tableItem
 End Function
 
 Private Function private_TryTransformTables( _
