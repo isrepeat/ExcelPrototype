@@ -944,6 +944,7 @@ Private Function private_ExtractDataset( _
     Dim contextKey As Variant
     Dim localNodes As Object, commonNodes As Object
     Dim datasetScopeNode As Object
+    Dim tableNode As Object
     Dim claimMatches As Boolean
     Dim structureBranchActive As Boolean
 
@@ -962,6 +963,7 @@ Private Function private_ExtractDataset( _
     tableObj.SectionTitle = private_AttrOrDefault(datasetNode, "caption", datasetId)
     tableObj.SourceAlias = datasetId
     tableObj.SourceAliasTemplate = "WordDataExtractor"
+    Set tableNode = datasetNode.selectSingleNode("p:table")
     ' Сначала сохраняем специфичные колонки dataset, затем добавляем общие.
     ' XPath union вернул бы узлы в порядке XML-документа и поставил бы
     ' commonColumns перед ПІБ/датой события, поскольку они объявлены выше.
@@ -1040,6 +1042,7 @@ Private Function private_ExtractDataset( _
                     End If
                 Next contextKey
                 fieldValues("$match") = VBA.CStr(matchObj.Value)
+                fieldValues("$document") = sourceText
                 fieldValues("$matchIndex") = datasetMatchIndex
                 For matchIndex = 0 To matchObj.SubMatches.Count - 1
                     fieldValues("$" & VBA.CStr(matchIndex + 1)) = VBA.CStr(matchObj.SubMatches(matchIndex))
@@ -1077,6 +1080,29 @@ Private Function private_ExtractDataset( _
         private_ShowError "Источник content создал больше одного результата: " & _
             datasetId
         Exit Function
+    End If
+    If tableObj.RowCount = 0 And _
+        private_BoolAttr(tableNode, "emitEmptyRow", False) Then
+        Set fieldValues = VBA.CreateObject("Scripting.Dictionary")
+        fieldValues.CompareMode = 1
+        fieldValues("$match") = VBA.vbNullString
+        fieldValues("$document") = sourceText
+        For Each fieldNode In fieldNodes
+            If Not private_ExtractField(fieldNode, VBA.vbNullString, _
+                fieldValues) Then Exit Function
+        Next fieldNode
+        Set rowObj = New obj_Row
+        For Each columnNode In columnNodes
+            valueText = private_ResolveValue( _
+                ex_XmlCore.fn_NodeAttrText(columnNode, "value"), _
+                fieldValues)
+            valueText = private_ApplyTransforms( _
+                valueText, columnNode, fieldValues)
+            valueText = private_ApplyColumnRules( _
+                valueText, datasetNode, columnNode, fieldValues)
+            rowObj.PushCellRaw valueText
+        Next columnNode
+        If Not tableObj.PushRow(rowObj) Then Exit Function
     End If
     ' Пустые таблицы также возвращаются вызывающему коду: UI самостоятельно
     ' решает, показывать все datasets или только содержащие строки.
