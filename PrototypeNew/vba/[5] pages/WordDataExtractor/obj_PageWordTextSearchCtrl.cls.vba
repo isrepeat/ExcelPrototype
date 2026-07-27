@@ -15,6 +15,10 @@ Private m_Page As obj_IPage
 Private m_DocumentPath As String
 Private m_DocumentPathPattern As String
 Private m_DocumentPaths As Collection
+Private m_DocumentPathResolver As String
+Private m_DocumentPathResolverArgs As String
+Private m_DateFromText As String
+Private m_DateToText As String
 Private m_SearchText As String
 Private m_IsRegexMode As Boolean
 Private m_AllTables As Collection
@@ -48,8 +52,6 @@ Private Function obj_IPageCtrl_UpdateData( _
     Dim wordDataExtrCfgParser As obj_WordDataExtrCfgParser
     Dim documentDir As String
     Dim documentFilename As String
-    Dim documentPathResolver As String
-    Dim documentPathResolverArgs As String
 
     m_IsReady = False
     If configControl Is Nothing Then Exit Function
@@ -85,49 +87,20 @@ Private Function obj_IPageCtrl_UpdateData( _
         m_DocumentPath)
     m_DocumentPathPattern = m_DocumentPath
 
-    documentPathResolver = VBA.Trim$( _
+    m_DocumentPathResolver = VBA.Trim$( _
         wordDataExtrCfgParser.GetOptionalValue( _
             "WordDataExtractor.DocumentPathResolver"))
-    documentPathResolverArgs = VBA.Trim$( _
+    m_DocumentPathResolverArgs = VBA.Trim$( _
         wordDataExtrCfgParser.GetOptionalValue( _
             "WordDataExtractor.DocumentPathResolverArgs"))
-    Set m_DocumentPaths = Nothing
-    If VBA.Len(documentPathResolver) = 0 Then
-        Set m_DocumentPaths = New Collection
-        If VBA.Len(m_DocumentPath) > 0 Then
-            m_DocumentPaths.Add m_DocumentPath
-        End If
-    ElseIf VBA.StrComp(documentPathResolver, _
-        "ResolveAllByDmyPattern", VBA.vbTextCompare) = 0 Then
-        On Error GoTo EH_RESOLVE_DOCUMENTS
-        Set m_DocumentPaths = _
-            ex_SourceResolver.fn_ResolveAllByDmyPattern( _
-                m_DocumentPathPattern, documentPathResolverArgs)
-        On Error GoTo 0
-    Else
-        private_Error "Поисковый controller не поддерживает " & _
-            "WordDataExtractor.DocumentPathResolver: " & _
-            documentPathResolver
-        Exit Function
-    End If
-    If m_DocumentPaths Is Nothing Then
-        private_Error "Resolver документов не вернул коллекцию файлов."
-        Exit Function
-    End If
-    If m_DocumentPaths.Count = 0 Then
-        private_Error "Resolver документов не нашёл ни одного файла."
-        Exit Function
-    End If
+    m_DateFromText = private_GetResolverArg( _
+        m_DocumentPathResolverArgs, "dateFrom")
+    m_DateToText = private_GetResolverArg( _
+        m_DocumentPathResolverArgs, "dateTo")
+    If Not private_ResolveDocuments() Then Exit Function
 
     m_IsReady = True
     obj_IPageCtrl_UpdateData = True
-    Exit Function
-
-EH_RESOLVE_DOCUMENTS:
-    private_Error "Не удалось разрешить список Word-документов для поиска: " & _
-        Err.Description
-    Err.Clear
-    On Error GoTo 0
 End Function
 
 Private Sub obj_IPageCtrl_Dispose()
@@ -146,6 +119,14 @@ End Property
 
 Public Property Get IsRegexMode() As Boolean
     IsRegexMode = m_IsRegexMode
+End Property
+
+Public Property Get DateFromText() As String
+    DateFromText = m_DateFromText
+End Property
+
+Public Property Get DateToText() As String
+    DateToText = m_DateToText
 End Property
 
 Public Function OnSearchTextChanged(Optional ByVal arg As Variant) As Boolean
@@ -172,6 +153,18 @@ Public Function OnSearchTextChanged(Optional ByVal arg As Variant) As Boolean
     OnSearchTextChanged = True
 End Function
 
+Public Function OnDateFromChanged(Optional ByVal arg As Variant) As Boolean
+    If VBA.IsMissing(arg) Then Exit Function
+    OnDateFromChanged = private_TryReadChangedCellText( _
+        arg, m_DateFromText)
+End Function
+
+Public Function OnDateToChanged(Optional ByVal arg As Variant) As Boolean
+    If VBA.IsMissing(arg) Then Exit Function
+    OnDateToChanged = private_TryReadChangedCellText( _
+        arg, m_DateToText)
+End Function
+
 Public Function SearchAndRender(Optional ByVal arg As Variant) As Boolean
     Dim resultTables As Collection
     Dim documentPathItem As Variant
@@ -189,6 +182,7 @@ Public Function SearchAndRender(Optional ByVal arg As Variant) As Boolean
         private_Error "Введите часть текста для поиска в WORD-документах."
         Exit Function
     End If
+    If Not private_ResolveDocuments() Then Exit Function
     If m_DocumentPaths Is Nothing Then
         private_Error "Список WORD-документов для поиска не подготовлен."
         Exit Function
@@ -243,6 +237,158 @@ Public Function ToggleEmptyTables(Optional ByVal arg As Variant) As Boolean
     ToggleEmptyTables = True
 End Function
 
+Private Function private_TryReadChangedCellText( _
+    ByVal arg As Variant, _
+    ByRef outText As String _
+) As Boolean
+    Dim pageBase As obj_PageBase
+    Dim ws As Worksheet
+    Dim changedCell As Range
+    Dim changedCellAddress As String
+
+    changedCellAddress = VBA.Trim$(VBA.CStr(arg))
+    If VBA.Len(changedCellAddress) = 0 Then Exit Function
+    If m_Page Is Nothing Then Exit Function
+    Set pageBase = m_Page.GetPageBase()
+    If pageBase Is Nothing Then Exit Function
+    Set ws = pageBase.Worksheet
+    If ws Is Nothing Then Exit Function
+
+    On Error Resume Next
+    Set changedCell = ws.Range(changedCellAddress)
+    On Error GoTo 0
+    If changedCell Is Nothing Then Exit Function
+    outText = VBA.Trim$(VBA.CStr(changedCell.Value2))
+    private_TryReadChangedCellText = True
+End Function
+
+Private Function private_ResolveDocuments() As Boolean
+    Dim effectiveResolverArgs As String
+
+    effectiveResolverArgs = private_SetResolverArg( _
+        m_DocumentPathResolverArgs, "dateFrom", m_DateFromText)
+    effectiveResolverArgs = private_SetResolverArg( _
+        effectiveResolverArgs, "dateTo", m_DateToText)
+    Set m_DocumentPaths = Nothing
+
+    If VBA.Len(m_DocumentPathResolver) = 0 Then
+        If VBA.Len(m_DateFromText) > 0 Or _
+            VBA.Len(m_DateToText) > 0 Then
+            private_Error "Поля dateFrom/dateTo требуют " & _
+                "WordDataExtractor.DocumentPathResolver."
+            Exit Function
+        End If
+        Set m_DocumentPaths = New Collection
+        If VBA.Len(m_DocumentPath) > 0 Then
+            m_DocumentPaths.Add m_DocumentPath
+        End If
+    ElseIf VBA.StrComp(m_DocumentPathResolver, _
+        "ResolveAllByDmyPattern", VBA.vbTextCompare) = 0 Then
+        On Error GoTo EH
+        Set m_DocumentPaths = _
+            ex_SourceResolver.fn_ResolveAllByDmyPattern( _
+                m_DocumentPathPattern, effectiveResolverArgs)
+        On Error GoTo 0
+    Else
+        private_Error "Поисковый controller не поддерживает " & _
+            "WordDataExtractor.DocumentPathResolver: " & _
+            m_DocumentPathResolver
+        Exit Function
+    End If
+    If m_DocumentPaths Is Nothing Then
+        private_Error "Resolver документов не вернул коллекцию файлов."
+        Exit Function
+    End If
+    If m_DocumentPaths.Count = 0 Then
+        private_Error "Resolver документов не нашёл ни одного файла."
+        Exit Function
+    End If
+    private_ResolveDocuments = True
+    Exit Function
+
+EH:
+    private_Error "Не удалось разрешить список Word-документов для поиска: " & _
+        Err.Description
+    Err.Clear
+    On Error GoTo 0
+End Function
+
+Private Function private_GetResolverArg( _
+    ByVal resolverArgs As String, _
+    ByVal argName As String _
+) As String
+    Dim tokens As Variant
+    Dim token As Variant
+    Dim separatorPosition As Long
+    Dim keyText As String
+
+    tokens = VBA.Split(resolverArgs, ";")
+    For Each token In tokens
+        separatorPosition = VBA.InStr(1, VBA.CStr(token), _
+            "=", VBA.vbBinaryCompare)
+        If separatorPosition <= 1 Then GoTo ContinueToken
+        keyText = VBA.Trim$(VBA.Left$( _
+            VBA.CStr(token), separatorPosition - 1))
+        If VBA.StrComp(keyText, argName, VBA.vbTextCompare) = 0 Then
+            private_GetResolverArg = VBA.Trim$(VBA.Mid$( _
+                VBA.CStr(token), separatorPosition + 1))
+            Exit Function
+        End If
+ContinueToken:
+    Next token
+End Function
+
+Private Function private_SetResolverArg( _
+    ByVal resolverArgs As String, _
+    ByVal argName As String, _
+    ByVal argValue As String _
+) As String
+    Dim tokens As Variant
+    Dim token As Variant
+    Dim tokenText As String
+    Dim keyText As String
+    Dim separatorPosition As Long
+    Dim resultText As String
+
+    tokens = VBA.Split(resolverArgs, ";")
+    For Each token In tokens
+        tokenText = VBA.Trim$(VBA.CStr(token))
+        If VBA.Len(tokenText) = 0 Then GoTo ContinueToken
+        separatorPosition = VBA.InStr(1, tokenText, _
+            "=", VBA.vbBinaryCompare)
+        keyText = tokenText
+        If separatorPosition > 1 Then
+            keyText = VBA.Trim$(VBA.Left$( _
+                tokenText, separatorPosition - 1))
+        End If
+        If VBA.StrComp(keyText, argName, _
+            VBA.vbTextCompare) <> 0 Then
+            resultText = private_AppendResolverToken( _
+                resultText, tokenText)
+        End If
+ContinueToken:
+    Next token
+
+    argValue = VBA.Trim$(argValue)
+    If VBA.Len(argValue) > 0 Then
+        resultText = private_AppendResolverToken( _
+            resultText, argName & "=" & argValue)
+    End If
+    private_SetResolverArg = resultText
+End Function
+
+Private Function private_AppendResolverToken( _
+    ByVal resolverArgs As String, _
+    ByVal tokenText As String _
+) As String
+    If VBA.Len(resolverArgs) = 0 Then
+        private_AppendResolverToken = tokenText
+    Else
+        private_AppendResolverToken = _
+            resolverArgs & ";" & tokenText
+    End If
+End Function
+
 Private Function private_PublishVisibleTables() As Boolean
     Dim pageBase As obj_PageBase
     Dim visibleTables As Collection
@@ -291,7 +437,7 @@ Private Function private_BuildSearchResultTable( _
         "№ запису", "matchIndex") Then Exit Function
     If Not private_AddSearchColumn(outTable, _
         "Контекст", "context") Then Exit Function
-    Set textLines = private_CollectNonEmptyLines(documentText)
+    Set textLines = private_CollectLines(documentText)
 
     For Each lineText In textLines
         lineIndex = lineIndex + 1
@@ -364,7 +510,7 @@ Private Function private_AddSearchColumn( _
     private_AddSearchColumn = tableObj.PushColumn(columnObj)
 End Function
 
-Private Function private_CollectNonEmptyLines( _
+Private Function private_CollectLines( _
     ByVal documentText As String _
 ) As Collection
     Dim result As Collection
@@ -378,9 +524,11 @@ Private Function private_CollectNonEmptyLines( _
     rawLines = VBA.Split(documentText, VBA.vbCr)
     For Each rawLine In rawLines
         lineText = VBA.Trim$(VBA.CStr(rawLine))
-        If VBA.Len(lineText) > 0 Then result.Add lineText
+        ' Пустая строка является частью исходного контекста Word. Она также
+        ' учитывается в радиусе ±5 строк и сохраняет разрывы между блоками.
+        result.Add lineText
     Next rawLine
-    Set private_CollectNonEmptyLines = result
+    Set private_CollectLines = result
 End Function
 
 Private Function private_BuildLineContext( _

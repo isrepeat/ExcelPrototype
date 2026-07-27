@@ -3,20 +3,34 @@
   <grid anchorCell="A1">
     <stackPanel at="r2c2" orientation="vertical">
       <stackPanel orientation="horizontal">
-        <control
-          type="Button"
-          name="ToggleRegexMode"
-          caption="{Binding Path=IsRegexMode;TrueAs=Regex ON;FalseAs=Regex OFF}"
-          dataContext="{PageRuntimeSource='RuntimeObjects.WordDataExtractor.Controller'}"
-          onClick="{Binding Method=ToggleRegexMode}"
-          spanColls="2"
-          spanRows="2"/>
+        <stackPanel orientation="vertical" spanColls="1" spanRows="2">
+          <control
+            type="Button"
+            name="ToggleSearchEmpty"
+            caption="{Binding Path=ShowEmptyTables;TrueAs=Отображение [[[color=#FFFF00]]все[[/color]]];FalseAs=Отображение [[[color=#FFFF00]]не пустые[[/color]]]}"
+            dataContext="{PageRuntimeSource='RuntimeObjects.WordDataExtractor.Controller'}"
+            onClick="{Binding Method=ToggleEmptyTables}"
+            spanColls="1"
+            spanRows="1"/>
+
+          <control
+            type="Button"
+            name="ToggleRegexMode"
+            caption="{Binding Path=IsRegexMode;TrueAs=Regex [[[ok]]ON[[/ok]]];FalseAs=Regex [[[color=#FF0000]]OFF[[/color]]]}"
+            dataContext="{PageRuntimeSource='RuntimeObjects.WordDataExtractor.Controller'}"
+            onClick="{Binding Method=ToggleRegexMode}"
+            spanColls="1"
+            spanRows="1"/>
+        </stackPanel>
 
         <stackPanel orientation="vertical" spanColls="1" spanRows="2">
           <control
-            type="Label"
-            name="SearchTextHeader"
-            text="ТЕКСТ ПОШУКУ ↓"
+            type="Button"
+            name="RunTextSearch"
+            caption="Пошук у WORD"
+            style="modeAccent"
+            dataContext="{PageRuntimeSource='RuntimeObjects.WordDataExtractor.Controller'}"
+            onClick="{Binding Method=SearchAndRender}"
             spanColls="1"
             spanRows="1"/>
 
@@ -32,39 +46,54 @@
 
         <control
           type="Button"
-          name="RunTextSearch"
-          caption="Пошук у WORD"
-          style="modeAccent"
-          dataContext="{PageRuntimeSource='RuntimeObjects.WordDataExtractor.Controller'}"
-          onClick="{Binding Method=SearchAndRender}"
-          spanColls="3"
-          spanRows="2"/>
-
-        <control
-          type="Button"
           name="UpdateSearchSheet"
           caption="Update Sheet"
           dataContext="{PageRuntimeSource='RuntimeObjects.WordDataExtractor.Controller'}"
           onClick="{Binding Method=Rerender}"
-          spanColls="2"
-          spanRows="2"/>
+          spanColls="1"
+          spanRows="1"/>
 
         <control
-          type="Button"
-          name="ToggleSearchEmpty"
-          caption="{Binding Path=ShowEmptyTables;TrueAs=Отображение [[[color=#FFFF00]]все[[/color]]];FalseAs=Отображение [[[color=#FFFF00]]не пустые[[/color]]]}"
-          dataContext="{PageRuntimeSource='RuntimeObjects.WordDataExtractor.Controller'}"
-          onClick="{Binding Method=ToggleEmptyTables}"
-          spanColls="3"
-          spanRows="2"/>
+          type="Label"
+          name="ToolbarHeightAnchor"
+          text=""
+          spanColls="1"
+          spanRows="1"/>
       </stackPanel>
 
-      <control
-        type="Label"
-        name="RegexExample"
-        text="Приклад Regex: МЕДНЯКА?\s+Віталі"
-        spanColls="1"
-        spanRows="1"/>
+      <stackPanel orientation="vertical" spanColls="1" spanRows="4">
+        <control
+          type="Label"
+          name="DateFromHeader"
+          text="dateFrom"
+          spanColls="1"
+          spanRows="1"/>
+
+        <control
+          type="Input"
+          name="DateFromInput"
+          value="{Binding Path=DateFromText}"
+          dataContext="{PageRuntimeSource='RuntimeObjects.WordDataExtractor.Controller'}"
+          onChange="{Binding Method=OnDateFromChanged}"
+          spanColls="1"
+          spanRows="1"/>
+
+        <control
+          type="Label"
+          name="DateToHeader"
+          text="dateTo"
+          spanColls="1"
+          spanRows="1"/>
+
+        <control
+          type="Input"
+          name="DateToInput"
+          value="{Binding Path=DateToText}"
+          dataContext="{PageRuntimeSource='RuntimeObjects.WordDataExtractor.Controller'}"
+          onChange="{Binding Method=OnDateToChanged}"
+          spanColls="1"
+          spanRows="1"/>
+      </stackPanel>
 
       <stackPanel spanColls="40" spanRows="1"/>
 
@@ -101,30 +130,9 @@
       <layer name="search-input">
         <rule
           target="controlPart"
-          selector="type=label;name=RegexExample;part=cell"
+          selector="type=label;name=ToolbarHeightAnchor;part=cell"
           styles="{
-            backColor:#20242A;
-            fontColor:#94A3B8;
-            horizontal:left;
-            vertical:center;
-            width:28;
-            rowHeight:22;
-          }"/>
-
-        <rule
-          target="controlPart"
-          selector="type=label;name=SearchTextHeader;part=cell"
-          styles="{
-            backColor:#263445;
-            fontColor:#EAF6FF;
-            fontBold:true;
-            borderColor:#3B82F6;
-            borderWeight:thin;
-            horizontal:center;
-            vertical:center;
-            overflow:wrap;
-            width:28;
-            rowHeight:25;
+            rowHeight:40;
           }"/>
 
         <rule
@@ -138,7 +146,59 @@
             vertical:center;
             overflow:wrap;
             width:28;
-            rowHeight:28;
+            rowHeight:40;
+            cellType:text;
+          }"/>
+
+        <rule
+          target="controlPart"
+          selector="type=label;name=DateFromHeader;part=cell"
+          styles="{
+            backColor:#263445;
+            fontColor:#CBD5E1;
+            fontBold:true;
+            horizontal:left;
+            vertical:center;
+            width:18;
+            rowHeight:22;
+          }"/>
+
+        <rule
+          target="controlPart"
+          selector="type=label;name=DateToHeader;part=cell"
+          styles="{
+            backColor:#263445;
+            fontColor:#CBD5E1;
+            fontBold:true;
+            horizontal:left;
+            vertical:center;
+            width:18;
+            rowHeight:22;
+          }"/>
+
+        <rule
+          target="controlPart"
+          selector="type=input;name=DateFromInput;part=cell"
+          styles="{
+            backColor:#3A3F46;
+            fontColor:#F8FAFC;
+            horizontal:left;
+            vertical:center;
+            width:18;
+            rowHeight:26;
+            cellType:text;
+          }"/>
+
+        <rule
+          target="controlPart"
+          selector="type=input;name=DateToInput;part=cell"
+          styles="{
+            backColor:#3A3F46;
+            fontColor:#F8FAFC;
+            horizontal:left;
+            vertical:center;
+            width:18;
+            rowHeight:26;
             cellType:text;
           }"/>
       </layer>
@@ -171,8 +231,9 @@
           styles="{
             backColor:#3A3A3A;
             fontColor:#F0F0F0;
+            fontSize:8;
             overflow:wrap;
-            rowHeight:65;
+            rowHeight:auto;
           }"/>
 
         <rule
@@ -187,6 +248,14 @@
           selector="type=tablelist;name=SearchResultTables;part=header;columnAlias=context"
           styles="{
             width:100;
+          }"/>
+
+        <rule
+          target="controlPart"
+          selector="type=tablelist;name=SearchResultTables;part=rows;columnAlias=matchIndex"
+          styles="{
+            horizontal:center;
+            vertical:center;
           }"/>
       </layer>
     </stylePipelineStage>
