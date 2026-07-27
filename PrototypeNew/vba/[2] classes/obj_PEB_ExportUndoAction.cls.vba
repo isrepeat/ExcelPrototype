@@ -345,6 +345,13 @@ Private Function private_ApplyWord(ByVal isUndo As Boolean, ByRef outErrorText A
         End If
         Set targetRange = wordDoc.Bookmarks(m_WordBookmarkName).Range
         targetRange.Delete
+        ' Если удалена последняя запись группы, Word оставляет PEG/PEN как
+        ' схлопнутые закладки. Следующий экспорт ошибочно решил бы, что
+        ' заголовки даты и больницы уже присутствуют в документе.
+        private_DeleteCollapsedWordBookmark _
+            wordDoc, m_WordNestedGroupBookmarkName
+        private_DeleteCollapsedWordBookmark _
+            wordDoc, m_WordGroupBookmarkName
     Else
         If m_WordInsertedStart > wordDoc.Content.End Then
             outErrorText = "WORD document structure changed; recorded insertion point is unavailable."
@@ -412,6 +419,23 @@ EH:
     If documentOpened Then wordDoc.Close False
     On Error GoTo 0
 End Function
+
+Private Sub private_DeleteCollapsedWordBookmark( _
+    ByVal wordDoc As Object, _
+    ByVal bookmarkName As String _
+)
+    Dim bookmarkRange As Object
+
+    If wordDoc Is Nothing Then Exit Sub
+    bookmarkName = VBA.Trim$(bookmarkName)
+    If VBA.Len(bookmarkName) = 0 Then Exit Sub
+    If Not wordDoc.Bookmarks.Exists(bookmarkName) Then Exit Sub
+
+    Set bookmarkRange = wordDoc.Bookmarks(bookmarkName).Range
+    If bookmarkRange.Start >= bookmarkRange.End Then
+        wordDoc.Bookmarks(bookmarkName).Delete
+    End If
+End Sub
 
 Private Function private_TryOpenWorkbook(ByRef outWorkbook As Workbook, ByRef outOpenedHere As Boolean) As Boolean
     Dim wb As Workbook

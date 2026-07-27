@@ -199,7 +199,7 @@
     groupOrder="date; text">
     <groupHeader by="EffectiveReturnDateShort">
       <![CDATA[#^
-#_      {[EffectiveReturnDateShort]|dateformat:"\dd \month \yyyy року"}:#^
+#_      З {[EffectiveReturnDateShort]|dateformat:"\dd \month \yyyy року"}:#^
 #_      {#newline}{#newline}#^
       ]]>
     </groupHeader>
@@ -228,7 +228,7 @@
     groupOrder="date">
     <groupHeader by="EffectiveReturnDateShort">
       <![CDATA[#^
-#_      {[EffectiveReturnDateShort]|dateformat:"\dd \month \yyyy року"}:#^
+#_      З {[EffectiveReturnDateShort]|dateformat:"\dd \month \yyyy року"}:#^
 #_      {#newline}{#newline}#^
       ]]>
     </groupHeader>
@@ -245,7 +245,7 @@
     groupOrder="date">
     <groupHeader by="EffectiveReturnDateShort">
       <![CDATA[#^
-#_      {[EffectiveReturnDateShort]|dateformat:"\dd \month \yyyy року"}:#^
+#_      З {[EffectiveReturnDateShort]|dateformat:"\dd \month \yyyy року"}:#^
 #_      {#newline}{#newline}#^
       ]]>
     </groupHeader>
@@ -262,7 +262,7 @@
     groupOrder="date">
     <groupHeader by="EffectiveReturnDateShort">
       <![CDATA[#^
-#_      {[EffectiveReturnDateShort]|dateformat:"\dd \month \yyyy року"}:#^
+#_      З {[EffectiveReturnDateShort]|dateformat:"\dd \month \yyyy року"}:#^
 #_      {#newline}{#newline}#^
       ]]>
     </groupHeader>

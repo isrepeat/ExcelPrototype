@@ -61,7 +61,9 @@ Private Const POSITIONS_GENITIVE_HEADER As String = "Родовий"
 Private Const POSITIONS_DATIVE_HEADER As String = "Давальний"
 Private Const POSITIONS_DEFAULT_HEADER As String = "Назва"
 Private Const OS_SHEET_NAME As String = "ОС"
-Private Const OS_RANGE_START As String = "X1"
+' В первой строке ОС находятся служебные номера полей 24–28, во второй —
+' объединённые групповые шапки. Фактические имена колонок расположены в строке 3.
+Private Const OS_RANGE_START As String = "X3"
 Private Const OS_RANGE_END_COLUMN As String = "AB"
 Private Const OS_IPN_HEADER As String = "ІПН"
 Private Const OS_RANK_HEADER As String = "Військове звання фактично"

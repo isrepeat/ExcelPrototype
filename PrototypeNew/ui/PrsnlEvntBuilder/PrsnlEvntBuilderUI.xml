@@ -154,16 +154,6 @@
 
             <control
               type="Button"
-              name="RegroupWordHospitalPoints"
-              caption="Group WORD hospital points"
-              style="exportApplyButton"
-              dataContext="{PageRuntimeSource='RuntimeObjects.PrsnlEvntBuilder.Controller'}"
-              onClick="{Binding Method=OnRegroupWordHospitalPointsClick}"
-              spanColls="2"
-              spanRows="2"/>
-
-            <control
-              type="Button"
               name="ClearWordDocument"
               caption="Remove WORD anchors"
               style="actionWarning"

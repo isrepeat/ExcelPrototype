@@ -574,6 +574,19 @@ Public Function IsExportAllowed( _
 End Function
 
 Public Function NormalizeIncomingNoForExport(ByVal incomingNoText As String) As String
+    Dim explicitNumberText As String
+    Dim trimmedIncomingNoText As String
+
+    trimmedIncomingNoText = VBA.Trim$(incomingNoText)
+    ' Ведущий знак № является явным указанием пользователя не применять
+    ' служебные 1656/ и -в. Сам знак удаляем: WORD-шаблон уже выводит "вх. №"
+    ' отдельно от значения placeholder.
+    If VBA.Left$(trimmedIncomingNoText, 1) = "№" Then
+        explicitNumberText = VBA.Trim$(VBA.Mid$(trimmedIncomingNoText, 2))
+        NormalizeIncomingNoForExport = explicitNumberText
+        Exit Function
+    End If
+
     ' Только чистое значение из 1–5 ASCII-цифр получает служебное обрамление.
     ' Пробелы, уже существующие префиксы/суффиксы и более длинные номера
     ' считаются самостоятельным форматом и возвращаются без изменений.
