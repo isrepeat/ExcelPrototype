@@ -967,7 +967,8 @@ Private Function private_TryBuildMovementBasisSummary( _
         If isReporterTvo Then
             reportPositionGenitive = reportTvoPositionGenitive
         Else
-            If Not m_ExporterCfgDataProvider.CommonData.TryResolvePositionGenitive(reportPositionCodeText, reportPositionGenitive) Then Exit Function
+            If Not m_ExporterCfgDataProvider.CommonData.TryResolvePositionGenitive( _
+                reportPositionCodeText, reportPositionGenitive, reportRankText) Then Exit Function
         End If
         If Not m_ExporterCfgDataProvider.CommonData.TryResolveFioInitialsGenitiveByName(reportPersonText, reportPersonInitialsGenitive) Then Exit Function
 
