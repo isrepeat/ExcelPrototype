@@ -116,6 +116,10 @@ Public Function TryGetGroupingDefinition( _
     ByRef outGroupOrder As String _
 ) As Boolean
     Dim templateNode As Object
+    Dim groupByParts As Variant
+    Dim groupOrderParts As Variant
+    Dim groupIndex As Long
+    Dim groupHeaderNode As Object
 
     outHasGrouping = False
     outGroupBy = VBA.vbNullString
@@ -145,24 +149,50 @@ Public Function TryGetGroupingDefinition( _
         TryGetGroupingDefinition = True
         Exit Function
     End If
-    If templateNode.selectSingleNode("p:groupHeader") Is Nothing Then
-        VBA.MsgBox "PrototypeNew: grouped WORD template requires groupHeader: " & _
-            templateId, VBA.vbExclamation, "PrototypeNew / WORD export"
+    ' Позиция элемента в groupBy соответствует уровню вложенности:
+    ' первый alias создаёт внешнюю группу, второй — группу внутри неё.
+    ' groupOrder и groupHeader@by валидируются здесь, чтобы Word exporter
+    ' получал уже однозначное описание структуры.
+    groupByParts = VBA.Split(outGroupBy, ";")
+    groupOrderParts = VBA.Split(outGroupOrder, ";")
+    If UBound(groupByParts) <> UBound(groupOrderParts) Then
+        VBA.MsgBox "PrototypeNew: groupBy and groupOrder must contain the same " & _
+            "number of levels: " & templateId, VBA.vbExclamation, _
+            "PrototypeNew / WORD export"
         Exit Function
     End If
-    Select Case outGroupOrder
-        Case "date", "text", "none"
-        Case Else
-            VBA.MsgBox "PrototypeNew: unsupported template groupOrder '" & _
-                outGroupOrder & "': " & templateId, _
+    For groupIndex = LBound(groupByParts) To UBound(groupByParts)
+        groupByParts(groupIndex) = VBA.Trim$(VBA.CStr(groupByParts(groupIndex)))
+        groupOrderParts(groupIndex) = VBA.LCase$(VBA.Trim$( _
+            VBA.CStr(groupOrderParts(groupIndex))))
+        If VBA.Len(groupByParts(groupIndex)) = 0 Then Exit Function
+        Select Case groupOrderParts(groupIndex)
+            Case "date", "text", "none"
+            Case Else
+                VBA.MsgBox "PrototypeNew: unsupported template groupOrder '" & _
+                    groupOrderParts(groupIndex) & "': " & templateId, _
+                    VBA.vbExclamation, "PrototypeNew / WORD export"
+                Exit Function
+        End Select
+        Set groupHeaderNode = templateNode.selectSingleNode( _
+            "p:groupHeader[@by=" & _
+            ex_XmlCore.fn_XPathLiteral(groupByParts(groupIndex)) & "]")
+        If groupHeaderNode Is Nothing And UBound(groupByParts) = 0 Then
+            Set groupHeaderNode = templateNode.selectSingleNode("p:groupHeader")
+        End If
+        If groupHeaderNode Is Nothing Then
+            VBA.MsgBox "PrototypeNew: grouped WORD template requires groupHeader " & _
+                "for [" & groupByParts(groupIndex) & "]: " & templateId, _
                 VBA.vbExclamation, "PrototypeNew / WORD export"
             Exit Function
-    End Select
+        End If
+    Next groupIndex
     TryGetGroupingDefinition = True
 End Function
 
 Public Function TryRenderGroupHeaderForTemplateId( _
     ByVal templateId As String, _
+    ByVal groupByText As String, _
     ByVal sectionTypeText As String, _
     ByVal sourceTables As Collection, _
     ByVal namedCollections As Object, _
@@ -176,8 +206,8 @@ Public Function TryRenderGroupHeaderForTemplateId( _
     If m_IsDisposed Then Exit Function
     If sourceTables Is Nothing Or sourceTables.Count <= 0 Then Exit Function
     If Not private_TryReloadTemplateIfChanged() Then Exit Function
-    If Not private_TryGetTemplateChildTextById( _
-        templateId, "groupHeader", templateText) Then Exit Function
+    If Not private_TryGetGroupHeaderTextById( _
+        templateId, groupByText, templateText) Then Exit Function
     Set m_NamedCollections = namedCollections
     Set renderVars = VBA.CreateObject("Scripting.Dictionary")
     renderVars.CompareMode = 1
@@ -299,6 +329,40 @@ Private Function private_TryGetTemplateChildTextById( _
     outTemplateText = private_ExpandSharedTemplateIncludes( _
         VBA.CStr(node.Text), m_TemplateDoc, includeChain)
     private_TryGetTemplateChildTextById = True
+End Function
+
+Private Function private_TryGetGroupHeaderTextById( _
+    ByVal templateId As String, _
+    ByVal groupByText As String, _
+    ByRef outTemplateText As String _
+) As Boolean
+    Dim templateNode As Object
+    Dim node As Object
+    Dim includeChain As Collection
+
+    outTemplateText = VBA.vbNullString
+    Set templateNode = m_TemplateDoc.selectSingleNode( _
+        "/p:wordResultTemplates/p:template[@id=" & _
+        ex_XmlCore.fn_XPathLiteral(VBA.Trim$(templateId)) & "]")
+    If templateNode Is Nothing Then Exit Function
+    ' Заголовок выбирается по alias, а не по его порядку среди XML-узлов.
+    ' Благодаря этому перестановка groupHeader в файле не меняет семантику DSL.
+    Set node = templateNode.selectSingleNode( _
+        "p:groupHeader[@by=" & _
+        ex_XmlCore.fn_XPathLiteral(VBA.Trim$(groupByText)) & "]")
+    If node Is Nothing And templateNode.selectNodes("p:groupHeader").Length = 1 Then
+        Set node = templateNode.selectSingleNode("p:groupHeader")
+    End If
+    If node Is Nothing Then
+        VBA.MsgBox "PrototypeNew: WORD groupHeader was not found for [" & _
+            groupByText & "]: " & templateId, VBA.vbExclamation, _
+            "PrototypeNew / WORD export"
+        Exit Function
+    End If
+    Set includeChain = New Collection
+    outTemplateText = private_ExpandSharedTemplateIncludes( _
+        VBA.CStr(node.Text), m_TemplateDoc, includeChain)
+    private_TryGetGroupHeaderTextById = True
 End Function
 
 Private Function private_RenderTemplate( _

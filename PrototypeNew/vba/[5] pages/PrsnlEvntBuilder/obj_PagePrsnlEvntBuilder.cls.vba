@@ -458,15 +458,19 @@ Public Function OnLookupInputCellChangedCommand(Optional ByVal arg As Variant) A
 
     private_SetLookupQueryValue lookupKey, queryText
     If m_Controller Is Nothing Then Exit Function
+    If Not m_Controller.ClearWordExportPreview(False) Then Exit Function
     ' Disabled lookup still captures pasted input values, but deliberately skips
     ' dependent-field clearing, candidate clearing, SQL requests and render.
     If Not m_Controller.IsLookupEnabled Then
-        OnLookupInputCellChangedCommand = True
+        OnLookupInputCellChangedCommand = _
+            m_Controller.ClearWordExportPreview(True)
         Exit Function
     End If
     If Not m_Controller.ClearDependentDraftFields(lookupKey) Then Exit Function
     If VBA.Len(VBA.Trim$(queryText)) = 0 Then
-        OnLookupInputCellChangedCommand = m_Controller.ClearLookupCandidates(False)
+        If Not m_Controller.ClearLookupCandidates(False) Then Exit Function
+        OnLookupInputCellChangedCommand = _
+            m_Controller.ClearWordExportPreview(True)
         Exit Function
     End If
 

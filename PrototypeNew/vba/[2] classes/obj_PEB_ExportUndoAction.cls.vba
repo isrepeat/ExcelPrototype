@@ -32,6 +32,8 @@ Private m_WordBookmarkName As String
 Private m_WordMetadataBookmarkName As String
 Private m_WordGroupBookmarkName As String
 Private m_WordGroupStart As Long
+Private m_WordNestedGroupBookmarkName As String
+Private m_WordNestedGroupStart As Long
 Private m_WordInsertedStart As Long
 Private m_WordInsertedText As String
 
@@ -110,7 +112,9 @@ Public Function InitializeWord( _
     ByVal insertedText As String, _
     Optional ByVal metadataBookmarkName As String = VBA.vbNullString, _
     Optional ByVal groupBookmarkName As String = VBA.vbNullString, _
-    Optional ByVal groupStart As Long = 0 _
+    Optional ByVal groupStart As Long = 0, _
+    Optional ByVal nestedGroupBookmarkName As String = VBA.vbNullString, _
+    Optional ByVal nestedGroupStart As Long = 0 _
 ) As Boolean
     m_Kind = KIND_WORD
     m_Caption = "Undo last WORD export"
@@ -119,6 +123,8 @@ Public Function InitializeWord( _
     m_WordMetadataBookmarkName = VBA.Trim$(metadataBookmarkName)
     m_WordGroupBookmarkName = VBA.Trim$(groupBookmarkName)
     m_WordGroupStart = groupStart
+    m_WordNestedGroupBookmarkName = VBA.Trim$(nestedGroupBookmarkName)
+    m_WordNestedGroupStart = nestedGroupStart
     m_WordInsertedStart = insertedStart
     m_WordInsertedText = insertedText
 
@@ -317,6 +323,8 @@ Private Function private_ApplyWord(ByVal isUndo As Boolean, ByRef outErrorText A
     Dim targetRange As Object
     Dim documentOpened As Boolean
     Dim groupStart As Long
+    Dim groupEnd As Long
+    Dim nestedGroupStart As Long
 
     On Error GoTo EH
     outErrorText = VBA.vbNullString
@@ -343,9 +351,20 @@ Private Function private_ApplyWord(ByVal isUndo As Boolean, ByRef outErrorText A
             GoTo CleanFail
         End If
         groupStart = m_WordGroupStart
+        ' Перед redo временно снимаем обе групповые закладки. После вставки
+        ' восстанавливаем PEN для больницы и охватывающую её PEG для даты;
+        ' иначе Word может оставить старые границы перед добавленным текстом.
+        nestedGroupStart = m_WordNestedGroupStart
+        If VBA.Len(m_WordNestedGroupBookmarkName) > 0 And _
+            wordDoc.Bookmarks.Exists(m_WordNestedGroupBookmarkName) Then
+            nestedGroupStart = wordDoc.Bookmarks( _
+                m_WordNestedGroupBookmarkName).Range.Start
+            wordDoc.Bookmarks(m_WordNestedGroupBookmarkName).Delete
+        End If
         If VBA.Len(m_WordGroupBookmarkName) > 0 And _
             wordDoc.Bookmarks.Exists(m_WordGroupBookmarkName) Then
             groupStart = wordDoc.Bookmarks(m_WordGroupBookmarkName).Range.Start
+            groupEnd = wordDoc.Bookmarks(m_WordGroupBookmarkName).Range.End
             wordDoc.Bookmarks(m_WordGroupBookmarkName).Delete
         End If
         Set targetRange = wordDoc.Range(m_WordInsertedStart, m_WordInsertedStart)
@@ -354,9 +373,20 @@ Private Function private_ApplyWord(ByVal isUndo As Boolean, ByRef outErrorText A
         targetRange.HighlightColorIndex = 0
         wordDoc.Bookmarks.Add m_WordBookmarkName, targetRange
         If VBA.Len(m_WordGroupBookmarkName) > 0 Then
+            If groupEnd > 0 Then
+                groupEnd = groupEnd + VBA.Len(m_WordInsertedText)
+            Else
+                groupEnd = m_WordInsertedStart + VBA.Len(m_WordInsertedText)
+            End If
             Set targetRange = wordDoc.Range( _
-                groupStart, m_WordInsertedStart + VBA.Len(m_WordInsertedText))
+                groupStart, groupEnd)
             wordDoc.Bookmarks.Add m_WordGroupBookmarkName, targetRange
+        End If
+        If VBA.Len(m_WordNestedGroupBookmarkName) > 0 Then
+            Set targetRange = wordDoc.Range( _
+                nestedGroupStart, _
+                m_WordInsertedStart + VBA.Len(m_WordInsertedText))
+            wordDoc.Bookmarks.Add m_WordNestedGroupBookmarkName, targetRange
         End If
         If VBA.Len(m_WordMetadataBookmarkName) > 0 And VBA.Len(m_WordInsertedText) > 0 Then
             ' Grouping metadata bookmark охватывает первый символ той же вставки.
