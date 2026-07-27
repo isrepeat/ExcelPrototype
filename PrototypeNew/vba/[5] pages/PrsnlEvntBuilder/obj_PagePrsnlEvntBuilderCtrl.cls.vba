@@ -1046,37 +1046,6 @@ EH:
         "PrsnlEventBuilder / З'єднання"
 End Function
 
-Public Function OnRegroupWordHospitalPointsClick(Optional ByVal ignored As Variant) As Boolean
-    Dim exporter As obj_IDataExporter
-    Dim exporterClassName As String
-    Dim exportConfigTable As obj_ConfigTable
-    Dim regroupedPointCount As Long
-    Dim orderNoText As String
-
-    If Not private_TryEnsureModeConfigCurrent() Then Exit Function
-    ' Кнопка использует тот же кэшированный WORD exporter, что экспорт и
-    ' удаление якорей, поэтому путь result-документа определяется единообразно.
-    If Not private_TryGetExportSettings("Word", exporterClassName, exportConfigTable) Then
-        VBA.MsgBox "PrototypeNew: Export.Word settings are missing.", _
-            VBA.vbExclamation, "PrototypeNew / WORD document"
-        Exit Function
-    End If
-    If VBA.StrComp(exporterClassName, "obj_PEB_ExptrWord", VBA.vbTextCompare) <> 0 Then
-        VBA.MsgBox "PrototypeNew: WORD document actions require obj_PEB_ExptrWord, configured: " & _
-            exporterClassName, VBA.vbExclamation, "PrototypeNew / WORD document"
-        Exit Function
-    End If
-    If Not private_TryCreateDataExporter(exporterClassName, exportConfigTable, exporter) Then Exit Function
-    If m_CachedWordExporter Is Nothing Then Exit Function
-    If Not private_TryGetCurrentManualOrderNo(orderNoText) Then Exit Function
-    If Not m_CachedWordExporter.RegroupResultDocumentHospitalPoints( _
-        regroupedPointCount, orderNoText) Then Exit Function
-
-    rt_Messaging.fn_ShowStatusBarSuccess _
-        "WORD document: grouped hospital points: " & VBA.CStr(regroupedPointCount), 3
-    OnRegroupWordHospitalPointsClick = True
-End Function
-
 Private Function private_TryExportWordToDocument() As Boolean
     Dim sourceTables As Collection
     Dim exportContext As Object
@@ -2706,7 +2675,10 @@ ContinueAlias:
         End If
         If Not private_AddSourceColumn( _
             sourceTable, headerText, aliases(i)) Then Exit Function
-        sourceRow.PushCellRaw valueRange.Cells(1, 1).Value2
+        ' Draft form является текстовым UI. Экспортная sourceTable должна
+        ' получать именно отображаемую строку, а не типизированный Value2:
+        ' иначе Excel превращает, например, номер документа 198/07 в дату.
+        sourceRow.PushCellRaw valueRange.Cells(1, 1).Text
 
 ContinueDraftColumn:
     Next i

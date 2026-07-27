@@ -484,10 +484,9 @@ Private Function private_VariantToTextLogValue(ByVal valueObj As Variant) As Str
         private_VariantToTextLogValue = "#ERROR"
     ElseIf VBA.IsNull(valueObj) Or VBA.IsEmpty(valueObj) Then
         private_VariantToTextLogValue = VBA.vbNullString
-    ElseIf VBA.IsDate(valueObj) Then
-        private_VariantToTextLogValue = VBA.Format$(VBA.CDate(valueObj), _
-            "yyyy-mm-dd hh:nn:ss")
     Else
+        ' obj_Row уже хранит отображаемый текст draft-формы. Не применяем
+        ' IsDate/Format: журнал обязан сохранять UI-строку без интерпретации.
         private_VariantToTextLogValue = VBA.CStr(valueObj)
     End If
 End Function

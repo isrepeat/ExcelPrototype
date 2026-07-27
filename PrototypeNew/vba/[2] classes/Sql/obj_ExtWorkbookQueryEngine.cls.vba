@@ -113,6 +113,9 @@ Private Function private_TryExecuteAdo( _
     Dim stepValue As Long
     Dim resultCount As Long
     Dim i As Long
+    Dim errorNumber As Long
+    Dim errorDescription As String
+    Dim errorSource As String
 
     ' Closed-workbook backend. SQL получает только заказанные колонки и строки,
     ' поэтому закрытую книгу не требуется открывать через Excel object model.
@@ -185,14 +188,23 @@ CleanupDone:
     Exit Function
 
 EH:
+    ' Сохраняем Err до любого cleanup: Close/DropConnection работают через
+    ' On Error Resume Next и раньше стирали исходную диагностику ACE.
+    errorNumber = Err.Number
+    errorDescription = Err.Description
+    errorSource = Err.Source
     private_DropConnection query.SourcePath
     ex_Core.fn_Diagnostic_LogError "external-query:ado-failed workbook='" & query.SourcePath & _
         "' tableRef='" & query.TableRef & "' sql='" & VBA.Replace$(sql, "'", "''") & _
-        "' error='" & VBA.Replace$(Err.Description, "'", "''") & "'"
+        "' errNo=" & VBA.CStr(errorNumber) & _
+        " errSource='" & VBA.Replace$(errorSource, "'", "''") & _
+        "' error='" & VBA.Replace$(errorDescription, "'", "''") & "'"
     VBA.MsgBox "PrototypeNew: external workbook SQL query failed." & _
         VBA.vbCrLf & "Workbook: " & query.SourcePath & _
         VBA.vbCrLf & "Range: " & query.TableRef & _
-        VBA.vbCrLf & "Error: " & Err.Description, VBA.vbExclamation, ERROR_TITLE
+        VBA.vbCrLf & "Error: [" & VBA.CStr(errorNumber) & "] " & _
+        errorDescription, _
+        VBA.vbExclamation, ERROR_TITLE
     Resume CleanupFail
 End Function
 
@@ -300,7 +312,9 @@ Private Function private_TryExecuteOpenWorkbook( _
     ReDim selectedColumnIndexes(1 To selectColumns.Count)
     ReDim selectedValues(1 To selectColumns.Count)
     For i = 1 To selectColumns.Count
-        If Not private_TryResolveHeaderColumn(headerMap, VBA.CStr(selectColumns.Item(i)), selectedColumnIndexes(i)) Then Exit Function
+        If Not private_TryResolveHeaderColumn( _
+            headerMap, VBA.CStr(selectColumns.Item(i)), _
+            selectedColumnIndexes(i)) Then Exit Function
         If selectedFirstColumn = 0 Or selectedColumnIndexes(i) < selectedFirstColumn Then
             selectedFirstColumn = selectedColumnIndexes(i)
         End If
@@ -316,7 +330,9 @@ Private Function private_TryExecuteOpenWorkbook( _
         ReDim conditionNormalizeFlags(1 To conditionCount)
         For i = 1 To conditionCount
             Set condition = conditions.Item(i)
-            If Not private_TryResolveHeaderColumn(headerMap, condition.ColumnName, conditionColumnIndexes(i)) Then Exit Function
+            If Not private_TryResolveHeaderColumn( _
+                headerMap, condition.ColumnName, _
+                conditionColumnIndexes(i)) Then Exit Function
             ' Объекты условий и Collection используются только на этапе подготовки.
             ' В горячем цикле по строкам остаются обычные массивы примитивов,
             ' поэтому стоимость object-property/Collection.Item не умножается
@@ -761,7 +777,9 @@ Private Function private_TryResolveHeaderColumn( _
         private_TryResolveHeaderColumn = True
         Exit Function
     End If
-    VBA.MsgBox "PrototypeNew: column '" & headerName & "' was not found in the open external workbook.", VBA.vbExclamation, ERROR_TITLE
+    VBA.MsgBox "PrototypeNew: column '" & headerName & _
+        "' was not found in the open external workbook.", _
+        VBA.vbExclamation, ERROR_TITLE
 End Function
 
 Private Function private_RowMatchesPreparedConditions( _

@@ -100,8 +100,6 @@ Private Const WD_FIND_STOP As Long = 0
 Private Const WORD_RECORD_BOOKMARK_PREFIX As String = "PEB_"
 Private Const WORD_METADATA_BOOKMARK_PREFIX As String = "PEM_"
 Private Const WORD_BOOKMARK_MAX_LENGTH As Long = 40
-Private Const WORD_TEMPLATE_TO_HOSPITAL As String = "ToHospital"
-Private Const WORD_TEMPLATE_FROM_HOSPITAL As String = "FromHospital"
 Private Const REPORT_TVO_TEXT As String = "тимчасово виконуючого обов'язки"
 Private Const META_SECTION_TYPE_DOCUMENT As String = "Мета: документ"
 Private Const META_SECTION_TYPE_TVO As String = "Мета: ТВО"
@@ -200,6 +198,7 @@ Public Function Export( _
     Dim namedCollections As Object
     Dim sectionTypeText As String
     Dim previewText As String
+    Dim recordText As String
     Dim templateId As String
     Dim recordIpn As String
     Dim exportValidationError As String
@@ -219,6 +218,7 @@ Public Function Export( _
     Dim groupByParts As Variant
     Dim groupOrderParts As Variant
     Dim usePreparedPreview As Boolean
+    Dim writeToWord As Boolean
 
     If m_IsDisposed Then
         VBA.MsgBox "PrototypeNew: WORD exporter is disposed.", VBA.vbExclamation, "PrototypeNew / WORD export"
@@ -253,25 +253,79 @@ Public Function Export( _
         Exit Function
     End If
     previewText = private_GetContextText(context, CONTEXT_WORD_PREVIEW_TEXT)
-    usePreparedPreview = (private_GetContextBoolean(context, "WriteToWord") And _
+    writeToWord = private_GetContextBoolean(context, "WriteToWord")
+    usePreparedPreview = (writeToWord And _
         VBA.Len(VBA.Trim$(previewText)) > 0)
-    ' При экспорте непустой context содержит фактический текст Banner с листа.
-    ' Не рендерим шаблон повторно, иначе ручные правки пользователя потеряются.
     If Not usePreparedPreview Then
         If Not m_TemplateParser.TryRenderForTemplateId( _
             templateId, _
             sectionTypeText, _
             sourceTables, _
             namedCollections, _
-            previewText) Then Exit Function
+            recordText) Then Exit Function
     End If
-    If Not private_TrySetContextText(context, CONTEXT_WORD_PREVIEW_TEXT, previewText) Then Exit Function
     If Not m_TemplateParser.TryGetGroupingDefinition( _
         templateId, hasGrouping, groupByText, groupOrderText) Then Exit Function
 
-    ' CTRL+3 is the preview action. The dedicated button/CTRL+4 passes
-    ' WriteToWord=True and persists the same rendered text in the document.
-    If private_GetContextBoolean(context, "WriteToWord") Then
+    ' Заголовки групп рендерятся и для preview, и для фактической вставки.
+    ' Preview показывает их линейно в порядке DSL, а Word позже решает по
+    ' закладкам, какие из них действительно требуется добавить в документ.
+    If hasGrouping Then
+        groupByParts = VBA.Split(groupByText, ";")
+        groupOrderParts = VBA.Split(groupOrderText, ";")
+        groupByText = VBA.Trim$(VBA.CStr(groupByParts(0)))
+        groupOrderText = VBA.Trim$(VBA.CStr(groupOrderParts(0)))
+        If Not private_TryGetMainTableValue( _
+            sourceTable, groupByText, groupKeyText) Then Exit Function
+        groupKeyText = VBA.Trim$(groupKeyText)
+        If VBA.Len(groupKeyText) = 0 Then
+            VBA.MsgBox "PrototypeNew: grouped WORD template '" & templateId & _
+                "' requires a non-empty value [" & groupByText & "].", _
+                VBA.vbExclamation, "PrototypeNew / WORD export"
+            Exit Function
+        End If
+        If Not m_TemplateParser.TryRenderGroupHeaderForTemplateId( _
+            templateId, groupByText, sectionTypeText, sourceTables, namedCollections, _
+            groupHeaderText) Then Exit Function
+        If UBound(groupByParts) > 1 Then
+            VBA.MsgBox "PrototypeNew: WORD export currently supports no more " & _
+                "than two grouping levels: " & templateId, _
+                VBA.vbExclamation, "PrototypeNew / WORD export"
+            Exit Function
+        End If
+        If UBound(groupByParts) = 1 Then
+            nestedGroupByText = VBA.Trim$(VBA.CStr(groupByParts(1)))
+            nestedGroupOrderText = VBA.Trim$(VBA.CStr(groupOrderParts(1)))
+            If Not private_TryGetMainTableValue( _
+                sourceTable, nestedGroupByText, nestedGroupKeyText) Then Exit Function
+            nestedGroupKeyText = VBA.Trim$(nestedGroupKeyText)
+            If VBA.Len(nestedGroupKeyText) = 0 Then
+                VBA.MsgBox "PrototypeNew: grouped WORD template '" & templateId & _
+                    "' requires a non-empty value [" & nestedGroupByText & "].", _
+                    VBA.vbExclamation, "PrototypeNew / WORD export"
+                Exit Function
+            End If
+            If Not m_TemplateParser.TryRenderGroupHeaderForTemplateId( _
+                templateId, nestedGroupByText, sectionTypeText, sourceTables, _
+                namedCollections, nestedGroupHeaderText) Then Exit Function
+        End If
+    End If
+
+    If usePreparedPreview Then
+        ' Banner содержит линейное preview вместе с groupHeader. Перед поздней
+        ' Word-группировкой отделяем от него только редактируемое тело записи.
+        If Not private_TryExtractRecordTextFromPreview( _
+            templateId, previewText, groupHeaderText, _
+            nestedGroupHeaderText, recordText) Then Exit Function
+    Else
+        previewText = groupHeaderText & nestedGroupHeaderText & recordText
+    End If
+    If Not private_TrySetContextText( _
+        context, CONTEXT_WORD_PREVIEW_TEXT, previewText) Then Exit Function
+
+    ' CTRL+3 только возвращает линейное preview. CTRL+4 передаёт WriteToWord=True,
+    ' после чего groupHeader и recordText вставляются по отдельным правилам.
+    If writeToWord Then
         If Not private_TryGetMainTableValue(sourceTable, SOURCE_ALIAS_IPN, recordIpn) Then
             VBA.MsgBox "PrototypeNew: WORD export requires IPN to create a record bookmark.", VBA.vbExclamation, "PrototypeNew / WORD export"
             Exit Function
@@ -281,54 +335,50 @@ Public Function Export( _
             VBA.MsgBox "PrototypeNew: WORD export requires a non-empty IPN to create a record bookmark.", VBA.vbExclamation, "PrototypeNew / WORD export"
             Exit Function
         End If
-        If hasGrouping Then
-            groupByParts = VBA.Split(groupByText, ";")
-            groupOrderParts = VBA.Split(groupOrderText, ";")
-            groupByText = VBA.Trim$(VBA.CStr(groupByParts(0)))
-            groupOrderText = VBA.Trim$(VBA.CStr(groupOrderParts(0)))
-            If Not private_TryGetMainTableValue( _
-                sourceTable, groupByText, groupKeyText) Then Exit Function
-            groupKeyText = VBA.Trim$(groupKeyText)
-            If VBA.Len(groupKeyText) = 0 Then
-                VBA.MsgBox "PrototypeNew: grouped WORD template '" & templateId & _
-                    "' requires a non-empty value [" & groupByText & "].", _
-                    VBA.vbExclamation, "PrototypeNew / WORD export"
-                Exit Function
-            End If
-            If Not m_TemplateParser.TryRenderGroupHeaderForTemplateId( _
-                templateId, groupByText, sectionTypeText, sourceTables, namedCollections, _
-                groupHeaderText) Then Exit Function
-            If UBound(groupByParts) > 1 Then
-                VBA.MsgBox "PrototypeNew: WORD export currently supports no more " & _
-                    "than two grouping levels: " & templateId, _
-                    VBA.vbExclamation, "PrototypeNew / WORD export"
-                Exit Function
-            End If
-            If UBound(groupByParts) = 1 Then
-                nestedGroupByText = VBA.Trim$(VBA.CStr(groupByParts(1)))
-                nestedGroupOrderText = VBA.Trim$(VBA.CStr(groupOrderParts(1)))
-                If Not private_TryGetMainTableValue( _
-                    sourceTable, nestedGroupByText, nestedGroupKeyText) Then Exit Function
-                nestedGroupKeyText = VBA.Trim$(nestedGroupKeyText)
-                If VBA.Len(nestedGroupKeyText) = 0 Then
-                    VBA.MsgBox "PrototypeNew: grouped WORD template '" & templateId & _
-                        "' requires a non-empty value [" & nestedGroupByText & "].", _
-                        VBA.vbExclamation, "PrototypeNew / WORD export"
-                    Exit Function
-                End If
-                If Not m_TemplateParser.TryRenderGroupHeaderForTemplateId( _
-                    templateId, nestedGroupByText, sectionTypeText, sourceTables, _
-                    namedCollections, nestedGroupHeaderText) Then Exit Function
-            End If
-        End If
         If Not private_TryAppendBeforeWordEndAnchor( _
-            templateId, recordIpn, previewText, _
+            templateId, recordIpn, recordText, _
             groupKeyText, groupOrderText, groupHeaderText, _
             nestedGroupKeyText, nestedGroupOrderText, nestedGroupHeaderText, _
             private_GetContextText(context, CONTEXT_MANUAL_ORDER_NO)) Then Exit Function
     End If
 
     Export = True
+End Function
+
+Private Function private_TryExtractRecordTextFromPreview( _
+    ByVal templateId As String, _
+    ByVal previewText As String, _
+    ByVal groupHeaderText As String, _
+    ByVal nestedGroupHeaderText As String, _
+    ByRef outRecordText As String _
+) As Boolean
+    Dim headerPrefix As String
+
+    outRecordText = previewText
+    ' Текст, прочитанный обратно из Excel Banner, уже не содержит служебных
+    ' маркеров посимвольного цвета, поэтому сравниваем его с plain-вариантом
+    ' заголовков, а не с исходной строкой template renderer.
+    headerPrefix = private_StripPreviewColorMarkers( _
+        groupHeaderText & nestedGroupHeaderText)
+    If VBA.Len(headerPrefix) = 0 Then
+        private_TryExtractRecordTextFromPreview = True
+        Exit Function
+    End If
+    If VBA.Len(previewText) < VBA.Len(headerPrefix) Or _
+        VBA.StrComp( _
+            VBA.Left$(previewText, VBA.Len(headerPrefix)), _
+            headerPrefix, _
+            VBA.vbBinaryCompare) <> 0 Then
+        VBA.MsgBox _
+            "PrototypeNew: grouped preview headers were changed for template '" & _
+            templateId & "'. Edit only the record text below the group headers.", _
+            VBA.vbExclamation, _
+            "PrototypeNew / WORD preview"
+        Exit Function
+    End If
+
+    outRecordText = VBA.Mid$(previewText, VBA.Len(headerPrefix) + 1)
+    private_TryExtractRecordTextFromPreview = True
 End Function
 
 Private Function private_TryAppendBeforeWordEndAnchor( _
@@ -441,6 +491,12 @@ Private Function private_TryAppendBeforeWordEndAnchor( _
     ' PEB — отдельная запись человека. Begin/End ограничивают всю секцию.
     insertedStart = endRange.Start
     If VBA.Len(groupBookmarkName) > 0 Then
+        ' Undo старых версий мог оставить пустые PEG/PEN. Такая закладка не
+        ' подтверждает существование заголовка и должна считаться отсутствующей.
+        private_DeleteCollapsedWordBookmarkIfExists _
+            wordDoc, nestedGroupBookmarkName
+        private_DeleteCollapsedWordBookmarkIfExists _
+            wordDoc, groupBookmarkName
         If wordDoc.Bookmarks.Exists(groupBookmarkName) Then
             Set groupRange = wordDoc.Bookmarks(groupBookmarkName).Range
             If groupRange.Start < beginRange.End Or groupRange.End > endRange.Start Then
@@ -566,230 +622,22 @@ EH:
     VBA.MsgBox "PrototypeNew: WORD export failed: " & errorDescription, VBA.vbExclamation, "PrototypeNew / WORD export"
 End Function
 
-' Перегруппировывает только уже записанный документ текущего приказа. Секционные
-' текстовые якоря обязательны: они не позволяют смешать пункты разных приказов.
-Public Function RegroupResultDocumentHospitalPoints( _
-    ByRef regroupedPointCount As Long, _
-    Optional ByVal orderNo As String = "" _
-) As Boolean
-    Dim templatePath As String
-    Dim targetPath As String
-    Dim wordApp As Object
-    Dim wordDoc As Object
-    Dim sectionPointCount As Long
-    Dim documentOpened As Boolean
-    Dim errorDescription As String
-
-    On Error GoTo EH
-    regroupedPointCount = 0
-
-    templatePath = VBA.Trim$(m_Base.TargetWorkbookPath)
-    If VBA.Len(templatePath) = 0 Then
-        VBA.MsgBox "PrototypeNew: required profile key 'Export.Word.FilePath' is empty.", _
-            VBA.vbExclamation, "PrototypeNew / WORD document"
-        Exit Function
-    End If
-    If Not private_IsAbsolutePath(templatePath) Then
-        templatePath = ThisWorkbook.Path & Application.PathSeparator & templatePath
-    End If
-    targetPath = private_BuildResultDocumentPath(templatePath, orderNo)
-    If VBA.Len(targetPath) = 0 Or _
-        VBA.Len(VBA.Dir$(targetPath, VBA.vbNormal Or VBA.vbReadOnly Or VBA.vbHidden Or VBA.vbSystem)) = 0 Then
-        VBA.MsgBox "PrototypeNew: WORD result document was not found:" & VBA.vbCrLf & targetPath, _
-            VBA.vbExclamation, "PrototypeNew / WORD document"
-        Exit Function
-    End If
-    If Not rt_PEB_WordExportRuntime.fn_TryAcquireWordDocument( _
-        targetPath, wordApp, wordDoc, documentOpened) Then Exit Function
-
-    If Not private_TryRegroupHospitalSection( _
-        wordApp, wordDoc, WORD_TEMPLATE_TO_HOSPITAL, sectionPointCount) Then GoTo CleanFail
-    regroupedPointCount = regroupedPointCount + sectionPointCount
-    If Not private_TryRegroupHospitalSection( _
-        wordApp, wordDoc, WORD_TEMPLATE_FROM_HOSPITAL, sectionPointCount) Then GoTo CleanFail
-    regroupedPointCount = regroupedPointCount + sectionPointCount
-
-    wordDoc.Save
-    If documentOpened Then
-        wordDoc.Close False
-        documentOpened = False
-    End If
-    RegroupResultDocumentHospitalPoints = True
-    Exit Function
-
-CleanFail:
-    On Error Resume Next
-    If documentOpened Then wordDoc.Close False
-    On Error GoTo 0
-    Exit Function
-EH:
-    errorDescription = Err.Description
-    On Error Resume Next
-    If documentOpened Then wordDoc.Close False
-    On Error GoTo 0
-    VBA.MsgBox "PrototypeNew: WORD grouping failed: " & errorDescription, _
-        VBA.vbExclamation, "PrototypeNew / WORD document"
-End Function
-
-Private Function private_TryRegroupHospitalSection( _
-    ByVal wordApp As Object, _
+Private Sub private_DeleteCollapsedWordBookmarkIfExists( _
     ByVal wordDoc As Object, _
-    ByVal templateId As String, _
-    ByRef outPointCount As Long _
-) As Boolean
-    Dim beginMarker As String
-    Dim endMarker As String
-    Dim beginRange As Object
-    Dim endSearchRange As Object
-    Dim endRange As Object
-    Dim bookmarkObj As Object
-    Dim bookmarkName As String
-    Dim metadataBookmarkName As String
-    Dim recordPrefix As String
-    Dim hospitalShortText As String
-    Dim dateShortText As String
-    Dim entries() As Object
-    Dim entry As Object
-    Dim swapEntry As Object
-    Dim entryCount As Long
-    Dim i As Long
-    Dim j As Long
-    Dim blockStart As Long
-    Dim blockEnd As Long
-    Dim recordRange As Object
-    Dim metadataRange As Object
-    Dim scratchDoc As Object
-    Dim scratchRange As Object
-    Dim scratchContent As Object
-    Dim targetRange As Object
-    Dim targetStart As Long
-    Dim currentStart As Long
-    Dim errorDescription As String
+    ByVal bookmarkName As String _
+)
+    Dim bookmarkRange As Object
 
-    On Error GoTo EH
-    outPointCount = 0
-    If wordApp Is Nothing Or wordDoc Is Nothing Then Exit Function
+    If wordDoc Is Nothing Then Exit Sub
+    bookmarkName = VBA.Trim$(bookmarkName)
+    If VBA.Len(bookmarkName) = 0 Then Exit Sub
+    If Not wordDoc.Bookmarks.Exists(bookmarkName) Then Exit Sub
 
-    beginMarker = WORD_ANCHOR_PREFIX & templateId & WORD_ANCHOR_BEGIN_SUFFIX
-    endMarker = WORD_ANCHOR_PREFIX & templateId & WORD_ANCHOR_END_SUFFIX
-    If Not private_TryFindWordText(wordDoc.Content, beginMarker, beginRange) Then
-        VBA.MsgBox "PrototypeNew: WORD begin anchor was not found: " & beginMarker, _
-            VBA.vbExclamation, "PrototypeNew / WORD document"
-        Exit Function
+    Set bookmarkRange = wordDoc.Bookmarks(bookmarkName).Range
+    If bookmarkRange.Start >= bookmarkRange.End Then
+        wordDoc.Bookmarks(bookmarkName).Delete
     End If
-    Set endSearchRange = wordDoc.Range(beginRange.End, wordDoc.Content.End)
-    If Not private_TryFindWordText(endSearchRange, endMarker, endRange) Then
-        VBA.MsgBox "PrototypeNew: WORD end anchor was not found after begin anchor: " & endMarker, _
-            VBA.vbExclamation, "PrototypeNew / WORD document"
-        Exit Function
-    End If
-
-    ' Исправляет в том числе документы, созданные до появления нормализации:
-    ' старые PEB-закладки могли растянуться до конца всей секции.
-    If Not private_TryNormalizeSectionRecordBookmarks( _
-        wordDoc, templateId, beginRange.End, endRange.Start) Then Exit Function
-
-    ' Собираем только PEB-закладки нужного templateId, расположенные строго
-    ' между Begin/End текущей секции и имеющие связанную PEM-закладку.
-    recordPrefix = VBA.LCase$(WORD_RECORD_BOOKMARK_PREFIX & _
-        private_NormalizeBookmarkPart(templateId) & "_")
-    For Each bookmarkObj In wordDoc.Bookmarks
-        bookmarkName = VBA.CStr(bookmarkObj.Name)
-        If VBA.Left$(VBA.LCase$(bookmarkName), VBA.Len(recordPrefix)) <> recordPrefix Then GoTo ContinueBookmark
-        If bookmarkObj.Range.Start < beginRange.End Or bookmarkObj.Range.End > endRange.Start Then GoTo ContinueBookmark
-
-        Set recordRange = bookmarkObj.Range
-        If Not private_TryFindGroupingMetadataBookmark( _
-            wordDoc, recordRange, metadataBookmarkName, hospitalShortText, dateShortText) Then _
-            GoTo ContinueBookmark
-        Set metadataRange = wordDoc.Bookmarks(metadataBookmarkName).Range
-
-        entryCount = entryCount + 1
-        ReDim Preserve entries(1 To entryCount)
-        Set entry = VBA.CreateObject("Scripting.Dictionary")
-        entry.CompareMode = 1
-        entry("BookmarkName") = bookmarkName
-        entry("MetadataBookmarkName") = metadataBookmarkName
-        entry("SortKey") = private_BuildGroupingSortKey(dateShortText, hospitalShortText)
-        entry("OriginalIndex") = entryCount
-        entry("Length") = bookmarkObj.Range.End - bookmarkObj.Range.Start
-        entry("Start") = bookmarkObj.Range.Start
-        entry("End") = bookmarkObj.Range.End
-        Set entries(entryCount) = entry
-
-        If blockStart = 0 Or bookmarkObj.Range.Start < blockStart Then blockStart = bookmarkObj.Range.Start
-        If bookmarkObj.Range.End > blockEnd Then blockEnd = bookmarkObj.Range.End
-ContinueBookmark:
-    Next bookmarkObj
-
-    If entryCount <= 1 Then
-        outPointCount = entryCount
-        private_TryRegroupHospitalSection = True
-        Exit Function
-    End If
-
-    ' Стабильная сортировка: одинаковые ключи не меняются местами. Ключ строится
-    ' как дата YYYYMMDD, затем короткое название учреждения.
-    For i = 1 To entryCount - 1
-        For j = i + 1 To entryCount
-            If VBA.StrComp(VBA.CStr(entries(j)("SortKey")), _
-                VBA.CStr(entries(i)("SortKey")), VBA.vbTextCompare) < 0 Then
-                Set swapEntry = entries(i)
-                Set entries(i) = entries(j)
-                Set entries(j) = swapEntry
-            End If
-        Next j
-    Next i
-
-    ' FormattedText нельзя надёжно хранить как обычную строку. Собираем пункты
-    ' в нужном порядке во временном документе, сохраняя стили и разметку Word.
-    Set scratchDoc = wordApp.Documents.Add
-    For i = 1 To entryCount
-        Set recordRange = wordDoc.Bookmarks(VBA.CStr(entries(i)("BookmarkName"))).Range.Duplicate
-        Set scratchRange = scratchDoc.Range(scratchDoc.Content.End - 1, scratchDoc.Content.End - 1)
-        scratchRange.FormattedText = recordRange.FormattedText
-    Next i
-    Set scratchContent = scratchDoc.Range(0, scratchDoc.Content.End - 1)
-
-    ' Старые закладки удаляем до замены диапазона, иначе Word может оставить
-    ' их границы на прежних позициях или автоматически удалить непредсказуемо.
-    For i = 1 To entryCount
-        bookmarkName = VBA.CStr(entries(i)("BookmarkName"))
-        metadataBookmarkName = VBA.CStr(entries(i)("MetadataBookmarkName"))
-        If wordDoc.Bookmarks.Exists(metadataBookmarkName) Then wordDoc.Bookmarks(metadataBookmarkName).Delete
-        If wordDoc.Bookmarks.Exists(bookmarkName) Then wordDoc.Bookmarks(bookmarkName).Delete
-    Next i
-
-    targetStart = blockStart
-    Set targetRange = wordDoc.Range(blockStart, blockEnd)
-    targetRange.FormattedText = scratchContent.FormattedText
-    scratchDoc.Close False
-    Set scratchDoc = Nothing
-
-    ' После вставки FormattedText восстанавливаем обе закладки по сохранённым
-    ' длинам каждого пункта и снова скрываем диапазон метаданных.
-    currentStart = targetStart
-    For i = 1 To entryCount
-        Set recordRange = wordDoc.Range( _
-            currentStart, currentStart + VBA.CLng(entries(i)("Length")))
-        wordDoc.Bookmarks.Add VBA.CStr(entries(i)("BookmarkName")), recordRange
-        Set metadataRange = wordDoc.Range(currentStart, currentStart + 1)
-        wordDoc.Bookmarks.Add VBA.CStr(entries(i)("MetadataBookmarkName")), metadataRange
-        currentStart = currentStart + VBA.CLng(entries(i)("Length"))
-    Next i
-
-    outPointCount = entryCount
-    private_TryRegroupHospitalSection = True
-    Exit Function
-
-EH:
-    errorDescription = Err.Description
-    On Error Resume Next
-    If Not scratchDoc Is Nothing Then scratchDoc.Close False
-    On Error GoTo 0
-    VBA.MsgBox "PrototypeNew: failed to regroup WORD section '" & templateId & _
-        "': " & errorDescription, VBA.vbExclamation, "PrototypeNew / WORD document"
-End Function
+End Sub
 
 Private Function private_TryNormalizeSectionRecordBookmarks( _
     ByVal wordDoc As Object, _
@@ -1242,95 +1090,6 @@ ContinueBookmark:
     private_TryFindGroupInsertPosition = True
 End Function
 
-Private Function private_BuildGroupingMetadataBookmarkName( _
-    ByVal hospitalShortText As String, _
-    ByVal dateShortText As String _
-) As String
-    Dim sortKey As String
-    Dim separatorPos As Long
-    Dim dateKey As String
-    Dim hospitalKey As String
-    Dim availableHospitalLength As Long
-
-    hospitalShortText = VBA.Trim$(hospitalShortText)
-    dateShortText = VBA.Trim$(dateShortText)
-    If VBA.Len(hospitalShortText) = 0 Or VBA.Len(dateShortText) = 0 Then Exit Function
-
-    sortKey = private_BuildGroupingSortKey(dateShortText, hospitalShortText)
-    separatorPos = VBA.InStr(1, sortKey, "|", VBA.vbBinaryCompare)
-    If separatorPos <= 1 Then Exit Function
-    dateKey = VBA.Left$(sortKey, separatorPos - 1)
-    hospitalKey = private_NormalizeMetadataBookmarkPart(hospitalShortText)
-    availableHospitalLength = WORD_BOOKMARK_MAX_LENGTH - _
-        VBA.Len(WORD_METADATA_BOOKMARK_PREFIX) - VBA.Len(dateKey) - 1
-    If availableHospitalLength <= 0 Or VBA.Len(hospitalKey) = 0 Then Exit Function
-    If VBA.Len(hospitalKey) > availableHospitalLength Then
-        hospitalKey = VBA.Left$(hospitalKey, availableHospitalLength)
-    End If
-    private_BuildGroupingMetadataBookmarkName = WORD_METADATA_BOOKMARK_PREFIX & _
-        dateKey & "_" & hospitalKey
-End Function
-
-Private Function private_TryParseGroupingMetadataBookmarkName( _
-    ByVal metadataBookmarkName As String, _
-    ByRef outHospitalShortText As String, _
-    ByRef outDateShortText As String _
-) As Boolean
-    Dim payloadText As String
-    Dim separatorPos As Long
-    Dim dateKey As String
-
-    outHospitalShortText = VBA.vbNullString
-    outDateShortText = VBA.vbNullString
-    If VBA.Left$(metadataBookmarkName, VBA.Len(WORD_METADATA_BOOKMARK_PREFIX)) <> _
-        WORD_METADATA_BOOKMARK_PREFIX Then Exit Function
-
-    payloadText = VBA.Mid$(metadataBookmarkName, VBA.Len(WORD_METADATA_BOOKMARK_PREFIX) + 1)
-    separatorPos = VBA.InStr(1, payloadText, "_", VBA.vbBinaryCompare)
-    If separatorPos <= 1 Then Exit Function
-    dateKey = VBA.Left$(payloadText, separatorPos - 1)
-    If VBA.Len(dateKey) <> 8 Or Not VBA.IsNumeric(dateKey) Then Exit Function
-    outDateShortText = VBA.Mid$(dateKey, 7, 2) & "." & _
-        VBA.Mid$(dateKey, 5, 2) & "." & VBA.Left$(dateKey, 4)
-    outHospitalShortText = VBA.Trim$(VBA.Mid$(payloadText, separatorPos + 1))
-    private_TryParseGroupingMetadataBookmarkName = ( _
-        VBA.Len(outDateShortText) > 0 And VBA.Len(outHospitalShortText) > 0)
-End Function
-
-Private Function private_TryFindGroupingMetadataBookmark( _
-    ByVal wordDoc As Object, _
-    ByVal recordRange As Object, _
-    ByRef outMetadataBookmarkName As String, _
-    ByRef outHospitalShortText As String, _
-    ByRef outDateShortText As String _
-) As Boolean
-    Dim bookmarkObj As Object
-    Dim bookmarkName As String
-
-    outMetadataBookmarkName = VBA.vbNullString
-    outHospitalShortText = VBA.vbNullString
-    outDateShortText = VBA.vbNullString
-    If wordDoc Is Nothing Or recordRange Is Nothing Then Exit Function
-
-    ' После сохранения и повторного открытия Word может сдвинуть нулевую
-    ' закладку на один служебный символ относительно начала PEB-диапазона.
-    ' Поэтому проверяем принадлежность всему пункту. Правую границу исключаем,
-    ' чтобы не принять PEM-закладку следующего соседнего пункта.
-    For Each bookmarkObj In wordDoc.Bookmarks
-        bookmarkName = VBA.CStr(bookmarkObj.Name)
-        If VBA.Left$(bookmarkName, VBA.Len(WORD_METADATA_BOOKMARK_PREFIX)) <> _
-            WORD_METADATA_BOOKMARK_PREFIX Then GoTo ContinueBookmark
-        If bookmarkObj.Range.Start < recordRange.Start Then GoTo ContinueBookmark
-        If bookmarkObj.Range.Start >= recordRange.End Then GoTo ContinueBookmark
-        If Not private_TryParseGroupingMetadataBookmarkName( _
-            bookmarkName, outHospitalShortText, outDateShortText) Then GoTo ContinueBookmark
-        outMetadataBookmarkName = bookmarkName
-        private_TryFindGroupingMetadataBookmark = True
-        Exit Function
-ContinueBookmark:
-    Next bookmarkObj
-End Function
-
 Private Function private_NormalizeMetadataBookmarkPart(ByVal valueText As String) As String
     Dim resultText As String
     Dim charIndex As Long
@@ -1353,33 +1112,6 @@ Private Function private_NormalizeMetadataBookmarkPart(ByVal valueText As String
         resultText = VBA.Left$(resultText, VBA.Len(resultText) - 1)
     Loop
     private_NormalizeMetadataBookmarkPart = resultText
-End Function
-
-Private Function private_BuildGroupingSortKey( _
-    ByVal dateShortText As String, _
-    ByVal hospitalShortText As String _
-) As String
-    Dim dateParts As Variant
-    Dim dateKey As String
-
-    dateShortText = VBA.Trim$(dateShortText)
-    hospitalShortText = VBA.LCase$(VBA.Trim$(hospitalShortText))
-    dateParts = VBA.Split(dateShortText, ".")
-    If UBound(dateParts) = 2 Then
-        dateKey = VBA.CStr(dateParts(2)) & VBA.Right$("0" & VBA.CStr(dateParts(1)), 2) & _
-            VBA.Right$("0" & VBA.CStr(dateParts(0)), 2)
-    Else
-        dateKey = dateShortText
-    End If
-    private_BuildGroupingSortKey = dateKey & "|" & hospitalShortText
-End Function
-
-Private Function private_IsHospitalGroupingTemplate(ByVal templateId As String) As Boolean
-    Select Case VBA.LCase$(VBA.Trim$(templateId))
-        Case VBA.LCase$(WORD_TEMPLATE_TO_HOSPITAL), _
-             VBA.LCase$(WORD_TEMPLATE_FROM_HOSPITAL)
-            private_IsHospitalGroupingTemplate = True
-    End Select
 End Function
 
 Private Function private_BuildUniqueBookmarkName(ByVal wordDoc As Object, ByVal baseName As String) As String
