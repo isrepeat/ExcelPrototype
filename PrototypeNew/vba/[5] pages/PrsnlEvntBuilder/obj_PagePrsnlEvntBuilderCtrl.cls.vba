@@ -249,6 +249,19 @@ Public Property Get WordExportPreviewText() As String
     WordExportPreviewText = m_WordExportPreviewText
 End Property
 
+Public Function ClearWordExportPreview( _
+    Optional ByVal renderNow As Boolean = False _
+) As Boolean
+    m_WordExportPreviewText = VBA.vbNullString
+    If Not renderNow Then
+        ClearWordExportPreview = True
+        Exit Function
+    End If
+    If m_Page Is Nothing Then Exit Function
+    ClearWordExportPreview = rt_PageManager.fn_RenderPage( _
+        m_Page, "prsnlevntbuilder:word-preview-invalidated")
+End Function
+
 Public Property Get IsLookupEnabled() As Boolean
     IsLookupEnabled = m_IsLookupEnabled
 End Property
@@ -665,6 +678,9 @@ Public Function RuntimeHandleHotkeyAction(ByVal actionId As Variant) As Boolean
     ' Page-specific actions branch by stable action ids and read current sheet state.
     Select Case VBA.LCase$(actionText)
         Case VBA.LCase$(HOTKEY_ACCEPT_CANDIDATE_ROW)
+            ' Любой выбранный Lookup-кандидат меняет данные, из которых был
+            ' построен WORD preview: ФИО, больницу, рапортующего или документ.
+            If Not Me.ClearWordExportPreview(False) Then Exit Function
             If m_IsMovementHistoryEnabled Then
                 ' Movement относится только к основному человеку события.
                 ' Hospital/Commander candidates тоже заполняют draft-форму

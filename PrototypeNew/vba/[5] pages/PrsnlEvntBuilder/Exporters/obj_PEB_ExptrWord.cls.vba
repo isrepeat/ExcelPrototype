@@ -63,6 +63,7 @@ Private Const WORD_ALIAS_EFFECTIVE_RETURN_DATE_SHORT As String = "EffectiveRetur
 Private Const WORD_ALIAS_VACATION_TICKET_DATE_SHORT As String = "VacationTicketDateShort"
 Private Const WORD_ALIAS_VLK_DATE_SHORT As String = "VlkDateShort"
 Private Const WORD_GROUP_BOOKMARK_PREFIX As String = "PEG_"
+Private Const WORD_NESTED_GROUP_BOOKMARK_PREFIX As String = "PEN_"
 
 ' DateTo отсутствует в draft-форме: для частичной ежегодной отпуска экспортёр
 ' вычисляет его из DateFrom + DurationDays - 1 и добавляет в контекст под этим
@@ -211,6 +212,12 @@ Public Function Export( _
     Dim groupOrderText As String
     Dim groupKeyText As String
     Dim groupHeaderText As String
+    Dim nestedGroupByText As String
+    Dim nestedGroupOrderText As String
+    Dim nestedGroupKeyText As String
+    Dim nestedGroupHeaderText As String
+    Dim groupByParts As Variant
+    Dim groupOrderParts As Variant
     Dim usePreparedPreview As Boolean
 
     If m_IsDisposed Then
@@ -275,6 +282,10 @@ Public Function Export( _
             Exit Function
         End If
         If hasGrouping Then
+            groupByParts = VBA.Split(groupByText, ";")
+            groupOrderParts = VBA.Split(groupOrderText, ";")
+            groupByText = VBA.Trim$(VBA.CStr(groupByParts(0)))
+            groupOrderText = VBA.Trim$(VBA.CStr(groupOrderParts(0)))
             If Not private_TryGetMainTableValue( _
                 sourceTable, groupByText, groupKeyText) Then Exit Function
             groupKeyText = VBA.Trim$(groupKeyText)
@@ -285,11 +296,34 @@ Public Function Export( _
                 Exit Function
             End If
             If Not m_TemplateParser.TryRenderGroupHeaderForTemplateId( _
-                templateId, sectionTypeText, sourceTables, namedCollections, _
+                templateId, groupByText, sectionTypeText, sourceTables, namedCollections, _
                 groupHeaderText) Then Exit Function
+            If UBound(groupByParts) > 1 Then
+                VBA.MsgBox "PrototypeNew: WORD export currently supports no more " & _
+                    "than two grouping levels: " & templateId, _
+                    VBA.vbExclamation, "PrototypeNew / WORD export"
+                Exit Function
+            End If
+            If UBound(groupByParts) = 1 Then
+                nestedGroupByText = VBA.Trim$(VBA.CStr(groupByParts(1)))
+                nestedGroupOrderText = VBA.Trim$(VBA.CStr(groupOrderParts(1)))
+                If Not private_TryGetMainTableValue( _
+                    sourceTable, nestedGroupByText, nestedGroupKeyText) Then Exit Function
+                nestedGroupKeyText = VBA.Trim$(nestedGroupKeyText)
+                If VBA.Len(nestedGroupKeyText) = 0 Then
+                    VBA.MsgBox "PrototypeNew: grouped WORD template '" & templateId & _
+                        "' requires a non-empty value [" & nestedGroupByText & "].", _
+                        VBA.vbExclamation, "PrototypeNew / WORD export"
+                    Exit Function
+                End If
+                If Not m_TemplateParser.TryRenderGroupHeaderForTemplateId( _
+                    templateId, nestedGroupByText, sectionTypeText, sourceTables, _
+                    namedCollections, nestedGroupHeaderText) Then Exit Function
+            End If
         End If
         If Not private_TryAppendBeforeWordEndAnchor( _
             templateId, recordIpn, previewText, groupKeyText, groupOrderText, groupHeaderText, _
+            nestedGroupKeyText, nestedGroupOrderText, nestedGroupHeaderText, _
             private_GetContextText(context, CONTEXT_MANUAL_ORDER_NO)) Then Exit Function
     End If
 
@@ -303,6 +337,9 @@ Private Function private_TryAppendBeforeWordEndAnchor( _
     Optional ByVal groupKeyText As String = "", _
     Optional ByVal groupOrderText As String = "", _
     Optional ByVal groupHeaderText As String = "", _
+    Optional ByVal nestedGroupKeyText As String = "", _
+    Optional ByVal nestedGroupOrderText As String = "", _
+    Optional ByVal nestedGroupHeaderText As String = "", _
     Optional ByVal orderNo As String = "" _
 ) As Boolean
     Dim targetPath As String
@@ -324,6 +361,10 @@ Private Function private_TryAppendBeforeWordEndAnchor( _
     Dim groupBookmarkName As String
     Dim groupRange As Object
     Dim groupStart As Long
+    Dim groupEnd As Long
+    Dim nestedGroupBookmarkName As String
+    Dim nestedGroupRange As Object
+    Dim nestedGroupStart As Long
     Dim undoAction As obj_PEB_ExportUndoAction
     Dim undoActionReady As Boolean
 
@@ -367,6 +408,13 @@ Private Function private_TryAppendBeforeWordEndAnchor( _
         If VBA.Len(groupBookmarkName) = 0 Then Exit Function
         groupHeaderText = private_NormalizeWordParagraphBreaks( _
             private_StripPreviewColorMarkers(groupHeaderText))
+        If VBA.Len(VBA.Trim$(nestedGroupKeyText)) > 0 Then
+            nestedGroupBookmarkName = private_BuildNestedGroupBookmarkName( _
+                groupBookmarkName, nestedGroupKeyText)
+            If VBA.Len(nestedGroupBookmarkName) = 0 Then Exit Function
+            nestedGroupHeaderText = private_NormalizeWordParagraphBreaks( _
+                private_StripPreviewColorMarkers(nestedGroupHeaderText))
+        End If
     End If
 
     If Not rt_PEB_WordExportRuntime.fn_TryAcquireWordDocument( _
@@ -387,6 +435,9 @@ Private Function private_TryAppendBeforeWordEndAnchor( _
         VBA.MsgBox "PrototypeNew: failed to create a unique WORD bookmark for IPN '" & recordIpn & "'.", VBA.vbExclamation, "PrototypeNew / WORD export"
         GoTo CleanFail
     End If
+    ' Текст существующих заголовков не анализируется. Иерархию хранят закладки:
+    ' PEG — внешняя группа (дата), PEN — вложенная группа (больница),
+    ' PEB — отдельная запись человека. Begin/End ограничивают всю секцию.
     insertedStart = endRange.Start
     If VBA.Len(groupBookmarkName) > 0 Then
         If wordDoc.Bookmarks.Exists(groupBookmarkName) Then
@@ -397,13 +448,50 @@ Private Function private_TryAppendBeforeWordEndAnchor( _
                 GoTo CleanFail
             End If
             groupStart = groupRange.Start
-            insertedStart = groupRange.End
+            groupEnd = groupRange.End
+            ' Существующая PEN-группа означает, что оба заголовка уже выведены.
+            ' Новую запись вставляем в её End и затем расширяем PEN и PEG.
+            If VBA.Len(nestedGroupBookmarkName) > 0 And _
+                wordDoc.Bookmarks.Exists(nestedGroupBookmarkName) Then
+                Set nestedGroupRange = wordDoc.Bookmarks( _
+                    nestedGroupBookmarkName).Range
+                If nestedGroupRange.Start < groupRange.Start Or _
+                    nestedGroupRange.End > groupRange.End Then
+                    VBA.MsgBox "PrototypeNew: nested WORD group bookmark is " & _
+                        "outside its parent: " & nestedGroupBookmarkName, _
+                        VBA.vbExclamation, "PrototypeNew / WORD export"
+                    GoTo CleanFail
+                End If
+                nestedGroupStart = nestedGroupRange.Start
+                insertedStart = nestedGroupRange.End
+                wordDoc.Bookmarks(nestedGroupBookmarkName).Delete
+            Else
+                ' Внешняя дата уже существует, но больницы внутри неё ещё нет:
+                ' вставляем только вложенный groupHeader и первую запись.
+                insertedStart = groupRange.End
+                If VBA.Len(nestedGroupBookmarkName) > 0 Then
+                    If Not private_TryFindNestedGroupInsertPosition( _
+                        wordDoc, groupBookmarkName, nestedGroupBookmarkName, _
+                        nestedGroupOrderText, groupRange.Start, groupRange.End, _
+                        insertedStart) Then GoTo CleanFail
+                    nestedGroupStart = insertedStart
+                    plainRenderedText = nestedGroupHeaderText & plainRenderedText
+                End If
+            End If
             wordDoc.Bookmarks(groupBookmarkName).Delete
         Else
             If Not private_TryFindGroupInsertPosition( _
                 wordDoc, templateId, groupBookmarkName, groupOrderText, _
                 beginRange.End, endRange.Start, insertedStart) Then GoTo CleanFail
-            plainRenderedText = groupHeaderText & plainRenderedText
+            ' Нет даже внешней группы: единым блоком вставляются заголовок даты,
+            ' заголовок больницы и первая запись человека.
+            If VBA.Len(nestedGroupBookmarkName) > 0 Then
+                plainRenderedText = groupHeaderText & nestedGroupHeaderText & _
+                    plainRenderedText
+                nestedGroupStart = insertedStart
+            Else
+                plainRenderedText = groupHeaderText & plainRenderedText
+            End If
             groupStart = insertedStart
         End If
     End If
@@ -420,8 +508,17 @@ Private Function private_TryAppendBeforeWordEndAnchor( _
     insertRange.HighlightColorIndex = 0
     wordDoc.Bookmarks.Add bookmarkName, insertRange
     If VBA.Len(groupBookmarkName) > 0 Then
-        Set groupRange = wordDoc.Range(groupStart, insertedEnd)
+        If groupEnd > 0 Then
+            groupEnd = groupEnd + VBA.Len(plainRenderedText)
+        Else
+            groupEnd = insertedEnd
+        End If
+        Set groupRange = wordDoc.Range(groupStart, groupEnd)
         wordDoc.Bookmarks.Add groupBookmarkName, groupRange
+        If VBA.Len(nestedGroupBookmarkName) > 0 Then
+            Set nestedGroupRange = wordDoc.Range(nestedGroupStart, insertedEnd)
+            wordDoc.Bookmarks.Add nestedGroupBookmarkName, nestedGroupRange
+        End If
     End If
 
     ' Word расширяет предыдущую PEB-закладку, когда новый текст вставляется
@@ -440,7 +537,8 @@ Private Function private_TryAppendBeforeWordEndAnchor( _
     Set undoAction = New obj_PEB_ExportUndoAction
     undoActionReady = undoAction.InitializeWord( _
         targetPath, bookmarkName, insertedStart, plainRenderedText, _
-        VBA.vbNullString, groupBookmarkName, groupStart)
+        VBA.vbNullString, groupBookmarkName, groupStart, _
+        nestedGroupBookmarkName, nestedGroupStart)
     If Not undoActionReady Then GoTo CleanFail
 
     wordDoc.Save
@@ -1021,6 +1119,90 @@ Private Function private_BuildGroupBookmarkName( _
             "PrototypeNew / WORD export"
         private_BuildGroupBookmarkName = VBA.vbNullString
     End If
+End Function
+
+Private Function private_BuildNestedGroupBookmarkName( _
+    ByVal parentBookmarkName As String, _
+    ByVal groupKeyText As String _
+) As String
+    Dim parentHash As String
+    Dim keyHash As String
+    Dim keyPart As String
+    Dim availableKeyLength As Long
+
+    ' Родительский hash делает одинаковую больницу независимой для разных дат.
+    ' Видимая часть ключа сохраняет сортировку, полный hash защищает усечённые
+    ' длинные названия от совпадений и помогает уложиться в лимит Word.
+    parentHash = private_BuildStableBookmarkHash(parentBookmarkName)
+    keyHash = private_BuildStableBookmarkHash(VBA.LCase$(VBA.Trim$(groupKeyText)))
+    keyPart = private_NormalizeMetadataBookmarkPart( _
+        VBA.LCase$(groupKeyText))
+    availableKeyLength = WORD_BOOKMARK_MAX_LENGTH - _
+        VBA.Len(WORD_NESTED_GROUP_BOOKMARK_PREFIX) - _
+        VBA.Len(parentHash) - VBA.Len(keyHash) - 2
+    If availableKeyLength <= 0 Or VBA.Len(keyPart) = 0 Then Exit Function
+    If VBA.Len(keyPart) > availableKeyLength Then
+        keyPart = VBA.Left$(keyPart, availableKeyLength)
+    End If
+    private_BuildNestedGroupBookmarkName = _
+        WORD_NESTED_GROUP_BOOKMARK_PREFIX & parentHash & "_" & _
+        keyPart & "_" & keyHash
+End Function
+
+Private Function private_BuildStableBookmarkHash(ByVal valueText As String) As String
+    Dim hashValue As Double
+    Dim charCode As Long
+    Dim charIndex As Long
+    Dim hexText As String
+
+    hashValue = 5381#
+    For charIndex = 1 To VBA.Len(valueText)
+        charCode = VBA.AscW(VBA.Mid$(valueText, charIndex, 1))
+        If charCode < 0 Then charCode = charCode + 65536
+        hashValue = hashValue * 33# + charCode
+        hashValue = hashValue - _
+            VBA.Int(hashValue / 2147483647#) * 2147483647#
+    Next charIndex
+    hexText = VBA.Hex$(VBA.CLng(hashValue))
+    private_BuildStableBookmarkHash = VBA.Right$("00000000" & hexText, 8)
+End Function
+
+Private Function private_TryFindNestedGroupInsertPosition( _
+    ByVal wordDoc As Object, _
+    ByVal parentBookmarkName As String, _
+    ByVal newGroupBookmarkName As String, _
+    ByVal groupOrderText As String, _
+    ByVal parentStart As Long, _
+    ByVal parentEnd As Long, _
+    ByRef outInsertPosition As Long _
+) As Boolean
+    Dim bookmarkObj As Object
+    Dim bookmarkName As String
+    Dim prefixText As String
+
+    outInsertPosition = parentEnd
+    If wordDoc Is Nothing Then Exit Function
+    If VBA.LCase$(VBA.Trim$(groupOrderText)) = "none" Then
+        private_TryFindNestedGroupInsertPosition = True
+        Exit Function
+    End If
+    ' Сравниваются имена служебных закладок, а не текст заголовков документа.
+    ' Поэтому ручное форматирование заголовка не влияет на поиск группы.
+    prefixText = VBA.LCase$(WORD_NESTED_GROUP_BOOKMARK_PREFIX & _
+        private_BuildStableBookmarkHash(parentBookmarkName) & "_")
+    For Each bookmarkObj In wordDoc.Bookmarks
+        bookmarkName = VBA.CStr(bookmarkObj.Name)
+        If VBA.Left$(VBA.LCase$(bookmarkName), VBA.Len(prefixText)) <> prefixText Then _
+            GoTo ContinueBookmark
+        If bookmarkObj.Range.Start < parentStart Or bookmarkObj.Range.End > parentEnd Then _
+            GoTo ContinueBookmark
+        If VBA.StrComp(bookmarkName, newGroupBookmarkName, VBA.vbTextCompare) > 0 Then
+            If bookmarkObj.Range.Start < outInsertPosition Then _
+                outInsertPosition = bookmarkObj.Range.Start
+        End If
+ContinueBookmark:
+    Next bookmarkObj
+    private_TryFindNestedGroupInsertPosition = True
 End Function
 
 Private Function private_TryFindGroupInsertPosition( _
