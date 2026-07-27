@@ -73,6 +73,8 @@ Private Const SPECIAL_POSITION_CODE_ROZP As String = "РОЗП"
 Private Const SPECIAL_POSITION_CODE_SPIS As String = "СПИС"
 Private Const SPECIAL_POSITION_NAME_ROZP_OFFICER As String = "який перебуває у розпорядженні командира військової частини А3369"
 Private Const SPECIAL_POSITION_NAME_ROZP_OTHER As String = "який перебуває у розпорядженні командира військової частини А7383"
+Private Const SPECIAL_POSITION_UNIT_ROZP_OFFICER As String = "А3369"
+Private Const SPECIAL_POSITION_UNIT_ROZP_OTHER As String = "А7383"
 Private Const ORDER_DATE_COLUMN_NAME As String = "Дата наказу"
 Private Const ORDER_NO_COLUMN_NAME As String = "Номер наказу"
 
@@ -732,8 +734,11 @@ End Function
 
 Public Function TryResolvePositionGenitive( _
     ByVal positionText As String, _
-    ByRef outPositionGenitive As String _
+    ByRef outPositionGenitive As String, _
+    Optional ByVal rankText As String = "" _
 ) As Boolean
+    Dim isResolved As Boolean
+
     If m_IsDisposed Then Exit Function
     positionText = private_NormalizePositionCodeForLookup(positionText)
     outPositionGenitive = VBA.vbNullString
@@ -742,7 +747,7 @@ Public Function TryResolvePositionGenitive( _
         Exit Function
     End If
 
-    TryResolvePositionGenitive = private_TryLookupWorkbookValue( _
+    isResolved = private_TryLookupWorkbookValue( _
         DEFAULT_SHPO_REL_PATH, _
         private_BuildAdoRangeRef( _
             POSITIONS_SHEET_NAME, _
@@ -753,6 +758,10 @@ Public Function TryResolvePositionGenitive( _
         positionText, _
         "ШПО / Посади", _
         outPositionGenitive)
+    If Not isResolved Then Exit Function
+
+    private_EnsureRozpUnitSuffix positionText, rankText, outPositionGenitive
+    TryResolvePositionGenitive = True
 End Function
 
 Public Function TryResolvePositionDative( _
@@ -777,8 +786,11 @@ End Function
 Public Function TryResolvePositionGenitiveOptional( _
     ByVal positionText As String, _
     ByRef outPositionGenitive As String, _
-    ByRef outFound As Boolean _
+    ByRef outFound As Boolean, _
+    Optional ByVal rankText As String = "" _
 ) As Boolean
+    Dim isResolved As Boolean
+
     ' WORD preview may use the current source position when a TVO position
     ' code has not yet been added to the declension dictionary.
     If m_IsDisposed Then Exit Function
@@ -790,10 +802,14 @@ Public Function TryResolvePositionGenitiveOptional( _
         Exit Function
     End If
 
-    TryResolvePositionGenitiveOptional = private_TryLookupWorkbookValue( _
+    isResolved = private_TryLookupWorkbookValue( _
         DEFAULT_SHPO_REL_PATH, _
         private_BuildAdoRangeRef(POSITIONS_SHEET_NAME, POSITIONS_RANGE_START, POSITIONS_RANGE_END_COLUMN & VBA.CStr(EXCEL_MAX_ROW)), _
         POSITIONS_KEY_HEADER, POSITIONS_GENITIVE_HEADER, positionText, "ШПО / Посади", outPositionGenitive, True, outFound)
+    If Not isResolved Then Exit Function
+
+    If outFound Then private_EnsureRozpUnitSuffix positionText, rankText, outPositionGenitive
+    TryResolvePositionGenitiveOptional = True
 End Function
 
 Public Function TryResolvePositionDativeOptional( _
@@ -838,7 +854,8 @@ Public Function TryResolvePositionFormsOptional( _
     ByRef outPositionDefault As String, _
     ByRef outPositionGenitive As String, _
     ByRef outPositionDative As String, _
-    ByRef outFound As Boolean _
+    ByRef outFound As Boolean, _
+    Optional ByVal rankText As String = "" _
 ) As Boolean
     If m_IsDisposed Then Exit Function
 
@@ -858,6 +875,9 @@ Public Function TryResolvePositionFormsOptional( _
         POSITIONS_KEY_HEADER, POSITIONS_DEFAULT_HEADER, POSITIONS_GENITIVE_HEADER, POSITIONS_DATIVE_HEADER, _
         positionCodeText, "ШПО / Посади", _
         outPositionDefault, outPositionGenitive, outPositionDative, outFound)
+    If TryResolvePositionFormsOptional And outFound Then
+        private_EnsureRozpUnitSuffix positionCodeText, rankText, outPositionGenitive
+    End If
 End Function
 
 Public Function TryResolveRankByIpn( _
@@ -909,6 +929,36 @@ End Function
 ' //
 ' // Internal
 ' //
+Private Sub private_EnsureRozpUnitSuffix( _
+    ByVal normalizedPositionCode As String, _
+    ByVal rankText As String, _
+    ByRef positionText As String _
+)
+    Dim unitText As String
+
+    If normalizedPositionCode <> SPECIAL_POSITION_CODE_ROZP Then Exit Sub
+    If VBA.Len(VBA.Trim$(rankText)) = 0 Then Exit Sub
+
+    If private_IsOfficerRank(rankText) Then
+        unitText = SPECIAL_POSITION_UNIT_ROZP_OFFICER
+    Else
+        unitText = SPECIAL_POSITION_UNIT_ROZP_OTHER
+    End If
+
+    ' Справочник может уже содержать номер части. Сначала удаляем любой
+    ' известный вариант, затем ставим номер, соответствующий званию.
+    positionText = VBA.Replace( _
+        positionText, SPECIAL_POSITION_UNIT_ROZP_OFFICER, _
+        VBA.vbNullString, 1, -1, VBA.vbTextCompare)
+    positionText = VBA.Replace( _
+        positionText, SPECIAL_POSITION_UNIT_ROZP_OTHER, _
+        VBA.vbNullString, 1, -1, VBA.vbTextCompare)
+    positionText = VBA.Trim$(positionText)
+    If VBA.Len(positionText) > 0 Then
+        positionText = positionText & " " & unitText
+    End If
+End Sub
+
 Private Function private_NormalizePositionCodeForLookup(ByVal positionText As String) As String
     Dim normalizedCode As String
     Dim normalizedSpecialCode As String

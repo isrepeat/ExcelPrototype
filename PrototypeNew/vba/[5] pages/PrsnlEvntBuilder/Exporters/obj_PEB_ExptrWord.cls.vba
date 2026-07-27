@@ -1318,7 +1318,8 @@ Private Function private_TryEnrichMainSourceTableForWord( _
     If Not m_ExporterCfgDataProvider.CommonData.TryResolveFioGenitive(ipnText, fioGenitive) Then Exit Function
     If Not m_ExporterCfgDataProvider.CommonData.TryResolveFioAccusative(ipnText, fioAccusative) Then Exit Function
     If Not m_ExporterCfgDataProvider.CommonData.TryResolveFioInitialsGenitive(ipnText, fioInitialsGenitive) Then Exit Function
-    If Not m_ExporterCfgDataProvider.CommonData.TryResolvePositionGenitive(positionCodeText, positionGenitive) Then Exit Function
+    If Not m_ExporterCfgDataProvider.CommonData.TryResolvePositionGenitive( _
+        positionCodeText, positionGenitive, rankText) Then Exit Function
     If Not m_ExporterCfgDataProvider.CommonData.TryResolveHospitalGenitive(hospitalShortText, hospitalGenitive) Then Exit Function
     If Not m_ExporterCfgDataProvider.CommonData.TryResolveHospitalAccusative(hospitalShortText, hospitalAccusative) Then Exit Function
     If Not m_ExporterCfgDataProvider.CommonData.TryResolveHospitalDative(hospitalShortText, hospitalDative) Then Exit Function
@@ -1872,7 +1873,8 @@ Private Function private_TryEnrichMetaTvoTablesForWord(ByVal sourceTables As Col
         If Not m_ExporterCfgDataProvider.CommonData.TryResolveFioDative(ipnText, fioDative) Then Exit Function
 #If TVO_POSITION_FALLBACK_ENABLED Then
         If Not m_ExporterCfgDataProvider.CommonData.TryResolvePositionFormsOptional( _
-            positionCodeText, fallbackPositionText, positionGenitive, positionDative, positionGenitiveFound) Then Exit Function
+            positionCodeText, fallbackPositionText, positionGenitive, positionDative, _
+            positionGenitiveFound, rankText) Then Exit Function
         positionDativeFound = positionGenitiveFound
         If positionGenitiveFound Then positionText = fallbackPositionText
 
@@ -1898,7 +1900,8 @@ Private Function private_TryEnrichMetaTvoTablesForWord(ByVal sourceTables As Col
         ' Strict mode preserves the original behavior: a missing position row
         ' is reported by CommonData and stops preview/export immediately.
         If Not m_ExporterCfgDataProvider.CommonData.TryResolvePositionFormsOptional( _
-            positionCodeText, positionText, positionGenitive, positionDative, positionGenitiveFound) Then Exit Function
+            positionCodeText, positionText, positionGenitive, positionDative, _
+            positionGenitiveFound, rankText) Then Exit Function
         If Not positionGenitiveFound Then
             VBA.MsgBox "PrototypeNew: declension row was not found in ШПО / Посади for key: " & positionCodeText, _
                 VBA.vbExclamation, "PrototypeNew / WORD export"
