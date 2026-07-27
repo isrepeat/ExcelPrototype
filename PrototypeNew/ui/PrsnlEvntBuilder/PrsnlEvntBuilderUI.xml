@@ -122,12 +122,33 @@
           <stackPanel name="WordExportActions" orientation="vertical">
             <control
               type="Button"
+              name="UseWordPreview"
+              caption="Use preview for export"
+              style="exportApplyButton"
+              dataContext="{PageRuntimeSource='RuntimeObjects.PrsnlEvntBuilder.Controller'}"
+              onClick="{Binding Method=ToggleWordPreviewExportMode}"
+              visibility="{Binding [Not] Path=IsWordPreviewExportMode;TrueAs=Visible;FalseAs=Collapsed}"
+              spanColls="2"
+              spanRows="2"/>
+
+            <control
+              type="Button"
+              name="UseWordPreviewActive"
+              caption="[✓] Export from preview"
+              style="previewModeActiveButton"
+              dataContext="{PageRuntimeSource='RuntimeObjects.PrsnlEvntBuilder.Controller'}"
+              onClick="{Binding Method=ToggleWordPreviewExportMode}"
+              visibility="{Binding Path=IsWordPreviewExportMode;TrueAs=Visible;FalseAs=Collapsed}"
+              spanColls="2"
+              spanRows="2"/>
+
+            <control
+              type="Button"
               name="ExportToWord"
               caption="Export to WORD"
               style="exportApplyButton"
               dataContext="{PageRuntimeSource='RuntimeObjects.PrsnlEvntBuilder.Controller'}"
               onClick="{Binding Method=OnExportToWordClick}"
-              visibility="{Binding Path=WordExportPreviewText; Op=ne; Value=; TrueAs=Visible; FalseAs=Collapsed}"
               spanColls="2"
               spanRows="2"/>
 
@@ -1054,6 +1075,16 @@
       fontBold="true"/>
 
     <controlStyle
+      name="previewModeActiveButton"
+      backColor="#643018"
+      textColor="#FFF4E6"
+      borderColor="#34D399"
+      borderWeight="1.75"
+      fontName="Calibri"
+      fontSize="11"
+      fontBold="true"/>
+
+    <controlStyle
       name="configSelectHeader"
       backColor="#202A24"
       textColor="#86EFAC"
@@ -1163,6 +1194,7 @@
                 fontSize:16;
                 vertical:top;
               }"/>
+
       </layer>
 
       <!-- ButtonGroup получает только семантические теги элементов. -->
@@ -1464,7 +1496,10 @@
         <rule target="controlPart"
               selector="type=tablelist;name=LookupCandidatesTable;part=tag-ado-long-value-candidate"
               styles="{
-                fontColor:#C084FC;
+                backColor:#D6C36A;
+                fontColor:#171717;
+                borderColor:#8A7935;
+                borderWeight:thin;
               }"/>
       </layer>
 
