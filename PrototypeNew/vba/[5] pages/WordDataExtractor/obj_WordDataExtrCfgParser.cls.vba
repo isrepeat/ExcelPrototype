@@ -2,7 +2,7 @@ VERSION 1.0 CLASS
 BEGIN
   MultiUse = -1  'True
 END
-Attribute VB_Name = "obj_WordDataExtractorCfgParser"
+Attribute VB_Name = "obj_WordDataExtrCfgParser"
 Option Explicit
 
 Private m_CfgParserBase As obj_CfgParserBase

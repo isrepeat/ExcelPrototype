@@ -669,19 +669,22 @@
         <table><column id="fio" caption="ПІБ" value="$fio"/><column id="ipn" caption="ІПН" value="$ipn"/><column id="eventDate" caption="Прибуття" value="$eventDate"/><column id="basis" caption="Підстава" value="$basis"/></table>
       </rule>
 
-      <!-- В одной секции может быть несколько мест назначения. Дата выбытия,
-           снятие с продовольствия и основание задаются один раз для всей группы
-           военнослужащих внутри соответствующего destination-блока. -->
+      <!-- В одной секции может быть несколько мест назначения, а внутри одного
+           места — несколько групп с разными датами выбытия. Место наследуется
+           из destination, остальные общие поля читаются из dateGroup. -->
       <rule id="departed-to-permanent-duty" caption="До постійного місця служби" flow="departure" includeCommonColumns="false">
         <scope>
           <match ignoreCase="true" multiline="false"><![CDATA[(?:^|\r)\s*(?:\d+(?:\.\d+)*\.?\s*)?До\s+постійного\s+місця\s+служби\s*[:.]?\s*]]></match>
           <context id="destination">
             <match ignoreCase="true" multiline="false"><![CDATA[(?:^|\r)\s*(у\s+[^\r]+?)\s*,?\s*(?:з\s+)?(\d{1,2}(?:[.\-/]\d{1,2}[.\-/]\d{2,4}|\s+[а-яіїєґ]+\s+\d{4}\s+року))[^\r]*(?:\r[\s\S]*?)(?=\r\s*у\s+[^\r]+?\s*,?\s*(?:з\s+)?\d{1,2}(?:[.\-/]\d{1,2}[.\-/]\d{2,4}|\s+[а-яіїєґ]+\s+\d{4}\s+року)|\s*$)]]></match>
+            <context id="dateGroup">
+              <match ignoreCase="true" multiline="false"><![CDATA[(?:^|\r)\s*(?:(?:у\s+[^\r]+?)\s*,?\s*(?:з\s+)?|[зЗ]\s+)(\d{1,2}(?:[.\-/]\d{1,2}[.\-/]\d{2,4}|\s+[а-яіїєґ]+\s+\d{4}\s+року))[^\r]*(?:\r[\s\S]*?)(?=\r\s*[зЗ]\s+\d{1,2}(?:[.\-/]\d{1,2}[.\-/]\d{2,4}|\s+[а-яіїєґ]+\s+\d{4}\s+року)|\s*$)]]></match>
+            </context>
           </context>
         </scope>
         <!-- Персональные абзацы здесь не содержат собственного «Підстава»:
              ограничиваем match одним Word-абзацем, а групповые поля читаем
-             из полного $destination context. -->
+             из соответствующего $dateGroup context. -->
         <match ignoreCase="true" multiline="false"><![CDATA[(?:^|\r)\s*(?:рядовий|рядового|солдат|солдата|старший\s+солдат|старшого\s+солдата|молодший\s+сержант|молодшого\s+сержанта|сержант|сержанта|старший\s+сержант|старшого\s+сержанта|головний\s+сержант|головного\s+сержанта|штаб-сержант|штаб-сержанта|майстер-сержант|майстер-сержанта|молодший\s+лейтенант|молодшого\s+лейтенанта|лейтенант|лейтенанта|старший\s+лейтенант|старшого\s+лейтенанта|капітан|капітана|майор|майора|підполковник|підполковника|полковник|полковника)\s+[^\r,]+(?:,[^\r]*)?(?=\r|$)]]></match>
         <fields>
           <field id="fio" from="$match" ignoreCase="true"
@@ -689,11 +692,11 @@
             group="1" default=""><transform type="trim"/></field>
           <field id="ipn" from="$match" regex=",\s*(\d{10})\s*," group="1" default=""><transform type="trim"/></field>
           <field id="destination" from="$destination.1"><transform type="trim"/></field>
-          <field id="eventDate" from="$destination.2"><transform type="dateFormat" format="dd.mm.yyyy"/></field>
-          <field id="foodRemovalDate" from="$destination" ignoreCase="true"
+          <field id="eventDate" from="$dateGroup.1"><transform type="dateFormat" format="dd.mm.yyyy"/></field>
+          <field id="foodRemovalDate" from="$dateGroup" ignoreCase="true"
             regex="з\s+продовольчого\s+забезпечення\s+з\s+(\d{1,2}(?:[.\-/]\d{1,2}[.\-/]\d{2,4}|\s+[а-яіїєґ]+\s+\d{4}\s+року))"
             group="1" default=""><transform type="dateFormat" format="dd.mm.yyyy"/></field>
-          <field id="basis" from="$destination" ignoreCase="true"
+          <field id="basis" from="$dateGroup" ignoreCase="true"
             regex="Підстава:\s*([^\r]*?)(?=;\s*посвідчення\s+про\s+відрядження|\r|$)"
             group="1" default=""><transform type="trim"/></field>
         </fields>
@@ -915,8 +918,8 @@
 
       <!-- СЗЧ вследствие неприбытия из любого события либо прямого
            самовольного оставления другой воинской части. -->
-      <rule id="awol-non-return" caption="СЗЧ" source="unclaimed" includeCommonColumns="false">
-        <match ignoreCase="false" multiline="false"><![CDATA[(?:^|\r)\s*[^\r]*[А-ЯІЇЄҐ][А-ЯІЇЄҐ'’\-]{2,}\s+[^\r,]+,(?:(?!Підстава:)[\s\S])*?(?:(?:як(?:ий|а)\s+\d{1,2}\s+[а-яіїєґ]+\s+\d{4}\s+року\s+не\s+поверну(?:вся|лася)(?:(?!Підстава:)[\s\S])*?до\s+військової\s+частини)|(?:вважати\s+та(?:ким|кою),\s*як(?:ий|а)\s+\d{1,2}\s+[а-яіїєґ]+\s+\d{4}\s+року\s*,?\s*самовільно\s+залиш(?:ив|ила)\s+військову\s+частину))(?:(?!Підстава:)[\s\S])*?Підстава:\s*[^\r]*(?=\r|$)]]></match>
+      <rule id="awol-non-return" caption="Зміна статусів СЗЧ" source="unclaimed" includeCommonColumns="false">
+        <match ignoreCase="false" multiline="false"><![CDATA[(?:^|\r)\s*[^\r]*[А-ЯІЇЄҐ][А-ЯІЇЄҐ'’\-]{2,}\s+[^\r,]+,(?:(?!Підстава:)[\s\S])*?(?:(?:як(?:ий|а)\s+\d{1,2}\s+[а-яіїєґ]+\s+\d{4}\s+року\s+не\s+поверну(?:вся|лася)\s+(?:до\s+військової\s+частини|з\s+[^\r.]+))|(?:вважати\s+та(?:ким|кою),\s*як(?:ий|а)\s+\d{1,2}\s+[а-яіїєґ]+\s+\d{4}\s+року\s*,?\s*самовільно\s+залиш(?:ив|ила)\s+військову\s+частину))(?:(?!Підстава:)[\s\S])*?Підстава:\s*[^\r]*(?=\r|$)]]></match>
         <fields>
           <field id="fio" from="$match" ignoreCase="false" regex="\s([А-ЯІЇЄҐ][А-ЯІЇЄҐ'’\-]{2,}\s+[А-ЯІЇЄҐ][А-Яа-яІіЇїЄєҐґ'’\-]+\s+[А-ЯІЇЄҐ][А-Яа-яІіЇїЄєҐґ'’\-]+)\s*," group="1" default=""><transform type="trim"/></field>
           <field id="ipn" from="$match" regex=",\s*(\d{10})\s*," group="1" default=""><transform type="trim"/></field>

@@ -2,6 +2,8 @@
 <profiles version="1">
   <profile id="default" caption="WORD data extractor">
     <item attr="#" key="Profile.Name" value="WORD data extractor"/>
+    <item key="WordDataExtractor.UiFile" value="ui\WordDataExtractor\WordDataExtractorUI.xml"/>
+    <item key="WordDataExtractor.ControllerClass" value="obj_PageWordDataExtractorCtrl"/>
     <item key="WordDataExtractor.RulesFile" value="modes\WordDataExtractor\WordDataExtractorRules.xml"/>
     <item key="WordDataExtractor.Pipeline" value="personnel-order"/>
     <item key="WordDataExtractor.DocumentDir" value="C:\WORK Alexandr Bondarenko\НАКАЗИ\Зібранні накази\07 липень"/>
@@ -16,6 +18,8 @@
 
   <profile id="nutrition-counts" caption="WORD: чисельність котлового забезпечення">
     <item attr="#" key="Profile.Name" value="WORD: чисельність котлового забезпечення"/>
+    <item key="WordDataExtractor.UiFile" value="ui\WordDataExtractor\WordDataExtractorUI.xml"/>
+    <item key="WordDataExtractor.ControllerClass" value="obj_PageWordDataExtractorCtrl"/>
     <item key="WordDataExtractor.RulesFile" value="modes\WordDataExtractor\WordNutritionCountsRules.xml"/>
     <item key="WordDataExtractor.Pipeline" value="nutrition-counts"/>
     <item key="WordDataExtractor.DocumentDir" value="C:\WORK Alexandr Bondarenko\НАКАЗИ\Усі\21.07.2025-01.09.2025"/>
@@ -25,5 +29,15 @@
     <item key="WordDataExtractor.DocumentPathResolverArgs" value="order=asc;dateFrom=22.07.2025;dateTo=01.09.2025"/>
     <!-- <item key="WordDataExtractor.DocumentPathResolverArgs" value="order=asc;dateFrom=01.07.2026;dateTo=21.07.2026"/> -->
     <item key="WordDataExtractor.DocumentDateColumnCaption" value="дата"/>
+  </profile>
+
+  <profile id="text-search" caption="WORD: пошук тексту">
+    <item attr="#" key="Profile.Name" value="WORD: пошук тексту"/>
+    <item key="WordDataExtractor.UiFile" value="ui\WordDataExtractor\WordTextSearchUI.xml"/>
+    <item key="WordDataExtractor.ControllerClass" value="obj_PageWordTextSearchCtrl"/>
+    <item key="WordDataExtractor.DocumentDir" value="C:\WORK Alexandr Bondarenko\НАКАЗИ\Зібранні накази\TestSearch"/>
+    <item key="WordDataExtractor.DocumentFilename" value="{yyyy}-{mm}-{dd} №*"/>
+    <item key="WordDataExtractor.DocumentPathResolver" value="ResolveAllByDmyPattern"/>
+    <item key="WordDataExtractor.DocumentPathResolverArgs" value="order=asc"/>
   </profile>
 </profiles>

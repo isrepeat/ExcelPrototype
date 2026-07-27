@@ -154,7 +154,7 @@ Private Function private_ResetWorkbookAndCreateMainPage( _
     Set createdPage = New obj_PageMain
     If createdPage Is Nothing Then Exit Function
 
-    If Not rt_PageManager.fn_CreatePage(createdPage, "ui\DevUI.xml", "Main") Then GoTo EH_CREATE
+    If Not rt_PageManager.fn_CreatePage(createdPage, "ui\MainUI.xml", "Main") Then GoTo EH_CREATE
     isPageCreated = True
 
     Application.DisplayAlerts = False

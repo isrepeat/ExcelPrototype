@@ -25,7 +25,7 @@ Public Sub fn_TEST_RenderDevUI()
     Set ws = private_GetActiveWorksheet()
     If ws Is Nothing Then Exit Sub
 
-    private_RenderWorksheetPage ws, "ui\DevUI.xml"
+    private_RenderWorksheetPage ws, "ui\MainUI.xml"
 End Sub
 
 Public Sub fn_TEST_RenderDevTableListUI()
@@ -34,7 +34,7 @@ Public Sub fn_TEST_RenderDevTableListUI()
     Set ws = private_GetActiveWorksheet()
     If ws Is Nothing Then Exit Sub
 
-    private_RenderWorksheetPage ws, "ui\DevTableListUI.xml"
+    private_RenderWorksheetPage ws, "ui\Dev\DevTableListUI.xml"
 End Sub
 
 
@@ -44,7 +44,7 @@ Public Sub fn_TEST_RenderDevPrimitiveTableUI()
     Set ws = private_GetActiveWorksheet()
     If ws Is Nothing Then Exit Sub
 
-    private_RenderWorksheetPage ws, "ui\DevPrimitiveTableUI.xml"
+    private_RenderWorksheetPage ws, "ui\Dev\DevPrimitiveTableUI.xml"
 End Sub
 
 
@@ -54,7 +54,7 @@ Public Sub fn_TEST_RenderDevListTableSingleUI()
     Set ws = private_GetActiveWorksheet()
     If ws Is Nothing Then Exit Sub
 
-    private_RenderWorksheetPage ws, "ui\DevListTableSingleUI.xml"
+    private_RenderWorksheetPage ws, "ui\Dev\DevListTableSingleUI.xml"
 End Sub
 
 
@@ -64,7 +64,7 @@ Public Sub fn_TEST_RenderDevTablePartStylesUI()
     Set ws = private_GetActiveWorksheet()
     If ws Is Nothing Then Exit Sub
 
-    private_RenderWorksheetPage ws, "ui\DevTablePartStylesUI.xml"
+    private_RenderWorksheetPage ws, "ui\Dev\DevTablePartStylesUI.xml"
 End Sub
 
 
@@ -132,7 +132,7 @@ Public Sub fn_TEST_ProfileDevTableListUI()
     If Not private_TrySetItemsSource("RuntimeItems.Test.Tables", tables, False) Then Exit Sub
     t2 = VBA.Timer
 
-    private_RenderWorksheetPage ws, "ui\DevProfileTableUI.xml"
+    private_RenderWorksheetPage ws, "ui\Dev\DevProfileTableUI.xml"
     t3 = VBA.Timer
 
 #If LOGGING_DEBUG_ENABLED Then
@@ -177,7 +177,7 @@ Public Sub fn_TEST_RenderDevSingleTableUI()
     Set ws = private_GetActiveWorksheet()
     If ws Is Nothing Then Exit Sub
 
-    private_RenderWorksheetPage ws, "ui\DevSingleTableUI.xml"
+    private_RenderWorksheetPage ws, "ui\Dev\DevSingleTableUI.xml"
 End Sub
 
 
