@@ -54,7 +54,10 @@ Private Const MAX_EXPORT_HOTKEYS As Long = 9
 Private Const LOOKUP_CANDIDATES_CONTROL_NAME As String = "LookupCandidatesTable"
 Private Const FIO_LOOKUP_KEY As String = "op_FIO"
 Private Const WORD_EXPORT_PANEL_CONTAINER_NAME As String = "WordExportPanel"
+Private Const WORD_EXPORT_ACTIONS_CONTAINER_NAME As String = "WordExportActions"
 Private Const WORD_EXPORT_PREVIEW_CONTROL_NAME As String = "WordExportPreview"
+Private Const WORD_EXPORT_PREVIEW_BUTTON_SHAPE_NAME As String = "btn_UseWordPreview"
+Private Const WORD_EXPORT_ACTIVE_BUTTON_SHAPE_NAME As String = "btn_UseWordPreviewActive"
 Private Const EVENT_DRAFT_FORM_CONTAINER_NAME As String = "EventDraftForm"
 Private Const EVENT_DRAFT_VALUES_CONTAINER_NAME As String = "EventDraftValues"
 Private Const EVENT_DRAFT_ORDER_NO_CONTAINER_NAME As String = "EventDraftOrderNoValue"
@@ -110,6 +113,7 @@ Private m_ExportMainTable As obj_TableDynamic
 Private m_ExportMetaTables As Collection
 Private m_MovementHistoryTable As obj_TableDynamic
 Private m_WordExportPreviewText As String
+Private m_IsWordPreviewExportMode As Boolean
 Private m_ExportCommonData As obj_PEB_ExptrCommonDataPrvdr
 Private m_ExporterCfgDataProvider As obj_PEB_ExptrCfgDataPrvdr
 Private m_CachedDailyScopeExporter As obj_PEB_ExptrDailyScope
@@ -241,6 +245,7 @@ Public Sub Dispose()
     Set m_ExportMetaTables = Nothing
     Set m_MovementHistoryTable = Nothing
     m_WordExportPreviewText = VBA.vbNullString
+    m_IsWordPreviewExportMode = False
     m_IsMovementHistoryEnabled = False
     On Error GoTo 0
 End Sub
@@ -249,18 +254,158 @@ Public Property Get WordExportPreviewText() As String
     WordExportPreviewText = m_WordExportPreviewText
 End Property
 
-Public Function ClearWordExportPreview( _
+Public Property Get IsWordPreviewExportMode() As Boolean
+    IsWordPreviewExportMode = m_IsWordPreviewExportMode
+End Property
+
+Public Property Get CanEnableWordPreviewExportMode() As Boolean
+    CanEnableWordPreviewExportMode = _
+        (VBA.Len(VBA.Trim$(m_WordExportPreviewText)) > 0 And _
+         Not m_IsWordPreviewExportMode)
+End Property
+
+Public Function ResetWordPreviewExportMode( _
     Optional ByVal renderNow As Boolean = False _
 ) As Boolean
-    m_WordExportPreviewText = VBA.vbNullString
-    If Not renderNow Then
-        ClearWordExportPreview = True
+    Dim editedPreviewText As String
+    Dim wasPreviewExportMode As Boolean
+
+    wasPreviewExportMode = m_IsWordPreviewExportMode
+    ' Перед выходом из edit mode сохраняем фактический текст Banner:
+    ' пользователь мог изменить его непосредственно в ячейках листа.
+    If wasPreviewExportMode Then
+        If Not private_TryReadRenderedWordPreview(editedPreviewText) Then Exit Function
+        If VBA.Len(VBA.Trim$(editedPreviewText)) > 0 Then
+            m_WordExportPreviewText = editedPreviewText
+        End If
+    End If
+    m_IsWordPreviewExportMode = False
+    ' Если режим уже был выключен, layout и оформление менять не требуется.
+    ' Это также не допускает второго reflow в ветках, которые после сброса
+    ' вызывают ResetWordPreviewExportMode(True).
+    If Not wasPreviewExportMode Then
+        ResetWordPreviewExportMode = True
         Exit Function
     End If
     If m_Page Is Nothing Then Exit Function
-    ClearWordExportPreview = rt_PageManager.fn_RenderPage( _
-        m_Page, "prsnlevntbuilder:word-preview-invalidated")
+    ' При фактическом сбросе обновление панели обязательно даже для False:
+    ' это значение передают обработчики четырёх lookup-полей перед поиском,
+    ' который перерисовывает только кандидатов и не затрагивает WORD actions.
+    ResetWordPreviewExportMode = private_TryRenderWordPreviewMode( _
+        "prsnlevntbuilder:word-preview-mode-reset")
 End Function
+
+Public Function ToggleWordPreviewExportMode( _
+    Optional ByVal ignored As Variant _
+) As Boolean
+    If VBA.Len(VBA.Trim$(m_WordExportPreviewText)) = 0 Then
+        VBA.MsgBox "Спочатку сформуйте WORD preview.", _
+            VBA.vbExclamation, "PrsnlEventBuilder / WORD preview"
+        Exit Function
+    End If
+    If m_IsWordPreviewExportMode Then
+        ToggleWordPreviewExportMode = Me.ResetWordPreviewExportMode(True)
+        Exit Function
+    End If
+    m_IsWordPreviewExportMode = True
+    If m_Page Is Nothing Then Exit Function
+    ToggleWordPreviewExportMode = private_TryRenderWordPreviewMode( _
+        "prsnlevntbuilder:word-preview-mode-toggled")
+End Function
+
+Private Function private_TryRenderWordPreviewMode( _
+    ByVal reasonText As String _
+) As Boolean
+    Dim pageBase As obj_PageBase
+    Dim previousSuppressLookupSearch As Boolean
+
+    If m_Page Is Nothing Then Exit Function
+    Set pageBase = m_Page.GetPageBase()
+    If pageBase Is Nothing Then Exit Function
+    previousSuppressLookupSearch = m_SuppressLookupSearch
+    On Error GoTo RestoreSuppression
+    ' Сам Banner не рендерим повторно: его посимвольные цвета существуют только
+    ' в Excel Range и потерялись бы при повторной записи обычной строки.
+    ' Перестраиваем лишь колонку действий, затем меняем фон и рамку исходного
+    ' диапазона preview без обращения к свойствам Font.
+    m_SuppressLookupSearch = True
+    ' Взаимоисключающие кнопки занимают один layout slot. Удаляем Shape ушедшего
+    ' состояния явно: retained reflow не обязан удалять Shape collapsed-контрола,
+    ' и иначе активное оформление остаётся поверх обычной кнопки.
+    If m_IsWordPreviewExportMode Then
+        private_DeleteGeneratedShapeIfExists _
+            pageBase.Worksheet, WORD_EXPORT_PREVIEW_BUTTON_SHAPE_NAME
+    Else
+        private_DeleteGeneratedShapeIfExists _
+            pageBase.Worksheet, WORD_EXPORT_ACTIVE_BUTTON_SHAPE_NAME
+    End If
+    private_TryRenderWordPreviewMode = pageBase.TryReflowLayoutContainer( _
+        WORD_EXPORT_ACTIONS_CONTAINER_NAME)
+    If private_TryRenderWordPreviewMode Then
+        private_TryRenderWordPreviewMode = _
+            private_TryApplyWordPreviewModeAppearance(pageBase.Worksheet)
+    End If
+    If Not private_TryRenderWordPreviewMode Then
+        VBA.MsgBox _
+            "PrototypeNew: failed to partially render WORD preview panel '" & _
+            WORD_EXPORT_PANEL_CONTAINER_NAME & "' (" & reasonText & ").", _
+            VBA.vbExclamation, _
+            "PrototypeNew / WORD preview"
+    End If
+
+RestoreSuppression:
+    m_SuppressLookupSearch = previousSuppressLookupSearch
+End Function
+
+Private Function private_TryApplyWordPreviewModeAppearance( _
+    ByVal ws As Worksheet _
+) As Boolean
+    Dim messageRange As Range
+    Dim columnScope As Range
+    Dim backgroundColor As Long
+    Dim borderColor As Long
+
+    If ws Is Nothing Then Exit Function
+    If Not ex_ControlPartsRuntime.fn_TryResolveControlPartScope( _
+        ws, _
+        "banner", _
+        WORD_EXPORT_PREVIEW_CONTROL_NAME, _
+        "message", _
+        messageRange, _
+        columnScope) Then Exit Function
+
+    If m_IsWordPreviewExportMode Then
+        backgroundColor = VBA.RGB(140, 57, 15)
+        borderColor = VBA.RGB(52, 211, 153)
+    Else
+        backgroundColor = VBA.RGB(37, 42, 49)
+        borderColor = VBA.RGB(0, 0, 0)
+    End If
+
+    On Error GoTo EH
+    messageRange.Interior.Color = backgroundColor
+    messageRange.Borders.Color = borderColor
+    messageRange.Borders.Weight = xlThin
+    private_TryApplyWordPreviewModeAppearance = True
+    Exit Function
+
+EH:
+#If LOGGING_DEBUG_ENABLED Then
+    ex_Core.fn_Diagnostic_LogError _
+        "PrsnlEventBuilder: failed to update WORD preview mode appearance: " & _
+        Err.Description
+#End If
+End Function
+
+Private Sub private_DeleteGeneratedShapeIfExists( _
+    ByVal ws As Worksheet, _
+    ByVal shapeName As String _
+)
+    If ws Is Nothing Then Exit Sub
+    On Error Resume Next
+    ws.Shapes(shapeName).Delete
+    On Error GoTo 0
+End Sub
 
 Public Property Get IsLookupEnabled() As Boolean
     IsLookupEnabled = m_IsLookupEnabled
@@ -680,7 +825,7 @@ Public Function RuntimeHandleHotkeyAction(ByVal actionId As Variant) As Boolean
         Case VBA.LCase$(HOTKEY_ACCEPT_CANDIDATE_ROW)
             ' Любой выбранный Lookup-кандидат меняет данные, из которых был
             ' построен WORD preview: ФИО, больницу, рапортующего или документ.
-            If Not Me.ClearWordExportPreview(False) Then Exit Function
+            If Not Me.ResetWordPreviewExportMode(False) Then Exit Function
             If m_IsMovementHistoryEnabled Then
                 ' Movement относится только к основному человеку события.
                 ' Hospital/Commander candidates тоже заполняют draft-форму
@@ -783,6 +928,7 @@ Public Function RuntimeClearExportFormAndCandidates() As Boolean
     ' сформированный через Apply, его WORD preview и текущих Lookup-кандидатов.
     private_ClearExportFormState
     m_WordExportPreviewText = VBA.vbNullString
+    If Not Me.ResetWordPreviewExportMode(False) Then Exit Function
 
     If Not m_LookupFeature Is Nothing Then
         If Not m_LookupFeature.ClearLookupCandidates(False) Then Exit Function
@@ -945,10 +1091,12 @@ Private Function private_TryExportWordToDocument() As Boolean
         Exit Function
     End If
     If Not private_TryBuildExportSourceTables(sourceTables, exportContext) Then Exit Function
-    If Not private_TryReadRenderedWordPreview(editedPreviewText) Then Exit Function
-    If VBA.Len(VBA.Trim$(editedPreviewText)) > 0 Then
+    If m_IsWordPreviewExportMode Then
+        If Not private_TryReadRenderedWordPreview(editedPreviewText) Then Exit Function
+    End If
+    If m_IsWordPreviewExportMode And VBA.Len(VBA.Trim$(editedPreviewText)) > 0 Then
         ' Источником становится фактический текст Banner на листе, а не
-        ' сохранённая модель: пользователь мог вручную исправить preview.
+        ' сохранённая модель, но только после явного включения режима кнопкой.
         exportContext(EXPORT_CONTEXT_WORD_PREVIEW_TEXT_KEY) = editedPreviewText
     End If
     exportContext("WriteToWord") = True
@@ -1045,11 +1193,9 @@ Public Function OnProfileButtonClick(Optional ByVal profileId As Variant) As Boo
         End If
     End If
 
-    ' Preview относится к конкретной секции и собранному для нее export context.
-    ' После фактической смены main/meta-профиля старый текст больше не валиден.
-    ' Пустое значение заставляет visibility binding скрыть banner и WORD-кнопку;
-    ' новое preview появится только после следующего запуска CTRL+3.
-    m_WordExportPreviewText = VBA.vbNullString
+    ' Текст preview оставляем доступным для просмотра, но после смены секции
+    ' экспорт снова обязан использовать актуальный шаблонный контекст.
+    If Not Me.ResetWordPreviewExportMode(False) Then Exit Function
     m_SelectedProfile = newProfile
     If m_Page Is Nothing Then Exit Function
     If private_IsMainProfile(newProfile) And Not m_Data.IsAdditionalProfileName(newProfile) Then
@@ -2317,6 +2463,9 @@ Private Function private_TryCaptureWordExportPreview(ByVal exportContext As Obje
     ex_Core.fn_Diagnostic_LogInfo "prsnlevntbuilder:preview-capture:preview-ready len=" & VBA.CStr(VBA.Len(previewText))
 #End If
     m_WordExportPreviewText = previewText
+    ' Даже новое preview становится источником экспорта только после отдельного
+    ' подтверждения пользователя кнопкой рядом с Banner.
+    m_IsWordPreviewExportMode = False
     If m_Page Is Nothing Then Exit Function
     Set pageBase = m_Page.GetPageBase()
     If pageBase Is Nothing Then Exit Function

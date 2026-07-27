@@ -322,7 +322,8 @@ Public Function Export( _
             End If
         End If
         If Not private_TryAppendBeforeWordEndAnchor( _
-            templateId, recordIpn, previewText, groupKeyText, groupOrderText, groupHeaderText, _
+            templateId, recordIpn, previewText, _
+            groupKeyText, groupOrderText, groupHeaderText, _
             nestedGroupKeyText, nestedGroupOrderText, nestedGroupHeaderText, _
             private_GetContextText(context, CONTEXT_MANUAL_ORDER_NO)) Then Exit Function
     End If

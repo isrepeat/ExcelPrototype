@@ -182,6 +182,8 @@ Public Function Export( _
     Dim insertedAfterFormula As Variant
     Dim insertedRowWasAdded As Boolean
     Dim undoActionReady As Boolean
+    Dim manualOrderNoText As String
+    Dim orderDate As Date
 
     On Error GoTo EH
 
@@ -211,6 +213,10 @@ Public Function Export( _
     ' таблицы ниже собираются в синхронные многострочные Movement-поля.
     If Not m_Base.TryGetMainSourceTable(sourceTables, sourceTable) Then Exit Function
     If Not private_TryValidateManualOrderNoSpecified(context) Then Exit Function
+    manualOrderNoText = private_GetContextText( _
+        context, MOVEMENT_CONTEXT_MANUAL_ORDER_NO)
+    If Not private_TryResolveOrderDateFromCommonData( _
+        manualOrderNoText, orderDate) Then Exit Function
 
     ' SectionType определяет семантику операции. Для mirror transfer флаг closing
     ' принудительно сбрасывается, потому что mirror-ветка сама делает оба действия:
@@ -335,6 +341,13 @@ Public Function Export( _
         insertedRowIndex, insertedAfterFormula, insertedRowWasAdded, insertedBeforeFormula)
     If Not undoActionReady Then GoTo CleanFail
 
+    ' Параллельно сохраняем исходные строки формы в последовательный TXT-журнал.
+    ' Записывается именно sourceTable, а не преобразованная строка Movement:
+    ' это позволяет восстановить фактический набор полей, переданный экспортёру.
+    If Not private_TryAppendSourceFormRowsToTextLog( _
+        sourceTable, sectionTypeRaw, manualOrderNoText, orderDate, _
+        targetWb.FullName) Then GoTo CleanFail
+
     If Not openedByExporter And SAVE_ALREADY_OPEN_WORKBOOK Then targetWb.Save
     Export = True
     GoTo CleanExit
@@ -382,6 +395,101 @@ EH:
     If openedByExporter Then targetWb.Close SaveChanges:=False
     If fastModeStarted Then m_Base.RestoreFastExcelMode prevScreenUpdating, prevEnableEvents, prevDisplayAlerts, prevCalculation
     On Error GoTo 0
+End Function
+
+Private Function private_TryAppendSourceFormRowsToTextLog( _
+    ByVal sourceTable As obj_TableDynamic, _
+    ByVal sectionTypeText As String, _
+    ByVal orderNoText As String, _
+    ByVal orderDate As Date, _
+    ByVal targetWorkbookPath As String _
+) As Boolean
+    Dim fileSystem As Object
+    Dim textStream As Object
+    Dim sourceRow As obj_Row
+    Dim logPath As String
+    Dim logText As String
+    Dim lineText As String
+    Dim errorDescription As String
+    Dim rowIndex As Long
+    Dim columnIndex As Long
+
+    On Error GoTo EH
+    If sourceTable Is Nothing Then Exit Function
+    If sourceTable.RowCount <= 0 Or sourceTable.ColumnCount <= 0 Then Exit Function
+    logPath = private_BuildSourceFormRowsLogPath(targetWorkbookPath)
+    If VBA.Len(logPath) = 0 Then Exit Function
+    orderNoText = VBA.Trim$(orderNoText)
+    If VBA.Len(orderNoText) = 0 Or orderDate = 0 Then Exit Function
+
+    For rowIndex = 1 To sourceTable.RowCount
+        Set sourceRow = sourceTable.Rows.Item(rowIndex)
+        If sourceRow Is Nothing Then Exit Function
+        lineText = "[" & private_NormalizeTextLogValue(orderNoText) & "] " & _
+            VBA.Format$(orderDate, "yyyy-mm-dd") & " SectionType=" & _
+            private_NormalizeTextLogValue(sectionTypeText) & " | "
+        For columnIndex = 1 To sourceTable.ColumnCount
+            If columnIndex > 1 Then lineText = lineText & VBA.vbTab
+            lineText = lineText & private_NormalizeTextLogValue( _
+                private_VariantToTextLogValue( _
+                    sourceRow.GetCellValue(columnIndex)))
+        Next columnIndex
+        If VBA.Len(logText) > 0 Then logText = logText & VBA.vbCrLf
+        logText = logText & lineText
+    Next rowIndex
+
+    Set fileSystem = VBA.CreateObject("Scripting.FileSystemObject")
+    ' TristateTrue создаёт UTF-16 text file, поэтому кириллица не зависит
+    ' от системной ANSI code page. ForAppending сохраняет предыдущие формы.
+    Set textStream = fileSystem.OpenTextFile(logPath, 8, True, -1)
+    textStream.WriteLine logText
+    textStream.Close
+    Set textStream = Nothing
+    private_TryAppendSourceFormRowsToTextLog = True
+    Exit Function
+
+EH:
+    errorDescription = Err.Description
+    On Error Resume Next
+    If Not textStream Is Nothing Then textStream.Close
+    On Error GoTo 0
+    VBA.MsgBox "PrototypeNew: failed to append Movement form rows to TXT: " & _
+        errorDescription, VBA.vbExclamation, "PrototypeNew / Movement export"
+End Function
+
+Private Function private_BuildSourceFormRowsLogPath( _
+    ByVal targetWorkbookPath As String _
+) As String
+    Dim lastSeparatorPos As Long
+    Dim extensionPos As Long
+
+    targetWorkbookPath = VBA.Trim$(targetWorkbookPath)
+    If VBA.Len(targetWorkbookPath) = 0 Then Exit Function
+    lastSeparatorPos = VBA.InStrRev(targetWorkbookPath, Application.PathSeparator)
+    extensionPos = VBA.InStrRev(targetWorkbookPath, ".")
+    If extensionPos <= lastSeparatorPos Then extensionPos = VBA.Len(targetWorkbookPath) + 1
+    private_BuildSourceFormRowsLogPath = _
+        VBA.Left$(targetWorkbookPath, extensionPos - 1) & "_form_rows.txt"
+End Function
+
+Private Function private_NormalizeTextLogValue(ByVal valueText As String) As String
+    valueText = VBA.Replace(valueText, VBA.vbTab, " ")
+    valueText = VBA.Replace(valueText, VBA.vbCr, " ")
+    valueText = VBA.Replace(valueText, VBA.vbLf, " ")
+    private_NormalizeTextLogValue = valueText
+End Function
+
+Private Function private_VariantToTextLogValue(ByVal valueObj As Variant) As String
+    If VBA.IsError(valueObj) Then
+        private_VariantToTextLogValue = "#ERROR"
+    ElseIf VBA.IsNull(valueObj) Or VBA.IsEmpty(valueObj) Then
+        private_VariantToTextLogValue = VBA.vbNullString
+    ElseIf VBA.IsDate(valueObj) Then
+        private_VariantToTextLogValue = VBA.Format$(VBA.CDate(valueObj), _
+            "yyyy-mm-dd hh:nn:ss")
+    Else
+        private_VariantToTextLogValue = VBA.CStr(valueObj)
+    End If
 End Function
 
 Private Function private_IsMirrorTransferSectionType(ByVal sectionTypeText As String) As Boolean

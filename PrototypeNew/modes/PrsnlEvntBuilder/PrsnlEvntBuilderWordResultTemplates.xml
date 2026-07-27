@@ -223,7 +223,15 @@
     </text>
   </template>
 
-  <template id="FromVacationForCuring">
+  <template id="FromVacationForCuring"
+    groupBy="EffectiveReturnDateShort"
+    groupOrder="date">
+    <groupHeader by="EffectiveReturnDateShort">
+      <![CDATA[#^
+#_      {[EffectiveReturnDateShort]|dateformat:"\dd \month \yyyy року"}:#^
+#_      {#newline}{#newline}#^
+      ]]>
+    </groupHeader>
     <text>
       <![CDATA[#^
 #_      {#include block.ReturnFromVacation}#^
@@ -232,7 +240,15 @@
     </text>
   </template>
 
-  <template id="FromAnnualMainVacation">
+  <template id="FromAnnualMainVacation"
+    groupBy="EffectiveReturnDateShort"
+    groupOrder="date">
+    <groupHeader by="EffectiveReturnDateShort">
+      <![CDATA[#^
+#_      {[EffectiveReturnDateShort]|dateformat:"\dd \month \yyyy року"}:#^
+#_      {#newline}{#newline}#^
+      ]]>
+    </groupHeader>
     <text>
       <![CDATA[#^
 #_      {#include block.ReturnFromVacation}#^
@@ -241,7 +257,15 @@
     </text>
   </template>
 
-  <template id="FromVacationForFamily">
+  <template id="FromVacationForFamily"
+    groupBy="EffectiveReturnDateShort"
+    groupOrder="date">
+    <groupHeader by="EffectiveReturnDateShort">
+      <![CDATA[#^
+#_      {[EffectiveReturnDateShort]|dateformat:"\dd \month \yyyy року"}:#^
+#_      {#newline}{#newline}#^
+      ]]>
+    </groupHeader>
     <text>
       <![CDATA[#^
 #_      {#include block.ReturnFromVacation}#^
