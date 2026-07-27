@@ -279,18 +279,18 @@ Private Function private_TryLoadStateConfig( _
     ByRef outFioHeader As String, _
     ByRef outIpnHeader As String _
 ) As Boolean
-    Dim wordDataExtractorCfgParser As obj_WordDataExtractorCfgParser
+    Dim wordDataExtrCfgParser As obj_WordDataExtrCfgParser
     Dim rawTableRef As String
 
-    Set wordDataExtractorCfgParser = New obj_WordDataExtractorCfgParser
-    If Not wordDataExtractorCfgParser.Initialize(configTable) Then Exit Function
-    If Not wordDataExtractorCfgParser.TryGetRequiredValue( _
+    Set wordDataExtrCfgParser = New obj_WordDataExtrCfgParser
+    If Not wordDataExtrCfgParser.Initialize(configTable) Then Exit Function
+    If Not wordDataExtrCfgParser.TryGetRequiredValue( _
         CONFIG_STATE_PATH, outStatePath) Then Exit Function
-    If Not wordDataExtractorCfgParser.TryGetRequiredValue( _
+    If Not wordDataExtrCfgParser.TryGetRequiredValue( _
         CONFIG_STATE_RANGE, rawTableRef) Then Exit Function
-    If Not wordDataExtractorCfgParser.TryGetRequiredValue( _
+    If Not wordDataExtrCfgParser.TryGetRequiredValue( _
         CONFIG_STATE_FIO_HEADER, outFioHeader) Then Exit Function
-    If Not wordDataExtractorCfgParser.TryGetRequiredValue( _
+    If Not wordDataExtrCfgParser.TryGetRequiredValue( _
         CONFIG_STATE_IPN_HEADER, outIpnHeader) Then Exit Function
 
     outStatePath = private_ResolveWorkbookPath(outStatePath)

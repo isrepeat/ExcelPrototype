@@ -13,7 +13,7 @@ Implements obj_ISerializable
 Private Const SERIALIZABLE_TYPE_ROOT As String = "page.main"
 Private Const SNAPSHOT_ROOT_NODE As String = "pageState"
 Private Const CONTROL_SNAPSHOT_NODE As String = "controlSnapshot"
-Private Const SUPPORTED_UI_PATH As String = "ui\devui.xml"
+Private Const SUPPORTED_UI_PATH As String = "ui\MainUI.xml"
 
 Private m_PageBase As obj_PageBase
 Private m_PageMainController As obj_PageMainCtrl

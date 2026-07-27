@@ -174,16 +174,24 @@ Public Function OnOpenWordDataExtractorPageCommand(Optional ByVal arg As Variant
     Dim sheetName As String
     Dim existingPage As obj_IPage
     Dim extractorPage As obj_IPage
+    Dim extractorPageObject As obj_PageWordDataExtractor
     Dim parentPage As obj_IPage
+    Dim profileUiPath As String
+    Dim controllerClassName As String
     Dim isPageCreated As Boolean
 
     On Error GoTo EH_OPEN
+    If Not private_TryResolveWordDataExtractorComponents( _
+        profileUiPath, controllerClassName) Then Exit Function
     If rt_PageManager.fn_TryGetPageByWorksheetName(WORD_DATA_EXTRACTOR_SHEET_BASE_NAME, existingPage) Then
         If existingPage Is Nothing Then GoTo EH_CREATE
         If Not TypeOf existingPage Is obj_PageWordDataExtractor Then
             VBA.MsgBox "Worksheet '" & WORD_DATA_EXTRACTOR_SHEET_BASE_NAME & "' is bound to an unexpected page type.", VBA.vbExclamation, "PrototypeNew / WordDataExtractor"
             Exit Function
         End If
+        Set extractorPageObject = existingPage
+        If Not extractorPageObject.ConfigureProfileComponents( _
+            profileUiPath, controllerClassName) Then Exit Function
         If Not existingPage.RunPagePipeline() Then Exit Function
         If Not rt_PageManager.fn_RenderPageAndActivate(existingPage, "pagemain:open-worddataextractor:reuse") Then Exit Function
         OnOpenWordDataExtractorPageCommand = True
@@ -192,9 +200,13 @@ Public Function OnOpenWordDataExtractorPageCommand(Optional ByVal arg As Variant
 
     sheetName = private_BuildUniqueWorksheetName(ThisWorkbook, WORD_DATA_EXTRACTOR_SHEET_BASE_NAME)
     If VBA.Len(sheetName) = 0 Then Exit Function
-    Set extractorPage = New obj_PageWordDataExtractor
+    Set extractorPageObject = New obj_PageWordDataExtractor
+    If Not extractorPageObject.ConfigureProfileComponents( _
+        profileUiPath, controllerClassName) Then Exit Function
+    Set extractorPage = extractorPageObject
     Set parentPage = m_Page
-    If Not rt_PageManager.fn_CreatePage(extractorPage, "ui\WordDataExtractorUI.xml", sheetName, parentPage) Then GoTo EH_CREATE
+    If Not rt_PageManager.fn_CreatePage(extractorPage, _
+        profileUiPath, sheetName, parentPage) Then GoTo EH_CREATE
     isPageCreated = True
     If Not extractorPage.RunPagePipeline() Then GoTo EH_CREATE
     If Not rt_PageManager.fn_RenderPageAndActivate(extractorPage, "pagemain:open-worddataextractor") Then GoTo EH_CREATE
@@ -213,12 +225,65 @@ EH_OPEN:
     Resume EH_CREATE
 End Function
 
+Private Function private_TryResolveWordDataExtractorComponents( _
+    ByRef outUiPath As String, _
+    ByRef outControllerClassName As String _
+) As Boolean
+    Dim configControl As obj_ConfigControlVM
+    Dim configTable As obj_ConfigTable
+    Dim wordDataExtrCfgParser As obj_WordDataExtrCfgParser
+    Dim resolvedUiPath As String
+
+    outUiPath = VBA.vbNullString
+    outControllerClassName = VBA.vbNullString
+    If Not private_TryResolveConfigControl(configControl) Then Exit Function
+    If Not configControl.TryBuildConfigTableFromRendered( _
+        configTable) Then Exit Function
+    Set wordDataExtrCfgParser = New obj_WordDataExtrCfgParser
+    If Not wordDataExtrCfgParser.Initialize(configTable) Then Exit Function
+    If Not wordDataExtrCfgParser.TryGetRequiredValue( _
+        "WordDataExtractor.UiFile", outUiPath) Then
+        VBA.MsgBox "В профиле отсутствует обязательный ключ " & _
+            "WordDataExtractor.UiFile.", VBA.vbExclamation, _
+            "PrototypeNew / WordDataExtractor"
+        Exit Function
+    End If
+    If Not wordDataExtrCfgParser.TryGetRequiredValue( _
+        "WordDataExtractor.ControllerClass", _
+        outControllerClassName) Then
+        VBA.MsgBox "В профиле отсутствует обязательный ключ " & _
+            "WordDataExtractor.ControllerClass.", VBA.vbExclamation, _
+            "PrototypeNew / WordDataExtractor"
+        Exit Function
+    End If
+    resolvedUiPath = ex_XmlCore.fn_CombineBasePath( _
+        ThisWorkbook, outUiPath)
+    If VBA.Len(VBA.Dir$(resolvedUiPath, VBA.vbNormal)) = 0 Then
+        VBA.MsgBox "UI-файл профиля WordDataExtractor не найден: " & _
+            resolvedUiPath, VBA.vbExclamation, _
+            "PrototypeNew / WordDataExtractor"
+        Exit Function
+    End If
+    private_TryResolveWordDataExtractorComponents = True
+End Function
+
 Public Function OnOpenCurrentModeUiFileCommand(Optional ByVal arg As Variant) As Boolean
     Dim modeId As String
     Dim filePath As String
+    Dim profileUiPath As String
+    Dim controllerClassName As String
 
     If Not private_TryGetCurrentModeId(modeId) Then Exit Function
-    filePath = ThisWorkbook.Path & "\ui\" & modeId & "UI.xml"
+    If VBA.StrComp(modeId, "WordDataExtractor", _
+        VBA.vbTextCompare) = 0 Then
+        If Not private_TryResolveWordDataExtractorComponents( _
+            profileUiPath, controllerClassName) Then Exit Function
+        filePath = ex_XmlCore.fn_CombineBasePath( _
+            ThisWorkbook, profileUiPath)
+    Else
+        filePath = ThisWorkbook.Path & "\ui\" & modeId & _
+            "\" & modeId & "UI.xml"
+    End If
     OnOpenCurrentModeUiFileCommand = private_TryOpenModeFileInNotepad(filePath, "UI file")
 End Function
 
@@ -246,7 +311,7 @@ Public Function OnOpenMultiSourcesViewPageCommand(Optional ByVal arg As Variant)
     If VBA.Len(sheetName) = 0 Then Exit Function
     Set viewPage = New obj_PageMultiSourcesView
     Set parentPage = m_Page
-    If Not rt_PageManager.fn_CreatePage(viewPage, "ui\MultiSourcesViewUI.xml", sheetName, parentPage) Then GoTo EH_CREATE
+    If Not rt_PageManager.fn_CreatePage(viewPage, "ui\MultiSourcesView\MultiSourcesViewUI.xml", sheetName, parentPage) Then GoTo EH_CREATE
     isPageCreated = True
     If Not viewPage.RunPagePipeline() Then GoTo EH_CREATE
     If Not rt_PageManager.fn_RenderPageAndActivate(viewPage, "pagemain:open-multisourcesview") Then GoTo EH_CREATE
@@ -575,7 +640,7 @@ Public Function OnOpenPersonalCardPageCommand(Optional ByVal arg As Variant) As 
 
     Set parentPage = m_Page
 
-    If Not rt_PageManager.fn_CreatePage(personalCardPage, "ui\PersonalCardUI.xml", sheetName, parentPage) Then GoTo EH_CREATE
+    If Not rt_PageManager.fn_CreatePage(personalCardPage, "ui\PersonalCard\PersonalCardUI.xml", sheetName, parentPage) Then GoTo EH_CREATE
     isPageCreated = True
 
     If Not personalCardPage.RunPagePipeline() Then
@@ -684,7 +749,7 @@ Public Function OnOpenEntityLookupPageCommand(Optional ByVal arg As Variant) As 
 
     Set parentPage = m_Page
 
-    If Not rt_PageManager.fn_CreatePage(entityLookupPage, "ui\EntityLookupUI.xml", sheetName, parentPage) Then GoTo EH_CREATE
+    If Not rt_PageManager.fn_CreatePage(entityLookupPage, "ui\EntityLookup\EntityLookupUI.xml", sheetName, parentPage) Then GoTo EH_CREATE
     isPageCreated = True
 
     If Not entityLookupPage.RunPagePipeline() Then
@@ -793,7 +858,7 @@ Public Function OnOpenPrsnlEvntBuilderPageCommand(Optional ByVal arg As Variant)
 
     If Not private_TryGetOrCreateActiveConfigContext(configContext) Then GoTo EH_CREATE
 
-    If Not rt_PageManager.fn_CreatePage(builderPage, "ui\PrsnlEvntBuilderUI.xml", sheetName, configContext) Then GoTo EH_CREATE
+    If Not rt_PageManager.fn_CreatePage(builderPage, "ui\PrsnlEvntBuilder\PrsnlEvntBuilderUI.xml", sheetName, configContext) Then GoTo EH_CREATE
     isPageCreated = True
 
     If Not builderPage.RunPagePipeline() Then
@@ -902,7 +967,7 @@ Public Function OnOpenComparingPageCommand(Optional ByVal arg As Variant) As Boo
 
     Set parentPage = m_Page
 
-    If Not rt_PageManager.fn_CreatePage(comparingPage, "ui\ComparingUI.xml", sheetName, parentPage) Then GoTo EH_CREATE
+    If Not rt_PageManager.fn_CreatePage(comparingPage, "ui\Comparing\ComparingUI.xml", sheetName, parentPage) Then GoTo EH_CREATE
     isPageCreated = True
 
     If Not comparingPage.RunPagePipeline() Then

@@ -6,7 +6,7 @@ Clean-slate sandbox for rebuilding UI loading with object controls.
 No hardcoded control names in VBA. UI page is described in XML, and runtime builds controls via interface objects.
 
 ## Current scope
-- Read Dev layout from `PrototypeNew/ui/DevUI.xml`.
+- Read Main layout from `PrototypeNew/ui/MainUI.xml`.
 - For each declared control, use `type` to resolve its VM class `obj_<Type>ControlVM`.
 - The page XML is the single UI source; controls and their optional template children are cloned directly from the loaded page DOM.
 - Build controls through `obj_IControl` + `ex_ControlFactory`.
@@ -165,19 +165,19 @@ Files that do not match these patterns are ignored by importer.
 ## Test helpers
 Run from `ex_Test`:
 - `fn_TEST_RenderDevUI`
-	- renders `ui\DevUI.xml` on active worksheet.
+	- renders `ui\MainUI.xml` on active worksheet.
 - `fn_TEST_RegisterDemoListItems`
 	- registers demo collection under itemsSource key `Test.People`.
 - `m_TEST_RenderDevListUI`
-	- registers demo table collections and renders nested-list table demo `ui\DevListUI.xml`.
+	- registers demo table collections and renders nested-list table demo `ui\Dev\DevTableListUI.xml`.
 - `fn_TEST_RenderDevTableListUI`
 	- alias for table list demo render.
 - `fn_TEST_RenderDevPrimitiveTableUI`
-	- renders `ui\DevPrimitiveTableUI.xml` with table-like nested list templates built from primitive controls.
+	- renders `ui\Dev\DevPrimitiveTableUI.xml` with table-like nested list templates built from primitive controls.
 - `fn_TEST_RenderDevListTableSingleUI`
-	- registers demo 20 tables and renders `ui\DevListTableSingleUI.xml` (`List + itemsSourceTemplate + TableSingle` per item).
+	- registers demo 20 tables and renders `ui\Dev\DevListTableSingleUI.xml` (`List + itemsSourceTemplate + TableSingle` per item).
 - `fn_TEST_RenderDevTablePartStylesUI`
-	- renders `ui\DevTablePartStylesUI.xml` with `controlPart` selector rules for `TableList` sections.
+	- renders `ui\Dev\DevTablePartStylesUI.xml` with `controlPart` selector rules for `TableList` sections.
 - `fn_TEST_SetDemoTableItemsMany`
 	- updates `RuntimeItems.Test.Tables` with 20 tables; if a page was rendered already, triggers full page rerender.
 - `fn_TEST_SetDemoTableItemsSingle`

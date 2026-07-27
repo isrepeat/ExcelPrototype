@@ -5,6 +5,8 @@ END
 Attribute VB_Name = "obj_PageWordDataExtractorCtrl"
 Option Explicit
 
+Implements obj_IPageCtrl
+
 Private Const OBJECT_KEY As String = "RuntimeObjects.WordDataExtractor.Controller"
 Private Const TABLES_KEY As String = "RuntimeItems.WordDataExtractor.Tables"
 Private m_Page As obj_IPage
@@ -42,11 +44,21 @@ Public Function Initialize(ByVal page As obj_IPage) As Boolean
     Initialize = True
 End Function
 
+Private Function obj_IPageCtrl_Initialize( _
+    ByVal page As obj_IPage _
+) As Boolean
+    obj_IPageCtrl_Initialize = Initialize(page)
+End Function
+
 Public Sub Dispose()
     Set m_ConfigTable = Nothing
     Set m_AllTables = Nothing
     Set m_DocumentPaths = Nothing
     Set m_Page = Nothing
+End Sub
+
+Private Sub obj_IPageCtrl_Dispose()
+    Dispose
 End Sub
 
 Public Property Get ShowEmptyTables() As Boolean
@@ -55,7 +67,7 @@ End Property
 
 Public Function UpdateData(ByVal configControl As obj_ConfigControlVM) As Boolean
     Dim configTable As obj_ConfigTable
-    Dim wordDataExtractorCfgParser As obj_WordDataExtractorCfgParser
+    Dim wordDataExtrCfgParser As obj_WordDataExtrCfgParser
     Dim documentDir As String
     Dim documentFilename As String
     Dim documentPathResolver As String
@@ -63,29 +75,29 @@ Public Function UpdateData(ByVal configControl As obj_ConfigControlVM) As Boolea
     m_IsReady = False
     If configControl Is Nothing Then Exit Function
     If Not configControl.TryBuildConfigTableFromRendered(configTable) Then Exit Function
-    Set wordDataExtractorCfgParser = New obj_WordDataExtractorCfgParser
-    If Not wordDataExtractorCfgParser.Initialize(configTable) Then Exit Function
-    If Not wordDataExtractorCfgParser.TryGetRequiredValue( _
+    Set wordDataExtrCfgParser = New obj_WordDataExtrCfgParser
+    If Not wordDataExtrCfgParser.Initialize(configTable) Then Exit Function
+    If Not wordDataExtrCfgParser.TryGetRequiredValue( _
         "WordDataExtractor.RulesFile", m_RulesPath) Then
         private_Error "В профиле отсутствует обязательный ключ WordDataExtractor.RulesFile."
         Exit Function
     End If
-    If Not wordDataExtractorCfgParser.TryGetRequiredValue( _
+    If Not wordDataExtrCfgParser.TryGetRequiredValue( _
         "WordDataExtractor.Pipeline", m_PipelineId) Then
         private_Error "В профиле отсутствует обязательный ключ WordDataExtractor.Pipeline."
         Exit Function
     End If
     m_DocumentPath = VBA.Trim$( _
-        wordDataExtractorCfgParser.GetOptionalValue( _
+        wordDataExtrCfgParser.GetOptionalValue( _
             "WordDataExtractor.DocumentPath"))
     If VBA.Len(m_DocumentPath) = 0 Then
         ' Раздельная запись является альтернативой, а не дополнением:
         ' непустой DocumentPath всегда имеет приоритет над Dir/Filename.
         documentDir = VBA.Trim$( _
-            wordDataExtractorCfgParser.GetOptionalValue( _
+            wordDataExtrCfgParser.GetOptionalValue( _
                 "WordDataExtractor.DocumentDir"))
         documentFilename = VBA.Trim$( _
-            wordDataExtractorCfgParser.GetOptionalValue( _
+            wordDataExtrCfgParser.GetOptionalValue( _
                 "WordDataExtractor.DocumentFilename"))
         If VBA.Len(documentDir) = 0 Xor VBA.Len(documentFilename) = 0 Then
             private_Error "Для альтернативного пути должны быть заполнены оба ключа: " & _
@@ -101,10 +113,10 @@ Public Function UpdateData(ByVal configControl As obj_ConfigControlVM) As Boolea
     m_DocumentPath = private_EnsureDefaultDocumentExtension(m_DocumentPath)
     m_DocumentPathPattern = m_DocumentPath
     documentPathResolver = VBA.Trim$( _
-        wordDataExtractorCfgParser.GetOptionalValue( _
+        wordDataExtrCfgParser.GetOptionalValue( _
             "WordDataExtractor.DocumentPathResolver"))
     documentPathResolverArgs = VBA.Trim$( _
-        wordDataExtractorCfgParser.GetOptionalValue( _
+        wordDataExtrCfgParser.GetOptionalValue( _
             "WordDataExtractor.DocumentPathResolverArgs"))
     Set m_DocumentPaths = Nothing
     If VBA.Len(documentPathResolver) = 0 Then
@@ -132,10 +144,10 @@ Public Function UpdateData(ByVal configControl As obj_ConfigControlVM) As Boolea
         Exit Function
     End If
     m_DocumentDateColumnCaption = VBA.Trim$( _
-        wordDataExtractorCfgParser.GetOptionalValue( _
+        wordDataExtrCfgParser.GetOptionalValue( _
             "WordDataExtractor.DocumentDateColumnCaption"))
     m_TransformerClassName = _
-        wordDataExtractorCfgParser.GetOptionalValue( _
+        wordDataExtrCfgParser.GetOptionalValue( _
             "WordDataExtractor.TransformerClass")
     Set m_ConfigTable = configTable
     m_IsReady = True
@@ -146,6 +158,12 @@ EH_RESOLVE_DOCUMENTS:
         Err.Description
     Err.Clear
     On Error GoTo 0
+End Function
+
+Private Function obj_IPageCtrl_UpdateData( _
+    ByVal configControl As obj_ConfigControlVM _
+) As Boolean
+    obj_IPageCtrl_UpdateData = UpdateData(configControl)
 End Function
 
 Private Function private_EnsureDefaultDocumentExtension( _

@@ -1,0 +1,194 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<page xmlns="urn:excelprototype:profiles" version="1">
+  <grid anchorCell="A1">
+    <stackPanel at="r2c2" orientation="vertical">
+      <stackPanel orientation="horizontal">
+        <control
+          type="Button"
+          name="ToggleRegexMode"
+          caption="{Binding Path=IsRegexMode;TrueAs=Regex ON;FalseAs=Regex OFF}"
+          dataContext="{PageRuntimeSource='RuntimeObjects.WordDataExtractor.Controller'}"
+          onClick="{Binding Method=ToggleRegexMode}"
+          spanColls="2"
+          spanRows="2"/>
+
+        <stackPanel orientation="vertical" spanColls="1" spanRows="2">
+          <control
+            type="Label"
+            name="SearchTextHeader"
+            text="ТЕКСТ ПОШУКУ ↓"
+            spanColls="1"
+            spanRows="1"/>
+
+          <control
+            type="Input"
+            name="SearchText"
+            value="{Binding Path=SearchText}"
+            dataContext="{PageRuntimeSource='RuntimeObjects.WordDataExtractor.Controller'}"
+            onChange="{Binding Method=OnSearchTextChanged}"
+            spanColls="1"
+            spanRows="1"/>
+        </stackPanel>
+
+        <control
+          type="Button"
+          name="RunTextSearch"
+          caption="Пошук у WORD"
+          style="modeAccent"
+          dataContext="{PageRuntimeSource='RuntimeObjects.WordDataExtractor.Controller'}"
+          onClick="{Binding Method=SearchAndRender}"
+          spanColls="3"
+          spanRows="2"/>
+
+        <control
+          type="Button"
+          name="UpdateSearchSheet"
+          caption="Update Sheet"
+          dataContext="{PageRuntimeSource='RuntimeObjects.WordDataExtractor.Controller'}"
+          onClick="{Binding Method=Rerender}"
+          spanColls="2"
+          spanRows="2"/>
+
+        <control
+          type="Button"
+          name="ToggleSearchEmpty"
+          caption="{Binding Path=ShowEmptyTables;TrueAs=Отображение [[[color=#FFFF00]]все[[/color]]];FalseAs=Отображение [[[color=#FFFF00]]не пустые[[/color]]]}"
+          dataContext="{PageRuntimeSource='RuntimeObjects.WordDataExtractor.Controller'}"
+          onClick="{Binding Method=ToggleEmptyTables}"
+          spanColls="3"
+          spanRows="2"/>
+      </stackPanel>
+
+      <control
+        type="Label"
+        name="RegexExample"
+        text="Приклад Regex: МЕДНЯКА?\s+Віталі"
+        spanColls="1"
+        spanRows="1"/>
+
+      <stackPanel spanColls="40" spanRows="1"/>
+
+      <control
+        type="TableList"
+        name="SearchResultTables"
+        itemsSource="{PageRuntimeSource='RuntimeItems.WordDataExtractor.Tables'}"/>
+    </stackPanel>
+  </grid>
+
+  <styles>
+    <controlStyle
+      name="modeAccent"
+      backColor="#2563EB"
+      textColor="#FFFFFF"
+      borderColor="#1D4ED8"
+      fontBold="true"/>
+
+    <stylePipelineStage name="default">
+      <layer name="base">
+        <rule
+          target="sheet"
+          styles="{
+            backColor:#20242A;
+            fontColor:#E5E7EB;
+            borderColor:#111318;
+            borderWeight:thin;
+            width:18;
+            rowHeight:20;
+            cellType:text;
+          }"/>
+      </layer>
+
+      <layer name="search-input">
+        <rule
+          target="controlPart"
+          selector="type=label;name=RegexExample;part=cell"
+          styles="{
+            backColor:#20242A;
+            fontColor:#94A3B8;
+            horizontal:left;
+            vertical:center;
+            width:28;
+            rowHeight:22;
+          }"/>
+
+        <rule
+          target="controlPart"
+          selector="type=label;name=SearchTextHeader;part=cell"
+          styles="{
+            backColor:#263445;
+            fontColor:#EAF6FF;
+            fontBold:true;
+            borderColor:#3B82F6;
+            borderWeight:thin;
+            horizontal:center;
+            vertical:center;
+            overflow:wrap;
+            width:28;
+            rowHeight:25;
+          }"/>
+
+        <rule
+          target="controlPart"
+          selector="type=input;name=SearchText;part=cell"
+          styles="{
+            backColor:#3A3F46;
+            fontColor:#F8FAFC;
+            fontBold:true;
+            horizontal:left;
+            vertical:center;
+            overflow:wrap;
+            width:28;
+            rowHeight:28;
+            cellType:text;
+          }"/>
+      </layer>
+
+      <layer name="tables">
+        <rule
+          target="controlPart"
+          selector="type=tablelist;name=SearchResultTables;part=section"
+          styles="{
+            backColor:#173A5E;
+            fontColor:#EAF6FF;
+            fontBold:true;
+            rowHeight:25;
+          }"/>
+
+        <rule
+          target="controlPart"
+          selector="type=tablelist;name=SearchResultTables;part=header"
+          styles="{
+            backColor:#2B4A6B;
+            fontColor:#DDEEFF;
+            fontBold:true;
+            overflow:wrap;
+            rowHeight:25;
+          }"/>
+
+        <rule
+          target="controlPart"
+          selector="type=tablelist;name=SearchResultTables;part=rows"
+          styles="{
+            backColor:#3A3A3A;
+            fontColor:#F0F0F0;
+            overflow:wrap;
+            rowHeight:65;
+          }"/>
+
+        <rule
+          target="controlPart"
+          selector="type=tablelist;name=SearchResultTables;part=rows;columnAlias=context"
+          styles="{
+            width:100;
+          }"/>
+
+        <rule
+          target="controlPart"
+          selector="type=tablelist;name=SearchResultTables;part=header;columnAlias=context"
+          styles="{
+            width:100;
+          }"/>
+      </layer>
+    </stylePipelineStage>
+  </styles>
+</page>

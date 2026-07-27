@@ -18,7 +18,10 @@ Private Const PARENT_CONFIG_CONTROL_NAME As String = "DevConfig"
 Private Const PAGE_RUNTIME_OBJECT_KEY As String = "RuntimeObjects.WordDataExtractor"
 
 Private m_PageBase As obj_PageBase
-Private m_Controller As obj_PageWordDataExtractorCtrl
+Private m_Controller As obj_IPageCtrl
+Private m_ControllerObject As Object
+Private m_ProfileUiPath As String
+Private m_ControllerClassName As String
 Private m_PendingControlSnapshots As Collection
 Private m_ParentPageId As String
 Private m_ParentPage As obj_IPage
@@ -68,13 +71,87 @@ Private Function obj_IPage_Initialize( _
         Exit Function
     End If
 
+    If VBA.Len(VBA.Trim$(m_ControllerClassName)) = 0 Then
+        VBA.MsgBox "В профиле WordDataExtractor не указан класс контроллера.", _
+            VBA.vbExclamation, "PrototypeNew / WordDataExtractor"
+        Exit Function
+    End If
     If Not m_PageBase.Initialize(ws, Me, uiPath, pageId) Then Exit Function
     If Not m_PageBase.RuntimeSources.SetObjectSource(PAGE_RUNTIME_OBJECT_KEY, Me) Then Exit Function
 
-    Set m_Controller = New obj_PageWordDataExtractorCtrl
+    m_ProfileUiPath = VBA.Trim$(uiPath)
+    If Not private_TryCreateController( _
+        m_ControllerClassName, m_Controller, _
+        m_ControllerObject) Then Exit Function
     If Not m_Controller.Initialize(Me) Then Exit Function
 
     obj_IPage_Initialize = True
+End Function
+
+Public Function ConfigureProfileComponents( _
+    ByVal uiPath As String, _
+    ByVal controllerClassName As String _
+) As Boolean
+    Dim newController As obj_IPageCtrl
+    Dim newControllerObject As Object
+
+    uiPath = VBA.Trim$(uiPath)
+    controllerClassName = VBA.Trim$(controllerClassName)
+    If VBA.Len(uiPath) = 0 Then
+        VBA.MsgBox "В профиле WordDataExtractor не указан UI-файл.", _
+            VBA.vbExclamation, "PrototypeNew / WordDataExtractor"
+        Exit Function
+    End If
+    If VBA.Len(controllerClassName) = 0 Then
+        VBA.MsgBox "В профиле WordDataExtractor не указан класс контроллера.", _
+            VBA.vbExclamation, "PrototypeNew / WordDataExtractor"
+        Exit Function
+    End If
+
+    If m_PageBase Is Nothing Then
+        m_ProfileUiPath = uiPath
+        m_ControllerClassName = controllerClassName
+        ConfigureProfileComponents = True
+        Exit Function
+    End If
+    If Not m_PageBase.IsReady() Then
+        m_ProfileUiPath = uiPath
+        m_ControllerClassName = controllerClassName
+        ConfigureProfileComponents = True
+        Exit Function
+    End If
+    If VBA.StrComp(m_ProfileUiPath, uiPath, VBA.vbTextCompare) = 0 And _
+        VBA.StrComp(m_ControllerClassName, controllerClassName, _
+            VBA.vbTextCompare) = 0 Then
+        ConfigureProfileComponents = True
+        Exit Function
+    End If
+
+    If Not private_TryCreateController( _
+        controllerClassName, newController, _
+        newControllerObject) Then Exit Function
+    If Not newController.Initialize(Me) Then
+        newController.Dispose
+        Exit Function
+    End If
+    If Not m_Controller Is Nothing Then m_Controller.Dispose
+    Set m_Controller = newController
+    Set m_ControllerObject = newControllerObject
+    m_ProfileUiPath = uiPath
+    m_ControllerClassName = controllerClassName
+    m_PageBase.SetUiPath uiPath
+    ConfigureProfileComponents = True
+End Function
+
+Public Function UsesProfileComponents( _
+    ByVal uiPath As String, _
+    ByVal controllerClassName As String _
+) As Boolean
+    UsesProfileComponents = _
+        (VBA.StrComp(VBA.Trim$(m_ProfileUiPath), VBA.Trim$(uiPath), _
+            VBA.vbTextCompare) = 0) And _
+        (VBA.StrComp(VBA.Trim$(m_ControllerClassName), _
+            VBA.Trim$(controllerClassName), VBA.vbTextCompare) = 0)
 End Function
 
 Private Sub obj_IPage_Dispose(Optional ByVal deleteWorksheet As Boolean = True)
@@ -135,8 +212,8 @@ End Function
 
 Private Function obj_IPage_TryGetController(ByRef outController As Object) As Boolean
     Set outController = Nothing
-    If m_Controller Is Nothing Then Exit Function
-    Set outController = m_Controller
+    If m_ControllerObject Is Nothing Then Exit Function
+    Set outController = m_ControllerObject
     obj_IPage_TryGetController = True
 End Function
 
@@ -219,13 +296,21 @@ Private Function obj_ISerializable_TryRestoreState() As Boolean
 End Function
 
 Public Function OnExtractCommand(Optional ByVal arg As Variant) As Boolean
-    If m_Controller Is Nothing Then Exit Function
-    OnExtractCommand = m_Controller.ExtractAndRender()
+    Dim rawController As Object
+
+    If m_ControllerObject Is Nothing Then Exit Function
+    Set rawController = m_ControllerObject
+    OnExtractCommand = VBA.CallByName( _
+        rawController, "ExtractAndRender", VBA.VbMethod)
 End Function
 
 Public Function OnRenderCommand(Optional ByVal arg As Variant) As Boolean
-    If m_Controller Is Nothing Then Exit Function
-    OnRenderCommand = m_Controller.Rerender()
+    Dim rawController As Object
+
+    If m_ControllerObject Is Nothing Then Exit Function
+    Set rawController = m_ControllerObject
+    OnRenderCommand = VBA.CallByName( _
+        rawController, "Rerender", VBA.VbMethod)
 End Function
 
 Private Sub private_Dispose(Optional ByVal deleteWorksheet As Boolean = True)
@@ -235,6 +320,7 @@ Private Sub private_Dispose(Optional ByVal deleteWorksheet As Boolean = True)
     On Error Resume Next
     If Not m_Controller Is Nothing Then m_Controller.Dispose
     Set m_Controller = Nothing
+    Set m_ControllerObject = Nothing
     Set m_PendingControlSnapshots = Nothing
     m_ParentPageId = VBA.vbNullString
     Set m_ParentPage = Nothing
@@ -242,6 +328,38 @@ Private Sub private_Dispose(Optional ByVal deleteWorksheet As Boolean = True)
     Set m_PageBase = Nothing
     On Error GoTo 0
 End Sub
+
+Private Function private_TryCreateController( _
+    ByVal controllerClassName As String, _
+    ByRef outController As obj_IPageCtrl, _
+    ByRef outControllerObject As Object _
+) As Boolean
+    Dim extractorController As obj_PageWordDataExtractorCtrl
+    Dim searchController As obj_PageWordTextSearchCtrl
+
+    Set outController = Nothing
+    Set outControllerObject = Nothing
+    Select Case VBA.LCase$(VBA.Trim$(controllerClassName))
+        Case VBA.LCase$("obj_PageWordDataExtractorCtrl")
+            Set extractorController = New obj_PageWordDataExtractorCtrl
+            Set outController = extractorController
+            Set outControllerObject = extractorController
+
+        Case VBA.LCase$("obj_PageWordTextSearchCtrl")
+            Set searchController = New obj_PageWordTextSearchCtrl
+            Set outController = searchController
+            Set outControllerObject = searchController
+
+        Case Else
+            VBA.MsgBox "Не поддерживается класс контроллера WordDataExtractor: " & _
+                controllerClassName, VBA.vbExclamation, _
+                "PrototypeNew / WordDataExtractor"
+            Exit Function
+    End Select
+    private_TryCreateController = _
+        Not outController Is Nothing And _
+        Not outControllerObject Is Nothing
+End Function
 
 Private Function private_TrySerializeSnapshot(ByRef outSnapshotXml As String) As Boolean
     Dim dom As Object

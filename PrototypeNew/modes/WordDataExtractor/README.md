@@ -1,7 +1,22 @@
 # DSL режима WordDataExtractor
 
 `WordDataExtractorRules.xml` описывает извлечение независимо от UI страницы.
-Профиль выбирает файл правил и конкретный pipeline:
+Каждый профиль обязательно выбирает собственные UI и controller:
+
+```xml
+<item key="WordDataExtractor.UiFile"
+      value="ui\WordDataExtractor\WordDataExtractorUI.xml"/>
+<item key="WordDataExtractor.ControllerClass"
+      value="obj_PageWordDataExtractorCtrl"/>
+```
+
+Поддерживаемые controller-классы регистрируются явно в фабрике
+`obj_PageWordDataExtractor`. Неизвестное имя не заменяется контроллером по
+умолчанию: страница показывает ошибку и прекращает открытие. При переключении
+профиля уже открытая страница меняет UI и controller перед новым запуском
+pipeline.
+
+Для обычного извлечения профиль также выбирает файл правил и pipeline:
 
 ```xml
 <item key="WordDataExtractor.RulesFile" value="modes\WordDataExtractor\WordDataExtractorRules.xml"/>
