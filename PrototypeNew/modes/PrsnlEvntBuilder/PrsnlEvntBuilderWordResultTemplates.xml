@@ -70,7 +70,7 @@
     <sharedTemplate id="block.VacationDestinationPeriod">
       <text>
         <![CDATA[#^
-#_         у {[Destination]}#^
+#_        {#space}у {[Destination]}#^
 #_        {#if [VacationDays]}{#space}терміном на {[VacationDays]} календарних діб#^
 #_        {#if [AdditionalWayDays] == 1}, без урахування 1 доби, необхідної для проїзду до місця проведення відпустки та у зворотному напрямку,{#endif}#^
 #_        {#if [AdditionalWayDays] > 1}, без урахування {[AdditionalWayDays]} діб, необхідних для проїзду до місця проведення відпустки та у зворотному напрямку,{#endif}#^

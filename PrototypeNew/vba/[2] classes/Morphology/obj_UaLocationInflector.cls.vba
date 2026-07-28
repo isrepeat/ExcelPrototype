@@ -21,6 +21,10 @@ Public Function TryInflect( _
     Dim segments As Variant
     Dim segmentIndex As Long
     Dim caseName As String
+    Dim resultSegments As Collection
+    Dim resultValues() As String
+    Dim resultIndex As Long
+    Dim segmentText As String
 
     outText = sourceText
     caseName = VBA.LCase$(VBA.Trim$(targetCase))
@@ -34,12 +38,24 @@ Public Function TryInflect( _
     End If
 
     segments = VBA.Split(sourceText, ",")
+    Set resultSegments = New Collection
     For segmentIndex = LBound(segments) To UBound(segments)
-        segments(segmentIndex) = private_InflectLocationSegment( _
-            VBA.Trim$(VBA.CStr(segments(segmentIndex))), caseName)
+        segmentText = VBA.Trim$(VBA.CStr(segments(segmentIndex)))
+        If Not private_IsStandaloneLocationPreposition(segmentText) Then
+            segmentText = private_InflectLocationSegment(segmentText, caseName)
+            If VBA.Len(segmentText) > 0 Then resultSegments.Add segmentText
+        End If
     Next segmentIndex
 
-    outText = VBA.Join(segments, ", ")
+    If resultSegments.Count = 0 Then
+        outText = VBA.vbNullString
+    Else
+        ReDim resultValues(0 To resultSegments.Count - 1)
+        For resultIndex = 1 To resultSegments.Count
+            resultValues(resultIndex - 1) = VBA.CStr(resultSegments.Item(resultIndex))
+        Next resultIndex
+        outText = VBA.Join(resultValues, ", ")
+    End If
     TryInflect = True
 End Function
 
@@ -120,7 +136,10 @@ Private Function private_TryInflectAdministrativeBlocks( _
         Set matchObj = matches.Item(matchIndex)
         prefixText = private_TrimBlockDelimiter(VBA.Mid$( _
             segmentText, cursorIndex + 1, matchObj.FirstIndex - cursorIndex))
-        If VBA.Len(prefixText) > 0 Then blocks.Add prefixText
+        If VBA.Len(prefixText) > 0 And _
+            Not private_IsStandaloneLocationPreposition(prefixText) Then
+            blocks.Add prefixText
+        End If
 
         modifierWord = VBA.CStr(matchObj.SubMatches(0))
         suffixText = VBA.LCase$(VBA.CStr(matchObj.SubMatches(1)))
@@ -133,7 +152,10 @@ Private Function private_TryInflectAdministrativeBlocks( _
 
     trailingText = private_TrimBlockDelimiter( _
         VBA.Mid$(segmentText, cursorIndex + 1))
-    If VBA.Len(trailingText) > 0 Then blocks.Add trailingText
+    If VBA.Len(trailingText) > 0 And _
+        Not private_IsStandaloneLocationPreposition(trailingText) Then
+        blocks.Add trailingText
+    End If
 
     ReDim blockValues(0 To blocks.Count - 1)
     For blockIndex = 1 To blocks.Count
@@ -141,6 +163,15 @@ Private Function private_TryInflectAdministrativeBlocks( _
     Next blockIndex
     outText = VBA.Join(blockValues, ", ")
     private_TryInflectAdministrativeBlocks = True
+End Function
+
+Private Function private_IsStandaloneLocationPreposition( _
+    ByVal valueText As String _
+) As Boolean
+    Select Case VBA.LCase$(VBA.Trim$(valueText))
+        Case "у", "в", "до"
+            private_IsStandaloneLocationPreposition = True
+    End Select
 End Function
 
 Private Function private_TrimBlockDelimiter(ByVal blockText As String) As String
