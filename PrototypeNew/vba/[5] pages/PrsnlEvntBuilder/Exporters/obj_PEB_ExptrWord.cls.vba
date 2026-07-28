@@ -75,6 +75,7 @@ Private Const WORD_NESTED_GROUP_BOOKMARK_PREFIX As String = "PEN_"
 '   {[DateToShort]|dateformat:"\dd \month \yyyy року"}
 Private Const WORD_ALIAS_DATE_TO_SHORT As String = "DateToShort"
 Private Const WORD_ALIAS_VACATION_DAYS As String = "VacationDays"
+Private Const WORD_ALIAS_VACATION_DURATION_PHRASE As String = "VacationDurationPhrase"
 Private Const WORD_ALIAS_ADDITIONAL_WAY_DAYS As String = "AdditionalWayDays"
 Private Const WORD_ALIAS_VACATION_TOTAL_DAYS As String = "VacationTotalDays"
 Private Const WORD_ALIAS_VACATION_DATES_SAME_MONTH As String = "VacationDatesSameMonth"
@@ -1509,6 +1510,9 @@ Private Function private_TryEnrichMainSourceTableForWord( _
         If Not private_TryUpsertMainTableValue( _
             sourceTable, WORD_ALIAS_VACATION_DAYS, VBA.CStr(vacationDays)) Then Exit Function
         If Not private_TryUpsertMainTableValue( _
+            sourceTable, WORD_ALIAS_VACATION_DURATION_PHRASE, _
+            private_FormatVacationDurationPhrase(vacationDays)) Then Exit Function
+        If Not private_TryUpsertMainTableValue( _
             sourceTable, WORD_ALIAS_ADDITIONAL_WAY_DAYS, VBA.CStr(additionalWayDays)) Then Exit Function
         If Not private_TryUpsertMainTableValue( _
             sourceTable, WORD_ALIAS_VACATION_TOTAL_DAYS, VBA.CStr(vacationTotalDays)) Then Exit Function
@@ -1746,6 +1750,36 @@ Private Function private_NormalizeDocumentNoteForWord( _
         Case Else
             private_NormalizeDocumentNoteForWord = documentNoteText
     End Select
+End Function
+
+Private Function private_FormatVacationDurationPhrase( _
+    ByVal vacationDays As Long _
+) As String
+    Dim lastDigit As Long
+    Dim lastTwoDigits As Long
+    Dim daysUnit As String
+
+    lastDigit = vacationDays Mod 10
+    lastTwoDigits = vacationDays Mod 100
+
+    ' После «терміном на» числительное требует винительного падежа:
+    ' 1/21 — «календарну добу», 2–4/22–24 — «календарні доби».
+    ' Числа 11–14 являются исключением и используют «календарних діб».
+    If lastTwoDigits >= 11 And lastTwoDigits <= 14 Then
+        daysUnit = "календарних діб"
+    Else
+        Select Case lastDigit
+            Case 1
+                daysUnit = "календарну добу"
+            Case 2 To 4
+                daysUnit = "календарні доби"
+            Case Else
+                daysUnit = "календарних діб"
+        End Select
+    End If
+
+    private_FormatVacationDurationPhrase = "терміном на " & _
+        VBA.CStr(vacationDays) & " " & daysUnit
 End Function
 
 Private Function private_TryParseVacationDuration( _
