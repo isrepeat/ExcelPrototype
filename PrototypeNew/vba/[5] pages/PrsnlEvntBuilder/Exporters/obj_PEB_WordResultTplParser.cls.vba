@@ -28,7 +28,9 @@ Private Const FORMATTER_REGEX_REPLACE As String = "regexreplace"
 Private Const FORMATTER_DATE_OFFSET As String = "dateoffset"
 Private Const FORMATTER_DATE_FORMAT As String = "dateformat"
 Private Const FORMATTER_DATE_STORAGE_FORMAT As String = "dd.mm.yyyy"
-Private Const PREVIEW_PLACEHOLDER_COLOR As String = "#66CCFF"
+Private Const PREVIEW_VALUE_MARKER As String = "preview-value"
+Private Const PREVIEW_TRUNCATED_MARKER As String = "preview-truncated"
+Private Const PREVIEW_TRUNCATED_VALUE_TAG As String = "preview-truncated-value"
 
 Private m_TemplateRelPath As String
 Private m_TemplateDoc As Object
@@ -429,12 +431,17 @@ Private Function private_RenderTemplate( _
         Set matchObj = matches.Item(matchIndex)
         placeholderName = VBA.Trim$(VBA.CStr(matchObj.SubMatches(0)))
         placeholderValue = private_GetPlaceholderValue(placeholderName, sectionTypeText, sourceTables, renderVars, loopRows)
-        ' Banner supports inline color markers. Mark only the resolved value,
-        ' while all literal template text keeps the banner's white font.
-        If VBA.Len(placeholderValue) > 0 And _
-            VBA.InStr(1, placeholderValue, "[[color=", VBA.vbTextCompare) = 0 Then
-            placeholderValue = "[[color=" & PREVIEW_PLACEHOLDER_COLOR & "]]" & _
-                placeholderValue & "[[/color]]"
+        ' Parser размечает только семантику участка. Конкретный цвет выбирает
+        ' общий style pipeline по inlinePart rule страницы.
+        If VBA.Len(placeholderValue) > 0 Then
+            If private_MainPlaceholderHasCellTag( _
+                placeholderName, sourceTables, PREVIEW_TRUNCATED_VALUE_TAG) Then
+                placeholderValue = "[[" & PREVIEW_TRUNCATED_MARKER & "]]" & _
+                    placeholderValue & "[[/" & PREVIEW_TRUNCATED_MARKER & "]]"
+            ElseIf VBA.InStr(1, placeholderValue, "[[", VBA.vbBinaryCompare) = 0 Then
+                placeholderValue = "[[" & PREVIEW_VALUE_MARKER & "]]" & _
+                    placeholderValue & "[[/" & PREVIEW_VALUE_MARKER & "]]"
+            End If
         End If
         resultText = VBA.Left$(resultText, matchObj.FirstIndex) & _
             placeholderValue & _
@@ -1106,6 +1113,43 @@ Private Function private_GetMainTableFieldValue(ByVal fieldName As String, ByVal
     private_GetMainTableFieldValue = VBA.Trim$(sourceRow.GetCellValue(columnIndex))
 End Function
 
+Private Function private_MainPlaceholderHasCellTag( _
+    ByVal placeholderName As String, _
+    ByVal sourceTables As Collection, _
+    ByVal tagName As String _
+) As Boolean
+    Dim placeholderParts As Collection
+    Dim fieldToken As String
+    Dim fieldName As String
+    Dim sourceTable As obj_TableDynamic
+    Dim sourceRow As obj_Row
+    Dim cellObj As obj_Cell
+    Dim columnIndex As Long
+
+    Set placeholderParts = private_SplitByDelimiterOutsideQuotes( _
+        VBA.Trim$(placeholderName), "|")
+    If placeholderParts Is Nothing Then Exit Function
+    If placeholderParts.Count <= 0 Then Exit Function
+
+    fieldToken = VBA.Trim$(VBA.CStr(placeholderParts.Item(1)))
+    If Not private_IsBracketFieldToken(fieldToken) Then Exit Function
+    fieldName = private_UnwrapBracketFieldToken(fieldToken)
+
+    Set sourceTable = private_TryGetSourceTable(sourceTables, 1)
+    If sourceTable Is Nothing Then Exit Function
+    If sourceTable.RowCount <= 0 Then Exit Function
+
+    columnIndex = private_FindSourceColumnIndex(sourceTable, fieldName)
+    If columnIndex <= 0 Then Exit Function
+
+    Set sourceRow = sourceTable.Rows.Item(1)
+    If sourceRow Is Nothing Then Exit Function
+    If Not sourceRow.TryGetCellAt(columnIndex, cellObj) Then Exit Function
+    If cellObj Is Nothing Then Exit Function
+
+    private_MainPlaceholderHasCellTag = cellObj.HasTag(tagName)
+End Function
+
 Private Function private_IsBracketFieldToken(ByVal tokenText As String) As Boolean
     tokenText = VBA.Trim$(tokenText)
     If VBA.Len(tokenText) < 3 Then Exit Function
@@ -1485,13 +1529,46 @@ Private Function private_UnquoteFormatterArgument(ByVal valueText As String) As 
 End Function
 
 Private Function private_UpperFirstLetter(ByVal valueText As String) As String
-    If VBA.Len(valueText) = 0 Then Exit Function
-    private_UpperFirstLetter = VBA.UCase$(VBA.Left$(valueText, 1)) & VBA.Mid$(valueText, 2)
+    private_UpperFirstLetter = private_ChangeFirstVisibleLetterCase( _
+        valueText, True)
 End Function
 
 Private Function private_LowerFirstLetter(ByVal valueText As String) As String
+    private_LowerFirstLetter = private_ChangeFirstVisibleLetterCase( _
+        valueText, False)
+End Function
+
+Private Function private_ChangeFirstVisibleLetterCase( _
+    ByVal valueText As String, _
+    ByVal makeUpper As Boolean _
+) As String
+    Dim visibleStart As Long
+    Dim markerEnd As Long
+    Dim firstCharacter As String
+
+    private_ChangeFirstVisibleLetterCase = valueText
     If VBA.Len(valueText) = 0 Then Exit Function
-    private_LowerFirstLetter = VBA.LCase$(VBA.Left$(valueText, 1)) & VBA.Mid$(valueText, 2)
+
+    visibleStart = 1
+    ' Preview color является служебной обёрткой значения. Formatter должен
+    ' менять регистр первого символа текста, а не первой скобки маркера.
+    If VBA.StrComp( _
+        VBA.Left$(valueText, VBA.Len("[[color=")), _
+        "[[color=", VBA.vbTextCompare) = 0 Then
+        markerEnd = VBA.InStr(1, valueText, "]]", VBA.vbBinaryCompare)
+        If markerEnd > 0 Then visibleStart = markerEnd + VBA.Len("]]")
+    End If
+    If visibleStart > VBA.Len(valueText) Then Exit Function
+
+    firstCharacter = VBA.Mid$(valueText, visibleStart, 1)
+    If makeUpper Then
+        firstCharacter = VBA.UCase$(firstCharacter)
+    Else
+        firstCharacter = VBA.LCase$(firstCharacter)
+    End If
+    private_ChangeFirstVisibleLetterCase = _
+        VBA.Left$(valueText, visibleStart - 1) & _
+        firstCharacter & VBA.Mid$(valueText, visibleStart + 1)
 End Function
 
 Private Function private_FindSourceColumnIndex(ByVal sourceTable As obj_TableDynamic, ByVal columnName As String) As Long

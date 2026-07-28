@@ -12,6 +12,7 @@ Private Const DELIMITER_SINGLE As String = "single"
 
 Private m_PartName As String
 Private m_InlineMarkersEnabled As Boolean
+Private m_StyleDoc As Object
 
 Private Sub Class_Initialize()
 #If LOGGING_VERBOSE_ENABLED Then
@@ -45,6 +46,7 @@ Public Sub Dispose()
 #End If
     If m_IsDisposed Then Exit Sub
     m_IsDisposed = True
+    Set m_StyleDoc = Nothing
     On Error Resume Next
     On Error GoTo 0
 End Sub
@@ -63,6 +65,10 @@ End Property
 
 Public Property Let InlineMarkersEnabled(ByVal value As Boolean)
     m_InlineMarkersEnabled = VBA.CBool(value)
+End Property
+
+Public Property Set StyleDoc(ByVal value As Object)
+    Set m_StyleDoc = value
 End Property
 
 Public Function TryResolveInlineText( _
@@ -91,8 +97,11 @@ Public Function TryResolveInlineRunStyle( _
     ByRef outFontItalic As Boolean, _
     ByRef outFontUnderline As Boolean _
 ) As Boolean
+    Dim applyFontFlags As Boolean
+
     If Not private_TryResolveInlineMarkerStyle( _
-        markerName, outFontColor, outFontBold, outFontItalic, outFontUnderline) Then Exit Function
+        markerName, outFontColor, outFontBold, outFontItalic, _
+        outFontUnderline, applyFontFlags) Then Exit Function
 
     TryResolveInlineRunStyle = True
 End Function
@@ -453,8 +462,9 @@ Private Function private_TryResolveInlineRunStyleFromInfo( _
         Exit Function
     End If
 
-    If Not private_TryResolveInlineMarkerStyle(tagName, outFontColor, outFontBold, outFontItalic, outFontUnderline) Then Exit Function
-    outApplyFontFlags = True
+    If Not private_TryResolveInlineMarkerStyle( _
+        tagName, outFontColor, outFontBold, outFontItalic, _
+        outFontUnderline, outApplyFontFlags) Then Exit Function
     private_TryResolveInlineRunStyleFromInfo = True
 End Function
 
@@ -483,10 +493,24 @@ Private Sub private_AddInlineRun( _
 End Sub
 
 Private Function private_IsSupportedInlineMarkerName(ByVal markerName As String) As Boolean
-    Select Case VBA.LCase$(VBA.Trim$(markerName))
-        Case "ok", "warn", "error", "accent", "muted", "red"
-            private_IsSupportedInlineMarkerName = True
-    End Select
+    Dim normalizedName As String
+    Dim charIndex As Long
+    Dim charCode As Long
+
+    normalizedName = VBA.LCase$(VBA.Trim$(markerName))
+    If VBA.Len(normalizedName) = 0 Then Exit Function
+
+    ' InlineTextProfile не знает перечень семантических тегов. Он проверяет
+    ' только безопасный синтаксис, а существование стиля решает pipeline.
+    For charIndex = 1 To VBA.Len(normalizedName)
+        charCode = VBA.AscW(VBA.Mid$(normalizedName, charIndex, 1))
+        If Not ( _
+            (charCode >= VBA.AscW("a") And charCode <= VBA.AscW("z")) Or _
+            (charCode >= VBA.AscW("0") And charCode <= VBA.AscW("9")) Or _
+            charCode = VBA.AscW("-") Or charCode = VBA.AscW("_")) Then Exit Function
+    Next charIndex
+
+    private_IsSupportedInlineMarkerName = True
 End Function
 
 Private Function private_TryResolveInlineMarkerStyle( _
@@ -494,8 +518,24 @@ Private Function private_TryResolveInlineMarkerStyle( _
     ByRef outFontColor As Long, _
     ByRef outFontBold As Boolean, _
     ByRef outFontItalic As Boolean, _
-    ByRef outFontUnderline As Boolean _
+    ByRef outFontUnderline As Boolean, _
+    ByRef outApplyFontFlags As Boolean _
 ) As Boolean
+    Dim styleFound As Boolean
+
+    If Not m_StyleDoc Is Nothing Then
+        If Not ex_StylePipelineEngine.fn_TryResolveInlinePartStyle( _
+            m_StyleDoc, m_PartName, markerName, _
+            outFontColor, outFontBold, outFontItalic, outFontUnderline, _
+            outApplyFontFlags, styleFound) Then Exit Function
+        If styleFound Then
+            private_TryResolveInlineMarkerStyle = True
+            Exit Function
+        End If
+    End If
+
+    ' Старые общие маркеры пока сохраняют встроенные стили для страниц,
+    ' которые ещё не перенесли правила в style pipeline.
     Select Case VBA.LCase$(VBA.Trim$(markerName))
         Case "ok"
             outFontColor = VBA.RGB(146, 208, 80)
@@ -537,6 +577,7 @@ Private Function private_TryResolveInlineMarkerStyle( _
             Exit Function
     End Select
 
+    outApplyFontFlags = True
     private_TryResolveInlineMarkerStyle = True
 End Function
 
@@ -621,5 +662,3 @@ Private Function private_Unquote(ByVal textValue As String) As String
         private_Unquote = textValue
     End If
 End Function
-
-
