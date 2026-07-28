@@ -416,6 +416,7 @@ Private Function private_TryAppendBeforeWordEndAnchor( _
     Dim nestedGroupBookmarkName As String
     Dim nestedGroupRange As Object
     Dim nestedGroupStart As Long
+    Dim nestedGroupContentStart As Long
     Dim undoAction As obj_PEB_ExportUndoAction
     Dim undoActionReady As Boolean
 
@@ -506,6 +507,13 @@ Private Function private_TryAppendBeforeWordEndAnchor( _
             End If
             groupStart = groupRange.Start
             groupEnd = groupRange.End
+            ' Вложенные группы начинаются после заголовка родительской даты.
+            ' Старые версии включали этот заголовок в первую PEN-закладку,
+            ' поэтому вычисляем безопасную нижнюю границу и для таких документов.
+            nestedGroupContentStart = groupStart + VBA.Len(groupHeaderText)
+            If nestedGroupContentStart > groupEnd Then
+                nestedGroupContentStart = groupStart
+            End If
             ' Существующая PEN-группа означает, что оба заголовка уже выведены.
             ' Новую запись вставляем в её End и затем расширяем PEN и PEG.
             If VBA.Len(nestedGroupBookmarkName) > 0 And _
@@ -520,6 +528,9 @@ Private Function private_TryAppendBeforeWordEndAnchor( _
                     GoTo CleanFail
                 End If
                 nestedGroupStart = nestedGroupRange.Start
+                If nestedGroupStart < nestedGroupContentStart Then
+                    nestedGroupStart = nestedGroupContentStart
+                End If
                 insertedStart = nestedGroupRange.End
                 wordDoc.Bookmarks(nestedGroupBookmarkName).Delete
             Else
@@ -529,8 +540,9 @@ Private Function private_TryAppendBeforeWordEndAnchor( _
                 If VBA.Len(nestedGroupBookmarkName) > 0 Then
                     If Not private_TryFindNestedGroupInsertPosition( _
                         wordDoc, groupBookmarkName, nestedGroupBookmarkName, _
-                        nestedGroupOrderText, groupRange.Start, groupRange.End, _
-                        insertedStart) Then GoTo CleanFail
+                        nestedGroupOrderText, groupRange.Start, _
+                        nestedGroupContentStart, groupRange.End, insertedStart) Then _
+                        GoTo CleanFail
                     nestedGroupStart = insertedStart
                     plainRenderedText = nestedGroupHeaderText & plainRenderedText
                 End If
@@ -545,7 +557,7 @@ Private Function private_TryAppendBeforeWordEndAnchor( _
             If VBA.Len(nestedGroupBookmarkName) > 0 Then
                 plainRenderedText = groupHeaderText & nestedGroupHeaderText & _
                     plainRenderedText
-                nestedGroupStart = insertedStart
+                nestedGroupStart = insertedStart + VBA.Len(groupHeaderText)
             Else
                 plainRenderedText = groupHeaderText & plainRenderedText
             End If
@@ -1022,12 +1034,14 @@ Private Function private_TryFindNestedGroupInsertPosition( _
     ByVal newGroupBookmarkName As String, _
     ByVal groupOrderText As String, _
     ByVal parentStart As Long, _
+    ByVal parentContentStart As Long, _
     ByVal parentEnd As Long, _
     ByRef outInsertPosition As Long _
 ) As Boolean
     Dim bookmarkObj As Object
     Dim bookmarkName As String
     Dim prefixText As String
+    Dim candidateStart As Long
 
     outInsertPosition = parentEnd
     If wordDoc Is Nothing Then Exit Function
@@ -1046,8 +1060,14 @@ Private Function private_TryFindNestedGroupInsertPosition( _
         If bookmarkObj.Range.Start < parentStart Or bookmarkObj.Range.End > parentEnd Then _
             GoTo ContinueBookmark
         If VBA.StrComp(bookmarkName, newGroupBookmarkName, VBA.vbTextCompare) > 0 Then
-            If bookmarkObj.Range.Start < outInsertPosition Then _
-                outInsertPosition = bookmarkObj.Range.Start
+            candidateStart = bookmarkObj.Range.Start
+            ' Legacy PEN могла начинаться вместе с PEG и включать дату.
+            ' Вставка новой больницы никогда не должна подниматься выше даты.
+            If candidateStart < parentContentStart Then
+                candidateStart = parentContentStart
+            End If
+            If candidateStart < outInsertPosition Then _
+                outInsertPosition = candidateStart
         End If
 ContinueBookmark:
     Next bookmarkObj
