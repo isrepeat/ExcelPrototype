@@ -325,6 +325,8 @@ Private Function private_ApplyWord(ByVal isUndo As Boolean, ByRef outErrorText A
     Dim groupStart As Long
     Dim groupEnd As Long
     Dim nestedGroupStart As Long
+    Dim insertedStart As Long
+    Dim insertedEnd As Long
 
     On Error GoTo EH
     outErrorText = VBA.vbNullString
@@ -343,7 +345,20 @@ Private Function private_ApplyWord(ByVal isUndo As Boolean, ByRef outErrorText A
             outErrorText = "WORD export bookmark is missing: " & m_WordBookmarkName
             GoTo CleanFail
         End If
+        ' PEB-закладка служит локатором начала вставки. Word может расширить
+        ' её End при последующих вставках в ту же секцию, поэтому удаление
+        ' всего Bookmark.Range способно захватить соседние пункты. Длина
+        ' исходного текста хранится в самой undo-action и определяет точную
+        ' правую границу только этой операции.
         Set targetRange = wordDoc.Bookmarks(m_WordBookmarkName).Range
+        insertedStart = targetRange.Start
+        insertedEnd = insertedStart + VBA.Len(m_WordInsertedText)
+        If insertedEnd > wordDoc.Content.End Then
+            outErrorText = "WORD document structure changed; recorded export text is unavailable."
+            GoTo CleanFail
+        End If
+        wordDoc.Bookmarks(m_WordBookmarkName).Delete
+        Set targetRange = wordDoc.Range(insertedStart, insertedEnd)
         targetRange.Delete
         ' Если удалена последняя запись группы, Word оставляет PEG/PEN как
         ' схлопнутые закладки. Следующий экспорт ошибочно решил бы, что

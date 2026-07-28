@@ -196,7 +196,7 @@
 
   <template id="FromHospital"
     groupBy="EffectiveReturnDateShort; HospitalShort"
-    groupOrder="date; text">
+    groupOrder="date; none">
     <groupHeader by="EffectiveReturnDateShort">
       <![CDATA[#^
 #_      З {[EffectiveReturnDateShort]|dateformat:"\dd \month \yyyy року"}:#^
@@ -302,14 +302,23 @@
     </text>
   </template>
 
-  <template id="ToHospital">
+  <template id="ToHospital"
+    groupBy="EffectiveReturnDateShort; HospitalShort"
+    groupOrder="date; none">
+    <groupHeader by="EffectiveReturnDateShort">
+      <![CDATA[#^
+#_      З {[EffectiveReturnDateShort]|dateformat:"\dd \month \yyyy року"}:#^
+#_      {#newline}{#newline}#^
+      ]]>
+    </groupHeader>
+    <groupHeader by="HospitalShort">
+      <![CDATA[#^
+#_      У {[HospitalAccusative]|lowerFirstLetter}:#^
+#_      {#newline}{#newline}#^
+      ]]>
+    </groupHeader>
     <text>
       <![CDATA[#^
-#_      У {[HospitalAccusative]|lowerFirstLetter}#^
-#_      , з #^
-#_      {[EffectiveReturnDateShort]|dateformat:"\dd \month \yyyy року"}:#^
-#_      {#newline}#^
-#_      {#newline}#^
 #_      {#include block.PersonLineLower}.#^
 #_      {#newline}#^
 #_      {#include block.AssignToDuty}#^
