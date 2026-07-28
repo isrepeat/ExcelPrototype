@@ -287,6 +287,8 @@ rank-aware rules. Нельзя создавать локальную сокра�
 - `<transform type="dateFormat" format="dd.mm.yyyy"/>`
 - `<transform type="dateRangeStartFormat" format="dd.mm.yyyy"/>`
 - `<transform type="orderedTripCredential" indexFrom="$matchIndex"/>`
+- `<transform type="orderedRangeReplace" indexFrom="$matchIndex" pattern="..."
+  startGroup="1" endGroup="2" replacement="... {item} ... {group3} ..."/>`
 - `<transform type="boolean" trueValue="true" falseValue="false"/>`
 
 `dateFormat` понимает числовые даты и украинские названия месяцев, например
@@ -302,6 +304,13 @@ rank-aware rules. Нельзя создавать локальную сокра�
 одиночные номера продолжают ту же последовательность. Дата после диапазона
 копируется каждому его номеру. Отдельные удостоверения, перечисленные через
 запятую, могут иметь собственные даты.
+
+`orderedRangeReplace` находит в исходном значении один или несколько числовых
+диапазонов, выбирает элемент по `$matchIndex` и заменяет найденный фрагмент.
+`startGroup` и `endGroup` задают группы regex с границами диапазона. В
+`replacement` доступны выбранное число `{item}` и исходные группы
+`{group1}`, `{group2}` и т. д. Поэтому предметные фразы и правила их раскрытия
+остаются в XML, а движок выполняет только универсальную операцию над диапазоном.
 
 Для replacement, состоящего только из пробела, табуляции или переноса строки,
 следует использовать `withToken="space|tab|newline"`. XML-парсер может
