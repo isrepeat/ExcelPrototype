@@ -972,6 +972,7 @@ Private Function private_TryGetInlineProfileByPart( _
     Set inlineTextProfile = New obj_InlineTextProfile
     inlineTextProfile.PartName = partKey
     inlineTextProfile.InlineMarkersEnabled = True
+    Set inlineTextProfile.StyleDoc = m_UiDom
     Set m_InlineProfileByPart(partKey) = inlineTextProfile
     Set outInlineProfile = inlineTextProfile
     private_TryGetInlineProfileByPart = True

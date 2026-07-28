@@ -14,6 +14,8 @@ Implements obj_IDataExporter
 ' Runtime path is relative to ThisWorkbook.Path, same as page UI paths.
 Private Const WORD_RESULT_TEMPLATES_REL_PATH As String = "modes\PrsnlEvntBuilder\PrsnlEvntBuilderWordResultTemplates.xml"
 Private Const PREVIEW_FALLBACK_COLOR As String = "#FF0000"
+Private Const PREVIEW_TRUNCATION_WARNING_LENGTH As Long = 254
+Private Const PREVIEW_TRUNCATED_VALUE_TAG As String = "preview-truncated-value"
 Private Const CONTEXT_SECTION_TYPE As String = "SectionType"
 Private Const CONTEXT_VALIDATION_ENABLED As String = "ValidateWord"
 Private Const CONTEXT_WORD_PREVIEW_TEXT As String = "WordExportPreviewText"
@@ -1265,6 +1267,7 @@ Private Function private_TryEnrichMainSourceTableForWord( _
     Dim fioAccusative As String
     Dim fioInitialsGenitive As String
     Dim positionGenitive As String
+    Dim positionGenitiveCellTag As String
     Dim hospitalGenitive As String
     Dim hospitalAccusative As String
     Dim hospitalDative As String
@@ -1340,6 +1343,11 @@ Private Function private_TryEnrichMainSourceTableForWord( _
     If Not m_ExporterCfgDataProvider.CommonData.TryResolveFioInitialsGenitive(ipnText, fioInitialsGenitive) Then Exit Function
     If Not m_ExporterCfgDataProvider.CommonData.TryResolvePositionGenitive( _
         positionCodeText, positionGenitive, rankText) Then Exit Function
+    ' Значение остается обычным текстом. Признак вероятного обрезания ADO
+    ' передаем отдельно через семантический тег ячейки DynamicTable.
+    If VBA.Len(positionGenitive) >= PREVIEW_TRUNCATION_WARNING_LENGTH Then
+        positionGenitiveCellTag = PREVIEW_TRUNCATED_VALUE_TAG
+    End If
     If Not m_ExporterCfgDataProvider.CommonData.TryResolveHospitalGenitive(hospitalShortText, hospitalGenitive) Then Exit Function
     If Not m_ExporterCfgDataProvider.CommonData.TryResolveHospitalAccusative(hospitalShortText, hospitalAccusative) Then Exit Function
     If Not m_ExporterCfgDataProvider.CommonData.TryResolveHospitalDative(hospitalShortText, hospitalDative) Then Exit Function
@@ -1390,7 +1398,9 @@ Private Function private_TryEnrichMainSourceTableForWord( _
         If Not private_TryUpsertMainTableValue(sourceTable, WORD_ALIAS_FIO_INITIALS_GENITIVE, fioInitialsGenitive) Then Exit Function
     End If
     If VBA.Len(VBA.Trim$(positionGenitive)) > 0 Then
-        If Not private_TryUpsertMainTableValue(sourceTable, WORD_ALIAS_POSITION_GENITIVE, positionGenitive) Then Exit Function
+        If Not private_TryUpsertMainTableValue( _
+            sourceTable, WORD_ALIAS_POSITION_GENITIVE, positionGenitive, _
+            positionGenitiveCellTag) Then Exit Function
     End If
     If VBA.Len(VBA.Trim$(positionText)) > 0 Then
         If Not private_TryUpsertMainTableValue(sourceTable, WORD_ALIAS_POSITION_DEFAULT, positionText) Then Exit Function
@@ -1866,6 +1876,7 @@ Private Function private_TryEnrichMetaTvoTablesForWord(ByVal sourceTables As Col
     Dim positionGenitiveFound As Boolean
     Dim positionDativeFound As Boolean
     Dim fallbackPositionText As String
+    Dim positionGenitiveCellTag As String
     Dim enrichedCount As Long
     If sourceTables Is Nothing Then Exit Function
 
@@ -1928,13 +1939,19 @@ Private Function private_TryEnrichMetaTvoTablesForWord(ByVal sourceTables As Col
             Exit Function
         End If
 #End If
-
+        If VBA.Len(positionGenitive) >= PREVIEW_TRUNCATION_WARNING_LENGTH Then
+            positionGenitiveCellTag = PREVIEW_TRUNCATED_VALUE_TAG
+        Else
+            positionGenitiveCellTag = VBA.vbNullString
+        End If
         If Not private_TryUpsertMainTableValue(sourceTable, WORD_ALIAS_RANK_GENITIVE, rankGenitive) Then Exit Function
         If Not private_TryUpsertMainTableValue(sourceTable, WORD_ALIAS_RANK_DATIVE, rankDative) Then Exit Function
         If Not private_TryUpsertMainTableValue(sourceTable, WORD_ALIAS_FIO_GENITIVE, fioGenitive) Then Exit Function
         If Not private_TryUpsertMainTableValue(sourceTable, WORD_ALIAS_FIO_DATIVE, fioDative) Then Exit Function
         If Not private_TryUpsertMainTableValue(sourceTable, WORD_ALIAS_POSITION_DEFAULT, positionText) Then Exit Function
-        If Not private_TryUpsertMainTableValue(sourceTable, WORD_ALIAS_POSITION_GENITIVE, positionGenitive) Then Exit Function
+        If Not private_TryUpsertMainTableValue( _
+            sourceTable, WORD_ALIAS_POSITION_GENITIVE, positionGenitive, _
+            positionGenitiveCellTag) Then Exit Function
         If Not private_TryUpsertMainTableValue(sourceTable, WORD_ALIAS_POSITION_DATIVE, positionDative) Then Exit Function
         enrichedCount = enrichedCount + 1
 
@@ -2260,7 +2277,8 @@ End Function
 Private Function private_TryUpsertMainTableValue( _
     ByVal sourceTable As obj_TableDynamic, _
     ByVal columnAlias As String, _
-    ByVal valueText As String _
+    ByVal valueText As String, _
+    Optional ByVal cellTag As String = VBA.vbNullString _
 ) As Boolean
     Dim columnIndex As Long
     Dim sourceRow As obj_Row
@@ -2286,7 +2304,14 @@ Private Function private_TryUpsertMainTableValue( _
     If sourceRow Is Nothing Then Exit Function
     valueText = private_NormalizeTemplateScalar(valueText)
     valueText = private_ApplyGeneratedAliasWordTypography(columnAlias, valueText)
-    private_TryUpsertMainTableValue = sourceRow.SetCellRaw(columnIndex, valueText)
+    If Not sourceRow.SetCellRaw(columnIndex, valueText) Then Exit Function
+
+    cellTag = VBA.Trim$(cellTag)
+    If VBA.Len(cellTag) > 0 Then
+        If Not sourceRow.AddCellTag(columnIndex, cellTag) Then Exit Function
+    End If
+
+    private_TryUpsertMainTableValue = True
 End Function
 
 Private Function private_GetContextText(ByVal context As Object, ByVal keyText As String) As String

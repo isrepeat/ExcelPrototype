@@ -1185,6 +1185,24 @@
                 vertical:top;
               }"/>
 
+        <!-- Семантические участки текста preview. Код задаёт только part,
+             а конкретное оформление полностью принадлежит style pipeline. -->
+        <rule target="inlinePart"
+              selector="type=banner;part=preview-value"
+              styles="{
+                fontColor:#66CCFF;
+                fontBold:false;
+                fontItalic:false;
+              }"/>
+
+        <rule target="inlinePart"
+              selector="type=banner;part=preview-truncated"
+              styles="{
+                fontColor:#FF0000;
+                fontBold:false;
+                fontItalic:false;
+              }"/>
+
       </layer>
 
       <!-- ButtonGroup получает только семантические теги элементов. -->

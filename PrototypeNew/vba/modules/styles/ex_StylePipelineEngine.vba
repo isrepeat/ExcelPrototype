@@ -218,6 +218,9 @@ Public Function fn_ApplyControlPartStylesForControl( _
                 If Not private_TryReadNodeEnabled(ruleNode, True, ruleEnabled) Then GoTo CleanFail
                 If Not ruleEnabled Then GoTo ContinueRule
                 ruleTarget = VBA.LCase$(VBA.Trim$(ex_XmlCore.fn_NodeAttrText(ruleNode, "target")))
+                ' inlinePart не имеет собственного Range: правило разрешается
+                ' позднее для конкретного Characters-run в InlineTextProfile.
+                If ruleTarget = "inlinepart" Then GoTo ContinueRule
                 ' Stateful floating controls обновляют только свои Shape.
                 ' Sheet/range replay здесь затёр бы debug/layout оформление
                 ' ячеек, которые геометрически находятся под dropdown.
@@ -249,6 +252,130 @@ ContinueStage:
 CleanFail:
     private_EndDeferredRowAutoFit
     ex_ShapeMetaRuntime.fn_EndReadCache
+End Function
+
+Public Function fn_TryResolveInlinePartStyle( _
+    ByVal wsUiDoc As Object, _
+    ByVal ownerType As String, _
+    ByVal partName As String, _
+    ByRef outFontColor As Long, _
+    ByRef outFontBold As Boolean, _
+    ByRef outFontItalic As Boolean, _
+    ByRef outFontUnderline As Boolean, _
+    ByRef outApplyFontFlags As Boolean, _
+    ByRef outStyleFound As Boolean _
+) As Boolean
+    Dim stageNodes As Object
+    Dim stageNode As Object
+    Dim layerNode As Object
+    Dim ruleNode As Object
+    Dim selector As Object
+    Dim declarations As Object
+    Dim effectiveDeclarations As Object
+    Dim declarationKey As Variant
+    Dim stageName As String
+    Dim ruleTarget As String
+    Dim stageEnabled As Boolean
+    Dim ruleEnabled As Boolean
+
+    outStyleFound = False
+    outApplyFontFlags = False
+    If wsUiDoc Is Nothing Then Exit Function
+
+    ownerType = VBA.LCase$(VBA.Trim$(ownerType))
+    partName = VBA.LCase$(VBA.Trim$(partName))
+    If VBA.Len(ownerType) = 0 Or VBA.Len(partName) = 0 Then Exit Function
+
+    Set effectiveDeclarations = VBA.CreateObject("Scripting.Dictionary")
+    effectiveDeclarations.CompareMode = 1
+    Set stageNodes = wsUiDoc.selectNodes( _
+        "/p:page/p:styles/p:stylePipelineStage | " & _
+        "/p:uiDefinition/p:styles/p:stylePipelineStage")
+    If stageNodes Is Nothing Then Exit Function
+
+    ' Используем тот же порядок stage/layer/rule, что и основной pipeline:
+    ' более позднее подходящее правило перекрывает отдельные декларации.
+    For Each stageNode In stageNodes
+        stageName = VBA.LCase$(VBA.Trim$(ex_XmlCore.fn_NodeAttrText(stageNode, "name")))
+        If stageName <> "default" Then GoTo ContinueStage
+        If Not private_TryReadNodeEnabled(stageNode, True, stageEnabled) Then Exit Function
+        If Not stageEnabled Then GoTo ContinueStage
+
+        For Each layerNode In stageNode.ChildNodes
+            If layerNode.NodeType <> 1 Then GoTo ContinueLayer
+            For Each ruleNode In layerNode.ChildNodes
+                If ruleNode.NodeType <> 1 Then GoTo ContinueRule
+                If Not private_TryReadNodeEnabled(ruleNode, True, ruleEnabled) Then Exit Function
+                If Not ruleEnabled Then GoTo ContinueRule
+
+                ruleTarget = VBA.LCase$(VBA.Trim$( _
+                    ex_XmlCore.fn_NodeAttrText(ruleNode, "target")))
+                If ruleTarget <> "inlinepart" Then GoTo ContinueRule
+                If Not private_TryGetCompiledRule( _
+                    ruleNode, selector, declarations) Then Exit Function
+                If selector Is Nothing Or declarations Is Nothing Then Exit Function
+                If Not private_InlinePartSelectorMatches( _
+                    selector, ownerType, partName) Then GoTo ContinueRule
+
+                For Each declarationKey In declarations.Keys
+                    effectiveDeclarations(VBA.CStr(declarationKey)) = _
+                        declarations(declarationKey)
+                Next declarationKey
+                outStyleFound = True
+ContinueRule:
+            Next ruleNode
+ContinueLayer:
+        Next layerNode
+ContinueStage:
+    Next stageNode
+
+    If Not outStyleFound Then
+        fn_TryResolveInlinePartStyle = True
+        Exit Function
+    End If
+    If Not effectiveDeclarations.Exists("fontcolor") Then
+#If LOGGING_DEBUG_ENABLED Then
+        ex_Core.fn_Diagnostic_LogError _
+            "PrototypeNew: inlinePart style requires fontColor for part '" & _
+            partName & "'."
+#End If
+        Exit Function
+    End If
+    If Not ex_HelpersCSS.fn_TryParseColor( _
+        VBA.CStr(effectiveDeclarations("fontcolor")), outFontColor) Then Exit Function
+
+    If effectiveDeclarations.Exists("fontbold") Then
+        If Not private_TryParseBoolean( _
+            VBA.CStr(effectiveDeclarations("fontbold")), outFontBold) Then Exit Function
+        outApplyFontFlags = True
+    End If
+    If effectiveDeclarations.Exists("fontitalic") Then
+        If Not private_TryParseBoolean( _
+            VBA.CStr(effectiveDeclarations("fontitalic")), outFontItalic) Then Exit Function
+        outApplyFontFlags = True
+    End If
+    outFontUnderline = False
+    fn_TryResolveInlinePartStyle = True
+End Function
+
+Private Function private_InlinePartSelectorMatches( _
+    ByVal selector As Object, _
+    ByVal ownerType As String, _
+    ByVal partName As String _
+) As Boolean
+    If selector Is Nothing Then Exit Function
+    If selector.Exists("name") Then Exit Function
+    If selector.Exists("type") Then
+        If VBA.StrComp( _
+            VBA.LCase$(VBA.Trim$(VBA.CStr(selector("type")))), _
+            ownerType, VBA.vbBinaryCompare) <> 0 Then Exit Function
+    End If
+    If Not selector.Exists("part") Then Exit Function
+    If VBA.StrComp( _
+        VBA.LCase$(VBA.Trim$(VBA.CStr(selector("part")))), _
+        partName, VBA.vbBinaryCompare) <> 0 Then Exit Function
+
+    private_InlinePartSelectorMatches = True
 End Function
 
 
@@ -781,6 +908,11 @@ Private Function private_ApplySingleRule(ByVal ws As Worksheet, ByVal ruleNode A
     If declarations Is Nothing Then Exit Function
 
     Select Case ruleTarget
+        Case "inlinepart"
+            ' Стили символов применяются после основного range/shape pass.
+            private_ApplySingleRule = True
+            Exit Function
+
         Case "layoutbound"
             If Not private_ApplyLayoutBoundRule(ws, selector, declarations, "layoutBound rule") Then Exit Function
             private_ApplySingleRule = True
@@ -1649,7 +1781,8 @@ End Function
 
 Private Function private_RuleTargetIsSupported(ByVal targetName As String) As Boolean
     Select Case VBA.LCase$(VBA.Trim$(targetName))
-        Case "row", "column", "cell", "range", "usedrange", "sheet", "layoutcontainer", "controlpart", "layoutbound"
+        Case "row", "column", "cell", "range", "usedrange", "sheet", _
+             "layoutcontainer", "controlpart", "layoutbound", "inlinepart"
             private_RuleTargetIsSupported = True
     End Select
 End Function
