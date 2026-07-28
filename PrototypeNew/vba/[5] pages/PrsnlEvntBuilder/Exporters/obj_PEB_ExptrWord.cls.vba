@@ -360,8 +360,8 @@ Private Function private_TryExtractRecordTextFromPreview( _
     ' Текст, прочитанный обратно из Excel Banner, уже не содержит служебных
     ' маркеров посимвольного цвета, поэтому сравниваем его с plain-вариантом
     ' заголовков, а не с исходной строкой template renderer.
-    headerPrefix = private_StripPreviewColorMarkers( _
-        groupHeaderText & nestedGroupHeaderText)
+    If Not private_TryStripPreviewInlineMarkers( _
+        groupHeaderText & nestedGroupHeaderText, headerPrefix) Then Exit Function
     If VBA.Len(headerPrefix) = 0 Then
         private_TryExtractRecordTextFromPreview = True
         Exit Function
@@ -419,6 +419,8 @@ Private Function private_TryAppendBeforeWordEndAnchor( _
     Dim nestedGroupRange As Object
     Dim nestedGroupStart As Long
     Dim nestedGroupContentStart As Long
+    Dim plainGroupHeaderText As String
+    Dim plainNestedGroupHeaderText As String
     Dim undoAction As obj_PEB_ExportUndoAction
     Dim undoActionReady As Boolean
 
@@ -449,8 +451,9 @@ Private Function private_TryAppendBeforeWordEndAnchor( _
 
     beginMarker = WORD_ANCHOR_PREFIX & VBA.Trim$(templateId) & WORD_ANCHOR_BEGIN_SUFFIX
     endMarker = WORD_ANCHOR_PREFIX & VBA.Trim$(templateId) & WORD_ANCHOR_END_SUFFIX
-    plainRenderedText = private_NormalizeWordParagraphBreaks( _
-        private_StripPreviewColorMarkers(renderedText))
+    If Not private_TryStripPreviewInlineMarkers( _
+        renderedText, plainRenderedText) Then Exit Function
+    plainRenderedText = private_NormalizeWordParagraphBreaks(plainRenderedText)
     bookmarkName = private_BuildRecordBookmarkName(templateId, recordIpn)
     If VBA.Len(bookmarkName) = 0 Then
         VBA.MsgBox "PrototypeNew: failed to build a WORD bookmark for IPN '" & recordIpn & "'.", VBA.vbExclamation, "PrototypeNew / WORD export"
@@ -460,14 +463,18 @@ Private Function private_TryAppendBeforeWordEndAnchor( _
         groupBookmarkName = private_BuildGroupBookmarkName( _
             templateId, groupKeyText, groupOrderText)
         If VBA.Len(groupBookmarkName) = 0 Then Exit Function
+        If Not private_TryStripPreviewInlineMarkers( _
+            groupHeaderText, plainGroupHeaderText) Then Exit Function
         groupHeaderText = private_NormalizeWordParagraphBreaks( _
-            private_StripPreviewColorMarkers(groupHeaderText))
+            plainGroupHeaderText)
         If VBA.Len(VBA.Trim$(nestedGroupKeyText)) > 0 Then
             nestedGroupBookmarkName = private_BuildNestedGroupBookmarkName( _
                 groupBookmarkName, nestedGroupKeyText)
             If VBA.Len(nestedGroupBookmarkName) = 0 Then Exit Function
+            If Not private_TryStripPreviewInlineMarkers( _
+                nestedGroupHeaderText, plainNestedGroupHeaderText) Then Exit Function
             nestedGroupHeaderText = private_NormalizeWordParagraphBreaks( _
-                private_StripPreviewColorMarkers(nestedGroupHeaderText))
+                plainNestedGroupHeaderText)
         End If
     End If
 
@@ -1172,13 +1179,22 @@ Private Function private_NormalizeBookmarkPart(ByVal valueText As String) As Str
     private_NormalizeBookmarkPart = rx.Replace(valueText, "_")
 End Function
 
-Private Function private_StripPreviewColorMarkers(ByVal renderedText As String) As String
-    Dim rx As Object
-    Set rx = VBA.CreateObject("VBScript.RegExp")
-    rx.Global = True
-    rx.IgnoreCase = True
-    rx.Pattern = "\[\[/?color(?:=[^\]]+)?\]\]"
-    private_StripPreviewColorMarkers = rx.Replace(renderedText, VBA.vbNullString)
+Private Function private_TryStripPreviewInlineMarkers( _
+    ByVal renderedText As String, _
+    ByRef outPlainText As String _
+) As Boolean
+    Dim inlineTextProfile As obj_InlineTextProfile
+    Dim ignoredRuns As Collection
+
+    outPlainText = VBA.vbNullString
+    Set inlineTextProfile = New obj_InlineTextProfile
+    inlineTextProfile.InlineMarkersEnabled = True
+    ' Word получает тот же plain-текст, который общий inline pipeline передает
+    ' Excel Banner перед посимвольным оформлением.
+    If Not inlineTextProfile.TryResolveInlineText( _
+        renderedText, outPlainText, ignoredRuns) Then Exit Function
+
+    private_TryStripPreviewInlineMarkers = True
 End Function
 
 ' Excel хранит перенос строки внутри ячейки как LF, а Word использует CR
