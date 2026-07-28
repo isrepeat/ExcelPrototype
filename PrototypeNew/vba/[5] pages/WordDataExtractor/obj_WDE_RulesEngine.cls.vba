@@ -1659,6 +1659,15 @@ Private Function private_ApplyTransforms( _
                     valueText, itemIndex, selectedValue) Then
                     valueText = selectedValue
                 End If
+            Case "orderedrangereplace"
+                indexExpression = private_AttrOrDefault( _
+                    node, "indexFrom", "$matchIndex")
+                itemIndex = VBA.CLng(VBA.Val( _
+                    private_ResolveValue(indexExpression, values)))
+                If private_TryApplyOrderedRangeReplace( _
+                    valueText, itemIndex, node, selectedValue) Then
+                    valueText = selectedValue
+                End If
             Case "boolean"
                 If VBA.Len(VBA.Trim$(valueText)) > 0 Then
                     valueText = private_AttrOrDefault(node, "trueValue", "true")
@@ -1700,6 +1709,111 @@ Private Function private_JoinResolvedValues( _
         isFirstValue = False
     Next expressionItem
     private_JoinResolvedValues = resultText
+End Function
+
+Private Function private_TryApplyOrderedRangeReplace( _
+    ByVal sourceText As String, _
+    ByVal oneBasedIndex As Long, _
+    ByVal transformNode As Object, _
+    ByRef outValue As String _
+) As Boolean
+    Dim rx As Object
+    Dim matches As Object
+    Dim matchObj As Object
+    Dim patternText As String
+    Dim replacementTemplate As String
+    Dim startGroup As Long
+    Dim endGroup As Long
+    Dim startNumber As Long
+    Dim endNumber As Long
+    Dim rangeCount As Long
+    Dim selectedNumber As Long
+    Dim replacementText As String
+
+    outValue = sourceText
+    If oneBasedIndex <= 0 Then Exit Function
+
+    patternText = ex_XmlCore.fn_NodeAttrText(transformNode, "pattern")
+    replacementTemplate = ex_XmlCore.fn_NodeAttrText( _
+        transformNode, "replacement")
+    ' startGroup/endGroup — однобазные номера круглых групп захвата pattern:
+    ' их значения задают левую и правую числовые границы диапазона.
+    ' {item} в replacement — вычисленный элемент для текущего matchIndex,
+    ' тогда как {groupN} ниже переносит исходное значение N-й группы regex.
+    startGroup = VBA.CLng(VBA.Val(private_AttrOrDefault( _
+        transformNode, "startGroup", "1")))
+    endGroup = VBA.CLng(VBA.Val(private_AttrOrDefault( _
+        transformNode, "endGroup", "2")))
+    Set rx = private_CreateRegex(patternText, _
+        private_BoolAttr(transformNode, "ignoreCase", True), True)
+    If rx Is Nothing Then Exit Function
+    rx.Global = True
+    Set matches = rx.Execute(sourceText)
+
+    ' Отсутствие диапазона означает, что transform к этой записи неприменим.
+    ' Это позволяет тем же rule обрабатывать обычные одиночные основания.
+    If matches.Count = 0 Then Exit Function
+
+    For Each matchObj In matches
+        If startGroup <= 0 Or endGroup <= 0 Or _
+           startGroup > matchObj.SubMatches.Count Or _
+           endGroup > matchObj.SubMatches.Count Then
+            private_ShowError "orderedRangeReplace ссылается на " & _
+                "несуществующую группу regex."
+            Exit Function
+        End If
+        If Not VBA.IsNumeric(matchObj.SubMatches(startGroup - 1)) Or _
+           Not VBA.IsNumeric(matchObj.SubMatches(endGroup - 1)) Then
+            private_ShowError "Границы orderedRangeReplace должны быть числами."
+            Exit Function
+        End If
+
+        startNumber = VBA.CLng(matchObj.SubMatches(startGroup - 1))
+        endNumber = VBA.CLng(matchObj.SubMatches(endGroup - 1))
+        If endNumber < startNumber Then
+            private_ShowError "Правая граница orderedRangeReplace меньше левой."
+            Exit Function
+        End If
+        rangeCount = endNumber - startNumber + 1
+
+        If oneBasedIndex <= rangeCount Then
+            selectedNumber = startNumber + oneBasedIndex - 1
+            replacementText = private_ExpandRangeReplacement( _
+                replacementTemplate, selectedNumber, matchObj)
+            ' FirstIndex имеет нулевую базу. Позиционная замена сохраняет весь
+            ' окружающий текст и не привязывает движок к его предметному смыслу.
+            outValue = VBA.Left$(sourceText, matchObj.FirstIndex) & _
+                replacementText & _
+                VBA.Mid$(sourceText, _
+                    matchObj.FirstIndex + matchObj.Length + 1)
+            private_TryApplyOrderedRangeReplace = True
+            Exit Function
+        End If
+        oneBasedIndex = oneBasedIndex - rangeCount
+    Next matchObj
+
+    private_ShowError "Порядковый номер записи выходит за пределы " & _
+        "диапазонов orderedRangeReplace."
+End Function
+
+Private Function private_ExpandRangeReplacement( _
+    ByVal replacementTemplate As String, _
+    ByVal selectedNumber As Long, _
+    ByVal matchObj As Object _
+) As String
+    Dim groupIndex As Long
+    Dim resultText As String
+
+    resultText = VBA.Replace(replacementTemplate, _
+        "{item}", VBA.CStr(selectedNumber))
+    ' Именованные группы VBScript.RegExp не поддерживает, поэтому шаблон XML
+    ' обращается к захватам как {group1}, {group2} и т. д.
+    For groupIndex = matchObj.SubMatches.Count To 1 Step -1
+        resultText = VBA.Replace(resultText, _
+            "{group" & VBA.CStr(groupIndex) & "}", _
+            VBA.CStr(matchObj.SubMatches(groupIndex - 1)))
+    Next groupIndex
+    private_ExpandRangeReplacement = resultText
 End Function
 
 Private Function private_TrySelectTripCredential( _
