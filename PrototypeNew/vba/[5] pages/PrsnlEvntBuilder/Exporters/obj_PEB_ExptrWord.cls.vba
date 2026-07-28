@@ -355,21 +355,36 @@ Private Function private_TryExtractRecordTextFromPreview( _
     ByRef outRecordText As String _
 ) As Boolean
     Dim headerPrefix As String
+    Dim normalizedHeaderPrefix As String
+    Dim normalizedPreviewText As String
 
     outRecordText = previewText
     ' Текст, прочитанный обратно из Excel Banner, уже не содержит служебных
-    ' маркеров посимвольного цвета, поэтому сравниваем его с plain-вариантом
-    ' заголовков, а не с исходной строкой template renderer.
+    ' inline-маркеров, поэтому сравниваем его с plain-вариантом заголовков,
+    ' а не с исходной строкой template renderer.
     If Not private_TryStripPreviewInlineMarkers( _
         groupHeaderText & nestedGroupHeaderText, headerPrefix) Then Exit Function
     If VBA.Len(headerPrefix) = 0 Then
         private_TryExtractRecordTextFromPreview = True
         Exit Function
     End If
-    If VBA.Len(previewText) < VBA.Len(headerPrefix) Or _
+
+    ' Template renderer формирует переносы как CRLF. После записи такого текста
+    ' в ячейку Excel и обратного чтения через Range.Value2 Excel возвращает
+    ' внутренние переносы как LF. Визуально заголовки одинаковы, но бинарное
+    ' сравнение считает CRLF и LF разными; кроме того, CRLF занимает два символа,
+    ' поэтому Len(headerPrefix) нельзя применять к исходному previewText.
+    '
+    ' Нормализуем обе стороны до LF и отделяем тело записи из этой же
+    ' нормализованной строки. Так длина проверенного prefix точно совпадает с
+    ' позицией, с которой начинается редактируемый record text.
+    normalizedHeaderPrefix = private_NormalizePreviewLineBreaks(headerPrefix)
+    normalizedPreviewText = private_NormalizePreviewLineBreaks(previewText)
+
+    If VBA.Len(normalizedPreviewText) < VBA.Len(normalizedHeaderPrefix) Or _
         VBA.StrComp( _
-            VBA.Left$(previewText, VBA.Len(headerPrefix)), _
-            headerPrefix, _
+            VBA.Left$(normalizedPreviewText, VBA.Len(normalizedHeaderPrefix)), _
+            normalizedHeaderPrefix, _
             VBA.vbBinaryCompare) <> 0 Then
         VBA.MsgBox _
             "PrototypeNew: grouped preview headers were changed for template '" & _
@@ -379,8 +394,19 @@ Private Function private_TryExtractRecordTextFromPreview( _
         Exit Function
     End If
 
-    outRecordText = VBA.Mid$(previewText, VBA.Len(headerPrefix) + 1)
+    outRecordText = VBA.Mid$( _
+        normalizedPreviewText, VBA.Len(normalizedHeaderPrefix) + 1)
     private_TryExtractRecordTextFromPreview = True
+End Function
+
+Private Function private_NormalizePreviewLineBreaks( _
+    ByVal valueText As String _
+) As String
+    ' Сначала схлопываем CRLF как единый перенос. Если сперва заменить только
+    ' CR, исходный CRLF превратится в два LF и снова изменит длину prefix.
+    valueText = VBA.Replace(valueText, VBA.vbCrLf, VBA.vbLf)
+    valueText = VBA.Replace(valueText, VBA.vbCr, VBA.vbLf)
+    private_NormalizePreviewLineBreaks = valueText
 End Function
 
 Private Function private_TryAppendBeforeWordEndAnchor( _
