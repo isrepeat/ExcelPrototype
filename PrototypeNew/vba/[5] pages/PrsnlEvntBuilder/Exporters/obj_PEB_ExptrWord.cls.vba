@@ -16,6 +16,7 @@ Private Const WORD_RESULT_TEMPLATES_REL_PATH As String = "modes\PrsnlEvntBuilder
 Private Const PREVIEW_FALLBACK_COLOR As String = "#FF0000"
 Private Const PREVIEW_TRUNCATION_WARNING_LENGTH As Long = 254
 Private Const PREVIEW_TRUNCATED_VALUE_TAG As String = "preview-truncated-value"
+Private Const PREVIEW_LOOKUP_WARNING_VALUE_TAG As String = "preview-lookup-warning-value"
 Private Const CONTEXT_SECTION_TYPE As String = "SectionType"
 Private Const CONTEXT_VALIDATION_ENABLED As String = "ValidateWord"
 Private Const CONTEXT_WORD_PREVIEW_TEXT As String = "WordExportPreviewText"
@@ -1306,15 +1307,22 @@ Private Function private_TryEnrichMainSourceTableForWord( _
     Dim vacationTicketNoText As String
     Dim normalizedVacationTicketNoText As String
     Dim rankGenitive As String
+    Dim rankGenitiveFound As Boolean
+    Dim rankGenitiveCellTag As String
     Dim fioGenitive As String
     Dim fioAccusative As String
     Dim fioInitialsGenitive As String
+    Dim fioDeclensionFound As Boolean
+    Dim fioDeclensionCellTag As String
     Dim positionGenitive As String
+    Dim positionGenitiveFound As Boolean
     Dim positionGenitiveCellTag As String
     Dim hospitalGenitive As String
     Dim hospitalAccusative As String
     Dim hospitalDative As String
     Dim reportRankGenitive As String
+    Dim reportRankGenitiveFound As Boolean
+    Dim reportRankGenitiveCellTag As String
     Dim reportPersonGenitive As String
     Dim reportPersonInitialsGenitive As String
     Dim reportPositionGenitive As String
@@ -1378,17 +1386,57 @@ Private Function private_TryEnrichMainSourceTableForWord( _
             5
     End If
 
-    ' Все склонения берутся из общего provider-а. Если справочник пустой или
-    ' ключ не найден, provider сам показывает MsgBox с конкретной причиной.
-    If Not m_ExporterCfgDataProvider.CommonData.TryResolveRankGenitive(rankText, rankGenitive) Then Exit Function
-    If Not m_ExporterCfgDataProvider.CommonData.TryResolveFioGenitive(ipnText, fioGenitive) Then Exit Function
-    If Not m_ExporterCfgDataProvider.CommonData.TryResolveFioAccusative(ipnText, fioAccusative) Then Exit Function
-    If Not m_ExporterCfgDataProvider.CommonData.TryResolveFioInitialsGenitive(ipnText, fioInitialsGenitive) Then Exit Function
-    If Not m_ExporterCfgDataProvider.CommonData.TryResolvePositionGenitive( _
-        positionCodeText, positionGenitive, rankText) Then Exit Function
+    ' Все склонения берутся из общего provider-а. Отсутствие ФИО в АЛФ не
+    ' блокирует preview/export: ниже используем исходную форму и помечаем её
+    ' семантическим warning-тегом для style pipeline.
+    If Not m_ExporterCfgDataProvider.CommonData.TryResolveRankGenitiveOptional( _
+        rankText, rankGenitive, rankGenitiveFound) Then Exit Function
+    If Not rankGenitiveFound And VBA.Len(VBA.Trim$(rankText)) > 0 Then
+        rankGenitive = rankText
+        rankGenitiveCellTag = PREVIEW_LOOKUP_WARNING_VALUE_TAG
+        ex_Core.fn_Diagnostic_LogError _
+            "peb-word:rank-declension-missing rank='" & rankText & "'"
+    End If
+    If Not m_ExporterCfgDataProvider.CommonData.TryResolveFioFormsOptional( _
+        ipnText, fioGenitive, fioAccusative, fioInitialsGenitive, _
+        fioDeclensionFound) Then Exit Function
+    If Not fioDeclensionFound Then
+        If VBA.Len(VBA.Trim$(fioText)) = 0 Then
+            VBA.MsgBox "PrototypeNew: FIO was not found in ШПО / АЛФ for IPN '" & _
+                ipnText & "', and the source form has no FIO.", _
+                VBA.vbExclamation, "PrototypeNew / WORD export"
+            Exit Function
+        End If
+        fioGenitive = fioText
+        fioAccusative = fioText
+        fioInitialsGenitive = fioText
+        fioDeclensionCellTag = PREVIEW_LOOKUP_WARNING_VALUE_TAG
+        ex_Core.fn_Diagnostic_LogError _
+            "peb-word:fio-declension-missing ipn='" & ipnText & _
+            "' fio='" & fioText & "'"
+    End If
+    If Not m_ExporterCfgDataProvider.CommonData.TryResolvePositionGenitiveOptional( _
+        positionCodeText, positionGenitive, positionGenitiveFound, _
+        rankText) Then Exit Function
+    If Not positionGenitiveFound And _
+       VBA.Len(VBA.Trim$(positionCodeText)) > 0 Then
+        If VBA.Len(VBA.Trim$(positionText)) = 0 Then
+            VBA.MsgBox "PrototypeNew: position was not found in ШПО / Посади " & _
+                "for code '" & positionCodeText & _
+                "', and the source form has no position name.", _
+                VBA.vbExclamation, "PrototypeNew / WORD export"
+            Exit Function
+        End If
+        positionGenitive = positionText
+        positionGenitiveCellTag = PREVIEW_LOOKUP_WARNING_VALUE_TAG
+        ex_Core.fn_Diagnostic_LogError _
+            "peb-word:position-declension-missing code='" & _
+            positionCodeText & "' position='" & positionText & "'"
+    End If
     ' Значение остается обычным текстом. Признак вероятного обрезания ADO
     ' передаем отдельно через семантический тег ячейки DynamicTable.
-    If VBA.Len(positionGenitive) >= PREVIEW_TRUNCATION_WARNING_LENGTH Then
+    If VBA.Len(positionGenitiveCellTag) = 0 And _
+       VBA.Len(positionGenitive) >= PREVIEW_TRUNCATION_WARNING_LENGTH Then
         positionGenitiveCellTag = PREVIEW_TRUNCATED_VALUE_TAG
     End If
     If Not m_ExporterCfgDataProvider.CommonData.TryResolveHospitalGenitive(hospitalShortText, hospitalGenitive) Then Exit Function
@@ -1404,7 +1452,17 @@ Private Function private_TryEnrichMainSourceTableForWord( _
         End If
         destinationText = inflectedDestinationText
     End If
-    If Not m_ExporterCfgDataProvider.CommonData.TryResolveRankGenitive(reportRankText, reportRankGenitive) Then Exit Function
+    If Not m_ExporterCfgDataProvider.CommonData.TryResolveRankGenitiveOptional( _
+        reportRankText, reportRankGenitive, _
+        reportRankGenitiveFound) Then Exit Function
+    If Not reportRankGenitiveFound And _
+       VBA.Len(VBA.Trim$(reportRankText)) > 0 Then
+        reportRankGenitive = reportRankText
+        reportRankGenitiveCellTag = PREVIEW_LOOKUP_WARNING_VALUE_TAG
+        ex_Core.fn_Diagnostic_LogError _
+            "peb-word:report-rank-declension-missing rank='" & _
+            reportRankText & "'"
+    End If
     If Not m_ExporterCfgDataProvider.CommonData.TryResolveFioGenitiveByName(reportPersonText, reportPersonGenitive) Then Exit Function
     If Not m_ExporterCfgDataProvider.CommonData.TryResolveFioInitialsGenitiveByName(reportPersonText, reportPersonInitialsGenitive) Then Exit Function
 
@@ -1429,16 +1487,24 @@ Private Function private_TryEnrichMainSourceTableForWord( _
     ' DynamicTable перед шаблонизацией. XML-шаблон может читать новые поля,
     ' но UI не обязан их отрисовывать отдельными колонками.
     If VBA.Len(VBA.Trim$(rankGenitive)) > 0 Then
-        If Not private_TryUpsertMainTableValue(sourceTable, WORD_ALIAS_RANK_GENITIVE, rankGenitive) Then Exit Function
+        If Not private_TryUpsertMainTableValue( _
+            sourceTable, WORD_ALIAS_RANK_GENITIVE, rankGenitive, _
+            rankGenitiveCellTag) Then Exit Function
     End If
     If VBA.Len(VBA.Trim$(fioGenitive)) > 0 Then
-        If Not private_TryUpsertMainTableValue(sourceTable, WORD_ALIAS_FIO_GENITIVE, fioGenitive) Then Exit Function
+        If Not private_TryUpsertMainTableValue( _
+            sourceTable, WORD_ALIAS_FIO_GENITIVE, fioGenitive, _
+            fioDeclensionCellTag) Then Exit Function
     End If
     If VBA.Len(VBA.Trim$(fioAccusative)) > 0 Then
-        If Not private_TryUpsertMainTableValue(sourceTable, WORD_ALIAS_FIO_ACCUSATIVE, fioAccusative) Then Exit Function
+        If Not private_TryUpsertMainTableValue( _
+            sourceTable, WORD_ALIAS_FIO_ACCUSATIVE, fioAccusative, _
+            fioDeclensionCellTag) Then Exit Function
     End If
     If VBA.Len(VBA.Trim$(fioInitialsGenitive)) > 0 Then
-        If Not private_TryUpsertMainTableValue(sourceTable, WORD_ALIAS_FIO_INITIALS_GENITIVE, fioInitialsGenitive) Then Exit Function
+        If Not private_TryUpsertMainTableValue( _
+            sourceTable, WORD_ALIAS_FIO_INITIALS_GENITIVE, _
+            fioInitialsGenitive, fioDeclensionCellTag) Then Exit Function
     End If
     If VBA.Len(VBA.Trim$(positionGenitive)) > 0 Then
         If Not private_TryUpsertMainTableValue( _
@@ -1461,7 +1527,9 @@ Private Function private_TryEnrichMainSourceTableForWord( _
         If Not private_TryUpsertMainTableValue(sourceTable, SOURCE_ALIAS_DESTINATION, destinationText) Then Exit Function
     End If
     If VBA.Len(VBA.Trim$(reportRankGenitive)) > 0 Then
-        If Not private_TryUpsertMainTableValue(sourceTable, WORD_ALIAS_REPORT_RANK_GENITIVE, reportRankGenitive) Then Exit Function
+        If Not private_TryUpsertMainTableValue( _
+            sourceTable, WORD_ALIAS_REPORT_RANK_GENITIVE, _
+            reportRankGenitive, reportRankGenitiveCellTag) Then Exit Function
     End If
     If VBA.Len(VBA.Trim$(reportPersonGenitive)) > 0 Then
         If Not private_TryUpsertMainTableValue(sourceTable, WORD_ALIAS_REPORT_PERSON_GENITIVE, reportPersonGenitive) Then Exit Function
@@ -2189,8 +2257,9 @@ Private Function private_NormalizeHospitalWordTypography(ByVal valueText As Stri
         Set hospitalNumberRx = VBA.CreateObject("VBScript.RegExp")
         hospitalNumberRx.Global = True
         hospitalNumberRx.IgnoreCase = False
-        ' Не даём WORD разорвать обозначение и значение: "№ 18".
-        hospitalNumberRx.Pattern = "№[ \t]+(\S)"
+        ' Нормализуем как «№ 18», так и уже слитное «№18» и не даём WORD
+        ' разорвать обозначение и число: итоговая форма всегда «№ 18».
+        hospitalNumberRx.Pattern = "№[ \t]*(\d)"
     End If
 
     private_NormalizeHospitalWordTypography = hospitalNumberRx.Replace( _
@@ -2218,7 +2287,8 @@ Private Function private_ApplyGeneratedAliasWordTypography( _
             valueText = private_KeepSurnameWithInitialsTogether(valueText)
 
         Case VBA.LCase$(WORD_ALIAS_HOSPITAL_GENITIVE), _
-             VBA.LCase$(WORD_ALIAS_HOSPITAL_ACCUSATIVE)
+             VBA.LCase$(WORD_ALIAS_HOSPITAL_ACCUSATIVE), _
+             VBA.LCase$(WORD_ALIAS_HOSPITAL_DATIVE)
             valueText = private_NormalizeHospitalWordTypography(valueText)
 
         Case VBA.LCase$(SOURCE_ALIAS_DESTINATION)

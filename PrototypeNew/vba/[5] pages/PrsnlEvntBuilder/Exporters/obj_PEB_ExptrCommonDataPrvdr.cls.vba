@@ -406,6 +406,85 @@ Public Function TryResolveFioInitialsGenitive( _
         outFioInitialsGenitive)
 End Function
 
+Public Function TryResolveFioInitialsGenitiveOptional( _
+    ByVal ipnText As String, _
+    ByRef outFioInitialsGenitive As String, _
+    ByRef outFound As Boolean _
+) As Boolean
+    If m_IsDisposed Then Exit Function
+    ipnText = private_NormalizeLookupKey(ipnText)
+    outFioInitialsGenitive = VBA.vbNullString
+    outFound = False
+    If VBA.Len(ipnText) = 0 Then
+        TryResolveFioInitialsGenitiveOptional = True
+        Exit Function
+    End If
+
+    TryResolveFioInitialsGenitiveOptional = private_TryLookupWorkbookValue( _
+        DEFAULT_SHPO_REL_PATH, _
+        private_BuildAdoRangeRef( _
+            ALF_SHEET_NAME, _
+            ALF_RANGE_START, _
+            ALF_RANGE_END_COLUMN & VBA.CStr(EXCEL_MAX_ROW)), _
+        ALF_KEY_HEADER, _
+        ALF_INITIALS_GENITIVE_HEADER, _
+        ipnText, _
+        "ШПО / АЛФ", _
+        outFioInitialsGenitive, _
+        allowMissingRow:=True, _
+        outFound:=outFound, _
+        requireUniqueMatch:=False, _
+        logMissingRow:=False)
+End Function
+
+Public Function TryResolveFioFormsOptional( _
+    ByVal ipnText As String, _
+    ByRef outFioGenitive As String, _
+    ByRef outFioAccusative As String, _
+    ByRef outFioInitialsGenitive As String, _
+    ByRef outFound As Boolean _
+) As Boolean
+    ipnText = private_NormalizeLookupKey(ipnText)
+    outFioGenitive = VBA.vbNullString
+    outFioAccusative = VBA.vbNullString
+    outFioInitialsGenitive = VBA.vbNullString
+    outFound = False
+    If m_IsDisposed Then Exit Function
+    If VBA.Len(ipnText) = 0 Then
+        TryResolveFioFormsOptional = True
+        Exit Function
+    End If
+
+    ' Для preview отсутствие человека в АЛФ является предупреждением, а не
+    ' ошибкой pipeline. Сначала выполняем один неблокирующий запрос. Остальные
+    ' формы читаем только при наличии строки с таким ИПН.
+    If Not private_TryLookupWorkbookValue( _
+        DEFAULT_SHPO_REL_PATH, _
+        private_BuildAdoRangeRef( _
+            ALF_SHEET_NAME, _
+            ALF_RANGE_START, _
+            ALF_RANGE_END_COLUMN & VBA.CStr(EXCEL_MAX_ROW)), _
+        ALF_KEY_HEADER, _
+        ALF_GENITIVE_HEADER, _
+        ipnText, _
+        "ШПО / АЛФ", _
+        outFioGenitive, _
+        allowMissingRow:=True, _
+        outFound:=outFound, _
+        requireUniqueMatch:=False, _
+        logMissingRow:=False) Then Exit Function
+    If Not outFound Then
+        TryResolveFioFormsOptional = True
+        Exit Function
+    End If
+
+    If Not TryResolveFioAccusative( _
+        ipnText, outFioAccusative) Then Exit Function
+    If Not TryResolveFioInitialsGenitive( _
+        ipnText, outFioInitialsGenitive) Then Exit Function
+    TryResolveFioFormsOptional = True
+End Function
+
 Public Function TryResolveFioGenitiveByName( _
     ByVal fioText As String, _
     ByRef outFioGenitive As String _
@@ -651,6 +730,39 @@ Public Function TryResolveRankGenitive( _
         rankText, _
         "ШПО / Звання", _
         outRankGenitive)
+End Function
+
+Public Function TryResolveRankGenitiveOptional( _
+    ByVal rankText As String, _
+    ByRef outRankGenitive As String, _
+    ByRef outFound As Boolean _
+) As Boolean
+    If m_IsDisposed Then Exit Function
+    rankText = private_NormalizeLookupKey(rankText)
+    outRankGenitive = VBA.vbNullString
+    outFound = False
+    If VBA.Len(rankText) = 0 Then
+        TryResolveRankGenitiveOptional = True
+        Exit Function
+    End If
+
+    ' Отсутствующая строка звания допускает fallback исходной формой в preview.
+    ' Ошибки открытия книги и выполнения запроса по-прежнему возвращают False.
+    TryResolveRankGenitiveOptional = private_TryLookupWorkbookValue( _
+        DEFAULT_SHPO_REL_PATH, _
+        private_BuildAdoRangeRef( _
+            RANKS_SHEET_NAME, _
+            RANKS_RANGE_START, _
+            RANKS_RANGE_END_COLUMN & VBA.CStr(EXCEL_MAX_ROW)), _
+        RANKS_KEY_HEADER, _
+        RANKS_GENITIVE_HEADER, _
+        rankText, _
+        "ШПО / Звання", _
+        outRankGenitive, _
+        allowMissingRow:=True, _
+        outFound:=outFound, _
+        requireUniqueMatch:=False, _
+        logMissingRow:=False)
 End Function
 
 Public Function TryFindRankDefaultByDeclinedForm( _

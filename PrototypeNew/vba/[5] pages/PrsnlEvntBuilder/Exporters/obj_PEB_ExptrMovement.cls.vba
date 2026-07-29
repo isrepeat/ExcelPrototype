@@ -905,8 +905,10 @@ Private Function private_TryBuildMovementBasisSummary( _
     Dim reportPersonInitialsGenitive As String
     Dim personRankText As String
     Dim personIpnText As String
+    Dim personFioText As String
     Dim personRankGenitive As String
     Dim personInitialsGenitive As String
+    Dim personInitialsGenitiveFound As Boolean
     Dim reporterCoreText As String
     Dim reporterText As String
     Dim isReporterTvo As Boolean
@@ -945,6 +947,10 @@ Private Function private_TryBuildMovementBasisSummary( _
                 VBA.vbExclamation, "PrototypeNew / Movement export"
             Exit Function
         End If
+        If Not private_TryGetSourceTextByAnyColumn( _
+            sourceTable, sourceRow, personFioText, SOURCE_ALIAS_FIO, "ПІБ") Then
+            personFioText = VBA.vbNullString
+        End If
         If VBA.Len(VBA.Trim$(personRankText)) = 0 Or VBA.Len(VBA.Trim$(personIpnText)) = 0 Then
             VBA.MsgBox "PrototypeNew: self-report basis requires non-empty rank and IPN.", _
                 VBA.vbExclamation, "PrototypeNew / Movement export"
@@ -952,8 +958,32 @@ Private Function private_TryBuildMovementBasisSummary( _
         End If
         If Not m_ExporterCfgDataProvider.CommonData.TryResolveRankGenitive( _
             personRankText, personRankGenitive) Then Exit Function
-        If Not m_ExporterCfgDataProvider.CommonData.TryResolveFioInitialsGenitive( _
-            personIpnText, personInitialsGenitive) Then Exit Function
+        If Not m_ExporterCfgDataProvider.CommonData.TryResolveFioInitialsGenitiveOptional( _
+            personIpnText, personInitialsGenitive, _
+            personInitialsGenitiveFound) Then Exit Function
+        If Not personInitialsGenitiveFound Or _
+           VBA.Len(VBA.Trim$(personInitialsGenitive)) = 0 Then
+            If Not private_TryBuildFioWithInitials( _
+                personFioText, personInitialsGenitive) Then
+                VBA.MsgBox "PrototypeNew: FIO initials were not found in ШПО / АЛФ " & _
+                    "for IPN '" & personIpnText & _
+                    "', and the FIO from the form cannot be parsed: '" & _
+                    personFioText & "'.", _
+                    VBA.vbExclamation, "PrototypeNew / Movement export"
+                Exit Function
+            End If
+            If Not private_ConfirmDeclensionFallback( _
+                "Для ІПН '" & personIpnText & _
+                "' не знайдено ПІБ у родовому відмінку з ініціалами." & _
+                VBA.vbCrLf & VBA.vbCrLf & _
+                "Продовжити експорт Movement з несклоненою формою?" & _
+                VBA.vbCrLf & personFioText & "  ->  " & _
+                personInitialsGenitive) Then Exit Function
+            ex_Core.fn_Diagnostic_LogError _
+                "peb-movement:fio-initials-fallback ipn='" & personIpnText & _
+                "' fio='" & personFioText & "' result='" & _
+                personInitialsGenitive & "'"
+        End If
 
         reporterText = private_JoinNonEmptyParts(personRankGenitive, personInitialsGenitive)
         If VBA.Len(VBA.Trim$(reporterText)) = 0 Then
@@ -1114,6 +1144,40 @@ Private Function private_JoinNonEmptyParts(ByVal leftText As String, ByVal right
     Else
         private_JoinNonEmptyParts = leftText & " " & rightText
     End If
+End Function
+
+Private Function private_TryBuildFioWithInitials( _
+    ByVal fioText As String, _
+    ByRef outFioWithInitials As String _
+) As Boolean
+    Dim morphUaLite As obj_MorphUaLite
+    Dim surnameText As String
+    Dim initialsText As String
+
+    outFioWithInitials = VBA.vbNullString
+    fioText = VBA.Trim$(fioText)
+    If VBA.Len(fioText) = 0 Then Exit Function
+
+    Set morphUaLite = New obj_MorphUaLite
+    surnameText = VBA.Trim$(morphUaLite.m_ToFioSurnameNormalized(fioText))
+    initialsText = VBA.Trim$(morphUaLite.m_ToFioInitials(fioText))
+    If VBA.Len(surnameText) = 0 Or VBA.Len(initialsText) = 0 Then Exit Function
+
+    ' Это намеренно несклонённый fallback: при отсутствии строки АЛФ надёжно
+    ' восстанавливаем только фамилию и инициалы из отображаемого ФИО формы.
+    outFioWithInitials = surnameText & " " & initialsText
+    private_TryBuildFioWithInitials = True
+End Function
+
+Private Function private_ConfirmDeclensionFallback( _
+    ByVal messageText As String _
+) As Boolean
+    ' No является безопасным выбором по умолчанию: пользователь должен явно
+    ' разрешить запись несклонённого значения в Movement.
+    private_ConfirmDeclensionFallback = (VBA.MsgBox( _
+        messageText, _
+        VBA.vbQuestion Or VBA.vbYesNo Or VBA.vbDefaultButton2, _
+        "PrototypeNew / Movement export") = VBA.vbYes)
 End Function
 
 Private Function private_IsSelfReportText(ByVal valueText As String) As Boolean

@@ -1203,6 +1203,14 @@
                 fontItalic:false;
               }"/>
 
+        <rule target="inlinePart"
+              selector="type=banner;part=preview-warning"
+              styles="{
+                fontColor:#FF0000;
+                fontBold:false;
+                fontItalic:false;
+              }"/>
+
       </layer>
 
       <!-- ButtonGroup получает только семантические теги элементов. -->
