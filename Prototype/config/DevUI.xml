@@ -155,18 +155,6 @@
       </stackPanel>
 
       <border at="r8c11" spanCells="3" spanRows="2">
-        <control name="btnPersonalCard"
-                 type="button"
-                 required="true"
-                 createIfMissing="true"
-                 macro="ex_UIActions.m_ShowPersonalCard_OnClick"
-                 caption="Personal Card"
-                 globalVisible="false"
-                 style="modePrimary"
-                 placement="moveAndSize"
-                 spanCells="3"
-                 spanRows="2"/>
-
         <control name="btnHealthBenefits"
                  type="button"
                  required="true"
@@ -337,47 +325,6 @@
                  spanRows="2"/>
       </stackPanel>
 
-      <stackPanel at="r11c19" spanCells="2" spanRows="8" orientation="vertical">
-        <control name="btnOpenPersonalCardProfiles"
-                 type="button"
-                 required="true"
-                 createIfMissing="true"
-                 macro="ex_UIActions.m_OpenPersonalCardProfiles_OnClick"
-                 caption="PC Profiles"
-                 globalVisible="false"
-                 style="actionNeutral"
-                 placement="moveAndSize"
-                 spanCells="2"
-                 spanRows="2"/>
-
-        <border spanCells="2" spanRows="1"/>
-
-        <control name="btnOpenPersonalCardResultTemplates"
-                 type="button"
-                 required="true"
-                 createIfMissing="true"
-                 macro="ex_UIActions.m_OpenPersonalCardResultTemplates_OnClick"
-                 caption="PC Templates"
-                 globalVisible="false"
-                 style="actionNeutral"
-                 placement="moveAndSize"
-                 spanCells="2"
-                 spanRows="2"/>
-
-        <border spanCells="2" spanRows="1"/>
-
-        <control name="btnOpenPersonalCardSheetStylesPipeline"
-                 type="button"
-                 required="true"
-                 createIfMissing="true"
-                 macro="ex_UIActions.m_OpenPersonalCardSheetStylesPipeline_OnClick"
-                 caption="PC Styles"
-                 globalVisible="false"
-                 style="actionNeutral"
-                 placement="moveAndSize"
-                 spanCells="2"
-                 spanRows="2"/>
-      </stackPanel>
     </grid>
   </layout>
 </uiDefinition>

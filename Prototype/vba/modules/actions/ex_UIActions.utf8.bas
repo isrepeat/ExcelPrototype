@@ -6,11 +6,8 @@ Private Const ASCII_UPPER As String = "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
 Private Const ASCII_LOWER As String = "abcdefghijklmnopqrstuvwxyz"
 Private Const SCRIPT_KIND_PREPROCESS As String = "preprocess"
 Private Const SCRIPT_KIND_POSTPROCESS As String = "postprocess"
-Private Const PERSONALCARD_PROFILES_REL_PATH As String = "config\modes\PersonalCard\PersonalCardProfiles.xml"
-Private Const PERSONALCARD_RESULT_TEMPLATES_REL_PATH As String = "config\modes\PersonalCard\PersonalCardResultTemplates.xml"
-Private Const PERSONALCARD_SHEET_STYLES_PIPELINE_REL_PATH As String = "config\modes\PersonalCard\PersonalCardSheetStylesPipeline.xml"
 Private Const SETTINGS_KEY_FILE_LOG_ENABLED As String = "st_FileLogEnabled"
-Private Const PERSONALCARD_LOG_REL_PATH As String = "Logs\personalcard_pipeline.log"
+Private Const DEFAULT_LOG_REL_PATH As String = "Logs\runtime_pipeline.log"
 Private Const LOGS_TOGGLE_BUTTON_NAME As String = "btnLogsToggle"
 Private Const LOGS_ON_BUTTON_LEGACY_NAME As String = "btnLogsOn"
 Private Const LOGS_OFF_BUTTON_LEGACY_NAME As String = "btnLogsOff"
@@ -141,10 +138,8 @@ Public Sub m_OnLayoutDropdownConfigSelected(Optional ByVal selectedKey As String
     Select Case sourceKey
         Case "ddinsertmode"
             toggleSource = "Export.InsertMode"
-        Case "ddvalidationmode"
-            toggleSource = "PostProcess.ValidationMode"
         Case Else
-            ex_Messaging.m_LogToFile "[ex_UIActions] layout dropdown selection placeholder: no config mapping for source='" & sourceControlName & "' value='" & selectedValue & "'.", PERSONALCARD_LOG_REL_PATH
+            ex_Messaging.m_LogToFile "[ex_UIActions] layout dropdown selection placeholder: no config mapping for source='" & sourceControlName & "' value='" & selectedValue & "'.", DEFAULT_LOG_REL_PATH
             Exit Sub
     End Select
 
@@ -152,21 +147,16 @@ Public Sub m_OnLayoutDropdownConfigSelected(Optional ByVal selectedKey As String
     ex_ToggleStateRouter.m_SetToggleValue toggleSource, selectedValue, wsContext
     appliedValue = ex_ToggleStateRouter.m_GetToggleValue(toggleSource, selectedValue, wsContext)
 
-    ex_Messaging.m_LogToFile "[ex_UIActions] layout dropdown selection applied source='" & sourceControlName & "' toggleSource='" & toggleSource & "' value='" & appliedValue & "'.", PERSONALCARD_LOG_REL_PATH
+    ex_Messaging.m_LogToFile "[ex_UIActions] layout dropdown selection applied source='" & sourceControlName & "' toggleSource='" & toggleSource & "' value='" & appliedValue & "'.", DEFAULT_LOG_REL_PATH
     Exit Sub
 
 EH:
-    ex_Messaging.m_LogToFile "[ex_UIActions] layout dropdown selection failed source='" & sourceControlName & "' error='" & Err.Description & "'.", PERSONALCARD_LOG_REL_PATH
+    ex_Messaging.m_LogToFile "[ex_UIActions] layout dropdown selection failed source='" & sourceControlName & "' error='" & Err.Description & "'.", DEFAULT_LOG_REL_PATH
     MsgBox "Dropdown selection apply failed: " & Err.Description, vbExclamation
 End Sub
 
 Public Sub m_HelloWorld_OnClick()
     ex_Startup.m_HelloWorld
-End Sub
-
-Public Sub m_ShowPersonalCard_OnClick()
-    ex_CustomDropdown.m_OnManagedButtonClick
-    ex_ModePersonalCard.m_RunPersonalCard
 End Sub
 
 Public Sub m_ShowHealthBenefits_OnClick()
@@ -206,7 +196,7 @@ Public Sub m_OutputPanelRunPostProcess_OnClick()
         Case "healthbenefits"
             ex_ModeHealthBenefits.m_RunPostProcessForActiveSheet
         Case Else
-            ex_ModePersonalCard.m_RunPostProcessForActiveSheet
+            MsgBox "Post-process is not configured for mode '" & activeModeKey & "'.", vbExclamation
     End Select
 End Sub
 
@@ -218,21 +208,6 @@ End Sub
 Public Sub m_OpenPostProcessScript_OnClick()
     ex_CustomDropdown.m_OnManagedButtonClick
     mp_OpenActiveProfileScriptSource SCRIPT_KIND_POSTPROCESS
-End Sub
-
-Public Sub m_OpenPersonalCardProfiles_OnClick()
-    ex_CustomDropdown.m_OnManagedButtonClick
-    mp_OpenProjectRelativeFile PERSONALCARD_PROFILES_REL_PATH, "PersonalCardProfiles"
-End Sub
-
-Public Sub m_OpenPersonalCardResultTemplates_OnClick()
-    ex_CustomDropdown.m_OnManagedButtonClick
-    mp_OpenProjectRelativeFile PERSONALCARD_RESULT_TEMPLATES_REL_PATH, "PersonalCardResultTemplates"
-End Sub
-
-Public Sub m_OpenPersonalCardSheetStylesPipeline_OnClick()
-    ex_CustomDropdown.m_OnManagedButtonClick
-    mp_OpenProjectRelativeFile PERSONALCARD_SHEET_STYLES_PIPELINE_REL_PATH, "PersonalCardSheetStylesPipeline"
 End Sub
 
 Public Sub m_ToggleLogs_OnClick()
@@ -263,7 +238,7 @@ Public Sub m_OpenLogsFile_OnClick()
     On Error GoTo EH
     ex_CustomDropdown.m_OnManagedButtonClick
 
-    logFilePath = mp_GetPersonalCardLogFilePath()
+    logFilePath = mp_GetDefaultLogFilePath()
     If Len(logFilePath) = 0 Then
         MsgBox "Failed to resolve logs file path.", vbExclamation
         Exit Sub
@@ -375,7 +350,7 @@ Public Sub m_OutputPanelStartSearch_OnClick()
 
     ex_Messaging.m_LogToFile _
         "[ex_UIActions] search resolve ws='" & ws.Name & "' configKey='" & resolvedConfigKey & "' valueLen=" & CStr(Len(searchKey)) & ".", _
-        PERSONALCARD_LOG_REL_PATH
+        DEFAULT_LOG_REL_PATH
 
     If Len(searchKey) = 0 Then
         Err.Raise vbObjectError + 2402, "ex_UIActions.m_OutputPanelStartSearch_OnClick", "Введите значение ключа в панели поиска."
@@ -388,8 +363,6 @@ Public Sub m_OutputPanelStartSearch_OnClick()
     End If
 
     Select Case LCase$(activeModeKey)
-        Case "personalcard"
-            ex_ModePersonalCard.m_RunPersonalCard
         Case "healthbenefits"
             ex_ModeHealthBenefits.m_RunHealthBenefits
         Case "multisources"
@@ -619,7 +592,7 @@ EH:
     outErrorText = Err.Description
 End Function
 
-Private Function mp_GetPersonalCardLogFilePath() As String
+Private Function mp_GetDefaultLogFilePath() As String
     Dim basePath As String
 
     basePath = Trim$(ThisWorkbook.Path)
@@ -628,7 +601,7 @@ Private Function mp_GetPersonalCardLogFilePath() As String
     End If
     If Len(basePath) = 0 Then Exit Function
 
-    mp_GetPersonalCardLogFilePath = mp_NormalizeFilePath(basePath & "\" & PERSONALCARD_LOG_REL_PATH)
+    mp_GetDefaultLogFilePath = mp_NormalizeFilePath(basePath & "\" & DEFAULT_LOG_REL_PATH)
 End Function
 
 Private Sub mp_UpdateLogsToggleButtonVisual(ByVal isEnabled As Boolean)

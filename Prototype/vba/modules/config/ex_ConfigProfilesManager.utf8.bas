@@ -1888,19 +1888,12 @@ End Sub
 Private Sub mp_ApplyScriptButtonsVisibility(ByVal ws As Worksheet, ByVal profileNode As Object)
     Dim hasPreScript As Boolean
     Dim hasPostScript As Boolean
-    Dim hasPersonalCardConfigButtons As Boolean
-    Dim modeKey As String
 
     hasPreScript = mp_ProfileHasScriptDefinition(profileNode, "preprocess")
     hasPostScript = mp_ProfileHasScriptDefinition(profileNode, "postprocess")
-    modeKey = LCase$(Trim$(m_GetActiveModeKey(ws)))
-    hasPersonalCardConfigButtons = (modeKey = "personalcard")
 
     pfui_SetButtonVisibility ws, "btnPreProcessScript", hasPreScript
     pfui_SetButtonVisibility ws, "btnPostProcessScript", hasPostScript
-    pfui_SetButtonVisibility ws, "btnOpenPersonalCardProfiles", hasPersonalCardConfigButtons
-    pfui_SetButtonVisibility ws, "btnOpenPersonalCardResultTemplates", hasPersonalCardConfigButtons
-    pfui_SetButtonVisibility ws, "btnOpenPersonalCardSheetStylesPipeline", hasPersonalCardConfigButtons
 End Sub
 
 Private Sub pfui_SetButtonVisibility(ByVal ws As Worksheet, ByVal shapeName As String, ByVal isVisible As Boolean)

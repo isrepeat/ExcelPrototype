@@ -62,17 +62,6 @@
       <stackPanel at="r2c21" orientation="vertical">
         <control
           type="Button"
-          name="OpenPersonalCard"
-          caption="PersonalCard"
-          style="modeAccent"
-          visibility="{Binding Path=IsPersonalCardMode; TrueAs=Visible; FalseAs=Collapsed}"
-          dataContext="{PageRuntimeSource='RuntimeObjects.PageMain.Controller'}"
-          onClick="{Binding Method=OnOpenPersonalCardPageCommand}"
-          spanColls="5"
-          spanRows="2"
-          />
-        <control
-          type="Button"
           name="OpenPrsnlEvntBuilder"
           caption="PrsnlEvntBuilder"
           style="modeAccent"

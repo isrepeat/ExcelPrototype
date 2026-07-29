@@ -9,7 +9,6 @@
     <v key="KeyColumnName">ID</v>
     <ui>
       <control name="btnClear" visible="true"/>
-      <control name="btnPersonalCard" visible="false"/>
       <control name="btnComparing" visible="true"/>
       <control name="btnUpdateCode" visible="true"/>
       <control name="btnCustomProfile" visible="true"/>
@@ -24,7 +23,6 @@
     <v key="KeyColumnName">ID</v>
     <ui>
       <control name="btnClear" visible="true"/>
-      <control name="btnPersonalCard" visible="false"/>
       <control name="btnComparing" visible="true"/>
       <control name="btnUpdateCode" visible="true"/>
       <control name="btnCustomProfile" visible="true"/>

@@ -400,7 +400,7 @@ Private Function private_RenderTemplate( _
     '      dateformat:"\dd \month"     -> отформатировать дату в текст
     '   {item.[Column]} -> значение колонки строки внутри #for
     '
-    ' Это все еще не полный PersonalCard parser: внешние VBA-вызовы, падежи,
+    ' Это не полный универсальный parser: внешние VBA-вызовы, падежи,
     ' даты, colors и морфология намеренно не перенесены в этот PEB preview.
     resultText = VBA.CStr(templateText)
     ' Render order is important: first evaluate control structures, then apply

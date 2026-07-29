@@ -28,7 +28,7 @@ Private Const BATCH_KEYS_RESULTS_MEMBER As String = "keysresults"
 Private Const BATCH_CONTEXT_KEYS_RESULTS_TABLE_REF As String = "KeysResultsTableRef"
 Private Const BATCH_KEYRESULT_KEY_ALIAS As String = "Key"
 Private Const BATCH_KEYRESULT_KEYFIELD_SUFFIX As String = ".KeyFieldAlias"
-Private Const DEBUG_LOG_PATH As String = "Logs\personalcard_pipeline.log"
+Private Const DEBUG_LOG_PATH As String = "Logs\runtime_pipeline.log"
 Private Const DEBUG_LOG_ENABLED As Boolean = False
 
 Private Const EXEC_FLOW_NONE As String = ""

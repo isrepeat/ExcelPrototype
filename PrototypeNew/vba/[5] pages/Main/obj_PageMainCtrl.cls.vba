@@ -10,7 +10,6 @@ Option Explicit
 Private Const CONTROLLER_RUNTIME_OBJECT_KEY As String = "RuntimeObjects.PageMain.Controller"
 Private Const MODES_ROOT_REL_PATH As String = "modes"
 Private Const MODE_PROFILES_FILE_SUFFIX As String = "Profiles.xml"
-Private Const PERSONAL_CARD_SHEET_BASE_NAME As String = "PersonalCard"
 Private Const ENTITY_LOOKUP_SHEET_BASE_NAME As String = "EntityLookup"
 Private Const PRSNL_EVNT_BUILDER_SHEET_BASE_NAME As String = "PrsnlEvntBuilder"
 Private Const COMPARING_SHEET_BASE_NAME As String = "Comparing"
@@ -106,10 +105,6 @@ End Sub
 
 Public Property Get RuntimeObjectSourceKey() As String
     RuntimeObjectSourceKey = CONTROLLER_RUNTIME_OBJECT_KEY
-End Property
-
-Public Property Get IsPersonalCardMode() As Boolean
-    IsPersonalCardMode = private_IsCurrentMode("PersonalCard")
 End Property
 
 Public Property Get IsPrsnlEvntBuilderMode() As Boolean
@@ -575,115 +570,6 @@ EH_CLEAR:
         ex_Core.fn_Diagnostic_LogError "PrototypeNew: exception in OnClearWorkbookPagesExceptMainCommand: [" & VBA.CStr(Err.Number) & "] " & Err.Description
     #End If
     VBA.MsgBox "PrototypeNew: exception in OnClearWorkbookPagesExceptMainCommand: [" & VBA.CStr(Err.Number) & "] " & Err.Description, vbExclamation, "PrototypeNew / Config runtime"
-End Function
-
-Public Function OnOpenPersonalCardPageCommand(Optional ByVal arg As Variant) As Boolean
-    #If LOGGING_DEBUG_ENABLED Then
-        ex_Core.fn_Diagnostic_LogInfo "enter:obj_PageMainCtrl.OnOpenPersonalCardPageCommand"
-    #End If
-    Dim sheetName As String
-    Dim existingPage As obj_IPage
-    Dim personalCardPage As obj_IPage
-    Dim parentPage As obj_IPage
-    Dim isPageCreated As Boolean
-
-    On Error GoTo EH_OPEN
-
-    If rt_PageManager.fn_TryGetPageByWorksheetName(PERSONAL_CARD_SHEET_BASE_NAME, existingPage) Then
-        If existingPage Is Nothing Then GoTo EH_CREATE
-        If Not TypeOf existingPage Is obj_PagePersonalCard Then
-            #If LOGGING_DEBUG_ENABLED Then
-                ex_Core.fn_Diagnostic_LogError "PrototypeNew: worksheet '" & PERSONAL_CARD_SHEET_BASE_NAME & "' is bound to unexpected page type '" & TypeName(existingPage) & "'."
-            #End If
-            VBA.MsgBox "PrototypeNew: worksheet '" & PERSONAL_CARD_SHEET_BASE_NAME & "' is bound to unexpected page type '" & TypeName(existingPage) & "'.", vbExclamation, "PrototypeNew / Config runtime"
-            Exit Function
-        End If
-
-        If Not existingPage.RunPagePipeline() Then
-            #If LOGGING_DEBUG_ENABLED Then
-                ex_Core.fn_Diagnostic_LogError "PrototypeNew: failed to run PersonalCard page pipeline for existing page."
-            #End If
-            VBA.MsgBox "PrototypeNew: failed to run PersonalCard page pipeline for existing page.", vbExclamation, "PrototypeNew / Config runtime"
-            Exit Function
-        End If
-
-        If Not rt_PageManager.fn_RenderPageAndActivate(existingPage, "pagemain:open-personalcard:reuse") Then
-            #If LOGGING_DEBUG_ENABLED Then
-                ex_Core.fn_Diagnostic_LogError "PrototypeNew: failed to render existing PersonalCard page."
-            #End If
-            VBA.MsgBox "PrototypeNew: failed to render existing PersonalCard page.", vbExclamation, "PrototypeNew / Config runtime"
-            Exit Function
-        End If
-
-        rt_Messaging.fn_ShowStatusBarSuccess "PersonalCard page has been refreshed.", 3
-        OnOpenPersonalCardPageCommand = True
-        Exit Function
-    End If
-
-    sheetName = private_BuildUniqueWorksheetName(ThisWorkbook, PERSONAL_CARD_SHEET_BASE_NAME)
-    If VBA.Len(sheetName) = 0 Then
-        #If LOGGING_DEBUG_ENABLED Then
-            ex_Core.fn_Diagnostic_LogError "PrototypeNew: failed to allocate worksheet name for PersonalCard page."
-        #End If
-        VBA.MsgBox "PrototypeNew: failed to allocate worksheet name for PersonalCard page.", vbExclamation, "PrototypeNew / Config runtime"
-        Exit Function
-    End If
-
-    Set personalCardPage = New obj_PagePersonalCard
-    If personalCardPage Is Nothing Then
-        #If LOGGING_DEBUG_ENABLED Then
-            ex_Core.fn_Diagnostic_LogError "PrototypeNew: failed to allocate PersonalCard page instance."
-        #End If
-        VBA.MsgBox "PrototypeNew: failed to allocate PersonalCard page instance.", vbExclamation, "PrototypeNew / Config runtime"
-        Exit Function
-    End If
-
-    Set parentPage = m_Page
-
-    If Not rt_PageManager.fn_CreatePage(personalCardPage, "ui\PersonalCard\PersonalCardUI.xml", sheetName, parentPage) Then GoTo EH_CREATE
-    isPageCreated = True
-
-    If Not personalCardPage.RunPagePipeline() Then
-        #If LOGGING_DEBUG_ENABLED Then
-            ex_Core.fn_Diagnostic_LogError "PrototypeNew: failed to run PersonalCard page pipeline."
-        #End If
-        VBA.MsgBox "PrototypeNew: failed to run PersonalCard page pipeline.", vbExclamation, "PrototypeNew / Config runtime"
-        GoTo EH_CREATE
-    End If
-
-    If Not rt_PageManager.fn_RenderPageAndActivate(personalCardPage, "pagemain:open-personalcard") Then
-        #If LOGGING_DEBUG_ENABLED Then
-            ex_Core.fn_Diagnostic_LogError "PrototypeNew: failed to render PersonalCard page."
-        #End If
-        VBA.MsgBox "PrototypeNew: failed to render PersonalCard page.", vbExclamation, "PrototypeNew / Config runtime"
-        GoTo EH_CREATE
-    End If
-
-    rt_Messaging.fn_ShowStatusBarSuccess "PersonalCard page has been created.", 3
-    OnOpenPersonalCardPageCommand = True
-    Exit Function
-
-EH_CREATE:
-    On Error Resume Next
-    If Not personalCardPage Is Nothing And isPageCreated Then
-        Call rt_PageManager.fn_RemovePage(personalCardPage, True)
-    End If
-    On Error GoTo 0
-
-    If Not OnOpenPersonalCardPageCommand Then
-        #If LOGGING_DEBUG_ENABLED Then
-            ex_Core.fn_Diagnostic_LogError "PrototypeNew: failed to create PersonalCard page."
-        #End If
-        VBA.MsgBox "PrototypeNew: failed to create PersonalCard page.", vbExclamation, "PrototypeNew / Config runtime"
-    End If
-    Exit Function
-
-EH_OPEN:
-    #If LOGGING_DEBUG_ENABLED Then
-        ex_Core.fn_Diagnostic_LogError "PrototypeNew: exception in OnOpenPersonalCardPageCommand: [" & VBA.CStr(Err.Number) & "] " & Err.Description
-    #End If
-    VBA.MsgBox "PrototypeNew: exception in OnOpenPersonalCardPageCommand: [" & VBA.CStr(Err.Number) & "] " & Err.Description, vbExclamation, "PrototypeNew / Config runtime"
-    Resume EH_CREATE
 End Function
 
 Public Function OnOpenEntityLookupPageCommand(Optional ByVal arg As Variant) As Boolean
