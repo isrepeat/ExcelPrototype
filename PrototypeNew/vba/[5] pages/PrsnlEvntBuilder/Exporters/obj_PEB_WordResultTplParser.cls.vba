@@ -31,6 +31,8 @@ Private Const FORMATTER_DATE_STORAGE_FORMAT As String = "dd.mm.yyyy"
 Private Const PREVIEW_VALUE_MARKER As String = "preview-value"
 Private Const PREVIEW_TRUNCATED_MARKER As String = "preview-truncated"
 Private Const PREVIEW_TRUNCATED_VALUE_TAG As String = "preview-truncated-value"
+Private Const PREVIEW_WARNING_MARKER As String = "preview-warning"
+Private Const PREVIEW_LOOKUP_WARNING_VALUE_TAG As String = "preview-lookup-warning-value"
 
 Private m_TemplateRelPath As String
 Private m_TemplateDoc As Object
@@ -435,6 +437,11 @@ Private Function private_RenderTemplate( _
         ' общий style pipeline по inlinePart rule страницы.
         If VBA.Len(placeholderValue) > 0 Then
             If private_MainPlaceholderHasCellTag( _
+                placeholderName, sourceTables, _
+                PREVIEW_LOOKUP_WARNING_VALUE_TAG) Then
+                placeholderValue = "[[" & PREVIEW_WARNING_MARKER & "]]" & _
+                    placeholderValue & "[[/" & PREVIEW_WARNING_MARKER & "]]"
+            ElseIf private_MainPlaceholderHasCellTag( _
                 placeholderName, sourceTables, PREVIEW_TRUNCATED_VALUE_TAG) Then
                 placeholderValue = "[[" & PREVIEW_TRUNCATED_MARKER & "]]" & _
                     placeholderValue & "[[/" & PREVIEW_TRUNCATED_MARKER & "]]"
