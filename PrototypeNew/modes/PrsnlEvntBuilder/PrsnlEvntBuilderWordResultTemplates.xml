@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <wordResultTemplates xmlns="urn:excelprototype:profiles" version="1">
-  <!-- Упрощенная версия PersonalCardResultTemplates для PEB WORD preview.
+  <!-- Шаблоны для PEB WORD preview.
        Колонки DynamicTable читаются только как {[AliasOrHeader]} или item.[AliasOrHeader],
        а обычные {Person}/{SectionType}/item.__first остаются переменными DSL.
        Поддерживаются sharedTemplate/#include, #if/#else, #for, #let, formatter pipeline

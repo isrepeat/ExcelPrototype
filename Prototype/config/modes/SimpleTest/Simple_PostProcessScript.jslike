@@ -1,7 +1,7 @@
 // Simple post-process script for pipeline smoke checks.
 // Reads string payload from pre-process input and writes it to log.
 
-let logPath = "Logs\\personalcard_pipeline.log";
+let logPath = "Logs\\runtime_pipeline.log";
 callMacro("ex_Messaging.m_LogToFile", "[POST][SIMPLE] START", logPath);
 
 let input = callMacroObject("ex_ScriptIO.m_GetInput");

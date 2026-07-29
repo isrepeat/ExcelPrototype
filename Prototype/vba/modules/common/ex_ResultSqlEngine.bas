@@ -5,7 +5,7 @@ Private Const LIKE_DIALECT_UNKNOWN As String = "unknown"
 Private Const LIKE_DIALECT_STAR As String = "star"
 Private Const LIKE_DIALECT_PERCENT As String = "percent"
 Private Const LONG_TEXT_CACHE_AMBIGUOUS As String = "#AMBIGUOUS#"
-Private Const HYDRATION_DEBUG_LOG_PATH As String = "Logs\personalcard_pipeline.log"
+Private Const HYDRATION_DEBUG_LOG_PATH As String = "Logs\runtime_pipeline.log"
 Private Const HYDRATION_DEBUG_LOG_ENABLED As Boolean = False
 
 Private g_LikeDialectByConnection As Object

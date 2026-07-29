@@ -20,11 +20,6 @@ Public Function fn_TryCreatePageByTypeRoot( _
     Set outPage = Nothing
 
     Select Case typeRoot
-        Case "page.personalcard"
-            Set outPage = New obj_PagePersonalCard
-            fn_TryCreatePageByTypeRoot = True
-            Exit Function
-
         Case "page.entitylookup"
             Set outPage = New obj_PageEntityLookup
             fn_TryCreatePageByTypeRoot = True
