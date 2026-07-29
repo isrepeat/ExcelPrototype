@@ -35,7 +35,7 @@
     <item attr="#" key="Profile.Name" value="WORD: пошук тексту"/>
     <item key="WordDataExtractor.UiFile" value="ui\WordDataExtractor\WordTextSearchUI.xml"/>
     <item key="WordDataExtractor.ControllerClass" value="obj_PageWordTextSearchCtrl"/>
-    <item key="WordDataExtractor.DocumentDir" value="C:\WORK Alexandr Bondarenko\НАКАЗИ\Накази А7383\2026"/>
+    <item key="WordDataExtractor.DocumentDir" value="C:\WORK Alexandr Bondarenko\НАКАЗИ\Накази А7383\2025-2026"/>
     <item key="WordDataExtractor.DocumentFilename" value="{yyyy}-{mm}-{dd} №*"/>
     <item key="WordDataExtractor.DocumentPathResolver" value="ResolveAllByDmyPattern"/>
     <item key="WordDataExtractor.DocumentPathResolverArgs" value="order=asc;dateFrom=01.06.2026;dateTo=15.07.2026"/>
