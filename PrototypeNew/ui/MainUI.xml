@@ -95,6 +95,17 @@
           />
         <control
           type="Button"
+          name="OpenMovementValidation"
+          caption="MovementValidation"
+          style="modeAccent"
+          visibility="{Binding Path=IsMovementValidationMode; TrueAs=Visible; FalseAs=Collapsed}"
+          dataContext="{PageRuntimeSource='RuntimeObjects.PageMain.Controller'}"
+          onClick="{Binding Method=OnOpenMovementValidationPageCommand}"
+          spanColls="5"
+          spanRows="2"
+          />
+        <control
+          type="Button"
           name="OpenWordDataExtractor"
           caption="WordDataExtractor"
           style="modeAccent"

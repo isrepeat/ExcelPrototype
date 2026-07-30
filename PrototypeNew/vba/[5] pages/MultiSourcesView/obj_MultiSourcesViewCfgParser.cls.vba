@@ -57,6 +57,28 @@ Public Function ResolveAllByDmyPattern( _
     Set ResolveAllByDmyPattern = ex_SourceResolver.fn_ResolveAllByDmyPattern(rawValue, resolverArgs)
 End Function
 
+Public Function TryGetScenarioClassName( _
+    ByRef outClassName As String, _
+    ByRef outHasScenario As Boolean _
+) As Boolean
+    Dim cfgMap As Object
+
+    outClassName = VBA.vbNullString
+    outHasScenario = False
+    If Not private_TryBuildConfigMap(cfgMap) Then Exit Function
+    If cfgMap.Exists("MultiSourcesView.ScenarioClass") Then
+        outClassName = VBA.Trim$(VBA.CStr( _
+            cfgMap("MultiSourcesView.ScenarioClass")))
+        outHasScenario = True
+        If VBA.Len(outClassName) = 0 Then
+            private_ShowConfigError _
+                "MultiSourcesView.ScenarioClass is specified but empty."
+            Exit Function
+        End If
+    End If
+    TryGetScenarioClassName = True
+End Function
+
 Public Function TryGetViewSettings( _
     ByRef outTableRefs As Collection, _
     ByRef outColumns As Collection, _
@@ -312,7 +334,8 @@ Public Function TryBuildTableSqlParamsList( _
         Exit Function
     End If
 
-    If VBA.StrComp(VBA.Trim$(resolverName), "ResolveAllByDmyPattern", VBA.vbTextCompare) = 0 Then
+    If VBA.InStr(1, resolverName, "ResolveAllByDmyPattern", _
+        VBA.vbTextCompare) > 0 Then
         ' Коллекция файлов требует уникальных runtime-алиасов. Стабильный
         ' sourceAlias остается ключом конфигурации, а отдельный шаблон
         ' определяет имя каждого физического экземпляра источника.
@@ -323,6 +346,12 @@ Public Function TryBuildTableSqlParamsList( _
         End If
         On Error GoTo EH_RESOLVE_ALL
         Set sourcePaths = ResolveAllByDmyPattern(rawSourcePath, resolverArgs)
+        On Error GoTo 0
+    ElseIf VBA.InStr(1, resolverName, "ResolveLatestByDmyPattern", _
+        VBA.vbTextCompare) > 0 Then
+        Set sourcePaths = New Collection
+        On Error GoTo EH_RESOLVE_LATEST
+        sourcePaths.Add ResolveLatestByDmyPattern(rawSourcePath)
         On Error GoTo 0
     Else
         Set sourcePaths = New Collection
@@ -359,6 +388,13 @@ Public Function TryBuildTableSqlParamsList( _
 
 EH_RESOLVE_ALL:
     private_ShowConfigError "Failed to resolve source files for alias '" & sourceAlias & "': " & Err.Description
+    Err.Clear
+    On Error GoTo 0
+    Exit Function
+
+EH_RESOLVE_LATEST:
+    private_ShowConfigError "Failed to resolve latest source file for alias '" & _
+        sourceAlias & "': " & Err.Description
     Err.Clear
     On Error GoTo 0
     Exit Function
