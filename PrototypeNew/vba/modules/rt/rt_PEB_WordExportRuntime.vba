@@ -46,6 +46,7 @@ Public Function fn_TryAcquireWordDocument( _
     Dim wordDoc As Object
     Dim runningWordApp As Object
     Dim errorDescription As String
+    Dim documentWasOpen As Boolean
 
     Set outWordApp = Nothing
     Set outWordDoc = Nothing
@@ -75,6 +76,35 @@ Public Function fn_TryAcquireWordDocument( _
         Next wordDoc
     End If
 
+    ' После full hot-update module globals сбрасываются, хотя созданный ранее
+    ' Word-процесс и открытый документ продолжают жить. Подключение напрямую по
+    ' пути восстанавливает ссылку независимо от того, какой Word.Application
+    ' вернёт общий COM GetObject при нескольких экземплярах Word.
+    documentWasOpen = private_WordOwnerFileExists(documentPath)
+    If documentWasOpen Then
+        Set wordDoc = Nothing
+        On Error Resume Next
+        Set wordDoc = VBA.GetObject(documentPath)
+        On Error GoTo EH
+        If Not wordDoc Is Nothing Then
+            Set runningWordApp = wordDoc.Application
+            If wordDoc.ReadOnly Then
+                VBA.MsgBox _
+                    "WORD-документ открыт только для чтения:" & _
+                    VBA.vbCrLf & documentPath, _
+                    VBA.vbExclamation, _
+                    "PrsnlEventBuilder / WORD export"
+                Exit Function
+            End If
+            Set g_WordApp = runningWordApp
+            g_OwnsWordApp = False
+            Set outWordApp = runningWordApp
+            Set outWordDoc = wordDoc
+            fn_TryAcquireWordDocument = True
+            Exit Function
+        End If
+    End If
+
     ' К пользовательскому Word подключаемся только ради уже открытого
     ' целевого документа. Закрытые файлы по-прежнему обрабатываются через
     ' собственный скрытый runtime, чтобы не переключать окна пользователя.
@@ -95,12 +125,24 @@ Public Function fn_TryAcquireWordDocument( _
                         "PrsnlEventBuilder / WORD export"
                     Exit Function
                 End If
+                Set g_WordApp = runningWordApp
+                g_OwnsWordApp = False
                 Set outWordApp = runningWordApp
                 Set outWordDoc = wordDoc
                 fn_TryAcquireWordDocument = True
                 Exit Function
             End If
         Next wordDoc
+    End If
+
+    If documentWasOpen Then
+        VBA.MsgBox _
+            "WORD-документ уже открыт, но подключиться к его экземпляру Word не удалось:" & _
+            VBA.vbCrLf & documentPath & VBA.vbCrLf & _
+            "Закройте документ в Word и повторите экспорт.", _
+            VBA.vbExclamation, _
+            "PrsnlEventBuilder / WORD export"
+        Exit Function
     End If
 
     If Not fn_GetOrCreateWordApp(outWordApp) Then Exit Function
@@ -120,6 +162,25 @@ EH:
         "Помилка: " & errorDescription, _
         VBA.vbExclamation, _
         "PrsnlEventBuilder / WORD export"
+End Function
+
+Private Function private_WordOwnerFileExists(ByVal documentPath As String) As Boolean
+    Dim separatorPos As Long
+    Dim folderPath As String
+    Dim fileName As String
+    Dim ownerFilePath As String
+
+    separatorPos = VBA.InStrRev(documentPath, Application.PathSeparator)
+    If separatorPos <= 0 Then Exit Function
+
+    folderPath = VBA.Left$(documentPath, separatorPos)
+    fileName = VBA.Mid$(documentPath, separatorPos + 1)
+    If VBA.Len(fileName) <= 2 Then Exit Function
+
+    ' Word заменяет первые два символа имени открытого документа на "~$".
+    ownerFilePath = folderPath & "~$" & VBA.Mid$(fileName, 3)
+    private_WordOwnerFileExists = _
+        (VBA.Len(VBA.Dir$(ownerFilePath, VBA.vbHidden Or VBA.vbSystem Or VBA.vbNormal)) > 0)
 End Function
 
 Public Sub fn_Dispose(Optional ByVal quitWord As Boolean = True)
