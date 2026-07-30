@@ -22,6 +22,13 @@ EH:
 End Sub
 
 Private Sub Workbook_BeforeClose(Cancel As Boolean)
+    ' Сначала отменяем все Application.OnTime-задачи, которые ссылаются на эту
+    ' книгу. Если другой workbook оставляет Excel запущенным, незакрытый таймер
+    ' может повторно открыть PrototypeNew для выполнения отложенного макроса.
+    Call rt_Messaging.fn_Module_Dispose
+    Call rt_CoreActions.fn_Module_Dispose
+    Call ex_Core.fn_CancelDeferredTasks
+
     ' Внешние ADO-соединения освобождаем до snapshot/hotkey/undo cleanup:
     ' если последующий shutdown-шаг завершится ошибкой, файлы-источники всё
     ' равно не должны остаться заблокированными после закрытия книги.
