@@ -303,17 +303,11 @@
   </template>
 
   <template id="ToHospital"
-    groupBy="EffectiveReturnDateShort; HospitalShort"
-    groupOrder="date; none">
-    <groupHeader by="EffectiveReturnDateShort">
-      <![CDATA[#^
-#_      З {[EffectiveReturnDateShort]|dateformat:"\dd \month \yyyy року"}:#^
-#_      {#newline}{#newline}#^
-      ]]>
-    </groupHeader>
+    groupBy="HospitalShort"
+    groupOrder="none">
     <groupHeader by="HospitalShort">
       <![CDATA[#^
-#_      У {[HospitalAccusative]|lowerFirstLetter}:#^
+#_      У {[HospitalAccusative]|lowerFirstLetter}, з {[EffectiveReturnDateShort]|dateformat:"\dd \month \yyyy року"}:#^
 #_      {#newline}{#newline}#^
       ]]>
     </groupHeader>

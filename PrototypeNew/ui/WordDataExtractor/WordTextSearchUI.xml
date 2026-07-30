@@ -44,6 +44,74 @@
             spanRows="1"/>
         </stackPanel>
 
+        <stackPanel orientation="vertical" spanColls="4" spanRows="2">
+          <stackPanel orientation="horizontal" spanColls="4" spanRows="1">
+            <control
+              type="Label"
+              name="DateFromHeader"
+              text="dateFrom"
+              spanColls="1"
+              spanRows="1"/>
+            <control
+              type="Input"
+              name="DateFromDayInput"
+              value="{Binding Path=DateFromDay}"
+              dataContext="{PageRuntimeSource='RuntimeObjects.WordDataExtractor.Controller'}"
+              onChange="{Binding Method=OnDateFromDayChanged}"
+              spanColls="1"
+              spanRows="1"/>
+            <control
+              type="Input"
+              name="DateFromMonthInput"
+              value="{Binding Path=DateFromMonth}"
+              dataContext="{PageRuntimeSource='RuntimeObjects.WordDataExtractor.Controller'}"
+              onChange="{Binding Method=OnDateFromMonthChanged}"
+              spanColls="1"
+              spanRows="1"/>
+            <control
+              type="Input"
+              name="DateFromYearInput"
+              value="{Binding Path=DateFromYear}"
+              dataContext="{PageRuntimeSource='RuntimeObjects.WordDataExtractor.Controller'}"
+              onChange="{Binding Method=OnDateFromYearChanged}"
+              spanColls="1"
+              spanRows="1"/>
+          </stackPanel>
+
+          <stackPanel orientation="horizontal" spanColls="4" spanRows="1">
+            <control
+              type="Label"
+              name="DateToHeader"
+              text="dateTo"
+              spanColls="1"
+              spanRows="1"/>
+            <control
+              type="Input"
+              name="DateToDayInput"
+              value="{Binding Path=DateToDay}"
+              dataContext="{PageRuntimeSource='RuntimeObjects.WordDataExtractor.Controller'}"
+              onChange="{Binding Method=OnDateToDayChanged}"
+              spanColls="1"
+              spanRows="1"/>
+            <control
+              type="Input"
+              name="DateToMonthInput"
+              value="{Binding Path=DateToMonth}"
+              dataContext="{PageRuntimeSource='RuntimeObjects.WordDataExtractor.Controller'}"
+              onChange="{Binding Method=OnDateToMonthChanged}"
+              spanColls="1"
+              spanRows="1"/>
+            <control
+              type="Input"
+              name="DateToYearInput"
+              value="{Binding Path=DateToYear}"
+              dataContext="{PageRuntimeSource='RuntimeObjects.WordDataExtractor.Controller'}"
+              onChange="{Binding Method=OnDateToYearChanged}"
+              spanColls="1"
+              spanRows="1"/>
+          </stackPanel>
+        </stackPanel>
+
         <control
           type="Button"
           name="UpdateSearchSheet"
@@ -57,40 +125,6 @@
           type="Label"
           name="ToolbarHeightAnchor"
           text=""
-          spanColls="1"
-          spanRows="1"/>
-      </stackPanel>
-
-      <stackPanel orientation="vertical" spanColls="1" spanRows="4">
-        <control
-          type="Label"
-          name="DateFromHeader"
-          text="dateFrom"
-          spanColls="1"
-          spanRows="1"/>
-
-        <control
-          type="Input"
-          name="DateFromInput"
-          value="{Binding Path=DateFromText}"
-          dataContext="{PageRuntimeSource='RuntimeObjects.WordDataExtractor.Controller'}"
-          onChange="{Binding Method=OnDateFromChanged}"
-          spanColls="1"
-          spanRows="1"/>
-
-        <control
-          type="Label"
-          name="DateToHeader"
-          text="dateTo"
-          spanColls="1"
-          spanRows="1"/>
-
-        <control
-          type="Input"
-          name="DateToInput"
-          value="{Binding Path=DateToText}"
-          dataContext="{PageRuntimeSource='RuntimeObjects.WordDataExtractor.Controller'}"
-          onChange="{Binding Method=OnDateToChanged}"
           spanColls="1"
           spanRows="1"/>
       </stackPanel>
@@ -157,10 +191,10 @@
             backColor:#263445;
             fontColor:#CBD5E1;
             fontBold:true;
-            horizontal:left;
+            horizontal:center;
             vertical:center;
-            width:18;
-            rowHeight:22;
+            width:12;
+            rowHeight:40;
           }"/>
 
         <rule
@@ -170,35 +204,87 @@
             backColor:#263445;
             fontColor:#CBD5E1;
             fontBold:true;
-            horizontal:left;
+            horizontal:center;
             vertical:center;
-            width:18;
-            rowHeight:22;
+            width:12;
+            rowHeight:40;
           }"/>
 
         <rule
           target="controlPart"
-          selector="type=input;name=DateFromInput;part=cell"
+          selector="type=input;name=DateFromDayInput;part=cell"
           styles="{
             backColor:#3A3F46;
             fontColor:#F8FAFC;
-            horizontal:left;
+            horizontal:center;
             vertical:center;
-            width:18;
-            rowHeight:26;
+            width:7;
+            rowHeight:40;
             cellType:text;
           }"/>
 
         <rule
           target="controlPart"
-          selector="type=input;name=DateToInput;part=cell"
+          selector="type=input;name=DateFromMonthInput;part=cell"
           styles="{
             backColor:#3A3F46;
             fontColor:#F8FAFC;
-            horizontal:left;
+            horizontal:center;
             vertical:center;
-            width:18;
-            rowHeight:26;
+            width:7;
+            rowHeight:40;
+            cellType:text;
+          }"/>
+
+        <rule
+          target="controlPart"
+          selector="type=input;name=DateFromYearInput;part=cell"
+          styles="{
+            backColor:#3A3F46;
+            fontColor:#F8FAFC;
+            horizontal:center;
+            vertical:center;
+            width:12;
+            rowHeight:40;
+            cellType:text;
+          }"/>
+
+        <rule
+          target="controlPart"
+          selector="type=input;name=DateToDayInput;part=cell"
+          styles="{
+            backColor:#3A3F46;
+            fontColor:#F8FAFC;
+            horizontal:center;
+            vertical:center;
+            width:7;
+            rowHeight:40;
+            cellType:text;
+          }"/>
+
+        <rule
+          target="controlPart"
+          selector="type=input;name=DateToMonthInput;part=cell"
+          styles="{
+            backColor:#3A3F46;
+            fontColor:#F8FAFC;
+            horizontal:center;
+            vertical:center;
+            width:7;
+            rowHeight:40;
+            cellType:text;
+          }"/>
+
+        <rule
+          target="controlPart"
+          selector="type=input;name=DateToYearInput;part=cell"
+          styles="{
+            backColor:#3A3F46;
+            fontColor:#F8FAFC;
+            horizontal:center;
+            vertical:center;
+            width:12;
+            rowHeight:40;
             cellType:text;
           }"/>
       </layer>

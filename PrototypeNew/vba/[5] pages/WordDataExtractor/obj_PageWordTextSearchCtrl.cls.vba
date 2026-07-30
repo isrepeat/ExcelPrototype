@@ -17,8 +17,12 @@ Private m_DocumentPathPattern As String
 Private m_DocumentPaths As Collection
 Private m_DocumentPathResolver As String
 Private m_DocumentPathResolverArgs As String
-Private m_DateFromText As String
-Private m_DateToText As String
+Private m_DateFromDay As String
+Private m_DateFromMonth As String
+Private m_DateFromYear As String
+Private m_DateToDay As String
+Private m_DateToMonth As String
+Private m_DateToYear As String
 Private m_SearchText As String
 Private m_IsRegexMode As Boolean
 Private m_AllTables As Collection
@@ -93,10 +97,14 @@ Private Function obj_IPageCtrl_UpdateData( _
     m_DocumentPathResolverArgs = VBA.Trim$( _
         wordDataExtrCfgParser.GetOptionalValue( _
             "WordDataExtractor.DocumentPathResolverArgs"))
-    m_DateFromText = private_GetResolverArg( _
-        m_DocumentPathResolverArgs, "dateFrom")
-    m_DateToText = private_GetResolverArg( _
-        m_DocumentPathResolverArgs, "dateTo")
+    If Not private_TryLoadDateParts( _
+        private_GetResolverArg(m_DocumentPathResolverArgs, "dateFrom"), _
+        "dateFrom", m_DateFromDay, m_DateFromMonth, _
+        m_DateFromYear) Then Exit Function
+    If Not private_TryLoadDateParts( _
+        private_GetResolverArg(m_DocumentPathResolverArgs, "dateTo"), _
+        "dateTo", m_DateToDay, m_DateToMonth, _
+        m_DateToYear) Then Exit Function
     If Not private_ResolveDocuments() Then Exit Function
 
     m_IsReady = True
@@ -121,12 +129,28 @@ Public Property Get IsRegexMode() As Boolean
     IsRegexMode = m_IsRegexMode
 End Property
 
-Public Property Get DateFromText() As String
-    DateFromText = m_DateFromText
+Public Property Get DateFromDay() As String
+    DateFromDay = m_DateFromDay
 End Property
 
-Public Property Get DateToText() As String
-    DateToText = m_DateToText
+Public Property Get DateFromMonth() As String
+    DateFromMonth = m_DateFromMonth
+End Property
+
+Public Property Get DateFromYear() As String
+    DateFromYear = m_DateFromYear
+End Property
+
+Public Property Get DateToDay() As String
+    DateToDay = m_DateToDay
+End Property
+
+Public Property Get DateToMonth() As String
+    DateToMonth = m_DateToMonth
+End Property
+
+Public Property Get DateToYear() As String
+    DateToYear = m_DateToYear
 End Property
 
 Public Function OnSearchTextChanged(Optional ByVal arg As Variant) As Boolean
@@ -153,16 +177,40 @@ Public Function OnSearchTextChanged(Optional ByVal arg As Variant) As Boolean
     OnSearchTextChanged = True
 End Function
 
-Public Function OnDateFromChanged(Optional ByVal arg As Variant) As Boolean
+Public Function OnDateFromDayChanged(Optional ByVal arg As Variant) As Boolean
     If VBA.IsMissing(arg) Then Exit Function
-    OnDateFromChanged = private_TryReadChangedCellText( _
-        arg, m_DateFromText)
+    OnDateFromDayChanged = private_TryReadChangedCellText( _
+        arg, m_DateFromDay)
 End Function
 
-Public Function OnDateToChanged(Optional ByVal arg As Variant) As Boolean
+Public Function OnDateFromMonthChanged(Optional ByVal arg As Variant) As Boolean
     If VBA.IsMissing(arg) Then Exit Function
-    OnDateToChanged = private_TryReadChangedCellText( _
-        arg, m_DateToText)
+    OnDateFromMonthChanged = private_TryReadChangedCellText( _
+        arg, m_DateFromMonth)
+End Function
+
+Public Function OnDateFromYearChanged(Optional ByVal arg As Variant) As Boolean
+    If VBA.IsMissing(arg) Then Exit Function
+    OnDateFromYearChanged = private_TryReadChangedCellText( _
+        arg, m_DateFromYear)
+End Function
+
+Public Function OnDateToDayChanged(Optional ByVal arg As Variant) As Boolean
+    If VBA.IsMissing(arg) Then Exit Function
+    OnDateToDayChanged = private_TryReadChangedCellText( _
+        arg, m_DateToDay)
+End Function
+
+Public Function OnDateToMonthChanged(Optional ByVal arg As Variant) As Boolean
+    If VBA.IsMissing(arg) Then Exit Function
+    OnDateToMonthChanged = private_TryReadChangedCellText( _
+        arg, m_DateToMonth)
+End Function
+
+Public Function OnDateToYearChanged(Optional ByVal arg As Variant) As Boolean
+    If VBA.IsMissing(arg) Then Exit Function
+    OnDateToYearChanged = private_TryReadChangedCellText( _
+        arg, m_DateToYear)
 End Function
 
 Public Function SearchAndRender(Optional ByVal arg As Variant) As Boolean
@@ -262,18 +310,122 @@ Private Function private_TryReadChangedCellText( _
     private_TryReadChangedCellText = True
 End Function
 
+Private Function private_TryLoadDateParts( _
+    ByVal rawDateText As String, _
+    ByVal fieldName As String, _
+    ByRef outDay As String, _
+    ByRef outMonth As String, _
+    ByRef outYear As String _
+) As Boolean
+    Dim dateParts As Variant
+    Dim normalizedDateText As String
+
+    outDay = VBA.vbNullString
+    outMonth = VBA.vbNullString
+    outYear = VBA.vbNullString
+    rawDateText = VBA.Trim$(rawDateText)
+    If VBA.Len(rawDateText) = 0 Then
+        private_TryLoadDateParts = True
+        Exit Function
+    End If
+
+    rawDateText = VBA.Replace$(rawDateText, "/", ".")
+    rawDateText = VBA.Replace$(rawDateText, "-", ".")
+    dateParts = VBA.Split(rawDateText, ".")
+    If UBound(dateParts) <> 2 Then
+        private_Error "Дата " & fieldName & " в конфигурации должна " & _
+            "иметь формат ДД.ММ.ГГГГ: '" & rawDateText & "'."
+        Exit Function
+    End If
+    outDay = VBA.Trim$(VBA.CStr(dateParts(0)))
+    outMonth = VBA.Trim$(VBA.CStr(dateParts(1)))
+    outYear = VBA.Trim$(VBA.CStr(dateParts(2)))
+    If Not private_TryBuildDateText( _
+        fieldName, outDay, outMonth, outYear, _
+        normalizedDateText) Then Exit Function
+    dateParts = VBA.Split(normalizedDateText, ".")
+    outDay = VBA.CStr(dateParts(0))
+    outMonth = VBA.CStr(dateParts(1))
+    outYear = VBA.CStr(dateParts(2))
+    private_TryLoadDateParts = True
+End Function
+
+Private Function private_TryBuildDateText( _
+    ByVal fieldName As String, _
+    ByVal dayText As String, _
+    ByVal monthText As String, _
+    ByVal yearText As String, _
+    ByRef outDateText As String _
+) As Boolean
+    Dim dayValue As Long
+    Dim monthValue As Long
+    Dim yearValue As Long
+    Dim resolvedDate As Date
+
+    outDateText = VBA.vbNullString
+    dayText = VBA.Trim$(dayText)
+    monthText = VBA.Trim$(monthText)
+    yearText = VBA.Trim$(yearText)
+    If VBA.Len(dayText) = 0 And VBA.Len(monthText) = 0 And _
+        VBA.Len(yearText) = 0 Then
+        private_TryBuildDateText = True
+        Exit Function
+    End If
+    If VBA.Len(dayText) = 0 Or VBA.Len(monthText) = 0 Or _
+        VBA.Len(yearText) = 0 Then
+        private_Error "Для " & fieldName & _
+            " заполните все три поля: день, месяц и год."
+        Exit Function
+    End If
+    If Not VBA.IsNumeric(dayText) Or Not VBA.IsNumeric(monthText) Or _
+        Not VBA.IsNumeric(yearText) Then
+        private_Error "Для " & fieldName & _
+            " день, месяц и год должны быть числами."
+        Exit Function
+    End If
+
+    On Error GoTo InvalidDate
+    dayValue = VBA.CLng(dayText)
+    monthValue = VBA.CLng(monthText)
+    yearValue = VBA.CLng(yearText)
+    If yearValue < 1000 Or yearValue > 9999 Then GoTo InvalidDate
+    resolvedDate = VBA.DateSerial(yearValue, monthValue, dayValue)
+    If VBA.Day(resolvedDate) <> dayValue Or _
+        VBA.Month(resolvedDate) <> monthValue Or _
+        VBA.Year(resolvedDate) <> yearValue Then GoTo InvalidDate
+    On Error GoTo 0
+
+    outDateText = VBA.Format$(resolvedDate, "dd.mm.yyyy")
+    private_TryBuildDateText = True
+    Exit Function
+
+InvalidDate:
+    Err.Clear
+    On Error GoTo 0
+    private_Error "Для " & fieldName & " указана некорректная дата: " & _
+        dayText & "." & monthText & "." & yearText & "."
+End Function
+
 Private Function private_ResolveDocuments() As Boolean
     Dim effectiveResolverArgs As String
+    Dim dateFromText As String
+    Dim dateToText As String
 
+    If Not private_TryBuildDateText( _
+        "dateFrom", m_DateFromDay, m_DateFromMonth, _
+        m_DateFromYear, dateFromText) Then Exit Function
+    If Not private_TryBuildDateText( _
+        "dateTo", m_DateToDay, m_DateToMonth, _
+        m_DateToYear, dateToText) Then Exit Function
     effectiveResolverArgs = private_SetResolverArg( _
-        m_DocumentPathResolverArgs, "dateFrom", m_DateFromText)
+        m_DocumentPathResolverArgs, "dateFrom", dateFromText)
     effectiveResolverArgs = private_SetResolverArg( _
-        effectiveResolverArgs, "dateTo", m_DateToText)
+        effectiveResolverArgs, "dateTo", dateToText)
     Set m_DocumentPaths = Nothing
 
     If VBA.Len(m_DocumentPathResolver) = 0 Then
-        If VBA.Len(m_DateFromText) > 0 Or _
-            VBA.Len(m_DateToText) > 0 Then
+        If VBA.Len(dateFromText) > 0 Or _
+            VBA.Len(dateToText) > 0 Then
             private_Error "Поля dateFrom/dateTo требуют " & _
                 "WordDataExtractor.DocumentPathResolver."
             Exit Function

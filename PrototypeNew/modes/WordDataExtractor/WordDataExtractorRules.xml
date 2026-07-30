@@ -386,7 +386,7 @@
 
           <!-- Опциональная формулировка преобразуется в строковый boolean. -->
           <field id="temporaryPersonnel" from="$match" ignoreCase="true"
-            regex="((?:який|яка)\s+(?:зарахований|зарахована|перебуває)[\s\S]{0,120}?тимчасово\s+прибулого\s+особового\s+складу)"
+            regex="((?:(?:який|яка)\s+(?:зарахований|зарахована|перебуває)[\s\S]{0,120}?тимчасово\s+прибулого\s+особового\s+складу)|(?:зарахован(?:ий|а|е|і|ого|ої|ому|ій|им|ою)?\s+до\s+тимчасово\s+прибулого\s+особового\s+складу))"
             group="1" default="">
             <transform type="boolean" trueValue="true" falseValue="false"/>
           </field>
@@ -581,14 +581,14 @@
         <table><column id="fio" caption="ПІБ" value="$fio"/><column id="ipn" caption="ІПН" value="$ipn"/><column id="eventDate" caption="Прибуття" value="$eventDate"/><column id="basis" caption="Підстава" value="$basis"/></table>
       </rule>
 
-      <!-- Групповой пункт о прибытии в служебную командировку. Персональные
-           абзацы идут подряд, а даты зачисления и «Підстава» размещены после
-           всего списка, поэтому читаются из общего context секции. -->
+      <!-- Групповой пункт о прибытии в служебную командировку. Каждый вводный
+           абзац «з <место> ...:» создаёт отдельную группу, чтобы несколько
+           следующих людей наследовали одно место прибытия и общие реквизиты. -->
       <rule id="arrived-for-service-assignment" caption="У службове відрядження у військову частину А7383" flow="arrival" includeCommonColumns="false">
         <scope>
           <match ignoreCase="true" multiline="false"><![CDATA[(?:^|\r)\s*(?:\d+(?:\.\d+)*\.?\s*)?У\s+службове\s+відрядження\s+у\s+військову\s+частину\s+[АA]7383]]></match>
           <context id="assignmentGroup">
-            <match ignoreCase="true" multiline="false" group="0"><![CDATA[[\s\S]+]]></match>
+            <match ignoreCase="true" multiline="false" group="0"><![CDATA[(?:^|\r)\s*з\s+[^\r]+:\s*\r[\s\S]*?(?=\r\s*з\s+[^\r]+:\s*\r|\s*$)]]></match>
           </context>
         </scope>
         <match ignoreCase="true" multiline="false"><![CDATA[(?:^|\r)\s*(?:рядовий|рядового|солдат|солдата|старший\s+солдат|старшого\s+солдата|молодший\s+сержант|молодшого\s+сержанта|сержант|сержанта|старший\s+сержант|старшого\s+сержанта|головний\s+сержант|головного\s+сержанта|штаб-сержант|штаб-сержанта|майстер-сержант|майстер-сержанта|лейтенант|лейтенанта|старший\s+лейтенант|старшого\s+лейтенанта|капітан|капітана|майор|майора|підполковник|підполковника|полковник|полковника)\s+[^\r]+]]></match>
@@ -596,13 +596,18 @@
           <field id="fio" from="$match" ignoreCase="true" regex="(?:рядовий|рядового|солдат|солдата|старший\s+солдат|старшого\s+солдата|молодший\s+сержант|молодшого\s+сержанта|сержант|сержанта|старший\s+сержант|старшого\s+сержанта|головний\s+сержант|головного\s+сержанта|штаб-сержант|штаб-сержанта|майстер-сержант|майстер-сержанта|лейтенант|лейтенанта|старший\s+лейтенант|старшого\s+лейтенанта|капітан|капітана|майор|майора|підполковник|підполковника|полковник|полковника)\s+([А-ЯІЇЄҐ][А-ЯІЇЄҐ'’\-]+\s+[А-ЯІЇЄҐ][А-Яа-яІіЇїЄєҐґ'’\-]+\s+[А-ЯІЇЄҐ][А-Яа-яІіЇїЄєҐґ'’\-]+)\s*," group="1" default=""><transform type="trim"/></field>
           <field id="ipn" from="$match" regex=",\s*(\d{10})\s*," group="1" default=""><transform type="trim"/></field>
           <field id="eventDate" from="$assignmentGroup" regex="з\s+(\d{1,2}(?:\s+[а-яіїєґ]+)?(?:\s+\d{4}\s+року)?\s+по\s+\d{1,2}\s+[а-яіїєґ]+\s+\d{4}\s+року)" group="1" default=""><transform type="dateRangeStartFormat" format="dd.mm.yyyy"/></field>
+          <field id="eventDate" from="$assignmentGroup" preserveExisting="true"
+            regex=",\s*з\s+(\d{1,2}(?:[.\-/]\d{1,2}[.\-/]\d{2,4}|\s+[а-яіїєґ]+\s+\d{4}\s+року))"
+            group="1" default=""><transform type="dateFormat" format="dd.mm.yyyy"/></field>
           <field id="foodEnrollmentDate" from="$assignmentGroup" regex="на\s+продовольче\s+забезпечення\s+з\s+(\d{1,2}(?:[.\-/]\d{1,2}[.\-/]\d{2,4}|\s+[а-яіїєґ]+\s+\d{4}\s+року))" group="1" default=""><transform type="dateFormat" format="dd.mm.yyyy"/></field>
           <field id="basis" from="$assignmentGroup" regex="Підстава:\s*([^\r]+)" group="1" default="">
             <transform type="orderedTripCredential" indexFrom="$matchIndex"/>
             <transform type="trim"/>
           </field>
           <!-- Вводный абзац общий для всех перечисленных людей. -->
-          <field id="assignmentOrigin" from="$assignmentGroup" regex="(з\s+[^\r]+?)\s*,\s*терміном\s+на" group="1" default=""><transform type="trim"/></field>
+          <field id="assignmentOrigin" from="$assignmentGroup"
+            regex="(з\s+[^\r]+?)\s*,\s*(?:(?:терміном\s+на)|(?:з\s+\d{1,2}))"
+            group="1" default=""><transform type="trim"/></field>
           <field id="arrivalDurationDays" from="$assignmentGroup" regex="терміном\s+на\s+(\d+)\s+(?:календарн(?:их|і)\s+)?(?:діб|днів)" group="1" default=""><transform type="trim"/></field>
           <!-- Посада находится после первого разделителя ФИО в персональном
                абзаце и поэтому, в отличие от origin/срока, не наследуется. -->
@@ -622,7 +627,7 @@
         <scope>
           <match ignoreCase="true" multiline="false"><![CDATA[(?:^|\r)\s*(?:\d+(?:\.\d+)*\.?\s*)?У\s+відрядження]]></match>
           <context id="assignmentGroup">
-            <match ignoreCase="true" multiline="false" group="0"><![CDATA[[\s\S]+]]></match>
+            <match ignoreCase="true" multiline="false" group="0"><![CDATA[(?:^|\r)\s*у\s+(?!відрядження\s*:)[^\r]+:\s*\r[\s\S]*?(?=\r\s*у\s+(?!відрядження\s*:)[^\r]+:\s*\r|\s*$)]]></match>
           </context>
         </scope>
         <!-- Один match соответствует ровно одному Word-абзацу человека.
@@ -633,7 +638,7 @@
           <field id="ipn" from="$match" regex=",\s*(\d{10})\s*," group="1" default=""><transform type="trim"/></field>
           <field id="eventDate" from="$assignmentGroup" regex="з\s+(\d{1,2}(?:\s+[а-яіїєґ]+)?(?:\s+\d{4}\s+року)?\s+по\s+\d{1,2}\s+[а-яіїєґ]+\s+\d{4}\s+року)" group="1" default=""><transform type="dateRangeStartFormat" format="dd.mm.yyyy"/></field>
           <field id="foodRemovalDate" from="$assignmentGroup" regex="з\s+продовольчого\s+забезпечення\s+з\s+(\d{1,2}(?:[.\-/]\d{1,2}[.\-/]\d{2,4}|\s+[а-яіїєґ]+\s+\d{4}\s+року))" group="1" default=""><transform type="dateFormat" format="dd.mm.yyyy"/></field>
-          <field id="durationDays" from="$assignmentGroup" regex="терміном\s+на\s+(\d+)\s+(?:календарн(?:их|і)\s+)?(?:діб|днів|доби)" group="1" default=""><transform type="trim"/></field>
+          <field id="durationDays" from="$assignmentGroup" regex="терміном\s+на\s+(\d+)\s+(?:календарн(?:их|і)\s+)?(?:діб|днів|доби|добу)" group="1" default=""><transform type="trim"/></field>
           <field id="eventTo" from="$assignmentGroup" regex="\sпо\s+(\d{1,2}\s+[а-яіїєґ]+\s+\d{4}\s+року)" group="1" default=""><transform type="dateFormat" format="dd.mm.yyyy"/></field>
           <field id="basis" from="$assignmentGroup" regex="Підстава:\s*([^\r]+)" group="1" default=""><transform type="trim"/></field>
         </fields>
