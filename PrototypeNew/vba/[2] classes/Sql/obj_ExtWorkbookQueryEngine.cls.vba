@@ -314,7 +314,11 @@ Private Function private_TryExecuteOpenWorkbook( _
     For i = 1 To selectColumns.Count
         If Not private_TryResolveHeaderColumn( _
             headerMap, VBA.CStr(selectColumns.Item(i)), _
-            selectedColumnIndexes(i)) Then Exit Function
+            selectedColumnIndexes(i)) Then
+            private_LogMissingOpenWorkbookHeader _
+                query, VBA.CStr(selectColumns.Item(i)), headerMap
+            Exit Function
+        End If
         If selectedFirstColumn = 0 Or selectedColumnIndexes(i) < selectedFirstColumn Then
             selectedFirstColumn = selectedColumnIndexes(i)
         End If
@@ -332,7 +336,11 @@ Private Function private_TryExecuteOpenWorkbook( _
             Set condition = conditions.Item(i)
             If Not private_TryResolveHeaderColumn( _
                 headerMap, condition.ColumnName, _
-                conditionColumnIndexes(i)) Then Exit Function
+                conditionColumnIndexes(i)) Then
+                private_LogMissingOpenWorkbookHeader _
+                    query, condition.ColumnName, headerMap
+                Exit Function
+            End If
             ' Объекты условий и Collection используются только на этапе подготовки.
             ' В горячем цикле по строкам остаются обычные массивы примитивов,
             ' поэтому стоимость object-property/Collection.Item не умножается
@@ -780,6 +788,38 @@ Private Function private_TryResolveHeaderColumn( _
     VBA.MsgBox "PrototypeNew: column '" & headerName & _
         "' was not found in the open external workbook.", _
         VBA.vbExclamation, ERROR_TITLE
+End Function
+
+Private Sub private_LogMissingOpenWorkbookHeader( _
+    ByVal query As obj_ExtWorkbookQuery, _
+    ByVal expectedHeader As String, _
+    ByVal headerMap As Object _
+)
+    Dim headerKey As Variant
+    Dim actualHeaders As String
+
+    If Not headerMap Is Nothing Then
+        For Each headerKey In headerMap.Keys
+            If VBA.Len(actualHeaders) > 0 Then actualHeaders = actualHeaders & "|"
+            actualHeaders = actualHeaders & private_EscapeHeaderForLog(VBA.CStr(headerKey))
+        Next headerKey
+    End If
+    If VBA.Len(actualHeaders) = 0 Then actualHeaders = "<none>"
+
+    ex_Core.fn_Diagnostic_LogError _
+        "external-query:missing-column range='" & _
+        private_EscapeHeaderForLog(query.TableRef) & _
+        "' expected='" & private_EscapeHeaderForLog(expectedHeader) & _
+        "' headers='" & actualHeaders & "'"
+End Sub
+
+Private Function private_EscapeHeaderForLog(ByVal valueText As String) As String
+    valueText = VBA.Replace$(valueText, "'", "''")
+    valueText = VBA.Replace$(valueText, VBA.vbCr, "<CR>")
+    valueText = VBA.Replace$(valueText, VBA.vbLf, "<LF>")
+    valueText = VBA.Replace$(valueText, VBA.vbTab, "<TAB>")
+    valueText = VBA.Replace$(valueText, VBA.ChrW$(160), "<NBSP>")
+    private_EscapeHeaderForLog = valueText
 End Function
 
 Private Function private_RowMatchesPreparedConditions( _

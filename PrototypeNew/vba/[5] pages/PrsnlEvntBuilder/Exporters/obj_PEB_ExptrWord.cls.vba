@@ -1945,7 +1945,14 @@ Private Function private_TryAppendMovementTvoTablesForReturn( _
         Set chainItem = chainValue
         fioText = VBA.CStr(chainItem("FIO"))
         positionCode = VBA.CStr(chainItem("PositionCode"))
-        If Not m_ExporterCfgDataProvider.CommonData.TryResolveRankByIpn(VBA.CStr(chainItem("IPN")), rankText) Then Exit Function
+        If Not m_ExporterCfgDataProvider.CommonData.TryResolveRankByIpn(VBA.CStr(chainItem("IPN")), rankText) Then
+#If LOGGING_DEBUG_ENABLED Then
+            ex_Core.fn_Diagnostic_LogError _
+                "word-export:tvo-rank-lookup failed fio='" & VBA.Replace$(fioText, "'", "''") & _
+                "' ipn='" & VBA.Replace$(VBA.CStr(chainItem("IPN")), "'", "''") & "'"
+#End If
+            Exit Function
+        End If
         ' Все три формы должности будут прочитаны одним запросом на этапе
         ' meta enrichment; здесь сохраняем только код из Movement.
         positionText = VBA.vbNullString
@@ -2210,6 +2217,7 @@ End Function
 
 Private Function private_KeepSurnameWithInitialsTogether(ByVal valueText As String) As String
     Static initialsRx As Object
+    Static leadingInitialsRx As Object
 
     valueText = VBA.Trim$(valueText)
     If VBA.Len(valueText) = 0 Then Exit Function
@@ -2223,7 +2231,17 @@ Private Function private_KeepSurnameWithInitialsTogether(ByVal valueText As Stri
         initialsRx.Pattern = "(\S+)[ \t]+([А-ЯІЇЄҐA-Z]\.[ \t]*[А-ЯІЇЄҐA-Z]\.)"
     End If
 
-    private_KeepSurnameWithInitialsTogether = initialsRx.Replace( _
+    If leadingInitialsRx Is Nothing Then
+        Set leadingInitialsRx = VBA.CreateObject("VBScript.RegExp")
+        leadingInitialsRx.Global = True
+        leadingInitialsRx.IgnoreCase = False
+        ' Обратная форма также встречается в названиях учреждений и должностях:
+        ' "І. І. Прізвище". Не даём фамилии оторваться от группы инициалов.
+        leadingInitialsRx.Pattern = "([А-ЯІЇЄҐA-Z]\.[ \t]*[А-ЯІЇЄҐA-Z]\.)[ \t]+(\S+)"
+    End If
+
+    valueText = initialsRx.Replace(valueText, "$1" & VBA.ChrW$(160) & "$2")
+    private_KeepSurnameWithInitialsTogether = leadingInitialsRx.Replace( _
         valueText, "$1" & VBA.ChrW$(160) & "$2")
 End Function
 
