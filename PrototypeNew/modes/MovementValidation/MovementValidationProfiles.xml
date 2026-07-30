@@ -1,0 +1,62 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<profiles version="1">
+  <profile id="default" caption="Movement validation">
+    <item attr="#" key="Profile.Name" value="Movement validation"/>
+
+    <item attr="#" key="Movement source" value=""/>
+    <item key="Source.Movement.FilePath" value="C:\Users\SVI\Desktop\РУХ_last.xlsx"/>
+    <item key="Movement.Sheet[Absent].SheetName" value="Відсутні$B6:S20000"/>
+    <item key="Movement.Sheet[Absent].ColumnHeadersAliases" value="FIO; Event; OutOrder; OutDate; PlannedReturnDate; ReturnDate"/>
+    <item key="Movement.Sheet[Absent].Map[FIO]" value="ПІБ"/>
+    <item key="Movement.Sheet[Absent].Map[Event]" value="Подія"/>
+    <item key="Movement.Sheet[Absent].Map[OutOrder]" value="Наказ вибуття"/>
+    <item key="Movement.Sheet[Absent].Map[OutDate]" value="Вибуття"/>
+    <item key="Movement.Sheet[Absent].Map[PlannedReturnDate]" value="Планове прибуття"/>
+    <item key="Movement.Sheet[Absent].Map[ReturnDate]" value="Прибуття"/>
+
+    <item attr="#" key="ЄЖОС_last source" value=""/>
+    <item key="Source.Ejos.FilePath" value="C:\Users\SVI\Desktop\ЕЖОС_last.xlsx"/>
+    <item key="Ejos.Sheet[TemporaryAbsent].SheetName" value="5. Тимчасово відсутні$A5:Q20000"/>
+    <item key="Ejos.Sheet[TemporaryAbsent].ColumnHeadersAliases" value="Rank; FIO; IPN; Event; Destination; DepartureDate; OrderDate; OutOrder; Duration; PlannedReturnDate; Field74; Field75A; Field75B; Basis; SequenceNo; Field2; Field3"/>
+    <item key="Ejos.Sheet[TemporaryAbsent].Map[Rank]" value="65"/>
+    <item key="Ejos.Sheet[TemporaryAbsent].Map[FIO]" value="66"/>
+    <item key="Ejos.Sheet[TemporaryAbsent].Map[IPN]" value="67"/>
+    <item key="Ejos.Sheet[TemporaryAbsent].Map[Event]" value="68"/>
+    <item key="Ejos.Sheet[TemporaryAbsent].Map[Destination]" value="69"/>
+    <item key="Ejos.Sheet[TemporaryAbsent].Map[DepartureDate]" value="70"/>
+    <item key="Ejos.Sheet[TemporaryAbsent].Map[OrderDate]" value="71 (А)"/>
+    <item key="Ejos.Sheet[TemporaryAbsent].Map[OutOrder]" value="71 (Б)"/>
+    <item key="Ejos.Sheet[TemporaryAbsent].Map[Duration]" value="72"/>
+    <item key="Ejos.Sheet[TemporaryAbsent].Map[PlannedReturnDate]" value="73"/>
+    <item key="Ejos.Sheet[TemporaryAbsent].Map[Field74]" value="74"/>
+    <item key="Ejos.Sheet[TemporaryAbsent].Map[Field75A]" value="75 (А)"/>
+    <item key="Ejos.Sheet[TemporaryAbsent].Map[Field75B]" value="75 (Б)"/>
+    <item key="Ejos.Sheet[TemporaryAbsent].Map[Basis]" value="76"/>
+    <item key="Ejos.Sheet[TemporaryAbsent].Map[SequenceNo]" value="Стовпець1"/>
+    <item key="Ejos.Sheet[TemporaryAbsent].Map[Field2]" value="Стовпець2"/>
+    <item key="Ejos.Sheet[TemporaryAbsent].Map[Field3]" value="Стовпець3"/>
+
+    <item attr="#" key="Latest medical daily note" value=""/>
+    <item key="Source.MedicalDaily.FilePath" value="..\..\..\WORK Alexandr Bondarenko\НАКАЗИ\Ст. запис. мед. 2026.07 (липень)\Стройова записка медичної служби станом на {dd}.{mm}.{yyyy}.xlsx"/>
+    <item key="Source.MedicalDaily.FilePathResolver" value="{Binding Method=ResolveLatestByDmyPattern}"/>
+    <item key="MedicalDaily.Sheet[StateMain].SheetName" value="Аркуш1$A3:S20000"/>
+    <item key="MedicalDaily.Sheet[StateMain].ColumnHeadersAliases" value="FIO; IPN; HospitalizationDate; BasisDocName; BasisDocDate; BasisDocNumber; FullHospitalName; TreatmentStatus"/>
+    <item key="MedicalDaily.Sheet[StateMain].Map[FIO]" value="П.І.Б."/>
+    <item key="MedicalDaily.Sheet[StateMain].Map[IPN]" value="ІПН"/>
+    <item key="MedicalDaily.Sheet[StateMain].Map[HospitalizationDate]" value="Дата госпіталізації / переведення"/>
+    <item key="MedicalDaily.Sheet[StateMain].Map[BasisDocName]" value="На підставі чого госпіталізований (Назва документу)"/>
+    <item key="MedicalDaily.Sheet[StateMain].Map[BasisDocDate]" value="На підставі чого госпіталізований (дата, документу)"/>
+    <item key="MedicalDaily.Sheet[StateMain].Map[BasisDocNumber]" value="На підставі чого госпіталізований (№ документу)"/>
+    <item key="MedicalDaily.Sheet[StateMain].Map[FullHospitalName]" value="Повна назва лікувального закладу"/>
+    <item key="MedicalDaily.Sheet[StateMain].Map[TreatmentStatus]" value="Статус лікування"/>
+
+    <item attr="#" key="Validation" value=""/>
+    <item key="MultiSourcesView.ScenarioClass" value="obj_MovementVldtnScen"/>
+    <item key="MovementValidation.OrderDateProviderClass" value="obj_PEB_ExptrCommonDataPrvdr"/>
+    <item key="MovementValidation.MovementTable" value="Movement.Sheet[Absent]"/>
+    <item key="MovementValidation.EjosTable" value="Ejos.Sheet[TemporaryAbsent]"/>
+    <item key="MovementValidation.MedicalTable" value="MedicalDaily.Sheet[StateMain]"/>
+    <item key="MovementValidation.EjosEvents" value="Стаціонарне лікування; Щорічна відпустка; Відпустка за сімейними обставинами; Відпустка у зв'язку з вагітністю та пологами; Відпустка для лікування; Амбулаторне ВЛК; Стаціонарне ВЛК; Відрядження"/>
+    <item key="MovementValidation.MedicalEvents" value="Стаціонарне лікування"/>
+  </profile>
+</profiles>

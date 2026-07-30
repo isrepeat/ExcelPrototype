@@ -270,6 +270,16 @@ Private Function private_ApplyPresetStyle(ByVal targetRange As Range, ByVal styl
             targetRange.Borders.Color = VBA.RGB(245, 158, 11)
             targetRange.Borders.Weight = xlMedium
 
+        Case "validationinput"
+            ' Серое поле отделяет редактируемое значение от темного фона
+            ' служебной страницы и совпадает с визуальным языком фильтров.
+            targetRange.Interior.Color = VBA.RGB(89, 89, 89)
+            targetRange.Font.Color = VBA.RGB(255, 255, 255)
+            targetRange.Font.Bold = True
+            targetRange.Borders.LineStyle = xlContinuous
+            targetRange.Borders.Color = VBA.RGB(166, 166, 166)
+            targetRange.Borders.Weight = xlMedium
+
         Case Else
 #If LOGGING_DEBUG_ENABLED Then
             ex_Core.fn_Diagnostic_LogError "Input: unsupported style '" & styleName & "' for control '" & m_ControlName & "'."

@@ -33,11 +33,16 @@ Private m_SourceAliases As Collection
 Private m_SourceAliasTemplates As Collection
 Private m_FilterValues As Object
 Private m_MaxRows As Long
+Private m_Scenario As obj_IMultiSourcesScenario
 Private m_IsConfigReady As Boolean
 Private m_IsDisposed As Boolean
 
 Public Property Get RuntimeObjectSourceKey() As String
     RuntimeObjectSourceKey = CONTROLLER_RUNTIME_OBJECT_KEY
+End Property
+
+Public Property Get OrderNoText() As String
+    If Not m_Scenario Is Nothing Then OrderNoText = m_Scenario.OrderNoText
 End Property
 
 Public Function Initialize(ByVal page As obj_IPage) As Boolean
@@ -72,6 +77,8 @@ Public Sub Dispose()
     Set m_SourceAliases = Nothing
     Set m_SourceAliasTemplates = Nothing
     Set m_FilterValues = Nothing
+    If Not m_Scenario Is Nothing Then m_Scenario.Dispose
+    Set m_Scenario = Nothing
     Set m_Page = Nothing
     On Error GoTo 0
 End Sub
@@ -79,18 +86,34 @@ End Sub
 Public Function UpdateData(ByVal configControl As obj_ConfigControlVM) As Boolean
     Dim configTable As obj_ConfigTable
     Dim cfgParser As obj_MultiSourcesViewCfgParser
+    Dim scenarioClassName As String
+    Dim hasScenario As Boolean
 
     m_IsConfigReady = False
     If configControl Is Nothing Then Exit Function
     If Not configControl.TryBuildConfigTableFromRendered(configTable) Then Exit Function
     Set cfgParser = New obj_MultiSourcesViewCfgParser
     If Not cfgParser.Initialize(configTable) Then Exit Function
-    If Not cfgParser.TryGetViewSettings(m_TableRefs, m_Columns, m_MaxRows) Then Exit Function
+    If Not cfgParser.TryGetScenarioClassName( _
+        scenarioClassName, hasScenario) Then Exit Function
+    If hasScenario Then
+        If Not m_Scenario Is Nothing Then m_Scenario.Dispose
+        Set m_Scenario = Nothing
+        If Not private_TryCreateScenario( _
+            scenarioClassName, m_Scenario) Then Exit Function
+        If Not m_Scenario.Initialize(m_Page, configTable) Then Exit Function
+    Else
+        If Not m_Scenario Is Nothing Then m_Scenario.Dispose
+        Set m_Scenario = Nothing
+        If Not cfgParser.TryGetViewSettings(m_TableRefs, m_Columns, m_MaxRows) Then Exit Function
+    End If
 
     If Not m_CfgParser Is Nothing Then m_CfgParser.Dispose
     Set m_CfgParser = cfgParser
     Set m_ConfigTable = configTable
-    If Not private_PublishFilterItems() Then Exit Function
+    If m_Scenario Is Nothing Then
+        If Not private_PublishFilterItems() Then Exit Function
+    End If
     m_IsConfigReady = True
     UpdateData = True
 End Function
@@ -105,6 +128,11 @@ Public Function RunPipeline(Optional ByVal notifyChange As Boolean = True) As Bo
     Dim pipelineStage As String
 
     On Error GoTo EH
+
+    If Not m_Scenario Is Nothing Then
+        RunPipeline = m_Scenario.RunPipeline(notifyChange)
+        Exit Function
+    End If
 
     If Not m_IsConfigReady Or m_CfgParser Is Nothing Then
         VBA.MsgBox "MultiSourcesView config is not ready.", VBA.vbExclamation, "PrototypeNew / MultiSourcesView"
@@ -222,6 +250,33 @@ Public Function RerenderPage(Optional ByVal notifyChange As Boolean = True) As B
     If m_Page Is Nothing Then Exit Function
     If Not private_PublishFilterItems() Then Exit Function
     RerenderPage = rt_PageManager.fn_RenderPage(m_Page, "multisourcesview:rerender")
+End Function
+
+Private Function private_TryCreateScenario( _
+    ByVal className As String, _
+    ByRef outScenario As obj_IMultiSourcesScenario _
+) As Boolean
+    Set outScenario = Nothing
+    className = VBA.Trim$(className)
+    If VBA.Len(className) = 0 Then
+        VBA.MsgBox "MultiSourcesView.ScenarioClass is empty.", _
+            VBA.vbExclamation, "PrototypeNew / MultiSourcesView"
+        Exit Function
+    End If
+
+    ' VBA не умеет создавать классы текущего проекта через CreateObject.
+    ' Эта фабрика является единственной точкой регистрации реализаций;
+    ' конкретный класс выбирается только по имени из XML-профиля.
+    Select Case VBA.LCase$(className)
+        Case VBA.LCase$("obj_MovementVldtnScen")
+            Set outScenario = New obj_MovementVldtnScen
+        Case Else
+            VBA.MsgBox "Unsupported MultiSourcesView scenario class: " & _
+                className, VBA.vbExclamation, _
+                "PrototypeNew / MultiSourcesView"
+            Exit Function
+    End Select
+    private_TryCreateScenario = Not outScenario Is Nothing
 End Function
 
 Private Function private_PublishFilterItems() As Boolean
