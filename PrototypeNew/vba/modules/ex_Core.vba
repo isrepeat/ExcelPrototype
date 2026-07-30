@@ -61,11 +61,23 @@ Public Sub fn_Module_Dispose()
 #If LOGGING_VERBOSE_ENABLED Then
     ex_Core.fn_Diagnostic_LogInfo "lifecycle:ex_Core.fn_Module_Dispose"
 #End If
+    Call fn_CancelDeferredTasks
+
     On Error Resume Next
     Set g_FileCacheMap = Nothing
     Set g_GlobalItemsSourceMap = Nothing
     Set g_GlobalObjectSourceMap = Nothing
     On Error GoTo 0
+End Sub
+
+
+Public Sub fn_CancelDeferredTasks()
+    ' Отложенные update/retry/restore ссылаются на ThisWorkbook в имени
+    ' макроса. Если Excel остается запущенным из-за другой книги, такой OnTime
+    ' после закрытия может повторно открыть PrototypeNew.
+    Call private_Dev_TryCancelQueuedBridgeUpdate
+    Call private_Dev_TryCancelQueuedSafeUpdateRetry
+    Call private_Dev_TryCancelQueuedRuntimeStateRestore("lifecycle:ex_Core.fn_CancelDeferredTasks")
 End Sub
 
 ' //
@@ -1509,6 +1521,32 @@ Private Function private_Dev_TryQueueRuntimeUpdateWhenBridgeDispatch(ByVal updat
 #End If
     private_Dev_TryQueueRuntimeUpdateWhenBridgeDispatch = True
 End Function
+
+
+Private Sub private_Dev_TryCancelQueuedBridgeUpdate()
+    Dim errDescription As String
+
+    If g_QueuedBridgeUpdateAt > 0# And VBA.Len(VBA.Trim$(g_QueuedBridgeUpdateMacro)) > 0 Then
+        On Error Resume Next
+        Application.OnTime EarliestTime:=g_QueuedBridgeUpdateAt, Procedure:=g_QueuedBridgeUpdateMacro, Schedule:=False
+        If Err.Number <> 0 Then
+            errDescription = Err.Description
+            Err.Clear
+            On Error GoTo 0
+#If LOGGING_DEBUG_ENABLED Then
+            private_Diagnostic_LogCoreSelfEvent "queued-runtime-update-cancel-failed err='" & VBA.Replace$(errDescription, "'", "''") & "'"
+#End If
+        Else
+            On Error GoTo 0
+#If LOGGING_DEBUG_ENABLED Then
+            private_Diagnostic_LogCoreSelfEvent "queued-runtime-update-cancelled"
+#End If
+        End If
+    End If
+
+    g_QueuedBridgeUpdateAt = 0#
+    g_QueuedBridgeUpdateMacro = VBA.vbNullString
+End Sub
 
 
 ' Callstack[1]: ex_Core.fn_Dev_UpdateAllModules -> private_Dev_TryRunSafeUpdateByMode
