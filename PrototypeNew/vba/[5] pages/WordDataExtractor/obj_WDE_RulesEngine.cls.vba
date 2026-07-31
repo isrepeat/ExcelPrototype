@@ -1003,10 +1003,10 @@ Private Function private_ExtractDataset( _
         For Each contextItem In contextItems
             If datasetNode.selectNodes( _
                 "p:scope/p:context | p:context").Length > 0 Then
-                ' Контекст уже активирован промежуточными сегментами pattern.
-                ' Повторная проверка scope здесь недопустима: structural path
-                ' мог начать диапазон непосредственно с совпадения scope.
-                If Not private_CollectNestedContextItems(datasetNode, _
+                ' Родительская структурная ветка может содержать несколько
+                ' разных событий. Перед вложенными context обязательно
+                ' отфильтровываем её собственным scope текущего dataset.
+                If Not private_CollectScopedNestedContextItems(datasetNode, _
                     contextItem, nestedItems) Then Exit Function
                 For Each nestedContextItem In nestedItems
                     executionItems.Add nestedContextItem
@@ -1108,6 +1108,66 @@ Private Function private_ExtractDataset( _
     ' решает, показывать все datasets или только содержащие строки.
     tables.Add tableObj
     private_ExtractDataset = True
+End Function
+
+Private Function private_CollectScopedNestedContextItems( _
+    ByVal datasetNode As Object, _
+    ByVal parentContext As Object, _
+    ByRef outItems As Collection _
+) As Boolean
+    Dim scopeMatchNode As Object
+    Dim scopeRx As Object
+    Dim scopeMatches As Object
+    Dim scopeMatch As Object
+    Dim nextScopeMatch As Object
+    Dim scopedParent As Object
+    Dim nestedItems As Collection
+    Dim nestedItem As Variant
+    Dim parentText As String
+    Dim startPosition As Long
+    Dim endPosition As Long
+    Dim i As Long
+
+    Set outItems = New Collection
+    Set scopeMatchNode = datasetNode.selectSingleNode("p:scope/p:match")
+    If scopeMatchNode Is Nothing Then
+        private_CollectScopedNestedContextItems = _
+            private_CollectNestedContextItems( _
+                datasetNode, parentContext, outItems)
+        Exit Function
+    End If
+
+    parentText = VBA.CStr(parentContext("$text"))
+    Set scopeRx = private_CreateRegex(VBA.CStr(scopeMatchNode.Text), _
+        private_BoolAttr(scopeMatchNode, "ignoreCase", True), _
+        private_BoolAttr(scopeMatchNode, "multiline", False))
+    If scopeRx Is Nothing Then Exit Function
+    Set scopeMatches = scopeRx.Execute(parentText)
+
+    ' Отсутствие scope в конкретном родительском пункте означает, что этот
+    ' dataset к нему не относится. Это не отсутствие обязательной секции во
+    ' всём документе — кратность проверяется структурным маршрутом отдельно.
+    For i = 0 To scopeMatches.Count - 1
+        Set scopeMatch = scopeMatches.Item(i)
+        startPosition = VBA.CLng(scopeMatch.FirstIndex) + 1
+        If i < scopeMatches.Count - 1 Then
+            Set nextScopeMatch = scopeMatches.Item(i + 1)
+            endPosition = VBA.CLng(nextScopeMatch.FirstIndex) + 1
+        Else
+            endPosition = VBA.Len(parentText) + 1
+        End If
+
+        Set scopedParent = private_CloneContextValues(parentContext)
+        scopedParent("$text") = VBA.Mid$( _
+            parentText, startPosition, endPosition - startPosition)
+        If Not private_CollectNestedContextItems( _
+            datasetNode, scopedParent, nestedItems) Then Exit Function
+        For Each nestedItem In nestedItems
+            outItems.Add nestedItem
+        Next nestedItem
+    Next i
+
+    private_CollectScopedNestedContextItems = True
 End Function
 
 Private Function private_CollectNestedContextItems( _
@@ -1337,12 +1397,14 @@ Private Function private_ExpandContextNode( _
     Dim matchIndex As Long, groupIndex As Long
     Dim contextText As String
     Dim itemsBefore As Long
+    Dim isOptional As Boolean
 
     contextId = VBA.Trim$(ex_XmlCore.fn_NodeAttrText(contextNode, "id"))
     If VBA.Len(contextId) = 0 Then
         private_ShowError "У каждого context должен быть непустой id."
         Exit Function
     End If
+    isOptional = private_BoolAttr(contextNode, "optional", False)
     Set contextMatchNode = contextNode.selectSingleNode("p:match")
     If contextMatchNode Is Nothing Then
         private_ShowError "Context '" & contextId & "' не содержит match."
@@ -1391,6 +1453,10 @@ NextMatch:
     Next matchObj
 
     If outItems.Count = itemsBefore Then
+        If isOptional Then
+            private_ExpandContextNode = True
+            Exit Function
+        End If
         private_LogContextNotFound _
             datasetId, contextId, contextMatchNode, parentText
         private_ShowError "Не найдены блоки context '" & contextId & _
