@@ -6,6 +6,7 @@ Attribute VB_Name = "obj_SIP_ModeFolders"
 Option Explicit
 #Const LOGGING_DEBUG_ENABLED = True
 #Const LOGGING_VERBOSE_ENABLED = False
+Private Const MODE_PROFILES_FILE_SUFFIX As String = "Profiles.xml"
 Private m_IsDisposed As Boolean
 
 Implements obj_ISelectItemsSourceProvider
@@ -69,16 +70,22 @@ Private Function obj_ISelectItemsSourceProvider_TryBuildItems(ByRef outItems As 
     Dim modeName As String
     Dim modeNames() As String
     Dim modeCount As Long
+    Dim profilesFileExists As Boolean
     Dim i As Long
 
     Set outItems = New Collection
 
     If Not private_TryResolveModesRoot(modesRootPath, modesRootFolder) Then Exit Function
 
-    ' Строим select options из подпапок modes.
+    ' Подпапка сама по себе ещё не является режимом: после удаления файлов
+    ' пустой каталог может остаться на диске. Показываем только режимы,
+    ' содержащие обязательный <ModeName>Profiles.xml.
     For Each modeFolder In modesRootFolder.SubFolders
         modeName = VBA.Trim$(VBA.CStr(modeFolder.Name))
         If VBA.Len(modeName) = 0 Then GoTo ContinueModeFolder
+        If Not private_TryModeProfilesFileExists( _
+            modeFolder, modeName, profilesFileExists) Then Exit Function
+        If Not profilesFileExists Then GoTo ContinueModeFolder
 
         modeCount = modeCount + 1
         ReDim Preserve modeNames(1 To modeCount)
@@ -98,6 +105,42 @@ ContinueModeFolder:
     Next i
 
     obj_ISelectItemsSourceProvider_TryBuildItems = True
+End Function
+
+Private Function private_TryModeProfilesFileExists( _
+    ByVal modeFolder As Object, _
+    ByVal modeName As String, _
+    ByRef outExists As Boolean _
+) As Boolean
+    Dim fso As Object
+    Dim profilesFilePath As String
+
+    outExists = False
+    If modeFolder Is Nothing Then
+        private_ReportError "PrototypeNew: cannot inspect a mode because its folder is unavailable."
+        Exit Function
+    End If
+    modeName = VBA.Trim$(modeName)
+    If VBA.Len(modeName) = 0 Then
+        private_ReportError "PrototypeNew: cannot inspect a mode with an empty folder name."
+        Exit Function
+    End If
+
+    On Error GoTo EH
+    Set fso = VBA.CreateObject("Scripting.FileSystemObject")
+    If fso Is Nothing Then
+        private_ReportError "PrototypeNew: failed to create FileSystemObject while inspecting mode '" & modeName & "'."
+        Exit Function
+    End If
+    profilesFilePath = fso.BuildPath( _
+        VBA.CStr(modeFolder.Path), modeName & MODE_PROFILES_FILE_SUFFIX)
+    outExists = fso.FileExists(profilesFilePath)
+    private_TryModeProfilesFileExists = True
+    Exit Function
+
+EH:
+    private_ReportError "PrototypeNew: failed to inspect mode '" & modeName & _
+        "': " & Err.Description
 End Function
 
 ' //
