@@ -80,15 +80,16 @@
       </text>
     </sharedTemplate>
 
-    <sharedTemplate id="block.AssignToDuty">
+    <sharedTemplate id="block.DepartureAdministration">
       <text>
         <![CDATA[#^
 #_        {#for item in MetaTvoTables}#^
-#_          {#if #not item.__first}{#newline}{#endif}#^
+#_          {#newline}#^
 #_          Тимчасове виконання обов'язків за посадою {[PositionGenitive]|lowerFirstLetter} покласти на #^
 #_          {item.[RankGenitive]|lowerFirstLetter} {item.[FIOGenitive]}, {item.[PositionGenitive]|lowerFirstLetter}.#^
-#_          {#if item.__last}{#newline}{#endif}#^
 #_        {#endfor}#^
+#_        {#if [RequiresFoodSupportRemove]}{#newline}#^
+#_        {#include block.RemoveFromFoodSupport}{#endif}#^
         ]]>
       </text>
     </sharedTemplate>
@@ -322,9 +323,7 @@
     <text>
       <![CDATA[#^
 #_      {#include block.PersonLineLower}.#^
-#_      {#newline}#^
-#_      {#include block.AssignToDuty}#^
-#_      {#include block.RemoveFromFoodSupport}#^
+#_      {#include block.DepartureAdministration}#^
 #_      {#include block.OptionalFoodCertificate}#^
 #_      {#newline}#^
 #_      {#include block.IncomingBasis}#^
@@ -339,9 +338,7 @@
       <![CDATA[#^
 #_      {#include block.PersonLineUpper}#^
 #_      {#include block.VacationDestinationPeriod}#^
-#_      {#newline}#^
-#_      {#include block.AssignToDuty}#^
-#_      {#include block.RemoveFromFoodSupport}#^
+#_      {#include block.DepartureAdministration}#^
 #_      {#newline}#^
 #_      {#include block.IncomingBasis}#^
 #_      {#include block.OptionalBasisDocuments}#^
@@ -356,9 +353,7 @@
       <![CDATA[#^
 #_      {#include block.PersonLineUpper}#^
 #_      {#include block.VacationDestinationPeriod}#^
-#_      {#newline}#^
-#_      {#include block.AssignToDuty}#^
-#_      {#include block.RemoveFromFoodSupport}#^
+#_      {#include block.DepartureAdministration}#^
 #_      {#newline}#^
 #_      {#include block.IncomingBasis}#^
 #_      {#include block.OptionalVacationTicket}#^
@@ -372,9 +367,7 @@
       <![CDATA[#^
 #_      {#include block.PersonLineUpper}#^
 #_      {#include block.VacationDestinationPeriod}#^
-#_      {#newline}#^
-#_      {#include block.AssignToDuty}#^
-#_      {#include block.RemoveFromFoodSupport}#^
+#_      {#include block.DepartureAdministration}#^
 #_      {#newline}#^
 #_      {#include block.IncomingBasis}#^
 #_      {#include block.OptionalVacationTicket}#^
@@ -388,9 +381,7 @@
       <![CDATA[#^
 #_      {#include block.PersonLineUpper}#^
 #_      {#include block.VacationDestinationPeriod}#^
-#_      {#newline}#^
-#_      {#include block.AssignToDuty}#^
-#_      {#include block.RemoveFromFoodSupport}#^
+#_      {#include block.DepartureAdministration}#^
 #_      {#newline}#^
 #_      {#include block.IncomingBasis}#^
 #_      {#include block.OptionalVlkCertificate}#^
