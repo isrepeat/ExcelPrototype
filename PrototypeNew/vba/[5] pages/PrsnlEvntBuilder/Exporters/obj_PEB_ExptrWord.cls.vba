@@ -77,13 +77,15 @@ Private Const WORD_NESTED_GROUP_BOOKMARK_PREFIX As String = "PEN_"
 Private Const WORD_ALIAS_DATE_TO_SHORT As String = "DateToShort"
 Private Const WORD_ALIAS_VACATION_DAYS As String = "VacationDays"
 Private Const WORD_ALIAS_VACATION_DURATION_PHRASE As String = "VacationDurationPhrase"
-Private Const WORD_ALIAS_ADDITIONAL_WAY_DAYS As String = "AdditionalWayDays"
+Private Const WORD_ALIAS_ADDITIONAL_DURATION_PHRASES As String = "AdditionalDurationPhrases"
 Private Const WORD_ALIAS_VACATION_TOTAL_DAYS As String = "VacationTotalDays"
 Private Const WORD_ALIAS_VACATION_DATES_SAME_MONTH As String = "VacationDatesSameMonth"
 Private Const WORD_ALIAS_VACATION_DATES_SAME_YEAR As String = "VacationDatesSameYear"
 Private Const WORD_ALIAS_ENROLL_TO_FOOD_SUPPORT_DATE As String = "EnrollToFoodSupportDateShort"
 Private Const WORD_ALIAS_REMOVE_FROM_FOOD_SUPPORT_DATE As String = "RemoveFromFoodSupportDateShort"
 Private Const WORD_ALIAS_REQUIRES_FOOD_SUPPORT_CHANGE As String = "RequiresFoodSupportChange"
+Private Const WORD_ALIAS_REQUIRES_FOOD_SUPPORT_ENROLL As String = "RequiresFoodSupportEnroll"
+Private Const WORD_ALIAS_REQUIRES_FOOD_SUPPORT_REMOVE As String = "RequiresFoodSupportRemove"
 Private Const WORD_ALIAS_PREV_VACATION_TICKET_NO As String = "PrevVacationTicketNo"
 Private Const WORD_ALIAS_PREV_VACATION_TICKET_DATE_SHORT As String = "PrevVacationTicketDateShort"
 
@@ -1335,9 +1337,11 @@ Private Function private_TryEnrichMainSourceTableForWord( _
     Dim enrollToFoodSupportDateText As String
     Dim foodSupportDateValue As Date
     Dim requiresFoodSupportChange As Boolean
+    Dim requiresFoodSupportEnroll As Boolean
+    Dim requiresFoodSupportRemove As Boolean
     Dim vacationTotalDays As Long
     Dim vacationDays As Long
-    Dim additionalWayDays As Long
+    Dim additionalDurationPhrases As String
     Dim vacationDateTo As Date
     Dim builderData As obj_PrsnlEvntBuilderData
     Dim uaLocationInflector As obj_IUaInflector
@@ -1568,20 +1572,21 @@ Private Function private_TryEnrichMainSourceTableForWord( _
     sectionTypeText = private_GetContextText(context, CONTEXT_SECTION_TYPE)
     If VBA.Len(sectionTypeText) = 0 Then sectionTypeText = VBA.Trim$(sourceTable.SectionTitle)
 
-    ' Продолжительность отпуска храним в контексте тремя отдельными числами.
-    ' Например, "15+4 (дорога)" превращается в 15 дней отпуска, 4 дня дороги
-    ' и 19 календарных дней общего периода. Исходную пользовательскую строку
-    ' шаблон больше не выводит.
+    ' Первый операнд задаёт отпуск, каждый следующий +N — отдельный
+    ' дополнительный период. Причина в скобках определяет самостоятельный
+    ' текстовый оборот, а общий срок включает все операнды.
     If VBA.Len(VBA.Trim$(durationDaysText)) > 0 Then
         If Not private_TryParseVacationDuration( _
-            durationDaysText, vacationDays, additionalWayDays, vacationTotalDays) Then Exit Function
+            durationDaysText, vacationDays, additionalDurationPhrases, _
+            vacationTotalDays) Then Exit Function
         If Not private_TryUpsertMainTableValue( _
             sourceTable, WORD_ALIAS_VACATION_DAYS, VBA.CStr(vacationDays)) Then Exit Function
         If Not private_TryUpsertMainTableValue( _
             sourceTable, WORD_ALIAS_VACATION_DURATION_PHRASE, _
             private_FormatVacationDurationPhrase(vacationDays)) Then Exit Function
         If Not private_TryUpsertMainTableValue( _
-            sourceTable, WORD_ALIAS_ADDITIONAL_WAY_DAYS, VBA.CStr(additionalWayDays)) Then Exit Function
+            sourceTable, WORD_ALIAS_ADDITIONAL_DURATION_PHRASES, _
+            additionalDurationPhrases) Then Exit Function
         If Not private_TryUpsertMainTableValue( _
             sourceTable, WORD_ALIAS_VACATION_TOTAL_DAYS, VBA.CStr(vacationTotalDays)) Then Exit Function
     End If
@@ -1590,11 +1595,19 @@ Private Function private_TryEnrichMainSourceTableForWord( _
     ' включительно: DateFrom + VacationTotalDays - 1. Окончательное отображение
     ' даты (месяц словами, "року", NBSP) по-прежнему задаёт XML-шаблон.
     Set builderData = New obj_PrsnlEvntBuilderData
-    requiresFoodSupportChange = private_RequiresFoodSupportChange( _
-        sectionTypeText, hospitalShortText, builderData)
+    private_ResolveFoodSupportChange _
+        sectionTypeText, hospitalShortText, destinationText, builderData, _
+        requiresFoodSupportEnroll, requiresFoodSupportRemove
+    requiresFoodSupportChange = requiresFoodSupportEnroll Or requiresFoodSupportRemove
     If Not private_TryUpsertMainTableValue( _
         sourceTable, WORD_ALIAS_REQUIRES_FOOD_SUPPORT_CHANGE, _
         VBA.CStr(requiresFoodSupportChange)) Then Exit Function
+    If Not private_TryUpsertMainTableValue( _
+        sourceTable, WORD_ALIAS_REQUIRES_FOOD_SUPPORT_ENROLL, _
+        VBA.CStr(requiresFoodSupportEnroll)) Then Exit Function
+    If Not private_TryUpsertMainTableValue( _
+        sourceTable, WORD_ALIAS_REQUIRES_FOOD_SUPPORT_REMOVE, _
+        VBA.CStr(requiresFoodSupportRemove)) Then Exit Function
 
     If builderData.UsesMovementVacationDestination(sectionTypeText) Then
         If hasDateFrom Then
@@ -1641,30 +1654,148 @@ Private Function private_TryEnrichMainSourceTableForWord( _
     private_TryEnrichMainSourceTableForWord = True
 End Function
 
-Private Function private_RequiresFoodSupportChange( _
+Private Sub private_ResolveFoodSupportChange( _
     ByVal sectionTypeText As String, _
     ByVal hospitalShortText As String, _
-    ByVal builderData As obj_PrsnlEvntBuilderData _
-) As Boolean
+    ByVal destinationText As String, _
+    ByVal builderData As obj_PrsnlEvntBuilderData, _
+    ByRef requiresEnroll As Boolean, _
+    ByRef requiresRemove As Boolean _
+)
     Dim normalizedSectionType As String
-    Dim normalizedHospital As String
+    Dim transferParts() As String
+    Dim sourceIsInternal As Boolean
+    Dim destinationIsInternal As Boolean
+    Dim isArrival As Boolean
 
-    If builderData Is Nothing Then Exit Function
+    requiresEnroll = False
+    requiresRemove = False
+    If builderData Is Nothing Then Exit Sub
+
     normalizedSectionType = VBA.LCase$(VBA.Trim$(sectionTypeText))
-    Select Case normalizedSectionType
-        Case VBA.LCase$(builderData.SectionTypeTransferMedicalCompanyToTreatment), _
-             VBA.LCase$(builderData.SectionTypeTransferMedicalCompanyToTreatmentVacation), _
-             VBA.LCase$(builderData.SectionTypeTransferMedicalCompanyTreatmentToTreatmentVacation), _
-             VBA.LCase$(builderData.SectionTypeTransferMedicalCompanyTreatmentVacationToTreatment)
-            Exit Function
-    End Select
+    If VBA.InStr(1, normalizedSectionType, "=>", VBA.vbBinaryCompare) > 0 Then
+        transferParts = VBA.Split(normalizedSectionType, "=>")
+        If UBound(transferParts) <> 1 Then Exit Sub
 
-    normalizedHospital = VBA.LCase$(VBA.Trim$(hospitalShortText))
-    If VBA.InStr(1, normalizedHospital, "медичн", VBA.vbTextCompare) > 0 And _
-        VBA.InStr(1, normalizedHospital, "рот", VBA.vbTextCompare) > 0 And _
-        VBA.InStr(1, normalizedHospital, "а7383", VBA.vbTextCompare) > 0 Then Exit Function
+        sourceIsInternal = private_IsInternalTransferSource( _
+            transferParts(0), hospitalShortText)
+        destinationIsInternal = private_IsInternalTransferDestination( _
+            transferParts(1), hospitalShortText, destinationText)
 
-    private_RequiresFoodSupportChange = True
+        requiresRemove = sourceIsInternal And Not destinationIsInternal
+        requiresEnroll = Not sourceIsInternal And destinationIsInternal
+        Exit Sub
+    End If
+
+    isArrival = builderData.IsMovementClosingSectionType(sectionTypeText)
+    If private_IsInternalTreatmentSide( _
+        normalizedSectionType, hospitalShortText, destinationText) Then Exit Sub
+
+    requiresEnroll = isArrival
+    requiresRemove = Not isArrival
+End Sub
+
+Private Function private_IsInternalTransferSource( _
+    ByVal sectionSideText As String, _
+    ByVal hospitalShortText As String _
+) As Boolean
+    Dim normalizedSide As String
+
+    normalizedSide = VBA.LCase$(VBA.Trim$(sectionSideText))
+    If private_IsMedicalCompanyText(normalizedSide) Or _
+        private_IsAmbulatoryTreatmentText(normalizedSide) Then
+        private_IsInternalTransferSource = True
+    ElseIf normalizedSide = "лікування" Then
+        private_IsInternalTransferSource = _
+            private_IsMedicalCompanyText(VBA.LCase$(hospitalShortText)) Or _
+            private_IsAmbulatoryTreatmentText(VBA.LCase$(hospitalShortText))
+    End If
+End Function
+
+Private Function private_IsInternalTransferDestination( _
+    ByVal sectionSideText As String, _
+    ByVal hospitalShortText As String, _
+    ByVal destinationText As String _
+) As Boolean
+    Dim normalizedSide As String
+    Dim normalizedPlace As String
+
+    normalizedSide = VBA.LCase$(VBA.Trim$(sectionSideText))
+    If private_IsMedicalCompanyText(normalizedSide) Or _
+        private_IsAmbulatoryTreatmentText(normalizedSide) Then
+        private_IsInternalTransferDestination = True
+        Exit Function
+    End If
+
+    If normalizedSide = "лікування" Then
+        normalizedPlace = VBA.LCase$(VBA.Trim$(hospitalShortText))
+    ElseIf VBA.InStr(1, normalizedSide, "відпуст", VBA.vbTextCompare) > 0 And _
+        VBA.InStr(1, normalizedSide, "лікуван", VBA.vbTextCompare) > 0 Then
+        normalizedPlace = VBA.LCase$(VBA.Trim$(destinationText))
+    End If
+
+    private_IsInternalTransferDestination = _
+        private_IsMedicalCompanyText(normalizedPlace) Or _
+        private_IsAmbulatoryTreatmentText(normalizedPlace)
+End Function
+
+Private Function private_IsInternalTreatmentSide( _
+    ByVal sectionSideText As String, _
+    ByVal hospitalShortText As String, _
+    ByVal destinationText As String _
+) As Boolean
+    Dim normalizedSide As String
+    Dim normalizedPlace As String
+
+    normalizedSide = VBA.LCase$(VBA.Trim$(sectionSideText))
+    normalizedPlace = VBA.LCase$(VBA.Trim$(hospitalShortText & " " & destinationText))
+
+    If private_IsMedicalCompanyText(normalizedSide) Or _
+        private_IsAmbulatoryTreatmentText(normalizedSide) Then
+        private_IsInternalTreatmentSide = True
+        Exit Function
+    End If
+
+    ' Для общих секций «лікування» и «відпустка для лікування» место
+    ' определяется выбранной больницей/направлением. Медрота без номера
+    ' считается медротой А7383; явно указанная другая часть — внешнее место.
+    If VBA.InStr(1, normalizedSide, "лікуван", VBA.vbTextCompare) > 0 Then
+        private_IsInternalTreatmentSide = _
+            private_IsMedicalCompanyText(normalizedPlace) Or _
+            private_IsAmbulatoryTreatmentText(normalizedPlace)
+    End If
+End Function
+
+Private Function private_IsMedicalCompanyText(ByVal normalizedText As String) As Boolean
+    Dim unitRx As Object
+    Dim unitMatches As Object
+    Dim normalizedUnitNo As String
+
+    If VBA.InStr(1, normalizedText, "медичн", VBA.vbTextCompare) = 0 Or _
+        VBA.InStr(1, normalizedText, "рот", VBA.vbTextCompare) = 0 Then Exit Function
+
+    ' Медрота без номера части означает медроту А7383. Если номер указан
+    ' явно, внутренней считается только медрота нашей воинской части.
+    Set unitRx = VBA.CreateObject("VBScript.RegExp")
+    unitRx.Global = False
+    unitRx.IgnoreCase = True
+    unitRx.Pattern = "[АA]\s*\d{4}"
+    Set unitMatches = unitRx.Execute(normalizedText)
+    If unitMatches.Count = 0 Then
+        private_IsMedicalCompanyText = True
+        Exit Function
+    End If
+
+    normalizedUnitNo = VBA.Replace$( _
+        VBA.LCase$(VBA.CStr(unitMatches(0).Value)), " ", VBA.vbNullString)
+    private_IsMedicalCompanyText = _
+        normalizedUnitNo = "а7383" Or normalizedUnitNo = "a7383"
+End Function
+
+Private Function private_IsAmbulatoryTreatmentText(ByVal normalizedText As String) As Boolean
+    private_IsAmbulatoryTreatmentText = _
+        VBA.InStr(1, normalizedText, "амбулатор", VBA.vbTextCompare) > 0 And _
+        VBA.InStr(1, normalizedText, "лікуван", VBA.vbTextCompare) > 0
 End Function
 
 Private Function private_TryEnrichPreviousVacationTicketForWord( _
@@ -1853,14 +1984,19 @@ End Function
 Private Function private_TryParseVacationDuration( _
     ByVal durationText As String, _
     ByRef outVacationDays As Long, _
-    ByRef outAdditionalWayDays As Long, _
+    ByRef outAdditionalPhrases As String, _
     ByRef outTotalDays As Long _
 ) As Boolean
-    Dim rx As Object
+    Dim fullRx As Object
+    Dim operandRx As Object
     Dim matches As Object
+    Dim operandMatch As Object
+    Dim additionalDays As Long
+    Dim reasonText As String
+    Dim phraseText As String
 
     outVacationDays = 0
-    outAdditionalWayDays = 0
+    outAdditionalPhrases = VBA.vbNullString
     outTotalDays = 0
     durationText = VBA.Trim$(durationText)
     If VBA.Len(durationText) = 0 Then
@@ -1869,30 +2005,98 @@ Private Function private_TryParseVacationDuration( _
     End If
 
     On Error GoTo EH
-    ' Первое число — количество дней самого отпуска. Первое число после плюса
-    ' — дополнительные дни на дорогу. Текст после второго числа не учитывается.
-    ' Для совместимости также принимается прежняя форма "20 (2)".
-    Set rx = VBA.CreateObject("VBScript.RegExp")
-    rx.Global = False
-    rx.IgnoreCase = True
-    rx.Pattern = "^\s*(\d+)(?:\s*(?:\+|\()\s*(\d+))?"
-    Set matches = rx.Execute(durationText)
+    ' Поддерживается основной срок и произвольное число операндов +N.
+    ' Причина каждого дополнительного периода опциональна, но если указана,
+    ' должна принадлежать известному набору.
+    Set fullRx = VBA.CreateObject("VBScript.RegExp")
+    fullRx.Global = False
+    fullRx.IgnoreCase = True
+    fullRx.Pattern = "^\s*(\d+)((?:\s*\+\s*\d+(?:\s*\([^)]*\))?)*)\s*$"
+    Set matches = fullRx.Execute(durationText)
     If matches.Count = 0 Then
-        VBA.MsgBox "PrototypeNew: unsupported vacation duration: '" & durationText & "'. Expected, for example, '15' or '15+4 (дорога)'.", _
+        VBA.MsgBox "PrototypeNew: unsupported vacation duration: '" & _
+            durationText & "'. Expected, for example, " & _
+            "'15+2 (дорога) +1 (донація крові)'.", _
             VBA.vbExclamation, "PrototypeNew / WORD export"
         Exit Function
     End If
 
     outVacationDays = VBA.CLng(matches(0).SubMatches(0))
-    If VBA.Len(VBA.CStr(matches(0).SubMatches(1))) > 0 Then
-        outAdditionalWayDays = VBA.CLng(matches(0).SubMatches(1))
-    End If
-    outTotalDays = outVacationDays + outAdditionalWayDays
+    outTotalDays = outVacationDays
+
+    Set operandRx = VBA.CreateObject("VBScript.RegExp")
+    operandRx.Global = True
+    operandRx.IgnoreCase = True
+    operandRx.Pattern = "\+\s*(\d+)(?:\s*\(([^)]*)\))?"
+    Set matches = operandRx.Execute(durationText)
+    For Each operandMatch In matches
+        additionalDays = VBA.CLng(operandMatch.SubMatches(0))
+        reasonText = VBA.LCase$(VBA.Trim$( _
+            VBA.CStr(operandMatch.SubMatches(1))))
+        If Not private_TryFormatAdditionalDurationPhrase( _
+            additionalDays, reasonText, phraseText) Then Exit Function
+        outAdditionalPhrases = outAdditionalPhrases & phraseText
+        outTotalDays = outTotalDays + additionalDays
+    Next operandMatch
+    If VBA.Len(outAdditionalPhrases) > 0 Then _
+        outAdditionalPhrases = outAdditionalPhrases & ","
     private_TryParseVacationDuration = True
     Exit Function
 
 EH:
     VBA.MsgBox "PrototypeNew: failed to calculate vacation duration from '" & durationText & "': " & Err.Description, VBA.vbExclamation, "PrototypeNew / WORD export"
+End Function
+
+Private Function private_TryFormatAdditionalDurationPhrase( _
+    ByVal additionalDays As Long, _
+    ByVal reasonText As String, _
+    ByRef outPhrase As String _
+) As Boolean
+    Dim daysText As String
+    Dim agreementText As String
+
+    outPhrase = VBA.vbNullString
+    If additionalDays <= 0 Then
+        VBA.MsgBox "PrototypeNew: additional vacation days must be greater " & _
+            "than zero.", VBA.vbExclamation, "PrototypeNew / WORD export"
+        Exit Function
+    End If
+
+    If additionalDays = 1 Then
+        daysText = "1 доби"
+    Else
+        daysText = VBA.CStr(additionalDays) & " діб"
+    End If
+
+    Select Case reasonText
+        Case "дорога"
+            If additionalDays = 1 Then
+                agreementText = "необхідної"
+            Else
+                agreementText = "необхідних"
+            End If
+            outPhrase = ", без урахування " & daysText & ", " & _
+                agreementText & " для проїзду до місця проведення " & _
+                "відпустки та у зворотному напрямку"
+        Case "донація", "донація крові"
+            If additionalDays = 1 Then
+                agreementText = "наданої"
+            Else
+                agreementText = "наданих"
+            End If
+            outPhrase = ", без урахування " & daysText & ", " & _
+                agreementText & " за донацію крові"
+        Case VBA.vbNullString
+            outPhrase = ", без урахування " & daysText
+        Case Else
+            VBA.MsgBox "PrototypeNew: unsupported additional vacation " & _
+                "reason: '" & reasonText & "'. Supported reasons: " & _
+                "'дорога', 'донація крові', 'донація'.", _
+                VBA.vbExclamation, "PrototypeNew / WORD export"
+            Exit Function
+    End Select
+
+    private_TryFormatAdditionalDurationPhrase = True
 End Function
 
 Private Function private_TryAppendMovementTvoTablesForReturn( _
