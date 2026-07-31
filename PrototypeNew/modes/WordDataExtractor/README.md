@@ -267,6 +267,16 @@ rank-aware rules. Нельзя создавать локальную сокра�
 опциональные дни проезда из оборота `без урахування N діб`. В таблицу значение
 выводится как `15 + 4`; если дорожных дней нет, остаётся обычное `15`.
 
+Для правила `excluded-from-personnel-lists` оборот
+`який перебуває на тимчасовому обліку військової частини ...` обозначает
+дистанционное исключение. В этом случае таблица дополнительно заполняет
+`Подія РУХ` значением `Повернення до іншої частини` и `Куди` номером части.
+При обычном исключении и при обороте о служебной командировке эти колонки
+остаются пустыми. Дата `Повернення із СЗЧ` вычисляется как следующий день
+после окончания указанного в этом же пункте включительного периода самовольного
+оставления части, а дата `Виключення` извлекается из формулировки об исключении
+из списков.
+
 Атрибуты `field`:
 
 - `id` — имя поля, доступное как `$id`;
@@ -285,6 +295,7 @@ rank-aware rules. Нельзя создавать локальную сокра�
 - `<transform type="regexReplace" pattern="\s+" with=" "/>`
 - `<transform type="regexReplace" pattern="\s+" withToken="space"/>`
 - `<transform type="dateFormat" format="dd.mm.yyyy"/>`
+- `<transform type="dateAddDays" days="1" format="dd.mm.yyyy"/>`
 - `<transform type="dateRangeStartFormat" format="dd.mm.yyyy"/>`
 - `<transform type="orderedTripCredential" indexFrom="$matchIndex"/>`
 - `<transform type="orderedRangeReplace" indexFrom="$matchIndex" pattern="..."

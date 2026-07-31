@@ -722,9 +722,26 @@
           <field id="ipn" from="$match" regex=",\s*(\d{10})\s*," group="1" default=""><transform type="trim"/></field>
           <field id="eventDate" from="$match" regex="(?:вважати\s+та(?:ким|кою),\s*що\s+|\r\s*)з\s+(\d{1,2}(?:[.\-/]\d{1,2}[.\-/]\d{2,4}|\s+[а-яіїєґ]+\s+\d{4}\s+року))(?:(?!Підстава:)[\s\S])*?(?:виключен(?:ий|а)|виключити)\s+зі\s+списків" group="1" default=""><transform type="dateFormat" format="dd.mm.yyyy"/></field>
           <field id="foodRemovalDate" from="$match" regex="з\s+продовольчого\s+забезпечення\s+з\s+(\d{1,2}(?:[.\-/]\d{1,2}[.\-/]\d{2,4}|\s+[а-яіїєґ]+\s+\d{4}\s+року))" group="1" default=""><transform type="dateFormat" format="dd.mm.yyyy"/></field>
+          <!-- Временный учёт в другой части означает дистанционное исключение.
+               Часть назначения и proxy-событие нужны для закрытия в РУХ
+               периода после возвращения из СЗЧ. Для обычного исключения и
+               служебной командировки оба поля остаются пустыми. -->
+          <field id="remoteUnit" from="$match" ignoreCase="true"
+            regex="який\s+перебуває\s+на\s+тимчасовому\s+обліку\s+(?:у\s+|в\s+)?військов(?:ої|ій)\s+частин(?:и|і)\s+(А\s*\d+)"
+            group="1" default="">
+            <transform type="upper"/>
+            <transform type="regexReplace" pattern="\s+" with=""/>
+          </field>
+          <field id="movementEvent" from="$remoteUnit" regex="^$"
+            group="0" default="Повернення до іншої частини"/>
+          <field id="awolReturnDate" from="$match" ignoreCase="true"
+            regex="який\s+перебуває\s+на\s+тимчасовому\s+обліку(?:(?!Підстава:)[\s\S])*?Період(?:и)?\s+з\s+\d{1,2}(?:[.\-/]\d{1,2}[.\-/]\d{2,4}|\s+[а-яіїєґ]+\s+\d{4}\s+року)(?:(?!Підстава:)[\s\S])*?\s+по\s+(\d{1,2}(?:[.\-/]\d{1,2}[.\-/]\d{2,4}|\s+[а-яіїєґ]+\s+\d{4}\s+року))\s+вважати\s+період(?:ом|ами)\s+самовільного\s+залишення"
+            group="1" default="">
+            <transform type="dateAddDays" days="1" format="dd.mm.yyyy"/>
+          </field>
           <field id="basis" from="$match" regex="Підстава:\s*([^\r]+)" group="1" default=""><transform type="trim"/></field>
         </fields>
-        <table><column id="fio" caption="ПІБ" value="$fio"/><column id="ipn" caption="ІПН" value="$ipn"/><column id="eventDate" caption="Вибуття" value="$eventDate"/><column id="foodRemovalDate" caption="З продовольчого" value="$foodRemovalDate"/><column id="basis" caption="Підстава" value="$basis"/></table>
+        <table><column id="fio" caption="ПІБ" value="$fio"/><column id="ipn" caption="ІПН" value="$ipn"/><column id="awolReturnDate" caption="Повернення із СЗЧ" value="$awolReturnDate" format="date"/><column id="eventDate" caption="Виключення" value="$eventDate"/><column id="foodRemovalDate" caption="З продовольчого" value="$foodRemovalDate"/><column id="movementEvent" caption="Подія РУХ" value="$movementEvent"/><column id="remoteUnit" caption="Куди" value="$remoteUnit"/><column id="basis" caption="Підстава" value="$basis"/></table>
       </rule>
 
       <rule id="departed-for-treatment" kind="section">
