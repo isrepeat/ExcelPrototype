@@ -598,9 +598,12 @@ Private Function private_TryBuildConflictNote( _
     If movementData Is Nothing Then Exit Function
     If rowIndex < 1 Or rowIndex > movementData.RowCount Then Exit Function
     eventText = VBA.Trim$(movementData.ValueAt(rowIndex, 2))
-    outDateText = VBA.Trim$(movementData.ValueAt(rowIndex, 4))
-    plannedReturnText = VBA.Trim$(movementData.ValueAt(rowIndex, 5))
-    returnDateText = VBA.Trim$(movementData.ValueAt(rowIndex, 6))
+    outDateText = private_FormatMovementDateText( _
+        movementData.ValueAt(rowIndex, 4))
+    plannedReturnText = private_FormatMovementDateText( _
+        movementData.ValueAt(rowIndex, 5))
+    returnDateText = private_FormatMovementDateText( _
+        movementData.ValueAt(rowIndex, 6))
     If VBA.Len(returnDateText) > 0 Then Exit Function
 
     Select Case VBA.LCase$(eventText)
@@ -615,6 +618,32 @@ Private Function private_TryBuildConflictNote( _
             Exit Function
     End Select
     private_TryBuildConflictNote = True
+End Function
+
+Private Function private_FormatMovementDateText( _
+    ByVal rawDateValue As Variant _
+) As String
+    Dim rawDateText As String
+    Dim serialDate As Double
+
+    If VBA.IsError(rawDateValue) Or VBA.IsNull(rawDateValue) Or _
+        VBA.IsEmpty(rawDateValue) Then Exit Function
+
+    rawDateText = VBA.Trim$(VBA.CStr(rawDateValue))
+    If VBA.Len(rawDateText) = 0 Then Exit Function
+
+    ' Формульная ячейка Movement через ADO может вернуть не отображаемую
+    ' дату, а её числовой Excel serial, например 46236.
+    If VBA.IsNumeric(rawDateValue) Then
+        serialDate = VBA.CDbl(rawDateValue)
+        If serialDate >= 1 And serialDate <= 2958465 Then
+            private_FormatMovementDateText = VBA.Format$( _
+                VBA.CDate(serialDate), "dd.mm.yyyy")
+            Exit Function
+        End If
+    End If
+
+    private_FormatMovementDateText = rawDateText
 End Function
 
 Private Function private_PushTaggedCell( _
