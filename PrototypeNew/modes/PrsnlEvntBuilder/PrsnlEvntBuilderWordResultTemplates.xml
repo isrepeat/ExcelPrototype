@@ -72,8 +72,7 @@
         <![CDATA[#^
 #_        {#space}у {[Destination]}#^
 #_        {#if [VacationDurationPhrase]}{#space}{[VacationDurationPhrase]}#^
-#_        {#if [AdditionalWayDays] == 1}, без урахування 1 доби, необхідної для проїзду до місця проведення відпустки та у зворотному напрямку,{#endif}#^
-#_        {#if [AdditionalWayDays] > 1}, без урахування {[AdditionalWayDays]} діб, необхідних для проїзду до місця проведення відпустки та у зворотному напрямку,{#endif}#^
+#_        {[AdditionalDurationPhrases]}#^
 #_        {#endif}#^
 #_        {#if [DateFromShort]}{#space}з {#if [VacationDatesSameMonth]}{[DateFromShort]|dateformat:"\dd"}{#else}{#if [VacationDatesSameYear]}{[DateFromShort]|dateformat:"\dd \month"}{#else}{[DateFromShort]|dateformat:"\dd \month \yyyy року"}{#endif}{#endif}{#endif}#^
 #_        {#if [DateToShort]}{#space}по {[DateToShort]|dateformat:"\dd \month \yyyy року"}{#endif}.#^
@@ -125,7 +124,7 @@
     <sharedTemplate id="block.EnrollToFoodSupport">
       <text>
         <![CDATA[#^
-#_        {#if [RequiresFoodSupportChange]}Зарахувати на продовольче забезпечення#^
+#_        {#if [RequiresFoodSupportEnroll]}Зарахувати на продовольче забезпечення#^
 #_        {#space}з {[EnrollToFoodSupportDateShort]|dateformat:"\dd \month \yyyy року"}.{#endif}#^
         ]]>
       </text>
@@ -134,8 +133,17 @@
     <sharedTemplate id="block.RemoveFromFoodSupport">
       <text>
         <![CDATA[#^
-#_        {#if [RequiresFoodSupportChange]}Зняти з продовольчого забезпечення#^
+#_        {#if [RequiresFoodSupportRemove]}Зняти з продовольчого забезпечення#^
 #_        {#space}з {[RemoveFromFoodSupportDateShort]|dateformat:"\dd \month \yyyy року"}.{#endif}#^
+        ]]>
+      </text>
+    </sharedTemplate>
+
+    <sharedTemplate id="block.StatusChangeFoodSupport">
+      <text>
+        <![CDATA[#^
+#_        {#include block.EnrollToFoodSupport}#^
+#_        {#include block.RemoveFromFoodSupport}#^
         ]]>
       </text>
     </sharedTemplate>
@@ -411,6 +419,7 @@
 #_      який перебував на лікуванні у {[HospitalDative]|lowerFirstLetter}, вважати таким, що вибув у відпустку для лікування#^
 #_      {#include block.VacationDestinationPeriod}#^
 #_      {#newline}#^
+#_      {#include block.StatusChangeFoodSupport}#^
 #_      {#include block.IncomingBasis}#^
 #_      {#include block.OptionalVlkCertificate}#^
 #_      {#include block.OptionalBasisDocuments}#^
@@ -427,6 +436,7 @@
 #_      який перебував у відпустці для лікування, вважати таким, що вибув у відпустку для лікування#^
 #_      {#include block.VacationDestinationPeriod}#^
 #_      {#newline}#^
+#_      {#include block.StatusChangeFoodSupport}#^
 #_      {#include block.IncomingBasis}#^
 #_      {#include block.OptionalVlkCertificate}#^
 #_      {#include block.OptionalVacationTicket}#^
@@ -444,6 +454,7 @@
 #_      {#include block.StatusChangeDateFrom}#^
 #_      {#include block.OptionalFoodCertificate}#^
 #_      {#newline}#^
+#_      {#include block.StatusChangeFoodSupport}#^
 #_      {#include block.IncomingBasis}#^
 #_      {#include block.OptionalBasisDocuments}#^
 #_      {#include block.OptionalPreviousVacationTicket}#^
@@ -460,6 +471,7 @@
 #_      {#include block.StatusChangeDateFrom}#^
 #_      {#include block.OptionalFoodCertificate}#^
 #_      {#newline}#^
+#_      {#include block.StatusChangeFoodSupport}#^
 #_      {#include block.IncomingBasis}#^
 #_      {#include block.OptionalBasisDocuments}#^
 #_      {#include block.OptionalPreviousVacationTicket}#^
@@ -476,6 +488,7 @@
 #_      {#if [HospitalAccusative]}{#space}у {[HospitalAccusative]|lowerFirstLetter}{#endif}#^
 #_      {#include block.StatusChangeDateFrom}#^
 #_      {#newline}#^
+#_      {#include block.StatusChangeFoodSupport}#^
 #_      {#include block.IncomingBasis}#^
 #_      {#include block.OptionalBasisDocuments}#^
 #_      {#include block.OptionalPreviousVacationTicket}#^
@@ -491,6 +504,7 @@
 #_      який перебував на медичному огляді військово-лікарської комісії, вважати таким, що вибув у відпустку для лікування#^
 #_      {#include block.VacationDestinationPeriod}#^
 #_      {#newline}#^
+#_      {#include block.StatusChangeFoodSupport}#^
 #_      {#include block.IncomingBasis}#^
 #_      {#include block.OptionalVlkCertificate}#^
 #_      {#include block.OptionalVacationTicket}#^
@@ -507,6 +521,7 @@
 #_      {#include block.StatusChangeDateFrom}#^
 #_      {#include block.OptionalFoodCertificate}#^
 #_      {#newline}#^
+#_      {#include block.StatusChangeFoodSupport}#^
 #_      {#include block.IncomingBasis}#^
 #_      {#include block.OptionalVlkCertificate}#^
 #_      {#include block.OptionalBasisDocuments}#^
@@ -522,7 +537,7 @@
 #_      який перебував на лікуванні у медичній роті, вважати таким, що вибув на лікування у {[HospitalAccusative]|lowerFirstLetter}#^
 #_      {#include block.StatusChangeDateFrom}#^
 #_      {#newline}#^
-#_      {#include block.RemoveFromFoodSupport}#^
+#_      {#include block.StatusChangeFoodSupport}#^
 #_      {#include block.OptionalFoodCertificate}#^
 #_      {#newline}#^
 #_      {#include block.IncomingBasis}#^
@@ -539,7 +554,7 @@
 #_      який перебував на лікуванні в медичній роті, вважати таким, що вибув у відпустку для лікування#^
 #_      {#include block.VacationDestinationPeriod}#^
 #_      {#newline}#^
-#_      {#include block.RemoveFromFoodSupport}#^
+#_      {#include block.StatusChangeFoodSupport}#^
 #_      {#newline}#^
 #_      {#include block.IncomingBasis}#^
 #_      {#include block.OptionalVlkCertificate}#^
@@ -557,7 +572,7 @@
 #_      який перебував у відпустці для лікування в медичній роті, вважати таким, що вибув на лікування у {[HospitalAccusative]|lowerFirstLetter}#^
 #_      {#include block.StatusChangeDateFrom}#^
 #_      {#newline}#^
-#_      {#include block.RemoveFromFoodSupport}#^
+#_      {#include block.StatusChangeFoodSupport}#^
 #_      {#include block.OptionalFoodCertificate}#^
 #_      {#newline}#^
 #_      {#include block.IncomingBasis}#^
@@ -575,7 +590,7 @@
 #_      який перебував у відпустці для лікування у медичній роті, вважати таким, що вибув у відпустку для лікування#^
 #_      {#include block.VacationDestinationPeriod}#^
 #_      {#newline}#^
-#_      {#include block.RemoveFromFoodSupport}#^
+#_      {#include block.StatusChangeFoodSupport}#^
 #_      {#newline}#^
 #_      {#include block.IncomingBasis}#^
 #_      {#include block.OptionalVlkCertificate}#^
@@ -594,6 +609,7 @@
 #_      який перебував у щорічній основній відпустці, вважати таким, що вибув у відпустку за сімейними обставинами#^
 #_      {#include block.VacationDestinationPeriod}#^
 #_      {#newline}#^
+#_      {#include block.StatusChangeFoodSupport}#^
 #_      {#include block.IncomingBasis}#^
 #_      {#include block.OptionalBasisDocuments}#^
 #_      {#include block.OptionalVacationTicket}#^
@@ -610,6 +626,7 @@
 #_      який перебував у відпустці за сімейними обставинами, вважати таким, що вибув у щорічну основну відпустку#^
 #_      {#include block.VacationDestinationPeriod}#^
 #_      {#newline}#^
+#_      {#include block.StatusChangeFoodSupport}#^
 #_      {#include block.IncomingBasis}#^
 #_      {#include block.OptionalBasisDocuments}#^
 #_      {#include block.OptionalVacationTicket}#^
@@ -627,6 +644,7 @@
 #_      {#if [HospitalAccusative]}{#space}у {[HospitalAccusative]|lowerFirstLetter}{#endif}#^
 #_      {#include block.StatusChangeDateFrom}#^
 #_      {#newline}#^
+#_      {#include block.StatusChangeFoodSupport}#^
 #_      {#include block.IncomingBasis}#^
 #_      {#include block.OptionalBasisDocuments}#^
 #_      .{#newline}{#newline}#^
@@ -642,6 +660,7 @@
 #_      {#include block.StatusChangeDateFrom}#^
 #_      {#include block.OptionalFoodCertificate}#^
 #_      {#newline}#^
+#_      {#include block.StatusChangeFoodSupport}#^
 #_      {#include block.IncomingBasis}#^
 #_      {#include block.OptionalBasisDocuments}#^
 #_      {#include block.OptionalPreviousVacationTicket}#^
@@ -657,6 +676,7 @@
 #_      який перебував на стаціонарному медичному огляді військово-лікарської комісії, вважати таким, що вибув у відпустку для лікування#^
 #_      {#include block.VacationDestinationPeriod}#^
 #_      {#newline}#^
+#_      {#include block.StatusChangeFoodSupport}#^
 #_      {#include block.IncomingBasis}#^
 #_      {#include block.OptionalVlkCertificate}#^
 #_      {#include block.OptionalVacationTicket}#^
