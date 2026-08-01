@@ -174,6 +174,37 @@ Public Function SearchCandidates( _
     SearchCandidates = private_SearchCandidates(lookupKey, queryText, outCandidateCount, notifyChange)
 End Function
 
+' Показывает уже подготовленные host-страницей данные через тот же layout,
+' который используется обычным EntityLookup. Источник должен содержать алиасы
+' полей активной формы; остальные колонки будут показаны как справочные.
+Public Function ShowPreparedCandidates( _
+    ByVal lookupKey As String, _
+    ByVal searchColumnAlias As String, _
+    ByVal sectionTitle As String, _
+    ByVal candidateDataTable As obj_TableDynamic, _
+    Optional ByVal notifyChange As Boolean = True _
+) As Boolean
+    If candidateDataTable Is Nothing Then Exit Function
+    If m_ActiveFormColumnAliases Is Nothing Then Exit Function
+
+    Set m_CandidateTable = Nothing
+    Set m_CandidateDataTable = candidateDataTable
+    m_ActiveLookupKey = VBA.Trim$(lookupKey)
+    m_ActiveSearchColumnAlias = VBA.Trim$(searchColumnAlias)
+    If VBA.Len(m_ActiveLookupKey) = 0 Or _
+       VBA.Len(m_ActiveSearchColumnAlias) = 0 Then Exit Function
+
+    If Not private_ProjectCandidateTable( _
+        m_CandidateDataTable, m_CandidateTable) Then Exit Function
+    m_CandidateTable.SectionTitle = VBA.Trim$(sectionTitle)
+    If Not private_RegisterCandidateTables(False) Then Exit Function
+    If notifyChange Then
+        If Not rt_PageManager.fn_RenderPage( _
+            m_Page, private_BuildRenderReason("prepared-candidates")) Then Exit Function
+    End If
+    ShowPreparedCandidates = True
+End Function
+
 Public Function TryGetFormColumnKeys(ByRef outColumnKeys As Collection) As Boolean
     Set outColumnKeys = Nothing
     If m_EntityLookupCfgParser Is Nothing Then Exit Function

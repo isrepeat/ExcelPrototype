@@ -45,6 +45,7 @@ Private Const EXPORT_FORM_MAIN_RUNTIME_KEY As String = "RuntimeItems.PrsnlEvntBu
 Private Const EXPORT_FORM_META_RUNTIME_KEY As String = "RuntimeItems.PrsnlEvntBuilder.ExportForm.Meta"
 Private Const MOVEMENT_HISTORY_RUNTIME_KEY As String = "RuntimeItems.PrsnlEvntBuilder.MovementHistory"
 Private Const HOTKEY_ACCEPT_CANDIDATE_ROW As String = "Accept Candidate Row"
+Private Const HOTKEY_REPORT_TVO_CANDIDATES As String = "Report TVO Candidates"
 Private Const HOTKEY_SELECT_FORM_ROW As String = "Select Form Row"
 Private Const HOTKEY_APPLY_EXPORT_FORM As String = "Apply Export Form"
 Private Const HOTKEY_CLEAR_EXPORT_FORM As String = "Clear Export Form"
@@ -53,6 +54,7 @@ Private Const EXPORT_ACTION_PREFIX As String = "Export "
 Private Const MAX_EXPORT_HOTKEYS As Long = 9
 Private Const LOOKUP_CANDIDATES_CONTROL_NAME As String = "LookupCandidatesTable"
 Private Const FIO_LOOKUP_KEY As String = "op_FIO"
+Private Const COMMANDER_LOOKUP_KEY As String = "op_Commander"
 Private Const WORD_EXPORT_PANEL_CONTAINER_NAME As String = "WordExportPanel"
 Private Const WORD_EXPORT_ACTIONS_CONTAINER_NAME As String = "WordExportActions"
 Private Const WORD_EXPORT_PREVIEW_CONTROL_NAME As String = "WordExportPreview"
@@ -68,6 +70,7 @@ Private Const EXPORT_CONTEXT_WORD_PREVIEW_TEXT_KEY As String = "WordExportPrevie
 Private Const EXPORT_CONTEXT_VALIDATE_DAILY_SCOPE_KEY As String = "ValidateDailyScope"
 Private Const EXPORT_CONTEXT_VALIDATE_MOVEMENT_KEY As String = "ValidateMovement"
 Private Const EXPORT_CONTEXT_VALIDATE_WORD_KEY As String = "ValidateWord"
+Private Const EXPORT_CONTEXT_REPORT_IS_TVO_KEY As String = "ReportIsTvo"
 Private Const LOOKUP_MODE_CONTROL_NAME As String = "LookupMode"
 Private Const MOVEMENT_HISTORY_TABLE_CONTROL_NAME As String = "MovementHistoryTable"
 Private Const MOVEMENT_HISTORY_LIMIT_INPUT_NAME As String = "MovementHistoryLimitInput"
@@ -89,6 +92,7 @@ Private Const DRAFT_ALIAS_POSITION_CODE As String = "_PositionCode"
 Private Const DRAFT_ALIAS_POSITION_NAME As String = "_PositionName"
 Private Const DRAFT_ALIAS_DESTINATION As String = "_Destination"
 Private Const DRAFT_ALIAS_REPORT_RANK As String = "_ReportRank"
+Private Const DRAFT_ALIAS_REPORT_PERSON As String = "_ReportPerson"
 Private Const DRAFT_ALIAS_REPORT_POSITION_CODE As String = "_ReportPositionCode"
 Private Const DRAFT_ALIAS_INCOMING_NO As String = "_IncomingNo"
 Private Const DRAFT_ALIAS_INCOMING_DATE As String = "_IncomingDate"
@@ -110,6 +114,7 @@ Private m_SelectedProfile As String
 ' meta-таблиц, подготовленных кнопкой Apply перед передачей в экспортер.
 Private m_SelectedMainProfile As String
 Private m_ExportMainTable As obj_TableDynamic
+Private m_ExportMainReportIsTvo As Boolean
 Private m_ExportMetaTables As Collection
 Private m_MovementHistoryTable As obj_TableDynamic
 Private m_WordExportPreviewText As String
@@ -124,6 +129,9 @@ Private m_IsDailyScopeValidationEnabled As Boolean
 Private m_IsMovementValidationEnabled As Boolean
 Private m_IsWordValidationEnabled As Boolean
 Private m_IsMovementHistoryEnabled As Boolean
+Private m_DraftReportIsTvo As Boolean
+Private m_ReportOwnPositionCode As String
+Private m_IsReporterTvoCandidatesActive As Boolean
 Private m_SuppressLookupSearch As Boolean
 Private m_Data As obj_PrsnlEvntBuilderData
 Private m_IsDisposed As Boolean
@@ -242,11 +250,14 @@ Public Sub Dispose()
     m_SelectedProfile = VBA.vbNullString
     m_SelectedMainProfile = VBA.vbNullString
     Set m_ExportMainTable = Nothing
+    m_ExportMainReportIsTvo = False
     Set m_ExportMetaTables = Nothing
     Set m_MovementHistoryTable = Nothing
     m_WordExportPreviewText = VBA.vbNullString
     m_IsWordPreviewExportMode = False
     m_IsMovementHistoryEnabled = False
+    m_DraftReportIsTvo = False
+    m_ReportOwnPositionCode = VBA.vbNullString
     On Error GoTo 0
 End Sub
 
@@ -742,6 +753,7 @@ End Function
 
 Public Function ClearLookupCandidates(Optional ByVal renderNow As Boolean = True) As Boolean
     If m_LookupFeature Is Nothing Then Exit Function
+    m_IsReporterTvoCandidatesActive = False
     ClearLookupCandidates = m_LookupFeature.ClearLookupCandidates(renderNow)
 End Function
 
@@ -822,6 +834,14 @@ Public Function RuntimeHandleHotkeyAction(ByVal actionId As Variant) As Boolean
 
     ' Page-specific actions branch by stable action ids and read current sheet state.
     Select Case VBA.LCase$(actionText)
+        Case VBA.LCase$(HOTKEY_REPORT_TVO_CANDIDATES)
+            If Not private_TryShowReporterTvoCandidates(targetCell) Then
+                RuntimeHandleHotkeyAction = True
+                Exit Function
+            End If
+            RuntimeHandleHotkeyAction = True
+            Exit Function
+
         Case VBA.LCase$(HOTKEY_ACCEPT_CANDIDATE_ROW)
             ' Любой выбранный Lookup-кандидат меняет данные, из которых был
             ' построен WORD preview: ФИО, больницу, рапортующего или документ.
@@ -914,6 +934,104 @@ Private Function private_IsFioCandidatesContext() As Boolean
             VBA.Trim$(lookupKey), _
             FIO_LOOKUP_KEY, _
             VBA.vbTextCompare) = 0)
+End Function
+
+Private Function private_IsReporterTvoCandidatesContext() As Boolean
+    private_IsReporterTvoCandidatesContext = _
+        m_IsReporterTvoCandidatesActive
+End Function
+
+Private Function private_TryShowReporterTvoCandidates( _
+    ByVal targetCell As Range _
+) As Boolean
+    Dim pageBase As obj_PageBase
+    Dim positionCodeRange As Range
+    Dim candidates As obj_TableDynamic
+    Dim currentPositionCode As String
+    Dim lookupPositionCode As String
+
+    m_IsReporterTvoCandidatesActive = False
+    If targetCell Is Nothing Then Exit Function
+    If m_Page Is Nothing Then Exit Function
+    Set pageBase = m_Page.GetPageBase()
+    If pageBase Is Nothing Then Exit Function
+    If Not pageBase.TryGetFirstLayoutTagRange( _
+        DRAFT_ALIAS_REPORT_POSITION_CODE, positionCodeRange, "visible") Then Exit Function
+    If positionCodeRange Is Nothing Then Exit Function
+    If Application.Intersect(targetCell, positionCodeRange) Is Nothing Then
+        VBA.MsgBox "Для вибору посади ТВО виділіть поле 'Код посади (рапорт)' " & _
+            "та натисніть Ctrl+.", VBA.vbExclamation, "PrsnlEventBuilder / ТВО"
+        Exit Function
+    End If
+
+    currentPositionCode = VBA.Trim$(VBA.CStr(positionCodeRange.Cells(1, 1).Value2))
+    lookupPositionCode = currentPositionCode
+    If m_DraftReportIsTvo And VBA.Len(VBA.Trim$(m_ReportOwnPositionCode)) > 0 Then
+        lookupPositionCode = m_ReportOwnPositionCode
+    End If
+    If Not private_TryEnsureExporterCfgDataProvider() Then Exit Function
+    If Not m_ExporterCfgDataProvider.TryGetReporterTvoPositionCandidates( _
+        lookupPositionCode, candidates) Then Exit Function
+    If Not private_UpdateLookupActiveFormColumns() Then Exit Function
+
+    If Not m_DraftReportIsTvo Then m_ReportOwnPositionCode = currentPositionCode
+    m_IsReporterTvoCandidatesActive = True
+    If Not m_LookupFeature.ShowPreparedCandidates( _
+        COMMANDER_LOOKUP_KEY, DRAFT_ALIAS_REPORT_PERSON, _
+        "Посади ТВО", candidates, False) Then
+        m_IsReporterTvoCandidatesActive = False
+        Exit Function
+    End If
+    ' Полный render восстанавливает значения draft-формы и тем самым запускает
+    ' обычный auto-search командира. Обновляем только таблицу кандидатов, чтобы
+    ' подготовленный список должностей ТВО не был немедленно перезаписан.
+    If Not pageBase.TryReflowControl(LOOKUP_CANDIDATES_CONTROL_NAME) Then
+        m_IsReporterTvoCandidatesActive = False
+        VBA.MsgBox "Не вдалося оновити список посад ТВО. " & _
+            "Натисніть 'Update Sheet' для відновлення сторінки.", _
+            VBA.vbExclamation, "PrsnlEventBuilder / ТВО"
+        Exit Function
+    End If
+    private_TryShowReporterTvoCandidates = True
+End Function
+
+Private Function private_TryReadDraftValueByAlias( _
+    ByVal aliasText As String, _
+    ByRef outValue As String _
+) As Boolean
+    Dim pageBase As obj_PageBase
+    Dim valueRange As Range
+
+    outValue = VBA.vbNullString
+    If m_Page Is Nothing Then Exit Function
+    Set pageBase = m_Page.GetPageBase()
+    If pageBase Is Nothing Then Exit Function
+    If Not pageBase.TryGetFirstLayoutTagRange( _
+        aliasText, valueRange, "visible") Then Exit Function
+    If valueRange Is Nothing Then Exit Function
+    outValue = VBA.Trim$(VBA.CStr(valueRange.Cells(1, 1).Value2))
+    private_TryReadDraftValueByAlias = True
+End Function
+
+Private Function private_RefreshDraftReporterTvoFlag() As Boolean
+    Dim currentPositionCode As String
+
+    ' Ручной флаг ТВО является производным: он установлен только тогда,
+    ' когда выбранная должность отличается от собственной должности человека.
+    m_DraftReportIsTvo = False
+    If VBA.Len(VBA.Trim$(m_ReportOwnPositionCode)) = 0 Then
+        private_RefreshDraftReporterTvoFlag = True
+        Exit Function
+    End If
+    If Not private_TryReadDraftValueByAlias( _
+        DRAFT_ALIAS_REPORT_POSITION_CODE, currentPositionCode) Then Exit Function
+
+    m_DraftReportIsTvo = _
+        (VBA.StrComp( _
+            private_NormalizeText(currentPositionCode), _
+            private_NormalizeText(m_ReportOwnPositionCode), _
+            VBA.vbTextCompare) <> 0)
+    private_RefreshDraftReporterTvoFlag = True
 End Function
 
 Public Function RuntimeClearExportFormAndCandidates() As Boolean
@@ -1245,6 +1363,7 @@ Public Function RuntimeApplyExportForm() As Boolean
 
     ' Apply переносит текущую видимую draft-форму в "Форму экспорта".
     ' Основной профиль заменяет основную строку; meta-профиль дописывает meta-строку.
+    If Not private_RefreshDraftReporterTvoFlag() Then Exit Function
     If Not private_TryGetSelectedProfile(profileText) Then Exit Function
     If Not private_TryBuildDraftFormSourceTable(sourceTable, False) Then Exit Function
     If sourceTable Is Nothing Then Exit Function
@@ -1259,6 +1378,7 @@ Public Function RuntimeApplyExportForm() As Boolean
         m_ExportMetaTables.Add sourceTable
     Else
         Set m_ExportMainTable = sourceTable
+        m_ExportMainReportIsTvo = m_DraftReportIsTvo
         m_SelectedMainProfile = profileText
     End If
 
@@ -1406,6 +1526,7 @@ Public Function SearchCandidates( _
         SearchCandidates = True
         Exit Function
     End If
+    m_IsReporterTvoCandidatesActive = False
     If m_LookupFeature Is Nothing Then Exit Function
     If Not private_UpdateLookupActiveFormColumns() Then Exit Function
     ' Расширение из нескольких источников включено только на этой странице.
@@ -1903,6 +2024,7 @@ Private Function private_TryAcceptCandidateRowFromSelection(ByVal targetCell As 
     Dim primaryCandidateColumnCount As Long
     Dim primaryCandidateLastCol As Long
     Dim previousEnableEvents As Boolean
+    Dim isReporterTvoCandidate As Boolean
 
     If targetCell Is Nothing Then Exit Function
     If m_Page Is Nothing Then Exit Function
@@ -1912,6 +2034,7 @@ Private Function private_TryAcceptCandidateRowFromSelection(ByVal targetCell As 
     Set ws = pageBase.Worksheet
     If ws Is Nothing Then Exit Function
     If Not (targetCell.Worksheet Is ws) Then Exit Function
+    isReporterTvoCandidate = private_IsReporterTvoCandidatesContext()
 
     ' TableList already registers rendered data rows as controlPart=rows.
     ' This keeps the hotkey independent from hard-coded row/column numbers.
@@ -1966,6 +2089,12 @@ Private Function private_TryAcceptCandidateRowFromSelection(ByVal targetCell As 
     Next colIndex
     Application.EnableEvents = previousEnableEvents
     On Error GoTo 0
+
+    If isReporterTvoCandidate Then
+        m_IsReporterTvoCandidatesActive = False
+    End If
+
+    If Not private_RefreshDraftReporterTvoFlag() Then Exit Function
 
     candidateRowRange.Select
     ' Range.Select по умолчанию делает активной крайнюю левую ячейку.
@@ -2480,6 +2609,9 @@ Private Function private_TryBuildExportSourceTables( _
     If pageBase Is Nothing Then Exit Function
     Set ws = pageBase.Worksheet
     If ws Is Nothing Then Exit Function
+    If m_ExportMainTable Is Nothing Then
+        If Not private_RefreshDraftReporterTvoFlag() Then Exit Function
+    End If
 
     ' Экспортеры получают чистый контракт:
     '   tables(1) = основная таблица экспорта
@@ -2498,6 +2630,11 @@ Private Function private_TryBuildExportSourceTables( _
     outContext(EXPORT_CONTEXT_VALIDATE_DAILY_SCOPE_KEY) = m_IsDailyScopeValidationEnabled
     outContext(EXPORT_CONTEXT_VALIDATE_MOVEMENT_KEY) = m_IsMovementValidationEnabled
     outContext(EXPORT_CONTEXT_VALIDATE_WORD_KEY) = m_IsWordValidationEnabled
+    If m_ExportMainTable Is Nothing Then
+        outContext(EXPORT_CONTEXT_REPORT_IS_TVO_KEY) = m_DraftReportIsTvo
+    Else
+        outContext(EXPORT_CONTEXT_REPORT_IS_TVO_KEY) = m_ExportMainReportIsTvo
+    End If
     If m_ExportMainTable Is Nothing Then
         ' Удобный shortcut для частого случая "одна строка без meta": CTRL+1/2/3
         ' может экспортировать текущую draft-строку даже без предварительного Apply.
@@ -2754,6 +2891,7 @@ End Function
 
 Private Sub private_ClearExportFormState()
     Set m_ExportMainTable = Nothing
+    m_ExportMainReportIsTvo = False
     Set m_ExportMetaTables = New Collection
 End Sub
 
@@ -2930,6 +3068,7 @@ Private Function private_EnsureHotkeyRows(ByVal notifyChange As Boolean) As Bool
                 If Not private_RemoveStaleExportHotkeyRows(hotkeyRows, hasChanges) Then Exit Function
                 If Not private_ClearHotkeyAssignment(hotkeyRows, "CTRL+1", hasChanges) Then Exit Function
                 If Not private_EnsureHotkeyRow(hotkeyRows, HOTKEY_ACCEPT_CANDIDATE_ROW, "CTRL+ENTER", hasChanges) Then Exit Function
+                If Not private_EnsureHotkeyRow(hotkeyRows, HOTKEY_REPORT_TVO_CANDIDATES, "CTRL+.", hasChanges) Then Exit Function
                 If Not private_EnsureExportHotkeyRows(hotkeyRows, hasChanges) Then Exit Function
                 ' CTRL+4, как и CTRL+3 для WORD preview, является системным
                 ' контрактом страницы и не зависит от порядка Export aliases.
@@ -2954,6 +3093,7 @@ Private Function private_EnsureHotkeyRows(ByVal notifyChange As Boolean) As Bool
     ' после render HotkeysControl и RuntimeRegisterBoundRows, где регистрируются
     ' routes для этой страницы.
     If Not private_AddHotkeyRow(hotkeyRows, HOTKEY_ACCEPT_CANDIDATE_ROW, "CTRL+ENTER") Then Exit Function
+    If Not private_AddHotkeyRow(hotkeyRows, HOTKEY_REPORT_TVO_CANDIDATES, "CTRL+.") Then Exit Function
     If Not private_AddExportHotkeyRows(hotkeyRows) Then Exit Function
     If Not private_AddHotkeyRow(hotkeyRows, HOTKEY_EXPORT_TO_WORD, "CTRL+4") Then Exit Function
     If Not private_AddHotkeyRow(hotkeyRows, HOTKEY_SELECT_FORM_ROW, "SHIFT+SPACE") Then Exit Function

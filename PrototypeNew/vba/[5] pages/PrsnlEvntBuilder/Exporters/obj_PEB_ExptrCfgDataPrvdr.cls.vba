@@ -40,7 +40,10 @@ Private Const MOVEMENT_TVO_IPN_HEADER As String = "ТВО ІПН"
 Private Const MOVEMENT_TVO_POSITION_HEADER As String = "ТВО Посада"
 Private Const MOVEMENT_ESCORT_DOCUMENT_HEADER As String = "Супровідний документ"
 Private Const PERSONNEL_TVO_HEADER As String = "ТВО"
+Private Const PERSONNEL_UNIT_HEADER As String = "#"
 Private Const PERSONNEL_POSITION_CODE_HEADER As String = "Код посади"
+Private Const PERSONNEL_POSITION_NAME_HEADER As String = "Повна назва посади"
+Private Const REPORT_POSITION_CODE_ALIAS As String = "_ReportPositionCode"
 Private Const EXCEL_MAX_ROW As Long = 20000
 
 Private Sub Class_Initialize()
@@ -743,6 +746,243 @@ Public Function TryResolveReporterTvoPositionGenitive( _
     TryResolveReporterTvoPositionGenitive = True
 End Function
 
+' Для WORD export проверяет только незакрытую связь ТВО из Movement.
+' Метод ничего не назначает автоматически: найденная открытая запись требует,
+' чтобы пользователь явно выбрал должность ТВО в форме.
+Public Function ValidateReporterTvoAgainstMovement( _
+    ByVal reporterFioText As String, _
+    Optional ByVal exportTargetText As String = "експорт" _
+) As Boolean
+    Dim resolvedPath As String
+    Dim movementTableRef As String
+    Dim query As obj_ExtWorkbookQuery
+    Dim resultTable As obj_TableDynamic
+    Dim resultRow As obj_Row
+    Dim tvoFioText As String
+    Dim arrivalDateText As String
+    Dim arrivalOrderText As String
+    Dim onFoodDateText As String
+    Dim fioItems As Collection
+    Dim fioItem As Variant
+    Dim hasExactMatch As Boolean
+    Dim isClosed As Boolean
+    Dim reporterFioDisplayText As String
+
+    reporterFioDisplayText = VBA.Trim$(reporterFioText)
+    exportTargetText = VBA.Trim$(exportTargetText)
+    If VBA.Len(exportTargetText) = 0 Then exportTargetText = "експорт"
+    reporterFioText = private_NormalizeLookupKey(reporterFioText)
+    If VBA.Len(reporterFioText) = 0 Or private_IsSelfReportText(reporterFioText) Then
+        ValidateReporterTvoAgainstMovement = True
+        Exit Function
+    End If
+
+    If Not private_TryResolveMovementQueryContext(resolvedPath, movementTableRef) Then Exit Function
+    If m_QueryEngine Is Nothing Then Exit Function
+
+    Set query = New obj_ExtWorkbookQuery
+    query.SourcePath = resolvedPath
+    query.TableRef = movementTableRef
+    query.ReverseOrder = True
+    query.MaxRows = 1
+    If Not query.AddSelectColumn(MOVEMENT_TVO_FIO_HEADER) Then Exit Function
+    If Not query.AddSelectColumn(MOVEMENT_ARRIVAL_DATE_HEADER) Then Exit Function
+    If Not query.AddSelectColumn(MOVEMENT_ARRIVAL_ORDER_HEADER) Then Exit Function
+    If Not query.AddSelectColumn(MOVEMENT_ON_FOOD_HEADER) Then Exit Function
+    If Not query.AddCondition( _
+        MOVEMENT_TVO_FIO_HEADER, en_ExtWorkbookQueryOp.ExtQueryOpContains, _
+        reporterFioText, True) Then Exit Function
+    If Not m_QueryEngine.TryExecute(query, resultTable) Then Exit Function
+
+    If resultTable Is Nothing Then
+        ValidateReporterTvoAgainstMovement = True
+        Exit Function
+    End If
+    If resultTable.RowCount = 0 Then
+        ValidateReporterTvoAgainstMovement = True
+        Exit Function
+    End If
+
+    Set resultRow = resultTable.Rows.Item(1)
+    If resultRow Is Nothing Then Exit Function
+    If Not resultRow.TryGetCellValueByColumn(MOVEMENT_TVO_FIO_HEADER, tvoFioText) Then Exit Function
+    If Not resultRow.TryGetCellValueByColumn(MOVEMENT_ARRIVAL_DATE_HEADER, arrivalDateText) Then Exit Function
+    If Not resultRow.TryGetCellValueByColumn(MOVEMENT_ARRIVAL_ORDER_HEADER, arrivalOrderText) Then Exit Function
+    If Not resultRow.TryGetCellValueByColumn(MOVEMENT_ON_FOOD_HEADER, onFoodDateText) Then Exit Function
+
+    Set fioItems = private_SplitNonEmptyLines(tvoFioText)
+    For Each fioItem In fioItems
+        If VBA.StrComp( _
+            private_NormalizeLookupKey(VBA.CStr(fioItem)), reporterFioText, _
+            VBA.vbTextCompare) = 0 Then
+            hasExactMatch = True
+            Exit For
+        End If
+    Next fioItem
+    If Not hasExactMatch Then
+        ValidateReporterTvoAgainstMovement = True
+        Exit Function
+    End If
+
+    isClosed = (VBA.Len(VBA.Trim$(arrivalDateText)) > 0) And _
+        (VBA.Len(VBA.Trim$(arrivalOrderText)) > 0) And _
+        (VBA.Len(VBA.Trim$(onFoodDateText)) > 0)
+    If isClosed Then
+        ValidateReporterTvoAgainstMovement = True
+        Exit Function
+    End If
+
+    VBA.MsgBox "У Movement знайдено відкритий запис, у якому рапортуючий '" & _
+        reporterFioDisplayText & "' зазначений у колонці '" & MOVEMENT_TVO_FIO_HEADER & "'." & _
+        VBA.vbCrLf & "Виберіть його посаду ТВО через поле 'Код посади (рапорт)' " & _
+        "і повторіть " & exportTargetText & ".", _
+        VBA.vbExclamation, "PrsnlEventBuilder / перевірка ТВО"
+End Function
+
+' Возвращает текущую должность рапортующего и все предыдущие физические
+' должности того же подразделения. Граница определяется по колонке "#".
+' Запрос выполняется только по явному Ctrl+. пользователя.
+Public Function TryGetReporterTvoPositionCandidates( _
+    ByVal currentPositionCode As String, _
+    ByRef outCandidates As obj_TableDynamic _
+) As Boolean
+    Dim resolvedPath As String
+    Dim query As obj_ExtWorkbookQuery
+    Dim lookupTable As obj_TableDynamic
+    Dim lookupRow As obj_Row
+    Dim personnelTable As obj_TableDynamic
+    Dim personnelRow As obj_Row
+    Dim candidateTable As obj_TableDynamic
+    Dim candidateColumn As obj_Column
+    Dim candidateRow As obj_Row
+    Dim positionCodeText As String
+    Dim positionNameText As String
+    Dim unitCodeText As String
+    Dim currentUnitCode As String
+    Dim currentRowIndex As Long
+    Dim sourceRowIndex As Long
+
+    Set outCandidates = Nothing
+    currentPositionCode = private_NormalizeLookupKey(currentPositionCode)
+    If VBA.Len(currentPositionCode) = 0 Then
+        VBA.MsgBox "Поле 'Код посади (рапорт)' порожнє. Спочатку виберіть рапортуючого.", _
+            VBA.vbExclamation, "PrsnlEventBuilder / ТВО"
+        Exit Function
+    End If
+
+    resolvedPath = private_ResolveWorkbookPath(m_PersonnelWorkbookPath)
+    If VBA.Len(resolvedPath) = 0 Or VBA.Len(VBA.Dir$(resolvedPath)) = 0 Then
+        VBA.MsgBox "PrototypeNew: personnel source workbook was not found: " & _
+            m_PersonnelWorkbookPath, VBA.vbExclamation, _
+            "PrototypeNew / exporter data provider"
+        Exit Function
+    End If
+
+    Set query = New obj_ExtWorkbookQuery
+    query.SourcePath = resolvedPath
+    query.TableRef = m_PersonnelTableRef
+    query.MaxRows = 2
+    If Not query.AddSelectColumn(PERSONNEL_POSITION_CODE_HEADER) Then Exit Function
+    If Not query.AddSelectColumn(PERSONNEL_UNIT_HEADER) Then Exit Function
+    If Not query.AddCondition( _
+        PERSONNEL_POSITION_CODE_HEADER, en_ExtWorkbookQueryOp.ExtQueryOpEquals, _
+        currentPositionCode, True) Then Exit Function
+    If Not m_QueryEngine.TryExecute(query, lookupTable) Then Exit Function
+    If lookupTable Is Nothing Then Exit Function
+    If lookupTable.RowCount = 0 Then
+        VBA.MsgBox "Код посади '" & currentPositionCode & "' не знайдено у ШПС.", _
+            VBA.vbExclamation, "PrsnlEventBuilder / ТВО"
+        Exit Function
+    End If
+    If lookupTable.RowCount > 1 Then
+        VBA.MsgBox "У ШПС знайдено кілька рядків із кодом посади '" & _
+            currentPositionCode & "'.", VBA.vbExclamation, _
+            "PrsnlEventBuilder / ТВО"
+        Exit Function
+    End If
+    Set lookupRow = lookupTable.Rows.Item(1)
+    If lookupRow Is Nothing Then Exit Function
+    If Not lookupRow.TryGetCellValueByColumn( _
+        PERSONNEL_UNIT_HEADER, currentUnitCode) Then Exit Function
+    currentUnitCode = private_NormalizeLookupKey(currentUnitCode)
+    If VBA.Len(currentUnitCode) = 0 Then
+        VBA.MsgBox "Для коду посади '" & currentPositionCode & _
+            "' у ШПС не заповнено колонку '#'. Неможливо визначити межі підрозділу.", _
+            VBA.vbExclamation, "PrsnlEventBuilder / ТВО"
+        Exit Function
+    End If
+
+    ' Второй запрос читает только текущее подразделение, а не весь диапазон
+    ' ШПС. Физический порядок строк сохраняется и используется ниже.
+    Set query = New obj_ExtWorkbookQuery
+    query.SourcePath = resolvedPath
+    query.TableRef = m_PersonnelTableRef
+    query.MaxRows = 0
+    If Not query.AddSelectColumn(PERSONNEL_POSITION_CODE_HEADER) Then Exit Function
+    If Not query.AddSelectColumn(PERSONNEL_POSITION_NAME_HEADER) Then Exit Function
+    If Not query.AddSelectColumn(PERSONNEL_UNIT_HEADER) Then Exit Function
+    If Not query.AddCondition( _
+        PERSONNEL_UNIT_HEADER, en_ExtWorkbookQueryOp.ExtQueryOpEquals, _
+        currentUnitCode, True) Then Exit Function
+    If Not m_QueryEngine.TryExecute(query, personnelTable) Then Exit Function
+    If personnelTable Is Nothing Then Exit Function
+
+    For sourceRowIndex = 1 To personnelTable.RowCount
+        Set personnelRow = personnelTable.Rows.Item(sourceRowIndex)
+        If personnelRow Is Nothing Then Exit Function
+        If Not personnelRow.TryGetCellValueByColumn( _
+            PERSONNEL_POSITION_CODE_HEADER, positionCodeText) Then Exit Function
+        If VBA.StrComp( _
+            private_NormalizeLookupKey(positionCodeText), currentPositionCode, _
+            VBA.vbTextCompare) = 0 Then
+            currentRowIndex = sourceRowIndex
+        End If
+    Next sourceRowIndex
+    If currentRowIndex = 0 Then
+        VBA.MsgBox "Код посади '" & currentPositionCode & "' не знайдено у ШПС.", _
+            VBA.vbExclamation, "PrsnlEventBuilder / ТВО"
+        Exit Function
+    End If
+
+    Set candidateTable = New obj_TableDynamic
+    If Not candidateTable.Initialize() Then Exit Function
+    Set candidateColumn = New obj_Column
+    candidateColumn.Name = "Код посади (рапорт)"
+    If Not candidateColumn.AddAlias(REPORT_POSITION_CODE_ALIAS) Then Exit Function
+    If Not candidateTable.PushColumn(candidateColumn) Then Exit Function
+    Set candidateColumn = New obj_Column
+    candidateColumn.Name = "Посада ТВО"
+    If Not candidateTable.PushColumn(candidateColumn) Then Exit Function
+
+    sourceRowIndex = currentRowIndex
+    Do While sourceRowIndex >= 1
+        Set personnelRow = personnelTable.Rows.Item(sourceRowIndex)
+        If personnelRow Is Nothing Then Exit Function
+        If Not personnelRow.TryGetCellValueByColumn( _
+            PERSONNEL_UNIT_HEADER, unitCodeText) Then Exit Function
+        unitCodeText = private_NormalizeLookupKey(unitCodeText)
+        If VBA.Len(unitCodeText) > 0 Then
+            If VBA.StrComp(unitCodeText, currentUnitCode, _
+                VBA.vbTextCompare) <> 0 Then Exit Do
+        End If
+        If Not personnelRow.TryGetCellValueByColumn( _
+            PERSONNEL_POSITION_CODE_HEADER, positionCodeText) Then Exit Function
+        positionCodeText = VBA.Trim$(positionCodeText)
+        If VBA.Len(positionCodeText) > 0 Then
+            If Not personnelRow.TryGetCellValueByColumn( _
+                PERSONNEL_POSITION_NAME_HEADER, positionNameText) Then Exit Function
+            Set candidateRow = New obj_Row
+            candidateRow.PushCellRaw positionCodeText
+            candidateRow.PushCellRaw positionNameText
+            If Not candidateTable.PushRow(candidateRow) Then Exit Function
+        End If
+        sourceRowIndex = sourceRowIndex - 1
+    Loop
+
+    Set outCandidates = candidateTable
+    TryGetReporterTvoPositionCandidates = True
+End Function
+
 ' //
 ' // Internal
 ' //
@@ -1056,7 +1296,6 @@ Private Function private_TryLoadConfig(ByVal configTable As obj_ConfigTable) As 
         GoTo CleanExit
     End If
     m_PersonnelTableRef = private_BuildConfiguredAdoRangeRef(rawPersonnelTableRef)
-
     ' Movement optional: профили без соответствующего exporter-а не обязаны
     ' объявлять его источник, но при наличии resolver он применяется тем же parser.
     m_MovementWorkbookPath = prsnlEvntBuilderCfgParser.GetOptionalValue(CONFIG_MOVEMENT_FILE_PATH_KEY)
@@ -1158,6 +1397,9 @@ Private Function private_TryLookupPersonnelTvoPositionCode( _
 End Function
 
 
+' Получает ИПН рапортующего из Personnel только для резервной проверки
+' Movement. Отсутствие строки не означает ошибку: рапортующий может не быть
+' военнослужащим из текущего снимка ШПС.
 Private Function private_GetFirstLookupWord(ByVal valueText As String) As String
     Dim separatorPos As Long
 
