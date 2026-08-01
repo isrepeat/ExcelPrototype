@@ -21,6 +21,7 @@ Private Const CONTEXT_SECTION_TYPE As String = "SectionType"
 Private Const CONTEXT_VALIDATION_ENABLED As String = "ValidateWord"
 Private Const CONTEXT_WORD_PREVIEW_TEXT As String = "WordExportPreviewText"
 Private Const CONTEXT_MANUAL_ORDER_NO As String = "ManualOrderNo"
+Private Const CONTEXT_REPORT_IS_TVO As String = "ReportIsTvo"
 Private Const SENTINEL_SHORT_DATE As Date = #1/1/1900#
 Private Const SOURCE_ALIAS_IPN As String = "IPN"
 Private Const SOURCE_ALIAS_RANK As String = "Rank"
@@ -1353,6 +1354,7 @@ Private Function private_TryEnrichMainSourceTableForWord( _
     Dim reportTvoPositionGenitive As String
     Dim reporterGenitive As String
     Dim isReporterTvo As Boolean
+    Dim isReporterTvoOverride As Boolean
     Dim dateFromDate As Date
     Dim hasDateFrom As Boolean
     Dim removeFromFoodSupportDateText As String
@@ -1492,11 +1494,23 @@ Private Function private_TryEnrichMainSourceTableForWord( _
     If Not m_ExporterCfgDataProvider.CommonData.TryResolveFioGenitiveByName(reportPersonText, reportPersonGenitive) Then Exit Function
     If Not m_ExporterCfgDataProvider.CommonData.TryResolveFioInitialsGenitiveByName(reportPersonText, reportPersonInitialsGenitive) Then Exit Function
 
-    If Not m_ExporterCfgDataProvider.TryResolveReporterTvoPositionGenitive(reportPersonText, reportTvoPositionGenitive, isReporterTvo) Then Exit Function
-    If isReporterTvo Then
-        reportPositionGenitive = reportTvoPositionGenitive
+    isReporterTvoOverride = private_GetContextBoolean( _
+        context, CONTEXT_REPORT_IS_TVO)
+    If isReporterTvoOverride Then
+        isReporterTvo = True
+        If Not m_ExporterCfgDataProvider.CommonData.TryResolvePositionGenitive( _
+            reportPositionCodeText, reportPositionGenitive) Then Exit Function
     Else
-        If Not m_ExporterCfgDataProvider.CommonData.TryResolvePositionGenitive(reportPositionCodeText, reportPositionGenitive) Then Exit Function
+        If Not m_ExporterCfgDataProvider.TryResolveReporterTvoPositionGenitive( _
+            reportPersonText, reportTvoPositionGenitive, isReporterTvo) Then Exit Function
+        If isReporterTvo Then
+            reportPositionGenitive = reportTvoPositionGenitive
+        Else
+            If Not m_ExporterCfgDataProvider.ValidateReporterTvoAgainstMovement( _
+                reportPersonText, "експорт у WORD") Then Exit Function
+            If Not m_ExporterCfgDataProvider.CommonData.TryResolvePositionGenitive( _
+                reportPositionCodeText, reportPositionGenitive) Then Exit Function
+        End If
     End If
 
     If isReporterTvo Then

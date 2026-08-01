@@ -19,6 +19,7 @@ Private Const MOVEMENT_TARGET_COLUMN_COUNT As Long = 6
 Private Const MOVEMENT_TRAILING_EMPTY_LOOKBACK_ROWS As Long = 20
 Private Const MOVEMENT_SOURCE_INCOMING_NO As String = "Вх. №"
 Private Const MOVEMENT_CONTEXT_MANUAL_ORDER_NO As String = "ManualOrderNo"
+Private Const MOVEMENT_CONTEXT_REPORT_IS_TVO As String = "ReportIsTvo"
 Private Const MOVEMENT_CONTEXT_SECTION_TYPE As String = "SectionType"
 Private Const MOVEMENT_CONTEXT_VALIDATION_ENABLED As String = "ValidateMovement"
 Private Const MOVEMENT_SOURCE_EVENT As String = "Подія"
@@ -292,6 +293,12 @@ Public Function Export( _
 
         If Not private_TryGetRequiredSourceText(sourceTable, sourceTable.Rows.Item(1), MOVEMENT_TARGET_IPN, closingTargetIpn) Then GoTo CleanFail
         If Not private_TryFindLastRowByIpn(targetTable, closingTargetIpn, targetRowRange) Then GoTo CleanFail
+        ' При смене статуса новая строка по умолчанию продолжает действующую
+        ' цепочку ТВО закрываемой строки. Явно переданные meta-ТВО значения
+        ' имеют приоритет, а наследование заполняет только пустые поля.
+        If Not private_TryInheritMovementTvoValues( _
+            targetTable, targetRowRange, _
+            tvoFioText, tvoIpnText, tvoPositionText) Then GoTo CleanFail
         changedRowIndex = targetRowRange.Row - targetTable.DataBodyRange.Row + 1
         changedBeforeFormula = targetRowRange.Formula
         If Not private_TryWriteMovementClosingRow(targetTable, targetRowRange, closingOrderNo, closingOnFoodDate, closingArrivalDate, basisSummaryText) Then GoTo CleanFail
@@ -912,6 +919,7 @@ Private Function private_TryBuildMovementBasisSummary( _
     Dim reporterCoreText As String
     Dim reporterText As String
     Dim isReporterTvo As Boolean
+    Dim isReporterTvoOverride As Boolean
     Dim incomingDateValue As Date
     Dim incomingDateResolvedText As String
     Dim basisDetailsText As String
@@ -993,12 +1001,24 @@ Private Function private_TryBuildMovementBasisSummary( _
         End If
     Else
         If Not m_ExporterCfgDataProvider.CommonData.TryResolveRankGenitive(reportRankText, reportRankGenitive) Then Exit Function
-        If Not m_ExporterCfgDataProvider.TryResolveReporterTvoPositionGenitive(reportPersonText, reportTvoPositionGenitive, isReporterTvo) Then Exit Function
-        If isReporterTvo Then
-            reportPositionGenitive = reportTvoPositionGenitive
-        Else
+        isReporterTvoOverride = _
+            (VBA.StrComp(private_GetContextText(context, MOVEMENT_CONTEXT_REPORT_IS_TVO), _
+                "True", VBA.vbTextCompare) = 0)
+        If isReporterTvoOverride Then
+            isReporterTvo = True
             If Not m_ExporterCfgDataProvider.CommonData.TryResolvePositionGenitive( _
                 reportPositionCodeText, reportPositionGenitive, reportRankText) Then Exit Function
+        Else
+            If Not m_ExporterCfgDataProvider.TryResolveReporterTvoPositionGenitive( _
+                reportPersonText, reportTvoPositionGenitive, isReporterTvo) Then Exit Function
+            If isReporterTvo Then
+                reportPositionGenitive = reportTvoPositionGenitive
+            Else
+                If Not m_ExporterCfgDataProvider.ValidateReporterTvoAgainstMovement( _
+                    reportPersonText, "експорт у Movement") Then Exit Function
+                If Not m_ExporterCfgDataProvider.CommonData.TryResolvePositionGenitive( _
+                    reportPositionCodeText, reportPositionGenitive, reportRankText) Then Exit Function
+            End If
         End If
         If Not m_ExporterCfgDataProvider.CommonData.TryResolveFioInitialsGenitiveByName(reportPersonText, reportPersonInitialsGenitive) Then Exit Function
 
@@ -1483,6 +1503,53 @@ Private Function private_TryWriteNamedColumnValue( _
         rowRange.Cells(1, targetColumnIndex), _
         incomingValue, _
         "movement:write-named col='" & private_EscapeForLog(targetColumnName) & "'")
+End Function
+
+Private Function private_TryInheritMovementTvoValues( _
+    ByVal targetTable As ListObject, _
+    ByVal previousRowRange As Range, _
+    ByRef tvoFioText As String, _
+    ByRef tvoIpnText As String, _
+    ByRef tvoPositionText As String _
+) As Boolean
+    If VBA.Len(VBA.Trim$(tvoFioText)) = 0 Then
+        If Not private_TryReadNamedColumnText( _
+            targetTable, previousRowRange, MOVEMENT_TARGET_TVO_FIO, tvoFioText) Then Exit Function
+    End If
+    If VBA.Len(VBA.Trim$(tvoIpnText)) = 0 Then
+        If Not private_TryReadNamedColumnText( _
+            targetTable, previousRowRange, MOVEMENT_TARGET_TVO_IPN, tvoIpnText) Then Exit Function
+    End If
+    If VBA.Len(VBA.Trim$(tvoPositionText)) = 0 Then
+        If Not private_TryReadNamedColumnText( _
+            targetTable, previousRowRange, MOVEMENT_TARGET_TVO_POSITION, tvoPositionText) Then Exit Function
+    End If
+
+    private_TryInheritMovementTvoValues = True
+End Function
+
+Private Function private_TryReadNamedColumnText( _
+    ByVal targetTable As ListObject, _
+    ByVal rowRange As Range, _
+    ByVal targetColumnName As String, _
+    ByRef outValue As String _
+) As Boolean
+    Dim targetColumnIndex As Long
+
+    outValue = VBA.vbNullString
+    If targetTable Is Nothing Then Exit Function
+    If rowRange Is Nothing Then Exit Function
+
+    targetColumnIndex = private_FindTargetColumnIndex(targetTable, targetColumnName)
+    If targetColumnIndex <= 0 Then
+        VBA.MsgBox "У таблиці Movement відсутня колонка '" & targetColumnName & _
+            "', потрібна для перенесення ТВО під час зміни статусу.", _
+            VBA.vbExclamation, "PrototypeNew / Movement export"
+        Exit Function
+    End If
+
+    outValue = VBA.Trim$(VBA.CStr(rowRange.Cells(1, targetColumnIndex).Value2))
+    private_TryReadNamedColumnText = True
 End Function
 
 Private Function private_FindTargetColumnIndex(ByVal targetTable As ListObject, ByVal targetColumnName As String) As Long
