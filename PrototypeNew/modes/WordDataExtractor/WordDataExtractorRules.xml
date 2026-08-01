@@ -429,6 +429,9 @@
             group="1" default="">
             <transform type="trim"/>
             <transform type="regexReplace" pattern="\.\s*$" with=""/>
+            <transform type="regexReplace"
+              pattern="^відповідно\s+до\s+пункту\s+12\s+Порядку[\s\S]*?затвердженого\s+постановою\s+Кабінету\s+Міністрів\s+України\s+від\s+(.+?)\s+№\s*([0-9/–—-]+)$"
+              with="відповідно до п. 12 Порядку реалізації експериментального проєкту з повернення до служби військовослужбовців, які СЗЧ або дезертирували"/>
           </field>
           <field id="assignmentOrigin" from="$temporaryGroup"
             ignoreCase="true"

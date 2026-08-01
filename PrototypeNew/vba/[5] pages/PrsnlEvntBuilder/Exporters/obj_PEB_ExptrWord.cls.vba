@@ -990,6 +990,10 @@ Private Function private_BuildGroupBookmarkName( _
 ) As String
     Dim templatePart As String
     Dim keyPart As String
+    Dim keyHash As String
+    Dim bookmarkPrefix As String
+    Dim availableKeyLength As Long
+    Dim availableVisibleKeyLength As Long
     Dim dateParts As Variant
 
     templatePart = private_NormalizeBookmarkPart(templateId)
@@ -1011,14 +1015,32 @@ Private Function private_BuildGroupBookmarkName( _
         Case Else
             Exit Function
     End Select
-    private_BuildGroupBookmarkName = WORD_GROUP_BOOKMARK_PREFIX & _
-        templatePart & "_" & keyPart
-    If VBA.Len(private_BuildGroupBookmarkName) > WORD_BOOKMARK_MAX_LENGTH Then
-        VBA.MsgBox "PrototypeNew: WORD group bookmark exceeds 40 characters: " & _
-            private_BuildGroupBookmarkName, VBA.vbExclamation, _
+
+    bookmarkPrefix = WORD_GROUP_BOOKMARK_PREFIX & templatePart & "_"
+    availableKeyLength = WORD_BOOKMARK_MAX_LENGTH - VBA.Len(bookmarkPrefix)
+    If availableKeyLength <= 0 Then
+        VBA.MsgBox "PrototypeNew: WORD group bookmark prefix leaves no room " & _
+            "for a group key: " & bookmarkPrefix, VBA.vbExclamation, _
             "PrototypeNew / WORD export"
-        private_BuildGroupBookmarkName = VBA.vbNullString
+        Exit Function
     End If
+
+    If VBA.Len(keyPart) > availableKeyLength Then
+        keyHash = private_BuildStableBookmarkHash( _
+            VBA.LCase$(VBA.Trim$(groupKeyText)))
+        availableVisibleKeyLength = availableKeyLength - _
+            VBA.Len(keyHash) - 1
+        If availableVisibleKeyLength <= 0 Then
+            VBA.MsgBox "PrototypeNew: WORD group bookmark prefix is too long " & _
+                "to append a stable group hash: " & bookmarkPrefix, _
+                VBA.vbExclamation, "PrototypeNew / WORD export"
+            Exit Function
+        End If
+        keyPart = VBA.Left$(keyPart, availableVisibleKeyLength) & _
+            "_" & keyHash
+    End If
+
+    private_BuildGroupBookmarkName = bookmarkPrefix & keyPart
 End Function
 
 Private Function private_BuildNestedGroupBookmarkName( _
