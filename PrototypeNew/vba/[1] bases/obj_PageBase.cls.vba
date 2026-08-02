@@ -573,15 +573,11 @@ Public Function TryReflowLayoutContainer(ByVal containerName As String) As Boole
     Dim prevStatusBar As Variant
     Dim escapedName As String
     Dim selectionAreas As Collection
-    Dim perfStart As Double
-    Dim perfLast As Double
 
     If Not private_EnsureNotDisposed("TryReflowLayoutContainer") Then Exit Function
     If m_IsRendering Then Exit Function
     containerName = VBA.Trim$(containerName)
     If VBA.Len(containerName) = 0 Then Exit Function
-    perfStart = VBA.Timer
-    perfLast = perfStart
     Set ws = m_Worksheet
     If ws Is Nothing Or m_UiDom Is Nothing Then Exit Function
     If Not Me.TryGetLayoutContainerRange(containerName, oldRange) Then Exit Function
@@ -602,11 +598,6 @@ Public Function TryReflowLayoutContainer(ByVal containerName As String) As Boole
     If Not ex_XmlLayoutEngine.fn_TryGetEffectiveNodeSpan( _
         renderCtx, containerNode, newSpanRows, newSpanCols) Then Exit Function
     If newSpanRows <= 0 Or newSpanCols <= 0 Then Exit Function
-#If LOGGING_DEBUG_ENABLED Then
-    private_LogRenderPerfStep "pagebase:container-reflow-measure", perfStart, perfLast, _
-        "container='" & private_EscapeForLog(containerName) & "' rows=" & _
-        VBA.CStr(newSpanRows) & " cols=" & VBA.CStr(newSpanCols)
-#End If
 
     newRowEnd = rowStart + newSpanRows - 1
     newColEnd = colStart + newSpanCols - 1
@@ -619,18 +610,10 @@ Public Function TryReflowLayoutContainer(ByVal containerName As String) As Boole
         ws.Name, containerName, newSpanRows, reflowPatches, ancestorUpdates) Then Exit Function
     Set selectionAreas = private_CaptureSelectionAreas(ws)
     private_TranslateSelectionAreasByPatches selectionAreas, reflowPatches
-#If LOGGING_DEBUG_ENABLED Then
-    private_LogRenderPerfStep "pagebase:container-reflow-plan", perfStart, perfLast, _
-        "container='" & private_EscapeForLog(containerName) & "'"
-#End If
 
     Set app = Application
     m_IsRendering = True
     private_EnterFastRenderMode app, prevScreenUpdating, prevEnableEvents, prevDisplayAlerts, prevCalculation, prevStatusBar
-#If LOGGING_DEBUG_ENABLED Then
-    private_LogRenderPerfStep "pagebase:container-reflow-enter-fast-mode", perfStart, perfLast, _
-        "container='" & private_EscapeForLog(containerName) & "'"
-#End If
     On Error GoTo EH_CONTAINER_REFLOW
 
     ' Удаляем только runtime metadata дочерних контролов. Shape-кнопки не
@@ -650,20 +633,12 @@ Public Function TryReflowLayoutContainer(ByVal containerName As String) As Boole
 ContinueCleanupControl:
         Next controlNode
     End If
-#If LOGGING_DEBUG_ENABLED Then
-    private_LogRenderPerfStep "pagebase:container-reflow-clear-runtime", perfStart, perfLast, _
-        "container='" & private_EscapeForLog(containerName) & "'"
-#End If
 
     oldRange.Clear
 
     If Not reflowPatches Is Nothing Then
         If Not private_TryApplyLayoutReflowPatches(ws, reflowPatches) Then GoTo CleanupContainer
     End If
-#If LOGGING_DEBUG_ENABLED Then
-    private_LogRenderPerfStep "pagebase:container-reflow-apply-patches", perfStart, perfLast, _
-        "container='" & private_EscapeForLog(containerName) & "'"
-#End If
     ' Range-объект нельзя держать через Cut: Excel перенаправляет его на
     ' destination и последующий Clear стирает уже перемещённый sibling.
     ' Восстанавливаем scope по сохранённым числовым координатам после patches.
@@ -675,10 +650,6 @@ ContinueCleanupControl:
         ws, m_UiDom, clearRange) Then GoTo CleanupContainer
     If Not ex_XmlLayoutEngine.fn_RenderNodeInBounds( _
         renderCtx, containerNode, rowStart, colStart, newRowEnd, newColEnd) Then GoTo CleanupContainer
-#If LOGGING_DEBUG_ENABLED Then
-    private_LogRenderPerfStep "pagebase:container-reflow-render-node", perfStart, perfLast, _
-        "container='" & private_EscapeForLog(containerName) & "'"
-#End If
 
     If Not controlNodes Is Nothing Then
         For Each controlNode In controlNodes
@@ -691,10 +662,6 @@ ContinueStyleControl:
     End If
     If Not ex_StylePipelineEngine.fn_ApplyRetainedControlStyles(ws, m_UiDom) Then GoTo CleanupContainer
     If Not Me.ApplyInlineRuns() Then GoTo CleanupContainer
-#If LOGGING_DEBUG_ENABLED Then
-    private_LogRenderPerfStep "pagebase:container-reflow-apply-styles", perfStart, perfLast, _
-        "container='" & private_EscapeForLog(containerName) & "'"
-#End If
 
     If Not ex_ControlRefreshRuntime.fn_CommitLayoutContainerReflowPlan( _
         ws.Name, containerName, newRowEnd, newColEnd, ancestorUpdates) Then GoTo CleanupContainer
@@ -702,21 +669,12 @@ ContinueStyleControl:
     If Not ex_StylePipelineEngine.fn_CommitAncestorLayoutBounds( _
         ws.Name, ancestorUpdates) Then GoTo CleanupContainer
     If Not private_TryReconcileSingleButtonRuntimeShapes(ws) Then GoTo CleanupContainer
-#If LOGGING_DEBUG_ENABLED Then
-    private_LogRenderPerfStep "pagebase:container-reflow-commit", perfStart, perfLast, _
-        "container='" & private_EscapeForLog(containerName) & "'"
-#End If
 
     private_RestoreSelectionAreas ws, selectionAreas
     TryReflowLayoutContainer = True
 
 CleanupContainer:
     private_LeaveFastRenderMode app, prevScreenUpdating, prevEnableEvents, prevDisplayAlerts, prevCalculation, prevStatusBar
-#If LOGGING_DEBUG_ENABLED Then
-    private_LogRenderPerfStep "pagebase:container-reflow-leave-fast-mode", perfStart, perfLast, _
-        "container='" & private_EscapeForLog(containerName) & "' ok=" & _
-        VBA.LCase$(VBA.CStr(TryReflowLayoutContainer))
-#End If
     m_IsRendering = False
     Exit Function
 
