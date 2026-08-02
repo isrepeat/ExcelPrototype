@@ -1014,8 +1014,6 @@ Private Function private_TryBuildMovementBasisSummary( _
             If isReporterTvo Then
                 reportPositionGenitive = reportTvoPositionGenitive
             Else
-                If Not m_ExporterCfgDataProvider.ValidateReporterTvoAgainstMovement( _
-                    reportPersonText, "експорт у Movement") Then Exit Function
                 If Not m_ExporterCfgDataProvider.CommonData.TryResolvePositionGenitive( _
                     reportPositionCodeText, reportPositionGenitive, reportRankText) Then Exit Function
             End If

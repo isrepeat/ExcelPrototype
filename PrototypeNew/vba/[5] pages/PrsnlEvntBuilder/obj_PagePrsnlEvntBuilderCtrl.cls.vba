@@ -2211,10 +2211,18 @@ Private Function private_TryExportDraftByAction(ByVal actionId As String) As Boo
     Dim exportAlias As String
     Dim exporterClassName As String
     Dim exportConfigTable As obj_ConfigTable
+    Dim perfStart As Double
+    Dim perfLast As Double
 
     On Error GoTo EH
+    perfStart = VBA.Timer
+    perfLast = perfStart
 
     If Not private_TryEnsureModeConfigCurrent() Then Exit Function
+#If LOGGING_DEBUG_ENABLED Then
+    private_LogPerfStep "word-preview:ensure-mode-config", perfStart, perfLast, _
+        "action='" & private_EscapeForLog(actionId) & "'"
+#End If
 
 #If LOGGING_DEBUG_ENABLED Then
     ex_Core.fn_Diagnostic_LogInfo "prsnlevntbuilder:export-action:start action='" & private_EscapeForLog(actionId) & "'"
@@ -2231,24 +2239,35 @@ Private Function private_TryExportDraftByAction(ByVal actionId As String) As Boo
     If Not private_TryBuildExportSourceTables(sourceTables, exportContext) Then Exit Function
 #If LOGGING_DEBUG_ENABLED Then
     ex_Core.fn_Diagnostic_LogInfo "prsnlevntbuilder:export-action:source-ready tables=" & VBA.CStr(sourceTables.Count)
+    private_LogPerfStep "word-preview:build-source", perfStart, perfLast, _
+        "tables=" & VBA.CStr(sourceTables.Count)
 #End If
 
     If Not private_TryCreateDataExporter(exporterClassName, exportConfigTable, exporter) Then Exit Function
 #If LOGGING_DEBUG_ENABLED Then
     ex_Core.fn_Diagnostic_LogInfo "prsnlevntbuilder:export-action:exporter-ready type='" & private_EscapeForLog(VBA.TypeName(exporter)) & "'"
+    private_LogPerfStep "word-preview:create-exporter", perfStart, perfLast, _
+        "type='" & private_EscapeForLog(VBA.TypeName(exporter)) & "'"
 #End If
 
     If Not exporter.Export(sourceTables, exportContext) Then Exit Function
 #If LOGGING_DEBUG_ENABLED Then
     ex_Core.fn_Diagnostic_LogInfo "prsnlevntbuilder:export-action:exporter-done alias='" & private_EscapeForLog(exportAlias) & "'"
+    private_LogPerfStep "word-preview:export", perfStart, perfLast, _
+        "alias='" & private_EscapeForLog(exportAlias) & "'"
 #End If
     If Not private_TryCaptureWordExportPreview(exportContext) Then Exit Function
 #If LOGGING_DEBUG_ENABLED Then
     ex_Core.fn_Diagnostic_LogInfo "prsnlevntbuilder:export-action:preview-captured alias='" & private_EscapeForLog(exportAlias) & "'"
+    private_LogPerfStep "word-preview:capture-and-reflow", perfStart, perfLast, _
+        "alias='" & private_EscapeForLog(exportAlias) & "'"
 #End If
 
     rt_Messaging.fn_ShowStatusBarSuccess EXPORT_ACTION_PREFIX & exportAlias & ": done", 3
     private_TryExportDraftByAction = True
+#If LOGGING_DEBUG_ENABLED Then
+    private_LogPerfStep "word-preview:done", perfStart, perfLast
+#End If
     Exit Function
 
 EH:
