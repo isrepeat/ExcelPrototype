@@ -240,6 +240,8 @@ Public Function ExtractAndRender(Optional ByVal arg As Variant) As Boolean
             m_PipelineId, documentText, tables) Then Exit Function
         If Not private_TryTransformTables( _
             tables, transformedTables) Then Exit Function
+        If Not private_TryAddPersonnelCountToDatesTable( _
+            transformedTables) Then Exit Function
         documentDateText = VBA.vbNullString
         If VBA.Len(m_DocumentDateColumnCaption) > 0 Then
             If Not private_TryResolveDocumentDate( _
@@ -260,6 +262,61 @@ Public Function ExtractAndRender(Optional ByVal arg As Variant) As Boolean
         VBA.CStr(resultTables.Count) & ". Режим: " & _
         private_CurrentTablesModeCaption() & ".", 4
     ExtractAndRender = True
+End Function
+
+Private Function private_TryAddPersonnelCountToDatesTable( _
+    ByVal tables As Collection _
+) As Boolean
+    Const DATES_TABLE_ALIAS As String = "order-dates"
+    Const FIO_COLUMN_ALIAS As String = "fio"
+    Const PERSON_COUNT_COLUMN_ALIAS As String = "personCount"
+
+    Dim tableItem As Variant
+    Dim tableObj As obj_TableDynamic
+    Dim datesTable As obj_TableDynamic
+    Dim personCountColumn As obj_Column
+    Dim rowObj As obj_Row
+    Dim ignoredFioColumnIndex As Long
+    Dim rowIndex As Long
+    Dim personCount As Long
+
+    If tables Is Nothing Then Exit Function
+
+    For Each tableItem In tables
+        Set tableObj = tableItem
+        If tableObj Is Nothing Then Exit Function
+        If VBA.StrComp(VBA.Trim$(tableObj.SourceAlias), DATES_TABLE_ALIAS, _
+            VBA.vbTextCompare) = 0 Then
+            Set datesTable = tableObj
+        ElseIf tableObj.TryGetColumnIndexByAlias( _
+            FIO_COLUMN_ALIAS, ignoredFioColumnIndex) Then
+            personCount = personCount + tableObj.RowCount
+        End If
+    Next tableItem
+
+    If datesTable Is Nothing Then
+        private_Error "В результатах WordDataExtractor отсутствует обязательная таблица 'Дати'."
+        Exit Function
+    End If
+    If datesTable.RowCount = 0 Then
+        private_Error "Обязательная таблица 'Дати' не содержит строку приказа."
+        Exit Function
+    End If
+
+    Set personCountColumn = New obj_Column
+    personCountColumn.Name = "Кількість осіб"
+    If Not personCountColumn.AddAlias(PERSON_COUNT_COLUMN_ALIAS) Then Exit Function
+    If Not datesTable.InsertColumnAt( _
+        personCountColumn, datesTable.ColumnCount + 1) Then Exit Function
+
+    For rowIndex = 1 To datesTable.RowCount
+        Set rowObj = datesTable.Rows.Item(rowIndex)
+        If rowObj Is Nothing Then Exit Function
+        If Not rowObj.SetCellRaw( _
+            datesTable.ColumnCount, VBA.CStr(personCount)) Then Exit Function
+    Next rowIndex
+
+    private_TryAddPersonnelCountToDatesTable = True
 End Function
 
 Public Function ToggleEmptyTables(Optional ByVal arg As Variant) As Boolean
