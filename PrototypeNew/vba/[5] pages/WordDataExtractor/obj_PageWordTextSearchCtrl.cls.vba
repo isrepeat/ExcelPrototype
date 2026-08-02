@@ -43,7 +43,7 @@ Private Function obj_IPageCtrl_Initialize( _
         OBJECT_KEY, Me) Then Exit Function
     Set items = New Collection
     Set m_AllTables = New Collection
-    m_ShowEmptyTables = True
+    m_ShowEmptyTables = False
     If Not pageBase.RuntimeSources.SetItemsSource( _
         TABLES_KEY, items, False) Then Exit Function
     obj_IPageCtrl_Initialize = True

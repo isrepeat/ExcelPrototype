@@ -39,7 +39,7 @@ Public Function Initialize(ByVal page As obj_IPage) As Boolean
     If Not pageBase.RuntimeSources.SetObjectSource(OBJECT_KEY, Me) Then Exit Function
     Set items = New Collection
     Set m_AllTables = New Collection
-    m_ShowEmptyTables = True
+    m_ShowEmptyTables = False
     If Not pageBase.RuntimeSources.SetItemsSource(TABLES_KEY, items, False) Then Exit Function
     Initialize = True
 End Function

@@ -1,13 +1,50 @@
 Option Explicit
 
 Sub fn_ExtendTable()
-   Dim tbl As ListObject
+    Dim tbl As ListObject
+    Dim sourceRow As Range
+    Dim targetRange As Range
     Dim newRows As Long
+    Dim oldRowsCount As Long
+    Dim previousScreenUpdating As Boolean
+    Dim previousEnableEvents As Boolean
+
+    previousScreenUpdating = Application.ScreenUpdating
+    previousEnableEvents = Application.EnableEvents
+    On Error GoTo EH
 
     Set tbl = ActiveSheet.ListObjects(1)
     newRows = 10
+    If tbl.DataBodyRange Is Nothing Or tbl.ListRows.count = 0 Then
+        MsgBox "Невозможно расширить таблицу: в ней отсутствует строка-образец.", _
+            vbExclamation, "Расширение таблицы"
+        Exit Sub
+    End If
+
+    oldRowsCount = tbl.ListRows.count
+    Set sourceRow = tbl.DataBodyRange.Rows(oldRowsCount)
+
+    Application.ScreenUpdating = False
+    Application.EnableEvents = False
 
     tbl.Resize tbl.Range.Resize(tbl.Range.Rows.count + newRows)
+
+    ' Одним PasteSpecial распространяем поколоночные форматы строки-образца
+    ' на весь добавленный блок, не копируя значения и формулы.
+    Set targetRange = tbl.DataBodyRange.Rows(oldRowsCount + 1).Resize(newRows)
+    sourceRow.Copy
+    targetRange.PasteSpecial Paste:=xlPasteFormats
+
+CleanExit:
+    Application.CutCopyMode = False
+    Application.EnableEvents = previousEnableEvents
+    Application.ScreenUpdating = previousScreenUpdating
+    Exit Sub
+
+EH:
+    MsgBox "Не удалось расширить таблицу и применить форматирование: " & _
+        Err.Description, vbExclamation, "Расширение таблицы"
+    Resume CleanExit
 End Sub
 
 Public Sub fn_MoveTableRowsUp()
