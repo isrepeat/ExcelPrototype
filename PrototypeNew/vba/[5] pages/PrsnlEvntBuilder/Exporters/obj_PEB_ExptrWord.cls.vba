@@ -226,20 +226,12 @@ Public Function Export( _
     Dim groupOrderParts As Variant
     Dim usePreparedPreview As Boolean
     Dim writeToWord As Boolean
-    Dim perfStart As Double
-    Dim perfLast As Double
-
-    perfStart = VBA.Timer
-    perfLast = perfStart
 
     If m_IsDisposed Then
         VBA.MsgBox "PrototypeNew: WORD exporter is disposed.", VBA.vbExclamation, "PrototypeNew / WORD export"
         Exit Function
     End If
     If Not m_Base.TryGetMainSourceTable(sourceTables, sourceTable) Then Exit Function
-#If LOGGING_DEBUG_ENABLED Then
-    private_LogExportPerfStep "resolve-main-source", perfStart, perfLast
-#End If
 
     sectionTypeText = private_GetContextText(context, CONTEXT_SECTION_TYPE)
     If VBA.Len(sectionTypeText) = 0 Then sectionTypeText = VBA.Trim$(sourceTable.SectionTitle)
@@ -253,36 +245,13 @@ Public Function Export( _
         VBA.MsgBox exportValidationError, VBA.vbExclamation, "PrototypeNew / WORD export"
         Exit Function
     End If
-#If LOGGING_DEBUG_ENABLED Then
-    private_LogExportPerfStep "validate-export", perfStart, perfLast, _
-        "section='" & private_EscapeForPerfLog(sectionTypeText) & "' validation=" & _
-        VBA.LCase$(VBA.CStr(validationEnabled))
-#End If
     If Not private_TryEnrichMainSourceTableForWord(sourceTable, context) Then Exit Function
-#If LOGGING_DEBUG_ENABLED Then
-    private_LogExportPerfStep "enrich-main-source", perfStart, perfLast
-#End If
     If Not private_TryEnrichPreviousVacationTicketForWord( _
         sourceTable, sectionTypeText) Then Exit Function
-#If LOGGING_DEBUG_ENABLED Then
-    private_LogExportPerfStep "enrich-previous-vacation-ticket", perfStart, perfLast
-#End If
     If Not private_TryNormalizeDocumentNotesForWord(sourceTables, sectionTypeText) Then Exit Function
-#If LOGGING_DEBUG_ENABLED Then
-    private_LogExportPerfStep "normalize-document-notes", perfStart, perfLast
-#End If
     If Not private_TryEnrichMetaDocumentDatesForWord(sourceTables) Then Exit Function
-#If LOGGING_DEBUG_ENABLED Then
-    private_LogExportPerfStep "enrich-meta-document-dates", perfStart, perfLast
-#End If
     If Not private_TryAppendMovementTvoTablesForReturn(sourceTables, sourceTable, sectionTypeText, latestMovementTvoChain) Then Exit Function
-#If LOGGING_DEBUG_ENABLED Then
-    private_LogExportPerfStep "append-movement-tvo", perfStart, perfLast
-#End If
     If Not private_TryEnrichMetaTvoTablesForWord(sourceTables) Then Exit Function
-#If LOGGING_DEBUG_ENABLED Then
-    private_LogExportPerfStep "enrich-meta-tvo", perfStart, perfLast
-#End If
     Set namedCollections = private_BuildNamedLoopCollections(sourceTables)
     If namedCollections Is Nothing Then Exit Function
     Set builderData = New obj_PrsnlEvntBuilderData
@@ -290,10 +259,6 @@ Public Function Export( _
         VBA.MsgBox "PrototypeNew: WORD result template is not mapped for section: " & sectionTypeText, VBA.vbExclamation, "PrototypeNew / WORD export"
         Exit Function
     End If
-#If LOGGING_DEBUG_ENABLED Then
-    private_LogExportPerfStep "prepare-template-context", perfStart, perfLast, _
-        "template='" & private_EscapeForPerfLog(templateId) & "'"
-#End If
     previewText = private_GetContextText(context, CONTEXT_WORD_PREVIEW_TEXT)
     writeToWord = private_GetContextBoolean(context, "WriteToWord")
     usePreparedPreview = (writeToWord And _
@@ -306,17 +271,8 @@ Public Function Export( _
             namedCollections, _
             recordText) Then Exit Function
     End If
-#If LOGGING_DEBUG_ENABLED Then
-    private_LogExportPerfStep "render-record", perfStart, perfLast, _
-        "prepared=" & VBA.LCase$(VBA.CStr(usePreparedPreview)) & _
-        " len=" & VBA.CStr(VBA.Len(recordText))
-#End If
     If Not m_TemplateParser.TryGetGroupingDefinition( _
         templateId, hasGrouping, groupByText, groupOrderText) Then Exit Function
-#If LOGGING_DEBUG_ENABLED Then
-    private_LogExportPerfStep "resolve-grouping", perfStart, perfLast, _
-        "enabled=" & VBA.LCase$(VBA.CStr(hasGrouping))
-#End If
 
     ' Заголовки групп рендерятся и для preview, и для фактической вставки.
     ' Preview показывает их линейно в порядке DSL, а Word позже решает по
@@ -373,10 +329,6 @@ Public Function Export( _
     End If
     If Not private_TrySetContextText( _
         context, CONTEXT_WORD_PREVIEW_TEXT, previewText) Then Exit Function
-#If LOGGING_DEBUG_ENABLED Then
-    private_LogExportPerfStep "build-preview", perfStart, perfLast, _
-        "len=" & VBA.CStr(VBA.Len(previewText))
-#End If
 
     ' CTRL+3 только возвращает линейное preview. CTRL+4 передаёт WriteToWord=True,
     ' после чего groupHeader и recordText вставляются по отдельным правилам.
@@ -398,42 +350,7 @@ Public Function Export( _
     End If
 
     Export = True
-#If LOGGING_DEBUG_ENABLED Then
-    private_LogExportPerfStep "done", perfStart, perfLast
-#End If
 End Function
-
-#If LOGGING_DEBUG_ENABLED Then
-Private Sub private_LogExportPerfStep( _
-    ByVal stepName As String, _
-    ByVal startedAt As Double, _
-    ByRef lastAt As Double, _
-    Optional ByVal details As String = "" _
-)
-    Dim nowAt As Double
-    Dim messageText As String
-
-    nowAt = VBA.Timer
-    messageText = "perf:peb-word-export:" & stepName & _
-        " stepMs=" & VBA.Format$(private_ElapsedPerfMs(lastAt, nowAt), "0.0") & _
-        " totalMs=" & VBA.Format$(private_ElapsedPerfMs(startedAt, nowAt), "0.0")
-    lastAt = nowAt
-    If VBA.Len(VBA.Trim$(details)) > 0 Then messageText = messageText & " " & details
-    ex_Core.fn_Diagnostic_LogInfo messageText
-End Sub
-
-Private Function private_ElapsedPerfMs( _
-    ByVal startedAt As Double, _
-    ByVal endedAt As Double _
-) As Double
-    If endedAt < startedAt Then endedAt = endedAt + 86400#
-    private_ElapsedPerfMs = (endedAt - startedAt) * 1000#
-End Function
-
-Private Function private_EscapeForPerfLog(ByVal valueText As String) As String
-    private_EscapeForPerfLog = VBA.Replace$(VBA.CStr(valueText), "'", "''")
-End Function
-#End If
 
 Private Function private_TryExtractRecordTextFromPreview( _
     ByVal templateId As String, _
