@@ -16,7 +16,7 @@ Private m_ExporterCfgDataProvider As obj_PEB_ExptrCfgDataPrvdr
 
 Private Const SAVE_ALREADY_OPEN_WORKBOOK As Boolean = False
 Private Const MOVEMENT_TARGET_COLUMN_COUNT As Long = 6
-Private Const MOVEMENT_TRAILING_EMPTY_LOOKBACK_ROWS As Long = 20
+Private Const MOVEMENT_TRAILING_EMPTY_LOOKBACK_ROWS As Long = 40
 Private Const MOVEMENT_SOURCE_INCOMING_NO As String = "Вх. №"
 Private Const MOVEMENT_CONTEXT_MANUAL_ORDER_NO As String = "ManualOrderNo"
 Private Const MOVEMENT_CONTEXT_REPORT_IS_TVO As String = "ReportIsTvo"
