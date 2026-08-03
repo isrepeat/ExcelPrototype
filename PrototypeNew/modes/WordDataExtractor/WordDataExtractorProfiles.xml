@@ -35,8 +35,31 @@
     <item attr="#" key="Profile.Name" value="WORD: пошук тексту"/>
     <item key="WordDataExtractor.UiFile" value="ui\WordDataExtractor\WordTextSearchUI.xml"/>
     <item key="WordDataExtractor.ControllerClass" value="obj_PageWordTextSearchCtrl"/>
-    <item key="WordDataExtractor.DocumentDir" value="C:\WORK Alexandr Bondarenko\НАКАЗИ\Накази А7383\2025-2026"/>
-    <item key="WordDataExtractor.DocumentFilename" value="{yyyy}-{mm}-{dd} №*"/>
+    <!-- Новые источники добавляются в список через ";". Для каждого id нужны
+         DocumentDir и собственный DocumentFilename либо полный DocumentPath.
+         Caption необязателен: без него в UI показывается итоговый шаблон пути. -->
+    <item key="WordDataExtractor.DocumentSources" value="orders-a7383;orders-a4085;orders-a4603;orders-a7401;orders-a7402;orders-a7403;orders-a7404"/>
+    <item key="WordDataExtractor.DocumentSource[orders-a7383].DocumentDir" value="C:\WORK Alexandr Bondarenko\НАКАЗИ\Накази А7383\2025-2026"/>
+    <item key="WordDataExtractor.DocumentSource[orders-a7383].DocumentFilename" value="{yyyy}-{mm}-{dd} №*.doc*"/>
+    <item key="WordDataExtractor.DocumentSource[orders-a7383].Enabled" value="true"/>
+    <item key="WordDataExtractor.DocumentSource[orders-a4085].DocumentDir" value="C:\WORK Alexandr Bondarenko\НАКАЗИ\А4085\2025"/>
+    <item key="WordDataExtractor.DocumentSource[orders-a4085].DocumentFilename" value="№*{dd}.{mm}.{yyyy}.doc*"/>
+    <item key="WordDataExtractor.DocumentSource[orders-a4085].Enabled" value="false"/>
+    <item key="WordDataExtractor.DocumentSource[orders-a4603].DocumentDir" value="C:\WORK Alexandr Bondarenko\НАКАЗИ\А4603\2025"/>
+    <item key="WordDataExtractor.DocumentSource[orders-a4603].DocumentFilename" value="№ * {dd}.{mm}.{yyyy}*.doc*"/>
+    <item key="WordDataExtractor.DocumentSource[orders-a4603].Enabled" value="false"/>
+    <item key="WordDataExtractor.DocumentSource[orders-a7401].DocumentDir" value="C:\WORK Alexandr Bondarenko\НАКАЗИ\А7401\2025"/>
+    <item key="WordDataExtractor.DocumentSource[orders-a7401].DocumentFilename" value="НАКАЗ №* від {dd} {monthUa} {yyyy}*.doc*"/>
+    <item key="WordDataExtractor.DocumentSource[orders-a7401].Enabled" value="false"/>
+    <item key="WordDataExtractor.DocumentSource[orders-a7402].DocumentDir" value="C:\WORK Alexandr Bondarenko\НАКАЗИ\А7402\2025"/>
+    <item key="WordDataExtractor.DocumentSource[orders-a7402].DocumentFilename" value="Наказ А7402 №* від {dd}.{mm}.{yy}.doc*"/>
+    <item key="WordDataExtractor.DocumentSource[orders-a7402].Enabled" value="false"/>
+    <item key="WordDataExtractor.DocumentSource[orders-a7403].DocumentDir" value="C:\WORK Alexandr Bondarenko\НАКАЗИ\А7403\2025"/>
+    <item key="WordDataExtractor.DocumentSource[orders-a7403].DocumentFilename" value="№*{dd}.{mm}.{yyyy}*.doc*"/>
+    <item key="WordDataExtractor.DocumentSource[orders-a7403].Enabled" value="false"/>
+    <item key="WordDataExtractor.DocumentSource[orders-a7404].DocumentDir" value="C:\WORK Alexandr Bondarenko\НАКАЗИ\А7404\2025"/>
+    <item key="WordDataExtractor.DocumentSource[orders-a7404].DocumentFilename" value="{yyyy}-{mm}-{dd}*.doc*"/>
+    <item key="WordDataExtractor.DocumentSource[orders-a7404].Enabled" value="false"/>
     <item key="WordDataExtractor.DocumentPathResolver" value="ResolveAllByDmyPattern"/>
     <item key="WordDataExtractor.DocumentPathResolverArgs" value="order=asc;dateFrom=01.06.2026;dateTo=15.07.2026"/>
   </profile>

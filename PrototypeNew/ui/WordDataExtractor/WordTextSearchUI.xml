@@ -127,6 +127,19 @@
           text=""
           spanColls="1"
           spanRows="1"/>
+
+        <control
+          type="ButtonGroup"
+          name="DocumentSources"
+          itemsSource="{PageRuntimeSource='RuntimeItems.WordDataExtractor.Sources'}"
+          style="documentSourceButton"
+          onClick="{Binding DataContext={PageRuntimeSource='RuntimeObjects.WordDataExtractor.Controller'}; Method=ToggleDocumentSource}"
+          columns="1"
+          flow="column"
+          itemSpanRows="1"
+          shapePrefix="btn_WDESrc_"
+          spanColls="5"
+          spanRows="7"/>
       </stackPanel>
 
       <stackPanel spanColls="40" spanRows="1"/>
@@ -146,6 +159,13 @@
       borderColor="#1D4ED8"
       fontBold="true"/>
 
+    <controlStyle
+      name="documentSourceButton"
+      backColor="#176B8A"
+      textColor="#EAF6FF"
+      borderColor="#0E4F69"
+      fontBold="true"/>
+
     <stylePipelineStage name="default">
       <layer name="base">
         <rule
@@ -162,6 +182,16 @@
       </layer>
 
       <layer name="search-input">
+        <rule
+          target="controlPart"
+          selector="type=buttongroup;name=DocumentSources;part=state-selected"
+          styles="{
+            backColor:#14532D;
+            fontColor:#DCFCE7;
+            borderColor:#22C55E;
+            fontBold:true;
+          }"/>
+
         <rule
           target="controlPart"
           selector="type=label;name=ToolbarHeightAnchor;part=cell"

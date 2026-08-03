@@ -174,17 +174,44 @@ Public Function fn_ResolveAllByDmyPattern( _
         End If
         candidateName = VBA.Dir$
     Loop
-    If itemCount = 0 Then
+    If itemCount = 0 And _
+        VBA.InStr(1, resolverArgs, "allowEmpty=true", _
+            VBA.vbTextCompare) = 0 Then
         Err.Raise ERR_BASE + 7, "ex_SourceResolver", _
             "No files matched the date pattern. Pattern: " & absolutePattern & ", search mask: " & searchMask
     End If
 
     private_SortResolvedPaths paths, dates, writeTimes, itemCount, sortDescending
     Set result = New Collection
-    For i = 1 To itemCount
-        result.Add paths(i)
-    Next i
+    If itemCount > 0 Then
+        For i = 1 To itemCount
+            result.Add paths(i)
+        Next i
+    End If
     Set fn_ResolveAllByDmyPattern = result
+End Function
+
+' Возвращает дату, зашитую в имени уже разрешённого файла. Метод нужен
+' mode-specific контроллерам, которые объединяют результаты нескольких
+' шаблонов и затем выполняют общую сортировку.
+Public Function fn_TryGetDmyDateByResolvedPath( _
+    ByVal filePathPattern As String, _
+    ByVal resolvedPath As String, _
+    ByRef outDate As Date _
+) As Boolean
+    Dim patternFileName As String
+    Dim resolvedFileName As String
+
+    outDate = 0
+    patternFileName = private_GetFileName( _
+        private_NormalizeFilePath(filePathPattern))
+    resolvedFileName = private_GetFileName( _
+        private_NormalizeFilePath(resolvedPath))
+    If VBA.Len(patternFileName) = 0 Or _
+        VBA.Len(resolvedFileName) = 0 Then Exit Function
+
+    fn_TryGetDmyDateByResolvedPath = private_TryExtractDateByPattern( _
+        patternFileName, resolvedFileName, outDate)
 End Function
 
 Private Function private_TryReadResolverDateArg( _
@@ -325,12 +352,14 @@ Private Function private_ValidateDmyPattern(ByVal filePattern As String, ByRef o
             Select Case token
                 Case "dd"
                     hasDd = True
-                Case "mm"
+                Case "mm", "monthua"
                     hasMm = True
-                Case "yyyy"
+                Case "yyyy", "yy"
                     hasYyyy = True
                 Case Else
-                    outErrorText = "Unsupported placeholder '{" & token & "}'. Only {dd}, {mm}, {yyyy} are allowed in this resolver."
+                    outErrorText = "Unsupported placeholder '{" & token & _
+                        "}'. Supported date placeholders: {dd}, {mm}, " & _
+                        "{monthUa}, {yy}, {yyyy}."
                     Exit Function
             End Select
 
@@ -341,7 +370,8 @@ Private Function private_ValidateDmyPattern(ByVal filePattern As String, ByRef o
     Loop
 
     If Not hasDd Or Not hasMm Or Not hasYyyy Then
-        outErrorText = "Date placeholders are required: {dd}, {mm}, {yyyy}."
+        outErrorText = "Date placeholders are required: {dd}, " & _
+            "{mm} or {monthUa}, and {yy} or {yyyy}."
         Exit Function
     End If
 
@@ -427,6 +457,14 @@ Private Function private_TryMatchDmyPattern( _
                 If Not private_TryReadFixedDigits( _
                     fileName, nextFilePos, 2, parsedValue) Then Exit Function
                 outMm = parsedValue
+            Case "monthua"
+                If Not private_TryReadUaMonth( _
+                    fileName, nextFilePos, parsedValue) Then Exit Function
+                outMm = parsedValue
+            Case "yy"
+                If Not private_TryReadFixedDigits( _
+                    fileName, nextFilePos, 2, parsedValue) Then Exit Function
+                outYyyy = 2000 + parsedValue
             Case "yyyy"
                 If Not private_TryReadFixedDigits( _
                     fileName, nextFilePos, 4, parsedValue) Then Exit Function
@@ -446,6 +484,31 @@ Private Function private_TryMatchDmyPattern( _
     private_TryMatchDmyPattern = private_TryMatchDmyPattern( _
         filePattern, fileName, patternPos + 1, filePos + 1, _
         outDd, outMm, outYyyy)
+End Function
+
+Private Function private_TryReadUaMonth( _
+    ByVal textValue As String, _
+    ByRef ioPos As Long, _
+    ByRef outMonth As Long _
+) As Boolean
+    Dim monthNames As Variant
+    Dim monthIndex As Long
+    Dim monthName As String
+
+    monthNames = VBA.Array( _
+        "січня", "лютого", "березня", "квітня", _
+        "травня", "червня", "липня", "серпня", _
+        "вересня", "жовтня", "листопада", "грудня")
+    For monthIndex = LBound(monthNames) To UBound(monthNames)
+        monthName = VBA.CStr(monthNames(monthIndex))
+        If VBA.StrComp(VBA.Mid$(textValue, ioPos, VBA.Len(monthName)), _
+            monthName, VBA.vbTextCompare) = 0 Then
+            outMonth = monthIndex + 1
+            ioPos = ioPos + VBA.Len(monthName)
+            private_TryReadUaMonth = True
+            Exit Function
+        End If
+    Next monthIndex
 End Function
 
 

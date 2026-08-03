@@ -9,14 +9,21 @@ Implements obj_IPageCtrl
 
 Private Const OBJECT_KEY As String = "RuntimeObjects.WordDataExtractor.Controller"
 Private Const TABLES_KEY As String = "RuntimeItems.WordDataExtractor.Tables"
+Private Const SOURCES_KEY As String = "RuntimeItems.WordDataExtractor.Sources"
 Private Const CONTEXT_LINE_RADIUS As Long = 5
 
 Private m_Page As obj_IPage
 Private m_DocumentPath As String
 Private m_DocumentPathPattern As String
+Private m_DocumentFilename As String
 Private m_DocumentPaths As Collection
 Private m_DocumentPathResolver As String
 Private m_DocumentPathResolverArgs As String
+Private m_SourceOptions As Collection
+Private m_SourceIds As Collection
+Private m_SourcePatterns As Object
+Private m_SourceEnabled As Object
+Private m_SourceCaptions As Object
 Private m_DateFromDay As String
 Private m_DateFromMonth As String
 Private m_DateFromYear As String
@@ -46,6 +53,16 @@ Private Function obj_IPageCtrl_Initialize( _
     m_ShowEmptyTables = False
     If Not pageBase.RuntimeSources.SetItemsSource( _
         TABLES_KEY, items, False) Then Exit Function
+    Set m_SourceOptions = New Collection
+    Set m_SourceIds = New Collection
+    Set m_SourcePatterns = VBA.CreateObject("Scripting.Dictionary")
+    m_SourcePatterns.CompareMode = VBA.vbTextCompare
+    Set m_SourceEnabled = VBA.CreateObject("Scripting.Dictionary")
+    m_SourceEnabled.CompareMode = VBA.vbTextCompare
+    Set m_SourceCaptions = VBA.CreateObject("Scripting.Dictionary")
+    m_SourceCaptions.CompareMode = VBA.vbTextCompare
+    If Not pageBase.RuntimeSources.SetItemsSource( _
+        SOURCES_KEY, m_SourceOptions, False) Then Exit Function
     obj_IPageCtrl_Initialize = True
 End Function
 
@@ -56,6 +73,7 @@ Private Function obj_IPageCtrl_UpdateData( _
     Dim wordDataExtrCfgParser As obj_WordDataExtrCfgParser
     Dim documentDir As String
     Dim documentFilename As String
+    Dim documentSources As String
 
     m_IsReady = False
     If configControl Is Nothing Then Exit Function
@@ -74,8 +92,13 @@ Private Function obj_IPageCtrl_UpdateData( _
         documentFilename = VBA.Trim$( _
             wordDataExtrCfgParser.GetOptionalValue( _
                 "WordDataExtractor.DocumentFilename"))
-        If VBA.Len(documentDir) = 0 Xor _
-            VBA.Len(documentFilename) = 0 Then
+        m_DocumentFilename = documentFilename
+        documentSources = VBA.Trim$( _
+            wordDataExtrCfgParser.GetOptionalValue( _
+                "WordDataExtractor.DocumentSources"))
+        If (VBA.Len(documentDir) = 0 Xor _
+            VBA.Len(documentFilename) = 0) And _
+            VBA.Len(documentSources) = 0 Then
             private_Error "Для поиска должны быть заполнены оба ключа: " & _
                 "WordDataExtractor.DocumentDir и " & _
                 "WordDataExtractor.DocumentFilename."
@@ -97,6 +120,8 @@ Private Function obj_IPageCtrl_UpdateData( _
     m_DocumentPathResolverArgs = VBA.Trim$( _
         wordDataExtrCfgParser.GetOptionalValue( _
             "WordDataExtractor.DocumentPathResolverArgs"))
+    If Not private_TryLoadDocumentSources( _
+        wordDataExtrCfgParser) Then Exit Function
     If Not private_TryLoadDateParts( _
         private_GetResolverArg(m_DocumentPathResolverArgs, "dateFrom"), _
         "dateFrom", m_DateFromDay, m_DateFromMonth, _
@@ -114,6 +139,11 @@ End Function
 Private Sub obj_IPageCtrl_Dispose()
     Set m_AllTables = Nothing
     Set m_DocumentPaths = Nothing
+    Set m_SourceOptions = Nothing
+    Set m_SourceIds = Nothing
+    Set m_SourcePatterns = Nothing
+    Set m_SourceEnabled = Nothing
+    Set m_SourceCaptions = Nothing
     Set m_Page = Nothing
 End Sub
 
@@ -272,6 +302,24 @@ Public Function ToggleRegexMode(Optional ByVal arg As Variant) As Boolean
     ToggleRegexMode = True
 End Function
 
+Public Function ToggleDocumentSource(Optional ByVal arg As Variant) As Boolean
+    Dim sourceId As String
+
+    If VBA.IsMissing(arg) Then Exit Function
+    sourceId = VBA.Trim$(VBA.CStr(arg))
+    If m_SourceEnabled Is Nothing Then Exit Function
+    If Not m_SourceEnabled.Exists(sourceId) Then
+        private_Error "Источник документов не найден в конфигурации: " & sourceId
+        Exit Function
+    End If
+
+    m_SourceEnabled(sourceId) = Not VBA.CBool(m_SourceEnabled(sourceId))
+    If Not private_RebuildSourceOptions() Then Exit Function
+    If Not rt_PageManager.fn_RenderPage( _
+        m_Page, "word-text-search:toggle-source") Then Exit Function
+    ToggleDocumentSource = True
+End Function
+
 Public Function Rerender(Optional ByVal arg As Variant) As Boolean
     Rerender = rt_PageManager.fn_RenderPage( _
         m_Page, "word-text-search:rerender")
@@ -406,10 +454,215 @@ InvalidDate:
         dayText & "." & monthText & "." & yearText & "."
 End Function
 
+Private Function private_TryLoadDocumentSources( _
+    ByVal wordDataExtrCfgParser As obj_WordDataExtrCfgParser _
+) As Boolean
+    Dim sourceIdsText As String
+    Dim sourceIds As Variant
+    Dim sourceIdItem As Variant
+    Dim sourceId As String
+    Dim sourceDir As String
+    Dim sourcePath As String
+    Dim sourceFilename As String
+    Dim sourceCaption As String
+    Dim enabledText As String
+    Dim isEnabled As Boolean
+
+    If wordDataExtrCfgParser Is Nothing Then Exit Function
+    Set m_SourcePatterns = VBA.CreateObject("Scripting.Dictionary")
+    m_SourcePatterns.CompareMode = VBA.vbTextCompare
+    Set m_SourceEnabled = VBA.CreateObject("Scripting.Dictionary")
+    m_SourceEnabled.CompareMode = VBA.vbTextCompare
+    Set m_SourceCaptions = VBA.CreateObject("Scripting.Dictionary")
+    m_SourceCaptions.CompareMode = VBA.vbTextCompare
+    Set m_SourceIds = New Collection
+
+    sourceIdsText = VBA.Trim$(wordDataExtrCfgParser.GetOptionalValue( _
+        "WordDataExtractor.DocumentSources"))
+    If VBA.Len(sourceIdsText) = 0 Then
+        private_TryLoadDocumentSources = private_RebuildSourceOptions()
+        Exit Function
+    End If
+
+    sourceIds = VBA.Split(sourceIdsText, ";")
+    For Each sourceIdItem In sourceIds
+        sourceId = VBA.Trim$(VBA.CStr(sourceIdItem))
+        If VBA.Len(sourceId) = 0 Then GoTo ContinueSource
+        If m_SourcePatterns.Exists(sourceId) Then
+            private_Error "Идентификатор источника документов указан дважды: " & sourceId
+            Exit Function
+        End If
+
+        sourcePath = VBA.Trim$(wordDataExtrCfgParser.GetOptionalValue( _
+            "WordDataExtractor.DocumentSource[" & sourceId & "].DocumentPath"))
+        sourceDir = VBA.Trim$(wordDataExtrCfgParser.GetOptionalValue( _
+            "WordDataExtractor.DocumentSource[" & sourceId & "].DocumentDir"))
+        sourceFilename = VBA.Trim$(wordDataExtrCfgParser.GetOptionalValue( _
+            "WordDataExtractor.DocumentSource[" & sourceId & "].DocumentFilename"))
+        If VBA.Len(sourcePath) > 0 And VBA.Len(sourceDir) > 0 Then
+            private_Error "Для источника '" & sourceId & _
+                "' нельзя одновременно задавать DocumentPath и DocumentDir."
+            Exit Function
+        End If
+        If VBA.Len(sourcePath) = 0 Then
+            If VBA.Len(sourceDir) = 0 Then
+                private_Error "Для источника '" & sourceId & _
+                    "' не указан DocumentDir или DocumentPath."
+                Exit Function
+            End If
+            If VBA.Len(sourceFilename) = 0 Then
+                private_Error "Для источника '" & sourceId & _
+                    "' не указан обязательный DocumentFilename."
+                Exit Function
+            End If
+            sourcePath = private_CombineDirectoryAndFilename( _
+                sourceDir, sourceFilename)
+        End If
+        sourcePath = private_EnsureDefaultDocumentExtension(sourcePath)
+
+        sourceCaption = VBA.Trim$(wordDataExtrCfgParser.GetOptionalValue( _
+            "WordDataExtractor.DocumentSource[" & sourceId & "].Caption", _
+            sourcePath))
+        enabledText = VBA.LCase$(VBA.Trim$(wordDataExtrCfgParser.GetOptionalValue( _
+            "WordDataExtractor.DocumentSource[" & sourceId & "].Enabled", "true")))
+        Select Case enabledText
+            Case "true", "1", "yes", "on"
+                isEnabled = True
+            Case "false", "0", "no", "off"
+                isEnabled = False
+            Case Else
+                private_Error "Некорректное значение Enabled у источника '" & _
+                    sourceId & "': " & enabledText
+                Exit Function
+        End Select
+        m_SourcePatterns.Add sourceId, sourcePath
+        m_SourceCaptions.Add sourceId, sourceCaption
+        m_SourceEnabled.Add sourceId, isEnabled
+        m_SourceIds.Add sourceId
+ContinueSource:
+    Next sourceIdItem
+    If m_SourcePatterns.Count = 0 Then
+        private_Error "WordDataExtractor.DocumentSources не содержит источников."
+        Exit Function
+    End If
+    private_TryLoadDocumentSources = private_RebuildSourceOptions()
+End Function
+
+Private Function private_RebuildSourceOptions() As Boolean
+    Dim pageBase As obj_PageBase
+    Dim sourceId As Variant
+    Dim sourceOption As obj_SelectOption
+    Dim marker As String
+
+    Set m_SourceOptions = New Collection
+    If Not m_SourceIds Is Nothing Then
+        For Each sourceId In m_SourceIds
+            Set sourceOption = New obj_SelectOption
+            If Not sourceOption.Initialize() Then Exit Function
+            sourceOption.Id = VBA.CStr(sourceId)
+            If VBA.CBool(m_SourceEnabled(sourceId)) Then
+                marker = VBA.ChrW$(&H2611) & " "
+                If Not sourceOption.SetState("selected", True) Then Exit Function
+            Else
+                marker = VBA.ChrW$(&H2610) & " "
+            End If
+            sourceOption.Caption = marker & VBA.CStr(m_SourceCaptions(sourceId))
+            m_SourceOptions.Add sourceOption
+        Next sourceId
+    End If
+    If m_Page Is Nothing Then Exit Function
+    Set pageBase = m_Page.GetPageBase()
+    If pageBase Is Nothing Then Exit Function
+    private_RebuildSourceOptions = pageBase.RuntimeSources.SetItemsSource( _
+        SOURCES_KEY, m_SourceOptions, False)
+End Function
+
+Private Sub private_SortDocumentRecords( _
+    ByVal records As Collection, _
+    ByVal sortDescending As Boolean _
+)
+    Dim i As Long
+    Dim j As Long
+    Dim leftRecord As Object
+    Dim rightRecord As Object
+
+    If records Is Nothing Then Exit Sub
+    For i = 1 To records.Count - 1
+        For j = i + 1 To records.Count
+            Set leftRecord = records.Item(i)
+            Set rightRecord = records.Item(j)
+            If private_ShouldSwapDocumentRecords( _
+                leftRecord, rightRecord, sortDescending) Then
+                records.Remove j
+                records.Add rightRecord, Before:=i
+                Set leftRecord = records.Item(i)
+            End If
+        Next j
+    Next i
+End Sub
+
+Private Function private_ShouldSwapDocumentRecords( _
+    ByVal leftRecord As Object, _
+    ByVal rightRecord As Object, _
+    ByVal sortDescending As Boolean _
+) As Boolean
+    Dim dateCompare As Long
+    Dim textCompare As Long
+
+    If VBA.CDate(leftRecord("Date")) < VBA.CDate(rightRecord("Date")) Then
+        dateCompare = -1
+    ElseIf VBA.CDate(leftRecord("Date")) > VBA.CDate(rightRecord("Date")) Then
+        dateCompare = 1
+    End If
+    If sortDescending Then dateCompare = -dateCompare
+    If dateCompare <> 0 Then
+        private_ShouldSwapDocumentRecords = (dateCompare > 0)
+        Exit Function
+    End If
+
+    textCompare = VBA.StrComp(VBA.CStr(leftRecord("Name")), _
+        VBA.CStr(rightRecord("Name")), VBA.vbTextCompare)
+    If textCompare = 0 Then
+        textCompare = VBA.StrComp(VBA.CStr(leftRecord("Path")), _
+            VBA.CStr(rightRecord("Path")), VBA.vbTextCompare)
+    End If
+    If textCompare = 0 Then
+        If VBA.CLng(leftRecord("Sequence")) < _
+            VBA.CLng(rightRecord("Sequence")) Then
+            textCompare = -1
+        ElseIf VBA.CLng(leftRecord("Sequence")) > _
+            VBA.CLng(rightRecord("Sequence")) Then
+            textCompare = 1
+        End If
+    End If
+    private_ShouldSwapDocumentRecords = (textCompare > 0)
+End Function
+
+Private Function private_GetFileName(ByVal filePath As String) As String
+    Dim fso As Object
+
+    If VBA.Len(VBA.Trim$(filePath)) = 0 Then Exit Function
+    Set fso = VBA.CreateObject("Scripting.FileSystemObject")
+    private_GetFileName = fso.GetFileName(filePath)
+End Function
+
 Private Function private_ResolveDocuments() As Boolean
     Dim effectiveResolverArgs As String
     Dim dateFromText As String
     Dim dateToText As String
+    Dim sourceId As Variant
+    Dim sourcePattern As String
+    Dim resolvedPaths As Collection
+    Dim resolvedPath As Variant
+    Dim resolvedDate As Date
+    Dim records As Collection
+    Dim record As Object
+    Dim selectedCount As Long
+    Dim sequence As Long
+    Dim i As Long
+    Dim seenPaths As Object
+    Dim normalizedPath As String
+    Dim sourceResolverArgs As String
 
     If Not private_TryBuildDateText( _
         "dateFrom", m_DateFromDay, m_DateFromMonth, _
@@ -422,6 +675,72 @@ Private Function private_ResolveDocuments() As Boolean
     effectiveResolverArgs = private_SetResolverArg( _
         effectiveResolverArgs, "dateTo", dateToText)
     Set m_DocumentPaths = Nothing
+
+    If Not m_SourcePatterns Is Nothing Then
+        If m_SourcePatterns.Count > 0 Then
+            If VBA.StrComp(m_DocumentPathResolver, _
+                "ResolveAllByDmyPattern", VBA.vbTextCompare) <> 0 Then
+                private_Error "Для нескольких источников требуется " & _
+                    "WordDataExtractor.DocumentPathResolver=" & _
+                    "ResolveAllByDmyPattern."
+                Exit Function
+            End If
+            Set records = New Collection
+            Set seenPaths = VBA.CreateObject("Scripting.Dictionary")
+            seenPaths.CompareMode = VBA.vbTextCompare
+            sourceResolverArgs = private_SetResolverArg( _
+                effectiveResolverArgs, "allowEmpty", "true")
+            For Each sourceId In m_SourceIds
+                If VBA.CBool(m_SourceEnabled(sourceId)) Then
+                    selectedCount = selectedCount + 1
+                    sourcePattern = VBA.CStr(m_SourcePatterns(sourceId))
+                    On Error GoTo EH
+                    Set resolvedPaths = ex_SourceResolver.fn_ResolveAllByDmyPattern( _
+                        sourcePattern, sourceResolverArgs)
+                    On Error GoTo 0
+                    For Each resolvedPath In resolvedPaths
+                        normalizedPath = VBA.Trim$(VBA.CStr(resolvedPath))
+                        If seenPaths.Exists(normalizedPath) Then
+                            GoTo ContinueResolvedPath
+                        End If
+                        If Not ex_SourceResolver.fn_TryGetDmyDateByResolvedPath( _
+                            sourcePattern, normalizedPath, resolvedDate) Then
+                            private_Error "Не удалось прочитать дату из имени документа: " & _
+                                normalizedPath
+                            Exit Function
+                        End If
+                        seenPaths.Add normalizedPath, True
+                        sequence = sequence + 1
+                        Set record = VBA.CreateObject("Scripting.Dictionary")
+                        record("Path") = normalizedPath
+                        record("Date") = resolvedDate
+                        record("Name") = private_GetFileName(normalizedPath)
+                        record("Sequence") = sequence
+                        records.Add record
+ContinueResolvedPath:
+                    Next resolvedPath
+            End If
+            Next sourceId
+            If selectedCount = 0 Then
+                private_Error "Выберите хотя бы один источник WORD-документов."
+                Exit Function
+            End If
+            If records.Count = 0 Then
+                private_Error "В выбранных источниках не найдено WORD-документов."
+                Exit Function
+            End If
+            private_SortDocumentRecords records, _
+                (VBA.InStr(1, effectiveResolverArgs, "order=desc", _
+                    VBA.vbTextCompare) > 0)
+            Set m_DocumentPaths = New Collection
+            For i = 1 To records.Count
+                Set record = records.Item(i)
+                m_DocumentPaths.Add VBA.CStr(record("Path"))
+            Next i
+            private_ResolveDocuments = True
+            Exit Function
+        End If
+    End If
 
     If VBA.Len(m_DocumentPathResolver) = 0 Then
         If VBA.Len(dateFromText) > 0 Or _
