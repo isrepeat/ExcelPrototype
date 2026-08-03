@@ -260,6 +260,9 @@ ContinueItem:
     Set writeRange = ws.Range( _
         ws.Cells(m_ControlLayout.RowStart, m_ControlLayout.ColStart), _
         ws.Cells(m_ControlLayout.RowStart + rowsToWrite - 1, m_ControlLayout.ColStart + CONFIG_COL_COUNT - 1))
+    ' Формат задаётся до записи: при General Excel преобразует строки
+    ' true/false в Boolean и автоматически центрирует их.
+    writeRange.NumberFormat = "@"
     writeRange.Value2 = valueBlock
 
     ' Преобразуем диапазон в ListObject, чтобы получить табличный рендер и фильтры Excel.
