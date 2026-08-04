@@ -1006,7 +1006,7 @@ Private Function private_TryShowReporterTvoCandidates( _
     If positionCodeRange Is Nothing Then Exit Function
     If Application.Intersect(targetCell, positionCodeRange) Is Nothing Then
         VBA.MsgBox "Для вибору посади ТВО виділіть поле 'Код посади (рапорт)' " & _
-            "та натисніть Ctrl+.", VBA.vbExclamation, "PrsnlEventBuilder / ТВО"
+            "та натисніть Ctrl+/.", VBA.vbExclamation, "PrsnlEventBuilder / ТВО"
         Exit Function
     End If
 
@@ -3311,7 +3311,9 @@ Private Function private_EnsureHotkeyRows(ByVal notifyChange As Boolean) As Bool
                 If Not private_RemoveStaleExportHotkeyRows(hotkeyRows, hasChanges) Then Exit Function
                 If Not private_ClearHotkeyAssignment(hotkeyRows, "CTRL+1", hasChanges) Then Exit Function
                 If Not private_EnsureHotkeyRow(hotkeyRows, HOTKEY_ACCEPT_CANDIDATE_ROW, "CTRL+ENTER", hasChanges) Then Exit Function
-                If Not private_EnsureHotkeyRow(hotkeyRows, HOTKEY_REPORT_TVO_CANDIDATES, "CTRL+.", hasChanges) Then Exit Function
+                If Not private_EnsureHotkeyRow( _
+                    hotkeyRows, HOTKEY_REPORT_TVO_CANDIDATES, _
+                    "CTRL+/", hasChanges, True) Then Exit Function
                 If Not private_EnsureExportHotkeyRows(hotkeyRows, hasChanges) Then Exit Function
                 If Not private_EnsureHotkeyRow(hotkeyRows, HOTKEY_EXPORT_MOVEMENT_WORD, "CTRL+E", hasChanges, True) Then Exit Function
                 ' CTRL+4, как и CTRL+3 для WORD preview, является системным
@@ -3337,7 +3339,7 @@ Private Function private_EnsureHotkeyRows(ByVal notifyChange As Boolean) As Bool
     ' после render HotkeysControl и RuntimeRegisterBoundRows, где регистрируются
     ' routes для этой страницы.
     If Not private_AddHotkeyRow(hotkeyRows, HOTKEY_ACCEPT_CANDIDATE_ROW, "CTRL+ENTER") Then Exit Function
-    If Not private_AddHotkeyRow(hotkeyRows, HOTKEY_REPORT_TVO_CANDIDATES, "CTRL+.") Then Exit Function
+    If Not private_AddHotkeyRow(hotkeyRows, HOTKEY_REPORT_TVO_CANDIDATES, "CTRL+/") Then Exit Function
     If Not private_AddExportHotkeyRows(hotkeyRows) Then Exit Function
     If Not private_AddHotkeyRow(hotkeyRows, HOTKEY_EXPORT_MOVEMENT_WORD, "CTRL+E") Then Exit Function
     If Not private_AddHotkeyRow(hotkeyRows, HOTKEY_EXPORT_TO_WORD, "CTRL+4") Then Exit Function
