@@ -1717,20 +1717,27 @@ Private Function private_ShouldExtendAbsenceCandidates() As Boolean
     If VBA.Len(sectionText) = 0 Then sectionText = VBA.Trim$(m_SelectedProfile)
     sectionKey = private_NormalizeText(sectionText)
 
-    ' ЕЖОС дополняет только оформление нового выбытия в отпуск или переход
-    ' в другой вид/этап отпуска. Возвраты из отпуска используют только ШПС.
+    ' ЕЖОС дополняет командировки, оформление нового выбытия в отпуск и смену
+    ' статуса, связанную с отпуском. Чистые возвраты используют только ШПС.
     Select Case sectionKey
-        Case private_NormalizeText(m_Data.SectionTypeToAnnualVacationPart), _
+        Case private_NormalizeText(m_Data.SectionTypeToBusinessTrip), _
+             private_NormalizeText(m_Data.SectionTypeToBusinessTripSzch), _
+             private_NormalizeText(m_Data.SectionTypeToAnnualVacationPart), _
              private_NormalizeText(m_Data.SectionTypeToFamilyVacation), _
              private_NormalizeText(m_Data.SectionTypeToTreatmentVacation), _
              private_NormalizeText(m_Data.SectionTypeTransferTreatmentToTreatmentVacation), _
+             private_NormalizeText(m_Data.SectionTypeTransferTreatmentVacationToTreatment), _
              private_NormalizeText(m_Data.SectionTypeTransferTreatmentVacationToTreatmentVacation), _
+             private_NormalizeText(m_Data.SectionTypeTransferAnnualVacationToTreatment), _
+             private_NormalizeText(m_Data.SectionTypeTransferFamilyVacationToTreatment), _
              private_NormalizeText(m_Data.SectionTypeTransferAnnualVacationToFamilyVacation), _
              private_NormalizeText(m_Data.SectionTypeTransferFamilyVacationToAnnualVacation), _
+             private_NormalizeText(m_Data.SectionTypeTransferTreatmentVacationToVlk), _
              private_NormalizeText(m_Data.SectionTypeTransferAmbulatoryVlkToTreatmentVacation), _
              private_NormalizeText(m_Data.SectionTypeTransferStationaryVlkToTreatmentVacation), _
              private_NormalizeText(m_Data.SectionTypeTransferMedicalCompanyToTreatmentVacation), _
-             private_NormalizeText(m_Data.SectionTypeTransferMedicalCompanyTreatmentToTreatmentVacation)
+             private_NormalizeText(m_Data.SectionTypeTransferMedicalCompanyTreatmentToTreatmentVacation), _
+             private_NormalizeText(m_Data.SectionTypeTransferMedicalCompanyTreatmentVacationToTreatment)
             private_ShouldExtendAbsenceCandidates = True
     End Select
 End Function
