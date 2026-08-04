@@ -85,7 +85,7 @@
         <![CDATA[#^
 #_        {#for item in MetaTvoTables}#^
 #_          {#newline}#^
-#_          Тимчасове виконання обов'язків за посадою {[PositionGenitive]|lowerFirstLetter} покласти на #^
+#_          Тимчасове виконання обов'язків {[PositionGenitive]|lowerFirstLetter} покласти на #^
 #_          {item.[RankGenitive]|lowerFirstLetter} {item.[FIOGenitive]}, {item.[PositionGenitive]|lowerFirstLetter}.#^
 #_        {#endfor}#^
 #_        {#if [RequiresFoodSupportRemove]}{#newline}#^

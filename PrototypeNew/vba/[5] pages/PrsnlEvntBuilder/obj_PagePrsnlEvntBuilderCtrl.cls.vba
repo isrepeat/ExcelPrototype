@@ -50,6 +50,8 @@ Private Const HOTKEY_SELECT_FORM_ROW As String = "Select Form Row"
 Private Const HOTKEY_APPLY_EXPORT_FORM As String = "Apply Export Form"
 Private Const HOTKEY_CLEAR_EXPORT_FORM As String = "Clear Export Form"
 Private Const HOTKEY_EXPORT_TO_WORD As String = "Export to WORD"
+' Значение action id сохраняется для совместимости с существующими snapshot.
+Private Const HOTKEY_EXPORT_MOVEMENT_WORD As String = "Word Movement Word"
 Private Const EXPORT_ACTION_PREFIX As String = "Export "
 Private Const MAX_EXPORT_HOTKEYS As Long = 9
 Private Const LOOKUP_CANDIDATES_CONTROL_NAME As String = "LookupCandidatesTable"
@@ -97,6 +99,7 @@ Private Const DRAFT_ALIAS_REPORT_POSITION_CODE As String = "_ReportPositionCode"
 Private Const DRAFT_ALIAS_INCOMING_NO As String = "_IncomingNo"
 Private Const DRAFT_ALIAS_INCOMING_DATE As String = "_IncomingDate"
 Private Const DRAFT_ALIAS_DURATION_DAYS As String = "_DurationDays"
+Private Const DRAFT_ALIAS_DATE_FROM As String = "_DateFrom"
 Private Const DRAFT_ALIAS_VACATION_TICKET_NO As String = "_VacationTicketNo"
 Private Const DRAFT_ALIAS_VACATION_TICKET_DATE As String = "_VacationTicketDate"
 Private Const DRAFT_ALIAS_VLK_NO As String = "_VlkNo"
@@ -557,6 +560,26 @@ Public Function ClearDependentDraftFields(ByVal lookupKey As String) As Boolean
     ClearDependentDraftFields = True
 End Function
 
+Public Function ResetReporterTvoStateForLookupChange( _
+    ByVal lookupKey As String _
+) As Boolean
+    ' Выбранная вручную должность ТВО относится только к текущему рапортующему.
+    ' При изменении ФІО старый собственный код нельзя использовать как базовый
+    ' для нового человека, даже если Lookup сейчас выключен.
+    If VBA.StrComp( _
+        VBA.Trim$(lookupKey), COMMANDER_LOOKUP_KEY, _
+        VBA.vbTextCompare) <> 0 Then
+        ResetReporterTvoStateForLookupChange = True
+        Exit Function
+    End If
+
+    m_ReportOwnPositionCode = VBA.vbNullString
+    m_DraftReportIsTvo = False
+    m_IsReporterTvoCandidatesActive = False
+    ResetReporterTvoStateForLookupChange = _
+        private_TryApplyReporterPositionCodeAppearance()
+End Function
+
 Private Function private_AppendFioDependentAliases( _
     ByVal sectionText As String, _
     ByVal dependentAliases As Object _
@@ -690,6 +713,8 @@ Private Sub private_AddStandardFioDependentAliases(ByVal dependentAliases As Obj
     dependentAliases(DRAFT_ALIAS_IPN) = True
     dependentAliases(DRAFT_ALIAS_POSITION_CODE) = True
     dependentAliases(DRAFT_ALIAS_POSITION_NAME) = True
+    dependentAliases(DRAFT_ALIAS_VLK_NO) = True
+    dependentAliases(DRAFT_ALIAS_VLK_DATE) = True
 End Sub
 
 Private Sub private_AddToVacationFioDependentAliases(ByVal dependentAliases As Object)
@@ -814,6 +839,18 @@ Public Function RuntimeHandleHotkeyAction(ByVal actionId As Variant) As Boolean
         Exit Function
     End If
 
+    If VBA.StrComp(actionText, HOTKEY_EXPORT_MOVEMENT_WORD, VBA.vbTextCompare) = 0 Then
+#If LOGGING_DEBUG_ENABLED Then
+        ex_Core.fn_Diagnostic_LogInfo "prsnlevntbuilder:hotkey-action:movement-word-branch"
+#End If
+        If Not private_TryExportMovementAndWord() Then
+            RuntimeHandleHotkeyAction = True
+            Exit Function
+        End If
+        RuntimeHandleHotkeyAction = True
+        Exit Function
+    End If
+
     If private_IsExportAction(actionText) Then
 #If LOGGING_DEBUG_ENABLED Then
         ex_Core.fn_Diagnostic_LogInfo "prsnlevntbuilder:hotkey-action:export-branch action='" & private_EscapeForLog(actionText) & "'"
@@ -916,6 +953,15 @@ EH:
 #End If
 End Function
 
+Private Function private_TryExportMovementAndWord() As Boolean
+    ' Единая команда экспортирует Movement, затем сразу пишет результат в WORD.
+    ' Preview-команда CTRL+3 в эту последовательность больше не входит.
+    If Not private_TryExportDraftByAction(private_BuildExportActionId("Movement")) Then Exit Function
+    If Not private_TryExportWordToDocument() Then Exit Function
+
+    private_TryExportMovementAndWord = True
+End Function
+
 Private Function private_IsFioCandidatesContext() As Boolean
     Dim entityLookupCfgParser As obj_EntityLookupCfgParser
     Dim lookupKey As String
@@ -992,6 +1038,7 @@ Private Function private_TryShowReporterTvoCandidates( _
             VBA.vbExclamation, "PrsnlEventBuilder / ТВО"
         Exit Function
     End If
+    If Not private_TryApplyReporterTvoCandidatesAppearance(pageBase.Worksheet) Then Exit Function
     private_TryShowReporterTvoCandidates = True
 End Function
 
@@ -1033,6 +1080,106 @@ Private Function private_RefreshDraftReporterTvoFlag() As Boolean
             VBA.vbTextCompare) <> 0)
     private_RefreshDraftReporterTvoFlag = True
 End Function
+
+Public Function ApplyDraftVisualState() As Boolean
+    If Not private_RefreshDraftReporterTvoFlag() Then Exit Function
+    ApplyDraftVisualState = private_TryApplyReporterPositionCodeAppearance()
+End Function
+
+Private Function private_TryApplyReporterPositionCodeAppearance() As Boolean
+    Dim pageBase As obj_PageBase
+    Dim positionCodeRange As Range
+
+    If m_Page Is Nothing Then Exit Function
+    Set pageBase = m_Page.GetPageBase()
+    If pageBase Is Nothing Then Exit Function
+
+    ' Поле присутствует не во всех профилях, поэтому скрытый tag — штатный случай.
+    If Not pageBase.TryGetFirstLayoutTagRange( _
+        DRAFT_ALIAS_REPORT_POSITION_CODE, positionCodeRange, "visible") Then
+        private_TryApplyReporterPositionCodeAppearance = True
+        Exit Function
+    End If
+    If positionCodeRange Is Nothing Then
+        private_TryApplyReporterPositionCodeAppearance = True
+        Exit Function
+    End If
+
+    On Error GoTo EH
+    If m_DraftReportIsTvo Then
+        positionCodeRange.Font.Color = VBA.RGB(255, 235, 59)
+    Else
+        positionCodeRange.Font.Color = VBA.RGB(240, 240, 240)
+    End If
+    private_TryApplyReporterPositionCodeAppearance = True
+    Exit Function
+
+EH:
+    VBA.MsgBox "Не вдалося оновити колір поля 'Код посади (рапорт)': " & _
+        Err.Description, VBA.vbExclamation, "PrsnlEventBuilder / ТВО"
+End Function
+
+Private Function private_TryApplyReporterTvoCandidatesAppearance( _
+    ByVal ws As Worksheet _
+) As Boolean
+    Dim partRange As Range
+    Dim columnScope As Range
+    Dim partName As String
+
+    If ws Is Nothing Then Exit Function
+    On Error GoTo EH
+
+    partName = "section"
+    If Not ex_ControlPartsRuntime.fn_TryResolveControlPartScope( _
+        ws, "tablelist", LOOKUP_CANDIDATES_CONTROL_NAME, partName, _
+        partRange, columnScope) Then GoTo MissingPart
+    private_ApplyReporterTvoCandidatePartStyle _
+        partRange, VBA.RGB(22, 13, 21), VBA.RGB(255, 226, 240), True
+
+    Set partRange = Nothing
+    Set columnScope = Nothing
+    partName = "header"
+    If Not ex_ControlPartsRuntime.fn_TryResolveControlPartScope( _
+        ws, "tablelist", LOOKUP_CANDIDATES_CONTROL_NAME, partName, _
+        partRange, columnScope) Then GoTo MissingPart
+    private_ApplyReporterTvoCandidatePartStyle _
+        partRange, VBA.RGB(74, 16, 47), VBA.RGB(255, 226, 240), True
+
+    Set partRange = Nothing
+    Set columnScope = Nothing
+    partName = "rows"
+    If Not ex_ControlPartsRuntime.fn_TryResolveControlPartScope( _
+        ws, "tablelist", LOOKUP_CANDIDATES_CONTROL_NAME, partName, _
+        partRange, columnScope) Then GoTo MissingPart
+    private_ApplyReporterTvoCandidatePartStyle _
+        partRange, VBA.RGB(122, 31, 82), VBA.RGB(255, 255, 255), False
+
+    private_TryApplyReporterTvoCandidatesAppearance = True
+    Exit Function
+
+MissingPart:
+    VBA.MsgBox "Не знайдено обов'язкову частину '" & partName & _
+        "' таблиці кандидатів ТВО.", VBA.vbExclamation, _
+        "PrsnlEventBuilder / ТВО"
+    Exit Function
+
+EH:
+    VBA.MsgBox "Не вдалося застосувати стиль таблиці кандидатів ТВО: " & _
+        Err.Description, VBA.vbExclamation, "PrsnlEventBuilder / ТВО"
+End Function
+
+Private Sub private_ApplyReporterTvoCandidatePartStyle( _
+    ByVal targetRange As Range, _
+    ByVal backgroundColor As Long, _
+    ByVal fontColor As Long, _
+    ByVal fontBold As Boolean _
+)
+    targetRange.Interior.Color = backgroundColor
+    targetRange.Font.Color = fontColor
+    targetRange.Font.Bold = fontBold
+    targetRange.Borders.Color = VBA.RGB(0, 0, 0)
+    targetRange.Borders.Weight = xlThin
+End Sub
 
 Public Function RuntimeClearExportFormAndCandidates() As Boolean
     Dim previousSuppressLookupSearch As Boolean
@@ -1532,11 +1679,16 @@ Public Function SearchCandidates( _
     ' Расширение из нескольких источников включено только на этой странице.
     ' Универсальный EntityLookup не зависит от источников PrsnlEvntBuilder.
     If VBA.StrComp(VBA.Trim$(lookupKey), "op_FIO", VBA.vbTextCompare) = 0 Then
+        If Not private_ShouldExtendAbsenceCandidates() Then
+            SearchCandidates = m_LookupFeature.SearchCandidates( _
+                lookupKey, queryText, outCandidateCount, notifyChange)
+            Exit Function
+        End If
         If Not private_TryResolveAbsenceDepartureDateRange( _
             minAbsenceDepartureDate, maxAbsenceDepartureDate) Then Exit Function
         Set absenceSelectorImpl = New obj_PEB_AbsenceCnddtSlctr
         If Not absenceSelectorImpl.Initialize( _
-            "DepartureDate", minAbsenceDepartureDate, maxAbsenceDepartureDate) Then Exit Function
+            DRAFT_ALIAS_DATE_FROM, minAbsenceDepartureDate, maxAbsenceDepartureDate) Then Exit Function
         Set absenceSelector = absenceSelectorImpl
         If Not m_LookupFeature.SearchCandidates(lookupKey, queryText, outCandidateCount, False) Then Exit Function
         If Not m_LookupFeature.ExtendCandidates( _
@@ -1544,11 +1696,94 @@ Public Function SearchCandidates( _
             "_FIO", _
             queryText, _
             absenceSelector, _
-            notifyChange) Then Exit Function
+            False) Then Exit Function
+        If Not private_TryApplyAbsenceCandidateDefaults() Then Exit Function
+        If notifyChange Then
+            If Not rt_PageManager.fn_RenderPage( _
+                m_Page, "prsnlevntbuilder:absence-candidates-enriched") Then Exit Function
+        End If
         SearchCandidates = True
     Else
         SearchCandidates = m_LookupFeature.SearchCandidates(lookupKey, queryText, outCandidateCount, notifyChange)
     End If
+End Function
+
+Private Function private_ShouldExtendAbsenceCandidates() As Boolean
+    Dim sectionText As String
+    Dim sectionKey As String
+
+    If m_Data Is Nothing Then Set m_Data = New obj_PrsnlEvntBuilderData
+    sectionText = VBA.Trim$(m_SelectedMainProfile)
+    If VBA.Len(sectionText) = 0 Then sectionText = VBA.Trim$(m_SelectedProfile)
+    sectionKey = private_NormalizeText(sectionText)
+
+    ' ЕЖОС дополняет только оформление нового выбытия в отпуск или переход
+    ' в другой вид/этап отпуска. Возвраты из отпуска используют только ШПС.
+    Select Case sectionKey
+        Case private_NormalizeText(m_Data.SectionTypeToAnnualVacationPart), _
+             private_NormalizeText(m_Data.SectionTypeToFamilyVacation), _
+             private_NormalizeText(m_Data.SectionTypeToTreatmentVacation), _
+             private_NormalizeText(m_Data.SectionTypeTransferTreatmentToTreatmentVacation), _
+             private_NormalizeText(m_Data.SectionTypeTransferTreatmentVacationToTreatmentVacation), _
+             private_NormalizeText(m_Data.SectionTypeTransferAnnualVacationToFamilyVacation), _
+             private_NormalizeText(m_Data.SectionTypeTransferFamilyVacationToAnnualVacation), _
+             private_NormalizeText(m_Data.SectionTypeTransferAmbulatoryVlkToTreatmentVacation), _
+             private_NormalizeText(m_Data.SectionTypeTransferStationaryVlkToTreatmentVacation), _
+             private_NormalizeText(m_Data.SectionTypeTransferMedicalCompanyToTreatmentVacation), _
+             private_NormalizeText(m_Data.SectionTypeTransferMedicalCompanyTreatmentToTreatmentVacation)
+            private_ShouldExtendAbsenceCandidates = True
+    End Select
+End Function
+
+Private Function private_TryApplyAbsenceCandidateDefaults() As Boolean
+    Dim entityLookupCfgParser As obj_EntityLookupCfgParser
+    Dim candidateTable As obj_TableDynamic
+    Dim candidateRow As obj_Row
+    Dim lookupKey As String
+    Dim searchColumnAlias As String
+    Dim dateFromColumnIndex As Long
+    Dim vacationTicketDateColumnIndex As Long
+    Dim dateFromValue As Variant
+    Dim orderDateText As String
+    Dim rowIndex As Long
+
+    If m_LookupFeature Is Nothing Then Exit Function
+    If m_ExportCommonData Is Nothing Then Exit Function
+    If Not m_LookupFeature.TryGetActiveCandidatesContext( _
+        entityLookupCfgParser, lookupKey, candidateTable, searchColumnAlias) Then Exit Function
+    If candidateTable Is Nothing Then Exit Function
+
+    ' Не каждый профиль показывает эти поля. В таком профиле extension остаётся
+    ' валидным, но вычисляемое значение просто некуда проецировать.
+    If Not candidateTable.TryGetColumnIndexByAlias( _
+        DRAFT_ALIAS_DATE_FROM, dateFromColumnIndex) Then
+        private_TryApplyAbsenceCandidateDefaults = True
+        Exit Function
+    End If
+    If Not candidateTable.TryGetColumnIndexByAlias( _
+        DRAFT_ALIAS_VACATION_TICKET_DATE, vacationTicketDateColumnIndex) Then
+        private_TryApplyAbsenceCandidateDefaults = True
+        Exit Function
+    End If
+
+    If Not m_ExportCommonData.HasOrderDate Then
+        VBA.MsgBox "Не вдалося визначити дату поточного наказу для кандидатів ЄЖОС.", _
+            VBA.vbExclamation, "PrsnlEventBuilder / ЄЖОС"
+        Exit Function
+    End If
+    orderDateText = VBA.Format$(m_ExportCommonData.OrderDate, "dd.mm")
+
+    For rowIndex = 1 To candidateTable.RowCount
+        Set candidateRow = candidateTable.Rows.Item(rowIndex)
+        If candidateRow Is Nothing Then Exit Function
+        dateFromValue = candidateRow.GetCellValue(dateFromColumnIndex)
+        If VBA.Len(VBA.Trim$(VBA.CStr(dateFromValue))) > 0 Then
+            If Not candidateRow.SetCellRaw( _
+                vacationTicketDateColumnIndex, orderDateText) Then Exit Function
+        End If
+    Next rowIndex
+
+    private_TryApplyAbsenceCandidateDefaults = True
 End Function
 
 Private Function private_TryResolveAbsenceDepartureDateRange( _
@@ -2095,6 +2330,7 @@ Private Function private_TryAcceptCandidateRowFromSelection(ByVal targetCell As 
     End If
 
     If Not private_RefreshDraftReporterTvoFlag() Then Exit Function
+    If Not private_TryApplyReporterPositionCodeAppearance() Then Exit Function
 
     candidateRowRange.Select
     ' Range.Select по умолчанию делает активной крайнюю левую ячейку.
@@ -3070,6 +3306,7 @@ Private Function private_EnsureHotkeyRows(ByVal notifyChange As Boolean) As Bool
                 If Not private_EnsureHotkeyRow(hotkeyRows, HOTKEY_ACCEPT_CANDIDATE_ROW, "CTRL+ENTER", hasChanges) Then Exit Function
                 If Not private_EnsureHotkeyRow(hotkeyRows, HOTKEY_REPORT_TVO_CANDIDATES, "CTRL+.", hasChanges) Then Exit Function
                 If Not private_EnsureExportHotkeyRows(hotkeyRows, hasChanges) Then Exit Function
+                If Not private_EnsureHotkeyRow(hotkeyRows, HOTKEY_EXPORT_MOVEMENT_WORD, "CTRL+E", hasChanges, True) Then Exit Function
                 ' CTRL+4, как и CTRL+3 для WORD preview, является системным
                 ' контрактом страницы и не зависит от порядка Export aliases.
                 If Not private_EnsureHotkeyRow(hotkeyRows, HOTKEY_EXPORT_TO_WORD, "CTRL+4", hasChanges, True) Then Exit Function
@@ -3095,6 +3332,7 @@ Private Function private_EnsureHotkeyRows(ByVal notifyChange As Boolean) As Bool
     If Not private_AddHotkeyRow(hotkeyRows, HOTKEY_ACCEPT_CANDIDATE_ROW, "CTRL+ENTER") Then Exit Function
     If Not private_AddHotkeyRow(hotkeyRows, HOTKEY_REPORT_TVO_CANDIDATES, "CTRL+.") Then Exit Function
     If Not private_AddExportHotkeyRows(hotkeyRows) Then Exit Function
+    If Not private_AddHotkeyRow(hotkeyRows, HOTKEY_EXPORT_MOVEMENT_WORD, "CTRL+E") Then Exit Function
     If Not private_AddHotkeyRow(hotkeyRows, HOTKEY_EXPORT_TO_WORD, "CTRL+4") Then Exit Function
     If Not private_AddHotkeyRow(hotkeyRows, HOTKEY_SELECT_FORM_ROW, "SHIFT+SPACE") Then Exit Function
     If Not private_AddHotkeyRow(hotkeyRows, HOTKEY_APPLY_EXPORT_FORM, "ALT+ARROWDOWN") Then Exit Function

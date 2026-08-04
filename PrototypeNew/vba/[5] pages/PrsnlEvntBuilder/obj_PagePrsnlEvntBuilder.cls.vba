@@ -212,6 +212,8 @@ Private Function obj_IPage_Render() As Boolean
     private_LogRenderPerfStep "prsnlevnt:render:restore-pending-control-snapshots", perfStart, perfLast
 #End If
 
+    If Not m_Controller.ApplyDraftVisualState() Then GoTo Cleanup
+
 #If PRSNL_EVNT_BUILDER_HOTKEYS_ENABLED Then
     ' HotkeysControl рендерится из RuntimeItems. После render повторно применяем
     ' его текущую таблицу, чтобы restored/default строки стали активными OnKey-привязками.
@@ -459,6 +461,7 @@ Public Function OnLookupInputCellChangedCommand(Optional ByVal arg As Variant) A
     private_SetLookupQueryValue lookupKey, queryText
     If m_Controller Is Nothing Then Exit Function
     If Not m_Controller.ResetWordPreviewExportMode(False) Then Exit Function
+    If Not m_Controller.ResetReporterTvoStateForLookupChange(lookupKey) Then Exit Function
     ' Disabled lookup still captures pasted input values, but deliberately skips
     ' dependent-field clearing, candidate clearing, SQL requests and render.
     If Not m_Controller.IsLookupEnabled Then
