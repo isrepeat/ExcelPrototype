@@ -7,6 +7,8 @@ Private Sub Workbook_Open()
 
     On Error GoTo EH
 
+    rt_HotkeyRuntime.fn_BeginSession
+
     restoredOk = rt_RestoreManager.fn_RestoreRuntimeState("Workbook_Open", restoredPagesCount)
     If restoredOk And restoredPagesCount > 0 Then
         Exit Sub
@@ -22,6 +24,10 @@ EH:
 End Sub
 
 Private Sub Workbook_BeforeClose(Cancel As Boolean)
+    ' Application.OnKey глобален для всего Excel. Снимаем callbacks до любых
+    ' snapshot/dispose операций, чтобы они не ссылались на выгружаемый VBA-проект.
+    Call rt_HotkeyRuntime.fn_BeginShutdown
+
     ' Сначала отменяем все Application.OnTime-задачи, которые ссылаются на эту
     ' книгу. Если другой workbook оставляет Excel запущенным, незакрытый таймер
     ' может повторно открыть PrototypeNew для выполнения отложенного макроса.
@@ -34,7 +40,6 @@ Private Sub Workbook_BeforeClose(Cancel As Boolean)
     ' равно не должны остаться заблокированными после закрытия книги.
     Call ex_ExternalExcelSqlEngine.fn_ResetRuntimeCache
     Call rt_RestoreManager.fn_SaveRuntimeState
-    Call rt_HotkeyRuntime.fn_UnregisterAllHotkeys
     Call rt_UndoManager.fn_Module_Dispose
     ' Идемпотентный module dispose остаётся последней страховкой lifecycle.
     Call ex_ExternalExcelSqlEngine.fn_Module_Dispose
