@@ -12,8 +12,20 @@ Private g_EntryByHotkey As Object
 Private g_HotkeyBySlot As Object
 Private g_ActiveHotkeyByKey As Object
 Private g_ActivePageId As String
+Private g_IsShuttingDown As Boolean
 
 Public Sub fn_Module_Dispose()
+    fn_UnregisterAllHotkeys
+End Sub
+
+Public Sub fn_BeginSession()
+    g_IsShuttingDown = False
+End Sub
+
+Public Sub fn_BeginShutdown()
+    ' Сначала запрещаем любые поздние регистрации из Workbook_Deactivate,
+    ' render/restore callbacks и только затем снимаем глобальные OnKey routes.
+    g_IsShuttingDown = True
     fn_UnregisterAllHotkeys
 End Sub
 
@@ -65,6 +77,11 @@ Public Function fn_RegisterPageHotkey(ByVal pageId As String, ByVal hotkeyKey As
     Dim entry As Object
     Dim pages As Object
     Dim slotIndex As Long
+
+    If g_IsShuttingDown Then
+        fn_RegisterPageHotkey = True
+        Exit Function
+    End If
 
     pageId = VBA.LCase$(VBA.Trim$(pageId))
     If VBA.Len(pageId) = 0 Then Exit Function
@@ -118,6 +135,11 @@ Public Function fn_ActivatePageHotkeys(ByVal pageId As String) As Boolean
     Dim entry As Object
     Dim pages As Object
     Dim hasFailure As Boolean
+
+    If g_IsShuttingDown Then
+        fn_ActivatePageHotkeys = True
+        Exit Function
+    End If
 
     pageId = VBA.LCase$(VBA.Trim$(pageId))
     private_EnsureStorage
@@ -257,6 +279,7 @@ End Sub
 Public Sub fn_DispatchSlot(ByVal slotIndex As Long)
     Dim hotkeyKey As String
 
+    If g_IsShuttingDown Then Exit Sub
     private_EnsureStorage
     hotkeyKey = VBA.vbNullString
     If g_HotkeyBySlot.Exists(VBA.CStr(slotIndex)) Then
