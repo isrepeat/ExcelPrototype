@@ -968,7 +968,7 @@ Private Function private_TryBuildMovementRowValues( _
     If Not m_ExporterCfgDataProvider Is Nothing Then
         If Not m_ExporterCfgDataProvider.CommonData Is Nothing Then
             ' Movement использует тот же общий mapping специальных кодов, что
-            ' DailyScope; текстовое описание здесь не требуется.
+            ' Другие экспортёры могут формировать текстовое описание отдельно.
             If m_ExporterCfgDataProvider.CommonData.TryResolveSpecialPositionMapping( _
                 positionCodeText, rankText, _
                 mappedPositionCodeText, mappedPositionNameText) Then
@@ -1582,7 +1582,7 @@ Private Function private_TryResolveOrderDateFromCommonData( _
     ByRef outOrderDate As Date _
 ) As Boolean
     ' Movement не читает карту приказов напрямую. Единый источник даты приказа
-    ' живет в obj_PEB_ExptrCommonDataPrvdr, чтобы WORD/DailyScope/Movement
+    ' живет в obj_PEB_ExptrCommonDataPrvdr, чтобы WORD и Movement
     ' одинаково резолвили сокращенные даты от одного OrderDate.
     If m_ExporterCfgDataProvider Is Nothing Then Exit Function
     If m_ExporterCfgDataProvider.CommonData Is Nothing Then Exit Function

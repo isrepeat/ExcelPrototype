@@ -2,7 +2,7 @@ VERSION 1.0 CLASS
 BEGIN
   MultiUse = -1  'True
 END
-Attribute VB_Name = "obj_PEB_WordResultTplParser"
+Attribute VB_Name = "obj_WordResultTplParser"
 Option Explicit
 #Const LOGGING_DEBUG_ENABLED = True
 #Const LOGGING_VERBOSE_ENABLED = False
@@ -40,6 +40,7 @@ Private m_TemplateLastModified As Date
 Private m_HasTemplateLastModified As Boolean
 Private m_IsDisposed As Boolean
 Private m_NamedCollections As Object
+Private m_LastRenderHasTables As Boolean
 
 Private Sub Class_Initialize()
 #If LOGGING_VERBOSE_ENABLED Then
@@ -90,6 +91,7 @@ Public Function TryRenderForTemplateId( _
     Dim loopRows As Object
 
     outResultText = VBA.vbNullString
+    m_LastRenderHasTables = False
     If m_IsDisposed Then Exit Function
     If sourceTables Is Nothing Then Exit Function
     If sourceTables.Count <= 0 Then Exit Function
@@ -110,8 +112,17 @@ Public Function TryRenderForTemplateId( _
     loopRows.CompareMode = 1
 
     outResultText = private_RenderTemplate(templateText, sectionTypeText, sourceTables, renderVars, loopRows)
+#If LOGGING_DEBUG_ENABLED Then
+    ex_Core.fn_Diagnostic_LogInfo "word-parser:render-complete template='" & _
+        templateId & "' resultLength=" & VBA.CStr(VBA.Len(outResultText)) & _
+        " hasTables=" & VBA.LCase$(VBA.CStr(m_LastRenderHasTables))
+#End If
     TryRenderForTemplateId = True
 End Function
+
+Public Property Get LastRenderHasTables() As Boolean
+    LastRenderHasTables = m_LastRenderHasTables
+End Property
 
 Public Function TryGetGroupingDefinition( _
     ByVal templateId As String, _
@@ -281,6 +292,9 @@ Private Function private_TryGetTemplateTextById( _
     Dim node As Object
     Dim xpath As String
     Dim includeChain As Collection
+    Dim templateNode As Object
+    Dim childNode As Object
+    Dim contentText As String
 
     outTemplateText = VBA.vbNullString
     templateId = VBA.Trim$(templateId)
@@ -295,16 +309,82 @@ Private Function private_TryGetTemplateTextById( _
         Exit Function
     End If
 
-    xpath = "/p:wordResultTemplates/p:template[@id=" & ex_XmlCore.fn_XPathLiteral(templateId) & "]/p:text"
-    Set node = doc.selectSingleNode(xpath)
-    If node Is Nothing Then
+    xpath = "/p:wordResultTemplates/p:template[@id=" & ex_XmlCore.fn_XPathLiteral(templateId) & "]"
+    Set templateNode = doc.selectSingleNode(xpath)
+    If templateNode Is Nothing Then
         VBA.MsgBox "PrototypeNew: WORD result template was not found by id: " & templateId, VBA.vbExclamation, "PrototypeNew / WORD export"
         Exit Function
     End If
 
     Set includeChain = New Collection
-    outTemplateText = private_ExpandSharedTemplateIncludes(VBA.CStr(node.Text), doc, includeChain)
+    For Each childNode In templateNode.childNodes
+        Select Case VBA.LCase$(VBA.CStr(childNode.baseName))
+            Case "text"
+                contentText = contentText & private_ExpandSharedTemplateIncludes( _
+                    VBA.CStr(childNode.Text), doc, includeChain)
+            Case "table"
+                m_LastRenderHasTables = True
+                contentText = contentText & private_SerializeHtmlNode(childNode)
+        End Select
+    Next childNode
+    If VBA.Len(contentText) = 0 Then
+        VBA.MsgBox "SupportingDocumentBuilder: template has no text or table blocks: " & _
+            templateId, VBA.vbExclamation, "Supporting Document Builder"
+        Exit Function
+    End If
+    outTemplateText = contentText
     private_TryGetTemplateTextById = True
+End Function
+
+Private Function private_SerializeHtmlNode(ByVal sourceNode As Object) As String
+    Dim nodeName As String
+    Dim resultText As String
+    Dim childNode As Object
+    Dim attrNode As Object
+    Dim loopExpression As String
+
+    If sourceNode Is Nothing Then Exit Function
+    If sourceNode.nodeType = 3 Or sourceNode.nodeType = 4 Then
+        private_SerializeHtmlNode = VBA.CStr(sourceNode.nodeValue)
+        Exit Function
+    End If
+    nodeName = VBA.LCase$(VBA.CStr(sourceNode.baseName))
+    Select Case nodeName
+        Case "table", "caption", "thead", "tbody", "tfoot", "tr", "th", "td"
+        Case Else
+            VBA.MsgBox "SupportingDocumentBuilder: unsupported table tag <" & _
+                nodeName & ">.", VBA.vbExclamation, "Supporting Document Builder"
+            Exit Function
+    End Select
+    On Error Resume Next
+    loopExpression = VBA.Trim$(VBA.CStr(sourceNode.getAttribute("for")))
+    On Error GoTo 0
+    If nodeName = "tr" And VBA.Len(loopExpression) > 0 Then
+        resultText = "{#for " & loopExpression & "}"
+    End If
+    resultText = resultText & "<" & nodeName
+    For Each attrNode In sourceNode.Attributes
+        If VBA.StrComp(VBA.CStr(attrNode.nodeName), "for", VBA.vbTextCompare) <> 0 Then
+            resultText = resultText & " " & VBA.CStr(attrNode.nodeName) & _
+                "=""" & private_HtmlEncode(VBA.CStr(attrNode.nodeValue)) & """"
+        End If
+    Next attrNode
+    resultText = resultText & ">"
+    For Each childNode In sourceNode.childNodes
+        resultText = resultText & private_SerializeHtmlNode(childNode)
+    Next childNode
+    resultText = resultText & "</" & nodeName & ">"
+    If nodeName = "tr" And VBA.Len(loopExpression) > 0 Then
+        resultText = resultText & "{#endfor}"
+    End If
+    private_SerializeHtmlNode = resultText
+End Function
+
+Private Function private_HtmlEncode(ByVal valueText As String) As String
+    valueText = VBA.Replace(valueText, "&", "&amp;")
+    valueText = VBA.Replace(valueText, """", "&quot;")
+    valueText = VBA.Replace(valueText, "<", "&lt;")
+    private_HtmlEncode = VBA.Replace(valueText, ">", "&gt;")
 End Function
 
 Private Function private_TryGetTemplateChildTextById( _

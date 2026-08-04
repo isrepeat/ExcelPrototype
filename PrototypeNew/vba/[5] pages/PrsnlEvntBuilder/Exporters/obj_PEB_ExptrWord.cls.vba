@@ -116,7 +116,7 @@ Private Const LOOP_COLLECTION_META_TVO_TABLES As String = "MetaTvoTables"
 
 Private m_IsDisposed As Boolean
 Private m_Base As obj_DataExporterBase
-Private m_TemplateParser As obj_PEB_WordResultTplParser
+Private m_TemplateParser As obj_WordResultTplParser
 Private m_ExporterCfgDataProvider As obj_PEB_ExptrCfgDataPrvdr
 Private m_OwnsExporterCfgDataProvider As Boolean
 
@@ -159,7 +159,7 @@ Public Function Initialize( _
     m_IsDisposed = False
     m_OwnsExporterCfgDataProvider = False
     Set m_Base = New obj_DataExporterBase
-    Set m_TemplateParser = New obj_PEB_WordResultTplParser
+    Set m_TemplateParser = New obj_WordResultTplParser
     ' Target-настройки берём из exporter config, а профильные источники
     ' Personnel/Movement — из полной таблицы профиля, если controller её передал.
     Set exporterCfgDataProviderConfigTable = configTable
