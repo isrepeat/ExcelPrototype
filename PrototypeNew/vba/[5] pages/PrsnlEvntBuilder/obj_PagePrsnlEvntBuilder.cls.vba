@@ -96,10 +96,44 @@ Private Function obj_IPage_Initialize( _
     If Not m_PageBase.Initialize(ws, Me, uiPath, pageId) Then Exit Function
     If Not m_PageBase.RuntimeSources.SetObjectSource(PAGE_RUNTIME_OBJECT_KEY, Me) Then Exit Function
 
-    Set m_Controller = New obj_PagePrsnlEvntBuilderCtrl
+    If Not private_TryCreateConfiguredController(m_ConfigContext) Then Exit Function
     If Not m_Controller.Initialize(Me) Then Exit Function
 
     obj_IPage_Initialize = True
+End Function
+
+Private Function private_TryCreateConfiguredController( _
+    ByVal configContext As obj_ModeConfigContext _
+) As Boolean
+    Dim configTable As obj_ConfigTable
+    Dim cfgParserBase As obj_CfgParserBase
+    Dim configEntries As Collection
+    Dim configMap As Object
+    Dim controllerClassName As String
+    Dim pebFactory As obj_PEB_Factory
+
+    If configContext Is Nothing Then Exit Function
+    Set configTable = configContext.ConfigTable
+    If configTable Is Nothing Then
+        VBA.MsgBox "PrsnlEvntBuilder: configuration table is missing.", _
+            VBA.vbExclamation, "PrsnlEvntBuilder / Factory"
+        Exit Function
+    End If
+    Set cfgParserBase = New obj_CfgParserBase
+    If Not cfgParserBase.Initialize(configTable) Then Exit Function
+    If Not cfgParserBase.TryGetConfigEntries(configEntries) Then Exit Function
+    If Not cfgParserBase.BuildConfigDictionary(configEntries, configMap) Then Exit Function
+    controllerClassName = cfgParserBase.GetOptionalConfigValue( _
+        configMap, "PrsnlEvntBuilder.ControllerClass", VBA.vbNullString)
+    If VBA.Len(VBA.Trim$(controllerClassName)) = 0 Then
+        VBA.MsgBox "PrsnlEvntBuilder: required config key " & _
+            "'PrsnlEvntBuilder.ControllerClass' is missing.", _
+            VBA.vbExclamation, "PrsnlEvntBuilder / Factory"
+        Exit Function
+    End If
+    Set pebFactory = New obj_PEB_Factory
+    private_TryCreateConfiguredController = _
+        pebFactory.TryCreatePageController(controllerClassName, m_Controller)
 End Function
 
 Private Sub obj_IPage_Dispose(Optional ByVal deleteWorksheet As Boolean = True)

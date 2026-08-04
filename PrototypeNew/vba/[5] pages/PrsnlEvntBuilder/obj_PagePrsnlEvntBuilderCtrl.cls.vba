@@ -69,7 +69,6 @@ Private Const EXPORT_META_PROFILE_TYPE_COLUMN_NAME As String = "meta_ProfileType
 Private Const EXPORT_CONTEXT_MANUAL_ORDER_NO_KEY As String = "ManualOrderNo"
 Private Const EXPORT_CONTEXT_SECTION_TYPE_KEY As String = "SectionType"
 Private Const EXPORT_CONTEXT_WORD_PREVIEW_TEXT_KEY As String = "WordExportPreviewText"
-Private Const EXPORT_CONTEXT_VALIDATE_DAILY_SCOPE_KEY As String = "ValidateDailyScope"
 Private Const EXPORT_CONTEXT_VALIDATE_MOVEMENT_KEY As String = "ValidateMovement"
 Private Const EXPORT_CONTEXT_VALIDATE_WORD_KEY As String = "ValidateWord"
 Private Const EXPORT_CONTEXT_REPORT_IS_TVO_KEY As String = "ReportIsTvo"
@@ -77,7 +76,6 @@ Private Const LOOKUP_MODE_CONTROL_NAME As String = "LookupMode"
 Private Const MOVEMENT_HISTORY_TABLE_CONTROL_NAME As String = "MovementHistoryTable"
 Private Const MOVEMENT_HISTORY_LIMIT_INPUT_NAME As String = "MovementHistoryLimitInput"
 Private Const ADDITIONAL_PROFILE_SELECT_CONTROL_NAME As String = "EventDraftAdditionalProfileSelect"
-Private Const VALIDATE_DAILY_SCOPE_CONTROL_NAME As String = "ValidateDailyScope"
 Private Const VALIDATE_MOVEMENT_CONTROL_NAME As String = "ValidateMovement"
 Private Const VALIDATE_WORD_CONTROL_NAME As String = "ValidateWord"
 Private Const PROFILE_BUTTON_TAG_ARRIVAL As String = "arrival"
@@ -124,11 +122,9 @@ Private m_WordExportPreviewText As String
 Private m_IsWordPreviewExportMode As Boolean
 Private m_ExportCommonData As obj_PEB_ExptrCommonDataPrvdr
 Private m_ExporterCfgDataProvider As obj_PEB_ExptrCfgDataPrvdr
-Private m_CachedDailyScopeExporter As obj_PEB_ExptrDailyScope
 Private m_CachedMovementExporter As obj_PEB_ExptrMovement
 Private m_CachedWordExporter As obj_PEB_ExptrWord
 Private m_IsLookupEnabled As Boolean
-Private m_IsDailyScopeValidationEnabled As Boolean
 Private m_IsMovementValidationEnabled As Boolean
 Private m_IsWordValidationEnabled As Boolean
 Private m_IsMovementHistoryEnabled As Boolean
@@ -194,12 +190,11 @@ Public Function Initialize(ByVal page As Object) As Boolean
 
     m_IsDisposed = False
     Set m_Page = pageInterface
-    Set m_Data = New obj_PrsnlEvntBuilderData
+    Set m_Data = Nothing
     Set m_ExportCommonData = New obj_PEB_ExptrCommonDataPrvdr
     If Not m_ExportCommonData.Initialize() Then Exit Function
     private_ResetExportSettings
     m_IsLookupEnabled = True
-    m_IsDailyScopeValidationEnabled = True
     m_IsMovementValidationEnabled = True
     m_IsWordValidationEnabled = False
     m_IsMovementHistoryEnabled = False
@@ -214,17 +209,8 @@ Public Function Initialize(ByVal page As Object) As Boolean
         CANDIDATE_TABLES_RUNTIME_KEY, _
         "prsnlevntbuilder:entitylookup") Then Exit Function
 
-    If Not private_RegisterProfileOptions(False) Then Exit Function
-    ' Select хранит runtime selectedId между page renders. При первом открытии
-    ' синхронизируем его с фактически выбранным профилем, чтобы устаревший
-    ' дополнительный пункт не подменял placeholder основной секции.
-    If Not private_TrySyncAdditionalProfileSelectState() Then Exit Function
-    If Not private_RegisterAdditionalProfileOptions(False) Then Exit Function
-    If Not private_RegisterMetaProfileOptions(False) Then Exit Function
-    If Not private_RegisterExportFormTables(False) Then Exit Function
-    If Not private_RegisterMovementHistoryTable(False) Then Exit Function
-    If Not private_RegisterDummyTables(False) Then Exit Function
-    If Not private_EnsureHotkeyRows(False) Then Exit Function
+    ' Profile-dependent runtime sources регистрируются после обязательного
+    ' UpdateDataFromConfigTable, где фабрика создаёт настроенный provider.
     Initialize = True
 End Function
 
@@ -425,10 +411,6 @@ Public Property Get IsLookupEnabled() As Boolean
     IsLookupEnabled = m_IsLookupEnabled
 End Property
 
-Public Property Get IsDailyScopeValidationEnabled() As Boolean
-    IsDailyScopeValidationEnabled = m_IsDailyScopeValidationEnabled
-End Property
-
 Public Property Get IsMovementValidationEnabled() As Boolean
     IsMovementValidationEnabled = m_IsMovementValidationEnabled
 End Property
@@ -472,11 +454,6 @@ Cleanup:
 EH:
     renderSucceeded = False
     Resume Cleanup
-End Function
-
-Public Function ToggleDailyScopeValidation() As Boolean
-    ToggleDailyScopeValidation = private_ToggleExporterValidation( _
-        m_IsDailyScopeValidationEnabled, VALIDATE_DAILY_SCOPE_CONTROL_NAME, "DailyScope")
 End Function
 
 Public Function ToggleMovementValidation() As Boolean
@@ -587,7 +564,7 @@ Private Function private_AppendFioDependentAliases( _
     Dim sectionKey As String
 
     If dependentAliases Is Nothing Then Exit Function
-    If m_Data Is Nothing Then Set m_Data = New obj_PrsnlEvntBuilderData
+    If m_Data Is Nothing Then Exit Function
     sectionKey = private_NormalizeText(sectionText)
 
     Select Case sectionKey
@@ -655,7 +632,7 @@ Private Function private_AppendCommanderDependentAliases( _
     Dim sectionKey As String
 
     If dependentAliases Is Nothing Then Exit Function
-    If m_Data Is Nothing Then Set m_Data = New obj_PrsnlEvntBuilderData
+    If m_Data Is Nothing Then Exit Function
     sectionKey = private_NormalizeText(sectionText)
 
     Select Case sectionKey
@@ -1228,20 +1205,17 @@ Public Function OnClearWordDocumentClick(Optional ByVal ignored As Variant) As B
     Dim exportConfigTable As obj_ConfigTable
     Dim clearedBlockCount As Long
     Dim orderNoText As String
+    Dim wordExporter As obj_PEB_ExptrWord
 
     If Not private_TryEnsureModeConfigCurrent() Then Exit Function
     If Not private_TryGetExportSettings("Word", exporterClassName, exportConfigTable) Then
         VBA.MsgBox "PrototypeNew: Export.Word settings are missing.", VBA.vbExclamation, "PrototypeNew / WORD document"
         Exit Function
     End If
-    If VBA.StrComp(exporterClassName, "obj_PEB_ExptrWord", VBA.vbTextCompare) <> 0 Then
-        VBA.MsgBox "PrototypeNew: WORD document actions require obj_PEB_ExptrWord, configured: " & exporterClassName, VBA.vbExclamation, "PrototypeNew / WORD document"
-        Exit Function
-    End If
     If Not private_TryCreateDataExporter(exporterClassName, exportConfigTable, exporter) Then Exit Function
-    If m_CachedWordExporter Is Nothing Then Exit Function
+    Set wordExporter = exporter
     If Not private_TryGetCurrentManualOrderNo(orderNoText) Then Exit Function
-    If Not m_CachedWordExporter.RemoveResultDocumentAnchors( _
+    If Not wordExporter.RemoveResultDocumentAnchors( _
         clearedBlockCount, orderNoText) Then Exit Function
 
     rt_Messaging.fn_ShowStatusBarSuccess "WORD document: removed anchor blocks: " & VBA.CStr(clearedBlockCount), 3
@@ -1712,7 +1686,7 @@ Private Function private_ShouldExtendAbsenceCandidates() As Boolean
     Dim sectionText As String
     Dim sectionKey As String
 
-    If m_Data Is Nothing Then Set m_Data = New obj_PrsnlEvntBuilderData
+    If m_Data Is Nothing Then Exit Function
     sectionText = VBA.Trim$(m_SelectedMainProfile)
     If VBA.Len(sectionText) = 0 Then sectionText = VBA.Trim$(m_SelectedProfile)
     sectionKey = private_NormalizeText(sectionText)
@@ -1941,7 +1915,7 @@ Private Function private_RegisterProfileOptions(ByVal notifyChange As Boolean) A
     perfLast = perfStart
 
     If m_Page Is Nothing Then Exit Function
-    If m_Data Is Nothing Then Set m_Data = New obj_PrsnlEvntBuilderData
+    If m_Data Is Nothing Then Exit Function
     Set pageBase = m_Page.GetPageBase()
     If pageBase Is Nothing Then Exit Function
     Set runtimeSources = pageBase.RuntimeSources
@@ -1995,7 +1969,7 @@ Private Function private_RegisterAdditionalProfileOptions(ByVal notifyChange As 
     Dim optionObj As obj_SelectOption
 
     If m_Page Is Nothing Then Exit Function
-    If m_Data Is Nothing Then Set m_Data = New obj_PrsnlEvntBuilderData
+    If m_Data Is Nothing Then Exit Function
     Set pageBase = m_Page.GetPageBase()
     If pageBase Is Nothing Then Exit Function
     Set runtimeSources = pageBase.RuntimeSources
@@ -2073,7 +2047,7 @@ Private Function private_RegisterMetaProfileOptions(ByVal notifyChange As Boolea
     Dim profileOptions As Collection
 
     If m_Page Is Nothing Then Exit Function
-    If m_Data Is Nothing Then Set m_Data = New obj_PrsnlEvntBuilderData
+    If m_Data Is Nothing Then Exit Function
     Set pageBase = m_Page.GetPageBase()
     If pageBase Is Nothing Then Exit Function
     Set runtimeSources = pageBase.RuntimeSources
@@ -2551,18 +2525,13 @@ Private Function private_TryUpdateProfilesProvider(ByVal configTable As obj_Conf
 End Function
 
 Private Function private_TryCreateProfilesProvider(ByVal providerClassName As String) As Boolean
+    Dim pebFactory As obj_PEB_Factory
+
     providerClassName = VBA.Trim$(providerClassName)
     If VBA.Len(providerClassName) = 0 Then Exit Function
-
-    Select Case VBA.LCase$(providerClassName)
-        Case VBA.LCase$("obj_PrsnlEvntBuilderData")
-            Set m_Data = New obj_PrsnlEvntBuilderData
-        Case Else
-            VBA.MsgBox "PrototypeNew: unsupported profiles provider class '" & providerClassName & "'.", VBA.vbExclamation, "PrototypeNew / PrsnlEvntBuilder"
-            Exit Function
-    End Select
-
-    private_TryCreateProfilesProvider = Not m_Data Is Nothing
+    Set pebFactory = New obj_PEB_Factory
+    private_TryCreateProfilesProvider = _
+        pebFactory.TryCreateProfilesProvider(providerClassName, m_Data)
 End Function
 
 Private Sub private_ResetExportSettings()
@@ -2583,10 +2552,8 @@ Private Sub private_DisposeCachedExporters()
     ' страницы. WORD exporter может ссылаться на общий config provider, но
     ' его Dispose в таком случае только отпускает ссылку и не закрывает provider.
     On Error Resume Next
-    If Not m_CachedDailyScopeExporter Is Nothing Then m_CachedDailyScopeExporter.Dispose
     If Not m_CachedMovementExporter Is Nothing Then m_CachedMovementExporter.Dispose
     If Not m_CachedWordExporter Is Nothing Then m_CachedWordExporter.Dispose
-    Set m_CachedDailyScopeExporter = Nothing
     Set m_CachedMovementExporter = Nothing
     Set m_CachedWordExporter = Nothing
     On Error GoTo 0
@@ -2649,7 +2616,7 @@ Private Function private_TryGetExportSettings( _
 
     outExporterClassName = VBA.Trim$(VBA.CStr(m_ExporterClassByAlias(exportAlias)))
     If VBA.Len(outExporterClassName) = 0 Then
-        ' Пустой class больше не подменяется DailyScope: такой fallback мог
+        ' Пустой class не подменяется другой реализацией: такой fallback мог
         ' незаметно направить данные в exporter другого назначения.
         VBA.MsgBox "PrototypeNew: exporter class is empty for alias '" & exportAlias & "'.", _
             VBA.vbExclamation, "PrototypeNew / Data export"
@@ -2666,9 +2633,7 @@ Private Function private_TryCreateDataExporter( _
     ByVal exportConfigTable As obj_ConfigTable, _
     ByRef outExporter As obj_IDataExporter _
 ) As Boolean
-    Dim exporterToDailyScope As obj_PEB_ExptrDailyScope
-    Dim exporterToMovement As obj_PEB_ExptrMovement
-    Dim exporterToWord As obj_PEB_ExptrWord
+    Dim pebFactory As obj_PEB_Factory
 
     Set outExporter = Nothing
     exporterClassName = VBA.Trim$(exporterClassName)
@@ -2678,52 +2643,11 @@ Private Function private_TryCreateDataExporter( _
         Exit Function
     End If
 
-    Select Case VBA.LCase$(exporterClassName)
-        Case VBA.LCase$("obj_PEB_ExptrDailyScope")
-            If Not m_CachedDailyScopeExporter Is Nothing Then
-                Set outExporter = m_CachedDailyScopeExporter
-                private_TryCreateDataExporter = True
-                Exit Function
-            End If
-            Set exporterToDailyScope = New obj_PEB_ExptrDailyScope
-            If Not exporterToDailyScope.Initialize(exportConfigTable, m_ProfileConfigTable) Then Exit Function
-            Set outExporter = exporterToDailyScope
-            Set m_CachedDailyScopeExporter = exporterToDailyScope
-
-        Case VBA.LCase$("obj_PEB_ExptrMovement")
-            If Not m_CachedMovementExporter Is Nothing Then
-                Set outExporter = m_CachedMovementExporter
-                private_TryCreateDataExporter = True
-                Exit Function
-            End If
-            Set exporterToMovement = New obj_PEB_ExptrMovement
-            If Not exporterToMovement.Initialize(exportConfigTable, m_ProfileConfigTable) Then Exit Function
-            Set outExporter = exporterToMovement
-            Set m_CachedMovementExporter = exporterToMovement
-
-        Case VBA.LCase$("obj_PEB_ExptrWord")
-            If Not m_CachedWordExporter Is Nothing Then
-                Set outExporter = m_CachedWordExporter
-                private_TryCreateDataExporter = True
-                Exit Function
-            End If
-            If Not private_TryEnsureExporterCfgDataProvider() Then Exit Function
-            Set exporterToWord = New obj_PEB_ExptrWord
-            ' WORD preview и «Історія руху» должны использовать один provider:
-            ' его QueryEngine владеет единственным ADO handle к Movement snapshot.
-            If Not exporterToWord.Initialize( _
-                exportConfigTable, _
-                m_ProfileConfigTable, _
-                m_ExporterCfgDataProvider) Then Exit Function
-            Set outExporter = exporterToWord
-            Set m_CachedWordExporter = exporterToWord
-
-        Case Else
-            VBA.MsgBox "PrototypeNew: unsupported data exporter class: " & exporterClassName, VBA.vbExclamation, "PrototypeNew / Data export"
-            Exit Function
-    End Select
-
-    private_TryCreateDataExporter = Not outExporter Is Nothing
+    If Not private_TryEnsureExporterCfgDataProvider() Then Exit Function
+    Set pebFactory = New obj_PEB_Factory
+    private_TryCreateDataExporter = pebFactory.TryCreateDataExporter( _
+        exporterClassName, exportConfigTable, m_ProfileConfigTable, _
+        m_ExporterCfgDataProvider, outExporter)
 End Function
 
 Private Function private_TryEnsureExporterCfgDataProvider() As Boolean
@@ -2870,7 +2794,6 @@ Private Function private_TryBuildExportSourceTables( _
 
     outContext(EXPORT_CONTEXT_SECTION_TYPE_KEY) = sectionTypeText
     outContext(EXPORT_CONTEXT_MANUAL_ORDER_NO_KEY) = manualOrderNoText
-    outContext(EXPORT_CONTEXT_VALIDATE_DAILY_SCOPE_KEY) = m_IsDailyScopeValidationEnabled
     outContext(EXPORT_CONTEXT_VALIDATE_MOVEMENT_KEY) = m_IsMovementValidationEnabled
     outContext(EXPORT_CONTEXT_VALIDATE_WORD_KEY) = m_IsWordValidationEnabled
     If m_ExportMainTable Is Nothing Then
@@ -3122,7 +3045,7 @@ Private Function private_TryGetSelectedProfile(ByRef outProfile As String) As Bo
 End Function
 
 Private Function private_IsMetaProfile(ByVal profileText As String) As Boolean
-    If m_Data Is Nothing Then Set m_Data = New obj_PrsnlEvntBuilderData
+    If m_Data Is Nothing Then Exit Function
     private_IsMetaProfile = m_Data.IsMetaProfileName(profileText)
 End Function
 

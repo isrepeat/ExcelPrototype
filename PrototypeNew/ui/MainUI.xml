@@ -73,6 +73,17 @@
           />
         <control
           type="Button"
+          name="OpenSupportingDocBuilder"
+          caption="Supporting Document Builder"
+          style="modeAccent"
+          visibility="{Binding Path=IsSupportingDocumentBuilderMode; TrueAs=Visible; FalseAs=Collapsed}"
+          dataContext="{PageRuntimeSource='RuntimeObjects.PageMain.Controller'}"
+          onClick="{Binding Method=OnOpenSupportingDocumentBuilderPageCommand}"
+          spanColls="5"
+          spanRows="2"
+          />
+        <control
+          type="Button"
           name="OpenComparing"
           caption="Comparing"
           style="modeAccent"

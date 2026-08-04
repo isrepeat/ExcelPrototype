@@ -12,6 +12,7 @@ Private Const MODES_ROOT_REL_PATH As String = "modes"
 Private Const MODE_PROFILES_FILE_SUFFIX As String = "Profiles.xml"
 Private Const ENTITY_LOOKUP_SHEET_BASE_NAME As String = "EntityLookup"
 Private Const PRSNL_EVNT_BUILDER_SHEET_BASE_NAME As String = "PrsnlEvntBuilder"
+Private Const SUPPORTING_DOC_BUILDER_SHEET_BASE_NAME As String = "SupportingDocBuilder"
 Private Const COMPARING_SHEET_BASE_NAME As String = "Comparing"
 Private Const MULTI_SOURCES_VIEW_SHEET_BASE_NAME As String = "MultiSourcesView"
 Private Const MOVEMENT_VALIDATION_SHEET_BASE_NAME As String = "MovementValidation"
@@ -110,6 +111,11 @@ End Property
 
 Public Property Get IsPrsnlEvntBuilderMode() As Boolean
     IsPrsnlEvntBuilderMode = private_IsCurrentMode("PrsnlEvntBuilder")
+End Property
+
+Public Property Get IsSupportingDocumentBuilderMode() As Boolean
+    IsSupportingDocumentBuilderMode = _
+        private_IsCurrentMode("SupportingDocumentBuilder")
 End Property
 
 Public Property Get IsComparingMode() As Boolean
@@ -851,6 +857,71 @@ EH_OPEN:
         ex_Core.fn_Diagnostic_LogError "PrototypeNew: exception in OnOpenPrsnlEvntBuilderPageCommand: [" & VBA.CStr(Err.Number) & "] " & Err.Description
     #End If
     VBA.MsgBox "PrototypeNew: exception in OnOpenPrsnlEvntBuilderPageCommand: [" & VBA.CStr(Err.Number) & "] " & Err.Description, vbExclamation, "PrototypeNew / Config runtime"
+    Resume EH_CREATE
+End Function
+
+Public Function OnOpenSupportingDocumentBuilderPageCommand( _
+    Optional ByVal arg As Variant _
+) As Boolean
+    Dim sheetName As String
+    Dim existingPage As obj_IPage
+    Dim supportingPage As obj_IPage
+    Dim supportingPageObject As obj_PageSDB
+    Dim configContext As obj_ModeConfigContext
+    Dim isPageCreated As Boolean
+
+    On Error GoTo EH_OPEN
+    If rt_PageManager.fn_TryGetPageByWorksheetName( _
+        SUPPORTING_DOC_BUILDER_SHEET_BASE_NAME, existingPage) Then
+        If existingPage Is Nothing Then GoTo EH_CREATE
+        If Not TypeOf existingPage Is obj_PageSDB Then
+            VBA.MsgBox "Worksheet '" & SUPPORTING_DOC_BUILDER_SHEET_BASE_NAME & _
+                "' is bound to an unexpected page type.", VBA.vbExclamation, _
+                "Supporting Document Builder"
+            Exit Function
+        End If
+        If Not existingPage.RunPagePipeline() Then Exit Function
+        If Not rt_PageManager.fn_RenderPageAndActivate( _
+            existingPage, "pagemain:open-supporting-document-builder:reuse") Then Exit Function
+        OnOpenSupportingDocumentBuilderPageCommand = True
+        Exit Function
+    End If
+
+    sheetName = private_BuildUniqueWorksheetName( _
+        ThisWorkbook, SUPPORTING_DOC_BUILDER_SHEET_BASE_NAME)
+    If VBA.Len(sheetName) = 0 Then Exit Function
+    Set supportingPageObject = New obj_PageSDB
+    Set supportingPage = supportingPageObject
+    If Not private_TryGetOrCreateActiveConfigContext(configContext) Then Exit Function
+    If Not rt_PageManager.fn_CreatePage( _
+        supportingPage, _
+        "ui\SupportingDocumentBuilder\SupportingDocumentBuilderUI.xml", _
+        sheetName, configContext) Then GoTo EH_CREATE
+    isPageCreated = True
+    If Not supportingPage.RunPagePipeline() Then GoTo EH_CREATE
+    If Not rt_PageManager.fn_RenderPageAndActivate( _
+        supportingPage, "pagemain:open-supporting-document-builder") Then GoTo EH_CREATE
+    rt_Messaging.fn_ShowStatusBarSuccess _
+        "Supporting Document Builder page has been created.", 3
+    OnOpenSupportingDocumentBuilderPageCommand = True
+    Exit Function
+
+EH_CREATE:
+    On Error Resume Next
+    If Not supportingPage Is Nothing And isPageCreated Then
+        Call rt_PageManager.fn_RemovePage(supportingPage, True)
+    End If
+    On Error GoTo 0
+    If Not OnOpenSupportingDocumentBuilderPageCommand Then
+        VBA.MsgBox "Failed to create Supporting Document Builder page.", _
+            VBA.vbExclamation, "Supporting Document Builder"
+    End If
+    Exit Function
+
+EH_OPEN:
+    VBA.MsgBox "Supporting Document Builder error: [" & _
+        VBA.CStr(Err.Number) & "] " & Err.Description, VBA.vbExclamation, _
+        "Supporting Document Builder"
     Resume EH_CREATE
 End Function
 

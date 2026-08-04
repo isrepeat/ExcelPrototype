@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="utf-8"?>
+<wordResultTemplates xmlns="urn:excelprototype:profiles" version="1">
+  <template id="BusinessTripCertificate">
+    <text><![CDATA[#^
+#_      #let __IsRozpPosition = $ex_Helpers.m_RegexIsMatch("{[PositionCode]}", "[Рр][Оо][Зз][Пп]");#^
+#_      ПОСВІДЧЕННЯ ПРО ВІДРЯДЖЕННЯ#^
+#_      {#newline}{#newline}#^
+#_      Видано {[Rank]} {[FIO]},#^
+#_      {#newline}{#if __IsRozpPosition}у розпорядженні командира військової частини А7383{#else}{[PositionName]}{#endif}.#^
+#_      {#newline}{#newline}#^
+    ]]></text>
+
+    <table wordStyle="builtin:tableGrid">
+      <thead>
+        <tr>
+          <th>Термін відрядження</th>
+          <th>Підстава відрядження</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>з {[DateFrom]|dateformat:"\dd.\mm.\yyyy"} до окремого розпорядження</td>
+          <td>наказ командира військової частини А7383 (по стройовій частині) від {[DocDate]|dateformat:"\dd.\mm.\yyyy"} № {[DocNo]}; повідомлення {[ReportPositionCode]} військової частини {[Destination]} № {[IncomingNo]} від {[IncomingDate]|dateformat:"\dd.\mm.\yyyy"}</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <text><![CDATA[#^
+#_      {#newline}{#newline}#^
+#_      Дійсно в разі пред'явлення документа, який засвідчує особу.#^
+    ]]></text>
+  </template>
+</wordResultTemplates>

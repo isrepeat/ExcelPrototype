@@ -2,7 +2,7 @@ VERSION 1.0 CLASS
 BEGIN
   MultiUse = -1  'True
 END
-Attribute VB_Name = "obj_PEB_ExptrWord"
+Attribute VB_Name = "obj_SDB_ExptrWord"
 Option Explicit
 #Const LOGGING_DEBUG_ENABLED = True
 #Const LOGGING_VERBOSE_ENABLED = False
@@ -12,7 +12,7 @@ Option Explicit
 Implements obj_IDataExporter
 
 ' Runtime path is relative to ThisWorkbook.Path, same as page UI paths.
-Private Const WORD_RESULT_TEMPLATES_REL_PATH As String = "modes\PrsnlEvntBuilder\PrsnlEvntBuilderWordResultTemplates.xml"
+Private Const WORD_RESULT_TEMPLATES_REL_PATH As String = "modes\SupportingDocumentBuilder\SupportingDocumentBuilderWordResultTemplates.xml"
 Private Const PREVIEW_FALLBACK_COLOR As String = "#FF0000"
 Private Const PREVIEW_TRUNCATION_WARNING_LENGTH As Long = 254
 Private Const PREVIEW_TRUNCATED_VALUE_TAG As String = "preview-truncated-value"
@@ -20,6 +20,7 @@ Private Const PREVIEW_LOOKUP_WARNING_VALUE_TAG As String = "preview-lookup-warni
 Private Const CONTEXT_SECTION_TYPE As String = "SectionType"
 Private Const CONTEXT_VALIDATION_ENABLED As String = "ValidateWord"
 Private Const CONTEXT_WORD_PREVIEW_TEXT As String = "WordExportPreviewText"
+Private Const CONTEXT_WORD_PREVIEW_EDITABLE As String = "WordExportPreviewEditable"
 Private Const CONTEXT_MANUAL_ORDER_NO As String = "ManualOrderNo"
 Private Const CONTEXT_REPORT_IS_TVO As String = "ReportIsTvo"
 Private Const SENTINEL_SHORT_DATE As Date = #1/1/1900#
@@ -37,6 +38,7 @@ Private Const SOURCE_ALIAS_INCOMING_NO As String = "IncomingNo"
 Private Const SOURCE_ALIAS_INCOMING_DATE As String = "IncomingDate"
 Private Const SOURCE_ALIAS_DOCUMENT_NOTE As String = "DocumentNote"
 Private Const SOURCE_ALIAS_DOC_DATE As String = "DocDate"
+Private Const SOURCE_ALIAS_DOC_NO As String = "DocNo"
 Private Const SOURCE_ALIAS_DATE_FROM As String = "DateFrom"
 Private Const SOURCE_ALIAS_DURATION_DAYS As String = "DurationDays"
 Private Const SOURCE_ALIAS_VACATION_TICKET_NO As String = "VacationTicketNo"
@@ -102,6 +104,7 @@ Private Const WORD_ANCHOR_PREFIX As String = "{\export:"
 Private Const WORD_ANCHOR_BEGIN_SUFFIX As String = "_Begin}"
 Private Const WORD_ANCHOR_END_SUFFIX As String = "_End}"
 Private Const WD_FIND_STOP As Long = 0
+Private Const WD_STYLE_TABLE_GRID As Long = -155
 ' PEB_* охватывает весь экспортированный пункт человека. Вложенная PEM_*
 ' охватывает первый символ пункта и хранит ключ сортировки в своём имени.
 Private Const WORD_RECORD_BOOKMARK_PREFIX As String = "PEB_"
@@ -112,6 +115,7 @@ Private Const META_SECTION_TYPE_DOCUMENT As String = "Мета: документ
 Private Const META_SECTION_TYPE_TVO As String = "Мета: ТВО"
 Private Const LOOP_COLLECTION_META_DOCUMENT_TABLES As String = "MetaDocumentTables"
 Private Const LOOP_COLLECTION_META_TVO_TABLES As String = "MetaTvoTables"
+Private Const BUSINESS_TRIP_CERTIFICATE_TEMPLATE_ID As String = "BusinessTripCertificate"
 
 
 Private m_IsDisposed As Boolean
@@ -154,24 +158,13 @@ Public Function Initialize( _
     Optional ByVal profileConfigTable As obj_ConfigTable = Nothing, _
     Optional ByVal exporterCfgDataProvider As obj_PEB_ExptrCfgDataPrvdr = Nothing _
 ) As Boolean
-    Dim exporterCfgDataProviderConfigTable As obj_ConfigTable
-
     m_IsDisposed = False
     m_OwnsExporterCfgDataProvider = False
     Set m_Base = New obj_DataExporterBase
     Set m_TemplateParser = New obj_WordResultTplParser
-    ' Target-настройки берём из exporter config, а профильные источники
-    ' Personnel/Movement — из полной таблицы профиля, если controller её передал.
-    Set exporterCfgDataProviderConfigTable = configTable
-    If Not profileConfigTable Is Nothing Then Set exporterCfgDataProviderConfigTable = profileConfigTable
-
     If Not m_Base.Initialize(configTable, "WORD", "PrototypeNew / WORD export") Then Exit Function
     If Not m_TemplateParser.Initialize(WORD_RESULT_TEMPLATES_REL_PATH) Then Exit Function
-    If exporterCfgDataProvider Is Nothing Then
-        Set m_ExporterCfgDataProvider = New obj_PEB_ExptrCfgDataPrvdr
-        m_OwnsExporterCfgDataProvider = True
-        If Not m_ExporterCfgDataProvider.Initialize(exporterCfgDataProviderConfigTable) Then Exit Function
-    Else
+    If Not exporterCfgDataProvider Is Nothing Then
         ' Страница уже использует этот provider для «Історія руху». Совместное
         ' владение исключает второй ADO handle и попытку пересоздать занятый
         ' Movement snapshot при формировании WORD preview.
@@ -226,6 +219,9 @@ Public Function Export( _
     Dim groupOrderParts As Variant
     Dim usePreparedPreview As Boolean
     Dim writeToWord As Boolean
+    Dim resultDocumentNo As String
+
+    On Error GoTo EH
 
     If m_IsDisposed Then
         VBA.MsgBox "PrototypeNew: WORD exporter is disposed.", VBA.vbExclamation, "PrototypeNew / WORD export"
@@ -239,32 +235,12 @@ Public Function Export( _
         VBA.MsgBox "PrototypeNew: WORD export requires SectionType in export context or source table SectionTitle.", VBA.vbExclamation, "PrototypeNew / WORD export"
         Exit Function
     End If
-    ' WORD validation defaults to disabled when the context key is absent.
-    validationEnabled = private_GetContextBoolean(context, CONTEXT_VALIDATION_ENABLED)
-    ' WORD не изменяет Movement и может формироваться сразу после того, как
-    ' Movement-экспорт уже закрыл ожидаемое событие. Тип события по-прежнему
-    ' проверяется, разрешается только его совпадающее закрытое состояние.
-    If Not m_ExporterCfgDataProvider.IsExportAllowed( _
-        sourceTable, sectionTypeText, exportValidationError, _
-        latestMovementTvoChain, ignoredLatestMovementRecord, _
-        validationEnabled, True) Then
-        VBA.MsgBox exportValidationError, VBA.vbExclamation, "PrototypeNew / WORD export"
-        Exit Function
-    End If
-    If Not private_TryEnrichMainSourceTableForWord(sourceTable, context) Then Exit Function
-    If Not private_TryEnrichPreviousVacationTicketForWord( _
-        sourceTable, sectionTypeText) Then Exit Function
-    If Not private_TryNormalizeDocumentNotesForWord(sourceTables, sectionTypeText) Then Exit Function
-    If Not private_TryEnrichMetaDocumentDatesForWord(sourceTables) Then Exit Function
-    If Not private_TryAppendMovementTvoTablesForReturn(sourceTables, sourceTable, sectionTypeText, latestMovementTvoChain) Then Exit Function
-    If Not private_TryEnrichMetaTvoTablesForWord(sourceTables) Then Exit Function
+    If Not private_ValidateCertificateFields(sourceTable) Then Exit Function
+    ' В этом режиме значения вводятся вручную уже в требуемом падеже.
+    ' Медицинское enrichment, Movement validation и внешние Lookup не участвуют.
     Set namedCollections = private_BuildNamedLoopCollections(sourceTables)
     If namedCollections Is Nothing Then Exit Function
-    Set builderData = New obj_PrsnlEvntBuilderData
-    If Not builderData.TryResolveWordTemplateId(sectionTypeText, templateId) Then
-        VBA.MsgBox "PrototypeNew: WORD result template is not mapped for section: " & sectionTypeText, VBA.vbExclamation, "PrototypeNew / WORD export"
-        Exit Function
-    End If
+    templateId = BUSINESS_TRIP_CERTIFICATE_TEMPLATE_ID
     previewText = private_GetContextText(context, CONTEXT_WORD_PREVIEW_TEXT)
     writeToWord = private_GetContextBoolean(context, "WriteToWord")
     usePreparedPreview = (writeToWord And _
@@ -276,9 +252,24 @@ Public Function Export( _
             sourceTables, _
             namedCollections, _
             recordText) Then Exit Function
+        If Not private_TrySetContextBoolean( _
+            context, _
+            CONTEXT_WORD_PREVIEW_EDITABLE, _
+            Not m_TemplateParser.LastRenderHasTables) Then Exit Function
+#If LOGGING_DEBUG_ENABLED Then
+        ex_Core.fn_Diagnostic_LogInfo _
+            "sdb-word-export:record-rendered length=" & _
+            VBA.CStr(VBA.Len(recordText)) & " editable=" & _
+            VBA.LCase$(VBA.CStr(Not m_TemplateParser.LastRenderHasTables))
+#End If
     End If
     If Not m_TemplateParser.TryGetGroupingDefinition( _
         templateId, hasGrouping, groupByText, groupOrderText) Then Exit Function
+#If LOGGING_DEBUG_ENABLED Then
+    ex_Core.fn_Diagnostic_LogInfo _
+        "sdb-word-export:grouping-resolved hasGrouping=" & _
+        VBA.LCase$(VBA.CStr(hasGrouping))
+#End If
 
     ' Заголовки групп рендерятся и для preview, и для фактической вставки.
     ' Preview показывает их линейно в порядке DSL, а Word позже решает по
@@ -339,23 +330,118 @@ Public Function Export( _
     ' CTRL+3 только возвращает линейное preview. CTRL+4 передаёт WriteToWord=True,
     ' после чего groupHeader и recordText вставляются по отдельным правилам.
     If writeToWord Then
-        If Not private_TryGetMainTableValue(sourceTable, SOURCE_ALIAS_IPN, recordIpn) Then
-            VBA.MsgBox "PrototypeNew: WORD export requires IPN to create a record bookmark.", VBA.vbExclamation, "PrototypeNew / WORD export"
+        If Not private_TryGetMainTableValue(sourceTable, SOURCE_ALIAS_FIO, recordIpn) Then
+            VBA.MsgBox "SupportingDocumentBuilder: для закладки документа " & _
+                "необходимо заполнить ПІБ.", VBA.vbExclamation, _
+                "Supporting Document Builder"
             Exit Function
         End If
         recordIpn = VBA.Trim$(recordIpn)
         If VBA.Len(recordIpn) = 0 Then
-            VBA.MsgBox "PrototypeNew: WORD export requires a non-empty IPN to create a record bookmark.", VBA.vbExclamation, "PrototypeNew / WORD export"
+            VBA.MsgBox "SupportingDocumentBuilder: поле ПІБ не заполнено.", _
+                VBA.vbExclamation, "Supporting Document Builder"
             Exit Function
         End If
+        ' Имя результирующего документа строится по номеру наказа из формы.
+        ' Отдельного PEB-поля ManualOrderNo у этого режима нет.
+        If Not private_TryGetMainTableValue( _
+            sourceTable, SOURCE_ALIAS_DOC_NO, resultDocumentNo) Then Exit Function
         If Not private_TryAppendBeforeWordEndAnchor( _
             templateId, recordIpn, recordText, _
             groupKeyText, groupOrderText, groupHeaderText, _
             nestedGroupKeyText, nestedGroupOrderText, nestedGroupHeaderText, _
-            private_GetContextText(context, CONTEXT_MANUAL_ORDER_NO)) Then Exit Function
+            resultDocumentNo) Then Exit Function
     End If
 
     Export = True
+    Exit Function
+
+EH:
+    ex_Core.fn_Diagnostic_LogError _
+        "sdb-word-export:error errNo=" & VBA.CStr(Err.Number) & _
+        " err='" & VBA.Replace(Err.Description, "'", "''") & "'"
+    VBA.MsgBox "SupportingDocumentBuilder WORD export failed: [" & _
+        VBA.CStr(Err.Number) & "] " & Err.Description, _
+        VBA.vbExclamation, "Supporting Document Builder"
+End Function
+
+Private Function private_TrySetContextBoolean( _
+    ByVal context As Object, _
+    ByVal keyText As String, _
+    ByVal valueToStore As Boolean _
+) As Boolean
+    If context Is Nothing Then
+        VBA.MsgBox "SupportingDocumentBuilder export context is missing.", _
+            VBA.vbExclamation, "Supporting Document Builder"
+        Exit Function
+    End If
+    keyText = VBA.Trim$(keyText)
+    If VBA.Len(keyText) = 0 Then Exit Function
+
+    On Error Resume Next
+    context(keyText) = valueToStore
+    If Err.Number <> 0 Then
+        Err.Clear
+        VBA.CallByName context, keyText, VbLet, valueToStore
+    End If
+    If Err.Number <> 0 Then
+        VBA.MsgBox "SupportingDocumentBuilder could not write export context key '" & _
+            keyText & "': [" & VBA.CStr(Err.Number) & "] " & _
+            Err.Description, VBA.vbExclamation, _
+            "Supporting Document Builder"
+        Err.Clear
+        On Error GoTo 0
+        Exit Function
+    End If
+    On Error GoTo 0
+    private_TrySetContextBoolean = True
+End Function
+
+Private Function private_ValidateCertificateFields( _
+    ByVal sourceTable As obj_TableDynamic _
+) As Boolean
+    Dim requiredAliases As Variant
+    Dim requiredCaptions As Variant
+    Dim fieldIndex As Long
+    Dim fieldValue As String
+    Dim positionCodeText As String
+
+    requiredAliases = Array( _
+        "Rank", "FIO", "PositionCode", "DateFrom", "DocDate", "DocNo", _
+        "ReportPositionCode", "Destination", "IncomingNo", "IncomingDate")
+    requiredCaptions = Array( _
+        "Звання", "ПІБ", "Код посади", "Дата початку відрядження", _
+        "Дата наказу", "Номер наказу", "Посада автора повідомлення", _
+        "Військова частина", "Вихідний номер", "Вихідна дата")
+
+    For fieldIndex = LBound(requiredAliases) To UBound(requiredAliases)
+        fieldValue = VBA.vbNullString
+        If Not private_TryGetMainTableValue( _
+            sourceTable, VBA.CStr(requiredAliases(fieldIndex)), fieldValue) Then
+            fieldValue = VBA.vbNullString
+        End If
+        If VBA.Len(VBA.Trim$(fieldValue)) = 0 Then
+            VBA.MsgBox "SupportingDocumentBuilder: заповніть обов'язкове поле '" & _
+                VBA.CStr(requiredCaptions(fieldIndex)) & "'.", _
+                VBA.vbExclamation, "Supporting Document Builder"
+            Exit Function
+        End If
+    Next fieldIndex
+
+    If Not private_TryGetMainTableValue( _
+        sourceTable, "PositionCode", positionCodeText) Then Exit Function
+    If VBA.InStr(1, positionCodeText, "РОЗП", VBA.vbTextCompare) = 0 Then
+        fieldValue = VBA.vbNullString
+        If Not private_TryGetMainTableValue( _
+            sourceTable, "PositionName", fieldValue) Then fieldValue = VBA.vbNullString
+        If VBA.Len(VBA.Trim$(fieldValue)) = 0 Then
+            VBA.MsgBox "SupportingDocumentBuilder: для коду посади, який не " & _
+                "містить РОЗП, заповніть поле 'Посада'.", _
+                VBA.vbExclamation, "Supporting Document Builder"
+            Exit Function
+        End If
+    End If
+    private_ValidateCertificateFields = True
 End Function
 
 Private Function private_TryExtractRecordTextFromPreview( _
@@ -460,6 +546,8 @@ Private Function private_TryAppendBeforeWordEndAnchor( _
     Dim plainNestedGroupHeaderText As String
     Dim undoAction As obj_PEB_ExportUndoAction
     Dim undoActionReady As Boolean
+    Dim insertedLength As Long
+    Dim renderedHasTables As Boolean
 
     On Error GoTo EH
 
@@ -615,8 +703,16 @@ Private Function private_TryAppendBeforeWordEndAnchor( _
     ' В grouped-режиме заголовок создаётся один раз, а записи дописываются внутрь
     ' закладки своей группы.
     Set insertRange = wordDoc.Range(insertedStart, insertedStart)
-    insertRange.Text = plainRenderedText
-    insertedEnd = insertedStart + VBA.Len(plainRenderedText)
+    renderedHasTables = (VBA.InStr(1, plainRenderedText, "<table", _
+        VBA.vbTextCompare) > 0)
+    If renderedHasTables Then
+        If Not private_TryInsertRenderedHtmlBlocks( _
+            wordDoc, insertRange, plainRenderedText, insertedEnd) Then GoTo CleanFail
+    Else
+        insertRange.Text = plainRenderedText
+        insertedEnd = insertedStart + VBA.Len(plainRenderedText)
+    End If
+    insertedLength = insertedEnd - insertedStart
 
     Set insertRange = wordDoc.Range(insertedStart, insertedEnd)
     ' Do not inherit highlight from a neighbouring anchor or an older export.
@@ -624,7 +720,7 @@ Private Function private_TryAppendBeforeWordEndAnchor( _
     wordDoc.Bookmarks.Add bookmarkName, insertRange
     If VBA.Len(groupBookmarkName) > 0 Then
         If groupEnd > 0 Then
-            groupEnd = groupEnd + VBA.Len(plainRenderedText)
+            groupEnd = groupEnd + insertedLength
         Else
             groupEnd = insertedEnd
         End If
@@ -649,20 +745,24 @@ Private Function private_TryAppendBeforeWordEndAnchor( _
     ' Bookmark после нормализации остаётся стабильным локатором конкретной
     ' вставки. Undo action хранит также позицию и текст для симметричного redo,
     ' но не удерживает Word Document/Range после закрытия файла.
-    Set undoAction = New obj_PEB_ExportUndoAction
-    undoActionReady = undoAction.InitializeWord( _
-        targetPath, bookmarkName, insertedStart, plainRenderedText, _
-        VBA.vbNullString, groupBookmarkName, groupStart, _
-        nestedGroupBookmarkName, nestedGroupStart)
-    If Not undoActionReady Then GoTo CleanFail
+    If Not renderedHasTables Then
+        Set undoAction = New obj_PEB_ExportUndoAction
+        undoActionReady = undoAction.InitializeWord( _
+            targetPath, bookmarkName, insertedStart, plainRenderedText, _
+            VBA.vbNullString, groupBookmarkName, groupStart, _
+            nestedGroupBookmarkName, nestedGroupStart)
+        If Not undoActionReady Then GoTo CleanFail
+    End If
 
     wordDoc.Save
     If documentOpened Then
         wordDoc.Close False
         documentOpened = False
     End If
-    If Not rt_UndoManager.fn_PushExecutedAction(undoAction) Then
-        rt_Messaging.fn_ShowStatusBarWarning "WORD export completed, but its undo action was not registered.", 5
+    If Not renderedHasTables Then
+        If Not rt_UndoManager.fn_PushExecutedAction(undoAction) Then
+            rt_Messaging.fn_ShowStatusBarWarning "WORD export completed, but its undo action was not registered.", 5
+        End If
     End If
     private_TryAppendBeforeWordEndAnchor = True
     Exit Function
@@ -678,6 +778,141 @@ EH:
     If documentOpened Then wordDoc.Close False
     On Error GoTo 0
     VBA.MsgBox "PrototypeNew: WORD export failed: " & errorDescription, VBA.vbExclamation, "PrototypeNew / WORD export"
+End Function
+
+Private Function private_TryInsertRenderedHtmlBlocks( _
+    ByVal wordDoc As Object, _
+    ByVal targetRange As Object, _
+    ByVal renderedText As String, _
+    ByRef outInsertedEnd As Long _
+) As Boolean
+    Dim cursorPos As Long
+    Dim searchPos As Long
+    Dim tableStart As Long
+    Dim tableEnd As Long
+    Dim beforeText As String
+    Dim tableMarkup As String
+    Dim htmlDoc As Object
+    Dim htmlTable As Object
+    Dim htmlRow As Object
+    Dim htmlCell As Object
+    Dim wordRange As Object
+    Dim wordTable As Object
+    Dim rowIndex As Long
+    Dim columnIndex As Long
+    Dim rowCount As Long
+    Dim columnCount As Long
+    Dim tableStyle As String
+
+    outInsertedEnd = 0
+    If wordDoc Is Nothing Or targetRange Is Nothing Then Exit Function
+    cursorPos = targetRange.Start
+    searchPos = 1
+
+    Do
+        tableStart = VBA.InStr(searchPos, renderedText, "<table", VBA.vbTextCompare)
+        If tableStart = 0 Then Exit Do
+        tableEnd = VBA.InStr(tableStart, renderedText, "</table>", VBA.vbTextCompare)
+        If tableEnd = 0 Then
+            VBA.MsgBox "SupportingDocumentBuilder: preview contains an unclosed " & _
+                "<table> element.", VBA.vbExclamation, _
+                "Supporting Document Builder"
+            Exit Function
+        End If
+        tableEnd = tableEnd + VBA.Len("</table>") - 1
+        beforeText = VBA.Mid$(renderedText, searchPos, tableStart - searchPos)
+        If VBA.Len(beforeText) > 0 Then
+            Set wordRange = wordDoc.Range(cursorPos, cursorPos)
+            wordRange.Text = beforeText
+            cursorPos = wordRange.End
+        End If
+
+        tableMarkup = VBA.Mid$(renderedText, tableStart, tableEnd - tableStart + 1)
+        Set htmlDoc = VBA.CreateObject("htmlfile")
+        htmlDoc.Open
+        htmlDoc.Write "<html><body>" & tableMarkup & "</body></html>"
+        htmlDoc.Close
+        If htmlDoc.getElementsByTagName("table").Length <> 1 Then
+            VBA.MsgBox "SupportingDocumentBuilder: failed to parse rendered table.", _
+                VBA.vbExclamation, "Supporting Document Builder"
+            Exit Function
+        End If
+        Set htmlTable = htmlDoc.getElementsByTagName("table").Item(0)
+        rowCount = htmlTable.Rows.Length
+        columnCount = 0
+        For Each htmlRow In htmlTable.Rows
+            If htmlRow.Cells.Length > columnCount Then _
+                columnCount = htmlRow.Cells.Length
+        Next htmlRow
+        If rowCount <= 0 Or columnCount <= 0 Then
+            VBA.MsgBox "SupportingDocumentBuilder: rendered table must contain " & _
+                "at least one row and one cell.", VBA.vbExclamation, _
+                "Supporting Document Builder"
+            Exit Function
+        End If
+
+        Set wordRange = wordDoc.Range(cursorPos, cursorPos)
+        Set wordTable = wordDoc.Tables.Add(wordRange, rowCount, columnCount)
+        rowIndex = 1
+        For Each htmlRow In htmlTable.Rows
+            columnIndex = 1
+            For Each htmlCell In htmlRow.Cells
+                wordTable.Cell(rowIndex, columnIndex).Range.Text = _
+                    VBA.CStr(htmlCell.innerText)
+                columnIndex = columnIndex + 1
+            Next htmlCell
+            rowIndex = rowIndex + 1
+        Next htmlRow
+        tableStyle = VBA.Trim$(VBA.CStr(htmlTable.getAttribute("wordStyle")))
+        If VBA.Len(tableStyle) > 0 Then
+            If Not private_TryApplyWordTableStyle( _
+                wordTable, tableStyle) Then Exit Function
+        End If
+        cursorPos = wordTable.Range.End
+        searchPos = tableEnd + 1
+    Loop
+
+    beforeText = VBA.Mid$(renderedText, searchPos)
+    If VBA.Len(beforeText) > 0 Then
+        Set wordRange = wordDoc.Range(cursorPos, cursorPos)
+        wordRange.Text = beforeText
+        cursorPos = wordRange.End
+    End If
+    outInsertedEnd = cursorPos
+    private_TryInsertRenderedHtmlBlocks = True
+    Exit Function
+End Function
+
+Private Function private_TryApplyWordTableStyle( _
+    ByVal wordTable As Object, _
+    ByVal tableStyle As String _
+) As Boolean
+    If wordTable Is Nothing Then Exit Function
+    tableStyle = VBA.Trim$(tableStyle)
+    If VBA.Len(tableStyle) = 0 Then
+        private_TryApplyWordTableStyle = True
+        Exit Function
+    End If
+
+    On Error GoTo EH
+    Select Case ex_Helpers.fn_NormalizeText(tableStyle)
+        Case "builtin:tablegrid"
+            ' Built-in style ID одинаков во всех локализациях Word.
+            wordTable.Style = WD_STYLE_TABLE_GRID
+        Case Else
+            VBA.MsgBox "SupportingDocumentBuilder: unsupported Word table " & _
+                "style identifier '" & tableStyle & "'.", _
+                VBA.vbExclamation, "Supporting Document Builder"
+            Exit Function
+    End Select
+    private_TryApplyWordTableStyle = True
+    Exit Function
+
+EH:
+    VBA.MsgBox "SupportingDocumentBuilder: failed to apply Word table style '" & _
+        tableStyle & "': [" & VBA.CStr(Err.Number) & "] " & _
+        Err.Description, VBA.vbExclamation, _
+        "Supporting Document Builder"
 End Function
 
 Private Sub private_DeleteCollapsedWordBookmarkIfExists( _

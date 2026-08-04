@@ -11,6 +11,17 @@ End Sub
 ' //
 ' // API
 ' //
+Public Function fn_NormalizeText(ByVal valueText As String) As String
+    valueText = VBA.Replace(VBA.CStr(valueText), VBA.vbCr, " ")
+    valueText = VBA.Replace(valueText, VBA.vbLf, " ")
+    valueText = VBA.Replace(valueText, VBA.vbTab, " ")
+    Do While VBA.InStr(1, valueText, "  ", VBA.vbBinaryCompare) > 0
+        valueText = VBA.Replace(valueText, "  ", " ")
+    Loop
+    fn_NormalizeText = VBA.LCase$(VBA.Trim$(valueText))
+End Function
+
+
 Public Function m_RegexIsMatch( _
     ByVal textValue As String, _
     ByVal regexPattern As String _
