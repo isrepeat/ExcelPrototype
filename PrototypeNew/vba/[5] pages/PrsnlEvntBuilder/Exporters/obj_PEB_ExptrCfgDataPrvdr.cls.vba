@@ -450,7 +450,8 @@ Public Function IsExportAllowed( _
     ByRef outErrorMessage As String, _
     ByRef outLatestTvoChain As Collection, _
     ByRef outLatestMovementRecord As Object, _
-    Optional ByVal applyValidationRules As Boolean = True _
+    Optional ByVal applyValidationRules As Boolean = True, _
+    Optional ByVal allowMatchingClosedEvent As Boolean = False _
 ) As Boolean
     Dim data As obj_PrsnlEvntBuilderData
     Dim ipnText As String
@@ -509,13 +510,6 @@ Public Function IsExportAllowed( _
                 VBA.vbCrLf & "Required previous event: " & requiredPreviousEventText
             Exit Function
         End If
-        If previousIsClosed Then
-            outErrorMessage = "Export was stopped because the latest Movement event is already closed." & _
-                VBA.vbCrLf & "IPN: " & ipnText & _
-                VBA.vbCrLf & "Previous event: " & previousEventText & _
-                VBA.vbCrLf & "Required previous event: " & requiredPreviousEventText
-            Exit Function
-        End If
         If VBA.StrComp( _
             private_NormalizeLookupKey(previousEventText), _
             private_NormalizeLookupKey(requiredPreviousEventText), _
@@ -524,6 +518,17 @@ Public Function IsExportAllowed( _
                 VBA.vbCrLf & "IPN: " & ipnText & _
                 VBA.vbCrLf & "Previous event: " & previousEventText & _
                 VBA.vbCrLf & "Required previous event: " & requiredPreviousEventText
+            Exit Function
+        End If
+        If previousIsClosed And Not allowMatchingClosedEvent Then
+            outErrorMessage = "Export was stopped because the latest Movement event is already closed." & _
+                VBA.vbCrLf & "IPN: " & ipnText & _
+                VBA.vbCrLf & "Previous event: " & previousEventText & _
+                VBA.vbCrLf & "Required previous event: " & requiredPreviousEventText
+            Exit Function
+        End If
+        If previousIsClosed And allowMatchingClosedEvent Then
+            IsExportAllowed = True
             Exit Function
         End If
     End If
