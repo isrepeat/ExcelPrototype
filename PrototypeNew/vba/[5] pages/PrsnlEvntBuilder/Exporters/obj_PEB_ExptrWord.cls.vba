@@ -241,7 +241,13 @@ Public Function Export( _
     End If
     ' WORD validation defaults to disabled when the context key is absent.
     validationEnabled = private_GetContextBoolean(context, CONTEXT_VALIDATION_ENABLED)
-    If Not m_ExporterCfgDataProvider.IsExportAllowed(sourceTable, sectionTypeText, exportValidationError, latestMovementTvoChain, ignoredLatestMovementRecord, validationEnabled) Then
+    ' WORD не изменяет Movement и может формироваться сразу после того, как
+    ' Movement-экспорт уже закрыл ожидаемое событие. Тип события по-прежнему
+    ' проверяется, разрешается только его совпадающее закрытое состояние.
+    If Not m_ExporterCfgDataProvider.IsExportAllowed( _
+        sourceTable, sectionTypeText, exportValidationError, _
+        latestMovementTvoChain, ignoredLatestMovementRecord, _
+        validationEnabled, True) Then
         VBA.MsgBox exportValidationError, VBA.vbExclamation, "PrototypeNew / WORD export"
         Exit Function
     End If
@@ -2259,6 +2265,7 @@ Private Function private_TryEnrichMetaTvoTablesForWord(ByVal sourceTables As Col
     Dim rankGenitive As String
     Dim rankDative As String
     Dim fioGenitive As String
+    Dim fioAccusative As String
     Dim fioDative As String
     Dim positionGenitive As String
     Dim positionDative As String
@@ -2290,6 +2297,7 @@ Private Function private_TryEnrichMetaTvoTablesForWord(ByVal sourceTables As Col
         If Not m_ExporterCfgDataProvider.CommonData.TryResolveRankGenitive(rankText, rankGenitive) Then Exit Function
         If Not m_ExporterCfgDataProvider.CommonData.TryResolveRankDative(rankText, rankDative) Then Exit Function
         If Not m_ExporterCfgDataProvider.CommonData.TryResolveFioGenitive(ipnText, fioGenitive) Then Exit Function
+        If Not m_ExporterCfgDataProvider.CommonData.TryResolveFioAccusative(ipnText, fioAccusative) Then Exit Function
         If Not m_ExporterCfgDataProvider.CommonData.TryResolveFioDative(ipnText, fioDative) Then Exit Function
 #If TVO_POSITION_FALLBACK_ENABLED Then
         If Not m_ExporterCfgDataProvider.CommonData.TryResolvePositionFormsOptional( _
@@ -2336,6 +2344,7 @@ Private Function private_TryEnrichMetaTvoTablesForWord(ByVal sourceTables As Col
         If Not private_TryUpsertMainTableValue(sourceTable, WORD_ALIAS_RANK_GENITIVE, rankGenitive) Then Exit Function
         If Not private_TryUpsertMainTableValue(sourceTable, WORD_ALIAS_RANK_DATIVE, rankDative) Then Exit Function
         If Not private_TryUpsertMainTableValue(sourceTable, WORD_ALIAS_FIO_GENITIVE, fioGenitive) Then Exit Function
+        If Not private_TryUpsertMainTableValue(sourceTable, WORD_ALIAS_FIO_ACCUSATIVE, fioAccusative) Then Exit Function
         If Not private_TryUpsertMainTableValue(sourceTable, WORD_ALIAS_FIO_DATIVE, fioDative) Then Exit Function
         If Not private_TryUpsertMainTableValue(sourceTable, WORD_ALIAS_POSITION_DEFAULT, positionText) Then Exit Function
         If Not private_TryUpsertMainTableValue( _

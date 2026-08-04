@@ -86,7 +86,7 @@
 #_        {#for item in MetaTvoTables}#^
 #_          {#newline}#^
 #_          Тимчасове виконання обов'язків {[PositionGenitive]|lowerFirstLetter} покласти на #^
-#_          {item.[RankGenitive]|lowerFirstLetter} {item.[FIOGenitive]}, {item.[PositionGenitive]|lowerFirstLetter}.#^
+#_          {item.[RankGenitive]|lowerFirstLetter} {item.[FIOAccusative]}, {item.[PositionGenitive]|lowerFirstLetter}.#^
 #_        {#endfor}#^
 #_        {#if [RequiresFoodSupportRemove]}{#newline}#^
 #_        {#include block.RemoveFromFoodSupport}{#endif}#^
