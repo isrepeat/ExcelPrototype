@@ -193,7 +193,13 @@ Public Sub fn_Dev_ToggleLogging()
         private_ShowStatusWarning "Logging is disabled (Settings.xml).", True, 3
     End If
 
-    Call ex_HelpersSheet.fn_TryRerenderActivePage("settings:toggle-logging")
+    ' Перерисовываем только кнопку по уже записанному значению Settings.xml.
+    ' Полный render активной страницы после Clear Pages мог завершиться неуспешно,
+    ' а прежний Call игнорировал Boolean-результат и оставлял stale caption.
+    If Not ex_ControlRefreshRuntime.fn_TryRefreshStaticControl("ToggleLogging") Then
+        VBA.MsgBox "PrototypeNew: logging state was changed, but the 'ToggleLogging' button could not be refreshed.", _
+            VBA.vbExclamation, "PrototypeNew / Logging"
+    End If
 End Sub
 
 Public Sub fn_Dev_ClearLogs()
