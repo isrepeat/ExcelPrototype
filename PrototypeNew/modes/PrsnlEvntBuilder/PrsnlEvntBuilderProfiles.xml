@@ -89,6 +89,7 @@
     <item key="EntityLookup.Lookup[op_FIOAbsenceExtension].SearchColumnAlias" value="AbsenceEvents.Sheet[TemporaryAbsent].Column[FIO]"/>
     <item key="EntityLookup.Lookup[op_FIOAbsenceExtension].ResultColumnsAliases[AbsenceEvents.Sheet[TemporaryAbsent].Column[FIO]]" value="EntityLookup.Table.Column[_FIO]"/>
     <item key="EntityLookup.Lookup[op_FIOAbsenceExtension].ResultColumnsAliases[AbsenceEvents.Sheet[TemporaryAbsent].Column[Destination]]" value="EntityLookup.Table.Column[_Destination]"/>
+    <item key="EntityLookup.Lookup[op_FIOAbsenceExtension].ResultColumnsAliases[AbsenceEvents.Sheet[TemporaryAbsent].Column[DepartureDate]]" value="EntityLookup.Table.Column[_DateFrom]"/>
     <item key="EntityLookup.Lookup[op_FIOAbsenceExtension].ResultColumnsAliases[AbsenceEvents.Sheet[TemporaryAbsent].Column[DurationDays]]" value="EntityLookup.Table.Column[_DurationDays]"/>
     <item key="EntityLookup.Lookup[op_FIOAbsenceExtension].ResultColumnsAliases[AbsenceEvents.Sheet[TemporaryAbsent].Column[VhNo]]" value="EntityLookup.Table.Column[_VacationTicketNo]"/>
 
@@ -116,6 +117,6 @@
     <item key="Export.Movement.RangeStartMarker" value="$B6"/>
     <item key="Export.Movement.RangeEndMarker" value="$X7"/>
     <item key="Export.Word.ExporterClass" value="obj_PEB_ExptrWord"/>
-    <item key="Export.Word.FilePath" value="modes\PrsnlEvntBuilder\Template_07.docx"/>
+    <item key="Export.Word.FilePath" value="modes\PrsnlEvntBuilder\Template_08.docx"/>
   </profile>
 </profiles>
