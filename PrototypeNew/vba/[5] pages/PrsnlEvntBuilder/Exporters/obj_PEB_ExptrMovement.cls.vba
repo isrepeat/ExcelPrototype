@@ -42,6 +42,8 @@ Private Const MOVEMENT_TARGET_OUT_REASON As String = "Підстава вибу�
 Private Const MOVEMENT_TARGET_RETURN_REASON As String = "Підстава прибуття"
 Private Const MOVEMENT_TARGET_IPN As String = "ІПН"
 Private Const MOVEMENT_TARGET_DURATION_TERM As String = "Термін вибуття"
+Private Const MOVEMENT_TARGET_ADDITIONAL_ROAD_DAYS As String = "Додаткові дні на дорогу"
+Private Const MOVEMENT_TARGET_ADDITIONAL_DONATION_DAYS As String = "Додаткові дні на донацію крові"
 Private Const MOVEMENT_TARGET_ESCORT_DOCUMENT As String = "Супровідний документ"
 Private Const MOVEMENT_TARGET_EVENT As String = "Подія"
 Private Const MOVEMENT_TARGET_TVO_FIO As String = "ТВО ПІБ"
@@ -157,6 +159,8 @@ Public Function Export( _
     Dim mirrorOpeningDepartureDate As Variant
     Dim writeSpecialOpeningFields As Boolean
     Dim specialDurationValue As Variant
+    Dim specialRoadDaysValue As Variant
+    Dim specialDonationDaysValue As Variant
     Dim specialVkNoValue As Variant
     Dim sectionTypeRaw As String
     Dim sectionTypeNormalized As String
@@ -238,7 +242,10 @@ Public Function Export( _
 
     ' Некоторые типы выбытия пишут дополнительные поля открывающей записи:
     ' срок выбытия и сопровождающий документ. Helper сам решает, нужны ли эти поля для sectionType.
-    If Not private_TryBuildSpecialOpeningValues(sourceTable, context, sectionTypeRaw, writeSpecialOpeningFields, specialDurationValue, specialVkNoValue) Then Exit Function
+    If Not private_TryBuildSpecialOpeningValues( _
+        sourceTable, context, sectionTypeRaw, writeSpecialOpeningFields, _
+        specialDurationValue, specialRoadDaysValue, specialDonationDaysValue, _
+        specialVkNoValue) Then Exit Function
     If Not private_TryBuildMovementTvoValues(sourceTables, tvoFioText, tvoIpnText, tvoPositionText) Then Exit Function
 
     ' Для части профилей значение "Подія" берется не из формы напрямую,
@@ -317,7 +324,8 @@ Public Function Export( _
         If Not private_TryWriteMovementRow( _
             targetTable, targetRowRange, targetValues, _
             mirrorOpeningOrderNo, mirrorOpeningFoodFromDate, mirrorOpeningDepartureDate, _
-            writeSpecialOpeningFields, specialDurationValue, specialVkNoValue, _
+            writeSpecialOpeningFields, specialDurationValue, specialRoadDaysValue, _
+            specialDonationDaysValue, specialVkNoValue, _
             shouldWriteMappedEvent, mappedEventText, basisSummaryText, _
             tvoFioText, tvoIpnText, tvoPositionText) Then GoTo CleanFail
         insertedAfterFormula = targetRowRange.Formula
@@ -332,7 +340,8 @@ Public Function Export( _
         If Not private_TryWriteMovementRow( _
             targetTable, targetRowRange, targetValues, _
             outgoingOrderNo, outgoingFoodFromDate, outgoingDepartureDate, _
-            writeSpecialOpeningFields, specialDurationValue, specialVkNoValue, _
+            writeSpecialOpeningFields, specialDurationValue, specialRoadDaysValue, _
+            specialDonationDaysValue, specialVkNoValue, _
             shouldWriteMappedEvent, mappedEventText, basisSummaryText, _
             tvoFioText, tvoIpnText, tvoPositionText) Then GoTo CleanFail
         insertedAfterFormula = targetRowRange.Formula
@@ -572,13 +581,18 @@ Private Function private_TryBuildSpecialOpeningValues( _
     ByVal sectionTypeText As String, _
     ByRef outShouldWrite As Boolean, _
     ByRef outDurationValue As Variant, _
+    ByRef outRoadDaysValue As Variant, _
+    ByRef outDonationDaysValue As Variant, _
     ByRef outVkNoValue As Variant _
 ) As Boolean
     Dim sourceRow As obj_Row
     Dim formattedVkNo As String
+    Dim durationText As String
 
     outShouldWrite = False
     outDurationValue = VBA.vbNullString
+    outRoadDaysValue = VBA.vbNullString
+    outDonationDaysValue = VBA.vbNullString
     outVkNoValue = VBA.vbNullString
 
     If sourceTable Is Nothing Then Exit Function
@@ -592,13 +606,108 @@ Private Function private_TryBuildSpecialOpeningValues( _
     End If
 
     outShouldWrite = True
-    outDurationValue = private_GetOptionalSourceTextByAnyColumn(sourceTable, sourceRow, MOVEMENT_SOURCE_DURATION_DAYS)
+    durationText = private_GetOptionalSourceTextByAnyColumn( _
+        sourceTable, sourceRow, MOVEMENT_SOURCE_DURATION_DAYS)
+    If Not private_TryParseMovementDuration( _
+        durationText, outDurationValue, outRoadDaysValue, _
+        outDonationDaysValue) Then Exit Function
     If Not m_ExporterCfgDataProvider.CommonData.TryFormatVacationTicketNoForExport( _
         private_GetOptionalSourceTextByAnyColumn(sourceTable, sourceRow, MOVEMENT_SOURCE_VACATION_TICKET_NO), _
         private_GetContextText(context, MOVEMENT_CONTEXT_MANUAL_ORDER_NO), _
         formattedVkNo) Then Exit Function
     outVkNoValue = formattedVkNo
     private_TryBuildSpecialOpeningValues = True
+End Function
+
+Private Function private_TryParseMovementDuration( _
+    ByVal durationText As String, _
+    ByRef outDurationValue As Variant, _
+    ByRef outRoadDaysValue As Variant, _
+    ByRef outDonationDaysValue As Variant _
+) As Boolean
+    Dim fullRx As Object
+    Dim operandRx As Object
+    Dim matches As Object
+    Dim operandMatch As Object
+    Dim additionalDays As Long
+    Dim reasonText As String
+
+    outDurationValue = VBA.vbNullString
+    outRoadDaysValue = VBA.vbNullString
+    outDonationDaysValue = VBA.vbNullString
+    durationText = VBA.Trim$(durationText)
+    If VBA.Len(durationText) = 0 Then
+        private_TryParseMovementDuration = True
+        Exit Function
+    End If
+    On Error GoTo EH
+    ' Пустая ячейка источника в некоторых путях построения таблицы приходит
+    ' как числовой 0. Это отсутствие срока, а не реальный нулевой срок выбытия.
+    If VBA.IsNumeric(durationText) Then
+        If VBA.CDbl(durationText) = 0 Then
+            private_TryParseMovementDuration = True
+            Exit Function
+        End If
+    End If
+
+    Set fullRx = VBA.CreateObject("VBScript.RegExp")
+    fullRx.Global = False
+    fullRx.IgnoreCase = True
+    fullRx.Pattern = "^\s*(\d+)((?:\s*\+\s*\d+\s*\([^)]*\))*)\s*$"
+    Set matches = fullRx.Execute(durationText)
+    If matches.Count = 0 Then
+        VBA.MsgBox "PrototypeNew: unsupported Movement duration: '" & _
+            durationText & "'. Expected, for example, " & _
+            "'15+2 (дорога) +1 (донація крові)'.", _
+            VBA.vbExclamation, "PrototypeNew / Movement export"
+        Exit Function
+    End If
+
+    outDurationValue = VBA.CLng(matches(0).SubMatches(0))
+    If VBA.CLng(outDurationValue) <= 0 Then
+        VBA.MsgBox "PrototypeNew: Movement duration must be greater than " & _
+            "zero in '" & durationText & "'.", VBA.vbExclamation, _
+            "PrototypeNew / Movement export"
+        Exit Function
+    End If
+    outRoadDaysValue = 0
+    outDonationDaysValue = 0
+
+    Set operandRx = VBA.CreateObject("VBScript.RegExp")
+    operandRx.Global = True
+    operandRx.IgnoreCase = True
+    operandRx.Pattern = "\+\s*(\d+)\s*\(([^)]*)\)"
+    Set matches = operandRx.Execute(durationText)
+    For Each operandMatch In matches
+        additionalDays = VBA.CLng(operandMatch.SubMatches(0))
+        If additionalDays <= 0 Then
+            VBA.MsgBox "PrototypeNew: additional Movement duration days " & _
+                "must be greater than zero in '" & durationText & "'.", _
+                VBA.vbExclamation, "PrototypeNew / Movement export"
+            Exit Function
+        End If
+        reasonText = VBA.LCase$(VBA.Trim$(VBA.CStr(operandMatch.SubMatches(1))))
+        Select Case reasonText
+            Case "дорога"
+                outRoadDaysValue = VBA.CLng(outRoadDaysValue) + additionalDays
+            Case "донація", "донація крові"
+                outDonationDaysValue = VBA.CLng(outDonationDaysValue) + additionalDays
+            Case Else
+                VBA.MsgBox "PrototypeNew: unsupported additional Movement " & _
+                    "duration reason: '" & reasonText & "'. Supported reasons: " & _
+                    "'дорога', 'донація крові', 'донація'.", _
+                    VBA.vbExclamation, "PrototypeNew / Movement export"
+                Exit Function
+        End Select
+    Next operandMatch
+
+    private_TryParseMovementDuration = True
+    Exit Function
+
+EH:
+    VBA.MsgBox "PrototypeNew: failed to parse Movement duration from '" & _
+        durationText & "': " & Err.Description, VBA.vbExclamation, _
+        "PrototypeNew / Movement export"
 End Function
 
 Private Function private_TryBuildMovementTvoValues( _
@@ -1333,6 +1442,8 @@ Private Function private_TryWriteMovementRow( _
     ByVal outgoingDepartureDate As Variant, _
     ByVal writeSpecialFields As Boolean, _
     ByVal specialDurationValue As Variant, _
+    ByVal specialRoadDaysValue As Variant, _
+    ByVal specialDonationDaysValue As Variant, _
     ByVal specialVkNoValue As Variant, _
     ByVal writeMappedEvent As Boolean, _
     ByVal mappedEventText As String, _
@@ -1361,6 +1472,8 @@ Private Function private_TryWriteMovementRow( _
 
     If writeSpecialFields Then
         If Not private_TryWriteNamedColumnValue(targetTable, rowRange, MOVEMENT_TARGET_DURATION_TERM, specialDurationValue) Then Exit Function
+        If Not private_TryWriteNamedColumnValue(targetTable, rowRange, MOVEMENT_TARGET_ADDITIONAL_ROAD_DAYS, specialRoadDaysValue) Then Exit Function
+        If Not private_TryWriteNamedColumnValue(targetTable, rowRange, MOVEMENT_TARGET_ADDITIONAL_DONATION_DAYS, specialDonationDaysValue) Then Exit Function
         If Not private_TryWriteNamedColumnValue(targetTable, rowRange, MOVEMENT_TARGET_ESCORT_DOCUMENT, specialVkNoValue) Then Exit Function
     End If
 

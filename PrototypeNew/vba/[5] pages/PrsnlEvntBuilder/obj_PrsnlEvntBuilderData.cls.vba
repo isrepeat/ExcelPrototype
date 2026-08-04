@@ -419,8 +419,8 @@ Public Function IsMovementMirrorTransferSectionType(ByVal sectionTypeText As Str
     End Select
 End Function
 
-' Mirror-переходы закрывают только ожидаемый предыдущий статус,
-' чтобы зеркальная запись не могла случайно завершить другое событие.
+' Закрывающие секции и типизированные mirror-переходы могут завершать только
+' ожидаемое предыдущее событие Movement.
 Public Function TryGetRequiredPreviousMovementEvent( _
     ByVal sectionTypeText As String, _
     ByRef outEventText As String _
@@ -428,6 +428,18 @@ Public Function TryGetRequiredPreviousMovementEvent( _
     outEventText = VBA.vbNullString
 
     Select Case private_NormalizeText(sectionTypeText)
+        Case private_NormalizeText(SECTION_TYPE_CLOSE_FROM_TREATMENT)
+            outEventText = MOVEMENT_EVENT_STATIONARY_TREATMENT
+        Case private_NormalizeText(SECTION_TYPE_CLOSE_FROM_TREATMENT_VACATION)
+            outEventText = MOVEMENT_EVENT_TREATMENT_VACATION
+        Case private_NormalizeText(SECTION_TYPE_CLOSE_FROM_ANNUAL_VACATION)
+            outEventText = MOVEMENT_EVENT_ANNUAL_VACATION
+        Case private_NormalizeText(SECTION_TYPE_CLOSE_FROM_FAMILY_VACATION)
+            outEventText = MOVEMENT_EVENT_FAMILY_VACATION
+        Case private_NormalizeText(SECTION_TYPE_CLOSE_FROM_AMBULATORY_VLK)
+            outEventText = MOVEMENT_EVENT_AMBULATORY_VLK
+        Case private_NormalizeText(SECTION_TYPE_CLOSE_FROM_STATIONARY_VLK)
+            outEventText = MOVEMENT_EVENT_STATIONARY_VLK
         Case private_NormalizeText(SECTION_TYPE_TO_BUSINESS_TRIP_SZCH)
             outEventText = MOVEMENT_EVENT_SZCH
         Case private_NormalizeText(SECTION_TYPE_TRANSFER_ANNUAL_VACATION_TO_FAMILY_VACATION)

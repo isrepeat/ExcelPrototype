@@ -5,7 +5,7 @@
 
     <item attr="#" key="Movement source" value=""/>
     <item key="Source.Movement.FilePath" value="C:\Users\SVI\Desktop\РУХ_last.xlsx"/>
-    <item key="Movement.Sheet[Absent].SheetName" value="Відсутні$B6:S20000"/>
+    <item key="Movement.Sheet[Absent].SheetName" value="Відсутні$B6:V20000"/>
     <item key="Movement.Sheet[Absent].ColumnHeadersAliases" value="FIO; Event; OutOrder; OutDate; PlannedReturnDate; ReturnDate"/>
     <item key="Movement.Sheet[Absent].Map[FIO]" value="ПІБ"/>
     <item key="Movement.Sheet[Absent].Map[Event]" value="Подія"/>

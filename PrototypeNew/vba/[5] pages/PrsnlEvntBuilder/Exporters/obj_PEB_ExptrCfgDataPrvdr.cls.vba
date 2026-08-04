@@ -499,18 +499,9 @@ Public Function IsExportAllowed( _
         Exit Function
     End If
 
-    ' Даже при отключённой блокирующей валидации snapshot последней Movement-
-    ' записи читается выше: WORD и DailyScope используют его для ТВО и данных
-    ' предыдущего события. Флаг отключает только правила opening/closing.
-    If Not applyValidationRules Then
-        IsExportAllowed = True
-        Exit Function
-    End If
-
     Set data = New obj_PrsnlEvntBuilderData
-    ' Большинство mirror-переходов допускает общий pipeline закрытия. Для смены
-    ' вида отпуска этого недостаточно: новая запись обязана закрыть открытое
-    ' событие именно исходного вида, иначе можно завершить несвязанный статус.
+    ' Типизированное закрытие является инвариантом данных и не отключается
+    ' флагом общей Movement-валидации: секция не может закрыть другой вид события.
     If data.TryGetRequiredPreviousMovementEvent(exportSectionType, requiredPreviousEventText) Then
         If Not found Then
             outErrorMessage = "Export was stopped because there is no Movement event to close." & _
@@ -535,6 +526,15 @@ Public Function IsExportAllowed( _
                 VBA.vbCrLf & "Required previous event: " & requiredPreviousEventText
             Exit Function
         End If
+    End If
+
+    ' Даже при отключённой блокирующей валидации snapshot последней Movement-
+    ' записи читается выше: WORD и DailyScope используют его для ТВО и данных
+    ' предыдущего события. Флаг отключает только общие правила opening/closing,
+    ' но не обязательное соответствие типа, проверенное выше.
+    If Not applyValidationRules Then
+        IsExportAllowed = True
+        Exit Function
     End If
 
     ' Mirror transfer по-прежнему не блокируется правилами opening/closing,
@@ -748,7 +748,7 @@ End Function
 
 ' Возвращает текущую должность рапортующего и все предыдущие физические
 ' должности того же подразделения. Граница определяется по колонке "#".
-' Запрос выполняется только по явному Ctrl+. пользователя.
+' Запрос выполняется только по явному Ctrl+/ пользователя.
 Public Function TryGetReporterTvoPositionCandidates( _
     ByVal currentPositionCode As String, _
     ByRef outCandidates As obj_TableDynamic _
