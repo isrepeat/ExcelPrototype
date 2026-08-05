@@ -106,7 +106,7 @@ Private Const MOVEMENT_EVENT_FAMILY_VACATION As String = "Відпустка з�
 Private Const MOVEMENT_EVENT_MATERNITY_LEAVE As String = "Відпустка у зв'язку з вагітністю та пологами"
 Private Const MOVEMENT_EVENT_TREATMENT_VACATION As String = "Відпустка для лікування"
 Private Const MOVEMENT_EVENT_AMBULATORY_VLK As String = "Амбулаторне ВЛК"
-Private Const MOVEMENT_EVENT_STATIONARY_VLK As String = "Стаціонарне ВЛК"
+Private Const MOVEMENT_EVENT_STATIONARY_VLK As String = "ВЛК за межами"
 Private Const MOVEMENT_EVENT_BUSINESS_TRIP As String = "Відрядження"
 Private Const MOVEMENT_EVENT_SZCH As String = "Самовільне залишення частини"
 
