@@ -1,6 +1,7 @@
 ' Должен быть вставлен во внутренний модуль книги .xlsm
 Option Explicit
 #Const LOGGING_DEBUG_ENABLED = True
+#Const RUNTIME_SNAPSHOTS_ENABLED = False
 #Const LOGGING_VERBOSE_ENABLED = False
 
 #Const CORE_ENABLE_STATUS_BAR_LOGGING = True
@@ -1622,6 +1623,7 @@ Private Function private_Dev_TryRunSafeUpdateByMode( _
     End If
 
     ' Этап 2. Runtime валиден -> сохраняем runtime state перед целевым update.
+#If RUNTIME_SNAPSHOTS_ENABLED Then
     If Not private_Dev_TryRunRuntimeBooleanFunction("rt_RestoreManager", "fn_SaveRuntimeState", saveRuntimeOk) Then
 #If LOGGING_DEBUG_ENABLED Then
         private_Diagnostic_LogCoreSelfEvent "safe-update:fail op='" & operationName & "' reason='save-runtime-state-call-failed'"
@@ -1634,6 +1636,7 @@ Private Function private_Dev_TryRunSafeUpdateByMode( _
 #End If
         Exit Function
     End If
+#End If
 
     ' Этап 3. Перед hot-import отменяем висящие deferred restore и освобождаем runtime-ссылки.
     If Not private_Dev_TryPrepareRuntimeForHotUpdate(operationName) Then
@@ -1886,7 +1889,14 @@ Private Sub private_Dev_QueueRuntimeStateRestoreAfterUpdate(ByVal reasonText As 
     reasonText = VBA.Trim$(reasonText)
     If VBA.Len(reasonText) = 0 Then reasonText = "unknown"
 
+#If RUNTIME_SNAPSHOTS_ENABLED Then
     macroRef = "'" & VBA.Replace$(ThisWorkbook.Name, "'", "''") & "'!rt_RestoreManager.fn_RunDeferredRuntimeStateRestore"
+#Else
+    ' Hot-update освобождает rt_PageManager и тем самым удаляет runtime routes.
+    ' Без snapshots на следующем тике создаём чистую Main, иначе на листе
+    ' останутся только Shape с OnAction, но без соответствующего page instance.
+    macroRef = "'" & VBA.Replace$(ThisWorkbook.Name, "'", "''") & "'!rt_CoreActions.fn_RerenderLastPageAfterUpdate"
+#End If
     scheduleAt = private_Dev_GetNextOnTimeTick()
 
     On Error Resume Next
