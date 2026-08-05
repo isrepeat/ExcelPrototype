@@ -114,12 +114,14 @@ Public Sub fn_OnSheetActivate(ByVal Sh As Object)
     On Error GoTo EH_ACTIVATE
     If Sh Is Nothing Then Exit Sub
     If Not TypeOf Sh Is Worksheet Then
+        Call ex_Core.fn_Diagnostic_ApplyLoggingPagePolicy(VBA.vbNullString)
         syncOk = rt_HotkeyRuntime.fn_ActivatePageHotkeys(VBA.vbNullString)
         Exit Sub
     End If
 
     Set ws = Sh
     wsName = VBA.Trim$(VBA.CStr(ws.Name))
+    Call ex_Core.fn_Diagnostic_ApplyLoggingPagePolicy(wsName)
     If Not rt_PageManager.fn_TryGetPageByWorksheet(ws, page) Then
         syncOk = rt_HotkeyRuntime.fn_ActivatePageHotkeys(VBA.vbNullString)
         Exit Sub

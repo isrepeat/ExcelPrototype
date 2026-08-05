@@ -177,6 +177,16 @@
           />
         <control
           type="Button"
+          name="ToggleMainPageLogging"
+          dataContext="{GlobalRuntimeSource='Settings'}"
+          caption="{Binding Path=IsLoggingMainPageOnly;TrueAs=Logging: [[[ok]]Main only[[/ok]]];FalseAs=Logging: [[[color=#FF0000]]All pages[[/color]]]}"
+          style="actionWarning"
+          onClick="{Binding Module=ex_Core;Method=fn_Dev_ToggleMainPageLogging}"
+          spanColls="5"
+          spanRows="2"
+          />
+        <control
+          type="Button"
           name="ClearLogs"
           caption="Clear Logs"
           style="actionWarning"

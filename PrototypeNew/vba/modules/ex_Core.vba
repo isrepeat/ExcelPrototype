@@ -38,6 +38,9 @@ Private Const SETTINGS_ROOT_NODE As String = "Settings"
 Private Const SETTINGS_FLAGS_NODE As String = "Flags"
 Private Const SETTINGS_FLAG_IS_LOGGING_ENABLED As String = "IsLoggingEnabled"
 Private Const SETTINGS_FLAG_IS_LOGGING_ENABLED_DEFAULT As Boolean = True
+Private Const SETTINGS_FLAG_IS_LOGGING_MAIN_PAGE_ONLY As String = "IsLoggingMainPageOnly"
+Private Const SETTINGS_FLAG_IS_LOGGING_MAIN_PAGE_ONLY_DEFAULT As Boolean = True
+Private Const MAIN_PAGE_WORKSHEET_NAME As String = "Main"
 
 Private g_QueuedBridgeUpdateAt As Date
 Private g_QueuedBridgeUpdateMacro As String
@@ -54,6 +57,8 @@ Private g_SafeUpdateRetryAttempts As Long
 Private g_LastUpdateErrorNumber As Long
 Private g_LastUpdateErrorSource As String
 Private g_LastUpdateErrorDescription As String
+Private g_IsLoggingRuntimeStateInitialized As Boolean
+Private g_IsLoggingRuntimeActive As Boolean
 ' Латч на текущий update-run: хотя бы один файл в pass поймал
 ' "still present after remove operation" при remove/import компонента.
 Private g_LastImportHadComponentStillPresent As Boolean
@@ -63,6 +68,11 @@ Public Sub fn_Module_Dispose()
     ex_Core.fn_Diagnostic_LogInfo "lifecycle:ex_Core.fn_Module_Dispose"
 #End If
     Call fn_CancelDeferredTasks
+
+    ' После hot-update политика будет заново применена событием SheetActivate.
+    ' До этого момента не блокируем диагностические сообщения самого bootstrap.
+    g_IsLoggingRuntimeStateInitialized = False
+    g_IsLoggingRuntimeActive = True
 
     On Error Resume Next
     Set g_FileCacheMap = Nothing
@@ -199,6 +209,31 @@ Public Sub fn_Dev_ToggleLogging()
     ' а прежний Call игнорировал Boolean-результат и оставлял stale caption.
     If Not ex_ControlRefreshRuntime.fn_TryRefreshStaticControl("ToggleLogging") Then
         VBA.MsgBox "PrototypeNew: logging state was changed, but the 'ToggleLogging' button could not be refreshed.", _
+            VBA.vbExclamation, "PrototypeNew / Logging"
+    End If
+End Sub
+
+
+Public Sub fn_Dev_ToggleMainPageLogging()
+    Dim isMainPageOnly As Boolean
+    Dim activeSheetName As String
+
+    If Not fn_Settings_TryToggleFlagBoolean( _
+        SETTINGS_FLAG_IS_LOGGING_MAIN_PAGE_ONLY, _
+        SETTINGS_FLAG_IS_LOGGING_MAIN_PAGE_ONLY_DEFAULT, _
+        isMainPageOnly, _
+        True) Then
+        private_ShowStatusError "Failed to update IsLoggingMainPageOnly in Settings.xml.", True, 6
+        Exit Sub
+    End If
+
+    On Error Resume Next
+    activeSheetName = VBA.CStr(Application.ActiveSheet.Name)
+    On Error GoTo 0
+    Call fn_Diagnostic_ApplyLoggingPagePolicy(activeSheetName)
+
+    If Not ex_ControlRefreshRuntime.fn_TryRefreshStaticControl("ToggleMainPageLogging") Then
+        VBA.MsgBox "PrototypeNew: logging page policy was changed, but the toggle button could not be refreshed.", _
             VBA.vbExclamation, "PrototypeNew / Logging"
     End If
 End Sub
@@ -583,6 +618,34 @@ Public Sub fn_Diagnostic_LogStatusBarMessage( _
 End Sub
 
 
+' Применяет только runtime-фильтр. Значение IsLoggingEnabled остаётся
+' пользовательским master switch и не перезаписывается при переходах по листам.
+Public Sub fn_Diagnostic_ApplyLoggingPagePolicy(ByVal worksheetName As String)
+    Dim isMainPageOnly As Boolean
+
+    If Not fn_Settings_TryGetFlagBoolean( _
+        SETTINGS_FLAG_IS_LOGGING_MAIN_PAGE_ONLY, _
+        SETTINGS_FLAG_IS_LOGGING_MAIN_PAGE_ONLY_DEFAULT, _
+        isMainPageOnly, _
+        False) Then
+        ' Ошибка чтения Settings не должна молча включать ограничительный режим.
+        g_IsLoggingRuntimeActive = True
+        g_IsLoggingRuntimeStateInitialized = True
+        Exit Sub
+    End If
+
+    If isMainPageOnly Then
+        g_IsLoggingRuntimeActive = (VBA.StrComp( _
+            VBA.Trim$(worksheetName), _
+            MAIN_PAGE_WORKSHEET_NAME, _
+            VBA.vbTextCompare) = 0)
+    Else
+        g_IsLoggingRuntimeActive = True
+    End If
+    g_IsLoggingRuntimeStateInitialized = True
+End Sub
+
+
 Public Sub fn_Diagnostic_ClearCoreLog()
     private_Diagnostic_ClearCoreLogFile
 End Sub
@@ -934,6 +997,14 @@ Private Function private_Settings_TryEnsureSettingsStructure( _
         outIsChanged, _
         showErrorUi) Then Exit Function
 
+    If Not private_Settings_TryEnsureDefaultFlagNode( _
+        settingsDom, _
+        flagsNode, _
+        SETTINGS_FLAG_IS_LOGGING_MAIN_PAGE_ONLY, _
+        fn_Helpers_BoolToText(SETTINGS_FLAG_IS_LOGGING_MAIN_PAGE_ONLY_DEFAULT), _
+        outIsChanged, _
+        showErrorUi) Then Exit Function
+
     private_Settings_TryEnsureSettingsStructure = True
 End Function
 
@@ -1168,6 +1239,7 @@ Private Function private_Settings_BuildTemplateXml() As String
         "<Settings>" & VBA.vbCrLf & _
         "  <Flags>" & VBA.vbCrLf & _
     "    <" & SETTINGS_FLAG_IS_LOGGING_ENABLED & ">" & fn_Helpers_BoolToText(SETTINGS_FLAG_IS_LOGGING_ENABLED_DEFAULT) & "</" & SETTINGS_FLAG_IS_LOGGING_ENABLED & ">" & VBA.vbCrLf & _
+    "    <" & SETTINGS_FLAG_IS_LOGGING_MAIN_PAGE_ONLY & ">" & fn_Helpers_BoolToText(SETTINGS_FLAG_IS_LOGGING_MAIN_PAGE_ONLY_DEFAULT) & "</" & SETTINGS_FLAG_IS_LOGGING_MAIN_PAGE_ONLY & ">" & VBA.vbCrLf & _
         "  </Flags>" & VBA.vbCrLf & _
         "</Settings>"
 End Function
@@ -3538,6 +3610,9 @@ Private Sub private_Diagnostic_LogCoreEvent(ByVal messageText As String)
     Dim stream As Object
     Dim lineText As String
 
+    If g_IsLoggingRuntimeStateInitialized Then
+        If Not g_IsLoggingRuntimeActive Then Exit Sub
+    End If
     If Not fn_Settings_TryGetFlagBoolean(SETTINGS_FLAG_IS_LOGGING_ENABLED, SETTINGS_FLAG_IS_LOGGING_ENABLED_DEFAULT, enableLogging, False) Then Exit Sub
     If Not enableLogging Then Exit Sub
 
