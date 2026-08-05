@@ -124,6 +124,110 @@ Public Property Get LastRenderHasTables() As Boolean
     LastRenderHasTables = m_LastRenderHasTables
 End Property
 
+Public Function TryGetDocumentSettings( _
+    ByRef outGenerationMode As String, _
+    ByRef outDocumentStylesMarkup As String, _
+    ByRef outSectionStylesMarkup As String _
+) As Boolean
+    Dim rootNode As Object
+    Dim stylesNode As Object
+
+    outGenerationMode = VBA.vbNullString
+    outDocumentStylesMarkup = VBA.vbNullString
+    outSectionStylesMarkup = VBA.vbNullString
+    If m_IsDisposed Then Exit Function
+    If Not private_TryReloadTemplateIfChanged() Then Exit Function
+
+    Set rootNode = m_TemplateDoc.selectSingleNode("/p:wordResultTemplates")
+    If rootNode Is Nothing Then Exit Function
+    outGenerationMode = VBA.LCase$(VBA.Trim$( _
+        ex_XmlCore.fn_NodeAttrText(rootNode, "generationMode")))
+    Select Case outGenerationMode
+        Case "anchored", "newdocument"
+        Case Else
+            VBA.MsgBox "PrototypeNew: wordResultTemplates@generationMode must " & _
+                "be 'anchored' or 'newDocument'.", VBA.vbExclamation, _
+                "PrototypeNew / WORD export"
+            Exit Function
+    End Select
+
+    Set stylesNode = rootNode.selectSingleNode("p:documentStyles")
+    If Not stylesNode Is Nothing Then _
+        outDocumentStylesMarkup = private_SerializeHtmlNode(stylesNode)
+    Set stylesNode = rootNode.selectSingleNode("p:sectionStyles")
+    If Not stylesNode Is Nothing Then _
+        outSectionStylesMarkup = private_SerializeHtmlNode(stylesNode)
+    If outGenerationMode = "anchored" And _
+        (VBA.Len(outDocumentStylesMarkup) > 0 Or _
+        VBA.Len(outSectionStylesMarkup) > 0) Then
+        VBA.MsgBox "PrototypeNew: global documentStyles and sectionStyles are " & _
+            "not allowed in anchored generation mode.", VBA.vbExclamation, _
+            "PrototypeNew / WORD export"
+        Exit Function
+    End If
+    TryGetDocumentSettings = True
+End Function
+
+Public Function TryRenderDocumentFilepath( _
+    ByVal sectionTypeText As String, _
+    ByVal sourceTables As Collection, _
+    ByVal namedCollections As Object, _
+    ByVal exportContext As Object, _
+    ByRef outDocumentFilepath As String _
+) As Boolean
+    Dim rootNode As Object
+    Dim firstElement As Object
+    Dim renderVars As Object
+    Dim loopRows As Object
+    Dim contextKey As Variant
+
+    outDocumentFilepath = VBA.vbNullString
+    If m_IsDisposed Then Exit Function
+    If sourceTables Is Nothing Then Exit Function
+    If Not private_TryReloadTemplateIfChanged() Then Exit Function
+    Set rootNode = m_TemplateDoc.selectSingleNode("/p:wordResultTemplates")
+    If rootNode Is Nothing Then Exit Function
+    Set firstElement = rootNode.selectSingleNode("*[1]")
+    If firstElement Is Nothing Or VBA.LCase$(VBA.CStr( _
+        firstElement.baseName)) <> "documentfilepath" Then
+        VBA.MsgBox "PrototypeNew: documentFilepath must be the first element " & _
+            "in wordResultTemplates.", VBA.vbExclamation, _
+            "PrototypeNew / WORD export"
+        Exit Function
+    End If
+
+    Set renderVars = VBA.CreateObject("Scripting.Dictionary")
+    renderVars.CompareMode = 1
+    Set loopRows = VBA.CreateObject("Scripting.Dictionary")
+    loopRows.CompareMode = 1
+    Set m_NamedCollections = namedCollections
+    ' Контекст имеет приоритет над обычными DSL-переменными, а значения формы
+    ' по-прежнему доступны через {[Alias]}. В runtime export context является
+    ' Dictionary; неизвестный контракт не игнорируется молча.
+    If Not exportContext Is Nothing Then
+        On Error GoTo InvalidContext
+        For Each contextKey In exportContext.Keys
+            renderVars(VBA.CStr(contextKey)) = exportContext(contextKey)
+        Next contextKey
+        On Error GoTo 0
+    End If
+    outDocumentFilepath = VBA.Trim$(private_RenderTemplate( _
+        VBA.CStr(firstElement.Text), sectionTypeText, sourceTables, _
+        renderVars, loopRows, True, False))
+    If VBA.Len(outDocumentFilepath) = 0 Then
+        VBA.MsgBox "PrototypeNew: rendered documentFilepath is empty.", _
+            VBA.vbExclamation, "PrototypeNew / WORD export"
+        Exit Function
+    End If
+    TryRenderDocumentFilepath = True
+    Exit Function
+
+InvalidContext:
+    VBA.MsgBox "PrototypeNew: failed to read export context for " & _
+        "documentFilepath: [" & VBA.CStr(Err.Number) & "] " & _
+        Err.Description, VBA.vbExclamation, "PrototypeNew / WORD export"
+End Function
+
 Public Function TryGetGroupingDefinition( _
     ByVal templateId As String, _
     ByRef outHasGrouping As Boolean, _
@@ -322,8 +426,10 @@ Private Function private_TryGetTemplateTextById( _
             Case "text"
                 contentText = contentText & private_ExpandSharedTemplateIncludes( _
                     VBA.CStr(childNode.Text), doc, includeChain)
-            Case "table"
+            Case "table", "page"
                 m_LastRenderHasTables = True
+                contentText = contentText & private_SerializeHtmlNode(childNode)
+            Case "image"
                 contentText = contentText & private_SerializeHtmlNode(childNode)
         End Select
     Next childNode
@@ -349,8 +455,13 @@ Private Function private_SerializeHtmlNode(ByVal sourceNode As Object) As String
         Exit Function
     End If
     nodeName = VBA.LCase$(VBA.CStr(sourceNode.baseName))
+    If nodeName = "text" Then
+        private_SerializeHtmlNode = VBA.CStr(sourceNode.Text)
+        Exit Function
+    End If
     Select Case nodeName
-        Case "table", "caption", "thead", "tbody", "tfoot", "tr", "th", "td"
+        Case "table", "caption", "thead", "tbody", "tfoot", "tr", "th", "td", _
+            "image", "page", "documentstyles", "sectionstyles"
         Case Else
             VBA.MsgBox "SupportingDocumentBuilder: unsupported table tag <" & _
                 nodeName & ">.", VBA.vbExclamation, "Supporting Document Builder"
@@ -370,6 +481,11 @@ Private Function private_SerializeHtmlNode(ByVal sourceNode As Object) As String
         End If
     Next attrNode
     resultText = resultText & ">"
+    If nodeName = "image" Or nodeName = "documentstyles" Or _
+        nodeName = "sectionstyles" Then
+        private_SerializeHtmlNode = resultText & "</" & nodeName & ">"
+        Exit Function
+    End If
     For Each childNode In sourceNode.childNodes
         resultText = resultText & private_SerializeHtmlNode(childNode)
     Next childNode
@@ -455,7 +571,8 @@ Private Function private_RenderTemplate( _
     ByVal sourceTables As Collection, _
     ByVal renderVars As Object, _
     ByVal loopRows As Object, _
-    Optional ByVal normalizeOutput As Boolean = True _
+    Optional ByVal normalizeOutput As Boolean = True, _
+    Optional ByVal decoratePreviewValues As Boolean = True _
 ) As String
     Dim resultText As String
     Dim rx As Object
@@ -515,7 +632,7 @@ Private Function private_RenderTemplate( _
         placeholderValue = private_GetPlaceholderValue(placeholderName, sectionTypeText, sourceTables, renderVars, loopRows)
         ' Parser размечает только семантику участка. Конкретный цвет выбирает
         ' общий style pipeline по inlinePart rule страницы.
-        If VBA.Len(placeholderValue) > 0 Then
+        If decoratePreviewValues And VBA.Len(placeholderValue) > 0 Then
             If private_MainPlaceholderHasCellTag( _
                 placeholderName, sourceTables, _
                 PREVIEW_LOOKUP_WARNING_VALUE_TAG) Then

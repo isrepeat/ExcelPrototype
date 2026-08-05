@@ -111,7 +111,7 @@
     <item key="Export.Movement.FilePath" value="C:\Users\SVI\Desktop\РУХ_last.xlsx"/>
     <item key="Export.Movement.SheetName" value="Відсутні"/>
     <item key="Export.Movement.RangeStartMarker" value="$B6"/>
-    <item key="Export.Movement.RangeEndMarker" value="$X7"/>
+    <item key="Export.Movement.RangeEndMarker" value="$Y7"/>
     <item key="Export.Word.ExporterClass" value="obj_PEB_ExptrWord"/>
     <item key="Export.Word.FilePath" value="modes\PrsnlEvntBuilder\Template_08.docx"/>
   </profile>

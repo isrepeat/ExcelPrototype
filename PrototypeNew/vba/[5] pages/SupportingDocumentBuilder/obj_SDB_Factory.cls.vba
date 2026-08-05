@@ -47,8 +47,7 @@ Public Function TryCreateDataExporter( _
     Select Case VBA.LCase$(VBA.Trim$(className))
         Case VBA.LCase$("obj_SDB_ExptrWord")
             Set wordExporter = New obj_SDB_ExptrWord
-            If Not wordExporter.Initialize( _
-                exportConfigTable, profileConfigTable) Then Exit Function
+            If Not wordExporter.Initialize(exportConfigTable) Then Exit Function
             Set outExporter = wordExporter
         Case Else
             private_ShowUnsupportedClass "data exporter", className

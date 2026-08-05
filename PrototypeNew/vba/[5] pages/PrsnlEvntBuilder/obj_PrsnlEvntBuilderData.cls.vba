@@ -15,6 +15,7 @@ Private Const SECTION_TYPE_CLOSE_FROM_FAMILY_VACATION As String = "З відпу
 Private Const SECTION_TYPE_TO_FAMILY_VACATION As String = "У відпустку за сімейними обставинами"
 Private Const SECTION_TYPE_TO_MATERNITY_LEAVE As String = "У відпустку у зв'язку з вагітністю та пологами"
 Private Const SECTION_TYPE_CLOSE_FROM_AMBULATORY_VLK As String = "З амбулаторного ВЛК"
+Private Const SECTION_TYPE_CLOSE_FROM_BUSINESS_TRIP As String = "З відрядження"
 Private Const SECTION_TYPE_TO_AMBULATORY_VLK As String = "На амбулаторне ВЛК"
 Private Const SECTION_TYPE_CLOSE_FROM_STATIONARY_VLK As String = "Зі стаціонарного ВЛК"
 Private Const SECTION_TYPE_TO_BUSINESS_TRIP As String = "У відрядження"
@@ -44,6 +45,7 @@ Private Const WORD_TEMPLATE_FROM_TREATMENT_VACATION As String = "FromVacationFor
 Private Const WORD_TEMPLATE_FROM_ANNUAL_MAIN_VACATION As String = "FromAnnualMainVacation"
 Private Const WORD_TEMPLATE_FROM_FAMILY_VACATION As String = "FromVacationForFamily"
 Private Const WORD_TEMPLATE_FROM_AMBULATORY_VLK As String = "FromOutpatientExaminationOrVlk"
+Private Const WORD_TEMPLATE_FROM_BUSINESS_TRIP As String = "FromBusinessTrip"
 Private Const WORD_TEMPLATE_FROM_STATIONARY_VLK As String = "FromStationaryVlk"
 Private Const WORD_TEMPLATE_TO_HOSPITAL As String = "ToHospital"
 Private Const WORD_TEMPLATE_TO_ANNUAL_MAIN_VACATION As String = "ToAnnualMainVacation"
@@ -189,6 +191,10 @@ Public Property Get SectionTypeCloseFromAmbulatoryVlk() As String
     SectionTypeCloseFromAmbulatoryVlk = SECTION_TYPE_CLOSE_FROM_AMBULATORY_VLK
 End Property
 
+Public Property Get SectionTypeCloseFromBusinessTrip() As String
+    SectionTypeCloseFromBusinessTrip = SECTION_TYPE_CLOSE_FROM_BUSINESS_TRIP
+End Property
+
 Public Property Get SectionTypeCloseFromStationaryVlk() As String
     SectionTypeCloseFromStationaryVlk = SECTION_TYPE_CLOSE_FROM_STATIONARY_VLK
 End Property
@@ -314,6 +320,8 @@ Public Function TryResolveWordTemplateId( _
             outTemplateId = WORD_TEMPLATE_FROM_FAMILY_VACATION
         Case private_NormalizeText(SECTION_TYPE_CLOSE_FROM_AMBULATORY_VLK)
             outTemplateId = WORD_TEMPLATE_FROM_AMBULATORY_VLK
+        Case private_NormalizeText(SECTION_TYPE_CLOSE_FROM_BUSINESS_TRIP)
+            outTemplateId = WORD_TEMPLATE_FROM_BUSINESS_TRIP
         Case private_NormalizeText(SECTION_TYPE_CLOSE_FROM_STATIONARY_VLK)
             outTemplateId = WORD_TEMPLATE_FROM_STATIONARY_VLK
         Case private_NormalizeText(SECTION_TYPE_TO_TREATMENT)
@@ -380,6 +388,7 @@ Public Function IsMovementClosingSectionType(ByVal sectionTypeText As String) As
              private_NormalizeText(SECTION_TYPE_CLOSE_FROM_ANNUAL_VACATION), _
              private_NormalizeText(SECTION_TYPE_CLOSE_FROM_FAMILY_VACATION), _
              private_NormalizeText(SECTION_TYPE_CLOSE_FROM_AMBULATORY_VLK), _
+             private_NormalizeText(SECTION_TYPE_CLOSE_FROM_BUSINESS_TRIP), _
              private_NormalizeText(SECTION_TYPE_CLOSE_FROM_STATIONARY_VLK)
             IsMovementClosingSectionType = True
     End Select
@@ -438,6 +447,8 @@ Public Function TryGetRequiredPreviousMovementEvent( _
             outEventText = MOVEMENT_EVENT_FAMILY_VACATION
         Case private_NormalizeText(SECTION_TYPE_CLOSE_FROM_AMBULATORY_VLK)
             outEventText = MOVEMENT_EVENT_AMBULATORY_VLK
+        Case private_NormalizeText(SECTION_TYPE_CLOSE_FROM_BUSINESS_TRIP)
+            outEventText = MOVEMENT_EVENT_BUSINESS_TRIP
         Case private_NormalizeText(SECTION_TYPE_CLOSE_FROM_STATIONARY_VLK)
             outEventText = MOVEMENT_EVENT_STATIONARY_VLK
         Case private_NormalizeText(SECTION_TYPE_TO_BUSINESS_TRIP_SZCH)
@@ -568,7 +579,7 @@ Private Function private_BuildPrimaryProfileNames() As Collection
     profileNames.Add SECTION_TYPE_CLOSE_FROM_TREATMENT_VACATION
     profileNames.Add SECTION_TYPE_CLOSE_FROM_FAMILY_VACATION
     profileNames.Add SECTION_TYPE_CLOSE_FROM_AMBULATORY_VLK
-    profileNames.Add SECTION_TYPE_CLOSE_FROM_STATIONARY_VLK
+    profileNames.Add SECTION_TYPE_CLOSE_FROM_BUSINESS_TRIP
     profileNames.Add SECTION_TYPE_TO_TREATMENT
     profileNames.Add SECTION_TYPE_TO_ANNUAL_VACATION_PART
     profileNames.Add SECTION_TYPE_TO_TREATMENT_VACATION
@@ -592,6 +603,7 @@ Private Function private_BuildAdditionalProfileNames() As Collection
     Dim profileNames As Collection
 
     Set profileNames = New Collection
+    profileNames.Add SECTION_TYPE_CLOSE_FROM_STATIONARY_VLK
     profileNames.Add SECTION_TYPE_TRANSFER_MEDICAL_COMPANY_TO_TREATMENT
     profileNames.Add SECTION_TYPE_TRANSFER_MEDICAL_COMPANY_TO_TREATMENT_VACATION
     profileNames.Add SECTION_TYPE_TRANSFER_MEDICAL_COMPANY_TREATMENT_TO_TREATMENT_VACATION
@@ -648,6 +660,9 @@ Private Function private_BuildProfileTagMap() As Object
     tagMap(private_NormalizeText(SECTION_TYPE_CLOSE_FROM_ANNUAL_VACATION)) = PROFILE_TAG_CLOSE_ANNUAL_VACATION
     tagMap(private_NormalizeText(SECTION_TYPE_CLOSE_FROM_FAMILY_VACATION)) = PROFILE_TAG_CLOSE_FAMILY_VACATION
     tagMap(private_NormalizeText(SECTION_TYPE_CLOSE_FROM_AMBULATORY_VLK)) = PROFILE_TAG_CLOSE_AMBULATORY_VLK
+    ' Возврат из командировки использует тот же компактный набор полей формы:
+    ' дата возвращения, входящий документ и реквизиты приказа.
+    tagMap(private_NormalizeText(SECTION_TYPE_CLOSE_FROM_BUSINESS_TRIP)) = PROFILE_TAG_CLOSE_AMBULATORY_VLK
     ' Для обоих вариантов возвращения с ВЛК сейчас требуется одинаковый набор
     ' полей формы. Типы секций и WORD-шаблоны при этом остаются независимыми.
     tagMap(private_NormalizeText(SECTION_TYPE_CLOSE_FROM_STATIONARY_VLK)) = PROFILE_TAG_CLOSE_AMBULATORY_VLK

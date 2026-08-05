@@ -226,6 +226,7 @@ Public Function Export( _
     Dim groupOrderParts As Variant
     Dim usePreparedPreview As Boolean
     Dim writeToWord As Boolean
+    Dim documentFilepath As String
 
     If m_IsDisposed Then
         VBA.MsgBox "PrototypeNew: WORD exporter is disposed.", VBA.vbExclamation, "PrototypeNew / WORD export"
@@ -260,6 +261,16 @@ Public Function Export( _
     If Not private_TryEnrichMetaTvoTablesForWord(sourceTables) Then Exit Function
     Set namedCollections = private_BuildNamedLoopCollections(sourceTables)
     If namedCollections Is Nothing Then Exit Function
+    If VBA.Len(private_GetContextText( _
+        context, CONTEXT_MANUAL_ORDER_NO)) = 0 Then
+        VBA.MsgBox "PrototypeNew: documentFilepath requires a non-empty " & _
+            "ManualOrderNo in export context.", VBA.vbExclamation, _
+            "PrototypeNew / WORD export"
+        Exit Function
+    End If
+    If Not m_TemplateParser.TryRenderDocumentFilepath( _
+        sectionTypeText, sourceTables, namedCollections, context, _
+        documentFilepath) Then Exit Function
     Set builderData = New obj_PrsnlEvntBuilderData
     If Not builderData.TryResolveWordTemplateId(sectionTypeText, templateId) Then
         VBA.MsgBox "PrototypeNew: WORD result template is not mapped for section: " & sectionTypeText, VBA.vbExclamation, "PrototypeNew / WORD export"
@@ -352,7 +363,7 @@ Public Function Export( _
             templateId, recordIpn, recordText, _
             groupKeyText, groupOrderText, groupHeaderText, _
             nestedGroupKeyText, nestedGroupOrderText, nestedGroupHeaderText, _
-            private_GetContextText(context, CONTEXT_MANUAL_ORDER_NO)) Then Exit Function
+            documentFilepath) Then Exit Function
     End If
 
     Export = True
@@ -430,7 +441,7 @@ Private Function private_TryAppendBeforeWordEndAnchor( _
     Optional ByVal nestedGroupKeyText As String = "", _
     Optional ByVal nestedGroupOrderText As String = "", _
     Optional ByVal nestedGroupHeaderText As String = "", _
-    Optional ByVal orderNo As String = "" _
+    Optional ByVal documentFilepath As String = "" _
 ) As Boolean
     Dim targetPath As String
     Dim templatePath As String
@@ -474,14 +485,18 @@ Private Function private_TryAppendBeforeWordEndAnchor( _
         Exit Function
     End If
 
-    targetPath = private_BuildResultDocumentPath(templatePath, orderNo)
+    targetPath = VBA.Trim$(documentFilepath)
     If VBA.Len(targetPath) = 0 Then
-        VBA.MsgBox "PrototypeNew: failed to build the WORD result path from template: " & templatePath, VBA.vbExclamation, "PrototypeNew / WORD export"
+        VBA.MsgBox "PrototypeNew: rendered documentFilepath is empty.", _
+            VBA.vbExclamation, "PrototypeNew / WORD export"
         Exit Function
     End If
+    If Not private_IsAbsolutePath(targetPath) Then _
+        targetPath = ThisWorkbook.Path & Application.PathSeparator & targetPath
 
-    ' Export.Word.FilePath always points to an immutable template. The first
-    ' export creates a sibling *_result document; subsequent exports append to it.
+    ' Export.Word.FilePath указывает на неизменяемый входной DOCX. Полный путь
+    ' результата уже вычислен DSL-тегом documentFilepath; первый экспорт
+    ' копирует в него шаблон, последующие дописывают пункты по якорям.
     If VBA.Len(VBA.Dir$(targetPath, VBA.vbNormal Or VBA.vbReadOnly Or VBA.vbHidden Or VBA.vbSystem)) = 0 Then
         VBA.FileCopy templatePath, targetPath
     End If
@@ -1878,7 +1893,7 @@ Private Function private_TryEnrichPreviousVacationTicketForWord( _
         departureOrderText) Then Exit Function
     If Not previousTicketFound Then
         VBA.MsgBox "PrototypeNew: Movement has no previous record containing both " & _
-            "'Супровідний документ' and 'Наказ вибуття' for IPN '" & _
+            "'Супровідний документ' and 'Вибуття.Наказ' for IPN '" & _
             ipnText & "'.", VBA.vbExclamation, "PrototypeNew / WORD export"
         Exit Function
     End If

@@ -1,26 +1,109 @@
 <?xml version="1.0" encoding="utf-8"?>
-<wordResultTemplates xmlns="urn:excelprototype:profiles" version="1">
-  <template id="BusinessTripCertificate">
+<wordResultTemplates
+  xmlns="urn:excelprototype:profiles"
+  version="1"
+  generationMode="newDocument">
+  <documentFilepath>
+    <![CDATA[modes\SupportingDocumentBuilder\SupportingDocumentBuilder_{[DocNo]|regexreplace:"[/:*?<>|]","_"}.docx]]>
+  </documentFilepath>
+  <documentStyles
+    fontName="Times New Roman"
+    fontSize="12"
+    paragraphSpacingBefore="0"
+    paragraphSpacingAfter="0"
+    lineSpacing="single"
+    showTableGridlines="true"
+  />
+  <sectionStyles
+    paperSize="A4"
+    orientation="portrait"
+    marginTop="20mm"
+    marginRight="15mm"
+    marginBottom="20mm"
+    marginLeft="25mm"
+    />
+  <template id="У відрядження">
+    <page>
     <text><![CDATA[#^
 #_      #let __IsRozpPosition = $ex_Helpers.m_RegexIsMatch("{[PositionCode]}", "[Рр][Оо][Зз][Пп]");#^
-#_      ПОСВІДЧЕННЯ ПРО ВІДРЯДЖЕННЯ#^
-#_      {#newline}{#newline}#^
-#_      Видано {[Rank]} {[FIO]},#^
-#_      {#newline}{#if __IsRozpPosition}у розпорядженні командира військової частини А7383{#else}{[PositionName]}{#endif}.#^
-#_      {#newline}{#newline}#^
     ]]></text>
-
-    <table wordStyle="builtin:tableGrid">
-      <thead>
-        <tr>
-          <th>Термін відрядження</th>
-          <th>Підстава відрядження</th>
-        </tr>
-      </thead>
+    <table borders="none" columns="3" columnWidths="42%;18%;40%">
       <tbody>
         <tr>
-          <td>з {[DateFrom]|dateformat:"\dd.\mm.\yyyy"} до окремого розпорядження</td>
-          <td>наказ командира військової частини А7383 (по стройовій частині) від {[DocDate]|dateformat:"\dd.\mm.\yyyy"} № {[DocNo]}; повідомлення {[ReportPositionCode]} військової частини {[Destination]} № {[IncomingNo]} від {[IncomingDate]|dateformat:"\dd.\mm.\yyyy"}</td>
+          <td
+            align="center"
+            bold="true"
+            fontSize="9"
+            fontColor="#000000"
+            background="#FFFFFF"
+          >
+            <image
+              src="modes\SupportingDocumentBuilder\images\CoatOfArms.png"
+              widthPt="22"
+              heightPt="27"
+              alt="Державний Герб України"
+            />
+            <![CDATA[&#10;МІНІСТЕРСТВО ОБОРОНИ УКРАЇНИ&#10;ЗБРОЙНІ СИЛИ УКРАЇНИ&#10;ВІЙСЬКОВА ЧАСТИНА А7383&#10;Код ЄДРПОУ 26630678&#10;«{[DocDate]|dateformat:"\dd.\mm.\yyyy"}» р.&#10;№ {[DocNo]}&#10;м. Харків, 61121]]>
+          </td>
+          <td><![CDATA[]]></td>
+          <td fontSize="8"><![CDATA[Додаток 29&#10;до Інструкції з діловодства у&#10;Збройних Силах України&#10;(пункт 2.8.8.3)]]></td>
+        </tr>
+        <tr>
+          <td colspan="3" align="center" bold="true" fontSize="16"><![CDATA[ПОСВІДЧЕННЯ ПРО ВІДРЯДЖЕННЯ]]></td>
+        </tr>
+      </tbody>
+    </table>
+
+    <table borders="none" columns="3" columnWidths="14%;8%;78%">
+      <tbody>
+        <tr>
+          <td borders="bottom"><![CDATA[Видано]]></td>
+          <td colspan="2" borders="bottom"><![CDATA[{[Rank]} {[FIO]}]]></td>
+        </tr>
+        <tr>
+          <td colspan="2" align="center"><![CDATA[¤]]></td>
+          <td align="center" fontSize="8"><![CDATA[(військове звання, прізвище, ім'я, по батькові)]]></td>
+        </tr>
+        <tr>
+          <td colspan="3" align="center" borders="bottom"><![CDATA[{#if __IsRozpPosition}у розпорядженні командира військової частини А7383{#else}{[PositionName]}{#endif}]]></td>
+        </tr>
+        <tr>
+          <td colspan="3" align="center" fontSize="8"><![CDATA[(посада, місце роботи)]]></td>
+        </tr>
+        <tr>
+          <td colspan="2" borders="bottom"><![CDATA[відрядженому до]]></td>
+          <td borders="bottom"><![CDATA[]]></td>
+        </tr>
+        <tr>
+          <td colspan="2" align="center"><![CDATA[¤]]></td>
+          <td align="center" fontSize="8"><![CDATA[(пункт призначення)]]></td>
+        </tr>
+        <tr>
+          <td colspan="3" align="center" borders="bottom"><![CDATA[військової частини {[Destination]}]]></td>
+        </tr>
+        <tr>
+          <td colspan="3" align="center" fontSize="8"><![CDATA[(найменування військової частини, установи, організації)]]></td>
+        </tr>
+        <tr>
+          <td colspan="3"><![CDATA[]]></td>
+        </tr>
+        <tr>
+          <td colspan="3" align="center" borders="bottom"><![CDATA[Термін відрядження: з {[DateFrom]|dateformat:"\dd.\mm.\yyyy"} до окремого розпорядження]]></td>
+        </tr>
+        <tr>
+          <td colspan="3"><![CDATA[]]></td>
+        </tr>
+        <tr>
+          <td colspan="3" align="center" bold="true" borders="bottom"><![CDATA[для подальшого проходження військової служби]]></td>
+        </tr>
+        <tr>
+          <td colspan="3" align="center" fontSize="8"><![CDATA[(мета відрядження)]]></td>
+        </tr>
+        <tr>
+          <td colspan="3"><![CDATA[]]></td>
+        </tr>
+        <tr>
+          <td colspan="3" borders="bottom"><![CDATA[Підстава відрядження: наказ командира військової частини А7383 (по стройовій частині) від {[DocDate]|dateformat:"\dd.\mm.\yyyy"} № {[DocNo]}; повідомлення {[ReportPositionCode]} військової частини {[Destination]} № {[IncomingNo]} від {[IncomingDate]|dateformat:"\dd.\mm.\yyyy"}]]></td>
         </tr>
       </tbody>
     </table>
@@ -28,6 +111,12 @@
     <text><![CDATA[#^
 #_      {#newline}{#newline}#^
 #_      Дійсно в разі пред'явлення документа, який засвідчує особу.#^
+#_      {#newline}{#newline}#^
+#_      Начальник штабу — заступник#^
+#_      командира військової частини А7383#^
+#_      підполковник ____________________ Євгеній СІНОК#^
+#_      (військове звання, підпис, ініціали та прізвище)#^
     ]]></text>
+    </page>
   </template>
 </wordResultTemplates>

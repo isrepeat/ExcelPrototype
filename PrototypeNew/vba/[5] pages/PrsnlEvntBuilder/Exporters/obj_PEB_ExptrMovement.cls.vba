@@ -32,23 +32,23 @@ Private Const MOVEMENT_SOURCE_REPORT_PERSON As String = "ReportPerson"
 Private Const MOVEMENT_SOURCE_REPORT_POSITION_CODE As String = "ReportPositionCode"
 Private Const MOVEMENT_SOURCE_PERSON_RANK As String = "Rank"
 Private Const MOVEMENT_SOURCE_PERSON_IPN As String = "IPN"
-Private Const MOVEMENT_TARGET_ORDER_NO As String = "Наказ вибуття"
-Private Const MOVEMENT_TARGET_FOOD_FROM As String = "З продовольчого"
+Private Const MOVEMENT_TARGET_ORDER_NO As String = "Вибуття.Наказ"
+Private Const MOVEMENT_TARGET_FOOD_FROM As String = "Вибуття.Продовольче"
 Private Const MOVEMENT_TARGET_DEPARTURE As String = "Вибуття"
-Private Const MOVEMENT_TARGET_ARRIVAL_ORDER_NO As String = "Наказ прибуття"
-Private Const MOVEMENT_TARGET_ON_FOOD As String = "На продовольче"
+Private Const MOVEMENT_TARGET_ARRIVAL_ORDER_NO As String = "Прибуття.Наказ"
+Private Const MOVEMENT_TARGET_ON_FOOD As String = "Прибуття.Продовольче"
 Private Const MOVEMENT_TARGET_ARRIVAL As String = "Прибуття"
-Private Const MOVEMENT_TARGET_OUT_REASON As String = "Підстава вибуття"
-Private Const MOVEMENT_TARGET_RETURN_REASON As String = "Підстава прибуття"
+Private Const MOVEMENT_TARGET_OUT_REASON As String = "Вибуття.Підстава"
+Private Const MOVEMENT_TARGET_RETURN_REASON As String = "Прибуття.Підстава"
 Private Const MOVEMENT_TARGET_IPN As String = "ІПН"
-Private Const MOVEMENT_TARGET_DURATION_TERM As String = "Термін вибуття"
-Private Const MOVEMENT_TARGET_ADDITIONAL_ROAD_DAYS As String = "Додаткові дні на дорогу"
-Private Const MOVEMENT_TARGET_ADDITIONAL_DONATION_DAYS As String = "Додаткові дні на донацію крові"
+Private Const MOVEMENT_TARGET_DURATION_TERM As String = "Вибуття.Термін"
+Private Const MOVEMENT_TARGET_ADDITIONAL_ROAD_DAYS As String = "Вибуття.Дорога"
+Private Const MOVEMENT_TARGET_ADDITIONAL_DONATION_DAYS As String = "Вибуття.Додатково"
 Private Const MOVEMENT_TARGET_ESCORT_DOCUMENT As String = "Супровідний документ"
 Private Const MOVEMENT_TARGET_EVENT As String = "Подія"
-Private Const MOVEMENT_TARGET_TVO_FIO As String = "ТВО ПІБ"
-Private Const MOVEMENT_TARGET_TVO_IPN As String = "ТВО ІПН"
-Private Const MOVEMENT_TARGET_TVO_POSITION As String = "ТВО Посада"
+Private Const MOVEMENT_TARGET_TVO_FIO As String = "ТВО.ПІБ"
+Private Const MOVEMENT_TARGET_TVO_IPN As String = "ТВО.ІПН"
+Private Const MOVEMENT_TARGET_TVO_POSITION As String = "ТВО.Посада"
 Private Const META_SECTION_TYPE_TVO As String = "Мета: ТВО"
 Private Const SOURCE_ALIAS_FIO As String = "FIO"
 Private Const SOURCE_ALIAS_IPN As String = "IPN"
@@ -670,9 +670,6 @@ Private Function private_TryParseMovementDuration( _
             "PrototypeNew / Movement export"
         Exit Function
     End If
-    outRoadDaysValue = 0
-    outDonationDaysValue = 0
-
     Set operandRx = VBA.CreateObject("VBScript.RegExp")
     operandRx.Global = True
     operandRx.IgnoreCase = True
@@ -689,9 +686,17 @@ Private Function private_TryParseMovementDuration( _
         reasonText = VBA.LCase$(VBA.Trim$(VBA.CStr(operandMatch.SubMatches(1))))
         Select Case reasonText
             Case "дорога"
-                outRoadDaysValue = VBA.CLng(outRoadDaysValue) + additionalDays
+                If VBA.Len(VBA.Trim$(VBA.CStr(outRoadDaysValue))) = 0 Then
+                    outRoadDaysValue = additionalDays
+                Else
+                    outRoadDaysValue = VBA.CLng(outRoadDaysValue) + additionalDays
+                End If
             Case "донація", "донація крові"
-                outDonationDaysValue = VBA.CLng(outDonationDaysValue) + additionalDays
+                If VBA.Len(VBA.Trim$(VBA.CStr(outDonationDaysValue))) = 0 Then
+                    outDonationDaysValue = additionalDays
+                Else
+                    outDonationDaysValue = VBA.CLng(outDonationDaysValue) + additionalDays
+                End If
             Case Else
                 VBA.MsgBox "PrototypeNew: unsupported additional Movement " & _
                     "duration reason: '" & reasonText & "'. Supported reasons: " & _
