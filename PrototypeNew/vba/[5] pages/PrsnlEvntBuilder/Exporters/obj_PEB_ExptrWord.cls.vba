@@ -22,6 +22,7 @@ Private Const CONTEXT_VALIDATION_ENABLED As String = "ValidateWord"
 Private Const CONTEXT_WORD_PREVIEW_TEXT As String = "WordExportPreviewText"
 Private Const CONTEXT_MANUAL_ORDER_NO As String = "ManualOrderNo"
 Private Const CONTEXT_REPORT_IS_TVO As String = "ReportIsTvo"
+Private Const CONTEXT_MOVEMENT_PREVALIDATED As String = "MovementPrevalidated"
 Private Const SENTINEL_SHORT_DATE As Date = #1/1/1900#
 Private Const SOURCE_ALIAS_IPN As String = "IPN"
 Private Const SOURCE_ALIAS_RANK As String = "Rank"
@@ -213,6 +214,7 @@ Public Function Export( _
     Dim ignoredLatestMovementRecord As Object
     Dim builderData As obj_PrsnlEvntBuilderData
     Dim validationEnabled As Boolean
+    Dim movementWasPrevalidated As Boolean
     Dim hasGrouping As Boolean
     Dim groupByText As String
     Dim groupOrderText As String
@@ -242,13 +244,15 @@ Public Function Export( _
     End If
     ' WORD validation defaults to disabled when the context key is absent.
     validationEnabled = private_GetContextBoolean(context, CONTEXT_VALIDATION_ENABLED)
-    ' WORD не изменяет Movement и может формироваться сразу после того, как
-    ' Movement-экспорт уже закрыл ожидаемое событие. Тип события по-прежнему
-    ' проверяется, разрешается только его совпадающее закрытое состояние.
+    movementWasPrevalidated = private_GetContextBoolean( _
+        context, CONTEXT_MOVEMENT_PREVALIDATED)
+    ' Если Movement для тех же ІПН и секции уже успешно экспортирован,
+    ' controller передаёт receipt выполненной проверки. Иначе WORD выполняет
+    ' обычную самостоятельную валидацию текущего snapshot.
     If Not m_ExporterCfgDataProvider.IsExportAllowed( _
         sourceTable, sectionTypeText, exportValidationError, _
         latestMovementTvoChain, ignoredLatestMovementRecord, _
-        validationEnabled, True) Then
+        validationEnabled, True, movementWasPrevalidated) Then
         VBA.MsgBox exportValidationError, VBA.vbExclamation, "PrototypeNew / WORD export"
         Exit Function
     End If
@@ -1877,6 +1881,8 @@ Private Function private_TryEnrichPreviousVacationTicketForWord( _
         Or (VBA.StrComp(sectionTypeText, data.SectionTypeTransferAnnualVacationToFamilyVacation, VBA.vbTextCompare) = 0) _
         Or (VBA.StrComp(sectionTypeText, data.SectionTypeTransferFamilyVacationToAnnualVacation, VBA.vbTextCompare) = 0) _
         Or (VBA.StrComp(sectionTypeText, data.SectionTypeTransferTreatmentVacationToVlk, VBA.vbTextCompare) = 0) _
+        Or (VBA.StrComp(sectionTypeText, data.SectionTypeTransferAnnualVacationToVlk, VBA.vbTextCompare) = 0) _
+        Or (VBA.StrComp(sectionTypeText, data.SectionTypeTransferFamilyVacationToVlk, VBA.vbTextCompare) = 0) _
         Or (VBA.StrComp(sectionTypeText, data.SectionTypeTransferMedicalCompanyToTreatmentVacation, VBA.vbTextCompare) = 0) _
         Or (VBA.StrComp(sectionTypeText, data.SectionTypeTransferMedicalCompanyTreatmentVacationToTreatment, VBA.vbTextCompare) = 0)
     If Not isSupportedSection Then

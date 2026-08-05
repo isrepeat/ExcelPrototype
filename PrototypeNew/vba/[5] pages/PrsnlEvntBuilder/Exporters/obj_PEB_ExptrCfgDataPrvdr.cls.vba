@@ -228,8 +228,9 @@ End Function
 
 ' Ищет не последнюю физическую строку, а последнюю запись человека, которая
 ' действительно содержит обе части данных предыдущего отпускного билета.
-' Запрос выполняется по snapshot сохранённого Movement, поэтому live-строка,
-' добавленная перед WORD export и ещё не сохранённая, не скрывает старый билет.
+' Запрос выполняется по snapshot сохранённого Movement, поэтому несохранённая
+' live-строка не скрывает предыдущий отпускной билет. После сохранения оригинала
+' штатная проверка timestamp обновит snapshot перед следующим запросом.
 Public Function TryGetLatestMovementVacationTicket( _
     ByVal ipnText As String, _
     ByRef outFound As Boolean, _
@@ -451,7 +452,8 @@ Public Function IsExportAllowed( _
     ByRef outLatestTvoChain As Collection, _
     ByRef outLatestMovementRecord As Object, _
     Optional ByVal applyValidationRules As Boolean = True, _
-    Optional ByVal allowMatchingClosedEvent As Boolean = False _
+    Optional ByVal allowMatchingClosedEvent As Boolean = False, _
+    Optional ByVal movementWasPrevalidated As Boolean = False _
 ) As Boolean
     Dim data As obj_PrsnlEvntBuilderData
     Dim ipnText As String
@@ -503,7 +505,9 @@ Public Function IsExportAllowed( _
     Set data = New obj_PrsnlEvntBuilderData
     ' Типизированное закрытие является инвариантом данных и не отключается
     ' флагом общей Movement-валидации: секция не может закрыть другой вид события.
-    If data.TryGetRequiredPreviousMovementEvent(exportSectionType, requiredPreviousEventText) Then
+    If Not movementWasPrevalidated And _
+        data.TryGetRequiredPreviousMovementEvent( _
+            exportSectionType, requiredPreviousEventText) Then
         If Not found Then
             outErrorMessage = "Export was stopped because there is no Movement event to close." & _
                 VBA.vbCrLf & "IPN: " & ipnText & _
@@ -531,6 +535,14 @@ Public Function IsExportAllowed( _
             IsExportAllowed = True
             Exit Function
         End If
+    End If
+
+    ' Успешный Movement export уже выполнил все проверки исходного состояния.
+    ' WORD всё равно читает актуальный snapshot выше для ТВО и обогащения, но
+    ' повторно валидировать уже изменённую запись не должен.
+    If movementWasPrevalidated Then
+        IsExportAllowed = True
+        Exit Function
     End If
 
     ' Даже при отключённой блокирующей валидации snapshot последней Movement-

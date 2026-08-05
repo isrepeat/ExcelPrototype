@@ -198,7 +198,8 @@
           name="UpdateCodeFull"
           caption="Update Code Full"
           style="actionDanger"
-          onClick="{Binding Module=ex_Core;Method=fn_Dev_UpdateAllModules}"
+          dataContext="{PageRuntimeSource='RuntimeObjects.PageMain.Controller'}"
+          onClick="{Binding Method=OnUpdateCodeFullCommand}"
           spanColls="5"
           spanRows="2"
           />

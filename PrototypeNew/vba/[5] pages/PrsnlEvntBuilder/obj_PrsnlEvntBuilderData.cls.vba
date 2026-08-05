@@ -29,6 +29,8 @@ Private Const SECTION_TYPE_TRANSFER_FAMILY_VACATION_TO_ANNUAL_VACATION As String
 Private Const SECTION_TYPE_TRANSFER_TREATMENT_VACATION_TO_TREATMENT_VACATION As String = "відпустка для лікування => відпустка для лікування"
 Private Const SECTION_TYPE_TRANSFER_TREATMENT_VACATION_TO_TREATMENT As String = "відпустка для лікування => лікування"
 Private Const SECTION_TYPE_TRANSFER_TREATMENT_VACATION_TO_STATIONARY_VLK As String = "відпустка для лікування => стаціонарне ВЛК"
+Private Const SECTION_TYPE_TRANSFER_ANNUAL_VACATION_TO_STATIONARY_VLK As String = "щорічна відпустка => стаціонарне ВЛК"
+Private Const SECTION_TYPE_TRANSFER_FAMILY_VACATION_TO_STATIONARY_VLK As String = "сімейна відпустка => стаціонарне ВЛК"
 Private Const SECTION_TYPE_TRANSFER_AMBULATORY_VLK_TO_TREATMENT As String = "амбулаторне ВЛК => лікування"
 Private Const SECTION_TYPE_TRANSFER_AMBULATORY_VLK_TO_TREATMENT_VACATION As String = "амбулаторне ВЛК => відпустка для лікування"
 Private Const SECTION_TYPE_TRANSFER_STATIONARY_VLK_TO_TREATMENT_VACATION As String = "стаціонарне ВЛК => відпустка для лікування"
@@ -62,6 +64,8 @@ Private Const WORD_TEMPLATE_MOVE_FAMILY_VACATION_TO_HOSPITAL As String = "MoveFr
 Private Const WORD_TEMPLATE_MOVE_ANNUAL_VACATION_TO_FAMILY_VACATION As String = "MoveFromAnnualVacationToFamilyVacation"
 Private Const WORD_TEMPLATE_MOVE_FAMILY_VACATION_TO_ANNUAL_VACATION As String = "MoveFromFamilyVacationToAnnualVacation"
 Private Const WORD_TEMPLATE_MOVE_TREATMENT_VACATION_TO_VLK As String = "MoveFromVacationForCuringToVlk"
+Private Const WORD_TEMPLATE_MOVE_ANNUAL_VACATION_TO_VLK As String = "MoveFromAnnualVacationToVlk"
+Private Const WORD_TEMPLATE_MOVE_FAMILY_VACATION_TO_VLK As String = "MoveFromFamilyVacationToVlk"
 Private Const WORD_TEMPLATE_MOVE_AMBULATORY_VLK_TO_TREATMENT_VACATION As String = "MoveFromVlkToVacationForCuring"
 Private Const WORD_TEMPLATE_MOVE_AMBULATORY_VLK_TO_HOSPITAL As String = "MoveFromVlkToHospital"
 Private Const WORD_TEMPLATE_MOVE_STATIONARY_VLK_TO_TREATMENT_VACATION As String = "MoveFromStationaryVlkToVacationForCuring"
@@ -260,6 +264,14 @@ Public Property Get SectionTypeTransferTreatmentVacationToVlk() As String
     SectionTypeTransferTreatmentVacationToVlk = SECTION_TYPE_TRANSFER_TREATMENT_VACATION_TO_STATIONARY_VLK
 End Property
 
+Public Property Get SectionTypeTransferAnnualVacationToVlk() As String
+    SectionTypeTransferAnnualVacationToVlk = SECTION_TYPE_TRANSFER_ANNUAL_VACATION_TO_STATIONARY_VLK
+End Property
+
+Public Property Get SectionTypeTransferFamilyVacationToVlk() As String
+    SectionTypeTransferFamilyVacationToVlk = SECTION_TYPE_TRANSFER_FAMILY_VACATION_TO_STATIONARY_VLK
+End Property
+
 Public Property Get SectionTypeTransferAmbulatoryVlkToTreatmentVacation() As String
     SectionTypeTransferAmbulatoryVlkToTreatmentVacation = SECTION_TYPE_TRANSFER_AMBULATORY_VLK_TO_TREATMENT_VACATION
 End Property
@@ -355,6 +367,10 @@ Public Function TryResolveWordTemplateId( _
             outTemplateId = WORD_TEMPLATE_MOVE_FAMILY_VACATION_TO_ANNUAL_VACATION
         Case private_NormalizeText(SECTION_TYPE_TRANSFER_TREATMENT_VACATION_TO_STATIONARY_VLK)
             outTemplateId = WORD_TEMPLATE_MOVE_TREATMENT_VACATION_TO_VLK
+        Case private_NormalizeText(SECTION_TYPE_TRANSFER_ANNUAL_VACATION_TO_STATIONARY_VLK)
+            outTemplateId = WORD_TEMPLATE_MOVE_ANNUAL_VACATION_TO_VLK
+        Case private_NormalizeText(SECTION_TYPE_TRANSFER_FAMILY_VACATION_TO_STATIONARY_VLK)
+            outTemplateId = WORD_TEMPLATE_MOVE_FAMILY_VACATION_TO_VLK
         Case private_NormalizeText(SECTION_TYPE_TRANSFER_AMBULATORY_VLK_TO_TREATMENT_VACATION)
             outTemplateId = WORD_TEMPLATE_MOVE_AMBULATORY_VLK_TO_TREATMENT_VACATION
         Case private_NormalizeText(SECTION_TYPE_TRANSFER_AMBULATORY_VLK_TO_TREATMENT)
@@ -418,6 +434,8 @@ Public Function IsMovementMirrorTransferSectionType(ByVal sectionTypeText As Str
              private_NormalizeText(SECTION_TYPE_TRANSFER_ANNUAL_VACATION_TO_FAMILY_VACATION), _
              private_NormalizeText(SECTION_TYPE_TRANSFER_FAMILY_VACATION_TO_ANNUAL_VACATION), _
              private_NormalizeText(SECTION_TYPE_TRANSFER_TREATMENT_VACATION_TO_STATIONARY_VLK), _
+             private_NormalizeText(SECTION_TYPE_TRANSFER_ANNUAL_VACATION_TO_STATIONARY_VLK), _
+             private_NormalizeText(SECTION_TYPE_TRANSFER_FAMILY_VACATION_TO_STATIONARY_VLK), _
              private_NormalizeText(SECTION_TYPE_TRANSFER_AMBULATORY_VLK_TO_TREATMENT_VACATION), _
              private_NormalizeText(SECTION_TYPE_TRANSFER_AMBULATORY_VLK_TO_TREATMENT), _
              private_NormalizeText(SECTION_TYPE_TRANSFER_STATIONARY_VLK_TO_TREATMENT_VACATION), _
@@ -457,6 +475,10 @@ Public Function TryGetRequiredPreviousMovementEvent( _
         Case private_NormalizeText(SECTION_TYPE_TRANSFER_ANNUAL_VACATION_TO_FAMILY_VACATION)
             outEventText = MOVEMENT_EVENT_ANNUAL_VACATION
         Case private_NormalizeText(SECTION_TYPE_TRANSFER_FAMILY_VACATION_TO_ANNUAL_VACATION)
+            outEventText = MOVEMENT_EVENT_FAMILY_VACATION
+        Case private_NormalizeText(SECTION_TYPE_TRANSFER_ANNUAL_VACATION_TO_STATIONARY_VLK)
+            outEventText = MOVEMENT_EVENT_ANNUAL_VACATION
+        Case private_NormalizeText(SECTION_TYPE_TRANSFER_FAMILY_VACATION_TO_STATIONARY_VLK)
             outEventText = MOVEMENT_EVENT_FAMILY_VACATION
     End Select
 
@@ -557,7 +579,9 @@ Public Function TryMapMovementSectionTypeToEventText( _
             outEventText = MOVEMENT_EVENT_TREATMENT_VACATION
 
         Case private_NormalizeText(SECTION_TYPE_TRANSFER_TREATMENT_TO_STATIONARY_VLK), _
-             private_NormalizeText(SECTION_TYPE_TRANSFER_TREATMENT_VACATION_TO_STATIONARY_VLK)
+             private_NormalizeText(SECTION_TYPE_TRANSFER_TREATMENT_VACATION_TO_STATIONARY_VLK), _
+             private_NormalizeText(SECTION_TYPE_TRANSFER_ANNUAL_VACATION_TO_STATIONARY_VLK), _
+             private_NormalizeText(SECTION_TYPE_TRANSFER_FAMILY_VACATION_TO_STATIONARY_VLK)
             outEventText = MOVEMENT_EVENT_STATIONARY_VLK
 
         Case private_NormalizeText(SECTION_TYPE_TO_AMBULATORY_VLK)
@@ -618,6 +642,8 @@ Private Function private_BuildAdditionalProfileNames() As Collection
     profileNames.Add SECTION_TYPE_TRANSFER_AMBULATORY_VLK_TO_TREATMENT_VACATION
     profileNames.Add SECTION_TYPE_TRANSFER_ANNUAL_VACATION_TO_FAMILY_VACATION
     profileNames.Add SECTION_TYPE_TRANSFER_FAMILY_VACATION_TO_ANNUAL_VACATION
+    profileNames.Add SECTION_TYPE_TRANSFER_ANNUAL_VACATION_TO_STATIONARY_VLK
+    profileNames.Add SECTION_TYPE_TRANSFER_FAMILY_VACATION_TO_STATIONARY_VLK
     profileNames.Add SECTION_TYPE_TO_MATERNITY_LEAVE
 
     Set private_BuildAdditionalProfileNames = profileNames
@@ -687,6 +713,8 @@ Private Function private_BuildProfileTagMap() As Object
     tagMap(private_NormalizeText(SECTION_TYPE_TRANSFER_ANNUAL_VACATION_TO_FAMILY_VACATION)) = PROFILE_TAG_TO_FAMILY_VACATION
     tagMap(private_NormalizeText(SECTION_TYPE_TRANSFER_FAMILY_VACATION_TO_ANNUAL_VACATION)) = PROFILE_TAG_TO_ANNUAL_VACATION_PART
     tagMap(private_NormalizeText(SECTION_TYPE_TRANSFER_TREATMENT_VACATION_TO_STATIONARY_VLK)) = PROFILE_TAG_TRANSFER_TREATMENT_VACATION_TO_VLK
+    tagMap(private_NormalizeText(SECTION_TYPE_TRANSFER_ANNUAL_VACATION_TO_STATIONARY_VLK)) = PROFILE_TAG_TRANSFER_TREATMENT_VACATION_TO_VLK
+    tagMap(private_NormalizeText(SECTION_TYPE_TRANSFER_FAMILY_VACATION_TO_STATIONARY_VLK)) = PROFILE_TAG_TRANSFER_TREATMENT_VACATION_TO_VLK
     tagMap(private_NormalizeText(SECTION_TYPE_TRANSFER_AMBULATORY_VLK_TO_TREATMENT_VACATION)) = PROFILE_TAG_TRANSFER_VLK_TO_TREATMENT_VACATION
     tagMap(private_NormalizeText(SECTION_TYPE_TRANSFER_AMBULATORY_VLK_TO_TREATMENT)) = PROFILE_TAG_TRANSFER_VLK_TO_TREATMENT
     tagMap(private_NormalizeText(SECTION_TYPE_TRANSFER_STATIONARY_VLK_TO_TREATMENT_VACATION)) = PROFILE_TAG_TRANSFER_VLK_TO_TREATMENT_VACATION
