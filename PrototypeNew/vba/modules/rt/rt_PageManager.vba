@@ -2,6 +2,7 @@ Attribute VB_Name = "rt_PageManager"
 Option Explicit
 #Const LOGGING_DEBUG_ENABLED = True
 #Const LOGGING_VERBOSE_ENABLED = False
+#Const RUNTIME_SNAPSHOTS_ENABLED = False
 
 Private g_PageById As Object
 Private g_LastRenderedPageId As String
@@ -44,6 +45,10 @@ Public Function fn_TrySerializeModuleSnapshot(ByRef outSnapshotXml As String) As
     Dim worksheetCodeName As String
 
     outSnapshotXml = VBA.vbNullString
+#If Not RUNTIME_SNAPSHOTS_ENABLED Then
+    fn_TrySerializeModuleSnapshot = True
+    Exit Function
+#End If
 
     If Not ex_Core.fn_CustomXmlPartStore_TryCreateEmptyDom(MODULE_SNAPSHOT_ROOT, MODULE_SNAPSHOT_NS, dom) Then Exit Function
     Set rootNode = dom.DocumentElement
@@ -155,6 +160,11 @@ Public Function fn_TryDeserializeModuleSnapshot(ByVal snapshotXml As String) As 
     Dim finalizeOk As Boolean
     Dim restoreContextProvider As obj_IPageRestoreContextProvider
     Dim restoreContext As Object
+
+#If Not RUNTIME_SNAPSHOTS_ENABLED Then
+    fn_TryDeserializeModuleSnapshot = True
+    Exit Function
+#End If
 
     snapshotXml = VBA.Trim$(snapshotXml)
     If VBA.Len(snapshotXml) = 0 Then

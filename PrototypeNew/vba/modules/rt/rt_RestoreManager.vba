@@ -2,6 +2,7 @@ Attribute VB_Name = "rt_RestoreManager"
 Option Explicit
 #Const LOGGING_DEBUG_ENABLED = True
 #Const LOGGING_VERBOSE_ENABLED = False
+#Const RUNTIME_SNAPSHOTS_ENABLED = False
 
 Private Const RUNTIME_GLOBALS_NS As String = "urn:excelprototype:runtime-globals:v1"
 Private Const RUNTIME_GLOBALS_ROOT As String = "runtimeGlobals"
@@ -29,7 +30,11 @@ Public Function fn_SaveRuntimeState() As Boolean
     ' Единая точка сохранения runtime-состояния.
     ' Сейчас сохраняется модульный snapshot rt_PageManager, но формат рассчитан
     ' на добавление других runtime-модулей без изменения внешнего API.
+#If RUNTIME_SNAPSHOTS_ENABLED Then
     fn_SaveRuntimeState = private_TrySaveRuntimeGlobalsSnapshot()
+#Else
+    fn_SaveRuntimeState = True
+#End If
 End Function
 
 ' Callstack[1]: ThisWorkbook.Workbook_Open -> rt_RestoreManager.fn_RestoreRuntimeState
@@ -46,6 +51,10 @@ Public Function fn_RestoreRuntimeState( _
     If VBA.Len(reasonText) = 0 Then reasonText = "unknown"
 
     outRestoredPagesCount = 0
+#If Not RUNTIME_SNAPSHOTS_ENABLED Then
+    fn_RestoreRuntimeState = True
+    Exit Function
+#End If
     If isRuntimeStateRestoreRunning Then Exit Function
 
     isRuntimeStateRestoreRunning = True
@@ -103,7 +112,9 @@ End Function
 Public Sub fn_RunDeferredRuntimeStateRestore()
     Dim restoredPagesCount As Long
 
+#If RUNTIME_SNAPSHOTS_ENABLED Then
     Call fn_RestoreRuntimeState("deferred:on-time", restoredPagesCount)
+#End If
 End Sub
 
 ' Callstack[1]: rt_RestoreManager.private_TryDeserializeRuntimeModuleSnapshot(rt_PageManager) -> rt_PageManager.fn_TryDeserializeModuleSnapshot -> rt_RestoreManager.fn_TryPrepareWorkbookForRestore
@@ -112,6 +123,9 @@ Public Function fn_TryPrepareWorkbookForRestore(ByRef outTemporaryWorksheet As W
     Dim tmpName As String
 
     Set outTemporaryWorksheet = Nothing
+#If Not RUNTIME_SNAPSHOTS_ENABLED Then
+    Exit Function
+#End If
     Set wb = ThisWorkbook
     If wb Is Nothing Then Exit Function
 
@@ -150,6 +164,9 @@ Public Function fn_TryFinalizeWorkbookAfterRestore(ByVal temporaryWorksheet As W
     Dim wb As Workbook
 
     fn_TryFinalizeWorkbookAfterRestore = True
+#If Not RUNTIME_SNAPSHOTS_ENABLED Then
+    Exit Function
+#End If
     If temporaryWorksheet Is Nothing Then Exit Function
 
     Set wb = ThisWorkbook
@@ -182,6 +199,9 @@ Public Function fn_TryRestoreSerializableCollectionState( _
     Dim itemTypeName As String
 
     fn_TryRestoreSerializableCollectionState = True
+#If Not RUNTIME_SNAPSHOTS_ENABLED Then
+    Exit Function
+#End If
     ownerName = VBA.Trim$(ownerName)
     If VBA.Len(ownerName) = 0 Then ownerName = "unknown"
 

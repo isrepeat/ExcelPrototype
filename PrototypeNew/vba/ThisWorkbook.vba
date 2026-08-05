@@ -1,5 +1,6 @@
 Option Explicit
 #Const LOGGING_DEBUG_ENABLED = True
+#Const RUNTIME_SNAPSHOTS_ENABLED = False
 
 Private Sub Workbook_Open()
     Dim restoredPagesCount As Long
@@ -9,10 +10,11 @@ Private Sub Workbook_Open()
 
     rt_HotkeyRuntime.fn_BeginSession
 
-    restoredOk = rt_RestoreManager.fn_RestoreRuntimeState("Workbook_Open", restoredPagesCount)
-    If restoredOk And restoredPagesCount > 0 Then
-        Exit Sub
-    End If
+#If RUNTIME_SNAPSHOTS_ENABLED Then
+    restoredOk = rt_RestoreManager.fn_RestoreRuntimeState( _
+        "Workbook_Open", restoredPagesCount)
+    If restoredOk And restoredPagesCount > 0 Then Exit Sub
+#End If
 
     If Not m_ResetWorkbookAndCreateMainPage("ThisWorkbook.Workbook_Open:main-create") Then Exit Sub
 
@@ -39,7 +41,11 @@ Private Sub Workbook_BeforeClose(Cancel As Boolean)
     ' если последующий shutdown-шаг завершится ошибкой, файлы-источники всё
     ' равно не должны остаться заблокированными после закрытия книги.
     Call ex_ExternalExcelSqlEngine.fn_ResetRuntimeCache
+#If RUNTIME_SNAPSHOTS_ENABLED Then
+    ' Snapshot меняет CustomXMLParts книги, поэтому при выключенном feature flag
+    ' Workbook_BeforeClose остаётся строго немодифицирующим.
     Call rt_RestoreManager.fn_SaveRuntimeState
+#End If
     Call rt_UndoManager.fn_Module_Dispose
     ' Идемпотентный module dispose остаётся последней страховкой lifecycle.
     Call ex_ExternalExcelSqlEngine.fn_Module_Dispose

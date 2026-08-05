@@ -2,6 +2,7 @@ Attribute VB_Name = "rt_CoreActions"
 Option Explicit
 #Const LOGGING_DEBUG_ENABLED = True
 #Const LOGGING_VERBOSE_ENABLED = False
+#Const RUNTIME_SNAPSHOTS_ENABLED = False
 
 Private g_ScheduledUpdateAt As Date
 Private g_ScheduledUpdateMacro As String
@@ -46,6 +47,7 @@ Public Sub fn_RerenderLastPageAfterUpdate()
 #End If
 
     On Error GoTo EH_RERENDER
+#If RUNTIME_SNAPSHOTS_ENABLED Then
     If Not rt_RestoreManager.fn_RestoreRuntimeState("after-update", restoredPagesCount) Then
 #If LOGGING_DEBUG_ENABLED Then
         ex_Core.fn_Diagnostic_LogError "core-actions:rerender-after-update restore-runtime-failed"
@@ -54,6 +56,19 @@ Public Sub fn_RerenderLastPageAfterUpdate()
         ex_HelpersSheet.fn_SetBusyCursor False
         Exit Sub
     End If
+#Else
+    ' Module disposers, вызванные перед hot-import, очищают runtime routes.
+    ' Начинаем новую runtime-сессию перед созданием Main, как в Workbook_Open.
+    rt_HotkeyRuntime.fn_BeginSession
+    If Not ThisWorkbook.m_ResetWorkbookAndCreateMainPage( _
+        "rt_CoreActions.fn_RerenderLastPageAfterUpdate") Then
+        ex_HelpersSheet.fn_SetBusyCursor False
+        rt_Messaging.fn_ShowStatusBarError _
+            "Failed to create Main page after update.", 6
+        Exit Sub
+    End If
+    restoredPagesCount = 1
+#End If
 
     ex_HelpersSheet.fn_SetBusyCursor False
 #If LOGGING_DEBUG_ENABLED Then
@@ -137,6 +152,7 @@ Private Sub private_ScheduleUpdateAndRerender(ByVal devToolsMethod As String)
 
     ex_HelpersSheet.fn_SetBusyCursor True
 
+#If RUNTIME_SNAPSHOTS_ENABLED Then
     If Not rt_RestoreManager.fn_SaveRuntimeState() Then
 #If LOGGING_DEBUG_ENABLED Then
         ex_Core.fn_Diagnostic_LogError "core-actions:schedule-update save-runtime-state-failed"
@@ -144,6 +160,7 @@ Private Sub private_ScheduleUpdateAndRerender(ByVal devToolsMethod As String)
         ex_HelpersSheet.fn_SetBusyCursor False
         Exit Sub
     End If
+#End If
 
     wbMacroPrefix = "'" & VBA.Replace$(ThisWorkbook.Name, "'", "''") & "'!"
     If VBA.InStr(1, updateMethod, "!", VBA.vbBinaryCompare) > 0 Then
