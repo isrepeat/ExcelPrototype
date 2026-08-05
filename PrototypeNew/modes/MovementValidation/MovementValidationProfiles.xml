@@ -56,7 +56,7 @@
     <item key="MovementValidation.MovementTable" value="Movement.Sheet[Absent]"/>
     <item key="MovementValidation.EjosTable" value="Ejos.Sheet[TemporaryAbsent]"/>
     <item key="MovementValidation.MedicalTable" value="MedicalDaily.Sheet[StateMain]"/>
-    <item key="MovementValidation.EjosEvents" value="Стаціонарне лікування; Щорічна відпустка; Відпустка за сімейними обставинами; Відпустка у зв'язку з вагітністю та пологами; Відпустка для лікування; Амбулаторне ВЛК; Стаціонарне ВЛК; Відрядження"/>
+    <item key="MovementValidation.EjosEvents" value="Стаціонарне лікування; Щорічна відпустка; Відпустка за сімейними обставинами; Відпустка у зв'язку з вагітністю та пологами; Відпустка для лікування; Амбулаторне ВЛК; ВЛК за межами; Відрядження"/>
     <item key="MovementValidation.MedicalEvents" value="Стаціонарне лікування"/>
   </profile>
 </profiles>
