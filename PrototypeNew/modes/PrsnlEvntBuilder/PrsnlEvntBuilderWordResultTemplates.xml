@@ -1,5 +1,12 @@
 <?xml version="1.0" encoding="utf-8"?>
-<wordResultTemplates xmlns="urn:excelprototype:profiles" version="1">
+<wordResultTemplates
+  xmlns="urn:excelprototype:profiles"
+  version="1"
+  generationMode="anchored"
+>
+  <documentFilepath>
+    <![CDATA[modes\PrsnlEvntBuilder\Template_08_{ManualOrderNo|regexreplace:"[/:*?<>|]","_"}.docx]]>
+  </documentFilepath>
   <!-- Шаблоны для PEB WORD preview.
        Колонки DynamicTable читаются только как {[AliasOrHeader]} или item.[AliasOrHeader],
        а обычные {Person}/{SectionType}/item.__first остаются переменными DSL.
@@ -306,6 +313,20 @@
 #_      {#newline}#^
 #_      {#include block.IncomingBasis}#^
 #_      {#include block.OptionalVlkCertificate}#^
+#_      .{#newline}{#newline}#^
+      ]]>
+    </text>
+  </template>
+
+  <template id="FromBusinessTrip">
+    <text>
+      <![CDATA[#^
+#_      {#include block.PersonLineUpper}.#^
+#_      {#newline}#^
+#_      {#include block.ReturnToDuty}#^
+#_      {#include block.EnrollToFoodSupport}#^
+#_      {#newline}#^
+#_      {#include block.IncomingBasis}#^
 #_      .{#newline}{#newline}#^
       ]]>
     </text>

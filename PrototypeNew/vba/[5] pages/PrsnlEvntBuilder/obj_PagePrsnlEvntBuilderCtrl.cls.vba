@@ -573,6 +573,7 @@ Private Function private_AppendFioDependentAliases( _
         ' конкретного события набор изменится, его следует вынести в отдельный Case.
         Case private_NormalizeText(m_Data.SectionTypeCloseFromTreatment), _
              private_NormalizeText(m_Data.SectionTypeCloseFromAmbulatoryVlk), _
+             private_NormalizeText(m_Data.SectionTypeCloseFromBusinessTrip), _
              private_NormalizeText(m_Data.SectionTypeCloseFromStationaryVlk)
             private_AddStandardFioDependentAliases dependentAliases
 
@@ -642,6 +643,7 @@ Private Function private_AppendCommanderDependentAliases( _
              private_NormalizeText(m_Data.SectionTypeCloseFromAnnualVacation), _
              private_NormalizeText(m_Data.SectionTypeCloseFromFamilyVacation), _
              private_NormalizeText(m_Data.SectionTypeCloseFromAmbulatoryVlk), _
+             private_NormalizeText(m_Data.SectionTypeCloseFromBusinessTrip), _
              private_NormalizeText(m_Data.SectionTypeCloseFromStationaryVlk)
             private_AddStandardCommanderDependentAliases dependentAliases
 
