@@ -642,6 +642,20 @@ EH_CLEAR:
     VBA.MsgBox "PrototypeNew: exception in OnClearWorkbookPagesExceptMainCommand: [" & VBA.CStr(Err.Number) & "] " & Err.Description, vbExclamation, "PrototypeNew / Config runtime"
 End Function
 
+Public Function OnUpdateCodeFullCommand(Optional ByVal arg As Variant) As Boolean
+#If LOGGING_DEBUG_ENABLED Then
+    ex_Core.fn_Diagnostic_LogInfo _
+        "enter:obj_PageMainCtrl.OnUpdateCodeFullCommand"
+#End If
+
+    ' Hot-import не должен сохранять визуальное/runtime-состояние дочерних
+    ' страниц. Сначала выполняем тот же lifecycle, что и кнопка Clear Pages,
+    ' затем ex_Core безопасно перенесёт update за пределы bridge-dispatch.
+    If Not Me.OnClearWorkbookPagesExceptMainCommand(False) Then Exit Function
+    ex_Core.fn_Dev_UpdateAllModules
+    OnUpdateCodeFullCommand = True
+End Function
+
 Public Function OnOpenEntityLookupPageCommand(Optional ByVal arg As Variant) As Boolean
     #If LOGGING_DEBUG_ENABLED Then
         ex_Core.fn_Diagnostic_LogInfo "enter:obj_PageMainCtrl.OnOpenEntityLookupPageCommand"

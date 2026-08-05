@@ -105,7 +105,9 @@ Private Function private_TryExecuteAdo( _
     Dim sql As String
     Dim selectColumns As Collection
     Dim conditions As Collection
+    Dim adoHeaderMap As Object
     Dim whereClause As String
+    Dim selectClause As String
     Dim recordsetData As Variant
     Dim recordIndex As Long
     Dim startIndex As Long
@@ -124,14 +126,19 @@ Private Function private_TryExecuteAdo( _
     Set selectColumns = query.SelectColumns
     Set conditions = query.BuildEffectiveConditions
     If Not private_TryGetConnection(query.SourcePath, conn) Then Exit Function
+    If Not private_TryBuildAdoHeaderMap( _
+        conn, query.TableRef, adoHeaderMap) Then Exit Function
 
     sql = "SELECT "
     If Not query.ReverseOrder And query.MaxRows > 0 Then sql = sql & "TOP " & VBA.CStr(query.MaxRows) & " "
-    whereClause = private_BuildWhereClause(conditions)
+    whereClause = private_BuildWhereClause(conditions, adoHeaderMap)
+    If conditions.Count > 0 And VBA.Len(whereClause) = 0 Then GoTo CleanupFail
     If query.SelectAllColumns Then
         sql = sql & "*"
     Else
-        sql = sql & private_BuildSelectClause(selectColumns)
+        selectClause = private_BuildSelectClause(selectColumns, adoHeaderMap)
+        If VBA.Len(selectClause) = 0 Then GoTo CleanupFail
+        sql = sql & selectClause
     End If
     sql = sql & " FROM " & query.TableRef
     If VBA.Len(whereClause) > 0 Then sql = sql & " WHERE " & whereClause
@@ -597,24 +604,124 @@ Private Function private_TryPushWorksheetRangeRow( _
     private_TryPushWorksheetRangeRow = tableObj.PushRow(rowObj)
 End Function
 
-Private Function private_BuildSelectClause(ByVal selectColumns As Collection) As String
+Private Function private_BuildSelectClause( _
+    ByVal selectColumns As Collection, _
+    ByVal adoHeaderMap As Object _
+) As String
     Dim parts As String
     Dim i As Long
+    Dim resolvedColumnName As String
 
     For i = 1 To selectColumns.Count
+        If Not private_TryResolveAdoHeaderName( _
+            adoHeaderMap, VBA.CStr(selectColumns.Item(i)), _
+            resolvedColumnName) Then Exit Function
         If VBA.Len(parts) > 0 Then parts = parts & ", "
-        parts = parts & private_QuoteIdentifier(VBA.CStr(selectColumns.Item(i)))
+        parts = parts & private_QuoteIdentifier(resolvedColumnName)
     Next i
     private_BuildSelectClause = parts
 End Function
 
-Private Function private_BuildWhereClause(ByVal conditions As Collection) As String
+Private Function private_TryBuildAdoHeaderMap( _
+    ByVal conn As Object, _
+    ByVal tableRef As String, _
+    ByRef outHeaderMap As Object _
+) As Boolean
+    Dim schemaRs As Object
+    Dim fieldIndex As Long
+    Dim actualName As String
+    Dim normalizedName As String
+    Dim dottedAlias As String
+    Dim errorDescription As String
+
+    Set outHeaderMap = Nothing
+    If conn Is Nothing Then Exit Function
+    tableRef = VBA.Trim$(tableRef)
+    If VBA.Len(tableRef) = 0 Then Exit Function
+
+    On Error GoTo EH
+    Set schemaRs = VBA.CreateObject("ADODB.Recordset")
+    schemaRs.Open "SELECT * FROM " & tableRef & " WHERE 1 = 0", conn, 0, 1
+    Set outHeaderMap = VBA.CreateObject("Scripting.Dictionary")
+    outHeaderMap.CompareMode = 1
+
+    ' ACE заменяет часть знаков в Excel-заголовках, в частности точку на #.
+    ' Сохраняем фактическое имя поля и безопасный dotted alias для callers.
+    For fieldIndex = 0 To schemaRs.Fields.Count - 1
+        actualName = VBA.Trim$(VBA.CStr(schemaRs.Fields(fieldIndex).Name))
+        normalizedName = VBA.LCase$(actualName)
+        If VBA.Len(normalizedName) > 0 Then
+            If Not outHeaderMap.Exists(normalizedName) Then _
+                outHeaderMap.Add normalizedName, actualName
+        End If
+    Next fieldIndex
+    For fieldIndex = 0 To schemaRs.Fields.Count - 1
+        actualName = VBA.Trim$(VBA.CStr(schemaRs.Fields(fieldIndex).Name))
+        dottedAlias = VBA.LCase$(VBA.Replace$(actualName, "#", "."))
+        If VBA.Len(dottedAlias) > 0 Then
+            If Not outHeaderMap.Exists(dottedAlias) Then _
+                outHeaderMap.Add dottedAlias, actualName
+        End If
+    Next fieldIndex
+
+    schemaRs.Close
+    Set schemaRs = Nothing
+    private_TryBuildAdoHeaderMap = True
+    Exit Function
+
+EH:
+    errorDescription = Err.Description
+    On Error Resume Next
+    If Not schemaRs Is Nothing Then If schemaRs.State <> 0 Then schemaRs.Close
+    Set schemaRs = Nothing
+    On Error GoTo 0
+    VBA.MsgBox "PrototypeNew: failed to read external workbook column schema." & _
+        VBA.vbCrLf & "Range: " & tableRef & _
+        VBA.vbCrLf & "Error: " & errorDescription, _
+        VBA.vbExclamation, ERROR_TITLE
+End Function
+
+Private Function private_TryResolveAdoHeaderName( _
+    ByVal adoHeaderMap As Object, _
+    ByVal requestedName As String, _
+    ByRef outActualName As String _
+) As Boolean
+    Dim lookupKey As String
+    Dim hashKey As String
+
+    outActualName = VBA.vbNullString
+    If adoHeaderMap Is Nothing Then Exit Function
+    requestedName = VBA.Trim$(requestedName)
+    lookupKey = VBA.LCase$(requestedName)
+    If VBA.Len(lookupKey) = 0 Then Exit Function
+
+    If adoHeaderMap.Exists(lookupKey) Then
+        outActualName = VBA.CStr(adoHeaderMap(lookupKey))
+        private_TryResolveAdoHeaderName = True
+        Exit Function
+    End If
+    hashKey = VBA.Replace$(lookupKey, ".", "#")
+    If adoHeaderMap.Exists(hashKey) Then
+        outActualName = VBA.CStr(adoHeaderMap(hashKey))
+        private_TryResolveAdoHeaderName = True
+        Exit Function
+    End If
+
+    VBA.MsgBox "PrototypeNew: external workbook column was not found." & _
+        VBA.vbCrLf & "Requested column: " & requestedName, _
+        VBA.vbExclamation, ERROR_TITLE
+End Function
+
+Private Function private_BuildWhereClause( _
+    ByVal conditions As Collection, _
+    ByVal adoHeaderMap As Object _
+) As String
     Dim condition As obj_ExtWorkbookCondition
     Dim conditionSql As String
     Dim result As String
 
     For Each condition In conditions
-        conditionSql = private_BuildConditionSql(condition)
+        conditionSql = private_BuildConditionSql(condition, adoHeaderMap)
         If VBA.Len(conditionSql) = 0 Then Exit Function
         If VBA.Len(result) > 0 Then result = result & " AND "
         result = result & "(" & conditionSql & ")"
@@ -622,12 +729,16 @@ Private Function private_BuildWhereClause(ByVal conditions As Collection) As Str
     private_BuildWhereClause = result
 End Function
 
-Private Function private_BuildConditionSql(ByVal condition As obj_ExtWorkbookCondition) As String
+Private Function private_BuildConditionSql( _
+    ByVal condition As obj_ExtWorkbookCondition, _
+    ByVal adoHeaderMap As Object _
+) As String
     Dim valueExpression As String
     Dim expectedValue As String
     Dim likeValue As String
 
-    valueExpression = private_BuildConditionValueExpression(condition.ColumnName, condition.NormalizeValue)
+    valueExpression = private_BuildConditionValueExpression( _
+        condition.ColumnName, condition.NormalizeValue, adoHeaderMap)
     expectedValue = condition.Value
     If condition.NormalizeValue Then expectedValue = private_NormalizeKey(expectedValue)
 
@@ -658,12 +769,16 @@ End Function
 
 Private Function private_BuildConditionValueExpression( _
     ByVal columnName As String, _
-    ByVal normalizeValue As Boolean _
+    ByVal normalizeValue As Boolean, _
+    ByVal adoHeaderMap As Object _
 ) As String
     Dim quotedColumn As String
     Dim safeExpression As String
+    Dim resolvedColumnName As String
 
-    quotedColumn = private_QuoteIdentifier(columnName)
+    If Not private_TryResolveAdoHeaderName( _
+        adoHeaderMap, columnName, resolvedColumnName) Then Exit Function
+    quotedColumn = private_QuoteIdentifier(resolvedColumnName)
     safeExpression = "CStr(IIf(IsNull(" & quotedColumn & "), '', " & quotedColumn & "))"
     If normalizeValue Then
         private_BuildConditionValueExpression = _

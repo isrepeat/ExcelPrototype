@@ -72,6 +72,7 @@ Private Const EXPORT_CONTEXT_WORD_PREVIEW_TEXT_KEY As String = "WordExportPrevie
 Private Const EXPORT_CONTEXT_VALIDATE_MOVEMENT_KEY As String = "ValidateMovement"
 Private Const EXPORT_CONTEXT_VALIDATE_WORD_KEY As String = "ValidateWord"
 Private Const EXPORT_CONTEXT_REPORT_IS_TVO_KEY As String = "ReportIsTvo"
+Private Const EXPORT_CONTEXT_MOVEMENT_PREVALIDATED_KEY As String = "MovementPrevalidated"
 Private Const LOOKUP_MODE_CONTROL_NAME As String = "LookupMode"
 Private Const MOVEMENT_HISTORY_TABLE_CONTROL_NAME As String = "MovementHistoryTable"
 Private Const MOVEMENT_HISTORY_LIMIT_INPUT_NAME As String = "MovementHistoryLimitInput"
@@ -102,6 +103,7 @@ Private Const DRAFT_ALIAS_VACATION_TICKET_NO As String = "_VacationTicketNo"
 Private Const DRAFT_ALIAS_VACATION_TICKET_DATE As String = "_VacationTicketDate"
 Private Const DRAFT_ALIAS_VLK_NO As String = "_VlkNo"
 Private Const DRAFT_ALIAS_VLK_DATE As String = "_VlkDate"
+Private Const EXPORT_SOURCE_IPN_COLUMN As String = "IPN"
 
 Private m_Page As obj_IPage
 Private m_LookupFeature As obj_EntityLookupFeature
@@ -124,6 +126,10 @@ Private m_ExportCommonData As obj_PEB_ExptrCommonDataPrvdr
 Private m_ExporterCfgDataProvider As obj_PEB_ExptrCfgDataPrvdr
 Private m_CachedMovementExporter As obj_PEB_ExptrMovement
 Private m_CachedWordExporter As obj_PEB_ExptrWord
+Private m_HasPendingMovementReceipt As Boolean
+Private m_PendingMovementReceiptIpn As String
+Private m_PendingMovementReceiptSectionType As String
+Private m_PendingMovementReceiptOrderNo As String
 Private m_IsLookupEnabled As Boolean
 Private m_IsMovementValidationEnabled As Boolean
 Private m_IsWordValidationEnabled As Boolean
@@ -222,6 +228,10 @@ Public Sub Dispose()
     m_IsDisposed = True
 
     On Error Resume Next
+    ' Select хранит selectedId в CustomXMLPart и переживает удаление листа.
+    ' Dispose страницы должен явно убрать это состояние, иначе после Clear Pages
+    ' новая PEB-страница снова откроется на прежней дополнительной секции.
+    private_ClearAdditionalProfilePersistedState
     If Not m_LookupFeature Is Nothing Then m_LookupFeature.Dispose
     Set m_LookupFeature = Nothing
     Set m_Page = Nothing
@@ -248,6 +258,34 @@ Public Sub Dispose()
     m_DraftReportIsTvo = False
     m_ReportOwnPositionCode = VBA.vbNullString
     On Error GoTo 0
+End Sub
+
+Private Sub private_ClearAdditionalProfilePersistedState()
+    Dim pageBase As obj_PageBase
+    Dim selectState As obj_SelectControlVMStatic
+    Dim selectKey As String
+
+    On Error GoTo EH
+
+    If m_Page Is Nothing Then Exit Sub
+    Set pageBase = m_Page.GetPageBase()
+    If pageBase Is Nothing Then Exit Sub
+    If pageBase.Worksheet Is Nothing Then Exit Sub
+
+    selectKey = VBA.LCase$(pageBase.Worksheet.Name & "|" & _
+        ADDITIONAL_PROFILE_SELECT_CONTROL_NAME)
+    Set selectState = New obj_SelectControlVMStatic
+    If Not selectState.SetSelectedId(selectKey, VBA.vbNullString) Then
+        ex_Core.fn_Diagnostic_LogError _
+            "PrsnlEventBuilder: failed to clear persisted additional profile " & _
+            "selection for key '" & selectKey & "'."
+    End If
+    Exit Sub
+
+EH:
+    ex_Core.fn_Diagnostic_LogError _
+        "PrsnlEventBuilder: exception while clearing persisted additional " & _
+        "profile selection: [" & VBA.CStr(Err.Number) & "] " & Err.Description
 End Sub
 
 Public Property Get WordExportPreviewText() As String
@@ -604,7 +642,9 @@ Private Function private_AppendFioDependentAliases( _
              private_NormalizeText(m_Data.SectionTypeTransferAnnualVacationToFamilyVacation), _
              private_NormalizeText(m_Data.SectionTypeTransferFamilyVacationToAnnualVacation), _
              private_NormalizeText(m_Data.SectionTypeTransferTreatmentVacationToTreatment), _
-             private_NormalizeText(m_Data.SectionTypeTransferTreatmentVacationToVlk)
+             private_NormalizeText(m_Data.SectionTypeTransferTreatmentVacationToVlk), _
+             private_NormalizeText(m_Data.SectionTypeTransferAnnualVacationToVlk), _
+             private_NormalizeText(m_Data.SectionTypeTransferFamilyVacationToVlk)
             private_AddStandardFioDependentAliases dependentAliases
 
         Case private_NormalizeText(m_Data.SectionTypeTransferAmbulatoryVlkToTreatment), _
@@ -665,7 +705,9 @@ Private Function private_AppendCommanderDependentAliases( _
              private_NormalizeText(m_Data.SectionTypeTransferAnnualVacationToFamilyVacation), _
              private_NormalizeText(m_Data.SectionTypeTransferFamilyVacationToAnnualVacation), _
              private_NormalizeText(m_Data.SectionTypeTransferTreatmentVacationToTreatment), _
-             private_NormalizeText(m_Data.SectionTypeTransferTreatmentVacationToVlk)
+             private_NormalizeText(m_Data.SectionTypeTransferTreatmentVacationToVlk), _
+             private_NormalizeText(m_Data.SectionTypeTransferAnnualVacationToVlk), _
+             private_NormalizeText(m_Data.SectionTypeTransferFamilyVacationToVlk)
             private_AddStandardCommanderDependentAliases dependentAliases
 
         Case private_NormalizeText(m_Data.SectionTypeTransferAmbulatoryVlkToTreatment), _
@@ -944,7 +986,10 @@ End Function
 Private Function private_TryExportMovementAndWord() As Boolean
     ' Единая команда экспортирует Movement, затем сразу пишет результат в WORD.
     ' Preview-команда CTRL+3 в эту последовательность больше не входит.
-    If Not private_TryExportDraftByAction(private_BuildExportActionId("Movement")) Then Exit Function
+    ' Связь двух действий реализована на уровне экспортов Movement/WORD, поэтому
+    ' тот же контракт работает и при их раздельном запуске через CTRL+2/CTRL+4.
+    If Not private_TryExportDraftByAction( _
+        private_BuildExportActionId("Movement")) Then Exit Function
     If Not private_TryExportWordToDocument() Then Exit Function
 
     private_TryExportMovementAndWord = True
@@ -1310,6 +1355,7 @@ Private Function private_TryExportWordToDocument() As Boolean
         Exit Function
     End If
     If Not private_TryBuildExportSourceTables(sourceTables, exportContext) Then Exit Function
+    private_ApplyPendingMovementReceipt sourceTables, exportContext
     If m_IsWordPreviewExportMode Then
         If Not private_TryReadRenderedWordPreview(editedPreviewText) Then Exit Function
     End If
@@ -1321,6 +1367,7 @@ Private Function private_TryExportWordToDocument() As Boolean
     exportContext("WriteToWord") = True
     If Not private_TryCreateDataExporter(exporterClassName, exportConfigTable, exporter) Then Exit Function
     If Not exporter.Export(sourceTables, exportContext) Then Exit Function
+    private_ClearPendingMovementReceipt
     ' CTRL+4/button exports the already prepared logical result to WORD.
     ' Do not capture the preview here: that path calls RenderPage and a WORD
     ' write does not change any visible state on the Excel page.
@@ -1718,6 +1765,8 @@ Private Function private_ShouldExtendAbsenceCandidates() As Boolean
              private_NormalizeText(m_Data.SectionTypeTransferAnnualVacationToFamilyVacation), _
              private_NormalizeText(m_Data.SectionTypeTransferFamilyVacationToAnnualVacation), _
              private_NormalizeText(m_Data.SectionTypeTransferTreatmentVacationToVlk), _
+             private_NormalizeText(m_Data.SectionTypeTransferAnnualVacationToVlk), _
+             private_NormalizeText(m_Data.SectionTypeTransferFamilyVacationToVlk), _
              private_NormalizeText(m_Data.SectionTypeTransferAmbulatoryVlkToTreatmentVacation), _
              private_NormalizeText(m_Data.SectionTypeTransferStationaryVlkToTreatmentVacation), _
              private_NormalizeText(m_Data.SectionTypeTransferMedicalCompanyToTreatmentVacation), _
@@ -2439,6 +2488,7 @@ Private Function private_TryExportDraftByAction(ByVal actionId As String) As Boo
     Dim exportAlias As String
     Dim exporterClassName As String
     Dim exportConfigTable As obj_ConfigTable
+    Dim isMovementExport As Boolean
 
     On Error GoTo EH
 
@@ -2466,7 +2516,25 @@ Private Function private_TryExportDraftByAction(ByVal actionId As String) As Boo
     ex_Core.fn_Diagnostic_LogInfo "prsnlevntbuilder:export-action:exporter-ready type='" & private_EscapeForLog(VBA.TypeName(exporter)) & "'"
 #End If
 
+    isMovementExport = _
+        (VBA.StrComp(exportAlias, "Movement", VBA.vbTextCompare) = 0)
+    If isMovementExport Then
+        private_ClearPendingMovementReceipt
+    ElseIf VBA.StrComp(exportAlias, "Word", VBA.vbTextCompare) = 0 Then
+        private_ApplyPendingMovementReceipt sourceTables, exportContext
+    End If
+
     If Not exporter.Export(sourceTables, exportContext) Then Exit Function
+    If isMovementExport Then
+        If Not private_TryCaptureMovementReceipt( _
+            sourceTables, exportContext) Then
+            VBA.MsgBox "Movement export completed, but its validation receipt " & _
+                "could not be created for the subsequent WORD export." & _
+                VBA.vbCrLf & "WORD will use standalone Movement validation.", _
+                VBA.vbExclamation, "PrototypeNew / Movement export"
+            Exit Function
+        End If
+    End If
 #If LOGGING_DEBUG_ENABLED Then
     ex_Core.fn_Diagnostic_LogInfo "prsnlevntbuilder:export-action:exporter-done alias='" & private_EscapeForLog(exportAlias) & "'"
 #End If
@@ -2548,6 +2616,7 @@ End Function
 Private Sub private_ResetExportSettings()
     ' Exporters own profile-backed lookup providers; keep them warm between
     ' exports and invalidate them only when configuration is rebuilt.
+    private_ClearPendingMovementReceipt
     private_DisposeCachedExporters
     If Not m_ExporterCfgDataProvider Is Nothing Then m_ExporterCfgDataProvider.Dispose
     Set m_ExporterCfgDataProvider = Nothing
@@ -2556,6 +2625,97 @@ Private Sub private_ResetExportSettings()
     Set m_ExportConfigTableByAlias = ex_Helpers.fn_CreateDictionaryTextCompare()
     Set m_ProfileConfigTable = Nothing
     Set m_SourceColumnAliasByCaption = ex_Helpers.fn_CreateDictionaryTextCompare()
+End Sub
+
+Private Sub private_ClearPendingMovementReceipt()
+    m_HasPendingMovementReceipt = False
+    m_PendingMovementReceiptIpn = VBA.vbNullString
+    m_PendingMovementReceiptSectionType = VBA.vbNullString
+    m_PendingMovementReceiptOrderNo = VBA.vbNullString
+End Sub
+
+Private Function private_TryCaptureMovementReceipt( _
+    ByVal sourceTables As Collection, _
+    ByVal exportContext As Object _
+) As Boolean
+    Dim sourceTable As obj_TableDynamic
+    Dim sourceRow As obj_Row
+    Dim ipnText As String
+    Dim sectionTypeText As String
+    Dim orderNoText As String
+
+    If sourceTables Is Nothing Then Exit Function
+    If sourceTables.Count <= 0 Then Exit Function
+    Set sourceTable = sourceTables.Item(1)
+    If sourceTable Is Nothing Then Exit Function
+    If sourceTable.RowCount <= 0 Then Exit Function
+    Set sourceRow = sourceTable.Rows.Item(1)
+    If sourceRow Is Nothing Then Exit Function
+    If Not sourceRow.TryGetCellValueByColumn( _
+        EXPORT_SOURCE_IPN_COLUMN, ipnText) Then Exit Function
+    If exportContext Is Nothing Then Exit Function
+    If Not exportContext.Exists(EXPORT_CONTEXT_SECTION_TYPE_KEY) Then Exit Function
+    sectionTypeText = VBA.CStr( _
+        exportContext(EXPORT_CONTEXT_SECTION_TYPE_KEY))
+    If Not exportContext.Exists(EXPORT_CONTEXT_MANUAL_ORDER_NO_KEY) Then Exit Function
+    orderNoText = VBA.CStr( _
+        exportContext(EXPORT_CONTEXT_MANUAL_ORDER_NO_KEY))
+
+    ipnText = private_NormalizeText(ipnText)
+    sectionTypeText = private_NormalizeText(sectionTypeText)
+    orderNoText = private_NormalizeText(orderNoText)
+    If VBA.Len(ipnText) = 0 Or VBA.Len(sectionTypeText) = 0 Or _
+        VBA.Len(orderNoText) = 0 Then Exit Function
+
+    m_PendingMovementReceiptIpn = ipnText
+    m_PendingMovementReceiptSectionType = sectionTypeText
+    m_PendingMovementReceiptOrderNo = orderNoText
+    m_HasPendingMovementReceipt = True
+    private_TryCaptureMovementReceipt = True
+End Function
+
+Private Sub private_ApplyPendingMovementReceipt( _
+    ByVal sourceTables As Collection, _
+    ByVal exportContext As Object _
+)
+    Dim sourceTable As obj_TableDynamic
+    Dim sourceRow As obj_Row
+    Dim ipnText As String
+    Dim sectionTypeText As String
+    Dim orderNoText As String
+
+    If Not m_HasPendingMovementReceipt Then Exit Sub
+    If sourceTables Is Nothing Then Exit Sub
+    If sourceTables.Count <= 0 Then Exit Sub
+    Set sourceTable = sourceTables.Item(1)
+    If sourceTable Is Nothing Then Exit Sub
+    If sourceTable.RowCount <= 0 Then Exit Sub
+    Set sourceRow = sourceTable.Rows.Item(1)
+    If sourceRow Is Nothing Then Exit Sub
+    If Not sourceRow.TryGetCellValueByColumn( _
+        EXPORT_SOURCE_IPN_COLUMN, ipnText) Then Exit Sub
+    If exportContext Is Nothing Then Exit Sub
+    If Not exportContext.Exists(EXPORT_CONTEXT_SECTION_TYPE_KEY) Then Exit Sub
+    sectionTypeText = VBA.CStr( _
+        exportContext(EXPORT_CONTEXT_SECTION_TYPE_KEY))
+    If Not exportContext.Exists(EXPORT_CONTEXT_MANUAL_ORDER_NO_KEY) Then Exit Sub
+    orderNoText = VBA.CStr( _
+        exportContext(EXPORT_CONTEXT_MANUAL_ORDER_NO_KEY))
+
+    If VBA.StrComp( _
+        private_NormalizeText(ipnText), _
+        m_PendingMovementReceiptIpn, _
+        VBA.vbTextCompare) <> 0 Then Exit Sub
+    If VBA.StrComp( _
+        private_NormalizeText(sectionTypeText), _
+        m_PendingMovementReceiptSectionType, _
+        VBA.vbTextCompare) <> 0 Then Exit Sub
+    If VBA.StrComp( _
+        private_NormalizeText(orderNoText), _
+        m_PendingMovementReceiptOrderNo, _
+        VBA.vbTextCompare) <> 0 Then Exit Sub
+
+    exportContext(EXPORT_CONTEXT_MOVEMENT_PREVALIDATED_KEY) = True
 End Sub
 
 Private Sub private_DisposeCachedExporters()

@@ -5,13 +5,13 @@
 
     <item attr="#" key="Movement source" value=""/>
     <item key="Source.Movement.FilePath" value="C:\Users\SVI\Desktop\РУХ_last.xlsx"/>
-    <item key="Movement.Sheet[Absent].SheetName" value="Відсутні$B6:V20000"/>
+    <item key="Movement.Sheet[Absent].SheetName" value="Відсутні$B6:Y20000"/>
     <item key="Movement.Sheet[Absent].ColumnHeadersAliases" value="FIO; Event; OutOrder; OutDate; PlannedReturnDate; ReturnDate"/>
     <item key="Movement.Sheet[Absent].Map[FIO]" value="ПІБ"/>
     <item key="Movement.Sheet[Absent].Map[Event]" value="Подія"/>
-    <item key="Movement.Sheet[Absent].Map[OutOrder]" value="Наказ вибуття"/>
+    <item key="Movement.Sheet[Absent].Map[OutOrder]" value="Вибуття.Наказ"/>
     <item key="Movement.Sheet[Absent].Map[OutDate]" value="Вибуття"/>
-    <item key="Movement.Sheet[Absent].Map[PlannedReturnDate]" value="Планове прибуття"/>
+    <item key="Movement.Sheet[Absent].Map[PlannedReturnDate]" value="Прибуття.План"/>
     <item key="Movement.Sheet[Absent].Map[ReturnDate]" value="Прибуття"/>
 
     <item attr="#" key="ЄЖОС_last source" value=""/>
