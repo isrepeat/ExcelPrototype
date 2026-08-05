@@ -197,6 +197,14 @@
       </text>
     </sharedTemplate>
 
+    <sharedTemplate id="block.OptionalBusinessTripCertificate">
+      <text>
+        <![CDATA[#^
+#_        {#if [VacationTicketNo] #or [VacationTicketDateShort]}; посвідчення про відрядження{#if [VacationTicketNo]} № {[VacationTicketNo]}{#endif}{#if [VacationTicketDateShort]} від {[VacationTicketDateShort]}{#endif}{#endif}#^
+        ]]>
+      </text>
+    </sharedTemplate>
+
     <sharedTemplate id="block.OptionalPreviousVacationTicket">
       <text>
         <![CDATA[#^
@@ -209,6 +217,35 @@
 
 
 
+  <template id="FromBusinessTrip"
+    groupBy="EffectiveReturnDateShort; Destination"
+    groupOrder="date; none">
+    <groupHeader by="EffectiveReturnDateShort">
+      <![CDATA[#^
+#_      З {[EffectiveReturnDateShort]|dateformat:"\dd \month \yyyy року"}:#^
+#_      {#newline}{#newline}#^
+      ]]>
+    </groupHeader>
+    <groupHeader by="Destination">
+      <![CDATA[#^
+#_      З {[Destination]}:#^
+#_      {#newline}{#newline}#^
+      ]]>
+    </groupHeader>
+    <text>
+      <![CDATA[#^
+#_      {#include block.PersonLineLower}.#^
+#_      {#newline}#^
+#_      {#include block.ReturnToDuty}#^
+#_      {#include block.EnrollToFoodSupport}#^
+#_      {#newline}#^
+#_      {#include block.IncomingBasis}#^
+#_      {#include block.OptionalBasisDocuments}#^
+#_      {#include block.OptionalBusinessTripCertificate}#^
+#_      .{#newline}{#newline}#^
+      ]]>
+    </text>
+  </template>
 
   <template id="FromHospital"
     groupBy="EffectiveReturnDateShort; HospitalShort"
@@ -313,20 +350,6 @@
 #_      {#newline}#^
 #_      {#include block.IncomingBasis}#^
 #_      {#include block.OptionalVlkCertificate}#^
-#_      .{#newline}{#newline}#^
-      ]]>
-    </text>
-  </template>
-
-  <template id="FromBusinessTrip">
-    <text>
-      <![CDATA[#^
-#_      {#include block.PersonLineUpper}.#^
-#_      {#newline}#^
-#_      {#include block.ReturnToDuty}#^
-#_      {#include block.EnrollToFoodSupport}#^
-#_      {#newline}#^
-#_      {#include block.IncomingBasis}#^
 #_      .{#newline}{#newline}#^
       ]]>
     </text>

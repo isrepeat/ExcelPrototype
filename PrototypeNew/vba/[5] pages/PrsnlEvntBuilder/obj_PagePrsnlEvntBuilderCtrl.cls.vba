@@ -573,7 +573,6 @@ Private Function private_AppendFioDependentAliases( _
         ' конкретного события набор изменится, его следует вынести в отдельный Case.
         Case private_NormalizeText(m_Data.SectionTypeCloseFromTreatment), _
              private_NormalizeText(m_Data.SectionTypeCloseFromAmbulatoryVlk), _
-             private_NormalizeText(m_Data.SectionTypeCloseFromBusinessTrip), _
              private_NormalizeText(m_Data.SectionTypeCloseFromStationaryVlk)
             private_AddStandardFioDependentAliases dependentAliases
 
@@ -585,6 +584,9 @@ Private Function private_AppendFioDependentAliases( _
              private_NormalizeText(m_Data.SectionTypeCloseFromTreatmentVacation), _
              private_NormalizeText(m_Data.SectionTypeCloseFromFamilyVacation)
             private_AddCloseVacationFioDependentAliases dependentAliases
+
+        Case private_NormalizeText(m_Data.SectionTypeCloseFromBusinessTrip)
+            private_AddCloseBusinessTripFioDependentAliases dependentAliases
 
         Case private_NormalizeText(m_Data.SectionTypeToAnnualVacationPart), _
              private_NormalizeText(m_Data.SectionTypeToFamilyVacation), _
@@ -712,6 +714,13 @@ Private Sub private_AddCloseVacationFioDependentAliases(ByVal dependentAliases A
     private_AddStandardFioDependentAliases dependentAliases
     dependentAliases(DRAFT_ALIAS_VACATION_TICKET_NO) = True
     dependentAliases(DRAFT_ALIAS_VACATION_TICKET_DATE) = True
+End Sub
+
+Private Sub private_AddCloseBusinessTripFioDependentAliases( _
+    ByVal dependentAliases As Object _
+)
+    private_AddCloseVacationFioDependentAliases dependentAliases
+    dependentAliases(DRAFT_ALIAS_DESTINATION) = True
 End Sub
 
 Private Sub private_AddToTreatmentVacationFioDependentAliases(ByVal dependentAliases As Object)

@@ -275,6 +275,7 @@
             type="Label"
             name="DestinationHeader"
             tags="profile.allFields;
+                  profile.closeBusinessTrip;
                   profile.toBusinessTrip;
                   profile.toBusinessTripSzch;
                   profile.toAnnualVacationPart;
@@ -345,6 +346,7 @@
             type="Label"
             name="ReportRankHeader"
             tags="profile.allFields;
+                  profile.closeBusinessTrip;
                   profile.toBusinessTrip;
                   profile.toBusinessTripSzch;
                   profile.closeTreatment;
@@ -368,6 +370,7 @@
             type="Label"
             name="ReportPersonHeader"
             tags="profile.allFields;
+                  profile.closeBusinessTrip;
                   profile.toBusinessTrip;
                   profile.toBusinessTripSzch;
                   profile.closeTreatment;
@@ -391,6 +394,7 @@
             type="Label"
             name="ReportPositionCodeHeader"
             tags="profile.allFields;
+                  profile.closeBusinessTrip;
                   profile.toBusinessTrip;
                   profile.toBusinessTripSzch;
                   profile.closeTreatment;
@@ -530,6 +534,7 @@
             type="Label"
             name="VacationTicketNoHeader"
             tags="profile.allFields;
+                  profile.closeBusinessTrip;
                   profile.toBusinessTrip;
                   profile.toBusinessTripSzch;
                   profile.closeTreatmentVacation;
@@ -548,6 +553,7 @@
             type="Label"
             name="VacationTicketDateHeader"
             tags="profile.allFields;
+                  profile.closeBusinessTrip;
                   profile.toBusinessTrip;
                   profile.toBusinessTripSzch;
                   profile.closeTreatmentVacation;
@@ -635,6 +641,7 @@
             name="DestinationDraftCell"
             tags="_Destination;
                   profile.allFields;
+                  profile.closeBusinessTrip;
                   profile.toBusinessTrip;
                   profile.toBusinessTripSzch;
                   profile.toAnnualVacationPart;
@@ -720,6 +727,7 @@
             name="ReportRankDraftCell"
             tags="_ReportRank;
                   profile.allFields;
+                  profile.closeBusinessTrip;
                   profile.toBusinessTrip;
                   profile.toBusinessTripSzch;
                   profile.closeTreatment;
@@ -745,6 +753,7 @@
             name="CommanderLookupInput"
             tags="_ReportPerson;
                   profile.allFields;
+                  profile.closeBusinessTrip;
                   profile.toBusinessTrip;
                   profile.toBusinessTripSzch;
                   profile.closeTreatment;
@@ -773,6 +782,7 @@
             name="ReportPositionCodeDraftCell"
             tags="_ReportPositionCode;
                   profile.allFields;
+                  profile.closeBusinessTrip;
                   profile.toBusinessTrip;
                   profile.toBusinessTripSzch;
                   profile.closeTreatment;
@@ -932,6 +942,7 @@
             name="VacationTicketNoDraftCell"
             tags="_VacationTicketNo;
                   profile.allFields;
+                  profile.closeBusinessTrip;
                   profile.toBusinessTrip;
                   profile.toBusinessTripSzch;
                   profile.closeTreatmentVacation;
@@ -952,6 +963,7 @@
             name="VacationTicketDateDraftCell"
             tags="_VacationTicketDate;
                   profile.allFields;
+                  profile.closeBusinessTrip;
                   profile.toBusinessTrip;
                   profile.toBusinessTripSzch;
                   profile.closeTreatmentVacation;
