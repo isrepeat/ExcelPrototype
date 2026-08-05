@@ -17,6 +17,9 @@ Private Sub Workbook_Open()
 #End If
 
     If Not m_ResetWorkbookAndCreateMainPage("ThisWorkbook.Workbook_Open:main-create") Then Exit Sub
+    ' При cold start Main уже может быть активным и SheetActivate повторно не
+    ' сработает, поэтому начальное состояние runtime-фильтра задаём явно.
+    Call ex_Core.fn_Diagnostic_ApplyLoggingPagePolicy("Main")
 
     Exit Sub
 EH:
